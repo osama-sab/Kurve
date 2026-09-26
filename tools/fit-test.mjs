@@ -17,7 +17,7 @@ const shims = `const mean=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:null;
 const fmt=v=>String(v); const P=()=>null; const colById=()=>null; const derivedTable=()=>({x:[],byId:{}});
 const medianStep=xs=>{const d=[];for(let i=1;i<xs.length;i++){const g=Math.abs(xs[i]-xs[i-1]);if(g>0)d.push(g);} d.sort((a,b)=>a-b); return d.length?d[d.length>>1]:1;};`;
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${shims}\n${grab("COLMATH")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,seedPeak,FWHM_SIG,interpOnto,trapz,NORMS};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,NORMS};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -295,6 +295,56 @@ function fitSpec(X, Y, spec, init, opts) {
   for (let i = 0; i < 41; i++) { const x = 180 - i * 2; p2x.push(x); p2.push(4 * x * x); }
   check("deriv: 2nd derivative unaffected by direction", near(N.sgApply(p2, 9, 2, 2, step(p2x))[20], 8, 1e-8),
     N.sgApply(p2, 9, 2, 2, step(p2x))[20]);
+}
+
+/* ---------- peak picking: spikes, prominence, seeding on overlaps ---------- */
+{
+  // A cosmic-ray spike is one point tall: nothing constrains its width, so the
+  // picker sets it aside, and says which one, rather than handing it to the fitter.
+  const { X, Y } = synth([["lorentz", [520, 2400 * Math.PI * 4.1 / 2, 4.1]]], () => 120, 490, 550, 81, 20, 5);
+  Y[18] += 420;
+  const plain = N.findPeaks(X, Y, { method: "max", minHeightPct: 5 });
+  const guarded = N.findPeaks(X, Y, { method: "max", minHeightPct: 5, minPts: 2 });
+  check("spike: without the guard it is taken for a peak", plain.some(p => Math.abs(p.x - X[18]) < 1e-9), plain.map(p => p.x));
+  check("spike: with minPts 2 only the real band remains", guarded.length === 1 && near(guarded[0].x, 520, 1), guarded.map(p => p.x));
+  check("spike: and it is reported", guarded.rejected.length === 1 && Math.abs(guarded.rejected[0].x - X[18]) < 1e-9, guarded.rejected);
+}
+{
+  // Noise wiggles on the flank of a strong band are local maxima well above the
+  // floor. Prominence against the noise drops them and keeps a small real band.
+  const { X, Y } = synth([["lorentz", [1741, 12, 15]], ["gauss", [1603, 2, 11]], ["gauss", [1578, 0.8, 9]]], () => 0.04, 1550, 1800, 201, 0.03, 9);
+  const all = N.findPeaks(X, Y, { method: "max", minHeightPct: 2 });
+  const prom = N.findPeaks(X, Y, { method: "max", minHeightPct: 2, prominence: "auto" });
+  check("prominence: height alone lets noise through", all.length > 3, all.map(p => p.x));
+  check("prominence: finds exactly the three bands", prom.length === 3 && [1578, 1603, 1741].every((c, i) => near(prom[i].x, c, 3)), prom.map(p => p.x));
+  check("prominence: never applied to the 2nd-derivative search",
+    N.findPeaks(X, Y, { method: "deriv2", prominence: "auto" }).length === N.findPeaks(X, Y, { method: "deriv2" }).length);
+}
+{
+  // Width seeds on overlapping bands: the side facing the neighbour never
+  // falls to half height, so the width must come from the other side.
+  const { X, Y } = synth([["gauss", [1741, 8, 15]], ["gauss", [1718, 5, 19]]], () => 0, 1650, 1800, 241, 0, 1);
+  const i = Y.indexOf(Math.max(...Y));
+  const s = N.seedPeak(X, Y, i, 0);
+  check("seed: overlapped band's width within 20% of the truth", near(s.w, 15, 3), s.w);
+  check("seed: reports the height it measured", near(s.h, Y[i], 1e-12), s.h);
+  const iso = synth([["gauss", [500, 900, 20]]], () => 10, 300, 700, 401, 0, 1);
+  const k = iso.Y.indexOf(Math.max(...iso.Y));
+  check("seed: an isolated band's width is exact to a point spacing", near(N.seedPeak(iso.X, iso.Y, k, 10).w, 20, 1), N.seedPeak(iso.X, iso.Y, k, 10).w);
+}
+{
+  // A seeded height is kept exactly for every shape, whatever its area/height ratio.
+  for (const [type, pv] of [["gauss", [0, 1, 10]], ["lorentz", [0, 1, 10]], ["psdvoigt", [0, 1, 10, 0.3]], ["psdvoigt2", [0, 1, 8, 6, 0.4]], ["pearson7", [0, 1, 10, 2]]]) {
+    const def = N.PEAKS[type], q = pv.slice(); q[1] = N.peakAreaForHeight(def, pv, 3.7);
+    check(`area for height: ${type}`, rel(def.height(q), 3.7, 1e-12), def.height(q));
+  }
+}
+{
+  // Noise from second differences, with a strong peak in the data.
+  let s = 17; const rnd = () => { s = (s * 1103515245 + 12345) % 2147483648; return s / 2147483648; };
+  const Y = []; for (let i = 0; i < 2000; i++) { let u = 0; while (!u) u = rnd(); const v = rnd();
+    Y.push(50 * Math.exp(-(((i - 1000) / 80) ** 2)) + 0.3 * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)); }
+  check("noise: sigma estimated within 15%", near(N.noiseSigma(Y), 0.3, 0.045), N.noiseSigma(Y));
 }
 
 /* ---------- p-values against known values ---------- */
