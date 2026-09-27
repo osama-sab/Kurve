@@ -6,18 +6,16 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const html = readFileSync(join(here, "..", "kurve.html"), "utf8");
+const html = readFileSync(process.argv[2] || join(here, "..", "kurve.html"), "utf8");
 const grab = (tag) => {
   const m = html.match(new RegExp(`==${tag}:START==[\\s\\S]*?\\*\\/([\\s\\S]*?)\\/\\* ==${tag}:END==`));
   if (!m) { console.error(`Could not find the ${tag} block`); process.exit(1); }
   return m[1];
 };
-// COLMATH needs a couple of helpers the app defines elsewhere.
-const shims = `const mean=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:null;
-const fmt=v=>String(v); const P=()=>null; const colById=()=>null; const derivedTable=()=>({x:[],byId:{}});
-const medianStep=xs=>{const d=[];for(let i=1;i<xs.length;i++){const g=Math.abs(xs[i]-xs[i-1]);if(g>0)d.push(g);} d.sort((a,b)=>a-b); return d.length?d[d.length>>1]:1;};`;
-const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${shims}\n${grab("COLMATH")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,NORMS};`;
+// Interpolation, integration and normalizing live in the pipeline block now;
+// tools/pipe-test.mjs tests the rest of it.
+const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n` +
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -234,12 +232,14 @@ function fitSpec(X, Y, spec, init, opts) {
   check("interp: gaps ignored", near(N.interpOnto([0, 1, null, 3], [0, 10, 99, 30], [2])[0], 20, 1e-12));
 }
 {
-  const v = [1, 2, 3, 4, 5];
-  check("norm: divide by max", N.NORMS.max.run(v.slice()).every((q, i) => near(q, v[i] / 5, 1e-12)));
-  check("norm: scale to 0..1", (() => { const o = N.NORMS.minmax.run(v.slice()); return near(o[0], 0, 1e-12) && near(o[4], 1, 1e-12); })());
-  check("norm: z-score has zero mean", (() => { const o = N.NORMS.zscore.run(v.slice()); return near(o.reduce((a, b) => a + b, 0), 0, 1e-12); })());
-  check("norm: divide by area", (() => { const x = [0, 1, 2], y = [0, 2, 0]; const o = N.NORMS.area.run(y.slice(), x); return near(N.trapz(x, o), 1, 1e-12); })());
-  check("norm: constant column survives", N.NORMS.minmax.run([3, 3, 3]).every(q => q === 3));
+  const v = [1, 2, 3, 4, 5], ser = y => ({ x: y.map((_, i) => i), y, e: null, idx: y.map((_, i) => i) });
+  const norm = (y, mode) => N.PIPE_OPS.norm.run(ser(y), { mode, how: "height" }).d.y;
+  check("norm: divide by max", norm(v, "max").every((q, i) => near(q, v[i] / 5, 1e-12)));
+  check("norm: scale to 0..1", (() => { const o = norm(v, "minmax"); return near(o[0], 0, 1e-12) && near(o[4], 1, 1e-12); })());
+  check("norm: SNV has zero mean", (() => { const o = norm(v, "snv"); return near(o.reduce((a, b) => a + b, 0), 0, 1e-12); })());
+  check("norm: divide by area", (() => { const o = norm([0, 2, 0], "area"); return near(N.trapz([0, 1, 2], o), 1, 1e-12); })());
+  // A constant cannot be scaled to 0..1: the step says so and passes the data on.
+  check("norm: a constant spectrum is refused, not divided by zero", (() => { const r = N.runPipe(ser([3, 3, 3]), [{ op: "norm", on: true, p: { mode: "minmax" } }], {}); return !!r.stages[1].err && r.out.y.every(q => q === 3); })());
 }
 
 /* ---------- a singular fit must say so, and survive being saved ---------- */
