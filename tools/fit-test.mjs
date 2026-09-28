@@ -15,7 +15,7 @@ const grab = (tag) => {
 // Interpolation, integration and normalizing live in the pipeline block now;
 // tools/pipe-test.mjs tests the rest of it.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -347,6 +347,44 @@ function fitSpec(X, Y, spec, init, opts) {
   check("noise: sigma estimated within 15%", near(N.noiseSigma(Y), 0.3, 0.045), N.noiseSigma(Y));
 }
 
+/* ---------- the peak finder: thresholds, log scale, reasons ---------- */
+{
+  // A band three decades below the main one, standing ten times the noise.
+  // A threshold as a percentage of the largest peak can never see it; one
+  // against the noise, one in decades, or a search on a log scale can.
+  const { X, Y } = synth([["gauss", [300, 1000 * 20 * 1.0645, 20]], ["gauss", [700, 1 * 15 * 1.0645, 15]]], () => 2, 0, 999, 1000, 0.35, 11);
+  const at = (r, c) => r.found.some(p => near(p.x, c, 3));
+  const old = N.findPeaks(X, Y, { method: "max", minPts: 2, prominence: "auto" });
+  check("small band: the old 5% floor misses it", old.length === 1 && near(old[0].x, 300, 3), old.map(p => p.x));
+  const snr = N.peakSearch(X, Y, {});
+  check("small band: found by signal to noise, with the main one", snr.found.length === 2 && at(snr, 300) && at(snr, 700), snr.found.map(p => p.x));
+  const pct = N.peakSearch(X, Y, { thr: { mode: "pct", v: 5 } });
+  const why = pct.rejected.find(p => near(p.x, 700, 3));
+  check("small band: 5% of the largest turns it down, and says why", !at(pct, 700) && why && /% of the largest/.test(why.why), why && why.why);
+  check("small band: 2 decades turn it down, 4 keep it", !at(N.peakSearch(X, Y, { thr: { mode: "decades", v: 2 } }), 700) && at(N.peakSearch(X, Y, { thr: { mode: "decades", v: 4 } }), 700));
+  const lg = N.peakSearch(X, Y, { log: true });
+  check("small band: found on a log scale too", at(lg, 300) && at(lg, 700), lg.found.map(p => p.x));
+  const sm = snr.found.find(p => near(p.x, 700, 3));
+  check("small band: its FWHM and height are measured", sm && near(sm.w, 15, 3) && near(sm.h, 1, 0.3), sm && [sm.w, sm.h]);
+  const noise = synth([], () => 0, 0, 999, 1000, 1, 5);
+  check("pure noise: nothing found", N.peakSearch(noise.X, noise.Y, {}).found.length === 0, N.peakSearch(noise.X, noise.Y, {}).found.map(p => p.x));
+  const Ys = Y.slice(); Ys[500] += 40;
+  const sp = N.peakSearch(X, Ys, {});
+  check("spike: set aside with its reason", !at(sp, 500) && sp.rejected.some(p => p.code === "spike" && near(p.x, 500, 1)), sp.rejected.filter(p => p.code === "spike").map(p => p.x));
+  check("every candidate turned down has a reason", [snr, pct, sp].every(r => r.rejected.every(p => typeof p.why === "string" && p.why.length > 5)));
+  const mx = N.peakSearch(X, Y, { max: 1 });
+  check("at most one: the weaker is turned down as beyond the count", mx.found.length === 1 && at(mx, 300) && mx.rejected.some(p => p.code === "max" && near(p.x, 700, 3)));
+}
+{
+  const { X, Y } = synth([["gauss", [300, 100 * 40 * 1.0645, 40]], ["gauss", [345, 40 * 30 * 1.0645, 30]]], () => 0, 0, 599, 600, 0.4, 3);
+  const d2 = N.peakSearch(X, Y, { method: "deriv2" });
+  check("second derivative: both bands of a shoulder, once each", d2.found.length === 2 && near(d2.found[0].x, 300, 8) && near(d2.found[1].x, 345, 8), d2.found.map(p => p.x));
+  const w = N.peakSearch(X, Y, { method: "window" }), d1 = N.peakSearch(X, Y, { method: "deriv1" });
+  check("window and first-derivative searches find the main band", w.found.some(p => near(p.x, 300, 5)) && d1.found.some(p => near(p.x, 300, 5)));
+  const dip = synth([["gauss", [500, -40 * 30 * 1.0645, 30]]], () => 100, 0, 999, 1000, 0.3, 4);
+  const neg = N.peakSearch(dip.X, dip.Y, { direction: "negative" });
+  check("dips found when peaks point down", neg.found.length === 1 && near(neg.found[0].x, 500, 3), neg.found.map(p => p.x));
+}
 /* ---------- p-values against known values ---------- */
 check("tPvalue: t=2.228, dof=10 is ~0.05", near(N.tPvalue(2.228, 10), 0.05, 5e-4), N.tPvalue(2.228, 10));
 check("tPvalue: t=0 is 1", near(N.tPvalue(0, 10), 1, 1e-12), N.tPvalue(0, 10));

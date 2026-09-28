@@ -17,7 +17,7 @@ const grab = (tag) => {
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n` +
   `return {PIPE_OPS,runPipe,orderWarnings,stepParams,whittaker,alsBaseline,arplsBaseline,airplsBaseline,modpolyBaseline,imodpolyBaseline,
     snipBaseline,rollingBaseline,splineThrough,autoAnchors,despikeY,detectBands,bandWidthPts,suggestLam,sha256,rawText,hash32,decimate,
-    interpOnto,trapz,spacing,noiseSigma};`;
+    interpOnto,trapz,spacing,noiseSigma,fftFilter,serSig,stepPKey};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -220,6 +220,67 @@ console.log("Normalize and maths");
   check("Kubelka–Munk of 50% reflectance is 0.25", near(km.d.y[0], 0.25, 1e-12));
 }
 
+/* ---------- averaging, integrals, Fourier filtering, Python steps ---------- */
+console.log("Average, integral, FFT, Python");
+{
+  const r = rng(21), x = Array.from({ length: 400 }, (_, i) => i), clean = x.map(v => 50 * Math.exp(-0.5 * ((v - 200) / 12) ** 2));
+  const scans = [0, 1, 2, 3].map(() => clean.map(v => v + gauss(r)));
+  const refs = { a: { x, y: scans[1] }, b: { x, y: scans[2] }, c: { x, y: scans[3] } };
+  const ctx = { refData: id => refs[id] || null, name: id => id };
+  const m = run(series(x, scans[0]), "combine", { cols: ["a", "b", "c"], how: "mean", err: true }, ctx);
+  const noiseOf = y => rms(y.map((v, i) => v - clean[i]));
+  check("the mean of four scans halves the noise", near(noiseOf(m.d.y) / noiseOf(scans[0]), 0.5, 0.08), noiseOf(m.d.y) / noiseOf(scans[0]));
+  check("and the spread between them becomes the error bars", m.d.e && near(rms(m.d.e), 0.5, 0.1), m.d.e && rms(m.d.e));
+  check("the sum of two identical spectra is twice one", run(series(x, clean), "combine", { cols: ["d"], how: "sum" }, { refData: () => ({ x, y: clean }), name: () => "d" }).d.y.every((v, i) => near(v, 2 * clean[i], 1e-9)));
+  const med = run(series(x, clean), "combine", { cols: ["a", "b"], how: "median" }, { refData: id => ({ x, y: id === "a" ? clean : clean.map(v => v + 1000) }), name: id => id });
+  check("the median of three ignores one stray spectrum", med.d.y.every((v, i) => near(v, clean[i], 1e-9)));
+  let threw = ""; try { run(series(x, clean), "combine", { cols: ["gone"] }, { refData: () => null, name: id => id }); } catch (e) { threw = e.message; }
+  check("a missing spectrum is an error that says so", /missing/.test(threw), threw);
+}
+{
+  const x = Array.from({ length: 11 }, (_, i) => i), one = x.map(() => 1);
+  const ci = run(series(x, one), "cumint", {});
+  check("the running integral of 1 over 0..10 ends at 10", near(ci.d.y[10], 10, 1e-12) && near(ci.d.y[0], 0, 1e-12) && near(ci.extra.total, 10, 1e-12));
+  check("scaled to a total of 1", near(run(series(x, one), "cumint", { norm: true }).d.y[10], 1, 1e-12));
+  const rev = run(series(x.slice().reverse(), one), "cumint", {});
+  check("a descending axis integrates from the low-X end", near(rev.d.y[10], 0, 1e-12) && near(rev.d.y[0], 10, 1e-12), rev.d.y.join());
+  check("its unit is Y times X", ci.d.yu === "counts·cm⁻¹", ci.d.yu);
+}
+{
+  const r = rng(5), n = 1024, x = Array.from({ length: n }, (_, i) => i), band = x.map(v => 100 * Math.exp(-0.5 * ((v - 500) / 20) ** 2));
+  const noisy = band.map(v => v + 3 * gauss(r));
+  const lp = run(series(x, noisy), "fft", { mode: "low", cut: 12, order: 4 });
+  // A 12-point cut-off passes a sixth of the band, so about 40% of white noise.
+  check("low-pass removes more than half the noise", rms(lp.d.y.map((v, i) => v - band[i])) < 1.5, rms(lp.d.y.map((v, i) => v - band[i])));
+  check("and keeps a wide band's height within 2%", near(Math.max(...lp.d.y), 100, 2), Math.max(...lp.d.y));
+  check("with no warning for a band far wider than the cut-off", !lp.warn.some(w => /lowers the band/.test(w)), lp.warn.join(" / "));
+  const narrow = x.map(v => 100 * Math.exp(-0.5 * ((v - 500) / 1.5) ** 2) + 0.2 * gauss(r));
+  const lp2 = run(series(x, narrow), "fft", { mode: "low", cut: 40, order: 4 });
+  check("a cut-off longer than a band warns that it lowers it", lp2.warn.some(w => /lowers the band/.test(w)), lp2.warn.join(" / "));
+  const drift = x.map(v => 0.05 * v + 30 * Math.sin(v / 1500)), before = rms(drift.slice(100, 900));
+  const hp = run(series(x, band.map((v, i) => v + drift[i])), "fft", { mode: "high", cut: 1000, order: 4 });
+  const after = rms(hp.d.y.map((v, i) => v - band[i]).slice(100, 900));
+  check("high-pass takes out most of a slow drift and keeps the band", after < 0.35 * before && Math.max(...hp.d.y) > 80, [before, after, Math.max(...hp.d.y)]);
+  const hp2 = run(series(x, band), "fft", { mode: "high", cut: 60, order: 4 });
+  check("a high-pass cut-off near the band's width warns that it lowers it", hp2.warn.some(w => /lowers the band/.test(w)), hp2.warn.join(" / "));
+  const flat = N.fftFilter(x.map(v => 3 + 0.5 * v), { mode: "low", cut: 8, order: 4 });
+  check("a straight line passes a low-pass unchanged, ends included", flat.every((v, i) => near(v, 3 + 0.5 * i, 1e-9)));
+}
+{
+  const x = [1, 2, 3, 4], y = [10, 20, 30, 40], d = series(x, y);
+  const notRun = run(d, "python", { code: "y = y" });
+  check("Python: not run yet passes the data through and says so", notRun.d === d && /not been run/.test(notRun.warn[0]));
+  const out = { x: [1, 2, 3, 4], y: [20, 40, 60, 80] };
+  const ok = run(d, "python", { code: "y=[2*v for v in y]", ranCode: "y=[2*v for v in y]", out, inSig: N.serSig(d), ranAt: 1 });
+  check("Python: the stored result is the output, rows kept", ok.d.y.join() === "20,40,60,80" && ok.d.idx.join() === "0,1,2,3" && !ok.warn.length, ok.warn.join());
+  const stale = run(series(x, [1, 1, 1, 1]), "python", { code: "c", ranCode: "c", out, inSig: N.serSig(d) });
+  check("Python: a changed input makes the result out of date", stale.warn.some(w => /changed since/.test(w)));
+  const edited = run(d, "python", { code: "new", ranCode: "old", out, inSig: N.serSig(d) });
+  check("Python: edited code without a run is flagged", edited.warn.some(w => /edited since/.test(w)));
+  const fewer = run(d, "python", { code: "c", ranCode: "c", out: { x: [1.4, 3.6], y: [5, 6], yu: "a.u." }, inSig: N.serSig(d) });
+  check("Python: new X keeps the raw row of the nearest input point, and new units", fewer.d.idx.join() === "0,3" && fewer.d.yu === "a.u.", fewer.d.idx.join() + " " + fewer.d.yu);
+  check("Python: the step's key does not carry its whole output", JSON.stringify(N.stepPKey({ op: "python", p: { code: "c", out: { x: new Array(5000).fill(1), y: [] } } })).length < 200);
+}
 /* ---------- anchors ---------- */
 console.log("Anchor interpolation");
 {

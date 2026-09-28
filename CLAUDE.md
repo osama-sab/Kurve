@@ -1,25 +1,32 @@
 # Kurve: collaborative Origin-style data analysis
 
 Single-file web app (`kurve.html`): HTML, CSS and vanilla JS, no build step, no dependencies
-besides Google Fonts. Open the file in a browser to run it. The file uses CRLF line endings;
+besides Google Fonts, and Pyodide from jsDelivr, loaded only when Python is first run. Open the
+file in a browser to run it. The file uses CRLF line endings;
 keep them (see the rules at the end).
 
 ## The screen
 
-A desktop-style frame, top to bottom: a title bar with the **menus** (File, Edit, View, Data,
-Analysis, Help) and the project name (click to rename; the arrow beside it switches, creates and
-deletes projects); a **toolbar** (Import, Export, undo/redo, **Raw / Final / Compare** (what
-the graph shows), the pointer tools Zoom / Pan / Mask / Add peak / Comment, show-all, plot style
-and the Reverse X / Log Y / Grid / Residuals toggles); the **workspace**; and a **status bar**
-(tool hint, live cursor readout, point counts, fit state, save state). The workspace is three
-resizable panes: the **worksheet** on the left, with a **Raw** sheet (the data as recorded,
-locked) and a **Final** sheet (the analysed spectrum after processing, read only); the
-**graph** in the middle, with the **stage strip** above it (Raw › each processing step ›
-Final; click one to see the data at that point) and a foldable **drawer** under it (Results /
-Discussion / History, where History has a filmstrip of every stage, every fit made, and the
-raw-data record); and the **inspector** on the right, whose tabs are the analysis steps:
-1 Clean up (the processing pipeline) and 2 Fit.
-Below 860 px everything stacks: graph, drawer, inspector, worksheet.
+A desktop-style frame, top to bottom: a title bar with the **menus** (File, Edit, Plot, Data,
+Math, Analysis, Statistics, Window, Help) and the project name (click to rename; the arrow
+beside it switches, creates and deletes projects); a **toolbar** (Import, Export, undo/redo,
+**Raw / Final / Compare** (what the graph shows), the pointer tools Zoom / Pan / Mask / Add
+peak / Comment, show-all, the analysed spectrum's plot type, the layout of several spectra,
+and the Reverse X / Log Y / Grid / Residuals toggles); the **desk**; and a **status bar**
+(tool hint, live cursor readout, point counts, fit state, save state).
+
+The desk holds **windows**, as in Origin: Graph, Worksheet, History, Fit, Results, Statistics,
+Python, Discussion, and the transient Tool dialog. Each moves by its title bar, resizes from
+its edges, maximises on a double-click of the title and minimises to the **taskbar** along the
+bottom of the desk, which also has Tile and Cascade. A first visit opens Graph, History and
+Worksheet. The **graph window** has its own bar repeating the Data, Math, Analysis, Statistics
+and Plot menus, a Python button, and a chip saying which stage of the processing is shown
+when it is not the final data. Right-click on the graph (or Shift+F10) gives the spectrum's
+colour, plot type and style, axes, layout and legend. The **History window** is a flow chart
+of the data with an inspector beside it (below it when narrow), and a Log tab. The
+**worksheet** has a **Raw** sheet (the data as recorded, locked) and a **Final** sheet (the
+analysed spectrum after processing, read only). Below 860 px the windows stack in one column,
+graph first, with the taskbar kept at the bottom of the screen.
 
 ## Code layout (all inside the `<script>` block of kurve.html)
 
@@ -40,11 +47,17 @@ Below 860 px everything stacks: graph, drawer, inspector, worksheet.
   SNIP, rolling ball, anchors with spline/PCHIP/lines, line, constant; all through one banded
   `whittaker` solve or `chebFit`); smooth (Savitzky–Golay, moving average, median, Gaussian,
   Whittaker); shift (wavelength to Raman shift), xunit, calib (reference peaks, `CAL_REFS`),
-  xlin; norm; scale, ref (another spectrum, interpolated), deriv, log, absorb, km, bose.
+  xlin; norm; scale, ref (another spectrum, interpolated), combine (mean, median or sum with
+  other spectra, the spread as error bars), deriv, cumint (running integral), fft
+  (zero-phase Butterworth low- or high-pass, `fftFilter`, ends mirrored), log, absorb, km,
+  bose; python (stores its code and its output `{x, y, e?, xn?, xu?, yn?, yu?}`, plus the
+  `inSig` (`serSig`) of the input it ran on and `ranCode`, and warns when either has changed;
+  `stepPKey` keeps its output out of the cache key).
   **Every step checks its own work**: the background checks for over-subtraction (a stretch
   below −3σ) and for eating bands (`bgBandLoss`); spike removal warns about wide "spikes" and
   points changed inside a band; smoothing reports the height it takes off the narrowest band,
-  measured on an ideal band of that width (`idealLoss`), and uneven spacing; `orderWarnings`
+  measured on an ideal band of that width (`idealLoss`), and uneven spacing (so does the FFT
+  filter, in both directions); `orderWarnings`
   catches steps that are fine alone but wrong in order (normalize before background, smooth
   before despike). `detectBands` (local prominence, so a noise maximum on a long flat stretch
   does not count) feeds the checks and the suggestions. `runPipe(input, steps, ctx, prev)`
@@ -62,8 +75,19 @@ Below 860 px everything stacks: graph, drawer, inspector, worksheet.
   whose shoulders have no prominence by definition). The app passes both. `seedPeak` takes the
   half width from whichever side reaches half height first, and returns the height `h` it saw;
   callers turn that into each shape's own area with `peakAreaForHeight`.
+  `peakSearch(X, Y, o)` is the finder behind Analysis › Find peaks. Methods `max`, `window`,
+  `deriv1`, `deriv2`; `log` searches on log10 of the data; `smooth` is `"auto"` (half the
+  narrowest clear band's width in points), 0 or a window; `thr` is `{mode, v}` with modes
+  `snr` (prominence over `noiseSigma`, default 4), `pct` (of the largest), `abs` and `decades`
+  (below the largest); every mode but `abs` also needs three times the noise. It returns
+  `found` and `rejected`, each candidate with `x, prom, promLin, h, base, snr, w, wPts`, and a
+  rejected one with `code` (`thr`, `noise`, `spike`, `wide`, `sep`, `max`) and `why`, in words;
+  `noise` counts maxima of the noise itself. A `deriv2` shoulder is measured against the lowest
+  point within its own width, having no valley of its own. `findPeaks` stays for
+  `detectBands` and the older tests.
   `tools/fit-test.mjs` checks each shape integrates to its stated area and has its stated FWHM,
-  that known multi-peak spectra are recovered, and the spike, prominence and seeding rules.
+  that known multi-peak spectra are recovered, the spike, prominence and seeding rules, and
+  `peakSearch`'s thresholds (a band three decades below the main one), reasons and methods.
   Run it after touching any of this.
 - **Fits** come in two kinds. `MODELS` (each with `params`, `ph`, `formula`, `f(x,p)`,
   `guess`, optional `derived` with delta-method errors) drives "Curve fit".
@@ -118,22 +142,68 @@ Below 860 px everything stacks: graph, drawer, inspector, worksheet.
   says so when it changes. `stepParams(op, d)` gives a new step's settings from the data it
   will receive; `insertAt` places a step by `rank` (spikes before background before smoothing
   before normalizing).
+- **Pending step**: a tool dialog previews its step as `S.pending` (`{col, at, step, all}`).
+  `pipeSteps(c)` puts it into the spectrum's steps for `pipeOf`, so the graph, the History and
+  every check see it, but it is not in the document: `applyTool` splices it into `c.pipe`
+  (and onto every spectrum if `all`), `cancelTool` drops it. `stepById`, `colOfStep`,
+  `stageOfStep` and `inputOfStep` look steps up by id in any spectrum, pending included, and
+  `procWarnings` and the report skip the pending one. A project switch drops it.
 - **Stages**: `S.stage` is the stage the graph shows (`null` = final, 0 = raw, k = after step k,
-  n = final with step n in focus); `S.selStep` is the step whose card is open; `S.cmp` draws the
+  n = final with step n in focus); `S.selStep` is the step being edited; `S.cmp` draws the
   raw data behind the final. `plotState()` gives the series, the stage before it (drawn grey,
   when on a comparable scale) and the step whose marks to draw (`stageMarks`: background curve,
   replaced spikes, anchors, regions, calibration lines). Fits and peak drafts are drawn on the
-  final data only, and going to the Fit tab returns the graph there. A zoom (`S.view`) remembers
+  final data only, and opening the Fit window returns the graph there. A zoom (`S.view`) remembers
   the X units it was made in (`S.view.xu`), so a wavelength range is not applied to Raman
   shifts; the fit's view is `curView()`, the drawn one is `S.geo.v`.
-- **Clean up panel** (`renderClean`): the spectrum selector and its menu (rename, new spectrum
-  from this one, copy, give every spectrum these steps), the raw-data line, and one card per
-  step with a sparkline, a warning badge and, when open, its settings generated from the op's
-  `params` schema. Sliders preview live (`setParam(s, k, v, false)` + `schedulePreview`) and
-  commit on change, with one undo entry per control per burst (`beginStepEdit`). Cards reorder
-  by dragging the grip or Alt+↑/↓; `applyStepToAll`, `newDerived`, `deleteDerived`. Anchor
-  and range picking are pointer modes (`S.mode` `anchor` / `range`, `S.pick`).
-- **Peak draft**:- **Peak draft**: the peak set being built is `S.pdraft` (`{base, peaks, init, fixed, x0,
+- **Windows** (`WINS`, `LAYOUT`): each window is `section.win#w-<id>` with a `.win-h` title bar
+  and a `.win-b` body; `LAYOUT.wins[id]` keeps `{g: [x, y, w, h] as fractions of the desk,
+  open, max, z}`, saved per browser under `kurve.layout` (version 2; an older layout is
+  ignored). `openWin(id, {render})`, `closeWin`, `toggleWin`, `focusWin`, `toggleMax`,
+  `tileWins`, `cascadeWins`, `resetWins`, `renderWin(id)` (which window renders what),
+  `renderTaskbar`, `setupWins` (move, resize, min/max buttons). `renderAll` renders only open
+  windows; a window renders when it opens. `showTab("fit"|"clean")` and `showDrawer(...)`
+  remain as names for opening the Fit, History, Results and Discussion windows.
+- **Tools and menus**: `TOOL_GROUPS` lists every op by kind; `toolMenuItems({col, at})` is
+  the menu the History's "+" and Step buttons open; `dataMenu`, `mathMenu`, `analysisMenu`,
+  `statisticsMenu` and `plotMenu` build the menu bar (and the graph window's bar).
+  `openTool(op, {col, at, p})` opens the Tool window with a pending step (ops without settings
+  are added at once by `addPipeStep`); `renderTool` shows the target spectrum, the position,
+  a before-and-after chart (`beforeAfter`) and the step's form.
+- **Step forms** (`stepForm(s)`, `wireStepForms(box)`): one form per step, generated from its
+  op's `params` schema (types `num`, `int`, `odd`, `log`, `sel`, `bool`, `col`, `cols`,
+  `anchors`, `refs`, `code`), the same in the Tool window and the History inspector. Sliders
+  preview live (`setParam(s, k, v, false)` + `schedulePreview` → `refreshLive`) and commit on
+  change, with one undo entry per control per burst (`beginStepEdit`); a pending step is never
+  saved. Anchor and range picking are pointer modes (`S.mode` `anchor` / `range`, `S.pick`).
+- **History** (`renderFlow`, `flowLayout`): lanes of boxes, one per spectrum, placed depth
+  first so a derived spectrum branches off its source's raw or final box; a "Recorded data"
+  box above the raw spectra; step boxes in order (dashed while pending); the final box; a fit
+  box when the spectrum has fits. Steps that read another spectrum (`deps`) get a dashed line
+  from it. `S.flowSel` is the selected box (`table`, `raw:`, `src:`, `step:`, `final:`,
+  `fit:` + id); selecting drives the graph's stage. Boxes drag to reorder, the "+" on a line
+  inserts a step there, arrows move between boxes, Alt+↑/↓ moves a step, Delete deletes it,
+  right-click opens its menu. `flowInspector(node)` shows a step's form and actions, the
+  raw record and fingerprint, the final data's numbers and new-spectrum actions, or the list
+  of fits. `S.flowInsp` hides the inspector; `S.flowTab` is `flow` or `log`.
+- **Python** (`pyWorkerMain`, `pyStart`, `pyRun`, `renderPy`, `pyRunUI`): Pyodide
+  (`PY_VER`, from `cdn.jsdelivr.net/npm/pyodide@…`, packages from the Pyodide CDN) in a module
+  Web Worker made from a Blob, or on the page if workers are refused; it loads on first use and
+  Stop terminates it. The code gets `x, y, e`, the names and units, `meta` and `spectra`
+  (`PY_PRELUDE`, numpy arrays when numpy loads) and returns x and y (`PY_EPILOGUE`, lengths
+  checked). Run makes a pending `python` step; "Record as a step" is `applyTool`. In the
+  History a Python step's code is editable and "Run again" is `rerunPythonStep`.
+- **Statistics window** (`renderStats`): descriptive statistics of every spectrum (final or
+  raw, all X or the visible range: points, min, max, mean, SD, median, noise σ, S/N, area,
+  centroid), the visible-range integral (`measureHtml`), and Pearson r between spectra on the
+  analysed one's X; Copy gives it as TSV.
+- **Peak fit panel** (`renderPeakFit`): three numbered parts: 1 Find peaks (`pfPanelHtml`,
+  the finder's settings in `S.pf`, a live preview on the graph from `pfRun`, the peaks it would
+  find in a table and the ones it turned down with their reasons, each with an Add button;
+  `runPeakFinder(append)` seeds the draft from them, measuring a peak on a larger one's tail
+  from its own valleys), 2 Peaks and baseline, 3 Fit. `pfBaseline` subtracts the draft's
+  baseline before searching without changing it.
+- **Peak draft**: the peak set being built is `S.pdraft` (`{base, peaks, init, fixed, x0,
   fitAt}`), outside the document. `draftOverlay()` draws it on the graph before it is fitted:
   dashed curves per peak plus their sum, a numbered dot per peak (drag: centre and height) and,
   for the selected peak, side handles (drag: FWHM). `applyHandle` keeps area/width consistent
@@ -154,26 +224,42 @@ Below 860 px everything stacks: graph, drawer, inspector, worksheet.
   has a worksheet to paste into.
 - **State**: global `S`; the current project is `S.proj` with `cols` (see Columns above),
   `activeY`, `raw` (`{fp, hist}`), `meta` (captured from the imported file's header), `plot`
-  settings (`style`, `logY`, `grid`, `resid`, `revX`, `hidden`), `fit`, `fits` (the fit history:
+  settings (`style`, `logY`, `grid`, `resid`, `revX`, `hidden`, and from the Plot details
+  `logX`, `gridMinor`, `layout`, `offset`, `legend`, `frame`, `font`, `title`, `cmap`,
+  `series[id]` and `ax.x|y|y2`, see Rendering), `fit`, `fits` (the fit history:
   numbers, the processing, and a decimated thumbnail of each fit), `log`, optional
   `prefFit`/`prefModel` (what an example opens with), and `v` (document version 4; `migrate()`
   upgrades v1–v3 in place, turning v3's table-wide `steps` into steps on every spectrum and
   computed columns into derived spectra, and `normalize()` saves the upgrade at once). Panel
-  state is `S.tab` (`clean`/`fit`), `S.dtab` (drawer tab), `S.mode` (pointer tool), `S.fitMode`
-  (`curve`/`peaks`), `S.sheet` (`raw`/`final`), and the stage state above. Pane sizes and
-  which panes are shown are `LAYOUT`, saved per browser under `kurve.layout`.
+  state is `S.mode` (pointer tool), `S.fitMode` (`curve`/`peaks`), `S.sheet` (`raw`/`final`),
+  the stage and pending state above, `S.flowSel`/`S.flowTab`, `S.py` (the Python window),
+  `S.pf` (the peak finder's settings, saved per browser under `kurve.pf`), `S.pfPreview`,
+  `S.plotPreview` (the Plot details' working copy), `S.stOpt`. Window positions are `LAYOUT`.
 - **Rendering**: `buildPlot(W,H,palette,forExport)` returns an SVG string used both on screen and
-  for export; on screen it also records `S.geo` (transforms and handle positions).
-  `renderTop` (title bar and toolbar state), `renderWs`, `renderPlot` (+ `renderStatusBar`),
-  `renderFit` (always; it also refreshes `renderResults`, the step marks and the status bar),
-  `renderClean`, `renderStages` (the strip and the toolbar's Raw/Final/Compare),
-  `renderThread`, `renderLog` (which calls `renderHistory` for the filmstrips), `renderAll`.
-  Dense data (over 1500 points) is drawn as one path of dots, and error bars as one path. `showTab(t)` and
-  `showDrawer(t)` switch the inspector and drawer.
+  for export; on screen it also records `S.geo` (transforms, handle positions, `logX`, `heat`).
+  It reads the plot settings through `plotCfg()`, which is the Plot details' working copy
+  while that dialog is open. Each spectrum has a style from `serStyle(id, active, …)`: `type`
+  (`PLOT_TYPES`: line, scatter, linesym, stick, area, step), `color`, `lw`, `dash`, `sym`
+  (`SYMS`, filled and open), `ss`, `fill`, `op`, `label`; the fit curve's is `series.__fit`.
+  `seriesSvg` draws one spectrum as a handful of paths whatever its length. `axisTicks` honours
+  each axis's `min`, `max`, `step`, `minor`, `ticks` (in/out/both/none), `fmt` (auto, decimal,
+  scientific) and `title`; `frame` is a box or L-shaped axes. `layout` (`LAYOUTS`): overlay,
+  offset (a waterfall, each trace labelled), stack (a panel per spectrum, shared X, the
+  analysed one on top), dy (the others on a right axis), heat (one row per spectrum, drawn as
+  one image from `heatImage`, with a colour bar; `CMAPS`). The legend goes in the emptiest
+  corner, a chosen one, outside on the right, or nowhere. The peak finder's preview marks
+  (`S.pfPreview`) are drawn on screen only. Right-click: `openGraphMenu` → `graphMenuItems`
+  (swatch rows are `{swatches, current, pick}` menu items); `openPlotDetails(id, tab)` is the
+  dialog (`#plotModal`, tabs Line and symbols / Axes / Graph; OK saves one undo entry).
+  `renderTop`, `renderWs`, `renderPlot` (+ `renderStatusBar`), `renderStages` (now the graph
+  window's stage chip and the toolbar's Raw/Final/Compare), `renderFit` (it also refreshes
+  `renderResults`, `renderTabMarks` and the status bar), `renderFlow`, `renderTool`,
+  `renderStats`, `renderPy`, `renderThread`, `renderLog`, `renderAll`. Dense data (over 1500
+  points) is drawn as one path of dots, and error bars as one path.
 - **Menus and dialogs**: `openMenu(trigger, items, opt)` renders any menu (menu bar, project
-  list, Export, column header) from `{label, run, kbd, checked, radio, enabled, danger}` items,
+  list, Export, column header, graph) from `{label, run, kbd, checked, radio, enabled, danger}` items,
   `"-"` separators and `{group}` headings, with arrow-key, type-ahead and Escape handling;
-  `menuItems(name)` defines the menu bar. `openModal`/`closeModal` make everything behind a
+  `menuItems(name)` defines the menu bar and the graph window's bar. `openModal`/`closeModal` make everything behind a
   dialog inert, trap Tab, route Escape to the dialog's `_cancel`, and return focus; the import
   wizard, `confirmDlg` and the help (`openHelp`) all use them.
 - **Export**: `saveFile(name,data,mime)` uses the claude.ai `downloads` runtime when present and
@@ -203,7 +289,11 @@ numerics, the processing steps with their checks and the fingerprint, and the pa
 two take an optional path to test a working copy instead of `kurve.html`.
 The UI has no test file: drive it in a real browser (Playwright with Chromium works headless),
 click every control you touched, and watch for page errors. Screenshots at 1440, 1024 and
-390 px wide, in both themes, catch most layout mistakes.
+390 px wide, in both themes, catch most layout mistakes. Windows overlap: bring the one you
+are about to click to the front (`focusWin`) or the click lands on whatever lies over it.
+Python needs the Pyodide files: a Playwright route does not reach requests made inside a
+worker, so serve the app and a local copy of the `pyodide` npm package over HTTP and point
+`PY_INDEX` at it.
 
 ## Things that have bitten, and the rules that came out of them
 
@@ -290,16 +380,33 @@ click every control you touched, and watch for page errors. Screenshots at 1440,
   the app's undo now applies unless focus is in a text field.
 - **A zoom belongs to the units it was made in.** A wavelength range applied to Raman shifts
   shows nothing; `S.view.xu` records the units and the view is ignored where they differ.
+- **A threshold as a percentage of the largest peak cannot see a small peak.** The finder's 5%
+  floor hid a band three decades below the main one, however clear of the noise it stood. The
+  default is now signal to noise, with percent, absolute height, decades and a log-scale
+  search as choices, and every candidate turned down says why.
+- **A shoulder has no valley.** Measured against the higher of its two saddles, a
+  second-derivative candidate on a band's top had a prominence of zero and was thrown out as a
+  one-point spike. Shoulders are measured within their own width.
+- **Windows climb.** Every focus raises a window's z-index, and with the desk not a stacking
+  context of its own they rose above the menus and dialogs. `.desk` has `isolation:isolate`.
+- **`scrollIntoView` scrolls clipped ancestors too.** Bringing a section into view scrolled the
+  whole desk, which has no scroll bar, and moved every window. The desk, the windows and their
+  bodies are `overflow:clip`; scroll the inner container by hand.
+- **Two ids in two places are one id too many.** The Plot details heading and its Title field
+  were both `#pdTitle`, and the field could not be reached.
+- **This Pyodide release does not run in a classic worker.** It says "Classic web workers are
+  not supported": the worker is a module worker that imports `pyodide.mjs`.
+- **A slider's readout is its own.** A text field in the same form row wrote its value into the
+  row's first `<output>`; only range inputs update an output.
 - **Old keys come back from storage.** An upgrade that only wrote the new keys left `x` and `y`
   of a v1 project in storage, and the next reload brought them back. `migrate` deletes legacy
   keys every time, and the upgrade writes them as null.
 
 ## Known gaps / next steps
 
-- Phase 2 onwards of the plan: a live, Origin-grade peak finder panel (methods, filters,
-  rejected candidates with reasons, integration windows, peak table), an automatic Overview
-  of a new spectrum, user-defined fit functions, Voigt and Fano shapes, shared parameters,
-  a Python panel (Pyodide), and batch processing with summary tables
+- Next in the plan: an automatic Overview of a new spectrum, user-defined fit functions, Voigt
+  and Fano shapes, shared parameters, batch processing with summary tables, and per-peak
+  integration windows in the peak finder
 - Only one Y column is fitted at a time: no batch across a series, no global fit with shared
   parameters, and no summary table of a parameter against sample (a step can already be
   applied to every spectrum)
@@ -308,12 +415,16 @@ click every control you touched, and watch for page errors. Screenshots at 1440,
 - Peak handles move centre, height and width; there is no handle for a shape parameter
   (Lorentz fraction, Pearson m), and no keyboard nudging of a selected peak on the graph
 - No parameter sharing between peaks (a common instrument width), and no custom expressions
-- No Shirley or Tougaard background (XPS); no Fourier filtering or Fourier self-deconvolution
-- Python steps are planned to store their output; every other step stores only its settings
+- No Shirley or Tougaard background (XPS); no Fourier self-deconvolution
+- Python steps store their output and must be run again by hand when their input changes (they
+  say so); every other step stores only its settings. numpy loads from the Pyodide CDN, which a
+  strict content policy may block: the code then gets plain lists
+- The History lays lanes out in a grid; with many spectra it scrolls rather than packs, and
+  there is no zoom on the flow chart
 - Integration is over the visible range only — no per-peak integration bands to drag, and no
   peak table from integration alone (areas currently come from the fit)
-- Overlaid columns share one Y axis, so a derivative drawn behind its spectrum sits near zero;
-  there are no graph layers or a second axis yet
+- Double Y puts every other spectrum on one right axis; there are no free graph layers, insets
+  or per-panel settings in the stacked layout
 - Binary instrument formats (SPC, OPUS, SPE) and JCAMP-DX are not read; text exports only
 - True Voigt is approximated by the pseudo-Voigt shapes; there is no Faddeeva implementation
 - The preview pane serves a snapshot of the file, so `location.reload()` re-runs stale code —
