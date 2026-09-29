@@ -15,7 +15,7 @@ const grab = (tag) => {
 // Interpolation, integration and normalizing live in the pipeline block now;
 // tools/pipe-test.mjs tests the rest of it.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,faddeeva,peakLinks,applyPeakLinks,linkResult};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -384,6 +384,85 @@ function fitSpec(X, Y, spec, init, opts) {
   const dip = synth([["gauss", [500, -40 * 30 * 1.0645, 30]]], () => 100, 0, 999, 1000, 0.3, 4);
   const neg = N.peakSearch(dip.X, dip.Y, { direction: "negative" });
   check("dips found when peaks point down", neg.found.length === 1 && near(neg.found[0].x, 500, 3), neg.found.map(p => p.x));
+}
+/* ---------- Voigt (through the Faddeeva function) and Fano ---------- */
+{
+  const V = N.PEAKS.voigt, F = N.PEAKS.fano;
+  const w11 = N.faddeeva(1, 1);
+  check("Faddeeva: w(1+i) to 1e-13", near(w11[0], 0.30474420525691259, 1e-13) && near(w11[1], 0.20821893820283163, 1e-13), w11);
+  let worst = 0; for (let x = 0; x <= 10; x += 0.05) worst = Math.max(worst, Math.abs(N.faddeeva(x, 0)[0] - Math.exp(-x * x)));
+  check("Faddeeva: on the real axis its real part is exp(-x^2)", worst < 1e-12, worst);
+  for (const p of [[100, 5, 8, 3], [100, 5, 2, 9], [100, 5, 8, 0.01]]) {
+    check(`voigt ${p.slice(2)}: area integrates to A`, rel(numericArea(V.f, p, 100 - 8000, 100 + 8000, 400000), 5, 0.01), numericArea(V.f, p, 100 - 8000, 100 + 8000, 400000));
+    check(`voigt ${p.slice(2)}: height matches`, rel(V.height(p), V.f(100, p), 1e-12));
+    check(`voigt ${p.slice(2)}: FWHM is the profile's own`, rel(numericFWHM(V.f, p, 100, 400), V.fwhm(p), 1e-6), [numericFWHM(V.f, p, 100, 400), V.fwhm(p)]);
+  }
+  check("voigt: no Lorentzian width is a Gaussian", rel(V.f(104, [100, 5, 8, 1e-9]), N.PEAKS.gauss.f(104, [100, 5, 8]), 1e-6));
+  check("voigt: no Gaussian width is a Lorentzian", rel(V.f(104, [100, 5, 1e-7, 8]), N.PEAKS.lorentz.f(104, [100, 5, 8]), 1e-6), [V.f(104, [100, 5, 1e-7, 8]), N.PEAKS.lorentz.f(104, [100, 5, 8])]);
+  check("fano: 1/q = 0 is a Lorentzian", rel(F.f(104, [100, 5, 8, 0]), N.PEAKS.lorentz.f(104, [100, 5, 8]), 1e-12));
+  const fp = [100, 5, 8, -0.25], top = F.top(fp);
+  let best = -Infinity, bx = 0; for (let x = 80; x <= 120; x += 0.0005) { const v = F.f(x, fp); if (v > best) { best = v; bx = x; } }
+  check("fano: height and top are the line's maximum", rel(F.height(fp), best, 1e-6) && near(top, bx, 1e-3), [F.height(fp), best, top, bx]);
+  const half = best / 2, side = (dir) => { let a = top, b = top + dir * 400; for (let k = 0; k < 200; k++) { const m = (a + b) / 2; if (F.f(m, fp) > half) a = m; else b = m; } return (a + b) / 2; };
+  check("fano: FWHM of the asymmetric line", rel(side(1) - side(-1), F.fwhm(fp), 1e-6), [side(1) - side(-1), F.fwhm(fp)]);
+  // Both shapes are recovered by a fit of a synthetic spectrum.
+  for (const [type, truth, init] of [["voigt", [50, 400, 6, 4], [49, 300, 5, 5]], ["fano", [50, 400, 6, -0.2], [49, 300, 5, -0.05]]]) {
+    const spec = { base: "const", peaks: [{ type }] }, model = N.compileModel(spec, 50), X = [], Y = [];
+    let s = 3; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+    for (let i = 0; i < 400; i++) { const x = i * 0.25; X.push(x); Y.push(model.f(x, [2].concat(truth)) + rnd() * 0.3); }
+    const p0 = [1].concat(init), b = N.modelBounds(spec, model, p0);
+    const r = N.lmFit(model.f, X, Y, X.map(() => 1), p0, p0.map(() => false), b);
+    check(`${type}: a fit recovers its parameters`, r.params && truth.every((v, i) => rel(r.params[i + 1], v, 0.03)) && r.stats.converged, r.params);
+  }
+}
+/* ---------- tied parameters: a doublet with a fixed area ratio and one width ---------- */
+{
+  const peaks = [{ type: "gauss", id: "a" }, { type: "gauss", id: "b", tie: { A: { to: "a", mul: 0.5 }, w: { to: "a", mul: 1 }, xc: { to: "a", mul: 1, add: 20 } } }];
+  const spec = { base: "const", peaks }, m = N.compileModel(spec, 60), L = N.peakLinks(peaks, m);
+  check("ties: resolved to parameter indices", L.length === 3 && L.every(l => l.k === 1 && l.j === 0), L.map(l => [l.nm, l.gi, l.gj]));
+  const chain = N.peakLinks([{ type: "gauss", id: "a", tie: { w: { to: "b" } } }, { type: "gauss", id: "b", tie: { w: { to: "a" } } }], N.compileModel({ base: "none", peaks: [{ type: "gauss" }, { type: "gauss" }] }, 0));
+  check("ties: a loop is not followed", chain.length === 0, chain.length);
+  const truth = [3, 50, 800, 6, 70, 400, 6], X = [], Y = [];
+  let s = 11; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+  for (let i = 0; i < 480; i++) { const x = i * 0.25; X.push(x); Y.push(m.f(x, truth) + rnd() * 0.5); }
+  const p0 = N.applyPeakLinks([1, 48, 600, 8, 0, 0, 0], L), fixed = p0.map(() => false); L.forEach(l => { fixed[l.gi] = true; });
+  const fT = (x, p) => m.f(x, N.applyPeakLinks(p, L));
+  const r = N.linkResult(N.lmFit(fT, X, Y, X.map(() => 1), p0, fixed, N.modelBounds(spec, m, p0)), L);
+  check("ties: the doublet is recovered, the tied peak following", r.params && [0, 1, 2, 3].every(i => rel(r.params[i], truth[i], 0.03)) && near(r.params[4], r.params[1] + 20, 1e-9) && near(r.params[5], 0.5 * r.params[2], 1e-9) && r.params[6] === r.params[3], r.params);
+  check("ties: only free parameters count", r.stats.dof === 480 - 4, r.stats.dof);
+  check("ties: a tied error is its leader's times |ratio|", near(r.errors[5], 0.5 * r.errors[2], 1e-12) && r.errors[6] === r.errors[3] && Number.isNaN(r.tval[5]), [r.errors[5], r.errors[2]]);
+}
+/* ---------- user-defined functions: parsed, never run as JavaScript ---------- */
+{
+  const C = (src) => { try { return N.compileExpr(src); } catch (e) { return { err: e.message, line: e.line, col: e.col }; } };
+  const lin = C("y = a + b*x");
+  check("formula: parameters in order of appearance", lin.params && lin.params.join() === "a,b", lin.params);
+  check("formula: evaluates", lin.f && lin.f(2, [1, 3]) === 7);
+  check("formula: ^ binds tighter than a leading minus, and to the right", C("-x^2 + a").f(3, [0]) === -9 && C("a*2^3^2").f(0, [1]) === 512);
+  check("formula: ** is ^, and Unicode minus and times are read", C("a*x**2").f(3, [1]) === 9 && C("a×x − 1").f(2, [3]) === 5);
+  const loc = C("u = (x - xc)/w\ny = A*exp(-u^2/2) + c");
+  check("formula: named intermediate values are not parameters", loc.params && loc.params.join() === "xc,w,A,c", loc.params);
+  check("formula: intermediate values are used", loc.f && near(loc.f(1, [0, 1, 2, 0.5]), 2 * Math.exp(-0.5) + 0.5, 1e-14));
+  check("formula: constants and functions", near(C("a*sin(pi*x/2) + sqrt(abs(x))*b + log10(100)*0").f(1, [1, 2]), 3, 1e-14));
+  check("formula: comments and blank lines are ignored", C("# a line\n\ny = a*x  # slope\n").f(2, [4]) === 8);
+  const e1 = C("y = 2x"), e2 = C("y = expp(x)*a"), e3 = C("y = a*(x + 1"), e4 = C("y = a*x +"), e5 = C("u = u + 1\ny = u*a"), e6 = C("y = 3*x");
+  check("formula: a missing * is named, with its place", /operator before “x”/.test(e1.err) && e1.col === 6, e1.err);
+  check("formula: an unknown function is named", /no function called “expp”/.test(e2.err), e2.err);
+  check("formula: an unclosed bracket and a dangling operator are named", /closing \)/.test(e3.err) && /ends too soon/.test(e4.err), [e3.err, e4.err]);
+  check("formula: a value used before its line is caught", /before its line/.test(e5.err), e5.err);
+  check("formula: no parameter, nothing to fit", /nothing to fit/.test(e6.err), e6.err);
+  check("formula: nothing but arithmetic can run", /no function called “alert”/.test(C("y = alert(1)*a").err) && /cannot contain/.test(C("y = a`x`").err) &&
+    /no function called “constructor”/.test(C("y = constructor(x)*a").err) && !!C("y = a.b*x").err && !!C("y = a[0]()*x").err, [C("y = constructor(x)*a").err, C("y = a[0]()*x").err]);
+  check("erf and erfc to double precision", near(N.erfFn(0.5), 0.5204998778130465, 1e-15) && rel(N.erfcFn(5), 1.5374597944280349e-12, 1e-12) && rel(N.erfcFn(2.4), 0.0006885138966450786, 1e-12));
+  const g = N.guessUserParams(["y0", "A", "xc", "w", "t", "q"], [0, 1, 2, 3, 4], [1, 2, 5, 2, 1]);
+  check("starting values from the names", g[0] === 1 && g[1] === 4 && g[2] === 2 && near(g[3], 0.4, 1e-12) && g[5] === 1, g);
+  // A stretched exponential, fitted from its guessed start, bounded.
+  const fn = N.compileExpr("y = y0 + A*exp(-(x/t)^b)"), X = [], Y = [], truth = [5, 100, 12, 0.6];
+  let s = 7; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+  for (let i = 0; i < 200; i++) { const x = 0.25 + i * 0.25; X.push(x); Y.push(fn.f(x, truth) + rnd() * 0.4); }
+  const p0 = N.guessUserParams(fn.params, X, Y).map((v, i) => fn.params[i] === "b" ? 1 : v);
+  const r = N.lmFit(fn.f, X, Y, X.map(() => 1), p0, p0.map(() => false), { lo: [-Infinity, 0, 0.01, 0.1], hi: [Infinity, Infinity, Infinity, 3] });
+  check("a user's function fits: stretched exponential recovered", r.params && truth.every((v, i) => rel(r.params[i], v, 0.05)) && r.stats.converged, r.params);
 }
 /* ---------- p-values against known values ---------- */
 check("tPvalue: t=2.228, dof=10 is ~0.05", near(N.tPvalue(2.228, 10), 0.05, 5e-4), N.tPvalue(2.228, 10));

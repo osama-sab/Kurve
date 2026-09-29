@@ -26,7 +26,10 @@ colour, plot type and style, a line, text or peak label where you clicked, axes,
 legend; right-click a line, a label, the legend or a title for its own options. Lines, shaded
 ranges, text, peak labels and the legend drag with the pointer; a double click edits them,
 and edits an axis or graph title in place. The **History window** is a flow chart
-of the data with an inspector beside it (below it when narrow), and a Log tab. The
+of the data with an inspector beside it (below it when narrow), and a Log tab. Every box in
+it (a step, the raw data, the final data, the fits, the recorded data) has its own
+**discussion** at the foot of its inspector, with a badge on the box counting open threads;
+the Discussion window lists every thread with a link back. The
 **worksheet** has a **Raw** sheet (the data as recorded, locked) and a **Final** sheet (the
 analysed spectrum after processing, read only). Below 860 px the windows stack in one column,
 graph first, with the taskbar kept at the bottom of the screen.
@@ -40,6 +43,17 @@ graph first, with the taskbar kept at the bottom of the screen.
   `pscale`. Those last two are what let a model mixing areas of 1e6 with widths of 10 converge.
   It returns standard errors, 95% CI, t and p values, `dep` (dependency), `atBound`, AIC and BIC.
   `polyfit` fits about the mean of X and shifts back, so a wavenumber axis is not hopeless.
+  `compileExpr(src)` compiles a user's formula into a tree of closures, never run as JavaScript
+  (so it works under a strict content policy, and nothing but arithmetic can run): numbers, `x`,
+  names, `+ - * / ^` (or `**`), parentheses, `EXPR_FN` (exp, ln, log = ln, log10, sqrt, abs,
+  trig and hyperbolic, erf, erfc, pow, min, max, sign, step) and `EXPR_CONST` (pi, e). Lines
+  like `u = (x - xc)/w` name values for the lines below; the function is `y = …` or the last
+  line; every other name is a parameter, in order of appearance. Errors are thrown with a
+  message in words and `line`/`col`. Lookups use `hasOwnProperty`, so `constructor(x)` is an
+  unknown function, not `Object`. `guessUserParams(names, X, Y)` starts parameters from their
+  names (y0/c baseline, A/H height, xc/x0 position of the largest point, w/sigma a tenth of the
+  range, t/tau a third, k a rate, m a slope, anything else 1). `erfFn`/`erfcFn` are accurate
+  to double precision (a series below 2.5, a continued fraction above).
 - **Pipeline** (`==PIPE:START/END==`, pure, after PEAKS): the processing steps. `PIPE_OPS` maps an
   op to `{group, rank, label, short, help, params (a schema the panel renders), defaults,
   init(d, ctx) (suggested settings measured from the data the step will receive), summary,
@@ -67,8 +81,20 @@ graph first, with the taskbar kept at the bottom of the screen.
   returns every stage and reuses the stages before the first changed step. `sha256` and
   `rawText` make the raw-data fingerprint. `tools/pipe-test.mjs` tests all of it.
 - **Peaks** (`==PEAKS:START/END==`): `PEAKS` (Gaussian, Lorentzian, pseudo-Voigt, split-width
-  pseudo-Voigt, Pearson VII — all parametrised centre/**area**/FWHM, with `height()` and
-  `fwhm()`), `BASELINES` (none/constant/line/quadratic/cubic, evaluated in `x - x0`),
+  pseudo-Voigt, Pearson VII, Voigt, Fano — parametrised centre/**area**/width, with `height()`
+  and `fwhm()`; optional `short` (the name mid-sentence), `labels` (per-shape parameter labels),
+  `wSeed` (each width's share of a measured FWHM, `wSeedOf`), `top` (where an asymmetric
+  shape's maximum is), `bounds`, `init`). **Voigt** is `[xc, A, wG, wL]`, the true
+  convolution through `faddeeva(x, y)` (Weideman's 32-term rational expansion, about 1e-13,
+  smooth for finite differences); its FWHM is found by bisection, with `fwhmApprox` (Olivero)
+  for error propagation, and `convolved` exempts its widths from the "collapsed" check because
+  either may rightly go to zero. **Fano** (Breit–Wigner–Fano) is `[xc, A, w, iq]` with iq =
+  1/q in [-0.9, 0.9]; its area is not finite, so A is the area of its Lorentzian limit
+  (`fitWarnings` says so), `height` is the true maximum at `top`, and `fwhm` the true width,
+  Γ(1+iq²)/|1-iq²|. **Ties** (`peakLinks(peaks, m)`, `applyPeakLinks`, `linkResult`): a peak's
+  `tie[nm] = {to: peakId, mul, add}` makes that parameter `mul·(the other's) + add`; ties to a
+  peak that is itself tied are not followed, so they never chain or loop. `BASELINES`
+  (none/constant/line/quadratic/cubic, evaluated in `x - x0`),
   `compileModel` which flattens a `{base, peaks[]}` spec into one parameter vector,
   `modelBounds`, `sgCoeffs`/`sgApply` (Savitzky–Golay, needs even spacing), `findPeaks`
   (`max`, or `deriv2` for shoulders that never form a maximum), `seedPeak`, `noiseSigma` and
@@ -90,20 +116,39 @@ graph first, with the taskbar kept at the bottom of the screen.
   `detectBands` and the older tests.
   `tools/fit-test.mjs` checks each shape integrates to its stated area and has its stated FWHM,
   that known multi-peak spectra are recovered, the spike, prominence and seeding rules, and
-  `peakSearch`'s thresholds (a band three decades below the main one), reasons and methods.
-  Run it after touching any of this.
+  `peakSearch`'s thresholds (a band three decades below the main one), reasons and methods,
+  the Faddeeva function against known values, Voigt and Fano (area, height, true FWHM, limits,
+  recovery by a fit), ties (a doublet with a 0.5 area ratio, one width and a fixed spacing:
+  recovered, the degrees of freedom and the carried errors), and the formula compiler (order,
+  precedence, named values, every error message, nothing but arithmetic). Run it after
+  touching any of this.
 - **Fits** come in two kinds. `MODELS` (each with `params`, `ph`, `formula`, `f(x,p)`,
   `guess`, optional `derived` with delta-method errors) drives "Curve fit".
   `{kind:"composite", spec, x0, …}` drives "Peak fit". `fitModel(fit)` hands either to
   the plot, the CSV export and the report; `activeFit()` returns the current one if it is valid,
   and `shownFit()` is the one the graph draws (only on the column it was fitted to). Anything
-  that reads `p.fit` must go through those, not `MODELS[p.fit.model]`. Stored fits carry `dep`,
-  `tval`, `pval` and `ci` with non-finite values written as `null`.
+  that reads `p.fit` must go through those, not `MODELS[p.fit.model]`; a model by id is
+  `getModel(id)` (one of `MODELS`, or `"u:<fnId>"` for a user's function). Stored fits carry
+  `dep`, `tval`, `pval` and `ci` with non-finite values written as `null`.
+  **User functions**: `p.userFns` (`[{id, name, expr, params:[{n, init, lo, hi, dim}]}]`, in
+  `UNDO_KEYS`) and a per-browser library (`libFns`, `libSave`, under `kurve.fns`). `userModel(fn)`
+  compiles one into a MODELS-like object (`user`, `def`, `expr`, `lo`/`hi` bounds, `guess` from
+  the stored starts or `guessUserParams`), cached. A fit with one stores a copy in `fit.fn`, and
+  `fitModel` uses that copy, so editing or deleting the function never changes a result; a
+  library function used in a fit is added to the project. `draftModel(d)` is the curve
+  panel's model (falling back to the fit's copy, then to a Gaussian). `editUserFn(id, {from})`
+  is the editor (formula, live check with the line of a mistake, a preview of the function at
+  its starts over the data, start/limits/unit per parameter), `deleteUserFn`, `adoptLibFn`.
+  The report's Method and the CSV state the formula and its limits.
+  A parameter that stopped at a limit (`atBound`) has no meaningful standard error: tables
+  show "at its limit" instead of ±, and derived peak quantities (height, FWHM) leave it out of
+  the delta method. A tied parameter shows its value with the carried error and what it follows.
 - **Caveats** have one source: `fitWarnings(fit)` returns `{level, kind, text}` for staleness
   (`fitStale`), non-convergence, unusable components (`peakProblems`), a singular covariance,
   dependency, parameters at a bound, and residuals that run in long same-sign stretches
   (`runsTest`, Wald–Wolfowitz), and warnings from the processing the data went through
-  (`procWarnings`). The results drawer, the fit panel's summary line, the copied table and
+  (`procWarnings`), plus advice on a Voigt whose Gaussian or Lorentzian width went to zero and
+  the meaning of a Fano's area. The results drawer, the fit panel's summary line, the copied table and
   the exported report all read it, so the report can never say less than the screen.
 - **Import** (between the `==PARSER:START==`/`==PARSER:END==` markers): pure, DOM-free functions
   that sniff a file — `detectFormat` (delimiter and decimal mark decided together, since `1,5;2,5`
@@ -188,14 +233,42 @@ graph first, with the taskbar kept at the bottom of the screen.
   inserts a step there, arrows move between boxes, Alt+↑/↓ moves a step, Delete deletes it,
   right-click opens its menu. `flowInspector(node)` shows a step's form and actions, the
   raw record and fingerprint, the final data's numbers and new-spectrum actions, or the list
-  of fits. `S.flowInsp` hides the inspector; `S.flowTab` is `flow` or `log`.
+  of fits, and under each its discussion (`flowDiscHtml`). A box with comments carries a badge
+  (`.fn-c`, open threads, or the resolved count greyed); clicking it opens the discussion, and
+  C on a box does too. A Python step that reads other spectra gets a dashed arrow from each;
+  when any Python step is out of date the bar offers "Run Python again (n)". `S.flowInsp` hides
+  the inspector; `S.flowTab` is `flow` or `log`.
 - **Python** (`pyWorkerMain`, `pyStart`, `pyRun`, `renderPy`, `pyRunUI`): Pyodide
   (`PY_VER`, from `cdn.jsdelivr.net/npm/pyodide@…`, packages from the Pyodide CDN) in a module
   Web Worker made from a Blob, or on the page if workers are refused; it loads on first use and
   Stop terminates it. The code gets `x, y, e`, the names and units, `meta` and `spectra`
   (`PY_PRELUDE`, numpy arrays when numpy loads) and returns x and y (`PY_EPILOGUE`, lengths
-  checked). Run makes a pending `python` step; "Record as a step" is `applyTool`. In the
-  History a Python step's code is editable and "Run again" is `rerunPythonStep`.
+  checked). The result is **a step** (`S.py.dest` `step`: Run makes a pending `python` step;
+  "Record as a step" is `applyTool`) or **a new spectrum** (`new`: Run previews it in the window,
+  `S.py.preview`, over its input; `pyRecordNew` makes a derived spectrum from the raw or final
+  data, `newDerived(from, {src, bare, steps})`, whose first step is the code). `spectra` is a
+  dict subclass that records the names taken out of it; `pyRun(code, d, {target})` leaves out
+  the target and every spectrum made from it (`usesSpectrum`), so a step can never read itself,
+  and returns `readIds`. A step stores `reads` and `readSigs` (`pyParams`), its op declares them
+  as `deps` (dashed arrows, cache keys, `pipeSig`), and it warns when one of them changed.
+  `pyStale(s)` says why a step is out of date (`notrun`, `code`, `input`, `read`),
+  `rerunStalePython` runs every such step in order as one undo entry, and `rerunPythonStep`
+  one. In the History a Python step's code is editable, with "Also reads" chips. The report
+  prints each Python step's code.
+- **Discussion** (`threadIndex`, `threadHtml`, `wireThreads`, `threadAct`, `renderThread`,
+  `flowDiscHtml`, `renderFlowDisc`, `refreshComments`, `goNode`, `goAnchor`,
+  `reportDiscussionHtml`): a comment is `{uid, text, anchor, t, resolved, resolvedBy, parent?,
+  edited?, deleted?}`. The first comment of a thread carries the anchor: a point, a spot, the
+  fit, or a History box (`{type:"node", key, col, label}`; `nodeAnchor(key)`, and `nodeLabel`
+  says "(since removed)" when the step is gone, until undo brings it back). A reply names its
+  thread in `parent` and a reply to a resolved thread reopens it; deleting a first comment that
+  has replies leaves "This comment was deleted" (`deleted`), and every delete offers Undo.
+  Only your own comments can be edited or deleted. The same thread markup and handlers serve
+  the Discussion window (Open/All filter) and a box's inspector; drafts live in `S.cDrafts`
+  keyed `node:<key>`, `reply:<id>` or `edit:<id>`, so a redraw never loses what is typed, and
+  the caret is kept (`keepCaret`/`putCaret`). Comments live beside the project, not in it:
+  undo never takes a colleague's words back. The report ends with every thread, and each step
+  in its Processing list says how many threads it has.
 - **Statistics window** (`renderStats`): descriptive statistics of every spectrum (final or
   raw, all X or the visible range: points, min, max, mean, SD, median, noise σ, S/N, area,
   centroid), the visible-range integral (`measureHtml`), and Pearson r between spectra on the
@@ -213,9 +286,17 @@ graph first, with the taskbar kept at the bottom of the screen.
   and respects fixed parameters. `fitAt` equals the fit's `at` while the draft is exactly that
   fit, which is how the overlay knows not to draw a duplicate; every edit to the draft clears
   it. `recenterBase` re-expresses the baseline coefficients when the view (and so `x0`) moves.
-  `setPeakShape` changes a shape keeping centre, width and height.
+  `setPeakShape` changes a shape keeping centre, width and height. Every peak has a stable `id`
+  (assigned in `pdraftModel`, which also writes tied values into `init`); ties are set from
+  the chain-link button beside a parameter (`tieMenuItems`, `setTie`, `askTie` for a ratio or a
+  spacing) or "One width" (`shareWidths`, `widthsShared`). `setTie` re-points peaks that
+  followed the newly tied one, `removePeak` frees peaks tied to the removed one, and dragging a
+  tied peak moves what it follows, so a group moves together. `runPeakFit` fits only the free
+  parameters (tied ones fixed, the model applying the ties) and `linkResult` fills in the tied
+  values, errors, covariances; the spec stores `id` and `tie`, and Method lists every tie.
 - **Undo**: `pushUndo(label)` before any mutation, `undo`/`redo`, snapshots of `UNDO_KEYS`
-  (`cols` carries the pipelines and masks, `raw` the fingerprint record, `fits` the fit history)
+  (`cols` carries the pipelines and masks, `raw` the fingerprint record, `fits` the fit history,
+  `userFns` the project's fit functions)
   plus both drafts (`S.pdraft`, `S.draft`). It is per-session and local on purpose — rewinding your
   own edits, not other people's. Destructive actions confirm themselves with a toast that
   carries an Undo button (`toast(msg,{action,run})`).
@@ -232,7 +313,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   `legendFrame`, `frame`, `font`, `title`, `cmap`, `scheme`, `peakScheme`, `peakLab`,
   `peakLabRot`, `peakLabDec`, `axisMatch`, `annos`, `series[id]` and `ax.x|y|y2`, see
   Rendering), `fit`, `fits` (the fit history:
-  numbers, the processing, and a decimated thumbnail of each fit), `log`, optional
+  numbers, the processing, and a decimated thumbnail of each fit), `userFns`, `log`, optional
   `prefFit`/`prefModel` (what an example opens with), and `v` (document version 4; `migrate()`
   upgrades v1–v3 in place, turning v3's table-wide `steps` into steps on every spectrum and
   computed columns into derived spectra, and `normalize()` saves the upgrade at once). Panel
@@ -240,7 +321,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   the stage and pending state above, `S.flowSel`/`S.flowTab`, `S.py` (the Python window),
   `S.pf` (the peak finder's settings, saved per browser under `kurve.pf`), `S.pfPreview`,
   `S.plotPreview` (the Plot details' working copy), `S.stOpt`, `S.annoSel` (the selected
-  annotation; Delete removes it). Window positions are `LAYOUT`.
+  annotation; Delete removes it), `S.comments` with `S.cDrafts`, `S.cReply`, `S.cEdit` and
+  `S.discFilter` (the Discussion window's Open/All). Window positions are `LAYOUT`.
 - **Rendering**: `buildPlot(W,H,palette,forExport)` returns an SVG string used both on screen and
   for export; on screen it also records `S.geo` (transforms, handle positions, `logX`, `heat`).
   It reads the plot settings through `plotCfg()`, which is the Plot details' working copy
@@ -320,7 +402,9 @@ click every control you touched, and watch for page errors. Screenshots at 1440,
 are about to click to the front (`focusWin`) or the click lands on whatever lies over it.
 Python needs the Pyodide files: a Playwright route does not reach requests made inside a
 worker, so serve the app and a local copy of the `pyodide` npm package over HTTP and point
-`PY_INDEX` at it.
+`PY_INDEX` at it. That package has no numpy wheel, so drive Python with plain lists; the examples that
+use numpy need the real CDN. Comments, ties and user functions have no store or network of
+their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 
 ## Things that have bitten, and the rules that came out of them
 
@@ -440,22 +524,71 @@ worker, so serve the app and a local copy of the `pyodide` npm package over HTTP
   of a v1 project in storage, and the next reload brought them back. `migrate` deletes legacy
   keys every time, and the upgrade writes them as null.
 
-## Known gaps / next steps
+- **A parameter at its limit has no standard error.** A Voigt whose Gaussian width went to zero
+  reported a height of 2282 ± 151 553: the curvature at the bound gave the width an error of
+  3e7, and the bisection noise in its FWHM, divided by a 1e-10 step, multiplied it. Tables now
+  say "at its limit", the delta method leaves such a parameter out, and FWHM errors use a
+  smooth approximation.
+- **A width going to zero is not always a broken peak.** The "collapsed width" check was written
+  for the split pseudo-Voigt, whose halves must each be real; a Voigt at a Gaussian width of
+  zero is a Lorentzian, and was flagged unusable until shapes could say they are `convolved`.
+- **A dictionary of built-ins needs `hasOwnProperty`.** `EXPR_FN["constructor"]` is `Object`, so a
+  formula calling `constructor(x)` compiled. Any lookup keyed by user text uses own properties,
+  and objects keyed by parameter names are `Object.create(null)` (a parameter may be called
+  `__proto__`).
+- **Names of people keep their capitals.** "1 fano (breit–wigner–fano) peak" came from lower-casing
+  model names for sentences. `lcFirst` lower-cases only names that are not eponyms, and shapes
+  have a `short` name for the middle of a sentence.
+- **A thing centred with `left:50%` gets half the screen.** The toast's auto width was computed
+  against the half of the viewport to the right of its left edge, so on a phone it wrapped
+  into six lines. It is `width:max-content` under its `max-width`.
+- **A comment on a step outlives the step, and must say so.** Anchors keep the label the box had
+  when the thread began; the live label is used while the step exists.
 
-- Next in the plan: an automatic Overview of a new spectrum, user-defined fit functions, Voigt
-  and Fano shapes, shared parameters, batch processing with summary tables, and per-peak
-  integration windows in the peak finder
+## Roadmap
+
+Done in this round: comments on every History box (threads, replies, resolve, edit, delete
+with undo, badges, the Discussion window's filter, the report); Python in the flow chart (new
+spectra from Python, dashed arrows from the spectra code reads, out-of-date warnings and "Run
+Python again"); user-defined fit functions with a library; true Voigt and Fano shapes; tied
+peak parameters (one width, area ratios, fixed spacings).
+
+Next, in order:
+1. Integration without a fit: per-peak integration windows dragged on the graph, each with a
+   local baseline, giving a peak table and live band ratios; an automatic Overview of a new
+   spectrum (noise, S/N, spacing, bands, spikes, likely background, suggested first steps)
+2. Many spectra at once: batch fits with a summary table and a trend plot of a parameter
+   against sample, temperature or time; global fits with shared parameters; a multi-column
+   import wizard
+3. Figures for papers: export presets (journal column widths, DPI, fixed font sizes), style
+   templates shared between projects, annotation arrows, boxes, real sub- and superscripts,
+   snapping, insets
+4. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
+   lanes, keyboard access to annotations and peak handles, handles for shape parameters
+   (Lorentz fraction, Pearson m, Fano 1/q)
+5. More files: JCAMP-DX, then SPC; OPUS and SPE last
+6. Under the hood: a UI test script in `tools/` (Playwright) that runs every example end to end;
+   speed with hundreds of spectra
+7. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
+   applied in one click, unread markers; Python steps that re-run on their own when asked
+
+## Known gaps
+
 - Only one Y column is fitted at a time: no batch across a series, no global fit with shared
-  parameters, and no summary table of a parameter against sample (a step can already be
-  applied to every spectrum)
+  parameters across spectra, and no summary table of a parameter against sample (a step can
+  already be applied to every spectrum)
 - The import wizard reads one Y column; extra columns have to be added by hand afterwards, or
   imported one file at a time with "Add" (each keeps its own X column when its axis differs)
 - Peak handles move centre, height and width; there is no handle for a shape parameter
-  (Lorentz fraction, Pearson m), and no keyboard nudging of a selected peak on the graph
-- No parameter sharing between peaks (a common instrument width), and no custom expressions
+  (Lorentz fraction, Pearson m, Fano 1/q), and no keyboard nudging of a selected peak
+- Ties are between the same parameter of two peaks; there are no free-form constraints between
+  different parameters, and a user's function cannot be a peak shape in a peak fit
+- Comments have no mentions, unread markers or notifications; they are plain text
 - No Shirley or Tougaard background (XPS); no Fourier self-deconvolution
-- Python steps store their output and must be run again by hand when their input changes (they
-  say so); every other step stores only its settings. numpy loads from the Pyodide CDN, which a
+- Python steps store their output and must be run again when their input or a spectrum they
+  read changes (they say so, and "Run Python again" does all of them); every other step stores
+  only its settings. Reads are recorded when code takes a spectrum out of `spectra` by name,
+  `get`, `items`, `values` or `copy`; `dict(spectra)` goes unseen. numpy loads from the Pyodide CDN, which a
   strict content policy may block: the code then gets plain lists
 - The History lays lanes out in a grid; with many spectra it scrolls rather than packs, and
   there is no zoom on the flow chart
@@ -466,6 +599,5 @@ worker, so serve the app and a local copy of the `pyodide` npm package over HTTP
 - Annotations have no arrows, boxes or rich text (sub- and superscripts only as Unicode), and
   are not snapped to data or to each other
 - Binary instrument formats (SPC, OPUS, SPE) and JCAMP-DX are not read; text exports only
-- True Voigt is approximated by the pseudo-Voigt shapes; there is no Faddeeva implementation
 - The preview pane serves a snapshot of the file, so `location.reload()` re-runs stale code —
   navigate to the file again after editing, or you will test the previous version

@@ -18,6 +18,7 @@
   --accent:#1D5FA8; --accent-ink:#FFFFFF; --accent-soft:#E3EDF9; --sel:#E3EDF9;
   --ok:#2E7D4F; --ok-bg:#E6F3EA; --warn:#8A5200; --warn-bg:#FFF4DE; --bad:#B42318; --bad-bg:#FDECEA;
   --toast-act:#9CC3F0; --shadow:0 12px 32px rgba(16,24,40,.18),0 2px 6px rgba(16,24,40,.08);
+  --talk:#6A45C2; --talk-ink:#FFFFFF; --talk-soft:#EFEAFB;
   --sans:"Source Sans 3","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
@@ -31,6 +32,7 @@
     --accent:#72A9E6; --accent-ink:#0F151D; --accent-soft:#1F3048; --sel:#1F3048;
     --ok:#6CC08F; --ok-bg:#16301F; --warn:#E2AE4E; --warn-bg:#33270F; --bad:#F0785C; --bad-bg:#3A2320;
     --toast-act:#1D5FA8; --shadow:0 12px 32px rgba(0,0,0,.55); color-scheme:dark;
+    --talk:#B39DF5; --talk-ink:#160F26; --talk-soft:#2A2340;
   }
 }
 :root[data-theme="dark"]{
@@ -40,6 +42,7 @@
   --accent:#72A9E6; --accent-ink:#0F151D; --accent-soft:#1F3048; --sel:#1F3048;
   --ok:#6CC08F; --ok-bg:#16301F; --warn:#E2AE4E; --warn-bg:#33270F; --bad:#F0785C; --bad-bg:#3A2320;
   --toast-act:#1D5FA8; --shadow:0 12px 32px rgba(0,0,0,.55); color-scheme:dark;
+  --talk:#B39DF5; --talk-ink:#160F26; --talk-soft:#2A2340;
 }
 
 /* ---- Base --------------------------------------------------------------- */
@@ -216,6 +219,40 @@ select:disabled,input:disabled{opacity:.55}
 .hint{color:var(--muted);font-size:12.5px;margin:6px 0 10px}
 .formula{font:16px/1.5 var(--serif);padding:8px 12px;background:var(--panel-2);border:1px solid var(--rule-2);border-radius:5px;margin:8px 0 10px;overflow-x:auto;white-space:nowrap}
 .formula i{font-style:italic}
+.formula.user{white-space:normal}
+.ptab td.fx{white-space:nowrap}
+.tieb{display:inline-grid;place-items:center;width:20px;height:20px;margin-left:3px;padding:0;border:0;border-radius:4px;background:none;color:var(--faint);cursor:pointer;vertical-align:middle}
+.tieb:hover:not(:disabled),.tieb[aria-expanded="true"]{background:var(--panel-3);color:var(--accent)}
+.tieb .ic{width:13px;height:13px}
+.tiechip{display:flex;align-items:center;gap:5px;width:100%;min-width:0;height:26px;padding:0 8px;border:1px dashed var(--accent);border-radius:5px;background:var(--accent-soft);color:var(--accent);font:600 12px var(--sans);cursor:pointer;text-align:left}
+.tiechip .ic{width:13px;height:13px;flex:0 0 auto}
+.tiechip span:first-of-type{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tiechip .tv{margin-left:auto;font-weight:400;color:var(--ink-2);font-variant-numeric:tabular-nums}
+#shareW[aria-pressed="true"]{color:var(--accent);background:var(--accent-soft)}
+.formula .ufx{font:13px/1.6 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
+.mrow{display:flex;gap:6px;align-items:center}
+.mrow select{flex:1;min-width:0}
+.mrow .btn{flex:0 0 auto}
+.ufacts{margin:-4px 0 6px;flex-wrap:wrap;align-items:center}
+.rfx code{font:12px/1.5 var(--mono);color:var(--ink-2);overflow-wrap:anywhere}
+.fnb .fblab{display:block;margin:2px 0 4px;color:var(--ink-2)}
+.fnb textarea{width:100%;min-height:64px;resize:vertical;padding:7px 9px;font:13px/1.55 var(--mono);background:var(--panel-2);display:block;tab-size:4}
+.fbmsg{display:flex;gap:6px;align-items:flex-start;min-height:22px;margin:6px 0 4px;font-size:12.5px}
+.fbmsg .ic{flex:0 0 auto;margin-top:2px}
+.fbmsg.ok{color:var(--ok)}
+.fbmsg.bad{color:var(--bad)}
+.fbmsg i{font-style:italic}
+.fbprev{margin:4px 0 8px}
+.fbprev svg{width:100%;height:auto;display:block}
+.fbwarn{display:flex;gap:6px;color:var(--warn);font-size:12.5px;margin:4px 0}
+.fbpars{margin:4px 0 10px}
+.fbpars input{width:100%;min-width:0}
+.fbpars select{width:100%;min-width:76px;height:26px}
+.fbpars td,.fbpars th{padding:3px 4px}
+.fbpars td.pn{white-space:nowrap;font-family:var(--serif);font-size:15px}
+.fbhelp{margin-top:10px}
+.fbhelp p{font-size:12.5px;color:var(--ink-2);margin:0 0 6px}
+.fbhelp code{font-size:11.5px}
 .range{font-size:12.5px;color:var(--muted);margin:8px 0}
 .err{color:var(--bad);font-size:13px;margin:8px 0}
 .sticky{position:sticky;bottom:0;z-index:3;background:var(--panel);margin:12px -14px 0;padding:10px 14px;border-top:1px solid var(--rule);display:flex;gap:6px;flex-wrap:wrap}
@@ -323,15 +360,53 @@ details.more>table{margin-top:8px}
 /* Discussion and history */
 .disc{display:flex;flex-direction:column;min-height:100%}
 .thread{flex:1}
-.cmt{display:grid;grid-template-columns:28px 1fr;gap:9px;padding:9px 0;border-bottom:1px solid var(--rule-2)}
+.cmt{display:grid;grid-template-columns:28px 1fr;gap:9px;padding:5px 0}
 .cmt img{width:28px;height:28px;border-radius:50%}
-.cmt .who{font-weight:600}
-.cmt .when{color:var(--muted);font-size:12px;margin-left:6px;font-weight:400}
-.cmt .txt{margin:3px 0 5px;white-space:pre-wrap;word-wrap:break-word}
-.cmt.resolved{opacity:.55}
-.anchor{display:inline-flex;align-items:center;gap:5px;font-size:12px;border:1px solid var(--rule);border-radius:10px;padding:1px 8px;background:var(--panel-2);cursor:pointer;color:var(--ink)}
-.anchor .num{display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--pin);color:#fff;font-size:11px;text-align:center;line-height:16px;font-weight:700}
-.cmt .ops{display:flex;gap:4px;margin-top:3px}
+.cmt .cb{min-width:0}
+.cmt .who{display:flex;align-items:baseline;gap:6px;font-weight:600;min-height:22px}
+.cmt .when{color:var(--muted);font-size:12px;font-weight:400}
+.cmt .txt{margin:1px 0 3px;white-space:pre-wrap;overflow-wrap:anywhere}
+.cmt .txt.gone{font-style:italic;color:var(--muted)}
+.cmt .cops{margin-left:auto;display:inline-flex;gap:1px;opacity:0;transition:opacity .12s}
+.cmt:hover .cops,.cmt:focus-within .cops{opacity:1}
+@media (hover:none){ .cmt .cops{opacity:1} }
+.thr{padding:8px 0 6px;border-bottom:1px solid var(--rule-2);border-radius:4px}
+.thr>.anchor{margin:0 0 3px 37px;max-width:calc(100% - 37px)}
+.thr>.anchor>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.thr.resolved .cmt{opacity:.62}
+.thr.flash{animation:thrflash 1.8s ease-out}
+@keyframes thrflash{0%,30%{background:var(--talk-soft)}100%{background:transparent}}
+.replies{margin:2px 0 0 37px;border-left:2px solid var(--rule);padding-left:10px}
+.replies .cmt{grid-template-columns:22px 1fr;gap:8px}
+.replies .cmt img{width:22px;height:22px}
+.tops{display:flex;align-items:center;gap:2px;margin:1px 0 0 31px;min-height:26px}
+.tops .lab{margin-left:6px}
+.rbox{margin:6px 0 2px 37px}
+.cedit{margin:3px 0 4px}
+.ctext{width:100%;min-height:52px;resize:vertical;padding:6px 8px;display:block;font:inherit;line-height:1.45}
+.rbox .crow,.cedit .crow,.fcomp .crow{display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap}
+.rbox .crow .sp,.cedit .crow .sp,.fcomp .crow .sp{flex:1}
+.anchor{display:inline-flex;align-items:center;gap:5px;font-size:12px;border:1px solid var(--rule);border-radius:10px;padding:1px 8px;background:var(--panel-2);cursor:pointer;color:var(--ink);min-width:0}
+.anchor>.ic{color:var(--talk);flex:0 0 auto}
+.anchor .num{display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--pin);color:#fff;font-size:11px;text-align:center;line-height:16px;font-weight:700;flex:0 0 auto}
+.dbar{display:flex;align-items:center;gap:8px;padding:0 0 6px;border-bottom:1px solid var(--rule-2)}
+.dbar .cnt,.seg .cnt{font-weight:400;color:var(--muted);margin-left:2px}
+#cAnchor{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;min-width:0}
+#cAnchor .btn{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fdisc{margin-top:18px;border-top:1px solid var(--rule);padding-top:2px}
+.fdisc .gh{margin-top:12px}
+.fdisc .gh .cnt{text-transform:none;letter-spacing:0;font-weight:600;color:var(--talk)}
+.fdisc .gh .cnt.done{color:var(--muted);font-weight:400}
+.fdisc .fd-empty{margin:0 0 6px}
+.fdisc .thr:last-child{border-bottom:0}
+.fdisc details.fdone{margin-top:6px}
+.fcomp{margin-top:8px}
+.fi-disc{display:inline-flex;align-items:center;gap:3px;height:22px;padding:0 7px 0 6px;border-radius:11px;border:1px solid var(--rule);background:var(--panel-2);color:var(--muted);font:600 11.5px var(--sans);cursor:pointer;flex:0 0 auto}
+.fi-disc.open{background:var(--talk);border-color:var(--talk);color:var(--talk-ink)}
+.fi-disc:hover{filter:brightness(1.06)}
+.fn-c{position:absolute;right:-7px;bottom:-8px;display:inline-flex;align-items:center;gap:2px;height:17px;padding:0 5px 0 4px;border-radius:9px;background:var(--talk);color:var(--talk-ink);font-size:10.5px;font-weight:700;line-height:1;box-shadow:0 0 0 2px var(--panel-2);cursor:pointer}
+.fn-c .ic{width:11px;height:11px}
+.fn-c.done{background:var(--panel);color:var(--muted);box-shadow:0 0 0 1px var(--rule),0 0 0 3px var(--panel-2)}
 .composer{position:sticky;bottom:-14px;background:var(--panel);padding:10px 0 14px;border-top:1px solid var(--rule);margin-top:8px}
 .composer textarea{width:100%;min-height:58px;resize:vertical;padding:7px 9px;display:block}
 .composer .crow{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
@@ -397,7 +472,9 @@ details.more>table{margin-top:8px}
 .help h3:first-child{margin-top:0}
 .help ol{padding-left:1.3em;margin:0 0 10px}
 .help li{margin-bottom:6px}
-.toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);z-index:80;display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--panel);padding:8px 8px 8px 14px;border-radius:7px;font-size:13px;box-shadow:var(--shadow);max-width:min(680px,92vw)}
+.toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);z-index:80;display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--panel);padding:8px 8px 8px 14px;border-radius:7px;font-size:13px;box-shadow:var(--shadow);max-width:min(680px,92vw);width:max-content}
+/* Centred with left:50%, a toast would otherwise wrap into half the screen. */
+.toast #toastMsg{flex:1 1 auto;min-width:0}
 .toast #toastAct{border:0;background:transparent;color:var(--toast-act);font-weight:700;cursor:pointer;padding:4px 8px;border-radius:4px;white-space:nowrap}
 .toast #toastAct:hover{background:rgba(127,127,127,.2)}
 .toast #toastX{border:0;background:transparent;color:inherit;opacity:.7;cursor:pointer;padding:3px;border-radius:4px;display:inline-flex}
@@ -472,6 +549,8 @@ details.more>table{margin-top:8px}
 .fe{fill:none;stroke:var(--faint);stroke-width:1.5}
 .fe.br{stroke:var(--accent);stroke-width:1.7}
 .fe.ref{stroke:var(--pin);stroke-width:1.4;stroke-dasharray:5 4}
+.fe-arr{fill:var(--pin)}
+#cBadge,.tk[data-tk="disc"] .badge{background:var(--talk);color:var(--talk-ink)}
 .fnode{position:absolute;width:172px;height:50px;display:flex;align-items:center;gap:6px;padding:4px 6px 4px 8px;border:1px solid var(--rule);border-radius:7px;background:var(--panel);cursor:pointer;text-align:left;color:var(--ink);box-shadow:0 1px 2px rgba(16,24,40,.07);font:inherit;touch-action:none}
 .fnode:hover{border-color:var(--faint)}
 .fnode.sel{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
@@ -566,6 +645,17 @@ details.more>table{margin-top:8px}
 .pystat.bad{color:var(--bad)}
 .pystat.busy{color:var(--pin)}
 .pyres{flex:0 1 38%;overflow:auto;padding:8px 12px;min-height:56px}
+.pybar .seg.mini{margin-left:0}
+.pyprev{max-width:340px;margin:0 0 8px}
+.pyprev svg{width:100%;height:auto}
+.pyreadnote{display:flex;gap:6px;align-items:flex-start}
+.pyreadnote .ic{flex:0 0 auto;margin-top:2px;color:var(--accent)}
+.pyreads{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:7px 0 0}
+.chipb{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border:1px dashed var(--faint);border-radius:11px;background:var(--panel-2);color:var(--ink);font:12px var(--sans);cursor:pointer;max-width:100%}
+.chipb:hover{border-color:var(--accent);color:var(--accent)}
+.chipb .ic{color:var(--muted)}
+.fbar .pyredo{color:var(--warn)}
+.fbar .pyredo .ic{color:var(--warn)}
 .pyout,.pyerr{font:12px/1.45 var(--mono);white-space:pre-wrap;margin:0 0 8px;padding:8px 10px;border-radius:5px;background:var(--panel-2);border:1px solid var(--rule-2);max-height:260px;overflow:auto;overflow-wrap:anywhere}
 .pyerr{background:var(--bad-bg);border-color:var(--bad-bg);color:var(--bad)}
 
@@ -639,6 +729,11 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 #style{width:118px}
 #layoutSel{width:136px}
 @media (max-width: 1580px){ .tb.lbl.opt>span{display:none} .tb.lbl.opt{padding:0;width:30px} }
+/* The file input is never seen; it must not take a place in the row either. */
+#fileIn{position:absolute;width:1px;height:1px;overflow:hidden}
+/* Between 860 and 1180 px the toolbar keeps to one row: narrower lists. */
+@media (max-width: 1180px){ #style{width:104px} #layoutSel{width:118px} .toolbar{gap:2px} #viewSeg>button{padding:0 9px} }
+@media (max-width: 1010px){ #style{width:90px} #layoutSel{width:98px} #viewSeg>button{padding:0 6px} #modeSeg>button{padding:0 6px} .toolbar .tsep{margin:0 2px} }
 
 /* ---- Narrow screens: the windows stack, graph first ---------------------- */
 @media (max-width: 1100px){
@@ -736,6 +831,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
   <symbol id="i-cascade" viewBox="0 0 24 24"><rect x="3" y="3" width="11" height="9" rx="1"/><rect x="7" y="7" width="11" height="9" rx="1"/><rect x="10.5" y="11" width="10.5" height="9" rx="1"/></symbol>
   <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.2 1.2 0 0 1 0 1.7l-6.5 6.5a1.2 1.2 0 0 1-1.7 0z"/><circle cx="8" cy="8" r="1.4"/></symbol>
   <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.2 4.2 0 0 0 6 0l3-3a4.2 4.2 0 0 0-6-6l-1.3 1.3"/><path d="M14 10a4.2 4.2 0 0 0-6 0l-3 3a4.2 4.2 0 0 0 6 6l1.3-1.3"/></symbol>
   <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></symbol>
 </svg>
 <div class="app" id="app">
@@ -1137,6 +1233,171 @@ function polyfit(X,Y,deg){
     for(let j=0;j<=k;j++){ out[j]+=c[k]*binom*Math.pow(-x0,k-j); binom=binom*(k-j)/(j+1); } }
   return out.every(Number.isFinite)?out:new Array(m).fill(0).map((_,k)=>k===0?mean:0);
 }
+/* ---- User-defined functions ----------------------------------------------
+   A formula is parsed into a tree of small functions, never run as
+   JavaScript, so it can do arithmetic and nothing else: numbers, x, names,
+   + - * / and ^ (or **), parentheses, the functions in EXPR_FN and the
+   constants pi and e. Several lines are allowed: "u = (x - xc)/w" names a
+   value for the lines below, and the function is "y = …" or the last line.
+   Every other name is a parameter, in the order it first appears. */
+function erfcFn(x){
+  if(x<0) return 2-erfcFn(-x);
+  if(x<2.5){ // the Taylor series of erf converges quickly here
+    let s=x, t=x, x2=x*x;
+    for(let n=1;n<80;n++){ t*=-x2/n; const d=t/(2*n+1); s+=d; if(Math.abs(d)<1e-17*Math.abs(s)) break; }
+    return 1-s*1.1283791670955126; }
+  // A continued fraction, evaluated from the far end.
+  let f=0; for(let n=60;n>=1;n--) f=(n/2)/(x+f);
+  return Math.exp(-x*x)/(x+f)*0.5641895835477563;
+}
+const erfFn=x=>1-erfcFn(x);
+const EXPR_FN={exp:[1,Math.exp],ln:[1,Math.log],log:[1,Math.log],log10:[1,Math.log10],log2:[1,Math.log2],sqrt:[1,Math.sqrt],abs:[1,Math.abs],
+  sin:[1,Math.sin],cos:[1,Math.cos],tan:[1,Math.tan],asin:[1,Math.asin],acos:[1,Math.acos],atan:[1,Math.atan],atan2:[2,Math.atan2],
+  sinh:[1,Math.sinh],cosh:[1,Math.cosh],tanh:[1,Math.tanh],pow:[2,Math.pow],min:[-2,Math.min],max:[-2,Math.max],
+  erf:[1,erfFn],erfc:[1,erfcFn],sign:[1,Math.sign],step:[1,v=>v>0?1:v<0?0:0.5]};
+const EXPR_CONST={pi:Math.PI,e:Math.E};
+function exprErr(msg,src,i){ const e=new Error(msg); if(i!=null&&src!=null){ const before=String(src).slice(0,i); e.line=before.split("\n").length; e.col=i-before.lastIndexOf("\n"); e.pos=i; } return e; }
+function exprTokens(src){
+  const s=String(src), t=[]; let i=0;
+  const idRe=/^[\p{L}_][\p{L}\p{N}_]*/u, numRe=/^(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?/;
+  while(i<s.length){
+    const c=s[i];
+    if(c===" "||c==="\t"||c==="\r"||c===" "){ i++; continue; }
+    if(c==="#"){ while(i<s.length&&s[i]!=="\n") i++; continue; }
+    if(c==="\n"||c===";"){ t.push({k:"nl",i}); i++; continue; }
+    if(/[\d.]/.test(c)){ const m=numRe.exec(s.slice(i)); if(!m) throw exprErr(`“${c}” on its own is not a number`,s,i); t.push({k:"num",v:parseFloat(m[0]),i,len:m[0].length}); i+=m[0].length; continue; }
+    const id=idRe.exec(s.slice(i)); if(id){ t.push({k:"id",v:id[0],i,len:id[0].length}); i+=id[0].length; continue; }
+    if(c==="*"&&s[i+1]==="*"){ t.push({k:"op",v:"^",i}); i+=2; continue; }
+    if("+-*/^".includes(c)){ t.push({k:"op",v:c,i}); i++; continue; }
+    if(c==="−"||c==="–"){ t.push({k:"op",v:"-",i}); i++; continue; }
+    if(c==="×"||c==="·"){ t.push({k:"op",v:"*",i}); i++; continue; }
+    if(c==="÷"){ t.push({k:"op",v:"/",i}); i++; continue; }
+    if("(),=".includes(c)){ t.push({k:c,i}); i++; continue; }
+    if(c==="["||c==="{"){ t.push({k:"(",i}); i++; continue; }
+    if(c==="]"||c==="}"){ t.push({k:")",i}); i++; continue; }
+    throw exprErr(`A formula cannot contain “${c}”`,s,i);
+  }
+  return t;
+}
+/* Returns {params, f(x, p), text, usesX}, or throws an Error whose message
+   says what is wrong and where (e.line, e.col). */
+function compileExpr(src){
+  const s=String(src||"");
+  const toks=exprTokens(s);
+  // Split into statements.
+  const stmts=[]; let cur=[];
+  toks.forEach(t=>{ if(t.k==="nl"){ if(cur.length) stmts.push(cur); cur=[]; } else cur.push(t); }); if(cur.length) stmts.push(cur);
+  if(!stmts.length) throw exprErr("Write the function, for example: y = a + b*x");
+  const locals=new Map(), params=[], pIndex=new Map(), used=new Map();
+  let result=null, usesX=false;
+  const where=t=>t?t.i:s.length;
+  const parseStmt=ts=>{
+    let k=0;
+    const peek=()=>ts[k], next=()=>ts[k++];
+    const expect=(kind,what)=>{ const t=next(); if(!t||t.k!==kind) throw exprErr(`Expected ${what}${t?` before “${s.slice(t.i,t.i+(t.len||1))}”`:" at the end"}`,s,where(t)); return t; };
+    const primary=()=>{
+      const t=next();
+      if(!t) throw exprErr("The formula ends too soon: something is missing after the last operator",s,s.length);
+      if(t.k==="num") return {t:"num",v:t.v};
+      if(t.k==="("){ const e=expr(); expect(")","a closing )"); return e; }
+      if(t.k==="op"&&(t.v==="-"||t.v==="+")){ const a=power(); return t.v==="-"?{t:"neg",a}:a; }
+      if(t.k==="id"){
+        const nm=t.v;
+        if(peek()&&peek().k==="("){
+          const fd=Object.prototype.hasOwnProperty.call(EXPR_FN,nm)?EXPR_FN[nm]:null; if(!fd) throw exprErr(`There is no function called “${nm}”. Known: ${Object.keys(EXPR_FN).join(", ")}`,s,t.i);
+          next(); const args=[];
+          if(peek()&&peek().k===")") next();
+          else { for(;;){ args.push(expr()); const u=next(); if(u&&u.k===",") continue; if(u&&u.k===")") break; throw exprErr(`Expected , or ) in the call to ${nm}`,s,where(u)); } }
+          if(fd[0]>0&&args.length!==fd[0]) throw exprErr(`${nm} takes ${fd[0]} value${fd[0]===1?"":"s"}, not ${args.length}`,s,t.i);
+          if(fd[0]<0&&args.length<-fd[0]) throw exprErr(`${nm} needs at least ${-fd[0]} values`,s,t.i);
+          return {t:"call",fn:nm,args};
+        }
+        if(Object.prototype.hasOwnProperty.call(EXPR_FN,nm)&&!locals.has(nm)) throw exprErr(`${nm} is a function: write ${nm}(…)`,s,t.i);
+        if(nm==="x"){ usesX=true; return {t:"x"}; }
+        if(locals.has(nm)) return {t:"loc",j:locals.get(nm)};
+        if(Object.prototype.hasOwnProperty.call(EXPR_CONST,nm)) return {t:"num",v:EXPR_CONST[nm]};
+        if(nm==="y") throw exprErr("y is the result: it cannot be used on the right-hand side",s,t.i);
+        if(!pIndex.has(nm)){ pIndex.set(nm,params.length); params.push(nm); used.set(nm,t.i); }
+        return {t:"par",k:pIndex.get(nm)};
+      }
+      if(t.k===")") throw exprErr("A ) with nothing to close",s,t.i);
+      throw exprErr(`Expected a number, a name or ( before “${s.slice(t.i,t.i+1)}”`,s,t.i);
+    };
+    // ^ binds tighter than a leading minus (-x^2 is -(x^2)) and to the right.
+    const power=()=>{ const a=primary(); if(peek()&&peek().k==="op"&&peek().v==="^"){ next(); const b=unary(); return {t:"bin",op:"^",a,b}; } return a; };
+    const unary=()=>{ const t=peek(); if(t&&t.k==="op"&&(t.v==="-"||t.v==="+")){ next(); const a=unary(); return t.v==="-"?{t:"neg",a}:a; } return power(); };
+    const term=()=>{ let a=unary(); for(;;){ const t=peek();
+        if(t&&t.k==="op"&&(t.v==="*"||t.v==="/")){ next(); a={t:"bin",op:t.v,a,b:unary()}; continue; }
+        if(t&&(t.k==="num"||t.k==="id"||t.k==="(")) throw exprErr(`Put an operator before “${s.slice(t.i,t.i+(t.len||1))}” (for a product, write *)`,s,t.i);
+        return a; } };
+    const expr=()=>{ let a=term(); for(;;){ const t=peek(); if(t&&t.k==="op"&&(t.v==="+"||t.v==="-")){ next(); a={t:"bin",op:t.v,a,b:term()}; continue; } return a; } };
+    let name=null;
+    if(ts.length>1&&ts[0].k==="id"&&ts[1].k==="="){ name=ts[0].v; k=2;
+      if(name==="x") throw exprErr("x is the variable: it cannot be given a value",s,ts[0].i);
+      if(Object.prototype.hasOwnProperty.call(EXPR_FN,name)||Object.prototype.hasOwnProperty.call(EXPR_CONST,name)) throw exprErr(`${name} is a built-in name: choose another`,s,ts[0].i);
+      if(pIndex.has(name)) throw exprErr(`“${name}” is used above as a parameter before this line gives it a value`,s,ts[0].i);
+      if(locals.has(name)&&name!=="y") throw exprErr(`“${name}” is given a value twice`,s,ts[0].i); }
+    const e=expr();
+    if(k<ts.length){ const t=ts[k]; throw exprErr(t.k==="="?"Only one = per line, with a name on its left":t.k===")"?"A ) with nothing to close":`Unexpected “${s.slice(t.i,t.i+(t.len||1))}”`,s,t.i); }
+    return {name,e};
+  };
+  const body=[];
+  stmts.forEach((ts,i)=>{
+    const last=i===stmts.length-1, st=parseStmt(ts);
+    if(st.name&&pIndex.has(st.name)) throw exprErr(`“${st.name}” is used before its line gives it a value`,s,ts[0].i);
+    if(st.name==="y"){ if(!last) throw exprErr("y = … must be the last line: the lines above it can name values it uses",s,ts[0].i); result=st.e; return; }
+    if(!st.name){ if(!last) throw exprErr("Only the last line can be the function itself: give this one a name (u = …)",s,ts[0].i); result=st.e; return; }
+    if(last) throw exprErr(`The last line gives “${st.name}” a value, but the function itself is missing: end with y = …`,s,ts[0].i);
+    locals.set(st.name,locals.size); body.push({j:locals.get(st.name),e:st.e});
+  });
+  if(!result) throw exprErr("Write the function on the last line, for example: y = a + b*x");
+  if(!params.length) throw exprErr("There is nothing to fit: the formula needs at least one parameter (a name that is not x)");
+  const cmp=n=>{
+    switch(n.t){
+      case "num": { const v=n.v; return ()=>v; }
+      case "x": return x=>x;
+      case "par": { const k=n.k; return (x,p)=>p[k]; }
+      case "loc": { const j=n.j; return (x,p,L)=>L[j]; }
+      case "neg": { const a=cmp(n.a); return (x,p,L)=>-a(x,p,L); }
+      case "bin": { const a=cmp(n.a), b=cmp(n.b);
+        if(n.op==="+") return (x,p,L)=>a(x,p,L)+b(x,p,L);
+        if(n.op==="-") return (x,p,L)=>a(x,p,L)-b(x,p,L);
+        if(n.op==="*") return (x,p,L)=>a(x,p,L)*b(x,p,L);
+        if(n.op==="/") return (x,p,L)=>a(x,p,L)/b(x,p,L);
+        if(n.b.t==="num"&&n.b.v===2) return (x,p,L)=>{ const v=a(x,p,L); return v*v; };
+        return (x,p,L)=>Math.pow(a(x,p,L),b(x,p,L)); }
+      case "call": { const fn=EXPR_FN[n.fn][1], as=n.args.map(cmp);
+        if(as.length===1){ const a=as[0]; return (x,p,L)=>fn(a(x,p,L)); }
+        if(as.length===2){ const a=as[0], b=as[1]; return (x,p,L)=>fn(a(x,p,L),b(x,p,L)); }
+        return (x,p,L)=>fn(...as.map(g=>g(x,p,L))); }
+    }
+    throw new Error("Unknown node");
+  };
+  const steps=body.map(b=>({j:b.j,g:cmp(b.e)})), res=cmp(result), L=new Array(locals.size).fill(0);
+  const f=steps.length?(x,p)=>{ for(let i=0;i<steps.length;i++) L[steps[i].j]=steps[i].g(x,p,L); return res(x,p,L); }:(x,p)=>res(x,p,L);
+  const text=s.split("\n").map(l=>l.replace(/#.*$/,"").trim()).filter(Boolean).join("; ");
+  return {params,f,text,usesX};
+}
+/* Starting values for a user's function, from the data and the names: y0 or
+   c a baseline, A or H a height, xc or x0 a centre, w or sigma a width, t or
+   tau a time, k a rate, m a slope. Anything else starts at 1. */
+function guessUserParams(names,X,Y){
+  const n=Math.min(X.length,Y.length); if(n<2) return names.map(()=>1);
+  const o=X.map((_,i)=>i).sort((a,b)=>X[a]-X[b]);
+  let ymin=Infinity, ymax=-Infinity, imax=o[0];
+  o.forEach(i=>{ if(Y[i]<ymin) ymin=Y[i]; if(Y[i]>ymax){ ymax=Y[i]; imax=i; } });
+  const x0=X[o[0]], x1=X[o[n-1]], span=(x1-x0)||1, amp=(ymax-ymin)||1, k=Math.max(1,Math.floor(n/10));
+  const yFirst=o.slice(0,k).reduce((s,i)=>s+Y[i],0)/k, yLast=o.slice(-k).reduce((s,i)=>s+Y[i],0)/k;
+  return names.map(nm=>{ const s=nm.toLowerCase();
+    if(/^(y0|y_0|c|c0|base|baseline|offset|bg|background|const|d)$/.test(s)) return ymin;
+    if(/^(a|a0|a1|h|amp|amplitude|height|i0|n0|peak)$/.test(s)) return amp;
+    if(/^(xc|x_c|x0|x_0|mu|center|centre|pos|position|e0|w0|nu0|omega0)$/.test(s)) return X[imax];
+    if(/^(w|sigma|sig|fwhm|width|gamma|hwhm|wid|dx|s)$/.test(s)) return span/10;
+    if(/^(t|tau|t0|t1|t2|lifetime|tc|τ)$/.test(s)) return span/3;
+    if(/^(k|rate|lambda|lam|kappa)$/.test(s)) return 3/span;
+    if(/^(m|slope|b1)$/.test(s)) return (yLast-yFirst)/span;
+    return 1; });
+}
 /* ==NUMERICS:END== */
 
 /* ============================================================
@@ -1146,6 +1407,29 @@ function polyfit(X,Y,deg){
    ==PEAKS:START==
    ============================================================ */
 const LN2=Math.log(2), SQ2PI_=Math.sqrt(2*Math.PI), FWHM_SIG=2*Math.sqrt(2*LN2);
+/* The Faddeeva function w(z) = exp(-z^2) erfc(-iz), for Im z >= 0, by
+   Weideman's rational expansion (SIAM J. Numer. Anal. 31, 1994) with 32
+   terms. It is smooth everywhere, which a fitter's finite differences need,
+   and accurate to about 1e-13; its real part is the shape of a Voigt
+   profile. Returns [Re w, Im w]. */
+const FADD=(()=>{
+  const N=32, M=2*N, M2=2*M, L=Math.sqrt(N/Math.SQRT2), f=new Array(M2).fill(0);
+  for(let k=-M+1;k<=M-1;k++){ const t=L*Math.tan(k*Math.PI/(2*M)); f[k+M]=Math.exp(-t*t)*(L*L+t*t); }
+  const s=f.map((_,i)=>f[(i+M)%M2]), A=[];
+  for(let q=0;q<=N;q++){ let a=0; for(let n=0;n<M2;n++) a+=s[n]*Math.cos(2*Math.PI*q*n/M2); A.push(a/M2); }
+  return {N,L,c:A.slice(1,N+1).reverse()};
+})();
+function faddeeva(x,y){
+  const L=FADD.L, c=FADD.c, cr=L+y, ci=-x, ar=L-y, ai=x, dd=cr*cr+ci*ci;
+  // Z = (L + iz)/(L - iz)
+  const zr=(ar*cr+ai*ci)/dd, zi=(ai*cr-ar*ci)/dd;
+  let pr=0, pi=0;
+  for(let j=0;j<c.length;j++){ const t=pr*zr-pi*zi+c[j]; pi=pr*zi+pi*zr; pr=t; }
+  // 2p/(L - iz)^2 + (1/sqrt(pi))/(L - iz)
+  const d2r=cr*cr-ci*ci, d2i=2*cr*ci, d2=d2r*d2r+d2i*d2i, k=0.5641895835477563/dd;
+  return [2*(pr*d2r+pi*d2i)/d2+k*cr, 2*(pi*d2r-pr*d2i)/d2-k*ci];
+}
+const faddeevaRe=(x,y)=>faddeeva(x,y)[0];
 const PEAKS={
   gauss:{name:"Gaussian", params:["xc","A","w"], meaning:["centre","area","FWHM"],
     f(x,p){ const s=p[2]/FWHM_SIG; if(!(s>0)) return 0; const z=(x-p[0])/s; return p[1]/(s*SQ2PI_)*Math.exp(-0.5*z*z); },
@@ -1154,12 +1438,12 @@ const PEAKS={
   lorentz:{name:"Lorentzian", params:["xc","A","w"], meaning:["centre","area","FWHM"],
     f(x,p){ const g=p[2]/2; if(!(g>0)) return 0; const d=x-p[0]; return p[1]/Math.PI*g/(d*d+g*g); },
     height:p=>2*p[1]/(Math.PI*p[2])},
-  psdvoigt:{name:"Pseudo-Voigt", params:["xc","A","w","mu"], meaning:["centre","area","FWHM","Lorentzian fraction"],
+  psdvoigt:{name:"Pseudo-Voigt", short:"pseudo-Voigt", params:["xc","A","w","mu"], meaning:["centre","area","FWHM","Lorentzian fraction"],
     f(x,p){ const mu=Math.min(Math.max(p[3],0),1);
       return mu*PEAKS.lorentz.f(x,p)+(1-mu)*PEAKS.gauss.f(x,p); },
     height:p=>{ const mu=Math.min(Math.max(p[3],0),1); return mu*PEAKS.lorentz.height(p)+(1-mu)*PEAKS.gauss.height(p); },
     bounds:{mu:[0,1]}, init:{mu:0.5}},
-  psdvoigt2:{name:"Pseudo-Voigt (split widths)", params:["xc","A","wG","wL","mu"], meaning:["centre","area","Gaussian FWHM","Lorentzian FWHM","Lorentzian fraction"],
+  psdvoigt2:{name:"Pseudo-Voigt (split widths)", short:"split pseudo-Voigt", params:["xc","A","wG","wL","mu"], meaning:["centre","area","Gaussian FWHM","Lorentzian FWHM","Lorentzian fraction"],
     f(x,p){ const mu=Math.min(Math.max(p[4],0),1);
       return mu*PEAKS.lorentz.f(x,[p[0],p[1],p[3]])+(1-mu)*PEAKS.gauss.f(x,[p[0],p[1],p[2]]); },
     height:p=>{ const mu=Math.min(Math.max(p[4],0),1);
@@ -1175,8 +1459,67 @@ const PEAKS={
       return p[1]*norm*Math.pow(1+d*d,-m); },
     height:p=>{ const m=Math.max(p[3],0.5), a=p[2]/(2*Math.sqrt(Math.pow(2,1/m)-1));
       return p[1]*Math.exp(gammaln(m)-gammaln(m-0.5))/(a*Math.sqrt(Math.PI)); },
-    bounds:{m:[0.51,50]}, init:{m:1.5}}
+    bounds:{m:[0.51,50]}, init:{m:1.5}},
+  // The convolution of a Gaussian and a Lorentzian, each with its own width:
+  // what a line broadened by both the instrument and its own lifetime is.
+  voigt:{name:"Voigt", params:["xc","A","wG","wL"], meaning:["centre","area","Gaussian FWHM","Lorentzian FWHM"],
+    f(x,p){ const s=Math.abs(p[2])/FWHM_SIG, g=Math.abs(p[3])/2;
+      if(!(s>0)) return g>0?PEAKS.lorentz.f(x,[p[0],p[1],2*g]):0;
+      const k=1/(s*Math.SQRT2); return p[1]*faddeevaRe((x-p[0])*k,g*k)*k*0.5641895835477563; },
+    height:p=>PEAKS.voigt.f(p[0],p),
+    // Found by bisection from Olivero and Longbothum's estimate, so the
+    // FWHM reported is the profile's own, not the estimate's 0.02%.
+    fwhm:p=>{ const g=Math.abs(p[2]), l=Math.abs(p[3]), est=0.5346*l+Math.sqrt(0.2166*l*l+g*g); if(!(est>0)) return 0;
+      const q=[0,1,g,l], half=PEAKS.voigt.f(0,q)/2; let a=0, b=est/2; while(PEAKS.voigt.f(b,q)>half) b*=1.5;
+      for(let i=0;i<55;i++){ const m=(a+b)/2; if(PEAKS.voigt.f(m,q)>half) a=m; else b=m; } return a+b; },
+    // Smooth, for error propagation: bisection noise would swamp a derivative.
+    fwhmApprox:p=>{ const g=Math.abs(p[2]), l=Math.abs(p[3]); return 0.5346*l+Math.sqrt(0.2166*l*l+g*g); },
+    // Both widths start at the share of a measured FWHM that adds back up to
+    // it. Either may go to zero: the line is then a pure Lorentzian or Gaussian.
+    wSeed:{wG:0.61,wL:0.61}, convolved:true},
+  // Breit–Wigner–Fano: a line interfering with a continuum, asymmetric by
+  // 1/q (0 is a Lorentzian). Its tail never returns to zero, so its area is
+  // not finite: A is the area of the Lorentzian it becomes as 1/q goes to 0.
+  fano:{name:"Fano (Breit–Wigner–Fano)", params:["xc","A","w","iq"], meaning:["resonance position","area of its Lorentzian limit","width Γ","asymmetry 1/q"],
+    f(x,p){ const g=Math.abs(p[2]); if(!(g>0)) return 0; const e=2*(x-p[0])/g, t=1+e*p[3]; return p[1]*2/(Math.PI*g)*t*t/(1+e*e); },
+    height:p=>{ const g=Math.abs(p[2]); return g>0?p[1]*2/(Math.PI*g)*(1+p[3]*p[3]):0; },
+    top:p=>p[0]+p[3]*Math.abs(p[2])/2,
+    fwhm:p=>{ const a=p[3]; return Math.abs(p[2])*(1+a*a)/Math.abs(1-a*a); },
+    bounds:{iq:[-0.9,0.9]}, init:{iq:-0.1}, areaNote:true, short:"Fano",
+    labels:{xc:"Resonance",A:"Area (Lorentzian limit)",w:"Width Γ"}}
 };
+/* ---- Tied parameters ---------------------------------------------------------
+   A peak's parameter can follow the same parameter of another peak: equal (one
+   instrument width shared by every peak), a multiple (the 2:1 areas of a
+   doublet) or an offset (a fixed spacing between two centres). A tie lives on
+   the peak, by parameter name and the other peak's id: pk.tie[nm] = {to, mul,
+   add}, meaning p = mul * (the other's p) + add. The fitter varies only the
+   parameters that are free; a tied one follows its peak, and its standard
+   error is the other's times |mul|. A tie to a peak that is itself tied on
+   that parameter is not followed, so ties never chain or loop. */
+function peakLinks(peaks,m){
+  const idx={}, out=[]; (peaks||[]).forEach((pk,k)=>{ if(pk&&pk.id) idx[pk.id]=k; });
+  (peaks||[]).forEach((pk,k)=>{ const def=PEAKS[pk.type]||PEAKS.gauss;
+    Object.keys(pk.tie||{}).forEach(nm=>{ const t=pk.tie[nm], j=t?idx[t.to]:undefined; if(j==null||j===k) return;
+      const pj=peaks[j], dj=PEAKS[pj.type]||PEAKS.gauss, i1=def.params.indexOf(nm), i2=dj.params.indexOf(nm);
+      if(i1<0||i2<0||(pj.tie&&pj.tie[nm]&&idx[pj.tie[nm].to]!=null)) return;
+      out.push({k,j,nm,gi:m.offsets[k]+i1,gj:m.offsets[j]+i2,mul:Number.isFinite(t.mul)&&t.mul!==0?t.mul:1,add:Number.isFinite(t.add)?t.add:0}); }); });
+  return out;
+}
+function applyPeakLinks(p,L){ for(let i=0;i<L.length;i++){ const l=L[i]; p[l.gi]=l.mul*p[l.gj]+l.add; } return p; }
+// After a fit with ties: the tied values, and their errors and covariances
+// carried over from the parameters they follow.
+function linkResult(res,L){
+  if(!L.length) return res;
+  applyPeakLinks(res.params,L);
+  L.forEach(l=>{ const a=Math.abs(l.mul);
+    res.errors[l.gi]=res.errors[l.gj]==null?null:a*res.errors[l.gj];
+    if(res.cov){ const n=res.cov.length; for(let q=0;q<n;q++){ res.cov[l.gi][q]=l.mul*res.cov[l.gj][q]; res.cov[q][l.gi]=l.mul*res.cov[q][l.gj]; } res.cov[l.gi][l.gi]=l.mul*l.mul*res.cov[l.gj][l.gj]; }
+    ["dep","tval","pval"].forEach(k=>{ if(res[k]) res[k][l.gi]=NaN; }); if(res.ci) res.ci[l.gi]=[NaN,NaN]; if(res.atBound) res.atBound[l.gi]=false; });
+  return res;
+}
+// A new peak's width parameters, from one measured FWHM.
+const wSeedOf=(def,nm)=>(def.wSeed&&def.wSeed[nm])||1;
 const BASELINES={
   none:{name:"None", params:[], f:()=>0},
   const:{name:"Constant", params:["y0"], f:(u,p)=>p[0]},
@@ -2325,10 +2668,11 @@ const PIPE_OPS={
       return {d:pser(d,d.x,out,null,d.idx), note:d.e?"Error bars dropped: filtered points are no longer independent.":"", warn};
     }},
   python:{group:"math", rank:99, label:"Python", short:"Python",
-    help:"Your own code, run in Python in this browser. The step keeps the code and the result it produced, so the project opens with the same data without running Python again. When the data coming into the step change, run it again.",
-    params:[{k:"code",label:"Code",type:"code"}], defaults:{code:"",out:null,inSig:"",ranAt:0,log:""},
+    help:"Your own code, run in Python in this browser. The step keeps the code and the result it produced, so the project opens with the same data without running Python again. Other spectra the code takes from spectra are recorded, drawn as dashed lines in the History, and checked: when the data coming into the step, or a spectrum it reads, change, it says so; run it again.",
+    params:[{k:"code",label:"Code",type:"code"}], defaults:{code:"",out:null,inSig:"",ranAt:0,log:"",reads:[],readSigs:{}},
+    deps:p=>(p.reads||[]).map(id=>[id,"final"]),
     summary:p=>{ const l=String(p.code||"").split("\n").map(s=>s.trim()).find(s=>s&&!s.startsWith("#")&&!s.startsWith("import ")); return l?(l.length>44?l.slice(0,43)+"…":l):"no code yet"; },
-    run(d,p){
+    run(d,p,c){
       const o=p.out;
       if(!o||!o.x||!o.y) return {d, warn:["This code has not been run yet, so the step passes the data through unchanged. Run it from the History or the Python window."]};
       const n=Math.min(o.x.length,o.y.length), x=[], y=[], e=o.e?[]:null;
@@ -2343,6 +2687,9 @@ const PIPE_OPS={
       const warn=[];
       if(p.inSig&&p.inSig!==serSig(d)) warn.push("The data coming into this step have changed since the code was run, so its result belongs to the old data. Run it again.");
       if(p.ranCode!=null&&p.code!==p.ranCode) warn.push("The code has been edited since it ran: the result is still the earlier code's. Run it again.");
+      if(c&&c.refData) Object.keys(p.readSigs||{}).forEach(id=>{ const r=c.refData(id,"final"), nm=c.name?c.name(id):"a spectrum";
+        if(!r) warn.push(`The code read ${nm}, which it can no longer reach. Run it again.`);
+        else if(serSig(r)!==p.readSigs[id]) warn.push(`${nm}, which the code reads, has changed since it ran. Run it again.`); });
       return {d:pser(d,x,y,e,idx,{xn:o.xn!=null?o.xn:d.xn,xu:o.xu!=null?o.xu:d.xu,yn:o.yn!=null?o.yn:d.yn,yu:o.yu!=null?o.yu:d.yu}), note:`${x.length} points from Python${p.ranAt?`, run ${new Date(p.ranAt).toISOString().slice(0,16).replace("T"," ")}`:""}`, warn};
     }}
 };
@@ -2478,7 +2825,8 @@ function fitModel(fit){
     if(m.n!==(fit.params||[]).length) return null;
     return {f:m.f, model:m, composite:true, name:describeSpec(fit.spec)};
   }
-  const m=MODELS[fit.model];
+  if(fit.fn){ try{ const m=userModel(fit.fn); return {f:m.f, model:m, composite:false, name:m.name}; }catch(e){ return null; } }
+  const m=getModel(fit.model);
   return m?{f:m.f, model:m, composite:false, name:m.name}:null;
 }
 function activeFit(){ const p=P(); return p&&p.fit&&fitModel(p.fit)?p.fit:null; }
@@ -2503,11 +2851,16 @@ function fitStale(f){
   }
   return null;
 }
+// A model's name in the middle of a sentence: lower case, except the names of
+// people (a Gaussian peak stays Gaussian).
+const lcFirst=s=>/^(Gauss|Lorentz|Voigt|Pearson|Fano|Boltzmann|Breit)/.test(String(s))?String(s):String(s).charAt(0).toLowerCase()+String(s).slice(1);
 function describeSpec(spec){
   const n=(spec.peaks||[]).length;
-  const kinds=[...new Set((spec.peaks||[]).map(k=>(PEAKS[k.type]||PEAKS.gauss).name))];
+  // Shapes are named after people (Gauss, Lorentz, Voigt, Pearson, Fano), so
+  // their names keep their capitals mid-sentence.
+  const kinds=[...new Set((spec.peaks||[]).map(k=>{ const d=PEAKS[k.type]||PEAKS.gauss; return d.short||d.name; }))];
   const b=(BASELINES[spec.base]||BASELINES.none).name.toLowerCase();
-  return `${n} ${kinds.length===1?kinds[0].toLowerCase():"mixed"} peak${n===1?"":"s"}${spec.base&&spec.base!=="none"?` on a ${b} baseline`:""}`;
+  return `${n} ${kinds.length===1?kinds[0]:"mixed"} peak${n===1?"":"s"}${spec.base&&spec.base!=="none"?` on a ${b} baseline`:""}`;
 }
 function FM_slots(fit){ const FM=fitModel(fit); return FM&&FM.composite?FM.model.slots:[]; }
 
@@ -2550,9 +2903,13 @@ function peakMetrics(fit){
     const pv=fit.params.slice(o,o+np), ai=def.params.indexOf("A");
     // Height is a function of area and width, so its error comes from theirs
     // by the delta method — the same machinery the single-curve models use.
+    const deltaErr=fn=>{ if(!fit.cov) return 0; if(errs[o]===null) return null;
+      const g=pv.map((v,i)=>{ if(fit.atBound&&fit.atBound[o+i]) return 0; const hs=Math.max(Math.abs(v)*1e-6,1e-10), a2=pv.slice(), b2=pv.slice(); a2[i]+=hs; b2[i]-=hs; return (fn(a2)-fn(b2))/(2*hs); });
+      let s2=0; for(let i=0;i<np;i++) for(let j=0;j<np;j++){ const c=(fit.cov[o+i]||[])[o+j]; if(Number.isFinite(c)&&Number.isFinite(g[i])&&Number.isFinite(g[j])) s2+=g[i]*c*g[j]; }
+      return s2>0?Math.sqrt(s2):0; };
     let hErr=0;
     if(fit.cov){
-      const g=pv.map((v,i)=>{ const hstep=Math.max(Math.abs(v)*1e-6,1e-10);
+      const g=pv.map((v,i)=>{ if(fit.atBound&&fit.atBound[o+i]) return 0; const hstep=Math.max(Math.abs(v)*1e-6,1e-10);
         const a2=pv.slice(), b2=pv.slice(); a2[i]+=hstep; b2[i]-=hstep;
         return (def.height(a2)-def.height(b2))/(2*hstep); });
       let s2=0;
@@ -2563,10 +2920,11 @@ function peakMetrics(fit){
     return {k, type:def.name, color:peakColor(k),
       // Each width parameter separately: a split shape can keep a sane combined
       // FWHM while one of its halves has collapsed to nothing.
-      wparts:def.params.map((nm,i)=>/^w/.test(nm)?{nm,v:pv[i]}:null).filter(Boolean),
+      // (Not a Voigt's: one of its widths may rightly go to zero.)
+      wparts:def.convolved?[]:def.params.map((nm,i)=>/^w/.test(nm)?{nm,v:pv[i]}:null).filter(Boolean),
       xc:pv[0], xcErr:errs[o],
       area:pv[ai], areaErr:errs[o+ai],
-      fwhm:peakFWHM(def,pv), fwhmErr:def.fwhm?0:errs[o+2],
+      fwhm:peakFWHM(def,pv), fwhmErr:def.fwhm?deltaErr(def.fwhmApprox||(q=>peakFWHM(def,q))):errs[o+2],
       height:def.height(pv), heightErr:hErr};
   });
   const probs=peakProblems(fit,rows);
@@ -2713,9 +3071,17 @@ function fitWarnings(f){
     if(failed.length) out.push({level:"bad", kind:"unusable", text:`${failed.length} component${failed.length>1?"s are":" is"} not a usable peak and ${failed.length>1?"have":"has"} been left out of Area %. ${
       failed.map(r=>`Peak ${r.k+1} (centre ${fmt(r.xc,6)}): ${r.problems.join("; ")}`).join(". ")}. Delete ${failed.length>1?"them":"it"}, or give ${failed.length>1?"them":"it"} a sensible starting value and fit again.`});
   }
+  if(FM.composite){ const fano=(f.spec.peaks||[]).map((pk,k)=>pk.type==="fano"?k+1:0).filter(Boolean);
+    const m=FM.model, sp=pointSpacing();
+    (f.spec.peaks||[]).forEach((pk,k)=>{ if(pk.type!=="voigt") return; const o=m.offsets[k], g=Math.abs(f.params[o+2]), l=Math.abs(f.params[o+3]), fw=0.5346*l+Math.sqrt(0.2166*l*l+g*g);
+      const tiny=v=>v<Math.max(fw*0.02,sp*0.1);
+      if(tiny(g)&&!tiny(l)) out.push({level:"info", kind:"voigt", text:`Peak ${k+1}'s Gaussian width went to zero: the line is a Lorentzian, and nothing in the data measures a Gaussian part. Fit it as a Lorentzian, or fix its Gaussian FWHM at the instrument's resolution.`});
+      else if(tiny(l)&&!tiny(g)) out.push({level:"info", kind:"voigt", text:`Peak ${k+1}'s Lorentzian width went to zero: the line is a Gaussian. Fit it as a Gaussian, or fix one of its widths if it is known.`}); });
+    if(fano.length) out.push({level:"info", kind:"fano", text:`${fano.length===1?`Peak ${fano[0]} is a Fano profile`:`Peaks ${fano.join(", ")} are Fano profiles`}: the tail of an asymmetric Fano line never returns to zero, so its area is not finite. The area given is that of the Lorentzian it becomes as 1/q goes to 0, and its centre is the resonance position, not the top of the line.`}); }
   if((f.errors||[]).some(e=>e===null||Number.isNaN(e))) out.push({level:"bad", kind:"singular", text:"The covariance matrix is singular, so no uncertainties could be computed for this fit. "+(FM.composite?"That usually means two components are describing the same feature.":"That usually means two parameters are doing the same job for these data.")});
   const slots=FM_slots(f);
-  const whose=i=>{ if(FM.composite){ const sl=slots[i]; return sl?(sl.kind==="peak"?`peak ${sl.peak+1} ${sl.name}`:`baseline ${sl.name}`):"a parameter"; } const ph=(FM.model.ph||[])[i]; return ph?ph.replace(/<[^>]+>/g,""):((FM.model.params||[])[i]||"a parameter"); };
+  const whose=i=>{ if(FM.composite){ const sl=slots[i]; if(!sl) return "a parameter"; if(sl.kind!=="peak") return `baseline ${sl.name}`;
+    const pd=PEAKS[((f.spec.peaks||[])[sl.peak]||{}).type]||PEAKS.gauss; return `peak ${sl.peak+1} ${(pd.labels&&pd.labels[sl.name])||PARAM_LABEL[sl.name]||sl.name}`; } const ph=(FM.model.ph||[])[i]; return ph?ph.replace(/<[^>]+>/g,""):((FM.model.params||[])[i]||"a parameter"); };
   const deps=(f.dep||[]).map((v,i)=>({v,i})).filter(q=>!(f.fixed&&f.fixed[q.i])&&Number.isFinite(q.v));
   const worst=deps.length?deps.reduce((a,b)=>b.v>a.v?b:a):null;
   if(worst&&worst.v>0.99) out.push({level:"warn", kind:"dep", text:`${whose(worst.i)} is strongly tied to the other parameters (dependency ${fmt(worst.v,4)}). Its own value is less certain than its error suggests \u2014 ${FM.composite?"check that these peaks are really separable, and consider fixing a width or removing a peak.":"these data may not separate every parameter of this model."}`});
@@ -3247,7 +3613,7 @@ function migrate(p){
 
 /* Undo is per-session and local: it rewinds your own edits, not other
    people's. Cross-user undo in a shared document is a different problem. */
-const UNDO_KEYS=["cols","activeY","meta","fit","plot","name","log","raw","fits"];
+const UNDO_KEYS=["cols","activeY","meta","fit","plot","name","log","raw","fits","userFns"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
 function snapshot(){ const p=P(); if(!p) return null; const o={pid:S.pid}; UNDO_KEYS.forEach(k=>{ o[k]=clone(p[k]); });
   o.pdraft=S.pdraft?clone(S.pdraft):null; o.draft=S.draft?clone(S.draft):null; return o; }
@@ -3306,7 +3672,7 @@ const LocalStore={
   async save(pid,patch){ Object.assign(this.data.projects[pid],patch); this.persist(); this.emitProjects(); },
   async remove(pid){ delete this.data.projects[pid]; delete this.data.comments[pid]; this.persist(); this.emitProjects(); },
   watchComments(pid,cb){ (this.subs.comments[pid]=this.subs.comments[pid]||[]).push(cb); setTimeout(()=>this.emitComments(pid)); return ()=>{ this.subs.comments[pid]=this.subs.comments[pid].filter(f=>f!==cb); }; },
-  async addComment(pid,c){ const m=this.data.comments[pid]=this.data.comments[pid]||{}; m["c"+Date.now().toString(36)]=c; this.persist(); this.emitComments(pid); },
+  async addComment(pid,c){ const m=this.data.comments[pid]=this.data.comments[pid]||{}; m["c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)]=c; this.persist(); this.emitComments(pid); },
   async updateComment(pid,id,patch){ Object.assign(this.data.comments[pid][id],patch); this.persist(); this.emitComments(pid); },
   async deleteComment(pid,id){ delete this.data.comments[pid][id]; this.persist(); this.emitComments(pid); }
 };
@@ -3448,7 +3814,8 @@ function peakTops(m,params,peaks){
   return peaks.map((pk,k)=>{
     const def=PEAKS[pk.type]||PEAKS.gauss, o=m.offsets[k], pv=params.slice(o,o+def.params.length);
     if(!pv.every(Number.isFinite)) return null;
-    const xc=pv[0], h=def.height(pv), w=Math.abs(peakFWHM(def,pv));
+    // An asymmetric shape's top is not at its centre parameter.
+    const xc=def.top?def.top(pv):pv[0], h=def.height(pv), w=Math.abs(peakFWHM(def,pv));
     if(!Number.isFinite(h)||!Number.isFinite(w)) return null;
     return {k,xc,h,w,top:m.baseF(xc,params)+h,lb:m.baseF(xc-w/2,params)+h/2,rb:m.baseF(xc+w/2,params)+h/2};
   });
@@ -3739,7 +4106,7 @@ function buildPlot(W,H,pal,forExport){
   if(!forExport&&!heat){
     const r=pts.length>400?2:pts.length>150?2.8:3.4;
     if(S.sel!=null){ const q=pts.find(q=>q.i===S.sel); if(q) s+=`<circle cx="${X(q.x)}" cy="${Y(q.y)}" r="${r+5}" fill="none" stroke="${pal.ink}" stroke-width="1.6"/>`; }
-    S.comments.filter(c=>!c.resolved&&c.anchor&&(c.anchor.type==="point"||c.anchor.type==="xy")).forEach(c=>{
+    S.comments.filter(c=>!c.resolved&&!c.deleted&&c.anchor&&(c.anchor.type==="point"||c.anchor.type==="xy")).forEach(c=>{
       const a=c.anchor; let x,y;
       if(a.type==="point"){ const q=pts.find(q=>q.i===a.i); if(!q) return; x=X(q.x); y=Y(q.y); } else { x=X(a.x); y=Y(a.y); }
       const num=c._num, fl=S.flash&&S.flash===c.id;
@@ -4433,8 +4800,8 @@ function applyHandle(hd,pt){
   const def=PEAKS[d.peaks[k].type]||PEAKS.gauss, o=m.offsets[k];
   const pv=d.init.slice(o,o+def.params.length), fx=i=>!!d.fixed[o+i], ai=def.params.indexOf("A");
   if(hd.kind==="c"){
-    const xc=fx(0)?pv[0]:pt.x;
-    const hOld=def.height(pv), base=m.baseF(xc,d.init);
+    const shift=def.top?def.top(pv)-pv[0]:0, xc=fx(0)?pv[0]:pt.x-shift;
+    const hOld=def.height(pv), base=m.baseF(xc+shift,d.init);
     let hNew=pt.y-base;
     if(hOld>0&&!(hNew>0)) hNew=Math.abs(hOld)*0.02;          // a positive peak stays positive
     if(hOld<0&&!(hNew<0)) hNew=-Math.abs(hOld)*0.02;
@@ -4444,10 +4811,13 @@ function applyHandle(hd,pt){
     const wi=def.params.map((nm,i)=>/^w/.test(nm)?i:-1).filter(i=>i>=0);
     if(wi.some(fx)) return;
     const wOld=Math.abs(peakFWHM(def,pv)); if(!(wOld>0)) return;
-    const wNew=Math.max(2*Math.abs(pt.x-pv[0]),pointSpacing()*0.6,1e-12), ratio=wNew/wOld;
+    const wNew=Math.max(2*Math.abs(pt.x-(def.top?def.top(pv):pv[0])),pointSpacing()*0.6,1e-12), ratio=wNew/wOld;
     wi.forEach(i=>d.init[o+i]=pv[i]*ratio);
     if(!fx(ai)) d.init[o+ai]=pv[ai]*ratio;
   }
+  const L=peakLinks(d.peaks,m);
+  L.filter(l=>l.k===k).forEach(l=>{ if(!d.fixed[l.gj]) d.init[l.gj]=(d.init[l.gi]-l.add)/l.mul; });
+  applyPeakLinks(d.init,L);
   d.fitAt=null;
 }
 function handleTip(k){
@@ -5096,11 +5466,11 @@ function copyPipeToAll(){
    with a copy of its steps (to try a different route side by side). It is a
    branch in the History flow chart. */
 function newDerived(from,opt){
-  const c=activeYCol(), p=P(); if(!c||S.readOnly) return null;
+  const c=(opt&&opt.src&&colById(opt.src))||activeYCol(), p=P(); if(!c||S.readOnly) return null;
   if(!(opt&&opt.noUndo)) pushUndo("making a new spectrum");
   const n=makeCol("y",(opt&&opt.name)||`${specName(c)} ${from==="raw"?"(copy)":"(processed)"}`,c.unit,[]);
   n.src=c.id; n.from=from; n.mask=maskOf(c).slice();
-  n.pipe=from==="raw"?(c.pipe||[]).map(s=>Object.assign(makeStep(s.op,JSON.parse(JSON.stringify(s.p||{}))),{on:s.on})):[];
+  n.pipe=from==="raw"&&!(opt&&opt.bare)?(c.pipe||[]).map(s=>Object.assign(makeStep(s.op,JSON.parse(JSON.stringify(s.p||{}))),{on:s.on})):[];
   if(opt&&opt.steps) n.pipe=n.pipe.concat(opt.steps);
   p.cols.push(n); p.activeY=n.id; S.selStep=null; S.stage=null; S.draft=null; S.pdraft=null; S.flowSel="src:"+n.id;
   save({cols:p.cols,activeY:n.id},(opt&&opt.log)||(from==="raw"?`made "${n.name}", a copy of ${specName(c)} starting from its raw data with the same steps`:`made "${n.name}", which starts from the processed data of ${specName(c)}`));
@@ -5131,6 +5501,7 @@ function stepMenuItems(s){
     {label:"Move later", kbd:"Alt+↓", run:()=>moveStep(s.id,i+1), enabled:!ro&&c&&i<c.pipe.length-1},
     {label:"Duplicate", run:()=>dupStep(s.id), enabled:!ro&&s.op!=="correct"},
     {label:"Apply to every spectrum", run:()=>applyStepToAll(s.id), enabled:!ro&&yCols().length>1&&s.op!=="correct"},
+    "-",{label:S.readOnly?"Discussion of this step":"Comment on this step…", kbd:"C", run:()=>goNode("step:"+s.id,{disc:true,focus:!S.readOnly}), enabled:!isPending(s)&&!!S.pid},
     "-",{label:"Delete step", kbd:"Delete", danger:true, run:()=>removePipeStep(s.id), enabled:!ro}];
 }
 /* A thumbnail of a stage: the data after the step, in a small box. */
@@ -5264,6 +5635,7 @@ function stepAction(s,act,el){
     setParam(s,"refs",(s.p.refs||[]).concat([{ref:+fmt(top,6)}]),true); return; }
   if(act==="pyrun"){ rerunPythonStep(s); return; }
   if(act==="pyopen"){ openPython({step:s.id}); return; }
+  if(act==="pygo"&&el&&el.dataset.col){ goNode("final:"+el.dataset.col); return; }
 }
 // The graph shows the data after this step, with its input grey behind.
 function showStepOnGraph(s){
@@ -5484,7 +5856,10 @@ function reportDataHtml(pal){
     const pipe=col.pipe||[];
     if(!pipe.length) out.push("<p>No processing steps: the analysed data are the "+(col.src?"input":"raw data")+" as recorded.</p>");
     else out.push("<ol>"+pipe.map((s,i)=>{ const st=stageOfStep(s), w=stageWarnings(st);
-      return "<li"+(s.on===false?" class=\"off\"":"")+">"+esc2(stepText(s,st))+(st&&st.note?" <span class=\"lab\">— "+esc2(st.note)+"</span>":"")+(w.length?"<ul>"+w.map(t=>"<li class=\"warn\">"+esc2(t)+"</li>").join("")+"</ul>":"")+"</li>"; }).join("")+"</ol>");
+      const th=nodeThreads("step:"+s.id), to=th.filter(t=>!t.root.resolved).length;
+      const pyc=s.op==="python"?"<pre class=\"code\">"+esc2(String((s.p||{}).code||""))+"</pre>"+((s.p||{}).reads||[]).map(id=>colById(id)).filter(Boolean).map((o,i,a)=>(i?"":"<p class=\"lab\">Also reads: ")+esc2(specName(o))+(i===a.length-1?"</p>":", ")).join(""):"";
+      return "<li"+(s.on===false?" class=\"off\"":"")+">"+esc2(stepText(s,st))+pyc+(st&&st.note?" <span class=\"lab\">— "+esc2(st.note)+"</span>":"")+
+        (th.length?" <span class=\"lab\">("+th.length+" comment thread"+(th.length===1?"":"s")+(to?", "+to+" open":"")+": see Discussion)</span>":"")+(w.length?"<ul>"+w.map(t=>"<li class=\"warn\">"+esc2(t)+"</li>").join("")+"</ul>":"")+"</li>"; }).join("")+"</ol>");
     if(pipe.length) out.push("<div class=\"film\">"+filmStages(col).map(f=>"<figure>"+filmChart(col,f.k,170,78,pal)+"<figcaption>"+esc2(f.title)+(f.warn.length?" <span class=\"warn\">(!)</span>":"")+"</figcaption></figure>").join("")+"</div>");
   });
   return out.join("");
@@ -5745,14 +6120,14 @@ function readFileIn(f){
 function ensureDraft(){
   const p=P(); if(!p) return null;
   if(S.draft&&S.draft.pid===S.pid) return S.draft;
-  const f=p.fit&&p.fit.kind!=="composite"&&MODELS[p.fit.model]?p.fit:null; // the curve panel only carries single-model fits
-  const model=f?f.model:(p.prefModel&&MODELS[p.prefModel]?p.prefModel:"gauss");
-  S.draft={pid:S.pid, model, init:f?f.params.slice():null, fixed:f?(f.fixed||f.params.map(()=>false)).slice():null, weighted:f?!!f.weighted:hasErr()};
+  const f=p.fit&&p.fit.kind!=="composite"&&fitModel(p.fit)?p.fit:null; // the curve panel only carries single-model fits
+  const model=f?f.model:(p.prefModel&&getModel(p.prefModel)?p.prefModel:"gauss");
+  S.draft={pid:S.pid, model, fn:f&&f.fn?f.fn:null, init:f?f.params.slice():null, fixed:f?(f.fixed||f.params.map(()=>false)).slice():null, weighted:f?!!f.weighted:hasErr()};
   if(!S.draft.init) guessDraft();
   return S.draft;
 }
 function guessDraft(){
-  const d=S.draft, m=MODELS[d.model], pts=fitPoints();
+  const d=S.draft, m=draftModel(d), pts=fitPoints();
   if(pts.length>=2){ const g=m.guess(pts.map(q=>q.x),pts.map(q=>q.y)); d.init=g.map((v,i)=>d.fixed&&d.fixed[i]&&d.init?d.init[i]:(Number.isFinite(v)?v:1)); }
   else d.init=m.params.map(()=>1);
   if(!d.fixed||d.fixed.length!==m.params.length) d.fixed=m.params.map(()=>false);
@@ -5797,17 +6172,24 @@ function renderFit(){
     wire(); return;
   }
   if(S.fitMode==="peaks"){ renderPeakFit(box,p,top); wire(); return; }
-  const d=ensureDraft(), m=MODELS[d.model], f=p.fit&&p.fit.kind!=="composite"&&MODELS[p.fit.model]?p.fit:null, ro=S.readOnly?" disabled":"";
-  const sameModel=f&&f.model===d.model;
+  const d=ensureDraft(), m=draftModel(d), f=p.fit&&p.fit.kind!=="composite"&&fitModel(p.fit)?p.fit:null, ro=S.readOnly?" disabled":"";
+  if(!d.init||d.init.length!==m.params.length||!d.fixed||d.fixed.length!==m.params.length) guessDraft();
+  const sameModel=f&&f.model===d.model&&f.params.length===m.params.length;
+  const ufs=p.userFns||[], lib=libFns().filter(q=>!ufs.some(u=>u.id===q.id)), inProj=ufs.some(q=>"u:"+q.id===d.model);
   const [xuC,yuC]=dataUnits();
   const uC=t=>t?` <span class="unit">(${esc(t)})</span>`:"";
   let h=top;
   h+=`<div class="gh">Model</div>`;
-  h+=`<select id="model" style="width:100%" aria-label="Model"${ro}>${MODEL_GROUPS.map(([g,ks])=>`<optgroup label="${esc(g)}">${ks.map(k=>`<option value="${k}"${k===d.model?" selected":""}>${esc(MODELS[k].name)}</option>`).join("")}</optgroup>`).join("")}</select>`;
-  h+=`<div class="formula">${m.formula}</div>`;
+  const opt=(v,nm)=>`<option value="${esc(v)}"${v===d.model?" selected":""}>${esc(nm)}</option>`;
+  h+=`<div class="mrow"><select id="model" aria-label="Model"${ro}>${MODEL_GROUPS.map(([g,ks])=>`<optgroup label="${esc(g)}">${ks.map(k=>opt(k,MODELS[k].name)).join("")}</optgroup>`).join("")}`+
+    (ufs.length||(m.user&&!inProj&&!lib.some(q=>"u:"+q.id===d.model))?`<optgroup label="Your functions">${ufs.map(q=>opt("u:"+q.id,q.name)).join("")}${m.user&&!inProj&&!lib.some(q=>"u:"+q.id===d.model)?opt(d.model,m.name+" (from the fit)"):""}</optgroup>`:"")+
+    (lib.length?`<optgroup label="From this browser's library">${lib.map(q=>opt("u:"+q.id,q.name)).join("")}</optgroup>`:"")+
+    `<optgroup label="Write your own"><option value="__new">New function…</option></optgroup></select><button class="btn sm" id="ufNew"${ro} title="Write your own fit function">${ICON("plus","sm")}Function</button></div>`;
+  h+=`<div class="formula${m.user?" user":""}">${m.formula}</div>`;
+  if(m.user) h+=`<div class="actions ufacts">${inProj?`<button class="btn sm" id="ufEdit"${ro}>${ICON("edit","sm")}Edit…</button><button class="btn sm ghost" id="ufDup"${ro}>${ICON("copy","sm")}Duplicate</button><button class="btn sm ghost" id="ufDel"${ro}>${ICON("trash","sm")}Delete</button>`:`<button class="btn sm" id="ufDup"${ro}>${ICON("edit","sm")}Edit a copy…</button><span class="lab">${lib.some(q=>"u:"+q.id===d.model)?"From this browser's library: fitting adds it to the project.":"No longer in this project: the fit keeps its own copy."}</span>`}</div>`;
   h+=`<div class="gh">Parameters</div>`;
   h+=`<table class="ptab"><thead><tr><th>Parameter</th><th class="r">Initial value</th><th title="Hold this parameter at its initial value">Fix</th><th class="r">Fitted</th></tr></thead><tbody>`;
-  m.params.forEach((nm,i)=>{ const res=sameModel?(f.fixed&&f.fixed[i]?`${esc(fmt(f.params[i],6))} <span class="lab">fixed</span>`:fmtPM(f.params[i],f.errors[i])):"";
+  m.params.forEach((nm,i)=>{ const res=sameModel?(f.fixed&&f.fixed[i]?`${esc(fmt(f.params[i],6))} <span class="lab">fixed</span>`:f.atBound&&f.atBound[i]?`${esc(fmt(f.params[i],6))} <span class="lab">at its limit</span>`:fmtPM(f.params[i],f.errors[i])):"";
     h+=`<tr><td class="pn">${m.ph[i]}${uC(unitFor((m.dim||[])[i],xuC,yuC))}</td><td><input type="text" inputmode="decimal" data-pi="${i}" value="${esc(fmt(d.init[i],6))}" aria-label="Initial value of ${nm}"${ro}></td><td class="fx"><input type="checkbox" data-fx="${i}"${d.fixed[i]?" checked":""} aria-label="Fix ${nm}" title="Hold ${nm} at its initial value"${ro}></td><td class="res">${res}</td></tr>`; });
   h+=`</tbody></table>`;
   h+=`<p class="hint">Initial values are only a starting point. <strong>Guess</strong> measures them from the data in view.</p>`;
@@ -5819,7 +6201,15 @@ function renderFit(){
   if(f) h+=fitSummary(f);
   h+=`<div class="sticky"><button class="btn primary" id="doFit"${ro} title="Fit (Ctrl+Enter)">${ICON("play")}Fit</button><button class="btn" id="doGuess"${ro}>Guess</button>${f?`<button class="btn ghost" id="clrFit"${ro}>Remove fit</button>`:""}</div>`;
   box.innerHTML=h; renderFitRangeOnly(); wire();
-  $("#model").onchange=e=>{ pushUndo("changing the model"); d.model=e.target.value; d.fixed=null; S.fitError=""; guessDraft(); renderFit(); };
+  $("#model").onchange=e=>{ const v=e.target.value;
+    if(v==="__new"){ e.target.value=d.model; editUserFn(null); return; }
+    pushUndo("changing the model"); d.model=v; d.fn=null; d.fixed=null; S.fitError="";
+    const lf=lib.find(q=>"u:"+q.id===v); if(lf) adoptLibFn(lf);
+    guessDraft(); renderFit(); };
+  const un=$("#ufNew"); if(un) un.onclick=()=>editUserFn(null);
+  const ue=$("#ufEdit"); if(ue) ue.onclick=()=>editUserFn(d.model.slice(2));
+  const ud=$("#ufDup"); if(ud) ud.onclick=()=>{ const def=m.def||{}; editUserFn(null,{from:{name:inProj?`${def.name||m.name} (copy)`:def.name||m.name,expr:def.expr||m.expr,params:def.params||[]}}); };
+  const ux=$("#ufDel"); if(ux) ux.onclick=()=>deleteUserFn(d.model.slice(2));
   box.querySelectorAll("input[data-pi]").forEach(inp=>{
     inp.onkeydown=ev=>{ if(ev.key==="Enter"){ ev.preventDefault(); inp.blur(); } };
     inp.onchange=()=>{ const v=parseNum(inp.value); if(v===null){ inp.value=fmt(d.init[+inp.dataset.pi],6); toast("Initial values must be numbers."); return; } pushUndo("that initial value"); d.init[+inp.dataset.pi]=v; };
@@ -5836,13 +6226,131 @@ function removeFit(){
   if(S.pdraft) S.pdraft.fitAt=null;
   renderAll(); toast("Fit removed.",{action:"Undo",run:undo});
 }
+/* ---- Your own fit functions -------------------------------------------------
+   A project keeps its functions in p.userFns ({id, name, expr, params:[{n,
+   init, lo, hi, dim}]}), and this browser keeps a library of them as well
+   (kurve.fns), so one written for one project is offered in the next. A fit
+   made with one carries a copy (fit.fn): it stays what it was however the
+   function is edited or deleted afterwards. */
+const UFN_CACHE=new Map(), UFN_LIB="kurve.fns";
+const UFN_DIMS=[["","none"],["x","as X"],["y","as Y"],["yx","Y·X"],["y/x","Y/X"]];
+function userModel(fn){
+  const key=(fn.name||"")+"\u0000"+fn.expr+"\u0000"+JSON.stringify(fn.params||[]);
+  const hit=UFN_CACHE.get(key); if(hit) return hit;
+  const c=compileExpr(fn.expr), meta=Object.create(null); (fn.params||[]).forEach(q=>{ if(q&&q.n) meta[q.n]=q; });
+  const num=v=>v!=null&&v!==""&&Number.isFinite(+v)?+v:null;
+  const lines=c.text.split("; "), last=lines.length-1; if(!/^y\s*=/.test(lines[last])) lines[last]="y = "+lines[last];
+  const m={name:fn.name||"My function", user:true, fnId:fn.id, def:fn, expr:lines.join("; "), params:c.params,
+    ph:c.params.map(n=>`<i>${esc(n)}</i>`), dim:c.params.map(n=>(meta[n]&&meta[n].dim)||""),
+    formula:`<span class="ufx">${lines.map(esc).join("<br>")}</span>`, f:c.f,
+    lo:c.params.map(n=>{ const v=num(meta[n]&&meta[n].lo); return v==null?-Infinity:v; }),
+    hi:c.params.map(n=>{ const v=num(meta[n]&&meta[n].hi); return v==null?Infinity:v; }),
+    guess:(X,Y)=>{ const g=guessUserParams(c.params,X,Y); return c.params.map((n,i)=>{ const v=num(meta[n]&&meta[n].init); return v==null?g[i]:v; }); }};
+  if(UFN_CACHE.size>60) UFN_CACHE.clear(); UFN_CACHE.set(key,m); return m;
+}
+function libFns(){ try{ const a=JSON.parse(localStorage.getItem(UFN_LIB)||"[]"); return Array.isArray(a)?a.filter(f=>f&&f.id&&typeof f.expr==="string"):[]; }catch(e){ return []; } }
+function libSave(fn,keep){ try{ const a=libFns().filter(f=>f.id!==fn.id); if(keep) a.push(JSON.parse(JSON.stringify(fn))); localStorage.setItem(UFN_LIB,JSON.stringify(a.slice(-60))); }catch(e){} }
+function userFnById(id){ const p=P(); return ((p&&p.userFns)||[]).find(f=>f.id===id)||libFns().find(f=>f.id===id)||null; }
+// Any model by its id: one of MODELS, or "u:<id>" for a function of yours.
+function getModel(id){
+  if(MODELS[id]) return MODELS[id];
+  if(typeof id==="string"&&id.startsWith("u:")){ const fn=userFnById(id.slice(2)); if(fn){ try{ return userModel(fn); }catch(e){ return null; } } }
+  return null;
+}
+// The curve panel's model; a function deleted since keeps working from the
+// fit's own copy, and anything unusable falls back to a Gaussian.
+function draftModel(d){
+  let m=getModel(d.model);
+  if(!m&&d.fn){ try{ m=userModel(d.fn); }catch(e){ m=null; } }
+  if(!m){ d.model="gauss"; d.fn=null; m=MODELS.gauss; }
+  return m;
+}
+const ufnKey=n=>"p"+Array.from(n).map(c=>c.codePointAt(0).toString(36)).join("_");
+/* The function editor: the formula, a live check, a preview of the function
+   at its starting values over the data, and each parameter's start, limits
+   and unit. */
+async function editUserFn(id,opt){
+  const p=P(); if(!p||S.readOnly) return;
+  const old=id?(p.userFns||[]).find(f=>f.id===id):null;
+  const base=old||(opt&&opt.from)||{name:"",expr:"y = y0 + A*exp(-(x/t)^b)",params:[{n:"b",init:1,lo:0.1,hi:3}]};
+  const vals=Object.create(null); (base.params||[]).forEach(q=>{ vals[q.n]={init:q.init==null?"":String(q.init),lo:q.lo==null?"":String(q.lo),hi:q.hi==null?"":String(q.hi),dim:q.dim||""}; });
+  const inLib=old?libFns().some(f=>f.id===old.id):true;
+  const pts=(fitPoints().length>=2?fitPoints():pointsAll()).slice().sort((a,b)=>a.x-b.x), X=pts.map(q=>q.x), Y=pts.map(q=>q.y);
+  let comp=null, shown=null;
+  const pnum=s=>{ const v=parseNum(s); return v==null?null:v; };
+  const rows=params=>params.map(n=>{ const v=vals[n]||(vals[n]={init:"",lo:"",hi:"",dim:""}), k=ufnKey(n);
+    return `<tr><td class="pn"><i>${esc(n)}</i></td><td><input type="text" inputmode="decimal" id="fbS_${k}" value="${esc(v.init)}" placeholder="auto" title="Empty: guessed from the data" aria-label="Starting value of ${esc(n)}"></td><td><input type="text" inputmode="decimal" id="fbL_${k}" value="${esc(v.lo)}" placeholder="none" aria-label="Lowest value of ${esc(n)}"></td><td><input type="text" inputmode="decimal" id="fbH_${k}" value="${esc(v.hi)}" placeholder="none" aria-label="Highest value of ${esc(n)}"></td><td><select id="fbU_${k}" aria-label="Unit of ${esc(n)}">${UFN_DIMS.map(([dv,l])=>`<option value="${dv}"${dv===v.dim?" selected":""}>${esc(l)}</option>`).join("")}</select></td></tr>`; }).join("");
+  const preview=()=>{
+    if(!comp||X.length<2) return `<p class="lab">No data in view to preview on.</p>`;
+    const g=guessUserParams(comp.params,X,Y), p0=comp.params.map((n,i)=>{ const v=pnum(vals[n]&&vals[n].init); return v==null?g[i]:v; });
+    let a=Infinity,b=-Infinity; X.forEach(v=>{ if(v<a) a=v; if(v>b) b=v; });
+    const fx=[], fy=[]; for(let i=0;i<=240;i++){ const x=a+(b-a)*i/240, y=comp.f(x,p0); if(Number.isFinite(y)){ fx.push(x); fy.push(y); } }
+    if(fx.length<2) return `<p class="fbwarn">${ICON("alert","sm")}The function gives no number anywhere in this range at these starting values. Change a start, or the formula.</p>`;
+    const pal=SCREEN_PAL(), t=decimate(X,Y,400);
+    return miniChart([{x:t.x,y:t.y,color:pal.muted,width:1.1,opacity:0.8},{x:fx,y:fy,color:pal.fit,width:1.6}],560,120,{revX:!!P().plot.revX,bg:pal.bg,frame:pal.grid,label:"The function at its starting values, over the data"})
+      +`<div class="ba-leg"><span><i style="background:${pal.muted}"></i>data in view</span><span><i style="background:${pal.fit}"></i>the function at its starting values</span>${fx.length<200?`<span class="warnt">undefined at ${241-fx.length} of 241 points</span>`:""}</div>`;
+  };
+  const update=r=>{
+    if(comp) comp.params.forEach(n=>{ const k=ufnKey(n); if(("fbS_"+k) in r) vals[n]={init:r["fbS_"+k],lo:r["fbL_"+k],hi:r["fbH_"+k],dim:r["fbU_"+k]}; });
+    const msg=$("#fbMsg"), prev=$("#fbPrev"), tb=$("#fbPars tbody"), tbl=$("#fbPars"); if(!msg) return false;
+    try{ comp=compileExpr(r.fbExpr); }
+    catch(e){ comp=null; shown=null; msg.className="fbmsg bad"; msg.innerHTML=`${ICON("alert","sm")}<span>${esc((e.line&&String(r.fbExpr).includes("\n")?`Line ${e.line}: `:"")+e.message)}</span>`; tb.innerHTML=""; tbl.hidden=true; prev.innerHTML=""; return false; }
+    const sig=comp.params.join("\u0000"); if(sig!==shown){ tb.innerHTML=rows(comp.params); shown=sig; } tbl.hidden=false;
+    const bad=comp.params.find(n=>["init","lo","hi"].some(f=>String(vals[n][f]||"").trim()!==""&&pnum(vals[n][f])==null));
+    const crossed=comp.params.find(n=>{ const lo=pnum(vals[n].lo), hi=pnum(vals[n].hi), s=pnum(vals[n].init); return (lo!=null&&hi!=null&&lo>=hi)||(s!=null&&((lo!=null&&s<lo)||(hi!=null&&s>hi))); });
+    if(bad||crossed){ msg.className="fbmsg bad"; msg.innerHTML=`${ICON("alert","sm")}<span>${bad?`The start and limits of ${esc(bad)} must be numbers, or left empty.`:`${esc(crossed)}: the lowest value must be below the highest, and the start between them.`}</span>`; prev.innerHTML=preview(); return false; }
+    msg.className="fbmsg ok"; msg.innerHTML=`${ICON("check","sm")}<span>${comp.params.length} parameter${comp.params.length===1?"":"s"}: ${comp.params.map(n=>`<i>${esc(n)}</i>`).join(", ")}${comp.usesX?"":". The formula does not use x, so it is a constant."}</span>`;
+    prev.innerHTML=preview();
+    return comp.usesX;
+  };
+  const html=`<div class="fnb"><div class="grid2"><label for="fbName">Name</label><input id="fbName" type="text" maxlength="60" value="${esc(base.name||"")}" placeholder="Stretched exponential"></div>
+    <label for="fbExpr" class="fblab">The function of <i>x</i></label>
+    <textarea id="fbExpr" class="code" rows="3" spellcheck="false" autocapitalize="off" autocomplete="off">${esc(base.expr||"")}</textarea>
+    <div id="fbMsg" class="fbmsg" role="status" aria-live="polite"></div>
+    <div id="fbPrev" class="fbprev"></div>
+    <table class="ptab fbpars" id="fbPars"><thead><tr><th>Parameter</th><th>Start</th><th>Lowest</th><th>Highest</th><th>Unit</th></tr></thead><tbody></tbody></table>
+    <label class="chk"><input type="checkbox" id="fbLib"${inLib?" checked":""}> Keep it in this browser's library too, for other projects</label>
+    <details class="grp fbhelp"><summary>How to write a function</summary><div class="gb"><p>Write it as on paper: <code>+ - * / ^</code> (or <code>**</code>), parentheses, numbers such as <code>1.5e-3</code>, and the functions <code>exp ln log10 sqrt abs sin cos tan asin acos atan sinh cosh tanh erf erfc pow min max sign step</code>; <code>log</code> is the natural logarithm, like <code>ln</code>. The constants are <code>pi</code> and <code>e</code>. A product needs its <code>*</code>.</p><p>Every name other than <code>x</code> is a parameter. Name a value on a line of its own and use it below: <code>u = (x - xc)/w</code>, then <code>y = A*exp(-u^2/2) + c</code>. <code>#</code> starts a comment.</p><p>An empty start is guessed from the data by the parameter's name: <code>y0</code> or <code>c</code> a baseline, <code>A</code> or <code>H</code> a height, <code>xc</code> or <code>x0</code> the position of the largest point, <code>w</code> or <code>sigma</code> a tenth of the range, <code>t</code> or <code>tau</code> a third of it; any other starts at 1.</p></div></details></div>`;
+  const sheet=$("#formModal .sheet"); sheet.classList.remove("small"); sheet.classList.add("mid");
+  let r;
+  try{ r=await formDlg({title:old?`Edit “${old.name}”`:"New fit function",html,ok:old?"Save":"Add the function",valid:update,focus:"#fbExpr"}); }
+  finally{ sheet.classList.remove("mid"); sheet.classList.add("small"); }
+  if(!r) return;
+  if(!update(r)&&!comp) return;
+  if(!comp) return;
+  const fn={id:old?old.id:"f"+Date.now().toString(36)+Math.random().toString(36).slice(2,5), name:(String(r.fbName||"").trim()||"My function").slice(0,60),
+    expr:String(r.fbExpr||"").trim().slice(0,4000),
+    params:comp.params.map(n=>{ const v=vals[n]||{}; return {n,init:pnum(v.init),lo:pnum(v.lo),hi:pnum(v.hi),dim:v.dim||""}; }), at:Date.now(), by:S.uid||""};
+  const P0=P(), list=(P0.userFns||[]).slice(), at=list.findIndex(f=>f.id===fn.id);
+  if(at>=0) list[at]=fn; else list.push(fn);
+  pushUndo(old?"editing a fit function":"adding a fit function");
+  libSave(fn,!!r.fbLib);
+  S.fitMode="curve"; const d=ensureDraft(); d.model="u:"+fn.id; d.fn=null; d.fixed=null; S.fitError="";
+  save({userFns:list},old?`changed the fit function "${fn.name}" to ${userModel(fn).expr}`:`added the fit function "${fn.name}": ${userModel(fn).expr}`);
+  guessDraft(); showTab("fit"); renderFit(); renderPlot();
+  toast(old?`Saved “${fn.name}”.`:`Added “${fn.name}”. Its starting values are on the Fit window: press Fit.`,{action:"Undo",run:undo});
+}
+function deleteUserFn(id){
+  const p=P(), fn=(p&&p.userFns||[]).find(f=>f.id===id); if(!fn||S.readOnly) return;
+  pushUndo("deleting a fit function");
+  save({userFns:(p.userFns||[]).filter(f=>f.id!==id)},`deleted the fit function "${fn.name}"`);
+  const d=S.draft; if(d&&d.model==="u:"+id&&!libFns().some(f=>f.id===id)){ d.model="gauss"; d.fn=null; d.fixed=null; guessDraft(); }
+  renderFit();
+  toast(`Deleted “${fn.name}” from this project${libFns().some(f=>f.id===id)?"; it stays in this browser's library":""}. Fits made with it keep their own copy.`,{action:"Undo",run:undo});
+}
+// Adds a library function to the project, so the project carries what it uses.
+function adoptLibFn(fn){
+  const p=P(); if(!p||!fn||(p.userFns||[]).some(f=>f.id===fn.id)) return;
+  save({userFns:(p.userFns||[]).concat([JSON.parse(JSON.stringify(fn))])},`added the fit function "${fn.name}" from this browser's library`);
+}
+
 /* ---- Peaks + baseline ---------------------------------------------------- */
 function ensurePeakDraft(){
   const p=P();
   if(S.pdraft&&S.pdraft.pid===S.pid) return S.pdraft;
   const f=p.fit&&p.fit.kind==="composite"&&fitModel(p.fit)?p.fit:null;
   S.pdraft=f
-    ? {pid:S.pid, base:f.spec.base, peaks:f.spec.peaks.map(k=>({type:k.type})), init:f.params.slice(), fixed:(f.fixed||f.params.map(()=>false)).slice(), weighted:!!f.weighted, x0:f.x0, fitAt:f.at}
+    ? {pid:S.pid, base:f.spec.base, peaks:f.spec.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{})), init:f.params.slice(), fixed:(f.fixed||f.params.map(()=>false)).slice(), weighted:!!f.weighted, x0:f.x0, fitAt:f.at}
     : {pid:S.pid, base:"linear", peaks:[], init:[], fixed:[], weighted:hasErr(), x0:null, fitAt:null};
   return S.pdraft;
 }
@@ -5857,7 +6365,11 @@ function recenterBase(d,m){
   if(out.every(Number.isFinite)) for(let i=0;i<nb;i++) d.init[i]=out[i];
   d.x0=m.x0;
 }
-function pdraftModel(){ const d=ensurePeakDraft(), [a,b]=fitRange(); const m=compileModel({base:d.base,peaks:d.peaks},(a+b)/2); recenterBase(d,m); return m; }
+function pdraftModel(){ const d=ensurePeakDraft(), [a,b]=fitRange();
+  d.peaks.forEach(pk=>{ if(!pk.id) pk.id=newPeakId(); });
+  const m=compileModel({base:d.base,peaks:d.peaks},(a+b)/2); recenterBase(d,m);
+  if(d.init.length===m.n){ const L=peakLinks(d.peaks,m); if(L.length) applyPeakLinks(d.init,L); }
+  return m; }
 function syncPdraft(){ // keep init/fixed the right length after a spec change
   const d=S.pdraft, m=pdraftModel();
   while(d.init.length<m.n) d.init.push(1);
@@ -5906,7 +6418,7 @@ function reseedPeaks(){
     }
     const sd=seedPeak(X,Y,j,0);
     d.init[o]=sd.xc; d.init[o+1]=sd.A;
-    def.params.forEach((nm,i)=>{ if(/^w/.test(nm)) d.init[o+i]=sd.w;
+    def.params.forEach((nm,i)=>{ if(/^w/.test(nm)) d.init[o+i]=sd.w*wSeedOf(def,nm);
       if(def.init&&def.init[nm]!=null) d.init[o+i]=def.init[nm];
       d.fixed[o+i]=false; });
     d.init[o+1]=peakAreaForHeight(def,d.init.slice(o,o+def.params.length),sd.h);
@@ -5925,7 +6437,7 @@ function addPeakAt(x){
   const def=PEAKS[d.peaks[k].type]||PEAKS.gauss;
   const h=Math.max(near.y-m.baseF(x,d.init),Math.abs(near.y)*0.1||1);
   d.init[o]=x; d.init[o+1]=h*(span/FWHM_SIG)*Math.sqrt(2*Math.PI);
-  def.params.forEach((nm,i)=>{ if(/^w/.test(nm)) d.init[o+i]=span;
+  def.params.forEach((nm,i)=>{ if(/^w/.test(nm)) d.init[o+i]=span*wSeedOf(def,nm);
     if(def.init&&def.init[nm]!=null) d.init[o+i]=def.init[nm]; });
   d.init[o+1]=peakAreaForHeight(def,d.init.slice(o,o+def.params.length),h);
   d.fitAt=null; S.selPeak=k; S.fitError="";
@@ -5937,8 +6449,82 @@ function removePeak(k){
   const d=S.pdraft; if(!d||S.readOnly||!d.peaks[k]) return;
   const m=pdraftModel(), o=m.offsets[k], np=(PEAKS[d.peaks[k].type]||PEAKS.gauss).params.length;
   pushUndo("removing peak "+(k+1));
+  const gone=d.peaks[k].id;
   d.init.splice(o,np); d.fixed.splice(o,np); d.peaks.splice(k,1);
+  // Peaks tied to it keep their values and go free.
+  d.peaks.forEach(pk=>{ if(!pk.tie) return; Object.keys(pk.tie).forEach(nm=>{ if(pk.tie[nm].to===gone) delete pk.tie[nm]; }); if(!Object.keys(pk.tie).length) delete pk.tie; });
   d.fitAt=null; S.selPeak=null; syncPdraft(); save({},"removed peak "+(k+1)); renderFit(); renderPlot();
+}
+/* ---- Ties between peaks, in the panel ------------------------------------ */
+const newPeakId=()=>"k"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const paramLabelOf=(def,nm)=>(def.labels&&def.labels[nm])||PARAM_LABEL[nm]||nm;
+// "peak 2 FWHM = 0.5 × peak 1 FWHM + 3", for the report.
+function tieFormula(l,lb){ const s=lb?" "+lb:""; return `${l.mul!==1?`${fmt(l.mul,6)} × `:""}peak ${l.j+1}${s}${l.add?` ${l.add>0?"+":"−"} ${fmt(Math.abs(l.add),8)}`:""}`; }
+function tieText(l){ return `= peak ${l.j+1}${l.mul!==1?` × ${fmt(l.mul,5)}`:""}${l.add?` ${l.add>0?"+":"−"} ${fmt(Math.abs(l.add),6)}`:""}`; }
+function setTie(k,nm,t){
+  const d=S.pdraft; if(!d||S.readOnly||!d.peaks[k]) return;
+  d.peaks.forEach(pk=>{ if(!pk.id) pk.id=newPeakId(); });
+  const pk=d.peaks[k], def=PEAKS[pk.type]||PEAKS.gauss, lbl=paramLabelOf(def,nm).toLowerCase();
+  pushUndo(t?"tying a parameter":"untying a parameter");
+  if(t){
+    // Peaks that followed this one now follow what it follows, with the same
+    // result: ties never chain.
+    d.peaks.forEach(q=>{ const u=q.tie&&q.tie[nm]; if(u&&u.to===pk.id){ const mu=Number.isFinite(u.mul)?u.mul:1, ad=Number.isFinite(u.add)?u.add:0;
+      if(t.to===q.id) delete q.tie[nm]; else q.tie[nm]={to:t.to,mul:mu*t.mul,add:mu*(t.add||0)+ad}; } });
+    pk.tie=Object.assign({},pk.tie,{[nm]:t});
+  } else if(pk.tie){ pk.tie=Object.assign({},pk.tie); delete pk.tie[nm]; if(!Object.keys(pk.tie).length) delete pk.tie; }
+  d.fitAt=null; const m=pdraftModel();
+  const j=t?d.peaks.findIndex(q=>q.id===t.to):-1, L=peakLinks(d.peaks,m).find(l=>l.k===k&&l.nm===nm);
+  save({},t?`tied peak ${k+1}'s ${lbl} to peak ${j+1}'s (${L?tieText(L):""})`:`untied peak ${k+1}'s ${lbl}`);
+  renderFit(); renderPlot();
+}
+async function askTie(k,nm,j,kind){
+  const d=S.pdraft, m=pdraftModel(), def=PEAKS[d.peaks[k].type]||PEAKS.gauss, dj=PEAKS[d.peaks[j].type]||PEAKS.gauss;
+  const vk=d.init[m.offsets[k]+def.params.indexOf(nm)], vj=d.init[m.offsets[j]+dj.params.indexOf(nm)];
+  const ratio=kind==="mul", start=ratio?(vj?vk/vj:1):vk-vj, lbl=paramLabelOf(def,nm).toLowerCase();
+  const r=await formDlg({title:ratio?`Peak ${k+1}'s ${lbl} as a multiple of peak ${j+1}'s`:`Peak ${k+1}'s ${lbl} at a fixed spacing from peak ${j+1}'s`,
+    html:`<div class="grid2"><label for="fdTie">${ratio?"Ratio":"Spacing"}</label><input id="fdTie" type="text" inputmode="decimal" value="${esc(fmt(start,6))}"></div><p class="lab">${ratio?`Peak ${k+1}'s ${esc(lbl)} will be this many times peak ${j+1}'s. For the two lines of a spin–orbit doublet whose areas go 2 to 1, the smaller one's ratio is 0.5.`:`Peak ${k+1}'s ${esc(lbl)} will be peak ${j+1}'s plus this (negative puts it below).`} It stays so through the fit; only peak ${j+1}'s is fitted.</p>`,
+    ok:"Tie", valid:v=>{ const x=parseNum(v.fdTie); return x!=null&&(!ratio||x!==0); }, focus:"#fdTie"});
+  if(!r) return; const x=parseNum(r.fdTie); if(x==null) return;
+  setTie(k,nm,ratio?{to:d.peaks[j].id,mul:x,add:0}:{to:d.peaks[j].id,mul:1,add:x});
+}
+function tieMenuItems(k,nm){
+  const d=S.pdraft, m=pdraftModel(), pk=d.peaks[k], def=PEAKS[pk.type]||PEAKS.gauss, cur=(pk.tie||{})[nm];
+  const items=[{group:`Peak ${k+1}: ${paramLabelOf(def,nm)}`,plain:true}];
+  d.peaks.forEach((pj,j)=>{ if(j===k) return; const dj=PEAKS[pj.type]||PEAKS.gauss, i2=dj.params.indexOf(nm); if(i2<0) return;
+    if(pj.tie&&pj.tie[nm]&&d.peaks.some(q=>q.id===pj.tie[nm].to)) return;       // it follows another peak itself
+    const same=cur&&cur.to===pj.id, vj=d.init[m.offsets[j]+i2];
+    items.push({label:`Equal to peak ${j+1}'s (${fmt(vj,5)})`, radio:true, checked:!!(same&&(cur.mul==null||cur.mul===1)&&!cur.add), run:()=>setTie(k,nm,{to:pj.id,mul:1,add:0})});
+    if(nm==="A") items.push({label:`Peak ${j+1}'s times a ratio…`, radio:true, checked:!!(same&&cur.mul!=null&&cur.mul!==1), run:()=>askTie(k,nm,j,"mul")});
+    if(nm==="xc") items.push({label:`Peak ${j+1}'s plus a spacing…`, radio:true, checked:!!(same&&cur.add), run:()=>askTie(k,nm,j,"add")});
+  });
+  if(items.length===1) items.push({label:"No other peak has this parameter free to follow", enabled:false});
+  if(cur) items.push("-",{label:"Untie: fit it on its own", run:()=>setTie(k,nm,null)});
+  return items;
+}
+// Whether every peak's width follows peak 1's.
+function widthsShared(d){
+  if(!d||d.peaks.length<2) return false; const first=d.peaks[0], w0=(PEAKS[first.type]||PEAKS.gauss).params.filter(nm=>/^w/.test(nm));
+  const rest=d.peaks.slice(1).filter(pk=>(PEAKS[pk.type]||PEAKS.gauss).params.some(nm=>/^w/.test(nm)&&w0.includes(nm)));
+  return rest.length>0&&rest.every(pk=>(PEAKS[pk.type]||PEAKS.gauss).params.filter(nm=>/^w/.test(nm)&&w0.includes(nm)).every(nm=>pk.tie&&pk.tie[nm]&&pk.tie[nm].to===first.id&&(pk.tie[nm].mul==null||pk.tie[nm].mul===1)&&!pk.tie[nm].add));
+}
+/* One width for every peak (an instrument's resolution), or each its own again. */
+function shareWidths(){
+  const d=S.pdraft; if(!d||S.readOnly||d.peaks.length<2) return;
+  d.peaks.forEach(pk=>{ if(!pk.id) pk.id=newPeakId(); });
+  const first=d.peaks[0], w0=(PEAKS[first.type]||PEAKS.gauss).params.filter(nm=>/^w/.test(nm)), undoIt=widthsShared(d);
+  pushUndo(undoIt?"giving each peak its own width":"sharing one width");
+  let skipped=0;
+  if(first.tie){ first.tie=Object.assign({},first.tie); w0.forEach(nm=>delete first.tie[nm]); if(!Object.keys(first.tie).length) delete first.tie; }
+  d.peaks.forEach((pk,k)=>{ if(!k) return; const ws=(PEAKS[pk.type]||PEAKS.gauss).params.filter(nm=>/^w/.test(nm));
+    pk.tie=Object.assign({},pk.tie);
+    if(undoIt) ws.forEach(nm=>delete pk.tie[nm]);
+    else { const both=ws.filter(nm=>w0.includes(nm)); if(!both.length) skipped++; both.forEach(nm=>{ pk.tie[nm]={to:first.id,mul:1,add:0}; }); }
+    if(!Object.keys(pk.tie).length) delete pk.tie; });
+  d.fitAt=null; pdraftModel();
+  save({},undoIt?"gave each peak its own width again":"tied every peak's width to peak 1's");
+  renderFit(); renderPlot();
+  toast(undoIt?"Each peak has its own width again.":`Every peak now has peak 1's width: one width is fitted for all of them${skipped?` (${skipped} of another shape keep${skipped===1?"s":""} ${skipped===1?"its":"their"} own)`:""}.`,{action:"Undo",run:undo});
 }
 /* Changing shape keeps what the eye sees: the same centre, width and height.
    Parameters the shapes share carry over; the area is recomputed so the new
@@ -5953,12 +6539,12 @@ function setPeakShape(k,type){
   const headF=d.fixed.slice(0,old), tailF=d.fixed.slice(old+oldDef.params.length);
   const fresh=nd.params.map((nm,i)=>{ const j=oldDef.params.indexOf(nm); if(j>=0) return keep[j];
     if(nd.init&&nd.init[nm]!=null) return nd.init[nm];
-    if(/^w/.test(nm)) return Number.isFinite(wOld)&&wOld>0?wOld:(keep[oldDef.params.findIndex(q=>/^w/.test(q))]||1); return 1; });
+    if(/^w/.test(nm)) return (Number.isFinite(wOld)&&wOld>0?wOld:(keep[oldDef.params.findIndex(q=>/^w/.test(q))]||1))*wSeedOf(nd,nm); return 1; });
   if(Number.isFinite(hOld)&&hOld!==0) fresh[nd.params.indexOf("A")]=peakAreaForHeight(nd,fresh,hOld);
   d.init=head.concat(fresh,tail); d.fixed=headF.concat(nd.params.map(()=>false),tailF);
   d.fitAt=null; syncPdraft();
 }
-const PARAM_LABEL={xc:"Centre",A:"Area",w:"FWHM",mu:"Lorentz fraction",wG:"Gauss FWHM",wL:"Lorentz FWHM",m:"Shape m"};
+const PARAM_LABEL={xc:"Centre",A:"Area",w:"FWHM",mu:"Lorentz fraction",wG:"Gauss FWHM",wL:"Lorentz FWHM",m:"Shape m",iq:"Asymmetry 1/q"};
 const PARAM_DIM={xc:"x",A:"yx",w:"x",wG:"x",wL:"x"};
 const BASE_LABEL={y0:["Offset","y"],slope:["Slope","y/x"],b1:["Linear","y/x"],b2:["Quadratic","y/x2"],b3:["Cubic","y/x3"]};
 /* ---- Finding peaks ---------------------------------------------------------
@@ -6063,7 +6649,7 @@ function runPeakFinder(append){
     const sd=seedPeak(X,Y,q.i,base); let w=sd.w;
     if(Number.isFinite(q.w)&&q.w>0&&(!(w>0)||w>2.5*q.w)) w=q.w;
     d.init[off]=sd.xc;
-    def.params.forEach((nm,i)=>{ if(/^w/.test(nm)) d.init[off+i]=w; if(def.init&&def.init[nm]!=null) d.init[off+i]=def.init[nm]; d.fixed[off+i]=false; });
+    def.params.forEach((nm,i)=>{ if(/^w/.test(nm)) d.init[off+i]=w*wSeedOf(def,nm); if(def.init&&def.init[nm]!=null) d.init[off+i]=def.init[nm]; d.fixed[off+i]=false; });
     d.init[off+def.params.indexOf("A")]=peakAreaForHeight(def,d.init.slice(off,off+def.params.length),sd.h);
   });
   d.fitAt=null; S.selPeak=null; S.fitError=""; S.pfOpen=false; S.pfPreview=null;
@@ -6082,18 +6668,19 @@ function renderPeakFit(box,p,top){
   const rowFor=k=>mrows.find(q=>q.k===k)||null;
   const [xu,yu]=dataUnits();
   const uu=dim=>{ const t=unitFor(dim,xu,yu); return t?` <span class="unit">(${esc(t)})</span>`:""; };
-  const resOf=gi=>f&&f.params.length===m.n?(f.fixed&&f.fixed[gi]?`${esc(fmt(f.params[gi],6))} <span class="lab">fixed</span>`:fmtPM(f.params[gi],f.errors[gi])):"";
+  const resOf=gi=>f&&f.params.length===m.n?(f.fixed&&f.fixed[gi]?`${esc(fmt(f.params[gi],6))} <span class="lab">fixed</span>`:f.atBound&&f.atBound[gi]?`${esc(fmt(f.params[gi],6))} <span class="lab" title="It stopped at its limit, so it has no meaningful standard error">at its limit</span>`:fmtPM(f.params[gi],f.errors[gi])):"";
   const findOpen=S.pfOpen!=null?S.pfOpen:!d.peaks.length;
   const r=findOpen?pfRun():null; if(!findOpen) S.pfPreview=null;
   let h=top;
   // 1 Find
   h+=`<details class="grp stepgrp" id="pfPanel"${findOpen?" open":""}><summary><span class="sn">1</span>Find peaks <span class="sum">${esc((PF_MODES.find(q=>q[0]===pfOpts().mode)||PF_MODES[0])[1].toLowerCase())} ${esc(String(pfOpts().v))}${pfOpts().log?", log scale":""}</span></summary><div class="gb">${findOpen?pfPanelHtml(r):""}</div></details>`;
   // 2 Adjust
-  h+=`<section class="stepsec"><h3 class="gh"><span class="sn">2</span>Peaks and baseline <span class="cnt">${d.peaks.length||""}</span><span style="flex:1"></span><button class="btn sm ghost" id="clrPeaks"${ro}${d.peaks.length?"":" disabled"}>Clear</button></h3>`;
+  h+=`<section class="stepsec"><h3 class="gh"><span class="sn">2</span>Peaks and baseline <span class="cnt">${d.peaks.length||""}</span><span style="flex:1"></span>${d.peaks.length>1?`<button class="btn sm ghost" id="shareW"${ro} aria-pressed="${widthsShared(d)}" title="${widthsShared(d)?"Give each peak its own width again":"Tie every peak's width to peak 1's: one width, fitted for all (an instrument's resolution)"}">${ICON("link","sm")}One width</button>`:""}<button class="btn sm ghost" id="clrPeaks"${ro}${d.peaks.length?"":" disabled"}>Clear</button></h3>`;
   h+=`<div class="frow"><label for="pbase">Baseline</label><select id="pbase"${ro}>${Object.entries(BASELINES).map(([k,v])=>`<option value="${k}"${k===d.base?" selected":""}>${v.name}</option>`).join("")}</select>
     <label for="ptype">New peaks</label><div class="pair"><select id="ptype" style="flex:1"${ro}>${Object.entries(PEAKS).map(([k,v])=>`<option value="${k}"${k===(S.peakType||"gauss")?" selected":""}>${v.name}</option>`).join("")}</select>${d.peaks.some(pk=>pk.type!==(S.peakType||"gauss"))?`<button class="btn sm" id="ptypeAll"${ro}>Apply to all</button>`:""}</div></div>`;
   if(!d.peaks.length) h+=noteHtml("info","No peaks yet. Use <strong>Find peaks</strong> above, or choose <strong>Add peak</strong> on the toolbar and click the graph where you see one. Each peak gets a dot on the graph that you can drag.",true);
   else h+=`<p class="hint" style="margin-top:0">Drag a peak’s dot on the graph to move it; click a peak to show handles for its width. Or type values here.</p>`;
+  const links=peakLinks(d.peaks,m);
   d.peaks.forEach((pk,k)=>{
     const def=PEAKS[pk.type]||PEAKS.gauss, o=m.offsets[k];
     const col=peakColor(k);
@@ -6103,10 +6690,11 @@ function renderPeakFit(box,p,top){
         <select data-ptype="${k}"${ro} aria-label="Shape of peak ${k+1}">${Object.entries(PEAKS).map(([kk,v])=>`<option value="${kk}"${kk===pk.type?" selected":""}>${v.name}</option>`).join("")}</select>
         <button class="tb sm icon" data-delpeak="${k}" aria-label="Delete peak ${k+1}" title="Delete peak ${k+1}"${ro}>${ICON("x","sm")}</button></div>
       <table class="ptab"><tbody>`;
-    def.params.forEach((nm,i)=>{ const gi=o+i;
-      h+=`<tr><td class="pn" title="${esc(def.meaning[i])} (${esc(nm)})">${esc(PARAM_LABEL[nm]||nm)}${uu(PARAM_DIM[nm])}</td>
-        <td><input type="text" inputmode="decimal" data-pinit="${gi}" value="${esc(fmt(d.init[gi],6))}" aria-label="${esc(def.meaning[i])} of peak ${k+1}"${ro}></td>
-        <td class="fx"><input type="checkbox" data-pfix="${gi}"${d.fixed[gi]?" checked":""} title="Hold at this value" aria-label="Fix ${esc(def.meaning[i])} of peak ${k+1}"${ro}></td>
+    def.params.forEach((nm,i)=>{ const gi=o+i, tl=links.find(l=>l.gi===gi), lb=paramLabelOf(def,nm);
+      h+=`<tr${tl?' class="tied"':""}><td class="pn" title="${esc(def.meaning[i])} (${esc(nm)})">${esc(lb)}${uu(PARAM_DIM[nm])}</td>`+(tl
+        ?`<td colspan="2"><button class="tiechip" data-tie="${k}:${esc(nm)}" title="Follows peak ${tl.j+1}: click to change or untie"${ro}>${ICON("link","sm")}<span>${esc(tieText(tl))}</span><span class="tv">${esc(fmt(d.init[gi],6))}</span></button></td>`
+        :`<td><input type="text" inputmode="decimal" data-pinit="${gi}" value="${esc(fmt(d.init[gi],6))}" aria-label="${esc(def.meaning[i])} of peak ${k+1}"${ro}></td>
+        <td class="fx"><input type="checkbox" data-pfix="${gi}"${d.fixed[gi]?" checked":""} title="Hold at this value" aria-label="Fix ${esc(def.meaning[i])} of peak ${k+1}"${ro}>${d.peaks.length>1?`<button class="tieb" data-tie="${k}:${esc(nm)}" title="Tie to another peak's ${esc(lb.toLowerCase())}" aria-label="Tie the ${esc(lb.toLowerCase())} of peak ${k+1} to another peak" aria-haspopup="menu" aria-expanded="false"${ro}>${ICON("link","sm")}</button>`:""}</td>`)+`
         <td class="res">${resOf(gi)}</td></tr>`;
     });
     h+=`</tbody></table></div>`;
@@ -6167,7 +6755,7 @@ function renderPeakFit(box,p,top){
     const t=S.peakType||"gauss";
     pushUndo("changing every peak's shape");
     d.peaks.forEach((pk,k)=>{ if(pk.type!==t) setPeakShape(k,t); });
-    save({},"changed every peak to "+(PEAKS[t]||PEAKS.gauss).name.toLowerCase());
+    save({},"changed every peak to "+lcFirst((PEAKS[t]||PEAKS.gauss).short||(PEAKS[t]||PEAKS.gauss).name));
     renderFit(); renderPlot();
     toast(`All ${d.peaks.length} peaks are now ${(PEAKS[t]||PEAKS.gauss).name}. Press Fit to refit them.`,{action:"Undo",run:undo});
   };
@@ -6181,9 +6769,14 @@ function renderPeakFit(box,p,top){
   box.querySelectorAll("input[data-pinit]").forEach(inp=>inp.onchange=()=>{
     const v=parseNum(inp.value), i=+inp.dataset.pinit;
     if(v===null){ inp.value=fmt(d.init[i],6); toast("Values must be numbers."); return; }
-    pushUndo("that value"); d.init[i]=v; d.fitAt=null; renderPlot();
+    pushUndo("that value"); d.init[i]=v; d.fitAt=null;
+    if(peakLinks(d.peaks,pdraftModel()).some(l=>l.gj===i)) renderFit();
+    renderPlot();
   });
   box.querySelectorAll("input[data-pfix]").forEach(inp=>inp.onchange=()=>{ d.fixed[+inp.dataset.pfix]=inp.checked; });
+  box.querySelectorAll("[data-tie]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); const s=b.dataset.tie, i=s.indexOf(":"), k=+s.slice(0,i), nm=s.slice(i+1);
+    toggleMenu(b,()=>tieMenuItems(k,nm),{label:"Tie to another peak"}); });
+  const sw=$("#shareW"); if(sw) sw.onclick=shareWidths;
   box.querySelectorAll(".pcard[data-peak]").forEach(c=>c.onclick=e=>{
     if(e.target.closest("button,select,input")) return;
     const k=+c.dataset.peak; S.selPeak=S.selPeak===k?null:k; renderFit(); renderPlot();
@@ -6209,15 +6802,18 @@ function runPeakFit(){
   const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), useW=d.weighted&&hasErr();
   if(useW&&pts.some(q=>!(q.e>0))){ S.fitError="Some points in range have no Y error, so they can't be weighted."; renderFit(); return; }
   const W=pts.map(q=>useW?1/q.e:1);
-  const spec={base:d.base,peaks:d.peaks.map(k=>({type:k.type}))};
+  const spec={base:d.base,peaks:d.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{}))};
   const {lo,hi}=modelBounds(spec,m,d.init);
+  const L=peakLinks(spec.peaks,m), fixedT=d.fixed.slice(); L.forEach(l=>{ fixedT[l.gi]=true; });
   const span=Math.abs(Math.max(...X)-Math.min(...X))||1;
   const yspan=Math.abs(Math.max(...Y)-Math.min(...Y))||1;
   // Scale hints so the finite-difference steps suit each parameter's meaning.
   const pscale=d.init.map((v,i)=>Math.abs(v)||1);
   m.slots.forEach((s,i)=>{ if(s.kind==="peak"){ if(s.name==="xc") pscale[i]=span; else if(s.name==="A") pscale[i]=yspan*span; else if(/^w/.test(s.name)) pscale[i]=span/20; } });
-  const res=lmFit(m.f,X,Y,W,d.init.slice(),d.fixed.slice(),{lo,hi,pscale});
-  if(res.error){ S.fitError=res.error; renderFit(); return; }
+  const fT=L.length?(x,p)=>m.f(x,applyPeakLinks(p,L)):m.f;
+  const res0=lmFit(fT,X,Y,W,applyPeakLinks(d.init.slice(),L),fixedT,{lo,hi,pscale});
+  if(res0.error){ S.fitError=res0.error; renderFit(); return; }
+  const res=linkResult(res0,L);
   if(!res.params.every(Number.isFinite)){ S.fitError="The fit diverged. Try Reset to estimates, or fix a parameter."; renderFit(); return; }
   const [a,b]=fitRange();
   pushUndo("that fit");
@@ -6233,22 +6829,23 @@ function runPeakFit(){
 }
 
 function runFit(){
-  const d=ensureDraft(), m=MODELS[d.model], pts=fitPoints(); S.fitError="";
+  const d=ensureDraft(), m=draftModel(d), pts=fitPoints(); S.fitError="";
   const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), useW=d.weighted&&hasErr();
   if(useW&&pts.some(q=>!(q.e>0))){ S.fitError="Some points in range have no Y error, so they can't be weighted. Fill in the errors or turn weighting off."; renderFit(); return; }
   const W=pts.map(q=>useW?1/q.e:1);
-  const res=lmFit(m.f,X,Y,W,d.init.slice(),d.fixed.slice());
+  const res=lmFit(m.f,X,Y,W,d.init.slice(),d.fixed.slice(),m.lo?{lo:m.lo,hi:m.hi}:undefined);
   if(res.error){ S.fitError=res.error; renderFit(); return; }
   if(!res.params.every(Number.isFinite)){ S.fitError="The fit diverged. Try Guess, or fix one of the parameters."; renderFit(); return; }
   const [a,b]=fitRange();
   pushUndo("that fit");
-  const fit={model:d.model, params:res.params, errors:res.errors, cov:res.cov, fixed:d.fixed.slice(), stats:res.stats,
+  const fit={model:d.model, ...(m.user?{fn:JSON.parse(JSON.stringify(m.def))}:{}), params:res.params, errors:res.errors, cov:res.cov, fixed:d.fixed.slice(), stats:res.stats,
     dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound,
     onCol:(activeYCol()||{}).id, onColName:(activeYCol()||{}).name||"",
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(), hadErrCol:hasErr(),
     range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, by:S.uid||"", at:Date.now()};
   d.init=res.params.slice();
-  save({fit,fits:fitHistory(fit)},`fitted ${m.name.toLowerCase()} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
+  const P0=P(), carry=m.user&&!(P0.userFns||[]).some(q=>q.id===m.fnId)?{userFns:(P0.userFns||[]).concat([JSON.parse(JSON.stringify(m.def))])}:{};
+  save(Object.assign({fit,fits:fitHistory(fit)},carry),`fitted ${m.user?`the function "${m.name}"`:lcFirst(m.name)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
   renderFit(); renderPlot(); afterFit(fit);
 }
 function fitNow(){
@@ -6275,10 +6872,13 @@ function paramRows(f){
   const FM=fitModel(f); if(!FM) return [];
   const [xu,yu]=dataUnits(), rows=[];
   const push=(i,label,meaning,dim)=>rows.push({i,label,meaning,unit:unitFor(dim,xu,yu),v:f.params[i],e:(f.errors||[])[i],
-    t:(f.tval||[])[i],pv:(f.pval||[])[i],ci:(f.ci||[])[i],dep:(f.dep||[])[i],fixed:!!(f.fixed&&f.fixed[i])});
-  if(FM.composite) FM.model.slots.forEach((s,i)=>{
+    t:(f.tval||[])[i],pv:(f.pval||[])[i],ci:(f.ci||[])[i],dep:(f.dep||[])[i],fixed:!!(f.fixed&&f.fixed[i]),
+    // At a limit, the curvature says nothing about the uncertainty: no ±.
+    bound:!(f.fixed&&f.fixed[i])&&!!(f.atBound&&f.atBound[i]),hold:!!(f.fixed&&f.fixed[i])||!!(f.atBound&&f.atBound[i])});
+  if(FM.composite){ FM.model.slots.forEach((s,i)=>{
     if(s.kind==="base"){ const bl=BASE_LABEL[s.name]||[s.name,""]; push(i,`baseline ${s.name}`,bl[0].toLowerCase(),bl[1]); }
     else push(i,`peak ${s.peak+1} ${s.name}`,s.meaning,PARAM_DIM[s.name]); });
+    peakLinks(f.spec.peaks,FM.model).forEach(l=>{ const r=rows.find(q=>q.i===l.gi); if(r){ r.tied="tied: "+tieFormula(l,""); r.hold=true; r.bound=false; } }); }
   else FM.model.params.forEach((nm,i)=>{ const ph=(FM.model.ph||[])[i];
     push(i,ph?ph.replace(/<[^>]+>/g,""):nm,"",(FM.model.dim||[])[i]); if(ph) rows[rows.length-1].html=ph; });
   return rows;
@@ -6302,7 +6902,7 @@ function paramTableHtml(f){
   const rows=paramRows(f), der=derivedRows(f);
   const u=t=>t?` <span class="unit">(${esc(t)})</span>`:"";
   return `<table class="rtab"><thead><tr><th class="l">Parameter</th><th>Value ± standard error</th><th>t</th><th>Prob &gt; |t|</th><th>95% confidence interval</th><th title="Near 1: this parameter is doing the same job as others and is not independently determined">Dependency</th></tr></thead><tbody>${
-    rows.map(r=>`<tr${Number.isFinite(r.dep)&&r.dep>0.99&&!r.fixed?' class="badrow"':""}><td class="l">${r.html?`<span style="font-style:italic;font-family:'Source Serif 4',Georgia,serif;font-size:1.08em">${r.html}</span>`:esc(r.label)}${u(r.unit)}${r.meaning?` <span class="lab">${esc(r.meaning)}</span>`:""}</td><td>${r.fixed?`${esc(fmt(r.v,6))} <span class="lab">fixed</span>`:fmtPM(r.v,r.e)}</td><td>${r.fixed?"":esc(fmtOr(r.t,4))}</td><td>${r.fixed?"":esc(fmtP(r.pv))}</td><td>${r.fixed||!r.ci||!Number.isFinite(r.ci[0])||!Number.isFinite(r.ci[1])?"":`${esc(fmt(r.ci[0],6))} to ${esc(fmt(r.ci[1],6))}`}</td><td>${r.fixed?"":esc(fmtOr(r.dep,4))}</td></tr>`).join("")
+    rows.map(r=>`<tr${Number.isFinite(r.dep)&&r.dep>0.99&&!r.hold?' class="badrow"':""}><td class="l">${r.html?`<span style="font-style:italic;font-family:'Source Serif 4',Georgia,serif;font-size:1.08em">${r.html}</span>`:esc(r.label)}${u(r.unit)}${r.meaning?` <span class="lab">${esc(r.meaning)}</span>`:""}</td><td>${r.tied?`${fmtPM(r.v,r.e)} <span class="lab">${esc(r.tied)}</span>`:r.hold?`${esc(fmt(r.v,6))} <span class="lab">${r.fixed?"fixed":"at its limit"}</span>`:fmtPM(r.v,r.e)}</td><td>${r.hold?"":esc(fmtOr(r.t,4))}</td><td>${r.hold?"":esc(fmtP(r.pv))}</td><td>${r.hold||!r.ci||!Number.isFinite(r.ci[0])||!Number.isFinite(r.ci[1])?"":`${esc(fmt(r.ci[0],6))} to ${esc(fmt(r.ci[1],6))}`}</td><td>${r.hold?"":esc(fmtOr(r.dep,4))}</td></tr>`).join("")
   }${der.map(x=>`<tr><td class="l">${esc(x.name)}${u(x.unit)} <span class="lab">derived</span></td><td>${fmtPM(x.v,x.e)}</td><td></td><td></td><td></td><td></td></tr>`).join("")}</tbody></table>`;
 }
 function renderResults(){
@@ -6317,7 +6917,7 @@ function renderResults(){
   }
   const FM=fitModel(f);
   const [xu,yu]=dataUnits(), u=t=>t?`<span class="unit">(${esc(t)})</span>`:"";
-  let h=`<div class="rhead"><div class="rt"><div class="rtitle">${FM.composite?"Peak fit":"Curve fit"}: ${esc(FM.name)}${f.onColName?` <span class="lab">on ${esc(f.onColName)}</span>`:""}</div><div class="lab" id="fitBy"></div></div>
+  let h=`<div class="rhead"><div class="rt"><div class="rtitle">${FM.composite?"Peak fit":"Curve fit"}: ${esc(FM.name)}${f.onColName?` <span class="lab">on ${esc(f.onColName)}</span>`:""}</div>${FM.model.user?`<div class="rfx"><code>${esc(FM.model.expr)}</code></div>`:""}<div class="lab" id="fitBy"></div></div>
     <div class="ract"><button class="btn sm" id="rCopy">${ICON("copy","sm")}Copy table</button><button class="btn sm" id="rReport">${ICON("file","sm")}Save report</button><button class="btn sm" id="rCsv">${ICON("download","sm")}Export data</button><button class="btn sm ghost" id="discussFit">${ICON("comment","sm")}Discuss</button></div></div>`;
   // What makes a number wrong goes above the table; advice on doing better
   // goes under it, so the table is not pushed out of a short panel.
@@ -6349,34 +6949,201 @@ function renderResults(){
 }
 function nameOf(uid){ if(!uid) return S.store&&S.store.mode==="local"?"you":"someone"; if(uid===S.uid) return "you"; return (S.profiles[uid]&&S.profiles[uid].name)||"a colleague"; }
 function avatarOf(uid){ return (S.profiles[uid]&&S.profiles[uid].avatarUrl)||`data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><circle cx="14" cy="14" r="14" fill="#8a96a8"/></svg>')}`; }
+/* ---- Discussion ----------------------------------------------------------
+   A comment is {uid, text, anchor, t, resolved, parent?, edited?, deleted?}.
+   The first comment of a thread carries its anchor: a point (i), a spot on
+   the graph (x, y), the fit, or a box of the History ({type:"node", key, col,
+   label}, the key being "step:<id>", "raw:<col>", "src:<col>", "final:<col>",
+   "fit:<col>" or "table"). The label is what the box was called when the
+   thread began, so a thread on a step that was later removed still says what
+   it was about. A reply names its thread's first comment in parent.
+   Comments live beside the project, not in it, so undo never takes a
+   colleague's words back. */
+let THR_MEMO=null;
+function threadIndex(){
+  const all=S.comments||[];
+  if(THR_MEMO&&THR_MEMO.src===all) return THR_MEMO;
+  const ids=new Set(all.map(c=>c.id)), kids={};
+  all.forEach(c=>{ if(c.parent&&ids.has(c.parent)) (kids[c.parent]=kids[c.parent]||[]).push(c); });
+  const list=all.filter(c=>!c.parent||!ids.has(c.parent)).map(r=>({root:r,replies:(kids[r.id]||[]).sort((a,b)=>a.t-b.t)}))
+    .filter(t=>!(t.root.deleted&&!t.replies.length)).sort((a,b)=>a.root.t-b.root.t);
+  const byNode={};
+  list.forEach(t=>{ const a=t.root.anchor; if(a&&a.type==="node") (byNode[a.key]=byNode[a.key]||[]).push(t); });
+  THR_MEMO={src:all,list,byNode}; return THR_MEMO;
+}
+const nodeThreads=key=>threadIndex().byNode[key]||[];
+const NODE_KIND={raw:"Raw data",src:"Input",final:"Final data",fit:"Fits"};
+function splitKey(key){ const i=String(key).indexOf(":"); return i<0?[key,""]:[key.slice(0,i),key.slice(i+1)]; }
+// The anchor for a History box, labelled as the box is now.
+function nodeAnchor(key){
+  const [kind,id]=splitKey(key);
+  if(kind==="step"){ const s=stepById(id), c=s&&colOfStep(s); return {type:"node",key,col:c?c.id:null,label:s&&c?`${stepShort(s)}, step ${c.pipe.indexOf(s)+1} of ${specName(c)}`:"a step"}; }
+  if(kind==="table") return {type:"node",key,col:null,label:"the recorded data"};
+  const c=colById(id); return {type:"node",key,col:id,label:`${(NODE_KIND[kind]||"box").toLowerCase()} of ${c?specName(c):"a spectrum"}`};
+}
+const capFirst=s=>String(s).charAt(0).toUpperCase()+String(s).slice(1);
+function nodeLabel(a){
+  const [kind,id]=splitKey(a.key||"");
+  if(kind==="step"){ const s=stepById(id), c=s&&colOfStep(s);
+    if(s&&c&&!isPending(s)) return `Step ${c.pipe.indexOf(s)+1} of ${specName(c)}: ${stepShort(s)}`;
+    return `${capFirst(a.label||"a step")} (since removed)`; }
+  if(kind==="table") return "Recorded data";
+  const c=colById(id); if(!c) return `${capFirst(a.label||"a spectrum")} (since removed)`;
+  return `${NODE_KIND[kind]||"Box"} of ${specName(c)}`;
+}
 function anchorLabel(a){
-  if(!a) return ""; const p=P();
+  if(!a) return "";
+  if(a.type==="node") return nodeLabel(a);
   if(a.type==="point"){ const xc=xCol(), yc=activeYCol(); const x=xc&&xc.data[a.i], y=yc&&yc.data[a.i]; return `Point #${a.i+1} (${fmt(x??a.x,4)}, ${fmt(y??a.y,4)})`; }
   if(a.type==="xy") return `At (${fmt(a.x,4)}, ${fmt(a.y,4)})`;
-  if(a.type==="fit"){ const p=P(); if(a.model==="peaks"||(p&&p.fit&&p.fit.kind==="composite")) return "On the peak fit"; return `On the ${(MODELS[a.model]||{name:"fit"}).name.toLowerCase()} fit`; }
+  if(a.type==="fit"){ const p=P(); if(a.model==="peaks"||(p&&p.fit&&p.fit.kind==="composite")) return "On the peak fit"; return `On the ${lcFirst((getModel(a.model)||{name:"fit"}).name)} fit`; }
   return "";
 }
+function anchorIcon(c){
+  const a=c.anchor; if(!a) return "";
+  if(a.type==="node") return ICON("flow","sm");
+  if(a.type==="fit") return ICON("peak","sm");
+  return c._num?`<span class="num">${c._num}</span>`:"";
+}
+function personName(uid){ const nm=nameOf(uid); return capFirst(nm==="you"?"You":nm); }
+const canEditComment=c=>!S.readOnly&&(c.uid===S.uid||(!S.uid&&!c.uid));
+const draftOf=(k,def)=>{ const d=(S.cDrafts||{})[k]; return d!=null?d:def; };
+function cmtHtml(c,ctx){
+  const own=canEditComment(c)&&!c.deleted, ed=S.cEdit===c.id, id=esc(c.id);
+  let body;
+  if(c.deleted) body=`<div class="txt gone">This comment was deleted.</div>`;
+  else if(ed) body=`<div class="cedit"><textarea class="ctext" id="ce-${ctx}-${id}" data-cdraft="edit:${id}" rows="2" aria-label="Edit the comment">${esc(draftOf("edit:"+c.id,c.text))}</textarea><div class="crow"><span class="lab">Ctrl+Enter to save</span><span class="sp"></span><button class="btn sm ghost" data-cact="editx" data-cid="${id}">Cancel</button><button class="btn sm primary" data-cact="edits" data-cid="${id}">Save</button></div></div>`;
+  else body=`<div class="txt">${esc(c.text)}</div>`;
+  return `<div class="cmt${c.parent?" reply":""}" data-cid="${id}"><img alt="" src="${esc(avatarOf(c.uid))}"><div class="cb"><div class="who"><span class="nm">${esc(personName(c.uid))}</span><span class="when" title="${esc(logWhen(c.t))}">${esc(ago(c.t))}${c.edited?" · edited":""}</span>${own&&!ed?`<span class="cops"><button class="tb sm icon" data-cact="edit" data-cid="${id}" aria-label="Edit this comment" title="Edit">${ICON("edit","sm")}</button><button class="tb sm icon" data-cact="del" data-cid="${id}" aria-label="Delete this comment" title="Delete">${ICON("trash","sm")}</button></span>`:""}</div>${body}</div></div>`;
+}
+function threadHtml(t,ctx,opt){
+  opt=opt||{}; const r=t.root, id=esc(r.id), ro=S.readOnly;
+  let h=`<article class="thr${r.resolved?" resolved":""}" data-tid="${id}">`;
+  if(opt.chip&&r.anchor) h+=`<button class="anchor" data-cact="go" data-cid="${id}" title="Show where this is">${anchorIcon(r)}<span>${esc(anchorLabel(r.anchor))}</span></button>`;
+  h+=cmtHtml(r,ctx);
+  if(t.replies.length) h+=`<div class="replies">${t.replies.map(c=>cmtHtml(c,ctx)).join("")}</div>`;
+  if(S.cReply===r.id&&!ro) h+=`<div class="rbox"><textarea class="ctext" id="cr-${ctx}-${id}" data-cdraft="reply:${id}" rows="2" placeholder="Reply…" aria-label="Reply">${esc(draftOf("reply:"+r.id,""))}</textarea><div class="crow"><span class="lab">Ctrl+Enter to post</span><span class="sp"></span><button class="btn sm ghost" data-cact="rx" data-cid="${id}">Cancel</button><button class="btn sm primary" data-cact="rpost" data-cid="${id}">Reply</button></div></div>`;
+  else h+=`<div class="tops">${ro?"":`<button class="btn sm ghost" data-cact="reply" data-cid="${id}">Reply</button><button class="btn sm ghost" data-cact="res" data-cid="${id}">${r.resolved?"Reopen":ICON("check","sm")+"Resolve"}</button>`}${r.resolved?`<span class="lab">Resolved${r.resolvedBy!=null?` by ${esc(nameOf(r.resolvedBy))}`:""}</span>`:t.replies.length?`<span class="lab">${t.replies.length} repl${t.replies.length===1?"y":"ies"}</span>`:""}</div>`;
+  return h+`</article>`;
+}
+/* One set of handlers for every place threads are shown: the Discussion
+   window and a History box's inspector. */
+function wireThreads(box){
+  if(!box||box._thr) return; box._thr=true;
+  box.addEventListener("click",e=>{
+    const f=e.target.closest("[data-dflt]"); if(f&&box.contains(f)){ S.discFilter=f.dataset.dflt; renderThread(); return; }
+    const b=e.target.closest("[data-cact]"); if(!b||!box.contains(b)||b.disabled) return; e.preventDefault(); threadAct(b.dataset.cact,b.dataset.cid); });
+  box.addEventListener("input",e=>{ const t=e.target.closest("textarea[data-cdraft]"); if(t){ S.cDrafts=S.cDrafts||{}; S.cDrafts[t.dataset.cdraft]=t.value; } });
+  box.addEventListener("keydown",e=>{ const t=e.target.closest("textarea[data-cdraft]"); if(!t) return;
+    const [kind,id]=splitKey(t.dataset.cdraft);
+    if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); e.stopPropagation(); S.cDrafts=S.cDrafts||{}; S.cDrafts[t.dataset.cdraft]=t.value; threadAct(kind==="edit"?"edits":kind==="reply"?"rpost":"npost",id); }
+    else if(e.key==="Escape"&&(kind==="reply"||kind==="edit")){ e.preventDefault(); e.stopPropagation(); threadAct(kind==="reply"?"rx":"editx",id); } });
+}
+function focusDraft(k){ requestAnimationFrame(()=>{ const t=document.querySelector(`textarea[data-cdraft="${CSS.escape(k)}"]`); if(t){ t.focus({preventScroll:true}); t.selectionStart=t.selectionEnd=t.value.length; } }); }
+async function threadAct(act,id){
+  const pid=S.pid; if(!pid) return;
+  S.cDrafts=S.cDrafts||{};
+  const all=S.comments||[], c=all.find(x=>x.id===id);
+  if(act==="go"){ if(c) goAnchor(c); return; }
+  if(act==="reply"){ S.cReply=id; S.cEdit=null; refreshComments(); focusDraft("reply:"+id); return; }
+  if(act==="rx"){ S.cReply=null; delete S.cDrafts["reply:"+id]; refreshComments(); return; }
+  if(act==="edit"){ S.cEdit=id; S.cReply=null; refreshComments(); focusDraft("edit:"+id); return; }
+  if(act==="editx"){ S.cEdit=null; delete S.cDrafts["edit:"+id]; refreshComments(); return; }
+  if(S.readOnly){ toast("You can view this workspace but not comment."); return; }
+  try{
+    if(act==="res"&&c){ await S.store.updateComment(pid,id,{resolved:!c.resolved,resolvedBy:c.resolved?null:(S.uid||"")}); return; }
+    if(act==="edits"&&c){ const text=String(draftOf("edit:"+id,c.text)).trim(); if(!text) return; S.cEdit=null; delete S.cDrafts["edit:"+id];
+      if(text===c.text){ refreshComments(); return; }
+      await S.store.updateComment(pid,id,{text:text.slice(0,4000),edited:Date.now()}); return; }
+    if(act==="rpost"){ const text=String(draftOf("reply:"+id,"")).trim(); if(!text){ focusDraft("reply:"+id); return; } S.cReply=null; delete S.cDrafts["reply:"+id];
+      await S.store.addComment(pid,{uid:S.uid||"",text:text.slice(0,4000),anchor:null,parent:id,t:Date.now(),resolved:false});
+      // A reply to a resolved thread reopens it: someone still has something to say.
+      if(c&&c.resolved) await S.store.updateComment(pid,id,{resolved:false,resolvedBy:null});
+      return; }
+    if(act==="npost"){ await postNodeComment(id); return; }
+    if(act==="del"&&c){
+      const kids=all.filter(x=>x.parent===id);
+      if(kids.length){ const old=c.text; await S.store.updateComment(pid,id,{deleted:true,text:""});
+        toast("Comment deleted. The replies to it stay.",{action:"Undo",run:()=>S.store.updateComment(pid,id,{deleted:false,text:old}).catch(writeErr)}); return; }
+      const copy=Object.assign({},c); delete copy.id; delete copy._num;
+      await S.store.deleteComment(pid,id);
+      // The last reply under a deleted first comment takes the thread with it.
+      const par=c.parent&&all.find(x=>x.id===c.parent);
+      if(par&&par.deleted&&!all.some(x=>x.parent===par.id&&x.id!==id)) await S.store.deleteComment(pid,par.id);
+      toast("Comment deleted.",{action:"Undo",run:()=>S.store.addComment(pid,copy).catch(writeErr)}); return; }
+  }catch(e){ writeErr(e); }
+}
+async function postNodeComment(key){
+  const dk="node:"+key, text=String(draftOf(dk,"")).trim();
+  if(!text||!S.pid){ focusDraft(dk); return; }
+  if(S.readOnly){ toast("You can view this workspace but not comment."); return; }
+  const anchor=nodeAnchor(key); delete S.cDrafts[dk];
+  document.querySelectorAll(`textarea[data-cdraft="${CSS.escape(dk)}"]`).forEach(t=>{ t.value=""; });
+  try{ await S.store.addComment(S.pid,{uid:S.uid||"",text:text.slice(0,4000),anchor,t:Date.now(),resolved:false}); }
+  catch(e){ S.cDrafts[dk]=text; writeErr(e); }
+}
+// Keeps the caret where it was while a list of threads is redrawn.
+function keepCaret(box){ const a=document.activeElement; if(!a||!box||!box.contains(a)||!a.id) return null; return {id:a.id,s:a.selectionStart,e:a.selectionEnd}; }
+function putCaret(k){ if(!k) return; const el=document.getElementById(k.id); if(!el) return; el.focus({preventScroll:true}); if(k.s!=null&&el.setSelectionRange) try{ el.setSelectionRange(k.s,k.e); }catch(e){} }
+function refreshComments(){
+  renderThread(); renderAnchor();
+  if(winOpen("flow")&&(S.flowTab||"flow")==="flow"){ renderFlowNodes(); renderFlowDisc(); }
+  renderTaskbar();
+}
 function renderAnchor(){
-  const box=$("#cAnchor"); const a=S.anchor;
-  box.innerHTML=a?`<span class="anchor">${esc(anchorLabel(a))} <button class="btn ghost" id="clrA" aria-label="Detach comment from this anchor" style="padding:0 4px">×</button></span>`:(S.sel!=null&&P()&&S.sel<nRows()?`<button class="btn ghost" id="useSel">Attach to point #${S.sel+1}</button>`:`<span class="lab">General comment</span>`);
-  const c=$("#clrA"); if(c) c.onclick=()=>{ S.anchor=null; renderAnchor(); };
+  const box=$("#cAnchor"); if(!box) return; const a=S.anchor;
+  if(a){ box.innerHTML=`<span class="anchor">${a.type==="node"?ICON("flow","sm"):""}<span>${esc(anchorLabel(a))}</span><button class="btn ghost" id="clrA" aria-label="Detach the comment from this" style="padding:0 4px">×</button></span>`;
+    $("#clrA").onclick=()=>{ S.anchor=null; renderAnchor(); }; return; }
+  const opts=[];
+  if(S.sel!=null&&P()&&S.sel<nRows()) opts.push(`<button class="btn sm ghost" id="useSel" title="Attach the comment to the selected point">${ICON("plus","sm")}Point #${S.sel+1}</button>`);
+  const L=P()&&S.flowSel&&winOpen("flow")?S.flowSel:null;
+  if(L&&!(L.startsWith("step:")&&isPending(stepById(L.slice(5))))) opts.push(`<button class="btn sm ghost" id="useNode" title="Attach the comment to the box selected in the History">${ICON("plus","sm")}${esc(nodeLabel(nodeAnchor(L)))}</button>`);
+  box.innerHTML=`<span class="lab">General comment${opts.length?". Attach it to:":""}</span>${opts.join("")}`;
   const u=$("#useSel"); if(u) u.onclick=()=>{ const q=pointByRow(S.sel); S.anchor={type:"point",i:S.sel,x:q?q.x:null,y:q?q.y:null}; renderAnchor(); };
+  const n=$("#useNode"); if(n) n.onclick=()=>{ S.anchor=nodeAnchor(L); renderAnchor(); };
 }
 function renderThread(){
-  const box=$("#thread"); if(!P()){ box.innerHTML=`<p class="nothing">Open a project to discuss it.</p>`; return; }
-  const list=S.comments.slice().sort((a,b)=>a.t-b.t);
-  let num=0; list.forEach(c=>{ c._num=(c.anchor&&(c.anchor.type==="point"||c.anchor.type==="xy"))?++num:null; });
-  const open=list.filter(c=>!c.resolved).length; const bd=$("#cBadge"); bd.hidden=!open; bd.textContent=open;
-  if(!list.length){ box.innerHTML=`<p class="nothing">No comments yet. Choose <strong>Comment</strong> on the toolbar and click a point to ask about it, or write a general note below.</p>`; return; }
-  box.innerHTML=list.map(c=>`<div class="cmt${c.resolved?" resolved":""}" data-id="${esc(c.id)}"><img alt="" src="${esc(avatarOf(c.uid))}"><div><div class="who"><span class="nm"></span><span class="when">${esc(ago(c.t))}</span></div>${c.anchor?`<button class="anchor" data-go="${esc(c.id)}">${c._num?`<span class="num">${c._num}</span>`:""}${esc(anchorLabel(c.anchor))}</button>`:""}<div class="txt"></div><div class="ops">${S.readOnly?"":`<button class="btn ghost" data-res="${esc(c.id)}">${c.resolved?"Reopen":"Resolve"}</button>`}${(c.uid===S.uid||(!S.uid&&!c.uid))&&!S.readOnly?`<button class="btn ghost" data-del="${esc(c.id)}">Delete</button>`:""}</div></div></div>`).join("");
-  box.querySelectorAll(".cmt").forEach(el=>{ const c=list.find(x=>x.id===el.dataset.id); const nm=nameOf(c.uid); el.querySelector(".nm").textContent=nm==="you"?"You":nm.charAt(0).toUpperCase()+nm.slice(1); el.querySelector(".txt").textContent=c.text; });
-  box.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>goAnchor(list.find(c=>c.id===b.dataset.go)));
-  box.querySelectorAll("[data-res]").forEach(b=>b.onclick=()=>{ const c=list.find(x=>x.id===b.dataset.res); S.store.updateComment(S.pid,c.id,{resolved:!c.resolved}).catch(writeErr); });
-  box.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{ S.store.deleteComment(S.pid,b.dataset.del).catch(writeErr); });
+  const box=$("#thread"); if(!box) return;
+  if(!P()){ box.innerHTML=`<p class="nothing">Open a project to discuss it.</p>`; return; }
+  const T=threadIndex();
+  // Pins on the graph are numbered in the order their threads began.
+  let num=0; T.list.forEach(t=>{ const a=t.root.anchor; t.root._num=a&&(a.type==="point"||a.type==="xy")?++num:null; });
+  const open=T.list.filter(t=>!t.root.resolved).length, bd=$("#cBadge"); if(bd){ bd.hidden=!open; bd.textContent=open; }
+  const keep=keepCaret(box);
+  if(!T.list.length){ box.innerHTML=`<p class="nothing">No comments yet. Select a box in the History to comment on a step, the raw data or a fit; choose <strong>Comment</strong> on the toolbar and click the graph to ask about a point; or write a general note below.</p>`; return; }
+  const f=S.discFilter==="open"?"open":"all", list=f==="open"?T.list.filter(t=>!t.root.resolved):T.list;
+  let h=`<div class="dbar"><div class="seg mini" role="group" aria-label="Which threads"><button data-dflt="open" aria-pressed="${f==="open"}">Open <span class="cnt">${open}</span></button><button data-dflt="all" aria-pressed="${f==="all"}">All <span class="cnt">${T.list.length}</span></button></div></div>`;
+  h+=list.map(t=>threadHtml(t,"d",{chip:true})).join("")||`<p class="nothing">Nothing open. ${T.list.length} resolved thread${T.list.length===1?"":"s"}: choose <em>All</em> to read ${T.list.length===1?"it":"them"}.</p>`;
+  box.innerHTML=h; putCaret(keep);
 }
 function pointByRow(i){ return pointsAll().find(q=>q.i===i)||null; }
+/* Opens the History on a box, with its discussion in view. */
+function goNode(key,opt){
+  opt=opt||{}; if(!P()) return;
+  S.flowTab="flow"; if(S.flowInsp===false) S.flowInsp=true;
+  openWin("flow",{render:true});
+  const L=flowLayout(); if(!L.by[key]){ toast("That box is no longer in the History: the step it was on has been removed."); return; }
+  flowSelect(key,L);
+  requestAnimationFrame(()=>{ scrollFlowTo(key); if(opt.disc) scrollInspToDisc(opt.tid,opt.focus); });
+}
+function scrollFlowTo(key){
+  const sc=document.querySelector("#flowWin .flow-scroll"), el=sc&&sc.querySelector(`[data-node="${CSS.escape(key)}"]`); if(!el) return;
+  const x=el.offsetLeft, y=el.offsetTop;
+  if(x<sc.scrollLeft||x+FLOW_NW>sc.scrollLeft+sc.clientWidth) sc.scrollLeft=Math.max(0,x-24);
+  if(y<sc.scrollTop||y+FLOW_NH>sc.scrollTop+sc.clientHeight) sc.scrollTop=Math.max(0,y-24);
+}
+function scrollInspToDisc(tid,focus){
+  const insp=document.querySelector("#flowWin .finsp"); if(!insp) return;
+  const t=tid&&insp.querySelector(`.thr[data-tid="${CSS.escape(tid)}"]`), d=t||insp.querySelector(".fdisc"); if(!d) return;
+  // By hand: scrollIntoView would scroll the clipped desk as well.
+  if(insp.scrollHeight>insp.clientHeight+2) insp.scrollTop=d.getBoundingClientRect().top-insp.getBoundingClientRect().top+insp.scrollTop-8;
+  else if(isNarrow()) d.scrollIntoView({block:"nearest"});
+  if(t){ t.classList.remove("flash"); void t.offsetWidth; t.classList.add("flash"); }
+  if(focus){ const ta=insp.querySelector(".fcomp textarea"); if(ta) ta.focus({preventScroll:true}); }
+}
 function goAnchor(c){
   const a=c.anchor; if(!a) return;
+  if(a.type==="node"){ goNode(a.key,{disc:true,tid:c.id}); return; }
   if(a.type==="fit"){ showTab("fit"); showDrawer("res"); return; }
   const q=a.type==="point"?pointByRow(a.i):null;
   const x=q?q.x:a.x, y=q?q.y:a.y;
@@ -6392,6 +7159,47 @@ async function postComment(){
   $("#cPost").disabled=true;
   try{ await S.store.addComment(S.pid,c); t.value=""; S.anchor=null; renderAnchor(); }catch(e){ writeErr(e); }
   $("#cPost").disabled=false;
+}
+/* The discussion of one History box, at the foot of its inspector. */
+const NODE_PROMPT={step:"Comment on this step: why these settings, a question, a suggestion…",raw:"Comment on the raw data…",src:"Comment on this spectrum's input…",final:"Comment on the final data…",fit:"Comment on these fits…",table:"Comment on the recorded data…"};
+function flowDiscHtml(key,kind){
+  const dk="node:"+key, ph=NODE_PROMPT[kind]||"Comment…";
+  return `<section class="fdisc" data-key="${esc(key)}" aria-label="Discussion of this box"><div class="fdisc-in">${flowDiscInner(key)}</div>`+
+    (S.readOnly?`<p class="lab">You can read the discussion but not comment in this workspace.</p>`:
+    `<div class="fcomp"><textarea class="ctext" id="fc-${esc(key.replace(/[^\w-]/g,"_"))}" data-cdraft="${esc(dk)}" rows="2" placeholder="${esc(ph)}" aria-label="${esc(ph)}">${esc(draftOf(dk,""))}</textarea><div class="crow"><span class="lab">Ctrl+Enter to post${S.store&&S.store.mode==="db"?" · everyone in this workspace sees it":""}</span><span class="sp"></span><button class="btn sm primary" data-cact="npost" data-cid="${esc(key)}">${ICON("comment","sm")}Comment</button></div></div>`)+`</section>`;
+}
+function flowDiscInner(key){
+  const list=nodeThreads(key), open=list.filter(t=>!t.root.resolved), done=list.filter(t=>t.root.resolved);
+  let h=`<div class="gh">Discussion${list.length?` <span class="cnt${open.length?"":" done"}">${open.length?`${open.length} open`:"all resolved"}</span>`:""}</div>`;
+  if(!list.length) h+=`<p class="lab fd-empty">Nothing said about this box yet. A comment here stays with it, shows as a badge on the chart and appears in the Discussion window and the report.</p>`;
+  h+=open.map(t=>threadHtml(t,"f")).join("");
+  if(done.length) h+=`<details class="grp fdone" data-fopen="done"${S.fOpen&&S.fOpen.done?" open":""}><summary>${done.length} resolved thread${done.length===1?"":"s"}</summary><div class="gb">${done.map(t=>threadHtml(t,"f")).join("")}</div></details>`;
+  return h;
+}
+function discChip(key){
+  const list=nodeThreads(key); if(!list.length) return "";
+  const open=list.filter(t=>!t.root.resolved).length;
+  return `<button class="fi-disc${open?" open":""}" data-fi="todisc" title="Go to the discussion of this box" aria-label="${open?`${open} open comment thread${open===1?"":"s"}`:`${list.length} resolved comment thread${list.length===1?"":"s"}`}">${ICON("comment","sm")}<span>${open||list.length}</span></button>`;
+}
+// Redraws the threads of the box in the inspector, leaving its form alone.
+function renderFlowDisc(){
+  const sec=document.querySelector("#flowWin .fdisc"); if(!sec) return;
+  const key=sec.dataset.key, inner=sec.querySelector(".fdisc-in"), keep=keepCaret(sec);
+  inner.innerHTML=flowDiscInner(key);
+  inner.querySelectorAll("details[data-fopen]").forEach(g=>g.addEventListener("toggle",()=>{ if(g.isConnected) S.fOpen=Object.assign({},S.fOpen,{[g.dataset.fopen]:g.open}); }));
+  const chip=document.querySelector("#flowWin .fi-h .fi-disc"), nc=discChip(key);
+  if(chip){ if(nc) chip.outerHTML=nc; else chip.remove(); }
+  else if(nc){ const h=document.querySelector("#flowWin .finsp .fi-h"); if(h){ const g=h.querySelector(".grow"); if(g) g.insertAdjacentHTML("afterend",nc); } }
+  putCaret(keep);
+}
+/* The discussion, for the report: every thread with where it was left. */
+function reportDiscussionHtml(){
+  const T=threadIndex(); if(!T.list.length) return "";
+  const esc2=t=>esc(String(t)), open=T.list.filter(t=>!t.root.resolved).length;
+  const who=uid=>(S.profiles[uid]&&S.profiles[uid].name)||(S.store&&S.store.mode==="local"?"Author":"A colleague");
+  const one=c=>"<p><strong>"+esc2(who(c.uid))+"</strong> <span class=\"lab\">"+esc2(new Date(c.t).toLocaleString())+(c.edited?", edited":"")+"</span><br>"+(c.deleted?"<em class=\"lab\">deleted</em>":esc2(c.text).split(String.fromCharCode(10)).join("<br>"))+"</p>";
+  return "<h2>Discussion</h2><p class=\"meta\">"+T.list.length+" thread"+(T.list.length===1?"":"s")+", "+open+" open.</p>"+
+    T.list.map(t=>"<div class=\"thr"+(t.root.resolved?" done":"")+"\"><p class=\"lab\">"+esc2(t.root.anchor?anchorLabel(t.root.anchor):"General")+" · "+(t.root.resolved?"resolved":"open")+"</p>"+one(t.root)+(t.replies.length?"<div class=\"rep\">"+t.replies.map(one).join("")+"</div>":"")+"</div>").join("");
 }
 function logWhen(t){ try{ return new Date(t).toLocaleString(); }catch(e){ return ""; } }
 function renderLog(){
@@ -6439,7 +7247,7 @@ async function createProject(pr,logText){
 }
 function openProject(id){
   if(S.pid===id&&S.proj) return;
-  S.pid=id; S.view=null; S.sel=null; S.anchor=null; S.draft=null; S.fitError=""; S.comments=[];
+  S.pid=id; S.view=null; S.sel=null; S.anchor=null; S.draft=null; S.fitError=""; S.comments=[]; S.cReply=null; S.cEdit=null;
   // Panel state belongs to the spectrum being looked at, not to the session:
   // arriving at an exponential decay with "Pearson VII" pre-selected is noise.
   S.pdraft=null; S.selPeak=null; S.fitMode=null; S.peakType="gauss"; S.setupOpen=null;
@@ -6447,12 +7255,12 @@ function openProject(id){
   // A tool left open on the last project would record its step on this one.
   S.pending=null; if(winOpen("tool")){ winState("tool").open=false; applyWins(); }
   S.flowSel=null; S.pfPreview=null; S.pfOpen=null; S.plotPreview=null; S.annoSel=null; S.andrag=null; S.lgdrag=null;
-  if(S.py) Object.assign(S.py,{stepId:null,col:null,at:null,err:"",log:"",note:""});
+  if(S.py) Object.assign(S.py,{stepId:null,col:null,at:null,err:"",log:"",note:"",preview:null,reads:null});
   const tipEl=document.getElementById("tip"); if(tipEl) tipEl.style.display="none";
   const roEl=document.getElementById("readout"); if(roEl) roEl.textContent="";
   S.proj=S.projects.find(p=>p.id===id)||null;
   if(S.unsubC){ S.unsubC(); S.unsubC=null; }
-  if(id) S.unsubC=S.store.watchComments(id,list=>{ S.comments=list; renderThread(); renderPlot(); refreshProfiles(); }, e=>{ if(e.code==="revoked") setStatus("Access changed. Reload to continue.",true); });
+  if(id) S.unsubC=S.store.watchComments(id,list=>{ S.comments=list; refreshComments(); renderPlot(); refreshProfiles(); }, e=>{ if(e.code==="revoked") setStatus("Access changed. Reload to continue.",true); });
   try{ localStorage.setItem("kurve.last",id||""); }catch(e){}
   if(S.room) S.room.presence({pid:id,cx:null,cy:null}).catch(()=>{});
   renderAll();
@@ -6563,6 +7371,9 @@ function methodLines(){
   const nm=maskOf(c).length; if(nm) out.push(nm+" point(s) masked and excluded from the fit");
   if(f){
     out.push("Model: "+FM.name);
+    if(FM.composite){ const L=peakLinks(f.spec.peaks,FM.model); if(L.length) out.push("Tied parameters (not fitted on their own): "+L.map(l=>{ const dd=PEAKS[f.spec.peaks[l.k].type]||PEAKS.gauss, lb=paramLabelOf(dd,l.nm); return `peak ${l.k+1} ${lb} = ${tieFormula(l,lb)}`; }).join("; ")); }
+    if(FM.model.user){ const lim=FM.model.params.map((n,i)=>{ const lo=FM.model.lo[i], hi=FM.model.hi[i]; return Number.isFinite(lo)||Number.isFinite(hi)?n+(Number.isFinite(lo)&&Number.isFinite(hi)?" from "+fmt(lo,6)+" to "+fmt(hi,6):Number.isFinite(lo)?" at least "+fmt(lo,6):" at most "+fmt(hi,6)):null; }).filter(Boolean);
+      out.push("Function, defined in the project: "+FM.model.expr+(lim.length?" (limits: "+lim.join("; ")+")":"")); }
     if(f.range) out.push("Fitted over x = "+fmt(f.range[0],8)+" to "+fmt(f.range[1],8));
     out.push("Weighting: "+(f.weighted?"instrumental, 1/\u03c3\u00b2":"none; errors scaled by \u221a(reduced \u03c7\u00b2)"));
     out.push("Algorithm: Levenberg\u2013Marquardt"+(f.stats&&f.stats.converged?", converged in "+f.stats.iter+" iterations":", DID NOT CONVERGE"));
@@ -6585,7 +7396,8 @@ async function exportReport(){
     "dt{color:#5B6778}dd{margin:0}figure{margin:1em 0}svg{max-width:100%;height:auto}.lab,.unit{color:#5B6778;font-size:.9em}.noerr{color:#5B6778;font-style:italic}",
     ".meta{font-size:.85em;color:#5B6778}ul{padding-left:1.2em}li.bad{color:#B42318}li.warn{color:#8A5200}",
     "h3{font-size:1em;margin:1.2em 0 .3em}.film{display:flex;flex-wrap:wrap;gap:10px;margin:.6em 0}.film figure{margin:0}.film figcaption{font:.78em/1.3 system-ui,sans-serif;color:#5B6778;max-width:170px}",
-    "li.off{color:#8491A3;text-decoration:line-through}.warn{color:#8A5200}code{font-size:.85em;overflow-wrap:anywhere}</style></head><body>",
+    "li.off{color:#8491A3;text-decoration:line-through}.warn{color:#8A5200}code{font-size:.85em;overflow-wrap:anywhere}",
+    "pre.code{font:.78em/1.45 ui-monospace,Menlo,Consolas,monospace;background:#F5F7FA;border:1px solid #D5DCE5;border-radius:4px;padding:.5em .8em;margin:.3em 0;white-space:pre-wrap;overflow-wrap:anywhere}.thr{border-left:3px solid #D5DCE5;padding:.1em 0 .1em .9em;margin:.9em 0}.thr.done{opacity:.72}.thr p{margin:.25em 0}.rep{margin-left:1.2em}</style></head><body>",
     "<h1>"+esc2(p.name||"Analysis")+"</h1>",
     "<p class=\"meta\">"+(f?esc2((FM.composite?"Peak fit: ":"Curve fit: ")+FM.name)+(f.onColName?" · "+esc2(f.onColName):"")+" · "+esc2(new Date(f.at||Date.now()).toLocaleString()):"Processing report · "+esc2(specName(activeYCol()))+" · "+esc2(new Date().toLocaleString()))+"</p>",
     "<h2>Figure</h2><figure>"+fig+"</figure>"];
@@ -6610,6 +7422,7 @@ async function exportReport(){
   }
   html.push(reportDataHtml(EXPORT_PAL));
   html.push(reportFitsHtml(EXPORT_PAL));
+  html.push(reportDiscussionHtml());
   const meth=methodLines();
   if(meth.length) html.push("<h2>Method</h2><ul>"+meth.map(l=>"<li>"+esc2(l)+"</li>").join("")+"</ul>");
   const log=(p.log||[]).slice(-40);
@@ -6643,9 +7456,9 @@ function resultsText(sep){
   const FM=fitModel(f), out=[], NL=String.fromCharCode(10);
   if(FM.composite){ out.push(peakTableText(sep)); out.push(""); }
   out.push(["Parameter","Unit","Value","Standard error","t","Prob>|t|","95% CI low","95% CI high","Dependency","Fixed"].join(sep));
-  paramRows(f).forEach(r=>{ const ci=r.ci&&Number.isFinite(r.ci[0])&&Number.isFinite(r.ci[1])&&!r.fixed;
-    out.push([r.label,r.unit,fmt(r.v,10),r.fixed?"":(r.e===null?"unknown":fmtOr(r.e,4,"")),r.fixed?"":fmtOr(r.t,5,""),r.fixed?"":fmtOr(r.pv,4,""),
-      ci?fmt(r.ci[0],8):"",ci?fmt(r.ci[1],8):"",r.fixed?"":fmtOr(r.dep,4,""),r.fixed?"yes":""].join(sep)); });
+  paramRows(f).forEach(r=>{ const ci=r.ci&&Number.isFinite(r.ci[0])&&Number.isFinite(r.ci[1])&&!r.hold;
+    out.push([r.label,r.unit,fmt(r.v,10),r.fixed||r.bound?"":(r.e===null?"unknown":fmtOr(r.e,4,"")),r.hold?"":fmtOr(r.t,5,""),r.hold?"":fmtOr(r.pv,4,""),
+      ci?fmt(r.ci[0],8):"",ci?fmt(r.ci[1],8):"",r.hold?"":fmtOr(r.dep,4,""),r.fixed?"yes":r.bound?"at limit":r.tied?"tied "+r.tied:""].join(sep)); });
   derivedRows(f).forEach(x=>out.push([x.name+" (derived)",x.unit,fmt(x.v,10),fmtOr(x.e,4,""),"","","","","",""].join(sep)));
   out.push("");
   statsList(f).forEach(([k,v])=>out.push(k+sep+v));
@@ -6684,6 +7497,7 @@ async function exportCsv(){
   if(Object.keys(meta).length){ lines.push(""); lines.push("# Source file metadata"); Object.keys(meta).forEach(k=>lines.push("# "+k+","+clean(meta[k]))); }
   if(f){
     lines.push(""); lines.push(`# ${FM.name}`);
+    if(FM.model.user) lines.push("# function,"+q(FM.model.expr));
     if(f.range) lines.push(`# fitted over x,${f.range[0]},${f.range[1]}`);
     lines.push(`# weighting,${f.weighted?"instrumental (1/sigma^2)":"none; errors scaled by sqrt(reduced chi2)"}`);
     if(comp){
@@ -6855,6 +7669,7 @@ function analysisMenu(){
     {label:"Find peaks…", run:()=>openPeakFinder(), enabled:!!p&&has},
     {label:"Peak fit", run:()=>{ S.fitMode="peaks"; showTab("fit"); renderPlot(); }, enabled:!!p},
     {label:"Curve fit", run:()=>{ S.fitMode="curve"; showTab("fit"); renderPlot(); }, enabled:!!p},
+    {label:"New fit function…", run:()=>{ S.fitMode="curve"; showTab("fit"); editUserFn(null); }, enabled:edit},
     {label:"Run the fit", kbd:"Ctrl+Enter", run:fitNow, enabled:edit&&has},
     {label:"Remove the fit", run:removeFit, enabled:edit&&!!(p&&p.fit)},
     {label:"Results", run:()=>openWin("res",{render:true}), enabled:!!p},
@@ -6993,15 +7808,17 @@ function flowNodeHtml(n,cur){
   else if(n.kind==="fit"){ icon="peak"; const f=n.cur, older=n.fits.filter(r=>!f||r.at!==f.at).length;
     title=f?`Fit: ${(fitModel(f)||{name:"fit"}).name}`:"Earlier fits"; sub=f?`R² ${fmt(f.stats.R2,5)}${older?` · ${older} earlier`:""}`:`${n.fits.length} fit${n.fits.length===1?"":"s"}`;
     if(f&&fitStale(f)){ cls+=" warn"; warn=[fitStale(f)]; } cls+=" fitn"; }
-  const tip=[title,sub].concat(warn).filter(Boolean).join("\n");
-  return `<button class="fnode k-${n.kind}${cls}${sel?" sel":""}${cur===n.key?" cur":""}${act?" act":""}" data-node="${esc(n.key)}" style="left:${n.x}px;top:${n.y}px" title="${esc(tip)}" aria-pressed="${sel}">${num}${icon?ICON(icon,"sm"):""}<span class="fn-t"><span class="fn-a">${esc(title)}</span><span class="fn-b">${esc(sub)}</span></span>${spark}${warn.length?`<span class="fn-w" aria-label="${warn.length} warning${warn.length===1?"":"s"}">!</span>`:""}</button>`;
+  const th=n.pending?[]:nodeThreads(n.key), tOpen=th.filter(t=>!t.root.resolved).length;
+  const talk=th.length?(tOpen?`${tOpen} open comment thread${tOpen===1?"":"s"}`:`${th.length} resolved comment thread${th.length===1?"":"s"}`):"";
+  const tip=[title,sub].concat(warn).concat(talk?[talk]:[]).filter(Boolean).join("\n");
+  return `<button class="fnode k-${n.kind}${cls}${sel?" sel":""}${cur===n.key?" cur":""}${act?" act":""}" data-node="${esc(n.key)}" style="left:${n.x}px;top:${n.y}px" title="${esc(tip)}" aria-pressed="${sel}">${num}${icon?ICON(icon,"sm"):""}<span class="fn-t"><span class="fn-a">${esc(title)}</span><span class="fn-b">${esc(sub)}</span></span>${spark}${warn.length?`<span class="fn-w" aria-label="${warn.length} warning${warn.length===1?"":"s"}">!</span>`:""}${th.length?`<span class="fn-c${tOpen?"":" done"}" aria-label="${esc(talk)}">${ICON("comment","sm")}${tOpen||th.length}</span>`:""}</button>`;
 }
 function flowEdgesSvg(L){
-  let s=`<svg class="flow-edges" width="${L.W}" height="${L.H}" aria-hidden="true">`, plus="";
+  let s=`<svg class="flow-edges" width="${L.W}" height="${L.H}" aria-hidden="true"><defs><marker id="fArr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0.5L7.5,4L0,7.5z" class="fe-arr"/></marker></defs>`, plus="";
   L.edges.forEach(e=>{ const a=L.by[e.a], b=L.by[e.b]; if(!a||!b) return;
     const ax=a.x+FLOW_NW/2, ay=a.y+FLOW_NH, bx=b.x+FLOW_NW/2, by=b.y;
-    if(e.ref){ const sx=a.x+FLOW_NW, sy=a.y+FLOW_NH/2, tx=b.x+(b.x>a.x?0:FLOW_NW), ty=b.y+FLOW_NH/2, mx=(sx+tx)/2;
-      s+=`<path class="fe ref" d="M${sx},${sy}C${mx},${sy} ${mx},${ty} ${tx},${ty}"/>`; return; }
+    if(e.ref){ const right=b.x>a.x, sx=right?a.x+FLOW_NW:a.x, sy=a.y+FLOW_NH/2, tx=right?b.x-3:b.x+FLOW_NW+3, ty=b.y+FLOW_NH/2, mx=(sx+tx)/2;
+      s+=`<path class="fe ref" marker-end="url(#fArr)" d="M${sx},${sy}C${mx},${sy} ${mx},${ty} ${tx},${ty}"/>`; return; }
     const my=(ay+by)/2;
     s+=`<path class="fe${e.branch?" br":""}" d="M${ax},${ay}${ax===bx?`V${by}`:`C${ax},${my} ${bx},${my} ${bx},${by}`}"/>`;
     if(e.lane&&!S.readOnly&&e.c&&!(S.pending)) plus+=`<button class="fplus" data-ins="${esc(e.c.id)}:${e.at}" style="left:${ax-9}px;top:${(ay+by)/2-9}px" title="Insert a step here" aria-label="Insert a step after ${e.at?"step "+e.at:"the start"} of ${esc(specName(e.c))}">${ICON("plus","sm")}</button>`;
@@ -7019,6 +7836,8 @@ function renderFlow(){
   const insp=box.querySelector(".finsp"), iScroll=insp?insp.scrollTop:0;
   const keepFocusId=document.activeElement&&insp&&insp.contains(document.activeElement)?document.activeElement.id:null;
   let h=`<div class="fbar"><div class="seg mini" role="tablist" aria-label="History view"><button role="tab" data-ftab="flow" aria-selected="${tab==="flow"}">Flow chart</button><button role="tab" data-ftab="log" aria-selected="${tab==="log"}">Log</button></div><span class="sp"></span>`;
+  const nPy=tab==="flow"&&!S.readOnly?stalePySteps().length:0;
+  if(nPy) h+=`<button class="tb sm lbl pyredo" id="fPyRun" title="Run every Python step whose code, input or the spectra it reads have changed since it ran">${ICON("play","sm")}<span>Run Python again (${nPy})</span></button>`;
   if(tab==="flow") h+=`<button class="tb sm lbl" id="fInsp" aria-pressed="${S.flowInsp!==false}" title="Show or hide the settings of the selected box beside the chart">${ICON("panel","sm")}<span>Details</span></button>`;
   if(tab==="flow") h+=`<button class="tb sm lbl" id="fAdd" aria-haspopup="menu" aria-expanded="false"${S.readOnly||!activeYCol()?" disabled":""} title="Add a step to the end of the analysed spectrum">${ICON("plus","sm")}<span>Step</span></button>`;
   h+=`</div>`;
@@ -7049,6 +7868,7 @@ function renderFlowNodes(){
 function wireFlowBar(box){
   box.querySelectorAll("[data-ftab]").forEach(b=>b.onclick=()=>{ S.flowTab=b.dataset.ftab; renderFlow(); });
   const fi=box.querySelector("#fInsp"); if(fi) fi.onclick=()=>{ S.flowInsp=S.flowInsp===false; renderFlow(); };
+  const fp=box.querySelector("#fPyRun"); if(fp) fp.onclick=rerunStalePython;
   const add=box.querySelector("#fAdd"); if(add) add.onclick=()=>{ const c=activeYCol(); if(c) toggleMenu(add,()=>toolMenuItems({col:c.id}),{label:"Add a step",search:"Find a tool: background, smooth, Python…"}); };
 }
 function flowSelect(key,L){
@@ -7059,17 +7879,19 @@ function flowSelect(key,L){
   else if(n.kind==="step") showStepOnGraph(n.s);
   else if(n.kind==="final"||n.kind==="fit"){ S.selStep=null; setStage(null); }
   if(n.c) { renderWs(); renderFit(); }
-  renderFlow();
+  renderFlow(); if(winOpen("disc")&&!S.anchor) renderAnchor();
 }
 function wireFlow(box,L){
   const cv=box.querySelector(".flow-canvas");
   cv.addEventListener("click",e=>{
     const pl=e.target.closest("[data-ins]"); if(pl){ const [cid,at]=pl.dataset.ins.split(":"); toggleMenu(pl,()=>toolMenuItems({col:cid,at:+at}),{label:"Insert a step",search:"Find a tool: background, smooth, Python…"}); return; }
-    const b=e.target.closest("[data-node]"); if(!b||b._dragged) return; flowSelect(b.dataset.node,L); });
+    const b=e.target.closest("[data-node]"); if(!b||b._dragged) return; const talk=!!e.target.closest(".fn-c");
+    if(talk&&S.flowInsp===false) S.flowInsp=true;
+    flowSelect(b.dataset.node,L); if(talk) requestAnimationFrame(()=>scrollInspToDisc()); });
   cv.addEventListener("contextmenu",e=>{ const b=e.target.closest("[data-node]"); if(!b) return; e.preventDefault();
     const n=L.by[b.dataset.node]; if(!n) return; flowSelect(n.key,L);
     const el=document.querySelector(`#flowWin [data-node="${CSS.escape(n.key)}"]`)||b;
-    const items=n.kind==="step"?stepMenuItems(n.s):n.c?specItems(n.c):null; if(items) openMenu(el,items,{label:"Options"}); });
+    const items=n.kind==="step"?stepMenuItems(n.s):n.c?specItems(n.c,n.key):null; if(items) openMenu(el,items,{label:"Options"}); });
   cv.addEventListener("keydown",e=>{
     const b=e.target.closest("[data-node]"); if(!b) return; const n=L.by[b.dataset.node]; if(!n) return;
     const go=m=>{ if(!m) return; const el=cv.querySelector(`[data-node="${CSS.escape(m.key)}"]`); if(el){ el.focus(); el.scrollIntoView({block:"nearest",inline:"nearest"}); } };
@@ -7079,7 +7901,9 @@ function wireFlow(box,L){
     if(e.key==="ArrowRight"||e.key==="ArrowLeft"){ e.preventDefault(); const dx=e.key==="ArrowRight"?1:-1;
       go(L.nodes.filter(m=>Math.sign(m.col-n.col)===dx).sort((a,b)=>(Math.abs(a.col-n.col)-Math.abs(b.col-n.col))||(Math.abs(a.row-n.row)-Math.abs(b.row-n.row)))[0]); return; }
     if((e.key==="Delete"||e.key==="Backspace")&&n.kind==="step"&&!n.pending){ e.preventDefault(); removePipeStep(n.s.id); return; }
-    if(e.key==="ContextMenu"||(e.shiftKey&&e.key==="F10")){ e.preventDefault(); const items=n.kind==="step"?stepMenuItems(n.s):n.c?specItems(n.c):null; if(items) openMenu(b,items,{label:"Options"}); }
+    if(e.key==="ContextMenu"||(e.shiftKey&&e.key==="F10")){ e.preventDefault(); const items=n.kind==="step"?stepMenuItems(n.s):n.c?specItems(n.c,n.key):null; if(items) openMenu(b,items,{label:"Options"}); return; }
+    // C: comment on the box.
+    if((e.key==="c"||e.key==="C")&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!n.pending){ e.preventDefault(); goNode(n.key,{disc:true,focus:!S.readOnly}); }
   });
   // Drag a step's box up or down its own column to move it.
   cv.addEventListener("pointerdown",e=>{
@@ -7098,7 +7922,7 @@ function wireFlow(box,L){
     b.addEventListener("pointermove",mv); b.addEventListener("pointerup",up); b.addEventListener("pointercancel",up);
   });
   const insp=box.querySelector(".finsp"); if(!insp) return;
-  wireStepForms(insp);
+  wireStepForms(insp); wireThreads(insp);
   insp.addEventListener("click",e=>{ const b=e.target.closest("[data-fi]"); if(!b) return; flowInspAction(b.dataset.fi,b,L); });
   insp.addEventListener("change",e=>{ if(e.target.matches("[data-fon]")){ const n=L.by[S.flowSel]; if(n&&n.s) toggleStep(n.s.id,e.target.checked); } });
   insp.querySelectorAll("details[data-fopen]").forEach(g=>g.addEventListener("toggle",()=>{ if(g.isConnected) S.fOpen=Object.assign({},S.fOpen,{[g.dataset.fopen]:g.open}); }));
@@ -7107,7 +7931,10 @@ function wireFlow(box,L){
    colour, and what it subtracted dashed. */
 function beforeAfter(s){
   const inp=inputOfStep(s), st=stageOfStep(s); if(!inp||!st) return "";
-  const pal=SCREEN_PAL(), ser=[], ex=st.extra||{};
+  return baChart(inp.d,st.d,st.extra,"Before and after this step");
+}
+function baChart(ind,outd,ex0,label){
+  const inp={d:ind}, st={d:outd}, pal=SCREEN_PAL(), ser=[], ex=ex0||{};
   const cmp=ghostComparable(seriesPoints(inp.d,false),seriesPoints(st.d,false));
   // On another scale (normalized, a derivative) the input is shown rescaled
   // to the output's range: its shape, not its values.
@@ -7116,12 +7943,17 @@ function beforeAfter(s){
   ser.push({x:inp.d.x,y:iy,color:pal.muted,opacity:0.7,width:1.1});
   if(cmp&&ex.base&&ex.base.length===inp.d.x.length) ser.push({x:inp.d.x,y:ex.base,color:pal.pin,dash:"4 3",width:1.2});
   ser.push({x:st.d.x,y:st.d.y,color:pal.data,width:1.3});
-  return miniChart(ser,320,112,{revX:!!P().plot.revX,bg:pal.bg,frame:pal.grid,label:"Before and after this step"})
+  return miniChart(ser,320,112,{revX:!!P().plot.revX,bg:pal.bg,frame:pal.grid,label})
     +`<div class="ba-leg"><span><i style="background:${pal.muted}"></i>before</span>${ex.base?`<span><i class="d" style="border-color:${pal.pin}"></i>subtracted</span>`:""}<span><i style="background:${pal.data}"></i>after</span>${cmp?"":`<span class="lab">(on another scale: the input is rescaled to show its shape)</span>`}</div>`;
 }
 function kvHtml(rows){ return `<dl class="kv">${rows.filter(Boolean).map(([k,v])=>`<dt>${esc(k)}</dt><dd>${v}</dd>`).join("")}</dl>`; }
 function rangeTxt(a,u){ if(!a.length) return "—"; let lo=Infinity,hi=-Infinity; a.forEach(v=>{ if(v<lo) lo=v; if(v>hi) hi=v; }); return `${esc(fmt(lo,6))} to ${esc(fmt(hi,6))}${u?" "+esc(u):""}`; }
 function flowInspector(n){
+  if(!n) return "";
+  const h=flowInspectorBody(n);
+  return n.kind==="step"&&n.pending?h:h+flowDiscHtml(n.key,n.kind);
+}
+function flowInspectorBody(n){
   if(!n) return "";
   const ro=S.readOnly?" disabled":"", p=P();
   const btn=(act,label,icon,more)=>`<button class="btn sm${more&&more.primary?" primary":""}${more&&more.danger?" danger":""}${more&&more.ghost?" ghost":""}" data-fi="${act}"${(more&&more.dis)||(!(more&&more.ok)&&S.readOnly&&!(more&&more.view))?" disabled":""}>${icon?ICON(icon,"sm"):""}${esc(label)}</button>`;
@@ -7129,7 +7961,7 @@ function flowInspector(n){
   if(n.kind==="step"){
     const s=n.s, c=n.c, st=n.st, pend=n.pending;
     h+=`<div class="fi-h"><span class="fn-n">${n.k}</span><div class="grow"><div class="fi-t">${esc(stepTitle(s))}</div><div class="lab">${pend?"Preview: being set up in the tool dialog. OK records it.":`Step ${n.k} of ${esc(specName(c))}${s.by||s.t?` · added ${s.by?`by ${esc(nameOf(s.by))} `:""}${s.t?esc(ago(s.t)):""}`:""}`}</div></div>
-      ${pend?"":`<label class="switch" title="${s.on===false?"Switched off: the data pass through unchanged":"Switch this step off to see the data without it"}"><input type="checkbox" data-fon${s.on!==false?" checked":""}${ro}><span>${s.on===false?"Off":"On"}</span></label><button class="tb sm icon" data-fi="stepmenu" aria-haspopup="menu" aria-expanded="false" aria-label="Step options" title="More">${ICON("more","sm")}</button>`}</div>`;
+      ${pend?"":`${discChip(n.key)}<label class="switch" title="${s.on===false?"Switched off: the data pass through unchanged":"Switch this step off to see the data without it"}"><input type="checkbox" data-fon${s.on!==false?" checked":""}${ro}><span>${s.on===false?"Off":"On"}</span></label><button class="tb sm icon" data-fi="stepmenu" aria-haspopup="menu" aria-expanded="false" aria-label="Step options" title="More">${ICON("more","sm")}</button>`}</div>`;
     h+=`<div class="beforeafter">${beforeAfter(s)}</div>`;
     h+=pend?`<p class="hint">Its settings are in the ${s.op==="python"?"Python window":"tool dialog"}; the graph and this chart follow them.</p>`:stepForm(s);
     if(!pend) h+=`<div class="actions fi-acts">${btn("insAfter","Insert a step after this","plus")}${yCols().length>1&&s.op!=="correct"?btn("toall","Apply to every spectrum","copy"):""}${btn("delstep","Delete","x",{ghost:true})}</div>`;
@@ -7137,7 +7969,7 @@ function flowInspector(n){
   }
   if(n.kind==="table"){
     const raw=p.raw||{}, ok=rawVerified();
-    h+=`<div class="fi-h">${ICON(ok===false?"alert":"lock")}<div class="grow"><div class="fi-t">Recorded data</div><div class="lab">${ok===false?"The raw values no longer match their fingerprint":"Locked: no analysis ever changes these values"}</div></div></div>`;
+    h+=`<div class="fi-h">${ICON(ok===false?"alert":"lock")}<div class="grow"><div class="fi-t">Recorded data</div><div class="lab">${ok===false?"The raw values no longer match their fingerprint":"Locked: no analysis ever changes these values"}</div></div>${discChip(n.key)}</div>`;
     h+=kvHtml([["SHA-256",`<code class="fp">${esc(raw.fp||rawFp())}</code>`],ok===false?["Now",`<code class="fp">${esc(rawFp())}</code>`]:null,
       ["Columns",rawCols().map(q=>esc(colLabel(q,colLetter(q)))+` <span class="lab">(${esc({x:"X",y:"Y",e:"Y error",ignore:"not used"}[q.role]||q.role)})</span>`).join("<br>")]]);
     h+=`<div class="actions">${ok===false?btn("rawrecord","Record the current data","lock",{primary:true}):""}${btn("rawcsv","Export the raw data","download",{view:true})}${btn("sheet","Open the worksheet","table",{view:true})}</div>`;
@@ -7149,7 +7981,7 @@ function flowInspector(n){
   const c=n.c, r=pipeOf(c);
   if(n.kind==="raw"||n.kind==="src"){
     const d=r?r.stages[0].d:EMPTY_SER, xc=xColFor(c), ec=errColFor(c.id);
-    h+=`<div class="fi-h">${ICON(n.kind==="src"?"reverse":"table")}<div class="grow"><div class="fi-t">${esc(specName(c))}</div><div class="lab">${n.kind==="src"?`Starts from the ${c.from==="raw"?"raw":"processed"} data of <a href="#" data-fi="gosrc">${esc(specName(srcOf(c)))}</a>`:"Raw data, as recorded"}</div></div><button class="tb sm icon" data-fi="specmenu" aria-haspopup="menu" aria-expanded="false" aria-label="Spectrum options" title="More">${ICON("more","sm")}</button></div>`;
+    h+=`<div class="fi-h">${ICON(n.kind==="src"?"reverse":"table")}<div class="grow"><div class="fi-t">${esc(specName(c))}</div><div class="lab">${n.kind==="src"?`Starts from the ${c.from==="raw"?"raw":"processed"} data of <a href="#" data-fi="gosrc">${esc(specName(srcOf(c)))}</a>`:"Raw data, as recorded"}</div></div>${discChip(n.key)}<button class="tb sm icon" data-fi="specmenu" aria-haspopup="menu" aria-expanded="false" aria-label="Spectrum options" title="More">${ICON("more","sm")}</button></div>`;
     h+=kvHtml([["Points",String(d.x.length)],["X",`${esc(d.xn||"X")}${d.xu?` (${esc(d.xu)})`:""}, ${rangeTxt(d.x,"")}`],["Y",`${esc(d.yn||"Y")}${d.yu?` (${esc(d.yu)})`:""}, ${rangeTxt(d.y,"")}`],
       n.kind==="raw"?["Columns",`${esc(colLabel(xc,"X"))} and ${esc(colLabel(c,"Y"))}${ec?` with errors from ${esc(colLabel(ec,"error"))}`:""}`]:null]);
     h+=`<div class="actions">${btn("sheet","Open the worksheet","table",{view:true})}${btn("rename","Rename…","edit")}${n.kind==="src"?btn("deldrv","Delete this spectrum","x",{ghost:true}):""}</div>`;
@@ -7158,12 +7990,12 @@ function flowInspector(n){
   }
   if(n.kind==="final"){
     const d=n.st?n.st.d:EMPTY_SER, pipe=c.pipe||[], on=pipe.filter(s=>s.on!==false).length, nw=procWarnings(c).filter(w=>w.col===c).reduce((k,w)=>k+w.texts.length,0), nm=maskOf(c).length;
-    h+=`<div class="fi-h">${ICON("check")}<div class="grow"><div class="fi-t">${esc(specName(c))}: final data</div><div class="lab">What the fit, the peak finder and the exports use</div></div><button class="tb sm icon" data-fi="specmenu" aria-haspopup="menu" aria-expanded="false" aria-label="Spectrum options" title="More">${ICON("more","sm")}</button></div>`;
+    h+=`<div class="fi-h">${ICON("check")}<div class="grow"><div class="fi-t">${esc(specName(c))}: final data</div><div class="lab">What the fit, the peak finder and the exports use</div></div>${discChip(n.key)}<button class="tb sm icon" data-fi="specmenu" aria-haspopup="menu" aria-expanded="false" aria-label="Spectrum options" title="More">${ICON("more","sm")}</button></div>`;
     h+=kvHtml([["Points",String(d.x.length)],["X",`${esc(d.xn||"X")}${d.xu?` (${esc(d.xu)})`:""}, ${rangeTxt(d.x,"")}`],["Y",`${esc(d.yn||"Y")}${d.yu?` (${esc(d.yu)})`:""}, ${rangeTxt(d.y,"")}`],
       ["Processing",pipe.length?`${on} step${on===1?"":"s"}${on<pipe.length?`, ${pipe.length-on} switched off`:""}${nw?` · <span class="warnt">${nw} warning${nw===1?"":"s"}</span>`:""}`:"none: the raw data as recorded"],
       ["Masked",nm?`${nm} point${nm===1?"":"s"} left out of fits`:"none"]]);
     h+=`<div class="actions">${c!==activeYCol()?btn("analyse","Analyse this spectrum","chart",{primary:true,view:true}):""}${btn("fitwin","Fit…","peak",{view:true})}${nm?btn("unmask","Restore masked points","mask"):""}</div>`;
-    h+=`<div class="gh">New spectrum</div><div class="actions">${btn("derfinal","From this processed data","plus")}${btn("derraw","A copy with the same steps","copy")}</div>`;
+    h+=`<div class="gh">New spectrum</div><div class="actions">${btn("derfinal","From this processed data","plus")}${btn("derraw","A copy with the same steps","copy")}${btn("derpy","With Python code","code")}</div>`;
     if(yCols().length>1&&pipe.length) h+=`<div class="actions">${btn("pipeall","Give every spectrum these steps","copy")}</div>`;
     h+=`<details class="grp" data-fopen="meas"${S.fOpen&&S.fOpen.meas?" open":""}><summary>Measure the visible range</summary><div class="gb">${c===activeYCol()?measureHtml():`<p class="lab">Analyse this spectrum to measure it.</p>`}</div></details>`;
     h+=`<div class="actions">${btn("csv","Export data","download",{view:true})}${btn("recipe","Export the steps","file",{view:true})}</div>`;
@@ -7171,7 +8003,7 @@ function flowInspector(n){
   }
   if(n.kind==="fit"){
     const pal=SCREEN_PAL(), cur=n.cur, list=n.fits.slice().reverse();
-    h+=`<div class="fi-h">${ICON("peak")}<div class="grow"><div class="fi-t">Fits of ${esc(specName(c))}</div><div class="lab">${n.fits.length} made${cur?", the current one first":""}</div></div></div>`;
+    h+=`<div class="fi-h">${ICON("peak")}<div class="grow"><div class="fi-t">Fits of ${esc(specName(c))}</div><div class="lab">${n.fits.length} made${cur?", the current one first":""}</div></div>${discChip(n.key)}</div>`;
     h+=`<div class="actions">${btn("fitwin","Open the Fit window","peak",{view:true})}${cur?btn("reswin","Results","table",{view:true}):""}</div>`;
     h+=`<div class="ffits">${list.map(r=>{ const same=r.pipeSig!=null&&r.pipeSig===pipeSig(c), isCur=cur&&cur.at===r.at;
       return `<div class="ffit${isCur?" cur":""}">${fitChart(r,150,60,pal)}<div><strong>${isCur?ICON("check","sm"):""}${esc(r.name)}</strong><div class="lab">R² ${esc(fmt(r.R2,5))} · reduced χ² ${esc(fmt(r.redChi2,4))} · ${r.n} points</div><div class="lab">${esc(ago(r.at))}${r.by?` by ${esc(nameOf(r.by))}`:""}</div>${r.steps&&r.steps.length?`<div class="lab">On: ${esc(r.steps.join("; "))}</div>`:`<div class="lab">On the raw data</div>`}${!same?`<div class="warnt">The processing has changed since</div>`:""}${r.converged===false?`<div class="warnt">Did not converge</div>`:""}</div></div>`; }).join("")||`<p class="lab">No fits yet.</p>`}</div>`;
@@ -7179,15 +8011,17 @@ function flowInspector(n){
   }
   return h;
 }
-function specItems(c){
+function specItems(c,key){
   const ro=S.readOnly, p=P(), hid=(p.plot.hidden||[]).includes(c.id);
   return [{group:specName(c),plain:true},
+    key?{label:S.readOnly?"Discussion of this box":"Comment on this box…", kbd:"C", run:()=>goNode(key,{disc:true,focus:!S.readOnly})}:null,
     {label:"Analyse this spectrum", run:()=>setActiveCol(c.id), enabled:c!==activeYCol()},
     {label:hid?"Show on the graph":"Hide from the graph", run:()=>toggleColVis(c.id), enabled:!ro&&c!==activeYCol()},
     {label:"Rename…", run:()=>renameSpectrum(c.id), enabled:!ro},
     "-",{group:"New spectrum"},
     {label:"From this one's processed data", run:()=>{ setActiveCol(c.id,true); newDerived("final"); }, enabled:!ro},
     {label:"A copy with the same steps", run:()=>{ setActiveCol(c.id,true); newDerived("raw"); }, enabled:!ro},
+    {label:"With Python code…", run:()=>openPython({col:c.id,dest:"new"}), enabled:!ro},
     "-",
     {label:"Give every spectrum these steps", run:()=>{ setActiveCol(c.id,true); copyPipeToAll(); }, enabled:!ro&&(c.pipe||[]).length>0&&yCols().length>1},
     {label:"Delete this spectrum", danger:true, run:()=>deleteDerived(c.id), enabled:!ro&&isDerived(c), title:isDerived(c)?"":"A spectrum with raw data is deleted from the worksheet, with its column"}];
@@ -7195,6 +8029,7 @@ function specItems(c){
 function flowInspAction(act,el,L){
   const n=L.by[S.flowSel]; if(!n) return;
   const c=n.c;
+  if(act==="todisc"){ scrollInspToDisc(); return; }
   if(act==="stepmenu"&&n.s){ toggleMenu(el,()=>stepMenuItems(n.s),{label:"Step options",align:"right"}); return; }
   if(act==="specmenu"&&c){ toggleMenu(el,()=>specItems(c),{label:"Spectrum options",align:"right"}); return; }
   if(act==="insAfter"&&n.s){ const col=colOfStep(n.s); toggleMenu(el,()=>toolMenuItems({col:col.id,at:col.pipe.indexOf(n.s)+1}),{label:"Insert a step",search:"Find a tool: background, smooth, Python…"}); return; }
@@ -7211,6 +8046,7 @@ function flowInspAction(act,el,L){
   if(act==="reswin"){ openWin("res",{render:true}); return; }
   if(act==="unmask"&&c){ if(c!==activeYCol()) setActiveCol(c.id,true); unmaskAll(); return; }
   if(act==="derfinal"&&c){ if(c!==activeYCol()) setActiveCol(c.id,true); newDerived("final"); return; }
+  if(act==="derpy"&&c){ openPython({col:c.id,dest:"new"}); return; }
   if(act==="derraw"&&c){ if(c!==activeYCol()) setActiveCol(c.id,true); newDerived("raw"); return; }
   if(act==="pipeall"&&c){ if(c!==activeYCol()) setActiveCol(c.id,true); copyPipeToAll(); return; }
   if(act==="csv"){ if(c&&c!==activeYCol()) setActiveCol(c.id,true); exportCsv(); return; }
@@ -7242,7 +8078,23 @@ const PY_PRELUDE=[
   "    _arr = lambda v: list(v)",
   "x = _arr(_d['x']); y = _arr(_d['y'])",
   "e = None if _d['e'] is None else _arr(_d['e'])",
-  "spectra = {k: (_arr(v[0]), _arr(v[1])) for k, v in _d['spectra'].items()}",
+  "class _Spectra(dict):",
+  "    # The other spectra by name. Taking one out is recorded, so the History",
+  "    # can draw where the data came from and say when it changes.",
+  "    def __init__(self, d):",
+  "        super().__init__(d); self.read = set()",
+  "    def __getitem__(self, k):",
+  "        v = super().__getitem__(k); self.read.add(k); return v",
+  "    def get(self, k, default=None):",
+  "        if k in self: self.read.add(k)",
+  "        return super().get(k, default)",
+  "    def values(self):",
+  "        self.read.update(self.keys()); return super().values()",
+  "    def items(self):",
+  "        self.read.update(self.keys()); return super().items()",
+  "    def copy(self):",
+  "        self.read.update(self.keys()); return dict(super().items())",
+  "spectra = _spx = _Spectra({k: (_arr(v[0]), _arr(v[1])) for k, v in _d['spectra'].items()})",
   "del _d"].join("\n");
 const PY_EPILOGUE=[
   "def _fl(v, nm):",
@@ -7258,6 +8110,7 @@ const PY_EPILOGUE=[
   "    if len(_r['e']) != len(_r['y']): _r.pop('e')",
   "for _k in ('x_name', 'x_unit', 'y_name', 'y_unit'):",
   "    _r[_k] = globals().get(_k)",
+  "_r['reads'] = sorted(_spx.read)",
   "_json.dumps(_r)"].join("\n");
 // The worker's code, written as a function so it needs no escaping; it runs
 // in the worker, or on the page if the browser refuses a worker.
@@ -7329,22 +8182,37 @@ function pyStop(){
 }
 /* Runs code on a series; resolves with the result series, or rejects with
    Python's own error message. */
-async function pyRun(code,d){
+// Whether spectrum o is made, directly or not, from spectrum c (or is c):
+// the spectra a step of c must not read, or c would feed itself.
+function usesSpectrum(o,c,seen){
+  seen=seen||new Set(); if(!o||!c||seen.has(o.id)) return false; seen.add(o.id);
+  if(o.id===c.id) return true;
+  if(o.src&&usesSpectrum(colById(o.src),c,seen)) return true;
+  return (o.pipe||[]).some(s=>{ const d=PIPE_OPS[s.op]; return s.on!==false&&d&&d.deps&&d.deps(s.p||{}).some(([id])=>usesSpectrum(colById(id),c,seen)); });
+}
+/* Runs code on a series; resolves with the result series and readIds, the
+   spectra it took out of spectra, or rejects with Python's own message.
+   opt.target: the spectrum the result will be a step of. */
+async function pyRun(code,d,opt){
+  opt=opt||{};
   await pyStart();
-  const spectra={}; yCols().forEach(c=>{ const f=finalOf(c); let k=specName(c), n=2; while(spectra[k]) k=specName(c)+" ("+(n++)+")"; spectra[k]=[f.x,f.y]; });
+  const spectra={}, ids={};
+  yCols().forEach(c=>{ if(opt.target&&usesSpectrum(c,opt.target)) return; const f=finalOf(c); let k=specName(c), n=2; while(spectra[k]) k=specName(c)+" ("+(n++)+")"; spectra[k]=[f.x,f.y]; ids[k]=c.id; });
   const input=JSON.stringify({x:d.x,y:d.y,e:d.e||null,names:[d.xn||"",d.xu||"",d.yn||"",d.yu||""],meta:(P()&&P().meta)||{},spectra});
   const id=++PYE.seq;
   const m=await new Promise(res=>{ PYE.wait[id]=res; PYE.w.postMessage({type:"run",id,code,input,prelude:PY_PRELUDE,epilogue:PY_EPILOGUE}); });
   if(m.type==="error"){ const err=new Error(pyErrText(m.error)); err.log=m.log||""; throw err; }
-  const r=JSON.parse(m.res); r.log=m.log||""; return r;
+  const r=JSON.parse(m.res); r.log=m.log||""; r.readIds=(r.reads||[]).map(k=>ids[k]).filter(Boolean); return r;
 }
 // Python's traceback, without the frames that belong to Pyodide itself.
 function pyErrText(t){ const lines=String(t||"").split("\n"); const i=lines.findIndex(l=>/File "<exec>"/.test(l)); return (i>=0?lines.slice(i):lines).filter(l=>!/_pyodide|pyodide\/|\/lib\/python/.test(l)).join("\n").trim()||String(t); }
 const PY_EXAMPLES=[
   ["Start here",`# x and y are this spectrum's data (numpy arrays when numpy is available).
 # e is its Y errors, or None. Also: x_name, x_unit, y_name, y_unit, meta,
-# and spectra, a dict of every spectrum's final (x, y) by name.
+# and spectra, a dict of the other spectra's final (x, y) by name: the ones
+# you use are recorded, and drawn as dashed lines in the History.
 # Whatever you leave in x and y is the result. print() goes to the output.
+# Above, choose whether the result is a step of this spectrum or a new one.
 print(len(x), "points, x from", min(x), "to", max(x))
 `],
   ["Subtract the minimum",`m = min(y)
@@ -7374,20 +8242,45 @@ o = np.argsort(rx)
 y = y / np.interp(x, rx[o], ry[o])
 print("divided by", name)
 `],
+  ["New spectrum: the mean of every spectrum (numpy)",`# Makes a new spectrum: the mean of this one and every other, each
+# interpolated onto this X first (held flat beyond its own range).
+import numpy as np
+curves = [y]
+for name, (sx, sy) in spectra.items():
+    o = np.argsort(sx)
+    curves.append(np.interp(x, sx[o], sy[o]))
+y = np.mean(curves, axis=0)
+y_name = "Mean of %d spectra" % len(curves)
+print("averaged", len(curves), "spectra")
+`,"new"],
+  ["New spectrum: this minus another (numpy)",`# Makes a new spectrum: this one minus another, interpolated onto this X.
+import numpy as np
+name = next(iter(spectra))          # or type its name, e.g. "Dark"
+rx, ry = spectra[name]
+o = np.argsort(rx)
+y = y - np.interp(x, rx[o], ry[o])
+y_name = y_name + " minus " + name
+`,"new"],
   ["Print statistics",`import statistics as st
 print("mean", st.mean(y), " sd", st.stdev(y))
 i = max(range(len(y)), key=lambda k: y[k])
 print("largest", y[i], "at", x[i], x_unit)
 `]];
-/* The Python window: code, the spectrum and position it applies to, Run and
-   Record. While the code in it is running or previewing, the step it will
-   make is S.pending, so the graph and the History show it. */
+/* The Python window: code, the spectrum and position it applies to, what the
+   result becomes (a step of that spectrum, or a new spectrum branching from
+   it), Run and Record. While code previews as a step, that step is
+   S.pending, so the graph and the History show it; a new spectrum is
+   previewed in the window and made on Record. */
 function openPython(opt){
   opt=opt||{};
   S.py=S.py||{};
   const c=opt.col?colById(opt.col):activeYCol();
-  if(opt.step){ const s=stepById(opt.step); if(s){ S.py.stepId=s.id; S.py.code=s.p.code||""; S.py.col=(colOfStep(s)||{}).id; } }
-  else { S.py.stepId=null; if(c){ S.py.col=c.id; S.py.at=opt.at!=null?opt.at:null; } }
+  if(opt.step){ const s=stepById(opt.step); if(s){ S.py.stepId=s.id; S.py.code=s.p.code||""; S.py.col=(colOfStep(s)||{}).id; S.py.preview=null; } }
+  else {
+    S.py.stepId=null; S.py.preview=null;
+    if(opt.dest) S.py.dest=opt.dest==="new"?"new":"step"; else if(opt.col||opt.at!=null) S.py.dest="step";
+    if(c){ S.py.col=c.id; S.py.at=opt.at!=null?opt.at:null; }
+  }
   if(S.py.code==null) S.py.code=PY_EXAMPLES[0][1];
   openWin("py",{render:true});
   const ta=$("#pyCode"); if(ta&&!isNarrow()) ta.focus();
@@ -7398,6 +8291,7 @@ function pyTarget(){
   if(st){ const c=colOfStep(st), inp=inputOfStep(st); return {c,step:st,d:inp?inp.d:null,at:c?c.pipe.indexOf(st):0}; }
   const c=colById(py.col)||activeYCol(); if(!c) return {};
   const r=pipeOf(c); if(!r) return {c};
+  if(py.dest==="new"){ const raw=py.at===0; return {c,d:raw?r.stages[0].d:r.out,at:raw?0:null,from:raw?"raw":"final",isNew:true}; }
   const base=(c.pipe||[]).length, at=py.at==null?base:Math.min(py.at,base);
   // The input is the stage before the insertion point, not counting a
   // Python preview of our own.
@@ -7408,23 +8302,35 @@ function pyTarget(){
 function renderPy(){
   const box=$("#pyWin"); if(!box) return;
   const py=S.py=S.py||{}; if(py.code==null) py.code=PY_EXAMPLES[0][1];
-  const t=pyTarget(), ro=S.readOnly?" disabled":"", own=S.pending&&S.pending.step.op==="python";
+  const t=pyTarget(), ro=S.readOnly?" disabled":"", own=S.pending&&S.pending.step.op==="python", isNew=!py.stepId&&py.dest==="new";
   const ta0=$("#pyCode"); if(ta0) py.code=ta0.value;
   const sel=ta0?[ta0.selectionStart,ta0.selectionEnd,ta0.scrollTop]:null, hadFocus=ta0&&document.activeElement===ta0;
   const pipe=t.c?(t.c.pipe||[]):[];
   let h=`<div class="pybar">`;
   if(py.stepId&&t.step) h+=`<span class="lab">Editing step ${t.at+1} of <strong>${esc(specName(t.c))}</strong></span><button class="btn sm ghost" id="pyNew">New code instead</button>`;
-  else h+=`<label class="lab" for="pyCol">Spectrum</label><select id="pyCol"${yCols().length?"":" disabled"}>${yCols().map(y=>`<option value="${y.id}"${t.c===y?" selected":""}>${esc(specName(y))}</option>`).join("")}</select>
-    <label class="lab" for="pyAt">on</label><select id="pyAt">${Array.from({length:pipe.length+1},(_,i)=>`<option value="${i}"${i===(py.at==null?pipe.length:py.at)?" selected":""}>${i===pipe.length?(pipe.length?"the final data":"the raw data"):i===0?"the raw data":`the data after step ${i}`}</option>`).join("")}</select>`;
+  else {
+    h+=`<label class="lab" for="pyCol">Spectrum</label><select id="pyCol"${yCols().length?"":" disabled"}>${yCols().map(y=>`<option value="${y.id}"${t.c===y?" selected":""}>${esc(specName(y))}</option>`).join("")}</select><label class="lab" for="pyAt">on</label>`;
+    if(isNew) h+=`<select id="pyAt"><option value="0"${py.at===0?" selected":""}>its raw data</option><option value="end"${py.at!==0?" selected":""}>its final data</option></select>`;
+    else h+=`<select id="pyAt">${Array.from({length:pipe.length+1},(_,i)=>`<option value="${i}"${i===(py.at==null?pipe.length:py.at)?" selected":""}>${i===pipe.length?(pipe.length?"the final data":"the raw data"):i===0?"the raw data":`the data after step ${i}`}</option>`).join("")}</select>`;
+    h+=`<span class="lab">makes</span><div class="seg mini" role="group" aria-label="What the result becomes"><button data-pydest="step" aria-pressed="${!isNew}" title="The result replaces the data from there on, as a step of this spectrum">a step</button><button data-pydest="new" aria-pressed="${isNew}" title="The result becomes a new spectrum, a branch in the History; this one is left as it is">a new spectrum</button></div>`;
+  }
   h+=`<span class="sp"></span><button class="btn sm" id="pyEx" aria-haspopup="menu" aria-expanded="false">Examples${ICON("chev","sm")}</button></div>`;
   h+=`<div class="pyed"><textarea id="pyCode" class="code" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Python code"${ro}>${esc(py.code)}</textarea></div>`;
   h+=`<div class="pyact"><button class="btn primary" id="pyRunBtn"${ro||(!t.d?" disabled":"")} title="Run (Ctrl+Enter)">${ICON("play","sm")}${py.running?"Running…":py.stepId?"Run and update the step":"Run"}</button>`;
-  if(!py.stepId) h+=`<button class="btn" id="pyRec"${own&&!S.readOnly?"":" disabled"} title="Keep the previewed result as a step in the History">${ICON("check","sm")}Record as a step</button>`;
-  if(own&&!py.stepId) h+=`<button class="btn ghost" id="pyDiscard">Discard the preview</button>`;
+  if(!py.stepId) h+=isNew?`<button class="btn" id="pyRecNew"${py.preview&&!S.readOnly?"":" disabled"} title="Add the previewed result to the project as a new spectrum">${ICON("check","sm")}Record as a new spectrum</button>`
+    :`<button class="btn" id="pyRec"${own&&!S.readOnly?"":" disabled"} title="Keep the previewed result as a step in the History">${ICON("check","sm")}Record as a step</button>`;
+  if(!py.stepId&&((own&&!isNew)||(isNew&&py.preview))) h+=`<button class="btn ghost" id="pyDiscard">Discard the preview</button>`;
   h+=`<button class="btn ghost" id="pyStopBtn"${py.running||PYE.loading&&!PYE.ready?"":" disabled"}>Stop</button><span class="sp"></span><span id="pyStatus" class="pystat ${py.scls||""}">${esc(py.status||(PYE.ready?`Python ${PYE.version} ready`:"Python loads when you first run"))}</span></div>`;
-  h+=`<div class="pyres">${py.err?`<pre class="pyerr" role="alert">${esc(py.err)}</pre>`:""}${py.log?`<pre class="pyout">${esc(py.log)}</pre>`:""}${py.note?`<p class="lab">${esc(py.note)}</p>`:""}${!py.err&&!py.log&&!py.note?`<p class="lab">The output of print() appears here. ${t.d?`Input: ${t.d.x.length} points of ${esc(specName(t.c))}.`:""}</p>`:""}</div>`;
+  let res="";
+  if(py.err) res+=`<pre class="pyerr" role="alert">${esc(py.err)}</pre>`;
+  if(isNew&&py.preview&&!py.err){ const pv=py.preview; res+=`<div class="pyprev">${baChart(pv.d,pserOut(pv.d,pv.p.out),null,"The new spectrum, over its input")}</div>`; }
+  if(py.log) res+=`<pre class="pyout">${esc(py.log)}</pre>`;
+  if(py.reads&&py.reads.length&&!py.err) res+=`<p class="lab pyreadnote">${ICON("flow","sm")}<span>The code read ${py.reads.map(n=>`<strong>${esc(n)}</strong>`).join(", ")}. The History draws a dashed line from ${py.reads.length===1?"it":"each"}, and says when ${py.reads.length===1?"it changes":"one changes"}.</span></p>`;
+  if(py.note) res+=`<p class="lab">${esc(py.note)}</p>`;
+  if(!res) res=`<p class="lab">The output of print() appears here. ${t.d?`Input: ${t.d.x.length} points of ${esc(specName(t.c))}.`:""} ${isNew?"Run previews the new spectrum here; Record adds it to the project.":""}</p>`;
+  h+=`<div class="pyres">${res}</div>`;
   box.innerHTML=h;
-  const sub=$("#pySub"); if(sub) sub.textContent=t.c?specName(t.c):"";
+  const sub=$("#pySub"); if(sub) sub.textContent=t.c?specName(t.c)+(isNew?" → new spectrum":""):"";
   const ta=$("#pyCode");
   if(sel){ ta.selectionStart=sel[0]; ta.selectionEnd=sel[1]; ta.scrollTop=sel[2]; } if(hadFocus) ta.focus({preventScroll:true});
   ta.addEventListener("input",()=>{ py.code=ta.value; });
@@ -7433,32 +8339,54 @@ function renderPy(){
     if(e.key==="Escape"){ ta._esc=true; return; }
     if(e.key==="Tab"&&!e.shiftKey&&!ta._esc){ e.preventDefault(); const a=ta.selectionStart; ta.setRangeText("    ",a,ta.selectionEnd,"end"); py.code=ta.value; return; }
     ta._esc=false; });
-  const pc=$("#pyCol"); if(pc) pc.onchange=()=>{ if(S.pending&&S.pending.step.op==="python") cancelTool(true); py.col=pc.value; py.at=null; if(pc.value!==(activeYCol()||{}).id) setActiveCol(pc.value,true); renderPy(); };
-  const pa=$("#pyAt"); if(pa) pa.onchange=()=>{ if(S.pending&&S.pending.step.op==="python") cancelTool(true); py.at=+pa.value===pipe.length?null:+pa.value; renderPy(); };
-  const pn=$("#pyNew"); if(pn) pn.onclick=()=>{ py.stepId=null; py.err=py.log=py.note=""; renderPy(); };
-  $("#pyEx").onclick=e=>toggleMenu(e.currentTarget,()=>PY_EXAMPLES.map(([nm,code])=>({label:nm,run:()=>{ py.code=code; const t2=$("#pyCode"); if(t2) t2.value=code; renderPy(); }})),{label:"Examples"});
+  const dropOwn=()=>{ if(S.pending&&S.pending.step.op==="python") cancelTool(true); };
+  const pc=$("#pyCol"); if(pc) pc.onchange=()=>{ dropOwn(); py.col=pc.value; py.at=null; py.preview=null; py.reads=null; if(pc.value!==(activeYCol()||{}).id) setActiveCol(pc.value,true); renderPy(); };
+  const pa=$("#pyAt"); if(pa) pa.onchange=()=>{ dropOwn(); py.preview=null; py.at=isNew?(pa.value==="0"?0:null):(+pa.value===pipe.length?null:+pa.value); renderPy(); };
+  box.querySelectorAll("[data-pydest]").forEach(b=>b.onclick=()=>{ const d=b.dataset.pydest; if((d==="new")===isNew) return;
+    dropOwn(); py.dest=d; py.preview=null; py.note=""; py.reads=null; py.at=null; renderPy(); });
+  const pn=$("#pyNew"); if(pn) pn.onclick=()=>{ py.stepId=null; py.err=py.log=py.note=""; py.reads=null; renderPy(); };
+  $("#pyEx").onclick=e=>toggleMenu(e.currentTarget,()=>PY_EXAMPLES.map(([nm,code,dest])=>({label:nm,run:()=>{ py.code=code; const t2=$("#pyCode"); if(t2) t2.value=code;
+    if(dest&&!py.stepId&&py.dest!==dest){ dropOwn(); py.dest=dest; py.preview=null; py.at=null; } renderPy(); }})),{label:"Examples"});
   $("#pyRunBtn").onclick=pyRunUI;
   const rec=$("#pyRec"); if(rec) rec.onclick=()=>{ const id=applyTool({keepWin:true}); if(id){ py.note="Recorded. It is a step in the History now: select it there to change the code or run it again."; renderPy(); } };
-  const dis=$("#pyDiscard"); if(dis) dis.onclick=()=>{ cancelTool(true); py.note=""; renderPy(); };
+  const rn=$("#pyRecNew"); if(rn) rn.onclick=pyRecordNew;
+  const dis=$("#pyDiscard"); if(dis) dis.onclick=()=>{ dropOwn(); py.preview=null; py.note=""; renderPy(); };
   $("#pyStopBtn").onclick=pyStop;
+}
+// A series built from a Python result, for previews.
+function pserOut(d,o){ const x=[], y=[]; (o.x||[]).forEach((v,i)=>{ const w=(o.y||[])[i]; if(v!=null&&w!=null&&Number.isFinite(v)&&Number.isFinite(w)){ x.push(v); y.push(w); } });
+  return {x,y,e:null,idx:[],xn:o.xn!=null?o.xn:d.xn,xu:o.xu!=null?o.xu:d.xu,yn:o.yn!=null?o.yn:d.yn,yu:o.yu!=null?o.yu:d.yu}; }
+// What a run gives a step: the output (names and units only where the code
+// changed them), what went in, and the spectra the code read.
+function pyOutOf(r,d){ const out={x:r.x,y:r.y}; if(r.e) out.e=r.e;
+  [["x_name","xn"],["x_unit","xu"],["y_name","yn"],["y_unit","yu"]].forEach(([k,o])=>{ if(r[k]!=null&&String(r[k])!==String(d[o]==null?"":d[o])) out[o]=String(r[k]); });
+  return out; }
+function pyParams(code,r,d){
+  const readSigs={}; (r.readIds||[]).forEach(id=>{ const o=colById(id); if(o) readSigs[id]=serSig(finalOf(o)); });
+  return {code,ranCode:code,out:pyOutOf(r,d),inSig:serSig(d),ranAt:Date.now(),log:(r.log||"").slice(0,4000),reads:(r.readIds||[]).slice(),readSigs};
 }
 async function pyRunUI(){
   const py=S.py||(S.py={}), ta=$("#pyCode"); if(ta) py.code=ta.value;
   if(py.running||S.readOnly) return;
   const t=pyTarget(); if(!t.c||!t.d){ toast("Choose a spectrum with data first."); return; }
-  py.running=true; py.err=""; py.note=""; renderPy();
+  py.running=true; py.err=""; py.note=""; py.reads=null; renderPy();
   try{
     pyStatus("Running…","busy");
-    const r=await pyRun(py.code,t.d);
+    const r=await pyRun(py.code,t.d,{target:t.isNew?null:t.c});
     py.running=false; py.log=r.log; pyStatus(`Python ${PYE.version} ready`,"ok");
-    const out={x:r.x,y:r.y}; if(r.e) out.e=r.e; ["x_name","x_unit","y_name","y_unit"].forEach(k=>{ if(r[k]!=null&&r[k]!==[t.d.xn,t.d.xu,t.d.yn,t.d.yu][["x_name","x_unit","y_name","y_unit"].indexOf(k)]) out[{x_name:"xn",x_unit:"xu",y_name:"yn",y_unit:"yu"}[k]]=String(r[k]); });
+    const p=pyParams(py.code,r,t.d), out=p.out;
+    py.reads=(r.readIds||[]).map(id=>specName(colById(id)));
     const same=out.x.length===t.d.x.length&&out.x.every((v,i)=>v===t.d.x[i])&&out.y.every((v,i)=>v===t.d.y[i]);
-    const p={code:py.code,ranCode:py.code,out,inSig:serSig(t.d),ranAt:Date.now(),log:(r.log||"").slice(0,4000)};
     if(py.stepId&&t.step){
       pushUndo("running the Python step"); t.step.p=Object.assign({},t.step.p,p); t.step.edited=Date.now();
       save({cols:P().cols},`ran the Python step ${t.at+1} of ${specName(t.c)} again (${out.x.length} points)`);
       py.note=same?"Done: the data came out unchanged.":`Done: the step now gives ${out.x.length} points. Everything after it has followed.`;
       renderAll(); if(winOpen("py")) renderPy(); return;
+    }
+    if(t.isNew){
+      py.preview={p,src:t.c.id,from:t.from,d:t.d};
+      py.note=same?"The code ran and left the data unchanged, so the new spectrum would be a copy. Change x or y first.":`${out.x.length} points (${t.d.x.length} went in). Record it to add it to the project as a new spectrum.`;
+      renderPy(); return;
     }
     if(S.pending&&S.pending.step.op==="python"&&S.pending.col===t.c.id){ S.pending.step.p=p; }
     else { if(S.pending) cancelTool(true); const s=makeStep("python",p); S.pending={col:t.c.id,at:t.at,step:s,all:false}; S.selStep=s.id; S.flowSel="step:"+s.id; }
@@ -7471,11 +8399,38 @@ async function pyRunUI(){
     renderPy();
   }
 }
-/* A Python step in the History: its code, editable, and Run again. */
+/* Record: the previewed result becomes a new spectrum whose first step is
+   the code, branching from the spectrum it ran on. */
+function pyRecordNew(){
+  const py=S.py||{}, pv=py.preview; if(!pv||S.readOnly) return;
+  const src=colById(pv.src); if(!src){ toast("That spectrum is no longer in the project."); return; }
+  const o=pv.p.out, nm=String(o.yn&&o.yn!==pv.d.yn?o.yn:`${specName(src)} (Python)`).slice(0,60);
+  const s=makeStep("python",pv.p), reads=(pv.p.reads||[]).map(id=>colById(id)).filter(Boolean).map(specName);
+  const id=newDerived(pv.from,{src:src.id,bare:true,steps:[s],name:nm,quiet:true,
+    log:`made "${nm}" from the ${pv.from==="raw"?"raw":"processed"} data of ${specName(src)} with Python code${reads.length?`, reading ${reads.join(", ")}`:""}`});
+  if(!id) return;
+  Object.assign(py,{preview:null,stepId:s.id,col:id,err:"",reads:null,note:`Made “${nm}”, a new branch in the History. The code is its first step: change it here and run it again, or select it in the History.`});
+  S.flowSel="step:"+s.id; if(winOpen("flow")) renderFlow();
+  renderPy();
+  toast(`Made “${nm}” from Python: a new branch in the History.`,{action:"Undo",run:undo});
+}
+/* A Python step in the History: its code, editable, what else it reads,
+   whether it is up to date, and Run again. */
+const PY_STALE={notrun:"not run yet",code:"the code has changed since it ran",input:"its input has changed since it ran",read:"a spectrum it reads has changed since it ran"};
+function pyStale(s){
+  if(!s||s.op!=="python") return "";
+  const p=s.p||{}; if(!p.ranAt||!p.out) return "notrun";
+  if(p.ranCode!=null&&p.code!==p.ranCode) return "code";
+  const inp=inputOfStep(s); if(inp&&p.inSig&&serSig(inp.d)!==p.inSig) return "input";
+  for(const id of Object.keys(p.readSigs||{})){ const o=colById(id); if(!o||serSig(finalOf(o))!==p.readSigs[id]) return "read"; }
+  return "";
+}
+function stalePySteps(){ return yCols().flatMap(c=>(c.pipe||[]).filter(s=>s.op==="python"&&s.on!==false&&pyStale(s))); }
 function pythonStepHtml(s,st){
-  const p=s.p||{}, ro=S.readOnly?" disabled":"";
+  const p=s.p||{}, ro=S.readOnly?" disabled":"", why=pyStale(s), reads=(p.reads||[]).map(id=>colById(id)).filter(Boolean);
   return `<div class="pystep"><textarea class="code" id="sp-${s.id}-code" data-pk="code" rows="8" spellcheck="false" aria-label="Python code"${ro}>${esc(p.code||"")}</textarea>
-    <div class="actions"><button class="btn sm primary" data-act="pyrun"${ro}>${ICON("play","sm")}Run again</button><button class="btn sm" data-act="pyopen">Open in the Python window</button><span class="lab">${p.ranAt?`Last run ${esc(ago(p.ranAt))}`:"Not run yet"}</span></div>
+    ${reads.length?`<div class="pyreads"><span class="lab">Also reads</span>${reads.map(c=>`<button class="chipb" data-act="pygo" data-col="${esc(c.id)}" title="Show the final data of ${esc(specName(c))} in the History">${ICON("flow","sm")}${esc(specName(c))}</button>`).join("")}</div>`:""}
+    <div class="actions"><button class="btn sm${why?" primary":""}" data-act="pyrun"${ro}>${ICON("play","sm")}Run again</button><button class="btn sm" data-act="pyopen">Open in the Python window</button><span class="lab">${p.ranAt?`Run ${esc(ago(p.ranAt))}`:""}${why?`${p.ranAt?" · ":""}<span class="warnt">${esc(PY_STALE[why])}</span>`:p.ranAt?" · up to date":""}</span></div>
     ${p.log?`<pre class="pyout">${esc(p.log)}</pre>`:""}</div>`;
 }
 async function rerunPythonStep(s){
@@ -7484,13 +8439,30 @@ async function rerunPythonStep(s){
   const inp=inputOfStep(s), c=colOfStep(s); if(!inp||!c) return;
   toast("Running the Python step…");
   try{
-    const r=await pyRun(code,inp.d);
-    const out={x:r.x,y:r.y}; if(r.e) out.e=r.e;
+    const r=await pyRun(code,inp.d,{target:c});
     const s2=stepById(s.id); if(!s2) return;
-    pushUndo("running the Python step"); s2.p=Object.assign({},s2.p,{code,ranCode:code,out,inSig:serSig(inp.d),ranAt:Date.now(),log:(r.log||"").slice(0,4000)});
-    save({cols:P().cols},`ran the Python step of ${specName(c)} again (${out.x.length} points)`); renderAll();
-    toast(`Python step run: ${out.x.length} points. Everything after it has followed.`,{action:"Undo",run:undo});
+    pushUndo("running the Python step"); s2.p=Object.assign({},s2.p,pyParams(code,r,inp.d));
+    save({cols:P().cols},`ran the Python step of ${specName(c)} again (${r.x.length} points)`); renderAll();
+    toast(`Python step run: ${r.x.length} points. Everything after it has followed.`,{action:"Undo",run:undo});
   }catch(e){ toast("The Python step failed: "+String(e&&e.message||e).split("\n").slice(-1)[0]); }
+}
+/* Runs every Python step that is out of date, in order, until none is (a
+   step's new output can put a later one out of date), as one undo entry. */
+async function rerunStalePython(){
+  if(S.readOnly) return;
+  let list=stalePySteps(); if(!list.length){ toast("Every Python step is up to date."); return; }
+  pushUndo("running the Python steps again");
+  let n=0; const fails=[], tried=new Set();
+  toast(`Running ${list.length} Python step${list.length===1?"":"s"}…`);
+  for(let pass=0;pass<4&&list.length;pass++){
+    for(const s0 of list){ const s=stepById(s0.id); if(!s||!pyStale(s)) continue; const c=colOfStep(s), inp=inputOfStep(s); if(!c||!inp) continue;
+      try{ const r=await pyRun(s.p.code||"",inp.d,{target:c}); s.p=Object.assign({},s.p,pyParams(s.p.code||"",r,inp.d)); n++; }
+      catch(e){ tried.add(s.id); fails.push(`${specName(c)}: ${String(e&&e.message||e).split("\n").slice(-1)[0]}`); } }
+    list=stalePySteps().filter(s=>!tried.has(s.id));
+  }
+  if(n) save({cols:P().cols},`ran ${n} Python step${n===1?"":"s"} again`);
+  renderAll();
+  toast(fails.length?`${n} Python step${n===1?"":"s"} run; ${fails.length} failed (${fails[0]}).`:`${n} Python step${n===1?"":"s"} run: everything after ${n===1?"it":"them"} has followed.`,n?{action:"Undo",run:undo}:null);
 }
 
 /* ============================================================
@@ -7652,6 +8624,7 @@ function helpHtml(){
 <li><strong>Follow what happened.</strong> The <em>History</em> window draws the data as a flow chart: the recorded data, each spectrum's steps in order, the final data and the fits, with branches where one spectrum was made from another. Click any box to see the data at that point on the graph and change its settings; drag a step to reorder it; the <em>+</em> on a line inserts a step there.</li>
 <li><strong>Fit.</strong> <em>Analysis › Find peaks</em> finds peaks by signal to noise, by percent of the largest, by absolute height or in decades below the largest, optionally on a log scale, and shows what it turned down and why. Drag the peaks on the graph, then press <em>Fit</em> or <kbd>Ctrl</kbd> <kbd>Enter</kbd>. <em>Curve fit</em> puts one model through the points in view.</li>
 <li><strong>Style the graph.</strong> Right-click the graph (or a legend entry) to recolour a spectrum, change its plot type, or open <em>Plot details</em>: line style and width, symbols, fill, axis ranges, ticks, number format, legend, and how several spectra share the graph (overlay, offset, stacked panels, double Y, heat map).</li>
+<li><strong>Talk it over.</strong> Select any box in the History (a step, the raw data, the final data, the fits) to discuss it at the foot of its details, or press <kbd>C</kbd>. A comment there stays with that step: a badge on the box shows its open threads, the Discussion window lists every thread with a link back, and the report includes them. Reply, resolve and reopen as the analysis moves on.</li>
 <li><strong>Read the result, and share it.</strong> The <em>Results</em> window gives every parameter with its standard error, t, p, confidence interval and dependency, the fit statistics, and plain notes on anything that makes the numbers less trustworthy. <em>File › Export</em> saves the figure, the data or a complete report.</li>
 </ol>
 <p>A fit always uses the unmasked points in view, so zoom to fit part of a spectrum. Every change is recorded in the History's log and can be undone.</p>
@@ -7684,6 +8657,7 @@ function helpHtml(){
 <dt><kbd>Alt</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Move the selected step earlier or later (or drag it)</dd>
 <dt><kbd>Delete</kbd></dt><dd>Delete the selected step</dd>
 <dt>Right-click</dt><dd>Options for a step or a spectrum</dd>
+<dt><kbd>C</kbd></dt><dd>Comment on the selected box. Every box has its own discussion at the foot of its details: reply, resolve, edit or delete your own comments. A badge on the box counts the open threads, and the Discussion window lists them all</dd>
 </dl>
 <h3>In the worksheet</h3>
 <dl class="keys">
@@ -7692,7 +8666,12 @@ function helpHtml(){
 <dt>Right-click a header</dt><dd>Column options: X, Y or error bars, analyse, show or hide, delete</dd>
 <dt>Raw and Final</dt><dd>The Raw sheet holds the data as recorded. Empty cells can be filled; a recorded value is locked, and typing over it asks for a reason and adds a correction step instead. The Final sheet shows the analysed spectrum after processing.</dd>
 </dl>
+<h3>Tied peak parameters</h3>
+<p>In a peak fit, the chain-link button beside a parameter ties it to the same parameter of another peak: equal, a multiple (for areas, such as the 2 to 1 of a spin–orbit doublet) or a fixed spacing (for centres). <em>One width</em> ties every peak's width to peak 1's, for an instrument's resolution. A tied parameter is not fitted on its own: it follows, its error is carried over, and the degrees of freedom count it once. Dragging any peak of a tied group on the graph moves the group. The report lists every tie.</p>
+<h3>Your own fit functions</h3>
+<p><em>Analysis › New fit function</em> (or <em>Function</em> beside the model list) opens an editor: write the function of <code>x</code> as on paper, for example <code>y = y0 + A*exp(-(x/t)^b)</code>, and every other name becomes a parameter, with a start (guessed from its name when left empty), optional limits and a unit. A preview draws the function over the data as you type, and a mistake is named with its line. Functions belong to the project and, if you choose, to this browser's library for the next project. A fit keeps a copy of the function it used, so editing the function later never changes a result already made; the report and the CSV export state the formula.</p>
 <h3>Python</h3>
+<p>Choose whether the result is <em>a step</em> of the spectrum (it replaces the data from there on) or <em>a new spectrum</em>, a branch of its own in the History; every spectrum's final data also has <em>New spectrum › With Python code</em>. Other spectra the code takes out of <code>spectra</code> are recorded and drawn as dashed lines into its box; when one of them, the code or the step's input changes, the box says so and <em>Run Python again</em> on the History's bar brings every such step up to date. The report prints each step's code.</p>
 <p>The Python window runs CPython in the browser (Pyodide, loaded the first time you run code). Your code sees the spectrum as <code>x</code>, <code>y</code> and <code>e</code>, its names and units, the file's metadata as <code>meta</code>, and every spectrum's final data in <code>spectra</code>. Whatever it leaves in <code>x</code> and <code>y</code> is the result. <em>Run</em> previews it as a step; <em>Record as a step</em> keeps it in the History with the code and its output, so the project opens with the same data without running Python again.</p>
 <h3 id="h-about">About Kurve</h3>
 <p>Kurve fits by the Levenberg–Marquardt method and reports standard errors, t and p values, 95% confidence intervals and parameter dependency. Without weights the errors are scaled by the square root of the reduced χ², as Origin does. Peak shapes are parametrised by centre, area and FWHM, so the table holds the numbers that go in a paper.</p>
@@ -7810,7 +8789,7 @@ function renderTaskbar(){
 }
 function winBadge(id){
   const p=P(); if(!p) return "";
-  if(id==="disc"){ const n=(S.comments||[]).filter(c=>!c.resolved).length; return n?`<span class="badge">${n}</span>`:""; }
+  if(id==="disc"){ const n=threadIndex().list.filter(t=>!t.root.resolved).length; return n?`<span class="badge" aria-label="${n} open">${n}</span>`:""; }
   if(id==="fit"){ const f=activeFit(); if(!f) return ""; return `<span class="tdot ${fitStale(f)?"stale":"ok"}" aria-label="${fitStale(f)?"out of date":"fitted"}"></span>`; }
   if(id==="flow"){ const c=activeYCol(), n=c?procWarnings(c).length:0; return n?`<span class="tdot stale" aria-label="${n} warnings"></span>`:""; }
   return "";
@@ -8065,7 +9044,7 @@ function wireStatic(){
   $("#fileIn").addEventListener("change",e=>{ const f=e.target.files[0]; if(f) readFileIn(f); e.target.value=""; });
   $("#addColBtn").onclick=addColumn;
   document.querySelectorAll("[data-example]").forEach(b=>b.onclick=()=>loadExample(b.dataset.example));
-  $("#cPost").onclick=postComment;
+  $("#cPost").onclick=postComment; wireThreads($("#thread"));
   $("#cText").addEventListener("keydown",e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); postComment(); } });
   $("#undoBtn").onclick=undo; $("#redoBtn").onclick=redo;
   document.querySelectorAll("#viewSeg button").forEach(b=>b.onclick=()=>setViewMode(b.dataset.view));
