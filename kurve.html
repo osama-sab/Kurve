@@ -592,6 +592,13 @@ table.corr td{text-align:center}
 .pd-panel .frow{grid-template-columns:120px minmax(0,1fr)}
 .pd-ax{border:1px solid var(--rule);border-radius:6px;padding:4px 10px 0;margin:0 0 10px;min-width:0}
 .pd-ax legend{font-weight:700;font-size:12px;color:var(--muted);padding:0 4px}
+.pd-ax legend .lab{font-weight:400}
+table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4px}
+.pdann th{text-align:left;font-weight:500;color:var(--muted);font-size:11.5px;padding:3px 4px;border-bottom:1px solid var(--rule)}
+.pdann td{padding:3px 4px;border-bottom:1px solid var(--rule-2);vertical-align:middle}
+.pdann td.nw{white-space:nowrap}
+.pdann input[type=text]{height:26px}
+.pdann input[type=color]{width:30px;height:22px;padding:0 1px;border:1px solid var(--rule);border-radius:4px;background:var(--panel);cursor:pointer}
 .pd-panel input[type=range]{accent-color:var(--accent);min-width:60px}
 .pd-panel output{min-width:34px;text-align:right;font-size:12px;color:var(--ink-2)}
 .swrow{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
@@ -624,6 +631,7 @@ table.corr td{text-align:center}
 .menu .msearch{padding:2px 2px 6px;position:sticky;top:-4px;background:var(--panel);z-index:1}
 .menu .msearch input{width:100%;height:28px}
 #plot.mode-anchor{cursor:crosshair}
+#plot.mode-label{cursor:crosshair}
 #plot.mode-range{cursor:col-resize}
 .zrect.pick{background:rgba(29,95,168,.12);border-color:var(--accent)}
 
@@ -726,6 +734,7 @@ table.corr td{text-align:center}
   <symbol id="i-max" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1.5"/><path d="M5 9h14"/></symbol>
   <symbol id="i-tile" viewBox="0 0 24 24"><rect x="3.5" y="4" width="9" height="16" rx="1"/><rect x="14.5" y="4" width="6" height="7" rx="1"/><rect x="14.5" y="13" width="6" height="7" rx="1"/></symbol>
   <symbol id="i-cascade" viewBox="0 0 24 24"><rect x="3" y="3" width="11" height="9" rx="1"/><rect x="7" y="7" width="11" height="9" rx="1"/><rect x="10.5" y="11" width="10.5" height="9" rx="1"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.2 1.2 0 0 1 0 1.7l-6.5 6.5a1.2 1.2 0 0 1-1.7 0z"/><circle cx="8" cy="8" r="1.4"/></symbol>
   <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></symbol>
   <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></symbol>
 </svg>
@@ -776,6 +785,7 @@ table.corr td{text-align:center}
       <button data-mode="pan" aria-pressed="false" title="Pan: drag to move the view"><svg class="ic"><use href="#i-pan"/></svg><span>Pan</span></button>
       <button data-mode="mask" aria-pressed="false" title="Mask: click or drag to leave points out of the fit"><svg class="ic"><use href="#i-mask"/></svg><span>Mask</span></button>
       <button data-mode="peak" aria-pressed="false" title="Add peak: click the graph where you see a peak"><svg class="ic"><use href="#i-peak"/></svg><span>Add peak</span></button>
+      <button data-mode="label" aria-pressed="false" title="Label: click a peak to label it with its position, or an empty spot to add text"><svg class="ic"><use href="#i-tag"/></svg><span>Label</span></button>
       <button data-mode="pin" aria-pressed="false" title="Comment: click the graph to start a comment there"><svg class="ic"><use href="#i-comment"/></svg><span>Comment</span></button>
     </div>
     <button class="tb icon" id="resetView" title="Show all the data (or double-click the graph)" aria-label="Show all the data"><svg class="ic"><use href="#i-fitview"/></svg></button>
@@ -2442,7 +2452,22 @@ function darkMode(){
   if(t) return t==="dark";
   try{ return window.matchMedia("(prefers-color-scheme: dark)").matches; }catch(e){ return false; }
 }
-const peakColor=i=>(darkMode()?PEAK_COLORS_DARK:PEAK_COLORS_LIGHT)[i%8];
+/* Colour schemes. Every place a spectrum or a peak is coloured (the graph and
+   its legend, the worksheet header, the fit panel, the results table, labels)
+   asks yTint or peakColor, so one setting recolours them all together. The
+   distinct-hue set is a validated categorical palette; Okabe–Ito stays apart
+   for the common colour-vision deficiencies. */
+const SCHEMES={
+  kurve:{name:"Kurve (analysed spectrum in blue)"},
+  categorical:{name:"Distinct hues",light:["#2a78d6","#eb6834","#1baf7a","#eda100","#e87ba4","#008300","#4a3aa7","#e34948"],dark:["#3987e5","#d95926","#199e70","#c98500","#d55181","#008300","#9085e9","#e66767"]},
+  okabe:{name:"Okabe–Ito (colour-blind safe)",light:["#0072B2","#D55E00","#009E73","#CC79A7","#E69F00","#56B4E9","#000000","#B8A200"],dark:["#56B4E9","#E69F00","#2BC49A","#E8A0C8","#FF7B39","#7FB8FF","#E0E0E0","#F0E442"]},
+  viridis:{name:"Viridis, in table order (for a series)",seq:true},
+  mono:{name:"Black and greys, dashed (for print)",mono:true}};
+const PEAK_SCHEMES={
+  warm:{name:"Warm, apart from the spectra",light:PEAK_COLORS_LIGHT,dark:PEAK_COLORS_DARK},
+  categorical:{name:"Distinct hues",light:SCHEMES.categorical.light.slice(1).concat(SCHEMES.categorical.light.slice(0,1)),dark:SCHEMES.categorical.dark.slice(1).concat(SCHEMES.categorical.dark.slice(0,1))},
+  okabe:{name:"Okabe–Ito (colour-blind safe)",light:SCHEMES.okabe.light.slice(1).concat(SCHEMES.okabe.light.slice(0,1)),dark:SCHEMES.okabe.dark.slice(1).concat(SCHEMES.okabe.dark.slice(0,1))}};
+const peakColor=(i,light)=>{ const sc=PEAK_SCHEMES[plotCfg().peakScheme]||PEAK_SCHEMES.warm, a=!light&&darkMode()?sc.dark:sc.light; return a[i%a.length]; };
 const colTint=i=>(darkMode()?COL_TINTS_DARK:COL_TINTS_LIGHT)[i%8];
 // Exported figures are printed on white, so they always use the light set.
 function fitModel(fit){
@@ -3022,7 +3047,13 @@ function specName(c){ if(!c) return "a spectrum"; return c.name||(c.src?"derived
 // rest of the palette in order, so an overlay never shares the analysed
 // one's colour. Exports are printed on white and ask for the light set.
 function yTint(id,light){
-  const p=P(), pal=(light||!darkMode())?COL_TINTS_LIGHT:COL_TINTS_DARK;
+  const p=P(), pal=(light||!darkMode())?COL_TINTS_LIGHT:COL_TINTS_DARK, sch=SCHEMES[plotCfg().scheme]||SCHEMES.kurve, dk=!(light||!darkMode());
+  // Every scheme but Kurve's colours by the order of the table, so a colour
+  // stays with its spectrum whichever one is being analysed.
+  if(sch!==SCHEMES.kurve){ const ys=yCols(), i=Math.max(0,ys.findIndex(c=>c.id===id));
+    if(sch.seq){ const t=ys.length>1?i/(ys.length-1):0, a=dk?0.25:0, b=dk?1:0.82; return "#"+cmapAt("viridis",a+(b-a)*t).map(v=>v.toString(16).padStart(2,"0")).join(""); }
+    if(sch.mono){ const g=dk?["#E3E8EF","#AEB8C5","#C5CEDA","#8C98A8"]:["#111820","#4A5361","#2B323C","#6B7482"]; return g[i%g.length]; }
+    const arr=dk?sch.dark:sch.light; return arr[i%arr.length]; }
   if(p&&id===p.activeY) return pal[0];
   const others=yCols().filter(c=>!p||c.id!==p.activeY), i=others.findIndex(c=>c.id===id);
   return pal[1+((i<0?0:i)%7)];
@@ -3432,14 +3463,15 @@ function peakTops(m,params,peaks){
    heat map. On screen the graph can show any stage of the processing;
    exports are always the final data.
    ============================================================ */
-const PLOT_DEF={style:"scatter",logY:false,logX:false,grid:false,gridMinor:false,resid:true,revX:false,hidden:[],layout:"overlay",offset:0.35,legend:"auto",frame:"box",font:1,title:"",cmap:"viridis",series:{},ax:{}};
+const PLOT_DEF={style:"scatter",logY:false,logX:false,grid:false,gridMinor:false,resid:true,revX:false,hidden:[],layout:"overlay",offset:0.35,legend:"auto",frame:"box",font:1,title:"",cmap:"viridis",series:{},ax:{},
+  legendText:"ink",legendFrame:true,legendTitle:"",scheme:"kurve",peakScheme:"warm",peakLab:"num",peakLabRot:false,peakLabDec:null,axisMatch:true,annos:[]};
 // The settings as drawn: the saved ones, or the Plot details dialog's while it
 // is open, with defaults filled in.
 function plotCfg(){
   const p=P(), src=S.plotPreview||(p&&p.plot)||{};
   const o=Object.assign({},PLOT_DEF,src);
   o.ax={x:Object.assign({},(src.ax||{}).x),y:Object.assign({},(src.ax||{}).y),y2:Object.assign({},(src.ax||{}).y2)};
-  o.series=src.series||{}; o.hidden=src.hidden||[];
+  o.series=src.series||{}; o.hidden=src.hidden||[]; o.annos=src.annos||[];
   return o;
 }
 const SER_COLORS=[["#1D5FA8","blue"],["#C23B22","red"],["#2E7D4F","green"],["#B26B00","amber"],["#6A3FB5","violet"],["#0E7C86","teal"],["#D0457F","pink"],["#5C6B7A","slate"],["#8A6D1F","olive"],["#111820","black"]];
@@ -3453,8 +3485,9 @@ const LEGENDS=[["auto","Emptiest corner"],["tr","Top right"],["tl","Top left"],[
 // their own tints).
 function serStyle(id,active,pal,forExport,cfg){
   const o=(cfg.series||{})[id]||{};
-  return {type:o.type||(active?cfg.style:"line"), color:o.color||(active?pal.data:yTint(id,forExport)), lw:o.lw!=null?+o.lw:(active?1.4:1.2),
-    dash:o.dash||"solid", sym:o.sym||"circle", ss:o.ss!=null?+o.ss:null, fill:o.fill!=null?+o.fill:0.18, label:o.label||"", op:o.op!=null?+o.op:(active?1:0.8)};
+  const mono=cfg.scheme==="mono"&&!active?["dash","dot","dashdot","solid"][Math.max(0,yCols().findIndex(c=>c.id===id))%4]:"solid";
+  return {type:o.type||(active?cfg.style:"line"), color:o.color||(cfg.scheme&&cfg.scheme!=="kurve"?yTint(id,forExport):active?pal.data:yTint(id,forExport)), lw:o.lw!=null?+o.lw:(active?1.4:1.2), leg:o.leg!==false,
+    dash:o.dash||mono, sym:o.sym||"circle", ss:o.ss!=null?+o.ss:null, fill:o.fill!=null?+o.fill:0.18, label:o.label||"", op:o.op!=null?+o.op:(active?1:0.8)};
 }
 function symD(t,x,y,r){
   const f=v=>v.toFixed(1), b=t.replace(/^o/,"");
@@ -3578,13 +3611,15 @@ function buildPlot(W,H,pal,forExport){
   if(!heat) oser.forEach(o=>{ const st=serStyle(o.c.id,false,pal,forExport,cfg); entries.push(Object.assign({},st,{id:o.c.id,label:(st.label||o.c.name||"column")+(dy?" (right)":"")})); });
   if(!forExport&&!heat) stageLegend(ps,pal).forEach(e=>{ if(showGhost||e.color!==pal.muted) entries.push({type:"line",color:e.color,lw:e.thin?1.3:2.2,dash:e.dash?"dash":"solid",label:e.label}); });
   const fitSt=Object.assign({color:pal.fit,lw:2},(cfg.series||{}).__fit||{});
-  if(fit) entries.push({type:"line",color:fitSt.color,lw:fitSt.lw,dash:"solid",label:FM&&FM.composite?"fit (sum)":"fit",id:"__fit"});
-  const pcol=j=>forExport?PEAK_COLORS_LIGHT[j%8]:peakColor(j);
+  if(fit) entries.push({type:"line",color:fitSt.color,lw:fitSt.lw,dash:"solid",label:fitSt.label||(FM&&FM.composite?"fit (sum)":"fit"),id:"__fit",leg:fitSt.leg});
+  const pcol=j=>peakColor(j,forExport);
   if(fit&&FM&&FM.composite&&(fit.spec.peaks||[]).length&&(fit.spec.peaks||[]).length<=6) (fit.spec.peaks||[]).forEach((pk,j)=>entries.push({type:"line",label:`peak ${j+1}`,color:pcol(j),lw:1.3,dash:"solid"}));
   const ov=forExport||!ps.final||heat?null:draftOverlay(fit);
   if(ov&&!ov.same) entries.push({type:"line",label:"estimate",color:pal.muted,lw:1.3,dash:"dash"});
   const seenLab={}; entries.forEach(e=>{ const k=(seenLab[e.label]=(seenLab[e.label]||0)+1); if(k>1) e.label=e.label+" ("+k+")"; });
-  const lfs=Math.max(9,fs-1), lh=lfs+5, wch=entries.reduce((mx,e)=>Math.max(mx,Math.min(30,e.label.length)),0), legW=30+wch*lfs*0.55;
+  for(let i=entries.length-1;i>=0;i--) if(entries[i].leg===false) entries.splice(i,1);
+  const legTitle=cfg.legendTitle||"";
+  const lfs=Math.max(9,fs-1), lh=lfs+5, wch=Math.max(entries.reduce((mx,e)=>Math.max(mx,Math.min(30,e.label.length)),0),Math.min(30,legTitle.length*1.1-4)), legW=30+wch*lfs*0.55;
   const legOn=cfg.legend!=="off"&&entries.length>(cfg.legend==="auto"?1:0);
   if(legOn&&cfg.legend==="out") R+=legW+14;
   const gap=10;
@@ -3613,7 +3648,8 @@ function buildPlot(W,H,pal,forExport){
   if(stack) oser.forEach((o,k)=>{ s+=`<clipPath id="clipP${k}"><rect x="${L}" y="${T+(k+1)*(ph+pgap)}" width="${pw}" height="${ph}"/></clipPath>`; });
   if(showRes) s+=`<clipPath id="clipR"><rect x="${L}" y="${T+mhAll+gap}" width="${pw}" height="${resH}"/></clipPath>`;
   s+=`</defs>`;
-  if(cfg.title) s+=`<text x="${L+pw/2}" y="${16+fs}" text-anchor="middle" font-size="${fs+3}" font-weight="600" fill="${pal.ink}" font-family="${sans}">${esc(cfg.title)}</text>`;
+  const ed=k=>forExport?"":` data-axtitle="${k}" style="cursor:text"`;
+  if(cfg.title) s+=`<text${ed("title")} x="${L+pw/2}" y="${16+fs}" text-anchor="middle" font-size="${fs+3}" font-weight="600" fill="${pal.ink}" font-family="${sans}">${esc(cfg.title)}</text>`;
   const xT=axisTicks(v.x0,v.x1,pw/85,cfg.ax.x,logX);
   const yT=heat?{ticks:[],minor:[]}:axisTicks(v.y0,v.y1,mh/(stack?40:55),cfg.ax.y,logY);
   const gridLines=(top,h,Yf,yt)=>{ let g="";
@@ -3635,6 +3671,8 @@ function buildPlot(W,H,pal,forExport){
     if(url) s+=`<image href="${url}" x="${L}" y="${T}" width="${pw}" height="${mh}" preserveAspectRatio="none" style="image-rendering:pixelated"/>`;
     geo.heatZ=[lo,hi];
   }
+  const annoCtx={cfg,pal,X,Y,ps,forExport,fs,sans,L,pw,T,mh,heat};
+  s+=annoSvg("under",annoCtx);
   if(fit){
     const fr=fit.range||[v.x0,v.x1], a=Math.max(fr[0],Math.min(v.x0,v.x1)), b=Math.min(fr[1],Math.max(v.x0,v.x1));
     if(b>a){
@@ -3697,6 +3735,7 @@ function buildPlot(W,H,pal,forExport){
       if(Number.isFinite(lyp)&&lyp>T&&lyp<T+mh) s+=`<text x="${(L+pw-4).toFixed(1)}" y="${(lyp-4).toFixed(1)}" text-anchor="end" font-size="${lfs}" font-weight="600" fill="${actSt.color}" font-family="${sans}">${esc((actSt.label||act.name||"").slice(0,28))}</text>`; }
   }
   if(!forExport&&!heat) s+=stageMarks(ps,X,Y,pal,v,geo,false);
+  s+=annoSvg("lines",annoCtx);
   if(!forExport&&!heat){
     const r=pts.length>400?2:pts.length>150?2.8:3.4;
     if(S.sel!=null){ const q=pts.find(q=>q.i===S.sel); if(q) s+=`<circle cx="${X(q.x)}" cy="${Y(q.y)}" r="${r+5}" fill="none" stroke="${pal.ink}" stroke-width="1.6"/>`; }
@@ -3722,7 +3761,9 @@ function buildPlot(W,H,pal,forExport){
   // Frame, ticks and labels.
   const dir=cfg.ax.x.ticks||"in", ydir=cfg.ax.y.ticks||"in", box=cfg.frame!=="axes";
   const tk=(d,len)=>d==="none"?null:d==="out"?[0,len]:d==="both"?[-len,len]:[-len,0];
-  const drawFrame=(top,h,yt,Yf,showXLab,yLabels)=>{
+  // With two spectra on two Y axes, each axis's numbers take its spectrum's colour.
+  const axM=dy&&oser.length===1&&cfg.axisMatch!==false, axL=axM?actSt.color:null, axR=axM?serStyle(oser[0].c.id,false,pal,forExport,cfg).color:null;
+  const drawFrame=(top,h,yt,Yf,showXLab,yLabels,labCol)=>{
     let f=box?`<rect x="${L}" y="${top}" width="${pw}" height="${h}" fill="none" stroke="${pal.ink}" stroke-width="1.2"/>`
       :`<path d="M${L},${top}V${top+h}H${L+pw}" fill="none" stroke="${pal.ink}" stroke-width="1.2"/>`;
     const xm=tk(dir,6), xn=tk(dir,3), ym=tk(ydir,6), yn=tk(ydir,3);
@@ -3733,12 +3774,12 @@ function buildPlot(W,H,pal,forExport){
     const off=ydir==="out"||ydir==="both"?4:0;
     yt.ticks.forEach(t=>{ const y=Yf(t.v); if(y<top-0.5||y>top+h+0.5) return;
       if(ym) f+=`<path d="M${L-ym[0]},${y}H${L-ym[1]}${box&&!dy?`M${L+pw+ym[0]},${y}H${L+pw+ym[1]}`:""}" stroke="${pal.ink}" stroke-width="1"/>`;
-      if(yLabels!==false) f+=txtLabel(t.lab,L-7-off,y+fs*0.35,"end",fs,pal.ink,sans); });
+      if(yLabels!==false) f+=txtLabel(t.lab,L-7-off,y+fs*0.35,"end",fs,labCol||pal.ink,sans); });
     if(yn) yt.minor.forEach(t=>{ const y=Yf(t); if(y<top||y>top+h) return; f+=`<path d="M${L-yn[0]},${y}H${L-yn[1]}${box&&!dy?`M${L+pw+yn[0]},${y}H${L+pw+yn[1]}`:""}" stroke="${pal.ink}" stroke-width="0.8"/>`; });
     return f;
   };
   const lastBottom=!showRes&&!panels.length;
-  s+=drawFrame(T,mh,yT,Y,lastBottom,!heat);
+  s+=drawFrame(T,mh,yT,Y,lastBottom,!heat,axL);
   panels.forEach((pn,k)=>{ s+=drawFrame(pn.top,pn.h,pn.yt,pn.Yf,k===panels.length-1&&!showRes);
     s+=`<text x="${L+8}" y="${pn.top+fs+2}" font-size="${lfs}" fill="${pn.color}" font-family="${sans}">${esc(pn.label.slice(0,40))}</text>`; });
   if(stack&&act) s+=`<text x="${L+8}" y="${T+fs+2}" font-size="${lfs}" font-weight="600" fill="${actSt.color}" font-family="${sans}">${esc((actSt.label||act.name||"").slice(0,40))}</text>`;
@@ -3752,11 +3793,11 @@ function buildPlot(W,H,pal,forExport){
   // The right axis of a double-Y graph.
   if(dy&&yR){ const at=cfg.ax.y2||{}, yt2=axisTicks(yR.y0,yR.y1,mh/55,at,logY), ym=tk(ydir,6);
     s+=`<path d="M${L+pw},${T}V${T+mh}" stroke="${pal.ink}" stroke-width="1.2"/>`;
-    yt2.ticks.forEach(t=>{ const y=yR.Y(t.v); if(y<T-0.5||y>T+mh+0.5) return; if(ym) s+=`<path d="M${L+pw+ym[0]},${y}H${L+pw+ym[1]}" stroke="${pal.ink}"/>`; s+=txtLabel(t.lab,L+pw+7,y+fs*0.35,"start",fs,pal.ink,sans); });
+    yt2.ticks.forEach(t=>{ const y=yR.Y(t.v); if(y<T-0.5||y>T+mh+0.5) return; if(ym) s+=`<path d="M${L+pw+ym[0]},${y}H${L+pw+ym[1]}" stroke="${pal.ink}"/>`; s+=txtLabel(t.lab,L+pw+7,y+fs*0.35,"start",fs,axR||pal.ink,sans); });
     const o0=oser[0], d0=o0?finalOf(o0.c):null, t2=at.title||(d0?axisLabel(oser.length===1?(serStyle(o0.c.id,false,pal,forExport,cfg).label||d0.yn):"Other spectra",d0.yu,"Y"):"");
-    s+=`<text transform="translate(${W-(legOn&&cfg.legend==="out"?legW+14:0)-12},${T+mh/2}) rotate(90)" text-anchor="middle" font-size="${fs+2.5}" font-style="italic" fill="${pal.ink}" font-family="${serif}">${esc(t2)}</text>`; }
+    s+=`<text${ed("y2")} transform="translate(${W-(legOn&&cfg.legend==="out"?legW+14:0)-12},${T+mh/2}) rotate(90)" text-anchor="middle" font-size="${fs+2.5}" font-style="italic" fill="${axR||pal.ink}" font-family="${serif}">${esc(t2)}</text>`; }
   const yl=cfg.ax.y.title||(heat?"Spectrum":axisLabel(ps.d.yn,ps.d.yu,"Y")), xl=cfg.ax.x.title||axisLabel(ps.d.xn,ps.d.xu,"X");
-  s+=`<text transform="translate(${W<480?14:18},${T+mhAll/2}) rotate(-90)" text-anchor="middle" font-size="${fs+2.5}" font-style="italic" fill="${pal.ink}" font-family="${serif}">${esc(yl)}</text>`;
+  s+=`<text${ed("y")} transform="translate(${W<480?14:18},${T+mhAll/2}) rotate(-90)" text-anchor="middle" font-size="${fs+2.5}" font-style="italic" fill="${axL||pal.ink}" font-family="${serif}">${esc(yl)}</text>`;
   if(showRes){
     const un=rp.filter(q=>!isMasked(q.i));
     const ra=Math.max(...(un.length?un:rp).map(q=>Math.abs(q.r)),1e-300)*1.15; const top=T+mhAll+gap;
@@ -3768,34 +3809,48 @@ function buildPlot(W,H,pal,forExport){
     s+=drawFrame(top,resH,{ticks:rt.ticks.map(t=>({v:t,lab:tickLabel(t,rt.step)})),minor:[]},RY,true);
     s+=`<text transform="translate(${W<480?14:18},${top+resH/2}) rotate(-90)" text-anchor="middle" font-size="${fs}" fill="${pal.muted}" font-family="${sans}">Residual</text>`;
   }
-  s+=`<text x="${L+pw/2}" y="${H-12}" text-anchor="middle" font-size="${fs+2.5}" font-style="italic" fill="${pal.ink}" font-family="${serif}">${esc(xl)}</text>`;
-  // Legend: in the emptiest corner, a chosen one, or outside on the right.
+  s+=`<text${ed("x")} x="${L+pw/2}" y="${H-12}" text-anchor="middle" font-size="${fs+2.5}" font-style="italic" fill="${pal.ink}" font-family="${serif}">${esc(xl)}</text>`;
+  // Text and labels on the graph, then the legend over them.
+  s+=annoSvg("top",annoCtx);
+  // Legend: in the emptiest corner, a chosen one, outside on the right, or
+  // wherever it was dragged (kept as fractions of the plot area).
   if(legOn){
-    const pad=6, boxW=Math.min(cfg.legend==="out"?legW:pw-12,legW), boxH=entries.length*lh+pad;
+    const pad=6, tl=legTitle?lh:0, boxW=Math.min(cfg.legend==="out"?legW:pw-12,legW), boxH=entries.length*lh+pad+tl, frame=cfg.legendFrame!==false;
     let bx=L+pw-boxW-8, by=T+8;
     const corners={tr:[L+pw-boxW-8,T+8],tl:[L+8,T+8],br:[L+pw-boxW-8,T+mh-boxH-8],bl:[L+8,T+mh-boxH-8]};
-    if(cfg.legend==="out"){ bx=L+pw+(dy?L:0)+12; by=T; }
+    if(cfg.legend==="custom"&&cfg.legendPos){ bx=Math.max(2,Math.min(W-boxW-2,L+cfg.legendPos.fx*pw)); by=Math.max(2,Math.min(H-boxH-2,T+cfg.legendPos.fy*mh)); }
+    else if(cfg.legend==="out"){ bx=L+pw+(dy?L:0)+12; by=T; }
     else if(corners[cfg.legend]) [bx,by]=corners[cfg.legend];
     else { const step=Math.max(1,Math.floor(pts.length/1500)); let fewest=Infinity;
       const all=pts.concat(...oser.map((o,k)=>layout==="offset"?shiftPts(o.pts,k+1):layout==="overlay"?o.pts:[]));
       Object.values(corners).forEach(([cx,cy])=>{ if(cy<T) return; let k=0;
         for(let ii=0;ii<all.length;ii+=step){ const px=X(all[ii].x), py=Y(all[ii].y); if(px>=cx-4&&px<=cx+boxW+4&&py>=cy-4&&py<=cy+boxH+4) k++; }
         if(k<fewest){ fewest=k; bx=cx; by=cy; } }); }
-    s+=`<g class="legend"><rect x="${bx}" y="${by}" width="${boxW.toFixed(1)}" height="${boxH}" fill="${pal.bg}" fill-opacity="0.85" stroke="${pal.grid}" stroke-width="1" rx="3"/>`;
+    if(!forExport) geo.legend={x:bx,y:by,w:boxW,h:boxH};
+    s+=`<g class="legend"${forExport?"":` data-legbox="1" style="cursor:move"`}>`;
+    if(frame) s+=`<rect x="${bx}" y="${by}" width="${boxW.toFixed(1)}" height="${boxH}" fill="${pal.bg}" fill-opacity="0.85" stroke="${pal.grid}" stroke-width="1" rx="3"/>`;
+    else if(!forExport) s+=`<rect x="${bx}" y="${by}" width="${boxW.toFixed(1)}" height="${boxH}" fill="transparent"/>`;
+    if(legTitle) s+=`<text${forExport?"":` data-legtitle="1"`} x="${bx+6}" y="${(by+pad/2+lh*0.62).toFixed(1)}" font-size="${lfs}" font-weight="700" fill="${pal.ink}" font-family="${sans}">${esc(legTitle.length>34?legTitle.slice(0,33)+"…":legTitle)}</text>`;
     entries.forEach((e,i)=>{
-      const ly2=by+pad/2+lh*i+lh*0.62, sx=bx+6, cy=ly2-3.5;
-      s+=`<g${e.id?` data-leg="${e.id}"`:""}>`;
+      const ly2=by+pad/2+tl+lh*i+lh*0.62, sx=bx+6, cy=ly2-3.5;
+      s+=`<g${e.id&&!forExport?` data-leg="${e.id}"`:""}>`;
       const lineish=e.type!=="scatter"&&e.type!=="stick", dsh=DASHES[e.dash];
       if(lineish&&dsh!==null) s+=`<line x1="${sx}" x2="${sx+18}" y1="${cy}" y2="${cy}" stroke="${e.color}" stroke-width="${Math.max(1.2,Math.min(4,e.lw||1.4))}"${dsh?` stroke-dasharray="${dsh}"`:""}/>`;
       if(e.type==="stick") s+=`<path d="M${sx+5},${cy+5}V${cy-5}M${sx+13},${cy+5}V${cy-2}" stroke="${e.color}" stroke-width="${e.lw||1.2}"/>`;
       if(e.type==="scatter"||e.type==="linesym"){ const d=symD(e.sym||"circle",sx+9,cy,3.2), op=symOpen(e.sym||"circle"); s+=`<path d="${d}" fill="${op?(/^o/.test(e.sym)?pal.bg:"none"):e.color}" stroke="${op?e.color:pal.bg}" stroke-width="${op?1.2:0.6}"/>`; }
-      s+=`<text x="${sx+24}" y="${ly2}" font-size="${lfs}" fill="${pal.ink}" font-family="${sans}">${esc(e.label.length>30?e.label.slice(0,29)+"…":e.label)}</text></g>`;
+      s+=`<text x="${sx+24}" y="${ly2.toFixed(1)}" font-size="${lfs}" fill="${cfg.legendText==="match"&&e.color?e.color:pal.ink}" font-family="${sans}">${esc(e.label.length>30?e.label.slice(0,29)+"…":e.label)}</text></g>`;
     });
     s+=`</g>`;
   }
-  const numLabel=(x,y,k,col)=>forExport
-    ? `<text x="${x.toFixed(1)}" y="${(y-9).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="${col}" font-family="${sans}">${k+1}</text>`
-    : `<text x="${x.toFixed(1)}" y="${(y-11).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${col}" stroke="${pal.bg}" stroke-width="3" paint-order="stroke" font-family="${sans}" pointer-events="none">${k+1}</text>`;
+  // Fitted peaks are labelled with their number, their position, both, or
+  // nothing; peaks still being set up always show their number, which is how
+  // they are told apart in the Fit window.
+  const numLabel=(x,y,k,col,xc,draft)=>{
+    const mode=cfg.peakLab||"num"; if(mode==="off"&&!draft) return "";
+    const pos=cfg.peakLabDec!=null&&cfg.peakLabDec!==""?(+xc).toFixed(+cfg.peakLabDec):fmt(xc,5);
+    const txt=mode==="pos"?pos:mode==="numpos"?`${k+1}: ${pos}`:`${k+1}`;
+    const rot=!!cfg.peakLabRot&&(mode==="pos"||mode==="numpos"), yy=y-(forExport?9:11);
+    return `<text x="${x.toFixed(1)}" y="${yy.toFixed(1)}" text-anchor="${rot?"start":"middle"}"${rot?` transform="rotate(-90 ${x.toFixed(1)} ${yy.toFixed(1)})"`:""} font-size="${forExport?11:11.5}" font-weight="700" fill="${col}"${forExport?"":` stroke="${pal.bg}" stroke-width="3" paint-order="stroke" pointer-events="none"`} font-family="${sans}">${esc(txt)}</text>`; };
   const handlesOn=ov&&!S.readOnly&&S.mode!=="mask"&&S.mode!=="pin";
   if(ov){
     peakTops(ov.m,ov.d.init,ov.d.peaks).forEach(t=>{
@@ -3812,10 +3867,10 @@ function buildPlot(W,H,pal,forExport){
         s+=`<g data-h="${t.k}:c" style="cursor:move"><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="11" fill="transparent"/>${sel?`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="9" fill="none" stroke="${col}" stroke-width="1.5"/>`:""}<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="5.5" fill="${col}" stroke="${pal.bg}" stroke-width="2"/></g>`;
         geo.handles.push({k:t.k,kind:"c",x:cx,y:cy});
       }
-      s+=numLabel(cx,cy-(handlesOn?2:0),t.k,col);
+      s+=numLabel(cx,cy-(handlesOn?2:0),t.k,col,t.xc,true);
     });
   } else if(fit&&FM&&FM.composite){
-    peakTops(FM.model,fit.params,fit.spec.peaks||[]).forEach(t=>{ if(!t) return; const cx=X(t.xc), cy=Y(t.top); if(inPlot(cx,cy)) s+=numLabel(cx,cy,t.k,pcol(t.k)); });
+    peakTops(FM.model,fit.params,fit.spec.peaks||[]).forEach(t=>{ if(!t) return; const cx=X(t.xc), cy=Y(t.top); if(inPlot(cx,cy)) s+=numLabel(cx,cy,t.k,pcol(t.k),t.xc,false); });
   }
   // Peak finder preview: what would be found (filled) and what was turned down (hollow).
   if(!forExport&&S.pfPreview&&ps.final&&!heat&&S.fitMode==="peaks"&&winOpen("fit")){
@@ -3844,6 +3899,257 @@ function renderPlot(){
   const sub=$("#graphSub"); if(sub){ const c=activeYCol(), ps=S.ps; sub.textContent=c?specName(c)+(ps&&!ps.final?" · "+stageName(ps):""):""; }
 }
 
+/* ---- Annotations ------------------------------------------------------------
+   Lines, shaded ranges, text and peak labels on the graph. They are part of the
+   plot settings (p.plot.annos), so they are saved with the project, undone like
+   any other change and exported with the figure. Each remembers the units it
+   was placed in and is drawn only on data in those units: a line at 532 nm
+   means nothing on a Raman-shift axis. A peak label keeps its offset in pixels
+   from the point it labels, so it stays beside that point at any zoom. */
+const ANNO_KINDS={v:"Vertical line",h:"Horizontal line",band:"Shaded range",text:"Text",label:"Peak label"};
+const ANNO_COLORS=[["","Automatic"],["#111820","Black"],["#5B6778","Grey"],["#1D5FA8","Blue"],["#C23B22","Red"],["#2E7D4F","Green"],["#B26B00","Amber"],["#6A3FB5","Violet"],["custom","Custom…"]];
+const annoId=()=>"a"+Date.now().toString(36)+(colSeq++).toString(36);
+function annoById(id){ return ((P()&&P().plot&&P().plot.annos)||[]).find(a=>a.id===id)||null; }
+// What a line or label says: its own text, or its value (text null), or nothing ("").
+function annoLabelText(a,xu,yu){
+  if(a.text==="") return "";
+  if(a.text!=null) return a.text;
+  if(a.t==="v"||a.t==="label") return (a.dec!=null?(+a.x).toFixed(+a.dec):fmt(a.x,5))+(a.unit&&xu?" "+xu:"");
+  if(a.t==="h") return fmt(a.y,5)+(a.unit&&yu?" "+yu:"");
+  if(a.t==="text") return "Text";
+  return "";
+}
+// A label takes the colour of the spectrum it labels, so the two read together.
+function annoColor(a,pal,forExport,cfg){
+  if(a.color) return a.color;
+  if(a.t==="label"&&a.ser&&colById(a.ser)) return serStyle(a.ser,a.ser===(P()||{}).activeY,pal,forExport,cfg).color;
+  if(a.t==="band") return pal.pin;
+  return pal.ink;
+}
+/* Three layers: shaded ranges under the data, lines over it, text on top. */
+function annoSvg(layer,c){
+  const {cfg,pal,X,Y,ps,forExport,fs,sans,L,pw,T,mh,heat}=c; let s=""; const f1=v=>(+v).toFixed(1);
+  const xu=ps.d.xu||"", yu=ps.d.yu||"";
+  (cfg.annos||[]).forEach(a=>{
+    const okX=a.xu==null||a.xu===xu, okY=!heat&&(a.yu==null||a.yu===yu);
+    const col=annoColor(a,pal,forExport,cfg), lw=a.lw!=null?+a.lw:1.2, dash=DASHES[a.dash||(a.t==="v"||a.t==="h"?"dash":"solid")];
+    const sel=!forExport&&S.annoSel===a.id;
+    const wrap=(inner,cursor)=>forExport?inner:`<g data-anno="${a.id}" class="anno${sel?" sel":""}" style="cursor:${cursor}">${inner}</g>`;
+    const tsz=Math.max(8,(+a.size||1)*(fs-1));
+    const halo=` stroke="${pal.bg}" stroke-width="3" paint-order="stroke"`;
+    const txt=annoLabelText(a,xu,yu);
+    if(layer==="under"&&a.t==="band"&&okX){
+      const xa=X(a.x), xb=X(a.x2), lo=Math.max(L,Math.min(xa,xb)), hi=Math.min(L+pw,Math.max(xa,xb)); if(!(hi>lo)) return;
+      s+=wrap(`<rect x="${f1(lo)}" y="${T}" width="${f1(hi-lo)}" height="${mh}" fill="${col}" fill-opacity="${a.op!=null?a.op:0.13}"${sel?` stroke="${pal.sel}" stroke-dasharray="4 3"`:""}/>${txt?`<text x="${f1((lo+hi)/2)}" y="${f1(T+tsz+4)}" text-anchor="middle" font-size="${tsz}" fill="${col}"${halo} font-family="${sans}">${esc(txt)}</text>`:""}`,"ew-resize");
+    }
+    if(layer==="lines"&&a.t==="v"&&okX){
+      const x=X(a.x); if(!Number.isFinite(x)||x<L-0.5||x>L+pw+0.5) return; const right=x<L+pw-90;
+      s+=wrap(`<line x1="${f1(x)}" x2="${f1(x)}" y1="${T}" y2="${T+mh}" stroke="${col}" stroke-width="${sel?lw+1:lw}"${dash?` stroke-dasharray="${dash}"`:""}/>${forExport?"":`<line x1="${f1(x)}" x2="${f1(x)}" y1="${T}" y2="${T+mh}" stroke="transparent" stroke-width="11"/>`}${txt?`<text x="${f1(x+(right?4:-4))}" y="${f1(T+tsz+3)}" text-anchor="${right?"start":"end"}" font-size="${tsz}" fill="${col}"${halo} font-family="${sans}">${esc(txt)}</text>`:""}`,"ew-resize");
+    }
+    if(layer==="lines"&&a.t==="h"&&okY){
+      const y=Y(a.y); if(!Number.isFinite(y)||y<T-0.5||y>T+mh+0.5) return;
+      s+=wrap(`<line x1="${L}" x2="${L+pw}" y1="${f1(y)}" y2="${f1(y)}" stroke="${col}" stroke-width="${sel?lw+1:lw}"${dash?` stroke-dasharray="${dash}"`:""}/>${forExport?"":`<line x1="${L}" x2="${L+pw}" y1="${f1(y)}" y2="${f1(y)}" stroke="transparent" stroke-width="11"/>`}${txt?`<text x="${L+pw-4}" y="${f1(y-4)}" text-anchor="end" font-size="${tsz}" fill="${col}"${halo} font-family="${sans}">${esc(txt)}</text>`:""}`,"ns-resize");
+    }
+    if(layer==="top"&&(a.t==="text"||a.t==="label")&&okX&&okY){
+      const ax=X(a.x), ay=Y(a.y); if(!Number.isFinite(ax)||!Number.isFinite(ay)) return;
+      const dx=a.t==="label"?(a.dx||0):0, dy=a.t==="label"?(a.dy==null?(a.rot?-10:-18):a.dy):0, tx=ax+dx, ty=ay+dy;
+      if(a.t==="text"&&(ax<L-40||ax>L+pw+40||ay<T-40||ay>T+mh+40)) return;
+      if(a.t==="label"&&(ax<L-1||ax>L+pw+1||ay<T-1||ay>T+mh+1)) return;
+      const show=txt||(forExport?"":"…"), w=Math.max(10,show.length*tsz*0.56), h=tsz*1.25, rot=!!a.rot;
+      let inner="";
+      // The leader runs from just off the point to the near edge of the text.
+      if(a.t==="label"&&Math.hypot(dx,dy)>9){ const ex=tx, ey=rot?ty+2:ty+3, dd=Math.hypot(ex-ax,ey-ay)||1;
+        inner+=`<line x1="${f1(ax+(ex-ax)/dd*3)}" y1="${f1(ay+(ey-ay)/dd*3)}" x2="${f1(ex)}" y2="${f1(ey)}" stroke="${col}" stroke-width="0.9"/>`; }
+      const anchor=a.t==="label"&&rot?"start":"middle", tr=rot?` transform="rotate(-90 ${f1(tx)} ${f1(ty)})"`:"";
+      if(!forExport) inner+=rot?`<rect x="${f1(tx-h*0.8)}" y="${f1(ty-w)}" width="${f1(h)}" height="${f1(w)}" fill="transparent"/>`:`<rect x="${f1(tx-w/2)}" y="${f1(ty-h*0.85)}" width="${f1(w)}" height="${f1(h)}" fill="transparent"${sel?` stroke="${pal.sel}" stroke-dasharray="3 2"`:""}/>`;
+      inner+=`<text x="${f1(tx)}" y="${f1(ty)}" text-anchor="${anchor}" font-size="${tsz}"${a.bold?` font-weight="700"`:""} fill="${col}"${halo} font-family="${sans}"${tr}>${esc(show)}</text>`;
+      s+=wrap(inner,"move");
+    }
+  });
+  return s;
+}
+function saveAnnos(annos,log){ const p=P(); save({plot:Object.assign({},p.plot,{annos})},log); renderPlot(); if(winOpen("stats")) renderStats(); }
+// New annotations are placed in the units of the data on view.
+function addAnno(a,log){
+  const p=P(); if(!p||S.readOnly) return null;
+  const d=plotState().d;
+  a=Object.assign({id:annoId()},a); if(a.t!=="h") a.xu=d.xu||""; if(a.t==="h"||a.t==="text"||a.t==="label") a.yu=d.yu||"";
+  pushUndo("adding "+ANNO_KINDS[a.t].toLowerCase());
+  S.annoSel=a.id;
+  saveAnnos((p.plot.annos||[]).concat([a]),log||`added ${annoDesc(a)}`);
+  return a.id;
+}
+function updateAnno(id,patch,log){
+  const p=P(), a=annoById(id); if(!a||S.readOnly) return;
+  pushUndo("changing "+ANNO_KINDS[a.t].toLowerCase());
+  saveAnnos((p.plot.annos||[]).map(q=>q.id===id?Object.assign({},q,patch):q),log||`changed ${annoDesc(Object.assign({},a,patch))}`);
+}
+function deleteAnno(id){
+  const p=P(), a=annoById(id); if(!a||S.readOnly) return;
+  pushUndo("deleting "+ANNO_KINDS[a.t].toLowerCase()); if(S.annoSel===id) S.annoSel=null;
+  saveAnnos((p.plot.annos||[]).filter(q=>q.id!==id),`deleted ${annoDesc(a)}`);
+  toast(`Deleted the ${ANNO_KINDS[a.t].toLowerCase()}.`,{action:"Undo",run:undo});
+}
+function annoDesc(a){ const t=a.text?` "${a.text}"`:"";
+  if(a.t==="v") return `a vertical line at x = ${fmt(a.x,6)}${t}`; if(a.t==="h") return `a horizontal line at y = ${fmt(a.y,6)}${t}`;
+  if(a.t==="band") return `a shaded range from ${fmt(Math.min(a.x,a.x2),6)} to ${fmt(Math.max(a.x,a.x2),6)}${t}`;
+  if(a.t==="label") return `a peak label at ${fmt(a.x,6)}${t}`; return `the text${t||" \"Text\""}`; }
+function annoTip(a){ const d=plotState().d;
+  if(a.t==="v") return `x = ${fmt(a.x,6)}${d.xu?" "+d.xu:""}`; if(a.t==="h") return `y = ${fmt(a.y,6)}${d.yu?" "+d.yu:""}`;
+  if(a.t==="band") return `${fmt(Math.min(a.x,a.x2),6)} to ${fmt(Math.max(a.x,a.x2),6)}${d.xu?" "+d.xu:""}`;
+  return ANNO_KINDS[a.t]+" · double-click to edit"; }
+/* Dragging: a line moves to the pointer, a range and text move with it, and a
+   label moves its text, leaving it tied to its point. */
+function dragAnno(x,y){
+  const ad=S.andrag, a=annoById(ad.id), g=S.geo; if(!a||!g) return;
+  if(!ad.moved&&Math.abs(x-ad.x0)+Math.abs(y-ad.y0)<3) return;
+  if(!ad.moved){ pushUndo("moving "+ANNO_KINDS[a.t].toLowerCase()); ad.moved=true; S.annoSel=a.id; }
+  const o=ad.orig, px=x-ad.x0, py=y-ad.y0;
+  if(a.t==="v") a.x=toData(x,y).x;
+  else if(a.t==="h") a.y=toData(x,y).y;
+  else if(a.t==="band"){ a.x=toData(g.X(o.x)+px,0).x; a.x2=toData(g.X(o.x2)+px,0).x; }
+  else if(a.t==="text"){ const q=toData(g.X(o.x)+px,g.Y(o.y)+py); a.x=q.x; a.y=q.y; }
+  else if(a.t==="label"){ a.dx=Math.round((o.dx||0)+px); a.dy=Math.round((o.dy==null?(o.rot?-10:-18):o.dy)+py); }
+  renderPlot(); showTip(annoTip(a),x,y);
+}
+function commitAnnoDrag(ad){
+  const a=annoById(ad.id); if(!a) return;
+  save({plot:Object.assign({},P().plot)},`moved ${annoDesc(a)}`); renderPlot();
+}
+function dragLegend(x,y){
+  const lg=S.lgdrag, g=S.geo, p=P(); if(!g||!p) return;
+  if(!lg.moved&&Math.abs(x-lg.x0)+Math.abs(y-lg.y0)<3) return;
+  if(!lg.moved){ pushUndo("moving the legend"); lg.moved=true; }
+  const nx=lg.box.x+(x-lg.x0), ny=lg.box.y+(y-lg.y0);
+  p.plot.legend="custom"; p.plot.legendPos={fx:+((nx-g.L)/g.pw).toFixed(4),fy:+((ny-g.T)/g.mh).toFixed(4)}; renderPlot();
+}
+/* The spectrum point a click means, and the top of the peak it is on: the
+   highest point within a few pixels either side. */
+function peakNear(px,py){
+  const g=S.geo, cfg=plotCfg(); if(!g||g.heat) return null;
+  const act=activeYCol(), sets=[{id:act&&act.id,pts:S.shownPts||[]}];
+  if(cfg.layout==="overlay"&&S.ps&&S.ps.final) yCols().filter(c=>c!==act&&!cfg.hidden.includes(c.id)&&(finalOf(c).xu||"")===(S.ps.d.xu||"")).forEach(c=>sets.push({id:c.id,pts:seriesPoints(finalOf(c),cfg.logY)}));
+  let best=null, bd=26*26;
+  sets.forEach(st=>st.pts.forEach(q=>{ const dx=g.X(q.x)-px, dy=g.Y(q.y)-py, d=dx*dx+dy*dy; if(d<bd){ bd=d; best={id:st.id,pts:st.pts,q}; } }));
+  if(!best) return null;
+  const x0=g.X(best.q.x); let top=best.q;
+  best.pts.forEach(q=>{ const xx=g.X(q.x); if(Math.abs(xx-x0)<=12&&g.Y(q.y)<g.Y(top.y)) top=q; });
+  return {id:best.id,x:top.x,y:top.y};
+}
+function addPeakLabel(hit){
+  if(!hit) return;
+  const dup=((P().plot.annos)||[]).find(a=>a.t==="label"&&a.ser===hit.id&&Math.abs(a.x-hit.x)<1e-9);
+  if(dup){ S.annoSel=dup.id; renderPlot(); toast("That peak is labelled already. Drag its label to move it, or double-click to edit it."); return; }
+  addAnno({t:"label",x:hit.x,y:hit.y,ser:hit.id},`labelled the peak at ${fmt(hit.x,6)} of ${specName(colById(hit.id))}`);
+}
+async function addTextAt(pt){
+  const r=await formDlg({title:"Add text",html:`<div class="grid2"><label for="fdText">Text</label><input id="fdText" type="text" maxlength="120" value=""></div><p class="hint">Drag it on the graph to move it; double-click it to change it.</p>`,ok:"Add",focus:"#fdText",valid:v=>v.fdText.trim().length>0});
+  if(!r) return; addAnno({t:"text",x:pt.x,y:pt.y,text:r.fdText.trim()});
+}
+// From the menus: a line where you say, with the view's centre offered.
+async function addLineDlg(t){
+  const g=S.geo, v=g?g.v:curView(), d=plotState().d, isV=t==="v", mid=isV?(v.x0+v.x1)/2:(g&&g.logY?Math.sqrt(v.y0*v.y1):(v.y0+v.y1)/2);
+  const u=isV?d.xu:d.yu;
+  const r=await formDlg({title:isV?"Vertical line":"Horizontal line",html:`<div class="grid2"><label for="fdAt">${isV?"At x":"At y"}</label><div class="pair"><input id="fdAt" type="text" inputmode="decimal" value="${esc(fmt(mid,6))}">${u?`<span class="lab">${esc(u)}</span>`:""}</div>
+    <label for="fdLab">Label</label><input id="fdLab" type="text" maxlength="80" placeholder="the value"><span></span><label class="chk"><input type="checkbox" id="fdNone"> No label</label></div>`,ok:"Add",focus:"#fdAt",valid:q=>parseNum(q.fdAt)!=null});
+  if(!r) return; const val=parseNum(r.fdAt);
+  addAnno(Object.assign({t},isV?{x:val}:{y:val},{text:r.fdNone?"":(r.fdLab.trim()||null)}));
+}
+function shadeRange(){ if(!P()) return; S.pick={band:true}; setMode("range"); toast("Drag across the graph to choose the range to shade. Esc cancels."); }
+function labelFoundPeaks(r){
+  r=r||pfRun(); const p=P(), c=activeYCol(); if(!r||!r.found.length||!c||S.readOnly){ toast("No peaks found in view to label."); return; }
+  const have=(p.plot.annos||[]).filter(a=>a.t==="label"&&a.ser===c.id), add=[];
+  const d=plotState().d;
+  r.found.forEach(q=>{ const pt=r.pts[q.i]; if(!pt||have.some(a=>Math.abs(a.x-pt.x)<1e-9)) return;
+    add.push({id:annoId(),t:"label",x:pt.x,y:pt.y,ser:c.id,xu:d.xu||"",yu:d.yu||""}); });
+  if(!add.length){ toast("Those peaks are labelled already."); return; }
+  pushUndo("labelling the peaks");
+  saveAnnos((p.plot.annos||[]).concat(add),`labelled ${add.length} peak${add.length===1?"":"s"} of ${specName(c)} with their positions`);
+  toast(`Labelled ${add.length} peak${add.length===1?"":"s"}. Drag a label to move it; double-click one to change its text.`,{action:"Undo",run:undo});
+}
+function clearAnnos(){ const p=P(), n=((p&&p.plot.annos)||[]).length; if(!n||S.readOnly) return;
+  pushUndo("removing the annotations"); saveAnnos([],`removed ${n} annotation${n===1?"":"s"} from the graph`);
+  toast(`Removed ${n} annotation${n===1?"":"s"}.`,{action:"Undo",run:undo}); }
+async function editAnno(id){
+  const a=annoById(id); if(!a||S.readOnly) return;
+  const d=plotState().d, isLine=a.t==="v"||a.t==="h", colSel=a.color?(ANNO_COLORS.some(c=>c[0]&&c[0]!=="custom"&&c[0].toLowerCase()===a.color.toLowerCase())?a.color:"custom"):"";
+  const num=(idf,lab,val,u)=>`<label for="${idf}">${lab}</label><div class="pair"><input id="${idf}" type="text" inputmode="decimal" value="${esc(fmt(val,8))}">${u?`<span class="lab">${esc(u)}</span>`:""}</div>`;
+  let h=`<div class="grid2"><label for="faText">Text</label><input id="faText" type="text" maxlength="120" value="${esc(a.text||"")}" placeholder="${a.t==="text"?"":"the value"}">`;
+  if(a.t==="v"||a.t==="label"||a.t==="text") h+=num("faX","X",a.x,d.xu);
+  if(a.t==="band") h+=num("faX","From x",Math.min(a.x,a.x2),d.xu)+num("faX2","To x",Math.max(a.x,a.x2),d.xu);
+  if(a.t==="h"||a.t==="text") h+=num("faY","Y",a.y,d.yu);
+  h+=`<label for="faColSel">Colour</label><div class="pair"><select id="faColSel">${ANNO_COLORS.map(([k,l])=>`<option value="${k}"${k===colSel?" selected":""}>${esc(a.t==="label"&&k===""?"The spectrum's":l)}</option>`).join("")}</select><input type="color" id="faCol" value="${/^#[0-9a-f]{6}$/i.test(a.color||"")?a.color:"#1d5fa8"}" aria-label="Custom colour"></div>`;
+  if(isLine||a.t==="band") h+=`<label for="faDash">Line</label><select id="faDash">${[["solid","Solid"],["dash","Dashed"],["dot","Dotted"],["dashdot","Dash-dot"]].map(([k,l])=>`<option value="${k}"${(a.dash||(isLine?"dash":"solid"))===k?" selected":""}>${l}</option>`).join("")}</select>
+    <label for="faLw">Width</label><input id="faLw" type="text" inputmode="decimal" value="${esc(String(a.lw!=null?a.lw:1.2))}">`;
+  h+=`<label for="faSize">Text size</label><select id="faSize">${[["0.8","Small"],["1","Normal"],["1.25","Large"],["1.6","Larger"],["2","Largest"]].map(([k,l])=>`<option value="${k}"${String(a.size||1)===k?" selected":""}>${l}</option>`).join("")}</select>`;
+  if(a.t!=="band"&&a.t!=="text") h+=`<span></span><label class="chk"><input type="checkbox" id="faUnit"${a.unit?" checked":""}> Show the unit with the value</label>`;
+  if(isLine||a.t==="label") h+=`<span></span><label class="chk"><input type="checkbox" id="faNone"${a.text===""?" checked":""}> No text</label>`;
+  if(a.t==="label"||a.t==="text") h+=`<span></span><label class="chk"><input type="checkbox" id="faRot"${a.rot?" checked":""}> Rotate 90°</label><span></span><label class="chk"><input type="checkbox" id="faBold"${a.bold?" checked":""}> Bold</label>`;
+  h+=`</div><p class="hint">Leave the text empty to show the value. Drag it on the graph to move it.</p>`;
+  const r=await formDlg({title:ANNO_KINDS[a.t],html:h,ok:"Apply",focus:"#faText"});
+  if(!r) return;
+  const patch={};
+  patch.text=r.faNone?"":(r.faText.trim()?r.faText.trim():(a.t==="text"?"Text":null));
+  const n=k=>{ if(r[k]==null) return undefined; const v=parseNum(r[k]); return v==null?undefined:v; };
+  if(n("faX")!==undefined) patch.x=n("faX"); if(n("faX2")!==undefined) patch.x2=n("faX2"); if(n("faY")!==undefined) patch.y=n("faY");
+  patch.color=r.faColSel==="custom"?r.faCol:(r.faColSel||null);
+  if(r.faDash) patch.dash=r.faDash; if(n("faLw")!==undefined) patch.lw=Math.max(0.3,Math.min(8,n("faLw")));
+  patch.size=+r.faSize||1; if(r.faUnit!=null) patch.unit=!!r.faUnit; if(r.faRot!=null) patch.rot=!!r.faRot; if(r.faBold!=null) patch.bold=!!r.faBold;
+  if(a.t==="label"&&patch.rot!==a.rot) patch.dy=null;
+  updateAnno(id,patch);
+}
+function annoMenuItems(id){
+  const a=annoById(id); if(!a) return [];
+  const ro=S.readOnly, pal=readPalette(), isLine=a.t==="v"||a.t==="h";
+  const items=[{group:ANNO_KINDS[a.t]+(a.text?`: ${a.text}`:""),plain:true},
+    {swatches:SER_COLORS,current:annoColor(a,pal,false,plotCfg()),pick:c=>updateAnno(id,{color:c}),enabled:!ro},
+    {label:"Edit…",kbd:"Double-click",run:()=>editAnno(id),enabled:!ro}];
+  if(isLine||a.t==="band") [["solid","Solid"],["dash","Dashed"],["dot","Dotted"]].forEach(([k,l])=>items.push({label:l,radio:true,checked:(a.dash||(isLine?"dash":"solid"))===k,enabled:!ro,run:()=>updateAnno(id,{dash:k})}));
+  if(a.t!=="band"&&a.t!=="text") items.push({label:"Show the unit",checked:!!a.unit,enabled:!ro,run:()=>updateAnno(id,{unit:!a.unit})});
+  if(a.t==="label"||a.t==="text") items.push({label:"Rotate 90°",checked:!!a.rot,enabled:!ro,run:()=>updateAnno(id,a.t==="label"?{rot:!a.rot,dy:null}:{rot:!a.rot})});
+  if(a.t==="label"&&a.color) items.push({label:"Back to the spectrum's colour",enabled:!ro,run:()=>updateAnno(id,{color:null})});
+  items.push("-",{label:"Delete",kbd:"",danger:true,enabled:!ro,run:()=>deleteAnno(id)});
+  return items;
+}
+function legendMenuItems(){
+  const cfg=plotCfg(), ro=S.readOnly;
+  const items=[{group:"Legend"}];
+  LEGENDS.forEach(([k,l])=>items.push({label:l,radio:true,checked:cfg.legend===k,enabled:!ro,run:()=>setPlotKey("legend",k)}));
+  if(cfg.legend==="custom") items.push({label:"Where you dragged it",radio:true,checked:true,enabled:false});
+  items.push("-",{label:"Text in each spectrum's colour",checked:cfg.legendText==="match",enabled:!ro,run:()=>setPlotKey("legendText",cfg.legendText==="match"?"ink":"match",cfg.legendText==="match"?"set the legend text to black":"coloured the legend text like its spectra")},
+    {label:"Frame",checked:cfg.legendFrame!==false,enabled:!ro,run:()=>setPlotKey("legendFrame",cfg.legendFrame===false)},
+    {label:"Title…",enabled:!ro,run:editLegendTitle},
+    {label:"More legend settings…",run:()=>openPlotDetails((activeYCol()||{}).id,"graph")});
+  return items;
+}
+/* Axis and graph titles: typed over the automatic one, which comes from the
+   data's names and units; clearing the text brings the automatic one back. */
+function setAxisTitle(k,v){
+  const p=P(); if(!p||S.readOnly) return;
+  if(k==="title"){ setPlotKey("title",v,v?`titled the graph "${v}"`:"removed the graph title"); return; }
+  const ax=Object.assign({},p.plot.ax||{}); ax[k]=Object.assign({},ax[k]||{},{title:v});
+  setPlotKey("ax",ax,v?`titled the ${k==="x"?"X":k==="y"?"Y":"right Y"} axis "${v}"`:`restored the automatic ${k==="x"?"X":k==="y"?"Y":"right Y"} axis title`);
+}
+async function editAxisTitle(k){
+  const p=P(); if(!p||S.readOnly) return;
+  const d=plotState().d, cur=k==="title"?(p.plot.title||""):(((p.plot.ax||{})[k]||{}).title||"");
+  const auto=k==="x"?axisLabel(d.xn,d.xu,"X"):k==="y"?axisLabel(d.yn,d.yu,"Y"):k==="title"?"none":"from the data";
+  const r=await formDlg({title:k==="title"?"Graph title":`${k==="x"?"X":k==="y"?"Y":"Right Y"} axis title`,html:`<div class="grid2"><label for="fdAt">Title</label><input id="fdAt" type="text" maxlength="100" value="${esc(cur)}" placeholder="${esc(auto)}"></div><p class="hint">${k==="title"?"Leave empty for no title.":"Leave empty for the title made from the data's name and unit."} Superscripts can be typed as Unicode, for example cm⁻¹.</p>`,ok:"Apply",focus:"#fdAt"});
+  if(!r) return; setAxisTitle(k,r.fdAt.trim());
+}
+async function editLegendTitle(){
+  const p=P(); if(!p||S.readOnly) return;
+  const r=await formDlg({title:"Legend title",html:`<div class="grid2"><label for="fdLt">Title</label><input id="fdLt" type="text" maxlength="60" value="${esc(p.plot.legendTitle||"")}" placeholder="none"></div>`,ok:"Apply",focus:"#fdLt"});
+  if(!r) return; setPlotKey("legendTitle",r.fdLt.trim(),r.fdLt.trim()?`titled the legend "${r.fdLt.trim()}"`:"removed the legend title");
+}
+async function editLegendLabel(id){
+  const p=P(); if(!p||S.readOnly) return;
+  if(id==="__fit"){ openPlotDetails("__fit","series"); return; }
+  const c=colById(id); if(!c) return; const cur=((p.plot.series||{})[id]||{}).label||"";
+  const r=await formDlg({title:"Legend label",html:`<div class="grid2"><label for="fdLl">Label</label><input id="fdLl" type="text" maxlength="60" value="${esc(cur)}" placeholder="${esc(specName(c))}"></div><p class="hint">Only the legend and the graph change; the spectrum keeps its name. Leave empty to use the name.</p>`,ok:"Apply",focus:"#fdLl"});
+  if(!r) return; setSeriesStyle(id,{label:r.fdLl.trim()},r.fdLl.trim()?`labelled ${specName(c)} "${r.fdLl.trim()}" in the legend`:`restored the legend label of ${specName(c)}`);
+}
+
 /* ---- Right-click on the graph ---------------------------------------------- */
 // The spectrum under the pointer: a legend row, a trace, or the nearest point.
 function seriesAt(ev){
@@ -3863,7 +4169,7 @@ function setSeriesStyle(id,patch,log){
   save({plot:Object.assign({},p.plot,{series})},log||null); renderTop(); renderPlot();
 }
 function setPlotKey(k,val,log){ const p=P(); if(!p||S.readOnly) return; pushUndo("changing the plot"); save({plot:Object.assign({},p.plot,{[k]:val})},log||null); if(k==="layout"||k==="logX") S.view=null; renderTop(); renderPlot(); }
-function graphMenuItems(id){
+function graphMenuItems(id,at){
   const p=P(), cfg=plotCfg(), ro=S.readOnly||!p, c=id&&id!=="__fit"?colById(id):null, act=activeYCol(), isAct=c&&c===act;
   const pal=readPalette(), st=c?serStyle(c.id,isAct,pal,false,cfg):null, has=!!(p&&pointsAll().length);
   const items=[];
@@ -3877,10 +4183,19 @@ function graphMenuItems(id){
     PLOT_TYPES.forEach(([k,l])=>items.push({label:l,radio:true,checked:st.type===k,enabled:!ro,run:()=>{ if(isAct&&!(cfg.series[c.id]||{}).type){ setStyle(k); return; } setSeriesStyle(c.id,{type:k},`drew ${specName(c)} as ${l.toLowerCase()}`); }}));
     if(!isAct) items.push("-",{label:"Analyse this spectrum",run:()=>setActiveCol(c.id)},{label:"Hide it",run:()=>toggleColVis(c.id),enabled:!ro});
   }
+  if(at&&at.pt&&at.pt.inside&&!ro&&!(S.geo&&S.geo.heat)){ const hit=peakNear(at.px,at.py), n6=v=>+(+v).toPrecision(6);
+    items.push("-",{group:"Add here"});
+    if(hit) items.push({label:`Label the peak at ${fmt(hit.x,6)}`,run:()=>addPeakLabel(hit)});
+    items.push({label:`Vertical line at x = ${fmt(at.pt.x,5)}`,run:()=>addAnno({t:"v",x:n6(at.pt.x)})},
+      {label:`Horizontal line at y = ${fmt(at.pt.y,5)}`,run:()=>addAnno({t:"h",y:n6(at.pt.y)})},
+      {label:"Text here…",run:()=>addTextAt(at.pt)},
+      {label:"Shade an X range…",run:shadeRange}); }
   items.push("-",{group:"Graph"},{label:"Plot details…",run:()=>openPlotDetails(id||(act&&act.id),"series"),kbd:""},{label:"Axes…",run:()=>openPlotDetails(id||(act&&act.id),"axes")},
     {label:"Show all the data",run:()=>{ S.view=null; renderPlot(); renderFit(); },enabled:has},
     {label:"Reverse X",checked:!!cfg.revX,run:()=>togglePlot("revX"),enabled:!ro},{label:"Logarithmic Y",checked:!!cfg.logY,run:()=>togglePlot("logY"),enabled:!ro},
     {label:"Grid",checked:!!cfg.grid,run:()=>togglePlot("grid"),enabled:!ro},
+    {label:"Legend text in each spectrum's colour",checked:cfg.legendText==="match",run:()=>setPlotKey("legendText",cfg.legendText==="match"?"ink":"match"),enabled:!ro},
+    {label:"Lines, labels and legend…",run:()=>openPlotDetails(id||(act&&act.id),"labels")},
     "-",{group:"Several spectra"});
   LAYOUTS.forEach(([k,l])=>items.push({label:l,radio:true,checked:cfg.layout===k,enabled:!ro,run:()=>setPlotKey("layout",k,`laid the spectra out as ${l.toLowerCase()}`)}));
   items.push("-",{label:"Export the figure as SVG",run:exportSvg,enabled:has},{label:"Export the figure as PNG",run:exportPng,enabled:has});
@@ -3889,12 +4204,17 @@ function graphMenuItems(id){
 function openGraphMenu(ev){
   if(!P()) return;
   ev.preventDefault();
-  const id=seriesAt(ev), [x,y]=localXY(ev), fig=$("#figure").getBoundingClientRect();
+  const [x,y]=localXY(ev), fig=$("#figure").getBoundingClientRect();
   // A throwaway anchor at the pointer, so the menu opens where the click was.
   let a=$("#ctxAnchor"); if(!a){ a=document.createElement("button"); a.id="ctxAnchor"; a.className="ctx-anchor"; a.tabIndex=-1; a.setAttribute("aria-hidden","true"); document.body.appendChild(a); }
   Object.assign(a.style,{left:(fig.left+x)+"px",top:(fig.top+y)+"px"});
   a._back=$("#plot");
-  openMenu(a,graphMenuItems(id),{label:"Graph options"});
+  const tg=ev.target&&ev.target.closest?ev.target:null;
+  const ag=tg&&tg.closest("[data-anno]"); if(ag){ S.annoSel=ag.dataset.anno; renderPlot(); openMenu(a,annoMenuItems(ag.dataset.anno),{label:"Annotation"}); return; }
+  if(tg&&tg.closest("[data-legbox]")&&!tg.closest("[data-leg]")){ openMenu(a,legendMenuItems(),{label:"Legend"}); return; }
+  const axt=tg&&tg.closest("[data-axtitle]"); if(axt){ const k=axt.dataset.axtitle; openMenu(a,[{group:k==="title"?"Graph title":"Axis title",plain:true},{label:"Edit…",kbd:"Double-click",run:()=>editAxisTitle(k),enabled:!S.readOnly},{label:"Back to the automatic title",run:()=>setAxisTitle(k,""),enabled:!S.readOnly&&(k==="title"?!!plotCfg().title:!!(plotCfg().ax[k]||{}).title)},k==="title"?null:{label:"Axes…",run:()=>openPlotDetails((activeYCol()||{}).id,"axes")}].filter(Boolean),{label:"Title"}); return; }
+  const id=seriesAt(ev), pt=S.geo?toData(x,y):null;
+  openMenu(a,graphMenuItems(id,{px:x,py:y,pt}),{label:"Graph options"});
 }
 
 /* ---- Plot details ------------------------------------------------------------
@@ -3921,6 +4241,7 @@ function pdSet(path,val){
   const wk=S.plotPreview; if(!wk) return; const k=path.split(".");
   if(k[0]==="series"){ wk.series=Object.assign({},wk.series||{}); wk.series[k[1]]=Object.assign({},wk.series[k[1]]||{},{[k[2]]:val}); }
   else if(k[0]==="ax"){ wk.ax=Object.assign({},wk.ax||{}); wk.ax[k[1]]=Object.assign({},(wk.ax||{})[k[1]]||{},{[k[2]]:val}); }
+  else if(k[0]==="annos"){ wk.annos=(wk.annos||[]).map(a=>a.id===k[1]?Object.assign({},a,{[k[2]]:val}):a); }
   else if(k[0]==="hidden"){ const h=new Set(wk.hidden||[]); if(val) h.delete(k[1]); else h.add(k[1]); wk.hidden=[...h]; }
   else wk[k[0]]=val;
   renderPlot();
@@ -3934,18 +4255,22 @@ function renderPlotDetails(){
   list.forEach(c=>{ const st=serStyle(c.id,c===act,pal,false,cfg), hid=cfg.hidden.includes(c.id)&&c!==act;
     h+=`<button class="pd-item${S.pdSel===c.id?" on":""}" data-pdsel="${c.id}" aria-pressed="${S.pdSel===c.id}"><span class="sw" style="background:${st.color}"></span><span class="grow">${esc(st.label||specName(c))}${c===act?' <span class="lab">analysed</span>':""}</span>${hid?`<span class="lab">hidden</span>`:""}</button>`; });
   if(activeFit()) h+=`<button class="pd-item${S.pdSel==="__fit"?" on":""}" data-pdsel="__fit" aria-pressed="${S.pdSel==="__fit"}"><span class="sw" style="background:${(cfg.series.__fit||{}).color||pal.fit}"></span><span class="grow">Fit curve</span></button>`;
-  h+=`</nav><div class="pd-main"><div class="seg mini" role="tablist" aria-label="Settings">${[["series","Line and symbols"],["axes","Axes"],["graph","Graph"]].map(([k,l])=>`<button role="tab" data-pdtab="${k}" class="${S.pdTab===k?"on":""}" aria-selected="${S.pdTab===k}">${l}</button>`).join("")}</div><div class="pd-panel">`;
+  h+=`</nav><div class="pd-main"><div class="seg mini" role="tablist" aria-label="Settings">${[["series","Line and symbols"],["axes","Axes"],["graph","Graph"],["labels","Labels and lines"]].map(([k,l])=>`<button role="tab" data-pdtab="${k}" class="${S.pdTab===k?"on":""}" aria-selected="${S.pdTab===k}">${l}</button>`).join("")}</div><div class="pd-panel">`;
   const sel=(id,opts,val,path)=>`<select id="${id}" data-pd="${path}"${ro}>${opts.map(([k,l])=>`<option value="${esc(k)}"${String(k)===String(val)?" selected":""}>${esc(l)}</option>`).join("")}</select>`;
   const num=(id,val,path,ph)=>`<input type="text" inputmode="decimal" id="${id}" data-pd="${path}" data-num value="${val==null?"":esc(String(val))}" placeholder="${esc(ph||"auto")}"${ro} style="width:100px">`;
   const rng=(id,val,path,min,max,step)=>`<div class="pair"><input type="range" id="${id}" data-pd="${path}" data-num min="${min}" max="${max}" step="${step}" value="${val}"${ro} style="flex:1"><output for="${id}">${esc(String(val))}</output></div>`;
   if(S.pdTab==="series"){
     if(S.pdSel==="__fit"){ const f=Object.assign({color:pal.fit,lw:2},cfg.series.__fit||{});
       h+=`<div class="frow"><label>Colour</label>${swatchRow("series.__fit.color",f.color)}<label for="pdFlw">Line width</label>${rng("pdFlw",f.lw,"series.__fit.lw",0.5,5,0.1)}
-        <span></span><label class="chk"><input type="checkbox" id="pdPkFill" data-pd="series.__peaks.fill" data-bool${(cfg.series.__peaks||{}).fill!==false?" checked":""}${ro}> Shade each fitted peak</label></div>`; }
+        <span></span><label class="chk"><input type="checkbox" id="pdPkFill" data-pd="series.__peaks.fill" data-bool${(cfg.series.__peaks||{}).fill!==false?" checked":""}${ro}> Shade each fitted peak</label>
+        <label for="pdFitLab">Legend label</label><input type="text" id="pdFitLab" data-pd="series.__fit.label" value="${esc((cfg.series.__fit||{}).label||"")}" placeholder="fit"${ro}>
+        <span></span><label class="chk"><input type="checkbox" id="pdFitLeg" data-pd="series.__fit.leg" data-bool${(cfg.series.__fit||{}).leg!==false?" checked":""}${ro}> Show in the legend</label>
+        <label for="pdPsch2">Peak colours</label>${sel("pdPsch2",Object.entries(PEAK_SCHEMES).map(([k,v])=>[k,v.name]),cfg.peakScheme||"warm","peakScheme")}</div>`; }
     else { const c=colById(S.pdSel)||act; if(c){ const isA=c===act, st=serStyle(c.id,isA,pal,false,cfg), base="series."+c.id;
       h+=`<div class="frow">`;
       if(!isA) h+=`<span></span><label class="chk"><input type="checkbox" id="pdShow" data-pd="hidden.${c.id}" data-bool${cfg.hidden.includes(c.id)?"":" checked"}${ro}> Show on the graph</label>`;
       h+=`<label for="pdLabel">Legend label</label><input type="text" id="pdLabel" data-pd="${base}.label" value="${esc(st.label)}" placeholder="${esc(specName(c))}"${ro}>`;
+      h+=`<span></span><label class="chk"><input type="checkbox" id="pdInLeg" data-pd="${base}.leg" data-bool${st.leg!==false?" checked":""}${ro}> Show in the legend</label>`;
       h+=`<label for="pdType">Plot type</label>${sel("pdType",PLOT_TYPES,st.type,base+".type")}`;
       h+=`<label>Colour</label>${swatchRow(base+".color",st.color)}`;
       h+=`<label for="pdDash">Line</label>${sel("pdDash",[["solid","Solid"],["dash","Dashed"],["dot","Dotted"],["dashdot","Dash-dot"],["none","No line"]],st.dash,base+".dash")}`;
@@ -3970,17 +4295,44 @@ function renderPlotDetails(){
     h+=axRows("x","X axis")+axRows("y","Y axis");
     if(cfg.layout==="dy"||cfg.layout==="heat") h+=axRows("y2",cfg.layout==="heat"?"Colour scale":"Right Y axis");
     h+=`<p class="hint">Leave a range empty to fit the data. A zoom on the graph shows part of it; double-click the graph to come back to these limits.</p>`;
-  } else {
+  } else if(S.pdTab==="graph"){
     h+=`<div class="frow"><label for="pdLay">Several spectra</label>${sel("pdLay",LAYOUTS,cfg.layout,"layout")}
       ${cfg.layout==="offset"?`<label for="pdOff">Offset</label>${rng("pdOff",cfg.offset,"offset",0,2,0.05)}`:""}
       ${cfg.layout==="heat"?`<label for="pdCm">Colour map</label>${sel("pdCm",[["viridis","Viridis"],["magma","Magma"],["coolwarm","Cool to warm"],["gray","Grey"]],cfg.cmap,"cmap")}`:""}
-      <label for="pdLeg">Legend</label>${sel("pdLeg",LEGENDS,cfg.legend,"legend")}
+      <label for="pdLeg">Legend</label>${sel("pdLeg",LEGENDS.concat(cfg.legend==="custom"?[["custom","Where you dragged it"]]:[]),cfg.legend,"legend")}
+      <label for="pdLegT">Legend text</label>${sel("pdLegT",[["ink","In the text colour"],["match","In each spectrum's colour"]],cfg.legendText||"ink","legendText")}
+      <label for="pdLegTi">Legend title</label><input type="text" id="pdLegTi" data-pd="legendTitle" value="${esc(cfg.legendTitle||"")}" placeholder="none"${ro}>
+      <span></span><label class="chk"><input type="checkbox" id="pdLegF" data-pd="legendFrame" data-bool${cfg.legendFrame!==false?" checked":""}${ro}> Frame around the legend</label>
+      <label for="pdSch">Spectrum colours</label>${sel("pdSch",Object.entries(SCHEMES).map(([k,v])=>[k,v.name]),cfg.scheme||"kurve","scheme")}
+      <label for="pdPsch">Peak colours</label>${sel("pdPsch",Object.entries(PEAK_SCHEMES).map(([k,v])=>[k,v.name]),cfg.peakScheme||"warm","peakScheme")}
+      <span></span><label class="chk"><input type="checkbox" id="pdAxM" data-pd="axisMatch" data-bool${cfg.axisMatch!==false?" checked":""}${ro}> On two Y axes, colour each axis's numbers like its spectrum</label>
       <label for="pdFrame">Frame</label>${sel("pdFrame",[["box","Box, ticks on all sides"],["axes","Axes only (L-shape)"]],cfg.frame,"frame")}
       <span></span><label class="chk"><input type="checkbox" id="pdGrid" data-pd="grid" data-bool${cfg.grid?" checked":""}${ro}> Major grid lines</label>
       <span></span><label class="chk"><input type="checkbox" id="pdGridM" data-pd="gridMinor" data-bool${cfg.gridMinor?" checked":""}${ro}> Minor grid lines</label>
       <span></span><label class="chk"><input type="checkbox" id="pdRes" data-pd="resid" data-bool${cfg.resid!==false?" checked":""}${ro}> Residual panel under a fit</label>
       <label for="pdFont">Text size</label>${rng("pdFont",cfg.font,"font",0.7,1.8,0.05)}
       <label for="pdTitle">Title</label><input type="text" id="pdTitle" data-pd="title" value="${esc(cfg.title||"")}" placeholder="none"${ro}></div>`;
+  }
+  if(S.pdTab==="labels"){
+    const d=plotState().d, list=cfg.annos||[];
+    h+=`<fieldset class="pd-ax"><legend>Fitted peaks</legend><div class="frow">
+      <label for="pdPl">Label each with</label>${sel("pdPl",[["off","Nothing"],["num","Its number"],["pos","Its position"],["numpos","Number and position"]],cfg.peakLab||"num","peakLab")}
+      <label for="pdPld">Decimals</label>${sel("pdPld",[["","Automatic"],["0","0"],["1","1"],["2","2"],["3","3"],["4","4"]],cfg.peakLabDec==null?"":String(cfg.peakLabDec),"peakLabDec")}
+      <span></span><label class="chk"><input type="checkbox" id="pdPlr" data-pd="peakLabRot" data-bool${cfg.peakLabRot?" checked":""}${ro}> Rotate position labels 90°</label>
+      <span></span><span class="lab">Each label is in its peak's colour, as in the legend and the results table.</span></div></fieldset>`;
+    h+=`<fieldset class="pd-ax"><legend>Lines, ranges, text and labels <span class="lab">${list.length||"none yet"}</span></legend>`;
+    if(list.length){ h+=`<div class="twrap"><table class="pdann"><thead><tr><th>What</th><th>Text</th><th>Where</th><th>Colour</th><th></th></tr></thead><tbody>`;
+      list.forEach(a=>{ const b="annos."+a.id, col=annoColor(a,readPalette(),false,cfg), nIn=(k,v,lab)=>`<input type="text" inputmode="decimal" data-pd="${b}.${k}" data-num value="${esc(fmt(v,7))}" aria-label="${lab}" style="width:78px"${ro}>`;
+        const where=a.t==="v"||a.t==="label"?nIn("x",a.x,"X"):a.t==="h"?nIn("y",a.y,"Y"):a.t==="band"?nIn("x",a.x,"From x")+" – "+nIn("x2",a.x2,"To x"):nIn("x",a.x,"X")+" "+nIn("y",a.y,"Y");
+        const hidden=(a.xu!=null&&a.t!=="h"&&a.xu!==(d.xu||""))||((a.t==="h"||a.t==="text"||a.t==="label")&&a.yu!=null&&a.yu!==(d.yu||""));
+        h+=`<tr><td>${esc(ANNO_KINDS[a.t])}${hidden?`<div class="lab" title="Placed in ${esc(a.xu||"")} ${esc(a.yu||"")}: not drawn on the data now shown">other units</div>`:""}</td>
+          <td><input type="text" data-pd="${b}.text" data-null value="${esc(a.text||"")}" placeholder="${a.t==="text"?"Text":a.t==="band"?"none":"the value"}" style="width:120px"${ro}></td>
+          <td class="nw">${where}</td>
+          <td><input type="color" data-pdcolor="${b}.color" value="${/^#[0-9a-f]{6}$/i.test(col)?col:"#111820"}" aria-label="Colour"${ro}></td>
+          <td><button class="tb sm icon" data-pdandel="${a.id}" aria-label="Delete this ${esc(ANNO_KINDS[a.t].toLowerCase())}" title="Delete"${ro}>${ICON("x","sm")}</button></td></tr>`; });
+      h+=`</tbody></table></div>`; }
+    else h+=`<p class="lab">Add them here, or right-click the graph where you want one. The Label tool on the toolbar labels a peak with one click.</p>`;
+    h+=`<div class="actions">${[["v","Vertical line"],["h","Horizontal line"],["band","Shaded range"],["text","Text"]].map(([k,l])=>`<button class="btn sm" data-pdadd="${k}"${ro}>${ICON("plus","sm")}${l}</button>`).join("")}</div></fieldset>`;
   }
   h+=`</div></div></div>`;
   body.innerHTML=h;
@@ -3997,14 +4349,22 @@ function setupPlotDetails(){
     const s=e.target.closest("[data-pdsel]"); if(s){ S.pdSel=s.dataset.pdsel; if(S.pdTab!=="series") S.pdTab="series"; renderPlotDetails(); return; }
     const t=e.target.closest("[data-pdtab]"); if(t){ S.pdTab=t.dataset.pdtab; renderPlotDetails(); const b=body.querySelector(`[data-pdtab="${S.pdTab}"]`); if(b) b.focus(); return; }
     const c=e.target.closest("[data-pdcol]"); if(c){ pdSet(c.dataset.pdcol,c.dataset.c); renderPlotDetails(); return; }
+    const del=e.target.closest("[data-pdandel]"); if(del&&S.plotPreview){ S.plotPreview.annos=(S.plotPreview.annos||[]).filter(a=>a.id!==del.dataset.pdandel); renderPlot(); renderPlotDetails(); return; }
+    const add=e.target.closest("[data-pdadd]"); if(add&&S.plotPreview){ const g=S.geo, v=g?g.v:curView(), d=plotState().d, t=add.dataset.pdadd;
+      const cx=+((v.x0+v.x1)/2).toPrecision(6), cy=+(g&&g.logY?Math.sqrt(v.y0*v.y1):(v.y0+v.y1)/2).toPrecision(6), w=Math.abs(v.x1-v.x0);
+      const a={id:annoId(),t,xu:d.xu||"",yu:d.yu||""};
+      if(t==="v") a.x=cx; else if(t==="h"){ a.y=cy; delete a.xu; } else if(t==="band"){ a.x=+(cx-w*0.05).toPrecision(6); a.x2=+(cx+w*0.05).toPrecision(6); } else { a.x=cx; a.y=cy; a.text="Text"; }
+      S.plotPreview.annos=(S.plotPreview.annos||[]).concat([a]); renderPlot(); renderPlotDetails(); return; }
   });
   const onVal=(e,final)=>{
     const el=e.target;
     if(el.matches("[data-pdcolor]")){ pdSet(el.dataset.pdcolor,el.value); if(final) renderPlotDetails(); return; }
     const path=el.dataset.pd; if(!path) return;
     let v=el.dataset.bool!=null?el.checked:el.value;
+    if(el.dataset.null!=null&&String(v).trim()==="") v=null;
     if(el.dataset.num!=null){ if(String(v).trim()===""){ v=null; } else { const q=parseNum(v); if(q==null){ if(final){ toast("Enter a number, or leave it empty for automatic."); renderPlotDetails(); } return; } v=q; } }
     if(path.endsWith(".minor")||path.endsWith(".dec")) v=+v;
+    if(path==="peakLabDec") v=v===""?null:+v;
     if(el.type==="range"){ const o=el.parentElement&&el.parentElement.querySelector("output"); if(o) o.textContent=String(v); }
     pdSet(path,v);
     if(final&&(path==="layout"||el.tagName==="SELECT"||el.type==="checkbox")) renderPlotDetails();
@@ -4016,7 +4376,8 @@ function setupPlotDetails(){
   $("#pdReset").onclick=()=>{ const wk=S.plotPreview; if(!wk) return;
     if(S.pdTab==="series"){ const series=Object.assign({},wk.series||{}); delete series[S.pdSel]; wk.series=series; }
     else if(S.pdTab==="axes"){ wk.ax={}; wk.logX=false; }
-    else Object.assign(wk,{layout:"overlay",offset:0.35,legend:"auto",frame:"box",grid:false,gridMinor:false,font:1,title:"",cmap:"viridis"});
+    else if(S.pdTab==="labels") Object.assign(wk,{peakLab:"num",peakLabRot:false,peakLabDec:null});
+    else Object.assign(wk,{layout:"overlay",offset:0.35,legend:"auto",frame:"box",grid:false,gridMinor:false,font:1,title:"",cmap:"viridis",legendText:"ink",legendFrame:true,legendTitle:"",scheme:"kurve",peakScheme:"warm",axisMatch:true});
     renderPlot(); renderPlotDetails(); };
 }
 
@@ -4046,7 +4407,7 @@ function toData(px,py){ const g=S.geo; if(!g) return null; const v=g.v;
 function nearest(px,py,maxd=12){ const g=S.geo; if(!g) return null; let best=null, bd=maxd*maxd;
   (S.shownPts||pointsAll()).forEach(q=>{ const dx=g.X(q.x)-px, dy=g.Y(q.y)-py, d=dx*dx+dy*dy; if(d<bd){bd=d;best=q;} }); return best; }
 function localXY(ev){ const r=$("#figure").getBoundingClientRect(); return [ev.clientX-r.left, ev.clientY-r.top]; }
-let drag=null, lastPres=0, wheelT=null;
+let drag=null, lastPres=0, wheelT=null, downEl=null;
 /* Y limits that frame whatever lies between two X values, for a zoom that
    only means to narrow X. */
 function yRangeIn(x0,x1){
@@ -4110,9 +4471,16 @@ function showTip(txt,x,y){ const tip=$("#tip"), fw=$("#figure").clientWidth;
   tip.style.display="block"; tip.textContent=txt;
   tip.style.left=Math.max(4,Math.min(x+14,fw-tip.offsetWidth-6))+"px"; tip.style.top=Math.max(y-32,4)+"px"; }
 function hideTip(){ const t=$("#tip"); if(t) t.style.display="none"; }
+function onGraphDouble(tg){ tg=tg||$("#plot"); const an=tg.closest&&tg.closest("[data-anc]");
+    if(an&&anchorStep()&&!S.readOnly){ const s=anchorStep(), k=+an.dataset.anc, list=(s.p.anchors||[]).slice(); if(list[k]){ list[k]={x:list[k].x,y:null}; setParam(s,"anchors",list,true); } return; }
+    if(tg.closest&&tg.closest("[data-anno]")) return;
+    const axt=tg.closest&&tg.closest("[data-axtitle]"); if(axt){ editAxisTitle(axt.dataset.axtitle); return; }
+    if(tg.closest&&tg.closest("[data-legbox]")) return;
+    if(tg.closest&&tg.closest("[data-h]")) return; S.view=null; renderPlot(); renderFit();
+}
 function setupGraph(){
   const svg=$("#plot"), zr=$("#zrect");
-  svg.addEventListener("pointerdown",ev=>{
+  svg.addEventListener("pointerdown",ev=>{ downEl=ev.target;
     if(!S.geo||!P()||ev.button===2) return;
     const [x,y]=localXY(ev);
     const an=ev.target&&ev.target.closest?ev.target.closest("[data-anc]"):null;
@@ -4124,6 +4492,13 @@ function setupGraph(){
       if(S.selPeak!==h.k){ S.selPeak=h.k; renderPlot(); renderFit(); }
       return;
     }
+    // Annotations and the legend move with the pointer in the Zoom, Pan and Label tools.
+    const canMove=!S.readOnly&&ev.button===0&&["zoom","pan","label"].includes(S.mode);
+    const ag=ev.target&&ev.target.closest?ev.target.closest("[data-anno]"):null;
+    if(ag&&canMove){ const a=annoById(ag.dataset.anno); if(a){ ev.preventDefault(); svg.setPointerCapture(ev.pointerId); S.andrag={id:a.id,x0:x,y0:y,orig:JSON.parse(JSON.stringify(a)),moved:false}; return; } }
+    const lgb=ev.target&&ev.target.closest?ev.target.closest("[data-legbox]"):null;
+    if(lgb&&canMove&&S.geo.legend){ ev.preventDefault(); svg.setPointerCapture(ev.pointerId); const le=ev.target.closest("[data-leg]");
+      S.lgdrag={x0:x,y0:y,box:Object.assign({},S.geo.legend),moved:false,hit:le?"leg:"+le.dataset.leg:ev.target.closest("[data-legtitle]")?"title":"box"}; return; }
     const pan=S.mode==="pan"||ev.button===1;
     drag={x0:x,y0:y,x1:x,y1:y,moved:false,pan,v:Object.assign({},S.geo.v)};
     if(pan){ ev.preventDefault(); svg.classList.add("panning"); }
@@ -4133,6 +4508,8 @@ function setupGraph(){
     if(!S.geo||!P()) return; const [x,y]=localXY(ev);
     const d=toData(x,y);
     const ro=$("#readout"); if(ro){ const [xu,yu]=dataUnits(); ro.textContent=d&&d.inside?`x ${fmt(d.x,6)}${xu?" "+xu:""}   y ${fmt(d.y,5)}${yu?" "+yu:""}`:""; }
+    if(S.andrag){ dragAnno(x,y); return; }
+    if(S.lgdrag){ dragLegend(x,y); return; }
     if(S.adrag){ if(d){ moveAnchor(S.adrag.k,{x:d.x,y:d.y},false); S.adrag.moved=true; const [xu2,yu2]=[S.ps&&S.ps.d.xu||"",S.ps&&S.ps.d.yu||""]; showTip(`Anchor at ${fmt(d.x,6)}${xu2?" "+xu2:""}, ${fmt(d.y,5)}${yu2?" "+yu2:""}`,x,y); } return; }
     if(S.hdrag){ const hd=S.hdrag;
       if(!hd.pushed){ pushUndo("adjusting peak "+(hd.k+1)); hd.pushed=true; }
@@ -4146,16 +4523,30 @@ function setupGraph(){
         zr.className="zrect"+(S.mode==="mask"?" mask":"");
         Object.assign(zr.style,{display:"block",left:(thin?g.L:Math.min(x,drag.x0))+"px",top:(flat?g.T:Math.min(y,drag.y0))+"px",
           width:(thin?g.pw:w)+"px",height:(flat?g.mh:hgt)+"px"}); } }
+    const hA=drag?null:(ev.target&&ev.target.closest?ev.target.closest("[data-anno]"):null), hAn=hA&&annoById(hA.dataset.anno);
     const h=drag?null:hitHandle(ev);
-    if(h&&S.pdraft&&S.pdraft.peaks[h.k]) showTip(handleTip(h.k)+(h.kind==="c"?"   · drag to move":"   · drag to change the width"),x,y);
+    if(hAn) showTip(annoTip(hAn)+(S.readOnly?"":"   · drag to move"),x,y);
+    else if(h&&S.pdraft&&S.pdraft.peaks[h.k]) showTip(handleTip(h.k)+(h.kind==="c"?"   · drag to move":"   · drag to change the width"),x,y);
     else { const q=nearest(x,y);
       if(q){ const [tux,tuy]=dataUnits(); showTip(`#${q.i+1}   x = ${fmt(q.x)}${tux?" "+tux:""}   y = ${fmt(q.y)}${tuy?" "+tuy:""}${isMasked(q.i)?"   (masked)":""}`,x,y); }
       else hideTip(); }
     if(S.room&&d&&Date.now()-lastPres>90){ lastPres=Date.now(); S.room.presence(d.inside?{uid:S.uid,pid:S.pid,cx:d.x,cy:d.y}:{uid:S.uid,pid:S.pid,cx:null,cy:null}).catch(()=>{}); }
   });
   svg.addEventListener("pointerleave",()=>{ if(S.hdrag||drag) return; hideTip(); const ro=$("#readout"); if(ro) ro.textContent=""; if(S.room) S.room.presence({cx:null,cy:null}).catch(()=>{}); });
-  svg.addEventListener("pointercancel",()=>{ drag=null; S.hdrag=null; zr.style.display="none"; svg.classList.remove("panning"); });
+  svg.addEventListener("pointercancel",()=>{ drag=null; S.hdrag=null; S.andrag=null; S.lgdrag=null; zr.style.display="none"; svg.classList.remove("panning"); });
   svg.addEventListener("pointerup",ev=>{
+    // A click selects; a second click on the same one soon after edits it. (The
+    // first click redraws the graph, so the browser's dblclick never arrives.)
+    if(S.andrag){ const ad=S.andrag; S.andrag=null; hideTip(); if(ad.moved){ commitAnnoDrag(ad); return; }
+      const now=Date.now(), lc=S.annoClick; S.annoClick={id:ad.id,t:now};
+      S.noDbl=now;
+      if(lc&&lc.id===ad.id&&now-lc.t<450){ S.annoClick=null; editAnno(ad.id); return; }
+      if(S.annoSel!==ad.id){ S.annoSel=ad.id; renderPlot(); } return; }
+    if(S.lgdrag){ const lg=S.lgdrag; S.lgdrag=null; if(lg.moved){ save({plot:Object.assign({},P().plot)},"moved the legend"); renderPlot(); return; }
+      // A double click on an entry renames it; on the title, edits the title.
+      const now=Date.now(), lc=S.legClick; S.legClick={hit:lg.hit,t:now}; S.noDbl=now;
+      if(lc&&lc.hit===lg.hit&&now-lc.t<450){ S.legClick=null; if(lg.hit==="title") editLegendTitle(); else if(lg.hit.startsWith("leg:")) editLegendLabel(lg.hit.slice(4)); }
+      return; }
     if(S.adrag){ const ad=S.adrag; S.adrag=null; hideTip(); const s=anchorStep(); if(ad.moved&&s) setParam(s,"anchors",s.p.anchors,true); return; }
     if(S.hdrag){ const hd=S.hdrag; S.hdrag=null; hideTip(); renderFit(); renderPlot();
       if(hd.moved) $("#plotSay").textContent=handleTip(hd.k); return; }
@@ -4178,19 +4569,26 @@ function setupGraph(){
       else { const inside=(S.shownPts||pointsAll()).filter(q=>q.x>=x0&&q.x<=x1&&q.y>=y0&&q.y<=y1).map(q=>q.i); if(inside.length) toggleMask(inside,true); }
       return;
     }
+    // A second click on the same spot soon after is a double click.
+    { const now=Date.now(), lc=S.gClick, onTitle=downEl&&downEl.closest&&downEl.closest("[data-axtitle]");
+      S.gClick={t:now,x:d.x0,y:d.y0};
+      if(lc&&now-lc.t<420&&Math.abs(lc.x-d.x0)<6&&Math.abs(lc.y-d.y0)<6&&(onTitle||S.mode==="zoom"||S.mode==="pan")){ S.gClick=null; S.noDbl=now; onGraphDouble(downEl); return; } }
     const q=nearest(d.x0,d.y0);
     if(S.mode==="anchor"){ const pd=toData(d.x0,d.y0); if(pd&&pd.inside&&!S.readOnly) addAnchorAt(pd.x); return; }
-    if(S.mode==="zoom"||S.mode==="pan"){ S.sel=q?q.i:null; renderPlot(); renderWsSel(); if(q) scrollRow(q.i); }
+    if(S.mode==="zoom"||S.mode==="pan"){ S.sel=q?q.i:null; S.annoSel=null; renderPlot(); renderWsSel(); if(q) scrollRow(q.i); }
     else if(S.mode==="mask"){ if(q) toggleMask([q.i],!isMasked(q.i)); }
     else if(S.mode==="peak"){ if(S.readOnly) return; if(S.ps&&!S.ps.final){ S.selStep=null; setStage(null); toast("Peaks are placed on the final data, so the graph is back on it. Click again to place the peak."); return; }
       const pd=toData(d.x0,d.y0); if(!pd||!pd.inside) return;
       S.fitMode="peaks"; showTab("fit"); addPeakAt(q?q.x:pd.x); }
+    else if(S.mode==="label"){ if(S.readOnly) return; const pd=toData(d.x0,d.y0); if(!pd||!pd.inside) return;
+      const hit=peakNear(d.x0,d.y0); if(hit) addPeakLabel(hit); else addTextAt(pd); }
     else if(S.mode==="pin"){ const pd=toData(d.x0,d.y0); if(!pd||!pd.inside) return;
       S.anchor=q?{type:"point",i:q.i,x:q.x,y:q.y}:{type:"xy",x:pd.x,y:pd.y}; if(q) S.sel=q.i; showDrawer("disc"); renderAnchor(); renderPlot(); $("#cText").focus(); }
   });
-  svg.addEventListener("dblclick",ev=>{ const an=ev.target.closest&&ev.target.closest("[data-anc]");
-    if(an&&anchorStep()&&!S.readOnly){ const s=anchorStep(), k=+an.dataset.anc, list=(s.p.anchors||[]).slice(); if(list[k]){ list[k]={x:list[k].x,y:null}; setParam(s,"anchors",list,true); } return; }
-    if(hitHandle(ev)) return; S.view=null; renderPlot(); renderFit(); });
+  // The first click of a double click redraws the graph, and the browser then
+  // fires no dblclick at all; pointerup detects the double click itself and
+  // calls this, and the event stays as a fallback.
+  svg.addEventListener("dblclick",ev=>{ if(Date.now()-(S.noDbl||0)<600) return; onGraphDouble(downEl&&document.contains(downEl)?downEl:ev.target); });
   svg.addEventListener("contextmenu",ev=>{ const an=ev.target.closest&&ev.target.closest("[data-anc]"); if(an&&anchorStep()&&!S.readOnly){ ev.preventDefault(); removeAnchor(+an.dataset.anc); return; } hideTip(); openGraphMenu(ev); });
   svg.addEventListener("wheel",ev=>{ if(!S.geo||!P()) return; ev.preventDefault(); const [x,y]=localXY(ev); const c=toData(x,y); const v=S.geo.v; const k=ev.deltaY>0?1.18:1/1.18;
     const nv=S.geo.logX?(()=>{ const lx=Math.log10(c.x); return {x0:10**(lx-(lx-Math.log10(v.x0))*k),x1:10**(lx+(Math.log10(v.x1)-lx)*k)}; })():{x0:Math.min(c.x-(c.x-v.x0)*k, c.x+(v.x1-c.x)*k), x1:Math.max(c.x-(c.x-v.x0)*k, c.x+(v.x1-c.x)*k)};
@@ -4243,6 +4641,7 @@ function graphKey(ev){
   if(k==="-"||k==="_"){ ev.preventDefault(); zoom(1.4); return; }
   if(k==="0"){ ev.preventDefault(); S.view=null; renderPlot(); renderFit();
     $("#plotSay").textContent="Showing all the data."; return; }
+  if((k==="Delete"||k==="Backspace")&&S.annoSel&&annoById(S.annoSel)&&!S.readOnly){ ev.preventDefault(); deleteAnno(S.annoSel); $("#plotSay").textContent="Annotation deleted."; return; }
   if((k==="Delete"||k==="Backspace")&&S.selPeak!=null&&S.pdraft&&S.pdraft.peaks[S.selPeak]&&!S.readOnly){ ev.preventDefault();
     const n=S.selPeak+1; removePeak(S.selPeak); $("#plotSay").textContent=`Peak ${n} removed.`; return; }
   if(S.sel==null){
@@ -4267,7 +4666,8 @@ const MODE_HINT={
   peak:"Add peak: click where you see a peak. Drag a peak’s dot to move it; select a peak to drag its width.",
   pin:"Comment: click a point, or any spot on the graph, to start a comment anchored there.",
   anchor:"Anchors: click the graph to add one on the data; drag one to move it; right-click one to remove it; double-click one to put it back on the data. Esc when done.",
-  range:"Pick a range: drag across the graph. Esc to cancel."
+  range:"Pick a range: drag across the graph. Esc to cancel.",
+  label:"Label: click a peak to label it with its position, in its spectrum's colour; click an empty spot to write text there. Drag a label to move it, double-click it to edit it, Delete removes the selected one."
 };
 function setMode(m,quiet){
   S.mode=m;
@@ -4992,6 +5392,7 @@ function removeAnchor(k){
   list.splice(k,1); setParam(s,"anchors",list,true);
 }
 function setPickedRange(x0,x1){
+  if(S.pick&&S.pick.band){ S.pick=null; setMode("zoom",true); addAnno({t:"band",x:+Math.min(x0,x1).toPrecision(7),x2:+Math.max(x0,x1).toPrecision(7)}); return; }
   const s=S.pick&&stepById(S.pick.step); if(!s||!S.pick.keys) return;
   const [ka,kb]=S.pick.keys; beginStepEdit(s,ka);
   s.p=Object.assign({},s.p,{[ka]:+fmt(Math.min(x0,x1),8),[kb]:+fmt(Math.max(x0,x1),8)});
@@ -5588,7 +5989,7 @@ function pfRun(){
   return r;
 }
 let pfTimer=0;
-function pfSchedule(){ clearTimeout(pfTimer); pfTimer=setTimeout(()=>{ const r=pfRun(); const box=$("#pfResult"); if(box) box.innerHTML=pfResultHtml(r); const u=$("#pfUse"); if(u){ u.disabled=S.readOnly||!r||!r.found.length; u.innerHTML=`${ICON("wand","sm")}${r&&r.found.length?`Use these ${r.found.length} peak${r.found.length===1?"":"s"}`:"Use these peaks"}`; } renderPlot(); },60); }
+function pfSchedule(){ clearTimeout(pfTimer); pfTimer=setTimeout(()=>{ const r=pfRun(); const box=$("#pfResult"); if(box) box.innerHTML=pfResultHtml(r); const lbb=$("#pfLabel"); if(lbb) lbb.disabled=S.readOnly||!r||!r.found.length; const u=$("#pfUse"); if(u){ u.disabled=S.readOnly||!r||!r.found.length; u.innerHTML=`${ICON("wand","sm")}${r&&r.found.length?`Use these ${r.found.length} peak${r.found.length===1?"":"s"}`:"Use these peaks"}`; } renderPlot(); },60); }
 function pfResultHtml(r){
   if(!r) return `<p class="lab">Too few points in view to look for peaks.</p>`;
   const [xu]=dataUnits(), f=v=>esc(fmt(v,6));
@@ -5613,7 +6014,7 @@ function pfPanelHtml(r){
     <label for="pfMax">At most</label><div class="pair"><input type="text" inputmode="decimal" id="pfMax" data-pf="max" value="${esc(String(o.max))}" style="width:60px"><span class="lab">peaks, the strongest</span></div>
   </div>
   <div id="pfResult">${pfResultHtml(r)}</div>
-  <div class="actions"><button class="btn primary" id="pfUse"${ro||!r||!r.found.length?" disabled":""}>${ICON("wand","sm")}${r&&r.found.length?`Use these ${r.found.length} peak${r.found.length===1?"":"s"}`:"Use these peaks"}</button><button class="btn" id="pfAppend"${ro||!r||!r.found.length?" disabled":""} title="Keep the peaks you have and add the new ones">Add to my peaks</button><button class="btn ghost" id="pfDefaults"${ro}>Defaults</button></div>
+  <div class="actions"><button class="btn primary" id="pfUse"${ro||!r||!r.found.length?" disabled":""}>${ICON("wand","sm")}${r&&r.found.length?`Use these ${r.found.length} peak${r.found.length===1?"":"s"}`:"Use these peaks"}</button><button class="btn" id="pfAppend"${ro||!r||!r.found.length?" disabled":""} title="Keep the peaks you have and add the new ones">Add to my peaks</button><button class="btn" id="pfLabel"${ro||!r||!r.found.length?" disabled":""} title="Label each of these peaks on the graph with its position">${ICON("tag","sm")}Label them</button><button class="btn ghost" id="pfDefaults"${ro}>Defaults</button></div>
   <p class="hint">Searches the points in view, after the baseline. Signal to noise is the peak's rise above the higher of its two valleys, over the noise.</p>`;
 }
 function wirePf(box){
@@ -5633,6 +6034,7 @@ function wirePf(box){
     res.addEventListener("toggle",e=>{ if(e.target.id==="pfRej"&&e.target.isConnected) S.pfRejOpen=e.target.open; },true); }
   const use=box.querySelector("#pfUse"); if(use) use.onclick=()=>runPeakFinder(false);
   const app=box.querySelector("#pfAppend"); if(app) app.onclick=()=>runPeakFinder(true);
+  const lb=box.querySelector("#pfLabel"); if(lb) lb.onclick=()=>labelFoundPeaks();
   const df=box.querySelector("#pfDefaults"); if(df) df.onclick=()=>{ S.pf=Object.assign({},PF_DEF); pfSave(); renderFit(); };
 }
 /* The peaks found become the draft: each seeded from the data around it. A
@@ -6044,7 +6446,7 @@ function openProject(id){
   S.hdrag=null; S.adrag=null; S.stage=null; S.selStep=null; S.cmp=false; S.pick=null; S.showParams=false; closeMenu(false);
   // A tool left open on the last project would record its step on this one.
   S.pending=null; if(winOpen("tool")){ winState("tool").open=false; applyWins(); }
-  S.flowSel=null; S.pfPreview=null; S.pfOpen=null; S.plotPreview=null;
+  S.flowSel=null; S.pfPreview=null; S.pfOpen=null; S.plotPreview=null; S.annoSel=null; S.andrag=null; S.lgdrag=null;
   if(S.py) Object.assign(S.py,{stepId:null,col:null,at:null,err:"",log:"",note:""});
   const tipEl=document.getElementById("tip"); if(tipEl) tipEl.style.display="none";
   const roEl=document.getElementById("readout"); if(roEl) roEl.textContent="";
@@ -7264,7 +7666,9 @@ function helpHtml(){
 </dl>
 <h3>On the graph</h3>
 <dl class="keys">
-<dt>Right-click</dt><dd>Colour, plot type and style of the spectrum under the pointer; axes, layout, legend</dd>
+<dt>Right-click</dt><dd>Colour, plot type and style of the spectrum under the pointer; a line, text or a peak label where you clicked; axes, layout, legend. Right-click a line, a label or the legend for its own options</dd>
+<dt>Label tool</dt><dd>Click a peak to label it with its position, in its spectrum's colour; click an empty spot to write text</dd>
+<dt>Drag</dt><dd>A line, a shaded range, text, a peak label or the legend moves with the pointer; double-click one to edit it; <kbd>Delete</kbd> removes the selected one</dd>
 <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Move between points (click the graph or Tab to it first); <kbd>Home</kbd> and <kbd>End</kbd> jump to the ends</dd>
 <dt><kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd></dt><dd>Zoom in, zoom out, show all the data</dd>
 <dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Start or end the view at the selected point</dd>
@@ -7361,7 +7765,9 @@ function openWin(id,opt){
 }
 function closeWin(id){ const st=winState(id); if(!st.open) return; st.open=false; st.max=false;
   if(id==="tool") cancelTool(true);
-  applyWins(); saveLayout(); }
+  applyWins(); saveLayout();
+  // The peak finder's marks belong to the Fit window.
+  if(id==="fit"&&S.pfPreview){ S.pfPreview=null; renderPlot(); } }
 function toggleWin(id){ const st=winState(id); if(!st.open) openWin(id); else if(document.querySelector(`#w-${id}.active`)) closeWin(id); else focusWin(id); }
 function toggleMax(id){ const st=winState(id); st.max=!st.max; st.z=++LAYOUT.z; applyWins(); saveLayout(); }
 function renderWin(id){
@@ -7509,8 +7915,22 @@ function plotMenu(){
     {label:"Logarithmic Y axis", checked:!!cfg.logY, run:()=>togglePlot("logY"), enabled:edit},
     {label:"Grid lines", checked:!!cfg.grid, run:()=>togglePlot("grid"), enabled:edit},
     {label:"Residual panel", checked:!!p&&cfg.resid!==false, run:()=>togglePlot("resid"), enabled:edit},
-    "-",{group:"Legend"});
+    "-",{group:"Annotate"},
+    {label:"Vertical line…", run:()=>addLineDlg("v"), enabled:edit&&has},
+    {label:"Horizontal line…", run:()=>addLineDlg("h"), enabled:edit&&has},
+    {label:"Shade an X range (drag on the graph)", run:shadeRange, enabled:edit&&has},
+    {label:"Label peaks with the Label tool", run:()=>setMode("label"), enabled:edit&&has},
+    {label:"Label the peaks the finder finds", run:()=>labelFoundPeaks(), enabled:edit&&has},
+    {label:"Lines, labels and legend…", run:()=>openPlotDetails(act&&act.id,"labels"), enabled:!!p},
+    {label:"Remove every annotation", danger:true, run:clearAnnos, enabled:edit&&!!(cfg.annos||[]).length},
+    "-",{group:"Label fitted peaks with"});
+  [["off","Nothing"],["num","Their numbers"],["pos","Their positions"],["numpos","Numbers and positions"]].forEach(([k,l])=>items.push({label:l, radio:true, checked:(cfg.peakLab||"num")===k, enabled:edit, run:()=>setPlotKey("peakLab",k,`labelled the fitted peaks with ${l.toLowerCase()}`)}));
+  items.push("-",{group:"Legend"});
   LEGENDS.forEach(([k,l])=>items.push({label:l, radio:true, checked:cfg.legend===k, enabled:edit, run:()=>setPlotKey("legend",k)}));
+  if(cfg.legend==="custom") items.push({label:"Where you dragged it", radio:true, checked:true, enabled:false});
+  items.push({label:"Legend text in each spectrum's colour", checked:cfg.legendText==="match", enabled:edit, run:()=>setPlotKey("legendText",cfg.legendText==="match"?"ink":"match")},
+    {label:"Legend title…", run:editLegendTitle, enabled:edit},
+    "-",{label:"Colours…", run:()=>openPlotDetails(act&&act.id,"graph"), enabled:!!p});
   return items;
 }
 function menuItems(which){

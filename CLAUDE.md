@@ -11,7 +11,7 @@ A desktop-style frame, top to bottom: a title bar with the **menus** (File, Edit
 Math, Analysis, Statistics, Window, Help) and the project name (click to rename; the arrow
 beside it switches, creates and deletes projects); a **toolbar** (Import, Export, undo/redo,
 **Raw / Final / Compare** (what the graph shows), the pointer tools Zoom / Pan / Mask / Add
-peak / Comment, show-all, the analysed spectrum's plot type, the layout of several spectra,
+peak / Label / Comment, show-all, the analysed spectrum's plot type, the layout of several spectra,
 and the Reverse X / Log Y / Grid / Residuals toggles); the **desk**; and a **status bar**
 (tool hint, live cursor readout, point counts, fit state, save state).
 
@@ -22,7 +22,10 @@ bottom of the desk, which also has Tile and Cascade. A first visit opens Graph, 
 Worksheet. The **graph window** has its own bar repeating the Data, Math, Analysis, Statistics
 and Plot menus, a Python button, and a chip saying which stage of the processing is shown
 when it is not the final data. Right-click on the graph (or Shift+F10) gives the spectrum's
-colour, plot type and style, axes, layout and legend. The **History window** is a flow chart
+colour, plot type and style, a line, text or peak label where you clicked, axes, layout and
+legend; right-click a line, a label, the legend or a title for its own options. Lines, shaded
+ranges, text, peak labels and the legend drag with the pointer; a double click edits them,
+and edits an axis or graph title in place. The **History window** is a flow chart
 of the data with an inspector beside it (below it when narrow), and a Log tab. The
 **worksheet** has a **Raw** sheet (the data as recorded, locked) and a **Final** sheet (the
 analysed spectrum after processing, read only). Below 860 px the windows stack in one column,
@@ -225,8 +228,10 @@ graph first, with the taskbar kept at the bottom of the screen.
 - **State**: global `S`; the current project is `S.proj` with `cols` (see Columns above),
   `activeY`, `raw` (`{fp, hist}`), `meta` (captured from the imported file's header), `plot`
   settings (`style`, `logY`, `grid`, `resid`, `revX`, `hidden`, and from the Plot details
-  `logX`, `gridMinor`, `layout`, `offset`, `legend`, `frame`, `font`, `title`, `cmap`,
-  `series[id]` and `ax.x|y|y2`, see Rendering), `fit`, `fits` (the fit history:
+  `logX`, `gridMinor`, `layout`, `offset`, `legend`, `legendPos`, `legendText`, `legendTitle`,
+  `legendFrame`, `frame`, `font`, `title`, `cmap`, `scheme`, `peakScheme`, `peakLab`,
+  `peakLabRot`, `peakLabDec`, `axisMatch`, `annos`, `series[id]` and `ax.x|y|y2`, see
+  Rendering), `fit`, `fits` (the fit history:
   numbers, the processing, and a decimated thumbnail of each fit), `log`, optional
   `prefFit`/`prefModel` (what an example opens with), and `v` (document version 4; `migrate()`
   upgrades v1–v3 in place, turning v3's table-wide `steps` into steps on every spectrum and
@@ -234,7 +239,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   state is `S.mode` (pointer tool), `S.fitMode` (`curve`/`peaks`), `S.sheet` (`raw`/`final`),
   the stage and pending state above, `S.flowSel`/`S.flowTab`, `S.py` (the Python window),
   `S.pf` (the peak finder's settings, saved per browser under `kurve.pf`), `S.pfPreview`,
-  `S.plotPreview` (the Plot details' working copy), `S.stOpt`. Window positions are `LAYOUT`.
+  `S.plotPreview` (the Plot details' working copy), `S.stOpt`, `S.annoSel` (the selected
+  annotation; Delete removes it). Window positions are `LAYOUT`.
 - **Rendering**: `buildPlot(W,H,palette,forExport)` returns an SVG string used both on screen and
   for export; on screen it also records `S.geo` (transforms, handle positions, `logX`, `heat`).
   It reads the plot settings through `plotCfg()`, which is the Plot details' working copy
@@ -247,10 +253,31 @@ graph first, with the taskbar kept at the bottom of the screen.
   offset (a waterfall, each trace labelled), stack (a panel per spectrum, shared X, the
   analysed one on top), dy (the others on a right axis), heat (one row per spectrum, drawn as
   one image from `heatImage`, with a colour bar; `CMAPS`). The legend goes in the emptiest
-  corner, a chosen one, outside on the right, or nowhere. The peak finder's preview marks
+  corner, a chosen one, outside on the right, where it was dragged (`legend:"custom"`,
+  `legendPos` as fractions of the plot area), or nowhere; it can have a title, no frame, and
+  its text in each spectrum's colour (`legendText:"match"`); a series with `leg:false` is left
+  out of it. **Colour schemes**: `SCHEMES` (Kurve's, distinct hues from a validated
+  categorical palette, Okabe–Ito, viridis in table order, black and greys with dashes) and
+  `PEAK_SCHEMES`; `yTint(id)` and `peakColor(k)` read them, so the graph, the legend, the
+  worksheet header, the fit panel and the results table change together. Every scheme but
+  Kurve's colours by table order, so a colour stays with its spectrum. On two Y axes with one
+  other spectrum each axis's numbers and title take its spectrum's colour (`axisMatch`).
+  **Annotations** (`p.plot.annos`, each `{id, t, x, y, x2, text, color, lw, dash, size, unit,
+  rot, bold, ser, dx, dy, xu, yu}`, `t` one of `v`, `h`, `band`, `text`, `label`) are drawn by
+  `annoSvg(layer)` in three layers (ranges under the data, lines over it, text and labels on
+  top, under the legend) and only on data in the units they were placed in (`xu`, `yu`).
+  `text` null shows the value, `""` shows nothing. A `label` points at a spectrum point
+  (`ser`, in that spectrum's colour unless `color` is set) with its text offset by `dx, dy`
+  pixels and a leader line. `addAnno`, `updateAnno`, `deleteAnno`, `editAnno` (a form),
+  `annoMenuItems`, `peakNear` (the top of the peak under a click), `addPeakLabel`,
+  `labelFoundPeaks`, `shadeRange` (a range pick), `addLineDlg`, `clearAnnos`. Fitted peaks
+  are labelled by `numLabel` with their number, position, both or nothing (`peakLab`), in
+  their own colour. Axis and graph titles carry `data-axtitle` and are edited by
+  `editAxisTitle`/`setAxisTitle`. The peak finder's preview marks
   (`S.pfPreview`) are drawn on screen only. Right-click: `openGraphMenu` → `graphMenuItems`
   (swatch rows are `{swatches, current, pick}` menu items); `openPlotDetails(id, tab)` is the
-  dialog (`#plotModal`, tabs Line and symbols / Axes / Graph; OK saves one undo entry).
+  dialog (`#plotModal`, tabs Line and symbols / Axes / Graph / Labels and lines, the last
+  listing every annotation to edit or delete; OK saves one undo entry).
   `renderTop`, `renderWs`, `renderPlot` (+ `renderStatusBar`), `renderStages` (now the graph
   window's stage chip and the toolbar's Raw/Final/Compare), `renderFit` (it also refreshes
   `renderResults`, `renderTabMarks` and the status bar), `renderFlow`, `renderTool`,
@@ -398,6 +425,17 @@ worker, so serve the app and a local copy of the `pyodide` npm package over HTTP
   not supported": the worker is a module worker that imports `pyodide.mjs`.
 - **A slider's readout is its own.** A text field in the same form row wrote its value into the
   row's first `<output>`; only range inputs update an output.
+- **A click that redraws the graph swallows the double click.** The graph redraws on the first
+  click (to select a point or an annotation), the element pressed is gone, and the browser
+  then fires neither the second click nor `dblclick`: "double-click to see all the data" had
+  quietly stopped working. With the pointer captured, `click` and `dblclick` are addressed to
+  the graph, not what was pressed. `pointerup` detects double clicks itself (`S.gClick`,
+  `S.annoClick`, `S.legClick`), `downEl` remembers what was pressed, and `onGraphDouble`
+  does what the old handler did; the `dblclick` listener stays as a fallback, guarded by
+  `S.noDbl` so nothing happens twice.
+- **A test that awaits a dialog waits forever.** `page.evaluate(()=>editLegendTitle())`
+  returns the dialog's promise, which resolves only when the dialog closes; call it without
+  returning it. And a toast can lie over the thing a test clicks: hide it first.
 - **Old keys come back from storage.** An upgrade that only wrote the new keys left `x` and `y`
   of a v1 project in storage, and the next reload brought them back. `migrate` deletes legacy
   keys every time, and the upgrade writes them as null.
@@ -425,6 +463,8 @@ worker, so serve the app and a local copy of the `pyodide` npm package over HTTP
   peak table from integration alone (areas currently come from the fit)
 - Double Y puts every other spectrum on one right axis; there are no free graph layers, insets
   or per-panel settings in the stacked layout
+- Annotations have no arrows, boxes or rich text (sub- and superscripts only as Unicode), and
+  are not snapped to data or to each other
 - Binary instrument formats (SPC, OPUS, SPE) and JCAMP-DX are not read; text exports only
 - True Voigt is approximated by the pseudo-Voigt shapes; there is no Faddeeva implementation
 - The preview pane serves a snapshot of the file, so `location.reload()` re-runs stale code —
