@@ -8,15 +8,16 @@ keep them (see the rules at the end).
 ## The screen
 
 A desktop-style frame, top to bottom: a title bar with the **menus** (File, Edit, Plot, Data,
-Math, Analysis, Statistics, Window, Help) and the project name (click to rename; the arrow
+Math, Analysis, Statistics, Window, Help; each short, its kinds opening side submenus on
+hover, and a tool opening its dialog) and the project name (click to rename; the arrow
 beside it switches, creates and deletes projects); a **toolbar** (Import, Export, undo/redo,
 **Raw / Final / Compare** (what the graph shows), the pointer tools Zoom / Pan / Mask / Add
 peak / Label / Comment, show-all, the analysed spectrum's plot type, the layout of several spectra,
 and the Reverse X / Log Y / Grid / Residuals toggles); the **desk**; and a **status bar**
 (tool hint, live cursor readout, point counts, fit state, save state).
 
-The desk holds **windows**, as in Origin: Graph, Worksheet, History, Fit, Results, Statistics,
-Python, Discussion, and the transient Tool dialog. Each moves by its title bar, resizes from
+The desk holds **windows**, as in Origin: Graph, Worksheet, History, Peaks, Fit, Results,
+Statistics, Python, Discussion, and the transient Tool dialog. Each moves by its title bar, resizes from
 its edges, maximises on a double-click of the title and minimises to the **taskbar** along the
 bottom of the desk, which also has Tile and Cascade. A first visit opens Graph, History and
 Worksheet. The **graph window** has its own bar repeating the Data, Math, Analysis, Statistics
@@ -24,14 +25,21 @@ and Plot menus, a Python button, and a chip saying which stage of the processing
 when it is not the final data. Right-click on the graph (or Shift+F10) gives the spectrum's
 colour, plot type and style, a line, text or peak label where you clicked, axes, layout and
 legend; right-click a line, a label, the legend or a title for its own options. Lines, shaded
-ranges, text, peak labels and the legend drag with the pointer; a double click edits them,
-and edits an axis or graph title in place. The **History window** is a flow chart
+ranges, text, peak labels and the legend drag with the pointer; a double click (or Enter)
+on a label or a text opens a box over it to type in, a double click on a line or a range
+opens its settings, and one on an axis or graph title edits it in place. The **Peaks
+window** (Analysis › Find peaks…) finds the peaks of the analysed spectrum and marks them on
+the graph, each with a symbol, a drop line, a vertical line, a leader or nothing, and a label
+you type (in its table, on the graph, or in the History); fitting them is one button, not
+the way in. The **History window** is a flow chart
 of the data with an inspector beside it (below it when narrow), and a Log tab. Every box in
-it (a step, the raw data, the final data, the fits, the recorded data) has its own
+it (a step, the raw data, the final data, the peaks, the fits, the recorded data, the
+figure) has its own
 **discussion** at the foot of its inspector, with a badge on the box counting open threads;
 the Discussion window lists every thread with a link back. The
-**worksheet** has a **Raw** sheet (the data as recorded, locked) and a **Final** sheet (the
-analysed spectrum after processing, read only). Below 860 px the windows stack in one column,
+**worksheet** is a spreadsheet grid as in Excel, with Origin's label rows: a **Raw** sheet (the
+data as recorded, locked) and a **Final** sheet (the analysed spectrum after processing, read
+only). Below 860 px the windows stack in one column,
 graph first, with the taskbar kept at the bottom of the screen.
 
 ## Code layout (all inside the `<script>` block of kurve.html)
@@ -181,6 +189,22 @@ graph first, with the taskbar kept at the bottom of the screen.
   value in a cell, a column deleted), and `rawVerified()` compares the data with the last
   recorded fingerprint. The raw-data CSV export writes exactly the hashed lines under `#`
   comments, so `grep -v '^#' file.csv | sha256sum` reproduces the fingerprint.
+- **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
+  rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
+  a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
+  window: empty "phantom" columns and rows fill the rest, and typing into one makes a column.
+  Under the letters come Long Name, Units and Comments (rows -3, -2, -1, typed into like any
+  cell) and a Sparklines row. `wsModel()` is the sheet (`S.wsm`: columns, row count, phantoms);
+  rows are virtualised (`wsRows`, drawn around the scroll position). `S.ws` is the selection
+  (`{r, c, ar, ac}`: the active cell and the anchor of a range, plus `extra`, `win`, `edit`).
+  Click, Shift+click, drag, a header or row number, the corner; arrows, Shift+arrows,
+  Ctrl+arrows, Home/End, Ctrl+Home/End, PageUp/Down, Tab and Enter move as in Excel; typing
+  starts an edit, F2 or a double click edits in place, Esc cancels, Delete clears
+  (`wsBeginEdit`, `wsCommit`, `wsSetCell`: a label, an empty cell, or `correctCell` for a
+  recorded value). Copy and paste are TSV (`wsCopyText`, `wsPasteText`, the label rows
+  included). The bar above shows the cell's address and value (`#wsAddr`, `#wsVal`), the foot
+  Count, Sum, Average, Min and Max of the selection (`wsStats`). Right-click is `wsCellMenu`
+  (anchored by `pointerAnchor(x, y)`). `wsLetter(i)` names columns A…Z, AA….
 - **Pipelines**: `pipeOf(c)` runs a spectrum's steps on its input (`rawSeries(c)`, or its
   source's input or output) and caches the result per column; raw series are cached by array
   identity and, after a save hands back a deep copy, by content (`arrKey`, memoised per array).
@@ -213,8 +237,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   windows; a window renders when it opens. `showTab("fit"|"clean")` and `showDrawer(...)`
   remain as names for opening the Fit, History, Results and Discussion windows.
 - **Tools and menus**: `TOOL_GROUPS` lists every op by kind; `toolMenuItems({col, at})` is
-  the menu the History's "+" and Step buttons open; `dataMenu`, `mathMenu`, `analysisMenu`,
-  `statisticsMenu` and `plotMenu` build the menu bar (and the graph window's bar).
+  the menu the History's "+" and Step buttons open, one submenu per group (a group of one
+  tool stays a plain item); `dataMenu`, `mathMenu`, `analysisMenu`,
+  `statisticsMenu` and `plotMenu` build the menu bar (and the graph window's bar), each a short
+  list of kinds with the tools in submenus.
   `openTool(op, {col, at, p})` opens the Tool window with a pending step (ops without settings
   are added at once by `addPipeStep`); `renderTool` shows the target spectrum, the position,
   a before-and-after chart (`beforeAfter`) and the step's form.
@@ -226,10 +252,14 @@ graph first, with the taskbar kept at the bottom of the screen.
   saved. Anchor and range picking are pointer modes (`S.mode` `anchor` / `range`, `S.pick`).
 - **History** (`renderFlow`, `flowLayout`): lanes of boxes, one per spectrum, placed depth
   first so a derived spectrum branches off its source's raw or final box; a "Recorded data"
-  box above the raw spectra; step boxes in order (dashed while pending); the final box; a fit
-  box when the spectrum has fits. Steps that read another spectrum (`deps`) get a dashed line
-  from it. `S.flowSel` is the selected box (`table`, `raw:`, `src:`, `step:`, `final:`,
-  `fit:` + id); selecting drives the graph's stage. Boxes drag to reorder, the "+" on a line
+  box above the raw spectra; step boxes in order (dashed while pending); the final box; a
+  Peaks box when the spectrum has a peak set (its labels typed in the inspector, what it was
+  found with, a warning when the processing changed since); a fit box when the spectrum has
+  fits; and a Figure box below everything when the graph has lines, ranges, text or labels
+  of its own (each listed with Edit and Delete, and the recent changes to the figure from the
+  log). Steps that read another spectrum (`deps`) get a dashed line
+  from it. `S.flowSel` is the selected box (`table`, `figure`, or `raw:`, `src:`, `step:`,
+  `final:`, `peaks:`, `fit:` + id); selecting drives the graph's stage. Boxes drag to reorder, the "+" on a line
   inserts a step there, arrows move between boxes, Alt+↑/↓ moves a step, Delete deletes it,
   right-click opens its menu. `flowInspector(node)` shows a step's form and actions, the
   raw record and fingerprint, the final data's numbers and new-spectrum actions, or the list
@@ -278,7 +308,35 @@ graph first, with the taskbar kept at the bottom of the screen.
   find in a table and the ones it turned down with their reasons, each with an Add button;
   `runPeakFinder(append)` seeds the draft from them, measuring a peak on a larger one's tail
   from its own valleys), 2 Peaks and baseline, 3 Fit. `pfBaseline` subtracts the draft's
-  baseline before searching without changing it.
+  baseline before searching without changing it. Its "Mark and label them" hands the peaks to
+  the Peaks window's set instead (`findPeaksInto`).
+- **Peaks window** (`openPeakFinder`, `renderPeaks`, `wirePeaks`): finding peaks without
+  fitting them. A spectrum's **peak set** is peak labels on the graph, annotations with
+  `grp:"pk:<colId>"`, each with its typed label `lab`, its mark `mk`, the finder's numbers
+  `pk:{h, w, snr}` and `manual` when placed by hand; `p.found[colId]` records the set
+  (`{opts, sig, at, by, style, ex, mem, n}`: the finder's settings, the processing it was found
+  on, the style shared by the set (`PK_STYLE`: `mk`, `show`, `rot`, `dec`, `unit`, `color`,
+  `size`), positions removed by hand that a new search leaves out, and the labels of peaks a
+  search no longer finds, given back when one finds them again). `findPeaksInto` runs `pfRun`
+  on the points in view and merges with the set before (labels, dragged positions and
+  hand-placed peaks are kept); every change to the finder's settings searches again at once.
+  `peakText(style, lab)` is what a label shows (`show`: the position, your label or else the
+  position, both, only yours, nothing); `{x}` in any label or line text stands for the
+  position (`annoPos`). `setPeakStyle` restyles the whole set, `setPeakLabel` types one
+  label, `removeFoundPeak` (also what Delete on a set's label does), `clearFoundPeaks`,
+  `addToPeakSet` (the Label tool on a spectrum with a set), `peakRows`/`foundTableText` (the
+  table; `said` has `{x}` written out), `fitFoundPeaks` (seeds `S.pdraft` from the set and
+  opens the Fit window: fitting is optional). The window's four parts: how to find them
+  (`pfFormHtml`, the finder's form under `pk-pf…` ids so the Fit window's can be open too),
+  the peaks (a table with a label field each, remove, Copy, Clear, add by clicking the graph,
+  the turned-down candidates with Add), how they look on the graph, and Fit these peaks.
+  `pkUndo` makes one undo entry per burst of the same kind of change.
+- **Typing on the graph** (`inlineEditAnno(id, {fresh})`, `inlineNewText(pt)`, `.inled`): a
+  box over a label or text, Enter keeps, Esc leaves it, a click elsewhere keeps, "More"
+  opens `editAnno`. The Label tool opens it on the label it just placed; an empty spot gets a
+  box for new text, and nothing is added unless something is typed. `annoDouble(id)` is the
+  double click (and Enter or F2 on a selected annotation): typing for labels and text, the
+  settings form for lines and ranges.
 - **Peak draft**: the peak set being built is `S.pdraft` (`{base, peaks, init, fixed, x0,
   fitAt}`), outside the document. `draftOverlay()` draws it on the graph before it is fitted:
   dashed curves per peak plus their sum, a numbered dot per peak (drag: centre and height) and,
@@ -296,7 +354,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   values, errors, covariances; the spec stores `id` and `tie`, and Method lists every tie.
 - **Undo**: `pushUndo(label)` before any mutation, `undo`/`redo`, snapshots of `UNDO_KEYS`
   (`cols` carries the pipelines and masks, `raw` the fingerprint record, `fits` the fit history,
-  `userFns` the project's fit functions)
+  `userFns` the project's fit functions, `found` the peak sets)
   plus both drafts (`S.pdraft`, `S.draft`). It is per-session and local on purpose — rewinding your
   own edits, not other people's. Destructive actions confirm themselves with a toast that
   carries an Undo button (`toast(msg,{action,run})`).
@@ -310,16 +368,20 @@ graph first, with the taskbar kept at the bottom of the screen.
   `activeY`, `raw` (`{fp, hist}`), `meta` (captured from the imported file's header), `plot`
   settings (`style`, `logY`, `grid`, `resid`, `revX`, `hidden`, and from the Plot details
   `logX`, `gridMinor`, `layout`, `offset`, `legend`, `legendPos`, `legendText`, `legendTitle`,
-  `legendFrame`, `frame`, `font`, `title`, `cmap`, `scheme`, `peakScheme`, `peakLab`,
+  `legendFrame`, `frame`, `font`, `fontFam`, `fontName`, `titleItalic`, `title`, `cmap`,
+  `scheme`, `peakScheme`, `peakLab`,
   `peakLabRot`, `peakLabDec`, `axisMatch`, `annos`, `series[id]` and `ax.x|y|y2`, see
   Rendering), `fit`, `fits` (the fit history:
-  numbers, the processing, and a decimated thumbnail of each fit), `userFns`, `log`, optional
+  numbers, the processing, and a decimated thumbnail of each fit), `userFns`, `found` (the
+  peak sets, see the Peaks window), `wsw` (worksheet column widths), `log`, optional
   `prefFit`/`prefModel` (what an example opens with), and `v` (document version 4; `migrate()`
   upgrades v1–v3 in place, turning v3's table-wide `steps` into steps on every spectrum and
   computed columns into derived spectra, and `normalize()` saves the upgrade at once). Panel
   state is `S.mode` (pointer tool), `S.fitMode` (`curve`/`peaks`), `S.sheet` (`raw`/`final`),
+  `S.ws`/`S.wsm` (the worksheet's selection and model),
   the stage and pending state above, `S.flowSel`/`S.flowTab`, `S.py` (the Python window),
   `S.pf` (the peak finder's settings, saved per browser under `kurve.pf`), `S.pfPreview`,
+  `S.pkLast` (the Peaks window's last search, for its turned-down list),
   `S.plotPreview` (the Plot details' working copy), `S.stOpt`, `S.annoSel` (the selected
   annotation; Delete removes it), `S.comments` with `S.cDrafts`, `S.cReply`, `S.cEdit` and
   `S.discFilter` (the Discussion window's Open/All). Window positions are `LAYOUT`.
@@ -345,16 +407,26 @@ graph first, with the taskbar kept at the bottom of the screen.
   Kurve's colours by table order, so a colour stays with its spectrum. On two Y axes with one
   other spectrum each axis's numbers and title take its spectrum's colour (`axisMatch`).
   **Annotations** (`p.plot.annos`, each `{id, t, x, y, x2, text, color, lw, dash, size, unit,
-  rot, bold, ser, dx, dy, xu, yu}`, `t` one of `v`, `h`, `band`, `text`, `label`) are drawn by
+  rot, bold, font, ser, dx, dy, xu, yu}`, and on labels `mk`, plus `grp`, `lab`, `pk`,
+  `manual` on a peak set's, `t` one of `v`, `h`, `band`, `text`, `label`) are drawn by
   `annoSvg(layer)` in three layers (ranges under the data, lines over it, text and labels on
   top, under the legend) and only on data in the units they were placed in (`xu`, `yu`).
-  `text` null shows the value, `""` shows nothing. A `label` points at a spectrum point
-  (`ser`, in that spectrum's colour unless `color` is set) with its text offset by `dx, dy`
-  pixels and a leader line. `addAnno`, `updateAnno`, `deleteAnno`, `editAnno` (a form),
-  `annoMenuItems`, `peakNear` (the top of the peak under a click), `addPeakLabel`,
+  `text` null shows the value, `""` shows nothing, and `{x}` in it the position. A `label`
+  points at a spectrum point (`ser`, in that spectrum's colour unless `color` is set) and
+  marks it (`mk`): `sym` a triangle above it, `drop` a line down to the axis, `vline` a
+  dashed line through the plot with the text along it at the top, `lead` (the default, and
+  what older labels are) a leader line, `none`. Its text is offset by `dx, dy` pixels from
+  where the mark leaves room (`labDy`); a moved text gets a leader back to its mark.
+  `addAnno`, `updateAnno`, `deleteAnno`, `editAnno` (a form, with the mark and, for a set's
+  peak, its label), `annoMenuItems` (type its label, mark it with, and for a set's peak mark
+  or label every peak with), `peakNear` (the top of the peak under a click), `addPeakLabel`,
   `labelFoundPeaks`, `shadeRange` (a range pick), `addLineDlg`, `clearAnnos`. Fitted peaks
   are labelled by `numLabel` with their number, position, both or nothing (`peakLab`), in
-  their own colour. Axis and graph titles carry `data-axtitle` and are edited by
+  their own colour, just inside the peak when a marked peak's label is on its top.
+  **Fonts**: `FONTS` (Kurve's, serif, sans, mono and common families, or one typed by name,
+  `fontStack`), `FONT_SIZES`; the graph's are `fontFam`/`fontName` and `font` (the size),
+  and axis titles are italic unless `titleItalic` is false; an annotation may have its own
+  `font` (Plot › Font, the graph menu, Plot details › Graph, the annotation form). Axis and graph titles carry `data-axtitle` and are edited by
   `editAxisTitle`/`setAxisTitle`. The peak finder's preview marks
   (`S.pfPreview`) are drawn on screen only. Right-click: `openGraphMenu` → `graphMenuItems`
   (swatch rows are `{swatches, current, pick}` menu items); `openPlotDetails(id, tab)` is the
@@ -367,7 +439,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   points) is drawn as one path of dots, and error bars as one path.
 - **Menus and dialogs**: `openMenu(trigger, items, opt)` renders any menu (menu bar, project
   list, Export, column header, graph) from `{label, run, kbd, checked, radio, enabled, danger}` items,
-  `"-"` separators and `{group}` headings, with arrow-key, type-ahead and Escape handling;
+  `"-"` separators and `{group}` headings, with arrow-key, type-ahead and Escape handling.
+  An item `{label, sub}` (`sub` a list or a function returning one) opens a submenu to the
+  side on hover (after 110 ms, with the same grace leaving it), on a click, or with →; ← and
+  Escape close it (`buildMenu`, `openSub`, `closeSubs`, `menuOpen.subs`). A menu with a
+  search box (`opt.search`) searches every submenu and lists the matches flat with their path;
   `menuItems(name)` defines the menu bar and the graph window's bar. `openModal`/`closeModal` make everything behind a
   dialog inert, trap Tab, route Escape to the dialog's `_cancel`, and return focus; the import
   wizard, `confirmDlg` and the help (`openHelp`) all use them.
@@ -375,10 +451,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   falls back to `Blob` + `<a download>` otherwise, so exports work from disk. `exportSvg` and
   `exportPng` (the same SVG rasterised at 2.5×), `exportCsv` (every column with units, the mask
   flag, the fit, residual, baseline and each peak curve, plus commented blocks for metadata,
-  the fingerprint, the processing steps with their warnings, and fit statistics),
+  the fingerprint, the processing steps with their warnings, the marked peaks with their
+  labels, and fit statistics),
   `exportRawCsv` (the raw data under a comment header that says how to check its
   fingerprint), `exportRecipe` (the steps as JSON), and `exportReport`, a self-contained HTML
-  document with or without a fit (figure, notes from `fitWarnings`, peak table, full parameter
+  document with or without a fit (figure, notes from `fitWarnings`, fitted peak table, the
+  marked peaks of every spectrum with their labels (`reportPeaksHtml`), full parameter
   table with t, p, CI and dependency, statistics, the raw-data record, every processing step
   with its warnings and a filmstrip, the fit history, method, session log). `resultsText` is
   the same as TSV for `copyResults`.
@@ -545,9 +623,38 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A comment on a step outlives the step, and must say so.** Anchors keep the label the box had
   when the thread began; the live label is used while the step exists.
 
+- **A function declared twice is the last one, silently.** `copyText` existed twice with
+  different signatures; the later won, and "Results table" was toasted as a whole sentence for
+  several releases. A new `peakTableText` nearly shadowed the fit's. Grep for
+  `function name(` before adding one; the duplicate check is
+  `grep -oE '^(async )?function [A-Za-z0-9_]+' kurve.html | sort | uniq -d`.
+- **A redraw from a save must not take what is being typed.** Every save re-renders the open
+  windows, so a table of text fields loses a half-typed value to a colleague's save (or any
+  save). The Peaks window keeps the focused field's value and caret across its redraw.
+- **A threshold is not a verdict on a peak someone has named.** Raising the finder's threshold
+  and lowering it again dropped the labels typed on the peaks in between. A set now remembers
+  the labels of peaks a search no longer finds (`mem`) and gives them back.
+- **One undo entry per burst means one kind of change.** Merging every peak change within
+  2.5 s let "find again" ride on a style change's entry, so one undo took back both, and a
+  removal in between. `pkUndo` merges only the same kind of change with nothing else between.
+- **A labelled mark and a fit's number compete for the same pixels.** Both sat on the peak's
+  top. The fit's number moves inside the peak where a set's label is.
+- **An example with one band cannot test a peak finder.** The Raman example is a single Si
+  band; drive peak finding with the IR example (four bands, one a shoulder).
+- **A menu's anchor must be an element.** The worksheet's cell menu handed `openMenu` a
+  plain object with a rectangle, and the outside-click test (`contains`) threw.
+  `pointerAnchor(x, y)` places a real (invisible) button there.
+
 ## Roadmap
 
-Done in this round: comments on every History box (threads, replies, resolve, edit, delete
+Done in this round: the worksheet as a spreadsheet grid (fixed column widths, empty cells
+beyond the data, range selection with Count/Sum/Average, Excel's keys, resizable and
+autofitting columns, Origin's Long Name/Units/Comments rows); short menus with side submenus;
+fonts for the graph and its labels; the Peaks window (find, mark with a symbol, drop line,
+vertical line or leader, type each label, fit only if you choose); typing labels and text
+straight on the graph; Peaks and Figure boxes in the History.
+
+Earlier: comments on every History box (threads, replies, resolve, edit, delete
 with undo, badges, the Discussion window's filter, the report); Python in the flow chart (new
 spectra from Python, dashed arrows from the spectra code reads, out-of-date warnings and "Run
 Python again"); user-defined fit functions with a library; true Voigt and Fano shapes; tied
@@ -598,6 +705,11 @@ Next, in order:
   or per-panel settings in the stacked layout
 - Annotations have no arrows, boxes or rich text (sub- and superscripts only as Unicode), and
   are not snapped to data or to each other
+- A peak set is found on the points in view of the final data and stays where it was found:
+  when the processing changes it says so, and "Find again" follows it (keeping the labels of
+  the peaks still there). Sets are per spectrum; there is no one-click set for every spectrum
+- The worksheet has no formulas, fill handle, sort or find (new columns of values come from
+  steps, Python or derived spectra instead)
 - Binary instrument formats (SPC, OPUS, SPE) and JCAMP-DX are not read; text exports only
 - The preview pane serves a snapshot of the file, so `location.reload()` re-runs stale code —
   navigate to the file again after editing, or you will test the previous version
