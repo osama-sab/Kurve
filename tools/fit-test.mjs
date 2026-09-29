@@ -15,7 +15,7 @@ const grab = (tag) => {
 // Interpolation, integration and normalizing live in the pipeline block now;
 // tools/pipe-test.mjs tests the rest of it.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,faddeeva,peakLinks,applyPeakLinks,linkResult};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -467,6 +467,44 @@ function fitSpec(X, Y, spec, init, opts) {
   const p0 = N.guessUserParams(fn.params, X, Y).map((v, i) => fn.params[i] === "b" ? 1 : v);
   const r = N.lmFit(fn.f, X, Y, X.map(() => 1), p0, p0.map(() => false), { lo: [-Infinity, 0, 0.01, 0.1], hi: [Infinity, Infinity, Infinity, 3] });
   check("a user's function fits: stretched exponential recovered", r.params && truth.every((v, i) => rel(r.params[i], v, 0.05)) && r.stats.converged, r.params);
+}
+/* ---------- integrating a band without a fit ---------- */
+{
+  // A Gaussian of area 50, sigma 4, at 120, on a sloping background, sampled every 0.5.
+  const A = 50, sg = 4, xc = 120, g = x => A / (sg * Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * ((x - xc) / sg) ** 2);
+  const bg = x => 3 + 0.02 * x, X = [], Y = [];
+  for (let x = 60; x <= 180; x += 0.5) { X.push(x); Y.push(g(x) + bg(x)); }
+  const r = N.integrateBand(X, Y, null, xc - 6 * sg, xc + 6 * sg, { base: "line", avg: 1, sigma: 0 });
+  check("band: area over a straight local baseline", rel(r.area, A, 1e-3), r.area);
+  check("band: height, position, FWHM and centroid", rel(r.height, A / (sg * Math.sqrt(2 * Math.PI)), 2e-3) && near(r.pos, xc, 1e-3) &&
+    rel(r.fwhm, 2 * Math.sqrt(2 * Math.LN2) * sg, 3e-3) && near(r.centroid, xc, 1e-3), [r.height, r.pos, r.fwhm, r.centroid]);
+  const z = N.integrateBand(X, Y, null, xc - 6 * sg, xc + 6 * sg, { base: "zero" });
+  check("band: no baseline includes the background under it", rel(z.area, A + 48 * (3 + 0.02 * xc), 1e-3), z.area);
+  // The same spectrum on an axis running the other way, windows given either way round.
+  const rv = N.integrateBand(X.slice().reverse(), Y.slice().reverse(), null, xc + 6 * sg, xc - 6 * sg, { base: "line", avg: 1 });
+  check("band: a descending axis and a reversed window give the same area", rel(rv.area, r.area, 1e-12) && rv.area > 0, rv.area);
+  // A dip integrates negative, and is measured at its lowest point.
+  const d = N.integrateBand(X, Y.map(v => -v), null, xc - 6 * sg, xc + 6 * sg, { base: "line", avg: 1 });
+  check("band: an absorption dip has a negative area, and its own depth", rel(d.area, -A, 1e-3) && rel(d.height, -r.height, 1e-9) && near(d.pos, xc, 1e-3), [d.area, d.height]);
+  check("band: too few points is said, not guessed", !!N.integrateBand(X, Y, null, 100, 100.6, {}).fail);
+  // The error bar means what it says: noise of sigma 0.2, 400 times over.
+  let s = 11; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const gauss = () => Math.sqrt(-2 * Math.log(rnd() + 1e-12)) * Math.cos(2 * Math.PI * rnd());
+  const areas = []; let reported = 0;
+  for (let t = 0; t < 400; t++) { const Yn = Y.map(v => v + 0.2 * gauss());
+    const q = N.integrateBand(X, Yn, null, xc - 6 * sg, xc + 6 * sg, { base: "line", avg: 3, sigma: 0.2 }); areas.push(q.area); reported += q.err / 400; }
+  const m = areas.reduce((a, b) => a + b, 0) / areas.length, sd = Math.sqrt(areas.reduce((a, b) => a + (b - m) ** 2, 0) / (areas.length - 1));
+  check("band: the area's error matches the scatter of noisy repeats", rel(m, A, 0.01) && reported / sd > 0.8 && reported / sd < 1.35, [m, sd, reported]);
+  // Error bars, when there are some, are used point by point.
+  const eb = N.integrateBand(X, Y, X.map(() => 0.4), xc - 6 * sg, xc + 6 * sg, { base: "zero", sigma: 0.2 });
+  const w = []; for (let x = xc - 6 * sg; x <= xc + 6 * sg + 1e-9; x += 0.5) w.push(0.5);
+  w[0] = w[w.length - 1] = 0.25;
+  check("band: error bars are propagated point by point", rel(eb.err, 0.4 * Math.sqrt(w.reduce((a, b) => a + b * b, 0)), 1e-9), eb.err);
+  // Windows around two neighbouring peaks meet at the valley between them.
+  const X2 = [], Y2 = []; for (let x = 0; x <= 100; x += 0.5) { X2.push(x); Y2.push(10 * Math.exp(-0.5 * ((x - 40) / 3) ** 2) + 6 * Math.exp(-0.5 * ((x - 55) / 3) ** 2)); }
+  const bw = N.bandsFromPeaks(X2, Y2, [{ x: 55, w: 7 }, { x: 40, w: 7 }]);
+  check("bands from peaks: split at the valley, outer edges two widths out", bw.length === 2 && bw[0].x2 === bw[1].x1 && bw[0].x2 > 45 && bw[0].x2 < 51 &&
+    near(bw[0].x1, 26, 1e-9) && near(bw[1].x2, 69, 1e-9), JSON.stringify(bw));
 }
 /* ---------- p-values against known values ---------- */
 check("tPvalue: t=2.228, dof=10 is ~0.05", near(N.tPvalue(2.228, 10), 0.05, 5e-4), N.tPvalue(2.228, 10));

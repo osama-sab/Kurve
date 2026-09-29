@@ -16,8 +16,8 @@ peak / Label / Comment, show-all, the analysed spectrum's plot type, the layout 
 and the Reverse X / Log Y / Grid / Residuals toggles); the **desk**; and a **status bar**
 (tool hint, live cursor readout, point counts, fit state, save state).
 
-The desk holds **windows**, as in Origin: Graph, Worksheet, History, Peaks, Fit, Results,
-Statistics, Python, Discussion, and the transient Tool dialog. Each moves by its title bar, resizes from
+The desk holds **windows**, as in Origin: Graph, Worksheet, History, Overview, Peaks,
+Integrate, Fit, Results, Statistics, Python, Discussion, and the transient Tool dialog. Each moves by its title bar, resizes from
 its edges, maximises on a double-click of the title and minimises to the **taskbar** along the
 bottom of the desk, which also has Tile and Cascade. A first visit opens Graph, History and
 Worksheet. The **graph window** has its own bar repeating the Data, Math, Analysis, Statistics
@@ -31,7 +31,11 @@ opens its settings, and one on an axis or graph title edits it in place. The **P
 window** (Analysis › Find peaks…) finds the peaks of the analysed spectrum and marks them on
 the graph, each with a symbol, a drop line, a vertical line, a leader or nothing, and a label
 you type (in its table, on the graph, or in the History); fitting them is one button, not
-the way in. The **History window** is a flow chart
+the way in. The **Integrate window** (Analysis › Integrate bands…) measures bands without a
+fit: windows dragged on the graph, each with a local baseline, giving areas with errors,
+heights, positions, FWHM, shares of the total and ratios to a chosen band, for one spectrum
+or every one. The **Overview** opens after an import and says what a new spectrum is like
+(spacing, noise, bands, spikes, background) and what to do first. The **History window** is a flow chart
 of the data with an inspector beside it (below it when narrow), and a Log tab. Every box in
 it (a step, the raw data, the final data, the peaks, the fits, the recorded data, the
 figure) has its own
@@ -89,6 +93,19 @@ graph first, with the taskbar kept at the bottom of the screen.
   does not count) feeds the checks and the suggestions. `runPipe(input, steps, ctx, prev)`
   returns every stage and reuses the stages before the first changed step. `sha256` and
   `rawText` make the raw-data fingerprint. `tools/pipe-test.mjs` tests all of it.
+  **Integrating a band** (`integrateBand(X, Y, E, x1, x2, {base, avg, sigma})`, pure, beside
+  `trapz`): the points in the window (either way round, on an axis running either way) less a
+  local baseline (`line` through the means of the first and last `avg` points, `zero`, or
+  `min`, level at the lowest point); the area is the trapezoidal sum, its `err` the noise
+  (`sigma`, or each point's error bar in `E`) carried through the trapezoid weights and the
+  baseline's ends; `height`/`pos` from a parabola through the top three points (the lowest,
+  for a dip, whose area is negative), `fwhm` where it crosses half height inside the window or
+  null, `centroid`, `snr`, and the points and baseline for drawing. Fewer than three points
+  gives `fail`, in words, never a number. `bandsFromPeaks(X, Y, [{x, w}])` puts a window around
+  each peak: neighbours split at the lowest point between them, outer edges two widths out.
+  `tools/fit-test.mjs` checks both (area over a sloping background, height, position, FWHM,
+  centroid, a descending axis, a dip, the error against 400 noisy repeats, error bars, the
+  split at the valley).
 - **Peaks** (`==PEAKS:START/END==`): `PEAKS` (Gaussian, Lorentzian, pseudo-Voigt, split-width
   pseudo-Voigt, Pearson VII, Voigt, Fano — parametrised centre/**area**/width, with `height()`
   and `fwhm()`; optional `short` (the name mid-sentence), `labels` (per-shape parameter labels),
@@ -277,7 +294,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   first so a derived spectrum branches off its source's raw or final box; a "Recorded data"
   box above the raw spectra; step boxes in order (dashed while pending); the final box; a
   Peaks box when the spectrum has a peak set (its labels typed in the inspector, what it was
-  found with, a warning when the processing changed since); a fit box when the spectrum has
+  found with, a warning when the processing changed since); a Bands box when bands are drawn on
+  its axis (`integ:` + id: the areas, shares and ratios); a fit box when the spectrum has
   fits; and a Figure box below everything when the graph has lines, ranges, text or labels
   of its own (each listed with Edit and Delete, and the recent changes to the figure from the
   log). Steps that read another spectrum (`deps`) get a dashed line
@@ -365,6 +383,40 @@ graph first, with the taskbar kept at the bottom of the screen.
   the peaks (a table with a label field each, remove, Copy, Clear, add by clicking the graph,
   the turned-down candidates with Add), how they look on the graph, and Fit these peaks.
   `pkUndo` makes one undo entry per burst of the same kind of change.
+- **Integrate window** (`openIntegrate`, `renderInteg`, `wireInteg`): bands measured without
+  a fit. `p.integ = {bands, ref, avg, show}`: each band a window `{id, x1, x2, xu, lab, base}`
+  in the X units it was drawn in, applying to every spectrum on that axis (`bandsFor(c)`), so
+  the same windows give the same bands of every sample; `ref` the band the others are divided
+  by, `avg` the points averaged at each end of a line baseline, `show` whether the graph shades
+  them. Nothing measured is stored: `bandCalc(c)` runs `integrateBand` on the final data
+  (masked points out, the spectrum's `noiseSigma`, its error bars if any), memoised per final
+  series, and adds `pct` of the total and `ratio`/`ratioErr` to the reference, so the numbers
+  follow the processing. `addBand`, `updateBand`, `removeBand` (and Delete on a selected band,
+  `S.bandSel`), `clearBands`, `saveInteg`; `pickBands()` turns on the range pick
+  (`S.pick = {integ:true}`), which stays on for the next band until Esc; `bandsFromPeaksUI`
+  puts windows around the Peaks window's set, or around peaks found now, in place of the bands
+  on that axis. The table (name, edges, baseline, area ± error, height, position, FWHM, %,
+  ratio, the reference radio; narrower windows drop columns by container query, and on a phone
+  the edges are dragged on the graph instead) or, for several spectra, a row per spectrum
+  (`integEveryRows`, `integAllText`); Copy is TSV (`integTableText`). On the graph
+  `bandsSvg("under")` shades each band between the curve and its baseline and dashes the
+  baseline, and `bandsSvg("top")` draws its edges (`data-bh`, drag one) and a strip along the
+  top with its name (`data-bb`, drag it to move the window): `S.bdrag`, `dragBand`,
+  `commitBandDrag` (one undo entry per drag). Only the analysed spectrum's, on the final data,
+  overlaid or on its own axis. The Peaks window's "Integrate them" is `bandsFromPeaksUI` too.
+- **Overview** (`openOverview`, `renderOverview`, `overviewOf(d)`, `overviewSteps(o, c)`):
+  what a spectrum is like before anything is done to it, from the data as recorded or after
+  processing (`S.ovStage`). `overviewOf` (memoised per series) measures the points (missing,
+  order, repeats, gaps, evenness from `spacing`), the noise, the bands (`detectBands`, after
+  `despikeY` has set spikes aside) with their widths in points, the spikes, flat tops at the
+  maximum, points below zero (a warning only past five times the noise), and the background
+  the Subtract background step would take with its own suggested settings, called flat,
+  sloping or curved against the strongest band. `overviewSteps` turns that into first steps
+  in pipeline order (sort, average repeats, remove spikes, resample, subtract the background,
+  smooth only if the narrowest band spans 7 points or more), each opening its tool
+  (`openTool`) with settings measured from the data, and marked done when the spectrum already
+  has the step. It opens after an import (`autoOverview`, off per browser under
+  `kurve.ovAuto`), from Analysis and Statistics, and from a raw box in the History.
 - **Typing on the graph** (`inlineEditAnno(id, {fresh})`, `inlineNewText(pt)`, `.inled`): a
   box over a label or text, Enter keeps, Esc leaves it, a click elsewhere keeps, "More"
   opens `editAnno`. The Label tool opens it on the label it just placed; an empty spot gets a
@@ -391,7 +443,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   (`wsPatch`, `wsPid`), as does a project switch.
 - **Undo**: `pushUndo(label)` before any mutation, `undo`/`redo`, snapshots of `UNDO_KEYS`
   (`cols` carries the pipelines and masks, `raw` the fingerprint record, `fits` the fit history,
-  `userFns` the project's fit functions, `found` the peak sets)
+  `userFns` the project's fit functions, `found` the peak sets, `integ` the bands)
   plus both drafts (`S.pdraft`, `S.draft`). It is per-session and local on purpose — rewinding your
   own edits, not other people's. Destructive actions confirm themselves with a toast that
   carries an Undo button (`toast(msg,{action,run})`).
@@ -410,7 +462,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `peakLabRot`, `peakLabDec`, `axisMatch`, `annos`, `series[id]` and `ax.x|y|y2`, see
   Rendering), `fit`, `fits` (the fit history:
   numbers, the processing, and a decimated thumbnail of each fit), `userFns`, `found` (the
-  peak sets, see the Peaks window), `wsw` (worksheet column widths), `log`, optional
+  peak sets, see the Peaks window), `integ` (the bands, see the Integrate window), `wsw`
+  (worksheet column widths), `log`, optional
   `prefFit`/`prefModel` (what an example opens with), and `v` (document version 4; `migrate()`
   upgrades v1–v3 in place, turning v3's table-wide `steps` into steps on every spectrum and
   computed columns into derived spectra, and `normalize()` saves the upgrade at once). Panel
@@ -418,7 +471,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   `S.ws`/`S.wsm` (the worksheet's selection and model),
   the stage and pending state above, `S.flowSel`/`S.flowTab`, `S.py` (the Python window),
   `S.pf` (the peak finder's settings, saved per browser under `kurve.pf`), `S.pfPreview`,
-  `S.pkLast` (the Peaks window's last search, for its turned-down list),
+  `S.pkLast` (the Peaks window's last search, for its turned-down list), `S.bandSel`,
+  `S.bdrag`, `S.igEvery` (the Integrate window's selected band, band drag and every-spectrum
+  view), `S.ovStage` (the Overview's raw or final data),
   `S.plotPreview` (the Plot details' working copy), `S.stOpt`, `S.annoSel` (the selected
   annotation; Delete removes it), `S.comments` with `S.cDrafts`, `S.cReply`, `S.cEdit` and
   `S.discFilter` (the Discussion window's Open/All). Window positions are `LAYOUT`.
@@ -491,11 +546,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   `exportPng` (the same SVG rasterised at 2.5×), `exportCsv` (every column with units, the mask
   flag, the fit, residual, baseline and each peak curve, plus commented blocks for metadata,
   the fingerprint, the processing steps with their warnings, the marked peaks with their
-  labels, and fit statistics),
+  labels, the band integrals, and fit statistics),
   `exportRawCsv` (the raw data under a comment header that says how to check its
   fingerprint), `exportRecipe` (the steps as JSON), and `exportReport`, a self-contained HTML
   document with or without a fit (figure, notes from `fitWarnings`, fitted peak table, the
-  marked peaks of every spectrum with their labels (`reportPeaksHtml`), full parameter
+  marked peaks of every spectrum with their labels (`reportPeaksHtml`), every spectrum's band
+  integrals with how they were measured (`reportBandsHtml`), full parameter
   table with t, p, CI and dependency, statistics, the raw-data record, every processing step
   with its warnings and a filmstrip, the fit history, method, session log). `resultsText` is
   the same as TSV for `copyResults`.
@@ -701,14 +757,34 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   F(x)= made them -4 … -1. They are `WS_LABS` and `WS_TOP` now, and a test that typed into
   "row -3" had to change with them.
 
+- **One name, one meaning.** `integrateBand` returned `err` for the area's uncertainty and, when
+  a window was too small, `err` for the reason. Every band then looked failed, its ± blank and
+  its reference disabled. The reason is `fail` now; a field that is sometimes a number and
+  sometimes a sentence will be read as the wrong one somewhere.
+- **Equal numbers are not always a bug.** Two bands showed the same "area" to 17 digits: it
+  was the error, and the windows held the same number of points with the same noise. Check
+  what is printed before chasing it.
+- **Below zero after a background is noise, not news.** The Overview warned about 332 points
+  below zero on a spectrum whose background had just been subtracted. It warns past five
+  times the noise only, and otherwise says "within the noise".
+- **A table must fit the window it opens in.** The band table overflowed its default window
+  and hid the reference and delete columns. Secondary columns go by container query, and on a
+  phone the editable edges give way to dragging on the graph.
+
 ## Roadmap
 
-Done in this round: worksheet formulas in Origin's F(x)= row, the fill handle (series and
+Done in this round: integration without a fit (bands dragged on the graph, local baselines,
+areas with noise-propagated errors, heights, positions, FWHM, shares and ratios to a chosen
+band, windows around the peaks, every spectrum at once, a Bands box in the History, the CSV and
+the report) and the Overview of a new spectrum (spacing, noise, bands, spikes, flat tops,
+background, and first steps that open their tools), opened after an import.
+
+Round before: worksheet formulas in Origin's F(x)= row, the fill handle (series and
 copies, double-click, Ctrl+D/R), sorting the view, find (Ctrl+F); peak sets that follow the
 processing (labels kept, even through a change of X units) and peaks found in every spectrum
 at once; a fix for a delayed worksheet save overwriting a later one.
 
-Round before: the worksheet as a spreadsheet grid (fixed column widths, empty cells
+Two rounds before: the worksheet as a spreadsheet grid (fixed column widths, empty cells
 beyond the data, range selection with Count/Sum/Average, Excel's keys, resizable and
 autofitting columns, Origin's Long Name/Units/Comments rows); short menus with side submenus;
 fonts for the graph and its labels; the Peaks window (find, mark with a symbol, drop line,
@@ -722,22 +798,19 @@ Python again"); user-defined fit functions with a library; true Voigt and Fano s
 peak parameters (one width, area ratios, fixed spacings).
 
 Next, in order:
-1. Integration without a fit: per-peak integration windows dragged on the graph, each with a
-   local baseline, giving a peak table and live band ratios; an automatic Overview of a new
-   spectrum (noise, S/N, spacing, bands, spikes, likely background, suggested first steps)
-2. Many spectra at once: batch fits with a summary table and a trend plot of a parameter
-   against sample, temperature or time; global fits with shared parameters; a multi-column
-   import wizard
-3. Figures for papers: export presets (journal column widths, DPI, fixed font sizes), style
+1. Many spectra at once: batch fits with a summary table and a trend plot of a parameter
+   (or a band integral, or a band ratio) against sample, temperature or time; global fits with
+   shared parameters; a multi-column import wizard
+2. Figures for papers: export presets (journal column widths, DPI, fixed font sizes), style
    templates shared between projects, annotation arrows, boxes, real sub- and superscripts,
    snapping, insets
-4. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
+3. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
    lanes, keyboard access to annotations and peak handles, handles for shape parameters
    (Lorentz fraction, Pearson m, Fano 1/q)
-5. More files: JCAMP-DX, then SPC; OPUS and SPE last
-6. Under the hood: a UI test script in `tools/` (Playwright) that runs every example end to end;
+4. More files: JCAMP-DX, then SPC; OPUS and SPE last
+5. Under the hood: a UI test script in `tools/` (Playwright) that runs every example end to end;
    speed with hundreds of spectra
-7. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
+6. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
    applied in one click, unread markers; Python steps that re-run on their own when asked
 
 ## Known gaps
@@ -760,8 +833,13 @@ Next, in order:
   strict content policy may block: the code then gets plain lists
 - The History lays lanes out in a grid; with many spectra it scrolls rather than packs, and
   there is no zoom on the flow chart
-- Integration is over the visible range only — no per-peak integration bands to drag, and no
-  peak table from integration alone (areas currently come from the fit)
+- Band integration uses the same windows for every spectrum on an axis (no per-spectrum
+  shift of a window to follow a moving band), straight or level local baselines only (no
+  curved local baseline, no Shirley), and the points inside the window (no interpolation to
+  the exact edges); overlapping bands are integrated separately, not deconvolved, which is
+  what the peak fit is for. Bands are shaded only in the overlaid and double-Y layouts
+- The Overview's judgements (a spike's height, a flat background, 7 points for smoothing,
+  5 below zero) are fixed thresholds; it describes the analysed spectrum only, not a batch
 - Double Y puts every other spectrum on one right axis; there are no free graph layers, insets
   or per-panel settings in the stacked layout
 - Annotations have no arrows, boxes or rich text (sub- and superscripts only as Unicode), and

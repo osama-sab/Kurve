@@ -755,6 +755,40 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 .pfrej{list-style:none;padding:0;margin:0 0 6px}
 #pane-peaks .fbar{margin:-10px -14px 8px;padding:6px 10px;position:sticky;top:-10px;z-index:2;background:var(--panel);display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--rule)}
 #pane-peaks .fbar select{min-width:0;max-width:220px;flex:0 1 auto}
+#pane-integ .fbar{margin:-10px -14px 8px;padding:6px 10px;position:sticky;top:-10px;z-index:2;background:var(--panel);display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+#pane-integ .fbar select{min-width:0;max-width:200px;flex:0 1 auto}
+.igseg{margin:0 0 8px}
+#pane-over .fbar{margin:-10px -14px 10px;padding:6px 10px;position:sticky;top:-10px;z-index:2;background:var(--panel);display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+#pane-over .fbar select{min-width:0;max-width:220px;flex:0 1 auto}
+.ovtab{width:100%;border-collapse:collapse;font-size:13px;margin:0 0 6px}
+.ovtab th{text-align:left;font-weight:600;color:var(--muted);padding:6px 10px 6px 0;vertical-align:top;white-space:nowrap;width:1%}
+.ovtab td{padding:6px 0;vertical-align:top;border-bottom:1px solid var(--rule-2);line-height:1.45}
+.ovtab th{border-bottom:1px solid var(--rule-2)}
+.ovtab td.ovs{width:22px;padding-right:6px}
+.ovst{display:inline-flex;width:18px;height:18px;border-radius:50%;align-items:center;justify-content:center}
+.ovst .ic{width:12px;height:12px;stroke-width:2.6}
+.ovst.ok{background:var(--ok-bg);color:var(--ok)}
+.ovst.warn{background:var(--warn-bg);color:var(--warn)}
+.ovsug{list-style:none;padding:0;margin:0 0 8px;counter-reset:ov}
+.ovsug li{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--rule-2);counter-increment:ov}
+.ovsug li::before{content:counter(ov);display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:700;flex:0 0 auto}
+.ovsug li.done::before{background:var(--rule)}
+.ovsug li.done strong{color:var(--muted)}
+.ovsug li .grow{flex:1;min-width:0}
+.ovsug li .lab{font-size:12.5px}
+.igsw{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle}
+.igtab td{vertical-align:middle}
+.igtab td.ign{white-space:nowrap}
+.igtab td.ign .igsw{margin-right:5px}
+.igtab td.l input.igname{width:86px;height:24px;font-size:12.5px;padding:0 6px;vertical-align:middle}
+.igtab td.num input{width:68px;height:24px;font-size:12.5px;padding:0 6px;text-align:right}
+.igtab td select{height:24px;font-size:12px;width:auto}
+.igtab th,.igtab td{padding-left:6px;padding-right:6px}
+.igtab tfoot td{border-top:1px solid var(--rule);font-weight:600;border-bottom:0}
+.igtab tbody tr{cursor:pointer}
+@container (max-width:760px){ .igtab .opt{display:none} }
+@container (max-width:600px){ .igtab .opt2{display:none} }
+@container (max-width:460px){ .igtab .edt{display:none} .igtab td.l input.igname{width:74px} .igtab th,.igtab td{padding-left:4px;padding-right:4px} }
 #pane-peaks .gb>.chk{display:flex;margin:4px 0 2px}
 .pktab td.l{min-width:120px}
 .pktab td.l input{width:100%;min-width:100px;height:24px;font-size:12.5px;padding:0 6px}
@@ -859,6 +893,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
   <symbol id="i-chevr" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
   <symbol id="i-chevu" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
+  <symbol id="i-area" viewBox="0 0 24 24"><path d="M3 20h18"/><path d="M4 19.5c3.5 0 4.5-13 8-13s4.5 13 8 13"/><path d="M9.5 19v-5.5M12 19V8.5M14.5 19v-5.5"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.2"/><path d="m15.2 15.2 5.3 5.3"/></symbol>
   <symbol id="i-chevup" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
@@ -1024,6 +1059,16 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
     <section class="win" id="w-peaks" data-win="peaks" aria-label="Peaks">
       <header class="win-h"><svg class="ic sm"><use href="#i-tag"/></svg><h2 class="win-t">Peaks</h2><span class="win-sub" id="pkSub"></span><span class="sp"></span></header>
       <div class="win-b"><div class="dbody" id="pane-peaks"></div></div>
+    </section>
+
+    <section class="win" id="w-integ" data-win="integ" aria-label="Integrate">
+      <header class="win-h"><svg class="ic sm"><use href="#i-area"/></svg><h2 class="win-t">Integrate</h2><span class="win-sub" id="igSub"></span><span class="sp"></span></header>
+      <div class="win-b"><div class="dbody" id="pane-integ"></div></div>
+    </section>
+
+    <section class="win" id="w-over" data-win="over" aria-label="Overview">
+      <header class="win-h"><svg class="ic sm"><use href="#i-info"/></svg><h2 class="win-t">Overview</h2><span class="win-sub" id="ovSub"></span><span class="sp"></span></header>
+      <div class="win-b"><div class="dbody" id="pane-over"></div></div>
     </section>
 
     <section class="win" id="w-fit" data-win="fit" aria-label="Fit">
@@ -1949,6 +1994,77 @@ function trapz(x,y){
   for(let i=1;i<x.length;i++){ const a=x[i-1], b=x[i], ya=y[i-1], yb=y[i];
     if(a==null||b==null||ya==null||yb==null) continue; s+=(b-a)*(ya+yb)/2; }
   return s;
+}
+/* Integrating a band without a fit. The points inside [x1, x2] (either way
+   round, on an axis running either way), less a local baseline:
+     line  a straight line through the two edges, each the mean of the first
+           or last `avg` points, so one noisy point does not tilt it
+     zero  none: the area down to y = 0
+     min   a level line at the lowest point of the window
+   The area is the trapezoidal sum of what is left, and its uncertainty the
+   noise carried through that sum and through the baseline's two ends: sigma
+   is the noise of the spectrum (noiseSigma), or E the error bar of each point
+   when there are error bars. Height and position are the extreme of what is
+   left (a parabola through the top three points), FWHM where it crosses half
+   the height (null when it does not, inside the window), centroid the
+   area-weighted mean position. */
+function integrateBand(X,Y,E,x1,x2,o){
+  o=o||{};
+  const lo=Math.min(x1,x2), hi=Math.max(x1,x2), idx=[];
+  for(let i=0;i<Math.min(X.length,Y.length);i++){ const x=X[i], y=Y[i];
+    if(x==null||y==null||!Number.isFinite(x)||!Number.isFinite(y)||x<lo||x>hi) continue; idx.push(i); }
+  idx.sort((a,b)=>X[a]-X[b]);
+  const n=idx.length, base=o.base||"line", sig=Number.isFinite(o.sigma)?o.sigma:0;
+  if(n<3) return {n,lo,hi,base,fail:"fewer than three points in the window"};
+  const x=idx.map(i=>X[i]), y=idx.map(i=>Y[i]), s=idx.map(i=>E&&E[i]!=null&&Number.isFinite(E[i])?Math.abs(E[i]):sig);
+  // Trapezoid weights: the area is sum(w_i * v_i).
+  const w=x.map((_,i)=>((i<n-1?x[i+1]-x[i]:0)+(i>0?x[i]-x[i-1]:0))/2);
+  const k=Math.max(1,Math.min(Math.round(o.avg||3),Math.floor(n/4)||1));
+  const mean=a=>a.reduce((p,q)=>p+q,0)/a.length;
+  let b, varB=0, edges=null;
+  if(base==="zero"){ b=x.map(()=>0); }
+  else if(base==="min"){ let m=y[0], sm=s[0]; y.forEach((v,i)=>{ if(v<m){ m=v; sm=s[i]; } }); b=x.map(()=>m); const W=w.reduce((p,q)=>p+q,0); varB=W*W*sm*sm; }
+  else {
+    const xl=mean(x.slice(0,k)), yl=mean(y.slice(0,k)), xr=mean(x.slice(n-k)), yr=mean(y.slice(n-k));
+    const sl=Math.sqrt(mean(s.slice(0,k).map(v=>v*v))/k), sr=Math.sqrt(mean(s.slice(n-k).map(v=>v*v))/k);
+    const t=x.map(v=>xr===xl?0.5:(v-xl)/(xr-xl));
+    b=t.map(q=>yl*(1-q)+yr*q);
+    let cl=0, cr=0; w.forEach((wi,i)=>{ cl+=wi*(1-t[i]); cr+=wi*t[i]; }); varB=cl*cl*sl*sl+cr*cr*sr*sr;
+    edges={xl,yl,xr,yr};
+  }
+  const v=y.map((q,i)=>q-b[i]);
+  let area=0, varD=0, m1=0; v.forEach((q,i)=>{ area+=w[i]*q; varD+=w[i]*w[i]*s[i]*s[i]; m1+=w[i]*q*x[i]; });
+  const err=Math.sqrt(varD+varB);
+  // The extreme on the side the area is on: a dip's is its lowest point.
+  const sg=area<0?-1:1; let j=0; v.forEach((q,i)=>{ if(sg*q>sg*v[j]) j=i; });
+  let pos=x[j], height=v[j];
+  if(j>0&&j<n-1){ const x0=x[j-1], x1b=x[j], x2b=x[j+1], y0=v[j-1], y1=v[j], y2=v[j+1];
+    const den=(x0-x1b)*(x0-x2b)*(x1b-x2b);
+    if(den){ const A=(x2b*(y1-y0)+x1b*(y0-y2)+x0*(y2-y1))/den, B=(x2b*x2b*(y0-y1)+x1b*x1b*(y2-y0)+x0*x0*(y1-y2))/den, C=(x1b*x2b*(x1b-x2b)*y0+x2b*x0*(x2b-x0)*y1+x0*x1b*(x0-x1b)*y2)/den;
+      if(A&&sg*A<0){ const xv=-B/(2*A); if(xv>=x0&&xv<=x2b){ pos=xv; height=A*xv*xv+B*xv+C; } } } }
+  const half=height/2, cross=(a,c)=>{ const q=(half-v[a])/(v[c]-v[a]); return x[a]+q*(x[c]-x[a]); };
+  let L=null, R=null;
+  for(let i=j;i>0;i--) if(sg*v[i-1]<=sg*half){ L=cross(i-1,i); break; }
+  for(let i=j;i<n-1;i++) if(sg*v[i+1]<=sg*half){ R=cross(i,i+1); break; }
+  const fwhm=L!=null&&R!=null?R-L:null;
+  const centroid=Math.abs(area)>0?m1/area:null;
+  return {n,lo,hi,base,avg:k,area,err,height,pos,fwhm,centroid,snr:sig>0?Math.abs(height)/sig:null,x,y,b,edges};
+}
+/* Windows around peaks, for integrating them: two neighbours are split at the
+   lowest point between them, and each outer edge is two widths from its peak
+   (or where the data end). pk is [{x, w}], w the FWHM when known. */
+function bandsFromPeaks(X,Y,pk){
+  const pts=[]; for(let i=0;i<Math.min(X.length,Y.length);i++) if(X[i]!=null&&Y[i]!=null&&Number.isFinite(X[i])&&Number.isFinite(Y[i])) pts.push([X[i],Y[i]]);
+  pts.sort((a,b)=>a[0]-b[0]); if(pts.length<3||!pk.length) return [];
+  const g=[]; for(let i=1;i<pts.length;i++) g.push(pts[i][0]-pts[i-1][0]); g.sort((a,b)=>a-b);
+  const h=g[g.length>>1]||1, xs=pts[0][0], xe=pts[pts.length-1][0];
+  const P=pk.filter(q=>Number.isFinite(q.x)).map(q=>({x:q.x,w:Number.isFinite(q.w)&&q.w>0?q.w:5*h})).sort((a,b)=>a.x-b.x);
+  const valley=(a,b)=>{ let best=null; pts.forEach(p=>{ if(p[0]>a&&p[0]<b&&(!best||p[1]<best[1])) best=p; }); return best?best[0]:(a+b)/2; };
+  return P.map((q,k)=>{
+    let l=Math.max(xs,q.x-2*q.w), r=Math.min(xe,q.x+2*q.w);
+    if(k>0){ const v=valley(P[k-1].x,q.x); l=Math.max(l,v); }
+    if(k<P.length-1){ const v=valley(q.x,P[k+1].x); r=Math.min(r,v); }
+    return {x1:l,x2:r,peak:q.x}; }).filter(b=>b.x2>b.x1);
 }
 /* Bucketed min/max, so a thumbnail of 20 000 points keeps its spikes and bands. */
 function decimate(x,y,maxN){
@@ -3675,7 +3791,7 @@ function migrate(p){
 
 /* Undo is per-session and local: it rewinds your own edits, not other
    people's. Cross-user undo in a shared document is a different problem. */
-const UNDO_KEYS=["cols","activeY","meta","fit","plot","name","log","raw","fits","userFns","found"];
+const UNDO_KEYS=["cols","activeY","meta","fit","plot","name","log","raw","fits","userFns","found","integ"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
 function snapshot(){ const p=P(); if(!p) return null; const o={pid:S.pid}; UNDO_KEYS.forEach(k=>{ o[k]=clone(p[k]); });
   o.pdraft=S.pdraft?clone(S.pdraft):null; o.draft=S.draft?clone(S.draft):null; return o; }
@@ -4148,6 +4264,7 @@ function buildPlot(W,H,pal,forExport){
   }
   const annoCtx={cfg,pal,X,Y,ps,forExport,fs,sans,L,pw,T,mh,heat};
   s+=annoSvg("under",annoCtx);
+  s+=bandsSvg("under",Object.assign({layout},annoCtx));
   if(fit){
     const fr=fit.range||[v.x0,v.x1], a=Math.max(fr[0],Math.min(v.x0,v.x1)), b=Math.min(fr[1],Math.max(v.x0,v.x1));
     if(b>a){
@@ -4286,6 +4403,7 @@ function buildPlot(W,H,pal,forExport){
   }
   s+=`<text${ed("x")} x="${L+pw/2}" y="${H-12}" text-anchor="middle" font-size="${fs+2.5}" font-style="${ital}" fill="${pal.ink}" font-family="${serif}">${esc(xl)}</text>`;
   // Text and labels on the graph, then the legend over them.
+  s+=bandsSvg("top",Object.assign({layout},annoCtx));
   s+=annoSvg("top",annoCtx);
   // Legend: in the emptiest corner, a chosen one, outside on the right, or
   // wherever it was dragged (kept as fractions of the plot area).
@@ -4740,6 +4858,7 @@ function graphMenuItems(id,at){
     {label:"Legend",sub:()=>legendMenuItems().filter(it=>!it.group)},
     {label:"Lines, labels and legend…",run:()=>openPlotDetails(id||(act&&act.id),"labels")},
     {label:"Find and mark peaks…",run:()=>openPeakFinder(),enabled:has},
+    {label:"Integrate bands…",run:()=>openIntegrate(),enabled:has},
     "-",
     {label:"Export the figure",sub:()=>[{label:"As SVG (vector, for papers)",run:exportSvg,enabled:has},{label:"As PNG (image, for slides)",run:exportPng,enabled:has}]});
   return items;
@@ -5042,6 +5161,10 @@ function setupGraph(){
       if(S.selPeak!==h.k){ S.selPeak=h.k; renderPlot(); renderFit(); }
       return;
     }
+    // A band's edge, or its strip along the top, drags in the Zoom, Pan and Label tools.
+    const bhe=ev.target&&ev.target.closest?ev.target.closest("[data-bh],[data-bb]"):null;
+    if(bhe&&!S.readOnly&&ev.button===0&&["zoom","pan","label"].includes(S.mode)){ const [bid,edge]=(bhe.dataset.bh||(bhe.dataset.bb+":body")).split(":"), b=integOf().bands.find(q=>q.id===bid);
+      if(b){ ev.preventDefault(); svg.setPointerCapture(ev.pointerId); S.bdrag={id:bid,edge,x0:x,orig:{x1:b.x1,x2:b.x2},moved:false}; return; } }
     // Annotations and the legend move with the pointer in the Zoom, Pan and Label tools.
     const canMove=!S.readOnly&&ev.button===0&&["zoom","pan","label"].includes(S.mode);
     const ag=ev.target&&ev.target.closest?ev.target.closest("[data-anno]"):null;
@@ -5060,6 +5183,7 @@ function setupGraph(){
     const ro=$("#readout"); if(ro){ const [xu,yu]=dataUnits(); ro.textContent=d&&d.inside?`x ${fmt(d.x,6)}${xu?" "+xu:""}   y ${fmt(d.y,5)}${yu?" "+yu:""}`:""; }
     if(S.andrag){ dragAnno(x,y); return; }
     if(S.lgdrag){ dragLegend(x,y); return; }
+    if(S.bdrag){ dragBand(x,y); return; }
     if(S.adrag){ if(d){ moveAnchor(S.adrag.k,{x:d.x,y:d.y},false); S.adrag.moved=true; const [xu2,yu2]=[S.ps&&S.ps.d.xu||"",S.ps&&S.ps.d.yu||""]; showTip(`Anchor at ${fmt(d.x,6)}${xu2?" "+xu2:""}, ${fmt(d.y,5)}${yu2?" "+yu2:""}`,x,y); } return; }
     if(S.hdrag){ const hd=S.hdrag;
       if(!hd.pushed){ pushUndo("adjusting peak "+(hd.k+1)); hd.pushed=true; }
@@ -5083,8 +5207,10 @@ function setupGraph(){
     if(S.room&&d&&Date.now()-lastPres>90){ lastPres=Date.now(); S.room.presence(d.inside?{uid:S.uid,pid:S.pid,cx:d.x,cy:d.y}:{uid:S.uid,pid:S.pid,cx:null,cy:null}).catch(()=>{}); }
   });
   svg.addEventListener("pointerleave",()=>{ if(S.hdrag||drag) return; hideTip(); const ro=$("#readout"); if(ro) ro.textContent=""; if(S.room) S.room.presence({cx:null,cy:null}).catch(()=>{}); });
-  svg.addEventListener("pointercancel",()=>{ drag=null; S.hdrag=null; S.andrag=null; S.lgdrag=null; zr.style.display="none"; svg.classList.remove("panning"); });
+  svg.addEventListener("pointercancel",()=>{ drag=null; S.hdrag=null; S.andrag=null; S.lgdrag=null; S.bdrag=null; zr.style.display="none"; svg.classList.remove("panning"); });
   svg.addEventListener("pointerup",ev=>{
+    if(S.bdrag){ const bd=S.bdrag; S.bdrag=null; hideTip(); S.noDbl=Date.now(); if(bd.moved){ commitBandDrag(bd); return; }
+      S.bandSel=bd.id; renderPlot(); openWin("integ",{render:true}); return; }
     // A click selects; a second click on the same one soon after edits it. (The
     // first click redraws the graph, so the browser's dblclick never arrives.)
     if(S.andrag){ const ad=S.andrag; S.andrag=null; hideTip(); if(ad.moved){ commitAnnoDrag(ad); return; }
@@ -5193,6 +5319,7 @@ function graphKey(ev){
     $("#plotSay").textContent="Showing all the data."; return; }
   if((k==="Enter"||k==="F2")&&S.annoSel&&annoById(S.annoSel)&&!S.readOnly){ ev.preventDefault(); annoDouble(S.annoSel); return; }
   if((k==="Delete"||k==="Backspace")&&S.annoSel&&annoById(S.annoSel)&&!S.readOnly){ ev.preventDefault(); deleteAnno(S.annoSel); $("#plotSay").textContent="Annotation deleted."; return; }
+  if((k==="Delete"||k==="Backspace")&&S.bandSel&&integOf().bands.some(b=>b.id===S.bandSel)&&!S.readOnly){ ev.preventDefault(); removeBand(S.bandSel); $("#plotSay").textContent="Band removed."; return; }
   if((k==="Delete"||k==="Backspace")&&S.selPeak!=null&&S.pdraft&&S.pdraft.peaks[S.selPeak]&&!S.readOnly){ ev.preventDefault();
     const n=S.selPeak+1; removePeak(S.selPeak); $("#plotSay").textContent=`Peak ${n} removed.`; return; }
   if(S.sel==null){
@@ -6524,6 +6651,7 @@ function removeAnchor(k){
   list.splice(k,1); setParam(s,"anchors",list,true);
 }
 function setPickedRange(x0,x1){
+  if(S.pick&&S.pick.integ){ addBand(x0,x1); return; }        // the band tool stays on for the next
   if(S.pick&&S.pick.band){ S.pick=null; setMode("zoom",true); addAnno({t:"band",x:+Math.min(x0,x1).toPrecision(7),x2:+Math.max(x0,x1).toPrecision(7)}); return; }
   const s=S.pick&&stepById(S.pick.step); if(!s||!S.pick.keys) return;
   const [ka,kb]=S.pick.keys; beginStepEdit(s,ka);
@@ -6814,7 +6942,7 @@ async function doImport(){
   if(!S.pid||mode==="new"){
     const pr=Object.assign(blankProject(base),{cols,activeY:yc.id,fit:null,meta:r.meta,srcName:base,v:DOC_V});
     pr.raw=rawRecordFor(cols,`recorded from ${im.fname}`);
-    await createProject(pr,`imported ${x.length} rows from ${im.fname}${stepNote}`); showTab("clean"); return;
+    await createProject(pr,`imported ${x.length} rows from ${im.fname}${stepNote}`); showTab("clean"); setTimeout(autoOverview,250); return;
   }
 
   pushUndo("the import");
@@ -6833,7 +6961,7 @@ async function doImport(){
     p.activeY=yc.id; p.meta=Object.assign({},p.meta||{},r.meta);
     const raw=recordRaw(`added ${label} from ${im.fname}`);
     await save(Object.assign({cols:p.cols,activeY:yc.id,meta:p.meta},raw?{raw}:{}),`added ${label} from ${im.fname}${stepNote}${own?", with its own X column because it was measured on a different axis":""}`);
-    renderAll(); showTab("clean");
+    renderAll(); showTab("clean"); autoOverview();
     toast(own?`${label} was measured on a different X axis, so it has its own X column. Nothing was interpolated.`:`Added ${label} as a new column. It is now the one being analysed.`,{action:"Undo",run:undo});
     return;
   }
@@ -6846,7 +6974,7 @@ async function doImport(){
   S.fitMode=null; S.selPeak=null;
   Object.assign(cur,patch);
   const raw=recordRaw(`replaced all the raw data with ${im.fname}`); if(raw) patch.raw=raw;
-  await save(patch,`replaced the data with ${x.length} rows from ${im.fname}${stepNote}`); renderAll(); showTab("clean");
+  await save(patch,`replaced the data with ${x.length} rows from ${im.fname}${stepNote}`); renderAll(); showTab("clean"); autoOverview();
   toast(`Imported ${x.length} rows from ${im.fname}. The previous raw data is in the undo history and its fingerprint in the record.`,{action:"Undo",run:undo});
 }
 function sameAxis(a,b){
@@ -7732,7 +7860,7 @@ function threadIndex(){
   THR_MEMO={src:all,list,byNode}; return THR_MEMO;
 }
 const nodeThreads=key=>threadIndex().byNode[key]||[];
-const NODE_KIND={raw:"Raw data",src:"Input",final:"Final data",fit:"Fits",peaks:"Peaks"};
+const NODE_KIND={raw:"Raw data",src:"Input",final:"Final data",fit:"Fits",peaks:"Peaks",integ:"Band integrals"};
 function splitKey(key){ const i=String(key).indexOf(":"); return i<0?[key,""]:[key.slice(0,i),key.slice(i+1)]; }
 // The anchor for a History box, labelled as the box is now.
 function nodeAnchor(key){
@@ -7923,7 +8051,7 @@ async function postComment(){
   $("#cPost").disabled=false;
 }
 /* The discussion of one History box, at the foot of its inspector. */
-const NODE_PROMPT={step:"Comment on this step: why these settings, a question, a suggestion…",raw:"Comment on the raw data…",src:"Comment on this spectrum's input…",final:"Comment on the final data…",fit:"Comment on these fits…",table:"Comment on the recorded data…",peaks:"Comment on these peaks: an assignment, a doubt…",figure:"Comment on the figure…"};
+const NODE_PROMPT={step:"Comment on this step: why these settings, a question, a suggestion…",raw:"Comment on the raw data…",src:"Comment on this spectrum's input…",final:"Comment on the final data…",fit:"Comment on these fits…",table:"Comment on the recorded data…",peaks:"Comment on these peaks: an assignment, a doubt…",integ:"Comment on these bands: a window, a baseline, a ratio…",figure:"Comment on the figure…"};
 function flowDiscHtml(key,kind){
   const dk="node:"+key, ph=NODE_PROMPT[kind]||"Comment…";
   return `<section class="fdisc" data-key="${esc(key)}" aria-label="Discussion of this box"><div class="fdisc-in">${flowDiscInner(key)}</div>`+
@@ -8028,7 +8156,7 @@ function openProject(id){
   S.hdrag=null; S.adrag=null; S.stage=null; S.selStep=null; S.cmp=false; S.pick=null; S.showParams=false; closeMenu(false);
   // A tool left open on the last project would record its step on this one.
   S.pending=null; if(winOpen("tool")){ winState("tool").open=false; applyWins(); }
-  S.flowSel=null; S.pfPreview=null; S.pfOpen=null; S.plotPreview=null; S.annoSel=null; S.andrag=null; S.lgdrag=null; S.pkLast=null;
+  S.flowSel=null; S.pfPreview=null; S.pfOpen=null; S.plotPreview=null; S.annoSel=null; S.andrag=null; S.lgdrag=null; S.pkLast=null; S.bandSel=null; S.bdrag=null;
   { const ed=document.querySelector(".inled"); if(ed) ed.remove(); }
   if(S.py) Object.assign(S.py,{stepId:null,col:null,at:null,err:"",log:"",note:"",preview:null,reads:null});
   const tipEl=document.getElementById("tip"); if(tipEl) tipEl.style.display="none";
@@ -8200,6 +8328,7 @@ async function exportReport(){
     html.push("<h2>Fit statistics</h2><dl>"+statsList(f).map(([k,v])=>"<dt>"+esc2(k)+"</dt><dd>"+esc2(v)+"</dd>").join("")+"</dl>");
   }
   html.push(reportPeaksHtml());
+  html.push(reportBandsHtml());
   html.push(reportDataHtml(EXPORT_PAL));
   html.push(reportFitsHtml(EXPORT_PAL));
   html.push(reportDiscussionHtml());
@@ -8276,6 +8405,9 @@ async function exportCsv(){
   const fd=foundOf(c);
   if(fd){ const rows=peakRows(c); lines.push(""); lines.push(`# Peaks marked,${rows.length}${fd.sig&&fd.sig!==pipeSig(c)?" (found before the processing last changed)":""}`);
     lines.push("# peak,x,y,FWHM,S/N,label"); rows.forEach((r,k)=>lines.push(`# ${k+1},${r.x},${r.y},${r.w!=null?r.w:""},${r.snr!=null?r.snr:""},${q(clean(r.said))}`)); }
+  const bres=bandCalc(c);
+  if(bres.length){ lines.push(""); lines.push(`# Band integrals,${bres.length}`); lines.push("# band,from,to,baseline,area,error,height,position,FWHM,centroid,percent,ratio,ratio error");
+    bres.forEach(bq=>{ const r=bq.r; lines.push(`# ${q(clean(bandName(bq.b,bq.k)))},${Math.min(bq.b.x1,bq.b.x2)},${Math.max(bq.b.x1,bq.b.x2)},${bq.b.base||"line"},`+(r.fail?q(clean(r.fail)):`${r.area},${r.err},${r.height},${r.pos},${r.fwhm!=null?r.fwhm:""},${r.centroid!=null?r.centroid:""},${bq.pct!=null?bq.pct:""},${bq.ratio!=null?bq.ratio:""},${bq.ratioErr!=null?bq.ratioErr:""}`)); }); }
   const meta=p.meta||{};
   if(Object.keys(meta).length){ lines.push(""); lines.push("# Source file metadata"); Object.keys(meta).forEach(k=>lines.push("# "+k+","+clean(meta[k]))); }
   if(f){
@@ -8454,7 +8586,9 @@ function analysisMenu(){
   const p=P(), has=!!(p&&pointsAll().length), edit=!!p&&!S.readOnly;
   const t=op=>toolItem(op);
   return [
+    {label:"Overview…", run:openOverview, enabled:!!p&&has},
     {label:"Find peaks…", run:()=>openPeakFinder(), enabled:!!p&&has},
+    {label:"Integrate bands…", run:()=>openIntegrate(), enabled:!!p&&has},
     {label:"Fit", sub:()=>[
       {label:"Curve fit", run:()=>{ S.fitMode="curve"; showTab("fit"); renderPlot(); }, enabled:!!p},
       {label:"Peak fit", run:()=>{ S.fitMode="peaks"; showTab("fit"); renderPlot(); }, enabled:!!p},
@@ -8470,8 +8604,10 @@ function analysisMenu(){
 function statisticsMenu(){
   const p=P(), has=!!(p&&pointsAll().length);
   const go=sec=>()=>{ S.statSec=sec; openWin("stats",{render:true}); renderStats(); };
-  return [{label:"Descriptive statistics", run:go("desc"), enabled:has},
+  return [{label:"Overview of the spectrum", run:openOverview, enabled:has},
+    {label:"Descriptive statistics", run:go("desc"), enabled:has},
     {label:"Integrate the visible range", run:go("int"), enabled:has},
+    {label:"Integrate bands…", run:()=>openIntegrate(), enabled:has},
     {label:"Noise and signal to noise", run:go("desc"), enabled:has},
     {label:"Correlation between spectra", run:go("corr"), enabled:has&&yCols().length>1}];
 }
@@ -8715,7 +8851,7 @@ function renderPeaks(){
       <span></span><label class="chk"><input type="checkbox" data-pks="rot"${st.rot?" checked":""}${ro}> Vertical labels</label>
       <span></span><label class="chk"><input type="checkbox" data-pks="unit"${st.unit?" checked":""}${ro}> Unit after the position</label></div></section>`;
     // 4 What next
-    h+=`<section class="stepsec"><h3 class="gh"><span class="sn">4</span>If you want</h3><div class="actions"><button class="btn sm" id="pkFit"${ro||!rows.length?" disabled":""}>${ICON("peak","sm")}Fit these peaks…</button><button class="btn sm" id="pkMore">${ICON("tag","sm")}Lines, labels and legend…</button></div><p class="hint">Fitting is optional: the peaks stay marked and labelled either way, in the figure, the exports and the report.</p></section>`; }
+    h+=`<section class="stepsec"><h3 class="gh"><span class="sn">4</span>If you want</h3><div class="actions"><button class="btn sm" id="pkFit"${ro||!rows.length?" disabled":""}>${ICON("peak","sm")}Fit these peaks…</button><button class="btn sm" id="pkInteg"${ro||!rows.length?" disabled":""} title="A window around each peak, integrated without a fit">${ICON("area","sm")}Integrate them</button><button class="btn sm" id="pkMore">${ICON("tag","sm")}Lines, labels and legend…</button></div><p class="hint">Fitting is optional: the peaks stay marked and labelled either way, in the figure, the exports and the report.</p></section>`; }
   box.innerHTML=h; box.scrollTop=sc;
   if(focusId){ const el=document.getElementById(focusId); if(el){ if(keepV&&el.matches("input[type=text]")){ el.value=keepV[0]; try{ el.setSelectionRange(keepV[1],keepV[2]); }catch(e){} } el.focus({preventScroll:true}); } }
   wirePeaks(box);
@@ -8735,6 +8871,7 @@ function wirePeaks(box){
     renderAll(); };
   on("#pkClear",clearFoundPeaks);
   on("#pkFit",fitFoundPeaks);
+  on("#pkInteg",bandsFromPeaksUI);
   on("#pkMore",()=>openPlotDetails((activeYCol()||{}).id,"labels"));
   on("#pkAddMode",()=>{ setMode(S.mode==="label"?"zoom":"label"); renderPeaks(); });
   const cs=box.querySelector("#pkCol"); if(cs) cs.onchange=()=>{ setActiveCol(cs.value,true); renderPeaks(); };
@@ -8769,6 +8906,343 @@ function addToPeakSet(c,pt){
   S.annoSel=a.id; renderPlot(); renderPeaks(); if(winOpen("flow")) renderFlow();
   return a.id;
 }
+/* ============================================================
+   Integrating bands without a fit. p.integ = {bands, ref, avg, show}: each
+   band is a window {id, x1, x2, xu, lab, base} in the X units it was drawn
+   in, and applies to every spectrum on that axis, so the same windows give
+   the same bands of every sample. Its numbers are computed from the final
+   data whenever they are wanted (integrateBand), never stored, so they
+   follow the processing on their own. ref is the band the others are given
+   as a ratio of; avg how many points average each end of a line baseline;
+   show whether the graph shades them.
+   ============================================================ */
+const BAND_BASES=[["line","A line between its edges"],["zero","None: down to zero"],["min","Level, at its lowest point"]];
+const BAND_BASES_SHORT={line:"Line",zero:"None",min:"Level"};
+const bandId=()=>"b"+Date.now().toString(36)+(colSeq++).toString(36);
+function integOf(p){ p=p||P(); const g=p&&p.integ&&typeof p.integ==="object"?p.integ:{}; return {bands:Array.isArray(g.bands)?g.bands:[],ref:g.ref||null,avg:g.avg||3,show:g.show!==false}; }
+// The bands on a spectrum's axis, each with its number (for its colour and name).
+function bandsFor(c){ const d=finalOf(c), xu=d.xu||""; return integOf().bands.map((b,k)=>({b,k})).filter(q=>(q.b.xu||"")===xu); }
+const bandName=(b,k)=>b.lab||`Band ${k+1}`;
+const BAND_MEMO=new WeakMap();
+/* Every band of a spectrum, measured: its final data with masked points left
+   out, the noise of the whole spectrum, its error bars when it has some. */
+function bandCalc(c){
+  if(!c) return [];
+  const d=finalOf(c), list=bandsFor(c); if(!list.length) return [];
+  const g=integOf(), mk=maskOf(c), key=JSON.stringify(list.map(q=>q.b))+"|"+g.avg+"|"+g.ref+"|"+mk.length+":"+hash32(mk.join(","));
+  const memo=BAND_MEMO.get(d); if(memo&&memo.key===key) return memo.res;
+  const skip=new Set(mk), X=[], Y=[], E=[]; let hasE=false;
+  for(let i=0;i<Math.min(d.x.length,d.y.length);i++){ if(skip.has(d.idx[i])) continue; X.push(d.x[i]); Y.push(d.y[i]); const e=d.e?d.e[i]:null; E.push(e); if(e!=null) hasE=true; }
+  const o=X.map((_,i)=>i).sort((a,b)=>X[a]-X[b]), sigma=noiseSigma(o.map(i=>Y[i]).filter(v=>v!=null&&Number.isFinite(v)));
+  const res=list.map(({b,k})=>({b,k,r:integrateBand(X,Y,hasE?E:null,b.x1,b.x2,{base:b.base||"line",avg:g.avg,sigma})}));
+  const ok=res.filter(q=>!q.r.fail), total=ok.reduce((s,q)=>s+q.r.area,0), ref=res.find(q=>q.b.id===g.ref&&!q.r.fail);
+  res.forEach(q=>{ if(q.r.fail) return;
+    q.pct=total?100*q.r.area/total:null;
+    if(ref&&ref.r.area){ q.ratio=q.r.area/ref.r.area; q.ratioErr=q===ref?0:Math.abs(q.ratio)*Math.sqrt((q.r.area?(q.r.err/q.r.area)**2:0)+(ref.r.err/ref.r.area)**2); } });
+  res.total=total; res.sigma=sigma; res.ref=ref||null;
+  BAND_MEMO.set(d,{key,res}); return res;
+}
+function saveInteg(patch,log){ const p=P(); if(!p) return; const g=Object.assign({},integOf(p),patch);
+  save({integ:{bands:g.bands,ref:g.ref,avg:g.avg,show:g.show}},log||null);
+  renderPlot(); if(winOpen("integ")) renderInteg(); if(winOpen("flow")) renderFlow(); }
+function addBand(x1,x2,opt){
+  opt=opt||{}; const p=P(), c=activeYCol(); if(!p||!c||S.readOnly) return null;
+  const d=finalOf(c), lo=Math.min(x1,x2), hi=Math.max(x1,x2);
+  const b={id:bandId(),x1:+lo.toPrecision(8),x2:+hi.toPrecision(8),xu:d.xu||"",lab:opt.lab||"",base:opt.base||"line"};
+  if(opt.undo!==false) pushUndo("adding a band");
+  const g=integOf(p), bands=g.bands.concat([b]);
+  saveInteg({bands,ref:g.ref||b.id},opt.log===false?null:`added a band from ${fmt(lo,6)} to ${fmt(hi,6)}${d.xu?" "+d.xu:""} to integrate`);
+  S.bandSel=b.id; return b.id;
+}
+function updateBand(id,patch,log){
+  const p=P(), g=integOf(p), b=g.bands.find(q=>q.id===id); if(!b||S.readOnly) return;
+  pushUndo("changing a band");
+  saveInteg({bands:g.bands.map(q=>q.id===id?Object.assign({},q,patch):q)},log||null);
+}
+function removeBand(id){
+  const p=P(), g=integOf(p), k=g.bands.findIndex(q=>q.id===id); if(k<0||S.readOnly) return;
+  const b=g.bands[k]; pushUndo("removing a band");
+  const bands=g.bands.filter(q=>q.id!==id);
+  saveInteg({bands,ref:g.ref===id?(bands[0]?bands[0].id:null):g.ref},`removed the band ${bandName(b,k)} (${fmt(Math.min(b.x1,b.x2),6)} to ${fmt(Math.max(b.x1,b.x2),6)})`);
+  if(S.bandSel===id) S.bandSel=null;
+  toast(`Removed ${bandName(b,k)}.`,{action:"Undo",run:undo});
+}
+function clearBands(){
+  const c=activeYCol(), mine=bandsFor(c); if(!mine.length||S.readOnly) return;
+  pushUndo("removing the bands"); const ids=new Set(mine.map(q=>q.b.id)), g=integOf();
+  const bands=g.bands.filter(b=>!ids.has(b.id));
+  saveInteg({bands,ref:ids.has(g.ref)?(bands[0]?bands[0].id:null):g.ref},`removed ${mine.length} band${mine.length===1?"":"s"}`);
+  toast(`Removed ${mine.length} band${mine.length===1?"":"s"}.`,{action:"Undo",run:undo});
+}
+// Drag across the graph to add a band; the tool stays on for the next one.
+function pickBands(on){
+  if(on===false||(S.mode==="range"&&S.pick&&S.pick.integ)){ S.pick=null; setMode("zoom"); if(winOpen("integ")) renderInteg(); return; }
+  if(S.stage!=null){ S.stage=null; S.selStep=null; renderStages(); }
+  S.pick={integ:true}; setMode("range");
+  toast("Drag across a band on the graph to integrate it; drag again for the next. Esc when done.");
+  if(winOpen("integ")) renderInteg();
+}
+/* Windows around the peaks: the peaks marked on the spectrum if it has a set,
+   or found now with the Peaks window's settings. They replace the bands of
+   this axis (one undo entry). */
+function bandsFromPeaksUI(){
+  const p=P(), c=activeYCol(); if(!p||!c||S.readOnly) return;
+  const d=finalOf(c); let pk;
+  if(foundOf(c)&&peakGroup(c.id).length) pk=peakRows(c).map(r=>({x:r.x,w:r.w,lab:r.said}));
+  else { const v=S.view&&(S.view.xu==null||S.view.xu===(d.xu||""))?[S.view.x0,S.view.x1]:null, r=peakSearchOn(c,Object.assign({},pfOpts()),v,d.xu||"");
+    pk=r?r.found.map(q=>({x:r.pts[q.i].x,w:q.w,lab:""})):[]; }
+  if(!pk.length){ toast("No peaks to integrate: none pass the Peaks window's settings in view."); return; }
+  const mk=new Set(maskOf(c)), X=[], Y=[]; d.x.forEach((x,i)=>{ if(!mk.has(d.idx[i])){ X.push(x); Y.push(d.y[i]); } });
+  const ws=bandsFromPeaks(X,Y,pk); if(!ws.length){ toast("Could not place a window around those peaks."); return; }
+  const g=integOf(p), keep=g.bands.filter(b=>(b.xu||"")!==(d.xu||"")), had=g.bands.length-keep.length;
+  const nb=ws.map(w=>{ const q=pk.find(z=>Math.abs(z.x-w.peak)<1e-9)||{}; return {id:bandId(),x1:+w.x1.toPrecision(8),x2:+w.x2.toPrecision(8),xu:d.xu||"",lab:q.lab||"",base:"line"}; });
+  pushUndo("integrating the peaks");
+  saveInteg({bands:keep.concat(nb),ref:nb[0].id},`made ${nb.length} band${nb.length===1?"":"s"} to integrate around the peaks of ${specName(c)}${had?`, in place of ${had}`:""}`);
+  openWin("integ",{render:true});
+  toast(`${nb.length} band${nb.length===1?"":"s"} around the peaks${had?`, in place of the ${had} there were`:""}. Drag an edge on the graph to adjust one.`,{action:"Undo",run:undo});
+}
+function openIntegrate(){
+  const c=activeYCol(); if(!P()||!c) return;
+  if(S.stage!=null){ S.stage=null; S.selStep=null; renderStages(); }
+  openWin("integ",{render:true}); renderPlot();
+}
+const bandPM=(v,e)=>!Number.isFinite(v)?"":e?`${fmt(v,8)}\t${fmt(e,3)}`:`${fmt(v,8)}\t`;
+function integTableText(c){
+  const res=bandCalc(c), d=finalOf(c), au=unitFor("yx",d.xu||"",d.yu||"");
+  const head=["Band","From","To","Baseline",`Area${au?" ("+au+")":""}`,"±","Height","Position","FWHM","Centroid","% of total",res.ref?`÷ ${bandName(res.ref.b,res.ref.k)}`:"Ratio","±"];
+  return [head.join("\t")].concat(res.map(q=>{ const r=q.r; return [bandName(q.b,q.k),fmt(Math.min(q.b.x1,q.b.x2),8),fmt(Math.max(q.b.x1,q.b.x2),8),q.b.base||"line"].concat(r.fail?["","","","","","","","",""]:
+    [fmt(r.area,8),fmt(r.err,3),fmt(r.height,6),fmt(r.pos,8),r.fwhm!=null?fmt(r.fwhm,6):"",r.centroid!=null?fmt(r.centroid,8):"",q.pct!=null?fmt(q.pct,4):"",q.ratio!=null?fmt(q.ratio,6):"",q.ratioErr!=null?fmt(q.ratioErr,3):""]).join("\t"); })).join("\n");
+}
+// Every spectrum on the analysed one's axis: a row each, a column pair per band.
+function integEveryRows(){
+  const act=activeYCol(), xu=finalOf(act).xu||"";
+  return yCols().filter(c=>(finalOf(c).xu||"")===xu).map(c=>({c,res:bandCalc(c)}));
+}
+function integAllText(){
+  const rows=integEveryRows(), bands=bandsFor(activeYCol()), g=integOf(), refQ=bands.find(q=>q.b.id===g.ref);
+  const head=["Spectrum"].concat(...bands.map(q=>[bandName(q.b,q.k),"±"])).concat(refQ?bands.filter(q=>q!==refQ).map(q=>`${bandName(q.b,q.k)} ÷ ${bandName(refQ.b,refQ.k)}`):[]);
+  return [head.join("\t")].concat(rows.map(({c,res})=>[specName(c)].concat(...res.map(q=>q.r.fail?["",""]:[fmt(q.r.area,8),fmt(q.r.err,3)]))
+    .concat(refQ?res.filter(q=>q.b.id!==g.ref).map(q=>q.ratio!=null?fmt(q.ratio,6):""):[]).join("\t"))).join("\n");
+}
+function renderInteg(){
+  const box=$("#pane-integ"); if(!box) return;
+  const p=P(), c=activeYCol(), sub=$("#igSub");
+  if(!p||!c){ box.innerHTML=`<p class="nothing">Open a project with data to integrate its bands.</p>`; if(sub) sub.textContent=""; return; }
+  if(sub) sub.textContent=specName(c);
+  const g=integOf(p), res=bandCalc(c), d=finalOf(c), ro=S.readOnly?" disabled":"", au=unitFor("yx",d.xu||"",d.yu||""), many=yCols().length>1;
+  const picking=S.mode==="range"&&S.pick&&S.pick.integ, every=many&&S.igEvery;
+  const ae=document.activeElement, focusId=ae&&box.contains(ae)?ae.id:null, sc=box.scrollTop, keepV=focusId&&ae.matches("input[type=text]")?[ae.value,ae.selectionStart,ae.selectionEnd]:null;
+  let h=`<div class="fbar igbar"><label class="lab" for="igCol">Spectrum</label><select id="igCol"${many?"":" disabled"}>${yCols().map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}</option>`).join("")}</select><span class="sp"></span>
+    <button class="btn sm${picking?" primary":""}" id="igPick"${ro}>${ICON("plus","sm")}${picking?"Done adding":"Add by dragging"}</button><button class="btn sm" id="igPeaks"${ro} title="A window around each peak: the peaks marked in the Peaks window, or found now with its settings">${ICON("peak","sm")}Around the peaks</button></div>`;
+  if(many) h+=`<div class="seg mini igseg" role="group" aria-label="Which spectra"><button data-igv="one" aria-pressed="${!every}">This spectrum</button><button data-igv="all" aria-pressed="${!!every}">Every spectrum</button></div>`;
+  if(!res.length){ h+=noteHtml("info",`No bands on this axis yet. <strong>Add by dragging</strong> across a band on the graph, or put a window <strong>around the peaks</strong>. Each band is measured on the final data, less its own local baseline, and follows the processing.`,true); }
+  else if(!every){
+    const refName=res.ref?bandName(res.ref.b,res.ref.k):"";
+    h+=`<div class="twrap"><table class="rtab igtab"><thead><tr><th class="l">Band</th><th class="edt">From</th><th class="edt">To</th><th class="l edt" title="Line: between the window's edges. None: down to zero. Level: at the window's lowest point">Baseline</th><th>Area${au?` <span class="unit">(${esc(au)})</span>`:""}</th><th class="opt">Height</th><th class="opt2">Position</th><th class="opt">FWHM</th><th>%</th><th title="${res.ref?"Area over the area of "+esc(refName):"Choose a band to divide by"}">${res.ref?`÷ ${esc(refName)}`:"Ratio"}</th><th title="The band the others are divided by">Ref</th><th></th></tr></thead><tbody>`+
+      res.map(q=>{ const b=q.b, r=q.r, sel=S.bandSel===b.id, col=peakColor(q.k), num=(k,v)=>`<input type="text" inputmode="decimal" id="ig-${k}-${esc(b.id)}" data-igk="${k}" data-igb="${esc(b.id)}" value="${esc(fmt(v,7))}" aria-label="${k==="x1"?"From":"To"}, ${esc(bandName(b,q.k))}"${ro}>`;
+        return `<tr data-igrow="${esc(b.id)}"${sel?' class="sel"':""}><td class="l ign"><span class="igsw" style="background:${col}"></span><input type="text" class="igname" id="ig-lab-${esc(b.id)}" data-igk="lab" data-igb="${esc(b.id)}" value="${esc(b.lab||"")}" placeholder="${esc(`Band ${q.k+1}`)}" maxlength="40" aria-label="Name of band ${q.k+1}"${ro}></td>
+          <td class="num edt">${num("x1",Math.min(b.x1,b.x2))}</td><td class="num edt">${num("x2",Math.max(b.x1,b.x2))}</td>
+          <td class="l edt"><select data-igk="base" data-igb="${esc(b.id)}" aria-label="Baseline of ${esc(bandName(b,q.k))}" title="${esc((BAND_BASES.find(z=>z[0]===(b.base||"line"))||[,""])[1])}"${ro}>${BAND_BASES.map(([k,l])=>`<option value="${k}" title="${esc(l)}"${(b.base||"line")===k?" selected":""}>${esc(BAND_BASES_SHORT[k])}</option>`).join("")}</select></td>`+
+          (r.fail?`<td colspan="6" class="l lab">${esc(r.fail)}</td>`:
+          `<td>${fmtPM(r.area,r.err)}</td><td class="opt">${esc(fmt(r.height,4))}</td><td class="opt2">${esc(fmt(r.pos,6))}</td><td class="opt">${r.fwhm!=null?esc(fmt(r.fwhm,4)):"—"}</td><td>${q.pct!=null?esc(fmt(q.pct,3)):"—"}</td><td>${q.ratio!=null?(q===res.ref?"1":fmtPM(q.ratio,q.ratioErr)):"—"}</td>`)+
+          `<td><input type="radio" name="igref" data-igref="${esc(b.id)}"${g.ref===b.id?" checked":""} aria-label="Divide the others by ${esc(bandName(b,q.k))}"${ro||r.fail?" disabled":""}></td>
+          <td class="fx"><button class="tb sm icon" data-igdel="${esc(b.id)}" aria-label="Remove ${esc(bandName(b,q.k))}" title="Remove this band"${ro}>${ICON("x","sm")}</button></td></tr>`; }).join("")+
+      `</tbody><tfoot><tr><td class="l">Total</td><td class="edt" colspan="3"></td><td>${esc(fmt(res.total,6))}</td><td colspan="7"></td></tr></tfoot></table></div>`;
+  } else {
+    const bands=bandsFor(c), refQ=bands.find(q=>q.b.id===g.ref), rows=integEveryRows();
+    h+=`<div class="twrap"><table class="rtab igtab"><thead><tr><th class="l">Spectrum</th>${bands.map(q=>`<th><span class="igsw" style="background:${peakColor(q.k)}"></span> ${esc(bandName(q.b,q.k))}</th>`).join("")}${refQ?bands.filter(q=>q!==refQ).map(q=>`<th>${esc(bandName(q.b,q.k))} ÷ ${esc(bandName(refQ.b,refQ.k))}</th>`).join(""):""}</tr></thead><tbody>`+
+      rows.map(({c:y,res:rr})=>`<tr${y===c?' class="sel"':""}><td class="l">${esc(specName(y))}</td>${rr.map(q=>`<td>${q.r.fail?"—":fmtPM(q.r.area,q.r.err)}</td>`).join("")}${refQ?rr.filter(q=>q.b.id!==g.ref).map(q=>`<td>${q.ratio!=null?fmtPM(q.ratio,q.ratioErr):"—"}</td>`).join(""):""}</tr>`).join("")+`</tbody></table></div>`;
+  }
+  if(res.length) h+=`<div class="actions"><button class="btn sm ghost" id="igCopy">${ICON("copy","sm")}Copy</button><button class="btn sm ghost" id="igClear"${ro}>Clear</button><span class="sp"></span>
+    <label class="chk"><input type="checkbox" id="igShow"${g.show?" checked":""}${ro}> Shade them on the graph</label></div>`;
+  h+=`<details class="grp" id="igHow"${S.igHow?" open":""}><summary>How they are measured</summary><div class="gb">
+    <div class="frow"><label for="igAvg">Line baselines</label><div class="pair"><select id="igAvg"${ro}>${[1,3,5,9,15].map(k=>`<option value="${k}"${g.avg===k?" selected":""}>${k===1?"through the edge points":`through the mean of ${k} points at each edge`}</option>`).join("")}</select></div></div>
+    <p class="hint">Each band's area is the trapezoidal sum over the points in its window, less its local baseline, on the final data (masked points left out); it follows the processing. The ± carries the noise of the spectrum (σ ${esc(fmt(res.sigma||0,3))}, from its second differences)${d.e&&d.e.some(v=>v!=null)?", or each point's error bar,":""} through the sum and the baseline. Height and position are the band's top above the baseline (a parabola through the three highest points), FWHM where it crosses half of that, if it does inside the window. Drag a band's edge on the graph to move it, or its strip at the top to move the whole window.</p></div></details>`;
+  box.innerHTML=h; box.scrollTop=sc;
+  if(focusId){ const el=document.getElementById(focusId); if(el){ if(keepV&&el.matches("input[type=text]")){ el.value=keepV[0]; try{ el.setSelectionRange(keepV[1],keepV[2]); }catch(e){} } el.focus({preventScroll:true}); } }
+  wireInteg(box);
+}
+function wireInteg(box){
+  const on=(sel,fn)=>{ const el=box.querySelector(sel); if(el) el.onclick=fn; };
+  on("#igPick",()=>pickBands()); on("#igPeaks",bandsFromPeaksUI);
+  on("#igCopy",()=>copyText(S.igEvery&&yCols().length>1?integAllText():integTableText(activeYCol()),"Copied the band integrals."));
+  on("#igClear",clearBands);
+  const cs=box.querySelector("#igCol"); if(cs) cs.onchange=()=>{ setActiveCol(cs.value,true); renderInteg(); };
+  box.querySelectorAll("[data-igv]").forEach(b=>b.onclick=()=>{ S.igEvery=b.dataset.igv==="all"; renderInteg(); });
+  const how=box.querySelector("#igHow"); if(how) how.addEventListener("toggle",()=>{ if(how.isConnected) S.igHow=how.open; });
+  const sh=box.querySelector("#igShow"); if(sh) sh.onchange=()=>{ pushUndo("showing the bands"); saveInteg({show:sh.checked},sh.checked?"shaded the integrated bands on the graph":"stopped shading the integrated bands on the graph"); };
+  const av=box.querySelector("#igAvg"); if(av) av.onchange=()=>{ pushUndo("the band baselines"); saveInteg({avg:+av.value},`line baselines of the bands now through ${+av.value===1?"the edge points":`the mean of ${av.value} points at each edge`}`); };
+  box.querySelectorAll("[data-igref]").forEach(r=>r.onchange=()=>{ const g=integOf(), k=g.bands.findIndex(b=>b.id===r.dataset.igref); pushUndo("the reference band"); saveInteg({ref:r.dataset.igref},`divided the bands by ${bandName(g.bands[k],k)}`); });
+  box.querySelectorAll("[data-igdel]").forEach(b=>b.onclick=()=>removeBand(b.dataset.igdel));
+  box.querySelectorAll("[data-igk]").forEach(el=>{
+    const commit=()=>{ const id=el.dataset.igb, k=el.dataset.igk, g=integOf(), i=g.bands.findIndex(b=>b.id===id), b=g.bands[i]; if(!b) return;
+      if(k==="lab"){ const v=el.value.trim().slice(0,40); if(v===(b.lab||"")) return; updateBand(id,{lab:v},v?`named band ${i+1} "${v}"`:`cleared the name of band ${i+1}`); return; }
+      if(k==="base"){ updateBand(id,{base:el.value},`gave ${bandName(b,i)} ${(BAND_BASES.find(q=>q[0]===el.value)||[,""])[1].toLowerCase()} as its baseline`); return; }
+      const v=parseNum(el.value); if(v==null){ toast("Enter a number."); el.value=fmt(k==="x1"?Math.min(b.x1,b.x2):Math.max(b.x1,b.x2),7); return; }
+      const lo=Math.min(b.x1,b.x2), hi=Math.max(b.x1,b.x2), nlo=k==="x1"?v:lo, nhi=k==="x2"?v:hi;
+      if(nlo===lo&&nhi===hi) return;
+      updateBand(id,{x1:Math.min(nlo,nhi),x2:Math.max(nlo,nhi)},`set ${bandName(b,i)} to ${fmt(Math.min(nlo,nhi),6)} to ${fmt(Math.max(nlo,nhi),6)}`); };
+    if(el.tagName==="SELECT") el.onchange=commit;
+    else { el.addEventListener("change",commit); el.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); el.blur(); } else if(e.key==="Escape"){ el.value=el.defaultValue; el.blur(); } }); } });
+  box.querySelectorAll("tr[data-igrow]").forEach(tr=>tr.addEventListener("click",e=>{ if(e.target.closest("input,button,select")) return; S.bandSel=tr.dataset.igrow; renderPlot(); renderInteg(); }));
+}
+/* On the graph: under the data, each band's area between the curve and its
+   baseline, shaded in the band's colour, and the baseline dashed; over it,
+   the two edges (drag one to move it) and a strip along the top with the
+   band's name (drag it to move the window). The analysed spectrum's, on the
+   final data, overlaid or on its own axis. */
+function bandsSvg(layer,c){
+  const {pal,X,Y,ps,forExport,fs,sans,L,pw,T,mh,heat,layout}=c, p=P();
+  if(!p||heat||!ps.final||(layout!=="overlay"&&layout!=="dy")) return "";
+  const g=integOf(p); if(!g.show&&!(!forExport&&winOpen("integ"))) return "";
+  const act=activeYCol(), res=bandCalc(act); if(!res.length) return "";
+  const f1=v=>(+v).toFixed(1); let s="";
+  res.forEach(q=>{ const b=q.b, r=q.r, col=peakColor(q.k), sel=!forExport&&S.bandSel===b.id;
+    const xa=X(b.x1), xb=X(b.x2); if(!Number.isFinite(xa)||!Number.isFinite(xb)) return;
+    const lo=Math.max(L,Math.min(xa,xb)), hi=Math.min(L+pw,Math.max(xa,xb)); if(hi<=lo) return;
+    if(layer==="under"&&r.x){
+      const up=[], dn=[], bl=[];
+      r.x.forEach((x,i)=>{ const px=X(x), py=Y(r.y[i]), pb=Y(r.b[i]); if(!Number.isFinite(px)||!Number.isFinite(py)||!Number.isFinite(pb)) return; up.push(`${f1(px)},${f1(py)}`); dn.push(`${f1(px)},${f1(pb)}`); bl.push(`${f1(px)},${f1(pb)}`); });
+      if(up.length>1) s+=`<polygon points="${up.concat(dn.reverse()).join(" ")}" fill="${col}" fill-opacity="${sel?0.34:0.2}" stroke="none"/><polyline points="${bl.join(" ")}" fill="none" stroke="${col}" stroke-width="1.1" stroke-dasharray="4 3"/>`;
+    }
+    if(layer==="top"){
+      const name=bandName(b,q.k), tsz=Math.max(9,fs-2);
+      [[xa,"x1"],[xb,"x2"]].forEach(([ex,k])=>{ if(ex<L-0.5||ex>L+pw+0.5) return;
+        s+=`<line x1="${f1(ex)}" x2="${f1(ex)}" y1="${T}" y2="${T+mh}" stroke="${col}" stroke-width="${sel?1.6:1}" stroke-opacity="${sel?0.95:0.6}" stroke-dasharray="${sel?"":"2 3"}"/>`;
+        if(!forExport) s+=`<line x1="${f1(ex)}" x2="${f1(ex)}" y1="${T}" y2="${T+mh}" stroke="transparent" stroke-width="11" data-bh="${esc(b.id)}:${k}" style="cursor:ew-resize"/>`; });
+      if(!forExport) s+=`<rect x="${f1(lo)}" y="${T}" width="${f1(hi-lo)}" height="${tsz+8}" fill="${col}" fill-opacity="${sel?0.22:0.1}" data-bb="${esc(b.id)}" style="cursor:grab"/>`;
+      if(hi-lo>14) s+=`<text x="${f1((lo+hi)/2)}" y="${f1(T+tsz+2)}" text-anchor="middle" font-size="${tsz}" font-weight="600" fill="${col}" stroke="${pal.bg}" stroke-width="3" paint-order="stroke" font-family="${sans}" pointer-events="none">${esc(hi-lo<name.length*tsz*0.55?String(q.k+1):name)}</text>`;
+    }
+  });
+  return s;
+}
+function dragBand(x,y){
+  const bd=S.bdrag, p=P(), g=integOf(p), b=g.bands.find(q=>q.id===bd.id); if(!b) return;
+  if(!bd.moved&&Math.abs(x-bd.x0)<3) return;
+  if(!bd.moved){ pushUndo("moving a band"); bd.moved=true; }
+  const d=toData(x,y), d0=toData(bd.x0,y); if(!d||!d0) return;
+  if(bd.edge==="body"){ const dx=d.x-d0.x; b.x1=bd.orig.x1+dx; b.x2=bd.orig.x2+dx; } else b[bd.edge]=d.x;
+  renderPlot(); if(winOpen("integ")) renderInteg();
+  const xu=(S.ps&&S.ps.d.xu)||""; showTip(`${fmt(Math.min(b.x1,b.x2),6)} to ${fmt(Math.max(b.x1,b.x2),6)}${xu?" "+xu:""}`,x,y);
+}
+function commitBandDrag(bd){
+  const g=integOf(), k=g.bands.findIndex(q=>q.id===bd.id), b=g.bands[k]; if(!b) return;
+  const lo=+Math.min(b.x1,b.x2).toPrecision(8), hi=+Math.max(b.x1,b.x2).toPrecision(8);
+  saveInteg({bands:g.bands.map(q=>q.id===b.id?Object.assign({},q,{x1:lo,x2:hi}):q)},`moved ${bandName(b,k)} to ${fmt(lo,6)} to ${fmt(hi,6)}`);
+}
+// The report's section: every spectrum's bands, and how they were measured.
+function reportBandsHtml(){
+  const e2=t=>esc(String(t)), g=integOf(); if(!g.bands.length) return "";
+  let out="";
+  yCols().forEach(c=>{ const res=bandCalc(c); if(!res.length) return; const d=finalOf(c), au=unitFor("yx",d.xu||"",d.yu||"");
+    out+="<h3>"+e2(specName(c))+"</h3><table><thead><tr><th class=\"l\">Band</th><th>From</th><th>To</th><th class=\"l\">Baseline</th><th>Area"+(au?" ("+e2(au)+")":"")+"</th><th>Height</th><th>Position</th><th>FWHM</th><th>%</th><th>"+(res.ref?"÷ "+e2(bandName(res.ref.b,res.ref.k)):"Ratio")+"</th></tr></thead><tbody>"+
+      res.map(q=>{ const r=q.r; return "<tr><td class=\"l\">"+e2(bandName(q.b,q.k))+"</td><td>"+e2(fmt(Math.min(q.b.x1,q.b.x2),7))+"</td><td>"+e2(fmt(Math.max(q.b.x1,q.b.x2),7))+"</td><td class=\"l\">"+e2((BAND_BASES.find(z=>z[0]===(q.b.base||"line"))||[,""])[1])+"</td>"+
+        (r.fail?"<td colspan=\"6\" class=\"l\">"+e2(r.fail)+"</td>":"<td>"+fmtPM(r.area,r.err)+"</td><td>"+e2(fmt(r.height,5))+"</td><td>"+e2(fmt(r.pos,7))+"</td><td>"+(r.fwhm!=null?e2(fmt(r.fwhm,5)):"")+"</td><td>"+(q.pct!=null?e2(fmt(q.pct,4)):"")+"</td><td>"+(q.ratio!=null?(q===res.ref?"1":fmtPM(q.ratio,q.ratioErr)):"")+"</td>")+"</tr>"; }).join("")+"</tbody></table>"; });
+  return out?"<h2>Band integrals</h2><p class=\"meta\">Trapezoidal sums over the points in each window, less a local baseline ("+(g.avg===1?"a line through the edge points":"a line through the mean of "+g.avg+" points at each edge")+", unless another is named), on the final data with masked points left out. Each ± carries the spectrum's noise (from its second differences), or its error bars, through the sum and the baseline.</p>"+out:"";
+}
+
+/* ============================================================
+   Overview: what a spectrum is like before anything is done to it, and what
+   to do first. Everything is measured, none of it changes the data: the
+   points and their spacing (order, repeats, gaps, evenness), the noise
+   (noiseSigma) and the strongest band's signal to noise, the bands
+   (detectBands, after setting spikes aside) and how well they are sampled,
+   one- and two-point spikes (despikeY), flat tops at the maximum, and the
+   background the Subtract background step would take (its own suggested
+   settings), judged against the strongest band. The suggestions are steps,
+   each opening its tool with settings measured from the data; a step the
+   spectrum already has is shown as done. It opens after an import.
+   ============================================================ */
+const OV_MEMO=new WeakMap();
+function overviewOf(d){
+  const hit=OV_MEMO.get(d); if(hit) return hit;
+  const pts=[]; let bad=0; const n0=Math.min(d.x.length,d.y.length);
+  for(let i=0;i<n0;i++){ const x=d.x[i], y=d.y[i]; if(x==null||y==null||!Number.isFinite(x)||!Number.isFinite(y)){ bad++; continue; } pts.push({x,y,i:d.idx?d.idx[i]:i}); }
+  const n=pts.length, o={n,bad,xu:d.xu||"",yu:d.yu||"",spikes:[],bands:[],gaps:[]};
+  if(n<9){ o.few=true; OV_MEMO.set(d,o); return o; }
+  const sp=spacing(pts.map(q=>q.x)); o.dir=sp.h<0?"down":"up"; o.sorted=sp.sorted; o.step=sp.abs; o.uneven=sp.uneven;
+  const srt=pts.slice().sort((a,b)=>a.x-b.x), X=srt.map(q=>q.x), Y=srt.map(q=>q.y);
+  let dup=0; for(let i=1;i<n;i++){ const g=X[i]-X[i-1]; if(g===0) dup++; else if(sp.abs&&g>3*sp.abs) o.gaps.push([X[i-1],X[i]]); }
+  o.dup=dup; o.x0=X[0]; o.x1=X[n-1];
+  let lo=Infinity, hi=-Infinity; Y.forEach(v=>{ if(v<lo) lo=v; if(v>hi) hi=v; }); o.y0=lo; o.y1=hi;
+  o.neg=Y.filter(v=>v<0).length;
+  o.sigma=noiseSigma(Y);
+  const sk=despikeY(Y,2,8,"up"); o.spikes=sk.found.map(s=>({x:X[s.i],h:s.h,n:s.r-s.l+1}));
+  const Yc=sk.y;
+  o.bands=detectBands(X,Yc).sort((a,b)=>b.h-a.h);
+  const top=o.bands[0]; o.snr=top&&o.sigma>0?top.h/o.sigma:null;
+  o.minPts=o.bands.length?Math.min(...o.bands.map(b=>b.pts)):null;
+  // Three or more points in a row at the very top: a detector at its limit.
+  let run=1; o.sat=0; for(let i=1;i<n;i++){ if(Yc[i]===Yc[i-1]&&Yc[i]===hi){ run++; if(run===3) o.sat++; } else run=1; }
+  if(n>=20){ try{
+    const dd={x:X,y:Yc,e:null,idx:srt.map(q=>q.i),xn:d.xn,xu:d.xu,yn:d.yn,yu:d.yu}, p=stepParams("bg",dd), r=PIPE_OPS.bg.run(dd,p), base=r&&r.extra&&r.extra.base;
+    if(base&&base.length===n){ let bl=Infinity, bh=-Infinity; base.forEach(v=>{ if(v<bl) bl=v; if(v>bh) bh=v; });
+      const span=bh-bl, ref=top?top.h:((hi-lo)||1), xs=X.map(v=>v-X[0]), cf=polyfit(xs,base,1)||[0,0];
+      const res=base.map((v,i)=>v-((cf[0]||0)+(cf[1]||0)*xs[i])), curv=Math.max(...res)-Math.min(...res);
+      o.bg={span,rel:span/ref,level:bl,kind:span<Math.max(3*o.sigma,0.03*ref)?"flat":curv<0.15*span?"sloping":"curved",method:p.method}; } }catch(e){} }
+  OV_MEMO.set(d,o); return o;
+}
+// What to do first, in the order it should be done; a step already there is done.
+function overviewSteps(o,c){
+  const out=[], steps=(c&&c.pipe)||[], at=op=>steps.findIndex(s=>s.op===op&&s.on!==false);
+  const add=(op,label,why)=>out.push({op,label,why,done:at(op)>=0?at(op)+1:0});
+  const xs=a=>a.slice(0,5).map(q=>fmt(q,5)).join(", ")+(a.length>5?", …":"");
+  if(o.few) return out;
+  if(!o.sorted) add("sort","Sort by X","The X values run both ways; most steps need them in order.");
+  if(o.dup) add("dedupe","Average the repeated X values",`${o.dup} X value${o.dup===1?" is":"s are"} repeated; averaging keeps one point per X.`);
+  if(o.spikes.length) add("despike",`Remove ${o.spikes.length} spike${o.spikes.length===1?"":"s"}`,`At x = ${xs(o.spikes.map(s=>s.x))}${o.xu?" "+o.xu:""}: a spike would be taken for a band, and adds to any area over it.`);
+  if(o.uneven>0.1||o.gaps.length) add("resample","Resample to even spacing",`The spacing varies by ${fmt(100*o.uneven,2)}%${o.gaps.length?` and has ${o.gaps.length} gap${o.gaps.length===1?"":"s"}`:""}; smoothing, derivatives and the FFT filter assume even spacing.`);
+  if(o.bg&&o.bg.kind!=="flat") add("bg","Subtract the background",`A ${o.bg.kind} background spans ${fmt(o.bg.span,3)}${o.yu?" "+o.yu:""}, ${fmt(100*o.bg.rel,2)}% of the strongest band; left in, it adds to every band's height and area.`);
+  if(o.snr!=null&&o.snr<25){
+    if(o.minPts!=null&&o.minPts>=7) add("smooth","Smooth",`The strongest band stands ${fmt(o.snr,2)} times above the noise, and the narrowest spans ${fmt(o.minPts,2)} points at half height: enough to smooth without flattening it much.`);
+    else out.push({op:null,label:"Smoothing would flatten the bands",why:`The signal is weak (S/N ${fmt(o.snr,2)}) but the narrowest band spans only ${fmt(o.minPts,2)} points; average more scans, or fit the bands instead.`}); }
+  return out;
+}
+const ovAuto=()=>{ try{ return localStorage.getItem("kurve.ovAuto")!=="0"; }catch(e){ return true; } };
+function autoOverview(){ if(ovAuto()&&P()&&activeYCol()) openOverview(); }
+function openOverview(){ if(!P()||!activeYCol()) return; openWin("over",{render:true}); }
+function renderOverview(){
+  const box=$("#pane-over"); if(!box) return;
+  const p=P(), c=activeYCol(), sub=$("#ovSub");
+  if(!p||!c){ box.innerHTML=`<p class="nothing">Open a project with data to see its overview.</p>`; if(sub) sub.textContent=""; return; }
+  if(sub) sub.textContent=specName(c);
+  const r=pipeOf(c), nSteps=(c.pipe||[]).filter(s=>s.on!==false).length, fin=S.ovStage==="final"&&nSteps>0;
+  const d=r?(fin?r.out:r.input):EMPTY_SER, o=overviewOf(d), ro=S.readOnly?" disabled":"", many=yCols().length>1;
+  const ok=`<span class="ovst ok" title="Fine">${ICON("check","sm")}</span>`, wn=`<span class="ovst warn" title="Worth a look">${ICON("alert","sm")}</span>`, nb=`<span class="ovst"></span>`;
+  const u=v=>v?" "+esc(v):"";
+  let h=`<div class="fbar ovbar"><label class="lab" for="ovCol">Spectrum</label><select id="ovCol"${many?"":" disabled"}>${yCols().map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}</option>`).join("")}</select><span class="sp"></span>
+    ${nSteps?`<div class="seg mini" role="group" aria-label="Which data"><button data-ovs="raw" aria-pressed="${!fin}">As recorded</button><button data-ovs="final" aria-pressed="${fin}">After ${nSteps} step${nSteps===1?"":"s"}</button></div>`:`<span class="lab">As recorded</span>`}</div>`;
+  if(o.few){ h+=noteHtml("info",`Only ${o.n} usable point${o.n===1?"":"s"}: too few to say anything about.`,true); box.innerHTML=h; wireOverview(box); return; }
+  const rows=[];
+  rows.push([o.bad?wn:ok,"Points",`${o.n}${o.bad?` <span class="warnt">and ${o.bad} empty or not a number</span>`:""}`]);
+  rows.push([o.sorted&&!o.dup&&!o.gaps.length&&o.uneven<=0.1?ok:wn,"X",`${esc(fmt(o.x0,6))} to ${esc(fmt(o.x1,6))}${u(o.xu)}, ${o.sorted?`running ${o.dir==="down"?"high to low":"low to high"}`:`<span class="warnt">not in order</span>`}; step ${esc(fmt(o.step,4))}${u(o.xu)}, ${o.uneven<=0.02?"even":o.uneven<=0.1?`nearly even (${esc(fmt(100*o.uneven,2))}%)`:`<span class="warnt">uneven (${esc(fmt(100*o.uneven,2))}%)</span>`}${o.dup?`; <span class="warnt">${o.dup} repeated</span>`:""}${o.gaps.length?`; <span class="warnt">${o.gaps.length} gap${o.gaps.length===1?"":"s"}, the widest from ${esc(fmt(o.gaps.slice().sort((a,b)=>(b[1]-b[0])-(a[1]-a[0]))[0][0],6))}</span>`:""}`]);
+  // Points a little below zero are noise around a subtracted background; far below, something took too much.
+  const deep=o.neg&&o.y0<-5*o.sigma;
+  rows.push([deep?wn:nb,"Y",`${esc(fmt(o.y0,5))} to ${esc(fmt(o.y1,5))}${u(o.yu)}${o.neg?`; ${o.neg} point${o.neg===1?"":"s"} below zero${deep?`, <span class="warnt">down to ${esc(fmt(-o.y0/(o.sigma||1),2))} times the noise</span>`:" (within the noise)"}`:""}`]);
+  rows.push([o.snr==null?nb:o.snr<10?wn:ok,"Noise",`σ ${esc(fmt(o.sigma,3))}${u(o.yu)}${o.snr!=null?`; the strongest band stands ${esc(fmt(o.snr,3))} times above it`:""}`]);
+  rows.push([o.bands.length?(o.minPts!=null&&o.minPts<5?wn:ok):nb,"Bands",o.bands.length?`${o.bands.length}: ${o.bands.slice(0,8).map(b=>`${esc(fmt(b.x,6))} <span class="lab">(FWHM ${esc(fmt(b.fwhm,3))}, ${esc(fmt(b.pts,2))} pts)</span>`).join(", ")}${o.bands.length>8?", …":""}${o.minPts!=null&&o.minPts<5?` · <span class="warnt">the narrowest spans ${esc(fmt(o.minPts,2))} points at half height: barely sampled</span>`:""}`:"none clear of the noise"]);
+  rows.push([o.spikes.length?wn:ok,"Spikes",o.spikes.length?`${o.spikes.length}, at ${o.spikes.slice(0,6).map(s=>esc(fmt(s.x,6))).join(", ")}${o.spikes.length>6?", …":""}${u(o.xu)}`:"none"]);
+  rows.push([o.bg?(o.bg.kind==="flat"?ok:wn):nb,"Background",o.bg?(o.bg.kind==="flat"?`flat, at ${esc(fmt(o.bg.level,4))}${u(o.yu)}`:`${o.bg.kind}, spanning ${esc(fmt(o.bg.span,3))}${u(o.yu)}: ${esc(fmt(100*o.bg.rel,2))}% of the strongest band`):"—"]);
+  if(o.sat) rows.push([wn,"Flat top",`${o.sat} run${o.sat===1?"":"s"} of three or more points at the maximum: the detector may have been at its limit`]);
+  h+=`<table class="ovtab"><tbody>${rows.map(([s,k,v])=>`<tr><td class="ovs">${s}</td><th scope="row">${k}</th><td>${v}</td></tr>`).join("")}</tbody></table>`;
+  const sug=overviewSteps(o,c);
+  h+=`<h3 class="gh">Suggested first steps</h3>`;
+  if(!sug.length) h+=`<p class="lab">Nothing to clean up first: the data can be analysed as they are.</p>`;
+  else h+=`<ol class="ovsug">${sug.map((q,k)=>`<li${q.done?' class="done"':""}><div class="grow"><strong>${esc(q.label)}</strong><div class="lab">${esc(q.why)}</div></div>${q.done?`<span class="lab">${ICON("check","sm")} step ${q.done}</span>`:q.op?`<button class="btn sm" data-ovop="${q.op}"${ro}>${PIPE_OPS[q.op]&&PIPE_OPS[q.op].params&&PIPE_OPS[q.op].params.length?"Open…":"Add"}</button>`:""}</li>`).join("")}</ol>`;
+  h+=`<h3 class="gh">Then</h3><div class="actions"><button class="btn sm" id="ovPeaks"${o.bands.length?"":" disabled"}>${ICON("tag","sm")}Find and label the peaks</button><button class="btn sm" id="ovInteg"${o.bands.length?"":" disabled"}>${ICON("area","sm")}Integrate them</button><button class="btn sm" id="ovFit">${ICON("peak","sm")}Fit…</button></div>`;
+  h+=`<p class="hint">Measured, not changed: every suggestion opens its tool with settings measured from these data, and nothing is recorded until you press OK there.${fin?"":" This is the data as recorded."}</p>
+    <label class="chk"><input type="checkbox" id="ovAuto"${ovAuto()?" checked":""}> Show the overview after every import</label>`;
+  box.innerHTML=h; wireOverview(box);
+}
+function wireOverview(box){
+  const cs=box.querySelector("#ovCol"); if(cs) cs.onchange=()=>{ setActiveCol(cs.value,true); renderOverview(); };
+  box.querySelectorAll("[data-ovs]").forEach(b=>b.onclick=()=>{ S.ovStage=b.dataset.ovs; renderOverview(); });
+  box.querySelectorAll("[data-ovop]").forEach(b=>b.onclick=()=>{ const c=activeYCol(); if(c) openTool(b.dataset.ovop,{col:c.id}); });
+  const on=(sel,fn)=>{ const el=box.querySelector(sel); if(el) el.onclick=fn; };
+  on("#ovPeaks",openPeakFinder); on("#ovInteg",bandsFromPeaksUI); on("#ovFit",()=>{ S.fitMode="peaks"; showTab("fit"); renderPlot(); });
+  const au=box.querySelector("#ovAuto"); if(au) au.onchange=()=>{ try{ localStorage.setItem("kurve.ovAuto",au.checked?"1":"0"); }catch(e){} };
+}
+
 /* Typing on the graph: a box over a label or a text, Enter to keep what was
    typed, Esc to leave it as it was. A peak of a set takes its own label; any
    other label or text takes the text, with {x} for the position. */
@@ -8881,6 +9355,7 @@ function flowLayout(){
     const fits=(p.fits||[]).filter(f=>f.onCol===c.id), cur=activeFit(), here=!!(cur&&cur.onCol===c.id);
     let last=fin; const fd=foundOf(c);
     if(fd){ const pn=add({key:"peaks:"+c.id,kind:"peaks",col:L,row:row++,c,f:fd,n:peakGroup(c.id).length}); edges.push({a:fin.key,b:pn.key}); last=pn; }
+    if(bandsFor(c).length){ const bn=add({key:"integ:"+c.id,kind:"integ",col:L,row:row++,c}); edges.push({a:last.key,b:bn.key}); last=bn; }
     if(fits.length||here){ const fn=add({key:"fit:"+c.id,kind:"fit",col:L,row:row++,c,fits,cur:here?cur:null}); edges.push({a:last.key,b:fn.key}); }
     ys.filter(k=>k.src===c.id).forEach(k=>{ const from=k.from==="raw"?first:fin; edges.push({a:from.key,b:firstKey(k),branch:true}); place(k,from.row+1); });
   };
@@ -8928,6 +9403,8 @@ function flowNodeHtml(n,cur){
   else if(n.kind==="peaks"){ icon="tag"; const g=peakGroup(n.c.id), nl=g.filter(a=>a.lab).length, st=Object.assign({},PK_STYLE,n.f.style);
     title=`Peaks: ${g.length}`; sub=`${nl?`${nl} labelled · `:""}${(PK_MARKS.find(q=>q[0]===st.mk)||[,""])[1].replace(/^A |^Nothing, /,"").replace(/^./,ch=>ch.toUpperCase())}`;
     if(n.f.sig&&n.f.sig!==pipeSig(n.c)){ cls+=" warn"; warn=["The processing has changed since these peaks were found."]; } cls+=" fitn"; }
+  else if(n.kind==="integ"){ icon="area"; const res=bandCalc(n.c), ok=res.filter(q=>!q.r.fail);
+    title=`Bands: ${res.length}`; sub=ok.length?`total ${fmt(res.total,4)}${res.ref&&ok.length>1?` · ÷ ${bandName(res.ref.b,res.ref.k)}`:""}`:"too few points"; cls+=" fitn"; }
   else if(n.kind==="figure"){ icon="chart"; title="Figure"; const k={}; n.annos.forEach(a=>{ k[a.t]=(k[a.t]||0)+1; });
     sub=[["label","label"],["text","text"],["v","line"],["h","line"],["band","range"]].reduce((o,[t,w])=>{ if(k[t]){ const i=o.findIndex(q=>q[1]===w); if(i>=0) o[i][0]+=k[t]; else o.push([k[t],w]); } return o; },[]).map(([m,w])=>`${m} ${w}${m===1||w==="text"?"":"s"}`).join(" · "); }
   const th=n.pending?[]:nodeThreads(n.key), tOpen=th.filter(t=>!t.root.resolved).length;
@@ -8999,7 +9476,7 @@ function flowSelect(key,L){
   if(n.c&&n.c!==activeYCol()){ P().activeY=n.c.id; S.draft=null; S.pdraft=null; S.selPeak=null; if(S.view&&(S.view.xu||"")!==((finalOf(n.c)||{}).xu||"")) S.view=null; }
   if(n.kind==="raw"||n.kind==="src"){ S.selStep=null; setStage(0); }
   else if(n.kind==="step") showStepOnGraph(n.s);
-  else if(n.kind==="final"||n.kind==="fit"||n.kind==="peaks"){ S.selStep=null; setStage(null); }
+  else if(n.kind==="final"||n.kind==="fit"||n.kind==="peaks"||n.kind==="integ"){ S.selStep=null; setStage(null); }
   if(n.c) { renderWs(); renderFit(); }
   renderFlow(); if(winOpen("disc")&&!S.anchor) renderAnchor();
 }
@@ -9112,6 +9589,13 @@ function flowInspectorBody(n){
     return h;
   }
   const c=n.c, r=pipeOf(c);
+  if(n.kind==="integ"){
+    const res=bandCalc(c), d=finalOf(c), au=unitFor("yx",d.xu||"",d.yu||"");
+    h+=`<div class="fi-h">${ICON("area")}<div class="grow"><div class="fi-t">Band integrals of ${esc(specName(c))}</div><div class="lab">${res.length} band${res.length===1?"":"s"}, on the final data, without a fit</div></div>${discChip(n.key)}</div>`;
+    h+=`<div class="twrap"><table class="rtab igtab"><thead><tr><th></th><th class="l">Band</th><th>Area${au?` <span class="unit">(${esc(au)})</span>`:""}</th><th>%</th><th>${res.ref?`÷ ${esc(bandName(res.ref.b,res.ref.k))}`:"Ratio"}</th></tr></thead><tbody>${res.map(q=>`<tr><td><span class="igsw" style="background:${peakColor(q.k)}"></span></td><td class="l">${esc(bandName(q.b,q.k))}</td>${q.r.fail?`<td colspan="3" class="l lab">${esc(q.r.fail)}</td>`:`<td>${fmtPM(q.r.area,q.r.err)}</td><td>${q.pct!=null?esc(fmt(q.pct,3)):"—"}</td><td>${q.ratio!=null?(q===res.ref?"1":fmtPM(q.ratio,q.ratioErr)):"—"}</td>`}</tr>`).join("")}</tbody></table></div>`;
+    h+=`<div class="actions">${btn("igwin","Integrate window","area",{primary:true,view:true})}${btn("igcopy","Copy the table","copy",{view:true})}</div>`;
+    return h;
+  }
   if(n.kind==="peaks"){
     const f=n.f, rows=peakRows(c), st=Object.assign({},PK_STYLE,f.style), o=f.opts||{}, mode=PF_MODES.find(q=>q[0]===o.mode)||PF_MODES[0], d=finalOf(c);
     const stale=f.sig&&f.sig!==pipeSig(c), lab=(arr,k)=>esc((arr.find(q=>q[0]===k)||[,""])[1]);
@@ -9129,7 +9613,7 @@ function flowInspectorBody(n){
     h+=`<div class="fi-h">${ICON(n.kind==="src"?"reverse":"table")}<div class="grow"><div class="fi-t">${esc(specName(c))}</div><div class="lab">${n.kind==="src"?`Starts from the ${c.from==="raw"?"raw":"processed"} data of <a href="#" data-fi="gosrc">${esc(specName(srcOf(c)))}</a>`:n.c.fx?`Computed from other columns: = ${esc(fxShow(n.c))}`:"Raw data, as recorded"}</div></div>${discChip(n.key)}<button class="tb sm icon" data-fi="specmenu" aria-haspopup="menu" aria-expanded="false" aria-label="Spectrum options" title="More">${ICON("more","sm")}</button></div>`;
     h+=kvHtml([["Points",String(d.x.length)],["X",`${esc(d.xn||"X")}${d.xu?` (${esc(d.xu)})`:""}, ${rangeTxt(d.x,"")}`],["Y",`${esc(d.yn||"Y")}${d.yu?` (${esc(d.yu)})`:""}, ${rangeTxt(d.y,"")}`],
       n.kind==="raw"?["Columns",`${esc(colLabel(xc,"X"))} and ${esc(colLabel(c,"Y"))}${ec?` with errors from ${esc(colLabel(ec,"error"))}`:""}`]:null]);
-    h+=`<div class="actions">${btn("sheet","Open the worksheet","table",{view:true})}${btn("rename","Rename…","edit")}${n.kind==="src"?btn("deldrv","Delete this spectrum","x",{ghost:true}):""}</div>`;
+    h+=`<div class="actions">${btn("overview","Overview","info",{view:true})}${btn("sheet","Open the worksheet","table",{view:true})}${btn("rename","Rename…","edit")}${n.kind==="src"?btn("deldrv","Delete this spectrum","x",{ghost:true}):""}</div>`;
     if(n.kind==="raw") h+=`<p class="hint">The raw data are locked. To correct a value, type over it in the worksheet's Raw sheet: you will be asked for a reason, and the correction becomes a step.</p>`;
     return h;
   }
@@ -9182,6 +9666,9 @@ function flowInspAction(act,el,L){
   if(act==="peakswin"&&c){ if(c!==activeYCol()) setActiveCol(c.id,true); openPeakFinder(); return; }
   if(act==="pkfit"&&c){ if(c!==activeYCol()) setActiveCol(c.id,true); fitFoundPeaks(); return; }
   if(act==="pkcopy"&&c){ copyText(foundTableText(c),"Copied the peak table."); return; }
+  if(act==="overview"&&c){ if(c!==activeYCol()) setActiveCol(c.id,true); S.ovStage=n.kind==="final"?"final":"raw"; openOverview(); return; }
+  if(act==="igwin"&&c){ if(c!==activeYCol()) setActiveCol(c.id,true); openIntegrate(); return; }
+  if(act==="igcopy"&&c){ copyText(integTableText(c),"Copied the band integrals."); return; }
   if(act==="stepmenu"&&n.s){ toggleMenu(el,()=>stepMenuItems(n.s),{label:"Step options",align:"right"}); return; }
   if(act==="specmenu"&&c){ toggleMenu(el,()=>specItems(c),{label:"Spectrum options",align:"right"}); return; }
   if(act==="insAfter"&&n.s){ const col=colOfStep(n.s); toggleMenu(el,()=>toolMenuItems({col:col.id,at:col.pipe.indexOf(n.s)+1}),{label:"Insert a step",search:"Find a tool: background, smooth, Python…"}); return; }
@@ -9875,6 +10362,10 @@ function helpHtml(){
 <dt>Right-click a header</dt><dd>Column options: X, Y or error bars, analyse, show or hide, formula, sort, delete</dd>
 <dt>Raw and Final</dt><dd>The Raw sheet holds the data as recorded. Empty cells can be filled; a recorded value is locked, and typing over it asks for a reason and adds a correction step instead. The Final sheet shows the analysed spectrum after processing.</dd>
 </dl>
+<h3>A first look: the Overview</h3>
+<p>After an import (or from Analysis › Overview) the Overview says what the spectrum is like before anything is done to it: its points and their spacing, the noise and the strongest band's signal to noise, the bands and how many points each spans, one- and two-point spikes, and the background, judged against the strongest band. Its suggested first steps each open their tool with settings measured from the data; nothing changes until you press OK there.</p>
+<h3>Integrating bands without a fit</h3>
+<p>Analysis › Integrate bands: drag across a band on the graph, or put a window around each peak. Each band's area is the sum over the points in its window less a local baseline (a line between its edges, none, or level at its lowest point), with an error carried from the noise; its height, position, FWHM, share of the total and ratio to a chosen band follow. Drag a band's edge to move it, or the strip along its top to move the whole window. The same windows apply to every spectrum on the same axis, so <em>Every spectrum</em> shows the same bands of every sample, and the numbers follow the processing.</p>
 <h3>Tied peak parameters</h3>
 <p>In a peak fit, the chain-link button beside a parameter ties it to the same parameter of another peak: equal, a multiple (for areas, such as the 2 to 1 of a spin–orbit doublet) or a fixed spacing (for centres). <em>One width</em> ties every peak's width to peak 1's, for an instrument's resolution. A tied parameter is not fitted on its own: it follows, its error is carried over, and the degrees of freedom count it once. Dragging any peak of a tied group on the graph moves the group. The report lists every tie.</p>
 <h3>Your own fit functions</h3>
@@ -9908,13 +10399,15 @@ const WINS={
   sheet:{title:"Worksheet", icon:"table", def:[.62,.58,.38,.42], open:true},
   fit:{title:"Fit", icon:"peak", def:[.58,0,.42,1], open:false},
   peaks:{title:"Peaks", icon:"tag", def:[.6,.03,.4,.94], open:false},
+  integ:{title:"Integrate", icon:"area", def:[.52,.03,.48,.94], open:false},
+  over:{title:"Overview", icon:"info", def:[.5,.04,.5,.92], open:false},
   res:{title:"Results", icon:"table", def:[0,.6,.62,.4], open:false},
   disc:{title:"Discussion", icon:"comment", def:[.64,.3,.36,.7], open:false},
   py:{title:"Python", icon:"code", def:[.2,.06,.56,.86], open:false},
   stats:{title:"Statistics", icon:"sigma", def:[.2,.14,.5,.62], open:false},
   tool:{title:"Tool", icon:"wand", def:[.62,.04,.36,.8], open:false, transient:true}
 };
-const WIN_ORDER=["graph","sheet","flow","peaks","fit","res","stats","py","disc"];
+const WIN_ORDER=["graph","sheet","flow","over","peaks","integ","fit","res","stats","py","disc"];
 const LAYOUT={v:2, wins:{}, z:10};
 function winState(id){ if(!LAYOUT.wins[id]) LAYOUT.wins[id]={g:WINS[id].def.slice(), open:!!WINS[id].open, max:false, z:++LAYOUT.z}; return LAYOUT.wins[id]; }
 function loadLayout(){
@@ -9966,6 +10459,8 @@ function renderWin(id){
   else if(id==="flow") renderFlow();
   else if(id==="fit") renderFit();
   else if(id==="peaks") renderPeaks();
+  else if(id==="integ") renderInteg();
+  else if(id==="over") renderOverview();
   else if(id==="res") renderResults();
   else if(id==="disc"){ renderThread(); renderAnchor(); }
   else if(id==="py") renderPy();
@@ -10164,7 +10659,7 @@ function renderAll(){
   const rc=++renderCount; if(followPeakSets()&&renderCount!==rc) return;
   if(S.pending&&(!P()||!colById(S.pending.col))) S.pending=null;
   renderTop(); renderPlot(); renderStages(); renderTabMarks();
-  ["sheet","flow","peaks","fit","res","disc","py","stats","tool"].forEach(id=>{ if(winOpen(id)) renderWin(id); });
+  ["sheet","flow","over","peaks","integ","fit","res","disc","py","stats","tool"].forEach(id=>{ if(winOpen(id)) renderWin(id); });
   renderUndo(); renderTaskbar();
 }
 
