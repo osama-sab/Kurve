@@ -451,6 +451,10 @@ function fitSpec(X, Y, spec, init, opts) {
   check("formula: an unclosed bracket and a dangling operator are named", /closing \)/.test(e3.err) && /ends too soon/.test(e4.err), [e3.err, e4.err]);
   check("formula: a value used before its line is caught", /before its line/.test(e5.err), e5.err);
   check("formula: no parameter, nothing to fit", /nothing to fit/.test(e6.err), e6.err);
+  // A worksheet column's formula (F(x)=) may have no parameter at all.
+  const ws1 = N.compileExpr("1e7/x", { allowNone: true }), ws2 = N.compileExpr("log10(B)*2 + i", { allowNone: true });
+  check("formula: allowNone takes one without parameters, and column letters as names", ws1.params.length === 0 && ws1.f(500, []) === 2e4 &&
+    ws2.params.join() === "B,i" && near(ws2.f(0, [100, 3]), 7, 1e-14), [ws1.params, ws2.params]);
   check("formula: nothing but arithmetic can run", /no function called “alert”/.test(C("y = alert(1)*a").err) && /cannot contain/.test(C("y = a`x`").err) &&
     /no function called “constructor”/.test(C("y = constructor(x)*a").err) && !!C("y = a.b*x").err && !!C("y = a[0]()*x").err, [C("y = constructor(x)*a").err, C("y = a[0]()*x").err]);
   check("erf and erfc to double precision", near(N.erfFn(0.5), 0.5204998778130465, 1e-15) && rel(N.erfcFn(5), 1.5374597944280349e-12, 1e-12) && rel(N.erfcFn(2.4), 0.0006885138966450786, 1e-12));

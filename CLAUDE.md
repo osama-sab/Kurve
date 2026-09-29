@@ -58,7 +58,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   like `u = (x - xc)/w` name values for the lines below; the function is `y = …` or the last
   line; every other name is a parameter, in order of appearance. Errors are thrown with a
   message in words and `line`/`col`. Lookups use `hasOwnProperty`, so `constructor(x)` is an
-  unknown function, not `Object`. `guessUserParams(names, X, Y)` starts parameters from their
+  unknown function, not `Object`. `compileExpr(src, {allowNone:true})` accepts a formula with
+  no parameters (a worksheet column's). `guessUserParams(names, X, Y)` starts parameters from their
   names (y0/c baseline, A/H height, xc/x0 position of the largest point, w/sigma a tenth of the
   range, t/tau a third, k a rate, m a slope, anything else 1). `erfFn`/`erfcFn` are accurate
   to double precision (a series below 2.5, a continued fraction above).
@@ -193,8 +194,30 @@ graph first, with the taskbar kept at the bottom of the screen.
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
   window: empty "phantom" columns and rows fill the rest, and typing into one makes a column.
-  Under the letters come Long Name, Units and Comments (rows -3, -2, -1, typed into like any
-  cell) and a Sparklines row. `wsModel()` is the sheet (`S.wsm`: columns, row count, phantoms);
+  Under the letters come Long Name, Units, Comments and F(x)= (rows -4 … -1, `WS_LABS`,
+  `WS_TOP`, typed into like any cell) and a Sparklines row.
+  **Formulas** (the F(x)= row, or "Set column values…" in the column and cell menus): a
+  column computed row by row from others, `c.fx = {src, refs}`: the formula as typed and the
+  column id each letter meant, so inserting or deleting a column never makes it read the
+  wrong one (`fxShow` writes it with today's letters). Letters are columns, `x` the row's X,
+  `i` the row number; `col(B)` and a leading `=` are accepted; the arithmetic is
+  `compileExpr`'s, so nothing else can run. `fxParse` (with errors in words: an unknown name,
+  a cell reference like `B2`, a column using itself), `fxEval`, `recalcFx(p)` (every formula
+  column after the ones it uses; a circle or a deleted input is an error in `FX_ERR`, shown in
+  the header and the F(x)= cell), `setColFormula`, `wsFxHint` (the live check while typing).
+  Values live in `c.data` and are computed again by `save` (whenever `cols` is saved) and
+  `normalize`. A computed column is not raw data: `rawCols` and the fingerprint leave it out,
+  and it cannot be typed, pasted or filled over. **Fill** (`wsFillPlan`, `wsFill`,
+  `wsFillDrag`, `wsFillDbl`, `wsFillCtrl`): the square on the selection's corner (`td.fh`)
+  drags down or right; two or more numbers continue their least-squares line, one number or
+  text is copied, Ctrl swaps the two; a double click fills down as far as the column beside
+  goes; Ctrl+D and Ctrl+R copy the first row or column. Only empty cells are written (new
+  recorded values, one undo entry); labels fill right. **Sort** (`S.wsSort`, `wsOrder`,
+  `wsSortBy`) is the view only: `m.ord`/`m.inv` map sheet rows to data rows (`wsDR`), row
+  numbers show the data row, and the data keep their recorded order; paste and fill ask to
+  unsort first. **Find** (Ctrl+F, the search button; `wsFindOpen`, `wsFindRun`, `wsFindGo`,
+  `S.wsFind`): every cell containing the text, labels included, marked `td.hit`; Enter,
+  Shift+Enter and F3 step through them. `wsModel()` is the sheet (`S.wsm`: columns, row count, phantoms);
   rows are virtualised (`wsRows`, drawn around the scroll position). `S.ws` is the selection
   (`{r, c, ar, ac}`: the active cell and the anchor of a range, plus `extra`, `win`, `edit`).
   Click, Shift+click, drag, a header or row number, the corner; arrows, Shift+arrows,
@@ -314,12 +337,23 @@ graph first, with the taskbar kept at the bottom of the screen.
   fitting them. A spectrum's **peak set** is peak labels on the graph, annotations with
   `grp:"pk:<colId>"`, each with its typed label `lab`, its mark `mk`, the finder's numbers
   `pk:{h, w, snr}` and `manual` when placed by hand; `p.found[colId]` records the set
-  (`{opts, sig, at, by, style, ex, mem, n}`: the finder's settings, the processing it was found
-  on, the style shared by the set (`PK_STYLE`: `mk`, `show`, `rot`, `dec`, `unit`, `color`,
-  `size`), positions removed by hand that a new search leaves out, and the labels of peaks a
-  search no longer finds, given back when one finds them again). `findPeaksInto` runs `pfRun`
-  on the points in view and merges with the set before (labels, dragged positions and
-  hand-placed peaks are kept); every change to the finder's settings searches again at once.
+  (`{opts, sig, at, by, style, ex, mem, n, rng, xu, follow, re}`: the finder's settings, the
+  processing it was found on, the style shared by the set (`PK_STYLE`: `mk`, `show`, `rot`,
+  `dec`, `unit`, `color`, `size`), peaks removed by hand that a new search leaves out
+  (`{x, xu, row}`), the labels of peaks a search no longer finds, given back when one finds
+  them again, the range and X units it was found over, whether it follows the processing, and
+  when it last did). Each peak's annotation carries its recorded `row`. `peakSearchOn(c, opts,
+  rng, xu)` searches any spectrum's final data (masked points out, a straight baseline through
+  the lowest fifth; never the fit's), and `mergePeakSet` makes the result the set: the same
+  peak is within a quarter of its width in the same units, or on the same recorded row give or
+  take three after a change of units, so labels survive a conversion to wavelength.
+  `findPeaksInto` (the analysed spectrum, over the view) and `findPeaksEvery` (every spectrum,
+  one undo entry) use them; every change to the finder's settings searches again at once.
+  **Following**: `followPeakSets()`, first thing in `renderAll`, finds a set again with its own
+  settings and range whenever its spectrum's `pipeSig` changes, with no undo entry of its own
+  (undoing the step brings the old set back with it) and a log line; off per set
+  (`follow:false`, "Find them again whenever the processing changes"), and then the set says
+  it is out of date. `allFoundTableText` is every set in one table (Copy all).
   `peakText(style, lab)` is what a label shows (`show`: the position, your label or else the
   position, both, only yours, nothing); `{x}` in any label or line text stands for the
   position (`annoPos`). `setPeakStyle` restyles the whole set, `setPeakLabel` types one
@@ -352,6 +386,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   tied peak moves what it follows, so a group moves together. `runPeakFit` fits only the free
   parameters (tied ones fixed, the model applying the ties) and `linkResult` fills in the tied
   values, errors, covariances; the spec stores `id` and `tie`, and Method lists every tie.
+- **Saving**: `save(patch, log)` writes at once; `saveSoon` (typing in the worksheet, column
+  widths) waits 0.7 s, and any `save` before then carries the waiting patch with it, first
+  (`wsPatch`, `wsPid`), as does a project switch.
 - **Undo**: `pushUndo(label)` before any mutation, `undo`/`redo`, snapshots of `UNDO_KEYS`
   (`cols` carries the pipelines and masks, `raw` the fingerprint record, `fits` the fit history,
   `userFns` the project's fit functions, `found` the peak sets)
@@ -416,7 +453,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   marks it (`mk`): `sym` a triangle above it, `drop` a line down to the axis, `vline` a
   dashed line through the plot with the text along it at the top, `lead` (the default, and
   what older labels are) a leader line, `none`. Its text is offset by `dx, dy` pixels from
-  where the mark leaves room (`labDy`); a moved text gets a leader back to its mark.
+  where the mark leaves room (`labDy`); a moved text gets a leader back to its mark. Another
+  spectrum's labels are drawn only where that spectrum is drawn on these axes: overlaid, and
+  not hidden.
   `addAnno`, `updateAnno`, `deleteAnno`, `editAnno` (a form, with the mark and, for a set's
   peak, its label), `annoMenuItems` (type its label, mark it with, and for a set's peak mark
   or label every peak with), `peakNear` (the top of the peak under a click), `addPeakLabel`,
@@ -645,9 +684,31 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   plain object with a rectangle, and the outside-click test (`contains`) threw.
   `pointerAnchor(x, y)` places a real (invisible) button there.
 
+- **A delayed save must not outlive a later one.** Typing a value saves 0.7 s later; a fill
+  within that time saved at once, and then the delayed save wrote back the raw-data record
+  from before the fill, so the fingerprint no longer matched. Any save now carries the
+  waiting patch with it, first, and a project switch flushes it.
+- **A formula must name columns, not positions.** Letters are positions; stored as letters,
+  deleting column C would make `D*2` read what used to be E. A formula stores the id each
+  letter meant and is shown with today's letters.
+- **Computed is not recorded.** A formula column's values are derived from raw data; hashed
+  with it, adding a formula would have said the raw data changed. `rawCols` leaves computed
+  columns out, and they cannot be typed over.
+- **A sorted view is not a sorted table.** Reordering recorded rows would change what the
+  fingerprint hashes and every mask and correction that names a row. Sorting maps sheet rows
+  to data rows and shows the data row's number.
+- **Adding a label row renumbers the others.** Label rows were -3 … -1 in a dozen places;
+  F(x)= made them -4 … -1. They are `WS_LABS` and `WS_TOP` now, and a test that typed into
+  "row -3" had to change with them.
+
 ## Roadmap
 
-Done in this round: the worksheet as a spreadsheet grid (fixed column widths, empty cells
+Done in this round: worksheet formulas in Origin's F(x)= row, the fill handle (series and
+copies, double-click, Ctrl+D/R), sorting the view, find (Ctrl+F); peak sets that follow the
+processing (labels kept, even through a change of X units) and peaks found in every spectrum
+at once; a fix for a delayed worksheet save overwriting a later one.
+
+Round before: the worksheet as a spreadsheet grid (fixed column widths, empty cells
 beyond the data, range selection with Count/Sum/Average, Excel's keys, resizable and
 autofitting columns, Origin's Long Name/Units/Comments rows); short menus with side submenus;
 fonts for the graph and its labels; the Peaks window (find, mark with a symbol, drop line,
@@ -705,11 +766,12 @@ Next, in order:
   or per-panel settings in the stacked layout
 - Annotations have no arrows, boxes or rich text (sub- and superscripts only as Unicode), and
   are not snapped to data or to each other
-- A peak set is found on the points in view of the final data and stays where it was found:
-  when the processing changes it says so, and "Find again" follows it (keeping the labels of
-  the peaks still there). Sets are per spectrum; there is no one-click set for every spectrum
-- The worksheet has no formulas, fill handle, sort or find (new columns of values come from
-  steps, Python or derived spectra instead)
+- A peak set follows its spectrum's processing, but not a change of the finder's settings made
+  while another spectrum is analysed: "Every spectrum" applies them to all. Two identical
+  spectra overlaid draw their labels on top of each other
+- Worksheet formulas are whole-column (row by row); there are no cell formulas, no references
+  to other rows (`B[i-1]`), no relative formulas when filling right, no replace in find, and
+  sorting never reorders the recorded data (by design)
 - Binary instrument formats (SPC, OPUS, SPE) and JCAMP-DX are not read; text exports only
 - The preview pane serves a snapshot of the file, so `location.reload()` re-runs stale code —
   navigate to the file again after editing, or you will test the previous version

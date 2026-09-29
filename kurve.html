@@ -177,6 +177,23 @@ select:disabled,input:disabled{opacity:.55}
 .ws td.fixed{box-shadow:inset 3px 0 0 var(--warn);text-decoration:line-through;color:var(--muted)}
 .ws td.fixed.cur{box-shadow:inset 0 0 0 2px var(--accent),inset 5px 0 0 var(--warn)}
 body.colresize,body.colresize *{cursor:col-resize!important;user-select:none}
+body.filling,body.filling *{cursor:crosshair!important;user-select:none}
+.ws td.calc{color:var(--ink-2);background:color-mix(in srgb,var(--accent) 4%,var(--panel))}
+.ws .fxm{font:italic 700 11px var(--mono);color:var(--accent);padding:0 2px}
+.ws .fxm.bad{color:var(--bad)}
+.ws .srt{font-weight:700;color:var(--accent)}
+.ws thead td.lc.fxc{font-family:var(--mono);font-size:12px}
+.ws thead td.lc.bad{color:var(--bad);box-shadow:inset 0 -2px 0 var(--bad)}
+.ws td.hit,.ws thead td.lc.hit{background:color-mix(in srgb,var(--warn) 24%,var(--panel))}
+.ws tbody td.fh{position:relative}
+.ws tbody td.fh::after{content:"";position:absolute;right:0;bottom:0;width:7px;height:7px;background:var(--accent);box-shadow:0 0 0 1px var(--panel);cursor:crosshair}
+.ws td.fillp{box-shadow:inset 0 0 0 1px var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--panel))}
+.ws input.wsed.fx{font-family:var(--mono);font-size:12px}
+.wsval .badt{color:var(--bad)}
+.wsfind{display:flex;align-items:center;gap:6px;padding:4px 10px;border-bottom:1px solid var(--rule);background:var(--panel-2);flex:0 0 auto}
+.wsfind[hidden]{display:none}
+.wsfind input{flex:1;min-width:0;max-width:320px;height:26px}
+.wsfind .sp{flex:1}
 .ws-foot{display:flex;align-items:center;gap:8px;min-height:28px;padding:4px 12px;border-top:1px solid var(--rule);font-size:12px;color:var(--muted);flex:0 0 auto;background:var(--panel-2)}
 .ws-foot .sp{flex:1}
 .ws-foot .wsl{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -737,7 +754,8 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 .pftab th,.pftab td{padding:3px 8px}
 .pfrej{list-style:none;padding:0;margin:0 0 6px}
 #pane-peaks .fbar{margin:-10px -14px 8px;padding:6px 10px;position:sticky;top:-10px;z-index:2;background:var(--panel);display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--rule)}
-#pane-peaks .fbar select{min-width:0;max-width:220px}
+#pane-peaks .fbar select{min-width:0;max-width:220px;flex:0 1 auto}
+#pane-peaks .gb>.chk{display:flex;margin:4px 0 2px}
 .pktab td.l{min-width:120px}
 .pktab td.l input{width:100%;min-width:100px;height:24px;font-size:12.5px;padding:0 6px}
 .pktab td.fx{padding:0 2px;width:28px}
@@ -840,6 +858,8 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
   <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 13.5A8.5 8.5 0 1 1 10.5 3.5a6.5 6.5 0 0 0 10 10z"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
   <symbol id="i-chevr" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-chevu" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.2"/><path d="m15.2 15.2 5.3 5.3"/></symbol>
   <symbol id="i-chevup" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
@@ -989,6 +1009,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
       <header class="win-h"><svg class="ic sm"><use href="#i-table"/></svg><h2 class="win-t">Worksheet</h2><span class="win-sub" id="wsSub"></span><span class="sp"></span></header>
       <div class="win-b sheet-win">
         <div class="wbar"><div class="seg mini" role="group" aria-label="Sheet" id="wsSheet"><button data-sheet="raw" aria-pressed="true" title="The data as recorded: locked">Raw</button><button data-sheet="final" aria-pressed="false" title="The analysed spectrum after processing, read only">Final</button></div><span class="wsaddr" id="wsAddr" title="The active cell, or the selected range"></span><span class="wsval" id="wsVal" aria-live="polite"></span>
+          <button class="tb sm icon" id="wsFindBtn" title="Find in the sheet (Ctrl+F)" aria-label="Find in the sheet"><svg class="ic sm"><use href="#i-search"/></svg></button>
           <button class="tb sm" id="addColBtn" title="Add a Y column" aria-label="Add a Y column"><svg class="ic sm"><use href="#i-plus"/></svg><span>Column</span></button></div>
         <div class="ws" id="ws" tabindex="0"></div>
         <div class="ws-foot" id="wsFoot"></div>
@@ -1322,7 +1343,7 @@ function exprTokens(src){
 }
 /* Returns {params, f(x, p), text, usesX}, or throws an Error whose message
    says what is wrong and where (e.line, e.col). */
-function compileExpr(src){
+function compileExpr(src,opt){
   const s=String(src||"");
   const toks=exprTokens(s);
   // Split into statements.
@@ -1392,7 +1413,7 @@ function compileExpr(src){
     locals.set(st.name,locals.size); body.push({j:locals.get(st.name),e:st.e});
   });
   if(!result) throw exprErr("Write the function on the last line, for example: y = a + b*x");
-  if(!params.length) throw exprErr("There is nothing to fit: the formula needs at least one parameter (a name that is not x)");
+  if(!params.length&&!(opt&&opt.allowNone)) throw exprErr("There is nothing to fit: the formula needs at least one parameter (a name that is not x)");
   const cmp=n=>{
     switch(n.t){
       case "num": { const v=n.v; return ()=>v; }
@@ -3494,7 +3515,7 @@ function rawSeries(c){
   return val;
 }
 // Columns with at least one value, in table order: what the fingerprint covers.
-function rawCols(){ return allCols().filter(c=>!c.src&&(c.data||[]).some(v=>v!=null)); }
+function rawCols(){ return allCols().filter(c=>!c.src&&!c.fx&&(c.data||[]).some(v=>v!=null)); }
 let fpMemo={arrs:[],key:"",val:""};
 function rawFp(cols){
   const arrs=(cols||rawCols()).map(c=>c.data);
@@ -3519,7 +3540,7 @@ function recordRaw(text,merge){
   return p.raw;
 }
 function rawRecordFor(cols,text){
-  const withData=cols.filter(c=>!c.src&&(c.data||[]).some(v=>v!=null));
+  const withData=cols.filter(c=>!c.src&&!c.fx&&(c.data||[]).some(v=>v!=null));
   const fp=withData.length?sha256(rawText(withData.map(c=>c.data))):"";
   return {fp,hist:fp?[{t:Date.now(),uid:S.uid||"",fp,prev:"",text}]:[]};
 }
@@ -3770,15 +3791,22 @@ function writeErr(e){
 }
 async function save(patch, logText){
   if(!S.pid||S.readOnly) return;
+  // An edit still waiting to be saved (saveSoon) goes with this save, first:
+  // saved later on its own, it would write back values older than these.
+  let pendLog=null;
+  if(Object.keys(wsPatch).length&&wsPid===S.pid){ clearTimeout(wsTimer); patch=Object.assign({},wsPatch,patch); pendLog=wsLog; wsPatch={}; wsLog=null; }
   const p=S.proj; Object.assign(p,patch); p.updated=Date.now(); patch.updated=p.updated;
-  if(logText){ const log=(p.log||[]).concat([{t:Date.now(),uid:S.uid||"",text:logText}]).slice(-80); p.log=log; patch.log=log; }
+  if(patch.cols) recalcFx(p);         // formula columns follow the columns they use
+  if(logText||pendLog){ const add=[pendLog,logText].filter(Boolean).map(text=>({t:Date.now(),uid:S.uid||"",text}));
+    const log=(p.log||[]).concat(add).slice(-80); p.log=log; patch.log=log; }
   setStatus("Saving…");
   try{ await S.store.save(S.pid,patch); setStatus(S.store.mode==="db"?"All changes shared":"Saved in this browser",false); }
   catch(e){ setStatus("Not saved",true); writeErr(e); }
 }
-let wsTimer=null, wsPatch={}, wsLog=null;
-function saveSoon(patch,logText){ Object.assign(wsPatch,patch); if(logText) wsLog=logText; clearTimeout(wsTimer); setStatus("Editing…");
-  wsTimer=setTimeout(()=>{ const pp=wsPatch, l=wsLog; wsPatch={}; wsLog=null; save(pp,l); },700); }
+let wsTimer=null, wsPatch={}, wsLog=null, wsPid=null;
+function saveSoon(patch,logText){ if(wsPid!==S.pid&&Object.keys(wsPatch).length){ clearTimeout(wsTimer); wsPatch={}; wsLog=null; }
+  wsPid=S.pid; Object.assign(wsPatch,patch); if(logText) wsLog=logText; clearTimeout(wsTimer); setStatus("Editing…");
+  wsTimer=setTimeout(()=>{ const pp=wsPatch, l=wsLog; wsPatch={}; wsLog=null; if(wsPid===S.pid) save(pp,l); },700); }
 
 /* ============================================================
    Data access helpers
@@ -4389,8 +4417,10 @@ function labDy(a){ const mk=a.mk||"lead", r=!!a.rot;
 /* Three layers: shaded ranges under the data, lines over it, text on top. */
 function annoSvg(layer,c){
   const {cfg,pal,X,Y,ps,forExport,fs,L,pw,T,mh,heat}=c; let s=""; const f1=v=>(+v).toFixed(1);
-  const xu=ps.d.xu||"", yu=ps.d.yu||"";
+  const xu=ps.d.xu||"", yu=ps.d.yu||"", actId=(P()||{}).activeY, lay=ps.final?(cfg.layout||"overlay"):"overlay";
   (cfg.annos||[]).forEach(a=>{
+    // Another spectrum's labels, only where it is drawn on these axes: overlaid and shown.
+    if(a.t==="label"&&a.ser&&a.ser!==actId&&(lay!=="overlay"||(cfg.hidden||[]).includes(a.ser)||!colById(a.ser))) return;
     const okX=a.xu==null||a.xu===xu, okY=!heat&&(a.yu==null||a.yu===yu);
     const col=annoColor(a,pal,forExport,cfg), lw=a.lw!=null?+a.lw:1.2, dash=DASHES[a.dash||(a.t==="v"||a.t==="h"?"dash":"solid")], sans=a.font&&a.font!=="default"?fontStack(a.font,a.fontName)||c.sans:c.sans;
     const sel=!forExport&&S.annoSel===a.id;
@@ -5238,21 +5268,247 @@ function fixedCells(){
       m.set(col.id+":"+f.row,`${fld==="del"||f.val===null?"Left out":"Corrected to "+(f.val??f.y??f.x)} in the processing of ${specName(y)}${f.why?`: ${f.why}`:""}`); }); }));
   return m;
 }
+/* ---- Column formulas: Origin's F(x)= row ----------------------------------
+   A column may be computed from others, row by row. c.fx is {src, refs}: the
+   formula as typed, and the column each letter in it meant when it was typed,
+   so inserting or deleting a column never makes a formula read the wrong one
+   (fxShow writes it back with today's letters). Letters (A, B, … AA) are
+   columns, x is the row's X value and i the row number from 1; everything
+   else is the fit formulas' arithmetic (compileExpr), so nothing but
+   arithmetic can run. The values live in c.data like any column's and are
+   computed again whenever the columns they use change (recalcFx, from save
+   and normalize). They are not raw data: the fingerprint leaves them out, and
+   they cannot be typed or pasted over. */
+const FX_ERR=new Map();
+const fxLetterIndex=L=>{ let n=0; for(const ch of L) n=n*26+(ch.charCodeAt(0)-64); return n-1; };
+// "=col(B)*2" and "= b*2" are "B*2": a leading = as in a spreadsheet, and Origin's col().
+function fxPrep(t){ return String(t==null?"":t).trim().replace(/^=\s*/,"").replace(/\bcol\s*\(\s*([A-Za-z]{1,3})\s*\)/gi,(m,L)=>L.toUpperCase()); }
+function fxParse(text,self){
+  const src=fxPrep(text); if(!src) return null;
+  const cm=compileExpr(src,{allowNone:true}), raw=allCols().filter(c=>!c.src), refs={};
+  cm.params.forEach(nm=>{ if(nm==="i") return;
+    if(/^[A-Z]{1,3}\d+$/.test(nm)) throw exprErr(`“${nm}” is one cell: a formula here works on whole columns, row by row, so write ${nm.replace(/\d+$/,"")}`);
+    if(!/^[A-Z]{1,3}$/.test(nm)) throw exprErr(`“${nm}” is not a column: use column letters (A, B, …), x for the row's X value and i for the row number`);
+    const c=raw[fxLetterIndex(nm)]; if(!c) throw exprErr(`There is no column ${nm}`);
+    if(self&&c.id===self.id) throw exprErr(`Column ${nm} cannot use its own values`);
+    refs[nm]=c.id; });
+  if(cm.usesX&&self&&self.role==="x") throw exprErr("An X column cannot use x, its own values");
+  return {src,refs};
+}
+// The formula with each column under its letter today.
+function fxShow(c){
+  const f=c&&c.fx; if(!f) return ""; let out=f.src, toks;
+  try{ toks=exprTokens(f.src); }catch(e){ return f.src; }
+  const raw=allCols().filter(o=>!o.src);
+  toks.filter(t=>t.k==="id"&&f.refs&&Object.prototype.hasOwnProperty.call(f.refs,t.v)).reverse().forEach(t=>{
+    const k=raw.findIndex(o=>o.id===f.refs[t.v]); out=out.slice(0,t.i)+(k<0?t.v+"?":wsLetter(k))+out.slice(t.i+t.len); });
+  return out;
+}
+function fxEval(c,cols){
+  const f=c.fx; let cm; try{ cm=compileExpr(f.src,{allowNone:true}); }catch(e){ return {err:e.message}; }
+  const refs=f.refs||{}, ins=cm.params.map(nm=>nm==="i"?"i":Object.prototype.hasOwnProperty.call(refs,nm)?(cols.find(o=>o.id===refs[nm])||null):undefined);
+  for(let k=0;k<ins.length;k++){ if(ins[k]===undefined) return {err:`“${cm.params[k]}” is not a column`}; if(ins[k]===null) return {err:`the column it called ${cm.params[k]} has been deleted`}; }
+  let xc=null;
+  if(cm.usesX){ xc=c.role==="x"?null:xColFor(c); if(!xc||xc===c) return {err:"x is the row's X value, and this column has no X column to its left"}; }
+  let n=0; ins.forEach(o=>{ if(o&&o!=="i") n=Math.max(n,o.data.length); }); if(xc) n=Math.max(n,xc.data.length);
+  if(!n) n=cols.filter(o=>!o.src&&!o.fx).reduce((a,o)=>Math.max(a,o.data.length),0);
+  const out=new Array(n), pv=new Array(ins.length);
+  for(let r=0;r<n;r++){ let v=null, ok=true;
+    for(let k=0;k<ins.length;k++){ const o=ins[k]; if(o==="i"){ pv[k]=r+1; continue; } const u=o.data[r]; if(u==null){ ok=false; break; } pv[k]=u; }
+    if(ok){ const xv=xc?xc.data[r]:r+1; if(xv!=null){ const y=cm.f(xv,pv); v=Number.isFinite(y)?y:null; } }
+    out[r]=v; }
+  trimTail(out); return {data:out};
+}
+const sameArr=(a,b)=>{ if(a===b) return true; if(!a||!b||a.length!==b.length) return false; for(let i=0;i<a.length;i++) if(a[i]!==b[i]) return false; return true; };
+// Computes every formula column, each after the formula columns it uses. True if any changed.
+function recalcFx(p){
+  p=p||P(); if(!p||!Array.isArray(p.cols)) return false;
+  const fx=p.cols.filter(c=>c.fx&&!c.src); if(!fx.length){ FX_ERR.clear(); return false; }
+  const ids=new Set(fx.map(c=>c.id)), done=new Set(); let changed=false;
+  for(let pass=0;pass<=fx.length;pass++){ let prog=false;
+    fx.forEach(c=>{ if(done.has(c.id)) return; const deps=Object.values(c.fx.refs||{}).filter(id=>ids.has(id));
+      if(!deps.every(id=>done.has(id))) return; done.add(c.id); prog=true;
+      const r=fxEval(c,p.cols); if(r.err) FX_ERR.set(c.id,r.err); else FX_ERR.delete(c.id);
+      const nd=r.err?[]:r.data; if(!sameArr(c.data,nd)){ c.data=nd; changed=true; } });
+    if(!prog) break; }
+  fx.forEach(c=>{ if(done.has(c.id)) return; FX_ERR.set(c.id,"these formulas use each other in a circle"); if(c.data.length){ c.data=[]; changed=true; } });
+  return changed;
+}
+function setColFormula(ci,text){
+  const p=P(), m=S.wsm; if(!p||!m||m.kind!=="raw"||S.readOnly){ renderWs(); return; }
+  const q=m.cols[ci]; let col=q&&!q.phantom?q.col:null; const t=fxPrep(text);
+  if(!t){ if(!col||!col.fx){ renderWs(); return; }
+    pushUndo("removing a formula"); const L=colLetter(col); delete col.fx; col.data=[]; FX_ERR.delete(col.id);
+    save({cols:p.cols},`removed the formula of column ${L}`); renderAll();
+    toast(`Column ${L} has no formula now, and is empty.`,{action:"Undo",run:undo}); return; }
+  if(col&&!col.fx&&col.data.some(v=>v!=null)){ toast(`Column ${q.letter} holds recorded values, which are locked. Type the formula into the F(x)= row of an empty column.`); renderWs(); return; }
+  let f; try{ f=fxParse(t,col); }
+  catch(err){ const here=$("#ws").contains(document.activeElement);
+    renderWs(); if(here){ wsSelect(-1,ci,false); wsBeginEdit(String(text),"edit"); wsFxHint(String(text)); }
+    toast(`Not a formula yet: ${err.message}.`); return; }
+  if(col&&col.fx&&col.fx.src===f.src&&JSON.stringify(col.fx.refs)===JSON.stringify(f.refs)){ renderWs(); return; }
+  pushUndo("that formula");
+  if(!col) col=wsMakeCols(ci);
+  col.fx=f; recalcFx(p);
+  const L=colLetter(col), err=FX_ERR.get(col.id), nv=col.data.filter(v=>v!=null).length;
+  save({cols:p.cols,activeY:p.activeY},`set column ${L} = ${fxShow(col)}`); renderAll();
+  toast(err?`Column ${L}: ${err}.`:`Column ${L} = ${fxShow(col)}: ${nv} value${nv===1?"":"s"}, computed again whenever the columns it uses change.`,{action:"Undo",run:undo});
+}
+// While a formula is typed, the bar above the grid says whether it reads.
+function wsFxHint(text){
+  const v=$("#wsVal"), e=S.ws&&S.ws.edit, m=S.wsm; if(!v||!m) return;
+  const q=m.cols[e?e.c:S.ws.c], col=q&&!q.phantom?q.col:null; let msg, bad=false;
+  if(!fxPrep(text)) msg="Type a formula: B*2, (B-C)/A, log10(B), 1e7/x … Letters are columns, x the row's X, i the row number";
+  else try{ fxParse(text,col); msg=`${q?q.letter:""} = ${fxPrep(text)}`; }catch(err){ msg=err.message; bad=true; }
+  v.innerHTML=`<span class="${bad?"badt":"lab"}">${esc(msg)}</span>`;
+}
+function wsEditFormula(ci){ if(S.sheet!=="raw"){ S.sheet="raw"; renderWs(); } wsSelect(-1,ci,false); wsBeginEdit(null,"edit"); const e=S.ws.edit; if(e) wsFxHint(e.val); }
+
+/* ---- Sorting the view -------------------------------------------------------
+   Sorting shows the rows in another order; the data keep the order they were
+   recorded in (a spectrum is not a list to reshuffle, and the fingerprint
+   hashes that order). m.ord maps a row of the sheet to its data row, m.inv
+   back; the row numbers shown are the data rows'. */
+function wsOrder(m){
+  const s=S.wsSort; if(!s||s.sheet!==m.kind) return m;
+  const ci=m.cols.findIndex(q=>q.id===s.id&&!q.phantom); if(ci<0) return m;
+  const q=m.cols[ci], get=k=>{ const v=m.kind==="final"?q.get(k):q.col.data[k]; return v==null||!Number.isFinite(v)?null:v; };
+  const ord=Array.from({length:m.n},(_,k)=>k).sort((a,b)=>{ const va=get(a), vb=get(b);
+    if(va==null&&vb==null) return a-b; if(va==null) return 1; if(vb==null) return -1; return (va-vb)*s.dir||a-b; });
+  const inv=new Array(m.n); ord.forEach((k,r)=>{ inv[k]=r; });
+  return Object.assign(m,{ord,inv,sortCi:ci,sortDir:s.dir});
+}
+const wsDR=(m,r)=>m&&m.ord&&r>=0&&r<m.n?m.ord[r]:r;   // a row of the sheet → its data row
+function wsSortBy(id,dir){ S.wsSort=id&&dir?{sheet:S.sheet,id,dir}:null; if(S.ws) S.ws.win=null; renderWs(); }
+
+/* ---- Filling -------------------------------------------------------------------
+   The fill handle, as in a spreadsheet: drag the square at the corner of the
+   selection down or to the right. Two or more numbers continue as a straight
+   line (their least-squares trend), one number or text is copied; with Ctrl
+   the other way round (a single number counts up by one, a run is repeated).
+   A double click on the handle fills down as far as the column beside goes;
+   Ctrl+D and Ctrl+R fill the selection from its first row or column. Only
+   empty cells are written: recorded and computed values are locked. */
+function wsFillPlan(src,dir,to,alt){
+  const m=S.wsm, writes=[]; let bad=0;
+  const cellVal=(ci,r)=>{ const q=m.cols[ci]; if(!q||q.phantom) return null;
+    if(r<0){ const L=WS_LABS.find(z=>z.r===r); return L?(q.lab[L.k]||""):""; } const v=q.col.data[r]; return v==null?null:v; };
+  const seq=(vals,j)=>{ const L=vals.length, nums=vals.every(v=>typeof v==="number");
+    if(nums&&L>=2&&!alt){ const mk=(L-1)/2, mv=vals.reduce((a,b)=>a+b,0)/L; let sxy=0, sxx=0;
+      vals.forEach((v,k)=>{ sxy+=(k-mk)*(v-mv); sxx+=(k-mk)*(k-mk); }); const b=sxx?sxy/sxx:0; return +(mv+b*(L+j-mk)).toPrecision(12); }
+    if(nums&&L===1&&alt) return +(vals[0]+j+1).toPrecision(12);
+    return vals[(L+j)%L]; };
+  const locked=(ci,r)=>{ const q=m.cols[ci]; return !!(q&&!q.phantom&&(q.col.fx||q.col.data[r]!=null)); };
+  if(dir==="down"){
+    if(src.r1<0) return {writes,bad:-1};
+    const ra=Math.max(src.r0,0);
+    for(let ci=src.c0;ci<=src.c1;ci++){ const vals=[]; for(let r=ra;r<=src.r1;r++) vals.push(cellVal(ci,r));
+      if(vals.every(v=>v==null)) continue;
+      for(let r=src.r1+1,j=0;r<=to;r++,j++){ const v=seq(vals,j); if(v==null) continue; if(locked(ci,r)){ bad++; continue; } writes.push([ci,r,v]); } }
+  } else {
+    for(let r=src.r0;r<=src.r1;r++){ if(r===-1) continue;          // formulas are set one column at a time
+      const vals=[]; for(let ci=src.c0;ci<=src.c1;ci++) vals.push(cellVal(ci,r));
+      if(vals.every(v=>v==null||v==="")) continue;
+      for(let ci=src.c1+1,j=0;ci<=to;ci++,j++){ const v=r<0?vals[(vals.length+j)%vals.length]:seq(vals,j); if(v==null||v==="") continue;
+        if(r>=0&&locked(ci,r)){ bad++; continue; } writes.push([ci,r,v]); } }
+  }
+  return {writes,bad};
+}
+function wsFill(src,dir,to,alt){
+  const p=P(), m=S.wsm; if(!p||!m) return;
+  if(m.kind!=="raw"){ toast("The Final sheet is read only."); return; }
+  if(S.readOnly) return;
+  if(m.ord){ toast("Unsort the sheet first: filling follows the rows in the order they were recorded."); return; }
+  const {writes,bad}=wsFillPlan(src,dir,to,alt);
+  if(bad<0){ toast("Fill down continues the values of data rows: select some first."); return; }
+  if(bad){ toast(`Filling writes only into empty cells: ${bad} cell${bad===1?" in the way holds a recorded or computed value":"s in the way hold recorded or computed values"}, which are locked.`); return; }
+  if(!writes.length){ toast("Nothing to fill: the cells selected are empty."); return; }
+  pushUndo("filling cells");
+  const maxCi=writes.reduce((a,w)=>Math.max(a,w[0]),0);
+  if(allCols().filter(o=>!o.src).length<=maxCi) wsMakeCols(maxCi);
+  const cols=allCols().filter(o=>!o.src), touched=new Map(); let nv=0;
+  writes.forEach(([ci,r,v])=>{ const col=cols[ci]; if(!col) return;
+    if(r<0){ const L=WS_LABS.find(z=>z.r===r); if(L&&L.k!=="fx") col[L.k]=String(v).slice(0,L.max); return; }
+    let arr=touched.get(col); if(!arr){ arr=col.data.slice(); touched.set(col,arr); } while(arr.length<=r) arr.push(null); arr[r]=v; nv++; });
+  touched.forEach((arr,col)=>{ trimTail(arr); col.data=arr; });
+  migrate(p);
+  const raw=nv?recordRaw(`filled ${nv} cell${nv===1?"":"s"} in the worksheet`):null, s=S.ws;
+  s.ar=src.r0; s.ac=src.c0; if(dir==="down"){ s.r=to; s.c=src.c1; } else { s.r=src.r1; s.c=to; }
+  save(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),`filled ${nv?`${nv} cell${nv===1?"":"s"}`:`${writes.length} label${writes.length===1?"":"s"}`} ${dir==="down"?"down":"to the right"} in the worksheet`); renderAll();
+  toast(`Filled ${writes.length} cell${writes.length===1?"":"s"}${nv?`; ${nv===1?"it is a recorded value":"they are recorded values"} now`:""}.`,{action:"Undo",run:undo});
+}
+function wsFillDrag(){
+  const box=$("#ws"), src=wsSelRect(); let plan=null;
+  const paint=()=>{ box.querySelectorAll("td.fillp").forEach(td=>td.classList.remove("fillp")); if(!plan) return;
+    box.querySelectorAll("td[data-ci]").forEach(td=>{ const r=+td.dataset.r, c=+td.dataset.ci;
+      if(plan.dir==="down"?(r>src.r1&&r<=plan.to&&c>=src.c0&&c<=src.c1):(c>src.c1&&c<=plan.to&&r>=src.r0&&r<=src.r1)) td.classList.add("fillp"); }); };
+  const mv=ev=>{ const el=document.elementFromPoint(ev.clientX,ev.clientY), td=el&&el.closest?el.closest("#ws td[data-ci]"):null;
+    const rb=box.getBoundingClientRect(); if(ev.clientY>rb.bottom-24) box.scrollTop+=24; if(ev.clientX>rb.right-24) box.scrollLeft+=24;
+    if(!td) return; const dr=+td.dataset.r-src.r1, dc=+td.dataset.ci-src.c1;
+    plan=dr>0&&dr>=dc?{dir:"down",to:+td.dataset.r}:dc>0?{dir:"right",to:+td.dataset.ci}:null; paint(); };
+  const up=ev=>{ document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up); document.body.classList.remove("filling");
+    const pl=plan; plan=null; paint(); if(pl) wsFill(src,pl.dir,pl.to,ev.ctrlKey||ev.metaKey||ev.altKey); };
+  document.body.classList.add("filling");
+  document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up);
+}
+// Double click on the handle: down as far as the column beside it has data.
+function wsFillDbl(){
+  const m=S.wsm, src=wsSelRect(); if(!m) return;
+  const len=ci=>{ const q=m.cols[ci]; return q&&!q.phantom?q.col.data.length:0; };
+  const to=Math.max(len(src.c0-1),len(src.c1+1))-1;
+  if(to<=src.r1){ toast("Nothing to fill down to: the columns beside this one end here."); return; }
+  wsFill(src,"down",to,false);
+}
+// Ctrl+D and Ctrl+R: the first row (or column) of the selection, copied into the rest.
+function wsFillCtrl(dir){
+  const s=wsSelRect();
+  if(dir==="down"){ if(s.r1<=s.r0){ toast("Select the cells to fill, with the value to copy at the top."); return; } wsFill({r0:s.r0,r1:s.r0,c0:s.c0,c1:s.c1},"down",s.r1,false); }
+  else { if(s.c1<=s.c0){ toast("Select the cells to fill, with the value to copy on the left."); return; } wsFill({r0:s.r0,r1:s.r1,c0:s.c0,c1:s.c0},"right",s.c1,false); }
+}
+
+/* ---- Find ------------------------------------------------------------------------
+   Ctrl+F in the worksheet: every cell of the sheet whose text contains what is
+   typed, labels included, marked; Enter and Shift+Enter (or F3) step through
+   them, and Esc closes the bar. */
+function wsFindOpen(){
+  const bar=$("#wsFind"); if(!bar) return; bar.hidden=false;
+  const q=$("#wsFindQ"); q.focus(); q.select(); if(q.value.trim()) wsFindRun(false);
+}
+function wsFindClose(){ const bar=$("#wsFind"); if(bar) bar.hidden=true; S.wsFind=null; wsPaintSel(); $("#ws").focus({preventScroll:true}); }
+function wsFindRun(keep){
+  const inp=$("#wsFindQ"), m=S.wsm, q=inp?inp.value.trim().toLowerCase():"", prev=S.wsFind;
+  const f=S.wsFind={q,hits:[],set:new Set(),k:-1};
+  if(q&&m){
+    outer: for(let r=WS_TOP;r<m.n;r++) for(let c=0;c<m.cols.length;c++){ if(m.cols[c].phantom) continue;
+      const t=wsText(m,r,c); if(t&&t.toLowerCase().includes(q)){ f.hits.push([r,c]); if(f.hits.length>=5000) break outer; } }
+    f.hits.forEach(h=>f.set.add(h[0]+":"+h[1]));
+    if(keep&&prev&&prev.q===q) f.k=Math.min(prev.k,f.hits.length-1);
+    else if(f.hits.length){ const s=S.ws, j=f.hits.findIndex(h=>h[0]>s.r||(h[0]===s.r&&h[1]>=s.c)); f.k=j<0?0:j; if(!keep){ const [r,c]=f.hits[f.k]; wsSelect(r,c,false); } }
+  }
+  wsFindCount(); wsPaintSel();
+}
+function wsFindGo(step){ const f=S.wsFind; if(!f||!f.hits.length){ wsFindRun(false); return; }
+  f.k=(f.k+step+f.hits.length)%f.hits.length; const [r,c]=f.hits[f.k]; wsSelect(r,c,false); wsFindCount(); }
+function wsFindCount(){ const el=$("#wsFindN"), f=S.wsFind; if(!el) return;
+  el.textContent=!f||!f.q?"":f.hits.length?`${f.k+1} of ${f.hits.length}${f.hits.length>=5000?"+":""}`:"no match"; }
+
 /* The grid itself, as in Excel and Origin. Columns keep their own width
    (drag a header's right edge; double-click it to fit the contents) and the
    grid runs on past the data, with empty columns and rows to type into.
    Under the column headers sit Origin's label rows: Long Name, Units,
-   Comments, and a sparkline of each column. One cell is active; a range is
+   Comments, F(x)= (the column's formula, if it has one), and a sparkline
+   of each column. One cell is active; a range is
    selected by dragging, by Shift with a click or the arrow keys, or by
    clicking a column letter or a row number. Typing starts an edit (F2 or a
    double click edits what is there); Enter and Tab commit and move; Ctrl+C
    copies the selection as tab-separated text and Ctrl+V pastes a block at the
    active cell. Only the rows in view are drawn, so a long spectrum scrolls
    as quickly as a short one. S.ws is the selection ({r, c} active, {ar, ac}
-   the other corner; label rows are r = -3, -2, -1) and S.wsm the model
+   the other corner; label rows are r = -4 … -1) and S.wsm the model
    drawn: columns, the number of data rows and how to read a cell. */
 const WS_IDX=82, WS_W=100, WS_MINW=36;
-const WS_LABS=[{r:-3,k:"name",label:"Long Name",max:60},{r:-2,k:"unit",label:"Units",max:30},{r:-1,k:"comm",label:"Comments",max:200}];
+const WS_LABS=[{r:-4,k:"name",label:"Long Name",max:60},{r:-3,k:"unit",label:"Units",max:30},{r:-2,k:"comm",label:"Comments",max:200},{r:-1,k:"fx",label:"F(x)=",max:400}];
+const WS_TOP=-4;
 function wsLetter(i){ let s=""; i++; while(i>0){ const m=(i-1)%26; s=String.fromCharCode(65+m)+s; i=Math.floor((i-1)/26); } return s; }
 function wsModel(){
   const p=P(), box=$("#ws"), W=p.wsw||{};
@@ -5264,7 +5520,7 @@ function wsModel(){
     cols.push({id:"f:i",role:"row",lab:{name:"Raw row",unit:"",comm:"where each point came from"},get:k=>d.idx[k]+1,int:true});
     cols.forEach((q,i)=>{ q.letter=wsLetter(i); q.w=W[q.id]||WS_W; q.title=`Column ${q.letter}: ${q.lab.name||q.role}. The Final sheet is read only.`;
       q.spark=q.id==="f:y"?sparkSvg(d,Math.max(20,q.w-12),16,"wspark"):""; });
-    return {kind:"final", cols, n:d.x.length, d, c};
+    return wsOrder({kind:"final", cols, n:d.x.length, d, c});
   }
   const cols=allCols().filter(c=>!c.src), n=nRows(), hidden=p.plot.hidden||[], actRoot=rootOf(activeYCol()), xs=cols.filter(c=>c.role==="x");
   const mc=cols.map((c,i)=>{ const isY=c.role==="y", isAct=c===actRoot, off=isY&&!isAct&&hidden.includes(c.id), L=wsLetter(i), w=W[c.id]||WS_W;
@@ -5273,19 +5529,20 @@ function wsModel(){
       c.data.forEach((v,k)=>{ if(v==null) return; const xv=xc?xc.data[k]:k; if(xv==null) return; idx.push(xv); ys.push(v); });
       if(ys.length>1) spark=sparkSvg({x:idx,y:ys},Math.max(20,w-12),16,"wspark"); }
     return {id:c.id, col:c, letter:L, role:c.role==="x"&&xs.length>1?"X"+(xs.indexOf(c)+1):ROLE_LABEL[c.role]||c.role, w, sw:isY?yTint(c.id):null, off, act:isAct, menu:true, spark,
-      lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||""},
-      title:`Column ${L}${c.name?": "+c.name:""}. ${roleText(c)}${isAct?", being analysed":off?", hidden on the graph":""}. Click to select it; right-click, or the arrow, for its options; drag its right edge to resize it.`}; });
+      lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx, fxErr:c.fx?FX_ERR.get(c.id)||"":"",
+      title:`Column ${L}${c.name?": "+c.name:""}. ${roleText(c)}${c.fx?`, computed: = ${fxShow(c)}${FX_ERR.get(c.id)?` (${FX_ERR.get(c.id)})`:""}`:""}${isAct?", being analysed":off?", hidden on the graph":""}. Click to select it; right-click, or the arrow, for its options; drag its right edge to resize it.`}; });
   // Empty columns to the edge of the window and a little beyond, as a grid has.
   const used=WS_IDX+mc.reduce((s,q)=>s+q.w,0), cw=box&&box.clientWidth?box.clientWidth:900, K=Math.max(3,Math.ceil((cw-used)/WS_W)+2);
   for(let j=0;j<K;j++){ const i=cols.length+j, L=wsLetter(i);
     mc.push({id:"ph"+j, phantom:true, letter:L, role:!xs.length&&!cols.length&&j===0?"X":"Y", w:WS_W, lab:{name:"",unit:"",comm:""}, title:`Column ${L}: empty. Type or paste into it to add a column.`}); }
-  return {kind:"raw", cols:mc, n};
+  return wsOrder({kind:"raw", cols:mc, n});
 }
 function wsText(m,r,ci){
   const q=m.cols[ci]; if(!q) return "";
   if(r<0){ const L=WS_LABS.find(z=>z.r===r); return L?String(q.lab[L.k]||""):""; }
+  r=wsDR(m,r);
   if(m.kind==="final"){ if(r>=m.n) return ""; const v=q.get(r); return v==null||!Number.isFinite(v)?"":q.int?String(v):fmt(v,8); }
-  if(q.phantom) return ""; const v=q.col.data[r]; return v==null?"":String(v);
+  if(q.phantom) return ""; const v=q.col.data[r]; return v==null?"":q.calc?String(+v.toPrecision(12)):String(v);
 }
 const wsRowCount=m=>m.kind==="final"?Math.max(m.n+20,40):Math.max(m.n+60,60)+((S.ws&&S.ws.extra)||0);
 function wsSelRect(){ const s=S.ws; return {r0:Math.min(s.r,s.ar),r1:Math.max(s.r,s.ar),c0:Math.min(s.c,s.ac),c1:Math.max(s.c,s.ac)}; }
@@ -5302,12 +5559,12 @@ function renderWs(){
   }
   const m=S.wsm=wsModel(), s=S.ws=S.ws||{r:0,c:0,ar:0,ac:0,extra:0};
   const lim=(v,a,b)=>Math.max(a,Math.min(b,v)), R=wsRowCount(m)-1, C=m.cols.length-1;
-  s.r=lim(s.r,-3,R); s.ar=lim(s.ar,-3,R); s.c=lim(s.c,0,C); s.ac=lim(s.ac,0,C);
+  s.r=lim(s.r,WS_TOP,R); s.ar=lim(s.ar,WS_TOP,R); s.c=lim(s.c,0,C); s.ac=lim(s.ac,0,C);
   S.wsMask=new Set(m.kind==="raw"?maskOf(activeYCol()):maskOf(m.c)); S.wsFixed=m.kind==="raw"?fixedCells():new Map();
   const tw=WS_IDX+m.cols.reduce((a,q)=>a+q.w,0), sx=box.scrollLeft, sy=box.scrollTop;
   let h=`<table class="grid" style="width:${tw}px"><colgroup><col style="width:${WS_IDX}px">${m.cols.map(q=>`<col data-cw="${esc(q.id)}" style="width:${q.w}px">`).join("")}</colgroup><thead>`;
-  h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"></th>${m.cols.map((q,i)=>`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.sw?`<span class="sw${q.off?" off":""}" style="background:${q.sw}"></span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`).join("")}</tr>`;
-  WS_LABS.forEach(L=>{ h+=`<tr class="lab"><th class="rl" scope="row">${L.label}</th>${m.cols.map((q,i)=>`<td class="lc" data-r="${L.r}" data-ci="${i}">${esc(q.lab[L.k]||"")}</td>`).join("")}</tr>`; });
+  h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"></th>${m.cols.map((q,i)=>`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.calc?`<span class="fxm${q.fxErr?" bad":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx)}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.sw?`<span class="sw${q.off?" off":""}" style="background:${q.sw}"></span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`).join("")}</tr>`;
+  WS_LABS.forEach(L=>{ h+=`<tr class="lab"><th class="rl" scope="row"${L.k==="fx"?` title="A column's formula: letters are columns (B*2, (B-C)/A, log10(B)), x the row's X value, i the row number"`:""}>${L.label}</th>${m.cols.map((q,i)=>{ const bd=L.k==="fx"&&q.fxErr; return `<td class="lc${L.k==="fx"?" fxc":""}${bd?" bad":""}" data-r="${L.r}" data-ci="${i}"${bd?` title="${esc(q.fxErr)}"`:""}>${esc(q.lab[L.k]||"")}</td>`; }).join("")}</tr>`; });
   h+=`<tr class="spk"><th class="rl" scope="row">Sparklines</th>${m.cols.map(q=>`<td>${q.spark||""}</td>`).join("")}</tr>`;
   h+=`</thead><tbody></tbody></table>`;
   box.innerHTML=h; box.scrollLeft=sx; box.scrollTop=sy;
@@ -5316,12 +5573,13 @@ function renderWs(){
   S.ws.head=top; S.ws.win=null; wsRows(true);
   if(sub) sub.textContent=m.kind==="final"?specName(m.c):(p.srcName||"");
   wsFoot(); wsBar();
+  const fb=$("#wsFind"); if(S.wsFind&&fb&&!fb.hidden) wsFindRun(true);
 }
 function wsRowHtml(m,r){
-  const fin=m.kind==="final", idx=fin?(r<m.n?m.d.idx[r]:null):r, masked=idx!=null&&(fin||r<m.n)&&S.wsMask.has(idx), pt=idx!=null&&S.sel===idx&&(fin?r<m.n:r<m.n);
-  let h=`<tr class="dr${masked?" masked":""}${pt?" pt":""}" data-r="${r}"><th class="rh" data-rh="${r}" scope="row"${r<m.n?` title="Select row ${r+1}${masked?" (masked)":""}; its point is marked on the graph"`:""}>${r+1}</th>`;
-  m.cols.forEach((q,i)=>{ const fx=!fin&&!q.phantom?S.wsFixed.get(q.id+":"+r):null;
-    h+=`<td data-r="${r}" data-ci="${i}"${fx?` class="fixed" title="${esc(fx)}"`:""}>${esc(wsText(m,r,i))}</td>`; });
+  const fin=m.kind==="final", k=wsDR(m,r), idx=fin?(r<m.n?m.d.idx[k]:null):k, masked=idx!=null&&(fin||r<m.n)&&S.wsMask.has(idx), pt=idx!=null&&S.sel===idx&&r<m.n;
+  let h=`<tr class="dr${masked?" masked":""}${pt?" pt":""}" data-r="${r}"><th class="rh" data-rh="${r}" scope="row"${r<m.n?` title="Select row ${k+1}${masked?" (masked)":""}; its point is marked on the graph"`:""}>${k+1}</th>`;
+  m.cols.forEach((q,i)=>{ const fx=!fin&&!q.phantom?S.wsFixed.get(q.id+":"+k):null, cls=[fx?"fixed":"",q.calc?"calc":""].filter(Boolean).join(" ");
+    h+=`<td data-r="${r}" data-ci="${i}"${cls?` class="${cls}"`:""}${fx?` title="${esc(fx)}"`:""}>${esc(wsText(m,r,i))}</td>`; });
   return h+`</tr>`;
 }
 // Draws the rows in view (and some either side) between two spacers.
@@ -5343,12 +5601,15 @@ function wsRows(force){
 function wsTd(r,c){ return document.querySelector(`#ws td[data-r="${r}"][data-ci="${c}"]`); }
 function wsPaintSel(){
   const box=$("#ws"); if(!box||!S.wsm) return;
-  const s=S.ws, {r0,r1,c0,c1}=wsSelRect(), multi=r0!==r1||c0!==c1;
-  box.querySelectorAll("td[data-ci]").forEach(td=>{ const r=+td.dataset.r, c=+td.dataset.ci, inR=r>=r0&&r<=r1&&c>=c0&&c<=c1;
-    td.classList.toggle("in",multi&&inR); td.classList.toggle("cur",r===s.r&&c===s.c); });
+  const s=S.ws, m=S.wsm, {r0,r1,c0,c1}=wsSelRect(), multi=r0!==r1||c0!==c1;
+  // The fill handle sits on the corner of the selection, on the Raw sheet in recorded order.
+  const hits=S.wsFind&&S.wsFind.set, fh=m.kind==="raw"&&!S.readOnly&&!m.ord&&r1>=0&&!S.ws.edit?r1+":"+c1:null;
+  box.querySelectorAll("td[data-ci]").forEach(td=>{ const r=+td.dataset.r, c=+td.dataset.ci, inR=r>=r0&&r<=r1&&c>=c0&&c<=c1, key=r+":"+c;
+    td.classList.toggle("in",multi&&inR); td.classList.toggle("cur",r===s.r&&c===s.c);
+    td.classList.toggle("hit",!!hits&&hits.has(key)); td.classList.toggle("fh",fh===key); });
   box.querySelectorAll("th[data-ch]").forEach(th=>{ const c=+th.dataset.ch; th.classList.toggle("hs",c>=c0&&c<=c1); });
   box.querySelectorAll("th[data-rh]").forEach(th=>{ const r=+th.dataset.rh; th.classList.toggle("hs",r>=r0&&r<=r1); });
-  box.querySelectorAll("th.rl").forEach((th,k)=>{ if(k<3){ const r=k-3; th.classList.toggle("hs",r>=r0&&r<=r1); } });
+  box.querySelectorAll("th.rl").forEach((th,k)=>{ if(k<WS_LABS.length){ const r=k-WS_LABS.length; th.classList.toggle("hs",r>=r0&&r<=r1); } });
   wsBar(); wsStats();
 }
 // The cell's address and content, above the grid, as in a spreadsheet.
@@ -5358,9 +5619,10 @@ function wsBar(){
   const s=S.ws, {r0,r1,c0,c1}=wsSelRect(), q=m.cols[s.c];
   const ref=(r,c)=>{ const L=(m.cols[c]||{}).letter||"?"; if(r>=0) return L+(r+1); const lab=WS_LABS.find(z=>z.r===r); return L+" "+(lab?lab.label:""); };
   a.textContent=r0!==r1||c0!==c1?`${ref(r0,c0)}:${ref(r1,c1)}`:ref(s.r,s.c);
-  const t=wsText(m,s.r,s.c), locked=m.kind==="raw"&&s.r>=0&&q&&!q.phantom&&q.col.data[s.r]!=null;
-  v.innerHTML=`${locked?ICON("lock","sm"):""}<span>${esc(t)||`<span class="lab">${m.kind==="final"?"read only":s.r<0?"empty: type a label":"empty: type a value"}</span>`}</span>`;
-  v.title=locked?"A recorded value: locked. Type over it to record a correction instead.":m.kind==="final"?"The Final sheet is read only.":"";
+  const t=wsText(m,s.r,s.c), calc=m.kind==="raw"&&s.r>=0&&q&&q.calc, locked=!calc&&m.kind==="raw"&&s.r>=0&&q&&!q.phantom&&q.col.data[wsDR(m,s.r)]!=null;
+  if(s.r===-1&&q&&q.fxErr){ v.innerHTML=`${ICON("alert","sm")}<span class="badt">${esc(t)}: ${esc(q.fxErr)}</span>`; v.title=""; return; }
+  v.innerHTML=`${locked?ICON("lock","sm"):""}<span>${esc(t)||`<span class="lab">${m.kind==="final"?"read only":s.r===-1?"no formula: type one, like B*2 or log10(B)":s.r<0?"empty: type a label":"empty: type a value"}</span>`}${calc?` <span class="lab">= ${esc(q.lab.fx)}</span>`:""}</span>`;
+  v.title=calc?"Computed by the column's formula: change the formula in its F(x)= row.":locked?"A recorded value: locked. Type over it to record a correction instead.":m.kind==="final"?"The Final sheet is read only.":"";
 }
 // Count, sum, average, minimum and maximum of the numbers selected.
 function wsStats(){
@@ -5369,7 +5631,7 @@ function wsStats(){
   let n=0, sum=0, lo=Infinity, hi=-Infinity;
   const ra=Math.max(0,r0), rb=Math.min(r1,m.n-1);
   if((rb-ra+1)*(c1-c0+1)<=400000) for(let c=c0;c<=c1;c++){ const q=m.cols[c]; if(!q||q.phantom) continue;
-    for(let r=ra;r<=rb;r++){ const v=m.kind==="final"?q.get(r):q.col.data[r]; if(v==null||!Number.isFinite(v)) continue; n++; sum+=v; if(v<lo) lo=v; if(v>hi) hi=v; } }
+    for(let r=ra;r<=rb;r++){ const k=wsDR(m,r), v=m.kind==="final"?q.get(k):q.col.data[k]; if(v==null||!Number.isFinite(v)) continue; n++; sum+=v; if(v<lo) lo=v; if(v>hi) hi=v; } }
   el.textContent=n>1?`Count ${n} · Sum ${fmt(sum,8)} · Average ${fmt(sum/n,8)} · Min ${fmt(lo,8)} · Max ${fmt(hi,8)}`:n===1?"Count 1":"";
 }
 function wsFoot(){
@@ -5380,15 +5642,17 @@ function wsFoot(){
   else { const n=m.n, nm=S.wsMask.size, ok=rawVerified(), fp=(p.raw&&p.raw.fp)||"";
     left=n?`<span title="Recorded values are locked. Empty cells can be filled or pasted into; typing over a value asks for a reason and records a correction step instead.">${ICON("lock","sm")} ${n} row${n===1?"":"s"}, locked${fp?` · <a href="#" id="wsFp" title="${esc("SHA-256 of the raw values: "+fp+(ok===false?" (the data no longer matches it)":""))}">${ok===false?"fingerprint differs":"sha256 "+esc(fpShort(fp))}</a>`:""}${nm?` · ${nm} masked`:""}${S.wsFixed.size?` · ${S.wsFixed.size} corrected`:""}</span>`
       :"Empty · type into any cell, or paste a block from a spreadsheet"; }
+  if(m.ord) left+=` · <span title="Only the view is sorted: the data keep the order they were recorded in">sorted by ${esc(m.cols[m.sortCi].letter)} ${m.sortDir>0?"↑":"↓"}</span> <a href="#" id="wsUnsort">Unsort</a>`;
   foot.innerHTML=`<span class="wsl">${left}</span><span class="sp"></span><span id="wsStat" class="wsstat"></span>`;
   const wf=$("#wsFp"); if(wf) wf.onclick=e=>{ e.preventDefault(); showRawInfo(); };
+  const wu=$("#wsUnsort"); if(wu) wu.onclick=e=>{ e.preventDefault(); wsSortBy(null,0); };
   wsStats();
 }
 function renderWsSel(){
-  document.querySelectorAll("#ws tr.dr").forEach(tr=>{ const r=+tr.dataset.r, m=S.wsm, idx=m&&m.kind==="final"?(r<m.n?m.d.idx[r]:null):r; tr.classList.toggle("pt",idx!=null&&S.sel===idx&&r<(m?m.n:0)); });
+  document.querySelectorAll("#ws tr.dr").forEach(tr=>{ const r=+tr.dataset.r, m=S.wsm, k=wsDR(m,r), idx=m&&m.kind==="final"?(r<m.n?m.d.idx[k]:null):k; tr.classList.toggle("pt",idx!=null&&S.sel===idx&&r<(m?m.n:0)); });
 }
 // The worksheet row of a raw row number (the Final sheet lists processed points).
-function wsRowOf(i){ const m=S.wsm; if(!m||m.kind!=="final") return i; const k=m.d.idx.indexOf(i); return k<0?null:k; }
+function wsRowOf(i){ const m=S.wsm; if(!m) return i; const k=m.kind==="final"?m.d.idx.indexOf(i):i; if(k<0) return null; return m.inv&&k<m.n?m.inv[k]:k; }
 function scrollRow(i){ const box=$("#ws"); if(!box||!S.wsm) return; const r=wsRowOf(i); if(r==null) return;
   const rowH=S.ws.rowH||25, vis=box.clientHeight-(S.ws.head||0), y=r*rowH;
   if(y<box.scrollTop||y+rowH>box.scrollTop+vis) box.scrollTop=Math.max(0,y-vis/2); wsRows(false); renderWsSel(); }
@@ -5405,7 +5669,7 @@ function wsEnsureVisible(r,c){
 function wsSelect(r,c,extend){
   const s=S.ws, m=S.wsm; if(!m) return;
   const R=wsRowCount(m)-1+(m.kind==="raw"?200:0), C=m.cols.length-1;
-  r=Math.max(-3,Math.min(R,r)); c=Math.max(0,Math.min(C,c));
+  r=Math.max(WS_TOP,Math.min(R,r)); c=Math.max(0,Math.min(C,c));
   s.r=r; s.c=c; if(!extend){ s.ar=r; s.ac=c; }
   if(r>=wsRowCount(m)-1&&m.kind==="raw"){ s.extra=(s.extra||0)+200; S.ws.win=null; }
   wsEnsureVisible(r,c); wsPaintSel();
@@ -5415,7 +5679,7 @@ function wsMove(dr,dc,extend,jump){
   let r=s.r, c=s.c;
   if(jump){
     if(dr>0){ const q=m.cols[c], last=m.kind==="final"?m.n-1:q&&!q.phantom?q.col.data.length-1:m.n-1; r=r<last?Math.max(last,0):wsRowCount(m)-1; }
-    else if(dr<0) r=r>0?0:-3;
+    else if(dr<0) r=r>0?0:WS_TOP;
     if(dc>0){ const lastReal=m.cols.filter(q=>!q.phantom).length-1; c=c<lastReal?lastReal:m.cols.length-1; }
     else if(dc<0) c=0;
   } else { r+=dr; c+=dc; }
@@ -5439,9 +5703,10 @@ function wsRestoreEditor(){
   const inp=document.createElement("input"); inp.className="wsed"; inp.value=e.val; inp.spellcheck=false; inp.autocomplete="off";
   const q=S.wsm.cols[e.c]; inp.setAttribute("aria-label",`${q?q.letter:""}${e.r>=0?e.r+1:" "+((WS_LABS.find(z=>z.r===e.r)||{}).label||"")}`);
   if(e.r>=0){ inp.inputMode="decimal"; inp.classList.add("num"); }
+  if(e.r===-1){ inp.classList.add("fx"); inp.placeholder="B*2"; }
   td.textContent=""; td.classList.add("editing"); td.appendChild(inp); inp.focus({preventScroll:true});
   const n=inp.value.length; inp.setSelectionRange(n,n);
-  inp.addEventListener("input",()=>{ e.val=inp.value; });
+  inp.addEventListener("input",()=>{ e.val=inp.value; if(e.r===-1) wsFxHint(inp.value); });
   inp.addEventListener("keydown",wsEdKey);
   inp.addEventListener("blur",()=>{ setTimeout(()=>{ if(S.ws.edit===e&&document.activeElement!==inp&&inp.isConnected) wsCommit(0,0,true); },0); });
 }
@@ -5474,6 +5739,7 @@ function wsCommit(dr,dc,stay){
 function wsSetCell(r,ci,text){
   const p=P(), m=S.wsm; if(!p||!m||m.kind!=="raw"||S.readOnly){ renderWs(); return; }
   const q=m.cols[ci]; let col=q&&!q.phantom?q.col:null;
+  if(r===-1){ setColFormula(ci,text); return; }
   if(r<0){ const L=WS_LABS.find(z=>z.r===r), v=String(text).trim().slice(0,L.max);
     if(!col&&!v){ renderWs(); return; }
     pushUndo("that "+L.label.toLowerCase());
@@ -5481,6 +5747,8 @@ function wsSetCell(r,ci,text){
     col[L.k]=v;
     saveSoon({cols:p.cols},`set the ${L.label.toLowerCase()} of column ${colLetter(col)} to ${v?`"${v}"`:"nothing"}`);
     renderWs(); renderPlot(); if(winOpen("flow")) renderFlow(); return; }
+  if(col&&col.fx){ toast(`Column ${q.letter} is computed by its formula (= ${fxShow(col)}). Change the formula in its F(x)= row.`); renderWs(); return; }
+  r=wsDR(m,r);
   const t=String(text).trim(), v=t===""?null:parseNum(t);
   if(t!==""&&v===null){ toast("Enter a number, like 3.14 or 2.5e-3."); renderWs(); return; }
   const old=col?(col.data[r]??null):null;
@@ -5516,22 +5784,28 @@ function wsPasteText(text){
   const lines=String(text).replace(/\r/g,"").split("\n"); while(lines.length&&!lines[lines.length-1].trim()) lines.pop();
   if(!lines.length) return;
   if(lines.length===1&&!lines[0].includes("\t")){ wsSetCell(r0,c0,lines[0]); return; }
+  if(m.ord){ toast("Unsort the sheet to paste a block: the rows are shown in another order than they were recorded in."); return; }
   const labs=r0<0?lines.splice(0,Math.min(-r0,lines.length)).map(l=>l.split("\t")):[];
   const g=lines.length?parseGrid(lines.join("\n")):{rows:[],header:null}, rows=g.rows, header=labs.length?null:g.header, rs=Math.max(0,r0);
   const width=Math.max(rows.reduce((a,r)=>Math.max(a,r.length),0),labs.reduce((a,r)=>Math.max(a,r.length),0));
   if(!width) return;
   const rawc=allCols().filter(o=>!o.src);
   let clash=0;
-  for(let src=0;src<width;src++){ const col=rawc[c0+src]; if(!col) continue; rows.forEach((row,j)=>{ const was=col.data[rs+j], now=row[src]??null; if(was!=null&&now!==was) clash++; }); }
-  if(clash){ toast(`Raw data is locked: ${clash} of those cells already hold recorded values.`,{action:"Paste as new columns",run:()=>pasteAsNew(rows,header,rs)}); return; }
+  for(let src=0;src<width;src++){ const col=rawc[c0+src]; if(!col) continue; if(col.fx&&rows.length){ clash+=rows.length; continue; } rows.forEach((row,j)=>{ const was=col.data[rs+j], now=row[src]??null; if(was!=null&&now!==was) clash++; }); }
+  if(clash){ toast(`Raw data is locked: ${clash} of those cells already hold recorded or computed values.`,{action:"Paste as new columns",run:()=>pasteAsNew(rows,header,rs)}); return; }
   pushUndo("that paste");
   if(rawc.length<c0+width) wsMakeCols(c0+width-1);
-  const cols=allCols().filter(o=>!o.src);
+  const cols=allCols().filter(o=>!o.src), fxs=[]; let fxBad=0;
   for(let src=0;src<width;src++){ const col=cols[c0+src]; if(!col) continue;
-    labs.forEach((l,j)=>{ const L=WS_LABS.find(z=>z.r===r0+j); if(L&&l[src]!=null) col[L.k]=String(l[src]).trim().slice(0,L.max); });
+    labs.forEach((l,j)=>{ const L=WS_LABS.find(z=>z.r===r0+j); if(!L||l[src]==null) return; if(L.k==="fx"){ fxs.push([col,l[src]]); return; } col[L.k]=String(l[src]).trim().slice(0,L.max); });
     if(rows.length){ const arr=col.data.slice(); rows.forEach((row,j)=>{ while(arr.length<=rs+j) arr.push(null); arr[rs+j]=row[src]??null; }); trimTail(arr); col.data=arr; }
     if(header&&rs===0&&header[src]){ const {long,unit}=splitColName(header[src]); col.name=long; col.unit=unit; } }
   migrate(p);
+  // Formulas pasted into the F(x)= row, read after every column exists.
+  fxs.forEach(([col,t])=>{ if(!String(t).trim()){ if(col.fx){ delete col.fx; col.data=[]; } return; }
+    if(!col.fx&&col.data.some(v=>v!=null)){ fxBad++; return; } try{ col.fx=fxParse(t,col); }catch(e){ fxBad++; } });
+  if(fxs.length) recalcFx(p);
+  if(fxBad) setTimeout(()=>toast(`${fxBad} pasted formula${fxBad===1?" was":"s were"} left out: not a formula, or over recorded values.`),1200);
   const raw=rows.length?recordRaw(`pasted ${rows.length} rows into the worksheet`):null;
   S.view=null; S.ws.ar=S.ws.r; S.ws.ac=S.ws.c; S.ws.r=Math.max(S.ws.r,rs+rows.length-1); S.ws.c=c0+width-1; S.ws.ar=r0; S.ws.ac=c0;
   save(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),rows.length?`pasted ${rows.length} rows into ${width} column${width===1?"":"s"}`:`pasted labels into ${width} column${width===1?"":"s"}`); renderAll();
@@ -5544,9 +5818,9 @@ function wsClear(){
   if(S.readOnly) return;
   const {r0,r1,c0,c1}=wsSelRect(), labs=[], vals=[];
   for(let c=c0;c<=c1;c++){ const q=m.cols[c]; if(!q||q.phantom) continue;
-    for(let r=Math.max(r0,-3);r<=Math.min(r1,-1);r++){ const L=WS_LABS.find(z=>z.r===r); if(L&&q.col[L.k]) labs.push([q.col,L]); }
-    for(let r=Math.max(r0,0);r<=Math.min(r1,q.col.data.length-1);r++) if(q.col.data[r]!=null) vals.push([q.col,r]); }
-  if(labs.length){ pushUndo("clearing labels"); labs.forEach(([col,L])=>{ col[L.k]=""; }); save({cols:p.cols},`cleared ${labs.length} label${labs.length===1?"":"s"}`); renderWs(); renderPlot(); }
+    for(let r=Math.max(r0,WS_TOP);r<=Math.min(r1,-1);r++){ const L=WS_LABS.find(z=>z.r===r); if(L&&q.col[L.k]) labs.push([q.col,L]); }
+    if(!q.col.fx) for(let r=Math.max(r0,0);r<=Math.min(r1,m.n-1);r++){ const k=wsDR(m,r); if(q.col.data[k]!=null) vals.push([q.col,k]); } }
+  if(labs.length){ pushUndo("clearing labels"); labs.forEach(([col,L])=>{ if(L.k==="fx"){ delete col.fx; col.data=[]; } else col[L.k]=""; }); save({cols:p.cols},`cleared ${labs.length} label${labs.length===1?"":"s"}`); renderWs(); renderPlot(); }
   if(vals.length===1&&!labs.length){ correctCell(vals[0][0],vals[0][1],null); return; }
   if(vals.length) toast(`Recorded values are locked: ${vals.length} selected cell${vals.length===1?" holds one":"s hold them"}. To leave points out of the analysis, mask them on the graph, or type over a value to record a correction.`);
 }
@@ -5570,7 +5844,7 @@ function pointerAnchor(x,y){
   a.style.left=x+"px"; a.style.top=y+"px"; a._back=document.activeElement; return a; }
 function wsCellMenu(ev,r,c){
   const m=S.wsm, q=m.cols[c], raw=m.kind==="raw", {r0,r1}=wsSelRect(), rows=[];
-  for(let k=Math.max(r0,0);k<=Math.min(r1,m.n-1);k++) rows.push(m.kind==="final"?m.d.idx[k]:k);
+  for(let k=Math.max(r0,0);k<=Math.min(r1,m.n-1);k++){ const j=wsDR(m,k); rows.push(m.kind==="final"?m.d.idx[j]:j); }
   const act=activeYCol(), mk=new Set(maskOf(act)), allMasked=rows.length&&rows.every(i=>mk.has(i));
   const items=[{group:$("#wsAddr").textContent||"Cells",plain:true},
     {label:"Copy", kbd:"Ctrl+C", run:()=>copyText(wsCopyText(),"Copied the selected cells.")},
@@ -5578,7 +5852,15 @@ function wsCellMenu(ev,r,c){
     {label:"Clear", kbd:"Delete", enabled:raw&&!S.readOnly, run:wsClear},
     "-",
     {label:allMasked?`Restore ${rows.length===1?"this point":"these "+rows.length+" points"}`:`Mask ${rows.length===1?"this point":"these "+rows.length+" points"} in ${specName(act)}`, enabled:!!rows.length&&!!act&&!S.readOnly, run:()=>toggleMask(rows,!allMasked)},
-    {label:"Select the whole column", run:()=>{ S.ws.ar=0; S.ws.ac=c; S.ws.r=Math.max(0,m.n-1); S.ws.c=c; wsPaintSel(); }}];
+    {label:"Select the whole column", run:()=>{ S.ws.ar=0; S.ws.ac=c; S.ws.r=Math.max(0,m.n-1); S.ws.c=c; wsPaintSel(); }},
+    "-",
+    {label:`Sort the sheet by column ${q?q.letter:""}`, enabled:!!q&&!q.phantom, sub:()=>[
+      {label:"Ascending", radio:true, checked:!!(m.ord&&m.sortCi===c&&m.sortDir>0), run:()=>wsSortBy(q.id,1)},
+      {label:"Descending", radio:true, checked:!!(m.ord&&m.sortCi===c&&m.sortDir<0), run:()=>wsSortBy(q.id,-1)},
+      "-",{label:"As recorded (unsort)", enabled:!!m.ord, run:()=>wsSortBy(null,0)}]},
+    {label:"Find…", kbd:"Ctrl+F", run:wsFindOpen},
+    raw?{label:"Fill down", kbd:"Ctrl+D", enabled:!S.readOnly&&r1>r0, run:()=>wsFillCtrl("down")}:null,
+    raw&&q&&(q.phantom||q.calc||!q.col.data.some(v=>v!=null))?{label:q.calc?"Edit the formula…":"Set column values (formula)…", enabled:!S.readOnly, run:()=>wsEditFormula(c)}:null];
   if(q&&q.menu) items.push("-",{label:`Column ${q.letter} options…`, run:()=>{ const b=document.querySelector(`#ws [data-cmenu="${CSS.escape(q.id)}"]`); if(b) openColMenu(q.id,b); }});
   openMenu(pointerAnchor(ev.clientX,ev.clientY),items,{label:"Cell options"});
 }
@@ -5606,7 +5888,7 @@ function setupWs(){
       document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up); return; }
     if(S.ws.edit) wsCommit(0,0,true);
     const m=S.wsm, s=S.ws;
-    if(t.closest("th.corner")){ e.preventDefault(); box.focus({preventScroll:true}); s.ar=-3; s.ac=0; s.r=Math.max(0,m.n-1); s.c=Math.max(0,m.cols.filter(q=>!q.phantom).length-1); wsPaintSel(); return; }
+    if(t.closest("th.corner")){ e.preventDefault(); box.focus({preventScroll:true}); s.ar=WS_TOP; s.ac=0; s.r=Math.max(0,m.n-1); s.c=Math.max(0,m.cols.filter(q=>!q.phantom).length-1); wsPaintSel(); return; }
     const ch=t.closest("th[data-ch]");
     if(ch){ e.preventDefault(); box.focus({preventScroll:true}); const c=+ch.dataset.ch;
       if(e.shiftKey){ s.c=c; s.r=Math.max(0,m.n-1); if(s.ar>0) s.ar=0; } else { s.ar=0; s.ac=c; s.c=c; s.r=Math.max(0,m.n-1); }
@@ -5616,7 +5898,8 @@ function setupWs(){
         if(e.shiftKey){ s.r=r; s.c=C; } else { s.ar=r; s.ac=0; s.r=r; s.c=C; }
         wsPaintSel(); drag={kind:"row"};
         // The row's point is marked on the graph, as it always was.
-        const idx=m.kind==="final"?(r<m.n?m.d.idx[r]:null):(r<m.n?r:null); if(idx!=null&&!e.shiftKey){ S.sel=S.sel===idx?null:idx; renderWsSel(); renderPlot(); } }
+        const k=wsDR(m,r), idx=m.kind==="final"?(r<m.n?m.d.idx[k]:null):(r<m.n?k:null); if(idx!=null&&!e.shiftKey){ S.sel=S.sel===idx?null:idx; renderWsSel(); renderPlot(); } }
+      else if(td&&td.classList.contains("fh")&&(()=>{ const rc=td.getBoundingClientRect(); return e.clientX>=rc.right-10&&e.clientY>=rc.bottom-10; })()){ e.preventDefault(); box.focus({preventScroll:true}); wsFillDrag(); return; }
       else if(td){ e.preventDefault(); box.focus({preventScroll:true}); wsSelect(+td.dataset.r,+td.dataset.ci,e.shiftKey); drag={kind:"cell"}; }
       else return; }
     const mv=ev=>{ if(!drag) return; const el=cellAt(ev.clientX,ev.clientY); if(!el) return;
@@ -5629,6 +5912,7 @@ function setupWs(){
   box.addEventListener("dblclick",e=>{
     const rz=e.target.closest(".rz"); if(rz){ wsAutofit(+rz.dataset.rz); return; }
     const td=e.target.closest("td[data-ci]"); if(!td||e.target.closest("input.wsed")) return;
+    if(td.classList.contains("fh")){ const rc=td.getBoundingClientRect(); if(e.clientX>=rc.right-10&&e.clientY>=rc.bottom-10){ wsFillDbl(); return; } }
     wsSelect(+td.dataset.r,+td.dataset.ci,false); wsBeginEdit(null,"edit");
   });
   box.addEventListener("click",e=>{ const b=e.target.closest("[data-cmenu]"); if(!b) return; e.stopPropagation(); if(menuOpen&&menuOpen.trigger===b){ closeMenu(false); return; } openColMenu(b.dataset.cmenu,b); });
@@ -5654,7 +5938,11 @@ function setupWs(){
     if(k==="F2"){ stop(); wsBeginEdit(null,"edit"); return; }
     if(k==="Delete"||k==="Backspace"){ stop(); wsClear(); return; }
     if(k==="Escape"){ if(S.ws.r!==S.ws.ar||S.ws.c!==S.ws.ac){ stop(); S.ws.ar=S.ws.r; S.ws.ac=S.ws.c; wsPaintSel(); } return; }
-    if(ctrl&&(k==="a"||k==="A")){ stop(); S.ws.ar=-3; S.ws.ac=0; S.ws.r=Math.max(0,m.n-1); S.ws.c=Math.max(0,m.cols.filter(q=>!q.phantom).length-1); wsPaintSel(); return; }
+    if(ctrl&&(k==="f"||k==="F")){ stop(); wsFindOpen(); return; }
+    if(k==="F3"){ stop(); wsFindGo(e.shiftKey?-1:1); return; }
+    if(ctrl&&(k==="d"||k==="D")){ stop(); wsFillCtrl("down"); return; }
+    if(ctrl&&(k==="r"||k==="R")){ stop(); wsFillCtrl("right"); return; }
+    if(ctrl&&(k==="a"||k==="A")){ stop(); S.ws.ar=WS_TOP; S.ws.ac=0; S.ws.r=Math.max(0,m.n-1); S.ws.c=Math.max(0,m.cols.filter(q=>!q.phantom).length-1); wsPaintSel(); return; }
     if(!ctrl&&!e.altKey&&k.length===1){ stop(); wsBeginEdit(k,"enter"); return; }
   });
   box.addEventListener("copy",e=>{ if(e.target.closest&&e.target.closest("input.wsed")) return; if(!S.wsm) return; e.preventDefault(); e.clipboardData.setData("text/plain",wsCopyText());
@@ -5666,6 +5954,19 @@ function setupWs(){
     wsPasteText(text);
   });
   document.querySelectorAll("#wsSheet button").forEach(b=>b.onclick=()=>setSheet(b.dataset.sheet));
+  // The find bar, under the sheet's own bar.
+  const wb=document.querySelector("#w-sheet .wbar");
+  if(wb&&!$("#wsFind")){ const fb=document.createElement("div"); fb.className="wsfind"; fb.id="wsFind"; fb.hidden=true; fb.setAttribute("role","search");
+    fb.innerHTML=`${ICON("search","sm")}<input type="text" id="wsFindQ" placeholder="Find in this sheet" aria-label="Find in this sheet" autocomplete="off" spellcheck="false"><span class="lab" id="wsFindN" aria-live="polite"></span><span class="sp"></span><button class="tb sm icon" id="wsFindPrev" title="Previous (Shift+Enter)" aria-label="Previous match">${ICON("chevu","sm")}</button><button class="tb sm icon" id="wsFindNext" title="Next (Enter)" aria-label="Next match">${ICON("chev","sm")}</button><button class="tb sm icon" id="wsFindX" title="Close (Esc)" aria-label="Close the search">${ICON("x","sm")}</button>`;
+    wb.after(fb);
+    const q=$("#wsFindQ"); let ft=0;
+    q.addEventListener("input",()=>{ clearTimeout(ft); ft=setTimeout(()=>wsFindRun(false),120); });
+    q.addEventListener("keydown",e=>{ e.stopPropagation();
+      if(e.key==="Enter"){ e.preventDefault(); clearTimeout(ft); if(!S.wsFind||S.wsFind.q!==q.value.trim().toLowerCase()) wsFindRun(false); else wsFindGo(e.shiftKey?-1:1); }
+      else if(e.key==="Escape"){ e.preventDefault(); wsFindClose(); }
+      else if(e.key==="F3"){ e.preventDefault(); wsFindGo(e.shiftKey?-1:1); } });
+    $("#wsFindPrev").onclick=()=>wsFindGo(-1); $("#wsFindNext").onclick=()=>wsFindGo(1); $("#wsFindX").onclick=wsFindClose; }
+  const fbtn=$("#wsFindBtn"); if(fbtn) fbtn.onclick=()=>{ const b=$("#wsFind"); if(b&&!b.hidden) wsFindClose(); else wsFindOpen(); };
 }
 
 function setSheet(s){ if(S.ws&&S.ws.edit) wsCommit(0,0,true); S.sheet=s; S.editing=false; if(S.ws){ S.ws.win=null; S.ws.extra=0; } renderWs(); }
@@ -5725,6 +6026,13 @@ function openColMenu(id,btn){
     {label:c.id===p.activeY?"Being analysed":"Analyse this column", checked:c.id===p.activeY, enabled:c.id!==p.activeY, run:()=>setActiveCol(id)},
     {label:"Its history and processing…", run:()=>{ setActiveCol(id,true); S.flowSel="final:"+id; S.flowTab="flow"; openWin("flow",{render:true}); }},
     {label:"Show on the graph", checked:c.id===p.activeY||!hidden, enabled:c.id!==p.activeY, run:()=>toggleColVis(id)});
+  const rawIdx=cols.filter(o=>!o.src).indexOf(c), recorded=!c.fx&&c.data.some(v=>v!=null);
+  items.push("-",{label:c.fx?"Edit the formula…":"Set column values (formula)…", enabled:!ro&&!recorded, title:recorded?"This column holds recorded values; type a formula into an empty column":"", run:()=>{ openWin("sheet"); wsEditFormula(rawIdx); }},
+    {label:"Sort the sheet by this column", sub:()=>{ const m=S.wsm, on=m&&m.ord&&m.cols[m.sortCi]&&m.cols[m.sortCi].id===id; return [
+      {label:"Ascending", radio:true, checked:!!(on&&m.sortDir>0), run:()=>{ if(S.sheet!=="raw") setSheet("raw"); wsSortBy(id,1); }},
+      {label:"Descending", radio:true, checked:!!(on&&m.sortDir<0), run:()=>{ if(S.sheet!=="raw") setSheet("raw"); wsSortBy(id,-1); }},
+      "-",{label:"As recorded (unsort)", enabled:!!(m&&m.ord), run:()=>wsSortBy(null,0)}]; }});
+  if(c.fx&&FX_ERR.get(c.id)) items.push({group:"Formula: "+FX_ERR.get(c.id),plain:true});
   items.push("-",{label:"Delete column", danger:true, enabled:!ro&&cols.length>2, title:cols.length>2?"":"A project keeps at least two columns", run:()=>deleteCol(id)});
   openMenu(btn,items,{label:`Column ${L} options`});
 }
@@ -7710,8 +8018,10 @@ async function createProject(pr,logText){
 }
 function openProject(id){
   if(S.pid===id&&S.proj) return;
+  if(S.ws&&S.ws.edit) wsCommit(0,0,true);
+  if(Object.keys(wsPatch).length&&wsPid===S.pid&&S.pid){ clearTimeout(wsTimer); const pp=wsPatch, l=wsLog; wsPatch={}; wsLog=null; save(pp,l); }
   S.pid=id; S.view=null; S.sel=null; S.anchor=null; S.draft=null; S.fitError=""; S.comments=[]; S.cReply=null; S.cEdit=null;
-  S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.editing=false;
+  S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.editing=false; S.wsSort=null; S.wsFind=null; { const fb=document.getElementById("wsFind"); if(fb) fb.hidden=true; }
   // Panel state belongs to the spectrum being looked at, not to the session:
   // arriving at an exponential decay with "Pearson VII" pre-selected is noise.
   S.pdraft=null; S.selPeak=null; S.fitMode=null; S.peakType="gauss"; S.setupOpen=null;
@@ -7751,6 +8061,7 @@ function clone(o){ return o===undefined?undefined:JSON.parse(JSON.stringify(o));
 function normalize(p){ if(!p) return; const was=p.v||1;
   p.plot=Object.assign({style:"scatter",logY:false,grid:false,resid:true},p.plot||{}); p.log=p.log||[]; migrate(p);
   if(!p.found||typeof p.found!=="object") p.found={};
+  if(p===S.proj) recalcFx(p);
   // An upgraded project is saved at once in its new form, so a later partial
   // save cannot leave half of it in the old one.
   if(was<DOC_V&&p===S.proj){
@@ -8185,43 +8496,115 @@ function peakText(st,lab){ lab=String(lab||"").trim();
   if(st.show==="none") return ""; if(st.show==="pos") return null;
   if(st.show==="labonly") return lab; if(st.show==="both") return lab?(lab.includes("{x}")?lab:lab+" {x}"):null; return lab||null; }
 function peakAnno(c,pt,st,extra){ const d=finalOf(c);
-  return Object.assign({id:annoId(),t:"label",x:pt.x,y:pt.y,ser:c.id,grp:"pk:"+c.id,xu:d.xu||"",yu:d.yu||"",mk:st.mk,rot:!!st.rot,dec:st.dec,unit:!!st.unit,color:st.color||null,size:st.size||1,lab:"",text:peakText(st,"")},extra||{}); }
+  return Object.assign({id:annoId(),t:"label",x:pt.x,y:pt.y,row:pt.i!=null?pt.i:null,ser:c.id,grp:"pk:"+c.id,xu:d.xu||"",yu:d.yu||"",mk:st.mk,rot:!!st.rot,dec:st.dec,unit:!!st.unit,color:st.color||null,size:st.size||1,lab:"",text:peakText(st,"")},extra||{}); }
 // One undo entry per burst of setting changes, as the step sliders do.
 // Only a burst of the same kind of change, with nothing else in between, shares one entry.
 let pkTok=0, pkLab="", pkTop=null;
 function pkUndo(label){ const top=undoStack[undoStack.length-1];
   if(Date.now()-pkTok>2500||label!==pkLab||!top||top!==pkTop){ pushUndo(label); pkTop=undoStack[undoStack.length-1]; }
   pkTok=Date.now(); pkLab=label; }
-/* Finds the peaks of the analysed spectrum in view and makes them the set,
-   keeping the labels, positions and hand-placed peaks of the one before. */
+/* The search behind a peak set: the spectrum's final data (masked points left
+   out), over the range it was found in while that range is in today's units,
+   less a straight line through the lowest fifth of the points. It runs on any
+   spectrum, not only the one analysed, and never depends on a fit (the Fit
+   window's own finder measures from the fit's baseline). */
+function peakPts(c,rng,xu){
+  const d=finalOf(c), mk=new Set(maskOf(c)), inR=rng&&(xu==null||xu===(d.xu||"")), lo=inR?Math.min(rng[0],rng[1]):0, hi=inR?Math.max(rng[0],rng[1]):0;
+  return seriesPoints(d,false).filter(q=>!mk.has(q.i)&&(!inR||(q.x>=lo&&q.x<=hi))); }
+const spacingOf=X=>{ const g=[]; for(let k=1;k<X.length;k++){ const v=Math.abs(X[k]-X[k-1]); if(v>0) g.push(v); } g.sort((a,b)=>a-b); return g.length?g[g.length>>1]:0; };
+function peakSearchOn(c,o,rng,xu){
+  const pts=peakPts(c,rng,xu); if(pts.length<6) return null;
+  const lowest=pts.slice().sort((a,b)=>a.y-b.y).slice(0,Math.max(3,Math.round(pts.length*0.2)));
+  const x0=pts.reduce((s,q)=>s+q.x,0)/pts.length, cf=polyfit(lowest.map(q=>q.x-x0),lowest.map(q=>q.y),1)||[];
+  const b0=Number.isFinite(cf[0])?cf[0]:0, b1=Number.isFinite(cf[1])?cf[1]:0;
+  const X=pts.map(q=>q.x), Y=pts.map(q=>q.y-(b0+b1*(q.x-x0)));
+  const r=peakSearch(X,Y,{method:o.method,direction:o.dir,log:o.log,smooth:o.smooth==="auto"?"auto":+o.smooth,thr:{mode:o.mode,v:+o.v},minWidth:+o.minW,minSep:parseNum(String(o.minSep))||0,max:+o.max||0});
+  r.X=X; r.Y=Y; r.pts=pts; return r; }
+/* Makes a search's peaks the set, keeping from the set before its labels,
+   dragged positions and hand-placed peaks. Two peaks are the same peak within
+   a quarter of the width (in the same units), or on the same recorded row give
+   or take three (after a change of units, where positions are not
+   comparable). A labelled peak that a search no longer finds leaves its label
+   behind (mem), given back when a later search finds it again. */
+function mergePeakSet(c,r,was,more){
+  const d=finalOf(c), xu=d.xu||"", yu=d.yu||"", st=Object.assign({},PK_STYLE,was&&was.style);
+  const ex=((was&&was.ex)||[]).map(e=>typeof e==="number"?{x:e,xu:was&&was.xu!=null?was.xu:xu}:e);
+  const old=peakGroup(c.id), sp=spacingOf(r.X), kept=[], used=new Set();
+  const tolOf=w=>Math.max(sp*2.5,Number.isFinite(w)?w/4:0);
+  const same=(o,pt,tol)=>(o.xu==null||o.xu===xu)?Math.abs(o.x-pt.x)<=tol:(o.row!=null&&pt.i!=null&&Math.abs(o.row-pt.i)<=3);
+  const own=a=>!!(a.lab||a.dx||a.dy!=null);
+  const at=(row,x)=>{ let k=row!=null?d.idx.indexOf(row):-1;
+    if(k<0&&x!=null){ let best=Infinity; d.x.forEach((v,j)=>{ const dd=Math.abs(v-x); if(dd<best){ best=dd; k=j; } }); }
+    return k<0||d.x[k]==null||d.y[k]==null?null:{x:d.x[k],y:d.y[k],i:d.idx[k]}; };
+  let mem=((was&&was.mem)||[]).slice();
+  r.found.forEach(q=>{ const pt=r.pts[q.i]; if(!pt) return; const tol=tolOf(q.w);
+    if(ex.some(e=>same(e,pt,tol))) return;
+    const g=old.find(a=>!used.has(a.id)&&same(a,pt,tol));
+    const pk={h:Math.abs(q.h),w:Number.isFinite(q.w)?q.w:null,snr:Number.isFinite(q.snr)?q.snr:null}, here={x:pt.x,y:pt.y,row:pt.i,xu,yu,pk};
+    if(g){ used.add(g.id); kept.push(Object.assign({},g,here)); return; }
+    const mi=mem.findIndex(m=>same(m,pt,tol)), back=mi>=0?mem.splice(mi,1)[0]:null;
+    kept.push(peakAnno(c,pt,st,Object.assign(here,back?{lab:back.lab||"",text:peakText(st,back.lab),dx:back.dx,dy:back.dy}:{}))); });
+  old.forEach(a=>{ if(used.has(a.id)) return;
+    // A peak placed by hand stays, on its own point of the new data.
+    if(a.manual){ const q=at(a.row,(a.xu||"")===xu?a.x:null); kept.push(q?Object.assign({},a,{x:q.x,y:q.y,row:q.i,xu,yu}):a); return; }
+    if(own(a)){ mem=mem.filter(m=>!(m.row!=null&&m.row===a.row)&&!((m.xu||"")===(a.xu||"")&&Math.abs(m.x-a.x)<=Math.max(sp*2.5,1e-9))); mem.push({x:a.x,row:a.row,xu:a.xu,lab:a.lab||"",dx:a.dx,dy:a.dy}); } });
+  mem=mem.slice(-60);
+  kept.sort((a,b)=>a.x-b.x);
+  return {kept,rec:Object.assign({},was||{},{style:st,ex,mem,n:kept.length,sig:pipeSig(c),xu},more||{})};
+}
+/* Finds the peaks of the analysed spectrum in view and makes them the set. */
 function findPeaksInto(opt){
   opt=opt||{}; const p=P(), c=activeYCol(); if(!p||!c||S.readOnly) return null;
-  const r=pfRun(); S.pfPreview=null; if(!r){ toast("Too few points in view to look for peaks."); return null; }
-  const was=foundOf(c), st=Object.assign({},PK_STYLE,was&&was.style), ex=(was&&was.ex)||[];
-  const old=peakGroup(c.id), sp=pointSpacing()||0, kept=[], used=new Set();
-  const tolOf=w=>Math.max(sp*2.5,Number.isFinite(w)?w/4:0);
-  // A peak a search no longer finds leaves its label and position behind, and
-  // gets them back when a later search (a lower threshold) finds it again.
-  let mem=((was&&was.mem)||[]).slice();
-  const own=a=>!!(a.lab||a.dx||a.dy!=null);
-  r.found.forEach(q=>{ const pt=r.pts[q.i]; if(!pt) return; const tol=tolOf(q.w);
-    if(ex.some(x=>Math.abs(x-pt.x)<=tol)) return;
-    const g=old.find(a=>!used.has(a.id)&&Math.abs(a.x-pt.x)<=tol);
-    const pk={h:Math.abs(q.h),w:Number.isFinite(q.w)?q.w:null,snr:Number.isFinite(q.snr)?q.snr:null};
-    if(g){ used.add(g.id); kept.push(Object.assign({},g,{x:pt.x,y:pt.y,pk})); return; }
-    const mi=mem.findIndex(m=>Math.abs(m.x-pt.x)<=tol), back=mi>=0?mem.splice(mi,1)[0]:null;
-    kept.push(peakAnno(c,pt,st,back?{pk,lab:back.lab||"",text:peakText(st,back.lab),dx:back.dx,dy:back.dy}:{pk})); });
-  old.forEach(a=>{ if(used.has(a.id)) return; if(a.manual){ kept.push(a); return; }
-    if(own(a)){ mem=mem.filter(m=>Math.abs(m.x-a.x)>Math.max(sp*2.5,1e-9)); mem.push({x:a.x,lab:a.lab||"",dx:a.dx,dy:a.dy}); } });
-  mem=mem.slice(-60);
-  const o=pfOpts(), mode=PF_MODES.find(q=>q[0]===o.mode)||PF_MODES[0];
+  const d=finalOf(c), v=S.view&&(S.view.xu==null||S.view.xu===(d.xu||""))?S.view:null, rng=v?[v.x0,v.x1]:null, o=Object.assign({},pfOpts());
+  const r=peakSearchOn(c,o,rng,d.xu||""); if(!r){ toast("Too few points in view to look for peaks."); return null; }
+  const {kept,rec}=mergePeakSet(c,r,foundOf(c),{opts:o,rng,at:Date.now(),by:S.uid||"",re:null});
+  const mode=PF_MODES.find(q=>q[0]===o.mode)||PF_MODES[0];
   if(opt.undo!==false) pkUndo("finding peaks");
-  const found=Object.assign({},p.found||{},{[c.id]:{opts:Object.assign({},o),sig:pipeSig(c),at:Date.now(),by:S.uid||"",style:st,ex,mem,n:kept.length}});
+  const found=Object.assign({},p.found||{},{[c.id]:rec});
   const annos=((p.plot.annos)||[]).filter(a=>a.grp!=="pk:"+c.id).concat(kept);
   save({found,plot:Object.assign({},p.plot,{annos})},opt.log===false?null:`found ${kept.length} peak${kept.length===1?"":"s"} in ${specName(c)} (${(PF_METHODS.find(q=>q[0]===o.method)||[,""])[1].toLowerCase()}, ${mode[1].toLowerCase()} ${o.v} ${mode[2]}${o.log?", on a log scale":""})`);
   S.pkLast=r; renderPlot(); if(winOpen("flow")) renderFlow();
   return kept.length;
 }
+/* The same settings on every spectrum, each over the range in view if it is
+   on the same axis, or all of it. One undo entry. */
+function findPeaksEvery(){
+  const p=P(), act=activeYCol(); if(!p||!act||S.readOnly) return;
+  const o=Object.assign({},pfOpts()), ax=finalOf(act).xu||"", v=S.view&&(S.view.xu==null||S.view.xu===ax)?S.view:null;
+  let annos=(p.plot.annos||[]).slice(), tot=0, n=0; const found=Object.assign({},p.found||{}), none=[];
+  yCols().forEach(c=>{ const d=finalOf(c), rng=v&&(d.xu||"")===ax?[v.x0,v.x1]:null, r=peakSearchOn(c,o,rng,d.xu||"");
+    if(!r){ none.push(specName(c)); return; }
+    const res=mergePeakSet(c,r,found[c.id],{opts:o,rng,at:Date.now(),by:S.uid||"",re:null});
+    annos=annos.filter(a=>a.grp!=="pk:"+c.id).concat(res.kept); found[c.id]=res.rec; tot+=res.kept.length; n++; if(c===act) S.pkLast=r; });
+  if(!n){ toast("Too few points to look for peaks in any spectrum."); return; }
+  pushUndo("finding peaks in every spectrum");
+  save({found,plot:Object.assign({},p.plot,{annos})},`found ${tot} peak${tot===1?"":"s"} in ${n} spectr${n===1?"um":"a"}`);
+  renderPlot(); if(winOpen("peaks")) renderPeaks(); if(winOpen("flow")) renderFlow();
+  toast(`Found ${tot} peak${tot===1?"":"s"} in ${n} spectr${n===1?"um":"a"}${none.length?` (too few points in ${none.join(", ")})`:""}. Choose a spectrum above to see and label its peaks.`,{action:"Undo",run:undo});
+}
+/* A set follows its spectrum: when the processing changes, the peaks are
+   found again with the settings and over the range they were found with, and
+   the labels stay with the peaks that are still there. Called on every
+   render; no undo entry of its own (the change that caused it has one, and
+   undoing it brings the set before back with it). Off per set (follow:false),
+   and then the set says it is out of date instead. */
+function followPeakSets(){
+  const p=P(); if(!p||S.readOnly||!p.found||S.editing) return false;
+  const todo=yCols().filter(c=>{ const f=p.found[c.id]; return f&&f.follow!==false&&f.sig&&f.sig!==pipeSig(c); });
+  if(!todo.length) return false;
+  let annos=(p.plot.annos||[]).slice(); const found=Object.assign({},p.found), names=[];
+  todo.forEach(c=>{ const f=p.found[c.id], d=finalOf(c), sameU=f.xu==null||f.xu===(d.xu||"");
+    const r=peakSearchOn(c,Object.assign({},PF_DEF,f.opts||{}),sameU?f.rng:null,d.xu||"");
+    if(!r){ found[c.id]=Object.assign({},f,{sig:pipeSig(c)}); return; }
+    const res=mergePeakSet(c,r,f,{rng:sameU?f.rng||null:null,re:Date.now()});
+    annos=annos.filter(a=>a.grp!=="pk:"+c.id).concat(res.kept); found[c.id]=res.rec; names.push(`${specName(c)} (${res.kept.length})`);
+    if(c===activeYCol()) S.pkLast=r; });
+  save({found,plot:Object.assign({},p.plot,{annos})},names.length?`found the peaks again after the processing changed: ${names.join(", ")}`:null);
+  return true;
+}
+function allFoundTableText(){
+  const rows=[]; yCols().forEach(c=>{ if(!foundOf(c)) return; peakRows(c).forEach((r,k)=>rows.push([specName(c),k+1,fmt(r.x,8),fmt(r.y,8),r.w!=null?fmt(r.w,6):"",r.snr!=null?fmt(r.snr,4):"",r.said].join("\t"))); });
+  return ["Spectrum\tPeak\tX\tY\tFWHM\tS/N\tLabel"].concat(rows).join("\n"); }
 function setPeakStyle(patch,log){
   const p=P(), c=activeYCol(), f=foundOf(c); if(!p||!c||!f||S.readOnly) return;
   const st=Object.assign({},PK_STYLE,f.style,patch);
@@ -8244,7 +8627,7 @@ function removeFoundPeak(id){
   const p=P(), a=annoById(id); if(!p||!a||S.readOnly) return;
   const c=colById(a.ser), f=foundOf(c);
   pushUndo("removing a peak");
-  const found=f&&!a.manual?Object.assign({},p.found,{[c.id]:Object.assign({},f,{ex:(f.ex||[]).concat([a.x])})}):p.found;
+  const found=f&&!a.manual?Object.assign({},p.found,{[c.id]:Object.assign({},f,{ex:(f.ex||[]).concat([{x:a.x,xu:a.xu,row:a.row}])})}):p.found;
   save({found,plot:Object.assign({},p.plot,{annos:(p.plot.annos||[]).filter(q=>q.id!==id)})},`removed the peak at ${fmt(a.x,6)} from the peaks of ${specName(c)}`);
   if(S.annoSel===id) S.annoSel=null;
   renderPlot(); renderPeaks(); if(winOpen("flow")) renderFlow();
@@ -8303,13 +8686,15 @@ function renderPeaks(){
   const f=foundOf(c), st=Object.assign({},PK_STYLE,f&&f.style), rows=f?peakRows(c):[], ro=S.readOnly?" disabled":"", d=finalOf(c), [xu,yu]=dataUnits();
   const stale=f&&f.sig&&f.sig!==pipeSig(c);
   const ae=document.activeElement, focusId=ae&&box.contains(ae)?ae.id:null, sc=box.scrollTop, keepV=focusId&&ae.matches("input[type=text]")?[ae.value,ae.selectionStart,ae.selectionEnd]:null;
-  let h=`<div class="pkbar"><label class="lab" for="pkCol">Spectrum</label><select id="pkCol"${yCols().length>1?"":" disabled"}>${yCols().map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}</option>`).join("")}</select><span class="sp"></span>
-    <button class="btn sm primary" id="pkFind"${ro}>${ICON("wand","sm")}${f?"Find again":"Find peaks"}</button></div>`;
-  if(stale) h+=noteHtml("warn","The processing has changed since these peaks were found. Find again to follow it; your labels stay with the peaks that are still there.");
+  const many=yCols().length>1, nSets=yCols().filter(y=>foundOf(y)).length;
+  let h=`<div class="fbar pkbar"><label class="lab" for="pkCol">Spectrum</label><select id="pkCol"${many?"":" disabled"}>${yCols().map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}${foundOf(y)?` (${peakGroup(y.id).length})`:""}</option>`).join("")}</select><span class="sp"></span>
+    ${many?`<button class="btn sm" id="pkEvery"${ro} title="Find peaks in every spectrum with these settings">Every spectrum</button>`:""}<button class="btn sm primary" id="pkFind"${ro}>${ICON("wand","sm")}${f?"Find again":"Find peaks"}</button></div>`;
+  if(stale&&f.follow===false) h+=noteHtml("warn","The processing has changed since these peaks were found. Find again to follow it; your labels stay with the peaks that are still there.");
+  else if(f&&f.re) h+=`<p class="hint">Found again ${esc(ago(f.re))}, after the processing changed.</p>`;
   // 1 How to find
-  h+=`<details class="grp stepgrp" id="pkHow"${S.pkHow||!f?" open":""}><summary><span class="sn">1</span>How to find them <span class="sum">${esc(((PF_MODES.find(q=>q[0]===pfOpts().mode)||PF_MODES[0])[1]).toLowerCase())} ${esc(String(pfOpts().v))}${pfOpts().log?", log scale":""}</span></summary><div class="gb">${pfFormHtml()}<p class="hint">Searches the points in view (zoom to search part of the spectrum), after a baseline through the lowest points. Every change searches again at once; your labels stay with the peaks that are still found.</p><div class="actions"><button class="btn sm ghost" id="pkDefaults"${ro}>Default settings</button></div></div></details>`;
+  h+=`<details class="grp stepgrp" id="pkHow"${S.pkHow||!f?" open":""}><summary><span class="sn">1</span>How to find them <span class="sum">${esc(((PF_MODES.find(q=>q[0]===pfOpts().mode)||PF_MODES[0])[1]).toLowerCase())} ${esc(String(pfOpts().v))}${pfOpts().log?", log scale":""}</span></summary><div class="gb">${pfFormHtml()}<p class="hint">Searches the points in view (zoom to search part of the spectrum), after a straight baseline through the lowest points. Every change searches again at once; your labels stay with the peaks that are still found, and come back with a peak found again.</p><label class="chk"><input type="checkbox" id="pkFollow"${!f||f.follow!==false?" checked":""}${ro||!f?" disabled":""}> Find them again whenever the processing changes</label><div class="actions"><button class="btn sm ghost" id="pkDefaults"${ro}>Default settings</button></div></div></details>`;
   // 2 The peaks
-  h+=`<section class="stepsec"><h3 class="gh"><span class="sn">2</span>Peaks <span class="cnt">${rows.length||""}</span><span style="flex:1"></span>${rows.length?`<button class="btn sm ghost" id="pkCopy">${ICON("copy","sm")}Copy</button><button class="btn sm ghost" id="pkClear"${ro}>Clear</button>`:""}</h3>`;
+  h+=`<section class="stepsec"><h3 class="gh"><span class="sn">2</span>Peaks <span class="cnt">${rows.length||""}</span><span style="flex:1"></span>${rows.length?`<button class="btn sm ghost" id="pkCopy">${ICON("copy","sm")}Copy</button>`:""}${nSets>1?`<button class="btn sm ghost" id="pkCopyAll" title="Every spectrum's peaks, one table">Copy all</button>`:""}${rows.length?`<button class="btn sm ghost" id="pkClear"${ro}>Clear</button>`:""}</h3>`;
   if(!f) h+=noteHtml("info","No peaks yet. <strong>Find peaks</strong> marks every peak that passes the settings above; nothing else is changed.",true);
   else if(!rows.length) h+=noteHtml("info","No peaks pass these settings. Lower the threshold, or look at what was turned down.",true);
   else h+=`<div class="twrap"><table class="rtab pktab"><thead><tr><th>#</th><th>Position${xu?` <span class="unit">(${esc(xu)})</span>`:""}</th><th>${esc(d.yn||"Y")}${yu?` <span class="unit">(${esc(yu)})</span>`:""}</th><th class="opt">FWHM</th><th class="opt" title="Signal to noise">S/N</th><th class="l">Label</th><th></th></tr></thead><tbody>${rows.map((r,k)=>`<tr data-pka="${esc(r.a.id)}"${S.annoSel===r.a.id?' class="sel"':""}><td>${k+1}${r.a.manual?`<span class="lab" title="Placed by hand"> ✎</span>`:""}</td><td>${esc(fmt(r.x,7))}</td><td>${esc(fmt(r.y,5))}</td><td class="opt">${r.w!=null?esc(fmt(r.w,4)):"—"}</td><td class="opt">${r.snr!=null?esc(fmt(r.snr,3)):"—"}</td><td class="l"><input type="text" id="pkl-${esc(r.a.id)}" data-pklab="${esc(r.a.id)}" value="${esc(r.lab)}" placeholder="type a label" maxlength="80" aria-label="Label of peak ${k+1}"${ro}></td><td class="fx"><button class="tb sm icon" data-pkdel="${esc(r.a.id)}" aria-label="Remove peak ${k+1}" title="Remove this peak"${ro}>${ICON("x","sm")}</button></td></tr>`).join("")}</tbody></table></div>`;
@@ -8342,6 +8727,12 @@ function wirePeaks(box){
   on("#pkFind",()=>{ const n=findPeaksInto(); renderPeaks(); if(n!=null) toast(`${n} peak${n===1?"":"s"} marked.`,{action:"Undo",run:undo}); });
   on("#pkDefaults",()=>{ S.pf=Object.assign({},PF_DEF); pfSave(); if(foundOf(activeYCol())) findPeaksInto(); renderPeaks(); });
   on("#pkCopy",()=>copyText(foundTableText(activeYCol()),"Copied the peak table."));
+  on("#pkCopyAll",()=>copyText(allFoundTableText(),"Copied every spectrum's peaks."));
+  on("#pkEvery",findPeaksEvery);
+  const fol=box.querySelector("#pkFollow"); if(fol) fol.onchange=()=>{ const p=P(), c=activeYCol(), f=foundOf(c); if(!p||!f||S.readOnly) return;
+    pushUndo(fol.checked?"following the processing":"not following the processing");
+    save({found:Object.assign({},p.found,{[c.id]:Object.assign({},f,{follow:fol.checked})})},fol.checked?`the peaks of ${specName(c)} follow the processing again`:`the peaks of ${specName(c)} no longer follow the processing`);
+    renderAll(); };
   on("#pkClear",clearFoundPeaks);
   on("#pkFit",fitFoundPeaks);
   on("#pkMore",()=>openPlotDetails((activeYCol()||{}).id,"labels"));
@@ -8353,7 +8744,7 @@ function wirePeaks(box){
     el.addEventListener("change",()=>{ const o=pfOpts(); let v=el.type==="checkbox"?el.checked:el.value;
       if(["v","minW","max"].includes(k)){ const q=parseNum(v); if(q==null||q<0){ toast("Enter a number of zero or more."); el.value=String(o[k]); return; } v=q; }
       if(k==="minSep"&&String(v).trim()!==""&&parseNum(v)==null){ toast("Enter a distance in X units, or leave it empty."); el.value=String(o[k]); return; }
-      if(k==="mode"){ o.v={snr:4,pct:5,abs:0,decades:3}[v]; if(v==="abs"){ const r=pfRun(); o.v=r&&r.sigma?+fmt(r.sigma*4,2):0; } }
+      if(k==="mode"){ o.v={snr:4,pct:5,abs:0,decades:3}[v]; if(v==="abs"){ const r=peakSearchOn(activeYCol(),Object.assign({},o,{mode:"snr",v:4}),null,null); o.v=r&&r.sigma?+fmt(r.sigma*4,2):0; } }
       o[k]=v; pfSave(); findPeaksInto(); renderPeaks(); }); });
   box.querySelectorAll("[data-pks]").forEach(el=>el.addEventListener("change",()=>{ const k=el.dataset.pks; let v=el.type==="checkbox"?el.checked:el.value;
     if(k==="dec") v=v===""?null:+v; if(k==="size") v=+v||1; if(k==="color") v=v||null;
@@ -8370,9 +8761,10 @@ function wirePeaks(box){
 function addToPeakSet(c,pt){
   const p=P(), f=foundOf(c); if(!p||!c||!f||S.readOnly) return null;
   if(peakGroup(c.id).some(a=>Math.abs(a.x-pt.x)<1e-9)){ toast("That peak is in the set already."); return null; }
-  const st=Object.assign({},PK_STYLE,f.style), a=peakAnno(c,pt,st,{manual:true});
+  const d=finalOf(c); let k=0; d.x.forEach((v,j)=>{ if(Math.abs(v-pt.x)<Math.abs(d.x[k]-pt.x)) k=j; });
+  const st=Object.assign({},PK_STYLE,f.style), a=peakAnno(c,Object.assign({i:d.idx[k]},pt),st,{manual:true});
   pushUndo("adding a peak");
-  const ex=(f.ex||[]).filter(x=>Math.abs(x-pt.x)>(pointSpacing()||0)*2.5);
+  const ex=(f.ex||[]).filter(e=>Math.abs((typeof e==="number"?e:e.x)-pt.x)>(pointSpacing()||0)*2.5);
   save({found:Object.assign({},p.found,{[c.id]:Object.assign({},f,{ex})}),plot:Object.assign({},p.plot,{annos:(p.plot.annos||[]).concat([a])})},`added the peak at ${fmt(pt.x,6)} to the peaks of ${specName(c)}`);
   S.annoSel=a.id; renderPlot(); renderPeaks(); if(winOpen("flow")) renderFlow();
   return a.id;
@@ -8523,7 +8915,7 @@ function flowNodeHtml(n,cur){
   const sel=S.flowSel===n.key, act=n.c&&n.c===activeYCol();
   let icon="", title="", sub="", cls="", spark="", warn=[], num="";
   if(n.kind==="table"){ const ok=rawVerified(); icon=ok===false?"alert":"lock"; title="Recorded data"; sub=`${rawCols().length} column${rawCols().length===1?"":"s"} · ${fpShort((P().raw&&P().raw.fp)||rawFp())}`; if(ok===false){ cls+=" warn"; warn=["The raw values no longer match their recorded fingerprint."]; } }
-  else if(n.kind==="raw"){ icon="table"; title=specName(n.c); sub=`Raw · ${n.st?n.st.d.x.length:0} points`; spark=n.st?sparkSvg(n.st.d,40,20):""; }
+  else if(n.kind==="raw"){ icon="table"; title=specName(n.c); sub=`${n.c.fx?"= "+fxShow(n.c):"Raw"} · ${n.st?n.st.d.x.length:0} points`; spark=n.st?sparkSvg(n.st.d,40,20):""; }
   else if(n.kind==="src"){ const s=srcOf(n.c); icon="reverse"; title=specName(n.c); sub=`From ${n.c.from==="raw"?"raw":"processed"} ${specName(s)}`; spark=n.st?sparkSvg(n.st.d,40,20):""; }
   else if(n.kind==="step"){ const s=n.s, st=n.st; warn=stageWarnings(st); num=`<span class="fn-n">${n.k}</span>`;
     icon=s.op==="python"?"code":""; title=stepShort(s); sub=s.on===false?"switched off":stepSummary(s,st,st&&st.d)||stepTitle(s);
@@ -8726,14 +9118,15 @@ function flowInspectorBody(n){
     h+=`<div class="fi-h">${ICON("tag")}<div class="grow"><div class="fi-t">Peaks of ${esc(specName(c))}</div><div class="lab">${rows.length} marked${f.at?` · found ${f.by?`by ${esc(nameOf(f.by))} `:""}${esc(ago(f.at))}`:""}</div></div>${discChip(n.key)}</div>`;
     if(stale) h+=noteHtml("warn","The processing has changed since these peaks were found. Find them again in the Peaks window to follow it.");
     h+=kvHtml([["Found with",`${esc(((PF_METHODS.find(q=>q[0]===o.method)||[,""])[1]).toLowerCase())}, ${esc(mode[1].toLowerCase())} ${esc(String(o.v))} ${esc(mode[2])}${o.log?", on a log scale":""}`],["Marked with",lab(PK_MARKS,st.mk)],["Labelled with",lab(PK_SHOW,st.show)],
-      (f.ex||[]).length?["Removed by hand",esc(f.ex.map(x=>fmt(x,6)).join(", "))]:null]);
+      (f.ex||[]).length?["Removed by hand",esc(f.ex.map(e=>fmt(typeof e==="number"?e:e.x,6)).join(", "))]:null,
+      ["Follows the processing",f.follow===false?"no: find them again by hand":`yes${f.re?`, found again ${esc(ago(f.re))}`:""}`]]);
     if(rows.length) h+=`<div class="twrap"><table class="rtab pktab"><thead><tr><th>#</th><th>Position${d.xu?` <span class="unit">(${esc(d.xu)})</span>`:""}</th><th class="l">Label</th></tr></thead><tbody>${rows.map((q,k)=>`<tr><td>${k+1}</td><td>${esc(fmt(q.x,7))}</td><td class="l"><input type="text" id="fipk-${esc(q.a.id)}" data-fipk="${esc(q.a.id)}" value="${esc(q.lab)}" placeholder="type a label" maxlength="80" aria-label="Label of peak ${k+1}"${ro}></td></tr>`).join("")}</tbody></table></div>`;
     h+=`<div class="actions">${btn("peakswin","Peaks window","tag",{primary:true,view:true})}${btn("pkfit","Fit these peaks…","peak",{dis:!rows.length})}${btn("pkcopy","Copy the table","copy",{view:true})}</div>`;
     return h;
   }
   if(n.kind==="raw"||n.kind==="src"){
     const d=r?r.stages[0].d:EMPTY_SER, xc=xColFor(c), ec=errColFor(c.id);
-    h+=`<div class="fi-h">${ICON(n.kind==="src"?"reverse":"table")}<div class="grow"><div class="fi-t">${esc(specName(c))}</div><div class="lab">${n.kind==="src"?`Starts from the ${c.from==="raw"?"raw":"processed"} data of <a href="#" data-fi="gosrc">${esc(specName(srcOf(c)))}</a>`:"Raw data, as recorded"}</div></div>${discChip(n.key)}<button class="tb sm icon" data-fi="specmenu" aria-haspopup="menu" aria-expanded="false" aria-label="Spectrum options" title="More">${ICON("more","sm")}</button></div>`;
+    h+=`<div class="fi-h">${ICON(n.kind==="src"?"reverse":"table")}<div class="grow"><div class="fi-t">${esc(specName(c))}</div><div class="lab">${n.kind==="src"?`Starts from the ${c.from==="raw"?"raw":"processed"} data of <a href="#" data-fi="gosrc">${esc(specName(srcOf(c)))}</a>`:n.c.fx?`Computed from other columns: = ${esc(fxShow(n.c))}`:"Raw data, as recorded"}</div></div>${discChip(n.key)}<button class="tb sm icon" data-fi="specmenu" aria-haspopup="menu" aria-expanded="false" aria-label="Spectrum options" title="More">${ICON("more","sm")}</button></div>`;
     h+=kvHtml([["Points",String(d.x.length)],["X",`${esc(d.xn||"X")}${d.xu?` (${esc(d.xu)})`:""}, ${rangeTxt(d.x,"")}`],["Y",`${esc(d.yn||"Y")}${d.yu?` (${esc(d.yu)})`:""}, ${rangeTxt(d.y,"")}`],
       n.kind==="raw"?["Columns",`${esc(colLabel(xc,"X"))} and ${esc(colLabel(c,"Y"))}${ec?` with errors from ${esc(colLabel(ec,"error"))}`:""}`]:null]);
     h+=`<div class="actions">${btn("sheet","Open the worksheet","table",{view:true})}${btn("rename","Rename…","edit")}${n.kind==="src"?btn("deldrv","Delete this spectrum","x",{ghost:true}):""}</div>`;
@@ -9451,8 +9844,8 @@ function helpHtml(){
 <h3>On the graph</h3>
 <dl class="keys">
 <dt>Right-click</dt><dd>Colour, plot type and style of the spectrum under the pointer; a line, text or a peak label where you clicked; axes, layout, legend. Right-click a line, a label or the legend for its own options</dd>
-<dt>Label tool</dt><dd>Click a peak to label it with its position, in its spectrum's colour; click an empty spot to write text</dd>
-<dt>Drag</dt><dd>A line, a shaded range, text, a peak label or the legend moves with the pointer; double-click one to edit it; <kbd>Delete</kbd> removes the selected one</dd>
+<dt>Label tool</dt><dd>Click a peak and type its label (<kbd>Enter</kbd> keeps it; empty shows the position), in its spectrum's colour; click an empty spot to write text there</dd>
+<dt>Drag</dt><dd>A line, a shaded range, text, a peak label or the legend moves with the pointer; double-click a label or text (or press <kbd>Enter</kbd>) to type over it, a line or range for its settings; <kbd>Delete</kbd> removes the selected one</dd>
 <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Move between points (click the graph or Tab to it first); <kbd>Home</kbd> and <kbd>End</kbd> jump to the ends</dd>
 <dt><kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd></dt><dd>Zoom in, zoom out, show all the data</dd>
 <dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Start or end the view at the selected point</dd>
@@ -9472,9 +9865,14 @@ function helpHtml(){
 </dl>
 <h3>In the worksheet</h3>
 <dl class="keys">
-<dt><kbd>Enter</kbd> <kbd>↓</kbd> <kbd>↑</kbd></dt><dd>Next or previous row</dd>
+<dt><kbd>Enter</kbd> <kbd>↓</kbd> <kbd>↑</kbd></dt><dd>Next or previous row; <kbd>Tab</kbd> the next column; <kbd>Shift</kbd> with an arrow selects a range, <kbd>Ctrl</kbd> with an arrow jumps to the end of the data</dd>
+<dt><kbd>F2</kbd>, double-click</dt><dd>Edit the cell; typing replaces it, <kbd>Esc</kbd> cancels</dd>
 <dt>Paste</dt><dd>A block copied from a spreadsheet fills columns from the cell you paste into; decimal commas are recognised</dd>
-<dt>Right-click a header</dt><dd>Column options: X, Y or error bars, analyse, show or hide, delete</dd>
+<dt>F(x)=</dt><dd>A column's formula, computed row by row: letters are columns, <code>x</code> the row's X, <code>i</code> the row number (<code>B*2</code>, <code>(B-C)/A</code>, <code>log10(B)</code>, <code>1e7/x</code>). It follows the columns it uses, and its values are not recorded data</dd>
+<dt>Fill handle</dt><dd>Drag the square at the corner of a selection down or right: two numbers or more continue as a series, one is copied (<kbd>Ctrl</kbd> swaps these); double-click it to fill down as far as the column beside. <kbd>Ctrl</kbd> <kbd>D</kbd> and <kbd>Ctrl</kbd> <kbd>R</kbd> copy the first row or column of the selection. Only empty cells are filled</dd>
+<dt><kbd>Ctrl</kbd> <kbd>F</kbd></dt><dd>Find in the sheet; <kbd>Enter</kbd>, <kbd>Shift</kbd> <kbd>Enter</kbd> or <kbd>F3</kbd> go to the next or previous match</dd>
+<dt>Right-click a cell</dt><dd>Copy, paste, mask, sort the view by the column (the data keep their order), find, fill down, set column values</dd>
+<dt>Right-click a header</dt><dd>Column options: X, Y or error bars, analyse, show or hide, formula, sort, delete</dd>
 <dt>Raw and Final</dt><dd>The Raw sheet holds the data as recorded. Empty cells can be filled; a recorded value is locked, and typing over it asks for a reason and adds a correction step instead. The Final sheet shows the analysed spectrum after processing.</dd>
 </dl>
 <h3>Tied peak parameters</h3>
@@ -9758,8 +10156,12 @@ function menuItems(which){
   return [];
 }
 function onThemeChange(){ renderTop(); renderPlot(); Object.keys(WINS).forEach(id=>{ if(id!=="graph"&&winOpen(id)) renderWin(id); }); }
+let renderCount=0;
 function renderAll(){
   normalize(S.proj); clampStage();
+  // A set that follows its spectrum is found again first; with this browser's
+  // store the save has already drawn everything by the time it returns.
+  const rc=++renderCount; if(followPeakSets()&&renderCount!==rc) return;
   if(S.pending&&(!P()||!colById(S.pending.col))) S.pending=null;
   renderTop(); renderPlot(); renderStages(); renderTabMarks();
   ["sheet","flow","peaks","fit","res","disc","py","stats","tool"].forEach(id=>{ if(winOpen(id)) renderWin(id); });
