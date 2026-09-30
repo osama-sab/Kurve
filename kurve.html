@@ -837,6 +837,30 @@ details.more>table{margin-top:8px}
 table.corr td{text-align:center}
 #pane-stats .fbar{margin:-10px -14px 10px;padding:6px 10px;position:sticky;top:-10px;z-index:2;background:var(--panel)}
 #pane-stats h3.gh{margin-top:18px}
+#pane-batch .fbar{margin:-10px -14px 10px;padding:6px 10px;position:sticky;top:-10px;z-index:2;background:var(--panel);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#pane-batch .fbar .sp{flex:1}
+.bsum{margin:0 0 10px;color:var(--ink-2);font-size:12.5px}
+.bsum .chip{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11.5px;background:var(--warn-bg,rgba(178,107,0,.12));color:var(--warn,#B26B00)}
+.bprog{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:12.5px;color:var(--ink-2)}
+.bprog .bar{flex:1;height:4px;border-radius:2px;background:var(--rule);overflow:hidden}
+.bprog .bar>i{display:block;height:100%;background:var(--ctl-on)}
+.trendbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 6px;font-size:12.5px}
+.trendbar select{max-width:260px}
+.trendbar input[type=text]{width:150px}
+.trend{border:1px solid var(--rule);border-radius:var(--r);background:var(--panel);overflow:hidden}
+.trend svg{display:block;width:100%;height:auto}
+.trend [data-trend]{cursor:pointer}
+.tfit{margin:6px 0 12px;font-size:12.5px;color:var(--ink-2)}
+.btab td,.btab th{white-space:nowrap}
+.btab th.grp{text-align:center;border-bottom:1px solid var(--rule-2);font-weight:600}
+.btab td.bx input{width:82px;font-family:var(--mono);font-size:12px;text-align:right}
+.btab tr.sel td{background:var(--sel)}
+.btab button.bgo{border:0;background:none;padding:0;font:inherit;color:var(--accent);cursor:pointer;text-align:left}
+.btab .bst{width:18px;text-align:center}
+.btab .bst .ic{width:14px;height:14px}
+.btab .bst.bad .ic{color:var(--bad,#C23B22)}
+.btab .bst.warn .ic{color:var(--warn,#B26B00)}
+.btab .bst.ok .ic{color:var(--ok)}
 
 /* Plot details */
 #plotModal{background:rgba(10,16,24,.16);justify-content:flex-end;align-items:stretch;padding:12px}
@@ -1325,6 +1349,10 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
       <div class="win-b py-win" id="pyWin"></div>
     </section>
 
+    <section class="win" id="w-batch" data-win="batch" aria-label="Batch">
+      <header class="win-h"><svg class="ic sm"><use href="#i-sigma"/></svg><h2 class="win-t">Batch</h2><span class="win-sub" id="batchSub"></span><span class="sp"></span></header>
+      <div class="win-b"><div class="dbody" id="pane-batch"></div></div>
+    </section>
     <section class="win" id="w-stats" data-win="stats" aria-label="Statistics">
       <header class="win-h"><svg class="ic sm"><use href="#i-sigma"/></svg><h2 class="win-t">Statistics</h2><span class="sp"></span></header>
       <div class="win-b"><div class="dbody" id="pane-stats"></div></div>
@@ -3222,10 +3250,15 @@ function fitModel(fit){
   const m=getModel(fit.model);
   return m?{f:m.f, model:m, composite:false, name:m.name}:null;
 }
-function activeFit(){ const p=P(); return p&&p.fit&&fitModel(p.fit)?p.fit:null; }
+// The analysed spectrum's fit: its own, or its row of the batch fit; failing
+// both, the project's fit, whichever spectrum it was made on.
+function activeFit(){ const p=P(); if(!p) return null; const own=p.fit&&fitModel(p.fit)?p.fit:null, a=activeYCol();
+  if(own&&(!a||!own.onCol||own.onCol===a.id)) return own;
+  return batchFitOf(a)||own; }
 /* Why a shown result may no longer describe what is on screen. */
 function fitStale(f){
   if(!f) return null;
+  if(f.batch) return batchStale(f);
   const p=P(), act=activeYCol();
   if(f.onCol&&act&&f.onCol!==act.id) return `This fit was made on ${f.onColName||"another column"}, not ${act.name||"the current column"}.`;
   if(f.maskSig!=null&&act&&f.maskSig!==maskSig(act)) return "Points have been masked or restored since this fit.";
@@ -3262,7 +3295,7 @@ function FM_slots(fit){ const FM=fitModel(fit); return FM&&FM.composite?FM.model
    result and a plausible-looking artefact, so it happens here, once, and
    everything downstream (table, area %, export, report) honours it. */
 function peakProblems(fit,rows){
-  const xs=pointsAll().map(q=>q.x);
+  const xs=fitPts(fit).map(q=>q.x);
   const lo=xs.length?Math.min(...xs):-Infinity, hi=xs.length?Math.max(...xs):Infinity;
   const span=hi-lo;
   const med=(()=>{ const d=[]; const sorted=xs.slice().sort((a,b)=>a-b);
@@ -3280,7 +3313,7 @@ function peakProblems(fit,rows){
       else if(med>0&&r.fwhm<med) bad.push(`it is narrower (${fmt(r.fwhm,3)}) than the spacing between points (${fmt(med,3)}), so no data constrains it`);
       else if(span>0&&r.fwhm>span*1.5) bad.push("it is wider than the fitted range, so it is acting as a baseline");
       if(r.xc<lo||r.xc>hi) bad.push(`its centre (${fmt(r.xc,6)}) lies outside the fitted data (${fmt(lo,6)} to ${fmt(hi,6)})`);
-      if(Math.abs(r.height)>0&&xs.length){ const ys=pointsAll().map(q=>Math.abs(q.y));
+      if(Math.abs(r.height)>0&&xs.length){ const ys=fitPts(fit).map(q=>Math.abs(q.y));
         const ymax=Math.max(...ys,0);
         if(ymax>0&&Math.abs(r.height)>ymax*50) bad.push("it is far taller than the data");
       }
@@ -3441,10 +3474,13 @@ function runsTest(res){
   const z=(runs-mu)/Math.sqrt(v);
   return {z, p:normCdf(z), runs, expected:mu, n};
 }
+// The unmasked final points of the spectrum a fit was made on, which need not be
+// the one being analysed (a batch row, a fit kept while another is looked at).
+function fitPts(f){ const c=colById(f.onCol)||activeYCol(); if(!c) return []; const mk=new Set(maskOf(c)); return seriesPoints(finalOf(c),!!GP().logY).filter(q=>!mk.has(q.i)); }
 function fitResiduals(f){
   const FM=fitModel(f); if(!FM) return [];
   const r=f.range||[-Infinity,Infinity];
-  return pointsAll().filter(q=>q.x>=r[0]&&q.x<=r[1]&&!isMasked(q.i)).sort((a,b)=>a.x-b.x).map(q=>q.y-FM.f(q.x,f.params));
+  return fitPts(f).filter(q=>q.x>=r[0]&&q.x<=r[1]).sort((a,b)=>a.x-b.x).map(q=>q.y-FM.f(q.x,f.params));
 }
 /* Every caveat about a fit, worded once. The results panel, the fit panel's
    summary and the exported report all read this list, so the report can never
@@ -3465,7 +3501,7 @@ function fitWarnings(f){
       failed.map(r=>`Peak ${r.k+1} (centre ${fmt(r.xc,6)}): ${r.problems.join("; ")}`).join(". ")}. Delete ${failed.length>1?"them":"it"}, or give ${failed.length>1?"them":"it"} a sensible starting value and fit again.`});
   }
   if(FM.composite){ const fano=(f.spec.peaks||[]).map((pk,k)=>pk.type==="fano"?k+1:0).filter(Boolean);
-    const m=FM.model, sp=pointSpacing();
+    const m=FM.model, sp=spacingOf(fitPts(f).map(q=>q.x).sort((a,b)=>a-b));
     (f.spec.peaks||[]).forEach((pk,k)=>{ if(pk.type!=="voigt") return; const o=m.offsets[k], g=Math.abs(f.params[o+2]), l=Math.abs(f.params[o+3]), fw=0.5346*l+Math.sqrt(0.2166*l*l+g*g);
       const tiny=v=>v<Math.max(fw*0.02,sp*0.1);
       if(tiny(g)&&!tiny(l)) out.push({level:"info", kind:"voigt", text:`Peak ${k+1}'s Gaussian width went to zero: the line is a Lorentzian, and nothing in the data measures a Gaussian part. Fit it as a Lorentzian, or fix its Gaussian FWHM at the instrument's resolution.`});
@@ -4006,7 +4042,7 @@ function migrate(p){
 
 /* Undo is per-session and local: it rewinds your own edits, not other
    people's. Cross-user undo in a shared document is a different problem. */
-const UNDO_KEYS=["cols","activeY","meta","fit","plot","name","log","raw","fits","userFns","found","integ","graphs"];
+const UNDO_KEYS=["cols","activeY","meta","fit","plot","name","log","raw","fits","userFns","found","integ","graphs","batch","series"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
 function snapshot(){ const p=P(); if(!p) return null; const o={pid:S.pid}; UNDO_KEYS.forEach(k=>{ o[k]=clone(p[k]); });
   o.pdraft=S.pdraft?clone(S.pdraft):null; o.draft=S.draft?clone(S.draft):null; return o; }
@@ -4481,7 +4517,8 @@ function buildPlot(W,H,pal,forExport){
     const fr=fit.range||[-Infinity,Infinity], vx0=Math.min(v.x0,v.x1), vx1=Math.max(v.x0,v.x1);
     rp=pts.filter(q=>q.x>=fr[0]&&q.x<=fr[1]&&q.x>=vx0&&q.x<=vx1).map(q=>({...q,r:q.y-FM.f(q.x,fit.params)})).filter(q=>Number.isFinite(q.r));
   }
-  const showRes=rp.length>0, resH=showRes?Math.max(64,Math.round(H*0.2)):0;
+  // Too small a graph has no room for residuals worth reading; it shows the fit alone.
+  const showRes=rp.length>0&&H>=280, resH=showRes?Math.max(64,Math.round(H*0.2)):0;
   const pw=Math.max(W-L-R,40), mhAll=Math.max(H-T-B-(showRes?resH+gap:0),60);
   // Panels: one for the analysed spectrum, one more per other spectrum when stacked.
   const np=stack?1+oser.length:1, pgap=stack?8:0, ph=Math.max(30,(mhAll-pgap*(np-1))/np);
@@ -7383,7 +7420,7 @@ function readFileIn(f){
 function ensureDraft(){
   const p=P(); if(!p) return null;
   if(S.draft&&S.draft.pid===S.pid) return S.draft;
-  const f=p.fit&&p.fit.kind!=="composite"&&fitModel(p.fit)?p.fit:null; // the curve panel only carries single-model fits
+  const f=(activeFit()&&activeFit().kind!=="composite"?activeFit():null); // the curve panel only carries single-model fits
   const model=f?f.model:(p.prefModel&&getModel(p.prefModel)?p.prefModel:"gauss");
   S.draft={pid:S.pid, model, fn:f&&f.fn?f.fn:null, init:f?f.params.slice():null, fixed:f?(f.fixed||f.params.map(()=>false)).slice():null, weighted:f?!!f.weighted:hasErr()};
   if(!S.draft.init) guessDraft();
@@ -7435,7 +7472,7 @@ function renderFit(){
     wire(); return;
   }
   if(S.fitMode==="peaks"){ renderPeakFit(box,p,top); wire(); return; }
-  const d=ensureDraft(), m=draftModel(d), f=p.fit&&p.fit.kind!=="composite"&&fitModel(p.fit)?p.fit:null, ro=S.readOnly?" disabled":"";
+  const d=ensureDraft(), m=draftModel(d), f=(activeFit()&&activeFit().kind!=="composite"?activeFit():null), ro=S.readOnly?" disabled":"";
   if(!d.init||d.init.length!==m.params.length||!d.fixed||d.fixed.length!==m.params.length) guessDraft();
   const sameModel=f&&f.model===d.model&&f.params.length===m.params.length;
   const ufs=p.userFns||[], lib=libFns().filter(q=>!ufs.some(u=>u.id===q.id)), inProj=ufs.some(q=>"u:"+q.id===d.model);
@@ -7461,7 +7498,7 @@ function renderFit(){
   h+=`<div class="range" id="fitRange"></div>`;
   if(S.fitError) h+=noteHtml("bad",S.fitError);
   if(f) h+=fitSummary(f);
-  h+=`<div class="sticky"><button class="btn primary" id="doFit"${ro} title="Fit (Ctrl+Enter)">${ICON("play")}Fit</button><button class="btn" id="doGuess"${ro} title="Measure the starting values from the data in view">Guess</button>${f?`<button class="btn ghost" id="clrFit"${ro}>Remove fit</button>`:""}</div>`;
+  h+=`<div class="sticky"><button class="btn primary" id="doFit"${ro} title="Fit (Ctrl+Enter)">${ICON("play")}Fit</button><button class="btn" id="doGuess"${ro} title="Measure the starting values from the data in view">Guess</button>${f&&yCols().length>1?`<button class="btn" id="fitAll"${ro} title="Fit every spectrum with this model, starting from this fit">Fit every spectrum…</button>`:""}${f?`<button class="btn ghost" id="clrFit"${ro}>Remove fit</button>`:""}</div>`;
   box.innerHTML=h; renderFitRangeOnly(); wire();
   $("#model").onchange=e=>{ const v=e.target.value;
     if(v==="__new"){ e.target.value=d.model; editUserFn(null); return; }
@@ -7479,11 +7516,15 @@ function renderFit(){
   box.querySelectorAll("input[data-fx]").forEach(inp=>inp.onchange=()=>{ d.fixed[+inp.dataset.fx]=inp.checked; });
   const wt=$("#wt"); if(wt) wt.onchange=()=>d.weighted=wt.checked;
   $("#doGuess").onclick=()=>{ pushUndo("guessing initial values"); S.fitError=""; guessDraft(); renderFit(); toast("Initial values measured from the data in view."); };
-  $("#doFit").onclick=runFit;
+  $("#doFit").onclick=runFit; { const fa=$("#fitAll"); if(fa) fa.onclick=openBatchDialog; }
   const cf=$("#clrFit"); if(cf) cf.onclick=removeFit;
 }
 function removeFit(){
-  const p=P(); if(!p||!p.fit||S.readOnly) return;
+  const p=P(), af=activeFit(); if(!p||S.readOnly) return;
+  if(af&&af.batch&&af!==p.fit){ const c=colById(af.onCol); pushUndo("removing the fit");
+    save({batch:Object.assign({},p.batch,{rows:p.batch.rows.map(r=>r.col===af.onCol?{col:r.col,fit:null,fail:"removed by hand"}:r)})},`removed the batch fit of ${specName(c)}`);
+    if(S.pdraft) S.pdraft.fitAt=null; renderAll(); toast("Fit removed.",{action:"Undo",run:undo}); return; }
+  if(!p.fit) return;
   pushUndo("removing the fit"); save({fit:null},"removed the fit");
   if(S.pdraft) S.pdraft.fitAt=null;
   renderAll(); toast("Fit removed.",{action:"Undo",run:undo});
@@ -7610,7 +7651,7 @@ function adoptLibFn(fn){
 function ensurePeakDraft(){
   const p=P();
   if(S.pdraft&&S.pdraft.pid===S.pid) return S.pdraft;
-  const f=p.fit&&p.fit.kind==="composite"&&fitModel(p.fit)?p.fit:null;
+  const f=activeFit()&&activeFit().kind==="composite"?activeFit():null;
   S.pdraft=f
     ? {pid:S.pid, base:f.spec.base, peaks:f.spec.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{})), init:f.params.slice(), fixed:(f.fixed||f.params.map(()=>false)).slice(), weighted:!!f.weighted, x0:f.x0, fitAt:f.at}
     : {pid:S.pid, base:"linear", peaks:[], init:[], fixed:[], weighted:hasErr(), x0:null, fitAt:null};
@@ -7924,7 +7965,7 @@ function renderPeakFit(box,p,top){
   const d=ensurePeakDraft(); syncPdraft();
   const ro=S.readOnly?" disabled":"";
   const m=pdraftModel();
-  const f=p.fit&&p.fit.kind==="composite"&&fitModel(p.fit)?p.fit:null;
+  const f=activeFit()&&activeFit().kind==="composite"?activeFit():null;
   const mrows=f&&f.params.length===m.n?peakMetrics(f):[];
   const rowFor=k=>mrows.find(q=>q.k===k)||null;
   const [xu,yu]=dataUnits();
@@ -7979,6 +8020,7 @@ function renderPeakFit(box,p,top){
   if(f) h+=fitSummary(f);
   h+=`</section><div class="sticky"><button class="btn primary" id="doPeakFit"${ro}${d.peaks.length?"":" disabled"} title="Fit (Ctrl+Enter)">${ICON("play")}${d.peaks.length?`Fit ${d.peaks.length} peak${d.peaks.length===1?"":"s"}`:"Fit"}</button>
     <button class="btn" id="reseed"${ro}${d.peaks.length?"":" disabled"} title="Measure every peak and the baseline again from the data">Reset to estimates</button>
+    ${f&&yCols().length>1?`<button class="btn" id="fitAll"${ro} title="Fit every spectrum with these peaks, starting from this fit">Fit every spectrum…</button>`:""}
     ${f?`<button class="btn ghost" id="clrFit"${ro}>Remove fit</button>`:""}</div>`;
   box.innerHTML=h; renderFitRangeOnly();
   const pp=$("#pfPanel"); if(pp){ pp.addEventListener("toggle",()=>{ if(!pp.isConnected) return; S.pfOpen=pp.open; if(pp.open&&!pp.querySelector(".pfform")) renderFit(); else if(!pp.open){ S.pfPreview=null; renderPlot(); } }); if(findOpen) wirePf(pp); }
@@ -8042,7 +8084,7 @@ function renderPeakFit(box,p,top){
     const k=+c.dataset.peak; S.selPeak=S.selPeak===k?null:k; renderFit(); renderPlot();
   });
   const pw=$("#pwt"); if(pw) pw.onchange=()=>d.weighted=pw.checked;
-  $("#doPeakFit").onclick=runPeakFit;
+  $("#doPeakFit").onclick=runPeakFit; { const fa=$("#fitAll"); if(fa) fa.onclick=openBatchDialog; }
   const cf=$("#clrFit"); if(cf) cf.onclick=removeFit;
 }
 
@@ -8084,7 +8126,7 @@ function runPeakFit(){
     fixed:d.fixed.slice(), dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound, stats:res.stats,
     range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, by:S.uid||"", at:Date.now()};
   d.init=res.params.slice(); d.x0=m.x0; d.fitAt=fit.at;
-  save({fit,fits:fitHistory(fit)},`fitted ${describeSpec(spec)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
+  save(Object.assign({fit,fits:fitHistory(fit)},batchWith(fit)),`fitted ${describeSpec(spec)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
   renderFit(); renderPlot(); afterFit(fit);
 }
 
@@ -8105,7 +8147,7 @@ function runFit(){
     range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, by:S.uid||"", at:Date.now()};
   d.init=res.params.slice();
   const P0=P(), carry=m.user&&!(P0.userFns||[]).some(q=>q.id===m.fnId)?{userFns:(P0.userFns||[]).concat([JSON.parse(JSON.stringify(m.def))])}:{};
-  save(Object.assign({fit,fits:fitHistory(fit)},carry),`fitted ${m.user?`the function "${m.name}"`:lcFirst(m.name)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
+  save(Object.assign({fit,fits:fitHistory(fit)},carry,batchWith(fit)),`fitted ${m.user?`the function "${m.name}"`:lcFirst(m.name)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
   renderFit(); renderPlot(); afterFit(fit);
 }
 function fitNow(){
@@ -8564,6 +8606,8 @@ function clone(o){ return o===undefined?undefined:JSON.parse(JSON.stringify(o));
 function normalize(p){ if(!p) return; const was=p.v||1;
   p.plot=Object.assign({style:"scatter",logY:false,grid:false,resid:true},p.plot||{}); p.log=p.log||[]; migrate(p);
   if(!p.found||typeof p.found!=="object") p.found={};
+  if(p.batch&&!(p.batch.tmpl&&Array.isArray(p.batch.rows))) p.batch=null;
+  if(p.series&&typeof p.series!=="object") p.series=null;
   // Graphs keep only spectra that still exist; a graph with none left goes.
   { const yIds=new Set((p.cols||[]).filter(c=>c.role==="y").map(c=>c.id));
     p.graphs=(Array.isArray(p.graphs)?p.graphs:[]).filter(g=>g&&g.id).map(g=>{ g.cols=(g.cols||[]).filter(k=>yIds.has(k));
@@ -8710,6 +8754,7 @@ async function exportReport(){
   }
   html.push(reportPeaksHtml());
   html.push(reportBandsHtml());
+  html.push(reportBatchHtml());
   html.push(reportDataHtml(EXPORT_PAL));
   html.push(reportFitsHtml(EXPORT_PAL));
   html.push(reportDiscussionHtml());
@@ -9018,6 +9063,8 @@ function analysisMenu(){
       {label:"New fit function…", run:()=>{ S.fitMode="curve"; showTab("fit"); editUserFn(null); }, enabled:edit},
       "-",
       {label:"Run the fit", kbd:"Ctrl+Enter", run:fitNow, enabled:edit&&has},
+      {label:"Fit every spectrum…", run:openBatchDialog, enabled:edit&&!!activeFit()&&yCols().length>1},
+      {label:"Batch results", run:()=>openWin("batch",{render:true}), enabled:!!p},
       {label:"Remove the fit", run:removeFit, enabled:edit&&!!(p&&p.fit)}]},
     {label:"Results", run:()=>openWin("res",{render:true}), enabled:!!p},
     "-",
@@ -9772,7 +9819,7 @@ function flowLayout(){
       edges.push({a:prev.key,b:n.key,lane:true,at:k,c}); prev=n; });
     const fin=add({key:"final:"+c.id,kind:"final",col:L,row:row++,c,st:r?r.stages[r.stages.length-1]:null});
     edges.push({a:prev.key,b:fin.key,lane:true,at:r?r.stages.length-1:0,c});
-    const fits=(p.fits||[]).filter(f=>f.onCol===c.id), cur=activeFit(), here=!!(cur&&cur.onCol===c.id);
+    const fits=(p.fits||[]).filter(f=>f.onCol===c.id), cur=laneFit(c), here=!!cur;
     let last=fin; const fd=foundOf(c);
     if(fd){ const pn=add({key:"peaks:"+c.id,kind:"peaks",col:L,row:row++,c,f:fd,n:peakGroup(c.id).length}); edges.push({a:fin.key,b:pn.key}); last=pn; }
     if(bandsFor(c).length){ const bn=add({key:"integ:"+c.id,kind:"integ",col:L,row:row++,c}); edges.push({a:last.key,b:bn.key}); last=bn; }
@@ -9830,7 +9877,7 @@ function flowNodeHtml(n,cur){
   else if(n.kind==="final"){ icon="check"; title="Final"; const d=n.st?n.st.d:EMPTY_SER, nm=maskOf(n.c).length; sub=`${d.x.length} points${nm?` · ${nm} masked`:""}`; spark=sparkSvg(d,40,20); cls+=" fin"; }
   else if(n.kind==="fit"){ icon="peak"; const f=n.cur, older=n.fits.filter(r=>!f||r.at!==f.at).length;
     title=f?`Fit: ${(fitModel(f)||{name:"fit"}).name}`:"Earlier fits"; sub=f?`R² ${fmt(f.stats.R2,5)}${older?` · ${older} earlier`:""}`:`${n.fits.length} fit${n.fits.length===1?"":"s"}`;
-    if(f&&fitStale(f)){ cls+=" warn"; warn=[fitStale(f)]; } cls+=" fitn"; }
+    if(f&&fitStaleFor(f,n.c)){ cls+=" warn"; warn=[fitStaleFor(f,n.c)]; } if(f&&f.batch) sub+=" · batch"; cls+=" fitn"; }
   else if(n.kind==="peaks"){ icon="tag"; const g=peakGroup(n.c.id), nl=g.filter(a=>a.lab).length, st=Object.assign({},PK_STYLE,n.f.style);
     title=`Peaks: ${g.length}`; sub=`${nl?`${nl} labelled · `:""}${(PK_MARKS.find(q=>q[0]===st.mk)||[,""])[1].replace(/^A |^Nothing, /,"").replace(/^./,ch=>ch.toUpperCase())}`;
     if(n.f.sig&&n.f.sig!==pipeSig(n.c)){ cls+=" warn"; warn=["The processing has changed since these peaks were found."]; } cls+=" fitn"; }
@@ -10084,7 +10131,8 @@ function flowInspectorBody(n){
   if(n.kind==="fit"){
     const pal=SCREEN_PAL(), cur=n.cur, list=n.fits.slice().reverse();
     h+=`<div class="fi-h">${ICON("peak")}<div class="grow"><div class="fi-t">Fits of ${esc(specName(c))}</div><div class="lab">${n.fits.length} made${cur?", the current one first":""}</div></div>${discChip(n.key)}</div>`;
-    h+=`<div class="actions">${btn("fitwin","Open the Fit window","peak",{view:true})}${cur?btn("reswin","Results","table",{view:true}):""}</div>`;
+    h+=`<div class="actions">${btn("fitwin","Open the Fit window","peak",{view:true})}${cur?btn("reswin","Results","table",{view:true}):""}${P().batch?btn("batchwin","Batch","sigma",{view:true}):""}</div>`;
+    if(cur&&cur.batch) h+=noteHtml(fitStaleFor(cur,c)?"warn":"info",`${cur.byHand?"Fitted by hand, and kept as its row of the batch fit":"Fitted in the batch fit of every spectrum"}, ${ago(cur.at)}: R² ${fmt(cur.stats.R2,5)}, reduced χ² ${fmt(cur.stats.redChi2,4)}.${fitStaleFor(cur,c)?" "+fitStaleFor(cur,c):""}`);
     h+=`<div class="ffits">${list.map(r=>{ const same=r.pipeSig!=null&&r.pipeSig===pipeSig(c), isCur=cur&&cur.at===r.at;
       return `<div class="ffit${isCur?" cur":""}">${fitChart(r,150,60,pal)}<div><strong>${isCur?ICON("check","sm"):""}${esc(r.name)}</strong><div class="lab">R² ${esc(fmt(r.R2,5))} · reduced χ² ${esc(fmt(r.redChi2,4))} · ${r.n} points</div><div class="lab">${esc(ago(r.at))}${r.by?` by ${esc(nameOf(r.by))}`:""}</div>${r.steps&&r.steps.length?`<div class="lab">On: ${esc(r.steps.join("; "))}</div>`:`<div class="lab">On the raw data</div>`}${!same?`<div class="warnt">The processing has changed since</div>`:""}${r.converged===false?`<div class="warnt">Did not converge</div>`:""}</div></div>`; }).join("")||`<p class="lab">No fits yet.</p>`}</div>`;
     return h;
@@ -10113,6 +10161,7 @@ function flowInspAction(act,el,L){
   if(act==="anedit"){ editAnno(el.dataset.an); return; }
   if(act==="andel"){ deleteAnno(el.dataset.an); return; }
   if(act==="pdlabels"){ openPlotDetails((activeYCol()||{}).id,"labels"); return; }
+  if(act==="batchwin"){ openWin("batch",{render:true}); return; }
   if(n.kind==="graph"){ if(n.gid!==(S.gid||"main")) activateGraph(n.gid);
     if(act==="gfront"){ showGraph(n.gid); return; }
     if(act==="pdgraph"){ openPlotDetails((activeYCol()||{}).id,"graph"); return; }
@@ -10697,6 +10746,7 @@ function exportItems(){
     multiGraph()?{label:"All graphs as one figure", sub:()=>[{label:"As SVG (vector, for papers)",run:exportAllSvg},{label:"As PNG (image, for slides)",run:exportAllPng}]}:null,
     {label:"Final data and fit as CSV", run:exportCsv, enabled:has},
     yCols().length>1?{label:"Every spectrum's final data as CSV", run:exportAllCsv}:null,
+    p&&p.batch?{label:"Batch results as CSV", run:exportBatchCsv}:null,
     {label:"Raw data as CSV, with its fingerprint", run:exportRawCsv, enabled:!!(p&&rawCols().length)},
     {label:"Processing steps as JSON", run:exportRecipe, enabled:has},
     {label:"Report as HTML", run:exportReport, enabled:has, title:f?"":"Without a fit, the report covers the data and its processing"},
@@ -11001,7 +11051,7 @@ ${DL([["Peak label","The <em>Label</em> tool: click a peak and type. Or right-cl
 ${TIP("Annotations are drawn only on data in the units they were placed in: a label placed on Raman shifts does not appear on a wavelength axis.")}`},
 {id:"export", g:"Graph", t:"Exporting", kw:"export save download svg png csv report html json recipe copy figure paper",
  lead:"The figure, the data and a report, from the Export button or File › Export.",
- body:`${DL([["Figure as SVG","Vector, for papers: exactly what is on screen, at any size."],["Figure as PNG","An image at 2.5 times the screen's resolution, for slides."],["All graphs as one figure","With several graphs: every graph in one SVG or PNG, lettered (a), (b)… as they are on the desk."],["Final data and fit as CSV","Every column with units, the mask, the fit, residuals, baseline and each peak's curve, followed by commented blocks: metadata, fingerprint, processing steps with their warnings, marked peaks with labels, band integrals and fit statistics."],["Every spectrum's final data as CSV","With several spectra: each one's final X and Y side by side, and how each was processed."],["Raw data as CSV","The recorded data under a header that says how to check its fingerprint. "+DA("rawdata","Raw data")],["Processing steps as JSON","The recipe: every step with its settings."],["Report as HTML","One self-contained file: the figure, the notes on anything that makes the numbers less certain, the parameter table with t, p, confidence intervals and dependency, statistics, peaks, bands, the raw-data record, every processing step with a filmstrip, the fit history, the method, every discussion thread and the log."],["Copy results table","Tab-separated, to paste into a spreadsheet."]])}
+ body:`${DL([["Figure as SVG","Vector, for papers: exactly what is on screen, at any size."],["Figure as PNG","An image at 2.5 times the screen's resolution, for slides."],["All graphs as one figure","With several graphs: every graph in one SVG or PNG, lettered (a), (b)… as they are on the desk."],["Final data and fit as CSV","Every column with units, the mask, the fit, residuals, baseline and each peak's curve, followed by commented blocks: metadata, fingerprint, processing steps with their warnings, marked peaks with labels, band integrals and fit statistics."],["Every spectrum's final data as CSV","With several spectra: each one's final X and Y side by side, and how each was processed."],["Batch results as CSV","After a batch fit: the Batch window's table with each value's error, how the fit was made, and the straight line through the trend. "+DA("batch","Fitting every spectrum")],["Raw data as CSV","The recorded data under a header that says how to check its fingerprint. "+DA("rawdata","Raw data")],["Processing steps as JSON","The recipe: every step with its settings."],["Report as HTML","One self-contained file: the figure, the notes on anything that makes the numbers less certain, the parameter table with t, p, confidence intervals and dependency, statistics, peaks, bands, the raw-data record, every processing step with a filmstrip, the fit history, the method, every discussion thread and the log."],["Copy results table","Tab-separated, to paste into a spreadsheet."]])}
 <p>Tables in the Peaks, Integrate and Statistics windows have Copy buttons of their own.</p>
 ${TIP("The report can never say less than the screen: its notes come from the same checks as the Results window's.")}`},
 /* ---------------------------------------------------------------- Analysis */
@@ -11138,7 +11188,23 @@ ${DL([["Reduced χ²","The residual sum of squares over the degrees of freedom (
 <h2>Notes</h2>
 <p>The fit did not converge; a peak is unusable; the covariance is singular; parameters depend on each other; a parameter is at a limit; the residuals run in long stretches of one sign (a runs test: the model misses a feature); the fit is out of date; warnings from the processing. The same notes are in the report.</p>
 <h2>History</h2>
-<p>Every fit is kept with its numbers, the processing it was made on and a thumbnail, to compare or bring back. <em>Copy</em> gives the tables as tab-separated text.</p>`},
+<p>Every fit is kept with its numbers, the processing it was made on and a thumbnail, to compare or bring back. <em>Copy</em> gives the tables as tab-separated text.</p>
+<p>With a batch fit, Results shows the analysed spectrum's own fit. ${DA("batch","Fitting every spectrum")}</p>`},
+{id:"batch", g:"Fitting", t:"Fitting every spectrum", win:"batch", kw:"batch fit every spectrum all series trend temperature time concentration pressure table parameter against sample slope straight line chain template summary",
+ lead:"Fit one spectrum, then every spectrum from it, and compare them in one table and a trend plot: a peak's position against temperature, an area against time.",
+ body:`<h2>From one fit to all of them</h2>
+<ol class="dsteps"><li>Fit one spectrum, a peak fit or a curve fit, until you are happy with it. ${DA("fit","Fitting")}</li>
+<li><em>Fit every spectrum…</em> in the Fit window, ${MP("Analysis › Fit › Fit every spectrum…")}, or the Batch window.</li>
+<li>Choose where each fit starts, and OK. The Batch window shows the progress; <em>Stop</em> keeps what is done.</li></ol>
+<p>That fit is the template: its peaks with their shapes, ties and fixed parameters and its baseline (or its curve model), its X range and its weighting. Every spectrum measured on the same X axis is fitted with it, each on its own final data with its own masked points, by the same engine and with the same checks as a fit made by hand.</p>
+${DL([["This fit's result","Every spectrum starts from the template's numbers. For samples that differ little."],["The one before it in the series","For a series that drifts, such as a band moving with temperature: the fit starts at the template's spectrum and runs out both ways, each spectrum starting from its neighbour's result."],["The peaks found in each spectrum","For different samples: the peak finder, with its current settings, finds each spectrum's peaks, which are then fitted with the template's first shape and its baseline."]])}
+<h2>The results</h2>
+<p>Each spectrum's fit is a fit like any other. The graph draws it, on every graph that shows the spectrum; Results shows it, with every note, when that spectrum is analysed; the History has a Fits box for it. Fitting one spectrum again by hand, with the same model, replaces its row. A row whose spectrum's processing or masked points have changed is marked out of date; <em>Fit again</em> fits them all with the same template.</p>
+<h2>The table</h2>
+<p>One row per spectrum, in the order of the series, with a mark for fitted, fitted with notes (hover to read them), or not fitted and why. The columns are each peak's centre, height, FWHM, area and share of the area, or each parameter of a curve model and what is derived from it; R² and reduced χ²; and each band's integral and ratio, which need no fit (${DA("integ","Integrating bands")}). Click a spectrum's name to work on it. <em>Copy</em> gives the table as tab-separated text; ⋯ exports it as CSV.</p>
+<h2>The trend</h2>
+${DL([["Plot","Any column of the table."],["Against: their order","1, 2, 3… in the order of the spectra."],["Against: a number in their names","The number that varies most between the names, counted from the end: <em>Si 300 K</em> gives 300, <em>run 2, 45 min</em> gives 45. Give it a name and a unit."],["Against: values you type","Type each spectrum's value in the table."],["Straight line","A least-squares line through the points, weighted by their errors when every point has one: its slope and intercept with their errors, and R²."]])}
+<p>Error bars are the standard errors of the fit. Click a point to work on that spectrum. ⋯ saves the trend as SVG, and the report includes the table and the trend.</p>`},
 /* ---------------------------------------------------------------- Working together */
 {id:"disc", g:"Working together", t:"Comments and discussion", win:"disc", kw:"comment discussion thread reply resolve reopen badge point anchor note",
  lead:"Talk about the analysis where it happens: on a step, the raw data, a fit, or a point on the graph.",
@@ -11246,7 +11312,7 @@ const DOC_MENU={crop:"Data › Clean",exclude:"Data › Clean",despike:"Data ›
   ref:"Math › Arithmetic",combine:"Math › Arithmetic",deriv:"Math › Calculus",cumint:"Math › Calculus",log:"Math › Transforms",absorb:"Math › Transforms",
   km:"Math › Transforms",shift:"Analysis › Spectroscopy",xunit:"Analysis › Spectroscopy",calib:"Analysis › Spectroscopy",bose:"Analysis › Spectroscopy",python:"Math › Python"};
 // The article of each window, for its "?" and F1.
-const WIN_DOC={graph:"graph",sheet:"sheet",flow:"history",over:"overview",peaks:"peaks",integ:"integ",fit:"fit",res:"results",stats:"stats",py:"python",disc:"disc"};
+const WIN_DOC={graph:"graph",sheet:"sheet",flow:"history",over:"overview",peaks:"peaks",integ:"integ",fit:"fit",res:"results",batch:"batch",stats:"stats",py:"python",disc:"disc"};
 function stepDoc(op){
   const d=PIPE_OPS[op]; if(!d) return null;
   const opt=q=>(q.opts||[]).length?`<span class="doc-opts">${q.opts.map(o=>esc(Array.isArray(o)?o[1]:o)).join(" · ")}</span>`:"";
@@ -11408,12 +11474,13 @@ const WINS={
   over:{title:"Overview", icon:"info", def:[.5,.04,.5,.92], open:false},
   help:{title:"Help", icon:"help", def:[.54,.03,.46,.94], open:false},
   res:{title:"Results", icon:"table", def:[0,.6,.62,.4], open:false},
+  batch:{title:"Batch", icon:"sigma", def:[.18,.04,.64,.9], open:false},
   disc:{title:"Discussion", icon:"comment", def:[.64,.3,.36,.7], open:false},
   py:{title:"Python", icon:"code", def:[.2,.06,.56,.86], open:false},
   stats:{title:"Statistics", icon:"sigma", def:[.2,.14,.5,.62], open:false},
   tool:{title:"Tool", icon:"wand", def:[.62,.04,.36,.8], open:false, transient:true}
 };
-const WIN_ORDER=["graph","sheet","flow","over","peaks","integ","fit","res","stats","py","disc"];
+const WIN_ORDER=["graph","sheet","flow","over","peaks","integ","fit","res","batch","stats","py","disc"];
 const LAYOUT={v:2, wins:{}, z:10};
 function winState(id){ if(!LAYOUT.wins[id]) LAYOUT.wins[id]={g:WINS[id].def.slice(), open:!!WINS[id].open, max:false, z:++LAYOUT.z}; return LAYOUT.wins[id]; }
 function loadLayout(){
@@ -11495,6 +11562,7 @@ function renderWin(id){
   else if(id==="disc"){ renderThread(); renderAnchor(); }
   else if(id==="py") renderPy();
   else if(id==="stats") renderStats();
+  else if(id==="batch") renderBatch();
   else if(id==="tool") renderTool();
 }
 /* Tile: the graph takes the left three fifths, the others share the rest in
@@ -11609,6 +11677,306 @@ function windowItems(){
     {label:"Link the X zoom of the graphs", checked:S.linkX, run:()=>setLinkX(!S.linkX)},
     "-",{label:"Tile", run:tileWins},{label:"Cascade", run:cascadeWins},{label:"Restore the default arrangement", run:resetWins}]);
 }
+
+/* ---- Fitting every spectrum -----------------------------------------------------
+   The fit of one spectrum is the template: its model (the peaks with their
+   shapes, ties and fixed parameters and the baseline, or the curve model), its X
+   range and its weighting. A batch fit fits every spectrum on the same X axis
+   with it, one at a time, with the same engine, bounds and checks as a fit made
+   by hand, starting each from the template's result, from the spectrum before
+   it in the series (for a series that drifts), or, for peaks, from the peaks
+   the peak finder finds in each. Each result is a fit like any other (fitModel,
+   peakMetrics and fitWarnings read it), kept in p.batch with the processing it
+   was made on, so it says when it is out of date; the analysed spectrum's row
+   is what the graph, Results and the Fit window show for it (activeFit). */
+const SEEDS={tmpl:"each started from the template's result",chain:"each started from the one before it",found:"each started from the peaks found in it"};
+function batchRowOf(cid){ const b=P()&&P().batch; return b&&cid?(b.rows||[]).find(r=>r.col===cid)||null:null; }
+function batchFitOf(c){ const r=c&&batchRowOf(c.id); return r&&r.fit&&fitModel(r.fit)?r.fit:null; }
+function laneFit(c){ const p=P(); if(p.fit&&fitModel(p.fit)&&p.fit.onCol===c.id) return p.fit; return batchFitOf(c); }
+function batchStale(f){ const c=colById(f.onCol); if(!c) return "The spectrum this fit was made on is gone.";
+  if(f.maskSig!=null&&f.maskSig!==maskSig(c)) return "Points have been masked or restored since this fit.";
+  if(f.pipeSig!=null&&f.pipeSig!==pipeSig(c)) return "The processing steps, or the raw data, have changed since this fit.";
+  return null; }
+const fitStaleFor=(f,c)=>!f.batch&&(!c||c===activeYCol())?fitStale(f):batchStale(f);
+// A fit by hand on a spectrum of the batch, with the batch's model, becomes its row.
+function batchWith(fit){ const p=P(), b=p&&p.batch; if(!b) return {}; const r=(b.rows||[]).find(q=>q.col===fit.onCol); if(!r) return {};
+  const t=b.tmpl, same=t.kind==="composite"?fit.kind==="composite"&&(b.seed==="found"||(fit.spec.base===t.spec.base&&fit.spec.peaks.length===t.spec.peaks.length&&fit.spec.peaks.every((k,i)=>k.type===t.spec.peaks[i].type)))
+    :fit.kind!=="composite"&&fit.model===t.model;
+  if(!same) return {};
+  return {batch:Object.assign({},b,{rows:b.rows.map(q=>q===r?{col:q.col,fit:Object.assign({},fit,{batch:true,byHand:true}),fail:null}:q)})}; }
+function batchTemplate(f){ if(!f) return null; const c=colById(f.onCol)||activeYCol(), xu=finalOf(c).xu||"", common={params:f.params.slice(),fixed:(f.fixed||f.params.map(()=>false)).slice(),weighted:!!f.weighted,range:f.range?f.range.slice():null,logY:!!GP().logY,xu,from:c?c.id:null};
+  if(f.kind==="composite") return Object.assign({kind:"composite",spec:clone(f.spec),x0:f.x0,name:describeSpec(f.spec)},common);
+  return Object.assign({kind:"model",model:f.model,fn:f.fn?clone(f.fn):null,name:(fitModel(f)||{}).name||"the model"},common); }
+function batchPts(c,t){ const d=finalOf(c), mk=new Set(maskOf(c)), r=t.range, lo=r?Math.min(r[0],r[1]):-Infinity, hi=r?Math.max(r[0],r[1]):Infinity;
+  return seriesPoints(d,!!t.logY).filter(q=>!mk.has(q.i)&&q.x>=lo&&q.x<=hi); }
+// One spectrum, one fit: what runPeakFit and runFit do, for any spectrum.
+function fitOne(c,t,seed,spec){
+  const d=finalOf(c); if((d.xu||"")!==(t.xu||"")) return {fail:`its X is in ${d.xu||"other units"}, not ${t.xu||"the template's units"}`};
+  const pts=batchPts(c,t); if(pts.length<4) return {fail:"fewer than four points in the range"};
+  const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), he=!!(d.e&&d.e.some(v=>v!=null&&v>0)), useW=t.weighted&&he&&pts.every(q=>q.e>0), W=pts.map(q=>useW?1/q.e:1);
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; X.forEach(v=>{ if(v<x0) x0=v; if(v>x1) x1=v; }); Y.forEach(v=>{ if(v<y0) y0=v; if(v>y1) y1=v; });
+  const base={onCol:c.id,onColName:c.name||"",maskSig:maskSig(c),pipeSig:pipeSig(c),rawFp:rawFp(),hadErrCol:he,range:[x0,x1],weighted:useW,by:S.uid||"",at:Date.now(),batch:true};
+  const out=(res,more)=>Object.assign(more,{params:res.params,errors:res.errors,cov:res.cov,dep:finOrNull(res.dep),pval:finOrNull(res.pval),tval:finOrNull(res.tval),ci:finOrNull(res.ci),atBound:res.atBound,stats:res.stats},base);
+  if(t.kind==="composite"){
+    const sp=spec||t.spec, m=compileModel(sp,t.x0); if(m.n!==seed.length) return {fail:"the model and its starting values do not match"};
+    const fixed=(spec?seed.map(()=>false):t.fixed).slice(), {lo,hi}=modelBounds(sp,m,seed), L=peakLinks(sp.peaks,m), fixedT=fixed.slice(); L.forEach(l=>{ fixedT[l.gi]=true; });
+    const span=(x1-x0)||1, yspan=(y1-y0)||1, pscale=seed.map(v=>Math.abs(v)||1);
+    m.slots.forEach((s,i)=>{ if(s.kind==="peak"){ if(s.name==="xc") pscale[i]=span; else if(s.name==="A") pscale[i]=yspan*span; else if(/^w/.test(s.name)) pscale[i]=span/20; } });
+    const fT=L.length?(x,p)=>m.f(x,applyPeakLinks(p,L)):m.f;
+    const r0=lmFit(fT,X,Y,W,applyPeakLinks(seed.slice(),L),fixedT,{lo,hi,pscale}); if(r0.error) return {fail:r0.error};
+    const res=linkResult(r0,L); if(!res.params.every(Number.isFinite)) return {fail:"the fit diverged"};
+    return {fit:out(res,{kind:"composite",spec:clone(sp),x0:m.x0,fixed})};
+  }
+  let m=null; try{ m=t.fn?userModel(t.fn):getModel(t.model); }catch(e){ m=null; } if(!m) return {fail:"its model is no longer available"};
+  const res=lmFit(m.f,X,Y,W,seed.slice(),t.fixed.slice(),m.lo?{lo:m.lo,hi:m.hi}:undefined); if(res.error) return {fail:res.error};
+  if(!res.params.every(Number.isFinite)) return {fail:"the fit diverged"};
+  return {fit:out(res,Object.assign({model:t.model,fixed:t.fixed.slice()},t.fn?{fn:clone(t.fn)}:{}))};
+}
+// Peaks from the peak finder in this spectrum, each of the template's first shape, on its baseline.
+function batchFoundSeed(c,t){
+  const d=finalOf(c), r=peakSearchOn(c,Object.assign({},pfOpts()),t.range,d.xu||"");
+  if(!r) return {fail:"too few points to look for peaks"}; if(!r.found.length) return {fail:"no peak passes the peak finder's settings"};
+  const type=((t.spec.peaks||[])[0]||{}).type||"gauss", found=r.found.slice(0,20), spec={base:t.spec.base,peaks:found.map(()=>({type}))}, m=compileModel(spec,t.x0), init=new Array(m.n).fill(0);
+  const nb=(BASELINES[spec.base]||BASELINES.none).params.length;
+  if(nb){ const low=r.pts.slice().sort((a,b)=>a.y-b.y).slice(0,Math.max(3,Math.round(r.pts.length*0.2))), cf=polyfit(low.map(q=>q.x-m.x0),low.map(q=>q.y),nb-1)||[]; for(let i=0;i<nb;i++) init[i]=Number.isFinite(cf[i])?cf[i]:0; }
+  const X=r.X, Y=r.pts.map(q=>q.y-m.baseF(q.x,init));
+  found.forEach((q,k)=>{ const def=PEAKS[type]||PEAKS.gauss, off=m.offsets[k];
+    const base=Y[q.i]>2*q.h&&Number.isFinite(q.h)?Y[q.i]-q.h:0, sd=seedPeak(X,Y,q.i,base); let w=sd.w;
+    if(Number.isFinite(q.w)&&q.w>0&&(!(w>0)||w>2.5*q.w)) w=q.w;
+    init[off]=sd.xc;
+    def.params.forEach((nm,i)=>{ if(/^w/.test(nm)) init[off+i]=w*wSeedOf(def,nm); if(def.init&&def.init[nm]!=null) init[off+i]=def.init[nm]; });
+    init[off+def.params.indexOf("A")]=peakAreaForHeight(def,init.slice(off,off+def.params.length),sd.h); });
+  return {spec,seed:init};
+}
+/* The variable a series runs over: the order of the spectra, a number in their
+   names (a temperature, a time, a concentration), or values typed in. */
+const SERIES_DEF={mode:"order",label:"",unit:"",vals:{},q:null,line:false};
+function seriesOf(){ const p=P(), s=Object.assign({},SERIES_DEF,(p&&p.series)||{}); s.vals=Object.assign({},s.vals||{}); return s; }
+function numsInName(s){ s=String(s||""); const out=[], re=/(\d+(?:\.\d+)?|\.\d+)(?:[eE]([-+]?\d+))?/g; let m;
+  while((m=re.exec(s))){ let v=parseFloat(m[1]+(m[2]!=null?"e"+m[2]:"")); const i=m.index;
+    // A minus sign counts only after a space, "=" or a bracket: "run-3" is run 3.
+    if(s[i-1]==="-"&&(i===1||/[\s=(,;:]/.test(s[i-2]))) v=-v;
+    if(Number.isFinite(v)) out.push(v); }
+  return out; }
+// The value of the series variable for each spectrum. From the names: the number
+// that varies most between them, counted from the end ("s1_300K", "s2_310K" → 300, 310).
+function seriesVals(cols,s){ s=s||seriesOf();
+  if(s.mode==="typed") return cols.map(c=>{ const v=s.vals[c.id]; return typeof v==="number"&&Number.isFinite(v)?v:null; });
+  if(s.mode==="name"){ const ns=cols.map(c=>numsInName(specName(c))), mx=ns.reduce((m,a)=>Math.max(m,a.length),0); let best=0, bd=-1;
+    for(let j=0;j<mx;j++){ const d=new Set(ns.filter(a=>a.length>j).map(a=>a[a.length-1-j])).size; if(d>bd){ bd=d; best=j; } }
+    return ns.map(a=>a.length>best?a[a.length-1-best]:null); }
+  return cols.map((c,i)=>i+1); }
+function seriesLabel(s){ s=s||seriesOf(); const l=s.mode==="order"?"Order":(s.label||(s.mode==="name"?"Number in the name":"Value")); return axisLabel(l,s.mode==="order"?"":s.unit,l); }
+// The spectra of the series, in the order of their values.
+function seriesCols(){ const ys=yCols(), v=seriesVals(ys); return ys.map((c,i)=>({c,v:v[i],i})).sort((a,b)=>(a.v??Infinity)-(b.v??Infinity)||a.i-b.i); }
+function setSeries(patch,log){ const p=P(); if(!p||S.readOnly) return; if(log) pushUndo("changing the series");
+  save({series:Object.assign(seriesOf(),patch)},log||null); renderBatch(); }
+async function openBatchDialog(){
+  const p=P(), f=activeFit(); if(!p||S.readOnly) return;
+  if(S.batchRun){ openWin("batch",{render:true}); return; }
+  if(!f){ toast("Fit one spectrum first: its fit is the template for the others."); S.fitMode=S.fitMode||"peaks"; showTab("fit"); return; }
+  const t=batchTemplate(f), src=colById(t.from), ys=yCols().filter(c=>(finalOf(c).xu||"")===(t.xu||""));
+  if(ys.length<2){ toast("There is no other spectrum on the same X axis to fit."); return; }
+  const comp=t.kind==="composite";
+  const r=await formDlg({title:`Fit ${ys.length} spectra`,ok:`Fit ${ys.length} spectra`,
+    html:`<p class="lab" style="margin:0 0 12px">With ${esc(lcFirst(t.name))}, as fitted to ${esc(specName(src))}${t.range?`, over x ${esc(fmt(Math.min(...t.range),6))} to ${esc(fmt(Math.max(...t.range),6))}`:""}${t.weighted?", weighted by the Y errors":""}.</p>
+    <div class="grid2"><label for="bfSeed">Start each from</label><select id="bfSeed"><option value="tmpl">This fit's result</option><option value="chain">The one before it in the series</option>${comp?`<option value="found">The peaks found in each spectrum</option>`:""}</select></div>`});
+  if(!r) return;
+  runBatch({tmpl:t,seed:r.bfSeed,cols:ys.map(c=>c.id)});
+}
+function batchAgain(){ const b=P()&&P().batch; if(!b||S.readOnly) return;
+  runBatch({tmpl:b.tmpl,seed:b.seed,cols:yCols().filter(c=>(finalOf(c).xu||"")===(b.tmpl.xu||"")).map(c=>c.id)}); }
+async function runBatch(o){
+  const p=P(); if(!p||S.readOnly||S.batchRun) return; const pid=S.pid, t=o.tmpl;
+  const want=new Set(o.cols), ord=seriesCols().map(q=>q.c).filter(c=>want.has(c.id));
+  // A chain starts at the template's spectrum and runs out both ways from it.
+  let seq=ord.map(c=>({c,from:null}));
+  if(o.seed==="chain"){ const k0=Math.max(0,ord.findIndex(c=>c.id===t.from)); seq=[{c:ord[k0],from:null}];
+    for(let i=k0+1;i<ord.length;i++) seq.push({c:ord[i],from:ord[i-1].id}); for(let i=k0-1;i>=0;i--) seq.push({c:ord[i],from:ord[i+1].id}); }
+  S.batchRun={i:0,n:seq.length,stop:false,name:""}; openWin("batch",{render:true});
+  const rows={}, t0=performance.now();
+  for(let j=0;j<seq.length;j++){
+    if(S.batchRun.stop||S.pid!==pid) break;
+    const {c,from}=seq[j]; S.batchRun.i=j; S.batchRun.name=specName(c); renderBatchProgress();
+    await new Promise(res=>setTimeout(res,0));
+    let res;
+    try{ if(o.seed==="found"&&t.kind==="composite"){ const sd=batchFoundSeed(c,t); res=sd.fail?sd:fitOne(c,t,sd.seed,sd.spec); }
+      else { const prev=from&&rows[from]&&rows[from].fit; res=fitOne(c,t,prev?prev.params.slice():t.params.slice()); } }
+    catch(e){ res={fail:"the fit stopped with an error: "+(e&&e.message||e)}; }
+    rows[c.id]={col:c.id,fit:res.fit||null,fail:res.fit?null:res.fail||"no result"};
+  }
+  const stopped=!!(S.batchRun&&S.batchRun.stop); S.batchRun=null;
+  if(S.pid!==pid) return;
+  const list=ord.filter(c=>rows[c.id]).map(c=>rows[c.id]);
+  if(!list.length){ renderBatch(); return; }
+  const done=list.filter(r=>r.fit).length, failed=list.length-done, nc=list.filter(r=>r.fit&&r.fit.stats&&r.fit.stats.converged===false).length;
+  pushUndo("fitting every spectrum");
+  save({batch:{at:Date.now(),by:S.uid||"",tmpl:t,seed:o.seed,rows:list}},`fitted ${lcFirst(t.name)} to ${list.length} spectra, ${SEEDS[o.seed]}: ${done} fitted${nc?`, ${nc} without converging`:""}${failed?`, ${failed} failed`:""}${stopped?"; stopped before the end":""}`);
+  renderAll(); openWin("batch",{render:true});
+  toast(`Fitted ${done} of ${list.length} spectra in ${((performance.now()-t0)/1000).toFixed(1)} s.${failed?` ${failed} failed; the table says why.`:""}`,{action:"Undo",run:undo});
+}
+function batchProgHtml(){ const r=S.batchRun; if(!r) return ""; return `<span>Fitting ${r.i+1} of ${r.n}: ${esc(r.name)}…</span><span class="bar"><i style="width:${Math.round(100*r.i/Math.max(1,r.n))}%"></i></span><button class="btn sm" id="bStop">Stop</button>`; }
+function renderBatchProgress(){ const el=$("#bProg"); if(el){ el.innerHTML=batchProgHtml(); const s=$("#bStop"); if(s) s.onclick=()=>{ if(S.batchRun) S.batchRun.stop=true; }; } else if(winOpen("batch")) renderBatch(); }
+function clearBatch(){ const p=P(); if(!p||!p.batch||S.readOnly) return; pushUndo("clearing the batch fit"); save({batch:null},"cleared the batch fit"); renderAll(); toast("Batch fit cleared.",{action:"Undo",run:undo}); }
+/* What the table and the trend can show: each peak's centre, height, FWHM, area
+   and share, or each parameter of a curve model and what is derived from it,
+   the fit statistics, and each band's integral and ratio (which need no fit). */
+function batchQuantities(){
+  const p=P(), b=p&&p.batch, out=[];
+  if(b&&b.tmpl){ const t=b.tmpl;
+    if(t.kind==="composite"&&b.seed!=="found"){ const m=compileModel(t.spec,t.x0);
+      t.spec.peaks.forEach((pk,k)=>{ const ctr=t.params[m.offsets[k]], g=`Peak ${k+1}`+(Number.isFinite(ctr)?` (${fmt(ctr,4)})`:"");
+        [["xc","centre","x"],["height","height","y"],["fwhm","FWHM","x"],["area","area","yx"],["areaPct","area %",""]].forEach(([f,l,dim])=>out.push({id:`pk${k}.${f}`,label:`${g} ${l}`,group:g,short:l,dim,peak:k,f})); }); }
+    else if(t.kind==="composite") out.push({id:"npk",label:"Peaks found",short:"Peaks found",dim:""});
+    else { let m=null; try{ m=t.fn?userModel(t.fn):getModel(t.model); }catch(e){}
+      if(m){ m.params.forEach((nm,i)=>{ const l=((m.ph||[])[i]||nm).replace(/<[^>]+>/g,""); out.push({id:`par${i}`,label:l,short:l,dim:(m.dim||[])[i]||"",pi:i,group:"Parameters"}); });
+        (m.derived||[]).forEach((dv,j)=>out.push({id:`der${j}`,label:dv.name,short:dv.name,dim:dv.dim||"",dj:j,group:"Derived"})); } }
+    out.push({id:"R2",label:"R²",short:"R²",dim:"",group:"Fit"},{id:"chi2",label:"Reduced χ²",short:"χ²ᵣ",dim:"",group:"Fit"}); }
+  const xu=b?b.tmpl.xu||"":(finalOf(activeYCol()).xu||""), ig=integOf();
+  ig.bands.forEach((bd,k)=>{ if((bd.xu||"")!==xu) return; const nm=bandName(bd,k);
+    out.push({id:`band.${bd.id}.area`,label:`${nm} area`,short:"area",group:nm,dim:"yx",band:bd.id,f:"area"});
+    if(ig.ref&&ig.ref!==bd.id){ const rk=ig.bands.findIndex(z=>z.id===ig.ref); if(rk>=0) out.push({id:`band.${bd.id}.ratio`,label:`${nm} ÷ ${bandName(ig.bands[rk],rk)}`,short:`÷ ${bandName(ig.bands[rk],rk)}`,group:nm,dim:"",band:bd.id,f:"ratio"}); } });
+  return out;
+}
+// One number of one spectrum, with its error when it has one.
+function batchValue(c,q){
+  if(q.band){ const e=bandCalc(c).find(z=>z.b.id===q.band); if(!e||e.r.fail) return null; return q.f==="area"?{v:e.r.area,e:e.r.err}:(e.ratio!=null?{v:e.ratio,e:e.ratioErr}:null); }
+  const r=batchRowOf(c.id), f=r&&r.fit; if(!f||!fitModel(f)) return null;
+  if(q.id==="R2") return {v:f.stats.R2}; if(q.id==="chi2") return {v:f.stats.redChi2}; if(q.id==="npk") return {v:(f.spec.peaks||[]).length};
+  if(q.peak!=null){ const m=peakMetrics(f).find(z=>z.k===q.peak); if(!m) return null; return {v:m[q.f],e:{xc:m.xcErr,height:m.heightErr,fwhm:m.fwhmErr,area:m.areaErr}[q.f],bad:!m.ok}; }
+  if(q.pi!=null){ const bound=!!(f.atBound&&f.atBound[q.pi])&&!(f.fixed&&f.fixed[q.pi]); return {v:f.params[q.pi],e:bound||(f.fixed&&f.fixed[q.pi])?undefined:f.errors[q.pi],bound}; }
+  if(q.dj!=null){ const FM=fitModel(f), dv=f.cov?derivedWithErr(FM.model,f.params,f.cov)[q.dj]:null; return dv?{v:dv.v,e:dv.e}:null; }
+  return null;
+}
+const qUnit=(q,c)=>{ const d=finalOf(c); return q.dim==="%"?"%":unitFor(q.dim,(d.xu||"").trim(),(d.yu||"").trim())||""; };
+// A straight line through the trend, weighted by the errors when every point has one.
+function lineFit(xs,ys,es){ const n=xs.length; if(n<2) return null; const wt=es&&es.every(e=>e>0), w=xs.map((_,i)=>wt?1/(es[i]*es[i]):1);
+  let S0=0,Sx=0,Sy=0,Sxx=0,Sxy=0; xs.forEach((x,i)=>{ S0+=w[i]; Sx+=w[i]*x; Sy+=w[i]*ys[i]; Sxx+=w[i]*x*x; Sxy+=w[i]*x*ys[i]; });
+  const D=S0*Sxx-Sx*Sx; if(!(Math.abs(D)>0)) return null;
+  const b=(S0*Sxy-Sx*Sy)/D, a=(Sxx*Sy-Sx*Sxy)/D, ym=Sy/S0; let rss=0,tss=0; xs.forEach((x,i)=>{ rss+=w[i]*(ys[i]-a-b*x)**2; tss+=w[i]*(ys[i]-ym)**2; });
+  const s2=wt?1:(n>2?rss/(n-2):NaN);
+  return {a,b,ea:Math.sqrt(s2*Sxx/D),eb:Math.sqrt(s2*S0/D),R2:tss>0?1-rss/tss:null,n,weighted:wt}; }
+function trendData(q){
+  const s=seriesOf(), pts=[];
+  seriesCols().forEach(({c,v})=>{ if(v==null) return; const r=batchValue(c,q); if(!r||!Number.isFinite(r.v)) return; pts.push({x:v,y:r.v,e:Number.isFinite(r.e)?r.e:null,c}); });
+  const fit=s.line&&pts.length>=2?lineFit(pts.map(q=>q.x),pts.map(q=>q.y),pts.every(q=>q.e>0)?pts.map(q=>q.e):null):null;
+  return {pts,fit,s};
+}
+function trendSvg(tr,q,W,H,pal,forExport){
+  const pts=tr.pts, L=66, R=16, T=14, B=44, pw=W-L-R, ph=H-T-B, fam="'Source Sans 3', 'Segoe UI', Arial, sans-serif";
+  let s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(q.label)} against ${esc(seriesLabel(tr.s))}"><rect width="${W}" height="${H}" fill="${pal.bg}"/>`;
+  if(!pts.length) return s+`<text x="${W/2}" y="${H/2}" text-anchor="middle" font-size="13" fill="${pal.muted}" font-family="${fam}">No values to plot yet</text></svg>`;
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; pts.forEach(p=>{ x0=Math.min(x0,p.x); x1=Math.max(x1,p.x); y0=Math.min(y0,p.y-(p.e||0)); y1=Math.max(y1,p.y+(p.e||0)); });
+  if(x0===x1){ x0-=1; x1+=1; } if(y0===y1){ const d=Math.abs(y0)*0.05||1; y0-=d; y1+=d; }
+  const dx=(x1-x0)*0.06, dy=(y1-y0)*0.1; x0-=dx; x1+=dx; y0-=dy; y1+=dy;
+  const X=v=>L+(v-x0)/(x1-x0)*pw, Y=v=>T+ph-(v-y0)/(y1-y0)*ph, lab=l=>typeof l==="object"?`${l.m===1?"":l.m+"×"}10<tspan dy="-5" font-size="9">${l.ex}</tspan>`:esc(l);
+  s+=`<rect x="${L}" y="${T}" width="${pw}" height="${ph}" fill="none" stroke="${pal.ink}" stroke-width="1"/>`;
+  axisTicks(x0,x1,Math.max(3,pw/90),{},false).ticks.forEach(t=>{ const x=X(t.v).toFixed(1); s+=`<path d="M${x},${T+ph}v5" stroke="${pal.ink}"/><text x="${x}" y="${T+ph+18}" text-anchor="middle" font-size="12" fill="${pal.ink}" font-family="${fam}">${lab(t.lab)}</text>`; });
+  axisTicks(y0,y1,Math.max(3,ph/50),{},false).ticks.forEach(t=>{ const y=Y(t.v).toFixed(1); s+=`<path d="M${L},${y}h-5" stroke="${pal.ink}"/><text x="${L-8}" y="${(+y+4).toFixed(1)}" text-anchor="end" font-size="12" fill="${pal.ink}" font-family="${fam}">${lab(t.lab)}</text>`; });
+  const u=qUnit(q,pts[0].c);
+  s+=`<text x="${L+pw/2}" y="${H-8}" text-anchor="middle" font-size="13" font-style="italic" fill="${pal.ink}" font-family="${fam}">${esc(seriesLabel(tr.s))}</text>`;
+  s+=`<text transform="translate(15,${T+ph/2}) rotate(-90)" text-anchor="middle" font-size="13" font-style="italic" fill="${pal.ink}" font-family="${fam}">${esc(axisLabel(q.label,u,q.label))}</text>`;
+  s+=`<clipPath id="trClip"><rect x="${L}" y="${T}" width="${pw}" height="${ph}"/></clipPath><g clip-path="url(#trClip)">`;
+  if(tr.fit) s+=`<path d="M${X(x0).toFixed(1)},${Y(tr.fit.a+tr.fit.b*x0).toFixed(1)}L${X(x1).toFixed(1)},${Y(tr.fit.a+tr.fit.b*x1).toFixed(1)}" stroke="${pal.fit}" stroke-width="1.6" fill="none"/>`;
+  else if(pts.length>1) s+=`<path d="M${pts.map(p=>X(p.x).toFixed(1)+","+Y(p.y).toFixed(1)).join("L")}" stroke="${pal.data}" stroke-opacity="0.45" stroke-width="1.2" fill="none"/>`;
+  s+=`</g>`;
+  const act=(activeYCol()||{}).id;
+  pts.forEach(p=>{ const x=X(p.x).toFixed(1), y=Y(p.y).toFixed(1), eb=p.e?`<path d="M${x},${Y(p.y-p.e).toFixed(1)}V${Y(p.y+p.e).toFixed(1)}M${(+x-3).toFixed(1)},${Y(p.y-p.e).toFixed(1)}h6M${(+x-3).toFixed(1)},${Y(p.y+p.e).toFixed(1)}h6" stroke="${pal.data}" stroke-width="1"/>`:"";
+    s+=`<g${forExport?"":` data-trend="${p.c.id}"`}><title>${esc(specName(p.c))}: ${esc(fmt(p.x,6))}, ${esc(fmt(p.y,6))}${p.e?` ± ${esc(fmt(p.e,3))}`:""}</title>${eb}<circle cx="${x}" cy="${y}" r="${!forExport&&p.c.id===act?5:3.8}" fill="${pal.data}"${!forExport&&p.c.id===act?` stroke="${pal.ink}" stroke-width="1.5"`:""}/>${forExport?"":`<circle cx="${x}" cy="${y}" r="10" fill="transparent"/>`}</g>`; });
+  return s+`</svg>`;
+}
+function trendFitText(tr,q){ const f=tr.fit; if(!f) return ""; const c=tr.pts[0].c, u=qUnit(q,c), xu=tr.s.mode==="order"?"":tr.s.unit, su=u&&xu?`${u}/${xu}`:u?`${u} per step`:xu?`per ${xu}`:"";
+  return `Straight line: slope ${fmtPM(f.b,f.eb)}${su?" "+esc(su):""}, intercept ${fmtPM(f.a,f.ea)}${u?" "+esc(u):""}${f.R2!=null?`, R² ${esc(fmt(f.R2,5))}`:""}, ${f.n} points${f.weighted?", weighted by their errors":""}.`; }
+function renderBatch(){
+  const box=$("#pane-batch"); if(!box) return; const p=P();
+  const sub=$("#batchSub");
+  if(!p||!yCols().length){ box.innerHTML=`<p class="nothing">No spectra yet.</p>`; if(sub) sub.textContent=""; return; }
+  const b=p.batch, run=S.batchRun, s=seriesOf(), qs=batchQuantities(), ro=S.readOnly?" disabled":"", af=activeFit();
+  if(sub) sub.textContent=b?`${b.rows.filter(r=>r.fit).length} of ${b.rows.length} fitted`:"";
+  const keep=document.activeElement&&box.contains(document.activeElement)?document.activeElement.id:null;
+  let h=`<div class="fbar"><button class="btn sm primary" id="bFitAll"${ro}${af&&!run&&yCols().length>1?"":" disabled"} title="${af?"Fit every spectrum, starting from the fit of the analysed spectrum":"Fit one spectrum first: its fit is the template"}">${ICON("play","sm")}Fit every spectrum…</button>`;
+  if(b) h+=`<button class="btn sm" id="bAgain"${ro}${run?" disabled":""} title="Fit them all again with the same template">Fit again</button>`;
+  h+=`<span class="sp"></span><button class="btn sm" id="bCopy"${qs.length?"":" disabled"}>${ICON("copy","sm")}Copy</button><button class="tb sm icon" id="bMore" aria-haspopup="menu" title="More" aria-label="More">${ICON("more","sm")}</button></div>`;
+  if(run) h+=`<div class="bprog" id="bProg">${batchProgHtml()}</div>`;
+  if(b){ const t=b.tmpl, stale=b.rows.filter(r=>r.fit&&batchStale(r.fit)).length, failed=b.rows.filter(r=>!r.fit).length;
+    h+=`<p class="bsum">${esc(capFirst(lcFirst(t.name)))}${t.range?` · x ${esc(fmt(Math.min(...t.range),5))} to ${esc(fmt(Math.max(...t.range),5))}`:""} · ${esc(SEEDS[b.seed]||"")} · ${esc(ago(b.at))}${failed?` · ${failed} failed`:""}${stale?` · <span class="chip">${stale} out of date</span>`:""}</p>`; }
+  else if(!qs.length){ box.innerHTML=h+`<p class="nothing">${af?"Fit every spectrum with the analysed spectrum's fit, then compare them here.":"Fit one spectrum; its fit is the template for fitting every spectrum."}</p>`; wireBatch(box); return; }
+  const q=qs.find(z=>z.id===s.q)||qs[0], tr=trendData(q), W=Math.max(320,Math.min(900,box.clientWidth-30)), pal=readPalette();
+  h+=`<div class="trendbar"><label for="bQ">Plot</label><select id="bQ">${qs.map(z=>`<option value="${esc(z.id)}"${z===q?" selected":""}>${esc(z.label)}</option>`).join("")}</select>
+    <label for="bX">against</label><select id="bX"${ro}><option value="order"${s.mode==="order"?" selected":""}>Their order</option><option value="name"${s.mode==="name"?" selected":""}>A number in their names</option><option value="typed"${s.mode==="typed"?" selected":""}>Values you type</option></select>
+    ${s.mode!=="order"?`<input id="bXl" type="text" placeholder="Name, e.g. Temperature" aria-label="Name of the variable" value="${esc(s.label)}" maxlength="40"${ro}><input id="bXu" type="text" placeholder="Unit" aria-label="Its unit" value="${esc(s.unit)}" maxlength="16" style="width:64px"${ro}>`:""}
+    <label class="chk"><input type="checkbox" id="bLine"${s.line?" checked":""}${ro}> Straight line</label></div>`;
+  h+=`<div class="trend" id="bTrend">${trendSvg(tr,q,W,Math.round(Math.min(300,Math.max(200,W*0.42))),pal,false)}</div>`;
+  if(tr.fit) h+=`<p class="tfit">${trendFitText(tr,q)}</p>`;
+  else if(tr.pts.length<seriesCols().length&&s.mode!=="order") h+=`<p class="tfit">${seriesCols().filter(z=>z.v==null).length?`${seriesCols().filter(z=>z.v==null).length} spectra have no ${s.mode==="typed"?"value typed":"number in their name"}.`:""}</p>`;
+  // The table: one row per spectrum, in the order of the series.
+  const groups=[]; qs.forEach(z=>{ const g=z.group||"", last=groups[groups.length-1]; if(last&&last.g===g) last.n++; else groups.push({g,n:1}); });
+  const act=activeYCol(), c0=(seriesCols()[0]||{}).c;
+  h+=`<div class="twrap"><table class="rtab btab"><thead>`;
+  if(groups.some(g=>g.g)) h+=`<tr><th colspan="3"></th>${groups.map(g=>`<th colspan="${g.n}" class="grp">${esc(g.g)}</th>`).join("")}</tr>`;
+  h+=`<tr><th class="bst"></th><th class="l">Spectrum</th><th>${esc(seriesLabel(s))}</th>${qs.map(z=>{ const u=c0?qUnit(z,c0):""; return `<th title="${esc(z.label)}">${esc(z.short||z.label)}${u?` <span class="unit">(${esc(u)})</span>`:""}</th>`; }).join("")}</tr></thead><tbody>`;
+  seriesCols().forEach(({c,v})=>{ const r=b?batchRowOf(c.id):null, f=r&&r.fit, st=f?batchStale(f):null, w=f?fitWarnings(f).filter(x=>x.kind!=="stale"):[];
+    const cls=!r?"":!f?"bad":st||w.some(x=>x.level==="bad")?"warn":"ok", ic=!r?"":!f?"alert":st||w.length?"alert":"check";
+    const tip=!r?"":!f?`Not fitted: ${r.fail}`:st?st:w.length?w.map(x=>x.text).join(" "):"Fitted";
+    h+=`<tr class="${c===act?"sel":""}"><td class="bst ${cls}" title="${esc(tip)}">${ic?ICON(ic,"sm"):""}</td><td class="l"><button class="bgo" data-bgo="${c.id}" title="Work on ${esc(specName(c))}">${esc(specName(c))}</button></td>`;
+    h+=s.mode==="typed"?`<td class="bx"><input type="text" inputmode="decimal" id="bx-${c.id}" data-bx="${c.id}" value="${v==null?"":esc(String(v))}" aria-label="${esc(seriesLabel(s))} of ${esc(specName(c))}"${ro}></td>`:`<td>${v==null?"—":esc(fmt(v,6))}</td>`;
+    qs.forEach(z=>{ const bv=batchValue(c,z); h+=`<td${bv&&bv.bad?` class="lab" title="Not a usable peak"`:""}>${!bv||!Number.isFinite(bv.v)?"—":bv.bound?`${esc(fmt(bv.v,6))} <span class="lab" title="It stopped at its limit, so it has no meaningful standard error">limit</span>`:bv.e===undefined?esc(fmt(bv.v,6)):fmtPM(bv.v,bv.e)}</td>`; });
+    h+=`</tr>`; });
+  h+=`</tbody></table></div>`;
+  box.innerHTML=h; wireBatch(box);
+  if(keep){ const el=document.getElementById(keep); if(el&&el.focus) el.focus({preventScroll:true}); }
+}
+function goSpectrum(id){ const c=colById(id); if(!c) return;
+  if(multiGraph()){ const g=graphForCol(id); showGraph(g); activateGraph(g,id); }
+  if(activeYCol()!==c) setActiveCol(id,true); else renderAll(); }
+function wireBatch(box){
+  const on=(id,ev,fn)=>{ const el=box.querySelector("#"+id); if(el) el.addEventListener(ev,fn); };
+  on("bFitAll","click",openBatchDialog); on("bAgain","click",batchAgain);
+  on("bCopy","click",()=>copyText(batchTableText("\t"),"Batch table"));
+  on("bMore","click",e=>toggleMenu(e.currentTarget,()=>[{label:"Export the table as CSV",run:exportBatchCsv},{label:"Save the trend as SVG",run:exportTrendSvg},
+    "-",{label:"Clear the batch fit",danger:true,enabled:!!(P()&&P().batch)&&!S.readOnly,run:clearBatch}],{label:"Batch"}));
+  on("bStop","click",()=>{ if(S.batchRun) S.batchRun.stop=true; });
+  on("bQ","change",e=>setSeries({q:e.target.value}));
+  on("bX","change",e=>{ const m=e.target.value; setSeries({mode:m},`plotted the series against ${m==="order"?"their order":m==="name"?"a number in their names":"typed values"}`); });
+  on("bXl","change",e=>setSeries({label:e.target.value.trim().slice(0,40)},`named the series variable "${e.target.value.trim().slice(0,40)}"`));
+  on("bXu","change",e=>setSeries({unit:e.target.value.trim().slice(0,16)},`gave the series variable the unit "${e.target.value.trim().slice(0,16)}"`));
+  on("bLine","change",e=>setSeries({line:e.target.checked}));
+  box.querySelectorAll("[data-bx]").forEach(inp=>{ inp.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); inp.blur(); } });
+    inp.addEventListener("change",()=>{ const id=inp.dataset.bx, c=colById(id), t=inp.value.trim(), v=t===""?null:parseNum(t);
+      if(t!==""&&v==null){ toast("Type a number, or leave it empty."); renderBatch(); return; }
+      const vals=Object.assign({},seriesOf().vals); if(v==null) delete vals[id]; else vals[id]=v;
+      setSeries({vals},v==null?`cleared the ${seriesLabel()} of ${specName(c)}`:`set the ${seriesLabel()} of ${specName(c)} to ${fmt(v,8)}`); }); });
+  box.querySelectorAll("[data-bgo]").forEach(bt=>bt.addEventListener("click",()=>goSpectrum(bt.dataset.bgo)));
+  const tv=box.querySelector("#bTrend"); if(tv) tv.addEventListener("click",e=>{ const g=e.target.closest("[data-trend]"); if(g) goSpectrum(g.dataset.trend); });
+}
+function batchTableText(sep){
+  const qs=batchQuantities(), s=seriesOf(), rows=seriesCols(), c0=(rows[0]||{}).c, q=v=>sep===","&&/[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:String(v).replace(/[\t\n]/g," ");
+  const head=["Spectrum",seriesLabel(s)]; qs.forEach(z=>{ const u=c0?qUnit(z,c0):""; head.push(z.label+(u?` (${u})`:"")); if(z.dim!==""&&z.id!=="R2"&&z.id!=="chi2") head.push("±"); });
+  const out=[head.map(q).join(sep)];
+  rows.forEach(({c,v})=>{ const row=[specName(c),v==null?"":v]; qs.forEach(z=>{ const bv=batchValue(c,z); row.push(bv&&Number.isFinite(bv.v)?bv.v:""); if(z.dim!==""&&z.id!=="R2"&&z.id!=="chi2") row.push(bv&&Number.isFinite(bv.e)?bv.e:""); });
+    out.push(row.map(x=>q(String(x))).join(sep)); });
+  return out.join("\n");
+}
+async function exportBatchCsv(){ const p=P(); if(!p) return; const b=p.batch, s=seriesOf(), lines=[batchTableText(",")];
+  if(b){ const t=b.tmpl; lines.push("",`# Batch fit,${t.name}`,`# started,${SEEDS[b.seed]||""}`); if(t.range) lines.push(`# fitted over x,${Math.min(...t.range)},${Math.max(...t.range)}`);
+    lines.push(`# weighting,${t.weighted?"instrumental (1/sigma^2)":"none; errors scaled by sqrt(reduced chi2)"}`);
+    b.rows.forEach(r=>{ const c=colById(r.col); if(!r.fit) lines.push(`# ${specName(c).replace(/,/g," ")},not fitted: ${String(r.fail).replace(/,/g," ")}`); else { const st=batchStale(r.fit); if(st) lines.push(`# ${specName(c).replace(/,/g," ")},${st.replace(/,/g," ")}`); } }); }
+  const qs=batchQuantities(), q=qs.find(z=>z.id===s.q)||qs[0];
+  if(q&&s.line){ const tr=trendData(q); if(tr.fit) lines.push(`# straight line through ${q.label},slope,${tr.fit.b},${tr.fit.eb},intercept,${tr.fit.a},${tr.fit.ea},R2,${tr.fit.R2}`); }
+  const nm=safeName(p.name,"_batch.csv"), ok=await saveFile(nm,lines.join(String.fromCharCode(10)),"text/csv;charset=utf-8");
+  if(ok) toast(ok==="dialog"?"Table saved.":`Sent ${nm} to your downloads.`); }
+async function exportTrendSvg(){ const qs=batchQuantities(), s=seriesOf(), q=qs.find(z=>z.id===s.q)||qs[0]; if(!q){ toast("There is nothing to plot yet."); return; }
+  const str=trendSvg(trendData(q),q,640,380,EXPORT_PAL,true), nm=safeName(P().name,"_trend.svg"), ok=await saveFile(nm,new Blob([str],{type:"image/svg+xml"}));
+  if(ok) toast(ok==="dialog"?"Figure saved.":`Sent ${nm} to your downloads.`); }
+function reportBatchHtml(){ const p=P(), b=p&&p.batch; if(!b) return "";
+  const qs=batchQuantities(), s=seriesOf(), q=qs.find(z=>z.id===s.q)||qs[0], tr=q?trendData(q):null, e2=t=>esc(String(t)), rows=seriesCols(), c0=(rows[0]||{}).c;
+  let out="<h2>Batch fit</h2><p>"+e2(capFirst(lcFirst(b.tmpl.name)))+" fitted to "+b.rows.length+" spectra, "+e2(SEEDS[b.seed]||"")+(b.tmpl.range?", over x "+e2(fmt(Math.min(...b.tmpl.range),6))+" to "+e2(fmt(Math.max(...b.tmpl.range),6)):"")+".</p>";
+  if(tr&&tr.pts.length) out+="<figure>"+trendSvg(tr,q,640,380,EXPORT_PAL,true)+"</figure>"+(tr.fit?"<p>"+trendFitText(tr,q)+"</p>":"");
+  out+="<table><thead><tr><th class=\"l\">Spectrum</th><th>"+e2(seriesLabel(s))+"</th>"+qs.map(z=>{ const u=c0?qUnit(z,c0):""; return "<th>"+e2(z.label)+(u?" ("+e2(u)+")":"")+"</th>"; }).join("")+"<th class=\"l\">Notes</th></tr></thead><tbody>";
+  rows.forEach(({c,v})=>{ const r=batchRowOf(c.id), f=r&&r.fit, st=f?batchStale(f):null, w=f?fitWarnings(f).filter(x=>x.kind!=="stale").map(x=>x.text):[];
+    out+="<tr><td class=\"l\">"+e2(specName(c))+"</td><td>"+(v==null?"":e2(fmt(v,6)))+"</td>"+qs.map(z=>{ const bv=batchValue(c,z); return "<td>"+(!bv||!Number.isFinite(bv.v)?"":bv.e===undefined?e2(fmt(bv.v,6)):fmtPM(bv.v,bv.e))+"</td>"; }).join("")+
+      "<td class=\"l\">"+e2(!r?"not in the batch":!f?"not fitted: "+r.fail:[st].concat(w).filter(Boolean).join(" "))+"</td></tr>"; });
+  return out+"</tbody></table>"; }
 
 /* ---- Graph windows -------------------------------------------------------------
    Each graph of the project has a window. The one in front holds the live graph
@@ -11974,7 +12342,7 @@ function renderAll(){
   if(S.pending&&(!P()||!colById(S.pending.col))) S.pending=null;
   syncGraphWins();
   renderTop(); renderPlot(); renderStages(); renderTabMarks(); renderGraphHeads(); scheduleSnaps(0);
-  ["sheet","flow","over","peaks","integ","fit","res","disc","py","stats","tool"].forEach(id=>{ if(winOpen(id)) renderWin(id); });
+  ["sheet","flow","over","peaks","integ","fit","res","batch","disc","py","stats","tool"].forEach(id=>{ if(winOpen(id)) renderWin(id); });
   renderUndo(); renderTaskbar();
 }
 
