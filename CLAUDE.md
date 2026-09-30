@@ -17,10 +17,11 @@ and the Reverse X / Log Y / Grid / Residuals toggles); the **desk**; and a **sta
 (tool hint, live cursor readout, point counts, fit state, save state).
 
 The desk holds **windows**, as in Origin: Graph, Worksheet, History, Overview, Peaks,
-Integrate, Fit, Results, Statistics, Python, Discussion, and the transient Tool dialog. Each moves by its title bar, resizes from
+Integrate, Fit, Results, Statistics, Python, Discussion, Help, and the transient Tool dialog. Each moves by its title bar, resizes from
 its edges, maximises on a double-click of the title and minimises to the **taskbar** along the
-bottom of the desk, which also has Tile and Cascade. A first visit opens Graph, History and
-Worksheet. The **graph window** has its own bar repeating the Data, Math, Analysis, Statistics
+bottom of the desk, which also has Tile and Cascade. Every title bar has a **?** that opens
+the window's article in the **Help window** (F1 does it for the window in front; a tool's
+opens its step's article). A first visit opens Graph, History and Worksheet. The **graph window** has its own bar repeating the Data, Math, Analysis, Statistics
 and Plot menus, a Python button, and a chip saying which stage of the processing is shown
 when it is not the final data. Right-click on the graph (or Shift+F10) gives the spectrum's
 colour, plot type and style, a line, text or peak label where you clicked, axes, layout and
@@ -34,7 +35,10 @@ you type (in its table, on the graph, or in the History); fitting them is one bu
 the way in. The **Integrate window** (Analysis › Integrate bands…) measures bands without a
 fit: windows dragged on the graph, each with a local baseline, giving areas with errors,
 heights, positions, FWHM, shares of the total and ratios to a chosen band, for one spectrum
-or every one. The **Overview** opens after an import and says what a new spectrum is like
+or every one. The **Help window** is the documentation: a contents list by kind, a search over every
+article, and an article per feature and per processing step, beside the work it explains.
+Windows carry little text of their own: a setting's explanation is its tooltip and its
+article. The **Overview** opens after an import and says what a new spectrum is like
 (spacing, noise, bands, spikes, background) and what to do first. The **History window** is a flow chart
 of the data with an inspector beside it (below it when narrow), and a Log tab. Every box in
 it (a step, the raw data, the final data, the peaks, the fits, the recorded data, the
@@ -273,7 +277,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   open, max, z}`, saved per browser under `kurve.layout` (version 2; an older layout is
   ignored). `openWin(id, {render})`, `closeWin`, `toggleWin`, `focusWin`, `toggleMax`,
   `tileWins`, `cascadeWins`, `resetWins`, `renderWin(id)` (which window renders what),
-  `renderTaskbar`, `setupWins` (move, resize, min/max buttons). `renderAll` renders only open
+  `renderTaskbar`, `setupWins` (move, resize, min/max buttons, and the "?" `[data-whelp]`
+  that opens `helpFor(id)`). `renderAll` renders only open
   windows; a window renders when it opens. `showTab("fit"|"clean")` and `showDrawer(...)`
   remain as names for opening the Fit, History, Results and Discussion windows.
 - **Tools and menus**: `TOOL_GROUPS` lists every op by kind; `toolMenuItems({col, at})` is
@@ -290,6 +295,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   preview live (`setParam(s, k, v, false)` + `schedulePreview` → `refreshLive`) and commit on
   change, with one undo entry per control per burst (`beginStepEdit`); a pending step is never
   saved. Anchor and range picking are pointer modes (`S.mode` `anchor` / `range`, `S.pick`).
+  The op's `help` is not printed in the form: it is the step's help article's lead and the
+  menu item's tooltip. A setting's `hint` is its label's tooltip (`.tipd`, a dotted
+  underline). In the History the form ends with "About this step" (`data-act="help"`); the
+  Tool window has its title bar's "?" instead, so it calls `stepForm(s, {tool:true})`.
 - **History** (`renderFlow`, `flowLayout`): lanes of boxes, one per spectrum, placed depth
   first so a derived spectrum branches off its source's raw or final box; a "Recorded data"
   box above the raw spectra; step boxes in order (dashed while pending); the final box; a
@@ -540,7 +549,26 @@ graph first, with the taskbar kept at the bottom of the screen.
   search box (`opt.search`) searches every submenu and lists the matches flat with their path;
   `menuItems(name)` defines the menu bar and the graph window's bar. `openModal`/`closeModal` make everything behind a
   dialog inert, trap Tab, route Escape to the dialog's `_cancel`, and return focus; the import
-  wizard, `confirmDlg` and the help (`openHelp`) all use them.
+  wizard, `confirmDlg`, `formDlg` and Plot details use them.
+- **Help** (`DOCS`, `openHelp(id, {search})`, `renderHelp`): a window (`#w-help`, not in
+  `WIN_ORDER`; in the taskbar only while open), not a dialog, so it stays open beside what it
+  explains. `DOCS` is the articles, each `{id, g (one of DOC_GROUPS), t, kw, lead, body, win?}`
+  with HTML bodies built from small helpers (`K` keys, `DL` a definition list, `DA` a link,
+  `MP` a menu path, `TIP`). Links are `<a data-doc="id">` or `"id#anchor"`; `data-doc-open`
+  opens the window an article describes, `data-doc-ex` an example. A processing step's
+  article is written by `stepDoc(op)` from `PIPE_OPS` (its `help` as the lead, its `params`
+  with their `hint`, or `DOC_PARAM["op.k"]`, and options), plus `DOC_STEP[op]` (methods,
+  checks), `DOC_MENU[op]` (where it is) and `DOC_KW[op]` (search words); `docList()` puts them
+  after "Processing steps". `docBody` fills the generated parts (the step list, the curve
+  models from `MODELS`, where data are stored). `docSearch(q)` needs every word somewhere
+  (title 8, keywords 4, body 1), `docSnip` shows where; an article opened from a search has
+  its words marked (`docMark`). `S.help` is `{id, q, back, nav}`: Back, and the contents shown
+  over the article when the window is narrower than 620 px (a container query on
+  `#w-help .win-b`, with a "Contents" button). `WIN_DOC` maps a window to its article,
+  `helpFor(id)` adds the tool's step and the Fit window's mode, `frontWin()` is the window F1
+  asks about. The old ids `h-start`, `h-keys`, `h-about` still work. A new window, tool or
+  setting needs its article, `DOC_STEP` notes or `hint`: the drive checks every article
+  renders and every link resolves.
 - **Export**: `saveFile(name,data,mime)` uses the claude.ai `downloads` runtime when present and
   falls back to `Blob` + `<a download>` otherwise, so exports work from disk. `exportSvg` and
   `exportPng` (the same SVG rasterised at 2.5×), `exportCsv` (every column with units, the mask
@@ -771,20 +799,38 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   and hid the reference and delete columns. Secondary columns go by container query, and on a
   phone the editable edges give way to dragging on the graph.
 
+- **A window is not a manual.** Every window explained itself in paragraphs, read once and
+  then in the way. Explanations live in the Help window, a setting's in its tooltip; a window
+  keeps its labels, its numbers, warnings about this data, and one-line empty states.
+- **A container query cannot restyle its own container.** The help's two columns were set on
+  the element that was the container, so a narrow window hid the contents and squeezed the
+  article into the 216 px column meant for them. The container is the window body.
+- **A class name is global.** The help's numbered list was `ol.steps`, which already styled
+  the pipeline's step list as flex rows: every sentence broke into columns. New components get
+  names of their own (`dsteps`); grep a class before using it.
+- **A form stretched across a maximised window is hard to read.** Controls in a `.frow` stop
+  at 440 px, and the Fit button at 360 px.
+
 ## Roadmap
 
-Done in this round: integration without a fit (bands dragged on the graph, local baselines,
+Done in this round: a Help window (an article for every window, tool and step, search, a "?"
+on every window, F1), and a review of every window: explanations moved into Help and
+tooltips, one-line empty states (the History of an empty project included), short status-bar
+hints and toasts, spectrum pickers only when there is a choice, forms that stop at a
+readable width, and the Peaks window's sections in one style.
+
+Round before: integration without a fit (bands dragged on the graph, local baselines,
 areas with noise-propagated errors, heights, positions, FWHM, shares and ratios to a chosen
 band, windows around the peaks, every spectrum at once, a Bands box in the History, the CSV and
 the report) and the Overview of a new spectrum (spacing, noise, bands, spikes, flat tops,
 background, and first steps that open their tools), opened after an import.
 
-Round before: worksheet formulas in Origin's F(x)= row, the fill handle (series and
+Two rounds before: worksheet formulas in Origin's F(x)= row, the fill handle (series and
 copies, double-click, Ctrl+D/R), sorting the view, find (Ctrl+F); peak sets that follow the
 processing (labels kept, even through a change of X units) and peaks found in every spectrum
 at once; a fix for a delayed worksheet save overwriting a later one.
 
-Two rounds before: the worksheet as a spreadsheet grid (fixed column widths, empty cells
+Earlier still: the worksheet as a spreadsheet grid (fixed column widths, empty cells
 beyond the data, range selection with Count/Sum/Average, Excel's keys, resizable and
 autofitting columns, Origin's Long Name/Units/Comments rows); short menus with side submenus;
 fonts for the graph and its labels; the Peaks window (find, mark with a symbol, drop line,
@@ -815,6 +861,9 @@ Next, in order:
 
 ## Known gaps
 
+- Help cannot be opened over a dialog (a dialog makes the desk inert), so the import wizard
+  and Plot details have no "?" of their own; their articles are in the contents. Articles have
+  no pictures, and search matches words, not meanings
 - Only one Y column is fitted at a time: no batch across a series, no global fit with shared
   parameters across spectra, and no summary table of a parameter against sample (a step can
   already be applied to every spectrum)

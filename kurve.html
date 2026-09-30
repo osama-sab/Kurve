@@ -293,7 +293,7 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .range{font-size:12.5px;color:var(--muted);margin:8px 0}
 .err{color:var(--bad);font-size:13px;margin:8px 0}
 .sticky{position:sticky;bottom:0;z-index:3;background:var(--panel);margin:12px -14px 0;padding:10px 14px;border-top:1px solid var(--rule);display:flex;gap:6px;flex-wrap:wrap}
-.sticky .btn.primary{flex:1 1 auto;min-width:110px}
+.sticky .btn.primary{flex:1 1 auto;min-width:110px;max-width:360px}
 .note{display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:5px;font-size:12.5px;margin:8px 0;background:var(--panel-2);border:1px solid var(--rule-2);border-left:3px solid var(--faint);color:var(--ink)}
 .note>.ic{margin-top:1px;color:var(--muted)}
 .note.warn{background:var(--warn-bg);border-color:var(--warn-bg);border-left-color:var(--warn)}
@@ -758,6 +758,91 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 #pane-integ .fbar{margin:-10px -14px 8px;padding:6px 10px;position:sticky;top:-10px;z-index:2;background:var(--panel);display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
 #pane-integ .fbar select{min-width:0;max-width:200px;flex:0 1 auto}
 .igseg{margin:0 0 8px}
+.tipd{text-decoration:underline dotted color-mix(in srgb,var(--faint) 70%,transparent);text-underline-offset:3px;cursor:help}
+.frow>select,.frow>input[type=text],.frow>.pair,.frow>.colpick{max-width:440px}
+.rempty .ic{flex:0 0 auto}
+.ovauto{margin-top:10px}
+.flow-empty{padding:28px 24px}
+/* Help */
+#w-help .win-b{container-type:inline-size}
+.docs{display:grid;grid-template-columns:216px minmax(0,1fr);height:100%;min-height:0;position:relative;background:var(--panel)}
+.docs-nav{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--rule);background:var(--panel-2)}
+.docs-q{display:flex;align-items:center;gap:6px;margin:10px 10px 6px;padding:0 8px;height:30px;border:1px solid var(--rule);border-radius:7px;background:var(--panel)}
+.docs-q:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.docs-q .ic{color:var(--faint);flex:0 0 auto}
+.docs-q input{border:0;outline:0;background:transparent;flex:1;min-width:0;font:inherit;font-size:13px;color:var(--ink);padding:0;height:28px;box-shadow:none}
+.docs-toc{overflow:auto;padding:0 6px 14px;flex:1;min-height:0}
+.docs-toc .dg{font:700 10.5px/1 var(--sans);letter-spacing:.07em;text-transform:uppercase;color:var(--faint);padding:14px 8px 5px}
+.docs-toc a{display:block;padding:5px 8px;border-radius:6px;color:var(--ink-2);text-decoration:none;font-size:13px;line-height:1.3}
+.docs-toc a:hover{background:var(--panel-3);color:var(--ink)}
+.docs-toc a.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.docs-toc a.sub{padding-left:20px;font-weight:500}
+.docs-toc a:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.docs-toc a.res strong{display:block;font-weight:600;color:var(--ink)}
+.docs-toc a.res span{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:12px;color:var(--muted);margin-top:2px;line-height:1.35}
+.docs-toc mark,.doc mark{background:color-mix(in srgb,var(--pin) 26%,transparent);color:inherit;border-radius:2px;padding:0 1px}
+.docs-none{color:var(--muted);font-size:13px;padding:10px 8px;margin:0}
+.doc{overflow:auto;min-height:0;padding:14px 28px 40px;position:relative;outline:0;font-size:14px;line-height:1.6;color:var(--ink)}
+.doc>*{max-width:720px}
+.doc-top{display:flex;align-items:center;gap:8px;margin:0 0 10px -8px;min-height:28px;flex-wrap:wrap}
+.doc-top .tb.sm{gap:4px;padding:0 8px;font-size:12.5px;color:var(--muted)}
+.doc-top .tb.sm:disabled{opacity:.4}
+.doc-crumb{font-size:12px;color:var(--faint);margin-left:4px}
+.doc-crumb a{color:inherit}
+.docs-tocbtn{display:none}
+.doc h1{font:700 24px/1.2 var(--sans);letter-spacing:-.01em;margin:0 0 8px;color:var(--ink)}
+.doc-lead{font-size:15.5px;line-height:1.55;color:var(--ink-2);margin:0 0 14px}
+.doc-open{margin:0 0 18px}
+.doc h2{font:650 16px/1.3 var(--sans);margin:26px 0 8px;color:var(--ink);scroll-margin-top:12px}
+.doc h3{font:650 13.5px/1.3 var(--sans);margin:18px 0 6px;color:var(--ink-2)}
+.doc p{margin:0 0 10px}
+.doc ul,.doc ol{margin:0 0 12px;padding-left:1.3em}
+.doc li{margin:0 0 5px}
+.doc ol.dsteps{list-style:none;padding:0;counter-reset:ds}
+.doc ol.dsteps>li{counter-increment:ds;position:relative;padding-left:32px;margin-bottom:9px}
+.doc ol.dsteps>li::before{content:counter(ds);position:absolute;left:0;top:1px;width:21px;height:21px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font:700 11.5px/21px var(--sans);text-align:center}
+.doc a{color:var(--accent);text-decoration:none;font-weight:500}
+.doc a:hover{text-decoration:underline}
+.doc code,.doc pre{font-family:var(--mono);font-size:12.5px;background:var(--panel-3);border-radius:4px}
+.doc code{padding:1px 5px}
+.doc pre{padding:10px 12px;overflow:auto;margin:0 0 12px;line-height:1.45}
+.doc kbd{font:600 11.5px/1 var(--sans);display:inline-block;min-width:20px;text-align:center;padding:3px 6px;border:1px solid var(--rule);border-bottom-width:2px;border-radius:5px;background:var(--panel);color:var(--ink-2)}
+.doc .dl{display:grid;grid-template-columns:fit-content(36%) minmax(0,1fr);gap:0;margin:0 0 14px;border-top:1px solid var(--rule-2)}
+.doc .dl dt,.doc .dl dd{margin:0;padding:7px 0;border-bottom:1px solid var(--rule-2)}
+.doc .dl dt{font-weight:600;padding-right:18px;color:var(--ink)}
+.doc .dl.keys dt{font-weight:400;white-space:nowrap}
+.doc .dl.code dt{font-weight:400}
+.doc .doc-opts{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.doc .doc-unit{font-weight:400;color:var(--faint)}
+.doc .mp{font-weight:600;white-space:nowrap}
+.doc .mp span{color:var(--faint);font-weight:400;padding:0 1px}
+.doc-where{font-size:13px;color:var(--muted);margin:-4px 0 14px!important}
+.doc-tip{background:var(--accent-soft);border-radius:8px;padding:9px 12px;font-size:13.5px;color:var(--ink-2)}
+.doc .eq{font-family:var(--serif);font-size:15px;background:var(--panel-2);border:1px solid var(--rule-2);border-radius:8px;padding:10px 14px;margin:0 0 12px;text-align:center;overflow-x:auto;white-space:nowrap}
+.doc-tab{border-collapse:collapse;width:100%;margin:0 0 14px;font-size:13.5px}
+.doc-tab th{text-align:left;font-weight:600;padding:7px 14px 7px 0;border-bottom:1px solid var(--rule-2);white-space:nowrap;vertical-align:top}
+.doc-tab td{padding:7px 0;border-bottom:1px solid var(--rule-2)}
+.doc-tab td.eqi{font-family:var(--serif);font-size:14.5px}
+.doc-links{list-style:none;padding:0!important}
+.doc-links li{display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr);gap:12px;padding:6px 0;border-bottom:1px solid var(--rule-2);margin:0!important}
+.doc-links li span{color:var(--muted);font-size:13px}
+.doc .actions{margin:0 0 12px}
+.doc-pn{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:30px!important;padding-top:14px;border-top:1px solid var(--rule)}
+.doc-pn a{display:block;padding:9px 12px;border:1px solid var(--rule);border-radius:8px;color:var(--ink);font-weight:600}
+.doc-pn a:hover{border-color:var(--accent);text-decoration:none}
+.doc-pn a span{display:block;font-size:11.5px;color:var(--faint);font-weight:500;margin-bottom:1px}
+.doc-pn a.n{text-align:right;grid-column:2}
+@container (max-width: 620px){
+  .docs{grid-template-columns:minmax(0,1fr)}
+  .docs-nav{display:none;position:absolute;inset:0;z-index:3;border-right:0}
+  .docs.navon .docs-nav{display:flex}
+  .docs-tocbtn{display:inline-flex}
+  .doc{padding:12px 16px 32px}
+  .doc .dl{grid-template-columns:minmax(0,1fr)}
+  .doc .dl dt{border-bottom:0;padding-bottom:0}
+  .doc-links li{grid-template-columns:minmax(0,1fr);gap:0}
+}
+
 #pane-over .fbar{margin:-10px -14px 10px;padding:6px 10px;position:sticky;top:-10px;z-index:2;background:var(--panel);display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
 #pane-over .fbar select{min-width:0;max-width:220px;flex:0 1 auto}
 .ovtab{width:100%;border-collapse:collapse;font-size:13px;margin:0 0 6px}
@@ -840,6 +925,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
   .win-rz,.win-h [data-wmax]{display:none}
   #w-graph .win-b{height:68vh;min-height:360px;flex:0 0 auto}
   #w-sheet .win-b{max-height:70vh}
+  #w-help .win-b{height:80vh;overflow:hidden;flex:0 0 auto}
   .win-b{overflow:visible}
   #w-graph .win-b,#w-sheet .win-b{overflow:hidden}
   .flow-body{flex-direction:column}
@@ -892,6 +978,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
   <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 13.5A8.5 8.5 0 1 1 10.5 3.5a6.5 6.5 0 0 0 10 10z"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
   <symbol id="i-chevr" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-chevl" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></symbol>
   <symbol id="i-chevu" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
   <symbol id="i-area" viewBox="0 0 24 24"><path d="M3 20h18"/><path d="M4 19.5c3.5 0 4.5-13 8-13s4.5 13 8 13"/><path d="M9.5 19v-5.5M12 19V8.5M14.5 19v-5.5"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.2"/><path d="m15.2 15.2 5.3 5.3"/></symbol>
@@ -949,7 +1036,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
     </div>
     <div class="tfill"></div>
     <div class="people" id="people" aria-label="People here now"></div>
-    <button class="tb icon" id="helpBtn" aria-label="Help" title="Getting started and keyboard shortcuts (?)"><svg class="ic"><use href="#i-help"/></svg></button>
+    <button class="tb icon" id="helpBtn" aria-label="Help" title="Help (F1)"><svg class="ic"><use href="#i-help"/></svg></button>
     <button class="tb icon" id="themeBtn" aria-label="Switch to dark theme" title="Switch to dark theme"><svg class="ic"><use href="#i-moon"/></svg></button>
   </header>
 
@@ -1022,7 +1109,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
               <div class="empty-in">
                 <svg class="ic lg" style="width:44px;height:44px;margin:0 auto;color:var(--faint);stroke-width:1.3"><use href="#i-chart"/></svg>
                 <h3 id="emptyTitle">Bring in a spectrum or a curve</h3>
-                <p id="emptyText">Drop a file anywhere on this window, import one, or paste two columns from a spreadsheet into the Worksheet window.</p>
+                <p id="emptyText">Drop a file here, or paste columns into the worksheet.</p>
                 <div class="row"><button class="btn primary lg" id="emptyImport"><svg class="ic"><use href="#i-upload"/></svg>Import a file…</button></div>
                 <div class="ex"><span class="lab">Or explore with an example</span>
                   <div class="row">
@@ -1032,7 +1119,6 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
                     <button class="btn" data-example="decay">Fluorescence decay</button>
                   </div>
                 </div>
-                <p class="fine">CSV, TSV and text exports from most instruments work. Delimiters, decimal commas and header blocks are detected for you, and you can check each choice before anything is imported.</p>
               </div>
             </div>
           </div>
@@ -1069,6 +1155,11 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
     <section class="win" id="w-over" data-win="over" aria-label="Overview">
       <header class="win-h"><svg class="ic sm"><use href="#i-info"/></svg><h2 class="win-t">Overview</h2><span class="win-sub" id="ovSub"></span><span class="sp"></span></header>
       <div class="win-b"><div class="dbody" id="pane-over"></div></div>
+    </section>
+
+    <section class="win" id="w-help" data-win="help" aria-label="Help">
+      <header class="win-h"><svg class="ic sm"><use href="#i-help"/></svg><h2 class="win-t">Help</h2><span class="win-sub" id="helpSub"></span><span class="sp"></span></header>
+      <div class="win-b"><div class="docs" id="pane-help"></div></div>
     </section>
 
     <section class="win" id="w-fit" data-win="fit" aria-label="Fit">
@@ -1157,15 +1248,9 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
     <div class="sheet-f"><span class="sp"></span><button class="btn" id="formCancel">Cancel</button><button class="btn primary" id="formOk">OK</button></div>
   </div>
 </div>
-<div class="modal" id="helpModal" hidden role="dialog" aria-modal="true" aria-labelledby="helpTitle">
-  <div class="sheet mid">
-    <div class="sheet-h"><h2 id="helpTitle">Kurve help</h2><button class="tb icon" id="helpClose" aria-label="Close"><svg class="ic"><use href="#i-x"/></svg></button></div>
-    <div class="sheet-p help" id="helpBody"></div>
-  </div>
-</div>
 <div class="modal" id="plotModal" hidden role="dialog" aria-modal="true" aria-labelledby="pdHead">
   <div class="sheet">
-    <div class="sheet-h"><h2 id="pdHead">Plot details</h2><span class="lab">Changes show on the graph as you make them</span></div>
+    <div class="sheet-h"><h2 id="pdHead">Plot details</h2></div>
     <div class="sheet-p" id="pdBody"></div>
     <div class="sheet-f"><button class="btn ghost" id="pdReset" title="Put this page back to the defaults">Defaults</button><span class="sp"></span><button class="btn" id="pdCancel">Cancel</button><button class="btn primary" id="pdOk">OK</button></div>
   </div>
@@ -4711,7 +4796,7 @@ function labelFoundPeaks(r){
   if(!add.length){ toast("Those peaks are labelled already."); return; }
   pushUndo("labelling the peaks");
   saveAnnos((p.plot.annos||[]).concat(add),`labelled ${add.length} peak${add.length===1?"":"s"} of ${specName(c)} with their positions`);
-  toast(`Labelled ${add.length} peak${add.length===1?"":"s"}. Drag a label to move it; double-click one to change its text.`,{action:"Undo",run:undo});
+  toast(`Labelled ${add.length} peak${add.length===1?"":"s"}.`,{action:"Undo",run:undo});
 }
 function clearAnnos(){ const p=P(), n=((p&&p.plot.annos)||[]).length; if(!n||S.readOnly) return;
   pushUndo("removing the annotations"); saveAnnos([],`removed ${n} annotation${n===1?"":"s"} from the graph`);
@@ -4941,7 +5026,7 @@ function renderPlotDetails(){
       h+=`<label for="pdSs">Symbol size</label>${rng("pdSs",st.ss==null?3:st.ss,base+".ss",1,10,0.5)}`;
       h+=`<label for="pdFill">Fill (area)</label>${rng("pdFill",st.fill,base+".fill",0,1,0.05)}`;
       h+=`<label for="pdOp">Opacity</label>${rng("pdOp",st.op,base+".op",0.1,1,0.05)}`;
-      h+=`</div><p class="hint">The plot type decides what is drawn: symbols only show for Symbols and Line + symbols; the fill for Area.</p>`; } }
+      h+=`</div>`; } }
   } else if(S.pdTab==="axes"){
     const axRows=(k,nm)=>{ const a=cfg.ax[k]||{}, b="ax."+k;
       return `<fieldset class="pd-ax"><legend>${nm}</legend><div class="frow">
@@ -4956,7 +5041,7 @@ function renderPlotDetails(){
       </div></fieldset>`; };
     h+=axRows("x","X axis")+axRows("y","Y axis");
     if(cfg.layout==="dy"||cfg.layout==="heat") h+=axRows("y2",cfg.layout==="heat"?"Colour scale":"Right Y axis");
-    h+=`<p class="hint">Leave a range empty to fit the data. A zoom on the graph shows part of it; double-click the graph to come back to these limits.</p>`;
+    h+=`<p class="lab">An empty range fits the data.</p>`;
   } else if(S.pdTab==="graph"){
     h+=`<div class="frow"><label for="pdLay">Several spectra</label>${sel("pdLay",LAYOUTS,cfg.layout,"layout")}
       ${cfg.layout==="offset"?`<label for="pdOff">Offset</label>${rng("pdOff",cfg.offset,"offset",0,2,0.05)}`:""}
@@ -5338,14 +5423,14 @@ function graphKey(ev){
     $("#plotSay").textContent=`Range now x ${fmt(x0,6)} to ${fmt(x1,6)}.`; return; }
 }
 const MODE_HINT={
-  zoom:"Zoom: drag a box to zoom (a flat box zooms X only). Scroll to zoom at the pointer, double-click to see all the data, click a point to select it.",
-  pan:"Pan: drag the graph to move the view, scroll to zoom. The middle mouse button pans in any tool.",
-  mask:"Mask: click a point, or drag a box, to leave points out of the fit. Click a masked point to bring it back.",
-  peak:"Add peak: click where you see a peak. Drag a peak’s dot to move it; select a peak to drag its width.",
-  pin:"Comment: click a point, or any spot on the graph, to start a comment anchored there.",
-  anchor:"Anchors: click the graph to add one on the data; drag one to move it; right-click one to remove it; double-click one to put it back on the data. Esc when done.",
-  range:"Pick a range: drag across the graph. Esc to cancel.",
-  label:"Label: click a peak and type its label (Enter keeps it; leave it empty to show the position); click an empty spot to write text there. Drag a label to move it, double-click it to type over it, Delete removes the selected one."
+  zoom:"Drag to zoom · Scroll to zoom at the pointer · Double-click to show all",
+  pan:"Drag to pan · Scroll to zoom · The middle button pans with any tool",
+  mask:"Click or drag to mask points · Click a masked point to restore it",
+  peak:"Click to add a peak · Drag its dot to move it, its sides to widen it",
+  pin:"Click a point or a spot to comment on it",
+  anchor:"Click to add an anchor · Drag to move · Right-click to remove · Esc when done",
+  range:"Drag across the graph · Esc to cancel",
+  label:"Click a peak to label it · Click an empty spot for text · Double-click to edit"
 };
 function setMode(m,quiet){
   S.mode=m;
@@ -6423,14 +6508,13 @@ function stepForm(s,opt){
   const def=PIPE_OPS[s.op]; if(!def) return noteHtml("bad","This kind of step is not known to this version of Kurve. It is kept, and passes the data through unchanged.");
   const st=stageOfStep(s), p=Object.assign({},def.defaults||{},s.p||{}), ro=S.readOnly?" disabled":"";
   let h=`<div class="sform" data-form-step="${s.id}">`;
-  if(def.help&&!opt.noHelp) h+=`<p class="hint" style="margin-top:0">${esc(def.help)}</p>`;
   const rows=(def.params||[]).filter(q=>!q.show||q.show(p));
   const plain=rows.filter(q=>!["anchors","refs","code"].includes(q.type));
   if(plain.length){
     h+=`<div class="frow">`;
-    plain.forEach(q=>{ if(q.type==="bool") h+=`<span></span>${paramControl(s,q,p,st)}`;
-      else h+=`<label for="sp-${s.id}-${q.k}">${esc(q.label)}</label>${paramControl(s,q,p,st)}`;
-      if(q.hint) h+=`<span></span><span class="lab" style="margin-top:-4px">${esc(q.hint)}</span>`; });
+    plain.forEach(q=>{ const tip=q.hint?` title="${esc(q.hint)}"`:"";
+      if(q.type==="bool") h+=`<span></span>${paramControl(s,q,p,st).replace(/^<label class="chk"/,`<label class="chk${q.hint?" tipd":""}"${tip}`)}`;
+      else h+=`<label for="sp-${s.id}-${q.k}"${q.hint?` class="tipd"${tip}`:""}>${esc(q.label)}</label>${paramControl(s,q,p,st)}`; });
     h+=`</div>`;
   }
   if(s.op==="bg"&&p.method==="anchors"){
@@ -6455,7 +6539,8 @@ function stepForm(s,opt){
   h+=`<div class="live">${liveNotes(st)}</div>`;
   const pk=def.pick&&def.pick.every(k=>(def.params||[]).some(q=>q.k===k&&(!q.show||q.show(p))));
   const acts=(pk?`<button class="btn sm" data-act="pick"${ro}>${ICON("zoom","sm")}${S.mode==="range"&&S.pick&&S.pick.step===s.id?"Drag across the graph…":"Pick the range on the graph"}</button>`:"")+
-    (def.init&&s.op!=="crop"&&s.op!=="exclude"?`<button class="btn sm ghost" data-act="suggest"${ro} title="Measure the settings again from the data this step receives">Suggest settings</button>`:"");
+    (def.init&&s.op!=="crop"&&s.op!=="exclude"?`<button class="btn sm ghost" data-act="suggest"${ro} title="Measure the settings again from the data this step receives">Suggest settings</button>`:"")+
+    (opt.tool?"":`<button class="btn sm ghost" data-act="help" title="What this step does, and each setting">${ICON("help","sm")}About this step</button>`);
   if(acts) h+=`<div class="actions">${acts}</div>`;
   return h+`</div>`;
 }
@@ -6507,6 +6592,7 @@ function refreshForms(){ if(winOpen("flow")) renderFlow(); if(winOpen("tool")) r
 function stepAction(s,act,el){
   const stIn=inputOfStep(s), c=colOfStep(s), d=stIn?stIn.d:finalOf(c);
   if(act==="del"){ removePipeStep(s.id); return; }
+  if(act==="help"){ openHelp("step-"+s.op); return; }
   if(act==="suggest"){ const sug=stepParams(s.op,d,{view:S.view?[S.view.x0,S.view.x1]:null}), def=PIPE_OPS[s.op];
     const keys=(def.params||[]).map(q=>q.k).filter(k=>k in sug&&k!=="method"&&k!=="mode"&&k!=="anchors");
     if(!isPending(s)) pushUndo("suggested settings");
@@ -6546,8 +6632,7 @@ function measureHtml(){
   return `<dl class="kv"><dt>Range</dt><dd>${xs.length?`${esc(fmt(xs[0],6))} to ${esc(fmt(xs[xs.length-1],6))}${xu?" "+esc(xu):""}`:"—"}</dd>
     <dt>Points</dt><dd>${xs.length}</dd><dt>Area above zero</dt><dd>${esc(fmt(area,6))}${au?" "+esc(au):""}</dd>
     <dt title="With a straight line between the first and last point of the range removed">Area above the end-to-end line</dt><dd>${esc(fmt(areaB,6))}${au?" "+esc(au):""}</dd>
-    <dt>Mean Y</dt><dd>${vs.length?esc(fmt(mean(vs),6)):"—"}</dd><dt>Highest Y</dt><dd>${vs.length?esc(fmt(Math.max(...vs),6)):"—"}</dd></dl>
-    <p class="hint">Of the final data, masked points left out. Zoom the graph to change the range.</p>`;
+    <dt>Mean Y</dt><dd>${vs.length?esc(fmt(mean(vs),6)):"—"}</dd><dt>Highest Y</dt><dd>${vs.length?esc(fmt(Math.max(...vs),6)):"—"}</dd></dl>`;
 }
 
 /* ============================================================
@@ -7080,14 +7165,13 @@ function renderFit(){
   m.params.forEach((nm,i)=>{ const res=sameModel?(f.fixed&&f.fixed[i]?`${esc(fmt(f.params[i],6))} <span class="lab">fixed</span>`:f.atBound&&f.atBound[i]?`${esc(fmt(f.params[i],6))} <span class="lab">at its limit</span>`:fmtPM(f.params[i],f.errors[i])):"";
     h+=`<tr><td class="pn">${m.ph[i]}${uC(unitFor((m.dim||[])[i],xuC,yuC))}</td><td><input type="text" inputmode="decimal" data-pi="${i}" value="${esc(fmt(d.init[i],6))}" aria-label="Initial value of ${nm}"${ro}></td><td class="fx"><input type="checkbox" data-fx="${i}"${d.fixed[i]?" checked":""} aria-label="Fix ${nm}" title="Hold ${nm} at its initial value"${ro}></td><td class="res">${res}</td></tr>`; });
   h+=`</tbody></table>`;
-  h+=`<p class="hint">Initial values are only a starting point. <strong>Guess</strong> measures them from the data in view.</p>`;
   h+=`<div class="gh">Options</div>`;
   h+=`<label class="chk"><input type="checkbox" id="wt"${d.weighted&&hasErr()?" checked":""}${hasErr()&&!S.readOnly?"":" disabled"}> Weight by the Y error column (1/σ²)</label>`;
   if(!hasErr()) h+=`<div class="lab" style="margin:3px 0 0 22px">No Y-error column, so every point counts equally.</div>`;
   h+=`<div class="range" id="fitRange"></div>`;
   if(S.fitError) h+=noteHtml("bad",S.fitError);
   if(f) h+=fitSummary(f);
-  h+=`<div class="sticky"><button class="btn primary" id="doFit"${ro} title="Fit (Ctrl+Enter)">${ICON("play")}Fit</button><button class="btn" id="doGuess"${ro}>Guess</button>${f?`<button class="btn ghost" id="clrFit"${ro}>Remove fit</button>`:""}</div>`;
+  h+=`<div class="sticky"><button class="btn primary" id="doFit"${ro} title="Fit (Ctrl+Enter)">${ICON("play")}Fit</button><button class="btn" id="doGuess"${ro} title="Measure the starting values from the data in view">Guess</button>${f?`<button class="btn ghost" id="clrFit"${ro}>Remove fit</button>`:""}</div>`;
   box.innerHTML=h; renderFitRangeOnly(); wire();
   $("#model").onchange=e=>{ const v=e.target.value;
     if(v==="__new"){ e.target.value=d.model; editUserFn(null); return; }
@@ -7488,8 +7572,7 @@ function pfPanelHtml(r){
     <label for="pfMax">At most</label><div class="pair"><input type="text" inputmode="decimal" id="pfMax" data-pf="max" value="${esc(String(o.max))}" style="width:60px"><span class="lab">peaks, the strongest</span></div>
   </div>
   <div id="pfResult">${pfResultHtml(r)}</div>
-  <div class="actions"><button class="btn primary" id="pfUse"${ro||!r||!r.found.length?" disabled":""}>${ICON("wand","sm")}${r&&r.found.length?`Use these ${r.found.length} peak${r.found.length===1?"":"s"}`:"Use these peaks"}</button><button class="btn" id="pfAppend"${ro||!r||!r.found.length?" disabled":""} title="Keep the peaks you have and add the new ones">Add to my peaks</button><button class="btn" id="pfLabel"${ro||!r||!r.found.length?" disabled":""} title="Mark these peaks on the graph, to label them without fitting">${ICON("tag","sm")}Mark and label them</button><button class="btn ghost" id="pfDefaults"${ro}>Defaults</button></div>
-  <p class="hint">Searches the points in view, after the baseline. Signal to noise is the peak's rise above the higher of its two valleys, over the noise.</p>`;
+  <div class="actions"><button class="btn primary" id="pfUse"${ro||!r||!r.found.length?" disabled":""}>${ICON("wand","sm")}${r&&r.found.length?`Use these ${r.found.length} peak${r.found.length===1?"":"s"}`:"Use these peaks"}</button><button class="btn" id="pfAppend"${ro||!r||!r.found.length?" disabled":""} title="Keep the peaks you have and add the new ones">Add to my peaks</button><button class="btn" id="pfLabel"${ro||!r||!r.found.length?" disabled":""} title="Mark these peaks on the graph, to label them without fitting">${ICON("tag","sm")}Mark and label them</button><button class="btn ghost" id="pfDefaults"${ro}>Defaults</button></div>`;
 }
 function wirePf(box){
   box.querySelectorAll("[data-pf]").forEach(el=>{
@@ -7543,7 +7626,7 @@ function runPeakFinder(append){
   d.fitAt=null; S.selPeak=null; S.fitError=""; S.pfOpen=false; S.pfPreview=null;
   renderFit(); renderPlot();
   const maskAct=spikes.length&&!S.readOnly?{action:spikes.length===1?"Mask the spike":"Mask the spikes",run:()=>toggleMask(spikes.map(q=>q.i),true)}:null;
-  toast(`${append?"Added":"Found"} ${r.found.length} peak${r.found.length===1?"":"s"}, drawn dashed on the graph. Drag ${r.found.length===1?"it":"them"} to adjust, then press Fit.${spikes.length?` ${spikes.length===1?"A one-point spike was":spikes.length+" one-point spikes were"} set aside.`:""}`,maskAct||{action:"Undo",run:undo});
+  toast(`${append?"Added":"Found"} ${r.found.length} peak${r.found.length===1?"":"s"}. Adjust ${r.found.length===1?"it":"them"} on the graph, then Fit.${spikes.length?` ${spikes.length===1?"A one-point spike was":spikes.length+" one-point spikes were"} set aside.`:""}`,maskAct||{action:"Undo",run:undo});
 }
 // The old entry point: find with a given method, straight into the draft.
 function autoFindPeaks(method){ const o=pfOpts(); if(method) o.method=method; runPeakFinder(false); }
@@ -7566,8 +7649,7 @@ function renderPeakFit(box,p,top){
   h+=`<section class="stepsec"><h3 class="gh"><span class="sn">2</span>Peaks and baseline <span class="cnt">${d.peaks.length||""}</span><span style="flex:1"></span>${d.peaks.length>1?`<button class="btn sm ghost" id="shareW"${ro} aria-pressed="${widthsShared(d)}" title="${widthsShared(d)?"Give each peak its own width again":"Tie every peak's width to peak 1's: one width, fitted for all (an instrument's resolution)"}">${ICON("link","sm")}One width</button>`:""}<button class="btn sm ghost" id="clrPeaks"${ro}${d.peaks.length?"":" disabled"}>Clear</button></h3>`;
   h+=`<div class="frow"><label for="pbase">Baseline</label><select id="pbase"${ro}>${Object.entries(BASELINES).map(([k,v])=>`<option value="${k}"${k===d.base?" selected":""}>${v.name}</option>`).join("")}</select>
     <label for="ptype">New peaks</label><div class="pair"><select id="ptype" style="flex:1"${ro}>${Object.entries(PEAKS).map(([k,v])=>`<option value="${k}"${k===(S.peakType||"gauss")?" selected":""}>${v.name}</option>`).join("")}</select>${d.peaks.some(pk=>pk.type!==(S.peakType||"gauss"))?`<button class="btn sm" id="ptypeAll"${ro}>Apply to all</button>`:""}</div></div>`;
-  if(!d.peaks.length) h+=noteHtml("info","No peaks yet. Use <strong>Find peaks</strong> above, or choose <strong>Add peak</strong> on the toolbar and click the graph where you see one. Each peak gets a dot on the graph that you can drag.",true);
-  else h+=`<p class="hint" style="margin-top:0">Drag a peak’s dot on the graph to move it; click a peak to show handles for its width. Or type values here.</p>`;
+  if(!d.peaks.length) h+=`<p class="nothing">No peaks yet. Find them above, or choose <strong>Add peak</strong> and click the graph.</p>`;
   const links=peakLinks(d.peaks,m);
   d.peaks.forEach((pk,k)=>{
     const def=PEAKS[pk.type]||PEAKS.gauss, o=m.offsets[k];
@@ -7597,7 +7679,7 @@ function renderPeakFit(box,p,top){
         <td class="fx"><input type="checkbox" data-pfix="${i}"${d.fixed[i]?" checked":""} title="Hold ${esc(nm)} at its initial value" aria-label="Fix baseline ${esc(nm)}"${ro}></td>
         <td class="res">${resOf(i)}</td></tr>`;
     });
-    h+=`</tbody></table><p class="lab" style="margin:2px 9px 8px">Fitted together with the peaks, measured from x = ${esc(fmt(m.x0,6))}, the centre of the fitted range.</p></div>`;
+    h+=`</tbody></table><p class="lab" style="margin:2px 9px 8px">In powers of (x − ${esc(fmt(m.x0,6))}), the centre of the range.</p></div>`;
   }
   h+=`</section>`;
   // 3 Fit
@@ -7799,7 +7881,7 @@ function renderResults(){
   const f=activeFit();
   if(!f){
     const has=pointsAll().length>0;
-    box.innerHTML=`<div class="rempty">${ICON("table")}<div><p><strong>No fit yet.</strong> ${has?"Choose a model or find peaks in the Fit panel, then press Fit.":"Bring in some data first."} Each parameter appears here with its uncertainty, next to the fit statistics and any caveats, ready to copy or save as a report.</p>${has?`<button class="btn sm" id="rGoFit">${ICON("play","sm")}Go to Fit</button>`:""}</div></div>`;
+    box.innerHTML=`<div class="rempty">${ICON("table")}<div><p><strong>No fit yet</strong><br>${has?"Parameters, their errors and the fit statistics appear here.":"Bring in some data first."}</p>${has?`<button class="btn sm" id="rGoFit">${ICON("play","sm")}Go to Fit</button>`:""}</div></div>`;
     const g=$("#rGoFit"); if(g) g.onclick=()=>showTab("fit");
     return;
   }
@@ -8000,7 +8082,7 @@ function renderThread(){
   let num=0; T.list.forEach(t=>{ const a=t.root.anchor; t.root._num=a&&(a.type==="point"||a.type==="xy")?++num:null; });
   const open=T.list.filter(t=>!t.root.resolved).length, bd=$("#cBadge"); if(bd){ bd.hidden=!open; bd.textContent=open; }
   const keep=keepCaret(box);
-  if(!T.list.length){ box.innerHTML=`<p class="nothing">No comments yet. Select a box in the History to comment on a step, the raw data or a fit; choose <strong>Comment</strong> on the toolbar and click the graph to ask about a point; or write a general note below.</p>`; return; }
+  if(!T.list.length){ box.innerHTML=`<p class="nothing">No comments yet. Comment on a History box, on a point with the <strong>Comment</strong> tool, or below.</p>`; return; }
   const f=S.discFilter==="open"?"open":"all", list=f==="open"?T.list.filter(t=>!t.root.resolved):T.list;
   let h=`<div class="dbar"><div class="seg mini" role="group" aria-label="Which threads"><button data-dflt="open" aria-pressed="${f==="open"}">Open <span class="cnt">${open}</span></button><button data-dflt="all" aria-pressed="${f==="all"}">All <span class="cnt">${T.list.length}</span></button></div></div>`;
   h+=list.map(t=>threadHtml(t,"d",{chip:true})).join("")||`<p class="nothing">Nothing open. ${T.list.length} resolved thread${T.list.length===1?"":"s"}: choose <em>All</em> to read ${T.list.length===1?"it":"them"}.</p>`;
@@ -8061,7 +8143,6 @@ function flowDiscHtml(key,kind){
 function flowDiscInner(key){
   const list=nodeThreads(key), open=list.filter(t=>!t.root.resolved), done=list.filter(t=>t.root.resolved);
   let h=`<div class="gh">Discussion${list.length?` <span class="cnt${open.length?"":" done"}">${open.length?`${open.length} open`:"all resolved"}</span>`:""}</div>`;
-  if(!list.length) h+=`<p class="lab fd-empty">Nothing said about this box yet. A comment here stays with it, shows as a badge on the chart and appears in the Discussion window and the report.</p>`;
   h+=open.map(t=>threadHtml(t,"f")).join("");
   if(done.length) h+=`<details class="grp fdone" data-fopen="done"${S.fOpen&&S.fOpen.done?" open":""}><summary>${done.length} resolved thread${done.length===1?"":"s"}</summary><div class="gb">${done.map(t=>threadHtml(t,"f")).join("")}</div></details>`;
   return h;
@@ -8492,9 +8573,9 @@ function renderTool(){
   let h=`<div class="frow tool-target"><label for="tlCol">Spectrum</label><select id="tlCol">${yCols().map(y=>`<option value="${y.id}"${y.id===pd.col?" selected":""}>${esc((y.src?"↳ ":"")+specName(y))}</option>`).join("")}</select>`;
   h+=`<label for="tlAt">Position</label><select id="tlAt">${Array.from({length:pipe.length+1},(_,i)=>`<option value="${i}"${i===pd.at?" selected":""}>${i===0?(pipe.length?`First, before ${esc(stepShort(pipe[0]))}`:"The first step"):i===pipe.length?`Last, after ${esc(stepShort(pipe[i-1]))}`:`After step ${i}, ${esc(stepShort(pipe[i-1]))}`}</option>`).join("")}</select></div>`;
   h+=`<div class="beforeafter">${beforeAfter(s)}</div>`;
-  h+=stepForm(s);
+  h+=stepForm(s,{tool:true});
   if(yCols().length>1) h+=`<label class="chk"><input type="checkbox" id="tlAll"${pd.all?" checked":""}> Apply the same step to every other spectrum</label>`;
-  h+=`<div class="sticky tool-ok"><button class="btn primary" id="tlOk">${ICON("check","sm")}OK</button><button class="btn" id="tlCancel">Cancel</button><span class="sp"></span><span class="lab">Nothing is recorded until OK. The raw data never change.</span></div>`;
+  h+=`<div class="sticky tool-ok"><button class="btn primary" id="tlOk">${ICON("check","sm")}OK</button><button class="btn" id="tlCancel">Cancel</button></div>`;
   box.innerHTML=h; box.scrollTop=sc;
   $("#tlCol").onchange=e=>retargetTool(e.target.value);
   $("#tlAt").onchange=e=>{ pd.at=+e.target.value; setStage(pd.at+1,{keepSel:true}); renderTool(); };
@@ -8806,13 +8887,13 @@ function fitFoundPeaks(){
   d.fitAt=null; S.selPeak=null; S.fitError=""; S.pfOpen=false;
   save({},`sent ${inView.length} peak${inView.length===1?"":"s"} found in ${specName(c)} to the peak fit`);
   showTab("fit"); renderFit(); renderPlot();
-  toast(`${inView.length} peak${inView.length===1?" is":"s are"} ready to fit, drawn dashed. Press Fit, or adjust ${inView.length===1?"it":"them"} first.`,{action:"Undo",run:undo});
+  toast(`${inView.length} peak${inView.length===1?"":"s"} ready to fit.`,{action:"Undo",run:undo});
 }
 function openPeakFinder(){
   const c=activeYCol(); if(!P()||!c) return;
   if(S.stage!=null){ S.stage=null; S.selStep=null; renderStages(); }
   openWin("peaks",{render:true});
-  if(!foundOf(c)&&!S.readOnly){ const n=findPeaksInto(); renderPeaks(); if(n!=null) toast(`Found ${n} peak${n===1?"":"s"}, marked on the graph. Type a label for any of them, change how they are marked, or fit them.`,{action:"Undo",run:undo}); }
+  if(!foundOf(c)&&!S.readOnly){ const n=findPeaksInto(); renderPeaks(); if(n!=null) toast(`Found ${n} peak${n===1?"":"s"}.`,{action:"Undo",run:undo}); }
 }
 function renderPeaks(){
   const box=$("#pane-peaks"); if(!box) return;
@@ -8823,18 +8904,18 @@ function renderPeaks(){
   const stale=f&&f.sig&&f.sig!==pipeSig(c);
   const ae=document.activeElement, focusId=ae&&box.contains(ae)?ae.id:null, sc=box.scrollTop, keepV=focusId&&ae.matches("input[type=text]")?[ae.value,ae.selectionStart,ae.selectionEnd]:null;
   const many=yCols().length>1, nSets=yCols().filter(y=>foundOf(y)).length;
-  let h=`<div class="fbar pkbar"><label class="lab" for="pkCol">Spectrum</label><select id="pkCol"${many?"":" disabled"}>${yCols().map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}${foundOf(y)?` (${peakGroup(y.id).length})`:""}</option>`).join("")}</select><span class="sp"></span>
+  let h=`<div class="fbar pkbar"><label class="lab" for="pkCol"${many?"":" hidden"}>Spectrum</label><select id="pkCol"${many?"":" hidden"}>${yCols().map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}${foundOf(y)?` (${peakGroup(y.id).length})`:""}</option>`).join("")}</select><span class="sp"></span>
     ${many?`<button class="btn sm" id="pkEvery"${ro} title="Find peaks in every spectrum with these settings">Every spectrum</button>`:""}<button class="btn sm primary" id="pkFind"${ro}>${ICON("wand","sm")}${f?"Find again":"Find peaks"}</button></div>`;
   if(stale&&f.follow===false) h+=noteHtml("warn","The processing has changed since these peaks were found. Find again to follow it; your labels stay with the peaks that are still there.");
   else if(f&&f.re) h+=`<p class="hint">Found again ${esc(ago(f.re))}, after the processing changed.</p>`;
   // 1 How to find
-  h+=`<details class="grp stepgrp" id="pkHow"${S.pkHow||!f?" open":""}><summary><span class="sn">1</span>How to find them <span class="sum">${esc(((PF_MODES.find(q=>q[0]===pfOpts().mode)||PF_MODES[0])[1]).toLowerCase())} ${esc(String(pfOpts().v))}${pfOpts().log?", log scale":""}</span></summary><div class="gb">${pfFormHtml()}<p class="hint">Searches the points in view (zoom to search part of the spectrum), after a straight baseline through the lowest points. Every change searches again at once; your labels stay with the peaks that are still found, and come back with a peak found again.</p><label class="chk"><input type="checkbox" id="pkFollow"${!f||f.follow!==false?" checked":""}${ro||!f?" disabled":""}> Find them again whenever the processing changes</label><div class="actions"><button class="btn sm ghost" id="pkDefaults"${ro}>Default settings</button></div></div></details>`;
+  h+=`<details class="grp stepgrp" id="pkHow"${S.pkHow||!f?" open":""}><summary>How to find them <span class="sum">${esc(((PF_MODES.find(q=>q[0]===pfOpts().mode)||PF_MODES[0])[1]).toLowerCase())} ${esc(String(pfOpts().v))}${pfOpts().log?", log scale":""}</span></summary><div class="gb">${pfFormHtml()}<label class="chk"><input type="checkbox" id="pkFollow"${!f||f.follow!==false?" checked":""}${ro||!f?" disabled":""}> Find them again whenever the processing changes</label><div class="actions"><button class="btn sm ghost" id="pkDefaults"${ro}>Default settings</button></div></div></details>`;
   // 2 The peaks
-  h+=`<section class="stepsec"><h3 class="gh"><span class="sn">2</span>Peaks <span class="cnt">${rows.length||""}</span><span style="flex:1"></span>${rows.length?`<button class="btn sm ghost" id="pkCopy">${ICON("copy","sm")}Copy</button>`:""}${nSets>1?`<button class="btn sm ghost" id="pkCopyAll" title="Every spectrum's peaks, one table">Copy all</button>`:""}${rows.length?`<button class="btn sm ghost" id="pkClear"${ro}>Clear</button>`:""}</h3>`;
-  if(!f) h+=noteHtml("info","No peaks yet. <strong>Find peaks</strong> marks every peak that passes the settings above; nothing else is changed.",true);
+  h+=`<section class="stepsec"><h3 class="gh">Peaks <span class="cnt">${rows.length||""}</span><span style="flex:1"></span>${rows.length?`<button class="btn sm ghost" id="pkCopy">${ICON("copy","sm")}Copy</button>`:""}${nSets>1?`<button class="btn sm ghost" id="pkCopyAll" title="Every spectrum's peaks, one table">Copy all</button>`:""}${rows.length?`<button class="btn sm ghost" id="pkClear"${ro}>Clear</button>`:""}</h3>`;
+  if(!f) h+=`<p class="nothing">No peaks yet.</p>`;
   else if(!rows.length) h+=noteHtml("info","No peaks pass these settings. Lower the threshold, or look at what was turned down.",true);
   else h+=`<div class="twrap"><table class="rtab pktab"><thead><tr><th>#</th><th>Position${xu?` <span class="unit">(${esc(xu)})</span>`:""}</th><th>${esc(d.yn||"Y")}${yu?` <span class="unit">(${esc(yu)})</span>`:""}</th><th class="opt">FWHM</th><th class="opt" title="Signal to noise">S/N</th><th class="l">Label</th><th></th></tr></thead><tbody>${rows.map((r,k)=>`<tr data-pka="${esc(r.a.id)}"${S.annoSel===r.a.id?' class="sel"':""}><td>${k+1}${r.a.manual?`<span class="lab" title="Placed by hand"> ✎</span>`:""}</td><td>${esc(fmt(r.x,7))}</td><td>${esc(fmt(r.y,5))}</td><td class="opt">${r.w!=null?esc(fmt(r.w,4)):"—"}</td><td class="opt">${r.snr!=null?esc(fmt(r.snr,3)):"—"}</td><td class="l"><input type="text" id="pkl-${esc(r.a.id)}" data-pklab="${esc(r.a.id)}" value="${esc(r.lab)}" placeholder="type a label" maxlength="80" aria-label="Label of peak ${k+1}"${ro}></td><td class="fx"><button class="tb sm icon" data-pkdel="${esc(r.a.id)}" aria-label="Remove peak ${k+1}" title="Remove this peak"${ro}>${ICON("x","sm")}</button></td></tr>`).join("")}</tbody></table></div>`;
-  if(f) h+=`<div class="actions"><button class="btn sm${S.mode==="label"?" primary":""}" id="pkAddMode"${ro}>${ICON("tag","sm")}${S.mode==="label"?"Done adding":"Add a peak by clicking the graph"}</button></div><p class="hint">Click a label on the graph to select it, drag it to move it, double-click it to type over it. <code>{x}</code> in a label stands for the peak's position.</p>`;
+  if(f) h+=`<div class="actions"><button class="btn sm${S.mode==="label"?" primary":""}" id="pkAddMode"${ro}>${ICON("tag","sm")}${S.mode==="label"?"Done adding":"Add a peak by clicking the graph"}</button></div>`;
   const mem=((f&&f.mem)||[]).filter(m=>m.lab);
   if(mem.length) h+=`<p class="hint">Not found with these settings, and kept for when they are: ${mem.map(m=>`<strong>${esc(m.lab)}</strong> at ${esc(fmt(m.x,6))}`).join(", ")}.</p>`;
   const rj=S.pkLast&&S.pkLast.rejected?S.pkLast.rejected.length:0;
@@ -8842,7 +8923,7 @@ function renderPeaks(){
   h+=`</section>`;
   // 3 How they look
   if(f){ const sel=(id,opts,val,k)=>`<select id="${id}" data-pks="${k}"${ro}>${opts.map(([v,l])=>`<option value="${esc(String(v))}"${String(v)===String(val)?" selected":""}>${esc(l)}</option>`).join("")}</select>`;
-    h+=`<section class="stepsec"><h3 class="gh"><span class="sn">3</span>On the graph</h3><div class="frow">
+    h+=`<section class="stepsec"><h3 class="gh">On the graph</h3><div class="frow">
       <label for="pkMk">Mark each with</label>${sel("pkMk",PK_MARKS,st.mk,"mk")}
       <label for="pkShow">Label with</label>${sel("pkShow",PK_SHOW,st.show,"show")}
       <label for="pkDec">Decimals</label>${sel("pkDec",[["","As needed"],[0,"0"],[1,"1"],[2,"2"],[3,"3"]],st.dec==null?"":st.dec,"dec")}
@@ -8851,7 +8932,7 @@ function renderPeaks(){
       <span></span><label class="chk"><input type="checkbox" data-pks="rot"${st.rot?" checked":""}${ro}> Vertical labels</label>
       <span></span><label class="chk"><input type="checkbox" data-pks="unit"${st.unit?" checked":""}${ro}> Unit after the position</label></div></section>`;
     // 4 What next
-    h+=`<section class="stepsec"><h3 class="gh"><span class="sn">4</span>If you want</h3><div class="actions"><button class="btn sm" id="pkFit"${ro||!rows.length?" disabled":""}>${ICON("peak","sm")}Fit these peaks…</button><button class="btn sm" id="pkInteg"${ro||!rows.length?" disabled":""} title="A window around each peak, integrated without a fit">${ICON("area","sm")}Integrate them</button><button class="btn sm" id="pkMore">${ICON("tag","sm")}Lines, labels and legend…</button></div><p class="hint">Fitting is optional: the peaks stay marked and labelled either way, in the figure, the exports and the report.</p></section>`; }
+    h+=`<section class="stepsec"><h3 class="gh">Next</h3><div class="actions"><button class="btn sm" id="pkFit"${ro||!rows.length?" disabled":""}>${ICON("peak","sm")}Fit these peaks…</button><button class="btn sm" id="pkInteg"${ro||!rows.length?" disabled":""} title="A window around each peak, integrated without a fit">${ICON("area","sm")}Integrate them</button><button class="btn sm" id="pkMore">${ICON("tag","sm")}Lines, labels and legend…</button></div></section>`; }
   box.innerHTML=h; box.scrollTop=sc;
   if(focusId){ const el=document.getElementById(focusId); if(el){ if(keepV&&el.matches("input[type=text]")){ el.value=keepV[0]; try{ el.setSelectionRange(keepV[1],keepV[2]); }catch(e){} } el.focus({preventScroll:true}); } }
   wirePeaks(box);
@@ -9032,10 +9113,10 @@ function renderInteg(){
   const g=integOf(p), res=bandCalc(c), d=finalOf(c), ro=S.readOnly?" disabled":"", au=unitFor("yx",d.xu||"",d.yu||""), many=yCols().length>1;
   const picking=S.mode==="range"&&S.pick&&S.pick.integ, every=many&&S.igEvery;
   const ae=document.activeElement, focusId=ae&&box.contains(ae)?ae.id:null, sc=box.scrollTop, keepV=focusId&&ae.matches("input[type=text]")?[ae.value,ae.selectionStart,ae.selectionEnd]:null;
-  let h=`<div class="fbar igbar"><label class="lab" for="igCol">Spectrum</label><select id="igCol"${many?"":" disabled"}>${yCols().map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}</option>`).join("")}</select><span class="sp"></span>
+  let h=`<div class="fbar igbar"><label class="lab" for="igCol"${many?"":" hidden"}>Spectrum</label><select id="igCol"${many?"":" hidden"}>${yCols().map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}</option>`).join("")}</select><span class="sp"></span>
     <button class="btn sm${picking?" primary":""}" id="igPick"${ro}>${ICON("plus","sm")}${picking?"Done adding":"Add by dragging"}</button><button class="btn sm" id="igPeaks"${ro} title="A window around each peak: the peaks marked in the Peaks window, or found now with its settings">${ICON("peak","sm")}Around the peaks</button></div>`;
   if(many) h+=`<div class="seg mini igseg" role="group" aria-label="Which spectra"><button data-igv="one" aria-pressed="${!every}">This spectrum</button><button data-igv="all" aria-pressed="${!!every}">Every spectrum</button></div>`;
-  if(!res.length){ h+=noteHtml("info",`No bands on this axis yet. <strong>Add by dragging</strong> across a band on the graph, or put a window <strong>around the peaks</strong>. Each band is measured on the final data, less its own local baseline, and follows the processing.`,true); }
+  if(!res.length){ h+=`<div class="rempty">${ICON("area")}<div><p><strong>No bands yet</strong><br>Drag across a band on the graph, or put a window around each peak.</p></div></div>`; }
   else if(!every){
     const refName=res.ref?bandName(res.ref.b,res.ref.k):"";
     h+=`<div class="twrap"><table class="rtab igtab"><thead><tr><th class="l">Band</th><th class="edt">From</th><th class="edt">To</th><th class="l edt" title="Line: between the window's edges. None: down to zero. Level: at the window's lowest point">Baseline</th><th>Area${au?` <span class="unit">(${esc(au)})</span>`:""}</th><th class="opt">Height</th><th class="opt2">Position</th><th class="opt">FWHM</th><th>%</th><th title="${res.ref?"Area over the area of "+esc(refName):"Choose a band to divide by"}">${res.ref?`÷ ${esc(refName)}`:"Ratio"}</th><th title="The band the others are divided by">Ref</th><th></th></tr></thead><tbody>`+
@@ -9055,9 +9136,8 @@ function renderInteg(){
   }
   if(res.length) h+=`<div class="actions"><button class="btn sm ghost" id="igCopy">${ICON("copy","sm")}Copy</button><button class="btn sm ghost" id="igClear"${ro}>Clear</button><span class="sp"></span>
     <label class="chk"><input type="checkbox" id="igShow"${g.show?" checked":""}${ro}> Shade them on the graph</label></div>`;
-  h+=`<details class="grp" id="igHow"${S.igHow?" open":""}><summary>How they are measured</summary><div class="gb">
-    <div class="frow"><label for="igAvg">Line baselines</label><div class="pair"><select id="igAvg"${ro}>${[1,3,5,9,15].map(k=>`<option value="${k}"${g.avg===k?" selected":""}>${k===1?"through the edge points":`through the mean of ${k} points at each edge`}</option>`).join("")}</select></div></div>
-    <p class="hint">Each band's area is the trapezoidal sum over the points in its window, less its local baseline, on the final data (masked points left out); it follows the processing. The ± carries the noise of the spectrum (σ ${esc(fmt(res.sigma||0,3))}, from its second differences)${d.e&&d.e.some(v=>v!=null)?", or each point's error bar,":""} through the sum and the baseline. Height and position are the band's top above the baseline (a parabola through the three highest points), FWHM where it crosses half of that, if it does inside the window. Drag a band's edge on the graph to move it, or its strip at the top to move the whole window.</p></div></details>`;
+  if(res.length) h+=`<details class="grp" id="igHow"${S.igHow?" open":""}><summary>Baselines</summary><div class="gb">
+    <div class="frow"><label for="igAvg">Line baselines</label><div class="pair"><select id="igAvg"${ro}>${[1,3,5,9,15].map(k=>`<option value="${k}"${g.avg===k?" selected":""}>${k===1?"through the edge points":`through the mean of ${k} points at each edge`}</option>`).join("")}</select></div></div></div></details>`;
   box.innerHTML=h; box.scrollTop=sc;
   if(focusId){ const el=document.getElementById(focusId); if(el){ if(keepV&&el.matches("input[type=text]")){ el.value=keepV[0]; try{ el.setSelectionRange(keepV[1],keepV[2]); }catch(e){} } el.focus({preventScroll:true}); } }
   wireInteg(box);
@@ -9210,7 +9290,7 @@ function renderOverview(){
   const d=r?(fin?r.out:r.input):EMPTY_SER, o=overviewOf(d), ro=S.readOnly?" disabled":"", many=yCols().length>1;
   const ok=`<span class="ovst ok" title="Fine">${ICON("check","sm")}</span>`, wn=`<span class="ovst warn" title="Worth a look">${ICON("alert","sm")}</span>`, nb=`<span class="ovst"></span>`;
   const u=v=>v?" "+esc(v):"";
-  let h=`<div class="fbar ovbar"><label class="lab" for="ovCol">Spectrum</label><select id="ovCol"${many?"":" disabled"}>${yCols().map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}</option>`).join("")}</select><span class="sp"></span>
+  let h=`<div class="fbar ovbar"><label class="lab" for="ovCol"${many?"":" hidden"}>Spectrum</label><select id="ovCol"${many?"":" hidden"}>${yCols().map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}</option>`).join("")}</select><span class="sp"></span>
     ${nSteps?`<div class="seg mini" role="group" aria-label="Which data"><button data-ovs="raw" aria-pressed="${!fin}">As recorded</button><button data-ovs="final" aria-pressed="${fin}">After ${nSteps} step${nSteps===1?"":"s"}</button></div>`:`<span class="lab">As recorded</span>`}</div>`;
   if(o.few){ h+=noteHtml("info",`Only ${o.n} usable point${o.n===1?"":"s"}: too few to say anything about.`,true); box.innerHTML=h; wireOverview(box); return; }
   const rows=[];
@@ -9230,8 +9310,7 @@ function renderOverview(){
   if(!sug.length) h+=`<p class="lab">Nothing to clean up first: the data can be analysed as they are.</p>`;
   else h+=`<ol class="ovsug">${sug.map((q,k)=>`<li${q.done?' class="done"':""}><div class="grow"><strong>${esc(q.label)}</strong><div class="lab">${esc(q.why)}</div></div>${q.done?`<span class="lab">${ICON("check","sm")} step ${q.done}</span>`:q.op?`<button class="btn sm" data-ovop="${q.op}"${ro}>${PIPE_OPS[q.op]&&PIPE_OPS[q.op].params&&PIPE_OPS[q.op].params.length?"Open…":"Add"}</button>`:""}</li>`).join("")}</ol>`;
   h+=`<h3 class="gh">Then</h3><div class="actions"><button class="btn sm" id="ovPeaks"${o.bands.length?"":" disabled"}>${ICON("tag","sm")}Find and label the peaks</button><button class="btn sm" id="ovInteg"${o.bands.length?"":" disabled"}>${ICON("area","sm")}Integrate them</button><button class="btn sm" id="ovFit">${ICON("peak","sm")}Fit…</button></div>`;
-  h+=`<p class="hint">Measured, not changed: every suggestion opens its tool with settings measured from these data, and nothing is recorded until you press OK there.${fin?"":" This is the data as recorded."}</p>
-    <label class="chk"><input type="checkbox" id="ovAuto"${ovAuto()?" checked":""}> Show the overview after every import</label>`;
+  h+=`<label class="chk ovauto"><input type="checkbox" id="ovAuto"${ovAuto()?" checked":""}> Show the overview after every import</label>`;
   box.innerHTML=h; wireOverview(box);
 }
 function wireOverview(box){
@@ -9310,16 +9389,15 @@ function renderStats(){
     <div class="seg mini" role="group" aria-label="Which range"><button data-sto="range:all" aria-pressed="${o.range!=="view"}">All X</button><button data-sto="range:view" aria-pressed="${o.range==="view"}"${S.view?"":" disabled title=\"Zoom the graph first\""}>Visible range</button></div><span class="sp"></span>
     <button class="btn sm" id="stCopy">${ICON("copy","sm")}Copy</button></div>`;
   h+=`<h3 class="gh" id="st-desc">Descriptive statistics <span class="cnt">${rng?`x ${esc(fmt(rng[0],6))} to ${esc(fmt(rng[1],6))}`:"all points"}</span></h3>
-    <div class="twrap"><table class="rtab stt"><thead><tr><th class="l">Spectrum</th><th>Points</th><th>Min</th><th>Max</th><th>X at max</th><th>Mean</th><th>SD</th><th>Median</th><th title="Noise estimated from second differences, robust to the bands">Noise σ</th><th title="(max − median) / noise σ">S/N</th><th>Area</th><th title="Area-weighted mean X">Centroid</th></tr></thead><tbody>`;
+    <div class="twrap"><table class="rtab stt"><thead><tr><th class="l">Spectrum</th><th>Points</th><th>Min</th><th>Max</th><th>X at max</th><th>Mean</th><th>SD</th><th>Median</th><th title="Noise estimated from second differences, robust to the bands">Noise σ</th><th title="(max − median) / noise σ">S/N</th><th title="Trapezoidal, over X in ascending order">Area</th><th title="Area-weighted mean X">Centroid</th></tr></thead><tbody>`;
   rows.forEach(r=>{ h+=`<tr class="${r.c===act?"sel":""}"><td class="l">${esc(specName(r.c))}</td><td>${r.n}</td><td>${f(r.mn)}</td><td>${f(r.mx)}</td><td>${f(r.xmax,6)}</td><td>${f(r.mu)}</td><td>${f(r.sd)}</td><td>${f(r.med)}</td><td>${f(r.sig,3)}</td><td>${f(r.snr,3)}</td><td>${f(r.area)}</td><td>${f(r.centroid,6)}</td></tr>`; });
-  h+=`</tbody></table></div><p class="hint">Areas are trapezoidal, over X in ascending order${au?`, in ${esc(au)}`:""}. S/N is the height of the largest point above the median, over the noise.</p>`;
+  h+=`</tbody></table></div>`;
   h+=`<h3 class="gh" id="st-int">Integrate the visible range <span class="cnt">${esc(specName(act))}</span></h3>${act?measureHtml():""}`;
   const same=yCols().filter(c=>(finalOf(c).xu||"")===((act&&finalOf(act).xu)||""));
-  h+=`<h3 class="gh" id="st-corr">Correlation between spectra <span class="cnt">Pearson r, on ${esc(specName(act))}'s X</span></h3>`;
-  if(same.length<2) h+=`<p class="lab">Needs two or more spectra on the same X axis.</p>`;
+  h+=`<h3 class="gh" id="st-corr">Correlation between spectra <span class="cnt" title="Final data, interpolated onto this X where they overlap. Near 1: the same shape; near 0: unrelated">Pearson r, on ${esc(specName(act))}'s X</span></h3>`;
+  if(same.length<2) h+=`<p class="nothing">Needs two spectra on the same X axis.</p>`;
   else { const M=corrMatrix(same,rng);
-    h+=`<div class="twrap"><table class="rtab corr"><thead><tr><th></th>${same.map(c=>`<th title="${esc(specName(c))}">${esc(specName(c).slice(0,14))}</th>`).join("")}</tr></thead><tbody>${same.map((a,i)=>`<tr><td class="l">${esc(specName(a))}</td>${same.map((b,j)=>{ const v=M[i][j]; return `<td style="${v!=null?`background:color-mix(in srgb, var(--accent) ${Math.round(Math.abs(v)*38)}%, transparent)`:""}">${v==null?"—":esc(v.toFixed(4))}</td>`; }).join("")}</tr>`).join("")}</tbody></table></div>
-      <p class="hint">Each spectrum's final data, interpolated onto the analysed spectrum's X where they overlap. r near 1: the same shape; near 0: unrelated.</p>`; }
+    h+=`<div class="twrap"><table class="rtab corr"><thead><tr><th></th>${same.map(c=>`<th title="${esc(specName(c))}">${esc(specName(c).slice(0,14))}</th>`).join("")}</tr></thead><tbody>${same.map((a,i)=>`<tr><td class="l">${esc(specName(a))}</td>${same.map((b,j)=>{ const v=M[i][j]; return `<td style="${v!=null?`background:color-mix(in srgb, var(--accent) ${Math.round(Math.abs(v)*38)}%, transparent)`:""}">${v==null?"—":esc(v.toFixed(4))}</td>`; }).join("")}</tr>`).join("")}</tbody></table></div>`; }
   box.innerHTML=h;
   box.querySelectorAll("[data-sto]").forEach(b=>b.onclick=()=>{ const [k,v]=b.dataset.sto.split(":"); S.stOpt=Object.assign({},o,{[k]:v}); renderStats(); });
   $("#stCopy").onclick=()=>copyText(statsTsv(),"Statistics copied as a tab-separated table.");
@@ -9429,6 +9507,10 @@ function renderFlow(){
   const p=P();
   if(!p){ box.innerHTML=`<p class="nothing">Open a project to see its history.</p>`; return; }
   clampStage();
+  // Nothing recorded yet: say so, rather than draw empty boxes.
+  if(!yCols().some(c=>isDerived(c)||(c.data||[]).some(v=>v!=null&&v!==""))){
+    box.innerHTML=`<div class="rempty flow-empty">${ICON("flow")}<div><p><strong>No data yet</strong><br>Each step you take will appear here as a box.</p>${S.readOnly?"":`<button class="btn sm" id="fImport">${ICON("upload","sm")}Import a file…</button>`}</div></div>`;
+    const b=box.querySelector("#fImport"); if(b) b.onclick=pickFile; return; }
   const tab=S.flowTab||"flow";
   const keepScroll=box.querySelector(".flow-scroll"), sx=keepScroll?keepScroll.scrollLeft:0, sy=keepScroll?keepScroll.scrollTop:0;
   const focusKey=document.activeElement&&box.contains(document.activeElement)&&document.activeElement.dataset?document.activeElement.dataset.node:null;
@@ -9565,7 +9647,7 @@ function flowInspectorBody(n){
     h+=`<div class="fi-h"><span class="fn-n">${n.k}</span><div class="grow"><div class="fi-t">${esc(stepTitle(s))}</div><div class="lab">${pend?"Preview: being set up in the tool dialog. OK records it.":`Step ${n.k} of ${esc(specName(c))}${s.by||s.t?` · added ${s.by?`by ${esc(nameOf(s.by))} `:""}${s.t?esc(ago(s.t)):""}`:""}`}</div></div>
       ${pend?"":`${discChip(n.key)}<label class="switch" title="${s.on===false?"Switched off: the data pass through unchanged":"Switch this step off to see the data without it"}"><input type="checkbox" data-fon${s.on!==false?" checked":""}${ro}><span>${s.on===false?"Off":"On"}</span></label><button class="tb sm icon" data-fi="stepmenu" aria-haspopup="menu" aria-expanded="false" aria-label="Step options" title="More">${ICON("more","sm")}</button>`}</div>`;
     h+=`<div class="beforeafter">${beforeAfter(s)}</div>`;
-    h+=pend?`<p class="hint">Its settings are in the ${s.op==="python"?"Python window":"tool dialog"}; the graph and this chart follow them.</p>`:stepForm(s);
+    h+=pend?`<p class="lab">Being set in the ${s.op==="python"?"Python window":"tool window"}.</p>`:stepForm(s);
     if(!pend) h+=`<div class="actions fi-acts">${btn("insAfter","Insert a step after this","plus")}${yCols().length>1&&s.op!=="correct"?btn("toall","Apply to every spectrum","copy"):""}${btn("delstep","Delete","x",{ghost:true})}</div>`;
     return h;
   }
@@ -9614,7 +9696,7 @@ function flowInspectorBody(n){
     h+=kvHtml([["Points",String(d.x.length)],["X",`${esc(d.xn||"X")}${d.xu?` (${esc(d.xu)})`:""}, ${rangeTxt(d.x,"")}`],["Y",`${esc(d.yn||"Y")}${d.yu?` (${esc(d.yu)})`:""}, ${rangeTxt(d.y,"")}`],
       n.kind==="raw"?["Columns",`${esc(colLabel(xc,"X"))} and ${esc(colLabel(c,"Y"))}${ec?` with errors from ${esc(colLabel(ec,"error"))}`:""}`]:null]);
     h+=`<div class="actions">${btn("overview","Overview","info",{view:true})}${btn("sheet","Open the worksheet","table",{view:true})}${btn("rename","Rename…","edit")}${n.kind==="src"?btn("deldrv","Delete this spectrum","x",{ghost:true}):""}</div>`;
-    if(n.kind==="raw") h+=`<p class="hint">The raw data are locked. To correct a value, type over it in the worksheet's Raw sheet: you will be asked for a reason, and the correction becomes a step.</p>`;
+    if(n.kind==="raw") h+=`<p class="lab">${ICON("lock","sm")} Locked. Type over a value in the Raw sheet to correct it.</p>`;
     return h;
   }
   if(n.kind==="final"){
@@ -9846,12 +9928,8 @@ async function pyRun(code,d,opt){
 // Python's traceback, without the frames that belong to Pyodide itself.
 function pyErrText(t){ const lines=String(t||"").split("\n"); const i=lines.findIndex(l=>/File "<exec>"/.test(l)); return (i>=0?lines.slice(i):lines).filter(l=>!/_pyodide|pyodide\/|\/lib\/python/.test(l)).join("\n").trim()||String(t); }
 const PY_EXAMPLES=[
-  ["Start here",`# x and y are this spectrum's data (numpy arrays when numpy is available).
-# e is its Y errors, or None. Also: x_name, x_unit, y_name, y_unit, meta,
-# and spectra, a dict of the other spectra's final (x, y) by name: the ones
-# you use are recorded, and drawn as dashed lines in the History.
-# Whatever you leave in x and y is the result. print() goes to the output.
-# Above, choose whether the result is a step of this spectrum or a new one.
+  ["Start here",`# x, y, e: this spectrum. spectra: the others, by name. Help (F1) has more.
+# Whatever you leave in x and y is the result.
 print(len(x), "points, x from", min(x), "to", max(x))
 `],
   ["Subtract the minimum",`m = min(y)
@@ -9966,7 +10044,7 @@ function renderPy(){
   if(py.log) res+=`<pre class="pyout">${esc(py.log)}</pre>`;
   if(py.reads&&py.reads.length&&!py.err) res+=`<p class="lab pyreadnote">${ICON("flow","sm")}<span>The code read ${py.reads.map(n=>`<strong>${esc(n)}</strong>`).join(", ")}. The History draws a dashed line from ${py.reads.length===1?"it":"each"}, and says when ${py.reads.length===1?"it changes":"one changes"}.</span></p>`;
   if(py.note) res+=`<p class="lab">${esc(py.note)}</p>`;
-  if(!res) res=`<p class="lab">The output of print() appears here. ${t.d?`Input: ${t.d.x.length} points of ${esc(specName(t.c))}.`:""} ${isNew?"Run previews the new spectrum here; Record adds it to the project.":""}</p>`;
+  if(!res) res=`<p class="lab">Output appears here${t.d?` · input: ${t.d.x.length} points of ${esc(specName(t.c))}`:""}</p>`;
   h+=`<div class="pyres">${res}</div>`;
   box.innerHTML=h;
   const sub=$("#pySub"); if(sub) sub.textContent=t.c?specName(t.c)+(isNew?" → new spectrum":""):"";
@@ -10305,83 +10383,610 @@ function formDlg(o){
     openModal(m,o.focus?m.querySelector(o.focus):null);
   });
 }
-function helpHtml(){
-  const local=!S.store||S.store.mode==="local";
-  return `<h3 id="h-start">Getting started</h3>
-<ol>
-<li><strong>Bring in data.</strong> Drop a file anywhere on the window, press <em>Import</em>, or click a cell of the <em>Worksheet</em> window and paste columns from a spreadsheet. The import dialog shows how the file was read (delimiter, decimal mark, header block, which column is X) and lets you change any of it before anything is imported.</li>
-<li><strong>Arrange the windows.</strong> The graph, the worksheet, the History and the rest are windows: drag one by its title bar, resize it from an edge, double-click the title to maximise it, and minimise it to the taskbar at the bottom. <em>Window › Tile</em> puts them side by side. On a phone they stack.</li>
-<li><strong>Process the data.</strong> Every operation is in the <em>Data</em>, <em>Math</em>, <em>Analysis</em> and <em>Statistics</em> menus, repeated on the graph window's own bar: remove spikes, subtract a background, smooth or filter, normalize, take a derivative or an integral, average spectra, convert to Raman shift, calibrate, or run your own Python. A tool opens as a dialog with its result live on the graph; <em>OK</em> records it as a step. The raw data are never changed.</li>
-<li><strong>Follow what happened.</strong> The <em>History</em> window draws the data as a flow chart: the recorded data, each spectrum's steps in order, the final data and the fits, with branches where one spectrum was made from another. Click any box to see the data at that point on the graph and change its settings; drag a step to reorder it; the <em>+</em> on a line inserts a step there.</li>
-<li><strong>Fit.</strong> <em>Analysis › Find peaks</em> finds peaks by signal to noise, by percent of the largest, by absolute height or in decades below the largest, optionally on a log scale, and shows what it turned down and why. Drag the peaks on the graph, then press <em>Fit</em> or <kbd>Ctrl</kbd> <kbd>Enter</kbd>. <em>Curve fit</em> puts one model through the points in view.</li>
-<li><strong>Style the graph.</strong> Right-click the graph (or a legend entry) to recolour a spectrum, change its plot type, or open <em>Plot details</em>: line style and width, symbols, fill, axis ranges, ticks, number format, legend, and how several spectra share the graph (overlay, offset, stacked panels, double Y, heat map).</li>
-<li><strong>Talk it over.</strong> Select any box in the History (a step, the raw data, the final data, the fits) to discuss it at the foot of its details, or press <kbd>C</kbd>. A comment there stays with that step: a badge on the box shows its open threads, the Discussion window lists every thread with a link back, and the report includes them. Reply, resolve and reopen as the analysis moves on.</li>
-<li><strong>Read the result, and share it.</strong> The <em>Results</em> window gives every parameter with its standard error, t, p, confidence interval and dependency, the fit statistics, and plain notes on anything that makes the numbers less trustworthy. <em>File › Export</em> saves the figure, the data or a complete report.</li>
+/* ============================================================
+   Help. The documentation is a window of its own, so it can stay open beside
+   what it describes: a contents list grouped by kind, a search over every
+   article's words, and an article per feature. Each window's title bar has a
+   "?" that opens its article (F1 opens the front window's, and a tool's opens
+   the article on its step). Step articles are written from PIPE_OPS (each
+   step's help, its settings and their hints) plus notes of their own in
+   DOC_STEP, so a new step or setting is documented where it is defined.
+   Links between articles are <a data-doc="id">, or "id#anchor" for a heading;
+   <button data-doc-open="…"> opens the window an article describes.
+   ============================================================ */
+const DOC_GROUPS=["Basics","Data","Processing","Graph","Analysis","Fitting","Working together","Reference"];
+const K=(...k)=>k.map(x=>`<kbd>${x}</kbd>`).join(" ");
+const DL=(rows,cls)=>`<dl class="dl${cls?" "+cls:""}">${rows.map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join("")}</dl>`;
+const DA=(id,t)=>`<a href="#" data-doc="${id}">${t}</a>`;
+const MP=s=>`<span class="mp">${s.split(" › ").join(" <span>›</span> ")}</span>`;
+const TIP=s=>`<p class="doc-tip">${s}</p>`;
+const DOCS=[
+/* ---------------------------------------------------------------- Basics */
+{id:"start", g:"Basics", t:"Getting started", kw:"introduction tour first quick start begin example",
+ lead:"Kurve turns a spectrum, or any X–Y data, into a figure and numbers you can publish, and keeps a record of every step in between.",
+ body:`<h2>In five steps</h2>
+<ol class="dsteps">
+<li><strong>Bring the data in.</strong> Drop a file anywhere on the window, press <em>Import</em>, or paste columns into the worksheet. ${DA("import","Importing data")}</li>
+<li><strong>Look at it.</strong> The Overview says what the spectrum is like (noise, bands, spikes, background) and what to do first. ${DA("overview","The Overview")}</li>
+<li><strong>Process it.</strong> Every operation is a tool in the <em>Data</em>, <em>Math</em> and <em>Analysis</em> menus. It previews on the graph; <em>OK</em> records it as a step in the History. ${DA("steps","Processing steps")}</li>
+<li><strong>Measure it.</strong> Find and label peaks, integrate bands, or fit a model or a set of peaks. ${DA("peaks","Peaks")} · ${DA("integ","Bands")} · ${DA("fit","Fitting")}</li>
+<li><strong>Share it.</strong> Export the figure, the data, or a report with every number, step and caveat. ${DA("export","Exporting")}</li>
 </ol>
-<p>A fit always uses the unmasked points in view, so zoom to fit part of a spectrum. Every change is recorded in the History's log and can be undone.</p>
-<h3 id="h-keys">Keyboard shortcuts</h3>
-<dl class="keys">
-<dt><kbd>Ctrl</kbd> <kbd>Z</kbd></dt><dd>Undo</dd>
-<dt><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Z</kbd>, <kbd>Ctrl</kbd> <kbd>Y</kbd></dt><dd>Redo</dd>
-<dt><kbd>Ctrl</kbd> <kbd>O</kbd></dt><dd>Import a file</dd>
-<dt><kbd>Ctrl</kbd> <kbd>Enter</kbd></dt><dd>Run the fit (in the Python window: run the code; in a comment: post it)</dd>
-<dt><kbd>Esc</kbd></dt><dd>Back to the Zoom tool; close a menu or dialog</dd>
-<dt><kbd>?</kbd></dt><dd>This help</dd>
-</dl>
-<h3>On the graph</h3>
-<dl class="keys">
-<dt>Right-click</dt><dd>Colour, plot type and style of the spectrum under the pointer; a line, text or a peak label where you clicked; axes, layout, legend. Right-click a line, a label or the legend for its own options</dd>
-<dt>Label tool</dt><dd>Click a peak and type its label (<kbd>Enter</kbd> keeps it; empty shows the position), in its spectrum's colour; click an empty spot to write text there</dd>
-<dt>Drag</dt><dd>A line, a shaded range, text, a peak label or the legend moves with the pointer; double-click a label or text (or press <kbd>Enter</kbd>) to type over it, a line or range for its settings; <kbd>Delete</kbd> removes the selected one</dd>
-<dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Move between points (click the graph or Tab to it first); <kbd>Home</kbd> and <kbd>End</kbd> jump to the ends</dd>
-<dt><kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd></dt><dd>Zoom in, zoom out, show all the data</dd>
-<dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Start or end the view at the selected point</dd>
-<dt><kbd>M</kbd></dt><dd>Mask or restore the selected point</dd>
-<dt><kbd>P</kbd></dt><dd>Place a peak at the selected point</dd>
-<dt><kbd>Delete</kbd></dt><dd>Remove the selected peak</dd>
-<dt>Middle-drag</dt><dd>Pan, whichever tool is chosen</dd>
-</dl>
-<h3>In the History</h3>
-<dl class="keys">
-<dt>Click a box</dt><dd>Show the data at that point on the graph, and its settings beside the chart</dd>
-<dt><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Move between boxes</dd>
-<dt><kbd>Alt</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Move the selected step earlier or later (or drag it)</dd>
-<dt><kbd>Delete</kbd></dt><dd>Delete the selected step</dd>
-<dt>Right-click</dt><dd>Options for a step or a spectrum</dd>
-<dt><kbd>C</kbd></dt><dd>Comment on the selected box. Every box has its own discussion at the foot of its details: reply, resolve, edit or delete your own comments. A badge on the box counts the open threads, and the Discussion window lists them all</dd>
-</dl>
-<h3>In the worksheet</h3>
-<dl class="keys">
-<dt><kbd>Enter</kbd> <kbd>↓</kbd> <kbd>↑</kbd></dt><dd>Next or previous row; <kbd>Tab</kbd> the next column; <kbd>Shift</kbd> with an arrow selects a range, <kbd>Ctrl</kbd> with an arrow jumps to the end of the data</dd>
-<dt><kbd>F2</kbd>, double-click</dt><dd>Edit the cell; typing replaces it, <kbd>Esc</kbd> cancels</dd>
-<dt>Paste</dt><dd>A block copied from a spreadsheet fills columns from the cell you paste into; decimal commas are recognised</dd>
-<dt>F(x)=</dt><dd>A column's formula, computed row by row: letters are columns, <code>x</code> the row's X, <code>i</code> the row number (<code>B*2</code>, <code>(B-C)/A</code>, <code>log10(B)</code>, <code>1e7/x</code>). It follows the columns it uses, and its values are not recorded data</dd>
-<dt>Fill handle</dt><dd>Drag the square at the corner of a selection down or right: two numbers or more continue as a series, one is copied (<kbd>Ctrl</kbd> swaps these); double-click it to fill down as far as the column beside. <kbd>Ctrl</kbd> <kbd>D</kbd> and <kbd>Ctrl</kbd> <kbd>R</kbd> copy the first row or column of the selection. Only empty cells are filled</dd>
-<dt><kbd>Ctrl</kbd> <kbd>F</kbd></dt><dd>Find in the sheet; <kbd>Enter</kbd>, <kbd>Shift</kbd> <kbd>Enter</kbd> or <kbd>F3</kbd> go to the next or previous match</dd>
-<dt>Right-click a cell</dt><dd>Copy, paste, mask, sort the view by the column (the data keep their order), find, fill down, set column values</dd>
-<dt>Right-click a header</dt><dd>Column options: X, Y or error bars, analyse, show or hide, formula, sort, delete</dd>
-<dt>Raw and Final</dt><dd>The Raw sheet holds the data as recorded. Empty cells can be filled; a recorded value is locked, and typing over it asks for a reason and adds a correction step instead. The Final sheet shows the analysed spectrum after processing.</dd>
-</dl>
-<h3>A first look: the Overview</h3>
-<p>After an import (or from Analysis › Overview) the Overview says what the spectrum is like before anything is done to it: its points and their spacing, the noise and the strongest band's signal to noise, the bands and how many points each spans, one- and two-point spikes, and the background, judged against the strongest band. Its suggested first steps each open their tool with settings measured from the data; nothing changes until you press OK there.</p>
-<h3>Integrating bands without a fit</h3>
-<p>Analysis › Integrate bands: drag across a band on the graph, or put a window around each peak. Each band's area is the sum over the points in its window less a local baseline (a line between its edges, none, or level at its lowest point), with an error carried from the noise; its height, position, FWHM, share of the total and ratio to a chosen band follow. Drag a band's edge to move it, or the strip along its top to move the whole window. The same windows apply to every spectrum on the same axis, so <em>Every spectrum</em> shows the same bands of every sample, and the numbers follow the processing.</p>
-<h3>Tied peak parameters</h3>
-<p>In a peak fit, the chain-link button beside a parameter ties it to the same parameter of another peak: equal, a multiple (for areas, such as the 2 to 1 of a spin–orbit doublet) or a fixed spacing (for centres). <em>One width</em> ties every peak's width to peak 1's, for an instrument's resolution. A tied parameter is not fitted on its own: it follows, its error is carried over, and the degrees of freedom count it once. Dragging any peak of a tied group on the graph moves the group. The report lists every tie.</p>
-<h3>Your own fit functions</h3>
-<p><em>Analysis › New fit function</em> (or <em>Function</em> beside the model list) opens an editor: write the function of <code>x</code> as on paper, for example <code>y = y0 + A*exp(-(x/t)^b)</code>, and every other name becomes a parameter, with a start (guessed from its name when left empty), optional limits and a unit. A preview draws the function over the data as you type, and a mistake is named with its line. Functions belong to the project and, if you choose, to this browser's library for the next project. A fit keeps a copy of the function it used, so editing the function later never changes a result already made; the report and the CSV export state the formula.</p>
-<h3>Python</h3>
-<p>Choose whether the result is <em>a step</em> of the spectrum (it replaces the data from there on) or <em>a new spectrum</em>, a branch of its own in the History; every spectrum's final data also has <em>New spectrum › With Python code</em>. Other spectra the code takes out of <code>spectra</code> are recorded and drawn as dashed lines into its box; when one of them, the code or the step's input changes, the box says so and <em>Run Python again</em> on the History's bar brings every such step up to date. The report prints each step's code.</p>
-<p>The Python window runs CPython in the browser (Pyodide, loaded the first time you run code). Your code sees the spectrum as <code>x</code>, <code>y</code> and <code>e</code>, its names and units, the file's metadata as <code>meta</code>, and every spectrum's final data in <code>spectra</code>. Whatever it leaves in <code>x</code> and <code>y</code> is the result. <em>Run</em> previews it as a step; <em>Record as a step</em> keeps it in the History with the code and its output, so the project opens with the same data without running Python again.</p>
-<h3 id="h-about">About Kurve</h3>
-<p>Kurve fits by the Levenberg–Marquardt method and reports standard errors, t and p values, 95% confidence intervals and parameter dependency. Without weights the errors are scaled by the square root of the reduced χ², as Origin does. Peak shapes are parametrised by centre, area and FWHM, so the table holds the numbers that go in a paper.</p>
-<p>The raw data of a project is fingerprinted with SHA-256 when it is recorded. The fingerprint appears in the History, the exports and the report, and the raw-data CSV export contains exactly the lines it covers, so anyone can check that the numbers were never altered.</p>
-<p>${local?"Projects are saved in this browser as you work, and nothing is uploaded. To keep a copy elsewhere, export it.":"Projects in this workspace are shared: everyone here sees each change as it is made."}</p>`;
+<h2>Try an example</h2>
+<p>${MP("File › Examples")} opens a finished project: an infrared spectrum with overlapping bands, a raw Raman spectrum with a background and cosmic-ray spikes, a single Raman band, or a fluorescence decay.</p>
+<div class="actions"><button class="btn sm" data-doc-ex="ir">Infrared example</button><button class="btn sm" data-doc-ex="ps">Raw Raman example</button></div>
+<h2>Two promises</h2>
+<ul><li><strong>The raw data never change.</strong> Every change is a step on top of them, which you can edit, reorder, switch off or delete. ${DA("rawdata","Raw data and its fingerprint")}</li>
+<li><strong>Everything can be undone.</strong> ${K("Ctrl","Z")} takes back your last change, whatever window it was made in.</li></ul>`},
+{id:"desk", g:"Basics", t:"Windows and the desk", kw:"window move resize maximise minimise taskbar tile cascade layout toolbar status bar phone theme dark",
+ lead:"The graph, the worksheet, the History and the rest are windows on a desk, as in Origin. Arrange them the way you work.",
+ body:`<h2>Arranging windows</h2>
+${DL([["Move","Drag the title bar."],["Resize","Drag an edge or the bottom-right corner."],["Maximise","Double-click the title bar, or its square button. Again to restore."],["Minimise","The dash button. The window waits in the taskbar."],["Help","The <strong>?</strong> button opens the article about that window. "+K("F1")+" does the same for the window in front."]])}
+<p>The <strong>taskbar</strong> along the bottom lists every window: click one to open it or bring it to the front, and click the front one to minimise it. A badge counts open comment threads; a dot shows a fit's state or a warning in the processing. <em>Tile</em> and <em>Cascade</em> at its right arrange the open windows; ${MP("Window › Restore the default arrangement")} starts again.</p>
+<p>The arrangement is remembered in this browser, as fractions of the desk, so it survives a resized window.</p>
+<h2>The toolbar</h2>
+${DL([["Import, Export","Bring a file in; save the figure, data or a report."],["Undo, Redo","Every change, in every window."],["Raw · Final · Compare","What the graph shows: the data as recorded, after processing, or both."],["Zoom … Comment","The pointer tools. "+DA("graph","The graph")],["Show all","Back to all the data."],["Plot type, layout","How the analysed spectrum is drawn, and how several spectra share the graph."],["Reverse X, Log Y, Grid, Residuals","Axis and graph switches."]])}
+<h2>The status bar</h2>
+<p>What the current tool does, the value under the pointer, how many points are in use (masked and in view), the fit's state, and whether the project is saved.</p>
+<h2>On a phone</h2>
+<p>Below 860 pixels the windows stack in one column, graph first, and the taskbar stays at the bottom of the screen.</p>
+<h2>Theme</h2>
+<p>${MP("Window › Theme")}: light, dark, or the system's. The moon and sun button in the title bar switches between them.</p>`},
+{id:"projects", g:"Basics", t:"Projects, saving and undo", kw:"project rename new delete switch save local browser shared workspace undo redo log",
+ lead:"A project is one table of data with its processing, peaks, bands, fits, figure and discussion. It saves itself as you work.",
+ body:`<h2>Projects</h2>
+<p>The project's name is in the middle of the title bar: click it to rename. The arrow beside it lists your projects, and creates or deletes one. ${MP("File › New project")} starts an empty one with a worksheet to paste into.</p>
+<h2>Saving</h2>
+<p>Every change is saved at once; the status bar says so. Used on its own, Kurve keeps projects in this browser and uploads nothing: to keep a copy elsewhere, ${DA("export","export it")}. In a shared workspace, everyone sees each change as it is made, and each person's name goes with their comments.</p>
+<h2>Undo</h2>
+<p>${K("Ctrl","Z")} undoes and ${K("Ctrl","Shift","Z")} (or ${K("Ctrl","Y")}) redoes: steps, masks, peaks, bands, fits, labels, styles, worksheet edits. The Edit menu names what will be undone. Undo rewinds your own changes in this session; it never takes back a colleague's work or a comment.</p>
+<h2>The log</h2>
+<p>The History window's <em>Log</em> tab lists every change with who made it and when. The report ends with it.</p>`},
+{id:"import", g:"Basics", t:"Importing data", kw:"import open file csv tsv txt delimiter decimal comma header metadata paste drop wizard add replace",
+ lead:"Text exports from almost any instrument work. Kurve reads the file, shows you how it read it, and changes nothing until you press Import.",
+ body:`<h2>Three ways in</h2>
+<ul><li>Drop a file anywhere on the window.</li><li><em>Import</em> on the toolbar, ${MP("File › Import data…")}, or ${K("Ctrl","O")}.</li><li>Copy columns from a spreadsheet and paste them into a worksheet cell.</li></ul>
+<h2>What is detected</h2>
+${DL([["Delimiter and decimal mark","Decided together: <code>1,5;2,5</code> only makes sense as semicolons with decimal commas."],["Where the data start","The longest run of consistent numeric lines, so an instrument's preamble and a trailing footer are found, not fought."],["Names and units","From the line above the numbers, such as <code>Raman shift (cm-1)</code>."],["X, Y and error columns","Guessed from names and values. Change any of them."],["Metadata","Lines such as <code>Laser: 532 nm</code> in the header are kept with the project and printed in the report."]])}
+<p>The dialog shows the file with the data lines highlighted, the choices beside it, and a preview of the curve. Every choice can be overridden.</p>
+<h2>When the project already has data</h2>
+${DL([["Add as a new Y column","Keeps what is there. A spectrum on a different X axis gets an X column of its own, so no value is interpolated."],["Replace everything","The new file becomes the project's data."],["Put it in a new project","Suggested when the X ranges do not overlap."]])}
+<h2>What is refused</h2>
+<p>Binary instrument files (SPC, OPUS, SPE) are refused with a reason. Export them as text from the instrument software first. JCAMP-DX is not read yet.</p>
+<p>After an import the ${DA("overview","Overview")} opens. Its <em>Show the overview after every import</em> box turns that off.</p>`},
+{id:"keys", g:"Basics", t:"Keyboard shortcuts", kw:"keys keyboard shortcuts hotkeys ctrl",
+ lead:"Everything has a pointer route; these are the quicker ones.",
+ body:`<h2 id="k-all">Everywhere</h2>
+${DL([[K("Ctrl","Z"),"Undo"],[K("Ctrl","Shift","Z")+" · "+K("Ctrl","Y"),"Redo"],[K("Ctrl","O"),"Import a file"],[K("Ctrl","Enter"),"Run the fit · run Python code · post a comment"],[K("Esc"),"Close a menu or dialog; back to the Zoom tool"],[K("F1"),"Help on the window in front"],[K("?"),"This page"]],"keys")}
+<h2 id="k-graph">On the graph</h2>
+${DL([[K("←")+" "+K("→"),"Previous or next point (click the graph first)"],[K("Home")+" "+K("End"),"First or last point"],[K("+")+" "+K("−")+" "+K("0"),"Zoom in, zoom out, show all"],[K("[")+" "+K("]"),"Start or end the view at the selected point"],[K("M"),"Mask or restore the selected point"],[K("P"),"Put a peak at the selected point"],[K("Delete"),"Remove the selected peak, label, line or band"],[K("Enter")+" · "+K("F2"),"Type over the selected label or text"],["Middle-drag","Pan, in any tool"],["Scroll","Zoom at the pointer"],["Double-click","Show all the data"],[K("Shift","F10"),"The graph's menu"]],"keys")}
+<h2 id="k-sheet">In the worksheet</h2>
+${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move; with "+K("Shift")+", select; with "+K("Ctrl")+", jump to the end of the data"],[K("Enter")+" · "+K("Tab"),"Next row · next column"],[K("F2")+" · double-click","Edit the cell; typing replaces it; "+K("Esc")+" cancels"],[K("Delete"),"Clear (empty cells and labels only)"],[K("Ctrl","C")+" "+K("Ctrl","V"),"Copy and paste, as tab-separated text"],[K("Ctrl","D")+" · "+K("Ctrl","R"),"Fill down · fill right"],[K("Ctrl","F"),"Find; "+K("Enter")+", "+K("Shift","Enter")+" or "+K("F3")+" for the next or previous match"],[K("Ctrl","Home")+" "+K("Ctrl","End"),"First or last cell"],[K("PgUp")+" "+K("PgDn"),"A screen up or down"]],"keys")}
+<h2 id="k-flow">In the History</h2>
+${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move between boxes"],[K("Alt","↑")+" "+K("Alt","↓"),"Move the selected step earlier or later"],[K("Delete"),"Delete the selected step"],[K("C"),"Comment on the selected box"],["Right-click","The box's menu"]],"keys")}`},
+/* ---------------------------------------------------------------- Data */
+{id:"sheet", g:"Data", t:"The worksheet", win:"sheet", kw:"worksheet spreadsheet grid cell column row long name units comments sparkline raw final width select",
+ lead:"A spreadsheet grid, as in Excel, with Origin's label rows. The Raw sheet holds the data as recorded; the Final sheet shows the analysed spectrum after processing.",
+ body:`<h2>Columns</h2>
+<p>Columns are lettered A, B, C… and each has a role, shown after its letter: <strong>(X)</strong>, <strong>(Y)</strong>, <strong>(yEr)</strong> for error bars, or ignored. A Y column is plotted against the nearest X column to its left, so spectra measured on different axes each keep their own X. Every Y column is a ${DA("spectra","spectrum")}.</p>
+<p>Click a column's header arrow for its menu: its role, whose error bars it holds, analyse it, show or hide it, set its values by a formula, sort by it, delete it.</p>
+<h2>Label rows</h2>
+${DL([["Long Name","The column's name, used on the axes and in the legend."],["Units","Written after the name: <code>cm⁻¹</code>, <code>counts</code>."],["Comments","A note that travels with the column."],["F(x)=","A formula that computes the column. "+DA("formulas","Column formulas")],["Sparklines","A thumbnail of each column."]])}
+<h2>Selecting and editing</h2>
+<p>Click a cell, Shift+click or drag for a range, click a header or row number for a whole column or row, or the corner for everything. The bar above shows the active cell's address and value; the bar below shows Count, Sum, Average, Min and Max of the selection. Typing starts an edit; ${K("F2")} or a double-click edits in place. ${DA("keys#k-sheet","All the keys")}</p>
+<p>Columns keep a fixed width. Drag the edge of a header to resize one, or double-click the edge to fit its contents. Empty columns and rows fill the rest of the window; typing into one makes a new column.</p>
+<h2>Recorded values are locked</h2>
+<p>An empty cell can be filled, and that is recorded as new raw data. Typing over a recorded value instead asks for a reason and adds a <em>Correct values</em> step, so the original stays in the record. Pasting over values offers to add them as new columns. ${DA("rawdata","Raw data and its fingerprint")}</p>`},
+{id:"formulas", g:"Data", t:"Column formulas", kw:"formula f(x) set column values compute calculate expression function log sqrt",
+ lead:"A column can be computed, row by row, from other columns: Origin's F(x)= row.",
+ body:`<h2>Writing one</h2>
+<p>Type into a column's <strong>F(x)=</strong> cell, or choose <em>Set column values…</em> from its header or cell menu. The check below the cell names any mistake while you type.</p>
+${DL([["<code>A</code>, <code>B</code>, …","The value of that column in the same row. <code>col(B)</code> and a leading <code>=</code> are accepted too."],["<code>x</code>","The row's X value."],["<code>i</code>","The row number, from 1."],["<code>+ − * / ^</code>","Arithmetic; <code>**</code> also means a power."],["Functions","<code>exp ln log log10 log2 sqrt abs sin cos tan asin acos atan atan2 sinh cosh tanh pow min max erf erfc sign step</code>"],["Constants","<code>pi</code>, <code>e</code>"]])}
+<h2>Examples</h2>
+${DL([["<code>B*2</code>","Double column B."],["<code>(B-C)/A</code>","A difference over a reference."],["<code>log10(B)</code>","Logarithm."],["<code>1e7/x</code>","Wavelength in nm to wavenumber in cm⁻¹."],["<code>B/max(B, 1e-9)</code>","Guarded division."]],"code")}
+<h2>How it behaves</h2>
+<ul><li>A formula follows the columns it uses, not their letters: insert or delete a column and it still reads the right one.</li>
+<li>It is computed again whenever the columns it uses change.</li>
+<li>Its values are not recorded data: they are left out of the ${DA("rawdata","fingerprint")}, and cannot be typed over.</li>
+<li>A column that uses itself, a circle of formulas, or a deleted input shows an error in its header.</li>
+<li>Only arithmetic can run: a formula is never executed as code.</li></ul>`},
+{id:"fill", g:"Data", t:"Fill, sort and find", kw:"fill handle series copy sort order find search ctrl d ctrl r",
+ lead:"The worksheet's fill handle, sorting and search, as in a spreadsheet.",
+ body:`<h2>Fill</h2>
+<p>Select cells and drag the small square at the selection's corner down or right. Two or more numbers continue as a series (their least-squares line); one number, or text, is copied. Hold ${K("Ctrl")} to swap the two. Double-click the square to fill down as far as the column beside goes. ${K("Ctrl","D")} and ${K("Ctrl","R")} copy the selection's first row down or first column right.</p>
+<p>Only empty cells are filled, as newly recorded values, in one undo step. Label rows fill right.</p>
+<h2>Sort</h2>
+<p>Right-click a cell or open a column's header menu, then <em>Sort by this column</em>. Sorting changes the view only: the data keep the order they were recorded in, row numbers show each value's recorded row, and masks and corrections still point at the right values. Choose <em>Unsorted</em> to go back. Pasting and filling ask to unsort first.</p>
+<h2>Find</h2>
+<p>${K("Ctrl","F")} or the search button above the grid. Every cell containing the text is marked, labels included. ${K("Enter")} and ${K("F3")} step forward, ${K("Shift","Enter")} back.</p>`},
+{id:"rawdata", g:"Data", t:"Raw data and its fingerprint", kw:"raw locked fingerprint sha256 hash verify correct correction reason integrity record",
+ lead:"The data as recorded are locked, fingerprinted, and never changed by the analysis, so anyone can check that the numbers in a figure came from the file.",
+ body:`<h2>Locked</h2>
+<p>Analysis never changes a recorded value. To correct one (a typing error, a known bad reading), type over it in the Raw sheet: you are asked for a reason, and a <em>Correct values</em> step is added to every spectrum that uses the value. The correction shows in the History, the report and the CSV, with its reason.</p>
+<h2>The fingerprint</h2>
+<p>Whenever raw data change (an import, a paste, a first value in an empty cell, a deleted column), Kurve records a SHA-256 fingerprint of every raw column. The <em>Recorded data</em> box in the History shows the record: when, by whom, what changed, and whether today's data still match the last fingerprint.</p>
+<h2>Checking it yourself</h2>
+<p>${MP("Export › Raw data as CSV, with its fingerprint")} writes exactly the lines that were fingerprinted, under comment lines. Anyone can check it:</p>
+<pre>grep -v '^#' data.csv | sha256sum</pre>
+<p>The result must equal the fingerprint in the file's header, the History and the report.</p>`},
+{id:"spectra", g:"Data", t:"Spectra and new spectra", kw:"spectrum spectra column analysed active derived copy branch hide show multiple several x axis",
+ lead:"Every Y column is a spectrum, with its own processing steps and its own masked points. The analysed one is the spectrum the fit, the peak finder and the tools work on.",
+ body:`<h2>The analysed spectrum</h2>
+<p>Choose it from a window's spectrum list, a column's header menu (<em>Analyse this</em>), a click on its lane in the History, or a legend entry. It is drawn on top, in the first colour; its name is in each window's title bar.</p>
+<h2>Several spectra</h2>
+<ul><li>Add more by importing with <em>Add as a new Y column</em>, pasting, or ${MP("Data › Add a column")}.</li>
+<li>Each has its own steps; a tool's <em>Apply the same step to every other spectrum</em> box, or a step's <em>Apply to every spectrum</em>, copies one step to all.</li>
+<li>Hide one from its header menu or the graph's legend menu.</li>
+<li>How they share the graph (overlaid, offset, stacked, two Y axes, a heat map) is the toolbar's layout list. ${DA("style","Styling the graph")}</li></ul>
+<h2>New spectra from old</h2>
+<p>A derived spectrum has no data of its own: it starts from another spectrum's raw or final data and has steps of its own, drawn as a branch in the History. From a raw or final box in the History, <em>New spectrum</em>:</p>
+${DL([["From this processed data","A new spectrum that starts where this one ends: for a derivative beside the spectrum, or a second route to compare."],["A copy with the same steps","The same processing, to change one setting and compare."],["With Python code","Your own code makes it. "+DA("python","Python")]])}
+<p>${MP("Math › Calculus › Derivative, as a new spectrum…")} makes the derivative as a spectrum of its own, keeping the original.</p>`},
+/* ---------------------------------------------------------------- Processing */
+{id:"history", g:"Processing", t:"The History", win:"flow", kw:"history flow chart steps boxes lanes inspector stage log reorder",
+ lead:"A flow chart of the data: what was recorded, every step applied to each spectrum, and what came out. Click any box to see the data at that point.",
+ body:`<h2>The boxes</h2>
+${DL([["Recorded data","The raw columns and their fingerprint record."],["A spectrum's raw box","The spectrum as recorded, with an Overview button."],["Steps","In order, each with its settings summarised; a warning mark when its check found something."],["Final","The data the fit, peak finder and exports use."],["Peaks, Bands, Fits","What was measured on the final data."],["Figure","The graph's own lines, ranges, text and labels."]])}
+<p>A derived spectrum branches off the box it starts from. A step that reads another spectrum (a reference, an average, Python) gets a dashed line from it.</p>
+<h2>Selecting a box</h2>
+<p>The graph shows the data at that point, with the stage before it in grey and the step's marks (a background curve, replaced spikes, anchors). The inspector beside the chart holds the box's settings, actions and discussion. <em>Details</em> hides the inspector; below a certain width it moves under the chart.</p>
+<h2>Changing the steps</h2>
+${DL([["Insert","The + on a line, or the <em>Step</em> button, opens the tool list."],["Edit","Change settings in the inspector; the graph follows."],["Reorder","Drag a step, or "+K("Alt","↑")+" / "+K("Alt","↓")+"."],["Switch off","The step's switch keeps it but passes the data through."],["Delete","The inspector's Delete, the box's menu, or "+K("Delete")+"."]])}
+<p>Order matters. Steps that are fine alone can be wrong together (normalising before subtracting a background, smoothing before removing spikes); the History says so on the later step.</p>
+<h2>The Log</h2>
+<p>The <em>Log</em> tab lists every change to the project, newest first, with who made it and when.</p>`},
+{id:"steps", g:"Processing", t:"Processing steps", kw:"tool step dialog preview suggest settings apply every spectrum checks warnings order",
+ lead:"Every change to the data is a step: a tool you choose from a menu, preview on the graph, and record with OK.",
+ body:`<h2>Using a tool</h2>
+<ol class="dsteps"><li>Choose it from ${MP("Data")}, ${MP("Math")} or ${MP("Analysis")}, from the graph window's own bar, or from the + in the History.</li>
+<li>The tool window shows the spectrum it works on, where the step goes, a before-and-after chart, and the settings, first measured from the data the step will receive.</li>
+<li>The graph previews the result as you change a setting. <em>Suggest settings</em> measures them again.</li>
+<li><em>OK</em> records the step; <em>Cancel</em> leaves no trace. With several spectra, <em>Apply the same step to every other spectrum</em> adds it to all.</li></ol>
+<h2>Every step checks its work</h2>
+<ul><li>A background that dips below the noise (over-subtraction) or eats into a band.</li>
+<li>Spike removal that changed points inside a band, or found "spikes" too wide to be spikes.</li>
+<li>Smoothing: how much height it takes off the narrowest band, and uneven spacing.</li>
+<li>Steps in the wrong order.</li></ul>
+<p>Warnings show on the step's box, in the tool, in the fit's notes and in the report.</p>
+<h2>The steps</h2>
+<div id="docStepList"></div>`},
+{id:"python", g:"Processing", t:"Python", win:"py", kw:"python code numpy pyodide script step new spectrum print",
+ lead:"Your own code, run in Python in this browser. Its result becomes a step of a spectrum, or a new spectrum, and its code is kept in the record.",
+ body:`<h2>What your code sees</h2>
+${DL([["<code>x</code>, <code>y</code>","The spectrum's data: numpy arrays when numpy is available, lists otherwise."],["<code>e</code>","Its Y errors, or <code>None</code>."],["<code>x_name</code>, <code>x_unit</code>, <code>y_name</code>, <code>y_unit</code>","Names and units. Change them and the result carries the new ones."],["<code>meta</code>","The file's header fields."],["<code>spectra</code>","Every other spectrum's final data, <code>{name: (x, y)}</code>."]],"code")}
+<p>Whatever is left in <code>x</code> and <code>y</code> is the result (the same length). <code>print()</code> goes to the output below the code.</p>
+<h2>A step, or a new spectrum</h2>
+<p>At the top of the window choose the spectrum, whether the code starts from its raw or final data, and whether the result is <em>a step</em> (it replaces the data from there on) or <em>a new spectrum</em> (a branch of its own in the History). <em>Run</em> previews; <em>Record as a step</em> or <em>Record as a new spectrum</em> keeps it. ${K("Ctrl","Enter")} runs.</p>
+<h2>Kept, not re-run</h2>
+<p>A Python step stores its code and its output, so the project opens with the same data without Python. When its input, its code, or a spectrum it reads from <code>spectra</code> changes, its box says it is out of date, and <em>Run Python again</em> on the History's bar brings every such step up to date in order.</p>
+<h2>Loading</h2>
+<p>Python (Pyodide) loads from a public server the first time you run code, then stays loaded. <em>Stop</em> ends a run that takes too long. <em>Examples</em> has starting points.</p>`},
+/* ---------------------------------------------------------------- Graph */
+{id:"graph", g:"Graph", t:"The graph", win:"graph", kw:"graph plot zoom pan mask add peak label comment tool pointer readout stage raw final compare reverse log grid residuals right-click",
+ lead:"The analysed spectrum and the others beside it, with the pointer tools on the toolbar.",
+ body:`<h2>Pointer tools</h2>
+${DL([["Zoom","Drag a box to zoom; a flat box zooms X only. Scroll to zoom at the pointer. Click a point to select it."],["Pan","Drag to move the view. The middle button pans in any tool."],["Mask","Click a point or drag a box to leave points out of the fit, the peak finder and the integrals; click again to bring them back."],["Add peak","Click where you see a peak to add it to the peak fit."],["Label","Click a peak to label it and type; click an empty spot to write text. "+DA("annos","Labels and text")],["Comment","Click a point or a spot to start a comment anchored there."]])}
+<p>Double-click the graph, or <em>Show all</em>, to see all the data again. A zoom belongs to the X units it was made in.</p>
+<h2>Raw, Final, Compare</h2>
+<p>The graph normally shows the final data. <em>Raw</em> shows the data as recorded, <em>Compare</em> both. Selecting a box in the History shows the data at that point, and a chip on the graph's bar says which stage it is, with the way back.</p>
+<h2>Switches</h2>
+${DL([["Reverse X","High to low, as wavenumbers are usually drawn."],["Log Y","A logarithmic Y axis."],["Grid","Grid lines."],["Residuals","A panel under the graph with the fit's residuals."]])}
+<h2>Right-click</h2>
+<p>On a spectrum: its colour, plot type and style. On an empty spot: a line, text or a peak label there; axes, layout and legend. On a line, a label, the legend or a title: its own options. ${K("Shift","F10")} opens the same menu from the keyboard.</p>
+<h2>Reading values</h2>
+<p>The status bar shows the value under the pointer. A selected point can be moved with ${K("←")} ${K("→")}. ${DA("keys#k-graph","All the graph's keys")}</p>`},
+{id:"style", g:"Graph", t:"Styling the graph", kw:"plot details style colour color line symbol width dash fill axes ticks range format legend layout overlay offset stack double y heat map font scheme title",
+ lead:"Plot details holds every setting of the figure. Changes preview on the graph; OK keeps them as one undo step.",
+ body:`<p>Open it from ${MP("Plot › Plot details…")}, a double-click on a spectrum's legend entry, or the graph's right-click menu. The Plot menu has the common switches directly.</p>
+<h2>Line and symbols</h2>
+<p>For each spectrum: its legend label, plot type (line, symbols, line and symbols, sticks, area, steps), colour, line style and width, symbol and size, fill and opacity. The fitted curve has its own entry.</p>
+<h2>Axes</h2>
+<p>For X, Y and a right Y axis: range (empty fits the data), major step, minor ticks, tick direction, number format, title, log scale. Double-click an axis title on the graph to edit it in place.</p>
+<h2>Graph</h2>
+${DL([["Layout","<em>Overlay</em>; <em>Offset</em> (a waterfall, each trace labelled); <em>Stacked</em> (a panel per spectrum, shared X); <em>Double Y</em> (the others on a right axis); <em>Heat map</em> (one row per spectrum, with a colour scale)."],["Colours","A scheme for the spectra (Kurve's, distinct hues, Okabe–Ito for colour-blind readers, viridis, black and greys for print) and one for peaks. Schemes other than Kurve's colour by table order, so a spectrum keeps its colour."],["Legend","Where it goes (the emptiest corner, a chosen one, outside, or where you drag it), a title, a frame, text in each spectrum's colour."],["Frame, fonts, title","A box or L-shaped axes; the font family and size; italic axis titles; the graph's title."]])}
+<h2>Labels and lines</h2>
+<p>The last tab lists every annotation on the graph, to edit or delete. ${DA("annos","Labels, text, lines and ranges")}</p>`},
+{id:"annos", g:"Graph", t:"Labels, text, lines and ranges", kw:"annotation label text line vertical horizontal range shade arrow peak label move drag type edit delete x",
+ lead:"Annotations belong to the figure: peak labels, free text, vertical and horizontal lines, and shaded X ranges.",
+ body:`<h2>Adding</h2>
+${DL([["Peak label","The <em>Label</em> tool: click a peak and type. Or right-click near a peak."],["Text","The Label tool on an empty spot, or right-click › Text here."],["Lines","Right-click › Vertical or Horizontal line, or "+MP("Plot › Annotate")+"."],["Shaded range",MP("Plot › Annotate › Shade an X range")+", then drag across the graph."],["A whole set",DA("peaks","The Peaks window")+" marks and labels every peak it finds."]])}
+<h2>Editing</h2>
+<ul><li><strong>Move</strong>: drag it. A moved label keeps a leader line to its peak.</li>
+<li><strong>Type</strong>: double-click a label or text (or select it and press ${K("Enter")}). ${K("Enter")} keeps, ${K("Esc")} leaves it.</li>
+<li><strong>Settings</strong>: double-click a line or a range; right-click anything for its menu, or <em>More</em> in the typing box.</li>
+<li><strong>Delete</strong>: select it and press ${K("Delete")}.</li></ul>
+<h2>Text</h2>
+<p>An empty label shows the value; <code>{x}</code> anywhere in a label or line's text stands for its position. Each annotation can have its own colour, size, font, rotation and weight.</p>
+<h2>Marks</h2>
+<p>A peak label marks its peak with a triangle above it, a drop line to the axis, a dashed vertical line with the text along it, a leader line, or nothing.</p>
+${TIP("Annotations are drawn only on data in the units they were placed in: a label placed on Raman shifts does not appear on a wavelength axis.")}`},
+{id:"export", g:"Graph", t:"Exporting", kw:"export save download svg png csv report html json recipe copy figure paper",
+ lead:"The figure, the data and a report, from the Export button or File › Export.",
+ body:`${DL([["Figure as SVG","Vector, for papers: exactly what is on screen, at any size."],["Figure as PNG","An image at 2.5 times the screen's resolution, for slides."],["Final data and fit as CSV","Every column with units, the mask, the fit, residuals, baseline and each peak's curve, followed by commented blocks: metadata, fingerprint, processing steps with their warnings, marked peaks with labels, band integrals and fit statistics."],["Raw data as CSV","The recorded data under a header that says how to check its fingerprint. "+DA("rawdata","Raw data")],["Processing steps as JSON","The recipe: every step with its settings."],["Report as HTML","One self-contained file: the figure, the notes on anything that makes the numbers less certain, the parameter table with t, p, confidence intervals and dependency, statistics, peaks, bands, the raw-data record, every processing step with a filmstrip, the fit history, the method, every discussion thread and the log."],["Copy results table","Tab-separated, to paste into a spreadsheet."]])}
+<p>Tables in the Peaks, Integrate and Statistics windows have Copy buttons of their own.</p>
+${TIP("The report can never say less than the screen: its notes come from the same checks as the Results window's.")}`},
+/* ---------------------------------------------------------------- Analysis */
+{id:"overview", g:"Analysis", t:"The Overview", win:"over", kw:"overview first look noise spacing bands spikes background suggestions",
+ lead:"What a spectrum is like before anything is done to it, and what to do first.",
+ body:`<h2>What it measures</h2>
+${DL([["Points","How many, any missing, repeated X values, gaps."],["X","The range, which way it runs, the step and whether it is even."],["Noise","σ, from second differences, and how far the strongest band stands above it."],["Bands","Each band's position and width, in X and in points."],["Spikes","One- and two-point spikes, such as cosmic rays."],["Flat tops","Points stuck at the maximum: a saturated detector."],["Below zero","Only a warning past five times the noise."],["Background","What <em>Subtract background</em> would take away, called flat, sloping or curved against the strongest band."]])}
+<h2>First steps</h2>
+<p>From that, suggestions in the order they belong: sort, average repeats, remove spikes, resample, subtract the background, and smooth only if the narrowest band spans 7 points or more. Each opens its tool with settings measured from the data; nothing is recorded until you press OK there. A suggestion already done is ticked.</p>
+<p><em>As recorded</em> and <em>After processing</em> switch between the raw and final data. It opens after every import; its checkbox turns that off. Also in ${MP("Analysis › Overview…")} and a spectrum's raw box in the History.</p>`},
+{id:"peaks", g:"Analysis", t:"Finding and labelling peaks", win:"peaks", kw:"peaks find mark label symbol drop line vertical leader table threshold every spectrum follow processing",
+ lead:"Find the peaks of a spectrum, mark them on the graph and type a label for each, without fitting anything.",
+ body:`<h2>Finding them</h2>
+<p>${MP("Analysis › Find peaks…")} searches the analysed spectrum's final data in view, after a straight baseline through its lowest points, and marks every peak that passes. Change a setting and it searches again at once. ${DA("finder","The finder's settings")}</p>
+<p>With several spectra, <em>Every spectrum</em> finds the peaks of all of them with the same settings, in one undo step.</p>
+<h2>The table</h2>
+<p>Each peak's position, height, FWHM and signal to noise, and a field for its label. Remove a peak with its ×; <em>Add a peak by clicking the graph</em> places one by hand. <em>Turned down</em> lists candidates that did not pass, with the reason, each with an Add button. <em>Copy</em> gives the table as text.</p>
+<h2>On the graph</h2>
+${DL([["Mark each with","A symbol, a drop line, a vertical line, a leader, or nothing."],["Label with","The position, your label or else the position, both, only yours, or nothing."],["Decimals, text size, colour","For the whole set."],["Vertical labels, unit","Rotate them; write the unit after the position."]])}
+<p>Drag a label to move it; double-click it to type. <code>{x}</code> in a label stands for the position.</p>
+<h2>Following the processing</h2>
+<p>When the spectrum's processing changes, the set is found again with its own settings, and your labels stay with the peaks that are still there, even through a change of X units. A label whose peak is no longer found is kept, and comes back when it is. Untick <em>Find them again whenever the processing changes</em> to freeze the set.</p>
+<h2>Then</h2>
+<p><em>Fit these peaks…</em> sends them to the ${DA("peakfit","peak fit")}; <em>Integrate them</em> puts a ${DA("integ","band")} around each. Both are optional: the peaks stay marked either way, in the figure, the exports and the report.</p>`},
+{id:"finder", g:"Analysis", t:"The peak finder's settings", kw:"peak finder threshold signal to noise snr percent decades log scale smoothing narrowest closest at most derivative shoulder turned down reasons",
+ lead:"The same finder serves the Peaks window and the peak fit. Every candidate it turns down says why.",
+ body:`<h2>Settings</h2>
+${DL([["Look for","<em>Local maxima</em>; <em>Highest in a window</em>; <em>First derivative crosses zero</em>; <em>Second derivative</em>, for shoulders that never form a maximum of their own."],["Keep a peak if","<em>Signal to noise</em> (its rise above the higher of its two valleys, over the noise σ; 4 by default); <em>Percent of the largest</em>; <em>Height</em> above its surroundings; <em>Within this many decades</em> of the largest. Every choice but height also needs three times the noise."],["Search on a log scale","Finds and measures peaks on log₁₀ of the data, for spectra spanning several decades."],["Peaks point","Up, or down for absorption dips."],["Smoothing","Automatic (half the narrowest clear band's width), none, or a window. Only for the search: the data are not changed."],["Narrowest","Points a peak needs above its own half height. 2 sets one-point spikes aside."],["Closest pair","Of two peaks closer than this, the weaker is dropped."],["At most","Keep only the strongest this many."]])}
+<h2>Why a candidate is turned down</h2>
+${DL([["Below the threshold","It did not pass <em>Keep a peak if</em>."],["Within the noise","Less than three times the noise. Their number is shown, not each one."],["A spike","Narrower than <em>Narrowest</em>."],["Too wide","Wider than a band can be in this window."],["Too close","Within <em>Closest pair</em> of a stronger one."],["Over the limit","Past <em>At most</em>."]])}
+${TIP("A shoulder has no valley of its own: the second-derivative method measures it against the lowest point within its own width.")}`},
+{id:"integ", g:"Analysis", t:"Integrating bands", win:"integ", kw:"integrate integral area band window baseline ratio percent share reference fwhm height",
+ lead:"Measure bands without a fit: drag a window across each band, and Kurve gives its area with an error, its height, position and FWHM, its share of the total, and its ratio to a band you choose.",
+ body:`<h2>Adding bands</h2>
+<ul><li><em>Add by dragging</em>, then drag across a band on the graph. It stays on for the next band until ${K("Esc")}.</li>
+<li><em>Around the peaks</em> puts a window around each peak of the Peaks window's set (or of peaks found now): neighbours split at the lowest point between them, outer edges two widths out.</li></ul>
+<p>Drag a band's edge on the graph to move it, or the strip along its top to move the whole window. Type exact edges in the table, and a name for each band.</p>
+<h2>Baselines</h2>
+${DL([["Line","A straight line between the window's edges (through the mean of a few points at each end, set under <em>Line baselines</em>)."],["None","Down to zero, for data whose background is already subtracted."],["Level","Level at the window's lowest point."]])}
+<h2>The numbers</h2>
+${DL([["Area ± error","The trapezoidal sum over the points in the window, less the baseline. The error carries the spectrum's noise (or each point's error bar) through the sum and the baseline's ends."],["Height, position","The top above the baseline, from a parabola through the three highest points (the lowest, for a dip)."],["FWHM","Where the band crosses half its height inside the window; blank if it does not."],["%","The share of the total of all bands."],["Ratio","Area over the reference band's (the radio button), with its error."]])}
+<h2>Every spectrum</h2>
+<p>The same windows apply to every spectrum on the same X axis. <em>Every spectrum</em> shows a row per spectrum, the numbers follow each one's processing, and <em>Copy</em> gives the whole table.</p>
+${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
+{id:"stats", g:"Analysis", t:"Statistics", win:"stats", kw:"statistics descriptive mean median sd noise signal to noise area centroid correlation pearson integrate visible range",
+ lead:"Descriptive statistics of every spectrum, the integral of the visible range, and how alike the spectra are.",
+ body:`<h2>Descriptive statistics</h2>
+<p>For each spectrum, final or raw data, over all X or the visible range: points, minimum, maximum and where it is, mean, standard deviation, median, noise σ, signal to noise, area and centroid. Masked points are left out.</p>
+${DL([["Noise σ","From second differences, so a band's slope does not count as noise."],["S/N","The largest point's height above the median, over σ."],["Area","Trapezoidal, over X in ascending order."],["Centroid","The area-weighted mean X."]])}
+<h2>Integrate the visible range</h2>
+<p>Zoom the graph to a range: its area above zero, above the straight line joining its ends, the mean and highest Y. For several bands with baselines of their own, use ${DA("integ","Integrate bands")}.</p>
+<h2>Correlation</h2>
+<p>Pearson r between spectra on the same X axis, interpolated onto the analysed spectrum's X where they overlap. Near 1, the same shape; near 0, unrelated.</p>
+<p><em>Copy</em> gives every table as tab-separated text.</p>`},
+/* ---------------------------------------------------------------- Fitting */
+{id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge",
+ lead:"Two kinds of fit, in the Fit window: a curve fit puts one model through the data; a peak fit describes a spectrum as a sum of peaks on a baseline.",
+ body:`${DL([[DA("curvefit","Curve fit"),"A line, polynomial, exponential decay, sigmoid, single peak or your own function."],[DA("peakfit","Peak fit"),"Any number of Gaussian, Lorentzian, Voigt, Pearson VII, Fano and other peaks on a baseline, found automatically or placed by hand, with handles on the graph."]])}
+<h2>What is fitted</h2>
+<p>The unmasked points of the analysed spectrum's final data in view. Zoom to fit part of a spectrum; mask points to leave them out. Press <em>Fit</em> or ${K("Ctrl","Enter")}.</p>
+<h2>After fitting</h2>
+<p>The curve is drawn over the data (with the residuals if <em>Residuals</em> is on), and the ${DA("results","Results")} window gives every parameter with its uncertainty and anything that makes it less certain. Each fit is kept in the fit history; a fit whose data or processing changed since is marked out of date.</p>
+${TIP("A fit belongs to its spectrum. It is drawn only over the spectrum it was fitted to.")}`},
+{id:"curvefit", g:"Fitting", t:"Curve fit", kw:"curve fit model linear polynomial exponential decay sigmoid boltzmann gaussian lorentzian guess initial fixed weights",
+ lead:"One model, fitted to the points in view.",
+ body:`<h2>Fitting</h2>
+<ol class="dsteps"><li>Choose a model. Its formula is shown under the list.</li>
+<li>Starting values are measured from the data. <em>Guess</em> measures them again from what is in view.</li>
+<li>Tick a parameter's lock to hold it fixed.</li>
+<li>With a Y error column, <em>Weight by the Y error column</em> fits with weights 1/σ²; otherwise the errors are scaled by the scatter of the residuals.</li>
+<li><em>Fit</em>, or ${K("Ctrl","Enter")}.</li></ol>
+<h2>Models</h2>
+<div id="docModelList"></div>
+<p><em>Function</em> beside the list, or ${MP("Analysis › Fit › New fit function…")}, adds ${DA("userfn","your own")}.</p>`},
+{id:"peakfit", g:"Fitting", t:"Peak fit", kw:"peak fit deconvolution peaks baseline draft handles drag find peaks reset estimates shape",
+ lead:"A spectrum as a sum of peaks on a baseline, each peak described by its centre, area and width.",
+ body:`<h2>1 · Find peaks</h2>
+<p>The ${DA("finder","finder")} previews what it would find on the graph (filled: found; hollow: turned down). <em>Use these peaks</em> starts the draft from them; <em>Add to my peaks</em> adds them to what is there. Or choose <em>Add peak</em> on the toolbar and click the graph.</p>
+<h2>2 · Peaks and baseline</h2>
+<p>Each peak's shape and starting values, and the baseline (none, constant, straight line, quadratic or cubic, measured from the centre of the fitted range). On the graph, the draft is drawn dashed with its sum:</p>
+${DL([["Numbered dot","Drag to move the peak's centre and height."],["Side handles","Of the selected peak: drag to change its width."],["Type","Any value in the table; the lock holds it fixed; the chain link "+DA("ties","ties it")+" to another peak's."]])}
+<p><em>One width</em> gives every peak the same width, for an instrument's resolution. Changing a peak's shape keeps its centre, width and height.</p>
+<h2>3 · Fit</h2>
+<p><em>Fit</em> or ${K("Ctrl","Enter")}. <em>Reset to estimates</em> measures every peak again from the data, and puts a peak that has run off the spectrum back on the largest feature no other peak describes.</p>
+<p>Shapes: ${DA("shapes","Peak shapes")}.</p>`},
+{id:"shapes", g:"Fitting", t:"Peak shapes", kw:"gaussian lorentzian pseudo-voigt voigt pearson fano breit wigner shape formula area fwhm",
+ lead:"Every shape is written in terms of its centre, its area and its full width at half maximum, so the table holds the numbers a paper needs.",
+ body:`<h2>Gaussian</h2>
+<div class="eq"><i>y</i> = <i>A</i> / (<i>σ</i>√(2π)) · exp[−(<i>x</i> − <i>x</i><sub>c</sub>)² / 2<i>σ</i>²], &nbsp; <i>σ</i> = <i>w</i> / (2√(2 ln 2))</div>
+<p>Inhomogeneous broadening, instrument resolution.</p>
+<h2>Lorentzian</h2>
+<div class="eq"><i>y</i> = (<i>A</i>/π) · (<i>w</i>/2) / [(<i>x</i> − <i>x</i><sub>c</sub>)² + (<i>w</i>/2)²]</div>
+<p>Lifetime broadening. Its tails are long.</p>
+<h2>Pseudo-Voigt</h2>
+<div class="eq"><i>y</i> = <i>μ</i> · L(<i>x</i>) + (1 − <i>μ</i>) · G(<i>x</i>), &nbsp; 0 ≤ <i>μ</i> ≤ 1</div>
+<p>A mix of the two with one width. The <em>split widths</em> variant gives the Gaussian and Lorentzian parts widths of their own; its FWHM is the Thompson–Cox–Hastings combination.</p>
+<h2>Voigt</h2>
+<p>The true convolution of a Gaussian (FWHM <i>w</i><sub>G</sub>) and a Lorentzian (FWHM <i>w</i><sub>L</sub>), computed through the Faddeeva function: a line broadened by both the instrument and its own lifetime. Either width may go to zero, leaving a pure Lorentzian or Gaussian. Its FWHM is found exactly; ≈ 0.5346 <i>w</i><sub>L</sub> + √(0.2166 <i>w</i><sub>L</sub>² + <i>w</i><sub>G</sub>²).</p>
+<h2>Pearson VII</h2>
+<div class="eq"><i>y</i> ∝ [1 + 4(2<sup>1/<i>m</i></sup> − 1)(<i>x</i> − <i>x</i><sub>c</sub>)² / <i>w</i>²]<sup>−<i>m</i></sup></div>
+<p>Lorentzian at <i>m</i> = 1, close to Gaussian as <i>m</i> grows; between them in one parameter.</p>
+<h2>Fano (Breit–Wigner–Fano)</h2>
+<div class="eq"><i>y</i> = (2<i>A</i> / π<i>Γ</i>) · (1 + <i>ε</i>/<i>q</i>)² / (1 + <i>ε</i>²), &nbsp; <i>ε</i> = 2(<i>x</i> − <i>x</i><sub>c</sub>)/<i>Γ</i></div>
+<p>A line interfering with a continuum, asymmetric by 1/<i>q</i> (0 gives a Lorentzian; kept within ±0.9). Its tail never returns to zero, so its area is not finite: <i>A</i> is the area of the Lorentzian it becomes as 1/<i>q</i> goes to 0. Its height is the true maximum and its FWHM the true width, <i>Γ</i>(1 + 1/<i>q</i>²)/|1 − 1/<i>q</i>²|.</p>`},
+{id:"ties", g:"Fitting", t:"Tied parameters", kw:"tie link constraint shared width area ratio doublet spin orbit spacing",
+ lead:"Make one peak's parameter follow another's: equal widths, a fixed area ratio, a fixed spacing.",
+ body:`<h2>Tying</h2>
+<p>In the peak fit's table, the chain-link button beside a parameter ties it to the same parameter of another peak:</p>
+${DL([["Equal","The same value."],["A multiple","For areas: the 2 to 1 of a spin–orbit doublet, 0.5 for the smaller."],["A fixed spacing","For centres: always so far from the other."]])}
+<p><em>One width</em> ties every peak's width to the first's.</p>
+<h2>What it means for the fit</h2>
+<ul><li>A tied parameter is not fitted on its own: it follows, and the degrees of freedom count it once.</li>
+<li>Its error is carried over from the one it follows, and the table says what it follows.</li>
+<li>Dragging any peak of a tied group on the graph moves the group.</li>
+<li>Ties never chain: a peak can only follow a peak that follows no one.</li>
+<li>The report's method lists every tie.</li></ul>`},
+{id:"userfn", g:"Fitting", t:"Your own fit functions", kw:"user function custom formula expression parameters limits library",
+ lead:"Write a function of x as on paper, and fit it like any built-in model.",
+ body:`<h2>Writing one</h2>
+<p>${MP("Analysis › Fit › New fit function…")}, or <em>Function</em> beside the model list.</p>
+<pre>y = y0 + A*exp(-(x/t)^b)</pre>
+<p>Every name other than <code>x</code>, the functions and <code>pi</code>, <code>e</code> is a parameter, in order of appearance. Lines like <code>u = (x - xc)/w</code> name values for the lines below. The same arithmetic and functions as ${DA("formulas","column formulas")}.</p>
+<h2>Parameters</h2>
+<p>Each has a start (empty: guessed from its name, such as <code>y0</code> a baseline, <code>A</code> a height, <code>xc</code> the position of the largest point, <code>w</code> a tenth of the range), optional lower and upper limits, and a unit. A preview draws the function at its starts over the data as you type, and a mistake is named with its line.</p>
+<h2>Keeping them</h2>
+<p>A function belongs to the project and, if you choose, to this browser's library for later projects. A fit keeps a copy of the function it used, so editing the function never changes a result already made; the report and the CSV state the formula and its limits.</p>`},
+{id:"results", g:"Fitting", t:"Reading the results", win:"res", kw:"results parameters standard error t p value confidence interval dependency chi square r2 aic bic residuals warnings notes history",
+ lead:"Every parameter with its uncertainty, the fit statistics, and plain notes on anything that makes the numbers less trustworthy.",
+ body:`<h2>Parameters</h2>
+${DL([["Value ± standard error","From the covariance matrix. Without weights, scaled by √(reduced χ²), as Origin does."],["t, Prob > |t|","The value over its error, and the chance of a t that large if the parameter were really zero."],["95% confidence interval","Value ± t₀.₉₇₅ × error."],["Dependency","Near 1, the parameter is doing the same job as others and is not independently determined. Such rows are highlighted."],["At its limit","A parameter that stopped at a bound has no meaningful standard error, and is left out of derived quantities' errors."]])}
+<p>A peak fit adds each peak's height and FWHM, derived with their errors.</p>
+<h2>Statistics</h2>
+${DL([["Reduced χ²","The residual sum of squares over the degrees of freedom (weighted: near 1 for a good fit)."],["R², adjusted R²","The share of the variance explained; adjusted for the number of parameters."],["AIC, BIC","For comparing models on the same data: lower is better, and more parameters must earn their place."]])}
+<h2>Notes</h2>
+<p>The fit did not converge; a peak is unusable; the covariance is singular; parameters depend on each other; a parameter is at a limit; the residuals run in long stretches of one sign (a runs test: the model misses a feature); the fit is out of date; warnings from the processing. The same notes are in the report.</p>
+<h2>History</h2>
+<p>Every fit is kept with its numbers, the processing it was made on and a thumbnail, to compare or bring back. <em>Copy</em> gives the tables as tab-separated text.</p>`},
+/* ---------------------------------------------------------------- Working together */
+{id:"disc", g:"Working together", t:"Comments and discussion", win:"disc", kw:"comment discussion thread reply resolve reopen badge point anchor note",
+ lead:"Talk about the analysis where it happens: on a step, the raw data, a fit, or a point on the graph.",
+ body:`<h2>Starting a thread</h2>
+${DL([["On a History box","Select it and write at the foot of its inspector, or press "+K("C")+"."],["On a point","The <em>Comment</em> tool, then click the point or spot."],["General","In the Discussion window's box, optionally attached to the final data."]])}
+<h2>Threads</h2>
+<p>Reply, resolve and reopen; a reply to a resolved thread reopens it. Edit or delete your own comments; deleting the first comment of a thread with replies leaves a note that it was deleted. A badge on a box counts its open threads; the Discussion window lists every thread with a link back to what it is about, open ones or all.</p>
+<p>A thread on a step outlives the step, and says it was removed. Comments are not part of undo: they are the record of what was said. The report ends with every thread.</p>
+${TIP("Comments are shared only in a shared workspace. Used on its own, Kurve keeps them in this browser with the project.")}`},
+/* ---------------------------------------------------------------- Reference */
+{id:"method", g:"Reference", t:"How Kurve computes", kw:"method algorithm levenberg marquardt covariance noise sigma second differences trapezoid savitzky golay whittaker arpls reference",
+ lead:"The methods behind the numbers, for the methods section of a paper.",
+ body:`<h2>Fitting</h2>
+<p>Levenberg–Marquardt with a central-difference Jacobian, box bounds by projection, and the normal equations scaled by each parameter's own curvature, so models mixing areas of 10⁶ with widths of 10 converge. Standard errors from the covariance matrix; unweighted fits scale it by the reduced χ². Derived quantities (a peak's height, FWHM) carry errors by the delta method.</p>
+<h2>Noise</h2>
+<p>σ is estimated from the second differences of the data, which a smooth band barely moves, and which are robust to a few outliers. It sets the peak finder's signal to noise, the band integrals' errors and the Overview's judgements.</p>
+<h2>Areas</h2>
+<p>By trapezoids over the points, in ascending X. A band's error propagates σ (or each point's error bar) through the trapezoid weights and the baseline's ends.</p>
+<h2>Processing</h2>
+<p>Backgrounds: arPLS, ALS and airPLS through one banded Whittaker solver; ModPoly and I-ModPoly on Chebyshev polynomials; SNIP; rolling ball; anchors joined by splines, PCHIP or lines. Smoothing: Savitzky–Golay, moving average, median, Gaussian, Whittaker. Derivatives: Savitzky–Golay, with the sign right on a descending axis. FFT filters: a zero-phase Butterworth response with mirrored ends. Each step's page says more: ${DA("steps","Processing steps")}.</p>
+<h2>Integrity</h2>
+<p>The raw data's fingerprint is SHA-256 over a canonical text of every raw column. ${DA("rawdata","Raw data and its fingerprint")}</p>`},
+{id:"about", g:"Reference", t:"About Kurve", kw:"about version privacy storage browser offline single file",
+ lead:"Collaborative, Origin-style data analysis for spectra, in one file that runs in a browser.",
+ body:`<h2>Where your data live</h2>
+<p id="docLocal"></p>
+<p>Python, when you use it, is loaded from a public server (Pyodide on jsDelivr); your data stay in the browser. Nothing else is fetched but fonts.</p>
+<h2>Design</h2>
+<ul><li>The raw data never change, and anyone can check that they did not.</li>
+<li>Every step checks its own work, and says so in words.</li>
+<li>The report says at least as much as the screen.</li>
+<li>Everything can be undone.</li></ul>
+<p>Kurve fits by Levenberg–Marquardt and reports standard errors, t and p values, 95% confidence intervals and parameter dependency. Peak shapes are parametrised by centre, area and FWHM. ${DA("method","How Kurve computes")}</p>`}
+];
+/* Notes of each step's own, beyond its help and its settings. */
+const DOC_STEP={
+  correct:`<p>Made by typing over a recorded value in the worksheet's Raw sheet. The step lists every correction with its row, the value as recorded, the new value and your reason. Remove one with its ×; the recorded value comes back.</p>`,
+  crop:`<p>${MP("Data › Clean › Crop to the visible range")} crops to what the graph shows. To leave points out of the fit only, mask them instead: masked points stay in the data.</p>`,
+  exclude:`<p>Pick the range by dragging on the graph (<em>Pick the range on the graph</em>).</p>`,
+  despike:`<h2>How it decides</h2><p>A point is a spike when it stands more than <em>Threshold</em> times the noise above a smooth line through its neighbours, and the feature is at most <em>Widest spike</em> points wide. Real bands are wider, so they are left alone. The graph marks every point the step replaced.</p><h2>Checks</h2><p>It warns when it changed points inside a band, or when a "spike" was wide enough to be a narrow band.</p>${TIP("Remove spikes before smoothing: a smoothed spike is wider, and survives as a false band.")}`,
+  bg:`<h2>Methods</h2>${DL([["arPLS","Automatic. A smooth curve that weights points above it less and less, so it passes under the bands. Stiffness λ sets how slowly it may bend. Start here."],["ALS","Asymmetric least squares: the same idea with a fixed asymmetry p (0.001 to 0.05). Follows bands more than arPLS."],["airPLS","Adaptive iterative reweighting: another automatic variant, good on steep fluorescence."],["ModPoly, I-ModPoly","A polynomial fitted again and again, clipped to the data each time. I-ModPoly also allows for noise."],["SNIP","Peak clipping over a window wider than the widest band. With the log-log-sqrt transform, for counts."],["Rolling ball","A ball of the window's width rolled under the data."],["Anchor points","Points you place (or let Kurve place) joined by a spline, a monotone cubic, or straight lines. Drag them on the graph."],["Straight line","Between the means of the end regions."],["Constant","The lowest point, a percentile, or a value you give."]])}<h2>Checks</h2><p>A stretch of the result below −3σ is over-subtraction: the background rose into the data. A background that follows a band's shape eats into its area: a symmetric method with a small window or a low stiffness does that, and the step says so.</p>${TIP("The step's box in the History shows the background curve drawn under its input.")}`,
+  smooth:`<h2>Methods</h2>${DL([["Savitzky–Golay","A polynomial fitted in a moving window. Keeps band heights best for its window; needs even spacing."],["Moving average","The mean over the window. Simple; flattens narrow bands."],["Median","Robust to single outliers."],["Gaussian","A Gaussian-weighted average."],["Whittaker","A penalised smoother with one setting, λ; works on uneven spacing."]])}<h2>Checks</h2><p>The step measures what it takes off the narrowest band, on an ideal band of the same width in points, and warns when that matters; it also warns about uneven spacing.</p>`,
+  sort:`<p>Needed after merging files, or for data recorded in scan order that doubles back.</p>`,
+  dedupe:`<p>Repeated scans written into one file give repeated X values; this averages them, and the spread becomes each point's error.</p>`,
+  resample:`<p>Linear interpolation onto an even grid from the first X, at the spacing you give (the median spacing by default).</p>`,
+  shift:`<div class="eq">Raman shift (cm⁻¹) = 10⁷ (1/λ₀ − 1/λ), &nbsp; λ₀, λ in nm</div><p>Rescaling the intensity converts a density per nanometre into one per wavenumber.</p>`,
+  xunit:`<p>Wavelength (nm or µm), absolute wavenumber (cm⁻¹), photon energy (eV) and frequency (THz). With <em>Rescale intensity</em>, a spectral density is multiplied by the Jacobian so its area is kept.</p>`,
+  calib:`<p>Give the known positions, or add a standard's lines (such as silicon's 520.7 cm⁻¹, or a neon lamp's). Each reference is looked for within <em>Search within</em> of where it should be; the table shows where it was found and how far off. One reference shifts X; two or more fit a straight line.</p>`,
+  xlin:`<p>For a known offset or a scale factor. With a = −1, anti-Stokes shifts become Stokes shifts.</p>`,
+  norm:`${DL([["Maximum = 1","Divide by the largest value."],["Range 0 to 1","Minimum to 0, maximum to 1."],["Area = 1","Divide by the area."],["Vector length = 1","Divide by √(Σy²)."],["Standard normal variate","Subtract the mean, divide by the standard deviation."],["A band","Divide by a band's height or area: an internal standard."]])}${TIP("Normalise after subtracting the background, or the background's size sets the scale.")}`,
+  scale:`<p>A dark level to subtract, a gain to correct, a sign to flip.</p>`,
+  ref:`<p>The other spectrum is interpolated onto this one's X; points outside its range are dropped. A dashed line in the History shows which spectrum the step reads, and the step is redone when that spectrum changes.</p>`,
+  deriv:`<p>A Savitzky–Golay derivative of the order chosen, over the window chosen. Needs even spacing (resample first). ${MP("Math › Calculus › Derivative, as a new spectrum…")} keeps the spectrum and adds its derivative beside it.</p>`,
+  log:`<p>Points at or below zero have no logarithm and are left out.</p>`,
+  absorb:`<div class="eq">A = −log₁₀ T</div><p>With transmittance in percent, T is divided by 100 first.</p>`,
+  km:`<p>R is the diffuse reflectance, as a fraction or in percent.</p>`,
+  bose:`<p>The temperature is the sample's, in kelvin. Needs X as a Raman shift in cm⁻¹.</p>`,
+  combine:`<p>Choose the spectra to combine with. With the mean, <em>Standard error between the spectra as Y errors</em> turns their spread into error bars, which a weighted fit can use.</p>`,
+  cumint:`<p>The last value is the total area. Scaled to 1, it reads as the fraction of the area below each X.</p>`,
+  fft:`<p>A zero-phase Butterworth response: <em>Steepness</em> is its order. The step warns when the spacing is uneven, since a Fourier filter assumes even spacing.</p>`,
+  python:`<p>${DA("python","The Python page")} explains what the code sees and how its result is kept.</p>`
+};
+// What a setting means, where the step itself does not say.
+const DOC_PARAM={
+  "crop.x0":"The lowest X kept.","crop.x1":"The highest X kept.",
+  "exclude.x0":"Where the region starts.","exclude.x1":"Where it ends.",
+  "despike.thr":"How far above the noise a point must stand to be a spike. Lower finds more, and risks narrow bands.",
+  "despike.width":"The widest feature that counts as a spike. Cosmic rays are one or two points wide.",
+  "despike.dir":"Spikes only, or dropouts (dead pixels) too.",
+  "resample.dx":"The even step. The median spacing of the data by default.",
+  "bg.method":"How the background is estimated. See Methods below.",
+  "bg.order":"Of the polynomial. Higher follows a more curved background, and risks following bands.",
+  "bg.lls":"Transforms the data before clipping so weak and strong bands are treated alike.",
+  "bg.smooth":"Smooths the rolled curve so it has no corners.",
+  "bg.anchors":"Points the background passes through. Place them on the graph, or automatically.",
+  "bg.interp":"How the anchors are joined.",
+  "bg.avg":"Each anchor's height is the mean of this many points around it, so noise does not move it.",
+  "bg.cmode":"Which level is subtracted.","bg.q":"The percentile of Y taken as the level.","bg.val":"The level to subtract.",
+  "bg.ends":"The share of the points at each end used for the line.",
+  "smooth.method":"See Methods below.","smooth.win":"Points in the moving window. Wider is smoother, and flattens narrow bands more.",
+  "smooth.order":"Of the Savitzky–Golay polynomial. Higher keeps narrow bands better, and smooths less.",
+  "smooth.lam":"Larger is smoother.",
+  "shift.laser":"The excitation wavelength.",
+  "xunit.from":"The units X is in now.","xunit.to":"The units wanted.",
+  "calib.refs":"The known positions of the reference peaks.",
+  "xlin.a":"The factor.","xlin.b":"The offset, added after.",
+  "norm.mode":"What becomes 1.","norm.x0":"Where the reference band starts.","norm.x1":"Where it ends.","norm.how":"Its height, or its area.",
+  "scale.a":"The factor.","scale.b":"The offset, added after.",
+  "ref.op":"What is done with the other spectrum.","ref.ref":"The other spectrum.","ref.use":"Its data as recorded, or after its own processing.","ref.k":"A factor applied to the other spectrum first.",
+  "deriv.order":"First or second derivative.","deriv.win":"Points in the window. Wider is smoother, and blurs close bands.","deriv.poly":"Of the local polynomial; at least the derivative's order.",
+  "log.base":"Base 10 or e.","absorb.pct":"Tick when T runs from 0 to 100.","km.pct":"Tick when R runs from 0 to 100.",
+  "bose.T":"The sample's temperature.","bose.omega":"Gives the reduced Raman intensity.",
+  "combine.cols":"The spectra to combine with this one.","combine.how":"The median ignores one stray spectrum.","combine.use":"Their data after processing, or as recorded.",
+  "combine.err":"Their spread becomes this spectrum's error bars.",
+  "cumint.norm":"Divide by the total, so the curve ends at 1.",
+  "fft.mode":"Remove fast noise (low-pass) or slow drift (high-pass).","fft.cut":"In points: features narrower than this are removed (low-pass), or wider than this (high-pass)."
+};
+const DOC_KW={bg:"baseline fluorescence arpls als airpls modpoly snip rolling ball anchors polynomial",smooth:"noise savitzky golay moving average median gaussian whittaker filter",
+  despike:"cosmic ray spike outlier dead pixel",norm:"normalise normalization internal standard snv",deriv:"derivative savitzky golay shoulder",shift:"raman laser wavelength wavenumber",
+  xunit:"units nm wavelength wavenumber ev energy frequency convert",calib:"calibration silicon neon lamp reference",combine:"average mean median repeated scans sum",
+  fft:"fourier low-pass high-pass drift noise butterworth",cumint:"integral running area",ref:"dark reference white lamp subtract divide",crop:"range cut trim",
+  exclude:"region remove notch laser line",resample:"interpolate even spacing grid",dedupe:"duplicate repeated average",sort:"order ascending",correct:"correction typo reason fix wrong value",python:"code script"};
+const DOC_MENU={crop:"Data › Clean",exclude:"Data › Clean",despike:"Data › Clean",sort:"Data › Clean",dedupe:"Data › Clean",resample:"Data › Clean",
+  bg:"Analysis",smooth:"Math › Smooth and filter",fft:"Math › Smooth and filter",scale:"Math › Arithmetic",xlin:"Math › Arithmetic",norm:"Math › Arithmetic",
+  ref:"Math › Arithmetic",combine:"Math › Arithmetic",deriv:"Math › Calculus",cumint:"Math › Calculus",log:"Math › Transforms",absorb:"Math › Transforms",
+  km:"Math › Transforms",shift:"Analysis › Spectroscopy",xunit:"Analysis › Spectroscopy",calib:"Analysis › Spectroscopy",bose:"Analysis › Spectroscopy",python:"Math › Python"};
+// The article of each window, for its "?" and F1.
+const WIN_DOC={graph:"graph",sheet:"sheet",flow:"history",over:"overview",peaks:"peaks",integ:"integ",fit:"fit",res:"results",stats:"stats",py:"python",disc:"disc"};
+function stepDoc(op){
+  const d=PIPE_OPS[op]; if(!d) return null;
+  const opt=q=>(q.opts||[]).length?`<span class="doc-opts">${q.opts.map(o=>esc(Array.isArray(o)?o[1]:o)).join(" · ")}</span>`:"";
+  const set=(d.params||[]).filter(q=>q.type!=="code");
+  const unit=q=>q.unit&&!["x","y"].includes(q.unit)?` <span class="doc-unit">(${esc(q.unit)})</span>`:"";
+  const where=op==="correct"?"Type over a value in the worksheet's Raw sheet":`${MP((DOC_MENU[op]||"Data")+" › "+d.label)}, or the + in the History`;
+  return {id:"step-"+op, g:"Processing", t:d.label, sub:true, kw:[op,d.short||"",d.group||"",DOC_KW[op]||""].join(" "),
+    lead:esc(d.help||""),
+    body:`<p class="doc-where">${where}</p>`+(set.length?`<h2>Settings</h2>${DL(set.map(q=>[esc(q.label||q.k)+unit(q),[esc(q.hint||DOC_PARAM[op+"."+q.k]||""),opt(q)].filter(Boolean).join(" ")||"&nbsp;"]))}`:"")+(DOC_STEP[op]||"")};
 }
-function openHelp(section){
-  const m=$("#helpModal"); $("#helpBody").innerHTML=helpHtml(); m._cancel=()=>closeModal(m);
-  openModal(m,$("#helpClose"));
-  setTimeout(()=>{ const s=section&&document.getElementById(section); const b=$("#helpBody"); if(s&&b) b.scrollTop=s.offsetTop-b.offsetTop-4; },0);
+let DOC_ALL=null;
+function docList(){
+  if(DOC_ALL) return DOC_ALL;
+  const steps=TOOL_GROUPS.flatMap(([,ops])=>ops).concat(["correct"]).filter((op,i,a)=>a.indexOf(op)===i).map(stepDoc).filter(Boolean);
+  const out=[]; DOCS.forEach(d=>{ out.push(d); if(d.id==="steps") steps.forEach(s=>out.push(s)); });
+  return DOC_ALL=out;
+}
+function docById(id){ return docList().find(d=>d.id===id)||null; }
+const DOC_TXT=new Map();
+function docText(d){ if(!DOC_TXT.has(d.id)){ const el=document.createElement("div"); el.innerHTML=docBody(d).replace(/<\/(dt|dd|h[1-6]|p|li|div|th|td|pre|tr)>/g,"$& "); DOC_TXT.set(d.id,(d.t+" "+(d.lead||"").replace(/<[^>]+>/g,"")+" "+el.textContent).replace(/\s+/g," ")); } return DOC_TXT.get(d.id); }
+function docBody(d){
+  let b=d.body||"";
+  if(d.id==="steps") b=b.replace('<div id="docStepList"></div>',TOOL_GROUPS.map(([g,ops])=>`<h3>${esc(g)}</h3><ul class="doc-links">${ops.map(op=>PIPE_OPS[op]?`<li>${DA("step-"+op,esc(PIPE_OPS[op].label))}<span>${esc((PIPE_OPS[op].help||"").split(/(?<=\.)\s/)[0])}</span></li>`:"").join("")}</ul>`).join("")+`<h3>Corrections</h3><ul class="doc-links"><li>${DA("step-correct","Correct values")}<span>${esc(PIPE_OPS.correct.help.split(/(?<=\.)\s/)[0])}</span></li></ul>`);
+  if(d.id==="curvefit") b=b.replace('<div id="docModelList"></div>',`<table class="doc-tab"><tbody>${Object.values(MODELS).map(m=>`<tr><th>${esc(m.name)}</th><td class="eqi">${m.formula||""}</td></tr>`).join("")}</tbody></table>`);
+  if(d.id==="about"){ const local=!S.store||S.store.mode==="local";
+    b=b.replace('<p id="docLocal"></p>',`<p>${local?"Projects are saved in this browser as you work, and nothing is uploaded. To keep a copy elsewhere, export it.":"Projects in this workspace are shared: everyone here sees each change as it is made."}</p>`); }
+  return b;
+}
+// Every word of the query, anywhere in the article; the title counts most.
+function docSearch(q){
+  const words=q.toLowerCase().split(/\s+/).filter(w=>w.length>1||/\d/.test(w)); if(!words.length) return [];
+  return docList().map(d=>{ const t=d.t.toLowerCase(), kw=(d.kw||"").toLowerCase(), body=docText(d).toLowerCase();
+    let score=0; for(const w of words){ const s=(t.includes(w)?8:0)+(kw.includes(w)?4:0)+(body.includes(w)?1+Math.min(3,body.split(w).length-2)*0.3:0); if(!s) return null; score+=s; }
+    if(t.startsWith(words[0])) score+=4; if(d.sub) score-=0.5;
+    return {d,score}; }).filter(Boolean).sort((a,b)=>b.score-a.score).slice(0,30);
+}
+function docSnip(d,q){
+  const txt=docText(d), words=q.toLowerCase().split(/\s+/).filter(Boolean), low=txt.toLowerCase();
+  let at=-1; for(const w of words){ const i=low.indexOf(w,d.t.length); if(i>=0&&(at<0||i<at)) at=i; }
+  if(at<0) return esc((d.lead||"").replace(/<[^>]+>/g,"").slice(0,120));
+  const s=Math.max(d.t.length+1,at-50), piece=(s>d.t.length+1?"…":"")+txt.slice(s,s+140)+"…";
+  const re=new RegExp("("+words.map(w=>w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|")+")","gi");
+  return esc(piece).replace(re,"<mark>$1</mark>");
+}
+function helpState(){ if(!S.help) S.help={id:"start",q:"",back:[],nav:false}; return S.help; }
+function helpFor(win){
+  if(win==="tool") return S.pending?"step-"+S.pending.step.op:"steps";
+  if(win==="fit") return S.fitMode==="peaks"?"peakfit":"curvefit";
+  return WIN_DOC[win]||"start";
+}
+function frontWin(){ return Object.keys(WINS).filter(id=>winOpen(id)&&id!=="help").sort((a,b)=>winState(b).z-winState(a).z)[0]; }
+/* Opens the Help window on an article ("id" or "id#anchor"; the old section
+   names still work), or on the last one read. */
+function openHelp(id,opt){
+  opt=opt||{}; const h=helpState();
+  const old={"h-start":"start","h-keys":"keys","h-about":"about"};
+  if(id&&old[id]) id=old[id];
+  let anchor=null; if(id&&id.includes("#")) [id,anchor]=id.split("#");
+  if(id&&docById(id)&&id!==h.id){ h.back.push(h.id); if(h.back.length>40) h.back.shift(); h.id=id; }
+  if(!opt.search){ h.q=""; h.nav=false; }
+  const was=winOpen("help");
+  openWin("help"); if(was) renderHelp();
+  if(opt.search){ h.nav=true; renderHelp(); const q=$("#docQ"); if(q){ q.focus(); q.select(); } }
+  docScroll(anchor);
+}
+function docScroll(anchor){
+  const art=$("#docArt"); if(!art) return;
+  const el=anchor&&art.querySelector("#"+CSS.escape(anchor));
+  art.scrollTop=el?el.offsetTop-8:0;
+}
+function renderHelp(){
+  const box=$("#pane-help"); if(!box) return;
+  const h=helpState(), d=docById(h.id)||DOCS[0], sub=$("#helpSub");
+  if(sub) sub.textContent=d.t;
+  if(!box.querySelector(".docs-nav")){
+    box.innerHTML=`<div class="docs-nav"><div class="docs-q">${ICON("search","sm")}<input type="search" id="docQ" placeholder="Search help" aria-label="Search help" autocomplete="off" spellcheck="false"></div><nav class="docs-toc" id="docToc" aria-label="Help contents"></nav></div><article class="doc" id="docArt" tabindex="-1"></article>`;
+    wireHelp(box);
+  }
+  box.classList.toggle("navon",!!h.nav);
+  const q=$("#docQ"); if(q&&document.activeElement!==q) q.value=h.q;
+  renderDocToc(); renderDocArt();
+}
+function renderDocToc(){
+  const h=helpState(), toc=$("#docToc"); if(!toc) return;
+  if(h.q.trim()){
+    const r=docSearch(h.q);
+    toc.innerHTML=r.length?`<div class="dg">${r.length} result${r.length===1?"":"s"}</div>`+r.map(({d})=>`<a href="#" data-doc="${d.id}" class="res${d.id===h.id?" on":""}"><strong>${esc(d.t)}</strong><span>${docSnip(d,h.q)}</span></a>`).join(""):`<p class="docs-none">Nothing matches “${esc(h.q)}”.</p>`;
+    return;
+  }
+  toc.innerHTML=DOC_GROUPS.map(g=>{ const list=docList().filter(d=>d.g===g&&!d.sub);
+    return `<div class="dg">${esc(g)}</div>`+list.map(d=>{ const on=d.id===h.id||(d.id==="steps"&&h.id.startsWith("step-"));
+      return `<a href="#" data-doc="${d.id}"${on?' class="on" aria-current="page"':""}>${esc(d.t)}</a>`+(d.id==="steps"&&h.id.startsWith("step-")?`<a href="#" data-doc="${h.id}" class="on sub" aria-current="page">${esc(docById(h.id).t)}</a>`:""); }).join(""); }).join("");
+}
+function renderDocArt(){
+  const h=helpState(), art=$("#docArt"); if(!art) return;
+  const d=docById(h.id)||DOCS[0], list=docList().filter(x=>!!x.sub===!!d.sub), i=list.indexOf(d);
+  const prev=list[i-1], next=list[i+1];
+  const OPEN={graph:"Graph",sheet:"Worksheet",flow:"History",over:"Overview",peaks:"Peaks",integ:"Integrate",fit:"Fit",res:"Results",stats:"Statistics",py:"Python",disc:"Discussion"};
+  art.innerHTML=`<div class="doc-top"><button class="tb sm" id="docBack"${h.back.length?"":" disabled"} aria-label="Back">${ICON("chevl","sm")}Back</button><button class="tb sm docs-tocbtn" id="docNav" aria-label="Contents">${ICON("panel","sm")}Contents</button><span class="doc-crumb">${esc(d.g)}${d.sub?` › ${DA("steps","Processing steps")}`:""}</span></div>
+    <h1>${esc(d.t)}</h1>${d.lead?`<p class="doc-lead">${d.lead}</p>`:""}
+    ${d.win&&OPEN[d.win]?`<div class="doc-open"><button class="btn sm" data-doc-open="${d.win}">${ICON(WINS[d.win].icon,"sm")}Open ${esc(OPEN[d.win])}</button></div>`:""}
+    <div class="doc-body">${docBody(d)}</div>
+    ${prev||next?`<nav class="doc-pn">${prev?`<a href="#" data-doc="${prev.id}" class="p"><span>Previous</span>${esc(prev.t)}</a>`:"<span></span>"}${next?`<a href="#" data-doc="${next.id}" class="n"><span>Next</span>${esc(next.t)}</a>`:""}</nav>`:""}`;
+  if(h.q.trim()) docMark(art.querySelector(".doc-body"),h.q);
+}
+// Marks the searched words in an article opened from the results.
+function docMark(el,q){
+  const words=q.toLowerCase().split(/\s+/).filter(w=>w.length>1); if(!el||!words.length) return;
+  const re=new RegExp("("+words.map(w=>w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|")+")","gi");
+  const tw=document.createTreeWalker(el,NodeFilter.SHOW_TEXT), nodes=[]; while(tw.nextNode()) if(re.test(tw.currentNode.nodeValue)) nodes.push(tw.currentNode);
+  nodes.forEach(n=>{ const s=document.createElement("span"); s.innerHTML=esc(n.nodeValue).replace(re,"<mark>$1</mark>"); n.replaceWith(...s.childNodes); });
+}
+function docGo(id){
+  const h=helpState(); let anchor=null; if(id.includes("#")) [id,anchor]=id.split("#");
+  if(!docById(id)) return;
+  if(id!==h.id){ h.back.push(h.id); if(h.back.length>40) h.back.shift(); h.id=id; }
+  h.nav=false; renderHelp(); docScroll(anchor);
+}
+function wireHelp(box){
+  box.addEventListener("click",e=>{
+    const a=e.target.closest("[data-doc]"); if(a){ e.preventDefault(); docGo(a.dataset.doc); return; }
+    const o=e.target.closest("[data-doc-open]"); if(o){ const w=o.dataset.docOpen;
+      ({peaks:openPeakFinder,integ:openIntegrate,over:openOverview,fit:()=>showTab("fit")}[w]||(()=>openWin(w,{render:true})))(); return; }
+    const x=e.target.closest("[data-doc-ex]"); if(x){ if(!S.readOnly&&S.store) loadExample(x.dataset.docEx); return; }
+    if(e.target.closest("#docBack")){ const h=helpState(); if(h.back.length){ h.id=h.back.pop(); h.nav=false; renderHelp(); docScroll(); } return; }
+    if(e.target.closest("#docNav")){ const h=helpState(); h.nav=!h.nav; renderHelp(); return; }
+  });
+  const q=box.querySelector("#docQ");
+  q.addEventListener("input",()=>{ const h=helpState(); h.q=q.value; renderDocToc(); });
+  q.addEventListener("keydown",e=>{
+    if(e.key==="Enter"){ e.preventDefault(); const f=box.querySelector("#docToc [data-doc]"); if(f) docGo(f.dataset.doc); }
+    else if(e.key==="Escape"&&q.value){ e.preventDefault(); e.stopPropagation(); q.value=""; helpState().q=""; renderDocToc(); }
+    else if(e.key==="ArrowDown"){ const f=box.querySelector("#docToc [data-doc]"); if(f){ e.preventDefault(); f.focus(); } }
+  });
+  box.querySelector("#docToc").addEventListener("keydown",e=>{
+    if(e.key!=="ArrowDown"&&e.key!=="ArrowUp") return;
+    const all=[...box.querySelectorAll("#docToc [data-doc]")], i=all.indexOf(document.activeElement); if(i<0) return;
+    e.preventDefault(); const n=all[i+(e.key==="ArrowDown"?1:-1)]; if(n) n.focus(); else if(e.key==="ArrowUp") q.focus();
+  });
 }
 
 /* ============================================================
@@ -10401,6 +11006,7 @@ const WINS={
   peaks:{title:"Peaks", icon:"tag", def:[.6,.03,.4,.94], open:false},
   integ:{title:"Integrate", icon:"area", def:[.52,.03,.48,.94], open:false},
   over:{title:"Overview", icon:"info", def:[.5,.04,.5,.92], open:false},
+  help:{title:"Help", icon:"help", def:[.54,.03,.46,.94], open:false},
   res:{title:"Results", icon:"table", def:[0,.6,.62,.4], open:false},
   disc:{title:"Discussion", icon:"comment", def:[.64,.3,.36,.7], open:false},
   py:{title:"Python", icon:"code", def:[.2,.06,.56,.86], open:false},
@@ -10453,6 +11059,7 @@ function closeWin(id){ const st=winState(id); if(!st.open) return; st.open=false
 function toggleWin(id){ const st=winState(id); if(!st.open) openWin(id); else if(document.querySelector(`#w-${id}.active`)) closeWin(id); else focusWin(id); }
 function toggleMax(id){ const st=winState(id); st.max=!st.max; st.z=++LAYOUT.z; applyWins(); saveLayout(); }
 function renderWin(id){
+  if(id==="help"){ renderHelp(); return; }
   if(!P()&&id!=="py") return;
   if(id==="graph"){ renderPlot(); renderStages(); }
   else if(id==="sheet") renderWs();
@@ -10471,6 +11078,8 @@ function renderWin(id){
    up to three rows per column. Cascade: stepped, each the same size. */
 function tileWins(){
   const open=Object.keys(WINS).filter(id=>winOpen(id)&&id!=="tool");
+  // Help goes last, so it tiles beside what it explains.
+  open.sort((a,b)=>(a==="help")-(b==="help"));
   const others=open.filter(id=>id!=="graph"), hasG=open.includes("graph");
   const left=hasG?(others.length?0.6:1):0;
   if(hasG) Object.assign(winState("graph"),{g:[0,0,left,1],max:false});
@@ -10488,7 +11097,7 @@ function resetWins(){ LAYOUT.wins={}; Object.keys(WINS).forEach(winState); apply
 function renderTaskbar(){
   const tb=$("#taskbar"); if(!tb) return;
   const front=Object.keys(WINS).filter(winOpen).sort((a,b)=>winState(b).z-winState(a).z)[0];
-  let h=WIN_ORDER.map(id=>{ const on=winOpen(id), badge=winBadge(id);
+  let h=WIN_ORDER.concat(winOpen("help")?["help"]:[]).map(id=>{ const on=winOpen(id), badge=winBadge(id);
     return `<button class="tk${on&&id===front?" front":""}" data-tk="${id}" aria-pressed="${on}" title="${esc(on?(id===front?"Minimise":"Bring to the front"):"Open")} the ${esc(WINS[id].title)} window">${ICON(WINS[id].icon,"sm")}<span>${esc(WINS[id].title)}</span>${badge}</button>`; }).join("");
   h+=`<span class="sp"></span><button class="tb sm icon" data-tk-act="tile" title="Tile the open windows" aria-label="Tile the open windows">${ICON("tile","sm")}</button><button class="tb sm icon" data-tk-act="cascade" title="Cascade the open windows" aria-label="Cascade the open windows">${ICON("cascade","sm")}</button>`;
   tb.innerHTML=h;
@@ -10504,10 +11113,12 @@ function setupWins(){
   const desk=$("#desk");
   document.querySelectorAll(".win").forEach(el=>{
     const id=el.dataset.win, h=el.querySelector(".win-h");
-    h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-wmin title="Minimise to the taskbar" aria-label="Minimise the ${esc(WINS[id].title)} window">${ICON("min","sm")}</button><button class="tb sm icon" data-wmax title="Maximise or restore (double-click the title bar)" aria-label="Maximise the ${esc(WINS[id].title)} window">${ICON("max","sm")}</button>`);
+    if(id!=="help") h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-whelp title="Help on this window (F1)" aria-label="Help on the ${esc(WINS[id].title)} window">${ICON("help","sm")}</button>`);
+    h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-wmin title="${id==="help"?"Close":"Minimise to the taskbar"}" aria-label="Minimise the ${esc(WINS[id].title)} window">${ICON("min","sm")}</button><button class="tb sm icon" data-wmax title="Maximise or restore (double-click the title bar)" aria-label="Maximise the ${esc(WINS[id].title)} window">${ICON("max","sm")}</button>`);
     ["e","s","se","w"].forEach(k=>el.insertAdjacentHTML("beforeend",`<div class="win-rz ${k}" data-rz="${k}" aria-hidden="true"></div>`));
     el.addEventListener("pointerdown",()=>focusWin(id),true);
     h.querySelector("[data-wmin]").onclick=()=>closeWin(id);
+    const hb=h.querySelector("[data-whelp]"); if(hb) hb.onclick=()=>openHelp(helpFor(id));
     h.querySelector("[data-wmax]").onclick=()=>toggleMax(id);
     h.addEventListener("dblclick",e=>{ if(!e.target.closest("button")) toggleMax(id); });
     // Move by the title bar.
@@ -10645,9 +11256,14 @@ function menuItems(which){
   if(which==="statistics") return statisticsMenu();
   if(which==="window") return WIN_MENU();
   if(which==="help") return [
-    {label:"Getting started", run:()=>openHelp("h-start")},
-    {label:"Keyboard shortcuts", kbd:"?", run:()=>openHelp("h-keys")},
-    "-",{label:"About Kurve", run:()=>openHelp("h-about")}];
+    {label:"Kurve help", kbd:"F1", run:()=>openHelp()},
+    {label:"Search help…", run:()=>openHelp(null,{search:true})},
+    "-",
+    {label:"Getting started", run:()=>openHelp("start")},
+    {label:"Keyboard shortcuts", kbd:"?", run:()=>openHelp("keys")},
+    {label:"Processing steps", run:()=>openHelp("steps")},
+    {label:"How Kurve computes", run:()=>openHelp("method")},
+    "-",{label:"About Kurve", run:()=>openHelp("about")}];
   return [];
 }
 function onThemeChange(){ renderTop(); renderPlot(); Object.keys(WINS).forEach(id=>{ if(id!=="graph"&&winOpen(id)) renderWin(id); }); }
@@ -10762,9 +11378,9 @@ function wireStatic(){
   const th=themeSetting(); if(th!=="auto") document.documentElement.setAttribute("data-theme",th);
   $("#themeBtn").onclick=()=>applyTheme(darkMode()?"light":"dark");
   try{ const mq=matchMedia("(prefers-color-scheme: dark)"); mq.addEventListener&&mq.addEventListener("change",()=>{ if(themeSetting()==="auto") onThemeChange(); }); }catch(e){}
-  $("#helpBtn").onclick=()=>openHelp("h-start"); $("#helpClose").onclick=()=>closeModal($("#helpModal"));
+  $("#helpBtn").onclick=()=>winOpen("help")&&winState("help").z>=LAYOUT.z?closeWin("help"):openHelp();
   $("#impClose").onclick=closeImport; $("#impCancel").onclick=closeImport; $("#impGo").onclick=doImport;
-  ["#impModal","#dlgModal","#helpModal","#formModal"].forEach(id=>{ const m=$(id); m.addEventListener("mousedown",e=>{ if(e.target===m) (m._cancel||(()=>closeModal(m)))(); }); });
+  ["#impModal","#dlgModal","#formModal"].forEach(id=>{ const m=$(id); m.addEventListener("mousedown",e=>{ if(e.target===m) (m._cancel||(()=>closeModal(m)))(); }); });
   $("#toastX").onclick=hideToast;
   // Dialogs first: Tab stays inside, Escape cancels.
   document.addEventListener("keydown",e=>{
@@ -10774,6 +11390,7 @@ function wireStatic(){
   },true);
   document.addEventListener("keydown",e=>{
     if(MODALS.length||menuOpen) return;
+    if(e.key==="F1"){ e.preventDefault(); openHelp(helpFor(frontWin())); return; }
     const k=e.key.toLowerCase(), t=e.target;
     const typing=!!t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.tagName==="SELECT"||t.isContentEditable);
     if(e.key==="Escape"){ if(S.mode!=="zoom"){ const was=S.mode; setMode("zoom"); if(was==="anchor"||was==="range") refreshForms(); } else if(S.pending&&t&&t.closest&&t.closest("#w-tool")){ cancelTool(); } else if(S.selPeak!=null&&!typing){ S.selPeak=null; renderPlot(); renderFit(); } return; }
@@ -10791,7 +11408,7 @@ function wireStatic(){
       return;
     }
     if(typing||e.altKey) return;
-    if(e.key==="?"){ e.preventDefault(); openHelp("h-keys"); }
+    if(e.key==="?"){ e.preventDefault(); openHelp("keys"); }
   });
   setMode("zoom",true);
   setInterval(()=>{ if(winOpen("disc")) renderThread(); if(winOpen("flow")&&S.flowTab==="log") renderLog(); },60000);
