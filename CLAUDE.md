@@ -24,7 +24,13 @@ Integrate, Fit, Results, Statistics, Python, Discussion, Help, and the transient
 its edges, maximises on a double-click of the title and minimises to the **taskbar** along the
 bottom of the desk, which also has Tile and Cascade. Every title bar has a **?** that opens
 the window's article in the **Help window** (F1 does it for the window in front; a tool's
-opens its step's article). A first visit opens Graph, History and Worksheet. The **graph window** has its own bar repeating the Data, Math, Analysis, Statistics
+opens its step's article). A first visit opens Graph, History and Worksheet. A project can
+have **several graphs**, each in its own window (Window › New graph: with the analysed
+spectrum, with every spectrum, or one for each spectrum, tiled): the one clicked is worked on
+(it is drawn live, its spectrum is analysed and every window follows), the others show a
+picture and chips naming their spectra; each has a ⋯ menu (rename, spectra on it, duplicate,
+export, delete), the X zoom is linked between them unless switched off, and with more than
+four the taskbar gathers them under one Graphs button. The **graph window** has its own bar repeating the Data, Math, Analysis, Statistics
 and Plot menus, a Python button, and a chip saying which stage of the processing is shown
 when it is not the final data. Right-click on the graph (or Shift+F10) gives the spectrum's
 colour, plot type and style, a line, text or peak label where you clicked, axes, layout and
@@ -191,7 +197,16 @@ graph first, with the taskbar kept at the bottom of the screen.
   which reports findings without applying them. `tools/parser-test.mjs` extracts this block
   straight out of the HTML and tests it under node; run it after touching anything here.
   Files arrive through `readFileIn` (the Import button, Ctrl+O, or a drop anywhere on the
-  window) and `importText`, which refuses binary instrument files with a reason.
+  window) and `importText`, which refuses binary instrument files with a reason (`looksBinary`).
+  **Many spectra at once**: several files chosen or dropped together go to `readFilesIn`; a
+  file with several Y columns does too when the wizard's Spectra list says all (`S.imp.all`,
+  `impYs`, on by default when more than one column is a Y). `batchFile(fname, text, opt)`
+  reads a file into items `{fname, name, x, y, e, xn, xu, yu, n, x0, x1, meta}` (or `{fail}`
+  in words), `batchImport(items, o)` lists them in a dialog (names editable; into this project
+  or a new one; one graph each, all in one, or stacked) and `doBatchImport` brings them in as
+  one change: one undo entry, one log line, one raw-data record entry. A spectrum shares the X
+  column of the one before it when `sameAxis`, and has its own otherwise; a project that held
+  nothing gives its first graph to the new spectra.
 - **Columns and spectra**: a project is a table. `p.cols` is `[{id, role, name, unit, data, of?,
   pipe?, mask?, src?, from?}]` with roles `x` / `y` / `e` (an error column names its Y in `of`) /
   `ignore`. There may be several X columns: as in Origin, a Y column is plotted against the
@@ -283,7 +298,49 @@ graph first, with the taskbar kept at the bottom of the screen.
   `renderTaskbar`, `setupWins` (move, resize, min/max buttons, and the "?" `[data-whelp]`
   that opens `helpFor(id)`). `renderAll` renders only open
   windows; a window renders when it opens. `showTab("fit"|"clean")` and `showDrawer(...)`
-  remain as names for opening the Fit, History, Results and Discussion windows.
+  remain as names for opening the Fit, History, Results and Discussion windows. `wireWin(el)`
+  wires one window (the static ones at boot, a graph window when it is made). Graph windows
+  are placed per project (`saveGraphLayout`, `restoreGraphLayout`: `LAYOUT.proj[pid]` for a
+  project with several graphs, `LAYOUT.single` for one graph), so twelve tiled graphs do not
+  leave the next project's graph tiny.
+- **Graphs**: `p.graphs` (in `UNDO_KEYS`) is `[{id, name, cols, plot}]`; the first graph,
+  "main", is `p.plot` (its name `p.plot.gname`, default "Graph 1") and shows every spectrum not
+  hidden; another shows `cols`, in order. `GID()` is the graph in hand (`S.gctx` while drawing
+  another, else `S.gid`, the one in front); `GP()`/`plotOf(id)` its settings, and every
+  reader of plot settings goes through them; `savePlot(patch, log)` writes them (an extra
+  graph's `hidden` becomes its `cols`; its log line is prefixed with the graph's name).
+  `plotCfg()` counts a spectrum not on the graph as hidden, so every `cfg.hidden` check works
+  unchanged. Annotations of every graph stay in `p.plot.annos`, another graph's tagged `g`
+  (`annoInGraph`; `addAnno`, `labelFoundPeaks` and Plot details tag them); a peak set
+  (`grp`) belongs to its spectrum and shows on every graph that draws it. `graphIds`,
+  `graphOf`, `graphName`, `inGraph`, `graphShows`, `graphCols`, `multiGraph`, `winOfGraph`
+  (main's window is `graph`, another's is its id), `graphOfWin`. **Live and pictures**: one
+  ribbon and one plot (`#gRibbon`, `#gPane`, with `#plot`, `#figure` and their handlers) move
+  into the window of the graph in front (`moveLive`); the others show `.gbar` (chips of their
+  spectra) and `.gsnap` (a picture). `activateGraph(id, colId)` brings one forward: it keeps
+  the old one's zoom and spectrum (`S.gv`, `S.glead`), parks drafts per spectrum
+  (`stashDrafts`, `S.dstash`), sets everything before `save({activeY})` (which redraws at
+  once in this browser), and draws the old one's picture straight away. A pointerdown on a
+  graph window activates it (a chip's click is read there, since activation hides the chip);
+  `syncGraphWins()` (first in `renderAll`) makes and removes windows, and brings forward the
+  graph that shows the analysed spectrum when the one in front does not (`graphForCol`).
+  `withGraph(id, fn)` draws as another graph: its settings, lead (`leadOf`) and zoom
+  (`viewFor`) put in place and every live state (stage, selection, drafts, preview) set aside,
+  then restored. `runSnaps` redraws only pictures whose `snapSig` changed (size, palette,
+  settings, annotations, each spectrum's `pipeSig`, name and mask, zoom, fit, bands, a
+  pending step on it), 24 ms at a time; `scheduleSnaps(delay)` coalesces. Ids in a picture
+  are prefixed so its clip paths are its own. **Linked zoom** (`S.linkX`, `kurve.linkX`,
+  `setLinkX`): another graph takes the front one's X range as `{x0, x1, xu, yAuto}` and
+  `resolveYAuto` fits Y to what is in range (offset and heat layouts are left whole).
+  Making and changing: `newGraphs(groups, opt)`, `newGraphFrom(ids)` (it takes half of the
+  front graph's window, `splitInto`), `onePerSpectrum`, `allInOneGraph`, `duplicateGraph`,
+  `renameGraph`, `deleteGraph` (its annotations go with it, never data), `toggleGraphCol`,
+  `showGraph`; menus `graphWinItems(id)` (the ⋯), `graphsMenuItems` (the taskbar's Graphs
+  button and Window › Graphs), `newGraphItems`. `tileWins` puts the graphs in a grid on the
+  left (as near square as the desk allows, the last row stretched) and the rest in a column;
+  when a graph would be under 250 × 235 px that way, the graphs take the whole desk and the
+  other windows are minimised. A picture smaller than 250 × 160 px is drawn at that size and
+  scaled down, so its labels never collide.
 - **Tools and menus**: `TOOL_GROUPS` lists every op by kind; `toolMenuItems({col, at})` is
   the menu the History's "+" and Step buttons open, one submenu per group (a group of one
   tool stays a plain item); `dataMenu`, `mathMenu`, `analysisMenu`,
@@ -308,7 +365,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   Peaks box when the spectrum has a peak set (its labels typed in the inspector, what it was
   found with, a warning when the processing changed since); a Bands box when bands are drawn on
   its axis (`integ:` + id: the areas, shares and ratios); a fit box when the spectrum has
-  fits; and a Figure box below everything when the graph has lines, ranges, text or labels
+  fits; with several graphs a box per graph (`kind:"graph"`, key `figure` for the first and
+  `graph:<id>` for the others) below the spectra, fed by dotted lines from the last box of
+  each spectrum it shows, with its layout, annotations, recent changes and discussion
+  (selecting it brings the graph forward); otherwise a Figure box below everything when the
+  graph has lines, ranges, text or labels
   of its own (each listed with Edit and Delete, and the recent changes to the figure from the
   log). Steps that read another spectrum (`deps`) get a dashed line
   from it. `S.flowSel` is the selected box (`table`, `figure`, or `raw:`, `src:`, `step:`,
@@ -455,7 +516,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   (`wsPatch`, `wsPid`), as does a project switch.
 - **Undo**: `pushUndo(label)` before any mutation, `undo`/`redo`, snapshots of `UNDO_KEYS`
   (`cols` carries the pipelines and masks, `raw` the fingerprint record, `fits` the fit history,
-  `userFns` the project's fit functions, `found` the peak sets, `integ` the bands)
+  `userFns` the project's fit functions, `found` the peak sets, `integ` the bands, `graphs`
+  the extra graphs)
   plus both drafts (`S.pdraft`, `S.draft`). It is per-session and local on purpose — rewinding your
   own edits, not other people's. Destructive actions confirm themselves with a toast that
   carries an Undo button (`toast(msg,{action,run})`).
@@ -472,7 +534,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   `legendFrame`, `frame`, `font`, `fontFam`, `fontName`, `titleItalic`, `title`, `cmap`,
   `scheme`, `peakScheme`, `peakLab`,
   `peakLabRot`, `peakLabDec`, `axisMatch`, `annos`, `series[id]` and `ax.x|y|y2`, see
-  Rendering), `fit`, `fits` (the fit history:
+  Rendering; `gname`, the first graph's name), `graphs` (see Graphs), `fit`, `fits` (the fit history:
   numbers, the processing, and a decimated thumbnail of each fit), `userFns`, `found` (the
   peak sets, see the Peaks window), `integ` (the bands, see the Integrate window), `wsw`
   (worksheet column widths), `log`, optional
@@ -604,8 +666,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   marked peaks of every spectrum with their labels (`reportPeaksHtml`), every spectrum's band
   integrals with how they were measured (`reportBandsHtml`), full parameter
   table with t, p, CI and dependency, statistics, the raw-data record, every processing step
-  with its warnings and a filmstrip, the fit history, method, session log). `resultsText` is
-  the same as TSV for `copyResults`.
+  with its warnings and a filmstrip, the fit history, method, session log; with several graphs
+  every graph too). `resultsText` is the same as TSV for `copyResults`. With several graphs,
+  `allGraphsSvg(pw, ph)` draws each (through `withGraph`, as it is on the desk) into one SVG
+  lettered (a), (b)…, for `exportAllSvg`, `exportAllPng` and the report; `exportAllCsv` writes
+  every spectrum's final X and Y side by side with each one's steps.
 - **Boot**: `boot()` asks `window.claude.use(...)` for `db`, `user`, `room`, `downloads`. Outside
   claude.ai these are absent, so the app falls back to `LocalStore` and hides presence.
 
@@ -846,25 +911,55 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   so a test that kept the element handle read a detached node. Look controls up again after
   anything that saves.
 
+- **Every reader of a setting goes through one door.** With one graph, `p.plot` was read in
+  sixty places. Several graphs meant sending every one of them through `GP()` and every write
+  through `savePlot`; a reader left on `p.plot` would quietly show the first graph's setting
+  on another. Grep `\.plot\b` after touching plot settings: only annotations and the first
+  graph's own code may use it.
+- **A picture must not borrow ids.** Every graph drawn by `buildPlot` has a `clipM`; eleven
+  pictures on one page share ids, and a clip path resolves to the first. Pictures and the
+  combined figure prefix their ids.
+- **A click that hides what it pressed is not a click.** Bringing a graph forward on
+  pointerdown hides its chip bar, so the chip's click never arrived. What was pressed is
+  read in the pointerdown itself.
+- **Set the state before the save.** In this browser `save()` redraws synchronously, so the
+  graph in front, its zoom and its spectrum are all in place before `save({activeY})`, or
+  the redraw paints the new spectrum with the old zoom.
+- **Compare before you save.** Plot details decided whether to reset the zoom by comparing
+  the new layout with `P().plot` after saving it, which is always equal: the reset never
+  happened. Capture the old value first.
+- **A layout belongs to its project.** Twelve tiled graphs in one project left the next
+  project's only graph a twelfth of the desk. Graph windows are placed per project.
+
 ## Roadmap
 
-Done in this round: two interface styles, Bench and Graphite, chosen in Window › Style, with
+Done in this round: several graphs per project, each in its own window, beyond Origin's:
+one graph per spectrum in one command, tiled; click any graph to work on it (its zoom,
+spectrum and drafts come back, every window follows); only the graph in front is live and the
+others are pictures redrawn when what they show changes, so twelve graphs cost little more
+than one; linked X zoom; chips, a ⋯ menu per graph, a Graphs button in the taskbar; a box per
+graph in the History with its log lines and discussion; all graphs as one lettered figure,
+every spectrum in one CSV, every graph in the report; importing many files, or every column
+of one file, as one change with a graph each; applying a step to every spectrum with
+settings measured on each; graph windows placed per project.
+
+Round before: two interface styles, Bench and Graphite, chosen in Window › Style, with
 every control drawn from tokens (sliders with a filled track, switches, checkboxes, radios,
 lists, segmented controls, windows) instead of the browser's own look.
 
-Round before: a Help window (an article for every window, tool and step, search, a "?"
+Two rounds before: a Help window (an article for every window, tool and step, search, a "?"
 on every window, F1), and a review of every window: explanations moved into Help and
 tooltips, one-line empty states (the History of an empty project included), short status-bar
 hints and toasts, spectrum pickers only when there is a choice, forms that stop at a
 readable width, and the Peaks window's sections in one style.
 
-Two rounds before: integration without a fit (bands dragged on the graph, local baselines,
+Three rounds before: integration without a fit (bands dragged on the graph, local baselines,
 areas with noise-propagated errors, heights, positions, FWHM, shares and ratios to a chosen
 band, windows around the peaks, every spectrum at once, a Bands box in the History, the CSV and
 the report) and the Overview of a new spectrum (spacing, noise, bands, spikes, flat tops,
 background, and first steps that open their tools), opened after an import.
 
-Three rounds before: worksheet formulas in Origin's F(x)= row, the fill handle (series and
+Four rounds before: worksheet formulas in Origin's F(x)= row, the fill handle (series and
 copies, double-click, Ctrl+D/R), sorting the view, find (Ctrl+F); peak sets that follow the
 processing (labels kept, even through a change of X units) and peaks found in every spectrum
 at once; a fix for a delayed worksheet save overwriting a later one.
@@ -884,8 +979,8 @@ peak parameters (one width, area ratios, fixed spacings).
 
 Next, in order:
 1. Many spectra at once: batch fits with a summary table and a trend plot of a parameter
-   (or a band integral, or a band ratio) against sample, temperature or time; global fits with
-   shared parameters; a multi-column import wizard
+   (or a band integral, or a band ratio) against sample, temperature or time, as a graph of
+   its own; global fits with shared parameters
 2. Figures for papers: export presets (journal column widths, DPI, fixed font sizes), style
    templates shared between projects, annotation arrows, boxes, real sub- and superscripts,
    snapping, insets
@@ -906,8 +1001,13 @@ Next, in order:
 - Only one Y column is fitted at a time: no batch across a series, no global fit with shared
   parameters across spectra, and no summary table of a parameter against sample (a step can
   already be applied to every spectrum)
-- The import wizard reads one Y column; extra columns have to be added by hand afterwards, or
-  imported one file at a time with "Add" (each keeps its own X column when its axis differs)
+- Several graphs: the X zoom is linked, not Y or the pointer; there are no graph layers,
+  insets or graphs with panels of different spectra, and no keyboard shortcut to step through
+  the graphs (the browser keeps Ctrl+Tab); a picture shows no readout until it is clicked. A
+  graph's annotations stay on it if one of its spectra moves to another graph
+- A batch import reads each file with the automatic choices (the single-file dialog's
+  overrides of delimiter, decimal mark and start line apply to one file); metadata is kept
+  from the first file only
 - Peak handles move centre, height and width; there is no handle for a shape parameter
   (Lorentz fraction, Pearson m, Fano 1/q), and no keyboard nudging of a selected peak
 - Ties are between the same parameter of two peaks; there are no free-form constraints between
