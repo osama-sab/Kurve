@@ -14,7 +14,10 @@ beside it switches, creates and deletes projects); a **toolbar** (Import, Export
 **Raw / Final / Compare** (what the graph shows), the pointer tools Zoom / Pan / Mask / Add
 peak / Label / Comment, show-all, the analysed spectrum's plot type, the layout of several spectra,
 and the Reverse X / Log Y / Grid / Residuals toggles); the **desk**; and a **status bar**
-(tool hint, live cursor readout, point counts, fit state, save state).
+(tool hint, live cursor readout, point counts, fit state, save state). Window › Theme picks
+light or dark, and Window › Style the look of the interface: **Bench** (the default: IBM Plex,
+blue for everything you can change) or **Graphite** (Geist, black and white, blue only for the
+keyboard focus). Both are remembered per browser; neither changes the graph's colours.
 
 The desk holds **windows**, as in Origin: Graph, Worksheet, History, Overview, Peaks,
 Integrate, Fit, Results, Statistics, Python, Discussion, Help, and the transient Tool dialog. Each moves by its title bar, resizes from
@@ -540,6 +543,26 @@ graph first, with the taskbar kept at the bottom of the screen.
   `renderResults`, `renderTabMarks` and the status bar), `renderFlow`, `renderTool`,
   `renderStats`, `renderPy`, `renderThread`, `renderLog`, `renderAll`. Dense data (over 1500
   points) is drawn as one path of dots, and error bars as one path.
+- **Styles and controls** (the tokens at the top of the `<style>`): one token set per theme
+  and per style. Bench is bare `:root` plus the two dark blocks; Graphite is
+  `:root[data-style="graphite"]` plus its own two dark blocks, and every token Graphite sets in
+  light it sets again in dark (see the rules below). `styleSetting()`/`applyStyle(s)` keep
+  `kurve.style` and the root's `data-style`, and the inline script in `<body>` applies it
+  before the first paint, as it does the theme. The data colours (`--data`, `--fit`, …) are
+  shared, so the figure does not change with the style. Controls are drawn from tokens, never
+  from the browser's own look: `--r`/`--r-win` (radii), `--ctl-on` (what "on" looks like:
+  a slider's fill, a switch, a ticked box), `--focus`/`--focus-soft` (focus rings; blue in
+  both styles). Sliders (`input[type=range]`) have a track filled up to the value from `--p`,
+  which CSS cannot read from the value: `paintRange(el)` sets it on every input and change,
+  and `setupRanges` watches the document (a `MutationObserver` that looks only at added nodes
+  holding a slider, one `paintRanges` per frame) for sliders a render adds. A checkbox inside
+  `.chk` or `.switch` is a **switch** (`--sw-*`; its knob is a radial gradient whose
+  `background-position` slides, so it animates with no pseudo-elements); one in `.colpick` or
+  a fit table stays a **box** (`--cb-*`, the tick an SVG in `--chk-img`, dark on light
+  accents); radios are drawn too. Lists get a drawn chevron (`select:not([multiple])`).
+  Segmented controls take `--seg-bg`, `--seg-bd`, `--seg-on`, `--seg-on-ink`, `--seg-sh`
+  (Bench: a raised white pill; Graphite: black with white text), windows `--win-sh` and
+  `--win-sh-act`. Numbers typed into forms and slider readouts are in `--mono`.
 - **Menus and dialogs**: `openMenu(trigger, items, opt)` renders any menu (menu bar, project
   list, Export, column header, graph) from `{label, run, kbd, checked, radio, enabled, danger}` items,
   `"-"` separators and `{group}` headings, with arrow-key, type-ahead and Escape handling.
@@ -811,21 +834,37 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A form stretched across a maximised window is hard to read.** Controls in a `.frow` stop
   at 440 px, and the Fit button at 360 px.
 
+- **A style's light tokens follow the theme's dark ones.** `:root[data-style="graphite"]` and
+  `:root:not([data-theme="light"])` have the same specificity, and Graphite comes later, so in
+  dark mode its light values win over Bench's dark ones. Graphite's dark blocks therefore set
+  again every token its light block sets; tokens it leaves alone (the data colours) keep
+  Bench's value for the theme.
+- **`none` cannot join a list.** A thumb's hover ring is `var(--th-sh), 0 0 0 5px …`; with
+  `--th-sh: none` the whole declaration is invalid and the ring never shows. "No shadow"
+  tokens are `0 0 0 0 transparent`.
+- **A re-rendered form detaches what you held.** Clicking a step's switch re-renders its form,
+  so a test that kept the element handle read a detached node. Look controls up again after
+  anything that saves.
+
 ## Roadmap
 
-Done in this round: a Help window (an article for every window, tool and step, search, a "?"
+Done in this round: two interface styles, Bench and Graphite, chosen in Window › Style, with
+every control drawn from tokens (sliders with a filled track, switches, checkboxes, radios,
+lists, segmented controls, windows) instead of the browser's own look.
+
+Round before: a Help window (an article for every window, tool and step, search, a "?"
 on every window, F1), and a review of every window: explanations moved into Help and
 tooltips, one-line empty states (the History of an empty project included), short status-bar
 hints and toasts, spectrum pickers only when there is a choice, forms that stop at a
 readable width, and the Peaks window's sections in one style.
 
-Round before: integration without a fit (bands dragged on the graph, local baselines,
+Two rounds before: integration without a fit (bands dragged on the graph, local baselines,
 areas with noise-propagated errors, heights, positions, FWHM, shares and ratios to a chosen
 band, windows around the peaks, every spectrum at once, a Bands box in the History, the CSV and
 the report) and the Overview of a new spectrum (spacing, noise, bands, spikes, flat tops,
 background, and first steps that open their tools), opened after an import.
 
-Two rounds before: worksheet formulas in Origin's F(x)= row, the fill handle (series and
+Three rounds before: worksheet formulas in Origin's F(x)= row, the fill handle (series and
 copies, double-click, Ctrl+D/R), sorting the view, find (Ctrl+F); peak sets that follow the
 processing (labels kept, even through a change of X units) and peaks found in every spectrum
 at once; a fix for a delayed worksheet save overwriting a later one.
