@@ -33,11 +33,17 @@ export, delete), the X zoom is linked between them unless switched off, and with
 four the taskbar gathers them under one Graphs button. The **graph window** has its own bar repeating the Data, Math, Analysis, Statistics
 and Plot menus, a Python button, and a chip saying which stage of the processing is shown
 when it is not the final data. Right-click on the graph (or Shift+F10) gives the spectrum's
-colour, plot type and style, a line, text or peak label where you clicked, axes, layout and
-legend; right-click a line, a label, the legend or a title for its own options. Lines, shaded
-ranges, text, peak labels and the legend drag with the pointer; a double click (or Enter)
-on a label or a text opens a box over it to type in, a double click on a line or a range
-opens its settings, and one on an axis or graph title edits it in place. The **Peaks
+colour, plot type and style, a line, text or peak label where you clicked, the frame, ticks,
+layout and legend; right-click a line, a label, the legend, a title or an axis's numbers for
+its own options. Lines, shaded ranges, text, peak labels, the legend, the titles and the axes
+(by their numbers) drag with the pointer; a double click (or Enter) on a label, a text or a
+title opens a box over it to type in (Shift+Enter for a new line), and one on a line, a range
+or an axis's numbers opens its page of the **Format dialog** (Plot › Format graph…): pages
+for each spectrum and the fit, each axis (title and where it sits, scale, position: an edge,
+zero or a value, set off outward; line, ticks, numbers), the frame and grid (with quick
+styles), the text (each kind its own font, size in points, bold, italic, underline, colour,
+like a word processor), the legend (place, columns, size, box), the layout and colours, and
+the labels and lines (each with its own text, style, turn, box and place). The **Peaks
 window** (Analysis › Find peaks…) finds the peaks of the analysed spectrum and marks them on
 the graph, each with a symbol, a drop line, a vertical line, a leader or nothing, and a label
 you type (in its table, on the graph, or in the History); fitting them is one button, not
@@ -341,7 +347,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   graph's `hidden` becomes its `cols`; its log line is prefixed with the graph's name).
   `plotCfg()` counts a spectrum not on the graph as hidden, so every `cfg.hidden` check works
   unchanged. Annotations of every graph stay in `p.plot.annos`, another graph's tagged `g`
-  (`annoInGraph`; `addAnno`, `labelFoundPeaks` and Plot details tag them); a peak set
+  (`annoInGraph`; `addAnno`, `labelFoundPeaks` and the Format dialog tag them); a peak set
   (`grp`) belongs to its spectrum and shows on every graph that draws it. `graphIds`,
   `graphOf`, `graphName`, `inGraph`, `graphShows`, `graphCols`, `multiGraph`, `winOfGraph`
   (main's window is `graph`, another's is its id), `graphOfWin`. **Live and pictures**: one
@@ -559,12 +565,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   has a worksheet to paste into.
 - **State**: global `S`; the current project is `S.proj` with `cols` (see Columns above),
   `activeY`, `raw` (`{fp, hist}`), `meta` (captured from the imported file's header), `plot`
-  settings (`style`, `logY`, `grid`, `resid`, `revX`, `hidden`, and from the Plot details
-  `logX`, `gridMinor`, `layout`, `offset`, `legend`, `legendPos`, `legendText`, `legendTitle`,
-  `legendFrame`, `frame`, `font`, `fontFam`, `fontName`, `titleItalic`, `title`, `cmap`,
-  `scheme`, `peakScheme`, `peakLab`,
-  `peakLabRot`, `peakLabDec`, `axisMatch`, `annos`, `series[id]` and `ax.x|y|y2`, see
-  Rendering; `gname`, the first graph's name), `graphs` (see Graphs), `fit`, `fits` (the fit history:
+  settings (`style`, `logY`, `grid`, `resid`, `revX`, `hidden`, and from the Format dialog
+  `logX`, `gridMinor`, `gridColor`, `gridLw`, `gridDash`, `gridX`, `gridY`, `plotBg`, `mL`,
+  `mR`, `mT`, `mB` (margins, null measured), `layout`, `offset`, `legend`, `legendPos`,
+  `legendText`, `legendTitle`, `legendFrame`, `legendCols`, `legendLine`, `legendSp`,
+  `legendFill`, `legendOp`, `legendBd`, `legendLw`, `legendR`, `frame` (`box`, `l` or the
+  older `axes`, `none`), `frameLw`, `frameColor`, `font`, `fontFam`, `fontName`, `titleItalic`,
+  `txt` (per kind of text), `title`, `titleDx`, `titleDy`, `cmap`, `scheme`, `peakScheme`,
+  `peakLab`, `peakLabRot`, `peakLabDec`, `axisMatch`, `annos`, `series[id]` and `ax.x|y|y2`,
+  see Rendering; `gname`, the first graph's name), `graphs` (see Graphs), `fit`, `fits` (the fit history:
   numbers, the processing, and a decimated thumbnail of each fit), `userFns`, `found` (the
   peak sets, see the Peaks window), `integ` (the bands, see the Integrate window), `wsw`
   (worksheet column widths), `log`, optional
@@ -578,25 +587,50 @@ graph first, with the taskbar kept at the bottom of the screen.
   `S.pkLast` (the Peaks window's last search, for its turned-down list), `S.bandSel`,
   `S.bdrag`, `S.igEvery` (the Integrate window's selected band, band drag and every-spectrum
   view), `S.ovStage` (the Overview's raw or final data),
-  `S.plotPreview` (the Plot details' working copy), `S.stOpt`, `S.annoSel` (the selected
+  `S.plotPreview` (the Format dialog's working copy; `S.pdTab` its page, `S.pdSel` the
+  spectrum, `S.pdAnno` the annotation, `S.pdPos` where it was dragged), `S.ttdrag`/`S.axdrag`
+  (a title or an axis being dragged), `S.stOpt`, `S.annoSel` (the selected
   annotation; Delete removes it), `S.comments` with `S.cDrafts`, `S.cReply`, `S.cEdit` and
   `S.discFilter` (the Discussion window's Open/All). Window positions are `LAYOUT`.
 - **Rendering**: `buildPlot(W,H,palette,forExport)` returns an SVG string used both on screen and
   for export; on screen it also records `S.geo` (transforms, handle positions, `logX`, `heat`).
-  It reads the plot settings through `plotCfg()`, which is the Plot details' working copy
+  It reads the plot settings through `plotCfg()`, which is the Format dialog's working copy
   while that dialog is open. Each spectrum has a style from `serStyle(id, active, …)`: `type`
   (`PLOT_TYPES`: line, scatter, linesym, stick, area, step), `color`, `lw`, `dash`, `sym`
   (`SYMS`, filled and open), `ss`, `fill`, `op`, `label`; the fit curve's is `series.__fit`.
   `seriesSvg` draws one spectrum as a handful of paths whatever its length. `axisTicks` honours
-  each axis's `min`, `max`, `step`, `minor`, `ticks` (in/out/both/none), `fmt` (auto, decimal,
-  scientific) and `title`; `frame` is a box or L-shaped axes. `layout` (`LAYOUTS`): overlay,
+  each axis's `min`, `max`, `step`, `minor`, `fmt` (auto, decimal, scientific) and `dec`.
+  **Text styles**: `TS` in `buildPlot` holds one style per kind of text (`TXT_ELS`: title,
+  axis, ticks, legend, labels, peaks), each `txtStyle(cfg, el, base, kfam)` = the graph's font
+  and size (`fs`) under `cfg.txt[el]` (`fam`, `name`, `size` in points, `b`, `i`, `u`,
+  `color`, `align`; `fam:"default"` is Kurve's own face); `tAt(st, fill)` writes its SVG
+  attributes, `tLab` draws a tick label (plain or m×10ⁿ, turned), `textBlock` draws text of
+  several lines, turned, in a box. `textW`/`labW` measure text with a canvas in its own font.
+  **Axes and frame**: `axisCfg(cfg, k)` resolves an axis's `ticks` (in/out/both/none), `tlen`,
+  `mlen`, `tw`, `mirror` (default: on with a box frame), `labs`, `lrot` (0/45/90), `color`,
+  `lw`, `line`, `pos` (x: bottom, top, zero, at; y: left, right, zero, at; the right axis is
+  always right), `at`, `off` (outward, px), `tshow`, `talign` (start/center/end along the
+  axis, `axAlign`) and `tdx`/`tdy` (the title dragged, px); `frameOf(cfg)` is `box`, `l` (the
+  axis lines alone) or `none`, with `frameLw`/`frameColor`. Margins are measured: the numbers
+  in their font, ticks pointing out, offsets, titles, a right axis, a colour bar, an outside
+  legend; `mL`/`mR`/`mT`/`mB` override them. `drawFrame(top, h, yt, Yf, showXLab, yLabels,
+  labCol, main)` draws the frame, the axis lines (one path at a corner), ticks (`tkSpan`,
+  `tkOut`), mirrored ticks and numbers, and records where the numbers went (`drawn`) so the
+  titles sit beside them wherever the axes are. Stacked panels keep X at the bottom and Y on
+  the left; double Y keeps Y on the left. On screen the main frame also draws a transparent
+  zone over each axis's numbers (`data-axis`: drag, right-click, double-click) and records
+  `geo.axes`. The grid takes `gridColor`, `gridLw`, `gridDash`, `gridX`, `gridY`; `plotBg`
+  fills the plot area. The title takes `TS.title.align` and `titleDx`/`titleDy`. `layout` (`LAYOUTS`): overlay,
   offset (a waterfall, each trace labelled), stack (a panel per spectrum, shared X, the
   analysed one on top), dy (the others on a right axis), heat (one row per spectrum, drawn as
   one image from `heatImage`, with a colour bar; `CMAPS`). The legend goes in the emptiest
-  corner, a chosen one, outside on the right, where it was dragged (`legend:"custom"`,
-  `legendPos` as fractions of the plot area), or nowhere; it can have a title, no frame, and
-  its text in each spectrum's colour (`legendText:"match"`); a series with `leg:false` is left
-  out of it. **Colour schemes**: `SCHEMES` (Kurve's, distinct hues from a validated
+  corner, a chosen one, outside on the right, below the graph (`below`: as many columns as
+  fit, rows read across), where it was dragged (`legend:"custom"`, `legendPos` as fractions
+  of the plot area), or nowhere; it can have a title, columns (`legendCols`, filled down),
+  its own text style, line samples of any length (`legendLine`), row spacing (`legendSp`), a
+  frame and background of its own (`legendFrame`, `legendFill`, `legendOp`, `legendBd`,
+  `legendLw`, `legendR`), and its text in each spectrum's colour (`legendText:"match"`); a
+  series with `leg:false` is left out of it. **Colour schemes**: `SCHEMES` (Kurve's, distinct hues from a validated
   categorical palette, Okabe–Ito, viridis in table order, black and greys with dashes) and
   `PEAK_SCHEMES`; `yTint(id)` and `peakColor(k)` read them, so the graph, the legend, the
   worksheet header, the fit panel and the results table change together. Every scheme but
@@ -604,7 +638,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   other spectrum each axis's numbers and title take its spectrum's colour (`axisMatch`).
   **Annotations** (`p.plot.annos`, each `{id, t, x, y, x2, text, color, lw, dash, size, unit,
   rot, bold, font, ser, dx, dy, xu, yu}`, and on labels `mk`, plus `grp`, `lab`, `pk`,
-  `manual` on a peak set's, `t` one of `v`, `h`, `band`, `text`, `label`) are drawn by
+  `manual` on a peak set's, `t` one of `v`, `h`, `band`, `text`, `label`; and from the Format
+  dialog `fontName`, `pt` (size in points, over `size`), `i`, `u`, `align`, `ang` (any angle;
+  the older `rot` means 90, `annoAng`), `box` (`line`, `fill`, `both`) with `bg` and `bd`,
+  `lpos` (where a line's or range's text goes), `edge` (a range's edge lines), `op`, and on
+  text `pin:"plot"` with `fx`, `fy`: placed by fractions of the plot, so it stays put when
+  zooming; `annoTextStyle` gives a text's style over `TS.labels`) are drawn by
   `annoSvg(layer)` in three layers (ranges under the data, lines over it, text and labels on
   top, under the legend) and only on data in the units they were placed in (`xu`, `yu`).
   `text` null shows the value, `""` shows nothing, and `{x}` in it the position. A `label`
@@ -615,21 +654,45 @@ graph first, with the taskbar kept at the bottom of the screen.
   where the mark leaves room (`labDy`); a moved text gets a leader back to its mark. Another
   spectrum's labels are drawn only where that spectrum is drawn on these axes: overlaid, and
   not hidden.
-  `addAnno`, `updateAnno`, `deleteAnno`, `editAnno` (a form, with the mark and, for a set's
-  peak, its label), `annoMenuItems` (type its label, mark it with, and for a set's peak mark
-  or label every peak with), `peakNear` (the top of the peak under a click), `addPeakLabel`,
+  `addAnno`, `updateAnno`, `deleteAnno`, `editAnno` (the Format dialog's Labels and lines page,
+  open at it), `annoMenuItems` (type its label, mark it with, turn, box, align, centre,
+  pin, text position, width, and for a set's peak mark or label every peak with), `pinAnno`,
+  `centreAnno`, `peakNear` (the top of the peak under a click), `addPeakLabel`,
   `labelFoundPeaks`, `shadeRange` (a range pick), `addLineDlg`, `clearAnnos`. Fitted peaks
   are labelled by `numLabel` with their number, position, both or nothing (`peakLab`), in
   their own colour, just inside the peak when a marked peak's label is on its top.
-  **Fonts**: `FONTS` (Kurve's, serif, sans, mono and common families, or one typed by name,
-  `fontStack`), `FONT_SIZES`; the graph's are `fontFam`/`fontName` and `font` (the size),
-  and axis titles are italic unless `titleItalic` is false; an annotation may have its own
-  `font` (Plot › Font, the graph menu, Plot details › Graph, the annotation form). Axis and graph titles carry `data-axtitle` and are edited by
-  `editAxisTitle`/`setAxisTitle`. The peak finder's preview marks
-  (`S.pfPreview`) are drawn on screen only. Right-click: `openGraphMenu` → `graphMenuItems`
-  (swatch rows are `{swatches, current, pick}` menu items); `openPlotDetails(id, tab)` is the
-  dialog (`#plotModal`, tabs Line and symbols / Axes / Graph / Labels and lines, the last
-  listing every annotation to edit or delete; OK saves one undo entry).
+  **Fonts**: `FONT_LIB` (`[key, label, stack, kind, web family?]`: web fonts from Google,
+  then common installed ones; `FONTS` adds Kurve's), `fontStack(key, name)` (loads a web font
+  the first time it is drawn, `loadWebFont`, and tries Google for a name not installed),
+  `fontInstalled` (a canvas width test against two fallbacks; `document.fonts.check` says yes
+  to anything), `fontOk`, `fontNameOf`, `fontRedraw` (redraws when a font arrives).
+  `openFontPicker(btn, cur, pick, opt)` lists them by kind, each in its own face
+  (`loadFontPreviews`: subsets named `KP <family>`), with search, a name box and, where the
+  browser allows, this computer's fonts (`queryLocalFonts`). The graph's font is
+  `fontFam`/`fontName` and `font` (a scale); `fontMenuItems` is Plot › Font.
+  **Colours**: `openColorPicker(btn, cur, onInput, onDone, opt)` (a saturation/value square
+  and hue strip drawn in CSS, hex, Kurve's colours, recent ones in `kurve.colors`, an eye
+  dropper; `onInput` at most once a frame while dragging), `colorBtn`. **Text bars**:
+  `txtBarHtml(path, st, auto, opt)` (font, size in points with `#ptSizes`, B, I, U, colour,
+  alignment) and `wireTxtBars(root, get, set)`. Axis and graph titles carry `data-axtitle`:
+  dragged (`dragTitle`, `commitTitleDrag`; home within 5 px), typed in place
+  (`inlineEditTitle`; `editAxisTitle` calls it), `setAxisTitle`; their menu is
+  `titleMenuItems(k)`. An axis's numbers (`data-axis`) drag the axis (`dragAxis`: off its
+  edge, snapping to zero, or to a value; `commitAxisDrag`), and their menu is
+  `axisMenuItems(k)`; `setAxisKeys(k|"all", patch, log)`, `setTxtKey(el, patch, log)`. The
+  peak finder's preview marks (`S.pfPreview`) are drawn on screen only. Right-click:
+  `openGraphMenu` → `graphMenuItems` (swatch rows are `{swatches, current, pick}` menu
+  items). **The Format dialog**: `openPlotDetails(id, page)` (`#plotModal`; pages `series`
+  with `S.pdSel`, `ax:x|y|y2`, `frame`, `text`, `legend`, `layout`, `labels`, or
+  `anno:<id>`; the old tab names map through `PD_PAGES`), `renderPlotDetails` (a side list
+  of pages, each page in groups; focus and scroll kept across redraws), `pdSet(path, v)` on
+  the working copy (`series.`, `ax.`, `allax.`, `txt.`, `annos.<id>[.key]`, `hidden.`, or a
+  top-level key) with `pdGet`, `pdTxtGet`/`pdTxtSet` (an annotation's text bar maps to its
+  own keys, `ANNO_TX`), `pdPreset` (quick styles), `pdAct`, `pdAnnoEditor(a)`, and
+  `closePlotDetails(ok)` (one undo entry; `pdLog` names what changed). It moves by its title
+  bar (`S.pdPos`); *Defaults* resets the page (top-level keys to null: `savePlot` merges);
+  *Use on every graph* is `formatEveryGraph` (`FMT_KEYS`, `FMT_AX`: format, not data,
+  ranges, titles or annotations). `txtAuto(cfg, el)` is a kind of text's automatic style.
   `renderTop`, `renderWs`, `renderPlot` (+ `renderStatusBar`), `renderStages` (now the graph
   window's stage chip and the toolbar's Raw/Final/Compare), `renderFit` (it also refreshes
   `renderResults`, `renderTabMarks` and the status bar), `renderFlow`, `renderTool`,
@@ -664,7 +727,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   search box (`opt.search`) searches every submenu and lists the matches flat with their path;
   `menuItems(name)` defines the menu bar and the graph window's bar. `openModal`/`closeModal` make everything behind a
   dialog inert, trap Tab, route Escape to the dialog's `_cancel`, and return focus; the import
-  wizard, `confirmDlg`, `formDlg` and Plot details use them.
+  wizard, `confirmDlg`, `formDlg` and the Format dialog use them. A font or colour picker
+  open over a dialog keeps Escape and Tab for itself: the modal key handler looks at
+  `fpOpen`/`cpOpen` first.
 - **Help** (`DOCS`, `openHelp(id, {search})`, `renderHelp`): a window (`#w-help`, not in
   `WIN_ORDER`; in the taskbar only while open), not a dialog, so it stays open beside what it
   explains. `DOCS` is the articles, each `{id, g (one of DOC_GROUPS), t, kw, lead, body, win?}`
@@ -686,7 +751,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   renders and every link resolves.
 - **Export**: `saveFile(name,data,mime)` uses the claude.ai `downloads` runtime when present and
   falls back to `Blob` + `<a download>` otherwise, so exports work from disk. `exportSvg` and
-  `exportPng` (the same SVG rasterised at 2.5×), `exportCsv` (every column with units, the mask
+  `exportPng` (the same SVG rasterised at 2.5×) go through `embedFonts(svg)`, as do the
+  all-graphs figure and the report: each web font face the SVG draws (family, italic, bold)
+  is fetched from Google Fonts as a subset of the letters drawn and embedded as data in a
+  `<style>`, in parallel, cached per request (`FONT_EMB`), whatever arrived after 10 s;
+  offline the figure goes out as it is. `exportCsv` (every column with units, the mask
   flag, the fit, residual, baseline and each peak curve, plus commented blocks for metadata,
   the fingerprint, the processing steps with their warnings, the marked peaks with their
   labels, the band integrals, and fit statistics),
@@ -966,9 +1035,44 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A layout belongs to its project.** Twelve tiled graphs in one project left the next
   project's only graph a twelfth of the desk. Graph windows are placed per project.
 
+- **A font that is not there looks like no change.** Choosing Calibri or Helvetica on a
+  computer without them drew the fallback, so "changing the font of the axis titles did
+  nothing". The picker says which fonts are not on this computer (`fontInstalled` measures
+  widths; `document.fonts.check` answers yes for any name), and the web fonts load from Google.
+- **An SVG drawn as an image sees no fonts but its own.** A PNG export is the figure's SVG
+  drawn on a canvas, and an image cannot use the page's fonts: a graph in Inter came out in
+  the fallback, and an SVG opened elsewhere has only that computer's fonts. Exports embed the
+  web fonts they use (`embedFonts`), only the letters drawn.
+- **A margin in pixels cannot fit a font chosen later.** The left margin was 74 px whatever
+  the numbers; larger tick numbers or a longer number ran into the axis title. Margins are
+  measured from the text in its own font.
+- **A picker over a dialog needs its own keys.** The dialog's capture-phase Escape closed
+  the whole Format dialog when it was meant for the colour picker, and Tab was pulled back
+  into the dialog. The modal handler lets an open picker have both.
+- **Deleting a key does not reset it.** `savePlot` merges, so a key deleted from the working
+  copy kept its saved value. Resetting writes null.
+- **A slow network is still a network.** Fetching fonts one after another timed out and threw
+  away what had arrived. Every face is requested at once and what is there at the cutoff is
+  used.
+
 ## Roadmap
 
-Done in this round: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+Done in this round: formatting the graph like a word processor, beyond Origin's Plot Details.
+Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
+its own font, size in points, bold, italic, underline and colour; a real font picker (each
+name in its face, search, web fonts that look the same everywhere, which fonts this computer
+lacks, any name, this computer's fonts) and colour picker (smooth, hex, recent, eye dropper);
+fonts embedded in exports. Axes: position (an edge, zero, a value, set off outward), line,
+ticks in, out or both with their lengths and widths, mirrored or not, numbers turned, titles
+placed along the axis and dragged anywhere, typed in place; axes dragged by their numbers.
+The frame as a box, the axes only or none, quick styles, a styled grid, a background, margins
+measured from the text. The legend's columns, size, samples, box, and a place below the graph.
+The Format dialog as a pane of pages with live preview, moved by its title bar, used on every
+graph at once. Labels and text over several lines, turned to any angle, in a box, aligned,
+pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
+richer right-click menus on axes, titles, the legend and annotations.
+
+Round before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
 started from its result, from the neighbour in the series, or from the peaks found in each;
 every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
 the History, replaced by a fit by hand, out of date when its processing changes). The Batch
@@ -978,7 +1082,7 @@ or typed values, with a weighted straight line (slope ± error). CSV, SVG and th
 A fix to the runs test and peak checks, which read the analysed spectrum instead of the
 fit's own.
 
-Round before: several graphs per project, each in its own window, beyond Origin's:
+Two rounds before: several graphs per project, each in its own window, beyond Origin's:
 one graph per spectrum in one command, tiled; click any graph to work on it (its zoom,
 spectrum and drafts come back, every window follows); only the graph in front is live and the
 others are pictures redrawn when what they show changes, so twelve graphs cost little more
@@ -988,23 +1092,23 @@ every spectrum in one CSV, every graph in the report; importing many files, or e
 of one file, as one change with a graph each; applying a step to every spectrum with
 settings measured on each; graph windows placed per project.
 
-Two rounds before: two interface styles, Bench and Graphite, chosen in Window › Style, with
+Three rounds before: two interface styles, Bench and Graphite, chosen in Window › Style, with
 every control drawn from tokens (sliders with a filled track, switches, checkboxes, radios,
 lists, segmented controls, windows) instead of the browser's own look.
 
-Three rounds before: a Help window (an article for every window, tool and step, search, a "?"
+Four rounds before: a Help window (an article for every window, tool and step, search, a "?"
 on every window, F1), and a review of every window: explanations moved into Help and
 tooltips, one-line empty states (the History of an empty project included), short status-bar
 hints and toasts, spectrum pickers only when there is a choice, forms that stop at a
 readable width, and the Peaks window's sections in one style.
 
-Four rounds before: integration without a fit (bands dragged on the graph, local baselines,
+Five rounds before: integration without a fit (bands dragged on the graph, local baselines,
 areas with noise-propagated errors, heights, positions, FWHM, shares and ratios to a chosen
 band, windows around the peaks, every spectrum at once, a Bands box in the History, the CSV and
 the report) and the Overview of a new spectrum (spacing, noise, bands, spikes, flat tops,
 background, and first steps that open their tools), opened after an import.
 
-Five rounds before: worksheet formulas in Origin's F(x)= row, the fill handle (series and
+Six rounds before: worksheet formulas in Origin's F(x)= row, the fill handle (series and
 copies, double-click, Ctrl+D/R), sorting the view, find (Ctrl+F); peak sets that follow the
 processing (labels kept, even through a change of X units) and peaks found in every spectrum
 at once; a fix for a delayed worksheet save overwriting a later one.
@@ -1026,9 +1130,9 @@ Next, in order:
 1. Many spectra at once: global fits with parameters shared across spectra; peaks matched
    across spectra when each has its own found peaks; a trend as a graph on the desk (several
    quantities, two Y axes); metadata columns (temperature, time) read from each file
-2. Figures for papers: export presets (journal column widths, DPI, fixed font sizes), style
-   templates shared between projects, annotation arrows, boxes, real sub- and superscripts,
-   snapping, insets
+2. Figures for papers: export presets (journal column widths, DPI, fixed font sizes), a
+   graph's format saved by name and used in any project, annotation arrows, real sub- and
+   superscripts in titles and labels, snapping, insets, axis breaks
 3. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
    lanes, keyboard access to annotations and peak handles, handles for shape parameters
    (Lorentz fraction, Pearson m, Fano 1/q)
@@ -1041,7 +1145,7 @@ Next, in order:
 ## Known gaps
 
 - Help cannot be opened over a dialog (a dialog makes the desk inert), so the import wizard
-  and Plot details have no "?" of their own; their articles are in the contents. Articles have
+  and the Format dialog have no "?" of their own; their articles are in the contents. Articles have
   no pictures, and search matches words, not meanings
 - A batch fit fits each spectrum on its own: no global fit with parameters shared across
   spectra. With peaks found in each spectrum, peaks are not matched across spectra, so the
@@ -1077,8 +1181,15 @@ Next, in order:
   5 below zero) are fixed thresholds; it describes the analysed spectrum only, not a batch
 - Double Y puts every other spectrum on one right axis; there are no free graph layers, insets
   or per-panel settings in the stacked layout
-- Annotations have no arrows, boxes or rich text (sub- and superscripts only as Unicode), and
-  are not snapped to data or to each other
+- Annotations have no arrows or rich text (sub- and superscripts only as Unicode), are not
+  snapped to data or to each other, and cannot be nudged with the keys
+- Fonts: web fonts come from Google Fonts, so offline only installed fonts show; an export
+  embeds a web font only if it arrives within 10 s; a font is judged installed by its widths
+  against two fallbacks, so one that measures exactly like one of them reads as missing
+- Axes: an axis at zero or at a value stays at the bottom in stacked panels, and Y stays on
+  the left with two Y axes; numbers turn 0°, 45° or 90° (Y: 0° or 90°); no axis breaks, no
+  second X axis in other units, and titles are dragged in pixels, so a resized graph keeps
+  the offset, not the proportion
 - A peak set follows its spectrum's processing, but not a change of the finder's settings made
   while another spectrum is analysed: "Every spectrum" applies them to all. Two identical
   spectra overlaid draw their labels on top of each other
