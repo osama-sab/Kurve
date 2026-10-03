@@ -21,7 +21,7 @@ blue for everything you can change) or **Graphite** (Geist, black and white, blu
 keyboard focus). Both are remembered per browser; neither changes the graph's colours.
 
 The desk holds **windows**, as in Origin: Graph, Worksheet, History, Overview, Peaks,
-Integrate, Fit, Results, Statistics, Python, Discussion, Help, and the transient Tool dialog. Each moves by its title bar, resizes from
+Integrate, Fit, Results, Batch, any number of Trend graphs, Statistics, Python, Discussion, Help, and the transient Tool dialog. Each moves by its title bar, resizes from
 its edges, maximises on a double-click of the title and minimises to the **taskbar** along the
 bottom of the desk, which also has Tile and Cascade. Every title bar has a **?** that opens
 the window's article in the **Help window** (F1 does it for the window in front; a tool's
@@ -74,6 +74,17 @@ graph first, with the taskbar kept at the bottom of the screen.
   units of each parameter's own curvature, and finite-difference steps sized from an optional
   `pscale`. Those last two are what let a model mixing areas of 1e6 with widths of 10 converge.
   It returns standard errors, 95% CI, t and p values, `dep` (dependency), `atBound`, AIC and BIC.
+  `opt.blocks = {seg, of}` makes it block-sparse: `seg` the point ranges (covering every point),
+  `of[i]` the range parameter i alone moves (or -1 for all); each point then keeps only the
+  derivatives that can be non-zero, so the Jacobian and the normal equations cost the number of
+  spectra, not its square. `globalFit(sets, f, p0s, shared, fixed, opt)` is built on it: the
+  sets laid end to end with X the point's index, the shared parameters once and each set's own
+  once per set (`opt.lo`/`hi`/`pscale` flat or per set, `start` the shared starts, `prep(p, k)`
+  to finish a set's vector, e.g. ties); a set's vector is built once per trial vector (two kept,
+  since the Jacobian alternates them). It returns each set's params, errors, covariance block,
+  dep, t, p, CI and atBound, its own statistics (its degrees of freedom less its share of the
+  shared parameters), and the whole fit's (`K`, `shared`). `inverse` eliminates once and replays
+  it on each column: solve()'s arithmetic exactly, at n³ instead of n⁴.
   `polyfit` fits about the mean of X and shifts back, so a wavenumber axis is not hopeless.
   `compileExpr(src)` compiles a user's formula into a tree of closures, never run as JavaScript
   (so it works under a strict content policy, and nothing but arithmetic can run): numbers, `x`,
@@ -165,9 +176,18 @@ graph first, with the taskbar kept at the bottom of the screen.
   `peakSearch`'s thresholds (a band three decades below the main one), reasons and methods,
   the Faddeeva function against known values, Voigt and Fano (area, height, true FWHM, limits,
   recovery by a fit), ties (a doublet with a 0.5 area ratio, one width and a fixed spacing:
-  recovered, the degrees of freedom and the carried errors), and the formula compiler (order,
-  precedence, named values, every error message, nothing but arithmetic). Run it after
+  recovered, the degrees of freedom and the carried errors), the formula compiler (order,
+  precedence, named values, every error message, nothing but arithmetic), the inverse (the
+  identity, each column exactly solve()'s), global fits (shared values recovered and equal in
+  every set, each set's own, the degrees of freedom, a smaller shared error than one fit's,
+  the block-sparse fit equal to the same problem dense, the shared error against 150 noisy
+  repeats, ties through `prep`, one set as an ordinary fit) and `matchPeakTracks`. Run it after
   touching any of this.
+  `matchPeakTracks(lists, {tol, dx})` follows the same peak through a series: each spectrum's
+  peaks (`{x, w}`) join the track whose last position is nearest, within `tol` (0.5) of the
+  larger FWHM (`dx` when neither has one), closest pairs first, two peaks of one spectrum never
+  on one track; a peak matching none starts one. It returns tracks with `members [{s, k}]`, the
+  median `x`, and `x0`, `x1`.
 - **Fits** come in two kinds. `MODELS` (each with `params`, `ph`, `formula`, `f(x,p)`,
   `guess`, optional `derived` with delta-method errors) drives "Curve fit".
   `{kind:"composite", spec, x0, …}` drives "Peak fit". `fitModel(fit)` hands either to
@@ -217,6 +237,38 @@ graph first, with the taskbar kept at the bottom of the screen.
   `{v, e, bad, bound}`; `trendData`, `trendSvg`, `lineFit` a weighted straight line), and the
   table (`batchTableText` for Copy and `exportBatchCsv`, `exportTrendSvg`, `reportBatchHtml`).
   Clicking a name or a point is `goSpectrum`.
+  **Global fits** (`runBatch({…, share})`, `fitTogether(list, t, share)`): every spectrum is
+  first fitted with the shared parameters held at the template's values (a template `tf` whose
+  `fixed` includes them), then all are fitted at once by `globalFit` from those results, the
+  shared ones from the template's. `p.batch.glob = {share, stats}` (`stats`: `K, n, dof, chi2,
+  redChi2, R2, m, sh, own, iter, converged`); each row's fit carries `global:true`, `shared` (a
+  flag per parameter) and `gstats`, its errors from the whole covariance. Weighted only if
+  every spectrum can be; at most 900 parameters. A failure keeps the first fits and says so.
+  `SHARE_KINDS`/`shareKindOf` (centres, widths, areas, shapes, baseline), `tmplTied`,
+  `tmplParamName`, `shareSummary` ("every centre and every width"); the dialog's sharing list
+  (`#bfShare`, `bfK_<kind>`, `bfP<i>`, listeners on its own elements). `activeFit` and `laneFit`
+  prefer a global row to a fit by hand made before it; `batchWith` never replaces a global row;
+  `batchStale` puts every global row out of date when any of its spectra changes;
+  `fitWarnings` adds a `global` note; `statsList` gives the row's and the whole fit's numbers;
+  Results and the batch table mark what is shared.
+  **Tracks** (the same peak across the spectra): `fitTracks()` matches a `found`-seeded batch's
+  usable peaks (quantities `fk@<x>.<f>` with `trk.byCol`), `markedTracks(xu)` the Peaks
+  window's sets (`mk@<x>.x|y`, position and Y at the peak, no fit needed; `labelTrack`,
+  `trackTableText`); `qFind(qs, id)` finds a track's quantity again within its width after it
+  moved, `qFindStrict` returns null rather than another quantity. **Series from the files**:
+  `mode:"meta"` with `key`, a header field (`metaParse`: a date and time, a time of day, or a
+  number with its unit; `metaKeys` lists the fields most spectra have as numbers and that
+  differ; `metaSeries` gives the values, dates as time elapsed since the first in s, min, h or
+  d); `seriesUnit`, `seriesModeOptions` (the list in the Batch and trend windows),
+  `pickSeriesMode`. **Trend graphs** (`p.trends = [{id, name, ys:[{q, ax}], line}]`, in
+  `UNDO_KEYS`): windows made like graph windows (`syncTrendWins`, `WINS[id].trend`, after Batch
+  in the taskbar, help `batch#desk`), `renderTrendWin` (chips with L/R and ×, + Quantity
+  `trendAddItems`, against, Lines), `drawTrendPlot` (sized to its box, redrawn by a
+  ResizeObserver), `saveTrend`, `newTrend` (the Batch window's On the desk, Window › New
+  graph), `trendWinItems` (rename, copy, SVG, PNG, delete), `trendTableText`, `exportTrendWin`,
+  `reportTrendsHtml`. `trendPlotSvg(ser, {W, H, pal, forExport, idp, single})` draws any number
+  of quantities on a left and a right axis (margins measured, a legend row, symbols per
+  quantity, an axis of one kind titled by the kind); `trendSvg` is it with one series.
 - **Caveats** have one source: `fitWarnings(fit)` returns `{level, kind, text}` for staleness
   (`fitStale`), non-convergence, unusable components (`peakProblems`), a singular covariance,
   dependency, parameters at a bound, and residuals that run in long same-sign stretches
@@ -245,7 +297,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   column of the one before it when `sameAxis`, and has its own otherwise; a project that held
   nothing gives its first graph to the new spectra.
 - **Columns and spectra**: a project is a table. `p.cols` is `[{id, role, name, unit, data, of?,
-  pipe?, mask?, src?, from?}]` with roles `x` / `y` / `e` (an error column names its Y in `of`) /
+  pipe?, mask?, src?, from?, file?, meta?}]` (`file` and `meta`, the file a spectrum came from and
+  its header's fields, `colMetaOf`, shown in its Raw data box in the History; Python's `meta` is
+  the project's with the spectrum's over it) with roles `x` / `y` / `e` (an error column names its Y in `of`) /
   `ignore`. There may be several X columns: as in Origin, a Y column is plotted against the
   nearest X column to its left (`xColFor`), so a spectrum imported on a different axis gets its
   own X column instead of being interpolated. Every Y column is a **spectrum** with its own
@@ -336,7 +390,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   that opens `helpFor(id)`). `renderAll` renders only open
   windows; a window renders when it opens. `showTab("fit"|"clean")` and `showDrawer(...)`
   remain as names for opening the Fit, History, Results and Discussion windows. `wireWin(el)`
-  wires one window (the static ones at boot, a graph window when it is made). Graph windows
+  wires one window (the static ones at boot, a graph or trend window when it is made). Graph windows
   are placed per project (`saveGraphLayout`, `restoreGraphLayout`: `LAYOUT.proj[pid]` for a
   project with several graphs, `LAYOUT.single` for one graph), so twelve tiled graphs do not
   leave the next project's graph tiny.
@@ -491,7 +545,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   opens the Fit window: fitting is optional). The window's four parts: how to find them
   (`pfFormHtml`, the finder's form under `pk-pf…` ids so the Fit window's can be open too),
   the peaks (a table with a label field each, remove, Copy, Clear, add by clicking the graph,
-  the turned-down candidates with Add), how they look on the graph, and Fit these peaks.
+  the turned-down candidates with Add), Across the spectra (with several sets on one axis:
+  each matched peak once, its spread, in how many, one label for every one, a chart button for
+  its trend), how they look on the graph, and Fit these peaks.
   `pkUndo` makes one undo entry per burst of the same kind of change.
 - **Integrate window** (`openIntegrate`, `renderInteg`, `wireInteg`): bands measured without
   a fit. `p.integ = {bands, ref, avg, show}`: each band a window `{id, x1, x2, xu, lab, base}`
@@ -554,7 +610,7 @@ graph first, with the taskbar kept at the bottom of the screen.
 - **Undo**: `pushUndo(label)` before any mutation, `undo`/`redo`, snapshots of `UNDO_KEYS`
   (`cols` carries the pipelines and masks, `raw` the fingerprint record, `fits` the fit history,
   `userFns` the project's fit functions, `found` the peak sets, `integ` the bands, `graphs`
-  the extra graphs)
+  the extra graphs, `batch` and `series`, `trends` the trend graphs)
   plus both drafts (`S.pdraft`, `S.draft`). It is per-session and local on purpose — rewinding your
   own edits, not other people's. Destructive actions confirm themselves with a toast that
   carries an Undo button (`toast(msg,{action,run})`).
@@ -574,7 +630,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   older `axes`, `none`), `frameLw`, `frameColor`, `font`, `fontFam`, `fontName`, `titleItalic`,
   `txt` (per kind of text), `title`, `titleDx`, `titleDy`, `cmap`, `scheme`, `peakScheme`,
   `peakLab`, `peakLabRot`, `peakLabDec`, `axisMatch`, `annos`, `series[id]` and `ax.x|y|y2`,
-  see Rendering; `gname`, the first graph's name), `graphs` (see Graphs), `fit`, `fits` (the fit history:
+  see Rendering; `gname`, the first graph's name), `graphs` (see Graphs), `batch`, `series` and
+  `trends` (see Batch fits), `fit`, `fits` (the fit history:
   numbers, the processing, and a decimated thumbnail of each fit), `userFns`, `found` (the
   peak sets, see the Peaks window), `integ` (the bands, see the Integrate window), `wsw`
   (worksheet column widths), `log`, optional
@@ -1107,9 +1164,34 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   pixels: drawn there with screen fonts its text was huge beside the data. The export sets the
   tick numbers' size in points at the printed size and scales the rest of the figure with it.
 
+- **A global fit's starts must agree with what it shares.** Seeded from each spectrum's own free
+  fit, a spectrum without the second band brought a width of 10⁴⁸ and an area to match, and
+  the whole fit went with it. Each spectrum is now first fitted with the shared parameters held
+  at the template's values.
+- **An inverse by n solves is n⁴.** Fine for a peak fit's twelve parameters; a global fit's
+  hundreds took seconds. The elimination is done once and replayed per column, which is the
+  same arithmetic.
+- **A dialog's body outlives the dialog.** A change listener added to `#formBody` kept firing in
+  the next dialog (renaming a trend) and threw. Listen on the elements the dialog made.
+- **A label's markup is not its text.** Curve parameters are HTML (`<i>&tau;</i>`); stripping
+  the tags left `&tau;` in the batch table's headings. `phPlain` decodes what it strips.
+- **A test that returns a dialog's promise still waits forever.** `page.evaluate(()=>
+  openBatchDialog())` hung a drive for ten minutes: write `()=>{ openBatchDialog(); }`.
+
 ## Roadmap
 
-Done in this round: figures for papers. Super- and subscripts, Greek letters and symbols in
+Done in this round: many spectra at once. Global fits beyond Origin's NLFit: tick what every
+spectrum shares (centres, widths, areas, shapes, the baseline, or parameter by parameter; a
+curve model's parameters), each spectrum first fitted with those held so the fit starts where
+it belongs, one block-sparse Levenberg–Marquardt problem, every row a normal fit that says what
+it shares, errors from the whole covariance, out of date when any spectrum changes. The same
+peak followed across the spectra, from the peaks found in each fit or marked in the Peaks
+window, with one label for all of them and trends of their positions with no fit. Trend graphs
+on the desk: several quantities, left and right axes, lines with slopes, SVG, PNG, the report.
+Each spectrum keeps its file's header, and a field that differs (a temperature, the time it was
+taken) is what a series can be plotted against.
+
+Round before: figures for papers. Super- and subscripts, Greek letters and symbols in
 every title, legend entry and label (`cm^{-1}`, `\alpha`), with buttons and a word
 processor's keys; arrows drawn by dragging, their heads snapping to data points, with heads
 of four kinds; insets made from a zoom, dragged and resized, outlined on the graph with
@@ -1119,7 +1201,7 @@ print, lines scaled with the text or not, SVG at its size, PNG with its dpi reco
 transparent backgrounds, a preview); formats saved by name and used on any graph in any
 project, with five of Kurve's; a toolbar that keeps to one row at every width.
 
-Round before: formatting the graph like a word processor, beyond Origin's Plot Details.
+Two rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
 Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
 its own font, size in points, bold, italic, underline and colour; a real font picker (each
 name in its face, search, web fonts that look the same everywhere, which fonts this computer
@@ -1134,7 +1216,7 @@ graph at once. Labels and text over several lines, turned to any angle, in a box
 pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
 richer right-click menus on axes, titles, the legend and annotations.
 
-Two rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+Three rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
 started from its result, from the neighbour in the series, or from the peaks found in each;
 every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
 the History, replaced by a fit by hand, out of date when its processing changes). The Batch
@@ -1144,7 +1226,7 @@ or typed values, with a weighted straight line (slope ± error). CSV, SVG and th
 A fix to the runs test and peak checks, which read the analysed spectrum instead of the
 fit's own.
 
-Three rounds before: several graphs per project, each in its own window, beyond Origin's:
+Four rounds before: several graphs per project, each in its own window, beyond Origin's:
 one graph per spectrum in one command, tiled; click any graph to work on it (its zoom,
 spectrum and drafts come back, every window follows); only the graph in front is live and the
 others are pictures redrawn when what they show changes, so twelve graphs cost little more
@@ -1154,17 +1236,17 @@ every spectrum in one CSV, every graph in the report; importing many files, or e
 of one file, as one change with a graph each; applying a step to every spectrum with
 settings measured on each; graph windows placed per project.
 
-Four rounds before: two interface styles, Bench and Graphite, chosen in Window › Style, with
+Five rounds before: two interface styles, Bench and Graphite, chosen in Window › Style, with
 every control drawn from tokens (sliders with a filled track, switches, checkboxes, radios,
 lists, segmented controls, windows) instead of the browser's own look.
 
-Five rounds before: a Help window (an article for every window, tool and step, search, a "?"
+Six rounds before: a Help window (an article for every window, tool and step, search, a "?"
 on every window, F1), and a review of every window: explanations moved into Help and
 tooltips, one-line empty states (the History of an empty project included), short status-bar
 hints and toasts, spectrum pickers only when there is a choice, forms that stop at a
 readable width, and the Peaks window's sections in one style.
 
-Six rounds before: integration without a fit (bands dragged on the graph, local baselines,
+Earlier still: integration without a fit (bands dragged on the graph, local baselines,
 areas with noise-propagated errors, heights, positions, FWHM, shares and ratios to a chosen
 band, windows around the peaks, every spectrum at once, a Bands box in the History, the CSV and
 the report) and the Overview of a new spectrum (spacing, noise, bands, spikes, flat tops,
@@ -1189,15 +1271,15 @@ Python again"); user-defined fit functions with a library; true Voigt and Fano s
 peak parameters (one width, area ratios, fixed spacings).
 
 Next, in order:
-1. Many spectra at once: global fits with parameters shared across spectra; peaks matched
-   across spectra when each has its own found peaks; a trend as a graph on the desk (several
-   quantities, two Y axes); metadata columns (temperature, time) read from each file
-2. Figures, further: axis breaks, a second X axis in other units (wavelength over Raman
+1. Figures, further: axis breaks, a second X axis in other units (wavelength over Raman
    shift), graph layers and panels of different spectra, PDF and EPS, formats kept in the
    project for colleagues, boxes and ellipses on the graph
-3. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
+2. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
    lanes, keyboard access to annotations and peak handles, handles for shape parameters
    (Lorentz fraction, Pearson m, Fano 1/q)
+3. Many spectra, further: a parameter that follows the series in a global fit (a centre
+   linear in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the
+   files' header fields as rows of the worksheet, global fits in a worker
 4. More files: JCAMP-DX, then SPC; OPUS and SPE last
 5. Under the hood: a UI test script in `tools/` (Playwright) that runs every example end to end;
    speed with hundreds of spectra
@@ -1209,18 +1291,23 @@ Next, in order:
 - Help cannot be opened over a dialog (a dialog makes the desk inert), so the import wizard
   and the Format dialog have no "?" of their own; their articles are in the contents. Articles have
   no pictures, and search matches words, not meanings
-- A batch fit fits each spectrum on its own: no global fit with parameters shared across
-  spectra. With peaks found in each spectrum, peaks are not matched across spectra, so the
-  table shows only how many; the trend is one quantity at a time in the Batch window, not a
-  graph on the desk. The series variable is the order, a number in the names or typed values:
-  it is not read from a file's metadata
+- A global fit shares a parameter's value exactly: a parameter cannot follow the series (a
+  centre linear in temperature) or be tied to another parameter across spectra; it runs on the
+  page, so a large one holds the page for a few seconds, and stops at 900 parameters. It needs
+  the template's peaks in every spectrum (not with the peaks found in each)
+- Peaks are matched across spectra by position alone, nearest first: two bands that cross
+  along the series swap tracks. A marked peak's trend gives its position and the Y at its top,
+  not an area (integrate it, or fit)
+- Trend graphs have their own fixed style (not the Format dialog), linear axes only, and
+  plot every quantity against the one series variable of the project
 - Several graphs: the X zoom is linked, not Y or the pointer; there are no graph layers or
   graphs with panels of different spectra, and no keyboard shortcut to step through
   the graphs (the browser keeps Ctrl+Tab); a picture shows no readout until it is clicked. A
   graph's annotations stay on it if one of its spectra moves to another graph
 - A batch import reads each file with the automatic choices (the single-file dialog's
-  overrides of delimiter, decimal mark and start line apply to one file); metadata is kept
-  from the first file only
+  overrides of delimiter, decimal mark and start line apply to one file). Each spectrum keeps
+  its own header's fields, but they are not rows of the worksheet, and the project's own
+  metadata is the first file's
 - Peak handles move centre, height and width; there is no handle for a shape parameter
   (Lorentz fraction, Pearson m, Fano 1/q), and no keyboard nudging of a selected peak
 - Ties are between the same parameter of two peaks; there are no free-form constraints between

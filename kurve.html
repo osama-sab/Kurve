@@ -840,6 +840,15 @@ table.corr td{text-align:center}
 #pane-batch .fbar{margin:-10px -14px 10px;padding:6px 10px;position:sticky;top:-10px;z-index:2;background:var(--panel);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 #pane-batch .fbar .sp{flex:1}
 .bsum{margin:0 0 10px;color:var(--ink-2);font-size:12.5px}
+.pkx tr.dim td{color:var(--muted)}
+#bfShare{margin-top:12px}
+#bfShare .bfk{display:flex;flex-wrap:wrap;gap:6px 16px;margin:6px 0 4px}
+#bfShare .bfps{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:3px 14px;max-height:220px;overflow:auto;margin-top:6px;padding:2px}
+#bfShare label.bfp{display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer}
+#bfShare details summary{cursor:pointer;font-size:12.5px;color:var(--ink-2);margin-top:4px}
+#bfCount{margin:8px 0 0;min-height:1.2em}
+input[type=checkbox]:indeterminate:not(.chk>input){background-color:var(--ctl-on);border-color:var(--ctl-on);box-shadow:inset 0 0 0 3.5px var(--panel)}
+.btab th .lab,.rtab td .lab.shd{font-weight:400}
 .bsum .chip{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11.5px;background:var(--warn-bg,rgba(178,107,0,.12));color:var(--warn,#B26B00)}
 .bprog{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:12.5px;color:var(--ink-2)}
 .bprog .bar{flex:1;height:4px;border-radius:2px;background:var(--rule);overflow:hidden}
@@ -851,6 +860,22 @@ table.corr td{text-align:center}
 .trend svg{display:block;width:100%;height:auto}
 .trend [data-trend]{cursor:pointer}
 .tfit{margin:6px 0 12px;font-size:12.5px;color:var(--ink-2)}
+.trend-win{display:flex;flex-direction:column;padding:8px 10px 6px;gap:6px}
+.trend-win .tbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12.5px}
+.trend-win .tbar .sp{flex:1}
+.trend-win .tchip{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--rule);border-radius:999px;padding:1px 2px 1px 9px;font-size:12px;max-width:100%;background:var(--panel)}
+.trend-win .tchip>i{width:9px;height:9px;border-radius:50%;background:var(--c);flex:0 0 auto;margin-right:3px}
+.trend-win .tchip .tl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
+.trend-win .tchip.gone .tl{color:var(--muted);font-style:italic}
+.trend-win .tchip .tb{min-width:22px;height:22px;padding:0 5px;font-size:11px;font-weight:600}
+.trend-win .tplot{flex:1 1 auto;min-height:150px;position:relative;border:1px solid var(--rule);border-radius:var(--r);background:var(--panel);overflow:hidden}
+.trend-win .tplot svg{display:block;position:absolute;inset:0}
+.trend-win .tplot [data-trend]{cursor:pointer}
+.trend-win .tfits{font-size:12px;color:var(--ink-2)}
+.trend-win .tfits p{margin:2px 0}
+.trend-win .tfits i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--c)}
+.trend-win .nothing{margin:auto}
+@media (max-width:860px){ .twin .win-b.trend-win{min-height:420px} .trend-win .tplot{min-height:270px} }
 .btab td,.btab th{white-space:nowrap}
 .btab th.grp{text-align:center;border-bottom:1px solid var(--rule-2);font-weight:600}
 .btab td.bx input{width:82px;font-family:var(--mono);font-size:12px;text-align:right}
@@ -1566,9 +1591,24 @@ function solve(A, b){ // Gaussian elimination, partial pivoting. Returns null if
   for(let r=n-1;r>=0;r--){ let s=M[r][n]; for(let k=r+1;k<n;k++) s-=M[r][k]*x[k]; x[r]=s/M[r][r]; }
   return x.every(Number.isFinite)?x:null;
 }
+// One elimination, replayed on each column of the identity: the arithmetic of
+// solve() n times over, for n^3 work instead of n^4 (a global fit has hundreds
+// of parameters).
 function inverse(A){
-  const n=A.length, cols=[];
-  for(let j=0;j<n;j++){ const e=new Array(n).fill(0); e[j]=1; const c=solve(A,e); if(!c) return null; cols.push(c); }
+  const n=A.length, M=A.map(r=>r.slice()), piv=new Array(n), fac=new Array(n);
+  for(let c=0;c<n;c++){
+    let p=c; for(let r=c+1;r<n;r++) if(Math.abs(M[r][c])>Math.abs(M[p][c])) p=r;
+    if(Math.abs(M[p][c])<1e-300) return null;
+    piv[c]=p; [M[c],M[p]]=[M[p],M[c]];
+    const fc=fac[c]=new Float64Array(n);
+    for(let r=c+1;r<n;r++){ const f=M[r][c]/M[c][c]; fc[r]=f; if(!f) continue; for(let k=c;k<n;k++) M[r][k]-=f*M[c][k]; }
+  }
+  const cols=[];
+  for(let j=0;j<n;j++){ const b=new Array(n).fill(0); b[j]=1;
+    for(let c=0;c<n;c++){ const p=piv[c]; if(p!==c){ const t=b[c]; b[c]=b[p]; b[p]=t; } const fc=fac[c], bc=b[c]; for(let r=c+1;r<n;r++){ const f=fc[r]; if(f) b[r]-=f*bc; } }
+    const x=new Array(n).fill(0);
+    for(let r=n-1;r>=0;r--){ let s=b[r]; for(let k=r+1;k<n;k++) s-=M[r][k]*x[k]; x[r]=s/M[r][r]; }
+    if(!x.every(Number.isFinite)) return null; cols.push(x); }
   return A.map((_,i)=>cols.map(c=>c[i]));
 }
 function tQuantile975(dof){ // Cornish–Fisher style expansion, good to ~1e-3 for dof>=3
@@ -1627,7 +1667,21 @@ function lmFit(f, X, Y, W, p0, fixed, opt){
   // per-parameter floor, a peak centre near 1700 and an area near 1e6 in the
   // same model cannot both get a usable derivative.
   const pscale=opt.pscale||p0.map(v=>Math.abs(v)||1);
+  // opt.blocks = {seg: [[i0, i1], …] covering every point, of: for each
+  // parameter the block it alone moves, or -1 for all}: a global fit, where a
+  // spectrum's own parameter touches only its points. Each point then keeps
+  // only the derivatives that can be non-zero (act[s], in free-parameter order).
+  const B=opt.blocks||null;
+  const act=B?B.seg.map((_,s)=>free.map((pi,j)=>B.of[pi]<0||B.of[pi]===s?j:-1).filter(j=>j>=0)):null;
+  const posOf=B?act.map(ac=>{ const q=new Array(m).fill(-1); ac.forEach((j,x)=>{ q[j]=x; }); return q; }):null;
   const jac=pp=>{
+    if(B){ const Jm=new Array(n); B.seg.forEach(([i0,i1],s)=>{ for(let i=i0;i<i1;i++) Jm[i]=new Float64Array(act[s].length); });
+      free.forEach((pi,j)=>{
+        const h=Math.max(Math.abs(pp[pi])*1e-6, Math.abs(pscale[pi])*1e-7, 1e-12);
+        const a=pp.slice(), b=pp.slice(); a[pi]+=h; b[pi]-=h;
+        B.seg.forEach(([i0,i1],s)=>{ const q=posOf[s][j]; if(q<0) return; for(let i=i0;i<i1;i++) Jm[i][q]=(f(X[i],a)-f(X[i],b))/(2*h)*W[i]; });
+      });
+      return Jm; }
     const Jm=Array.from({length:n},()=>new Array(m));
     free.forEach((pi,j)=>{
       const h=Math.max(Math.abs(pp[pi])*1e-6, Math.abs(pscale[pi])*1e-7, 1e-12);
@@ -1638,7 +1692,9 @@ function lmFit(f, X, Y, W, p0, fixed, opt){
   };
   const normal=Jm=>{
     const A=Array.from({length:m},()=>new Array(m).fill(0)), g=new Array(m).fill(0);
-    for(let i=0;i<n;i++){ const Ji=Jm[i]; for(let a=0;a<m;a++){ g[a]+=Ji[a]*r[i]; for(let b=a;b<m;b++) A[a][b]+=Ji[a]*Ji[b]; } }
+    if(B) B.seg.forEach(([i0,i1],s)=>{ const ac=act[s], L=ac.length;
+      for(let i=i0;i<i1;i++){ const Ji=Jm[i], ri=r[i]; for(let x=0;x<L;x++){ const ja=Ji[x]; if(!ja) continue; const a=ac[x], Aa=A[a]; g[a]+=ja*ri; for(let y=x;y<L;y++) Aa[ac[y]]+=ja*Ji[y]; } } });
+    else for(let i=0;i<n;i++){ const Ji=Jm[i]; for(let a=0;a<m;a++){ g[a]+=Ji[a]*r[i]; for(let b=a;b<m;b++) A[a][b]+=Ji[a]*Ji[b]; } }
     for(let a=0;a<m;a++) for(let b=0;b<a;b++) A[a][b]=A[b][a];
     return {A,g};
   };
@@ -1698,6 +1754,50 @@ function lmFit(f, X, Y, W, p0, fixed, opt){
   const aic=n*Math.log(ssRes/n)+2*(m+1), bic=n*Math.log(ssRes/n)+(m+1)*Math.log(n);
   return {params:p, errors:errs, cov, dep, tval, pval, ci, atBound,
     stats:{n, dof, chi2:chi, redChi2:red, R2, adjR2, rss:ssRes, rmse:Math.sqrt(red), aic, bic, iter, converged, singular:!inv}};
+}
+/* Several data sets fitted at once by one model: the parameters marked shared
+   take one value for every set, the rest are each set's own. The sets are laid
+   end to end and handed to lmFit as one problem whose X is the point's index,
+   with the blocks each parameter moves, so the work grows with the number of
+   sets rather than its square. sets: [{X, Y, W?}]; f(x, p, k) the model of set
+   k; p0s each set's starting vector; shared and fixed one flag per parameter
+   (a fixed one keeps each set's own starting value). opt: lo, hi, pscale (one
+   array for every set, or one per set), start (shared starts; else set ref's),
+   prep(p, k) to finish a set's vector (ties). Returns each set's params,
+   errors, covariance, dependency, t, p, CI and atBound, its own statistics,
+   and the whole fit's. */
+function globalFit(sets,f,p0s,shared,fixed,opt){
+  opt=opt||{};
+  const K=sets.length; if(!K) return {error:"No data to fit."};
+  const np=p0s[0].length, ref=Math.min(K-1,Math.max(0,opt.ref|0)), prep=opt.prep||null;
+  const per=(a,k,i)=>{ if(!a) return undefined; const v=Array.isArray(a[k])?a[k][i]:a[i]; return Number.isFinite(v)?v:undefined; };
+  const X=[], Y=[], W=[], seg=[], segOf=[];
+  sets.forEach((s,k)=>{ const i0=X.length; for(let i=0;i<s.X.length;i++){ X.push(s.X[i]); Y.push(s.Y[i]); W.push(s.W?s.W[i]:1); segOf.push(k); } seg.push([i0,X.length]); });
+  // The vector fitted: the shared parameters first, then each set's own.
+  const gi=p0s.map(()=>new Array(np).fill(-1)), g0=[], of=[], lo=[], hi=[], ps=[];
+  const put=(v,k,i)=>{ g0.push(v); lo.push(per(opt.lo,k,i)??-Infinity); hi.push(per(opt.hi,k,i)??Infinity); ps.push(per(opt.pscale,k,i)??(Math.abs(v)||1)); };
+  for(let i=0;i<np;i++) if(shared[i]&&!fixed[i]){ const j=g0.length; put(opt.start&&Number.isFinite(opt.start[i])?opt.start[i]:p0s[ref][i],ref,i); of.push(-1); for(let k=0;k<K;k++) gi[k][i]=j; }
+  for(let k=0;k<K;k++) for(let i=0;i<np;i++) if(!shared[i]&&!fixed[i]){ gi[k][i]=g0.length; put(p0s[k][i],k,i); of.push(k); }
+  // A set's vector for a given global vector, built once per vector and set.
+  // lmFit alternates two trial vectors when it differentiates, so two are kept.
+  let c0={g:null,v:[]}, c1={g:null,v:[]};
+  const vecOf=(g,k)=>{ let c; if(c0.g===g) c=c0; else if(c1.g===g) c=c1; else { c=c1; c1=c0; c0=c; c.g=g; c.v=new Array(K); }
+    let v=c.v[k]; if(!v){ v=p0s[k].slice(); const ix=gi[k]; for(let i=0;i<np;i++) if(ix[i]>=0) v[i]=g[ix[i]]; if(prep) prep(v,k); c.v[k]=v; } return v; };
+  const idx=X.map((_,i)=>i), fg=(i,g)=>f(X[i],vecOf(g,segOf[i]),segOf[i]);
+  const res=lmFit(fg,idx,Y,W,g0,g0.map(()=>false),{lo,hi,pscale:ps,blocks:{seg,of}});
+  if(res.error) return {error:res.error};
+  const p=res.params, nShared=of.filter(o=>o<0).length, N=X.length;
+  const out=sets.map((s,k)=>{ const ix=gi[k], v=vecOf(p,k).slice(), [i0,i1]=seg[k], nk=i1-i0, own=ix.filter((j,i)=>j>=0&&of[j]===k).length;
+    let chi=0, rss=0, my=0; for(let i=i0;i<i1;i++) my+=Y[i]; my/=nk||1; let tss=0;
+    for(let i=i0;i<i1;i++){ const d=Y[i]-f(X[i],vecOf(p,k),k); chi+=(d*W[i])**2; rss+=d*d; tss+=(Y[i]-my)**2; }
+    // A set's degrees of freedom: its points less its own parameters and its share of the shared ones.
+    const dof=nk-own-nShared*nk/N, R2=tss>0?1-rss/tss:NaN;
+    return {params:v, errors:ix.map(j=>j>=0?res.errors[j]:0), cov:ix.map(a=>ix.map(b=>a>=0&&b>=0?res.cov[a][b]:0)),
+      dep:ix.map(j=>j>=0?res.dep[j]:0), tval:ix.map(j=>j>=0?res.tval[j]:NaN), pval:ix.map(j=>j>=0?res.pval[j]:NaN),
+      ci:ix.map(j=>j>=0?res.ci[j].slice():[NaN,NaN]), atBound:ix.map(j=>j>=0?res.atBound[j]:false),
+      stats:{n:nk, dof:Math.round(dof*10)/10, chi2:chi, redChi2:dof>0?chi/dof:NaN, R2, adjR2:dof>0?1-(1-R2)*(nk-1)/dof:NaN, rss, rmse:dof>0?Math.sqrt(chi/dof):NaN,
+        aic:null, bic:null, iter:res.stats.iter, converged:res.stats.converged, singular:res.stats.singular} }; });
+  return {sets:out, stats:Object.assign({},res.stats,{K, shared:nShared}), m:g0.length};
 }
 // Fitted about the mean of X and then shifted back, because the raw power
 // basis is hopeless once x is in the thousands, as a wavenumber axis is.
@@ -2310,6 +2410,28 @@ function peakSearch(X,Y,o){
   res.found=out.sort((a,b)=>a.x-b.x);
   res.rejected.sort((a,b)=>a.x-b.x);
   return res;
+}
+/* The same peak in each spectrum of a series. lists: one array of {x, w (FWHM)}
+   per spectrum, in series order. Each peak joins the track whose last position
+   is nearest, if within tol (0.5) of the larger width (opt.dx when neither has
+   one); two peaks of one spectrum never share a track, the closest pairs being
+   matched first; a peak matching none starts a track. A track follows a band
+   that drifts along the series. Returns the tracks by position: members
+   [{s, k}] (spectrum, peak), the median position x, and its spread x0, x1. */
+function matchPeakTracks(lists,opt){
+  opt=opt||{}; const tol=opt.tol>0?opt.tol:0.5, dx=opt.dx>0?opt.dx:0, tracks=[];
+  lists.forEach((pks,s)=>{ pks=pks||[];
+    const cand=[];
+    pks.forEach((q,k)=>{ if(!q||!Number.isFinite(q.x)) return;
+      tracks.forEach((t,ti)=>{ const w=Math.max(q.w>0?q.w:0,t.w>0?t.w:0)||dx, d=Math.abs(q.x-t.x); if(w>0&&d<=tol*w) cand.push({d:d/w,k,ti}); }); });
+    cand.sort((a,b)=>a.d-b.d);
+    const usedK=new Set(), usedT=new Set();
+    cand.forEach(c=>{ if(usedK.has(c.k)||usedT.has(c.ti)) return; usedK.add(c.k); usedT.add(c.ti);
+      const t=tracks[c.ti], q=pks[c.k]; t.members.push({s,k:c.k}); t.xs.push(q.x); t.x=q.x; if(q.w>0) t.w=q.w; });
+    pks.forEach((q,k)=>{ if(q&&Number.isFinite(q.x)&&!usedK.has(k)) tracks.push({members:[{s,k}],xs:[q.x],x:q.x,w:q.w>0?q.w:0}); });
+  });
+  return tracks.map(t=>{ const xs=t.xs.slice().sort((a,b)=>a-b), h=xs.length>>1;
+    return {members:t.members, n:t.members.length, x:xs.length%2?xs[h]:(xs[h-1]+xs[h])/2, x0:xs[0], x1:xs[xs.length-1], w:t.w}; }).sort((a,b)=>a.x-b.x);
 }
 /* ==PEAKS:END== */
 
@@ -3384,9 +3506,11 @@ function fitModel(fit){
 }
 // The analysed spectrum's fit: its own, or its row of the batch fit; failing
 // both, the project's fit, whichever spectrum it was made on.
-function activeFit(){ const p=P(); if(!p) return null; const own=p.fit&&fitModel(p.fit)?p.fit:null, a=activeYCol();
-  if(own&&(!a||!own.onCol||own.onCol===a.id)) return own;
-  return batchFitOf(a)||own; }
+function activeFit(){ const p=P(); if(!p) return null; const own=p.fit&&fitModel(p.fit)?p.fit:null, a=activeYCol(), bf=a?batchFitOf(a):null;
+  // A global fit made after the fit by hand is that spectrum's result: it was
+  // fitted again, with the others.
+  if(own&&(!a||!own.onCol||own.onCol===a.id)) return bf&&bf.global&&(bf.at||0)>(own.at||0)?bf:own;
+  return bf||own; }
 /* Why a shown result may no longer describe what is on screen. */
 function fitStale(f){
   if(!f) return null;
@@ -3411,7 +3535,8 @@ function fitStale(f){
 }
 // A model's name in the middle of a sentence: lower case, except the names of
 // people (a Gaussian peak stays Gaussian).
-const lcFirst=s=>/^(Gauss|Lorentz|Voigt|Pearson|Fano|Boltzmann|Breit)/.test(String(s))?String(s):String(s).charAt(0).toLowerCase()+String(s).slice(1);
+// Eponyms keep their capital, and so do acronyms (FWHM, R²).
+const lcFirst=s=>/^(Gauss|Lorentz|Voigt|Pearson|Fano|Boltzmann|Breit)|^[A-Z][A-Z0-9²]/.test(String(s))?String(s):String(s).charAt(0).toLowerCase()+String(s).slice(1);
 function describeSpec(spec){
   const n=(spec.peaks||[]).length;
   // Shapes are named after people (Gauss, Lorentz, Voigt, Pearson, Fano), so
@@ -3519,6 +3644,8 @@ function unitFor(dim,xu,yu){
   return "";
 }
 function dataUnits(){ const d=finalOf(activeYCol()); return [(d.xu||"").trim(),(d.yu||"").trim()]; }
+// A model parameter's label (HTML) as plain text: tags gone, entities such as &tau; written out.
+function phPlain(s){ s=String(s||"").replace(/<[^>]+>/g,""); if(!/&/.test(s)) return s; const d=document.createElement("textarea"); d.innerHTML=s; return d.value; }
 const MODELS={
   linear:{name:"Linear", params:["a","b"], ph:["<i>a</i>","<i>b</i>"], dim:["y","y/x"],
     formula:"<i>y</i> = <i>a</i> + <i>b</i><i>x</i>",
@@ -3642,7 +3769,7 @@ function fitWarnings(f){
   if((f.errors||[]).some(e=>e===null||Number.isNaN(e))) out.push({level:"bad", kind:"singular", text:"The covariance matrix is singular, so no uncertainties could be computed for this fit. "+(FM.composite?"That usually means two components are describing the same feature.":"That usually means two parameters are doing the same job for these data.")});
   const slots=FM_slots(f);
   const whose=i=>{ if(FM.composite){ const sl=slots[i]; if(!sl) return "a parameter"; if(sl.kind!=="peak") return `baseline ${sl.name}`;
-    const pd=PEAKS[((f.spec.peaks||[])[sl.peak]||{}).type]||PEAKS.gauss; return `peak ${sl.peak+1} ${(pd.labels&&pd.labels[sl.name])||PARAM_LABEL[sl.name]||sl.name}`; } const ph=(FM.model.ph||[])[i]; return ph?ph.replace(/<[^>]+>/g,""):((FM.model.params||[])[i]||"a parameter"); };
+    const pd=PEAKS[((f.spec.peaks||[])[sl.peak]||{}).type]||PEAKS.gauss; return `peak ${sl.peak+1} ${(pd.labels&&pd.labels[sl.name])||PARAM_LABEL[sl.name]||sl.name}`; } const ph=(FM.model.ph||[])[i]; return ph?phPlain(ph):((FM.model.params||[])[i]||"a parameter"); };
   const deps=(f.dep||[]).map((v,i)=>({v,i})).filter(q=>!(f.fixed&&f.fixed[q.i])&&Number.isFinite(q.v));
   const worst=deps.length?deps.reduce((a,b)=>b.v>a.v?b:a):null;
   if(worst&&worst.v>0.99) out.push({level:"warn", kind:"dep", text:`${whose(worst.i)} is strongly tied to the other parameters (dependency ${fmt(worst.v,4)}). Its own value is less certain than its error suggests \u2014 ${FM.composite?"check that these peaks are really separable, and consider fixing a width or removing a peak.":"these data may not separate every parameter of this model."}`});
@@ -3651,6 +3778,8 @@ function fitWarnings(f){
     const names=f.atBound.map((b,i)=>b?whose(i):null).filter(Boolean);
     out.push({level:"warn", kind:"bound", text:`Stopped at a bound: ${names.join(", ")}. ${names.length===1?"Its error understates":"Their errors understate"} the real uncertainty.`});
   }
+  if(f.global&&f.gstats){ const b=P()&&P().batch, t=b&&b.tmpl, sh=f.shared||[], names=t&&t.params.length===sh.length?shareSummary(t,sh):`${sh.filter(Boolean).length} parameters`;
+    out.push({level:"info", kind:"global", text:`Fitted together with ${f.gstats.K-1} other spectra, sharing ${names}: ${sh.filter(Boolean).length===1?"that value is":"those values are"} the same in all of them, and every error comes from all their points (${f.gstats.n} points, ${f.gstats.m} parameters, reduced χ² ${fmtOr(f.gstats.redChi2,4)}).`}); }
   const rt=runsTest(fitResiduals(f));
   if(rt&&rt.p<0.001) out.push({level:"info", kind:"runs", text:`The residuals run in long stretches of one sign (${rt.runs} runs where about ${Math.round(rt.expected)} would be expected by chance), so the model is missing something systematic even though R\u00b2 may look good. ${FM.composite?"Try another peak shape, an extra peak, or a higher-order baseline.":"Try a different model."} The residual panel under the graph shows where.`});
   return out;
@@ -4174,7 +4303,7 @@ function migrate(p){
 
 /* Undo is per-session and local: it rewinds your own edits, not other
    people's. Cross-user undo in a shared document is a different problem. */
-const UNDO_KEYS=["cols","activeY","meta","fit","plot","name","log","raw","fits","userFns","found","integ","graphs","batch","series"];
+const UNDO_KEYS=["cols","activeY","meta","fit","plot","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
 function snapshot(){ const p=P(); if(!p) return null; const o={pid:S.pid}; UNDO_KEYS.forEach(k=>{ o[k]=clone(p[k]); });
   o.pdraft=S.pdraft?clone(S.pdraft):null; o.draft=S.draft?clone(S.draft):null; return o; }
@@ -8368,7 +8497,7 @@ async function doImport(){
   const steps=Object.keys(im.fixes).map(k=>k==="sortX"?"sort":k==="dedupeX"?"dedupe":null).filter(Boolean).map(op=>makeStep(op,{}));
   const name=(i,fallback)=>{ const hd=r.headerRow&&i>=0?r.headerRow[i]:null; return hd?splitColName(hd):{long:fallback,unit:""}; };
   const nx=name(im.xi,""), ny=name(im.yi,""), ne=name(im.ei,"");
-  const xc=makeCol("x",nx.long,nx.unit,x), yc=Object.assign(makeCol("y",ny.long,ny.unit,y),{pipe:steps,mask:[]});
+  const xc=makeCol("x",nx.long,nx.unit,x), yc=Object.assign(makeCol("y",ny.long,ny.unit,y),{pipe:steps,mask:[]},colMetaOf(r.meta,im.fname));
   const cols=[xc,yc];
   if(im.ei>=0&&e.some(v=>v!=null)) cols.push(makeCol("e",ne.long||"σ",ne.unit,e,yc.id));
   const stepNote=steps.length?` (${steps.map(s=>stepTitle(s).toLowerCase()).join(" and ")} added as processing steps)`:"";
@@ -8453,6 +8582,8 @@ function readFilesIn(files){
 const baseName=f=>String(f||"").replace(/\.\w+$/,"");
 function batchFail(fname,why){ return [{fname,name:baseName(fname),fail:why}]; }
 // The spectra in one file: its Y column, or every Y column when asked.
+// The file a spectrum came from and its header's fields, kept with the spectrum.
+function colMetaOf(meta,fname){ const o={}; if(fname) o.file=String(fname).slice(0,200); const ks=Object.keys(meta||{}); if(ks.length){ o.meta={}; ks.slice(0,200).forEach(k=>{ o.meta[k]=String(meta[k]).slice(0,400); }); } return o; }
 function batchFile(fname,text,opt){
   opt=opt||{};
   if(looksBinary(text)) return batchFail(fname,"a binary instrument file: export it as text");
@@ -8489,7 +8620,7 @@ async function doBatchImport(good,skip,o){
   const p0=P(), intoNew=o.into==="new"||!S.pid, keep=!intoNew&&allCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null));
   const cols=keep?p0.cols.slice():[], newY=[];
   good.forEach(it=>{ const lastX=cols.slice().reverse().find(c=>c.role==="x"&&c.data.some(v=>v!=null));
-    const yc=Object.assign(makeCol("y",it.name,it.yu,it.y),{pipe:[],mask:[]});
+    const yc=Object.assign(makeCol("y",it.name,it.yu,it.y),{pipe:[],mask:[]},colMetaOf(it.meta,it.fname));
     if(lastX&&sameAxis(lastX.data,it.x)) cols.push(yc); else cols.push(makeCol("x",it.xn,it.xu,it.x),yc);
     if(it.e) cols.push(makeCol("e","σ",it.yu,it.e,yc.id));
     newY.push(yc.id); });
@@ -8521,7 +8652,8 @@ async function doBatchImport(good,skip,o){
   }
   if(graphs.length) tileWins();
   renderAll();
-  toast(`Imported ${good.length} spectra${skip.length?`; skipped ${skip.length} (see the log)`:""}.${graphs.length?" Click a graph to work on it.":""}`,intoNew?{}:{action:"Undo",run:undo});
+  const mks=metaKeys(cols.filter(c=>newY.includes(c.id)));
+  toast(`Imported ${good.length} spectra${skip.length?`; skipped ${skip.length} (see the log)`:""}.${graphs.length?" Click a graph to work on it.":""}${mks.length?` Their files differ in ${andList(mks.slice(0,2).map(k=>k.k))}: the Batch window can plot against ${mks.length>1?"either":"it"}.`:""}`,intoNew?{}:{action:"Undo",run:undo});
 }
 function readFileIn(f){
   if(!f) return;
@@ -9294,13 +9426,13 @@ function paramRows(f){
   const push=(i,label,meaning,dim)=>rows.push({i,label,meaning,unit:unitFor(dim,xu,yu),v:f.params[i],e:(f.errors||[])[i],
     t:(f.tval||[])[i],pv:(f.pval||[])[i],ci:(f.ci||[])[i],dep:(f.dep||[])[i],fixed:!!(f.fixed&&f.fixed[i]),
     // At a limit, the curvature says nothing about the uncertainty: no ±.
-    bound:!(f.fixed&&f.fixed[i])&&!!(f.atBound&&f.atBound[i]),hold:!!(f.fixed&&f.fixed[i])||!!(f.atBound&&f.atBound[i])});
+    bound:!(f.fixed&&f.fixed[i])&&!!(f.atBound&&f.atBound[i]),hold:!!(f.fixed&&f.fixed[i])||!!(f.atBound&&f.atBound[i]),shared:!!(f.shared&&f.shared[i])});
   if(FM.composite){ FM.model.slots.forEach((s,i)=>{
     if(s.kind==="base"){ const bl=BASE_LABEL[s.name]||[s.name,""]; push(i,`baseline ${s.name}`,bl[0].toLowerCase(),bl[1]); }
     else push(i,`peak ${s.peak+1} ${s.name}`,s.meaning,PARAM_DIM[s.name]); });
     peakLinks(f.spec.peaks,FM.model).forEach(l=>{ const r=rows.find(q=>q.i===l.gi); if(r){ r.tied="tied: "+tieFormula(l,""); r.hold=true; r.bound=false; } }); }
   else FM.model.params.forEach((nm,i)=>{ const ph=(FM.model.ph||[])[i];
-    push(i,ph?ph.replace(/<[^>]+>/g,""):nm,"",(FM.model.dim||[])[i]); if(ph) rows[rows.length-1].html=ph; });
+    push(i,ph?phPlain(ph):nm,"",(FM.model.dim||[])[i]); if(ph) rows[rows.length-1].html=ph; });
   return rows;
 }
 function derivedRows(f){
@@ -9310,6 +9442,12 @@ function derivedRows(f){
 }
 function statsList(f){
   const st=f.stats||{};
+  if(f.global&&f.gstats){ const g=f.gstats;
+    const out=[["Points",st.n],["Parameters",`${g.own} of its own, ${g.sh} shared`],["Reduced χ²",fmtOr(st.redChi2,5)],["R² (COD)",fmtOr(st.R2,6)],["Residual sum of squares",fmtOr(st.rss,6)],
+      ["Fitted together with",`${g.K-1} other spectra`],["Points in all",g.n],["Parameters in all",g.m],["Degrees of freedom",g.dof],["Reduced χ² of them all",fmtOr(g.redChi2,5)],
+      ["Iterations",g.iter==null?"—":`${g.iter}${g.converged===false?" (not converged)":""}`],["Weighting",f.weighted?"instrumental, 1/σ²":"none; errors scaled by √(reduced χ² of them all)"]];
+    if(f.range) out.push(["Fitted over",`x ${fmt(f.range[0],6)} to ${fmt(f.range[1],6)}`]);
+    return out.map(([k,v])=>[k,v==null||v===""?"—":String(v)]); }
   const out=[["Points",st.n],["Free parameters",st.n!=null&&st.dof!=null?st.n-st.dof:null],["Degrees of freedom",st.dof],
     ["Reduced χ²",fmtOr(st.redChi2,5)],["R² (COD)",fmtOr(st.R2,6)],["Adjusted R²",fmtOr(st.adjR2,6)],
     ["Residual sum of squares",fmtOr(st.rss,6)],["AIC",fmtOr(st.aic,6)],["BIC",fmtOr(st.bic,6)],
@@ -9322,7 +9460,7 @@ function paramTableHtml(f){
   const rows=paramRows(f), der=derivedRows(f);
   const u=t=>t?` <span class="unit">(${esc(t)})</span>`:"";
   return `<table class="rtab"><thead><tr><th class="l">Parameter</th><th>Value ± standard error</th><th>t</th><th>Prob &gt; |t|</th><th>95% confidence interval</th><th title="Near 1: this parameter is doing the same job as others and is not independently determined">Dependency</th></tr></thead><tbody>${
-    rows.map(r=>`<tr${Number.isFinite(r.dep)&&r.dep>0.99&&!r.hold?' class="badrow"':""}><td class="l">${r.html?`<span style="font-style:italic;font-family:'Source Serif 4',Georgia,serif;font-size:1.08em">${r.html}</span>`:esc(r.label)}${u(r.unit)}${r.meaning?` <span class="lab">${esc(r.meaning)}</span>`:""}</td><td>${r.tied?`${fmtPM(r.v,r.e)} <span class="lab">${esc(r.tied)}</span>`:r.hold?`${esc(fmt(r.v,6))} <span class="lab">${r.fixed?"fixed":"at its limit"}</span>`:fmtPM(r.v,r.e)}</td><td>${r.hold?"":esc(fmtOr(r.t,4))}</td><td>${r.hold?"":esc(fmtP(r.pv))}</td><td>${r.hold||!r.ci||!Number.isFinite(r.ci[0])||!Number.isFinite(r.ci[1])?"":`${esc(fmt(r.ci[0],6))} to ${esc(fmt(r.ci[1],6))}`}</td><td>${r.hold?"":esc(fmtOr(r.dep,4))}</td></tr>`).join("")
+    rows.map(r=>`<tr${Number.isFinite(r.dep)&&r.dep>0.99&&!r.hold?' class="badrow"':""}><td class="l">${r.html?`<span style="font-style:italic;font-family:'Source Serif 4',Georgia,serif;font-size:1.08em">${r.html}</span>`:esc(r.label)}${u(r.unit)}${r.meaning?` <span class="lab">${esc(r.meaning)}</span>`:""}</td><td>${r.tied?`${fmtPM(r.v,r.e)} <span class="lab">${esc(r.tied)}</span>`:r.hold?`${esc(fmt(r.v,6))} <span class="lab">${r.fixed?"fixed":"at its limit"}</span>`:fmtPM(r.v,r.e)}${r.shared&&!r.tied?` <span class="lab shd" title="One value for every spectrum of the global fit">shared</span>`:""}</td><td>${r.hold?"":esc(fmtOr(r.t,4))}</td><td>${r.hold?"":esc(fmtP(r.pv))}</td><td>${r.hold||!r.ci||!Number.isFinite(r.ci[0])||!Number.isFinite(r.ci[1])?"":`${esc(fmt(r.ci[0],6))} to ${esc(fmt(r.ci[1],6))}`}</td><td>${r.hold?"":esc(fmtOr(r.dep,4))}</td></tr>`).join("")
   }${der.map(x=>`<tr><td class="l">${esc(x.name)}${u(x.unit)} <span class="lab">derived</span></td><td>${fmtPM(x.v,x.e)}</td><td></td><td></td><td></td><td></td></tr>`).join("")}</tbody></table>`;
 }
 function renderResults(){
@@ -9337,7 +9475,7 @@ function renderResults(){
   }
   const FM=fitModel(f);
   const [xu,yu]=dataUnits(), u=t=>t?`<span class="unit">(${esc(t)})</span>`:"";
-  let h=`<div class="rhead"><div class="rt"><div class="rtitle">${FM.composite?"Peak fit":"Curve fit"}: ${esc(FM.name)}${f.onColName?` <span class="lab">on ${esc(f.onColName)}</span>`:""}</div>${FM.model.user?`<div class="rfx"><code>${esc(FM.model.expr)}</code></div>`:""}<div class="lab" id="fitBy"></div></div>
+  let h=`<div class="rhead"><div class="rt"><div class="rtitle">${FM.composite?"Peak fit":"Curve fit"}: ${esc(FM.name)}${f.onColName?` <span class="lab">on ${esc(f.onColName)}</span>`:""}${f.global&&f.gstats?` <span class="lab">· together with ${f.gstats.K-1} other spectra</span>`:""}</div>${FM.model.user?`<div class="rfx"><code>${esc(FM.model.expr)}</code></div>`:""}<div class="lab" id="fitBy"></div></div>
     <div class="ract"><button class="btn sm" id="rCopy">${ICON("copy","sm")}Copy table</button><button class="btn sm" id="rReport">${ICON("file","sm")}Save report</button><button class="btn sm" id="rCsv">${ICON("download","sm")}Export data</button><button class="btn sm ghost" id="discussFit">${ICON("comment","sm")}Discuss</button></div></div>`;
   // What makes a number wrong goes above the table; advice on doing better
   // goes under it, so the table is not pushed out of a short panel.
@@ -9345,13 +9483,14 @@ function renderResults(){
   warns.filter(w=>w.level!=="info").forEach(w=>{ h+=noteHtml(w.level,w.text); });
   h+=`<div class="rgrid"><div class="rmain">`;
   if(FM.composite){
-    const rows=peakMetrics(f), au=unitFor("yx",xu,yu);
+    const rows=peakMetrics(f), au=unitFor("yx",xu,yu), shd=(k,nms)=>{ if(!f.shared) return ""; const pd=PEAKS[(f.spec.peaks[k]||{}).type]||PEAKS.gauss, o=FM.model.offsets[k], ix=pd.params.map((nm,i)=>nms.test(nm)?o+i:-1).filter(i=>i>=0);
+      return ix.length&&ix.every(i=>f.shared[i])?` <span class="lab shd" title="One value for every spectrum of the global fit">shared</span>`:""; };
     h+=`<table class="rtab"><thead><tr><th class="l">Peak</th><th class="l">Shape</th><th>Centre ${u(xu)}</th><th>Height ${u(yu)}</th><th>FWHM ${u(xu)}</th><th>Area ${u(au)}</th><th>Area %</th></tr></thead><tbody>`;
     rows.forEach(r=>{ h+=`<tr data-prow="${r.k}" class="${r.ok?"":"badrow"}${S.selPeak===r.k?" sel":""}" title="${r.ok?"Click to select this peak":esc("Not a usable peak: "+r.problems.join("; "))}">
       <td class="l"><span class="dot" style="background:${r.color};margin-right:6px"></span>${r.k+1}${r.ok?"":' <span class="flag" aria-label="not a usable peak">!</span>'}</td><td class="l">${esc(r.type)}</td>
-      <td>${fmtPM(r.xc,r.xcErr)}</td><td>${r.heightErr?fmtPM(r.height,r.heightErr):esc(fmt(r.height,5))}</td>
-      <td${(r.wparts||[]).length>1?` title="${esc(r.wparts.map(w=>w.nm+" "+fmt(Math.abs(w.v),4)).join(", "))}"`:""}>${r.fwhmErr?fmtPM(r.fwhm,r.fwhmErr):esc(fmt(r.fwhm,5))}${(r.wparts||[]).length>1?` <span class="lab">(${esc(r.wparts.map(w=>w.nm+" "+fmt(Math.abs(w.v),3)).join(", "))})</span>`:""}</td>
-      <td>${fmtPM(r.area,r.areaErr)}</td><td>${r.areaPct==null?'<span class="noerr">excluded</span>':esc(fmt(r.areaPct,3))}</td></tr>`; });
+      <td>${fmtPM(r.xc,r.xcErr)}${shd(r.k,/^xc$/)}</td><td>${r.heightErr?fmtPM(r.height,r.heightErr):esc(fmt(r.height,5))}</td>
+      <td${(r.wparts||[]).length>1?` title="${esc(r.wparts.map(w=>w.nm+" "+fmt(Math.abs(w.v),4)).join(", "))}"`:""}>${r.fwhmErr?fmtPM(r.fwhm,r.fwhmErr):esc(fmt(r.fwhm,5))}${(r.wparts||[]).length>1?` <span class="lab">(${esc(r.wparts.map(w=>w.nm+" "+fmt(Math.abs(w.v),3)).join(", "))})</span>`:""}${shd(r.k,/^w/)}</td>
+      <td>${fmtPM(r.area,r.areaErr)}${shd(r.k,/^A$/)}</td><td>${r.areaPct==null?'<span class="noerr">excluded</span>':esc(fmt(r.areaPct,3))}</td></tr>`; });
     h+=`</tbody></table>`;
     h+=`<details class="more" id="rParams"${S.showParams?" open":""}><summary>All ${f.params.length} fitted parameters, with t, p, confidence intervals and dependency</summary>${paramTableHtml(f)}</details>`;
   } else h+=paramTableHtml(f);
@@ -9726,6 +9865,7 @@ function normalize(p){ if(!p) return; const was=p.v||1;
   if(!p.found||typeof p.found!=="object") p.found={};
   if(p.batch&&!(p.batch.tmpl&&Array.isArray(p.batch.rows))) p.batch=null;
   if(p.series&&typeof p.series!=="object") p.series=null;
+  if(p.trends!=null) p.trends=Array.isArray(p.trends)?p.trends.filter(t=>t&&t.id&&Array.isArray(t.ys)):null;
   // Graphs keep only spectra that still exist; a graph with none left goes.
   { const yIds=new Set((p.cols||[]).filter(c=>c.role==="y").map(c=>c.id));
     p.graphs=(Array.isArray(p.graphs)?p.graphs:[]).filter(g=>g&&g.id).map(g=>{ g.cols=(g.cols||[]).filter(k=>yIds.has(k));
@@ -9872,7 +10012,7 @@ async function exportReport(){
   }
   html.push(reportPeaksHtml());
   html.push(reportBandsHtml());
-  html.push(reportBatchHtml());
+  html.push(reportBatchHtml()); html.push(reportTrendsHtml());
   html.push(reportDataHtml(EXPORT_PAL));
   html.push(reportFitsHtml(EXPORT_PAL));
   html.push(reportDiscussionHtml());
@@ -10511,6 +10651,19 @@ function setPeakStyle(patch,log){
   renderPlot(); renderPeaks(); if(winOpen("flow")) renderFlow();
 }
 // Types a peak's own label; what it shows follows the set's style.
+// One label for the same peak in every spectrum that has it.
+function labelTrack(i,lab){
+  const p=P(), t=markedTracks(finalOf(activeYCol()).xu||"").tracks[i]; if(!p||!t||S.readOnly) return;
+  const v=String(lab||"").trim().slice(0,80); if(t.items.every(it=>(it.r.lab||"")===v)) return;
+  const of=new Map(t.items.map(it=>[it.r.a.id,it.c]));
+  pushUndo("labelling a peak in every spectrum");
+  saveAnnos((p.plot.annos||[]).map(q=>{ if(!of.has(q.id)) return q; const f=foundOf(of.get(q.id)), st=Object.assign({},PK_STYLE,f&&f.style); return Object.assign({},q,{lab:v,text:peakText(st,v)}); }),
+    v?`labelled the peak near ${fmt(t.x,6)} "${v}" in ${t.n} spectra`:`cleared the label of the peak near ${fmt(t.x,6)} in ${t.n} spectra`);
+  renderPlot(); if(winOpen("peaks")) renderPeaks(); if(winOpen("flow")) renderFlow(); if(winOpen("batch")) renderBatch(); scheduleSnaps(0);
+}
+// Each matched peak's position in every spectrum: a row per spectrum, a column per peak.
+function trackTableText(xu){ const T=markedTracks(xu), s=seriesOf(), v=seriesVals(T.cols,s);
+  return [["Spectrum",seriesLabel(s)].concat(T.tracks.map(t=>t.lab||`near ${fmt(t.x,6)}`)).join("\t")].concat(T.cols.map((c,i)=>[specName(c),v[i]==null?"":v[i]].concat(T.tracks.map(t=>{ const r=t.byCol[c.id]; return r?fmt(r.x,8):""; })).join("\t"))).join("\n"); }
 function setPeakLabel(id,lab){
   const p=P(), a=annoById(id); if(!p||!a||S.readOnly) return;
   const c=colById(a.ser), f=foundOf(c), st=Object.assign({},PK_STYLE,f&&f.style), v=String(lab||"").trim().slice(0,80);
@@ -10601,6 +10754,11 @@ function renderPeaks(){
   const rj=S.pkLast&&S.pkLast.rejected?S.pkLast.rejected.length:0;
   if(f&&rj) h+=`<details class="grp" id="pkRej"${S.pfRejOpen?" open":""}><summary>Turned down <span class="sum">${rj}</span></summary><div class="gb"><ul class="pfrej">${S.pkLast.rejected.slice().sort((a,b)=>(b.snr||0)-(a.snr||0)).slice(0,30).map(q=>`<li><span><strong>${esc(fmt(q.x,6))}</strong> ${esc(q.why)}</span>${S.readOnly?"":`<button class="btn sm ghost" data-pkadd="${q.x}">Add</button>`}</li>`).join("")}</ul></div></details>`;
   h+=`</section>`;
+  // Across the spectra: the same peak in each, one label for all of them.
+  const MT=f?markedTracks(d.xu||""):null;
+  if(MT&&MT.cols.length>1&&MT.tracks.length){ const mine=new Set(rows.map(r=>r.a.id));
+    h+=`<section class="stepsec"><h3 class="gh">Across the spectra <span class="cnt">${MT.tracks.length}</span><span style="flex:1"></span><button class="btn sm ghost" id="pkxCopy" title="Each peak's position in every spectrum, one table">${ICON("copy","sm")}Copy</button></h3>
+    <div class="twrap"><table class="rtab pktab pkx"><thead><tr><th>Position${xu?` <span class="unit">(${esc(xu)})</span>`:""}</th><th class="opt" title="From the lowest to the highest position">Spread</th><th title="In how many of the ${MT.cols.length} spectra with peaks">In</th><th class="l">Label in every one</th><th></th></tr></thead><tbody>${MT.tracks.map((t,i)=>`<tr${t.items.some(it=>mine.has(it.r.a.id))?"":` class="dim" title="Not among ${esc(specName(c))}'s peaks"`}><td>${esc(fmt(t.x,7))}</td><td class="opt">${t.n>1?esc(fmt(t.x1-t.x0,3)):"—"}</td><td>${t.n} of ${t.N}</td><td class="l"><input type="text" id="pkx-${i}" data-pkx="${i}" value="${esc(t.lab)}" placeholder="${t.mixed?"labelled differently":"label every one"}" maxlength="80" aria-label="Label of the peak near ${esc(fmt(t.x,6))} in every spectrum"${ro}></td><td class="fx">${t.n>1?`<button class="tb sm icon" data-pkxt="${i}" title="Plot its position against the series" aria-label="Plot the position of the peak near ${esc(fmt(t.x,6))} against the series">${ICON("chart","sm")}</button>`:""}</td></tr>`).join("")}</tbody></table></div></section>`; }
   // 3 How they look
   if(f){ const sel=(id,opts,val,k)=>`<select id="${id}" data-pks="${k}"${ro}>${opts.map(([v,l])=>`<option value="${esc(String(v))}"${String(v)===String(val)?" selected":""}>${esc(l)}</option>`).join("")}</select>`;
     h+=`<section class="stepsec"><h3 class="gh">On the graph</h3><div class="frow">
@@ -10626,6 +10784,11 @@ function wirePeaks(box){
   on("#pkCopy",()=>copyText(foundTableText(activeYCol()),"Copied the peak table."));
   on("#pkCopyAll",()=>copyText(allFoundTableText(),"Copied every spectrum's peaks."));
   on("#pkEvery",findPeaksEvery);
+  on("#pkxCopy",()=>copyText(trackTableText(finalOf(activeYCol()).xu||""),"Copied every spectrum's peaks, matched."));
+  box.querySelectorAll("[data-pkx]").forEach(inp=>{ inp.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); inp.blur(); } });
+    inp.addEventListener("change",()=>labelTrack(+inp.dataset.pkx,inp.value)); });
+  box.querySelectorAll("[data-pkxt]").forEach(bt=>bt.onclick=()=>{ const t=markedTracks(finalOf(activeYCol()).xu||"").tracks[+bt.dataset.pkxt]; if(!t) return;
+    setSeries({q:`mk@${fmt(t.x,6)}.x`}); openWin("batch",{render:true}); });
   const fol=box.querySelector("#pkFollow"); if(fol) fol.onchange=()=>{ const p=P(), c=activeYCol(), f=foundOf(c); if(!p||!f||S.readOnly) return;
     pushUndo(fol.checked?"following the processing":"not following the processing");
     save({found:Object.assign({},p.found,{[c.id]:Object.assign({},f,{follow:fol.checked})})},fol.checked?`the peaks of ${specName(c)} follow the processing again`:`the peaks of ${specName(c)} no longer follow the processing`);
@@ -11408,6 +11571,8 @@ function flowInspectorBody(n){
       n.kind==="raw"?["Columns",`${esc(colLabel(xc,"X"))} and ${esc(colLabel(c,"Y"))}${ec?` with errors from ${esc(colLabel(ec,"error"))}`:""}`]:null]);
     h+=`<div class="actions">${btn("overview","Overview","info",{view:true})}${btn("sheet","Open the worksheet","table",{view:true})}${btn("rename","Rename…","edit")}${n.kind==="src"?btn("deldrv","Delete this spectrum","x",{ghost:true}):""}</div>`;
     if(n.kind==="raw") h+=`<p class="lab">${ICON("lock","sm")} Locked. Type over a value in the Raw sheet to correct it.</p>`;
+    const mk=Object.keys(c.meta||{});
+    if(n.kind==="raw"&&(c.file||mk.length)) h+=`<details class="grp" data-fopen="cmeta"${S.fOpen&&S.fOpen.cmeta?" open":""}><summary>From ${c.file?esc(c.file):"its file"} <span class="sum">${mk.length} field${mk.length===1?"":"s"}</span></summary><div class="gb">${mk.length?`<table class="metatbl">${mk.slice(0,80).map(k=>`<tr><td>${esc(k)}</td><td>${esc(c.meta[k])}</td></tr>`).join("")}</table>`:`<p class="lab">The file had no header fields.</p>`}</div></details>`;
     return h;
   }
   if(n.kind==="final"){
@@ -11637,7 +11802,7 @@ async function pyRun(code,d,opt){
   await pyStart();
   const spectra={}, ids={};
   yCols().forEach(c=>{ if(opt.target&&usesSpectrum(c,opt.target)) return; const f=finalOf(c); let k=specName(c), n=2; while(spectra[k]) k=specName(c)+" ("+(n++)+")"; spectra[k]=[f.x,f.y]; ids[k]=c.id; });
-  const input=JSON.stringify({x:d.x,y:d.y,e:d.e||null,names:[d.xn||"",d.xu||"",d.yn||"",d.yu||""],meta:(P()&&P().meta)||{},spectra});
+  const input=JSON.stringify({x:d.x,y:d.y,e:d.e||null,names:[d.xn||"",d.xu||"",d.yn||"",d.yu||""],meta:Object.assign({},(P()&&P().meta)||{},(opt.target||{}).meta||{}),spectra});
   const id=++PYE.seq;
   const m=await new Promise(res=>{ PYE.wait[id]=res; PYE.w.postMessage({type:"run",id,code,input,prelude:PY_PRELUDE,epilogue:PY_EPILOGUE}); });
   if(m.type==="error"){ const err=new Error(pyErrText(m.error)); err.log=m.log||""; throw err; }
@@ -12178,6 +12343,7 @@ ${DL([["Add as a new Y column","Keeps what is there. A spectrum on a different X
 <p>Choose or drop several files together, or import one file whose columns are several spectra (its <em>Spectra</em> list says <em>All … Y columns</em>). Each is read the way the dialog would read it alone, then listed with its points and X range and a name to change. Then:</p>
 ${DL([["Into","This project, beside what is there, or a new project."],["Graphs","One for each spectrum, all in one graph, or all in one graph stacked. "+DA("graphs","Several graphs")]])}
 <p>It is one change: one Undo, one line in the log, one entry in the raw-data record. Spectra measured on the same X share a column; one on a different axis gets its own, so nothing is interpolated. A file that cannot be read is listed with the reason and left out.</p>
+<p>Each spectrum keeps the name of its file and the fields of its header (its Raw data box in the History lists them). Fields that differ between the files, such as a temperature or the time each was taken, are offered as what the ${DA("batch","Batch window")} plots against.</p>
 <h2>What is refused</h2>
 <p>Binary instrument files (SPC, OPUS, SPE) are refused with a reason. Export them as text from the instrument software first. JCAMP-DX is not read yet.</p>
 <p>After an import the ${DA("overview","Overview")} opens. Its <em>Show the overview after every import</em> box turns that off.</p>`},
@@ -12396,7 +12562,7 @@ ${DL([["Points","How many, any missing, repeated X values, gaps."],["X","The ran
 <h2>First steps</h2>
 <p>From that, suggestions in the order they belong: sort, average repeats, remove spikes, resample, subtract the background, and smooth only if the narrowest band spans 7 points or more. Each opens its tool with settings measured from the data; nothing is recorded until you press OK there. A suggestion already done is ticked.</p>
 <p><em>As recorded</em> and <em>After processing</em> switch between the raw and final data. It opens after every import; its checkbox turns that off. Also in ${MP("Analysis › Overview…")} and a spectrum's raw box in the History.</p>`},
-{id:"peaks", g:"Analysis", t:"Finding and labelling peaks", win:"peaks", kw:"peaks find mark label symbol drop line vertical leader table threshold every spectrum follow processing",
+{id:"peaks", g:"Analysis", t:"Finding and labelling peaks", win:"peaks", kw:"peaks find mark label symbol drop line vertical leader table threshold every spectrum follow processing across matched series same peak label all",
  lead:"Find the peaks of a spectrum, mark them on the graph and type a label for each, without fitting anything.",
  body:`<h2>Finding them</h2>
 <p>${MP("Analysis › Find peaks…")} searches the analysed spectrum's final data in view, after a straight baseline through its lowest points, and marks every peak that passes. Change a setting and it searches again at once. ${DA("finder","The finder's settings")}</p>
@@ -12408,6 +12574,9 @@ ${DL([["Mark each with","A symbol, a drop line, a vertical line, a leader, or no
 <p>Drag a label to move it; double-click it to type. <code>{x}</code> in a label stands for the position.</p>
 <h2>Following the processing</h2>
 <p>When the spectrum's processing changes, the set is found again with its own settings, and your labels stay with the peaks that are still there, even through a change of X units. A label whose peak is no longer found is kept, and comes back when it is. Untick <em>Find them again whenever the processing changes</em> to freeze the set.</p>
+<h2 id="across">Across the spectra</h2>
+<p>When several spectra on the same X axis have peaks marked, <em>Across the spectra</em> lists each peak once, matched between the spectra by position: a peak joins the nearest one of the spectrum before it, if within half the larger of their widths, so a band that drifts along the series stays one row. Each row says where the peak is, how far it moves, and in how many spectra it is found; rows the analysed spectrum lacks are greyed.</p>
+${DL([["Label in every one","Type once: the peak is labelled so in every spectrum that has it, in one undo step."],["The chart button","Plots the peak's position against the series in the "+DA("batch","Batch window")+", with no fit needed; its value at the peak is there too."],["Copy","One table: a row per spectrum, a column per peak."]])}
 <h2>Then</h2>
 <p><em>Fit these peaks…</em> sends them to the ${DA("peakfit","peak fit")}; <em>Integrate them</em> puts a ${DA("integ","band")} around each. Both are optional: the peaks stay marked either way, in the figure, the exports and the report.</p>`},
 {id:"finder", g:"Analysis", t:"The peak finder's settings", kw:"peak finder threshold signal to noise snr percent decades log scale smoothing narrowest closest at most derivative shoulder turned down reasons",
@@ -12524,7 +12693,7 @@ ${DL([["Reduced χ²","The residual sum of squares over the degrees of freedom (
 <h2>History</h2>
 <p>Every fit is kept with its numbers, the processing it was made on and a thumbnail, to compare or bring back. <em>Copy</em> gives the tables as tab-separated text.</p>
 <p>With a batch fit, Results shows the analysed spectrum's own fit. ${DA("batch","Fitting every spectrum")}</p>`},
-{id:"batch", g:"Fitting", t:"Fitting every spectrum", win:"batch", kw:"batch fit every spectrum all series trend temperature time concentration pressure table parameter against sample slope straight line chain template summary",
+{id:"batch", g:"Fitting", t:"Fitting every spectrum", win:"batch", kw:"batch fit every spectrum all series trend temperature time concentration pressure table parameter against sample slope straight line chain template summary global shared together simultaneous metadata header file trend graph desk right axis two axes matched",
  lead:"Fit one spectrum, then every spectrum from it, and compare them in one table and a trend plot: a peak's position against temperature, an area against time.",
  body:`<h2>From one fit to all of them</h2>
 <ol class="dsteps"><li>Fit one spectrum, a peak fit or a curve fit, until you are happy with it. ${DA("fit","Fitting")}</li>
@@ -12532,13 +12701,21 @@ ${DL([["Reduced χ²","The residual sum of squares over the degrees of freedom (
 <li>Choose where each fit starts, and OK. The Batch window shows the progress; <em>Stop</em> keeps what is done.</li></ol>
 <p>That fit is the template: its peaks with their shapes, ties and fixed parameters and its baseline (or its curve model), its X range and its weighting. Every spectrum measured on the same X axis is fitted with it, each on its own final data with its own masked points, by the same engine and with the same checks as a fit made by hand.</p>
 ${DL([["This fit's result","Every spectrum starts from the template's numbers. For samples that differ little."],["The one before it in the series","For a series that drifts, such as a band moving with temperature: the fit starts at the template's spectrum and runs out both ways, each spectrum starting from its neighbour's result."],["The peaks found in each spectrum","For different samples: the peak finder, with its current settings, finds each spectrum's peaks, which are then fitted with the template's first shape and its baseline."]])}
+<h2 id="global">Fitting them together</h2>
+<p><em>Fit them: Together, sharing parameters</em> makes one fit of every spectrum at once, a global fit: the parameters ticked take one value for all the spectra, and the rest are each spectrum's own. Share what the physics says is common (a band's position and width in a reaction, a lifetime in a set of decays) and let the rest vary (the areas). A shared value is measured from every spectrum's points, so its error is smaller than any one fit's, and the other parameters no longer trade off against it.</p>
+${DL([["Centres, Widths, Areas, Shapes, Baseline","Tick a kind to share it for every peak; <em>Parameter by parameter</em> picks them one at a time. A curve model lists its parameters."],["Fixed and tied parameters","Stay as they are in the template: fixed for every spectrum, or following their peak in each."],["How it starts","Each spectrum is first fitted with the shared parameters held at the template's values, so its own parameters start where they belong; then all are fitted together. A band absent from one spectrum gets an area near zero there."]])}
+<p>The dialog counts the parameters fitted at once: the shared ones, plus each spectrum's own times the number of spectra. Each spectrum's row is then a fit like any other, marked <em>together with</em> the others; its errors come from the covariance of the whole fit, scaled by the reduced χ² of them all when there are no weights, and Results lists the parameters it shares. Every row depends on every spectrum, so a change to any of them puts the whole fit out of date. A fit made by hand afterwards is shown for its spectrum, but does not replace its row.</p>
 <h2>The results</h2>
 <p>Each spectrum's fit is a fit like any other. The graph draws it, on every graph that shows the spectrum; Results shows it, with every note, when that spectrum is analysed; the History has a Fits box for it. Fitting one spectrum again by hand, with the same model, replaces its row. A row whose spectrum's processing or masked points have changed is marked out of date; <em>Fit again</em> fits them all with the same template.</p>
 <h2>The table</h2>
-<p>One row per spectrum, in the order of the series, with a mark for fitted, fitted with notes (hover to read them), or not fitted and why. The columns are each peak's centre, height, FWHM, area and share of the area, or each parameter of a curve model and what is derived from it; R² and reduced χ²; and each band's integral and ratio, which need no fit (${DA("integ","Integrating bands")}). Click a spectrum's name to work on it. <em>Copy</em> gives the table as tab-separated text; ⋯ exports it as CSV.</p>
+<p>One row per spectrum, in the order of the series, with a mark for fitted, fitted with notes (hover to read them), or not fitted and why. The columns are each peak's centre, height, FWHM, area and share of the area, or each parameter of a curve model and what is derived from it; R² and reduced χ²; and each band's integral and ratio, which need no fit (${DA("integ","Integrating bands")}). After a global fit a shared quantity says so in its heading. With the peaks found in each spectrum, the fits do not number their peaks alike: their peaks are matched by position across the series (a band can drift), and each column is a <em>peak near</em> a position, with how many spectra have it. Peaks marked in the Peaks window are matched the same way and give their positions with no fit at all (${DA("peaks#across","Across the spectra")}). Click a spectrum's name to work on it. <em>Copy</em> gives the table as tab-separated text; ⋯ exports it as CSV.</p>
 <h2>The trend</h2>
-${DL([["Plot","Any column of the table."],["Against: their order","1, 2, 3… in the order of the spectra."],["Against: a number in their names","The number that varies most between the names, counted from the end: <em>Si 300 K</em> gives 300, <em>run 2, 45 min</em> gives 45. Give it a name and a unit."],["Against: values you type","Type each spectrum's value in the table."],["Straight line","A least-squares line through the points, weighted by their errors when every point has one: its slope and intercept with their errors, and R²."]])}
-<p>Error bars are the standard errors of the fit. Click a point to work on that spectrum. ⋯ saves the trend as SVG, and the report includes the table and the trend.</p>`},
+${DL([["Plot","Any column of the table."],["Against: their order","1, 2, 3… in the order of the spectra."],["Against: a number in their names","The number that varies most between the names, counted from the end: <em>Si 300 K</em> gives 300, <em>run 2, 45 min</em> gives 45. Give it a name and a unit."],["Against: values you type","Type each spectrum's value in the table."],["Against: a field of their files","Any field of the files' headers that most spectra have as a number and that differs between them: a temperature, a pressure, an exposure. A date and time becomes the time elapsed since the first spectrum, in seconds, minutes, hours or days as the span asks."],["Straight line","A least-squares line through the points, weighted by their errors when every point has one: its slope and intercept with their errors, and R²."]])}
+<p>Error bars are the standard errors of the fit. Click a point to work on that spectrum. ⋯ saves the trend as SVG, and the report includes the table and the trend.</p>
+<h2 id="desk">Trend graphs on the desk</h2>
+<p><em>On the desk</em>, beside the trend, or ${MP("Window › New graph › A trend of the series")} opens the trend as a graph of its own, which stays on the desk and follows the data as they change.</p>
+${DL([["+ Quantity","Add any column of the table; a quantity in other units goes to the right axis."],["L and R","Move a quantity between the left and the right axis. With two axes, an axis holding one quantity takes its colour."],["×","Take a quantity off the graph."],["Against","What every trend is plotted against, as in the Batch window."],["Lines","A straight line through each quantity, with its slope and intercept underneath."],["⋯","Rename, copy the numbers, save as SVG or PNG, delete."]])}
+<p>Click a point to work on that spectrum. The report has every trend graph. A quantity that is no longer there (the fit it came from was cleared) is shown greyed until it comes back or is taken off.</p>`},
 /* ---------------------------------------------------------------- Working together */
 {id:"disc", g:"Working together", t:"Comments and discussion", win:"disc", kw:"comment discussion thread reply resolve reopen badge point anchor note",
  lead:"Talk about the analysis where it happens: on a step, the raw data, a fit, or a point on the graph.",
@@ -12553,6 +12730,8 @@ ${TIP("Comments are shared only in a shared workspace. Used on its own, Kurve ke
  lead:"The methods behind the numbers, for the methods section of a paper.",
  body:`<h2>Fitting</h2>
 <p>Levenberg–Marquardt with a central-difference Jacobian, box bounds by projection, and the normal equations scaled by each parameter's own curvature, so models mixing areas of 10⁶ with widths of 10 converge. Standard errors from the covariance matrix; unweighted fits scale it by the reduced χ². Derived quantities (a peak's height, FWHM) carry errors by the delta method.</p>
+<h2>Global fits</h2>
+<p>Spectra fitted together are one Levenberg–Marquardt problem: the shared parameters once, each spectrum's own once per spectrum, and every spectrum's points laid end to end. A spectrum's own parameter moves only its points, so the Jacobian is computed and multiplied block by block and the work grows with the number of spectra rather than its square. Each spectrum is first fitted alone with the shared parameters held at the template's values; the errors come from the covariance of the whole fit.</p>
 <h2>Noise</h2>
 <p>σ is estimated from the second differences of the data, which a smooth band barely moves, and which are robust to a few outliers. It sets the peak finder's signal to noise, the band integrals' errors and the Overview's judgements.</p>
 <h2>Areas</h2>
@@ -12696,6 +12875,7 @@ function helpFor(win){
   if(win==="tool") return S.pending?"step-"+S.pending.step.op:"steps";
   if(win==="fit") return S.fitMode==="peaks"?"peakfit":"curvefit";
   if(graphOfWin(win)) return multiGraph()?"graphs":"graph";
+  if(WINS[win]&&WINS[win].trend) return "batch#desk";
   return WIN_DOC[win]||"start";
 }
 function frontWin(){ return Object.keys(WINS).filter(id=>winOpen(id)&&id!=="help").sort((a,b)=>winState(b).z-winState(a).z)[0]; }
@@ -12897,6 +13077,7 @@ function renderWin(id){
   else if(id==="py") renderPy();
   else if(id==="stats") renderStats();
   else if(id==="batch") renderBatch();
+  else if(WINS[id]&&WINS[id].trend) renderTrendWin(id);
   else if(id==="tool") renderTool();
 }
 /* Tile: the graph takes the left three fifths, the others share the rest in
@@ -12935,6 +13116,7 @@ function renderTaskbar(){
   // With a few graphs each has a button; with more, one button lists them.
   const extra=graphWinIds().slice(1), many=extra.length>3, gf=graphWinIds().includes(front);
   let order=WIN_ORDER.slice(); if(extra.length&&!many) order.splice(1,0,...extra);
+  const tw=trendWinIds(); if(tw.length) order.splice(order.indexOf("batch")+1,0,...tw);
   let h=order.concat(winOpen("help")?["help"]:[]).map(id=>{ const on=winOpen(id), badge=winBadge(id);
     if(id==="graph"&&many) return `<button class="tk${gf?" front":""}" data-tk-graphs aria-haspopup="menu" title="The ${extra.length+1} graphs">${ICON("chart","sm")}<span>Graphs</span><span class="badge">${extra.length+1}</span></button>`;
     return `<button class="tk${on&&id===front?" front":""}" data-tk="${id}" aria-pressed="${on}" title="${esc(on?(id===front?"Minimise":"Bring to the front"):"Open")} the ${esc(WINS[id].title)} window">${ICON(WINS[id].icon,"sm")}<span>${esc(WINS[id].title)}</span>${badge}</button>`; }).join("");
@@ -13026,14 +13208,19 @@ function windowItems(){
 const SEEDS={tmpl:"each started from the template's result",chain:"each started from the one before it",found:"each started from the peaks found in it"};
 function batchRowOf(cid){ const b=P()&&P().batch; return b&&cid?(b.rows||[]).find(r=>r.col===cid)||null:null; }
 function batchFitOf(c){ const r=c&&batchRowOf(c.id); return r&&r.fit&&fitModel(r.fit)?r.fit:null; }
-function laneFit(c){ const p=P(); if(p.fit&&fitModel(p.fit)&&p.fit.onCol===c.id) return p.fit; return batchFitOf(c); }
+function laneFit(c){ const p=P(), bf=batchFitOf(c); if(p.fit&&fitModel(p.fit)&&p.fit.onCol===c.id&&!(bf&&bf.global&&(bf.at||0)>(p.fit.at||0))) return p.fit; return bf; }
 function batchStale(f){ const c=colById(f.onCol); if(!c) return "The spectrum this fit was made on is gone.";
   if(f.maskSig!=null&&f.maskSig!==maskSig(c)) return "Points have been masked or restored since this fit.";
   if(f.pipeSig!=null&&f.pipeSig!==pipeSig(c)) return "The processing steps, or the raw data, have changed since this fit.";
+  // Every result of a global fit depends on every spectrum in it.
+  if(f.global){ const b=P()&&P().batch;
+    for(const r of (b&&b.rows)||[]){ if(!r.fit||!r.fit.global||r.col===f.onCol) continue; const c2=colById(r.col);
+      if(!c2) return "A spectrum of this global fit is gone, and every result of a global fit depends on all of them.";
+      if((r.fit.pipeSig!=null&&r.fit.pipeSig!==pipeSig(c2))||(r.fit.maskSig!=null&&r.fit.maskSig!==maskSig(c2))) return `${specName(c2)} has changed since this global fit, and every result of a global fit depends on all its spectra.`; } }
   return null; }
 const fitStaleFor=(f,c)=>!f.batch&&(!c||c===activeYCol())?fitStale(f):batchStale(f);
 // A fit by hand on a spectrum of the batch, with the batch's model, becomes its row.
-function batchWith(fit){ const p=P(), b=p&&p.batch; if(!b) return {}; const r=(b.rows||[]).find(q=>q.col===fit.onCol); if(!r) return {};
+function batchWith(fit){ const p=P(), b=p&&p.batch; if(!b||b.glob) return {}; const r=(b.rows||[]).find(q=>q.col===fit.onCol); if(!r) return {};
   const t=b.tmpl, same=t.kind==="composite"?fit.kind==="composite"&&(b.seed==="found"||(fit.spec.base===t.spec.base&&fit.spec.peaks.length===t.spec.peaks.length&&fit.spec.peaks.every((k,i)=>k.type===t.spec.peaks[i].type)))
     :fit.kind!=="composite"&&fit.model===t.model;
   if(!same) return {};
@@ -13082,6 +13269,92 @@ function batchFoundSeed(c,t){
     init[off+def.params.indexOf("A")]=peakAreaForHeight(def,init.slice(off,off+def.params.length),sd.h); });
   return {spec,seed:init};
 }
+/* A global fit: the spectra fitted at once, the parameters ticked shared (one
+   value for all) and the rest each spectrum's own, started from each
+   spectrum's fit on its own. Each spectrum's row is a normal fit with
+   global:true, shared (a flag per parameter) and gstats (the whole fit's
+   numbers); its errors come from the covariance of the whole fit. */
+const SHARE_KINDS=[["xc","Centres","centre","centres"],["w","Widths","width","widths"],["A","Areas","area","areas"],["shape","Shapes","shape parameter","shape parameters"],["base","Baseline","baseline","baseline"]];
+function shareKindOf(t,i){ if(t.kind!=="composite") return "par"; const s=compileModel(t.spec,t.x0).slots[i]; if(!s) return null;
+  return s.kind==="base"?"base":s.name==="xc"?"xc":s.name==="A"?"A":/^w/.test(s.name)?"w":"shape"; }
+function tmplTied(t){ return t.kind==="composite"?new Set(peakLinks(t.spec.peaks,compileModel(t.spec,t.x0)).map(l=>l.gi)):new Set(); }
+function tmplParamName(t,i){
+  if(t.kind==="composite"){ const s=compileModel(t.spec,t.x0).slots[i]; if(!s) return `parameter ${i+1}`; if(s.kind==="base") return `baseline ${s.name}`;
+    const pd=PEAKS[((t.spec.peaks||[])[s.peak]||{}).type]||PEAKS.gauss; return `peak ${s.peak+1} ${lcFirst((pd.labels&&pd.labels[s.name])||PARAM_LABEL[s.name]||s.name)}`; }
+  let m=null; try{ m=t.fn?userModel(t.fn):getModel(t.model); }catch(e){} const ph=m&&(m.ph||[])[i]; return ph?phPlain(ph):((m&&m.params[i])||`parameter ${i+1}`); }
+const andList=a=>a.length<2?a.join(""):a.slice(0,-1).join(", ")+" and "+a[a.length-1];
+// "the centres and widths", or the parameters one by one.
+function shareSummary(t,share){
+  const tied=tmplTied(t), can=i=>!t.fixed[i]&&!tied.has(i), idx=share.map((s,i)=>s&&can(i)?i:-1).filter(i=>i>=0); if(!idx.length) return "nothing";
+  if(t.kind!=="composite") return andList(idx.map(i=>tmplParamName(t,i)));
+  const left=new Set(idx), parts=[];
+  SHARE_KINDS.forEach(([k,,one,many])=>{ const all=t.params.map((_,i)=>i).filter(i=>can(i)&&shareKindOf(t,i)===k);
+    if(all.length&&all.every(i=>share[i])){ parts.push(all.length>1&&k!=="base"?`every ${one}`:`the ${one}`); all.forEach(i=>left.delete(i)); } });
+  return andList(parts.concat([...left].map(i=>tmplParamName(t,i))));
+}
+function fitTogether(list,t,share){
+  const comp=t.kind==="composite", K=list.length; let m=null, mdl=null, L=[];
+  const fixedT=t.fixed.slice();
+  if(comp){ m=compileModel(t.spec,t.x0); if(m.n!==t.params.length) return {fail:"the model and its values do not match"}; L=peakLinks(t.spec.peaks,m); L.forEach(l=>{ fixedT[l.gi]=true; }); }
+  else { try{ mdl=t.fn?userModel(t.fn):getModel(t.model); }catch(e){ mdl=null; } if(!mdl) return {fail:"its model is no longer available"}; }
+  const sh=share.map((s,i)=>!!s&&!fixedT[i]), nSh=sh.filter(Boolean).length, nOwn=fixedT.filter((x,i)=>!x&&!sh[i]).length, total=nSh+K*nOwn;
+  if(!nSh) return {fail:"no parameter is shared"};
+  if(total>900) return {fail:`${total} parameters in all is more than one fit can carry; share more of them, or fit fewer spectra`};
+  const info=list.map(({c})=>{ const d=finalOf(c), pts=batchPts(c,t), he=!!(d.e&&d.e.some(v=>v!=null&&v>0)); return {c,pts,he,canW:he&&pts.every(q=>q.e>0)}; });
+  // Weighted only if every spectrum can be: a mixture would weigh some spectra by their errors and others by nothing.
+  const useW=t.weighted&&info.every(z=>z.canW);
+  const sets=[], p0s=[], lo=[], hi=[], pscale=[];
+  info.forEach((z,k)=>{ const X=z.pts.map(q=>q.x), Y=z.pts.map(q=>q.y); sets.push({X,Y,W:z.pts.map(q=>useW?1/q.e:1)});
+    let seed=list[k].seed; if(!seed||seed.length!==t.params.length||!seed.every(Number.isFinite)) seed=t.params.slice();
+    seed=seed.map((v,i)=>t.fixed[i]?t.params[i]:v);
+    if(comp){ applyPeakLinks(seed,L); const b=modelBounds(t.spec,m,seed); lo.push(b.lo); hi.push(b.hi);
+      let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; X.forEach(v=>{ if(v<x0) x0=v; if(v>x1) x1=v; }); Y.forEach(v=>{ if(v<y0) y0=v; if(v>y1) y1=v; });
+      const span=(x1-x0)||1, ys=(y1-y0)||1, ps=seed.map(v=>Math.abs(v)||1);
+      m.slots.forEach((s,i)=>{ if(s.kind==="peak"){ if(s.name==="xc") ps[i]=span; else if(s.name==="A") ps[i]=ys*span; else if(/^w/.test(s.name)) ps[i]=span/20; } }); pscale.push(ps); }
+    else { lo.push(mdl.lo||null); hi.push(mdl.hi||null); }
+    p0s.push(seed); });
+  const ref=Math.max(0,list.findIndex(q=>q.c.id===t.from)), f=comp?(x,v)=>m.f(x,v):(x,v)=>mdl.f(x,v);
+  let r; try{ r=globalFit(sets,f,p0s,sh,fixedT,{lo,hi,pscale:comp?pscale:null,ref,start:t.params,prep:L.length?(v=>applyPeakLinks(v,L)):null}); }
+  catch(e){ return {fail:"the fit stopped with an error: "+(e&&e.message||e)}; }
+  if(r.error) return {fail:r.error};
+  const g=r.stats, at=Date.now(), gstats={K, n:g.n, dof:g.dof, chi2:g.chi2, redChi2:Number.isFinite(g.redChi2)?g.redChi2:null, R2:Number.isFinite(g.R2)?g.R2:null, m:r.m, sh:nSh, own:nOwn, iter:g.iter, converged:g.converged};
+  const rows=info.map((z,k)=>{ let res=r.sets[k]; if(comp) res=linkResult(res,L);
+    if(!res.params.every(Number.isFinite)) return {col:z.c.id,fit:null,fail:"the fit diverged"};
+    const X=sets[k].X; let x0=Infinity,x1=-Infinity; X.forEach(v=>{ if(v<x0) x0=v; if(v>x1) x1=v; });
+    const st=Object.assign({},res.stats); ["redChi2","R2","adjR2","rmse"].forEach(q=>{ if(!Number.isFinite(st[q])) st[q]=null; });
+    const fit=Object.assign(comp?{kind:"composite",spec:clone(t.spec),x0:m.x0,fixed:t.fixed.slice()}:Object.assign({model:t.model,fixed:t.fixed.slice()},t.fn?{fn:clone(t.fn)}:{}),
+      {params:res.params,errors:res.errors,cov:res.cov,dep:finOrNull(res.dep),pval:finOrNull(res.pval),tval:finOrNull(res.tval),ci:finOrNull(res.ci),atBound:res.atBound,stats:st,
+       onCol:z.c.id,onColName:z.c.name||"",maskSig:maskSig(z.c),pipeSig:pipeSig(z.c),rawFp:rawFp(),hadErrCol:z.he,range:[x0,x1],weighted:useW,by:S.uid||"",at,batch:true,
+       global:true,shared:sh.slice(),gstats});
+    return {col:z.c.id,fit,fail:null}; });
+  return {rows,glob:{share:sh.slice(),stats:gstats}};
+}
+/* A header field as a number: a date and time (in ms), a time of day, or the
+   first number in it with what follows as its unit ("300 K", "Exposure = 10 s",
+   "785nm"). The keys worth plotting against are those that most spectra have,
+   as numbers, and that differ between them. */
+function metaParse(v){ let s=String(v==null?"":v).trim(); if(!s) return null;
+  let m=/(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ]+(\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?)?/.exec(s);
+  if(m) return {t:Date.UTC(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0),0)+(+(m[6]||0))*1000};
+  m=/^(\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?(\s*[AaPp][Mm])?$/.exec(s);
+  if(m){ let h=+m[1]; if(m[4]){ const pm=/p/i.test(m[4]); if(h===12) h=pm?12:0; else if(pm) h+=12; } return {t:(h*3600+ +m[2]*60+ +(m[3]||0))*1000}; }
+  if(/\d{1,2}:\d{2}/.test(s)&&/[A-Za-z]{3}|\d{1,2}[\/.]\d{1,2}[\/.]\d{2,4}/.test(s)){ const t=Date.parse(s); if(Number.isFinite(t)) return {t}; }
+  if(!s.includes(".")) s=s.replace(/(\d),(\d)/,"$1.$2");
+  m=/^[^\d+\-.]*?([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)\s*(.*)$/.exec(s); if(!m) return null;
+  const x=parseFloat(m[1]); if(!Number.isFinite(x)) return null;
+  let u=m[2].trim().replace(/^[\[(]|[\])]$/g,""); if(u.length>12||/\d/.test(u)||/\s/.test(u)) u=""; return {v:x,u}; }
+function metaKeys(cols){
+  const n={}, vals={};
+  cols.forEach(c=>{ Object.keys(c.meta||{}).forEach(k=>{ const q=metaParse(c.meta[k]); if(!q) return; n[k]=(n[k]||0)+1; (vals[k]=vals[k]||new Set()).add(q.t!=null?"t"+q.t:"v"+q.v); }); });
+  return Object.keys(n).filter(k=>n[k]>=2&&vals[k].size>1).sort((a,b)=>n[b]-n[a]||a.localeCompare(b)).map(k=>({k,n:n[k]})); }
+// A field's values for the spectra, and their unit: elapsed time since the first for dates.
+function metaSeries(cols,key){ const ps=cols.map(c=>metaParse((c.meta||{})[key]));
+  if(ps.some(q=>q&&q.t!=null)){ const ts=ps.map(q=>q&&q.t!=null?q.t:null), ok=ts.filter(v=>v!=null), t0=Math.min(...ok), span=(Math.max(...ok)-t0)/1000;
+    const [u,k]=span<=180?["s",1]:span<=3*3600?["min",60]:span<=72*3600?["h",3600]:["d",86400];
+    return {vals:ts.map(t=>t==null?null:(t-t0)/1000/k),unit:u,time:true}; }
+  const us=[...new Set(ps.filter(q=>q&&q.u).map(q=>q.u))];
+  return {vals:ps.map(q=>q?q.v:null),unit:us.length===1?us[0]:"",time:false}; }
+function seriesUnit(s){ s=s||seriesOf(); return s.mode==="order"?"":s.mode==="meta"?(s.unit||metaSeries(yCols(),s.key).unit):s.unit; }
 /* The variable a series runs over: the order of the spectra, a number in their
    names (a temperature, a time, a concentration), or values typed in. */
 const SERIES_DEF={mode:"order",label:"",unit:"",vals:{},q:null,line:false};
@@ -13096,30 +13369,54 @@ function numsInName(s){ s=String(s||""); const out=[], re=/(\d+(?:\.\d+)?|\.\d+)
 // that varies most between them, counted from the end ("s1_300K", "s2_310K" → 300, 310).
 function seriesVals(cols,s){ s=s||seriesOf();
   if(s.mode==="typed") return cols.map(c=>{ const v=s.vals[c.id]; return typeof v==="number"&&Number.isFinite(v)?v:null; });
+  // From the files, measured from every spectrum, so elapsed time counts from the first of them all.
+  if(s.mode==="meta"){ const all=yCols(), v=metaSeries(all,s.key).vals, at=new Map(all.map((c,i)=>[c.id,v[i]])); return cols.map(c=>at.has(c.id)?at.get(c.id):null); }
   if(s.mode==="name"){ const ns=cols.map(c=>numsInName(specName(c))), mx=ns.reduce((m,a)=>Math.max(m,a.length),0); let best=0, bd=-1;
     for(let j=0;j<mx;j++){ const d=new Set(ns.filter(a=>a.length>j).map(a=>a[a.length-1-j])).size; if(d>bd){ bd=d; best=j; } }
     return ns.map(a=>a.length>best?a[a.length-1-best]:null); }
   return cols.map((c,i)=>i+1); }
-function seriesLabel(s){ s=s||seriesOf(); const l=s.mode==="order"?"Order":(s.label||(s.mode==="name"?"Number in the name":"Value")); return axisLabel(l,s.mode==="order"?"":s.unit,l); }
+function seriesLabel(s){ s=s||seriesOf(); const l=s.mode==="order"?"Order":(s.label||(s.mode==="name"?"Number in the name":s.mode==="meta"?(s.key||"Value")+(metaSeries(yCols(),s.key).time?", elapsed":""):"Value")); return axisLabel(l,seriesUnit(s),l); }
 // The spectra of the series, in the order of their values.
 function seriesCols(){ const ys=yCols(), v=seriesVals(ys); return ys.map((c,i)=>({c,v:v[i],i})).sort((a,b)=>(a.v??Infinity)-(b.v??Infinity)||a.i-b.i); }
 function setSeries(patch,log){ const p=P(); if(!p||S.readOnly) return; if(log) pushUndo("changing the series");
-  save({series:Object.assign(seriesOf(),patch)},log||null); renderBatch(); }
+  save({series:Object.assign(seriesOf(),patch)},log||null); renderBatch(); trendWinIds().forEach(id=>{ if(winOpen(id)) renderTrendWin(id); }); }
 async function openBatchDialog(){
   const p=P(), f=activeFit(); if(!p||S.readOnly) return;
   if(S.batchRun){ openWin("batch",{render:true}); return; }
   if(!f){ toast("Fit one spectrum first: its fit is the template for the others."); S.fitMode=S.fitMode||"peaks"; showTab("fit"); return; }
   const t=batchTemplate(f), src=colById(t.from), ys=yCols().filter(c=>(finalOf(c).xu||"")===(t.xu||""));
   if(ys.length<2){ toast("There is no other spectrum on the same X axis to fit."); return; }
-  const comp=t.kind==="composite";
-  const r=await formDlg({title:`Fit ${ys.length} spectra`,ok:`Fit ${ys.length} spectra`,
+  const comp=t.kind==="composite", K=ys.length, tied=tmplTied(t), can=i=>!t.fixed[i]&&!tied.has(i), kind=i=>shareKindOf(t,i);
+  const prev=P().batch&&P().batch.glob&&P().batch.glob.share&&P().batch.glob.share.length===t.params.length?P().batch.glob.share:null;
+  const def=i=>can(i)&&(prev?!!prev[i]:comp&&(kind(i)==="xc"||kind(i)==="w"));
+  const kinds=comp?SHARE_KINDS.filter(([k])=>t.params.some((_,i)=>can(i)&&kind(i)===k)):[];
+  const prow=i=>`<label class="bfp"><input type="checkbox" id="bfP${i}" data-k="${kind(i)}"${def(i)?" checked":""}${can(i)?"":" disabled"}> ${esc(tmplParamName(t,i))}${t.fixed[i]?' <span class="lab">fixed</span>':tied.has(i)?' <span class="lab">tied</span>':""}</label>`;
+  const plist=`<div class="bfps">${t.params.map((_,i)=>prow(i)).join("")}</div>`;
+  const shared=r=>t.params.map((_,i)=>can(i)&&!!r["bfP"+i]);
+  const count=r=>{ const sh=shared(r).filter(Boolean).length, own=t.params.filter((_,i)=>can(i)).length-sh; return {sh,own,tot:sh+K*own}; };
+  const pr=formDlg({title:`Fit ${K} spectra`,ok:`Fit ${K} spectra`,
     html:`<p class="lab" style="margin:0 0 12px">With ${esc(lcFirst(t.name))}, as fitted to ${esc(specName(src))}${t.range?`, over x ${esc(fmt(Math.min(...t.range),6))} to ${esc(fmt(Math.max(...t.range),6))}`:""}${t.weighted?", weighted by the Y errors":""}.</p>
-    <div class="grid2"><label for="bfSeed">Start each from</label><select id="bfSeed"><option value="tmpl">This fit's result</option><option value="chain">The one before it in the series</option>${comp?`<option value="found">The peaks found in each spectrum</option>`:""}</select></div>`});
+    <div class="grid2"><label for="bfSeed">Start each from</label><select id="bfSeed"><option value="tmpl">This fit's result</option><option value="chain">The one before it in the series</option>${comp?`<option value="found">The peaks found in each spectrum</option>`:""}</select>
+    <label for="bfHow" class="tipd" title="Together: one fit of every spectrum at once, the parameters ticked below taking one value for all of them (a global fit)">Fit them</label><select id="bfHow"><option value="each">Each on its own</option><option value="global"${prev?" selected":""}>Together, sharing parameters</option></select></div>
+    <div id="bfShare" hidden><div class="lab">Shared by every spectrum</div>
+    ${comp?`<div class="bfk">${kinds.map(([k,l])=>`<label class="bfp"><input type="checkbox" id="bfK_${k}" data-kind="${k}"> ${l}</label>`).join("")}</div><details><summary>Parameter by parameter</summary>${plist}</details>`:plist}
+    <p class="lab" id="bfCount" aria-live="polite"></p></div>`,
+    valid:r=>{ if(r.bfHow!=="global"||r.bfSeed==="found") return true; const n=count(r); return n.sh>0&&n.tot<=900; }});
+  const body=$("#formBody"), how=$("#bfHow"), seed=$("#bfSeed"), box=$("#bfShare"), modal=$("#formModal");
+  const sync=()=>{ const found=seed.value==="found"; how.disabled=found; const g=how.value==="global"&&!found; box.hidden=!g;
+    kinds.forEach(([k])=>{ const cb=$("#bfK_"+k), ps=[...body.querySelectorAll(`[data-k="${k}"]:not(:disabled)`)], n=ps.filter(x=>x.checked).length; if(cb){ cb.checked=n>0&&n===ps.length; cb.indeterminate=n>0&&n<ps.length; } });
+    const r={}; t.params.forEach((_,i)=>{ const el=$("#bfP"+i); r["bfP"+i]=!!(el&&el.checked); }); const n=count(r);
+    $("#bfCount").textContent=!g?"":!n.sh?"Tick what every spectrum shares.":`${n.sh} shared, ${n.own} for each spectrum: ${n.tot} parameters fitted at once.${n.tot>900?" That is too many: share more, or fit fewer spectra.":""}`; };
+  // On this dialog's own elements: #formBody outlives it, and serves the next dialog.
+  const onCh=e=>{ const k=e.target.dataset&&e.target.dataset.kind; if(k) body.querySelectorAll(`[data-k="${k}"]:not(:disabled)`).forEach(x=>{ x.checked=e.target.checked; }); sync(); if(modal.oninput) modal.oninput(); };
+  [seed,how,box].forEach(el=>el.addEventListener("change",onCh));
+  sync(); if(modal.oninput) modal.oninput();
+  const r=await pr;
   if(!r) return;
-  runBatch({tmpl:t,seed:r.bfSeed,cols:ys.map(c=>c.id)});
+  runBatch({tmpl:t,seed:r.bfSeed,cols:ys.map(c=>c.id),share:r.bfHow==="global"&&r.bfSeed!=="found"?shared(r):null});
 }
 function batchAgain(){ const b=P()&&P().batch; if(!b||S.readOnly) return;
-  runBatch({tmpl:b.tmpl,seed:b.seed,cols:yCols().filter(c=>(finalOf(c).xu||"")===(b.tmpl.xu||"")).map(c=>c.id)}); }
+  runBatch({tmpl:b.tmpl,seed:b.seed,cols:yCols().filter(c=>(finalOf(c).xu||"")===(b.tmpl.xu||"")).map(c=>c.id),share:b.glob?b.glob.share:null}); }
 async function runBatch(o){
   const p=P(); if(!p||S.readOnly||S.batchRun) return; const pid=S.pid, t=o.tmpl;
   const want=new Set(o.cols), ord=seriesCols().map(q=>q.c).filter(c=>want.has(c.id));
@@ -13128,6 +13425,11 @@ async function runBatch(o){
   if(o.seed==="chain"){ const k0=Math.max(0,ord.findIndex(c=>c.id===t.from)); seq=[{c:ord[k0],from:null}];
     for(let i=k0+1;i<ord.length;i++) seq.push({c:ord[i],from:ord[i-1].id}); for(let i=k0-1;i>=0;i--) seq.push({c:ord[i],from:ord[i+1].id}); }
   S.batchRun={i:0,n:seq.length,stop:false,name:""}; openWin("batch",{render:true});
+  // Before a global fit each spectrum is fitted with the shared parameters held
+  // at the template's values: its own parameters then start where they belong
+  // with those values (a band absent from one spectrum gets an area near zero,
+  // not a width of 1e48).
+  const tf=o.share?Object.assign({},t,{fixed:t.fixed.map((x,i)=>x||!!o.share[i])}):t;
   const rows={}, t0=performance.now();
   for(let j=0;j<seq.length;j++){
     if(S.batchRun.stop||S.pid!==pid) break;
@@ -13135,38 +13437,82 @@ async function runBatch(o){
     await new Promise(res=>setTimeout(res,0));
     let res;
     try{ if(o.seed==="found"&&t.kind==="composite"){ const sd=batchFoundSeed(c,t); res=sd.fail?sd:fitOne(c,t,sd.seed,sd.spec); }
-      else { const prev=from&&rows[from]&&rows[from].fit; res=fitOne(c,t,prev?prev.params.slice():t.params.slice()); } }
+      else { const prev=from&&rows[from]&&rows[from].fit; res=fitOne(c,tf,prev?prev.params.slice():t.params.slice()); } }
     catch(e){ res={fail:"the fit stopped with an error: "+(e&&e.message||e)}; }
     rows[c.id]={col:c.id,fit:res.fit||null,fail:res.fit?null:res.fail||"no result"};
   }
-  const stopped=!!(S.batchRun&&S.batchRun.stop); S.batchRun=null;
-  if(S.pid!==pid) return;
+  let stopped=!!(S.batchRun&&S.batchRun.stop), glob=null, gfail=null;
+  if(S.pid!==pid){ S.batchRun=null; return; }
+  // Together: every spectrum that could be fitted, from its own result.
+  if(o.share&&!stopped){
+    const elig=ord.filter(c=>{ const r=rows[c.id]; return r&&(r.fit||!/units|fewer than four|no longer available/.test(r.fail||"")); });
+    if(elig.length<2) gfail="fewer than two spectra could be fitted";
+    else { S.batchRun.i=seq.length-1; S.batchRun.name=`all ${elig.length} together`; S.batchRun.together=true; renderBatchProgress();
+      await new Promise(res=>requestAnimationFrame(()=>setTimeout(res,0)));
+      if(S.pid!==pid){ S.batchRun=null; return; }
+      const g=fitTogether(elig.map(c=>({c,seed:rows[c.id].fit?rows[c.id].fit.params:null})),t,o.share);
+      if(g.fail) gfail=g.fail; else { g.rows.forEach(r=>{ rows[r.col]=r; }); glob=g.glob; } } }
+  S.batchRun=null;
   const list=ord.filter(c=>rows[c.id]).map(c=>rows[c.id]);
   if(!list.length){ renderBatch(); return; }
   const done=list.filter(r=>r.fit).length, failed=list.length-done, nc=list.filter(r=>r.fit&&r.fit.stats&&r.fit.stats.converged===false).length;
-  pushUndo("fitting every spectrum");
-  save({batch:{at:Date.now(),by:S.uid||"",tmpl:t,seed:o.seed,rows:list}},`fitted ${lcFirst(t.name)} to ${list.length} spectra, ${SEEDS[o.seed]}: ${done} fitted${nc?`, ${nc} without converging`:""}${failed?`, ${failed} failed`:""}${stopped?"; stopped before the end":""}`);
+  pushUndo(glob?"fitting every spectrum together":"fitting every spectrum");
+  const how=glob?`together, sharing ${shareSummary(t,glob.share)} (reduced χ² ${fmt(glob.stats.redChi2,4)}, ${glob.stats.m} parameters)`:SEEDS[o.seed];
+  save({batch:{at:Date.now(),by:S.uid||"",tmpl:t,seed:o.seed,rows:list,glob}},`fitted ${lcFirst(t.name)} to ${list.length} spectra${glob?" ":", "}${how}: ${done} fitted${nc?`, ${nc} without converging`:""}${failed?`, ${failed} failed`:""}${stopped?"; stopped before the end":""}${gfail?`; the fit of them together failed (${gfail}), so each has its own, with the shared parameters held at the template's values`:""}`);
   renderAll(); openWin("batch",{render:true});
-  toast(`Fitted ${done} of ${list.length} spectra in ${((performance.now()-t0)/1000).toFixed(1)} s.${failed?` ${failed} failed; the table says why.`:""}`,{action:"Undo",run:undo});
+  toast(gfail?`Fitting them together failed: ${gfail}. Each spectrum keeps its own fit, with the shared parameters held at the template's values.`:`Fitted ${done} of ${list.length} spectra${glob?" together":""} in ${((performance.now()-t0)/1000).toFixed(1)} s.${failed?` ${failed} failed; the table says why.`:""}`,{action:"Undo",run:undo});
 }
-function batchProgHtml(){ const r=S.batchRun; if(!r) return ""; return `<span>Fitting ${r.i+1} of ${r.n}: ${esc(r.name)}…</span><span class="bar"><i style="width:${Math.round(100*r.i/Math.max(1,r.n))}%"></i></span><button class="btn sm" id="bStop">Stop</button>`; }
+function batchProgHtml(){ const r=S.batchRun; if(!r) return ""; if(r.together) return `<span>Fitting ${esc(r.name)}…</span><span class="bar"><i style="width:100%"></i></span>`; return `<span>Fitting ${r.i+1} of ${r.n}: ${esc(r.name)}…</span><span class="bar"><i style="width:${Math.round(100*r.i/Math.max(1,r.n))}%"></i></span><button class="btn sm" id="bStop">Stop</button>`; }
 function renderBatchProgress(){ const el=$("#bProg"); if(el){ el.innerHTML=batchProgHtml(); const s=$("#bStop"); if(s) s.onclick=()=>{ if(S.batchRun) S.batchRun.stop=true; }; } else if(winOpen("batch")) renderBatch(); }
 function clearBatch(){ const p=P(); if(!p||!p.batch||S.readOnly) return; pushUndo("clearing the batch fit"); save({batch:null},"cleared the batch fit"); renderAll(); toast("Batch fit cleared.",{action:"Undo",run:undo}); }
+/* The same peak across the spectra. With the peaks found in each spectrum, the
+   fits do not share a numbering: their usable peaks are matched by position
+   (matchPeakTracks), so a band can be followed even as it drifts. The peak
+   sets of the Peaks window are matched the same way, and need no fit. */
+const medianOf=a=>{ const s=a.filter(Number.isFinite).sort((x,y)=>x-y), h=s.length>>1; return !s.length?0:s.length%2?s[h]:(s[h-1]+s[h])/2; };
+function fitTracks(){
+  const b=P()&&P().batch; if(!b||b.seed!=="found") return [];
+  const cols=seriesCols().map(q=>q.c).filter(c=>{ const r=batchRowOf(c.id); return r&&r.fit&&fitModel(r.fit); });
+  const lists=cols.map(c=>peakMetrics(batchRowOf(c.id).fit).filter(r=>r.ok).map(r=>({x:r.xc,w:r.fwhm,k:r.k})));
+  return matchPeakTracks(lists,{dx:medianOf(lists.flat().map(q=>q.w))}).map(t=>({x:t.x,x0:t.x0,x1:t.x1,w:t.w,n:t.n,N:cols.length,byCol:Object.fromEntries(t.members.map(m=>[cols[m.s].id,lists[m.s][m.k].k]))}));
+}
+function markedTracks(xu){
+  const cols=seriesCols().map(q=>q.c).filter(c=>foundOf(c)&&peakGroup(c.id).length&&(finalOf(c).xu||"")===(xu||""));
+  const lists=cols.map(c=>peakRows(c));
+  const tracks=matchPeakTracks(lists,{dx:medianOf(lists.flat().map(q=>q.w))}).map(t=>{ const items=t.members.map(m=>({c:cols[m.s],r:lists[m.s][m.k]})), labs=new Set(items.map(it=>it.r.lab||""));
+    return {x:t.x,x0:t.x0,x1:t.x1,w:t.w,n:t.n,N:cols.length,items,lab:labs.size===1?[...labs][0]:"",mixed:labs.size>1,byCol:Object.fromEntries(items.map(it=>[it.c.id,it.r]))}; });
+  return {cols,tracks};
+}
+const trackName=t=>t.lab?`${t.lab} (${fmt(t.x,5)})`:`Peak near ${fmt(t.x,5)}`;
+// A quantity by id; a track's id holds its position, so the same band is found again after it moved a little.
+function qFind(qs,id){ const q=qs.find(z=>z.id===id); if(q||!id) return q||qs[0]; const m=/^(fk|mk)@([-0-9.e+]+)\.(\w+)$/.exec(id); if(!m) return qs[0];
+  const x=+m[2], best=qs.filter(z=>z.id.startsWith(m[1]+"@")&&z.id.endsWith("."+m[3])).map(z=>({z,d:Math.abs(z.tx-x)})).sort((a,b)=>a.d-b.d)[0];
+  return best&&best.d<=Math.max(best.z.tw||0,Math.abs(x)*1e-6)?best.z:qs[0]; }
 /* What the table and the trend can show: each peak's centre, height, FWHM, area
    and share, or each parameter of a curve model and what is derived from it,
    the fit statistics, and each band's integral and ratio (which need no fit). */
 function batchQuantities(){
   const p=P(), b=p&&p.batch, out=[];
   if(b&&b.tmpl){ const t=b.tmpl;
+    const sh=b.glob&&b.glob.share;
     if(t.kind==="composite"&&b.seed!=="found"){ const m=compileModel(t.spec,t.x0);
+      // Shared: a centre or area that is one parameter shared; a FWHM whose widths all are; a height whose area and widths all are.
+      const pkSh=(k,f)=>{ if(!sh) return false; const pd=PEAKS[t.spec.peaks[k].type]||PEAKS.gauss, o=m.offsets[k], is=nm=>!!sh[o+pd.params.indexOf(nm)];
+        return f==="xc"?is("xc"):f==="area"?is("A"):f==="fwhm"?pd.params.filter(nm=>/^w/.test(nm)).every(is):f==="height"?pd.params.filter(nm=>nm!=="xc").every(is):false; };
       t.spec.peaks.forEach((pk,k)=>{ const ctr=t.params[m.offsets[k]], g=`Peak ${k+1}`+(Number.isFinite(ctr)?` (${fmt(ctr,4)})`:"");
-        [["xc","centre","x"],["height","height","y"],["fwhm","FWHM","x"],["area","area","yx"],["areaPct","area %",""]].forEach(([f,l,dim])=>out.push({id:`pk${k}.${f}`,label:`${g} ${l}`,group:g,short:l,dim,peak:k,f})); }); }
-    else if(t.kind==="composite") out.push({id:"npk",label:"Peaks found",short:"Peaks found",dim:""});
+        [["xc","centre","x"],["height","height","y"],["fwhm","FWHM","x"],["area","area","yx"],["areaPct","area %",""]].forEach(([f,l,dim])=>out.push({id:`pk${k}.${f}`,label:`${g} ${l}`,group:g,short:l,dim,peak:k,f,shared:pkSh(k,f)})); }); }
+    else if(t.kind==="composite"){
+      fitTracks().filter(k=>k.n>=2).forEach(k=>{ const g=`Peak near ${fmt(k.x,5)}`+(k.n<k.N?` (${k.n} of ${k.N})`:"");
+        [["xc","centre","x"],["height","height","y"],["fwhm","FWHM","x"],["area","area","yx"],["areaPct","area %",""]].forEach(([f,l,dim])=>out.push({id:`fk@${fmt(k.x,6)}.${f}`,label:`${g} ${l}`,group:g,short:l,dim,trk:k,f,tx:k.x,tw:k.w})); });
+      out.push({id:"npk",label:"Peaks found",short:"Peaks found",dim:"",group:"Fit"}); }
     else { let m=null; try{ m=t.fn?userModel(t.fn):getModel(t.model); }catch(e){}
-      if(m){ m.params.forEach((nm,i)=>{ const l=((m.ph||[])[i]||nm).replace(/<[^>]+>/g,""); out.push({id:`par${i}`,label:l,short:l,dim:(m.dim||[])[i]||"",pi:i,group:"Parameters"}); });
+      if(m){ m.params.forEach((nm,i)=>{ const l=phPlain((m.ph||[])[i]||nm); out.push({id:`par${i}`,label:l,short:l,dim:(m.dim||[])[i]||"",pi:i,group:"Parameters",shared:!!(sh&&sh[i])}); });
         (m.derived||[]).forEach((dv,j)=>out.push({id:`der${j}`,label:dv.name,short:dv.name,dim:dv.dim||"",dj:j,group:"Derived"})); } }
     out.push({id:"R2",label:"R²",short:"R²",dim:"",group:"Fit"},{id:"chi2",label:"Reduced χ²",short:"χ²ᵣ",dim:"",group:"Fit"}); }
   const xu=b?b.tmpl.xu||"":(finalOf(activeYCol()).xu||""), ig=integOf();
+  // The marked peaks of the Peaks window, matched across the spectra.
+  markedTracks(xu).tracks.filter(k=>k.n>=2).forEach(k=>{ const g=`${trackName(k)}`+(k.n<k.N?` (${k.n} of ${k.N})`:""), mk={byCol:k.byCol};
+    out.push({id:`mk@${fmt(k.x,6)}.x`,label:`${g} position`,group:g,short:"position",dim:"x",mk,f:"x",tx:k.x,tw:k.w},{id:`mk@${fmt(k.x,6)}.y`,label:`${g} Y at the peak`,group:g,short:"Y at the peak",dim:"y",mk,f:"y",tx:k.x,tw:k.w}); });
   ig.bands.forEach((bd,k)=>{ if((bd.xu||"")!==xu) return; const nm=bandName(bd,k);
     out.push({id:`band.${bd.id}.area`,label:`${nm} area`,short:"area",group:nm,dim:"yx",band:bd.id,f:"area"});
     if(ig.ref&&ig.ref!==bd.id){ const rk=ig.bands.findIndex(z=>z.id===ig.ref); if(rk>=0) out.push({id:`band.${bd.id}.ratio`,label:`${nm} ÷ ${bandName(ig.bands[rk],rk)}`,short:`÷ ${bandName(ig.bands[rk],rk)}`,group:nm,dim:"",band:bd.id,f:"ratio"}); } });
@@ -13175,9 +13521,10 @@ function batchQuantities(){
 // One number of one spectrum, with its error when it has one.
 function batchValue(c,q){
   if(q.band){ const e=bandCalc(c).find(z=>z.b.id===q.band); if(!e||e.r.fail) return null; return q.f==="area"?{v:e.r.area,e:e.r.err}:(e.ratio!=null?{v:e.ratio,e:e.ratioErr}:null); }
+  if(q.mk){ const r=q.mk.byCol[c.id]; return r?{v:q.f==="x"?r.x:r.y}:null; }
   const r=batchRowOf(c.id), f=r&&r.fit; if(!f||!fitModel(f)) return null;
   if(q.id==="R2") return {v:f.stats.R2}; if(q.id==="chi2") return {v:f.stats.redChi2}; if(q.id==="npk") return {v:(f.spec.peaks||[]).length};
-  if(q.peak!=null){ const m=peakMetrics(f).find(z=>z.k===q.peak); if(!m) return null; return {v:m[q.f],e:{xc:m.xcErr,height:m.heightErr,fwhm:m.fwhmErr,area:m.areaErr}[q.f],bad:!m.ok}; }
+  if(q.peak!=null||q.trk){ const k=q.trk?q.trk.byCol[c.id]:q.peak; if(k==null) return null; const m=peakMetrics(f).find(z=>z.k===k); if(!m) return null; return {v:m[q.f],e:{xc:m.xcErr,height:m.heightErr,fwhm:m.fwhmErr,area:m.areaErr}[q.f],bad:!m.ok}; }
   if(q.pi!=null){ const bound=!!(f.atBound&&f.atBound[q.pi])&&!(f.fixed&&f.fixed[q.pi]); return {v:f.params[q.pi],e:bound||(f.fixed&&f.fixed[q.pi])?undefined:f.errors[q.pi],bound}; }
   if(q.dj!=null){ const FM=fitModel(f), dv=f.cov?derivedWithErr(FM.model,f.params,f.cov)[q.dj]:null; return dv?{v:dv.v,e:dv.e}:null; }
   return null;
@@ -13190,36 +13537,78 @@ function lineFit(xs,ys,es){ const n=xs.length; if(n<2) return null; const wt=es&
   const b=(S0*Sxy-Sx*Sy)/D, a=(Sxx*Sy-Sx*Sxy)/D, ym=Sy/S0; let rss=0,tss=0; xs.forEach((x,i)=>{ rss+=w[i]*(ys[i]-a-b*x)**2; tss+=w[i]*(ys[i]-ym)**2; });
   const s2=wt?1:(n>2?rss/(n-2):NaN);
   return {a,b,ea:Math.sqrt(s2*Sxx/D),eb:Math.sqrt(s2*S0/D),R2:tss>0?1-rss/tss:null,n,weighted:wt}; }
-function trendData(q){
-  const s=seriesOf(), pts=[];
+function trendData(q,line){
+  const s=seriesOf(), pts=[]; if(line===undefined) line=s.line;
   seriesCols().forEach(({c,v})=>{ if(v==null) return; const r=batchValue(c,q); if(!r||!Number.isFinite(r.v)) return; pts.push({x:v,y:r.v,e:Number.isFinite(r.e)?r.e:null,c}); });
-  const fit=s.line&&pts.length>=2?lineFit(pts.map(q=>q.x),pts.map(q=>q.y),pts.every(q=>q.e>0)?pts.map(q=>q.e):null):null;
+  const fit=line&&pts.length>=2?lineFit(pts.map(q=>q.x),pts.map(q=>q.y),pts.every(q=>q.e>0)?pts.map(q=>q.e):null):null;
   return {pts,fit,s};
 }
-function trendSvg(tr,q,W,H,pal,forExport){
-  const pts=tr.pts, L=66, R=16, T=14, B=44, pw=W-L-R, ph=H-T-B, fam="'Source Sans 3', 'Segoe UI', Arial, sans-serif";
-  let s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(q.label)} against ${esc(seriesLabel(tr.s))}"><rect width="${W}" height="${H}" fill="${pal.bg}"/>`;
-  if(!pts.length) return s+`<text x="${W/2}" y="${H/2}" text-anchor="middle" font-size="13" fill="${pal.muted}" font-family="${fam}">No values to plot yet</text></svg>`;
-  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; pts.forEach(p=>{ x0=Math.min(x0,p.x); x1=Math.max(x1,p.x); y0=Math.min(y0,p.y-(p.e||0)); y1=Math.max(y1,p.y+(p.e||0)); });
-  if(x0===x1){ x0-=1; x1+=1; } if(y0===y1){ const d=Math.abs(y0)*0.05||1; y0-=d; y1+=d; }
-  const dx=(x1-x0)*0.06, dy=(y1-y0)*0.1; x0-=dx; x1+=dx; y0-=dy; y1+=dy;
-  const X=v=>L+(v-x0)/(x1-x0)*pw, Y=v=>T+ph-(v-y0)/(y1-y0)*ph, lab=l=>typeof l==="object"?`${l.m===1?"":l.m+"×"}10<tspan dy="-5" font-size="9">${l.ex}</tspan>`:esc(l);
-  s+=`<rect x="${L}" y="${T}" width="${pw}" height="${ph}" fill="none" stroke="${pal.ink}" stroke-width="1"/>`;
-  axisTicks(x0,x1,Math.max(3,pw/90),{},false).ticks.forEach(t=>{ const x=X(t.v).toFixed(1); s+=`<path d="M${x},${T+ph}v5" stroke="${pal.ink}"/><text x="${x}" y="${T+ph+18}" text-anchor="middle" font-size="12" fill="${pal.ink}" font-family="${fam}">${lab(t.lab)}</text>`; });
-  axisTicks(y0,y1,Math.max(3,ph/50),{},false).ticks.forEach(t=>{ const y=Y(t.v).toFixed(1); s+=`<path d="M${L},${y}h-5" stroke="${pal.ink}"/><text x="${L-8}" y="${(+y+4).toFixed(1)}" text-anchor="end" font-size="12" fill="${pal.ink}" font-family="${fam}">${lab(t.lab)}</text>`; });
-  const u=qUnit(q,pts[0].c);
-  s+=`<text x="${L+pw/2}" y="${H-8}" text-anchor="middle" font-size="13" font-style="italic" fill="${pal.ink}" font-family="${fam}">${esc(seriesLabel(tr.s))}</text>`;
-  s+=`<text transform="translate(15,${T+ph/2}) rotate(-90)" text-anchor="middle" font-size="13" font-style="italic" fill="${pal.ink}" font-family="${fam}">${esc(axisLabel(q.label,u,q.label))}</text>`;
-  s+=`<clipPath id="trClip"><rect x="${L}" y="${T}" width="${pw}" height="${ph}"/></clipPath><g clip-path="url(#trClip)">`;
-  if(tr.fit) s+=`<path d="M${X(x0).toFixed(1)},${Y(tr.fit.a+tr.fit.b*x0).toFixed(1)}L${X(x1).toFixed(1)},${Y(tr.fit.a+tr.fit.b*x1).toFixed(1)}" stroke="${pal.fit}" stroke-width="1.6" fill="none"/>`;
-  else if(pts.length>1) s+=`<path d="M${pts.map(p=>X(p.x).toFixed(1)+","+Y(p.y).toFixed(1)).join("L")}" stroke="${pal.data}" stroke-opacity="0.45" stroke-width="1.2" fill="none"/>`;
-  s+=`</g>`;
+/* A trend: one quantity or several against the series variable, each on the
+   left or the right axis, with its error bars and, if asked, its straight line.
+   Margins are measured from the numbers. ser: [{q, tr, ax, i}]; o: {W, H, pal,
+   forExport, idp (prefix of the ids), single (one series: the data's colours)}. */
+const TR_SYMS=["circle","square","tri","diamond","down"];
+function trendColor(i,forExport){ const sch=SCHEMES.categorical, arr=!forExport&&darkMode()?sch.dark:sch.light; return arr[i%arr.length]; }
+function trendSym(k,x,y,r,fill,extra){ const f1=v=>(+v).toFixed(1);
+  if(k==="square") return `<rect x="${f1(x-r*0.88)}" y="${f1(y-r*0.88)}" width="${f1(r*1.76)}" height="${f1(r*1.76)}" fill="${fill}"${extra}/>`;
+  if(k==="tri") return `<path d="M${f1(x)},${f1(y-r*1.15)}L${f1(x+r)},${f1(y+r*0.75)}L${f1(x-r)},${f1(y+r*0.75)}Z" fill="${fill}"${extra}/>`;
+  if(k==="down") return `<path d="M${f1(x)},${f1(y+r*1.15)}L${f1(x+r)},${f1(y-r*0.75)}L${f1(x-r)},${f1(y-r*0.75)}Z" fill="${fill}"${extra}/>`;
+  if(k==="diamond") return `<path d="M${f1(x)},${f1(y-r*1.2)}L${f1(x+r*1.05)},${f1(y)}L${f1(x)},${f1(y+r*1.2)}L${f1(x-r*1.05)},${f1(y)}Z" fill="${fill}"${extra}/>`;
+  return `<circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(r)}" fill="${fill}"${extra}/>`; }
+function trendPlotSvg(ser,o){
+  const W=Math.round(o.W), H=Math.round(o.H), pal=o.pal, fx=!!o.forExport, idp=o.idp||"tr", s=seriesOf(), fam="'Source Sans 3', 'Segoe UI', Arial, sans-serif", st={fam,size:12};
+  const all=ser.filter(z=>z.q&&z.tr&&z.tr.pts.length), one=all.length===1&&o.single!==false;
+  const col=z=>one?pal.data:trendColor(z.i,fx), f1=v=>(+v).toFixed(1);
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(all.map(z=>z.q.label).join(", ")||"Trend")} against ${esc(seriesLabel(s))}"><rect width="${W}" height="${H}" fill="${pal.bg}"/>`;
+  if(!all.length) return svg+`<text x="${W/2}" y="${H/2}" text-anchor="middle" font-size="13" fill="${pal.muted}" font-family="${fam}">No values to plot yet</text></svg>`;
+  let x0=Infinity,x1=-Infinity; all.forEach(z=>z.tr.pts.forEach(p=>{ x0=Math.min(x0,p.x); x1=Math.max(x1,p.x); }));
+  if(x0===x1){ x0-=1; x1+=1; } const dx=(x1-x0)*0.06; x0-=dx; x1+=dx;
+  const ax={l:{ser:[],lo:Infinity,hi:-Infinity},r:{ser:[],lo:Infinity,hi:-Infinity}};
+  all.forEach(z=>{ const a=ax[z.ax==="r"?"r":"l"]; a.ser.push(z); z.tr.pts.forEach(p=>{ a.lo=Math.min(a.lo,p.y-(p.e||0)); a.hi=Math.max(a.hi,p.y+(p.e||0)); }); });
+  if(!ax.l.ser.length){ ax.l=ax.r; ax.r={ser:[]}; }
+  [ax.l,ax.r].forEach(a=>{ if(!a.ser.length) return; if(a.lo===a.hi){ const d=Math.abs(a.lo)*0.05||1; a.lo-=d; a.hi+=d; } const d=(a.hi-a.lo)*0.1; a.lo-=d; a.hi+=d; });
+  const two=ax.r.ser.length>0, leg=all.length>1, B=44;
+  // The legend's entries, laid out in rows across the plot's width (known once the margins are).
+  const legT=z=>z.q.label+(two?(z.ax==="r"?" (right)":" (left)"):""), legRows=w=>{ const rows=[[]]; let lx=0; all.forEach(z=>{ const ew=textW(legT(z),{fam,size:12})+30; if(lx+ew>w&&rows[rows.length-1].length){ rows.push([]); lx=0; } rows[rows.length-1].push(z); lx+=ew; }); return rows; };
+  const lgw=Math.max(80,W-160), lgr=leg?legRows(lgw).slice(0,4):[], nRows=lgr.length, T=leg?14+16*nRows:14, ph=Math.max(40,H-T-B);
+  const yt=a=>axisTicks(a.lo,a.hi,Math.max(3,ph/50),{},false).ticks, tl=yt(ax.l), tr2=two?yt(ax.r):[];
+  const wl=Math.max(10,...tl.map(t=>labW(t.lab,st))), wr=two?Math.max(10,...tr2.map(t=>labW(t.lab,st))):0;
+  const L=Math.ceil(wl+34), R=two?Math.ceil(wr+34):16, pw=Math.max(40,W-L-R);
+  const X=v=>L+(v-x0)/(x1-x0)*pw, Yof=a=>v=>T+ph-(v-a.lo)/(a.hi-a.lo)*ph;
+  const lab=l=>typeof l==="object"?`${l.m===1?"":l.m+"×"}10<tspan dy="-5" font-size="9">${l.ex}</tspan>`:esc(l);
+  svg+=`<rect x="${L}" y="${T}" width="${pw}" height="${ph}" fill="none" stroke="${pal.ink}" stroke-width="1"/>`;
+  axisTicks(x0,x1,Math.max(3,pw/90),{},false).ticks.forEach(t=>{ const x=f1(X(t.v)); svg+=`<path d="M${x},${T+ph}v5" stroke="${pal.ink}"/><text x="${x}" y="${T+ph+18}" text-anchor="middle" font-size="12" fill="${pal.ink}" font-family="${fam}">${lab(t.lab)}</text>`; });
+  const yl=Yof(ax.l); tl.forEach(t=>{ const y=f1(yl(t.v)); svg+=`<path d="M${L},${y}h-5" stroke="${pal.ink}"/><text x="${L-8}" y="${f1(+y+4)}" text-anchor="end" font-size="12" fill="${pal.ink}" font-family="${fam}">${lab(t.lab)}</text>`; });
+  if(two){ const yr=Yof(ax.r); tr2.forEach(t=>{ const y=f1(yr(t.v)); svg+=`<path d="M${L+pw},${y}h5" stroke="${pal.ink}"/><text x="${L+pw+8}" y="${f1(+y+4)}" text-anchor="start" font-size="12" fill="${pal.ink}" font-family="${fam}">${lab(t.lab)}</text>`; }); }
+  // An axis's title: its quantity with its unit, or several with a shared unit;
+  // with two axes, an axis holding one quantity takes its colour.
+  const title=a=>{ const us=a.ser.map(z=>qUnit(z.q,z.tr.pts[0].c)), u1=new Set(us).size===1;
+    if(a.ser.length===1) return axisLabel(a.ser[0].q.label,us[0],a.ser[0].q.label);
+    // Quantities of one kind (every peak's area) are titled by the kind.
+    const sh=new Set(a.ser.map(z=>z.q.short||z.q.label));
+    if(u1&&sh.size===1&&a.ser.every(z=>z.q.group)) return axisLabel(capFirst([...sh][0]),us[0],"");
+    return u1?axisLabel(a.ser.map(z=>z.q.label).join(", "),us[0],""):a.ser.map((z,i)=>axisLabel(z.q.label,us[i],z.q.label)).join(", "); };
+  const fit=(t,max)=>{ let v=t; while(v.length>4&&textW(v,{fam,size:13,i:true})>max) v=v.slice(0,-2); return v===t?t:v.replace(/[\s,]+$/,"")+"…"; };
+  const tcol=a=>two&&a.ser.length===1?col(a.ser[0]):pal.ink;
+  svg+=`<text x="${f1(L+pw/2)}" y="${H-8}" text-anchor="middle" font-size="13" font-style="italic" fill="${pal.ink}" font-family="${fam}">${esc(fit(seriesLabel(s),pw))}</text>`;
+  svg+=`<text transform="translate(15,${f1(T+ph/2)}) rotate(-90)" text-anchor="middle" font-size="13" font-style="italic" fill="${tcol(ax.l)}" font-family="${fam}">${esc(fit(title(ax.l),ph))}</text>`;
+  if(two) svg+=`<text transform="translate(${W-12},${f1(T+ph/2)}) rotate(90)" text-anchor="middle" font-size="13" font-style="italic" fill="${tcol(ax.r)}" font-family="${fam}">${esc(fit(title(ax.r),ph))}</text>`;
+  svg+=`<clipPath id="${idp}Clip"><rect x="${L}" y="${T}" width="${pw}" height="${ph}"/></clipPath><g clip-path="url(#${idp}Clip)">`;
+  all.forEach(z=>{ const Y=Yof(z.ax==="r"&&two?ax.r:ax.l), c=col(z), pts=z.tr.pts;
+    if(z.tr.fit) svg+=`<path d="M${f1(X(x0))},${f1(Y(z.tr.fit.a+z.tr.fit.b*x0))}L${f1(X(x1))},${f1(Y(z.tr.fit.a+z.tr.fit.b*x1))}" stroke="${one?pal.fit:c}" stroke-width="1.6" fill="none"/>`;
+    else if(pts.length>1) svg+=`<path d="M${pts.map(p=>f1(X(p.x))+","+f1(Y(p.y))).join("L")}" stroke="${c}" stroke-opacity="0.45" stroke-width="1.2" fill="none"/>`; });
+  svg+=`</g>`;
   const act=(activeYCol()||{}).id;
-  pts.forEach(p=>{ const x=X(p.x).toFixed(1), y=Y(p.y).toFixed(1), eb=p.e?`<path d="M${x},${Y(p.y-p.e).toFixed(1)}V${Y(p.y+p.e).toFixed(1)}M${(+x-3).toFixed(1)},${Y(p.y-p.e).toFixed(1)}h6M${(+x-3).toFixed(1)},${Y(p.y+p.e).toFixed(1)}h6" stroke="${pal.data}" stroke-width="1"/>`:"";
-    s+=`<g${forExport?"":` data-trend="${p.c.id}"`}><title>${esc(specName(p.c))}: ${esc(fmt(p.x,6))}, ${esc(fmt(p.y,6))}${p.e?` ± ${esc(fmt(p.e,3))}`:""}</title>${eb}<circle cx="${x}" cy="${y}" r="${!forExport&&p.c.id===act?5:3.8}" fill="${pal.data}"${!forExport&&p.c.id===act?` stroke="${pal.ink}" stroke-width="1.5"`:""}/>${forExport?"":`<circle cx="${x}" cy="${y}" r="10" fill="transparent"/>`}</g>`; });
-  return s+`</svg>`;
+  all.forEach(z=>{ const Y=Yof(z.ax==="r"&&two?ax.r:ax.l), c=col(z), sym=one?"circle":TR_SYMS[z.i%TR_SYMS.length];
+    z.tr.pts.forEach(p=>{ const x=X(p.x), y=Y(p.y), on=!fx&&p.c.id===act, eb=p.e?`<path d="M${f1(x)},${f1(Y(p.y-p.e))}V${f1(Y(p.y+p.e))}M${f1(x-3)},${f1(Y(p.y-p.e))}h6M${f1(x-3)},${f1(Y(p.y+p.e))}h6" stroke="${c}" stroke-width="1"/>`:"";
+      svg+=`<g${fx?"":` data-trend="${p.c.id}"`}><title>${esc(specName(p.c))}: ${esc(z.q.label)} ${esc(fmt(p.y,6))}${p.e?` ± ${esc(fmt(p.e,3))}`:""} at ${esc(fmt(p.x,6))}</title>${eb}${trendSym(sym,x,y,on?5:3.8,c,on?` stroke="${pal.ink}" stroke-width="1.5"`:"")}${fx?"":`<circle cx="${f1(x)}" cy="${f1(y)}" r="10" fill="transparent"/>`}</g>`; }); });
+  // The legend, a row above the plot, each entry with its symbol (and its axis when there are two).
+  if(leg) lgr.forEach((row,r)=>{ let lx=L; const y=T-12-16*(nRows-1-r);
+    row.forEach(z=>{ const c=col(z), t=legT(z); svg+=trendSym(TR_SYMS[z.i%TR_SYMS.length],lx+5,y,3.8,c,"")+`<text x="${f1(lx+13)}" y="${f1(y+4)}" font-size="12" fill="${pal.ink}" font-family="${fam}">${esc(t)}</text>`; lx+=textW(t,{fam,size:12})+30; }); });
+  return svg+`</svg>`;
 }
-function trendFitText(tr,q){ const f=tr.fit; if(!f) return ""; const c=tr.pts[0].c, u=qUnit(q,c), xu=tr.s.mode==="order"?"":tr.s.unit, su=u&&xu?`${u}/${xu}`:u?`${u} per step`:xu?`per ${xu}`:"";
+function trendSvg(tr,q,W,H,pal,forExport){ return trendPlotSvg([{q,tr,ax:"l",i:0}],{W,H,pal,forExport}); }
+function trendFitText(tr,q){ const f=tr.fit; if(!f) return ""; const c=tr.pts[0].c, u=qUnit(q,c), xu=seriesUnit(tr.s), su=u&&xu?`${u}/${xu}`:u?(tr.s.mode==="order"?`${u} per step`:u):xu?`per ${xu}`:"";
   return `Straight line: slope ${fmtPM(f.b,f.eb)}${su?" "+esc(su):""}, intercept ${fmtPM(f.a,f.ea)}${u?" "+esc(u):""}${f.R2!=null?`, R² ${esc(fmt(f.R2,5))}`:""}, ${f.n} points${f.weighted?", weighted by their errors":""}.`; }
 function renderBatch(){
   const box=$("#pane-batch"); if(!box) return; const p=P();
@@ -13233,23 +13622,24 @@ function renderBatch(){
   h+=`<span class="sp"></span><button class="btn sm" id="bCopy"${qs.length?"":" disabled"}>${ICON("copy","sm")}Copy</button><button class="tb sm icon" id="bMore" aria-haspopup="menu" title="More" aria-label="More">${ICON("more","sm")}</button></div>`;
   if(run) h+=`<div class="bprog" id="bProg">${batchProgHtml()}</div>`;
   if(b){ const t=b.tmpl, stale=b.rows.filter(r=>r.fit&&batchStale(r.fit)).length, failed=b.rows.filter(r=>!r.fit).length;
-    h+=`<p class="bsum">${esc(capFirst(lcFirst(t.name)))}${t.range?` · x ${esc(fmt(Math.min(...t.range),5))} to ${esc(fmt(Math.max(...t.range),5))}`:""} · ${esc(SEEDS[b.seed]||"")} · ${esc(ago(b.at))}${failed?` · ${failed} failed`:""}${stale?` · <span class="chip">${stale} out of date</span>`:""}</p>`; }
-  else if(!qs.length){ box.innerHTML=h+`<p class="nothing">${af?"Fit every spectrum with the analysed spectrum's fit, then compare them here.":"Fit one spectrum; its fit is the template for fitting every spectrum."}</p>`; wireBatch(box); return; }
-  const q=qs.find(z=>z.id===s.q)||qs[0], tr=trendData(q), W=Math.max(320,Math.min(900,box.clientWidth-30)), pal=readPalette();
+    const gl=b.glob, gs=gl&&gl.stats;
+    h+=`<p class="bsum">${esc(capFirst(lcFirst(t.name)))}${t.range?` · x ${esc(fmt(Math.min(...t.range),5))} to ${esc(fmt(Math.max(...t.range),5))}`:""} · ${gl?`<span title="${esc(`${gs.K} spectra, ${gs.n} points and ${gs.m} parameters fitted at once (${gs.sh} shared, ${gs.own} for each spectrum); ${gs.dof} degrees of freedom`)}">fitted together, sharing ${esc(shareSummary(t,gl.share))} · reduced χ² ${esc(fmtOr(gs.redChi2,4))}${gs.converged===false?" (not converged)":""}</span>`:esc(SEEDS[b.seed]||"")} · ${esc(ago(b.at))}${failed?` · ${failed} failed`:""}${stale?` · <span class="chip">${stale} out of date</span>`:""}</p>`; }
+  else if(!qs.length){ box.innerHTML=h+`<p class="nothing">${af?"Fit every spectrum with the analysed spectrum's fit, then compare them here.":"Fit one spectrum (its fit is the template for the others), or mark peaks or bands in every spectrum, to compare them here."}</p>`; wireBatch(box); return; }
+  const q=qFind(qs,s.q), tr=trendData(q), W=Math.max(320,Math.min(900,box.clientWidth-30)), pal=readPalette();
   h+=`<div class="trendbar"><label for="bQ">Plot</label><select id="bQ">${qs.map(z=>`<option value="${esc(z.id)}"${z===q?" selected":""}>${esc(z.label)}</option>`).join("")}</select>
-    <label for="bX">against</label><select id="bX"${ro}><option value="order"${s.mode==="order"?" selected":""}>Their order</option><option value="name"${s.mode==="name"?" selected":""}>A number in their names</option><option value="typed"${s.mode==="typed"?" selected":""}>Values you type</option></select>
-    ${s.mode!=="order"?`<input id="bXl" type="text" placeholder="Name, e.g. Temperature" aria-label="Name of the variable" value="${esc(s.label)}" maxlength="40"${ro}><input id="bXu" type="text" placeholder="Unit" aria-label="Its unit" value="${esc(s.unit)}" maxlength="16" style="width:64px"${ro}>`:""}
-    <label class="chk"><input type="checkbox" id="bLine"${s.line?" checked":""}${ro}> Straight line</label></div>`;
+    <label for="bX">against</label><select id="bX"${ro}>${seriesModeOptions(s)}</select>
+    ${s.mode!=="order"?`<input id="bXl" type="text" placeholder="${s.mode==="meta"?esc(s.key||""):"Name, e.g. Temperature"}" aria-label="Name of the variable" value="${esc(s.label)}" maxlength="40"${ro}><input id="bXu" type="text" placeholder="${s.mode==="meta"?esc(metaSeries(yCols(),s.key).unit||"Unit"):"Unit"}" aria-label="Its unit" value="${esc(s.unit)}" maxlength="16" style="width:64px"${ro}>`:""}
+    <label class="chk"><input type="checkbox" id="bLine"${s.line?" checked":""}${ro}> Straight line</label><span class="sp"></span><button class="btn sm" id="bToDesk"${ro} title="Open this trend as a graph on the desk, where other quantities can join it">${ICON("chart","sm")}On the desk</button></div>`;
   h+=`<div class="trend" id="bTrend">${trendSvg(tr,q,W,Math.round(Math.min(300,Math.max(200,W*0.42))),pal,false)}</div>`;
   if(tr.fit) h+=`<p class="tfit">${trendFitText(tr,q)}</p>`;
-  else if(tr.pts.length<seriesCols().length&&s.mode!=="order") h+=`<p class="tfit">${seriesCols().filter(z=>z.v==null).length?`${seriesCols().filter(z=>z.v==null).length} spectra have no ${s.mode==="typed"?"value typed":"number in their name"}.`:""}</p>`;
+  else if(tr.pts.length<seriesCols().length&&s.mode!=="order") h+=`<p class="tfit">${seriesCols().filter(z=>z.v==null).length?`${seriesCols().filter(z=>z.v==null).length} spectra have no ${s.mode==="typed"?"value typed":s.mode==="meta"?`"${esc(s.key)}" in their file`:"number in their name"}.`:""}</p>`;
   // The table: one row per spectrum, in the order of the series.
   const groups=[]; qs.forEach(z=>{ const g=z.group||"", last=groups[groups.length-1]; if(last&&last.g===g) last.n++; else groups.push({g,n:1}); });
   const act=activeYCol(), c0=(seriesCols()[0]||{}).c;
   h+=`<div class="twrap"><table class="rtab btab"><thead>`;
   if(groups.some(g=>g.g)) h+=`<tr><th colspan="3"></th>${groups.map(g=>`<th colspan="${g.n}" class="grp">${esc(g.g)}</th>`).join("")}</tr>`;
-  h+=`<tr><th class="bst"></th><th class="l">Spectrum</th><th>${esc(seriesLabel(s))}</th>${qs.map(z=>{ const u=c0?qUnit(z,c0):""; return `<th title="${esc(z.label)}">${esc(z.short||z.label)}${u?` <span class="unit">(${esc(u)})</span>`:""}</th>`; }).join("")}</tr></thead><tbody>`;
-  seriesCols().forEach(({c,v})=>{ const r=b?batchRowOf(c.id):null, f=r&&r.fit, st=f?batchStale(f):null, w=f?fitWarnings(f).filter(x=>x.kind!=="stale"):[];
+  h+=`<tr><th class="bst"></th><th class="l">Spectrum</th><th>${esc(seriesLabel(s))}</th>${qs.map(z=>{ const u=c0?qUnit(z,c0):""; return `<th title="${esc(z.label+(z.shared?": shared by every spectrum":""))}">${esc(z.short||z.label)}${u?` <span class="unit">(${esc(u)})</span>`:""}${z.shared?` <span class="lab">shared</span>`:""}</th>`; }).join("")}</tr></thead><tbody>`;
+  seriesCols().forEach(({c,v})=>{ const r=b?batchRowOf(c.id):null, f=r&&r.fit, st=f?batchStale(f):null, w=f?fitWarnings(f).filter(x=>x.kind!=="stale"&&x.kind!=="global"):[];
     const cls=!r?"":!f?"bad":st||w.some(x=>x.level==="bad")?"warn":"ok", ic=!r?"":!f?"alert":st||w.length?"alert":"check";
     const tip=!r?"":!f?`Not fitted: ${r.fail}`:st?st:w.length?w.map(x=>x.text).join(" "):"Fitted";
     h+=`<tr class="${c===act?"sel":""}"><td class="bst ${cls}" title="${esc(tip)}">${ic?ICON(ic,"sm"):""}</td><td class="l"><button class="bgo" data-bgo="${c.id}" title="Work on ${esc(specName(c))}">${esc(specName(c))}</button></td>`;
@@ -13271,10 +13661,11 @@ function wireBatch(box){
     "-",{label:"Clear the batch fit",danger:true,enabled:!!(P()&&P().batch)&&!S.readOnly,run:clearBatch}],{label:"Batch"}));
   on("bStop","click",()=>{ if(S.batchRun) S.batchRun.stop=true; });
   on("bQ","change",e=>setSeries({q:e.target.value}));
-  on("bX","change",e=>{ const m=e.target.value; setSeries({mode:m},`plotted the series against ${m==="order"?"their order":m==="name"?"a number in their names":"typed values"}`); });
+  on("bX","change",e=>pickSeriesMode(e.target.value));
   on("bXl","change",e=>setSeries({label:e.target.value.trim().slice(0,40)},`named the series variable "${e.target.value.trim().slice(0,40)}"`));
   on("bXu","change",e=>setSeries({unit:e.target.value.trim().slice(0,16)},`gave the series variable the unit "${e.target.value.trim().slice(0,16)}"`));
   on("bLine","change",e=>setSeries({line:e.target.checked}));
+  on("bToDesk","click",()=>newTrend(seriesOf().q));
   box.querySelectorAll("[data-bx]").forEach(inp=>{ inp.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); inp.blur(); } });
     inp.addEventListener("change",()=>{ const id=inp.dataset.bx, c=colById(id), t=inp.value.trim(), v=t===""?null:parseNum(t);
       if(t!==""&&v==null){ toast("Type a number, or leave it empty."); renderBatch(); return; }
@@ -13293,24 +13684,136 @@ function batchTableText(sep){
 }
 async function exportBatchCsv(){ const p=P(); if(!p) return; const b=p.batch, s=seriesOf(), lines=[batchTableText(",")];
   if(b){ const t=b.tmpl; lines.push("",`# Batch fit,${t.name}`,`# started,${SEEDS[b.seed]||""}`); if(t.range) lines.push(`# fitted over x,${Math.min(...t.range)},${Math.max(...t.range)}`);
+    if(b.glob){ const g=b.glob.stats; lines.push(`# fitted together sharing,${shareSummary(t,b.glob.share).replace(/,/g," ")}`,`# global fit,spectra,${g.K},points,${g.n},parameters,${g.m},degrees of freedom,${g.dof},reduced chi2,${g.redChi2}`); }
     lines.push(`# weighting,${t.weighted?"instrumental (1/sigma^2)":"none; errors scaled by sqrt(reduced chi2)"}`);
     b.rows.forEach(r=>{ const c=colById(r.col); if(!r.fit) lines.push(`# ${specName(c).replace(/,/g," ")},not fitted: ${String(r.fail).replace(/,/g," ")}`); else { const st=batchStale(r.fit); if(st) lines.push(`# ${specName(c).replace(/,/g," ")},${st.replace(/,/g," ")}`); } }); }
-  const qs=batchQuantities(), q=qs.find(z=>z.id===s.q)||qs[0];
+  const qs=batchQuantities(), q=qFind(qs,s.q);
   if(q&&s.line){ const tr=trendData(q); if(tr.fit) lines.push(`# straight line through ${q.label},slope,${tr.fit.b},${tr.fit.eb},intercept,${tr.fit.a},${tr.fit.ea},R2,${tr.fit.R2}`); }
   const nm=safeName(p.name,"_batch.csv"), ok=await saveFile(nm,lines.join(String.fromCharCode(10)),"text/csv;charset=utf-8");
   if(ok) toast(ok==="dialog"?"Table saved.":`Sent ${nm} to your downloads.`); }
-async function exportTrendSvg(){ const qs=batchQuantities(), s=seriesOf(), q=qs.find(z=>z.id===s.q)||qs[0]; if(!q){ toast("There is nothing to plot yet."); return; }
+async function exportTrendSvg(){ const qs=batchQuantities(), s=seriesOf(), q=qFind(qs,s.q); if(!q){ toast("There is nothing to plot yet."); return; }
   const str=trendSvg(trendData(q),q,640,380,EXPORT_PAL,true), nm=safeName(P().name,"_trend.svg"), ok=await saveFile(nm,new Blob([str],{type:"image/svg+xml"}));
   if(ok) toast(ok==="dialog"?"Figure saved.":`Sent ${nm} to your downloads.`); }
 function reportBatchHtml(){ const p=P(), b=p&&p.batch; if(!b) return "";
-  const qs=batchQuantities(), s=seriesOf(), q=qs.find(z=>z.id===s.q)||qs[0], tr=q?trendData(q):null, e2=t=>esc(String(t)), rows=seriesCols(), c0=(rows[0]||{}).c;
-  let out="<h2>Batch fit</h2><p>"+e2(capFirst(lcFirst(b.tmpl.name)))+" fitted to "+b.rows.length+" spectra, "+e2(SEEDS[b.seed]||"")+(b.tmpl.range?", over x "+e2(fmt(Math.min(...b.tmpl.range),6))+" to "+e2(fmt(Math.max(...b.tmpl.range),6)):"")+".</p>";
+  const qs=batchQuantities(), s=seriesOf(), q=qFind(qs,s.q), tr=q?trendData(q):null, e2=t=>esc(String(t)), rows=seriesCols(), c0=(rows[0]||{}).c;
+  const gs=b.glob&&b.glob.stats;
+  let out="<h2>Batch fit</h2><p>"+e2(capFirst(lcFirst(b.tmpl.name)))+" fitted to "+b.rows.length+" spectra, "+(b.glob?"all at once, sharing "+e2(shareSummary(b.tmpl,b.glob.share))+": "+gs.n+" points, "+gs.m+" parameters ("+gs.sh+" shared, "+gs.own+" for each spectrum), reduced χ² "+e2(fmtOr(gs.redChi2,5))+", "+gs.dof+" degrees of freedom; each spectrum was first fitted on its own, "+e2(SEEDS[b.seed]||""):e2(SEEDS[b.seed]||""))+(b.tmpl.range?", over x "+e2(fmt(Math.min(...b.tmpl.range),6))+" to "+e2(fmt(Math.max(...b.tmpl.range),6)):"")+".</p>";
   if(tr&&tr.pts.length) out+="<figure>"+trendSvg(tr,q,640,380,EXPORT_PAL,true)+"</figure>"+(tr.fit?"<p>"+trendFitText(tr,q)+"</p>":"");
   out+="<table><thead><tr><th class=\"l\">Spectrum</th><th>"+e2(seriesLabel(s))+"</th>"+qs.map(z=>{ const u=c0?qUnit(z,c0):""; return "<th>"+e2(z.label)+(u?" ("+e2(u)+")":"")+"</th>"; }).join("")+"<th class=\"l\">Notes</th></tr></thead><tbody>";
   rows.forEach(({c,v})=>{ const r=batchRowOf(c.id), f=r&&r.fit, st=f?batchStale(f):null, w=f?fitWarnings(f).filter(x=>x.kind!=="stale").map(x=>x.text):[];
     out+="<tr><td class=\"l\">"+e2(specName(c))+"</td><td>"+(v==null?"":e2(fmt(v,6)))+"</td>"+qs.map(z=>{ const bv=batchValue(c,z); return "<td>"+(!bv||!Number.isFinite(bv.v)?"":bv.e===undefined?e2(fmt(bv.v,6)):fmtPM(bv.v,bv.e))+"</td>"; }).join("")+
       "<td class=\"l\">"+e2(!r?"not in the batch":!f?"not fitted: "+r.fail:[st].concat(w).filter(Boolean).join(" "))+"</td></tr>"; });
   return out+"</tbody></table>"; }
+
+/* ---- Trend graphs on the desk ------------------------------------------------------
+   A trend in a window of its own: quantities of every spectrum (fitted, found or
+   integrated) against the series variable, each on the left or the right axis,
+   kept up to date as the data change. p.trends = [{id, name, ys:[{q, ax}],
+   line}]: q a quantity's id (batchQuantities), ax "l" or "r". */
+function trendList(){ const p=P(); return p&&Array.isArray(p.trends)?p.trends:[]; }
+function trendOf(id){ return trendList().find(t=>t.id===id)||null; }
+const trendWinIds=()=>trendList().map(t=>t.id).filter(id=>WINS[id]);
+// A quantity by id, or null: a trend says so when what it plotted has gone.
+function qFindStrict(qs,id){ const q=qFind(qs,id); if(!q) return null; if(q.id===id) return q; return /^(fk|mk)@/.test(id)&&q.id.slice(0,3)===id.slice(0,3)&&q.id.split(".").pop()===id.split(".").pop()?q:null; }
+function syncTrendWins(){
+  const list=trendList();
+  Object.keys(WINS).forEach(k=>{ if(WINS[k].trend&&!list.some(t=>t.id===k)){ const el=$("#w-"+k); if(el) el.remove(); delete WINS[k]; } });
+  let prev=$("#w-batch");
+  list.forEach((t,i)=>{
+    if(!WINS[t.id]&&prev){ WINS[t.id]={title:t.name,icon:"chart",def:[0.22+(i%6)*0.03,0.08+(i%6)*0.04,0.5,0.62],open:true,trend:true};
+      prev.insertAdjacentHTML("afterend",`<section class="win twin" id="w-${t.id}" data-win="${t.id}" aria-label="${esc(t.name)}"><header class="win-h">${ICON("chart","sm")}<h2 class="win-t">${esc(t.name)}</h2><span class="win-sub"></span><span class="sp"></span><button class="tb sm icon" data-tmenu aria-haspopup="menu" title="Trend options" aria-label="Options for this trend">${ICON("more","sm")}</button></header><div class="win-b trend-win"></div></section>`);
+      const el=$("#w-"+t.id), id=t.id; wireWin(el); const mb=el.querySelector("[data-tmenu]"); mb.onclick=()=>toggleMenu(mb,()=>trendWinItems(id),{label:"Trend options"});
+      new ResizeObserver(()=>{ if(winOpen(id)&&!el._rz){ el._rz=requestAnimationFrame(()=>{ el._rz=0; drawTrendPlot(id); }); } }).observe(el.querySelector(".win-b"));
+      winState(t.id); applyWins(); }
+    if(WINS[t.id]){ WINS[t.id].title=t.name; const h=$(`#w-${t.id} .win-t`); if(h&&h.textContent!==t.name){ h.textContent=t.name; $("#w-"+t.id).setAttribute("aria-label",t.name); } }
+    prev=$("#w-"+t.id)||prev; });
+}
+function trendSeries(tp,qs){ qs=qs||batchQuantities(); return tp.ys.map((y,i)=>{ const q=qFindStrict(qs,y.q); return {y,i,q,tr:q?trendData(q,!!tp.line):null,ax:y.ax==="r"?"r":"l"}; }); }
+function seriesModeOptions(s){ const ks=metaKeys(yCols());
+  if(s.mode==="meta"&&s.key&&!ks.some(q=>q.k===s.key)) ks.unshift({k:s.key,n:0});
+  return [["order","Their order"],["name","A number in their names"],["typed","Values you type"]].map(([v,l])=>`<option value="${v}"${s.mode===v?" selected":""}>${l}</option>`).join("")+
+    (ks.length?`<optgroup label="From their files">${ks.map(q=>`<option value="meta:${esc(q.k)}"${s.mode==="meta"&&s.key===q.k?" selected":""}>${esc(q.k)}</option>`).join("")}</optgroup>`:""); }
+// The list's value as the series: "meta:<field>" is a field of the files' headers.
+function pickSeriesMode(v){ const m=String(v);
+  if(m.startsWith("meta:")){ const k=m.slice(5); setSeries({mode:"meta",key:k},`plotted the series against "${k}" from their files`); }
+  else setSeries({mode:m},`plotted the series against ${m==="order"?"their order":m==="name"?"a number in their names":"typed values"}`); }
+function renderTrendWin(id){
+  const tp=trendOf(id), box=$(`#w-${id} .win-b`); if(!tp||!box) return;
+  const qs=batchQuantities(), s=seriesOf(), ro=S.readOnly?" disabled":"", ser=trendSeries(tp,qs), fx=false;
+  let h=`<div class="tbar" role="toolbar" aria-label="What this trend shows">`;
+  ser.forEach(z=>{ const nm=z.q?z.q.label:"No longer available"; h+=`<span class="tchip${z.q?"":" gone"}" style="--c:${trendColor(z.i,fx)}"><i></i><span class="tl" title="${esc(nm)}">${esc(nm)}</span><button class="tb sm" data-tax="${z.i}" title="${z.ax==="r"?"On the right axis: move it to the left":"On the left axis: move it to the right"}" aria-label="${z.ax==="r"?"Move to the left axis":"Move to the right axis"}"${ro}>${z.ax==="r"?"R":"L"}</button><button class="tb sm icon" data-trm="${z.i}" title="Take it off this graph" aria-label="Take ${esc(nm)} off this graph"${ro}>${ICON("x","sm")}</button></span>`; });
+  h+=`<button class="btn sm" data-tadd aria-haspopup="menu"${ro||!qs.length?" disabled":""}>${ICON("plus","sm")}Quantity</button><span class="sp"></span>`;
+  h+=`<label class="lab" for="tx-${id}">against</label><select id="tx-${id}" data-tx${ro}>${seriesModeOptions(s)}</select>`;
+  h+=`<label class="chk" title="A straight line through each, weighted by the errors when every point has one"><input type="checkbox" data-tline${tp.line?" checked":""}${ro}> Lines</label></div>`;
+  h+=`<div class="tplot" data-tplot></div>`;
+  const fits=ser.filter(z=>z.tr&&z.tr.fit);
+  if(fits.length) h+=`<div class="tfits">${fits.map(z=>`<p style="--c:${trendColor(z.i,fx)}"><i></i>${esc(z.q.label)}: ${trendFitText(z.tr,z.q).replace(/^Straight line: /,"")}</p>`).join("")}</div>`;
+  if(!ser.length) h+=`<p class="nothing">Add a quantity to plot.</p>`;
+  box.innerHTML=h; wireTrendWin(id,box); drawTrendPlot(id,qs);
+}
+function drawTrendPlot(id,qs){
+  const tp=trendOf(id), el=$(`#w-${id} [data-tplot]`); if(!tp||!el) return;
+  const W=el.clientWidth, H=el.clientHeight; if(W<60||H<60) return;
+  el.innerHTML=trendPlotSvg(trendSeries(tp,qs),{W,H,pal:readPalette(),idp:"t"+id,single:false});
+}
+function wireTrendWin(id,box){
+  box.querySelectorAll("[data-tax]").forEach(b=>b.onclick=()=>{ const tp=trendOf(id), i=+b.dataset.tax, y=tp.ys[i]; if(!y) return;
+    saveTrend(id,{ys:tp.ys.map((q,k)=>k===i?Object.assign({},q,{ax:q.ax==="r"?"l":"r"}):q)},`moved ${trendQLabel(y.q)} to the ${y.ax==="r"?"left":"right"} axis of ${tp.name}`); });
+  box.querySelectorAll("[data-trm]").forEach(b=>b.onclick=()=>{ const tp=trendOf(id), i=+b.dataset.trm, y=tp.ys[i]; if(!y) return;
+    saveTrend(id,{ys:tp.ys.filter((_,k)=>k!==i)},`took ${trendQLabel(y.q)} off ${tp.name}`); });
+  const add=box.querySelector("[data-tadd]"); if(add) add.onclick=()=>toggleMenu(add,()=>trendAddItems(id),{label:"Add a quantity",search:true});
+  const tx=box.querySelector("[data-tx]"); if(tx) tx.onchange=()=>{ pickSeriesMode(tx.value); renderAll(); };
+  const tl=box.querySelector("[data-tline]"); if(tl) tl.onchange=()=>saveTrend(id,{line:tl.checked},null);
+  box.addEventListener("click",e=>{ const g=e.target.closest&&e.target.closest("[data-trend]"); if(g) goSpectrum(g.dataset.trend); });
+}
+function trendQLabel(qid){ const q=qFindStrict(batchQuantities(),qid); return q?q.label:"a quantity"; }
+function saveTrend(id,patch,log){ const p=P(); if(!p||S.readOnly) return;
+  if(log) pushUndo("changing a trend graph");
+  save({trends:trendList().map(t=>t.id===id?Object.assign({},t,patch):t)},log||null); renderTrendWin(id); }
+// The quantities that can join a trend, grouped as in the Batch window's table.
+function trendAddItems(id){ const tp=trendOf(id), qs=batchQuantities(), have=new Set((tp?tp.ys:[]).map(y=>{ const q=qFindStrict(qs,y.q); return q&&q.id; })), groups=[];
+  qs.forEach(q=>{ const g=q.group||"Other", last=groups[groups.length-1]; if(last&&last.g===g) last.qs.push(q); else groups.push({g,qs:[q]}); });
+  const item=q=>({label:q.short&&q.group?capFirst(q.short):q.label, checked:have.has(q.id), run:()=>{ const t=trendOf(id); if(!t) return;
+    if(have.has(q.id)) saveTrend(id,{ys:t.ys.filter(y=>{ const z=qFindStrict(batchQuantities(),y.q); return !z||z.id!==q.id; })},`took ${q.label} off ${t.name}`);
+    else saveTrend(id,{ys:t.ys.concat([{q:q.id,ax:t.ys.length&&qUnit(q,yCols()[0])!==(()=>{ const z=qFindStrict(qs,t.ys[0].q); return z?qUnit(z,yCols()[0]):null; })()?"r":"l"}])},`added ${q.label} to ${t.name}`); }});
+  return groups.length===1?groups[0].qs.map(item):groups.map(g=>g.qs.length===1?Object.assign(item(g.qs[0]),{label:g.qs[0].label}):{label:g.g,sub:g.qs.map(item)}); }
+function trendWinItems(id){ const tp=trendOf(id), ro=S.readOnly;
+  return [{label:"Rename…",enabled:!ro,run:()=>renameTrend(id)},{label:"Copy the numbers",run:()=>copyText(trendTableText(id),"Copied the trend's numbers.")},
+    {label:"Save as SVG",run:()=>exportTrendWin(id,"svg")},{label:"Save as PNG",run:()=>exportTrendWin(id,"png")},"-",
+    {label:"Delete this trend graph",danger:true,enabled:!ro,run:()=>deleteTrend(id)}]; }
+function nextTrendName(){ const used=new Set(trendList().map(t=>t.name)); let n=trendList().length+1; while(used.has(`Trend ${n}`)) n++; return `Trend ${n}`; }
+function newTrend(qid){
+  const p=P(); if(!p||S.readOnly) return; const qs=batchQuantities();
+  if(!qs.length){ toast("Nothing to plot yet: fit every spectrum, or mark peaks or bands in each."); return; }
+  const q=qFind(qs,qid||seriesOf().q), id="t"+Math.random().toString(36).slice(2,9), name=nextTrendName();
+  pushUndo("making a trend graph");
+  save({trends:trendList().concat([{id,name,ys:[{q:q.id,ax:"l"}],line:!!seriesOf().line}])},`made ${name}, of ${q.label}`);
+  renderAll(); openWin(id,{render:true});
+  toast(`${name} is on the desk. Add other quantities with + Quantity.`,{action:"Undo",run:undo});
+}
+function renameTrend(id){ const tp=trendOf(id); if(!tp||S.readOnly) return;
+  formDlg({title:"Rename the trend graph",html:`<div class="grid2"><label for="fdTn">Name</label><input id="fdTn" type="text" maxlength="60" value="${esc(tp.name)}"></div>`,ok:"Rename",focus:"#fdTn",valid:v=>v.fdTn.trim().length>0}).then(r=>{
+    if(!r||!trendOf(id)) return; const v=r.fdTn.trim().slice(0,60); if(!v||v===tp.name) return; saveTrend(id,{name:v},`renamed ${tp.name} "${v}"`); renderAll(); }); }
+function deleteTrend(id){ const tp=trendOf(id); if(!tp||S.readOnly) return; pushUndo("deleting a trend graph");
+  save({trends:trendList().filter(t=>t.id!==id)},`deleted ${tp.name}`); renderAll(); toast(`Deleted ${tp.name}.`,{action:"Undo",run:undo}); }
+function trendTableText(id){ const tp=trendOf(id); if(!tp) return ""; const s=seriesOf(), ser=trendSeries(tp).filter(z=>z.q), rows=seriesCols();
+  const head=["Spectrum",seriesLabel(s)]; ser.forEach(z=>{ const u=rows[0]?qUnit(z.q,rows[0].c):""; head.push(z.q.label+(u?` (${u})`:""),"±"); });
+  return [head.join("\t")].concat(rows.map(({c,v})=>[specName(c),v==null?"":v].concat(...ser.map(z=>{ const b=batchValue(c,z.q); return [b&&Number.isFinite(b.v)?b.v:"",b&&Number.isFinite(b.e)?b.e:""]; })).join("\t"))).join("\n"); }
+async function exportTrendWin(id,kind){ const tp=trendOf(id); if(!tp) return; const W=720, H=440;
+  const str=trendPlotSvg(trendSeries(tp),{W,H,pal:EXPORT_PAL,forExport:true,idp:"x"+id,single:false}), nm=safeName(tp.name,kind==="png"?".png":".svg");
+  if(kind==="svg"){ const ok=await saveFile(nm,new Blob([str],{type:"image/svg+xml"})); if(ok) toast(ok==="dialog"?"Figure saved.":`Sent ${nm} to your downloads.`); return; }
+  const url=URL.createObjectURL(new Blob([str],{type:"image/svg+xml;charset=utf-8"}));
+  try{ const img=new Image(); await new Promise((res,rej)=>{ img.onload=res; img.onerror=()=>rej(new Error("render")); img.src=url; });
+    const k=2.5, c=document.createElement("canvas"); c.width=W*k; c.height=H*k; const g=c.getContext("2d"); g.fillStyle="#FFFFFF"; g.fillRect(0,0,c.width,c.height); g.scale(k,k); g.drawImage(img,0,0,W,H);
+    const blob=await new Promise(r=>c.toBlob(r,"image/png")); if(!blob) throw new Error("encode");
+    const ok=await saveFile(nm,blob,"image/png"); if(ok) toast(ok==="dialog"?"Figure saved.":`Sent ${nm} to your downloads.`); }
+  catch(e){ toast("This browser couldn't draw the trend as an image. Save it as SVG instead."); }
+  finally{ URL.revokeObjectURL(url); } }
+function reportTrendsHtml(){ const list=trendList(); if(!list.length) return ""; const e2=t=>esc(String(t));
+  return "<h2>Trends</h2>"+list.map(tp=>{ const ser=trendSeries(tp), fits=ser.filter(z=>z.tr&&z.tr.fit);
+    return "<h3>"+e2(tp.name)+"</h3><figure>"+trendPlotSvg(ser,{W:640,H:400,pal:EXPORT_PAL,forExport:true,idp:"r"+tp.id,single:false})+"</figure>"+
+      (fits.length?"<ul>"+fits.map(z=>"<li>"+e2(z.q.label)+": "+trendFitText(z.tr,z.q).replace(/^Straight line: /,"")+"</li>").join("")+"</ul>":"")+
+      (ser.some(z=>!z.q)?"<p>"+ser.filter(z=>!z.q).length+" of its quantities are no longer available.</p>":""); }).join(""); }
 
 /* ---- Graph windows -------------------------------------------------------------
    Each graph of the project has a window. The one in front holds the live graph
@@ -13497,7 +14000,8 @@ function allInOneGraph(){ const ys=yCols(); if(!ys.length) return; newGraphFrom(
 function newGraphItems(){ const act=activeYCol(), ys=yCols(), ro=S.readOnly||!P();
   return [{label:act?`With ${specName(act)}`:"With the analysed spectrum", enabled:!ro&&!!act, run:()=>newGraphFrom([act.id])},
     {label:"With every spectrum", enabled:!ro&&ys.length>1, run:allInOneGraph},
-    {label:"One for each spectrum", enabled:!ro&&ys.length>1, run:onePerSpectrum}]; }
+    {label:"One for each spectrum", enabled:!ro&&ys.length>1, run:onePerSpectrum},"-",
+    {label:"A trend of the series", enabled:!ro&&ys.length>1, title:"A quantity of every spectrum (fitted, found or integrated) against the series", run:()=>newTrend()}]; }
 function renameGraph(id){
   const p=P(); if(!p||S.readOnly) return; const cur=graphName(id);
   formDlg({title:"Rename the graph",html:`<div class="grid2"><label for="fdGn">Name</label><input id="fdGn" type="text" maxlength="60" value="${esc(cur)}"></div>`,ok:"Rename",focus:"#fdGn",valid:v=>v.fdGn.trim().length>0}).then(r=>{
@@ -13679,9 +14183,10 @@ function renderAll(){
   // store the save has already drawn everything by the time it returns.
   const rc=++renderCount; if(followPeakSets()&&renderCount!==rc) return;
   if(S.pending&&(!P()||!colById(S.pending.col))) S.pending=null;
-  syncGraphWins();
+  syncGraphWins(); syncTrendWins();
   renderTop(); renderPlot(); renderStages(); renderTabMarks(); renderGraphHeads(); scheduleSnaps(0);
   ["sheet","flow","over","peaks","integ","fit","res","batch","disc","py","stats","tool"].forEach(id=>{ if(winOpen(id)) renderWin(id); });
+  trendWinIds().forEach(id=>{ if(winOpen(id)) renderTrendWin(id); });
   renderUndo(); renderTaskbar();
 }
 

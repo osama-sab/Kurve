@@ -15,7 +15,7 @@ const grab = (tag) => {
 // Interpolation, integration and normalizing live in the pipeline block now;
 // tools/pipe-test.mjs tests the rest of it.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -505,6 +505,67 @@ function fitSpec(X, Y, spec, init, opts) {
   const bw = N.bandsFromPeaks(X2, Y2, [{ x: 55, w: 7 }, { x: 40, w: 7 }]);
   check("bands from peaks: split at the valley, outer edges two widths out", bw.length === 2 && bw[0].x2 === bw[1].x1 && bw[0].x2 > 45 && bw[0].x2 < 51 &&
     near(bw[0].x1, 26, 1e-9) && near(bw[1].x2, 69, 1e-9), JSON.stringify(bw));
+}
+/* ---------- the inverse: n^3, and the same answers ---------- */
+{
+  let s = 5; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+  const n = 40, R = Array.from({ length: n }, () => Array.from({ length: n }, rnd));
+  const A = R.map((_, i) => R.map((_, j) => R[i].reduce((t, v, k) => t + v * R[j][k], 0) + (i === j ? 0.5 : 0)));
+  const inv = N.inverse(A); let worst = 0;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { let t = 0; for (let k = 0; k < n; k++) t += A[i][k] * inv[k][j]; worst = Math.max(worst, Math.abs(t - (i === j ? 1 : 0))); }
+  check("inverse: A times its inverse is the identity", worst < 1e-9, worst);
+  // Column by column it is solve(): the same pivots, the same arithmetic.
+  const e3 = new Array(n).fill(0); e3[3] = 1; const c3 = N.solve(A, e3);
+  check("inverse: each column is exactly what solve() gives", c3.every((v, i) => v === inv[i][3]));
+  check("inverse: a singular matrix has none", N.inverse([[1, 2], [2, 4]]) === null);
+}
+/* ---------- global fits: parameters shared across spectra ---------- */
+{
+  let s = 29; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const gauss = () => Math.sqrt(-2 * Math.log(rnd() + 1e-12)) * Math.cos(2 * Math.PI * rnd());
+  const G = N.PEAKS.gauss, xc = 100, w = 8, areas = [1000, 2000, 3000, 4000, 5000], sig = 4;
+  const f = (x, p) => p[0] + G.f(x, [p[1], p[2], p[3]]);       // baseline, centre, area, FWHM
+  const mk = () => areas.map((A, k) => { const X = [], Y = []; for (let x = 60; x <= 140; x += 0.5) { X.push(x); Y.push(5 + k + G.f(x, [xc, A, w]) + sig * gauss()); } return { X, Y }; });
+  const sets = mk(), p0s = sets.map(() => [0, 97, 1500, 10]);
+  const shared = [false, true, false, true], fixed = [false, false, false, false];
+  const r = N.globalFit(sets, f, p0s, shared, fixed, { lo: [-Infinity, -Infinity, -Infinity, 1e-9] });
+  check("global: it converges", !r.error && r.stats.converged, r.error);
+  const ps = r.sets.map(q => q.params);
+  check("global: the shared centre and width are one value in every spectrum", ps.every(p => p[1] === ps[0][1] && p[3] === ps[0][3]));
+  check("global: the shared centre and width are recovered", near(ps[0][1], xc, 4 * r.sets[0].errors[1]) && near(ps[0][3], w, 4 * r.sets[0].errors[3]), [ps[0][1], ps[0][3], r.sets[0].errors[1]]);
+  check("global: each spectrum's own area and baseline are its own", ps.every((p, k) => near(p[2], areas[k], 4 * r.sets[k].errors[2]) && near(p[0], 5 + k, 4 * r.sets[k].errors[0])), ps.map(p => p[2].toFixed(0)).join(","));
+  check("global: degrees of freedom are every point less every parameter", r.stats.dof === 5 * 161 - (2 + 5 * 2) && r.m === 12, [r.stats.dof, r.m]);
+  check("global: the shared error is smaller than any one spectrum's own fit's", (() => {
+    const one = N.lmFit(f, sets[0].X, sets[0].Y, sets[0].X.map(() => 1), [0, 97, 1500, 10], [false, false, false, false]); return r.sets[0].errors[1] < one.errors[1]; })());
+  // The same problem without blocks, by hand: the block-sparse path must agree.
+  const X = [], Y = [], seg = []; sets.forEach((q, k) => { q.X.forEach((x, i) => { X.push(k * 1000 + x); Y.push(q.Y[i]); }); });
+  const fd = (x, g) => { const k = Math.floor(x / 1000), xx = x - k * 1000; return g[2 + 2 * k] + G.f(xx, [g[0], g[3 + 2 * k], g[1]]); };
+  const g0 = [97, 10]; p0s.forEach(p => g0.push(p[0], p[2]));
+  const d = N.lmFit(fd, X, Y, X.map(() => 1), g0, g0.map(() => false), { lo: g0.map((_, i) => i === 1 ? 1e-9 : -Infinity) });
+  check("global: the block-sparse fit is the dense fit", rel(d.params[0], ps[0][1], 1e-7) && rel(d.params[1], ps[0][3], 1e-7) && rel(d.errors[0], r.sets[0].errors[1], 1e-4) && rel(d.params[3 + 2 * 4], ps[4][2], 1e-7), [d.params[0], ps[0][1], d.errors[0], r.sets[0].errors[1]]);
+  // The shared centre's error means what it says: 150 repeats.
+  const cs = []; let rep = 0;
+  for (let t = 0; t < 150; t++) { const q = N.globalFit(mk(), f, p0s, shared, fixed, { lo: [-Infinity, -Infinity, -Infinity, 1e-9] }); cs.push(q.sets[0].params[1]); rep += q.sets[0].errors[1] / 150; }
+  const m = cs.reduce((a, b) => a + b, 0) / cs.length, sd = Math.sqrt(cs.reduce((a, b) => a + (b - m) ** 2, 0) / (cs.length - 1));
+  check("global: the shared centre's error matches the scatter of noisy repeats", near(m, xc, 0.05) && rep / sd > 0.8 && rep / sd < 1.25, [m, sd, rep]);
+  // A fixed parameter keeps each spectrum's own value; a tie applied by prep follows its peak in each.
+  const f2 = (x, p) => G.f(x, [p[0], p[1], p[2]]) + G.f(x, [p[3], p[4], p[5]]);
+  const sets2 = [1, 2, 3].map(k => { const X = [], Y = []; for (let x = 0; x <= 200; x += 1) { X.push(x); Y.push(G.f(x, [80, 1000 * k, 10]) + G.f(x, [120, 500 * k, 10]) + 2 * gauss()); } return { X, Y }; });
+  const prep = p => { p[4] = 0.5 * p[1]; p[5] = p[2]; return p; };
+  const r2 = N.globalFit(sets2, f2, sets2.map(() => [78, 900, 12, 121, 450, 12]), [true, false, true, true, false, false], [false, false, false, false, true, true], { prep });
+  check("global: ties applied by prep hold in every spectrum", !r2.error && r2.sets.every((q, k) => near(q.params[4], 0.5 * q.params[1], 1e-9) && near(q.params[5], q.params[2], 1e-12) && rel(q.params[1], 1000 * (k + 1), 0.05)) && near(r2.sets[0].params[3], 120, 0.5), r2.error || r2.sets.map(q => q.params.map(v => v.toFixed(2)).join(" ")).join(" | "));
+  check("global: one set is an ordinary fit", (() => { const a = N.globalFit([sets[0]], f, [[0, 97, 1500, 10]], shared, fixed, {}), b = N.lmFit(f, sets[0].X, sets[0].Y, sets[0].X.map(() => 1), [0, 97, 1500, 10], fixed);
+    return rel(a.sets[0].params[2], b.params[2], 1e-6) && rel(a.sets[0].errors[2], b.errors[2], 1e-4); })());
+}
+/* ---------- the same peak across a series ---------- */
+{
+  const L = [[{ x: 100, w: 5 }, { x: 200, w: 6 }], [{ x: 101, w: 5 }, { x: 199, w: 6 }, { x: 300, w: 8 }], [{ x: 102.5, w: 5 }, { x: 300.4, w: 8 }], [{ x: 104, w: 5 }, { x: 110, w: 5 }]];
+  const t = N.matchPeakTracks(L);
+  check("tracks: a drifting band is one track", t.length === 4 && t[0].n === 4 && t[0].members.map(m => m.s).join() === "0,1,2,3" && t[0].x0 === 100 && t[0].x1 === 104, JSON.stringify(t.map(q => [q.x, q.n])));
+  check("tracks: a peak that comes and goes keeps its track", t.find(q => Math.abs(q.x - 300) < 1).n === 2 && t.find(q => Math.abs(q.x - 200) < 2).n === 2);
+  check("tracks: a new neighbour starts its own", t.some(q => q.x === 110 && q.n === 1));
+  check("tracks: two peaks of one spectrum never share a track", N.matchPeakTracks([[{ x: 10, w: 4 }], [{ x: 9, w: 4 }, { x: 11, w: 4 }]]).length === 2);
+  check("tracks: with no widths, the spacing given decides", N.matchPeakTracks([[{ x: 10 }], [{ x: 11 }]], { dx: 4 }).length === 1 && N.matchPeakTracks([[{ x: 10 }], [{ x: 11 }]]).length === 2);
 }
 /* ---------- p-values against known values ---------- */
 check("tPvalue: t=2.228, dof=10 is ~0.05", near(N.tPvalue(2.228, 10), 0.05, 5e-4), N.tPvalue(2.228, 10));
