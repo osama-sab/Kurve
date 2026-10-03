@@ -1045,6 +1045,24 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 .pfrej{list-style:none;padding:0;margin:0 0 6px}
 #pane-peaks .fbar{margin:-10px -14px 8px;padding:6px 10px;position:sticky;top:-10px;z-index:2;background:var(--panel);display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--rule)}
 #pane-peaks .fbar select{min-width:0;max-width:220px;flex:0 1 auto}
+.pkwhere{margin:0 0 10px;padding:10px 12px;border:1px solid var(--rule);border-radius:var(--r);background:var(--panel-2,var(--panel))}
+.pkwhere h3.gh{margin:0 0 8px}
+.pkwhere .pair{flex-wrap:wrap;gap:6px}
+.pkwhere .pkrng input{width:96px}
+.pkwhere .pkrb .btn[aria-pressed="true"]{border-color:var(--ctl-on);color:var(--ctl-on)}
+.sticky.pkfoot .sp{flex:1}
+.fwhere{margin:10px 0 2px}
+.fwhere .pair input{width:90px}
+.sticky .fdone{margin-left:auto}
+.pcard-h .pname{flex:0 1 130px;min-width:60px;height:24px;font-size:12px;padding:2px 7px}
+.fplrow{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:10px 0 2px}
+.fplrow>.lab{margin-right:3px}
+.fplc{border:1px solid var(--rule);background:var(--panel);border-radius:999px;padding:2px 10px;font:inherit;font-size:12px;cursor:pointer;color:var(--ink-2);line-height:1.5}
+.fplc[aria-pressed="true"]{border-color:var(--ctl-on);color:var(--ctl-on);background:var(--sel)}
+.fplc:disabled{opacity:.55;cursor:default}
+.pd-fpl{display:flex;flex-wrap:wrap;gap:6px 16px;padding:2px 0}
+.pd-fpl label{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer}
+#pdFplT{width:100%;min-height:44px;resize:vertical;font:inherit;font-size:12.5px}
 #pane-integ .fbar{margin:-10px -14px 8px;padding:6px 10px;position:sticky;top:-10px;z-index:2;background:var(--panel);display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
 #pane-integ .fbar select{min-width:0;max-width:200px;flex:0 1 auto}
 .igseg{margin:0 0 8px}
@@ -1567,7 +1585,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
   <div class="sheet">
     <div class="sheet-h"><h2 id="pdHead">Format graph</h2></div>
     <div class="sheet-p" id="pdBody"></div>
-    <div class="sheet-f"><button class="btn ghost" id="pdReset" title="Put this page back to the defaults">Defaults</button><button class="btn ghost" id="pdFormats" aria-haspopup="menu" title="Kurve's formats and the ones you saved">Formats ${ICON("chev","sm")}</button><button class="btn ghost" id="pdAll" hidden title="Give every graph in the project this graph's frame, axes, text, legend and colours">Use on every graph</button><span class="sp"></span><button class="btn" id="pdCancel">Cancel</button><button class="btn primary" id="pdOk">OK</button></div>
+    <div class="sheet-f"><button class="btn ghost" id="pdReset" title="Put this page back to the defaults">Defaults</button><button class="btn ghost" id="pdFormats" aria-haspopup="menu" title="Kurve's formats and the ones you saved">Formats <svg class="ic sm" aria-hidden="true"><use href="#i-chev"/></svg></button><button class="btn ghost" id="pdAll" hidden title="Give every graph in the project this graph's frame, axes, text, legend and colours">Use on every graph</button><span class="sp"></span><button class="btn" id="pdCancel">Cancel</button><button class="btn primary" id="pdOk">OK</button></div>
   </div>
 </div>
 <div class="dropzone" id="dropzone" hidden><div><svg class="ic lg"><use href="#i-upload"/></svg>Drop the file to import it<span class="lab">You will see how it was read before anything changes.</span></div></div>
@@ -3600,7 +3618,7 @@ function peakMetrics(fit){
       hErr=s2>0?Math.sqrt(s2):0;
       if(errs[o]===null) hErr=null;
     }
-    return {k, type:def.name, color:peakColor(k),
+    return {k, type:def.name, name:pk.lab||"", color:peakColor(k),
       // Each width parameter separately: a split shape can keep a sane combined
       // FWHM while one of its halves has collapsed to nothing.
       // (Not a Voigt's: one of its widths may rightly go to zero.)
@@ -4512,6 +4530,36 @@ function draftOverlay(fit){
   return {m,d,same};
 }
 /* Where each peak's top and half-height points are, for labels and handles. */
+/* Fitted peaks' labels. What each says: any of its number, its name, centre,
+   height, FWHM, area and area % (peakLab "custom" with peakLabShow; the older
+   "num", "pos", "numpos" read as those), or your own text (peakLabTpl) with
+   {n} {name} {xc} {h} {fwhm} {area} {pct}; the numbers with their errors and
+   units or not, to peakLabDec decimals, on one line or stacked (peakLabSep).
+   Where: above the peak, inside it, or in a row along the top with leaders
+   (peakLabPos), turned (peakLabRot), dragged (peakLabOff, pixels by peak id).
+   How: a mark on the peak (peakLabMk), each peak's colour or the text's
+   (peakLabCol), a box (peakLabBox). All per graph; a name belongs to the peak
+   (spec.peaks[k].lab). */
+const FPL_FIELDS=[["num","Number"],["name","Name"],["xc","Centre"],["h","Height"],["fwhm","FWHM"],["area","Area"],["pct","Area %"]];
+const FPL_POS=[["top","Above the peak"],["inside","Inside the peak"],["row","In a row along the top, with leaders"]];
+const FPL_MARKS=[["none","Nothing"],["dot","A dot on its top"],["drop","A line down to the baseline"],["vline","A line through the graph"]];
+function fplFields(cfg){ const m=cfg.peakLab||"num"; if(m==="off") return [];
+  if(m==="custom") return Array.isArray(cfg.peakLabShow)?FPL_FIELDS.map(q=>q[0]).filter(f=>cfg.peakLabShow.includes(f)):["num"];
+  return m==="pos"?["xc"]:m==="numpos"?["num","xc"]:["num"]; }
+const fplTpl=cfg=>(cfg.peakLab||"num")!=="off"?String(cfg.peakLabTpl||"").trim():"";
+const fplOn=cfg=>fplFields(cfg).length>0||!!fplTpl(cfg);
+function fplVal(v,e,cfg){ if(!Number.isFinite(v)) return ""; const dec=cfg.peakLabDec, fixed=dec!=null&&dec!=="", err=!!cfg.peakLabErr&&Number.isFinite(e)&&e>0;
+  if(!err) return fixed?(+v).toFixed(+dec):fmt(v,5);
+  return fixed?`${(+v).toFixed(+dec)} ± ${(+e).toFixed(+dec)}`:fmtPM(v,e); }
+// m: the peak's numbers (peakMetrics' row); u: the units of x, y and area.
+function fplText(cfg,k,name,m,u){
+  const un=(s,x)=>s&&cfg.peakLabUnit&&x?`${s} ${x}`:s;
+  const val={num:String(k+1),name:String(name||""),xc:un(fplVal(m.xc,m.xcErr,cfg),u.x),h:un(fplVal(m.height,m.heightErr,cfg),u.y),fwhm:un(fplVal(m.fwhm,m.fwhmErr,cfg),u.x),area:un(fplVal(m.area,m.areaErr,cfg),u.a),pct:Number.isFinite(m.areaPct)?`${fplVal(m.areaPct,null,cfg)} %`:""};
+  const tpl=fplTpl(cfg), alias={n:"num",x:"xc",height:"h",w:"fwhm",a:"area"};
+  if(tpl) return tpl.replace(/\{(n|num|name|xc|x|h|height|fwhm|w|area|a|pct)\}/g,(z,key)=>val[alias[key]||key]||"").replace(/[ \t]+\n/g,"\n").trim();
+  const fs=fplFields(cfg), parts=fs.filter(f=>f!=="num").map(f=>val[f]).filter(Boolean);
+  if(cfg.peakLabSep==="line") return (fs.includes("num")?[val.num]:[]).concat(parts).join("\n");
+  return fs.includes("num")?(parts.length?`${val.num}: ${parts.join(", ")}`:val.num):parts.join(", "); }
 function peakTops(m,params,peaks){
   return peaks.map((pk,k)=>{
     const def=PEAKS[pk.type]||PEAKS.gauss, o=m.offsets[k], pv=params.slice(o,o+def.params.length);
@@ -4533,7 +4581,8 @@ function peakTops(m,params,peaks){
    exports are always the final data.
    ============================================================ */
 const PLOT_DEF={style:"scatter",logY:false,logX:false,grid:false,gridMinor:false,resid:true,revX:false,hidden:[],layout:"overlay",offset:0.35,legend:"auto",frame:"box",font:1,title:"",cmap:"viridis",series:{},ax:{},
-  legendText:"ink",legendFrame:true,legendTitle:"",fontFam:"default",fontName:"",titleItalic:true,scheme:"kurve",peakScheme:"warm",peakLab:"num",peakLabRot:false,peakLabDec:null,axisMatch:true,annos:[],txt:{}};
+  legendText:"ink",legendFrame:true,legendTitle:"",fontFam:"default",fontName:"",titleItalic:true,scheme:"kurve",peakScheme:"warm",peakLab:"num",peakLabRot:false,peakLabDec:null,
+  peakLabShow:null,peakLabTpl:"",peakLabErr:false,peakLabUnit:false,peakLabSep:"comma",peakLabPos:"top",peakLabMk:"none",peakLabCol:"peak",peakLabBox:"none",peakLabOff:null,axisMatch:true,annos:[],txt:{}};
 // The settings as drawn: the saved ones, or the Format dialog's while it
 // is open, with defaults filled in.
 function plotCfg(){
@@ -5533,14 +5582,51 @@ function buildPlot(W,H,pal,colEx,opt){
   // they are told apart in the Fit window.
   // Where a marked peak's own label sits on the top, the number goes just inside the peak.
   const marked=act&&ps.final?(cfg.annos||[]).filter(a=>a.grp==="pk:"+act.id&&(a.xu==null||a.xu===(ps.d.xu||""))):[];
-  const numLabel=(x,y,k,col,xc,draft)=>{
-    const mode=cfg.peakLab||"num"; if(mode==="off"&&!draft) return "";
-    const pos=cfg.peakLabDec!=null&&cfg.peakLabDec!==""?(+xc).toFixed(+cfg.peakLabDec):fmt(xc,5);
-    const txt=mode==="pos"?pos:mode==="numpos"?`${k+1}: ${pos}`:`${k+1}`;
-    const rot=!!cfg.peakLabRot&&(mode==="pos"||mode==="numpos"), under=!rot&&marked.some(a=>Math.abs(X(a.x)-x)<16), yy=under?y+TS.peaks.size*1.6:y-TS.peaks.size*0.9;
-    return `<text x="${x.toFixed(1)}" y="${yy.toFixed(1)}" text-anchor="${rot?"start":"middle"}"${rot?` transform="rotate(-90 ${x.toFixed(1)} ${yy.toFixed(1)})"`:""}${tAt(TS.peaks,col)}${forExport?"":` stroke="${pal.bg}" stroke-width="3" paint-order="stroke" pointer-events="none"`}>${esc(txt)}</text>`; };
+  // A peak being set up shows its number (and its name), which is how the Fit window tells them apart.
+  const numLabel=(x,y,k,col,name)=>{
+    const under=marked.some(a=>Math.abs(X(a.x)-x)<16), yy=under?y+TS.peaks.size*1.6:y-TS.peaks.size*0.9;
+    return `<text x="${x.toFixed(1)}" y="${yy.toFixed(1)}" text-anchor="middle"${tAt(TS.peaks,col)}${forExport?"":` stroke="${pal.bg}" stroke-width="3" paint-order="stroke" pointer-events="none"`}>${richIn(`${k+1}`+(name?` ${name}`:""),TS.peaks.size)}</text>`; };
+  // A fitted peak's label, as the graph's settings say (fplText and the peakLab keys).
+  const fitLabels=(fit,FM,lift)=>{
+    if(!fplOn(cfg)) return "";
+    const st=TS.peaks, lh=st.size*1.2, pos=cfg.peakLabPos||"top", rot=!!cfg.peakLabRot, mk=cfg.peakLabMk||"none", bx=cfg.peakLabBox||"none", offs=cfg.peakLabOff||{}, f1=v=>(+v).toFixed(1);
+    const xu0=ps.d.xu||"", yu0=ps.d.yu||"", u={x:xu0,y:yu0,a:unitFor("yx",xu0,yu0)}, pks=fit.spec.peaks||[], met=new Map(peakMetrics(fit).map(r=>[r.k,r]));
+    const rows=peakTops(FM.model,fit.params,pks).filter(Boolean).map(t=>{ const pk=pks[t.k]||{}, txt=fplText(cfg,t.k,pk.lab||"",met.get(t.k)||{xc:t.xc},u); if(!txt) return null;
+      const lines=txt.split("\n"); return {t,id:pk.id||("k"+t.k),txt,n:lines.length,w:Math.max(1,...lines.map(l=>richW(l,st))),col:cfg.peakLabCol==="text"?(st.color||pal.ink):pcol(t.k),x:X(t.xc),yT:Y(t.top),yB:Y(t.top-t.h)}; })
+      .filter(r=>r&&r.x>=L-0.5&&r.x<=L+pw+0.5);
+    if(!rows.length) return "";
+    const across=r=>rot?r.n*lh:r.w;
+    // In a row along the top, neighbours are spread so they never overlap.
+    if(pos==="row"){ const rs=rows.slice().sort((a,b)=>a.x-b.x); let prev=-Infinity; rs.forEach(r=>{ const h2=across(r)/2; r.cx=Math.max(r.x,prev+h2+6); prev=r.cx+h2; });
+      const last=rs[rs.length-1], over=last.cx+across(last)/2-(L+pw-2), room=rs[0].cx-across(rs[0])/2-(L+2); if(over>0) rs.forEach(r=>{ r.cx-=Math.min(over,Math.max(0,room)); }); }
+    const rowB=pos==="row"&&!rot?T+6+Math.max(...rows.map(r=>r.n*lh)):0;
+    let out="";
+    rows.forEach(r=>{
+      const dd=!forExport&&S.fldrag&&S.fldrag.id===r.id?S.fldrag.cur:(offs[r.id]||[0,0]), dx=+dd[0]||0, dy=+dd[1]||0, moved=Math.abs(dx)+Math.abs(dy)>0.5;
+      if(mk==="dot") out+=`<circle cx="${f1(r.x)}" cy="${f1(r.yT)}" r="3.2" fill="${r.col}" stroke="${pal.bg}" stroke-width="1" pointer-events="none"/>`;
+      else if(mk==="drop") out+=`<path d="M${f1(r.x)},${f1(r.yT)}V${f1(Math.min(T+mh,r.yB))}" stroke="${r.col}" stroke-width="1" stroke-dasharray="3 2" fill="none" pointer-events="none"/>`;
+      else if(mk==="vline") out+=`<path d="M${f1(r.x)},${T}V${f1(T+mh)}" stroke="${r.col}" stroke-width="1" stroke-dasharray="5 4" stroke-opacity="0.75" fill="none" pointer-events="none"/>`;
+      // Turned text reads upwards and its lines go to the right: c centres the block on its column.
+      const c=rot?((r.n-1)*lh-0.66*st.size)/2:0, gap=st.size*0.55+(mk==="dot"?4:0)+(+lift||0), under=pos==="top"&&!rot&&marked.some(a=>Math.abs(X(a.x)-r.x)<16), ym=(r.yT+r.yB)/2;
+      let ax, ay, anchor="middle", up=false, ang=rot?90:0, lead=null;
+      if(pos==="row"){ if(rot){ ax=r.cx-c; ay=T+4; anchor="end"; lead=[r.cx,T+8+r.w]; } else { ax=r.cx; ay=rowB-lh*0.3; up=true; lead=[r.cx,rowB+1]; } }
+      else if(pos==="inside"){ if(rot){ ax=r.x-c; ay=ym; } else { ax=r.x; ay=ym-(r.n*lh)/2+st.size*0.86; } }
+      else if(rot){ ax=r.x-c; ay=r.yT-gap; anchor="start"; }
+      else if(under){ ax=r.x; ay=r.yT+st.size*1.6; }
+      else { ax=r.x; ay=r.yT-gap; up=true; }
+      if(pos==="top"&&!under){ const topY=rot?ay-r.w:ay-(r.n-1)*lh-st.size*0.86;
+        if(topY<T+2){ if(rot){ ay=T+2+r.w; ax=r.x+lh*0.9-c; } else { anchor="start"; ax=r.x+(mk==="dot"?9:7)+(+lift||0); ay=T+2+st.size*0.86+(r.n-1)*lh; } } }
+      ax+=dx; ay+=dy; if(lead){ lead[0]+=dx; lead[1]+=dy; }
+      if(!lead&&moved) lead=[ax,ay+(up||rot?3:-st.size)];
+      if(lead&&(pos==="row"||moved)) out+=`<path d="M${f1(lead[0])},${f1(lead[1])}L${f1(r.x)},${f1(r.yT-3)}" stroke="${r.col}" stroke-width="0.9" stroke-opacity="0.7" stroke-dasharray="${pos==="row"?"2 2":"none"}" fill="none" pointer-events="none"/>`;
+      const tb=textBlock(r.txt,ax,ay,anchor,st,r.col,{up,ang,box:bx,bg:pal.bg,bd:r.col,halo:forExport?"":` stroke="${pal.bg}" stroke-width="3" paint-order="stroke"`});
+      out+=forExport?tb.svg:`<g data-fpl="${r.t.k}" data-fplid="${esc(r.id)}" style="cursor:move">${tb.svg}</g>`; });
+    return out; };
   const handlesOn=ov&&!S.readOnly&&S.mode!=="mask"&&S.mode!=="pin";
+  // Straight after a fit the peaks being set up are the fit: its labels, as the graph's settings say.
+  const fitLab=!!(ov&&ov.same&&fit&&FM&&FM.composite&&fplOn(cfg));
   if(ov){
+    if(fitLab) s+=fitLabels(fit,FM,handlesOn?7:0);
     peakTops(ov.m,ov.d.init,ov.d.peaks).forEach(t=>{
       if(!t) return; const col=peakColor(t.k), sel=S.selPeak===t.k, cx=X(t.xc), cy=Y(t.top);
       if(handlesOn&&sel&&t.w>0){
@@ -5555,11 +5641,13 @@ function buildPlot(W,H,pal,colEx,opt){
         s+=`<g data-h="${t.k}:c" style="cursor:move"><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="11" fill="transparent"/>${sel?`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="9" fill="none" stroke="${col}" stroke-width="1.5"/>`:""}<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="5.5" fill="${col}" stroke="${pal.bg}" stroke-width="2"/></g>`;
         geo.handles.push({k:t.k,kind:"c",x:cx,y:cy});
       }
-      s+=numLabel(cx,cy-(handlesOn?2:0),t.k,col,t.xc,true);
+      if(!fitLab) s+=numLabel(cx,cy-(handlesOn?2:0),t.k,col,(ov.d.peaks[t.k]||{}).lab||"");
     });
-  } else if(fit&&FM&&FM.composite){
-    peakTops(FM.model,fit.params,fit.spec.peaks||[]).forEach(t=>{ if(!t) return; const cx=X(t.xc), cy=Y(t.top); if(inPlot(cx,cy)) s+=numLabel(cx,cy,t.k,pcol(t.k),t.xc,false); });
-  }
+  } else if(fit&&FM&&FM.composite) s+=fitLabels(fit,FM);
+  // While the Peaks window is open, what lies outside the range it searches is shaded.
+  if(!forExport&&!ins&&act&&ps.final&&!heat&&winOpen("peaks")){ const r=pkRangeOf(act);
+    if(r){ const a=X(r[0]), b=X(r[1]), lo=Math.min(a,b), hi=Math.max(a,b), cl=v=>Math.max(L,Math.min(L+pw,v)), l0=cl(lo), h0=cl(hi);
+      s+=`<g pointer-events="none" class="pkrange">${l0>L?`<rect x="${L}" y="${T}" width="${(l0-L).toFixed(1)}" height="${mh}" fill="${pal.muted}" fill-opacity="0.1"/>`:""}${h0<L+pw?`<rect x="${h0.toFixed(1)}" y="${T}" width="${(L+pw-h0).toFixed(1)}" height="${mh}" fill="${pal.muted}" fill-opacity="0.1"/>`:""}${[lo,hi].filter(v=>v>=L&&v<=L+pw).map(v=>`<path d="M${v.toFixed(1)},${T}v${mh}" stroke="${pal.muted}" stroke-dasharray="4 3" stroke-width="1"/>`).join("")}</g>`; } }
   // Peak finder preview: what would be found (filled) and what was turned down (hollow).
   if(!forExport&&S.pfPreview&&ps.final&&!heat&&S.fitMode==="peaks"&&winOpen("fit")){
     const pv=S.pfPreview; let d1="", d2="";
@@ -6118,6 +6206,7 @@ function openGraphMenu(ev){
   Object.assign(a.style,{left:(fig.left+x)+"px",top:(fig.top+y)+"px"});
   a._back=$("#plot");
   const tg=ev.target&&ev.target.closest?ev.target:null;
+  const fpe=tg&&tg.closest("[data-fpl]"); if(fpe){ openMenu(a,fplMenuItems(+fpe.dataset.fpl),{label:"Peak label"}); return; }
   const ag=tg&&tg.closest("[data-anno]"); if(ag){ S.annoSel=ag.dataset.anno; renderPlot(); openMenu(a,annoMenuItems(ag.dataset.anno),{label:"Annotation"}); return; }
   if(tg&&tg.closest("[data-legbox]")&&!tg.closest("[data-leg]")){ openMenu(a,legendMenuItems(),{label:"Legend"}); return; }
   const axt=tg&&tg.closest("[data-axtitle]"); if(axt){ openMenu(a,titleMenuItems(axt.dataset.axtitle),{label:"Title"}); return; }
@@ -6216,6 +6305,7 @@ function pdPreset(k){ const wk=S.plotPreview; if(!wk) return;
   if(q.grid!=null) wk.grid=q.grid;
   renderPlot(); }
 function pdAct(s){ const wk=S.plotPreview; if(!wk) return; const i=s.indexOf(":"), k=s.slice(0,i), id=s.slice(i+1);
+  if(k==="fploff"){ wk.peakLabOff=null; renderPlot(); return; }
   if(k==="tdreset"){ if(id==="title"){ wk.titleDx=null; wk.titleDy=null; renderPlot(); } else { pdSet("ax."+id+".tdx",null); pdSet("ax."+id+".tdy",null); } return; }
   const a=(wk.annos||[]).find(q=>q.id===id); if(!a) return; const g=S.geo, v=g?g.v:curView();
   if(k==="centrex"||k==="centre"){ const patch={x:+(g&&g.logX?Math.sqrt(v.x0*v.x1):(v.x0+v.x1)/2).toPrecision(7),align:"center"};
@@ -6258,8 +6348,8 @@ function renderPlotDetails(){
   if(activeFit()){ const on=page==="series"&&S.pdSel==="__fit"; h+=`<button class="pd-item${on?" on":""}" data-pdsel="__fit" aria-current="${on?"page":"false"}"><span class="sw" style="background:${(cfg.series.__fit||{}).color||pal.fit}"></span><span class="grow">Fit curve</span></button>`; }
   const nav=(k,l)=>`<button class="pd-item${page===k?" on":""}" data-pdpage="${k}" aria-current="${page===k?"page":"false"}"><span class="grow">${l}</span></button>`;
   h+=`<div class="pd-h">Axes</div>`+nav("ax:x","X axis")+nav("ax:y",cfg.layout==="dy"?"Left Y axis":"Y axis")+(cfg.layout==="dy"?nav("ax:y2","Right Y axis"):cfg.layout==="heat"?nav("ax:y2","Colour scale"):"");
-  h+=`<div class="pd-h">Graph</div>`+nav("frame","Frame and grid")+nav("text","Text and fonts")+nav("legend","Legend")+nav("layout","Layout and colours")+nav("labels","Labels and lines");
-  const TITLES={frame:"Frame and grid",text:"Text and fonts",legend:"Legend",layout:"Layout and colours",labels:"Labels and lines","ax:x":"X axis","ax:y":cfg.layout==="dy"?"Left Y axis":"Y axis","ax:y2":cfg.layout==="heat"?"Colour scale":"Right Y axis"};
+  h+=`<div class="pd-h">Graph</div>`+nav("frame","Frame and grid")+nav("text","Text and fonts")+nav("legend","Legend")+nav("layout","Layout and colours")+nav("labels","Labels and lines")+nav("fpeaks","Fitted peak labels");
+  const TITLES={frame:"Frame and grid",text:"Text and fonts",legend:"Legend",layout:"Layout and colours",labels:"Labels and lines",fpeaks:"Fitted peak labels","ax:x":"X axis","ax:y":cfg.layout==="dy"?"Left Y axis":"Y axis","ax:y2":cfg.layout==="heat"?"Colour scale":"Right Y axis"};
   const selC=page==="series"&&S.pdSel!=="__fit"?(colById(S.pdSel)||act):null;
   h+=`</nav><div class="pd-main" data-page="${esc(page)}"><div class="pd-title" role="heading" aria-level="3">${esc(page==="series"?(S.pdSel==="__fit"?"Fit curve":selC?specName(selC):""):TITLES[page]||"")}</div>`;
   if(page==="series"){
@@ -6334,7 +6424,7 @@ function renderPlotDetails(){
       +note("Each kind of text below can have its own font, size and colour."));
     h+=grp("Graph title",`<label for="pdTitle">Text</label><div class="pair"><input type="text" id="pdTitle" data-pd="title" data-rich value="${esc(cfg.title||"")}" placeholder="none"${ro}>${rtool("pdTitle")}</div>`+wide(tbar("title",{align:"center"}))
       +((cfg.titleDx||cfg.titleDy)?`<span></span><div><button type="button" class="btn sm" data-pdact="tdreset:title"${ro}>Put it back above the graph</button></div>`:""),txReset("title"));
-    [["axis","Axis titles","Where each sits along its axis is on the axis's page."],["ticks","Tick numbers",""],["legend","Legend",""],["labels","Labels and text on the graph","A label or text can have its own style too."],["peaks","Fitted peak numbers",""]].forEach(([el,l,n])=>{
+    [["axis","Axis titles","Where each sits along its axis is on the axis's page."],["ticks","Tick numbers",""],["legend","Legend",""],["labels","Labels and text on the graph","A label or text can have its own style too."],["peaks","Fitted peak labels","What they say and where they go: the Fitted peak labels page."]].forEach(([el,l,n])=>{
       h+=grp(l,wide(tbar(el)+(n?`<div class="pd-note">${n}</div>`:"")),txReset(el)); });
   } else if(page==="legend"){
     h+=grp("Place",`<label for="pdLeg">Where</label>${sel("pdLeg",LEGENDS.concat(cfg.legend==="custom"?[["custom","Where you dragged it"]]:[]),cfg.legend,"legend")}`
@@ -6358,12 +6448,26 @@ function renderPlotDetails(){
       +chk("pdAxM","axisMatch",cfg.axisMatch!==false,"On two Y axes, colour each axis like its spectrum"));
     h+=grp("Colours",`<label for="pdSch">Spectra</label>${sel("pdSch",Object.entries(SCHEMES).map(([k,v])=>[k,v.name]),cfg.scheme||"kurve","scheme")}<label for="pdPsch">Fitted peaks</label>${sel("pdPsch",Object.entries(PEAK_SCHEMES).map(([k,v])=>[k,v.name]),cfg.peakScheme||"warm","peakScheme")}`);
     h+=grp("Fit",chk("pdRes","resid",cfg.resid!==false,"Residual panel under a fit"));
+  } else if(page==="fpeaks"){
+    const f=activeFit(), fs=fplFields(cfg), tpl=String(cfg.peakLabTpl||""), offN=Object.keys(cfg.peakLabOff||{}).length, off=(cfg.peakLab||"num")==="off";
+    if(!(f&&f.kind==="composite")) h+=`<p class="pd-note" style="margin:0 0 10px">No peak fit on this graph yet; these settings apply when there is one.</p>`;
+    h+=grp("Each label shows",wide(`<div class="pd-fpl" role="group" aria-label="What each label shows">${FPL_FIELDS.map(([v,l])=>`<label><input type="checkbox" data-pdfpl="${v}"${fs.includes(v)?" checked":""}${ro||tpl.trim()?" disabled":""}> ${l}</label>`).join("")}</div>`)
+      +`<label for="pdFplT" class="tipd" title="Your own words around the numbers: {n} the peak's number, {name} its name, {xc} its centre, {h} its height, {fwhm}, {area}, {pct} its share of the area. A new line starts a new line; super- and subscripts and symbols work as in any label.">Or your own text</label><div class="pair"><textarea id="pdFplT" data-pd="peakLabTpl" data-rich rows="2" placeholder="e.g. {name}, {xc} cm^{-1}"${ro}>${esc(tpl)}</textarea>${rtool("pdFplT")}</div>`
+      +(tpl.trim()?note("Your text is used in place of the boxes above; empty it to use them again."):"")
+      +note("Name a peak in the Fit window, or double-click its label on the graph."));
+    h+=grp("The numbers",`<label for="pdFpld">Decimals</label>${sel("pdFpld",[["","As needed"],["0","0"],["1","1"],["2","2"],["3","3"],["4","4"]],cfg.peakLabDec==null?"":String(cfg.peakLabDec),"peakLabDec")}`
+      +chk("pdFplE","peakLabErr",!!cfg.peakLabErr,"With ± their standard errors")+chk("pdFplU","peakLabUnit",!!cfg.peakLabUnit,"With their units"));
+    h+=grp("Where",`<label for="pdFplP">Place</label>${sel("pdFplP",FPL_POS,cfg.peakLabPos||"top","peakLabPos")}<label>Lines</label>${seg("peakLabSep",[["comma","One line"],["line","Stacked"]],cfg.peakLabSep||"comma","Lines")}`
+      +chk("pdFplR","peakLabRot",!!cfg.peakLabRot,"Turned 90°, reading upwards")
+      +(offN?`<span></span><div><button type="button" class="btn sm" data-pdact="fploff:"${ro}>Put ${offN===1?"the dragged label":`the ${offN} dragged labels`} back</button></div>`:"")
+      +note("Drag a label on the graph to move it; a leader goes back to its peak."));
+    h+=grp("Mark and look",`<label for="pdFplM">Mark each peak with</label>${sel("pdFplM",FPL_MARKS,cfg.peakLabMk||"none","peakLabMk")}<label>Colour</label>${seg("peakLabCol",[["peak","Each peak's"],["text","The text's"]],cfg.peakLabCol||"peak","Colour")}<label>Box</label>${seg("peakLabBox",[["none","None"],["line","Outline"],["fill","Filled"]],cfg.peakLabBox||"none","Box")}`
+      +wide(tbar("peaks")),txReset("peaks"));
+    if(off) h+=`<p class="pd-note">The labels are off: tick what they should show.</p>`;
   } else if(page==="labels"){
     const d=plotState().d, all=cfg.annos||[], lst=all.filter(a=>!a.grp), sets=yCols().filter(c=>all.some(a=>a.grp==="pk:"+c.id));
     const selA=S.pdAnno?all.find(a=>a.id===S.pdAnno)||null:null; if(!selA) S.pdAnno=null;
-    h+=grp("Fitted peaks",`<label for="pdPl">Label each with</label>${sel("pdPl",[["off","Nothing"],["num","Its number"],["pos","Its position"],["numpos","Number and position"]],cfg.peakLab||"num","peakLab")}`
-      +`<label for="pdPld">Decimals</label>${sel("pdPld",[["","Automatic"],["0","0"],["1","1"],["2","2"],["3","3"],["4","4"]],cfg.peakLabDec==null?"":String(cfg.peakLabDec),"peakLabDec")}`
-      +chk("pdPlr","peakLabRot",!!cfg.peakLabRot,"Turn position labels 90°")+wide(tbar("peaks")),txReset("peaks"));
+    h+=grp("Fitted peaks",`<span></span><div><button type="button" class="btn sm" data-pdpage="fpeaks">Their labels…</button></div>`);
     let L1=`<div class="pd-anl">`;
     lst.forEach(a=>{ const on=!!selA&&selA.id===a.id, col=annoColor(a,pal,false,cfg);
       const hid=a.pin!=="plot"&&((a.xu!=null&&a.t!=="h"&&a.xu!==(d.xu||""))||((a.t==="h"||a.t==="text"||a.t==="label")&&a.yu!=null&&a.yu!==(d.yu||"")));
@@ -6436,7 +6540,7 @@ function pdAnnoEditor(a,o){
 }
 // Every graph takes this one's frame, axes, text, legend and colours; data,
 // ranges, titles and annotations stay their own.
-const FMT_KEYS=["frame","frameLw","frameColor","grid","gridMinor","gridColor","gridLw","gridDash","gridX","gridY","plotBg","mL","mR","mT","mB","txt","font","fontFam","fontName","titleItalic","legend","legendPos","legendText","legendFrame","legendCols","legendLine","legendSp","legendFill","legendOp","legendBd","legendLw","legendR","scheme","peakScheme","peakLab","peakLabRot","peakLabDec","axisMatch","resid"];
+const FMT_KEYS=["frame","frameLw","frameColor","grid","gridMinor","gridColor","gridLw","gridDash","gridX","gridY","plotBg","mL","mR","mT","mB","txt","font","fontFam","fontName","titleItalic","legend","legendPos","legendText","legendFrame","legendCols","legendLine","legendSp","legendFill","legendOp","legendBd","legendLw","legendR","scheme","peakScheme","peakLab","peakLabRot","peakLabDec","peakLabShow","peakLabTpl","peakLabErr","peakLabUnit","peakLabSep","peakLabPos","peakLabMk","peakLabCol","peakLabBox","axisMatch","resid"];
 const FMT_AX=["ticks","tlen","mlen","tw","mirror","labs","lrot","color","lw","pos","at","off","talign","line","fmt","dec","minor","tshow"];
 /* A graph's settings with another's format laid over them: frame, grid, text,
    legend, colours and each axis's style; a key the format lacks goes back to
@@ -6540,6 +6644,9 @@ function setupPlotDetails(){
   // Sliders and typed text show on the graph as they change; numbers when complete.
   body.addEventListener("input",e=>{ const el=e.target; if(el.type==="range"||el.tagName==="TEXTAREA"||(el.type==="text"&&el.dataset.pd&&el.dataset.num==null)) onVal(e,false); });
   body.addEventListener("change",e=>onVal(e,true));
+  // What the fitted peaks' labels show: the ticked boxes, in their order.
+  body.addEventListener("change",e=>{ const el=e.target; if(!el||el.dataset.pdfpl==null||S.readOnly||!S.plotPreview) return;
+    const arr=[...body.querySelectorAll("[data-pdfpl]")].filter(x=>x.checked).map(x=>x.dataset.pdfpl); pdSet("peakLabShow",arr); pdSet("peakLab",arr.length?"custom":"off"); renderPlotDetails(); });
   // Up and down move through the pages.
   body.addEventListener("keydown",e=>{ const it=e.target.closest&&e.target.closest(".pd-item"); if(!it||(e.key!=="ArrowDown"&&e.key!=="ArrowUp")) return;
     e.preventDefault(); const all=[...body.querySelectorAll(".pd-item")], i=all.indexOf(it), n=all[Math.max(0,Math.min(all.length-1,i+(e.key==="ArrowDown"?1:-1)))]; if(n&&n!==it){ n.click(); const f=body.querySelector(".pd-item.on"); if(f) f.focus(); } });
@@ -6566,6 +6673,7 @@ function setupPlotDetails(){
     else if(pg==="text"){ Object.assign(wk,{txt:{},font:1,fontFam:"default",fontName:"",titleItalic:true,titleDx:null,titleDy:null}); }
     else if(pg==="legend"){ nul(["legendPos","legendCols","legendLine","legendSp","legendFill","legendOp","legendBd","legendLw","legendR"]); Object.assign(wk,{legend:"auto",legendText:"ink",legendFrame:true,legendTitle:""}); }
     else if(pg==="layout") Object.assign(wk,{layout:"overlay",offset:0.35,cmap:"viridis",scheme:"kurve",peakScheme:"warm",axisMatch:true,resid:true});
+    else if(pg==="fpeaks"){ Object.assign(wk,{peakLab:"num",peakLabShow:null,peakLabTpl:"",peakLabErr:false,peakLabUnit:false,peakLabSep:"comma",peakLabPos:"top",peakLabMk:"none",peakLabCol:"peak",peakLabBox:"none",peakLabRot:false,peakLabDec:null,peakLabOff:null}); wk.txt=Object.assign({},wk.txt||{},{peaks:{}}); }
     else if(pg==="labels"){ if(S.pdAnno){ const o={}; ["font","fontName","pt","bold","i","u","color","align","ang","rot","box","bg","bd","lpos","lw","dash","op","edge","size"].forEach(k=>{ o[k]=null; }); pdSet("annos."+S.pdAnno,o); }
       else { Object.assign(wk,{peakLab:"num",peakLabRot:false,peakLabDec:null}); wk.txt=Object.assign({},wk.txt||{},{peaks:{}}); } }
     renderPlot(); renderPlotDetails(); };
@@ -6692,6 +6800,9 @@ function setupGraph(){
       if(b){ ev.preventDefault(); svg.setPointerCapture(ev.pointerId); S.bdrag={id:bid,edge,x0:x,orig:{x1:b.x1,x2:b.x2},moved:false}; return; } }
     // Annotations and the legend move with the pointer in the Zoom, Pan and Label tools.
     const canMove=!S.readOnly&&ev.button===0&&["zoom","pan","label"].includes(S.mode);
+    const fpe=ev.target&&ev.target.closest?ev.target.closest("[data-fpl]"):null;
+    if(fpe&&canMove){ ev.preventDefault(); svg.setPointerCapture(ev.pointerId); const id=fpe.dataset.fplid, o=(GP().peakLabOff||{})[id]||[0,0];
+      S.fldrag={id,k:+fpe.dataset.fpl,x0:x,y0:y,d0:[+o[0]||0,+o[1]||0],cur:[+o[0]||0,+o[1]||0],moved:false}; return; }
     const ag=ev.target&&ev.target.closest?ev.target.closest("[data-anno]"):null;
     if(ag&&canMove){ const a=annoById(ag.dataset.anno); if(a){ ev.preventDefault(); svg.setPointerCapture(ev.pointerId); const ah=ev.target.closest("[data-ah]"); S.andrag={id:a.id,x0:x,y0:y,orig:JSON.parse(JSON.stringify(a)),moved:false,end:ah?ah.dataset.ah:null}; return; } }
     const tte=ev.target&&ev.target.closest?ev.target.closest("[data-axtitle]"):null;
@@ -6713,6 +6824,7 @@ function setupGraph(){
     const d=toData(x,y);
     const ro=$("#readout"); if(ro){ const [xu,yu]=dataUnits(); ro.textContent=d&&d.inside?`x ${fmt(d.x,6)}${xu?" "+xu:""}   y ${fmt(d.y,5)}${yu?" "+yu:""}`:""; }
     if(S.andrag){ dragAnno(x,y); return; }
+    if(S.fldrag){ const fd=S.fldrag; fd.cur=[fd.d0[0]+x-fd.x0,fd.d0[1]+y-fd.y0]; if(Math.abs(x-fd.x0)+Math.abs(y-fd.y0)>3) fd.moved=true; if(fd.moved) renderPlot(); return; }
     if(S.lgdrag){ dragLegend(x,y); return; }
     if(S.ttdrag){ dragTitle(x,y); return; }
     if(S.axdrag){ dragAxis(x,y); return; }
@@ -6734,7 +6846,9 @@ function setupGraph(){
     const hA=drag?null:(ev.target&&ev.target.closest?ev.target.closest("[data-anno]"):null), hAn=hA&&annoById(hA.dataset.anno);
     const h=drag?null:hitHandle(ev);
     const hT=drag||hAn?null:(ev.target&&ev.target.closest?ev.target.closest("[data-axtitle],[data-axis]"):null);
-    if(hAn) showTip(annoTip(hAn)+(S.readOnly?"":"   · drag to move"),x,y);
+    const hF=drag||hAn?null:(ev.target&&ev.target.closest?ev.target.closest("[data-fpl]"):null);
+    if(hF) showTip(`Peak ${+hF.dataset.fpl+1}${S.readOnly?"":"   · drag to move · double-click to name it · right-click for its options"}`,x,y);
+    else if(hAn) showTip(annoTip(hAn)+(S.readOnly?"":"   · drag to move"),x,y);
     else if(hT&&!S.readOnly) showTip(hT.dataset.axis?"Drag to move the axis · double-click for its settings":"Drag to move · double-click to type",x,y);
     else if(h&&S.pdraft&&S.pdraft.peaks[h.k]) showTip(handleTip(h.k)+(h.kind==="c"?"   · drag to move":"   · drag to change the width"),x,y);
     else { const q=nearest(x,y);
@@ -6743,7 +6857,7 @@ function setupGraph(){
     if(S.room&&d&&Date.now()-lastPres>90){ lastPres=Date.now(); S.room.presence(d.inside?{uid:S.uid,pid:S.pid,cx:d.x,cy:d.y}:{uid:S.uid,pid:S.pid,cx:null,cy:null}).catch(()=>{}); }
   });
   svg.addEventListener("pointerleave",()=>{ if(S.hdrag||drag) return; hideTip(); const ro=$("#readout"); if(ro) ro.textContent=""; if(S.room) S.room.presence({cx:null,cy:null}).catch(()=>{}); });
-  svg.addEventListener("pointercancel",()=>{ drag=null; S.hdrag=null; S.andrag=null; S.lgdrag=null; S.bdrag=null; S.ttdrag=null; S.axdrag=null; S.arrowDraft=null; S.guides=null; S.snapRing=null; zr.style.display="none"; svg.classList.remove("panning"); });
+  svg.addEventListener("pointercancel",()=>{ drag=null; S.hdrag=null; S.andrag=null; if(S.fldrag){ S.fldrag=null; renderPlot(); } S.lgdrag=null; S.bdrag=null; S.ttdrag=null; S.axdrag=null; S.arrowDraft=null; S.guides=null; S.snapRing=null; zr.style.display="none"; svg.classList.remove("panning"); });
   svg.addEventListener("pointerup",ev=>{
     if(S.bdrag){ const bd=S.bdrag; S.bdrag=null; hideTip(); S.noDbl=Date.now(); if(bd.moved){ commitBandDrag(bd); return; }
       S.bandSel=bd.id; renderPlot(); openWin("integ",{render:true}); return; }
@@ -6754,6 +6868,12 @@ function setupGraph(){
       S.noDbl=now;
       if(lc&&lc.id===ad.id&&now-lc.t<450){ S.annoClick=null; annoDouble(ad.id); return; }
       if(S.annoSel!==ad.id){ S.annoSel=ad.id; renderPlot(); } return; }
+    if(S.fldrag){ const fd=S.fldrag; S.fldrag=null; S.noDbl=Date.now();
+      if(fd.moved){ pushUndo("moving a peak's label"); const o=Object.assign({},GP().peakLabOff||{}), v=[Math.round(fd.cur[0]),Math.round(fd.cur[1])];
+        if(Math.abs(v[0])+Math.abs(v[1])<2) delete o[fd.id]; else o[fd.id]=v;
+        savePlot({peakLabOff:Object.keys(o).length?o:null},`moved the label of fitted peak ${fd.k+1}`); renderPlot(); return; }
+      const now=Date.now(), lc=S.fplClick; S.fplClick={id:fd.id,t:now};
+      if(lc&&lc.id===fd.id&&now-lc.t<450){ S.fplClick=null; namePeakDlg(fd.k); } return; }
     if(S.lgdrag){ const lg=S.lgdrag; S.lgdrag=null; if(lg.moved){ savePlot({legend:GP().legend,legendPos:GP().legendPos},"moved the legend"); renderPlot(); return; }
       // A double click on an entry renames it; on the title, edits the title.
       const now=Date.now(), lc=S.legClick; S.legClick={hit:lg.hit,t:now}; S.noDbl=now;
@@ -8212,6 +8332,7 @@ function removeAnchor(k){
 }
 function setPickedRange(x0,x1){
   if(S.pick&&S.pick.integ){ addBand(x0,x1); return; }        // the band tool stays on for the next
+  if(S.pick&&S.pick.pkr){ S.pick=null; setMode("zoom",true); setPkRange([x0,x1]); return; }
   if(S.pick&&S.pick.band){ S.pick=null; setMode("zoom",true); addAnno({t:"band",x:+Math.min(x0,x1).toPrecision(7),x2:+Math.max(x0,x1).toPrecision(7)}); return; }
   const s=S.pick&&stepById(S.pick.step); if(!s||!S.pick.keys) return;
   const [ka,kb]=S.pick.keys; beginStepEdit(s,ka);
@@ -8692,6 +8813,29 @@ function renderFitRangeOnly(){
   renderStatusBar();
 }
 const MODEL_GROUPS=[["Polynomial",["linear","poly2","poly3"]],["Peak",["gauss","lorentz"]],["Growth and decay",["expdec"]],["Sigmoid",["boltz"]]];
+/* Which spectrum the Fit window works on and the X range it fits (the graph's
+   zoom, typed here or dragged there). */
+function fitWhereHtml(){
+  const ys=yCols(), c=activeYCol(); if(!c) return ""; const d=finalOf(c), v=viewRng(), xs=d.x.filter(Number.isFinite), ro=S.readOnly?" disabled":"";
+  if(!xs.length) return "";
+  return `<div class="frow fwhere">${ys.length>1?`<label for="fwCol">Spectrum</label><select id="fwCol">${ys.map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}</option>`).join("")}</select>`:""}
+    <label for="fwX0" class="tipd" title="The fit, and the search for peaks, use the points in this range: type it, or zoom the graph to it">Range</label><div class="pair"><input type="text" inputmode="decimal" id="fwX0" value="${v?esc(fmt(v[0],7)):""}" placeholder="${esc(fmt(Math.min(...xs),6))}" aria-label="Fit from"${ro}><span class="lab">to</span><input type="text" inputmode="decimal" id="fwX1" value="${v?esc(fmt(v[1],7)):""}" placeholder="${esc(fmt(Math.max(...xs),6))}" aria-label="Fit up to"${ro}><span class="lab">${esc(d.xu||"")}</span><button class="btn sm" id="fwAll"${v?"":" disabled"} title="Fit all the data">All</button></div></div>`; }
+// Zooms the graph to x a to b (either may be null: that end of the data), or to all of it.
+function setViewX(a,b){ const c=activeYCol(); if(!c) return; const d=finalOf(c), xs=d.x.filter(Number.isFinite);
+  if(a==null&&b==null) S.view=null;
+  else { if(a==null) a=Math.min(...xs); if(b==null) b=Math.max(...xs); const x0=Math.min(a,b), x1=Math.max(a,b), yr=yRangeIn(x0,x1); S.view={x0,x1,y0:yr[0],y1:yr[1],xu:d.xu||""}; }
+  renderPlot(); renderFit(); }
+function wireFitWhere(box){
+  const cs=box.querySelector("#fwCol"); if(cs) cs.onchange=()=>goSpectrum(cs.value);
+  const all=box.querySelector("#fwAll"); if(all) all.onclick=()=>setViewX(null,null);
+  ["#fwX0","#fwX1"].forEach(id=>{ const el=box.querySelector(id); if(!el) return;
+    el.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); el.blur(); } });
+    el.addEventListener("change",()=>{ const a0=box.querySelector("#fwX0").value.trim(), b0=box.querySelector("#fwX1").value.trim(), a=a0?parseNum(a0):null, b=b0?parseNum(b0):null;
+      if((a0&&a==null)||(b0&&b==null)){ toast("Type a number in X units, or leave it empty for the end of the data."); renderFit(); return; }
+      if(a!=null&&a===b){ toast("The start and the end are the same: give the range some width."); renderFit(); return; }
+      setViewX(a,b); }); });
+  const dn=box.querySelector("#fitDone"); if(dn) dn.onclick=()=>{ closeWin("fit"); if(S.pfPreview){ S.pfPreview=null; renderPlot(); } };
+}
 function fitModeSeg(){
   return `<div class="seg full" role="group" aria-label="What to fit">
     <button data-fmode="curve" aria-pressed="${S.fitMode==="curve"}" title="One model through the points in view">${ICON("chart")}<span>Curve fit</span></button>
@@ -8712,8 +8856,8 @@ function renderFit(){
   renderTabMarks(); renderResults(); renderStatusBar();
   if(!p){ box.innerHTML=`<p class="nothing">Open or create a project to fit a model.</p>`; return; }
   if(S.fitMode==null) S.fitMode=(p.fit&&p.fit.kind==="composite")?"peaks":(p.fit?"curve":(p.prefFit==="peaks"?"peaks":"curve"));
-  const top=fitModeSeg();
-  const wire=()=>{
+  const top=fitModeSeg()+fitWhereHtml();
+  const wire=()=>{ wireFitWhere(box);
     box.querySelectorAll("[data-fmode]").forEach(b=>b.onclick=()=>{ if(S.fitMode===b.dataset.fmode) return; S.fitMode=b.dataset.fmode; S.fitError=""; renderFit(); renderPlot(); });
     box.querySelectorAll("[data-go-res]").forEach(b=>b.onclick=()=>showDrawer("res"));
   };
@@ -8748,7 +8892,7 @@ function renderFit(){
   h+=`<div class="range" id="fitRange"></div>`;
   if(S.fitError) h+=noteHtml("bad",S.fitError);
   if(f) h+=fitSummary(f);
-  h+=`<div class="sticky"><button class="btn primary" id="doFit"${ro} title="Fit (Ctrl+Enter)">${ICON("play")}Fit</button><button class="btn" id="doGuess"${ro} title="Measure the starting values from the data in view">Guess</button>${f&&yCols().length>1?`<button class="btn" id="fitAll"${ro} title="Fit every spectrum with this model, starting from this fit">Fit every spectrum…</button>`:""}${f?`<button class="btn ghost" id="clrFit"${ro}>Remove fit</button>`:""}</div>`;
+  h+=`<div class="sticky"><button class="btn primary" id="doFit"${ro} title="Fit (Ctrl+Enter)">${ICON("play")}Fit</button><button class="btn" id="doGuess"${ro} title="Measure the starting values from the data in view">Guess</button>${f&&yCols().length>1?`<button class="btn" id="fitAll"${ro} title="Fit every spectrum with this model, starting from this fit">Fit every spectrum…</button>`:""}${f?`<button class="btn ghost" id="clrFit"${ro}>Remove fit</button>`:""}<button class="btn ghost fdone" id="fitDone" title="Close the Fit window; the fit stays on the graph and in Results">Done</button></div>`;
   box.innerHTML=h; renderFitRangeOnly(); wire();
   $("#model").onchange=e=>{ const v=e.target.value;
     if(v==="__new"){ e.target.value=d.model; editUserFn(null); return; }
@@ -8903,7 +9047,7 @@ function ensurePeakDraft(){
   if(S.pdraft&&S.pdraft.pid===S.pid) return S.pdraft;
   const f=activeFit()&&activeFit().kind==="composite"?activeFit():null;
   S.pdraft=f
-    ? {pid:S.pid, base:f.spec.base, peaks:f.spec.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{})), init:f.params.slice(), fixed:(f.fixed||f.params.map(()=>false)).slice(), weighted:!!f.weighted, x0:f.x0, fitAt:f.at}
+    ? {pid:S.pid, base:f.spec.base, peaks:f.spec.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{},k.lab?{lab:k.lab}:{})), init:f.params.slice(), fixed:(f.fixed||f.params.map(()=>false)).slice(), weighted:!!f.weighted, x0:f.x0, fitAt:f.at}
     : {pid:S.pid, base:"linear", peaks:[], init:[], fixed:[], weighted:hasErr(), x0:null, fitAt:null};
   return S.pdraft;
 }
@@ -9132,7 +9276,8 @@ function pfSchedule(){ clearTimeout(pfTimer); pfTimer=setTimeout(()=>{ const r=p
 function pfResultHtml(r){
   if(!r) return `<p class="lab">Too few points in view to look for peaks.</p>`;
   const [xu]=dataUnits(), f=v=>esc(fmt(v,6));
-  let h=`<p class="pfsum"><strong>${r.found.length} peak${r.found.length===1?"":"s"}</strong>${r.found.length?` at ${r.found.slice(0,12).map(q=>f(q.x)).join(", ")}${r.found.length>12?", …":""}${xu?" "+esc(xu):""}`:""}. <span class="lab">Noise σ ${esc(fmt(r.sigma,3))}${r.log?" (in log units)":""}${r.smooth?`, smoothed over ${r.smooth} points`:", not smoothed"}.</span></p>`;
+  const xa=Math.min(...r.X), xb=Math.max(...r.X);
+  let h=`<p class="pfsum"><strong>${r.found.length} peak${r.found.length===1?"":"s"}</strong> between ${esc(fmt(xa,6))} and ${esc(fmt(xb,6))}${xu?" "+esc(xu):""}${r.found.length?`, at ${r.found.slice(0,12).map(q=>f(q.x)).join(", ")}${r.found.length>12?", …":""}${xu?" "+esc(xu):""}`:""}. <span class="lab">Noise σ ${esc(fmt(r.sigma,3))}${r.log?" (in log units)":""}${r.smooth?`, smoothed over ${r.smooth} points`:", not smoothed"}.</span></p>`;
   if(r.found.length) h+=`<div class="twrap"><table class="rtab pftab"><thead><tr><th>#</th><th>X</th><th title="Signal to noise">S/N</th><th>Height</th><th>FWHM</th></tr></thead><tbody>${r.found.map((q,k)=>`<tr><td>${k+1}</td><td>${f(q.x)}</td><td>${Number.isFinite(q.snr)?esc(fmt(q.snr,3)):"—"}</td><td>${esc(fmt(Math.abs(q.h),4))}</td><td>${Number.isFinite(q.w)?esc(fmt(q.w,4)):"—"}</td></tr>`).join("")}</tbody></table></div>`;
   const rj=r.rejected.slice().sort((a,b)=>(b.snr||0)-(a.snr||0));
   if(rj.length||r.noise) h+=`<details class="grp" id="pfRej"${S.pfRejOpen?" open":""}><summary>Turned down <span class="sum">${rj.length}${r.noise?` · ${r.noise} more within the noise`:""}</span></summary><div class="gb">${rj.length?`<ul class="pfrej">${rj.slice(0,40).map(q=>`<li><span><strong>${f(q.x)}</strong> ${esc(q.why)}</span>${S.readOnly?"":`<button class="btn sm ghost" data-pfadd="${q.x}" title="Add a peak here anyway">Add</button>`}</li>`).join("")}</ul>`:""}${rj.length>40?`<p class="lab">and ${rj.length-40} more</p>`:""}<p class="hint">Each candidate is a maximum of the ${r.smooth?"smoothed ":""}data. Lower the threshold, or change how it is measured, to let more through; <strong>Add</strong> places a peak at one by hand.</p></div></details>`;
@@ -9172,7 +9317,7 @@ function wirePf(box){
     res.addEventListener("toggle",e=>{ if(e.target.id==="pfRej"&&e.target.isConnected) S.pfRejOpen=e.target.open; },true); }
   const use=box.querySelector("#pfUse"); if(use) use.onclick=()=>runPeakFinder(false);
   const app=box.querySelector("#pfAppend"); if(app) app.onclick=()=>runPeakFinder(true);
-  const lb=box.querySelector("#pfLabel"); if(lb) lb.onclick=()=>{ const n=findPeaksInto(); if(n==null) return; openWin("peaks",{render:true}); toast(`Marked ${n} peak${n===1?"":"s"} on the graph. Type their labels in the Peaks window.`,{action:"Undo",run:undo}); };
+  const lb=box.querySelector("#pfLabel"); if(lb) lb.onclick=()=>{ const n=findPeaksInto({rng:viewRng()}); if(n==null) return; openWin("peaks",{render:true}); toast(`Marked ${n} peak${n===1?"":"s"} on the graph. Type their labels in the Peaks window.`,{action:"Undo",run:undo}); };
   const df=box.querySelector("#pfDefaults"); if(df) df.onclick=()=>{ S.pf=Object.assign({},PF_DEF); pfSave(); renderFit(); };
 }
 /* The peaks found become the draft: each seeded from the data around it. A
@@ -9237,7 +9382,7 @@ function renderPeakFit(box,p,top){
     const col=peakColor(k);
     const mr=rowFor(k), bad=mr&&!mr.ok, flag=bad?` <span class="flag" title="${esc("Not a usable peak: "+mr.problems.join("; "))}" aria-label="not a usable peak">!</span>`:"";
     h+=`<div class="pcard${S.selPeak===k?" sel":""}${bad?" badrow":""}" data-peak="${k}">
-      <div class="pcard-h"><span class="dot" style="background:${col}"></span><strong>Peak ${k+1}</strong>${flag}<span class="at">${esc(fmt(d.init[o],6))}${xu?" "+esc(xu):""}</span>
+      <div class="pcard-h"><span class="dot" style="background:${col}"></span><strong>Peak ${k+1}</strong>${flag}<input type="text" class="pname" data-pname="${k}" value="${esc(pk.lab||"")}" placeholder="Name" maxlength="60" aria-label="Name of peak ${k+1}" title="A name for this peak: for its label on the graph, Results and the report"${ro}><span class="at">${esc(fmt(d.init[o],6))}${xu?" "+esc(xu):""}</span>
         <select data-ptype="${k}"${ro} aria-label="Shape of peak ${k+1}">${Object.entries(PEAKS).map(([kk,v])=>`<option value="${kk}"${kk===pk.type?" selected":""}>${v.name}</option>`).join("")}</select>
         <button class="tb sm icon" data-delpeak="${k}" aria-label="Delete peak ${k+1}" title="Delete peak ${k+1}"${ro}>${ICON("x","sm")}</button></div>
       <table class="ptab"><tbody>`;
@@ -9268,10 +9413,12 @@ function renderPeakFit(box,p,top){
   h+=`<div class="range" id="fitRange"></div>`;
   if(S.fitError) h+=noteHtml("bad",S.fitError);
   if(f) h+=fitSummary(f);
+  if(f){ const c2=plotCfg(), fs2=fplFields(c2), tp2=fplTpl(c2);
+    h+=`<div class="fplrow" role="group" aria-label="What the fitted peaks' labels show"><span class="lab">Labels show</span>${tp2?`<span class="lab"><em>your own text</em></span>`:FPL_FIELDS.map(([v,l])=>`<button type="button" class="fplc" data-fplf="${v}" aria-pressed="${fs2.includes(v)}"${ro}>${l}</button>`).join("")}<button type="button" class="btn sm ghost" id="fplMore">More…</button></div>`; }
   h+=`</section><div class="sticky"><button class="btn primary" id="doPeakFit"${ro}${d.peaks.length?"":" disabled"} title="Fit (Ctrl+Enter)">${ICON("play")}${d.peaks.length?`Fit ${d.peaks.length} peak${d.peaks.length===1?"":"s"}`:"Fit"}</button>
     <button class="btn" id="reseed"${ro}${d.peaks.length?"":" disabled"} title="Measure every peak and the baseline again from the data">Reset to estimates</button>
     ${f&&yCols().length>1?`<button class="btn" id="fitAll"${ro} title="Fit every spectrum with these peaks, starting from this fit">Fit every spectrum…</button>`:""}
-    ${f?`<button class="btn ghost" id="clrFit"${ro}>Remove fit</button>`:""}</div>`;
+    ${f?`<button class="btn ghost" id="clrFit"${ro}>Remove fit</button>`:""}<button class="btn ghost fdone" id="fitDone" title="Close the Fit window; the fit stays on the graph and in Results">Done</button></div>`;
   box.innerHTML=h; renderFitRangeOnly();
   const pp=$("#pfPanel"); if(pp){ pp.addEventListener("toggle",()=>{ if(!pp.isConnected) return; S.pfOpen=pp.open; if(pp.open&&!pp.querySelector(".pfform")) renderFit(); else if(!pp.open){ S.pfPreview=null; renderPlot(); } }); if(findOpen) wirePf(pp); }
   if(findOpen) renderPlot();
@@ -9329,6 +9476,10 @@ function renderPeakFit(box,p,top){
   box.querySelectorAll("[data-tie]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); const s=b.dataset.tie, i=s.indexOf(":"), k=+s.slice(0,i), nm=s.slice(i+1);
     toggleMenu(b,()=>tieMenuItems(k,nm),{label:"Tie to another peak"}); });
   const sw=$("#shareW"); if(sw) sw.onclick=shareWidths;
+  box.querySelectorAll("[data-pname]").forEach(inp=>{ inp.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); inp.blur(); } if(e.key==="Escape"){ inp.value=((S.pdraft&&S.pdraft.peaks[+inp.dataset.pname])||{}).lab||""; inp.blur(); } });
+    inp.addEventListener("change",()=>setPeakName(+inp.dataset.pname,inp.value,"draft")); });
+  box.querySelectorAll("[data-fplf]").forEach(b=>b.onclick=()=>fplToggleField(b.dataset.fplf));
+  const fm=box.querySelector("#fplMore"); if(fm) fm.onclick=()=>openPlotDetails(null,"fpeaks");
   box.querySelectorAll(".pcard[data-peak]").forEach(c=>c.onclick=e=>{
     if(e.target.closest("button,select,input")) return;
     const k=+c.dataset.peak; S.selPeak=S.selPeak===k?null:k; renderFit(); renderPlot();
@@ -9354,7 +9505,7 @@ function runPeakFit(){
   const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), useW=d.weighted&&hasErr();
   if(useW&&pts.some(q=>!(q.e>0))){ S.fitError="Some points in range have no Y error, so they can't be weighted."; renderFit(); return; }
   const W=pts.map(q=>useW?1/q.e:1);
-  const spec={base:d.base,peaks:d.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{}))};
+  const spec={base:d.base,peaks:d.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{},k.lab?{lab:k.lab}:{}))};
   const {lo,hi}=modelBounds(spec,m,d.init);
   const L=peakLinks(spec.peaks,m), fixedT=d.fixed.slice(); L.forEach(l=>{ fixedT[l.gi]=true; });
   const span=Math.abs(Math.max(...X)-Math.min(...X))||1;
@@ -9483,11 +9634,11 @@ function renderResults(){
   warns.filter(w=>w.level!=="info").forEach(w=>{ h+=noteHtml(w.level,w.text); });
   h+=`<div class="rgrid"><div class="rmain">`;
   if(FM.composite){
-    const rows=peakMetrics(f), au=unitFor("yx",xu,yu), shd=(k,nms)=>{ if(!f.shared) return ""; const pd=PEAKS[(f.spec.peaks[k]||{}).type]||PEAKS.gauss, o=FM.model.offsets[k], ix=pd.params.map((nm,i)=>nms.test(nm)?o+i:-1).filter(i=>i>=0);
+    const rows=peakMetrics(f), hasN=rows.some(r=>r.name), au=unitFor("yx",xu,yu), shd=(k,nms)=>{ if(!f.shared) return ""; const pd=PEAKS[(f.spec.peaks[k]||{}).type]||PEAKS.gauss, o=FM.model.offsets[k], ix=pd.params.map((nm,i)=>nms.test(nm)?o+i:-1).filter(i=>i>=0);
       return ix.length&&ix.every(i=>f.shared[i])?` <span class="lab shd" title="One value for every spectrum of the global fit">shared</span>`:""; };
-    h+=`<table class="rtab"><thead><tr><th class="l">Peak</th><th class="l">Shape</th><th>Centre ${u(xu)}</th><th>Height ${u(yu)}</th><th>FWHM ${u(xu)}</th><th>Area ${u(au)}</th><th>Area %</th></tr></thead><tbody>`;
+    h+=`<table class="rtab"><thead><tr><th class="l">Peak</th>${hasN?`<th class="l">Name</th>`:""}<th class="l">Shape</th><th>Centre ${u(xu)}</th><th>Height ${u(yu)}</th><th>FWHM ${u(xu)}</th><th>Area ${u(au)}</th><th>Area %</th></tr></thead><tbody>`;
     rows.forEach(r=>{ h+=`<tr data-prow="${r.k}" class="${r.ok?"":"badrow"}${S.selPeak===r.k?" sel":""}" title="${r.ok?"Click to select this peak":esc("Not a usable peak: "+r.problems.join("; "))}">
-      <td class="l"><span class="dot" style="background:${r.color};margin-right:6px"></span>${r.k+1}${r.ok?"":' <span class="flag" aria-label="not a usable peak">!</span>'}</td><td class="l">${esc(r.type)}</td>
+      <td class="l"><span class="dot" style="background:${r.color};margin-right:6px"></span>${r.k+1}${r.ok?"":' <span class="flag" aria-label="not a usable peak">!</span>'}</td>${hasN?`<td class="l">${richIn(r.name,13)}</td>`:""}<td class="l">${esc(r.type)}</td>
       <td>${fmtPM(r.xc,r.xcErr)}${shd(r.k,/^xc$/)}</td><td>${r.heightErr?fmtPM(r.height,r.heightErr):esc(fmt(r.height,5))}</td>
       <td${(r.wparts||[]).length>1?` title="${esc(r.wparts.map(w=>w.nm+" "+fmt(Math.abs(w.v),4)).join(", "))}"`:""}>${r.fwhmErr?fmtPM(r.fwhm,r.fwhmErr):esc(fmt(r.fwhm,5))}${(r.wparts||[]).length>1?` <span class="lab">(${esc(r.wparts.map(w=>w.nm+" "+fmt(Math.abs(w.v),3)).join(", "))})</span>`:""}${shd(r.k,/^w/)}</td>
       <td>${fmtPM(r.area,r.areaErr)}${shd(r.k,/^A$/)}</td><td>${r.areaPct==null?'<span class="noerr">excluded</span>':esc(fmt(r.areaPct,3))}</td></tr>`; });
@@ -9937,9 +10088,9 @@ function peakTableText(sep){
   const f=activeFit(); if(!f||f.kind!=="composite") return "";
   const [xu,yu]=dataUnits();
   const au=xu&&yu?yu+"\u00b7"+xu:(yu||xu||"");
-  const head=["Peak","Shape","Centre"+(xu?" ("+xu+")":""),"Centre error","Height"+(yu?" ("+yu+")":""),"Height error",
+  const head=["Peak","Name","Shape","Centre"+(xu?" ("+xu+")":""),"Centre error","Height"+(yu?" ("+yu+")":""),"Height error",
     "FWHM"+(xu?" ("+xu+")":""),"FWHM error","Area"+(au?" ("+au+")":""),"Area error","Area %","Status"];
-  const rows=peakMetrics(f).map(r=>[r.k+1,r.type,fmt(r.xc,8),Number.isFinite(r.xcErr)?fmt(r.xcErr,4):"",
+  const rows=peakMetrics(f).map(r=>[r.k+1,r.name||"",r.type,fmt(r.xc,8),Number.isFinite(r.xcErr)?fmt(r.xcErr,4):"",
     fmt(r.height,8),Number.isFinite(r.heightErr)?fmt(r.heightErr,4):"",
     fmt(r.fwhm,8),Number.isFinite(r.fwhmErr)&&r.fwhmErr?fmt(r.fwhmErr,4):"",
     fmt(r.area,8),Number.isFinite(r.areaErr)?fmt(r.areaErr,4):"",
@@ -9997,10 +10148,11 @@ async function exportReport(){
   if(warns.length) html.push("<h2>Notes on this fit</h2><ul>"+warns.map(w=>"<li class=\""+w.level+"\">"+esc2(w.text)+"</li>").join("")+"</ul>");
   if(f&&FM.composite){
     const rows=peakMetrics(f);
-    html.push("<h2>Fitted peaks</h2><table><thead><tr><th class=\"l\">#</th><th class=\"l\">Shape</th><th>Centre"+(xu?" ("+esc2(xu)+")":"")+
+    const hasN=rows.some(r=>r.name);
+    html.push("<h2>Fitted peaks</h2><table><thead><tr><th class=\"l\">#</th>"+(hasN?"<th class=\"l\">Name</th>":"")+"<th class=\"l\">Shape</th><th>Centre"+(xu?" ("+esc2(xu)+")":"")+
       "</th><th>Height"+(yu?" ("+esc2(yu)+")":"")+"</th><th>FWHM"+(xu?" ("+esc2(xu)+")":"")+
       "</th><th>Area"+(au?" ("+esc2(au)+")":"")+"</th><th>Area %</th></tr></thead><tbody>");
-    rows.forEach(r=>{ html.push("<tr"+(r.ok?"":" class=\"badrow\"")+"><td class=\"l\">"+(r.k+1)+(r.ok?"":" !")+"</td><td class=\"l\">"+esc2(r.type)+"</td><td>"+
+    rows.forEach(r=>{ html.push("<tr"+(r.ok?"":" class=\"badrow\"")+"><td class=\"l\">"+(r.k+1)+(r.ok?"":" !")+"</td>"+(hasN?"<td class=\"l\">"+esc2(richSyms(r.name))+"</td>":"")+"<td class=\"l\">"+esc2(r.type)+"</td><td>"+
       fmtPM(r.xc,r.xcErr)+"</td><td>"+(r.heightErr?fmtPM(r.height,r.heightErr):fmt(r.height,5))+"</td><td>"+
       (r.fwhmErr?fmtPM(r.fwhm,r.fwhmErr):fmt(r.fwhm,5))+"</td><td>"+fmtPM(r.area,r.areaErr)+"</td><td>"+
       (r.areaPct==null?"excluded":fmt(r.areaPct,3))+"</td></tr>"); });
@@ -10313,8 +10465,8 @@ async function exportCsv(){
     if(f.range) lines.push(`# fitted over x,${f.range[0]},${f.range[1]}`);
     lines.push(`# weighting,${f.weighted?"instrumental (1/sigma^2)":"none; errors scaled by sqrt(reduced chi2)"}`);
     if(comp){
-      lines.push("# peak,shape,centre,centre error,height,FWHM,area,area error,area %");
-      peakMetrics(f).forEach(r=>lines.push(`# ${r.k+1},${r.type},${r.xc},${r.xcErr},${r.height},${r.fwhm},${r.area},${r.areaErr},${r.areaPct}`));
+      lines.push("# peak,shape,centre,centre error,height,FWHM,area,area error,area %,name");
+      peakMetrics(f).forEach(r=>lines.push(`# ${r.k+1},${r.type},${r.xc},${r.xcErr},${r.height},${r.fwhm},${r.area},${r.areaErr},${r.areaPct},${String(r.name||"").replace(/[,\n]/g," ")}`));
       lines.push("# parameter,value,error,dependency");
       comp.slots.forEach((s,i)=>lines.push(`# ${s.kind==="peak"?`peak ${s.peak+1} ${s.name}`:`baseline ${s.name}`},${f.params[i]},${f.errors[i]},${f.dep?f.dep[i]:""}`));
     } else { const m=FM.model; m.params.forEach((nm,i)=>lines.push(`# ${nm},${f.params[i]},${f.errors[i]}`)); }
@@ -10589,17 +10741,37 @@ function mergePeakSet(c,r,was,more){
   kept.sort((a,b)=>a.x-b.x);
   return {kept,rec:Object.assign({},was||{},{style:st,ex,mem,n:kept.length,sig:pipeSig(c),xu},more||{})};
 }
-/* Finds the peaks of the analysed spectrum in view and makes them the set. */
+/* The X range a spectrum's peaks are searched over: its set's own (as found,
+   in the units it was found in), or before there is a set, the one chosen in
+   the Peaks window; null is the whole spectrum. */
+function pkRangeOf(c){ if(!c) return null; const xu=finalOf(c).xu||"", f=foundOf(c);
+  if(f) return f.rng&&(f.xu==null||f.xu===xu)?[Math.min(f.rng[0],f.rng[1]),Math.max(f.rng[0],f.rng[1])]:null;
+  const r=S.pkRng&&S.pkRng[c.id]; return r&&(r.xu||"")===xu?[r.x0,r.x1]:null; }
+// The graph's zoom, as a range of the analysed spectrum's X, or null.
+function viewRng(){ const c=activeYCol(), xu=c?finalOf(c).xu||"":""; const v=S.view&&(S.view.xu==null||S.view.xu===xu)?S.view:null; return v?[Math.min(v.x0,v.x1),Math.max(v.x0,v.x1)]:null; }
+// A new range for the analysed spectrum's peaks: searched again at once.
+function setPkRange(rng){ const c=activeYCol(); if(!c||S.readOnly) return;
+  rng=rng&&rng.every(Number.isFinite)&&rng[0]!==rng[1]?[Math.min(rng[0],rng[1]),Math.max(rng[0],rng[1])]:null;
+  S.pkRng=Object.assign({},S.pkRng,{[c.id]:rng?{x0:rng[0],x1:rng[1],xu:finalOf(c).xu||""}:null});
+  pushUndo("changing where to look for peaks"); findPeaksInto({rng,undo:false}); renderPeaks(); renderPlot(); }
+function pickPkRange(on){
+  if(on===false||(S.mode==="range"&&S.pick&&S.pick.pkr)){ S.pick=null; setMode("zoom"); renderPeaks(); return; }
+  if(S.stage!=null){ S.stage=null; S.selStep=null; renderStages(); }
+  S.pick={pkr:true}; setMode("range"); renderPeaks();
+  toast("Drag across the graph from where the search should start to where it should end.");
+}
+/* Finds the peaks of the analysed spectrum over its range (opt.rng, else the
+   one it has) and makes them the set. */
 function findPeaksInto(opt){
   opt=opt||{}; const p=P(), c=activeYCol(); if(!p||!c||S.readOnly) return null;
-  const d=finalOf(c), v=S.view&&(S.view.xu==null||S.view.xu===(d.xu||""))?S.view:null, rng=v?[v.x0,v.x1]:null, o=Object.assign({},pfOpts());
-  const r=peakSearchOn(c,o,rng,d.xu||""); if(!r){ toast("Too few points in view to look for peaks."); return null; }
+  const d=finalOf(c), rng=opt.rng!==undefined?opt.rng:pkRangeOf(c), o=Object.assign({},pfOpts());
+  const r=peakSearchOn(c,o,rng,d.xu||""); if(!r){ toast(rng?"Too few points in that range to look for peaks.":"Too few points to look for peaks."); return null; }
   const {kept,rec}=mergePeakSet(c,r,foundOf(c),{opts:o,rng,at:Date.now(),by:S.uid||"",re:null});
   const mode=PF_MODES.find(q=>q[0]===o.mode)||PF_MODES[0];
   if(opt.undo!==false) pkUndo("finding peaks");
   const found=Object.assign({},p.found||{},{[c.id]:rec});
   const annos=((p.plot.annos)||[]).filter(a=>a.grp!=="pk:"+c.id).concat(kept);
-  save({found,plot:Object.assign({},p.plot,{annos})},opt.log===false?null:`found ${kept.length} peak${kept.length===1?"":"s"} in ${specName(c)} (${(PF_METHODS.find(q=>q[0]===o.method)||[,""])[1].toLowerCase()}, ${mode[1].toLowerCase()} ${o.v} ${mode[2]}${o.log?", on a log scale":""})`);
+  save({found,plot:Object.assign({},p.plot,{annos})},opt.log===false?null:`found ${kept.length} peak${kept.length===1?"":"s"} in ${specName(c)}${rng?`, x ${fmt(Math.min(rng[0],rng[1]),6)} to ${fmt(Math.max(rng[0],rng[1]),6)}${d.xu?" "+d.xu:""}`:""} (${(PF_METHODS.find(q=>q[0]===o.method)||[,""])[1].toLowerCase()}, ${mode[1].toLowerCase()} ${o.v} ${mode[2]}${o.log?", on a log scale":""})`);
   S.pkLast=r; renderPlot(); if(winOpen("flow")) renderFlow();
   return kept.length;
 }
@@ -10607,9 +10779,10 @@ function findPeaksInto(opt){
    on the same axis, or all of it. One undo entry. */
 function findPeaksEvery(){
   const p=P(), act=activeYCol(); if(!p||!act||S.readOnly) return;
-  const o=Object.assign({},pfOpts()), ax=finalOf(act).xu||"", v=S.view&&(S.view.xu==null||S.view.xu===ax)?S.view:null;
+  const o=Object.assign({},pfOpts()), ax=finalOf(act).xu||"", ar=pkRangeOf(act);
   let annos=(p.plot.annos||[]).slice(), tot=0, n=0; const found=Object.assign({},p.found||{}), none=[];
-  yCols().forEach(c=>{ const d=finalOf(c), rng=v&&(d.xu||"")===ax?[v.x0,v.x1]:null, r=peakSearchOn(c,o,rng,d.xu||"");
+  // The analysed spectrum's range, for every spectrum on the same axis; the whole of the others.
+  yCols().forEach(c=>{ const d=finalOf(c), rng=ar&&(d.xu||"")===ax?ar.slice():null, r=peakSearchOn(c,o,rng,d.xu||"");
     if(!r){ none.push(specName(c)); return; }
     const res=mergePeakSet(c,r,found[c.id],{opts:o,rng,at:Date.now(),by:S.uid||"",re:null});
     annos=annos.filter(a=>a.grp!=="pk:"+c.id).concat(res.kept); found[c.id]=res.rec; tot+=res.kept.length; n++; if(c===act) S.pkLast=r; });
@@ -10698,6 +10871,49 @@ function peakRows(c){ const d=finalOf(c);
     return {a,x:a.x,y,h:a.pk&&a.pk.h,w:a.pk&&a.pk.w,snr:a.pk&&a.pk.snr,lab,said:lab.split("{x}").join(annoPos(a,d.xu||""))}; }); }
 function foundTableText(c,sep){ sep=sep||"\t"; const d=finalOf(c), rows=peakRows(c);
   return [["Peak",axisLabel(d.xn,d.xu,"X"),axisLabel(d.yn,d.yu,"Y"),"FWHM","S/N","Label"].join(sep)].concat(rows.map((r,k)=>[k+1,fmt(r.x,8),fmt(r.y,8),r.w!=null?fmt(r.w,6):"",r.snr!=null?fmt(r.snr,4):"",r.said].join(sep))).join("\n"); }
+/* A peak's name, for its label and the tables: on the fit, the peak being set
+   up and every row of a batch fitted with the same peaks (by peak id). A name
+   given while the labels do not show names makes them show names. */
+function setPeakName(k,v,from){
+  const p=P(); if(!p||S.readOnly) return; v=String(v||"").trim().slice(0,60);
+  const d=S.pdraft&&S.pdraft.pid===S.pid?S.pdraft:null, f=activeFit(), src=from==="draft"?(d&&d.peaks[k]):(f&&f.kind==="composite"?(f.spec.peaks||[])[k]:null);
+  if(!src) return; const id=src.id||null; if((src.lab||"")===v&&!(d&&from!=="draft"&&d.peaks.some((q,i)=>(id?q.id===id:i===k)&&(q.lab||"")!==v))) return;
+  pushUndo("naming a peak");
+  const nm=q=>{ const o=Object.assign({},q); if(v) o.lab=v; else delete o.lab; return o; }, hit=(q,i)=>id?q.id===id:i===k;
+  const fix=spec=>spec&&spec.peaks?Object.assign({},spec,{peaks:spec.peaks.map((q,i)=>hit(q,i)?nm(q):q)}):spec, patch={};
+  if(p.fit&&p.fit.kind==="composite") patch.fit=Object.assign({},p.fit,{spec:fix(p.fit.spec)});
+  const b=p.batch; if(b&&b.tmpl&&b.tmpl.kind==="composite"&&b.seed!=="found") patch.batch=Object.assign({},b,{tmpl:Object.assign({},b.tmpl,{spec:fix(b.tmpl.spec)}),rows:(b.rows||[]).map(r=>r.fit&&r.fit.kind==="composite"?Object.assign({},r,{fit:Object.assign({},r.fit,{spec:fix(r.fit.spec)})}):r)});
+  if(d) d.peaks=d.peaks.map((q,i)=>hit(q,i)?nm(q):q);
+  save(patch,v?`named peak ${k+1} "${v}"`:`cleared the name of peak ${k+1}`);
+  const cfg=GP(); if(v&&!fplTpl(cfg)&&!fplFields(cfg).includes("name")){ const fs=fplFields(cfg); savePlot({peakLab:"custom",peakLabShow:FPL_FIELDS.map(q=>q[0]).filter(x=>x==="name"||fs.includes(x))},null); }
+  renderPlot(); if(winOpen("fit")) renderFit(); if(winOpen("res")) renderResults(); scheduleSnaps(0);
+}
+function namePeakDlg(k){ const f=activeFit(), pk=f&&f.kind==="composite"?(f.spec.peaks||[])[k]:null; if(!pk||S.readOnly) return;
+  formDlg({title:`Name peak ${k+1}`,ok:"Name it",focus:"#fdPn",
+    html:`<div class="grid2"><label for="fdPn">Name</label><div class="pair"><input id="fdPn" type="text" data-rich maxlength="60" value="${esc(pk.lab||"")}" placeholder="e.g. C=O stretch">${rtool("fdPn")}</div></div><p class="lab" style="margin:10px 0 0">It shows in the peak's label on the graph, and in Results, the report and the exports.</p>`})
+    .then(r=>{ if(r) setPeakName(k,r.fdPn); }); }
+function fplToggleField(v){ const p=P(); if(!p||S.readOnly) return; const cfg=GP(), fs=fplFields(cfg), on=fs.includes(v), nx=FPL_FIELDS.map(q=>q[0]).filter(x=>x===v?!on:fs.includes(x));
+  pushUndo("changing the peak labels");
+  savePlot({peakLab:nx.length?"custom":"off",peakLabShow:nx},nx.length?`labelled the fitted peaks with ${nx.map(x=>lcFirst(FPL_FIELDS.find(q=>q[0]===x)[1])).join(", ")}`:"took the labels off the fitted peaks");
+  renderPlot(); if(winOpen("fit")) renderFit(); scheduleSnaps(0); }
+function fplResetOff(id){ const p=P(); if(!p||S.readOnly) return; const o=Object.assign({},GP().peakLabOff||{}); if(id) delete o[id]; pushUndo("moving the peak labels back");
+  savePlot({peakLabOff:id&&Object.keys(o).length?o:null},id?"put a fitted peak's label back":"put the fitted peaks' labels back"); renderPlot(); }
+// The menu of a fitted peak's label (k), or of them all (k null): the graph's right click and Plot › Fitted peak labels.
+function fplMenuItems(k){
+  const cfg=plotCfg(), ro=S.readOnly||!P(), fs=fplFields(cfg), tp=fplTpl(cfg), f=activeFit(), pk=f&&f.kind==="composite"&&k!=null?(f.spec.peaks||[])[k]:null, offs=cfg.peakLabOff||{}, items=[];
+  const set=(key,v,log)=>{ setPlotKey(key,v,log); if(winOpen("fit")) renderFit(); scheduleSnaps(0); };
+  if(pk){ items.push({group:`Peak ${k+1}${pk.lab?": "+pk.lab:""}`},{label:pk.lab?"Rename this peak…":"Name this peak…",enabled:!ro,run:()=>namePeakDlg(k)});
+    if(offs[pk.id||("k"+k)]) items.push({label:"Put its label back",enabled:!ro,run:()=>fplResetOff(pk.id||("k"+k))}); items.push("-"); }
+  items.push({label:"Each label shows",sub:()=>FPL_FIELDS.map(([v,l])=>({label:l,checked:fs.includes(v),enabled:!ro&&!tp,run:()=>fplToggleField(v)}))},
+    {label:"Place",sub:()=>FPL_POS.map(([v,l])=>({label:l,radio:true,checked:(cfg.peakLabPos||"top")===v,enabled:!ro,run:()=>set("peakLabPos",v,`placed the fitted peaks' labels ${lcFirst(l)}`)}))},
+    {label:"Mark each peak with",sub:()=>FPL_MARKS.map(([v,l])=>({label:l,radio:true,checked:(cfg.peakLabMk||"none")===v,enabled:!ro,run:()=>set("peakLabMk",v,`marked the fitted peaks with ${lcFirst(l)}`)}))},
+    {label:"With their errors",checked:!!cfg.peakLabErr,enabled:!ro,run:()=>set("peakLabErr",!cfg.peakLabErr,cfg.peakLabErr?"took the errors off the peak labels":"gave the peak labels their errors")},
+    {label:"With their units",checked:!!cfg.peakLabUnit,enabled:!ro,run:()=>set("peakLabUnit",!cfg.peakLabUnit,cfg.peakLabUnit?"took the units off the peak labels":"gave the peak labels their units")},
+    {label:"Stacked, one item per line",checked:cfg.peakLabSep==="line",enabled:!ro,run:()=>set("peakLabSep",cfg.peakLabSep==="line"?"comma":"line",null)},
+    {label:"Turned 90°",checked:!!cfg.peakLabRot,enabled:!ro,run:()=>set("peakLabRot",!cfg.peakLabRot,null)},
+    Object.keys(offs).length&&!pk?{label:"Put the dragged labels back",enabled:!ro,run:()=>fplResetOff(null)}:null,
+    "-",{label:"More options…",run:()=>openPlotDetails(null,"fpeaks")});
+  return items.filter(Boolean); }
 /* Fitting is an option: the peaks found seed the peak fit, each measured
    from the data around it. */
 function fitFoundPeaks(){
@@ -10726,7 +10942,8 @@ function openPeakFinder(){
   const c=activeYCol(); if(!P()||!c) return;
   if(S.stage!=null){ S.stage=null; S.selStep=null; renderStages(); }
   openWin("peaks",{render:true});
-  if(!foundOf(c)&&!S.readOnly){ const n=findPeaksInto(); renderPeaks(); if(n!=null) toast(`Found ${n} peak${n===1?"":"s"}.`,{action:"Undo",run:undo}); }
+  // The first search covers what is in view (the range says so, and can be changed).
+  if(!foundOf(c)&&!S.readOnly){ const n=findPeaksInto({rng:viewRng()}); renderPeaks(); if(n!=null) toast(`Found ${n} peak${n===1?"":"s"}.`,{action:"Undo",run:undo}); }
 }
 function renderPeaks(){
   const box=$("#pane-peaks"); if(!box) return;
@@ -10737,14 +10954,20 @@ function renderPeaks(){
   const stale=f&&f.sig&&f.sig!==pipeSig(c);
   const ae=document.activeElement, focusId=ae&&box.contains(ae)?ae.id:null, sc=box.scrollTop, keepV=focusId&&ae.matches("input[type=text]")?[ae.value,ae.selectionStart,ae.selectionEnd]:null;
   const many=yCols().length>1, nSets=yCols().filter(y=>foundOf(y)).length;
-  let h=`<div class="fbar pkbar"><label class="lab" for="pkCol"${many?"":" hidden"}>Spectrum</label><select id="pkCol"${many?"":" hidden"}>${yCols().map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}${foundOf(y)?` (${peakGroup(y.id).length})`:""}</option>`).join("")}</select><span class="sp"></span>
-    ${many?`<button class="btn sm" id="pkEvery"${ro} title="Find peaks in every spectrum with these settings">Every spectrum</button>`:""}<button class="btn sm primary" id="pkFind"${ro}>${ICON("wand","sm")}${f?"Find again":"Find peaks"}</button></div>`;
+  // Where: which spectrum, and from where to where along X.
+  const rng=pkRangeOf(c), xs=d.x.filter(Number.isFinite), dlo=xs.length?Math.min(...xs):0, dhi=xs.length?Math.max(...xs):0, vr=viewRng(), picking=S.mode==="range"&&S.pick&&S.pick.pkr;
+  const sameV=vr&&rng&&Math.abs(vr[0]-rng[0])<=1e-9*Math.abs(dhi-dlo||1)&&Math.abs(vr[1]-rng[1])<=1e-9*Math.abs(dhi-dlo||1);
+  let h=`<section class="pkwhere" aria-label="Where to look"><h3 class="gh">Find peaks in</h3><div class="frow">
+    <label for="pkCol">Spectrum</label><div class="pair"><select id="pkCol"${many?"":" disabled"} style="flex:1">${yCols().map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}${foundOf(y)?` (${peakGroup(y.id).length} peak${peakGroup(y.id).length===1?"":"s"})`:""}</option>`).join("")}</select>${many?`<button class="btn sm" id="pkEvery"${ro} title="Find peaks in every spectrum with these settings, over this range on the same axis">In every spectrum</button>`:""}</div>
+    <label for="pkX0">From</label><div class="pair pkrng"><input type="text" inputmode="decimal" id="pkX0" value="${rng?esc(fmt(rng[0],7)):""}" placeholder="${esc(fmt(dlo,6))}" aria-label="Look for peaks from"${ro}><span class="lab">to</span><input type="text" inputmode="decimal" id="pkX1" value="${rng?esc(fmt(rng[1],7)):""}" placeholder="${esc(fmt(dhi,6))}" aria-label="Look for peaks up to"${ro}><span class="lab">${esc(xu||"")}</span></div>
+    <span></span><div class="pair pkrb"><button class="btn sm" id="pkAll" aria-pressed="${!rng}"${ro}>Whole spectrum</button><button class="btn sm" id="pkView" aria-pressed="${!!sameV}"${ro||!vr?" disabled":""} title="${vr?`x ${esc(fmt(vr[0],6))} to ${esc(fmt(vr[1],6))}, as the graph is zoomed`:"Zoom the graph first"}">What's in view</button><button class="btn sm${picking?" primary":""}" id="pkPick" aria-pressed="${!!picking}"${ro} title="Drag across the graph from the start to the end">${picking?"Drag on the graph…":"Pick on the graph"}</button></div>
+  </div></section>`;
   if(stale&&f.follow===false) h+=noteHtml("warn","The processing has changed since these peaks were found. Find again to follow it; your labels stay with the peaks that are still there.");
   else if(f&&f.re) h+=`<p class="hint">Found again ${esc(ago(f.re))}, after the processing changed.</p>`;
   // 1 How to find
-  h+=`<details class="grp stepgrp" id="pkHow"${S.pkHow||!f?" open":""}><summary>How to find them <span class="sum">${esc(((PF_MODES.find(q=>q[0]===pfOpts().mode)||PF_MODES[0])[1]).toLowerCase())} ${esc(String(pfOpts().v))}${pfOpts().log?", log scale":""}</span></summary><div class="gb">${pfFormHtml()}<label class="chk"><input type="checkbox" id="pkFollow"${!f||f.follow!==false?" checked":""}${ro||!f?" disabled":""}> Find them again whenever the processing changes</label><div class="actions"><button class="btn sm ghost" id="pkDefaults"${ro}>Default settings</button></div></div></details>`;
+  h+=`<details class="grp stepgrp" id="pkHow"${S.pkHow||!f?" open":""}><summary>How to recognise a peak <span class="sum">${esc(((PF_MODES.find(q=>q[0]===pfOpts().mode)||PF_MODES[0])[1]).toLowerCase())} ${esc(String(pfOpts().v))}${pfOpts().log?", log scale":""}</span></summary><div class="gb">${pfFormHtml()}<label class="chk"><input type="checkbox" id="pkFollow"${!f||f.follow!==false?" checked":""}${ro||!f?" disabled":""}> Find them again whenever the processing changes</label><div class="actions"><button class="btn sm ghost" id="pkDefaults"${ro}>Default settings</button></div></div></details>`;
   // 2 The peaks
-  h+=`<section class="stepsec"><h3 class="gh">Peaks <span class="cnt">${rows.length||""}</span><span style="flex:1"></span>${rows.length?`<button class="btn sm ghost" id="pkCopy">${ICON("copy","sm")}Copy</button>`:""}${nSets>1?`<button class="btn sm ghost" id="pkCopyAll" title="Every spectrum's peaks, one table">Copy all</button>`:""}${rows.length?`<button class="btn sm ghost" id="pkClear"${ro}>Clear</button>`:""}</h3>`;
+  h+=`<section class="stepsec"><h3 class="gh">Peaks <span class="cnt">${rows.length||""}</span><span style="flex:1"></span><button class="btn sm ghost" id="pkFind"${ro} title="Search again with these settings over this range">${ICON("wand","sm")}${f?"Search again":"Search"}</button>${rows.length?`<button class="btn sm ghost" id="pkCopy">${ICON("copy","sm")}Copy</button>`:""}${nSets>1?`<button class="btn sm ghost" id="pkCopyAll" title="Every spectrum's peaks, one table">Copy all</button>`:""}${rows.length?`<button class="btn sm ghost" id="pkClear"${ro}>Clear</button>`:""}</h3>`;
   if(!f) h+=`<p class="nothing">No peaks yet.</p>`;
   else if(!rows.length) h+=noteHtml("info","No peaks pass these settings. Lower the threshold, or look at what was turned down.",true);
   else h+=`<div class="twrap"><table class="rtab pktab"><thead><tr><th>#</th><th>Position${xu?` <span class="unit">(${esc(xu)})</span>`:""}</th><th>${esc(d.yn||"Y")}${yu?` <span class="unit">(${esc(yu)})</span>`:""}</th><th class="opt">FWHM</th><th class="opt" title="Signal to noise">S/N</th><th class="l">Label</th><th></th></tr></thead><tbody>${rows.map((r,k)=>`<tr data-pka="${esc(r.a.id)}"${S.annoSel===r.a.id?' class="sel"':""}><td>${k+1}${r.a.manual?`<span class="lab" title="Placed by hand"> ✎</span>`:""}</td><td>${esc(fmt(r.x,7))}</td><td>${esc(fmt(r.y,5))}</td><td class="opt">${r.w!=null?esc(fmt(r.w,4)):"—"}</td><td class="opt">${r.snr!=null?esc(fmt(r.snr,3)):"—"}</td><td class="l"><input type="text" id="pkl-${esc(r.a.id)}" data-pklab="${esc(r.a.id)}" value="${esc(r.lab)}" placeholder="type a label" maxlength="80" aria-label="Label of peak ${k+1}"${ro}></td><td class="fx"><button class="tb sm icon" data-pkdel="${esc(r.a.id)}" aria-label="Remove peak ${k+1}" title="Remove this peak"${ro}>${ICON("x","sm")}</button></td></tr>`).join("")}</tbody></table></div>`;
@@ -10769,8 +10992,9 @@ function renderPeaks(){
       <label for="pkColor">Colour</label>${sel("pkColor",[["","The spectrum's"]].concat(SER_COLORS.map(([v,l])=>[v,capFirst(l)])),st.color||"","color")}
       <span></span><label class="chk"><input type="checkbox" data-pks="rot"${st.rot?" checked":""}${ro}> Vertical labels</label>
       <span></span><label class="chk"><input type="checkbox" data-pks="unit"${st.unit?" checked":""}${ro}> Unit after the position</label></div></section>`;
-    // 4 What next
-    h+=`<section class="stepsec"><h3 class="gh">Next</h3><div class="actions"><button class="btn sm" id="pkFit"${ro||!rows.length?" disabled":""}>${ICON("peak","sm")}Fit these peaks…</button><button class="btn sm" id="pkInteg"${ro||!rows.length?" disabled":""} title="A window around each peak, integrated without a fit">${ICON("area","sm")}Integrate them</button><button class="btn sm" id="pkMore">${ICON("tag","sm")}Lines, labels and legend…</button></div></section>`; }
+  }
+  // Done closes the window: the peaks stay marked. Fitting and integrating them are optional.
+  h+=`<div class="sticky pkfoot"><button class="btn primary" id="pkDone" title="Close this window; the peaks stay marked on the graph">Done</button>${f?`<button class="btn" id="pkFit"${ro||!rows.length?" disabled":""} title="Optional: fit a peak shape to each">${ICON("peak","sm")}Fit them…</button><button class="btn" id="pkInteg"${ro||!rows.length?" disabled":""} title="Optional: a window around each peak, integrated without a fit">${ICON("area","sm")}Integrate them</button><button class="btn ghost" id="pkMore" title="The graph's labels, lines and legend">${ICON("tag","sm")}Labels and legend…</button>`:""}</div>`;
   box.innerHTML=h; box.scrollTop=sc;
   if(focusId){ const el=document.getElementById(focusId); if(el){ if(keepV&&el.matches("input[type=text]")){ el.value=keepV[0]; try{ el.setSelectionRange(keepV[1],keepV[2]); }catch(e){} } el.focus({preventScroll:true}); } }
   wirePeaks(box);
@@ -10780,6 +11004,19 @@ function pfFormHtml(){ const html=pfPanelHtml(null); return html.slice(0,html.in
 function wirePeaks(box){
   const on=(sel,fn)=>{ const el=box.querySelector(sel); if(el) el.onclick=fn; };
   on("#pkFind",()=>{ const n=findPeaksInto(); renderPeaks(); if(n!=null) toast(`${n} peak${n===1?"":"s"} marked.`,{action:"Undo",run:undo}); });
+  on("#pkDone",()=>{ const c=activeYCol(), n=c?peakGroup(c.id).length:0; if(S.mode==="label"||(S.pick&&S.pick.pkr)){ S.pick=null; setMode("zoom"); } closeWin("peaks"); renderPlot();
+    if(n) toast(`${n} peak${n===1?"":"s"} marked on ${specName(c)}. ${MP_TXT("Analysis › Find peaks…")} opens this again.`); });
+  on("#pkAll",()=>{ if(pkRangeOf(activeYCol())) setPkRange(null); });
+  on("#pkView",()=>{ const v=viewRng(); if(v) setPkRange(v); });
+  on("#pkPick",()=>pickPkRange());
+  ["#pkX0","#pkX1"].forEach(id=>{ const el=box.querySelector(id); if(!el) return;
+    el.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); el.blur(); } });
+    el.addEventListener("change",()=>{ const c=activeYCol(), d=finalOf(c), xs=d.x.filter(Number.isFinite), a0=box.querySelector("#pkX0").value.trim(), b0=box.querySelector("#pkX1").value.trim();
+      if(!a0&&!b0){ setPkRange(null); return; }
+      const a=a0?parseNum(a0):Math.min(...xs), b=b0?parseNum(b0):Math.max(...xs);
+      if(a==null||b==null){ toast("Type a number in X units, or leave it empty for the end of the spectrum."); renderPeaks(); return; }
+      if(a===b){ toast("The start and the end are the same: give the range some width."); renderPeaks(); return; }
+      setPkRange([a,b]); }); });
   on("#pkDefaults",()=>{ S.pf=Object.assign({},PF_DEF); pfSave(); if(foundOf(activeYCol())) findPeaksInto(); renderPeaks(); });
   on("#pkCopy",()=>copyText(foundTableText(activeYCol()),"Copied the peak table."));
   on("#pkCopyAll",()=>copyText(allFoundTableText(),"Copied every spectrum's peaks."));
@@ -12286,6 +12523,7 @@ const K=(...k)=>k.map(x=>`<kbd>${x}</kbd>`).join(" ");
 const DL=(rows,cls)=>`<dl class="dl${cls?" "+cls:""}">${rows.map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join("")}</dl>`;
 const DA=(id,t)=>`<a href="#" data-doc="${id}">${t}</a>`;
 const MP=s=>`<span class="mp">${s.split(" › ").join(" <span>›</span> ")}</span>`;
+const MP_TXT=s=>s;
 const TIP=s=>`<p class="doc-tip">${s}</p>`;
 const DOCS=[
 /* ---------------------------------------------------------------- Basics */
@@ -12562,11 +12800,14 @@ ${DL([["Points","How many, any missing, repeated X values, gaps."],["X","The ran
 <h2>First steps</h2>
 <p>From that, suggestions in the order they belong: sort, average repeats, remove spikes, resample, subtract the background, and smooth only if the narrowest band spans 7 points or more. Each opens its tool with settings measured from the data; nothing is recorded until you press OK there. A suggestion already done is ticked.</p>
 <p><em>As recorded</em> and <em>After processing</em> switch between the raw and final data. It opens after every import; its checkbox turns that off. Also in ${MP("Analysis › Overview…")} and a spectrum's raw box in the History.</p>`},
-{id:"peaks", g:"Analysis", t:"Finding and labelling peaks", win:"peaks", kw:"peaks find mark label symbol drop line vertical leader table threshold every spectrum follow processing across matched series same peak label all",
+{id:"peaks", g:"Analysis", t:"Finding and labelling peaks", win:"peaks", kw:"peaks find mark label symbol drop line vertical leader table threshold every spectrum follow processing across matched series same peak label all range from to start end where view pick done close",
  lead:"Find the peaks of a spectrum, mark them on the graph and type a label for each, without fitting anything.",
- body:`<h2>Finding them</h2>
-<p>${MP("Analysis › Find peaks…")} searches the analysed spectrum's final data in view, after a straight baseline through its lowest points, and marks every peak that passes. Change a setting and it searches again at once. ${DA("finder","The finder's settings")}</p>
-<p>With several spectra, <em>Every spectrum</em> finds the peaks of all of them with the same settings, in one undo step.</p>
+ body:`<h2 id="where">Where to look</h2>
+<p>${MP("Analysis › Find peaks…")} opens the Peaks window. Its first part says what is searched:</p>
+${DL([["Spectrum","Which spectrum's final data. With several, choose any; <em>In every spectrum</em> finds the peaks of all of them with the same settings (over this range, for those on the same X axis), in one undo step."],["From … to …","The X range, in the spectrum's units. Leave an end empty for the end of the spectrum."],["Whole spectrum","All of it."],["What's in view","The range the graph is zoomed to. The first search, when the window opens, takes it."],["Pick on the graph","Drag across the graph from where the search should start to where it should end."]])}
+<p>While the window is open, the graph shades what lies outside the range. Each range is its own undo step, and the History's log says where the peaks were looked for.</p>
+<h2>Finding them</h2>
+<p>A straight baseline through the lowest points is taken off first, and every peak that passes <em>How to recognise a peak</em> is marked. Change a setting or the range and it searches again at once; <em>Search again</em> does it by hand. ${DA("finder","The finder's settings")}</p>
 <h2>The table</h2>
 <p>Each peak's position, height, FWHM and signal to noise, and a field for its label. Remove a peak with its ×; <em>Add a peak by clicking the graph</em> places one by hand. <em>Turned down</em> lists candidates that did not pass, with the reason, each with an Add button. <em>Copy</em> gives the table as text.</p>
 <h2>On the graph</h2>
@@ -12577,8 +12818,8 @@ ${DL([["Mark each with","A symbol, a drop line, a vertical line, a leader, or no
 <h2 id="across">Across the spectra</h2>
 <p>When several spectra on the same X axis have peaks marked, <em>Across the spectra</em> lists each peak once, matched between the spectra by position: a peak joins the nearest one of the spectrum before it, if within half the larger of their widths, so a band that drifts along the series stays one row. Each row says where the peak is, how far it moves, and in how many spectra it is found; rows the analysed spectrum lacks are greyed.</p>
 ${DL([["Label in every one","Type once: the peak is labelled so in every spectrum that has it, in one undo step."],["The chart button","Plots the peak's position against the series in the "+DA("batch","Batch window")+", with no fit needed; its value at the peak is there too."],["Copy","One table: a row per spectrum, a column per peak."]])}
-<h2>Then</h2>
-<p><em>Fit these peaks…</em> sends them to the ${DA("peakfit","peak fit")}; <em>Integrate them</em> puts a ${DA("integ","band")} around each. Both are optional: the peaks stay marked either way, in the figure, the exports and the report.</p>`},
+<h2>Done, or more</h2>
+<p><em>Done</em> closes the window; the peaks stay marked on the graph, in the exports and the report, and ${MP("Analysis › Find peaks…")} opens it again. Nothing else is needed. If you want more: <em>Fit them…</em> sends them to the ${DA("peakfit","peak fit")}, and <em>Integrate them</em> puts a ${DA("integ","band")} around each.</p>`},
 {id:"finder", g:"Analysis", t:"The peak finder's settings", kw:"peak finder threshold signal to noise snr percent decades log scale smoothing narrowest closest at most derivative shoulder turned down reasons",
  lead:"The same finder serves the Peaks window and the peak fit. Every candidate it turns down says why.",
  body:`<h2>Settings</h2>
@@ -12610,11 +12851,11 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <p>Pearson r between spectra on the same X axis, interpolated onto the analysed spectrum's X where they overlap. Near 1, the same shape; near 0, unrelated.</p>
 <p><em>Copy</em> gives every table as tab-separated text.</p>`},
 /* ---------------------------------------------------------------- Fitting */
-{id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge",
+{id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge range from to spectrum done close",
  lead:"Two kinds of fit, in the Fit window: a curve fit puts one model through the data; a peak fit describes a spectrum as a sum of peaks on a baseline.",
  body:`${DL([[DA("curvefit","Curve fit"),"A line, polynomial, exponential decay, sigmoid, single peak or your own function."],[DA("peakfit","Peak fit"),"Any number of Gaussian, Lorentzian, Voigt, Pearson VII, Fano and other peaks on a baseline, found automatically or placed by hand, with handles on the graph."]])}
 <h2>What is fitted</h2>
-<p>The unmasked points of the analysed spectrum's final data in view. Zoom to fit part of a spectrum; mask points to leave them out. Press <em>Fit</em> or ${K("Ctrl","Enter")}.</p>
+<p>The unmasked points of one spectrum's final data, over a range. The top of the Fit window says which: <em>Spectrum</em> (with several) and <em>Range</em>, from … to …, in X units. Typing a range zooms the graph to it, and zooming the graph changes it; <em>All</em> is all the data. Mask points to leave them out. Press <em>Fit</em> or ${K("Ctrl","Enter")}; <em>Done</em> closes the window and keeps the fit.</p>
 <h2>After fitting</h2>
 <p>The curve is drawn over the data (with the residuals if <em>Residuals</em> is on), and the ${DA("results","Results")} window gives every parameter with its uncertainty and anything that makes it less certain. Each fit is kept in the fit history; a fit whose data or processing changed since is marked out of date.</p>
 ${TIP("A fit belongs to its spectrum. It is drawn only over the spectrum it was fitted to.")}`},
@@ -12629,17 +12870,22 @@ ${TIP("A fit belongs to its spectrum. It is drawn only over the spectrum it was 
 <h2>Models</h2>
 <div id="docModelList"></div>
 <p><em>Function</em> beside the list, or ${MP("Analysis › Fit › New fit function…")}, adds ${DA("userfn","your own")}.</p>`},
-{id:"peakfit", g:"Fitting", t:"Peak fit", kw:"peak fit deconvolution peaks baseline draft handles drag find peaks reset estimates shape",
+{id:"peakfit", g:"Fitting", t:"Peak fit", kw:"peak fit deconvolution peaks baseline draft handles drag find peaks reset estimates shape name label labels number centre area fwhm height errors units leader row turned",
  lead:"A spectrum as a sum of peaks on a baseline, each peak described by its centre, area and width.",
  body:`<h2>1 · Find peaks</h2>
-<p>The ${DA("finder","finder")} previews what it would find on the graph (filled: found; hollow: turned down). <em>Use these peaks</em> starts the draft from them; <em>Add to my peaks</em> adds them to what is there. Or choose <em>Add peak</em> on the toolbar and click the graph.</p>
+<p>It looks over the Fit window's <em>Range</em> (${DA("fit","what is fitted")}). The ${DA("finder","finder")} previews what it would find on the graph (filled: found; hollow: turned down). <em>Use these peaks</em> starts the draft from them; <em>Add to my peaks</em> adds them to what is there. Or choose <em>Add peak</em> on the toolbar and click the graph.</p>
 <h2>2 · Peaks and baseline</h2>
 <p>Each peak's shape and starting values, and the baseline (none, constant, straight line, quadratic or cubic, measured from the centre of the fitted range). On the graph, the draft is drawn dashed with its sum:</p>
 ${DL([["Numbered dot","Drag to move the peak's centre and height."],["Side handles","Of the selected peak: drag to change its width."],["Type","Any value in the table; the lock holds it fixed; the chain link "+DA("ties","ties it")+" to another peak's."]])}
 <p><em>One width</em> gives every peak the same width, for an instrument's resolution. Changing a peak's shape keeps its centre, width and height.</p>
+<p>The box beside <em>Peak 1</em> is its name (<em>C=O stretch</em>, <code>\\nu_{1}</code>): it goes into the peak's label, Results, the report and the exports, and into every spectrum of a batch fitted with these peaks.</p>
 <h2>3 · Fit</h2>
 <p><em>Fit</em> or ${K("Ctrl","Enter")}. <em>Reset to estimates</em> measures every peak again from the data, and puts a peak that has run off the spectrum back on the largest feature no other peak describes.</p>
-<p>Shapes: ${DA("shapes","Peak shapes")}.</p>`},
+<p>Shapes: ${DA("shapes","Peak shapes")}.</p>
+<h2 id="labels">Labels on the graph</h2>
+<p>Each fitted peak is labelled on the graph. <em>Labels show</em>, under the fit, picks what they say; ${MP("Plot › Fitted peak labels")}, the right-click menu of a label, and the Format dialog's <em>Fitted peak labels</em> page have everything:</p>
+${DL([["Each label shows","Any of its number, name, centre, height, FWHM, area and share of the area."],["Or your own text","Your words around the numbers: <code>{n}</code> the number, <code>{name}</code>, <code>{xc}</code> the centre, <code>{h}</code> the height, <code>{fwhm}</code>, <code>{area}</code>, <code>{pct}</code>. A new line starts a new line."],["The numbers","Decimals, with ± their standard errors, with their units."],["Where","Above the peak, inside it, or in a row along the top with a leader to each peak (spread so none overlap); one line or stacked; turned 90°. A label that would rise above the plot sits beside its peak."],["Mark and look","A dot on the top, a line down to the baseline or through the graph; each peak's colour or the text's; a box; the font, size and style of the text."]])}
+<p>Drag a label to move it (a leader goes back to its peak); double-click it to name its peak; right-click it for its options and <em>Put its label back</em>. The settings belong to the graph, so each graph of a project can label its peaks its own way; they travel with ${DA("style#formats","formats")}.</p>`},
 {id:"shapes", g:"Fitting", t:"Peak shapes", kw:"gaussian lorentzian pseudo-voigt voigt pearson fano breit wigner shape formula area fwhm",
  lead:"Every shape is written in terms of its centre, its area and its full width at half maximum, so the table holds the numbers a paper needs.",
  body:`<h2>Gaussian</h2>
@@ -14134,7 +14380,7 @@ function plotMenu(){
       "-",
       {label:"Lines, labels and legend…", run:()=>openPlotDetails(act&&act.id,"labels"), enabled:!!p},
       {label:"Remove every annotation", danger:true, run:clearAnnos, enabled:edit&&!!(cfg.annos||[]).length}]},
-    {label:"Label fitted peaks with", sub:()=>[["off","Nothing"],["num","Their numbers"],["pos","Their positions"],["numpos","Numbers and positions"]].map(([k,l])=>({label:l, radio:true, checked:(cfg.peakLab||"num")===k, enabled:edit, run:()=>setPlotKey("peakLab",k,`labelled the fitted peaks with ${l.toLowerCase()}`)}))},
+    {label:"Fitted peak labels", sub:()=>fplMenuItems(null)},
     "-",{label:"Layout and colours…", run:()=>openPlotDetails(null,"layout"), enabled:!!p}];
 }
 function menuItems(which){

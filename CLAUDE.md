@@ -514,7 +514,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   `runPeakFinder(append)` seeds the draft from them, measuring a peak on a larger one's tail
   from its own valleys), 2 Peaks and baseline, 3 Fit. `pfBaseline` subtracts the draft's
   baseline before searching without changing it. Its "Mark and label them" hands the peaks to
-  the Peaks window's set instead (`findPeaksInto`).
+  the Peaks window's set instead (`findPeaksInto`, over the fit's range). Above both kinds of
+  fit, `fitWhereHtml` says what is fitted: Spectrum (with several; `goSpectrum`) and Range from
+  … to …, which is the graph's zoom (`setViewX(a, b)`, null for all; `wireFitWhere`), and the
+  footer ends in **Done** (`#fitDone`, closes the window). Each peak card has a name field
+  (`data-pname`, `setPeakName(k, v, "draft")`), and under the fit a row of chips says what the
+  labels show (`data-fplf`, `fplToggleField`) with More… (the Format dialog's `fpeaks` page).
 - **Peaks window** (`openPeakFinder`, `renderPeaks`, `wirePeaks`): finding peaks without
   fitting them. A spectrum's **peak set** is peak labels on the graph, annotations with
   `grp:"pk:<colId>"`, each with its typed label `lab`, its mark `mk`, the finder's numbers
@@ -542,12 +547,22 @@ graph first, with the taskbar kept at the bottom of the screen.
   label, `removeFoundPeak` (also what Delete on a set's label does), `clearFoundPeaks`,
   `addToPeakSet` (the Label tool on a spectrum with a set), `peakRows`/`foundTableText` (the
   table; `said` has `{x}` written out), `fitFoundPeaks` (seeds `S.pdraft` from the set and
-  opens the Fit window: fitting is optional). The window's four parts: how to find them
-  (`pfFormHtml`, the finder's form under `pk-pf…` ids so the Fit window's can be open too),
-  the peaks (a table with a label field each, remove, Copy, Clear, add by clicking the graph,
-  the turned-down candidates with Add), Across the spectra (with several sets on one axis:
-  each matched peak once, its spread, in how many, one label for every one, a chart button for
-  its trend), how they look on the graph, and Fit these peaks.
+  opens the Fit window: fitting is optional). The window's parts: **Find peaks in** (which
+  spectrum, always shown, with In every spectrum; From … to … in X units; Whole spectrum,
+  What's in view, Pick on the graph), how to recognise a peak (`pfFormHtml`, the finder's form
+  under `pk-pf…` ids so the Fit window's can be open too), the peaks (a table with a label field
+  each, Search again, remove, Copy, Clear, add by clicking the graph, the turned-down candidates
+  with Add), Across the spectra (with several sets on one axis: each matched peak once, its
+  spread, in how many, one label for every one, a chart button for its trend), how they look on
+  the graph, and a pinned footer: **Done** (closes the window; the peaks stay), then the
+  optional Fit them…, Integrate them and Labels and legend…. **The range**: `pkRangeOf(c)` is
+  the set's own (`found[c].rng` in its units) or, before a set, `S.pkRng[c.id]`; null is the
+  whole spectrum. `findPeaksInto({rng})` searches it (its own range by default, never the zoom;
+  the log names it), `setPkRange(rng)` sets it with an undo entry of its own, `viewRng()` is the
+  zoom as a range, `pickPkRange()` the drag (`S.pick.pkr`, read in `setPickedRange`); the first
+  search when the window opens takes the view, and `findPeaksEvery` uses the analysed
+  spectrum's range on every spectrum on its axis. While the window is open `buildPlot` shades
+  what lies outside the range (`.pkrange`).
   `pkUndo` makes one undo entry per burst of the same kind of change.
 - **Integrate window** (`openIntegrate`, `renderInteg`, `wireInteg`): bands measured without
   a fit. `p.integ = {bands, ref, avg, show}`: each band a window `{id, x1, x2, xu, lab, base}`
@@ -650,7 +665,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   (a title or an axis being dragged), `S.arrowDraft` (an arrow being drawn), `S.guides` and
   `S.snapRing` (alignment guides and the point an arrow snaps to, drawn on screen only),
   `S.altKey` (Alt held: no snapping), `S.insetCfg` (an inset's settings while it is drawn),
-  `S.exp` (the export dialog's settings), `S.stOpt`, `S.annoSel` (the selected
+  `S.exp` (the export dialog's settings), `S.pkRng` (a Peaks window range before there is a set),
+  `S.fldrag`/`S.fplClick` (a fitted peak's label being dragged or clicked), `S.stOpt`, `S.annoSel` (the selected
   annotation; Delete removes it), `S.comments` with `S.cDrafts`, `S.cReply`, `S.cEdit` and
   `S.discFilter` (the Discussion window's Open/All). Window positions are `LAYOUT`.
 - **Rendering**: `buildPlot(W,H,palette,colEx,opt)` returns an SVG string used both on screen and
@@ -739,9 +755,26 @@ graph first, with the taskbar kept at the bottom of the screen.
   braces make scripts) and `richW` measures it; `rtool(id)` puts x², x₂ and a symbol grid
   (`openSymPicker`) beside a field, and Ctrl+Shift+= / Ctrl+= wrap the selection
   (`setupRichTools`, fields marked `data-rich` and the inline editors).
-  `labelFoundPeaks`, `shadeRange` (a range pick), `addLineDlg`, `clearAnnos`. Fitted peaks
-  are labelled by `numLabel` with their number, position, both or nothing (`peakLab`), in
-  their own colour, just inside the peak when a marked peak's label is on its top.
+  `labelFoundPeaks`, `shadeRange` (a range pick), `addLineDlg`, `clearAnnos`.
+  **Fitted peak labels** (`fitLabels` in `buildPlot`; a draft being set up shows `numLabel`, its
+  number and name; straight after a fit, `ov.same`, the fitted labels are drawn with the
+  handles): what each says is `fplText(cfg, k, name, m, u)`, from `fplFields(cfg)` (`peakLab`
+  `"custom"` with `peakLabShow`, a list from `FPL_FIELDS`: number, name, centre, height, FWHM,
+  area, area %; the older `num`, `pos`, `numpos` read as lists; `off`) or your own text
+  (`peakLabTpl`, `fplTpl`, with `{n} {name} {xc} {h} {fwhm} {area} {pct}`), numbers by
+  `fplVal` (`peakLabDec`, `peakLabErr` ± errors, `peakLabUnit`), one line or stacked
+  (`peakLabSep`). Where: `peakLabPos` (`FPL_POS`: above, inside, a row along the top spread so
+  none overlap, with leaders), `peakLabRot`; a label that would rise above the plot sits beside
+  its peak. Look: `peakLabMk` (`FPL_MARKS`: dot, drop line, vertical line), `peakLabCol` (each
+  peak's or the text's), `peakLabBox`, `TS.peaks`. All these are format (`FMT_KEYS`); drag
+  offsets are not (`peakLabOff`, pixels by peak id, `S.fldrag`, a leader back to the peak).
+  On screen each label is `g[data-fpl][data-fplid]`: drag, double-click to name its peak
+  (`namePeakDlg`), right-click for `fplMenuItems(k)` (also Plot › Fitted peak labels), hover
+  tip. A peak's **name** is `spec.peaks[k].lab` (carried by the draft, `runPeakFit` and
+  `batchTemplate`; `peakMetrics` returns it as `name`): `setPeakName(k, v, from)` writes it on
+  the fit, the draft and every batch row by peak id, and turns the name field on; Results, the
+  copied table, the report and the CSV show it. The Format dialog's page is `fpeaks` (Defaults
+  resets it, `fploff:` puts dragged labels back).
   **Fonts**: `FONT_LIB` (`[key, label, stack, kind, web family?]`: web fonts from Google,
   then common installed ones; `FONTS` adds Kurve's), `fontStack(key, name)` (loads a web font
   the first time it is drawn, `loadWebFont`, and tries Google for a name not installed),
@@ -1178,9 +1211,34 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A test that returns a dialog's promise still waits forever.** `page.evaluate(()=>
   openBatchDialog())` hung a drive for ten minutes: write `()=>{ openBatchDialog(); }`.
 
+- **A window with no way out reads as a wizard.** The Peaks window ended in Fit these peaks,
+  Integrate them and Lines, labels and legend, so people thought they had to pick one to
+  finish. A window that does a job ends in Done, and the rest is marked optional.
+- **An implicit range is an invisible one.** The finder searched whatever the graph was
+  zoomed to and said so nowhere, and changing a setting while zoomed changed the range too.
+  The range is shown, typed, picked on the graph, shaded, kept with the set, and its own undo
+  step.
+- **An overlay can hide what it is for.** With the Fit window open after a fit, the draft's
+  overlay drew only peak numbers, so label settings could not be seen where they were
+  chosen. When the draft is the fit, the fitted labels are drawn.
+- **A template literal in static HTML is printed as typed.** The Format dialog's footer showed
+  `Formats ${ICON("chev","sm")}`. Static markup cannot call functions; scan it for `${` (strip
+  the scripts, then search).
+- **A backslash in a template literal is an escape.** A help example `\nu_{1}` would have
+  become a newline and "u_{1}"; rich-text examples in `DOCS` double the backslash.
+
 ## Roadmap
 
-Done in this round: many spectra at once. Global fits beyond Origin's NLFit: tick what every
+Done in this round: finding and labelling peaks, from what people asked. The Peaks window
+says where it looks (the spectrum, always shown, and From … to … typed, taken from the view
+or dragged on the graph, shaded there, kept with the set) and ends in Done; the Fit window
+says which spectrum and range it fits, and ends in Done too. Fitted peaks are labelled with
+any of their number, name, centre, height, FWHM, area and share, or your own text; with
+errors and units; above, inside, or in a row along the top with leaders; turned, marked,
+boxed, dragged; each peak can be named, and its name goes to Results, the report and the
+exports.
+
+Round before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
 spectrum shares (centres, widths, areas, shapes, the baseline, or parameter by parameter; a
 curve model's parameters), each spectrum first fitted with those held so the fit starts where
 it belongs, one block-sparse Levenberg–Marquardt problem, every row a normal fit that says what
@@ -1191,7 +1249,7 @@ on the desk: several quantities, left and right axes, lines with slopes, SVG, PN
 Each spectrum keeps its file's header, and a field that differs (a temperature, the time it was
 taken) is what a series can be plotted against.
 
-Round before: figures for papers. Super- and subscripts, Greek letters and symbols in
+Two rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
 every title, legend entry and label (`cm^{-1}`, `\alpha`), with buttons and a word
 processor's keys; arrows drawn by dragging, their heads snapping to data points, with heads
 of four kinds; insets made from a zoom, dragged and resized, outlined on the graph with
@@ -1201,7 +1259,7 @@ print, lines scaled with the text or not, SVG at its size, PNG with its dpi reco
 transparent backgrounds, a preview); formats saved by name and used on any graph in any
 project, with five of Kurve's; a toolbar that keeps to one row at every width.
 
-Two rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
+Three rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
 Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
 its own font, size in points, bold, italic, underline and colour; a real font picker (each
 name in its face, search, web fonts that look the same everywhere, which fonts this computer
@@ -1216,7 +1274,7 @@ graph at once. Labels and text over several lines, turned to any angle, in a box
 pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
 richer right-click menus on axes, titles, the legend and annotations.
 
-Three rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+Four rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
 started from its result, from the neighbour in the series, or from the peaks found in each;
 every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
 the History, replaced by a fit by hand, out of date when its processing changes). The Batch
@@ -1226,7 +1284,7 @@ or typed values, with a weighted straight line (slope ± error). CSV, SVG and th
 A fix to the runs test and peak checks, which read the analysed spectrum instead of the
 fit's own.
 
-Four rounds before: several graphs per project, each in its own window, beyond Origin's:
+Five rounds before: several graphs per project, each in its own window, beyond Origin's:
 one graph per spectrum in one command, tiled; click any graph to work on it (its zoom,
 spectrum and drafts come back, every window follows); only the graph in front is live and the
 others are pictures redrawn when what they show changes, so twelve graphs cost little more
@@ -1236,11 +1294,11 @@ every spectrum in one CSV, every graph in the report; importing many files, or e
 of one file, as one change with a graph each; applying a step to every spectrum with
 settings measured on each; graph windows placed per project.
 
-Five rounds before: two interface styles, Bench and Graphite, chosen in Window › Style, with
+Six rounds before: two interface styles, Bench and Graphite, chosen in Window › Style, with
 every control drawn from tokens (sliders with a filled track, switches, checkboxes, radios,
 lists, segmented controls, windows) instead of the browser's own look.
 
-Six rounds before: a Help window (an article for every window, tool and step, search, a "?"
+Earlier still: a Help window (an article for every window, tool and step, search, a "?"
 on every window, F1), and a review of every window: explanations moved into Help and
 tooltips, one-line empty states (the History of an empty project included), short status-bar
 hints and toasts, spectrum pickers only when there is a choice, forms that stop at a
@@ -1295,6 +1353,10 @@ Next, in order:
   centre linear in temperature) or be tied to another parameter across spectra; it runs on the
   page, so a large one holds the page for a few seconds, and stops at 900 parameters. It needs
   the template's peaks in every spectrum (not with the peaks found in each)
+- Fitted peak labels are styled as a set (one font, colour rule and box for all); a label can
+  be moved on its own but not restyled on its own. In a row along the top they can sit under
+  the legend. A peak's name reaches a batch fitted from the template's peaks, not one fitted
+  from the peaks found in each spectrum
 - Peaks are matched across spectra by position alone, nearest first: two bands that cross
   along the series swap tracks. A marked peak's trend gives its position and the Y at its top,
   not an area (integrate it, or fit)
