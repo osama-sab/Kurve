@@ -12,8 +12,9 @@ Math, Analysis, Statistics, Window, Help; each short, its kinds opening side sub
 hover, and a tool opening its dialog) and the project name (click to rename; the arrow
 beside it switches, creates and deletes projects); a **toolbar** (Import, Export, undo/redo,
 **Raw / Final / Compare** (what the graph shows), the pointer tools Zoom / Pan / Mask / Add
-peak / Label / Comment, show-all, the analysed spectrum's plot type, the layout of several spectra,
-and the Reverse X / Log Y / Grid / Residuals toggles); the **desk**; and a **status bar**
+peak / Label / Arrow / Comment, show-all, the analysed spectrum's plot type, the layout of several
+spectra, and the Reverse X / Log Y / Grid / Residuals toggles; it keeps to one row, dropping labels
+in stages while it would wrap, `fitToolbar`); the **desk**; and a **status bar**
 (tool hint, live cursor readout, point counts, fit state, save state). Window › Theme picks
 light or dark, and Window › Style the look of the interface: **Bench** (the default: IBM Plex,
 blue for everything you can change) or **Graphite** (Geist, black and white, blue only for the
@@ -589,11 +590,18 @@ graph first, with the taskbar kept at the bottom of the screen.
   view), `S.ovStage` (the Overview's raw or final data),
   `S.plotPreview` (the Format dialog's working copy; `S.pdTab` its page, `S.pdSel` the
   spectrum, `S.pdAnno` the annotation, `S.pdPos` where it was dragged), `S.ttdrag`/`S.axdrag`
-  (a title or an axis being dragged), `S.stOpt`, `S.annoSel` (the selected
+  (a title or an axis being dragged), `S.arrowDraft` (an arrow being drawn), `S.guides` and
+  `S.snapRing` (alignment guides and the point an arrow snaps to, drawn on screen only),
+  `S.altKey` (Alt held: no snapping), `S.insetCfg` (an inset's settings while it is drawn),
+  `S.exp` (the export dialog's settings), `S.stOpt`, `S.annoSel` (the selected
   annotation; Delete removes it), `S.comments` with `S.cDrafts`, `S.cReply`, `S.cEdit` and
   `S.discFilter` (the Discussion window's Open/All). Window positions are `LAYOUT`.
-- **Rendering**: `buildPlot(W,H,palette,forExport)` returns an SVG string used both on screen and
+- **Rendering**: `buildPlot(W,H,palette,colEx,opt)` returns an SVG string used both on screen and
   for export; on screen it also records `S.geo` (transforms, handle positions, `logX`, `heat`).
+  `colEx` is the export's colours; inside, `forExport` means a still picture (no handles, hit
+  zones or side effects on `S`), which is also what `opt.inset` asks for, drawn in the
+  screen's colours. `opt.k` scales every text (for an export at a size in points), and ticks
+  space out with larger text (`tkDen`).
   It reads the plot settings through `plotCfg()`, which is the Format dialog's working copy
   while that dialog is open. Each spectrum has a style from `serStyle(id, active, …)`: `type`
   (`PLOT_TYPES`: line, scatter, linesym, stick, area, step), `color`, `lw`, `dash`, `sym`
@@ -658,6 +666,22 @@ graph first, with the taskbar kept at the bottom of the screen.
   open at it), `annoMenuItems` (type its label, mark it with, turn, box, align, centre,
   pin, text position, width, and for a set's peak mark or label every peak with), `pinAnno`,
   `centreAnno`, `peakNear` (the top of the peak under a click), `addPeakLabel`,
+  **Arrows** (`t:"arrow"`, tail `x, y`, head `x2, y2`, or pinned `fx, fy, fx2, fy2`; `head`
+  `end`/`open`/`both`/`none`, `hs` its size; text beyond the tail): `arrowSvg`, `annoEnds`
+  (an annotation's ends on screen), drawn with the Arrow tool (`S.mode` `arrow`, `makeArrow`)
+  whose head snaps to a data point (`snapNear`), ends dragged by their handles (`data-ah`).
+  **Insets** (`t:"inset"`, the range `x0, x1, y0, y1` with empty Y fitted to the data,
+  placed by `fx, fy, fw, fh`, `box`, `conn`, `titles`, `ts`): `insetSvg` draws the graph again
+  through `buildPlot(…, {inset})` with `S.insetCfg` (no legend, title, annotations or residuals,
+  smaller text), ids prefixed, the region outlined and joined to the inset by the corners
+  whose lines run outside both boxes; `makeInset` makes one from the zoom on view, in the
+  emptiest corner that does not cover the region; its corner handle (`data-ah="se"`) resizes
+  it. Dragged text snaps to the plot's centre and other text (`S.guides`).
+  **Rich text**: titles, axis titles, legend entries and annotation text go through
+  `richSvg(str, size)` (`^{…}` superscript, `_{…}` subscript, `\name` from `RT_SYM`; only
+  braces make scripts) and `richW` measures it; `rtool(id)` puts x², x₂ and a symbol grid
+  (`openSymPicker`) beside a field, and Ctrl+Shift+= / Ctrl+= wrap the selection
+  (`setupRichTools`, fields marked `data-rich` and the inline editors).
   `labelFoundPeaks`, `shadeRange` (a range pick), `addLineDlg`, `clearAnnos`. Fitted peaks
   are labelled by `numLabel` with their number, position, both or nothing (`peakLab`), in
   their own colour, just inside the peak when a marked peak's label is on its top.
@@ -692,7 +716,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   `closePlotDetails(ok)` (one undo entry; `pdLog` names what changed). It moves by its title
   bar (`S.pdPos`); *Defaults* resets the page (top-level keys to null: `savePlot` merges);
   *Use on every graph* is `formatEveryGraph` (`FMT_KEYS`, `FMT_AX`: format, not data,
-  ranges, titles or annotations). `txtAuto(cfg, el)` is a kind of text's automatic style.
+  ranges, titles or annotations; through `styleFrom(src, pl)`, which puts a missing key back to
+  its default). **Formats**: `fmtOf(pl)` is a graph's format alone; `FMT_BUILTIN` (Kurve's,
+  journal, classic, slides, minimal) and a per-browser library (`fmtLib`, `fmtLibSave`, under
+  `kurve.formats`, `saveFormatAs`); `useFormat(f, every)` gives one to the graph or every
+  graph, `formatMenuItems` lists them (Plot › Formats, and the Format dialog's Formats button,
+  which applies to the working copy). `txtAuto(cfg, el)` is a kind of text's automatic style.
   `renderTop`, `renderWs`, `renderPlot` (+ `renderStatusBar`), `renderStages` (now the graph
   window's stage chip and the toolbar's Raw/Final/Compare), `renderFit` (it also refreshes
   `renderResults`, `renderTabMarks` and the status bar), `renderFlow`, `renderTool`,
@@ -729,7 +758,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   dialog inert, trap Tab, route Escape to the dialog's `_cancel`, and return focus; the import
   wizard, `confirmDlg`, `formDlg` and the Format dialog use them. A font or colour picker
   open over a dialog keeps Escape and Tab for itself: the modal key handler looks at
-  `fpOpen`/`cpOpen` first.
+  `fpOpen`/`cpOpen`/`spOpen` first, and a menu opened from a dialog closes on Escape.
 - **Help** (`DOCS`, `openHelp(id, {search})`, `renderHelp`): a window (`#w-help`, not in
   `WIN_ORDER`; in the taskbar only while open), not a dialog, so it stays open beside what it
   explains. `DOCS` is the articles, each `{id, g (one of DOC_GROUPS), t, kw, lead, body, win?}`
@@ -755,7 +784,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   all-graphs figure and the report: each web font face the SVG draws (family, italic, bold)
   is fetched from Google Fonts as a subset of the letters drawn and embedded as data in a
   `<style>`, in parallel, cached per request (`FONT_EMB`), whatever arrived after 10 s;
-  offline the figure goes out as it is. `exportCsv` (every column with units, the mask
+  offline the figure goes out as it is. **For a paper or slides** (`openExportFigure`,
+  `renderExportFigure`, `doExportFigure`, `#expModal`): a size (`EXP_SIZES`: journal columns,
+  a slide, as on screen, or any in mm, in or px), the tick numbers at a size in points there,
+  lines and symbols scaled with the text (laid out k times smaller and drawn k times larger,
+  so everything keeps its screen proportions) or as drawn (`opt.k` scales only the text),
+  SVG at a physical size (`expDress`), PNG at 150–1200 dpi with a pHYs chunk (`pngWithDpi`,
+  `crc32`) or TIFF (`tiffEncode`, PackBits, with its resolution), white or transparent, this
+  graph or all; `expBuild` makes the SVG, `expInfo` says its size, the preview is the SVG
+  itself with prefixed ids, and the settings are kept in `kurve.export`. `exportCsv` (every column with units, the mask
   flag, the fit, residual, baseline and each peak curve, plus commented blocks for metadata,
   the fingerprint, the processing steps with their warnings, the marked peaks with their
   labels, the band integrals, and fit statistics),
@@ -1055,9 +1092,34 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   away what had arrived. Every face is requested at once and what is there at the cutoff is
   used.
 
+- **One flag, one meaning.** `forExport` meant both "export colours" and "a still picture
+  with no handles". An inset needed a still picture in the screen's colours, so `buildPlot`
+  takes `colEx` for the colours and derives the still flag from it or `opt.inset`.
+- **Markup must not eat names.** Spectra are called `sample_01` and `run^2` by their files;
+  only braces (`_{…}`, `^{…}`) make scripts, and an unknown `\name` stays as typed.
+- **A wrapping toolbar hides its own bug.** The toolbar had been two rows at 1200–1366 and
+  1600 px, unnoticed, until one more button made 1440 wrap too. Measuring rows, not looking
+  at one width, found it; `fitToolbar` now drops labels in stages while it would wrap.
+- **A test must find things again after anything that scrolls.** At phone width, clicking a
+  toolbar button scrolled the page, and a drag computed from the graph's earlier position
+  landed elsewhere: it looked like the arrow tool was broken.
+- **Printed size and screen size are different questions.** A figure 85 mm wide is 321 CSS
+  pixels: drawn there with screen fonts its text was huge beside the data. The export sets the
+  tick numbers' size in points at the printed size and scales the rest of the figure with it.
+
 ## Roadmap
 
-Done in this round: formatting the graph like a word processor, beyond Origin's Plot Details.
+Done in this round: figures for papers. Super- and subscripts, Greek letters and symbols in
+every title, legend entry and label (`cm^{-1}`, `\alpha`), with buttons and a word
+processor's keys; arrows drawn by dragging, their heads snapping to data points, with heads
+of four kinds; insets made from a zoom, dragged and resized, outlined on the graph with
+lines to the inset; guides that line text up with the plot's centre and other text; an
+export for a journal column or a slide (sizes, the tick numbers at a size in points in
+print, lines scaled with the text or not, SVG at its size, PNG with its dpi recorded, TIFF,
+transparent backgrounds, a preview); formats saved by name and used on any graph in any
+project, with five of Kurve's; a toolbar that keeps to one row at every width.
+
+Round before: formatting the graph like a word processor, beyond Origin's Plot Details.
 Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
 its own font, size in points, bold, italic, underline and colour; a real font picker (each
 name in its face, search, web fonts that look the same everywhere, which fonts this computer
@@ -1072,7 +1134,7 @@ graph at once. Labels and text over several lines, turned to any angle, in a box
 pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
 richer right-click menus on axes, titles, the legend and annotations.
 
-Round before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+Two rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
 started from its result, from the neighbour in the series, or from the peaks found in each;
 every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
 the History, replaced by a fit by hand, out of date when its processing changes). The Batch
@@ -1082,7 +1144,7 @@ or typed values, with a weighted straight line (slope ± error). CSV, SVG and th
 A fix to the runs test and peak checks, which read the analysed spectrum instead of the
 fit's own.
 
-Two rounds before: several graphs per project, each in its own window, beyond Origin's:
+Three rounds before: several graphs per project, each in its own window, beyond Origin's:
 one graph per spectrum in one command, tiled; click any graph to work on it (its zoom,
 spectrum and drafts come back, every window follows); only the graph in front is live and the
 others are pictures redrawn when what they show changes, so twelve graphs cost little more
@@ -1092,23 +1154,23 @@ every spectrum in one CSV, every graph in the report; importing many files, or e
 of one file, as one change with a graph each; applying a step to every spectrum with
 settings measured on each; graph windows placed per project.
 
-Three rounds before: two interface styles, Bench and Graphite, chosen in Window › Style, with
+Four rounds before: two interface styles, Bench and Graphite, chosen in Window › Style, with
 every control drawn from tokens (sliders with a filled track, switches, checkboxes, radios,
 lists, segmented controls, windows) instead of the browser's own look.
 
-Four rounds before: a Help window (an article for every window, tool and step, search, a "?"
+Five rounds before: a Help window (an article for every window, tool and step, search, a "?"
 on every window, F1), and a review of every window: explanations moved into Help and
 tooltips, one-line empty states (the History of an empty project included), short status-bar
 hints and toasts, spectrum pickers only when there is a choice, forms that stop at a
 readable width, and the Peaks window's sections in one style.
 
-Five rounds before: integration without a fit (bands dragged on the graph, local baselines,
+Six rounds before: integration without a fit (bands dragged on the graph, local baselines,
 areas with noise-propagated errors, heights, positions, FWHM, shares and ratios to a chosen
 band, windows around the peaks, every spectrum at once, a Bands box in the History, the CSV and
 the report) and the Overview of a new spectrum (spacing, noise, bands, spikes, flat tops,
 background, and first steps that open their tools), opened after an import.
 
-Six rounds before: worksheet formulas in Origin's F(x)= row, the fill handle (series and
+Earlier still: worksheet formulas in Origin's F(x)= row, the fill handle (series and
 copies, double-click, Ctrl+D/R), sorting the view, find (Ctrl+F); peak sets that follow the
 processing (labels kept, even through a change of X units) and peaks found in every spectrum
 at once; a fix for a delayed worksheet save overwriting a later one.
@@ -1130,9 +1192,9 @@ Next, in order:
 1. Many spectra at once: global fits with parameters shared across spectra; peaks matched
    across spectra when each has its own found peaks; a trend as a graph on the desk (several
    quantities, two Y axes); metadata columns (temperature, time) read from each file
-2. Figures for papers: export presets (journal column widths, DPI, fixed font sizes), a
-   graph's format saved by name and used in any project, annotation arrows, real sub- and
-   superscripts in titles and labels, snapping, insets, axis breaks
+2. Figures, further: axis breaks, a second X axis in other units (wavelength over Raman
+   shift), graph layers and panels of different spectra, PDF and EPS, formats kept in the
+   project for colleagues, boxes and ellipses on the graph
 3. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
    lanes, keyboard access to annotations and peak handles, handles for shape parameters
    (Lorentz fraction, Pearson m, Fano 1/q)
@@ -1152,8 +1214,8 @@ Next, in order:
   table shows only how many; the trend is one quantity at a time in the Batch window, not a
   graph on the desk. The series variable is the order, a number in the names or typed values:
   it is not read from a file's metadata
-- Several graphs: the X zoom is linked, not Y or the pointer; there are no graph layers,
-  insets or graphs with panels of different spectra, and no keyboard shortcut to step through
+- Several graphs: the X zoom is linked, not Y or the pointer; there are no graph layers or
+  graphs with panels of different spectra, and no keyboard shortcut to step through
   the graphs (the browser keeps Ctrl+Tab); a picture shows no readout until it is clicked. A
   graph's annotations stay on it if one of its spectra moves to another graph
 - A batch import reads each file with the automatic choices (the single-file dialog's
@@ -1179,10 +1241,15 @@ Next, in order:
   what the peak fit is for. Bands are shaded only in the overlaid and double-Y layouts
 - The Overview's judgements (a spike's height, a flat background, 7 points for smoothing,
   5 below zero) are fixed thresholds; it describes the analysed spectrum only, not a batch
-- Double Y puts every other spectrum on one right axis; there are no free graph layers, insets
-  or per-panel settings in the stacked layout
-- Annotations have no arrows or rich text (sub- and superscripts only as Unicode), are not
-  snapped to data or to each other, and cannot be nudged with the keys
+- Double Y puts every other spectrum on one right axis; there are no free graph layers or
+  per-panel settings in the stacked layout. An inset shows the graph's own spectra over a
+  range, overlaid or offset, never in a heat map, and not another graph
+- Annotations: no boxes, ellipses or curved arrows; rich text is scripts and symbols only (no
+  bold or italic inside a text, no nested scripts); snapping is text to text and to the plot's
+  centre, and an arrow's head to data points; nothing can be nudged with the keys
+- Export: no PDF or EPS (SVG is the vector format); formats are kept in the browser, not in
+  the project, so a colleague does not get them; a raster larger than the browser's canvas
+  (about 16 000 px a side) is refused with a reason
 - Fonts: web fonts come from Google Fonts, so offline only installed fonts show; an export
   embeds a web font only if it arrives within 10 s; a font is judged installed by its widths
   against two fallbacks, so one that measures exactly like one of them reads as missing

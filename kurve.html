@@ -905,6 +905,22 @@ table.corr td{text-align:center}
 .pd-anb .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pd-aned{border-left:3px solid var(--ctl-on);padding-left:10px;margin-top:6px}
 .pd-aned textarea{width:100%;max-width:440px;min-height:30px;resize:vertical;font:inherit;font-size:13px;padding:5px 7px;border:1px solid var(--rule);border-radius:var(--r);background:var(--panel);color:var(--ink)}
+.exp-sheet{width:min(980px,100%)}
+.exp-prev{background:var(--panel-2);border-left:1px solid var(--rule);display:flex;align-items:center;justify-content:center;padding:18px;min-height:260px;overflow:auto}
+.exp-page{width:100%;max-height:100%;background:#fff;box-shadow:0 1px 4px rgba(16,24,40,.18);display:flex}
+.exp-page.clear{background-color:#fff;background-image:linear-gradient(45deg,#e6e8eb 25%,transparent 25%,transparent 75%,#e6e8eb 75%),linear-gradient(45deg,#e6e8eb 25%,transparent 25%,transparent 75%,#e6e8eb 75%);background-size:14px 14px;background-position:0 0,7px 7px}
+.exp-page svg{width:100%;height:100%;display:block}
+.exp-info{font-family:var(--mono);font-size:12px}
+.exp-info.bad{color:var(--bad,#C23B22)}
+#expForm .frow{grid-template-columns:110px minmax(0,1fr)}
+@media (max-width: 760px){ .exp-sheet .sheet-b{grid-template-columns:minmax(0,1fr);overflow:auto} .exp-prev{border-left:0;border-top:1px solid var(--rule);min-height:200px} }
+.rtool{display:inline-flex;gap:2px;flex:0 0 auto}
+.rtool button{min-width:28px;height:28px;padding:0 5px;border:1px solid var(--rule);border-radius:var(--r);background:var(--panel);color:var(--ink-2);cursor:pointer;font:13px/1 var(--serif,Georgia),serif}
+.rtool button:hover{border-color:var(--faint);color:var(--ink)}
+.rtool sup,.rtool sub{font-size:9px;line-height:0}
+.sympick{position:fixed;z-index:70;display:grid;grid-template-columns:repeat(9,28px);gap:2px;padding:6px;background:var(--panel);border:1px solid var(--rule);border-radius:var(--r-win);box-shadow:0 12px 32px rgba(16,24,40,.22),0 2px 6px rgba(16,24,40,.08)}
+.sympick button{height:28px;border:0;border-radius:4px;background:transparent;color:var(--ink);cursor:pointer;font:15px/1 Georgia,'Times New Roman',serif}
+.sympick button:hover,.sympick button:focus-visible{background:var(--accent-soft)}
 .pd-place{display:grid;grid-template-columns:repeat(3,26px);grid-template-rows:repeat(3,20px);gap:2px;padding:3px;border:1px solid var(--rule);border-radius:var(--r);width:max-content;background:var(--panel-2)}
 .pd-place button{border:0;background:transparent;border-radius:3px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
 .pd-place button i{width:7px;height:7px;border-radius:50%;background:var(--faint)}
@@ -1146,6 +1162,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 .menu .msearch input{width:100%;height:28px}
 #plot.mode-anchor{cursor:crosshair}
 #plot.mode-label{cursor:crosshair}
+#plot.mode-arrow{cursor:crosshair}
 #plot.mode-range{cursor:col-resize}
 .zrect.pick{background:rgba(29,95,168,.12);border-color:var(--accent)}
 
@@ -1153,6 +1170,11 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 #style{width:118px}
 #layoutSel{width:136px}
 @media (max-width: 1580px){ .tb.lbl.opt>span{display:none} .tb.lbl.opt{padding:0;width:30px} }
+/* The toolbar stays one row: fitToolbar drops labels in stages while it would wrap. */
+.toolbar.c1 .tb.lbl.opt>span{display:none} .toolbar.c1 .tb.lbl.opt{padding:0;width:30px}
+.toolbar.c2 .tb.lbl>span{display:none} .toolbar.c2 .tb.lbl{padding:0;width:30px}
+.toolbar.c3 #modeSeg>button>span{display:none} .toolbar.c3 #modeSeg>button{padding:0 8px}
+.toolbar.c4 #style{width:90px} .toolbar.c4 #layoutSel{width:98px} .toolbar.c4 #viewSeg>button{padding:0 6px} .toolbar.c4 .tsep{margin:0 2px}
 /* The file input is never seen; it must not take a place in the row either. */
 #fileIn{position:absolute;width:1px;height:1px;overflow:hidden}
 /* Between 860 and 1180 px the toolbar keeps to one row: narrower lists. */
@@ -1261,6 +1283,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
   <symbol id="i-max" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1.5"/><path d="M5 9h14"/></symbol>
   <symbol id="i-tile" viewBox="0 0 24 24"><rect x="3.5" y="4" width="9" height="16" rx="1"/><rect x="14.5" y="4" width="6" height="7" rx="1"/><rect x="14.5" y="13" width="6" height="7" rx="1"/></symbol>
   <symbol id="i-cascade" viewBox="0 0 24 24"><rect x="3" y="3" width="11" height="9" rx="1"/><rect x="7" y="7" width="11" height="9" rx="1"/><rect x="10.5" y="11" width="10.5" height="9" rx="1"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 19L18.5 5.5M10.5 5h8.5v8.5"/></symbol>
   <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.2 1.2 0 0 1 0 1.7l-6.5 6.5a1.2 1.2 0 0 1-1.7 0z"/><circle cx="8" cy="8" r="1.4"/></symbol>
   <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></symbol>
   <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.2 4.2 0 0 0 6 0l3-3a4.2 4.2 0 0 0-6-6l-1.3 1.3"/><path d="M14 10a4.2 4.2 0 0 0-6 0l-3 3a4.2 4.2 0 0 0 6 6l1.3-1.3"/></symbol>
@@ -1314,6 +1337,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
       <button data-mode="mask" aria-pressed="false" title="Mask: click or drag to leave points out of the fit"><svg class="ic"><use href="#i-mask"/></svg><span>Mask</span></button>
       <button data-mode="peak" aria-pressed="false" title="Add peak: click the graph where you see a peak"><svg class="ic"><use href="#i-peak"/></svg><span>Add peak</span></button>
       <button data-mode="label" aria-pressed="false" title="Label: click a peak to label it with its position, or an empty spot to add text"><svg class="ic"><use href="#i-tag"/></svg><span>Label</span></button>
+      <button data-mode="arrow" aria-pressed="false" title="Arrow: drag from where it starts to what it points at"><svg class="ic"><use href="#i-arrow"/></svg><span>Arrow</span></button>
       <button data-mode="pin" aria-pressed="false" title="Comment: click the graph to start a comment there"><svg class="ic"><use href="#i-comment"/></svg><span>Comment</span></button>
     </div>
     <button class="tb icon" id="resetView" title="Show all the data (or double-click the graph)" aria-label="Show all the data"><svg class="ic"><use href="#i-fitview"/></svg></button>
@@ -1507,11 +1531,18 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
   </div>
 </div>
 <datalist id="ptSizes"><option value="6"><option value="7"><option value="8"><option value="9"><option value="10"><option value="11"><option value="12"><option value="14"><option value="16"><option value="18"><option value="20"><option value="24"><option value="28"><option value="32"><option value="36"></datalist>
+<div class="modal" id="expModal" hidden role="dialog" aria-modal="true" aria-labelledby="expHead">
+  <div class="sheet exp-sheet">
+    <div class="sheet-h"><h2 id="expHead">Export the figure</h2></div>
+    <div class="sheet-b"><div class="sheet-p" id="expForm"></div><div class="exp-prev" id="expPrev"></div></div>
+    <div class="sheet-f"><span class="lab exp-info" id="expInfo"></span><span class="sp"></span><button class="btn" id="expCancel">Cancel</button><button class="btn primary" id="expGo">Export</button></div>
+  </div>
+</div>
 <div class="modal" id="plotModal" hidden role="dialog" aria-modal="true" aria-labelledby="pdHead">
   <div class="sheet">
     <div class="sheet-h"><h2 id="pdHead">Format graph</h2></div>
     <div class="sheet-p" id="pdBody"></div>
-    <div class="sheet-f"><button class="btn ghost" id="pdReset" title="Put this page back to the defaults">Defaults</button><button class="btn ghost" id="pdAll" hidden title="Give every graph in the project this graph's frame, axes, text, legend and colours">Use on every graph</button><span class="sp"></span><button class="btn" id="pdCancel">Cancel</button><button class="btn primary" id="pdOk">OK</button></div>
+    <div class="sheet-f"><button class="btn ghost" id="pdReset" title="Put this page back to the defaults">Defaults</button><button class="btn ghost" id="pdFormats" aria-haspopup="menu" title="Kurve's formats and the ones you saved">Formats ${ICON("chev","sm")}</button><button class="btn ghost" id="pdAll" hidden title="Give every graph in the project this graph's frame, axes, text, legend and colours">Use on every graph</button><span class="sp"></span><button class="btn" id="pdCancel">Cancel</button><button class="btn primary" id="pdOk">OK</button></div>
   </div>
 </div>
 <div class="dropzone" id="dropzone" hidden><div><svg class="ic lg"><use href="#i-upload"/></svg>Drop the file to import it<span class="lab">You will see how it was read before anything changes.</span></div></div>
@@ -4384,6 +4415,8 @@ function plotCfg(){
   // On a graph of its own, a spectrum not on it counts as hidden.
   const g=S.plotPreview?null:graphOf(id); if(g) o.hidden=o.hidden.concat(yCols().filter(c=>!g.cols.includes(c.id)).map(c=>c.id));
   o.annos=((S.plotPreview?src.annos:(p&&p.plot&&p.plot.annos))||[]).filter(a=>annoInGraph(a,id));
+  // An inset being drawn sees its own settings over the graph's.
+  if(S.insetCfg) Object.assign(o,S.insetCfg(o));
   return o;
 }
 /* ---- Graphs -------------------------------------------------------------------
@@ -4802,13 +4835,155 @@ function tLab(lab,x,y,anchor,st,fill,rot){
 function textBlock(str,x,y,anchor,st,fill,o){
   o=o||{}; const f1=v=>(+v).toFixed(1), lines=String(str).split("\n"), lh=st.size*1.2, n=lines.length;
   const y0=o.up?y-(n-1)*lh:y, tr=o.ang?` transform="rotate(${-o.ang} ${f1(x)} ${f1(y)})"`:"";
-  const w=Math.max(1,...lines.map(l=>textW(l,st))), x0=anchor==="start"?x:anchor==="end"?x-w:x-w/2;
+  const w=Math.max(1,...lines.map(l=>richW(l,st))), x0=anchor==="start"?x:anchor==="end"?x-w:x-w/2;
   const box={x:x0-3,y:y0-st.size*0.86-2,w:w+6,h:(n-1)*lh+st.size*1.12+4};
   let s="";
   if(o.box&&o.box!=="none") s+=`<rect x="${f1(box.x)}" y="${f1(box.y)}" width="${f1(box.w)}" height="${f1(box.h)}" rx="2" fill="${o.box==="line"?"none":esc(o.bg)}"${o.box==="fill"?"":` stroke="${esc(o.bd)}" stroke-width="0.9"`}${tr}/>`;
-  const body=n===1?esc(lines[0]):lines.map((l,k)=>`<tspan x="${f1(x)}"${k?` dy="${lh.toFixed(2)}"`:""}>${esc(l)||"\u00A0"}</tspan>`).join("");
+  // Each line starts on its own baseline, whatever script the last one ended in.
+  let prev=0; const body=n===1?richIn(lines[0],st.size):lines.map((l,k)=>{ const r=richSvg(l,st.size), d=lh-prev; prev=r.shift; return `<tspan x="${f1(x)}"${k?` dy="${d.toFixed(2)}"`:""}>${r.svg||"\u00A0"}</tspan>`; }).join("");
   s+=`<text x="${f1(x)}" y="${f1(y0)}" text-anchor="${anchor}"${tAt(st,fill)}${o.halo||""}${tr}>${body}</text>`;
   return {svg:s,box,tr};
+}
+/* ---- Rich text ----------------------------------------------------------------
+   Text on a graph may carry ^{…} for a superscript, _{…} for a subscript and
+   \name for a Greek letter or a symbol (\alpha, \mu, \deg, \AA, \pm…; {} after
+   the name, or a space before a letter, is swallowed: \deg C is °C, \nu = 1 keeps its space). Only braces make a script,
+   so a spectrum called sample_01 keeps its underscore; \^ \_ \{ \} \\ are the
+   characters themselves. richSvg is the inside of a <text>, richW its width. */
+const RT_SYM=Object.assign(Object.create(null),{alpha:"α",beta:"β",gamma:"γ",delta:"δ",epsilon:"ε",varepsilon:"ε",zeta:"ζ",eta:"η",theta:"θ",iota:"ι",kappa:"κ",lambda:"λ",mu:"μ",nu:"ν",xi:"ξ",pi:"π",rho:"ρ",sigma:"σ",tau:"τ",upsilon:"υ",phi:"φ",varphi:"φ",chi:"χ",psi:"ψ",omega:"ω",
+  Gamma:"Γ",Delta:"Δ",Theta:"Θ",Lambda:"Λ",Xi:"Ξ",Pi:"Π",Sigma:"Σ",Upsilon:"Υ",Phi:"Φ",Psi:"Ψ",Omega:"Ω",
+  deg:"°",degree:"°",pm:"±",mp:"∓",times:"×",cdot:"·",AA:"Å",angstrom:"Å",infty:"∞",approx:"≈",sim:"∼",propto:"∝",le:"≤",leq:"≤",ge:"≥",geq:"≥",ne:"≠",neq:"≠",
+  to:"→",rightarrow:"→",leftarrow:"←",leftrightarrow:"↔",uparrow:"↑",downarrow:"↓",prime:"′",dprime:"″",permil:"‰",partial:"∂",nabla:"∇",sqrt:"√",hbar:"ħ",circ:"∘",bullet:"•",minus:"−",ell:"ℓ",micro:"µ",cdots:"⋯",ldots:"…"});
+const RICH_RE=/\^\{|_\{|\\/;
+function richSyms(s){ return String(s).replace(/\\([\^_{}\\])|\\([A-Za-z]+)(?:\{\}| (?=[A-Za-z]))?/g,(m,lit,nm)=>lit!=null?lit:Object.prototype.hasOwnProperty.call(RT_SYM,nm)?RT_SYM[nm]:m); }
+function richRuns(str){
+  const s=String(str), out=[]; let cur="", i=0;
+  while(i<s.length){ const c=s[i];
+    if(c==="\\"&&i+1<s.length&&"^_{}\\".includes(s[i+1])){ cur+=c+s[i+1]; i+=2; continue; }
+    if((c==="^"||c==="_")&&s[i+1]==="{"){ const j=s.indexOf("}",i+2);
+      if(j>i+1){ if(cur) out.push({t:richSyms(cur),k:null}); cur=""; out.push({t:richSyms(s.slice(i+2,j)),k:c==="^"?"sup":"sub"}); i=j+1; continue; } }
+    cur+=c; i++; }
+  if(cur) out.push({t:richSyms(cur),k:null});
+  return out.filter(r=>r.t!=="");
+}
+function richSvg(str,size){
+  const s=String(str==null?"":str); if(!RICH_RE.test(s)) return {svg:esc(s),shift:0};
+  let svg="", shift=0;
+  richRuns(s).forEach(r=>{ const want=r.k==="sup"?-0.36*size:r.k==="sub"?0.2*size:0, dy=want-shift;
+    const at=(Math.abs(dy)>1e-6?` dy="${dy.toFixed(2)}"`:"")+(r.k?` font-size="${(size*0.7).toFixed(2)}"`:"");
+    svg+=at?`<tspan${at}>${esc(r.t)}</tspan>`:esc(r.t); shift=want; });
+  return {svg,shift};
+}
+const richIn=(str,size)=>richSvg(str,size).svg;
+function richW(str,st){ const s=String(str==null?"":str); if(!RICH_RE.test(s)) return textW(s,st);
+  return richRuns(s).reduce((w,r)=>w+textW(r.t,r.k?Object.assign({},st,{size:st.size*0.7}):st),0); }
+/* Buttons beside a text field: superscript, subscript, and a grid of Greek
+   letters and symbols. The same keys as a word processor: Ctrl+Shift+= and Ctrl+=. */
+const rtool=id=>`<span class="rtool" data-rtfor="${id}"><button type="button" data-rtw="^" title="Superscript (Ctrl+Shift+=)" aria-label="Superscript">x<sup>2</sup></button><button type="button" data-rtw="_" title="Subscript (Ctrl+=)" aria-label="Subscript">x<sub>2</sub></button><button type="button" data-rtsym title="Greek letters and symbols" aria-label="Greek letters and symbols">αΩ</button></span>`;
+function rtWrap(el,k){ if(!el) return; const a=el.selectionStart??el.value.length, b=el.selectionEnd??a, v=el.value, mid=v.slice(a,b);
+  el.value=v.slice(0,a)+k+"{"+mid+"}"+v.slice(b); el.focus(); const p=a+2+mid.length; el.setSelectionRange(mid?p+1:p,mid?p+1:p);
+  el.dispatchEvent(new Event("input",{bubbles:true})); }
+function rtInsert(el,ch){ if(!el) return; const a=el.selectionStart??el.value.length, b=el.selectionEnd??a, v=el.value;
+  el.value=v.slice(0,a)+ch+v.slice(b); el.focus(); el.setSelectionRange(a+ch.length,a+ch.length); el.dispatchEvent(new Event("input",{bubbles:true})); }
+const RT_GRID=["α","β","γ","δ","ε","θ","κ","λ","μ","ν","π","ρ","σ","τ","φ","χ","ψ","ω","Γ","Δ","Θ","Λ","Π","Σ","Φ","Ψ","Ω","°","±","×","·","Å","µ","∞","≈","≤","≥","≠","→","←","↔","′","″","‰","∂","√","ħ","ℓ","⁻","¹","²","³"];
+let spOpen=null;
+function closeSymPicker(){ if(!spOpen) return; const o=spOpen; spOpen=null; o.el.remove(); document.removeEventListener("pointerdown",o.out,true); }
+function openSymPicker(btn,target){
+  closeSymPicker(); closeColorPicker(); closeFontPicker();
+  const el=document.createElement("div"); el.className="sympick"; el.setAttribute("role","dialog"); el.setAttribute("aria-label","Greek letters and symbols");
+  el.innerHTML=RT_GRID.map(c=>`<button type="button" data-sy="${esc(c)}" title="${esc(c)}">${esc(c)}</button>`).join("");
+  document.body.appendChild(el); placePop(el,btn);
+  el.addEventListener("mousedown",e=>e.preventDefault());
+  el.addEventListener("click",e=>{ const b=e.target.closest("[data-sy]"); if(!b) return; rtInsert(target,b.dataset.sy); if(!e.shiftKey) closeSymPicker(); });
+  el.addEventListener("keydown",e=>{ if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); closeSymPicker(); target&&target.focus(); } });
+  const out=e=>{ if(!el.contains(e.target)&&e.target!==btn&&!btn.contains(e.target)) closeSymPicker(); };
+  document.addEventListener("pointerdown",out,true); spOpen={el,out};
+}
+function setupRichTools(){
+  document.addEventListener("mousedown",e=>{ if(e.target.closest&&e.target.closest("[data-rtw],[data-rtsym]")) e.preventDefault(); });
+  document.addEventListener("click",e=>{ const b=e.target.closest&&e.target.closest("[data-rtw],[data-rtsym]"); if(!b) return;
+    const tool=b.closest("[data-rtfor]"), el=tool?document.getElementById(tool.dataset.rtfor):null; if(!el||el.disabled) return;
+    if(b.dataset.rtw) rtWrap(el,b.dataset.rtw); else openSymPicker(b,el); });
+  // Ctrl+Shift+= superscript, Ctrl+= subscript, in any field that takes rich text.
+  document.addEventListener("keydown",e=>{ const t=e.target; if(!(e.ctrlKey||e.metaKey)||e.code!=="Equal"||!t||!t.matches||!t.matches("[data-rich],.inled input,.inled textarea")) return;
+    e.preventDefault(); e.stopPropagation(); rtWrap(t,e.shiftKey?"^":"_"); },true);
+}
+/* An arrow from (ax, ay) to (bx, by): its line and its head (end, open, both
+   ends or none), the head sized from the line width. */
+function arrowSvg(ax,ay,bx,by,o){
+  const f1=v=>(+v).toFixed(1), dx=bx-ax, dy=by-ay, L=Math.hypot(dx,dy)||1, ux=dx/L, uy=dy/L, lw=+o.lw||1.2, hl=Math.min(L*0.6,Math.max(7,lw*3.4)*(+o.hs||1)), hw=hl*0.42, head=o.head||"end";
+  const tri=(tx,ty,sx,sy)=>{ const qx=tx-sx*hl, qy=ty-sy*hl; return `M${f1(tx)},${f1(ty)}L${f1(qx-sy*hw)},${f1(qy+sx*hw)}L${f1(qx+sy*hw)},${f1(qy-sx*hw)}Z`; };
+  const fe=head==="end"||head==="both", fs=head==="both";
+  const x1=fs?ax+ux*hl*0.85:ax, y1=fs?ay+uy*hl*0.85:ay, x2=fe?bx-ux*hl*0.85:bx, y2=fe?by-uy*hl*0.85:by;
+  let s=`<path d="M${f1(x1)},${f1(y1)}L${f1(x2)},${f1(y2)}" stroke="${o.col}" stroke-width="${lw}" fill="none"${o.dash?` stroke-dasharray="${o.dash}"`:""} stroke-linecap="${fe||fs?"butt":"round"}"/>`;
+  if(fe) s+=`<path d="${tri(bx,by,ux,uy)}" fill="${o.col}"/>`;
+  if(fs) s+=`<path d="${tri(ax,ay,-ux,-uy)}" fill="${o.col}"/>`;
+  if(head==="open"){ const qx=bx-ux*hl, qy=by-uy*hl, w2=hw*1.2; s+=`<path d="M${f1(qx-uy*w2)},${f1(qy+ux*w2)}L${f1(bx)},${f1(by)}L${f1(qx+uy*w2)},${f1(qy-ux*w2)}" stroke="${o.col}" stroke-width="${lw}" fill="none" stroke-linejoin="round" stroke-linecap="round"/>`; }
+  return s;
+}
+// Where an annotation's anchor (and an arrow's head) is on screen.
+function annoEnds(a,g){ const pin=a.pin==="plot";
+  const t=pin?{x:g.L+numOr(a.fx,a.t==="arrow"?0.3:0.5)*g.pw,y:g.T+numOr(a.fy,a.t==="arrow"?0.3:0.1)*g.mh}:{x:g.X(a.x),y:g.Y(a.y)};
+  const h=a.t!=="arrow"?null:pin?{x:g.L+numOr(a.fx2,0.5)*g.pw,y:g.T+numOr(a.fy2,0.5)*g.mh}:{x:g.X(a.x2),y:g.Y(a.y2)};
+  return {t,h}; }
+// The data point of any spectrum on view nearest the pointer, within d pixels.
+function snapNear(px,py,d){
+  const g=S.geo, cfg=plotCfg(); if(!g||g.heat) return null;
+  const act=activeYCol(), sets=[S.shownPts||[]];
+  if(cfg.layout==="overlay"&&S.ps&&S.ps.final) yCols().filter(c=>c!==act&&!cfg.hidden.includes(c.id)&&(finalOf(c).xu||"")===(S.ps.d.xu||"")).forEach(c=>sets.push(seriesPoints(finalOf(c),cfg.logY)));
+  let best=null, bd=(d||10)**2;
+  sets.forEach(pts=>pts.forEach(q=>{ const qx=g.X(q.x), qy=g.Y(q.y), e=(qx-px)**2+(qy-py)**2; if(e<bd){ bd=e; best={x:q.x,y:q.y,px:qx,py:qy}; } }));
+  return best;
+}
+/* An inset: the same graph over a region (x0…x1, y0…y1, empty y fits the data
+   there), placed by fractions of the plot (fx, fy, fw, fh), drawn by buildPlot
+   as a still picture with smaller text and no legend, title or annotations; the
+   region is outlined on the graph, with lines to the inset's nearest corners. */
+function insetSvg(a,c){
+  const {L,pw,T,mh,X,Y,pal,cfg,forExport}=c, f1=v=>(+v).toFixed(1);
+  const lo=Math.min(a.x0,a.x1), hi=Math.max(a.x0,a.x1); if(!(hi>lo)) return "";
+  let y0=a.y0, y1=a.y1; if(!Number.isFinite(+y0)||!Number.isFinite(+y1)||y0===""||y1===""||y0==null||y1==null){ const r=yRangeFor(c.ptsAll||[],lo,hi,cfg.logY); y0=r[0]; y1=r[1]; }
+  const ix=L+numOr(a.fx,0.6)*pw, iy=T+numOr(a.fy,0.05)*mh, iw=Math.max(70,numOr(a.fw,0.36)*pw), ih=Math.max(56,numOr(a.fh,0.4)*mh), k=numOr(a.ts,0.85);
+  const keep=S.insetCfg;
+  S.insetCfg=b=>{ const tx={}; Object.entries(b.txt||{}).forEach(([e,t])=>{ tx[e]=Object.assign({},t,t&&t.size>0?{size:t.size*k}:{}); });
+    const ax=q=>Object.assign({},(b.ax||{})[q]||{},{min:null,max:null,tdx:null,tdy:null,off:null,pos:null,tshow:!!a.titles,tlen:numOr(((b.ax||{})[q]||{}).tlen,6)*k});
+    return {legend:"off",title:"",resid:false,annos:[],peakLab:"off",font:(+b.font||1)*k,txt:tx,ax:{x:ax("x"),y:ax("y"),y2:ax("y2")},layout:b.layout==="offset"?"offset":"overlay",mL:null,mR:null,mT:null,mB:null}; };
+  let pic="";
+  try{ pic=buildPlot(Math.round(iw),Math.round(ih),pal,c.colEx,{inset:{x0:a.x0,x1:a.x1,y0:+y0,y1:+y1},k:c.tk}); }catch(e){ pic=""; } finally{ S.insetCfg=keep; }
+  pic=pic.replace(/\bid="([^"]+)"/g,`id="in${a.id}-$1"`).replace(/url\(#([^)]+)\)/g,`url(#in${a.id}-$1)`).replace(/^<svg /,`<svg x="${f1(ix)}" y="${f1(iy)}" `);
+  const col=a.color||pal.muted, sel=!forExport&&S.annoSel===a.id;
+  const xa=Math.max(L,Math.min(X(lo),X(hi))), xb=Math.min(L+pw,Math.max(X(lo),X(hi))), ya=Math.max(T,Math.min(Y(y0),Y(y1))), yb=Math.min(T+mh,Math.max(Y(y0),Y(y1)));
+  let s="";
+  if(a.box!==false&&xb>xa&&yb>ya) s+=`<rect x="${f1(xa)}" y="${f1(ya)}" width="${f1(xb-xa)}" height="${f1(yb-ya)}" fill="none" stroke="${col}" stroke-width="1" stroke-dasharray="4 3"/>`;
+  if(a.conn!==false&&xb>xa&&yb>ya){ const R=[[xa,ya],[xb,ya],[xa,yb],[xb,yb]], I=[[ix,iy],[ix+iw,iy],[ix,iy+ih],[ix+iw,iy+ih]];
+    // Matching corners joined where the line runs outside both boxes: the outline of a funnel.
+    const side=(p,u,w)=>Math.sign((w[0]-u[0])*(p[1]-u[1])-(w[1]-u[1])*(p[0]-u[0]));
+    const pairs=[0,1,2,3].filter(q=>{ const ss=R.concat(I).filter((p,k)=>k!==q&&k!==q+4).map(p=>side(p,R[q],I[q])).filter(v=>v!==0); return ss.length>0&&ss.every(v=>v===ss[0]); }).slice(0,2).map(q=>({q}));
+    pairs.forEach(({q})=>{ s+=`<line x1="${f1(R[q][0])}" y1="${f1(R[q][1])}" x2="${f1(I[q][0])}" y2="${f1(I[q][1])}" stroke="${col}" stroke-width="0.8"/>`; }); }
+  s+=`<rect x="${f1(ix)}" y="${f1(iy)}" width="${f1(iw)}" height="${f1(ih)}" fill="${pal.bg}"/>`+pic;
+  if(sel) s+=`<rect x="${f1(ix-2)}" y="${f1(iy-2)}" width="${f1(iw+4)}" height="${f1(ih+4)}" fill="none" stroke="${pal.sel}" stroke-dasharray="4 3"/><rect data-ah="se" x="${f1(ix+iw-5)}" y="${f1(iy+ih-5)}" width="10" height="10" rx="2" fill="${pal.bg}" stroke="${pal.sel}" stroke-width="1.6" style="cursor:nwse-resize"/>`;
+  return forExport?s:`<g data-anno="${a.id}" class="anno${sel?" sel":""}" style="cursor:move">${s}</g>`;
+}
+// The zoom on view becomes an inset, in the emptiest corner of the whole graph.
+function makeInset(){
+  const g=S.geo, p=P(); if(!g||!p||S.readOnly) return;
+  if(!S.view){ toast("Zoom into the region first, then make it an inset."); return; }
+  const v=g.v, d=plotState().d, r={x0:+Math.min(v.x0,v.x1).toPrecision(7),x1:+Math.max(v.x0,v.x1).toPrecision(7),y0:+v.y0.toPrecision(6),y1:+v.y1.toPrecision(6)};
+  S.view=null; renderPlot();
+  // The corner covering the fewest points, and never the region it magnifies.
+  const g2=S.geo, pts=S.shownPts||[], fw=0.36, fh=0.4; let best=[0.6,0.05], fewest=Infinity;
+  const rx0=Math.min(g2.X(r.x0),g2.X(r.x1)), rx1=Math.max(g2.X(r.x0),g2.X(r.x1)), ry0=Math.min(g2.Y(r.y0),g2.Y(r.y1)), ry1=Math.max(g2.Y(r.y0),g2.Y(r.y1));
+  [[0.6,0.05],[0.04,0.05],[0.6,0.55],[0.04,0.55]].forEach(([fx,fy])=>{ const x0=g2.L+fx*g2.pw, y0=g2.T+fy*g2.mh, x1=x0+fw*g2.pw, y1=y0+fh*g2.mh; let n=0;
+    pts.forEach(q=>{ const px=g2.X(q.x), py=g2.Y(q.y); if(px>=x0&&px<=x1&&py>=y0&&py<=y1) n++; });
+    if(x0<rx1&&x1>rx0&&y0<ry1&&y1>ry0) n+=1e6; if(n<fewest){ fewest=n; best=[fx,fy]; } });
+  const id=addAnno(Object.assign({t:"inset",fx:best[0],fy:best[1],fw,fh},r),`made an inset of ${fmt(r.x0,6)} to ${fmt(r.x1,6)}${d.xu?" "+d.xu:""}`);
+  if(id) toast("Drag the inset to move it, its corner to resize it; double-click for its settings.");
+}
+function makeArrow(ad){
+  const t=toData(ad.x0,ad.y0), h=ad.pt||toData(ad.x1,ad.y1); if(!t||!h) return;
+  setMode("zoom",true);
+  const id=addAnno({t:"arrow",x:+t.x.toPrecision(7),y:+t.y.toPrecision(7),x2:+h.x.toPrecision(7),y2:+h.y.toPrecision(7)},`drew an arrow to x = ${fmt(h.x,6)}`);
+  if(id) toast("Drag its ends to move them; double-click it for its settings.");
 }
 function frameOf(cfg){ const f=cfg.frame; return {kind:f==="axes"||f==="l"?"l":f==="none"?"none":"box", lw:numOr(cfg.frameLw,1.2), color:cfg.frameColor||null}; }
 function axisCfg(cfg,k){
@@ -4824,7 +4999,10 @@ const axAlign=(A,st)=>A.talign||({left:"start",right:"end"}[st&&st.align]||"cent
 const tkSpan=(d,len)=>d==="none"?null:d==="out"?[0,len]:d==="both"?[-len,len]:[-len,0];
 const tkOut=(d,len)=>d==="out"||d==="both"?len:0;
 const annoAng=a=>a.ang!=null&&a.ang!==""&&Number.isFinite(+a.ang)?+a.ang:(a.rot?90:0);
-function buildPlot(W,H,pal,forExport){
+/* opt.inset {x0, x1, y0, y1} draws the graph over that range as a still picture
+   in the screen's colours: an inset inside another graph. */
+function buildPlot(W,H,pal,colEx,opt){
+  const ins=opt&&opt.inset||null, forExport=colEx||!!ins;
   const p=P(), cfg=plotCfg(), logY=!!cfg.logY, logX=!!cfg.logX;
   const ps=forExport?{final:true,d:finalOf(activeYCol()),ghost:null,marks:null,k:0,c:activeYCol()}:plotState();
   const act=activeYCol(), layout=ps.final?cfg.layout:"overlay";
@@ -4835,7 +5013,10 @@ function buildPlot(W,H,pal,forExport){
   const others=ps.final&&act?yCols().filter(c=>c.id!==act.id&&!cfg.hidden.includes(c.id)&&(finalOf(c).xu||"")===(ps.d.xu||"")):[];
   const oser=others.map(c=>({c,pts:seriesPoints(finalOf(c),logY)}));
   const fam=fontStack(cfg.fontFam,cfg.fontName), serif=fam||KSERIF, sans=fam||KSANS;
-  const fs=(W<480?11.5:13)*Math.max(0.5,Math.min(3,+cfg.font||1));
+  // opt.k scales every text, for an export whose numbers must be a given size in print.
+  const tk=+(opt&&opt.k)||1, fs=(W<480?11.5:13)*Math.max(0.5,Math.min(3,+cfg.font||1))*tk;
+  // Larger text spaces its ticks further apart, so a slide reads like the screen.
+  const tkDen=Math.max(1,fs/13);
   // Each kind of text: its own style over the graph's font and size.
   const TS={title:txtStyle(cfg,"title",{size:fs+3,fam:sans,b:true,align:"center"},KSANS),
     axis:txtStyle(cfg,"axis",{size:fs+2.5,fam:serif,i:cfg.titleItalic!==false,align:"center"},KSERIF),
@@ -4843,6 +5024,7 @@ function buildPlot(W,H,pal,forExport){
     legend:txtStyle(cfg,"legend",{size:Math.max(9,fs-1),fam:sans},KSANS),
     labels:txtStyle(cfg,"labels",{size:fs-1,fam:sans},KSANS),
     peaks:txtStyle(cfg,"peaks",{size:Math.max(9,fs-(forExport?2:1.5)),fam:sans,b:true},KSANS)};
+  if(tk!==1) Object.keys(TS).forEach(el=>{ if(((cfg.txt||{})[el]||{}).size>0) TS[el].size*=tk; });
   const lfs=TS.legend.size, LSc=Object.assign({},TS.legend,{color:null}), TK=TS.ticks, f1=v=>(+v).toFixed(1);
   const XA=axisCfg(cfg,"x"), YA=axisCfg(cfg,"y"), Y2A=axisCfg(cfg,"y2"), FR=frameOf(cfg);
   // The offset between traces of a waterfall: a fraction of the tallest one.
@@ -4851,8 +5033,8 @@ function buildPlot(W,H,pal,forExport){
     offStep=Math.max(span(pts),...oser.map(o=>span(o.pts)))*(+cfg.offset||0.35); }
   const shiftPts=(q,k)=>k?q.map(z=>Object.assign({},z,{y:z.y+k*offStep})):q;
   const allForView=layout==="offset"?pts.concat(...oser.map((o,k)=>shiftPts(o.pts,k+1))):layout==="overlay"?pts.concat(...oser.map(o=>o.pts)):pts;
-  let v=forExport?curView():drawView(ps,pts,showGhost?gpts:null);
-  if(!S.view||forExport){ // the axis settings, and the other spectra, decide "all the data"
+  let v=ins?{x0:ins.x0,x1:ins.x1,y0:ins.y0,y1:ins.y1}:forExport?curView():drawView(ps,pts,showGhost?gpts:null);
+  if(!ins&&(!S.view||forExport)){ // the axis settings, and the other spectra, decide "all the data"
     if(!S.view&&(layout==="overlay"||layout==="offset")&&oser.length){ const av=autoViewOf(allForView.concat(showGhost?gpts:[]),logY,ps.final&&hasErr()); v=Object.assign({},v,{x0:av.x0,x1:av.x1,y0:av.y0,y1:av.y1}); }
     const ax=cfg.ax; v=Object.assign({},v);
     if(ax.x.min!=null&&ax.x.min!=="") v.x0=+ax.x.min; if(ax.x.max!=null&&ax.x.max!=="") v.x1=+ax.x.max;
@@ -4869,13 +5051,13 @@ function buildPlot(W,H,pal,forExport){
   const xPos=main=>!main?"bottom":stack&&(XA.pos==="zero"||XA.pos==="at")?"bottom":XA.pos, yPos=main=>main&&!dy?YA.pos:"left";
   // Legend entries first: an outside legend takes its width from the plot.
   const entries=[];
-  const actSt=act?serStyle(act.id,true,pal,forExport,cfg):null;
+  const actSt=act?serStyle(act.id,true,pal,colEx,cfg):null;
   if(act&&!heat) entries.push(Object.assign({},actSt,{id:act.id,label:(actSt.label||act.name||"Y")+(ps.final?"":` (${stageName(ps)})`)+(dy?" (left)":"")}));
-  if(!heat) oser.forEach(o=>{ const st=serStyle(o.c.id,false,pal,forExport,cfg); entries.push(Object.assign({},st,{id:o.c.id,label:(st.label||o.c.name||"column")+(dy?" (right)":"")})); });
+  if(!heat) oser.forEach(o=>{ const st=serStyle(o.c.id,false,pal,colEx,cfg); entries.push(Object.assign({},st,{id:o.c.id,label:(st.label||o.c.name||"column")+(dy?" (right)":"")})); });
   if(!forExport&&!heat) stageLegend(ps,pal).forEach(e=>{ if(showGhost||e.color!==pal.muted) entries.push({type:"line",color:e.color,lw:e.thin?1.3:2.2,dash:e.dash?"dash":"solid",label:e.label}); });
   const fitSt=Object.assign({color:pal.fit,lw:2},(cfg.series||{}).__fit||{});
   if(fit) entries.push({type:"line",color:fitSt.color,lw:fitSt.lw,dash:"solid",label:fitSt.label||(FM&&FM.composite?"fit (sum)":"fit"),id:"__fit",leg:fitSt.leg});
-  const pcol=j=>peakColor(j,forExport);
+  const pcol=j=>peakColor(j,colEx);
   if(fit&&FM&&FM.composite&&(fit.spec.peaks||[]).length&&(fit.spec.peaks||[]).length<=6) (fit.spec.peaks||[]).forEach((pk,j)=>entries.push({type:"line",label:`peak ${j+1}`,color:pcol(j),lw:1.3,dash:"solid"}));
   const ov=forExport||!ps.final||heat?null:draftOverlay(fit);
   if(ov&&!ov.same) entries.push({type:"line",label:"estimate",color:pal.muted,lw:1.3,dash:"dash"});
@@ -4884,12 +5066,12 @@ function buildPlot(W,H,pal,forExport){
   const legTitle=cfg.legendTitle||"";
   // The legend's size: its own font, a sample of each line, one or more columns.
   const LS=TS.legend, lh=lfs*numOr(cfg.legendSp,1)+5, lpad=6, legLine=Math.max(6,Math.min(80,numOr(cfg.legendLine,18)));
-  const labOf=e=>e.label.length>40?e.label.slice(0,39)+"…":e.label;
-  const colW=entries.reduce((m,e)=>Math.max(m,textW(labOf(e),LS)),20)+legLine+6;
+  const labOf=e=>e.label.length>60?e.label.slice(0,59)+"…":e.label;
+  const colW=entries.reduce((m,e)=>Math.max(m,richW(labOf(e),LS)),20)+legLine+6;
   const legOn=cfg.legend!=="off"&&entries.length>(cfg.legend==="auto"?1:0), below=cfg.legend==="below";
   let legNc=Math.max(1,Math.min(entries.length||1,Math.round(numOr(cfg.legendCols,1))));
   if(below&&(cfg.legendCols==null||cfg.legendCols==="")) legNc=Math.max(1,Math.min(entries.length||1,Math.floor((W-40)/(colW+10+lpad))));
-  const legRows=Math.ceil(entries.length/legNc), ltw=legTitle?textW(legTitle,Object.assign({},LS,{b:true}))+lpad*2:0;
+  const legRows=Math.ceil(entries.length/legNc), ltw=legTitle?richW(legTitle,Object.assign({},LS,{b:true}))+lpad*2:0;
   const legW=Math.max(ltw,lpad*2+legNc*colW+(legNc-1)*10), legH=legRows*lh+lpad+(legTitle?lh:0);
   const gap=10;
   let rp=[];
@@ -4909,13 +5091,13 @@ function buildPlot(W,H,pal,forExport){
   if(heat) ylw=[act].concat(oser.map(o=>o.c)).reduce((m,c)=>Math.max(m,c?textW(specName(c).slice(0,14),TK):0),0);
   else if(YA.labs){
     if(YA.rot) ylw=TK.size*1.05;
-    else { const tg=Math.max(40,(H-110)/npE)/(stack?40:55); ylw=yMaxW(v.y0,v.y1,tg);
+    else { const tg=Math.max(40,(H-110)/npE)/((stack?40:55)*tkDen); ylw=yMaxW(v.y0,v.y1,tg);
       if(stack) oser.forEach(o=>{ const rg=yRangeFor(o.pts,v.x0,v.x1,logY); ylw=Math.max(ylw,yMaxW(rg[0],rg[1],tg)); });
       if(showRes){ const un=rp.filter(q=>!isMasked(q.i)), ra=(un.length?un:rp).reduce((m,q)=>Math.max(m,Math.abs(q.r)),1e-300)*1.15, rt=niceTicks(-ra,ra,resH/32);
         rt.ticks.forEach(t=>{ ylw=Math.max(ylw,labW(tickLabel(t,rt.step),TK)); }); } } }
   const yBlock=YA.off+tkOut(YA.dir,YA.len)+5+(YA.labs||heat?ylw+6:1)+(YA.tshow?TS.axis.size+2:0)+8;
   let xlh=0, xEnd=0;
-  if(XA.labs){ const xt=axisTicks(v.x0,v.x1,Math.max(40,W-yBlock-40)/85,cfg.ax.x,logX), rr=XA.rot*Math.PI/180;
+  if(XA.labs){ const xt=axisTicks(v.x0,v.x1,Math.max(40,W-yBlock-40)/(85*tkDen),cfg.ax.x,logX), rr=XA.rot*Math.PI/180;
     xt.ticks.forEach((t,k)=>{ const w=labW(t.lab,TK); xlh=Math.max(xlh,XA.rot?w*Math.abs(Math.sin(rr))+TK.size*Math.abs(Math.cos(rr)):TK.size*1.05); if(k===0||k===xt.ticks.length-1) xEnd=Math.max(xEnd,XA.rot?0:w); }); }
   const xBlock=XA.off+tkOut(XA.dir,XA.len)+(XA.labs?4+xlh:0)+(XA.tshow?6+TS.axis.size*1.08:0)+7;
   let L=8, R=W<480?10:16, T=10, B=8;
@@ -4925,7 +5107,7 @@ function buildPlot(W,H,pal,forExport){
   if(XA.mirror&&tkOut(XA.dir,XA.len)){ if(xpM==="top") B+=XA.len; else T+=XA.len; }
   if(YA.mirror&&!dy&&tkOut(YA.dir,YA.len)){ if(ypM==="right") L+=YA.len; else R+=YA.len; }
   if(cfg.title) T+=TS.title.size*1.25+6;
-  if(dy&&yR){ const t2=axisTicks(yR.y0,yR.y1,Math.max(60,H-110)/55,cfg.ax.y2||{},logY); let w2=0; if(Y2A.labs) t2.ticks.forEach(t=>{ w2=Math.max(w2,labW(t.lab,TK)); });
+  if(dy&&yR){ const t2=axisTicks(yR.y0,yR.y1,Math.max(60,H-110)/(55*tkDen),cfg.ax.y2||{},logY); let w2=0; if(Y2A.labs) t2.ticks.forEach(t=>{ w2=Math.max(w2,labW(t.lab,TK)); });
     R+=Y2A.off+tkOut(Y2A.dir,Y2A.len)+5+(Y2A.labs?w2+6:1)+(Y2A.tshow?TS.axis.size+2:0)+6; }
   if(heat) R+=70;
   [["mL","L"],["mR","R"],["mT","T"],["mB","B"]].forEach(([k,side])=>{ const m=numOr(cfg[k],null); if(m==null) return; const q=Math.max(0,Math.min(400,m));
@@ -4955,9 +5137,9 @@ function buildPlot(W,H,pal,forExport){
   // Titles drag to move, and a double click types over them.
   const ed=k=>forExport?"":` data-axtitle="${k}" style="cursor:move"`;
   if(cfg.title){ const ta=TS.title.align||"center", tx=(ta==="left"?L:ta==="right"?L+pw:L+pw/2)+numOr(cfg.titleDx,0), ty=6+TS.title.size*0.95+numOr(cfg.titleDy,0);
-    s+=`<text${ed("title")} x="${f1(tx)}" y="${f1(ty)}" text-anchor="${ta==="left"?"start":ta==="right"?"end":"middle"}"${tAt(TS.title,pal.ink)}>${esc(cfg.title)}</text>`; }
-  const xT=axisTicks(v.x0,v.x1,pw/85,cfg.ax.x,logX);
-  const yT=heat?{ticks:[],minor:[]}:axisTicks(v.y0,v.y1,mh/(stack?40:55),cfg.ax.y,logY);
+    s+=`<text${ed("title")} x="${f1(tx)}" y="${f1(ty)}" text-anchor="${ta==="left"?"start":ta==="right"?"end":"middle"}"${tAt(TS.title,pal.ink)}>${richIn(cfg.title,TS.title.size)}</text>`; }
+  const xT=axisTicks(v.x0,v.x1,pw/(85*tkDen),cfg.ax.x,logX);
+  const yT=heat?{ticks:[],minor:[]}:axisTicks(v.y0,v.y1,mh/((stack?40:55)*tkDen),cfg.ax.y,logY);
   // The plot's background, then grid lines in their own colour, width and dash.
   const gcol=esc(cfg.gridColor||pal.grid), glw=numOr(cfg.gridLw,1), gdash=DASHES[cfg.gridDash||"solid"]||"", gX=cfg.gridX!==false, gY=cfg.gridY!==false;
   const plotBg=(top,h)=>cfg.plotBg?`<rect x="${f1(L)}" y="${f1(top)}" width="${f1(pw)}" height="${f1(h)}" fill="${esc(cfg.plotBg)}"/>`:"";
@@ -4982,7 +5164,7 @@ function buildPlot(W,H,pal,forExport){
     if(url) s+=`<image href="${url}" x="${L}" y="${T}" width="${pw}" height="${mh}" preserveAspectRatio="none" style="image-rendering:pixelated"/>`;
     geo.heatZ=[lo,hi];
   }
-  const annoCtx={cfg,pal,X,Y,ps,forExport,fs,sans,L,pw,T,mh,heat,TS};
+  const annoCtx={cfg,pal,X,Y,ps,forExport,colEx,fs,sans,L,pw,T,mh,heat,TS,ptsAll:allForView,tk};
   s+=annoSvg("under",annoCtx);
   s+=bandsSvg("under",Object.assign({layout},annoCtx));
   if(fit){
@@ -5023,13 +5205,13 @@ function buildPlot(W,H,pal,forExport){
   }
   // The other spectra, behind the analysed one.
   if(!heat&&!stack) oser.forEach((o,k)=>{
-    const st=serStyle(o.c.id,false,pal,forExport,cfg);
+    const st=serStyle(o.c.id,false,pal,colEx,cfg);
     if(dy){
       s+=`<g data-ser="${o.c.id}">${seriesSvg(o.pts,st,X,yR.Y,geo,pal,null)}</g>`; return; }
     const q=layout==="offset"?shiftPts(o.pts,k+1):o.pts;
     s+=`<g data-ser="${o.c.id}">${seriesSvg(q,st,X,Y,geo,pal,null)}</g>`;
     if(layout==="offset"&&q.length){ const last=q.reduce((m,z)=>(revX?z.x<m.x:z.x>m.x)?z:m,q[0]); const lxp=Math.min(L+pw-4,X(last.x)+4), lyp=Y(last.y);
-      if(Number.isFinite(lyp)&&lyp>T&&lyp<T+mh) s+=`<text x="${lxp.toFixed(1)}" y="${(lyp-4).toFixed(1)}" text-anchor="end"${tAt(LSc,st.color)}>${esc((st.label||o.c.name||"").slice(0,28))}</text>`; }
+      if(Number.isFinite(lyp)&&lyp>T&&lyp<T+mh) s+=`<text x="${lxp.toFixed(1)}" y="${(lyp-4).toFixed(1)}" text-anchor="end"${tAt(LSc,st.color)}>${richIn((st.label||o.c.name||"").slice(0,40),LSc.size)}</text>`; }
   });
   if(showGhost) s+=`<path d="M${gpts.map(q=>X(q.x).toFixed(1)+","+Y(q.y).toFixed(1)).join("L")}" fill="none" stroke="${pal.muted}" stroke-width="1.3" opacity="0.7"/>`;
   if(!forExport&&!heat) s+=stageMarks(ps,X,Y,pal,v,geo,true);
@@ -5042,7 +5224,7 @@ function buildPlot(W,H,pal,forExport){
       if(em) s+=`<path d="${em}" stroke="${pal.masked}" stroke-width="1" fill="none"/>`;
     }
     if(layout==="offset"&&oser.length&&pts.length){ const last=pts.reduce((m,z)=>(revX?z.x<m.x:z.x>m.x)?z:m,pts[0]), lyp=Y(last.y);
-      if(Number.isFinite(lyp)&&lyp>T&&lyp<T+mh) s+=`<text x="${(L+pw-4).toFixed(1)}" y="${(lyp-4).toFixed(1)}" text-anchor="end"${tAt(Object.assign({},LSc,{b:true}),actSt.color)}>${esc((actSt.label||act.name||"").slice(0,28))}</text>`; }
+      if(Number.isFinite(lyp)&&lyp>T&&lyp<T+mh) s+=`<text x="${(L+pw-4).toFixed(1)}" y="${(lyp-4).toFixed(1)}" text-anchor="end"${tAt(Object.assign({},LSc,{b:true}),actSt.color)}>${richIn((actSt.label||act.name||"").slice(0,40),LSc.size)}</text>`; }
   }
   if(!forExport&&!heat) s+=stageMarks(ps,X,Y,pal,v,geo,false);
   s+=annoSvg("lines",annoCtx);
@@ -5063,7 +5245,7 @@ function buildPlot(W,H,pal,forExport){
   // Stacked panels under the first, each with its own Y axis.
   const panels=[];
   if(stack) oser.forEach((o,k)=>{
-    const top=T+(k+1)*(ph+pgap), st=serStyle(o.c.id,false,pal,forExport,cfg), rg=yRangeFor(o.pts,v.x0,v.x1,logY), Yp=mkY(rg[0],rg[1],top,ph,logY), yt=axisTicks(rg[0],rg[1],ph/40,cfg.ax.y,logY);
+    const top=T+(k+1)*(ph+pgap), st=serStyle(o.c.id,false,pal,colEx,cfg), rg=yRangeFor(o.pts,v.x0,v.x1,logY), Yp=mkY(rg[0],rg[1],top,ph,logY), yt=axisTicks(rg[0],rg[1],ph/(40*tkDen),cfg.ax.y,logY);
     s+=gridLines(top,ph,Yp,yt);
     s+=`<g clip-path="url(#clipP${k})" data-ser="${o.c.id}">${seriesSvg(o.pts,st,X,Yp,{T:top,mh:ph,logY},pal,null)}</g>`;
     panels.push({top,h:ph,Yf:Yp,yt,label:st.label||o.c.name||"",color:st.color});
@@ -5071,7 +5253,7 @@ function buildPlot(W,H,pal,forExport){
   /* Frame, axes, ticks and numbers. An axis sits on its edge, at zero or at a
      value, pushed outward by its offset; its ticks point in, out or both, and
      are repeated on the opposite edge when mirrored. */
-  const axM=dy&&oser.length===1&&cfg.axisMatch!==false, axL=axM?actSt.color:null, axR=axM?serStyle(oser[0].c.id,false,pal,forExport,cfg).color:null;
+  const axM=dy&&oser.length===1&&cfg.axisMatch!==false, axL=axM?actSt.color:null, axR=axM?serStyle(oser[0].c.id,false,pal,colEx,cfg).color:null;
   const fcol=esc(FR.color||pal.ink);
   const xAxY=(top,h,Yf,p)=>{ let y=p==="top"?top:top+h;
     if(p==="zero"||p==="at"){ const yv=Yf(p==="zero"?0:numOr(XA.at,0)); y=Number.isFinite(yv)?Math.max(top,Math.min(top+h,yv)):top+h; }
@@ -5127,18 +5309,18 @@ function buildPlot(W,H,pal,forExport){
   const lastBottom=!showRes&&!panels.length, xpMain=xPos(true);
   s+=drawFrame(T,mh,yT,Y,xpMain!=="bottom"||lastBottom,!heat,axL,true);
   panels.forEach((pn,k)=>{ s+=drawFrame(pn.top,pn.h,pn.yt,pn.Yf,xpMain==="bottom"&&k===panels.length-1&&!showRes,true,null,false);
-    s+=`<text x="${f1(L+8)}" y="${f1(pn.top+lfs+4)}"${tAt(LSc,pn.color)}>${esc(pn.label.slice(0,40))}</text>`; });
-  if(stack&&act) s+=`<text x="${f1(L+8)}" y="${f1(T+lfs+4)}"${tAt(Object.assign({},LSc,{b:true}),actSt.color)}>${esc((actSt.label||act.name||"").slice(0,40))}</text>`;
+    s+=`<text x="${f1(L+8)}" y="${f1(pn.top+lfs+4)}"${tAt(LSc,pn.color)}>${richIn(pn.label.slice(0,40),LSc.size)}</text>`; });
+  if(stack&&act) s+=`<text x="${f1(L+8)}" y="${f1(T+lfs+4)}"${tAt(Object.assign({},LSc,{b:true}),actSt.color)}>${richIn((actSt.label||act.name||"").slice(0,40),LSc.size)}</text>`;
   // Heat map: spectrum names down the side, and the colour bar.
   if(heat){ const rows=[act].concat(oser.map(o=>o.c));
     rows.forEach((c,k)=>{ const y=Y(k); if(rows.length<=24||k%Math.ceil(rows.length/24)===0) s+=`<text x="${L-7}" y="${(y+fs*0.35).toFixed(1)}" text-anchor="end"${tAt(Object.assign({},TK,{size:Math.min(TK.size,Math.max(8,mh/rows.length*0.8))}),pal.ink)}>${esc(specName(c).slice(0,14))}</text>`; });
     drawn.yW=Math.max(drawn.yW,ylw);
     const cbx=L+pw+18, z=geo.heatZ||[0,1], stops=CMAPS[cfg.cmap]||CMAPS.viridis;
     s+=`<defs><linearGradient id="cbar" x1="0" y1="1" x2="0" y2="0">${stops.map((c,i)=>`<stop offset="${(i/(stops.length-1)).toFixed(3)}" stop-color="${c}"/>`).join("")}</linearGradient></defs><rect x="${cbx}" y="${T}" width="14" height="${mh}" fill="url(#cbar)" stroke="${fcol}" stroke-width="0.8"/>`;
-    const zt=axisTicks(z[0],z[1],mh/50,cfg.ax.y2||{},logY), Z=mkY(z[0],z[1],T,mh,logY);
+    const zt=axisTicks(z[0],z[1],mh/(50*tkDen),cfg.ax.y2||{},logY), Z=mkY(z[0],z[1],T,mh,logY);
     zt.ticks.forEach(t=>{ const y=Z(t.v); if(y<T-0.5||y>T+mh+0.5) return; s+=`<path d="M${cbx+14},${y}h4" stroke="${fcol}"/>`+tLab(t.lab,cbx+21,y+TK.size*0.3,"start",Object.assign({},TK,{size:TK.size*0.85}),pal.ink); }); }
   // The right axis of a double-Y graph.
-  if(dy&&yR){ const yt2=axisTicks(yR.y0,yR.y1,mh/55,cfg.ax.y2||{},logY), sp=tkSpan(Y2A.dir,Y2A.len), msp=tkSpan(Y2A.dir,Y2A.mlen), ax2=L+pw+Y2A.off, col2=esc(Y2A.col||fcol), o2=tkOut(Y2A.dir,Y2A.len)+5, fill2=TK.color||Y2A.col||axR||pal.ink;
+  if(dy&&yR){ const yt2=axisTicks(yR.y0,yR.y1,mh/(55*tkDen),cfg.ax.y2||{},logY), sp=tkSpan(Y2A.dir,Y2A.len), msp=tkSpan(Y2A.dir,Y2A.mlen), ax2=L+pw+Y2A.off, col2=esc(Y2A.col||fcol), o2=tkOut(Y2A.dir,Y2A.len)+5, fill2=TK.color||Y2A.col||axR||pal.ink;
     if(FR.kind!=="none"&&Y2A.line&&(FR.kind==="l"||Y2A.off||Y2A.col||Y2A.lw!==FR.lw)) s+=`<path d="M${f1(ax2)},${f1(T)}V${f1(T+mh)}" stroke="${col2}" stroke-width="${Y2A.lw}" fill="none"/>`;
     let d="", dm="", w2=0;
     yt2.ticks.forEach(t=>{ const y=yR.Y(t.v); if(y<T-0.5||y>T+mh+0.5) return; if(sp) d+=`M${f1(ax2+sp[0])},${f1(y)}H${f1(ax2+sp[1])}`;
@@ -5147,9 +5329,9 @@ function buildPlot(W,H,pal,forExport){
     if(d) s+=`<path d="${d}" stroke="${col2}" stroke-width="${Y2A.tw}" fill="none"/>`;
     if(dm) s+=`<path d="${dm}" stroke="${col2}" stroke-width="${(Y2A.tw*0.8).toFixed(2)}" fill="none"/>`;
     if(!forExport){ const by=Math.max(10,o2+(w2?w2+2:0)); s+=`<rect data-axis="y2" x="${f1(ax2)}" y="${f1(T)}" width="${f1(by)}" height="${f1(mh)}" fill="transparent" style="cursor:ew-resize"/>`; }
-    if(Y2A.tshow){ const o0=oser[0], d0=o0?finalOf(o0.c):null, t2=(cfg.ax.y2||{}).title||(d0?axisLabel(oser.length===1?(serStyle(o0.c.id,false,pal,forExport,cfg).label||d0.yn):"Other spectra",d0.yu,"Y"):"");
+    if(Y2A.tshow){ const o0=oser[0], d0=o0?finalOf(o0.c):null, t2=(cfg.ax.y2||{}).title||(d0?axisLabel(oser.length===1?(serStyle(o0.c.id,false,pal,colEx,cfg).label||d0.yn):"Other spectra",d0.yu,"Y"):"");
       const al=axAlign(Y2A,TS.axis), tx=ax2+o2+(Y2A.labs?w2:0)+6+TS.axis.size*0.22+Y2A.tdx, ty=(al==="start"?T+mh:al==="end"?T:T+mh/2)+Y2A.tdy;
-      s+=`<text${ed("y2")} transform="translate(${f1(tx)},${f1(ty)}) rotate(90)" text-anchor="${al==="start"?"end":al==="end"?"start":"middle"}"${tAt(TS.axis,Y2A.col||axR||pal.ink)}>${esc(t2)}</text>`; } }
+      s+=`<text${ed("y2")} transform="translate(${f1(tx)},${f1(ty)}) rotate(90)" text-anchor="${al==="start"?"end":al==="end"?"start":"middle"}"${tAt(TS.axis,Y2A.col||axR||pal.ink)}>${richIn(t2,TS.axis.size)}</text>`; } }
   if(showRes){
     const un=rp.filter(q=>!isMasked(q.i));
     const ra=(un.length?un:rp).reduce((m,q)=>Math.max(m,Math.abs(q.r)),1e-300)*1.15; const top=T+mhAll+gap;
@@ -5168,13 +5350,21 @@ function buildPlot(W,H,pal,forExport){
   if(YA.tshow){ const ys0=drawn.ySide, wy=ypM==="left"&&!YA.off?Math.max(drawn.yW,drawn.pW):drawn.yW, band=tkOut(YA.dir,YA.len)+5+(wy?wy+6:1);
     const tx=(ys0<0?drawn.yAx-band-TS.axis.size*0.22:drawn.yAx+band+TS.axis.size*0.22)+YA.tdx, al=axAlign(YA,TS.axis);
     const ty=(al==="start"?T+mhAll:al==="end"?T:T+mhAll/2)+YA.tdy, anc=ys0<0?(al==="start"?"start":al==="end"?"end":"middle"):(al==="start"?"end":al==="end"?"start":"middle");
-    s+=`<text${ed("y")} transform="translate(${f1(tx)},${f1(ty)}) rotate(${ys0<0?-90:90})" text-anchor="${anc}"${tAt(TS.axis,YA.col||axL||pal.ink)}>${esc(yl)}</text>`; }
+    s+=`<text${ed("y")} transform="translate(${f1(tx)},${f1(ty)}) rotate(${ys0<0?-90:90})" text-anchor="${anc}"${tAt(TS.axis,YA.col||axL||pal.ink)}>${richIn(yl,TS.axis.size)}</text>`; }
   if(XA.tshow){ const lab=drawn.xAy!=null, xa=lab?drawn.xAy:drawn.xMainAy, sg=lab?drawn.xSide:(drawn.xMainSide||1), band=tkOut(XA.dir,XA.len)+(lab?4+drawn.xH:0)+6;
     const al=axAlign(XA,TS.axis), tx=(al==="start"?L:al==="end"?L+pw:L+pw/2)+XA.tdx, ty=(sg>0?xa+band+TS.axis.size*0.8:xa-band-TS.axis.size*0.25)+XA.tdy;
-    s+=`<text${ed("x")} x="${f1(tx)}" y="${f1(ty)}" text-anchor="${al==="start"?"start":al==="end"?"end":"middle"}"${tAt(TS.axis,XA.col||pal.ink)}>${esc(xl)}</text>`; }
+    s+=`<text${ed("x")} x="${f1(tx)}" y="${f1(ty)}" text-anchor="${al==="start"?"start":al==="end"?"end":"middle"}"${tAt(TS.axis,XA.col||pal.ink)}>${richIn(xl,TS.axis.size)}</text>`; }
   // Text and labels on the graph, then the legend over them.
+  if(!heat) s+=annoSvg("inset",annoCtx);
   s+=bandsSvg("top",Object.assign({layout},annoCtx));
   s+=annoSvg("top",annoCtx);
+  // While something is dragged or drawn: alignment guides, the arrow being drawn, a point it snaps to.
+  if(!forExport){
+    (S.guides||[]).forEach(gd=>{ s+=gd.x!=null?`<line x1="${f1(gd.x)}" x2="${f1(gd.x)}" y1="${T}" y2="${T+mhAll}" stroke="${pal.sel}" stroke-width="1" stroke-dasharray="4 3" pointer-events="none"/>`
+      :`<line x1="${L}" x2="${L+pw}" y1="${f1(gd.y)}" y2="${f1(gd.y)}" stroke="${pal.sel}" stroke-width="1" stroke-dasharray="4 3" pointer-events="none"/>`; });
+    const ad=S.arrowDraft; if(ad) s+=`<g pointer-events="none" opacity="0.85">${arrowSvg(ad.x0,ad.y0,ad.x1,ad.y1,{col:pal.sel,lw:1.4})}</g>`;
+    const ring=S.snapRing||(ad&&ad.pt?{px:ad.x1,py:ad.y1}:null); if(ring) s+=`<circle cx="${f1(ring.px)}" cy="${f1(ring.py)}" r="7" fill="none" stroke="${pal.sel}" stroke-width="1.6" pointer-events="none"/>`;
+  }
   // Legend: in the emptiest corner, a chosen one, outside on the right, or
   // wherever it was dragged (kept as fractions of the plot area).
   if(legOn){
@@ -5195,7 +5385,7 @@ function buildPlot(W,H,pal,forExport){
     const blw=numOr(cfg.legendLw,1);
     if(frame) s+=`<rect x="${f1(bx)}" y="${f1(by)}" width="${f1(boxW)}" height="${f1(boxH)}" fill="${esc(cfg.legendFill||pal.bg)}" fill-opacity="${numOr(cfg.legendOp,0.85)}"${blw>0?` stroke="${esc(cfg.legendBd||pal.grid)}" stroke-width="${blw}"`:""} rx="${numOr(cfg.legendR,3)}"/>`;
     else if(!forExport) s+=`<rect x="${f1(bx)}" y="${f1(by)}" width="${f1(boxW)}" height="${f1(boxH)}" fill="transparent"/>`;
-    if(legTitle) s+=`<text${forExport?"":` data-legtitle="1"`} x="${f1(bx+lpad)}" y="${f1(by+lpad/2+lh/2+lfs*0.35)}"${tAt(Object.assign({},LS,{b:true}),pal.ink)}>${esc(legTitle.length>40?legTitle.slice(0,39)+"…":legTitle)}</text>`;
+    if(legTitle) s+=`<text${forExport?"":` data-legtitle="1"`} x="${f1(bx+lpad)}" y="${f1(by+lpad/2+lh/2+lfs*0.35)}"${tAt(Object.assign({},LS,{b:true}),pal.ink)}>${richIn(legTitle.length>60?legTitle.slice(0,59)+"…":legTitle,LS.size)}</text>`;
     entries.forEach((e,i)=>{
       // Down the columns in a box; along the rows below the graph.
       const r=below?Math.floor(i/legNc):i%legRows, ci=below?i%legNc:Math.floor(i/legRows);
@@ -5205,7 +5395,7 @@ function buildPlot(W,H,pal,forExport){
       if(lineish&&dsh!==null) s+=`<line x1="${f1(sx)}" x2="${f1(sx+legLine)}" y1="${f1(cy)}" y2="${f1(cy)}" stroke="${e.color}" stroke-width="${Math.max(1.2,Math.min(4,e.lw||1.4))}"${dsh?` stroke-dasharray="${dsh}"`:""}/>`;
       if(e.type==="stick") s+=`<path d="M${f1(sx+legLine*0.28)},${f1(cy+5)}V${f1(cy-5)}M${f1(sx+legLine*0.72)},${f1(cy+5)}V${f1(cy-2)}" stroke="${e.color}" stroke-width="${e.lw||1.2}"/>`;
       if(e.type==="scatter"||e.type==="linesym"){ const d=symD(e.sym||"circle",sx+legLine/2,cy,3.2*Math.max(0.8,lfs/12)), op=symOpen(e.sym||"circle"); s+=`<path d="${d}" fill="${op?(/^o/.test(e.sym)?pal.bg:"none"):e.color}" stroke="${op?e.color:pal.bg}" stroke-width="${op?1.2:0.6}"/>`; }
-      s+=`<text x="${f1(sx+legLine+6)}" y="${f1(cy+lfs*0.35)}"${tAt(LS,cfg.legendText==="match"&&e.color?e.color:pal.ink)}>${esc(labOf(e))}</text></g>`;
+      s+=`<text x="${f1(sx+legLine+6)}" y="${f1(cy+lfs*0.35)}"${tAt(LS,cfg.legendText==="match"&&e.color?e.color:pal.ink)}>${richIn(labOf(e),LS.size)}</text></g>`;
     });
     s+=`</g>`;
   }
@@ -5276,7 +5466,7 @@ function renderPlot(){
    was placed in and is drawn only on data in those units: a line at 532 nm
    means nothing on a Raman-shift axis. A peak label keeps its offset in pixels
    from the point it labels, so it stays beside that point at any zoom. */
-const ANNO_KINDS={v:"Vertical line",h:"Horizontal line",band:"Shaded range",text:"Text",label:"Peak label"};
+const ANNO_KINDS={v:"Vertical line",h:"Horizontal line",band:"Shaded range",text:"Text",label:"Peak label",arrow:"Arrow",inset:"Inset"};
 const ANNO_COLORS=[["","Automatic"],["#111820","Black"],["#5B6778","Grey"],["#1D5FA8","Blue"],["#C23B22","Red"],["#2E7D4F","Green"],["#B26B00","Amber"],["#6A3FB5","Violet"],["custom","Custom…"]];
 const annoId=()=>"a"+Date.now().toString(36)+(colSeq++).toString(36);
 function annoById(id){ return ((P()&&P().plot&&P().plot.annos)||[]).find(a=>a.id===id)||null; }
@@ -5311,9 +5501,9 @@ function labDy(a){ const mk=a.mk||"lead", r=Math.abs(annoAng(a)-90)<0.5;
    takes its own settings over the graph's "Labels and text" style; it may run
    over several lines, be turned to any angle and sit in a box, and text may be
    pinned to a place in the plot instead of to data values. */
-function annoTextStyle(a,base){
+function annoTextStyle(a,base,tk){
   const fam=a.font==="default"?KSANS:a.font?(fontStack(a.font,a.fontName)||base.fam):base.fam;
-  return {size:a.pt>0?a.pt*4/3:Math.max(6,(+a.size||1)*base.size), fam, b:a.bold!=null?!!a.bold:!!base.b, i:a.i!=null?!!a.i:!!base.i, u:a.u!=null?!!a.u:!!base.u, color:null};
+  return {size:a.pt>0?a.pt*4/3*(tk||1):Math.max(6,(+a.size||1)*base.size), fam, b:a.bold!=null?!!a.bold:!!base.b, i:a.i!=null?!!a.i:!!base.i, u:a.u!=null?!!a.u:!!base.u, color:null};
 }
 function annoSvg(layer,c){
   const {cfg,pal,X,Y,ps,forExport,fs,L,pw,T,mh,heat}=c; let s=""; const f1=v=>(+v).toFixed(1);
@@ -5322,10 +5512,10 @@ function annoSvg(layer,c){
   (cfg.annos||[]).forEach(a=>{
     // Another spectrum's labels, only where it is drawn on these axes: overlaid and shown.
     if(a.t==="label"&&a.ser&&a.ser!==actId&&(lay!=="overlay"||(cfg.hidden||[]).includes(a.ser)||!colById(a.ser))) return;
-    const pinned=a.t==="text"&&a.pin==="plot";
+    const pinned=(a.t==="text"||a.t==="arrow")&&a.pin==="plot";
     const okX=pinned||a.xu==null||a.xu===xu, okY=pinned||(!heat&&(a.yu==null||a.yu===yu));
     const col=annoColor(a,pal,forExport,cfg), lw=a.lw!=null?+a.lw:1.2, dash=DASHES[a.dash||(a.t==="v"||a.t==="h"?"dash":"solid")];
-    const st=annoTextStyle(a,base), tcol=a.color||base.color||col, tsz=st.size, ang=annoAng(a);
+    const st=annoTextStyle(a,base,c.tk), tcol=a.color||base.color||col, tsz=st.size, ang=annoAng(a);
     const sel=!forExport&&S.annoSel===a.id;
     const wrap=(inner,cursor)=>forExport?inner:`<g data-anno="${a.id}" class="anno${sel?" sel":""}" style="cursor:${cursor}">${inner}</g>`;
     const boxed=a.box==="fill"||a.box==="both";
@@ -5355,6 +5545,17 @@ function annoSvg(layer,c){
       if(!forExport) inner+=`<line x1="${L}" x2="${L+pw}" y1="${f1(y)}" y2="${f1(y)}" stroke="transparent" stroke-width="11"/>`;
       if(txt) inner+=tb(txt,pos==="left"?L+4:pos==="middle"?L+pw/2:L+pw-4,y-4,pos==="left"?"start":pos==="middle"?"middle":"end",{up:true}).svg;
       s+=wrap(inner,"ns-resize");
+    }
+    if(layer==="inset"&&a.t==="inset"&&okX&&okY){ s+=insetSvg(a,c); return; }
+    if(layer==="top"&&a.t==="arrow"&&okX&&okY){
+      const e=annoEnds(a,c), ax=e.t.x, ay=e.t.y, bx=e.h.x, by=e.h.y; if(![ax,ay,bx,by].every(Number.isFinite)) return;
+      let inner=arrowSvg(ax,ay,bx,by,{col,lw:sel?lw+0.6:lw,dash,head:a.head,hs:a.hs});
+      if(!forExport) inner+=`<path d="M${f1(ax)},${f1(ay)}L${f1(bx)},${f1(by)}" stroke="transparent" stroke-width="11"/>`;
+      // Its text sits beyond the tail, away from where it points.
+      if(txt){ const D=Math.hypot(bx-ax,by-ay)||1, ux=(bx-ax)/D, uy=(by-ay)/D;
+        const b=tb(txt,ax-ux*5,ay-uy*5+(uy>0.35?-3:uy<-0.35?tsz*0.85:tsz*0.35),ux>0.35?"end":ux<-0.35?"start":"middle",{up:uy>0.35}); inner+=b.svg+hit(b); }
+      if(sel&&!forExport) inner+=[["t",ax,ay],["h",bx,by]].map(([k,hx,hy])=>`<circle data-ah="${k}" cx="${f1(hx)}" cy="${f1(hy)}" r="5" fill="${pal.bg}" stroke="${pal.sel}" stroke-width="1.6"/>`).join("");
+      s+=wrap(inner,"move");
     }
     if(layer==="top"&&(a.t==="text"||a.t==="label")&&okX&&okY){
       const ax=pinned?L+numOr(a.fx,0.5)*pw:X(a.x), ay=pinned?T+numOr(a.fy,0.1)*mh:Y(a.y); if(!Number.isFinite(ax)||!Number.isFinite(ay)) return;
@@ -5394,7 +5595,7 @@ function saveAnnos(annos,log){ const p=P(); save({plot:Object.assign({},p.plot,{
 function addAnno(a,log){
   const p=P(); if(!p||S.readOnly) return null;
   const d=plotState().d;
-  a=Object.assign({id:annoId()},a); if(GID()!=="main"&&!a.grp) a.g=GID(); if(a.t!=="h") a.xu=d.xu||""; if(a.t==="h"||a.t==="text"||a.t==="label") a.yu=d.yu||"";
+  a=Object.assign({id:annoId()},a); if(GID()!=="main"&&!a.grp) a.g=GID(); if(a.t!=="h") a.xu=d.xu||""; if(a.t==="h"||a.t==="text"||a.t==="label"||a.t==="arrow"||a.t==="inset") a.yu=d.yu||"";
   pushUndo("adding "+ANNO_KINDS[a.t].toLowerCase());
   S.annoSel=a.id;
   saveAnnos((p.plot.annos||[]).concat([a]),log||`added ${annoDesc(a)}`);
@@ -5415,10 +5616,14 @@ function deleteAnno(id){
 function annoDesc(a){ const t=a.text?` "${a.text}"`:"";
   if(a.t==="v") return `a vertical line at x = ${fmt(a.x,6)}${t}`; if(a.t==="h") return `a horizontal line at y = ${fmt(a.y,6)}${t}`;
   if(a.t==="band") return `a shaded range from ${fmt(Math.min(a.x,a.x2),6)} to ${fmt(Math.max(a.x,a.x2),6)}${t}`;
-  if(a.t==="label") return `a peak label at ${fmt(a.x,6)}${a.lab?` "${a.lab}"`:t}`; return `the text${t||" \"Text\""}`; }
+  if(a.t==="label") return `a peak label at ${fmt(a.x,6)}${a.lab?` "${a.lab}"`:t}`;
+  if(a.t==="arrow") return a.pin==="plot"?`an arrow${t}`:`an arrow to x = ${fmt(a.x2,6)}${t}`;
+  if(a.t==="inset") return `an inset of ${fmt(Math.min(a.x0,a.x1),6)} to ${fmt(Math.max(a.x0,a.x1),6)}`; return `the text${t||" \"Text\""}`; }
 function annoTip(a){ const d=plotState().d;
   if(a.t==="v") return `x = ${fmt(a.x,6)}${d.xu?" "+d.xu:""}`; if(a.t==="h") return `y = ${fmt(a.y,6)}${d.yu?" "+d.yu:""}`;
   if(a.t==="band") return `${fmt(Math.min(a.x,a.x2),6)} to ${fmt(Math.max(a.x,a.x2),6)}${d.xu?" "+d.xu:""}`;
+  if(a.t==="arrow") return "Arrow · drag an end to move it, double-click for its settings";
+  if(a.t==="inset") return "Inset · drag to move it, its corner to resize it, double-click for its settings";
   return ANNO_KINDS[a.t]+" · double-click to edit"; }
 /* Dragging: a line moves to the pointer, a range and text move with it, and a
    label moves its text, leaving it tied to its point. */
@@ -5430,8 +5635,28 @@ function dragAnno(x,y){
   if(a.t==="v") a.x=toData(x,y).x;
   else if(a.t==="h") a.y=toData(x,y).y;
   else if(a.t==="band"){ a.x=toData(g.X(o.x)+px,0).x; a.x2=toData(g.X(o.x2)+px,0).x; }
-  else if(a.t==="text"&&a.pin==="plot"){ a.fx=+Math.max(-0.2,Math.min(1.2,numOr(o.fx,0.5)+px/g.pw)).toFixed(4); a.fy=+Math.max(-0.3,Math.min(1.3,numOr(o.fy,0.1)+py/g.mh)).toFixed(4); }
-  else if(a.t==="text"){ const q=toData(g.X(o.x)+px,g.Y(o.y)+py); a.x=q.x; a.y=q.y; }
+  else if(a.t==="text"){
+    // Text lines up with the plot's centre and with other text: guides show it, Alt drags freely.
+    const e=annoEnds(o,g); let sx=e.t.x+px, sy=e.t.y+py; const gd=[];
+    if(!S.altKey){ const cx=[g.L+g.pw/2], cy=[g.T+g.mh/2];
+      ((P().plot&&P().plot.annos)||[]).forEach(b=>{ if(b.id===a.id||b.t!=="text"||!annoInGraph(b)) return; const p=annoEnds(b,g).t; if(Number.isFinite(p.x)){ cx.push(p.x); cy.push(p.y); } });
+      const nx=cx.reduce((m,v)=>Math.abs(v-sx)<Math.abs(m-sx)?v:m,Infinity), ny=cy.reduce((m,v)=>Math.abs(v-sy)<Math.abs(m-sy)?v:m,Infinity);
+      if(Math.abs(nx-sx)<6){ sx=nx; gd.push({x:nx}); } if(Math.abs(ny-sy)<6){ sy=ny; gd.push({y:ny}); } }
+    S.guides=gd.length?gd:null;
+    if(a.pin==="plot"){ a.fx=+Math.max(-0.2,Math.min(1.2,(sx-g.L)/g.pw)).toFixed(4); a.fy=+Math.max(-0.3,Math.min(1.3,(sy-g.T)/g.mh)).toFixed(4); }
+    else { const q=toData(sx,sy); a.x=q.x; a.y=q.y; } }
+  else if(a.t==="inset"){
+    if(ad.end==="se"){ a.fw=+Math.max(0.12,Math.min(1.1,numOr(o.fw,0.36)+px/g.pw)).toFixed(4); a.fh=+Math.max(0.12,Math.min(1.1,numOr(o.fh,0.4)+py/g.mh)).toFixed(4); }
+    else { a.fx=+Math.max(-0.2,Math.min(0.95,numOr(o.fx,0.6)+px/g.pw)).toFixed(4); a.fy=+Math.max(-0.2,Math.min(0.95,numOr(o.fy,0.05)+py/g.mh)).toFixed(4); } }
+  else if(a.t==="arrow"){
+    // An end moves alone, and snaps to a data point (Alt for none); the body moves both.
+    const e=annoEnds(o,g), pin=a.pin==="plot";
+    const put=(k,sx,sy,snap)=>{ if(pin){ a["fx"+k]=+((sx-g.L)/g.pw).toFixed(4); a["fy"+k]=+((sy-g.T)/g.mh).toFixed(4); return; }
+      const q=snap&&!S.altKey?snapNear(sx,sy,10):null, d=q||toData(sx,sy); if(snap) S.snapRing=q?{px:q.px,py:q.py}:null;
+      a[k?"x2":"x"]=+d.x.toPrecision(7); a[k?"y2":"y"]=+d.y.toPrecision(7); };
+    if(ad.end==="t") put("",e.t.x+px,e.t.y+py,true);
+    else if(ad.end==="h") put("2",e.h.x+px,e.h.y+py,true);
+    else { put("",e.t.x+px,e.t.y+py,false); put("2",e.h.x+px,e.h.y+py,false); } }
   else if(a.t==="label"){ a.dx=Math.round((o.dx||0)+px); a.dy=Math.round((o.dy==null?labDy(o):o.dy)+py); }
   renderPlot(); showTip(annoTip(a),x,y);
 }
@@ -5527,7 +5752,16 @@ function annoMenuItems(id){
     items.push({label:"Mark every peak with",sub:()=>PK_MARKS.map(([k,l])=>({label:l,radio:true,checked:st.mk===k,enabled:!ro,run:()=>{ mine(); setPeakStyle({mk:k},`marked the peaks with ${l.toLowerCase()}`); }}))},
       {label:"Label every peak with",sub:()=>PK_SHOW.map(([k,l])=>({label:l,radio:true,checked:st.show===k,enabled:!ro,run:()=>{ mine(); setPeakStyle({show:k},`labelled the peaks with ${l.toLowerCase()}`); }}))},
       {label:"The peak table…",run:()=>{ mine(); openPeakFinder(); }}); }
-  if(isLine||a.t==="band") [["solid","Solid"],["dash","Dashed"],["dot","Dotted"]].forEach(([k,l])=>items.push({label:l,radio:true,checked:(a.dash||(isLine?"dash":"solid"))===k,enabled:!ro,run:()=>updateAnno(id,{dash:k})}));
+  if(a.t==="inset") items.push({label:"Outline the region",checked:a.box!==false,enabled:!ro,run:()=>updateAnno(id,{box:a.box===false})},
+    {label:"Lines to the region",checked:a.conn!==false,enabled:!ro,run:()=>updateAnno(id,{conn:a.conn===false})},
+    {label:"Axis titles",checked:!!a.titles,enabled:!ro,run:()=>updateAnno(id,{titles:!a.titles})},
+    {label:"Zoom the graph to it",run:()=>{ const d=plotState().d; S.view={x0:Math.min(a.x0,a.x1),x1:Math.max(a.x0,a.x1),y0:a.y0!=null&&a.y0!==""?+a.y0:S.geo.v.y0,y1:a.y1!=null&&a.y1!==""?+a.y1:S.geo.v.y1,xu:d.xu||""}; if(a.y0==null||a.y0===""){ const r=yRangeIn(S.view.x0,S.view.x1); S.view.y0=r[0]; S.view.y1=r[1]; } renderPlot(); renderFit(); }});
+  if(a.t==="arrow") items.push({label:"Head",sub:()=>[["end","Filled"],["open","Open"],["both","At both ends"],["none","None, a plain line"]].map(([v,l])=>({label:l,radio:true,checked:(a.head||"end")===v,enabled:!ro,run:()=>updateAnno(id,{head:v})}))},
+    {label:"Width",sub:()=>[0.75,1,1.2,1.5,2,3].map(v=>({label:String(v),radio:true,checked:(a.lw!=null?+a.lw:1.2)===v,enabled:!ro,run:()=>updateAnno(id,{lw:v})}))},
+    {label:"Swap its ends",enabled:!ro,run:()=>updateAnno(id,a.pin==="plot"?{fx:a.fx2,fy:a.fy2,fx2:a.fx,fy2:a.fy}:{x:a.x2,y:a.y2,x2:a.x,y2:a.y})},
+    {label:"Pinned to the plot",checked:a.pin==="plot",enabled:!ro,run:()=>pinAnno(id,a.pin!=="plot")},
+    {label:a.text?"Type over its text":"Text at its tail",enabled:!ro,run:()=>editAnno(id)});
+  if(isLine||a.t==="band"||a.t==="arrow") [["solid","Solid"],["dash","Dashed"],["dot","Dotted"]].forEach(([k,l])=>items.push({label:l,radio:true,checked:(a.dash||(isLine?"dash":"solid"))===k,enabled:!ro,run:()=>updateAnno(id,{dash:k})}));
   if(a.t!=="band"&&a.t!=="text") items.push({label:"Show the unit",checked:!!a.unit,enabled:!ro,run:()=>updateAnno(id,{unit:!a.unit})});
   if(a.t==="label"||a.t==="text"){ const ang=annoAng(a);
     items.push({label:"Turn",sub:()=>[[0,"Upright"],[45,"45°"],[90,"90°"],[-90,"−90°"]].map(([v,l])=>({label:l,radio:true,checked:ang===v,enabled:!ro,run:()=>updateAnno(id,a.t==="label"?{ang:v,rot:false,dy:null}:{ang:v,rot:false})}))},
@@ -5641,6 +5875,10 @@ function titleMenuItems(k){
 }
 // Text pinned to the plot stays where it is in the frame whatever the zoom.
 function pinAnno(id,on){ const a=annoById(id), g=S.geo; if(!a||!g||S.readOnly) return;
+  if(a.t==="arrow"){ const e=annoEnds(a,g), d=plotState().d;
+    if(on) updateAnno(id,{pin:"plot",fx:+((e.t.x-g.L)/g.pw).toFixed(4),fy:+((e.t.y-g.T)/g.mh).toFixed(4),fx2:+((e.h.x-g.L)/g.pw).toFixed(4),fy2:+((e.h.y-g.T)/g.mh).toFixed(4)},`pinned ${annoDesc(a)} to the plot`);
+    else { const p=toData(e.t.x,e.t.y), q=toData(e.h.x,e.h.y); updateAnno(id,{pin:null,x:+p.x.toPrecision(7),y:+p.y.toPrecision(7),x2:+q.x.toPrecision(7),y2:+q.y.toPrecision(7),xu:d.xu||"",yu:d.yu||""},`tied ${annoDesc(a)} to data values`); }
+    return; }
   if(on){ const fx=(g.X(a.x)-g.L)/g.pw, fy=(g.Y(a.y)-g.T)/g.mh;
     updateAnno(id,{pin:"plot",fx:+Math.max(0,Math.min(1,Number.isFinite(fx)?fx:0.5)).toFixed(4),fy:+Math.max(0,Math.min(1,Number.isFinite(fy)?fy:0.1)).toFixed(4)},`pinned ${annoDesc(a)} to the plot`); }
   else { const q=toData(g.L+numOr(a.fx,0.5)*g.pw,g.T+numOr(a.fy,0.1)*g.mh), d=plotState().d;
@@ -5718,6 +5956,8 @@ function graphMenuItems(id,at){
     items.push({label:`Vertical line at x = ${fmt(at.pt.x,5)}`,run:()=>addAnno({t:"v",x:n6(at.pt.x)})},
       {label:`Horizontal line at y = ${fmt(at.pt.y,5)}`,run:()=>addAnno({t:"h",y:n6(at.pt.y)})},
       {label:"Text here…",run:()=>addTextAt(at.pt)},
+      {label:"An arrow (drag on the graph)",run:()=>{ setMode("arrow"); toast("Drag from where the arrow starts to what it points at."); }},
+      S.view?{label:"Make this zoom an inset",run:makeInset}:null,
       {label:"Shade an X range…",run:shadeRange}); }
   items.push("-",
     {label:"Format graph…",run:()=>openPlotDetails(id||(act&&act.id),id&&id!=="__fit"?"series":"frame")},
@@ -5737,7 +5977,7 @@ function graphMenuItems(id,at){
     {label:"Find and mark peaks…",run:()=>openPeakFinder(),enabled:has},
     {label:"Integrate bands…",run:()=>openIntegrate(),enabled:has},
     "-",
-    {label:"Export the figure",sub:()=>[{label:"As SVG (vector, for papers)",run:exportSvg,enabled:has},{label:"As PNG (image, for slides)",run:exportPng,enabled:has}]});
+    {label:"Export the figure",sub:()=>[{label:"For a paper or slides…",run:openExportFigure,enabled:has},{label:"As SVG (vector, for papers)",run:exportSvg,enabled:has},{label:"As PNG (image, for slides)",run:exportPng,enabled:has}]});
   return items;
 }
 function openGraphMenu(ev){
@@ -5852,9 +6092,10 @@ function pdAct(s){ const wk=S.plotPreview; if(!wk) return; const i=s.indexOf(":"
   if(k==="centrex"||k==="centre"){ const patch={x:+(g&&g.logX?Math.sqrt(v.x0*v.x1):(v.x0+v.x1)/2).toPrecision(7),align:"center"};
     if(k==="centre") patch.y=+(g&&g.logY?Math.sqrt(v.y0*v.y1):(v.y0+v.y1)/2).toPrecision(7); pdSet("annos."+id,patch); }
   if(k==="labreset") pdSet("annos."+id,{dx:0,dy:null});
+  if(k==="swap") pdSet("annos."+id,a.pin==="plot"?{fx:a.fx2,fy:a.fy2,fx2:a.fx,fy2:a.fy}:{x:a.x2,y:a.y2,x2:a.x,y2:a.y});
 }
-const annoBrief=(a,d)=>{ const t=annoLabelText(a,d.xu||"",d.yu||""), w=a.t==="h"?`y = ${fmt(a.y,5)}`:a.t==="band"?`${fmt(Math.min(a.x,a.x2),5)} – ${fmt(Math.max(a.x,a.x2),5)}`:a.pin==="plot"?"pinned to the plot":`x = ${fmt(a.x,5)}`;
-  return (t?String(t).split("\n")[0].slice(0,40):"no text")+" · "+w; };
+const annoBrief=(a,d)=>{ const t=annoLabelText(a,d.xu||"",d.yu||""), w=a.t==="inset"?`${fmt(Math.min(a.x0,a.x1),5)} – ${fmt(Math.max(a.x0,a.x1),5)}`:a.t==="arrow"&&a.pin!=="plot"?`to x = ${fmt(a.x2,5)}`:a.t==="h"?`y = ${fmt(a.y,5)}`:a.t==="band"?`${fmt(Math.min(a.x,a.x2),5)} – ${fmt(Math.max(a.x,a.x2),5)}`:a.pin==="plot"?"pinned to the plot":`x = ${fmt(a.x,5)}`;
+  return (a.t==="inset"?"":(t?String(t).split("\n")[0].slice(0,40):"no text")+" · ")+w; };
 function renderPlotDetails(){
   const m=$("#plotModal"), body=$("#pdBody"); if(!m||!body||!S.plotPreview) return;
   const cfg=plotCfg(), pal=readPalette(), act=activeYCol(), ro=S.readOnly?" disabled":"";
@@ -5898,7 +6139,7 @@ function renderPlotDetails(){
         +grp("Peaks",chk("pdPkFill","series.__peaks.fill",(cfg.series.__peaks||{}).fill!==false,"Shade each fitted peak")+`<label for="pdPsch2">Colours</label>${sel("pdPsch2",Object.entries(PEAK_SCHEMES).map(([k,v])=>[k,v.name]),cfg.peakScheme||"warm","peakScheme")}`)
         +grp("Legend",`<label for="pdFitLab">Label</label><input type="text" id="pdFitLab" data-pd="series.__fit.label" value="${esc((cfg.series.__fit||{}).label||"")}" placeholder="fit"${ro}>`+chk("pdFitLeg","series.__fit.leg",(cfg.series.__fit||{}).leg!==false,"Show in the legend")); }
     else if(selC){ const c=selC, isA=c===act, st=serStyle(c.id,isA,pal,false,cfg), b="series."+c.id, own=(cfg.series||{})[c.id]||{};
-      h+=grp("Spectrum",(isA?"":chk("pdShow","hidden."+c.id,!cfg.hidden.includes(c.id),"Show on the graph"))+`<label for="pdLabel">Legend label</label><input type="text" id="pdLabel" data-pd="${b}.label" value="${esc(st.label)}" placeholder="${esc(specName(c))}"${ro}>`+chk("pdInLeg",b+".leg",st.leg!==false,"Show in the legend"));
+      h+=grp("Spectrum",(isA?"":chk("pdShow","hidden."+c.id,!cfg.hidden.includes(c.id),"Show on the graph"))+`<label for="pdLabel">Legend label</label><div class="pair"><input type="text" id="pdLabel" data-pd="${b}.label" data-rich value="${esc(st.label)}" placeholder="${esc(specName(c))}"${ro}>${rtool("pdLabel")}</div>`+chk("pdInLeg",b+".leg",st.leg!==false,"Show in the legend"));
       h+=grp("Line",`<label for="pdType">Plot type</label>${sel("pdType",PLOT_TYPES,st.type,b+".type")}<label>Colour</label>${cb(b+".color",own.color,"Automatic",st.color)}<label>Style</label>${seg(b+".dash",DASH_OPTS.concat([["none","None","No line"]]),st.dash,"Line style")}<label for="pdLw">Width</label>${rng("pdLw",st.lw,b+".lw",0.5,6,0.1)}`);
       h+=grp("Symbols",`<label for="pdSym">Symbol</label>${sel("pdSym",SYMS,st.sym,b+".sym")}<label for="pdSs">Size</label>${rng("pdSs",st.ss==null?3:st.ss,b+".ss",1,10,0.5)}`);
       h+=grp("Fill and opacity",`<label for="pdFill">Fill under it</label>${rng("pdFill",st.fill,b+".fill",0,1,0.05)}<label for="pdOp">Opacity</label>${rng("pdOp",st.op,b+".op",0.1,1,0.05)}`); }
@@ -5906,7 +6147,7 @@ function renderPlotDetails(){
     const k=page.slice(3), a=cfg.ax[k]||{}, A=axisCfg(cfg,k), b="ax."+k, isX=k==="x", heat=cfg.layout==="heat", cs=k==="y2"&&heat, dP=plotState().d;
     const al=axAlign(A,txtStyle(cfg,"axis",{align:"center"},KSERIF)), edge=k==="y2"||A.pos==="bottom"||A.pos==="top"||A.pos==="left"||A.pos==="right";
     const autoT=isX?axisLabel(dP.xn,dP.xu,"X"):k==="y"?(heat?"Spectrum":axisLabel(dP.yn,dP.yu,"Y")):"from the data";
-    if(!cs) h+=grp("Title",`<label for="pd${k}t">Text</label><input type="text" id="pd${k}t" data-pd="${b}.title" value="${esc(a.title||"")}" placeholder="${esc(autoT)}"${ro}>`
+    if(!cs) h+=grp("Title",`<label for="pd${k}t">Text</label><div class="pair"><input type="text" id="pd${k}t" data-pd="${b}.title" data-rich value="${esc(a.title||"")}" placeholder="${esc(autoT)}"${ro}>${rtool("pd"+k+"t")}</div>`
       +chk("pd"+k+"ts",b+".tshow",A.tshow,"Show the title")
       +`<label>Position</label>${seg(b+".talign",isX?[["start","Left"],["center","Centre"],["end","Right"]]:[["start","Bottom"],["center","Middle"],["end","Top"]],al,"Where the title sits along the axis")}`
       +(A.tdx||A.tdy?`<span></span><div><button type="button" class="btn sm" data-pdact="tdreset:${k}"${ro}>Put it back by the axis</button> <span class="lab">dragged ${Math.round(Math.hypot(A.tdx,A.tdy))} px</span></div>`:"")
@@ -5962,14 +6203,14 @@ function renderPlotDetails(){
     h+=grp("All text",`<label>Font</label><button type="button" class="fpbtn" data-pdfont="graph" style="font-family:${esc(fontStack(gk,cfg.fontName)||KSANS)}"${ro}><span>${esc(fontNameOf(gk,cfg.fontName))}</span>${ICON("chev","sm")}</button>`
       +`<label for="pdFont">Size</label>${rng("pdFont",+cfg.font||1,"font",0.6,2.2,0.05,"×")}`+chk("pdItal","titleItalic",cfg.titleItalic!==false,"Axis titles in italics")
       +note("Each kind of text below can have its own font, size and colour."));
-    h+=grp("Graph title",`<label for="pdTitle">Text</label><input type="text" id="pdTitle" data-pd="title" value="${esc(cfg.title||"")}" placeholder="none"${ro}>`+wide(tbar("title",{align:"center"}))
+    h+=grp("Graph title",`<label for="pdTitle">Text</label><div class="pair"><input type="text" id="pdTitle" data-pd="title" data-rich value="${esc(cfg.title||"")}" placeholder="none"${ro}>${rtool("pdTitle")}</div>`+wide(tbar("title",{align:"center"}))
       +((cfg.titleDx||cfg.titleDy)?`<span></span><div><button type="button" class="btn sm" data-pdact="tdreset:title"${ro}>Put it back above the graph</button></div>`:""),txReset("title"));
     [["axis","Axis titles","Where each sits along its axis is on the axis's page."],["ticks","Tick numbers",""],["legend","Legend",""],["labels","Labels and text on the graph","A label or text can have its own style too."],["peaks","Fitted peak numbers",""]].forEach(([el,l,n])=>{
       h+=grp(l,wide(tbar(el)+(n?`<div class="pd-note">${n}</div>`:"")),txReset(el)); });
   } else if(page==="legend"){
     h+=grp("Place",`<label for="pdLeg">Where</label>${sel("pdLeg",LEGENDS.concat(cfg.legend==="custom"?[["custom","Where you dragged it"]]:[]),cfg.legend,"legend")}`
       +`<label>Columns</label>${seg("legendCols",[["","Auto"],[1,"1"],[2,"2"],[3,"3"],[4,"4"]],cfg.legendCols==null?"":cfg.legendCols,"Columns",true)}`
-      +`<label for="pdLegTi">Title</label><input type="text" id="pdLegTi" data-pd="legendTitle" value="${esc(cfg.legendTitle||"")}" placeholder="none"${ro}>`
+      +`<label for="pdLegTi">Title</label><div class="pair"><input type="text" id="pdLegTi" data-pd="legendTitle" data-rich value="${esc(cfg.legendTitle||"")}" placeholder="none"${ro}>${rtool("pdLegTi")}</div>`
       +note("Drag the legend on the graph to put it anywhere."));
     h+=grp("Text",wide(tbar("legend"))+chk("pdLegT","legendText",cfg.legendText==="match","Each entry in its spectrum's colour",` data-map="match|ink"`),txReset("legend"));
     h+=grp("Entries",`<label for="pdLegL">Line sample</label>${rng("pdLegL",numOr(cfg.legendLine,18),"legendLine",6,60,1," px")}<label for="pdLegS">Row spacing</label>${rng("pdLegS",numOr(cfg.legendSp,1),"legendSp",0.6,2.5,0.05,"×")}`);
@@ -5999,7 +6240,7 @@ function renderPlotDetails(){
       const hid=a.pin!=="plot"&&((a.xu!=null&&a.t!=="h"&&a.xu!==(d.xu||""))||((a.t==="h"||a.t==="text"||a.t==="label")&&a.yu!=null&&a.yu!==(d.yu||"")));
       L1+=`<div class="pd-an${on?" on":""}"><button type="button" class="pd-anb" data-pdanno="${a.id}" aria-pressed="${on}"><span class="sw" style="background:${esc(col)}"></span><span class="k">${esc(ANNO_KINDS[a.t])}</span><span class="grow">${esc(annoBrief(a,d))}</span>${hid?`<span class="lab" title="Placed in other units: not drawn on the data now shown">other units</span>`:""}</button><button type="button" class="tb sm icon" data-pdandel="${a.id}" aria-label="Delete this ${esc(ANNO_KINDS[a.t].toLowerCase())}" title="Delete"${ro}>${ICON("x","sm")}</button></div>`; });
     if(!lst.length) L1+=`<p class="pd-note">None yet. Add one here, or right-click the graph where you want it.</p>`;
-    L1+=`</div><div class="actions">${[["v","Vertical line"],["h","Horizontal line"],["band","Shaded range"],["text","Text"]].map(([k,l])=>`<button class="btn sm" data-pdadd="${k}"${ro}>${ICON("plus","sm")}${l}</button>`).join("")}</div>`;
+    L1+=`</div><div class="actions">${[["v","Vertical line"],["h","Horizontal line"],["band","Shaded range"],["text","Text"],["arrow","Arrow"],["inset","Inset"]].map(([k,l])=>`<button class="btn sm" data-pdadd="${k}"${ro}>${ICON("plus","sm")}${l}</button>`).join("")}</div>`;
     if(sets.length) L1+=`<p class="pd-note">${sets.map(c=>`${esc(specName(c))}: ${all.filter(a=>a.grp==="pk:"+c.id).length} peaks marked`).join(" · ")}. The set's labels and marks are in the <a href="#" data-pdpeaks>Peaks window</a>.</p>`;
     h+=grp(`Lines, ranges, text and labels`,wide(L1));
     if(selA) h+=pdAnnoEditor(selA,{cfg,pal,d,ro,sel,num,rng,chk,seg,cb,grp,wide,note,DASH_OPTS,auto});
@@ -6013,13 +6254,22 @@ function renderPlotDetails(){
 /* One line, range, text or label: its text and style, where it is, how it is
    turned and boxed, and its line. */
 function pdAnnoEditor(a,o){
+  if(a.t==="inset"){ const {pal,ro,num,rng,chk,cb,grp,note}=o, b="annos."+a.id, pc=(k,d)=>+(numOr(a[k],d)*100).toFixed(1);
+    return `<div class="pd-aned">`+grp(`Inset<button type="button" class="pd-rst" data-pdandel="${a.id}"${ro}>Delete</button>`,
+        `<label for="pdInX0">X from</label><div class="pair">${num("pdInX0",fmt(a.x0,7),b+".x0","",110)}<span class="lab">to</span>${num("pdInX1",fmt(a.x1,7),b+".x1","",110)}</div>`
+        +`<label for="pdInY0">Y from</label><div class="pair">${num("pdInY0",a.y0==null?"":fmt(a.y0,7),b+".y0","auto",110)}<span class="lab">to</span>${num("pdInY1",a.y1==null?"":fmt(a.y1,7),b+".y1","auto",110)}</div>`+note("Empty Y fits the data in the X range."))
+      +grp("Where",`<label for="pdInFx">Across</label><div class="pair">${num("pdInFx",pc("fx",0.6),b+".fx","60",70,` data-pct`)}<span class="lab">%</span>${num("pdInFy",pc("fy",0.05),b+".fy","5",70,` data-pct`)}<span class="lab">% down</span></div>`
+        +`<label for="pdInFw">Size</label><div class="pair">${num("pdInFw",pc("fw",0.36),b+".fw","36",70,` data-pct`)}<span class="lab">% wide</span>${num("pdInFh",pc("fh",0.4),b+".fh","40",70,` data-pct`)}<span class="lab">% high</span></div>`+note("Of the plot. Or drag the inset, and its corner, on the graph."))
+      +grp("Look",chk("pdInBox",b+".box",a.box!==false,"Outline the region on the graph")+chk("pdInCon",b+".conn",a.conn!==false,"Lines from the region to the inset")+chk("pdInTi",b+".titles",!!a.titles,"Axis titles")
+        +`<label>Colour</label>${cb(b+".color",a.color,"Automatic",pal.muted)}<label for="pdInTs">Text size</label>${rng("pdInTs",numOr(a.ts,0.85),b+".ts",0.5,1.3,0.05,"×")}`)+`</div>`; }
   const {cfg,pal,ro,sel,num,rng,chk,seg,cb,grp,wide,note,DASH_OPTS,auto}=o, b="annos."+a.id, isLine=a.t==="v"||a.t==="h", g=!!a.grp, pinned=a.t==="text"&&a.pin==="plot", ang=annoAng(a);
   const tst={}; Object.entries(ANNO_TX).forEach(([k,f])=>{ if(a[f]!=null) tst[k]=a[f]; });
   const base=auto("labels"), aut=Object.assign({},base,{size:base.size*(+a.size||1),color:annoColor(a,pal,false,cfg)});
   const tv=g?(a.lab||""):(a.text==null?"":a.text);
   let e=`<label for="pdAnT">${g?"Label":"Text"}</label><textarea id="pdAnT" rows="${Math.min(5,Math.max(1,tv.split("\n").length))}" data-pd="${b}.${g?"lab":"text"}"${g?"":" data-null"} placeholder="${esc(a.t==="text"?"Text":a.t==="band"?"none":"the position")}"${ro}>${esc(tv)}</textarea>`;
+  e=e.replace('<textarea id="pdAnT"','<textarea data-rich id="pdAnT"')+`<span></span>${rtool("pdAnT")}`;
   if(!g&&a.t!=="text") e+=chk("pdAnNo",b+".text",a.text==="","No text",` data-notext`);
-  e+=note(a.t==="text"?"Enter starts a new line.":"Empty shows the value; {x} stands for the position. Enter starts a new line.");
+  e+=note((a.t==="text"?"Enter starts a new line.":"Empty shows the value; {x} stands for the position. Enter starts a new line.")+" ^{2} and _{2} make super- and subscripts; \\alpha a Greek letter.");
   e+=wide(txtBarHtml("anno:"+a.id,tst,aut,{align:a.t==="text"||a.t==="label"?"center":false,inheritLabel:"The labels' font"}));
   let pos="";
   if(a.t==="text"){ pos+=`<span></span><label class="chk"><input type="checkbox" id="pdAnPin" data-pdpin="${a.id}"${pinned?" checked":""}${ro}> Pinned to the plot, not to data values</label>`;
@@ -6028,6 +6278,13 @@ function pdAnnoEditor(a,o){
       +`<label for="pdAnFy">Down</label><div class="pair">${num("pdAnFy",+(numOr(a.fy,0.1)*100).toFixed(1),b+".fy","10",80,` data-pct`)}<span class="lab">% of its height</span></div>`; }
     else pos+=`<label for="pdAnX">X</label>${num("pdAnX",fmt(a.x,7),b+".x","",130)}<label for="pdAnY">Y</label>${num("pdAnY",fmt(a.y,7),b+".y","",130)}`
       +`<span></span><div class="actions" style="margin:0"><button type="button" class="btn sm" data-pdact="centrex:${a.id}"${ro}>Centre across the plot</button><button type="button" class="btn sm" data-pdact="centre:${a.id}"${ro}>Centre in the plot</button></div>`; }
+  if(a.t==="arrow"){ const pin=a.pin==="plot";
+    pos+=`<span></span><label class="chk"><input type="checkbox" id="pdAnPin" data-pdpin="${a.id}"${pin?" checked":""}${ro}> Pinned to the plot, not to data values</label>`;
+    pos+=pin?`<label for="pdAnFx">Tail</label><div class="pair">${num("pdAnFx",+(numOr(a.fx,0.3)*100).toFixed(1),b+".fx","30",64,` data-pct`)}${num("pdAnFy",+(numOr(a.fy,0.3)*100).toFixed(1),b+".fy","30",64,` data-pct`)}<span class="lab">% across, down</span></div>`
+      +`<label for="pdAnFx2">Head</label><div class="pair">${num("pdAnFx2",+(numOr(a.fx2,0.5)*100).toFixed(1),b+".fx2","50",64,` data-pct`)}${num("pdAnFy2",+(numOr(a.fy2,0.5)*100).toFixed(1),b+".fy2","50",64,` data-pct`)}<span class="lab">% across, down</span></div>`
+      :`<label for="pdAnX">Tail</label><div class="pair">${num("pdAnX",fmt(a.x,7),b+".x","x",100)}${num("pdAnY",fmt(a.y,7),b+".y","y",100)}</div>`
+      +`<label for="pdAnX2">Head</label><div class="pair">${num("pdAnX2",fmt(a.x2,7),b+".x2","x",100)}${num("pdAnY2",fmt(a.y2,7),b+".y2","y",100)}</div>`;
+    pos+=`<span></span><div><button type="button" class="btn sm" data-pdact="swap:${a.id}"${ro}>Swap its ends</button></div>`; }
   if(a.t==="v"||a.t==="label") pos+=`<label for="pdAnX">X</label>${num("pdAnX",fmt(a.x,7),b+".x","",130)}`;
   if(a.t==="h") pos+=`<label for="pdAnY">Y</label>${num("pdAnY",fmt(a.y,7),b+".y","",130)}`;
   if(a.t==="band") pos+=`<label for="pdAnX">From x</label>${num("pdAnX",fmt(Math.min(a.x,a.x2),7),b+".x","",130)}<label for="pdAnX2">To x</label>${num("pdAnX2",fmt(Math.max(a.x,a.x2),7),b+".x2","",130)}`;
@@ -6041,19 +6298,57 @@ function pdAnnoEditor(a,o){
   if(a.box==="line"||a.box==="both") look+=`<label>Outline</label>${cb(b+".bd",a.bd,"Automatic",annoColor(a,pal,false,cfg))}`;
   if(!g&&a.t!=="band"&&a.t!=="text") look+=chk("pdAnU",b+".unit",!!a.unit,"Show the unit with the value");
   let ln="";
+  if(a.t==="arrow") ln+=`<label>Colour</label>${cb(b+".color",a.color,"Automatic",annoColor(a,pal,false,cfg))}<label>Style</label>${seg(b+".dash",DASH_OPTS,a.dash||"solid","Line style")}<label for="pdAnLw">Width</label>${rng("pdAnLw",a.lw!=null?a.lw:1.2,b+".lw",0.3,6,0.1)}`
+    +`<label>Head</label>${seg(b+".head",[["none","None"],["open","Open"],["end","Filled"],["both","Both ends"]],a.head||"end","Its head")}<label for="pdAnHs">Head size</label>${rng("pdAnHs",numOr(a.hs,1),b+".hs",0.5,3,0.1,"×")}`;
   if(isLine||a.t==="band"){ ln+=`<label>Colour</label>${cb(b+".color",a.color,"Automatic",annoColor(a,pal,false,cfg))}<label>Style</label>${seg(b+".dash",DASH_OPTS,a.dash||(isLine?"dash":"solid"),"Line style")}<label for="pdAnLw">Width</label>${rng("pdAnLw",a.lw!=null?a.lw:1.2,b+".lw",0.3,6,0.1)}`;
     if(a.t==="band") ln+=`<label for="pdAnOp">Shading</label>${rng("pdAnOp",a.op!=null?a.op:0.13,b+".op",0,1,0.01)}`+chk("pdAnEd",b+".edge",!!a.edge,"Lines at its edges"); }
   const head=`${esc(ANNO_KINDS[a.t])}${g?` <span class="lab">in a peak set</span>`:""}`+(g?"":`<button type="button" class="pd-rst" data-pdandel="${a.id}"${ro}>Delete</button>`);
-  return `<div class="pd-aned">`+grp(head,e)+grp("Where",pos)+grp("Look",look)+(ln?grp(a.t==="band"?"Shading and edges":"Line",ln):"")+`</div>`;
+  return `<div class="pd-aned">`+grp(head,e)+grp("Where",pos)+grp("Look",look)+(ln?grp(a.t==="band"?"Shading and edges":a.t==="arrow"?"Line and head":"Line",ln):"")+`</div>`;
 }
 // Every graph takes this one's frame, axes, text, legend and colours; data,
 // ranges, titles and annotations stay their own.
 const FMT_KEYS=["frame","frameLw","frameColor","grid","gridMinor","gridColor","gridLw","gridDash","gridX","gridY","plotBg","mL","mR","mT","mB","txt","font","fontFam","fontName","titleItalic","legend","legendPos","legendText","legendFrame","legendCols","legendLine","legendSp","legendFill","legendOp","legendBd","legendLw","legendR","scheme","peakScheme","peakLab","peakLabRot","peakLabDec","axisMatch","resid"];
 const FMT_AX=["ticks","tlen","mlen","tw","mirror","labs","lrot","color","lw","pos","at","off","talign","line","fmt","dec","minor","tshow"];
+/* A graph's settings with another's format laid over them: frame, grid, text,
+   legend, colours and each axis's style; a key the format lacks goes back to
+   its default. Data, ranges, titles and annotations stay. */
+function styleFrom(src,pl){
+  const cp=v=>v===undefined||v===null?null:JSON.parse(JSON.stringify(v)), o=Object.assign({},pl);
+  FMT_KEYS.forEach(k=>{ o[k]=src[k]!==undefined&&src[k]!==null?cp(src[k]):k in PLOT_DEF?cp(PLOT_DEF[k]):null; });
+  const ax={}; ["x","y","y2"].forEach(a=>{ const s=(src.ax||{})[a]||{}, t=Object.assign({},((pl.ax||{})[a])||{}); FMT_AX.forEach(k=>{ t[k]=s[k]!==undefined?cp(s[k]):null; }); ax[a]=t; }); o.ax=ax; return o;
+}
+// A graph's format alone, to keep or to give to other graphs.
+function fmtOf(pl){ const o={}; FMT_KEYS.forEach(k=>{ if(pl[k]!==undefined&&pl[k]!==null) o[k]=JSON.parse(JSON.stringify(pl[k])); });
+  o.ax={}; ["x","y","y2"].forEach(a=>{ const s=(pl.ax||{})[a]||{}, t={}; FMT_AX.forEach(k=>{ if(s[k]!==undefined&&s[k]!==null) t[k]=s[k]; }); o.ax[a]=t; }); return o; }
+const FMT_BUILTIN=[
+  {id:"b-kurve",name:"Kurve's own",fmt:{}},
+  {id:"b-journal",name:"Journal: sans serif, axes, ticks out",fmt:{frame:"l",fontFam:"arimo",titleItalic:false,legendFrame:false,txt:{title:{size:10},axis:{size:9},ticks:{size:8},legend:{size:8},labels:{size:8},peaks:{size:7.5}},ax:{x:{ticks:"out",mirror:false,tlen:4,mlen:2},y:{ticks:"out",mirror:false,tlen:4,mlen:2},y2:{ticks:"out",tlen:4,mlen:2}}}},
+  {id:"b-classic",name:"Classic: serif, box, ticks in",fmt:{frame:"box",fontFam:"stix",ax:{x:{ticks:"in",mirror:true},y:{ticks:"in",mirror:true},y2:{ticks:"in"}}}},
+  {id:"b-slides",name:"Slides: large text, heavy axes",fmt:{frame:"l",font:1.5,frameLw:2,legendFrame:false,titleItalic:false,ax:{x:{ticks:"out",mirror:false,tw:1.6,tlen:8},y:{ticks:"out",mirror:false,tw:1.6,tlen:8},y2:{ticks:"out",tw:1.6,tlen:8}}}},
+  {id:"b-minimal",name:"Minimal: open axes, light grid",fmt:{frame:"l",grid:true,legendFrame:false,ax:{x:{ticks:"out",mirror:false,off:6},y:{ticks:"out",mirror:false,off:6},y2:{ticks:"out",off:6}}}}];
+function fmtLib(){ try{ return JSON.parse(localStorage.getItem("kurve.formats")||"[]").filter(f=>f&&f.id&&f.name&&f.fmt); }catch(e){ return []; } }
+function fmtLibSave(list){ try{ localStorage.setItem("kurve.formats",JSON.stringify(list)); }catch(e){ toast("This browser would not keep the format."); } }
+async function saveFormatAs(src){
+  const r=await formDlg({title:"Save this format",html:`<div class="grid2"><label for="fdFn">Name</label><input id="fdFn" type="text" maxlength="60" placeholder="e.g. My thesis"></div><p class="hint">The frame, axes, text, legend and colours. It is kept in this browser and can be given to any graph in any project.</p>`,ok:"Save",focus:"#fdFn",valid:q=>!!q.fdFn.trim()});
+  if(!r) return null; const name=r.fdFn.trim().slice(0,60), lib=fmtLib().filter(f=>f.name!==name), f={id:"f"+Date.now().toString(36),name,at:Date.now(),fmt:fmtOf(src)};
+  fmtLibSave(lib.concat([f])); toast(`Saved the format "${name}".`); return f; }
+function useFormat(f,every){
+  const p=P(); if(!p||S.readOnly) return; pushUndo("formatting the graph");
+  if(every&&multiGraph()) save({plot:styleFrom(f.fmt,p.plot||{}),graphs:(p.graphs||[]).map(g=>Object.assign({},g,{plot:styleFrom(f.fmt,g.plot||{})}))},`gave every graph the format "${f.name}"`);
+  else savePlot(styleFrom(f.fmt,GP()),`gave the graph the format "${f.name}"`);
+  S.snap={}; renderTop(); renderPlot(); if(multiGraph()) scheduleSnaps(0);
+  toast(every?`Every graph has the format "${f.name}".`:`The graph has the format "${f.name}".`,{action:"Undo",run:undo});
+}
+function formatMenuItems(apply,src){
+  const ro=S.readOnly||!P(), lib=fmtLib(), it=f=>({label:f.name,enabled:!ro,run:()=>apply(f)});
+  const items=[{group:"Kurve's formats"}].concat(FMT_BUILTIN.map(it));
+  if(lib.length) items.push("-",{group:"Saved in this browser"},...lib.map(it));
+  items.push("-",{label:"Save this format…",enabled:!!P(),run:()=>saveFormatAs(src())});
+  if(lib.length) items.push({label:"Delete a saved format",sub:()=>lib.map(f=>({label:f.name,danger:true,run:()=>{ fmtLibSave(fmtLib().filter(q=>q.id!==f.id)); toast(`Deleted the format "${f.name}".`); }}))});
+  return items;
+}
 function formatEveryGraph(){
-  const p=P(); if(!p||S.readOnly||!multiGraph()) return; const src=GP(), cp=v=>v===undefined?null:JSON.parse(JSON.stringify(v));
-  const style=pl=>{ const o=Object.assign({},pl); FMT_KEYS.forEach(k=>{ o[k]=cp(src[k]); });
-    const ax={}; ["x","y","y2"].forEach(a=>{ const s=(src.ax||{})[a]||{}, t=Object.assign({},((pl.ax||{})[a])||{}); FMT_AX.forEach(k=>{ t[k]=cp(s[k]); }); ax[a]=t; }); o.ax=ax; return o; };
+  const p=P(); if(!p||S.readOnly||!multiGraph()) return; const src=GP(), style=pl=>styleFrom(src,pl);
   pushUndo("formatting every graph");
   save({plot:style(p.plot||{}),graphs:(p.graphs||[]).map(g=>Object.assign({},g,{plot:style(g.plot||{})}))},`gave every graph the format of ${graphName(GID())}`);
   S.snap={}; renderPlot(); scheduleSnaps(0);
@@ -6082,13 +6377,20 @@ function setupPlotDetails(){
     const add=t.closest("[data-pdadd]"); if(add){ const g=S.geo, v=g?g.v:curView(), d=plotState().d, k=add.dataset.pdadd;
       const cx=+((v.x0+v.x1)/2).toPrecision(6), cy=+(g&&g.logY?Math.sqrt(v.y0*v.y1):(v.y0+v.y1)/2).toPrecision(6), w=Math.abs(v.x1-v.x0);
       const a={id:annoId(),t:k,xu:d.xu||"",yu:d.yu||""}; if(GID()!=="main") a.g=GID();
-      if(k==="v") a.x=cx; else if(k==="h"){ a.y=cy; delete a.xu; } else if(k==="band"){ a.x=+(cx-w*0.05).toPrecision(6); a.x2=+(cx+w*0.05).toPrecision(6); } else { a.x=cx; a.y=cy; a.text="Text"; }
+      if(k==="v") a.x=cx; else if(k==="h"){ a.y=cy; delete a.xu; } else if(k==="band"){ a.x=+(cx-w*0.05).toPrecision(6); a.x2=+(cx+w*0.05).toPrecision(6); }
+      else if(k==="inset"){ Object.assign(a,{x0:+(cx-w*0.08).toPrecision(6),x1:+(cx+w*0.08).toPrecision(6),y0:null,y1:null,fx:0.6,fy:0.05,fw:0.36,fh:0.4}); }
+      else if(k==="arrow"){ const g2=S.geo; if(g2){ const p=toData(g2.L+g2.pw*0.35,g2.T+g2.mh*0.25), q=toData(g2.L+g2.pw*0.5,g2.T+g2.mh*0.45); a.x=+p.x.toPrecision(6); a.y=+p.y.toPrecision(6); a.x2=+q.x.toPrecision(6); a.y2=+q.y.toPrecision(6); } else { a.x=cx; a.y=cy; a.x2=cx; a.y2=cy; } }
+      else { a.x=cx; a.y=cy; a.text="Text"; }
       wk.annos=(wk.annos||[]).concat([a]); S.pdAnno=a.id; S.annoSel=a.id; renderPlot(); renderPlotDetails();
       const ta=$("#pdAnT"); if(ta){ ta.focus(); ta.select(); } return; }
   });
   const onVal=(e,final)=>{
     const el=e.target; if(S.readOnly||!S.plotPreview) return;
     if(el.dataset.pdpin!=null){ if(!final) return; const id=el.dataset.pdpin, a=(S.plotPreview.annos||[]).find(q=>q.id===id), g=S.geo; if(!a||!g) return;
+      if(a.t==="arrow"){ const e=annoEnds(a,g), d=plotState().d;
+        if(el.checked) pdSet("annos."+id,{pin:"plot",fx:+((e.t.x-g.L)/g.pw).toFixed(4),fy:+((e.t.y-g.T)/g.mh).toFixed(4),fx2:+((e.h.x-g.L)/g.pw).toFixed(4),fy2:+((e.h.y-g.T)/g.mh).toFixed(4)});
+        else { const p=toData(e.t.x,e.t.y), q=toData(e.h.x,e.h.y); pdSet("annos."+id,{pin:null,x:+p.x.toPrecision(7),y:+p.y.toPrecision(7),x2:+q.x.toPrecision(7),y2:+q.y.toPrecision(7),xu:d.xu||"",yu:d.yu||""}); }
+        renderPlotDetails(); return; }
       if(el.checked){ const fx=(g.X(a.x)-g.L)/g.pw, fy=(g.Y(a.y)-g.T)/g.mh;
         pdSet("annos."+id,{pin:"plot",fx:+(Number.isFinite(fx)?Math.max(0,Math.min(1,fx)):0.5).toFixed(4),fy:+(Number.isFinite(fy)?Math.max(0,Math.min(1,fy)):0.1).toFixed(4)}); }
       else { const q=toData(g.L+numOr(a.fx,0.5)*g.pw,g.T+numOr(a.fy,0.1)*g.mh), d=plotState().d; pdSet("annos."+id,{pin:null,x:+q.x.toPrecision(7),y:+q.y.toPrecision(7),xu:d.xu||"",yu:d.yu||""}); }
@@ -6125,6 +6427,8 @@ function setupPlotDetails(){
   hd.addEventListener("dblclick",()=>{ S.pdPos=null; sh.style.transform=""; });
   $("#pdOk").onclick=()=>closePlotDetails(true);
   $("#pdCancel").onclick=()=>closePlotDetails(false);
+  $("#pdFormats").onclick=e=>{ const wk=S.plotPreview; if(!wk) return;
+    toggleMenu(e.currentTarget,()=>formatMenuItems(f=>{ const w=S.plotPreview; if(!w) return; Object.assign(w,styleFrom(f.fmt,w)); renderPlot(); renderPlotDetails(); toast(`Showing the format "${f.name}". OK keeps it.`); },()=>S.plotPreview),{label:"Formats"}); };
   $("#pdAll").onclick=()=>{ if(S.readOnly) return; closePlotDetails(true); formatEveryGraph(); };
   $("#pdReset").onclick=()=>{ const wk=S.plotPreview; if(!wk||S.readOnly) return; const pg=S.pdTab, nul=ks=>ks.forEach(k=>{ wk[k]=null; });
     if(pg==="series"){ const series=Object.assign({},wk.series||{}); delete series[S.pdSel]; if(S.pdSel==="__fit") delete series.__peaks; wk.series=series; }
@@ -6260,7 +6564,7 @@ function setupGraph(){
     // Annotations and the legend move with the pointer in the Zoom, Pan and Label tools.
     const canMove=!S.readOnly&&ev.button===0&&["zoom","pan","label"].includes(S.mode);
     const ag=ev.target&&ev.target.closest?ev.target.closest("[data-anno]"):null;
-    if(ag&&canMove){ const a=annoById(ag.dataset.anno); if(a){ ev.preventDefault(); svg.setPointerCapture(ev.pointerId); S.andrag={id:a.id,x0:x,y0:y,orig:JSON.parse(JSON.stringify(a)),moved:false}; return; } }
+    if(ag&&canMove){ const a=annoById(ag.dataset.anno); if(a){ ev.preventDefault(); svg.setPointerCapture(ev.pointerId); const ah=ev.target.closest("[data-ah]"); S.andrag={id:a.id,x0:x,y0:y,orig:JSON.parse(JSON.stringify(a)),moved:false,end:ah?ah.dataset.ah:null}; return; } }
     const tte=ev.target&&ev.target.closest?ev.target.closest("[data-axtitle]"):null;
     if(tte&&canMove){ ev.preventDefault(); svg.setPointerCapture(ev.pointerId); const k=tte.dataset.axtitle, gp=GP(), ax=(gp.ax||{})[k]||{};
       S.ttdrag={k,x0:x,y0:y,dx:k==="title"?numOr(gp.titleDx,0):numOr(ax.tdx,0),dy:k==="title"?numOr(gp.titleDy,0):numOr(ax.tdy,0),moved:false}; return; }
@@ -6276,7 +6580,7 @@ function setupGraph(){
     svg.setPointerCapture(ev.pointerId);
   });
   svg.addEventListener("pointermove",ev=>{
-    if(!S.geo||!P()) return; const [x,y]=localXY(ev);
+    if(!S.geo||!P()) return; const [x,y]=localXY(ev); S.altKey=ev.altKey;
     const d=toData(x,y);
     const ro=$("#readout"); if(ro){ const [xu,yu]=dataUnits(); ro.textContent=d&&d.inside?`x ${fmt(d.x,6)}${xu?" "+xu:""}   y ${fmt(d.y,5)}${yu?" "+yu:""}`:""; }
     if(S.andrag){ dragAnno(x,y); return; }
@@ -6290,6 +6594,7 @@ function setupGraph(){
       applyHandle(hd,d); hd.moved=true; renderPlot(); showTip(handleTip(hd.k),x,y); return; }
     if(drag){ drag.x1=x; drag.y1=y; if(Math.abs(x-drag.x0)+Math.abs(y-drag.y0)>5) drag.moved=true;
       if(drag.pan){ if(drag.moved) panTo(drag,x,y); hideTip(); return; }
+      if(drag.moved&&S.mode==="arrow"){ const q=ev.altKey?null:snapNear(x,y,10); S.arrowDraft={x0:drag.x0,y0:drag.y0,x1:q?q.px:x,y1:q?q.py:y,pt:q?{x:q.x,y:q.y}:null}; renderPlot(); return; }
       if(drag.moved&&S.mode==="range"){ const g=S.geo; zr.className="zrect pick"; Object.assign(zr.style,{display:"block",left:Math.min(x,drag.x0)+"px",top:g.T+"px",width:Math.abs(x-drag.x0)+"px",height:g.mh+"px"}); }
       if(drag.moved&&(S.mode==="zoom"||S.mode==="mask")){
         const g=S.geo, w=Math.abs(x-drag.x0), hgt=Math.abs(y-drag.y0);
@@ -6309,13 +6614,13 @@ function setupGraph(){
     if(S.room&&d&&Date.now()-lastPres>90){ lastPres=Date.now(); S.room.presence(d.inside?{uid:S.uid,pid:S.pid,cx:d.x,cy:d.y}:{uid:S.uid,pid:S.pid,cx:null,cy:null}).catch(()=>{}); }
   });
   svg.addEventListener("pointerleave",()=>{ if(S.hdrag||drag) return; hideTip(); const ro=$("#readout"); if(ro) ro.textContent=""; if(S.room) S.room.presence({cx:null,cy:null}).catch(()=>{}); });
-  svg.addEventListener("pointercancel",()=>{ drag=null; S.hdrag=null; S.andrag=null; S.lgdrag=null; S.bdrag=null; S.ttdrag=null; S.axdrag=null; zr.style.display="none"; svg.classList.remove("panning"); });
+  svg.addEventListener("pointercancel",()=>{ drag=null; S.hdrag=null; S.andrag=null; S.lgdrag=null; S.bdrag=null; S.ttdrag=null; S.axdrag=null; S.arrowDraft=null; S.guides=null; S.snapRing=null; zr.style.display="none"; svg.classList.remove("panning"); });
   svg.addEventListener("pointerup",ev=>{
     if(S.bdrag){ const bd=S.bdrag; S.bdrag=null; hideTip(); S.noDbl=Date.now(); if(bd.moved){ commitBandDrag(bd); return; }
       S.bandSel=bd.id; renderPlot(); openWin("integ",{render:true}); return; }
     // A click selects; a second click on the same one soon after edits it. (The
     // first click redraws the graph, so the browser's dblclick never arrives.)
-    if(S.andrag){ const ad=S.andrag; S.andrag=null; hideTip(); if(ad.moved){ commitAnnoDrag(ad); return; }
+    if(S.andrag){ const ad=S.andrag; S.andrag=null; hideTip(); S.guides=null; S.snapRing=null; if(ad.moved){ commitAnnoDrag(ad); return; }
       const now=Date.now(), lc=S.annoClick; S.annoClick={id:ad.id,t:now};
       S.noDbl=now;
       if(lc&&lc.id===ad.id&&now-lc.t<450){ S.annoClick=null; annoDouble(ad.id); return; }
@@ -6336,6 +6641,7 @@ function setupGraph(){
       if(hd.moved) $("#plotSay").textContent=handleTip(hd.k); return; }
     if(!drag) return; const d=drag; drag=null; zr.style.display="none"; svg.classList.remove("panning");
     if(d.pan){ if(d.moved) renderFit(); return; }
+    if(S.mode==="arrow"){ const ad=S.arrowDraft; S.arrowDraft=null; if(d.moved&&ad&&Math.hypot(ad.x1-ad.x0,ad.y1-ad.y0)>8&&!S.readOnly) makeArrow(ad); else renderPlot(); return; }
     if(S.mode==="range"){ if(d.moved){ const a=toData(Math.min(d.x0,d.x1),0), b=toData(Math.max(d.x0,d.x1),0); setPickedRange(Math.min(a.x,b.x),Math.max(a.x,b.x)); } return; }
     if(d.moved&&(S.mode==="zoom"||S.mode==="mask")){
       const a=toData(Math.min(d.x0,d.x1),Math.max(d.y0,d.y1)), b=toData(Math.max(d.x0,d.x1),Math.min(d.y0,d.y1));
@@ -6453,8 +6759,18 @@ const MODE_HINT={
   pin:"Click a point or a spot to comment on it",
   anchor:"Click to add an anchor · Drag to move · Right-click to remove · Esc when done",
   range:"Drag across the graph · Esc to cancel",
-  label:"Click a peak to label it · Click an empty spot for text · Double-click to edit"
+  label:"Click a peak to label it · Click an empty spot for text · Double-click to edit",
+  arrow:"Drag from where the arrow starts to what it points at · It snaps to data points (Alt: no snap) · Esc when done"
 };
+// The toolbar keeps to one row: labels go, a stage at a time, while it would wrap.
+let fitTbT=0;
+function fitToolbar(){
+  const t=document.querySelector(".toolbar"); if(!t) return;
+  const wraps=()=>{ const kids=[...t.children].filter(k=>k.offsetWidth>2&&k.offsetParent!==null); if(!kids.length) return false; const top=Math.min(...kids.map(k=>k.offsetTop)); return kids.some(k=>k.offsetTop>top+k.offsetHeight*0.6); };
+  ["c1","c2","c3","c4"].forEach(c=>t.classList.remove(c));
+  for(const c of ["c1","c2","c3","c4"]){ if(!wraps()) break; t.classList.add(c); }
+}
+addEventListener("resize",()=>{ cancelAnimationFrame(fitTbT); fitTbT=requestAnimationFrame(fitToolbar); });
 function setMode(m,quiet){
   S.mode=m;
   document.querySelectorAll("#modeSeg button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===m)));
@@ -9603,6 +9919,145 @@ async function embedFonts(svg){
     return svg.replace(/^(<svg[^>]*>)/,`$1<defs><style>${got.join("\n").replace(/<\/?style/gi,"")}</style></defs>`);
   }catch(e){ return svg; }
 }
+/* ---- Export for a paper or slides ----------------------------------------------
+   The figure at the size it will be printed (a journal's column, slides, or as
+   on screen), its text at a chosen point size there (every text scaled
+   together, opt.k of buildPlot), as SVG at that size, PNG at a resolution
+   (recorded in the file, pHYs), or TIFF (PackBits, with its resolution), on
+   white or transparent. Settings are kept in this browser (kurve.export). */
+const EXP_SIZES=[["single","One column, 85 mm",85,null,"mm"],["onehalf","One and a half columns, 114 mm",114,null,"mm"],["double","Two columns, 174 mm",174,null,"mm"],
+  ["nature1","Nature, one column, 89 mm",89,null,"mm"],["nature2","Nature, two columns, 183 mm",183,null,"mm"],["acs1","ACS, one column, 3.25 in",3.25,null,"in"],["acs2","ACS, two columns, 7 in",7,null,"in"],
+  ["slide","Slide, 1920 × 1080 px",1920,1080,"px"],["screen","As on screen",null,null,"px"],["custom","Your own size",null,null,null]];
+const EXP_DEF={size:"single",w:85,h:60,unit:"mm",fmt:"png",dpi:600,pt:"8",bg:"white",which:"this",lines:"scale"};
+function expLoad(){ try{ return Object.assign({},EXP_DEF,JSON.parse(localStorage.getItem("kurve.export")||"{}")); }catch(e){ return Object.assign({},EXP_DEF); } }
+function expKeep(o){ try{ localStorage.setItem("kurve.export",JSON.stringify(o)); }catch(e){} }
+const toPx=(v,u)=>u==="mm"?v/25.4*96:u==="in"?v*96:v;
+// The figure as SVG for the settings: its size in CSS pixels and how far its text is scaled.
+function expBuild(o){
+  const p=P(); if(!p) return null; const all=o.which==="all"&&multiGraph();
+  const Wp=Math.max(80,Math.round(toPx(+o.w||85,o.unit))), Hp=Math.max(60,Math.round(toPx(+o.h||60,o.unit)));
+  const cfg=plotCfg(), t=(cfg.txt||{}).ticks||{}, f=Math.max(0.5,Math.min(3,+cfg.font||1)), uni=o.lines!=="fixed";
+  // k: how far the text is scaled so the tick numbers come out at o.pt.
+  let k=1; if(o.pt!=="graph"&&+o.pt>0){ const tgt=+o.pt*4/3; if(t.size>0) k=tgt/(t.size*4/3); else { k=tgt/(13*f); if((uni?Wp/k:Wp)<480) k=tgt/(11.5*f); } }
+  const root=(s,w,h)=>s.replace(/^<svg([^>]*?) width="[^"]+" height="[^"]+"/,`<svg$1 width="${w}" height="${h}"`);
+  // Scaled with the text, the figure is laid out k times smaller and drawn k times larger:
+  // lines, symbols and offsets keep the proportions they have on screen.
+  const s=uni?k:1, kk=uni?1:k;
+  if(all){ const n=graphIds().length, nc=n<=3?n:n===4?2:n<=9?3:4, nr=Math.ceil(n/nc), pw=Math.max(60,Math.round((Wp/s-(nc-1)*12)/nc)), ph=Math.max(50,Math.round((Hp/s-(nr-1)*12)/nr));
+    const r=allGraphsSvg(pw,ph,kk); if(!r) return null; const w=Math.round(r.W*s), h=Math.round(r.H*s); return {svg:root(r.svg,w,h),W:w,H:h,k}; }
+  return {svg:root(buildPlot(Math.max(60,Math.round(Wp/s)),Math.max(50,Math.round(Hp/s)),EXPORT_PAL,true,kk!==1?{k:kk}:null),Wp,Hp),W:Wp,H:Hp,k};
+}
+// The root of an SVG at a physical size, and without its white page if it is to be transparent.
+function expDress(svg,o,W,H){
+  if(o.bg==="none") svg=svg.replace(/^(<svg[^>]*>)<rect width="[^"]+" height="[^"]+" fill="[^"]+"\/>/,"$1");
+  if(o.unit==="mm"||o.unit==="in") svg=svg.replace(/^<svg([^>]*?) width="[^"]+" height="[^"]+"/,`<svg$1 width="${(+o.w).toFixed(3)}${o.unit}" height="${(+o.h).toFixed(3)}${o.unit}"`);
+  return svg;
+}
+const CRC_T=(()=>{ const t=new Uint32Array(256); for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=c&1?0xEDB88320^(c>>>1):c>>>1; t[n]=c>>>0; } return t; })();
+function crc32(u8){ let c=0xFFFFFFFF; for(let i=0;i<u8.length;i++) c=CRC_T[(c^u8[i])&255]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+// A PNG that says its resolution: a pHYs chunk after IHDR, so a word processor places it at its size.
+async function pngWithDpi(blob,dpi){
+  const a=new Uint8Array(await blob.arrayBuffer()), ppm=Math.round(dpi/0.0254), ch=new Uint8Array(21), dv=new DataView(ch.buffer);
+  dv.setUint32(0,9); ch.set([0x70,0x48,0x59,0x73],4); dv.setUint32(8,ppm); dv.setUint32(12,ppm); ch[16]=1; dv.setUint32(17,crc32(ch.subarray(4,17)));
+  const out=new Uint8Array(a.length+21); out.set(a.subarray(0,33),0); out.set(ch,33); out.set(a.subarray(33),54); return new Blob([out],{type:"image/png"});
+}
+function packBits(row){
+  const n=row.length, out=new Uint8Array(n+Math.ceil(n/128)+2); let i=0, o=0;
+  while(i<n){ let j=i; while(j+1<n&&row[j+1]===row[i]&&j-i<127) j++;
+    if(j>i){ out[o++]=(-(j-i))&255; out[o++]=row[i]; i=j+1; continue; }
+    let k=i; while(k<n&&k-i<128&&!(k+2<n&&row[k]===row[k+1]&&row[k]===row[k+2])) k++; if(k===i) k=i+1;
+    out[o++]=k-i-1; out.set(row.subarray(i,k),o); o+=k-i; i=k; }
+  return out.subarray(0,o);
+}
+// A baseline TIFF: RGB (or RGBA), PackBits rows, its resolution in dots per inch.
+function tiffEncode(rgba,w,h,dpi,alpha){
+  const spp=alpha?4:3, rows=[]; let total=0; const row=new Uint8Array(w*spp);
+  for(let y=0;y<h;y++){ for(let x=0,i=y*w*4,j=0;x<w;x++,i+=4){ row[j++]=rgba[i]; row[j++]=rgba[i+1]; row[j++]=rgba[i+2]; if(alpha) row[j++]=rgba[i+3]; } const p=packBits(row).slice(); rows.push(p); total+=p.length; }
+  const tags=[[256,4,1,w],[257,4,1,h],[258,3,spp,null],[259,3,1,32773],[262,3,1,2],[273,4,h,null],[277,3,1,spp],[278,4,1,1],[279,4,h,null],[282,5,1,null],[283,5,1,null],[284,3,1,1],[296,3,1,2]];
+  if(alpha) tags.push([338,3,1,2]);
+  const ifd=8, ifdLen=2+tags.length*12+4, bps=ifd+ifdLen, offs=bps+spp*2, cnts=offs+h*4, res=cnts+h*4, data=res+16;
+  const buf=new ArrayBuffer(data+total), dv=new DataView(buf), u8=new Uint8Array(buf);
+  u8.set([0x49,0x49,42,0],0); dv.setUint32(4,ifd,true); dv.setUint16(ifd,tags.length,true);
+  tags.forEach(([tag,type,count,val],q)=>{ const e=ifd+2+q*12; dv.setUint16(e,tag,true); dv.setUint16(e+2,type,true); dv.setUint32(e+4,count,true);
+    const ptr=tag===258?bps:tag===273?offs:tag===279?cnts:tag===282?res:tag===283?res+8:null;
+    if(ptr!=null) dv.setUint32(e+8,ptr,true); else if(type===3) dv.setUint16(e+8,val,true); else dv.setUint32(e+8,val,true); });
+  dv.setUint32(ifd+2+tags.length*12,0,true);
+  for(let s=0;s<spp;s++) dv.setUint16(bps+s*2,8,true);
+  let at=data; rows.forEach((r,y)=>{ dv.setUint32(offs+y*4,at,true); dv.setUint32(cnts+y*4,r.length,true); u8.set(r,at); at+=r.length; });
+  dv.setUint32(res,Math.round(dpi),true); dv.setUint32(res+4,1,true); dv.setUint32(res+8,Math.round(dpi),true); dv.setUint32(res+12,1,true);
+  return new Blob([buf],{type:"image/tiff"});
+}
+function expInfo(o,r){
+  const raster=o.fmt!=="svg", k=o.unit==="px"?1:(+o.dpi||300)/96, pxW=Math.round(r.W*k), pxH=Math.round(r.H*k), cfg=plotCfg(), t=(cfg.txt||{}).ticks||{};
+  const tickPt=o.pt==="graph"?PT(t.size>0?t.size*4/3:(r.W<480?11.5:13)*Math.max(0.5,Math.min(3,+cfg.font||1))):+o.pt;
+  const size=o.unit==="px"?`${r.W} × ${r.H} px`:`${(+o.w).toFixed(o.unit==="in"?2:0)} × ${(+o.h).toFixed(o.unit==="in"?2:0)} ${o.unit}`;
+  return {pxW,pxH,text:`${size}${raster&&o.unit!=="px"?` · ${pxW} × ${pxH} px at ${o.dpi} dpi`:""} · tick numbers ${tickPt} pt`,big:raster&&(pxW>16000||pxH>16000||pxW*pxH>2.5e8)};
+}
+function openExportFigure(){
+  const p=P(); if(!p||!pointsAll().length){ toast("There is no data to export."); return; }
+  S.exp=expLoad(); if(!multiGraph()) S.exp.which="this";
+  const m=$("#expModal"); m._cancel=()=>closeModal(m);
+  renderExportFigure(); openModal(m,$("#expSize"));
+}
+let expT=0;
+function renderExportFigure(){
+  const o=S.exp, f=$("#expForm"); if(!f||!o) return; const ro=S.readOnly?" disabled":"";
+  const opt=(id,list,val)=>`<select id="${id}">${list.map(([k,l])=>`<option value="${esc(String(k))}"${String(k)===String(val)?" selected":""}>${esc(l)}</option>`).join("")}</select>`;
+  const custom=o.size==="custom"||o.size==="screen";
+  let h=`<div class="frow"><label for="expSize">Size</label>${opt("expSize",EXP_SIZES.map(s=>[s[0],s[1]]),o.size)}
+    <label for="expW">Width</label><div class="pair"><input id="expW" type="text" inputmode="decimal" value="${esc(String(+(+o.w).toFixed(o.unit==="in"?3:1)))}" style="width:90px"${o.size!=="custom"&&o.size!=="screen"?"":""}>${opt("expU",[["mm","mm"],["in","in"],["px","px"]],o.unit)}</div>
+    <label for="expH">Height</label><div class="pair"><input id="expH" type="text" inputmode="decimal" value="${esc(String(+(+o.h).toFixed(o.unit==="in"?3:1)))}" style="width:90px"><button type="button" class="btn sm" id="expAspect" title="The proportions of the graph on screen">As on screen</button></div>
+    <label for="expPt">Tick numbers</label><div class="pair">${opt("expPt",[["graph","As on the graph"]].concat([5,6,7,8,9,10,11,12,14,16,18,20,24,28].map(v=>[String(v),v+" pt"])),o.pt)}</div>
+    <span></span><span class="pd-note">At the printed size; every other text keeps its size beside them.</span>
+    <label>Format</label><div class="seg mini" role="group" aria-label="Format">${[["svg","SVG"],["png","PNG"],["tiff","TIFF"]].map(([k,l])=>`<button type="button" data-expfmt="${k}" aria-pressed="${o.fmt===k}">${l}</button>`).join("")}</div>
+    ${o.fmt!=="svg"?`<label for="expDpi">Resolution</label>${opt("expDpi",[[150,"150 dpi"],[300,"300 dpi"],[600,"600 dpi"],[1200,"1200 dpi"]],o.dpi)}`:""}
+    <label>Lines and symbols</label><div class="seg mini" role="group" aria-label="Lines and symbols">${[["scale","Scale with the text"],["fixed","As drawn"]].map(([k,l])=>`<button type="button" data-explines="${k}" aria-pressed="${(o.lines||"scale")===k}">${l}</button>`).join("")}</div>
+    <label>Background</label><div class="seg mini" role="group" aria-label="Background">${[["white","White"],["none","Transparent"]].map(([k,l])=>`<button type="button" data-expbg="${k}" aria-pressed="${o.bg===k}">${l}</button>`).join("")}</div>
+    ${multiGraph()?`<label>Graphs</label><div class="seg mini" role="group" aria-label="Which graphs">${[["this","This graph"],["all","All, as one figure"]].map(([k,l])=>`<button type="button" data-expwhich="${k}" aria-pressed="${o.which===k}">${l}</button>`).join("")}</div>`:""}
+    </div><p class="pd-note">${o.fmt==="svg"?"Vector: sharp at any size, and editable in Illustrator or Inkscape. Its web fonts go with it.":o.fmt==="png"?"An image at that resolution, which it records, so Word and LaTeX place it at its size.":"An image for journals that ask for TIFF: lossless, with its resolution."}</p>`;
+  f.innerHTML=h;
+  clearTimeout(expT); expT=setTimeout(()=>{ const r=expBuild(o), pv=$("#expPrev"), inf=$("#expInfo"); if(!r||!pv) return;
+    const i=expInfo(o,r); inf.textContent=i.text+(i.big?" · too large for this browser: lower the resolution":""); inf.classList.toggle("bad",i.big); $("#expGo").disabled=i.big;
+    // The preview is the figure itself, scaled to fit; its ids are its own.
+    let s=expDress(r.svg,o,r.W,r.H).replace(/\bid="([^"]+)"/g,'id="ex-$1"').replace(/url\(#([^)]+)\)/g,"url(#ex-$1)").replace(/^<svg([^>]*?) width="[^"]+" height="[^"]+"/,`<svg$1`);
+    pv.innerHTML=`<div class="exp-page${o.bg==="none"?" clear":""}" style="aspect-ratio:${r.W}/${r.H}">${s}</div>`; },60);
+}
+async function doExportFigure(){
+  const o=S.exp, p=P(); if(!o||!p) return; const r=expBuild(o); if(!r) return; expKeep(o); closeModal($("#expModal"));
+  const tag=o.size==="custom"||o.size==="screen"?"":`_${o.size}`, base=safeName(p.name+(o.which==="all"&&multiGraph()?"_graphs":"")+tag,"");
+  let svg=expDress(await embedFonts(r.svg),o,r.W,r.H);
+  if(o.fmt==="svg"){ const nm=base+".svg", okk=await saveFile(nm,new Blob([svg],{type:"image/svg+xml"})); if(okk) toast(okk==="dialog"?"Figure saved.":`Sent ${nm} to your downloads.`); return; }
+  const k=o.unit==="px"?1:(+o.dpi||300)/96, dpi=o.unit==="px"?96:+o.dpi, cw=Math.round(r.W*k), ch=Math.round(r.H*k);
+  const url=URL.createObjectURL(new Blob([svg.replace(/^<svg([^>]*?) width="[^"]+" height="[^"]+"/,`<svg$1 width="${r.W}" height="${r.H}"`)],{type:"image/svg+xml;charset=utf-8"}));
+  try{ const img=new Image(); await new Promise((res,rej)=>{ img.onload=res; img.onerror=()=>rej(new Error("render")); img.src=url; });
+    const c=document.createElement("canvas"); c.width=cw; c.height=ch; const g=c.getContext("2d");
+    if(o.bg!=="none"){ g.fillStyle="#FFFFFF"; g.fillRect(0,0,cw,ch); } g.drawImage(img,0,0,cw,ch);
+    let blob, nm;
+    if(o.fmt==="tiff"){ blob=tiffEncode(g.getImageData(0,0,cw,ch).data,cw,ch,dpi,o.bg==="none"); nm=base+".tif"; }
+    else { blob=await new Promise(q=>c.toBlob(q,"image/png")); if(!blob) throw new Error("encode"); blob=await pngWithDpi(blob,dpi); nm=base+".png"; }
+    const okk=await saveFile(nm,blob,o.fmt==="tiff"?"image/tiff":"image/png");
+    if(okk) toast(okk==="dialog"?"Figure saved.":`Sent ${nm}, ${cw} × ${ch} px, to your downloads.`); }
+  catch(e){ toast("This browser couldn't draw the figure as an image at that size. Try a lower resolution, or SVG."); }
+  finally{ URL.revokeObjectURL(url); }
+}
+function setupExportFigure(){
+  const m=$("#expModal"); if(!m) return; const f=$("#expForm");
+  const sizeOf=k=>EXP_SIZES.find(s=>s[0]===k);
+  const screenRatio=()=>{ const fig=$("#figure"); return fig&&fig.clientWidth>10?fig.clientHeight/fig.clientWidth:0.68; };
+  f.addEventListener("change",e=>{ const o=S.exp; if(!o) return; const id=e.target.id, v=e.target.value;
+    if(id==="expSize"){ const s=sizeOf(v); o.size=v;
+      if(v==="screen"){ const fig=$("#figure"); o.unit="px"; o.w=fig?fig.clientWidth:820; o.h=fig?fig.clientHeight:540; }
+      else if(s&&s[2]!=null){ o.unit=s[4]; o.w=s[2]; o.h=s[3]!=null?s[3]:+(s[2]*0.68).toFixed(o.unit==="in"?2:1); } }
+    else if(id==="expU"){ const px=toPx(+o.w,o.unit), py=toPx(+o.h,o.unit); o.unit=v; const back=q=>v==="mm"?q/96*25.4:v==="in"?q/96:q; o.w=+back(px).toFixed(v==="in"?3:1); o.h=+back(py).toFixed(v==="in"?3:1); o.size="custom"; }
+    else if(id==="expW"||id==="expH"){ const q=parseNum(v); if(!(q>0)){ toast("Type a size."); renderExportFigure(); return; } o[id==="expW"?"w":"h"]=q; if(o.size!=="screen") o.size="custom"; }
+    else if(id==="expPt") o.pt=v;
+    else if(id==="expDpi") o.dpi=+v;
+    renderExportFigure(); });
+  f.addEventListener("click",e=>{ const o=S.exp; if(!o) return; const b=e.target.closest("[data-expfmt],[data-expbg],[data-expwhich],[data-explines],#expAspect"); if(!b) return;
+    if(b.dataset.explines) o.lines=b.dataset.explines; else if(b.dataset.expfmt) o.fmt=b.dataset.expfmt; else if(b.dataset.expbg) o.bg=b.dataset.expbg; else if(b.dataset.expwhich) o.which=b.dataset.expwhich; else o.h=+(o.w*screenRatio()).toFixed(o.unit==="in"?3:1);
+    renderExportFigure(); });
+  $("#expGo").onclick=doExportFigure; $("#expCancel").onclick=()=>closeModal(m);
+}
 /* A raster copy for slides, drawn from the same SVG the vector export uses. */
 async function exportPng(){
   const p=P(); if(!p||!pointsAll().length) return;
@@ -9643,12 +10098,12 @@ async function exportSvg(){
 }
 /* Every graph in one figure, lettered (a), (b)… in the order of the graphs,
    each drawn as it is on the desk (its zoom included). */
-function allGraphsSvg(pw,ph){
+function allGraphsSvg(pw,ph,k){
   const ids=graphIds().filter(id=>{ let n=0; withGraph(id,()=>{ n=pointsAll().length; }); return n>0; });
   const n=ids.length; if(!n) return null;
   const nc=n<=3?n:n===4?2:n<=9?3:4, nr=Math.ceil(n/nc), gap=12, W=nc*pw+(nc-1)*gap, H=nr*ph+(nr-1)*gap;
   let s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="#FFFFFF"/>`;
-  ids.forEach((id,i)=>{ let str=""; withGraph(id,()=>{ str=buildPlot(pw,ph,EXPORT_PAL,true); });
+  ids.forEach((id,i)=>{ let str=""; withGraph(id,()=>{ str=buildPlot(pw,ph,EXPORT_PAL,true,k?{k}:null); });
     const pre="p"+i+"-", x=(i%nc)*(pw+gap), y=Math.floor(i/nc)*(ph+gap);
     str=str.replace(/\bid="([^"]+)"/g,`id="${pre}$1"`).replace(/url\(#([^)]+)\)/g,`url(#${pre}$1)`).replace(/^<svg /,`<svg x="${x}" y="${y}" `);
     s+=str+`<text x="${x+8}" y="${y+18}" font-family="'Source Sans 3', Arial, sans-serif" font-size="16" font-weight="700" fill="#111820">(${String.fromCharCode(97+i%26)})</text>`; });
@@ -11581,6 +12036,7 @@ function moveBar(dir){
 function exportItems(){
   const p=P(), has=!!(p&&pointsAll().length), f=p?activeFit():null;
   return [
+    {label:"Figure for a paper or slides…", run:openExportFigure, enabled:has},
     {label:"Figure as SVG (vector, for papers)", run:exportSvg, enabled:has},
     {label:"Figure as PNG (image, for slides)", run:exportPng, enabled:has},
     multiGraph()?{label:"All graphs as one figure", sub:()=>[{label:"As SVG (vector, for papers)",run:exportAllSvg},{label:"As PNG (image, for slides)",run:exportAllPng}]}:null,
@@ -11730,7 +12186,7 @@ ${DL([["Into","This project, beside what is there, or a new project."],["Graphs"
  body:`<h2 id="k-all">Everywhere</h2>
 ${DL([[K("Ctrl","Z"),"Undo"],[K("Ctrl","Shift","Z")+" · "+K("Ctrl","Y"),"Redo"],[K("Ctrl","O"),"Import a file"],[K("Ctrl","Enter"),"Run the fit · run Python code · post a comment"],[K("Esc"),"Close a menu or dialog; back to the Zoom tool"],[K("F1"),"Help on the window in front"],[K("?"),"This page"]],"keys")}
 <h2 id="k-graph">On the graph</h2>
-${DL([[K("←")+" "+K("→"),"Previous or next point (click the graph first)"],[K("Home")+" "+K("End"),"First or last point"],[K("+")+" "+K("−")+" "+K("0"),"Zoom in, zoom out, show all"],[K("[")+" "+K("]"),"Start or end the view at the selected point"],[K("M"),"Mask or restore the selected point"],[K("P"),"Put a peak at the selected point"],[K("Delete"),"Remove the selected peak, label, line or band"],[K("Enter")+" · "+K("F2"),"Type over the selected label or text; "+K("Shift","Enter")+" starts a new line"],["Middle-drag","Pan, in any tool"],["Scroll","Zoom at the pointer"],["Double-click","Show all the data"],[K("Shift","F10"),"The graph's menu"]],"keys")}
+${DL([[K("←")+" "+K("→"),"Previous or next point (click the graph first)"],[K("Home")+" "+K("End"),"First or last point"],[K("+")+" "+K("−")+" "+K("0"),"Zoom in, zoom out, show all"],[K("[")+" "+K("]"),"Start or end the view at the selected point"],[K("M"),"Mask or restore the selected point"],[K("P"),"Put a peak at the selected point"],[K("Delete"),"Remove the selected peak, label, line or band"],[K("Enter")+" · "+K("F2"),"Type over the selected label or text; "+K("Shift","Enter")+" starts a new line"],[K("Ctrl","Shift","=")+" · "+K("Ctrl","="),"While typing: superscript · subscript"],[K("Alt")+" while dragging","No snapping: text off its guides, an arrow's head off the data"],["Middle-drag","Pan, in any tool"],["Scroll","Zoom at the pointer"],["Double-click","Show all the data"],[K("Shift","F10"),"The graph's menu"]],"keys")}
 <h2 id="k-sheet">In the worksheet</h2>
 ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move; with "+K("Shift")+", select; with "+K("Ctrl")+", jump to the end of the data"],[K("Enter")+" · "+K("Tab"),"Next row · next column"],[K("F2")+" · double-click","Edit the cell; typing replaces it; "+K("Esc")+" cancels"],[K("Delete"),"Clear (empty cells and labels only)"],[K("Ctrl","C")+" "+K("Ctrl","V"),"Copy and paste, as tab-separated text"],[K("Ctrl","D")+" · "+K("Ctrl","R"),"Fill down · fill right"],[K("Ctrl","F"),"Find; "+K("Enter")+", "+K("Shift","Enter")+" or "+K("F3")+" for the next or previous match"],[K("Ctrl","Home")+" "+K("Ctrl","End"),"First or last cell"],[K("PgUp")+" "+K("PgDn"),"A screen up or down"]],"keys")}
 <h2 id="k-flow">In the History</h2>
@@ -11837,7 +12293,7 @@ ${DL([["<code>x</code>, <code>y</code>","The spectrum's data: numpy arrays when 
 {id:"graph", g:"Graph", t:"The graph", win:"graph", kw:"graph plot zoom pan mask add peak label comment tool pointer readout stage raw final compare reverse log grid residuals right-click",
  lead:"The analysed spectrum and the others beside it, with the pointer tools on the toolbar.",
  body:`<h2>Pointer tools</h2>
-${DL([["Zoom","Drag a box to zoom; a flat box zooms X only. Scroll to zoom at the pointer. Click a point to select it."],["Pan","Drag to move the view. The middle button pans in any tool."],["Mask","Click a point or drag a box to leave points out of the fit, the peak finder and the integrals; click again to bring them back."],["Add peak","Click where you see a peak to add it to the peak fit."],["Label","Click a peak to label it and type; click an empty spot to write text. "+DA("annos","Labels and text")],["Comment","Click a point or a spot to start a comment anchored there."]])}
+${DL([["Zoom","Drag a box to zoom; a flat box zooms X only. Scroll to zoom at the pointer. Click a point to select it."],["Pan","Drag to move the view. The middle button pans in any tool."],["Mask","Click a point or drag a box to leave points out of the fit, the peak finder and the integrals; click again to bring them back."],["Add peak","Click where you see a peak to add it to the peak fit."],["Label","Click a peak to label it and type; click an empty spot to write text. "+DA("annos","Labels and text")],["Arrow","Drag from where the arrow starts to what it points at; its head snaps to a data point. "+DA("annos#arrows","Arrows")],["Comment","Click a point or a spot to start a comment anchored there."]])}
 <p>Double-click the graph, or <em>Show all</em>, to see all the data again. A zoom belongs to the X units it was made in.</p>
 <h2>Raw, Final, Compare</h2>
 <p>The graph normally shows the final data. <em>Raw</em> shows the data as recorded, <em>Compare</em> both. Selecting a box in the History shows the data at that point, and a chip on the graph's bar says which stage it is, with the way back.</p>
@@ -11864,7 +12320,7 @@ ${DL([["One for each spectrum",MP("Window › New graph › One for each spectru
 <p>Only the graph in front is live. The others are pictures, drawn again only when something they show changes (their data, processing, settings, zoom or labels), a few at a time, so twelve graphs cost little more than one.</p>
 <h2>History and exports</h2>
 <p>With several graphs, the History has a box for each, below the spectra it shows, with its layout, what is drawn on it, its recent changes and its own discussion; the log names the graph each change was made on. ${MP("Export › All graphs as one figure")} lays every graph out in one SVG or PNG, lettered (a), (b)…; <em>Every spectrum's final data as CSV</em> writes them side by side; the report shows every graph. ${DA("export","Exporting")}</p>`},
-{id:"style", g:"Graph", t:"Formatting the graph", kw:"format plot details style colour color line symbol width dash fill axes axis ticks tick length mirror position offset zero frame box grid background margin legend columns layout overlay offset stack double y heat map font scheme title quick styles every graph",
+{id:"style", g:"Graph", t:"Formatting the graph", kw:"format plot details style colour color line symbol width dash fill axes axis ticks tick length mirror position offset zero frame box grid background margin legend columns layout overlay offset stack double y heat map font scheme title quick styles every graph formats saved template journal slides",
  lead:"The Format dialog holds every setting of the figure, page by page. Changes show on the graph as you make them; OK keeps them as one undo step, Cancel leaves the graph as it was.",
  body:`<p>Open it from ${MP("Plot › Format graph…")}, the graph's right-click menu, a double-click on an axis's numbers, or <em>Font, size and every setting…</em> on anything drawn. Drag its title bar to move it off what it hides; a double click puts it back. <em>Defaults</em> resets the page in front.</p>
 <h2 id="data">Data</h2>
@@ -11883,19 +12339,25 @@ ${DL([["Layout","<em>Overlay</em>; <em>Offset</em> (a waterfall, each trace labe
 <ul><li>Drag the <strong>legend</strong>, a <strong>title</strong> or an <strong>axis's numbers</strong> to move them. An axis dragged into the plot sits at that value (it snaps to zero); dragged out, it is set off from the plot. A title dragged back within 5 px of its place snaps home.</li>
 <li>Double-click a title to type over it; double-click an axis's numbers for its page.</li>
 <li>Right-click an axis's numbers, a title, the legend or an empty spot for their menus: position, ticks, numbers, alignment, columns, text size, the frame.</li></ul>
+<h2 id="formats">Formats</h2>
+<p>A format is a graph's frame, axes, text, legend and colours, without its data, ranges, titles or labels. ${MP("Plot › Formats")} gives the graph one of Kurve's (its own; a journal's, sans serif at 8 pt with the axes alone and ticks out; classic serif in a box; slides, with large text and heavy axes; minimal, open axes on a light grid) or one you saved, and <em>Save this format…</em> keeps the graph's in this browser for any graph in any project. In the Format dialog, <em>Formats</em> shows one on the graph before OK keeps it. With several graphs, <em>Give every graph a format</em>.</p>
 <h2>Every graph alike</h2>
 <p>With several graphs, <em>Use on every graph</em> gives all of them this graph's frame, axes, text, legend and colours; their data, ranges, titles and labels stay their own. ${DA("graphs","Several graphs")}</p>
 <h2>Labels and lines</h2>
-<p>The last page lists every annotation on the graph; choose one to edit all of it. ${DA("annos","Labels, text, lines and ranges")}</p>`},
-{id:"fonts", g:"Graph", t:"Fonts", kw:"font fonts typeface family size points bold italic underline colour web google installed computer embed export serif sans mono",
+<p>The last page lists every annotation on the graph; choose one to edit all of it. ${DA("annos","Labels, text, lines, arrows and insets")}</p>`},
+{id:"fonts", g:"Graph", t:"Fonts", kw:"font fonts typeface family size points bold italic underline colour web google installed computer embed export serif sans mono superscript subscript greek symbol unicode alpha degree angstrom",
  lead:"Each kind of text on a graph can have its own font, size, weight, slant and colour, and a figure takes its fonts with it.",
  body:`<h2>Choosing a font</h2>
 <p>Every font button opens the same list: each name in its own face, grouped into sans serif, serif and monospace, with a search box. Fonts marked <em>web</em> load from Google Fonts the first time they are used, so they look the same on every computer. A font marked <em>not on this computer</em> would be drawn in its fallback; choose another, or one marked web. Any font can be typed by name: one on this computer is used as it is, and a name Google Fonts has is loaded from there. Where the browser allows, <em>This computer's fonts…</em> lists the fonts installed here (it asks first).</p>
 <h2>Which text</h2>
 ${DL([["All text",MP("Plot › Font")+", or "+MP("Format graph › Text and fonts")+": the font and size of everything on the graph."],["Each kind","The title, axis titles, tick numbers, legend, labels and text, and fitted peak numbers each have a bar, as in a word processor: font, size in points, bold, italic, underline, colour and, for the title, alignment. A setting left empty follows the graph's."],["One label","A label, text or line has the same bar on its own page, over the labels' style."]])}
+<h2 id="rich">Superscripts, subscripts and symbols</h2>
+<p>Any text on the graph (titles, axis titles, legend entries, labels, text on the plot) can carry them:</p>
+${DL([["<code>cm^{-1}</code>","A superscript: cm⁻¹. Only braces make one, so <code>sample_01</code> keeps its underscore."],["<code>H_{2}O</code>","A subscript: H₂O."],["<code>\\alpha</code>, <code>\\Delta</code>, <code>\\mu</code>…","Greek letters, small and capital."],["<code>\\deg</code>, <code>\\pm</code>, <code>\\times</code>, <code>\\AA</code>, <code>\\approx</code>, <code>\\le</code>, <code>\\to</code>…","°, ±, ×, Å, ≈, ≤, →. <code>\\deg C</code> is °C: a space before a letter is swallowed, as is <code>{}</code> after the name; <code>\\nu = 1</code> keeps its space."],["<code>\\^ \\_ \\{ \\}</code>","The characters themselves."]])}
+<p>In the Format dialog the buttons beside a text field make a superscript (x²), a subscript (x₂) of what is selected, or insert a Greek letter or a symbol from a grid. While typing, here or on the graph, ${K("Ctrl","Shift","=")} makes a superscript and ${K("Ctrl","=")} a subscript.</p>
 <h2>In exports</h2>
 <p>An SVG or PNG takes the web fonts it uses with it: the letters it draws, embedded in the file. A PNG would otherwise fall back to a default face, and an SVG to whatever the other computer has. Without a connection the figure is exported as it is, and the fonts installed here are used by name.</p>`},
-{id:"annos", g:"Graph", t:"Labels, text, lines and ranges", kw:"annotation label text line vertical horizontal range shade arrow peak label move drag type edit delete x",
+{id:"annos", g:"Graph", t:"Labels, text, lines, arrows and insets", kw:"annotation label text line vertical horizontal range shade arrow inset zoom magnify peak label move drag type edit delete x snap guide align",
  lead:"Annotations belong to the figure: peak labels, free text, vertical and horizontal lines, and shaded X ranges.",
  body:`<h2>Adding</h2>
 ${DL([["Peak label","The <em>Label</em> tool: click a peak and type. Or right-click near a peak."],["Text","The Label tool on an empty spot, or right-click › Text here."],["Lines","Right-click › Vertical or Horizontal line, or "+MP("Plot › Annotate")+"."],["Shaded range",MP("Plot › Annotate › Shade an X range")+", then drag across the graph."],["A whole set",DA("peaks","The Peaks window")+" marks and labels every peak it finds."]])}
@@ -11907,12 +12369,23 @@ ${DL([["Peak label","The <em>Label</em> tool: click a peak and type. Or right-cl
 <h2>Text</h2>
 <p>An empty label shows the value; <code>{x}</code> anywhere in a label or line's text stands for its position. Text can run over several lines.</p>
 ${DL([["Style","Its own font, size in points, bold, italic, underline, colour and alignment, over the graph's style for labels. "+DA("fonts","Fonts")],["Turn","Upright, 45°, 90°, −90°, or any angle typed. A vertical line's text runs beside the line or along it."],["Box","None, an outline, a fill, or both, each in a colour of its own."],["Where","Text sits at data values, so it moves with the data when you zoom, or is <em>pinned to the plot</em>: placed by fractions of the plot's width and height, so it stays put. Nine buttons place pinned text in a corner, at an edge or in the centre; <em>Centre across the plot</em> centres any text."],["Lines and ranges","Their text at the top, middle or bottom (left, middle or right on a horizontal line); colour, dash and width; a range's shading and lines at its edges."]])}
+<h2 id="arrows">Arrows</h2>
+<p>The <em>Arrow</em> tool on the toolbar (or ${MP("Plot › Annotate › Arrow")}, or the graph's right-click menu): drag from where the arrow starts to what it points at. Its head snaps to the nearest data point; hold ${K("Alt")} to place it freely. Select it and drag either end, or the arrow itself. Its head can be filled, open, at both ends or none (a plain line), with its size, the line's colour, dash and width; text written for it sits beyond its tail. Like text, it can be pinned to the plot.</p>
+<h2 id="insets">Insets</h2>
+<p>Zoom into a region, then <em>Make this zoom an inset</em> from the graph's right-click menu (or ${MP("Plot › Annotate › Inset of the zoomed region")}): the graph returns to all the data with the region drawn small inside it, in the emptiest corner that does not cover the region, outlined on the graph with lines to the inset. Drag the inset to move it and its corner to resize it; its page sets the X and Y range (empty Y fits the data there), its place and size, the outline and lines, axis titles and the size of its text.</p>
+<h2>Lining things up</h2>
+<p>Dragged text lines up with the centre of the plot and with other text: a dashed guide shows when it does. Hold ${K("Alt")} to drag freely.</p>
 <h2>Marks</h2>
 <p>A peak label marks its peak with a triangle above it, a drop line to the axis, a dashed vertical line with the text along it, a leader line, or nothing.</p>
 ${TIP("Annotations are drawn only on data in the units they were placed in: a label placed on Raman shifts does not appear on a wavelength axis.")}`},
-{id:"export", g:"Graph", t:"Exporting", kw:"export save download svg png csv report html json recipe copy figure paper",
+{id:"export", g:"Graph", t:"Exporting", kw:"export save download svg png tiff tif csv report html json recipe copy figure paper journal column width dpi resolution slides transparent points size",
  lead:"The figure, the data and a report, from the Export button or File › Export.",
- body:`${DL([["Figure as SVG","Vector, for papers: exactly what is on screen, at any size."],["Figure as PNG","An image at 2.5 times the screen's resolution, for slides."],["All graphs as one figure","With several graphs: every graph in one SVG or PNG, lettered (a), (b)… as they are on the desk."],["Final data and fit as CSV","Every column with units, the mask, the fit, residuals, baseline and each peak's curve, followed by commented blocks: metadata, fingerprint, processing steps with their warnings, marked peaks with labels, band integrals and fit statistics."],["Every spectrum's final data as CSV","With several spectra: each one's final X and Y side by side, and how each was processed."],["Batch results as CSV","After a batch fit: the Batch window's table with each value's error, how the fit was made, and the straight line through the trend. "+DA("batch","Fitting every spectrum")],["Raw data as CSV","The recorded data under a header that says how to check its fingerprint. "+DA("rawdata","Raw data")],["Processing steps as JSON","The recipe: every step with its settings."],["Report as HTML","One self-contained file: the figure, the notes on anything that makes the numbers less certain, the parameter table with t, p, confidence intervals and dependency, statistics, peaks, bands, the raw-data record, every processing step with a filmstrip, the fit history, the method, every discussion thread and the log."],["Copy results table","Tab-separated, to paste into a spreadsheet."]])}
+ body:`<h2 id="paper">A figure for a paper or slides</h2>
+<p>${MP("Export › Figure for a paper or slides…")} makes the figure at the size it will be printed, with a preview:</p>
+${DL([["Size","One column (85 mm), one and a half (114 mm) or two (174 mm); Nature's 89 and 183 mm; ACS's 3.25 and 7 in; a 1920 × 1080 slide; as on screen; or your own width and height in mm, inches or pixels. <em>As on screen</em> takes the graph's proportions."],["Tick numbers","Their size in points at the printed size; every other text keeps its size beside them, so 8 pt numbers come out as 8 pt on the page."],["Lines and symbols","<em>Scale with the text</em>: the whole figure keeps the proportions it has on screen, lines and symbols as thick beside the text as there (best for slides). <em>As drawn</em>: lines keep their width in points whatever the text size."],["Format","SVG, vector, at that size in mm or inches, its web fonts embedded; PNG at 150 to 1200 dpi, which it records so a word processor places it at its size; TIFF, lossless, with its resolution, for journals that ask for it."],["Background","White, or transparent for PNG, TIFF and SVG."],["Graphs","With several graphs, this one or all of them as one figure."]])}
+<p>The settings are remembered in this browser.</p>
+<h2>Everything else</h2>
+${DL([["Figure as SVG","Vector, for papers: exactly what is on screen, at any size."],["Figure as PNG","An image at 2.5 times the screen's resolution, for slides."],["All graphs as one figure","With several graphs: every graph in one SVG or PNG, lettered (a), (b)… as they are on the desk."],["Final data and fit as CSV","Every column with units, the mask, the fit, residuals, baseline and each peak's curve, followed by commented blocks: metadata, fingerprint, processing steps with their warnings, marked peaks with labels, band integrals and fit statistics."],["Every spectrum's final data as CSV","With several spectra: each one's final X and Y side by side, and how each was processed."],["Batch results as CSV","After a batch fit: the Batch window's table with each value's error, how the fit was made, and the straight line through the trend. "+DA("batch","Fitting every spectrum")],["Raw data as CSV","The recorded data under a header that says how to check its fingerprint. "+DA("rawdata","Raw data")],["Processing steps as JSON","The recipe: every step with its settings."],["Report as HTML","One self-contained file: the figure, the notes on anything that makes the numbers less certain, the parameter table with t, p, confidence intervals and dependency, statistics, peaks, bands, the raw-data record, every processing step with a filmstrip, the fit history, the method, every discussion thread and the log."],["Copy results table","Tab-separated, to paste into a spreadsheet."]])}
 <p>Tables in the Peaks, Integrate and Statistics windows have Copy buttons of their own.</p>
 ${TIP("The report can never say less than the screen: its notes come from the same checks as the Results window's.")}`},
 /* ---------------------------------------------------------------- Analysis */
@@ -13127,6 +13600,7 @@ function plotMenu(){
   const p=P(), has=!!(p&&pointsAll().length), cfg=plotCfg(), edit=!!p&&!S.readOnly, act=activeYCol();
   const st=act?serStyle(act.id,true,readPalette(),false,cfg).type:cfg.style;
   return [{label:"Format graph…", run:()=>openPlotDetails(act&&act.id,"frame"), enabled:!!p},
+    {label:"Formats", sub:()=>formatMenuItems(f=>useFormat(f,false),()=>GP()).concat(multiGraph()?["-",{label:"Give every graph a format",sub:()=>FMT_BUILTIN.concat(fmtLib()).map(f=>({label:f.name,enabled:edit,run:()=>useFormat(f,true)}))}]:[])},
     {label:"Format", sub:()=>[{label:"X axis…", run:()=>openPlotDetails(null,"ax:x"), enabled:!!p},{label:"Y axis…", run:()=>openPlotDetails(null,"ax:y"), enabled:!!p},
       {label:"Frame and grid…", run:()=>openPlotDetails(null,"frame"), enabled:!!p},{label:"Text and fonts…", run:()=>openPlotDetails(null,"text"), enabled:!!p},
       {label:"Legend…", run:()=>openPlotDetails(null,"legend"), enabled:!!p},{label:"Lines and symbols…", run:()=>openPlotDetails(act&&act.id,"series"), enabled:!!p}]},
@@ -13149,6 +13623,8 @@ function plotMenu(){
       {label:"Vertical line…", run:()=>addLineDlg("v"), enabled:edit&&has},
       {label:"Horizontal line…", run:()=>addLineDlg("h"), enabled:edit&&has},
       {label:"Shade an X range (drag on the graph)", run:shadeRange, enabled:edit&&has},
+      {label:"Arrow (drag on the graph)", run:()=>setMode("arrow"), enabled:edit&&has},
+      {label:"Inset of the zoomed region", run:makeInset, enabled:edit&&has&&!!S.view, title:S.view?"":"Zoom into a region first"},
       {label:"Label peaks with the Label tool", run:()=>setMode("label"), enabled:edit&&has},
       {label:"Find and mark peaks…", run:()=>openPeakFinder(), enabled:edit&&has},
       "-",
@@ -13298,7 +13774,7 @@ async function loadExample(kind){
    Boot
    ============================================================ */
 function wireStatic(){
-  setupRanges(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); setupPlotDetails(); wireStepForms($("#pane-tool"));
+  setupRanges(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); setupPlotDetails(); setupRichTools(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
   document.querySelectorAll(".rb[data-rmenu]").forEach(b=>b.addEventListener("click",()=>toggleMenu(b,()=>menuItems(b.dataset.rmenu),{label:b.textContent.trim()})));
   $("#rbPython").onclick=()=>openPython();
   document.querySelectorAll(".mb").forEach(b=>{
@@ -13335,9 +13811,11 @@ function wireStatic(){
   // Dialogs first: Tab stays inside, Escape cancels.
   document.addEventListener("keydown",e=>{
     const m=MODALS[MODALS.length-1]; if(!m) return;
+    // A menu opened from a dialog closes on Escape, and keeps its arrows.
+    if(menuOpen){ if(e.key==="Escape"){ e.preventDefault(); e.stopImmediatePropagation(); closeMenu(true); } return; }
     // A font or colour picker over a dialog keeps its own keys: Escape closes it, not the dialog.
-    const pop=(fpOpen&&fpOpen.el)||(cpOpen&&cpOpen.el);
-    if(pop){ if(e.key==="Escape"){ e.preventDefault(); e.stopImmediatePropagation(); closeFontPicker(); closeColorPicker(); return; } if(pop.contains(e.target)) return; }
+    const pop=(fpOpen&&fpOpen.el)||(cpOpen&&cpOpen.el)||(spOpen&&spOpen.el);
+    if(pop){ if(e.key==="Escape"){ e.preventDefault(); e.stopImmediatePropagation(); closeFontPicker(); closeColorPicker(); closeSymPicker(); return; } if(pop.contains(e.target)) return; }
     if(e.key==="Tab") trapIn(m,e);
     else if(e.key==="Escape"){ e.preventDefault(); e.stopImmediatePropagation(); (m._cancel||(()=>closeModal(m)))(); }
   },true);
