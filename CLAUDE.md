@@ -23,7 +23,8 @@ keyboard focus). Both are remembered per browser; neither changes the graph's co
 The desk holds **windows**, as in Origin: Graph, Worksheet, History, Overview, Peaks,
 Integrate, Fit, Results, Batch, any number of Trend graphs, Statistics, Python, Discussion, Help, and the transient Tool dialog. Each moves by its title bar, resizes from
 its edges, maximises on a double-click of the title and minimises to the **taskbar** along the
-bottom of the desk, which also has Tile and Cascade. Every title bar has a **?** that opens
+bottom of the desk, which starts with the project's name (every window on the desk is that
+project's; click it to switch) and also has Tile and Cascade. Every title bar has a **?** that opens
 the window's article in the **Help window** (F1 does it for the window in front; a tool's
 opens its step's article). A first visit opens Graph, History and Worksheet. A project can
 have **several graphs**, each in its own window (Window › New graph: with the analysed
@@ -31,7 +32,11 @@ spectrum, with every spectrum, or one for each spectrum, tiled): the one clicked
 (it is drawn live, its spectrum is analysed and every window follows), the others show a
 picture and chips naming their spectra; each has a ⋯ menu (rename, spectra on it, duplicate,
 export, delete), the X zoom is linked between them unless switched off, and with more than
-four the taskbar gathers them under one Graphs button. The **graph window** has its own bar repeating the Data, Math, Analysis, Statistics
+four the taskbar gathers them under one Graphs button. Graphs plotted one by one are put
+together by holding and dropping: a graph by the grip in its title bar onto another graph
+(or its taskbar button) merges into it, a spectrum's chip adds that spectrum (or, dropped on
+the empty desk, gets a graph of its own); Window › Combine graphs… does it from a list, and
+File › Bring in from another project… copies spectra between projects. The **graph window** has its own bar repeating the Data, Math, Analysis, Statistics
 and Plot menus, a Python button, and a chip saying which stage of the processing is shown
 when it is not the final data. Right-click on the graph (or Shift+F10) gives the spectrum's
 colour, plot type and style, a line, text or peak label where you clicked, the frame, ticks,
@@ -427,7 +432,24 @@ graph first, with the taskbar kept at the bottom of the screen.
   front graph's window, `splitInto`), `onePerSpectrum`, `allInOneGraph`, `duplicateGraph`,
   `renameGraph`, `deleteGraph` (its annotations go with it, never data), `toggleGraphCol`,
   `showGraph`; menus `graphWinItems(id)` (the ⋯), `graphsMenuItems` (the taskbar's Graphs
-  button and Window › Graphs), `newGraphItems`. `tileWins` puts the graphs in a grid on the
+  button and Window › Graphs), `newGraphItems`. **Combining**: `combineGraphs(srcs, into,
+  {cids, keep, layout, at})` puts the spectra of graphs `srcs` (and spectra `cids`) on `into`
+  (a graph id, `"main"`, which un-hides them, or `"new"`), copies each spectrum's series style
+  from where it came unless the target has one, and unless `keep` deletes the source graphs
+  (never main) with their annotations re-tagged to the target; one undo entry, a log line and
+  a toast. A new graph takes a deleted source's window, the drop point (`placeWinAt`) or half
+  the source's (`splitInto`). Dragging is `startGraphDrag(e, {gid, cid, click})`, pointer
+  events on `window` (a click under 6 px runs `click`; Escape cancels; at phone width holding
+  near the top or above the taskbar scrolls): from the grip `[data-gdrag]` in every graph
+  window's title bar (shown only with several graphs, `body.mgraph`; a click opens
+  `combineMenuItems(id)`, also the ⋯ menu's Combine) or a picture's chip `[data-gchip]`
+  (the window's capture-phase pointerdown no longer activates on these; their click does).
+  `gDropAt(x, y, o)` reads `elementsFromPoint`: a graph window or a graph's taskbar button
+  (`dropTarget`, `already` when a chip's spectrum is on it), the bare desk for a chip; the
+  ghost (`.gghost`) says what a drop would do (`dropText`), the target is outlined (`.gdrop`),
+  and Ctrl, Alt or Cmd at the drop keeps the graph. `combineDlg(into)` (Window › Combine
+  graphs…): which graphs, onto which (or a new one), the layout, keep or not.
+  `syncGraphWins` moves the live plot out of a window before removing it (`rescueLive`). `tileWins` puts the graphs in a grid on the
   left (as near square as the desk allows, the last row stretched) and the rest in a column;
   when a graph would be under 250 × 235 px that way, the graphs take the whole desk and the
   other windows are minimised. A picture smaller than 250 × 160 px is drawn at that size and
@@ -634,7 +656,26 @@ graph first, with the taskbar kept at the bottom of the screen.
   `remove`, `watchComments`, `addComment`, `updateComment`, `deleteComment`. To add a real
   backend (Firebase, Supabase, a custom server with WebSockets), implement this interface.
   With LocalStore and no projects at all, `onProjects` creates an empty one, so a first visit
-  has a worksheet to paste into.
+  has a worksheet to paste into. **Projects coming and going**: `S.pendingOpen` is set by
+  `createProject` only when the new project is not listed yet (a shared store lists it before
+  `create` resolves), and `onProjects` keeps the current id only while it is that pending one;
+  `S.gone` holds projects deleted here, filtered out of every list. `deleteProject` adds to it,
+  removes, then (if no list has done so) `leaveProject(pid)` (drops a waiting worksheet save,
+  forgets its layout, clears `S.pid`) and opens the most recent other project, saying which;
+  a project deleted elsewhere is left the same way, with a toast. `save` never writes to a
+  gone project. Names: `projName`, `isUntitled` ("Untitled analysis", "(2)" too),
+  `uniqueProjName(nm, except)` (every new project; imports that rename an untitled one),
+  `batchProjName(names)` (what the files' names share, or "first to last"); `switchProject`
+  (the list's run) toasts what is in the project. **Bringing in** (File › Bring in from
+  another project…, `bringInDlg(gid)`, `bringIn(groups, onto, gid)`): `copySpectra(q, cids)`
+  copies chosen spectra with their sources and what their steps read (`stepReads`, from each
+  op's `deps`), their X (nearest left of the root) and error columns, with new column and step
+  ids (`ref`, `cols`, `reads`, `readSigs` remapped), a computed column as values, and
+  `origin {pid, proj, col, t, by, computed?}` (the History's Raw data box says "Brought in");
+  an X column equal to the last one here is shared. Peak sets (`found`, `pk:` annotations) and
+  series styles come too; one undo entry, a raw-data record entry and a log line naming the
+  project. Onto the graph in hand, a new graph, or one each (an empty project's first graph
+  takes them). `projSpectra(q)`, `otherProjects()`.
 - **State**: global `S`; the current project is `S.proj` with `cols` (see Columns above),
   `activeY`, `raw` (`{fp, hist}`), `meta` (captured from the imported file's header), `plot`
   settings (`style`, `logY`, `grid`, `resid`, `revX`, `hidden`, and from the Format dialog
@@ -838,7 +879,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   (Bench: a raised white pill; Graphite: black with white text), windows `--win-sh` and
   `--win-sh-act`. Numbers typed into forms and slider readouts are in `--mono`.
 - **Menus and dialogs**: `openMenu(trigger, items, opt)` renders any menu (menu bar, project
-  list, Export, column header, graph) from `{label, run, kbd, checked, radio, enabled, danger}` items,
+  list, Export, column header, graph) from `{label, run, kbd, note, checked, radio, enabled, danger}` items
+  (`note` is muted text on the right, as the project list's "3 spectra · 2 graphs"),
   `"-"` separators and `{group}` headings, with arrow-key, type-ahead and Escape handling.
   An item `{label, sub}` (`sub` a list or a function returning one) opens a submenu to the
   side on hover (after 110 ms, with the same grace leaving it), on a click, or with →; ← and
@@ -1161,6 +1203,18 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   reads the spectrum a fit was made on.
 - **A layout belongs to its project.** Twelve tiled graphs in one project left the next
   project's only graph a twelfth of the desk. Graph windows are placed per project.
+- **A flag that waits for an event must know the event may have come first.** `pendingOpen`
+  kept a new project on the desk until the store listed it; a shared store lists it before
+  `create` resolves, so the flag was set after the fact and never cleared, and deleting that
+  project left its graphs on screen with the next import going into it. The flag is set only
+  if the project is not listed yet, deletions are remembered (`S.gone`), and the desk leaves a
+  deleted project at once. Test a store's events in both orders.
+- **A window that goes takes what it holds.** The live plot is moved into the window of the
+  graph in front; removing that window (the graph merged, deleted, or of the project just
+  left) removed the plot, and every later render threw. Windows give the plot back first.
+- **Two projects with one name are one project to the eye.** Every batch import was called
+  "3 spectra", every graph "Graph 1": after a switch nobody could tell which graphs were
+  whose. New projects get names of their own, and the taskbar says whose windows these are.
 
 - **A font that is not there looks like no change.** Choosing Calibri or Helvetica on a
   computer without them drew the fallback, so "changing the font of the axis titles did
@@ -1229,7 +1283,17 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 
 ## Roadmap
 
-Done in this round: finding and labelling peaks, from what people asked. The Peaks window
+Done in this round: graphs and projects, from a bug report. Deleting a project could leave its
+graphs on the desk and the next import going into it (a store's events in the other order); a
+graph in front that went away took the live plot with it. Both fixed. The taskbar names the
+project its windows belong to, the project list says what each holds, new projects get names
+of their own, the import dialogs name the project they add to, and exports name the graph.
+Graphs plotted one by one are put together by holding and dropping (a graph by its grip, a
+spectrum by its chip, onto a graph, its taskbar button or the desk; Ctrl keeps the graph
+dropped; it scrolls on a phone), from menus, or in Combine graphs… with a layout; spectra
+come from another project with their processing, peaks and colours.
+
+Round before: finding and labelling peaks, from what people asked. The Peaks window
 says where it looks (the spectrum, always shown, and From … to … typed, taken from the view
 or dragged on the graph, shaded there, kept with the set) and ends in Done; the Fit window
 says which spectrum and range it fits, and ends in Done too. Fitted peaks are labelled with
@@ -1238,7 +1302,7 @@ errors and units; above, inside, or in a row along the top with leaders; turned,
 boxed, dragged; each peak can be named, and its name goes to Results, the report and the
 exports.
 
-Round before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
+Two rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
 spectrum shares (centres, widths, areas, shapes, the baseline, or parameter by parameter; a
 curve model's parameters), each spectrum first fitted with those held so the fit starts where
 it belongs, one block-sparse Levenberg–Marquardt problem, every row a normal fit that says what
@@ -1249,7 +1313,7 @@ on the desk: several quantities, left and right axes, lines with slopes, SVG, PN
 Each spectrum keeps its file's header, and a field that differs (a temperature, the time it was
 taken) is what a series can be plotted against.
 
-Two rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
+Three rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
 every title, legend entry and label (`cm^{-1}`, `\alpha`), with buttons and a word
 processor's keys; arrows drawn by dragging, their heads snapping to data points, with heads
 of four kinds; insets made from a zoom, dragged and resized, outlined on the graph with
@@ -1259,7 +1323,7 @@ print, lines scaled with the text or not, SVG at its size, PNG with its dpi reco
 transparent backgrounds, a preview); formats saved by name and used on any graph in any
 project, with five of Kurve's; a toolbar that keeps to one row at every width.
 
-Three rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
+Four rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
 Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
 its own font, size in points, bold, italic, underline and colour; a real font picker (each
 name in its face, search, web fonts that look the same everywhere, which fonts this computer
@@ -1274,7 +1338,7 @@ graph at once. Labels and text over several lines, turned to any angle, in a box
 pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
 richer right-click menus on axes, titles, the legend and annotations.
 
-Four rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+Five rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
 started from its result, from the neighbour in the series, or from the peaks found in each;
 every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
 the History, replaced by a fit by hand, out of date when its processing changes). The Batch
@@ -1284,7 +1348,7 @@ or typed values, with a weighted straight line (slope ± error). CSV, SVG and th
 A fix to the runs test and peak checks, which read the analysed spectrum instead of the
 fit's own.
 
-Five rounds before: several graphs per project, each in its own window, beyond Origin's:
+Six rounds before: several graphs per project, each in its own window, beyond Origin's:
 one graph per spectrum in one command, tiled; click any graph to work on it (its zoom,
 spectrum and drafts come back, every window follows); only the graph in front is live and the
 others are pictures redrawn when what they show changes, so twelve graphs cost little more
@@ -1294,7 +1358,7 @@ every spectrum in one CSV, every graph in the report; importing many files, or e
 of one file, as one change with a graph each; applying a step to every spectrum with
 settings measured on each; graph windows placed per project.
 
-Six rounds before: two interface styles, Bench and Graphite, chosen in Window › Style, with
+Earlier still: two interface styles, Bench and Graphite, chosen in Window › Style, with
 every control drawn from tokens (sliders with a filled track, switches, checkboxes, radios,
 lists, segmented controls, windows) instead of the browser's own look.
 
@@ -1362,6 +1426,11 @@ Next, in order:
   not an area (integrate it, or fit)
 - Trend graphs have their own fixed style (not the Format dialog), linear axes only, and
   plot every quantity against the one series variable of the project
+- Combining: a spectrum is held by its chip on a graph that is not in front, not from the live
+  graph's legend or a worksheet column; a graph merged into another brings its spectra, their
+  styles and its labels, not its axes, titles or format. Bringing in copies (a later change in
+  the other project does not follow), and leaves behind fits, band windows, comments and
+  trends; a computed column arrives as its values
 - Several graphs: the X zoom is linked, not Y or the pointer; there are no graph layers or
   graphs with panels of different spectra, and no keyboard shortcut to step through
   the graphs (the browser keeps Ctrl+Tab); a picture shows no readout until it is clicked. A

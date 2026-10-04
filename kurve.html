@@ -666,6 +666,31 @@ details.more>table{margin-top:8px}
 .tdot.ok{background:var(--ok)}
 .tdot.stale{background:var(--warn)}
 .taskbar .sp{flex:1 1 0;min-width:6px}
+/* The project the desk shows, first in the taskbar. */
+.tk.proj{font-weight:600;color:var(--ink);border-style:solid;max-width:240px}
+.tk.proj span{overflow:hidden;text-overflow:ellipsis}
+.tksep{width:1px;height:18px;background:var(--rule);margin:0 4px;flex:0 0 auto}
+/* Holding a graph by its grip, or a spectrum by its chip, and dropping it on another graph. */
+[data-gdrag]{cursor:grab;touch-action:none}
+body:not(.mgraph) [data-gdrag]{display:none}
+.gchip{touch-action:none}
+.gghost{position:fixed;z-index:20000;pointer-events:none;display:flex;flex-direction:column;gap:2px;padding:6px 10px;border-radius:var(--r);background:var(--panel);border:1px solid var(--accent);box-shadow:var(--win-sh-act);font-size:12.5px;color:var(--ink);max-width:300px}
+.gghost .gh1{display:flex;align-items:center;gap:6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gghost em{font-style:normal;color:var(--muted);font-size:12px}
+.gghost.no{border-color:var(--rule)}
+.win.gdrop{outline:2px dashed var(--accent);outline-offset:-3px}
+.tk.gdrop{border-color:var(--accent);border-style:dashed;background:var(--accent-soft)}
+body.gdragging,body.gdragging *{cursor:grabbing!important}
+body.gdragging{user-select:none}
+/* Lists of boxes to tick in a dialog (graphs to combine, spectra to bring in). */
+.cbrow{display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer;min-width:0}
+.cbrow .lab{margin-left:auto;padding-left:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cglist{border:1px solid var(--rule);border-radius:var(--r);padding:4px 10px;margin:0 0 10px;max-height:40vh;overflow:auto}
+.binl{border:1px solid var(--rule);border-radius:var(--r);padding:2px 10px;margin:0 0 10px;max-height:46vh;overflow:auto}
+.binl fieldset{border:0;margin:0;padding:6px 0;border-bottom:1px solid var(--rule-2);min-width:0}
+.binl fieldset:last-child{border-bottom:0}
+.binl legend{padding:0;width:100%}
+.binl fieldset>.cbrow{padding-left:23px}
 
 /* Graph window */
 .graph-win{background:var(--paper);container:gwin/inline-size}
@@ -1092,6 +1117,8 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 .docs-none{color:var(--muted);font-size:13px;padding:10px 8px;margin:0}
 .doc{overflow:auto;min-height:0;padding:14px 28px 40px;position:relative;outline:0;font-size:14px;line-height:1.6;color:var(--ink)}
 .doc>*{max-width:720px}
+/* An icon named in a sentence stays in the line. */
+.doc p .ic,.doc dd .ic,.doc li .ic{display:inline-block;vertical-align:-3px}
 .doc-top{display:flex;align-items:center;gap:8px;margin:0 0 10px -8px;min-height:28px;flex-wrap:wrap}
 .doc-top .tb.sm{gap:4px;padding:0 8px;font-size:12.5px;color:var(--muted)}
 .doc-top .tb.sm:disabled{opacity:.4}
@@ -1324,6 +1351,8 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
   <symbol id="i-sigma" viewBox="0 0 24 24"><path d="M18 5H6l6 7-6 7h12"/></symbol>
   <symbol id="i-min" viewBox="0 0 24 24"><path d="M6 17h12"/></symbol>
   <symbol id="i-max" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1.5"/><path d="M5 9h14"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 24 24"><path stroke-width="3.2" d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
   <symbol id="i-tile" viewBox="0 0 24 24"><rect x="3.5" y="4" width="9" height="16" rx="1"/><rect x="14.5" y="4" width="6" height="7" rx="1"/><rect x="14.5" y="13" width="6" height="7" rx="1"/></symbol>
   <symbol id="i-cascade" viewBox="0 0 24 24"><rect x="3" y="3" width="11" height="9" rx="1"/><rect x="7" y="7" width="11" height="9" rx="1"/><rect x="10.5" y="11" width="10.5" height="9" rx="1"/></symbol>
   <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 19L18.5 5.5M10.5 5h8.5v8.5"/></symbol>
@@ -4407,6 +4436,8 @@ function makeDbStore(db){
 const S={
   store:null, user:null, room:null, downloads:null, uid:null, readOnly:false,
   projects:[], pid:null, proj:null, comments:[], unsubC:null,
+  // Projects deleted in this session: gone at once, whatever a store still lists.
+  gone:new Set(),
   view:null, mode:"zoom", sel:null, flash:null, anchor:null,
   draft:null, fitError:"", tab:"clean", profiles:{}, peers:[], geo:null, editing:false, pendingWs:false, imp:null,
   pdraft:null, selPeak:null, fitMode:null, peakType:"gauss", peakDir:"positive", peakMinPct:5,
@@ -4441,7 +4472,7 @@ function writeErr(e){
   toast("Couldn't save that change. Check your connection and try again.");
 }
 async function save(patch, logText){
-  if(!S.pid||S.readOnly) return;
+  if(!S.pid||S.readOnly||S.gone.has(S.pid)) return;
   // An edit still waiting to be saved (saveSoon) goes with this save, first:
   // saved later on its own, it would write back values older than these.
   let pendLog=null;
@@ -8563,7 +8594,8 @@ function renderImport(){
     const exX=(xCol()?xCol().data:[]).filter(v=>v!=null), inX=x.filter(v=>v!=null);
     const apart=exX.length&&inX.length&&(Math.max(...inX)<Math.min(...exX)||Math.min(...inX)>Math.max(...exX));
     if(im.mode==null) im.mode=apart?"new":"add";
-    h+=`<div class="impmode"><div class="t">This project already holds data</div>${apart?`<p class="lab" style="margin:0 0 6px">This file covers x ${fmt(Math.min(...inX),5)} to ${fmt(Math.max(...inX),5)}; the project covers ${fmt(Math.min(...exX),5)} to ${fmt(Math.max(...exX),5)}. They do not overlap, so a new project is suggested.</p>`:""}
+    const ny=yCols().length;
+    h+=`<div class="impmode"><div class="t">“${esc(projName(P()))}” already holds ${ny} spectr${ny===1?"um":"a"}</div>${apart?`<p class="lab" style="margin:0 0 6px">This file covers x ${fmt(Math.min(...inX),5)} to ${fmt(Math.max(...inX),5)}; the project covers ${fmt(Math.min(...exX),5)} to ${fmt(Math.max(...exX),5)}. They do not overlap, so a new project is suggested.</p>`:""}
       <label class="chk"><input type="radio" name="impmode" value="add"${im.mode==="add"?" checked":""}> Add as a new Y column, keeping what is here</label>
       <label class="chk"><input type="radio" name="impmode" value="replace"${im.mode==="replace"?" checked":""}> Replace everything in this project</label>
       <label class="chk"><input type="radio" name="impmode" value="new"${im.mode==="new"?" checked":""}> Put it in a new project</label></div>`;
@@ -8658,7 +8690,7 @@ async function doImport(){
   const patch={cols,activeY:yc.id,fit:null,meta:r.meta,srcName:base,v:DOC_V};
   // A name the app derived from the last import is stale once that data is
   // gone; a name the user chose is theirs and is left alone.
-  if(!cur.name||cur.name==="Untitled analysis"||(cur.srcName&&cur.name===cur.srcName)) patch.name=base;
+  if(isUntitled(cur.name)||(cur.srcName&&cur.name===cur.srcName)) patch.name=uniqueProjName(base,S.pid);
   S.fitMode=null; S.selPeak=null;
   Object.assign(cur,patch);
   const raw=recordRaw(`replaced all the raw data with ${im.fname}`); if(raw) patch.raw=raw;
@@ -8731,7 +8763,7 @@ async function batchImport(items,o){
     :`<tr><td class="nm" title="${esc(it.fname)}">${esc(it.fname)}</td><td class="num">${it.n}</td><td class="num">${esc(fmt(it.x0,5))} to ${esc(fmt(it.x1,5))}${it.xu?" "+esc(it.xu):""}</td><td><input type="text" id="biN${k}" value="${esc(it.name)}" maxlength="60" aria-label="Name of the spectrum from ${esc(it.fname)}" style="width:150px"></td></tr>`).join("");
   const r=await formDlg({title:`Import ${good.length} spectra`+(o.files?` from ${o.files} files`:o.fname?` from ${o.fname}`:""),wide:true,ok:`Import ${good.length} spectra`,
     html:`<div class="bimp"><table><thead><tr><th>${o.fname?"Column":"File"}</th><th>Points</th><th>X range</th><th>Name</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="grid2">${hasData?`<label for="biInto">Into</label><select id="biInto"><option value="here">This project, beside what is here</option><option value="new">A new project</option></select>`:""}
+    <div class="grid2">${hasData?`<label for="biInto">Into</label><select id="biInto"><option value="here">“${esc(projName(P()))}”, beside its ${yCols().length} spectr${yCols().length===1?"um":"a"}</option><option value="new">A new project</option></select>`:""}
     <label for="biGraphs">Graphs</label><select id="biGraphs"><option value="each">One for each spectrum</option><option value="one">All in one graph</option><option value="stack">All in one graph, stacked</option></select></div>`});
   if(!r) return;
   good.forEach(it=>{ const k=items.indexOf(it), v=(r["biN"+k]||"").trim(); if(v) it.name=v.slice(0,60); });
@@ -8758,7 +8790,7 @@ async function doBatchImport(good,skip,o){
   const names=good.map(it=>it.name), list=names.length>4?names.slice(0,4).join(", ")+` and ${names.length-4} more`:names.join(", ");
   const lg=`imported ${good.length} spectra from ${o.src} (${list})${skip.length?`; skipped ${skip.map(s=>s.fname).join(", ")}`:""}; ${o.graphs==="each"?"a graph for each":o.graphs==="stack"?"stacked in one graph":"all in one graph"}`;
   if(intoNew){
-    const pr=Object.assign(blankProject(good.length>1?`${good.length} spectra`:good[0].name),{cols,activeY:newY[0],plot,graphs,meta:good[0].meta||{},v:DOC_V});
+    const pr=Object.assign(blankProject(batchProjName(names)),{cols,activeY:newY[0],plot,graphs,meta:good[0].meta||{},v:DOC_V});
     pr.raw=rawRecordFor(cols,`recorded from ${o.src}`);
     await createProject(pr,lg);
   } else {
@@ -8767,7 +8799,7 @@ async function doBatchImport(good,skip,o){
     const p=P(); p.cols=cols; p.activeY=newY[0];
     const raw=recordRaw(`added ${good.length} spectra from ${o.src}`);
     const patch=Object.assign({cols,activeY:newY[0],plot,graphs},raw?{raw}:{},keep?{}:{meta:good[0].meta||{},fit:null});
-    if(!keep&&(!p.name||p.name==="Untitled analysis")) patch.name=good.length>1?`${good.length} spectra`:good[0].name;
+    if(!keep&&isUntitled(p.name)) patch.name=uniqueProjName(batchProjName(names),S.pid);
     await save(patch,lg);
     renderAll();
   }
@@ -9965,7 +9997,11 @@ async function createProject(pr,logText){
   if(S.readOnly){ toast("You can view this workspace but not create projects."); return; }
   if(logText) pr.log=[{t:Date.now(),uid:S.uid||"",text:logText}];
   if(!pr.raw) pr.raw=rawRecordFor(pr.cols||[],logText||"created the project");
-  try{ const id=await S.store.create(pr); S.pendingOpen=id; openProject(id); }catch(e){ writeErr(e); }
+  pr.name=uniqueProjName(pr.name);
+  // A shared store lists a new project before the write is confirmed, so it
+  // may be in the list already: then there is nothing to wait for. Left set,
+  // the flag would keep the project on the desk after it was deleted.
+  try{ const id=await S.store.create(pr); S.pendingOpen=S.projects.some(q=>q.id===id)?null:id; openProject(id); }catch(e){ writeErr(e); }
 }
 function openProject(id){
   if(S.pid===id&&S.proj) return;
@@ -9994,16 +10030,24 @@ function openProject(id){
   renderAll();
 }
 function onProjects(list){
+  // A project deleted here is gone, even from a list sent before the store caught up.
+  list=list.filter(p=>!S.gone.has(p.id));
   S.projects=list.sort((a,b)=>(b.updated||0)-(a.updated||0));
+  let lost=null;
   if(S.pid){ const cur=list.find(p=>p.id===S.pid);
     if(cur){ const local=S.proj; S.proj=clone(cur);
       // keep locally-pending worksheet edits visible until they are flushed
       if(local&&Object.keys(wsPatch).length) Object.assign(S.proj,wsPatch);
       if(S.draft&&S.proj.fit&&local&&(!local.fit||local.fit.at!==S.proj.fit.at)&&S.proj.fit.by!==S.uid){ S.draft=null; }
-    } else if(!S.pendingOpen){ S.pid=null; S.proj=null; }
+    }
+    // The project on the desk has gone (deleted here, by a colleague or in
+    // another tab): its windows go with it, and nothing more is saved into it.
+    // Only a project just created and not listed yet is waited for.
+    else if(S.pendingOpen!==S.pid){ lost=S.proj&&!S.gone.has(S.pid)?projName(S.proj):null; leaveProject(S.pid); }
   }
-  if(S.pendingOpen&&list.find(p=>p.id===S.pendingOpen)){ S.pendingOpen=null; S.proj=clone(list.find(p=>p.id===S.pid)); }
-  if(!S.pid&&list.length){ let last=null; try{ last=localStorage.getItem("kurve.last"); }catch(e){} openProject(list.find(p=>p.id===last)?last:list[0].id); return; }
+  if(S.pendingOpen&&list.find(p=>p.id===S.pendingOpen)){ S.pendingOpen=null; const q=list.find(p=>p.id===S.pid); if(q) S.proj=clone(q); }
+  if(!S.pid&&list.length){ let last=null; try{ last=localStorage.getItem("kurve.last"); }catch(e){} openProject(list.find(p=>p.id===last)?last:list[0].id);
+    if(lost) toast(`“${lost}” was deleted elsewhere. This is “${projName(P())}”.`); return; }
   // With no project at all there is no worksheet to paste into, and the empty
   // state's own advice could not be followed. In this browser, make one.
   if(!S.pid&&!list.length&&S.store&&S.store.mode==="local"&&!S.readOnly&&!S.creating){
@@ -10070,6 +10114,8 @@ async function saveFile(filename,data,mime){
     return "browser";
   }catch(e){ toast("This browser wouldn't let the file download."); return false; }
 }
+// A figure's file is named after its project and, with several graphs, the graph.
+function figName(){ const p=P(); return projName(p)+(multiGraph()?" "+graphName(GID()):""); }
 function safeName(base,ext){ return (base||"kurve").replace(/[^\w\- ]+/g,"").trim().replace(/\s+/g,"_")+ext; }
 async function copyText(text,what){
   // what is a thing ("Results table") or a whole sentence ending in a full stop.
@@ -10316,7 +10362,7 @@ function renderExportFigure(){
 }
 async function doExportFigure(){
   const o=S.exp, p=P(); if(!o||!p) return; const r=expBuild(o); if(!r) return; expKeep(o); closeModal($("#expModal"));
-  const tag=o.size==="custom"||o.size==="screen"?"":`_${o.size}`, base=safeName(p.name+(o.which==="all"&&multiGraph()?"_graphs":"")+tag,"");
+  const tag=o.size==="custom"||o.size==="screen"?"":`_${o.size}`, base=safeName((o.which==="all"&&multiGraph()?p.name+"_graphs":figName())+tag,"");
   let svg=expDress(await embedFonts(r.svg),o,r.W,r.H);
   if(o.fmt==="svg"){ const nm=base+".svg", okk=await saveFile(nm,new Blob([svg],{type:"image/svg+xml"})); if(okk) toast(okk==="dialog"?"Figure saved.":`Sent ${nm} to your downloads.`); return; }
   const k=o.unit==="px"?1:(+o.dpi||300)/96, dpi=o.unit==="px"?96:+o.dpi, cw=Math.round(r.W*k), ch=Math.round(r.H*k);
@@ -10362,8 +10408,8 @@ async function exportPng(){
     const g=c.getContext("2d"); g.fillStyle="#FFFFFF"; g.fillRect(0,0,c.width,c.height); g.scale(k,k); g.drawImage(img,0,0,W,H);
     const blob=await new Promise(r=>c.toBlob(r,"image/png"));
     if(!blob) throw new Error("encode");
-    const ok=await saveFile(safeName(p.name,".png"),blob,"image/png");
-    if(ok) toast(ok==="dialog"?"Figure saved.":`Sent ${safeName(p.name,".png")} to your downloads.`);
+    const ok=await saveFile(safeName(figName(),".png"),blob,"image/png");
+    if(ok) toast(ok==="dialog"?"Figure saved.":`Sent ${safeName(figName(),".png")} to your downloads.`);
   }catch(e){ toast("This browser couldn't draw the figure as an image. Export it as SVG instead."); }
   finally{ URL.revokeObjectURL(url); }
 }
@@ -10384,8 +10430,8 @@ function resultsText(sep){
 function copyResults(){ const t=resultsText(String.fromCharCode(9)); if(!t){ toast("Fit something first."); return; } copyText(t,"Results table"); }
 async function exportSvg(){
   const str=await embedFonts(buildPlot(820,P().fit&&GP().resid!==false?640:540,EXPORT_PAL,true));
-  const oks=await saveFile(safeName(P().name,".svg"),new Blob([str],{type:"image/svg+xml"}));
-  if(oks) toast(oks==="dialog"?"Figure saved.":`Sent ${safeName(P().name,".svg")} to your downloads.`);
+  const oks=await saveFile(safeName(figName(),".svg"),new Blob([str],{type:"image/svg+xml"}));
+  if(oks) toast(oks==="dialog"?"Figure saved.":`Sent ${safeName(figName(),".svg")} to your downloads.`);
 
 }
 /* Every graph in one figure, lettered (a), (b)… in the order of the graphs,
@@ -11805,7 +11851,8 @@ function flowInspectorBody(n){
     const d=r?r.stages[0].d:EMPTY_SER, xc=xColFor(c), ec=errColFor(c.id);
     h+=`<div class="fi-h">${ICON(n.kind==="src"?"reverse":"table")}<div class="grow"><div class="fi-t">${esc(specName(c))}</div><div class="lab">${n.kind==="src"?`Starts from the ${c.from==="raw"?"raw":"processed"} data of <a href="#" data-fi="gosrc">${esc(specName(srcOf(c)))}</a>`:n.c.fx?`Computed from other columns: = ${esc(fxShow(n.c))}`:"Raw data, as recorded"}</div></div>${discChip(n.key)}<button class="tb sm icon" data-fi="specmenu" aria-haspopup="menu" aria-expanded="false" aria-label="Spectrum options" title="More">${ICON("more","sm")}</button></div>`;
     h+=kvHtml([["Points",String(d.x.length)],["X",`${esc(d.xn||"X")}${d.xu?` (${esc(d.xu)})`:""}, ${rangeTxt(d.x,"")}`],["Y",`${esc(d.yn||"Y")}${d.yu?` (${esc(d.yu)})`:""}, ${rangeTxt(d.y,"")}`],
-      n.kind==="raw"?["Columns",`${esc(colLabel(xc,"X"))} and ${esc(colLabel(c,"Y"))}${ec?` with errors from ${esc(colLabel(ec,"error"))}`:""}`]:null]);
+      n.kind==="raw"?["Columns",`${esc(colLabel(xc,"X"))} and ${esc(colLabel(c,"Y"))}${ec?` with errors from ${esc(colLabel(ec,"error"))}`:""}`]:null,
+      n.kind!=="final"&&c.origin?["Brought in",`from “${esc(c.origin.proj)}”, ${esc(ago(c.origin.t))}${c.origin.computed?" (computed there; its values were brought)":""}`]:null]);
     h+=`<div class="actions">${btn("overview","Overview","info",{view:true})}${btn("sheet","Open the worksheet","table",{view:true})}${btn("rename","Rename…","edit")}${n.kind==="src"?btn("deldrv","Delete this spectrum","x",{ghost:true}):""}</div>`;
     if(n.kind==="raw") h+=`<p class="lab">${ICON("lock","sm")} Locked. Type over a value in the Raw sheet to correct it.</p>`;
     const mk=Object.keys(c.meta||{});
@@ -12327,7 +12374,7 @@ function menuRows(items,acts){
     const i=acts.push(it)-1, dis=it.enabled===false;
     if(it.sub) return `<button class="mi has-sub" role="menuitem" aria-haspopup="menu" aria-expanded="false" data-mi="${i}" tabindex="-1"${dis?" disabled":""}${it.title?` title="${esc(it.title)}"`:""}><span class="mck">${it.icon?ICON(it.icon,"sm"):""}</span><span class="mlab">${esc(it.label)}</span><span class="marr">${ICON("chevr","sm")}</span></button>`;
     const role=it.checked!=null?(it.radio?"menuitemradio":"menuitemcheckbox"):"menuitem";
-    return `<button class="mi${it.danger?" danger":""}" role="${role}" data-mi="${i}" tabindex="-1"${it.checked!=null?` aria-checked="${!!it.checked}"`:""}${dis?" disabled":""}${it.title?` title="${esc(it.title)}"`:""}><span class="mck">${it.checked?ICON("check","sm"):it.icon?ICON(it.icon,"sm"):""}</span><span class="mlab"${it.font?` style="font-family:${esc(it.font)}"`:""}>${esc(it.label)}</span>${it.kbd?`<span class="mkbd">${esc(it.kbd)}</span>`:""}</button>`;
+    return `<button class="mi${it.danger?" danger":""}" role="${role}" data-mi="${i}" tabindex="-1"${it.checked!=null?` aria-checked="${!!it.checked}"`:""}${dis?" disabled":""}${it.title?` title="${esc(it.title)}"`:""}><span class="mck">${it.checked?ICON("check","sm"):it.icon?ICON(it.icon,"sm"):""}</span><span class="mlab"${it.font?` style="font-family:${esc(it.font)}"`:""}>${esc(it.label)}</span>${it.kbd?`<span class="mkbd">${esc(it.kbd)}</span>`:it.note?`<span class="mkbd">${esc(it.note)}</span>`:""}</button>`;
   }).join("");
 }
 const subItems=it=>typeof it.sub==="function"?it.sub():it.sub;
@@ -12451,9 +12498,12 @@ function exportItems(){
     {label:"Copy results table", run:copyResults, enabled:!!f}];
 }
 function projectItems(){
-  const list=S.projects.slice(0,40).map(x=>({label:x.name||"Untitled analysis", radio:true, checked:x.id===S.pid, run:()=>openProject(x.id)}));
+  // Each with what is in it, so two projects are told apart before opening one.
+  const list=S.projects.slice(0,40).map(x=>{ const ns=projSpectra(x).length, ng=1+(x.graphs||[]).length;
+    return {label:projName(x), note:ns?`${ns} spectr${ns===1?"um":"a"}${ng>1?` · ${ng} graphs`:""}`:"empty", radio:true, checked:x.id===S.pid, run:()=>switchProject(x.id)}; });
   return [{group:"Projects"}].concat(list.length?list:[{label:"No projects yet", enabled:false}],["-",
     {label:"New project", run:newProject, enabled:!S.readOnly&&!!S.store},
+    {label:"Bring in spectra from another project…", run:()=>bringInDlg(), enabled:!!P()&&!S.readOnly&&otherProjects().length>0},
     {label:"Rename this project", run:renameProject, enabled:!!P()&&!S.readOnly},
     {label:"Delete this project…", run:deleteProject, enabled:!!P()&&!S.readOnly, danger:true}]);
 }
@@ -12558,10 +12608,15 @@ ${DL([["Import, Export","Bring a file in; save the figure, data or a report."],[
 <h2>Theme and style</h2>
 <p>${MP("Window › Theme")}: light, dark, or the system's. The moon and sun button in the title bar switches between them.</p>
 <p>${MP("Window › Style")}: <strong>Bench</strong> marks everything you can change in blue; <strong>Graphite</strong> is black and white, with blue only for the keyboard focus. Both are remembered in this browser. They change the interface only: the graph's colours are set in the Format dialog and stay as they are.</p>`},
-{id:"projects", g:"Basics", t:"Projects, saving and undo", kw:"project rename new delete switch save local browser shared workspace undo redo log",
+{id:"projects", g:"Basics", t:"Projects, saving and undo", kw:"project rename new delete switch save local browser shared workspace undo redo log taskbar which bring in another copy spectra combine merge",
  lead:"A project is one table of data with its processing, peaks, bands, fits, figure and discussion. It saves itself as you work.",
  body:`<h2>Projects</h2>
-<p>The project's name is in the middle of the title bar: click it to rename. The arrow beside it lists your projects, and creates or deletes one. ${MP("File › New project")} starts an empty one with a worksheet to paste into.</p>
+<p>The project's name is in the middle of the title bar: click it to rename. The arrow beside it lists your projects, each with how many spectra and graphs it holds, and creates or deletes one. ${MP("File › New project")} starts an empty one with a worksheet to paste into.</p>
+<p>The desk shows one project at a time: every window on it, every graph included, belongs to the project named first in the taskbar (click it to switch). A new project is never given a name another already has: files imported together name it after what their names share (<em>sample (12 spectra)</em>, or <em>A1 to A3</em>), and a second <em>Spectra</em> becomes <em>Spectra (2)</em>.</p>
+<h2 id="delete">Deleting a project</h2>
+<p>${MP("File › Delete project…")} removes the project, its graphs and its comments, after asking. The desk then shows the project you used most recently (the message says which), or a new empty one if none is left, so the next import never goes into the project you deleted.</p>
+<h2 id="bring">Spectra from another project</h2>
+<p>${MP("File › Bring in from another project…")} lists your other projects and their spectra. Tick the ones you want (ticking a project ticks all of its spectra) and choose where they go: the graph you are on, a new graph, or a graph each. They are copied with their raw values, X and error columns, processing, mask, file header, marked peaks and colours; a derived spectrum brings its source, and a step that reads another spectrum brings that one too. The project they came from is unchanged. The raw-data record, the log and each spectrum's Raw data box in the History say where they came from. One Undo takes them out again. To put graphs of the same project together, see ${DA("graphs#combine","combining graphs")}.</p>
 <h2>Saving</h2>
 <p>Every change is saved at once; the status bar says so. Used on its own, Kurve keeps projects in this browser and uploads nothing: to keep a copy elsewhere, ${DA("export","export it")}. In a shared workspace, everyone sees each change as it is made, and each person's name goes with their comments.</p>
 <h2>Undo</h2>
@@ -12579,7 +12634,7 @@ ${DL([["Delimiter and decimal mark","Decided together: <code>1,5;2,5</code> only
 ${DL([["Add as a new Y column","Keeps what is there. A spectrum on a different X axis gets an X column of its own, so no value is interpolated."],["Replace everything","The new file becomes the project's data."],["Put it in a new project","Suggested when the X ranges do not overlap."]])}
 <h2 id="many">Many spectra at once</h2>
 <p>Choose or drop several files together, or import one file whose columns are several spectra (its <em>Spectra</em> list says <em>All … Y columns</em>). Each is read the way the dialog would read it alone, then listed with its points and X range and a name to change. Then:</p>
-${DL([["Into","This project, beside what is there, or a new project."],["Graphs","One for each spectrum, all in one graph, or all in one graph stacked. "+DA("graphs","Several graphs")]])}
+${DL([["Into","The project on the desk (named in the list, with how many spectra it holds), beside what is there, or a new project."],["Graphs","One for each spectrum, all in one graph, or all in one graph stacked. "+DA("graphs","Several graphs")]])}
 <p>It is one change: one Undo, one line in the log, one entry in the raw-data record. Spectra measured on the same X share a column; one on a different axis gets its own, so nothing is interpolated. A file that cannot be read is listed with the reason and left out.</p>
 <p>Each spectrum keeps the name of its file and the fields of its header (its Raw data box in the History lists them). Fields that differ between the files, such as a temperature or the time each was taken, are offered as what the ${DA("batch","Batch window")} plots against.</p>
 <h2>What is refused</h2>
@@ -12590,7 +12645,7 @@ ${DL([["Into","This project, beside what is there, or a new project."],["Graphs"
  body:`<h2 id="k-all">Everywhere</h2>
 ${DL([[K("Ctrl","Z"),"Undo"],[K("Ctrl","Shift","Z")+" · "+K("Ctrl","Y"),"Redo"],[K("Ctrl","O"),"Import a file"],[K("Ctrl","Enter"),"Run the fit · run Python code · post a comment"],[K("Esc"),"Close a menu or dialog; back to the Zoom tool"],[K("F1"),"Help on the window in front"],[K("?"),"This page"]],"keys")}
 <h2 id="k-graph">On the graph</h2>
-${DL([[K("←")+" "+K("→"),"Previous or next point (click the graph first)"],[K("Home")+" "+K("End"),"First or last point"],[K("+")+" "+K("−")+" "+K("0"),"Zoom in, zoom out, show all"],[K("[")+" "+K("]"),"Start or end the view at the selected point"],[K("M"),"Mask or restore the selected point"],[K("P"),"Put a peak at the selected point"],[K("Delete"),"Remove the selected peak, label, line or band"],[K("Enter")+" · "+K("F2"),"Type over the selected label or text; "+K("Shift","Enter")+" starts a new line"],[K("Ctrl","Shift","=")+" · "+K("Ctrl","="),"While typing: superscript · subscript"],[K("Alt")+" while dragging","No snapping: text off its guides, an arrow's head off the data"],["Middle-drag","Pan, in any tool"],["Scroll","Zoom at the pointer"],["Double-click","Show all the data"],[K("Shift","F10"),"The graph's menu"]],"keys")}
+${DL([[K("←")+" "+K("→"),"Previous or next point (click the graph first)"],[K("Home")+" "+K("End"),"First or last point"],[K("+")+" "+K("−")+" "+K("0"),"Zoom in, zoom out, show all"],[K("[")+" "+K("]"),"Start or end the view at the selected point"],[K("M"),"Mask or restore the selected point"],[K("P"),"Put a peak at the selected point"],[K("Delete"),"Remove the selected peak, label, line or band"],[K("Enter")+" · "+K("F2"),"Type over the selected label or text; "+K("Shift","Enter")+" starts a new line"],[K("Ctrl","Shift","=")+" · "+K("Ctrl","="),"While typing: superscript · subscript"],[K("Alt")+" while dragging","No snapping: text off its guides, an arrow's head off the data"],[K("Ctrl")+" while dropping a graph","Keep it: its spectra are put on the other graph, and it stays"],[K("Esc")+" while holding a graph","Cancel the drop"],["Middle-drag","Pan, in any tool"],["Scroll","Zoom at the pointer"],["Double-click","Show all the data"],[K("Shift","F10"),"The graph's menu"]],"keys")}
 <h2 id="k-sheet">In the worksheet</h2>
 ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move; with "+K("Shift")+", select; with "+K("Ctrl")+", jump to the end of the data"],[K("Enter")+" · "+K("Tab"),"Next row · next column"],[K("F2")+" · double-click","Edit the cell; typing replaces it; "+K("Esc")+" cancels"],[K("Delete"),"Clear (empty cells and labels only)"],[K("Ctrl","C")+" "+K("Ctrl","V"),"Copy and paste, as tab-separated text"],[K("Ctrl","D")+" · "+K("Ctrl","R"),"Fill down · fill right"],[K("Ctrl","F"),"Find; "+K("Enter")+", "+K("Shift","Enter")+" or "+K("F3")+" for the next or previous match"],[K("Ctrl","Home")+" "+K("Ctrl","End"),"First or last cell"],[K("PgUp")+" "+K("PgDn"),"A screen up or down"]],"keys")}
 <h2 id="k-flow">In the History</h2>
@@ -12707,13 +12762,17 @@ ${DL([["Reverse X","High to low, as wavenumbers are usually drawn."],["Log Y","A
 <p>On a spectrum: its colour, plot type and style. On an empty spot: a line, text or a peak label there; axes, layout and legend. On a line, a label, the legend or a title: its own options. ${K("Shift","F10")} opens the same menu from the keyboard.</p>
 <h2>Reading values</h2>
 <p>The status bar shows the value under the pointer. A selected point can be moved with ${K("←")} ${K("→")}. ${DA("keys#k-graph","All the graph's keys")}</p>`},
-{id:"graphs", g:"Graph", t:"Several graphs", kw:"graphs windows several many multiple each spectrum own graph tile grid link zoom compare sample series panel figure new duplicate rename delete",
+{id:"graphs", g:"Graph", t:"Several graphs", kw:"graphs windows several many multiple each spectrum own graph tile grid link zoom compare sample series panel figure new duplicate rename delete combine merge drag drop hold together one graph overlay add",
  lead:"A project can have as many graphs as it needs, each in its own window: one per sample, or a few spectra together. The graph you click is the one you work on; the others wait beside it.",
  body:`<h2>Making graphs</h2>
 ${DL([["One for each spectrum",MP("Window › New graph › One for each spectrum")+": every spectrum on a graph of its own, tiled on the desk. The first graph keeps the first spectrum."],["With the analysed spectrum","A new graph with it, taking half of the window of the graph you are on."],["With every spectrum","A new graph with all of them overlaid, to compare."],["From a spectrum","<em>Open in a new graph</em> in the graph's right-click menu, or <em>Plot in a new graph</em> in a column's header menu."],["When importing","Several files, or one file with several Y columns, can come in with a graph each. "+DA("import#many","Importing many spectra")]])}
 <h2>Working on one</h2>
 <p>Click anywhere on a graph to work on it: it comes to the front with its own zoom, the spectrum you were last analysing on it becomes the analysed one, and every window (the History, Peaks, Integrate, Fit, the worksheet) follows. Its title bar has a coloured line underneath. The chips along the top of a graph that is not in front name its spectra: click one to work on that spectrum there.</p>
 <p>A peak fit you were building stays with its spectrum, so coming back to a graph finds it where you left it.</p>
+<h2 id="combine">Putting graphs together</h2>
+<p>Graphs plotted one by one can be put on one graph by holding and dropping:</p>
+${DL([["A whole graph","Hold the grip "+ICON("grip","sm")+" in its title bar and drop it on another graph (or on that graph's button in the taskbar). Its spectra join that graph, with their colours and lines, and so do its labels; the graph you dropped goes. Hold "+K("Ctrl")+" as you drop to keep it. The first graph always stays."],["One spectrum","Hold a spectrum's chip along the top of a graph that is not in front and drop it on another graph to add it there, or on the empty desk for a graph of its own."],["Changed your mind",K("Esc")+" while holding cancels; Undo takes a drop back."]])}
+<p>Without dragging: click the grip, or <em>Combine</em> in the graph's ⋯ menu, for <em>Merge it into</em> another graph or <em>Merge every other graph into this one</em>. ${MP("Window › Combine graphs…")} takes any of the graphs, onto one of them or a new graph, laid out as you choose (overlaid, offset, stacked panels, double Y, heat map), and keeps the graphs merged or lets them go. Spectra in another project are brought in with ${DA("projects#bring","Bring in from another project")}.</p>
 <h2>Each graph's settings</h2>
 <p>Plot type, layout, axes, legend, fonts, titles, lines and text belong to the graph they were made on; peaks found with the Peaks window belong to the spectrum and show on every graph that draws it. The <strong>⋯</strong> on a graph's title bar renames it, chooses the spectra on it, duplicates, exports or deletes it. Deleting a graph never deletes data.</p>
 <h2>Zoom together</h2>
@@ -13363,7 +13422,9 @@ function renderTaskbar(){
   const extra=graphWinIds().slice(1), many=extra.length>3, gf=graphWinIds().includes(front);
   let order=WIN_ORDER.slice(); if(extra.length&&!many) order.splice(1,0,...extra);
   const tw=trendWinIds(); if(tw.length) order.splice(order.indexOf("batch")+1,0,...tw);
-  let h=order.concat(winOpen("help")?["help"]:[]).map(id=>{ const on=winOpen(id), badge=winBadge(id);
+  // The project these windows belong to comes first: switching it changes them all.
+  const pj=P();
+  let h=(pj?`<button class="tk proj" data-tk-proj aria-haspopup="menu" title="The project on the desk; every window shows it. Click to switch projects.">${ICON("folder","sm")}<span>${esc(projName(pj))}</span></button><span class="tksep" aria-hidden="true"></span>`:"")+order.concat(winOpen("help")?["help"]:[]).map(id=>{ const on=winOpen(id), badge=winBadge(id);
     if(id==="graph"&&many) return `<button class="tk${gf?" front":""}" data-tk-graphs aria-haspopup="menu" title="The ${extra.length+1} graphs">${ICON("chart","sm")}<span>Graphs</span><span class="badge">${extra.length+1}</span></button>`;
     return `<button class="tk${on&&id===front?" front":""}" data-tk="${id}" aria-pressed="${on}" title="${esc(on?(id===front?"Minimise":"Bring to the front"):"Open")} the ${esc(WINS[id].title)} window">${ICON(WINS[id].icon,"sm")}<span>${esc(WINS[id].title)}</span>${badge}</button>`; }).join("");
   h+=`<span class="sp"></span><button class="tb sm icon" data-tk-act="tile" title="Tile the open windows" aria-label="Tile the open windows">${ICON("tile","sm")}</button><button class="tb sm icon" data-tk-act="cascade" title="Cascade the open windows" aria-label="Cascade the open windows">${ICON("cascade","sm")}</button>`;
@@ -13381,6 +13442,7 @@ function setupWins(){
   document.querySelectorAll(".win").forEach(wireWin);
   $("#taskbar").addEventListener("click",e=>{ const b=e.target.closest("[data-tk]"); if(b){ toggleWin(b.dataset.tk); return; }
     const gb=e.target.closest("[data-tk-graphs]"); if(gb){ toggleMenu(gb,graphsMenuItems,{label:"Graphs"}); return; }
+    const pb=e.target.closest("[data-tk-proj]"); if(pb){ toggleMenu(pb,projectItems,{label:"Projects"}); return; }
     const a=e.target.closest("[data-tk-act]"); if(a) (a.dataset.tkAct==="tile"?tileWins:cascadeWins)(); });
   new ResizeObserver(()=>applyWins()).observe(desk);
 }
@@ -13389,7 +13451,15 @@ function setupWins(){
    it the graph worked on. */
 function wireWin(el){
     const id=el.dataset.win, h=el.querySelector(".win-h");
-    if(graphOfWin(id)){ h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-gmenu aria-haspopup="menu" title="Graph options" aria-label="Options for this graph">${ICON("more","sm")}</button>`);
+    if(graphOfWin(id)){ h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-gdrag aria-haspopup="menu" title="Hold and drag onto another graph to put this graph's spectra there" aria-label="Combine this graph with another">${ICON("grip","sm")}</button><button class="tb sm icon" data-gmenu aria-haspopup="menu" title="Graph options" aria-label="Options for this graph">${ICON("more","sm")}</button>`);
+      // Held by its grip, the graph goes onto another; clicked, the grip lists where.
+      const gd=h.querySelector("[data-gdrag]");
+      gd.addEventListener("pointerdown",e=>startGraphDrag(e,{gid:graphOfWin(id),click:()=>toggleMenu(gd,()=>combineMenuItems(graphOfWin(id)),{label:"Combine"})}));
+      gd.addEventListener("click",e=>{ if(e.detail===0) toggleMenu(gd,()=>combineMenuItems(graphOfWin(id)),{label:"Combine"}); });
+      // A spectrum's chip: clicked, it is worked on; held, it goes onto another graph.
+      el.addEventListener("pointerdown",e=>{ const ch=e.target.closest&&e.target.closest("[data-gchip]"); if(!ch) return; const g=graphOfWin(id), cid=ch.dataset.gchip;
+        startGraphDrag(e,{gid:g,cid,click:()=>activateGraph(g,cid)}); });
+      el.addEventListener("click",e=>{ const ch=e.target.closest&&e.target.closest("[data-gchip]"); if(ch&&e.detail===0) activateGraph(graphOfWin(id),ch.dataset.gchip); });
       const gm=h.querySelector("[data-gmenu]"); gm.onclick=()=>toggleMenu(gm,()=>graphWinItems(graphOfWin(id)),{label:"Graph options"});
       const snap=el.querySelector(".gsnap"); if(snap){ snap.tabIndex=0; snap.setAttribute("role","button"); snap.setAttribute("aria-label","Work on this graph");
         snap.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); activateGraph(graphOfWin(id)); } }); } }
@@ -13397,7 +13467,8 @@ function wireWin(el){
     h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-wmin title="${id==="help"?"Close":"Minimise to the taskbar"}" aria-label="Minimise the ${esc(WINS[id].title)} window">${ICON("min","sm")}</button><button class="tb sm icon" data-wmax title="Maximise or restore (double-click the title bar)" aria-label="Maximise the ${esc(WINS[id].title)} window">${ICON("max","sm")}</button>`);
     ["e","s","se","w"].forEach(k=>el.insertAdjacentHTML("beforeend",`<div class="win-rz ${k}" data-rz="${k}" aria-hidden="true"></div>`));
     el.addEventListener("pointerdown",e=>{ focusWin(id); const g=graphOfWin(id);
-      if(g&&P()&&g!==(S.gid||"main")){ const ch=e.target.closest&&e.target.closest("[data-gchip]"); activateGraph(g,ch?ch.dataset.gchip:null); } },true);
+      // A chip or the grip may be the start of a drag: they bring the graph forward on a click of their own.
+      if(g&&P()&&g!==(S.gid||"main")&&!(e.target.closest&&e.target.closest("[data-gchip],[data-gdrag]"))) activateGraph(g); },true);
     h.querySelector("[data-wmin]").onclick=()=>closeWin(id);
     const hb=h.querySelector("[data-whelp]"); if(hb) hb.onclick=()=>openHelp(helpFor(id));
     h.querySelector("[data-wmax]").onclick=()=>toggleMax(id);
@@ -13436,6 +13507,8 @@ function windowItems(){
     ["graph"].concat(extra).forEach(w=>wins.push({label:WINS[w].title, checked:winOpen(w), run:()=>toggleWin(w)})); });
   return [{group:"Windows"}].concat(wins,["-",{group:"Graphs"},
     {label:"New graph", sub:()=>newGraphItems(), enabled:!ro},
+    {label:"Combine graphs…", enabled:!ro&&graphIds().length>1, run:()=>combineDlg()},
+    {label:"Bring in from another project…", enabled:!ro&&otherProjects().length>0, run:()=>bringInDlg()},
     {label:"Link the X zoom of the graphs", checked:S.linkX, run:()=>setLinkX(!S.linkX)},
     "-",{label:"Tile", run:tileWins},{label:"Cascade", run:cascadeWins},{label:"Restore the default arrangement", run:resetWins}]);
 }
@@ -14071,7 +14144,10 @@ function reportTrendsHtml(){ const list=trendList(); if(!list.length) return "";
 function graphWinIds(){ return ["graph"].concat(((P()&&P().graphs)||[]).map(g=>g.id).filter(id=>WINS[id])); }
 function syncGraphWins(){
   const p=P(), list=(p&&p.graphs)||[];
-  Object.keys(WINS).forEach(k=>{ if(WINS[k].graph&&!list.some(g=>g.id===k)){ const el=$("#w-"+k); if(el) el.remove(); delete WINS[k]; delete S.snap[k]; } });
+  // A window that goes may hold the live graph (the graph in front was merged,
+  // deleted, or belonged to the project left): the plot moves out first, or it
+  // would go with the window and every later drawing would find nothing.
+  Object.keys(WINS).forEach(k=>{ if(WINS[k].graph&&!list.some(g=>g.id===k)){ const el=$("#w-"+k); if(el){ rescueLive(el); el.remove(); } delete WINS[k]; delete S.snap[k]; } });
   let prev=$("#w-graph"), made=false;
   list.forEach((g,i)=>{
     if(!WINS[g.id]){ WINS[g.id]={title:g.name, icon:"chart", def:[0.04+(i%8)*0.03,0.04+(i%8)*0.04,0.46,0.56], open:true, graph:true};
@@ -14090,6 +14166,7 @@ function syncGraphWins(){
   if(act&&!graphShows(act,S.gid)){ const to=graphForCol(act.id);
     if(to!==S.gid&&(to!=="main"||S.gid!=="main")){ S.gv[S.gid]=S.view; S.gid=to; S.view=resolveYAuto(S.linkX&&S.view?{x0:S.view.x0,x1:S.view.x1,xu:S.view.xu,yAuto:true}:S.gv[to]||null); } }
   const nWin=graphWinIds().length;
+  document.body.classList.toggle("mgraph",nWin>1);
   if(p&&S.layoutPid!==S.pid) restoreGraphLayout();
   // Back to one graph in the same project (an undo, a delete): it gets its own size back.
   else if(p&&S.gcount>1&&nWin===1){ Object.assign(winState("graph"),LAYOUT.single?clone(LAYOUT.single):{g:WINS.graph.def.slice(),open:true,max:false}); applyWins(); saveLayout(); }
@@ -14097,6 +14174,8 @@ function syncGraphWins(){
   S.gcount=nWin;
   moveLive();
 }
+function rescueLive(el){ const body=$("#w-graph .win-b"), rb=$("#gRibbon"), pane=$("#gPane");
+  if(body&&rb&&pane&&el.contains(rb)){ body.prepend(pane); body.prepend(rb); } }
 // The graph that shows a spectrum: one of its own first, then the smallest.
 function graphForCol(cid){ const c=colById(cid), p=P(); if(!c||!p) return "main";
   const gs=(p.graphs||[]).filter(g=>g.cols.includes(cid)).sort((a,b)=>a.cols.length-b.cols.length);
@@ -14197,12 +14276,13 @@ function renderGraphHeads(){
   const p=P(); if(!p) return; const many=multiGraph();
   graphIds().forEach(id=>{ const el=$("#w-"+winOfGraph(id)); if(!el) return;
     const t=el.querySelector(".win-t"), nm=many?graphName(id):"Graph"; if(t&&t.textContent!==nm) t.textContent=nm; el.setAttribute("aria-label",nm);
+    if(t) t.title=`${nm}, in the project “${projName(p)}”`;
     if(id===(S.gid||"main")) return;
     const cols=graphCols(id), lead=leadOf(id), pl=plotOf(id), sub=el.querySelector(".win-sub"), bar=el.querySelector(".gbar");
     if(sub) sub.textContent=cols.length===1?specName(cols[0]):cols.length?`${cols.length} spectra`:"";
     if(bar){ const keep=S.gctx; S.gctx=id;
       try{ bar.innerHTML=cols.map(c=>{ const col=((pl.series||{})[c.id]||{}).color||(c.id===lead?"var(--data)":yTint(c.id));
-        return `<button class="gchip${c.id===lead?" on":""}" data-gchip="${c.id}" title="Work on ${esc(specName(c))} in this graph"><span class="sw" style="background:${esc(col)}"></span>${esc(specName(c))}</button>`; }).join(""); }
+        return `<button class="gchip${c.id===lead?" on":""}" data-gchip="${c.id}" title="Work on ${esc(specName(c))} in this graph, or hold and drag it onto another graph"><span class="sw" style="background:${esc(col)}"></span>${esc(specName(c))}</button>`; }).join(""); }
       finally{ S.gctx=keep; } } });
 }
 /* ---- Making, changing and removing graphs ---- */
@@ -14285,7 +14365,7 @@ function showGraph(id){ const w=winOfGraph(id); if(!winOpen(w)) openWin(w); else
 // The list of graphs (the taskbar's Graphs button and Window › Graphs).
 function graphsMenuItems(){ const cur=S.gid||"main";
   return graphIds().map(id=>{ const cs=graphCols(id); return {label:graphName(id)+(cs.length===1?" · "+specName(cs[0]):cs.length?` · ${cs.length} spectra`:""), radio:true, checked:id===cur, run:()=>showGraph(id)}; })
-    .concat(["-",{label:"Tile the graphs", run:tileWins},{label:"Link the X zoom", checked:S.linkX, run:()=>setLinkX(!S.linkX)}]); }
+    .concat(["-",{label:"Combine graphs…", enabled:!S.readOnly, run:()=>combineDlg()},{label:"Tile the graphs", run:tileWins},{label:"Link the X zoom", checked:S.linkX, run:()=>setLinkX(!S.linkX)}]); }
 // A graph window's ⋯ menu.
 function graphWinItems(id){
   const p=P(), ro=S.readOnly||!p, main=id==="main", ys=yCols(), on=graphCols(id), has=!!(p&&pointsAll().length);
@@ -14294,6 +14374,7 @@ function graphWinItems(id){
     {label:"Spectra on it", enabled:!!ys.length, sub:()=>ys.map(c=>{ const shown=on.includes(c);
       return {label:specName(c), checked:shown, enabled:!ro&&!(shown&&!main&&on.length<2), run:()=>toggleGraphCol(id,c.id)}; })},
     {label:"Duplicate", enabled:!ro, run:()=>duplicateGraph(id)},
+    {label:"Combine", sub:()=>combineMenuItems(id).slice(1)},
     {label:"Export", sub:()=>[{label:"This graph as SVG",run:exportSvg,enabled:has},{label:"This graph as PNG",run:exportPng,enabled:has},
       "-",{label:"All graphs as one SVG",run:exportAllSvg,enabled:multiGraph()},{label:"All graphs as one PNG",run:exportAllPng,enabled:multiGraph()}]},
     "-",{label:"New graph", sub:()=>newGraphItems(), enabled:!ro},
@@ -14301,6 +14382,223 @@ function graphWinItems(id){
     {label:"Link the X zoom of the graphs", checked:S.linkX, run:()=>setLinkX(!S.linkX)},
     "-",{label:main?"The first graph cannot be deleted":"Delete this graph", danger:!main, enabled:!ro&&!main, run:()=>deleteGraph(id)}];
 }
+
+/* ---- Combining graphs -------------------------------------------------------------
+   Graphs plotted one by one end up together: a graph held by its grip and
+   dropped on another merges into it (its spectra go there with their lines and
+   colours, its labels too, and the graph dropped goes, unless Ctrl is held); a
+   spectrum's chip dropped on a graph adds that spectrum, and dropped on the
+   empty desk gets a graph of its own. The menus do the same (combineGraphs). */
+function combineGraphs(srcs,into,opt){
+  opt=opt||{}; const p=P(); if(!p||S.readOnly) return null;
+  if(into!=="new"&&into!=="main"&&!graphOf(into)) return null;
+  srcs=(srcs||[]).filter((id,i,a)=>a.indexOf(id)===i&&id!==into&&(id==="main"||graphOf(id)));
+  const ids=[]; srcs.forEach(id=>graphCols(id).forEach(c=>{ if(!ids.includes(c.id)) ids.push(c.id); }));
+  (opt.cids||[]).forEach(k=>{ const c=colById(k); if(c&&c.role==="y"&&!ids.includes(k)) ids.push(k); });
+  if(!ids.length) return null;
+  const graphs=(p.graphs||[]).map(g=>Object.assign({},g,{cols:g.cols.slice(),plot:Object.assign({},g.plot)})), plot=Object.assign({},p.plot);
+  let tid=into, tp, fresh=0;
+  if(into==="new"){ tid="g"+Math.random().toString(36).slice(2,9); tp=graphBase(srcs[0]||GID()); graphs.push({id:tid,name:nextGraphName(p),cols:ids.slice(),plot:tp}); fresh=ids.length; }
+  else if(into==="main"){ tp=plot; const hid=plot.hidden||[]; fresh=ids.filter(k=>hid.includes(k)).length; plot.hidden=hid.filter(k=>!ids.includes(k)); }
+  else { const g=graphs.find(q=>q.id===into); tp=g.plot; const nw=ids.filter(k=>!g.cols.includes(k)); fresh=nw.length; g.cols=g.cols.concat(nw); }
+  // Each spectrum keeps the look it had where it came from, unless it has one here.
+  srcs.forEach(s=>{ const sp=s==="main"?p.plot:graphOf(s).plot; graphCols(s).forEach(c=>{ const st=sp.series&&sp.series[c.id];
+    if(st&&!(tp.series&&tp.series[c.id])) tp.series=Object.assign({},tp.series,{[c.id]:clone(st)}); }); });
+  if(opt.layout) tp.layout=opt.layout;
+  // The graphs merged go (never the first), and their labels move with their spectra.
+  const del=opt.keep?[]:srcs.filter(id=>id!=="main"&&id!==tid);
+  if(!fresh&&!del.length&&!opt.layout){ toast(`${ids.length===1?specName(colById(ids[0]))+" is":"Those spectra are"} on ${graphName(into)} already.`); return null; }
+  const out=graphs.filter(g=>!del.includes(g.id));
+  plot.annos=(p.plot.annos||[]).map(a=>del.includes(a.g)?Object.assign({},a,{g:tid==="main"?undefined:tid}):a);
+  const tname=into==="new"?out.find(g=>g.id===tid).name:graphName(into), dnames=del.map(id=>graphName(id)), n=ids.length, ns=`${n} spectr${n===1?"um":"a"}`;
+  const what=srcs.length?andList(srcs.map(id=>graphName(id))):andList(ids.map(k=>specName(colById(k))));
+  const log=into==="new"&&!srcs.length?`made ${tname}, showing ${what}`:del.length?`merged ${andList(dnames)} into ${tname} (${ns})`:srcs.length?`put the spectra of ${what} on ${tname} (${ns})`:`put ${what} on ${tname}`;
+  const geo=del.length&&into==="new"&&winState(winOfGraph(del[0])).open?winState(winOfGraph(del[0])).g.slice():null;
+  pushUndo(srcs.length?"combining graphs":"putting a spectrum on a graph");
+  save({graphs:out,plot},log);
+  renderAll();
+  if(into==="new"){ if(opt.at) placeWinAt(tid,opt.at); else if(geo){ Object.assign(winState(tid),{g:geo,open:true,max:false,z:++LAYOUT.z}); applyWins(); saveLayout(); } else splitInto(winOfGraph(srcs[0]||GID()),tid); }
+  else { const w=winOfGraph(tid); if(!winOpen(w)) openWin(w); else focusWin(w); }
+  activateGraph(tid);
+  toast(del.length?`Merged ${andList(dnames)} into ${tname}.`:into==="new"&&!srcs.length?`${tname} shows ${what}.`:`${srcs.length?"The spectra of "+what+" are":what+(n===1?" is":" are")} on ${tname}.`,{action:"Undo",run:undo});
+  return tid;
+}
+// A new window where something was dropped on the desk.
+function placeWinAt(id,pt){ const d=$("#desk").getBoundingClientRect(), {W,H}=deskSize(), w=Math.min(0.46,Math.max(300/W,0.3)), h=Math.min(0.56,Math.max(240/H,0.36));
+  const x=Math.max(0,Math.min(1-w,(pt.x-d.left)/W-w/2)), y=Math.max(0,Math.min(1-h,(pt.y-d.top)/H-0.03));
+  Object.assign(winState(id),{g:[x,y,w,h],open:true,max:false,z:++LAYOUT.z}); applyWins(); saveLayout(); }
+// Where a graph (o.gid) or a spectrum (o.cid) held at x, y would go.
+function gDropAt(x,y,o){
+  for(const el of document.elementsFromPoint(x,y)){
+    if(el.closest(".gghost,.menu")) continue;
+    const tk=el.closest("[data-tk]"); if(tk){ const g=graphOfWin(tk.dataset.tk); return g?dropTarget(g,o,tk):null; }
+    const w=el.closest(".win"); if(w){ const g=graphOfWin(w.dataset.win); return g?dropTarget(g,o,w):null; }
+    if(el.id==="desk") return o.cid?{kind:"desk"}:null;
+    if(el.closest("#taskbar")) return null;
+  }
+  return null;
+}
+function dropTarget(g,o,el){ if(o.cid){ const c=colById(o.cid); if(!c) return null; return {kind:"graph",g,el,already:graphShows(c,g)}; }
+  return g===o.gid?null:{kind:"graph",g,el}; }
+function dropText(t,o,copy){
+  if(t.kind==="desk") return "Drop for a graph of its own";
+  const tn=graphName(t.g);
+  if(o.cid) return t.already?`Already on ${tn}`:`Drop to put it on ${tn}`;
+  return copy||o.gid==="main"?`Drop to put its spectra on ${tn}`:`Drop to merge it into ${tn} (Ctrl keeps it)`; }
+function startGraphDrag(e,o){
+  if(e.button!==0||!P()) return;
+  e.preventDefault(); e.stopPropagation();
+  const x0=e.clientX, y0=e.clientY; let on=false, tgt=null, ghost=null, key="", last=null, auto=0;
+  // With the windows in one column (a phone), holding near the top or the
+  // bottom scrolls, so a graph further up or down can be reached.
+  const scroller=()=>{ const se=document.scrollingElement; return se&&se.scrollHeight>se.clientHeight+1?se:document.body; };
+  const edge=y=>{ if(!isNarrow()) return 0; if(y<70) return -1; const tb=$("#taskbar"), top=tb?tb.getBoundingClientRect().top:innerHeight; return y>top-56&&y<top?1:0; };
+  const tick=()=>{ auto=0; if(!on||!last) return; const d=edge(last.clientY); if(!d) return; scroller().scrollTop+=d*16; mv(last,true); auto=requestAnimationFrame(tick); };
+  const label=o.cid?specName(colById(o.cid)):graphName(o.gid);
+  const clear=()=>document.querySelectorAll(".gdrop").forEach(el=>el.classList.remove("gdrop"));
+  const mv=(ev,fromTick)=>{
+    last={clientX:ev.clientX,clientY:ev.clientY,ctrlKey:ev.ctrlKey,metaKey:ev.metaKey,altKey:ev.altKey};
+    if(!on){ if(S.readOnly||Math.hypot(ev.clientX-x0,ev.clientY-y0)<6) return; on=true; closeMenu(false);
+      document.body.classList.add("gdragging");
+      ghost=document.createElement("div"); ghost.className="gghost"; ghost.setAttribute("role","status");
+      ghost.innerHTML=`<span class="gh1">${ICON(o.cid?"chart":"grip","sm")}<span>${esc(label)}</span></span><em></em>`; document.body.appendChild(ghost); }
+    ghost.style.left=Math.min(ev.clientX+14,innerWidth-ghost.offsetWidth-6)+"px"; ghost.style.top=Math.min(ev.clientY+12,innerHeight-ghost.offsetHeight-6)+"px";
+    if(fromTick!==true&&!auto&&edge(ev.clientY)) auto=requestAnimationFrame(tick);
+    const copy=ev.ctrlKey||ev.metaKey||ev.altKey, t=gDropAt(ev.clientX,ev.clientY,o), k=t?`${t.kind}:${t.g||""}:${copy}`:"";
+    tgt=t; if(k===key) return; key=k; clear();
+    ghost.classList.toggle("no",!t||!!t.already);
+    ghost.querySelector("em").textContent=t?dropText(t,o,copy):"Drop on a graph";
+    if(t&&t.el) t.el.classList.add("gdrop");
+  };
+  const end=ev=>{ if(auto) cancelAnimationFrame(auto); auto=0; window.removeEventListener("pointermove",mv); window.removeEventListener("pointerup",end); window.removeEventListener("pointercancel",end); window.removeEventListener("keydown",escK,true);
+    clear(); if(ghost) ghost.remove(); document.body.classList.remove("gdragging");
+    if(ev.type!=="pointerup") return;
+    if(!on){ if(o.click) o.click(); return; }
+    if(!tgt||tgt.already) return;
+    const copy=ev.ctrlKey||ev.metaKey||ev.altKey;
+    if(tgt.kind==="desk") combineGraphs([],"new",{cids:[o.cid],keep:true,at:{x:ev.clientX,y:ev.clientY}});
+    else if(o.cid) combineGraphs([],tgt.g,{cids:[o.cid],keep:true});
+    else combineGraphs([o.gid],tgt.g,{keep:copy}); };
+  const escK=ev=>{ if(ev.key==="Escape"){ ev.preventDefault(); ev.stopPropagation(); end(ev); } };
+  window.addEventListener("pointermove",mv); window.addEventListener("pointerup",end); window.addEventListener("pointercancel",end); window.addEventListener("keydown",escK,true);
+}
+// The grip's menu, and the Combine part of a graph's ⋯ menu.
+function combineMenuItems(id){
+  const ro=S.readOnly||!P(), others=graphIds().filter(k=>k!==id), main=id==="main";
+  return [{group:`Combine ${graphName(id)}`,plain:true},
+    {label:main?"Put its spectra on":"Merge it into", enabled:!ro&&others.length>0, title:main?"The first graph stays":"It goes, and its spectra and labels join the other graph", sub:()=>others.map(k=>({label:graphName(k), run:()=>combineGraphs([id],k)}))},
+    {label:"Merge every other graph into this one", enabled:!ro&&others.length>0, run:()=>combineGraphs(others,id)},
+    {label:"Combine graphs…", enabled:!ro&&others.length>0, run:()=>combineDlg(id)},
+    "-",{label:"Bring in spectra from another project…", enabled:!ro&&otherProjects().length>0, run:()=>bringInDlg(id)}];
+}
+function combineDlg(into){
+  const p=P(); if(!p||S.readOnly) return; const ids=graphIds();
+  if(ids.length<2){ toast("There is only one graph. Bring in spectra from another project with File › Bring in from another project."); return; }
+  into=into&&ids.includes(into)?into:GID();
+  const row=id=>{ const cs=graphCols(id); return `<label class="cbrow"><input type="checkbox" id="cgG_${id}"${id!==into?" checked":""}><span>${esc(graphName(id))}</span><span class="lab">${esc(cs.length===1?specName(cs[0]):cs.length+" spectra")}</span></label>`; };
+  formDlg({title:"Combine graphs",ok:"Combine",focus:"#cgInto",
+    html:`<p class="lab" style="margin:0 0 6px">The spectra of</p><div class="cglist">${ids.map(row).join("")}</div>
+    <div class="grid2"><label for="cgInto">Go on</label><select id="cgInto"><option value="new">A new graph</option>${ids.map(id=>`<option value="${id}"${id===into?" selected":""}>${esc(graphName(id))}</option>`).join("")}</select>
+    <label for="cgLay">Laid out</label><select id="cgLay"><option value="">As that graph has them</option>${LAYOUTS.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join("")}</select>
+    <label for="cgKeep">The graphs merged</label><select id="cgKeep"><option value="del">Go (the first graph stays)</option><option value="keep">Stay</option></select></div>`,
+    valid:v=>ids.some(id=>v["cgG_"+id]&&id!==v.cgInto)}).then(r=>{
+    if(!r||!P()) return; const pick=ids.filter(id=>r["cgG_"+id]&&id!==r.cgInto&&(id==="main"||graphOf(id)));
+    combineGraphs(pick,r.cgInto,{keep:r.cgKeep==="keep",layout:r.cgLay||null}); });
+}
+
+/* ---- Spectra from another project ---------------------------------------------------
+   Copied with what makes them what they are: the recorded values with their X
+   and error columns, the processing, the mask, the file's header, the peaks
+   marked on them and their look on the graph. A derived spectrum brings its
+   source, and a step that reads another spectrum brings that one too. Every id
+   is new, so nothing points back; the raw-data record, the log and the History
+   name the project they came from. */
+function projSpectra(q){ return (q.cols||[]).filter(c=>c.role==="y"&&(c.src||(c.data||[]).some(v=>v!=null))); }
+function otherProjects(){ return S.projects.filter(q=>q.id!==S.pid&&!S.gone.has(q.id)&&projSpectra(q).length); }
+function stepReads(s){ const op=PIPE_OPS[s.op]; try{ return op&&op.deps?op.deps(s.p||{}).map(d=>d[0]):[]; }catch(e){ return []; } }
+function copySpectra(q,cids){
+  const sc=q.cols||[], byId=id=>sc.find(c=>c.id===id), need=new Set();
+  const add=id=>{ const c=byId(id); if(!c||c.role!=="y"||need.has(id)) return; need.add(id); if(c.src) add(c.src); (c.pipe||[]).forEach(s=>stepReads(s).forEach(add)); };
+  cids.forEach(add);
+  // Each spectrum's X: the nearest X column left of its root, as in its own project.
+  const rootIn=c=>{ let cur=c; const seen=new Set(); while(cur&&cur.src&&!seen.has(cur.id)){ seen.add(cur.id); cur=byId(cur.src); } return cur&&!cur.src?cur:null; };
+  const xs=new Set(); need.forEach(id=>{ const r=rootIn(byId(id)); if(!r) return; const i=sc.indexOf(r);
+    for(let j=i-1;j>=0;j--) if(sc[j].role==="x"){ xs.add(sc[j].id); return; } const f=sc.find(o=>o.role==="x"); if(f) xs.add(f.id); });
+  const keep=sc.filter(c=>need.has(c.id)||xs.has(c.id)||(c.role==="e"&&need.has(c.of)));
+  const map={}; keep.forEach(c=>{ map[c.id]=newColId(); }); const m=id=>map[id]||id, t=Date.now();
+  const cols=keep.map(c=>{ const n=clone(c); n.id=map[c.id]; if(n.of) n.of=m(n.of); if(n.src) n.src=m(n.src);
+    n.origin={pid:q.id,proj:projName(q),col:c.id,t,by:S.uid||""};
+    // A computed column arrives as its values: what it was computed from stays there.
+    if(n.fx){ delete n.fx; n.origin.computed=true; }
+    if(n.pipe) n.pipe=n.pipe.map(s=>{ const st=clone(s), pp=st.p||{}; st.id=newStepId();
+      if(typeof pp.ref==="string") pp.ref=m(pp.ref); if(Array.isArray(pp.cols)) pp.cols=pp.cols.map(m); if(Array.isArray(pp.reads)) pp.reads=pp.reads.map(m);
+      if(pp.readSigs&&typeof pp.readSigs==="object"){ const o={}; Object.keys(pp.readSigs).forEach(k=>{ o[m(k)]=pp.readSigs[k]; }); pp.readSigs=o; }
+      return st; });
+    return n; });
+  return {cols,map,need:[...need]};
+}
+function bringIn(groups,onto,gid){
+  const p=P(); if(!p||S.readOnly) return;
+  const empty=!allCols().some(c=>c.role!=="x"&&(c.data||[]).some(v=>v!=null));
+  let cols=empty?[]:p.cols.slice(); const shown=[], brought=[], names=[], from=[], styles={};
+  const found=Object.assign({},p.found||{}), annos=(p.plot.annos||[]).slice();
+  groups.forEach(({q,cids})=>{ const r=copySpectra(q,cids); if(!r.cols.length) return; from.push(`“${projName(q)}”`);
+    // An X column the same as the last one here is shared, not repeated.
+    const lastX=cols.slice().reverse().find(c=>c.role==="x"&&c.data.some(v=>v!=null)), first=r.cols[0];
+    cols=cols.concat(first&&first.role==="x"&&lastX&&sameAxis(lastX.data,first.data)&&(lastX.unit||"")===(first.unit||"")?r.cols.slice(1):r.cols);
+    cids.forEach(k=>{ const nid=r.map[k]; if(nid&&!shown.includes(nid)){ shown.push(nid); names.push(specName(r.cols.find(c=>c.id===nid))); } });
+    r.need.forEach(k=>{ const nid=r.map[k]; brought.push(nid);
+      if(q.found&&q.found[k]) found[nid]=clone(q.found[k]);
+      ((q.plot&&q.plot.annos)||[]).filter(a=>a.grp==="pk:"+k).forEach(a=>annos.push(Object.assign(clone(a),{id:annoId(),grp:"pk:"+nid,ser:a.ser===k?nid:a.ser,g:undefined})));
+      const st=(q.plot&&q.plot.series&&q.plot.series[k])||(q.graphs||[]).map(g=>g.plot&&g.plot.series&&g.plot.series[k]).find(Boolean);
+      if(st) styles[nid]=clone(st); }); });
+  if(!shown.length) return;
+  const plot=Object.assign({},p.plot,{annos}), graphs=(p.graphs||[]).map(g=>Object.assign({},g)), made=[], pick=o=>{ const r={}; o.forEach(k=>{ if(styles[k]) r[k]=styles[k]; }); return r; };
+  const hideMain=ids=>{ plot.hidden=(plot.hidden||[]).concat(ids.filter(k=>!(plot.hidden||[]).includes(k))); };
+  let target=gid;
+  if(onto==="graph"&&(gid==="main"||!graphOf(gid))){ target="main"; hideMain(brought.filter(k=>!shown.includes(k))); plot.series=Object.assign({},plot.series,pick(shown)); }
+  else if(onto==="graph"){ const g=graphs.find(q=>q.id===gid); g.cols=g.cols.concat(shown.filter(k=>!g.cols.includes(k))); g.plot=Object.assign({},g.plot,{series:Object.assign({},g.plot.series,pick(shown))}); hideMain(brought); }
+  else { let groupsOf=onto==="each"?shown.map(k=>[k]):[shown];
+    // An empty project's first graph takes the first of them.
+    if(empty){ const first=groupsOf[0]; hideMain(brought.filter(k=>!first.includes(k))); plot.series=Object.assign({},plot.series,pick(first)); target="main"; groupsOf=groupsOf.slice(1); }
+    else hideMain(brought);
+    const base=graphBase(GID());
+    groupsOf.forEach(ids=>{ const g={id:"g"+Math.random().toString(36).slice(2,9),name:nextGraphName(Object.assign({},p,{plot,graphs})),cols:ids,plot:Object.assign(clone(base),{series:pick(ids)})}; graphs.push(g); made.push(g.id); });
+    if(made.length&&!empty) target=made[0]; }
+  pushUndo("bringing in spectra");
+  p.cols=cols; const raw=recordRaw(`brought in ${andList(names)} from ${andList(from)}`);
+  const patch=Object.assign({cols,plot,graphs,found},raw?{raw}:{},empty?{activeY:shown[0]}:{});
+  const list=names.length>4?names.slice(0,4).join(", ")+` and ${names.length-4} more`:names.join(", ");
+  save(patch,`brought in ${names.length} spectr${names.length===1?"um":"a"} (${list}) from ${andList(from)}${brought.length>shown.length?`, with ${brought.length-shown.length} they are made from`:""}`);
+  renderAll();
+  if(made.length===1&&!empty) splitInto(winOfGraph(gid),made[0]); else if(made.length) tileWins();
+  activateGraph(target);
+  toast(`Brought in ${list} from ${andList(from)}, on ${graphName(target)}.`,{action:"Undo",run:undo});
+}
+function bringInDlg(gid){
+  const p=P(); if(!p||S.readOnly) return; const ps=otherProjects();
+  if(!ps.length){ toast("No other project has spectra to bring in."); return; }
+  gid=gid&&(gid==="main"||graphOf(gid))?gid:GID(); let k=0; const keys=[];
+  const blocks=ps.map(q=>{ const ss=projSpectra(q);
+    return `<fieldset><legend><label class="cbrow"><input type="checkbox" data-binall="${q.id}"><b>${esc(projName(q))}</b><span class="lab">${ss.length} spectr${ss.length===1?"um":"a"}</span></label></legend>${ss.map(c=>{ const id="biC"+(k++); keys.push([id,q,c.id]);
+      return `<label class="cbrow"><input type="checkbox" id="${id}" data-binof="${q.id}"><span>${esc(c.name||"Unnamed")}</span>${c.src?`<span class="lab">derived</span>`:""}</label>`; }).join("")}</fieldset>`; }).join("");
+  const prom=formDlg({title:"Bring in from another project",ok:"Bring in",wide:true,
+    html:`<div class="binl">${blocks}</div><div class="grid2"><label for="biOn">On</label><select id="biOn"><option value="graph">${esc(graphName(gid))}, beside what is on it</option><option value="new">A new graph</option><option value="each">A graph for each</option></select></div>`,
+    valid:v=>keys.some(([id])=>v[id])});
+  // Ticking a project ticks its spectra; the project's box says whether all of them are.
+  const body=$("#formBody"), fire=()=>{ const m=$("#formModal"); if(m.oninput) m.oninput(); };
+  const sync=pid=>{ const all=[...body.querySelectorAll(`[data-binof="${pid}"]`)], box=body.querySelector(`[data-binall="${pid}"]`), n=all.filter(x=>x.checked).length; if(box){ box.checked=n===all.length; box.indeterminate=n>0&&n<all.length; } };
+  body.querySelectorAll("[data-binall]").forEach(cb=>cb.addEventListener("change",()=>{ body.querySelectorAll(`[data-binof="${cb.dataset.binall}"]`).forEach(x=>{ x.checked=cb.checked; }); fire(); }));
+  body.querySelectorAll("[data-binof]").forEach(cb=>cb.addEventListener("change",()=>sync(cb.dataset.binof)));
+  if(ps.length===1){ const only=body.querySelector("[data-binall]"); only.checked=true; body.querySelectorAll("[data-binof]").forEach(x=>{ x.checked=true; }); fire(); }
+  prom.then(r=>{ if(!r||!P()) return;
+    const groups=ps.map(q=>({q,cids:keys.filter(([id,qq])=>qq===q&&r[id]).map(x=>x[2])})).filter(g=>g.cids.length);
+    if(groups.length) bringIn(groups,r.biOn,gid); });
+}
+// Opening a project from the list says what is in it.
+function switchProject(id){ if(id===S.pid) return; openProject(id); const p=P(); if(!p) return;
+  const ns=yCols().filter(c=>c.src||(c.data||[]).some(v=>v!=null)).length, ng=graphIds().length;
+  toast(`“${projName(p)}”: ${ns?`${ns} spectr${ns===1?"um":"a"}`:"no data yet"}${ng>1?` on ${ng} graphs`:""}.`); }
 
 /* The chip on the graph window's ribbon: which stage of the processing the
    graph is showing, when it is not the final data, and the way back. */
@@ -14388,6 +14686,7 @@ function menuItems(which){
   if(which==="file") return [
     {label:"New project", run:newProject, enabled:can},
     {label:"Import data…", kbd:"Ctrl+O", run:pickFile, enabled:can},
+    {label:"Bring in from another project…", run:()=>bringInDlg(), enabled:edit&&otherProjects().length>0},
     "-",
     {label:"Examples", sub:()=>[
       {label:"Infrared: overlapping bands", run:()=>loadExample("ir"), enabled:can},
@@ -14497,11 +14796,38 @@ function newProject(){
 function renameProject(){ const ni=$("#projName"); if(ni.disabled) return; ni.focus(); ni.select(); }
 async function deleteProject(){
   const p=P(); if(!p||S.readOnly) return;
-  const nm=p.name||"Untitled analysis";
-  const ok=await confirmDlg(`Delete “${nm}”?`,`Its data, fit, history and comments will be removed ${S.store.mode==="db"?"for everyone who shares this workspace":"from this browser"}. This cannot be undone.`,"Delete project",true);
-  if(!ok) return;
-  try{ await S.store.remove(S.pid); toast(`Deleted “${nm}”.`); }catch(e){ writeErr(e); }
+  const nm=projName(p), pid=S.pid;
+  const ok=await confirmDlg(`Delete “${nm}”?`,`Its data, graphs, fits, history and comments will be removed ${S.store.mode==="db"?"for everyone who shares this workspace":"from this browser"}. This cannot be undone.`,"Delete project",true);
+  if(!ok||S.pid!==pid) return;
+  // Gone from here at once: a store that lists it a moment longer cannot keep
+  // its graphs on the desk, or take the next import into it.
+  S.gone.add(pid); if(S.pendingOpen===pid) S.pendingOpen=null;
+  try{ await S.store.remove(pid); }catch(e){ S.gone.delete(pid); writeErr(e); return; }
+  if(S.pid===pid){ leaveProject(pid); const next=S.projects.find(q=>q.id!==pid&&!S.gone.has(q.id));
+    if(next) openProject(next.id); else if(S.store.mode==="local") onProjects(S.projects.slice()); else renderAll(); }
+  const q=P(); toast(q&&S.pid!==pid?`Deleted “${nm}”. This is “${projName(q)}”.`:`Deleted “${nm}”.`);
 }
+/* Off a project that has gone: its waiting edits are dropped, its layout
+   forgotten, and the desk is cleared until another opens. */
+function leaveProject(pid){
+  if(wsPid===pid){ clearTimeout(wsTimer); wsPatch={}; wsLog=null; }
+  if(LAYOUT.proj) delete LAYOUT.proj[pid];
+  if(S.layoutPid===pid) S.layoutPid=null;
+  if(S.pid===pid){ S.pid=null; S.proj=null; S.pending=null; S.comments=[]; if(S.unsubC){ S.unsubC(); S.unsubC=null; } }
+}
+const projName=p=>(p&&p.name)||"Untitled analysis";
+const isUntitled=nm=>/^Untitled analysis( \(\d+\))?$/.test(nm||"Untitled analysis");
+// A new project's name, told apart from the others: "Spectra (2)".
+function uniqueProjName(nm,except){ nm=String(nm||"").trim().slice(0,80)||"Untitled analysis";
+  const used=new Set(S.projects.filter(q=>q.id!==except&&!S.gone.has(q.id)).map(q=>projName(q).toLowerCase()));
+  if(!used.has(nm.toLowerCase())) return nm;
+  const base=nm.replace(/ \(\d+\)$/,"").slice(0,74); let k=2; while(used.has(`${base} (${k})`.toLowerCase())) k++; return `${base} (${k})`; }
+// A project of several files is named after what their names share.
+function batchProjName(names){ if(names.length<2) return names[0]||"Untitled analysis";
+  let pre=names[0]; names.forEach(n=>{ let i=0; while(i<pre.length&&i<n.length&&pre[i]===n[i]) i++; pre=pre.slice(0,i); });
+  pre=pre.replace(/\d+$/,"").replace(/[\s_\-.,;:(\[]+$/,"").trim();
+  const cut=s=>s.length>24?s.slice(0,23)+"…":s;
+  return pre.length>=3?`${cut(pre)} (${names.length} spectra)`:`${cut(names[0])} to ${cut(names[names.length-1])}`; }
 /* An example opens in the project you are on only if that project is empty;
    otherwise it gets a project of its own rather than replacing your data. */
 async function loadExample(kind){
@@ -14516,7 +14842,7 @@ async function loadExample(kind){
   S.fitMode=null; S.selPeak=null; S.stage=null; S.selStep=null;
   if(!empty){ await createProject(Object.assign(blankProject(ex.name),patch),"opened the example: "+ex.name); showTab(ex.tab||"fit"); return; }
   pushUndo("loading the example");
-  patch.name=(!cur.name||cur.name==="Untitled analysis")?ex.name:cur.name;
+  patch.name=isUntitled(cur.name)?uniqueProjName(ex.name,S.pid):cur.name;
   S.draft=null; S.pdraft=null; S.view=null;
   await save(patch,"opened the example: "+ex.name); renderAll(); showTab(ex.tab||"fit");
 }
@@ -14542,7 +14868,7 @@ function wireStatic(){
   $("#projMenu").onclick=()=>toggleMenu($("#projMenu"),projectItems,{align:"right",label:"Projects"});
   $("#exportBtn").onclick=()=>toggleMenu($("#exportBtn"),exportItems,{label:"Export"});
   const ni=$("#projName");
-  ni.addEventListener("change",e=>{ if(!P()) return; const v=e.target.value.trim().slice(0,80)||"Untitled analysis"; if(v===P().name) return; save({name:v},`renamed the project to "${v}"`); renderTop(); });
+  ni.addEventListener("change",e=>{ if(!P()) return; const v=e.target.value.trim().slice(0,80)||"Untitled analysis"; if(v===P().name) return; save({name:v},`renamed the project to "${v}"`); renderTop(); renderTaskbar(); });
   ni.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); ni.blur(); } else if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); ni.value=P()?P().name||"":""; ni.blur(); } });
   $("#importBtn").onclick=pickFile; $("#emptyImport").onclick=pickFile;
   $("#fileIn").addEventListener("change",e=>{ const fs=[...e.target.files]; if(fs.length>1) readFilesIn(fs); else if(fs[0]) readFileIn(fs[0]); e.target.value=""; });
