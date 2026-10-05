@@ -90,14 +90,17 @@ graph first, with the taskbar kept at the bottom of the screen.
   dep, t, p, CI and atBound, its own statistics (its degrees of freedom less its share of the
   shared parameters), and the whole fit's (`K`, `shared`). `inverse` eliminates once and replays
   it on each column: solve()'s arithmetic exactly, at n³ instead of n⁴.
-  `polyfit` fits about the mean of X and shifts back, so a wavenumber axis is not hopeless.
+  `polyfit` fits about the mean of X and shifts back, so a wavenumber axis is not hopeless;
+  `lineFit` (the trend lines) is a weighted straight line about the mean of X too, and returns
+  null when the X values do not spread beyond 10⁻¹² of their size.
   `compileExpr(src)` compiles a user's formula into a tree of closures, never run as JavaScript
   (so it works under a strict content policy, and nothing but arithmetic can run): numbers, `x`,
   names, `+ - * / ^` (or `**`), parentheses, `EXPR_FN` (exp, ln, log = ln, log10, sqrt, abs,
   trig and hyperbolic, erf, erfc, pow, min, max, sign, step) and `EXPR_CONST` (pi, e). Lines
   like `u = (x - xc)/w` name values for the lines below; the function is `y = …` or the last
   line; every other name is a parameter, in order of appearance. Errors are thrown with a
-  message in words and `line`/`col`. Lookups use `hasOwnProperty`, so `constructor(x)` is an
+  message in words and `line`/`col`, limits included (more than 4000 parts on a line, brackets
+  nested more than 200 deep), so a stack overflow never reaches the user. Lookups use `hasOwnProperty`, so `constructor(x)` is an
   unknown function, not `Object`. `compileExpr(src, {allowNone:true})` accepts a formula with
   no parameters (a worksheet column's). `guessUserParams(names, X, Y)` starts parameters from their
   names (y0/c baseline, A/H height, xc/x0 position of the largest point, w/sigma a tenth of the
@@ -261,7 +264,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   window's sets (`mk@<x>.x|y`, position and Y at the peak, no fit needed; `labelTrack`,
   `trackTableText`); `qFind(qs, id)` finds a track's quantity again within its width after it
   moved, `qFindStrict` returns null rather than another quantity. **Series from the files**:
-  `mode:"meta"` with `key`, a header field (`metaParse`: a date and time, a time of day, or a
+  `mode:"meta"` with `key`, a header field (`metaParse`: a date and time (with its time zone, if
+  written), a time of day (`tod`, unwrapped across midnight in the spectra's order), or a
   number with its unit; `metaKeys` lists the fields most spectra have as numbers and that
   differ; `metaSeries` gives the values, dates as time elapsed since the first in s, min, h or
   d); `seriesUnit`, `seriesModeOptions` (the list in the Batch and trend windows),
@@ -288,7 +292,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   only parses if you treat `;` plus comma-decimal as one hypothesis), `findBlock` (the longest run
   of consistent numeric lines, so an instrument preamble and a trailing footer are found rather
   than fought), `parseMeta`, `detectRoles`, `detectPaired`, `analyzeFile`, and `checkColumns`
-  which reports findings without applying them. `tools/parser-test.mjs` extracts this block
+  which reports findings without applying them. `numNorm` reads numbers as documents write
+  them (a minus sign −, superscript exponents 5×10⁻³, thousands set off by no-break spaces, or
+  by plain spaces in a comma-decimal number) and refuses `0x`, `0b`, `0o` literals; `toNumber`
+  and the worksheet's `parseNum` both use it. `unwrapQuoted` turns line breaks inside a quoted
+  field that opens at a field's start and closes within four lines into spaces (a spreadsheet
+  header cell written on two lines), before `analyzeFile` and the worksheet's paste split lines.
+  `tools/parser-test.mjs` extracts this block
   straight out of the HTML and tests it under node; run it after touching anything here.
   Files arrive through `readFileIn` (the Import button, Ctrl+O, or a drop anywhere on the
   window) and `importText`, which refuses binary instrument files with a reason (`looksBinary`).
@@ -389,7 +399,8 @@ graph first, with the taskbar kept at the bottom of the screen.
 - **Windows** (`WINS`, `LAYOUT`): each window is `section.win#w-<id>` with a `.win-h` title bar
   and a `.win-b` body; `LAYOUT.wins[id]` keeps `{g: [x, y, w, h] as fractions of the desk,
   open, max, z}`, saved per browser under `kurve.layout` (version 2; an older layout is
-  ignored). `openWin(id, {render})`, `closeWin`, `toggleWin`, `focusWin`, `toggleMax`,
+  ignored; every window state read back goes through `saneWin`, so NaN or absurd sizes put the
+  window back where it starts). `openWin(id, {render})`, `closeWin`, `toggleWin`, `focusWin`, `toggleMax`,
   `tileWins`, `cascadeWins`, `resetWins`, `renderWin(id)` (which window renders what),
   `renderTaskbar`, `setupWins` (move, resize, min/max buttons, and the "?" `[data-whelp]`
   that opens `helpFor(id)`). `renderAll` renders only open
@@ -529,7 +540,8 @@ graph first, with the taskbar kept at the bottom of the screen.
 - **Statistics window** (`renderStats`): descriptive statistics of every spectrum (final or
   raw, all X or the visible range: points, min, max, mean, SD, median, noise σ, S/N, area,
   centroid), the visible-range integral (`measureHtml`), and Pearson r between spectra on the
-  analysed one's X; Copy gives it as TSV.
+  analysed one's X (`corrMatrix(cols, rng, only)`: each pair once; past 12 spectra a column of
+  each against the analysed one, not a square table); Copy gives it as TSV.
 - **Peak fit panel** (`renderPeakFit`): three numbered parts: 1 Find peaks (`pfPanelHtml`,
   the finder's settings in `S.pf`, a live preview on the graph from `pfRun`, the peaks it would
   find in a table and the ones it turned down with their reasons, each with an Add button;
@@ -648,11 +660,23 @@ graph first, with the taskbar kept at the bottom of the screen.
   (`cols` carries the pipelines and masks, `raw` the fingerprint record, `fits` the fit history,
   `userFns` the project's fit functions, `found` the peak sets, `integ` the bands, `graphs`
   the extra graphs, `batch` and `series`, `trends` the trend graphs)
-  plus both drafts (`S.pdraft`, `S.draft`). It is per-session and local on purpose — rewinding your
+  plus both drafts (`S.pdraft`, `S.draft`). A snapshot copies everything but the columns' data
+  arrays, which it shares (`cloneCols`): raw values are only ever replaced. Undo and redo wait
+  while a pointer button is held anywhere (`S.ptrDown`, `heldBlocks`), so a drag cannot write
+  back what was undone under it. It is per-session and local on purpose — rewinding your
   own edits, not other people's. Destructive actions confirm themselves with a toast that
   carries an Undo button (`toast(msg,{action,run})`).
 - **Storage**: `LocalStore` (localStorage, single user) and `makeDbStore(db)` (claude.ai artifact
-  runtime, shared realtime). Both expose the same interface: `watchProjects`, `create`, `save`,
+  runtime, shared realtime). `LocalStore` keeps one key per project (`kurve.p.<id>`) and per
+  project's comments (`kurve.c.<id>`), so a save writes only its own project; another tab's
+  writes arrive through the `storage` event (`onStorage`) and are emitted like any change. A
+  save starts from the project as stored (`read`), so two tabs changing different parts of one
+  project keep both, unless an earlier write failed (`dirty[pid]`: then memory has it, and the
+  next write that fits stores everything). A refused write throws (`fail`: `quota_exceeded` or
+  `storage`): the status bar says Not saved and `writeErr` says why; a project deleted elsewhere
+  throws `gone`. Ids carry a random part (two made in one millisecond). The single key of
+  earlier versions (`kurve.v1`) is split up on `load`, or kept and used as before
+  (`legacy`) if there is no room to. Both expose the same interface: `watchProjects`, `create`, `save`,
   `remove`, `watchComments`, `addComment`, `updateComment`, `deleteComment`. To add a real
   backend (Firebase, Supabase, a custom server with WebSockets), implement this interface.
   With LocalStore and no projects at all, `onProjects` creates an empty one, so a first visit
@@ -721,7 +745,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   (`PLOT_TYPES`: line, scatter, linesym, stick, area, step), `color`, `lw`, `dash`, `sym`
   (`SYMS`, filled and open), `ss`, `fill`, `op`, `label`; the fit curve's is `series.__fit`.
   `seriesSvg` draws one spectrum as a handful of paths whatever its length. `axisTicks` honours
-  each axis's `min`, `max`, `step`, `minor`, `fmt` (auto, decimal, scientific) and `dec`.
+  each axis's `min`, `max`, `step`, `minor`, `fmt` (auto, decimal, scientific) and `dec`. Ticks
+  (`niceTicks`, `axisTicks`) are counted by index with a cap, never added up step by step, and
+  `tickLabel` gives as many digits as the step needs (ticks 10⁹ apart on 1.7×10¹⁸ all differ).
+  The drawn view goes through `saneView`/`saneRange`: finite, ascending, wider than nothing and
+  than 10⁻¹⁰ of its own size, within ±10³⁰⁷; the wheel stops zooming at that width.
   **Text styles**: `TS` in `buildPlot` holds one style per kind of text (`TXT_ELS`: title,
   axis, ticks, legend, labels, peaks), each `txtStyle(cfg, el, base, kfam)` = the graph's font
   and size (`fs`) under `cfg.txt[el]` (`fam`, `name`, `size` in points, `b`, `i`, `u`,
@@ -910,7 +938,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   asks about. The old ids `h-start`, `h-keys`, `h-about` still work. A new window, tool or
   setting needs its article, `DOC_STEP` notes or `hint`: the drive checks every article
   renders and every link resolves.
-- **Export**: `saveFile(name,data,mime)` uses the claude.ai `downloads` runtime when present and
+- **Export**: file names come from `safeName(base, ext)` (any script kept; only what a file
+  system refuses, control characters and leading dots go; "kurve" when nothing is left) and
+  `figName()` (the project and, with several graphs, the graph).
+  `saveFile(name,data,mime)` uses the claude.ai `downloads` runtime when present and
   falls back to `Blob` + `<a download>` otherwise, so exports work from disk. `exportSvg` and
   `exportPng` (the same SVG rasterised at 2.5×) go through `embedFonts(svg)`, as do the
   all-graphs figure and the report: each web font face the SVG draws (family, italic, bold)
@@ -951,9 +982,15 @@ presence, names) depends on the claude.ai runtime and would need a real backend 
 ## Checking a change
 
 `node tools/fit-test.mjs`, `node tools/pipe-test.mjs` and `node tools/parser-test.mjs` cover the
-numerics, the processing steps with their checks and the fingerprint, and the parser. The first
-two take an optional path to test a working copy instead of `kurve.html`.
-The UI has no test file: drive it in a real browser (Playwright with Chromium works headless),
+numerics, the processing steps with their checks and the fingerprint, and the parser. Each
+takes an optional path to test a working copy instead of `kurve.html`.
+`node tools/odd-test.mjs [path]` (Playwright with Chromium) drives the app in unusual ways that
+once hung it, lost data or drew nonsense: 300 turns of the wheel, a nanosecond time axis, equal
+and crossed axis limits, two tabs saving, a full store, the old single-key store and a corrupt
+layout, typographic minus signs, file names in any script, times across midnight, undo while
+holding a label, 300 spectra, a long graph name, a straight line through one X, a formula 300
+deep. Run it after touching storage, the axes, the parser or undo. For anything else the UI
+has no test file: drive it in a real browser (Playwright with Chromium works headless),
 click every control you touched, and watch for page errors. Screenshots at 1440, 1024 and
 390 px wide, in both themes, catch most layout mistakes. Windows overlap: bring the one you
 are about to click to the front (`focusWin`) or the click lands on whatever lies over it.
@@ -1216,6 +1253,32 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   "3 spectra", every graph "Graph 1": after a switch nobody could tell which graphs were
   whose. New projects get names of their own, and the taskbar says whose windows these are.
 
+- **A step too small to change a number never arrives.** Ticks were made by adding the step to
+  a value until it passed the axis's end; zoomed far in (the wheel turned a few hundred times)
+  or on numbers near 10¹⁷, `v + step === v` and the tab froze for good. Count by index with a
+  cap, and keep every drawn range wider than the precision of its own numbers.
+- **Precision is relative.** Three significant digits label ticks at 1.7×10¹⁸ one second apart
+  as eight copies of "1.7×10¹⁸"; a determinant from raw sums is rounding noise when every X is
+  the same (a "slope" of 8 with R² −2) and loses every digit when X is near 10⁹. Size digits from
+  the step; fit about the mean.
+- **One key for everything is one writer for everything.** Every save wrote the whole store, so
+  a second tab's save wiped the first tab's new projects, and a write the browser refused was
+  swallowed while the status bar said Saved. One key per project, the storage event, and a
+  refused write that says Not saved.
+- **A flag set from a timestamp is not unique.** Two projects created in one millisecond got one
+  id, and the second replaced the first. Ids carry a random part.
+- **What comes back from storage is untrusted.** A saved layout of NaN and 10⁹ made a window
+  757 000 000 000 px tall; it is checked (`saneWin`) like any other input.
+- **Text from documents is not ASCII.** A column copied from a PDF has −, not -; a French
+  spreadsheet writes 1 234,5 with a no-break space. Seven rows of eight were read as text, and a
+  project named in Japanese exported as ".csv", a hidden file with no name.
+- **Undo while holding something lets go of nothing.** Ctrl+Z during a drag undid the label's
+  creation, and letting go wrote it back from the drag's copy. Undo waits for the button.
+- **A square table of n spectra is n² cells.** The correlation table of 300 spectra was 90 000
+  cells, redrawn on every save: ten seconds a save. Past a dozen it is a column.
+- **A clock without a date wraps.** Times of day put 00:10 before 23:50; read in the order the
+  spectra came, a reading twelve hours earlier than the last is the next day.
+
 - **A font that is not there looks like no change.** Choosing Calibri or Helvetica on a
   computer without them drew the fallback, so "changing the font of the axis titles did
   nothing". The picker says which fonts are not on this computer (`fontInstalled` measures
@@ -1283,7 +1346,18 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 
 ## Roadmap
 
-Done in this round: graphs and projects, from a bug report. Deleting a project could leave its
+Done in this round: bugs found by using the app the way nobody does. A tab that froze for good
+(ticks added up after a deep zoom), tick labels all alike on a nanosecond axis, NaN drawn for
+equal or extreme limits; a second tab wiping the first's projects, a full store that still
+said Saved, two projects sharing an id, a corrupt saved layout; typographic minus signs, French
+thousands and multi-line headers lost on import, hex read as numbers, file names emptied of any
+non-Latin script; a straight line through one X, slopes losing their digits near 10⁹, formulas
+that overflowed the stack; times of day out of order across midnight, time zones ignored;
+undo during a drag; ten-second saves with 300 spectra, 200 ms undo steps on big projects; long
+names pushing title-bar buttons out of reach; batch rows of deleted spectra. Each fixed by its
+class, and `tools/odd-test.mjs` keeps them fixed.
+
+Round before: graphs and projects, from a bug report. Deleting a project could leave its
 graphs on the desk and the next import going into it (a store's events in the other order); a
 graph in front that went away took the live plot with it. Both fixed. The taskbar names the
 project its windows belong to, the project list says what each holds, new projects get names
@@ -1293,7 +1367,7 @@ spectrum by its chip, onto a graph, its taskbar button or the desk; Ctrl keeps t
 dropped; it scrolls on a phone), from menus, or in Combine graphs… with a layout; spectra
 come from another project with their processing, peaks and colours.
 
-Round before: finding and labelling peaks, from what people asked. The Peaks window
+Two rounds before: finding and labelling peaks, from what people asked. The Peaks window
 says where it looks (the spectrum, always shown, and From … to … typed, taken from the view
 or dragged on the graph, shaded there, kept with the set) and ends in Done; the Fit window
 says which spectrum and range it fits, and ends in Done too. Fitted peaks are labelled with
@@ -1302,7 +1376,7 @@ errors and units; above, inside, or in a row along the top with leaders; turned,
 boxed, dragged; each peak can be named, and its name goes to Results, the report and the
 exports.
 
-Two rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
+Three rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
 spectrum shares (centres, widths, areas, shapes, the baseline, or parameter by parameter; a
 curve model's parameters), each spectrum first fitted with those held so the fit starts where
 it belongs, one block-sparse Levenberg–Marquardt problem, every row a normal fit that says what
@@ -1313,7 +1387,7 @@ on the desk: several quantities, left and right axes, lines with slopes, SVG, PN
 Each spectrum keeps its file's header, and a field that differs (a temperature, the time it was
 taken) is what a series can be plotted against.
 
-Three rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
+Four rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
 every title, legend entry and label (`cm^{-1}`, `\alpha`), with buttons and a word
 processor's keys; arrows drawn by dragging, their heads snapping to data points, with heads
 of four kinds; insets made from a zoom, dragged and resized, outlined on the graph with
@@ -1323,7 +1397,7 @@ print, lines scaled with the text or not, SVG at its size, PNG with its dpi reco
 transparent backgrounds, a preview); formats saved by name and used on any graph in any
 project, with five of Kurve's; a toolbar that keeps to one row at every width.
 
-Four rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
+Five rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
 Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
 its own font, size in points, bold, italic, underline and colour; a real font picker (each
 name in its face, search, web fonts that look the same everywhere, which fonts this computer
@@ -1338,7 +1412,7 @@ graph at once. Labels and text over several lines, turned to any angle, in a box
 pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
 richer right-click menus on axes, titles, the legend and annotations.
 
-Five rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+Six rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
 started from its result, from the neighbour in the series, or from the peaks found in each;
 every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
 the History, replaced by a fit by hand, out of date when its processing changes). The Batch
@@ -1348,7 +1422,7 @@ or typed values, with a weighted straight line (slope ± error). CSV, SVG and th
 A fix to the runs test and peak checks, which read the analysed spectrum instead of the
 fit's own.
 
-Six rounds before: several graphs per project, each in its own window, beyond Origin's:
+Earlier still: several graphs per project, each in its own window, beyond Origin's:
 one graph per spectrum in one command, tiled; click any graph to work on it (its zoom,
 spectrum and drafts come back, every window follows); only the graph in front is live and the
 others are pictures redrawn when what they show changes, so twelve graphs cost little more
@@ -1403,8 +1477,9 @@ Next, in order:
    linear in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the
    files' header fields as rows of the worksheet, global fits in a worker
 4. More files: JCAMP-DX, then SPC; OPUS and SPE last
-5. Under the hood: a UI test script in `tools/` (Playwright) that runs every example end to end;
-   speed with hundreds of spectra
+5. Under the hood: projects in IndexedDB rather than localStorage (no 5 MB limit, BroadcastChannel
+   between tabs); `tools/odd-test.mjs` grown to run every example end to end; the worksheet
+   drawing only the columns in view; speed with thousands of spectra
 6. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
    applied in one click, unread markers; Python steps that re-run on their own when asked
 
@@ -1465,6 +1540,12 @@ Next, in order:
 - Annotations: no boxes, ellipses or curved arrows; rich text is scripts and symbols only (no
   bold or italic inside a text, no nested scripts); snapping is text to text and to the plot's
   centre, and an arrow's head to data points; nothing can be nudged with the keys
+- Storage in this browser is localStorage: a few megabytes for every project together (a few
+  hundred thousand points). A project larger than that says Not saved and must be exported;
+  two tabs editing the same part of one project keep the later change
+- The worksheet draws only the rows in view, but every column; with hundreds of columns it
+  draws fewer rows around the view instead. An axis title longer than its axis is cut off at
+  the plot's edge
 - Export: no PDF or EPS (SVG is the vector format); formats are kept in the browser, not in
   the project, so a colleague does not get them; a raster larger than the browser's canvas
   (about 16 000 px a side) is refused with a reason

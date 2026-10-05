@@ -644,7 +644,9 @@ details.more>table{margin-top:8px}
 .win.active .win-h{background:color-mix(in srgb,var(--accent-soft) 55%,var(--chrome))}
 .win-h>.ic{color:var(--muted)}
 .win.active .win-h>.ic{color:var(--accent)}
-.win-t{font:600 12.5px/1 var(--sans);margin:0;white-space:nowrap}
+/* A long name gives way: the title bar's buttons always stay in reach. */
+.win-t{font:600 12.5px/1 var(--sans);margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 0 auto;max-width:55%}
+.win-h>.tb,.win-h>button{flex:0 0 auto}
 .win-sub{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .win-h .sp{flex:1 1 0}
 .win-h .tb.sm{color:var(--muted)}
@@ -659,6 +661,7 @@ details.more>table{margin-top:8px}
 .taskbar{position:absolute;left:0;right:0;bottom:0;height:34px;display:flex;align-items:center;gap:3px;padding:0 6px;background:var(--chrome);border-top:1px solid var(--rule);z-index:9000;overflow-x:auto;scrollbar-width:thin}
 .tk{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border:1px solid var(--rule);border-radius:var(--r);background:var(--panel);cursor:pointer;white-space:nowrap;color:var(--ink-2);font-size:12.5px;flex:0 0 auto}
 .tk:hover{border-color:var(--faint);color:var(--ink)}
+.tk>span:not(.badge){max-width:180px;overflow:hidden;text-overflow:ellipsis}
 .tk[aria-pressed="false"]{background:transparent;color:var(--muted);border-style:dashed}
 .tk.front{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .tk .badge{min-width:16px;line-height:16px;font-size:10.5px}
@@ -1921,22 +1924,26 @@ function compileExpr(src,opt){
   let result=null, usesX=false;
   const where=t=>t?t.i:s.length;
   const parseStmt=ts=>{
-    let k=0;
+    // Limits in words, before the stack runs out: a formula nested 5000 deep or
+    // 20 000 terms on one line used to stop with "Maximum call stack size exceeded".
+    if(ts.length>4000) throw exprErr("This line is too long to read (more than 4000 parts). Split it into named lines, like u = … on one line and y = … u … on the next",s,ts[0].i);
+    let k=0, depth=0;
     const peek=()=>ts[k], next=()=>ts[k++];
     const expect=(kind,what)=>{ const t=next(); if(!t||t.k!==kind) throw exprErr(`Expected ${what}${t?` before “${s.slice(t.i,t.i+(t.len||1))}”`:" at the end"}`,s,where(t)); return t; };
     const primary=()=>{
       const t=next();
       if(!t) throw exprErr("The formula ends too soon: something is missing after the last operator",s,s.length);
       if(t.k==="num") return {t:"num",v:t.v};
-      if(t.k==="("){ const e=expr(); expect(")","a closing )"); return e; }
+      if(t.k==="("){ if(++depth>200) throw exprErr("Brackets nested more than 200 deep",s,t.i); const e=expr(); expect(")","a closing )"); depth--; return e; }
       if(t.k==="op"&&(t.v==="-"||t.v==="+")){ const a=power(); return t.v==="-"?{t:"neg",a}:a; }
       if(t.k==="id"){
         const nm=t.v;
         if(peek()&&peek().k==="("){
           const fd=Object.prototype.hasOwnProperty.call(EXPR_FN,nm)?EXPR_FN[nm]:null; if(!fd) throw exprErr(`There is no function called “${nm}”. Known: ${Object.keys(EXPR_FN).join(", ")}`,s,t.i);
-          next(); const args=[];
+          next(); const args=[]; if(++depth>200) throw exprErr("Brackets nested more than 200 deep",s,t.i);
           if(peek()&&peek().k===")") next();
           else { for(;;){ args.push(expr()); const u=next(); if(u&&u.k===",") continue; if(u&&u.k===")") break; throw exprErr(`Expected , or ) in the call to ${nm}`,s,where(u)); } }
+          depth--;
           if(fd[0]>0&&args.length!==fd[0]) throw exprErr(`${nm} takes ${fd[0]} value${fd[0]===1?"":"s"}, not ${args.length}`,s,t.i);
           if(fd[0]<0&&args.length<-fd[0]) throw exprErr(`${nm} needs at least ${-fd[0]} values`,s,t.i);
           return {t:"call",fn:nm,args};
@@ -1954,7 +1961,7 @@ function compileExpr(src,opt){
     };
     // ^ binds tighter than a leading minus (-x^2 is -(x^2)) and to the right.
     const power=()=>{ const a=primary(); if(peek()&&peek().k==="op"&&peek().v==="^"){ next(); const b=unary(); return {t:"bin",op:"^",a,b}; } return a; };
-    const unary=()=>{ const t=peek(); if(t&&t.k==="op"&&(t.v==="-"||t.v==="+")){ next(); const a=unary(); return t.v==="-"?{t:"neg",a}:a; } return power(); };
+    const unary=()=>{ const t=peek(); if(t&&t.k==="op"&&(t.v==="-"||t.v==="+")){ next(); if(++depth>400) throw exprErr("Too many signs in a row",s,t.i); const a=unary(); depth--; return t.v==="-"?{t:"neg",a}:a; } return power(); };
     const term=()=>{ let a=unary(); for(;;){ const t=peek();
         if(t&&t.k==="op"&&(t.v==="*"||t.v==="/")){ next(); a={t:"bin",op:t.v,a,b:unary()}; continue; }
         if(t&&(t.k==="num"||t.k==="id"||t.k==="(")) throw exprErr(`Put an operator before “${s.slice(t.i,t.i+(t.len||1))}” (for a product, write *)`,s,t.i);
@@ -2511,7 +2518,7 @@ function pickPts(d,keep){ return pser(d,keep.map(i=>d.x[i]),keep.map(i=>d.y[i]),
 function spacing(x){
   const d=[]; let down=0, up=0;
   for(let i=1;i<x.length;i++){ const g=x[i]-x[i-1]; if(!Number.isFinite(g)||g===0) continue; if(g<0) down++; else up++; d.push(Math.abs(g)); }
-  if(!d.length) return {h:1,abs:1,uneven:0,sorted:true};
+  if(!d.length) return {h:1,abs:1,uneven:0,sorted:true,none:true};
   d.sort((a,b)=>a-b); const med=d[d.length>>1];
   const lo=d[Math.floor(d.length*0.05)], hi=d[Math.min(d.length-1,Math.floor(d.length*0.95))];
   return {h:down>up?-med:med, abs:med, uneven:(hi-lo)/(med||1), sorted:!(down&&up)};
@@ -3839,6 +3846,7 @@ function ago(t){
 }
 function parseNum(s){
   if(s==null) return null; s=String(s).trim(); if(s==="") return null;
+  s=numNorm(s,s.includes(",")&&!s.includes(".")?",":"."); if(s===null) return null;
   if(s.includes(",")&&!s.includes(".")) s=s.replace(",",".");
   const v=Number(s); return Number.isFinite(v)?v:null;
 }
@@ -3898,10 +3906,27 @@ function makeExample(kind){
 const MISSING=/^(nan|n\/?a|null|none|nil|-+|\?+|#n\/a|#div\/0!|#value!|#name\?|[+-]?inf(inity)?)$/i;
 const DELIMS=[{id:"\t",label:"Tab"},{id:";",label:"Semicolon"},{id:",",label:"Comma"},{id:"|",label:"Pipe"},{id:"ws",label:"Whitespace"}];
 
+/* Numbers as documents and typeset tables write them: a minus sign (−, not
+   -), superscript exponents (5×10⁻³), and thousands set off by spaces
+   (1 234 567,5, with the no-break spaces spreadsheets use). A column of
+   negative numbers pasted from a PDF used to be read as text, so a file kept
+   one row in eight. 0x10, 0b11 and 0o17 are labels in a data file: Number()
+   would read them as 16, 3 and 15. A plain space separates thousands only in
+   a comma-decimal number, so "100 200 300" is never one number. */
+const NUM_SUP={"⁰":"0","¹":"1","²":"2","³":"3","⁴":"4","⁵":"5","⁶":"6","⁷":"7","⁸":"8","⁹":"9","⁻":"-","⁺":"+"};
+function numNorm(s,dec){
+  if(/^[+-]?0[xbo]/i.test(s)) return null;
+  if(/[\u2212\u2012\u2013\uFE63\uFF0D]/.test(s)) s=s.replace(/[\u2212\u2012\u2013\uFE63\uFF0D]/g,"-");
+  if(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺]/.test(s)) s=s.replace(/[⁻⁺]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g,m=>"^"+[...m].map(c=>NUM_SUP[c]).join(""));
+  if(/[×x·*]/i.test(s)) s=s.replace(/^([+-]?(?:\d+\.?\d*|\.\d+|\d+,\d+))\s*[×x·*]\s*10\^([+-]?\d+)$/i,"$1e$2");
+  if(/^[+-]?\d{1,3}(?:[\u00A0\u202F\u2009]\d{3})+(?:[.,]\d+)?$/.test(s)||(dec===","&&/^[+-]?\d{1,3}(?:[ \u00A0\u202F\u2009]\d{3})+,\d+$/.test(s))) s=s.replace(/[ \u00A0\u202F\u2009]/g,"");
+  return s;
+}
 function toNumber(s,dec){
   if(s==null) return null;
   s=String(s).trim(); if(s.length>1&&s[0]==='"'&&s[s.length-1]==='"') s=s.slice(1,-1).trim();
   if(s===""||MISSING.test(s)) return null;
+  s=numNorm(s,dec); if(s===null) return null;
   if(dec===","){ s=s.replace(/\.(?=\d{3}\b)/g,"").replace(",","."); }
   else if(/^[+-]?[1-9]\d{0,2}(,\d{3})+(\.\d+)?$/.test(s)) s=s.replace(/,/g,"");
   s=s.replace(/^([+-]?[\d.]+)[dD]([+-]?\d+)$/,"$1e$2"); // Fortran D exponent
@@ -4035,9 +4060,26 @@ function detectRoles(header,cols){
   return {roles,xi};
 }
 
+/* A cell with a line break in it (Alt+Enter in a spreadsheet: a header like
+   "Intensity<newline>(counts)") is written inside quotes; read line by line it
+   split the header in two and lost the names. A quoted field that opens at the
+   start of a field and closes within a few lines has its breaks made spaces.
+   A stray quote (12" for inches) opens nothing, and one that never closes
+   nearby is left alone, so it cannot swallow the file. */
+function unwrapQuoted(text){
+  if(text.indexOf('"')<0) return text;
+  let out="", i=0; const n=text.length;
+  while(i<n){ const c=text[i];
+    if(c==='"'&&(i===0||/[,;\t\n]/.test(text[i-1])||(text[i-1]===" "&&/(^|[,;\t\n]) *$/.test(text.slice(Math.max(0,i-40),i))))){
+      let j=i+1, nl=0; while(j<n&&j-i<2000){ if(text[j]==='"'){ if(text[j+1]==='"'){ j+=2; continue; } break; } if(text[j]==="\n") nl++; j++; }
+      if(j<n&&text[j]==='"'&&nl>0&&nl<=4){ out+=text.slice(i,j+1).replace(/\n/g," "); i=j+1; continue; }
+      if(j<n&&text[j]==='"'){ out+=text.slice(i,j+1); i=j+1; continue; } }
+    out+=c; i++; }
+  return out;
+}
 function analyzeFile(raw,opt){
   opt=opt||{};
-  const text=String(raw).replace(/^﻿/,"").replace(/\r\n?/g,"\n");
+  const text=unwrapQuoted(String(raw).replace(/^﻿/,"").replace(/\r\n?/g,"\n"));
   const lines=text.split("\n");
   const auto=detectFormat(lines);
   const delim=opt.delim||auto.delim, dec=opt.dec||auto.dec;
@@ -4352,7 +4394,11 @@ function migrate(p){
    people's. Cross-user undo in a shared document is a different problem. */
 const UNDO_KEYS=["cols","activeY","meta","fit","plot","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
-function snapshot(){ const p=P(); if(!p) return null; const o={pid:S.pid}; UNDO_KEYS.forEach(k=>{ o[k]=clone(p[k]); });
+/* Raw values are replaced, never changed in place, so a snapshot keeps each
+   column's data array as it is and copies the rest: with 20 spectra of 50 000
+   points every edit spent 200 ms copying data no edit could change. */
+function cloneCols(cols){ return Array.isArray(cols)?cols.map(c=>{ if(!c||typeof c!=="object") return c; const {data,...rest}=c, o=clone(rest); o.data=data; return o; }):clone(cols); }
+function snapshot(){ const p=P(); if(!p) return null; const o={pid:S.pid}; UNDO_KEYS.forEach(k=>{ o[k]=k==="cols"?cloneCols(p[k]):clone(p[k]); });
   o.pdraft=S.pdraft?clone(S.pdraft):null; o.draft=S.draft?clone(S.draft):null; return o; }
 function pushUndo(label){
   const s=snapshot(); if(!s) return;
@@ -4362,20 +4408,23 @@ function pushUndo(label){
 }
 function applySnapshot(s){
   const p=P(), patch={};
-  UNDO_KEYS.forEach(k=>{ patch[k]=clone(s[k]); p[k]=patch[k]; });
+  UNDO_KEYS.forEach(k=>{ patch[k]=k==="cols"?cloneCols(s[k]):clone(s[k]); p[k]=patch[k]; });
   S.draft=(s.draft&&s.draft.pid===S.pid)?clone(s.draft):null;
   S.pdraft=(s.pdraft&&s.pdraft.pid===S.pid)?clone(s.pdraft):null;
   S.selPeak=null; S.view=null; clampStage();
   save(patch,null); renderAll();
 }
+/* Not while something is held: undoing the label being dragged removed it,
+   and letting go wrote it back from the drag's copy, out of step with redo. */
+function heldBlocks(){ if(!S.ptrDown) return false; toast("Let go of what you are dragging first, then undo."); return true; }
 function undo(){
-  if(!undoStack.length||S.readOnly) return;
+  if(!undoStack.length||S.readOnly||heldBlocks()) return;
   const s=undoStack.pop(); if(s.pid!==S.pid){ renderUndo(); return; }
   redoStack.push(Object.assign(snapshot(),{label:s.label}));
   applySnapshot(s); toast(`Undid ${s.label}.`); renderUndo();
 }
 function redo(){
-  if(!redoStack.length||S.readOnly) return;
+  if(!redoStack.length||S.readOnly||heldBlocks()) return;
   const s=redoStack.pop(); if(s.pid!==S.pid){ renderUndo(); return; }
   undoStack.push(Object.assign(snapshot(),{label:s.label}));
   applySnapshot(s); toast(`Redid ${s.label}.`); renderUndo();
@@ -4398,20 +4447,76 @@ function blankProject(name){
   return {v:DOC_V, name:name||"Untitled analysis", cols:[xc,yc], activeY:yc.id,
     meta:{}, plot:{style:"scatter", logY:false, grid:false, resid:true}, fit:null, fits:[], raw:{fp:"",hist:[]}, log:[], created:Date.now(), updated:Date.now()};
 }
+/* This browser's store. Each project has a key of its own (kurve.p.<id>, and
+   kurve.c.<id> for its comments), so a save writes only its own project: a
+   second tab saving cannot wipe what the first wrote, and the other tab hears
+   of it through the storage event. A save starts from the project as stored,
+   so two tabs changing different parts of one project keep both. A write the
+   browser refuses (its storage is full) is an error the status bar shows, not
+   "Saved": the change stays in memory, marked unsaved, and the next save that
+   fits writes all of it. The single key of earlier versions (kurve.v1) is
+   split up on load; with no room to do that, it is kept and used as before. */
 const LocalStore={
-  mode:"local", key:"kurve.v1", data:null, subs:{projects:[],comments:{}},
-  load(){ try{ this.data=JSON.parse(localStorage.getItem(this.key)||"null"); }catch(e){} if(!this.data) this.data={projects:{},comments:{}}; },
-  persist(){ try{ localStorage.setItem(this.key,JSON.stringify(this.data)); }catch(e){} },
+  mode:"local", key:"kurve.v1", pre:"kurve.p.", cpre:"kurve.c.", data:null, legacy:false, dirty:{}, subs:{projects:[],comments:{}},
+  read(k){ try{ return JSON.parse(localStorage.getItem(k)||"null"); }catch(e){ return null; } },
+  fail(e){ const full=/quota|exceed|full/i.test(String(e&&(e.name+" "+e.message)))||(e&&(e.code===22||e.code===1014)); return Object.assign(new Error(full?"This browser's storage is full.":"This browser would not store the change."),{code:full?"quota_exceeded":"storage"}); },
+  write(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){ throw this.fail(e); } },
+  load(){
+    const d={projects:{},comments:{}};
+    try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(!k) continue;
+      if(k.startsWith(this.pre)){ const v=this.read(k); if(v&&typeof v==="object") d.projects[k.slice(this.pre.length)]=v; }
+      else if(k.startsWith(this.cpre)){ const v=this.read(k); if(v&&typeof v==="object") d.comments[k.slice(this.cpre.length)]=v; } } }catch(e){}
+    let oldRaw=null; try{ oldRaw=localStorage.getItem(this.key); }catch(e){}
+    const old=oldRaw?this.read(this.key):null;
+    this.data=d; this.legacy=false;
+    if(old&&old.projects){
+      Object.entries(old.projects).forEach(([id,p])=>{ if(!d.projects[id]) d.projects[id]=p; });
+      Object.entries(old.comments||{}).forEach(([id,c])=>{ if(!d.comments[id]) d.comments[id]=c; });
+      const done=[];
+      try{ localStorage.removeItem(this.key);
+        Object.keys(d.projects).forEach(id=>{ this.write(this.pre+id,d.projects[id]); done.push(this.pre+id); });
+        Object.keys(d.comments).forEach(id=>{ this.write(this.cpre+id,d.comments[id]); done.push(this.cpre+id); }); }
+      catch(e){ done.forEach(k=>{ try{ localStorage.removeItem(k); }catch(_){} }); try{ localStorage.setItem(this.key,oldRaw); }catch(_){} this.legacy=true; }
+    }
+    if(!this.listening){ this.listening=true; window.addEventListener("storage",e=>this.onStorage(e)); }
+  },
+  // Another tab changed something: take it in and tell whoever is watching.
+  onStorage(e){ const k=e.key;
+    if(k==null){ this.load(); this.emitProjects(); Object.keys(this.subs.comments).forEach(pid=>this.emitComments(pid)); return; }
+    let v=null; if(e.newValue){ try{ v=JSON.parse(e.newValue); }catch(_){ return; } }
+    if(k.startsWith(this.pre)){ const id=k.slice(this.pre.length); if(v) this.data.projects[id]=v; else delete this.data.projects[id]; delete this.dirty[id]; this.emitProjects(); }
+    else if(k.startsWith(this.cpre)){ const id=k.slice(this.cpre.length); if(v) this.data.comments[id]=v; else delete this.data.comments[id]; this.emitComments(id); }
+    else if(k===this.key&&this.legacy&&v&&v.projects){ this.data=v; this.emitProjects(); } },
+  persistP(pid){ if(this.legacy){ this.write(this.key,this.data); return; } const p=this.data.projects[pid]; if(p) this.write(this.pre+pid,p); else localStorage.removeItem(this.pre+pid); },
+  persistC(pid){ if(this.legacy){ this.write(this.key,this.data); return; } const c=this.data.comments[pid]; if(c&&Object.keys(c).length) this.write(this.cpre+pid,c); else localStorage.removeItem(this.cpre+pid); },
   emitProjects(){ const list=Object.entries(this.data.projects).map(([id,p])=>({id,...p})); this.subs.projects.forEach(f=>f(list)); },
   emitComments(pid){ const list=Object.entries(this.data.comments[pid]||{}).map(([id,c])=>({id,...c})); (this.subs.comments[pid]||[]).forEach(f=>f(list)); },
   watchProjects(cb){ this.subs.projects.push(cb); setTimeout(()=>this.emitProjects()); return ()=>{}; },
-  async create(p){ const id="p"+Date.now().toString(36); this.data.projects[id]=p; this.persist(); setTimeout(()=>this.emitProjects()); return id; },
-  async save(pid,patch){ Object.assign(this.data.projects[pid],patch); this.persist(); this.emitProjects(); },
-  async remove(pid){ delete this.data.projects[pid]; delete this.data.comments[pid]; this.persist(); this.emitProjects(); },
+  // Two projects made in the same millisecond must not share an id.
+  async create(p){ const id="p"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); this.data.projects[id]=p;
+    try{ this.persistP(id); }catch(e){ delete this.data.projects[id]; throw e; }
+    setTimeout(()=>this.emitProjects()); return id; },
+  async save(pid,patch){
+    // From the project as stored (another tab may have changed other parts of
+    // it), unless an earlier change could not be stored: then memory has it.
+    let p=this.data.projects[pid];
+    if(!this.legacy&&!this.dirty[pid]){ const fresh=this.read(this.pre+pid);
+      if(!fresh){ delete this.data.projects[pid]; this.emitProjects(); throw Object.assign(new Error("The project was deleted."),{code:"gone"}); }
+      p=this.data.projects[pid]=fresh; }
+    if(!p) throw Object.assign(new Error("The project was deleted."),{code:"gone"});
+    Object.assign(p,patch);
+    try{ this.persistP(pid); delete this.dirty[pid]; }
+    catch(e){ this.dirty[pid]=true; throw e; }
+    finally{ this.emitProjects(); } },
+  async remove(pid){ delete this.data.projects[pid]; delete this.data.comments[pid]; delete this.dirty[pid];
+    if(this.legacy) this.write(this.key,this.data); else { localStorage.removeItem(this.pre+pid); localStorage.removeItem(this.cpre+pid); }
+    this.emitProjects(); },
   watchComments(pid,cb){ (this.subs.comments[pid]=this.subs.comments[pid]||[]).push(cb); setTimeout(()=>this.emitComments(pid)); return ()=>{ this.subs.comments[pid]=this.subs.comments[pid].filter(f=>f!==cb); }; },
-  async addComment(pid,c){ const m=this.data.comments[pid]=this.data.comments[pid]||{}; m["c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)]=c; this.persist(); this.emitComments(pid); },
-  async updateComment(pid,id,patch){ Object.assign(this.data.comments[pid][id],patch); this.persist(); this.emitComments(pid); },
-  async deleteComment(pid,id){ delete this.data.comments[pid][id]; this.persist(); this.emitComments(pid); }
+  // Comments too start from what is stored, so two tabs' comments both stay.
+  fresh(pid){ if(!this.legacy){ const c=this.read(this.cpre+pid); if(c&&typeof c==="object") this.data.comments[pid]=c; } return this.data.comments[pid]=this.data.comments[pid]||{}; },
+  async addComment(pid,c){ const m=this.fresh(pid); m["c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)]=c; try{ this.persistC(pid); } finally { this.emitComments(pid); } },
+  async updateComment(pid,id,patch){ const m=this.fresh(pid); if(!m[id]) return; Object.assign(m[id],patch); try{ this.persistC(pid); } finally { this.emitComments(pid); } },
+  async deleteComment(pid,id){ const m=this.fresh(pid); delete m[id]; try{ this.persistC(pid); } finally { this.emitComments(pid); } }
 };
 function makeDbStore(db){
   const queues={};
@@ -4467,9 +4572,11 @@ function setStatus(txt,warn){ const s=$("#status"); s.textContent=txt; s.classLi
 
 function writeErr(e){
   if(e&&e.code==="invalid_argument"&&S.store.mode==="db"){ S.readOnly=true; toast("You can view this workspace but not change it."); renderAll(); return; }
-  if(e&&e.code==="quota_exceeded"){ toast("This workspace is full. Delete an old project or comments to add more."); return; }
+  if(e&&e.code==="quota_exceeded"){ toast(S.store&&S.store.mode==="local"?"This browser's storage is full, so the last change is not saved. Delete an old project, or export this one, and it will be saved with the next change.":"This workspace is full. Delete an old project or comments to add more."); return; }
+  // Deleted in another tab or by a colleague: the project list says so.
+  if(e&&e.code==="gone") return;
   if(e&&e.code==="revoked"){ setStatus("Access changed. Reload to continue.",true); return; }
-  toast("Couldn't save that change. Check your connection and try again.");
+  toast(S.store&&S.store.mode==="local"?"This browser would not store that change.":"Couldn't save that change. Check your connection and try again.");
 }
 async function save(patch, logText){
   if(!S.pid||S.readOnly||S.gone.has(S.pid)) return;
@@ -4509,10 +4616,30 @@ function autoViewOf(pts,logY,he){
   let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
   pts.forEach(q=>{ x0=Math.min(x0,q.x); x1=Math.max(x1,q.x); const e=q.e&&he?q.e:0; y0=Math.min(y0,logY?q.y:q.y-e); y1=Math.max(y1,q.y+e); });
   if(x0===x1){x0-=1;x1+=1;} if(y0===y1){y0-=1;y1+=1;}
-  const dx=(x1-x0)*0.04; x0-=dx; x1+=dx;
+  // Halves, so data near the largest double does not pad its view to Infinity.
+  const dx=(x1/2-x0/2)*0.08; x0-=dx; x1+=dx;
   if(logY){ y0=Math.max(y0,1e-300); const ly0=Math.log10(y0), ly1=Math.log10(y1), d=(ly1-ly0)*0.06||0.5; return {x0,x1,y0:10**(ly0-d),y1:10**(ly1+d)}; }
-  const dy=(y1-y0)*0.07; return {x0,x1,y0:y0-dy,y1:y1+dy};
+  const dy=(y1/2-y0/2)*0.14; return {x0,x1,y0:y0-dy,y1:y1+dy};
 }
+/* A range floating point can draw: finite, the right way round, wider than
+   nothing, and wider than the precision of its own numbers. A zoom past that
+   (the wheel turned a few hundred times) drew nothing, and its ticks never
+   finished; limits typed equal, or data near the largest double, drew NaN. */
+function saneRange(a,b,log){
+  if(log){ a=a>0&&Number.isFinite(a)?a:NaN; b=b>0&&Number.isFinite(b)?b:NaN;
+    if(!(a>0)) a=b>0?b/1e6:1; if(!(b>0)) b=a*1e6; if(a>b) [a,b]=[b,a];
+    a=Math.max(a,1e-300); b=Math.min(Math.max(b,a),1e300);
+    let la=Math.log10(a), lb=Math.log10(b); if(!(lb-la>=1e-9)){ const c=(la+lb)/2, d=lb>la?1e-9:0.5; la=c-d; lb=c+d; }
+    return [10**la,10**lb]; }
+  if(!Number.isFinite(a)&&!Number.isFinite(b)){ a=0; b=1; } else if(!Number.isFinite(a)) a=b-1; else if(!Number.isFinite(b)) b=a+1;
+  if(a>b) [a,b]=[b,a];
+  const L=8e307; a=Math.max(-L,Math.min(L,a)); b=Math.max(-L,Math.min(L,b));
+  if(!(b>a)){ const d=Math.abs(a)*0.1||1; a-=d; b+=d; }
+  const min=Math.max(Math.max(Math.abs(a),Math.abs(b))*1e-10,1e-290);
+  if(b-a<min){ const c=a/2+b/2; a=c-min/2; b=c+min/2; }
+  return [a,b];
+}
+function saneView(v,logX,logY){ const [x0,x1]=saneRange(v.x0,v.x1,logX), [y0,y1]=saneRange(v.y0,v.y1,logY); return Object.assign({},v,{x0,x1,y0,y1}); }
 // The view the fit uses: the zoom, when it was set on data in these X units.
 function curView(){ const fx=finalOf(activeYCol()).xu||""; return S.view&&(S.view.xu==null||S.view.xu===fx)?S.view:autoView(); }
 function fitRange(){ const v=curView(); return [v.x0,v.x1]; }
@@ -4522,16 +4649,22 @@ function fitPoints(){ const [a,b]=fitRange(); return pointsAll().filter(q=>q.x>=
    Plot renderer (SVG string, reused for on-screen and export)
    ============================================================ */
 function niceTicks(a,b,target){
-  const span=b-a; if(!(span>0)) return {ticks:[a],step:1};
+  const span=b-a; if(!(span>0)||!Number.isFinite(span)) return {ticks:Number.isFinite(a)?[a]:[],step:1};
   const raw=span/Math.max(target,2), mag=10**Math.floor(Math.log10(raw)), r=raw/mag;
   const step=(r<1.5?1:r<3?2:r<7?5:10)*mag; const t=[];
-  for(let v=Math.ceil(a/step)*step; v<=b+step*1e-9; v+=step) t.push(Math.abs(v)<step*1e-9?0:v);
+  // Counted, not added up: a step too small to change the value it is added
+  // to never reaches the end of the axis.
+  const i0=Math.ceil(a/step), i1=Math.floor(b/step+1e-9);
+  if(!(i1-i0<=1000)) return {ticks:[a,b],step:span};
+  for(let i=i0;i<=i1;i++){ const v=i*step; t.push(Math.abs(v)<step*1e-9?0:v); }
   return {ticks:t,step};
 }
 function tickLabel(v,step){
   if(v===0) return "0";
   const a=Math.abs(v);
-  if(a>=1e5||a<1e-3){ const ex=Math.floor(Math.log10(a)); const m=v/10**ex; return {m:parseFloat(m.toPrecision(3)),ex}; }
+  // As many digits as the step needs: ticks a thousandth apart on a number
+  // of 10^18 must not all read 1.7×10^18.
+  if(a>=1e5||a<1e-3){ const ex=Math.floor(Math.log10(a)), m=v/10**ex, sig=Math.max(3,Math.min(15,ex-Math.floor(Math.log10(Math.abs(step)||a))+1)); return {m:parseFloat(m.toPrecision(sig)),ex}; }
   const d=Math.max(0,-Math.floor(Math.log10(step)+1e-9)); return v.toFixed(d);
 }
 function txtLabel(lab,x,y,anchor,size,fill,font){
@@ -4970,15 +5103,18 @@ function seriesSvg(pts,st,X,Y,geo,pal,masked){
 /* Ticks: automatic, or every "step" the user set; minor ticks between. */
 function axisTicks(a,b,target,ax,log){
   const lo=Math.min(a,b), hi=Math.max(a,b);
-  if(log){ const la=Math.floor(Math.log10(lo)), lb=Math.ceil(Math.log10(hi)), st=Math.max(1,Math.ceil((lb-la)/Math.max(2,target))), t=[], mi=[];
+  if(log){ if(!(lo>0&&hi>0)) return {ticks:[],minor:[],step:1};
+    const la=Math.floor(Math.log10(lo)), lb=Math.ceil(Math.log10(hi)), st=Math.max(1,Math.ceil((lb-la)/Math.max(2,target))), t=[], mi=[];
     for(let e=la;e<=lb;e+=st){ const v=10**e; if(v>=lo*0.999&&v<=hi*1.001) t.push({v,lab:{m:1,ex:e}}); if(st===1&&ax.minor!==0) for(let k=2;k<10;k++){ const mv=k*v; if(mv>=lo&&mv<=hi) mi.push(mv); } }
     return {ticks:t,minor:mi,step:st}; }
   let step=+ax.step>0?+ax.step:0;
   if(step&&(hi-lo)/step>400) step=0;
   const nt=step?null:niceTicks(lo,hi,target); step=step||nt.step;
-  const t=[]; for(let v=Math.ceil(lo/step-1e-9)*step; v<=hi+step*1e-9; v+=step) t.push(Math.abs(v)<step*1e-9?0:v);
+  const t=[], i0=Math.ceil(lo/step-1e-9), i1=Math.floor(hi/step+1e-9);
+  if(i1-i0<=1000) for(let i=i0;i<=i1;i++){ const v=i*step; t.push(Math.abs(v)<step*1e-9?0:v); }
   const nm=ax.minor==null?1:Math.max(0,Math.min(9,Math.round(+ax.minor))), mi=[];
-  if(nm){ const ms=step/(nm+1); for(let v=Math.ceil(lo/ms-1e-9)*ms; v<=hi+ms*1e-9; v+=ms){ if(Math.abs(v/step-Math.round(v/step))>1e-6) mi.push(v); } }
+  if(nm){ const ms=step/(nm+1), j0=Math.ceil(lo/ms-1e-9), j1=Math.floor(hi/ms+1e-9);
+    if(j1-j0<=6000) for(let j=j0;j<=j1;j++) if(j%(nm+1)) mi.push(j*ms); }
   return {ticks:t.map(v=>({v,lab:fmtTick(v,step,ax)})),minor:mi,step};
 }
 function fmtTick(v,step,ax){
@@ -5250,12 +5386,13 @@ function buildPlot(W,H,pal,colEx,opt){
     if(ax.y.min!=null&&ax.y.min!=="") v.y0=+ax.y.min; if(ax.y.max!=null&&ax.y.max!=="") v.y1=+ax.y.max;
     if(logY&&!(v.y0>0)) v.y0=Math.max(1e-300,v.y1/1e6); if(logX&&!(v.x0>0)) v.x0=Math.max(1e-300,v.x1/1e6);
   }
+  v=saneView(v,logX,logY);
   // Margins: room for a title, a right axis, a colour bar, a legend outside.
   const heat=layout==="heat"&&ps.final, dy=layout==="dy"&&ps.final&&oser.length>0, stack=layout==="stack"&&ps.final&&oser.length>0;
   // The right axis's range, before the margins, which must fit its numbers.
   let yR=null;
   if(dy){ const all=[].concat(...oser.map(q=>q.pts)), r2=yRangeFor(all,v.x0,v.x1,logY), a2=cfg.ax.y2||{};
-    yR={y0:a2.min!=null&&a2.min!==""?+a2.min:r2[0],y1:a2.max!=null&&a2.max!==""?+a2.max:r2[1]}; }
+    yR={y0:a2.min!=null&&a2.min!==""?+a2.min:r2[0],y1:a2.max!=null&&a2.max!==""?+a2.max:r2[1]}; [yR.y0,yR.y1]=saneRange(yR.y0,yR.y1,logY); }
   // An axis on its edge, at zero or at a value; stacked panels and the right axis keep theirs on the edges.
   const xPos=main=>!main?"bottom":stack&&(XA.pos==="zero"||XA.pos==="at")?"bottom":XA.pos, yPos=main=>main&&!dy?YA.pos:"left";
   // Legend entries first: an outside legend takes its width from the plot.
@@ -5306,7 +5443,15 @@ function buildPlot(W,H,pal,colEx,opt){
         rt.ticks.forEach(t=>{ ylw=Math.max(ylw,labW(tickLabel(t,rt.step),TK)); }); } } }
   const yBlock=YA.off+tkOut(YA.dir,YA.len)+5+(YA.labs||heat?ylw+6:1)+(YA.tshow?TS.axis.size+2:0)+8;
   let xlh=0, xEnd=0;
-  if(XA.labs){ const xt=axisTicks(v.x0,v.x1,Math.max(40,W-yBlock-40)/(85*tkDen),cfg.ax.x,logX), rr=XA.rot*Math.PI/180;
+  // X ticks as many as their numbers fit side by side: on a time axis in
+  // nanoseconds each reads 1.70000002×10^18, and 85 px apart they overlapped.
+  const xTicks=(lo,hi,avail)=>{ let tg=avail/(85*tkDen), r=axisTicks(lo,hi,tg,cfg.ax.x,logX);
+    if(logX||+cfg.ax.x.step>0) return r;
+    for(let i=0;i<4;i++){ const w=XA.rot===90?TK.size*1.4:r.ticks.reduce((m,t)=>Math.max(m,labW(t.lab,TK)),0)*(XA.rot===45?0.75:1);
+      if((w+14)*r.ticks.length<=avail||r.ticks.length<=2) break;
+      tg=Math.max(1,Math.floor(avail/(w+14))-1); const r2=axisTicks(lo,hi,tg,cfg.ax.x,logX); if(r2.ticks.length>=r.ticks.length) break; r=r2; }
+    return r; };
+  if(XA.labs){ const xt=xTicks(v.x0,v.x1,Math.max(40,W-yBlock-40)), rr=XA.rot*Math.PI/180;
     xt.ticks.forEach((t,k)=>{ const w=labW(t.lab,TK); xlh=Math.max(xlh,XA.rot?w*Math.abs(Math.sin(rr))+TK.size*Math.abs(Math.cos(rr)):TK.size*1.05); if(k===0||k===xt.ticks.length-1) xEnd=Math.max(xEnd,XA.rot?0:w); }); }
   const xBlock=XA.off+tkOut(XA.dir,XA.len)+(XA.labs?4+xlh:0)+(XA.tshow?6+TS.axis.size*1.08:0)+7;
   let L=8, R=W<480?10:16, T=10, B=8;
@@ -5347,7 +5492,7 @@ function buildPlot(W,H,pal,colEx,opt){
   const ed=k=>forExport?"":` data-axtitle="${k}" style="cursor:move"`;
   if(cfg.title){ const ta=TS.title.align||"center", tx=(ta==="left"?L:ta==="right"?L+pw:L+pw/2)+numOr(cfg.titleDx,0), ty=6+TS.title.size*0.95+numOr(cfg.titleDy,0);
     s+=`<text${ed("title")} x="${f1(tx)}" y="${f1(ty)}" text-anchor="${ta==="left"?"start":ta==="right"?"end":"middle"}"${tAt(TS.title,pal.ink)}>${richIn(cfg.title,TS.title.size)}</text>`; }
-  const xT=axisTicks(v.x0,v.x1,pw/(85*tkDen),cfg.ax.x,logX);
+  const xT=xTicks(v.x0,v.x1,pw);
   const yT=heat?{ticks:[],minor:[]}:axisTicks(v.y0,v.y1,mh/((stack?40:55)*tkDen),cfg.ax.y,logY);
   // The plot's background, then grid lines in their own colour, width and dash.
   const gcol=esc(cfg.gridColor||pal.grid), glw=numOr(cfg.gridLw,1), gdash=DASHES[cfg.gridDash||"solid"]||"", gX=cfg.gridX!==false, gY=cfg.gridY!==false;
@@ -6963,6 +7108,8 @@ function setupGraph(){
   svg.addEventListener("wheel",ev=>{ if(!S.geo||!P()) return; ev.preventDefault(); const [x,y]=localXY(ev); const c=toData(x,y); const v=S.geo.v; const k=ev.deltaY>0?1.18:1/1.18;
     const nv=S.geo.logX?(()=>{ const lx=Math.log10(c.x); return {x0:10**(lx-(lx-Math.log10(v.x0))*k),x1:10**(lx+(Math.log10(v.x1)-lx)*k)}; })():{x0:Math.min(c.x-(c.x-v.x0)*k, c.x+(v.x1-c.x)*k), x1:Math.max(c.x-(c.x-v.x0)*k, c.x+(v.x1-c.x)*k)};
     if(S.geo.logY){ const ly=Math.log10(c.y); nv.y0=10**(ly-(ly-Math.log10(v.y0))*k); nv.y1=10**(ly+(Math.log10(v.y1)-ly)*k); } else { nv.y0=c.y-(c.y-v.y0)*k; nv.y1=c.y+(v.y1-c.y)*k; }
+    // Past the precision of the numbers the zoom stops, rather than drawing nothing.
+    const sx=saneRange(nv.x0,nv.x1,S.geo.logX); if(ev.deltaY<0&&sx[1]-sx[0]>(nv.x1-nv.x0)*1.0001) return;
     S.view=nv; renderPlot(); renderFitRangeOnly();
     // The fit panel follows once the wheel settles, so its stale notes and range agree.
     clearTimeout(wheelT); wheelT=setTimeout(()=>renderFit(),240); },{passive:false});
@@ -7418,9 +7565,12 @@ function wsRows(force){
   const box=$("#ws"), m=S.wsm, tb=box&&box.querySelector("tbody"); if(!tb||!m) return;
   const rowH=S.ws.rowH||25, head=S.ws.head||0, R=wsRowCount(m);
   const first=Math.max(0,Math.floor(box.scrollTop/rowH)), vis=Math.ceil(Math.max(0,box.clientHeight-head)/rowH)+1;
-  const w=S.ws.win; if(!force&&w&&first>=w[0]+5&&first+vis<=w[1]-5) return;
+  // Rows are drawn around the view; with hundreds of columns fewer of them,
+  // so a sheet of 600 columns does not lay out 50 000 cells on every save.
+  const span=m.cols.length+1, buf=Math.max(4,Math.min(40,Math.floor((12000/span-vis)/2))), mg=Math.min(5,buf-1);
+  const w=S.ws.win; if(!force&&w&&first>=w[0]+mg&&first+vis<=w[1]-mg) return;
   if(S.ws.edit){ const e=S.ws.edit; if(e.r>=0&&(e.r<first-30||e.r>first+vis+30)) wsCommit(0,0,true); }
-  const a=Math.max(0,first-40), b=Math.min(R,first+vis+40), span=m.cols.length+1;
+  const a=Math.max(0,first-buf), b=Math.min(R,first+vis+buf);
   let h=`<tr class="gap" aria-hidden="true"><td colspan="${span}" style="height:${a*rowH}px"></td></tr>`;
   for(let r=a;r<b;r++) h+=wsRowHtml(m,r);
   h+=`<tr class="gap" aria-hidden="true"><td colspan="${span}" style="height:${Math.max(0,R-b)*rowH}px"></td></tr>`;
@@ -7612,7 +7762,7 @@ function wsPasteText(text){
   if(m.kind!=="raw"){ toast("The Final sheet is read only. Paste into the Raw sheet."); return; }
   if(S.readOnly){ toast("You can view this workspace but not edit it."); return; }
   const {r0,c0}=wsSelRect();
-  const lines=String(text).replace(/\r/g,"").split("\n"); while(lines.length&&!lines[lines.length-1].trim()) lines.pop();
+  const lines=unwrapQuoted(String(text).replace(/\r\n?/g,"\n")).split("\n"); while(lines.length&&!lines[lines.length-1].trim()) lines.pop();
   if(!lines.length) return;
   if(lines.length===1&&!lines[0].includes("\t")){ wsSetCell(r0,c0,lines[0]); return; }
   if(m.ord){ toast("Unsort the sheet to paste a block: the rows are shown in another order than they were recorded in."); return; }
@@ -8104,9 +8254,11 @@ function stepMenuItems(s){
 }
 /* A thumbnail of a stage: the data after the step, in a small box. */
 function sparkSvg(d,w,h,cls){
-  const t=decimate(d.x,d.y,Math.max(40,w)); if(t.x.length<2) return `<svg class="${cls||"spark"}" viewBox="0 0 ${w} ${h}" aria-hidden="true"></svg>`;
+  const fx=[], fy=[]; for(let i=0;i<Math.min(d.x.length,d.y.length);i++){ const a=d.x[i], b=d.y[i]; if(typeof a==="number"&&typeof b==="number"&&Number.isFinite(a)&&Number.isFinite(b)){ fx.push(a); fy.push(b); } }
+  const t=decimate(fx,fy,Math.max(40,w)); if(t.x.length<2) return `<svg class="${cls||"spark"}" viewBox="0 0 ${w} ${h}" aria-hidden="true"></svg>`;
   let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; t.x.forEach((v,i)=>{ const y=t.y[i]; if(v<x0)x0=v; if(v>x1)x1=v; if(y<y0)y0=y; if(y>y1)y1=y; });
-  const rev=P()&&GP().revX, sx=v=>1+(rev?(x1-v):(v-x0))/((x1-x0)||1)*(w-2), sy=v=>h-2-(v-y0)/((y1-y0)||1)*(h-4);
+  // Halves, so a span from -1e308 to 1e308 does not overflow to Infinity.
+  const rev=P()&&GP().revX, fr=(v,a,b)=>(v/2-a/2)/((b/2-a/2)||1), sx=v=>1+(rev?1-fr(v,x0,x1):fr(v,x0,x1))*(w-2), sy=v=>h-2-fr(v,y0,y1)*(h-4);
   const ord=t.x.map((_,i)=>i).sort((a,b)=>t.x[a]-t.x[b]);
   return `<svg class="${cls||"spark"}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path d="M${ord.map(i=>sx(t.x[i]).toFixed(1)+","+sy(t.y[i]).toFixed(1)).join("L")}" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
 }
@@ -9740,7 +9892,9 @@ function nodeLabel(a){
 function anchorLabel(a){
   if(!a) return "";
   if(a.type==="node") return nodeLabel(a);
-  if(a.type==="point"){ const xc=xCol(), yc=activeYCol(); const x=xc&&xc.data[a.i], y=yc&&yc.data[a.i]; return `Point #${a.i+1} (${fmt(x??a.x,4)}, ${fmt(y??a.y,4)})`; }
+  // The point as it was when the comment was made: the row may since hold
+  // another value, or belong to another spectrum than the one analysed now.
+  if(a.type==="point"){ const xc=xCol(), yc=activeYCol(); const x=a.x??(xc&&xc.data[a.i]), y=a.y??(yc&&yc.data[a.i]); return x==null&&y==null?`Point #${a.i+1}`:`Point #${a.i+1} (${fmt(x,4)}, ${fmt(y,4)})`; }
   if(a.type==="xy") return `At (${fmt(a.x,4)}, ${fmt(a.y,4)})`;
   if(a.type==="fit"){ const p=P(); if(a.model==="peaks"||(p&&p.fit&&p.fit.kind==="composite")) return "On the peak fit"; return `On the ${lcFirst((getModel(a.model)||{name:"fit"}).name)} fit`; }
   return "";
@@ -10059,6 +10213,10 @@ function normalize(p){ if(!p) return; const was=p.v||1;
   p.plot=Object.assign({style:"scatter",logY:false,grid:false,resid:true},p.plot||{}); p.log=p.log||[]; migrate(p);
   if(!p.found||typeof p.found!=="object") p.found={};
   if(p.batch&&!(p.batch.tmpl&&Array.isArray(p.batch.rows))) p.batch=null;
+  // A batch keeps only rows of spectra that still exist: one deleted during
+  // the run, or since, was listed as out of date for ever. Not a global fit:
+  // its other rows are out of date because of the one that went, and say so.
+  if(p.batch&&!p.batch.glob){ const ys=new Set((p.cols||[]).filter(c=>c.role==="y").map(c=>c.id)); if(p.batch.rows.some(r=>!r||!ys.has(r.col))) p.batch=Object.assign({},p.batch,{rows:p.batch.rows.filter(r=>r&&ys.has(r.col))}); if(!p.batch.rows.length) p.batch=null; }
   if(p.series&&typeof p.series!=="object") p.series=null;
   if(p.trends!=null) p.trends=Array.isArray(p.trends)?p.trends.filter(t=>t&&t.id&&Array.isArray(t.ys)):null;
   // Graphs keep only spectra that still exist; a graph with none left goes.
@@ -10116,7 +10274,15 @@ async function saveFile(filename,data,mime){
 }
 // A figure's file is named after its project and, with several graphs, the graph.
 function figName(){ const p=P(); return projName(p)+(multiGraph()?" "+graphName(GID()):""); }
-function safeName(base,ext){ return (base||"kurve").replace(/[^\w\- ]+/g,"").trim().replace(/\s+/g,"_")+ext; }
+/* A file name from a project's name, in any script: only what a file system
+   refuses goes (\ / : * ? " < > | and control characters), and leading dots,
+   which would hide the file. "日本語データ" used to become ".csv", a hidden file
+   with no name, and "Δ-spectrum α/β" "-spectrum.csv". */
+function safeName(base,ext){
+  let s=String(base||"").normalize("NFC").replace(/[\\/:*?"<>|\u0000-\u001f\u007f]+/g," ").replace(/\s+/g," ").trim().replace(/^[.\s]+/,"").replace(/[.\s]+$/,"");
+  if(/^(con|prn|aux|nul|com\d|lpt\d)$/i.test(s)) s+="_";
+  s=[...s].slice(0,100).join("").trim().replace(/ /g,"_");
+  return (s||"kurve")+ext; }
 async function copyText(text,what){
   // what is a thing ("Results table") or a whole sentence ending in a full stop.
   const said=/[.!]$/.test(what||"")?what:`${what||"Text"} copied.`;
@@ -11366,7 +11532,7 @@ function overviewOf(d){
   for(let i=0;i<n0;i++){ const x=d.x[i], y=d.y[i]; if(x==null||y==null||!Number.isFinite(x)||!Number.isFinite(y)){ bad++; continue; } pts.push({x,y,i:d.idx?d.idx[i]:i}); }
   const n=pts.length, o={n,bad,xu:d.xu||"",yu:d.yu||"",spikes:[],bands:[],gaps:[]};
   if(n<9){ o.few=true; OV_MEMO.set(d,o); return o; }
-  const sp=spacing(pts.map(q=>q.x)); o.dir=sp.h<0?"down":"up"; o.sorted=sp.sorted; o.step=sp.abs; o.uneven=sp.uneven;
+  const sp=spacing(pts.map(q=>q.x)); o.dir=sp.h<0?"down":"up"; o.sorted=sp.sorted; o.step=sp.none?0:sp.abs; o.uneven=sp.uneven; o.oneX=!!sp.none&&pts.length>1;
   const srt=pts.slice().sort((a,b)=>a.x-b.x), X=srt.map(q=>q.x), Y=srt.map(q=>q.y);
   let dup=0; for(let i=1;i<n;i++){ const g=X[i]-X[i-1]; if(g===0) dup++; else if(sp.abs&&g>3*sp.abs) o.gaps.push([X[i-1],X[i]]); }
   o.dup=dup; o.x0=X[0]; o.x1=X[n-1];
@@ -11421,7 +11587,7 @@ function renderOverview(){
   if(o.few){ h+=noteHtml("info",`Only ${o.n} usable point${o.n===1?"":"s"}: too few to say anything about.`,true); box.innerHTML=h; wireOverview(box); return; }
   const rows=[];
   rows.push([o.bad?wn:ok,"Points",`${o.n}${o.bad?` <span class="warnt">and ${o.bad} empty or not a number</span>`:""}`]);
-  rows.push([o.sorted&&!o.dup&&!o.gaps.length&&o.uneven<=0.1?ok:wn,"X",`${esc(fmt(o.x0,6))} to ${esc(fmt(o.x1,6))}${u(o.xu)}, ${o.sorted?`running ${o.dir==="down"?"high to low":"low to high"}`:`<span class="warnt">not in order</span>`}; step ${esc(fmt(o.step,4))}${u(o.xu)}, ${o.uneven<=0.02?"even":o.uneven<=0.1?`nearly even (${esc(fmt(100*o.uneven,2))}%)`:`<span class="warnt">uneven (${esc(fmt(100*o.uneven,2))}%)</span>`}${o.dup?`; <span class="warnt">${o.dup} repeated</span>`:""}${o.gaps.length?`; <span class="warnt">${o.gaps.length} gap${o.gaps.length===1?"":"s"}, the widest from ${esc(fmt(o.gaps.slice().sort((a,b)=>(b[1]-b[0])-(a[1]-a[0]))[0][0],6))}</span>`:""}`]);
+  rows.push([o.sorted&&!o.dup&&!o.gaps.length&&o.uneven<=0.1?ok:wn,"X",`${esc(fmt(o.x0,6))} to ${esc(fmt(o.x1,6))}${u(o.xu)}, ${o.sorted?`running ${o.dir==="down"?"high to low":"low to high"}`:`<span class="warnt">not in order</span>`}; ${o.oneX?`<span class="warnt">every point at the same X</span>`:`step ${esc(fmt(o.step,4))}${u(o.xu)}, ${o.uneven<=0.02?"even":o.uneven<=0.1?`nearly even (${esc(fmt(100*o.uneven,2))}%)`:`<span class="warnt">uneven (${esc(fmt(100*o.uneven,2))}%)</span>`}`}${o.dup?`; <span class="warnt">${o.dup} repeated</span>`:""}${o.gaps.length?`; <span class="warnt">${o.gaps.length} gap${o.gaps.length===1?"":"s"}, the widest from ${esc(fmt(o.gaps.slice().sort((a,b)=>(b[1]-b[0])-(a[1]-a[0]))[0][0],6))}</span>`:""}`]);
   // Points a little below zero are noise around a subtracted background; far below, something took too much.
   const deep=o.neg&&o.y0<-5*o.sigma;
   rows.push([deep?wn:nb,"Y",`${esc(fmt(o.y0,5))} to ${esc(fmt(o.y1,5))}${u(o.yu)}${o.neg?`; ${o.neg} point${o.neg===1?"":"s"} below zero${deep?`, <span class="warnt">down to ${esc(fmt(-o.y0/(o.sigma||1),2))} times the noise</span>`:" (within the noise)"}`:""}`]);
@@ -11494,12 +11660,17 @@ function statRow(c,of,rng){
   const sig=noiseSigma(sy), area=trapz(sx,sy), mom=trapz(sx,sx.map((x,k)=>x*sy[k]));
   return {c,d,n,x0:sx[0],x1:sx[n-1],mn,mx,xmax:xs[imx],mu,sd,med,sig,snr:sig>0?(mx-med)/sig:NaN,area,centroid:area?mom/area:NaN};
 }
-function corrMatrix(cols,rng){
+/* Pearson r between spectra on the analysed one's X. Symmetric, so each pair
+   once; with only (an index) just that spectrum's row: a table of 300 × 300
+   made every save of a 300-spectrum project take ten seconds. */
+function corrMatrix(cols,rng,only){
   const act=activeYCol(), base=finalOf(act), xs=base.x.filter(x=>Number.isFinite(x)&&(!rng||(x>=rng[0]&&x<=rng[1])));
-  const vals=cols.map(c=>{ const d=finalOf(c); return interpOnto(d.x,d.y,xs); });
-  return cols.map((a,i)=>cols.map((b,j)=>{ const u=[], v=[]; xs.forEach((_,k)=>{ const p1=vals[i][k], p2=vals[j][k]; if(p1!=null&&p2!=null){ u.push(p1); v.push(p2); } });
+  const vals=cols.map(c=>{ const d=finalOf(c); return interpOnto(d.x,d.y,xs); }), M=cols.map(()=>new Array(cols.length).fill(null));
+  cols.forEach((a,i)=>{ if(only!=null&&i!==only) return; cols.forEach((b,j)=>{ if(only==null&&j<i) return; M[i][j]=M[j][i]=pr(i,j); }); });
+  return M;
+  function pr(i,j){ const u=[], v=[]; xs.forEach((_,k)=>{ const p1=vals[i][k], p2=vals[j][k]; if(p1!=null&&p2!=null){ u.push(p1); v.push(p2); } });
     if(u.length<3) return null; const mu=u.reduce((s,q)=>s+q,0)/u.length, mv=v.reduce((s,q)=>s+q,0)/v.length;
-    let sab=0,saa=0,sbb=0; u.forEach((q,k)=>{ sab+=(q-mu)*(v[k]-mv); saa+=(q-mu)**2; sbb+=(v[k]-mv)**2; }); return saa&&sbb?sab/Math.sqrt(saa*sbb):null; }));
+    let sab=0,saa=0,sbb=0; u.forEach((q,k)=>{ sab+=(q-mu)*(v[k]-mv); saa+=(q-mu)**2; sbb+=(v[k]-mv)**2; }); return saa&&sbb?sab/Math.sqrt(saa*sbb):null; }
 }
 function statsData(){
   const o=S.stOpt||(S.stOpt={of:"final",range:"all"}), rng=o.range==="view"&&S.view?[Math.min(S.view.x0,S.view.x1),Math.max(S.view.x0,S.view.x1)]:null;
@@ -11526,6 +11697,10 @@ function renderStats(){
   const same=yCols().filter(c=>(finalOf(c).xu||"")===((act&&finalOf(act).xu)||""));
   h+=`<h3 class="gh" id="st-corr">Correlation between spectra <span class="cnt" title="Final data, interpolated onto this X where they overlap. Near 1: the same shape; near 0: unrelated">Pearson r, on ${esc(specName(act))}'s X</span></h3>`;
   if(same.length<2) h+=`<p class="nothing">Needs two spectra on the same X axis.</p>`;
+  // With many spectra, each against the analysed one: a square table of them
+  // all is too large to read, and to draw.
+  else if(same.length>12){ const ai=Math.max(0,same.indexOf(act)), M=corrMatrix(same,rng,ai);
+    h+=`<p class="lab" style="margin:0 0 6px">${same.length} spectra: each against ${esc(specName(act))}.</p><div class="twrap"><table class="rtab corr"><thead><tr><th class="l">Spectrum</th><th>r</th></tr></thead><tbody>${same.map((b,j)=>{ const v=M[ai][j]; return `<tr${j===ai?' class="sel"':""}><td class="l">${esc(specName(b))}</td><td style="${v!=null?`background:color-mix(in srgb, var(--accent) ${Math.round(Math.abs(v)*38)}%, transparent)`:""}">${v==null?"—":esc(v.toFixed(4))}</td></tr>`; }).join("")}</tbody></table></div>`; }
   else { const M=corrMatrix(same,rng);
     h+=`<div class="twrap"><table class="rtab corr"><thead><tr><th></th>${same.map(c=>`<th title="${esc(specName(c))}">${esc(specName(c).slice(0,14))}</th>`).join("")}</tr></thead><tbody>${same.map((a,i)=>`<tr><td class="l">${esc(specName(a))}</td>${same.map((b,j)=>{ const v=M[i][j]; return `<td style="${v!=null?`background:color-mix(in srgb, var(--accent) ${Math.round(Math.abs(v)*38)}%, transparent)`:""}">${v==null?"—":esc(v.toFixed(4))}</td>`; }).join("")}</tr>`).join("")}</tbody></table></div>`; }
   box.innerHTML=h;
@@ -12608,7 +12783,7 @@ ${DL([["Import, Export","Bring a file in; save the figure, data or a report."],[
 <h2>Theme and style</h2>
 <p>${MP("Window › Theme")}: light, dark, or the system's. The moon and sun button in the title bar switches between them.</p>
 <p>${MP("Window › Style")}: <strong>Bench</strong> marks everything you can change in blue; <strong>Graphite</strong> is black and white, with blue only for the keyboard focus. Both are remembered in this browser. They change the interface only: the graph's colours are set in the Format dialog and stay as they are.</p>`},
-{id:"projects", g:"Basics", t:"Projects, saving and undo", kw:"project rename new delete switch save local browser shared workspace undo redo log taskbar which bring in another copy spectra combine merge",
+{id:"projects", g:"Basics", t:"Projects, saving and undo", kw:"project rename new delete switch save local browser shared workspace undo redo log taskbar which bring in another copy spectra combine merge tabs storage full quota not saved",
  lead:"A project is one table of data with its processing, peaks, bands, fits, figure and discussion. It saves itself as you work.",
  body:`<h2>Projects</h2>
 <p>The project's name is in the middle of the title bar: click it to rename. The arrow beside it lists your projects, each with how many spectra and graphs it holds, and creates or deletes one. ${MP("File › New project")} starts an empty one with a worksheet to paste into.</p>
@@ -12619,6 +12794,7 @@ ${DL([["Import, Export","Bring a file in; save the figure, data or a report."],[
 <p>${MP("File › Bring in from another project…")} lists your other projects and their spectra. Tick the ones you want (ticking a project ticks all of its spectra) and choose where they go: the graph you are on, a new graph, or a graph each. They are copied with their raw values, X and error columns, processing, mask, file header, marked peaks and colours; a derived spectrum brings its source, and a step that reads another spectrum brings that one too. The project they came from is unchanged. The raw-data record, the log and each spectrum's Raw data box in the History say where they came from. One Undo takes them out again. To put graphs of the same project together, see ${DA("graphs#combine","combining graphs")}.</p>
 <h2>Saving</h2>
 <p>Every change is saved at once; the status bar says so. Used on its own, Kurve keeps projects in this browser and uploads nothing: to keep a copy elsewhere, ${DA("export","export it")}. In a shared workspace, everyone sees each change as it is made, and each person's name goes with their comments.</p>
+<p>Kurve open in two tabs of the same browser is one set of projects: a change in one tab shows in the other, and two tabs working on one project keep each other's changes. A browser keeps only a few megabytes for a page (a few hundred thousand points in all): when it is full, the status bar says <em>Not saved</em> and a message says why. Delete an old project, or export this one; the next change that fits saves everything since.</p>
 <h2>Undo</h2>
 <p>${K("Ctrl","Z")} undoes and ${K("Ctrl","Shift","Z")} (or ${K("Ctrl","Y")}) redoes: steps, masks, peaks, bands, fits, labels, styles, worksheet edits. The Edit menu names what will be undone. Undo rewinds your own changes in this session; it never takes back a colleague's work or a comment.</p>
 <h2>The log</h2>
@@ -13302,8 +13478,19 @@ const WINS={
 const WIN_ORDER=["graph","sheet","flow","over","peaks","integ","fit","res","batch","stats","py","disc"];
 const LAYOUT={v:2, wins:{}, z:10};
 function winState(id){ if(!LAYOUT.wins[id]) LAYOUT.wins[id]={g:WINS[id].def.slice(), open:!!WINS[id].open, max:false, z:++LAYOUT.z}; return LAYOUT.wins[id]; }
+/* A layout read back from storage (another version, a hand edit, a bug) is
+   checked before it is used: a window placed at NaN, or 10^11 pixels tall,
+   is put back where it starts, and it can never again be out of reach. */
+function saneWin(st,def){
+  const g=Array.isArray(st.g)?st.g.slice(0,4).map(Number):[];
+  const okG=g.length===4&&g.every(Number.isFinite)&&g[2]>0.02&&g[3]>0.02&&g[2]<=1.5&&g[3]<=1.5&&g[0]>-1&&g[0]<1&&g[1]>=-0.05&&g[1]<1;
+  st.g=okG?[g[0],Math.max(0,g[1]),Math.min(1,g[2]),Math.min(1,g[3])]:def.slice();
+  st.open=!!st.open; st.max=!!st.max; st.z=Number.isFinite(+st.z)?Math.max(0,Math.min(1e6,Math.round(+st.z))):0;
+  return st; }
 function loadLayout(){
-  try{ const o=JSON.parse(localStorage.getItem("kurve.layout")||"{}"); if(o&&o.v===2&&o.wins) Object.assign(LAYOUT,o); }catch(e){}
+  try{ const o=JSON.parse(localStorage.getItem("kurve.layout")||"{}"); if(o&&o.v===2&&o.wins&&typeof o.wins==="object") Object.assign(LAYOUT,o); }catch(e){}
+  if(!Number.isFinite(+LAYOUT.z)||LAYOUT.z>1e6) LAYOUT.z=10;
+  Object.keys(LAYOUT.wins).forEach(k=>{ const st=LAYOUT.wins[k]; if(!st||typeof st!=="object"){ delete LAYOUT.wins[k]; return; } saneWin(st,WINS[k]?WINS[k].def:[0.1,0.1,0.5,0.5]); LAYOUT.z=Math.max(LAYOUT.z,st.z); });
   Object.keys(WINS).forEach(winState); LAYOUT.wins.tool.open=false;
   applyWins();
 }
@@ -13320,10 +13507,10 @@ function saveGraphLayout(){
 }
 function restoreGraphLayout(){
   const o=(LAYOUT.proj||{})[S.pid], ids=graphWinIds(), first=!S.layoutPid; S.layoutPid=S.pid;
-  if(o) ids.forEach(id=>{ if(o[id]) Object.assign(winState(id),o[id]); });
+  if(o) ids.forEach(id=>{ if(o[id]&&typeof o[id]==="object") saneWin(Object.assign(winState(id),o[id]),WINS[id].def); });
   else if(ids.length>1) tileWins();
   // One graph: where one graph was last; on the first project of a visit, where it is.
-  else if(LAYOUT.single) Object.assign(winState("graph"),LAYOUT.single);
+  else if(LAYOUT.single&&typeof LAYOUT.single==="object") saneWin(Object.assign(winState("graph"),LAYOUT.single),WINS.graph.def);
   else if(!first) Object.assign(winState("graph"),{g:WINS.graph.def.slice(),open:true,max:false});
   // Windows of graphs no longer on the desk are forgotten after a while.
   const gone=Object.keys(LAYOUT.wins).filter(k=>!WINS[k]); if(gone.length>60) gone.forEach(k=>delete LAYOUT.wins[k]);
@@ -13653,10 +13840,14 @@ function fitTogether(list,t,share){
    "785nm"). The keys worth plotting against are those that most spectra have,
    as numbers, and that differ between them. */
 function metaParse(v){ let s=String(v==null?"":v).trim(); if(!s) return null;
-  let m=/(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ]+(\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?)?/.exec(s);
-  if(m) return {t:Date.UTC(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0),0)+(+(m[6]||0))*1000};
+  // A time zone written after the time counts: across a change to summer
+  // time the same clock reading is an hour apart.
+  let m=/(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ]+(\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?\s*(Z|[+-]\d{2}:?\d{2})?)?/.exec(s);
+  if(m){ let t=Date.UTC(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0),0)+(+(m[6]||0))*1000;
+    if(m[7]&&m[7]!=="Z"){ const z=/([+-])(\d{2}):?(\d{2})/.exec(m[7]); t-=(z[1]==="-"?-1:1)*(+z[2]*60+ +z[3])*60000; }
+    return {t}; }
   m=/^(\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?(\s*[AaPp][Mm])?$/.exec(s);
-  if(m){ let h=+m[1]; if(m[4]){ const pm=/p/i.test(m[4]); if(h===12) h=pm?12:0; else if(pm) h+=12; } return {t:(h*3600+ +m[2]*60+ +(m[3]||0))*1000}; }
+  if(m){ let h=+m[1]; if(m[4]){ const pm=/p/i.test(m[4]); if(h===12) h=pm?12:0; else if(pm) h+=12; } return {t:(h*3600+ +m[2]*60+ +(m[3]||0))*1000,tod:true}; }
   if(/\d{1,2}:\d{2}/.test(s)&&/[A-Za-z]{3}|\d{1,2}[\/.]\d{1,2}[\/.]\d{2,4}/.test(s)){ const t=Date.parse(s); if(Number.isFinite(t)) return {t}; }
   if(!s.includes(".")) s=s.replace(/(\d),(\d)/,"$1.$2");
   m=/^[^\d+\-.]*?([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)\s*(.*)$/.exec(s); if(!m) return null;
@@ -13668,7 +13859,12 @@ function metaKeys(cols){
   return Object.keys(n).filter(k=>n[k]>=2&&vals[k].size>1).sort((a,b)=>n[b]-n[a]||a.localeCompare(b)).map(k=>({k,n:n[k]})); }
 // A field's values for the spectra, and their unit: elapsed time since the first for dates.
 function metaSeries(cols,key){ const ps=cols.map(c=>metaParse((c.meta||{})[key]));
-  if(ps.some(q=>q&&q.t!=null)){ const ts=ps.map(q=>q&&q.t!=null?q.t:null), ok=ts.filter(v=>v!=null), t0=Math.min(...ok), span=(Math.max(...ok)-t0)/1000;
+  if(ps.some(q=>q&&q.t!=null)){ const ts=ps.map(q=>q&&q.t!=null?q.t:null);
+    // Times of day alone, in the order the spectra came: a reading more than
+    // twelve hours before the one before it was taken after midnight. Without
+    // this, 00:10 came before 23:50 and a night's run was put out of order.
+    if(ps.every(q=>!q||q.t==null||q.tod)){ let add=0, prev=null; ts.forEach((t,i)=>{ if(t==null) return; if(prev!=null&&t+add<prev-12*3600e3) add+=24*3600e3; ts[i]=t+add; prev=ts[i]; }); }
+    const ok=ts.filter(v=>v!=null), t0=Math.min(...ok), span=(Math.max(...ok)-t0)/1000;
     const [u,k]=span<=180?["s",1]:span<=3*3600?["min",60]:span<=72*3600?["h",3600]:["d",86400];
     return {vals:ts.map(t=>t==null?null:(t-t0)/1000/k),unit:u,time:true}; }
   const us=[...new Set(ps.filter(q=>q&&q.u).map(q=>q.u))];
@@ -13761,18 +13957,20 @@ async function runBatch(o){
     rows[c.id]={col:c.id,fit:res.fit||null,fail:res.fit?null:res.fail||"no result"};
   }
   let stopped=!!(S.batchRun&&S.batchRun.stop), glob=null, gfail=null;
-  if(S.pid!==pid){ S.batchRun=null; return; }
+  // Leaving the project stops the batch; it says so rather than vanishing.
+  const left=()=>{ S.batchRun=null; const q=S.projects.find(z=>z.id===pid); toast(`Fitting every spectrum of “${projName(q)}” stopped when you opened another project. Nothing of it was kept; run it again there.`); };
+  if(S.pid!==pid){ left(); return; }
   // Together: every spectrum that could be fitted, from its own result.
   if(o.share&&!stopped){
     const elig=ord.filter(c=>{ const r=rows[c.id]; return r&&(r.fit||!/units|fewer than four|no longer available/.test(r.fail||"")); });
     if(elig.length<2) gfail="fewer than two spectra could be fitted";
     else { S.batchRun.i=seq.length-1; S.batchRun.name=`all ${elig.length} together`; S.batchRun.together=true; renderBatchProgress();
       await new Promise(res=>requestAnimationFrame(()=>setTimeout(res,0)));
-      if(S.pid!==pid){ S.batchRun=null; return; }
+      if(S.pid!==pid){ left(); return; }
       const g=fitTogether(elig.map(c=>({c,seed:rows[c.id].fit?rows[c.id].fit.params:null})),t,o.share);
       if(g.fail) gfail=g.fail; else { g.rows.forEach(r=>{ rows[r.col]=r; }); glob=g.glob; } } }
   S.batchRun=null;
-  const list=ord.filter(c=>rows[c.id]).map(c=>rows[c.id]);
+  const list=ord.filter(c=>rows[c.id]&&(o.share||colById(c.id))).map(c=>rows[c.id]);
   if(!list.length){ renderBatch(); return; }
   const done=list.filter(r=>r.fit).length, failed=list.length-done, nc=list.filter(r=>r.fit&&r.fit.stats&&r.fit.stats.converged===false).length;
   pushUndo(glob?"fitting every spectrum together":"fitting every spectrum");
@@ -13850,12 +14048,17 @@ function batchValue(c,q){
 }
 const qUnit=(q,c)=>{ const d=finalOf(c); return q.dim==="%"?"%":unitFor(q.dim,(d.xu||"").trim(),(d.yu||"").trim())||""; };
 // A straight line through the trend, weighted by the errors when every point has one.
+/* A weighted straight line, about the mean of X: from raw sums, every series
+   value the same gave S0·Sxx − Sx² as rounding noise instead of zero (a slope
+   of 8 with an R² of −2 through points stacked on one X), and values like
+   10^9 seconds lost every digit of the slope to cancellation. */
 function lineFit(xs,ys,es){ const n=xs.length; if(n<2) return null; const wt=es&&es.every(e=>e>0), w=xs.map((_,i)=>wt?1/(es[i]*es[i]):1);
-  let S0=0,Sx=0,Sy=0,Sxx=0,Sxy=0; xs.forEach((x,i)=>{ S0+=w[i]; Sx+=w[i]*x; Sy+=w[i]*ys[i]; Sxx+=w[i]*x*x; Sxy+=w[i]*x*ys[i]; });
-  const D=S0*Sxx-Sx*Sx; if(!(Math.abs(D)>0)) return null;
-  const b=(S0*Sxy-Sx*Sy)/D, a=(Sxx*Sy-Sx*Sxy)/D, ym=Sy/S0; let rss=0,tss=0; xs.forEach((x,i)=>{ rss+=w[i]*(ys[i]-a-b*x)**2; tss+=w[i]*(ys[i]-ym)**2; });
+  let S0=0,Sx=0,Sy=0,xa=0; xs.forEach((x,i)=>{ S0+=w[i]; Sx+=w[i]*x; Sy+=w[i]*ys[i]; xa=Math.max(xa,Math.abs(x)); });
+  const xm=Sx/S0, ym=Sy/S0; let Sxx=0,Sxy=0; xs.forEach((x,i)=>{ Sxx+=w[i]*(x-xm)**2; Sxy+=w[i]*(x-xm)*(ys[i]-ym); });
+  if(!(Math.sqrt(Sxx/S0)>xa*1e-12)) return null;
+  const b=Sxy/Sxx, a=ym-b*xm; let rss=0,tss=0; xs.forEach((x,i)=>{ rss+=w[i]*(ys[i]-a-b*x)**2; tss+=w[i]*(ys[i]-ym)**2; });
   const s2=wt?1:(n>2?rss/(n-2):NaN);
-  return {a,b,ea:Math.sqrt(s2*Sxx/D),eb:Math.sqrt(s2*S0/D),R2:tss>0?1-rss/tss:null,n,weighted:wt}; }
+  return {a,b,ea:Math.sqrt(s2*(1/S0+xm*xm/Sxx)),eb:Math.sqrt(s2/Sxx),R2:tss>0?Math.max(0,1-rss/tss):null,n,weighted:wt}; }
 function trendData(q,line){
   const s=seriesOf(), pts=[]; if(line===undefined) line=s.line;
   seriesCols().forEach(({c,v})=>{ if(v==null) return; const r=batchValue(c,q); if(!r||!Number.isFinite(r.v)) return; pts.push({x:v,y:r.v,e:Number.isFinite(r.e)?r.e:null,c}); });
@@ -14169,7 +14372,7 @@ function syncGraphWins(){
   document.body.classList.toggle("mgraph",nWin>1);
   if(p&&S.layoutPid!==S.pid) restoreGraphLayout();
   // Back to one graph in the same project (an undo, a delete): it gets its own size back.
-  else if(p&&S.gcount>1&&nWin===1){ Object.assign(winState("graph"),LAYOUT.single?clone(LAYOUT.single):{g:WINS.graph.def.slice(),open:true,max:false}); applyWins(); saveLayout(); }
+  else if(p&&S.gcount>1&&nWin===1){ saneWin(Object.assign(winState("graph"),LAYOUT.single?clone(LAYOUT.single):{g:WINS.graph.def.slice(),open:true,max:false}),WINS.graph.def); applyWins(); saveLayout(); }
   else if(made) applyWins();
   S.gcount=nWin;
   moveLive();
@@ -14896,6 +15099,11 @@ function wireStatic(){
     if(e.key==="Tab") trapIn(m,e);
     else if(e.key==="Escape"){ e.preventDefault(); e.stopImmediatePropagation(); (m._cancel||(()=>closeModal(m)))(); }
   },true);
+  // Whether a button is held anywhere, for undo and redo to wait on.
+  window.addEventListener("pointerdown",e=>{ if(e.button===0) S.ptrDown=true; },true);
+  ["pointerup","pointercancel","blur"].forEach(t=>window.addEventListener(t,()=>{ S.ptrDown=false; },true));
+  // A button let go outside the window sends no pointerup here.
+  window.addEventListener("pointermove",e=>{ if(S.ptrDown&&e.buttons===0) S.ptrDown=false; },true);
   document.addEventListener("keydown",e=>{
     if(MODALS.length||menuOpen) return;
     if(e.key==="F1"){ e.preventDefault(); openHelp(helpFor(frontWin())); return; }

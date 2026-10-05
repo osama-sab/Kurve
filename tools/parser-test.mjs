@@ -1,13 +1,13 @@
 /* Tests for the import parser in kurve.html.
    The app has no build step, so this pulls the parser block straight out of
    the HTML between the ==PARSER:START==/==PARSER:END== markers and runs it.
-   Usage: node tools/parser-test.mjs                                        */
+   Usage: node tools/parser-test.mjs [path/to/kurve.html]                   */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const html = readFileSync(join(here, "..", "kurve.html"), "utf8");
+const html = readFileSync(process.argv[2] || join(here, "..", "kurve.html"), "utf8");
 const m = html.match(/==PARSER:START==[\s\S]*?\*\/([\s\S]*?)\/\* ==PARSER:END==/);
 if (!m) { console.error("Could not find the parser block in kurve.html"); process.exit(1); }
 
@@ -38,6 +38,32 @@ check("excel error is missing", P.toNumber("#DIV/0!", ".") === null);
 check("infinity is missing", P.toNumber("-Inf", ".") === null);
 check("empty is missing", P.toNumber("", ".") === null);
 check("text is missing", P.toNumber("abc", ".") === null);
+/* Numbers as documents write them */
+check("unicode minus", close(P.toNumber("\u22120.5", "."), -0.5));
+check("unicode minus in an exponent", close(P.toNumber("5E\u22123", "."), 0.005));
+check("en dash as a minus", close(P.toNumber("\u20132.25", "."), -2.25));
+check("times ten to the", close(P.toNumber("5\u00d710^-3", "."), 0.005));
+check("superscript exponent", close(P.toNumber("1.5\u00d710\u207b\u00b3", "."), 0.0015));
+check("superscript exponent, comma decimal", close(P.toNumber("2,5\u00d710\u00b2", ","), 250));
+check("no-break space thousands", close(P.toNumber("1\u00a0234\u00a0567,5", ","), 1234567.5));
+check("narrow no-break space thousands, point", close(P.toNumber("12\u202f345.25", "."), 12345.25));
+check("space thousands with a decimal comma", close(P.toNumber("1 234,5", ","), 1234.5));
+check("plain spaces are not thousands without a decimal comma", P.toNumber("100 200 300", ".") === null);
+check("hex is a label", P.toNumber("0x10", ".") === null);
+check("binary is a label", P.toNumber("0b11", ".") === null);
+check("2x105 is not 2e5", P.toNumber("2x105", ".") === null);
+{ const r = P.analyzeFile("x,y\n1,\u22120.5\n2,\u22121.25\n3,0.75\n4,\u22122\n5,1\n6,\u22123\n7,2\n8,\u22121\n");
+  check("a file with typographic minus signs keeps every row", r.rows.length === 8 && close(r.cols[1][0], -0.5) && close(r.cols[1][5], -3), r.rows.length); }
+{ const r = P.analyzeFile("x;y\n1;1\u00a0234,5\n2;2\u00a0345,5\n3;3\u00a0456,5\n4;4\u00a0567,5\n5;5\u00a0678,5\n");
+  check("a French export with no-break space thousands", r.rows.length === 5 && close(r.cols[1][2], 3456.5), r.rows.length+" "+(r.cols[1]||[]).join(" ")); }
+{ const r = P.analyzeFile("100 200 300\n110 210 310\n120 220 320\n130 230 330\n140 240 340\n");
+  check("space-separated columns stay columns", r.cols.length === 3 && r.rows.length === 5, r.cols.length+" cols"); }
+{ const r = P.analyzeFile('Shift,"Intensity\n(counts)"\n100,5\n101,6\n102,7\n103,8\n104,9\n');
+  check("a header cell with a line break stays one header", r.rows.length === 5 && r.headerRow && /Intensity \(counts\)/.test(r.headerRow[1]), JSON.stringify(r.headerRow)); }
+{ const r = P.analyzeFile('size,len\n12" pipe,1\n2,3\n4,5\n6,7\n8,9\n10,11\n');
+  check("a stray inch mark does not swallow lines", r.rows.length >= 5, r.rows.length); }
+{ const r = P.analyzeFile('a,b\n"unclosed,1\n2,3\n4,5\n6,7\n8,9\n10,11\n12,13\n');
+  check("an unclosed quote is left alone", r.rows.length >= 6, r.rows.length); }
 check("negative kept", close(P.toNumber("-999", "."), -999));
 
 /* ---------- 1. plain CSV ---------- */
