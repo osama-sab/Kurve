@@ -147,6 +147,62 @@ await page(async p => {
   check("a formula nested 300 deep is refused in words", /nested more than 200 deep/.test(r.deep || ""), r.deep);
 }, { name: "numbers" });
 
+console.log("Figures: breaks, a second axis, shapes, PDF and EPS");
+await page(async p => {
+  const g = await p.evaluate(() => gauss(800, 520, 6, 1000, 100, 1, 8));
+  await p.evaluate(async g => { await mkSpec("Si", g.x, g.y, { xn: "Raman shift" }); }, g); await p.waitForTimeout(200);
+  const r = {};
+  for (const [k, b] of Object.entries({ crossed: [[700, 300]], nan: [[NaN, 5]], text: [["a", "b"]], many: Array.from({ length: 30 }, (_, i) => [120 + i * 20, 125 + i * 20]), most: [[110, 890]], obj: { a: 1 } })) {
+    await p.evaluate(b => setAxisKeys("x", { brk: b }), b); await p.waitForTimeout(40);
+    r[k] = await p.evaluate(() => S.geo.sx.gaps.length);
+  }
+  check("breaks read from storage as they come: crossed ends, NaN, text, too many, nearly all the axis", r.crossed === 1 && r.nan === 0 && r.text === 0 && r.many === 8 && r.most === 0 && r.obj === 0, JSON.stringify(r));
+  await p.evaluate(() => setAxisKeys("x", { brk: [[300, 700]] })); await p.waitForTimeout(60);
+  const inv = await p.evaluate(() => [200, 750, 880].map(x => Math.abs(toData(S.geo.X(x), S.geo.T + 5).x - x)));
+  check("a broken axis maps back to data on both sides of the gap", inv.every(d => d < 1e-6), inv);
+  const t = await p.evaluate(() => [...document.querySelectorAll("#plot text")].filter(t => +t.getAttribute("y") > S.geo.T + S.geo.mh).map(t => parseFloat(t.textContent)).filter(v => v > 300 && v < 700));
+  check("no tick sits in a gap", !t.length, t);
+}, { name: "breaks" });
+await page(async p => {
+  const g = await p.evaluate(() => gauss(800, 520, 6, 1000, 100, 1, 8));
+  await p.evaluate(async g => { await mkSpec("Si", g.x, g.y, { xn: "Raman shift" }); }, g); await p.waitForTimeout(200);
+  const err = {};
+  for (const [k, a] of Object.entries({ pole: { conv: "expr", f: "1/(x-500)" }, flat: { conv: "expr", f: "5" }, param: { conv: "expr", f: "k*x" }, laser: { conv: "nm", from: "raman", laser: 0 }, slope0: { conv: "lin", a: 0 } })) {
+    await p.evaluate(a => setAxisKeys("x2", Object.assign({ on: true, f: null, a: null, laser: null, from: null }, a)), a); await p.waitForTimeout(40);
+    err[k] = await p.evaluate(() => ({ e: S.geo.x2err || "", n: document.querySelectorAll('#plot [data-axis="x2"]').length }));
+  }
+  check("a second axis that cannot be numbered says why in words, and is not drawn", Object.values(err).every(q => q.e.length > 10 && !q.n), JSON.stringify(err));
+  // 1/x over a wide range: numbers where the axis has those values
+  await p.evaluate(() => setAxisKeys("x2", { on: true, conv: "expr", f: "1e7/x", a: null, laser: null, from: null })); await p.waitForTimeout(60);
+  const off = await p.evaluate(() => [...document.querySelectorAll("#plot text")].filter(t => +t.getAttribute("y") < S.geo.T - 2 && +t.getAttribute("y") > 0 && !t.dataset.axtitle)
+    .map(t => { const sp = t.querySelector("tspan"), head = t.firstChild ? t.firstChild.nodeValue : "", v = sp ? (/×/.test(head) ? parseFloat(head) : 1) * 10 ** +sp.textContent : parseFloat(t.textContent), x = toData(+t.getAttribute("x"), S.geo.T).x; return Math.abs(1e7 / x - v) / v; }));
+  check("a curved second axis puts each number where the first has that value", off.length >= 4 && off.every(d => d < 2e-3), off.map(d => d.toExponential(1)).join(" "));
+}, { name: "second axis" });
+await page(async p => {
+  const g = await p.evaluate(() => gauss(800, 520, 6, 1000, 100, 1, 8));
+  await p.evaluate(async g => { await mkSpec("Si", g.x, g.y, { xn: "Raman shift" }); }, g); await p.waitForTimeout(200);
+  await p.evaluate(() => { addAnno({ t: "rect", x: 500, y: 500, x2: 500, y2: 500 }); addAnno({ t: "ellipse", pin: "plot", fx: -3, fy: -3, fx2: 5, fy2: 5, fill: "#ff0000", text: "光谱" });
+    setPlotKey("title", "Spectre d'été, cm^{-1}, \\alpha"); setAxisKeys("x", { brk: [[300, 400]] }); setAxisKeys("x2", { on: true, conv: "lin", a: 2, b: 0, f: null }); });
+  const r = await p.evaluate(async () => { const out = {};
+    for (const kind of ["pdf", "eps"]) { const res = await svgToVector(buildPlot(700, 460, EXPORT_PAL, true), { kind, title: "Été", wPt: 240.945, hPt: 170.079 }); const b = new Uint8Array(await res.blob.arrayBuffer()); let s = ""; for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); out[kind] = { s, miss: res.miss }; }
+    return out; });
+  const pdf = r.pdf.s, sx = +pdf.match(/startxref\n(\d+)/)[1], n = +pdf.slice(sx).match(/xref\n0 (\d+)/)[1], tab = pdf.slice(sx).split("\n").slice(2, 2 + n);
+  const offsOk = tab.slice(1).every((ln, i) => pdf.startsWith(`${i + 1} 0 obj`, +ln.slice(0, 10)));
+  check("a PDF's cross-reference table points at every object", pdf.startsWith("%PDF-1.4") && offsOk && /%%EOF\n$/.test(pdf), `objects ${n - 1}`);
+  check("a PDF has the size asked for, in points", /MediaBox \[0 0 240\.945 170\.079\]/.test(pdf));
+  check("an EPS says its bounding box and ends its page", /^%!PS-Adobe-3\.0 EPSF-3\.0\n%%BoundingBox: 0 0 241 171/.test(r.eps.s) && /showpage\n%%EOF\n$/.test(r.eps.s));
+  check("characters the standard fonts lack are named, not dropped in silence", r.pdf.miss.join("") === "光谱" && r.eps.miss.join("") === "光谱", r.pdf.miss.join(","));
+  check("Greek letters go to the Symbol font", /\/BaseFont \/Symbol/.test(pdf));
+}, { name: "pdf and eps" });
+await page(async p => {
+  const g = await p.evaluate(() => gauss(300, 150, 6, 10, 100, 1, 0));
+  await p.evaluate(async g => { await mkSpec("A", g.x, g.y); }, g); await p.waitForTimeout(200);
+  await p.evaluate(() => { localStorage.setItem("kurve.formats", '[null,1,"x",{"id":"a"},{"id":"b","name":"ok","fmt":{"frame":"l","ax":null}}]'); save({ formats: [null, { id: "z" }, { id: "q", name: "Q", fmt: 5 }, { id: "r", name: "R", fmt: { ax: { x: { ticks: "out" } }, txt: null } }] }); });
+  await p.reload(); await p.waitForTimeout(800);
+  const r = await p.evaluate(() => { const out = { proj: projFormats().map(f => f.name), lib: fmtLib().map(f => f.name) }; allFormats().forEach(f => useFormat(f, false)); return out; });
+  check("broken formats in the store and in the project are left out, the good ones kept", r.proj.join() === "R" && r.lib.join() === "ok", JSON.stringify(r));
+}, { name: "formats" });
+
 await browser.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -397,6 +397,9 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .note{display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:5px;font-size:12.5px;margin:8px 0;background:var(--panel-2);border:1px solid var(--rule-2);border-left:3px solid var(--faint);color:var(--ink)}
 .note>.ic{margin-top:1px;color:var(--muted)}
 .note.warn{background:var(--warn-bg);border-color:var(--warn-bg);border-left-color:var(--warn)}
+.pd-note .warn{color:var(--bad)}
+.fdk{display:flex;flex-direction:column;gap:6px}
+@media (max-width: 600px){ #expForm .seg.mini>button{padding-left:4px;padding-right:4px} }
 .note.warn>.ic{color:var(--warn)}
 .note.bad{background:var(--bad-bg);border-color:var(--bad-bg);border-left-color:var(--bad)}
 .note.bad>.ic{color:var(--bad)}
@@ -1236,6 +1239,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 #plot.mode-anchor{cursor:crosshair}
 #plot.mode-label{cursor:crosshair}
 #plot.mode-arrow{cursor:crosshair}
+#plot.mode-shape{cursor:crosshair}
 #plot.mode-range{cursor:col-resize}
 .zrect.pick{background:rgba(29,95,168,.12);border-color:var(--accent)}
 
@@ -1248,6 +1252,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 .toolbar.c2 .tb.lbl>span{display:none} .toolbar.c2 .tb.lbl{padding:0;width:30px}
 .toolbar.c3 #modeSeg>button>span{display:none} .toolbar.c3 #modeSeg>button{padding:0 8px}
 .toolbar.c4 #style{width:90px} .toolbar.c4 #layoutSel{width:98px} .toolbar.c4 #viewSeg>button{padding:0 6px} .toolbar.c4 .tsep{margin:0 2px}
+.toolbar.c5 #modeSeg>button{padding:0 4px} .toolbar.c5 #viewSeg>button{padding:0 4px} .toolbar.c5 #style{width:80px} .toolbar.c5 #layoutSel{width:86px} .toolbar.c5 .tsep{margin:0}
 /* The file input is never seen; it must not take a place in the row either. */
 #fileIn{position:absolute;width:1px;height:1px;overflow:hidden}
 /* Between 860 and 1180 px the toolbar keeps to one row: narrower lists. */
@@ -1359,6 +1364,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
   <symbol id="i-tile" viewBox="0 0 24 24"><rect x="3.5" y="4" width="9" height="16" rx="1"/><rect x="14.5" y="4" width="6" height="7" rx="1"/><rect x="14.5" y="13" width="6" height="7" rx="1"/></symbol>
   <symbol id="i-cascade" viewBox="0 0 24 24"><rect x="3" y="3" width="11" height="9" rx="1"/><rect x="7" y="7" width="11" height="9" rx="1"/><rect x="10.5" y="11" width="10.5" height="9" rx="1"/></symbol>
   <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 19L18.5 5.5M10.5 5h8.5v8.5"/></symbol>
+  <symbol id="i-shape" viewBox="0 0 24 24"><rect x="3" y="3.5" width="11" height="9" rx="1"/><ellipse cx="15" cy="15.5" rx="6" ry="4.5"/></symbol>
   <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.2 1.2 0 0 1 0 1.7l-6.5 6.5a1.2 1.2 0 0 1-1.7 0z"/><circle cx="8" cy="8" r="1.4"/></symbol>
   <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></symbol>
   <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.2 4.2 0 0 0 6 0l3-3a4.2 4.2 0 0 0-6-6l-1.3 1.3"/><path d="M14 10a4.2 4.2 0 0 0-6 0l-3 3a4.2 4.2 0 0 0 6 6l1.3-1.3"/></symbol>
@@ -1413,6 +1419,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
       <button data-mode="peak" aria-pressed="false" title="Add peak: click the graph where you see a peak"><svg class="ic"><use href="#i-peak"/></svg><span>Add peak</span></button>
       <button data-mode="label" aria-pressed="false" title="Label: click a peak to label it with its position, or an empty spot to add text"><svg class="ic"><use href="#i-tag"/></svg><span>Label</span></button>
       <button data-mode="arrow" aria-pressed="false" title="Arrow: drag from where it starts to what it points at"><svg class="ic"><use href="#i-arrow"/></svg><span>Arrow</span></button>
+      <button data-mode="shape" aria-pressed="false" aria-haspopup="menu" title="Shape: a box or an ellipse, dragged on the graph"><svg class="ic"><use href="#i-shape"/></svg><span>Shape</span></button>
       <button data-mode="pin" aria-pressed="false" title="Comment: click the graph to start a comment there"><svg class="ic"><use href="#i-comment"/></svg><span>Comment</span></button>
     </div>
     <button class="tb icon" id="resetView" title="Show all the data (or double-click the graph)" aria-label="Show all the data"><svg class="ic"><use href="#i-fitview"/></svg></button>
@@ -4392,7 +4399,7 @@ function migrate(p){
 
 /* Undo is per-session and local: it rewinds your own edits, not other
    people's. Cross-user undo in a shared document is a different problem. */
-const UNDO_KEYS=["cols","activeY","meta","fit","plot","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends"];
+const UNDO_KEYS=["cols","activeY","meta","fit","plot","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
 /* Raw values are replaced, never changed in place, so a snapshot keeps each
    column's data array as it is and copies the rest: with 20 spectra of 50 000
@@ -4752,7 +4759,7 @@ const PLOT_DEF={style:"scatter",logY:false,logX:false,grid:false,gridMinor:false
 function plotCfg(){
   const p=P(), id=GID(), src=S.plotPreview||GP()||{};
   const o=Object.assign({},PLOT_DEF,src);
-  o.ax={x:Object.assign({},(src.ax||{}).x),y:Object.assign({},(src.ax||{}).y),y2:Object.assign({},(src.ax||{}).y2)};
+  o.ax={x:Object.assign({},(src.ax||{}).x),y:Object.assign({},(src.ax||{}).y),y2:Object.assign({},(src.ax||{}).y2),x2:Object.assign({},(src.ax||{}).x2)};
   o.series=src.series||{}; o.hidden=src.hidden||[];
   // On a graph of its own, a spectrum not on it counts as hidden.
   const g=S.plotPreview?null:graphOf(id); if(g) o.hidden=o.hidden.concat(yCols().filter(c=>!g.cols.includes(c.id)).map(c=>c.id));
@@ -5267,9 +5274,9 @@ function arrowSvg(ax,ay,bx,by,o){
   return s;
 }
 // Where an annotation's anchor (and an arrow's head) is on screen.
-function annoEnds(a,g){ const pin=a.pin==="plot";
-  const t=pin?{x:g.L+numOr(a.fx,a.t==="arrow"?0.3:0.5)*g.pw,y:g.T+numOr(a.fy,a.t==="arrow"?0.3:0.1)*g.mh}:{x:g.X(a.x),y:g.Y(a.y)};
-  const h=a.t!=="arrow"?null:pin?{x:g.L+numOr(a.fx2,0.5)*g.pw,y:g.T+numOr(a.fy2,0.5)*g.mh}:{x:g.X(a.x2),y:g.Y(a.y2)};
+function annoEnds(a,g){ const pin=a.pin==="plot", two=twoEnds(a), sh=!!SHAPE_T[a.t];
+  const t=pin?{x:g.L+numOr(a.fx,two?0.3:0.5)*g.pw,y:g.T+numOr(a.fy,two?0.3:0.1)*g.mh}:{x:g.X(a.x),y:g.Y(a.y)};
+  const h=!two?null:pin?{x:g.L+numOr(a.fx2,sh?0.6:0.5)*g.pw,y:g.T+numOr(a.fy2,sh?0.6:0.5)*g.mh}:{x:g.X(a.x2),y:g.Y(a.y2)};
   return {t,h}; }
 // The data point of any spectrum on view nearest the pointer, within d pixels.
 function snapNear(px,py,d){
@@ -5324,6 +5331,23 @@ function makeInset(){
   const id=addAnno(Object.assign({t:"inset",fx:best[0],fy:best[1],fw,fh},r),`made an inset of ${fmt(r.x0,6)} to ${fmt(r.x1,6)}${d.xu?" "+d.xu:""}`);
   if(id) toast("Drag the inset to move it, its corner to resize it; double-click for its settings.");
 }
+// A box or an ellipse between two corners (x0, y0) and (x1, y1) on screen.
+function shapeSvg(kind,ax,ay,bx,by,o){
+  const f1=v=>(+v).toFixed(1), x0=Math.min(ax,bx), x1=Math.max(ax,bx), y0=Math.min(ay,by), y1=Math.max(ay,by);
+  const fill=o.fill?`fill="${esc(o.fill)}" fill-opacity="${numOr(o.fop,0.18)}"`:`fill="none"`, st=`stroke="${o.lw>0?esc(o.col):"none"}" stroke-width="${o.lw>0?o.lw:0}"${o.dash?` stroke-dasharray="${o.dash}"`:""}`;
+  if(kind==="ellipse") return `<ellipse cx="${f1((x0+x1)/2)}" cy="${f1((y0+y1)/2)}" rx="${f1((x1-x0)/2)}" ry="${f1((y1-y0)/2)}" ${fill} ${st}/>`;
+  const r=Math.max(0,Math.min(numOr(o.r,0),(x1-x0)/2,(y1-y0)/2));
+  return `<rect x="${f1(x0)}" y="${f1(y0)}" width="${f1(x1-x0)}" height="${f1(y1-y0)}"${r?` rx="${f1(r)}"`:""} ${fill} ${st}/>`;
+}
+const SHAPE_T={rect:1,ellipse:1};
+// Annotations with two ends: an arrow's tail and head, a shape's opposite corners.
+const twoEnds=a=>a.t==="arrow"||!!SHAPE_T[a.t];
+function makeShape(sd){
+  const t=toData(sd.x0,sd.y0), h=toData(sd.x1,sd.y1); if(!t||!h) return;
+  setMode("zoom",true); const nm=sd.kind==="ellipse"?"an ellipse":"a box", n7=v=>+v.toPrecision(7);
+  const id=addAnno({t:sd.kind,x:n7(t.x),y:n7(t.y),x2:n7(h.x),y2:n7(h.y)},`drew ${nm} from x = ${fmt(Math.min(t.x,h.x),6)} to ${fmt(Math.max(t.x,h.x),6)}`);
+  if(id) toast("Drag it to move it, its corners to resize it; double-click for its settings.");
+}
 function makeArrow(ad){
   const t=toData(ad.x0,ad.y0), h=ad.pt||toData(ad.x1,ad.y1); if(!t||!h) return;
   setMode("zoom",true);
@@ -5332,8 +5356,10 @@ function makeArrow(ad){
 }
 function frameOf(cfg){ const f=cfg.frame; return {kind:f==="axes"||f==="l"?"l":f==="none"?"none":"box", lw:numOr(cfg.frameLw,1.2), color:cfg.frameColor||null}; }
 function axisCfg(cfg,k){
-  const a=(cfg.ax||{})[k]||{}, fr=frameOf(cfg), y=(cfg.ax||{}).y||{};
-  return {dir:a.ticks||(k==="y2"?y.ticks:null)||"in", len:numOr(a.tlen,6), mlen:numOr(a.mlen,3), tw:numOr(a.tw,1),
+  let a=(cfg.ax||{})[k]||{}; const fr=frameOf(cfg), y=(cfg.ax||{}).y||{};
+  // The second X axis looks like the first unless it is told otherwise.
+  if(k==="x2"){ const x=(cfg.ax||{}).x||{}, o={}; ["ticks","tlen","mlen","tw","color","lw","line"].forEach(q=>{ if(x[q]!=null) o[q]=x[q]; }); Object.keys(a).forEach(q=>{ if(a[q]!=null) o[q]=a[q]; }); a=o; }
+  return {dir:a.ticks||(k==="y2"?y.ticks:k==="x2"?((cfg.ax||{}).x||{}).ticks:null)||"in", len:numOr(a.tlen,6), mlen:numOr(a.mlen,3), tw:numOr(a.tw,1),
     mirror:a.mirror!=null?!!a.mirror:fr.kind==="box", labs:a.labs!==false, rot:numOr(a.lrot,0), col:a.color||null, lw:numOr(a.lw,fr.lw),
     pos:a.pos||(k==="x"?"bottom":k==="y"?"left":"right"), at:a.at, off:Math.max(0,numOr(a.off,0)), talign:a.talign||null,
     tdx:numOr(a.tdx,0), tdy:numOr(a.tdy,0), tshow:a.tshow!==false, line:a.line!==false};
@@ -5344,6 +5370,116 @@ const axAlign=(A,st)=>A.talign||({left:"start",right:"end"}[st&&st.align]||"cent
 const tkSpan=(d,len)=>d==="none"?null:d==="out"?[0,len]:d==="both"?[-len,len]:[-len,0];
 const tkOut=(d,len)=>d==="out"||d==="both"?len:0;
 const annoAng=a=>a.ang!=null&&a.ang!==""&&Number.isFinite(+a.ang)?+a.ang:(a.rot?90:0);
+/* ---- Scales, breaks and a second X axis -----------------------------------
+   An axis's scale maps a value to a fraction along it (0 at its low end),
+   linear or logarithmic, with breaks: ranges left out, each drawn as a gap of
+   a few pixels, the rest sharing the length in proportion to its span, so the
+   two sides of a break keep one scale. */
+function brkList(raw,a,b,log){
+  const lo=Math.min(a,b), hi=Math.max(a,b), tf=log?(v=>Math.log10(Math.max(v,1e-300))):(v=>v), span=tf(hi)-tf(lo);
+  let r=(Array.isArray(raw)?raw:[]).filter(q=>Array.isArray(q)&&q.length>=2).map(q=>[+q[0],+q[1]]).filter(q=>Number.isFinite(q[0])&&Number.isFinite(q[1])&&q[0]!==q[1]).map(q=>[Math.min(q[0],q[1]),Math.max(q[0],q[1])]);
+  if(log) r=r.filter(q=>q[0]>0);
+  r=r.map(q=>[Math.max(q[0],lo),Math.min(q[1],hi)]).filter(q=>q[0]>lo&&q[1]<hi&&tf(q[1])-tf(q[0])>span*1e-6).sort((p,q)=>p[0]-q[0]);
+  const m=[]; r.forEach(q=>{ const l=m[m.length-1]; if(l&&q[0]<=l[1]) l[1]=Math.max(l[1],q[1]); else m.push(q.slice()); });
+  // What is left must be a fair share of the axis: with nine tenths gone, the breaks are ignored.
+  const gone=m.reduce((s,q)=>s+tf(q[1])-tf(q[0]),0); return span>0&&gone<span*0.9?m.slice(0,8):[];
+}
+function axScale(a,b,log,brks,gf){
+  const tf=log?(v=>Math.log10(Math.max(v,1e-300))):(v=>v), ti=log?(u=>10**u):(u=>u);
+  const A=tf(a), B=tf(b), lo=Math.min(A,B), hi=Math.max(A,B), asc=B>=A, bs=(brks||[]).map(q=>[tf(q[0]),tf(q[1])]), n=bs.length;
+  const g=n?Math.max(0,Math.min(0.3/n,gf||0)):0, vis=(hi-lo)-bs.reduce((s,q)=>s+q[1]-q[0],0), k=(1-n*g)/(vis>0?vis:1);
+  // Knots [value, fraction] from the low end: a visible stretch, a gap, a visible stretch…
+  const kn=[[lo,0]]; let f=0, u=lo;
+  bs.forEach(q=>{ f+=(q[0]-u)*k; kn.push([q[0],f]); f+=g; kn.push([q[1],f]); u=q[1]; }); kn.push([hi,1]);
+  const fr=v=>{ const w=tf(v); let i=1; while(i<kn.length-1&&w>kn[i][0]) i++; const p=kn[i-1], q=kn[i], t=q[0]>p[0]?p[1]+(w-p[0])*(q[1]-p[1])/(q[0]-p[0]):p[1]; return asc?t:1-t; };
+  const inv=t=>{ const tt=asc?t:1-t; let i=1; while(i<kn.length-1&&tt>kn[i][1]) i++; const p=kn[i-1], q=kn[i], w=q[1]>p[1]?p[0]+(tt-p[1])*(q[0]-p[0])/(q[1]-p[1]):p[0]; return ti(w); };
+  const fl=t=>asc?t:1-t, segs=[], gaps=[];
+  for(let j=0;j<kn.length-1;j+=2) segs.push({a:ti(kn[j][0]),b:ti(kn[j+1][0]),t0:Math.min(fl(kn[j][1]),fl(kn[j+1][1])),t1:Math.max(fl(kn[j][1]),fl(kn[j+1][1]))});
+  for(let j=1;j<kn.length-1;j+=2) gaps.push({a:ti(kn[j][0]),b:ti(kn[j+1][0]),t0:Math.min(fl(kn[j][1]),fl(kn[j+1][1])),t1:Math.max(fl(kn[j][1]),fl(kn[j+1][1]))});
+  segs.sort((p,q)=>p.t0-q.t0);
+  return {f:fr,inv,segs,gaps,rate:1/k,log:!!log};
+}
+// Ticks from several stretches of one axis, as one list, with no two numbers on top of each other.
+function mergeTicks(list,pos,wOf,minGap){
+  const seen=new Set(), t=[], mi=[];
+  list.forEach(r=>{ r.ticks.forEach(q=>{ const k=+(+q.v).toPrecision(12); if(!seen.has(k)){ seen.add(k); t.push(q); } }); mi.push(...r.minor); });
+  t.sort((a,b)=>pos(a.v)-pos(b.v)); const keep=[];
+  t.forEach(q=>{ const l=keep[keep.length-1]; if(!l||Math.abs(pos(q.v)-pos(l.v))>=(wOf(q)+wOf(l))/2+minGap) keep.push(q); });
+  return {ticks:keep,minor:mi,step:(list[0]||{}).step};
+}
+/* The second X axis shows the positions of the first in other units: a
+   wavelength over a Raman shift, a wavenumber over a wavelength, an energy,
+   a frequency, a × x + b, or any formula in x that is one-to-one over the view. */
+const X2_UNITS=[["nm","Wavelength (nm)"],["um","Wavelength (µm)"],["cm-1","Wavenumber (cm⁻¹)"],["eV","Photon energy (eV)"],["THz","Frequency (THz)"],["raman","Raman shift (cm⁻¹)"]];
+const X2_KINDS=X2_UNITS.concat([["lin","a × x + b"],["expr","A formula in x"]]);
+// What the X values are, from their name and unit: nm, µm, cm⁻¹ (Raman shift or absolute), eV, THz.
+function xUnitKey(xn,xu){ const u=String(xu||"").replace(/[\s{}]/g,"").replace(/[−–]/g,"-").toLowerCase(), n=String(xn||"").toLowerCase();
+  if(/^(cm⁻¹|cm-1|cm\^-1|1\/cm|cm\*\*-1)$/.test(u)) return /raman|shift|stokes/.test(n)?"raman":"cm-1";
+  if(u==="nm") return "nm"; if(u==="µm"||u==="μm"||u==="um"||u==="micron") return "um"; if(u==="ev") return "eV"; if(u==="thz") return "THz"; return null; }
+function laserOf(c){ const s=c&&(c.pipe||[]).find(q=>q.op==="shift"&&q.on!==false); return s&&+s.p.laser>0?+s.p.laser:null; }
+function x2Default(d){ const k=xUnitKey(d&&d.xn,d&&d.xu); return k==="raman"?"nm":k==="cm-1"?"um":k==="nm"?"eV":k==="um"?"cm-1":k==="eV"?"nm":k==="THz"?"cm-1":"lin"; }
+function x2Conv(a,d,laser){
+  a=a||{}; const kind=a.conv||x2Default(d);
+  if(kind==="lin"){ const A=numOr(a.a,1), B=numOr(a.b,0); if(!A) return {err:"a cannot be zero: every position would read the same."}; return {f:x=>A*x+B,name:a.name||"X",unit:a.unit||""}; }
+  if(kind==="expr"){ let cm; try{ cm=compileExpr(String(a.f||"").trim()||"x",{allowNone:true}); }catch(e){ return {err:e.message}; }
+    if(cm.params.length) return {err:`“${cm.params[0]}” is not known: the formula can use x, numbers, pi, e and functions.`};
+    return {f:x=>cm.f(x,[]),name:a.name||"X",unit:a.unit||""}; }
+  const from=a.from||xUnitKey(d&&d.xn,d&&d.xu), L=numOr(a.laser,laser||532);
+  if(!from) return {err:"Say what the X values are (From), or use a × x + b or a formula."};
+  if((from==="raman"||kind==="raman")&&!(L>0)) return {err:"Enter the laser wavelength."};
+  const toW=from==="raman"?(x=>1e7/L-x):toWn[from], fromW=kind==="raman"?(w=>1e7/L-w):fromWn[kind];
+  if(!toW||!fromW) return {err:"Pick the units."};
+  const lab=kind==="raman"?["Raman shift","cm⁻¹"]:(XUNIT_LABEL[kind]||["X",""]);
+  return {f:x=>fromW(toW(x)),name:lab[0],unit:lab[1]};
+}
+// How round a number is: 1000 before 2500 before 2650, so a crowded stretch keeps the roundest.
+function niceScore(v){ if(v===0) return 99; const a=Math.abs(v);
+  for(let e=15;e>=-15;e--){ const m=a/10**e, r=Math.round(m); if(r>=1&&Math.abs(m-r)<1e-7*m) return e+(r===1||r===2||r===5?0.5:r%5===0?0.3:r%2===0?0.1:0); } return -99; }
+// The largest round step (1, 2 or 5 times a power of ten) a number is a multiple of: 2.65 is on 0.05, 15 on 5.
+function stepOf(v){ if(v===0) return Infinity; for(let e=15;e>=-15;e--) for(const m of [5,2,1]){ const s=m*10**e, r=v/s; if(Math.abs(r)>=0.5&&Math.abs(r-Math.round(r))<1e-7*Math.abs(r)) return s; } return 0; }
+/* Where the second axis's numbers go: candidates from short stretches of the
+   axis (a wavelength over a wavenumber crowds at one end and spreads at the
+   other), placed by bisection, the roundest kept where they would collide. */
+function x2Layout(F,SX,len,o){
+  const samp=[]; let bad=false;
+  SX.segs.forEach(g=>{ const n=Math.max(6,Math.round(240*(g.t1-g.t0))), arr=[]; for(let i=0;i<=n;i++){ const t=g.t0+(g.t1-g.t0)*i/n, y=F(SX.inv(t)); if(!Number.isFinite(y)) bad=true; arr.push([t,y]); } samp.push(arr); });
+  if(bad) return {err:"Over the X range on view the conversion has no value somewhere (a division by zero, a negative wavelength…)."};
+  const flat=[].concat(...samp); let sg=0;
+  for(let i=1;i<flat.length;i++){ const d=flat[i][1]-flat[i-1][1]; if(!d) continue; const s=Math.sign(d); if(!sg) sg=s; else if(s!==sg) return {err:"Over the X range on view the conversion is not one-to-one, so it cannot number an axis."}; }
+  if(!sg) return {err:"The conversion gives one value over the whole range."};
+  let lo=Infinity, hi=-Infinity; flat.forEach(q=>{ if(q[1]<lo) lo=q[1]; if(q[1]>hi) hi=q[1]; });
+  const where=val=>{ for(const arr of samp) for(let i=1;i<arr.length;i++){ const a=arr[i-1], b=arr[i]; if(a[1]===b[1]||(val-a[1])*(val-b[1])>0) continue;
+      let ta=a[0], tb=b[0], fa=a[1]-val; for(let k=0;k<46;k++){ const tm=(ta+tb)/2, fm=F(SX.inv(tm))-val; if(fm===0){ ta=tb=tm; break; } if(Math.sign(fm)===Math.sign(fa)){ ta=tm; fa=fm; } else tb=tm; } return (ta+tb)/2; } return null; };
+  const ax=Object.assign({},o.ax||{},{min:null,max:null}), cand=[], seen=new Set();
+  const w=q=>o.rot===90?o.size*1.35:o.rot===45?o.size*1.6:o.lw(q.lab);
+  // Evenly stepped numbers first, as on any axis, when they fit and fall evenly enough
+  // (a linear conversion, or a gently curved one over a short range).
+  let tg=Math.max(2,len/85);
+  for(let i=0;i<6;i++){ const r=axisTicks(lo,hi,tg,ax,false), q=r.ticks.map(t=>({v:t.v,lab:t.lab,t:where(t.v)})).filter(t=>t.t!=null).sort((a,b)=>a.t-b.t);
+    let fit=q.length>=2, mn=Infinity, mx=0;
+    for(let j=1;j<q.length;j++){ const d=(q[j].t-q[j-1].t)*len; mn=Math.min(mn,d); mx=Math.max(mx,d); if(d<(w(q[j])+w(q[j-1]))/2+12) fit=false; }
+    // …and cover the axis: numbers bunched at one end leave the rest unread.
+    const ends=q.length?Math.max(q[0].t*len,(1-q[q.length-1].t)*len):len;
+    if(fit&&((mx<=mn*3&&ends<=mx*1.2+20)||+ax.step>0)) return {ticks:q,minor:ax.minor===0||ax.minor==="0"?[]:r.minor.map(where).filter(t=>t!=null),lo,hi};
+    if(fit||+ax.step>0) break; tg=Math.max(1,tg*0.7); }
+  const add=r=>r.ticks.forEach(q=>{ const k=+(+q.v).toPrecision(12); if(!seen.has(k)){ seen.add(k); cand.push(q); } });
+  if(+ax.step>0) add(axisTicks(lo,hi,0,ax,false));
+  else samp.forEach(arr=>{ const ch=Math.max(2,Math.ceil((arr.length-1)/30)); for(let i=0;i<arr.length-1;i+=ch){ const part=arr.slice(i,Math.min(arr.length,i+ch+1)); let a=Infinity,b=-Infinity; part.forEach(q=>{ if(q[1]<a) a=q[1]; if(q[1]>b) b=q[1]; });
+      const px=(part[part.length-1][0]-part[0][0])*len; if(b>a&&px>2) add(axisTicks(a,b,Math.max(1,px/55),ax,false)); } });
+  const tk=cand.map(q=>({v:q.v,lab:q.lab,t:where(q.v)})).filter(q=>q.t!=null);
+  const order=tk.slice().sort((a,b)=>+ax.step>0?a.t-b.t:(niceScore(b.v)-niceScore(a.v))||(a.t-b.t)), keep=[];
+  // A number between two kept ones must be round for that interval (15 between 10 and 20, not 14).
+  const roundFor=q=>{ if(+ax.step>0||!keep.length) return true; let l=null, r=null; keep.forEach(k=>{ if(k.t<q.t&&(!l||k.t>l.t)) l=k; if(k.t>q.t&&(!r||k.t<r.t)) r=k; });
+    // Beyond the last one, round for its own size (3 or 15 beside 20, not 2.42 beside 2.5).
+    const s=stepOf(q.v); return l&&r?s>=Math.abs(r.v-l.v)/4-1e-12:s>=Math.abs(q.v)/5-1e-12; };
+  order.forEach(q=>{ const px=q.t*len; if(keep.length<Math.max(2,len/40)&&keep.every(r=>Math.abs(r.t*len-px)>=Math.max((w(q)+w(r))/2+16,+ax.step>0?0:48))&&roundFor(q)) keep.push(q); });
+  keep.sort((a,b)=>a.t-b.t);
+  // Uneven steps: each number with the decimals it needs (2.5, 3, 4, 5, 10, 20).
+  if((!ax.fmt||ax.fmt==="auto")&&!(+ax.step>0)) keep.forEach(q=>{ if(typeof q.lab!=="string") return; for(let d=0;d<=10;d++) if(Math.abs(+q.v.toFixed(d)-q.v)<=Math.abs(q.v)*1e-9+1e-12){ q.lab=q.v.toFixed(d); break; } });
+  let minor=[]; if(ax.minor!==0&&ax.minor!=="0"){ const mj=keep.map(q=>q.t*len); let last=-Infinity;
+    tk.filter(q=>!keep.includes(q)).sort((a,b)=>a.t-b.t).forEach(q=>{ const px=q.t*len; if(px-last>=4&&mj.every(m=>Math.abs(m-px)>=4)){ minor.push(q.t); last=px; } }); }
+  return {ticks:keep,minor,lo,hi};
+}
 /* opt.inset {x0, x1, y0, y1} draws the graph over that range as a still picture
    in the screen's colours: an inset inside another graph. */
 function buildPlot(W,H,pal,colEx,opt){
@@ -5371,7 +5507,7 @@ function buildPlot(W,H,pal,colEx,opt){
     peaks:txtStyle(cfg,"peaks",{size:Math.max(9,fs-(forExport?2:1.5)),fam:sans,b:true},KSANS)};
   if(tk!==1) Object.keys(TS).forEach(el=>{ if(((cfg.txt||{})[el]||{}).size>0) TS[el].size*=tk; });
   const lfs=TS.legend.size, LSc=Object.assign({},TS.legend,{color:null}), TK=TS.ticks, f1=v=>(+v).toFixed(1);
-  const XA=axisCfg(cfg,"x"), YA=axisCfg(cfg,"y"), Y2A=axisCfg(cfg,"y2"), FR=frameOf(cfg);
+  const XA=axisCfg(cfg,"x"), YA=axisCfg(cfg,"y"), Y2A=axisCfg(cfg,"y2"), X2=axisCfg(cfg,"x2"), FR=frameOf(cfg);
   // The offset between traces of a waterfall: a fraction of the tallest one.
   let offStep=0;
   if(layout==="offset"&&oser.length){ const span=q=>{ let a=Infinity,b=-Infinity; q.forEach(z=>{ if(z.y<a)a=z.y; if(z.y>b)b=z.y; }); return b>a?b-a:0; };
@@ -5389,6 +5525,8 @@ function buildPlot(W,H,pal,colEx,opt){
   v=saneView(v,logX,logY);
   // Margins: room for a title, a right axis, a colour bar, a legend outside.
   const heat=layout==="heat"&&ps.final, dy=layout==="dy"&&ps.final&&oser.length>0, stack=layout==="stack"&&ps.final&&oser.length>0;
+  // Breaks: ranges left out of X (every layout but the heat map) and of Y (overlaid or offset spectra).
+  const brX=!heat&&!ins?brkList((cfg.ax.x||{}).brk,v.x0,v.x1,logX):[], brY=!heat&&!stack&&!dy&&!ins&&(layout==="overlay"||layout==="offset")?brkList((cfg.ax.y||{}).brk,v.y0,v.y1,logY):[];
   // The right axis's range, before the margins, which must fit its numbers.
   let yR=null;
   if(dy){ const all=[].concat(...oser.map(q=>q.pts)), r2=yRangeFor(all,v.x0,v.x1,logY), a2=cfg.ax.y2||{};
@@ -5442,6 +5580,14 @@ function buildPlot(W,H,pal,colEx,opt){
       if(showRes){ const un=rp.filter(q=>!isMasked(q.i)), ra=(un.length?un:rp).reduce((m,q)=>Math.max(m,Math.abs(q.r)),1e-300)*1.15, rt=niceTicks(-ra,ra,resH/32);
         rt.ticks.forEach(t=>{ ylw=Math.max(ylw,labW(tickLabel(t,rt.step),TK)); }); } } }
   const yBlock=YA.off+tkOut(YA.dir,YA.len)+5+(YA.labs||heat?ylw+6:1)+(YA.tshow?TS.axis.size+2:0)+8;
+  // The second X axis, across from the first: its conversion, and room for its numbers and title.
+  let x2c=null, x2h=0;
+  if(cfg.ax.x2&&cfg.ax.x2.on&&!ins){ x2c=x2Conv(cfg.ax.x2,ps.d,laserOf(act));
+    if(x2c&&!x2c.err){ const S0=axScale(v.x0,v.x1,logX,brX,0), vals=[]; for(let i=0;i<=64;i++){ const q=x2c.f(S0.inv(i/64)); if(Number.isFinite(q)) vals.push(q); }
+      if(vals.length>8){ const et=axisTicks(Math.min(...vals),Math.max(...vals),6,Object.assign({},cfg.ax.x2,{min:null,max:null}),false), rr=X2.rot*Math.PI/180;
+        x2h=!X2.labs?0:X2.rot?et.ticks.reduce((m,t)=>Math.max(m,labW(t.lab,TK)*Math.abs(Math.sin(rr))+TK.size*Math.abs(Math.cos(rr))),0):TK.size*1.05; }
+      else x2c={err:"Over the X range on view the conversion has no value."}; } }
+  const x2Top=xpM!=="top", x2Block=x2c&&!x2c.err?X2.off+tkOut(X2.dir,X2.len)+(X2.labs?4+x2h:0)+(X2.tshow?6+TS.axis.size*1.08:0)+5:0;
   let xlh=0, xEnd=0;
   // X ticks as many as their numbers fit side by side: on a time axis in
   // nanoseconds each reads 1.70000002×10^18, and 85 px apart they overlapped.
@@ -5458,7 +5604,8 @@ function buildPlot(W,H,pal,colEx,opt){
   if(ypM==="right") R+=yBlock; else L+=yBlock;
   if(xpM==="top") T+=xBlock; else B+=xBlock;
   L=Math.max(L,xEnd/2+6); R=Math.max(R,xEnd/2+6);
-  if(XA.mirror&&tkOut(XA.dir,XA.len)){ if(xpM==="top") B+=XA.len; else T+=XA.len; }
+  if(x2Block){ if(x2Top) T+=x2Block; else B+=x2Block; }
+  else if(XA.mirror&&tkOut(XA.dir,XA.len)){ if(xpM==="top") B+=XA.len; else T+=XA.len; }
   if(YA.mirror&&!dy&&tkOut(YA.dir,YA.len)){ if(ypM==="right") L+=YA.len; else R+=YA.len; }
   if(cfg.title) T+=TS.title.size*1.25+6;
   if(dy&&yR){ const t2=axisTicks(yR.y0,yR.y1,Math.max(60,H-110)/(55*tkDen),cfg.ax.y2||{},logY); let w2=0; if(Y2A.labs) t2.ticks.forEach(t=>{ w2=Math.max(w2,labW(t.lab,TK)); });
@@ -5474,12 +5621,14 @@ function buildPlot(W,H,pal,colEx,opt){
   const mh=stack?ph:mhAll;
   const lx=x=>Math.log10(Math.max(x,1e-300)), ly=y=>Math.log10(Math.max(y,1e-300));
   const revX=!!cfg.revX;
-  const fx=logX?lx:(x=>x), X=x=>{ const t=(fx(x)-fx(v.x0))/(fx(v.x1)-fx(v.x0)); return revX?L+pw-t*pw:L+t*pw; };
+  const SX=axScale(v.x0,v.x1,logX,brX,brX.length?10/pw:0), X0px=t=>revX?L+pw-t*pw:L+t*pw, X=x=>X0px(SX.f(x));
   const mkY=(y0,y1,top,h,lg)=>y=>lg?top+h-(ly(y)-ly(y0))/(ly(y1)-ly(y0))*h:top+h-(y-y0)/(y1-y0)*h;
-  let Y=mkY(v.y0,v.y1,T,mh,logY);
+  let SY=axScale(v.y0,v.y1,logY,brY,brY.length?10/mh:0), Y=brY.length?(y=>T+mh-SY.f(y)*mh):mkY(v.y0,v.y1,T,mh,logY);
   if(yR) yR.Y=mkY(yR.y0,yR.y1,T,mh,logY);
-  if(heat){ v=Object.assign({},v,{y0:-0.5,y1:oser.length+0.5}); Y=mkY(v.y0,v.y1,T,mh,false); }
-  const geo={L,pw,T,mh,v,logY:heat?false:logY,logX,W,H,X,Y,revX,handles:[],heat,axes:null};
+  if(heat){ v=Object.assign({},v,{y0:-0.5,y1:oser.length+0.5}); Y=mkY(v.y0,v.y1,T,mh,false); SY=axScale(v.y0,v.y1,false,[],0); }
+  const geo={L,pw,T,mh,v,logY:heat?false:logY,logX,W,H,X,Y,revX,handles:[],heat,axes:null,sx:SX,sy:SY,rx:SX.rate/pw,ry:SY.rate/mh,brk:SX.gaps.length+SY.gaps.length};
+  // The second X axis's numbers, now that the plot's width is known.
+  let x2L=null; if(x2c&&!x2c.err){ x2L=x2Layout(x2c.f,SX,pw,{ax:cfg.ax.x2,lw:l=>labW(l,TK),rot:X2.rot,size:TK.size}); if(x2L.err){ geo.x2err=x2L.err; x2L=null; } } else if(x2c&&x2c.err) geo.x2err=x2c.err;
   if(!forExport){ S.geo=geo; S.shownPts=heat?[]:pts; S.ps=ps; }
   const inPlot=(x,y)=>Number.isFinite(x)&&Number.isFinite(y)&&x>=L-0.5&&x<=L+pw+0.5&&y>=T-0.5&&y<=T+mh+0.5;
   let s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
@@ -5492,8 +5641,9 @@ function buildPlot(W,H,pal,colEx,opt){
   const ed=k=>forExport?"":` data-axtitle="${k}" style="cursor:move"`;
   if(cfg.title){ const ta=TS.title.align||"center", tx=(ta==="left"?L:ta==="right"?L+pw:L+pw/2)+numOr(cfg.titleDx,0), ty=6+TS.title.size*0.95+numOr(cfg.titleDy,0);
     s+=`<text${ed("title")} x="${f1(tx)}" y="${f1(ty)}" text-anchor="${ta==="left"?"start":ta==="right"?"end":"middle"}"${tAt(TS.title,pal.ink)}>${richIn(cfg.title,TS.title.size)}</text>`; }
-  const xT=xTicks(v.x0,v.x1,pw);
-  const yT=heat?{ticks:[],minor:[]}:axisTicks(v.y0,v.y1,mh/((stack?40:55)*tkDen),cfg.ax.y,logY);
+  const xLw=q=>XA.rot===90?TK.size*1.3:labW(q.lab,TK)*(XA.rot===45?0.75:1);
+  const xT=SX.segs.length>1?mergeTicks(SX.segs.map(g=>xTicks(g.a,g.b,Math.max(30,pw*(g.t1-g.t0)))),X,xLw,8):xTicks(v.x0,v.x1,pw);
+  const yT=heat?{ticks:[],minor:[]}:SY.segs.length>1?mergeTicks(SY.segs.map(g=>axisTicks(g.a,g.b,Math.max(1,mh*(g.t1-g.t0)/(55*tkDen)),cfg.ax.y,logY)),Y,()=>TK.size*1.05,4):axisTicks(v.y0,v.y1,mh/((stack?40:55)*tkDen),cfg.ax.y,logY);
   // The plot's background, then grid lines in their own colour, width and dash.
   const gcol=esc(cfg.gridColor||pal.grid), glw=numOr(cfg.gridLw,1), gdash=DASHES[cfg.gridDash||"solid"]||"", gX=cfg.gridX!==false, gY=cfg.gridY!==false;
   const plotBg=(top,h)=>cfg.plotBg?`<rect x="${f1(L)}" y="${f1(top)}" width="${f1(pw)}" height="${f1(h)}" fill="${esc(cfg.plotBg)}"/>`:"";
@@ -5615,6 +5765,8 @@ function buildPlot(W,H,pal,colEx,opt){
   const yAxX=p=>{ let x=p==="right"?L+pw:L;
     if(p==="zero"||p==="at"){ const xv=X(p==="zero"?0:numOr(YA.at,0)); x=Number.isFinite(xv)?Math.max(L,Math.min(L+pw,xv)):L; }
     return x+(p==="right"?YA.off:p==="left"?-YA.off:0); };
+  // The edge the second X axis takes: the first's mirrored ticks give way to it.
+  const x2Bot=showRes?T+mhAll+gap+resH:T+mhAll, x2Edge=x2L?(x2Top?T:x2Bot):null;
   // Where the numbers went, for the axis titles.
   const drawn={xAy:null,xSide:1,xH:0,xMainAy:T+mh,yAx:L,ySide:-1,yW:0,pW:0};
   const drawFrame=(top,h,yt,Yf,showXLab,yLabels,labCol,main)=>{
@@ -5629,7 +5781,7 @@ function buildPlot(W,H,pal,colEx,opt){
     else { if(xLine) f+=`<path d="M${f1(L)},${f1(ay)}H${f1(L+pw)}" stroke="${xcol}" stroke-width="${XA.lw}" fill="none"/>`;
       if(yLine) f+=`<path d="M${f1(ax)},${f1(top)}V${f1(top+h)}" stroke="${ycol}" stroke-width="${YA.lw}" fill="none"/>`; }
     const xs=tkSpan(XA.dir,XA.len), xm=tkSpan(XA.dir,XA.mlen), ys=tkSpan(YA.dir,YA.len), ym=tkSpan(YA.dir,YA.mlen);
-    const mirX=XA.mirror?(xp==="bottom"?[top]:xp==="top"?[top+h]:[top,top+h]):[], mirY=YA.mirror&&!dy?(yp==="left"?[L+pw]:yp==="right"?[L]:[L,L+pw]):[];
+    const mirX=(XA.mirror?(xp==="bottom"?[top]:xp==="top"?[top+h]:[top,top+h]):[]).filter(e=>x2Edge==null||Math.abs(e-x2Edge)>0.5), mirY=YA.mirror&&!dy?(yp==="left"?[L+pw]:yp==="right"?[L]:[L,L+pw]):[];
     const vt=(x,sp,y0,sg)=>`M${f1(x)},${f1(y0+sg*sp[0])}V${f1(y0+sg*sp[1])}`, ht=(y,sp,x0,sg)=>`M${f1(x0+sg*sp[0])},${f1(y)}H${f1(x0+sg*sp[1])}`;
     let dX="", dXm="", dY="", dYm="", labs="", xH=0, yW=0;
     const xo=tkOut(XA.dir,XA.len)+4, rr=XA.rot*Math.PI/180, xFill=TK.color||XA.col||pal.ink, xLab=showXLab&&XA.labs;
@@ -5699,6 +5851,38 @@ function buildPlot(W,H,pal,colEx,opt){
     const rx=L-(tkOut(YA.dir,YA.len)+5+(drawn.pW?drawn.pW+6:1))-TS.axis.size*0.22;
     s+=`<text transform="translate(${f1(rx)},${f1(top+resH/2)}) rotate(-90)" text-anchor="middle"${tAt(Object.assign({},TK,{color:null}),pal.muted)}>Residual</text>`;
   }
+  // Breaks: whatever runs through a gap is covered, and the frame is cut there with two strokes.
+  if(SX.gaps.length||SY.gaps.length){
+    const bgo=esc(pal.bg), bgi=cfg.plotBg?esc(cfg.plotBg):null, ext=Math.max(1,FR.lw)+1.5; let cov="", mk="";
+    const areas=[[T,mh,true]].concat(panels.map(pn=>[pn.top,pn.h,false]),showRes?[[T+mhAll+gap,resH,false]]:[]);
+    SX.gaps.forEach(gp=>{ const a=X0px(gp.t0), b=X0px(gp.t1), x0=Math.min(a,b), x1=Math.max(a,b);
+      areas.forEach(([top,h,main])=>{ cov+=`<rect x="${f1(x0)}" y="${f1(top-ext)}" width="${f1(x1-x0)}" height="${f1(h+2*ext)}" fill="${bgo}"/>`+(bgi?`<rect x="${f1(x0)}" y="${f1(top)}" width="${f1(x1-x0)}" height="${f1(h)}" fill="${bgi}"/>`:"");
+        const edges=FR.kind==="box"?[top,top+h]:FR.kind==="l"?[main&&drawn.xMainAy!=null?drawn.xMainAy:top+h]:[];
+        if(x2L&&main&&x2Top&&FR.kind!=="box") edges.push(T-X2.off);
+        edges.forEach(e=>{ [x0,x1].forEach(x=>{ mk+=`M${f1(x-2.6)},${f1(e+5)}L${f1(x+2.6)},${f1(e-5)}`; }); }); }); });
+    SY.gaps.forEach(gp=>{ const a=T+mh-gp.t0*mh, b=T+mh-gp.t1*mh, y0=Math.min(a,b), y1=Math.max(a,b);
+      cov+=`<rect x="${f1(L-ext)}" y="${f1(y0)}" width="${f1(pw+2*ext)}" height="${f1(y1-y0)}" fill="${bgo}"/>`+(bgi?`<rect x="${f1(L)}" y="${f1(y0)}" width="${f1(pw)}" height="${f1(y1-y0)}" fill="${bgi}"/>`:"");
+      const edges=FR.kind==="box"?[L,L+pw]:FR.kind==="l"?[drawn.yAx!=null?drawn.yAx:L]:[];
+      edges.forEach(e=>{ [y0,y1].forEach(y=>{ mk+=`M${f1(e-5)},${f1(y+2.6)}L${f1(e+5)},${f1(y-2.6)}`; }); }); });
+    s+=`<g class="brk" pointer-events="none">${cov}${mk?`<path d="${mk}" stroke="${fcol}" stroke-width="${FR.lw}" fill="none"/>`:""}</g>`;
+  }
+  // The second X axis: the same positions in other units, on the edge across from the first.
+  if(x2L){
+    const sg=x2Top?-1:1, ay=x2Top?T-X2.off:x2Bot+X2.off, col=esc(X2.col||fcol), xo=tkOut(X2.dir,X2.len)+4, sp=tkSpan(X2.dir,X2.len), msp=tkSpan(X2.dir,X2.mlen), fill=TK.color||X2.col||pal.ink, rr=X2.rot*Math.PI/180;
+    let f="", d="", dm="", hgt=0;
+    if(FR.kind!=="none"&&X2.line&&(FR.kind!=="box"||X2.off||X2.col||X2.lw!==FR.lw)) f+=`<path d="M${f1(L)},${f1(ay)}H${f1(L+pw)}" stroke="${col}" stroke-width="${X2.lw}" fill="none"/>`;
+    x2L.ticks.forEach(q=>{ const x=X0px(q.t); if(sp) d+=`M${f1(x)},${f1(ay+sg*sp[0])}V${f1(ay+sg*sp[1])}`;
+      if(!X2.labs) return;
+      if(!X2.rot){ f+=tLab(q.lab,x,sg>0?ay+xo+TK.size*0.8:ay-xo-TK.size*0.24,"middle",TK,fill); hgt=TK.size*1.05; return; }
+      const w=labW(q.lab,TK), sn=Math.sin(rr), cs=Math.cos(rr); hgt=Math.max(hgt,w*Math.abs(sn)+TK.size*Math.abs(cs));
+      f+=sg>0?tLab(q.lab,x+TK.size*0.33*sn,ay+xo+TK.size*0.33*cs,"end",TK,fill,X2.rot):tLab(q.lab,x-TK.size*0.33*sn,ay-xo+TK.size*0.33*cs,"start",TK,fill,X2.rot); });
+    if(msp) x2L.minor.forEach(t=>{ const x=X0px(t); dm+=`M${f1(x)},${f1(ay+sg*msp[0])}V${f1(ay+sg*msp[1])}`; });
+    if(d) f+=`<path d="${d}" stroke="${col}" stroke-width="${X2.tw}" fill="none"/>`;
+    if(dm) f+=`<path d="${dm}" stroke="${col}" stroke-width="${(X2.tw*0.8).toFixed(2)}" fill="none"/>`;
+    if(!forExport){ const bx=Math.max(10,tkOut(X2.dir,X2.len)+(X2.labs?hgt+6:4)); f+=`<rect data-axis="x2" x="${f1(L)}" y="${f1(sg>0?ay:ay-bx)}" width="${f1(pw)}" height="${f1(bx)}" fill="transparent" style="cursor:pointer"/>`; }
+    if(X2.tshow){ const band=tkOut(X2.dir,X2.len)+(X2.labs?4+hgt:0)+6, al=axAlign(X2,TS.axis), tx=(al==="start"?L:al==="end"?L+pw:L+pw/2)+X2.tdx, ty=(sg>0?ay+band+TS.axis.size*0.8:ay-band-TS.axis.size*0.25)+X2.tdy;
+      f+=`<text${ed("x2")} x="${f1(tx)}" y="${f1(ty)}" text-anchor="${al==="start"?"start":al==="end"?"end":"middle"}"${tAt(TS.axis,X2.col||pal.ink)}>${richIn((cfg.ax.x2||{}).title||axisLabel(x2c.name,x2c.unit,"X"),TS.axis.size)}</text>`; }
+    s+=f; }
   // The axis titles, beside their numbers, wherever the axes went.
   const yl=cfg.ax.y.title||(heat?"Spectrum":axisLabel(ps.d.yn,ps.d.yu,"Y")), xl=cfg.ax.x.title||axisLabel(ps.d.xn,ps.d.xu,"X");
   if(YA.tshow){ const ys0=drawn.ySide, wy=ypM==="left"&&!YA.off?Math.max(drawn.yW,drawn.pW):drawn.yW, band=tkOut(YA.dir,YA.len)+5+(wy?wy+6:1);
@@ -5717,6 +5901,7 @@ function buildPlot(W,H,pal,colEx,opt){
     (S.guides||[]).forEach(gd=>{ s+=gd.x!=null?`<line x1="${f1(gd.x)}" x2="${f1(gd.x)}" y1="${T}" y2="${T+mhAll}" stroke="${pal.sel}" stroke-width="1" stroke-dasharray="4 3" pointer-events="none"/>`
       :`<line x1="${L}" x2="${L+pw}" y1="${f1(gd.y)}" y2="${f1(gd.y)}" stroke="${pal.sel}" stroke-width="1" stroke-dasharray="4 3" pointer-events="none"/>`; });
     const ad=S.arrowDraft; if(ad) s+=`<g pointer-events="none" opacity="0.85">${arrowSvg(ad.x0,ad.y0,ad.x1,ad.y1,{col:pal.sel,lw:1.4})}</g>`;
+    const sd=S.shapeDraft; if(sd) s+=`<g pointer-events="none">${shapeSvg(sd.kind,sd.x0,sd.y0,sd.x1,sd.y1,{col:pal.sel,lw:1.4,dash:"5 3"})}</g>`;
     const ring=S.snapRing||(ad&&ad.pt?{px:ad.x1,py:ad.y1}:null); if(ring) s+=`<circle cx="${f1(ring.px)}" cy="${f1(ring.py)}" r="7" fill="none" stroke="${pal.sel}" stroke-width="1.6" pointer-events="none"/>`;
   }
   // Legend: in the emptiest corner, a chosen one, outside on the right, or
@@ -5859,7 +6044,7 @@ function renderPlot(){
    was placed in and is drawn only on data in those units: a line at 532 nm
    means nothing on a Raman-shift axis. A peak label keeps its offset in pixels
    from the point it labels, so it stays beside that point at any zoom. */
-const ANNO_KINDS={v:"Vertical line",h:"Horizontal line",band:"Shaded range",text:"Text",label:"Peak label",arrow:"Arrow",inset:"Inset"};
+const ANNO_KINDS={v:"Vertical line",h:"Horizontal line",band:"Shaded range",text:"Text",label:"Peak label",arrow:"Arrow",inset:"Inset",rect:"Box",ellipse:"Ellipse"};
 const ANNO_COLORS=[["","Automatic"],["#111820","Black"],["#5B6778","Grey"],["#1D5FA8","Blue"],["#C23B22","Red"],["#2E7D4F","Green"],["#B26B00","Amber"],["#6A3FB5","Violet"],["custom","Custom…"]];
 const annoId=()=>"a"+Date.now().toString(36)+(colSeq++).toString(36);
 function annoById(id){ return ((P()&&P().plot&&P().plot.annos)||[]).find(a=>a.id===id)||null; }
@@ -5905,7 +6090,7 @@ function annoSvg(layer,c){
   (cfg.annos||[]).forEach(a=>{
     // Another spectrum's labels, only where it is drawn on these axes: overlaid and shown.
     if(a.t==="label"&&a.ser&&a.ser!==actId&&(lay!=="overlay"||(cfg.hidden||[]).includes(a.ser)||!colById(a.ser))) return;
-    const pinned=(a.t==="text"||a.t==="arrow")&&a.pin==="plot";
+    const pinned=(a.t==="text"||twoEnds(a))&&a.pin==="plot";
     const okX=pinned||a.xu==null||a.xu===xu, okY=pinned||(!heat&&(a.yu==null||a.yu===yu));
     const col=annoColor(a,pal,forExport,cfg), lw=a.lw!=null?+a.lw:1.2, dash=DASHES[a.dash||(a.t==="v"||a.t==="h"?"dash":"solid")];
     const st=annoTextStyle(a,base,c.tk), tcol=a.color||base.color||col, tsz=st.size, ang=annoAng(a);
@@ -5940,6 +6125,22 @@ function annoSvg(layer,c){
       s+=wrap(inner,"ns-resize");
     }
     if(layer==="inset"&&a.t==="inset"&&okX&&okY){ s+=insetSvg(a,c); return; }
+    // A box or an ellipse: over the data, or behind it; its text inside at the top, middle or bottom.
+    if(SHAPE_T[a.t]&&layer===(a.behind?"under":"lines")&&okX&&okY){
+      const e=annoEnds(a,c); if(![e.t.x,e.t.y,e.h.x,e.h.y].every(Number.isFinite)) return;
+      const x0=Math.min(e.t.x,e.h.x), x1=Math.max(e.t.x,e.h.x), y0=Math.min(e.t.y,e.h.y), y1=Math.max(e.t.y,e.h.y);
+      if(x1<L-2||x0>L+pw+2||y1<T-2||y0>T+mh+2) return;
+      const olw=a.lw!=null?+a.lw:1.2;
+      let inner=shapeSvg(a.t,x0,y0,x1,y1,{col,lw:sel&&olw>0?olw+0.6:olw,dash,fill:a.fill||null,fop:a.op,r:a.rx});
+      if(!forExport) inner+=shapeSvg(a.t,x0,y0,x1,y1,{col:"transparent",lw:10,fill:a.fill?null:null});
+      if(txt){ const pos=a.lpos||"middle", cx=a.align==="left"?x0+6:a.align==="right"?x1-6:(x0+x1)/2, an=a.align==="left"?"start":a.align==="right"?"end":"middle";
+        const nl=String(txt).split("\n").length, ty=pos==="top"?y0+tsz+4:pos==="bottom"?y1-6:(y0+y1)/2-(nl-1)*tsz*0.6+tsz*0.35;
+        const b=tb(txt,cx,ty,an,{up:pos==="bottom",ang:0,box:null,halo:a.fill?"":` stroke="${pal.bg}" stroke-width="3" paint-order="stroke" stroke-linejoin="round"`}); inner+=b.svg; }
+      if(sel&&!forExport){ inner+=`<rect x="${f1(x0-3)}" y="${f1(y0-3)}" width="${f1(x1-x0+6)}" height="${f1(y1-y0+6)}" fill="none" stroke="${pal.sel}" stroke-dasharray="3 2" pointer-events="none"/>`;
+        [["00",e.t.x,e.t.y],["10",e.h.x,e.t.y],["01",e.t.x,e.h.y],["11",e.h.x,e.h.y]].forEach(([k,hx,hy])=>{ const nw=(hx<=(x0+x1)/2)===(hy<=(y0+y1)/2);
+          inner+=`<rect data-ah="${k}" x="${f1(hx-5)}" y="${f1(hy-5)}" width="10" height="10" rx="2" fill="${pal.bg}" stroke="${pal.sel}" stroke-width="1.6" style="cursor:${nw?"nwse":"nesw"}-resize"/>`; }); }
+      s+=wrap(inner,"move"); return;
+    }
     if(layer==="top"&&a.t==="arrow"&&okX&&okY){
       const e=annoEnds(a,c), ax=e.t.x, ay=e.t.y, bx=e.h.x, by=e.h.y; if(![ax,ay,bx,by].every(Number.isFinite)) return;
       let inner=arrowSvg(ax,ay,bx,by,{col,lw:sel?lw+0.6:lw,dash,head:a.head,hs:a.hs});
@@ -5988,7 +6189,7 @@ function saveAnnos(annos,log){ const p=P(); save({plot:Object.assign({},p.plot,{
 function addAnno(a,log){
   const p=P(); if(!p||S.readOnly) return null;
   const d=plotState().d;
-  a=Object.assign({id:annoId()},a); if(GID()!=="main"&&!a.grp) a.g=GID(); if(a.t!=="h") a.xu=d.xu||""; if(a.t==="h"||a.t==="text"||a.t==="label"||a.t==="arrow"||a.t==="inset") a.yu=d.yu||"";
+  a=Object.assign({id:annoId()},a); if(GID()!=="main"&&!a.grp) a.g=GID(); if(a.t!=="h") a.xu=d.xu||""; if(a.t==="h"||a.t==="text"||a.t==="label"||twoEnds(a)||a.t==="inset") a.yu=d.yu||"";
   pushUndo("adding "+ANNO_KINDS[a.t].toLowerCase());
   S.annoSel=a.id;
   saveAnnos((p.plot.annos||[]).concat([a]),log||`added ${annoDesc(a)}`);
@@ -6011,11 +6212,13 @@ function annoDesc(a){ const t=a.text?` "${a.text}"`:"";
   if(a.t==="band") return `a shaded range from ${fmt(Math.min(a.x,a.x2),6)} to ${fmt(Math.max(a.x,a.x2),6)}${t}`;
   if(a.t==="label") return `a peak label at ${fmt(a.x,6)}${a.lab?` "${a.lab}"`:t}`;
   if(a.t==="arrow") return a.pin==="plot"?`an arrow${t}`:`an arrow to x = ${fmt(a.x2,6)}${t}`;
+  if(SHAPE_T[a.t]){ const nm=a.t==="ellipse"?"an ellipse":"a box"; return a.pin==="plot"?`${nm}${t}`:`${nm} from x = ${fmt(Math.min(a.x,a.x2),6)} to ${fmt(Math.max(a.x,a.x2),6)}${t}`; }
   if(a.t==="inset") return `an inset of ${fmt(Math.min(a.x0,a.x1),6)} to ${fmt(Math.max(a.x0,a.x1),6)}`; return `the text${t||" \"Text\""}`; }
 function annoTip(a){ const d=plotState().d;
   if(a.t==="v") return `x = ${fmt(a.x,6)}${d.xu?" "+d.xu:""}`; if(a.t==="h") return `y = ${fmt(a.y,6)}${d.yu?" "+d.yu:""}`;
   if(a.t==="band") return `${fmt(Math.min(a.x,a.x2),6)} to ${fmt(Math.max(a.x,a.x2),6)}${d.xu?" "+d.xu:""}`;
   if(a.t==="arrow") return "Arrow · drag an end to move it, double-click for its settings";
+  if(SHAPE_T[a.t]) return ANNO_KINDS[a.t]+" · drag to move it, its corners to resize it, double-click for its settings";
   if(a.t==="inset") return "Inset · drag to move it, its corner to resize it, double-click for its settings";
   return ANNO_KINDS[a.t]+" · double-click to edit"; }
 /* Dragging: a line moves to the pointer, a range and text move with it, and a
@@ -6041,6 +6244,13 @@ function dragAnno(x,y){
   else if(a.t==="inset"){
     if(ad.end==="se"){ a.fw=+Math.max(0.12,Math.min(1.1,numOr(o.fw,0.36)+px/g.pw)).toFixed(4); a.fh=+Math.max(0.12,Math.min(1.1,numOr(o.fh,0.4)+py/g.mh)).toFixed(4); }
     else { a.fx=+Math.max(-0.2,Math.min(0.95,numOr(o.fx,0.6)+px/g.pw)).toFixed(4); a.fy=+Math.max(-0.2,Math.min(0.95,numOr(o.fy,0.05)+py/g.mh)).toFixed(4); } }
+  else if(SHAPE_T[a.t]){
+    // A corner moves alone (the opposite one stays); the body moves the whole shape.
+    const e=annoEnds(o,g), pin=a.pin==="plot";
+    const putX=(k2,sx)=>{ if(pin) a[k2?"fx2":"fx"]=+((sx-g.L)/g.pw).toFixed(4); else a[k2?"x2":"x"]=+toData(sx,g.T).x.toPrecision(7); };
+    const putY=(k2,sy)=>{ if(pin) a[k2?"fy2":"fy"]=+((sy-g.T)/g.mh).toFixed(4); else a[k2?"y2":"y"]=+toData(g.L,sy).y.toPrecision(7); };
+    if(ad.end&&/^[01][01]$/.test(ad.end)){ const kx=ad.end[0]==="1", ky=ad.end[1]==="1"; putX(kx,(kx?e.h.x:e.t.x)+px); putY(ky,(ky?e.h.y:e.t.y)+py); }
+    else { putX(false,e.t.x+px); putX(true,e.h.x+px); putY(false,e.t.y+py); putY(true,e.h.y+py); } }
   else if(a.t==="arrow"){
     // An end moves alone, and snaps to a data point (Alt for none); the body moves both.
     const e=annoEnds(o,g), pin=a.pin==="plot";
@@ -6149,13 +6359,19 @@ function annoMenuItems(id){
     {label:"Lines to the region",checked:a.conn!==false,enabled:!ro,run:()=>updateAnno(id,{conn:a.conn===false})},
     {label:"Axis titles",checked:!!a.titles,enabled:!ro,run:()=>updateAnno(id,{titles:!a.titles})},
     {label:"Zoom the graph to it",run:()=>{ const d=plotState().d; S.view={x0:Math.min(a.x0,a.x1),x1:Math.max(a.x0,a.x1),y0:a.y0!=null&&a.y0!==""?+a.y0:S.geo.v.y0,y1:a.y1!=null&&a.y1!==""?+a.y1:S.geo.v.y1,xu:d.xu||""}; if(a.y0==null||a.y0===""){ const r=yRangeIn(S.view.x0,S.view.x1); S.view.y0=r[0]; S.view.y1=r[1]; } renderPlot(); renderFit(); }});
+  if(SHAPE_T[a.t]) items.push({label:"Fill",sub:()=>[{label:"None",radio:true,checked:!a.fill,enabled:!ro,run:()=>updateAnno(id,{fill:null})},{swatches:SER_COLORS,current:a.fill||"",pick:c=>updateAnno(id,{fill:c,op:a.op!=null?a.op:0.18}),enabled:!ro}]},
+    {label:"Width",sub:()=>[0,0.75,1,1.2,1.5,2,3].map(v=>({label:v?String(v):"No outline",radio:true,checked:(a.lw!=null?+a.lw:1.2)===v,enabled:!ro,run:()=>updateAnno(id,{lw:v})}))},
+    {label:"Behind the data",checked:!!a.behind,enabled:!ro,run:()=>updateAnno(id,{behind:!a.behind},a.behind?`brought ${annoDesc(a)} in front of the data`:`put ${annoDesc(a)} behind the data`)},
+    {label:"Pinned to the plot",checked:a.pin==="plot",enabled:!ro,run:()=>pinAnno(id,a.pin!=="plot")},
+    {label:a.t==="rect"?"Make it an ellipse":"Make it a box",enabled:!ro,run:()=>updateAnno(id,{t:a.t==="rect"?"ellipse":"rect"})},
+    {label:a.text?"Type over its text":"Text inside it",enabled:!ro,run:()=>editAnno(id)});
   if(a.t==="arrow") items.push({label:"Head",sub:()=>[["end","Filled"],["open","Open"],["both","At both ends"],["none","None, a plain line"]].map(([v,l])=>({label:l,radio:true,checked:(a.head||"end")===v,enabled:!ro,run:()=>updateAnno(id,{head:v})}))},
     {label:"Width",sub:()=>[0.75,1,1.2,1.5,2,3].map(v=>({label:String(v),radio:true,checked:(a.lw!=null?+a.lw:1.2)===v,enabled:!ro,run:()=>updateAnno(id,{lw:v})}))},
     {label:"Swap its ends",enabled:!ro,run:()=>updateAnno(id,a.pin==="plot"?{fx:a.fx2,fy:a.fy2,fx2:a.fx,fy2:a.fy}:{x:a.x2,y:a.y2,x2:a.x,y2:a.y})},
     {label:"Pinned to the plot",checked:a.pin==="plot",enabled:!ro,run:()=>pinAnno(id,a.pin!=="plot")},
     {label:a.text?"Type over its text":"Text at its tail",enabled:!ro,run:()=>editAnno(id)});
-  if(isLine||a.t==="band"||a.t==="arrow") [["solid","Solid"],["dash","Dashed"],["dot","Dotted"]].forEach(([k,l])=>items.push({label:l,radio:true,checked:(a.dash||(isLine?"dash":"solid"))===k,enabled:!ro,run:()=>updateAnno(id,{dash:k})}));
-  if(a.t!=="band"&&a.t!=="text") items.push({label:"Show the unit",checked:!!a.unit,enabled:!ro,run:()=>updateAnno(id,{unit:!a.unit})});
+  if(isLine||a.t==="band"||twoEnds(a)) [["solid","Solid"],["dash","Dashed"],["dot","Dotted"]].forEach(([k,l])=>items.push({label:l,radio:true,checked:(a.dash||(isLine?"dash":"solid"))===k,enabled:!ro,run:()=>updateAnno(id,{dash:k})}));
+  if(a.t!=="band"&&a.t!=="text"&&!SHAPE_T[a.t]) items.push({label:"Show the unit",checked:!!a.unit,enabled:!ro,run:()=>updateAnno(id,{unit:!a.unit})});
   if(a.t==="label"||a.t==="text"){ const ang=annoAng(a);
     items.push({label:"Turn",sub:()=>[[0,"Upright"],[45,"45°"],[90,"90°"],[-90,"−90°"]].map(([v,l])=>({label:l,radio:true,checked:ang===v,enabled:!ro,run:()=>updateAnno(id,a.t==="label"?{ang:v,rot:false,dy:null}:{ang:v,rot:false})}))},
       {label:"Box",sub:()=>[["none","None"],["line","Outline"],["fill","Filled"],["both","Outline and fill"]].map(([v,l])=>({label:l,radio:true,checked:(a.box||"none")===v,enabled:!ro,run:()=>updateAnno(id,{box:v==="none"?null:v})}))}); }
@@ -6187,7 +6403,7 @@ function setAxisTitle(k,v){
   const p=P(); if(!p||S.readOnly) return;
   if(k==="title"){ setPlotKey("title",v,v?`titled the graph "${v}"`:"removed the graph title"); return; }
   const ax=Object.assign({},GP().ax||{}); ax[k]=Object.assign({},ax[k]||{},{title:v});
-  setPlotKey("ax",ax,v?`titled the ${k==="x"?"X":k==="y"?"Y":"right Y"} axis "${v}"`:`restored the automatic ${k==="x"?"X":k==="y"?"Y":"right Y"} axis title`);
+  setPlotKey("ax",ax,v?`titled the ${AXN(k)} "${v}"`:`restored the automatic ${AXN(k)} title`);
 }
 // A title is typed in place, in a box over it.
 function editAxisTitle(k){ inlineEditTitle(k); }
@@ -6197,7 +6413,7 @@ function inlineEditTitle(k){
   const el=document.querySelector(`#plot [data-axtitle="${CSS.escape(k)}"]`), fr=fig.getBoundingClientRect();
   const r=el?el.getBoundingClientRect():{left:fr.left+fr.width/2-80,top:fr.top+8,width:160,height:22};
   const gp=GP(), cur=k==="title"?(gp.title||""):(((gp.ax||{})[k]||{}).title||""), d=plotState().d;
-  const auto=k==="x"?axisLabel(d.xn,d.xu,"X"):k==="y"?axisLabel(d.yn,d.yu,"Y"):k==="title"?"Graph title":"Right axis title";
+  const auto=k==="x"?axisLabel(d.xn,d.xu,"X"):k==="y"?axisLabel(d.yn,d.yu,"Y"):k==="title"?"Graph title":k==="x2"?x2AutoTitle():"Right axis title";
   const box=document.createElement("div"); box.className="inled";
   box.innerHTML=`<input type="text" maxlength="100" value="${esc(cur)}" placeholder="${esc(auto)}" aria-label="${k==="title"?"Graph title":"Axis title"}"><button class="tb sm icon" title="Font, size and position" aria-label="Font, size and position">${ICON("more","sm")}</button>`;
   fig.appendChild(box);
@@ -6228,24 +6444,57 @@ async function editLegendLabel(id){
 /* ---- Axes and titles from the graph -------------------------------------------
    Right-click an axis's numbers or a title for its menu; drag them to move them;
    a double click types over a title, or opens an axis's page of the Format dialog. */
-const AXN=k=>k==="x"?"X axis":k==="y"?"Y axis":"right Y axis";
+const AXN=k=>k==="x"?"X axis":k==="y"?"Y axis":k==="x2"?"second X axis":"right Y axis";
 function setAxisKeys(k,patch,log){ const p=P(); if(!p||S.readOnly) return; const ax=Object.assign({},GP().ax||{});
-  (k==="all"?["x","y","y2"]:[k]).forEach(q=>{ ax[q]=Object.assign({},ax[q]||{},patch); }); setPlotKey("ax",ax,log||null); }
+  (k==="all"?["x","y","y2","x2"]:[k]).forEach(q=>{ ax[q]=Object.assign({},ax[q]||{},patch); }); setPlotKey("ax",ax,log||null); }
 function setTxtKey(el,patch,log){ const p=P(); if(!p||S.readOnly) return; const txt=Object.assign({},GP().txt||{}), o=Object.assign({},txt[el]||{},patch);
   Object.keys(o).forEach(q=>{ if(o[q]==null) delete o[q]; }); txt[el]=o; setPlotKey("txt",txt,log||null); }
+function x2AutoTitle(){ const cfg=plotCfg(), c=x2Conv((cfg.ax||{}).x2,plotState().d,laserOf(activeYCol())); return c&&!c.err?axisLabel(c.name,c.unit,"X"):"Second X axis"; }
+// A second X axis: switched on with a conversion that suits the X units, and its page open.
+function showX2(){ const p=P(); if(!p||S.readOnly) return; const a=(GP().ax||{}).x2||{};
+  if(!a.on) setAxisKeys("x2",{on:true,conv:a.conv||x2Default(plotState().d)},"showed a second X axis");
+  openPlotDetails(null,"ax:x2"); }
+/* A break where it is most use: the widest stretch of the axis in view with no
+   data (X), or no values (Y), else the middle fifth. */
+function suggestBreak(k){
+  const g=S.geo, cfg=plotCfg(); if(!g) return null; const v=g.v, isX=k==="x";
+  const pts=(S.shownPts||[]).slice();
+  if(cfg.layout==="overlay"&&S.ps&&S.ps.final){ const act=activeYCol(); yCols().filter(c=>c!==act&&!cfg.hidden.includes(c.id)&&(finalOf(c).xu||"")===(S.ps.d.xu||"")).forEach(c=>{ seriesPoints(finalOf(c),cfg.logY).forEach(q=>pts.push(q)); }); }
+  const lg=isX?g.logX:g.logY, tf=lg?(q=>Math.log10(q)):(q=>q), ti=lg?(q=>10**q):(q=>q);
+  const lo=tf(isX?v.x0:v.y0), hi=tf(isX?v.x1:v.y1), span=hi-lo, old=brkList(((cfg.ax||{})[k]||{}).brk,isX?v.x0:v.y0,isX?v.x1:v.y1,lg).map(q=>q.map(tf));
+  const vals=pts.filter(q=>q.x>=v.x0&&q.x<=v.x1&&(isX||(q.y>=v.y0&&q.y<=v.y1))).map(q=>isX?q.x:q.y).filter(q=>Number.isFinite(q)&&(!lg||q>0)).map(tf).sort((a,b)=>a-b);
+  let best=null;
+  for(let i=1;i<vals.length;i++){ const a=vals[i-1], b=vals[i]; if(old.some(q=>q[0]<b&&q[1]>a)) continue; if(!best||b-a>best.b-best.a) best={a,b}; }
+  const nice=(a,b)=>{ if(lg) return [ti(a),ti(b)].map(q=>+q.toPrecision(4)); const r=10**Math.floor(Math.log10(Math.max((b-a)/20,1e-300))); return [Math.ceil(a/r)*r,Math.floor(b/r)*r].map(q=>+q.toPrecision(10)); };
+  if(best&&best.b-best.a>span*0.12){ const m=Math.min((best.b-best.a)*0.12,span*0.03); return {r:nice(best.a+m,best.b-m),empty:true}; }
+  return {r:nice(lo+span*0.4,lo+span*0.6),empty:false};
+}
+async function breakDlg(k){
+  const p=P(); if(!p||S.readOnly||!S.geo) return; const s=suggestBreak(k); if(!s) return; const d=plotState().d, u=k==="x"?d.xu:d.yu, lay=plotCfg().layout;
+  const r=await formDlg({title:`Break the ${k==="x"?"X":"Y"} axis`,html:`<div class="grid2"><label for="fdBa">Leave out from</label><div class="pair"><input id="fdBa" type="text" inputmode="decimal" value="${esc(fmt(s.r[0],7))}">${u?`<span class="lab">${esc(u)}</span>`:""}</div><label for="fdBb">to</label><div class="pair"><input id="fdBb" type="text" inputmode="decimal" value="${esc(fmt(s.r[1],7))}">${u?`<span class="lab">${esc(u)}</span>`:""}</div></div><p class="hint">${s.empty?"Suggested: the widest stretch in view with nothing on it.":"There is no empty stretch in view, so the middle fifth is suggested."} The rest keeps one scale on both sides of the gap.${k==="y"&&!["overlay","offset"].includes(lay)?" Y breaks show with overlaid or offset spectra.":""}${k==="x"&&lay==="heat"?" A heat map is drawn without breaks.":""}</p>`,
+    ok:"Break it",focus:"#fdBa",valid:q=>{ const a=parseNum(q.fdBa), b=parseNum(q.fdBb); return a!=null&&b!=null&&a!==b; }});
+  if(!r) return; const a=parseNum(r.fdBa), b=parseNum(r.fdBb), cur=(((GP().ax||{})[k]||{}).brk||[]).slice();
+  setAxisKeys(k,{brk:cur.concat([[Math.min(a,b),Math.max(a,b)]])},`broke the ${AXN(k)} from ${fmt(Math.min(a,b),6)} to ${fmt(Math.max(a,b),6)}`);
+}
+function clearBreaks(k){ setAxisKeys(k,{brk:null},`removed the breaks of the ${AXN(k)}`); }
 function axisMenuItems(k){
   const cfg=plotCfg(), A=axisCfg(cfg,k), ro=S.readOnly||!P(), isX=k==="x", nm=AXN(k);
   const items=[{group:nm[0].toUpperCase()+nm.slice(1),plain:true}];
-  if(k!=="y2"&&!(k==="y"&&cfg.layout==="dy")) items.push({label:"Where it is",sub:()=>(isX?[["bottom","At the bottom"],["top","At the top"],["zero","At y = 0"]]:[["left","On the left"],["right","On the right"],["zero","At x = 0"]])
+  if(k!=="y2"&&k!=="x2"&&!(k==="y"&&cfg.layout==="dy")) items.push({label:"Where it is",sub:()=>(isX?[["bottom","At the bottom"],["top","At the top"],["zero","At y = 0"]]:[["left","On the left"],["right","On the right"],["zero","At x = 0"]])
     .map(([v,l])=>({label:l,radio:true,checked:A.pos===v,enabled:!ro,run:()=>setAxisKeys(k,{pos:v},`put the ${nm} ${l.toLowerCase()}`)}))
     .concat([{label:isX?"At a value of y…":"At a value of x…",radio:true,checked:A.pos==="at",enabled:!ro,run:()=>askAxisAt(k)}])});
   items.push({label:"Offset outward",sub:()=>[0,4,8,12,20].map(v=>({label:v?`${v} px`:"None, on the edge",radio:true,checked:A.off===v,enabled:!ro,run:()=>setAxisKeys(k,{off:v||null},v?`moved the ${nm} ${v} px outward`:`put the ${nm} back on the edge`)}))},
     {label:"Ticks",sub:()=>[["in","Inside"],["out","Outside"],["both","Both sides"],["none","None"]].map(([v,l])=>({label:l,radio:true,checked:A.dir===v,enabled:!ro,run:()=>setAxisKeys(k,{ticks:v},`set the ${nm}'s ticks ${l.toLowerCase()}`)}))
-      .concat(k==="y2"?[]:["-",{label:"Repeat them on the opposite edge",checked:A.mirror,enabled:!ro,run:()=>setAxisKeys(k,{mirror:!A.mirror})}])},
+      .concat(k==="y2"||k==="x2"?[]:["-",{label:"Repeat them on the opposite edge",checked:A.mirror,enabled:!ro,run:()=>setAxisKeys(k,{mirror:!A.mirror})}])},
     {label:"Numbers",sub:()=>[{label:"Show them",checked:A.labs,enabled:!ro,run:()=>setAxisKeys(k,{labs:!A.labs},A.labs?`hid the ${nm}'s numbers`:`showed the ${nm}'s numbers`)},"-"]
       .concat((isX?[0,45,90]:[0,90]).map(r=>({label:r?`Turned ${r}°`:"Upright",radio:true,checked:A.rot===r,enabled:!ro,run:()=>setAxisKeys(k,{lrot:r||null})})))
       .concat(["-",{label:"Font and size…",run:()=>openPlotDetails(null,"ax:"+k)}])});
   if(!(k==="y2"&&cfg.layout==="heat")) items.push({label:"Title",sub:()=>titleMenuItems(k).filter(it=>!it.group)});
+  if(k==="x"||k==="y"){ const nb=((((cfg.ax||{})[k]||{}).brk)||[]).length;
+    items.push("-",{label:"Break the axis…",enabled:!ro,run:()=>breakDlg(k)});
+    if(nb) items.push({label:nb===1?"Remove the break":`Remove the ${nb} breaks`,enabled:!ro,run:()=>clearBreaks(k)}); }
+  if(k==="x") items.push({label:"A second X axis in other units…",checked:!!((cfg.ax||{}).x2||{}).on,enabled:!ro,run:showX2});
+  if(k==="x2") items.push("-",{label:"Hide the second X axis",enabled:!ro,run:()=>setAxisKeys("x2",{on:false},"hid the second X axis")});
   items.push("-",{label:`Format the ${nm}…`,kbd:"Double-click",run:()=>openPlotDetails(null,"ax:"+k)});
   return items;
 }
@@ -6268,7 +6517,7 @@ function titleMenuItems(k){
 }
 // Text pinned to the plot stays where it is in the frame whatever the zoom.
 function pinAnno(id,on){ const a=annoById(id), g=S.geo; if(!a||!g||S.readOnly) return;
-  if(a.t==="arrow"){ const e=annoEnds(a,g), d=plotState().d;
+  if(twoEnds(a)){ const e=annoEnds(a,g), d=plotState().d;
     if(on) updateAnno(id,{pin:"plot",fx:+((e.t.x-g.L)/g.pw).toFixed(4),fy:+((e.t.y-g.T)/g.mh).toFixed(4),fx2:+((e.h.x-g.L)/g.pw).toFixed(4),fy2:+((e.h.y-g.T)/g.mh).toFixed(4)},`pinned ${annoDesc(a)} to the plot`);
     else { const p=toData(e.t.x,e.t.y), q=toData(e.h.x,e.h.y); updateAnno(id,{pin:null,x:+p.x.toPrecision(7),y:+p.y.toPrecision(7),x2:+q.x.toPrecision(7),y2:+q.y.toPrecision(7),xu:d.xu||"",yu:d.yu||""},`tied ${annoDesc(a)} to data values`); }
     return; }
@@ -6289,7 +6538,7 @@ function dragTitle(x,y){ const td=S.ttdrag; if(!P()) return;
   else { gp.ax=Object.assign({},gp.ax||{}); gp.ax[td.k]=Object.assign({},gp.ax[td.k]||{},{tdx:dx||null,tdy:dy||null}); }
   renderPlot(); showTip(dx||dy?`${Math.round(Math.hypot(dx,dy))} px from its place`:"In its place",x,y); }
 function commitTitleDrag(td){ const gp=GP(); savePlot(td.k==="title"?{titleDx:gp.titleDx,titleDy:gp.titleDy}:{ax:gp.ax},`moved the ${td.k==="title"?"graph title":AXN(td.k)+" title"}`); renderPlot(); }
-function dragAxis(x,y){ const ad=S.axdrag, g=S.geo; if(!g||!P()) return;
+function dragAxis(x,y){ const ad=S.axdrag, g=S.geo; if(!g||!P()||ad.k==="x2") return;
   if(!ad.moved&&Math.abs(x-ad.x0)+Math.abs(y-ad.y0)<3) return;
   if(!ad.moved){ pushUndo("moving the axis"); ad.moved=true; }
   const gp=GP(), k=ad.k, cfg=plotCfg(), a=Object.assign({},(gp.ax||{})[k]||{}), cap=v=>{ v=Math.round(Math.max(0,Math.min(60,v))); return v<4?null:v; }; let tip="";
@@ -6350,6 +6599,8 @@ function graphMenuItems(id,at){
       {label:`Horizontal line at y = ${fmt(at.pt.y,5)}`,run:()=>addAnno({t:"h",y:n6(at.pt.y)})},
       {label:"Text here…",run:()=>addTextAt(at.pt)},
       {label:"An arrow (drag on the graph)",run:()=>{ setMode("arrow"); toast("Drag from where the arrow starts to what it points at."); }},
+      {label:"A box (drag on the graph)",run:()=>{ pickShape("rect"); toast("Drag from one corner of the box to the other. Shift makes a square."); }},
+      {label:"An ellipse (drag on the graph)",run:()=>{ pickShape("ellipse"); toast("Drag across the ellipse's box. Shift makes a circle."); }},
       S.view?{label:"Make this zoom an inset",run:makeInset}:null,
       {label:"Shade an X range…",run:shadeRange}); }
   items.push("-",
@@ -6370,7 +6621,7 @@ function graphMenuItems(id,at){
     {label:"Find and mark peaks…",run:()=>openPeakFinder(),enabled:has},
     {label:"Integrate bands…",run:()=>openIntegrate(),enabled:has},
     "-",
-    {label:"Export the figure",sub:()=>[{label:"For a paper or slides…",run:openExportFigure,enabled:has},{label:"As SVG (vector, for papers)",run:exportSvg,enabled:has},{label:"As PNG (image, for slides)",run:exportPng,enabled:has}]});
+    {label:"Export the figure",sub:()=>[{label:"For a paper or slides…",run:openExportFigure,enabled:has},{label:"As SVG (vector, for papers)",run:exportSvg,enabled:has},{label:"As PDF (vector, standard fonts)",run:()=>exportVec("pdf"),enabled:has},{label:"As EPS",run:()=>exportVec("eps"),enabled:has},{label:"As PNG (image, for slides)",run:exportPng,enabled:has}]});
   return items;
 }
 function openGraphMenu(ev){
@@ -6446,8 +6697,9 @@ function pdSet(path,val){
   const wk=S.plotPreview; if(!wk) return; const k=path.split(".");
   const clean=o=>{ Object.keys(o).forEach(q=>{ if(o[q]==null||o[q]==="") delete o[q]; }); return o; };
   if(k[0]==="series"){ wk.series=Object.assign({},wk.series||{}); wk.series[k[1]]=Object.assign({},wk.series[k[1]]||{},{[k[2]]:val}); }
+  else if(k[0]==="ax"&&k[2]==="brk"&&k.length===5){ wk.ax=Object.assign({},wk.ax||{}); const nb=(((wk.ax[k[1]]||{}).brk)||[]).map(q=>q.slice()); if(nb[+k[3]]) nb[+k[3]][+k[4]]=val; wk.ax[k[1]]=Object.assign({},wk.ax[k[1]]||{},{brk:nb}); }
   else if(k[0]==="ax"){ wk.ax=Object.assign({},wk.ax||{}); wk.ax[k[1]]=Object.assign({},(wk.ax||{})[k[1]]||{},{[k[2]]:val}); }
-  else if(k[0]==="allax"){ wk.ax=Object.assign({},wk.ax||{}); ["x","y","y2"].forEach(a=>{ wk.ax[a]=Object.assign({},wk.ax[a]||{},{[k[1]]:val}); }); }
+  else if(k[0]==="allax"){ wk.ax=Object.assign({},wk.ax||{}); ["x","y","y2","x2"].forEach(a=>{ wk.ax[a]=Object.assign({},wk.ax[a]||{},{[k[1]]:val}); }); }
   else if(k[0]==="txt"){ wk.txt=Object.assign({},wk.txt||{}); wk.txt[k[1]]=clean(Object.assign({},wk.txt[k[1]]||{},k[2]?{[k[2]]:val}:val)); }
   else if(k[0]==="annos"){ wk.annos=(wk.annos||[]).map(a=>{ if(a.id!==k[1]) return a;
       const patch=k[2]?{[k[2]]:val}:Object.assign({},val);
@@ -6477,7 +6729,7 @@ function pdPreset(k){ const wk=S.plotPreview; if(!wk) return;
   const q={classic:{frame:"box",t:"in",mir:null,off:null,grid:false},boxout:{frame:"box",t:"out",mir:false,off:null},journal:{frame:"l",t:"out",mir:false,off:null,grid:false},
     open:{frame:"l",t:"out",mir:false,off:6,grid:false},minimal:{frame:"none",t:"none",mir:false,off:null,grid:true}}[k]; if(!q) return;
   wk.frame=q.frame; wk.ax=Object.assign({},wk.ax||{});
-  ["x","y","y2"].forEach(a=>{ wk.ax[a]=Object.assign({},wk.ax[a]||{},{ticks:q.t,mirror:q.mir,off:q.off}); });
+  ["x","y","y2","x2"].forEach(a=>{ wk.ax[a]=Object.assign({},wk.ax[a]||{},{ticks:q.t,mirror:q.mir,off:q.off}); });
   if(q.grid!=null) wk.grid=q.grid;
   renderPlot(); }
 function pdAct(s){ const wk=S.plotPreview; if(!wk) return; const i=s.indexOf(":"), k=s.slice(0,i), id=s.slice(i+1);
@@ -6489,7 +6741,13 @@ function pdAct(s){ const wk=S.plotPreview; if(!wk) return; const i=s.indexOf(":"
   if(k==="labreset") pdSet("annos."+id,{dx:0,dy:null});
   if(k==="swap") pdSet("annos."+id,a.pin==="plot"?{fx:a.fx2,fy:a.fy2,fx2:a.fx,fy2:a.fy}:{x:a.x2,y:a.y2,x2:a.x,y2:a.y});
 }
-const annoBrief=(a,d)=>{ const t=annoLabelText(a,d.xu||"",d.yu||""), w=a.t==="inset"?`${fmt(Math.min(a.x0,a.x1),5)} – ${fmt(Math.max(a.x0,a.x1),5)}`:a.t==="arrow"&&a.pin!=="plot"?`to x = ${fmt(a.x2,5)}`:a.t==="h"?`y = ${fmt(a.y,5)}`:a.t==="band"?`${fmt(Math.min(a.x,a.x2),5)} – ${fmt(Math.max(a.x,a.x2),5)}`:a.pin==="plot"?"pinned to the plot":`x = ${fmt(a.x,5)}`;
+// Where an annotation is, in a few words: its value, its range, or pinned to the plot.
+function annoWhere(a,dg){ dg=dg||5;
+  if(a.pin==="plot") return "pinned to the plot"; if(a.t==="h") return `y = ${fmt(a.y,dg)}`;
+  if(a.t==="inset") return `${fmt(Math.min(a.x0,a.x1),dg)} – ${fmt(Math.max(a.x0,a.x1),dg)}`;
+  if(a.t==="band"||SHAPE_T[a.t]) return `${fmt(Math.min(a.x,a.x2),dg)} – ${fmt(Math.max(a.x,a.x2),dg)}`;
+  if(a.t==="arrow") return `to x = ${fmt(a.x2,dg)}`; return `x = ${fmt(a.x,dg)}`; }
+const annoBrief=(a,d)=>{ const t=annoLabelText(a,d.xu||"",d.yu||""), w=annoWhere(a);
   return (a.t==="inset"?"":(t?String(t).split("\n")[0].slice(0,40):"no text")+" · ")+w; };
 function renderPlotDetails(){
   const m=$("#plotModal"), body=$("#pdBody"); if(!m||!body||!S.plotPreview) return;
@@ -6523,9 +6781,9 @@ function renderPlotDetails(){
     h+=`<button class="pd-item${on?" on":""}" data-pdsel="${c.id}" aria-current="${on?"page":"false"}"><span class="sw" style="background:${st.color}"></span><span class="grow">${esc(st.label||specName(c))}</span>${hid?`<span class="lab">hidden</span>`:""}</button>`; });
   if(activeFit()){ const on=page==="series"&&S.pdSel==="__fit"; h+=`<button class="pd-item${on?" on":""}" data-pdsel="__fit" aria-current="${on?"page":"false"}"><span class="sw" style="background:${(cfg.series.__fit||{}).color||pal.fit}"></span><span class="grow">Fit curve</span></button>`; }
   const nav=(k,l)=>`<button class="pd-item${page===k?" on":""}" data-pdpage="${k}" aria-current="${page===k?"page":"false"}"><span class="grow">${l}</span></button>`;
-  h+=`<div class="pd-h">Axes</div>`+nav("ax:x","X axis")+nav("ax:y",cfg.layout==="dy"?"Left Y axis":"Y axis")+(cfg.layout==="dy"?nav("ax:y2","Right Y axis"):cfg.layout==="heat"?nav("ax:y2","Colour scale"):"");
+  h+=`<div class="pd-h">Axes</div>`+nav("ax:x","X axis")+nav("ax:x2","Second X axis")+nav("ax:y",cfg.layout==="dy"?"Left Y axis":"Y axis")+(cfg.layout==="dy"?nav("ax:y2","Right Y axis"):cfg.layout==="heat"?nav("ax:y2","Colour scale"):"");
   h+=`<div class="pd-h">Graph</div>`+nav("frame","Frame and grid")+nav("text","Text and fonts")+nav("legend","Legend")+nav("layout","Layout and colours")+nav("labels","Labels and lines")+nav("fpeaks","Fitted peak labels");
-  const TITLES={frame:"Frame and grid",text:"Text and fonts",legend:"Legend",layout:"Layout and colours",labels:"Labels and lines",fpeaks:"Fitted peak labels","ax:x":"X axis","ax:y":cfg.layout==="dy"?"Left Y axis":"Y axis","ax:y2":cfg.layout==="heat"?"Colour scale":"Right Y axis"};
+  const TITLES={frame:"Frame and grid",text:"Text and fonts",legend:"Legend",layout:"Layout and colours",labels:"Labels and lines",fpeaks:"Fitted peak labels","ax:x":"X axis","ax:x2":"Second X axis","ax:y":cfg.layout==="dy"?"Left Y axis":"Y axis","ax:y2":cfg.layout==="heat"?"Colour scale":"Right Y axis"};
   const selC=page==="series"&&S.pdSel!=="__fit"?(colById(S.pdSel)||act):null;
   h+=`</nav><div class="pd-main" data-page="${esc(page)}"><div class="pd-title" role="heading" aria-level="3">${esc(page==="series"?(S.pdSel==="__fit"?"Fit curve":selC?specName(selC):""):TITLES[page]||"")}</div>`;
   if(page==="series"){
@@ -6539,34 +6797,49 @@ function renderPlotDetails(){
       h+=grp("Symbols",`<label for="pdSym">Symbol</label>${sel("pdSym",SYMS,st.sym,b+".sym")}<label for="pdSs">Size</label>${rng("pdSs",st.ss==null?3:st.ss,b+".ss",1,10,0.5)}`);
       h+=grp("Fill and opacity",`<label for="pdFill">Fill under it</label>${rng("pdFill",st.fill,b+".fill",0,1,0.05)}<label for="pdOp">Opacity</label>${rng("pdOp",st.op,b+".op",0.1,1,0.05)}`); }
   } else if(page.startsWith("ax:")){
-    const k=page.slice(3), a=cfg.ax[k]||{}, A=axisCfg(cfg,k), b="ax."+k, isX=k==="x", heat=cfg.layout==="heat", cs=k==="y2"&&heat, dP=plotState().d;
-    const al=axAlign(A,txtStyle(cfg,"axis",{align:"center"},KSERIF)), edge=k==="y2"||A.pos==="bottom"||A.pos==="top"||A.pos==="left"||A.pos==="right";
-    const autoT=isX?axisLabel(dP.xn,dP.xu,"X"):k==="y"?(heat?"Spectrum":axisLabel(dP.yn,dP.yu,"Y")):"from the data";
+    const k=page.slice(3), a=cfg.ax[k]||{}, A=axisCfg(cfg,k), b="ax."+k, isX=k==="x"||k==="x2", heat=cfg.layout==="heat", cs=k==="y2"&&heat, dP=plotState().d, k2=k==="x2";
+    const al=axAlign(A,txtStyle(cfg,"axis",{align:"center"},KSERIF)), edge=k==="y2"||k==="x2"||A.pos==="bottom"||A.pos==="top"||A.pos==="left"||A.pos==="right";
+    const autoT=k2?x2AutoTitle():isX?axisLabel(dP.xn,dP.xu,"X"):k==="y"?(heat?"Spectrum":axisLabel(dP.yn,dP.yu,"Y")):"from the data";
+    if(k2){ const kind=a.conv||x2Default(dP), det=xUnitKey(dP.xn,dP.xu), phys=kind!=="lin"&&kind!=="expr", usesL=phys&&(kind==="raman"||(a.from||det)==="raman"), err=S.geo&&S.geo.x2err;
+      h+=grp("What it shows",chk("pdx2on","ax.x2.on",!!a.on,"Show it, across from the X axis")
+        +`<label for="pdx2c">Shows</label>${sel("pdx2c",X2_KINDS,kind,"ax.x2.conv")}`
+        +(phys?`<label for="pdx2f">The X axis is in</label>${sel("pdx2f",[["",det?`${(X2_UNITS.find(q=>q[0]===det)||[,det])[1]}, as labelled`:"Not known: choose"]].concat(X2_UNITS),a.from||"","ax.x2.from")}`:"")
+        +(usesL?`<label for="pdx2l">Laser wavelength</label><div class="pair">${num("pdx2l",a.laser,"ax.x2.laser",String(laserOf(act)||532),90)}<span class="lab">nm</span></div>`:"")
+        +(kind==="lin"?`<label for="pdx2a">a</label>${num("pdx2a",a.a,"ax.x2.a","1",110)}<label for="pdx2b">b</label>${num("pdx2b",a.b,"ax.x2.b","0",110)}`:"")
+        +(kind==="expr"?`<label for="pdx2e">Formula</label><input type="text" id="pdx2e" data-pd="ax.x2.f" data-redraw value="${esc(a.f||"")}" placeholder="1e7/x" spellcheck="false" autocomplete="off"${ro}>`:"")
+        +(phys?"":`<label for="pdx2n">Name</label><input type="text" id="pdx2n" data-pd="ax.x2.name" value="${esc(a.name||"")}" placeholder="X"${ro}><label for="pdx2u">Unit</label><div class="pair"><input type="text" id="pdx2u" data-pd="ax.x2.unit" data-rich value="${esc(a.unit||"")}" placeholder="none"${ro}>${rtool("pdx2u")}</div>`)
+        +(a.on&&err?note(`<span class="warn">${esc(err)}</span>`):"")); }
     if(!cs) h+=grp("Title",`<label for="pd${k}t">Text</label><div class="pair"><input type="text" id="pd${k}t" data-pd="${b}.title" data-rich value="${esc(a.title||"")}" placeholder="${esc(autoT)}"${ro}>${rtool("pd"+k+"t")}</div>`
       +chk("pd"+k+"ts",b+".tshow",A.tshow,"Show the title")
       +`<label>Position</label>${seg(b+".talign",isX?[["start","Left"],["center","Centre"],["end","Right"]]:[["start","Bottom"],["center","Middle"],["end","Top"]],al,"Where the title sits along the axis")}`
       +(A.tdx||A.tdy?`<span></span><div><button type="button" class="btn sm" data-pdact="tdreset:${k}"${ro}>Put it back by the axis</button> <span class="lab">dragged ${Math.round(Math.hypot(A.tdx,A.tdy))} px</span></div>`:"")
       +wide(tbar("axis")+`<div class="pd-note">The font of every axis title. Drag a title on the graph to move it.</div>`),txReset("axis"));
-    h+=grp(cs?"Range":"Scale",`<label for="pd${k}a">From</label>${num("pd"+k+"a",a.min,b+".min")}<label for="pd${k}b">To</label>${num("pd"+k+"b",a.max,b+".max")}`
+    if(!k2) h+=grp(cs?"Range":"Scale",`<label for="pd${k}a">From</label>${num("pd"+k+"a",a.min,b+".min")}<label for="pd${k}b">To</label>${num("pd"+k+"b",a.max,b+".max")}`
       +(cs?"":`<label for="pd${k}s">Major ticks every</label>${num("pd"+k+"s",a.step,b+".step")}`)
       +(isX?chk("pdRev","revX",!!cfg.revX,"Reversed (high to low)")+chk("pdLogX","logX",!!cfg.logX,"Logarithmic"):k==="y"&&!heat?chk("pdLogY","logY",!!cfg.logY,"Logarithmic"):"")
       +note("Empty fits the data."));
+    if(k==="x"||k==="y"){ const bl=Array.isArray(a.brk)?a.brk:[];
+      let bh=bl.map((q,i)=>`<label for="pd${k}bk${i}">Leave out</label><div class="pair">${num(`pd${k}bk${i}`,fmt(q[0],7),`${b}.brk.${i}.0`,"",96)}<span class="lab">to</span>${num(`pd${k}bk${i}b`,fmt(q[1],7),`${b}.brk.${i}.1`,"",96)}<button type="button" class="tb sm icon" data-pdbrkdel="${k}:${i}" aria-label="Remove this break" title="Remove this break"${ro}>${ICON("x","sm")}</button></div>`).join("");
+      bh+=`<span></span><div><button type="button" class="btn sm" data-pdbrkadd="${k}"${ro}>${ICON("plus","sm")}Add a break</button></div>`;
+      if(k==="y"&&bl.length&&!["overlay","offset"].includes(cfg.layout)) bh+=note("Y breaks show with overlaid or offset spectra.");
+      if(k==="x"&&bl.length&&heat) bh+=note("A heat map is drawn without breaks.");
+      h+=grp("Breaks",bh); }
     if(!cs){
       const posO=isX?[["bottom","Bottom"],["top","Top"],["zero","At y = 0"],["at","At y ="]]:[["left","Left"],["right","Right"],["zero","At x = 0"],["at","At x ="]];
-      h+=grp("Position",(k==="y2"?"":`<label>Axis</label>${seg(b+".pos",posO,A.pos,"Where the axis is")}`)
-        +(A.pos==="at"&&k!=="y2"?`<label for="pd${k}at">${isX?"y":"x"} =</label>${num("pd"+k+"at",a.at,b+".at","0")}`:"")
+      h+=grp("Position",(k==="y2"||k2?"":`<label>Axis</label>${seg(b+".pos",posO,A.pos,"Where the axis is")}`)
+        +(A.pos==="at"&&k!=="y2"&&!k2?`<label for="pd${k}at">${isX?"y":"x"} =</label>${num("pd"+k+"at",a.at,b+".at","0")}`:"")
         +(edge?`<label for="pd${k}off">Offset outward</label>${rng("pd"+k+"off",A.off,b+".off",0,40,1," px")}`:"")
         +(k==="y"&&cfg.layout==="dy"?note("With two Y axes this one stays on the left."):"")
         +(isX&&cfg.layout==="stack"&&(A.pos==="zero"||A.pos==="at")?note("Stacked panels keep it at the bottom."):"")
-        +note("Or drag the axis's numbers on the graph."));
+        +(k2?note("It sits across from the X axis."):note("Or drag the axis's numbers on the graph.")));
       h+=grp("Line and ticks",chk("pd"+k+"ln",b+".line",A.line,"Axis line")
         +`<label>Colour</label>${cb(b+".color",a.color,"Automatic",pal.ink)}<label for="pd${k}lw">Line width</label>${rng("pd"+k+"lw",A.lw,b+".lw",0.25,4,0.25)}`
         +`<label>Ticks</label>${seg(b+".ticks",[["in","In"],["out","Out"],["both","Both"],["none","None"]],A.dir,"Which way the ticks point")}`
         +`<label for="pd${k}tl">Major length</label>${rng("pd"+k+"tl",A.len,b+".tlen",0,20,0.5," px")}`
-        +`<label for="pd${k}m">Minor ticks</label>${sel("pd"+k+"m",[["0","None"],["1","1 between"],["2","2"],["3","3"],["4","4"],["9","9"]],a.minor==null?1:a.minor,b+".minor")}`
+        +`<label for="pd${k}m">Minor ticks</label>${sel("pd"+k+"m",k2?[["0","None"],["1","Where there is room"]]:[["0","None"],["1","1 between"],["2","2"],["3","3"],["4","4"],["9","9"]],a.minor==null?1:k2?Math.min(1,+a.minor):a.minor,b+".minor")}`
         +`<label for="pd${k}ml">Minor length</label>${rng("pd"+k+"ml",A.mlen,b+".mlen",0,12,0.5," px")}`
         +`<label for="pd${k}tw">Tick width</label>${rng("pd"+k+"tw",A.tw,b+".tw",0.25,3,0.25)}`
-        +(k==="y2"?"":chk("pd"+k+"mir",b+".mirror",A.mirror,isX?"Repeat them on the opposite edge":"Repeat them on the opposite edge")));
+        +(k==="y2"||k2?"":chk("pd"+k+"mir",b+".mirror",A.mirror,isX?"Repeat them on the opposite edge":"Repeat them on the opposite edge")));
     }
     h+=grp("Numbers",(cs?"":chk("pd"+k+"lb",b+".labs",A.labs,"Show the numbers"))
       +`<label for="pd${k}f">Format</label><div class="pair">${sel("pd"+k+"f",[["auto","Automatic"],["dec","Decimal"],["sci","Scientific"]],a.fmt||"auto",b+".fmt")}${sel("pd"+k+"n",[0,1,2,3,4,5,6].map(i=>[String(i),i+" dec."]),a.dec==null?2:a.dec,b+".dec")}</div>`
@@ -6646,10 +6919,10 @@ function renderPlotDetails(){
     h+=grp("Fitted peaks",`<span></span><div><button type="button" class="btn sm" data-pdpage="fpeaks">Their labels…</button></div>`);
     let L1=`<div class="pd-anl">`;
     lst.forEach(a=>{ const on=!!selA&&selA.id===a.id, col=annoColor(a,pal,false,cfg);
-      const hid=a.pin!=="plot"&&((a.xu!=null&&a.t!=="h"&&a.xu!==(d.xu||""))||((a.t==="h"||a.t==="text"||a.t==="label")&&a.yu!=null&&a.yu!==(d.yu||"")));
+      const hid=a.pin!=="plot"&&((a.xu!=null&&a.t!=="h"&&a.xu!==(d.xu||""))||(a.t!=="v"&&a.t!=="band"&&a.yu!=null&&a.yu!==(d.yu||"")));
       L1+=`<div class="pd-an${on?" on":""}"><button type="button" class="pd-anb" data-pdanno="${a.id}" aria-pressed="${on}"><span class="sw" style="background:${esc(col)}"></span><span class="k">${esc(ANNO_KINDS[a.t])}</span><span class="grow">${esc(annoBrief(a,d))}</span>${hid?`<span class="lab" title="Placed in other units: not drawn on the data now shown">other units</span>`:""}</button><button type="button" class="tb sm icon" data-pdandel="${a.id}" aria-label="Delete this ${esc(ANNO_KINDS[a.t].toLowerCase())}" title="Delete"${ro}>${ICON("x","sm")}</button></div>`; });
     if(!lst.length) L1+=`<p class="pd-note">None yet. Add one here, or right-click the graph where you want it.</p>`;
-    L1+=`</div><div class="actions">${[["v","Vertical line"],["h","Horizontal line"],["band","Shaded range"],["text","Text"],["arrow","Arrow"],["inset","Inset"]].map(([k,l])=>`<button class="btn sm" data-pdadd="${k}"${ro}>${ICON("plus","sm")}${l}</button>`).join("")}</div>`;
+    L1+=`</div><div class="actions">${[["v","Vertical line"],["h","Horizontal line"],["band","Shaded range"],["text","Text"],["arrow","Arrow"],["rect","Box"],["ellipse","Ellipse"],["inset","Inset"]].map(([k,l])=>`<button class="btn sm" data-pdadd="${k}"${ro}>${ICON("plus","sm")}${l}</button>`).join("")}</div>`;
     if(sets.length) L1+=`<p class="pd-note">${sets.map(c=>`${esc(specName(c))}: ${all.filter(a=>a.grp==="pk:"+c.id).length} peaks marked`).join(" · ")}. The set's labels and marks are in the <a href="#" data-pdpeaks>Peaks window</a>.</p>`;
     h+=grp(`Lines, ranges, text and labels`,wide(L1));
     if(selA) h+=pdAnnoEditor(selA,{cfg,pal,d,ro,sel,num,rng,chk,seg,cb,grp,wide,note,DASH_OPTS,auto});
@@ -6677,8 +6950,9 @@ function pdAnnoEditor(a,o){
   const tv=g?(a.lab||""):(a.text==null?"":a.text);
   let e=`<label for="pdAnT">${g?"Label":"Text"}</label><textarea id="pdAnT" rows="${Math.min(5,Math.max(1,tv.split("\n").length))}" data-pd="${b}.${g?"lab":"text"}"${g?"":" data-null"} placeholder="${esc(a.t==="text"?"Text":a.t==="band"?"none":"the position")}"${ro}>${esc(tv)}</textarea>`;
   e=e.replace('<textarea id="pdAnT"','<textarea data-rich id="pdAnT"')+`<span></span>${rtool("pdAnT")}`;
-  if(!g&&a.t!=="text") e+=chk("pdAnNo",b+".text",a.text==="","No text",` data-notext`);
-  e+=note((a.t==="text"?"Enter starts a new line.":"Empty shows the value; {x} stands for the position. Enter starts a new line.")+" ^{2} and _{2} make super- and subscripts; \\alpha a Greek letter.");
+  const shp=!!SHAPE_T[a.t];
+  if(!g&&a.t!=="text"&&!shp) e+=chk("pdAnNo",b+".text",a.text==="","No text",` data-notext`);
+  e+=note((a.t==="text"||shp?(shp?"Inside it. ":"")+"Enter starts a new line.":"Empty shows the value; {x} stands for the position. Enter starts a new line.")+" ^{2} and _{2} make super- and subscripts; \\alpha a Greek letter.");
   e+=wide(txtBarHtml("anno:"+a.id,tst,aut,{align:a.t==="text"||a.t==="label"?"center":false,inheritLabel:"The labels' font"}));
   let pos="";
   if(a.t==="text"){ pos+=`<span></span><label class="chk"><input type="checkbox" id="pdAnPin" data-pdpin="${a.id}"${pinned?" checked":""}${ro}> Pinned to the plot, not to data values</label>`;
@@ -6687,6 +6961,13 @@ function pdAnnoEditor(a,o){
       +`<label for="pdAnFy">Down</label><div class="pair">${num("pdAnFy",+(numOr(a.fy,0.1)*100).toFixed(1),b+".fy","10",80,` data-pct`)}<span class="lab">% of its height</span></div>`; }
     else pos+=`<label for="pdAnX">X</label>${num("pdAnX",fmt(a.x,7),b+".x","",130)}<label for="pdAnY">Y</label>${num("pdAnY",fmt(a.y,7),b+".y","",130)}`
       +`<span></span><div class="actions" style="margin:0"><button type="button" class="btn sm" data-pdact="centrex:${a.id}"${ro}>Centre across the plot</button><button type="button" class="btn sm" data-pdact="centre:${a.id}"${ro}>Centre in the plot</button></div>`; }
+  if(shp){ const pin=a.pin==="plot";
+    pos+=`<span></span><label class="chk"><input type="checkbox" id="pdAnPin" data-pdpin="${a.id}"${pin?" checked":""}${ro}> Pinned to the plot, not to data values</label>`;
+    pos+=pin?`<label for="pdAnFx">Corner</label><div class="pair">${num("pdAnFx",+(numOr(a.fx,0.3)*100).toFixed(1),b+".fx","30",64,` data-pct`)}${num("pdAnFy",+(numOr(a.fy,0.3)*100).toFixed(1),b+".fy","30",64,` data-pct`)}<span class="lab">% across, down</span></div>`
+      +`<label for="pdAnFx2">Opposite</label><div class="pair">${num("pdAnFx2",+(numOr(a.fx2,0.6)*100).toFixed(1),b+".fx2","60",64,` data-pct`)}${num("pdAnFy2",+(numOr(a.fy2,0.6)*100).toFixed(1),b+".fy2","60",64,` data-pct`)}<span class="lab">% across, down</span></div>`
+      :`<label for="pdAnX">X from</label><div class="pair">${num("pdAnX",fmt(a.x,7),b+".x","x",100)}<span class="lab">to</span>${num("pdAnX2",fmt(a.x2,7),b+".x2","x",100)}</div>`
+      +`<label for="pdAnY">Y from</label><div class="pair">${num("pdAnY",fmt(a.y,7),b+".y","y",100)}<span class="lab">to</span>${num("pdAnY2",fmt(a.y2,7),b+".y2","y",100)}</div>`;
+    pos+=`<label>Text at</label>${seg(b+".lpos",[["top","Top"],["middle","Middle"],["bottom","Bottom"]],a.lpos||"middle","Where its text goes")}<label>Align</label>${seg(b+".align",[["left","Left"],["center","Centre"],["right","Right"]],a.align||"center","Align its text")}`; }
   if(a.t==="arrow"){ const pin=a.pin==="plot";
     pos+=`<span></span><label class="chk"><input type="checkbox" id="pdAnPin" data-pdpin="${a.id}"${pin?" checked":""}${ro}> Pinned to the plot, not to data values</label>`;
     pos+=pin?`<label for="pdAnFx">Tail</label><div class="pair">${num("pdAnFx",+(numOr(a.fx,0.3)*100).toFixed(1),b+".fx","30",64,` data-pct`)}${num("pdAnFy",+(numOr(a.fy,0.3)*100).toFixed(1),b+".fy","30",64,` data-pct`)}<span class="lab">% across, down</span></div>`
@@ -6701,6 +6982,11 @@ function pdAnnoEditor(a,o){
     if(a.dx||a.dy!=null) pos+=`<span></span><div><button type="button" class="btn sm" data-pdact="labreset:${a.id}"${ro}>Put the text back by its mark</button></div>`; }
   if(isLine||a.t==="band") pos+=`<label>Text at</label>${seg(b+".lpos",a.t==="h"?[["left","Left"],["middle","Middle"],["right","Right"]]:[["top","Top"],["middle","Middle"],["bottom","Bottom"]],a.lpos||(a.t==="h"?"right":"top"),"Where its text goes")}`;
   const angO=a.t==="v"?[[0,"Beside the line"],[90,"Along the line"]]:[[0,"0°"],[45,"45°"],[90,"90°"],[-90,"−90°"]];
+  if(shp){ const ln2=`<label>Outline</label>${cb(b+".color",a.color,"Automatic",annoColor(a,pal,false,cfg))}<label>Style</label>${seg(b+".dash",DASH_OPTS,a.dash||"solid","Line style")}<label for="pdAnLw">Width</label>${rng("pdAnLw",a.lw!=null?a.lw:1.2,b+".lw",0,6,0.1)}`
+      +`<label>Fill</label>${cb(b+".fill",a.fill,"None","")}`+(a.fill?`<label for="pdAnOp">Opacity</label>${rng("pdAnOp",numOr(a.op,0.18),b+".op",0,1,0.01)}`:"")
+      +(a.t==="rect"?`<label for="pdAnRx">Corners</label>${rng("pdAnRx",numOr(a.rx,0),b+".rx",0,30,1," px")}`:"")+chk("pdAnBh",b+".behind",!!a.behind,"Behind the data");
+    const hd2=`${esc(ANNO_KINDS[a.t])}<button type="button" class="pd-rst" data-pdandel="${a.id}"${ro}>Delete</button>`;
+    return `<div class="pd-aned">`+grp(hd2,e)+grp("Where",pos)+grp("Outline and fill",ln2)+`</div>`; }
   let look=`<label>Turn</label><div class="pair">${seg(b+".ang",angO,ang,"Turn the text",true)}${a.t==="v"?"":num("pdAnAng",ang,b+".ang","0",58)+`<span class="lab">°</span>`}</div>`;
   look+=`<label>Box</label>${seg(b+".box",[["none","None"],["line","Outline"],["fill","Filled"],["both","Both"]],a.box||"none","A box around the text")}`;
   if(a.box==="fill"||a.box==="both") look+=`<label>Fill</label>${cb(b+".bg",a.bg,"Automatic",pal.bg)}`;
@@ -6724,11 +7010,11 @@ const FMT_AX=["ticks","tlen","mlen","tw","mirror","labs","lrot","color","lw","po
 function styleFrom(src,pl){
   const cp=v=>v===undefined||v===null?null:JSON.parse(JSON.stringify(v)), o=Object.assign({},pl);
   FMT_KEYS.forEach(k=>{ o[k]=src[k]!==undefined&&src[k]!==null?cp(src[k]):k in PLOT_DEF?cp(PLOT_DEF[k]):null; });
-  const ax={}; ["x","y","y2"].forEach(a=>{ const s=(src.ax||{})[a]||{}, t=Object.assign({},((pl.ax||{})[a])||{}); FMT_AX.forEach(k=>{ t[k]=s[k]!==undefined?cp(s[k]):null; }); ax[a]=t; }); o.ax=ax; return o;
+  const ax={}; ["x","y","y2","x2"].forEach(a=>{ const s=(src.ax||{})[a]||{}, t=Object.assign({},((pl.ax||{})[a])||{}); FMT_AX.forEach(k=>{ t[k]=s[k]!==undefined?cp(s[k]):null; }); ax[a]=t; }); o.ax=ax; return o;
 }
 // A graph's format alone, to keep or to give to other graphs.
 function fmtOf(pl){ const o={}; FMT_KEYS.forEach(k=>{ if(pl[k]!==undefined&&pl[k]!==null) o[k]=JSON.parse(JSON.stringify(pl[k])); });
-  o.ax={}; ["x","y","y2"].forEach(a=>{ const s=(pl.ax||{})[a]||{}, t={}; FMT_AX.forEach(k=>{ if(s[k]!==undefined&&s[k]!==null) t[k]=s[k]; }); o.ax[a]=t; }); return o; }
+  o.ax={}; ["x","y","y2","x2"].forEach(a=>{ const s=(pl.ax||{})[a]||{}, t={}; FMT_AX.forEach(k=>{ if(s[k]!==undefined&&s[k]!==null) t[k]=s[k]; }); o.ax[a]=t; }); return o; }
 const FMT_BUILTIN=[
   {id:"b-kurve",name:"Kurve's own",fmt:{}},
   {id:"b-journal",name:"Journal: sans serif, axes, ticks out",fmt:{frame:"l",fontFam:"arimo",titleItalic:false,legendFrame:false,txt:{title:{size:10},axis:{size:9},ticks:{size:8},legend:{size:8},labels:{size:8},peaks:{size:7.5}},ax:{x:{ticks:"out",mirror:false,tlen:4,mlen:2},y:{ticks:"out",mirror:false,tlen:4,mlen:2},y2:{ticks:"out",tlen:4,mlen:2}}}},
@@ -6737,10 +7023,35 @@ const FMT_BUILTIN=[
   {id:"b-minimal",name:"Minimal: open axes, light grid",fmt:{frame:"l",grid:true,legendFrame:false,ax:{x:{ticks:"out",mirror:false,off:6},y:{ticks:"out",mirror:false,off:6},y2:{ticks:"out",off:6}}}}];
 function fmtLib(){ try{ return JSON.parse(localStorage.getItem("kurve.formats")||"[]").filter(f=>f&&f.id&&f.name&&f.fmt); }catch(e){ return []; } }
 function fmtLibSave(list){ try{ localStorage.setItem("kurve.formats",JSON.stringify(list)); }catch(e){ toast("This browser would not keep the format."); } }
+/* A format is kept in this browser (every project opened here) or in the
+   project (p.formats: saved, shared and undone with it, so a colleague who
+   opens the project has it). */
+function projFormats(){ const p=P(); return p&&Array.isArray(p.formats)?p.formats:[]; }
+function saveProjFormats(list,log){ const p=P(); if(!p||S.readOnly) return; pushUndo("changing the project's formats"); save({formats:list.length?list:null},log); }
 async function saveFormatAs(src){
-  const r=await formDlg({title:"Save this format",html:`<div class="grid2"><label for="fdFn">Name</label><input id="fdFn" type="text" maxlength="60" placeholder="e.g. My thesis"></div><p class="hint">The frame, axes, text, legend and colours. It is kept in this browser and can be given to any graph in any project.</p>`,ok:"Save",focus:"#fdFn",valid:q=>!!q.fdFn.trim()});
-  if(!r) return null; const name=r.fdFn.trim().slice(0,60), lib=fmtLib().filter(f=>f.name!==name), f={id:"f"+Date.now().toString(36),name,at:Date.now(),fmt:fmtOf(src)};
-  fmtLibSave(lib.concat([f])); toast(`Saved the format "${name}".`); return f; }
+  const shared=!!S.room, ro=S.readOnly||!P();
+  const r=await formDlg({title:"Save this format",html:`<div class="grid2"><label for="fdFn">Name</label><input id="fdFn" type="text" maxlength="60" placeholder="e.g. My thesis"><span class="lab" style="align-self:start;padding-top:3px">Keep it</span><div class="fdk">`
+    +`<label class="chk"><input type="radio" name="fdFk" id="fdFkP"${shared&&!ro?" checked":""}${ro?" disabled":""}> In this project: whoever opens it has it</label>`
+    +`<label class="chk"><input type="radio" name="fdFk" id="fdFkB"${shared&&!ro?"":" checked"}> In this browser: for every project opened here</label></div></div>`
+    +`<p class="hint">The frame, axes, text, legend and colours: not the data, ranges, titles or labels.</p>`,ok:"Save",focus:"#fdFn",valid:q=>!!q.fdFn.trim()});
+  if(!r) return null; const name=r.fdFn.trim().slice(0,60), f={id:"f"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),name,at:Date.now(),by:S.uid||null,fmt:fmtOf(src)};
+  if(r.fdFkP&&!ro){ const had=projFormats().some(q=>q.name===name); saveProjFormats(projFormats().filter(q=>q.name!==name).concat([f]),`${had?"replaced":"saved"} the format "${name}" in the project`);
+    toast(`${had?"Replaced":"Saved"} the format "${name}" in this project.`,{action:"Undo",run:undo}); return f; }
+  const had=fmtLib().some(q=>q.name===name); fmtLibSave(fmtLib().filter(q=>q.name!==name).concat([f])); toast(`${had?"Replaced":"Saved"} the format "${name}" in this browser.`); return f; }
+async function renameFormat(f,where){
+  const r=await formDlg({title:"Rename the format",html:`<div class="grid2"><label for="fdFr">Name</label><input id="fdFr" type="text" maxlength="60" value="${esc(f.name)}"></div>`,ok:"Rename",focus:"#fdFr",valid:q=>!!q.fdFr.trim()&&q.fdFr.trim()!==f.name});
+  if(!r) return; const name=r.fdFr.trim().slice(0,60);
+  if(where==="proj") saveProjFormats(projFormats().filter(q=>q.name!==name).map(q=>q.id===f.id?Object.assign({},q,{name}):q),`renamed the format "${f.name}" to "${name}"`);
+  else fmtLibSave(fmtLib().filter(q=>q.name!==name).map(q=>q.id===f.id?Object.assign({},q,{name}):q));
+  toast(`Renamed the format to "${name}".`); }
+function copyFormat(f,to){ const c=Object.assign({},f,{id:"f"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),at:Date.now()});
+  if(to==="proj"){ if(S.readOnly||!P()) return; saveProjFormats(projFormats().filter(q=>q.name!==f.name).concat([c]),`added the format "${f.name}" to the project`); toast(`The project has the format "${f.name}": whoever opens it can use it.`); }
+  else { fmtLibSave(fmtLib().filter(q=>q.name!==f.name).concat([c])); toast(`This browser keeps the format "${f.name}" for every project.`); } }
+function deleteFormat(f,where){
+  if(where==="proj"){ saveProjFormats(projFormats().filter(q=>q.id!==f.id),`deleted the format "${f.name}" from the project`); toast(`Deleted the format "${f.name}" from this project.`,{action:"Undo",run:undo}); return; }
+  const before=fmtLib(); fmtLibSave(before.filter(q=>q.id!==f.id)); toast(`Deleted the format "${f.name}".`,{action:"Undo",run:()=>{ fmtLibSave(before); toast(`The format "${f.name}" is back.`); }}); }
+// Every format there is to use: Kurve's, the project's, this browser's.
+function allFormats(){ return FMT_BUILTIN.concat(projFormats(),fmtLib()); }
 function useFormat(f,every){
   const p=P(); if(!p||S.readOnly) return; pushUndo("formatting the graph");
   if(every&&multiGraph()) save({plot:styleFrom(f.fmt,p.plot||{}),graphs:(p.graphs||[]).map(g=>Object.assign({},g,{plot:styleFrom(f.fmt,g.plot||{})}))},`gave every graph the format "${f.name}"`);
@@ -6749,11 +7060,13 @@ function useFormat(f,every){
   toast(every?`Every graph has the format "${f.name}".`:`The graph has the format "${f.name}".`,{action:"Undo",run:undo});
 }
 function formatMenuItems(apply,src){
-  const ro=S.readOnly||!P(), lib=fmtLib(), it=f=>({label:f.name,enabled:!ro,run:()=>apply(f)});
+  const ro=S.readOnly||!P(), lib=fmtLib(), pf=projFormats(), it=f=>({label:f.name,enabled:!ro,run:()=>apply(f),note:f.by&&S.uid&&f.by!==S.uid?personName(f.by):""});
   const items=[{group:"Kurve's formats"}].concat(FMT_BUILTIN.map(it));
+  if(pf.length) items.push("-",{group:"In this project"},...pf.map(it));
   if(lib.length) items.push("-",{group:"Saved in this browser"},...lib.map(it));
   items.push("-",{label:"Save this format…",enabled:!!P(),run:()=>saveFormatAs(src())});
-  if(lib.length) items.push({label:"Delete a saved format",sub:()=>lib.map(f=>({label:f.name,danger:true,run:()=>{ fmtLibSave(fmtLib().filter(q=>q.id!==f.id)); toast(`Deleted the format "${f.name}".`); }}))});
+  if(pf.length||lib.length) items.push({label:"Saved formats",sub:()=>pf.map(f=>({label:f.name,note:"project",sub:()=>[{label:"Rename…",enabled:!ro,run:()=>renameFormat(f,"proj")},{label:"Keep it in this browser too",run:()=>copyFormat(f,"lib")},"-",{label:"Delete",danger:true,enabled:!ro,run:()=>deleteFormat(f,"proj")}]}))
+    .concat(lib.map(f=>({label:f.name,note:"browser",sub:()=>[{label:"Rename…",run:()=>renameFormat(f,"lib")},{label:"Put it in this project",enabled:!ro,run:()=>copyFormat(f,"proj")},"-",{label:"Delete",danger:true,run:()=>deleteFormat(f,"lib")}]})))});
   return items;
 }
 function formatEveryGraph(){
@@ -6782,12 +7095,15 @@ function setupPlotDetails(){
     const ac=t.closest("[data-pdact]"); if(ac){ pdAct(ac.dataset.pdact); renderPlotDetails(); return; }
     const pl=t.closest("[data-pdplace]"); if(pl&&S.pdAnno){ const [fx,fy]=pl.dataset.pdplace.split(",").map(Number);
       pdSet("annos."+S.pdAnno,{pin:"plot",fx:fx===0?0.03:fx===1?0.97:0.5,fy:fy===0?0.09:fy===1?0.94:0.5,align:fx===0?"left":fx===1?"right":"center"}); renderPlotDetails(); return; }
+    const ba=t.closest("[data-pdbrkadd]"); if(ba){ const k=ba.dataset.pdbrkadd, sg=suggestBreak(k); if(!sg) return; pdSet("ax."+k+".brk",((((wk.ax||{})[k]||{}).brk)||[]).map(q=>q.slice()).concat([sg.r])); renderPlotDetails(); return; }
+    const bd=t.closest("[data-pdbrkdel]"); if(bd){ const [k,i]=bd.dataset.pdbrkdel.split(":"), nb=((((wk.ax||{})[k]||{}).brk)||[]).filter((q,j)=>j!==+i); pdSet("ax."+k+".brk",nb.length?nb:null); renderPlotDetails(); return; }
     const del=t.closest("[data-pdandel]"); if(del){ wk.annos=(wk.annos||[]).filter(a=>a.id!==del.dataset.pdandel); if(S.pdAnno===del.dataset.pdandel) S.pdAnno=null; renderPlot(); renderPlotDetails(); return; }
     const add=t.closest("[data-pdadd]"); if(add){ const g=S.geo, v=g?g.v:curView(), d=plotState().d, k=add.dataset.pdadd;
       const cx=+((v.x0+v.x1)/2).toPrecision(6), cy=+(g&&g.logY?Math.sqrt(v.y0*v.y1):(v.y0+v.y1)/2).toPrecision(6), w=Math.abs(v.x1-v.x0);
       const a={id:annoId(),t:k,xu:d.xu||"",yu:d.yu||""}; if(GID()!=="main") a.g=GID();
       if(k==="v") a.x=cx; else if(k==="h"){ a.y=cy; delete a.xu; } else if(k==="band"){ a.x=+(cx-w*0.05).toPrecision(6); a.x2=+(cx+w*0.05).toPrecision(6); }
       else if(k==="inset"){ Object.assign(a,{x0:+(cx-w*0.08).toPrecision(6),x1:+(cx+w*0.08).toPrecision(6),y0:null,y1:null,fx:0.6,fy:0.05,fw:0.36,fh:0.4}); }
+      else if(SHAPE_T[k]){ const g2=S.geo; if(g2){ const p=toData(g2.L+g2.pw*0.35,g2.T+g2.mh*0.3), q=toData(g2.L+g2.pw*0.6,g2.T+g2.mh*0.6); a.x=+p.x.toPrecision(6); a.y=+p.y.toPrecision(6); a.x2=+q.x.toPrecision(6); a.y2=+q.y.toPrecision(6); } else { a.x=cx-w*0.1; a.y=cy; a.x2=cx+w*0.1; a.y2=cy; } }
       else if(k==="arrow"){ const g2=S.geo; if(g2){ const p=toData(g2.L+g2.pw*0.35,g2.T+g2.mh*0.25), q=toData(g2.L+g2.pw*0.5,g2.T+g2.mh*0.45); a.x=+p.x.toPrecision(6); a.y=+p.y.toPrecision(6); a.x2=+q.x.toPrecision(6); a.y2=+q.y.toPrecision(6); } else { a.x=cx; a.y=cy; a.x2=cx; a.y2=cy; } }
       else { a.x=cx; a.y=cy; a.text="Text"; }
       wk.annos=(wk.annos||[]).concat([a]); S.pdAnno=a.id; S.annoSel=a.id; renderPlot(); renderPlotDetails();
@@ -6796,7 +7112,7 @@ function setupPlotDetails(){
   const onVal=(e,final)=>{
     const el=e.target; if(S.readOnly||!S.plotPreview) return;
     if(el.dataset.pdpin!=null){ if(!final) return; const id=el.dataset.pdpin, a=(S.plotPreview.annos||[]).find(q=>q.id===id), g=S.geo; if(!a||!g) return;
-      if(a.t==="arrow"){ const e=annoEnds(a,g), d=plotState().d;
+      if(twoEnds(a)){ const e=annoEnds(a,g), d=plotState().d;
         if(el.checked) pdSet("annos."+id,{pin:"plot",fx:+((e.t.x-g.L)/g.pw).toFixed(4),fy:+((e.t.y-g.T)/g.mh).toFixed(4),fx2:+((e.h.x-g.L)/g.pw).toFixed(4),fy2:+((e.h.y-g.T)/g.mh).toFixed(4)});
         else { const p=toData(e.t.x,e.t.y), q=toData(e.h.x,e.h.y); pdSet("annos."+id,{pin:null,x:+p.x.toPrecision(7),y:+p.y.toPrecision(7),x2:+q.x.toPrecision(7),y2:+q.y.toPrecision(7),xu:d.xu||"",yu:d.yu||""}); }
         renderPlotDetails(); return; }
@@ -6816,6 +7132,8 @@ function setupPlotDetails(){
     if(el.type==="range"){ const o=el.parentElement&&el.parentElement.querySelector("output"); if(o) o.textContent=(Math.round(v*100)/100)+(o.dataset.u||""); }
     pdSet(path,v);
     if(final&&(el.tagName==="SELECT"||el.type==="checkbox")) renderPlotDetails();
+    // A text field is redrawn after its change: redrawing inside it takes the field away mid-event.
+    else if(final&&el.dataset.redraw!=null) setTimeout(()=>{ if(S.plotPreview) renderPlotDetails(); },0);
   };
   // Sliders and typed text show on the graph as they change; numbers when complete.
   body.addEventListener("input",e=>{ const el=e.target; if(el.type==="range"||el.tagName==="TEXTAREA"||(el.type==="text"&&el.dataset.pd&&el.dataset.num==null)) onVal(e,false); });
@@ -6874,9 +7192,10 @@ function renderStatusBar(){
    Graph interaction
    ============================================================ */
 function toData(px,py){ const g=S.geo; if(!g) return null; const v=g.v;
-  const t=g.revX?(g.L+g.pw-px)/g.pw:(px-g.L)/g.pw;
-  const x=g.logX?10**(Math.log10(v.x0)+t*(Math.log10(v.x1)-Math.log10(v.x0))):v.x0+t*(v.x1-v.x0);
-  let y; if(g.logY){ const a=Math.log10(v.y0), b=Math.log10(v.y1); y=10**(a+(g.T+g.mh-py)/g.mh*(b-a)); } else y=v.y0+(g.T+g.mh-py)/g.mh*(v.y1-v.y0);
+  const t=g.revX?(g.L+g.pw-px)/g.pw:(px-g.L)/g.pw, u=(g.T+g.mh-py)/g.mh;
+  // Through the axes' scales, which know their breaks.
+  const x=g.sx?g.sx.inv(t):g.logX?10**(Math.log10(v.x0)+t*(Math.log10(v.x1)-Math.log10(v.x0))):v.x0+t*(v.x1-v.x0);
+  let y; if(g.sy) y=g.sy.inv(u); else if(g.logY){ const a=Math.log10(v.y0), b=Math.log10(v.y1); y=10**(a+u*(b-a)); } else y=v.y0+u*(v.y1-v.y0);
   return {x,y,inside:px>=g.L&&px<=g.L+g.pw&&py>=g.T&&py<=g.T+g.mh}; }
 function nearest(px,py,maxd=12){ const g=S.geo; if(!g) return null; let best=null, bd=maxd*maxd;
   (S.shownPts||pointsAll()).forEach(q=>{ const dx=g.X(q.x)-px, dy=g.Y(q.y)-py, d=dx*dx+dy*dy; if(d<bd){bd=d;best=q;} }); return best; }
@@ -6935,6 +7254,9 @@ function handleTip(k){
 }
 function panTo(dr,x,y){
   const g=S.geo, v=dr.v, dxp=x-dr.x0, dyp=y-dr.y0;
+  // With breaks a pixel is worth more of the axis than its span over its width: the drag follows the pointer.
+  if(dr.brk){ const tx=g.logX?Math.log10:(q=>q), ux=g.logX?(q=>10**q):(q=>q), ty=g.logY?Math.log10:(q=>q), uy=g.logY?(q=>10**q):(q=>q), sx=dr.rx*(g.revX?-1:1);
+    S.view={x0:ux(tx(v.x0)-dxp*sx),x1:ux(tx(v.x1)-dxp*sx),y0:uy(ty(v.y0)+dyp*dr.ry),y1:uy(ty(v.y1)+dyp*dr.ry)}; renderPlot(); return; }
   const sx=(v.x1-v.x0)/g.pw*(g.revX?-1:1);
   if(g.logX){ const a=Math.log10(v.x0), b=Math.log10(v.x1), s2=(b-a)/g.pw*(g.revX?-1:1); const nx0=10**(a-dxp*s2), nx1=10**(b-dxp*s2);
     const ny=g.logY?[10**(Math.log10(v.y0)+dyp*(Math.log10(v.y1)-Math.log10(v.y0))/g.mh),10**(Math.log10(v.y1)+dyp*(Math.log10(v.y1)-Math.log10(v.y0))/g.mh)]:[v.y0+dyp*(v.y1-v.y0)/g.mh,v.y1+dyp*(v.y1-v.y0)/g.mh];
@@ -6991,7 +7313,7 @@ function setupGraph(){
     if(lgb&&canMove&&S.geo.legend){ ev.preventDefault(); svg.setPointerCapture(ev.pointerId); const le=ev.target.closest("[data-leg]");
       S.lgdrag={x0:x,y0:y,box:Object.assign({},S.geo.legend),moved:false,hit:le?"leg:"+le.dataset.leg:ev.target.closest("[data-legtitle]")?"title":"box"}; return; }
     const pan=S.mode==="pan"||ev.button===1;
-    drag={x0:x,y0:y,x1:x,y1:y,moved:false,pan,v:Object.assign({},S.geo.v)};
+    drag={x0:x,y0:y,x1:x,y1:y,moved:false,pan,v:Object.assign({},S.geo.v),rx:S.geo.rx,ry:S.geo.ry,brk:S.geo.brk};
     if(pan){ ev.preventDefault(); svg.classList.add("panning"); }
     svg.setPointerCapture(ev.pointerId);
   });
@@ -7011,6 +7333,9 @@ function setupGraph(){
       applyHandle(hd,d); hd.moved=true; renderPlot(); showTip(handleTip(hd.k),x,y); return; }
     if(drag){ drag.x1=x; drag.y1=y; if(Math.abs(x-drag.x0)+Math.abs(y-drag.y0)>5) drag.moved=true;
       if(drag.pan){ if(drag.moved) panTo(drag,x,y); hideTip(); return; }
+      if(drag.moved&&S.mode==="shape"){ let x1=x, y1=y;
+        if(ev.shiftKey){ const q=Math.max(Math.abs(x-drag.x0),Math.abs(y-drag.y0)); x1=drag.x0+(x<drag.x0?-q:q); y1=drag.y0+(y<drag.y0?-q:q); }
+        S.shapeDraft={x0:drag.x0,y0:drag.y0,x1,y1,kind:shapeKind()}; renderPlot(); return; }
       if(drag.moved&&S.mode==="arrow"){ const q=ev.altKey?null:snapNear(x,y,10); S.arrowDraft={x0:drag.x0,y0:drag.y0,x1:q?q.px:x,y1:q?q.py:y,pt:q?{x:q.x,y:q.y}:null}; renderPlot(); return; }
       if(drag.moved&&S.mode==="range"){ const g=S.geo; zr.className="zrect pick"; Object.assign(zr.style,{display:"block",left:Math.min(x,drag.x0)+"px",top:g.T+"px",width:Math.abs(x-drag.x0)+"px",height:g.mh+"px"}); }
       if(drag.moved&&(S.mode==="zoom"||S.mode==="mask")){
@@ -7033,7 +7358,7 @@ function setupGraph(){
     if(S.room&&d&&Date.now()-lastPres>90){ lastPres=Date.now(); S.room.presence(d.inside?{uid:S.uid,pid:S.pid,cx:d.x,cy:d.y}:{uid:S.uid,pid:S.pid,cx:null,cy:null}).catch(()=>{}); }
   });
   svg.addEventListener("pointerleave",()=>{ if(S.hdrag||drag) return; hideTip(); const ro=$("#readout"); if(ro) ro.textContent=""; if(S.room) S.room.presence({cx:null,cy:null}).catch(()=>{}); });
-  svg.addEventListener("pointercancel",()=>{ drag=null; S.hdrag=null; S.andrag=null; if(S.fldrag){ S.fldrag=null; renderPlot(); } S.lgdrag=null; S.bdrag=null; S.ttdrag=null; S.axdrag=null; S.arrowDraft=null; S.guides=null; S.snapRing=null; zr.style.display="none"; svg.classList.remove("panning"); });
+  svg.addEventListener("pointercancel",()=>{ drag=null; S.hdrag=null; S.andrag=null; if(S.fldrag){ S.fldrag=null; renderPlot(); } S.lgdrag=null; S.bdrag=null; S.ttdrag=null; S.axdrag=null; S.arrowDraft=null; S.shapeDraft=null; S.guides=null; S.snapRing=null; zr.style.display="none"; svg.classList.remove("panning"); });
   svg.addEventListener("pointerup",ev=>{
     if(S.bdrag){ const bd=S.bdrag; S.bdrag=null; hideTip(); S.noDbl=Date.now(); if(bd.moved){ commitBandDrag(bd); return; }
       S.bandSel=bd.id; renderPlot(); openWin("integ",{render:true}); return; }
@@ -7066,6 +7391,7 @@ function setupGraph(){
       if(hd.moved) $("#plotSay").textContent=handleTip(hd.k); return; }
     if(!drag) return; const d=drag; drag=null; zr.style.display="none"; svg.classList.remove("panning");
     if(d.pan){ if(d.moved) renderFit(); return; }
+    if(S.mode==="shape"){ const sd=S.shapeDraft; S.shapeDraft=null; if(d.moved&&sd&&Math.abs(sd.x1-sd.x0)>5&&Math.abs(sd.y1-sd.y0)>5&&!S.readOnly) makeShape(sd); else renderPlot(); return; }
     if(S.mode==="arrow"){ const ad=S.arrowDraft; S.arrowDraft=null; if(d.moved&&ad&&Math.hypot(ad.x1-ad.x0,ad.y1-ad.y0)>8&&!S.readOnly) makeArrow(ad); else renderPlot(); return; }
     if(S.mode==="range"){ if(d.moved){ const a=toData(Math.min(d.x0,d.x1),0), b=toData(Math.max(d.x0,d.x1),0); setPickedRange(Math.min(a.x,b.x),Math.max(a.x,b.x)); } return; }
     if(d.moved&&(S.mode==="zoom"||S.mode==="mask")){
@@ -7113,7 +7439,7 @@ function setupGraph(){
     S.view=nv; renderPlot(); renderFitRangeOnly();
     // The fit panel follows once the wheel settles, so its stale notes and range agree.
     clearTimeout(wheelT); wheelT=setTimeout(()=>renderFit(),240); },{passive:false});
-  document.querySelectorAll("#modeSeg button").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.mode)));
+  document.querySelectorAll("#modeSeg button").forEach(b=>b.addEventListener("click",()=>b.dataset.mode==="shape"?shapeMenu(b):setMode(b.dataset.mode)));
   $("#resetView").onclick=()=>{ S.view=null; renderPlot(); renderFit(); };
   $("#style").onchange=e=>{ const act=activeYCol(), cfg=plotCfg(); if(act&&(cfg.series[act.id]||{}).type) setSeriesStyle(act.id,{type:e.target.value}); else setStyle(e.target.value); };
   $("#layoutSel").onchange=e=>setPlotKey("layout",e.target.value,`laid the spectra out as ${(LAYOUTS.find(q=>q[0]===e.target.value)||[,""])[1].toLowerCase()}`);
@@ -7187,22 +7513,29 @@ const MODE_HINT={
   anchor:"Click to add an anchor · Drag to move · Right-click to remove · Esc when done",
   range:"Drag across the graph · Esc to cancel",
   label:"Click a peak to label it · Click an empty spot for text · Double-click to edit",
-  arrow:"Drag from where the arrow starts to what it points at · It snaps to data points (Alt: no snap) · Esc when done"
+  arrow:"Drag from where the arrow starts to what it points at · It snaps to data points (Alt: no snap) · Esc when done",
+  shape:"Drag a box · Shift: a square · Esc when done",
+  ellipse:"Drag an ellipse · Shift: a circle · Esc when done"
 };
+// The Shape tool draws a box or an ellipse, whichever was chosen last in this browser.
+function shapeKind(){ if(!S.shapeKind){ try{ S.shapeKind=localStorage.getItem("kurve.shape")==="ellipse"?"ellipse":"rect"; }catch(e){ S.shapeKind="rect"; } } return S.shapeKind; }
+function pickShape(k){ S.shapeKind=k==="ellipse"?"ellipse":"rect"; try{ localStorage.setItem("kurve.shape",S.shapeKind); }catch(e){} setMode("shape"); }
+function shapeMenu(btn){ const k=S.mode==="shape"?shapeKind():null;
+  openMenu(btn,[{group:"Shape"},{label:"Box",radio:true,checked:k==="rect",run:()=>pickShape("rect")},{label:"Ellipse",radio:true,checked:k==="ellipse",run:()=>pickShape("ellipse")}]); }
 // The toolbar keeps to one row: labels go, a stage at a time, while it would wrap.
 let fitTbT=0;
 function fitToolbar(){
   const t=document.querySelector(".toolbar"); if(!t) return;
   const wraps=()=>{ const kids=[...t.children].filter(k=>k.offsetWidth>2&&k.offsetParent!==null); if(!kids.length) return false; const top=Math.min(...kids.map(k=>k.offsetTop)); return kids.some(k=>k.offsetTop>top+k.offsetHeight*0.6); };
-  ["c1","c2","c3","c4"].forEach(c=>t.classList.remove(c));
-  for(const c of ["c1","c2","c3","c4"]){ if(!wraps()) break; t.classList.add(c); }
+  ["c1","c2","c3","c4","c5"].forEach(c=>t.classList.remove(c));
+  for(const c of ["c1","c2","c3","c4","c5"]){ if(!wraps()) break; t.classList.add(c); }
 }
 addEventListener("resize",()=>{ cancelAnimationFrame(fitTbT); fitTbT=requestAnimationFrame(fitToolbar); });
 function setMode(m,quiet){
   S.mode=m;
   document.querySelectorAll("#modeSeg button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===m)));
   $("#plot").setAttribute("class","mode-"+m);
-  const h=$("#hint"); h.textContent=MODE_HINT[m]||MODE_HINT.zoom; h.title=h.textContent;
+  const h=$("#hint"); h.textContent=(m==="shape"&&shapeKind()==="ellipse"?MODE_HINT.ellipse:MODE_HINT[m])||MODE_HINT.zoom; h.title=h.textContent;
   if(m!=="range"&&m!=="anchor") S.pick=null;
   if(quiet) return;
   if(m==="peak"&&S.stage!=null&&!S.pending){ S.stage=null; S.selStep=null; renderStages(); if(winOpen("flow")) renderFlow(); }
@@ -10219,6 +10552,7 @@ function normalize(p){ if(!p) return; const was=p.v||1;
   if(p.batch&&!p.batch.glob){ const ys=new Set((p.cols||[]).filter(c=>c.role==="y").map(c=>c.id)); if(p.batch.rows.some(r=>!r||!ys.has(r.col))) p.batch=Object.assign({},p.batch,{rows:p.batch.rows.filter(r=>r&&ys.has(r.col))}); if(!p.batch.rows.length) p.batch=null; }
   if(p.series&&typeof p.series!=="object") p.series=null;
   if(p.trends!=null) p.trends=Array.isArray(p.trends)?p.trends.filter(t=>t&&t.id&&Array.isArray(t.ys)):null;
+  if(p.formats!=null) p.formats=Array.isArray(p.formats)?p.formats.filter(f=>f&&f.id&&f.name&&f.fmt&&typeof f.fmt==="object"):null;
   // Graphs keep only spectra that still exist; a graph with none left goes.
   { const yIds=new Set((p.cols||[]).filter(c=>c.role==="y").map(c=>c.id));
     p.graphs=(Array.isArray(p.graphs)?p.graphs:[]).filter(g=>g&&g.id).map(g=>{ g.cols=(g.cols||[]).filter(k=>yIds.has(k));
@@ -10331,6 +10665,16 @@ function methodLines(){
   }
   return out;
 }
+/* What a reader of the figure must be told: the ranges a broken axis leaves
+   out, and what the second X axis converts to. */
+function figNotes(){ const cfg=plotCfg(), d=plotState().d, out=[], v=curView(), act=activeYCol();
+  const bx=cfg.layout==="heat"?[]:brkList((cfg.ax.x||{}).brk,v.x0,v.x1,cfg.logX), by=["overlay","offset"].includes(cfg.layout)?brkList((cfg.ax.y||{}).brk,v.y0,v.y1,cfg.logY):[];
+  const rng=(q,u)=>q.map(r=>`${fmt(r[0],5)} to ${fmt(r[1],5)}${u?" "+u:""}`).join(" and ");
+  if(bx.length) out.push(`The X axis leaves out ${rng(bx,d.xu)}.`);
+  if(by.length) out.push(`The Y axis leaves out ${rng(by,d.yu)}.`);
+  const a=cfg.ax.x2||{}; if(a.on){ const c=x2Conv(a,d,laserOf(act)); if(c&&!c.err){ const k=a.conv||x2Default(d), phys=k!=="lin"&&k!=="expr", L=numOr(a.laser,laserOf(act)||532), lab=axisLabel(c.name,c.unit,"X");
+    out.push(`The second X axis shows ${k==="expr"?`${String(a.f||"x").trim()}, as ${lab}`:k==="lin"?`${fmt(numOr(a.a,1),6)} x + ${fmt(numOr(a.b,0),6)}, as ${lab}`:lcFirst(lab)}${phys&&(k==="raman"||(a.from||xUnitKey(d.xn,d.xu))==="raman")?` for a laser at ${fmt(L,6)} nm`:""}.`); } }
+  return out; }
 async function exportReport(){
   const p=P(), f=activeFit();
   if(!p||(!pointsAll().length&&!rawCols().length)){ toast("There is nothing to report yet."); return; }
@@ -10351,7 +10695,7 @@ async function exportReport(){
     "pre.code{font:.78em/1.45 ui-monospace,Menlo,Consolas,monospace;background:#F5F7FA;border:1px solid #D5DCE5;border-radius:4px;padding:.5em .8em;margin:.3em 0;white-space:pre-wrap;overflow-wrap:anywhere}.thr{border-left:3px solid #D5DCE5;padding:.1em 0 .1em .9em;margin:.9em 0}.thr.done{opacity:.72}.thr p{margin:.25em 0}.rep{margin-left:1.2em}</style></head><body>",
     "<h1>"+esc2(p.name||"Analysis")+"</h1>",
     "<p class=\"meta\">"+(f?esc2((FM.composite?"Peak fit: ":"Curve fit: ")+FM.name)+(f.onColName?" · "+esc2(f.onColName):"")+" · "+esc2(new Date(f.at||Date.now()).toLocaleString()):"Processing report · "+esc2(specName(activeYCol()))+" · "+esc2(new Date().toLocaleString()))+"</p>",
-    "<h2>Figure</h2><figure>"+fig+"</figure>"];
+    "<h2>Figure</h2><figure>"+fig+(figNotes().length?"<figcaption>"+esc2(figNotes().join(" "))+"</figcaption>":"")+"</figure>"];
   if(multiGraph()){ const r=allGraphsSvg(560,380); if(r) r.svg=await embedFonts(r.svg); if(r) html.push("<h2>All graphs</h2><figure>"+r.svg+"<figcaption>"+graphIds().filter(id=>{ let n=0; withGraph(id,()=>{ n=pointsAll().length; }); return n>0; })
     .map((id,i)=>"("+String.fromCharCode(97+i%26)+") "+esc2(graphName(id))+": "+esc2(graphCols(id).map(specName).join(", "))).join("; ")+"</figcaption></figure>"); }
   // Every caveat the screen shows, in the same words: the report is what
@@ -10437,6 +10781,253 @@ function expLoad(){ try{ return Object.assign({},EXP_DEF,JSON.parse(localStorage
 function expKeep(o){ try{ localStorage.setItem("kurve.export",JSON.stringify(o)); }catch(e){} }
 const toPx=(v,u)=>u==="mm"?v/25.4*96:u==="in"?v*96:v;
 // The figure as SVG for the settings: its size in CSS pixels and how far its text is scaled.
+/* ---- PDF and EPS ---------------------------------------------------------------
+   The figure's SVG written again as a PDF page or an EPS file: paths, shapes,
+   clipping, opacity (PDF; EPS has none, so it is mixed with white), images and
+   gradients, and text in the fonts every reader has (Helvetica, Times, Courier
+   and Symbol, the nearest to the figure's), placed with those fonts' own widths
+   so text anchored at its middle or end lands where it should. The figure's own
+   font is not embedded: SVG keeps it. A character none of them has is written
+   as ? and counted. */
+const AFM_W={"Helvetica":"116.116.163.22c.22c.379.29b.bf.14d.14d.185.248.116.14d.116.116.22c.22c.22c.22c.22c.22c.22c.22c.22c.22c.116.116.248.248.248.22c.3f7.29b.29b.2d2.2d2.29b.263.30a.2d2.116.1f4.29b.22c.341.2d2.30a.29b.30a.2d2.29b.263.2d2.29b.3b0.29b.29b.263.116.116.116.1d5.22c.14d.22c.22c.1f4.22c.22c.116.22c.22c.de.de.1f4.de.341.22c.22c.22c.22c.14d.1f4.116.22c.1f4.2d2.1f4.1f4.1f4.14e.104.14e.248.116.22c.116.de.22c.14d.3e8.22c.22c.14d.3e8.29b.14d.3e8.116.263.116.116.de.de.14d.14d.15e.22c.3e8.14d.3e8.1f4.14d.3b0.116.1f4.29b.116.14d.22c.22c.22c.22c.104.22c.14d.2e1.172.22c.248.14d.2e1.14d.190.248.14d.14d.14d.22c.219.116.14d.14d.16d.22c.342.342.342.263.29b.29b.29b.29b.29b.29b.3e8.2d2.29b.29b.29b.29b.116.116.116.116.2d2.2d2.30a.30a.30a.30a.30a.248.30a.2d2.2d2.2d2.2d2.29b.29b.263.22c.22c.22c.22c.22c.22c.379.1f4.22c.22c.22c.22c.116.116.116.116.22c.22c.22c.22c.22c.22c.22c.248.263.22c.22c.22c.22c.1f4.22c.1f4","Helvetica-Bold":"116.14d.1da.22c.22c.379.2d2.ee.14d.14d.185.248.116.14d.116.116.22c.22c.22c.22c.22c.22c.22c.22c.22c.22c.14d.14d.248.248.248.263.3cf.2d2.2d2.2d2.2d2.29b.263.30a.2d2.116.22c.2d2.263.341.2d2.30a.29b.30a.2d2.29b.263.2d2.29b.3b0.29b.29b.263.14d.116.14d.248.22c.14d.22c.263.22c.263.22c.14d.263.263.116.116.22c.116.379.263.263.263.263.185.22c.14d.263.22c.30a.22c.22c.1f4.185.118.185.248.116.22c.116.116.22c.1f4.3e8.22c.22c.14d.3e8.29b.14d.3e8.116.263.116.116.116.116.1f4.1f4.15e.22c.3e8.14d.3e8.22c.14d.3b0.116.1f4.29b.116.14d.22c.22c.22c.22c.118.22c.14d.2e1.172.22c.248.14d.2e1.14d.190.248.14d.14d.14d.263.22c.116.14d.14d.16d.22c.342.342.342.263.2d2.2d2.2d2.2d2.2d2.2d2.3e8.2d2.29b.29b.29b.29b.116.116.116.116.2d2.2d2.30a.30a.30a.30a.30a.248.30a.2d2.2d2.2d2.2d2.29b.29b.263.22c.22c.22c.22c.22c.22c.379.22c.22c.22c.22c.22c.116.116.116.116.263.263.263.263.263.263.263.248.263.263.263.263.263.22c.263.22c","Times-Roman":"fa.14d.198.1f4.1f4.341.30a.b4.14d.14d.1f4.234.fa.14d.fa.116.1f4.1f4.1f4.1f4.1f4.1f4.1f4.1f4.1f4.1f4.116.116.234.234.234.1bc.399.2d2.29b.29b.2d2.263.22c.2d2.2d2.14d.185.2d2.263.379.2d2.2d2.22c.2d2.29b.22c.263.2d2.2d2.3b0.2d2.2d2.263.14d.116.14d.1d5.1f4.14d.1bc.1f4.1bc.1f4.1bc.14d.1f4.1f4.116.116.1f4.116.30a.1f4.1f4.1f4.1f4.14d.185.116.1f4.1f4.2d2.1f4.1f4.1bc.1e0.c8.1e0.21d.fa.1f4.fa.14d.1f4.1bc.3e8.1f4.1f4.14d.3e8.22c.14d.379.fa.263.fa.fa.14d.14d.1bc.1bc.15e.1f4.3e8.14d.3d4.185.14d.2d2.fa.1bc.2d2.fa.14d.1f4.1f4.1f4.1f4.c8.1f4.14d.2f8.114.1f4.234.14d.2f8.14d.190.234.12c.12c.14d.1f4.1c5.fa.14d.12c.136.1f4.2ee.2ee.2ee.1bc.2d2.2d2.2d2.2d2.2d2.2d2.379.29b.263.263.263.263.14d.14d.14d.14d.2d2.2d2.2d2.2d2.2d2.2d2.2d2.234.2d2.2d2.2d2.2d2.2d2.2d2.22c.1f4.1bc.1bc.1bc.1bc.1bc.1bc.29b.1bc.1bc.1bc.1bc.1bc.116.116.116.116.1f4.1f4.1f4.1f4.1f4.1f4.1f4.234.1f4.1f4.1f4.1f4.1f4.1f4.1f4.1f4","Times-Bold":"fa.14d.22b.1f4.1f4.3e8.341.116.14d.14d.1f4.23a.fa.14d.fa.116.1f4.1f4.1f4.1f4.1f4.1f4.1f4.1f4.1f4.1f4.14d.14d.23a.23a.23a.1f4.3a2.2d2.29b.2d2.2d2.29b.263.30a.30a.185.1f4.30a.29b.3b0.2d2.30a.263.30a.2d2.22c.29b.2d2.2d2.3e8.2d2.2d2.29b.14d.116.14d.245.1f4.14d.1f4.22c.1bc.22c.1bc.14d.1f4.22c.116.14d.22c.116.341.22c.1f4.22c.22c.1bc.185.14d.22c.1f4.2d2.1f4.1f4.1bc.18a.dc.18a.208.fa.1f4.fa.14d.1f4.1f4.3e8.1f4.1f4.14d.3e8.22c.14d.3e8.fa.29b.fa.fa.14d.14d.1f4.1f4.15e.1f4.3e8.14d.3e8.185.14d.2d2.fa.1bc.2d2.fa.14d.1f4.1f4.1f4.1f4.dc.1f4.14d.2eb.12c.1f4.23a.14d.2eb.14d.190.23a.12c.12c.14d.22c.21c.fa.14d.12c.14a.1f4.2ee.2ee.2ee.1f4.2d2.2d2.2d2.2d2.2d2.2d2.3e8.2d2.29b.29b.29b.29b.185.185.185.185.2d2.2d2.30a.30a.30a.30a.30a.23a.30a.2d2.2d2.2d2.2d2.2d2.263.22c.1f4.1f4.1f4.1f4.1f4.1f4.2d2.1bc.1bc.1bc.1bc.1bc.116.116.116.116.1f4.22c.1f4.1f4.1f4.1f4.1f4.23a.1f4.22c.22c.22c.22c.1f4.22c.1f4","Times-Italic":"fa.14d.1a4.1f4.1f4.341.30a.d6.14d.14d.1f4.2a3.fa.14d.fa.116.1f4.1f4.1f4.1f4.1f4.1f4.1f4.1f4.1f4.1f4.14d.14d.2a3.2a3.2a3.1f4.398.263.263.29b.2d2.263.263.2d2.2d2.14d.1bc.29b.22c.341.29b.2d2.263.2d2.263.1f4.22c.2d2.263.341.263.22c.22c.185.116.185.1a6.1f4.14d.1f4.1f4.1bc.1f4.1bc.116.1f4.1f4.116.116.1bc.116.2d2.1f4.1f4.1f4.1f4.185.185.116.1f4.1bc.29b.1bc.1bc.185.190.113.190.21d.fa.1f4.fa.14d.1f4.22c.379.1f4.1f4.14d.3e8.1f4.14d.3b0.fa.22c.fa.fa.14d.14d.22c.22c.15e.1f4.379.14d.3d4.185.14d.29b.fa.185.22c.fa.185.1f4.1f4.1f4.1f4.113.1f4.14d.2f8.114.1f4.2a3.14d.2f8.14d.190.2a3.12c.12c.14d.1f4.20b.fa.14d.12c.136.1f4.2ee.2ee.2ee.1f4.263.263.263.263.263.263.379.29b.263.263.263.263.14d.14d.14d.14d.2d2.29b.2d2.2d2.2d2.2d2.2d2.2a3.2d2.2d2.2d2.2d2.2d2.22c.263.1f4.1f4.1f4.1f4.1f4.1f4.1f4.29b.1bc.1bc.1bc.1bc.1bc.116.116.116.116.1f4.1f4.1f4.1f4.1f4.1f4.1f4.2a3.1f4.1f4.1f4.1f4.1f4.1bc.1f4.1bc","Times-BoldItalic":"fa.185.22b.1f4.1f4.341.30a.116.14d.14d.1f4.23a.fa.14d.fa.116.1f4.1f4.1f4.1f4.1f4.1f4.1f4.1f4.1f4.1f4.14d.14d.23a.23a.23a.1f4.340.29b.29b.29b.2d2.29b.29b.2d2.30a.185.1f4.29b.263.379.2d2.2d2.263.2d2.29b.22c.263.2d2.29b.379.29b.263.263.14d.116.14d.23a.1f4.14d.1f4.1f4.1bc.1f4.1bc.14d.1f4.22c.116.116.1f4.116.30a.22c.1f4.1f4.1f4.185.185.116.22c.1bc.29b.1f4.1bc.185.15c.dc.15c.23a.fa.1f4.fa.14d.1f4.1f4.3e8.1f4.1f4.14d.3e8.22c.14d.3b0.fa.263.fa.fa.14d.14d.1f4.1f4.15e.1f4.3e8.14d.3e8.185.14d.2d2.fa.185.263.fa.185.1f4.1f4.1f4.1f4.dc.1f4.14d.2eb.10a.1f4.25e.14d.2eb.14d.190.23a.12c.12c.14d.240.1f4.fa.14d.12c.12c.1f4.2ee.2ee.2ee.1f4.29b.29b.29b.29b.29b.29b.3b0.29b.29b.29b.29b.29b.185.185.185.185.2d2.2d2.2d2.2d2.2d2.2d2.2d2.23a.2d2.2d2.2d2.2d2.2d2.263.263.1f4.1f4.1f4.1f4.1f4.1f4.1f4.2d2.1bc.1bc.1bc.1bc.1bc.116.116.116.116.1f4.22c.1f4.1f4.1f4.1f4.1f4.23a.1f4.22c.22c.22c.22c.1bc.1f4.1bc"};
+const AFM_SYM={"α":[97,631],"β":[98,549],"γ":[103,411],"δ":[100,494],"ε":[101,439],"ζ":[122,494],"η":[104,603],"θ":[113,521],"ι":[105,329],"κ":[107,549],"λ":[108,549],"μ":[109,576],"ν":[110,521],"ξ":[120,493],"π":[112,549],"ρ":[114,549],"σ":[115,603],"ς":[86,439],"τ":[116,439],"υ":[117,576],"φ":[102,521],"ϕ":[106,603],"χ":[99,549],"ψ":[121,686],"ω":[119,686],"ϑ":[74,631],"ϖ":[118,713],"Α":[65,722],"Β":[66,667],"Γ":[71,603],"Δ":[68,612],"Ε":[69,611],"Ζ":[90,611],"Η":[72,722],"Θ":[81,741],"Ι":[73,333],"Κ":[75,722],"Λ":[76,686],"Μ":[77,889],"Ν":[78,722],"Ξ":[88,645],"Ο":[79,722],"Π":[80,768],"Ρ":[82,556],"Σ":[83,592],"Τ":[84,611],"Υ":[85,690],"Φ":[70,763],"Χ":[67,722],"Ψ":[89,795],"Ω":[87,768],"−":[45,549],"∞":[165,713],"≈":[187,549],"≤":[163,549],"≥":[179,549],"≠":[185,549],"→":[174,987],"←":[172,987],"↔":[171,1042],"↑":[173,603],"↓":[175,603],"′":[162,247],"″":[178,411],"∂":[182,494],"∑":[229,713],"∏":[213,823],"√":[214,549],"∫":[242,274],"∇":[209,713],"∝":[181,713],"≡":[186,549],"∈":[206,713],"⊥":[94,658],"∠":[208,768],"⇒":[222,987],"⇔":[219,1042],"°":[176,400],"±":[177,549],"×":[180,549],"÷":[184,549],"·":[215,250],"∼":[126,549],"∆":[68,612],"µ":[109,576]};
+const WIN_NAMES="space exclam quotedbl numbersign dollar percent ampersand quotesingle parenleft parenright asterisk plus comma hyphen period slash zero one two three four five six seven eight nine colon semicolon less equal greater question at A B C D E F G H I J K L M N O P Q R S T U V W X Y Z bracketleft backslash bracketright asciicircum underscore grave a b c d e f g h i j k l m n o p q r s t u v w x y z braceleft bar braceright asciitilde .notdef Euro .notdef quotesinglbase florin quotedblbase ellipsis dagger daggerdbl circumflex perthousand Scaron guilsinglleft OE .notdef Zcaron .notdef .notdef quoteleft quoteright quotedblleft quotedblright bullet endash emdash tilde trademark scaron guilsinglright oe .notdef zcaron Ydieresis space exclamdown cent sterling currency yen brokenbar section dieresis copyright ordfeminine guillemotleft logicalnot hyphen registered macron degree plusminus twosuperior threesuperior acute mu paragraph periodcentered cedilla onesuperior ordmasculine guillemotright onequarter onehalf threequarters questiondown Agrave Aacute Acircumflex Atilde Adieresis Aring AE Ccedilla Egrave Eacute Ecircumflex Edieresis Igrave Iacute Icircumflex Idieresis Eth Ntilde Ograve Oacute Ocircumflex Otilde Odieresis multiply Oslash Ugrave Uacute Ucircumflex Udieresis Yacute Thorn germandbls agrave aacute acircumflex atilde adieresis aring ae ccedilla egrave eacute ecircumflex edieresis igrave iacute icircumflex idieresis eth ntilde ograve oacute ocircumflex otilde odieresis divide oslash ugrave uacute ucircumflex udieresis yacute thorn ydieresis";
+const AFM_T=Object.create(null);
+function afmW(f){ return AFM_T[f]||(AFM_T[f]=AFM_W[f].split(".").map(h=>parseInt(h,16))); }
+const WIN_HI={0x20AC:128,0x201A:130,0x0192:131,0x201E:132,0x2026:133,0x2020:134,0x2021:135,0x02C6:136,0x2030:137,0x0160:138,0x2039:139,0x0152:140,0x017D:142,0x2018:145,0x2019:146,0x201C:147,0x201D:148,0x2022:149,0x2013:150,0x2014:151,0x02DC:152,0x2122:153,0x0161:154,0x203A:155,0x0153:156,0x017E:158,0x0178:159};
+const VEC_SUP={"⁰":"0","¹":"1","²":"2","³":"3","⁴":"4","⁵":"5","⁶":"6","⁷":"7","⁸":"8","⁹":"9","⁺":"+","⁻":"−","⁼":"=","⁽":"(","⁾":")","ⁿ":"n","ⁱ":"i"};
+const VEC_SUB={"₀":"0","₁":"1","₂":"2","₃":"3","₄":"4","₅":"5","₆":"6","₇":"7","₈":"8","₉":"9","₊":"+","₋":"−","₌":"=","₍":"(","₎":")"};
+const VEC_SAME={"\u2009":" ","\u202F":" ","\u2002":" ","\u2003":" ","\u2004":" ","\u2005":" ","\u2006":" ","\u2007":" ","\u2008":" ","\u200A":" ","\u2010":"-","\u2011":"-","\u212B":"Å","\u00A0":" "};
+function winCode(cp){ if(cp>=32&&cp<127) return cp; if(cp>=160&&cp<=255) return cp; return WIN_HI[cp]||null; }
+// The PostScript name of a standard font for a CSS family, weight and style.
+function vecFont(fam,b,i){ const f=String(fam||"").toLowerCase(), last=f.split(",").pop().trim().replace(/['"]/g,"");
+  const k=/mono|courier|consolas|menlo/.test(last)?"C":(last==="serif"||(!/sans/.test(last)&&/times|georgia|serif|stix|garamond|libertin|palatino/.test(f)))?"T":"H";
+  if(k==="H") return "Helvetica"+(b&&i?"-BoldOblique":b?"-Bold":i?"-Oblique":"");
+  if(k==="C") return "Courier"+(b&&i?"-BoldOblique":b?"-Bold":i?"-Oblique":"");
+  return b&&i?"Times-BoldItalic":b?"Times-Bold":i?"Times-Italic":"Times-Roman"; }
+function vecWidths(ps){ if(/^Courier/.test(ps)) return null; return afmW(ps.replace("-Oblique","").replace("-BoldOblique","-Bold")); }
+/* A run of text in pieces of one font each: codes, font, size and rise.
+   Superscript and subscript digits (cm⁻¹) are drawn raised and smaller. */
+function vecPieces(str,ps,size,miss){
+  const out=[], W=vecWidths(ps); let cur=null;
+  const push=(font,code,w,sz,rise)=>{ if(!cur||cur.font!==font||cur.size!==sz||cur.rise!==rise){ cur={font,size:sz,rise,codes:[],w:0}; out.push(cur); } cur.codes.push(code); cur.w+=w*sz/1000; };
+  for(const ch0 of String(str)){
+    let ch=VEC_SAME[ch0]||ch0, sz=size, rise=0;
+    if(VEC_SUP[ch]){ ch=VEC_SUP[ch]; sz=size*0.7; rise=size*0.36; } else if(VEC_SUB[ch]){ ch=VEC_SUB[ch]; sz=size*0.7; rise=-size*0.2; }
+    const cp=ch.codePointAt(0), wc=winCode(cp);
+    if(wc!=null&&ch!=="−"){ push(ps,wc,W?W[wc-32]:600,sz,rise); continue; }
+    const sy=AFM_SYM[ch]; if(sy){ push("Symbol",sy[0],sy[1],sz,rise); continue; }
+    miss.add(ch); push(ps,63,W?W[63-32]:600,sz,rise); }
+  return out;
+}
+function vecColor(s){ if(s==null) return null; s=String(s).trim().toLowerCase(); if(!s||s==="none"||s==="transparent") return null;
+  if(s[0]==="#"){ let h=s.slice(1); if(h.length===3||h.length===4) h=h.split("").map(c=>c+c).join(""); const n=[0,2,4].map(k=>parseInt(h.slice(k,k+2),16)/255); if(n.some(isNaN)) return null; return {c:n,a:h.length===8?parseInt(h.slice(6,8),16)/255:1}; }
+  const m=s.match(/^rgba?\(([^)]+)\)/); if(m){ const q=m[1].split(/[\s,/]+/).filter(Boolean).map(parseFloat); return {c:q.slice(0,3).map(v=>v/255),a:q.length>3?q[3]:1}; }
+  const named={black:[0,0,0],white:[1,1,1],red:[1,0,0],green:[0,0.5,0],blue:[0,0,1],gray:[0.5,0.5,0.5],grey:[0.5,0.5,0.5]};
+  return named[s]?{c:named[s],a:1}:{c:[0,0,0],a:1}; }
+// A path's d as absolute moves, lines, cubics and closes; arcs and quadratics become cubics.
+function vecPath(d){
+  const t=String(d||"").match(/[a-zA-Z]|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g)||[], ops=[];
+  let i=0, cmd="", x=0, y=0, sx=0, sy=0, cx=null, cy=null, qx=null, qy=null;
+  const num=()=>+t[i++], more=()=>i<t.length&&!/[a-zA-Z]/.test(t[i]);
+  const arc=(x1,y1,rx,ry,phi,fa,fs,x2,y2)=>{ rx=Math.abs(rx); ry=Math.abs(ry); if(!rx||!ry){ ops.push(["l",x2,y2]); return; }
+    const p=phi*Math.PI/180, cs=Math.cos(p), sn=Math.sin(p), dx=(x1-x2)/2, dy=(y1-y2)/2, x1p=cs*dx+sn*dy, y1p=-sn*dx+cs*dy;
+    let L=x1p*x1p/(rx*rx)+y1p*y1p/(ry*ry); if(L>1){ rx*=Math.sqrt(L); ry*=Math.sqrt(L); }
+    const sg=fa===fs?-1:1, num2=rx*rx*ry*ry-rx*rx*y1p*y1p-ry*ry*x1p*x1p, co=sg*Math.sqrt(Math.max(0,num2/(rx*rx*y1p*y1p+ry*ry*x1p*x1p)));
+    const cxp=co*rx*y1p/ry, cyp=-co*ry*x1p/rx, ccx=cs*cxp-sn*cyp+(x1+x2)/2, ccy=sn*cxp+cs*cyp+(y1+y2)/2;
+    const ang=(ux,uy,vx,vy)=>{ const a=Math.atan2(ux*vy-uy*vx,ux*vx+uy*vy); return a; };
+    let t1=ang(1,0,(x1p-cxp)/rx,(y1p-cyp)/ry), dt=ang((x1p-cxp)/rx,(y1p-cyp)/ry,(-x1p-cxp)/rx,(-y1p-cyp)/ry);
+    if(!fs&&dt>0) dt-=2*Math.PI; else if(fs&&dt<0) dt+=2*Math.PI;
+    const n=Math.max(1,Math.ceil(Math.abs(dt)/(Math.PI/2))), h=dt/n, k=4/3*Math.tan(h/4);
+    for(let j=0;j<n;j++){ const a0=t1+j*h, a1=a0+h, e=(a)=>[ccx+rx*Math.cos(a)*cs-ry*Math.sin(a)*sn, ccy+rx*Math.cos(a)*sn+ry*Math.sin(a)*cs], d1=(a)=>[-rx*Math.sin(a)*cs-ry*Math.cos(a)*sn, -rx*Math.sin(a)*sn+ry*Math.cos(a)*cs];
+      const p0=e(a0), p3=e(a1), q0=d1(a0), q3=d1(a1); ops.push(["c",p0[0]+k*q0[0],p0[1]+k*q0[1],p3[0]-k*q3[0],p3[1]-k*q3[1],p3[0],p3[1]]); }
+  };
+  while(i<t.length){ if(/[a-zA-Z]/.test(t[i])) cmd=t[i++]; else if(!cmd) break;
+    const rel=cmd===cmd.toLowerCase()&&cmd!=="z", C=cmd.toUpperCase(), ox=rel?x:0, oy=rel?y:0;
+    if(C==="Z"){ ops.push(["h"]); x=sx; y=sy; cx=cy=qx=qy=null; continue; }
+    if(!more()) { continue; }
+    if(C==="M"){ x=ox+num(); y=oy+num(); sx=x; sy=y; ops.push(["m",x,y]); cmd=rel?"l":"L"; }
+    else if(C==="L"){ x=ox+num(); y=oy+num(); ops.push(["l",x,y]); }
+    else if(C==="H"){ x=(rel?x:0)+num(); ops.push(["l",x,y]); }
+    else if(C==="V"){ y=(rel?y:0)+num(); ops.push(["l",x,y]); }
+    else if(C==="C"){ const a=[ox+num(),oy+num(),ox+num(),oy+num(),ox+num(),oy+num()]; ops.push(["c",...a]); cx=a[2]; cy=a[3]; x=a[4]; y=a[5]; continue; }
+    else if(C==="S"){ const r1=cx!=null?2*x-cx:x, r2=cy!=null?2*y-cy:y, a=[ox+num(),oy+num(),ox+num(),oy+num()]; ops.push(["c",r1,r2,...a]); cx=a[0]; cy=a[1]; x=a[2]; y=a[3]; continue; }
+    else if(C==="Q"||C==="T"){ let px,py; if(C==="Q"){ px=ox+num(); py=oy+num(); } else { px=qx!=null?2*x-qx:x; py=qy!=null?2*y-qy:y; } const ex=ox+num(), ey=oy+num();
+      ops.push(["c",x+2/3*(px-x),y+2/3*(py-y),ex+2/3*(px-ex),ey+2/3*(py-ey),ex,ey]); qx=px; qy=py; x=ex; y=ey; cx=cy=null; continue; }
+    else if(C==="A"){ const rx=num(), ry=num(), ph=num(), fa=num(), fs=num(), ex=ox+num(), ey=oy+num(); arc(x,y,rx,ry,ph,!!fa,!!fs,ex,ey); x=ex; y=ey; }
+    else { i++; }
+    cx=cy=qx=qy=null; }
+  return ops;
+}
+function vecTransform(s){ let m=[1,0,0,1,0,0]; const mul=(a,b)=>[a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]];
+  String(s||"").replace(/(matrix|translate|scale|rotate|skewX|skewY)\s*\(([^)]*)\)/g,(_,k,a)=>{ const v=a.split(/[\s,]+/).filter(Boolean).map(Number); let q=[1,0,0,1,0,0];
+    if(k==="matrix"&&v.length===6) q=v; else if(k==="translate") q=[1,0,0,1,v[0]||0,v[1]||0]; else if(k==="scale") q=[v[0],0,0,v.length>1?v[1]:v[0],0,0];
+    else if(k==="rotate"){ const r=(v[0]||0)*Math.PI/180, c=Math.cos(r), s2=Math.sin(r), cx=v[1]||0, cy=v[2]||0; q=mul(mul([1,0,0,1,cx,cy],[c,s2,-s2,c,0,0]),[1,0,0,1,-cx,-cy]); }
+    else if(k==="skewX") q=[1,0,Math.tan((v[0]||0)*Math.PI/180),1,0,0]; else if(k==="skewY") q=[1,Math.tan((v[0]||0)*Math.PI/180),0,1,0,0];
+    m=mul(m,q); return ""; });
+  return m; }
+// Every image the figure holds, as RGB and alpha bytes, before the synchronous walk.
+async function vecImages(doc){
+  const out=new Map();
+  for(const el of doc.querySelectorAll("image")){ const href=el.getAttribute("href")||el.getAttribute("xlink:href"); if(!href||out.has(href)) continue;
+    try{ const img=new Image(); await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; img.src=href; });
+      const w=img.naturalWidth, h=img.naturalHeight, c=document.createElement("canvas"); c.width=w; c.height=h; const g=c.getContext("2d"); g.drawImage(img,0,0); const px=g.getImageData(0,0,w,h).data;
+      const rgb=new Uint8Array(w*h*3), a=new Uint8Array(w*h); let anyA=false;
+      for(let k=0,j=0;k<w*h;k++,j+=4){ rgb[k*3]=px[j]; rgb[k*3+1]=px[j+1]; rgb[k*3+2]=px[j+2]; a[k]=px[j+3]; if(px[j+3]<255) anyA=true; }
+      out.set(href,{w,h,rgb,a:anyA?a:null}); }catch(e){ } }
+  return out;
+}
+async function vecDeflate(u8){ if(typeof CompressionStream==="undefined") return null;
+  try{ const cs=new CompressionStream("deflate"), wr=cs.writable.getWriter(); wr.write(u8); wr.close(); return new Uint8Array(await new Response(cs.readable).arrayBuffer()); }catch(e){ return null; } }
+const vecAsc=s=>{ const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i)&255; return u; };
+const vecStr=codes=>"("+codes.map(c=>c===40||c===41||c===92?"\\"+String.fromCharCode(c):c>=32&&c<127?String.fromCharCode(c):"\\"+c.toString(8).padStart(3,"0")).join("")+")";
+/* The walk: kind "pdf" or "eps"; size in points; the SVG's own units are
+   scaled to it. Returns a Blob and the characters written as ?. */
+async function svgToVector(svg,o){
+  const kind=o.kind==="eps"?"eps":"pdf", doc=new DOMParser().parseFromString(svg,"image/svg+xml"), root=doc.documentElement;
+  if(!root||root.nodeName!=="svg") throw new Error("not an SVG");
+  const vb=(root.getAttribute("viewBox")||"").split(/[\s,]+/).map(Number), VW=vb.length===4&&vb[2]>0?vb[2]:+root.getAttribute("width")||100, VH=vb.length===4&&vb[3]>0?vb[3]:+root.getAttribute("height")||100;
+  const Wpt=o.wPt||VW*0.75, Hpt=o.hPt||VH*0.75, sx=Wpt/VW, sy=Hpt/VH;
+  const imgs=await vecImages(doc), byId=Object.create(null); doc.querySelectorAll("[id]").forEach(el=>{ byId[el.getAttribute("id")]=el; });
+  const miss=new Set(), fonts=new Map(), gstates=new Map(), xobj=[];
+  const n=v=>{ let r=Math.round(v*1000)/1000; if(!Number.isFinite(r)) r=0; r=Math.max(-1e8,Math.min(1e8,r)); return Object.is(r,-0)?"0":String(r); };
+  const out=[]; const w=s=>out.push(s);
+  const pdf=kind==="pdf";
+  const fontRef=ps=>{ if(!fonts.has(ps)) fonts.set(ps,"F"+(fonts.size+1)); return fonts.get(ps); };
+  const gsRef=(ca,CA)=>{ const k=n(ca)+","+n(CA); if(!gstates.has(k)) gstates.set(k,{n:"G"+(gstates.size+1),ca,CA}); return gstates.get(k).n; };
+  // EPS has no transparency: a colour is mixed with white by its opacity.
+  const mix=(c,a)=>pdf||a>=1?c:c.map(v=>1-(1-v)*a);
+  const setFill=(c,a)=>pdf?`${n(c[0])} ${n(c[1])} ${n(c[2])} rg`:`${n(mix(c,a)[0])} ${n(mix(c,a)[1])} ${n(mix(c,a)[2])} setrgbcolor`;
+  const setStroke=(c,a)=>pdf?`${n(c[0])} ${n(c[1])} ${n(c[2])} RG`:`${n(mix(c,a)[0])} ${n(mix(c,a)[1])} ${n(mix(c,a)[2])} setrgbcolor`;
+  const pathOps=ops=>ops.map(q=>q[0]==="m"?`${n(q[1])} ${n(q[2])} ${pdf?"m":"moveto"}`:q[0]==="l"?`${n(q[1])} ${n(q[2])} ${pdf?"l":"lineto"}`:q[0]==="c"?`${q.slice(1).map(n).join(" ")} ${pdf?"c":"curveto"}`:(pdf?"h":"closepath")).join("\n");
+  const save=()=>w(pdf?"q":"gsave"), restore=()=>w(pdf?"Q":"grestore");
+  const concat=m=>w(pdf?`${m.map(n).join(" ")} cm`:`[${m.map(n).join(" ")}] concat`);
+  const ellipseOps=(cx,cy,rx,ry)=>{ const k=0.5522847498; return [["m",cx+rx,cy],["c",cx+rx,cy+k*ry,cx+k*rx,cy+ry,cx,cy+ry],["c",cx-k*rx,cy+ry,cx-rx,cy+k*ry,cx-rx,cy],["c",cx-rx,cy-k*ry,cx-k*rx,cy-ry,cx,cy-ry],["c",cx+k*rx,cy-ry,cx+rx,cy-k*ry,cx+rx,cy],["h"]]; };
+  const rectOps=(x,y,wd,ht,rx,ry)=>{ if(!(wd>0&&ht>0)) return []; rx=Math.min(rx||0,wd/2); ry=Math.min(ry==null?rx:ry,ht/2); if(!rx||!ry) return [["m",x,y],["l",x+wd,y],["l",x+wd,y+ht],["l",x,y+ht],["h"]];
+    const k=0.5522847498; return [["m",x+rx,y],["l",x+wd-rx,y],["c",x+wd-rx+k*rx,y,x+wd,y+ry-k*ry,x+wd,y+ry],["l",x+wd,y+ht-ry],["c",x+wd,y+ht-ry+k*ry,x+wd-rx+k*rx,y+ht,x+wd-rx,y+ht],["l",x+rx,y+ht],["c",x+rx-k*rx,y+ht,x,y+ht-ry+k*ry,x,y+ht-ry],["l",x,y+ry],["c",x,y+ry-k*ry,x+rx-k*rx,y,x+rx,y],["h"]]; };
+  const A=(el,k)=>{ let v=el.getAttribute(k); if(v==null){ const st=el.getAttribute("style"); if(st){ const m=st.match(new RegExp("(?:^|;)\\s*"+k+"\\s*:\\s*([^;]+)")); if(m) v=m[1].trim(); } } return v; };
+  const INH=["fill","stroke","stroke-width","stroke-dasharray","stroke-linecap","stroke-linejoin","fill-opacity","stroke-opacity","font-family","font-size","font-weight","font-style","text-anchor","text-decoration","paint-order"];
+  const styleOf=(el,par)=>{ const s=Object.assign({},par); INH.forEach(k=>{ const v=A(el,k); if(v!=null&&v!=="inherit") s[k]=v; }); const op=A(el,"opacity"); if(op!=null) s.op=(s.op==null?1:s.op)*(+op); return s; };
+  const shapeOps=el=>{ const g=k=>+(el.getAttribute(k)||0), tg=el.tagName;
+    if(tg==="path") return vecPath(el.getAttribute("d")); if(tg==="rect") return rectOps(g("x"),g("y"),g("width"),g("height"),el.hasAttribute("rx")?g("rx"):null,el.hasAttribute("ry")?g("ry"):null);
+    if(tg==="circle") return g("r")>0?ellipseOps(g("cx"),g("cy"),g("r"),g("r")):[]; if(tg==="ellipse") return g("rx")>0&&g("ry")>0?ellipseOps(g("cx"),g("cy"),g("rx"),g("ry")):[];
+    if(tg==="line") return [["m",g("x1"),g("y1")],["l",g("x2"),g("y2")]];
+    if(tg==="polyline"||tg==="polygon"){ const p=(el.getAttribute("points")||"").split(/[\s,]+/).filter(Boolean).map(Number), ops=[]; for(let i=0;i+1<p.length;i+=2) ops.push([i?"l":"m",p[i],p[i+1]]); if(tg==="polygon"&&ops.length) ops.push(["h"]); return ops; }
+    return []; };
+  const clipWith=ref=>{ const m=String(ref||"").match(/url\(#([^)]+)\)/), cp=m&&byId[m[1]]; if(!cp) return false; let ops=[];
+    [...cp.children].forEach(ch=>{ const t=vecTransform(ch.getAttribute("transform")); let q=shapeOps(ch); if(ch.getAttribute("transform")) q=q.map(o=>o[0]==="h"?o:[o[0],...o.slice(1).reduce((a,v,i,arr)=>{ if(i%2===0){ const X=arr[i], Y=arr[i+1]; a.push(t[0]*X+t[2]*Y+t[4],t[1]*X+t[3]*Y+t[5]); } return a; },[])]); ops=ops.concat(q); });
+    if(!ops.length) return false; w(pathOps(ops)); w(pdf?"W n":"clip newpath"); return true; };
+  const gradFill=(el,ref,ops,st)=>{ const m=String(ref).match(/url\(#([^)]+)\)/), gr=m&&byId[m[1]]; if(!gr) return;
+    const stops=[...gr.querySelectorAll("stop")].map(s=>({o:parseFloat(s.getAttribute("offset"))||0,c:(vecColor(s.getAttribute("stop-color"))||{c:[0,0,0]}).c})).sort((a,b)=>a.o-b.o); if(!stops.length) return;
+    const at=t=>{ t=Math.max(0,Math.min(1,t)); let i=1; while(i<stops.length-1&&t>stops[i].o) i++; const a=stops[Math.max(0,i-1)], b=stops[Math.min(stops.length-1,i)], f=b.o>a.o?(t-a.o)/(b.o-a.o):0; return a.c.map((v,k)=>v+(b.c[k]-v)*Math.max(0,Math.min(1,f))); };
+    const fx=k=>{ const v=gr.getAttribute(k); return v==null?(k==="x2"?1:0):String(v).endsWith("%")?parseFloat(v)/100:+v; }, x1=fx("x1"), y1=fx("y1"), x2=fx("x2"), y2=fx("y2");
+    let bx=Infinity,by=Infinity,bX=-Infinity,bY=-Infinity; ops.forEach(q=>{ for(let i=1;i+1<q.length;i+=2){ bx=Math.min(bx,q[i]); bX=Math.max(bX,q[i]); by=Math.min(by,q[i+1]); bY=Math.max(bY,q[i+1]); } }); if(!(bX>bx&&bY>by)) return;
+    const N=64, vert=Math.abs(y2-y1)>=Math.abs(x2-x1); save(); w(pathOps(ops)); w(pdf?"W n":"clip newpath");
+    for(let k=0;k<N;k++){ const f0=k/N, f1=(k+1)/N, mid=(f0+f1)/2, t=vert?(mid-y1)/((y2-y1)||1):(mid-x1)/((x2-x1)||1), c=at(t), op=st.op==null?1:st.op;
+      const r=vert?[bx,by+f0*(bY-by),bX-bx,(f1-f0)*(bY-by)+0.3]:[bx+f0*(bX-bx),by,(f1-f0)*(bX-bx)+0.3,bY-by]; w(setFill(c,op)); w(pathOps(rectOps(...r))); w(pdf?"f":"fill"); }
+    restore(); };
+  // Fill and stroke one shape with its style.
+  const paint=(el,ops,st)=>{ if(!ops.length) return; const op=st.op==null?1:st.op, tg=el.tagName;
+    const fillV=tg==="line"||tg==="polyline"&&st.fill==null?null:(st.fill==null?"black":st.fill), strokeV=st.stroke;
+    if(fillV&&/^url\(/.test(fillV)) gradFill(el,fillV,ops,st);
+    const fc=fillV&&!/^url\(/.test(fillV)?vecColor(fillV):null, sc=vecColor(strokeV), sw=st["stroke-width"]==null?1:parseFloat(st["stroke-width"]);
+    const fa=fc?fc.a*op*(st["fill-opacity"]==null?1:+st["fill-opacity"]):0, sa=sc?sc.a*op*(st["stroke-opacity"]==null?1:+st["stroke-opacity"]):0;
+    const doF=fc&&fa>0.001, doS=sc&&sa>0.001&&sw>0; if(!doF&&!doS) return;
+    save();
+    if(pdf&&((doF&&fa<1)||(doS&&sa<1))) w(`/${gsRef(doF?fa:1,doS?sa:1)} gs`);
+    if(doS){ w(`${n(sw)} ${pdf?"w":"setlinewidth"}`); const cap={round:1,square:2}[st["stroke-linecap"]]||0, jn={round:1,bevel:2}[st["stroke-linejoin"]]||0; if(cap) w(`${cap} ${pdf?"J":"setlinecap"}`); if(jn) w(`${jn} ${pdf?"j":"setlinejoin"}`);
+      const da=String(st["stroke-dasharray"]||"none"); if(da!=="none"){ const arr=da.split(/[\s,]+/).map(parseFloat).filter(v=>v>=0); if(arr.length&&arr.some(v=>v>0)) w(`[${arr.map(n).join(" ")}] 0 ${pdf?"d":"setdash"}`); } }
+    if(pdf){ if(doF) w(setFill(fc.c,fa)); if(doS) w(setStroke(sc.c,sa)); w(pathOps(ops)); w(doF&&doS?"B":doF?"f":"S"); }
+    else { w(pathOps(ops)); if(doF&&doS){ w("gsave"); w(setFill(fc.c,fa)); w("fill grestore"); w(setStroke(sc.c,sa)); w("stroke"); } else if(doF){ w(setFill(fc.c,fa)); w("fill"); } else { w(setStroke(sc.c,sa)); w("stroke"); } }
+    restore(); };
+  // Text: lines (chunks) of runs, each anchored as a whole, drawn in the standard fonts.
+  const text=(el,st0)=>{ const chunks=[]; let cur=null, py=0;
+    const start=(x,y)=>{ cur={x,y,runs:[]}; chunks.push(cur); py=y; };
+    start(parseFloat(el.getAttribute("x"))||0,parseFloat(el.getAttribute("y"))||0);
+    const walk=(node,st)=>{ [...node.childNodes].forEach(ch=>{ if(ch.nodeType===3){ const s=ch.nodeValue.replace(/[\n\r\t]/g," ").replace(/ {2,}/g," "); if(s) cur.runs.push({s,st,y:py}); }
+      else if(ch.nodeType===1&&ch.tagName==="tspan"){ const s2=styleOf(ch,st), dy=parseFloat(ch.getAttribute("dy"))||0;
+        if(ch.hasAttribute("x")) start(parseFloat(ch.getAttribute("x"))||0,py+dy); else py+=dy; walk(ch,s2); } }); };
+    walk(el,st0);
+    chunks.forEach(c=>{ if(!c.runs.length) return; c.runs[0].s=c.runs[0].s.replace(/^ +/,""); const l=c.runs[c.runs.length-1]; l.s=l.s.replace(/ +$/,"");
+      const pcs=[]; c.runs.forEach(r=>{ const fs=parseFloat(r.st["font-size"])||16, ps=vecFont(r.st["font-family"],/bold|[6-9]00/.test(String(r.st["font-weight"]||"")),/italic|oblique/.test(String(r.st["font-style"]||"")));
+        vecPieces(r.s,ps,fs,miss).forEach(p=>pcs.push(Object.assign(p,{y:r.y,st:r.st}))); });
+      const wd=pcs.reduce((s,p)=>s+p.w,0), an=st0["text-anchor"]||"start"; let x=c.x-(an==="middle"?wd/2:an==="end"?wd:0);
+      pcs.forEach(p=>{ const st=p.st, fc=vecColor(st.fill==null?"black":st.fill), sc=vecColor(st.stroke), op=st.op==null?1:st.op, sw=parseFloat(st["stroke-width"])||0, y=p.y-p.rise, s=vecStr(p.codes);
+        const fname=fontRef(p.font), halo=sc&&sw>0&&String(st["paint-order"]||"").startsWith("stroke");
+        const draw=(mode)=>{ if(pdf){ w(`BT /${fname} ${n(p.size)} Tf ${mode} Tr 1 0 0 -1 ${n(x)} ${n(y)} Tm ${s} Tj ET`); }
+          else { w(`/${p.font==="Symbol"?"Symbol":p.font+"-K"} ${n(p.size)} selectfont gsave ${n(x)} ${n(y)} translate 1 -1 scale 0 0 moveto ${s} ${mode===1?"false charpath stroke":"show"} grestore`); } };
+        if(halo){ save(); if(pdf&&op<1) w(`/${gsRef(1,op)} gs`); w(`${n(sw)} ${pdf?"w":"setlinewidth"} 1 ${pdf?"j":"setlinejoin"}`); w(setStroke(sc.c,sc.a*op)); draw(1); restore(); }
+        if(fc){ save(); if(pdf&&fc.a*op<1) w(`/${gsRef(fc.a*op,1)} gs`); w(setFill(fc.c,fc.a*op)); draw(0);
+          if(/underline/.test(String(st["text-decoration"]||""))){ w(pathOps(rectOps(x,y+p.size*0.1,p.w,p.size*0.06))); w(pdf?"f":"fill"); } restore(); }
+        x+=p.w; }); }); };
+  const image=(el,st)=>{ const href=el.getAttribute("href")||el.getAttribute("xlink:href"), im=imgs.get(href); if(!im) return;
+    const x=+el.getAttribute("x")||0, y=+el.getAttribute("y")||0, wd=+el.getAttribute("width")||im.w, ht=+el.getAttribute("height")||im.h;
+    if(pdf){ const k=xobj.length+1; xobj.push(Object.assign({name:"Im"+k},im)); save(); w(`${n(wd)} 0 0 ${n(-ht)} ${n(x)} ${n(y+ht)} cm /Im${k} Do`); restore(); return; }
+    // EPS: the pixels as hex, transparent ones mixed with white.
+    save(); w(`${n(x)} ${n(y)} translate ${n(wd)} ${n(ht)} scale`); w(`/picstr ${im.w*3} string def`);
+    w(`${im.w} ${im.h} 8 [${im.w} 0 0 ${im.h} 0 0] {currentfile picstr readhexstring pop} false 3 colorimage`);
+    let line=""; const H=v=>(v<16?"0":"")+v.toString(16), lines=[];
+    for(let k=0;k<im.w*im.h;k++){ const a=im.a?im.a[k]/255:1; for(let c=0;c<3;c++){ line+=H(Math.round(255-(255-im.rgb[k*3+c])*a)); } if(line.length>=120){ lines.push(line); line=""; } }
+    if(line) lines.push(line); w(lines.join("\n")); restore(); };
+  const node=(el,st)=>{ if(el.nodeType!==1) return; const tg=el.tagName;
+    if(tg==="defs"||tg==="clipPath"||tg==="linearGradient"||tg==="radialGradient"||tg==="title"||tg==="desc"||tg==="style"||tg==="metadata") return;
+    if(A(el,"display")==="none"||A(el,"visibility")==="hidden") return;
+    const s=styleOf(el,st), tr=el.getAttribute("transform"), cl=el.getAttribute("clip-path"), nested=tg==="svg"&&el!==root;
+    const wrap=!!(tr||cl||nested); if(wrap) save();
+    if(nested){ const x=+el.getAttribute("x")||0, y=+el.getAttribute("y")||0, wd=+el.getAttribute("width")||0, ht=+el.getAttribute("height")||0, v=(el.getAttribute("viewBox")||"").split(/[\s,]+/).map(Number);
+      concat([1,0,0,1,x,y]); if(v.length===4&&v[2]>0&&v[3]>0){ concat([wd/v[2],0,0,ht/v[3],-v[0]*wd/v[2],-v[1]*ht/v[3]]); w(pathOps(rectOps(v[0],v[1],v[2],v[3]))); } else w(pathOps(rectOps(0,0,wd,ht))); w(pdf?"W n":"clip newpath"); }
+    if(tr) concat(vecTransform(tr));
+    if(cl) clipWith(cl);
+    if(tg==="g"||tg==="svg"||tg==="a") [...el.children].forEach(ch=>node(ch,s));
+    else if(tg==="text") text(el,s);
+    else if(tg==="image") image(el,s);
+    else paint(el,shapeOps(el),s);
+    if(wrap) restore(); };
+  // The SVG's units to points, with Y down as in SVG.
+  save(); concat([sx,0,0,-sy,0,Hpt]); if(vb.length===4&&(vb[0]||vb[1])) concat([1,0,0,1,-vb[0],-vb[1]]);
+  w(pathOps(rectOps(vb.length===4?vb[0]:0,vb.length===4?vb[1]:0,VW,VH))); w(pdf?"W n":"clip newpath");
+  [...root.children].forEach(ch=>node(ch,{}));
+  restore();
+  const body=out.join("\n");
+  if(!pdf){ // EPS: a prolog that gives the text fonts the Windows (WinAnsi) encoding the widths were measured in.
+    const names=WIN_NAMES.split(" "), enc=["/.notdef"]; const encArr=[]; for(let c=0;c<256;c++) encArr.push(c>=32&&names[c-32]?"/"+names[c-32]:"/.notdef");
+    const used=[...fonts.keys()].filter(f=>f!=="Symbol");
+    const head=["%!PS-Adobe-3.0 EPSF-3.0",`%%BoundingBox: 0 0 ${Math.ceil(Wpt)} ${Math.ceil(Hpt)}`,`%%HiResBoundingBox: 0 0 ${n(Wpt)} ${n(Hpt)}`,`%%Title: ${String(o.title||"Figure").replace(/[\r\n]/g," ").slice(0,120)}`,"%%Creator: Kurve",`%%CreationDate: ${new Date().toISOString()}`,"%%LanguageLevel: 2",
+      `%%DocumentNeededResources: ${[...fonts.keys()].map(f=>"font "+f).join(" ")||"(none)"}`,"%%EndComments","%%BeginProlog",
+      "/KurveEnc ["+encArr.join(" ")+"] def","/ReEncode { findfont dup length dict begin { 1 index /FID eq {pop pop} {def} ifelse } forall /Encoding KurveEnc def currentdict end definefont pop } bind def",
+      ...used.map(f=>`/${f}-K /${f} ReEncode`),"%%EndProlog","save"];
+    const s=head.join("\n")+"\n"+body+"\nrestore\nshowpage\n%%EOF\n";
+    return {blob:new Blob([s],{type:"application/postscript"}),miss:[...miss]}; }
+  // PDF: catalogue, page, content (deflated if the browser can), fonts, opacity states, images.
+  const objs=[]; const add=parts=>{ objs.push(parts); return objs.length; };
+  const content=vecAsc(body), cz=await vecDeflate(content);
+  const enc=s=>vecAsc(s), streamObj=(dict,data,filt)=>[enc(`<< ${dict}${filt?" /Filter /FlateDecode":""} /Length ${data.length} >>\nstream\n`),data,enc("\nendstream")];
+  const catalog=add(null), pages=add(null), page=add(null), cont=add(streamObj("",cz||content,!!cz));
+  const fontObjs=[...fonts.entries()].map(([ps,nm])=>[nm,add([enc(ps==="Symbol"?`<< /Type /Font /Subtype /Type1 /BaseFont /Symbol >>`:`<< /Type /Font /Subtype /Type1 /BaseFont /${ps} /Encoding /WinAnsiEncoding >>`)])]);
+  const gsObjs=[...gstates.values()].map(g=>[g.n,add([enc(`<< /Type /ExtGState /ca ${n(g.ca)} /CA ${n(g.CA)} >>`)])]);
+  const imObjs=[]; for(const im of xobj){ let sm=null; if(im.a){ const az=await vecDeflate(im.a); sm=add(streamObj(`/Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceGray /BitsPerComponent 8`,az||im.a,!!az)); }
+    const rz=await vecDeflate(im.rgb); imObjs.push([im.name,add(streamObj(`/Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8${sm?` /SMask ${sm} 0 R`:""}`,rz||im.rgb,!!rz))]); }
+  const res=`/Resources << /ProcSet [/PDF /Text /ImageC /ImageB]${fontObjs.length?` /Font << ${fontObjs.map(([k,i])=>`/${k} ${i} 0 R`).join(" ")} >>`:""}${gsObjs.length?` /ExtGState << ${gsObjs.map(([k,i])=>`/${k} ${i} 0 R`).join(" ")} >>`:""}${imObjs.length?` /XObject << ${imObjs.map(([k,i])=>`/${k} ${i} 0 R`).join(" ")} >>`:""} >>`;
+  // The title in UTF-16, so a project named in any script keeps its name.
+  const ttl="<FEFF"+[...String(o.title||"Figure").slice(0,120)].map(ch=>{ let h=""; for(let i=0;i<ch.length;i++) h+=ch.charCodeAt(i).toString(16).padStart(4,"0"); return h; }).join("").toUpperCase()+">", d=new Date(), pd=v=>String(v).padStart(2,"0");
+  const info=add([enc(`<< /Title ${ttl} /Creator (Kurve) /Producer (Kurve) /CreationDate (D:${d.getUTCFullYear()}${pd(d.getUTCMonth()+1)}${pd(d.getUTCDate())}${pd(d.getUTCHours())}${pd(d.getUTCMinutes())}${pd(d.getUTCSeconds())}Z) >>`)]);
+  objs[catalog-1]=[enc(`<< /Type /Catalog /Pages ${pages} 0 R >>`)]; objs[pages-1]=[enc(`<< /Type /Pages /Kids [${page} 0 R] /Count 1 >>`)];
+  objs[page-1]=[enc(`<< /Type /Page /Parent ${pages} 0 R /MediaBox [0 0 ${n(Wpt)} ${n(Hpt)}] /Contents ${cont} 0 R ${res} >>`)];
+  const parts=[enc("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n")], offs=[]; let pos=parts[0].length;
+  objs.forEach((o2,i)=>{ offs.push(pos); const h=enc(`${i+1} 0 obj\n`); parts.push(h); pos+=h.length; o2.forEach(u=>{ parts.push(u); pos+=u.length; }); const e=enc("\nendobj\n"); parts.push(e); pos+=e.length; });
+  const xref=pos; let x=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`+offs.map(v=>String(v).padStart(10,"0")+" 00000 n \n").join("");
+  x+=`trailer\n<< /Size ${objs.length+1} /Root ${catalog} 0 R /Info ${info} 0 R >>\nstartxref\n${xref}\n%%EOF\n`; parts.push(enc(x));
+  return {blob:new Blob(parts,{type:"application/pdf"}),miss:[...miss]};
+}
+// The figure as on screen, or every graph as one figure, as a PDF or an EPS.
+async function exportVec(kind,all){
+  const p=P(); if(!p) return; let svg, nm;
+  if(all){ const r=allGraphsSvg(560,380); if(!r){ toast("There is no data to export."); return; } svg=r.svg; nm=safeName(p.name,"_graphs."+kind); }
+  else { if(!pointsAll().length){ toast("There is no data to export."); return; } svg=buildPlot(820,activeFit()&&GP().resid!==false?640:540,EXPORT_PAL,true); nm=safeName(figName(),"."+kind); }
+  try{ const res=await svgToVector(svg,{kind,title:p.name}), ok=await saveFile(nm,res.blob,kind==="pdf"?"application/pdf":"application/postscript");
+    if(ok) toast((ok==="dialog"?"Figure saved.":`Sent ${nm} to your downloads.`)+vecMissNote(res.miss)); }
+  catch(e){ toast(`The figure could not be written as ${kind.toUpperCase()}: ${e.message}`); } }
+const vecMissNote=m=>m.length?` ${m.length===1?"One character":m.length+" characters"} (${m.slice(0,6).join(" ")}) had no match in the standard fonts and read ?; SVG keeps ${m.length===1?"it":"them"}.`:"";
 function expBuild(o){
   const p=P(); if(!p) return null; const all=o.which==="all"&&multiGraph();
   const Wp=Math.max(80,Math.round(toPx(+o.w||85,o.unit))), Hp=Math.max(60,Math.round(toPx(+o.h||60,o.unit)));
@@ -10492,7 +11083,7 @@ function tiffEncode(rgba,w,h,dpi,alpha){
   return new Blob([buf],{type:"image/tiff"});
 }
 function expInfo(o,r){
-  const raster=o.fmt!=="svg", k=o.unit==="px"?1:(+o.dpi||300)/96, pxW=Math.round(r.W*k), pxH=Math.round(r.H*k), cfg=plotCfg(), t=(cfg.txt||{}).ticks||{};
+  const raster=o.fmt==="png"||o.fmt==="tiff", k=o.unit==="px"?1:(+o.dpi||300)/96, pxW=Math.round(r.W*k), pxH=Math.round(r.H*k), cfg=plotCfg(), t=(cfg.txt||{}).ticks||{};
   const tickPt=o.pt==="graph"?PT(t.size>0?t.size*4/3:(r.W<480?11.5:13)*Math.max(0.5,Math.min(3,+cfg.font||1))):+o.pt;
   const size=o.unit==="px"?`${r.W} × ${r.H} px`:`${(+o.w).toFixed(o.unit==="in"?2:0)} × ${(+o.h).toFixed(o.unit==="in"?2:0)} ${o.unit}`;
   return {pxW,pxH,text:`${size}${raster&&o.unit!=="px"?` · ${pxW} × ${pxH} px at ${o.dpi} dpi`:""} · tick numbers ${tickPt} pt`,big:raster&&(pxW>16000||pxH>16000||pxW*pxH>2.5e8)};
@@ -10513,12 +11104,12 @@ function renderExportFigure(){
     <label for="expH">Height</label><div class="pair"><input id="expH" type="text" inputmode="decimal" value="${esc(String(+(+o.h).toFixed(o.unit==="in"?3:1)))}" style="width:90px"><button type="button" class="btn sm" id="expAspect" title="The proportions of the graph on screen">As on screen</button></div>
     <label for="expPt">Tick numbers</label><div class="pair">${opt("expPt",[["graph","As on the graph"]].concat([5,6,7,8,9,10,11,12,14,16,18,20,24,28].map(v=>[String(v),v+" pt"])),o.pt)}</div>
     <span></span><span class="pd-note">At the printed size; every other text keeps its size beside them.</span>
-    <label>Format</label><div class="seg mini" role="group" aria-label="Format">${[["svg","SVG"],["png","PNG"],["tiff","TIFF"]].map(([k,l])=>`<button type="button" data-expfmt="${k}" aria-pressed="${o.fmt===k}">${l}</button>`).join("")}</div>
-    ${o.fmt!=="svg"?`<label for="expDpi">Resolution</label>${opt("expDpi",[[150,"150 dpi"],[300,"300 dpi"],[600,"600 dpi"],[1200,"1200 dpi"]],o.dpi)}`:""}
+    <label>Format</label><div class="seg mini" role="group" aria-label="Format">${[["svg","SVG"],["pdf","PDF"],["eps","EPS"],["png","PNG"],["tiff","TIFF"]].map(([k,l])=>`<button type="button" data-expfmt="${k}" aria-pressed="${o.fmt===k}">${l}</button>`).join("")}</div>
+    ${o.fmt==="png"||o.fmt==="tiff"?`<label for="expDpi">Resolution</label>${opt("expDpi",[[150,"150 dpi"],[300,"300 dpi"],[600,"600 dpi"],[1200,"1200 dpi"]],o.dpi)}`:""}
     <label>Lines and symbols</label><div class="seg mini" role="group" aria-label="Lines and symbols">${[["scale","Scale with the text"],["fixed","As drawn"]].map(([k,l])=>`<button type="button" data-explines="${k}" aria-pressed="${(o.lines||"scale")===k}">${l}</button>`).join("")}</div>
     <label>Background</label><div class="seg mini" role="group" aria-label="Background">${[["white","White"],["none","Transparent"]].map(([k,l])=>`<button type="button" data-expbg="${k}" aria-pressed="${o.bg===k}">${l}</button>`).join("")}</div>
     ${multiGraph()?`<label>Graphs</label><div class="seg mini" role="group" aria-label="Which graphs">${[["this","This graph"],["all","All, as one figure"]].map(([k,l])=>`<button type="button" data-expwhich="${k}" aria-pressed="${o.which===k}">${l}</button>`).join("")}</div>`:""}
-    </div><p class="pd-note">${o.fmt==="svg"?"Vector: sharp at any size, and editable in Illustrator or Inkscape. Its web fonts go with it.":o.fmt==="png"?"An image at that resolution, which it records, so Word and LaTeX place it at its size.":"An image for journals that ask for TIFF: lossless, with its resolution."}</p>`;
+    </div><p class="pd-note">${o.fmt==="svg"?"Vector: sharp at any size, and editable in Illustrator or Inkscape. Its web fonts go with it.":o.fmt==="pdf"?"Vector, for journals and LaTeX. Its text is in the standard PDF fonts (Helvetica, Times or Courier), the nearest to the graph's own; SVG keeps the graph's font.":o.fmt==="eps"?"Vector, for journals that ask for EPS. Text as in the PDF; EPS has no transparency, so shading is mixed with white.":o.fmt==="png"?"An image at that resolution, which it records, so Word and LaTeX place it at its size.":"An image for journals that ask for TIFF: lossless, with its resolution."}</p>`;
   f.innerHTML=h;
   clearTimeout(expT); expT=setTimeout(()=>{ const r=expBuild(o), pv=$("#expPrev"), inf=$("#expInfo"); if(!r||!pv) return;
     const i=expInfo(o,r); inf.textContent=i.text+(i.big?" · too large for this browser: lower the resolution":""); inf.classList.toggle("bad",i.big); $("#expGo").disabled=i.big;
@@ -10529,6 +11120,11 @@ function renderExportFigure(){
 async function doExportFigure(){
   const o=S.exp, p=P(); if(!o||!p) return; const r=expBuild(o); if(!r) return; expKeep(o); closeModal($("#expModal"));
   const tag=o.size==="custom"||o.size==="screen"?"":`_${o.size}`, base=safeName((o.which==="all"&&multiGraph()?p.name+"_graphs":figName())+tag,"");
+  if(o.fmt==="pdf"||o.fmt==="eps"){ const toPt=v=>o.unit==="mm"?v/25.4*72:o.unit==="in"?v*72:v*0.75;
+    try{ const res=await svgToVector(expDress(r.svg,o,r.W,r.H),{kind:o.fmt,wPt:toPt(+o.w),hPt:toPt(+o.h),title:p.name||"Figure"}), nm=base+"."+o.fmt, okk=await saveFile(nm,res.blob,o.fmt==="pdf"?"application/pdf":"application/postscript");
+      if(okk) toast((okk==="dialog"?"Figure saved.":`Sent ${nm} to your downloads.`)+vecMissNote(res.miss)); }
+    catch(e){ toast(`The figure could not be written as ${o.fmt.toUpperCase()}: ${e.message}`); }
+    return; }
   let svg=expDress(await embedFonts(r.svg),o,r.W,r.H);
   if(o.fmt==="svg"){ const nm=base+".svg", okk=await saveFile(nm,new Blob([svg],{type:"image/svg+xml"})); if(okk) toast(okk==="dialog"?"Figure saved.":`Sent ${nm} to your downloads.`); return; }
   const k=o.unit==="px"?1:(+o.dpi||300)/96, dpi=o.unit==="px"?96:+o.dpi, cw=Math.round(r.W*k), ch=Math.round(r.H*k);
@@ -11989,7 +12585,7 @@ function flowInspectorBody(n){
     h+=`<div class="fi-h">${ICON("chart")}<div class="grow"><div class="fi-t">${esc(nm)}</div><div class="lab">${live?"In front: the graph being worked on":"A graph on the desk"}</div></div>${discChip(n.key)}</div>`;
     h+=kvHtml([["Spectra",n.cs.length?esc(n.cs.map(specName).join(", ")):"none"],["Layout",esc(((LAYOUTS.find(q=>q[0]===(pl.layout||"overlay"))||[,""])[1]))],
       ["Zoom",S.linkX?"linked to the other graphs":"its own"],list.length?["Drawn on it",esc(annoCountText(list))]:null]);
-    if(list.length) h+=`<ul class="fanno">${list.map(a=>`<li><span class="grow"><strong>${esc(ANNO_KINDS[a.t])}</strong> <span class="lab">${esc(a.t==="h"?`y = ${fmt(a.y,6)}`:a.t==="band"?`${fmt(Math.min(a.x,a.x2),6)} to ${fmt(Math.max(a.x,a.x2),6)}`:`x = ${fmt(a.x,6)}`)}</span>${a.text?` “${esc(a.text)}”`:""}</span><button class="tb sm icon" data-fi="anedit" data-an="${esc(a.id)}" title="Edit" aria-label="Edit this ${esc(ANNO_KINDS[a.t].toLowerCase())}"${ro}>${ICON("edit","sm")}</button><button class="tb sm icon" data-fi="andel" data-an="${esc(a.id)}" title="Delete" aria-label="Delete this ${esc(ANNO_KINDS[a.t].toLowerCase())}"${ro}>${ICON("x","sm")}</button></li>`).join("")}</ul>`;
+    if(list.length) h+=`<ul class="fanno">${list.map(a=>`<li><span class="grow"><strong>${esc(ANNO_KINDS[a.t])}</strong> <span class="lab">${esc(annoWhere(a,6))}</span>${a.text?` “${esc(a.text)}”`:""}</span><button class="tb sm icon" data-fi="anedit" data-an="${esc(a.id)}" title="Edit" aria-label="Edit this ${esc(ANNO_KINDS[a.t].toLowerCase())}"${ro}>${ICON("edit","sm")}</button><button class="tb sm icon" data-fi="andel" data-an="${esc(a.id)}" title="Delete" aria-label="Delete this ${esc(ANNO_KINDS[a.t].toLowerCase())}"${ro}>${ICON("x","sm")}</button></li>`).join("")}</ul>`;
     h+=`<div class="actions">${live?"":btn("gfront","Bring to the front","chart",{primary:true,view:true})}${btn("pdgraph","Format…","tag",{view:true})}${btn("svg","Export","download",{view:true})}${btn("grename","Rename…","edit")}${gid==="main"?"":btn("gdel","Delete the graph","trash",{danger:true,ghost:true})}</div>`;
     if(recent.length) h+=`<div class="gh">Recent changes</div><ul class="log rawlog">${recent.map(e=>`<li><span class="when" title="${esc(logWhen(e.t))}">${esc(ago(e.t))}</span><span>${esc(e.text)}</span></li>`).join("")}</ul>`;
     return h;
@@ -11997,7 +12593,7 @@ function flowInspectorBody(n){
   if(n.kind==="figure"){
     const list=n.annos, recent=(p.log||[]).filter(e=>/\b(labelled|label|line at|shaded range|the text|wrote|annotation|legend|font|title|marked the)\b/i.test(e.text)).slice(-8).reverse();
     h+=`<div class="fi-h">${ICON("chart")}<div class="grow"><div class="fi-t">Figure</div><div class="lab">Lines, ranges, text and labels drawn on the graph</div></div>${discChip(n.key)}</div>`;
-    h+=`<ul class="fanno">${list.map(a=>`<li><span class="grow"><strong>${esc(ANNO_KINDS[a.t])}</strong> <span class="lab">${esc(a.t==="h"?`y = ${fmt(a.y,6)}`:a.t==="band"?`${fmt(Math.min(a.x,a.x2),6)} to ${fmt(Math.max(a.x,a.x2),6)}`:`x = ${fmt(a.x,6)}`)}</span>${a.text?` “${esc(a.text)}”`:""}</span><button class="tb sm icon" data-fi="anedit" data-an="${esc(a.id)}" title="Edit" aria-label="Edit this ${esc(ANNO_KINDS[a.t].toLowerCase())}"${ro}>${ICON("edit","sm")}</button><button class="tb sm icon" data-fi="andel" data-an="${esc(a.id)}" title="Delete" aria-label="Delete this ${esc(ANNO_KINDS[a.t].toLowerCase())}"${ro}>${ICON("x","sm")}</button></li>`).join("")}</ul>`;
+    h+=`<ul class="fanno">${list.map(a=>`<li><span class="grow"><strong>${esc(ANNO_KINDS[a.t])}</strong> <span class="lab">${esc(annoWhere(a,6))}</span>${a.text?` “${esc(a.text)}”`:""}</span><button class="tb sm icon" data-fi="anedit" data-an="${esc(a.id)}" title="Edit" aria-label="Edit this ${esc(ANNO_KINDS[a.t].toLowerCase())}"${ro}>${ICON("edit","sm")}</button><button class="tb sm icon" data-fi="andel" data-an="${esc(a.id)}" title="Delete" aria-label="Delete this ${esc(ANNO_KINDS[a.t].toLowerCase())}"${ro}>${ICON("x","sm")}</button></li>`).join("")}</ul>`;
     h+=`<div class="actions">${btn("pdlabels","Lines, labels and legend…","tag",{view:true})}${btn("svg","Export the figure","download",{view:true})}</div>`;
     if(recent.length) h+=`<div class="gh">Recent changes</div><ul class="log rawlog">${recent.map(e=>`<li><span class="when" title="${esc(logWhen(e.t))}">${esc(ago(e.t))}</span><span>${esc(e.text)}</span></li>`).join("")}</ul>`;
     return h;
@@ -12662,8 +13258,9 @@ function exportItems(){
   return [
     {label:"Figure for a paper or slides…", run:openExportFigure, enabled:has},
     {label:"Figure as SVG (vector, for papers)", run:exportSvg, enabled:has},
+    {label:"Figure as PDF or EPS", sub:()=>[{label:"PDF (vector, standard fonts)",run:()=>exportVec("pdf"),enabled:has},{label:"EPS (vector, standard fonts)",run:()=>exportVec("eps"),enabled:has}], enabled:has},
     {label:"Figure as PNG (image, for slides)", run:exportPng, enabled:has},
-    multiGraph()?{label:"All graphs as one figure", sub:()=>[{label:"As SVG (vector, for papers)",run:exportAllSvg},{label:"As PNG (image, for slides)",run:exportAllPng}]}:null,
+    multiGraph()?{label:"All graphs as one figure", sub:()=>[{label:"As SVG (vector, for papers)",run:exportAllSvg},{label:"As PDF",run:()=>exportVec("pdf",true)},{label:"As EPS",run:()=>exportVec("eps",true)},{label:"As PNG (image, for slides)",run:exportAllPng}]}:null,
     {label:"Final data and fit as CSV", run:exportCsv, enabled:has},
     yCols().length>1?{label:"Every spectrum's final data as CSV", run:exportAllCsv}:null,
     p&&p.batch?{label:"Batch results as CSV", run:exportBatchCsv}:null,
@@ -12723,7 +13320,7 @@ function formDlg(o){
   return new Promise(res=>{
     const m=$("#formModal"); $("#formTitle").textContent=o.title; $("#formBody").innerHTML=o.html; m.querySelector(".sheet").classList.toggle("wide",!!o.wide);
     const ok=$("#formOk"); ok.textContent=o.ok||"OK"; ok.className="btn "+(o.danger?"danger":"primary");
-    const collect=()=>{ const r={}; m.querySelectorAll("#formBody input,#formBody select,#formBody textarea").forEach(el=>{ if(el.id) r[el.id]=el.type==="checkbox"?el.checked:el.value; }); return r; };
+    const collect=()=>{ const r={}; m.querySelectorAll("#formBody input,#formBody select,#formBody textarea").forEach(el=>{ if(el.id) r[el.id]=el.type==="checkbox"||el.type==="radio"?el.checked:el.value; }); return r; };
     const check=()=>{ ok.disabled=!!(o.valid&&!o.valid(collect())); };
     m.oninput=check; check();
     const done=v=>{ m.oninput=null; closeModal(m); res(v); };
@@ -12959,13 +13556,19 @@ ${DL([["A whole graph","Hold the grip "+ICON("grip","sm")+" in its title bar and
 <p>Only the graph in front is live. The others are pictures, drawn again only when something they show changes (their data, processing, settings, zoom or labels), a few at a time, so twelve graphs cost little more than one.</p>
 <h2>History and exports</h2>
 <p>With several graphs, the History has a box for each, below the spectra it shows, with its layout, what is drawn on it, its recent changes and its own discussion; the log names the graph each change was made on. ${MP("Export › All graphs as one figure")} lays every graph out in one SVG or PNG, lettered (a), (b)…; <em>Every spectrum's final data as CSV</em> writes them side by side; the report shows every graph. ${DA("export","Exporting")}</p>`},
-{id:"style", g:"Graph", t:"Formatting the graph", kw:"format plot details style colour color line symbol width dash fill axes axis ticks tick length mirror position offset zero frame box grid background margin legend columns layout overlay offset stack double y heat map font scheme title quick styles every graph formats saved template journal slides",
+{id:"style", g:"Graph", t:"Formatting the graph", kw:"format plot details style colour color line symbol width dash fill axes axis ticks tick length mirror position offset zero frame box grid background margin legend columns layout overlay offset stack double y heat map font scheme title quick styles every graph formats saved template journal slides break broken axis gap leave out second x axis top axis wavelength raman shift wavenumber energy ev micrometre conversion project colleagues share",
  lead:"The Format dialog holds every setting of the figure, page by page. Changes show on the graph as you make them; OK keeps them as one undo step, Cancel leaves the graph as it was.",
  body:`<p>Open it from ${MP("Plot › Format graph…")}, the graph's right-click menu, a double-click on an axis's numbers, or <em>Font, size and every setting…</em> on anything drawn. Drag its title bar to move it off what it hides; a double click puts it back. <em>Defaults</em> resets the page in front.</p>
 <h2 id="data">Data</h2>
 <p>For each spectrum: whether it is shown, its legend label, plot type (line, symbols, line and symbols, sticks, area, steps), colour, line style and width, symbol and size, fill and opacity. The fit curve has its own page, with the shading and colours of fitted peaks.</p>
 <h2 id="axes">Axes</h2>
-${DL([["Title","Its text (empty: made from the data's name and unit), shown or hidden, and where it sits along the axis: left, centre or right (bottom, middle or top on a Y axis). Its font is the axis titles' font."],["Scale","From, to (empty fits the data), the major step, reversed, logarithmic."],["Position","On its edge (bottom or top, left or right), at zero, or at any value of the other axis; pushed outward from the plot by an offset."],["Line and ticks","The axis line and its colour and width; ticks inside, outside, both or none; major and minor lengths, minor ticks between majors, tick width; repeated on the opposite edge or not."],["Numbers","Shown or not, their format and decimals, turned 0°, 45° or 90°, and their font."]])}
+${DL([["Title","Its text (empty: made from the data's name and unit), shown or hidden, and where it sits along the axis: left, centre or right (bottom, middle or top on a Y axis). Its font is the axis titles' font."],["Scale","From, to (empty fits the data), the major step, reversed, logarithmic."],["Position","On its edge (bottom or top, left or right), at zero, or at any value of the other axis; pushed outward from the plot by an offset."],["Line and ticks","The axis line and its colour and width; ticks inside, outside, both or none; major and minor lengths, minor ticks between majors, tick width; repeated on the opposite edge or not."],["Numbers","Shown or not, their format and decimals, turned 0°, 45° or 90°, and their font."],["Breaks","Ranges left out of the X or Y axis (below)."]])}
+<h2 id="breaks">Breaks</h2>
+<p>A break leaves a range out of an axis: an empty stretch between two groups of bands, or the top of one tall peak above small ones. The axis is cut there with two strokes, whatever runs through the gap is hidden, and both sides keep one scale. ${MP("Plot › Axis options › Break the X axis…")} (or the Y axis, or <em>Break the axis…</em> in the menu of an axis's numbers) suggests the widest stretch in view with nothing on it, and the axis's page lists every break with its two ends to type, <em>Add a break</em> and a remove button each. X breaks work in every layout but the heat map; Y breaks with overlaid or offset spectra. Zooming, the wheel and panning go on working across them, and the report says which ranges the figure leaves out.</p>
+<h2 id="x2">A second X axis</h2>
+<p>The same positions in other units, across from the X axis: the wavelength over a Raman shift, micrometres over wavenumbers, photon energy over a wavelength. ${MP("Plot › Axis options › Second X axis in other units…")} (or the X axis's menu) turns it on with the conversion that suits the X units, and its page sets what it shows:</p>
+${DL([["Units","Wavelength (nm or µm), wavenumber (cm⁻¹), photon energy (eV), frequency (THz) or Raman shift (cm⁻¹), from what the X axis is in: read from its name and unit, or chosen. A Raman shift needs the laser wavelength, taken from the spectrum's Raman shift step when it has one."],["a × x + b","Any straight conversion, with a name and a unit."],["A formula","Any formula in x (the same arithmetic as fit functions: <code>1e7/x</code>, <code>1239.84/x</code>), with a name and a unit."],["Numbers","Placed where the X axis has that value, so they space unevenly on a curved conversion: evenly stepped where they fit, else the roundest numbers that fit (30, 20, 15, 10…). A conversion that is not one-to-one over the view is refused, and says so."]])}
+<p>Its title, ticks and numbers are styled like any axis, and follow the X axis's look unless set apart. The report states what it converts to.</p>
 <h2 id="frame">Frame and grid</h2>
 ${DL([["Frame","A box, the axis lines only, or none; its width and colour."],["Quick styles","Box with ticks in; box with ticks out; axes with ticks out (the usual journal style); open axes, set off from the plot; grid only."],["Ticks on every axis","One switch for the direction, length and repetition of every axis's ticks."],["Grid","Major and minor lines, vertical and horizontal, in their own colour, width and style."],["Background and margins","A colour for the plot area; margins in pixels, or measured from the numbers and titles."]])}
 <h2 id="text">Text and fonts</h2>
@@ -12979,7 +13582,7 @@ ${DL([["Layout","<em>Overlay</em>; <em>Offset</em> (a waterfall, each trace labe
 <li>Double-click a title to type over it; double-click an axis's numbers for its page.</li>
 <li>Right-click an axis's numbers, a title, the legend or an empty spot for their menus: position, ticks, numbers, alignment, columns, text size, the frame.</li></ul>
 <h2 id="formats">Formats</h2>
-<p>A format is a graph's frame, axes, text, legend and colours, without its data, ranges, titles or labels. ${MP("Plot › Formats")} gives the graph one of Kurve's (its own; a journal's, sans serif at 8 pt with the axes alone and ticks out; classic serif in a box; slides, with large text and heavy axes; minimal, open axes on a light grid) or one you saved, and <em>Save this format…</em> keeps the graph's in this browser for any graph in any project. In the Format dialog, <em>Formats</em> shows one on the graph before OK keeps it. With several graphs, <em>Give every graph a format</em>.</p>
+<p>A format is a graph's frame, axes, text, legend and colours, without its data, ranges, titles or labels. ${MP("Plot › Formats")} gives the graph one of Kurve's (its own; a journal's, sans serif at 8 pt with the axes alone and ticks out; classic serif in a box; slides, with large text and heavy axes; minimal, open axes on a light grid) or one you saved. <em>Save this format…</em> keeps the graph's <strong>in this project</strong>, where it is saved, undone and shared with the project, so a colleague who opens it has it, or <strong>in this browser</strong>, for any graph in any project opened here. <em>Saved formats</em> renames, deletes, or copies one from the project to the browser and back. In the Format dialog, <em>Formats</em> shows one on the graph before OK keeps it. With several graphs, <em>Give every graph a format</em>.</p>
 <h2>Every graph alike</h2>
 <p>With several graphs, <em>Use on every graph</em> gives all of them this graph's frame, axes, text, legend and colours; their data, ranges, titles and labels stay their own. ${DA("graphs","Several graphs")}</p>
 <h2>Labels and lines</h2>
@@ -12996,7 +13599,7 @@ ${DL([["<code>cm^{-1}</code>","A superscript: cm⁻¹. Only braces make one, so 
 <p>In the Format dialog the buttons beside a text field make a superscript (x²), a subscript (x₂) of what is selected, or insert a Greek letter or a symbol from a grid. While typing, here or on the graph, ${K("Ctrl","Shift","=")} makes a superscript and ${K("Ctrl","=")} a subscript.</p>
 <h2>In exports</h2>
 <p>An SVG or PNG takes the web fonts it uses with it: the letters it draws, embedded in the file. A PNG would otherwise fall back to a default face, and an SVG to whatever the other computer has. Without a connection the figure is exported as it is, and the fonts installed here are used by name.</p>`},
-{id:"annos", g:"Graph", t:"Labels, text, lines, arrows and insets", kw:"annotation label text line vertical horizontal range shade arrow inset zoom magnify peak label move drag type edit delete x snap guide align",
+{id:"annos", g:"Graph", t:"Labels, text, lines, arrows, shapes and insets", kw:"annotation label text line vertical horizontal range shade arrow inset zoom magnify peak label move drag type edit delete x snap guide align box rectangle ellipse circle square shape fill outline region highlight",
  lead:"Annotations belong to the figure: peak labels, free text, vertical and horizontal lines, and shaded X ranges.",
  body:`<h2>Adding</h2>
 ${DL([["Peak label","The <em>Label</em> tool: click a peak and type. Or right-click near a peak."],["Text","The Label tool on an empty spot, or right-click › Text here."],["Lines","Right-click › Vertical or Horizontal line, or "+MP("Plot › Annotate")+"."],["Shaded range",MP("Plot › Annotate › Shade an X range")+", then drag across the graph."],["A whole set",DA("peaks","The Peaks window")+" marks and labels every peak it finds."]])}
@@ -13010,6 +13613,8 @@ ${DL([["Peak label","The <em>Label</em> tool: click a peak and type. Or right-cl
 ${DL([["Style","Its own font, size in points, bold, italic, underline, colour and alignment, over the graph's style for labels. "+DA("fonts","Fonts")],["Turn","Upright, 45°, 90°, −90°, or any angle typed. A vertical line's text runs beside the line or along it."],["Box","None, an outline, a fill, or both, each in a colour of its own."],["Where","Text sits at data values, so it moves with the data when you zoom, or is <em>pinned to the plot</em>: placed by fractions of the plot's width and height, so it stays put. Nine buttons place pinned text in a corner, at an edge or in the centre; <em>Centre across the plot</em> centres any text."],["Lines and ranges","Their text at the top, middle or bottom (left, middle or right on a horizontal line); colour, dash and width; a range's shading and lines at its edges."]])}
 <h2 id="arrows">Arrows</h2>
 <p>The <em>Arrow</em> tool on the toolbar (or ${MP("Plot › Annotate › Arrow")}, or the graph's right-click menu): drag from where the arrow starts to what it points at. Its head snaps to the nearest data point; hold ${K("Alt")} to place it freely. Select it and drag either end, or the arrow itself. Its head can be filled, open, at both ends or none (a plain line), with its size, the line's colour, dash and width; text written for it sits beyond its tail. Like text, it can be pinned to the plot.</p>
+<h2 id="shapes">Boxes and ellipses</h2>
+<p>The <em>Shape</em> tool on the toolbar opens a choice of a box or an ellipse; then drag across the graph from one corner to the other (${K("Shift")} makes a square or a circle). ${MP("Plot › Annotate")} and the graph's right-click menu have both. Select one and drag a corner to resize it, or the shape to move it. Its outline has a colour, dash and width (or none), its fill a colour and opacity (or none); a box can have rounded corners; it can sit <em>behind the data</em>, and hold text inside at its top, middle or bottom. Like text and arrows, it stays at data values or is pinned to the plot; <em>Make it an ellipse</em> (or a box) changes its kind.</p>
 <h2 id="insets">Insets</h2>
 <p>Zoom into a region, then <em>Make this zoom an inset</em> from the graph's right-click menu (or ${MP("Plot › Annotate › Inset of the zoomed region")}): the graph returns to all the data with the region drawn small inside it, in the emptiest corner that does not cover the region, outlined on the graph with lines to the inset. Drag the inset to move it and its corner to resize it; its page sets the X and Y range (empty Y fits the data there), its place and size, the outline and lines, axis titles and the size of its text.</p>
 <h2>Lining things up</h2>
@@ -13017,14 +13622,16 @@ ${DL([["Style","Its own font, size in points, bold, italic, underline, colour an
 <h2>Marks</h2>
 <p>A peak label marks its peak with a triangle above it, a drop line to the axis, a dashed vertical line with the text along it, a leader line, or nothing.</p>
 ${TIP("Annotations are drawn only on data in the units they were placed in: a label placed on Raman shifts does not appear on a wavelength axis.")}`},
-{id:"export", g:"Graph", t:"Exporting", kw:"export save download svg png tiff tif csv report html json recipe copy figure paper journal column width dpi resolution slides transparent points size",
+{id:"export", g:"Graph", t:"Exporting", kw:"export save download svg png tiff tif pdf eps postscript vector latex illustrator csv report html json recipe copy figure paper journal column width dpi resolution slides transparent points size",
  lead:"The figure, the data and a report, from the Export button or File › Export.",
  body:`<h2 id="paper">A figure for a paper or slides</h2>
 <p>${MP("Export › Figure for a paper or slides…")} makes the figure at the size it will be printed, with a preview:</p>
-${DL([["Size","One column (85 mm), one and a half (114 mm) or two (174 mm); Nature's 89 and 183 mm; ACS's 3.25 and 7 in; a 1920 × 1080 slide; as on screen; or your own width and height in mm, inches or pixels. <em>As on screen</em> takes the graph's proportions."],["Tick numbers","Their size in points at the printed size; every other text keeps its size beside them, so 8 pt numbers come out as 8 pt on the page."],["Lines and symbols","<em>Scale with the text</em>: the whole figure keeps the proportions it has on screen, lines and symbols as thick beside the text as there (best for slides). <em>As drawn</em>: lines keep their width in points whatever the text size."],["Format","SVG, vector, at that size in mm or inches, its web fonts embedded; PNG at 150 to 1200 dpi, which it records so a word processor places it at its size; TIFF, lossless, with its resolution, for journals that ask for it."],["Background","White, or transparent for PNG, TIFF and SVG."],["Graphs","With several graphs, this one or all of them as one figure."]])}
+${DL([["Size","One column (85 mm), one and a half (114 mm) or two (174 mm); Nature's 89 and 183 mm; ACS's 3.25 and 7 in; a 1920 × 1080 slide; as on screen; or your own width and height in mm, inches or pixels. <em>As on screen</em> takes the graph's proportions."],["Tick numbers","Their size in points at the printed size; every other text keeps its size beside them, so 8 pt numbers come out as 8 pt on the page."],["Lines and symbols","<em>Scale with the text</em>: the whole figure keeps the proportions it has on screen, lines and symbols as thick beside the text as there (best for slides). <em>As drawn</em>: lines keep their width in points whatever the text size."],["Format","SVG, vector, at that size in mm or inches, its web fonts embedded; PDF and EPS, vector at that size, for journals and LaTeX (below); PNG at 150 to 1200 dpi, which it records so a word processor places it at its size; TIFF, lossless, with its resolution, for journals that ask for it."],["Background","White, or transparent for PNG, TIFF and SVG."],["Graphs","With several graphs, this one or all of them as one figure."]])}
 <p>The settings are remembered in this browser.</p>
 <h2>Everything else</h2>
-${DL([["Figure as SVG","Vector, for papers: exactly what is on screen, at any size."],["Figure as PNG","An image at 2.5 times the screen's resolution, for slides."],["All graphs as one figure","With several graphs: every graph in one SVG or PNG, lettered (a), (b)… as they are on the desk."],["Final data and fit as CSV","Every column with units, the mask, the fit, residuals, baseline and each peak's curve, followed by commented blocks: metadata, fingerprint, processing steps with their warnings, marked peaks with labels, band integrals and fit statistics."],["Every spectrum's final data as CSV","With several spectra: each one's final X and Y side by side, and how each was processed."],["Batch results as CSV","After a batch fit: the Batch window's table with each value's error, how the fit was made, and the straight line through the trend. "+DA("batch","Fitting every spectrum")],["Raw data as CSV","The recorded data under a header that says how to check its fingerprint. "+DA("rawdata","Raw data")],["Processing steps as JSON","The recipe: every step with its settings."],["Report as HTML","One self-contained file: the figure, the notes on anything that makes the numbers less certain, the parameter table with t, p, confidence intervals and dependency, statistics, peaks, bands, the raw-data record, every processing step with a filmstrip, the fit history, the method, every discussion thread and the log."],["Copy results table","Tab-separated, to paste into a spreadsheet."]])}
+${DL([["Figure as SVG","Vector, for papers: exactly what is on screen, at any size."],["Figure as PDF or EPS","Vector, at the size the graph has on screen (the dialog above for any other size)."],["Figure as PNG","An image at 2.5 times the screen's resolution, for slides."],["All graphs as one figure","With several graphs: every graph in one SVG or PNG, lettered (a), (b)… as they are on the desk."],["Final data and fit as CSV","Every column with units, the mask, the fit, residuals, baseline and each peak's curve, followed by commented blocks: metadata, fingerprint, processing steps with their warnings, marked peaks with labels, band integrals and fit statistics."],["Every spectrum's final data as CSV","With several spectra: each one's final X and Y side by side, and how each was processed."],["Batch results as CSV","After a batch fit: the Batch window's table with each value's error, how the fit was made, and the straight line through the trend. "+DA("batch","Fitting every spectrum")],["Raw data as CSV","The recorded data under a header that says how to check its fingerprint. "+DA("rawdata","Raw data")],["Processing steps as JSON","The recipe: every step with its settings."],["Report as HTML","One self-contained file: the figure, the notes on anything that makes the numbers less certain, the parameter table with t, p, confidence intervals and dependency, statistics, peaks, bands, the raw-data record, every processing step with a filmstrip, the fit history, the method, every discussion thread and the log."],["Copy results table","Tab-separated, to paste into a spreadsheet."]])}
+<h2 id="pdf">PDF and EPS</h2>
+<p>Everything on the graph is drawn again as vectors: lines, symbols, shading, clipping, an inset, a heat map's image and colour bar. The text is set in the standard fonts every PDF reader and printer has (Helvetica, Times or Courier, whichever is nearest the graph's font, with Symbol for Greek letters and signs) and placed by those fonts' own widths, so centred and right-aligned text stays where it belongs; superscripts and subscripts keep their places. The graph's own font is not embedded: an SVG keeps it. A character none of those fonts has (Chinese, an emoji) is written as ? and the export says which. EPS has no transparency, so shading and translucent fills are mixed with white and cover what lies beneath.</p>
 <p>Tables in the Peaks, Integrate and Statistics windows have Copy buttons of their own.</p>
 ${TIP("The report can never say less than the screen: its notes come from the same checks as the Results window's.")}`},
 /* ---------------------------------------------------------------- Analysis */
@@ -14578,7 +15185,7 @@ function graphWinItems(id){
       return {label:specName(c), checked:shown, enabled:!ro&&!(shown&&!main&&on.length<2), run:()=>toggleGraphCol(id,c.id)}; })},
     {label:"Duplicate", enabled:!ro, run:()=>duplicateGraph(id)},
     {label:"Combine", sub:()=>combineMenuItems(id).slice(1)},
-    {label:"Export", sub:()=>[{label:"This graph as SVG",run:exportSvg,enabled:has},{label:"This graph as PNG",run:exportPng,enabled:has},
+    {label:"Export", sub:()=>[{label:"This graph as SVG",run:exportSvg,enabled:has},{label:"This graph as PDF",run:()=>exportVec("pdf"),enabled:has},{label:"This graph as EPS",run:()=>exportVec("eps"),enabled:has},{label:"This graph as PNG",run:exportPng,enabled:has},
       "-",{label:"All graphs as one SVG",run:exportAllSvg,enabled:multiGraph()},{label:"All graphs as one PNG",run:exportAllPng,enabled:multiGraph()}]},
     "-",{label:"New graph", sub:()=>newGraphItems(), enabled:!ro},
     {label:"Tile the graphs", run:tileWins},
@@ -14851,8 +15458,8 @@ function plotMenu(){
   const p=P(), has=!!(p&&pointsAll().length), cfg=plotCfg(), edit=!!p&&!S.readOnly, act=activeYCol();
   const st=act?serStyle(act.id,true,readPalette(),false,cfg).type:cfg.style;
   return [{label:"Format graph…", run:()=>openPlotDetails(act&&act.id,"frame"), enabled:!!p},
-    {label:"Formats", sub:()=>formatMenuItems(f=>useFormat(f,false),()=>GP()).concat(multiGraph()?["-",{label:"Give every graph a format",sub:()=>FMT_BUILTIN.concat(fmtLib()).map(f=>({label:f.name,enabled:edit,run:()=>useFormat(f,true)}))}]:[])},
-    {label:"Format", sub:()=>[{label:"X axis…", run:()=>openPlotDetails(null,"ax:x"), enabled:!!p},{label:"Y axis…", run:()=>openPlotDetails(null,"ax:y"), enabled:!!p},
+    {label:"Formats", sub:()=>formatMenuItems(f=>useFormat(f,false),()=>GP()).concat(multiGraph()?["-",{label:"Give every graph a format",sub:()=>allFormats().map(f=>({label:f.name,enabled:edit,run:()=>useFormat(f,true)}))}]:[])},
+    {label:"Format", sub:()=>[{label:"X axis…", run:()=>openPlotDetails(null,"ax:x"), enabled:!!p},{label:"Second X axis…", run:()=>openPlotDetails(null,"ax:x2"), enabled:!!p},{label:"Y axis…", run:()=>openPlotDetails(null,"ax:y"), enabled:!!p},
       {label:"Frame and grid…", run:()=>openPlotDetails(null,"frame"), enabled:!!p},{label:"Text and fonts…", run:()=>openPlotDetails(null,"text"), enabled:!!p},
       {label:"Legend…", run:()=>openPlotDetails(null,"legend"), enabled:!!p},{label:"Lines and symbols…", run:()=>openPlotDetails(act&&act.id,"series"), enabled:!!p}]},
     {label:"Show all the data", kbd:"Double-click", run:()=>{ S.view=null; renderPlot(); renderFit(); }, enabled:has},
@@ -14862,6 +15469,9 @@ function plotMenu(){
     {label:"Axis options", sub:()=>[
       {label:"Reverse X axis", checked:!!cfg.revX, run:()=>togglePlot("revX"), enabled:edit},
       {label:"Logarithmic Y axis", checked:!!cfg.logY, run:()=>togglePlot("logY"), enabled:edit},
+      {label:"Second X axis in other units…", checked:!!((cfg.ax||{}).x2||{}).on, run:showX2, enabled:edit&&has},
+      {label:"Break the X axis…", run:()=>breakDlg("x"), enabled:edit&&has},
+      {label:"Break the Y axis…", run:()=>breakDlg("y"), enabled:edit&&has},
       {label:"Grid lines", checked:!!cfg.grid, run:()=>togglePlot("grid"), enabled:edit},
       {label:"Residual panel", checked:!!p&&cfg.resid!==false, run:()=>togglePlot("resid"), enabled:edit}]},
     {label:"Font", sub:()=>fontMenuItems()},
@@ -14875,6 +15485,8 @@ function plotMenu(){
       {label:"Horizontal line…", run:()=>addLineDlg("h"), enabled:edit&&has},
       {label:"Shade an X range (drag on the graph)", run:shadeRange, enabled:edit&&has},
       {label:"Arrow (drag on the graph)", run:()=>setMode("arrow"), enabled:edit&&has},
+      {label:"Box (drag on the graph)", run:()=>pickShape("rect"), enabled:edit&&has},
+      {label:"Ellipse (drag on the graph)", run:()=>pickShape("ellipse"), enabled:edit&&has},
       {label:"Inset of the zoomed region", run:makeInset, enabled:edit&&has&&!!S.view, title:S.view?"":"Zoom into a region first"},
       {label:"Label peaks with the Label tool", run:()=>setMode("label"), enabled:edit&&has},
       {label:"Find and mark peaks…", run:()=>openPeakFinder(), enabled:edit&&has},

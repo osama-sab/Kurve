@@ -12,7 +12,7 @@ Math, Analysis, Statistics, Window, Help; each short, its kinds opening side sub
 hover, and a tool opening its dialog) and the project name (click to rename; the arrow
 beside it switches, creates and deletes projects); a **toolbar** (Import, Export, undo/redo,
 **Raw / Final / Compare** (what the graph shows), the pointer tools Zoom / Pan / Mask / Add
-peak / Label / Arrow / Comment, show-all, the analysed spectrum's plot type, the layout of several
+peak / Label / Arrow / Shape (a box or an ellipse, chosen from its menu) / Comment, show-all, the analysed spectrum's plot type, the layout of several
 spectra, and the Reverse X / Log Y / Grid / Residuals toggles; it keeps to one row, dropping labels
 in stages while it would wrap, `fitToolbar`); the **desk**; and a **status bar**
 (tool hint, live cursor readout, point counts, fit state, save state). Window › Theme picks
@@ -46,7 +46,8 @@ its own options. Lines, shaded ranges, text, peak labels, the legend, the titles
 title opens a box over it to type in (Shift+Enter for a new line), and one on a line, a range
 or an axis's numbers opens its page of the **Format dialog** (Plot › Format graph…): pages
 for each spectrum and the fit, each axis (title and where it sits, scale, position: an edge,
-zero or a value, set off outward; line, ticks, numbers), the frame and grid (with quick
+zero or a value, set off outward; line, ticks, numbers; breaks), a second X axis in other
+units, the frame and grid (with quick
 styles), the text (each kind its own font, size in points, bold, italic, underline, colour,
 like a word processor), the legend (place, columns, size, box), the layout and colours, and
 the labels and lines (each with its own text, style, turn, box and place). The **Peaks
@@ -727,7 +728,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   view), `S.ovStage` (the Overview's raw or final data),
   `S.plotPreview` (the Format dialog's working copy; `S.pdTab` its page, `S.pdSel` the
   spectrum, `S.pdAnno` the annotation, `S.pdPos` where it was dragged), `S.ttdrag`/`S.axdrag`
-  (a title or an axis being dragged), `S.arrowDraft` (an arrow being drawn), `S.guides` and
+  (a title or an axis being dragged), `S.arrowDraft` (an arrow being drawn), `S.shapeDraft`
+  and `S.shapeKind` (a box or ellipse being drawn, and which), `S.guides` and
   `S.snapRing` (alignment guides and the point an arrow snaps to, drawn on screen only),
   `S.altKey` (Alt held: no snapping), `S.insetCfg` (an inset's settings while it is drawn),
   `S.exp` (the export dialog's settings), `S.pkRng` (a Peaks window range before there is a set),
@@ -750,6 +752,31 @@ graph first, with the taskbar kept at the bottom of the screen.
   `tickLabel` gives as many digits as the step needs (ticks 10⁹ apart on 1.7×10¹⁸ all differ).
   The drawn view goes through `saneView`/`saneRange`: finite, ascending, wider than nothing and
   than 10⁻¹⁰ of its own size, within ±10³⁰⁷; the wheel stops zooming at that width.
+  **Scales, breaks and the second X axis**: X and the main Y go through `axScale(a, b, log,
+  brks, gapFrac)`, a value to a fraction along the axis and back (`f`, `inv`), with `segs`
+  (the visible stretches) and `gaps`; `S.geo.sx`/`sy` keep them, so `toData` inverts through
+  the breaks, and `S.geo.rx`/`ry` (value per pixel within a stretch) make panning follow the
+  pointer. **Breaks** are `ax.x.brk`/`ax.y.brk` (`[[a, b], …]`, data, not format), cleaned by
+  `brkList` (sorted, merged, inside the view, at most 8, ignored past nine tenths of the
+  axis): each a 10 px gap, the rest in proportion, so both sides keep one scale. X breaks in
+  every layout but the heat map, Y breaks with overlaid or offset spectra, never in an inset.
+  Ticks per stretch, merged so no numbers collide (`mergeTicks`); each gap is covered (`g.brk`)
+  after the frames and cut with two strokes. `suggestBreak(k)` offers the widest empty stretch
+  in view, `breakDlg(k)`, `clearBreaks(k)`; the axis page lists them (`data-pdbrkadd`,
+  `data-pdbrkdel`, paths `ax.x.brk.i.j` in `pdSet`). **The second X axis** is `ax.x2` (`on`,
+  `conv` one of `X2_KINDS`: nm, µm, cm⁻¹, eV, THz, Raman shift, `lin` a·x+b, `expr` a formula
+  in x through `compileExpr`; `from` when the X units are not read by `xUnitKey`, `laser`
+  (default from the spectrum's Raman shift step, `laserOf`), `a`, `b`, `f`, `name`, `unit`,
+  and the usual axis style, which follows the X axis's unless set, `axisCfg(cfg,"x2")`).
+  `x2Conv` gives the function or an error in words; `x2Layout(F, SX, len, o)` samples it per
+  stretch (refusing one that is not finite or not one-to-one), tries evenly stepped numbers
+  first (they must fit, fall within a factor of three and cover the axis), else takes
+  candidates from short stretches and keeps the roundest (`niceScore`) that fit, each round
+  for its interval (`stepOf`), placed by bisection. It sits across from the X axis (top,
+  or the bottom when X is at the top), the X axis's mirrored ticks give way to it
+  (`x2Edge`), its numbers are `data-axis="x2"` (double-click, right-click; not dragged), and
+  `S.geo.x2err` is what the Format page shows. `showX2`, `x2AutoTitle`, `figNotes` (the
+  report's caption: the ranges left out and what the second axis shows).
   **Text styles**: `TS` in `buildPlot` holds one style per kind of text (`TXT_ELS`: title,
   axis, ticks, legend, labels, peaks), each `txtStyle(cfg, el, base, kfam)` = the graph's font
   and size (`fs`) under `cfg.txt[el]` (`fam`, `name`, `size` in points, `b`, `i`, `u`,
@@ -819,6 +846,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   whose lines run outside both boxes; `makeInset` makes one from the zoom on view, in the
   emptiest corner that does not cover the region; its corner handle (`data-ah="se"`) resizes
   it. Dragged text snaps to the plot's centre and other text (`S.guides`).
+  **Boxes and ellipses** (`t:"rect"`/`"ellipse"`, `SHAPE_T`; corners `x, y, x2, y2` or pinned
+  `fx, fy, fx2, fy2` like arrows, `twoEnds(a)`; `color`, `lw` (0: no outline), `dash`, `fill`
+  and `op`, `rx` (a box's corners), `behind` (drawn in the layer under the data), `text` inside
+  at `lpos` with `align`): `shapeSvg`, drawn with the Shape tool (`S.mode` `shape`,
+  `shapeKind()`/`pickShape(k)` remembered in `kurve.shape`, the toolbar button opens
+  `shapeMenu`; Shift makes a square or circle; `S.shapeDraft`, `makeShape`); corner handles
+  `data-ah="00"…"11"` resize, the body moves. `annoWhere(a)` says where any annotation is.
   **Rich text**: titles, axis titles, legend entries and annotation text go through
   `richSvg(str, size)` (`^{…}` superscript, `_{…}` subscript, `\name` from `RT_SYM`; only
   braces make scripts) and `richW` measures it; `rtool(id)` puts x², x₂ and a symbol grid
@@ -877,10 +911,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   *Use on every graph* is `formatEveryGraph` (`FMT_KEYS`, `FMT_AX`: format, not data,
   ranges, titles or annotations; through `styleFrom(src, pl)`, which puts a missing key back to
   its default). **Formats**: `fmtOf(pl)` is a graph's format alone; `FMT_BUILTIN` (Kurve's,
-  journal, classic, slides, minimal) and a per-browser library (`fmtLib`, `fmtLibSave`, under
-  `kurve.formats`, `saveFormatAs`); `useFormat(f, every)` gives one to the graph or every
-  graph, `formatMenuItems` lists them (Plot › Formats, and the Format dialog's Formats button,
-  which applies to the working copy). `txtAuto(cfg, el)` is a kind of text's automatic style.
+  journal, classic, slides, minimal), the project's (`p.formats`, in `UNDO_KEYS`, `projFormats`,
+  `saveProjFormats`: saved and shared with the project, so a colleague has them) and a
+  per-browser library (`fmtLib`, `fmtLibSave`, under `kurve.formats`); `saveFormatAs` asks
+  which (the project by default when the store is shared), `renameFormat`, `copyFormat`,
+  `deleteFormat`, `allFormats()`; `useFormat(f, every)` gives one to the graph or every
+  graph, `formatMenuItems` lists them by group (Plot › Formats, and the Format dialog's Formats
+  button, which applies to the working copy). `txtAuto(cfg, el)` is a kind of text's automatic style.
   `renderTop`, `renderWs`, `renderPlot` (+ `renderStatusBar`), `renderStages` (now the graph
   window's stage chip and the toolbar's Raw/Final/Compare), `renderFit` (it also refreshes
   `renderResults`, `renderTabMarks` and the status bar), `renderFlow`, `renderTool`,
@@ -955,7 +992,21 @@ graph first, with the taskbar kept at the bottom of the screen.
   SVG at a physical size (`expDress`), PNG at 150–1200 dpi with a pHYs chunk (`pngWithDpi`,
   `crc32`) or TIFF (`tiffEncode`, PackBits, with its resolution), white or transparent, this
   graph or all; `expBuild` makes the SVG, `expInfo` says its size, the preview is the SVG
-  itself with prefixed ids, and the settings are kept in `kurve.export`. `exportCsv` (every column with units, the mask
+  itself with prefixed ids, and the settings are kept in `kurve.export`. **PDF and EPS**
+  (`svgToVector(svg, {kind, wPt, hPt, title})` → `{blob, miss}`, `exportVec(kind, all)`, the
+  dialog's PDF and EPS): the figure's SVG parsed and walked (`g`, nested `svg` with its
+  viewBox and clip, `clip-path`, `transform`, `rect`, `circle`, `ellipse`, `line`, `path` with
+  arcs and quadratics made cubics (`vecPath`), `polyline`, `image` decoded to RGB and alpha,
+  `linearGradient` as strips, `text` and `tspan` as lines of runs) into PDF content (opacity
+  by ExtGState, images as XObjects with an SMask, streams deflated by `CompressionStream`
+  when there is one, a cross-reference table, the title in UTF-16) or PostScript (EPSF-3.0,
+  colours mixed with white by their opacity, images as hex, fonts re-encoded to WinAnsi in
+  the prolog). Text uses the standard fonts (`vecFont`: Helvetica, Times or Courier by the
+  family's generic name, bold and italic; Symbol for Greek and signs, `AFM_SYM`) measured with
+  their AFM widths (`AFM_W`, WinAnsi codes, from Adobe's metrics) so anchors land right;
+  Unicode super- and subscript digits are drawn raised and small (`vecPieces`), a halo is a
+  stroked pass under the fill, an underline a rule; a character none of the fonts has is
+  written as ? and listed in `miss` (`vecMissNote`). `exportCsv` (every column with units, the mask
   flag, the fit, residual, baseline and each peak curve, plus commented blocks for metadata,
   the fingerprint, the processing steps with their warnings, the marked peaks with their
   labels, the band integrals, and fit statistics),
@@ -989,7 +1040,13 @@ once hung it, lost data or drew nonsense: 300 turns of the wheel, a nanosecond t
 and crossed axis limits, two tabs saving, a full store, the old single-key store and a corrupt
 layout, typographic minus signs, file names in any script, times across midnight, undo while
 holding a label, 300 spectra, a long graph name, a straight line through one X, a formula 300
-deep. Run it after touching storage, the axes, the parser or undo. For anything else the UI
+deep, breaks read from storage in every broken form, a second axis that cannot be numbered, a
+curved one, a PDF's cross-reference table and size, an EPS's bounding box, characters no
+standard font has, broken formats in the store. Run it after touching storage, the axes, the
+parser, undo or the PDF and EPS writer. To look at a PDF or EPS, render it: Ghostscript
+(`gs -dSAFER -dBATCH -dNOPAUSE -sDEVICE=png16m -r110 -dGraphicsAlphaBits=4 -dTextAlphaBits=4`,
+with `-dEPSCrop` for an EPS) or PyMuPDF; at low resolution without anti-aliasing a small
+circle looks like a star. For anything else the UI
 has no test file: drive it in a real browser (Playwright with Chromium works headless),
 click every control you touched, and watch for page errors. Screenshots at 1440, 1024 and
 390 px wide, in both themes, catch most layout mistakes. Windows overlap: bring the one you
@@ -1344,9 +1401,47 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A backslash in a template literal is an escape.** A help example `\nu_{1}` would have
   become a newline and "u_{1}"; rich-text examples in `DOCS` double the backslash.
 
+- **A copy made key by key drops the next key.** `plotCfg` rebuilt `ax` from x, y and y2, so
+  the second X axis, saved and undone like any setting, was never drawn. Grep for the list of
+  axes (`["x","y","y2"]`, `ax:{x:`) when adding one: `setAxisKeys("all")`, `allax.`, the
+  quick styles and `fmtOf`/`styleFrom` had it too.
+- **The first branch that matches wins.** `pdSet` sent `ax.x.brk.0.1` to its general `ax.`
+  branch, which wrote a key called "brk" of value 0.1's parent. A specific path goes before the
+  general one.
+- **A tolerance for "is a whole number" needs a floor.** `stepOf(14)` asked whether 14/5×10¹⁵
+  was a whole number within 10⁻⁹, and it was: zero. Every number came out as round as can be.
+  Relative tolerance only, and a quotient of at least one half.
+- **A curved axis cannot take a linear axis's numbers.** Wavelength over wavenumbers, stepped
+  evenly, crowds at one end and leaves the other bare; picked for roundness alone it reads 35,
+  20, 14. Even steps when they fit and cover the axis, else the roundest numbers, each round
+  for the interval it falls in.
+- **A text field that redraws its form on change takes itself away mid-event.** The redraw
+  removed the focused field, its blur fired a second change, and the form was rebuilt inside
+  its own rebuild. A field that redraws (`data-redraw`) does it after the event.
+- **A row counted by offsetTop counts centred separators as rows.** A check of the toolbar said
+  it wrapped at every width; it wrapped at none of them but 900 px. Measure as `fitToolbar`
+  does. And text uppercased by CSS is uppercase in `innerText`.
+- **A standard font has standard widths.** Text anchored at its middle or end is placed by the
+  width of what is drawn; a PDF that names Helvetica without its metrics would set every
+  centred title off by the difference. The writer carries the AFM widths of every font it
+  names, and Symbol's for what Latin-1 lacks.
+
 ## Roadmap
 
-Done in this round: bugs found by using the app the way nobody does. A tab that froze for good
+Done in this round: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
+their corners, filled or not, behind the data or over it, with text inside, pinned or at data
+values). Axis breaks on X and Y, suggested over the widest empty stretch, cut with two strokes,
+the two sides on one scale, followed by zoom, wheel and pan, and named in the report. A second
+X axis in other units (wavelength over Raman shift with its laser, micrometres over
+wavenumbers, energy, frequency, a·x+b, any formula), numbered where the first axis has those
+values, evenly when it can and with round numbers when it is curved, refusing a conversion
+that is not one-to-one. Formats kept in the project, so a colleague who opens it has them,
+or in the browser, renamed, copied and deleted from one menu. PDF and EPS from Kurve's own
+writer: vectors, clipping, opacity (PDF), images, gradients, insets and every graph as one
+figure, text in the standard fonts placed by their own widths. The toolbar keeps to one row
+down to 860 px.
+
+Round before: bugs found by using the app the way nobody does. A tab that froze for good
 (ticks added up after a deep zoom), tick labels all alike on a nanosecond axis, NaN drawn for
 equal or extreme limits; a second tab wiping the first's projects, a full store that still
 said Saved, two projects sharing an id, a corrupt saved layout; typographic minus signs, French
@@ -1357,7 +1452,7 @@ undo during a drag; ten-second saves with 300 spectra, 200 ms undo steps on big 
 names pushing title-bar buttons out of reach; batch rows of deleted spectra. Each fixed by its
 class, and `tools/odd-test.mjs` keeps them fixed.
 
-Round before: graphs and projects, from a bug report. Deleting a project could leave its
+Two rounds before: graphs and projects, from a bug report. Deleting a project could leave its
 graphs on the desk and the next import going into it (a store's events in the other order); a
 graph in front that went away took the live plot with it. Both fixed. The taskbar names the
 project its windows belong to, the project list says what each holds, new projects get names
@@ -1367,7 +1462,7 @@ spectrum by its chip, onto a graph, its taskbar button or the desk; Ctrl keeps t
 dropped; it scrolls on a phone), from menus, or in Combine graphs… with a layout; spectra
 come from another project with their processing, peaks and colours.
 
-Two rounds before: finding and labelling peaks, from what people asked. The Peaks window
+Three rounds before: finding and labelling peaks, from what people asked. The Peaks window
 says where it looks (the spectrum, always shown, and From … to … typed, taken from the view
 or dragged on the graph, shaded there, kept with the set) and ends in Done; the Fit window
 says which spectrum and range it fits, and ends in Done too. Fitted peaks are labelled with
@@ -1376,7 +1471,7 @@ errors and units; above, inside, or in a row along the top with leaders; turned,
 boxed, dragged; each peak can be named, and its name goes to Results, the report and the
 exports.
 
-Three rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
+Four rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
 spectrum shares (centres, widths, areas, shapes, the baseline, or parameter by parameter; a
 curve model's parameters), each spectrum first fitted with those held so the fit starts where
 it belongs, one block-sparse Levenberg–Marquardt problem, every row a normal fit that says what
@@ -1387,7 +1482,7 @@ on the desk: several quantities, left and right axes, lines with slopes, SVG, PN
 Each spectrum keeps its file's header, and a field that differs (a temperature, the time it was
 taken) is what a series can be plotted against.
 
-Four rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
+Five rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
 every title, legend entry and label (`cm^{-1}`, `\alpha`), with buttons and a word
 processor's keys; arrows drawn by dragging, their heads snapping to data points, with heads
 of four kinds; insets made from a zoom, dragged and resized, outlined on the graph with
@@ -1397,7 +1492,7 @@ print, lines scaled with the text or not, SVG at its size, PNG with its dpi reco
 transparent backgrounds, a preview); formats saved by name and used on any graph in any
 project, with five of Kurve's; a toolbar that keeps to one row at every width.
 
-Five rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
+Six rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
 Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
 its own font, size in points, bold, italic, underline and colour; a real font picker (each
 name in its face, search, web fonts that look the same everywhere, which fonts this computer
@@ -1412,7 +1507,7 @@ graph at once. Labels and text over several lines, turned to any angle, in a box
 pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
 richer right-click menus on axes, titles, the legend and annotations.
 
-Six rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+Seven rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
 started from its result, from the neighbour in the series, or from the peaks found in each;
 every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
 the History, replaced by a fit by hand, out of date when its processing changes). The Batch
@@ -1467,9 +1562,9 @@ Python again"); user-defined fit functions with a library; true Voigt and Fano s
 peak parameters (one width, area ratios, fixed spacings).
 
 Next, in order:
-1. Figures, further: axis breaks, a second X axis in other units (wavelength over Raman
-   shift), graph layers and panels of different spectra, PDF and EPS, formats kept in the
-   project for colleagues, boxes and ellipses on the graph
+1. Figures, further still: graph layers and panels of different spectra (the part of the last
+   list not done), the graph's own fonts embedded in a PDF, a second Y axis in other units,
+   a break at a chosen place with its own scale on each side, polygons and curved arrows
 2. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
    lanes, keyboard access to annotations and peak handles, handles for shape parameters
    (Lorentz fraction, Pearson m, Fano 1/q)
@@ -1537,7 +1632,8 @@ Next, in order:
 - Double Y puts every other spectrum on one right axis; there are no free graph layers or
   per-panel settings in the stacked layout. An inset shows the graph's own spectra over a
   range, overlaid or offset, never in a heat map, and not another graph
-- Annotations: no boxes, ellipses or curved arrows; rich text is scripts and symbols only (no
+- Annotations: no polygons, freehand or curved arrows, and a box or ellipse cannot be turned;
+  rich text is scripts and symbols only (no
   bold or italic inside a text, no nested scripts); snapping is text to text and to the plot's
   centre, and an arrow's head to data points; nothing can be nudged with the keys
 - Storage in this browser is localStorage: a few megabytes for every project together (a few
@@ -1546,16 +1642,22 @@ Next, in order:
 - The worksheet draws only the rows in view, but every column; with hundreds of columns it
   draws fewer rows around the view instead. An axis title longer than its axis is cut off at
   the plot's edge
-- Export: no PDF or EPS (SVG is the vector format); formats are kept in the browser, not in
-  the project, so a colleague does not get them; a raster larger than the browser's canvas
-  (about 16 000 px a side) is refused with a reason
+- Export: a PDF or EPS sets its text in the standard fonts (Helvetica, Times, Courier,
+  Symbol), not the graph's own, which only SVG keeps; a character outside Latin-1, Greek and
+  common signs (Chinese, an emoji) is written as ? (the export says which); EPS has no
+  transparency, so shading is mixed with white and hides what is under it, and its image of
+  a heat map is hex, so large. A raster larger than the browser's canvas (about 16 000 px a
+  side) is refused with a reason
 - Fonts: web fonts come from Google Fonts, so offline only installed fonts show; an export
   embeds a web font only if it arrives within 10 s; a font is judged installed by its widths
   against two fallbacks, so one that measures exactly like one of them reads as missing
 - Axes: an axis at zero or at a value stays at the bottom in stacked panels, and Y stays on
-  the left with two Y axes; numbers turn 0°, 45° or 90° (Y: 0° or 90°); no axis breaks, no
-  second X axis in other units, and titles are dragged in pixels, so a resized graph keeps
-  the offset, not the proportion
+  the left with two Y axes; numbers turn 0°, 45° or 90° (Y: 0° or 90°); titles are dragged in
+  pixels, so a resized graph keeps the offset, not the proportion. Breaks are a gap in
+  proportion (one scale on both sides; no break at a chosen place with two scales), Y breaks
+  only with overlaid or offset spectra, at most eight shown; the second axis is X only, sits
+  across from the first and cannot be dragged, and a conversion must be one-to-one over the
+  whole view
 - A peak set follows its spectrum's processing, but not a change of the finder's settings made
   while another spectrum is analysed: "Every spectrum" applies them to all. Two identical
   spectra overlaid draw their labels on top of each other
