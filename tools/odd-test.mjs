@@ -6,9 +6,16 @@
    installed where node can find it. */
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
+import { createServer } from "node:http";
+import { readFileSync } from "node:fs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const FILE = resolve(process.argv[2] || join(here, "..", "kurve.html"));
+// Served over HTTP, as Kurve is: Chromium sometimes gives two pages opened from file://
+// storage of their own, and the tests of tabs sharing a store failed one run in eight.
+const server = createServer((req, res) => { if (req.url.split("?")[0] === "/kurve.html") { res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); res.end(readFileSync(FILE)); } else { res.writeHead(404); res.end(); } });
+await new Promise(r => server.listen(0, "127.0.0.1", r));
+const URL = `http://127.0.0.1:${server.address().port}/kurve.html`;
 let chromium;
 try { ({ chromium } = await import(process.env.PLAYWRIGHT || "playwright")); }
 catch (e) { ({ chromium } = await import("/opt/node22/lib/node_modules/playwright/index.mjs")); }
@@ -28,6 +35,8 @@ const HELP = `(()=>{ if(window.__h) return; window.__h=1;
 })()`;
 
 const browser = await chromium.launch();
+// Ready: the page has a project on the desk. A fixed wait was too short on a busy machine.
+const ready = async (p) => { await p.waitForFunction(() => typeof S !== "undefined" && S.pid && S.proj && S.projects && S.projects.length, null, { timeout: 15000 }).catch(() => {}); await p.waitForTimeout(150); };
 async function page(fn, opt = {}) {
   const ctx = await browser.newContext({ viewport: opt.vw || { width: 1440, height: 900 } });
   const p = await ctx.newPage(); const errors = [];
@@ -35,7 +44,7 @@ async function page(fn, opt = {}) {
   p.on("console", m => { if (m.type() === "error" && !/Failed to load resource|net::ERR/.test(m.text())) errors.push(m.text()); });
   await p.route(/fonts\.(googleapis|gstatic)\.com|jsdelivr/, r => r.abort());
   await p.addInitScript(() => { try { localStorage.setItem("kurve.ovAuto", "0"); } catch (e) {} });
-  await p.goto("file://" + FILE); await p.waitForTimeout(600); await p.evaluate(HELP);
+  await p.goto(URL); await ready(p); await p.evaluate(HELP);
   const T = opt.timeout || 30000;
   try { await Promise.race([fn(p, ctx), new Promise((_, rej) => setTimeout(() => rej(new Error("timed out: the page hung")), T))]); }
   catch (e) { check(opt.name + ": ran", false, e.message); }
@@ -67,8 +76,9 @@ await page(async p => {
 
 console.log("This browser's store");
 await page(async (p, ctx) => {
-  const b = await ctx.newPage(); await b.goto("file://" + FILE); await b.waitForTimeout(700);
+  const b = await ctx.newPage(); await b.goto(URL); await ready(b);
   await p.evaluate(async () => { const g = gauss(100, 50, 5, 10, 0, 1, 0); await mkSpec("A", g.x, g.y, { proj: "Tab A" }); }); await p.waitForTimeout(400);
+  await b.waitForFunction(() => S.projects.some(q => q.name === "Tab A"), null, { timeout: 5000 }).catch(() => {});
   await b.evaluate(() => { save({ name: "Renamed in B" }, "renamed"); }); await b.waitForTimeout(400);
   const stored = await p.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith("kurve.p.")).map(k => JSON.parse(localStorage.getItem(k)).name).sort().join(","));
   check("a second tab saving keeps the first tab's projects", stored === "Renamed in B,Tab A", stored);
@@ -92,7 +102,7 @@ await page(async p => {
   await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith("kurve.")) localStorage.removeItem(k);
     localStorage.setItem("kurve.v1", JSON.stringify({ projects: { pa: { name: "Old A", v: 4, cols: [] } }, comments: { pa: { c1: { text: "old", t: 1 } } } }));
     localStorage.setItem("kurve.layout", JSON.stringify({ v: 2, z: 5, wins: { graph: { g: [null, "a", -5, 1e9], open: true, z: 3 } } })); });
-  await p.reload(); await p.waitForTimeout(800);
+  await p.reload(); await ready(p);
   const r = await p.evaluate(() => ({ keys: Object.keys(localStorage).filter(k => /^kurve\.(p|c)\.|^kurve\.v1$/.test(k)).sort().join(","), h: document.querySelector("#w-graph").getBoundingClientRect().height }));
   check("the single store of earlier versions is split into one key a project", r.keys === "kurve.c.pa,kurve.p.pa", r.keys);
   check("a corrupt saved layout is put back where a window starts", r.h > 100 && r.h < 2000, r.h);
@@ -198,11 +208,11 @@ await page(async p => {
   const g = await p.evaluate(() => gauss(300, 150, 6, 10, 100, 1, 0));
   await p.evaluate(async g => { await mkSpec("A", g.x, g.y); }, g); await p.waitForTimeout(200);
   await p.evaluate(() => { localStorage.setItem("kurve.formats", '[null,1,"x",{"id":"a"},{"id":"b","name":"ok","fmt":{"frame":"l","ax":null}}]'); save({ formats: [null, { id: "z" }, { id: "q", name: "Q", fmt: 5 }, { id: "r", name: "R", fmt: { ax: { x: { ticks: "out" } }, txt: null } }] }); });
-  await p.reload(); await p.waitForTimeout(800);
+  await p.reload(); await ready(p);
   const r = await p.evaluate(() => { const out = { proj: projFormats().map(f => f.name), lib: fmtLib().map(f => f.name) }; allFormats().forEach(f => useFormat(f, false)); return out; });
   check("broken formats in the store and in the project are left out, the good ones kept", r.proj.join() === "R" && r.lib.join() === "ok", JSON.stringify(r));
 }, { name: "formats" });
 
-await browser.close();
+await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

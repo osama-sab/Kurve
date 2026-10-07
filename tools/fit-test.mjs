@@ -15,7 +15,7 @@ const grab = (tag) => {
 // Interpolation, integration and normalizing live in the pipeline block now;
 // tools/pipe-test.mjs tests the rest of it.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -345,6 +345,47 @@ function fitSpec(X, Y, spec, init, opts) {
   const Y = []; for (let i = 0; i < 2000; i++) { let u = 0; while (!u) u = rnd(); const v = rnd();
     Y.push(50 * Math.exp(-(((i - 1000) / 80) ** 2)) + 0.3 * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)); }
   check("noise: sigma estimated within 15%", near(N.noiseSigma(Y), 0.3, 0.045), N.noiseSigma(Y));
+}
+
+/* ---------- counting statistics: noise that grows with the counts ---------- */
+{
+  // A gamma-like spectrum: a continuum of hundreds of counts falling to a few,
+  // a strong line on the continuum and a weak one where the counts are few.
+  // One noise figure for everything is set by the quiet channels, so the
+  // continuum's own √N wiggles pass for peaks; √N per channel does not.
+  let s = 7; const u = () => { s = (s * 1103515245 + 12345) % 2147483648; return (s + 0.5) / 2147483648; };
+  const pois = (lam) => { if (lam > 30) { const g = Math.sqrt(-2 * Math.log(u())) * Math.cos(2 * Math.PI * u()); return Math.max(0, Math.round(lam + Math.sqrt(lam) * g)); } let L = Math.exp(-lam), k = 0, p = 1; do { k++; p *= u(); } while (p > L); return k - 1; };
+  const X = [], mean = [], Y = [];
+  for (let i = 0; i < 2000; i++) { const m = 400 * Math.exp(-i / 250) + 2 + 300 * Math.exp(-0.5 * ((i - 200) / 3) ** 2) + 14 * Math.exp(-0.5 * ((i - 1500) / 3) ** 2); X.push(i); mean.push(m); Y.push(pois(m)); }
+  const sig = Y.map((v, i) => { let a = 0, m = 0; for (let j = Math.max(0, i - 2); j <= Math.min(1999, i + 2); j++) { a += Y[j]; m++; } return Math.sqrt(Math.max(a / m, 1)); });
+  const at = (r, c) => r.found.some(p => near(p.x, c, 4));
+  const glob = N.peakSearch(X, Y, { max: 0 });
+  const cnt = N.peakSearch(X, Y, { sigma: sig, max: 0 });
+  check("counts: one noise figure takes the continuum's wiggles for peaks", glob.found.filter(p => p.x < 900 && !near(p.x, 200, 4)).length >= 5, glob.found.length);
+  check("counts: with √N per channel, the strong and the weak line, and at most one fluctuation", cnt.found.length <= 3 && at(cnt, 200) && at(cnt, 1500), cnt.found.map(p => p.x).join(", "));
+  check("counts: the result says its noise came from the counts", cnt.noiseMode === "given" && cnt.found.every(p => p.sig > 0), cnt.noiseMode);
+  const loc = N.peakSearch(X, Y, { noise: "local", max: 0 });
+  check("counts: noise measured along the spectrum also keeps the continuum quiet", loc.found.filter(p => p.x < 900 && !near(p.x, 200, 4)).length <= 1 && at(loc, 200), loc.found.map(p => p.x).join(", "));
+}
+
+/* ---------- naming peaks from known lines, within a tolerance ---------- */
+{
+  const lines = [{ x: 609.312, name: "²¹⁴Bi", i: 45.5 }, { x: 1460.82, name: "⁴⁰K", i: 10.7 }, { x: 2614.51, name: "²⁰⁸Tl", i: 99.8 },
+    { x: 964.77, name: "²²⁸Ac a", i: 5 }, { x: 968.97, name: "²²⁸Ac b", i: 15.8 }, { x: 1120.29, name: "²¹⁴Bi c", i: 14.9 }, { x: 1120.5, name: "weak", i: 0.1 }];
+  const peaks = [{ x: 609.0, w: 2 }, { x: 1460.6, w: 2.4 }, { x: 2616.2, w: 3 }, { x: 964.1, w: 2.2 }, { x: 968.6, w: 2.2 }, { x: 1120.3, w: 2.3 }, { x: 1000, w: 2.3 }];
+  const r = N.matchLines(peaks, lines, { tol: 2 });
+  const nm = k => r.m[k] && r.m[k].line ? r.m[k].line.name : null;
+  check("lines: each peak takes the nearest line within ±2", nm(0) === "²¹⁴Bi" && nm(1) === "⁴⁰K" && nm(2) === "²⁰⁸Tl", [nm(0), nm(1), nm(2)].join());
+  check("lines: a doublet takes one line each", nm(3) === "²²⁸Ac a" && nm(4) === "²²⁸Ac b", [nm(3), nm(4)].join());
+  check("lines: nothing in reach, no name", r.m[6] === null && r.n === 6, JSON.stringify(r.m[6]));
+  check("lines: the nearer line wins, the other is an alternative", nm(5) === "²¹⁴Bi c" && r.m[5].alts.some(a => a.line.name === "weak"), JSON.stringify(r.m[5]));
+  check("lines: the offset of each and their median", near(r.m[2].d, 1.69, 1e-9) && near(r.shift, peaks.slice(0, 6).map((p, k) => p.x - r.m[k].line.x).sort((a, b) => a - b).slice(2, 4).reduce((a, b) => a + b) / 2, 1e-9), r.shift);
+  const tight = N.matchLines(peaks, lines, { tol: 0.5 });
+  check("lines: a tighter tolerance names fewer", tight.n === 4 && tight.m[2] === null, tight.n);
+  const wide = N.matchLines([{ x: 2616.2, w: 4 }], lines, { tol: 0.5, tolW: 0.5 });
+  check("lines: half the peak's FWHM reaches further than ±0.5", wide.n === 1, wide.n);
+  const one = N.matchLines([{ x: 1460.0, w: 2 }, { x: 1461.5, w: 2 }], lines, { tol: 2 });
+  check("lines: one line between two peaks goes to the nearer", one.n === 1 && one.m[1] && one.m[1].line.name === "⁴⁰K" && one.m[0] && one.m[0].line === null, JSON.stringify(one.m));
 }
 
 /* ---------- the peak finder: thresholds, log scale, reasons ---------- */

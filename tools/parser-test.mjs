@@ -12,7 +12,7 @@ const m = html.match(/==PARSER:START==[\s\S]*?\*\/([\s\S]*?)\/\* ==PARSER:END==/
 if (!m) { console.error("Could not find the parser block in kurve.html"); process.exit(1); }
 
 // checkColumns formats numbers with the app's fmt(); a plain stub is enough here.
-const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,toNumber,detectFormat,checkColumns,splitLine,splitColName};`;
+const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,parseLineList};`;
 const P = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -206,6 +206,42 @@ check("negative kept", close(P.toNumber("-999", "."), -999));
   const f = P.analyzeFile("1\n2\n3\n4\n");
   check("single col: 4 rows", f.rows.length === 4, f.rows.length);
   check("single col: values", close(f.cols[0][3], 4), f.cols[0][3]);
+}
+
+/* ---------- 15b. a multichannel analyser's file: one column, TKA times ---------- */
+{
+  const counts = Array.from({ length: 40 }, (_, i) => Math.round(50 + 400 * Math.exp(-0.5 * ((i - 20) / 2) ** 2)));
+  const text = ["1800", "1809", ...counts.map(String)].join("\r\n") + "\r\n";
+  const f = P.analyzeFile(text, { fname: "aufgabe-3-untergrund.TKA" });
+  check("tka: one column", f.ncol === 1 && f.single === true, f.ncol);
+  check("tka: live and real time read", f.tka && f.tka.live === 1800 && f.tka.real === 1809, JSON.stringify(f.tka));
+  check("tka: the times are not channels", f.rows.length === 40 && f.cols[0][0] === counts[0], `${f.rows.length} rows, first ${f.cols[0][0]}`);
+  check("tka: the times are metadata", f.meta["Live time"] === "1800 s" && f.meta["Real time"] === "1809 s" && f.meta["Dead time"] === "0.5 %", JSON.stringify(f.meta));
+  check("tka: the one column is Y, against its row number", f.roles[0] === "y" && P.detectRoles(null, f.cols).xi === -1, f.roles.join());
+  const same = P.analyzeFile(text, { fname: "spectrum.txt" });
+  check("tka: another extension keeps every line as a channel", !same.tka && same.rows.length === 42, same.rows.length);
+  const asked = P.analyzeFile(text, { fname: "spectrum.txt", tka: true });
+  check("tka: asked for, read whatever the extension", asked.tka && asked.rows.length === 40, asked.rows.length);
+  const refused = P.analyzeFile(text, { fname: "a.tka", tka: false });
+  check("tka: switched off, every line is a channel", !refused.tka && refused.rows.length === 42, refused.rows.length);
+  const odd = P.analyzeFile(["1809", "1800", "5", "6", "7"].join("\n"), { fname: "b.TKA" });
+  check("tka: real time shorter than live is not taken for times", !odd.tka && odd.rows.length === 5, JSON.stringify(odd.tka));
+  const big = P.analyzeFile(["300", "301", ...Array.from({ length: 8190 }, (_, i) => String(i % 97))].join("\n"), { fname: "c.tka" });
+  check("tka: 8190 channels", big.rows.length === 8190 && big.cols[0][8189] === 8189 % 97, big.rows.length);
+}
+
+/* ---------- 15c. a list of known lines, as people write them ---------- */
+{
+  const L = P.parseLineList(["# my literature values", "Nuclide, E (keV), I (%)", "Bi-214, 609.312, 45.49", "609.32  Pb-214?", "²¹⁴Bi;1120,29;14,9", "K 40 1460.82", "Ra 226 186.21 3.64", "1764.5\tBi-214", "2614.511", "", "Tl-208 583.187 85"].join("\n"));
+  const it = L.items;
+  check("lines: a header without a number is skipped and counted", L.skipped === 1 && it.length === 8, `${L.skipped} skipped, ${it.length} read`);
+  check("lines: name, energy, intensity in that order", it[0].name === "Bi-214" && close(it[0].x, 609.312) && close(it[0].i, 45.49), JSON.stringify(it[0]));
+  check("lines: energy first, then the name", close(it[1].x, 609.32) && it[1].name === "Pb-214?", JSON.stringify(it[1]));
+  check("lines: semicolons and decimal commas", it[2].name === "²¹⁴Bi" && close(it[2].x, 1120.29) && close(it[2].i, 14.9), JSON.stringify(it[2]));
+  check("lines: a mass number after the symbol stays in the name", it[3].name === "K 40" && close(it[3].x, 1460.82) && it[4].name === "Ra 226" && close(it[4].x, 186.21) && close(it[4].i, 3.64), JSON.stringify([it[3], it[4]]));
+  check("lines: a tab between energy and name", close(it[5].x, 1764.5) && it[5].name === "Bi-214", JSON.stringify(it[5]));
+  check("lines: a bare number is named by itself", close(it[6].x, 2614.511) && it[6].name === "2614.511", JSON.stringify(it[6]));
+  check("lines: whole-number intensity after a decimal energy", close(it[7].x, 583.187) && it[7].i === 85, JSON.stringify(it[7]));
 }
 
 /* ---------- 16. two blocks: the longer one wins ---------- */

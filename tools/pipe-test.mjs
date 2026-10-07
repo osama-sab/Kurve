@@ -181,6 +181,25 @@ console.log("Axis and calibration");
   const two = xs.map(v => v * 1.002 - 1.5);
   const y2 = xs.map(v => 100 + 2000 / (1 + 4 * ((v * 1.002 - 1.5 - (520.7 * 1.002 - 1.5)) / 4) ** 2));
   check("a peak not in the search window is reported, not guessed", run(series(xs, ys), "calib", { refs: [{ ref: 560 }], win: 5 }).warn.length === 1);
+  // Channels to energy: a calibration typed in, and one fitted to known peaks.
+  const ch = Array.from({ length: 2000 }, (_, i) => i);
+  const E = v => 0.3258 * v + 0.6937;
+  const gy = ch.map(v => 20 + 900 * Math.exp(-0.5 * ((E(v) - 609.32) / 1.2) ** 2) + 500 * Math.exp(-0.5 * ((E(v) - 351.93) / 1.1) ** 2));
+  const ec = run(series(ch, gy), "ecal", { mode: "coef", a: 0.3258, b: 0.6937, c: 0, xn: "Energy", xu: "keV" });
+  check("energy calibration: E = a·ch + b", near(ec.d.x[1000], 326.4937, 1e-9) && ec.d.xn === "Energy" && ec.d.xu === "keV", `${ec.d.x[1000]} ${ec.d.xn} ${ec.d.xu}`);
+  const chOf = e => (e - 0.6937) / 0.3258;
+  const fit = run(series(ch, gy), "ecal", { mode: "pairs", deg: "1", win: 8, pairs: [{ ch: Math.round(chOf(609.32)) + 3, en: 609.32 }, { ch: Math.round(chOf(351.93)) - 4, en: 351.93 }], xu: "keV" });
+  check("energy calibration from two peaks finds each top and recovers the line", near(fit.extra.coef[1], 0.3258, 2e-4) && near(fit.extra.coef[0], 0.6937, 0.1), fit.extra.coef.join(", "));
+  const one = run(series(ch, gy), "ecal", { mode: "pairs", pairs: [{ ch: 1868, en: 609.32 }] });
+  check("one peak is not a calibration, and says so", one.d.x[5] === 5 && one.warn.some(w => /two at least/.test(w)), one.warn.join(" | "));
+  const turn = run(series(ch, gy), "ecal", { mode: "coef", a: 0.3, b: 0, c: -0.0001 });
+  check("a parabola that turns back inside the spectrum is flagged", turn.warn.some(w => /turns back/.test(w)), turn.warn.join(" | "));
+  let zero = null; try { run(series(ch, gy), "ecal", { mode: "coef", a: 0, b: 1 }); } catch (e) { zero = e.message; }
+  check("a zero gain is refused", /non-zero/.test(zero || ""), zero);
+  const sc = run(series([1, 2], [1800, 3600]), "scale", { a: 1 / 1800, b: 0, yu: "counts/s" });
+  check("scale: Y in a new unit", near(sc.d.y[1], 2, 1e-12) && sc.d.yu === "counts/s", sc.d.yu);
+  const xl = run(series([1, 2], [1, 1]), "xlin", { a: 2, b: 1, xn: "Energy", xu: "keV" });
+  check("scale X: renamed when asked", xl.d.x[1] === 5 && xl.d.xn === "Energy" && xl.d.xu === "keV");
 }
 
 /* ---------- normalize, resample, dedupe, reference, maths ---------- */

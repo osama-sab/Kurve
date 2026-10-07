@@ -22,9 +22,12 @@ keyboard focus). Both are remembered per browser; neither changes the graph's co
 
 The desk holds **windows**, as in Origin: Graph, Worksheet, History, Overview, Peaks,
 Integrate, Fit, Results, Batch, any number of Trend graphs, Statistics, Python, Discussion, Help, and the transient Tool dialog. Each moves by its title bar, resizes from
-its edges, maximises on a double-click of the title and minimises to the **taskbar** along the
-bottom of the desk, which starts with the project's name (every window on the desk is that
-project's; click it to switch) and also has Tile and Cascade. Every title bar has a **?** that opens
+its edges, maximises on a double-click of the title, minimises to the **taskbar** along the
+bottom of the desk and closes with its × (graph windows only minimise). A window is open (its
+taskbar button has a bar under it, the front one in colour), minimised (its button faded, no
+bar) or closed (no button, unless it has news); the taskbar starts with the project's name
+(every window on the desk is that project's; click it to switch), then a **Windows** button
+listing every window by state, and also has Tile and Cascade. Every title bar has a **?** that opens
 the window's article in the **Help window** (F1 does it for the window in front; a tool's
 opens its step's article). A first visit opens Graph, History and Worksheet. A project can
 have **several graphs**, each in its own window (Window › New graph: with the analysed
@@ -116,8 +119,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   crop, exclude, despike, sort, dedupe, resample; bg (arPLS, ALS, airPLS, ModPoly, I-ModPoly,
   SNIP, rolling ball, anchors with spline/PCHIP/lines, line, constant; all through one banded
   `whittaker` solve or `chebFit`); smooth (Savitzky–Golay, moving average, median, Gaussian,
-  Whittaker); shift (wavelength to Raman shift), xunit, calib (reference peaks, `CAL_REFS`),
-  xlin; norm; scale, ref (another spectrum, interpolated), combine (mean, median or sum with
+  Whittaker); shift (wavelength to Raman shift), xunit, calib (reference peaks, `CAL_REFS`,
+  Raman standards and gamma lines), ecal (channels to energy: E = a·ch + b + c·ch² from typed
+  coefficients, or fitted to `pairs` `[{ch, en}]`, each channel refined to its peak's top by
+  `peakTopNear`; names X `xn`/`xu`, keV by default), xlin (with an optional new name and unit);
+  norm; scale (with an optional new Y name and unit, `yn`/`yu`: Count rate, counts/s), ref (another spectrum, interpolated), combine (mean, median or sum with
   other spectra, the spread as error bars), deriv, cumint (running integral), fft
   (zero-phase Butterworth low- or high-pass, `fftFilter`, ends mirrored), log, absorb, km,
   bose; python (stores its code and its output `{x, y, e?, xn?, xu?, yn?, yu?}`, plus the
@@ -178,8 +184,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   `found` and `rejected`, each candidate with `x, prom, promLin, h, base, snr, w, wPts`, and a
   rejected one with `code` (`thr`, `noise`, `spike`, `wide`, `sep`, `max`) and `why`, in words;
   `noise` counts maxima of the noise itself. A `deriv2` shoulder is measured against the lowest
-  point within its own width, having no valley of its own. `findPeaks` stays for
-  `detectBands` and the older tests.
+  point within its own width, having no valley of its own. The noise a candidate's prominence
+  is divided by is one figure (`noise:"global"`, the default), measured along the series
+  (`"local"`, `localNoise`: second differences' median in stretches, a quarter of the global
+  figure at least), or given per point (`sigma`, an array: counting statistics), taken where
+  the candidate's base (its saddle) is; `res.noiseMode` says which (`given`), each candidate
+  its `sig`. `findPeaks` stays for `detectBands` and the older tests.
   `tools/fit-test.mjs` checks each shape integrates to its stated area and has its stated FWHM,
   that known multi-peak spectra are recovered, the spike, prominence and seeding rules, and
   `peakSearch`'s thresholds (a band three decades below the main one), reasons and methods,
@@ -190,13 +200,18 @@ graph first, with the taskbar kept at the bottom of the screen.
   identity, each column exactly solve()'s), global fits (shared values recovered and equal in
   every set, each set's own, the degrees of freedom, a smaller shared error than one fit's,
   the block-sparse fit equal to the same problem dense, the shared error against 150 noisy
-  repeats, ties through `prep`, one set as an ordinary fit) and `matchPeakTracks`. Run it after
-  touching any of this.
+  repeats, ties through `prep`, one set as an ordinary fit), `matchPeakTracks`, counting
+  statistics (a Poisson continuum whose wiggles one noise figure takes for peaks and √N does
+  not, with a weak line found) and `matchLines`. Run it after touching any of this.
   `matchPeakTracks(lists, {tol, dx})` follows the same peak through a series: each spectrum's
   peaks (`{x, w}`) join the track whose last position is nearest, within `tol` (0.5) of the
   larger FWHM (`dx` when neither has one), closest pairs first, two peaks of one spectrum never
   on one track; a peak matching none starts one. It returns tracks with `members [{s, k}]`, the
   median `x`, and `x0`, `x1`.
+  `matchLines(peaks, lines, {tol, tolW})` names peaks (`{x, w}`) from known lines (`{x, name,
+  i}`): a line within `tol` or `tolW` of the peak's FWHM, the nearest pairs first (equal ones to
+  the stronger line), each line one peak at most; per peak `{line, j, d, alts}` (or `line:null`
+  with alternatives taken by nearer peaks, or null), `n`, and `shift`, the median offset.
 - **Fits** come in two kinds. `MODELS` (each with `params`, `ph`, `formula`, `f(x,p)`,
   `guess`, optional `derived` with delta-method errors) drives "Curve fit".
   `{kind:"composite", spec, x0, …}` drives "Peak fit". `fitModel(fit)` hands either to
@@ -299,8 +314,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   and the worksheet's `parseNum` both use it. `unwrapQuoted` turns line breaks inside a quoted
   field that opens at a field's start and closes within four lines into spaces (a spreadsheet
   header cell written on two lines), before `analyzeFile` and the worksheet's paste split lines.
-  `tools/parser-test.mjs` extracts this block
-  straight out of the HTML and tests it under node; run it after touching anything here.
+  `parseLineList(text)` reads a list of known lines as people write them (a name and a
+  position in either order, an intensity, tabs, semicolons, decimal commas, `K 40 1460.8`, #
+  notes; a line without a number skipped and counted). `tools/parser-test.mjs` extracts this block
+  straight out of the HTML and tests it under node (TKA files and line lists among the rest);
+  run it after touching anything here.
   Files arrive through `readFileIn` (the Import button, Ctrl+O, or a drop anywhere on the
   window) and `importText`, which refuses binary instrument files with a reason (`looksBinary`).
   **Many spectra at once**: several files chosen or dropped together go to `readFilesIn`; a
@@ -312,6 +330,18 @@ graph first, with the taskbar kept at the bottom of the screen.
   one change: one undo entry, one log line, one raw-data record entry. A spectrum shares the X
   column of the one before it when `sameAxis`, and has its own otherwise; a project that held
   nothing gives its first graph to the new spectra.
+  **One column** (a multichannel analyser's counts, a line per channel): `analyzeFile(raw,
+  {fname, tka})` marks `single`, and for a `.tka` name (or `tka:true`; `tka:false` refuses)
+  reads the first two lines as live and real time (`res.tka`, into `meta` with the dead time;
+  only when real ≥ live unless asked) and starts the data after them; `detectRoles` gives one
+  column `xi:-1`. The wizard's X list then offers the row number (`im.xi<0`, "Channel
+  number", from `im.ch0`, 0 or 1), its Y error list `√Y, counting statistics` (`IMP_SQRT`,
+  for non-negative whole numbers: an error column computed by the formula `SQRT_FX`,
+  `sqrt(max(B,1))`), and the TKA line a `rate` fix (a `scale` step by 1/live, Count rate in
+  counts/s). X is named Channel, Y Counts (counts) for TKA, the file's name otherwise (and
+  beside other spectra); thousands of points are drawn as a line. `batchFile` reads one-column
+  files the same way. A Y column whose X column holds no values is drawn against its row
+  number (`rawSeries`, `anyVal`, xn "Row").
 - **Columns and spectra**: a project is a table. `p.cols` is `[{id, role, name, unit, data, of?,
   pipe?, mask?, src?, from?, file?, meta?}]` (`file` and `meta`, the file a spectrum came from and
   its header's fields, `colMetaOf`, shown in its Raw data box in the History; Python's `meta` is
@@ -326,7 +356,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   `activeYCol`, `errColFor`, `colById`, `makeCol`, `colLabel`, `colLetter` (letters count raw
   columns only), `specName`. A raw column's role, error-bar owner, visibility and deletion live
   in its header menu (`openColMenu`) and go through `setColRole`, `setErrOf`, `setActiveCol`,
-  `toggleColVis`, `deleteCol`.
+  `toggleColVis`, `deleteCol`. A spectrum may name its X column (`xcol`, honoured first by
+  `xColFor`; `setXOf(yid, xid)`, the menu's Plot against and an X column's X of); a formula
+  column that reads only X columns is an axis: setting it (`setColFormula`) or making it an X
+  column offers `useAsXFor(id)`, which makes it X and points the spectra plotted against what
+  it reads at it (`xReaders`), one undo entry. Making the analysed spectrum's column not a Y
+  moves `activeY` on.
 - **Raw data is locked**: raw arrays are replaced, never edited in place, and never changed by
   analysis. Filling an empty cell or pasting into empty cells records new raw data; typing over
   a recorded value opens `correctCell`, which asks for a reason and adds a `correct` step to the
@@ -401,7 +436,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   and a `.win-b` body; `LAYOUT.wins[id]` keeps `{g: [x, y, w, h] as fractions of the desk,
   open, max, z}`, saved per browser under `kurve.layout` (version 2; an older layout is
   ignored; every window state read back goes through `saneWin`, so NaN or absurd sizes put the
-  window back where it starts). `openWin(id, {render})`, `closeWin`, `toggleWin`, `focusWin`, `toggleMax`,
+  window back where it starts). A window is open, minimised (`min`, its taskbar button kept;
+  `minimiseWin`, the title bar's –, a click on the front window's button, tiling that leaves
+  windows out) or closed (`closeWin`, the ×, a Done button: out of the taskbar, unless
+  `winBadge` has news, drawn dashed); graph and trend windows keep their buttons (`keepsBtn`,
+  no ×). `winMin`, `inBar`, `winStateName` ("in front", "open", "minimised", "closed"),
+  `frontWinId`; the Window menu's list and the taskbar's Windows button (`winListItems`, by
+  state) are built from `winItem`. `openWin(id, {render})`, `closeWin`, `toggleWin`, `focusWin`, `toggleMax`,
   `tileWins`, `cascadeWins`, `resetWins`, `renderWin(id)` (which window renders what),
   `renderTaskbar`, `setupWins` (move, resize, min/max buttons, and the "?" `[data-whelp]`
   that opens `helpFor(id)`). `renderAll` renders only open
@@ -523,7 +564,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   `pyStale(s)` says why a step is out of date (`notrun`, `code`, `input`, `read`),
   `rerunStalePython` runs every such step in order as one undo entry, and `rerunPythonStep`
   one. In the History a Python step's code is editable, with "Also reads" chips. The report
-  prints each Python step's code.
+  prints each Python step's code. The code also gets `peaks` (the spectrum's peak set, dicts
+  with `x, y, fwhm, snr, label`) and `lines` (the Peaks window's chosen known lines, in the
+  spectrum's units); a third destination, **peak labels** (`dest:"labels"`, `mode` sent to the
+  worker so the epilogue skips x, y and e: an example once reused `e` and broke them), returns
+  each peak's `label`: the window lists the changes and `applyPyLabels` gives them, one undo
+  entry (`PY_LABEL_CODE`, the starting code and an example).
 - **Discussion** (`threadIndex`, `threadHtml`, `wireThreads`, `threadAct`, `renderThread`,
   `flowDiscHtml`, `renderFlowDisc`, `refreshComments`, `goNode`, `goAnchor`,
   `reportDiscussionHtml`): a comment is `{uid, text, anchor, t, resolved, resolvedBy, parent?,
@@ -590,14 +636,38 @@ graph first, with the taskbar kept at the bottom of the screen.
   with Add), Across the spectra (with several sets on one axis: each matched peak once, its
   spread, in how many, one label for every one, a chart button for its trend), how they look on
   the graph, and a pinned footer: **Done** (closes the window; the peaks stay), then the
-  optional Fit them…, Integrate them and Labels and legend…. **The range**: `pkRangeOf(c)` is
-  the set's own (`found[c].rng` in its units) or, before a set, `S.pkRng[c.id]`; null is the
-  whole spectrum. `findPeaksInto({rng})` searches it (its own range by default, never the zoom;
-  the log names it), `setPkRange(rng)` sets it with an undo entry of its own, `viewRng()` is the
-  zoom as a range, `pickPkRange()` the drag (`S.pick.pkr`, read in `setPickedRange`); the first
-  search when the window opens takes the view, and `findPeaksEvery` uses the analysed
-  spectrum's range on every spectrum on its axis. While the window is open `buildPlot` shades
-  what lies outside the range (`.pkrange`).
+  optional Fit them…, Integrate them and Labels and legend…. **Regions**: parts of the spectrum
+  searched each with its own finder settings. A set keeps them (`found[c].regs`, `[{id, x0, x1,
+  o}]` in its units; `rng` too when there is one, for older readers); before a set,
+  `S.pkRegs[c.id]`. `normRegs`, `regsOfSet(f)` (an older set's `rng` is one region with its
+  `opts`), `pkRegsOf(c)`, `pkRangeOf(c)` (their span, or null), `pkSelReg` (the one whose
+  settings the form shows, `S.pkReg`), `searchRegions(c, regs, xu, base)` (each region
+  searched alone, results laid end to end, a peak found twice counted once), `setPkRegs(regs,
+  why)` (one undo entry, searches again), `addPkRegion` (the view, or a drag: `pickPkRange`,
+  `S.pick.pkr`, read in `setPickedRange`), `removePkRegion`, `setPkRange(rng)` (one region). The
+  table (`.pkregs`: edges typed, `pfSummary` of its settings, the peaks in it, ×); the
+  **Peak finder settings** (`#pkHow`, once "How to recognise a peak") edit the selected
+  region's, with Use in every region, or with no regions `S.pf`. `findPeaksInto({regs|rng})`,
+  `findPeaksEvery` (the analysed spectrum's regions on every spectrum on its axis) and
+  `followPeakSets` (the set's own) all go through `searchRegions`. While the window is open
+  `buildPlot` shades what no region covers (`.pkrange`) and numbers the regions, the selected
+  one in the accent colour. **Noise** (`PF_NOISE`, `o.noise`): `pkSearchOpts(c, o, pts)`
+  turns the settings into `peakSearch`'s, and for `auto` or `counts` gives counting statistics
+  when it can (`countNoise`: √N from the counts as recorded in each point's row, averaged over
+  five channels, through `countsPerY` (counts 1, counts per second the live time from
+  `specMeta`/`liveTimeOf`) for the raw and the final units; null when the final unit is not
+  counts), else `local` (counts asked for) or `global`. **Known lines** (`#pkId`, Name them
+  from known lines): `LINE_LIBS` (the natural background's gamma lines and calibration
+  sources, keV, with intensities), the project's lists `p.lines` (`[{id, name, unit,
+  items}]`, in `UNDO_KEYS`; `editLineList` (paste or read a file, `parseLineList`),
+  `deleteLineList`), `lineLibs`, `lineLib`, `lineScale` (eV, keV, MeV; null otherwise),
+  `linesFor(lib, xu)` (the lines in the spectrum's units, or why not), `idfOpts` (`S.idf`,
+  `kurve.idf`: list, tolerance, label form, keep typed), `idMatchOpts` (a typed tolerance, or
+  each peak's FWHM with half the median as a floor), `identifyPeaks(c)` (`matchLines`, then each
+  peak's annotation gets `line {x, name, lib, d}` and its label by `lineLabel`; a label typed
+  by hand, `typed`, stays; one undo entry; `S.idLast` for the summary and the offset),
+  `setPeakLine`/`peakLineMenu` (the table's Line column: the lines near a peak), and the copied
+  table and the report carry the line and the peak's offset from it.
   `pkUndo` makes one undo entry per burst of the same kind of change.
 - **Integrate window** (`openIntegrate`, `renderInteg`, `wireInteg`): bands measured without
   a fit. `p.integ = {bands, ref, avg, show}`: each band a window `{id, x1, x2, xu, lab, base}`
@@ -792,12 +862,19 @@ graph first, with the taskbar kept at the bottom of the screen.
   in their font, ticks pointing out, offsets, titles, a right axis, a colour bar, an outside
   legend; `mL`/`mR`/`mT`/`mB` override them. `drawFrame(top, h, yt, Yf, showXLab, yLabels,
   labCol, main)` draws the frame, the axis lines (one path at a corner), ticks (`tkSpan`,
-  `tkOut`), mirrored ticks and numbers, and records where the numbers went (`drawn`) so the
+  `tkOut`), the ticks across from each axis (its mirror: `mirror`, their own direction
+  `mticks` → `mdir`, and numbers there `mlabs`, room for them in the margins), and records
+  where the numbers went (`drawn`) so the
   titles sit beside them wherever the axes are. Stacked panels keep X at the bottom and Y on
   the left; double Y keeps Y on the left. On screen the main frame also draws a transparent
   zone over each axis's numbers (`data-axis`: drag, right-click, double-click) and records
   `geo.axes`. The grid takes `gridColor`, `gridLw`, `gridDash`, `gridX`, `gridY`; `plotBg`
-  fills the plot area. The title takes `TS.title.align` and `titleDx`/`titleDy`. `layout` (`LAYOUTS`): overlay,
+  fills the plot area. **Edge by edge** (the Format dialog's frame page): `frameEdges(cfg)`
+  says whose ticks and numbers each of the four edges carries (an axis's own, the edge across
+  from it, the right Y axis with two, the second X axis), `edgePicSvg` draws the frame small
+  with each edge's state (click one, `S.pdEdge`), `pdEdgeSet(edge, "ticks"|"labs", v)` and
+  `pdEdgesAll(v)` write the working copy; the quick style "Out on the axes, in across"; the
+  axis page and the axis menu have the edge across too. The title takes `TS.title.align` and `titleDx`/`titleDy`. `layout` (`LAYOUTS`): overlay,
   offset (a waterfall, each trace labelled), stack (a panel per spectrum, shared X, the
   analysed one on top), dy (the others on a right axis), heat (one row per spectrum, drawn as
   one image from `heatImage`, with a colour bar; `CMAPS`). The legend goes in the emptiest
@@ -1043,7 +1120,8 @@ holding a label, 300 spectra, a long graph name, a straight line through one X, 
 deep, breaks read from storage in every broken form, a second axis that cannot be numbered, a
 curved one, a PDF's cross-reference table and size, an EPS's bounding box, characters no
 standard font has, broken formats in the store. Run it after touching storage, the axes, the
-parser, undo or the PDF and EPS writer. To look at a PDF or EPS, render it: Ghostscript
+parser, undo or the PDF and EPS writer. It serves the file over HTTP (a server of its own, on a
+free port) and waits for each page to be ready (a project on the desk), never a fixed time. To look at a PDF or EPS, render it: Ghostscript
 (`gs -dSAFER -dBATCH -dNOPAUSE -sDEVICE=png16m -r110 -dGraphicsAlphaBits=4 -dTextAlphaBits=4`,
 with `-dEPSCrop` for an EPS) or PyMuPDF; at low resolution without anti-aliasing a small
 circle looks like a star. For anything else the UI
@@ -1426,9 +1504,50 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   centred title off by the difference. The writer carries the AFM widths of every font it
   names, and Symbol's for what Latin-1 lacks.
 
+- **Counts are counted.** A gamma spectrum's noise is √N: tens of counts where the continuum is
+  high, a few where it is not. One noise figure for the whole spectrum (a median, set by the
+  quiet channels) made the Overview find 204 "spikes" and the finder call the continuum's
+  wiggles peaks. The finder takes √N from the counts as recorded; any check that compares a
+  height with "the noise" should ask which noise.
+- **A name the user's code may reuse is not ours.** The epilogue read `e` (error bars) after a
+  labelling example had used `e` for an energy, and every run failed with "e must be a
+  sequence of numbers". A mode that returns no data does not read the data.
+- **A constant used while the script loads must come before its user.** An array of examples
+  naming a template string declared further down throws on load (the temporal dead zone) and
+  takes the whole app with it.
+- **file:// is no place to test storage.** Chromium sometimes gives two pages opened from
+  file:// storage of their own, or reloads one without a write it just made: odd-test's tab and
+  store checks failed about one run in three, on the committed version too, while two tabs over
+  HTTP never did (16 of 16). odd-test serves the file over HTTP and waits for each page to have
+  a project on the desk, not for a fixed time.
+- **A wait that swallows its timeout hides that it never worked.** The first readiness check
+  asked for `window.S`, which a top-level `const` never is, and every page waited its full 15 s
+  before carrying on as if ready. Check a wait once without its `catch`.
+- **"Not open" was two states.** Minimised and never opened looked alike (dashed) in a taskbar
+  that listed every window, so nobody could tell what they had left where. Open, minimised and
+  closed each look different now, and closed ones leave the taskbar.
+- **An earlier stage drawn behind must be on the same X.** Channels drawn behind energies are
+  another graph on one axis: the ghost and the before-and-after chart check X's name and unit,
+  not only Y's scale.
+
 ## Roadmap
 
-Done in this round: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
+Done in this round: a gamma spectrum, from a user's file of background radiation. One-column
+files of counts per channel are read (a .TKA file's live and real time into the metadata, X
+the channel number from 0 or 1, √N error bars as a computed column, counts per second by a
+step); calibrated to energy by a step (coefficients, remembered for the next file, or fitted
+to peaks of known energy), by a worksheet formula that becomes the X axis (Use as X, Plot
+against), or by Python. The peak finder knows that counts are counted: its noise is √N from the
+counts as recorded, so the continuum's wiggles are not peaks and a line on a few counts is; it
+searches regions, each with its own settings ("Peak finder settings", renamed from "How to
+recognise a peak"). Peaks are named from known lines within a tolerance (each peak's FWHM by
+default): the natural background's and calibration sources' gamma lines, or your own list
+pasted or read from a file, kept with the project; or by your Python code, which gets the
+peaks and the lines. The taskbar tells open, minimised and closed windows apart, with a close
+button and a Windows list. Each edge of the frame has its own ticks and numbers, set by
+clicking the edge in a picture of the frame.
+
+Round before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
 their corners, filled or not, behind the data or over it, with text inside, pinned or at data
 values). Axis breaks on X and Y, suggested over the widest empty stretch, cut with two strokes,
 the two sides on one scale, followed by zoom, wheel and pan, and named in the report. A second
@@ -1441,7 +1560,7 @@ writer: vectors, clipping, opacity (PDF), images, gradients, insets and every gr
 figure, text in the standard fonts placed by their own widths. The toolbar keeps to one row
 down to 860 px.
 
-Round before: bugs found by using the app the way nobody does. A tab that froze for good
+Two rounds before: bugs found by using the app the way nobody does. A tab that froze for good
 (ticks added up after a deep zoom), tick labels all alike on a nanosecond axis, NaN drawn for
 equal or extreme limits; a second tab wiping the first's projects, a full store that still
 said Saved, two projects sharing an id, a corrupt saved layout; typographic minus signs, French
@@ -1452,7 +1571,7 @@ undo during a drag; ten-second saves with 300 spectra, 200 ms undo steps on big 
 names pushing title-bar buttons out of reach; batch rows of deleted spectra. Each fixed by its
 class, and `tools/odd-test.mjs` keeps them fixed.
 
-Two rounds before: graphs and projects, from a bug report. Deleting a project could leave its
+Three rounds before: graphs and projects, from a bug report. Deleting a project could leave its
 graphs on the desk and the next import going into it (a store's events in the other order); a
 graph in front that went away took the live plot with it. Both fixed. The taskbar names the
 project its windows belong to, the project list says what each holds, new projects get names
@@ -1462,7 +1581,7 @@ spectrum by its chip, onto a graph, its taskbar button or the desk; Ctrl keeps t
 dropped; it scrolls on a phone), from menus, or in Combine graphs… with a layout; spectra
 come from another project with their processing, peaks and colours.
 
-Three rounds before: finding and labelling peaks, from what people asked. The Peaks window
+Four rounds before: finding and labelling peaks, from what people asked. The Peaks window
 says where it looks (the spectrum, always shown, and From … to … typed, taken from the view
 or dragged on the graph, shaded there, kept with the set) and ends in Done; the Fit window
 says which spectrum and range it fits, and ends in Done too. Fitted peaks are labelled with
@@ -1471,7 +1590,7 @@ errors and units; above, inside, or in a row along the top with leaders; turned,
 boxed, dragged; each peak can be named, and its name goes to Results, the report and the
 exports.
 
-Four rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
+Five rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
 spectrum shares (centres, widths, areas, shapes, the baseline, or parameter by parameter; a
 curve model's parameters), each spectrum first fitted with those held so the fit starts where
 it belongs, one block-sparse Levenberg–Marquardt problem, every row a normal fit that says what
@@ -1482,7 +1601,7 @@ on the desk: several quantities, left and right axes, lines with slopes, SVG, PN
 Each spectrum keeps its file's header, and a field that differs (a temperature, the time it was
 taken) is what a series can be plotted against.
 
-Five rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
+Six rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
 every title, legend entry and label (`cm^{-1}`, `\alpha`), with buttons and a word
 processor's keys; arrows drawn by dragging, their heads snapping to data points, with heads
 of four kinds; insets made from a zoom, dragged and resized, outlined on the graph with
@@ -1492,7 +1611,7 @@ print, lines scaled with the text or not, SVG at its size, PNG with its dpi reco
 transparent backgrounds, a preview); formats saved by name and used on any graph in any
 project, with five of Kurve's; a toolbar that keeps to one row at every width.
 
-Six rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
+Seven rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
 Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
 its own font, size in points, bold, italic, underline and colour; a real font picker (each
 name in its face, search, web fonts that look the same everywhere, which fonts this computer
@@ -1507,7 +1626,7 @@ graph at once. Labels and text over several lines, turned to any angle, in a box
 pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
 richer right-click menus on axes, titles, the legend and annotations.
 
-Seven rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+Eight rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
 started from its result, from the neighbour in the series, or from the peaks found in each;
 every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
 the History, replaced by a fit by hand, out of date when its processing changes). The Batch
@@ -1562,24 +1681,46 @@ Python again"); user-defined fit functions with a library; true Voigt and Fano s
 peak parameters (one width, area ratios, fixed spacings).
 
 Next, in order:
-1. Figures, further still: graph layers and panels of different spectra (the part of the last
+1. Counting spectra, further: other analysers' files (Maestro .Spe with its calibration, N42;
+   CHN and CNF are binary), FWHM and efficiency against energy, net peak areas over a local
+   continuum with their counting errors and activities, a nuclide named by the set of its lines
+   (their intensity ratios, interferences), region edges dragged on the graph
+2. Figures, further still: graph layers and panels of different spectra (the part of the last
    list not done), the graph's own fonts embedded in a PDF, a second Y axis in other units,
    a break at a chosen place with its own scale on each side, polygons and curved arrows
-2. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
+3. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
    lanes, keyboard access to annotations and peak handles, handles for shape parameters
    (Lorentz fraction, Pearson m, Fano 1/q)
-3. Many spectra, further: a parameter that follows the series in a global fit (a centre
+4. Many spectra, further: a parameter that follows the series in a global fit (a centre
    linear in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the
    files' header fields as rows of the worksheet, global fits in a worker
-4. More files: JCAMP-DX, then SPC; OPUS and SPE last
-5. Under the hood: projects in IndexedDB rather than localStorage (no 5 MB limit, BroadcastChannel
+5. More files: JCAMP-DX, then SPC; OPUS and SPE last
+6. Under the hood: projects in IndexedDB rather than localStorage (no 5 MB limit, BroadcastChannel
    between tabs); `tools/odd-test.mjs` grown to run every example end to end; the worksheet
    drawing only the columns in view; speed with thousands of spectra
-6. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
+7. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
    applied in one click, unread markers; Python steps that re-run on their own when asked
 
 ## Known gaps
 
+- One-column files: a .TKA file's two-line header is the only analyser header known; other text
+  formats are read where their numbers make the longest block (their own calibration is not
+  read), and binary ones (CHN, CNF) not at all
+- Energy calibration is a line or a parabola; there is no FWHM or efficiency calibration, and
+  from peaks each one's channel must be given (a source's lines are not matched on their own)
+- Counting statistics: the noise comes from the counts as recorded in the same row, so after
+  smoothing it is overstated (peaks look a little weaker than they are), and after a step that
+  changes the unit (normalizing) the finder falls back to measuring the noise; it is the
+  background's √N at a peak's base, not a net-area significance
+- Regions are typed or added from the view or a drag; their edges cannot be dragged on the
+  graph, and the Fit window's finder has none
+- Known lines are matched by position alone, nearest first: a nuclide's other lines and their
+  intensity ratios are not checked, nor interferences; no activities. Positions convert only
+  among eV, keV and MeV
+- Graph and trend windows minimise but never close; a closed window with news shows a dashed
+  button
+- Numbers across from an axis: on the top panel only when stacked; not across from a second X
+  axis; a heat map's Y edge has none
 - Help cannot be opened over a dialog (a dialog makes the desk inert), so the import wizard
   and the Format dialog have no "?" of their own; their articles are in the contents. Articles have
   no pictures, and search matches words, not meanings
