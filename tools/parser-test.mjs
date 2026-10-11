@@ -12,7 +12,7 @@ const m = html.match(/==PARSER:START==[\s\S]*?\*\/([\s\S]*?)\/\* ==PARSER:END==/
 if (!m) { console.error("Could not find the parser block in kurve.html"); process.exit(1); }
 
 // checkColumns formats numbers with the app's fmt(); a plain stub is enough here.
-const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,parseLineList};`;
+const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,parseLineList,parseFillList};`;
 const P = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -242,6 +242,20 @@ check("negative kept", close(P.toNumber("-999", "."), -999));
   check("lines: a tab between energy and name", close(it[5].x, 1764.5) && it[5].name === "Bi-214", JSON.stringify(it[5]));
   check("lines: a bare number is named by itself", close(it[6].x, 2614.511) && it[6].name === "2614.511", JSON.stringify(it[6]));
   check("lines: whole-number intensity after a decimal energy", close(it[7].x, 583.187) && it[7].i === 85, JSON.stringify(it[7]));
+}
+
+/* ---------- 15d. a list of values typed for a fill ---------- */
+{
+  const F = (t) => P.parseFillList(t);
+  const eq = (a, b) => a.length === b.length && a.every((v, i) => close(v, b[i]));
+  check("fill list: spaces", eq(F("1 2 3").vals, [1, 2, 3]), JSON.stringify(F("1 2 3")));
+  check("fill list: commas alone separate", eq(F("1,2,3").vals, [1, 2, 3]), JSON.stringify(F("1,2,3")));
+  check("fill list: comma and space", eq(F("1, 2, 3").vals, [1, 2, 3]), JSON.stringify(F("1, 2, 3")));
+  check("fill list: decimal commas between spaces", eq(F("1,5 2,5").vals, [1.5, 2.5]), JSON.stringify(F("1,5 2,5")));
+  check("fill list: semicolons, lines, a typographic minus, an exponent", eq(F("1;2\n−2 3e2").vals, [1, 2, -2, 300]), JSON.stringify(F("1;2\n−2 3e2")));
+  const b = F("1 two 3");
+  check("fill list: a word is not a number, and is named", eq(b.vals, [1, 3]) && b.bad.length === 1 && b.bad[0] === "two", JSON.stringify(b));
+  check("fill list: nothing typed", F("  ").vals.length === 0 && F("").bad.length === 0);
 }
 
 /* ---------- 16. two blocks: the longer one wins ---------- */

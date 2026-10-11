@@ -15,7 +15,7 @@ const grab = (tag) => {
 // Interpolation, integration and normalizing live in the pipeline block now;
 // tools/pipe-test.mjs tests the rest of it.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -610,6 +610,69 @@ function fitSpec(X, Y, spec, init, opts) {
   check("tracks: two peaks of one spectrum never share a track", N.matchPeakTracks([[{ x: 10, w: 4 }], [{ x: 9, w: 4 }, { x: 11, w: 4 }]]).length === 2);
   check("tracks: with no widths, the spacing given decides", N.matchPeakTracks([[{ x: 10 }], [{ x: 11 }]], { dx: 4 }).length === 1 && N.matchPeakTracks([[{ x: 10 }], [{ x: 11 }]]).length === 2);
 }
+/* ---------- fill: series, lists, random numbers, trends ---------- */
+{
+  const F = (o, n) => N.fillSeries(o, n);
+  const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+  let r = F({ kind: "linear", start: 0, step: 0.1 }, 11);
+  check("fill: a series by 0.1 has no floating-point dust", r.v[3] === 0.3 && r.v[7] === 0.7 && r.v[10] === 1, JSON.stringify(r.v));
+  r = F({ kind: "linear", start: 1e6, step: 1e-9 }, 3);
+  check("fill: a tiny step on a large start is kept", r.v[1] === 1000000.000000001 && r.v[2] === 1000000.000000002, JSON.stringify(r.v));
+  r = F({ kind: "linear", start: 1, step: 2, stop: 9 }, 100);
+  check("fill: a stop value ends the series, and says so", same(r.v, [1, 3, 5, 7, 9]) && /5 values/.test(r.note), JSON.stringify(r));
+  r = F({ kind: "linear", start: 10, step: -2.5, stop: 0 }, 100);
+  check("fill: a descending series to its stop", same(r.v, [10, 7.5, 5, 2.5, 0]), JSON.stringify(r.v));
+  check("fill: a series moving away from its stop is refused in words", !!F({ kind: "linear", start: 10, step: 1, stop: 0 }, 5).err && F({ kind: "linear", start: 10, step: 1, stop: 0 }, 5).v.length === 0);
+  check("fill: a step of zero cannot reach a stop", /never change/.test(F({ kind: "linear", start: 1, step: 0, stop: 5 }, 5).err || ""));
+  check("fill: a step of zero without a stop copies", same(F({ kind: "linear", start: 4, step: 0 }, 3).v, [4, 4, 4]));
+  check("fill: no first value", /first value/.test(F({ kind: "linear", start: "", step: 1 }, 3).err || ""));
+  r = F({ kind: "growth", start: 1, factor: 2 }, 11);
+  check("fill: growth doubles", r.v[10] === 1024 && r.v.length === 11);
+  check("fill: growth by 1.1 is clean", F({ kind: "growth", start: 1, factor: 1.1 }, 3).v[2] === 1.21);
+  check("fill: growth to a stop", same(F({ kind: "growth", start: 1, factor: 3, stop: 100 }, 50).v, [1, 3, 9, 27, 81]));
+  check("fill: growth past 10^308 is refused", /10³⁰⁸/.test(F({ kind: "growth", start: 1, factor: 1e10 }, 40).err || ""));
+  check("fill: a negative factor with a stop is refused", !!F({ kind: "growth", start: 1, factor: -2, stop: 100 }, 10).err);
+  r = F({ kind: "even", from: 0, to: 1 }, 5);
+  check("fill: evenly from 0 to 1", same(r.v, [0, 0.25, 0.5, 0.75, 1]), JSON.stringify(r.v));
+  r = F({ kind: "even", from: 0, to: 0.7 }, 8);
+  check("fill: evenly, the last value is exactly the end", r.v[7] === 0.7 && r.v[3] === 0.3, JSON.stringify(r.v));
+  check("fill: evenly on a log scale", same(F({ kind: "even", from: 1, to: 1000, log: true }, 4).v, [1, 10, 100, 1000]));
+  check("fill: a log scale through zero is refused", !!F({ kind: "even", from: 0, to: 10, log: true }, 4).err);
+  check("fill: one row of an even fill is its start", same(F({ kind: "even", from: 3, to: 9 }, 1).v, [3]));
+  check("fill: row numbers", same(F({ kind: "rows", first: 5 }, 3).v, [5, 6, 7]));
+  r = F({ kind: "list", vals: [1, 2, 3], each: 2, times: 0 }, 8);
+  check("fill: a list, each value twice, until full", same(r.v, [1, 1, 2, 2, 3, 3, 1, 1]), JSON.stringify(r.v));
+  r = F({ kind: "list", vals: [7, 8], each: 1, times: 2 }, 10);
+  check("fill: a list twice, then the rows stay empty", same(r.v, [7, 8, 7, 8]) && !!r.note, JSON.stringify(r));
+  check("fill: an empty list is refused", !!F({ kind: "list", vals: [] }, 3).err);
+  check("fill: nothing past the limit", !!F({ kind: "rows" }, 200001).err && !!F({ kind: "rows" }, 0).err);
+  const u1 = F({ kind: "uniform", a: 2, b: 5, seed: 42 }, 20000), u2 = F({ kind: "uniform", a: 2, b: 5, seed: 42 }, 20000), u3 = F({ kind: "uniform", a: 2, b: 5, seed: 43 }, 20000);
+  const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length, vari = (a) => { const m = mean(a); return a.reduce((s, v) => s + (v - m) * (v - m), 0) / (a.length - 1); };
+  check("fill: uniform numbers stay in their range, mean in the middle", u1.v.every((v) => v >= 2 && v < 5) && near(mean(u1.v), 3.5, 0.03), mean(u1.v));
+  check("fill: the same seed gives the same numbers, another seed others", same(u1.v, u2.v) && !same(u1.v, u3.v));
+  const iv = F({ kind: "int", a: 1, b: 6, seed: 7 }, 60000).v, cnt = [0, 0, 0, 0, 0, 0, 0];
+  iv.forEach((v) => cnt[v]++);
+  check("fill: whole numbers 1 to 6, each as likely", iv.every((v) => Number.isInteger(v) && v >= 1 && v <= 6) && cnt.slice(1).every((c) => Math.abs(c - 10000) < 400), cnt.join(" "));
+  check("fill: no whole number between 1.2 and 1.8", !!F({ kind: "int", a: 1.2, b: 1.8 }, 3).err);
+  const nv = F({ kind: "normal", mean: 5, sd: 2, seed: 3 }, 40000).v;
+  check("fill: normal numbers have their mean and SD", near(mean(nv), 5, 0.04) && near(Math.sqrt(vari(nv)), 2, 0.04), `${mean(nv)} ${Math.sqrt(vari(nv))}`);
+  check("fill: decimals round random numbers", F({ kind: "normal", mean: 0, sd: 1, seed: 1, dec: 2 }, 50).v.every((v) => Math.round(v * 100) / 100 === v));
+  check("fill: a negative SD is refused", !!F({ kind: "normal", mean: 0, sd: -1 }, 3).err);
+  for (const lam of [0.5, 4, 29, 31, 400, 1e5]) {
+    const pv = F({ kind: "poisson", lam, seed: 11 }, 40000).v, m = mean(pv), s2 = vari(pv), se = Math.sqrt(lam / 40000);
+    check(`fill: Poisson counts of mean ${lam} have mean and variance ${lam}`, pv.every((v) => Number.isInteger(v) && v >= 0) && Math.abs(m - lam) < 5 * se && Math.abs(s2 - lam) < 5 * lam * Math.sqrt(2 / 40000) + 0.02, `${m} ${s2}`);
+  }
+  check("fill: Poisson of mean 0 is all zeros", F({ kind: "poisson", lam: 0, seed: 1 }, 5).v.every((v) => v === 0));
+  check("lgamma: 1, 5, 1/2 and 101", near(N.lgammaFn(1), 0, 1e-13) && near(N.lgammaFn(5), Math.log(24), 1e-13) && near(N.lgammaFn(0.5), Math.log(Math.sqrt(Math.PI)), 1e-13) && near(N.lgammaFn(101), 363.73937555556347, 1e-10), N.lgammaFn(101));
+  r = F({ kind: "trend", xs: [0, 1, 2], ys: [1, 3, 5], r0: 3 }, 3);
+  check("fill: a straight trend continued", same(r.v, [7, 9, 11]) && /\+2/.test(r.note), JSON.stringify(r));
+  r = F({ kind: "trend", xs: [0, 1, 2], ys: [2, 4, 8], r0: 3, growth: true }, 3);
+  check("fill: a growth trend continued", same(r.v, [16, 32, 64]), JSON.stringify(r.v));
+  r = F({ kind: "trend", xs: [0, 1, 3], ys: [1, 2, 4], r0: 4 }, 1);
+  check("fill: a trend over a gap uses the rows' places", r.v[0] === 5, JSON.stringify(r.v));
+  check("fill: a trend from one value is refused", !!F({ kind: "trend", xs: [0], ys: [1], r0: 1 }, 3).err);
+}
+
 /* ---------- p-values against known values ---------- */
 check("tPvalue: t=2.228, dof=10 is ~0.05", near(N.tPvalue(2.228, 10), 0.05, 5e-4), N.tPvalue(2.228, 10));
 check("tPvalue: t=0 is 1", near(N.tPvalue(0, 10), 1, 1e-12), N.tPvalue(0, 10));

@@ -23,11 +23,18 @@ keyboard focus). Both are remembered per browser; neither changes the graph's co
 The desk holds **windows**, as in Origin: Graph, Worksheet, History, Overview, Peaks,
 Integrate, Fit, Results, Batch, any number of Trend graphs, Statistics, Python, Discussion, Help, and the transient Tool dialog. Each moves by its title bar, resizes from
 its edges, maximises on a double-click of the title, minimises to the **taskbar** along the
-bottom of the desk and closes with its × (graph windows only minimise). A window is open (its
-taskbar button has a bar under it, the front one in colour), minimised (its button faded, no
-bar) or closed (no button, unless it has news); the taskbar starts with the project's name
-(every window on the desk is that project's; click it to switch), then a **Windows** button
-listing every window by state, and also has Tile and Cascade. Every title bar has a **?** that opens
+bottom of the desk and closes with its ×. As a workbook keeps a tab per sheet, the project's
+**documents** (its graphs, the worksheet, its trend graphs) always have a taskbar button and
+only minimise; **panels** (History, Peaks, Fit…) are in the taskbar only while open or
+minimised, so a panel never opened is in no list. An open window's button is raised with a
+bar under it (the front one in colour), a minimised one's flat with no bar, and the words keep
+the text colour in both. The taskbar starts with the project's name (every window on the desk
+is that project's; click it to switch), groups more than four graphs (or three trend graphs)
+under one button, puts what does not fit in one row under a "n more" button (least recently
+used first, never the front window), and has Tile and Cascade. **Window** lists the windows in
+use as Excel's Switch Windows does (the front one ticked, minimised ones marked; a search past
+a dozen), **Window › Panels** every panel ticked while in use (Origin's View menu), Minimise
+the others, Close the panels, and Theme and Style as submenus. Every title bar has a **?** that opens
 the window's article in the **Help window** (F1 does it for the window in front; a tool's
 opens its step's article). A first visit opens Graph, History and Worksheet. A project can
 have **several graphs**, each in its own window (Window › New graph: with the analysed
@@ -94,6 +101,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   dep, t, p, CI and atBound, its own statistics (its degrees of freedom less its share of the
   shared parameters), and the whole fit's (`K`, `shared`). `inverse` eliminates once and replays
   it on each column: solve()'s arithmetic exactly, at n³ instead of n⁴.
+  `fillSeries(o, n)` makes the worksheet's fills (linear and growth series with a stop
+  value, evenly spaced on a linear or log scale, row numbers, a list repeated, uniform, whole,
+  normal and Poisson random numbers from `mulberry32(seed)`, a straight or growth trend through
+  the values above), cleaning floating-point dust at the step's precision, refusing in words,
+  at most `FILL_MAX` values; `lgammaFn` (Lanczos) and `poissonRand` (multiplication below a
+  mean of 30, Hörmann's PTRS above) serve it.
   `polyfit` fits about the mean of X and shifts back, so a wavenumber axis is not hopeless;
   `lineFit` (the trend lines) is a weighted straight line about the mean of X too, and returns
   null when the X values do not spread beyond 10⁻¹² of their size.
@@ -202,7 +215,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   the block-sparse fit equal to the same problem dense, the shared error against 150 noisy
   repeats, ties through `prep`, one set as an ordinary fit), `matchPeakTracks`, counting
   statistics (a Poisson continuum whose wiggles one noise figure takes for peaks and √N does
-  not, with a weak line found) and `matchLines`. Run it after touching any of this.
+  not, with a weak line found), `matchLines`, and the fills (a series by 0.1 with no dust, a
+  tiny step on a large start, stop values either way, growth, even and log spacing, lists, the
+  mean and spread of each kind of random number from a seed, Poisson counts at small and
+  large means, ln Γ, straight and growth trends). Run it after touching any of this.
   `matchPeakTracks(lists, {tol, dx})` follows the same peak through a series: each spectrum's
   peaks (`{x, w}`) join the track whose last position is nearest, within `tol` (0.5) of the
   larger FWHM (`dx` when neither has one), closest pairs first, two peaks of one spectrum never
@@ -316,7 +332,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   header cell written on two lines), before `analyzeFile` and the worksheet's paste split lines.
   `parseLineList(text)` reads a list of known lines as people write them (a name and a
   position in either order, an intensity, tabs, semicolons, decimal commas, `K 40 1460.8`, #
-  notes; a line without a number skipped and counted). `tools/parser-test.mjs` extracts this block
+  notes; a line without a number skipped and counted). `parseFillList(text)` reads the Fill
+  dialog's list (spaces, semicolons, or commas alone; decimal commas between spaces; the words
+  that are not numbers returned in `bad`). `tools/parser-test.mjs` extracts this block
   straight out of the HTML and tests it under node (TKA files and line lists among the rest);
   run it after touching anything here.
   Files arrive through `readFileIn` (the Import button, Ctrl+O, or a drop anywhere on the
@@ -393,7 +411,16 @@ graph first, with the taskbar kept at the bottom of the screen.
   drags down or right; two or more numbers continue their least-squares line, one number or
   text is copied, Ctrl swaps the two; a double click fills down as far as the column beside
   goes; Ctrl+D and Ctrl+R copy the first row or column. Only empty cells are written (new
-  recorded values, one undo entry); labels fill right. **Sort** (`S.wsSort`, `wsOrder`,
+  recorded values, one undo entry); labels fill right. **The Fill dialog** (`openFillDlg(kind,
+  {col})`, the bar's Fill button and `fillMenuItems`, a cell's Fill, a column's Fill column
+  with, Data › Fill): `FILL_KINDS` (series, growth series, evenly between two values, row
+  numbers, repeat a list, random numbers with `FILL_DIST`, continue the trend), where
+  (`fillTarget`: the selection, or the rows of the longest column; a column holding values
+  there, chosen from one cell, gives way to a new one, with a role), `fillPlan(v)` (the
+  dialog's values to `fillSeries`, the writes into empty cells and the cells kept, every
+  refusal in words), the preview (cells, values, `fillSpark`), `doFill` (one undo entry, a
+  raw-data record entry and a log line naming the fill and its seed); settings kept in
+  `kurve.fill`. **Sort** (`S.wsSort`, `wsOrder`,
   `wsSortBy`) is the view only: `m.ord`/`m.inv` map sheet rows to data rows (`wsDR`), row
   numbers show the data row, and the data keep their recorded order; paste and fill ask to
   unsort first. **Find** (Ctrl+F, the search button; `wsFindOpen`, `wsFindRun`, `wsFindGo`,
@@ -438,11 +465,17 @@ graph first, with the taskbar kept at the bottom of the screen.
   ignored; every window state read back goes through `saneWin`, so NaN or absurd sizes put the
   window back where it starts). A window is open, minimised (`min`, its taskbar button kept;
   `minimiseWin`, the title bar's –, a click on the front window's button, tiling that leaves
-  windows out) or closed (`closeWin`, the ×, a Done button: out of the taskbar, unless
-  `winBadge` has news, drawn dashed); graph and trend windows keep their buttons (`keepsBtn`,
-  no ×). `winMin`, `inBar`, `winStateName` ("in front", "open", "minimised", "closed"),
-  `frontWinId`; the Window menu's list and the taskbar's Windows button (`winListItems`, by
-  state) are built from `winItem`. `openWin(id, {render})`, `closeWin`, `toggleWin`, `focusWin`, `toggleMax`,
+  windows out) or closed (`closeWin`, the ×, a Done button: out of the taskbar). Documents
+  (`isDoc`, also `keepsBtn`: graphs, the worksheet, trend graphs; `docWinIds`) keep their
+  buttons and have no ×; panels (`panelIds`) are in the taskbar only while `inBar`, news or
+  not. `barWinIds` is the windows in use in the taskbar's order. `renderTaskbar` draws the
+  documents (graphs past four as `[data-tk-graphs]`, trend graphs past three as
+  `[data-tk-trends]`), then the panels, then `fitTaskbar`, which hides the buttons that do not
+  fit (panels before documents, minimised before open, the lowest `z` first, never the front
+  window) into `S.tkMore` behind `[data-tk-more]`. `winMin`, `inBar`, `winStateName`,
+  `frontWinId`; `winItem` (the front one ticked, "minimised" as a note), `panelItems`
+  (Window › Panels: ticked while in use, a click opens or closes), `winFinder` (every window
+  in use, searched), `windowItems` (the Window menu). `openWin(id, {render})`, `closeWin`, `toggleWin`, `focusWin`, `toggleMax`,
   `tileWins`, `cascadeWins`, `resetWins`, `renderWin(id)` (which window renders what),
   `renderTaskbar`, `setupWins` (move, resize, min/max buttons, and the "?" `[data-whelp]`
   that opens `helpFor(id)`). `renderAll` renders only open
@@ -1001,7 +1034,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   `renderStats`, `renderPy`, `renderThread`, `renderLog`, `renderAll`. Dense data (over 1500
   points) is drawn as one path of dots, and error bars as one path.
 - **Styles and controls** (the tokens at the top of the `<style>`): one token set per theme
-  and per style. Bench is bare `:root` plus the two dark blocks; Graphite is
+  and per style. Text has two colours: `--ink`, and `--muted` for what is secondary (7:1 or
+  more against every panel, in both themes and both styles); `--ink-2` is a near-ink for
+  labels and buttons, and `--faint` is for lines and icons, never words. Headings (`.gh`,
+  `.sect`, `.pane-h h2`, menu groups) are sentence case in the text colour, not small grey
+  capitals. Bench is bare `:root` plus the two dark blocks; Graphite is
   `:root[data-style="graphite"]` plus its own two dark blocks, and every token Graphite sets in
   light it sets again in dark (see the rules below). `styleSetting()`/`applyStyle(s)` keep
   `kurve.style` and the root's `data-style`, and the inline script in `<body>` applies it
@@ -1526,13 +1563,41 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **"Not open" was two states.** Minimised and never opened looked alike (dashed) in a taskbar
   that listed every window, so nobody could tell what they had left where. Open, minimised and
   closed each look different now, and closed ones leave the taskbar.
+- **Grey is not a hierarchy.** Four shades of text (ink, ink-2, muted, faint), faded buttons
+  and small grey capitals made state words, headings and window names hard to read, and the
+  app look like a template. Two text colours, the secondary one at 7:1 or more; headings in
+  sentence case and the text colour; a state shown by shape (raised, flat, a bar), not by
+  fading the words.
+- **A list of everything is not a list of what is in use.** The Windows button listed every
+  window, most never opened, under Open, Minimised and Closed. Lists show what is in use (as
+  Excel's Switch Windows does); what is not is reached from its menu, and a list that can grow
+  (twenty graphs) groups, folds into "more" or becomes a search.
+- **Sticky inside padding floats.** A footer `position:sticky; bottom:0` in a scroller with
+  14 px of padding stopped 14 px above the edge, and a table row showed beneath it. Offset it
+  by the padding.
+- **A string inside a template's expression is a string.** `${MP(…)}` written inside a
+  double-quoted string in a `${DL([...])}` was not interpolated: it ended the string and broke
+  the whole script. Inside those arrays, concatenate (`"+MP(…)+"`).
 - **An earlier stage drawn behind must be on the same X.** Channels drawn behind energies are
   another graph on one axis: the ghost and the before-and-after chart check X's name and unit,
   not only Y's scale.
 
 ## Roadmap
 
-Done in this round: a gamma spectrum, from a user's file of background radiation. One-column
+Done in this round: reading, windows and filling, from a user's review. Text has two
+colours, the secondary one darker (7:1 or more in every theme and style), and headings are
+sentence case in the text colour instead of small grey capitals; disabled controls are dimmer,
+not unreadable. Windows as in Excel: the project's documents (graphs, worksheet, trend graphs)
+keep their taskbar buttons, panels appear only while in use, open and minimised look different
+by shape, many graphs share a button, and what does not fit goes under "n more"; the Window
+menu lists the windows in use (a search past a dozen), Panels ticks every panel in use, with
+Minimise the others and Close the panels. A Fill dialog as Excel's Fill › Series and Origin's
+Fill Column With: series by a step or a factor with a stop value, evenly between two values
+(linear or log), row numbers, a list repeated, random numbers (uniform, whole, normal,
+Poisson counts) from a seed, and the trend of the values above; into empty cells of a column
+or a new one, with a preview, one undo step and a record entry.
+
+Round before: a gamma spectrum, from a user's file of background radiation. One-column
 files of counts per channel are read (a .TKA file's live and real time into the metadata, X
 the channel number from 0 or 1, √N error bars as a computed column, counts per second by a
 step); calibrated to energy by a step (coefficients, remembered for the next file, or fitted
@@ -1547,7 +1612,7 @@ peaks and the lines. The taskbar tells open, minimised and closed windows apart,
 button and a Windows list. Each edge of the frame has its own ticks and numbers, set by
 clicking the edge in a picture of the frame.
 
-Round before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
+Two rounds before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
 their corners, filled or not, behind the data or over it, with text inside, pinned or at data
 values). Axis breaks on X and Y, suggested over the widest empty stretch, cut with two strokes,
 the two sides on one scale, followed by zoom, wheel and pan, and named in the report. A second
@@ -1560,7 +1625,7 @@ writer: vectors, clipping, opacity (PDF), images, gradients, insets and every gr
 figure, text in the standard fonts placed by their own widths. The toolbar keeps to one row
 down to 860 px.
 
-Two rounds before: bugs found by using the app the way nobody does. A tab that froze for good
+Three rounds before: bugs found by using the app the way nobody does. A tab that froze for good
 (ticks added up after a deep zoom), tick labels all alike on a nanosecond axis, NaN drawn for
 equal or extreme limits; a second tab wiping the first's projects, a full store that still
 said Saved, two projects sharing an id, a corrupt saved layout; typographic minus signs, French
@@ -1571,7 +1636,7 @@ undo during a drag; ten-second saves with 300 spectra, 200 ms undo steps on big 
 names pushing title-bar buttons out of reach; batch rows of deleted spectra. Each fixed by its
 class, and `tools/odd-test.mjs` keeps them fixed.
 
-Three rounds before: graphs and projects, from a bug report. Deleting a project could leave its
+Four rounds before: graphs and projects, from a bug report. Deleting a project could leave its
 graphs on the desk and the next import going into it (a store's events in the other order); a
 graph in front that went away took the live plot with it. Both fixed. The taskbar names the
 project its windows belong to, the project list says what each holds, new projects get names
@@ -1581,7 +1646,7 @@ spectrum by its chip, onto a graph, its taskbar button or the desk; Ctrl keeps t
 dropped; it scrolls on a phone), from menus, or in Combine graphs… with a layout; spectra
 come from another project with their processing, peaks and colours.
 
-Four rounds before: finding and labelling peaks, from what people asked. The Peaks window
+Five rounds before: finding and labelling peaks, from what people asked. The Peaks window
 says where it looks (the spectrum, always shown, and From … to … typed, taken from the view
 or dragged on the graph, shaded there, kept with the set) and ends in Done; the Fit window
 says which spectrum and range it fits, and ends in Done too. Fitted peaks are labelled with
@@ -1590,7 +1655,7 @@ errors and units; above, inside, or in a row along the top with leaders; turned,
 boxed, dragged; each peak can be named, and its name goes to Results, the report and the
 exports.
 
-Five rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
+Six rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
 spectrum shares (centres, widths, areas, shapes, the baseline, or parameter by parameter; a
 curve model's parameters), each spectrum first fitted with those held so the fit starts where
 it belongs, one block-sparse Levenberg–Marquardt problem, every row a normal fit that says what
@@ -1601,7 +1666,7 @@ on the desk: several quantities, left and right axes, lines with slopes, SVG, PN
 Each spectrum keeps its file's header, and a field that differs (a temperature, the time it was
 taken) is what a series can be plotted against.
 
-Six rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
+Seven rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
 every title, legend entry and label (`cm^{-1}`, `\alpha`), with buttons and a word
 processor's keys; arrows drawn by dragging, their heads snapping to data points, with heads
 of four kinds; insets made from a zoom, dragged and resized, outlined on the graph with
@@ -1611,7 +1676,7 @@ print, lines scaled with the text or not, SVG at its size, PNG with its dpi reco
 transparent backgrounds, a preview); formats saved by name and used on any graph in any
 project, with five of Kurve's; a toolbar that keeps to one row at every width.
 
-Seven rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
+Eight rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
 Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
 its own font, size in points, bold, italic, underline and colour; a real font picker (each
 name in its face, search, web fonts that look the same everywhere, which fonts this computer
@@ -1626,7 +1691,7 @@ graph at once. Labels and text over several lines, turned to any angle, in a box
 pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
 richer right-click menus on axes, titles, the legend and annotations.
 
-Eight rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+Nine rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
 started from its result, from the neighbour in the series, or from the peaks found in each;
 every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
 the History, replaced by a fit by hand, out of date when its processing changes). The Batch
@@ -1685,20 +1750,27 @@ Next, in order:
    CHN and CNF are binary), FWHM and efficiency against energy, net peak areas over a local
    continuum with their counting errors and activities, a nuclide named by the set of its lines
    (their intensity ratios, interferences), region edges dragged on the graph
-2. Figures, further still: graph layers and panels of different spectra (the part of the last
-   list not done), the graph's own fonts embedded in a PDF, a second Y axis in other units,
-   a break at a chosen place with its own scale on each side, polygons and curved arrows
-3. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
+2. Plots Origin has and Kurve lacks, by use: X error bars and asymmetric (+/−) errors, error
+   bars drawn as a band; a second Y axis in other units; panels of different spectra (graph
+   layers, grids of panels); a contour or image of a series against its variable (temperature,
+   time) rather than one row per spectrum; more axis scales (ln, log2, reciprocal 1/x for
+   Arrhenius, square root, probability, dates and times of day); column and bar charts,
+   histograms with bins, box and violin plots; symbols coloured or sized by a third column;
+   spline and B-spline connectors, fill between two curves, hatched fills for black and white;
+   a prediction band beside the confidence band; copy the graph to the clipboard as a picture
+3. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
+   with its own scale on each side, polygons and curved arrows
+4. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
    lanes, keyboard access to annotations and peak handles, handles for shape parameters
    (Lorentz fraction, Pearson m, Fano 1/q)
-4. Many spectra, further: a parameter that follows the series in a global fit (a centre
+5. Many spectra, further: a parameter that follows the series in a global fit (a centre
    linear in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the
    files' header fields as rows of the worksheet, global fits in a worker
-5. More files: JCAMP-DX, then SPC; OPUS and SPE last
-6. Under the hood: projects in IndexedDB rather than localStorage (no 5 MB limit, BroadcastChannel
+6. More files: JCAMP-DX, then SPC; OPUS and SPE last
+7. Under the hood: projects in IndexedDB rather than localStorage (no 5 MB limit, BroadcastChannel
    between tabs); `tools/odd-test.mjs` grown to run every example end to end; the worksheet
    drawing only the columns in view; speed with thousands of spectra
-7. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
+8. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
    applied in one click, unread markers; Python steps that re-run on their own when asked
 
 ## Known gaps
@@ -1717,8 +1789,12 @@ Next, in order:
 - Known lines are matched by position alone, nearest first: a nuclide's other lines and their
   intensity ratios are not checked, nor interferences; no activities. Positions convert only
   among eV, keV and MeV
-- Graph and trend windows minimise but never close; a closed window with news shows a dashed
-  button
+- Documents (graphs, the worksheet, trend graphs) minimise but never close; a closed panel
+  shows no news in the taskbar (open threads show in Window › Panels and on the History's
+  boxes). One worksheet per project; windows have no tabs of their own
+- Fill writes numbers into empty cells down one column (recorded values are locked): no text
+  or date series, no fill across a row by a series, no Excel-style flash fill; random numbers
+  come from a seeded mulberry32, fine for simulation, not for cryptography
 - Numbers across from an axis: on the top panel only when stacked; not across from a second X
   axis; a heat map's Y edge has none
 - Help cannot be opened over a dialog (a dialog makes the desk inert), so the import wizard

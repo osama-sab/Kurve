@@ -10,14 +10,16 @@
 <style>
 /* ---- Tokens ------------------------------------------------------------
    One set per theme and per style. Data colours carry meaning, so both themes
-   were checked for contrast against --panel, not only the chrome. The style
-   (Window › Style) changes the interface only: Bench, the default, marks what
+   were checked for contrast against --panel, not only the chrome. Text has
+   two colours: --ink, and --muted for what is secondary, 7:1 or more against
+   the panels in every theme and style; --faint is for lines and icons, never
+   for words. The style (Window › Style) changes the interface only: Bench, the default, marks what
    you can change in blue; Graphite (data-style="graphite") is black and white
    with blue kept for focus. The data colours are the same in both, so the
    figure does not change with the style. */
 :root{
   --paper:#E4E9EF; --panel:#FFFFFF; --panel-2:#F5F7FA; --panel-3:#EBEFF4; --chrome:#F7F8FA;
-  --ink:#16202E; --ink-2:#334155; --muted:#5B6778; --faint:#6F7B8C; --rule:#D3DAE3; --rule-2:#E6EAF0; --grid:#E3E9EF;
+  --ink:#16202E; --ink-2:#2B3647; --muted:#465265; --faint:#6F7B8C; --rule:#D3DAE3; --rule-2:#E6EAF0; --grid:#E3E9EF;
   --data:#1D5FA8; --fit:#C23B22; --band:rgba(194,59,34,.13); --pin:#B26B00; --masked:#9AA5B4; --mask-bg:#FBE9E6;
   --accent:#2356D8; --accent-ink:#FFFFFF; --accent-soft:#E6EDFC; --sel:#E6EDFC;
   --focus:#2356D8; --focus-soft:rgba(35,86,216,.2);
@@ -39,7 +41,7 @@
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --paper:#0C1118; --panel:#161F2B; --panel-2:#1B2533; --panel-3:#223043; --chrome:#121A24;
-    --ink:#E3E8EF; --ink-2:#C5CEDA; --muted:#94A1B3; --faint:#8491A3; --rule:#2B3648; --rule-2:#222C3A; --grid:#222D3C;
+    --ink:#E3E8EF; --ink-2:#D0D7E1; --muted:#AEB9C8; --faint:#8491A3; --rule:#2B3648; --rule-2:#222C3A; --grid:#222D3C;
     --data:#72A9E6; --fit:#F0785C; --band:rgba(240,120,92,.16); --pin:#E2AE4E; --masked:#5E6B7D; --mask-bg:#3A2320;
     --accent:#76A0FF; --accent-ink:#0B1020; --accent-soft:#1E2B45; --sel:#1E2B45;
     --focus:#76A0FF; --focus-soft:rgba(118,160,255,.28);
@@ -53,7 +55,7 @@
 }
 :root[data-theme="dark"]{
   --paper:#0C1118; --panel:#161F2B; --panel-2:#1B2533; --panel-3:#223043; --chrome:#121A24;
-  --ink:#E3E8EF; --ink-2:#C5CEDA; --muted:#94A1B3; --faint:#8491A3; --rule:#2B3648; --rule-2:#222C3A; --grid:#222D3C;
+  --ink:#E3E8EF; --ink-2:#D0D7E1; --muted:#AEB9C8; --faint:#8491A3; --rule:#2B3648; --rule-2:#222C3A; --grid:#222D3C;
   --data:#72A9E6; --fit:#F0785C; --band:rgba(240,120,92,.16); --pin:#E2AE4E; --masked:#5E6B7D; --mask-bg:#3A2320;
   --accent:#76A0FF; --accent-ink:#0B1020; --accent-soft:#1E2B45; --sel:#1E2B45;
   --focus:#76A0FF; --focus-soft:rgba(118,160,255,.28);
@@ -69,7 +71,7 @@
    value would win over the Bench dark one it follows. */
 :root[data-style="graphite"]{
   --paper:#E9EAEC; --panel:#FFFFFF; --panel-2:#F7F7F8; --panel-3:#EEEFF1; --chrome:#FAFAFB;
-  --ink:#111214; --ink-2:#3B3E45; --muted:#5F636B; --faint:#72767E; --rule:#DDDFE3; --rule-2:#ECEDF0; --grid:#E9EAED;
+  --ink:#111214; --ink-2:#2C2F35; --muted:#4A4D55; --faint:#72767E; --rule:#DDDFE3; --rule-2:#ECEDF0; --grid:#E9EAED;
   --accent:#111214; --accent-ink:#FFFFFF; --accent-soft:#EDEEF0; --sel:#EDEEF0;
   --focus:#2F6FEB; --focus-soft:rgba(47,111,235,.22);
   --sans:"Geist","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
@@ -86,7 +88,7 @@
 @media (prefers-color-scheme: dark){
   :root[data-style="graphite"]:not([data-theme="light"]){
   --paper:#050506; --panel:#0F1012; --panel-2:#141518; --panel-3:#1C1E22; --chrome:#0B0C0E;
-  --ink:#EDEEF0; --ink-2:#C4C7CD; --muted:#8F939B; --faint:#7C8088; --rule:#2B2D32; --rule-2:#1F2125; --grid:#1D1F23;
+  --ink:#EDEEF0; --ink-2:#D2D5DA; --muted:#ABAFB7; --faint:#7C8088; --rule:#2B2D32; --rule-2:#1F2125; --grid:#1D1F23;
   --accent:#EDEEF0; --accent-ink:#0F1012; --accent-soft:#25272C; --sel:#25272C;
   --focus:#79A3FF; --focus-soft:rgba(121,163,255,.28);
   --sw-off:#3A3D43; --knob:#C9CCD2; --knob-on:#0F1012; --cb-bd:#6F737B; --chk-img:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.6 6.3 5 8.6 9.5 3.7' fill='none' stroke='%230F1012' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -96,7 +98,7 @@
 }
 :root[data-style="graphite"][data-theme="dark"]{
   --paper:#050506; --panel:#0F1012; --panel-2:#141518; --panel-3:#1C1E22; --chrome:#0B0C0E;
-  --ink:#EDEEF0; --ink-2:#C4C7CD; --muted:#8F939B; --faint:#7C8088; --rule:#2B2D32; --rule-2:#1F2125; --grid:#1D1F23;
+  --ink:#EDEEF0; --ink-2:#D2D5DA; --muted:#ABAFB7; --faint:#7C8088; --rule:#2B2D32; --rule-2:#1F2125; --grid:#1D1F23;
   --accent:#EDEEF0; --accent-ink:#0F1012; --accent-soft:#25272C; --sel:#25272C;
   --focus:#79A3FF; --focus-soft:rgba(121,163,255,.28);
   --sw-off:#3A3D43; --knob:#C9CCD2; --knob-on:#0F1012; --cb-bd:#6F737B; --chk-img:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.6 6.3 5 8.6 9.5 3.7' fill='none' stroke='%230F1012' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -119,7 +121,7 @@ button,input,select,textarea{font:inherit;color:inherit;letter-spacing:inherit}
 .ic.sm{width:13px;height:13px}
 .ic.lg{width:22px;height:22px}
 input[type=checkbox],input[type=radio]{accent-color:var(--accent);width:15px;height:15px;margin:0;flex:0 0 auto}
-.lab{color:var(--muted);font-size:12.5px}
+.lab{color:var(--ink-2);font-size:12.5px}
 .unit{color:var(--muted);font-weight:400;font-size:.92em}
 .noerr{color:var(--muted);font-style:italic}
 .nothing{color:var(--muted);font-size:13px;padding:6px 0;margin:0}
@@ -137,7 +139,7 @@ kbd{font:600 11px/1 var(--sans);border:1px solid var(--rule);border-bottom-width
 .btn.ghost:hover:not(:disabled){background:var(--panel-3);border-color:transparent}
 .btn.sm{height:24px;padding:0 8px;font-size:12.5px}
 .btn.lg{height:34px;padding:0 16px;font-size:14px}
-.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:disabled{opacity:.5;cursor:not-allowed}
 .btn .ic{margin-left:-2px}
 select,.inp,input[type=text],input[type=number],textarea{border:1px solid var(--rule);border-radius:var(--r);background-color:var(--panel);min-width:0;transition:border-color .15s,box-shadow .15s}
 select,.inp,input[type=text],input[type=number]{height:28px;padding:0 8px}
@@ -209,7 +211,7 @@ input[type=range]:disabled{opacity:.45;cursor:not-allowed}
 .tb.icon{padding:0;width:30px}
 .tb:hover:not(:disabled){background:var(--panel-3)}
 .tb:active:not(:disabled){background:var(--rule-2)}
-.tb:disabled{opacity:.38;cursor:default}
+.tb:disabled{opacity:.45;cursor:default}
 .tb[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .tb.sm{height:24px;min-width:24px;padding:0 6px}
 .tb.sm.icon{width:24px;padding:0}
@@ -222,8 +224,8 @@ input[type=range]:disabled{opacity:.45;cursor:not-allowed}
 .seg.full>button{flex:1}
 
 .pane-h{display:flex;align-items:center;gap:6px;height:36px;padding:0 6px 0 12px;border-bottom:1px solid var(--rule);flex:0 0 auto;background:var(--panel)}
-.pane-h h2{font:700 11px/1 var(--sans);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:0}
-.pane-h .sub{color:var(--faint);font-size:12px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pane-h h2{font:600 12.5px/1 var(--sans);color:var(--ink);margin:0}
+.pane-h .sub{color:var(--muted);font-size:12px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .statusbar{display:flex;align-items:center;height:26px;padding:0 4px 0 12px;background:var(--chrome);border-top:1px solid var(--rule);font-size:12px;color:var(--ink-2);min-width:0;overflow:hidden}
 .sb-hint{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
@@ -251,7 +253,7 @@ input[type=range]:disabled{opacity:.45;cursor:not-allowed}
 .ws .hc .cm{margin-left:auto;color:var(--muted)}
 .ws th.ch.act .hc{box-shadow:inset 0 -2px 0 var(--accent)}
 .ws th.ch.act .cl{color:var(--accent)}
-.ws th.ch.ph .cl,.ws th.ch.ph .cd{color:var(--faint);font-weight:500}
+.ws th.ch.ph .cl,.ws th.ch.ph .cd{color:var(--muted);font-weight:500}
 .ws th.ch.hs,.ws th.rh.hs,.ws th.rl.hs{background:var(--accent-soft);color:var(--accent)}
 .ws th.ch.hs .cd{color:var(--accent)}
 .ws .rz{position:absolute;top:0;right:-1px;width:7px;height:100%;cursor:col-resize;z-index:3}
@@ -324,7 +326,7 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .empty .row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
 .empty .ex{margin-top:22px;padding-top:16px;border-top:1px solid var(--rule-2)}
 .empty .ex .lab{display:block;margin-bottom:8px}
-.empty .fine{margin-top:16px;font-size:12px;color:var(--faint)}
+.empty .fine{margin-top:16px;font-size:12px;color:var(--muted)}
 
 /* ---- Drawer (results, discussion, history) and inspector tabs ------------ */
 .tabs{display:flex;align-items:stretch;gap:2px;padding:0 6px;height:36px;border-bottom:1px solid var(--rule);background:var(--panel);flex:0 0 auto}
@@ -344,12 +346,35 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .tabbody::after{content:"";display:block;height:14px}
 
 /* Inspector content */
-.gh{display:flex;align-items:center;gap:8px;font:700 11px/1.2 var(--sans);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px}
+.gh{display:flex;align-items:center;gap:8px;font:600 13px/1.3 var(--sans);color:var(--ink);margin:16px 0 8px}
 .gh:first-child{margin-top:2px}
-.gh .cnt{font-weight:600;letter-spacing:0;text-transform:none;color:var(--faint)}
+.gh .cnt{font-weight:500;color:var(--muted)}
 .gh .lab{text-transform:none;letter-spacing:0;font-weight:400}
 .frow{display:grid;grid-template-columns:104px minmax(0,1fr);gap:7px 10px;align-items:center;margin-bottom:10px}
 .frow>label{color:var(--ink-2)}
+/* The Fill dialog: what to fill with on the left, its settings, where, and a preview. */
+.filldlg{display:grid;grid-template-columns:196px minmax(0,1fr);gap:14px 18px;align-items:start}
+.fkl{display:flex;flex-direction:column;gap:2px}
+.fkl label{display:flex;gap:9px;align-items:flex-start;padding:7px 8px;border-radius:6px;cursor:pointer;border:1px solid transparent}
+.fkl label:hover{background:var(--panel-2)}
+.fkl label:has(input:checked){background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
+.fkl input{margin-top:2px;flex:0 0 auto}
+.fkl b{display:block;font-weight:600;color:var(--ink)}
+.fkl small{display:block;color:var(--muted);font-size:12px;margin-top:1px}
+.fbody{min-width:0}
+.fbody .gh{margin:14px 0 8px}
+.fbody .inp.num{width:90px;font-family:var(--mono)}
+.fbody .pair{display:flex;align-items:center;gap:8px;min-width:0}
+.fprev{border:1px solid var(--rule);background:var(--panel-2);border-radius:6px;padding:9px 11px;margin-top:6px;min-height:58px}
+.fprev .fpa{display:flex;gap:10px;align-items:baseline}
+.fprev .fpa span{color:var(--muted)}
+.fprev .fpv{font:12.5px/1.5 var(--mono);color:var(--ink);overflow-wrap:anywhere;margin-top:2px}
+.fprev .fspark{display:block;width:100%;height:30px;color:var(--data);margin-top:4px}
+.fprev .fpn{margin:5px 0 0;color:var(--ink-2);font-size:12.5px}
+.fprev .fpe{display:flex;gap:8px;align-items:flex-start;color:var(--bad)}
+.fprev .fpe .ic{flex:0 0 auto;margin-top:2px}
+@media (max-width:640px){ .filldlg{grid-template-columns:1fr} .fkl{flex-direction:row;flex-wrap:wrap} .fkl label{padding:5px 8px} .fkl small{display:none} }
+.fixv{flex:1;min-width:0;padding:0 2px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pair{display:flex;gap:6px;align-items:center;min-width:0}
 .pair input[type=number]{width:74px}
 .actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:10px 0}
@@ -513,7 +538,7 @@ details.more>table{margin-top:8px}
 .thr{padding:8px 0 6px;border-bottom:1px solid var(--rule-2);border-radius:4px}
 .thr>.anchor{margin:0 0 3px 37px;max-width:calc(100% - 37px)}
 .thr>.anchor>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.thr.resolved .cmt{opacity:.62}
+.thr.resolved .cmt{opacity:.8}
 .thr.flash{animation:thrflash 1.8s ease-out}
 @keyframes thrflash{0%,30%{background:var(--talk-soft)}100%{background:transparent}}
 .replies{margin:2px 0 0 37px;border-left:2px solid var(--rule);padding-left:10px}
@@ -559,7 +584,7 @@ details.more>table{margin-top:8px}
 .menu{position:fixed;z-index:60;min-width:230px;max-width:360px;max-height:calc(100vh - 24px);overflow:auto;background:var(--panel);border:1px solid var(--rule);border-radius:7px;box-shadow:var(--shadow);padding:4px;outline:none}
 .menu .mi{display:flex;align-items:center;gap:8px;width:100%;height:28px;padding:0 10px 0 6px;border:0;border-radius:4px;background:transparent;text-align:left;cursor:default;color:var(--ink);white-space:nowrap}
 .menu .mi:hover:not(:disabled),.menu .mi:focus{background:var(--accent-soft);outline:none}
-.menu .mi:disabled{color:var(--faint);opacity:.7}
+.menu .mi:disabled{color:var(--muted);opacity:.72}
 .menu .mi.danger:not(:disabled){color:var(--bad)}
 .menu .mck{width:16px;display:inline-flex;justify-content:center;color:var(--accent)}
 .menu .mlab{flex:1;overflow:hidden;text-overflow:ellipsis}
@@ -571,7 +596,7 @@ details.more>table{margin-top:8px}
 .menu .mi.has-sub.open .marr{color:var(--accent)}
 .menu .mck .ic{color:inherit}
 .menu .mflat .mkbd{max-width:160px;overflow:hidden;text-overflow:ellipsis;margin-left:12px}
-.menu .mgrp{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);padding:7px 10px 3px 30px}
+.menu .mgrp{font-size:12px;font-weight:600;color:var(--ink-2);padding:8px 10px 3px 30px}
 .menu .mgrp.plain{text-transform:none;letter-spacing:0;font-size:12px;color:var(--muted);max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .modal{position:fixed;inset:0;z-index:40;background:rgba(10,16,24,.46);display:flex;align-items:center;justify-content:center;padding:18px}
 .sheet{background:var(--panel);border:1px solid var(--rule);border-radius:9px;width:min(1060px,100%);max-height:100%;display:flex;flex-direction:column;box-shadow:var(--shadow);min-height:0}
@@ -618,11 +643,11 @@ details.more>table{margin-top:8px}
 .find li.info .ico{color:var(--muted)}
 .find li.good .ico{color:var(--ok)}
 .find .fix{margin-left:auto;flex:0 0 auto}
-.sect{font:700 11px/1.2 var(--sans);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
+.sect{font:600 13px/1.3 var(--sans);color:var(--ink);margin:14px 0 6px}
 .keys{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;align-items:baseline;margin:0 0 14px}
 .keys dt{white-space:nowrap}
 .keys dd{margin:0;color:var(--ink-2)}
-.help h3{font:700 11px/1.2 var(--sans);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px}
+.help h3{font:600 13px/1.3 var(--sans);color:var(--ink);margin:16px 0 8px}
 .help h3:first-child{margin-top:0}
 .help ol{padding-left:1.3em;margin:0 0 10px}
 .help li{margin-bottom:6px}
@@ -666,14 +691,16 @@ details.more>table{margin-top:8px}
 .tk:hover{border-color:var(--faint);color:var(--ink)}
 .tk>span:not(.badge){max-width:180px;overflow:hidden;text-overflow:ellipsis}
 .tk{position:relative}
-/* Open: a bar under it; in front: in colour; minimised: faded, no bar; closed (shown only with news): dashed. */
+/* Open: a raised button with a bar under it; in front: in colour; minimised:
+   flat, no bar. The words keep the text colour in every state. */
+.tk.on{color:var(--ink)}
 .tk.on::after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2px;border-radius:2px;background:var(--ink-2)}
-.tk.front{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
-.tk.front::after{background:var(--accent)}
-.tk.min{background:transparent;color:var(--muted);border-color:var(--rule)}
-.tk.min .ic{opacity:.6}
-.tk.shut{background:transparent;color:var(--muted);border-style:dashed}
-.tk.wins{color:var(--ink-2)}
+.tk.front{border-color:var(--accent);background:var(--accent-soft);font-weight:600}
+.tk.front::after{background:var(--accent);height:3px}
+.tk.front .ic{color:var(--accent)}
+.tk.min{background:transparent;color:var(--ink-2);border-color:transparent}
+.tk.min:hover{background:var(--panel);border-color:var(--rule)}
+.tk.more{background:transparent;color:var(--ink);border-style:dashed}
 .tk .badge{min-width:16px;line-height:16px;font-size:10.5px}
 .tdot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
 .tdot.ok{background:var(--ok)}
@@ -773,7 +800,7 @@ body.gdragging{user-select:none}
 .fnode.fin{border-color:color-mix(in srgb,var(--ok) 60%,var(--rule))}
 .fnode.fin>.ic{color:var(--ok)}
 .fnode.fitn>.ic{color:var(--fit)}
-.fnode.off .fn-a,.fnode.off .fn-b{text-decoration:line-through;color:var(--faint)}
+.fnode.off .fn-a,.fnode.off .fn-b{text-decoration:line-through;color:var(--muted)}
 .fnode.off .spark{opacity:.3}
 .fnode.pending{border-style:dashed;border-color:var(--accent);background:var(--accent-soft)}
 .fnode.warn{border-left:3px solid var(--warn)}
@@ -1018,7 +1045,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 .fp-s{padding:8px;border-bottom:1px solid var(--rule-2)}
 .fp-s input{width:100%}
 .fp-l{overflow:auto;padding:4px;flex:1;min-height:0}
-.fp-g{padding:8px 8px 3px;font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--muted);text-transform:uppercase;font-family:var(--sans)}
+.fp-g{padding:8px 8px 3px;font-size:12px;font-weight:600;color:var(--ink-2);font-family:var(--sans)}
 .fp-i{display:flex;align-items:baseline;gap:8px;width:100%;padding:5px 8px;border:0;border-radius:5px;background:none;color:var(--ink);font-size:15px;text-align:left;cursor:pointer;line-height:1.3}
 .fp-i span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fp-i em{font:normal 10.5px var(--sans);color:var(--muted);flex:0 0 auto}
@@ -1118,6 +1145,8 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 .edgectl .pdseg{flex-wrap:nowrap;white-space:nowrap;justify-self:start}
 .rgtag{font-size:11px;font-weight:600;color:var(--accent);margin-left:4px}
 .sticky.pkfoot .sp{flex:1}
+/* The Peaks pane has 14px of padding below: the footer sits on the window's edge, not above it. */
+@media (min-width:861px){ .sticky.pkfoot{bottom:-14px;margin-bottom:-14px} }
 .fwhere{margin:10px 0 2px}
 .fwhere .pair input{width:90px}
 .sticky .fdone{margin-left:auto}
@@ -1147,7 +1176,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 .docs-q .ic{color:var(--faint);flex:0 0 auto}
 .docs-q input{border:0;outline:0;background:transparent;flex:1;min-width:0;font:inherit;font-size:13px;color:var(--ink);padding:0;height:28px;box-shadow:none}
 .docs-toc{overflow:auto;padding:0 6px 14px;flex:1;min-height:0}
-.docs-toc .dg{font:700 10.5px/1 var(--sans);letter-spacing:.07em;text-transform:uppercase;color:var(--faint);padding:14px 8px 5px}
+.docs-toc .dg{font:600 12px/1.2 var(--sans);color:var(--ink-2);padding:14px 8px 5px}
 .docs-toc a{display:block;padding:5px 8px;border-radius:6px;color:var(--ink-2);text-decoration:none;font-size:13px;line-height:1.3}
 .docs-toc a:hover{background:var(--panel-3);color:var(--ink)}
 .docs-toc a.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
@@ -1164,7 +1193,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 .doc-top{display:flex;align-items:center;gap:8px;margin:0 0 10px -8px;min-height:28px;flex-wrap:wrap}
 .doc-top .tb.sm{gap:4px;padding:0 8px;font-size:12.5px;color:var(--muted)}
 .doc-top .tb.sm:disabled{opacity:.4}
-.doc-crumb{font-size:12px;color:var(--faint);margin-left:4px}
+.doc-crumb{font-size:12px;color:var(--muted);margin-left:4px}
 .doc-crumb a{color:inherit}
 .docs-tocbtn{display:none}
 .doc h1{font:700 24px/1.2 var(--sans);letter-spacing:-.01em;margin:0 0 8px;color:var(--ink)}
@@ -1190,9 +1219,9 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 .doc .dl.keys dt{font-weight:400;white-space:nowrap}
 .doc .dl.code dt{font-weight:400}
 .doc .doc-opts{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
-.doc .doc-unit{font-weight:400;color:var(--faint)}
+.doc .doc-unit{font-weight:400;color:var(--muted)}
 .doc .mp{font-weight:600;white-space:nowrap}
-.doc .mp span{color:var(--faint);font-weight:400;padding:0 1px}
+.doc .mp span{color:var(--muted);font-weight:400;padding:0 1px}
 .doc-where{font-size:13px;color:var(--muted);margin:-4px 0 14px!important}
 .doc-tip{background:var(--accent-soft);border-radius:8px;padding:9px 12px;font-size:13.5px;color:var(--ink-2)}
 .doc .eq{font-family:var(--serif);font-size:15px;background:var(--panel-2);border:1px solid var(--rule-2);border-radius:8px;padding:10px 14px;margin:0 0 12px;text-align:center;overflow-x:auto;white-space:nowrap}
@@ -1207,7 +1236,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 .doc-pn{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:30px!important;padding-top:14px;border-top:1px solid var(--rule)}
 .doc-pn a{display:block;padding:9px 12px;border:1px solid var(--rule);border-radius:8px;color:var(--ink);font-weight:600}
 .doc-pn a:hover{border-color:var(--accent);text-decoration:none}
-.doc-pn a span{display:block;font-size:11.5px;color:var(--faint);font-weight:500;margin-bottom:1px}
+.doc-pn a span{display:block;font-size:11.5px;color:var(--muted);font-weight:500;margin-bottom:1px}
 .doc-pn a.n{text-align:right;grid-column:2}
 @container (max-width: 620px){
   .docs{grid-template-columns:minmax(0,1fr)}
@@ -1351,6 +1380,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
 <script>try{var t=localStorage.getItem("kurve.theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(localStorage.getItem("kurve.style")==="graphite")document.documentElement.setAttribute("data-style","graphite");}catch(e){}</script>
 <svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
   <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3.5A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V15"/></symbol>
+  <symbol id="i-fill" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="6" rx="1.5"/><path d="M12 12v8.5"/><path d="m8.5 17 3.5 3.5 3.5-3.5"/></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 15v3.5A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V15"/></symbol>
   <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
   <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></symbol>
@@ -1527,6 +1557,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
       <div class="win-b sheet-win">
         <div class="wbar"><div class="seg mini" role="group" aria-label="Sheet" id="wsSheet"><button data-sheet="raw" aria-pressed="true" title="The data as recorded: locked">Raw</button><button data-sheet="final" aria-pressed="false" title="The analysed spectrum after processing, read only">Final</button></div><span class="wsaddr" id="wsAddr" title="The active cell, or the selected range"></span><span class="wsval" id="wsVal" aria-live="polite"></span>
           <button class="tb sm icon" id="wsFindBtn" title="Find in the sheet (Ctrl+F)" aria-label="Find in the sheet"><svg class="ic sm"><use href="#i-search"/></svg></button>
+          <button class="tb sm" id="wsFillBtn" aria-haspopup="menu" title="Fill the selected cells: down, right, a series, row numbers, a list, random numbers or a trend" aria-label="Fill"><svg class="ic sm"><use href="#i-fill"/></svg><span>Fill</span></button>
           <button class="tb sm" id="addColBtn" title="Add a Y column" aria-label="Add a Y column"><svg class="ic sm"><use href="#i-plus"/></svg><span>Column</span></button></div>
         <div class="ws" id="ws" tabindex="0"></div>
         <div class="ws-foot" id="wsFoot"></div>
@@ -2076,6 +2107,120 @@ function guessUserParams(names,X,Y){
     if(/^(k|rate|lambda|lam|kappa)$/.test(s)) return 3/span;
     if(/^(m|slope|b1)$/.test(s)) return (yLast-yFirst)/span;
     return 1; });
+}
+
+/* ---- Filling a column -----------------------------------------------------------
+   The values for a worksheet fill, as Excel's Fill › Series and Origin's Fill
+   Column With make them. fillSeries(o, n) gives n values, or fewer when a stop
+   value is reached, as {v, err?, note?}, with every refusal in words:
+     linear   start + k·step (a stop value the series may not pass)
+     growth   start·factor^k (likewise)
+     even     n values from `from` to `to`, evenly spaced (on a log scale with log)
+     rows     first + k: the rows' own numbers
+     list     o.vals, each repeated `each` times, the whole list `times` times
+              (0: until the rows are full)
+     uniform  between a and b;  int  whole numbers a…b, each as likely;
+     normal   mean + sd·z;  poisson  counts of mean lam
+     trend    the least-squares line through o.xs, o.ys (rows and values above),
+              continued from row o.r0; with growth, an exponential (through logs)
+   Random values come from mulberry32 seeded with o.seed, so a seed gives the
+   same numbers again; o.dec rounds to that many decimals. Values made by
+   adding steps are cleaned of floating-point dust at the step's precision
+   (0.1 + 0.2 is 0.3), multiplied ones at 12 significant digits. */
+const FILL_MAX=200000;
+function mulberry32(seed){ let a=seed>>>0; return ()=>{ a=(a+0x6D2B79F5)>>>0; let t=a; t=Math.imul(t^(t>>>15),t|1); t^=t+Math.imul(t^(t>>>7),t|61); return ((t^(t>>>14))>>>0)/4294967296; }; }
+// ln Γ(x) for x > 0 (Lanczos, g = 7): about 15 digits.
+function lgammaFn(x){
+  if(x<0.5) return Math.log(Math.PI/Math.abs(Math.sin(Math.PI*x)))-lgammaFn(1-x);
+  const c=[0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+  x-=1; let a=c[0]; const t=x+7.5; for(let i=1;i<9;i++) a+=c[i]/(x+i);
+  return 0.5*Math.log(2*Math.PI)+(x+0.5)*Math.log(t)-t+Math.log(a);
+}
+// A Poisson count of mean lam: by multiplying uniforms below 30, else Hörmann's
+// transformed rejection (PTRS), exact at any mean.
+function poissonRand(lam,rnd){
+  if(!(lam>0)) return 0;
+  if(lam<30){ const L=Math.exp(-lam); let k=0, p=1; do{ k++; p*=rnd(); }while(p>L); return k-1; }
+  const sl=Math.sqrt(lam), ll=Math.log(lam), b=0.931+2.53*sl, a=-0.059+0.02483*b, ia=1.1239+1.1328/(b-3.4), vr=0.9277-3.6224/(b-2);
+  for(let g=0;g<1000;g++){ const U=rnd()-0.5, V=rnd(), us=0.5-Math.abs(U), k=Math.floor((2*a/us+b)*U+lam+0.43);
+    if(us>=0.07&&V<=vr) return k;
+    if(k<0||(us<0.013&&V>us)) continue;
+    if(Math.log(V)+Math.log(ia)-Math.log(a/(us*us)+b)<=-lam+k*ll-lgammaFn(k+1)) return k; }
+  return Math.round(lam);
+}
+function fillSeries(o,n){
+  const num=v=>v!=null&&v!==""&&Number.isFinite(+v), N=v=>+v, out=[];
+  if(!(n>=1)) return {v:[],err:"Nothing to fill: the range has no rows."};
+  if(n>FILL_MAX) return {v:[],err:`At most ${FILL_MAX.toLocaleString("en-US").replace(/,/g," ")} values at once.`};
+  const dust=(v,step)=>{ if(!Number.isFinite(v)||v===0) return v; const d=Math.min(20,Math.max(0,6-Math.floor(Math.log10(Math.abs(step)||Math.abs(v)||1)))); const r=+v.toFixed(d); return Number.isFinite(r)?r:v; };
+  const sig=v=>Number.isFinite(v)&&v!==0?+v.toPrecision(12):v;
+  const k=o.kind;
+  const tooBig=j=>({v:[],err:`The values pass 10³⁰⁸ at value ${j+1}: take a smaller factor or fewer rows.`});
+  if(k==="linear"||k==="growth"){
+    if(!num(o.start)) return {v:[],err:"Type the first value."};
+    const s0=N(o.start), lin=k==="linear", f=lin?N(o.step):N(o.factor);
+    if(!num(lin?o.step:o.factor)) return {v:[],err:lin?"Type the step: what each value adds to the one before.":"Type the factor: what each value is multiplied by."};
+    const hasStop=num(o.stop), stop=hasStop?N(o.stop):null;
+    if(hasStop){
+      if(!lin&&f<=0) return {v:[],err:"A stop value needs a factor above zero: with this one the values change sign."};
+      const dir=lin?Math.sign(f):Math.sign(s0*(f-1));
+      if(dir===0) return {v:[],err:"With this step the values never change, so they never reach the stop value. Leave it empty to fill every row."};
+      if((stop-s0)*dir<0) return {v:[],err:`The series starts beyond its stop value: from ${s0} it moves away from ${stop}.`};
+    }
+    for(let j=0;j<n;j++){ const v=lin?dust(s0+j*f,f):sig(s0*Math.pow(f,j));
+      if(!Number.isFinite(v)) return tooBig(j);
+      if(hasStop&&(lin?(v-stop)*Math.sign(f)>Math.abs(f)*1e-9:(v-stop)*Math.sign(s0*(f-1))>Math.abs(stop)*1e-12)) break;
+      out.push(v); }
+    return {v:out,note:hasStop&&out.length<n?`It reaches ${stop} after ${out.length} value${out.length===1?"":"s"}; the rows after stay empty.`:hasStop&&out[n-1]!==stop?`The range ends before the stop value ${stop}.`:null};
+  }
+  if(k==="even"){
+    if(!num(o.from)||!num(o.to)) return {v:[],err:"Type the first and the last value."};
+    const a=N(o.from), b=N(o.to);
+    if(o.log){ if(!(a*b>0)) return {v:[],err:"On a log scale both ends must be above zero, or both below."};
+      for(let j=0;j<n;j++) out.push(j===n-1&&n>1?b:sig(a*Math.pow(b/a,n>1?j/(n-1):0))); return {v:out}; }
+    const st=n>1?(b-a)/(n-1):0;
+    for(let j=0;j<n;j++) out.push(j===n-1&&n>1?b:dust(a+j*st,st||a||1));
+    return {v:out,note:n>1?`A step of ${dust(st,st||1)}.`:null};
+  }
+  if(k==="rows"){ const f=num(o.first)?N(o.first):1; for(let j=0;j<n;j++) out.push(f+j); return {v:out}; }
+  if(k==="list"){
+    const vals=(o.vals||[]).filter(Number.isFinite); if(!vals.length) return {v:[],err:"Type the values to repeat, such as 1 2 3."};
+    const each=Math.round(N(o.each||1)), times=Math.round(N(o.times||0));
+    if(!(each>=1)) return {v:[],err:"Each value is used once at least."};
+    if(!(times>=0)) return {v:[],err:"The list is repeated a whole number of times."};
+    const total=times?vals.length*each*times:Infinity;
+    for(let j=0;j<n&&j<total;j++) out.push(vals[Math.floor(j/each)%vals.length]);
+    return {v:out,note:out.length<n?`The list ends after ${out.length} value${out.length===1?"":"s"}; the rows after stay empty.`:null};
+  }
+  if(k==="uniform"||k==="int"||k==="normal"||k==="poisson"){
+    const rnd=mulberry32(num(o.seed)?N(o.seed):1), dec=num(o.dec)?Math.max(0,Math.min(12,Math.round(N(o.dec)))):null;
+    const rd=v=>dec==null?v:+v.toFixed(dec);
+    if(k==="uniform"){ if(!num(o.a)||!num(o.b)) return {v:[],err:"Type the lowest and the highest value."};
+      const a=N(o.a), b=N(o.b); if(b<a) return {v:[],err:"The highest value must not be below the lowest."};
+      for(let j=0;j<n;j++) out.push(rd(a+(b-a)*rnd())); return {v:out}; }
+    if(k==="int"){ if(!num(o.a)||!num(o.b)) return {v:[],err:"Type the lowest and the highest whole number."};
+      const a=Math.ceil(N(o.a)), b=Math.floor(N(o.b)); if(b<a) return {v:[],err:"No whole number lies between these two."};
+      for(let j=0;j<n;j++) out.push(a+Math.floor(rnd()*(b-a+1))); return {v:out}; }
+    if(k==="normal"){ if(!num(o.mean)||!num(o.sd)) return {v:[],err:"Type the mean and the standard deviation."};
+      const m=N(o.mean), sd=N(o.sd); if(sd<0) return {v:[],err:"A standard deviation is not negative."};
+      for(let j=0;j<n;j++){ const u=1-rnd(), w=rnd(); out.push(rd(m+sd*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*w))); } return {v:out}; }
+    if(!num(o.lam)) return {v:[],err:"Type the mean count."};
+    const lam=N(o.lam); if(lam<0) return {v:[],err:"A mean count is not negative."}; if(lam>1e9) return {v:[],err:"Counts of mean above 10⁹ are not made: use normal numbers with SD √mean."};
+    for(let j=0;j<n;j++) out.push(poissonRand(lam,rnd)); return {v:out};
+  }
+  if(k==="trend"){
+    const xs=[], ys=[]; (o.ys||[]).forEach((y,j)=>{ const x=(o.xs||[])[j]; if(Number.isFinite(y)&&Number.isFinite(x)) { xs.push(x); ys.push(o.growth?Math.log(Math.abs(y)):y); } });
+    if(xs.length<2) return {v:[],err:"Continuing a trend needs two values or more above the first row to fill."};
+    if(o.growth&&!((o.ys||[]).filter(Number.isFinite).every(y=>y>0)||(o.ys||[]).filter(Number.isFinite).every(y=>y<0))) return {v:[],err:"A growth trend needs values all above zero (or all below)."};
+    const sgn=o.growth&&(o.ys||[]).find(Number.isFinite)<0?-1:1;
+    const mx=xs.reduce((a,b)=>a+b,0)/xs.length, my=ys.reduce((a,b)=>a+b,0)/ys.length; let sxy=0, sxx=0;
+    xs.forEach((x,j)=>{ sxy+=(x-mx)*(ys[j]-my); sxx+=(x-mx)*(x-mx); });
+    if(!(sxx>0)) return {v:[],err:"The values above are all on one row."};
+    const b=sxy/sxx, r0=num(o.r0)?N(o.r0):xs[xs.length-1]+1;
+    for(let j=0;j<n;j++){ const y=my+b*(r0+j-mx), v=o.growth?sgn*Math.exp(y):y; if(!Number.isFinite(v)) return tooBig(j); out.push(sig(v)); }
+    return {v:out,note:o.growth?`Each row ×${sig(Math.exp(b))}, from ${xs.length} values.`:`Each row ${b<0?"−":"+"}${sig(Math.abs(b))}, from ${xs.length} values.`};
+  }
+  return {v:[],err:"Choose what to fill with."};
 }
 /* ==NUMERICS:END== */
 
@@ -4340,6 +4485,18 @@ function parseLineList(text){
     if(!nm) nm=String(e.v);
     items.push({x:e.v,name:nm.slice(0,60),i:inten!=null&&Number.isFinite(inten)?inten:null}); });
   return {items:items.slice(0,2000),skipped};
+}
+
+/* A list of values typed for a fill: separated by spaces, semicolons, tabs or
+   new lines, or by commas when there is nothing else ("1,2,3"; "1,5 2,5" is
+   two numbers with decimal commas). Numbers are read as documents write them
+   (toNumber). Returns {vals, bad: the words that are not numbers}. */
+function parseFillList(text){
+  let t=String(text||"").trim().split(/[\s;]+/).map(s=>s.replace(/,$/,"")).filter(Boolean);
+  if(t.length===1&&t[0].includes(",")&&/^[\d.,+\-−eE]+$/.test(t[0])) t=t[0].split(",").filter(Boolean);
+  const vals=[], bad=[];
+  t.forEach(s=>{ const v=toNumber(s,s.includes(",")&&!s.includes(".")?",":"."); if(v==null) bad.push(s); else vals.push(v); });
+  return {vals,bad};
 }
 /* ==PARSER:END== */
 
@@ -8050,6 +8207,146 @@ function wsFillCtrl(dir){
   else { if(s.c1<=s.c0){ toast("Select the cells to fill, with the value to copy on the left."); return; } wsFill({r0:s.r0,r1:s.r1,c0:s.c0,c1:s.c0},"right",s.c1,false); }
 }
 
+/* ---- The Fill dialog ----------------------------------------------------------
+   Excel's Fill › Series and Origin's Fill Column With in one dialog: what to
+   fill with (a series by a step or by a factor, values evenly between two, the
+   rows' numbers, a list repeated, random numbers, or the trend of the values
+   above, all made by fillSeries), where (a column of the Raw sheet or a new
+   one, from row to row), and a preview of the values with a sparkline. Every
+   refusal is in words and keeps OK off. Recorded values are locked, so only
+   empty cells are written: cells that hold a value keep it, and the preview
+   says how many. One undo entry and one raw-data record entry; the settings
+   are kept per browser (kurve.fill) for the next fill. */
+const FILL_KINDS=[["linear","Series","By a step: 1, 2, 3…"],["growth","Growth series","By a factor: 1, 2, 4…"],["even","Evenly between two values","From one value to another"],["rows","Row numbers","Each cell its row's number"],["list","Repeat a list","Your values over and over"],["random","Random numbers","Uniform, whole, normal or counts"],["trend","Continue the trend","The values above, carried on"]];
+const FILL_DIST=[["uniform","Uniform between two values"],["int","Whole numbers, each as likely"],["normal","Normal (Gaussian)"],["poisson","Counts (Poisson)"]];
+const FILL_DEF={kind:"linear",start:"1",step:"1",stop:"",gstart:"1",factor:"2",gstop:"",eva:"0",evb:"1",log:false,zero:false,list:"1 2 3",each:"1",times:"0",dist:"uniform",ua:"0",ub:"1",mean:"0",sd:"1",lam:"100",dec:"",shape:"line"};
+function fillLast(){ try{ const o=JSON.parse(localStorage.getItem("kurve.fill")||"{}"); return Object.assign({},FILL_DEF,o&&typeof o==="object"?o:{}); }catch(e){ return Object.assign({},FILL_DEF); } }
+function fillKeep(o){ try{ localStorage.setItem("kurve.fill",JSON.stringify(o)); }catch(e){} }
+const newSeed=()=>String(1+Math.floor(Math.random()*999999));
+// The Fill button's menu (the worksheet's bar, a cell's menu, Data › Fill).
+function fillMenuItems(){
+  const ro=S.readOnly||!P(), s=wsSelRect(), raw=S.sheet==="raw";
+  return [{label:"Down", kbd:"Ctrl+D", enabled:!ro&&raw&&s.r1>s.r0, title:"Copy the first row of the selection into the rest", run:()=>wsFillCtrl("down")},
+    {label:"Right", kbd:"Ctrl+R", enabled:!ro&&raw&&s.c1>s.c0, title:"Copy the first column of the selection into the rest", run:()=>wsFillCtrl("right")},
+    "-"].concat(FILL_KINDS.map(([k,l,t])=>({label:l+"…", title:t, enabled:!ro, run:()=>openFillDlg(k)})));
+}
+// What the dialog starts on: the selected column and rows, or the column's
+// empty rows to the sheet's length; a column full there gives way to a new one.
+function fillTarget(colId){
+  const m=S.wsm, s=wsSelRect(), raw=allCols().filter(c=>!c.src), N=nRows();
+  let col=colId?colById(colId):null;
+  if(!col&&m&&m.kind==="raw"){ const q=m.cols[Math.max(0,s.c0)]; if(q&&!q.phantom) col=q.col; }
+  if(col&&(col.fx||col.src)) col=null;
+  let r0=colId?0:Math.max(0,s.r0), r1=!colId&&s.r1>s.r0?s.r1:Math.max(N-1,r0);
+  if(r1===r0&&!(N>r0)) r1=r0+99;
+  return {col:col?col.id:"new", r0, r1, raw, picked:!!colId||s.r1>s.r0};
+}
+function fillPlan(v){
+  const kind=(FILL_KINDS.find(([k])=>v["fk_"+k])||FILL_KINDS[0])[0], r0=Math.round(+v.fillR0)-1, r1=Math.round(+v.fillR1)-1;
+  const col=v.fillCol==="new"?null:colById(v.fillCol), raw=allCols().filter(c=>!c.src), L=col?colLetter(col):wsLetter(raw.length);
+  const base={kind,col,L,r0,r1};
+  if(!Number.isFinite(r0)||!Number.isFinite(r1)||r0<0) return Object.assign(base,{err:"Rows are counted from 1: type the first and the last row to fill."});
+  if(r1<r0) return Object.assign(base,{err:"The last row comes before the first."});
+  const n=r1-r0+1; let o, words;
+  if(kind==="linear"){ o={kind,start:v.fillStart,step:v.fillStep,stop:v.fillStop}; words=`a series from ${v.fillStart} by ${v.fillStep}${String(v.fillStop).trim()?` to ${v.fillStop}`:""}`; }
+  else if(kind==="growth"){ o={kind:"growth",start:v.fillGStart,factor:v.fillFactor,stop:v.fillGStop}; words=`a growth series from ${v.fillGStart} by ×${v.fillFactor}${String(v.fillGStop).trim()?` to ${v.fillGStop}`:""}`; }
+  else if(kind==="even"){ o={kind,from:v.fillEvA,to:v.fillEvB,log:!!v.fillLog}; words=`${n} values evenly from ${v.fillEvA} to ${v.fillEvB}${v.fillLog?" on a log scale":""}`; }
+  else if(kind==="rows"){ o={kind,first:r0+(v.fillZero?0:1)}; words=`row numbers${v.fillZero?" counted from 0":""}`; }
+  else if(kind==="list"){ const L2=parseFillList(v.fillList);
+    if(L2.bad.length) return Object.assign(base,{err:`“${L2.bad[0]}” is not a number: the worksheet holds numbers.`});
+    o={kind,vals:L2.vals,each:v.fillEach,times:v.fillTimes}; words=`the list ${L2.vals.slice(0,8).join(" ")}${L2.vals.length>8?" …":""}${+v.fillEach>1?`, each value ${v.fillEach} times`:""}`; }
+  else if(kind==="random"){ const d=v.fillDist||"uniform", seed=Math.round(+v.fillSeed);
+    if(!(seed>=0&&seed<=4294967295)) return Object.assign(base,{err:"The seed is a whole number from 0 to 4 294 967 295."});
+    o={kind:d,seed,a:v.fillUa,b:v.fillUb,mean:v.fillMean,sd:v.fillSd,lam:v.fillLam,dec:v.fillDec};
+    words=(d==="uniform"?`random numbers between ${v.fillUa} and ${v.fillUb}`:d==="int"?`random whole numbers from ${v.fillUa} to ${v.fillUb}`:d==="normal"?`normal random numbers of mean ${v.fillMean} and SD ${v.fillSd}`:`random counts of mean ${v.fillLam}`)+` (seed ${seed})`; }
+  else { if(!col) return Object.assign(base,{err:"Continuing a trend reads the values above in the same column: choose a column that has some."});
+    const xs=[], ys=[]; for(let r=0;r<r0&&r<col.data.length;r++) if(col.data[r]!=null){ xs.push(r); ys.push(col.data[r]); }
+    o={kind,xs,ys,r0,growth:v.fillShape==="growth"}; words=`the ${v.fillShape==="growth"?"growth":"straight-line"} trend of the ${ys.length} value${ys.length===1?"":"s"} above`; }
+  const res=fillSeries(o,n); if(res.err) return Object.assign(base,{err:res.err});
+  const writes=[]; let skipped=0;
+  res.v.forEach((val,j)=>{ const r=r0+j; if(col&&col.data[r]!=null) skipped++; else writes.push([r,val]); });
+  if(!writes.length) return Object.assign(base,{err:res.v.length?`Every one of these ${res.v.length===1?"cells holds a recorded value":res.v.length+" cells holds a recorded value"}, which is locked: fill a new column, or other rows.`:"Nothing to fill."});
+  return Object.assign(base,{ok:true,n,vals:res.v,writes,skipped,note:res.note,words,role:v.fillRole||"y"});
+}
+async function openFillDlg(kind,opt){
+  const p=P(); if(!p||S.readOnly) return; opt=opt||{};
+  if(!winOpen("sheet")) openWin("sheet",{render:true}); else focusWin("sheet");
+  if(S.sheet!=="raw") setSheet("raw");
+  if(S.wsm&&S.wsm.ord){ toast("Unsort the sheet first: a fill follows the rows in the order they were recorded.",{action:"Unsort",run:()=>wsSortBy(null,0)}); return; }
+  const L=fillLast(), t=fillTarget(opt.col), k0=FILL_KINDS.some(([k])=>k===kind)?kind:L.kind;
+  // A column full in the rows chosen gives way to a new one, and so does one
+  // with recorded values there when only a cell was selected.
+  if(t.col!=="new"&&k0!=="trend"){ const c=colById(t.col); let used=0; for(let r=t.r0;r<=t.r1;r++) if(c.data[r]!=null) used++;
+    if(used===t.r1-t.r0+1||(used&&!t.picked)) t.col="new"; }
+  if(k0==="trend"&&t.col!=="new"&&!opt.col){ const c=colById(t.col); let last=-1; c.data.forEach((v,r)=>{ if(v!=null) last=r; }); if(last>=t.r0&&last<t.r1) t.r0=last+1; else if(last>=t.r1) { t.r0=last+1; t.r1=Math.max(nRows()-1,last+10); } }
+  const inp=(id,val,ph,cls)=>`<input type="text" class="inp${cls?" "+cls:""}" id="${id}" value="${esc(val==null?"":String(val))}"${ph?` placeholder="${esc(ph)}"`:""} autocomplete="off" spellcheck="false">`;
+  const row=(lab,id,html,tip)=>`<div class="frow"><label for="${id}"${tip?` class="tipd" title="${esc(tip)}"`:""}>${lab}</label>${html}</div>`;
+  const sel=(id,opts,cur)=>`<select id="${id}">${opts.map(([v,l])=>`<option value="${v}"${v===cur?" selected":""}>${esc(l)}</option>`).join("")}</select>`;
+  const colOpts=t.raw.filter(c=>!c.fx).map(c=>[c.id,`${colLetter(c)}${c.name?": "+c.name:""} (${ROLE_NAME[c.role]||c.role})`]).concat([["new",`${wsLetter(t.raw.length)}: a new column`]]);
+  const html=`<div class="filldlg">
+  <div class="fkl" role="radiogroup" aria-label="Fill with">${FILL_KINDS.map(([k,l,d])=>`<label><input type="radio" name="fk" id="fk_${k}"${k===k0?" checked":""}><span><b>${l}</b><small>${d}</small></span></label>`).join("")}</div>
+  <div class="fbody">
+    <div class="fks" data-fk="linear">${row("Start","fillStart",inp("fillStart",L.start))}${row("Step","fillStep",inp("fillStep",L.step),"Added to each value to make the next; below zero to count down")}${row("Stop at","fillStop",inp("fillStop",L.stop,"optional"),"The series ends where it would pass this value; the rows after stay empty")}</div>
+    <div class="fks" data-fk="growth">${row("Start","fillGStart",inp("fillGStart",L.gstart))}${row("Factor","fillFactor",inp("fillFactor",L.factor),"Each value is the one before times this")}${row("Stop at","fillGStop",inp("fillGStop",L.gstop,"optional"),"The series ends where it would pass this value")}</div>
+    <div class="fks" data-fk="even">${row("From","fillEvA",inp("fillEvA",L.eva))}${row("To","fillEvB",inp("fillEvB",L.evb),"The last row gets exactly this value")}<label class="chk"><input type="checkbox" id="fillLog"${L.log?" checked":""}> On a log scale: each value the same factor up</label></div>
+    <div class="fks" data-fk="rows"><label class="chk"><input type="checkbox" id="fillZero"${L.zero?" checked":""}> Count from 0 (the first row is 0)</label></div>
+    <div class="fks" data-fk="list">${row("Values","fillList",inp("fillList",L.list,"1 2 3"),"Separated by spaces, semicolons or commas")}${row("Each value","fillEach",`<div class="pair">${inp("fillEach",L.each,"","num")}<span class="unit">times in a row</span></div>`)}${row("The list","fillTimes",`<div class="pair">${inp("fillTimes",L.times,"","num")}<span class="unit">times (0: until the rows are full)</span></div>`)}</div>
+    <div class="fks" data-fk="random">${row("Kind","fillDist",sel("fillDist",FILL_DIST,L.dist))}
+      <div data-fd="uniform int">${row("Lowest","fillUa",inp("fillUa",L.ua))}${row("Highest","fillUb",inp("fillUb",L.ub))}</div>
+      <div data-fd="normal">${row("Mean","fillMean",inp("fillMean",L.mean))}${row("SD","fillSd",inp("fillSd",L.sd),"The standard deviation")}</div>
+      <div data-fd="poisson">${row("Mean count","fillLam",inp("fillLam",L.lam),"Counts scatter around it by its square root, as a detector's do")}</div>
+      ${row("Seed","fillSeed",`<div class="pair">${inp("fillSeed",opt.seed||newSeed(),"","num")}<button type="button" class="btn sm" id="fillNewSeed">New</button></div>`,"The same seed gives the same numbers again; it goes into the History")}
+      <div data-fd="uniform normal">${row("Decimals","fillDec",inp("fillDec",L.dec,"all","num"),"Round each number to this many decimals")}</div></div>
+    <div class="fks" data-fk="trend">${row("Shape","fillShape",sel("fillShape",[["line","A straight line (Excel's linear trend)"],["growth","A growth (exponential)"]],L.shape))}</div>
+    <h3 class="gh">Where</h3>
+    ${row("Column","fillCol",sel("fillCol",colOpts,t.col))}
+    ${row("Rows","fillR0",`<div class="pair">${inp("fillR0",t.r0+1,"","num")}<span class="unit">to</span>${inp("fillR1",t.r1+1,"","num")}</div>`)}
+    <div data-new>${row("Use it as","fillRole",sel("fillRole",[["y","Y: a spectrum"],["x","X: an axis"],["ignore","Not plotted"]],t.raw.length?"y":"x"))}</div>
+    <div class="fprev" id="fillPrev" aria-live="polite"></div>
+  </div></div>`;
+  let plan=null;
+  const body=()=>$("#formBody");
+  const pr=formDlg({title:"Fill", html, ok:"Fill", wide:true, focus:"#fk_"+k0, valid:v=>{
+    const b=body(); if(!b) return false; plan=fillPlan(v);
+    b.querySelectorAll(".fks").forEach(el=>{ el.hidden=el.dataset.fk!==plan.kind; });
+    const dist=v.fillDist||"uniform"; b.querySelectorAll("[data-fd]").forEach(el=>{ el.hidden=!el.dataset.fd.split(" ").includes(dist); });
+    const nw=b.querySelector("[data-new]"); if(nw) nw.hidden=v.fillCol!=="new";
+    const pv=b.querySelector("#fillPrev"), show=x=>String(Number.isInteger(x)?x:+x.toPrecision(8));
+    if(pv){ if(!plan.ok) pv.innerHTML=`<div class="fpe">${ICON("alert","sm")}<span>${esc(plan.err)}</span></div>`;
+      else { const vs=plan.vals, head=vs.slice(0,6).map(show).join(", ")+(vs.length>7?", …, "+show(vs[vs.length-1]):vs.length===7?", "+show(vs[6]):""), last=plan.r0+vs.length;
+        pv.innerHTML=`<div class="fpa"><b>${plan.L}${plan.r0+1}${vs.length>1?`:${plan.L}${last}`:""}</b><span>${vs.length} value${vs.length===1?"":"s"}${plan.skipped?`, ${plan.writes.length} written`:""}</span></div><div class="fpv">${esc(head)}</div>${vs.length>2?fillSpark(vs):""}${plan.skipped?`<p class="fpn">${plan.skipped} cell${plan.skipped===1?" holds a recorded value and keeps it":"s hold recorded values and keep them"}: recorded values are locked.</p>`:""}${plan.note?`<p class="fpn">${esc(plan.note)}</p>`:""}`; } }
+    return !!plan.ok; }});
+  const ns=$("#fillNewSeed"); if(ns) ns.onclick=()=>{ const f=$("#fillSeed"); f.value=newSeed(); f.dispatchEvent(new Event("input",{bubbles:true})); };
+  const v=await pr; if(!v) return;
+  const pl=fillPlan(v); if(!pl.ok){ toast(pl.err); return; }
+  fillKeep({kind:pl.kind,start:v.fillStart,step:v.fillStep,stop:v.fillStop,gstart:v.fillGStart,factor:v.fillFactor,gstop:v.fillGStop,eva:v.fillEvA,evb:v.fillEvB,log:!!v.fillLog,zero:!!v.fillZero,list:v.fillList,each:v.fillEach,times:v.fillTimes,dist:v.fillDist,ua:v.fillUa,ub:v.fillUb,mean:v.fillMean,sd:v.fillSd,lam:v.fillLam,dec:v.fillDec,shape:v.fillShape});
+  doFill(pl);
+}
+// The values against their rows, small: the lowest and highest of each pixel's share.
+function fillSpark(vs){
+  const W=300, H=30, n=vs.length, b=Math.max(1,Math.ceil(n/W)), pts=[]; let lo=Infinity, hi=-Infinity;
+  vs.forEach(v=>{ if(v<lo) lo=v; if(v>hi) hi=v; });
+  const sy=v=>(H-2-(hi>lo?(v-lo)/(hi-lo):0.5)*(H-4)).toFixed(1);
+  for(let i=0;i<n;i+=b){ let a=Infinity, z=-Infinity; for(let j=i;j<Math.min(n,i+b);j++){ if(vs[j]<a) a=vs[j]; if(vs[j]>z) z=vs[j]; } const x=(1+(n>1?i/(n-1):0.5)*(W-2)).toFixed(1); pts.push(x+","+sy(a)); if(z!==a) pts.push(x+","+sy(z)); }
+  return `<svg class="fspark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="M${pts.join("L")}" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+}
+function doFill(pl){
+  const p=P(); if(!p||S.readOnly) return;
+  pushUndo("filling cells");
+  let col=pl.col?colById(pl.col.id):null;
+  if(!col){ col=wsMakeCols(allCols().filter(c=>!c.src).length);
+    if(pl.role&&col.role!==pl.role){ col.role=pl.role; if(pl.role!=="y"){ delete col.pipe; delete col.mask; } else { col.pipe=col.pipe||[]; col.mask=col.mask||[]; } } }
+  const arr=col.data.slice(); let nv=0;
+  pl.writes.forEach(([r,v])=>{ while(arr.length<=r) arr.push(null); if(arr[r]==null){ arr[r]=v; nv++; } });
+  trimTail(arr); col.data=arr; migrate(p);
+  const L=colLetter(col), last=pl.r0+pl.vals.length, rng=`${L}${pl.r0+1}${pl.vals.length>1?`:${L}${last}`:""}`;
+  const raw=recordRaw(`filled ${nv} cell${nv===1?"":"s"} of column ${L} with ${pl.words}`);
+  save(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),`filled ${rng} with ${pl.words}`); renderAll();
+  const ci=allCols().filter(c=>!c.src).findIndex(c=>c.id===col.id);
+  if(S.ws&&ci>=0){ Object.assign(S.ws,{ar:pl.r0,ac:ci,r:last-1,c:ci}); wsPaintSel(); }
+  toast(`Filled ${rng} with ${pl.words}${pl.skipped?`; ${pl.skipped} recorded value${pl.skipped===1?"":"s"} kept`:""}.`,{action:"Undo",run:undo});
+}
+
 /* ---- Find ------------------------------------------------------------------------
    Ctrl+F in the worksheet: every cell of the sheet whose text contains what is
    typed, labels included, marked; Enter and Shift+Enter (or F3) step through
@@ -8135,6 +8432,7 @@ function renderWs(){
   const box=$("#ws"), p=P(), sub=$("#wsSub");
   document.querySelectorAll("#wsSheet button").forEach(b=>{ b.setAttribute("aria-pressed",String(b.dataset.sheet===S.sheet)); b.disabled=!p; });
   const ac=$("#addColBtn"); if(ac) ac.hidden=S.sheet==="final";
+  const fbt=$("#wsFillBtn"); if(fbt) fbt.hidden=S.sheet==="final";
   if(!p){
     const canMake=S.store&&!S.readOnly;
     box.innerHTML=S.store?`<div style="padding:16px" class="nothing">No project is open.${canMake?` <button class="btn sm" id="wsNew">New project</button>`:""}</div>`:"";
@@ -8446,7 +8744,7 @@ function wsCellMenu(ev,r,c){
       {label:"Descending", radio:true, checked:!!(m.ord&&m.sortCi===c&&m.sortDir<0), run:()=>wsSortBy(q.id,-1)},
       "-",{label:"As recorded (unsort)", enabled:!!m.ord, run:()=>wsSortBy(null,0)}]},
     {label:"Find…", kbd:"Ctrl+F", run:wsFindOpen},
-    raw?{label:"Fill down", kbd:"Ctrl+D", enabled:!S.readOnly&&r1>r0, run:()=>wsFillCtrl("down")}:null,
+    raw?{label:"Fill", sub:fillMenuItems}:null,
     raw&&q&&(q.phantom||q.calc||!q.col.data.some(v=>v!=null))?{label:q.calc?"Edit the formula…":"Set column values (formula)…", enabled:!S.readOnly, run:()=>wsEditFormula(c)}:null];
   if(q&&q.menu) items.push("-",{label:`Column ${q.letter} options…`, run:()=>{ const b=document.querySelector(`#ws [data-cmenu="${CSS.escape(q.id)}"]`); if(b) openColMenu(q.id,b); }});
   openMenu(pointerAnchor(ev.clientX,ev.clientY),items,{label:"Cell options"});
@@ -8621,6 +8919,7 @@ function openColMenu(id,btn){
     {label:"Plot in a new graph", enabled:!ro, run:()=>newGraphFrom([id])});
   const rawIdx=cols.filter(o=>!o.src).indexOf(c), recorded=!c.fx&&c.data.some(v=>v!=null);
   items.push("-",{label:c.fx?"Edit the formula…":"Set column values (formula)…", enabled:!ro&&!recorded, title:recorded?"This column holds recorded values; type a formula into an empty column":"", run:()=>{ openWin("sheet"); wsEditFormula(rawIdx); }},
+    {label:"Fill column with", enabled:!ro&&!c.fx, title:c.fx?"A computed column is filled by its formula":"", sub:()=>FILL_KINDS.map(([k,l,t])=>({label:l+"…", title:t, run:()=>openFillDlg(k,{col:id})}))},
     {label:"Sort the sheet by this column", sub:()=>{ const m=S.wsm, on=m&&m.ord&&m.cols[m.sortCi]&&m.cols[m.sortCi].id===id; return [
       {label:"Ascending", radio:true, checked:!!(on&&m.sortDir>0), run:()=>{ if(S.sheet!=="raw") setSheet("raw"); wsSortBy(id,1); }},
       {label:"Descending", radio:true, checked:!!(on&&m.sortDir<0), run:()=>{ if(S.sheet!=="raw") setSheet("raw"); wsSortBy(id,-1); }},
@@ -10942,7 +11241,7 @@ function renderTop(){
   $("#exportBtn").disabled=!has;
   $("#importBtn").disabled=S.readOnly||!S.store; $("#fileIn").disabled=S.readOnly; $("#emptyImport").disabled=S.readOnly||!S.store;
   document.querySelectorAll("[data-example]").forEach(b=>b.disabled=S.readOnly||!S.store);
-  $("#addColBtn").disabled=off; $("#projMenu").disabled=!S.store; renderViewSeg();
+  $("#addColBtn").disabled=off; $("#wsFillBtn").disabled=off; $("#projMenu").disabled=!S.store; renderViewSeg();
   const dark=darkMode(), tb=$("#themeBtn"), lab=dark?"Switch to the light theme":"Switch to the dark theme";
   tb.innerHTML=ICON(dark?"sun":"moon"); tb.title=lab; tb.setAttribute("aria-label",lab);
   document.title=(p&&p.name?p.name+" — ":"")+"Kurve";
@@ -11781,6 +12080,7 @@ function dataMenu(){
     {label:"Import data…", kbd:"Ctrl+O", run:pickFile, enabled:can},
     {label:"Worksheet", run:()=>openWin("sheet",{render:true}), enabled:!!p},
     {label:"Add a column", run:addColumn, enabled:edit},
+    {label:"Fill", sub:()=>FILL_KINDS.map(([k,l,t])=>({label:l+"…", title:t, enabled:edit, run:()=>openFillDlg(k)})), enabled:edit},
     "-",
     {label:"Clean", sub:()=>[t("crop"), {label:"Crop to the visible range", run:cropToView, enabled:edit&&has&&!!S.view}, t("exclude"), t("despike"), t("sort"), t("dedupe"), t("resample")]},
     {label:"Masks", sub:()=>[{label:"Mask points on the graph", run:()=>setMode("mask"), enabled:has},
@@ -12334,7 +12634,7 @@ function renderPeaks(){
   const inV=vr&&regs.some(g=>Math.abs(vr[0]-g.x0)<=1e-9*Math.abs(dhi-dlo||1)&&Math.abs(vr[1]-g.x1)<=1e-9*Math.abs(dhi-dlo||1));
   const pkIn=g=>rows.filter(r=>r.x>=g.x0&&r.x<=g.x1).length;
   let h=`<section class="pkwhere" aria-label="Where to look"><h3 class="gh">Find peaks in</h3><div class="frow">
-    <label for="pkCol">Spectrum</label><div class="pair"><select id="pkCol"${many?"":" disabled"} style="flex:1">${yCols().map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}${foundOf(y)?` (${peakGroup(y.id).length} peak${peakGroup(y.id).length===1?"":"s"})`:""}</option>`).join("")}</select>${many?`<button class="btn sm" id="pkEvery"${ro} title="Find peaks in every spectrum with these settings, in these regions on the same axis">In every spectrum</button>`:""}</div>
+    ${many?`<label for="pkCol">Spectrum</label>`:`<span class="lab">Spectrum</span>`}<div class="pair">${many?`<select id="pkCol" style="flex:1">${yCols().map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}${foundOf(y)?` (${peakGroup(y.id).length} peak${peakGroup(y.id).length===1?"":"s"})`:""}</option>`).join("")}</select>`:`<span class="fixv">${esc(specName(c))}</span>`}${many?`<button class="btn sm" id="pkEvery"${ro} title="Find peaks in every spectrum with these settings, in these regions on the same axis">In every spectrum</button>`:""}</div>
     <span class="lab">Where</span><div class="pair pkrb"><button class="btn sm" id="pkAll" aria-pressed="${!regs.length}"${ro} title="${esc(fmt(dlo,6))} to ${esc(fmt(dhi,6))}${xu?" "+esc(xu):""}">Whole spectrum</button><button class="btn sm" id="pkView"${inV?' aria-pressed="true"':""}${ro||!vr||inV?" disabled":""} title="${vr?`Add x ${esc(fmt(vr[0],6))} to ${esc(fmt(vr[1],6))}, as the graph is zoomed, as a region`:"Zoom the graph first"}">${ICON("plus","sm")}What's in view</button><button class="btn sm${picking?" primary":""}" id="pkPick" aria-pressed="${!!picking}"${ro} title="Drag across the graph over a region: each region has its own peak finder settings">${picking?"Drag on the graph…":`${ICON("plus","sm")}Drag on the graph`}</button></div>
   </div>
   ${regs.length?`<div class="twrap"><table class="rtab pkregs"><thead><tr><th>Region</th><th>From${xu?` <span class="unit">(${esc(xu)})</span>`:""}</th><th>To</th><th class="l">Peak finder</th><th class="opt" title="Peaks found in it">Peaks</th><th></th></tr></thead><tbody>${regs.map((g,k)=>`<tr data-reg="${esc(g.id)}"${g===sr?' class="sel" aria-selected="true"':""}><td><span class="rgn">${k+1}</span></td><td><input type="text" inputmode="decimal" data-rx="x0" data-rid="${esc(g.id)}" value="${esc(fmt(g.x0,7))}" aria-label="Region ${k+1} from"${ro}></td><td><input type="text" inputmode="decimal" data-rx="x1" data-rid="${esc(g.id)}" value="${esc(fmt(g.x1,7))}" aria-label="Region ${k+1} to"${ro}></td><td class="l"><button class="lnk" data-regsel="${esc(g.id)}" title="Show this region's settings">${esc(pfSummary(g.o))}</button></td><td class="opt">${f?pkIn(g):"—"}</td><td class="fx"><button class="tb sm icon" data-regdel="${esc(g.id)}" aria-label="Remove region ${k+1}" title="Remove this region"${ro}>${ICON("x","sm")}</button></td></tr>`).join("")}</tbody></table></div>`:""}
@@ -14048,14 +14348,16 @@ const DOCS=[
 <h2>Two promises</h2>
 <ul><li><strong>The raw data never change.</strong> Every change is a step on top of them, which you can edit, reorder, switch off or delete. ${DA("rawdata","Raw data and its fingerprint")}</li>
 <li><strong>Everything can be undone.</strong> ${K("Ctrl","Z")} takes back your last change, whatever window it was made in.</li></ul>`},
-{id:"desk", g:"Basics", t:"Windows and the desk", kw:"window move resize maximise minimise taskbar tile cascade layout toolbar status bar phone theme dark style bench graphite appearance",
+{id:"desk", g:"Basics", t:"Windows and the desk", kw:"window move resize maximise minimise close panels documents switch taskbar tile cascade layout toolbar status bar phone theme dark style bench graphite appearance",
  lead:"The graph, the worksheet, the History and the rest are windows on a desk, as in Origin. Arrange them the way you work.",
  body:`<h2>Arranging windows</h2>
-${DL([["Move","Drag the title bar."],["Resize","Drag an edge or the bottom-right corner."],["Maximise","Double-click the title bar, or its square button. Again to restore."],["Minimise","The dash button. The window leaves the desk and waits in the taskbar."],["Close","The × button. The window leaves the desk and the taskbar; its menu, the Window menu or the taskbar's <em>Windows</em> button opens it again. Graph windows minimise but never close: they hold your graphs."],["Help","The <strong>?</strong> button opens the article about that window. "+K("F1")+" does the same for the window in front."]])}
-<h2 id="states">Open, minimised or closed</h2>
-<p>A window is in one of three states, and the taskbar shows which:</p>
-${DL([["Open","On the desk. Its taskbar button has a bar under it; the window in front is in colour. Click the one in front to minimise it, another to bring it forward."],["Minimised","Off the desk, kept for later. Its button stays, faded and without the bar. Click it to bring the window back where it was."],["Closed","Off the desk and out of the taskbar, so the taskbar holds only what you are using. A closed window with news (open comment threads, a fit out of date) still shows its button, dashed, with the badge."]])}
-<p>The taskbar's <strong>Windows</strong> button lists every window under <em>Open</em>, <em>Minimised</em> and <em>Closed</em>; the ${MP("Window")} menu lists them with their state beside each, and <em>Close the minimised windows</em> clears them from the taskbar. A badge counts open comment threads; a dot shows a fit's state or a warning in the processing. <em>Tile</em> and <em>Cascade</em> at the taskbar's right arrange the open windows; ${MP("Window › Restore the default arrangement")} starts again.</p>
+${DL([["Move","Drag the title bar."],["Resize","Drag an edge or the bottom-right corner."],["Maximise","Double-click the title bar, or its square button. Again to restore."],["Minimise","The dash button. The window leaves the desk; its button stays in the taskbar."],["Close","The × button, on panels only. The window leaves the desk and the taskbar; its menu, or "+MP("Window › Panels")+", opens it again."],["Help","The <strong>?</strong> button opens the article about that window. "+K("F1")+" does the same for the window in front."]])}
+<h2 id="states">What the taskbar shows</h2>
+<p>As a workbook keeps a tab for each sheet, the taskbar keeps a button for each of the project's <strong>documents</strong>: its graphs, the worksheet and its trend graphs. They minimise but never close. After them come the <strong>panels</strong> in use (History, Peaks, Fit…), only while they are open or minimised: a panel you never opened is not there, and one you close leaves.</p>
+${DL([["Open","A raised button with a bar under it; the window in front is in colour. Click the one in front to minimise it, another to bring it forward."],["Minimised","A flat button, no bar. Click it to bring the window back where it was."]])}
+<p>With more than four graphs they share one <em>Graphs</em> button that lists them, and so do more than three trend graphs. When the buttons do not fit in one row, those least recently used go into a <em>more</em> button at the end, never the window in front.</p>
+<h2 id="winmenu">The Window menu</h2>
+<p>${MP("Window")} lists the windows in use, as Excel's <em>Switch Windows</em> does: the one in front is ticked, a minimised one says so, and a click brings any to the front. With many, it offers a search instead. ${MP("Window › Panels")} lists every panel, ticked while it is in use: click to open one or to close it. <em>Minimise the others</em> leaves only the window in front on the desk; <em>Close the panels</em> closes every panel and keeps the documents. A badge counts open comment threads; a dot shows a fit's state or a warning in the processing. <em>Tile</em> and <em>Cascade</em>, also at the taskbar's right, arrange the open windows; <em>Restore the default arrangement</em> starts again.</p>
 <p>The arrangement is remembered in this browser, as fractions of the desk, so it survives a resized window; graph windows are remembered per project. ${DA("graphs","Several graphs")}</p>
 <h2>The toolbar</h2>
 ${DL([["Import, Export","Bring a file in; save the figure, data or a report."],["Undo, Redo","Every change, in every window."],["Raw · Final · Compare","What the graph shows: the data as recorded, after processing, or both."],["Zoom … Comment","The pointer tools. "+DA("graph","The graph")],["Show all","Back to all the data."],["Plot type, layout","How the analysed spectrum is drawn, and how several spectra share the graph."],["Reverse X, Log Y, Grid, Residuals","Axis and graph switches."]])}
@@ -14142,9 +14444,14 @@ ${DL([["<code>B*2</code>","Double column B."],["<code>(B-C)/A</code>","A differe
 <li>Its values are not recorded data: they are left out of the ${DA("rawdata","fingerprint")}, and cannot be typed over.</li>
 <li>A column that uses itself, a circle of formulas, or a deleted input shows an error in its header.</li>
 <li>Only arithmetic can run: a formula is never executed as code.</li></ul>`},
-{id:"fill", g:"Data", t:"Fill, sort and find", kw:"fill handle series copy sort order find search ctrl d ctrl r",
- lead:"The worksheet's fill handle, sorting and search, as in a spreadsheet.",
- body:`<h2>Fill</h2>
+{id:"fill", g:"Data", t:"Fill, sort and find", kw:"fill handle series growth linear step stop evenly spaced linspace log row numbers repeat pattern list random uniform normal gaussian poisson counts seed trend copy sort order find search ctrl d ctrl r",
+ lead:"Filling cells with a series, row numbers, a list, random numbers or a trend; the fill handle; sorting and search, as in a spreadsheet.",
+ body:`<h2 id="dialog">The Fill dialog</h2>
+<p>The <em>Fill</em> button above the grid (also in a cell's menu, a column's menu as <em>Fill column with</em>, and ${MP("Data › Fill")}) fills cells as Excel's <em>Fill › Series</em> and Origin's <em>Fill Column With</em> do:</p>
+${DL([["Series","From a start, adding a step each row (below zero counts down). A stop value ends it early; the rows after stay empty."],["Growth series","From a start, multiplying by a factor each row, with a stop value if you like."],["Evenly between two values","From one value to another over the rows chosen; the last row gets exactly the end. On a log scale each value is the same factor up."],["Row numbers","Each cell its row's number, from 1 or from 0."],["Repeat a list","Your values (1 2 3, or 1;2;3) over and over, each a number of times in a row, the list until the rows are full or a number of times."],["Random numbers","Uniform between two values, whole numbers each as likely, normal (a mean and an SD), or counts (Poisson, of a mean count: they scatter by its square root, as a detector's do). A <strong>seed</strong> makes them again: the same seed gives the same numbers, and it is written in the History. <em>Decimals</em> rounds them."],["Continue the trend","The values already above in the column, carried on as a straight line (least squares) or a growth, as Excel's <em>Trend</em> does."]])}
+<p><strong>Where</strong>: a column, or a new one (with what to use it as: Y, X or not plotted), and the rows from and to. It starts on what is selected; with a single cell, on the rows of the longest column. The preview shows the cells, the values and a sparkline; anything that cannot be done is said in words and keeps <em>Fill</em> off.</p>
+<p>Recorded values are locked, so only empty cells are filled: a cell that holds a value keeps it, and the preview says how many do. A column that holds values where you fill, chosen from a single cell, gives way to a new column. A fill is one undo step and one entry in the raw-data record; the dialog remembers its settings in this browser.</p>
+<h2>The fill handle</h2>
 <p>Select cells and drag the small square at the selection's corner down or right. Two or more numbers continue as a series (their least-squares line); one number, or text, is copied. Hold ${K("Ctrl")} to swap the two. Double-click the square to fill down as far as the column beside goes. ${K("Ctrl","D")} and ${K("Ctrl","R")} copy the selection's first row down or first column right.</p>
 <p>Only empty cells are filled, as newly recorded values, in one undo step. Label rows fill right.</p>
 <h2>Sort</h2>
@@ -14861,10 +15168,19 @@ function applyWins(){
 function focusWin(id){ const st=winState(id); if(st.z<LAYOUT.z){ st.z=++LAYOUT.z; applyWins(); saveLayout(); } }
 /* Opens a window (rendering what is in it) and brings it to the front. */
 /* A window is open (on the desk), minimised (off the desk, its button kept in
-   the taskbar) or closed (off the desk and out of the taskbar, back from its
-   menu, the Window menu or the taskbar's Windows button). Graph and trend
-   windows hold data, so they minimise but never close. */
-const keepsBtn=id=>!!(WINS[id]&&(WINS[id].graph||WINS[id].trend||id==="graph"));
+   the taskbar) or closed (off the desk and out of the taskbar). As a workbook
+   keeps a tab for each sheet, the project's documents (its graphs, the
+   worksheet, its trend graphs) always have their buttons: they minimise but
+   never close. Panels (History, Peaks, Fit…) are in the taskbar only while
+   open or minimised, so it and the Window menu list what is in use and never
+   what was not opened; a closed panel comes back from its menu, or from
+   Window › Panels. */
+const isDoc=id=>!!(WINS[id]&&(WINS[id].graph||WINS[id].trend||id==="graph"||id==="sheet"));
+const keepsBtn=isDoc;
+function docWinIds(){ return graphWinIds().concat(WINS.sheet?["sheet"]:[],trendWinIds()); }
+function panelIds(){ return WIN_ORDER.filter(id=>!isDoc(id)).concat(["help"]).filter(id=>WINS[id]); }
+// The windows in use, in the taskbar's order: the documents, then the panels.
+function barWinIds(){ return docWinIds().concat(panelIds().filter(inBar)); }
 const winMin=id=>!!(LAYOUT.wins[id]&&!LAYOUT.wins[id].open&&(LAYOUT.wins[id].min||keepsBtn(id)));
 const inBar=id=>winOpen(id)||winMin(id);
 function winStateName(id){ return winOpen(id)?(id===frontWinId()?"in front":"open"):winMin(id)?"minimised":"closed"; }
@@ -14936,23 +15252,34 @@ function cascadeWins(){
 function resetWins(){ LAYOUT.wins={}; Object.keys(WINS).forEach(id=>{ winState(id).min=false; }); applyWins(); saveLayout(); Object.keys(WINS).forEach(id=>{ if(winOpen(id)) renderWin(id); }); }
 function renderTaskbar(){
   const tb=$("#taskbar"); if(!tb) return;
-  const front=Object.keys(WINS).filter(winOpen).sort((a,b)=>winState(b).z-winState(a).z)[0];
-  // With a few graphs each has a button; with more, one button lists them.
-  const extra=graphWinIds().slice(1), many=extra.length>3, gf=graphWinIds().includes(front);
-  let order=WIN_ORDER.slice(); if(extra.length&&!many) order.splice(1,0,...extra);
-  const tw=trendWinIds(); if(tw.length) order.splice(order.indexOf("batch")+1,0,...tw);
-  // The project these windows belong to comes first: switching it changes them all.
-  const pj=P();
-  // In the taskbar: the windows open (a bar under them, the front one in
-  // colour) and minimised (faded, no bar); a closed one only while it has news.
-  let h=(pj?`<button class="tk proj" data-tk-proj aria-haspopup="menu" title="The project on the desk; every window shows it. Click to switch projects.">${ICON("folder","sm")}<span>${esc(projName(pj))}</span></button>`:"")+`<button class="tk wins" data-tk-wins aria-haspopup="menu" title="Every window, open, minimised or closed">${ICON("panel","sm")}<span>Windows</span>${ICON("chevup","sm")}</button><span class="tksep" aria-hidden="true"></span>`+order.concat(winOpen("help")?["help"]:[]).map(id=>{ const on=winOpen(id), mn=winMin(id), badge=winBadge(id);
-    if(id==="graph"&&many) return `<button class="tk on${gf?" front":""}" data-tk-graphs aria-haspopup="menu" title="The ${extra.length+1} graphs">${ICON("chart","sm")}<span>Graphs</span><span class="badge">${extra.length+1}</span></button>`;
-    if(!on&&!mn&&!badge) return "";
-    const st=on?(id===front?"front":"on"):mn?"min":"shut", what=on?(id===front?"in front: click to minimise":"open: click to bring it to the front"):mn?"minimised: click to bring it back":"closed: click to open";
-    return `<button class="tk ${st==="front"?"on front":st}" data-tk="${id}" aria-pressed="${on}" aria-label="${esc(WINS[id].title)}, ${on?(id===front?"in front":"open"):mn?"minimised":"closed"}" title="${esc(WINS[id].title)}, ${what}">${ICON(WINS[id].icon,"sm")}<span>${esc(WINS[id].title)}</span>${badge}</button>`; }).join("");
-  h+=`<span class="sp"></span><button class="tb sm icon" data-tk-act="tile" title="Tile the open windows" aria-label="Tile the open windows">${ICON("tile","sm")}</button><button class="tb sm icon" data-tk-act="cascade" title="Cascade the open windows" aria-label="Cascade the open windows">${ICON("cascade","sm")}</button>`;
-  tb.innerHTML=h;
+  const front=frontWinId(), pj=P(), gs=graphWinIds(), ts=trendWinIds();
+  // One button per window in use: open ones have a bar under them and the one
+  // in front is in colour; minimised ones are flat, with no bar.
+  const btn=id=>{ const on=winOpen(id), t=WINS[id].title, what=on?(id===front?"in front: click to minimise it":"open: click to bring it to the front"):"minimised: click to bring it back";
+    return `<button class="tk ${on?(id===front?"on front":"on"):"min"}" data-tk="${id}" aria-pressed="${on}" aria-label="${esc(t)}, ${winStateName(id)}" title="${esc(t)}, ${what}">${ICON(WINS[id].icon,"sm")}<span>${esc(t)}</span>${winBadge(id)}</button>`; };
+  // Many of one kind share a button that lists them.
+  const grp=(ids,attr,icon,label)=>`<button class="tk ${ids.includes(front)?"on front":ids.some(winOpen)?"on":"min"}" ${attr} aria-haspopup="menu" title="The ${ids.length} ${label.toLowerCase()}: click for the list">${ICON(icon,"sm")}<span>${label}</span><span class="badge">${ids.length}</span></button>`;
+  const docs=(gs.length>4?[grp(gs,"data-tk-graphs","chart","Graphs")]:gs.map(btn)).concat(WINS.sheet?[btn("sheet")]:[],ts.length>3?[grp(ts,"data-tk-trends","chart","Trend graphs")]:ts.map(btn));
+  const panels=panelIds().filter(inBar).map(btn);
+  tb.innerHTML=(pj?`<button class="tk proj" data-tk-proj aria-haspopup="menu" title="The project on the desk; every window shows it. Click to switch projects.">${ICON("folder","sm")}<span>${esc(projName(pj))}</span></button><span class="tksep" aria-hidden="true"></span>`:"")
+    +docs.join("")+(panels.length?`<span class="tksep" aria-hidden="true"></span>`+panels.join(""):"")
+    +`<button class="tk more" data-tk-more aria-haspopup="menu" hidden></button><span class="sp"></span><button class="tb sm icon" data-tk-act="tile" title="Tile the open windows" aria-label="Tile the open windows">${ICON("tile","sm")}</button><button class="tb sm icon" data-tk-act="cascade" title="Cascade the open windows" aria-label="Cascade the open windows">${ICON("cascade","sm")}</button>`;
+  fitTaskbar(tb,front);
 }
+// More windows than fit in one row: those least recently in front go into a
+// "+n" button's list, panels before documents and minimised before open,
+// never the window in front.
+function fitTaskbar(tb,front){
+  S.tkMore=[]; const more=tb.querySelector("[data-tk-more]"); if(!more||tb.scrollWidth<=tb.clientWidth+1) return;
+  const rank=b=>{ const id=b.dataset.tk; return (isDoc(id)?2e9:0)+(winOpen(id)?1e9:0)+winState(id).z; };
+  const cands=[...tb.querySelectorAll(".tk[data-tk]")].filter(b=>b.dataset.tk!==front).sort((a,b)=>rank(a)-rank(b));
+  more.hidden=false;
+  for(const b of cands){ if(tb.scrollWidth<=tb.clientWidth+1) break; b.hidden=true; S.tkMore.push(b.dataset.tk);
+    const n=S.tkMore.length; more.innerHTML=`<span>${n} more</span>${ICON("chevup","sm")}`; more.title=`${n} more window${n===1?"":"s"}: click for the list`; more.setAttribute("aria-label",`${n} more window${n===1?"":"s"}`); }
+  const order=barWinIds(); S.tkMore.sort((a,b)=>order.indexOf(a)-order.indexOf(b));
+  tb.querySelectorAll(".tksep").forEach(s=>{ let n=s.nextElementSibling; while(n&&n.hidden) n=n.nextElementSibling; s.hidden=!n||!n.matches(".tk[data-tk],.tk[data-tk-graphs],.tk[data-tk-trends]"); });
+}
+// News on a window's button: open threads, the fit's state, warnings.
 function winBadge(id){
   const p=P(); if(!p) return "";
   if(id==="disc"){ const n=threadIndex().list.filter(t=>!t.root.resolved).length; return n?`<span class="badge" aria-label="${n} open">${n}</span>`:""; }
@@ -14966,7 +15293,8 @@ function setupWins(){
   $("#taskbar").addEventListener("click",e=>{ const b=e.target.closest("[data-tk]"); if(b){ toggleWin(b.dataset.tk); return; }
     const gb=e.target.closest("[data-tk-graphs]"); if(gb){ toggleMenu(gb,graphsMenuItems,{label:"Graphs"}); return; }
     const pb=e.target.closest("[data-tk-proj]"); if(pb){ toggleMenu(pb,projectItems,{label:"Projects"}); return; }
-    const wb=e.target.closest("[data-tk-wins]"); if(wb){ toggleMenu(wb,winListItems,{label:"Windows"}); return; }
+    const tr=e.target.closest("[data-tk-trends]"); if(tr){ toggleMenu(tr,()=>trendWinIds().map(winItem),{label:"Trend graphs"}); return; }
+    const mb=e.target.closest("[data-tk-more]"); if(mb){ toggleMenu(mb,()=>(S.tkMore||[]).map(winItem),{label:"More windows"}); return; }
     const a=e.target.closest("[data-tk-act]"); if(a) (a.dataset.tkAct==="tile"?tileWins:cascadeWins)(); });
   new ResizeObserver(()=>applyWins()).observe(desk);
 }
@@ -14988,7 +15316,7 @@ function wireWin(el){
       const snap=el.querySelector(".gsnap"); if(snap){ snap.tabIndex=0; snap.setAttribute("role","button"); snap.setAttribute("aria-label","Work on this graph");
         snap.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); activateGraph(graphOfWin(id)); } }); } }
     if(id!=="help") h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-whelp title="Help on this window (F1)" aria-label="Help on the ${esc(WINS[id].title)} window">${ICON("help","sm")}</button>`);
-    h.insertAdjacentHTML("beforeend",`${id==="help"||WINS[id].transient?"":`<button class="tb sm icon" data-wmin title="Minimise: off the desk, its button kept in the taskbar" aria-label="Minimise the ${esc(WINS[id].title)} window">${ICON("min","sm")}</button>`}<button class="tb sm icon" data-wmax title="Maximise or restore (double-click the title bar)" aria-label="Maximise the ${esc(WINS[id].title)} window">${ICON("max","sm")}</button>${keepsBtn(id)?"":`<button class="tb sm icon" data-wclose title="Close: off the desk and out of the taskbar" aria-label="Close the ${esc(WINS[id].title)} window">${ICON("x","sm")}</button>`}`);
+    h.insertAdjacentHTML("beforeend",`${id==="help"||WINS[id].transient?"":`<button class="tb sm icon" data-wmin title="Minimise: off the desk; its button stays in the taskbar" aria-label="Minimise the ${esc(WINS[id].title)} window">${ICON("min","sm")}</button>`}<button class="tb sm icon" data-wmax title="Maximise or restore (double-click the title bar)" aria-label="Maximise the ${esc(WINS[id].title)} window">${ICON("max","sm")}</button>${keepsBtn(id)?"":`<button class="tb sm icon" data-wclose title="Close: off the desk and out of the taskbar; its menu opens it again" aria-label="Close the ${esc(WINS[id].title)} window">${ICON("x","sm")}</button>`}`);
     ["e","s","se","w"].forEach(k=>el.insertAdjacentHTML("beforeend",`<div class="win-rz ${k}" data-rz="${k}" aria-hidden="true"></div>`));
     el.addEventListener("pointerdown",e=>{ focusWin(id); const g=graphOfWin(id);
       // A chip or the grip may be the start of a drag: they bring the graph forward on a click of their own.
@@ -15023,28 +15351,35 @@ function wireWin(el){
       rz.addEventListener("pointermove",mv); rz.addEventListener("pointerup",up); rz.addEventListener("pointercancel",up);
     }));
 }
-// A window in a menu: its state in words, open ones ticked; a click opens it or brings it forward.
-function winItem(id){ const s=winStateName(id); return {label:WINS[id].title, checked:winOpen(id), note:s==="closed"?"":s, run:()=>{ if(winOpen(id)) focusWin(id); else openWin(id); const g=graphOfWin(id); if(g&&P()) activateGraph(g); }}; }
-// The taskbar's Windows button: every window, grouped by state.
-function winListItems(){
-  const ids=WIN_ORDER.flatMap(id=>id==="graph"?["graph"].concat(graphWinIds().slice(1)):[id]).concat(trendWinIds(),["help"]).filter(id=>WINS[id]);
-  const grp=(t,list)=>list.length?[{group:t}].concat(list.map(winItem)):[];
-  return grp("Open",ids.filter(winOpen)).concat(grp("Minimised",ids.filter(winMin)),grp("Closed",ids.filter(id=>!inBar(id))),["-",{label:"Tile the open windows",run:tileWins},{label:"Restore the default arrangement",run:resetWins}]);
+// A window in a menu, as Excel's Switch Windows lists them: the one in front
+// ticked, a minimised one says so; a click brings it to the front.
+function winItem(id){ const g=graphOfWin(id), cs=g?graphCols(g):[];
+  return {label:WINS[id].title+(g&&cs.length===1&&WINS[id].title!==specName(cs[0])?" · "+specName(cs[0]):""), checked:id===frontWinId(), note:winMin(id)?"minimised":"", run:()=>{ if(winOpen(id)) focusWin(id); else openWin(id); if(g&&P()) activateGraph(g); }}; }
+// Every panel, ticked while it is in the taskbar (Origin's View menu): a click
+// opens a closed one and closes an open one.
+function panelItems(){
+  const p=P(), nThr=p?threadIndex().list.filter(t=>!t.root.resolved).length:0;
+  return panelIds().map(id=>({label:WINS[id].title, checked:inBar(id), note:winMin(id)?"minimised":id==="disc"&&nThr?`${nThr} open`:"",
+    run:()=>{ if(inBar(id)) closeWin(id); else if(id==="help") openHelp(); else openWin(id,{render:true}); }}));
 }
+// Every open window, searched by name: for when there are too many to list.
+function winFinder(anchor){ const ids=barWinIds(); openMenu(anchor||$("#taskbar"),ids.map(winItem),{label:"Windows",search:`Find among ${ids.length} windows`}); }
 function windowItems(){
-  const extra=graphWinIds().slice(1), ro=S.readOnly||!P();
-  const wins=[];
-  WIN_ORDER.forEach(id=>{
-    if(id!=="graph"){ wins.push(winItem(id)); return; }
-    if(extra.length>3){ wins.push({label:`Graphs (${extra.length+1})`, sub:graphsMenuItems}); return; }
-    ["graph"].concat(extra).forEach(w=>wins.push(winItem(w))); });
-  trendWinIds().forEach(id=>wins.push(winItem(id)));
-  return [{group:"Windows"}].concat(wins,[{label:"Close the minimised windows", enabled:Object.keys(WINS).some(id=>winMin(id)&&!keepsBtn(id)), run:()=>{ Object.keys(WINS).forEach(id=>{ if(winMin(id)&&!keepsBtn(id)) winState(id).min=false; }); applyWins(); saveLayout(); }},"-",{group:"Graphs"},
+  const ro=S.readOnly||!P(), ids=barWinIds(), front=frontWinId(), gs=graphWinIds();
+  // The windows in use; graphs many enough share one submenu, and a long list becomes a search.
+  let list=gs.length>4?[{label:`Graphs (${gs.length})`, sub:graphsMenuItems}].concat(ids.filter(id=>!gs.includes(id)).map(winItem)):ids.map(winItem);
+  if(list.length>12) list=[{label:`Switch to another window… (${ids.length})`, run:()=>setTimeout(()=>winFinder(document.querySelector('.menubar [data-menu="window"]')||$("#taskbar")),0)}];
+  const others=ids.filter(id=>winOpen(id)&&id!==front&&id!=="tool"), panelsIn=panelIds().filter(inBar);
+  return [{group:"Windows in use"}].concat(list,[{label:"Panels", sub:panelItems},
+    "-",{label:"Tile", run:tileWins},{label:"Cascade", run:cascadeWins},
+    {label:"Minimise the others", enabled:!!others.length, title:"Keep only the window in front on the desk", run:()=>{ others.forEach(id=>{ if(isDoc(id)) Object.assign(winState(id),{open:false}); else Object.assign(winState(id),{open:false,min:true}); }); applyWins(); saveLayout(); }},
+    {label:"Close the panels", enabled:!!panelsIn.length, title:"Close every panel; the graphs and the worksheet stay", run:()=>{ panelsIn.forEach(id=>closeWin(id)); }},
+    {label:"Restore the default arrangement", run:resetWins},
+    "-",{group:"Graphs"},
     {label:"New graph", sub:()=>newGraphItems(), enabled:!ro},
     {label:"Combine graphs…", enabled:!ro&&graphIds().length>1, run:()=>combineDlg()},
     {label:"Bring in from another project…", enabled:!ro&&otherProjects().length>0, run:()=>bringInDlg()},
-    {label:"Link the X zoom of the graphs", checked:S.linkX, run:()=>setLinkX(!S.linkX)},
-    "-",{label:"Tile", run:tileWins},{label:"Cascade", run:cascadeWins},{label:"Restore the default arrangement", run:resetWins}]);
+    {label:"Link the X zoom of the graphs", checked:S.linkX, run:()=>setLinkX(!S.linkX)}]);
 }
 
 /* ---- Fitting every spectrum -----------------------------------------------------
@@ -16187,13 +16522,12 @@ function showDrawer(t,keepClosed){
   if(t==="log"){ S.flowTab="log"; openWin("flow",{render:true}); return; }
   openWin(t==="disc"?"disc":"res",{render:true});
 }
-const WIN_MENU=()=>{ const th=themeSetting(); return windowItems().concat(["-",{group:"Theme"},
-  {label:"Light", radio:true, checked:th==="light", run:()=>applyTheme("light")},
-  {label:"Dark", radio:true, checked:th==="dark", run:()=>applyTheme("dark")},
-  {label:"Match the system", radio:true, checked:th==="auto", run:()=>applyTheme("auto")},
-  "-",{group:"Style"},
-  {label:"Bench: blue for what you can change", radio:true, checked:styleSetting()==="bench", run:()=>applyStyle("bench")},
-  {label:"Graphite: black and white", radio:true, checked:styleSetting()==="graphite", run:()=>applyStyle("graphite")}]); };
+const WIN_MENU=()=>{ const th=themeSetting(); return windowItems().concat(["-",
+  {label:"Theme", sub:()=>[{label:"Light", radio:true, checked:th==="light", run:()=>applyTheme("light")},
+    {label:"Dark", radio:true, checked:th==="dark", run:()=>applyTheme("dark")},
+    {label:"Match the system", radio:true, checked:th==="auto", run:()=>applyTheme("auto")}]},
+  {label:"Style", sub:()=>[{label:"Bench: blue for what you can change", radio:true, checked:styleSetting()==="bench", run:()=>applyStyle("bench")},
+    {label:"Graphite: black and white", radio:true, checked:styleSetting()==="graphite", run:()=>applyStyle("graphite")}]}]); };
 function plotMenu(){
   const p=P(), has=!!(p&&pointsAll().length), cfg=plotCfg(), edit=!!p&&!S.readOnly, act=activeYCol();
   const st=act?serStyle(act.id,true,readPalette(),false,cfg).type:cfg.style;
@@ -16428,6 +16762,7 @@ function wireStatic(){
   $("#importBtn").onclick=pickFile; $("#emptyImport").onclick=pickFile;
   $("#fileIn").addEventListener("change",e=>{ const fs=[...e.target.files]; if(fs.length>1) readFilesIn(fs); else if(fs[0]) readFileIn(fs[0]); e.target.value=""; });
   $("#addColBtn").onclick=addColumn;
+  { const fb=$("#wsFillBtn"); fb.onclick=()=>toggleMenu(fb,fillMenuItems,{label:"Fill"}); }
   document.querySelectorAll("[data-example]").forEach(b=>b.onclick=()=>loadExample(b.dataset.example));
   $("#cPost").onclick=postComment; wireThreads($("#thread"));
   $("#cText").addEventListener("keydown",e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); postComment(); } });
