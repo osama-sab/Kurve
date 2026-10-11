@@ -78,8 +78,8 @@ figure) has its own
 **discussion** at the foot of its inspector, with a badge on the box counting open threads;
 the Discussion window lists every thread with a link back. The
 **worksheet** is a spreadsheet grid as in Excel, with Origin's label rows: a **Raw** sheet (the
-data as recorded, locked) and a **Final** sheet (the analysed spectrum after processing, read
-only). Below 860 px the windows stack in one column,
+data as recorded or typed, editable, every change in the raw-data record, unless the project
+locks it) and a **Final** sheet (the analysed spectrum after processing, read only). Below 860 px the windows stack in one column,
 graph first, with the taskbar kept at the bottom of the screen.
 
 ## Code layout (all inside the `<script>` block of kurve.html)
@@ -326,7 +326,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   than fought), `parseMeta`, `detectRoles`, `detectPaired`, `analyzeFile`, and `checkColumns`
   which reports findings without applying them. `numNorm` reads numbers as documents write
   them (a minus sign −, superscript exponents 5×10⁻³, thousands set off by no-break spaces, or
-  by plain spaces in a comma-decimal number) and refuses `0x`, `0b`, `0o` literals; `toNumber`
+  by plain spaces in a comma-decimal number, full-width digits and signs as an input method
+  types them, １２，５) and refuses `0x`, `0b`, `0o` literals; `toNumber`
   and the worksheet's `parseNum` both use it. `unwrapQuoted` turns line breaks inside a quoted
   field that opens at a field's start and closes within four lines into spaces (a spreadsheet
   header cell written on two lines), before `analyzeFile` and the worksheet's paste split lines.
@@ -380,11 +381,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   column offers `useAsXFor(id)`, which makes it X and points the spectra plotted against what
   it reads at it (`xReaders`), one undo entry. Making the analysed spectrum's column not a Y
   moves `activeY` on.
-- **Raw data is locked**: raw arrays are replaced, never edited in place, and never changed by
-  analysis. Filling an empty cell or pasting into empty cells records new raw data; typing over
-  a recorded value opens `correctCell`, which asks for a reason and adds a `correct` step to the
-  pipeline of every spectrum that uses the value; pasting over values offers new columns
-  (`pasteAsNew`). `rawFp()` is the SHA-256 of `rawText` of every raw column with data;
+- **Raw data** is never changed by analysis, and its arrays are replaced, never edited in
+  place. It is edited in the worksheet like any spreadsheet (typed over, cleared, pasted and
+  filled over, rows inserted and deleted), each change one undo entry and an entry in the
+  raw-data record, unless the project **locks** it (`p.rawLock`, in `UNDO_KEYS`; `rawLocked()`,
+  `setRawLock(on)`: the lock button `#wsLockBtn` above the grid and Data › Lock the raw data).
+  Locked, empty cells can still be filled; typing over a recorded value opens `correctCell`,
+  which asks for a reason and adds a `correct` step to the pipeline of every spectrum that uses
+  the value; pasting over values offers new columns (`pasteAsNew`); Delete keeps values; rows
+  cannot be inserted or deleted; a formula cannot replace recorded values. `rawFp()` is the SHA-256 of `rawText` of every raw column with data;
   `recordRaw(text)` appends to `p.raw.hist` whenever raw data changes (import, paste, a first
   value in a cell, a column deleted), and `rawVerified()` compares the data with the last
   recorded fingerprint. The raw-data CSV export writes exactly the hashed lines under `#`
@@ -410,15 +415,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   `wsFillDrag`, `wsFillDbl`, `wsFillCtrl`): the square on the selection's corner (`td.fh`)
   drags down or right; two or more numbers continue their least-squares line, one number or
   text is copied, Ctrl swaps the two; a double click fills down as far as the column beside
-  goes; Ctrl+D and Ctrl+R copy the first row or column. Only empty cells are written (new
-  recorded values, one undo entry); labels fill right. **The Fill dialog** (`openFillDlg(kind,
+  goes; Ctrl+D and Ctrl+R copy the first row or column. Computed cells are never written, nor
+  values while the raw data is locked (one undo entry); labels fill right. **The Fill dialog** (`openFillDlg(kind,
   {col})`, the bar's Fill button and `fillMenuItems`, a cell's Fill, a column's Fill column
   with, Data › Fill): `FILL_KINDS` (series, growth series, evenly between two values, row
   numbers, repeat a list, random numbers with `FILL_DIST`, continue the trend), where
   (`fillTarget`: the selection, or the rows of the longest column; a column holding values
   there, chosen from one cell, gives way to a new one, with a role), `fillPlan(v)` (the
-  dialog's values to `fillSeries`, the writes into empty cells and the cells kept, every
-  refusal in words), the preview (cells, values, `fillSpark`), `doFill` (one undo entry, a
+  dialog's values to `fillSeries`, the writes, the values `replaced`, or when locked the cells
+  `skipped`, every refusal in words), the preview (cells, values, `fillSpark`), `doFill` (one undo entry, a
   raw-data record entry and a log line naming the fill and its seed); settings kept in
   `kurve.fill`. **Sort** (`S.wsSort`, `wsOrder`,
   `wsSortBy`) is the view only: `m.ord`/`m.inv` map sheet rows to data rows (`wsDR`), row
@@ -429,10 +434,30 @@ graph first, with the taskbar kept at the bottom of the screen.
   rows are virtualised (`wsRows`, drawn around the scroll position). `S.ws` is the selection
   (`{r, c, ar, ac}`: the active cell and the anchor of a range, plus `extra`, `win`, `edit`).
   Click, Shift+click, drag, a header or row number, the corner; arrows, Shift+arrows,
-  Ctrl+arrows, Home/End, Ctrl+Home/End, PageUp/Down, Tab and Enter move as in Excel; typing
-  starts an edit, F2 or a double click edits in place, Esc cancels, Delete clears
-  (`wsBeginEdit`, `wsCommit`, `wsSetCell`: a label, an empty cell, or `correctCell` for a
-  recorded value). Copy and paste are TSV (`wsCopyText`, `wsPasteText`, the label rows
+  Ctrl+arrows, Home/End, Ctrl+Home/End, PageUp/Down, Tab and Enter move as in Excel (after a run
+  of Tabs, Enter goes to the next row in the column the Tabs began from, `S.ws.tabFrom`, the
+  `how` of `wsMove`); typing starts an edit (an input method's `Process`, `Dead` or composing
+  key opens the box empty for its text), F2 or a double click edits in place, Esc cancels,
+  Delete clears (`wsBeginEdit`, `wsCommit`, `wsSetCell`: a label, a value, or `correctCell` for
+  a recorded value when locked). An edit (`S.ws.edit`) remembers its column by id (`cid`) and
+  its data row (`k`), and `wsSetCell` writes there in the sheet as it is now (`wsLive()`: the
+  model is made again when the project object is not the one it was made from, `m.p`), so a
+  delayed save landing while the next value is typed loses nothing. A value that is not a
+  number stays in the box, marked `.bad`, on Enter, Tab or an arrow (Esc gives the cell back);
+  left by a click elsewhere, the cell keeps its value and a toast names what was not taken.
+  `renderWs` puts a spacer as tall as the rows into the body before restoring the scroll, so a
+  redraw never jumps to the top; `wsRows(false)` redraws only when the view leaves the rows
+  drawn (at either end of the sheet the margin does not apply). A double click is read from
+  the press itself (`e.detail === 2` in the mousedown: a cell opens, a resize edge fits, the
+  fill handle fills down), the `dblclick` listener kept as a fallback (`S.ws.dblAt`). A move by
+  the keys records `S.ws.want`: for 0.6 s the scroll handler brings that cell back if a scroll
+  already under way (the wheel's smooth scroll) lands elsewhere; turning the wheel clears it. Clicking
+  a column letter, a row number, the corner or Ctrl+A makes the first cell the active one, as
+  in a spreadsheet. `flushEdits` (on `pagehide`, `beforeunload` and the page hidden) enters a
+  value still in its box and saves a delayed save at once, so leaving the page loses nothing. Rows: `wsRowsEdit("insert"|"delete")` (the cell and row-number
+  menus; unlocked and unsorted only) moves every recorded column and, through
+  `remapRawRows(p, fn)`, what names a raw row (masks, corrections, a peak label's `row`, a set's
+  `ex` and `mem`, `S.sel`); one undo entry and a record entry. Copy and paste are TSV (`wsCopyText`, `wsPasteText`, the label rows
   included). The bar above shows the cell's address and value (`#wsAddr`, `#wsVal`), the foot
   Count, Sum, Average, Min and Max of the selection (`wsStats`). Right-click is `wsCellMenu`
   (anchored by `pointerAnchor(x, y)`). `wsLetter(i)` names columns A…Z, AA….
@@ -1158,7 +1183,11 @@ deep, breaks read from storage in every broken form, a second axis that cannot b
 curved one, a PDF's cross-reference table and size, an EPS's bounding box, characters no
 standard font has, broken formats in the store. Run it after touching storage, the axes, the
 parser, undo or the PDF and EPS writer. It serves the file over HTTP (a server of its own, on a
-free port) and waits for each page to be ready (a project on the desk), never a fixed time. To look at a PDF or EPS, render it: Ghostscript
+free port) and waits for each page to be ready (a project on the desk), never a fixed time.
+`node tools/sheet-fuzz.mjs [path] [seed or a-b] [steps]` drives the worksheet as an erratic
+user would (see its header) and checks the data, the drawing, the fingerprint and the store
+after every step, and a reload at the end; a few minutes a seed, `V=1` prints every step. Run
+some seeds after touching the worksheet, editing, saving or undo. To look at a PDF or EPS, render it: Ghostscript
 (`gs -dSAFER -dBATCH -dNOPAUSE -sDEVICE=png16m -r110 -dGraphicsAlphaBits=4 -dTextAlphaBits=4`,
 with `-dEPSCrop` for an EPS) or PyMuPDF; at low resolution without anti-aliasing a small
 circle looks like a star. For anything else the UI
@@ -1578,13 +1607,51 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A string inside a template's expression is a string.** `${MP(…)}` written inside a
   double-quoted string in a `${DL([...])}` was not interpolated: it ended the string and broke
   the whole script. Inside those arrays, concatenate (`"+MP(…)+"`).
+- **A model of the sheet goes stale with the project it was made from.** Every save hands back
+  a fresh copy of the project; the worksheet's model held the old copy's columns, so a value
+  typed while the 0.7 s delayed save landed went into a column nothing read any more: typed at
+  an ordinary pace, ten values out of twelve came back blank. Writes go through `wsLive()`, and
+  an edit names its column by id. Any object held across a save is a stale one.
+- **A scroll put back before the content exists is put back to zero.** `renderWs` emptied the
+  body and then restored `scrollTop`, which the browser clamped to the empty table's height:
+  every value typed far down the sheet jumped the view to the top. The spacer goes in first.
+- **A redraw on the first press swallows the double click, in the worksheet too.** At the top
+  of the sheet `wsRows` redrew the rows on every selection (its margin test could never pass
+  there), so the second click landed on a new element and the browser sent no dblclick:
+  double-click to edit did nothing in the first rows. The margin test knows the ends, and the
+  double click is read from the press's own count.
+- **Leaving the page is an event.** A value saved 0.7 s after Enter was lost to a reload or a
+  closed tab within that time; the page now enters and saves what waits when it is hidden.
+- **A refusal that drops what was typed is a lost value.** "1.2.3" and Enter used to close the
+  box with a toast; the text is kept in the box now, marked, until it is put right or
+  cancelled.
+- **Locked by default is not what a spreadsheet user expects.** Recorded values that could not
+  be typed over made manual entry and correction a dialog per cell. Editing is the default and
+  every edit is recorded; the lock is a choice of the project.
+- **A random user finds what a script does not.** `tools/sheet-fuzz.mjs` (seeded clicks, typing at any speed, junk, scrolling and waiting mid-edit, undo, paste, sort, lock,
+  resize, minimise) checks after every action that the data, the drawn cells and the
+  fingerprint agree, what is stored is what is on screen, and a reload gives the same data. Its
+  own mistakes (clicking the cell being typed in, `insertText` that fires no keydown) look like
+  bugs: read the trail first. And it serves the page over HTTP: loaded from file://, two runs
+  in thirty came back from a reload with an older project, the storage quirk odd-test met.
 - **An earlier stage drawn behind must be on the same X.** Channels drawn behind energies are
   another graph on one axis: the ghost and the before-and-after chart check X's name and unit,
   not only Y's scale.
 
 ## Roadmap
 
-Done in this round: reading, windows and filling, from a user's review. Text has two
+Done in this round: the worksheet for manual work, from a user's bug report. Typing far
+down the sheet no longer jumps to the top, and values typed one after another are all kept
+(they were lost whenever the delayed save landed mid-entry). Raw data is editable like any
+spreadsheet (type over, clear, paste and fill over, insert and delete rows, every change one
+undo step and an entry in the raw-data record), and the project can lock it, which brings back
+the correction steps. A value that is not a number stays in its cell to be put right; input
+methods type into cells (full-width digits are numbers); Tab, Tab, Enter returns to the first
+column; double-click edits in the first rows too (it did nothing there); a column letter
+selects with its first cell active; leaving the page saves what was just typed. A random-user
+harness drives the worksheet in hundreds of unscripted steps and checks the data after each.
+
+Round before: reading, windows and filling, from a user's review. Text has two
 colours, the secondary one darker (7:1 or more in every theme and style), and headings are
 sentence case in the text colour instead of small grey capitals; disabled controls are dimmer,
 not unreadable. Windows as in Excel: the project's documents (graphs, worksheet, trend graphs)
@@ -1597,7 +1664,7 @@ Fill Column With: series by a step or a factor with a stop value, evenly between
 Poisson counts) from a seed, and the trend of the values above; into empty cells of a column
 or a new one, with a preview, one undo step and a record entry.
 
-Round before: a gamma spectrum, from a user's file of background radiation. One-column
+Two rounds before: a gamma spectrum, from a user's file of background radiation. One-column
 files of counts per channel are read (a .TKA file's live and real time into the metadata, X
 the channel number from 0 or 1, √N error bars as a computed column, counts per second by a
 step); calibrated to energy by a step (coefficients, remembered for the next file, or fitted
@@ -1612,7 +1679,7 @@ peaks and the lines. The taskbar tells open, minimised and closed windows apart,
 button and a Windows list. Each edge of the frame has its own ticks and numbers, set by
 clicking the edge in a picture of the frame.
 
-Two rounds before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
+Three rounds before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
 their corners, filled or not, behind the data or over it, with text inside, pinned or at data
 values). Axis breaks on X and Y, suggested over the widest empty stretch, cut with two strokes,
 the two sides on one scale, followed by zoom, wheel and pan, and named in the report. A second
@@ -1625,7 +1692,7 @@ writer: vectors, clipping, opacity (PDF), images, gradients, insets and every gr
 figure, text in the standard fonts placed by their own widths. The toolbar keeps to one row
 down to 860 px.
 
-Three rounds before: bugs found by using the app the way nobody does. A tab that froze for good
+Four rounds before: bugs found by using the app the way nobody does. A tab that froze for good
 (ticks added up after a deep zoom), tick labels all alike on a nanosecond axis, NaN drawn for
 equal or extreme limits; a second tab wiping the first's projects, a full store that still
 said Saved, two projects sharing an id, a corrupt saved layout; typographic minus signs, French
@@ -1636,7 +1703,7 @@ undo during a drag; ten-second saves with 300 spectra, 200 ms undo steps on big 
 names pushing title-bar buttons out of reach; batch rows of deleted spectra. Each fixed by its
 class, and `tools/odd-test.mjs` keeps them fixed.
 
-Four rounds before: graphs and projects, from a bug report. Deleting a project could leave its
+Five rounds before: graphs and projects, from a bug report. Deleting a project could leave its
 graphs on the desk and the next import going into it (a store's events in the other order); a
 graph in front that went away took the live plot with it. Both fixed. The taskbar names the
 project its windows belong to, the project list says what each holds, new projects get names
@@ -1646,7 +1713,7 @@ spectrum by its chip, onto a graph, its taskbar button or the desk; Ctrl keeps t
 dropped; it scrolls on a phone), from menus, or in Combine graphs… with a layout; spectra
 come from another project with their processing, peaks and colours.
 
-Five rounds before: finding and labelling peaks, from what people asked. The Peaks window
+Six rounds before: finding and labelling peaks, from what people asked. The Peaks window
 says where it looks (the spectrum, always shown, and From … to … typed, taken from the view
 or dragged on the graph, shaded there, kept with the set) and ends in Done; the Fit window
 says which spectrum and range it fits, and ends in Done too. Fitted peaks are labelled with
@@ -1655,7 +1722,7 @@ errors and units; above, inside, or in a row along the top with leaders; turned,
 boxed, dragged; each peak can be named, and its name goes to Results, the report and the
 exports.
 
-Six rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
+Seven rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
 spectrum shares (centres, widths, areas, shapes, the baseline, or parameter by parameter; a
 curve model's parameters), each spectrum first fitted with those held so the fit starts where
 it belongs, one block-sparse Levenberg–Marquardt problem, every row a normal fit that says what
@@ -1666,7 +1733,7 @@ on the desk: several quantities, left and right axes, lines with slopes, SVG, PN
 Each spectrum keeps its file's header, and a field that differs (a temperature, the time it was
 taken) is what a series can be plotted against.
 
-Seven rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
+Eight rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
 every title, legend entry and label (`cm^{-1}`, `\alpha`), with buttons and a word
 processor's keys; arrows drawn by dragging, their heads snapping to data points, with heads
 of four kinds; insets made from a zoom, dragged and resized, outlined on the graph with
@@ -1676,7 +1743,7 @@ print, lines scaled with the text or not, SVG at its size, PNG with its dpi reco
 transparent backgrounds, a preview); formats saved by name and used on any graph in any
 project, with five of Kurve's; a toolbar that keeps to one row at every width.
 
-Eight rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
+Nine rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
 Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
 its own font, size in points, bold, italic, underline and colour; a real font picker (each
 name in its face, search, web fonts that look the same everywhere, which fonts this computer
@@ -1691,7 +1758,7 @@ graph at once. Labels and text over several lines, turned to any angle, in a box
 pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
 richer right-click menus on axes, titles, the legend and annotations.
 
-Nine rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+Ten rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
 started from its result, from the neighbour in the series, or from the peaks found in each;
 every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
 the History, replaced by a fit by hand, out of date when its processing changes). The Batch
@@ -1792,9 +1859,13 @@ Next, in order:
 - Documents (graphs, the worksheet, trend graphs) minimise but never close; a closed panel
   shows no news in the taskbar (open threads show in Window › Panels and on the History's
   boxes). One worksheet per project; windows have no tabs of their own
-- Fill writes numbers into empty cells down one column (recorded values are locked): no text
-  or date series, no fill across a row by a series, no Excel-style flash fill; random numbers
-  come from a seeded mulberry32, fine for simulation, not for cryptography
+- Fill writes numbers down one column: no text or date series, no fill across a row by a
+  series, no Excel-style flash fill; random numbers come from a seeded mulberry32, fine for
+  simulation, not for cryptography
+- The worksheet holds numbers only (no text cells); rows are inserted and deleted whole, never
+  cells shifted within a column; a comment attached to a point keeps its row number when rows
+  above it are inserted or deleted; the sorted view is a view, so a value typed into it takes
+  its sorted place
 - Numbers across from an axis: on the top panel only when stacked; not across from a second X
   axis; a heat map's Y edge has none
 - Help cannot be opened over a dialog (a dialog makes the desk inert), so the import wizard

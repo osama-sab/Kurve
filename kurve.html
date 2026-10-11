@@ -272,6 +272,7 @@ input[type=range]:disabled{opacity:.45;cursor:not-allowed}
 .ws td.editing{padding:0;overflow:visible;box-shadow:none}
 .ws input.wsed{width:100%;height:100%;border:0;border-radius:0;padding:0 6px;font:inherit;color:var(--ink);background:var(--panel);outline:none;box-shadow:inset 0 0 0 2px var(--accent);display:block}
 .ws input.wsed.num{text-align:right}
+.ws input.wsed.bad{box-shadow:inset 0 0 0 2px var(--bad);background:var(--bad-bg)}
 .ws tr.gap td{border:0;padding:0;height:auto;background:none}
 .ws tr.masked td{background:var(--mask-bg);color:var(--bad);text-decoration:line-through}
 .ws tr.pt th.rh{background:var(--accent);color:var(--accent-ink)}
@@ -1555,9 +1556,10 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
     <section class="win" id="w-sheet" data-win="sheet" aria-label="Worksheet">
       <header class="win-h"><svg class="ic sm"><use href="#i-table"/></svg><h2 class="win-t">Worksheet</h2><span class="win-sub" id="wsSub"></span><span class="sp"></span></header>
       <div class="win-b sheet-win">
-        <div class="wbar"><div class="seg mini" role="group" aria-label="Sheet" id="wsSheet"><button data-sheet="raw" aria-pressed="true" title="The data as recorded: locked">Raw</button><button data-sheet="final" aria-pressed="false" title="The analysed spectrum after processing, read only">Final</button></div><span class="wsaddr" id="wsAddr" title="The active cell, or the selected range"></span><span class="wsval" id="wsVal" aria-live="polite"></span>
+        <div class="wbar"><div class="seg mini" role="group" aria-label="Sheet" id="wsSheet"><button data-sheet="raw" aria-pressed="true" title="The data as recorded or typed">Raw</button><button data-sheet="final" aria-pressed="false" title="The analysed spectrum after processing, read only">Final</button></div><span class="wsaddr" id="wsAddr" title="The active cell, or the selected range"></span><span class="wsval" id="wsVal" aria-live="polite"></span>
           <button class="tb sm icon" id="wsFindBtn" title="Find in the sheet (Ctrl+F)" aria-label="Find in the sheet"><svg class="ic sm"><use href="#i-search"/></svg></button>
           <button class="tb sm" id="wsFillBtn" aria-haspopup="menu" title="Fill the selected cells: down, right, a series, row numbers, a list, random numbers or a trend" aria-label="Fill"><svg class="ic sm"><use href="#i-fill"/></svg><span>Fill</span></button>
+          <button class="tb sm icon" id="wsLockBtn" aria-pressed="false" title="Lock the raw data" aria-label="Lock the raw data"><svg class="ic sm"><use href="#i-lock"/></svg></button>
           <button class="tb sm" id="addColBtn" title="Add a Y column" aria-label="Add a Y column"><svg class="ic sm"><use href="#i-plus"/></svg><span>Column</span></button></div>
         <div class="ws" id="ws" tabindex="0"></div>
         <div class="ws-foot" id="wsFoot"></div>
@@ -4212,6 +4214,8 @@ const DELIMS=[{id:"\t",label:"Tab"},{id:";",label:"Semicolon"},{id:",",label:"Co
    a comma-decimal number, so "100 200 300" is never one number. */
 const NUM_SUP={"⁰":"0","¹":"1","²":"2","³":"3","⁴":"4","⁵":"5","⁶":"6","⁷":"7","⁸":"8","⁹":"9","⁻":"-","⁺":"+"};
 function numNorm(s,dec){
+  // Full-width digits and signs, as a Japanese or Chinese input method types them.
+  if(/[\uFF0B-\uFF0E\uFF10-\uFF19\uFF25\uFF45]/.test(s)) s=s.replace(/[\uFF0B-\uFF0E\uFF10-\uFF19\uFF25\uFF45]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0));
   if(/^[+-]?0[xbo]/i.test(s)) return null;
   if(/[\u2212\u2012\u2013\uFE63\uFF0D]/.test(s)) s=s.replace(/[\u2212\u2012\u2013\uFE63\uFF0D]/g,"-");
   if(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺]/.test(s)) s=s.replace(/[⁻⁺]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g,m=>"^"+[...m].map(c=>NUM_SUP[c]).join(""));
@@ -4748,7 +4752,7 @@ function migrate(p){
 
 /* Undo is per-session and local: it rewinds your own edits, not other
    people's. Cross-user undo in a shared document is a different problem. */
-const UNDO_KEYS=["cols","activeY","meta","fit","plot","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","lines"];
+const UNDO_KEYS=["cols","activeY","meta","fit","plot","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","lines","rawLock"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
 /* Raw values are replaced, never changed in place, so a snapshot keeps each
    column's data array as it is and copies the rest: with 20 spectra of 50 000
@@ -4949,6 +4953,17 @@ async function save(patch, logText){
   catch(e){ setStatus("Not saved",true); writeErr(e); }
 }
 let wsTimer=null, wsPatch={}, wsLog=null, wsPid=null;
+/* Leaving the page (closing the tab, reloading, switching away on a phone)
+   must not leave a typed value behind: a value still in its cell's box is
+   entered, and an edit waiting for its delayed save is saved now. The local
+   store writes synchronously, so this lands before the page goes. */
+function flushEdits(){
+  try{ const e=S.ws&&S.ws.edit; if(e&&P()){ const inp=document.querySelector("#ws input.wsed"), v=inp?inp.value:e.val; if(v!==e.orig&&(e.r<0||String(v).trim()===""||parseNum(v)!=null)) wsCommit(0,0,true); } }catch(err){}
+  if(Object.keys(wsPatch).length&&wsPid===S.pid){ clearTimeout(wsTimer); const pp=wsPatch, l=wsLog; wsPatch={}; wsLog=null; save(pp,l); }
+}
+addEventListener("pagehide",flushEdits);
+addEventListener("beforeunload",flushEdits);
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") flushEdits(); });
 function saveSoon(patch,logText){ if(wsPid!==S.pid&&Object.keys(wsPatch).length){ clearTimeout(wsTimer); wsPatch={}; wsLog=null; }
   wsPid=S.pid; Object.assign(wsPatch,patch); if(logText) wsLog=logText; clearTimeout(wsTimer); setStatus("Editing…");
   wsTimer=setTimeout(()=>{ const pp=wsPatch, l=wsLog; wsPatch={}; wsLog=null; if(wsPid===S.pid) save(pp,l); },700); }
@@ -7992,9 +8007,9 @@ function roleText(c){
 /* Origin's worksheet anatomy: a header that says what each column is (A(X),
    B(Y)), then label rows for the long name and units. Everything you can do
    to a column lives in its header menu, so the header stays one line high
-   however many columns there are. The Raw sheet holds the data as recorded:
-   empty cells can be filled, but a value, once there, is locked; typing over
-   one records a correction step instead. The Final sheet shows the analysed
+   however many columns there are. The Raw sheet holds the data as recorded
+   or typed, editable unless the project locks it (then typing over a value
+   records a correction step instead). The Final sheet shows the analysed
    spectrum after processing, read only. */
 const colLetter=c=>{ const i=allCols().filter(o=>!o.src).indexOf(c); return i<0?"":wsLetter(i); };
 // Cells that a correction step replaces, for marking in the Raw sheet.
@@ -8073,13 +8088,14 @@ function recalcFx(p){
   return changed;
 }
 function setColFormula(ci,text){
-  const p=P(), m=S.wsm; if(!p||!m||m.kind!=="raw"||S.readOnly){ renderWs(); return; }
+  const p=P(), m=wsLive(); if(!p||!m||m.kind!=="raw"||S.readOnly){ renderWs(); return; }
   const q=m.cols[ci]; let col=q&&!q.phantom?q.col:null; const t=fxPrep(text);
   if(!t){ if(!col||!col.fx){ renderWs(); return; }
     pushUndo("removing a formula"); const L=colLetter(col); delete col.fx; col.data=[]; FX_ERR.delete(col.id);
     save({cols:p.cols},`removed the formula of column ${L}`); renderAll();
     toast(`Column ${L} has no formula now, and is empty.`,{action:"Undo",run:undo}); return; }
-  if(col&&!col.fx&&col.data.some(v=>v!=null)){ toast(`Column ${q.letter} holds recorded values, which are locked. Type the formula into the F(x)= row of an empty column.`); renderWs(); return; }
+  const had=col&&!col.fx?col.data.filter(v=>v!=null).length:0;
+  if(had&&rawLocked()){ toast(`Column ${q.letter} holds recorded values and the raw data is locked. Type the formula into the F(x)= row of an empty column.`); renderWs(); return; }
   let f; try{ f=fxParse(t,col); }
   catch(err){ const here=$("#ws").contains(document.activeElement);
     renderWs(); if(here){ wsSelect(-1,ci,false); wsBeginEdit(String(text),"edit"); wsFxHint(String(text)); }
@@ -8091,9 +8107,10 @@ function setColFormula(ci,text){
   const L=colLetter(col), err=FX_ERR.get(col.id), nv=col.data.filter(v=>v!=null).length, shown=fxShow(col), cid=col.id;
   // A column computed from X values alone is an axis (channels to energy).
   const fromX=col.role==="y"&&!err&&xReaders(col).length>0&&Object.values(f.refs).every(id=>{ const o=colById(id); return o&&o.role==="x"; });
-  save({cols:p.cols,activeY:p.activeY},`set column ${L} = ${shown}`); renderAll();
+  const rr=had?recordRaw(`replaced the ${had} recorded value${had===1?"":"s"} of column ${L} by the formula ${shown}`):null;
+  save(Object.assign({cols:p.cols,activeY:p.activeY},rr?{raw:rr}:{}),`set column ${L} = ${shown}${had?`, replacing its ${had} recorded value${had===1?"":"s"}`:""}`); renderAll();
   if(fromX) toast(`Column ${L} = ${shown} is computed from X values: use it as the X axis of ${andList(xReaders(colById(cid)).map(y=>specName(y)))}?`,{action:"Use as X",run:()=>useAsXFor(cid)});
-  else toast(err?`Column ${L}: ${err}.`:`Column ${L} = ${shown}: ${nv} value${nv===1?"":"s"}, computed again whenever the columns it uses change.`,{action:"Undo",run:undo});
+  else toast(err?`Column ${L}: ${err}.`:`Column ${L} = ${shown}: ${nv} value${nv===1?"":"s"}${had?`, in place of ${had} typed or imported`:""}, computed again whenever the columns it uses change.`,{action:"Undo",run:undo});
 }
 // While a formula is typed, the bar above the grid says whether it reads.
 function wsFxHint(text){
@@ -8128,10 +8145,10 @@ function wsSortBy(id,dir){ S.wsSort=id&&dir?{sheet:S.sheet,id,dir}:null; if(S.ws
    line (their least-squares trend), one number or text is copied; with Ctrl
    the other way round (a single number counts up by one, a run is repeated).
    A double click on the handle fills down as far as the column beside goes;
-   Ctrl+D and Ctrl+R fill the selection from its first row or column. Only
-   empty cells are written: recorded and computed values are locked. */
+   Ctrl+D and Ctrl+R fill the selection from its first row or column. Computed
+   cells are never written, and with the raw data locked neither are values. */
 function wsFillPlan(src,dir,to,alt){
-  const m=S.wsm, writes=[]; let bad=0;
+  const m=wsLive(), writes=[], lock=rawLocked(); let bad=0;
   const cellVal=(ci,r)=>{ const q=m.cols[ci]; if(!q||q.phantom) return null;
     if(r<0){ const L=WS_LABS.find(z=>z.r===r); return L?(q.lab[L.k]||""):""; } const v=q.col.data[r]; return v==null?null:v; };
   const seq=(vals,j)=>{ const L=vals.length, nums=vals.every(v=>typeof v==="number");
@@ -8139,7 +8156,7 @@ function wsFillPlan(src,dir,to,alt){
       vals.forEach((v,k)=>{ sxy+=(k-mk)*(v-mv); sxx+=(k-mk)*(k-mk); }); const b=sxx?sxy/sxx:0; return +(mv+b*(L+j-mk)).toPrecision(12); }
     if(nums&&L===1&&alt) return +(vals[0]+j+1).toPrecision(12);
     return vals[(L+j)%L]; };
-  const locked=(ci,r)=>{ const q=m.cols[ci]; return !!(q&&!q.phantom&&(q.col.fx||q.col.data[r]!=null)); };
+  const locked=(ci,r)=>{ const q=m.cols[ci]; return !!(q&&!q.phantom&&(q.col.fx||(lock&&q.col.data[r]!=null))); };
   if(dir==="down"){
     if(src.r1<0) return {writes,bad:-1};
     const ra=Math.max(src.r0,0);
@@ -8156,13 +8173,13 @@ function wsFillPlan(src,dir,to,alt){
   return {writes,bad};
 }
 function wsFill(src,dir,to,alt){
-  const p=P(), m=S.wsm; if(!p||!m) return;
+  const p=P(), m=wsLive(); if(!p||!m) return;
   if(m.kind!=="raw"){ toast("The Final sheet is read only."); return; }
   if(S.readOnly) return;
   if(m.ord){ toast("Unsort the sheet first: filling follows the rows in the order they were recorded."); return; }
   const {writes,bad}=wsFillPlan(src,dir,to,alt);
   if(bad<0){ toast("Fill down continues the values of data rows: select some first."); return; }
-  if(bad){ toast(`Filling writes only into empty cells: ${bad} cell${bad===1?" in the way holds a recorded or computed value":"s in the way hold recorded or computed values"}, which are locked.`); return; }
+  if(bad){ toast(rawLocked()?`The raw data is locked, so filling writes only into empty cells: ${bad} cell${bad===1?" in the way holds a value":"s in the way hold values"}.`:`${bad} cell${bad===1?" in the way is":"s in the way are"} in a computed column, which its formula fills.`); return; }
   if(!writes.length){ toast("Nothing to fill: the cells selected are empty."); return; }
   pushUndo("filling cells");
   const maxCi=writes.reduce((a,w)=>Math.max(a,w[0]),0);
@@ -8213,9 +8230,9 @@ function wsFillCtrl(dir){
    rows' numbers, a list repeated, random numbers, or the trend of the values
    above, all made by fillSeries), where (a column of the Raw sheet or a new
    one, from row to row), and a preview of the values with a sparkline. Every
-   refusal is in words and keeps OK off. Recorded values are locked, so only
-   empty cells are written: cells that hold a value keep it, and the preview
-   says how many. One undo entry and one raw-data record entry; the settings
+   refusal is in words and keeps OK off. Values already there are replaced
+   (the preview says how many), or with the raw data locked kept, and only
+   empty cells written. One undo entry and one raw-data record entry; the settings
    are kept per browser (kurve.fill) for the next fill. */
 const FILL_KINDS=[["linear","Series","By a step: 1, 2, 3…"],["growth","Growth series","By a factor: 1, 2, 4…"],["even","Evenly between two values","From one value to another"],["rows","Row numbers","Each cell its row's number"],["list","Repeat a list","Your values over and over"],["random","Random numbers","Uniform, whole, normal or counts"],["trend","Continue the trend","The values above, carried on"]];
 const FILL_DIST=[["uniform","Uniform between two values"],["int","Whole numbers, each as likely"],["normal","Normal (Gaussian)"],["poisson","Counts (Poisson)"]];
@@ -8233,7 +8250,7 @@ function fillMenuItems(){
 // What the dialog starts on: the selected column and rows, or the column's
 // empty rows to the sheet's length; a column full there gives way to a new one.
 function fillTarget(colId){
-  const m=S.wsm, s=wsSelRect(), raw=allCols().filter(c=>!c.src), N=nRows();
+  const m=wsLive(), s=wsSelRect(), raw=allCols().filter(c=>!c.src), N=nRows();
   let col=colId?colById(colId):null;
   if(!col&&m&&m.kind==="raw"){ const q=m.cols[Math.max(0,s.c0)]; if(q&&!q.phantom) col=q.col; }
   if(col&&(col.fx||col.src)) col=null;
@@ -8264,9 +8281,10 @@ function fillPlan(v){
     o={kind,xs,ys,r0,growth:v.fillShape==="growth"}; words=`the ${v.fillShape==="growth"?"growth":"straight-line"} trend of the ${ys.length} value${ys.length===1?"":"s"} above`; }
   const res=fillSeries(o,n); if(res.err) return Object.assign(base,{err:res.err});
   const writes=[]; let skipped=0;
-  res.v.forEach((val,j)=>{ const r=r0+j; if(col&&col.data[r]!=null) skipped++; else writes.push([r,val]); });
+  const lock=rawLocked(); let replaced=0;
+  res.v.forEach((val,j)=>{ const r=r0+j, had=col&&col.data[r]!=null; if(had&&lock) skipped++; else { if(had&&col.data[r]!==val) replaced++; writes.push([r,val]); } });
   if(!writes.length) return Object.assign(base,{err:res.v.length?`Every one of these ${res.v.length===1?"cells holds a recorded value":res.v.length+" cells holds a recorded value"}, which is locked: fill a new column, or other rows.`:"Nothing to fill."});
-  return Object.assign(base,{ok:true,n,vals:res.v,writes,skipped,note:res.note,words,role:v.fillRole||"y"});
+  return Object.assign(base,{ok:true,n,vals:res.v,writes,skipped,replaced,note:res.note,words,role:v.fillRole||"y"});
 }
 async function openFillDlg(kind,opt){
   const p=P(); if(!p||S.readOnly) return; opt=opt||{};
@@ -8314,7 +8332,7 @@ async function openFillDlg(kind,opt){
     const pv=b.querySelector("#fillPrev"), show=x=>String(Number.isInteger(x)?x:+x.toPrecision(8));
     if(pv){ if(!plan.ok) pv.innerHTML=`<div class="fpe">${ICON("alert","sm")}<span>${esc(plan.err)}</span></div>`;
       else { const vs=plan.vals, head=vs.slice(0,6).map(show).join(", ")+(vs.length>7?", …, "+show(vs[vs.length-1]):vs.length===7?", "+show(vs[6]):""), last=plan.r0+vs.length;
-        pv.innerHTML=`<div class="fpa"><b>${plan.L}${plan.r0+1}${vs.length>1?`:${plan.L}${last}`:""}</b><span>${vs.length} value${vs.length===1?"":"s"}${plan.skipped?`, ${plan.writes.length} written`:""}</span></div><div class="fpv">${esc(head)}</div>${vs.length>2?fillSpark(vs):""}${plan.skipped?`<p class="fpn">${plan.skipped} cell${plan.skipped===1?" holds a recorded value and keeps it":"s hold recorded values and keep them"}: recorded values are locked.</p>`:""}${plan.note?`<p class="fpn">${esc(plan.note)}</p>`:""}`; } }
+        pv.innerHTML=`<div class="fpa"><b>${plan.L}${plan.r0+1}${vs.length>1?`:${plan.L}${last}`:""}</b><span>${vs.length} value${vs.length===1?"":"s"}${plan.skipped?`, ${plan.writes.length} written`:""}</span></div><div class="fpv">${esc(head)}</div>${vs.length>2?fillSpark(vs):""}${plan.skipped?`<p class="fpn">${plan.skipped} cell${plan.skipped===1?" holds a recorded value and keeps it":"s hold recorded values and keep them"}: the raw data is locked.</p>`:""}${plan.replaced?`<p class="fpn">${plan.replaced} value${plan.replaced===1?" already there is":"s already there are"} replaced.</p>`:""}${plan.note?`<p class="fpn">${esc(plan.note)}</p>`:""}`; } }
     return !!plan.ok; }});
   const ns=$("#fillNewSeed"); if(ns) ns.onclick=()=>{ const f=$("#fillSeed"); f.value=newSeed(); f.dispatchEvent(new Event("input",{bubbles:true})); };
   const v=await pr; if(!v) return;
@@ -8337,7 +8355,8 @@ function doFill(pl){
   if(!col){ col=wsMakeCols(allCols().filter(c=>!c.src).length);
     if(pl.role&&col.role!==pl.role){ col.role=pl.role; if(pl.role!=="y"){ delete col.pipe; delete col.mask; } else { col.pipe=col.pipe||[]; col.mask=col.mask||[]; } } }
   const arr=col.data.slice(); let nv=0;
-  pl.writes.forEach(([r,v])=>{ while(arr.length<=r) arr.push(null); if(arr[r]==null){ arr[r]=v; nv++; } });
+  const lock=rawLocked();
+  pl.writes.forEach(([r,v])=>{ while(arr.length<=r) arr.push(null); if(arr[r]==null||!lock){ arr[r]=v; nv++; } });
   trimTail(arr); col.data=arr; migrate(p);
   const L=colLetter(col), last=pl.r0+pl.vals.length, rng=`${L}${pl.r0+1}${pl.vals.length>1?`:${L}${last}`:""}`;
   const raw=recordRaw(`filled ${nv} cell${nv===1?"":"s"} of column ${L} with ${pl.words}`);
@@ -8401,7 +8420,7 @@ function wsModel(){
     cols.push({id:"f:i",role:"row",lab:{name:"Raw row",unit:"",comm:"where each point came from"},get:k=>d.idx[k]+1,int:true});
     cols.forEach((q,i)=>{ q.letter=wsLetter(i); q.w=W[q.id]||WS_W; q.title=`Column ${q.letter}: ${q.lab.name||q.role}. The Final sheet is read only.`;
       q.spark=q.id==="f:y"?sparkSvg(d,Math.max(20,q.w-12),16,"wspark"):""; });
-    return wsOrder({kind:"final", cols, n:d.x.length, d, c});
+    return wsOrder({kind:"final", cols, n:d.x.length, d, c, p});
   }
   const cols=allCols().filter(c=>!c.src), n=nRows(), hidden=plotCfg().hidden, actRoot=rootOf(activeYCol()), xs=cols.filter(c=>c.role==="x");
   const mc=cols.map((c,i)=>{ const isY=c.role==="y", isAct=c===actRoot, off=isY&&!isAct&&hidden.includes(c.id), L=wsLetter(i), w=W[c.id]||WS_W;
@@ -8416,8 +8435,13 @@ function wsModel(){
   const used=WS_IDX+mc.reduce((s,q)=>s+q.w,0), cw=box&&box.clientWidth?box.clientWidth:900, K=Math.max(3,Math.ceil((cw-used)/WS_W)+2);
   for(let j=0;j<K;j++){ const i=cols.length+j, L=wsLetter(i);
     mc.push({id:"ph"+j, phantom:true, letter:L, role:!xs.length&&!cols.length&&j===0?"X":"Y", w:WS_W, lab:{name:"",unit:"",comm:""}, title:`Column ${L}: empty. Type or paste into it to add a column.`}); }
-  return wsOrder({kind:"raw", cols:mc, n});
+  return wsOrder({kind:"raw", cols:mc, n, p});
 }
+/* The sheet as it is now. A save hands back a fresh copy of the project, so
+   a model made before it holds columns nothing reads any more: a value typed
+   into one is lost. Everything that writes goes through this. */
+function wsLive(){ const m=S.wsm, p=P(); if(!p) return m; if(m&&m.p===p&&m.kind===(S.sheet==="final"?"final":"raw")) return m; S.wsm=wsModel(); return S.wsm; }
+const rawLocked=()=>!!(P()&&P().rawLock);
 function wsText(m,r,ci){
   const q=m.cols[ci]; if(!q) return "";
   if(r<0){ const L=WS_LABS.find(z=>z.r===r); return L?String(q.lab[L.k]||""):""; }
@@ -8433,6 +8457,8 @@ function renderWs(){
   document.querySelectorAll("#wsSheet button").forEach(b=>{ b.setAttribute("aria-pressed",String(b.dataset.sheet===S.sheet)); b.disabled=!p; });
   const ac=$("#addColBtn"); if(ac) ac.hidden=S.sheet==="final";
   const fbt=$("#wsFillBtn"); if(fbt) fbt.hidden=S.sheet==="final";
+  const lkb=$("#wsLockBtn"); if(lkb){ const on=rawLocked(); lkb.hidden=S.sheet==="final"; lkb.disabled=!p||S.readOnly; lkb.setAttribute("aria-pressed",String(on)); lkb.classList.toggle("on",on);
+    const t=on?"The raw data is locked: click to allow editing it":"Lock the raw data: recorded values then stay as they are, and typing over one records a correction step"; lkb.title=t; lkb.setAttribute("aria-label",on?"Unlock the raw data":"Lock the raw data"); }
   if(!p){
     const canMake=S.store&&!S.readOnly;
     box.innerHTML=S.store?`<div style="padding:16px" class="nothing">No project is open.${canMake?` <button class="btn sm" id="wsNew">New project</button>`:""}</div>`:"";
@@ -8448,7 +8474,8 @@ function renderWs(){
   h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"></th>${m.cols.map((q,i)=>`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.calc?`<span class="fxm${q.fxErr?" bad":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx)}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.sw?`<span class="sw${q.off?" off":""}" style="background:${q.sw}"></span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`).join("")}</tr>`;
   WS_LABS.forEach(L=>{ h+=`<tr class="lab"><th class="rl" scope="row"${L.k==="fx"?` title="A column's formula: letters are columns (B*2, (B-C)/A, log10(B)), x the row's X value, i the row number"`:""}>${L.label}</th>${m.cols.map((q,i)=>{ const bd=L.k==="fx"&&q.fxErr; return `<td class="lc${L.k==="fx"?" fxc":""}${bd?" bad":""}" data-r="${L.r}" data-ci="${i}"${bd?` title="${esc(q.fxErr)}"`:""}>${esc(q.lab[L.k]||"")}</td>`; }).join("")}</tr>`; });
   h+=`<tr class="spk"><th class="rl" scope="row">Sparklines</th>${m.cols.map(q=>`<td>${q.spark||""}</td>`).join("")}</tr>`;
-  h+=`</thead><tbody></tbody></table>`;
+  // A spacer as tall as the rows, so the scroll can be put back before they are drawn.
+  h+=`</thead><tbody><tr class="gap" aria-hidden="true"><td colspan="${m.cols.length+1}" style="height:${wsRowCount(m)*(S.ws.rowH||25)}px"></td></tr></tbody></table>`;
   box.innerHTML=h; box.scrollLeft=sx; box.scrollTop=sy;
   // Sticky offsets follow the real header heights.
   let top=0; box.querySelectorAll("thead tr").forEach(tr=>{ tr.querySelectorAll("th,td").forEach(el=>{ el.style.top=top+"px"; }); top+=tr.getBoundingClientRect().height||0; });
@@ -8472,7 +8499,8 @@ function wsRows(force){
   // Rows are drawn around the view; with hundreds of columns fewer of them,
   // so a sheet of 600 columns does not lay out 50 000 cells on every save.
   const span=m.cols.length+1, buf=Math.max(4,Math.min(40,Math.floor((12000/span-vis)/2))), mg=Math.min(5,buf-1);
-  const w=S.ws.win; if(!force&&w&&first>=w[0]+mg&&first+vis<=w[1]-mg) return;
+  // Drawn already: the view sits inside the rows drawn, with a margin, or at an end of the sheet.
+  const w=S.ws.win; if(!force&&w&&(first>=w[0]+mg||w[0]===0)&&(first+vis<=w[1]-mg||w[1]>=R)) return;
   if(S.ws.edit){ const e=S.ws.edit; if(e.r>=0&&(e.r<first-30||e.r>first+vis+30)) wsCommit(0,0,true); }
   const a=Math.max(0,first-buf), b=Math.min(R,first+vis+buf);
   let h=`<tr class="gap" aria-hidden="true"><td colspan="${span}" style="height:${a*rowH}px"></td></tr>`;
@@ -8504,10 +8532,10 @@ function wsBar(){
   const s=S.ws, {r0,r1,c0,c1}=wsSelRect(), q=m.cols[s.c];
   const ref=(r,c)=>{ const L=(m.cols[c]||{}).letter||"?"; if(r>=0) return L+(r+1); const lab=WS_LABS.find(z=>z.r===r); return L+" "+(lab?lab.label:""); };
   a.textContent=r0!==r1||c0!==c1?`${ref(r0,c0)}:${ref(r1,c1)}`:ref(s.r,s.c);
-  const t=wsText(m,s.r,s.c), calc=m.kind==="raw"&&s.r>=0&&q&&q.calc, locked=!calc&&m.kind==="raw"&&s.r>=0&&q&&!q.phantom&&q.col.data[wsDR(m,s.r)]!=null;
+  const t=wsText(m,s.r,s.c), calc=m.kind==="raw"&&s.r>=0&&q&&q.calc, locked=rawLocked()&&!calc&&m.kind==="raw"&&s.r>=0&&q&&!q.phantom&&q.col.data[wsDR(m,s.r)]!=null;
   if(s.r===-1&&q&&q.fxErr){ v.innerHTML=`${ICON("alert","sm")}<span class="badt">${esc(t)}: ${esc(q.fxErr)}</span>`; v.title=""; return; }
   v.innerHTML=`${locked?ICON("lock","sm"):""}<span>${esc(t)||`<span class="lab">${m.kind==="final"?"read only":s.r===-1?"no formula: type one, like B*2 or log10(B)":s.r<0?"empty: type a label":"empty: type a value"}</span>`}${calc?` <span class="lab">= ${esc(q.lab.fx)}</span>`:""}</span>`;
-  v.title=calc?"Computed by the column's formula: change the formula in its F(x)= row.":locked?"A recorded value: locked. Type over it to record a correction instead.":m.kind==="final"?"The Final sheet is read only.":"";
+  v.title=calc?"Computed by the column's formula: change the formula in its F(x)= row.":locked?"A recorded value, and the raw data is locked: type over it to record a correction instead.":m.kind==="final"?"The Final sheet is read only.":"";
 }
 // Count, sum, average, minimum and maximum of the numbers selected.
 function wsStats(){
@@ -8525,7 +8553,8 @@ function wsFoot(){
   if(m.kind==="final"){ const steps=(m.c&&m.c.pipe||[]).filter(s=>s.on!==false).length;
     left=`${m.n} point${m.n===1?"":"s"} of ${esc(specName(m.c))} after ${steps?`${steps} processing step${steps===1?"":"s"}`:"no processing (the raw data)"} · read only`; }
   else { const n=m.n, nm=S.wsMask.size, ok=rawVerified(), fp=(p.raw&&p.raw.fp)||"";
-    left=n?`<span title="Recorded values are locked. Empty cells can be filled or pasted into; typing over a value asks for a reason and records a correction step instead.">${ICON("lock","sm")} ${n} row${n===1?"":"s"}, locked${fp?` · <a href="#" id="wsFp" title="${esc("SHA-256 of the raw values: "+fp+(ok===false?" (the data no longer matches it)":""))}">${ok===false?"fingerprint differs":"sha256 "+esc(fpShort(fp))}</a>`:""}${nm?` · ${nm} masked`:""}${S.wsFixed.size?` · ${S.wsFixed.size} corrected`:""}</span>`
+    const lk=rawLocked();
+    left=n?`<span${lk?` title="The raw data is locked: empty cells can be filled or pasted into; typing over a value asks for a reason and records a correction step instead."`:""}>${lk?ICON("lock","sm")+" ":""}${n} row${n===1?"":"s"}${lk?", locked":""}${fp?` · <a href="#" id="wsFp" title="${esc("SHA-256 of the raw values: "+fp+(ok===false?" (the data no longer matches it)":"")+". Every change to them is in the raw-data record.")}">${ok===false?"fingerprint differs":"sha256 "+esc(fpShort(fp))}</a>`:""}${nm?` · ${nm} masked`:""}${S.wsFixed.size?` · ${S.wsFixed.size} corrected`:""}</span>`
       :"Empty · type into any cell, or paste a block from a spreadsheet"; }
   if(m.ord) left+=` · <span title="Only the view is sorted: the data keep the order they were recorded in">sorted by ${esc(m.cols[m.sortCi].letter)} ${m.sortDir>0?"↑":"↓"}</span> <a href="#" id="wsUnsort">Unsort</a>`;
   foot.innerHTML=`<span class="wsl">${left}</span><span class="sp"></span><span id="wsStat" class="wsstat"></span>`;
@@ -8559,9 +8588,13 @@ function wsSelect(r,c,extend){
   if(r>=wsRowCount(m)-1&&m.kind==="raw"){ s.extra=(s.extra||0)+200; S.ws.win=null; }
   wsEnsureVisible(r,c); wsPaintSel();
 }
-function wsMove(dr,dc,extend,jump){
+function wsMove(dr,dc,extend,jump,how){
   const s=S.ws, m=S.wsm; if(!m) return;
   let r=s.r, c=s.c;
+  // Tab along a row, then Enter: the next row, in the column the Tabs began from.
+  if(how==="tab"&&!extend){ if(s.tabFrom==null) s.tabFrom=c; }
+  else if(how==="enter"&&dr===1&&s.tabFrom!=null&&!extend){ c=s.tabFrom; s.tabFrom=null; r+=1; wsSelect(r,c,false); return; }
+  else s.tabFrom=null;
   if(jump){
     if(dr>0){ const q=m.cols[c], last=m.kind==="final"?m.n-1:q&&!q.phantom?q.col.data.length-1:m.n-1; r=r<last?Math.max(last,0):wsRowCount(m)-1; }
     else if(dr<0) r=r>0?0:WS_TOP;
@@ -8569,6 +8602,10 @@ function wsMove(dr,dc,extend,jump){
     else if(dc<0) c=0;
   } else { r+=dr; c+=dc; }
   wsSelect(r,c,extend);
+  // A move by the keys keeps its cell in view even if a scroll still under way
+  // (the wheel's smooth scroll) lands elsewhere just after; the wheel turned
+  // again gives the view back to the person turning it.
+  s.want={r:s.r,c:s.c,t:performance.now()};
 }
 /* Editing: one text box, in the active cell. Started by typing (arrows then
    commit and move, as in a spreadsheet's Enter mode), by F2 or by a double
@@ -8578,8 +8615,8 @@ function wsBeginEdit(initial,mode){
   if(m.kind!=="raw"){ toast("The Final sheet is read only: it is the data after processing. Change the steps in the History, or edit the Raw sheet."); return; }
   if(S.readOnly){ toast("You can view this workspace but not edit it."); return; }
   s.ar=s.r; s.ac=s.c; wsEnsureVisible(s.r,s.c); wsPaintSel();
-  const orig=wsText(m,s.r,s.c);
-  S.ws.edit={r:s.r,c:s.c,mode:mode||"enter",orig,val:initial!=null?initial:orig,fresh:true};
+  const orig=wsText(m,s.r,s.c), q0=m.cols[s.c];
+  S.ws.edit={r:s.r,c:s.c,cid:q0&&!q0.phantom?q0.id:null,k:s.r>=0?wsDR(m,s.r):s.r,mode:mode||"enter",orig,val:initial!=null?initial:orig,fresh:true};
   S.editing=true; wsRestoreEditor();
 }
 function wsRestoreEditor(){
@@ -8589,7 +8626,7 @@ function wsRestoreEditor(){
   const q=S.wsm.cols[e.c]; inp.setAttribute("aria-label",`${q?q.letter:""}${e.r>=0?e.r+1:" "+((WS_LABS.find(z=>z.r===e.r)||{}).label||"")}`);
   if(e.r>=0){ inp.inputMode="decimal"; inp.classList.add("num"); }
   if(e.r===-1){ inp.classList.add("fx"); inp.placeholder="B*2"; }
-  td.textContent=""; td.classList.add("editing"); td.appendChild(inp); inp.focus({preventScroll:true});
+  td.textContent=""; td.classList.add("editing"); td.classList.remove("fh"); td.appendChild(inp); inp.focus({preventScroll:true});
   const n=inp.value.length; inp.setSelectionRange(n,n);
   inp.addEventListener("input",()=>{ e.val=inp.value; if(e.r===-1) wsFxHint(inp.value); });
   inp.addEventListener("keydown",wsEdKey);
@@ -8598,8 +8635,8 @@ function wsRestoreEditor(){
 function wsEdKey(ev){
   const e=S.ws.edit; if(!e) return; ev.stopPropagation();
   const k=ev.key;
-  if(k==="Enter"&&!(ev.ctrlKey||ev.metaKey)){ ev.preventDefault(); wsCommit(ev.shiftKey?-1:1,0); return; }
-  if(k==="Tab"){ ev.preventDefault(); wsCommit(0,ev.shiftKey?-1:1); return; }
+  if(k==="Enter"&&!(ev.ctrlKey||ev.metaKey)){ ev.preventDefault(); wsCommit(ev.shiftKey?-1:1,0,false,"enter"); return; }
+  if(k==="Tab"){ ev.preventDefault(); wsCommit(0,ev.shiftKey?-1:1,false,"tab"); return; }
   if(k==="Escape"){ ev.preventDefault(); wsCancelEdit(); return; }
   if(e.mode==="enter"&&["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(k)){ ev.preventDefault();
     wsCommit(k==="ArrowUp"?-1:k==="ArrowDown"?1:0,k==="ArrowLeft"?-1:k==="ArrowRight"?1:0); return; }
@@ -8610,19 +8647,28 @@ function wsCancelEdit(){
   const td=wsTd(e.r,e.c); if(td){ td.classList.remove("editing"); td.textContent=wsText(S.wsm,e.r,e.c); }
   $("#ws").focus({preventScroll:true}); if(S.pendingWs){ S.pendingWs=false; renderWs(); }
 }
-function wsCommit(dr,dc,stay){
+function wsCommit(dr,dc,stay,how){
   const e=S.ws.edit; if(!e) return;
   const td=wsTd(e.r,e.c), inp=td&&td.querySelector("input.wsed"), val=inp?inp.value:e.val;
+  // Not a number: Enter, Tab or an arrow leave it in the cell, marked, to be
+  // put right (Esc gives the cell back); leaving it another way keeps the old
+  // value and says what was not taken.
+  const bad=e.r>=0&&val!==e.orig&&String(val).trim()!==""&&parseNum(val)==null;
+  if(bad&&!stay&&inp){ inp.classList.add("bad"); inp.setAttribute("aria-invalid","true"); inp.focus({preventScroll:true});
+    toast(`“${String(val).trim().slice(0,40)}” is not a number. Type one (3.14, 2,5 or 1e-3), or press Esc to leave the cell as it was.`); return; }
   S.ws.edit=null; S.editing=false; S.pendingWs=false;
   if(td){ td.classList.remove("editing"); td.textContent=wsText(S.wsm,e.r,e.c); }
   if(!stay) $("#ws").focus({preventScroll:true});
-  if(dr||dc) wsMove(dr,dc,false);
-  if(val!==e.orig) wsSetCell(e.r,e.c,val); else renderWs();
+  if(dr||dc) wsMove(dr,dc,false,false,how);
+  if(bad){ toast(`“${String(val).trim().slice(0,40)}” is not a number, so the cell keeps ${e.orig?e.orig:"nothing"}.`); renderWs(); return; }
+  if(val!==e.orig) wsSetCell(e.r,e.c,val,e); else renderWs();
 }
-// Writes one cell of the Raw sheet: a label, or a value into an empty cell.
-// A recorded value is locked: typing over it proposes a correction step.
-function wsSetCell(r,ci,text){
-  const p=P(), m=S.wsm; if(!p||!m||m.kind!=="raw"||S.readOnly){ renderWs(); return; }
+// Writes one cell of the Raw sheet: a label, or a value. Recorded values can
+// be typed over unless the project locks its raw data; then typing over one
+// proposes a correction step. `ref` is the edit, which knows its column by id.
+function wsSetCell(r,ci,text,ref){
+  const p=P(), m=wsLive(); if(!p||!m||m.kind!=="raw"||S.readOnly){ renderWs(); return; }
+  if(ref&&ref.cid){ const j=m.cols.findIndex(q=>q.id===ref.cid); if(j<0){ toast("That column was deleted while you typed, so the value was not kept."); renderWs(); return; } ci=j; }
   const q=m.cols[ci]; let col=q&&!q.phantom?q.col:null;
   if(r===-1){ setColFormula(ci,text); return; }
   if(r<0){ const L=WS_LABS.find(z=>z.r===r), v=String(text).trim().slice(0,L.max);
@@ -8633,17 +8679,17 @@ function wsSetCell(r,ci,text){
     saveSoon({cols:p.cols},`set the ${L.label.toLowerCase()} of column ${colLetter(col)} to ${v?`"${v}"`:"nothing"}`);
     renderWs(); renderPlot(); if(winOpen("flow")) renderFlow(); return; }
   if(col&&col.fx){ toast(`Column ${q.letter} is computed by its formula (= ${fxShow(col)}). Change the formula in its F(x)= row.`); renderWs(); return; }
-  r=wsDR(m,r);
+  r=ref&&ref.k>=0?ref.k:wsDR(m,r);
   const t=String(text).trim(), v=t===""?null:parseNum(t);
-  if(t!==""&&v===null){ toast("Enter a number, like 3.14 or 2.5e-3."); renderWs(); return; }
+  if(t!==""&&v===null){ toast(`“${t.slice(0,40)}” is not a number. Type one, like 3.14, 2,5 or 2.5e-3.`); renderWs(); return; }
   const old=col?(col.data[r]??null):null;
-  if(old!==null&&v!==old){ renderWs(); correctCell(col,r,v); return; }
-  if(old===null&&v===null){ renderWs(); return; }
+  if(old===v||(old===null&&v===null)){ renderWs(); return; }
+  if(old!==null&&rawLocked()){ renderWs(); correctCell(col,r,v); return; }
   pushUndo("that cell edit");
   if(!col) col=wsMakeCols(ci);
   const arr=col.data.slice(); while(arr.length<=r) arr.push(null); arr[r]=v; trimTail(arr); col.data=arr;
-  const raw=recordRaw("entered values in the worksheet","ws");
-  saveSoon(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),"entered raw data in the worksheet");
+  const L=colLetter(col), raw=recordRaw(old===null?"entered values in the worksheet":"changed recorded values in the worksheet",old===null?"ws":"wsc");
+  saveSoon(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),old===null?"entered raw data in the worksheet":`changed ${L}${r+1} from ${old} to ${v==null?"empty":v}`);
   renderWs(); renderPlot(); renderFitRangeOnly(); renderStages(); if(winOpen("flow")) renderFlow();
 }
 // New columns up to the one typed into: Y, or X for the first of an empty sheet.
@@ -8662,7 +8708,7 @@ function wsCopyText(){
    over recorded values would edit the raw data, so that is offered as new
    columns instead. */
 function wsPasteText(text){
-  const p=P(), m=S.wsm; if(!p||!m) return;
+  const p=P(), m=wsLive(); if(!p||!m) return;
   if(m.kind!=="raw"){ toast("The Final sheet is read only. Paste into the Raw sheet."); return; }
   if(S.readOnly){ toast("You can view this workspace but not edit it."); return; }
   const {r0,c0}=wsSelRect();
@@ -8675,9 +8721,10 @@ function wsPasteText(text){
   const width=Math.max(rows.reduce((a,r)=>Math.max(a,r.length),0),labs.reduce((a,r)=>Math.max(a,r.length),0));
   if(!width) return;
   const rawc=allCols().filter(o=>!o.src);
-  let clash=0;
-  for(let src=0;src<width;src++){ const col=rawc[c0+src]; if(!col) continue; if(col.fx&&rows.length){ clash+=rows.length; continue; } rows.forEach((row,j)=>{ const was=col.data[rs+j], now=row[src]??null; if(was!=null&&now!==was) clash++; }); }
-  if(clash){ toast(`Raw data is locked: ${clash} of those cells already hold recorded or computed values.`,{action:"Paste as new columns",run:()=>pasteAsNew(rows,header,rs)}); return; }
+  let clash=0, calc=0, over=0; const lock=rawLocked();
+  for(let src=0;src<width;src++){ const col=rawc[c0+src]; if(!col) continue; if(col.fx&&rows.length){ calc+=rows.length; continue; } rows.forEach((row,j)=>{ const was=col.data[rs+j], now=row[src]??null; if(was!=null&&now!==was){ if(lock) clash++; else over++; } }); }
+  if(calc){ toast(`${calc} of those cells are in a computed column, which its formula fills.`,{action:"Paste as new columns",run:()=>pasteAsNew(rows,header,rs)}); return; }
+  if(clash){ toast(`The raw data is locked: ${clash} of those cells already hold recorded values.`,{action:"Paste as new columns",run:()=>pasteAsNew(rows,header,rs)}); return; }
   pushUndo("that paste");
   if(rawc.length<c0+width) wsMakeCols(c0+width-1);
   const cols=allCols().filter(o=>!o.src), fxs=[]; let fxBad=0;
@@ -8694,20 +8741,31 @@ function wsPasteText(text){
   const raw=rows.length?recordRaw(`pasted ${rows.length} rows into the worksheet`):null;
   S.view=null; S.ws.ar=S.ws.r; S.ws.ac=S.ws.c; S.ws.r=Math.max(S.ws.r,rs+rows.length-1); S.ws.c=c0+width-1; S.ws.ar=r0; S.ws.ac=c0;
   save(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),rows.length?`pasted ${rows.length} rows into ${width} column${width===1?"":"s"}`:`pasted labels into ${width} column${width===1?"":"s"}`); renderAll();
-  toast(rows.length?`Pasted ${rows.length} row${rows.length===1?"":"s"} into ${width} column${width===1?"":"s"}. They are now recorded raw data.`:`Pasted the labels of ${width} column${width===1?"":"s"}.`,{action:"Undo",run:undo});
+  toast(rows.length?`Pasted ${rows.length} row${rows.length===1?"":"s"} into ${width} column${width===1?"":"s"}${over?`, replacing ${over} value${over===1?"":"s"}`:""}.`:`Pasted the labels of ${width} column${width===1?"":"s"}.`,{action:"Undo",run:undo});
 }
-// Delete: labels are cleared; recorded values are locked.
+// Delete: labels and values are cleared; with the raw data locked, values are
+// corrected instead (one) or kept (several).
 function wsClear(){
-  const p=P(), m=S.wsm; if(!p||!m) return;
+  const p=P(), m=wsLive(); if(!p||!m) return;
   if(m.kind!=="raw"){ toast("The Final sheet is read only."); return; }
   if(S.readOnly) return;
   const {r0,r1,c0,c1}=wsSelRect(), labs=[], vals=[];
   for(let c=c0;c<=c1;c++){ const q=m.cols[c]; if(!q||q.phantom) continue;
     for(let r=Math.max(r0,WS_TOP);r<=Math.min(r1,-1);r++){ const L=WS_LABS.find(z=>z.r===r); if(L&&q.col[L.k]) labs.push([q.col,L]); }
     if(!q.col.fx) for(let r=Math.max(r0,0);r<=Math.min(r1,m.n-1);r++){ const k=wsDR(m,r); if(q.col.data[k]!=null) vals.push([q.col,k]); } }
+  if(!rawLocked()){
+    if(!labs.length&&!vals.length) return;
+    pushUndo("clearing cells");
+    labs.forEach(([col,L])=>{ if(L.k==="fx"){ delete col.fx; col.data=[]; } else col[L.k]=""; });
+    const by=new Map(); vals.forEach(([col,k])=>{ let a=by.get(col); if(!a){ a=col.data.slice(); by.set(col,a); } a[k]=null; });
+    by.forEach((a,col)=>{ trimTail(a); col.data=a; });
+    const raw=vals.length?recordRaw(`cleared ${vals.length} value${vals.length===1?"":"s"} in the worksheet`):null;
+    save(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),`cleared ${[vals.length?`${vals.length} value${vals.length===1?"":"s"}`:"",labs.length?`${labs.length} label${labs.length===1?"":"s"}`:""].filter(Boolean).join(" and ")} in the worksheet`); renderAll();
+    if(vals.length>1) toast(`Cleared ${vals.length} values.`,{action:"Undo",run:undo});
+    return; }
   if(labs.length){ pushUndo("clearing labels"); labs.forEach(([col,L])=>{ if(L.k==="fx"){ delete col.fx; col.data=[]; } else col[L.k]=""; }); save({cols:p.cols},`cleared ${labs.length} label${labs.length===1?"":"s"}`); renderWs(); renderPlot(); }
   if(vals.length===1&&!labs.length){ correctCell(vals[0][0],vals[0][1],null); return; }
-  if(vals.length) toast(`Recorded values are locked: ${vals.length} selected cell${vals.length===1?" holds one":"s hold them"}. To leave points out of the analysis, mask them on the graph, or type over a value to record a correction.`);
+  if(vals.length) toast(`The raw data is locked: ${vals.length} selected cell${vals.length===1?" holds a recorded value":"s hold recorded values"}. Unlock it to change them, mask points on the graph to leave them out, or type over one to record a correction.`,{action:"Unlock",run:()=>setRawLock(false)});
 }
 // Fits a column to its widest content.
 function wsAutofit(ci){
@@ -8738,6 +8796,8 @@ function wsCellMenu(ev,r,c){
     "-",
     {label:allMasked?`Restore ${rows.length===1?"this point":"these "+rows.length+" points"}`:`Mask ${rows.length===1?"this point":"these "+rows.length+" points"} in ${specName(act)}`, enabled:!!rows.length&&!!act&&!S.readOnly, run:()=>toggleMask(rows,!allMasked)},
     {label:"Select the whole column", run:()=>{ S.ws.ar=0; S.ws.ac=c; S.ws.r=Math.max(0,m.n-1); S.ws.c=c; wsPaintSel(); }},
+    raw&&r1>=0?{label:r1>Math.max(r0,0)?`Insert ${r1-Math.max(r0,0)+1} rows above`:"Insert a row above", enabled:!S.readOnly&&!rawLocked()&&!m.ord, title:rawLocked()?"The raw data is locked":m.ord?"Unsort the sheet first":"", run:()=>wsRowsEdit("insert")}:null,
+    raw&&r1>=0?{label:r1>Math.max(r0,0)?`Delete rows ${Math.max(r0,0)+1}–${r1+1}`:`Delete row ${r1+1}`, danger:true, enabled:!S.readOnly&&!rawLocked()&&!m.ord&&Math.max(r0,0)<m.n, title:rawLocked()?"The raw data is locked":m.ord?"Unsort the sheet first":"", run:()=>wsRowsEdit("delete")}:null,
     "-",
     {label:`Sort the sheet by column ${q?q.letter:""}`, enabled:!!q&&!q.phantom, sub:()=>[
       {label:"Ascending", radio:true, checked:!!(m.ord&&m.sortCi===c&&m.sortDir>0), run:()=>wsSortBy(q.id,1)},
@@ -8755,7 +8815,10 @@ function setupWs(){
   let drag=null, raf=0;
   box.addEventListener("scroll",()=>{ if(raf) return; raf=requestAnimationFrame(()=>{ raf=0; const m=S.wsm; if(!m) return;
     if(m.kind==="raw"&&box.scrollTop+box.clientHeight>box.scrollHeight-(S.ws.rowH||25)*20){ S.ws.extra=(S.ws.extra||0)+200; S.ws.win=null; }
-    wsRows(false); }); });
+    wsRows(false);
+    const w=S.ws.want; if(w&&performance.now()-w.t<600){ const rowH=S.ws.rowH||25, y=w.r*rowH, vis=box.clientHeight-(S.ws.head||0);
+      if(w.r>=0&&(y<box.scrollTop||y+rowH>box.scrollTop+vis)) wsEnsureVisible(w.r,w.c); } }); });
+  box.addEventListener("wheel",()=>{ S.ws.want=null; },{passive:true});
   new ResizeObserver(()=>{ const m=S.wsm; if(!m||m.kind!=="raw"||S.editing) return;
     const used=WS_IDX+m.cols.filter(q=>!q.phantom).reduce((s,q)=>s+q.w,0), K=Math.max(3,Math.ceil((box.clientWidth-used)/WS_W)+2);
     if(K!==m.cols.filter(q=>q.phantom).length) renderWs(); else wsRows(true); }).observe(box);
@@ -8766,25 +8829,30 @@ function setupWs(){
     if(t.closest("input.wsed")) return;
     if(t.closest("[data-cmenu]")) return;
     const rz=t.closest(".rz");
+    if(rz&&e.detail===2){ e.preventDefault(); wsAutofit(+rz.dataset.rz); return; }
     if(rz){ e.preventDefault(); const i=+rz.dataset.rz, q=S.wsm.cols[i], x0=e.clientX, w0=q.w, colEl=box.querySelector(`col[data-cw="${CSS.escape(q.id)}"]`), tb=box.querySelector("table.grid"), tw0=parseFloat(tb.style.width);
       let w=w0; document.body.classList.add("colresize");
       const mv=ev=>{ w=Math.max(WS_MINW,w0+ev.clientX-x0); colEl.style.width=w+"px"; tb.style.width=(tw0+w-w0)+"px"; };
       const up=()=>{ document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up); document.body.classList.remove("colresize"); if(Math.round(w)!==w0) wsSetWidth(q.id,w); };
       document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up); return; }
     if(S.ws.edit) wsCommit(0,0,true);
-    const m=S.wsm, s=S.ws;
-    if(t.closest("th.corner")){ e.preventDefault(); box.focus({preventScroll:true}); s.ar=WS_TOP; s.ac=0; s.r=Math.max(0,m.n-1); s.c=Math.max(0,m.cols.filter(q=>!q.phantom).length-1); wsPaintSel(); return; }
+    const m=S.wsm, s=S.ws; s.tabFrom=null;
+    if(t.closest("th.corner")){ e.preventDefault(); box.focus({preventScroll:true}); s.r=WS_TOP; s.c=0; s.ar=Math.max(0,m.n-1); s.ac=Math.max(0,m.cols.filter(q=>!q.phantom).length-1); wsPaintSel(); return; }
     const ch=t.closest("th[data-ch]");
     if(ch){ e.preventDefault(); box.focus({preventScroll:true}); const c=+ch.dataset.ch;
-      if(e.shiftKey){ s.c=c; s.r=Math.max(0,m.n-1); if(s.ar>0) s.ar=0; } else { s.ar=0; s.ac=c; s.c=c; s.r=Math.max(0,m.n-1); }
+      // As in a spreadsheet, typing goes into the column's first cell: it is the active one.
+      if(e.shiftKey){ s.c=c; s.r=0; s.ar=Math.max(0,m.n-1); } else { s.r=0; s.c=c; s.ar=Math.max(0,m.n-1); s.ac=c; }
       wsPaintSel(); drag={kind:"col"}; }
     else { const rh=t.closest("th[data-rh]"), td=t.closest("td[data-ci]");
       if(rh){ e.preventDefault(); box.focus({preventScroll:true}); const r=+rh.dataset.rh, C=Math.max(0,m.cols.filter(q=>!q.phantom).length-1);
-        if(e.shiftKey){ s.r=r; s.c=C; } else { s.ar=r; s.ac=0; s.r=r; s.c=C; }
+        if(e.shiftKey){ s.r=r; s.c=0; s.ac=C; } else { s.r=r; s.c=0; s.ar=r; s.ac=C; }
         wsPaintSel(); drag={kind:"row"};
         // The row's point is marked on the graph, as it always was.
         const k=wsDR(m,r), idx=m.kind==="final"?(r<m.n?m.d.idx[k]:null):(r<m.n?k:null); if(idx!=null&&!e.shiftKey){ S.sel=S.sel===idx?null:idx; renderWsSel(); renderPlot(); } }
-      else if(td&&td.classList.contains("fh")&&(()=>{ const rc=td.getBoundingClientRect(); return e.clientX>=rc.right-10&&e.clientY>=rc.bottom-10; })()){ e.preventDefault(); box.focus({preventScroll:true}); wsFillDrag(); return; }
+      else if(td&&td.classList.contains("fh")&&(()=>{ const rc=td.getBoundingClientRect(); return e.clientX>=rc.right-10&&e.clientY>=rc.bottom-10; })()){ e.preventDefault(); box.focus({preventScroll:true}); if(e.detail===2) wsFillDbl(); else wsFillDrag(); return; }
+      // A double click is read from the press itself (its count): a redraw
+      // between the two clicks would otherwise keep the browser's dblclick away.
+      else if(td&&e.detail===2&&!e.shiftKey){ e.preventDefault(); wsSelect(+td.dataset.r,+td.dataset.ci,false); wsBeginEdit(null,"edit"); S.ws.dblAt=Date.now(); return; }
       else if(td){ e.preventDefault(); box.focus({preventScroll:true}); wsSelect(+td.dataset.r,+td.dataset.ci,e.shiftKey); drag={kind:"cell"}; }
       else return; }
     const mv=ev=>{ if(!drag) return; const el=cellAt(ev.clientX,ev.clientY); if(!el) return;
@@ -8794,7 +8862,9 @@ function setupWs(){
     const up=()=>{ drag=null; document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up); };
     document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up);
   });
+  // Kept for what reaches it without a press counted twice; never twice for one.
   box.addEventListener("dblclick",e=>{
+    if(S.ws.edit||Date.now()-(S.ws.dblAt||0)<600) return;
     const rz=e.target.closest(".rz"); if(rz){ wsAutofit(+rz.dataset.rz); return; }
     const td=e.target.closest("td[data-ci]"); if(!td||e.target.closest("input.wsed")) return;
     if(td.classList.contains("fh")){ const rc=td.getBoundingClientRect(); if(e.clientX>=rc.right-10&&e.clientY>=rc.bottom-10){ wsFillDbl(); return; } }
@@ -8805,6 +8875,10 @@ function setupWs(){
     if(e.target.closest("input.wsed")) return;
     const th=e.target.closest("th[data-ch]"), m=S.wsm; if(!m) return;
     if(th){ const q=m.cols[+th.dataset.ch]; e.preventDefault(); if(q&&q.menu) openColMenu(q.id,th.querySelector("[data-cmenu]")||th); return; }
+    // A row number: the row (or the rows selected), and the same menu.
+    const rh=e.target.closest("th[data-rh]");
+    if(rh){ e.preventDefault(); const r=+rh.dataset.rh, {r0,r1}=wsSelRect(), C=Math.max(0,m.cols.filter(q=>!q.phantom).length-1);
+      if(!(r>=r0&&r<=r1)){ S.ws.ar=r; S.ws.r=r; } S.ws.ac=0; S.ws.c=C; wsPaintSel(); wsCellMenu(e,r,0); return; }
     const td=e.target.closest("td[data-ci]"); if(!td) return; e.preventDefault();
     const r=+td.dataset.r, c=+td.dataset.ci, {r0,r1,c0,c1}=wsSelRect();
     if(!(r>=r0&&r<=r1&&c>=c0&&c<=c1)) wsSelect(r,c,false);
@@ -8815,8 +8889,8 @@ function setupWs(){
     const k=e.key, ctrl=e.ctrlKey||e.metaKey, m=S.wsm;
     const stop=()=>{ e.preventDefault(); e.stopPropagation(); };
     if(k==="ArrowDown"||k==="ArrowUp"||k==="ArrowLeft"||k==="ArrowRight"){ stop(); wsMove(k==="ArrowDown"?1:k==="ArrowUp"?-1:0,k==="ArrowRight"?1:k==="ArrowLeft"?-1:0,e.shiftKey,ctrl); return; }
-    if(k==="Enter"&&!ctrl){ stop(); wsMove(e.shiftKey?-1:1,0,false); return; }
-    if(k==="Tab"){ stop(); wsMove(0,e.shiftKey?-1:1,false); return; }
+    if(k==="Enter"&&!ctrl){ stop(); wsMove(e.shiftKey?-1:1,0,false,false,"enter"); return; }
+    if(k==="Tab"){ stop(); wsMove(0,e.shiftKey?-1:1,false,false,"tab"); return; }
     if(k==="PageDown"||k==="PageUp"){ stop(); const n=Math.max(1,Math.floor((box.clientHeight-(S.ws.head||0))/(S.ws.rowH||25))-1); wsMove(k==="PageDown"?n:-n,0,e.shiftKey); return; }
     if(k==="Home"){ stop(); if(ctrl) wsSelect(0,0,e.shiftKey); else wsSelect(S.ws.r,0,e.shiftKey); return; }
     if(k==="End"){ stop(); const C=Math.max(0,m.cols.filter(q=>!q.phantom).length-1); if(ctrl) wsSelect(Math.max(0,m.n-1),C,e.shiftKey); else wsSelect(S.ws.r,C,e.shiftKey); return; }
@@ -8827,8 +8901,11 @@ function setupWs(){
     if(k==="F3"){ stop(); wsFindGo(e.shiftKey?-1:1); return; }
     if(ctrl&&(k==="d"||k==="D")){ stop(); wsFillCtrl("down"); return; }
     if(ctrl&&(k==="r"||k==="R")){ stop(); wsFillCtrl("right"); return; }
-    if(ctrl&&(k==="a"||k==="A")){ stop(); S.ws.ar=WS_TOP; S.ws.ac=0; S.ws.r=Math.max(0,m.n-1); S.ws.c=Math.max(0,m.cols.filter(q=>!q.phantom).length-1); wsPaintSel(); return; }
+    if(ctrl&&(k==="a"||k==="A")){ stop(); S.ws.r=WS_TOP; S.ws.c=0; S.ws.ar=Math.max(0,m.n-1); S.ws.ac=Math.max(0,m.cols.filter(q=>!q.phantom).length-1); wsPaintSel(); return; }
     if(!ctrl&&!e.altKey&&k.length===1){ stop(); wsBeginEdit(k,"enter"); return; }
+    // An input method (Japanese, Chinese, a dead key for an accent) composes
+    // its text in the cell's own box: open it empty and let the text arrive there.
+    if(!ctrl&&(k==="Process"||k==="Dead"||k==="Unidentified"||e.isComposing)){ wsBeginEdit("","enter"); return; }
   });
   box.addEventListener("copy",e=>{ if(e.target.closest&&e.target.closest("input.wsed")) return; if(!S.wsm) return; e.preventDefault(); e.clipboardData.setData("text/plain",wsCopyText());
     const {r0,r1,c0,c1}=wsSelRect(), n=(r1-r0+1)*(c1-c0+1); setStatus(`Copied ${n} cell${n===1?"":"s"}.`); });
@@ -8854,6 +8931,48 @@ function setupWs(){
   const fbtn=$("#wsFindBtn"); if(fbtn) fbtn.onclick=()=>{ const b=$("#wsFind"); if(b&&!b.hidden) wsFindClose(); else wsFindOpen(); };
 }
 
+/* Rows inserted or deleted in the Raw sheet: every recorded column moves, and
+   so does whatever names a raw row (masked points, corrections, a peak label's
+   row, the peaks removed or remembered by a set, the point selected). fn maps
+   an old row to its new one, or to null when it is gone. */
+function remapRawRows(p,fn){
+  allCols().forEach(c=>{
+    if(Array.isArray(c.mask)) c.mask=c.mask.map(fn).filter(v=>v!=null);
+    (c.pipe||[]).forEach(s=>{ if(s.op==="correct"&&s.p&&Array.isArray(s.p.fixes)) s.p=Object.assign({},s.p,{fixes:s.p.fixes.map(f=>{ const r=fn(f.row); return r==null?null:Object.assign({},f,{row:r}); }).filter(Boolean)}); }); });
+  ((p.plot&&p.plot.annos)||[]).forEach(a=>{ if(a.row!=null){ const r=fn(a.row); if(r==null) delete a.row; else a.row=r; } });
+  Object.values(p.found||{}).forEach(f=>{ ["ex","mem"].forEach(k=>{ if(Array.isArray(f[k])) f[k]=f[k].map(o=>{ if(o.row==null) return o; const r=fn(o.row); const q=Object.assign({},o); if(r==null) delete q.row; else q.row=r; return q; }); }); });
+  if(S.sel!=null) S.sel=fn(S.sel);
+}
+function wsRowsEdit(kind){
+  const p=P(), m=wsLive(); if(!p||!m||S.readOnly) return;
+  if(m.kind!=="raw"){ toast("The Final sheet is read only."); return; }
+  if(rawLocked()){ toast("The raw data is locked, so rows cannot be inserted or deleted.",{action:"Unlock",run:()=>setRawLock(false)}); return; }
+  if(m.ord){ toast("Unsort the sheet first: rows are inserted and deleted in the order they were recorded.",{action:"Unsort",run:()=>wsSortBy(null,0)}); return; }
+  if(S.ws.edit) wsCommit(0,0,true);
+  const {r0,r1}=wsSelRect(), a=Math.max(0,r0), n=r1-a+1; if(r1<0||n<1) return;
+  const raw=allCols().filter(c=>!c.src&&!c.fx);
+  if(kind==="delete"&&a>=nRows()){ toast("Those rows are empty already."); return; }
+  pushUndo(kind==="insert"?"inserting rows":"deleting rows");
+  raw.forEach(c=>{ if(c.data.length<=a) return; const d=c.data.slice(); if(kind==="insert") d.splice(a,0,...new Array(n).fill(null)); else d.splice(a,n); trimTail(d); c.data=d; });
+  remapRawRows(p,kind==="insert"?(i=>i>=a?i+n:i):(i=>i<a?i:i<a+n?null:i-n));
+  migrate(p);
+  const what=kind==="insert"?`inserted ${n} row${n===1?"":"s"} above row ${a+1}`:`deleted row${n===1?"":"s"} ${a+1}${n>1?`–${a+n}`:""}`;
+  const rr=recordRaw(what+" in the worksheet");
+  S.ws.ar=a; S.ws.r=kind==="insert"?a+n-1:a; S.ws.ac=0; S.ws.c=Math.max(0,m.cols.filter(q=>!q.phantom).length-1); S.ws.win=null;
+  save(Object.assign({cols:p.cols,activeY:p.activeY,plot:p.plot,found:p.found},rr?{raw:rr}:{}),what); renderAll();
+  toast(`${capFirst(what)}.`,{action:"Undo",run:undo});
+}
+/* Raw data can be edited (typed over, cleared, pasted and filled over), and
+   every change is in the raw-data record with the fingerprint, unless the
+   project locks it: then recorded values stay as they are and typing over one
+   records a correction step with its reason. */
+function setRawLock(on){
+  const p=P(); if(!p||S.readOnly||!!p.rawLock===!!on) return;
+  if(S.ws&&S.ws.edit) wsCommit(0,0,true);
+  pushUndo(on?"locking the raw data":"unlocking the raw data");
+  save({rawLock:!!on},on?"locked the raw data":"unlocked the raw data"); renderAll();
+  toast(on?"The raw data is locked: recorded values stay as they are, and typing over one records a correction step.":"The raw data can be edited: every change is in the raw-data record.",{action:"Undo",run:undo});
+}
 function setSheet(s){ if(S.ws&&S.ws.edit) wsCommit(0,0,true); S.sheet=s; S.editing=false; if(S.ws){ S.ws.win=null; S.ws.extra=0; } renderWs(); }
 /* Typing over a recorded value: the raw value stays, and a correction step,
    with its reason, is added to the processing of every spectrum it feeds. */
@@ -12080,6 +12199,7 @@ function dataMenu(){
     {label:"Import data…", kbd:"Ctrl+O", run:pickFile, enabled:can},
     {label:"Worksheet", run:()=>openWin("sheet",{render:true}), enabled:!!p},
     {label:"Add a column", run:addColumn, enabled:edit},
+    {label:"Lock the raw data", checked:!!(p&&p.rawLock), enabled:edit, title:"Recorded values then stay as they are; typing over one records a correction step", run:()=>setRawLock(!(p&&p.rawLock))},
     {label:"Fill", sub:()=>FILL_KINDS.map(([k,l,t])=>({label:l+"…", title:t, enabled:edit, run:()=>openFillDlg(k)})), enabled:edit},
     "-",
     {label:"Clean", sub:()=>[t("crop"), {label:"Crop to the visible range", run:cropToView, enabled:edit&&has&&!!S.view}, t("exclude"), t("despike"), t("sort"), t("dedupe"), t("resample")]},
@@ -14346,7 +14466,7 @@ const DOCS=[
 <p>${MP("File › Examples")} opens a finished project: an infrared spectrum with overlapping bands, a raw Raman spectrum with a background and cosmic-ray spikes, a single Raman band, or a fluorescence decay.</p>
 <div class="actions"><button class="btn sm" data-doc-ex="ir">Infrared example</button><button class="btn sm" data-doc-ex="ps">Raw Raman example</button></div>
 <h2>Two promises</h2>
-<ul><li><strong>The raw data never change.</strong> Every change is a step on top of them, which you can edit, reorder, switch off or delete. ${DA("rawdata","Raw data and its fingerprint")}</li>
+<ul><li><strong>The analysis never changes the raw data.</strong> Every processing step sits on top of them, and you can edit, reorder, switch off or delete it. The raw data change only when you edit them in the worksheet, and every such change is recorded; lock them to keep them as they are. ${DA("rawdata","Raw data and its fingerprint")}</li>
 <li><strong>Everything can be undone.</strong> ${K("Ctrl","Z")} takes back your last change, whatever window it was made in.</li></ul>`},
 {id:"desk", g:"Basics", t:"Windows and the desk", kw:"window move resize maximise minimise close panels documents switch taskbar tile cascade layout toolbar status bar phone theme dark style bench graphite appearance",
  lead:"The graph, the worksheet, the History and the rest are windows on a desk, as in Origin. Arrange them the way you work.",
@@ -14413,11 +14533,11 @@ ${DL([[K("Ctrl","Z"),"Undo"],[K("Ctrl","Shift","Z")+" · "+K("Ctrl","Y"),"Redo"]
 <h2 id="k-graph">On the graph</h2>
 ${DL([[K("←")+" "+K("→"),"Previous or next point (click the graph first)"],[K("Home")+" "+K("End"),"First or last point"],[K("+")+" "+K("−")+" "+K("0"),"Zoom in, zoom out, show all"],[K("[")+" "+K("]"),"Start or end the view at the selected point"],[K("M"),"Mask or restore the selected point"],[K("P"),"Put a peak at the selected point"],[K("Delete"),"Remove the selected peak, label, line or band"],[K("Enter")+" · "+K("F2"),"Type over the selected label or text; "+K("Shift","Enter")+" starts a new line"],[K("Ctrl","Shift","=")+" · "+K("Ctrl","="),"While typing: superscript · subscript"],[K("Alt")+" while dragging","No snapping: text off its guides, an arrow's head off the data"],[K("Ctrl")+" while dropping a graph","Keep it: its spectra are put on the other graph, and it stays"],[K("Esc")+" while holding a graph","Cancel the drop"],["Middle-drag","Pan, in any tool"],["Scroll","Zoom at the pointer"],["Double-click","Show all the data"],[K("Shift","F10"),"The graph's menu"]],"keys")}
 <h2 id="k-sheet">In the worksheet</h2>
-${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move; with "+K("Shift")+", select; with "+K("Ctrl")+", jump to the end of the data"],[K("Enter")+" · "+K("Tab"),"Next row · next column"],[K("F2")+" · double-click","Edit the cell; typing replaces it; "+K("Esc")+" cancels"],[K("Delete"),"Clear (empty cells and labels only)"],[K("Ctrl","C")+" "+K("Ctrl","V"),"Copy and paste, as tab-separated text"],[K("Ctrl","D")+" · "+K("Ctrl","R"),"Fill down · fill right"],[K("Ctrl","F"),"Find; "+K("Enter")+", "+K("Shift","Enter")+" or "+K("F3")+" for the next or previous match"],[K("Ctrl","Home")+" "+K("Ctrl","End"),"First or last cell"],[K("PgUp")+" "+K("PgDn"),"A screen up or down"]],"keys")}
+${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move; with "+K("Shift")+", select; with "+K("Ctrl")+", jump to the end of the data"],[K("Enter")+" · "+K("Tab"),"Next row · next column"],[K("F2")+" · double-click","Edit the cell; typing replaces it; "+K("Esc")+" cancels"],[K("Delete"),"Clear the selection (labels, and values unless the raw data is locked)"],[K("Ctrl","C")+" "+K("Ctrl","V"),"Copy and paste, as tab-separated text"],[K("Ctrl","D")+" · "+K("Ctrl","R"),"Fill down · fill right"],[K("Ctrl","F"),"Find; "+K("Enter")+", "+K("Shift","Enter")+" or "+K("F3")+" for the next or previous match"],[K("Ctrl","Home")+" "+K("Ctrl","End"),"First or last cell"],[K("PgUp")+" "+K("PgDn"),"A screen up or down"]],"keys")}
 <h2 id="k-flow">In the History</h2>
 ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move between boxes"],[K("Alt","↑")+" "+K("Alt","↓"),"Move the selected step earlier or later"],[K("Delete"),"Delete the selected step"],[K("C"),"Comment on the selected box"],["Right-click","The box's menu"]],"keys")}`},
 /* ---------------------------------------------------------------- Data */
-{id:"sheet", g:"Data", t:"The worksheet", win:"sheet", kw:"worksheet spreadsheet grid cell column row long name units comments sparkline raw final width select",
+{id:"sheet", g:"Data", t:"The worksheet", win:"sheet", kw:"worksheet spreadsheet grid cell column row long name units comments sparkline raw final width select edit type enter tab insert delete rows lock unlock",
  lead:"A spreadsheet grid, as in Excel, with Origin's label rows. The Raw sheet holds the data as recorded; the Final sheet shows the analysed spectrum after processing.",
  body:`<h2>Columns</h2>
 <p>Columns are lettered A, B, C… and each has a role, shown after its letter: <strong>(X)</strong>, <strong>(Y)</strong>, <strong>(yEr)</strong> for error bars, or ignored. A Y column is plotted against the nearest X column to its left, so spectra measured on different axes each keep their own X. Every Y column is a ${DA("spectra","spectrum")}.</p>
@@ -14427,8 +14547,11 @@ ${DL([["Long Name","The column's name, used on the axes and in the legend."],["U
 <h2>Selecting and editing</h2>
 <p>Click a cell, Shift+click or drag for a range, click a header or row number for a whole column or row, or the corner for everything. The bar above shows the active cell's address and value; the bar below shows Count, Sum, Average, Min and Max of the selection. Typing starts an edit; ${K("F2")} or a double-click edits in place. ${DA("keys#k-sheet","All the keys")}</p>
 <p>Columns keep a fixed width. Drag the edge of a header to resize one, or double-click the edge to fit its contents. Empty columns and rows fill the rest of the window; typing into one makes a new column.</p>
-<h2>Recorded values are locked</h2>
-<p>An empty cell can be filled, and that is recorded as new raw data. Typing over a recorded value instead asks for a reason and adds a <em>Correct values</em> step, so the original stays in the record. Pasting over values offers to add them as new columns. ${DA("rawdata","Raw data and its fingerprint")}</p>`},
+<p>Enter moves down, Tab to the right; after a run of Tabs, Enter goes to the next row in the column where you started, as in a spreadsheet. A value that is not a number (<code>1.2.3</code>) stays in the cell, marked, for you to put right; ${K("Esc")} gives the cell back. Numbers are read as written: <code>2,5</code>, <code>−3</code>, <code>1e-3</code>, <code>6.02E23</code>.</p>
+<h2 id="edit">Editing the raw data</h2>
+<p>Type over a value to change it, ${K("Delete")} to clear the selection, paste or fill over values, and right-click a cell or a row number to <em>Insert rows above</em> or <em>Delete rows</em> (masked points and corrections move with their rows). Each change is one undo step and goes into the raw-data record with the fingerprint, so what was changed, when and by whom is kept.</p>
+<h2 id="lock">Locking the raw data</h2>
+<p>The lock button above the grid, or ${MP("Data › Lock the raw data")}, keeps the recorded values as they are, for the whole project. Empty cells can still be filled. Typing over a value then asks for a reason and adds a <em>Correct values</em> step, so the original stays in the raw data and the correction shows in the History, the report and the CSV; pasting over values offers new columns; rows cannot be inserted or deleted. ${DA("rawdata","Raw data and its fingerprint")}</p>`},
 {id:"formulas", g:"Data", t:"Column formulas", kw:"formula f(x) set column values compute calculate expression function log sqrt",
  lead:"A column can be computed, row by row, from other columns: Origin's F(x)= row.",
  body:`<h2>Writing one</h2>
@@ -14450,7 +14573,7 @@ ${DL([["<code>B*2</code>","Double column B."],["<code>(B-C)/A</code>","A differe
 <p>The <em>Fill</em> button above the grid (also in a cell's menu, a column's menu as <em>Fill column with</em>, and ${MP("Data › Fill")}) fills cells as Excel's <em>Fill › Series</em> and Origin's <em>Fill Column With</em> do:</p>
 ${DL([["Series","From a start, adding a step each row (below zero counts down). A stop value ends it early; the rows after stay empty."],["Growth series","From a start, multiplying by a factor each row, with a stop value if you like."],["Evenly between two values","From one value to another over the rows chosen; the last row gets exactly the end. On a log scale each value is the same factor up."],["Row numbers","Each cell its row's number, from 1 or from 0."],["Repeat a list","Your values (1 2 3, or 1;2;3) over and over, each a number of times in a row, the list until the rows are full or a number of times."],["Random numbers","Uniform between two values, whole numbers each as likely, normal (a mean and an SD), or counts (Poisson, of a mean count: they scatter by its square root, as a detector's do). A <strong>seed</strong> makes them again: the same seed gives the same numbers, and it is written in the History. <em>Decimals</em> rounds them."],["Continue the trend","The values already above in the column, carried on as a straight line (least squares) or a growth, as Excel's <em>Trend</em> does."]])}
 <p><strong>Where</strong>: a column, or a new one (with what to use it as: Y, X or not plotted), and the rows from and to. It starts on what is selected; with a single cell, on the rows of the longest column. The preview shows the cells, the values and a sparkline; anything that cannot be done is said in words and keeps <em>Fill</em> off.</p>
-<p>Recorded values are locked, so only empty cells are filled: a cell that holds a value keeps it, and the preview says how many do. A column that holds values where you fill, chosen from a single cell, gives way to a new column. A fill is one undo step and one entry in the raw-data record; the dialog remembers its settings in this browser.</p>
+<p>A fill writes over the values already there and the preview says how many it replaces; with the raw data locked it fills only empty cells, and says how many keep their values. A column that holds values where you fill, chosen from a single cell, gives way to a new column. A fill is one undo step and one entry in the raw-data record; the dialog remembers its settings in this browser.</p>
 <h2>The fill handle</h2>
 <p>Select cells and drag the small square at the selection's corner down or right. Two or more numbers continue as a series (their least-squares line); one number, or text, is copied. Hold ${K("Ctrl")} to swap the two. Double-click the square to fill down as far as the column beside goes. ${K("Ctrl","D")} and ${K("Ctrl","R")} copy the selection's first row down or first column right.</p>
 <p>Only empty cells are filled, as newly recorded values, in one undo step. Label rows fill right.</p>
@@ -14458,12 +14581,13 @@ ${DL([["Series","From a start, adding a step each row (below zero counts down). 
 <p>Right-click a cell or open a column's header menu, then <em>Sort by this column</em>. Sorting changes the view only: the data keep the order they were recorded in, row numbers show each value's recorded row, and masks and corrections still point at the right values. Choose <em>Unsorted</em> to go back. Pasting and filling ask to unsort first.</p>
 <h2>Find</h2>
 <p>${K("Ctrl","F")} or the search button above the grid. Every cell containing the text is marked, labels included. ${K("Enter")} and ${K("F3")} step forward, ${K("Shift","Enter")} back.</p>`},
-{id:"rawdata", g:"Data", t:"Raw data and its fingerprint", kw:"raw locked fingerprint sha256 hash verify correct correction reason integrity record",
- lead:"The data as recorded are locked, fingerprinted, and never changed by the analysis, so anyone can check that the numbers in a figure came from the file.",
- body:`<h2>Locked</h2>
-<p>Analysis never changes a recorded value. To correct one (a typing error, a known bad reading), type over it in the Raw sheet: you are asked for a reason, and a <em>Correct values</em> step is added to every spectrum that uses the value. The correction shows in the History, the report and the CSV, with its reason.</p>
+{id:"rawdata", g:"Data", t:"Raw data and its fingerprint", kw:"raw lock locked unlock edit fingerprint sha256 hash verify correct correction reason integrity record",
+ lead:"The analysis never changes the data as recorded; every edit you make to them is recorded with a fingerprint, so anyone can check that the numbers in a figure came from the file.",
+ body:`<h2>Editing, and the lock</h2>
+<p>The Raw sheet can be edited like any spreadsheet: type over a value, clear cells, paste or fill over them, insert or delete rows. ${DA("sheet#edit","Editing the raw data")} Processing never does: a step's result is a new stage on top of the raw data.</p>
+<p>To keep the recorded values as they are, lock them (the lock button above the grid, or ${MP("Data › Lock the raw data")}). Then a correction (a typing error, a known bad reading) is made by typing over the value: you are asked for a reason, and a <em>Correct values</em> step is added to every spectrum that uses the value, shown in the History, the report and the CSV with its reason, while the recorded value stays.</p>
 <h2>The fingerprint</h2>
-<p>Whenever raw data change (an import, a paste, a first value in an empty cell, a deleted column), Kurve records a SHA-256 fingerprint of every raw column. The <em>Recorded data</em> box in the History shows the record: when, by whom, what changed, and whether today's data still match the last fingerprint.</p>
+<p>Whenever raw data change (an import, a paste, a value typed or changed, a deleted column or row), Kurve records a SHA-256 fingerprint of every raw column. The <em>Recorded data</em> box in the History shows the record: when, by whom, what changed, and whether today's data still match the last fingerprint.</p>
 <h2>Checking it yourself</h2>
 <p>${MP("Export › Raw data as CSV, with its fingerprint")} writes exactly the lines that were fingerprinted, under comment lines. Anyone can check it:</p>
 <pre>grep -v '^#' data.csv | sha256sum</pre>
@@ -14854,7 +14978,7 @@ ${TIP("Comments are shared only in a shared workspace. Used on its own, Kurve ke
 <p id="docLocal"></p>
 <p>Python, when you use it, is loaded from a public server (Pyodide on jsDelivr); your data stay in the browser. Nothing else is fetched but fonts.</p>
 <h2>Design</h2>
-<ul><li>The raw data never change, and anyone can check that they did not.</li>
+<ul><li>The analysis never changes the raw data, every edit to them is recorded, and anyone can check that the data are the ones recorded.</li>
 <li>Every step checks its own work, and says so in words.</li>
 <li>The report says at least as much as the screen.</li>
 <li>Everything can be undone.</li></ul>
@@ -16763,6 +16887,7 @@ function wireStatic(){
   $("#fileIn").addEventListener("change",e=>{ const fs=[...e.target.files]; if(fs.length>1) readFilesIn(fs); else if(fs[0]) readFileIn(fs[0]); e.target.value=""; });
   $("#addColBtn").onclick=addColumn;
   { const fb=$("#wsFillBtn"); fb.onclick=()=>toggleMenu(fb,fillMenuItems,{label:"Fill"}); }
+  $("#wsLockBtn").onclick=()=>setRawLock(!rawLocked());
   document.querySelectorAll("[data-example]").forEach(b=>b.onclick=()=>loadExample(b.dataset.example));
   $("#cPost").onclick=postComment; wireThreads($("#thread"));
   $("#cText").addEventListener("keydown",e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); postComment(); } });

@@ -256,6 +256,7 @@ check("negative kept", close(P.toNumber("-999", "."), -999));
   const b = F("1 two 3");
   check("fill list: a word is not a number, and is named", eq(b.vals, [1, 3]) && b.bad.length === 1 && b.bad[0] === "two", JSON.stringify(b));
   check("fill list: nothing typed", F("  ").vals.length === 0 && F("").bad.length === 0);
+  check("full-width digits and signs, as an input method types them", close(P.toNumber("\uFF11\uFF12", "."), 12) && close(P.toNumber("\uFF11\uFF12,\uFF15", ","), 12.5) && close(P.toNumber("\uFF0D\uFF13\uFF0E\uFF15\uFF45\uFF12", "."), -350), [P.toNumber("\uFF11\uFF12", "."), P.toNumber("\uFF0D\uFF13\uFF0E\uFF15\uFF45\uFF12", ".")].join(" "));
 }
 
 /* ---------- 16. two blocks: the longer one wins ---------- */
