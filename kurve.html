@@ -637,6 +637,27 @@ details.more>table{margin-top:8px}
 .impprev{border:1px solid var(--rule);border-radius:6px;background:var(--panel);padding:6px;margin-bottom:6px}
 .impprev svg{display:block;width:100%;height:auto}
 .impcap{font-size:12.5px;color:var(--muted);margin-bottom:12px}
+.impcols{border:1px solid var(--rule);border-radius:var(--r);margin:0 0 12px;overflow:auto;max-height:280px}
+.impcols table{width:100%;border-collapse:collapse}
+.impcols th,.impcols td{padding:4px 8px;text-align:left;font-size:12.5px;border-bottom:1px solid var(--rule-2);vertical-align:middle}
+.impcols th{position:sticky;top:0;z-index:1;background:var(--panel-2);font-weight:600;color:var(--ink-2)}
+.impcols tr:last-child td{border-bottom:0}
+.impcols td.num{font-family:var(--mono);font-size:12px;white-space:nowrap;color:var(--muted)}
+.impcols tr.pv td{background:var(--sel)}
+.impcols tr.off .impcn span,.impcols tr.off td.num{color:var(--muted);text-decoration:line-through}
+.impcn{display:flex;align-items:baseline;gap:8px;min-width:0;max-width:230px;border:0;background:none;padding:3px 0;font:inherit;color:var(--ink);text-align:left;cursor:pointer}
+.impcn b{font:600 12px/1 var(--mono);min-width:1.6em;color:var(--ink-2)}
+.impcn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.impcn[aria-disabled="true"]{cursor:default}
+.impcn[aria-pressed="true"] b{color:var(--accent)}
+.impcn:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-radius:3px}
+.impuse{display:flex;align-items:center;gap:8px;min-width:0}
+.impuse select{min-width:0}
+.impnote{font-size:12px;color:var(--muted);white-space:nowrap}
+@media (max-width:640px){ .impcols th:nth-child(2),.impcols td.num{display:none} .impcn{max-width:150px} }
+/* A narrow worksheet keeps its bar to one row: its buttons lose their words. */
+.sheet-win{container:wsheet/inline-size}
+@container wsheet (max-width:560px){ #wsFillBtn span,#wsPlotBtn span,#addColBtn span{display:none} }
 .find{list-style:none;padding:0;margin:0 0 12px}
 .find li{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--rule-2);font-size:13px}
 .find .ico{flex:0 0 auto;width:16px;text-align:center;font-weight:700;line-height:1.45}
@@ -674,7 +695,7 @@ details.more>table{margin-top:8px}
 .win-h>.ic{color:var(--muted)}
 .win.active .win-h>.ic{color:var(--accent)}
 /* A long name gives way: the title bar's buttons always stay in reach. */
-.win-t{font:600 12.5px/1 var(--sans);margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 0 auto;max-width:55%}
+.win-t{font:600 12.5px/1 var(--sans);margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto;max-width:55%}
 .win-h>.tb,.win-h>button{flex:0 0 auto}
 .win-sub{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .win-h .sp{flex:1 1 0}
@@ -1559,6 +1580,7 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
         <div class="wbar"><div class="seg mini" role="group" aria-label="Sheet" id="wsSheet"><button data-sheet="raw" aria-pressed="true" title="The data as recorded or typed">Raw</button><button data-sheet="final" aria-pressed="false" title="The analysed spectrum after processing, read only">Final</button></div><span class="wsaddr" id="wsAddr" title="The active cell, or the selected range"></span><span class="wsval" id="wsVal" aria-live="polite"></span>
           <button class="tb sm icon" id="wsFindBtn" title="Find in the sheet (Ctrl+F)" aria-label="Find in the sheet"><svg class="ic sm"><use href="#i-search"/></svg></button>
           <button class="tb sm" id="wsFillBtn" aria-haspopup="menu" title="Fill the selected cells: down, right, a series, row numbers, a list, random numbers or a trend" aria-label="Fill"><svg class="ic sm"><use href="#i-fill"/></svg><span>Fill</span></button>
+          <button class="tb sm" id="wsPlotBtn" aria-haspopup="menu" title="Plot the selected columns: in a new graph, or added to one" aria-label="Plot the selected columns"><svg class="ic sm"><use href="#i-chart"/></svg><span>Plot</span></button>
           <button class="tb sm icon" id="wsLockBtn" aria-pressed="false" title="Lock the raw data" aria-label="Lock the raw data"><svg class="ic sm"><use href="#i-lock"/></svg></button>
           <button class="tb sm" id="addColBtn" title="Add a Y column" aria-label="Add a Y column"><svg class="ic sm"><use href="#i-plus"/></svg><span>Column</span></button></div>
         <div class="ws" id="ws" tabindex="0"></div>
@@ -4942,8 +4964,10 @@ async function save(patch, logText){
   if(!S.pid||S.readOnly||S.gone.has(S.pid)) return;
   // An edit still waiting to be saved (saveSoon) goes with this save, first:
   // saved later on its own, it would write back values older than these.
+  // A save that brings its own log (an undo or a redo putting a snapshot back)
+  // takes the waiting edit's line with it: that edit is what is being undone.
   let pendLog=null;
-  if(Object.keys(wsPatch).length&&wsPid===S.pid){ clearTimeout(wsTimer); patch=Object.assign({},wsPatch,patch); pendLog=wsLog; wsPatch={}; wsLog=null; }
+  if(Object.keys(wsPatch).length&&wsPid===S.pid){ clearTimeout(wsTimer); pendLog=patch&&"log" in patch?null:wsLog; patch=Object.assign({},wsPatch,patch); wsPatch={}; wsLog=null; }
   const p=S.proj; Object.assign(p,patch); p.updated=Date.now(); patch.updated=p.updated;
   if(patch.cols) recalcFx(p);         // formula columns follow the columns they use
   if(logText||pendLog){ const add=[pendLog,logText].filter(Boolean).map(text=>({t:Date.now(),uid:S.uid||"",text}));
@@ -5127,7 +5151,7 @@ function plotCfg(){
   o.ax={x:Object.assign({},(src.ax||{}).x),y:Object.assign({},(src.ax||{}).y),y2:Object.assign({},(src.ax||{}).y2),x2:Object.assign({},(src.ax||{}).x2)};
   o.series=src.series||{}; o.hidden=src.hidden||[];
   // On a graph of its own, a spectrum not on it counts as hidden.
-  const g=S.plotPreview?null:graphOf(id); if(g) o.hidden=o.hidden.concat(yCols().filter(c=>!g.cols.includes(c.id)).map(c=>c.id));
+  const g=S.plotPreview?null:graphOf(id), on=g?g.cols:S.plotPreview||id!=="main"?null:mainList(p); if(on) o.hidden=o.hidden.concat(yCols().filter(c=>!on.includes(c.id)).map(c=>c.id));
   o.annos=((S.plotPreview?src.annos:(p&&p.plot&&p.plot.annos))||[]).filter(a=>annoInGraph(a,id));
   // An inset being drawn sees its own settings over the graph's.
   if(S.insetCfg) Object.assign(o,S.insetCfg(o));
@@ -5136,7 +5160,8 @@ function plotCfg(){
 /* ---- Graphs -------------------------------------------------------------------
    A project has one or more graphs, as Origin has graph windows. The first, the
    main graph, keeps its settings in p.plot and shows every spectrum that is not
-   hidden; the others are p.graphs, each {id, name, cols, plot}: the spectra it
+   hidden, or its own list of them (p.plot.cols) once one is plotted from the
+   worksheet or imported; the others are p.graphs, each {id, name, cols, plot}: the spectra it
    shows, in order, and its own settings. Every graph's annotations are kept in
    one list, p.plot.annos, those of another graph tagged g (its id); a peak set
    belongs to its spectrum and is drawn wherever the spectrum is. Only the graph
@@ -5152,15 +5177,18 @@ function graphName(id,p){ p=p||P(); if(!p) return "Graph"; if(!id||id==="main") 
 function plotOf(id){ const p=P(); if(!p) return {}; const g=graphOf(id); return g?g.plot:(p.plot||{}); }
 function GP(){ return plotOf(GID()); }
 // On the graph (the main graph has every spectrum), and drawn there.
-function inGraph(c,id){ if(!c) return false; id=id||GID(); if(id==="main") return true; const g=graphOf(id); return !!g&&g.cols.includes(c.id); }
+function inGraph(c,id){ if(!c) return false; id=id||GID(); if(id==="main"){ const l=mainList(); return !l||l.includes(c.id); } const g=graphOf(id); return !!g&&g.cols.includes(c.id); }
 function graphShows(c,id){ id=id||GID(); return inGraph(c,id)&&!((plotOf(id).hidden)||[]).includes(c.id); }
-function graphCols(id){ id=id||GID(); const g=graphOf(id); return g?g.cols.map(colById).filter(c=>c&&graphShows(c,id)):yCols().filter(c=>graphShows(c,id)); }
+function graphCols(id){ id=id||GID(); const g=graphOf(id), l=g?g.cols:id==="main"?mainList():null; return l?l.map(colById).filter(c=>c&&c.role==="y"&&graphShows(c,id)):yCols().filter(c=>graphShows(c,id)); }
 function annoInGraph(a,id){ return a.grp?true:(a.g||"main")===(id||GID()); }
 /* Saves settings of the graph in hand; with several graphs its log line says
    which. Annotations always go to the one list in p.plot. */
 function savePlot(patch,log){
   const p=P(); if(!p) return; const id=GID(), g=graphOf(id), lg=log&&multiGraph()?`${graphName(id)}: ${log}`:log;
-  if(!g){ save({plot:Object.assign({},p.plot,patch)},lg); return; }
+  if(!g){ const pp=Object.assign({},patch), l=mainList(p);
+    // With a list of its own, hiding a spectrum takes it off the first graph.
+    if(l&&"hidden" in pp){ const hid=pp.hidden||[]; pp.cols=l.filter(k=>!hid.includes(k)).concat(yCols().map(c=>c.id).filter(k=>!hid.includes(k)&&!l.includes(k))); pp.hidden=[]; }
+    save({plot:Object.assign({},p.plot,pp)},lg); return; }
   const pp=Object.assign({},patch), out={};
   if("annos" in pp){ out.plot=Object.assign({},p.plot,{annos:pp.annos}); delete pp.annos; }
   out.graphs=(p.graphs||[]).map(q=>{ if(q.id!==id) return q;
@@ -7999,10 +8027,10 @@ function toggleMask(idxs,on){
    Worksheet
    ============================================================ */
 const ROLE_LABEL={x:"X",y:"Y",e:"yEr",ignore:"—"};
-const ROLE_NAME={x:"X",y:"Y",e:"Y error",ignore:"not used"};
+const ROLE_NAME={x:"X",y:"Y",e:"Y error",ignore:"data, not a spectrum"};
 function roleText(c){
   if(c.role==="e"){ const y=colById(c.of); return "Error bars of "+(y?(y.name||colLetter(y)||"a column"):"no column yet"); }
-  return {x:"X axis",y:"Y data",ignore:"Not used"}[c.role]||c.role;
+  return {x:"X axis",y:"Y data",ignore:"Data, not a spectrum (for formulas)"}[c.role]||c.role;
 }
 /* Origin's worksheet anatomy: a header that says what each column is (A(X),
    B(Y)), then label rows for the long name and units. Everything you can do
@@ -8422,8 +8450,8 @@ function wsModel(){
       q.spark=q.id==="f:y"?sparkSvg(d,Math.max(20,q.w-12),16,"wspark"):""; });
     return wsOrder({kind:"final", cols, n:d.x.length, d, c, p});
   }
-  const cols=allCols().filter(c=>!c.src), n=nRows(), hidden=plotCfg().hidden, actRoot=rootOf(activeYCol()), xs=cols.filter(c=>c.role==="x");
-  const mc=cols.map((c,i)=>{ const isY=c.role==="y", isAct=c===actRoot, off=isY&&!isAct&&hidden.includes(c.id), L=wsLetter(i), w=W[c.id]||WS_W;
+  const cols=allCols().filter(c=>!c.src), n=nRows(), hidden=plotCfg().hidden, actRoot=rootOf(activeYCol()), xs=cols.filter(c=>c.role==="x"), gOpen=winOpen(winOfGraph(S.gid||"main"));
+  const mc=cols.map((c,i)=>{ const isY=c.role==="y", isAct=c===actRoot, off=isY&&!isAct&&gOpen&&hidden.includes(c.id), L=wsLetter(i), w=W[c.id]||WS_W;
     let spark="";
     if(c.data.some(v=>v!=null)){ const xc=isY||c.role==="e"?xColFor(c.role==="e"?colById(c.of)||c:c):null, idx=[], ys=[];
       c.data.forEach((v,k)=>{ if(v==null) return; const xv=xc?xc.data[k]:k; if(xv==null) return; idx.push(xv); ys.push(v); });
@@ -8457,6 +8485,7 @@ function renderWs(){
   document.querySelectorAll("#wsSheet button").forEach(b=>{ b.setAttribute("aria-pressed",String(b.dataset.sheet===S.sheet)); b.disabled=!p; });
   const ac=$("#addColBtn"); if(ac) ac.hidden=S.sheet==="final";
   const fbt=$("#wsFillBtn"); if(fbt) fbt.hidden=S.sheet==="final";
+  const pbt=$("#wsPlotBtn"); if(pbt) pbt.hidden=S.sheet==="final";
   const lkb=$("#wsLockBtn"); if(lkb){ const on=rawLocked(); lkb.hidden=S.sheet==="final"; lkb.disabled=!p||S.readOnly; lkb.setAttribute("aria-pressed",String(on)); lkb.classList.toggle("on",on);
     const t=on?"The raw data is locked: click to allow editing it":"Lock the raw data: recorded values then stay as they are, and typing over one records a correction step"; lkb.title=t; lkb.setAttribute("aria-label",on?"Unlock the raw data":"Lock the raw data"); }
   if(!p){
@@ -8582,6 +8611,9 @@ function wsEnsureVisible(r,c){
 }
 function wsSelect(r,c,extend){
   const s=S.ws, m=S.wsm; if(!m) return;
+  // A new selection is where the view belongs now: a cell an earlier key move
+  // asked to keep in view would pull the view (and an edit begun here) away.
+  s.want=null;
   const R=wsRowCount(m)-1+(m.kind==="raw"?200:0), C=m.cols.length-1;
   r=Math.max(WS_TOP,Math.min(R,r)); c=Math.max(0,Math.min(C,c));
   s.r=r; s.c=c; if(!extend){ s.ar=r; s.ac=c; }
@@ -8593,7 +8625,7 @@ function wsMove(dr,dc,extend,jump,how){
   let r=s.r, c=s.c;
   // Tab along a row, then Enter: the next row, in the column the Tabs began from.
   if(how==="tab"&&!extend){ if(s.tabFrom==null) s.tabFrom=c; }
-  else if(how==="enter"&&dr===1&&s.tabFrom!=null&&!extend){ c=s.tabFrom; s.tabFrom=null; r+=1; wsSelect(r,c,false); return; }
+  else if(how==="enter"&&dr===1&&s.tabFrom!=null&&!extend){ c=s.tabFrom; s.tabFrom=null; r+=1; wsSelect(r,c,false); s.want={r:s.r,c:s.c,t:performance.now()}; return; }
   else s.tabFrom=null;
   if(jump){
     if(dr>0){ const q=m.cols[c], last=m.kind==="final"?m.n-1:q&&!q.phantom?q.col.data.length-1:m.n-1; r=r<last?Math.max(last,0):wsRowCount(m)-1; }
@@ -8804,6 +8836,7 @@ function wsCellMenu(ev,r,c){
       {label:"Descending", radio:true, checked:!!(m.ord&&m.sortCi===c&&m.sortDir<0), run:()=>wsSortBy(q.id,-1)},
       "-",{label:"As recorded (unsort)", enabled:!!m.ord, run:()=>wsSortBy(null,0)}]},
     {label:"Find…", kbd:"Ctrl+F", run:wsFindOpen},
+    raw?{label:"Plot the selected columns", enabled:!S.readOnly, sub:()=>plotItems(wsSelColIds())}:null,
     raw?{label:"Fill", sub:fillMenuItems}:null,
     raw&&q&&(q.phantom||q.calc||!q.col.data.some(v=>v!=null))?{label:q.calc?"Edit the formula…":"Set column values (formula)…", enabled:!S.readOnly, run:()=>wsEditFormula(c)}:null];
   if(q&&q.menu) items.push("-",{label:`Column ${q.letter} options…`, run:()=>{ const b=document.querySelector(`#ws [data-cmenu="${CSS.escape(q.id)}"]`); if(b) openColMenu(q.id,b); }});
@@ -9021,7 +9054,7 @@ function openColMenu(id,btn){
     {label:"Use as X", radio:true, checked:c.role==="x", enabled:!ro, run:()=>setColRole(id,"x")},
     {label:"Use as Y", radio:true, checked:c.role==="y", enabled:!ro, run:()=>setColRole(id,"y")},
     {label:"Use as Y error bars", radio:true, checked:c.role==="e", enabled:!ro, run:()=>setColRole(id,"e")},
-    {label:"Don’t use", radio:true, checked:c.role==="ignore", enabled:!ro, run:()=>setColRole(id,"ignore")}];
+    {label:"Use as data (not a spectrum)", radio:true, checked:c.role==="ignore", enabled:!ro, run:()=>setColRole(id,"ignore")}];
   if(c.role==="e"&&yCols().length){
     items.push("-",{group:"Error bars for"});
     yCols().forEach(y=>items.push({label:colLabel(y,colLetter(y)), radio:true, checked:c.of===y.id, enabled:!ro, run:()=>setErrOf(id,y.id)}));
@@ -9034,8 +9067,9 @@ function openColMenu(id,btn){
   if(c.role==="y") items.push("-",
     {label:c.id===p.activeY?"Being analysed":"Analyse this column", checked:c.id===p.activeY, enabled:c.id!==p.activeY, run:()=>setActiveCol(id)},
     {label:"Its history and processing…", run:()=>{ setActiveCol(id,true); S.flowSel="final:"+id; S.flowTab="flow"; openWin("flow",{render:true}); }},
-    {label:"Show on the graph", checked:c.id===p.activeY||!hidden, enabled:c.id!==p.activeY, run:()=>toggleColVis(id)},
-    {label:"Plot in a new graph", enabled:!ro, run:()=>newGraphFrom([id])});
+    {label:"Show on the graph", checked:!graphShut(GID())&&(c.id===p.activeY||!hidden), enabled:!ro&&(c.id!==p.activeY||graphShut(GID())), run:()=>toggleColVis(id)},
+    {label:"Plot", enabled:!ro, sub:()=>plotItems(plotTargets(id))});
+  else if(c.role==="ignore"||(c.role==="x"&&plotWhat(plotTargets(id)).ys.length)) items.push("-",{label:c.role==="x"?"Plot the selected columns":"Plot (it becomes a spectrum)", enabled:!ro, sub:()=>plotItems(plotTargets(id))});
   const rawIdx=cols.filter(o=>!o.src).indexOf(c), recorded=!c.fx&&c.data.some(v=>v!=null);
   items.push("-",{label:c.fx?"Edit the formula…":"Set column values (formula)…", enabled:!ro&&!recorded, title:recorded?"This column holds recorded values; type a formula into an empty column":"", run:()=>{ openWin("sheet"); wsEditFormula(rawIdx); }},
     {label:"Fill column with", enabled:!ro&&!c.fx, title:c.fx?"A computed column is filled by its formula":"", sub:()=>FILL_KINDS.map(([k,l,t])=>({label:l+"…", title:t, run:()=>openFillDlg(k,{col:id})}))},
@@ -9100,7 +9134,9 @@ function setActiveCol(id,quiet){
 }
 function toggleColVis(id){
   const p=P(); if(!p||S.readOnly) return;
-  if(GID()!=="main"){ toggleGraphCol(GID(),id); return; }
+  // On a closed graph, showing a spectrum is plotting it there.
+  if(graphShut(GID())){ plotCols([id],{into:GID()}); return; }
+  if(GID()!=="main"||mainList(p)){ toggleGraphCol(GID(),id); return; }
   const hid=(p.plot.hidden||[]).slice(), i=hid.indexOf(id);
   if(i<0) hid.push(id); else hid.splice(i,1);
   save({plot:Object.assign({},p.plot,{hidden:hid})}); renderWs(); renderPlot(); if(winOpen("flow")) renderFlow(); scheduleSnaps();
@@ -9747,39 +9783,71 @@ function miniPlot(x,y,w,h){
     `<rect x="0" y="0" width="${w}" height="${h}" style="fill:var(--panel-2)"/>`+
     `<path d="${d}" fill="none" style="stroke:var(--data)" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
 }
-// The columns of the file that can be spectra: every one but X and the error bars, with numbers in it.
-function impYs(){ const im=S.imp, r=im.res; return r.cols.map((c,i)=>i!==im.xi&&i!==im.ei&&c.filter(v=>v!=null).length>=2?i:-1).filter(i=>i>=0); }
+/* ---- What each column of a file becomes -----------------------------------------
+   Every column of the file comes into the worksheet, unless it is left out, as
+   one of: an X axis; a spectrum (Y); the error bars of the Y before it (as
+   Origin's yErr goes with the Y to its left); or data that is not a spectrum,
+   kept for formulas (the worksheet's "—" role). Several Y columns are several
+   spectra, and X,Y,X,Y pairs are each Y against the X to its left, as the
+   worksheet plots them. Nothing is plotted unless asked: Plot (remembered in
+   this browser) puts the spectra on no graph yet, in one graph, one each, or
+   in one graph stacked. */
+const IMP_USE=[["x","X"],["y","Y, a spectrum"],["e","Y error"],["data","Data, not a spectrum"],["skip","Leave out"]];
+const IMP_PLOT=[["none","Not yet: the worksheet only"],["one","In one graph"],["each","One graph for each spectrum"],["stack","In one graph, stacked"]];
+function impPlotPref(){ let v=null; try{ v=localStorage.getItem("kurve.impPlot"); }catch(e){} return IMP_PLOT.some(o=>o[0]===v)?v:"none"; }
+function impPlotKeep(v){ try{ localStorage.setItem("kurve.impPlot",v); }catch(e){} }
+// X,Y,X,Y pairs: every other column rises or falls steadily, as an axis does,
+// over much the same range as the first. A dark current that only drifts up
+// is not an axis, so the range has to match before pairs are assumed.
+const impPairs=res=>res.cols.map((_,i)=>i%2?"y":"x");
+function impPairsLikely(res){
+  if(!res.paired) return false; const rg=c=>{ const v=c.filter(x=>x!=null); return [Math.min(...v),Math.max(...v)]; }, [a0,a1]=rg(res.cols[0]);
+  for(let i=2;i<res.cols.length;i+=2){ const [b0,b1]=rg(res.cols[i]), ov=Math.min(a1,b1)-Math.max(a0,b0); if(!(ov>0.5*Math.min(a1-a0,b1-b0))) return false; }
+  return true; }
+function impUseDefault(res){
+  if(res.single) return ["y"];
+  if(impPairsLikely(res)) return impPairs(res);
+  return res.cols.map((c,i)=>!c.some(v=>v!=null)?"skip":res.roles[i]==="x"?"x":res.roles[i]==="e"?"e":"y");
+}
+const impYs=()=>S.imp.use.map((u,i)=>u==="y"?i:-1).filter(i=>i>=0);
+// The X a Y is plotted against, as the worksheet will: the nearest X to its
+// left, else the first; -1 is the row number.
+function impXFor(i){ const u=S.imp.use; for(let j=i-1;j>=0;j--) if(u[j]==="x") return j; return u.indexOf("x"); }
+// The Y an error column goes with: the nearest Y to its left, else to its right.
+function impErrOf(j){ const u=S.imp.use; for(let k=j-1;k>=0;k--) if(u[k]==="y") return k; for(let k=j+1;k<u.length;k++) if(u[k]==="y") return k; return -1; }
+const impErrFor=i=>S.imp.use.findIndex((u,j)=>u==="e"&&impErrOf(j)===i);
+// The spectrum in the preview: the one clicked, or the first.
+function impPv(){ const ys=impYs(); return ys.includes(S.imp.pv)?S.imp.pv:(ys.length?ys[0]:-1); }
+const impLetter=i=>COLLAB[i]||"#"+(i+1);
 function impCols(){
-  const im=S.imp, r=im.res, g=i=>(i==null||i<0)?[]:(r.cols[i]||[]).slice();
+  const im=S.imp, r=im.res, g=i=>(i==null||i<0)?[]:(r.cols[i]||[]).slice(), pv=impPv(), xi=pv>=0?impXFor(pv):im.use.indexOf("x"), ei=pv>=0?impErrFor(pv):-1;
   // No X column: each row's number, counted from the first channel's.
-  const x=im.xi<0?r.rows.map((_,i)=>i+(im.ch0||0)):g(im.xi), y=g(im.yi);
-  return {x,y,e:im.ei===IMP_SQRT?y.map(sqrtCounts):g(im.ei)};
+  const x=xi<0?r.rows.map((_,i)=>i+(im.ch0||0)):g(xi), y=g(pv);
+  return {x,y,e:ei>=0?g(ei):im.sqrt&&pv>=0&&impCounts(pv)?y.map(sqrtCounts):[],xi,pv};
 }
 // Counting statistics: the error of N counts is √N, and of none, 1 (not 0,
 // which would give an empty channel infinite weight in a fit).
-const IMP_SQRT=-3, SQRT_FX="sqrt(max(B,1))", sqrtCounts=v=>v==null?null:Math.sqrt(Math.max(v,1));
-function impCounts(){ const ys=impCols().y.filter(v=>v!=null); return ys.length>=2&&ys.every(v=>v>=0&&Number.isInteger(v)); }
+const SQRT_FX="sqrt(max(B,1))", sqrtCounts=v=>v==null?null:Math.sqrt(Math.max(v,1));
+function impCounts(i){ const ys=(S.imp.res.cols[i]||[]).filter(v=>v!=null); return ys.length>=2&&ys.every(v=>v>=0&&Number.isInteger(v)); }
+// The spectra of counts with no error column of their own: √N is offered for them.
+const impSqrtable=()=>impYs().filter(i=>impErrFor(i)<0&&impCounts(i));
 function impFindings(){
-  const {x,y}=impCols(), out=[], r=S.imp.res;
+  const {x,y}=impCols(), out=[], r=S.imp.res, ny=impYs().length;
   if(r.tka) out.push({id:"tka",level:"good",text:`Live time ${r.tka.live} s and real time ${r.tka.real} s, read from the first two lines. The counts are kept as recorded.`,fix:"rate",fixLabel:"Counts per second"});
   else if(r.single) out.push({id:"single",level:"info",text:"One column: each line is a channel, plotted against its number. Calibrate it to energy afterwards (Analysis › Spectroscopy) or with a formula in the worksheet."});
   if(r.metaLineCount&&!r.tka) out.push({id:"meta",level:"good",text:`${Object.keys(r.meta).length} metadata field${Object.keys(r.meta).length===1?"":"s"} read from ${r.metaLineCount} header line${r.metaLineCount===1?"":"s"} and kept with the project.`});
   if(r.footerCount) out.push({id:"foot",level:"info",text:`${r.footerCount} line${r.footerCount===1?"":"s"} after the data ignored.`});
   if(r.skipped.length) out.push({id:"ragged",level:"warn",text:`${r.skipped.length} row${r.skipped.length===1?"":"s"} inside the data block had the wrong number of columns and were skipped.`});
-  if(r.paired) out.push({id:"paired",level:"info",text:"This file looks like repeated X,Y pairs — each pair is its own spectrum. Pick the pair to import; multiple spectra at once are not supported yet."});
-  else if(r.ncol>3) out.push({id:"manyy",level:"info",text:`${r.ncol} columns found. One Y column is imported for now.`});
-  return out.concat(checkColumns(x,y));
+  if(r.paired&&S.imp.use.join()===impPairs(r).join()) out.push({id:"paired",level:"info",text:"X,Y pairs: each Y is plotted against the X to its left."});
+  else if(r.paired) out.push({id:"paired",level:"info",text:"Every other column rises or falls steadily, as an X column does. If they are X,Y pairs, read them as pairs.",fix:"pairs",fixLabel:"Read as X,Y pairs"});
+  if(!ny) out.push({id:"noy",level:"info",text:"No column is a spectrum. The columns go into the worksheet, where a formula can make one."});
+  return out.concat(ny?checkColumns(x,y):[]);
 }
 function openImport(text,fname){
   const res=analyzeFile(text,{fname:fname||""});
   if(!res.rows.length){ toast("No rows of numbers were found in that file."); return; }
-  const det=detectRoles(res.headerRow,res.cols);
-  const yi=res.roles.findIndex((r,i)=>r==="y"&&i!==det.xi);
   const m=$("#impModal"), wasOpen=!m.hidden;
-  S.imp={raw:text,fname:fname||"pasted data",opt:{fname:fname||""},res,
-    xi:det.xi, yi:yi<0?(det.xi===0?1:0):yi, ei:res.roles.indexOf("e"), ch0:0, fixes:{}};
-  // A file of several spectra side by side comes in whole unless told otherwise.
-  S.imp.all=res.roles.filter((r,i)=>r==="y"&&i!==det.xi).length>1;
+  S.imp={raw:text,fname:fname||"pasted data",opt:{fname:fname||""},res,use:impUseDefault(res),pv:-1,ch0:0,sqrt:false,fixes:{},plot:impPlotPref()};
   $("#impTitle").textContent="Import "+S.imp.fname;
   renderImport();
   if(!wasOpen){ m._cancel=closeImport; openModal(m,$("#impGo")); }
@@ -9787,19 +9855,23 @@ function openImport(text,fname){
 function closeImport(){ S.imp=null; closeModal($("#impModal"),$("#importBtn")); }
 function impRecalc(patch){
   Object.assign(S.imp.opt,patch);
-  S.imp.res=analyzeFile(S.imp.raw,S.imp.opt);
-  const n=S.imp.res.ncol;
-  if(n===1){ S.imp.xi=-1; S.imp.yi=0; if(S.imp.ei>=0) S.imp.ei=-1; }
-  if(S.imp.xi>=n) S.imp.xi=0;
-  if(S.imp.yi>=n) S.imp.yi=Math.min(1,n-1);
-  if(S.imp.ei>=n) S.imp.ei=-1;
+  const was=S.imp.res; S.imp.res=analyzeFile(S.imp.raw,S.imp.opt);
+  // Another number of columns (another delimiter, say) starts the roles again.
+  if(S.imp.res.ncol!==was.ncol||S.imp.res.single!==was.single||S.imp.use.length!==S.imp.res.ncol) S.imp.use=impUseDefault(S.imp.res);
   if(!S.imp.res.tka) delete S.imp.fixes.rate;
-  if(S.imp.ei===IMP_SQRT&&!impCounts()) S.imp.ei=-1;
   renderImport();
+}
+// The import, in words: "4 columns of 1024 rows (3 spectra and 1 data column)".
+function impWhat(cols,ys,rows){
+  const n=cols.filter(c=>!c.fx).length, nd=cols.filter(c=>c.role==="ignore").length;
+  const parts=[ys.length?`${ys.length} spectr${ys.length===1?"um":"a"}`:"",nd?`${nd} data column${nd===1?"":"s"}`:""].filter(Boolean);
+  return `${n} column${n===1?"":"s"}${rows?` of ${rows} row${rows===1?"":"s"}`:""}${parts.length?` (${parts.join(" and ")})`:""}`;
 }
 function renderImport(){
   const im=S.imp; if(!im) return;
-  const r=im.res, {x,y}=impCols();
+  const r=im.res, {x,y,xi}=impCols(), u=im.use, ys=impYs(), pv=impPv(), noX=!u.includes("x");
+  // A choice redraws the panel; the control used keeps the focus.
+  const ae=document.activeElement, side=$("#impSide"), fk=ae&&side.contains(ae)?(ae.id?"#"+ae.id:ae.dataset.use!=null?`[data-use="${ae.dataset.use}"]`:ae.dataset.pv!=null?`[data-pv="${ae.dataset.pv}"]`:null):null;
 
   // Raw file with the detected regions marked.
   const lim=Math.min(r.lines.length,Math.max(400,r.start+250));
@@ -9815,7 +9887,6 @@ function renderImport(){
 
   // Controls. Auto is the default everywhere and says what it chose.
   const dlabel=d=>(DELIMS.find(v=>v.id===d)||{label:d}).label;
-  const colOpts=sel=>r.cols.map((_,i)=>`<option value="${i}"${i===sel?" selected":""}>${esc(colName(i,r))}</option>`).join("");
   let h=`<div class="grid2">
     <label for="impDelim">Delimiter</label><div class="pair">
       <select id="impDelim">${DELIMS.map(d=>`<option value="${d.id}"${d.id===r.delim?" selected":""}>${d.label}</option>`).join("")}</select>
@@ -9827,11 +9898,22 @@ function renderImport(){
       <input id="impStart" type="number" min="1" max="${r.lines.length}" value="${r.start+1}" style="width:88px">
       <span class="auto">${r.headerAt>=0?`names on line ${r.headerAt+1}`:"no names row found"}</span></div>
     ${r.single?`<span></span><label class="chk"><input type="checkbox" id="impTka"${r.tka?" checked":""}> The first two lines are the live and real time (TKA)</label>`:""}
-    <label for="impX">X column</label><div class="pair"><select id="impX"><option value="-1"${im.xi<0?" selected":""}>${r.single?"Channel number":"Row number"}</option>${r.single?"":colOpts(im.xi)}</select></div>
-    ${im.xi<0?`<label for="impCh0">${r.single?"First channel":"First row"}</label><div class="pair"><select id="impCh0"><option value="0"${im.ch0?"":" selected"}>0</option><option value="1"${im.ch0?" selected":""}>1</option></select><span class="auto">${r.rows.length} rows: ${im.ch0||0} to ${r.rows.length-1+(im.ch0||0)}</span></div>`:""}
-    <label for="impY">Y column</label><div class="pair"><select id="impY">${colOpts(im.yi)}</select></div>
-    <label for="impE">Y error</label><div class="pair"><select id="impE"><option value="-1"${im.ei===-1?" selected":""}>None</option>${impCounts()?`<option value="${IMP_SQRT}"${im.ei===IMP_SQRT?" selected":""}>√Y, counting statistics</option>`:""}${r.single?"":colOpts(im.ei)}</select></div>
-    ${impYs().length>1?`<label for="impAll">Spectra</label><div class="pair"><select id="impAll"><option value="one"${im.all?"":" selected"}>Only the Y column above</option><option value="all"${im.all?" selected":""}>All ${impYs().length} Y columns, one spectrum each</option></select></div>`:""}
+  </div>`;
+
+  // A row per column of the file: its name, its values and what it becomes.
+  const rng=c=>{ let lo=Infinity,hi=-Infinity,n=0; c.forEach(v=>{ if(v!=null){ n++; if(v<lo) lo=v; if(v>hi) hi=v; } }); return n?`${fmt(lo,4)} to ${fmt(hi,4)}`:"no numbers"; };
+  const nX=u.filter(v=>v==="x").length;
+  const crow=(c,i)=>{ const hd=r.headerRow&&r.headerRow[i], L=impLetter(i), k=u[i];
+    const note=k==="e"?(impErrOf(i)>=0?`of ${impLetter(impErrOf(i))}`:"no Y to go with"):k==="y"&&nX>1&&impXFor(i)>=0?`against ${impLetter(impXFor(i))}`:"";
+    return `<tr class="${i===pv?"pv":""}${k==="skip"?" off":""}"><td><button type="button" class="impcn" data-pv="${i}"${k==="y"?` title="Show ${esc(L)} in the preview" aria-pressed="${i===pv}"`:` aria-disabled="true" tabindex="-1"`}><b>${L}</b>${hd?`<span>${esc(hd)}</span>`:""}</button></td>
+      <td class="num">${rng(c)}</td>
+      <td><div class="impuse"><select data-use="${i}" aria-label="Column ${L}${hd?`, ${esc(hd)},`:""} used as">${IMP_USE.map(([v,l])=>`<option value="${v}"${k===v?" selected":""}>${l}</option>`).join("")}</select>${note?`<span class="impnote">${esc(note)}</span>`:""}</div></td></tr>`; };
+  h+=`<div class="sect">Columns</div><div class="impcols"><table><thead><tr><th>Column</th><th>Values</th><th>Use as</th></tr></thead><tbody>${r.cols.map(crow).join("")}</tbody></table></div>`;
+  const sq=impSqrtable(), plotSel=ys.length<2&&(im.plot==="each"||im.plot==="stack")?"one":im.plot;
+  h+=`<div class="grid2">
+    ${noX?`<label for="impCh0">X</label><div class="pair"><span>${r.single?"The channel number":"The row number"}, from</span><select id="impCh0"><option value="0"${im.ch0?"":" selected"}>0</option><option value="1"${im.ch0?" selected":""}>1</option></select><span class="auto">${r.rows.length} rows</span></div>`:""}
+    ${sq.length?`<span></span><label class="chk"><input type="checkbox" id="impSqrt"${im.sqrt?" checked":""}> √N error bars for the counts${ys.length>1?` in ${sq.map(impLetter).join(", ")}`:""}</label>`:""}
+    ${ys.length?`<label for="impPlot">Plot</label><div class="pair"><select id="impPlot">${IMP_PLOT.filter(([k])=>ys.length>1||k==="none"||k==="one").map(([k,l])=>`<option value="${k}"${plotSel===k?" selected":""}>${ys.length===1&&k==="one"?"In a graph":l}</option>`).join("")}</select></div>`:""}
   </div>`;
 
   const hasData=S.pid&&allCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null));
@@ -9843,15 +9925,17 @@ function renderImport(){
     if(im.mode==null) im.mode=apart?"new":"add";
     const ny=yCols().length;
     h+=`<div class="impmode"><div class="t">“${esc(projName(P()))}” already holds ${ny} spectr${ny===1?"um":"a"}</div>${apart?`<p class="lab" style="margin:0 0 6px">This file covers x ${fmt(Math.min(...inX),5)} to ${fmt(Math.max(...inX),5)}; the project covers ${fmt(Math.min(...exX),5)} to ${fmt(Math.max(...exX),5)}. They do not overlap, so a new project is suggested.</p>`:""}
-      <label class="chk"><input type="radio" name="impmode" value="add"${im.mode==="add"?" checked":""}> Add as a new Y column, keeping what is here</label>
+      <label class="chk"><input type="radio" name="impmode" value="add"${im.mode==="add"?" checked":""}> Add these columns, keeping what is here</label>
       <label class="chk"><input type="radio" name="impmode" value="replace"${im.mode==="replace"?" checked":""}> Replace everything in this project</label>
       <label class="chk"><input type="radio" name="impmode" value="new"${im.mode==="new"?" checked":""}> Put it in a new project</label></div>`;
   }
-  h+=`<div class="impprev">${miniPlot(x,y,460,150)}</div>`;
-  const xs=x.filter(v=>v!=null), ys=y.filter(v=>v!=null);
-  // In file order, not sorted: printing "1400 to 1800" above "X decreases down
-  // the file" made the wizard contradict itself.
-  h+=`<div class="impcap">${xs.length?`X ${fmt(xs[0],5)} to ${fmt(xs[xs.length-1],5)} · Y ${ys.length?`${fmt(Math.min(...ys),5)} to ${fmt(Math.max(...ys),5)}`:"—"}`:"No numeric X values in that column."}</div>`;
+  if(pv>=0){
+    h+=`<div class="impprev">${miniPlot(x,y,460,150)}</div>`;
+    const xs=x.filter(v=>v!=null), yv=y.filter(v=>v!=null);
+    // In file order, not sorted: printing "1400 to 1800" above "X decreases down
+    // the file" made the wizard contradict itself.
+    h+=`<div class="impcap">${ys.length>1?`${impLetter(pv)} against ${xi<0?"the row number":impLetter(xi)} · `:""}${xs.length?`X ${fmt(xs[0],5)} to ${fmt(xs[xs.length-1],5)} · Y ${yv.length?`${fmt(Math.min(...yv),5)} to ${fmt(Math.max(...yv),5)}`:"—"}`:"No numeric X values in that column."}</div>`;
+  }
 
   const fs=impFindings();
   if(fs.length){
@@ -9865,12 +9949,12 @@ function renderImport(){
   if(mk.length) h+=`<div class="sect" style="margin-top:4px">Metadata kept with the project</div>
     <table class="metatbl">${mk.slice(0,12).map(k=>`<tr><td>${esc(k)}</td><td>${esc(r.meta[k])}</td></tr>`).join("")}</table>
     ${mk.length>12?`<div class="impcap" style="margin-top:6px">and ${mk.length-12} more</div>`:""}`;
-  $("#impSide").innerHTML=h;
+  side.innerHTML=h;
 
-  const nRowsOk=y.reduce((n,v,i)=>n+(x[i]!=null&&v!=null?1:0),0);
-  $("#impSummary").textContent=`${nRowsOk} usable point${nRowsOk===1?"":"s"} of ${r.rows.length} row${r.rows.length===1?"":"s"}`;
-  $("#impGo").disabled=!nRowsOk;
-  $("#impGo").textContent=!nRowsOk?"Nothing to import":im.all&&impYs().length>1?`Import ${impYs().length} spectra…`:`Import ${nRowsOk} points`;
+  const nIn=u.filter((k,i)=>k!=="skip"&&r.cols[i].some(v=>v!=null)).length, nd=u.filter(k=>k==="data").length;
+  $("#impSummary").textContent=`${r.rows.length} row${r.rows.length===1?"":"s"}${ys.length?` · ${ys.length} spectr${ys.length===1?"um":"a"}`:""}${nd?` · ${nd} data column${nd===1?"":"s"}`:""}`;
+  $("#impGo").disabled=!nIn;
+  $("#impGo").textContent=!nIn?"Nothing to import":`Import ${nIn+(noX?1:0)} column${nIn+(noX?1:0)===1?"":"s"}`;
 
   const on=(id,ev,fn)=>{ const el=$(id); if(el) el.addEventListener(ev,fn); };
   on("#impDelim","change",e=>impRecalc({delim:e.target.value}));
@@ -9878,79 +9962,141 @@ function renderImport(){
   on("#impDelimAuto","click",()=>{ delete im.opt.delim; impRecalc({}); });
   on("#impDecAuto","click",()=>{ delete im.opt.dec; impRecalc({}); });
   on("#impStart","change",e=>{ const v=Math.max(1,Math.min(r.lines.length,+e.target.value||1)); impRecalc({start:v-1}); });
-  $("#impSide").querySelectorAll('input[name="impmode"]').forEach(r=>r.addEventListener("change",()=>{ im.mode=r.value; }));
-  on("#impX","change",e=>{ im.xi=+e.target.value; renderImport(); });
+  side.querySelectorAll('input[name="impmode"]').forEach(r=>r.addEventListener("change",()=>{ im.mode=r.value; }));
+  side.querySelectorAll("select[data-use]").forEach(s=>s.addEventListener("change",()=>{ im.use[+s.dataset.use]=s.value; renderImport(); }));
+  side.querySelectorAll("button[data-pv]").forEach(b=>b.addEventListener("click",()=>{ if(u[+b.dataset.pv]!=="y") return; im.pv=+b.dataset.pv; renderImport(); }));
   on("#impCh0","change",e=>{ im.ch0=+e.target.value; renderImport(); });
   on("#impTka","change",e=>impRecalc({tka:e.target.checked,start:undefined}));
-  on("#impY","change",e=>{ im.yi=+e.target.value; renderImport(); });
-  on("#impE","change",e=>{ im.ei=+e.target.value; renderImport(); });
-  on("#impAll","change",e=>{ im.all=e.target.value==="all"; renderImport(); });
-  $("#impSide").querySelectorAll("[data-fix]").forEach(b=>b.onclick=()=>{
-    const k=b.dataset.fix; if(im.fixes[k]) delete im.fixes[k]; else im.fixes[k]=true; renderImport();
+  on("#impSqrt","change",e=>{ im.sqrt=e.target.checked; renderImport(); });
+  on("#impPlot","change",e=>{ im.plot=e.target.value; });
+  side.querySelectorAll("[data-fix]").forEach(b=>b.onclick=()=>{
+    const k=b.dataset.fix; if(k==="pairs"){ im.use=impPairs(r); renderImport(); return; }
+    if(im.fixes[k]) delete im.fixes[k]; else im.fixes[k]=true; renderImport();
   });
+  if(fk){ const el=side.querySelector(fk); if(el) el.focus(); }
+}
+// The worksheet's columns from the file, in the file's order, as the dialog said.
+function impBuild(){
+  const im=S.imp, r=im.res, u=im.use, base=im.fname.replace(/\.\w+$/,""), cols=[], ys=[], at={};
+  const name=(i,fallback)=>{ const hd=r.headerRow&&i>=0?r.headerRow[i]:null; return hd?splitColName(hd):{long:fallback,unit:""}; };
+  // The wizard's suggested fixes become processing steps of each spectrum, not edits.
+  const fixSteps=()=>Object.keys(im.fixes).map(k=>k==="sortX"?makeStep("sort",{}):k==="dedupeX"?makeStep("dedupe",{}):k==="rate"&&r.tka?makeStep("scale",{a:1/r.tka.live,b:0,yn:"Count rate",yu:"counts/s"}):null).filter(Boolean);
+  const ny=u.filter(v=>v==="y").length;
+  if(!u.includes("x")) cols.push(makeCol("x",r.single?"Channel":"Row","",r.rows.map((_,i)=>i+(im.ch0||0))));
+  u.forEach((k,i)=>{ if(k==="skip") return; const d=(r.cols[i]||[]).slice(); trimTail(d);
+    if(k==="x"){ const n=name(i,""); cols.push(at[i]=makeCol("x",n.long,n.unit,d)); }
+    else if(k==="y"){ const n=name(i,r.tka?"Counts":ny===1&&r.single?base:""); if(r.tka&&!n.unit) n.unit="counts";
+      const yc=Object.assign(makeCol("y",n.long,n.unit,d),{pipe:fixSteps(),mask:[]},colMetaOf(r.meta,im.fname)); cols.push(at[i]=yc); ys.push(yc); }
+    else if(k==="data"){ const n=name(i,""); cols.push(at[i]=makeCol("ignore",n.long,n.unit,d)); }
+    else if(k==="e"){ const n=name(i,"σ"); cols.push(at[i]=makeCol("e",n.long||"σ",n.unit,d)); } });
+  // Error bars go with the Y before them, or after when none is before.
+  u.forEach((k,i)=>{ if(k==="e"&&at[i]){ const o=impErrOf(i); at[i].of=o>=0&&at[o]?at[o].id:undefined; } });
+  // √N error bars: a column computed by a formula, after each spectrum of counts.
+  if(im.sqrt) impSqrtable().forEach(i=>{ const yc=at[i]; if(!yc) return; const e=yc.data.map(sqrtCounts); trimTail(e);
+    cols.splice(cols.indexOf(yc)+1,0,Object.assign(makeCol("e","σ (√N)",yc.unit,e,yc.id),{fx:{src:SQRT_FX,refs:{B:yc.id}}})); });
+  const st=fixSteps();
+  return {cols,ys,base,rows:r.rows.length,stepNote:st.length?` (${st.map(s=>stepTitle(s).toLowerCase()).join(" and ")} added as processing steps)`:""};
 }
 async function doImport(){
   const im=S.imp; if(!im) return;
-  if(im.all&&impYs().length>1){ const items=batchFile(im.fname,im.raw,{res:im.res,xi:im.xi,ei:-1,ys:impYs()}), fname=im.fname; closeImport(); batchImport(items,{fname}); return; }
-  const r=im.res, c=impCols();
-  const x=c.x,y=c.y,e=c.e;
-  trimTail(x); trimTail(y); trimTail(e);
-  // The wizard's suggested fixes become processing steps, not edits.
-  const steps=Object.keys(im.fixes).map(k=>k==="sortX"?makeStep("sort",{}):k==="dedupeX"?makeStep("dedupe",{}):k==="rate"&&r.tka?makeStep("scale",{a:1/r.tka.live,b:0,yn:"Count rate",yu:"counts/s"}):null).filter(Boolean);
-  const base=im.fname.replace(/\.\w+$/,"");
-  const name=(i,fallback)=>{ const hd=r.headerRow&&i>=0?r.headerRow[i]:null; return hd?splitColName(hd):{long:fallback,unit:""}; };
-  const nx=im.xi<0?{long:r.single?"Channel":"Row",unit:""}:name(im.xi,""), ny=name(im.yi,r.tka?"Counts":r.single?base:""), ne=name(im.ei,"");
-  if(r.tka&&!ny.unit) ny.unit="counts";
-  const xc=makeCol("x",nx.long,nx.unit,x), yc=Object.assign(makeCol("y",ny.long,ny.unit,y),{pipe:steps,mask:[]},colMetaOf(r.meta,im.fname));
-  const cols=[xc,yc];
-  if(im.ei===IMP_SQRT) cols.push(Object.assign(makeCol("e","σ (√N)",ny.unit,e,yc.id),{fx:{src:SQRT_FX,refs:{B:yc.id}}}));
-  else if(im.ei>=0&&e.some(v=>v!=null)) cols.push(makeCol("e",ne.long||"σ",ne.unit,e,yc.id));
-  const stepNote=steps.length?` (${steps.map(s=>stepTitle(s).toLowerCase()).join(" and ")} added as processing steps)`:"";
+  const r=im.res, ny=impYs().length, how=!ny?"none":ny<2&&(im.plot==="each"||im.plot==="stack")?"one":im.plot;
+  impPlotKeep(im.plot);
+  const {cols,ys,base,rows,stepNote}=impBuild(), ids=ys.map(c=>c.id), what=impWhat(cols,ys,rows), nPts=Math.max(0,...cols.map(c=>c.data.length));
+  if(!cols.some(c=>c.data.some(v=>v!=null))){ toast("Every column is left out: there is nothing to import."); return; }
   const hadData=S.pid&&allCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null));
   const mode=hadData?(im.mode||"add"):"replace";
   closeImport();
 
   if(!S.pid||mode==="new"){
-    const pr=Object.assign(blankProject(base),{cols,activeY:yc.id,fit:null,meta:r.meta,srcName:base,v:DOC_V});
+    const pr=Object.assign(blankProject(base),{cols,activeY:ids[0]||null,fit:null,meta:r.meta,srcName:base,v:DOC_V});
     // Thousands of channels read as a line, not a cloud of dots.
-    if(r.single||x.length>3000) pr.plot.style="line";
+    if(r.single||nPts>3000) pr.plot.style="line";
+    const made=impGraphs(pr,ids,how,true);
     pr.raw=rawRecordFor(cols,`recorded from ${im.fname}`);
-    await createProject(pr,`imported ${x.length} rows from ${im.fname}${stepNote}`); showTab("clean"); setTimeout(autoOverview,250); return;
+    await createProject(pr,`imported ${what} from ${im.fname}${stepNote}${how==="none"?", not plotted yet":""}`);
+    afterImport(how,ids,made,`${capFirst(what)} imported.`); return;
   }
 
   pushUndo("the import");
   S.view=null; S.draft=null; S.pdraft=null; S.stage=null; S.selStep=null;
-
+  const p=P();
   if(mode==="add"){
-    // Keep the table; the new spectrum shares the X column when it was measured
-    // on the same axis, and brings its own X column otherwise. Its values stay
-    // exactly as measured: nothing is interpolated or padded.
-    // Beside other spectra a file without names is known by its file name.
-    const p=P(), existingX=xCol(), label=(r.single&&!r.headerRow?base:ny.long||base).slice(0,60);
-    yc.name=label;
+    // Keep the table. The file's first X shares the project's last X column
+    // when it was measured on the same axis, and comes as it is otherwise;
+    // nothing is interpolated or padded. Beside other spectra a file without
+    // names is known by its file name.
+    if(ys.length===1&&!ys[0].name) ys[0].name=base.slice(0,60);
+    const lastX=p.cols.slice().reverse().find(c=>c.role==="x"&&c.data.some(v=>v!=null)), emptyX=p.cols.find(c=>c.role==="x"&&!c.data.some(v=>v!=null));
     let own=false;
-    if(!existingX||!existingX.data.some(v=>v!=null)) p.cols=[xc].concat(p.cols.filter(o=>o.role!=="x"),cols.slice(1));
-    else if(sameAxis(existingX.data,x)) p.cols=p.cols.concat(cols.slice(1));
-    else { p.cols=p.cols.concat(cols); own=true; }
-    p.activeY=yc.id; p.meta=Object.assign({},p.meta||{},r.meta);
-    const raw=recordRaw(`added ${label} from ${im.fname}`);
-    await save(Object.assign({cols:p.cols,activeY:yc.id,meta:p.meta},raw?{raw}:{}),`added ${label} from ${im.fname}${stepNote}${own?", with its own X column because it was measured on a different axis":""}`);
-    renderAll(); showTab("clean"); autoOverview();
-    toast(own?`${label} was measured on a different X axis, so it has its own X column. Nothing was interpolated.`:`Added ${label} as a new column. It is now the one being analysed.`,{action:"Undo",run:undo});
+    if(cols[0].role==="x"&&!lastX&&emptyX) p.cols=[cols[0]].concat(p.cols.filter(o=>o!==emptyX),cols.slice(1));
+    else if(cols[0].role==="x"&&lastX&&sameAxis(lastX.data,cols[0].data)) p.cols=p.cols.concat(cols.slice(1));
+    else { p.cols=p.cols.concat(cols); own=cols.some(c=>c.role==="x"); }
+    if(ids.length) p.activeY=ids[0]; p.meta=Object.assign({},p.meta||{},r.meta);
+    const made=impGraphs(p,ids,how,false);
+    const raw=recordRaw(`added ${what} from ${im.fname}`);
+    await save(Object.assign({cols:p.cols,activeY:p.activeY,meta:p.meta,plot:p.plot,graphs:p.graphs},raw?{raw}:{}),`added ${what} from ${im.fname}${stepNote}${own?", with its own X column because it was measured on a different axis":""}${how==="none"?", not plotted yet":""}`);
+    afterImport(how,ids,made,own?`Added ${what}. ${ys.length===1?"It was":"They were"} measured on a different X axis, so ${ys.length===1?"it has":"they have"} an X column of ${ys.length===1?"its":"their"} own. Nothing was interpolated.`:`Added ${what}.`,true);
     return;
   }
 
-  const cur=P();
-  const patch={cols,activeY:yc.id,fit:null,meta:r.meta,srcName:base,v:DOC_V};
+  const patch={cols,activeY:ids[0]||null,fit:null,meta:r.meta,srcName:base,v:DOC_V};
   // A name the app derived from the last import is stale once that data is
   // gone; a name the user chose is theirs and is left alone.
-  if(isUntitled(cur.name)||(cur.srcName&&cur.name===cur.srcName)) patch.name=uniqueProjName(base,S.pid);
-  if((r.single||x.length>3000)&&(cur.plot||{}).style!=="line"&&((cur.plot||{}).style||"scatter")==="scatter") patch.plot=Object.assign({},cur.plot,{style:"line"});
+  if(isUntitled(p.name)||(p.srcName&&p.name===p.srcName)) patch.name=uniqueProjName(base,S.pid);
+  // The other graphs showed the data replaced, so they go with it.
+  const q={cols,plot:Object.assign({},p.plot,{annos:((p.plot||{}).annos||[]).filter(a=>!a.g)}),graphs:[]};
+  if((r.single||nPts>3000)&&(q.plot.style||"scatter")==="scatter") q.plot.style="line";
+  const made=impGraphs(q,ids,how,true); patch.plot=q.plot; patch.graphs=q.graphs;
   S.fitMode=null; S.selPeak=null;
-  Object.assign(cur,patch);
+  Object.assign(p,patch);
   const raw=recordRaw(`replaced all the raw data with ${im.fname}`); if(raw) patch.raw=raw;
-  await save(patch,`replaced the data with ${x.length} rows from ${im.fname}${stepNote}`); renderAll(); showTab("clean"); autoOverview();
-  toast(`Imported ${x.length} rows from ${im.fname}. The previous raw data is in the undo history and its fingerprint in the record.`,{action:"Undo",run:undo});
+  await save(patch,`replaced the data with ${what} from ${im.fname}${stepNote}${how==="none"?", not plotted yet":""}`);
+  afterImport(how,ids,made,hadData?`Imported ${what}. The previous raw data is in the undo history and its fingerprint in the record.`:`Imported ${what}.`,true);
+}
+// After an import: the worksheet comes forward when nothing was plotted, with
+// a way to plot from the message; otherwise the graphs made, and for one
+// spectrum its History and Overview.
+function afterImport(how,ids,made,msg,undoable){
+  // A project just made is listed by the store a moment later: wait for it.
+  if(!P()){ whenOpen(()=>afterImport(how,ids,made,msg,undoable)); return; }
+  renderAll();
+  if(how==="none"||!made.length){
+    sheetForward();
+    toast(`${msg} ${ids.length?`In the worksheet, not plotted yet: select the columns and press Plot when you are ready.`:"It is in the worksheet."}`,ids.length?{action:ids.length===1?"Plot it now":"Plot them now",run:()=>plotCols(ids,{undo:"plotting the import"})}:undoable?{action:"Undo",run:undo}:{});
+    return; }
+  made.forEach(id=>{ const w=winOfGraph(id); if(WINS[w]&&!winOpen(w)) openWin(w,{quiet:true}); });
+  if(made.length>1) tileWins();
+  showGraph(made[0]);
+  if(ids.length===1){ showTab("clean"); setTimeout(autoOverview,250); }
+  toast(msg+(made.length>1?" Click a graph to work on it.":""),undoable?{action:"Undo",run:undo}:{});
+}
+function whenOpen(fn,n){ n=n==null?80:n; if(P()){ fn(); return; } if(n>0) setTimeout(()=>whenOpen(fn,n-1),25); }
+// With nothing plotted the worksheet is the document: it takes the graph's
+// place on the desk when it is the smaller of the two.
+function sheetForward(){
+  const st=winState("sheet"), gs=winState("graph");
+  if(!isNarrow()&&!st.max&&!graphWinIds().some(winOpen)&&st.g[2]*st.g[3]<gs.g[2]*gs.g[3]) st.g=gs.g.slice();
+  openWin("sheet",{render:true});
+}
+/* Puts the spectra just imported on graphs, as the import was told: on none
+   yet (the worksheet only), in one graph, one each, or one graph stacked. In
+   a project that holds nothing else (fresh) the first graph takes them; beside
+   other spectra they get graphs of their own, unless the first graph is
+   closed with nothing on it. p is the project being made or changed, before
+   it is saved; the ids of the graphs that show them are returned. */
+function impGraphs(p,ids,how,fresh){
+  const plot=p.plot=Object.assign({},p.plot), graphs=p.graphs=(p.graphs||[]).slice(), list=Array.isArray(plot.cols)?plot.cols:null;
+  if(fresh){ plot.hidden=[]; plot.cols=[]; delete plot.shut; }
+  // A first graph without a list of its own shows every spectrum not hidden: these are not for it.
+  else if(!list) plot.hidden=(plot.hidden||[]).concat(ids.filter(k=>!(plot.hidden||[]).includes(k)));
+  const ys=new Set((p.cols||[]).filter(c=>c.role==="y").map(c=>c.id)), mainFree=fresh||(!!plot.shut&&!!list&&!list.some(k=>ys.has(k)&&!ids.includes(k)));
+  if(how==="none"||!ids.length){ if(fresh) plot.shut=true; return []; }
+  const base=plotBase(plot), lay=how==="stack"?"stack":null, made=[];
+  (how==="each"?ids.map(k=>[k]):[ids]).forEach((cs,k)=>{
+    if(k===0&&mainFree){ plot.cols=cs.slice(); plot.hidden=[]; delete plot.shut; if(lay) plot.layout=lay; made.push("main"); return; }
+    const g={id:"g"+Math.random().toString(36).slice(2,9),name:nextGraphName({plot,graphs}),cols:cs.slice(),plot:clone(base)};
+    if(lay) g.plot.layout=lay; graphs.push(g); made.push(g.id); });
+  return made;
 }
 function sameAxis(a,b){
   if(Math.abs(a.length-b.length)>1) return false;
@@ -10019,8 +10165,8 @@ async function batchImport(items,o){
   const r=await formDlg({title:`Import ${good.length} spectra`+(o.files?` from ${o.files} files`:o.fname?` from ${o.fname}`:""),wide:true,ok:`Import ${good.length} spectra`,
     html:`<div class="bimp"><table><thead><tr><th>${o.fname?"Column":"File"}</th><th>Points</th><th>X range</th><th>Name</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="grid2">${hasData?`<label for="biInto">Into</label><select id="biInto"><option value="here">“${esc(projName(P()))}”, beside its ${yCols().length} spectr${yCols().length===1?"um":"a"}</option><option value="new">A new project</option></select>`:""}
-    <label for="biGraphs">Graphs</label><select id="biGraphs"><option value="each">One for each spectrum</option><option value="one">All in one graph</option><option value="stack">All in one graph, stacked</option></select></div>`});
-  if(!r) return;
+    <label for="biGraphs">Plot</label><select id="biGraphs">${IMP_PLOT.map(([k,l])=>`<option value="${k}"${k===impPlotPref()?" selected":""}>${l}</option>`).join("")}</select></div>`});
+  if(!r) return; impPlotKeep(r.biGraphs);
   good.forEach(it=>{ const k=items.indexOf(it), v=(r["biN"+k]||"").trim(); if(v) it.name=v.slice(0,60); });
   await doBatchImport(good,skip,{into:hasData?r.biInto:"here",graphs:r.biGraphs,src:o.fname||`${o.files||good.length} files`});
 }
@@ -10032,18 +10178,12 @@ async function doBatchImport(good,skip,o){
     if(lastX&&sameAxis(lastX.data,it.x)) cols.push(yc); else cols.push(makeCol("x",it.xn,it.xu,it.x),yc);
     if(it.e) cols.push(makeCol("e","σ",it.yu,it.e,yc.id));
     newY.push(yc.id); });
-  // The graphs. A project that held nothing gives its first graph to the new spectra.
-  const plot=keep?Object.assign({},p0.plot):{style:"line",logY:false,grid:false,resid:true};
-  const graphs=keep?(p0.graphs||[]).slice():[], base=clone(plot); ["annos","hidden","title","legendPos","gname"].forEach(k=>delete base[k]); base.ax={}; base.layout="overlay"; if(base.legend==="custom") base.legend="auto";
-  const mk=ids=>{ const g={id:"g"+Math.random().toString(36).slice(2,9),name:nextGraphName({plot,graphs}),cols:ids,plot:clone(base)}; graphs.push(g); return g; };
-  if(o.graphs==="each"){ let rest=newY;
-    if(!keep){ plot.hidden=newY.slice(1); rest=newY.slice(1); } else plot.hidden=(plot.hidden||[]).concat(newY);
-    rest.forEach(id=>mk([id])); }
-  else { const stack=o.graphs==="stack";
-    if(!keep){ plot.hidden=[]; if(stack) plot.layout="stack"; }
-    else { plot.hidden=(plot.hidden||[]).concat(newY); const g=mk(newY); if(stack) g.plot.layout="stack"; } }
+  // The graphs, as asked: none yet, one, one each or stacked. A project that
+  // held nothing gives its first graph to the new spectra.
+  const proj={cols,plot:keep?Object.assign({},p0.plot):{style:"line",logY:false,grid:false,resid:true},graphs:keep?(p0.graphs||[]).slice():[]};
+  const made=impGraphs(proj,newY,o.graphs,!keep), plot=proj.plot, graphs=proj.graphs;
   const names=good.map(it=>it.name), list=names.length>4?names.slice(0,4).join(", ")+` and ${names.length-4} more`:names.join(", ");
-  const lg=`imported ${good.length} spectra from ${o.src} (${list})${skip.length?`; skipped ${skip.map(s=>s.fname).join(", ")}`:""}; ${o.graphs==="each"?"a graph for each":o.graphs==="stack"?"stacked in one graph":"all in one graph"}`;
+  const lg=`imported ${good.length} spectra from ${o.src} (${list})${skip.length?`; skipped ${skip.map(s=>s.fname).join(", ")}`:""}; ${o.graphs==="none"?"not plotted yet":o.graphs==="each"?"a graph for each":o.graphs==="stack"?"stacked in one graph":"all in one graph"}`;
   if(intoNew){
     const pr=Object.assign(blankProject(batchProjName(names)),{cols,activeY:newY[0],plot,graphs,meta:good[0].meta||{},v:DOC_V});
     pr.raw=rawRecordFor(cols,`recorded from ${o.src}`);
@@ -10058,10 +10198,8 @@ async function doBatchImport(good,skip,o){
     await save(patch,lg);
     renderAll();
   }
-  if(graphs.length) tileWins();
-  renderAll();
   const mks=metaKeys(cols.filter(c=>newY.includes(c.id)));
-  toast(`Imported ${good.length} spectra${skip.length?`; skipped ${skip.length} (see the log)`:""}.${graphs.length?" Click a graph to work on it.":""}${mks.length?` Their files differ in ${andList(mks.slice(0,2).map(k=>k.k))}: the Batch window can plot against ${mks.length>1?"either":"it"}.`:""}`,intoNew?{}:{action:"Undo",run:undo});
+  afterImport(o.graphs,newY,made,`Imported ${good.length} spectra${skip.length?`; skipped ${skip.length} (see the log)`:""}.${mks.length?` Their files differ in ${andList(mks.slice(0,2).map(k=>k.k))}: the Batch window can plot against ${mks.length>1?"either":"it"}.`:""}`,!intoNew);
 }
 function readFileIn(f){
   if(!f) return;
@@ -11360,7 +11498,7 @@ function renderTop(){
   $("#exportBtn").disabled=!has;
   $("#importBtn").disabled=S.readOnly||!S.store; $("#fileIn").disabled=S.readOnly; $("#emptyImport").disabled=S.readOnly||!S.store;
   document.querySelectorAll("[data-example]").forEach(b=>b.disabled=S.readOnly||!S.store);
-  $("#addColBtn").disabled=off; $("#wsFillBtn").disabled=off; $("#projMenu").disabled=!S.store; renderViewSeg();
+  $("#addColBtn").disabled=off; $("#wsFillBtn").disabled=off; $("#wsPlotBtn").disabled=off; $("#projMenu").disabled=!S.store; renderViewSeg();
   const dark=darkMode(), tb=$("#themeBtn"), lab=dark?"Switch to the light theme":"Switch to the dark theme";
   tb.innerHTML=ICON(dark?"sun":"moon"); tb.title=lab; tb.setAttribute("aria-label",lab);
   document.title=(p&&p.name?p.name+" — ":"")+"Kurve";
@@ -12734,7 +12872,7 @@ function fitFoundPeaks(){
 function pkScrollTo(sel){ const box=$("#pane-peaks"), el=box&&box.querySelector(sel); if(!el) return;
   const top=el.getBoundingClientRect().top-box.getBoundingClientRect().top+box.scrollTop-8; if(box.scrollHeight>box.clientHeight+2) box.scrollTop=top; }
 function openPeakFinder(){
-  const c=activeYCol(); if(!P()||!c) return;
+  const c=activeYCol(); if(!P()||!c) return; ensureGraph();
   if(S.stage!=null){ S.stage=null; S.selStep=null; renderStages(); }
   openWin("peaks",{render:true});
   // The first search covers what is in view (the range says so, and can be changed).
@@ -12998,7 +13136,7 @@ function bandsFromPeaksUI(){
   toast(`${nb.length} band${nb.length===1?"":"s"} around the peaks${had?`, in place of the ${had} there were`:""}. Drag an edge on the graph to adjust one.`,{action:"Undo",run:undo});
 }
 function openIntegrate(){
-  const c=activeYCol(); if(!P()||!c) return;
+  const c=activeYCol(); if(!P()||!c) return; ensureGraph();
   if(S.stage!=null){ S.stage=null; S.selStep=null; renderStages(); }
   openWin("integ",{render:true}); renderPlot();
 }
@@ -13613,11 +13751,11 @@ function flowInspectorBody(n){
   if(n.kind==="graph"){
     const gid=n.gid, live=gid===(S.gid||"main"), pl=plotOf(gid), nm=graphName(gid), list=n.annos;
     const recent=(p.log||[]).filter(e=>e.text.includes(nm)).slice(-8).reverse();
-    h+=`<div class="fi-h">${ICON("chart")}<div class="grow"><div class="fi-t">${esc(nm)}</div><div class="lab">${live?"In front: the graph being worked on":"A graph on the desk"}</div></div>${discChip(n.key)}</div>`;
+    h+=`<div class="fi-h">${ICON("chart")}<div class="grow"><div class="fi-t">${esc(nm)}</div><div class="lab">${graphShut(gid)?"Closed: off the desk, kept in the project":live?"In front: the graph being worked on":"A graph on the desk"}</div></div>${discChip(n.key)}</div>`;
     h+=kvHtml([["Spectra",n.cs.length?esc(n.cs.map(specName).join(", ")):"none"],["Layout",esc(((LAYOUTS.find(q=>q[0]===(pl.layout||"overlay"))||[,""])[1]))],
       ["Zoom",S.linkX?"linked to the other graphs":"its own"],list.length?["Drawn on it",esc(annoCountText(list))]:null]);
     if(list.length) h+=`<ul class="fanno">${list.map(a=>`<li><span class="grow"><strong>${esc(ANNO_KINDS[a.t])}</strong> <span class="lab">${esc(annoWhere(a,6))}</span>${a.text?` “${esc(a.text)}”`:""}</span><button class="tb sm icon" data-fi="anedit" data-an="${esc(a.id)}" title="Edit" aria-label="Edit this ${esc(ANNO_KINDS[a.t].toLowerCase())}"${ro}>${ICON("edit","sm")}</button><button class="tb sm icon" data-fi="andel" data-an="${esc(a.id)}" title="Delete" aria-label="Delete this ${esc(ANNO_KINDS[a.t].toLowerCase())}"${ro}>${ICON("x","sm")}</button></li>`).join("")}</ul>`;
-    h+=`<div class="actions">${live?"":btn("gfront","Bring to the front","chart",{primary:true,view:true})}${btn("pdgraph","Format…","tag",{view:true})}${btn("svg","Export","download",{view:true})}${btn("grename","Rename…","edit")}${gid==="main"?"":btn("gdel","Delete the graph","trash",{danger:true,ghost:true})}</div>`;
+    h+=`<div class="actions">${graphShut(gid)?btn("gfront","Open it","chart",{primary:true}):live?"":btn("gfront","Bring to the front","chart",{primary:true,view:true})}${btn("pdgraph","Format…","tag",{view:true})}${btn("svg","Export","download",{view:true})}${btn("grename","Rename…","edit")}${gid==="main"?"":btn("gdel","Delete the graph","trash",{danger:true,ghost:true})}</div>`;
     if(recent.length) h+=`<div class="gh">Recent changes</div><ul class="log rawlog">${recent.map(e=>`<li><span class="when" title="${esc(logWhen(e.t))}">${esc(ago(e.t))}</span><span>${esc(e.text)}</span></li>`).join("")}</ul>`;
     return h;
   }
@@ -14246,7 +14384,7 @@ function menuRows(items,acts){
     // A row of colours, each its own item, for recolouring from a menu.
     if(it.swatches) return `<div class="mswrow" role="group" aria-label="Colour">${it.swatches.map(([c,nm])=>{ const i=acts.push({label:nm,run:()=>it.pick(c),enabled:it.enabled}); return `<button class="mi sw" role="menuitemradio" data-mi="${i-1}" tabindex="-1" aria-checked="${String(it.current||"").toLowerCase()===c.toLowerCase()}" title="${esc(nm)}" style="--sw:${c}"${it.enabled===false?" disabled":""}><span class="mlab sr">${esc(nm)}</span></button>`; }).join("")}</div>`;
     const i=acts.push(it)-1, dis=it.enabled===false;
-    if(it.sub) return `<button class="mi has-sub" role="menuitem" aria-haspopup="menu" aria-expanded="false" data-mi="${i}" tabindex="-1"${dis?" disabled":""}${it.title?` title="${esc(it.title)}"`:""}><span class="mck">${it.icon?ICON(it.icon,"sm"):""}</span><span class="mlab">${esc(it.label)}</span><span class="marr">${ICON("chevr","sm")}</span></button>`;
+    if(it.sub) return `<button class="mi has-sub" role="menuitem" aria-haspopup="menu" aria-expanded="false" data-mi="${i}" tabindex="-1"${dis?" disabled":""}${it.title?` title="${esc(it.title)}"`:""}><span class="mck">${it.icon?ICON(it.icon,"sm"):""}</span><span class="mlab">${esc(it.label)}</span>${it.note?`<span class="mkbd">${esc(it.note)}</span>`:""}<span class="marr">${ICON("chevr","sm")}</span></button>`;
     const role=it.checked!=null?(it.radio?"menuitemradio":"menuitemcheckbox"):"menuitem";
     return `<button class="mi${it.danger?" danger":""}" role="${role}" data-mi="${i}" tabindex="-1"${it.checked!=null?` aria-checked="${!!it.checked}"`:""}${dis?" disabled":""}${it.title?` title="${esc(it.title)}"`:""}><span class="mck">${it.checked?ICON("check","sm"):it.icon?ICON(it.icon,"sm"):""}</span><span class="mlab"${it.font?` style="font-family:${esc(it.font)}"`:""}>${esc(it.label)}</span>${it.kbd?`<span class="mkbd">${esc(it.kbd)}</span>`:it.note?`<span class="mkbd">${esc(it.note)}</span>`:""}</button>`;
   }).join("");
@@ -14456,7 +14594,7 @@ const DOCS=[
  lead:"Kurve turns a spectrum, or any X–Y data, into a figure and numbers you can publish, and keeps a record of every step in between.",
  body:`<h2>In five steps</h2>
 <ol class="dsteps">
-<li><strong>Bring the data in.</strong> Drop a file anywhere on the window, press <em>Import</em>, or paste columns into the worksheet. ${DA("import","Importing data")}</li>
+<li><strong>Bring the data in.</strong> Drop a file anywhere on the window, press <em>Import</em>, or paste columns into the worksheet. Every column goes into the worksheet; work on them there and plot what you need when you are ready. ${DA("import","Importing data")} · ${DA("plotting","Plotting columns")}</li>
 <li><strong>Look at it.</strong> The Overview says what the spectrum is like (noise, bands, spikes, background) and what to do first. ${DA("overview","The Overview")}</li>
 <li><strong>Process it.</strong> Every operation is a tool in the <em>Data</em>, <em>Math</em> and <em>Analysis</em> menus. It previews on the graph; <em>OK</em> records it as a step in the History. ${DA("steps","Processing steps")}</li>
 <li><strong>Measure it.</strong> Find and label peaks, integrate bands, or fit a model or a set of peaks. ${DA("peaks","Peaks")} · ${DA("integ","Bands")} · ${DA("fit","Fitting")}</li>
@@ -14471,9 +14609,9 @@ const DOCS=[
 {id:"desk", g:"Basics", t:"Windows and the desk", kw:"window move resize maximise minimise close panels documents switch taskbar tile cascade layout toolbar status bar phone theme dark style bench graphite appearance",
  lead:"The graph, the worksheet, the History and the rest are windows on a desk, as in Origin. Arrange them the way you work.",
  body:`<h2>Arranging windows</h2>
-${DL([["Move","Drag the title bar."],["Resize","Drag an edge or the bottom-right corner."],["Maximise","Double-click the title bar, or its square button. Again to restore."],["Minimise","The dash button. The window leaves the desk; its button stays in the taskbar."],["Close","The × button, on panels only. The window leaves the desk and the taskbar; its menu, or "+MP("Window › Panels")+", opens it again."],["Help","The <strong>?</strong> button opens the article about that window. "+K("F1")+" does the same for the window in front."]])}
+${DL([["Move","Drag the title bar."],["Resize","Drag an edge or the bottom-right corner."],["Maximise","Double-click the title bar, or its square button. Again to restore."],["Minimise","The dash button. The window leaves the desk; its button stays in the taskbar."],["Close","The × button, on panels and graphs. The window leaves the desk and the taskbar; a panel's menu, or "+MP("Window › Panels")+", opens it again. A graph closed is kept in the project: "+MP("Window › Open a graph")+" opens it again. "+DA("plotting#close","Closing a graph")],["Help","The <strong>?</strong> button opens the article about that window. "+K("F1")+" does the same for the window in front."]])}
 <h2 id="states">What the taskbar shows</h2>
-<p>As a workbook keeps a tab for each sheet, the taskbar keeps a button for each of the project's <strong>documents</strong>: its graphs, the worksheet and its trend graphs. They minimise but never close. After them come the <strong>panels</strong> in use (History, Peaks, Fit…), only while they are open or minimised: a panel you never opened is not there, and one you close leaves.</p>
+<p>As a workbook keeps a tab for each sheet, the taskbar keeps a button for each of the project's <strong>documents</strong>: its graphs, the worksheet and its trend graphs. They minimise; a graph can also be closed, and then leaves the taskbar until it is opened again. After them come the <strong>panels</strong> in use (History, Peaks, Fit…), only while they are open or minimised: a panel you never opened is not there, and one you close leaves.</p>
 ${DL([["Open","A raised button with a bar under it; the window in front is in colour. Click the one in front to minimise it, another to bring it forward."],["Minimised","A flat button, no bar. Click it to bring the window back where it was."]])}
 <p>With more than four graphs they share one <em>Graphs</em> button that lists them, and so do more than three trend graphs. When the buttons do not fit in one row, those least recently used go into a <em>more</em> button at the end, never the window in front.</p>
 <h2 id="winmenu">The Window menu</h2>
@@ -14504,28 +14642,33 @@ ${DL([["Import, Export","Bring a file in; save the figure, data or a report."],[
 <p>${K("Ctrl","Z")} undoes and ${K("Ctrl","Shift","Z")} (or ${K("Ctrl","Y")}) redoes: steps, masks, peaks, bands, fits, labels, styles, worksheet edits. The Edit menu names what will be undone. Undo rewinds your own changes in this session; it never takes back a colleague's work or a comment.</p>
 <h2>The log</h2>
 <p>The History window's <em>Log</em> tab lists every change with who made it and when. The report ends with it.</p>`},
-{id:"import", g:"Basics", t:"Importing data", kw:"import open file csv tsv txt delimiter decimal comma header metadata paste drop wizard add replace many several files batch columns",
- lead:"Text exports from almost any instrument work. Kurve reads the file, shows you how it read it, and changes nothing until you press Import.",
+{id:"import", g:"Basics", t:"Importing data", kw:"import open file csv tsv txt delimiter decimal comma header metadata paste drop wizard add replace many several files batch columns role use as data not a spectrum leave out plot not yet worksheet only pairs",
+ lead:"Text exports from almost any instrument work. Kurve reads the file, shows you how it read it, and changes nothing until you press Import. Every column goes into the worksheet; nothing is plotted unless you ask.",
  body:`<h2>Three ways in</h2>
 <ul><li>Drop a file anywhere on the window.</li><li><em>Import</em> on the toolbar, ${MP("File › Import data…")}, or ${K("Ctrl","O")}.</li><li>Copy columns from a spreadsheet and paste them into a worksheet cell.</li></ul>
 <h2>What is detected</h2>
-${DL([["Delimiter and decimal mark","Decided together: <code>1,5;2,5</code> only makes sense as semicolons with decimal commas."],["Where the data start","The longest run of consistent numeric lines, so an instrument's preamble and a trailing footer are found, not fought."],["Names and units","From the line above the numbers, such as <code>Raman shift (cm-1)</code>."],["X, Y and error columns","Guessed from names and values. Change any of them."],["Metadata","Lines such as <code>Laser: 532 nm</code> in the header are kept with the project and printed in the report."]])}
+${DL([["Delimiter and decimal mark","Decided together: <code>1,5;2,5</code> only makes sense as semicolons with decimal commas."],["Where the data start","The longest run of consistent numeric lines, so an instrument's preamble and a trailing footer are found, not fought."],["Names and units","From the line above the numbers, such as <code>Raman shift (cm-1)</code>."],["What each column is","Guessed from names and values: an X axis, a spectrum, or error bars. Change any of them in the <em>Columns</em> list."],["Metadata","Lines such as <code>Laser: 532 nm</code> in the header are kept with the project and printed in the report."]])}
 <p>The dialog shows the file with the data lines highlighted, the choices beside it, and a preview of the curve. Every choice can be overridden.</p>
+<h2 id="columns">Columns</h2>
+<p>Every column of the file has a row in the <em>Columns</em> list, with its name, its values and what it becomes (<em>Use as</em>):</p>
+${DL([["X","An axis. Each spectrum is plotted against the nearest X to its left, so a file of X,Y,X,Y pairs gives each Y its own X."],["Y, a spectrum","A spectrum, with its own processing. Click a spectrum's name to see it in the preview."],["Y error","Error bars of the spectrum before it (or after, when none is before)."],["Data, not a spectrum","Kept in the worksheet for formulas (a dark current, a reference, a temperature) and not plotted. Plotting it later makes it a spectrum. "+DA("formulas","Column formulas")],["Leave out","Not imported."]])}
+<h2 id="plot">Plot, or not yet</h2>
+<p><em>Plot</em> says what happens to the spectra after the import: <strong>Not yet: the worksheet only</strong> (the data go into the worksheet, which takes the graph's place on the desk, and nothing is plotted), <strong>In one graph</strong>, <strong>One graph for each spectrum</strong>, or <strong>In one graph, stacked</strong>. The choice is remembered in this browser for the next import. Plot later from the worksheet, or from the message that follows the import. ${DA("plotting","Plotting columns")}</p>
 <h2>When the project already has data</h2>
-${DL([["Add as a new Y column","Keeps what is there. A spectrum on a different X axis gets an X column of its own, so no value is interpolated."],["Replace everything","The new file becomes the project's data."],["Put it in a new project","Suggested when the X ranges do not overlap."]])}
+${DL([["Add these columns","Keeps what is there. A file on a different X axis brings an X column of its own, so no value is interpolated. Spectra added beside others go on a graph of their own, or on none."],["Replace everything","The new file becomes the project's data."],["Put it in a new project","Suggested when the X ranges do not overlap."]])}
 <h2 id="many">Many spectra at once</h2>
-<p>Choose or drop several files together, or import one file whose columns are several spectra (its <em>Spectra</em> list says <em>All … Y columns</em>). Each is read the way the dialog would read it alone, then listed with its points and X range and a name to change. Then:</p>
-${DL([["Into","The project on the desk (named in the list, with how many spectra it holds), beside what is there, or a new project."],["Graphs","One for each spectrum, all in one graph, or all in one graph stacked. "+DA("graphs","Several graphs")]])}
+<p>One file whose columns are several spectra is one import: each Y column is a spectrum. Choose or drop several files together, and each is read the way the dialog would read it alone, then listed with its points and X range and a name to change. Then:</p>
+${DL([["Into","The project on the desk (named in the list, with how many spectra it holds), beside what is there, or a new project."],["Plot","Not yet (the worksheet only), all in one graph, one for each spectrum, or all in one graph stacked. "+DA("graphs","Several graphs")]])}
 <p>It is one change: one Undo, one line in the log, one entry in the raw-data record. Spectra measured on the same X share a column; one on a different axis gets its own, so nothing is interpolated. A file that cannot be read is listed with the reason and left out.</p>
 <p>Each spectrum keeps the name of its file and the fields of its header (its Raw data box in the History lists them). Fields that differ between the files, such as a temperature or the time each was taken, are offered as what the ${DA("batch","Batch window")} plots against.</p>
 <h2 id="onecol">One column: counts per channel</h2>
 <p>A multichannel analyser writes one number per line, the counts of one channel, with no X column. Kurve reads such a file as one spectrum against its <strong>channel number</strong>:</p>
-${DL([["X column","<em>Channel number</em>: each line's position, counted from <em>First channel</em> (0 or 1). The channel numbers are kept as the spectrum's X column, so the record shows what the file said."],["The first two lines (TKA)","A <code>.TKA</code> file starts with the live time and the real time in seconds. With <em>The first two lines are the live and real time</em> ticked (the default for .TKA) they are not counts: they go into the metadata, with the dead time, and the counts start on line 3."],["Y error","<em>√Y, counting statistics</em> adds error bars of √N (1 for an empty channel), as a column computed from the counts: weights for a fit, and errors for a band's area."],["Counts per second","The line saying what was read from the TKA header has a button that adds a step dividing by the live time: the counts stay as recorded, the final data are a count rate."]])}
+${DL([["X column","<em>Channel number</em>: each line's position, counted from <em>First channel</em> (0 or 1). The channel numbers are kept as the spectrum's X column, so the record shows what the file said."],["The first two lines (TKA)","A <code>.TKA</code> file starts with the live time and the real time in seconds. With <em>The first two lines are the live and real time</em> ticked (the default for .TKA) they are not counts: they go into the metadata, with the dead time, and the counts start on line 3."],["Y error","<em>√N error bars for the counts</em> adds error bars of √N (1 for an empty channel), as a column computed from the counts: weights for a fit, and errors for a band's area."],["Counts per second","The line saying what was read from the TKA header has a button that adds a step dividing by the live time: the counts stay as recorded, the final data are a count rate."]])}
 <p>The spectrum is drawn as a line, not thousands of dots. Then calibrate it to energy: with the step ${DA("step-ecal","Energy calibration")} (${MP("Analysis › Spectroscopy")}), a ${DA("formulas","worksheet formula")}, or ${DA("python","Python")}. The Overview suggests it. ${DA("gamma","A gamma spectrum, start to finish")}</p>
 <p>A column of numbers pasted or typed with no X column is drawn against its row number, as in Origin.</p>
 <h2>What is refused</h2>
 <p>Binary instrument files (SPC, OPUS, SPE) are refused with a reason. Export them as text from the instrument software first. JCAMP-DX is not read yet.</p>
-<p>After an import the ${DA("overview","Overview")} opens. Its <em>Show the overview after every import</em> box turns that off.</p>`},
+<p>After an import that plots one spectrum the ${DA("overview","Overview")} opens. Its <em>Show the overview after every import</em> box turns that off.</p>`},
 {id:"keys", g:"Basics", t:"Keyboard shortcuts", kw:"keys keyboard shortcuts hotkeys ctrl",
  lead:"Everything has a pointer route; these are the quicker ones.",
  body:`<h2 id="k-all">Everywhere</h2>
@@ -14537,11 +14680,11 @@ ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move; with "+K("Shift")+
 <h2 id="k-flow">In the History</h2>
 ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move between boxes"],[K("Alt","↑")+" "+K("Alt","↓"),"Move the selected step earlier or later"],[K("Delete"),"Delete the selected step"],[K("C"),"Comment on the selected box"],["Right-click","The box's menu"]],"keys")}`},
 /* ---------------------------------------------------------------- Data */
-{id:"sheet", g:"Data", t:"The worksheet", win:"sheet", kw:"worksheet spreadsheet grid cell column row long name units comments sparkline raw final width select edit type enter tab insert delete rows lock unlock",
+{id:"sheet", g:"Data", t:"The worksheet", win:"sheet", kw:"worksheet spreadsheet grid cell column row long name units comments sparkline raw final width select edit type enter tab insert delete rows lock unlock plot data role",
  lead:"A spreadsheet grid, as in Excel, with Origin's label rows. The Raw sheet holds the data as recorded; the Final sheet shows the analysed spectrum after processing.",
  body:`<h2>Columns</h2>
-<p>Columns are lettered A, B, C… and each has a role, shown after its letter: <strong>(X)</strong>, <strong>(Y)</strong>, <strong>(yEr)</strong> for error bars, or ignored. A Y column is plotted against the nearest X column to its left, so spectra measured on different axes each keep their own X. Every Y column is a ${DA("spectra","spectrum")}.</p>
-<p>Click a column's header arrow for its menu: its role, whose error bars it holds, analyse it, show or hide it, set its values by a formula, sort by it, delete it.</p>
+<p>Columns are lettered A, B, C… and each has a role, shown after its letter: <strong>(X)</strong>, <strong>(Y)</strong>, <strong>(yEr)</strong> for error bars, or <strong>(—)</strong> for data that is not a spectrum, kept for formulas. A Y column is plotted against the nearest X column to its left, so spectra measured on different axes each keep their own X. Every Y column is a ${DA("spectra","spectrum")}.</p>
+<p>Click a column's header arrow for its menu: its role, whose error bars it holds, analyse it, plot it, show or hide it, set its values by a formula, sort by it, delete it. <em>Plot</em> on the bar above the grid plots the selected columns. ${DA("plotting","Plotting columns")}</p>
 <h2>Label rows</h2>
 ${DL([["Long Name","The column's name, used on the axes and in the legend."],["Units","Written after the name: <code>cm⁻¹</code>, <code>counts</code>."],["Comments","A note that travels with the column."],["F(x)=","A formula that computes the column. "+DA("formulas","Column formulas")],["Sparklines","A thumbnail of each column."]])}
 <h2>Selecting and editing</h2>
@@ -14597,7 +14740,7 @@ ${DL([["Series","From a start, adding a step each row (below zero counts down). 
  body:`<h2>The analysed spectrum</h2>
 <p>Choose it from a window's spectrum list, a column's header menu (<em>Analyse this</em>), a click on its lane in the History, or a legend entry. It is drawn on top, in the first colour; its name is in each window's title bar.</p>
 <h2>Several spectra</h2>
-<ul><li>Add more by importing with <em>Add as a new Y column</em>, pasting, or ${MP("Data › Add a column")}.</li>
+<ul><li>Add more by importing with <em>Add these columns</em>, pasting, ${MP("Data › Add a column")}, or by plotting a data column (it becomes a spectrum).</li>
 <li>Each has its own steps; a tool's <em>Apply the same step to every other spectrum</em> box, or a step's <em>Apply to every spectrum</em>, copies one step to all.</li>
 <li>Hide one from its header menu or the graph's legend menu.</li>
 <li>How they share the graph (overlaid, offset, stacked, two Y axes, a heat map) is the toolbar's layout list. ${DA("style","Formatting the graph")}</li>
@@ -14667,10 +14810,22 @@ ${DL([["Reverse X","High to low, as wavenumbers are usually drawn."],["Log Y","A
 <p>On a spectrum: its colour, plot type and style. On an empty spot: a line, text or a peak label there; axes, layout and legend. On a line, a label, the legend or a title: its own options. ${K("Shift","F10")} opens the same menu from the keyboard.</p>
 <h2>Reading values</h2>
 <p>The status bar shows the value under the pointer. A selected point can be moved with ${K("←")} ${K("→")}. ${DA("keys#k-graph","All the graph's keys")}</p>`},
+{id:"plotting", g:"Graph", t:"Plotting columns", kw:"plot plotting select columns worksheet line scatter symbols sticks area steps new graph add to graph close closed hide reopen open a graph not plotted worksheet only later data column",
+ lead:"Nothing has to be plotted until you are ready: import into the worksheet, work on the columns there, then select the ones to plot.",
+ body:`<h2>Plotting the selected columns</h2>
+<p>Select columns in the worksheet (click a column's letter, Shift+click or drag across several) and press <em>Plot</em> on the worksheet's bar. The same list is in ${MP("Plot › Plot the selected columns")}, the right-click menu of the cells, and a column's header menu.</p>
+${DL([["Line, Symbols, Line + symbols, Sticks, Area, Steps","How the spectra are drawn."],["Stacked panels, Offset, Heat map","With several spectra, how they share the graph."],["Add to a graph","Onto a graph you already have (a closed one opens again)."]])}
+<p>The first time, the spectra go on the first graph; after that each Plot makes a new graph, as in Origin, unless you add to one.</p>
+<h2>What is plotted</h2>
+${DL([["A Y column","As it is: a spectrum, with its processing."],["A data column","Plotting it makes it a spectrum. "+DA("import#columns","Data, not a spectrum")],["An X column","Selected with Y columns, it is what they are plotted against: each against the selected X nearest to its left."],["Error bars","Come with their spectrum."]])}
+<p>Once plotted from the worksheet or by an import, the first graph keeps its own list of spectra, as other graphs do: a column you make later is not added to it until you plot it there, or tick it in its ⋯ menu's <em>Spectra on it</em>.</p>
+<h2 id="close">Closing a graph</h2>
+<p>The × on a graph's title bar (or <em>Close this graph</em> in its ⋯ menu) closes it: it leaves the desk and the taskbar but stays in the project with its spectra, format and labels, for everyone who opens the project. ${MP("Window › Open a graph")} and ${MP("Plot › Open a graph")} list every graph, the closed ones marked, and open one again; so does its box in the History. Undo opens a graph closed by mistake. Deleting a graph is in its ⋯ menu.</p>
+<p>The tools that work on the graph (${MP("Analysis › Find peaks…")}, the Fit window, ${MP("Analysis › Integrate bands…")}) open it when it is closed, and when nothing is plotted yet they plot the analysed spectrum.</p>`},
 {id:"graphs", g:"Graph", t:"Several graphs", kw:"graphs windows several many multiple each spectrum own graph tile grid link zoom compare sample series panel figure new duplicate rename delete combine merge drag drop hold together one graph overlay add",
  lead:"A project can have as many graphs as it needs, each in its own window: one per sample, or a few spectra together. The graph you click is the one you work on; the others wait beside it.",
  body:`<h2>Making graphs</h2>
-${DL([["One for each spectrum",MP("Window › New graph › One for each spectrum")+": every spectrum on a graph of its own, tiled on the desk. The first graph keeps the first spectrum."],["With the analysed spectrum","A new graph with it, taking half of the window of the graph you are on."],["With every spectrum","A new graph with all of them overlaid, to compare."],["From a spectrum","<em>Open in a new graph</em> in the graph's right-click menu, or <em>Plot in a new graph</em> in a column's header menu."],["When importing","Several files, or one file with several Y columns, can come in with a graph each. "+DA("import#many","Importing many spectra")]])}
+${DL([["One for each spectrum",MP("Window › New graph › One for each spectrum")+": every spectrum on a graph of its own, tiled on the desk. The first graph keeps the first spectrum."],["With the analysed spectrum","A new graph with it, taking half of the window of the graph you are on."],["With every spectrum","A new graph with all of them overlaid, to compare."],["From the worksheet","Select columns and press <em>Plot</em>: a new graph, or added to one. "+DA("plotting","Plotting columns")],["From a spectrum","<em>Open in a new graph</em> in the graph's right-click menu, or <em>Plot</em> in a column's header menu."],["When importing","Several files, or one file with several Y columns, can come in with a graph each, in one graph, or on none yet. "+DA("import#plot","Plot, or not yet")]])}
 <h2>Working on one</h2>
 <p>Click anywhere on a graph to work on it: it comes to the front with its own zoom, the spectrum you were last analysing on it becomes the analysed one, and every window (the History, Peaks, Integrate, Fit, the worksheet) follows. Its title bar has a coloured line underneath. The chips along the top of a graph that is not in front name its spectra: click one to work on that spectrum there.</p>
 <p>A peak fit you were building stays with its spectrum, so coming back to a graph finds it where you left it.</p>
@@ -14679,7 +14834,7 @@ ${DL([["One for each spectrum",MP("Window › New graph › One for each spectru
 ${DL([["A whole graph","Hold the grip "+ICON("grip","sm")+" in its title bar and drop it on another graph (or on that graph's button in the taskbar). Its spectra join that graph, with their colours and lines, and so do its labels; the graph you dropped goes. Hold "+K("Ctrl")+" as you drop to keep it. The first graph always stays."],["One spectrum","Hold a spectrum's chip along the top of a graph that is not in front and drop it on another graph to add it there, or on the empty desk for a graph of its own."],["Changed your mind",K("Esc")+" while holding cancels; Undo takes a drop back."]])}
 <p>Without dragging: click the grip, or <em>Combine</em> in the graph's ⋯ menu, for <em>Merge it into</em> another graph or <em>Merge every other graph into this one</em>. ${MP("Window › Combine graphs…")} takes any of the graphs, onto one of them or a new graph, laid out as you choose (overlaid, offset, stacked panels, double Y, heat map), and keeps the graphs merged or lets them go. Spectra in another project are brought in with ${DA("projects#bring","Bring in from another project")}.</p>
 <h2>Each graph's settings</h2>
-<p>Plot type, layout, axes, legend, fonts, titles, lines and text belong to the graph they were made on; peaks found with the Peaks window belong to the spectrum and show on every graph that draws it. The <strong>⋯</strong> on a graph's title bar renames it, chooses the spectra on it, duplicates, exports or deletes it. Deleting a graph never deletes data.</p>
+<p>Plot type, layout, axes, legend, fonts, titles, lines and text belong to the graph they were made on; peaks found with the Peaks window belong to the spectrum and show on every graph that draws it. The <strong>⋯</strong> on a graph's title bar renames it, chooses the spectra on it, duplicates, exports, closes or deletes it. Closing keeps the graph in the project, off the desk; deleting removes it, never its data. ${DA("plotting#close","Closing a graph")}</p>
 <h2>Zoom together</h2>
 <p><em>Link the X zoom of the graphs</em> (in the ⋯ menu and ${MP("Window")}, on by default): zooming one graph shows the same X range on every graph in the same units, each with its own Y range. Off, each keeps its own zoom.</p>
 <h2>Arranging them</h2>
@@ -15253,7 +15408,7 @@ function saveLayout(){ saveGraphLayout(); try{ localStorage.setItem("kurve.layou
    graph shares the single-graph arrangement. */
 function saveGraphLayout(){
   const pid=S.layoutPid; if(!pid||pid!==S.pid||!LAYOUT.wins.graph) return;
-  const ids=graphWinIds(), o={}; ids.forEach(id=>{ const st=LAYOUT.wins[id]; if(st) o[id]={g:st.g.slice(),open:st.open,max:st.max}; });
+  const ids=graphWinIds(), o={}; ids.forEach(id=>{ const st=LAYOUT.wins[id]; if(st) o[id]={g:st.g.slice(),open:st.open||winShut(id),max:st.max}; });
   LAYOUT.proj=LAYOUT.proj||{};
   if(ids.length>1){ delete LAYOUT.proj[pid]; LAYOUT.proj[pid]=o; const ks=Object.keys(LAYOUT.proj); if(ks.length>30) delete LAYOUT.proj[ks[0]]; }
   else { delete LAYOUT.proj[pid]; LAYOUT.single=o.graph; }
@@ -15294,14 +15449,15 @@ function focusWin(id){ const st=winState(id); if(st.z<LAYOUT.z){ st.z=++LAYOUT.z
 /* A window is open (on the desk), minimised (off the desk, its button kept in
    the taskbar) or closed (off the desk and out of the taskbar). As a workbook
    keeps a tab for each sheet, the project's documents (its graphs, the
-   worksheet, its trend graphs) always have their buttons: they minimise but
-   never close. Panels (History, Peaks, Fit…) are in the taskbar only while
+   worksheet, its trend graphs) always have their buttons and minimise; a
+   graph can also be closed, which the project keeps (plot.shut). Panels (History, Peaks, Fit…) are in the taskbar only while
    open or minimised, so it and the Window menu list what is in use and never
    what was not opened; a closed panel comes back from its menu, or from
    Window › Panels. */
 const isDoc=id=>!!(WINS[id]&&(WINS[id].graph||WINS[id].trend||id==="graph"||id==="sheet"));
-const keepsBtn=isDoc;
-function docWinIds(){ return graphWinIds().concat(WINS.sheet?["sheet"]:[],trendWinIds()); }
+// A graph closed (plot.shut) is out of the taskbar, as a closed panel is.
+const keepsBtn=id=>isDoc(id)&&!winShut(id);
+function docWinIds(){ return graphWinIds().filter(id=>!winShut(id)).concat(WINS.sheet?["sheet"]:[],trendWinIds()); }
 function panelIds(){ return WIN_ORDER.filter(id=>!isDoc(id)).concat(["help"]).filter(id=>WINS[id]); }
 // The windows in use, in the taskbar's order: the documents, then the panels.
 function barWinIds(){ return docWinIds().concat(panelIds().filter(inBar)); }
@@ -15376,7 +15532,7 @@ function cascadeWins(){
 function resetWins(){ LAYOUT.wins={}; Object.keys(WINS).forEach(id=>{ winState(id).min=false; }); applyWins(); saveLayout(); Object.keys(WINS).forEach(id=>{ if(winOpen(id)) renderWin(id); }); }
 function renderTaskbar(){
   const tb=$("#taskbar"); if(!tb) return;
-  const front=frontWinId(), pj=P(), gs=graphWinIds(), ts=trendWinIds();
+  const front=frontWinId(), pj=P(), gs=graphWinIds().filter(id=>!winShut(id)), ts=trendWinIds();
   // One button per window in use: open ones have a bar under them and the one
   // in front is in colour; minimised ones are flat, with no bar.
   const btn=id=>{ const on=winOpen(id), t=WINS[id].title, what=on?(id===front?"in front: click to minimise it":"open: click to bring it to the front"):"minimised: click to bring it back";
@@ -15440,13 +15596,13 @@ function wireWin(el){
       const snap=el.querySelector(".gsnap"); if(snap){ snap.tabIndex=0; snap.setAttribute("role","button"); snap.setAttribute("aria-label","Work on this graph");
         snap.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); activateGraph(graphOfWin(id)); } }); } }
     if(id!=="help") h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-whelp title="Help on this window (F1)" aria-label="Help on the ${esc(WINS[id].title)} window">${ICON("help","sm")}</button>`);
-    h.insertAdjacentHTML("beforeend",`${id==="help"||WINS[id].transient?"":`<button class="tb sm icon" data-wmin title="Minimise: off the desk; its button stays in the taskbar" aria-label="Minimise the ${esc(WINS[id].title)} window">${ICON("min","sm")}</button>`}<button class="tb sm icon" data-wmax title="Maximise or restore (double-click the title bar)" aria-label="Maximise the ${esc(WINS[id].title)} window">${ICON("max","sm")}</button>${keepsBtn(id)?"":`<button class="tb sm icon" data-wclose title="Close: off the desk and out of the taskbar; its menu opens it again" aria-label="Close the ${esc(WINS[id].title)} window">${ICON("x","sm")}</button>`}`);
+    h.insertAdjacentHTML("beforeend",`${id==="help"||WINS[id].transient?"":`<button class="tb sm icon" data-wmin title="Minimise: off the desk; its button stays in the taskbar" aria-label="Minimise the ${esc(WINS[id].title)} window">${ICON("min","sm")}</button>`}<button class="tb sm icon" data-wmax title="Maximise or restore (double-click the title bar)" aria-label="Maximise the ${esc(WINS[id].title)} window">${ICON("max","sm")}</button>${keepsBtn(id)&&!graphOfWin(id)?"":`<button class="tb sm icon" data-wclose title="${graphOfWin(id)?"Close the graph: off the desk and out of the taskbar, kept in the project; Window › Graphs opens it again":"Close: off the desk and out of the taskbar; its menu opens it again"}" aria-label="Close the ${esc(WINS[id].title)} window">${ICON("x","sm")}</button>`}`);
     ["e","s","se","w"].forEach(k=>el.insertAdjacentHTML("beforeend",`<div class="win-rz ${k}" data-rz="${k}" aria-hidden="true"></div>`));
     el.addEventListener("pointerdown",e=>{ focusWin(id); const g=graphOfWin(id);
       // A chip or the grip may be the start of a drag: they bring the graph forward on a click of their own.
       if(g&&P()&&g!==(S.gid||"main")&&!(e.target.closest&&e.target.closest("[data-gchip],[data-gdrag]"))) activateGraph(g); },true);
     const wmn=h.querySelector("[data-wmin]"); if(wmn) wmn.onclick=()=>minimiseWin(id);
-    const wcl=h.querySelector("[data-wclose]"); if(wcl) wcl.onclick=()=>closeWin(id);
+    const wcl=h.querySelector("[data-wclose]"); if(wcl) wcl.onclick=()=>{ const g=graphOfWin(id); if(g&&P()) closeGraph(g); else closeWin(id); };
     const hb=h.querySelector("[data-whelp]"); if(hb) hb.onclick=()=>openHelp(helpFor(id));
     h.querySelector("[data-wmax]").onclick=()=>toggleMax(id);
     h.addEventListener("dblclick",e=>{ if(!e.target.closest("button")) toggleMax(id); });
@@ -15489,7 +15645,7 @@ function panelItems(){
 // Every open window, searched by name: for when there are too many to list.
 function winFinder(anchor){ const ids=barWinIds(); openMenu(anchor||$("#taskbar"),ids.map(winItem),{label:"Windows",search:`Find among ${ids.length} windows`}); }
 function windowItems(){
-  const ro=S.readOnly||!P(), ids=barWinIds(), front=frontWinId(), gs=graphWinIds();
+  const ro=S.readOnly||!P(), ids=barWinIds(), front=frontWinId(), gs=graphWinIds().filter(id=>!winShut(id)), nShut=graphIds().filter(graphShut).length;
   // The windows in use; graphs many enough share one submenu, and a long list becomes a search.
   let list=gs.length>4?[{label:`Graphs (${gs.length})`, sub:graphsMenuItems}].concat(ids.filter(id=>!gs.includes(id)).map(winItem)):ids.map(winItem);
   if(list.length>12) list=[{label:`Switch to another window… (${ids.length})`, run:()=>setTimeout(()=>winFinder(document.querySelector('.menubar [data-menu="window"]')||$("#taskbar")),0)}];
@@ -15500,6 +15656,7 @@ function windowItems(){
     {label:"Close the panels", enabled:!!panelsIn.length, title:"Close every panel; the graphs and the worksheet stay", run:()=>{ panelsIn.forEach(id=>closeWin(id)); }},
     {label:"Restore the default arrangement", run:resetWins},
     "-",{group:"Graphs"},
+    {label:"Open a graph", sub:graphsMenuItems, enabled:!!P(), note:nShut?`${nShut} closed`:""},
     {label:"New graph", sub:()=>newGraphItems(), enabled:!ro},
     {label:"Combine graphs…", enabled:!ro&&graphIds().length>1, run:()=>combineDlg()},
     {label:"Bring in from another project…", enabled:!ro&&otherProjects().length>0, run:()=>bringInDlg()},
@@ -16180,6 +16337,14 @@ function syncGraphWins(){
   // Back to one graph in the same project (an undo, a delete): it gets its own size back.
   else if(p&&S.gcount>1&&nWin===1){ saneWin(Object.assign(winState("graph"),LAYOUT.single?clone(LAYOUT.single):{g:WINS.graph.def.slice(),open:true,max:false}),WINS.graph.def); applyWins(); saveLayout(); }
   else if(made) applyWins();
+  // A closed graph is off the desk wherever the project is open, and one
+  // opened again (here, by undo, or by a colleague) comes back onto it.
+  if(p){ S.gshut=S.gshut||{}; let ch=false;
+    graphIds().forEach(id=>{ const w=winOfGraph(id); if(!WINS[w]) return; const st=winState(w), sh=graphShut(id), k=S.pid+":"+id;
+      if(sh&&(st.open||st.min)){ st.open=false; st.min=false; st.max=false; ch=true; }
+      else if(!sh&&S.gshut[k]===true&&!st.open){ st.open=true; st.min=false; st.z=++LAYOUT.z; ch=true; }
+      S.gshut[k]=sh; });
+    if(ch){ applyWins(); saveLayout(); } }
   S.gcount=nWin;
   moveLive();
 }
@@ -16297,7 +16462,8 @@ function renderGraphHeads(){
 /* ---- Making, changing and removing graphs ---- */
 function nextGraphName(p){ const used=new Set(graphIds(p).map(id=>graphName(id,p))); let n=1; while(used.has("Graph "+n)) n++; return "Graph "+n; }
 // A new graph looks like the one in front, with its own axes and no annotations.
-function graphBase(from){ const o=clone(plotOf(from||GID()))||{}; ["annos","hidden","title","legendPos","gname"].forEach(k=>delete o[k]); o.ax={}; o.layout="overlay"; if(o.legend==="custom") o.legend="auto"; return o; }
+function plotBase(pl){ const o=clone(pl||{})||{}; ["annos","hidden","title","legendPos","gname","cols","shut"].forEach(k=>delete o[k]); o.ax={}; o.layout="overlay"; if(o.legend==="custom") o.legend="auto"; return o; }
+function graphBase(from){ return plotBase(plotOf(from||GID())); }
 function newGraphs(groups,opt){ opt=opt||{}; const p=P(); if(!p||S.readOnly) return [];
   groups=groups.map(ids=>ids.filter(k=>{ const c=colById(k); return c&&c.role==="y"; })).filter(g=>g.length); if(!groups.length) return [];
   const graphs=(p.graphs||[]).slice(), made=[], base=graphBase(opt.from);
@@ -16322,7 +16488,8 @@ function onePerSpectrum(){
   const p=P(); if(!p||S.readOnly) return; const ys=yCols(); if(ys.length<2){ toast("There is only one spectrum."); return; }
   const mainCols=graphCols("main"), plot=Object.assign({},p.plot);
   let first=mainCols.length===1?mainCols[0]:null;
-  if(!first){ first=ys[0]; plot.hidden=ys.filter(c=>c!==first).map(c=>c.id); }
+  if(!first){ first=ys[0]; if(mainList(p)){ plot.cols=[first.id]; plot.hidden=[]; } else plot.hidden=ys.filter(c=>c!==first).map(c=>c.id); }
+  delete plot.shut;
   const own=new Set([first.id]); (p.graphs||[]).forEach(g=>{ if(g.cols.length===1) own.add(g.cols[0]); });
   const need=ys.filter(c=>!own.has(c.id));
   pushUndo("giving each spectrum a graph");
@@ -16348,7 +16515,7 @@ function renameGraph(id){
 function duplicateGraph(id){
   const p=P(); if(!p||S.readOnly) return; const src=plotOf(id), cols=id==="main"?graphCols("main").map(c=>c.id):graphOf(id).cols.slice();
   pushUndo("duplicating the graph");
-  const nid="g"+Math.random().toString(36).slice(2,9), name=nextGraphName(p), plot=clone(src); ["annos","hidden","gname"].forEach(k=>delete plot[k]);
+  const nid="g"+Math.random().toString(36).slice(2,9), name=nextGraphName(p), plot=clone(src); ["annos","hidden","gname","cols","shut"].forEach(k=>delete plot[k]);
   const copies=(p.plot.annos||[]).filter(a=>!a.grp&&(a.g||"main")===id).map(a=>Object.assign({},a,{id:annoId(),g:nid}));
   save({graphs:(p.graphs||[]).concat([{id:nid,name,cols,plot}]),plot:Object.assign({},p.plot,{annos:(p.plot.annos||[]).concat(copies)})},`duplicated ${graphName(id)} as ${name}`);
   renderAll(); splitInto(winOfGraph(id),nid); activateGraph(nid);
@@ -16362,6 +16529,9 @@ function deleteGraph(id){
 // Puts a spectrum on a graph, or takes it off (the main graph hides it).
 function toggleGraphCol(id,cid){
   const p=P(), c=colById(cid); if(!p||!c||S.readOnly) return; const nm=graphName(id);
+  if(id==="main"&&mainList(p)){ const l=mainList(p), hid=p.plot.hidden||[], on=l.includes(cid)&&!hid.includes(cid);
+    pushUndo(on?"taking a spectrum off the graph":"adding a spectrum to the graph");
+    save({plot:Object.assign({},p.plot,{cols:on?l.filter(k=>k!==cid):l.includes(cid)?l:l.concat([cid]),hidden:hid.filter(k=>k!==cid)})},`${nm}: ${on?"took "+specName(c)+" off":"added "+specName(c)}`); renderAll(); return; }
   if(id==="main"){ const hid=(p.plot.hidden||[]).slice(), i=hid.indexOf(cid); if(i<0) hid.push(cid); else hid.splice(i,1);
     pushUndo("changing what the graph shows"); save({plot:Object.assign({},p.plot,{hidden:hid})},multiGraph()?`${nm}: ${i<0?"hid":"showed"} ${specName(c)}`:null); renderAll(); return; }
   const g=graphOf(id); if(!g) return; const on=g.cols.includes(cid);
@@ -16370,10 +16540,112 @@ function toggleGraphCol(id,cid){
   save({graphs:(p.graphs||[]).map(q=>q.id===id?Object.assign({},q,{cols:on?q.cols.filter(k=>k!==cid):q.cols.concat([cid])}):q)},`${nm}: ${on?"took "+specName(c)+" off":"added "+specName(c)}`);
   renderAll();
 }
-function showGraph(id){ const w=winOfGraph(id); if(!winOpen(w)) openWin(w); else focusWin(w); activateGraph(id); }
+function showGraph(id){ if(graphShut(id)) setGraphShut(id,false); const w=winOfGraph(id); if(!winOpen(w)) openWin(w); else focusWin(w); activateGraph(id); }
+/* ---- Closing graphs, and plotting when ready ----------------------------------
+   A graph can be closed (its ×): it leaves the desk and the taskbar but stays
+   in the project with its spectra, format and labels, as Origin hides a graph
+   window; Window › Graphs, its History box and Plot open it again. The state
+   is the project's (plot.shut), so a project imported into the worksheet only
+   has no graph anywhere it is opened, and undo opens a graph closed by
+   mistake. With nothing plotted the data are worked on in the worksheet and
+   plotted when ready: select columns and press Plot. The first graph's
+   spectra are then a list of its own (p.plot.cols), as another graph's are,
+   so a column made later does not join it unasked; without one it shows
+   every spectrum not hidden, as it always did. */
+const graphShut=id=>!!(P()&&(id==="main"||graphOf(id))&&plotOf(id).shut);
+const winShut=w=>{ const g=graphOfWin(w); return !!g&&graphShut(g); };
+// The first graph's own list of spectra, or null.
+const mainList=p=>{ p=p||P(); const l=p&&p.plot&&p.plot.cols; return Array.isArray(l)?l:null; };
+// Closed with nothing on it: the next plot goes there rather than to a new graph.
+function mainFreeNow(){ const p=P(), l=mainList(p); return !!p&&!!(p.plot||{}).shut&&!!l&&!l.some(k=>{ const c=colById(k); return c&&c.role==="y"; }); }
+function setGraphShut(id,on,o){
+  o=o||{}; const p=P(); if(!p||S.readOnly||(id!=="main"&&!graphOf(id))||graphShut(id)===!!on) return false;
+  if(!o.noUndo) pushUndo((on?"closing ":"opening ")+graphName(id));
+  const set=pl=>{ const n=Object.assign({},pl); if(on) n.shut=true; else delete n.shut; return n; };
+  if(id==="main") save({plot:set(p.plot)},null);
+  else save({graphs:(p.graphs||[]).map(g=>g.id===id?Object.assign({},g,{plot:set(g.plot)}):g)},null);
+  return true;
+}
+function closeGraph(id){
+  const w=winOfGraph(id), nm=graphName(id);
+  if(!setGraphShut(id,true)){ closeWin(w); return; }
+  closeWin(w); renderAll();
+  toast(`${nm} is closed, not deleted: Window › Graphs opens it again.`,{action:"Undo",run:undo});
+}
+// The columns selected in the Raw sheet, left to right.
+function wsSelColIds(){ const m=S.wsm; if(!m||m.kind!=="raw") return []; const {c0,c1}=wsSelRect(), out=[];
+  for(let c=c0;c<=c1;c++){ const q=m.cols[c]; if(q&&!q.phantom&&q.col) out.push(q.col.id); } return out; }
+// What a Plot command would plot: the selection, or one column (with the selection when it is in it).
+function plotTargets(cid){ const sel=wsSelColIds(); return cid&&!sel.includes(cid)?[cid]:sel; }
+function plotWhat(cids){ const cs=cids.map(colById).filter(Boolean); return {cs, ys:cs.filter(c=>c.role==="y"||c.role==="ignore"), xs:cs.filter(c=>c.role==="x")}; }
+/* Plots columns: a Y column is plotted as it is, a data column becomes a
+   spectrum (plotting it is asking for that), an X column selected with them
+   is what they are plotted against (each Y against the selected X nearest to
+   its left, as Origin plots a selection), error columns come with their Y.
+   Into a graph named (o.into), or else the first graph when it is closed with
+   nothing on it, or a new graph. One undo entry. */
+function plotCols(cids,o){
+  o=o||{}; const p=P(); if(!p) return; if(S.readOnly){ toast("You can view this workspace but not change it."); return; }
+  if(S.ws&&S.ws.edit) wsCommit(0,0,true);
+  const {ys,xs}=plotWhat(cids);
+  if(!ys.length){ toast(xs.length?"Those are X columns: select the Y columns to plot as well (Shift+click or drag across the letters).":"Select the columns to plot first: click a column's letter, or drag across several."); return; }
+  pushUndo(o.undo||`plotting ${andList(ys.map(specName))}`);
+  const made=ys.filter(c=>c.role==="ignore"); made.forEach(c=>{ c.role="y"; c.pipe=c.pipe||[]; c.mask=c.mask||[]; });
+  if(xs.length){ const all=allCols(); ys.forEach(y=>{ const i=all.indexOf(y); let x=null;
+    for(let j=i-1;j>=0;j--) if(xs.includes(all[j])){ x=all[j]; break; } x=x||xs[0];
+    if(xColFor(y)===x) return; y.xcol=x.id; let near=null; for(let j=i-1;j>=0;j--) if(all[j].role==="x"){ near=all[j]; break; } if(near===x) delete y.xcol; }); }
+  migrate(p);
+  const ids=ys.map(c=>c.id), plot=Object.assign({},p.plot), graphs=(p.graphs||[]).map(g=>Object.assign({},g,{cols:g.cols.slice(),plot:Object.assign({},g.plot)}));
+  // A type asked for is the type of these spectra there.
+  const typed=tp=>{ if(!o.type) return; tp.series=Object.assign({},tp.series); ids.forEach(k=>{ if(tp.series[k]){ tp.series[k]=Object.assign({},tp.series[k]); delete tp.series[k].type; } }); };
+  let gid, tp;
+  if(o.into==="main"||(o.into&&graphs.some(g=>g.id===o.into))){
+    gid=o.into; tp=gid==="main"?plot:graphs.find(g=>g.id===gid).plot;
+    if(gid==="main"){ const l=mainList(p); if(l) plot.cols=l.concat(ids.filter(k=>!l.includes(k))); plot.hidden=(plot.hidden||[]).filter(k=>!ids.includes(k)); }
+    else { const g=graphs.find(q=>q.id===gid); g.cols=g.cols.concat(ids.filter(k=>!g.cols.includes(k))); }
+    if(o.type){ tp.series=Object.assign({},tp.series); ids.forEach(k=>{ tp.series[k]=Object.assign({},tp.series[k],{type:o.type}); }); }
+    if(o.layout) tp.layout=o.layout;
+    delete tp.shut;
+  } else if(mainFreeNow()){
+    gid="main"; tp=plot; plot.cols=ids.slice(); plot.hidden=[]; delete plot.shut; plot.layout=o.layout||"overlay";
+    if(o.type){ plot.style=o.type; typed(plot); }
+  } else {
+    gid="g"+Math.random().toString(36).slice(2,9); tp=plotBase(GP()); if(o.type){ tp.style=o.type; typed(tp); } if(o.layout) tp.layout=o.layout;
+    graphs.push({id:gid,name:nextGraphName(Object.assign({},p,{graphs})),cols:ids.slice(),plot:tp});
+  }
+  const nm=gid==="main"?graphName("main"):graphs.find(g=>g.id===gid).name, wasOpen=graphWinIds().some(winOpen), from=winOfGraph(S.gid), gWas=winOpen(winOfGraph(gid));
+  const xNote=xs.length?` against ${andList(xs.map(c=>colLetter(c)+(c.name?` (${c.name})`:"")))}`:"";
+  save({cols:p.cols,plot,graphs},`plotted ${andList(ys.map(specName))}${xNote} in ${nm}${made.length?`, making ${andList(made.map(specName))} ${made.length===1?"a spectrum":"spectra"}`:""}`);
+  renderAll();
+  const w=winOfGraph(gid);
+  // A graph coming onto the desk shares a window's place: on a desk with no
+  // graph the worksheet's, otherwise the graph in front's.
+  if(!gWas){ if(!wasOpen&&winOpen("sheet")) splitInto("sheet",w); else if(wasOpen&&winOpen(from)&&from!==w) splitInto(from,w); else openWin(w); }
+  else focusWin(w);
+  activateGraph(gid,ids[0]);
+  toast(`Plotted ${andList(ys.map(specName))} in ${nm}.${made.length?` ${andList(made.map(specName))} ${made.length===1?"is a spectrum":"are spectra"} now.`:""}`,{action:"Undo",run:undo});
+}
+// The tools that work on the graph (peaks, fits, bands) open it when it is
+// closed; with nothing plotted yet, the analysed spectrum is plotted.
+function ensureGraph(){ const p=P(), act=activeYCol(); if(!p||!act||S.readOnly) return; const id=S.gid||"main";
+  if(!graphShut(id)) return;
+  if(id==="main"&&mainFreeNow()){ plotCols([act.id],{into:"main",undo:"plotting "+specName(act)}); return; }
+  setGraphShut(id,false); openWin(winOfGraph(id),{quiet:true}); }
+// The Plot menu for some columns: a plot type (a new graph, or the first graph
+// when nothing is plotted yet), several spectra in panels, or onto a graph.
+function plotItems(cids){
+  const p=P(), {ys}=plotWhat(cids), ro=S.readOnly||!p||!ys.length, many=ys.length>1, nm=ys.length?andList(ys.slice(0,3).map(specName))+(ys.length>3?` and ${ys.length-3} more`:""):"";
+  const where=mainFreeNow()?graphName("main"):"a new graph";
+  const out=[{group:ys.length?`Plot ${nm} in ${where} as`:"Select the columns to plot first",plain:true}]
+    .concat(PLOT_TYPES.map(([k,l])=>({label:l, enabled:!ro, run:()=>plotCols(cids,{type:k})})));
+  if(many) out.push("-",{label:"Stacked panels", enabled:!ro, run:()=>plotCols(cids,{layout:"stack"})},{label:"Offset (waterfall)", enabled:!ro, run:()=>plotCols(cids,{layout:"offset"})},{label:"Heat map", enabled:!ro, run:()=>plotCols(cids,{layout:"heat"})});
+  const gs=graphIds().filter(id=>!(id==="main"&&mainFreeNow()));
+  if(gs.length) out.push("-",{label:"Add to a graph", enabled:!ro, sub:()=>gs.map(id=>({label:graphName(id), note:graphShut(id)?"closed":"", run:()=>plotCols(cids,{into:id})}))});
+  return out;
+}
 // The list of graphs (the taskbar's Graphs button and Window › Graphs).
 function graphsMenuItems(){ const cur=S.gid||"main";
-  return graphIds().map(id=>{ const cs=graphCols(id); return {label:graphName(id)+(cs.length===1?" · "+specName(cs[0]):cs.length?` · ${cs.length} spectra`:""), radio:true, checked:id===cur, run:()=>showGraph(id)}; })
+  return graphIds().map(id=>{ const cs=graphCols(id); return {label:graphName(id)+(cs.length===1?" · "+specName(cs[0]):cs.length?` · ${cs.length} spectra`:""), radio:true, checked:id===cur&&!graphShut(id), note:graphShut(id)?"closed":winMin(winOfGraph(id))?"minimised":"", run:()=>showGraph(id)}; })
     .concat(["-",{label:"Combine graphs…", enabled:!S.readOnly, run:()=>combineDlg()},{label:"Tile the graphs", run:tileWins},{label:"Link the X zoom", checked:S.linkX, run:()=>setLinkX(!S.linkX)}]); }
 // A graph window's ⋯ menu.
 function graphWinItems(id){
@@ -16389,7 +16661,8 @@ function graphWinItems(id){
     "-",{label:"New graph", sub:()=>newGraphItems(), enabled:!ro},
     {label:"Tile the graphs", run:tileWins},
     {label:"Link the X zoom of the graphs", checked:S.linkX, run:()=>setLinkX(!S.linkX)},
-    "-",{label:main?"The first graph cannot be deleted":"Delete this graph", danger:!main, enabled:!ro&&!main, run:()=>deleteGraph(id)}];
+    "-",{label:"Close this graph", enabled:!!p, title:"Off the desk and out of the taskbar, kept in the project: Window › Graphs opens it again", run:()=>closeGraph(id)},
+    {label:main?"The first graph cannot be deleted":"Delete this graph", danger:!main, enabled:!ro&&!main, run:()=>deleteGraph(id)}];
 }
 
 /* ---- Combining graphs -------------------------------------------------------------
@@ -16408,12 +16681,13 @@ function combineGraphs(srcs,into,opt){
   const graphs=(p.graphs||[]).map(g=>Object.assign({},g,{cols:g.cols.slice(),plot:Object.assign({},g.plot)})), plot=Object.assign({},p.plot);
   let tid=into, tp, fresh=0;
   if(into==="new"){ tid="g"+Math.random().toString(36).slice(2,9); tp=graphBase(srcs[0]||GID()); graphs.push({id:tid,name:nextGraphName(p),cols:ids.slice(),plot:tp}); fresh=ids.length; }
-  else if(into==="main"){ tp=plot; const hid=plot.hidden||[]; fresh=ids.filter(k=>hid.includes(k)).length; plot.hidden=hid.filter(k=>!ids.includes(k)); }
+  else if(into==="main"){ tp=plot; const hid=plot.hidden||[], l=mainList(p); fresh=ids.filter(k=>hid.includes(k)||(l&&!l.includes(k))).length; plot.hidden=hid.filter(k=>!ids.includes(k)); if(l) plot.cols=l.concat(ids.filter(k=>!l.includes(k))); }
   else { const g=graphs.find(q=>q.id===into); tp=g.plot; const nw=ids.filter(k=>!g.cols.includes(k)); fresh=nw.length; g.cols=g.cols.concat(nw); }
   // Each spectrum keeps the look it had where it came from, unless it has one here.
   srcs.forEach(s=>{ const sp=s==="main"?p.plot:graphOf(s).plot; graphCols(s).forEach(c=>{ const st=sp.series&&sp.series[c.id];
     if(st&&!(tp.series&&tp.series[c.id])) tp.series=Object.assign({},tp.series,{[c.id]:clone(st)}); }); });
   if(opt.layout) tp.layout=opt.layout;
+  if(tp.shut){ delete tp.shut; fresh=fresh||ids.length; }
   // The graphs merged go (never the first), and their labels move with their spectra.
   const del=opt.keep?[]:srcs.filter(id=>id!=="main"&&id!==tid);
   if(!fresh&&!del.length&&!opt.layout){ toast(`${ids.length===1?specName(colById(ids[0]))+" is":"Those spectra are"} on ${graphName(into)} already.`); return null; }
@@ -16564,12 +16838,14 @@ function bringIn(groups,onto,gid){
   if(!shown.length) return;
   const plot=Object.assign({},p.plot,{annos}), graphs=(p.graphs||[]).map(g=>Object.assign({},g)), made=[], pick=o=>{ const r={}; o.forEach(k=>{ if(styles[k]) r[k]=styles[k]; }); return r; };
   const hideMain=ids=>{ plot.hidden=(plot.hidden||[]).concat(ids.filter(k=>!(plot.hidden||[]).includes(k))); };
+  // A first graph with a list of its own takes them onto the list.
+  const putMain=ids=>{ if(Array.isArray(plot.cols)) plot.cols=plot.cols.concat(ids.filter(k=>!plot.cols.includes(k))); delete plot.shut; };
   let target=gid;
-  if(onto==="graph"&&(gid==="main"||!graphOf(gid))){ target="main"; hideMain(brought.filter(k=>!shown.includes(k))); plot.series=Object.assign({},plot.series,pick(shown)); }
+  if(onto==="graph"&&(gid==="main"||!graphOf(gid))){ target="main"; hideMain(brought.filter(k=>!shown.includes(k))); putMain(shown); plot.series=Object.assign({},plot.series,pick(shown)); }
   else if(onto==="graph"){ const g=graphs.find(q=>q.id===gid); g.cols=g.cols.concat(shown.filter(k=>!g.cols.includes(k))); g.plot=Object.assign({},g.plot,{series:Object.assign({},g.plot.series,pick(shown))}); hideMain(brought); }
   else { let groupsOf=onto==="each"?shown.map(k=>[k]):[shown];
     // An empty project's first graph takes the first of them.
-    if(empty){ const first=groupsOf[0]; hideMain(brought.filter(k=>!first.includes(k))); plot.series=Object.assign({},plot.series,pick(first)); target="main"; groupsOf=groupsOf.slice(1); }
+    if(empty){ const first=groupsOf[0]; hideMain(brought.filter(k=>!first.includes(k))); putMain(first); plot.series=Object.assign({},plot.series,pick(first)); target="main"; groupsOf=groupsOf.slice(1); }
     else hideMain(brought);
     const base=graphBase(GID());
     groupsOf.forEach(ids=>{ const g={id:"g"+Math.random().toString(36).slice(2,9),name:nextGraphName(Object.assign({},p,{plot,graphs})),cols:ids,plot:Object.assign(clone(base),{series:pick(ids)})}; graphs.push(g); made.push(g.id); });
@@ -16635,6 +16911,7 @@ function renderTabMarks(){
 function showTab(t,scrollTo){
   if(t==="clean"||t==="data"||t==="proc"){ openWin("flow",{render:true}); return; }
   if(t==="fit"){
+    ensureGraph();
     // The fit is made on the final data, so the graph goes back to it.
     if(S.stage!=null&&!S.pending){ S.stage=null; S.selStep=null; if(S.mode==="anchor"||S.mode==="range") setMode("zoom",true); renderPlot(); renderStages(); if(winOpen("flow")) renderFlow(); }
     openWin("fit",{render:true});
@@ -16655,7 +16932,9 @@ const WIN_MENU=()=>{ const th=themeSetting(); return windowItems().concat(["-",
 function plotMenu(){
   const p=P(), has=!!(p&&pointsAll().length), cfg=plotCfg(), edit=!!p&&!S.readOnly, act=activeYCol();
   const st=act?serStyle(act.id,true,readPalette(),false,cfg).type:cfg.style;
-  return [{label:"Format graph…", run:()=>openPlotDetails(act&&act.id,"frame"), enabled:!!p},
+  return [{label:"Plot the selected columns", sub:()=>plotItems(wsSelColIds()), enabled:!!p&&!S.readOnly},
+    {label:"Open a graph", sub:graphsMenuItems, enabled:!!p},"-",
+    {label:"Format graph…", run:()=>openPlotDetails(act&&act.id,"frame"), enabled:!!p},
     {label:"Formats", sub:()=>formatMenuItems(f=>useFormat(f,false),()=>GP()).concat(multiGraph()?["-",{label:"Give every graph a format",sub:()=>allFormats().map(f=>({label:f.name,enabled:edit,run:()=>useFormat(f,true)}))}]:[])},
     {label:"Format", sub:()=>[{label:"X axis…", run:()=>openPlotDetails(null,"ax:x"), enabled:!!p},{label:"Second X axis…", run:()=>openPlotDetails(null,"ax:x2"), enabled:!!p},{label:"Y axis…", run:()=>openPlotDetails(null,"ax:y"), enabled:!!p},
       {label:"Frame and grid…", run:()=>openPlotDetails(null,"frame"), enabled:!!p},{label:"Text and fonts…", run:()=>openPlotDetails(null,"text"), enabled:!!p},
@@ -16887,6 +17166,7 @@ function wireStatic(){
   $("#fileIn").addEventListener("change",e=>{ const fs=[...e.target.files]; if(fs.length>1) readFilesIn(fs); else if(fs[0]) readFileIn(fs[0]); e.target.value=""; });
   $("#addColBtn").onclick=addColumn;
   { const fb=$("#wsFillBtn"); fb.onclick=()=>toggleMenu(fb,fillMenuItems,{label:"Fill"}); }
+  { const pb=$("#wsPlotBtn"); pb.onclick=()=>toggleMenu(pb,()=>plotItems(wsSelColIds()),{label:"Plot"}); }
   $("#wsLockBtn").onclick=()=>setRawLock(!rawLocked());
   document.querySelectorAll("[data-example]").forEach(b=>b.onclick=()=>loadExample(b.dataset.example));
   $("#cPost").onclick=postComment; wireThreads($("#thread"));

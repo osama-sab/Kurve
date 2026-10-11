@@ -25,7 +25,8 @@ Integrate, Fit, Results, Batch, any number of Trend graphs, Statistics, Python, 
 its edges, maximises on a double-click of the title, minimises to the **taskbar** along the
 bottom of the desk and closes with its ×. As a workbook keeps a tab per sheet, the project's
 **documents** (its graphs, the worksheet, its trend graphs) always have a taskbar button and
-only minimise; **panels** (History, Peaks, Fit…) are in the taskbar only while open or
+minimise (a graph can also be closed: off the desk and the taskbar, kept in the project, and
+opened again from Window › Open a graph); **panels** (History, Peaks, Fit…) are in the taskbar only while open or
 minimised, so a panel never opened is in no list. An open window's button is raised with a
 bar under it (the front one in colour), a minimised one's flat with no bar, and the words keep
 the text colour in both. The taskbar starts with the project's name (every window on the desk
@@ -79,7 +80,10 @@ figure) has its own
 the Discussion window lists every thread with a link back. The
 **worksheet** is a spreadsheet grid as in Excel, with Origin's label rows: a **Raw** sheet (the
 data as recorded or typed, editable, every change in the raw-data record, unless the project
-locks it) and a **Final** sheet (the analysed spectrum after processing, read only). Below 860 px the windows stack in one column,
+locks it) and a **Final** sheet (the analysed spectrum after processing, read only). An import
+puts every column of the file there, as X, a spectrum, error bars or data that is not a
+spectrum, and plots nothing unless asked: columns are plotted when ready, by selecting them
+and pressing **Plot** on the worksheet's bar. Below 860 px the windows stack in one column,
 graph first, with the taskbar kept at the bottom of the screen.
 
 ## Code layout (all inside the `<script>` block of kurve.html)
@@ -340,23 +344,42 @@ graph first, with the taskbar kept at the bottom of the screen.
   run it after touching anything here.
   Files arrive through `readFileIn` (the Import button, Ctrl+O, or a drop anywhere on the
   window) and `importText`, which refuses binary instrument files with a reason (`looksBinary`).
-  **Many spectra at once**: several files chosen or dropped together go to `readFilesIn`; a
-  file with several Y columns does too when the wizard's Spectra list says all (`S.imp.all`,
-  `impYs`, on by default when more than one column is a Y). `batchFile(fname, text, opt)`
+  **The wizard's columns**: `S.imp.use` is what each column of the file becomes (`IMP_USE`:
+  `x`, `y` a spectrum, `e` the error bars of the nearest Y to its left (else right,
+  `impErrOf`), `data` (the worksheet's `ignore` role: kept for formulas, not a spectrum) or
+  `skip`), started by `impUseDefault` (empty columns skipped; X,Y,X,Y only when
+  `impPairsLikely`: `detectPaired` and every other column over much the same range as the
+  first, else a "Read as X,Y pairs" fix). The table (`.impcols`, a `select[data-use]` per
+  column, the name a `[data-pv]` button choosing the preview's spectrum, `impPv`) keeps the
+  focus across its redraw. `impCols` is the preview's X (the nearest X to the left,
+  `impXFor`, or the row number), Y and error. **Plot** (`IMP_PLOT`: `none` "Not yet: the
+  worksheet only", `one`, `each`, `stack`; `impPlotPref`/`impPlotKeep`, `kurve.impPlot`,
+  default `none`) is applied by `impGraphs(p, ids, how, fresh)` to the project before it is
+  saved: fresh, the first graph takes them (or is closed and empty, `shut`, `cols:[]`); beside
+  other spectra they get graphs of their own, unless the first graph is closed and empty.
+  `impBuild` makes the columns in the file's order (an X of row numbers when none is X; the
+  fixes as steps on every spectrum; √N columns), `doImport` puts them in a new project, beside
+  the project's (the first X shared with the last X column when `sameAxis`), or in place of
+  it (the other graphs go), and `afterImport` brings the worksheet forward (`sheetForward`:
+  it takes the graph's place) with a toast that plots them, or opens the graphs made (one
+  spectrum: its History and Overview). A project just created is current only once the store
+  lists it: `whenOpen(fn)` waits for it.
+  **Many spectra at once**: several files chosen or dropped together go to `readFilesIn`.
+  `batchFile(fname, text, opt)`
   reads a file into items `{fname, name, x, y, e, xn, xu, yu, n, x0, x1, meta}` (or `{fail}`
   in words), `batchImport(items, o)` lists them in a dialog (names editable; into this project
-  or a new one; one graph each, all in one, or stacked) and `doBatchImport` brings them in as
+  or a new one; Plot, as the wizard's) and `doBatchImport` brings them in as
   one change: one undo entry, one log line, one raw-data record entry. A spectrum shares the X
-  column of the one before it when `sameAxis`, and has its own otherwise; a project that held
-  nothing gives its first graph to the new spectra.
+  column of the one before it when `sameAxis`, and has its own otherwise; `impGraphs` and
+  `afterImport` as above.
   **One column** (a multichannel analyser's counts, a line per channel): `analyzeFile(raw,
   {fname, tka})` marks `single`, and for a `.tka` name (or `tka:true`; `tka:false` refuses)
   reads the first two lines as live and real time (`res.tka`, into `meta` with the dead time;
   only when real ≥ live unless asked) and starts the data after them; `detectRoles` gives one
-  column `xi:-1`. The wizard's X list then offers the row number (`im.xi<0`, "Channel
-  number", from `im.ch0`, 0 or 1), its Y error list `√Y, counting statistics` (`IMP_SQRT`,
-  for non-negative whole numbers: an error column computed by the formula `SQRT_FX`,
-  `sqrt(max(B,1))`), and the TKA line a `rate` fix (a `scale` step by 1/live, Count rate in
+  column `xi:-1`. With no column as X the wizard's X is the row number ("The channel
+  number", from `im.ch0`, 0 or 1), `√N error bars for the counts` (`im.sqrt`, for spectra of
+  non-negative whole numbers with no error column, `impSqrtable`: an error column computed
+  by the formula `SQRT_FX`, `sqrt(max(B,1))`), and the TKA line a `rate` fix (a `scale` step by 1/live, Count rate in
   counts/s). X is named Channel, Y Counts (counts) for TKA, the file's name otherwise (and
   beside other spectra); thousands of points are drawn as a line. `batchFile` reads one-column
   files the same way. A Y column whose X column holds no values is drawn against its row
@@ -451,14 +474,17 @@ graph first, with the taskbar kept at the bottom of the screen.
   the press itself (`e.detail === 2` in the mousedown: a cell opens, a resize edge fits, the
   fill handle fills down), the `dblclick` listener kept as a fallback (`S.ws.dblAt`). A move by
   the keys records `S.ws.want`: for 0.6 s the scroll handler brings that cell back if a scroll
-  already under way (the wheel's smooth scroll) lands elsewhere; turning the wheel clears it. Clicking
+  already under way (the wheel's smooth scroll) lands elsewhere; turning the wheel, or any
+  new selection (`wsSelect`), clears it. Clicking
   a column letter, a row number, the corner or Ctrl+A makes the first cell the active one, as
   in a spreadsheet. `flushEdits` (on `pagehide`, `beforeunload` and the page hidden) enters a
   value still in its box and saves a delayed save at once, so leaving the page loses nothing. Rows: `wsRowsEdit("insert"|"delete")` (the cell and row-number
   menus; unlocked and unsorted only) moves every recorded column and, through
   `remapRawRows(p, fn)`, what names a raw row (masks, corrections, a peak label's `row`, a set's
   `ex` and `mem`, `S.sel`); one undo entry and a record entry. Copy and paste are TSV (`wsCopyText`, `wsPasteText`, the label rows
-  included). The bar above shows the cell's address and value (`#wsAddr`, `#wsVal`), the foot
+  included). The bar above shows the cell's address and value (`#wsAddr`, `#wsVal`), Fill, Plot
+  (`#wsPlotBtn`, the selected columns, see Graphs), the lock and + Column, which lose their
+  words in a worksheet narrower than 560 px (the `wsheet` container), the foot
   Count, Sum, Average, Min and Max of the selection (`wsStats`). Right-click is `wsCellMenu`
   (anchored by `pointerAnchor(x, y)`). `wsLetter(i)` names columns A…Z, AA….
 - **Pipelines**: `pipeOf(c)` runs a spectrum's steps on its input (`rawSeries(c)`, or its
@@ -491,8 +517,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   window back where it starts). A window is open, minimised (`min`, its taskbar button kept;
   `minimiseWin`, the title bar's –, a click on the front window's button, tiling that leaves
   windows out) or closed (`closeWin`, the ×, a Done button: out of the taskbar). Documents
-  (`isDoc`, also `keepsBtn`: graphs, the worksheet, trend graphs; `docWinIds`) keep their
-  buttons and have no ×; panels (`panelIds`) are in the taskbar only while `inBar`, news or
+  (`isDoc`: graphs, the worksheet, trend graphs; `docWinIds`) keep their buttons
+  (`keepsBtn`, all but a closed graph, `winShut`); a graph window's × closes the graph
+  (`closeGraph`, see Graphs), and the others have none; panels (`panelIds`) are in the taskbar only while `inBar`, news or
   not. `barWinIds` is the windows in use in the taskbar's order. `renderTaskbar` draws the
   documents (graphs past four as `[data-tk-graphs]`, trend graphs past three as
   `[data-tk-trends]`), then the panels, then `fitTaskbar`, which hides the buttons that do not
@@ -512,7 +539,28 @@ graph first, with the taskbar kept at the bottom of the screen.
   leave the next project's graph tiny.
 - **Graphs**: `p.graphs` (in `UNDO_KEYS`) is `[{id, name, cols, plot}]`; the first graph,
   "main", is `p.plot` (its name `p.plot.gname`, default "Graph 1") and shows every spectrum not
-  hidden; another shows `cols`, in order. `GID()` is the graph in hand (`S.gctx` while drawing
+  hidden, or, once plotted from the worksheet or by an import, its own list `p.plot.cols`
+  (`mainList`: `inGraph`, `graphCols`, `plotCfg`, `savePlot`'s hidden, `toggleGraphCol`,
+  `combineGraphs`, `onePerSpectrum` and `bringIn` read it), so a column made later does not
+  join it unasked; another shows `cols`, in order. **Closed graphs**: `plot.shut` (main's or a
+  graph's; `graphShut`, `setGraphShut(id, on)` with an undo entry and no log line,
+  `closeGraph` from the ×, the ⋯ menu's Close this graph) is the project's, so the graph is
+  off the desk wherever it is opened: `syncGraphWins` closes a shut graph's window and opens
+  one that was shut and no longer is (an undo, a colleague; `S.gshut` remembers per project),
+  `saveGraphLayout` records a shut graph as open so its place is kept. `showGraph` opens a
+  shut one; `graphsMenuItems` notes "closed" (Window › Open a graph, Plot › Open a graph);
+  the History's graph box says Closed with Open it. `mainFreeNow()`: the first graph closed
+  with nothing on it, where the next plot goes. `plotBase(pl)` is a new graph's look from
+  another's (no spectra, ranges, title, labels, list or state); `graphBase(from)` uses it.
+  **Plotting** (`plotCols(cids, {type, layout, into, undo})`, one undo entry): a Y column as
+  it is, an `ignore` column made a spectrum, a selected X column what the Ys are plotted
+  against (each the selected X nearest to its left, `xcol`), into `into`, else the free first
+  graph, else a new graph (with `plotBase` of the graph in hand); a graph coming onto the desk
+  shares the worksheet's place (no graph open) or the front graph's (`splitInto`).
+  `plotItems(cids)` is the menu (PLOT_TYPES, panels, offset, heat map, Add to a graph), from
+  the worksheet's `#wsPlotBtn`, Plot › Plot the selected columns, the cell menu and the
+  column menu (`wsSelColIds`, `plotTargets(cid)`). `ensureGraph()` (Peaks, Fit, Integrate)
+  opens a shut graph, plotting the analysed spectrum on a free first graph. `GID()` is the graph in hand (`S.gctx` while drawing
   another, else `S.gid`, the one in front); `GP()`/`plotOf(id)` its settings, and every
   reader of plot settings goes through them; `savePlot(patch, log)` writes them (an extra
   graph's `hidden` becomes its `cols`; its log line is prefixed with the graph's name).
@@ -1634,13 +1682,49 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   own mistakes (clicking the cell being typed in, `insertText` that fires no keydown) look like
   bugs: read the trail first. And it serves the page over HTTP: loaded from file://, two runs
   in thirty came back from a reload with an older project, the storage quirk odd-test met.
+- **Plotting is the user's decision.** An import made every Y column a spectrum and asked
+  how to graph them before anything else; columns meant for arithmetic first (a dark
+  current, a reference) went straight onto graphs. Every column now comes into the worksheet
+  with the role chosen for it, Plot is a choice that defaults to "Not yet", and graphs close.
+- **A project just created is not current yet.** `afterImport` returned at once because `P()`
+  was still null after `await createProject`: imports into a new project got no worksheet
+  forward and no message. `whenOpen` waits for the store to list it.
+- **Opening a window again opens it where it was.** Un-closing the first graph in
+  `syncGraphWins` put it back at its full size, over the worksheet that had taken its place;
+  the plot decided where it goes by whether it was open before the save, not after.
+- **A column that drifts upward looks like an axis.** `detectPaired` took a dark current
+  rising steadily for the X of an X,Y pair. Pairs are assumed only when every other column
+  covers much the same range as the first.
+- **A title with a fixed share pushes the buttons out.** `.win-t` did not shrink, and one more
+  button (the graph's ×) put the minimise button out of reach with a long name. Titles shrink.
+- **A cell kept in view must be let go when another is chosen.** After Enter the sheet keeps
+  the new cell in view for 0.6 s (`S.ws.want`); a cell selected within that time was scrolled
+  away from, and the edit begun in it closed, so Tab, Tab, Enter failed one run in two in a
+  test that typed at once. `wsSelect` forgets it; `wsMove` sets it after.
+- **An undone edit is not in the log.** An undo within 0.7 s of typing a value saved the
+  snapshot with the waiting edit merged first, and the edit's log line was added after the
+  snapshot's log: the log said a value had changed that the undo had put back. A save that
+  brings its own `log` drops the waiting line.
 - **An earlier stage drawn behind must be on the same X.** Channels drawn behind energies are
   another graph on one axis: the ghost and the before-and-after chart check X's name and unit,
   not only Y's scale.
 
 ## Roadmap
 
-Done in this round: the worksheet for manual work, from a user's bug report. Typing far
+Done in this round: plotting when you are ready, from a user's request. The import dialog
+lists every column of the file with what it becomes (X, a spectrum, error bars, data kept for
+formulas, or left out), reads X,Y pairs only when they look like pairs, and plots nothing
+unless asked: Plot is Not yet (the worksheet takes the graph's place), one graph, one each
+or stacked, remembered; several files the same. Columns are plotted from the worksheet
+(select them, Plot: a type, panels, a new graph or added to one; a data column becomes a
+spectrum, a selected X is the axis). Graphs close (×) and stay in the project, opened again
+from Window › Open a graph, the History or Undo; graph tools open them. The first graph keeps
+its own list of spectra once plotted, so later columns do not join it. Fixes: an import into a
+new project did nothing after the import (no message, no worksheet); an undo just after typing
+a value left the undone change in the log; a cell chosen just after Enter could lose the edit
+begun in it.
+
+Round before: the worksheet for manual work, from a user's bug report. Typing far
 down the sheet no longer jumps to the top, and values typed one after another are all kept
 (they were lost whenever the delayed save landed mid-entry). Raw data is editable like any
 spreadsheet (type over, clear, paste and fill over, insert and delete rows, every change one
@@ -1651,7 +1735,7 @@ column; double-click edits in the first rows too (it did nothing there); a colum
 selects with its first cell active; leaving the page saves what was just typed. A random-user
 harness drives the worksheet in hundreds of unscripted steps and checks the data after each.
 
-Round before: reading, windows and filling, from a user's review. Text has two
+Two rounds before: reading, windows and filling, from a user's review. Text has two
 colours, the secondary one darker (7:1 or more in every theme and style), and headings are
 sentence case in the text colour instead of small grey capitals; disabled controls are dimmer,
 not unreadable. Windows as in Excel: the project's documents (graphs, worksheet, trend graphs)
@@ -1664,7 +1748,7 @@ Fill Column With: series by a step or a factor with a stop value, evenly between
 Poisson counts) from a seed, and the trend of the values above; into empty cells of a column
 or a new one, with a preview, one undo step and a record entry.
 
-Two rounds before: a gamma spectrum, from a user's file of background radiation. One-column
+Three rounds before: a gamma spectrum, from a user's file of background radiation. One-column
 files of counts per channel are read (a .TKA file's live and real time into the metadata, X
 the channel number from 0 or 1, √N error bars as a computed column, counts per second by a
 step); calibrated to energy by a step (coefficients, remembered for the next file, or fitted
@@ -1679,7 +1763,7 @@ peaks and the lines. The taskbar tells open, minimised and closed windows apart,
 button and a Windows list. Each edge of the frame has its own ticks and numbers, set by
 clicking the edge in a picture of the frame.
 
-Three rounds before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
+Four rounds before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
 their corners, filled or not, behind the data or over it, with text inside, pinned or at data
 values). Axis breaks on X and Y, suggested over the widest empty stretch, cut with two strokes,
 the two sides on one scale, followed by zoom, wheel and pan, and named in the report. A second
@@ -1692,7 +1776,7 @@ writer: vectors, clipping, opacity (PDF), images, gradients, insets and every gr
 figure, text in the standard fonts placed by their own widths. The toolbar keeps to one row
 down to 860 px.
 
-Four rounds before: bugs found by using the app the way nobody does. A tab that froze for good
+Five rounds before: bugs found by using the app the way nobody does. A tab that froze for good
 (ticks added up after a deep zoom), tick labels all alike on a nanosecond axis, NaN drawn for
 equal or extreme limits; a second tab wiping the first's projects, a full store that still
 said Saved, two projects sharing an id, a corrupt saved layout; typographic minus signs, French
@@ -1703,7 +1787,7 @@ undo during a drag; ten-second saves with 300 spectra, 200 ms undo steps on big 
 names pushing title-bar buttons out of reach; batch rows of deleted spectra. Each fixed by its
 class, and `tools/odd-test.mjs` keeps them fixed.
 
-Five rounds before: graphs and projects, from a bug report. Deleting a project could leave its
+Six rounds before: graphs and projects, from a bug report. Deleting a project could leave its
 graphs on the desk and the next import going into it (a store's events in the other order); a
 graph in front that went away took the live plot with it. Both fixed. The taskbar names the
 project its windows belong to, the project list says what each holds, new projects get names
@@ -1713,7 +1797,7 @@ spectrum by its chip, onto a graph, its taskbar button or the desk; Ctrl keeps t
 dropped; it scrolls on a phone), from menus, or in Combine graphs… with a layout; spectra
 come from another project with their processing, peaks and colours.
 
-Six rounds before: finding and labelling peaks, from what people asked. The Peaks window
+Seven rounds before: finding and labelling peaks, from what people asked. The Peaks window
 says where it looks (the spectrum, always shown, and From … to … typed, taken from the view
 or dragged on the graph, shaded there, kept with the set) and ends in Done; the Fit window
 says which spectrum and range it fits, and ends in Done too. Fitted peaks are labelled with
@@ -1722,7 +1806,7 @@ errors and units; above, inside, or in a row along the top with leaders; turned,
 boxed, dragged; each peak can be named, and its name goes to Results, the report and the
 exports.
 
-Seven rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
+Eight rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
 spectrum shares (centres, widths, areas, shapes, the baseline, or parameter by parameter; a
 curve model's parameters), each spectrum first fitted with those held so the fit starts where
 it belongs, one block-sparse Levenberg–Marquardt problem, every row a normal fit that says what
@@ -1733,7 +1817,7 @@ on the desk: several quantities, left and right axes, lines with slopes, SVG, PN
 Each spectrum keeps its file's header, and a field that differs (a temperature, the time it was
 taken) is what a series can be plotted against.
 
-Eight rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
+Nine rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
 every title, legend entry and label (`cm^{-1}`, `\alpha`), with buttons and a word
 processor's keys; arrows drawn by dragging, their heads snapping to data points, with heads
 of four kinds; insets made from a zoom, dragged and resized, outlined on the graph with
@@ -1743,7 +1827,7 @@ print, lines scaled with the text or not, SVG at its size, PNG with its dpi reco
 transparent backgrounds, a preview); formats saved by name and used on any graph in any
 project, with five of Kurve's; a toolbar that keeps to one row at every width.
 
-Nine rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
+Ten rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
 Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
 its own font, size in points, bold, italic, underline and colour; a real font picker (each
 name in its face, search, web fonts that look the same everywhere, which fonts this computer
@@ -1758,7 +1842,7 @@ graph at once. Labels and text over several lines, turned to any angle, in a box
 pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
 richer right-click menus on axes, titles, the legend and annotations.
 
-Ten rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+Eleven rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
 started from its result, from the neighbour in the series, or from the peaks found in each;
 every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
 the History, replaced by a fit by hand, out of date when its processing changes). The Batch
@@ -1856,12 +1940,17 @@ Next, in order:
 - Known lines are matched by position alone, nearest first: a nuclide's other lines and their
   intensity ratios are not checked, nor interferences; no activities. Positions convert only
   among eV, keV and MeV
-- Documents (graphs, the worksheet, trend graphs) minimise but never close; a closed panel
+- The worksheet and trend graphs minimise but never close (graphs close, and stay in the
+  project); a closed panel
   shows no news in the taskbar (open threads show in Window › Panels and on the History's
   boxes). One worksheet per project; windows have no tabs of their own
 - Fill writes numbers down one column: no text or date series, no fill across a row by a
   series, no Excel-style flash fill; random numbers come from a seeded mulberry32, fine for
   simulation, not for cryptography
+- Plotting from the worksheet plots whole columns (no range of rows, no plot of a selection
+  of cells), against an X column; an older project's first graph shows every spectrum until
+  it is plotted from the worksheet; a closed graph is closed for everyone who opens the
+  project, and a viewer who cannot edit cannot open it
 - The worksheet holds numbers only (no text cells); rows are inserted and deleted whole, never
   cells shifted within a column; a comment attached to a point keeps its row number when rows
   above it are inserted or deleted; the sorted view is a view, so a value typed into it takes
