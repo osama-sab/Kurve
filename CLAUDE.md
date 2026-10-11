@@ -10,11 +10,15 @@ keep them (see the rules at the end).
 A desktop-style frame, top to bottom: a title bar with the **menus** (File, Edit, Plot, Data,
 Math, Analysis, Statistics, Window, Help; each short, its kinds opening side submenus on
 hover, and a tool opening its dialog) and the project name (click to rename; the arrow
-beside it switches, creates and deletes projects); a **toolbar** (Import, Export, undo/redo,
+beside it switches, creates and deletes projects); a **toolbar** (the Project Explorer's switch, Import, Export, undo/redo,
 **Raw / Final / Compare** (what the graph shows), the pointer tools Zoom / Pan / Mask / Add
 peak / Label / Arrow / Shape (a box or an ellipse, chosen from its menu) / Comment, show-all, the analysed spectrum's plot type, the layout of several
 spectra, and the Reverse X / Log Y / Grid / Residuals toggles; it keeps to one row, dropping labels
-in stages while it would wrap, `fitToolbar`); the **desk**; and a **status bar**
+in stages while it would wrap and last the Explorer's switch (not on a phone), `fitToolbar`); the **Project Explorer** docked at the desk's left
+(the project as a tree, as Origin's: folders and subfolders of your own, the worksheet, each file
+imported with its spectra and data columns, every graph, closed ones marked hidden, and the trend
+graphs; Alt+1 or the toolbar's first button shows it, its edge drags; below 1000 px a drawer);
+the **desk**; and a **status bar**
 (tool hint, live cursor readout, point counts, fit state, save state). Window › Theme picks
 light or dark, and Window › Style the look of the interface: **Bench** (the default: IBM Plex,
 blue for everything you can change) or **Graphite** (Geist, black and white, blue only for the
@@ -82,8 +86,13 @@ the Discussion window lists every thread with a link back. The
 data as recorded or typed, editable, every change in the raw-data record, unless the project
 locks it) and a **Final** sheet (the analysed spectrum after processing, read only). An import
 puts every column of the file there, as X, a spectrum, error bars or data that is not a
-spectrum, and plots nothing unless asked: columns are plotted when ready, by selecting them
-and pressing **Plot** on the worksheet's bar. Below 860 px the windows stack in one column,
+spectrum, and plots nothing: columns are plotted when ready, by selecting them and pressing
+**Plot** on the worksheet's bar. Files **dropped** on the window are read with the automatic
+choices and plotted at once (on the graph they are dropped on, a new graph, or a folder of
+the Explorer), with "Read it differently" to undo and open the dialog. Error bars are Y or X,
+both ways or one side, drawn as bars or a band; an axis can be linear, log, ln, log₂, 1/x,
+1/(x + c), √x or a probability scale, numbered as dates and times, and have a second Y axis in
+other units. Below 860 px the windows stack in one column,
 graph first, with the taskbar kept at the bottom of the screen.
 
 ## Code layout (all inside the `<script>` block of kurve.html)
@@ -342,8 +351,27 @@ graph first, with the taskbar kept at the bottom of the screen.
   that are not numbers returned in `bad`). `tools/parser-test.mjs` extracts this block
   straight out of the HTML and tests it under node (TKA files and line lists among the rest);
   run it after touching anything here.
-  Files arrive through `readFileIn` (the Import button, Ctrl+O, or a drop anywhere on the
-  window) and `importText`, which refuses binary instrument files with a reason (`looksBinary`).
+  **Dates and times** (`timeOf`, `T_DATE`, `T_TIME`, in the block): an ISO date or date and
+  time (with T, Z or an offset) is seconds since 1970 in UTC, `h:mm(:ss)` is seconds, year-first
+  dates only; `toNumber` and `parseNum` read them, `splitLine` keeps a date and its time of day
+  one field on whitespace, and `analyzeFile` returns `tkind` per column (`date`, `time`, null:
+  80 % of its cells). A column made from one carries `tfmt` (`impBuild`, `batchFile`'s `xt`);
+  the worksheet shows it with `tfmtText`, and a graph against such an X numbers its axis that
+  way unless the axis's format is set (`buildPlot`, `timeTicks`).
+  Files arrive through `readFileIn` (the Import button, Ctrl+O) and `importText`, which refuses
+  binary instrument files with a reason (`looksBinary`). **The dialog never plots**: the
+  columns go into the worksheet (`impGraphs(p, ids, "none", fresh)` closes an empty first
+  graph), to be plotted from it. **Dropped files** (`setupDrop`) are read and plotted at once:
+  `fileDropAt(x, y)` says where (a folder row `[data-xfold]` of the Explorer, a graph window or
+  its taskbar button, or the desk) and the overlay's message says so (`#dzMsg`; the outline is
+  the class `dropin`, never `fdrop`, the History's insertion line); `readDropped` reads them
+  (60 MB at most each) and `autoImport(files, {gid, folder})` builds each with the dialog's
+  automatic choices (a pseudo `S.imp` through `impBuild`), adds them as one undo entry and one
+  record entry (a fresh project takes the files' name and header), files them in the folder,
+  and `plotCols(ids, {into, noUndo, quiet})` puts them on the graph dropped on, the free first
+  graph, or a new one; its toast offers "Read it differently" (undo, then the dialog). Every
+  import gives its columns a file id `fid` and the file's name `file`, which the Explorer
+  groups by.
   **The wizard's columns**: `S.imp.use` is what each column of the file becomes (`IMP_USE`:
   `x`, `y` a spectrum, `e` the error bars of the nearest Y to its left (else right,
   `impErrOf`), `data` (the worksheet's `ignore` role: kept for formulas, not a spectrum) or
@@ -352,11 +380,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   first, else a "Read as X,Y pairs" fix). The table (`.impcols`, a `select[data-use]` per
   column, the name a `[data-pv]` button choosing the preview's spectrum, `impPv`) keeps the
   focus across its redraw. `impCols` is the preview's X (the nearest X to the left,
-  `impXFor`, or the row number), Y and error. **Plot** (`IMP_PLOT`: `none` "Not yet: the
-  worksheet only", `one`, `each`, `stack`; `impPlotPref`/`impPlotKeep`, `kurve.impPlot`,
-  default `none`) is applied by `impGraphs(p, ids, how, fresh)` to the project before it is
-  saved: fresh, the first graph takes them (or is closed and empty, `shut`, `cols:[]`); beside
-  other spectra they get graphs of their own, unless the first graph is closed and empty.
+  `impXFor`, or the row number), Y and error. Error columns are `e` (±), `e+`, `e-` and `xe`
+  (`impIsErr`; `impUseDefault` reads the kind from the name: `x err`, `dx`, a `+` or `−` at
+  the end). `impGraphs(p, ids, how, fresh)` decides the graphs before the save (`how` is
+  `none` from the dialog: fresh, the first graph is closed and empty, `shut`, `cols:[]`).
   `impBuild` makes the columns in the file's order (an X of row numbers when none is X; the
   fixes as steps on every spectrum; √N columns), `doImport` puts them in a new project, beside
   the project's (the first X shared with the last X column when `sameAxis`), or in place of
@@ -368,7 +395,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   `batchFile(fname, text, opt)`
   reads a file into items `{fname, name, x, y, e, xn, xu, yu, n, x0, x1, meta}` (or `{fail}`
   in words), `batchImport(items, o)` lists them in a dialog (names editable; into this project
-  or a new one; Plot, as the wizard's) and `doBatchImport` brings them in as
+  or a new one; nothing plotted) and `doBatchImport` brings them in as
   one change: one undo entry, one log line, one raw-data record entry. A spectrum shares the X
   column of the one before it when `sameAxis`, and has its own otherwise; `impGraphs` and
   `afterImport` as above.
@@ -387,7 +414,8 @@ graph first, with the taskbar kept at the bottom of the screen.
 - **Columns and spectra**: a project is a table. `p.cols` is `[{id, role, name, unit, data, of?,
   pipe?, mask?, src?, from?, file?, meta?}]` (`file` and `meta`, the file a spectrum came from and
   its header's fields, `colMetaOf`, shown in its Raw data box in the History; Python's `meta` is
-  the project's with the spectrum's over it) with roles `x` / `y` / `e` (an error column names its Y in `of`) /
+  the project's with the spectrum's over it) with roles `x` / `y` / `e` (an error column names its Y in `of`, and is one of six kinds, see
+  Error bars) /
   `ignore`. There may be several X columns: as in Origin, a Y column is plotted against the
   nearest X column to its left (`xColFor`), so a spectrum imported on a different axis gets its
   own X column instead of being interpolated. Every Y column is a **spectrum** with its own
@@ -537,6 +565,35 @@ graph first, with the taskbar kept at the bottom of the screen.
   are placed per project (`saveGraphLayout`, `restoreGraphLayout`: `LAYOUT.proj[pid]` for a
   project with several graphs, `LAYOUT.single` for one graph), so twelve tiled graphs do not
   leave the next project's graph tiny.
+- **Project Explorer** (`#xpl` in `.work` beside the desk, `#xplSplit` its edge): the project
+  as a tree, as Origin's. `p.tree` (in `UNDO_KEYS`) is `{folders:[{id, name, parent}], at:{key:
+  folderId}}`, read through `treeOf(p)` (folders whose parent is gone go to the top, `at`
+  entries naming no folder dropped) and written by `saveTree(t, log, {noUndo, undo})`, which also
+  drops entries for items the project no longer has (`xKeys`). Items are keyed `ws`, `f:<fid>`
+  (a file: `xFiles(p)` groups non-derived columns by `fid`, else by `file` name, `"f:@"` for
+  columns typed in the worksheet, listed only once something is typed), `g:<id>` (graphs, closed
+  ones marked hidden with `i-eyeoff`), `t:<id>` (trend graphs); a file's children
+  (`xFileKids`: its Y and data columns and the spectra derived from them) are `c:<colId>`.
+  `xRows()` flattens it (folders open unless closed, files closed unless opened, `S.xplExp` per
+  project; a filter `S.xplQ` keeps matches and their ancestors), `renderXpl()` draws `.xr` rows
+  (`role=treeitem`, `aria-level`, a roving tabindex, `--lv` indent, `data-xfold` on folders and
+  the project), called from `renderAll` and `renderTaskbar`. `xSelect` changes the selection in
+  place (redrawing on the first click would lose the double click); `xOpen` opens (a graph:
+  `showGraph`; a file or data column: `xRevealCols`, selected in the Raw sheet; a spectrum:
+  `goSpectrum`); `xMenu(r)` is each kind's menu with Move to; `xNewFolder`, `xRenameFolder`,
+  `xDeleteFolder` (what it held moves up), `xMove` (no folder into itself), `xRenameFile` (gives
+  an older file an id), `xDeleteFile` (confirmed; its columns and the spectra made from them,
+  a record entry). `xFile(keys, folder)` files without an undo entry of its own (after a change
+  that made one); `xNew(keys)` puts what is made while the Explorer is shown into the active
+  folder (`xActiveFolder`: the folder selected, or the selected item's): new graphs
+  (`plotCols`, `newGraphs`; a duplicate goes beside its source), trend graphs and imports.
+  `wireXpl()`: keys (arrows, Home/End, Enter, F2, Delete, the menu key), HTML5 drag within the
+  tree (`text/x-kurve-node`, `S.xdrag`; a drag counts only when its `dataTransfer` carries that
+  type, since the row dragged can be redrawn away before its `dragend`) onto folders, and a
+  spectrum, data column or file onto a graph window (plotted there); the splitter; Alt+1.
+  `XPL` (`kurve.xpl`: shown, width 180–520) per browser; below 1000 px (`xplDrawer`) it is a
+  drawer over the desk (`S.xplNarrow`, under the toolbar, or from the top on a phone), closed by
+  opening an item or a press outside, so the windows keep a desk wide enough for them.
 - **Graphs**: `p.graphs` (in `UNDO_KEYS`) is `[{id, name, cols, plot}]`; the first graph,
   "main", is `p.plot` (its name `p.plot.gname`, default "Graph 1") and shows every spectrum not
   hidden, or, once plotted from the worksheet or by an import, its own list `p.plot.cols`
@@ -836,8 +893,8 @@ graph first, with the taskbar kept at the bottom of the screen.
 - **Undo**: `pushUndo(label)` before any mutation, `undo`/`redo`, snapshots of `UNDO_KEYS`
   (`cols` carries the pipelines and masks, `raw` the fingerprint record, `fits` the fit history,
   `userFns` the project's fit functions, `found` the peak sets, `integ` the bands, `graphs`
-  the extra graphs, `batch` and `series`, `trends` the trend graphs)
-  plus both drafts (`S.pdraft`, `S.draft`). A snapshot copies everything but the columns' data
+  the extra graphs, `batch` and `series`, `trends` the trend graphs, `tree` the Explorer's
+  folders) plus both drafts (`S.pdraft`, `S.draft`). A snapshot copies everything but the columns' data
   arrays, which it shares (`cloneCols`): raw values are only ever replaced. Undo and redo wait
   while a pointer button is held anywhere (`S.ptrDown`, `heldBlocks`), so a drag cannot write
   back what was undone under it. It is per-session and local on purpose — rewinding your
@@ -1106,6 +1163,47 @@ graph first, with the taskbar kept at the bottom of the screen.
   `renderResults`, `renderTabMarks` and the status bar), `renderFlow`, `renderTool`,
   `renderStats`, `renderPy`, `renderThread`, `renderLog`, `renderAll`. Dense data (over 1500
   points) is drawn as one path of dots, and error bars as one path.
+- **Error bars** (`ERR_KINDS`): an error column (role `e`, `of` its spectrum) is Y both ways
+  (the default), Y upward (`side:"+"`) or downward (`side:"-"`), or the same for X (`ax:"x"`);
+  `errKind`, `errTag` (the worksheet's yEr±, yEr+, yEr−, xEr±…), `errKindName`, `errColsOf(id)`
+  (by kind), `hasErrCols`. `errColFor(id)` is the ± Y column only; `yErrData(id)` is the
+  spectrum's error as `rawSeries` reads it (the ± column, or the mean of + and −, memoised per
+  pair of arrays), so processing, weighted fits and band areas carry one error as before.
+  Drawing (`errGeom(c, d)`, memoised per series and arrays): a point's bars by its recorded row
+  `q.i` and carried error `q.e`: + and − in their recorded ratio, scaled as the processing
+  scaled the error; X bars times `xErrScale` (the local slope of drawn X against recorded X,
+  signed, 1 when X is untouched), so a converted axis converts its errors. `errSvg(g, pts, st,
+  X, Y, pal, masked, o)` returns `{under, over}`: a band (`st.eb==="band"`, runs split where a
+  point has none) under the series, bars with caps over it, X bars either way; drawn for every
+  spectrum shown (overlay, offset, double Y, stacked panels), at any stage. The style keys are
+  the series' `eb` (`bars`, `band`, `none`), `ebColor`, `ebLw`, `ebCap`, `ebOp` (the Format
+  dialog's Error bars group, the spectrum's right-click Error bars). `setErrKind(id, kind)` and
+  `errKindItems` (the column menu's Use as error bars); a locked correction refuses a column that
+  is only drawn. The fit's **prediction band** (`cfg.bandPred`, dashed, `data-pband`) beside the
+  confidence band (`cfg.bandConf`, default on), both in `FMT_KEYS`: the curve's variance plus
+  the residual variance (reduced χ²) unweighted, or the nearest point's σ² weighted.
+- **Axis scales** (`AX_SCALES`): `scaleKind(cfg, k)` is `log10` when `logX`/`logY` (the old
+  switches, still the only log10), else `ax[k].scale` (`ln`, `log2`, `recip`, `orecip` with
+  `ax[k].c`, default 273.15, `sqrt`, `prob`), else `lin`. `scaleFn(kind, ax)` gives `{tf, ti, ok,
+  lo, hi}`; `axScale(a, b, log, …)` takes it in place of `log` and sends a value it cannot show
+  off the low (or high) end, never to NaN. `buildPlot` leaves such points out (`inDom`), pads the
+  automatic view in the scale's coordinates and keeps any view where it can draw (`scaleRange`),
+  draws Y through `SY`, puts `fx`/`fy` in `S.geo` (pan and wheel zoom move in fractions of the
+  axis through them), and numbers the axis with `scaleTicks` (powers of e or 2, the probability
+  paper's percentages, or round numbers by `x2Layout` with the identity; `lab.b` is a label's
+  base for `tLab`/`labW`). Breaks are for linear and log10 axes only. `setAxisScale(k, kind)`
+  (one undo entry; the axis menu's Scale, Plot › Axis options, the Format dialog's Type through
+  `pdSet("axscale.k")`); Log Y on the toolbar clears a curved Y scale. `probit` (in NUMERICS,
+  tested) is the probability scale's transform. **Dates and times** on an axis: `ax.fmt` `time`
+  (seconds as h:mm:ss) or `date` (seconds since 1970, UTC), `timeTicks` (steps from a second to
+  a year, the day written where it changes), `fmtDur`, `fmtDate`. **The second Y axis** (`ax.yo`,
+  like `ax.x2` across from Y: `on`, `conv` one of `YO_KINDS` (`lin` with `a`, `b`, `name`,
+  `unit`; `A2T` transmittance from absorbance; `T2A`; `expr`, a formula in y), its style
+  following Y's in `axisCfg`): `yoConv`, `yoAutoTitle`, `showYo`; laid out by `x2Layout(f, SY,
+  mh, {rot:90})` (`yoL`, errors in `S.geo.yoerr`), on the right or the left when Y is on the
+  right (`yoRight`, `yoEdge`, Y's mirrored ticks give way), `data-axis="yo"`, not with double
+  Y, a heat map or stacked panels; `frameEdges`, the axis lists (`setAxisKeys("all")`,
+  `allax.`, quick styles, `fmtOf`, `styleFrom`, `plotCfg`) and `figNotes` know it.
 - **Styles and controls** (the tokens at the top of the `<style>`): one token set per theme
   and per style. Text has two colours: `--ink`, and `--muted` for what is secondary (7:1 or
   more against every panel, in both themes and both styles); `--ink-2` is a near-ink for
@@ -1709,9 +1807,40 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   another graph on one axis: the ghost and the before-and-after chart check X's name and unit,
   not only Y's scale.
 
+- **A class name is global, again.** The outline of a graph a file is dragged over reused
+  `fdrop`, which the History already uses for its 3 px insertion line, absolutely placed and
+  deaf to the pointer: the graph window shrank to a line under the drag, and the drop fell
+  through to the desk. A test that dispatched the drop at once never saw it, because the class
+  was added a frame later. Grep a class before using it, and drop where the user would, after
+  the dragover has done its work.
+- **A drag's state belongs to the drag.** The tree remembered what was dragged in `S.xdrag`
+  and forgot it on `dragend`; when the row dragged was redrawn away, its dragend reached
+  nothing, and the next file dropped from the computer onto a folder was taken for a move
+  within the tree and swallowed. A drop counts as the tree's only when its `dataTransfer`
+  carries the tree's type.
+- **A value a scale cannot show goes off the axis, not to NaN.** On a square-root or
+  reciprocal axis a negative or zero value has no position; NaN in one coordinate breaks a
+  whole path. Such values go off the low or high end (clipped), and the series leaves them out.
+- **A date is only a date when its order is known.** 03/01/2024 is March in one country and
+  January in another; only year-first dates are read, and in UTC, so a project reads the same
+  wherever it is opened.
+
 ## Roadmap
 
-Done in this round: plotting when you are ready, from a user's request. The import dialog
+Done in this round: the plotting options the user chose. The import dialog never plots, and
+files dropped on the window are read and plotted at once (on the graph they land on, a new
+graph, or an Explorer folder; "Read it differently" undoes and opens the dialog). A Project
+Explorer as Origin's: folders and subfolders, the worksheet, each file with its spectra and
+data columns, every graph (hidden ones too) and trend graph, dragged between folders, onto
+graphs to plot, renamed, deleted, filtered, by the keys, and new things filed in the active
+folder. Error bars in X and in Y, both ways or one side (Origin's six kinds), carried through
+the processing and drawn as bars or a band, per spectrum; a prediction band beside the fit's
+confidence band. Axis scales: ln, log₂, reciprocal and offset reciprocal (Arrhenius), square
+root, probability; dates and times read from files and the worksheet and numbered on the axis;
+a second Y axis in other units (transmittance over absorbance, a × y + b, a formula). Fixes:
+a graph dragged over by a file shrank to a line (a class name shared with the History).
+
+Round before: plotting when you are ready, from a user's request. The import dialog
 lists every column of the file with what it becomes (X, a spectrum, error bars, data kept for
 formulas, or left out), reads X,Y pairs only when they look like pairs, and plots nothing
 unless asked: Plot is Not yet (the worksheet takes the graph's place), one graph, one each
@@ -1724,7 +1853,7 @@ new project did nothing after the import (no message, no worksheet); an undo jus
 a value left the undone change in the log; a cell chosen just after Enter could lose the edit
 begun in it.
 
-Round before: the worksheet for manual work, from a user's bug report. Typing far
+Two rounds before: the worksheet for manual work, from a user's bug report. Typing far
 down the sheet no longer jumps to the top, and values typed one after another are all kept
 (they were lost whenever the delayed save landed mid-entry). Raw data is editable like any
 spreadsheet (type over, clear, paste and fill over, insert and delete rows, every change one
@@ -1735,7 +1864,7 @@ column; double-click edits in the first rows too (it did nothing there); a colum
 selects with its first cell active; leaving the page saves what was just typed. A random-user
 harness drives the worksheet in hundreds of unscripted steps and checks the data after each.
 
-Two rounds before: reading, windows and filling, from a user's review. Text has two
+Three rounds before: reading, windows and filling, from a user's review. Text has two
 colours, the secondary one darker (7:1 or more in every theme and style), and headings are
 sentence case in the text colour instead of small grey capitals; disabled controls are dimmer,
 not unreadable. Windows as in Excel: the project's documents (graphs, worksheet, trend graphs)
@@ -1748,7 +1877,7 @@ Fill Column With: series by a step or a factor with a stop value, evenly between
 Poisson counts) from a seed, and the trend of the values above; into empty cells of a column
 or a new one, with a preview, one undo step and a record entry.
 
-Three rounds before: a gamma spectrum, from a user's file of background radiation. One-column
+Four rounds before: a gamma spectrum, from a user's file of background radiation. One-column
 files of counts per channel are read (a .TKA file's live and real time into the metadata, X
 the channel number from 0 or 1, √N error bars as a computed column, counts per second by a
 step); calibrated to energy by a step (coefficients, remembered for the next file, or fitted
@@ -1763,7 +1892,7 @@ peaks and the lines. The taskbar tells open, minimised and closed windows apart,
 button and a Windows list. Each edge of the frame has its own ticks and numbers, set by
 clicking the edge in a picture of the frame.
 
-Four rounds before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
+Five rounds before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
 their corners, filled or not, behind the data or over it, with text inside, pinned or at data
 values). Axis breaks on X and Y, suggested over the widest empty stretch, cut with two strokes,
 the two sides on one scale, followed by zoom, wheel and pan, and named in the report. A second
@@ -1776,7 +1905,7 @@ writer: vectors, clipping, opacity (PDF), images, gradients, insets and every gr
 figure, text in the standard fonts placed by their own widths. The toolbar keeps to one row
 down to 860 px.
 
-Five rounds before: bugs found by using the app the way nobody does. A tab that froze for good
+Six rounds before: bugs found by using the app the way nobody does. A tab that froze for good
 (ticks added up after a deep zoom), tick labels all alike on a nanosecond axis, NaN drawn for
 equal or extreme limits; a second tab wiping the first's projects, a full store that still
 said Saved, two projects sharing an id, a corrupt saved layout; typographic minus signs, French
@@ -1787,7 +1916,7 @@ undo during a drag; ten-second saves with 300 spectra, 200 ms undo steps on big 
 names pushing title-bar buttons out of reach; batch rows of deleted spectra. Each fixed by its
 class, and `tools/odd-test.mjs` keeps them fixed.
 
-Six rounds before: graphs and projects, from a bug report. Deleting a project could leave its
+Seven rounds before: graphs and projects, from a bug report. Deleting a project could leave its
 graphs on the desk and the next import going into it (a store's events in the other order); a
 graph in front that went away took the live plot with it. Both fixed. The taskbar names the
 project its windows belong to, the project list says what each holds, new projects get names
@@ -1797,7 +1926,7 @@ spectrum by its chip, onto a graph, its taskbar button or the desk; Ctrl keeps t
 dropped; it scrolls on a phone), from menus, or in Combine graphs… with a layout; spectra
 come from another project with their processing, peaks and colours.
 
-Seven rounds before: finding and labelling peaks, from what people asked. The Peaks window
+Eight rounds before: finding and labelling peaks, from what people asked. The Peaks window
 says where it looks (the spectrum, always shown, and From … to … typed, taken from the view
 or dragged on the graph, shaded there, kept with the set) and ends in Done; the Fit window
 says which spectrum and range it fits, and ends in Done too. Fitted peaks are labelled with
@@ -1806,7 +1935,7 @@ errors and units; above, inside, or in a row along the top with leaders; turned,
 boxed, dragged; each peak can be named, and its name goes to Results, the report and the
 exports.
 
-Eight rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
+Nine rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
 spectrum shares (centres, widths, areas, shapes, the baseline, or parameter by parameter; a
 curve model's parameters), each spectrum first fitted with those held so the fit starts where
 it belongs, one block-sparse Levenberg–Marquardt problem, every row a normal fit that says what
@@ -1817,7 +1946,7 @@ on the desk: several quantities, left and right axes, lines with slopes, SVG, PN
 Each spectrum keeps its file's header, and a field that differs (a temperature, the time it was
 taken) is what a series can be plotted against.
 
-Nine rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
+Ten rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
 every title, legend entry and label (`cm^{-1}`, `\alpha`), with buttons and a word
 processor's keys; arrows drawn by dragging, their heads snapping to data points, with heads
 of four kinds; insets made from a zoom, dragged and resized, outlined on the graph with
@@ -1827,7 +1956,7 @@ print, lines scaled with the text or not, SVG at its size, PNG with its dpi reco
 transparent backgrounds, a preview); formats saved by name and used on any graph in any
 project, with five of Kurve's; a toolbar that keeps to one row at every width.
 
-Ten rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
+Eleven rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
 Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
 its own font, size in points, bold, italic, underline and colour; a real font picker (each
 name in its face, search, web fonts that look the same everywhere, which fonts this computer
@@ -1842,7 +1971,7 @@ graph at once. Labels and text over several lines, turned to any angle, in a box
 pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
 richer right-click menus on axes, titles, the legend and annotations.
 
-Eleven rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+Twelve rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
 started from its result, from the neighbour in the series, or from the peaks found in each;
 every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
 the History, replaced by a fit by hand, out of date when its processing changes). The Batch
@@ -1901,14 +2030,12 @@ Next, in order:
    CHN and CNF are binary), FWHM and efficiency against energy, net peak areas over a local
    continuum with their counting errors and activities, a nuclide named by the set of its lines
    (their intensity ratios, interferences), region edges dragged on the graph
-2. Plots Origin has and Kurve lacks, by use: X error bars and asymmetric (+/−) errors, error
-   bars drawn as a band; a second Y axis in other units; panels of different spectra (graph
-   layers, grids of panels); a contour or image of a series against its variable (temperature,
-   time) rather than one row per spectrum; more axis scales (ln, log2, reciprocal 1/x for
-   Arrhenius, square root, probability, dates and times of day); column and bar charts,
-   histograms with bins, box and violin plots; symbols coloured or sized by a third column;
-   spline and B-spline connectors, fill between two curves, hatched fills for black and white;
-   a prediction band beside the confidence band; copy the graph to the clipboard as a picture
+2. Plots Origin has and Kurve lacks, by use: panels of different spectra (graph layers, grids
+   of panels); a contour or image of a series against its variable (temperature, time) rather
+   than one row per spectrum; column and bar charts, histograms with bins, box and violin
+   plots; symbols coloured or sized by a third column; spline and B-spline connectors, fill
+   between two curves, hatched fills for black and white; copy the graph to the clipboard as a
+   picture; X errors in fits (orthogonal distance regression)
 3. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
    with its own scale on each side, polygons and curved arrows
 4. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
@@ -1925,6 +2052,21 @@ Next, in order:
    applied in one click, unread markers; Python steps that re-run on their own when asked
 
 ## Known gaps
+
+- Project Explorer: one item moves at a time (no multiple selection); a spectrum lives under its
+  file and cannot be filed apart from it; folders organise the tree only (they do not hide or
+  show windows as Origin's active folder can); dropping on a folder imports and plots with the
+  automatic choices only
+- Error bars: X errors are drawn, never fitted (no orthogonal distance regression); a weighted
+  fit uses the mean of upward and downward errors; a derived spectrum has its source's carried
+  error only, both ways; an X error's scale under a step that resamples X is the local slope
+  between neighbouring points
+- Scales: breaks only on linear and log10 axes; the right axis of double Y, the heat map's
+  colour bar and trend graphs stay linear or log10; ln and log₂ axes are numbered in whole
+  powers; the probability scale is the normal one only (no Weibull, no logit). Dates are read
+  year first and in UTC (no local time zone, no day-first or month-first dates), times of day
+  as h:mm(:ss); the second Y axis needs a conversion one-to-one over the view, and is not drawn
+  with double Y, a heat map or stacked panels
 
 - One-column files: a .TKA file's two-line header is the only analyser header known; other text
   formats are read where their numbers make the longest block (their own calibration is not

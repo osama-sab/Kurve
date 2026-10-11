@@ -12,7 +12,7 @@ const m = html.match(/==PARSER:START==[\s\S]*?\*\/([\s\S]*?)\/\* ==PARSER:END==/
 if (!m) { console.error("Could not find the parser block in kurve.html"); process.exit(1); }
 
 // checkColumns formats numbers with the app's fmt(); a plain stub is enough here.
-const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,parseLineList,parseFillList};`;
+const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,parseLineList,parseFillList,timeOf};`;
 const P = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -322,6 +322,22 @@ check("negative kept", close(P.toNumber("-999", "."), -999));
   check("units: explicit unit in brackets still wins",
     P.splitColName("Absorbance (a.u.)").unit === "a.u.");
   check("units: wavenumber still inferred", P.splitColName("Raman shift").unit === "cm⁻¹");
+}
+
+/* ---------- 21b. dates and times are numbers ---------- */
+{
+  const f = P.analyzeFile("Time,Temp,Signal\n2024-03-01 12:00:00,21.5,0.12\n2024-03-01 12:05:00,21.7,0.15\n2024-03-01 12:10:00,21.9,0.19\n2024-03-01 12:15:00,22.0,0.22\n");
+  check("dates: a date-time column is seconds since 1970 (UTC)", f.cols[0][0] === Date.UTC(2024, 2, 1, 12) / 1000 && f.cols[0][1] - f.cols[0][0] === 300, JSON.stringify(f.cols[0]));
+  check("dates: the column is known as dates, and is X", f.tkind[0] === "date" && f.tkind[1] === null && f.roles[0] === "x", JSON.stringify([f.tkind, f.roles]));
+  const g = P.analyzeFile("t\ty\n12:00:00\t1\n12:00:30\t2\n12:01:00\t3\n12:01:30\t4\n");
+  check("times: h:mm:ss is seconds, and the column is times", g.cols[0][1] === 43230 && g.tkind[0] === "time", JSON.stringify([g.cols[0], g.tkind]));
+  const h = P.analyzeFile("Date;Value\n2024-03-01;5\n2024-03-02;6\n2024-03-03;7\n2024-03-04;8\n");
+  check("dates: a file that starts with dates is read", h.rows.length === 4 && h.cols[0][1] - h.cols[0][0] === 86400, JSON.stringify(h.cols));
+  const w = P.analyzeFile("2024-03-01 06:00 1.5\n2024-03-01 07:00 1.7\n2024-03-01 08:00 1.6\n2024-03-01 09:00 1.9\n");
+  check("dates: a date and its time split by a space stay one field", w.ncol === 2 && w.cols[0][1] - w.cols[0][0] === 3600, JSON.stringify([w.ncol, w.cols]));
+  check("dates: a zone offset is taken off", P.toNumber("2024-03-01T12:00:00+02:00") === Date.UTC(2024, 2, 1, 10) / 1000 && P.toNumber("2024-03-01T12:00:00Z") === Date.UTC(2024, 2, 1, 12) / 1000);
+  check("dates: not a date when it cannot be one", P.toNumber("2024-13-01") === null && P.toNumber("12:75") === null && P.toNumber("03/01/2024") === null);
+  check("dates: ordinary numbers are untouched", P.toNumber("2024") === 2024 && P.toNumber("1,5", ",") === 1.5 && P.toNumber("-0.5") === -0.5);
 }
 
 /* ---------- 22. a large file stays quick ---------- */

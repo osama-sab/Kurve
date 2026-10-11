@@ -15,7 +15,7 @@ const grab = (tag) => {
 // Interpolation, integration and normalizing live in the pipeline block now;
 // tools/pipe-test.mjs tests the rest of it.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -500,6 +500,8 @@ function fitSpec(X, Y, spec, init, opts) {
     check("formula: depth and length end in words, not a stack overflow", /nested more than 200 deep/.test(deep.err) && deep.col != null && /too long to read/.test(long.err) && !fine.err, [deep.err, long.err, fine.err]); }
   check("formula: nothing but arithmetic can run", /no function called “alert”/.test(C("y = alert(1)*a").err) && /cannot contain/.test(C("y = a`x`").err) &&
     /no function called “constructor”/.test(C("y = constructor(x)*a").err) && !!C("y = a.b*x").err && !!C("y = a[0]()*x").err, [C("y = constructor(x)*a").err, C("y = a[0]()*x").err]);
+  check("probit, the normal quantile, to double precision", N.probit(0.5) === 0 && near(N.probit(0.975), 1.959963984540054, 1e-13) && near(N.probit(1e-10), -6.361340902404056, 1e-11) && near(N.probit(0.9999), 3.719016485455709, 1e-12) && N.probit(0) === -Infinity && N.probit(1) === Infinity && Number.isNaN(N.probit(NaN)));
+  check("probit inverts the normal distribution across its range", [1e-300, 1e-12, 0.001, 0.02, 0.3, 0.7, 0.98, 0.999, 1 - 1e-12].every(p => { const x = N.probit(p), q = 0.5 * N.erfcFn(-x / Math.SQRT2); return Math.abs(q - p) <= 1e-13 * Math.max(p, 1e-300) + 1e-15; }));
   check("erf and erfc to double precision", near(N.erfFn(0.5), 0.5204998778130465, 1e-15) && rel(N.erfcFn(5), 1.5374597944280349e-12, 1e-12) && rel(N.erfcFn(2.4), 0.0006885138966450786, 1e-12));
   const g = N.guessUserParams(["y0", "A", "xc", "w", "t", "q"], [0, 1, 2, 3, 4], [1, 2, 5, 2, 1]);
   check("starting values from the names", g[0] === 1 && g[1] === 4 && g[2] === 2 && near(g[3], 0.4, 1e-12) && g[5] === 1, g);
