@@ -1580,6 +1580,8 @@ table.pdann{border-collapse:collapse;font-size:12.5px;width:100%;margin:2px 0 4p
       <option value="stack">Stacked panels</option>
       <option value="dy">Double Y</option>
       <option value="heat">Heat map</option>
+      <option value="box">Box chart</option>
+      <option value="violin">Violin plot</option>
     </select>
     <button class="tb lbl opt" id="revX" aria-pressed="false" title="Run the X axis high to low, as wavenumber and binding-energy axes do"><svg class="ic"><use href="#i-reverse"/></svg><span>Reverse X</span></button>
     <button class="tb lbl opt" id="logY" aria-pressed="false" title="Logarithmic Y axis"><svg class="ic"><use href="#i-log"/></svg><span>Log Y</span></button>
@@ -2327,6 +2329,132 @@ function probit(p){
   const e=0.5*erfcFn(-x/Math.SQRT2)-p, u=e*Math.sqrt(2*Math.PI)*Math.exp(x*x/2);
   return x-u/(1+x*u/2);
 }
+/* ---- Distributions: histograms, box charts, violins ----------------------------
+   A quantile by linear interpolation between order statistics (type 7, as R's
+   default and Origin's), Tukey's box (whiskers to the furthest value within
+   1.5 IQR of the box, the rest outliers), a Gaussian kernel density with
+   Silverman's bandwidth, and histogram bins by a rule or as asked. */
+function quantileSorted(s,p){ const n=s.length; if(!n) return NaN; if(n===1) return s[0]; const h=(n-1)*Math.max(0,Math.min(1,p)), lo=Math.floor(h); return lo+1<n?s[lo]+(h-lo)*(s[lo+1]-s[lo]):s[lo]; }
+function boxStats(vals,whisk){
+  const s=Float64Array.from(vals.filter(v=>v!=null&&Number.isFinite(v))).sort(), n=s.length; if(!n) return null;
+  const k=whisk>0?whisk:1.5, q1=quantileSorted(s,0.25), med=quantileSorted(s,0.5), q3=quantileSorted(s,0.75), iqr=q3-q1, a=q1-k*iqr, b=q3+k*iqr;
+  let lo=med, hi=med, sum=0; const out=[];
+  for(let i=0;i<n;i++){ const v=s[i]; sum+=v; if(v<a||v>b) out.push(v); else { if(v<lo) lo=v; if(v>hi) hi=v; } }
+  const mean=sum/n; let ss=0; for(let i=0;i<n;i++) ss+=(s[i]-mean)**2;
+  return {n,min:s[0],max:s[n-1],q1,med,q3,iqr,lo:Math.min(lo,q1),hi:Math.max(hi,q3),out,mean,sd:n>1?Math.sqrt(ss/(n-1)):0}; }
+// Silverman's rule of thumb: 0.9 · min(SD, IQR/1.34) · n^(−1/5), never zero.
+function kdeBandwidth(vals){ const b=boxStats(vals); if(!b) return 1; const sp=Math.min(b.sd,b.iqr/1.34)||b.sd||b.iqr||Math.abs(b.med)*0.1||1; return 0.9*sp*Math.pow(b.n,-0.2); }
+// The density at each point of xs, from a Gaussian kernel of width bw on every value.
+function kdeAt(vals,xs,bw){ const v=vals.filter(q=>q!=null&&Number.isFinite(q)), n=v.length; if(!n||!(bw>0)) return xs.map(()=>0);
+  const c=1/(n*bw*Math.sqrt(2*Math.PI)), cut=8*bw; v.sort((a,b)=>a-b);
+  return xs.map(x=>{ let s=0, i=0, j=n; while(i<j){ const m=(i+j)>>1; if(v[m]<x-cut) i=m+1; else j=m; } for(let k=i;k<n&&v[k]<=x+cut;k++){ const u=(x-v[k])/bw; s+=Math.exp(-0.5*u*u); } return s*c; }); }
+// The round width nearest w (1, 2, 2.5 or 5 times a power of ten, nearest by ratio).
+function niceWidth(w){ if(!(w>0)||!Number.isFinite(w)) return w; const e=Math.floor(Math.log10(w)), f=w/10**e;
+  const m=[1,2,2.5,5,10].reduce((b,q)=>Math.abs(Math.log(q/f))<Math.abs(Math.log(b/f))?q:b,1); return +(m*10**e).toPrecision(12); }
+/* Histogram bins of values: a rule (fd Freedman–Diaconis, sturges, sqrt), a
+   number of bins (n: equal bins from the smallest to the largest value) or a
+   width (w); the first bin starts at `start` when given, else at a whole
+   number of widths below the smallest value. Returns the edges, the counts,
+   the width and how many values fell outside, or `fail` in words. */
+const HIST_MAX=10000;
+function histBins(vals,o){
+  o=o||{}; const v=vals.filter(q=>q!=null&&Number.isFinite(q)), N=v.length; if(!N) return {fail:"There are no values to count."};
+  let lo=Infinity, hi=-Infinity; v.forEach(q=>{ if(q<lo) lo=q; if(q>hi) hi=q; });
+  const rule=o.rule||"fd", given=o.start!=null&&o.start!==""&&Number.isFinite(+o.start)?+o.start:null; let w, k=0, start;
+  if(rule==="n"){ k=Math.max(1,Math.round(+o.n||10)); if(k>HIST_MAX) return {fail:`${k} bins are more than ${HIST_MAX}.`}; start=given!=null?given:lo; w=hi>start?(hi-start)/k:(Math.abs(lo)*0.1||1)/k; }
+  else { if(rule==="w"){ w=+o.w; if(!(w>0)) return {fail:"Give the bins a width greater than zero."}; }
+    else { const range=hi-lo; if(!(range>0)) w=Math.abs(lo)*0.1||1;
+      else { const b=boxStats(v), fd=b?2*b.iqr*Math.pow(N,-1/3):0;
+        if(rule==="fd"&&fd>0) w=fd; else if(rule==="sqrt") w=range/Math.ceil(Math.sqrt(N)); else w=range/(Math.ceil(Math.log2(N))+1); }
+      w=niceWidth(w); }
+    start=given!=null?given:Math.floor(lo/w+1e-9)*w; k=Math.max(1,Math.ceil((hi-start)/w-1e-9));
+    if(k>HIST_MAX) return {fail:`Bins ${fmtW(w)} wide over this range would be ${k} bins, more than ${HIST_MAX}: give them a wider width.`}; }
+  const edges=Array.from({length:k+1},(_,i)=>start+i*w), counts=new Array(k).fill(0); let out=0;
+  v.forEach(q=>{ let i=Math.floor((q-start)/w+1e-12); if(i===k&&q<=edges[k]*(1+1e-12)+1e-300) i=k-1; if(i<0||i>=k){ out++; return; } counts[i]++; });
+  return {edges,counts,w,start,k,n:N,out}; }
+const fmtW=w=>String(+(+w).toPrecision(4));
+/* Orthogonal distance regression (Boggs and Rogers, as ODRPACK): with errors in
+   X as well as in Y, each point's true X is estimated with the parameters,
+   minimising sum ((y - f(x + d))/sy)^2 + (d/sx)^2. Levenberg–Marquardt on the
+   parameters and every point's d at once, the d's eliminated point by point
+   (each moves only its own point), so a step costs what an ordinary fit's
+   does. The parameters' covariance is that of the whole problem, the d's
+   accounted for. With no Y errors (SY null), the scatter in Y, s, the same for
+   every point, is found so that the reduced chi-squared is 1, as an unweighted
+   fit's errors are scaled. A point with no X error keeps its X. Returns what
+   lmFit does, with odr {s, iter, conv, dx}. */
+function odrFit(f,X,Y,SY,SX,p0,fixed,opt){
+  opt=opt||{};
+  const lo=opt.lo||p0.map(()=>-Infinity), hi=opt.hi||p0.map(()=>Infinity), clamp=pp=>pp.map((v,i)=>Math.min(Math.max(v,lo[i]),hi[i]));
+  const free=p0.map((_,i)=>i).filter(i=>!fixed[i]), n=X.length, m=free.length;
+  if(m===0) return {error:"Every parameter is fixed. Unfix at least one to fit."};
+  if(n<=m) return {error:`Need more than ${m} points to fit ${m} free parameters (have ${n}).`};
+  const pscale=opt.pscale||p0.map(v=>Math.abs(v)||1), sx=X.map((_,i)=>SX[i]>0&&Number.isFinite(SX[i])?SX[i]:0);
+  let lx=Infinity, hx=-Infinity; for(const x of X){ if(x<lx) lx=x; if(x>hx) hx=x; } const span=(hx-lx)||1;
+  const fx=(x,i,p)=>{ const h=Math.max(sx[i]*1e-3,span*1e-8,Math.abs(x)*1e-10), d=(f(x+h,p)-f(x-h,p))/(2*h); return Number.isFinite(d)?d:0; };
+  // One fit at given Y errors sy (an array): parameters p, shifts d.
+  const run=(sy,p,d)=>{
+    const chiOf=(pp,dd)=>{ let c=0; for(let i=0;i<n;i++){ const r=(Y[i]-f(X[i]+dd[i],pp))/sy[i]; c+=r*r; if(sx[i]) c+=(dd[i]/sx[i])**2; } return c; };
+    let chi=chiOf(p,d); if(!Number.isFinite(chi)) return {error:"The model can't be evaluated at these starting values. Try different initial values."};
+    let lambda=1e-3, iter=0, conv=false, last=null;
+    const build=(pp,dd)=>{ const a=Array.from({length:n},()=>new Float64Array(m)), g=new Float64Array(n), rho=new Float64Array(n);
+      free.forEach((pi,j)=>{ const h=Math.max(Math.abs(pp[pi])*1e-6,Math.abs(pscale[pi])*1e-7,1e-12), A=pp.slice(), B=pp.slice(); A[pi]+=h; B[pi]-=h;
+        for(let i=0;i<n;i++) a[i][j]=(f(X[i]+dd[i],A)-f(X[i]+dd[i],B))/(2*h)/sy[i]; });
+      for(let i=0;i<n;i++){ const xh=X[i]+dd[i]; rho[i]=(f(xh,pp)-Y[i])/sy[i]; g[i]=sx[i]?fx(xh,i,pp)/sy[i]:0; }
+      const H=Array.from({length:m},()=>new Array(m).fill(0)), b=new Array(m).fill(0), Hd=new Float64Array(n), bd=new Float64Array(n);
+      for(let i=0;i<n;i++){ const ai=a[i]; for(let j=0;j<m;j++){ b[j]+=ai[j]*rho[i]; for(let k=j;k<m;k++) H[j][k]+=ai[j]*ai[k]; }
+        if(sx[i]){ Hd[i]=g[i]*g[i]+1/(sx[i]*sx[i]); bd[i]=g[i]*rho[i]+dd[i]/(sx[i]*sx[i]); } }
+      for(let j=0;j<m;j++) for(let k=0;k<j;k++) H[j][k]=H[k][j];
+      return {a,g,H,b,Hd,bd}; };
+    // The parameters' step with every d eliminated: (H - sum w g^2 a a') dp = -(b - sum w g bd a), w = 1/Hd.
+    const schur=(L,lam)=>{ const M=L.H.map((row,j)=>row.map((v,k)=>j===k?v*(1+lam):v)), r=L.b.map(v=>-v), w=new Float64Array(n);
+      for(let i=0;i<n;i++){ if(!sx[i]) continue; w[i]=1/(L.Hd[i]*(1+lam)); const ai=L.a[i], c=w[i]*L.g[i]*L.g[i], e=w[i]*L.g[i]*L.bd[i];
+        for(let j=0;j<m;j++){ r[j]+=e*ai[j]; for(let k=j;k<m;k++) M[j][k]-=c*ai[j]*ai[k]; } }
+      for(let j=0;j<m;j++) for(let k=0;k<j;k++) M[j][k]=M[k][j];
+      return {M,r,w}; };
+    for(iter=0;iter<300;iter++){
+      const L=build(p,d); let stepped=false;
+      while(lambda<1e14){
+        const {M,r,w}=schur(L,lambda), D=M.map((row,j)=>{ const q=Math.sqrt(Math.abs(row[j])); return q>1e-150?q:1; });
+        const dps=solve(M.map((row,j)=>row.map((v,k)=>v/(D[j]*D[k])+(j===k?1e-300:0))),r.map((v,j)=>v/D[j]));
+        if(dps){ const dp=dps.map((v,j)=>v/D[j]), pt=p.slice(); free.forEach((pi,j)=>{ pt[pi]+=dp[j]; }); const pc=clamp(pt), dq=new Array(m); free.forEach((pi,j)=>{ dq[j]=pc[pi]-p[pi]; });
+          const dt=d.map((v,i)=>{ if(!sx[i]) return 0; let s=0; for(let j=0;j<m;j++) s+=L.a[i][j]*dq[j]; return v-w[i]*(L.bd[i]+L.g[i]*s); });
+          const ct=chiOf(pc,dt);
+          if(Number.isFinite(ct)&&ct<=chi){ const rel=(chi-ct)/Math.max(chi,1e-300), dpRel=Math.max(0,...free.map(pi=>Math.abs(pc[pi]-p[pi])/(Math.abs(p[pi])+Math.abs(pscale[pi])*1e-6+1e-12)));
+            // Settled when chi-squared no longer falls, or neither the parameters nor the shifts move
+            // (the first step can move the shifts alone).
+            let ddRel=0; for(let i=0;i<n;i++) if(sx[i]) ddRel=Math.max(ddRel,Math.abs(dt[i]-d[i])/sx[i]);
+            p=pc; d=dt; chi=ct; lambda=Math.max(lambda/9,1e-12); stepped=true; if(rel<1e-12||(dpRel<1e-10&&ddRel<1e-8)) conv=true; break; } }
+        lambda*=11; }
+      if(!stepped){ conv=true; break; } if(conv) break; }
+    last=schur(build(p,d),0);
+    return {p,d,chi,iter,conv,M:last.M}; };
+  // Y errors given, or s found: an ordinary fit first, then s from what X errors leave unexplained.
+  const start=lmFit(f,X,Y,SY?SY.map(v=>1/v):X.map(()=>1),p0,fixed,opt); if(start.error) return start;
+  let p=start.params.slice(), d=X.map(()=>0), s=null, R=null, rounds=0;
+  if(SY) R=run(SY,p,d);
+  else { const ry=X.map((x,i)=>Y[i]-f(x,p)), D2=X.map((x,i)=>sx[i]?(fx(x,i,p)*sx[i])**2:0), dof0=Math.max(1,n-m);
+    let ylo=Infinity, yhi=-Infinity; Y.forEach(v=>{ if(v<ylo) ylo=v; if(v>yhi) yhi=v; }); const sMin=Math.max((yhi-ylo)*1e-9,1e-300);
+    s=Math.max(sMin,Math.sqrt(Math.max(0,ry.reduce((t,v)=>t+v*v,0)/dof0-D2.reduce((t,v)=>t+v,0)/n)));
+    for(rounds=1;rounds<=30;rounds++){ R=run(X.map(()=>s),p,d); if(R.error) return R; p=R.p; d=R.d;
+      let cy=0, cx=0; for(let i=0;i<n;i++){ cy+=(Y[i]-f(X[i]+d[i],p))**2; if(sx[i]) cx+=(d[i]/sx[i])**2; }
+      const left=dof0-cx, sn=left>0?Math.max(sMin,Math.sqrt(cy/left)):sMin, done=Math.abs(sn-s)<=1e-4*s; s=sn; if(done) break; }
+    R=run(X.map(()=>s),p,d); }
+  if(R.error) return R;
+  p=R.p; d=R.d;
+  const inv=inverse(R.M), dof=n-m, red=R.chi/dof, cov=p.map(()=>p.map(()=>0));
+  if(inv) free.forEach((pi,a)=>free.forEach((pj,b)=>{ cov[pi][pj]=inv[a][b]; }));
+  const errs=p.map((_,i)=>fixed[i]?0:(inv?Math.sqrt(Math.max(cov[i][i],0)):null)), dep=p.map(()=>0);
+  if(inv) free.forEach((pi,a)=>{ const q=inv[a][a]*R.M[a][a]; dep[pi]=q>0?Math.max(0,Math.min(1,1-1/q)):1; });
+  const tval=p.map((v,i)=>fixed[i]||!errs[i]?NaN:v/errs[i]), pval=tval.map(t=>tPvalue(t,dof)), tcrit=tQuantile975(dof);
+  const ci=p.map((v,i)=>fixed[i]||!errs[i]?[NaN,NaN]:[v-tcrit*errs[i],v+tcrit*errs[i]]);
+  const atBound=p.map((v,i)=>!fixed[i]&&(Math.abs(v-lo[i])<=Math.abs(v)*1e-9+1e-12||Math.abs(v-hi[i])<=Math.abs(v)*1e-9+1e-12));
+  let ssRes=0, ssTot=0; const my=Y.reduce((t,v)=>t+v,0)/n;
+  for(let i=0;i<n;i++){ const q=Y[i]-f(X[i],p); ssRes+=q*q; ssTot+=(Y[i]-my)**2; }
+  const R2=1-ssRes/ssTot, adjR2=1-(1-R2)*(n-1)/dof, aic=n*Math.log(ssRes/n)+2*(m+1), bic=n*Math.log(ssRes/n)+(m+1)*Math.log(n);
+  return {params:p, errors:errs, cov, dep, tval, pval, ci, atBound,
+    stats:{n, dof, chi2:R.chi, redChi2:red, R2, adjR2, rss:ssRes, rmse:Math.sqrt(ssRes/dof), aic, bic, iter:R.iter, converged:R.conv, singular:!inv},
+    odr:{s, iter:R.iter, conv:R.conv, rounds, dx:d}}; }
 /* ==NUMERICS:END== */
 
 /* ============================================================
@@ -3771,6 +3899,27 @@ const PIPE_OPS={
       const nm=d.yn||"Y", xn=(d.xn||"X").toLowerCase();
       return {d:pser(d,d.x,out,null,d.idx,{yn:p.norm?`Cumulative fraction of ${nm.toLowerCase()}`:`∫ ${nm} d${xn}`,yu:p.norm?"":(d.yu&&d.xu?`${d.yu}·${d.xu}`:"")}), extra:{total:s}, note:`Total area ${nf(s,5)}${!p.norm&&d.yu&&d.xu?" "+d.yu+"·"+d.xu:""}`};
     }},
+  hist:{group:"math", rank:9, label:"Histogram", short:"Histogram",
+    help:"Counts how many values fall in each bin: the distribution of the Y values (or the X values). The spectrum becomes the histogram, X the bins' centres and Y their counts, drawn as columns; fit a Gaussian to it for a mean and a width.",
+    params:[{k:"of",label:"Count",type:"sel",opts:[["y","The Y values"],["x","The X values"]]},
+      {k:"rule",label:"Bins",type:"sel",opts:[["fd","Freedman–Diaconis (automatic)"],["sturges","Sturges"],["sqrt","Square root of the count"],["n","A number of bins"],["w","A width"]],hint:"Freedman–Diaconis: twice the interquartile range over the cube root of the count, rounded; it suits most data. Sturges: log₂ of the count plus one bins. A number of bins spans the values exactly."},
+      {k:"n",label:"Number of bins",type:"int",min:1,max:1000,show:p=>p.rule==="n"},
+      {k:"w",label:"Bin width",type:"num",show:p=>p.rule==="w"},
+      {k:"start",label:"First bin starts at",type:"num",blank:true,show:p=>p.rule!=="n",hint:"Empty: a whole number of bin widths below the smallest value."},
+      {k:"norm",label:"Show",type:"sel",opts:[["count","Counts"],["prob","Probability (each bin's share)"],["pct","Percent"],["density","Density (the area is 1)"]]},
+      {k:"cum",label:"Cumulative",type:"bool"}],
+    defaults:{of:"y",rule:"fd",n:20,w:1,start:null,norm:"count",cum:false},
+    summary:p=>`${({fd:"Freedman–Diaconis",sturges:"Sturges",sqrt:"√n bins",n:`${p.n} bins`,w:`bins of ${nf(+p.w,4)}`})[p.rule]||""}${p.norm&&p.norm!=="count"?", "+({prob:"probability",pct:"percent",density:"density"})[p.norm]:""}${p.cum?", cumulative":""}`,
+    run(d,p){
+      const ofX=p.of==="x", vals=ofX?d.x:d.y, h=histBins(vals,{rule:p.rule,n:p.n,w:p.w,start:p.start});
+      if(h.fail) throw new Error(h.fail);
+      const N=h.n, norm=p.cum&&p.norm==="density"?"prob":p.norm||"count", f=norm==="prob"?1/N:norm==="pct"?100/N:norm==="density"?1/(N*h.w):1;
+      let run=0; const y=h.counts.map(c=>{ run+=c; return (p.cum?run:c)*f; }), x=h.counts.map((_,i)=>h.start+(i+0.5)*h.w);
+      const vn=(ofX?d.xn:d.yn0||d.yn)||(ofX?"X":"Y"), vu=(ofX?d.xu:d.yu)||"";
+      const yn=(p.cum?"Cumulative ":"")+({count:"count",prob:"probability",pct:"percent",density:"density"})[norm];
+      const out=pser(d,x,y,null,x.map((_,i)=>-1-i),{xn:vn,xu:vu,yn:yn[0].toUpperCase()+yn.slice(1),yu:norm==="pct"?"%":norm==="density"&&vu?`1/${vu}`:"",bins:{w:h.w,start:h.start,n:N,out:h.out}});
+      const warn=h.out?[`${h.out} value${h.out===1?"":"s"} fell outside the bins (below where they start).`]:[];
+      return {d:out, extra:{bins:h}, warn, note:`${h.k} bins of ${nf(h.w,4)}${vu?" "+vu:""} from ${nf(h.start,5)}: ${N} values`}; }},
   fft:{group:"smooth", rank:7, label:"FFT filter", short:"FFT filter",
     help:"Filters in Fourier space. A low-pass keeps broad features and removes fast noise; a high-pass removes slow drifts and keeps the bands. The cut-off is a period in points: features narrower than it (low-pass) or wider than it (high-pass) are what is removed. The ends are mirrored so they do not ring.",
     params:[{k:"mode",label:"Filter",type:"sel",opts:[["low","Low-pass: remove noise"],["high","High-pass: remove drift"]]},
@@ -3976,6 +4125,7 @@ function fitStale(f){
   if(f.maskSig!=null&&act&&f.maskSig!==maskSig(act)) return "Points have been masked or restored since this fit.";
   if(f.pipeSig!=null&&act&&f.pipeSig!==pipeSig(act)) return "The processing steps, or the raw data, have changed since this fit.";
   if(f.weighted&&f.hadErrCol&&!hasErr()) return "The Y-error column this fit was weighted by is gone.";
+  if(f.xerr&&!hasXErr(act)) return "The X-error column this fit used is gone.";
   if(f.range){
     const r=usedRange(fitPoints());
     if(r&&(Math.abs(r[0]-f.range[0])>Math.abs(f.range[1]-f.range[0])*1e-6||Math.abs(r[1]-f.range[1])>Math.abs(f.range[1]-f.range[0])*1e-6))
@@ -4100,6 +4250,8 @@ function unitFor(dim,xu,yu){
   return "";
 }
 function dataUnits(){ const d=finalOf(activeYCol()); return [(d.xu||"").trim(),(d.yu||"").trim()]; }
+// A fit's units are those of the spectrum it was made on, which need not be the analysed one.
+function fitUnits(f){ const c=f&&f.onCol&&colById(f.onCol); if(!c) return dataUnits(); const d=finalOf(c); return [(d.xu||"").trim(),(d.yu||"").trim()]; }
 // A model parameter's label (HTML) as plain text: tags gone, entities such as &tau; written out.
 function phPlain(s){ s=String(s||"").replace(/<[^>]+>/g,""); if(!/&/.test(s)) return s; const d=document.createElement("textarea"); d.innerHTML=s; return d.value; }
 const MODELS={
@@ -4209,6 +4361,7 @@ function fitWarnings(f){
   // What the processing said about itself belongs with the result it led to.
   const pw=procWarnings(colById(f.onCol)||activeYCol());
   if(pw.length) out.push({level:"warn", kind:"proc", text:`The data this fit used ${pw.length===1?"went through a processing step that carries a warning":`went through ${pw.length} processing steps that carry warnings`}: ${pw.map(q=>`step ${q.k}, ${stepTitle(q.step).toLowerCase()}${q.col!==activeYCol()?` of ${specName(q.col)}`:""}: ${q.texts[0]}`).join(" ")} The Clean up panel and the report's Processing section give the details.`});
+  if(f.xerr&&f.odr&&f.odr.s!=null) out.push({level:"info", kind:"xerr", text:`Fitted with the X errors by orthogonal distance regression. With no Y errors, the scatter in Y was taken to be the same for every point and found from the fit: s = ${fmt(f.odr.s,4)}.`});
   if(st.converged===false) out.push({level:"bad", kind:"conv", text:`This fit did not converge. It stopped after ${st.iter} iterations still moving, so the numbers are wherever it had got to, not a result. Try ${FM.composite?"Reset to estimates":"Guess initial values"}, fix a parameter, or narrow the range.`});
   if(FM.composite){
     const failed=peakMetrics(f).filter(r=>!r.ok);
@@ -4761,8 +4914,9 @@ function specName(c){ if(!c) return "a spectrum"; return c.name||(c.src?"derived
 // The analysed spectrum is always drawn in the data colour. The others take the
 // rest of the palette in order, so an overlay never shares the analysed
 // one's colour. Exports are printed on white and ask for the light set.
-function yTint(id,light){
-  const p=P(), pal=(light||!darkMode())?COL_TINTS_LIGHT:COL_TINTS_DARK, sch=SCHEMES[plotCfg().scheme]||SCHEMES.kurve, dk=!(light||!darkMode());
+// A caller that has the graph's settings passes its scheme: plotCfg() is not cheap with hundreds of spectra.
+function yTint(id,light,scheme){
+  const p=P(), pal=(light||!darkMode())?COL_TINTS_LIGHT:COL_TINTS_DARK, sch=SCHEMES[scheme!==undefined?scheme:plotCfg().scheme]||SCHEMES.kurve, dk=!(light||!darkMode());
   // Every scheme but Kurve's colours by the order of the table, so a colour
   // stays with its spectrum whichever one is being analysed.
   if(sch!==SCHEMES.kurve){ const ys=yCols(), i=Math.max(0,ys.findIndex(c=>c.id===id));
@@ -4862,7 +5016,8 @@ function pipeOf(c){
     const prev=PIPE_CACHE.get(c.id);
     if(c.src){ const s=colById(c.src), r=s?pipeOf(s):null; if(!r) return null;
       base=c.from==="raw"?r.input:r.out;
-      input=prev&&prev.inputBase===base&&prev.input.yn===(c.name||base.yn)?prev.input:Object.assign({},base,{yn:c.name||base.yn}); }
+      // Named after the new spectrum; what the values are stays in yn0 (a histogram counts them).
+      input=prev&&prev.inputBase===base&&prev.input.yn===(c.name||base.yn)?prev.input:Object.assign({},base,{yn:c.name||base.yn,yn0:base.yn0||base.yn}); }
     else input=rawSeries(c);
     const steps=pipeSteps(c), sig=steps.map(s=>stepKey(s,pipeCtx)).join("\n");
     if(prev&&prev.input===input&&prev.sig===sig) return prev;
@@ -5199,6 +5354,16 @@ function pointsAll(){ const p=P(); if(!p) return [];
 // "Counts (counts)" says one thing twice: a unit that is the name is left off.
 function axisLabel(long,unit,fallback){ const l=(long||"").trim()||fallback, u=(unit||"").trim(); return u&&u.toLowerCase()!==l.toLowerCase()?`${l} (${u})`:l; }
 function hasErr(){ const d=finalOf(activeYCol()); return !!(d.e&&d.e.some(v=>v!=null&&v>0)); }
+// A spectrum's X error bars, and each point's X error (half its bar, in the final X units) for a fit.
+function hasXErr(c){ c=c||activeYCol(); const g=c?errGeom(c,finalOf(c)):null; return !!(g&&g.hasX); }
+function xErrsOf(c,pts){ const g=c?errGeom(c,finalOf(c)):null; if(!g||!g.hasX) return null; const sx=pts.map(q=>{ const w=g.at(q); return (w.l+w.r)/2; }); return sx.some(v=>v>0)?sx:null; }
+// What a fit keeps of its orthogonal distance regression (not each point's shift).
+function odrNote(res){ const o=res&&res.odr; return o?{s:o.s!=null&&Number.isFinite(o.s)?o.s:null,iter:o.iter,conv:!!o.conv}:null; }
+// How a fit was weighted, in words (the Results, the copied table, the report, the CSV).
+function weightText(f,ascii){
+  if(f.xerr) return ascii?(f.weighted?"orthogonal distance regression on the X and Y errors":"orthogonal distance regression on the X errors, the Y scatter s found from the fit")
+    :(f.weighted?"orthogonal distance regression on the X and Y errors":"orthogonal distance regression on the X errors, the Y scatter s found from the fit");
+  return ascii?(f.weighted?"instrumental (1/sigma^2)":"none; errors scaled by sqrt(reduced chi2)"):(f.weighted?"instrumental, 1/σ²":"none; errors scaled by √(reduced χ²)"); }
 function autoView(){ return autoViewOf(pointsAll(),GP().logY,hasErr()); }
 function autoViewOf(pts,logY,he){
   if(!pts.length) return {x0:0,x1:10,y0:logY?1:0,y1:logY?1000:10};
@@ -5653,8 +5818,11 @@ function fontMenuItems(){
   items.push("-",{label:"Axis titles in italics", checked:cfg.titleItalic!==false, enabled:!ro, run:()=>setPlotKey("titleItalic",cfg.titleItalic===false,cfg.titleItalic===false?"set the axis titles in italics":"set the axis titles upright")});
   return items;
 }
-const PLOT_TYPES=[["line","Line"],["scatter","Symbols"],["linesym","Line + symbols"],["stick","Sticks"],["area","Area"],["step","Steps"]];
-const LAYOUTS=[["overlay","Overlay"],["offset","Offset (waterfall)"],["stack","Stacked panels"],["dy","Double Y"],["heat","Heat map"]];
+const PLOT_TYPES=[["line","Line"],["scatter","Symbols"],["linesym","Line + symbols"],["stick","Sticks"],["column","Columns"],["area","Area"],["step","Steps"]];
+// A histogram's spectrum is drawn as columns unless told otherwise, each a bin wide.
+const histOf=id=>{ const c=colById(id); return !!(c&&(c.pipe||[]).some(s=>s.op==="hist"&&s.on!==false)); };
+const LAYOUTS=[["overlay","Overlay"],["offset","Offset (waterfall)"],["stack","Stacked panels"],["dy","Double Y"],["heat","Heat map"],["box","Box chart"],["violin","Violin plot"]];
+const isDistLayout=l=>l==="box"||l==="violin";
 const LEGENDS=[["auto","Emptiest corner"],["tr","Top right"],["tl","Top left"],["br","Bottom right"],["bl","Bottom left"],["out","Outside, right"],["below","Below the graph"],["off","No legend"]];
 // One spectrum's style: what was set for it, over the defaults (the analysed
 // one in the data colour with the toolbar's plot type, the others as lines in
@@ -5662,7 +5830,8 @@ const LEGENDS=[["auto","Emptiest corner"],["tr","Top right"],["tl","Top left"],[
 function serStyle(id,active,pal,forExport,cfg){
   const o=(cfg.series||{})[id]||{};
   const mono=cfg.scheme==="mono"&&!active?["dash","dot","dashdot","solid"][Math.max(0,yCols().findIndex(c=>c.id===id))%4]:"solid";
-  return {type:o.type||(active?cfg.style:"line"), color:o.color||(cfg.scheme&&cfg.scheme!=="kurve"?yTint(id,forExport):active?pal.data:yTint(id,forExport)), lw:o.lw!=null?+o.lw:(active?1.4:1.2), leg:o.leg!==false,
+  const hb=histOf(id);
+  return {type:o.type||(hb?"column":active?cfg.style:"line"), bw:hb?((finalOf(colById(id)).bins)||{}).w||null:null, color:o.color||(cfg.scheme&&cfg.scheme!=="kurve"?yTint(id,forExport,cfg.scheme||"kurve"):active?pal.data:yTint(id,forExport,cfg.scheme||"kurve")), lw:o.lw!=null?+o.lw:(active?1.4:1.2), leg:o.leg!==false,
     dash:o.dash||mono, sym:o.sym||"circle", ss:o.ss!=null?+o.ss:null, fill:o.fill!=null?+o.fill:0.18, label:o.label||"", op:o.op!=null?+o.op:(active?1:0.8),
     eb:o.eb||"bars", ebColor:o.ebColor||"", ebLw:o.ebLw!=null?+o.ebLw:1, ebCap:o.ebCap!=null?+o.ebCap:5, ebOp:o.ebOp!=null?+o.ebOp:0.22,
     conn:o.conn||"straight", zcol:o.zcol||"", scol:o.scol||"", hatch:o.hatch||"none", fillTo:o.fillTo||"", fill2:o.fill2||""};
@@ -5731,7 +5900,7 @@ function zMapOf(cid,pts,cmap,kind){
   const c=colById(cid); if(!c||!Array.isArray(c.data)) return null; const val=q=>{ const v=c.data[q.i]; return v!=null&&Number.isFinite(+v)?+v:null; };
   let lo=Infinity, hi=-Infinity; pts.forEach(q=>{ const v=val(q); if(v!=null){ if(v<lo) lo=v; if(v>hi) hi=v; } }); if(!(hi>=lo)) return null; if(hi===lo){ lo-=0.5; hi+=0.5; }
   const t=v=>(v-lo)/(hi-lo);
-  return {c,lo,hi,name:axisLabel(c.name||colLetter(c),c.unit,colLetter(c)),
+  return {c,lo,hi,name:axisLabel(c.name||colLetter(c),c.unit,colLetter(c)), sz:v=>1.6+t(v)*6.4,
     at:kind==="size"?q=>{ const v=val(q); return v==null?null:1.6+t(v)*6.4; }:q=>{ const v=val(q); if(v==null) return null; const k=Math.round(t(v)*47)/47, rgb=cmapAt(cmap,k); return `rgb(${rgb.join(",")})`; }}; }
 // The columns a series can be coloured or sized by: any with numbers, but its own X and Y.
 function zColOptions(c){ const x=xColFor(c); return [["","Nothing"]].concat(allCols().filter(o=>o!==c&&o!==x&&Array.isArray(o.data)&&anyVal(o.data)).map(o=>[o.id,`${colLetter(o)||"?"} ${o.name||""}`.trim()])); }
@@ -5762,6 +5931,14 @@ function seriesSvg(pts,st,X,Y,geo,pal,masked){
   if(st.type==="area"&&xy.length>1){ const ord=xy.slice().sort((a,b)=>a[0]-b[0]), sm=smooth?smoothD(ord,st.conn):null;
     const d=sm?`M${f1(ord[0][0])},${f1(zero)}L${sm.m.slice(1)}${sm.c}L${f1(ord[ord.length-1][0])},${f1(zero)}Z`:`M${f1(ord[0][0])},${f1(zero)}L${ord.map(q=>f1(q[0])+","+f1(q[1])).join("L")}L${f1(ord[ord.length-1][0])},${f1(zero)}Z`;
     s+=`<path d="${d}" fill="${col}" fill-opacity="${st.fill}" stroke="none"/>`+hatchSvg(d,st.hatch,col,"hz-"+(st.hid||"s"),{L:geo.L!=null?geo.L:0,T:geo.T,W:geo.pw!=null?geo.pw:2000,H:geo.mh}); }
+  // Columns: from zero to each value, a bin wide (a histogram) or most of the spacing,
+  // side by side when several spectra are columns on one graph.
+  if(st.type==="column"&&keep.length){ const ord=keep.filter(q=>Number.isFinite(q.x)&&Number.isFinite(q.y)).sort((a,b)=>a.x-b.x);
+    let w=st.bw>0?st.bw:0; if(!w){ const g=[]; for(let i=1;i<ord.length;i++){ const dx=ord[i].x-ord[i-1].x; if(dx>0) g.push(dx); } g.sort((a,b)=>a-b); w=(g.length?g[g.length>>1]:1)*0.8; }
+    const n=Math.max(1,st.cgn||1), k=Math.min(n-1,Math.max(0,st.cgk||0)), sub=w/n; let d="";
+    ord.forEach(q=>{ const a=X(q.x-w/2+k*sub), b=X(q.x-w/2+(k+1)*sub), y=Y(q.y); if(!Number.isFinite(a)||!Number.isFinite(b)||!Number.isFinite(y)) return;
+      d+=`M${f1(Math.min(a,b))},${f1(zero)}V${f1(y)}H${f1(Math.max(a,b))}V${f1(zero)}Z`; });
+    if(d) s+=`<path d="${d}" fill="${col}" fill-opacity="${(Math.max(0.15,Math.min(1,0.85*st.op))).toFixed(2)}" stroke="${pal.bg}" stroke-width="${st.bw>0||n>1?0.7:0.9}"/>`+hatchSvg(d,st.hatch,col,"hc-"+(st.hid||"s"),{L:geo.L!=null?geo.L:0,T:geo.T,W:geo.pw!=null?geo.pw:2000,H:geo.mh}); }
   if(st.type==="stick"){ let d=""; xy.forEach(q=>{ d+=`M${f1(q[0])},${f1(zero)}V${f1(q[1])}`; }); if(d) s+=`<path d="${d}" stroke="${col}" stroke-width="${st.lw}" fill="none"${op}/>`; }
   if(ln&&dash!==null&&xy.length>1){
     let d;
@@ -5939,6 +6116,14 @@ function mapMenuItems(){
     "-",{label:"Number the contour lines",checked:cfg.mapLab!==false,enabled:!ro&&kind!=="image"&&kind!=="filled",run:()=>setPlotKey("mapLab",cfg.mapLab===false,cfg.mapLab===false?"numbered the contour lines":"left the contour lines unnumbered")},
     {label:"Levels",enabled:!ro&&kind!=="image",note:String(numOr(cfg.mapLevels,8)),sub:()=>[4,6,8,10,12,16,20].map(n=>({label:`About ${n}`,radio:true,checked:numOr(cfg.mapLevels,8)===n,run:()=>setPlotKey("mapLevels",n,`drew about ${n} contour levels`)}))},
     {label:"Colour map",sub:()=>CMAP_LIST.map(([k,l])=>({label:l,radio:true,checked:(cfg.cmap||"viridis")===k,enabled:!ro,run:()=>setPlotKey("cmap",k,`coloured the map ${l.toLowerCase()}`)}))}]); }
+// The graph menu's Box chart / Violin plot: which, the whiskers, the values shown.
+const DIST_WHISK=[["tukey","To 1.5 IQR, the rest as outliers"],["range","To the smallest and largest"]];
+function distMenuItems(){
+  const cfg=plotCfg(), ro=S.readOnly||!P(), w=cfg.distWhisk==="range"?"range":"tukey";
+  return [{group:"Drawn as"},{label:"Box chart",radio:true,checked:cfg.layout==="box",enabled:!ro,run:()=>setPlotKey("layout","box","drew the spectra as a box chart")},
+    {label:"Violin plot",radio:true,checked:cfg.layout==="violin",enabled:!ro,run:()=>setPlotKey("layout","violin","drew the spectra as a violin plot")},
+    "-",{group:"Whiskers"}].concat(DIST_WHISK.map(([k,l])=>({label:l,radio:true,checked:w===k,enabled:!ro,run:()=>setPlotKey("distWhisk",k,`drew the whiskers ${k==="range"?"to the smallest and largest values":"to 1.5 IQR"}`)})),
+    ["-",{label:"Show the values",checked:!!cfg.distPts,enabled:!ro,title:"Every value as a dot, scattered across the box",run:()=>setPlotKey("distPts",!cfg.distPts,cfg.distPts?"hid the values":"showed the values")}]); }
 /* ---- Text, axes and frame as drawn -------------------------------------------
    Each kind of text on a graph has a style of its own (cfg.txt[el]: font, size
    in points, bold, italic, underline, colour, alignment) over what the graph's
@@ -6377,11 +6562,11 @@ function buildPlot(W,H,pal,colEx,opt){
   const ins=opt&&opt.inset||null, forExport=colEx||!!ins;
   const p=P(), cfg=plotCfg(), logY=!!cfg.logY, logX=!!cfg.logX;
   const ps=forExport?{final:true,d:finalOf(activeYCol()),ghost:null,marks:null,k:0,c:activeYCol()}:plotState();
-  const act=activeYCol(), layout=ps.final?cfg.layout:"overlay";
+  const act=activeYCol(), layout=ps.final?cfg.layout:"overlay", distL=isDistLayout(layout)&&!ins;
   // Curved scales (ln, 1/x, √x, probability…): points they cannot show are left out.
-  const fX=scaleFn(scaleKind(cfg,"x"),cfg.ax.x), fY=layout==="heat"?null:scaleFn(scaleKind(cfg,"y"),cfg.ax.y);
+  const fX=distL?null:scaleFn(scaleKind(cfg,"x"),cfg.ax.x), fY=layout==="heat"?null:scaleFn(scaleKind(cfg,"y"),cfg.ax.y);
   const inDom=a=>fX||fY?a.filter(q=>(!fX||fX.ok(q.x))&&(!fY||fY.ok(q.y))):a;
-  const fit=ps.final&&layout!=="heat"?shownFit():null, FM=fitModel(fit);
+  const fit=ps.final&&layout!=="heat"&&!distL?shownFit():null, FM=fitModel(fit);
   const pts=inDom(ps.final?pointsAll():seriesPoints(ps.d,logY)); const n=pts.length;
   const gpts=ps.ghost?inDom(seriesPoints(ps.ghost,logY)):null, showGhost=!!(gpts&&gpts.length&&ghostComparable(pts,gpts,ps.d,ps.ghost));
   // The other spectra on view: each one's own final data, on the same X units.
@@ -6418,6 +6603,17 @@ function buildPlot(W,H,pal,colEx,opt){
     if(ax.y.min!=null&&ax.y.min!=="") v.y0=+ax.y.min; if(ax.y.max!=null&&ax.y.max!=="") v.y1=+ax.y.max;
     if(logY&&!(v.y0>0)) v.y0=Math.max(1e-300,v.y1/1e6); if(logX&&!(v.x0>0)) v.x0=Math.max(1e-300,v.x1/1e6);
   }
+  // Columns stand on zero: with no zoom and no typed limit, the view takes it in.
+  if(!ins&&!S.view&&layout!=="heat"&&!logY&&!(cfg.ax.y.min!=null&&cfg.ax.y.min!=="")){
+    const cp=[{c:act,pts}].concat(layout==="overlay"?oser:[]).filter(z=>z.c&&serStyle(z.c.id,z.c===act,pal,colEx,cfg).type==="column");
+    if(cp.length){ let lo=Infinity, hi=-Infinity; cp.forEach(z=>z.pts.forEach(q=>{ if(Number.isFinite(q.y)){ if(q.y<lo) lo=q.y; if(q.y>hi) hi=q.y; } }));
+      if(lo>=0) v=Object.assign({},v,{y0:0}); else if(hi<=0) v=Object.assign({},v,{y1:0});
+      // and whole columns at both ends: each half a bin (or half a step) beyond its centre.
+      if(!logX&&!(cfg.ax.x.min!=null&&cfg.ax.x.min!=="")&&!(cfg.ax.x.max!=null&&cfg.ax.x.max!=="")){ let a=Infinity, b=-Infinity;
+        cp.forEach(z=>{ const st=serStyle(z.c.id,z.c===act,pal,colEx,cfg), xs=z.pts.map(q=>q.x).filter(Number.isFinite).sort((p,q)=>p-q); if(!xs.length) return;
+          let w=st.bw>0?st.bw:0; if(!w){ const g=[]; for(let i=1;i<xs.length;i++) if(xs[i]>xs[i-1]) g.push(xs[i]-xs[i-1]); g.sort((p,q)=>p-q); w=g.length?g[g.length>>1]:0; }
+          a=Math.min(a,xs[0]-w/2); b=Math.max(b,xs[xs.length-1]+w/2); });
+        if(b>a){ const pad=(b-a)*0.02; v=Object.assign({},v,{x0:Math.min(v.x0,v.x1,a-pad),x1:Math.max(v.x0,v.x1,b+pad)}); } } } }
   v=saneView(v,logX,logY);
   // On a curved scale "all the data" is padded in the scale's own coordinates, and any range is kept where it can draw.
   if(fX||fY){ const typed=a=>!!a&&((a.min!=null&&a.min!=="")||(a.max!=null&&a.max!=="")), auto=!ins&&!S.view;
@@ -6425,8 +6621,20 @@ function buildPlot(W,H,pal,colEx,opt){
     if(fY){ const r=scaleRange(v.y0,v.y1,fY,auto&&!typed(cfg.ax.y)?allForView.filter(q=>q.x>=Math.min(v.x0,v.x1)&&q.x<=Math.max(v.x0,v.x1)).map(q=>q.y):null); v=Object.assign({},v,{y0:r[0],y1:r[1]}); } }
   // Margins: room for a title, a right axis, a colour bar, a legend outside.
   const heat=layout==="heat"&&ps.final, dy=layout==="dy"&&ps.final&&oser.length>0, stack=layout==="stack"&&ps.final&&oser.length>0;
+  /* A box or violin chart: each spectrum's values (its masked points left out)
+     at a category of its own, in the table's order, X numbered by their names. */
+  const dist=distL&&ps.final, distC=dist?yCols().filter(c=>c===act||oser.some(o=>o.c===c)):null;
+  let distV=null;
+  if(dist){ distV=distC.map(c=>{ const src=c===act?pts:((oser.find(o=>o.c===c)||{}).pts||[]), m=new Set(maskOf(c)); return src.filter(q=>Number.isFinite(q.y)&&!m.has(q.i)&&(!logY||q.y>0)).map(q=>q.y); });
+    let lo=Infinity, hi=-Infinity; distV.forEach(a=>a.forEach(y=>{ if(y<lo) lo=y; if(y>hi) hi=y; }));
+    if(!(hi>=lo)){ lo=logY?1:0; hi=logY?10:1; } if(hi===lo){ const d=Math.abs(lo)*0.1||1; lo=logY?lo/2:lo-d; hi=logY?hi*2:hi+d; }
+    // A violin reaches past the values by its kernel.
+    if(layout==="violin"&&!logY){ const ext=distV.reduce((m,a)=>Math.max(m,a.length>1?2*kdeBandwidth(a):0),0); lo-=ext; hi+=ext; }
+    let y0, y1; if(logY){ const a=Math.log10(lo), b=Math.log10(hi), d=(b-a)*0.06||0.3; y0=10**(a-d); y1=10**(b+d); } else { const d=(hi-lo)*0.06; y0=lo-d; y1=hi+d; }
+    const ay=cfg.ax.y||{}; if(ay.min!=null&&ay.min!=="") y0=+ay.min; if(ay.max!=null&&ay.max!=="") y1=+ay.max;
+    v={x0:0.5,x1:distC.length+0.5,y0,y1,xu:null}; }
   // Breaks: ranges left out of X (every layout but the heat map) and of Y (overlaid or offset spectra).
-  const brX=!heat&&!ins&&!fX?brkList((cfg.ax.x||{}).brk,v.x0,v.x1,logX):[], brY=!heat&&!stack&&!dy&&!ins&&!fY&&(layout==="overlay"||layout==="offset")?brkList((cfg.ax.y||{}).brk,v.y0,v.y1,logY):[];
+  const brX=!heat&&!dist&&!ins&&!fX?brkList((cfg.ax.x||{}).brk,v.x0,v.x1,logX):[], brY=!heat&&!stack&&!dy&&!ins&&!fY&&(layout==="overlay"||layout==="offset")?brkList((cfg.ax.y||{}).brk,v.y0,v.y1,logY):[];
   // The right axis's range, before the margins, which must fit its numbers.
   let yR=null;
   if(dy){ const all=[].concat(...oser.map(q=>q.pts)), r2=yRangeFor(all,v.x0,v.x1,logY), a2=cfg.ax.y2||{};
@@ -6436,14 +6644,14 @@ function buildPlot(W,H,pal,colEx,opt){
   // Legend entries first: an outside legend takes its width from the plot.
   const entries=[];
   const actSt=act?serStyle(act.id,true,pal,colEx,cfg):null;
-  if(act&&!heat) entries.push(Object.assign({},actSt,{id:act.id,label:(actSt.label||act.name||"Y")+(ps.final?"":` (${stageName(ps)})`)+(dy?" (left)":"")}));
-  if(!heat) oser.forEach(o=>{ const st=serStyle(o.c.id,false,pal,colEx,cfg); entries.push(Object.assign({},st,{id:o.c.id,label:(st.label||o.c.name||"column")+(dy?" (right)":"")})); });
-  if(!forExport&&!heat) stageLegend(ps,pal).forEach(e=>{ if(showGhost||e.color!==pal.muted) entries.push({type:"line",color:e.color,lw:e.thin?1.3:2.2,dash:e.dash?"dash":"solid",label:e.label}); });
+  if(act&&!heat&&!dist) entries.push(Object.assign({},actSt,{id:act.id,label:(actSt.label||act.name||"Y")+(ps.final?"":` (${stageName(ps)})`)+(dy?" (left)":"")}));
+  if(!heat&&!dist) oser.forEach(o=>{ const st=serStyle(o.c.id,false,pal,colEx,cfg); entries.push(Object.assign({},st,{id:o.c.id,label:(st.label||o.c.name||"column")+(dy?" (right)":"")})); });
+  if(!forExport&&!heat&&!dist) stageLegend(ps,pal).forEach(e=>{ if(showGhost||e.color!==pal.muted) entries.push({type:"line",color:e.color,lw:e.thin?1.3:2.2,dash:e.dash?"dash":"solid",label:e.label}); });
   const fitSt=Object.assign({color:pal.fit,lw:2},(cfg.series||{}).__fit||{});
   if(fit) entries.push({type:"line",color:fitSt.color,lw:fitSt.lw,dash:"solid",label:fitSt.label||(FM&&FM.composite?"fit (sum)":"fit"),id:"__fit",leg:fitSt.leg});
   const pcol=j=>peakColor(j,colEx);
   if(fit&&FM&&FM.composite&&(fit.spec.peaks||[]).length&&(fit.spec.peaks||[]).length<=6) (fit.spec.peaks||[]).forEach((pk,j)=>entries.push({type:"line",label:`peak ${j+1}`,color:pcol(j),lw:1.3,dash:"solid"}));
-  const ov=forExport||!ps.final||heat?null:draftOverlay(fit);
+  const ov=forExport||!ps.final||heat||dist?null:draftOverlay(fit);
   if(ov&&!ov.same) entries.push({type:"line",label:"estimate",color:pal.muted,lw:1.3,dash:"dash"});
   const seenLab={}; entries.forEach(e=>{ const k=(seenLab[e.label]=(seenLab[e.label]||0)+1); if(k>1) e.label=e.label+" ("+k+")"; });
   for(let i=entries.length-1;i>=0;i--) if(entries[i].leg===false) entries.splice(i,1);
@@ -6485,7 +6693,7 @@ function buildPlot(W,H,pal,colEx,opt){
   const yBlock=YA.off+tkOut(YA.dir,YA.len)+5+(YA.labs||heat?ylw+6:1)+(YA.tshow?TS.axis.size+2:0)+8;
   // The second Y axis, across from the first: its conversion, and room for its numbers and title.
   const YO=axisCfg(cfg,"yo"); let yoc=null, yow=0;
-  if(cfg.ax.yo&&cfg.ax.yo.on&&!ins&&!heat&&!dy&&!stack){ yoc=yoConv(cfg.ax.yo);
+  if(cfg.ax.yo&&cfg.ax.yo.on&&!ins&&!heat&&!dist&&!dy&&!stack){ yoc=yoConv(cfg.ax.yo);
     if(!yoc.err){ const S0=axScale(v.y0,v.y1,fY||logY,brY,0), vals=[]; for(let i=0;i<=64;i++){ const q=yoc.f(S0.inv(i/64)); if(Number.isFinite(q)) vals.push(q); }
       if(vals.length>8){ if(YO.labs) yow=axisTicks(Math.min(...vals),Math.max(...vals),6,Object.assign({},cfg.ax.yo,{min:null,max:null}),false).ticks.reduce((m,t)=>Math.max(m,labW(t.lab,TK)),0)+textW("0",TK); }
       else yoc={err:"Over the Y range on view the conversion has no value."}; } }
@@ -6501,7 +6709,8 @@ function buildPlot(W,H,pal,colEx,opt){
   let xlh=0, xEnd=0;
   // X ticks as many as their numbers fit side by side: on a time axis in
   // nanoseconds each reads 1.70000002×10^18, and 85 px apart they overlapped.
-  const xTicks=(lo,hi,avail)=>{ if(fX) return scaleTicks(lo,hi,avail,fX,cfg.ax.x,{lw:l=>XA.rot===90?TK.size*1.3:labW(l,TK)*(XA.rot===45?0.75:1),rot:XA.rot===90?90:0,size:TK.size});
+  const xTicks=(lo,hi,avail)=>{ if(dist) return {ticks:distC.map((c,k)=>({v:k+1,lab:specName(c).slice(0,28)})),minor:[],step:1};
+    if(fX) return scaleTicks(lo,hi,avail,fX,cfg.ax.x,{lw:l=>XA.rot===90?TK.size*1.3:labW(l,TK)*(XA.rot===45?0.75:1),rot:XA.rot===90?90:0,size:TK.size});
     let tg=avail/(85*tkDen), r=axisTicks(lo,hi,tg,cfg.ax.x,logX);
     if(logX||+cfg.ax.x.step>0) return r;
     for(let i=0;i<4;i++){ const w=XA.rot===90?TK.size*1.4:r.ticks.reduce((m,t)=>Math.max(m,labW(t.lab,TK)),0)*(XA.rot===45?0.75:1);
@@ -6524,9 +6733,17 @@ function buildPlot(W,H,pal,colEx,opt){
     R+=Y2A.off+tkOut(Y2A.dir,Y2A.len)+5+(Y2A.labs?w2+6:1)+(Y2A.tshow?TS.axis.size+2:0)+6; }
   if(heat) R+=70;
   // Symbols coloured by a column: a colour bar on the right, for the first series that has one.
-  const zb=heat||ins?null:(()=>{ for(const z of [{c:act,pts}].concat(oser)){ if(!z.c) continue; const st=serStyle(z.c.id,z.c===act,pal,colEx,cfg);
+  const zb=heat||dist||ins?null:(()=>{ for(const z of [{c:act,pts}].concat(oser)){ if(!z.c) continue; const st=serStyle(z.c.id,z.c===act,pal,colEx,cfg);
       if(st.zcol&&(st.type==="scatter"||st.type==="linesym")){ const m=zMapOf(st.zcol,z.pts,cfg.cmap,"color"); if(m) return m; } } return null; })();
   let zbX=0, zbT=null; if(zb){ zbT=axisTicks(zb.lo,zb.hi,Math.max(2,(H-90)/(50*tkDen)),{},false); zbX=R; R+=14+12+5+zbT.ticks.reduce((m,t)=>Math.max(m,labW(t.lab,Object.assign({},TK,{size:TK.size*0.85}))),0)+8+TS.axis.size+6; }
+  // Symbols sized by a column: a legend of a few round values and their sizes, after any colour bar.
+  const sb=heat||dist||ins||cfg.sizeLeg===false?null:(()=>{ for(const z of [{c:act,pts}].concat(oser)){ if(!z.c) continue; const st=serStyle(z.c.id,z.c===act,pal,colEx,cfg);
+      if(st.scol&&(st.type==="scatter"||st.type==="linesym")){ const m=zMapOf(st.scol,z.pts,cfg.cmap,"size"); if(m) return Object.assign(m,{sym:st.sym,color:st.zcol?pal.ink:st.color}); } } return null; })();
+  const sbS=Object.assign({},TK,{size:TK.size*0.85}); let sbX=0, sbV=null, sbM=0;
+  if(sb){ const tol=1e-9*(sb.hi-sb.lo); let tk=axisTicks(sb.lo,sb.hi,4,{},false).ticks.filter(t=>t.v>=sb.lo-tol&&t.v<=sb.hi+tol);
+    while(tk.length>5) tk=tk.filter((t,i)=>i%2===0);
+    if(tk.length<2) tk=[{v:sb.lo,lab:fmt(sb.lo,3)},{v:sb.hi,lab:fmt(sb.hi,3)}];
+    sbV=tk; sbM=Math.max(...tk.map(t=>sb.sz(t.v))); sbX=R; R+=6+2*sbM+6+tk.reduce((m,t)=>Math.max(m,labW(t.lab,sbS)),0)+8+TS.axis.size+6; }
   [["mL","L"],["mR","R"],["mT","T"],["mB","B"]].forEach(([k,side])=>{ const m=numOr(cfg[k],null); if(m==null) return; const q=Math.max(0,Math.min(400,m));
     if(side==="L") L=q; else if(side==="R") R=q; else if(side==="T") T=q; else B=q; });
   if(legOn&&cfg.legend==="out") R+=legW+14;
@@ -6541,16 +6758,16 @@ function buildPlot(W,H,pal,colEx,opt){
   const mh=stack?ph:mhAll;
   const lx=x=>Math.log10(Math.max(x,1e-300)), ly=y=>Math.log10(Math.max(y,1e-300));
   const revX=!!cfg.revX;
-  const SX=axScale(v.x0,v.x1,fX||logX,brX,brX.length?10/pw:0), X0px=t=>revX?L+pw-t*pw:L+t*pw, X=x=>X0px(SX.f(x));
+  const SX=axScale(v.x0,v.x1,dist?false:fX||logX,brX,brX.length?10/pw:0), X0px=t=>revX?L+pw-t*pw:L+t*pw, X=x=>X0px(SX.f(x));
   const mkY=(y0,y1,top,h,lg)=>y=>lg?top+h-(ly(y)-ly(y0))/(ly(y1)-ly(y0))*h:top+h-(y-y0)/(y1-y0)*h;
   let SY=axScale(v.y0,v.y1,fY||logY,brY,brY.length?10/mh:0), Y=brY.length||fY?(y=>T+mh-SY.f(y)*mh):mkY(v.y0,v.y1,T,mh,logY);
   if(yR) yR.Y=mkY(yR.y0,yR.y1,T,mh,logY);
   if(heat){ v=Object.assign({},v,mapS?{y0:mapS.lo,y1:mapS.hi}:{y0:-0.5,y1:oser.length+0.5}); Y=mkY(v.y0,v.y1,T,mh,false); SY=axScale(v.y0,v.y1,false,[],0); }
-  const geo={L,pw,T,mh,v,logY:heat?false:logY,logX,W,H,X,Y,revX,handles:[],heat,axes:null,sx:SX,sy:SY,rx:SX.rate/pw,ry:SY.rate/mh,brk:SX.gaps.length+SY.gaps.length,fx:fX,fy:fY};
+  const geo={L,pw,T,mh,v,logY:heat?false:logY,logX:dist?false:logX,W,H,X,Y,revX,handles:[],heat:heat||dist,dist,distC,axes:null,sx:SX,sy:SY,rx:SX.rate/pw,ry:SY.rate/mh,brk:SX.gaps.length+SY.gaps.length,fx:fX,fy:fY};
   // The second X axis's numbers, now that the plot's width is known.
   let x2L=null; if(x2c&&!x2c.err){ x2L=x2Layout(x2c.f,SX,pw,{ax:cfg.ax.x2,lw:l=>labW(l,TK),rot:X2.rot,size:TK.size}); if(x2L.err){ geo.x2err=x2L.err; x2L=null; } } else if(x2c&&x2c.err) geo.x2err=x2c.err;
   let yoL=null; if(yoc&&!yoc.err){ yoL=x2Layout(yoc.f,SY,mh,{ax:cfg.ax.yo,lw:()=>TK.size,rot:90,size:TK.size}); if(yoL.err){ geo.yoerr=yoL.err.replace(/X range/g,"Y range").replace(/a negative wavelength…/,"a logarithm of zero or less…"); yoL=null; } } else if(yoc&&yoc.err) geo.yoerr=yoc.err;
-  if(!forExport){ S.geo=geo; S.shownPts=heat?[]:pts; S.ps=ps; }
+  if(!forExport){ S.geo=geo; S.shownPts=heat||dist?[]:pts; S.ps=ps; }
   const inPlot=(x,y)=>Number.isFinite(x)&&Number.isFinite(y)&&x>=L-0.5&&x<=L+pw+0.5&&y>=T-0.5&&y<=T+mh+0.5;
   let s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
   s+=`<rect width="${W}" height="${H}" fill="${pal.bg}"/>`;
@@ -6620,7 +6837,28 @@ function buildPlot(W,H,pal,colEx,opt){
     const at1=(q,x)=>{ let a=0, b=q.length-1; if(b<1||x<q[0].x||x>q[b].x) return null; while(b-a>1){ const m=(a+b)>>1; if(q[m].x<=x) a=m; else b=m; } const t=q[b].x>q[a].x?(x-q[a].x)/(q[b].x-q[a].x):0; return q[a].y+(q[b].y-q[a].y)*t; };
     geo.mapZ=(x,y)=>mapAt(ys,sorted.map(q=>at1(q,x)),y,!mapS);
   }
-  const annoCtx={cfg,pal,X,Y,ps,forExport,colEx,fs,sans,L,pw,T,mh,heat,TS,ptsAll:allForView,tk};
+  // Boxes: the quartiles, the median, whiskers to the furthest values within 1.5 IQR (or to the
+  // extremes), the rest as outliers, the mean as a diamond. Violins: each spectrum's kernel
+  // density, mirrored, with a thin box and the median inside. The values themselves, if asked.
+  if(dist){ const hw=Math.max(3,Math.abs(X(1.34)-X(1))), range=cfg.distWhisk==="range";
+    distC.forEach((c,k)=>{ const vals=distV[k]; if(!vals.length) return; const st=serStyle(c.id,c===act,pal,colEx,cfg), col=st.color, b=boxStats(vals), cx=X(k+1);
+      const lo=range?b.min:b.lo, hi=range?b.max:b.hi, Yq=y=>Y(y), tip=`${specName(c)}: ${b.n} values, median ${fmt(b.med,4)}, quartiles ${fmt(b.q1,4)} to ${fmt(b.q3,4)}, mean ${fmt(b.mean,4)} ± ${fmt(b.sd,3)} (SD)${!range&&b.out.length?`, ${b.out.length} beyond the whiskers`:""}`;
+      let g=`<g data-dist="${k}">${forExport?"":`<title>${esc(tip)}</title>`}`;
+      if(layout==="violin"&&vals.length>1){ const bw=kdeBandwidth(vals), a=logY?b.min:b.min-2*bw, z=logY?b.max:b.max+2*bw, n=90, ys=Array.from({length:n},(_,i)=>a+(z-a)*i/(n-1)), dn=kdeAt(vals,ys,bw), dm=Math.max(...dn)||1;
+        const pts2=ys.map((y,i)=>[dn[i]/dm*hw,Yq(y)]).filter(q=>Number.isFinite(q[1]));
+        g+=`<path d="M${pts2.map(q=>f1(cx+q[0])+","+f1(q[1])).join("L")}L${pts2.slice().reverse().map(q=>f1(cx-q[0])+","+f1(q[1])).join("L")}Z" fill="${col}" fill-opacity="${Math.max(0.15,Math.min(0.6,st.fill>0.18?st.fill:0.35)).toFixed(2)}" stroke="${col}" stroke-width="1.2" stroke-linejoin="round"/>`;
+        const iw=Math.max(2,hw*0.09);
+        g+=`<path d="M${f1(cx)},${f1(Yq(hi))}V${f1(Yq(lo))}" stroke="${pal.ink}" stroke-width="1" stroke-opacity="0.7"/><rect x="${f1(cx-iw)}" y="${f1(Math.min(Yq(b.q1),Yq(b.q3)))}" width="${f1(2*iw)}" height="${f1(Math.abs(Yq(b.q1)-Yq(b.q3)))}" fill="${pal.ink}" fill-opacity="0.75"/><circle cx="${f1(cx)}" cy="${f1(Yq(b.med))}" r="2.6" fill="${pal.bg}" stroke="${pal.ink}" stroke-width="0.8"/>`; }
+      else { const bx=hw*0.62, cap=bx*0.5, y1=Yq(b.q3), y0=Yq(b.q1);
+        g+=`<path d="M${f1(cx)},${f1(y1)}V${f1(Yq(hi))}M${f1(cx-cap)},${f1(Yq(hi))}H${f1(cx+cap)}M${f1(cx)},${f1(y0)}V${f1(Yq(lo))}M${f1(cx-cap)},${f1(Yq(lo))}H${f1(cx+cap)}" stroke="${col}" stroke-width="1.2" fill="none"/>`;
+        g+=`<rect x="${f1(cx-bx)}" y="${f1(Math.min(y0,y1))}" width="${f1(2*bx)}" height="${f1(Math.max(1,Math.abs(y0-y1)))}" fill="${col}" fill-opacity="${Math.max(0.12,Math.min(0.6,st.fill>0.18?st.fill:0.25)).toFixed(2)}" stroke="${col}" stroke-width="1.4"/>`;
+        g+=`<path d="M${f1(cx-bx)},${f1(Yq(b.med))}H${f1(cx+bx)}" stroke="${col}" stroke-width="2.4"/><path d="${symD("diamond",cx,Yq(b.mean),3.2)}" fill="${pal.bg}" stroke="${col}" stroke-width="1.1"/>`;
+        if(!range&&b.out.length){ let d=""; b.out.forEach(y=>{ const yy=Yq(y); if(Number.isFinite(yy)) d+=symD("ocircle",cx,yy,2.6); }); g+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="1"/>`; } }
+      // The values, scattered across the box's width (the same way every time).
+      if(cfg.distPts){ let d=""; vals.slice(0,5000).forEach((y,i)=>{ const j=((Math.sin((i+1)*12.9898+k*78.233)*43758.5453)%1+1)%1-0.5, yy=Yq(y); if(Number.isFinite(yy)) d+=`M${f1(cx+j*hw*1.1)},${f1(yy)}h0`; });
+        g+=`<path d="${d}" stroke="${col}" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round" fill="none"/>`; }
+      s+=g+`</g>`; }); }
+  const annoCtx={cfg,pal,X,Y,ps,forExport,colEx,fs,sans,L,pw,T,mh,heat,dist,TS,ptsAll:allForView,tk};
   s+=annoSvg("under",annoCtx);
   s+=bandsSvg("under",Object.assign({layout},annoCtx));
   if(fit){
@@ -6635,6 +6873,7 @@ function buildPlot(W,H,pal,colEx,opt){
       let s2=()=>0;
       if(showP){ if(fit.weighted){ const fp=fitPts(fit).filter(q=>q.e>0).sort((p1,p2)=>p1.x-p2.x);
           s2=x=>{ if(!fp.length) return 0; let lo2=0, hi2=fp.length-1; while(hi2-lo2>1){ const m=(lo2+hi2)>>1; if(fp[m].x<x) lo2=m; else hi2=m; } const q=Math.abs(fp[lo2].x-x)<=Math.abs(fp[hi2].x-x)?fp[lo2]:fp[hi2]; return q.e*q.e; }; }
+        else if(fit.odr&&fit.odr.s!=null){ const v=fit.odr.s*fit.odr.s; s2=()=>v; }
         else { const r=fit.stats&&fit.stats.redChi2; s2=()=>Number.isFinite(r)?r:0; } }
       for(let k=0;k<=N;k++){ const x=a+(b-a)*k/N, yv=FM.f(x,fit.params); if(!Number.isFinite(yv)) continue;
         let cv=0; if(fit.cov){ cv=deltaVar(gradient(FM.f,x,fit.params,fit.fixed),fit.cov); if(!Number.isFinite(cv)||cv<0) cv=0; } const bw=tq*Math.sqrt(cv);
@@ -6672,14 +6911,16 @@ function buildPlot(W,H,pal,colEx,opt){
     const sp=path(x=>m.f(x,d.init)); if(sp) s+=`<path d="${sp}" fill="none" stroke="${pal.ink}" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="2 3"/>`;
   }
   // A series' symbols coloured or sized by a column, and its hatching's own ids.
-  const zSt=(st,q,id)=>{ const z=st.zcol&&(st.type==="scatter"||st.type==="linesym")?zMapOf(st.zcol,q,cfg.cmap,"color"):null, sz=st.scol&&(st.type==="scatter"||st.type==="linesym")?zMapOf(st.scol,q,cfg.cmap,"size"):null;
+  // Several spectra as columns on one graph stand side by side, in the table's order.
+  const colGrp=layout==="overlay"?yCols().filter(c=>(c===act||oser.some(o=>o.c===c))&&serStyle(c.id,c===act,pal,colEx,cfg).type==="column").map(c=>c.id):[];
+  const zSt=(st,q,id)=>{ const cg=colGrp.indexOf(id); st=cg>=0&&colGrp.length>1?Object.assign({},st,{cgk:cg,cgn:colGrp.length}):st; const z=st.zcol&&(st.type==="scatter"||st.type==="linesym")?zMapOf(st.zcol,q,cfg.cmap,"color"):null, sz=st.scol&&(st.type==="scatter"||st.type==="linesym")?zMapOf(st.scol,q,cfg.cmap,"size"):null;
     return Object.assign({},st,{zf:z?z.at:null,sf:sz?sz.at:null,hid:id}); };
   // The area between two spectra, filled, under them all (overlaid only).
   if(layout==="overlay"&&!heat){ const all=[{c:act,pts}].concat(oser).filter(z=>z.c&&(z.c===act||!cfg.hidden.includes(z.c.id)));
     all.forEach(z=>{ const st=z.c===act?actSt:serStyle(z.c.id,false,pal,colEx,cfg), t=st.fillTo&&all.find(w=>w.c.id===st.fillTo); if(!t||t===z) return;
       s+=`<g data-fill="${z.c.id}">${fillBetweenSvg(z.pts,t.pts,X,Y,st.color,st.fill2,Math.max(0.12,st.fill),st.hatch,"fb-"+z.c.id,{L,T,W:pw,H:mh})}</g>`; }); }
   // The other spectra, behind the analysed one.
-  if(!heat&&!stack) oser.forEach((o,k)=>{
+  if(!heat&&!dist&&!stack) oser.forEach((o,k)=>{
     const st=zSt(serStyle(o.c.id,false,pal,colEx,cfg),o.pts,o.c.id), eg=errGeom(o.c,finalOf(o.c));
     if(dy){ const ee=errSvg(eg,o.pts,st,X,yR.Y,pal,null,{logY:false});
       s+=`<g data-ser="${o.c.id}">${ee.under}${seriesSvg(o.pts,st,X,yR.Y,geo,pal,null)}${ee.over}</g>`; return; }
@@ -6689,17 +6930,17 @@ function buildPlot(W,H,pal,colEx,opt){
       if(Number.isFinite(lyp)&&lyp>T&&lyp<T+mh) s+=`<text x="${lxp.toFixed(1)}" y="${(lyp-4).toFixed(1)}" text-anchor="end"${tAt(LSc,st.color)}>${richIn((st.label||o.c.name||"").slice(0,40),LSc.size)}</text>`; }
   });
   if(showGhost) s+=`<path d="M${gpts.map(q=>X(q.x).toFixed(1)+","+Y(q.y).toFixed(1)).join("L")}" fill="none" stroke="${pal.muted}" stroke-width="1.3" opacity="0.7"/>`;
-  if(!forExport&&!heat) s+=stageMarks(ps,X,Y,pal,v,geo,true);
-  if(!heat&&act){
+  if(!forExport&&!heat&&!dist) s+=stageMarks(ps,X,Y,pal,v,geo,true);
+  if(!heat&&!dist&&act){
     // Its error bars, at any stage: what the processing made of them by then.
     const ee=errSvg(errGeom(act,ps.d),pts,actSt,X,Y,pal,isMasked,{logY,yMin:v.y0*1e-3});
     s+=`<g data-ser="${act.id}">${ee.under}${seriesSvg(pts,zSt(actSt,pts,act.id),X,Y,geo,pal,isMasked)}${ee.over}</g>`;
     if(layout==="offset"&&oser.length&&pts.length){ const last=pts.reduce((m,z)=>(revX?z.x<m.x:z.x>m.x)?z:m,pts[0]), lyp=Y(last.y);
       if(Number.isFinite(lyp)&&lyp>T&&lyp<T+mh) s+=`<text x="${(L+pw-4).toFixed(1)}" y="${(lyp-4).toFixed(1)}" text-anchor="end"${tAt(Object.assign({},LSc,{b:true}),actSt.color)}>${richIn((actSt.label||act.name||"").slice(0,40),LSc.size)}</text>`; }
   }
-  if(!forExport&&!heat) s+=stageMarks(ps,X,Y,pal,v,geo,false);
+  if(!forExport&&!heat&&!dist) s+=stageMarks(ps,X,Y,pal,v,geo,false);
   s+=annoSvg("lines",annoCtx);
-  if(!forExport&&!heat){
+  if(!forExport&&!heat&&!dist){
     const r=pts.length>400?2:pts.length>150?2.8:3.4;
     if(S.sel!=null){ const q=pts.find(q=>q.i===S.sel); if(q) s+=`<circle cx="${X(q.x)}" cy="${Y(q.y)}" r="${r+5}" fill="none" stroke="${pal.ink}" stroke-width="1.6"/>`; }
     S.comments.filter(c=>!c.resolved&&!c.deleted&&c.anchor&&(c.anchor.type==="point"||c.anchor.type==="xy")).forEach(c=>{
@@ -6817,6 +7058,11 @@ function buildPlot(W,H,pal,colEx,opt){
     s+=`<defs><linearGradient id="zbar" x1="0" y1="1" x2="0" y2="0">${stops.map((c,i)=>`<stop offset="${(i/(stops.length-1)).toFixed(3)}" stop-color="${c}"/>`).join("")}</linearGradient></defs><rect x="${f1(bx)}" y="${T}" width="12" height="${mh}" fill="url(#zbar)" stroke="${fcol}" stroke-width="0.8"/>`;
     zbT.ticks.forEach(t=>{ const y=Z(t.v); if(y<T-0.5||y>T+mh+0.5) return; s+=`<path d="M${f1(bx+12)},${f1(y)}h4" stroke="${fcol}"/>`+tLab(t.lab,bx+19,y+zs.size*0.3,"start",zs,pal.ink); wmax=Math.max(wmax,labW(t.lab,zs)); });
     s+=`<text transform="translate(${f1(bx+19+wmax+6+TS.axis.size*0.8)},${f1(T+mh/2)}) rotate(90)" text-anchor="middle"${tAt(TS.axis,pal.ink)}>${richIn(zb.name,TS.axis.size)}</text>`; }
+  // The size legend: the largest value at the top, as on a colour bar.
+  if(sb){ const rowH=Math.max(2*sbM+5,sbS.size*1.4), h=rowH*sbV.length, y0=T+Math.max(0,(mh-h)/2), cx=L+pw+sbX+6+sbM, open=symOpen(sb.sym); let d="", wmax=0, g=`<g data-sizeleg="1">`;
+    sbV.slice().reverse().forEach((t,i)=>{ const y=y0+rowH*(i+0.5); d+=symD(sb.sym,cx,y,sb.sz(t.v)); g+=tLab(t.lab,cx+sbM+6,y+sbS.size*0.33,"start",sbS,pal.ink); wmax=Math.max(wmax,labW(t.lab,sbS)); });
+    g+=open?`<path d="${d}" fill="${/^o/.test(sb.sym)?pal.bg:"none"}" stroke="${sb.color}" stroke-width="1"/>`:`<path d="${d}" fill="${sb.color}" fill-opacity="0.85" stroke="${pal.bg}" stroke-width="0.6"/>`;
+    s+=g+`<text transform="translate(${f1(cx+sbM+6+wmax+6+TS.axis.size*0.8)},${f1(y0+h/2)}) rotate(90)" text-anchor="middle"${tAt(TS.axis,pal.ink)}>${richIn(sb.name,TS.axis.size)}</text></g>`; }
   // The right axis of a double-Y graph.
   if(dy&&yR){ const yt2=axisTicks(yR.y0,yR.y1,mh/(55*tkDen),cfg.ax.y2||{},logY), sp=tkSpan(Y2A.dir,Y2A.len), msp=tkSpan(Y2A.dir,Y2A.mlen), ax2=L+pw+Y2A.off, col2=esc(Y2A.col||fcol), o2=tkOut(Y2A.dir,Y2A.len)+5, fill2=TK.color||Y2A.col||axR||pal.ink;
     if(FR.kind!=="none"&&Y2A.line&&(FR.kind==="l"||Y2A.off||Y2A.col||Y2A.lw!==FR.lw)) s+=`<path d="M${f1(ax2)},${f1(T)}V${f1(T+mh)}" stroke="${col2}" stroke-width="${Y2A.lw}" fill="none"/>`;
@@ -6891,7 +7137,9 @@ function buildPlot(W,H,pal,colEx,opt){
       f+=`<text${ed("yo")} transform="translate(${f1(tx)},${f1(ty)}) rotate(${sg>0?90:-90})" text-anchor="${anc}"${tAt(TS.axis,YO.col||pal.ink)}>${richIn((cfg.ax.yo||{}).title||axisLabel(yoc.name,yoc.unit,"Y"),TS.axis.size)}</text>`; }
     s+=f; }
   // The axis titles, beside their numbers, wherever the axes went.
-  const yl=cfg.ax.y.title||(heat?(mapS?seriesLabel():"Spectrum"):axisLabel(ps.d.yn,ps.d.yu,"Y")), xl=cfg.ax.x.title||axisLabel(ps.d.xn,ps.d.xu,"X");
+  // A box or violin chart is titled by what its values are: one name and unit, or one unit, or "Value".
+  const distYl=dist?(()=>{ const ds=distC.map(finalOf), nm=new Set(ds.map(d=>d.yn0||d.yn||"")), un=new Set(ds.map(d=>d.yu||"")); return axisLabel(nm.size===1&&distC.length===1?[...nm][0]:"Value",un.size===1?[...un][0]:"","Value"); })():"";
+  const yl=cfg.ax.y.title||(heat?(mapS?seriesLabel():"Spectrum"):dist?distYl:axisLabel(ps.d.yn,ps.d.yu,"Y")), xl=cfg.ax.x.title||(dist?"":axisLabel(ps.d.xn,ps.d.xu,"X"));
   if(YA.tshow){ const ys0=drawn.ySide, wy=ypM==="left"&&!YA.off?Math.max(drawn.yW,drawn.pW):drawn.yW, band=tkOut(YA.dir,YA.len)+5+(wy?wy+6:1);
     const tx=(ys0<0?drawn.yAx-band-TS.axis.size*0.22:drawn.yAx+band+TS.axis.size*0.22)+YA.tdx, al=axAlign(YA,TS.axis);
     const ty=(al==="start"?T+mhAll:al==="end"?T:T+mhAll/2)+YA.tdy, anc=ys0<0?(al==="start"?"start":al==="end"?"end":"middle"):(al==="start"?"end":al==="end"?"start":"middle");
@@ -6900,7 +7148,7 @@ function buildPlot(W,H,pal,colEx,opt){
     const al=axAlign(XA,TS.axis), tx=(al==="start"?L:al==="end"?L+pw:L+pw/2)+XA.tdx, ty=(sg>0?xa+band+TS.axis.size*0.8:xa-band-TS.axis.size*0.25)+XA.tdy;
     s+=`<text${ed("x")} x="${f1(tx)}" y="${f1(ty)}" text-anchor="${al==="start"?"start":al==="end"?"end":"middle"}"${tAt(TS.axis,XA.col||pal.ink)}>${richIn(xl,TS.axis.size)}</text>`; }
   // Text and labels on the graph, then the legend over them.
-  if(!heat) s+=annoSvg("inset",annoCtx);
+  if(!heat&&!dist) s+=annoSvg("inset",annoCtx);
   s+=bandsSvg("top",Object.assign({layout},annoCtx));
   s+=annoSvg("top",annoCtx);
   // While something is dragged or drawn: alignment guides, the arrow being drawn, a point it snaps to.
@@ -6937,9 +7185,10 @@ function buildPlot(W,H,pal,colEx,opt){
       const r=below?Math.floor(i/legNc):i%legRows, ci=below?i%legNc:Math.floor(i/legRows);
       const sx=bx+lpad+ci*(colW+10), cy=by+lpad/2+tl+lh*r+lh/2;
       s+=`<g${e.id&&!forExport?` data-leg="${e.id}"`:""}>`;
-      const lineish=e.type!=="scatter"&&e.type!=="stick", dsh=DASHES[e.dash];
+      const lineish=e.type!=="scatter"&&e.type!=="stick"&&e.type!=="column", dsh=DASHES[e.dash];
       if(lineish&&dsh!==null) s+=`<line x1="${f1(sx)}" x2="${f1(sx+legLine)}" y1="${f1(cy)}" y2="${f1(cy)}" stroke="${e.color}" stroke-width="${Math.max(1.2,Math.min(4,e.lw||1.4))}"${dsh?` stroke-dasharray="${dsh}"`:""}/>`;
       if(e.type==="stick") s+=`<path d="M${f1(sx+legLine*0.28)},${f1(cy+5)}V${f1(cy-5)}M${f1(sx+legLine*0.72)},${f1(cy+5)}V${f1(cy-2)}" stroke="${e.color}" stroke-width="${e.lw||1.2}"/>`;
+      if(e.type==="column") s+=`<path d="M${f1(sx+legLine*0.2)},${f1(cy+5)}V${f1(cy-4)}h${f1(legLine*0.25)}V${f1(cy+5)}ZM${f1(sx+legLine*0.55)},${f1(cy+5)}V${f1(cy-1)}h${f1(legLine*0.25)}V${f1(cy+5)}Z" fill="${e.color}" fill-opacity="0.85"/>`;
       if(e.type==="scatter"||e.type==="linesym"){ const d=symD(e.sym||"circle",sx+legLine/2,cy,3.2*Math.max(0.8,lfs/12)), op=symOpen(e.sym||"circle"); s+=`<path d="${d}" fill="${op?(/^o/.test(e.sym)?pal.bg:"none"):e.color}" stroke="${op?e.color:pal.bg}" stroke-width="${op?1.2:0.6}"/>`; }
       s+=`<text x="${f1(sx+legLine+6)}" y="${f1(cy+lfs*0.35)}"${tAt(LS,cfg.legendText==="match"&&e.color?e.color:pal.ink)}>${richIn(labOf(e),LS.size)}</text></g>`;
     });
@@ -7014,12 +7263,12 @@ function buildPlot(W,H,pal,colEx,opt){
   } else if(fit&&FM&&FM.composite) s+=fitLabels(fit,FM);
   // While the Peaks window is open, what lies outside the range it searches is shaded.
   // Several regions are numbered, the one whose settings are shown in the accent colour.
-  if(!forExport&&!ins&&act&&ps.final&&!heat&&winOpen("peaks")){ const regs=pkRegsOf(act);
+  if(!forExport&&!ins&&act&&ps.final&&!heat&&!dist&&winOpen("peaks")){ const regs=pkRegsOf(act);
     if(regs.length){ const cl=v=>Math.max(L,Math.min(L+pw,v)), sel=pkSelReg(regs), spans=regs.map((g,k)=>{ const a=X(g.x0), b=X(g.x1); return {lo:Math.min(a,b),hi:Math.max(a,b),k,g}; });
       const iv=spans.map(q=>[cl(q.lo),cl(q.hi)]).sort((a,b)=>a[0]-b[0]), gaps=[]; let at=L; iv.forEach(([a,b])=>{ if(a>at) gaps.push([at,a]); at=Math.max(at,b); }); if(at<L+pw) gaps.push([at,L+pw]);
       s+=`<g pointer-events="none" class="pkrange">${gaps.map(([a,b])=>`<rect x="${a.toFixed(1)}" y="${T}" width="${(b-a).toFixed(1)}" height="${mh}" fill="${pal.muted}" fill-opacity="0.1"/>`).join("")}${spans.map(q=>[q.lo,q.hi].filter(v=>v>=L&&v<=L+pw).map(v=>`<path d="M${v.toFixed(1)},${T}v${mh}" stroke="${q.g===sel&&regs.length>1?pal.sel||pal.data:pal.muted}" stroke-dasharray="4 3" stroke-width="1"/>`).join("")).join("")}${regs.length>1?spans.filter(q=>q.hi>L&&q.lo<L+pw).map(q=>`<text x="${(cl(q.lo)+4).toFixed(1)}" y="${T+13}" font-size="11" font-weight="600" fill="${q.g===sel?pal.sel||pal.data:pal.muted}">${q.k+1}</text>`).join(""):""}</g>`; } }
   // Peak finder preview: what would be found (filled) and what was turned down (hollow).
-  if(!forExport&&S.pfPreview&&ps.final&&!heat&&S.fitMode==="peaks"&&winOpen("fit")){
+  if(!forExport&&S.pfPreview&&ps.final&&!heat&&!dist&&S.fitMode==="peaks"&&winOpen("fit")){
     const pv=S.pfPreview; let d1="", d2="";
     pv.found.forEach(q=>{ const x=X(q.x), y=Y(q.y); if(inPlot(x,y)) d1+=`M${(x-5).toFixed(1)},${(y-16).toFixed(1)}h10l-5,8z`; });
     pv.rejected.forEach(q=>{ const x=X(q.x), y=Y(q.y); if(inPlot(x,y)) d2+=`M${(x-4).toFixed(1)},${(y-14).toFixed(1)}h8l-4,6.5z`; });
@@ -7102,7 +7351,7 @@ function annoSvg(layer,c){
     // Another spectrum's labels, only where it is drawn on these axes: overlaid and shown.
     if(a.t==="label"&&a.ser&&a.ser!==actId&&(lay!=="overlay"||(cfg.hidden||[]).includes(a.ser)||!colById(a.ser))) return;
     const pinned=(a.t==="text"||twoEnds(a))&&a.pin==="plot";
-    const okX=pinned||a.xu==null||a.xu===xu, okY=pinned||(!heat&&(a.yu==null||a.yu===yu));
+    const okX=pinned||(!c.dist&&(a.xu==null||a.xu===xu)), okY=pinned||(!heat&&(a.yu==null||a.yu===yu));
     const col=annoColor(a,pal,forExport,cfg), lw=a.lw!=null?+a.lw:1.2, dash=DASHES[a.dash||(a.t==="v"||a.t==="h"?"dash":"solid")];
     const st=annoTextStyle(a,base,c.tk), tcol=a.color||base.color||col, tsz=st.size, ang=annoAng(a);
     const sel=!forExport&&S.annoSel===a.id;
@@ -7611,9 +7860,10 @@ function graphMenuItems(id,at){
       hasErrCols(c.id)||(finalOf(c).e||[]).some(v=>v>0)?{label:"Error bars",sub:()=>[["bars","Bars"],["band","A shaded band"],["none","None"]].map(([k,l])=>({label:l,radio:true,checked:st.eb===k,enabled:!ro,run:()=>setSeriesStyle(c.id,{eb:k},`drew the error bars of ${specName(c)} as ${l.toLowerCase()}`)}))}:null);
     if(!isAct) items.push({label:"Analyse this spectrum",run:()=>setActiveCol(c.id)},{label:GID()==="main"?"Hide it":"Take it off this graph",run:()=>toggleColVis(c.id),enabled:!ro});
     items.push({label:"Open in a new graph",run:()=>newGraphFrom([c.id]),enabled:!ro});
+    items.push(histOf(c.id)?{label:"Histogram bins…",run:()=>editHistStep(c.id)}:{label:"Histogram of its values",run:()=>histogramCols([c.id]),enabled:!ro});
   }
   // A map is cut where it was clicked: the profile at that X, or the spectrum at that value of the series.
-  if(at&&at.pt&&at.pt.inside&&S.geo&&S.geo.heat){ const x=+(+at.pt.x).toPrecision(6), near=mapNearest(at.pt.y), xu=finalOf(act).xu||"";
+  if(at&&at.pt&&at.pt.inside&&S.geo&&S.geo.heat&&!S.geo.dist){ const x=+(+at.pt.x).toPrecision(6), near=mapNearest(at.pt.y), xu=finalOf(act).xu||"";
     items.push("-",{group:"Cut the map here"},{label:`The profile at X = ${fmt(x,5)}${xu?" "+xu:""}, against ${S.geo.mapSeries?seriesLabel():"the series"}`,enabled:!ro,run:()=>mapCutX(x)},
       near?{label:S.geo.mapSeries?`The spectrum nearest ${fmt(at.pt.y,4)}: ${specName(near.c)} (${fmt(near.v,5)})`:`The spectrum ${specName(near.c)}, on a graph of its own`,enabled:!ro,run:()=>mapCutY(near)}:null); }
   if(at&&at.pt&&at.pt.inside&&!ro&&!(S.geo&&S.geo.heat)){ const hit=peakNear(at.px,at.py), n6=v=>+(+v).toPrecision(6);
@@ -7640,6 +7890,7 @@ function graphMenuItems(id,at){
       {label:"Grid",checked:!!cfg.grid,run:()=>togglePlot("grid"),enabled:!ro}]},
     {label:"Several spectra",sub:()=>LAYOUTS.map(([k,l])=>({label:l,radio:true,checked:cfg.layout===k,enabled:!ro,run:()=>setPlotKey("layout",k,`laid the spectra out as ${l.toLowerCase()}`)}))},
     cfg.layout==="heat"?{label:"Map",sub:mapMenuItems}:null,
+    isDistLayout(cfg.layout)?{label:cfg.layout==="box"?"Box chart":"Violin plot",sub:()=>distMenuItems()}:null,
     {label:"Font",sub:()=>fontMenuItems()},
     {label:"Legend",sub:()=>legendMenuItems().filter(it=>!it.group)},
     {label:"Lines, labels and legend…",run:()=>openPlotDetails(id||(act&&act.id),"labels")},
@@ -7874,7 +8125,7 @@ function renderPlotDetails(){
       const zo=zColOptions(c), symT=st.type==="scatter"||st.type==="linesym";
       h+=grp("Symbols",`<label for="pdSym">Symbol</label>${sel("pdSym",SYMS,st.sym,b+".sym")}<label for="pdSs">Size</label>${rng("pdSs",st.ss==null?3:st.ss,b+".ss",1,10,0.5)}`
         +`<label for="pdZc">Colour by</label>${sel("pdZc",zo,st.zcol,b+".zcol")}<label for="pdSc">Size by</label>${sel("pdSc",zo,st.scol,b+".scol")}`
-        +((st.zcol||st.scol)&&!symT?note("Shown with the Symbols or Line + symbols plot type."):"")+(st.zcol?`<label for="pdCm2">Colour map</label>${sel("pdCm2",CMAP_LIST,cfg.cmap||"viridis","cmap")}`:""));
+        +((st.zcol||st.scol)&&!symT?note("Shown with the Symbols or Line + symbols plot type."):"")+(st.scol?chk("pdSl","sizeLeg",cfg.sizeLeg!==false,"A legend of the sizes"):"")+(st.zcol?`<label for="pdCm2">Colour map</label>${sel("pdCm2",CMAP_LIST,cfg.cmap||"viridis","cmap")}`:""));
       const fto=[["","Nothing (Area fills down to zero)"]].concat(yCols().filter(o=>o!==c&&graphShows(o)).map(o=>[o.id,specName(o)]));
       h+=grp("Fill and opacity",`<label for="pdFill">Fill</label>${rng("pdFill",st.fill,b+".fill",0,1,0.05)}<label for="pdFto">Fill between it and</label>${sel("pdFto",fto,st.fillTo,b+".fillTo")}`
         +(st.fillTo?`<label>Where it is lower</label>${cb(b+".fill2",own.fill2,"The same colour",st.color)}`:"")
@@ -8004,6 +8255,7 @@ function renderPlotDetails(){
       +(cfg.layout==="offset"?`<label for="pdOff">Offset</label>${rng("pdOff",cfg.offset,"offset",0,2,0.05)}`:"")
       +(cfg.layout==="heat"?`<label for="pdCm">Colour map</label>${sel("pdCm",CMAP_LIST,cfg.cmap,"cmap")}<label for="pdMy">Up the side</label>${sel("pdMy",MAP_Y,cfg.mapY||"index","mapY")}<label for="pdMk">Drawn as</label>${sel("pdMk",MAP_KINDS,cfg.mapKind||"image","mapKind")}`
         +((cfg.mapKind||"image")!=="image"?`<label for="pdMl">Levels</label>${rng("pdMl",numOr(cfg.mapLevels,8),"mapLevels",3,30,1)}`+chk("pdMlb","mapLab",cfg.mapLab!==false,"Number the contour lines"):""):"")
+      +(isDistLayout(cfg.layout)?`<label for="pdDw">Whiskers</label>${sel("pdDw",DIST_WHISK,cfg.distWhisk==="range"?"range":"tukey","distWhisk")}`+chk("pdDp","distPts",!!cfg.distPts,"Show the values"):"")
       +chk("pdAxM","axisMatch",cfg.axisMatch!==false,"On two Y axes, colour each axis like its spectrum"));
     h+=grp("Colours",`<label for="pdSch">Spectra</label>${sel("pdSch",Object.entries(SCHEMES).map(([k,v])=>[k,v.name]),cfg.scheme||"kurve","scheme")}<label for="pdPsch">Fitted peaks</label>${sel("pdPsch",Object.entries(PEAK_SCHEMES).map(([k,v])=>[k,v.name]),cfg.peakScheme||"warm","peakScheme")}`);
     h+=grp("Fit",chk("pdRes","resid",cfg.resid!==false,"Residual panel under a fit"));
@@ -8112,7 +8364,7 @@ function pdAnnoEditor(a,o){
 }
 // Every graph takes this one's frame, axes, text, legend and colours; data,
 // ranges, titles and annotations stay their own.
-const FMT_KEYS=["frame","frameLw","frameColor","grid","gridMinor","gridColor","gridLw","gridDash","gridX","gridY","plotBg","mL","mR","mT","mB","txt","font","fontFam","fontName","titleItalic","legend","legendPos","legendText","legendFrame","legendCols","legendLine","legendSp","legendFill","legendOp","legendBd","legendLw","legendR","scheme","peakScheme","peakLab","peakLabRot","peakLabDec","peakLabShow","peakLabTpl","peakLabErr","peakLabUnit","peakLabSep","peakLabPos","peakLabMk","peakLabCol","peakLabBox","axisMatch","resid","bandConf","bandPred"];
+const FMT_KEYS=["frame","frameLw","frameColor","grid","gridMinor","gridColor","gridLw","gridDash","gridX","gridY","plotBg","mL","mR","mT","mB","txt","font","fontFam","fontName","titleItalic","legend","legendPos","legendText","legendFrame","legendCols","legendLine","legendSp","legendFill","legendOp","legendBd","legendLw","legendR","scheme","peakScheme","peakLab","peakLabRot","peakLabDec","peakLabShow","peakLabTpl","peakLabErr","peakLabUnit","peakLabSep","peakLabPos","peakLabMk","peakLabCol","peakLabBox","axisMatch","resid","bandConf","bandPred","sizeLeg","distWhisk","distPts"];
 const FMT_AX=["ticks","tlen","mlen","tw","mirror","mticks","mlabs","labs","lrot","color","lw","pos","at","off","talign","line","fmt","dec","minor","tshow"];
 /* A graph's settings with another's format laid over them: frame, grid, text,
    legend, colours and each axis's style; a key the format lacks goes back to
@@ -8440,7 +8692,8 @@ function setupGraph(){
     const d=toData(x,y);
     const ro=$("#readout"); if(ro){ const [xu,yu]=dataUnits(), g=S.geo;
       // On a map: X, where up the side (the series value, or the spectrum), and the value there.
-      if(g.heat&&d&&d.inside){ const z=g.mapZ?g.mapZ(d.x,d.y):null, near=mapNearest(d.y);
+      if(g.dist&&d&&d.inside){ const c=(g.distC||[])[Math.round(d.x)-1]; ro.textContent=c?`${specName(c)}   y ${fmt(d.y,5)}${yu?" "+yu:""}`:""; }
+      else if(g.heat&&d&&d.inside){ const z=g.mapZ?g.mapZ(d.x,d.y):null, near=mapNearest(d.y);
         ro.textContent=`x ${fmt(d.x,6)}${xu?" "+xu:""}   ${g.mapSeries?`${seriesLabel()} ${fmt(d.y,5)}`:near?specName(near.c):""}   ${z!=null?`value ${fmt(z,5)}${yu?" "+yu:""}`:""}`; }
       else ro.textContent=d&&d.inside?`x ${fmt(d.x,6)}${xu?" "+xu:""}   y ${fmt(d.y,5)}${yu?" "+yu:""}`:""; }
     if(S.andrag){ dragAnno(x,y); return; }
@@ -9984,6 +10237,25 @@ function newDerived(from,opt){
   if(!(opt&&opt.quiet)) toast(from==="raw"?`Made a copy of ${specName(c)} with the same steps: a new branch in History. Change any step to compare the two routes.`:`Made a new spectrum from the processed ${specName(c)}: a new branch in History.`,{action:"Undo",run:undo});
   return n.id;
 }
+/* Histograms of spectra or data columns: each a spectrum of its own made from
+   the processed data with a Histogram step, on a graph of its own (several in
+   one figure). One undo step. */
+function histogramCols(cids){
+  const p=P(); if(!p||S.readOnly) return; const cs=cids.map(colById).filter(c=>c&&(c.role==="y"||c.role==="ignore"));
+  if(!cs.length){ toast("Choose a spectrum or a data column to count."); return; }
+  pushUndo(cs.length===1?"making a histogram":"making histograms");
+  const made=[];
+  cs.forEach(c=>{ if(c.role==="ignore"){ c.role="y"; c.pipe=c.pipe||[]; c.mask=c.mask||[]; }
+    const n=makeCol("y",`Histogram of ${specName(c)}`,"",[]); n.src=c.id; n.from="final"; n.mask=[]; n.pipe=[makeStep("hist",Object.assign({},PIPE_OPS.hist.defaults))]; p.cols.push(n); made.push(n.id); });
+  migrate(p); p.activeY=made[0];
+  const gids=newGraphs(made.map(id=>[id]),{noUndo:true,from:GID(),patch:{cols:p.cols,activeY:made[0]},log:`made ${made.length===1?"a histogram":made.length+" histograms"} of ${andList(cs.map(specName))}`});
+  renderAll();
+  if(gids.length>1) makeFigure(gids,{noUndo:true,quiet:true,shareX:false,log:`put the histograms of ${andList(cs.map(specName))} in a figure`});
+  else if(gids.length){ splitInto(winOfGraph(S.gid),gids[0]); activateGraph(gids[0],made[0]); }
+  toast(`${made.length===1?"The histogram":`${made.length} histograms`} of ${andList(cs.map(specName))}. Its bins are its Histogram step's: in the History, or right-click › Histogram bins.`,{action:"Undo",run:undo});
+}
+// The histogram step of a spectrum, opened for its bins.
+function editHistStep(cid){ const c=colById(cid), s=c&&(c.pipe||[]).find(q=>q.op==="hist"); if(!s) return; setActiveCol(cid,true); S.flowSel="step:"+s.id; S.flowTab="flow"; openWin("flow",{render:true}); }
 function deleteDerived(id){
   const c=colById(id), p=P(); if(!c||!c.src||S.readOnly) return;
   pushUndo("deleting a spectrum");
@@ -10125,6 +10397,7 @@ function wireStepForms(box){
     if(e.target.type==="checkbox") v=e.target.checked;
     else if(q&&(q.type==="sel"||q.type==="col")) v=e.target.value||null;
     else { v=parseNum(e.target.value);
+      if(v==null&&q&&q.blank&&e.target.value.trim()===""){ setParam(s,k,null,true); return; }
       if(v==null&&q&&(q.type==="num"||q.type==="x")&&e.target.value.trim()===""&&k==="dx") v=0;
       if(v==null){ toast("Enter a number."); refreshForms(); return; }
       if(q&&q.type==="odd"){ v=Math.max(3,Math.round(v)); if(v%2===0) v++; }
@@ -11219,7 +11492,7 @@ function ensureDraft(){
   if(S.draft&&S.draft.pid===S.pid) return S.draft;
   const f=(activeFit()&&activeFit().kind!=="composite"?activeFit():null); // the curve panel only carries single-model fits
   const model=f?f.model:(p.prefModel&&getModel(p.prefModel)?p.prefModel:"gauss");
-  S.draft={pid:S.pid, model, fn:f&&f.fn?f.fn:null, init:f?f.params.slice():null, fixed:f?(f.fixed||f.params.map(()=>false)).slice():null, weighted:f?!!f.weighted:hasErr()};
+  S.draft={pid:S.pid, model, fn:f&&f.fn?f.fn:null, init:f?f.params.slice():null, fixed:f?(f.fixed||f.params.map(()=>false)).slice():null, weighted:f?!!f.weighted:hasErr(), xerr:f?!!f.xerr:hasXErr()};
   if(!S.draft.init) guessDraft();
   return S.draft;
 }
@@ -11314,6 +11587,7 @@ function renderFit(){
   h+=`</tbody></table>`;
   h+=`<div class="gh">Options</div>`;
   h+=`<label class="chk"><input type="checkbox" id="wt"${d.weighted&&hasErr()?" checked":""}${hasErr()&&!S.readOnly?"":" disabled"}> Weight by the Y error column (1/σ²)</label>`;
+  if(hasXErr()) h+=`<label class="chk"><input type="checkbox" id="wtx"${d.xerr?" checked":""}${S.readOnly?" disabled":""}> <span class="tipd" title="Orthogonal distance regression: each point's true X is fitted too, within its X error, so the curve is not pulled flat by errors in X, and the parameters' errors include them. Without Y errors, the scatter in Y is found from the fit.">Include the X errors</span></label>`;
   if(!hasErr()) h+=`<div class="lab" style="margin:3px 0 0 22px">No Y-error column, so every point counts equally.</div>`;
   h+=`<div class="range" id="fitRange"></div>`;
   if(S.fitError) h+=noteHtml("bad",S.fitError);
@@ -11335,6 +11609,7 @@ function renderFit(){
   });
   box.querySelectorAll("input[data-fx]").forEach(inp=>inp.onchange=()=>{ d.fixed[+inp.dataset.fx]=inp.checked; });
   const wt=$("#wt"); if(wt) wt.onchange=()=>d.weighted=wt.checked;
+  const wx=$("#wtx"); if(wx) wx.onchange=()=>d.xerr=wx.checked;
   $("#doGuess").onclick=()=>{ pushUndo("guessing initial values"); S.fitError=""; guessDraft(); renderFit(); toast("Initial values measured from the data in view."); };
   $("#doFit").onclick=runFit; { const fa=$("#fitAll"); if(fa) fa.onclick=openBatchDialog; }
   const cf=$("#clrFit"); if(cf) cf.onclick=removeFit;
@@ -11473,8 +11748,8 @@ function ensurePeakDraft(){
   if(S.pdraft&&S.pdraft.pid===S.pid) return S.pdraft;
   const f=activeFit()&&activeFit().kind==="composite"?activeFit():null;
   S.pdraft=f
-    ? {pid:S.pid, base:f.spec.base, peaks:f.spec.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{},k.lab?{lab:k.lab}:{})), init:f.params.slice(), fixed:(f.fixed||f.params.map(()=>false)).slice(), weighted:!!f.weighted, x0:f.x0, fitAt:f.at}
-    : {pid:S.pid, base:"linear", peaks:[], init:[], fixed:[], weighted:hasErr(), x0:null, fitAt:null};
+    ? {pid:S.pid, base:f.spec.base, peaks:f.spec.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{},k.lab?{lab:k.lab}:{})), init:f.params.slice(), fixed:(f.fixed||f.params.map(()=>false)).slice(), weighted:!!f.weighted, xerr:!!f.xerr, x0:f.x0, fitAt:f.at}
+    : {pid:S.pid, base:"linear", peaks:[], init:[], fixed:[], weighted:hasErr(), xerr:hasXErr(), x0:null, fitAt:null};
   return S.pdraft;
 }
 /* The baseline's coefficients are measured from the centre of the fitted range.
@@ -11843,6 +12118,7 @@ function renderPeakFit(box,p,top){
   h+=`</section>`;
   // 3 Fit
   h+=`<section class="stepsec"><h3 class="gh"><span class="sn">3</span>Fit</h3><label class="chk"><input type="checkbox" id="pwt"${d.weighted&&hasErr()?" checked":""}${hasErr()&&!S.readOnly?"":" disabled"}> Weight by the Y error column (1/σ²)</label>`;
+  if(hasXErr()) h+=`<label class="chk"><input type="checkbox" id="pwtx"${d.xerr?" checked":""}${S.readOnly?" disabled":""}> <span class="tipd" title="Orthogonal distance regression: each point's true X is fitted too, within its X error, so the curve is not pulled flat by errors in X, and the parameters' errors include them. Without Y errors, the scatter in Y is found from the fit.">Include the X errors</span></label>`;
   h+=`<div class="range" id="fitRange"></div>`;
   if(S.fitError) h+=noteHtml("bad",S.fitError);
   if(f) h+=fitSummary(f);
@@ -11918,6 +12194,7 @@ function renderPeakFit(box,p,top){
     const k=+c.dataset.peak; S.selPeak=S.selPeak===k?null:k; renderFit(); renderPlot();
   });
   const pw=$("#pwt"); if(pw) pw.onchange=()=>d.weighted=pw.checked;
+  const pwx=$("#pwtx"); if(pwx) pwx.onchange=()=>d.xerr=pwx.checked;
   $("#doPeakFit").onclick=runPeakFit; { const fa=$("#fitAll"); if(fa) fa.onclick=openBatchDialog; }
   const cf=$("#clrFit"); if(cf) cf.onclick=removeFit;
 }
@@ -11947,7 +12224,8 @@ function runPeakFit(){
   const pscale=d.init.map((v,i)=>Math.abs(v)||1);
   m.slots.forEach((s,i)=>{ if(s.kind==="peak"){ if(s.name==="xc") pscale[i]=span; else if(s.name==="A") pscale[i]=yspan*span; else if(/^w/.test(s.name)) pscale[i]=span/20; } });
   const fT=L.length?(x,p)=>m.f(x,applyPeakLinks(p,L)):m.f;
-  const res0=lmFit(fT,X,Y,W,applyPeakLinks(d.init.slice(),L),fixedT,{lo,hi,pscale});
+  const SX=d.xerr?xErrsOf(activeYCol(),pts):null;
+  const res0=SX?odrFit(fT,X,Y,useW?pts.map(q=>q.e):null,SX,applyPeakLinks(d.init.slice(),L),fixedT,{lo,hi,pscale}):lmFit(fT,X,Y,W,applyPeakLinks(d.init.slice(),L),fixedT,{lo,hi,pscale});
   if(res0.error){ S.fitError=res0.error; renderFit(); return; }
   const res=linkResult(res0,L);
   if(!res.params.every(Number.isFinite)){ S.fitError="The fit diverged. Try Reset to estimates, or fix a parameter."; renderFit(); return; }
@@ -11958,7 +12236,7 @@ function runPeakFit(){
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(),
     hadErrCol:hasErr(),
     fixed:d.fixed.slice(), dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound, stats:res.stats,
-    range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, by:S.uid||"", at:Date.now()};
+    range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, ...(SX?{xerr:true,odr:odrNote(res)}:{}), by:S.uid||"", at:Date.now()};
   d.init=res.params.slice(); d.x0=m.x0; d.fitAt=fit.at;
   save(Object.assign({fit,fits:fitHistory(fit)},batchWith(fit)),`fitted ${describeSpec(spec)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
   renderFit(); renderPlot(); afterFit(fit);
@@ -11969,7 +12247,8 @@ function runFit(){
   const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), useW=d.weighted&&hasErr();
   if(useW&&pts.some(q=>!(q.e>0))){ S.fitError="Some points in range have no Y error, so they can't be weighted. Fill in the errors or turn weighting off."; renderFit(); return; }
   const W=pts.map(q=>useW?1/q.e:1);
-  const res=lmFit(m.f,X,Y,W,d.init.slice(),d.fixed.slice(),m.lo?{lo:m.lo,hi:m.hi}:undefined);
+  const SX=d.xerr?xErrsOf(activeYCol(),pts):null;
+  const res=SX?odrFit(m.f,X,Y,useW?pts.map(q=>q.e):null,SX,d.init.slice(),d.fixed.slice(),m.lo?{lo:m.lo,hi:m.hi}:undefined):lmFit(m.f,X,Y,W,d.init.slice(),d.fixed.slice(),m.lo?{lo:m.lo,hi:m.hi}:undefined);
   if(res.error){ S.fitError=res.error; renderFit(); return; }
   if(!res.params.every(Number.isFinite)){ S.fitError="The fit diverged. Try Guess, or fix one of the parameters."; renderFit(); return; }
   const [a,b]=fitRange();
@@ -11978,7 +12257,7 @@ function runFit(){
     dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound,
     onCol:(activeYCol()||{}).id, onColName:(activeYCol()||{}).name||"",
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(), hadErrCol:hasErr(),
-    range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, by:S.uid||"", at:Date.now()};
+    range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, ...(SX?{xerr:true,odr:odrNote(res)}:{}), by:S.uid||"", at:Date.now()};
   d.init=res.params.slice();
   const P0=P(), carry=m.user&&!(P0.userFns||[]).some(q=>q.id===m.fnId)?{userFns:(P0.userFns||[]).concat([JSON.parse(JSON.stringify(m.def))])}:{};
   save(Object.assign({fit,fits:fitHistory(fit)},carry,batchWith(fit)),`fitted ${m.user?`the function "${m.name}"`:lcFirst(m.name)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
@@ -12006,7 +12285,7 @@ function cropToView(){
 const fmtP=v=>v==null||!Number.isFinite(v)?"—":v<1e-4?"< 0.0001":fmt(v,3);
 function paramRows(f){
   const FM=fitModel(f); if(!FM) return [];
-  const [xu,yu]=dataUnits(), rows=[];
+  const [xu,yu]=fitUnits(f), rows=[];
   const push=(i,label,meaning,dim)=>rows.push({i,label,meaning,unit:unitFor(dim,xu,yu),v:f.params[i],e:(f.errors||[])[i],
     t:(f.tval||[])[i],pv:(f.pval||[])[i],ci:(f.ci||[])[i],dep:(f.dep||[])[i],fixed:!!(f.fixed&&f.fixed[i]),
     // At a limit, the curvature says nothing about the uncertainty: no ±.
@@ -12021,7 +12300,7 @@ function paramRows(f){
 }
 function derivedRows(f){
   const FM=fitModel(f); if(!FM||FM.composite||!f.cov) return [];
-  const [xu,yu]=dataUnits();
+  const [xu,yu]=fitUnits(f);
   return derivedWithErr(FM.model,f.params,f.cov).map((x,i)=>({name:x.name,v:x.v,e:x.e,unit:unitFor(((FM.model.derived||[])[i]||{}).dim,xu,yu)}));
 }
 function statsList(f){
@@ -12036,7 +12315,7 @@ function statsList(f){
     ["Reduced χ²",fmtOr(st.redChi2,5)],["R² (COD)",fmtOr(st.R2,6)],["Adjusted R²",fmtOr(st.adjR2,6)],
     ["Residual sum of squares",fmtOr(st.rss,6)],["AIC",fmtOr(st.aic,6)],["BIC",fmtOr(st.bic,6)],
     ["Iterations",st.iter==null?"—":`${st.iter}${st.converged?"":" (not converged)"}`],
-    ["Weighting",f.weighted?"instrumental, 1/σ²":"none; errors scaled by √(reduced χ²)"]];
+    ["Weighting",weightText(f)]].concat(f.odr&&f.odr.s!=null?[["Scatter in Y, s",fmt(f.odr.s,4)]]:[]);
   if(f.range) out.push(["Fitted over",`x ${fmt(f.range[0],6)} to ${fmt(f.range[1],6)}`]);
   return out.map(([k,v])=>[k,v==null||v===""?"—":String(v)]);
 }
@@ -12058,7 +12337,7 @@ function renderResults(){
     return;
   }
   const FM=fitModel(f);
-  const [xu,yu]=dataUnits(), u=t=>t?`<span class="unit">(${esc(t)})</span>`:"";
+  const [xu,yu]=fitUnits(f), u=t=>t?`<span class="unit">(${esc(t)})</span>`:"";
   let h=`<div class="rhead"><div class="rt"><div class="rtitle">${FM.composite?"Peak fit":"Curve fit"}: ${esc(FM.name)}${f.onColName?` <span class="lab">on ${esc(f.onColName)}</span>`:""}${f.global&&f.gstats?` <span class="lab">· together with ${f.gstats.K-1} other spectra</span>`:""}</div>${FM.model.user?`<div class="rfx"><code>${esc(FM.model.expr)}</code></div>`:""}<div class="lab" id="fitBy"></div></div>
     <div class="ract"><button class="btn sm" id="rCopy">${ICON("copy","sm")}Copy table</button><button class="btn sm" id="rReport">${ICON("file","sm")}Save report</button><button class="btn sm" id="rCsv">${ICON("download","sm")}Export data</button><button class="btn sm ghost" id="discussFit">${ICON("comment","sm")}Discuss</button></div></div>`;
   // What makes a number wrong goes above the table; advice on doing better
@@ -12080,7 +12359,7 @@ function renderResults(){
   } else h+=paramTableHtml(f);
   warns.filter(w=>w.level==="info").forEach(w=>{ h+=noteHtml(w.level,w.text); });
   h+=`</div><div class="rside"><dl class="kv">${statsList(f).map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></div></div>`;
-  h+=`<p class="rfoot">${f.weighted?"Errors come from the instrumental weights.":"Errors are scaled by the square root of reduced χ², as Origin does when there are no weights."} ${GP().bandConf!==false?"Shaded band on the graph: the 95% confidence band of the fit.":""}${GP().bandPred?" Dashed lines: the 95% prediction band, where a new measurement would fall.":""}${FM.composite?" Dashed grey line: the fitted baseline. Coloured lines: each peak on top of it, numbered as in this table.":""}</p>`;
+  h+=`<p class="rfoot">${f.xerr?"Errors come from the X and Y errors, through the orthogonal distance fit.":f.weighted?"Errors come from the instrumental weights.":"Errors are scaled by the square root of reduced χ², as Origin does when there are no weights."} ${GP().bandConf!==false?"Shaded band on the graph: the 95% confidence band of the fit.":""}${GP().bandPred?" Dashed lines: the 95% prediction band, where a new measurement would fall.":""}${FM.composite?" Dashed grey line: the fitted baseline. Coloured lines: each peak on top of it, numbered as in this table.":""}</p>`;
   box.innerHTML=h;
   const by=$("#fitBy"); if(by) by.textContent=`Fitted by ${nameOf(f.by)}, ${ago(f.at)}`;
   $("#rCopy").onclick=copyResults; $("#rReport").onclick=exportReport; $("#rCsv").onclick=exportCsv;
@@ -12482,7 +12761,7 @@ function normalize(p){ if(!p) return; const was=p.v||1;
       F.cols=Math.max(1,Math.min(12,Math.round(+F.cols)||1)); F.rows=Math.max(1,Math.min(24,Math.round(+F.rows)||1));
       F.cells=(Array.isArray(F.cells)?F.cells:[]).filter(c=>c&&have.has(c.gid)&&!used.has(c.gid)&&!!used.add(c.gid))
         .map(c=>({gid:c.gid,r:Math.max(0,Math.round(+c.r)||0),c:Math.max(0,Math.round(+c.c)||0),rs:Math.max(1,Math.round(+c.rs)||1),cs:Math.max(1,Math.round(+c.cs)||1)}));
-      if(F.cells.some((c,i)=>c.r+c.rs>F.rows||c.c+c.cs>F.cols||F.cells.some((q,j)=>j<i&&q.r===c.r&&q.c===c.c))){ F.cells=figPack(F.cells.map(c=>c.gid),F.cols); F.rows=Math.max(F.rows,Math.ceil(F.cells.length/F.cols)); }
+      if(figClash(F)){ F.cells=figPackSpans(figOrder(F),F.cols); F.rows=Math.max(F.rows,figRowsOf(F.cells)); }
       if(!Array.isArray(F.w)) F.w=[]; if(!Array.isArray(F.h)) F.h=[]; if(!FIG_LETTERS.some(q=>q[0]===F.letters)) F.letters="a"; }); }
   if(p===S.proj) recalcFx(p);
   // An upgraded project is saved at once in its new form, so a later partial
@@ -12559,7 +12838,7 @@ async function copyText(text,what){
 }
 function peakTableText(sep){
   const f=activeFit(); if(!f||f.kind!=="composite") return "";
-  const [xu,yu]=dataUnits();
+  const [xu,yu]=fitUnits(f);
   const au=xu&&yu?yu+"\u00b7"+xu:(yu||xu||"");
   const head=["Peak","Name","Shape","Centre"+(xu?" ("+xu+")":""),"Centre error","Height"+(yu?" ("+yu+")":""),"Height error",
     "FWHM"+(xu?" ("+xu+")":""),"FWHM error","Area"+(au?" ("+au+")":""),"Area error","Area %","Status"];
@@ -12587,7 +12866,7 @@ function methodLines(){
     if(FM.model.user){ const lim=FM.model.params.map((n,i)=>{ const lo=FM.model.lo[i], hi=FM.model.hi[i]; return Number.isFinite(lo)||Number.isFinite(hi)?n+(Number.isFinite(lo)&&Number.isFinite(hi)?" from "+fmt(lo,6)+" to "+fmt(hi,6):Number.isFinite(lo)?" at least "+fmt(lo,6):" at most "+fmt(hi,6)):null; }).filter(Boolean);
       out.push("Function, defined in the project: "+FM.model.expr+(lim.length?" (limits: "+lim.join("; ")+")":"")); }
     if(f.range) out.push("Fitted over x = "+fmt(f.range[0],8)+" to "+fmt(f.range[1],8));
-    out.push("Weighting: "+(f.weighted?"instrumental, 1/\u03c3\u00b2":"none; errors scaled by \u221a(reduced \u03c7\u00b2)"));
+    out.push("Weighting: "+weightText(f));
     out.push("Algorithm: Levenberg\u2013Marquardt"+(f.stats&&f.stats.converged?", converged in "+f.stats.iter+" iterations":", DID NOT CONVERGE"));
   }
   return out;
@@ -12611,7 +12890,7 @@ async function exportReport(){
   const FM=f?fitModel(f):null;
   const fig=await embedFonts(buildPlot(820,f&&GP().resid!==false?640:540,EXPORT_PAL,true));
   const esc2=t=>esc(String(t));
-  const [xu,yu]=dataUnits(), au=unitFor("yx",xu,yu);
+  const [xu,yu]=fitUnits(f), au=unitFor("yx",xu,yu);
   const html=["<!doctype html><html><head><meta charset=\"utf-8\"><title>"+esc2(p.name||"Analysis")+"</title>",
     "<style>body{font:15px/1.5 Georgia,serif;max-width:56em;margin:2.5em auto;padding:0 1.5em;color:#16202E}",
     "h1{font-size:1.6em;margin:0 0 .2em}h2{font-size:1.1em;margin:1.8em 0 .5em;border-bottom:1px solid #D5DCE5;padding-bottom:.2em}",
@@ -13209,7 +13488,7 @@ async function exportCsv(){
     lines.push(""); lines.push(`# ${FM.name}`);
     if(FM.model.user) lines.push("# function,"+q(FM.model.expr));
     if(f.range) lines.push(`# fitted over x,${f.range[0]},${f.range[1]}`);
-    lines.push(`# weighting,${f.weighted?"instrumental (1/sigma^2)":"none; errors scaled by sqrt(reduced chi2)"}`);
+    lines.push(`# weighting,${weightText(f,true)}`);
     if(comp){
       lines.push("# peak,shape,centre,centre error,height,FWHM,area,area error,area %,name");
       peakMetrics(f).forEach(r=>lines.push(`# ${r.k+1},${r.type},${r.xc},${r.xcErr},${r.height},${r.fwhm},${r.area},${r.areaErr},${r.areaPct},${String(r.name||"").replace(/[,\n]/g," ")}`));
@@ -13236,6 +13515,7 @@ const TOOL_GROUPS=[
   ["Smooth and filter",["smooth","fft"]],
   ["Arithmetic",["scale","xlin","norm","ref","combine"]],
   ["Calculus",["deriv","cumint"]],
+  ["Statistics",["hist"]],
   ["Transforms",["log","absorb","km"]],
   ["Spectroscopy",["ecal","shift","xunit","calib","bose"]],
   ["Your own code",["python"]]];
@@ -13418,7 +13698,8 @@ function statisticsMenu(){
     {label:"Integrate the visible range", run:go("int"), enabled:has},
     {label:"Integrate bands…", run:()=>openIntegrate(), enabled:has},
     {label:"Noise and signal to noise", run:go("desc"), enabled:has},
-    {label:"Correlation between spectra", run:go("corr"), enabled:has&&yCols().length>1}];
+    {label:"Correlation between spectra", run:go("corr"), enabled:has&&yCols().length>1},
+    "-",{label:"Histogram of the values", title:"A histogram of the analysed spectrum's Y values, as a spectrum of its own", run:()=>histogramCols([activeYCol().id]), enabled:has&&!S.readOnly}];
 }
 /* ============================================================
    Peaks: find them, mark them and label them, on their own. Fitting is one
@@ -15867,14 +16148,14 @@ ${DL([["yEr±","Y, both ways: the usual kind."],["yEr+, yEr−","Y, upward and d
 ${DL([["Bars","A line from the lower end to the upper end, with caps."],["Band","A shaded band between the lower and upper ends, under the spectrum: clearer for thousands of points. X errors stay bars."],["None","Not drawn; still used by a weighted fit."]])}
 <p>Right-click the spectrum, <em>Error bars</em>; or ${MP("Plot › Format graph…")}, the spectrum's page: show as, colour (the spectrum's by default), width, caps and the band's opacity. Every spectrum shown has its own.</p>
 <h2 id="use">What uses them</h2>
-<p>A ${DA("fit","weighted fit")} weights each point by its Y error, the mean of the two sides when they differ. A band's area in the ${DA("integ","Integrate window")} carries them. X errors are drawn only: fits and areas treat X as exact.</p>
+<p>A ${DA("fit","weighted fit")} weights each point by its Y error, the mean of the two sides when they differ. With X errors, a fit can include them too: <em>Include the X errors</em> in the Fit window makes it an orthogonal distance regression, which fits each point's true X within its X error along with the parameters, so errors in X do not pull a slope flat and the parameters' errors include them. A band's area in the ${DA("integ","Integrate window")} carries the Y errors; it treats X as exact.</p>
 <h2 id="pred">Confidence and prediction bands</h2>
 <p>A fit is drawn with its <strong>95% confidence band</strong> (shaded): where the true curve lies, from the fit's covariance. The <strong>95% prediction band</strong> (dashed) adds the scatter of one new measurement: where a new point would fall. For an unweighted fit that scatter is the residual variance (reduced χ²); for a weighted one, the error of the nearest point. Right-click the fit curve to show either, or ${MP("Plot › Format graph…")}, the fit's page.</p>`},
 {id:"plotting", g:"Graph", t:"Plotting columns", kw:"plot plotting select columns worksheet line scatter symbols sticks area steps new graph add to graph close closed hide reopen open a graph not plotted worksheet only later data column",
  lead:"Nothing has to be plotted until you are ready: import into the worksheet, work on the columns there, then select the ones to plot.",
  body:`<h2>Plotting the selected columns</h2>
 <p>Select columns in the worksheet (click a column's letter, Shift+click or drag across several) and press <em>Plot</em> on the worksheet's bar. The same list is in ${MP("Plot › Plot the selected columns")}, the right-click menu of the cells, and a column's header menu.</p>
-${DL([["Line, Symbols, Line + symbols, Sticks, Area, Steps","How the spectra are drawn."],["Stacked panels, Offset, Heat map","With several spectra, how they share the graph."],["Add to a graph","Onto a graph you already have (a closed one opens again)."]])}
+${DL([["Line, Symbols, Line + symbols, Sticks, Area, Steps, Columns","How the spectra are drawn."],["Histogram, Box chart, Violin plot","The distribution of each column's values. "+DA("dists","Distributions")],["Stacked panels, Offset, Heat map","With several spectra, how they share the graph."],["Add to a graph","Onto a graph you already have (a closed one opens again)."]])}
 <p>The first time, the spectra go on the first graph; after that each Plot makes a new graph, as in Origin, unless you add to one.</p>
 <h2>What is plotted</h2>
 ${DL([["A Y column","As it is: a spectrum, with its processing."],["A data column","Plotting it makes it a spectrum. "+DA("import#columns","Data, not a spectrum")],["An X column","Selected with Y columns, it is what they are plotted against: each against the selected X nearest to its left."],["Error bars","Come with their spectrum."]])}
@@ -15916,6 +16197,18 @@ ${DL([["An image","The colours, smooth."],["Filled contours","One colour for eac
 <p>Right-click the map where you want to cut it:</p>
 ${DL([["The profile at one X","A trend graph of every spectrum's value at that X against the series variable, and a dashed line on the map where it is. Its quantity, <em>Value at …</em>, can be added to any trend graph."],["The spectrum at one value","The spectrum measured nearest it, on a graph of its own."]])}
 <p>The status bar reads X, the series value and the value under the pointer.</p>`},
+{id:"dists", g:"Graph", t:"Distributions: histograms, boxes and violins", kw:"histogram bins bin width frequency count probability density percent cumulative distribution box chart box plot boxplot whisker whiskers quartile quartiles median interquartile iqr outlier outliers tukey violin kernel density kde bandwidth silverman column chart bar chart columns bars categories",
+ lead:"How a column's values are spread: counted into bins as a histogram, or summed up per column as boxes or violins side by side.",
+ body:`<h2>Histograms</h2>
+<p>Select columns in the worksheet and press ${MP("Plot › Histogram")}, or use ${MP("Statistics › Histogram of the values")} for the analysed spectrum. Each histogram is a spectrum of its own, <em>Histogram of …</em>, made from the column's final data by a <em>Histogram</em> step, on a graph of its own (several go in one figure, a panel each). As it is a step, it follows the processing: change a value, mask a point, and the counts change with it.</p>
+${DL([["Bins","Chosen for the data (Freedman–Diaconis: twice the interquartile range over the cube root of the count, rounded to 1, 2, 2.5 or 5 times a power of ten), Sturges' or the square-root rule, a number of bins, or a width you type. A start you type puts the first edge there; left empty, it is a whole number of widths below the smallest value."],["Shown as","Counts, the probability or percent of the values in each bin, or a density (the probability over the bin's width, so the columns' area is 1 and a fitted distribution can be compared with it)."],["Cumulative","Each bin with all those before it: the cumulative probability rises to 1."],["Values left out","Values below the start you typed are not counted, and the step says how many."]])}
+<p>Change the bins in the History (the step's box) or with the histogram's right-click <em>Histogram bins…</em>. A histogram is fitted like any spectrum: a Gaussian through it gives the mean and width of the values.</p>
+<h2>Columns</h2>
+<p><em>Columns</em> is a plot type for any spectrum: a bar from zero to each value, as wide as the histogram's bins or, for other data, most of the space between two points. Several spectra as columns on one graph stand side by side within each X.</p>
+<h2 id="box">Box charts and violins</h2>
+<p>Choose <em>Box chart</em> or <em>Violin plot</em> in ${MP("Plot")} on the worksheet's bar, or in the toolbar's layout list. Each spectrum on the graph becomes one box at a place of its own along X, named under it; its values are its final data with the masked points left out (and those at or below zero on a log axis).</p>
+${DL([["The box","From the first to the third quartile (as R's and Excel's QUARTILE.INC), the median as a heavy line across, the mean as a diamond."],["Whiskers","To the furthest values within 1.5 times the interquartile range of the box, with any value beyond drawn as an open circle (Tukey's rule); or to the smallest and largest values, with none beyond."],["A violin","The values' density (Gaussian kernels, Silverman's bandwidth) mirrored about the middle, each violin as wide as the others at its widest; inside, the box as a thin bar and the median as a dot."],["Show the values","Every value as a dot, scattered across the box's width (the same way every time)."]])}
+<p>The graph's right-click menu has <em>Box chart</em> or <em>Violin plot</em> for these settings, and so does the Format dialog's Layout page. A box's tooltip gives its count, median, quartiles, mean and standard deviation; the status bar names the column under the pointer.</p>`},
 {id:"panels", g:"Graph", t:"Figures of panels", kw:"panel panels figure layer layers grid multi-panel multipanel subplot subplots stacked column row share shared axis axes link align aligned letters (a) (b) merge graphs page layout origin",
  lead:"A figure puts several graphs on one page as its panels, in rows and columns, as Origin's graph layers and Merge Graphs do: each panel keeps its own spectra, axes and format, and their plot areas line up.",
  body:`<h2>Making one</h2>
@@ -15925,7 +16218,7 @@ ${DL([["One panel per spectrum",MP("Window › New graph › A figure, a panel f
 <h2>Layout</h2>
 <p><em>Panels…</em> in the figure's ⋯ menu sets:</p>
 ${DL([["Rows and columns","The panels fill them in reading order."],["Share X","The rows touch, only the bottom row has numbers and a title, every panel shows the same X range, and zooming one zooms them all."],["Share Y","The columns touch, only the left column has numbers, and every panel shows the same Y range."],["Gap","The space between panels that do not touch."],["Letters","(a), (b)… at the top left of each plot, in reading order, or A, B…, or none."],["Widths and heights","Relative: <code>2, 1</code> makes the first column (or row) twice the second."]])}
-<p>Each plot area is lined up with its row's and column's: every panel takes the widest left margin of its column and the tallest bottom margin of its row, so axes line up even when one panel's numbers are longer. The panel's own ⋯ items (in the figure's ⋯ menu) choose its spectra, rename it, move it up, down, left or right, take it out (a graph of its own again) or delete it.</p>
+<p>Each plot area is lined up with its row's and column's: every panel takes the widest left margin of its column and the tallest bottom margin of its row, so axes line up even when one panel's numbers are longer. The panel's own ⋯ items (in the figure's ⋯ menu) choose its spectra, rename it, move it up, down, left or right, take it out (a graph of its own again) or delete it. <em>Span</em> makes a panel wider or taller, over empty cells next to it, or across its whole row: a wide panel under two small ones. <em>Panels…</em> adds the rows or columns to make room.</p>
 <h2>Exporting</h2>
 <p>Any export of a panel (SVG, PDF, EPS, PNG, or ${MP("Export › Figure for a paper or slides…")}) writes the whole figure, at its proportions on screen or at the size asked for, each panel with its own ids. A figure is one item in <em>All graphs as one SVG</em> (or PNG), with its panels lettered inside it.</p>
 <h2>Deleting</h2>
@@ -15934,8 +16227,8 @@ ${DL([["Rows and columns","The panels fill them in reading order."],["Share X","
  lead:"The Format dialog holds every setting of the figure, page by page. Changes show on the graph as you make them; OK keeps them as one undo step, Cancel leaves the graph as it was.",
  body:`<p>Open it from ${MP("Plot › Format graph…")}, the graph's right-click menu, a double-click on an axis's numbers, or <em>Font, size and every setting…</em> on anything drawn. Drag its title bar to move it off what it hides; a double click puts it back. <em>Defaults</em> resets the page in front.</p>
 <h2 id="data">Data</h2>
-<p>For each spectrum: whether it is shown, its legend label, plot type (line, symbols, line and symbols, sticks, area, steps), colour, line style and width, symbol and size, fill and opacity. The fit curve has its own page, with the shading and colours of fitted peaks.</p>
-${DL([["Connect","Straight lines between the points, a spline through them, or a B-spline (smooth, near them but not through them). Up to a few thousand points; past that the line is drawn straight, which looks the same."],["Colour by, size by","Symbols coloured by the values of a third column (a temperature, a time, a concentration), each point by the value in its own row, with a colour bar titled with the column; or sized by them, small to large. For the Symbols and Line + symbols types. The colour map is the graph's (Map › Colour map)."],["Fill between it and","The area between this spectrum and another, over the X they share, in its colour where it is the higher and in a second colour (<em>Where it is lower</em>) where it is not. Overlaid spectra only."],["Hatching","Lines across an area or a fill between two spectra (diagonal, crossed, horizontal, vertical, dots), for a figure printed in black and white. Set the fill's opacity to nothing for hatching alone."]])}
+<p>For each spectrum: whether it is shown, its legend label, plot type (line, symbols, line and symbols, sticks, area, steps, columns), colour, line style and width, symbol and size, fill and opacity. The fit curve has its own page, with the shading and colours of fitted peaks.</p>
+${DL([["Connect","Straight lines between the points, a spline through them, or a B-spline (smooth, near them but not through them). Up to a few thousand points; past that the line is drawn straight, which looks the same."],["Colour by, size by","Symbols coloured by the values of a third column (a temperature, a time, a concentration), each point by the value in its own row, with a colour bar titled with the column; or sized by them, small to large, with a legend of a few round values and their sizes beside the graph (the spectrum's page turns it off). For the Symbols and Line + symbols types. The colour map is the graph's (Map › Colour map)."],["Fill between it and","The area between this spectrum and another, over the X they share, in its colour where it is the higher and in a second colour (<em>Where it is lower</em>) where it is not. Overlaid spectra only."],["Hatching","Lines across an area or a fill between two spectra (diagonal, crossed, horizontal, vertical, dots), for a figure printed in black and white. Set the fill's opacity to nothing for hatching alone."]])}
 <p>The spectrum's right-click menu has <em>Connect</em> and <em>Fill between it and</em> too.</p>
 <h2 id="axes">Axes</h2>
 ${DL([["Title","Its text (empty: made from the data's name and unit), shown or hidden, and where it sits along the axis: left, centre or right (bottom, middle or top on a Y axis). Its font is the axis titles' font."],["Scale","From, to (empty fits the data), the major step, reversed, and its type: linear, log₁₀, ln, log₂, reciprocal, offset reciprocal, square root or probability. "+DA("scales","Axis scales")],["Position","On its edge (bottom or top, left or right), at zero, or at any value of the other axis; pushed outward from the plot by an offset."],["Line and ticks","The axis line and its colour and width; ticks inside, outside, both or none; major and minor lengths, minor ticks between majors, tick width; the edge across from the axis with ticks of its own direction (or none) and, if asked, numbers too."],["Numbers","Shown or not, their format and decimals, turned 0°, 45° or 90°, and their font."],["Breaks","Ranges left out of the X or Y axis (below)."]])}
@@ -16098,6 +16391,7 @@ ${TIP("A fit belongs to its spectrum. It is drawn only over the spectrum it was 
 <li>Starting values are measured from the data. <em>Guess</em> measures them again from what is in view.</li>
 <li>Tick a parameter's lock to hold it fixed.</li>
 <li>With a Y error column, <em>Weight by the Y error column</em> fits with weights 1/σ²; otherwise the errors are scaled by the scatter of the residuals.</li>
+<li>With X error bars, <em>Include the X errors</em> fits by orthogonal distance regression: each point's true X is fitted too, within its error. Without Y errors, the scatter in Y is taken to be the same for every point and found from the fit (the Results give it as <em>s</em>). Peak fits and fits of every spectrum have the same choice. ${DA("errbars#use","Error bars")}</li>
 <li><em>Fit</em>, or ${K("Ctrl","Enter")}.</li></ol>
 <h2>Models</h2>
 <div id="docModelList"></div>
@@ -16208,6 +16502,8 @@ ${TIP("Comments are shared only in a shared workspace. Used on its own, Kurve ke
  lead:"The methods behind the numbers, for the methods section of a paper.",
  body:`<h2>Fitting</h2>
 <p>Levenberg–Marquardt with a central-difference Jacobian, box bounds by projection, and the normal equations scaled by each parameter's own curvature, so models mixing areas of 10⁶ with widths of 10 converge. Standard errors from the covariance matrix; unweighted fits scale it by the reduced χ². Derived quantities (a peak's height, FWHM) carry errors by the delta method.</p>
+<h2>Errors in X</h2>
+<p>A fit with X errors is an orthogonal distance regression (as ODRPACK, Boggs and Rogers): it minimises the sum of ((y − f(x + δ))/σ<sub>y</sub>)² + (δ/σ<sub>x</sub>)² over the parameters and every point's shift δ at once, by Levenberg–Marquardt with the shifts eliminated point by point. The parameters' covariance is that of the whole problem. For a straight line with the same errors everywhere this is Deming regression. With no Y errors, σ<sub>y</sub> is one value for every point, found so that the reduced χ² is 1.</p>
 <h2>Global fits</h2>
 <p>Spectra fitted together are one Levenberg–Marquardt problem: the shared parameters once, each spectrum's own once per spectrum, and every spectrum's points laid end to end. A spectrum's own parameter moves only its points, so the Jacobian is computed and multiplied block by block and the work grows with the number of spectra rather than its square. Each spectrum is first fitted alone with the shared parameters held at the template's values; the errors come from the covariance of the whole fit.</p>
 <h2>Noise</h2>
@@ -16256,6 +16552,7 @@ const DOC_STEP={
   bose:`<p>The temperature is the sample's, in kelvin. Needs X as a Raman shift in cm⁻¹.</p>`,
   combine:`<p>Choose the spectra to combine with. With the mean, <em>Standard error between the spectra as Y errors</em> turns their spread into error bars, which a weighted fit can use.</p>`,
   cumint:`<p>The last value is the total area. Scaled to 1, it reads as the fraction of the area below each X.</p>`,
+  hist:`<p>${MP("Statistics › Histogram of the values")} (or Plot › Histogram in the worksheet) makes the histogram as a spectrum of its own, from the processed data, so the spectrum it counts stays as it is. A bin holds the values from its left edge up to, not including, its right edge; the largest value is counted in the last bin. The spectrum is drawn as columns, each a bin wide. Counts, probabilities (each bin's share), percentages and densities (counts over the count and the width, so the area is 1) can be cumulative; a cumulative density is the cumulative probability.</p>`,
   fft:`<p>A zero-phase Butterworth response: <em>Steepness</em> is its order. The step warns when the spacing is uneven, since a Fourier filter assumes even spacing.</p>`,
   python:`<p>${DA("python","The Python page")} explains what the code sees and how its result is kept.</p>`
 };
@@ -16298,11 +16595,11 @@ const DOC_PARAM={
 const DOC_KW={ecal:"energy calibration channel kev gamma mca gain offset quadratic tka detector",bg:"baseline fluorescence arpls als airpls modpoly snip rolling ball anchors polynomial",smooth:"noise savitzky golay moving average median gaussian whittaker filter",
   despike:"cosmic ray spike outlier dead pixel",norm:"normalise normalization internal standard snv",deriv:"derivative savitzky golay shoulder",shift:"raman laser wavelength wavenumber",
   xunit:"units nm wavelength wavenumber ev energy frequency convert",calib:"calibration silicon neon lamp reference",combine:"average mean median repeated scans sum",
-  fft:"fourier low-pass high-pass drift noise butterworth",cumint:"integral running area",ref:"dark reference white lamp subtract divide",crop:"range cut trim",
+  fft:"fourier low-pass high-pass drift noise butterworth",cumint:"integral running area",hist:"histogram distribution bins frequency count probability density cumulative freedman diaconis sturges",ref:"dark reference white lamp subtract divide",crop:"range cut trim",
   exclude:"region remove notch laser line",resample:"interpolate even spacing grid",dedupe:"duplicate repeated average",sort:"order ascending",correct:"correction typo reason fix wrong value",python:"code script"};
 const DOC_MENU={crop:"Data › Clean",exclude:"Data › Clean",despike:"Data › Clean",sort:"Data › Clean",dedupe:"Data › Clean",resample:"Data › Clean",
   bg:"Analysis",smooth:"Math › Smooth and filter",fft:"Math › Smooth and filter",scale:"Math › Arithmetic",xlin:"Math › Arithmetic",norm:"Math › Arithmetic",
-  ref:"Math › Arithmetic",combine:"Math › Arithmetic",deriv:"Math › Calculus",cumint:"Math › Calculus",log:"Math › Transforms",absorb:"Math › Transforms",
+  ref:"Math › Arithmetic",combine:"Math › Arithmetic",deriv:"Math › Calculus",cumint:"Math › Calculus",hist:"Statistics › Histogram",log:"Math › Transforms",absorb:"Math › Transforms",
   km:"Math › Transforms",shift:"Analysis › Spectroscopy",xunit:"Analysis › Spectroscopy",calib:"Analysis › Spectroscopy",ecal:"Analysis › Spectroscopy",bose:"Analysis › Spectroscopy",python:"Math › Python"};
 // The article of each window, for its "?" and F1.
 const WIN_DOC={xpl:"explorer",graph:"graph",sheet:"sheet",flow:"history",over:"overview",peaks:"peaks",integ:"integ",fit:"fit",res:"results",batch:"batch",stats:"stats",py:"python",disc:"disc"};
@@ -16793,7 +17090,7 @@ function batchWith(fit){ const p=P(), b=p&&p.batch; if(!b||b.glob) return {}; co
     :fit.kind!=="composite"&&fit.model===t.model;
   if(!same) return {};
   return {batch:Object.assign({},b,{rows:b.rows.map(q=>q===r?{col:q.col,fit:Object.assign({},fit,{batch:true,byHand:true}),fail:null}:q)})}; }
-function batchTemplate(f){ if(!f) return null; const c=colById(f.onCol)||activeYCol(), xu=finalOf(c).xu||"", common={params:f.params.slice(),fixed:(f.fixed||f.params.map(()=>false)).slice(),weighted:!!f.weighted,range:f.range?f.range.slice():null,logY:!!GP().logY,xu,from:c?c.id:null};
+function batchTemplate(f){ if(!f) return null; const c=colById(f.onCol)||activeYCol(), xu=finalOf(c).xu||"", common={params:f.params.slice(),fixed:(f.fixed||f.params.map(()=>false)).slice(),weighted:!!f.weighted,xerr:!!f.xerr,range:f.range?f.range.slice():null,logY:!!GP().logY,xu,from:c?c.id:null};
   if(f.kind==="composite") return Object.assign({kind:"composite",spec:clone(f.spec),x0:f.x0,name:describeSpec(f.spec)},common);
   return Object.assign({kind:"model",model:f.model,fn:f.fn?clone(f.fn):null,name:(fitModel(f)||{}).name||"the model"},common); }
 function batchPts(c,t){ const d=finalOf(c), mk=new Set(maskOf(c)), r=t.range, lo=r?Math.min(r[0],r[1]):-Infinity, hi=r?Math.max(r[0],r[1]):Infinity;
@@ -16804,20 +17101,21 @@ function fitOne(c,t,seed,spec){
   const pts=batchPts(c,t); if(pts.length<4) return {fail:"fewer than four points in the range"};
   const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), he=!!(d.e&&d.e.some(v=>v!=null&&v>0)), useW=t.weighted&&he&&pts.every(q=>q.e>0), W=pts.map(q=>useW?1/q.e:1);
   let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; X.forEach(v=>{ if(v<x0) x0=v; if(v>x1) x1=v; }); Y.forEach(v=>{ if(v<y0) y0=v; if(v>y1) y1=v; });
+  const SX=t.xerr?xErrsOf(c,pts):null, SY=useW?pts.map(q=>q.e):null;
   const base={onCol:c.id,onColName:c.name||"",maskSig:maskSig(c),pipeSig:pipeSig(c),rawFp:rawFp(),hadErrCol:he,range:[x0,x1],weighted:useW,by:S.uid||"",at:Date.now(),batch:true};
-  const out=(res,more)=>Object.assign(more,{params:res.params,errors:res.errors,cov:res.cov,dep:finOrNull(res.dep),pval:finOrNull(res.pval),tval:finOrNull(res.tval),ci:finOrNull(res.ci),atBound:res.atBound,stats:res.stats},base);
+  const out=(res,more)=>Object.assign(more,{params:res.params,errors:res.errors,cov:res.cov,dep:finOrNull(res.dep),pval:finOrNull(res.pval),tval:finOrNull(res.tval),ci:finOrNull(res.ci),atBound:res.atBound,stats:res.stats},base,SX?{xerr:true,odr:odrNote(res)}:{});
   if(t.kind==="composite"){
     const sp=spec||t.spec, m=compileModel(sp,t.x0); if(m.n!==seed.length) return {fail:"the model and its starting values do not match"};
     const fixed=(spec?seed.map(()=>false):t.fixed).slice(), {lo,hi}=modelBounds(sp,m,seed), L=peakLinks(sp.peaks,m), fixedT=fixed.slice(); L.forEach(l=>{ fixedT[l.gi]=true; });
     const span=(x1-x0)||1, yspan=(y1-y0)||1, pscale=seed.map(v=>Math.abs(v)||1);
     m.slots.forEach((s,i)=>{ if(s.kind==="peak"){ if(s.name==="xc") pscale[i]=span; else if(s.name==="A") pscale[i]=yspan*span; else if(/^w/.test(s.name)) pscale[i]=span/20; } });
     const fT=L.length?(x,p)=>m.f(x,applyPeakLinks(p,L)):m.f;
-    const r0=lmFit(fT,X,Y,W,applyPeakLinks(seed.slice(),L),fixedT,{lo,hi,pscale}); if(r0.error) return {fail:r0.error};
+    const r0=SX?odrFit(fT,X,Y,SY,SX,applyPeakLinks(seed.slice(),L),fixedT,{lo,hi,pscale}):lmFit(fT,X,Y,W,applyPeakLinks(seed.slice(),L),fixedT,{lo,hi,pscale}); if(r0.error) return {fail:r0.error};
     const res=linkResult(r0,L); if(!res.params.every(Number.isFinite)) return {fail:"the fit diverged"};
     return {fit:out(res,{kind:"composite",spec:clone(sp),x0:m.x0,fixed})};
   }
   let m=null; try{ m=t.fn?userModel(t.fn):getModel(t.model); }catch(e){ m=null; } if(!m) return {fail:"its model is no longer available"};
-  const res=lmFit(m.f,X,Y,W,seed.slice(),t.fixed.slice(),m.lo?{lo:m.lo,hi:m.hi}:undefined); if(res.error) return {fail:res.error};
+  const res=SX?odrFit(m.f,X,Y,SY,SX,seed.slice(),t.fixed.slice(),m.lo?{lo:m.lo,hi:m.hi}:undefined):lmFit(m.f,X,Y,W,seed.slice(),t.fixed.slice(),m.lo?{lo:m.lo,hi:m.hi}:undefined); if(res.error) return {fail:res.error};
   if(!res.params.every(Number.isFinite)) return {fail:"the fit diverged"};
   return {fit:out(res,Object.assign({model:t.model,fixed:t.fixed.slice()},t.fn?{fn:clone(t.fn)}:{}))};
 }
@@ -17456,6 +17754,28 @@ function graphTitle(id){ const f=figOf(id); if(!f) return graphName(id); const l
 function nextFigName(p){ const used=new Set(graphIds(p).map(id=>graphName(id,p))); let n=1; while(used.has("Figure "+n)) n++; return "Figure "+n; }
 // Cells packed in reading order into a grid of so many columns.
 function figPack(gids,cols){ return gids.map((gid,i)=>({gid,r:Math.floor(i/cols),c:i%cols,rs:1,cs:1})); }
+/* Panels that span several cells: each keeps its span (no wider than the grid)
+   and goes, in reading order, to the first place it fits. */
+function figFits(cells,r,c,rs,cs,skip){ return !cells.some(q=>q!==skip&&q.gid!==(skip&&skip.gid)&&r<q.r+(q.rs||1)&&q.r<r+rs&&c<q.c+(q.cs||1)&&q.c<c+cs); }
+function figSpot(cells,rs,cs,cols){ for(let r=0;r<200;r++) for(let c=0;c+cs<=cols;c++) if(figFits(cells,r,c,rs,cs)) return {r,c}; return {r:figRowsOf(cells),c:0}; }
+function figPackSpans(cells,cols){ const out=[]; cells.forEach(q=>{ const cs=Math.min(cols,Math.max(1,q.cs||1)), rs=Math.max(1,q.rs||1), at=figSpot(out,rs,cs,cols); out.push({gid:q.gid,r:at.r,c:at.c,rs,cs}); }); return out; }
+function figRowsOf(cells){ return cells.reduce((m,c)=>Math.max(m,c.r+(c.rs||1)),0); }
+// Any panel outside the grid, or two on one cell.
+function figClash(F){ const cs=F.cells||[]; return cs.some((a,i)=>a.r+(a.rs||1)>F.rows||a.c+(a.cs||1)>F.cols||cs.some((b,j)=>j<i&&a.r<b.r+(b.rs||1)&&b.r<a.r+(a.rs||1)&&a.c<b.c+(b.cs||1)&&b.c<a.c+(a.cs||1))); }
+/* A panel made wider or taller (into empty cells only), narrower or shorter,
+   or across its whole row. */
+function figSpan(gid,dr,dc,whole){
+  const f=figOf(gid); if(!f||S.readOnly) return; const F=clone(f.fig), a=F.cells.find(c=>c.gid===gid); if(!a) return;
+  let r=a.r, c=a.c, rs=a.rs||1, cs=a.cs||1;
+  if(whole){ c=0; cs=F.cols; } else { rs=Math.max(1,rs+dr); cs=Math.max(1,cs+dc); }
+  if(r+rs>F.rows||c+cs>F.cols||!figFits(F.cells,r,c,rs,cs,a)){ toast("There is no empty cell for it to grow into. Panels… adds rows and columns, and Move makes room."); return; }
+  Object.assign(a,{c,rs,cs});
+  figSave(f.id,F,`made ${graphName(gid)} span ${rs===1?"one row":rs+" rows"} and ${cs===1?"one column":cs+" columns"} of ${f.name}`,{undo:"a panel's span"}); }
+function figSpanItems(gid){ const f=figOf(gid), ro=S.readOnly||!P(); if(!f) return []; const F=f.fig, a=F.cells.find(c=>c.gid===gid); if(!a) return [];
+  const rs=a.rs||1, cs=a.cs||1, can=(r,c,h,w)=>!ro&&r+h<=F.rows&&c+w<=F.cols&&figFits(F.cells,r,c,h,w,a);
+  return [{label:"One column wider",enabled:can(a.r,a.c,rs,cs+1),run:()=>figSpan(gid,0,1)},{label:"One column narrower",enabled:!ro&&cs>1,run:()=>figSpan(gid,0,-1)},
+    {label:"One row taller",enabled:can(a.r,a.c,rs+1,cs),run:()=>figSpan(gid,1,0)},{label:"One row shorter",enabled:!ro&&rs>1,run:()=>figSpan(gid,-1,0)},
+    "-",{label:"Across the whole row",enabled:F.cols>1&&cs<F.cols&&can(a.r,0,rs,F.cols),run:()=>figSpan(gid,0,0,true)}]; }
 function figGridFor(n){ const cols=n<=3?1:n===4?2:Math.ceil(Math.sqrt(n)); return {cols,rows:Math.max(1,Math.ceil(n/cols))}; }
 /* A panel's own margins, measured as if alone at about its size, with its
    shared axes' numbers already left off (memoised on what draws it). */
@@ -17564,8 +17884,9 @@ function figAddPanel(fid,o){
   if(gid&&(isFigId(gid)||figOf(gid))){ toast(`${graphTitle(gid)} is a panel or a figure already.`); return; }
   pushUndo("adding a panel");
   if(!gid){ const made=newGraphs([o.cids||[]],{noUndo:true,from:(figOf(S.gid)===f?S.gid:null)||GID(),log:`made a graph for a panel of ${f.name}`}); gid=made[0]; if(!gid) return; }
-  const q=P(), F=clone(graphOf(fid).fig), n=F.cells.length+1, cols=Math.max(1,F.cols), next=figPack(figOrder(F).map(c=>c.gid).concat([gid]),F.cells.length?cols:1);
-  F.cells=next; F.rows=Math.max(1,Math.ceil(n/(F.cells.length?cols:1)));
+  const q=P(), F=clone(graphOf(fid).fig), n=F.cells.length+1, cols=Math.max(1,F.cols), at=figSpot(F.cells,1,1,cols);
+  // The first free cell in reading order (or a new row), the others staying where they are.
+  F.cells=F.cells.concat([{gid,r:at.r,c:at.c,rs:1,cs:1}]); F.rows=Math.max(1,figRowsOf(F.cells));
   const graphs=(q.graphs||[]).map(g=>g.id===fid?Object.assign({},g,{fig:F}):g.id===gid?Object.assign({},g,{plot:Object.assign({},g.plot,{shut:undefined})}):g);
   save(Object.assign({graphs},gid==="main"?{plot:Object.assign({},q.plot,{shut:undefined})}:{}),`added ${graphName(gid)} to ${f.name} as a panel`);
   renderAll(); activateGraph(gid); layoutFigs(fid);
@@ -17573,16 +17894,19 @@ function figAddPanel(fid,o){
 // A panel taken out: a graph of its own again, beside the figure; the others close up.
 function figRemovePanel(gid,o){
   const p=P(), f=figOf(gid); if(!p||!f||S.readOnly) return;
-  const F=clone(f.fig), rest=figOrder(F).map(c=>c.gid).filter(k=>k!==gid);
-  F.cells=figPack(rest,Math.max(1,Math.min(F.cols,rest.length||1))); F.rows=Math.max(1,Math.ceil(rest.length/Math.max(1,Math.min(F.cols,rest.length||1)))); F.cols=Math.max(1,Math.min(F.cols,rest.length||1));
+  const F=clone(f.fig), rest=figOrder(F).filter(c=>c.gid!==gid), cols=Math.max(1,Math.min(F.cols,Math.max(rest.reduce((m,c)=>m+(c.cs||1),0),...rest.map(c=>c.cs||1),1)));
+  F.cells=figPackSpans(rest,cols); F.cols=cols; F.rows=Math.max(1,figRowsOf(F.cells));
   if(o&&o.del){ pushUndo("deleting a panel"); save({graphs:(p.graphs||[]).filter(g=>g.id!==gid).map(g=>g.id===f.id?Object.assign({},g,{fig:F}):g),plot:Object.assign({},p.plot,{annos:(p.plot.annos||[]).filter(a=>a.g!==gid)})},`deleted the panel ${graphName(gid)} of ${f.name}`); }
   else figSave(f.id,F,`took ${graphName(gid)} out of ${f.name}: a graph of its own again`,{undo:"taking a panel out"});
   renderAll(); if(!(o&&o.del)){ splitInto(f.id,winOfGraph(gid)); } layoutFigs(f.id);
   toast(o&&o.del?`Deleted the panel ${graphName(gid)}.`:`${graphName(gid)} is a graph of its own again.`,{action:"Undo",run:undo}); }
 // A panel swapped with its neighbour.
-function figMovePanel(gid,dr,dc){ const f=figOf(gid); if(!f) return; const F=clone(f.fig), a=F.cells.find(c=>c.gid===gid), r=a.r+dr, c=a.c+dc;
-  if(r<0||c<0||r>=F.rows||c>=F.cols) return; const b=F.cells.find(q=>q.r===r&&q.c===c);
-  if(b){ b.r=a.r; b.c=a.c; } a.r=r; a.c=c; figSave(f.id,F,`moved ${graphName(gid)} in ${f.name}`,{undo:"moving a panel"}); }
+function figMovePanel(gid,dr,dc){ const f=figOf(gid); if(!f) return; const F=clone(f.fig), a=F.cells.find(c=>c.gid===gid), rs=a.rs||1, cs=a.cs||1, r=a.r+dr, c=a.c+dc;
+  if(r<0||c<0||r+rs>F.rows||c+cs>F.cols) return;
+  // Into empty cells, or swapped with the panel there when the two are the same size.
+  const b=F.cells.find(q=>q!==a&&q.r===r&&q.c===c&&(q.rs||1)===rs&&(q.cs||1)===cs);
+  if(b){ b.r=a.r; b.c=a.c; } else if(!figFits(F.cells,r,c,rs,cs,a)){ toast("Another panel is in the way: move it first, or make this one smaller."); return; }
+  a.r=r; a.c=c; figSave(f.id,F,`moved ${graphName(gid)} in ${f.name}`,{undo:"moving a panel"}); }
 // The figure goes; its panels become graphs again, or go with it.
 function deleteFigure(fid,withPanels){
   const p=P(), f=graphOf(fid); if(!p||!f||!f.fig||S.readOnly) return; const ids=f.fig.cells.map(c=>c.gid).filter(k=>k!=="main");
@@ -17620,9 +17944,9 @@ async function figDlg(fid){
   if(!r) return; const q=graphOf(fid); if(!q||!q.fig) return;
   const G=clone(q.fig), cols=Math.max(1,Math.min(12,Math.round(+r.fgCols))), rows=Math.max(Math.ceil(G.cells.length/cols),Math.min(24,Math.round(+r.fgRows)));
   const nums=s=>String(s||"").split(/[,;\s]+/).map(Number).filter(x=>x>0&&Number.isFinite(x)).slice(0,24);
-  const repack=cols!==G.cols||G.cells.some(c=>c.c>=cols||c.r>=rows);
+  const repack=cols!==G.cols||G.cells.some(c=>c.c+(c.cs||1)>cols||c.r+(c.rs||1)>rows);
   Object.assign(G,{cols,rows,shareX:!!r.fgSx,shareY:!!r.fgSy,gap:Math.max(0,Math.min(80,numOr(+r.fgGap,14))),letters:r.fgLet,w:nums(r.fgW),h:nums(r.fgH)});
-  if(repack) G.cells=figPack(figOrder(G).map(c=>c.gid),cols);
+  if(repack){ G.cells=figPackSpans(figOrder(G),cols); G.rows=Math.max(G.rows,figRowsOf(G.cells)); }
   figSave(fid,G,`laid out ${q.name}: ${rows} × ${cols}${G.shareX?", sharing X":""}${G.shareY?", sharing Y":""}`,{undo:"the figure's layout"}); }
 // A figure from graphs chosen in a list, or one panel per spectrum.
 async function newFigureDlg(pre){
@@ -17656,7 +17980,8 @@ function figPanelItems(gid){
   const f=figOf(gid), ro=S.readOnly||!P(); if(!f) return []; const F=f.fig, c=F.cells.find(q=>q.gid===gid), ys=yCols(), on=graphCols(gid);
   return [{label:"Spectra on it", enabled:!!ys.length, sub:()=>ys.map(q=>{ const shown=on.includes(q); return {label:specName(q), checked:shown, enabled:!ro&&!(shown&&on.length<2), run:()=>toggleGraphCol(gid,q.id)}; })},
     {label:"Rename…", enabled:!ro, run:()=>renameGraph(gid)},
-    {label:"Move", enabled:!ro, sub:()=>[["Up",-1,0],["Down",1,0],["Left",0,-1],["Right",0,1]].map(([l,dr,dc])=>({label:l,enabled:c.r+dr>=0&&c.c+dc>=0&&c.r+dr<F.rows&&c.c+dc<F.cols,run:()=>figMovePanel(gid,dr,dc)}))},
+    {label:"Move", enabled:!ro, sub:()=>[["Up",-1,0],["Down",1,0],["Left",0,-1],["Right",0,1]].map(([l,dr,dc])=>({label:l,enabled:c.r+dr>=0&&c.c+dc>=0&&c.r+dr+(c.rs||1)<=F.rows&&c.c+dc+(c.cs||1)<=F.cols,run:()=>figMovePanel(gid,dr,dc)}))},
+    {label:"Span", enabled:!ro&&(F.rows>1||F.cols>1), title:"Across several rows or columns of the figure", note:(c.rs||1)>1||(c.cs||1)>1?`${c.rs||1} × ${c.cs||1}`:"", sub:()=>figSpanItems(gid)},
     "-",{label:"Take it out of the figure", enabled:!ro, title:"A graph of its own again", run:()=>figRemovePanel(gid)},
     {label:gid==="main"?"The first graph cannot be deleted":"Delete the panel", danger:gid!=="main", enabled:!ro&&gid!=="main", run:()=>figRemovePanel(gid,{del:true})}]; }
 function syncGraphWins(){
@@ -17771,7 +18096,7 @@ function resolveYAuto(v){ if(v&&v.xAuto){ const av=autoView(); return {x0:av.x0,
   if(!v||!v.yAuto) return v; const c=activeYCol(); if(!c) return null;
   const d=finalOf(c); if(v.xu!=null&&(v.xu||"")!==(d.xu||"")) return null;
   const cfg=plotCfg(), logY=!!cfg.logY, lo=Math.min(v.x0,v.x1), hi=Math.max(v.x0,v.x1), inR=q=>q.x>=lo&&q.x<=hi;
-  if(cfg.layout==="offset"||cfg.layout==="heat") return null;
+  if(cfg.layout==="offset"||cfg.layout==="heat"||isDistLayout(cfg.layout)) return null;
   let pts=pointsAll().filter(inR);
   if(cfg.layout==="overlay") yCols().forEach(o=>{ if(o.id!==c.id&&!cfg.hidden.includes(o.id)&&(finalOf(o).xu||"")===(d.xu||"")) pts=pts.concat(seriesPoints(finalOf(o),logY).filter(inR)); });
   if(!pts.length) return null;
@@ -18036,6 +18361,9 @@ function plotItems(cids){
   const where=mainFreeNow()?graphName("main"):"a new graph";
   const out=[{group:ys.length?`Plot ${nm} in ${where} as`:"Select the columns to plot first",plain:true}]
     .concat(PLOT_TYPES.map(([k,l])=>({label:l, enabled:!ro, run:()=>plotCols(cids,{type:k})})));
+  out.push("-",{label:many?"Histogram of each":"Histogram", enabled:!ro, title:"The distribution of the values, as a spectrum of its own on a graph of its own", run:()=>histogramCols(ys.map(c=>c.id))},
+    {label:"Box chart", enabled:!ro, title:"Each column's values as a box: median, quartiles, whiskers and outliers", run:()=>plotCols(cids,{layout:"box"})},
+    {label:"Violin plot", enabled:!ro, title:"Each column's values as the shape of their distribution", run:()=>plotCols(cids,{layout:"violin"})});
   if(many) out.push("-",{label:"Stacked panels", enabled:!ro, run:()=>plotCols(cids,{layout:"stack"})},{label:"Offset (waterfall)", enabled:!ro, run:()=>plotCols(cids,{layout:"offset"})},{label:"Contour map against the series", enabled:!ro, title:"Each spectrum at its value of the series variable, with contour lines over the colours", run:()=>plotCols(cids,{layout:"heat",plot:{mapKind:"both",mapY:"series"}})},{label:"Heat map", enabled:!ro, run:()=>plotCols(cids,{layout:"heat"})});
   const gs=drawGraphIds().filter(id=>!(id==="main"&&mainFreeNow())), shut=id=>{ const f=figOf(id); return graphShut(f?f.id:id); };
   if(gs.length) out.push("-",{label:"Add to a graph", enabled:!ro, sub:()=>gs.map(id=>({label:graphTitle(id), note:shut(id)?"closed":"", run:()=>plotCols(cids,{into:id})}))});

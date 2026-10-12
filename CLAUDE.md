@@ -98,8 +98,11 @@ both ways or one side, drawn as bars or a band; an axis can be linear, log, ln, 
 other units. A series of spectra can be drawn as a **map** (the heat map layout) against its
 series variable at real spacing, as an image, filled contours or contour lines with their
 levels, and cut at one X or one value; points can be joined by splines, symbols coloured or
-sized by a third column, the area between two spectra filled, fills hatched, and the graph
-copied to the clipboard as a picture. Below 860 px the windows stack in one column,
+sized by a third column (with a legend of the sizes), the area between two spectra filled,
+fills hatched, and the graph copied to the clipboard as a picture. A column's values can be
+a **histogram** (a spectrum of its own, made by a step, drawn as columns), and the spectra on
+a graph **boxes or violins** side by side; a figure's panel can span several cells; a fit
+can include the **X errors** (orthogonal distance regression). Below 860 px the windows stack in one column,
 graph first, with the taskbar kept at the bottom of the screen.
 
 ## Code layout (all inside the `<script>` block of kurve.html)
@@ -143,6 +146,23 @@ graph first, with the taskbar kept at the bottom of the screen.
   names (y0/c baseline, A/H height, xc/x0 position of the largest point, w/sigma a tenth of the
   range, t/tau a third, k a rate, m a slope, anything else 1). `erfFn`/`erfcFn` are accurate
   to double precision (a series below 2.5, a continued fraction above).
+  **Distributions**: `quantileSorted(s, p)` (type 7, as R and Excel's QUARTILE.INC),
+  `boxStats(vals)` (`{n, min, max, q1, med, q3, iqr, lo, hi, out, mean, sd}`, whiskers at the
+  furthest values within 1.5 IQR, Tukey), `kdeBandwidth` (Silverman: 0.9 min(SD, IQR/1.34)
+  n^-1/5), `kdeAt(vals, xs, bw)` (Gaussian kernels, cut at 8 bandwidths), `niceWidth(w)` (the
+  nearest of 1, 2, 2.5, 5 times a power of ten, by ratio), `histBins(vals, {rule, n, w,
+  start})` (`fd` Freedman–Diaconis, `sturges`, `sqrt`, `n` bins, `w` a width; at most
+  `HIST_MAX` bins; `{edges, counts, w, start, k, n, out}` or `{fail}` in words), `fmtW`.
+  **Errors in X**: `odrFit(f, X, Y, SY, SX, p0, fixed, opt)` is orthogonal distance regression
+  (as ODRPACK): it minimises the sum of ((y − f(x + d))/sy)² + (d/sx)² over the parameters and
+  every point's shift d at once, by Levenberg–Marquardt with the shifts eliminated point by
+  point (a Schur complement: each d moves only its own point, so a step costs an ordinary
+  fit's); the covariance is the whole problem's. With `SY` null the Y scatter s, one value for
+  every point, is found in rounds so that the reduced χ² is 1. A point with no X error keeps
+  its X. It starts from `lmFit`'s result, settles when χ² stops falling or neither the
+  parameters nor the shifts move (the first step moves the shifts alone), and returns
+  `lmFit`'s fields plus `odr {s, iter, conv, rounds, dx}`. For a straight line with the same
+  errors everywhere it is Deming regression.
 - **Pipeline** (`==PIPE:START/END==`, pure, after PEAKS): the processing steps. `PIPE_OPS` maps an
   op to `{group, rank, label, short, help, params (a schema the panel renders), defaults,
   init(d, ctx) (suggested settings measured from the data the step will receive), summary,
@@ -159,7 +179,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   norm; scale (with an optional new Y name and unit, `yn`/`yu`: Count rate, counts/s), ref (another spectrum, interpolated), combine (mean, median or sum with
   other spectra, the spread as error bars), deriv, cumint (running integral), fft
   (zero-phase Butterworth low- or high-pass, `fftFilter`, ends mirrored), log, absorb, km,
-  bose; python (stores its code and its output `{x, y, e?, xn?, xu?, yn?, yu?}`, plus the
+  bose; hist (Statistics › Histogram: the values of Y, or of X, counted into `histBins`'
+  bins, as counts, probability, percent or density, cumulative or not; X the bin centres named
+  after the values (`d.yn0`, the source's value name, carried into a derived spectrum's input
+  by `pipeOf`), `idx` negative, `bins {w, start, n, out}` for drawing; a start param is
+  `blank:true`, empty for automatic, which `wireStepForms` writes as null); python (stores its code and its output `{x, y, e?, xn?, xu?, yn?, yu?}`, plus the
   `inSig` (`serSig`) of the input it ran on and `ranCode`, and warns when either has changed;
   `stepPKey` keeps its output out of the cache key).
   **Every step checks its own work**: the background checks for over-subtraction (a stretch
@@ -238,7 +262,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   not, with a weak line found), `matchLines`, and the fills (a series by 0.1 with no dust, a
   tiny step on a large start, stop values either way, growth, even and log spacing, lists, the
   mean and spread of each kind of random number from a seed, Poisson counts at small and
-  large means, ln Γ, straight and growth trends). Run it after touching any of this.
+  large means, ln Γ, straight and growth trends), quantiles, boxes, kernel densities and
+  histogram bins, and orthogonal distance regression (a line's slope not pulled flat by
+  errors in X while an ordinary fit's is, its error against its spread over 300 repeats,
+  Deming's closed form, no X errors equal to a weighted fit, the Y scatter found, a decay with
+  errors in time). Run it after touching any of this.
   `matchPeakTracks(lists, {tol, dx})` follows the same peak through a series: each spectrum's
   peaks (`{x, w}`) join the track whose last position is nearest, within `tol` (0.5) of the
   larger FWHM (`dx` when neither has one), closest pairs first, two peaks of one spectrum never
@@ -272,6 +300,16 @@ graph first, with the taskbar kept at the bottom of the screen.
   A parameter that stopped at a limit (`atBound`) has no meaningful standard error: tables
   show "at its limit" instead of ±, and derived peak quantities (height, FWHM) leave it out of
   the delta method. A tied parameter shows its value with the carried error and what it follows.
+  **X errors in fits**: the curve and peak drafts carry `xerr` (default on when the spectrum
+  has X error bars, `hasXErr(c)`), the Fit window's "Include the X errors" (`#wtx`, `#pwtx`);
+  `runFit`, `runPeakFit` and `fitOne` (from the template's `xerr`) call `odrFit` with each
+  point's X error (`xErrsOf(c, pts)`: half its X bar from `errGeom`, in the final X units) and
+  its Y error if weighted; the fit stores `xerr:true` and `odr` (`odrNote`: s, iterations,
+  converged; not the shifts). `weightText(f, ascii)` says how a fit was weighted everywhere
+  (Results, the copied table, the report, the CSV); `fitWarnings` notes the Y scatter found;
+  `fitStale` notices a lost X-error column; the prediction band uses s². A global fit does not
+  use X errors. `fitUnits(f)` gives the units of the fit's own spectrum (Results, the copied
+  table and the report used the analysed spectrum's).
 - **Batch fits and series** (`p.batch`, `p.series`, both in `UNDO_KEYS`): the analysed
   spectrum's fit is the template (`batchTemplate`: model, peaks with shapes, ties and fixed
   parameters, baseline or curve model, X range, weighting, X units). `runBatch({tmpl, seed,
@@ -706,6 +744,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   `makeFigure(gids, o)`, `figPerSpectrum`, `figAddPanel(fid, {gid|cids})`, `figRemovePanel(gid,
   {del})`, `figMovePanel`, `figSave`, `deleteFigure(fid, withPanels)`, `duplicateFigure`,
   `figDlg` (Panels…), `newFigureDlg`, `figMenuItems` (the figure's ⋯), `figPanelItems`;
+  **spans**: a cell's `rs`/`cs` (`figLayout` and `figNb` already honour them) are set by
+  `figSpan(gid, dr, dc, whole)` (into empty cells only, `figFits`; refused in words) from the
+  panel's Span submenu (`figSpanItems`: a column wider or narrower, a row taller or shorter,
+  across the whole row); `figSpot` finds the first free place for a span, `figPackSpans` packs
+  cells in reading order keeping their spans (adding and taking out panels, Panels… when the
+  grid shrinks, and `normalize` when `figClash` finds cells outside the grid or overlapping),
+  `figRowsOf`; `figMovePanel` swaps with a panel of the same size or moves into empty cells;
   `graphIn(el, w)` is the graph under a point of a graph window (a figure's panel), for drops;
   `gDropAt`'s `kind:"fig"` (`figTarget`) makes a dropped graph a panel and a chip a new panel.
   `normalize` keeps figures and cleans their cells (each graph in one cell, none a figure,
@@ -1081,7 +1126,26 @@ graph first, with the taskbar kept at the bottom of the screen.
   axis page and the axis menu have the edge across too. The title takes `TS.title.align` and `titleDx`/`titleDy`. `layout` (`LAYOUTS`): overlay,
   offset (a waterfall, each trace labelled), stack (a panel per spectrum, shared X, the
   analysed one on top), dy (the others on a right axis), heat (one row per spectrum, drawn as
-  one image from `heatImage`, with a colour bar; `CMAPS`). **Maps** (the heat layout):
+  one image from `heatImage`, with a colour bar; `CMAPS`), box and violin (`isDistLayout`:
+  every spectrum on the graph a category along X, in the table's order, named under it,
+  `dist`/`distC`/`distV` in `buildPlot`, its values the final data less masked points (and
+  those at or below zero with Log Y); the view 0.5 to n + 0.5, Y over the values (a violin's
+  kernels reach past them); boxes by `boxStats` (whiskers Tukey's, or the extremes with
+  `cfg.distWhisk` `range`, `DIST_WHISK`), the median heavy, the mean a diamond, outliers open
+  circles; violins by `kdeAt`, each as wide at its widest, the box a thin bar inside and the
+  median a dot; `cfg.distPts` the values as jittered dots (at most 5000 a box); each `g[data-dist]`
+  with a `<title>`; no legend, fit, annotations by data X, breaks, second axes or inset;
+  `S.geo.dist`, the readout names the category; `distMenuItems` is the graph menu's Box chart /
+  Violin plot, the Format dialog's layout page has both settings, and Plot (the worksheet's)
+  has Box chart and Violin plot). **Columns** (`PLOT_TYPES` `column`): bars from zero, as wide as
+  a histogram's bins (`histOf(id)`, the step's `bins.w`) or 0.8 of the median spacing, several
+  spectra as columns side by side (`colGrp`, `cgk`/`cgn` through `zSt`); a graph of columns
+  stands on zero and is widened to whole columns when nothing is typed or zoomed.
+  **Histograms**: `histogramCols(cids)` (Plot › Histogram, Statistics › Histogram of the
+  values, a spectrum's right-click; one undo entry) makes `Histogram of …`, a spectrum derived
+  from each column's final data with a `hist` step, each on a graph of its own, several in a
+  figure; `editHistStep(cid)` opens the step in the History (right-click Histogram bins…).
+  **Maps** (the heat layout):
   `cfg.mapY` (`index`, or `series`: `mapRows` puts each spectrum at its `seriesVals`, sorted,
   falling back to the order with `why`), `cfg.mapKind` (`MAP_KINDS`: image, filled, lines,
   both), `cfg.mapLevels` (about n, `mapLevels`: round numbers inside the range, in log10 with
@@ -1095,7 +1159,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   menu's Map). **Styling**: `serStyle`'s `conn` (`CONN_KINDS`: `smoothD`, Catmull–Rom or a
   clamped uniform B-spline, up to 4000 points), `zcol`/`scol` (`zMapOf`: a third column's
   value at each point's recorded row, as a colour from the map or a size; the first series
-  coloured gets a colour bar, `zbar`, room made in the margin), `fillTo`/`fill2`
+  coloured gets a colour bar, `zbar`, room made in the margin; the first series sized gets a
+  size legend, `sb`, after it: a few round values from `axisTicks` within the range, largest at
+  the top, in the series' symbol (`zMapOf`'s `sz(v)`), titled by the column, `g[data-sizeleg]`,
+  off with `cfg.sizeLeg` false, in `FMT_KEYS` with `distWhisk` and `distPts`), `fillTo`/`fill2`
   (`fillBetweenSvg`: over the X both have, split where they cross, overlaid only, under every
   series) and `hatch` (`HATCHES`, `hatchSvg`: lines clipped to the region, so PDF and EPS draw
   them); `zSt` hands `seriesSvg` the mapping and an id (`hid`) for its clip. The legend goes in the emptiest
@@ -1107,7 +1174,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   `legendLw`, `legendR`), and its text in each spectrum's colour (`legendText:"match"`); a
   series with `leg:false` is left out of it. **Colour schemes**: `SCHEMES` (Kurve's, distinct hues from a validated
   categorical palette, Okabe–Ito, viridis in table order, black and greys with dashes) and
-  `PEAK_SCHEMES`; `yTint(id)` and `peakColor(k)` read them, so the graph, the legend, the
+  `PEAK_SCHEMES`; `yTint(id, light, scheme)` (the scheme passed by `serStyle`, else read from `plotCfg()`) and `peakColor(k)` read them, so the graph, the legend, the
   worksheet header, the fit panel and the results table change together. Every scheme but
   Kurve's colours by table order, so a colour stays with its spectrum. On two Y axes with one
   other spectrum each axis's numbers and title take its spectrum's colour (`axisMatch`).
@@ -1239,7 +1306,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `errKindItems` (the column menu's Use as error bars); a locked correction refuses a column that
   is only drawn. The fit's **prediction band** (`cfg.bandPred`, dashed, `data-pband`) beside the
   confidence band (`cfg.bandConf`, default on), both in `FMT_KEYS`: the curve's variance plus
-  the residual variance (reduced χ²) unweighted, or the nearest point's σ² weighted.
+  the residual variance (reduced χ²) unweighted, the nearest point's σ² weighted, or s² for an
+  orthogonal distance fit that found the Y scatter.
 - **Axis scales** (`AX_SCALES`): `scaleKind(cfg, k)` is `log10` when `logX`/`logY` (the old
   switches, still the only log10), else `ax[k].scale` (`ln`, `log2`, `recip`, `orecip` with
   `ax[k].c`, default 273.15, `sqrt`, `prob`), else `lin`. `scaleFn(kind, ax)` gives `{tf, ti, ok,
@@ -1899,9 +1967,49 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   `panelItems`, already the Window › Panels list; the duplicate-function check caught it
   before it replaced the other. Run it before the first drive.
 
+- **Errors in X are not weights.** The first try at X errors in fits weighted each point by
+  σ_y² + (f′σ_x)² (effective variance): the errors came out right and the slope stayed pulled
+  flat, because X itself was still taken as exact. A test of the mean over 300 repeats caught
+  it; orthogonal distance regression fits each point's X. Test a fit against its bias, not
+  only its scatter, and against a closed form where there is one (Deming's line).
+- **A first step can move only the hidden unknowns.** From an ordinary fit's result, the
+  first orthogonal distance step moves the shifts in X and leaves the parameters where they
+  are (the ordinary residuals are orthogonal to the model's gradient), and a convergence test
+  on the parameters alone stopped there. Settled means nothing moves.
+- **A statistic of 30 points is loose.** A drive expected the Y scatter found beside X errors
+  ten times larger to be near its true 0.3; from 30 points it can be anywhere from 0 to 1.5.
+  Check what is fixed by construction (the reduced χ² is 1), and test the estimate itself in a
+  unit test with enough points.
+- **A fit's units are its own spectrum's.** Results, the copied table and the report took the
+  units from the analysed spectrum, so a batch row shown for another spectrum, or a fit kept
+  while another spectrum was analysed, carried the wrong units. `fitUnits(f)`.
+- **A derived spectrum's name is not its values' name.** A histogram's X was named "Histogram
+  of Length" (the new spectrum's own name) instead of Length; the input of a derived spectrum
+  now carries the source's value name (`yn0`).
+- **A loop over the spectra must not rebuild the settings it was handed.** The columns and the
+  size legend each asked every spectrum's style once per drawing, and every style asked
+  `yTint`, which rebuilt the whole plot configuration: with 300 spectra a save went from about
+  3.5 s to 5.6 s, and odd-test's limit caught it. `serStyle` passes its scheme to `yTint`; a
+  save is now under 2 s. Pass what you have down rather than fetching it again per item.
+- **Rounding up is not rounding.** Bin widths went to the next round number above, so a
+  Freedman–Diaconis width of 1.09 became 2 and the histogram lost half its detail. The nearest
+  round number, by ratio.
+
 ## Roadmap
 
-Done in this round: the next plotting options the user chose. Figures of panels, as Origin's
+Done in this round: plots Origin has and Kurve lacked (the roadmap's next item). Histograms
+of a column's values, made by a step so they follow the processing (bins chosen for the data
+by Freedman–Diaconis, Sturges or the square root, or a number or width typed, a start; counts,
+probability, percent or a density with area 1, cumulative), drawn as columns, a figure of
+one per column; Columns as a plot type for any spectrum, several side by side. Box charts
+(quartiles, median, mean, whiskers by Tukey's rule or to the extremes, outliers) and violin
+plots (kernel densities with the box inside) of every spectrum on a graph, the values
+scattered over them if asked. Fits with errors in X by orthogonal distance regression, for
+curve, peak and batch fits, with or without Y errors. A legend of sizes for symbols sized by
+a column. Figure panels spanning several rows or columns. A fix: Results showed a fit's units
+from the analysed spectrum rather than its own.
+
+Round before: the next plotting options the user chose. Figures of panels, as Origin's
 graph layers and Merge Graphs: graphs become the panels of one figure in rows and columns (a
 panel per spectrum in one command, graphs chosen from a list, or a graph dropped on a figure),
 their plot areas lined up by measuring every panel's margins, X or Y shared (one range and one
@@ -1917,7 +2025,7 @@ coloured or sized by a third column with a colour bar, the area between two spec
 in two colours, hatched fills that PDF and EPS keep, and the graph copied to the clipboard as
 a picture.
 
-Round before: the plotting options the user chose. The import dialog never plots, and
+Two rounds before: the plotting options the user chose. The import dialog never plots, and
 files dropped on the window are read and plotted at once (on the graph they land on, a new
 graph, or an Explorer folder; "Read it differently" undoes and opens the dialog). A Project
 Explorer as Origin's: folders and subfolders, the worksheet, each file with its spectra and
@@ -1930,7 +2038,7 @@ root, probability; dates and times read from files and the worksheet and numbere
 a second Y axis in other units (transmittance over absorbance, a × y + b, a formula). Fixes:
 a graph dragged over by a file shrank to a line (a class name shared with the History).
 
-Two rounds before: plotting when you are ready, from a user's request. The import dialog
+Three rounds before: plotting when you are ready, from a user's request. The import dialog
 lists every column of the file with what it becomes (X, a spectrum, error bars, data kept for
 formulas, or left out), reads X,Y pairs only when they look like pairs, and plots nothing
 unless asked: Plot is Not yet (the worksheet takes the graph's place), one graph, one each
@@ -1943,7 +2051,7 @@ new project did nothing after the import (no message, no worksheet); an undo jus
 a value left the undone change in the log; a cell chosen just after Enter could lose the edit
 begun in it.
 
-Three rounds before: the worksheet for manual work, from a user's bug report. Typing far
+Four rounds before: the worksheet for manual work, from a user's bug report. Typing far
 down the sheet no longer jumps to the top, and values typed one after another are all kept
 (they were lost whenever the delayed save landed mid-entry). Raw data is editable like any
 spreadsheet (type over, clear, paste and fill over, insert and delete rows, every change one
@@ -1954,7 +2062,7 @@ column; double-click edits in the first rows too (it did nothing there); a colum
 selects with its first cell active; leaving the page saves what was just typed. A random-user
 harness drives the worksheet in hundreds of unscripted steps and checks the data after each.
 
-Four rounds before: reading, windows and filling, from a user's review. Text has two
+Five rounds before: reading, windows and filling, from a user's review. Text has two
 colours, the secondary one darker (7:1 or more in every theme and style), and headings are
 sentence case in the text colour instead of small grey capitals; disabled controls are dimmer,
 not unreadable. Windows as in Excel: the project's documents (graphs, worksheet, trend graphs)
@@ -1967,7 +2075,7 @@ Fill Column With: series by a step or a factor with a stop value, evenly between
 Poisson counts) from a seed, and the trend of the values above; into empty cells of a column
 or a new one, with a preview, one undo step and a record entry.
 
-Five rounds before: a gamma spectrum, from a user's file of background radiation. One-column
+Six rounds before: a gamma spectrum, from a user's file of background radiation. One-column
 files of counts per channel are read (a .TKA file's live and real time into the metadata, X
 the channel number from 0 or 1, √N error bars as a computed column, counts per second by a
 step); calibrated to energy by a step (coefficients, remembered for the next file, or fitted
@@ -1982,7 +2090,7 @@ peaks and the lines. The taskbar tells open, minimised and closed windows apart,
 button and a Windows list. Each edge of the frame has its own ticks and numbers, set by
 clicking the edge in a picture of the frame.
 
-Six rounds before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
+Seven rounds before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
 their corners, filled or not, behind the data or over it, with text inside, pinned or at data
 values). Axis breaks on X and Y, suggested over the widest empty stretch, cut with two strokes,
 the two sides on one scale, followed by zoom, wheel and pan, and named in the report. A second
@@ -1995,7 +2103,7 @@ writer: vectors, clipping, opacity (PDF), images, gradients, insets and every gr
 figure, text in the standard fonts placed by their own widths. The toolbar keeps to one row
 down to 860 px.
 
-Seven rounds before: bugs found by using the app the way nobody does. A tab that froze for good
+Eight rounds before: bugs found by using the app the way nobody does. A tab that froze for good
 (ticks added up after a deep zoom), tick labels all alike on a nanosecond axis, NaN drawn for
 equal or extreme limits; a second tab wiping the first's projects, a full store that still
 said Saved, two projects sharing an id, a corrupt saved layout; typographic minus signs, French
@@ -2006,7 +2114,7 @@ undo during a drag; ten-second saves with 300 spectra, 200 ms undo steps on big 
 names pushing title-bar buttons out of reach; batch rows of deleted spectra. Each fixed by its
 class, and `tools/odd-test.mjs` keeps them fixed.
 
-Eight rounds before: graphs and projects, from a bug report. Deleting a project could leave its
+Nine rounds before: graphs and projects, from a bug report. Deleting a project could leave its
 graphs on the desk and the next import going into it (a store's events in the other order); a
 graph in front that went away took the live plot with it. Both fixed. The taskbar names the
 project its windows belong to, the project list says what each holds, new projects get names
@@ -2016,7 +2124,7 @@ spectrum by its chip, onto a graph, its taskbar button or the desk; Ctrl keeps t
 dropped; it scrolls on a phone), from menus, or in Combine graphs… with a layout; spectra
 come from another project with their processing, peaks and colours.
 
-Nine rounds before: finding and labelling peaks, from what people asked. The Peaks window
+Ten rounds before: finding and labelling peaks, from what people asked. The Peaks window
 says where it looks (the spectrum, always shown, and From … to … typed, taken from the view
 or dragged on the graph, shaded there, kept with the set) and ends in Done; the Fit window
 says which spectrum and range it fits, and ends in Done too. Fitted peaks are labelled with
@@ -2025,7 +2133,7 @@ errors and units; above, inside, or in a row along the top with leaders; turned,
 boxed, dragged; each peak can be named, and its name goes to Results, the report and the
 exports.
 
-Ten rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
+Eleven rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
 spectrum shares (centres, widths, areas, shapes, the baseline, or parameter by parameter; a
 curve model's parameters), each spectrum first fitted with those held so the fit starts where
 it belongs, one block-sparse Levenberg–Marquardt problem, every row a normal fit that says what
@@ -2036,7 +2144,7 @@ on the desk: several quantities, left and right axes, lines with slopes, SVG, PN
 Each spectrum keeps its file's header, and a field that differs (a temperature, the time it was
 taken) is what a series can be plotted against.
 
-Eleven rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
+Twelve rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
 every title, legend entry and label (`cm^{-1}`, `\alpha`), with buttons and a word
 processor's keys; arrows drawn by dragging, their heads snapping to data points, with heads
 of four kinds; insets made from a zoom, dragged and resized, outlined on the graph with
@@ -2046,7 +2154,7 @@ print, lines scaled with the text or not, SVG at its size, PNG with its dpi reco
 transparent backgrounds, a preview); formats saved by name and used on any graph in any
 project, with five of Kurve's; a toolbar that keeps to one row at every width.
 
-Twelve rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
+Thirteen rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
 Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
 its own font, size in points, bold, italic, underline and colour; a real font picker (each
 name in its face, search, web fonts that look the same everywhere, which fonts this computer
@@ -2061,7 +2169,7 @@ graph at once. Labels and text over several lines, turned to any angle, in a box
 pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
 richer right-click menus on axes, titles, the legend and annotations.
 
-Thirteen rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+Fourteen rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
 started from its result, from the neighbour in the series, or from the peaks found in each;
 every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
 the History, replaced by a fit by hand, out of date when its processing changes). The Batch
@@ -2120,10 +2228,10 @@ Next, in order:
    CHN and CNF are binary), FWHM and efficiency against energy, net peak areas over a local
    continuum with their counting errors and activities, a nuclide named by the set of its lines
    (their intensity ratios, interferences), region edges dragged on the graph
-2. Plots Origin has and Kurve lacks, by use: column and bar charts, histograms with bins, box
-   and violin plots; X errors in fits (orthogonal distance regression); a size legend for
-   symbols sized by a column; panels spanning several cells and per-row or per-column shared
-   axes; a map from scattered X, Y, Z (triangulated) rather than from spectra
+2. Plots Origin has and Kurve lacks, further: a distribution fitted over a histogram (normal,
+   log-normal) with its parameters; box charts of one column grouped by another, notched
+   boxes; stacked and grouped bars with category names; per-row or per-column shared axes in a
+   figure; a map from scattered X, Y, Z (triangulated) rather than from spectra
 3. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
    with its own scale on each side, polygons and curved arrows
 4. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
@@ -2145,8 +2253,10 @@ Next, in order:
   file and cannot be filed apart from it; folders organise the tree only (they do not hide or
   show windows as Origin's active folder can); dropping on a folder imports and plots with the
   automatic choices only
-- Error bars: X errors are drawn, never fitted (no orthogonal distance regression); a weighted
-  fit uses the mean of upward and downward errors; a derived spectrum has its source's carried
+- Error bars: X errors are fitted (orthogonal distance) in curve, peak and batch fits, not in a
+  global fit, a band's area or a trend line; the residual panel shows residuals at the
+  measured X, and the prediction band leaves the X errors out; a weighted
+  fit uses the mean of upward and downward errors (X errors too); a derived spectrum has its source's carried
   error only, both ways; an X error's scale under a step that resamples X is the local slope
   between neighbouring points
 - Scales: breaks only on linear and log10 axes; the right axis of double Y, the heat map's
@@ -2208,8 +2318,8 @@ Next, in order:
   styles and its labels, not its axes, titles or format. Bringing in copies (a later change in
   the other project does not follow), and leaves behind fits, band windows, comments and
   trends; a computed column arrives as its values
-- Figures: every panel takes one cell (cells have `rs`/`cs`, but nothing sets them yet); a
-  figure cannot be a panel of another; sharing X or Y is for the whole figure, not a row or
+- Figures: a panel spans only empty cells (it never pushes another aside), and spans are set
+  from the panel's menu, not by dragging its edges; a figure cannot be a panel of another; sharing X or Y is for the whole figure, not a row or
   a column; a shared range is the panels' data in the first panel's X units, and a panel in
   other units keeps its own; the text is small in every panel when the figure's columns are
   narrower than 400 px; a picture panel shows no readout until clicked
@@ -2217,12 +2327,20 @@ Next, in order:
   the series (a Y zoom is not followed); contour levels are round numbers (about n), not
   values chosen one by one; a level whose lines have no stretch 60 px long goes unlabelled; a
   cut at one value of the series shows the nearest measured spectrum, not one interpolated
-- Styling: symbols sized by a column have no size legend; colour and size are read by
+- Styling: the size legend is for the first spectrum sized by a column, in round values within
+  its range; colour and size are read by
   recorded row, so a derived spectrum's points take its source's rows; a fill between two
   spectra is drawn only with overlaid spectra, and only between two spectra (not to a value or
   the fit); a spline can overshoot between unevenly spaced points; hatching is in the series'
   colour at one spacing; copying a picture needs a browser that allows images on the
   clipboard
+- Histograms: bins of one width (no variable bins, no bins by quantile); a histogram is of one
+  spectrum's Y or X, all its points (no range of rows), and no distribution is drawn over it
+  unless fitted (a Gaussian fit works). Columns stand on zero (no other baseline, no stacking)
+- Box and violin charts: one box per spectrum on the graph, in the table's order (no grouping
+  by another column, no reordering but the table's, no notches); the names along X cannot be
+  turned or styled apart from the tick numbers; a violin's bandwidth is Silverman's, not set;
+  at most 5000 values scattered per box; no fit, annotations at data X or inset on them
 - Several graphs: the X zoom is linked, not Y or the pointer (panels of a figure link Y when
   they share it); there is no keyboard shortcut to step through
   the graphs (the browser keeps Ctrl+Tab); a picture shows no readout until it is clicked. A

@@ -15,7 +15,7 @@ const grab = (tag) => {
 // Interpolation, integration and normalizing live in the pipeline block now;
 // tools/pipe-test.mjs tests the rest of it.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -679,6 +679,63 @@ function fitSpec(X, Y, spec, init, opts) {
 check("tPvalue: t=2.228, dof=10 is ~0.05", near(N.tPvalue(2.228, 10), 0.05, 5e-4), N.tPvalue(2.228, 10));
 check("tPvalue: t=0 is 1", near(N.tPvalue(0, 10), 1, 1e-12), N.tPvalue(0, 10));
 check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
+/* ---------- distributions: quantiles, boxes, densities, histogram bins ---------- */
+{
+  check("quantiles by linear interpolation (type 7)", N.quantileSorted([1,2,3,4],0.25)===1.75 && N.quantileSorted([1,2,3,4],0.5)===2.5 && N.quantileSorted([7],0.9)===7 && Number.isNaN(N.quantileSorted([],0.5)));
+  const b = N.boxStats([1,2,3,4,5,6,7,8,9,100]);
+  check("a box: median, quartiles, whiskers within 1.5 IQR, the outlier outside", b.med===5.5 && b.q1===3.25 && b.q3===7.75 && b.hi===9 && b.lo===1 && b.out.length===1 && b.out[0]===100 && b.n===10, JSON.stringify(b));
+  check("a box of one value, and of none", (()=>{ const o=N.boxStats([4]); return o.med===4&&o.q1===4&&o.hi===4&&o.sd===0; })() && N.boxStats([NaN,null])===null);
+  const rnd = N.mulberry32(7), g = Array.from({length:4000}, () => { let u=0; for (let i=0;i<12;i++) u+=rnd(); return u-6; });
+  const bw = N.kdeBandwidth(g), xs = Array.from({length:801}, (_,i)=>-8+i*0.02), d = N.kdeAt(g, xs, bw);
+  let area = 0; for (let i=1;i<xs.length;i++) area += (d[i]+d[i-1])/2*0.02;
+  check("a kernel density has area 1 and peaks near the mean", Math.abs(area-1)<2e-3 && Math.abs(xs[d.indexOf(Math.max(...d))])<0.2, `area ${area}, bw ${bw}`);
+  check("Silverman's bandwidth for a unit normal sample of 4000 is about 0.17", bw>0.14 && bw<0.2, bw);
+  check("round widths, the nearest by ratio", N.niceWidth(0.37)===0.5 && N.niceWidth(3)===2.5 && N.niceWidth(2.3)===2.5 && N.niceWidth(1)===1 && N.niceWidth(0.0012)===0.001 && N.niceWidth(1.09)===1 && N.niceWidth(8)===10);
+  const h = N.histBins(Array.from({length:100},(_,i)=>i), {rule:"w", w:10, start:0});
+  check("bins of a given width: ten of ten, the largest value inside", h.k===10 && h.counts.every(c=>c===10) && h.out===0 && h.edges[10]===100, JSON.stringify(h.counts));
+  const h2 = N.histBins([0,1,2,3,4,5,6,7,8], {rule:"n", n:4});
+  check("a number of bins: from the smallest to the largest, every value counted", h2.k===4 && h2.counts.reduce((a,b)=>a+b,0)===9 && h2.edges[0]===0 && h2.edges[4]===8 && h2.counts[3]===3, JSON.stringify(h2));
+  const h3 = N.histBins(g, {rule:"fd"});
+  check("Freedman–Diaconis on a normal sample: a round width, every value counted", h3.counts.reduce((a,b)=>a+b,0)===4000 && h3.out===0 && N.niceWidth(h3.w)===h3.w && h3.k>15 && h3.k<60, `w ${h3.w}, k ${h3.k}`);
+  const h4 = N.histBins([1,2,3,4,5], {rule:"w", w:1, start:2.5});
+  check("values below a given start are counted as outside", h4.out===2 && h4.counts.reduce((a,b)=>a+b,0)===3);
+  check("no values, too many bins, a width of zero: refused in words", /no values/.test(N.histBins([NaN],{}).fail) && /more than/.test(N.histBins([0,1e9],{rule:"w",w:1}).fail) && /width/.test(N.histBins([1,2],{rule:"w",w:0}).fail));
+  check("one value repeated: one bin", (()=>{ const o=N.histBins([5,5,5],{rule:"fd"}); return o.k>=1 && o.counts.reduce((a,b)=>a+b,0)===3 && o.out===0; })());
+}
+
+/* ---------- errors in X as well as Y: orthogonal distance regression ---------- */
+{
+  const line=(x,p)=>p[0]+p[1]*x, rnd=N.mulberry32(11), gs=()=>{ let u=0; for(let i=0;i<12;i++) u+=rnd(); return u-6; };
+  const mean=a=>a.reduce((s,v)=>s+v,0)/a.length, sd=a=>{ const m=mean(a); return Math.sqrt(a.reduce((s,v)=>s+(v-m)*(v-m),0)/(a.length-1)); };
+  // A line of slope 2 with large errors in X (1.5) and small ones in Y (0.3): an ordinary fit is pulled flat
+  // (by 36.8/(36.8 + 2.25), to about 1.88); the orthogonal distance fit is not.
+  const sx=1.5, sy=0.3, slopes=[], errs=[], chis=[], ols=[], conv=[];
+  for(let k=0;k<300;k++){ const X=[], Y=[]; for(let i=0;i<30;i++){ const xt=i*0.7; X.push(xt+sx*gs()); Y.push(1+2*xt+sy*gs()); }
+    const r=N.odrFit(line,X,Y,X.map(()=>sy),X.map(()=>sx),[0,1],[false,false]);
+    slopes.push(r.params[1]); errs.push(r.errors[1]); chis.push(r.stats.redChi2); conv.push(r.stats.converged);
+    ols.push(N.lmFit(line,X,Y,X.map(()=>1/sy),[0,1],[false,false]).params[1]); }
+  check("errors in X: the slope is not pulled flat (an ordinary fit's is)", Math.abs(mean(slopes)-2)<0.02 && mean(ols)<1.92, `ODR ${mean(slopes)}, ordinary ${mean(ols)}`);
+  check("errors in X: the slope's error matches its spread over 300 repeats", Math.abs(sd(slopes)/mean(errs)-1)<0.15, `spread ${sd(slopes)}, error ${mean(errs)}`);
+  check("errors in X: reduced chi-squared about 1, every fit converged", Math.abs(mean(chis)-1)<0.12 && conv.every(Boolean), mean(chis));
+  // For a straight line with the same errors everywhere it is Deming regression, which has a closed form.
+  { const X=[], Y=[]; for(let i=0;i<25;i++){ const xt=i; X.push(xt+0.8*gs()); Y.push(3-1.5*xt+0.5*gs()); }
+    const n=X.length, mx=mean(X), my=mean(Y); let sxx=0, syy=0, sxy=0; for(let i=0;i<n;i++){ sxx+=(X[i]-mx)**2; syy+=(Y[i]-my)**2; sxy+=(X[i]-mx)*(Y[i]-my); }
+    // The two roots of Deming's quadratic: the one with the smaller sum of squared distances.
+    const dl=0.25/0.64, q0=syy-dl*sxx, rt=Math.sqrt(q0*q0+4*dl*sxy*sxy), S2=b=>X.reduce((t,x,i)=>t+(Y[i]-(my-b*mx)-b*x)**2/(0.25+0.64*b*b),0);
+    const bb=[(q0+rt)/(2*sxy),(q0-rt)/(2*sxy)].sort((u,v)=>S2(u)-S2(v))[0], aa=my-bb*mx;
+    const r=N.odrFit(line,X,Y,X.map(()=>0.5),X.map(()=>0.8),[0,0],[false,false]);
+    check("a straight line: Deming regression's slope and intercept", Math.abs(r.params[1]-bb)<1e-7*Math.abs(bb) && Math.abs(r.params[0]-aa)<1e-6*Math.abs(aa)+1e-9, `${r.params} vs ${aa}, ${bb}`);
+    const z=N.odrFit(line,X,Y,X.map(()=>0.5),X.map(()=>0),[0,0],[false,false]), q=N.lmFit(line,X,Y,X.map(()=>2),[0,0],[false,false]);
+    check("no X errors: the weighted fit itself", Math.abs(z.params[1]-q.params[1])<1e-8*Math.abs(q.params[1]) && Math.abs(z.errors[1]-q.errors[1])<1e-6*q.errors[1]); }
+  // No Y errors: the scatter in Y is found so that the reduced chi-squared is 1.
+  { const ss=[]; for(let k=0;k<40;k++){ const X=[], Y=[]; for(let i=0;i<300;i++){ const xt=i*0.1; X.push(xt+0.25*gs()); Y.push(2*xt+1*gs()); }
+      const r=N.odrFit(line,X,Y,null,X.map(()=>0.25),[0,1],[false,false]); ss.push(r.odr.s); }
+    check("X errors and no Y errors: the scatter in Y found is the true one (1)", Math.abs(mean(ss)-1)<0.05, mean(ss)); }
+  // A curve: a decay with errors in time.
+  { const f=(x,p)=>p[0]*Math.exp(-x/p[1]), X=[], Y=[]; for(let i=0;i<60;i++){ const xt=i*0.1; X.push(xt+0.05*gs()); Y.push(f(xt,[10,1.5])+0.05*gs()); }
+    const r=N.odrFit(f,X,Y,X.map(()=>0.05),X.map(()=>0.05),[8,1],[false,false]);
+    check("a decay with errors in time: converges, and finds its time constant", r.stats.converged && Math.abs(r.params[1]-1.5)<3*r.errors[1] && Math.abs(r.stats.redChi2-1)<0.5 && r.odr.dx.length===60, JSON.stringify({p:r.params,e:r.errors,c:r.stats.redChi2,it:r.odr.iter})); }
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

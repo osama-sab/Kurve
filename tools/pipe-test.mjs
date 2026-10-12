@@ -340,5 +340,20 @@ console.log("Pipeline");
   const dec = N.decimate(Array.from({ length: 5000 }, (_, i) => i), Array.from({ length: 5000 }, (_, i) => i === 2345 ? 99 : 0), 200);
   check("a 5000-point thumbnail of 200 keeps a one-point spike", dec.x.length <= 200 && dec.y.includes(99));
 }
+{
+  // The histogram step: counts, names and units, densities, cumulative sums.
+  const vals = Array.from({ length: 100 }, (_, i) => i), d = series(vals.map((_, i) => i), vals);
+  const h = run(d, "hist", { rule: "w", w: 10, start: 0 });
+  check("a histogram: ten bins of ten at their centres, X named after Y", h.d.y.length === 10 && h.d.y.every(v => v === 10) && h.d.x[0] === 5 && h.d.xn === "Intensity" && h.d.xu === "counts" && h.d.yn === "Count" && h.d.bins.w === 10, JSON.stringify(h.d.y));
+  const dn = run(d, "hist", { rule: "w", w: 10, start: 0, norm: "density" });
+  check("a density's area is 1, its unit the inverse of the values'", near(dn.d.y.reduce((a, b) => a + b, 0) * 10, 1, 1e-12) && dn.d.yu === "1/counts");
+  const cp = run(d, "hist", { rule: "w", w: 10, start: 0, norm: "density", cum: true });
+  check("a cumulative density is the cumulative probability, ending at 1", near(cp.d.y[9], 1, 1e-12) && /Cumulative probability/.test(cp.d.yn));
+  const ofx = run(series([1, 2, 2, 3, 3, 3], [0, 0, 0, 0, 0, 0]), "hist", { of: "x", rule: "n", n: 3 });
+  check("of the X values, in a number of bins", ofx.d.y.join() === "1,2,3" && ofx.d.xn === "Raman shift");
+  const out = run(d, "hist", { rule: "w", w: 10, start: 50 });
+  check("values below the first bin are counted out, with a warning", out.d.y.reduce((a, b) => a + b, 0) === 50 && /50 values fell outside/.test(out.warn[0]));
+  let thr = ""; try { run(series([0, 1], [NaN, NaN]), "hist", {}); } catch (e) { thr = e.message; } check("nothing to count is an error in words", /no values/.test(thr), thr);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
