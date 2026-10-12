@@ -203,6 +203,10 @@ await page(async p => {
   check("an EPS says its bounding box and ends its page", /^%!PS-Adobe-3\.0 EPSF-3\.0\n%%BoundingBox: 0 0 241 171/.test(r.eps.s) && /showpage\n%%EOF\n$/.test(r.eps.s));
   check("characters the standard fonts lack are named, not dropped in silence", r.pdf.miss.join("") === "光谱" && r.eps.miss.join("") === "光谱", r.pdf.miss.join(","));
   check("Greek letters go to the Symbol font", /\/BaseFont \/Symbol/.test(pdf));
+  const x = await p.evaluate(() => { setAxisKeys("y", { title: "$\\frac{\\mathrm{d}I}{\\mathrm{d}V}$ PER_{log_{10}}" }); savePlot({ legend: "tr" }); setSeriesStyle(activeYCol().id, { label: "$\\sqrt{x^2_i}$" });
+    const svg = buildPlot(700, 460, EXPORT_PAL, true), doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+    return { bad: !!doc.querySelector("parsererror"), typeset: doc.querySelectorAll("g[data-rt]").length }; });
+  check("a figure with LaTeX in it is well-formed XML, as PDF, EPS and PNG need", !x.bad && x.typeset >= 3, JSON.stringify(x));
 }, { name: "pdf and eps" });
 await page(async p => {
   const g = await p.evaluate(() => gauss(300, 150, 6, 10, 100, 1, 0));

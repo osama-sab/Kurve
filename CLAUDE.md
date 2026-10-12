@@ -3,7 +3,9 @@
 Single-file web app (`kurve.html`): HTML, CSS and vanilla JS, no build step, no dependencies
 besides Google Fonts, and Pyodide from jsDelivr, loaded only when Python is first run. Open the
 file in a browser to run it. The file uses CRLF line endings;
-keep them (see the rules at the end).
+keep them (see the rules at the end). **DESIGN.md** records why the interface looks and
+behaves as it does (contrast, menus, typing, the worksheet's conventions); every round that
+changes the interface updates it with the decision and the reason.
 
 ## The screen
 
@@ -22,7 +24,10 @@ the **desk**; and a **status bar**
 (tool hint, live cursor readout, point counts, fit state, save state). Window › Theme picks
 light or dark, and Window › Style the look of the interface: **Bench** (the default: IBM Plex,
 blue for everything you can change) or **Graphite** (Geist, black and white, blue only for the
-keyboard focus). Both are remembered per browser; neither changes the graph's colours.
+keyboard focus). Both are remembered per browser; neither changes the graph's colours. Both are
+made for screens with little contrast: a desk darker than its windows, dark window edges, the
+front window's title bar filled, and whatever is on, chosen or in front filled rather than
+tinted (DESIGN.md; `tools/contrast-test.mjs` checks the ratios).
 
 The desk holds **windows**, as in Origin: Graph, Worksheet, History, Overview, Peaks,
 Integrate, Fit, Results, Batch, any number of Trend graphs, Statistics, Python, Discussion, Help, and the transient Tool dialog. Each moves by its title bar, resizes from
@@ -90,7 +95,12 @@ data as recorded or typed, editable, every change in the raw-data record, unless
 locks it) and a **Final** sheet (the analysed spectrum after processing, read only). An import
 puts every column of the file there, as X, a spectrum, error bars or data that is not a
 spectrum, and plots nothing: columns are plotted when ready, by selecting them and pressing
-**Plot** on the worksheet's bar. Files **dropped** on the window are read with the automatic
+**Plot** on the worksheet's bar, or in **Plot setup…** (kinds as pictures, X, the Ys ticked,
+the graph, a sketch). Columns move by dragging their letters, their values align left, centre
+or right, and the value box above the grid is a formula bar. Every text on the graph is
+written in **LaTeX**, typeset by Kurve in the graph's own font (and so in every export), and
+typed in place in one box with a preview; the legend is selected by a click and its entries
+typed over; everything with text has one right-click menu order. Files **dropped** on the window are read with the automatic
 choices and plotted at once (on the graph they are dropped on, a new graph, or a folder of
 the Explorer), with "Read it differently" to undo and open the dialog. Error bars are Y or X,
 both ways or one side, drawn as bars or a band; an axis can be linear, log, ln, log₂, 1/x,
@@ -513,8 +523,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   text is copied, Ctrl swaps the two; a double click fills down as far as the column beside
   goes; Ctrl+D and Ctrl+R copy the first row or column. Computed cells are never written, nor
   values while the raw data is locked (one undo entry); labels fill right. **The Fill dialog** (`openFillDlg(kind,
-  {col})`, the bar's Fill button and `fillMenuItems`, a cell's Fill, a column's Fill column
-  with, Data › Fill): `FILL_KINDS` (series, growth series, evenly between two values, row
+  {col})`: a column's Fill column with, a cell's Fill (`fillMenuItems`), Data › Fill; it is
+  not on the bar, since a fill is done to a column): `FILL_KINDS` (series, growth series, evenly between two values, row
   numbers, repeat a list, random numbers with `FILL_DIST`, continue the trend), where
   (`fillTarget`: the selection, or the rows of the longest column; a column holding values
   there, chosen from one cell, gives way to a new one, with a role), `fillPlan(v)` (the
@@ -555,11 +565,31 @@ graph first, with the taskbar kept at the bottom of the screen.
   menus; unlocked and unsorted only) moves every recorded column and, through
   `remapRawRows(p, fn)`, what names a raw row (masks, corrections, a peak label's `row`, a set's
   `ex` and `mem`, `S.sel`); one undo entry and a record entry. Copy and paste are TSV (`wsCopyText`, `wsPasteText`, the label rows
-  included). The bar above shows the cell's address and value (`#wsAddr`, `#wsVal`), Fill, Plot
-  (`#wsPlotBtn`, the selected columns, see Graphs), the lock and + Column, which lose their
+  included). The bar above shows the cell's address (`#wsAddr`) and the **formula bar** (`#wsVal`:
+  `#wsValIn` is typed into as Excel's, `wsBarBegin`, `wsBarEnd(dr, dc, stay)` (a computed
+  column, or the F(x)= row, sets its formula through `setColFormula`; a value that is not a
+  number is refused in `#wsValHint`), `wsBarCancel`), the alignment buttons (`#wsAlignSeg`,
+  `wsAlignBar`), Plot (`#wsPlotBtn`: the quick list for the selected columns, or Plot setup
+  with none, see Graphs), the lock and + Column, which lose their
   words in a worksheet narrower than 560 px (the `wsheet` container), the foot
   Count, Sum, Average, Min and Max of the selection (`wsStats`). Right-click is `wsCellMenu`
-  (anchored by `pointerAnchor(x, y)`). `wsLetter(i)` names columns A…Z, AA….
+  (anchored by `pointerAnchor(x, y)`). `wsLetter(i)` names columns A…Z, AA…. The F(x)= cell
+  opens for typing on one click (`wsEditFormula(ci)`). **Moving columns**: a mousedown on a
+  letter of a whole-column selection starts a `colmove` drag (`body.colmoving`, `.wsmovebar`
+  where they land, `wsMoveMark(x)`), and the column menu's Move (`colMoveItems`, Left, Right,
+  To the start, To the end; `colMenuTargets` is the selection or the column) calls
+  `wsMoveCols(ids, dir)` → `moveColsBefore(ids, beforeId)`: raw columns reordered among
+  `p.cols` (derived spectra keep their slots), a Y whose nearest-left X would change gets its
+  `xcol` pinned (and a redundant one dropped), the selection kept, one undo entry,
+  `recordRaw` (the order is part of the fingerprint) and a toast with Undo. **Alignment**:
+  `p.wsAlign` (`{colId: "l"|"c"|"r"}`, in `UNDO_KEYS`), `wsSetAlign(ids, a, toggle)` (the same
+  button again clears it), `wsSelAlignIds`, `colAlignItems` (the column menu's Align); cells
+  take `.al-l`/`.al-c`/`.al-r`. **The selection** is drawn by `td.in` (the `--ws-sel` fill)
+  with 2 px edges on the range's outside only (`et`/`eb`/`el`/`er` setting `--et`… in one
+  inset box-shadow), `td.cur` (a 2 px edge on the panel), `th.hs` (a selected column's or
+  row's header, tinted with a 3 px bar) and `th.hsel` (a whole selected column's letter,
+  filled solid, the grab cursor). There are no colour swatches in the headers: a spectrum's
+  colour belongs to the graph.
 - **Pipelines**: `pipeOf(c)` runs a spectrum's steps on its input (`rawSeries(c)`, or its
   source's input or output) and caches the result per column; raw series are cached by array
   identity and, after a save hands back a deep copy, by content (`arrKey`, memoised per array).
@@ -661,7 +691,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   shares the worksheet's place (no graph open) or the front graph's (`splitInto`).
   `plotItems(cids)` is the menu (PLOT_TYPES, panels, offset, heat map, Add to a graph), from
   the worksheet's `#wsPlotBtn`, Plot › Plot the selected columns, the cell menu and the
-  column menu (`wsSelColIds`, `plotTargets(cid)`). `ensureGraph()` (Peaks, Fit, Integrate)
+  column menu (`wsSelColIds`, `plotTargets(cid)`); its first item is **Plot setup…**:
+  `openPlotDlg(cids)` (also first in Plot, and what `#wsPlotBtn` opens when nothing plottable
+  is selected), as Origin's Plot Setup: `PLOT_DLG_KINDS` as tiles drawn by `plotKindIcon` (a
+  radiogroup the arrow keys move through; `S.plotDlgKind` remembered), the X column, the Y
+  columns ticked with All and None and each one's error bars named, Into (a new graph or one
+  of the project's), and `plotDlgSketch(st)`; OK is `plotCols` (or `histogramCols`). A
+  `type` given to `plotCols` goes to every spectrum it plots, not only the analysed one. `ensureGraph()` (Peaks, Fit, Integrate)
   opens a shut graph, plotting the analysed spectrum on a free first graph. `GID()` is the graph in hand (`S.gctx` while drawing
   another, else `S.gid`, the one in front); `GP()`/`plotOf(id)` its settings, and every
   reader of plot settings goes through them; `savePlot(patch, log)` writes them (an extra
@@ -952,12 +988,43 @@ graph first, with the taskbar kept at the bottom of the screen.
   (`openTool`) with settings measured from the data, and marked done when the spectrum already
   has the step. It opens after an import (`autoOverview`, off per browser under
   `kurve.ovAuto`), from Analysis and Statistics, and from a raw box in the History.
-- **Typing on the graph** (`inlineEditAnno(id, {fresh})`, `inlineNewText(pt)`, `.inled`): a
-  box over a label or text, Enter keeps, Esc leaves it, a click elsewhere keeps, "More"
-  opens `editAnno`. The Label tool opens it on the label it just placed; an empty spot gets a
-  box for new text, and nothing is added unless something is typed. `annoDouble(id)` is the
-  double click (and Enter or F2 on a selected annotation): typing for labels and text, the
-  settings form for lines and ranges.
+- **Typing on the graph**: one box for every text, `inlineBox(o)` (`.inled`: `#inledIn`, an
+  input or for several lines a textarea, `rtool("inledIn")`, ⋯ `data-inmore` for `o.more`,
+  and `.inled-pv`: the text typeset by `texPreview(v, 17, o.st)` in its own style once it has
+  LaTeX, else the keys and a few examples). `o.el` (or `o.rect`) is what it covers; Enter
+  keeps (`o.keep(v)`), Esc leaves (`o.cancel`), a click elsewhere keeps unless the symbol grid
+  is open (`spOpen`). Built on it: `inlineEditTitle(k)` (graph and axis titles,
+  `titleStyleOf(k)` for the preview), `inlineEditLegend(hit)` (`"title"`, or `"leg:<id>"`: the
+  series' `label`, `__fit` too; the title box goes above the legend when there is none),
+  `inlineEditAnno(id, {fresh})` (labels and text, and the text of lines, ranges, arrows and
+  shapes; a set's peak takes `lab`; empty text on a label or line shows its position) and
+  `inlineNewText(pt)`. `annoDouble(id, onText)` is the double click (and Enter or F2 on a
+  selected annotation): typing for labels and text, and for a line's, range's or shape's text
+  when the press was on it (`S.andrag.txt`), else its Format page. Rich text groups carry
+  `data-rt`, so `[data-rt], text` finds what to cover. In dialogs a rich field is `.rfield`: the
+  field, `rtool(id)` and `texPv(id, v)` (`.texpv[data-texpv]`, kept up to date by an input
+  listener in `setupRichTools`).
+- **The legend selected** (`S.legSel = {g, hit}`, `hit` `"box"`, `"title"` or `"leg:<id>"`): a
+  click selects (a dashed outline round the legend, the entry shaded, both drawn by
+  `buildPlot` with `pointer-events="none"`; every entry and the title have a transparent hit
+  rectangle, `geo.legOrd` their order); a click on what is selected, a double click, Enter or
+  F2 types over it (`inlineEditLegend`); ↑/↓ move through `geo.legOrd`, Esc lets go; a click
+  elsewhere, an annotation selected or a project switch clears it. Right-click selects too and
+  opens `legendMenuItems(hit)`.
+- **One menu order for text** (DESIGN.md): `textMenu(o)` builds the right-click menu of
+  anything with text: its name; Edit text; Size (`TXT_PTS`), Bold, Italic, Colour (swatches,
+  Automatic); `o.own`; Format…; Delete. `titleMenuItems(k)` (with `titleTxt(k)`: the graph
+  title's `txt.title`, an axis title's own `ax[k].tst`), `legendMenuItems(hit)` (an entry's
+  menu adds Hide this entry, Back to the name, its line…, and the legend's own items under
+  Legend), `annoMenuItems(id)` (`ANNO_TX` maps the text keys onto the annotation's). An axis
+  title's own style, `ax[k].tst` (`{fam, name, size, b, i, u, color}`, in `FMT_AX`), is drawn
+  through `AT(k)` in `buildPlot` (every axis title's `TS.axis` under it) and edited on its axis
+  page by `txtBarHtml("axt:"+k, …)` (`pdTxtGet`/`pdTxtSet` map `axt:` onto `ax.k.tst`).
+- **Adding annotations**: the Format dialog's Labels and lines page has one Add button
+  (`data-pdaddmenu`, a menu of `ANNO_ADD` with icons) calling `pdAddAnno(k)`; `addLineDlg(t)`
+  (Plot › Annotate › Vertical line…, Horizontal line…) is one dialog: direction and text as
+  segmented radiogroups (`data-lns`), the position in the axis's units, your own text in an
+  `.rfield`, colour, style and width.
 - **Peak draft**: the peak set being built is `S.pdraft` (`{base, peaks, init, fixed, x0,
   fitAt}`), outside the document. `draftOverlay()` draws it on the graph before it is fitted:
   dashed curves per peak plus their sum, a numbered dot per peak (drag: centre and height) and,
@@ -980,7 +1047,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   (`cols` carries the pipelines and masks, `raw` the fingerprint record, `fits` the fit history,
   `userFns` the project's fit functions, `found` the peak sets, `integ` the bands, `graphs`
   the extra graphs, `batch` and `series`, `trends` the trend graphs, `tree` the Explorer's
-  folders) plus both drafts (`S.pdraft`, `S.draft`). A snapshot copies everything but the columns' data
+  folders, `wsAlign` the worksheet's alignment) plus both drafts (`S.pdraft`, `S.draft`). A snapshot copies everything but the columns' data
   arrays, which it shares (`cloneCols`): raw values are only ever replaced. Undo and redo wait
   while a pointer button is held anywhere (`S.ptrDown`, `heldBlocks`), so a drag cannot write
   back what was undone under it. It is per-session and local on purpose — rewinding your
@@ -1053,7 +1120,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `S.altKey` (Alt held: no snapping), `S.insetCfg` (an inset's settings while it is drawn),
   `S.exp` (the export dialog's settings), `S.pkRng` (a Peaks window range before there is a set),
   `S.fldrag`/`S.fplClick` (a fitted peak's label being dragged or clicked), `S.stOpt`, `S.annoSel` (the selected
-  annotation; Delete removes it), `S.comments` with `S.cDrafts`, `S.cReply`, `S.cEdit` and
+  annotation; Delete removes it), `S.legSel` (the legend, its title or an entry, selected),
+  `S.plotDlgKind` (Plot setup's last kind), `S.comments` with `S.cDrafts`, `S.cReply`, `S.cEdit` and
   `S.discFilter` (the Discussion window's Open/All). Window positions are `LAYOUT`.
 - **Rendering**: `buildPlot(W,H,palette,colEx,opt)` returns an SVG string used both on screen and
   for export; on screen it also records `S.geo` (transforms, handle positions, `logX`, `heat`).
@@ -1218,11 +1286,22 @@ graph first, with the taskbar kept at the bottom of the screen.
   `shapeKind()`/`pickShape(k)` remembered in `kurve.shape`, the toolbar button opens
   `shapeMenu`; Shift makes a square or circle; `S.shapeDraft`, `makeShape`); corner handles
   `data-ah="00"…"11"` resize, the body moves. `annoWhere(a)` says where any annotation is.
-  **Rich text**: titles, axis titles, legend entries and annotation text go through
-  `richSvg(str, size)` (`^{…}` superscript, `_{…}` subscript, `\name` from `RT_SYM`; only
-  braces make scripts) and `richW` measures it; `rtool(id)` puts x², x₂ and a symbol grid
-  (`openSymPicker`) beside a field, and Ctrl+Shift+= / Ctrl+= wrap the selection
-  (`setupRichTools`, fields marked `data-rich` and the inline editors).
+  **Text with LaTeX** (the `==TEX:START==`/`==TEX:END==` block, pure, tested by
+  `tools/tex-test.mjs`): titles, axis titles, legend entries and title, annotation text,
+  colour-bar and size-legend titles and fitted peak labels are drawn by `richText(str, {x, y |
+  tf, anchor, st, fill, attrs})`: plain text as one `<text>`, text that `texNeeds` laid out by
+  `texBox` (`texLayout` measured with the text's own font through `textW`, cached in `TEXC`)
+  and written by `texSvgOf` as positioned `<text>` pieces, rules and dots in a `<g data-rt>`
+  carrying the attributes a `<text>` would; `richW` measures. `texParse` makes the tree
+  (`TEX_SYM`, `TEX_FN`, `TEX_BIN`, `TEX_REL`, `TEX_ACC`, `TEX_FONT`, `TEX_SP`; text mode outside
+  `$…$` with `^{}`/`_{}` only with braces, maths inside with LaTeX's italics and spacing;
+  fractions, roots with an index, accents, `\left…\right`, `\mathrm`, `\text`; 2000
+  characters at most; an unknown command stays as typed), `texHtml` writes HTML (Results, the
+  report, the Format dialog's list) and `texPlain` plain text (menus, lists). `textBlock` uses
+  `richText` per line. `rtool(id)` puts x², x₂ and a symbol grid (`openSymPicker`) beside a
+  field, and Ctrl+Shift+= / Ctrl+= wrap the selection (`setupRichTools`, fields marked
+  `data-rich` and the inline editors). The PDF and EPS writer maps what the standard fonts
+  lack (`VEC_SAME`, `AFM_SYM`).
   `labelFoundPeaks`, `shadeRange` (a range pick), `addLineDlg`, `clearAnnos`.
   **Fitted peak labels** (`fitLabels` in `buildPlot`; a draft being set up shows `numLabel`, its
   number and name; straight after a fit, `ov.same`, the fitted labels are drawn with the
@@ -1352,8 +1431,19 @@ graph first, with the taskbar kept at the bottom of the screen.
   a fit table stays a **box** (`--cb-*`, the tick an SVG in `--chk-img`, dark on light
   accents); radios are drawn too. Lists get a drawn chevron (`select:not([multiple])`).
   Segmented controls take `--seg-bg`, `--seg-bd`, `--seg-on`, `--seg-on-ink`, `--seg-sh`
-  (Bench: a raised white pill; Graphite: black with white text), windows `--win-sh` and
-  `--win-sh-act`. Numbers typed into forms and slider readouts are in `--mono`.
+  (the chosen one filled with the accent, white text; Graphite black), windows `--win-sh` and
+  `--win-sh-act`. Numbers typed into forms and slider readouts are in `--mono`. **Contrast**
+  (DESIGN.md; `tools/contrast-test.mjs` measures it in both themes and styles): words 7:1 or
+  more on every surface, edges (`--rule`, `--win-bd`, `--cb-bd`, `--sw-off`, `--trk`) 3:1 or
+  more, text on the accent 4.5:1. Surfaces from back to front: `--paper` (the desk, darker
+  than any window), `--chrome`, `--well` (round a graph in its window: `.graph-win`,
+  `.graph-pane`, `.gsnap`, `.figgrid`), `--panel`, `--panel-2`, `--panel-3`. Windows:
+  `--win-bd` (every window's edge), `--win-bd-act`, `--win-h-bg`/`--win-h-ink` (a title bar),
+  `--win-h-act-bg`/`--win-h-act-ink` (the front window's, filled with the accent; its icons,
+  sub-title and buttons take the ink). Buttons `--btn-bg`/`--btn-bg-h`; a menu item under the
+  pointer `--hi` with a 3 px accent bar; `--ws-grid` the worksheet's cell lines. What is on or
+  in front is filled, not tinted: `.tb[aria-pressed="true"]`, `.seg` choices (`aria-pressed`
+  or `aria-checked`), `.tk.front`, an open `.mb`.
 - **Menus and dialogs**: `openMenu(trigger, items, opt)` renders any menu (menu bar, project
   list, Export, column header, graph) from `{label, run, kbd, note, checked, radio, enabled, danger}` items
   (`note` is muted text on the right, as the project list's "3 spectra · 2 graphs"),
@@ -1446,9 +1536,13 @@ presence, names) depends on the claude.ai runtime and would need a real backend 
 
 ## Checking a change
 
-`node tools/fit-test.mjs`, `node tools/pipe-test.mjs` and `node tools/parser-test.mjs` cover the
-numerics, the processing steps with their checks and the fingerprint, and the parser. Each
-takes an optional path to test a working copy instead of `kurve.html`.
+`node tools/fit-test.mjs`, `node tools/pipe-test.mjs`, `node tools/parser-test.mjs` and
+`node tools/tex-test.mjs` cover the numerics, the processing steps with their checks and the
+fingerprint, the parser, and the LaTeX typesetter (nesting, italics, spacing, fractions, roots,
+accents, escapes, limits). Each takes an optional path to test a working copy instead of
+`kurve.html`. `node tools/contrast-test.mjs [path]` (Playwright) measures the interface's
+colours as the browser resolves them, in both themes and both styles, against DESIGN.md's
+rules; run it after touching a token or a state's look.
 `node tools/odd-test.mjs [path]` (Playwright with Chromium) drives the app in unusual ways that
 once hung it, lost data or drew nonsense: 300 turns of the wheel, a nanosecond time axis, equal
 and crossed axis limits, two tabs saving, a full store, the old single-key store and a corrupt
@@ -1995,9 +2089,51 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   Freedman–Diaconis width of 1.09 became 2 and the histogram lost half its detail. The nearest
   round number, by ratio.
 
+- **A tint is not a state on a poor screen.** The front window's title bar, a toolbar switch
+  that was on and the chosen button of a segmented control were tints of 10 to 25 % of the
+  accent, and borders were 1.4:1: on a low-contrast laptop the user could not make out what
+  was on, chosen or in front. States are filled, edges are 3:1, words 7:1, and
+  `tools/contrast-test.mjs` measures it in every theme and style.
+- **Two editors for one job read as two jobs.** The axis title's box, the label's box and the
+  legend's dialog had different buttons and keys, and the right-click menus around them listed
+  different things in different orders: the user took the difference for a bug. One box
+  (`inlineBox`), one rich field (`.rfield`), one menu order (`textMenu`).
+- **A type for the plot is a type for every spectrum plotted.** `plotCols` gave a chosen plot
+  type to the analysed spectrum alone: three columns plotted as symbols drew one as symbols
+  and two as lines. It goes to every spectrum it plots.
+- **Markup that cannot nest is not markup.** `PER_{log_{10}}` came out with a stray brace, as
+  the old rich text read one level of braces. Text is LaTeX now, parsed into a tree; and a
+  script's base joins the word before it (`PE` and `R` were two runs, measured apart).
+- **A symbol the standard fonts lack must be mapped, or a PDF writes "?".** `\circ` came out
+  as ? in the PDF. Every symbol the typesetter can produce is mapped (`VEC_SAME`, `AFM_SYM`)
+  and the drive checks the PDF's missing list.
+- **An attribute with no value is HTML, not XML.** A marker written `<g data-rt …>` worked on
+  screen, and every export of a graph with typeset text failed: the figure's SVG is parsed as
+  XML for PDF and EPS and loaded as an image for PNG. Attributes in drawn SVG always have a
+  value (`data-rt="1"`); regression's ff4 caught it.
+- **A patch that adds a function before deleting the old one finds two.** Inserting the new
+  `annoMenuItems` and then looking for the old one by its first line found both, and the
+  script stopped (writing nothing, as it must). Delete first, insert after.
+
 ## Roadmap
 
-Done in this round: plots Origin has and Kurve lacked (the roadmap's next item). Histograms
+Done in this round: the user's review of the interface. Columns move by dragging their letters,
+or from their menu (Left, Right, To the start, To the end), each spectrum keeping its X; values
+align left, centre or right; the value box above the grid is a formula bar, and F(x)= opens on
+one click; the selection is a strong fill with a dark edge and filled headers; Fill moved from
+the bar into the column's and the cell's menus, and the colour swatches above the columns went.
+Plot setup, as Origin's: the kind of plot as pictures, the X, the Ys ticked, the graph, a
+sketch. Text with LaTeX in every title, legend entry and label, typeset by Kurve's own engine
+(scripts nested to any depth, maths in italics with its spacing, fractions, roots, accents,
+fonts) in the graph's font, so the same on screen and in SVG, PNG, PDF and EPS, with a preview
+wherever it is typed. The legend selected by a click and typed over in place; one typing box
+and one right-click menu order for everything with text; each axis title's own font and style;
+one Add menu in the Format dialog, and a proper dialog for a line. A new palette for screens
+with little contrast, measured by `tools/contrast-test.mjs`. DESIGN.md now records the
+interface's decisions and their reasons, round by round. A fix: plotting several columns with
+a chosen type drew only the analysed one in that type.
+
+Round before: plots Origin has and Kurve lacked (the roadmap's next item). Histograms
 of a column's values, made by a step so they follow the processing (bins chosen for the data
 by Freedman–Diaconis, Sturges or the square root, or a number or width typed, a start; counts,
 probability, percent or a density with area 1, cumulative), drawn as columns, a figure of
@@ -2009,7 +2145,7 @@ curve, peak and batch fits, with or without Y errors. A legend of sizes for symb
 a column. Figure panels spanning several rows or columns. A fix: Results showed a fit's units
 from the analysed spectrum rather than its own.
 
-Round before: the next plotting options the user chose. Figures of panels, as Origin's
+Two rounds before: the next plotting options the user chose. Figures of panels, as Origin's
 graph layers and Merge Graphs: graphs become the panels of one figure in rows and columns (a
 panel per spectrum in one command, graphs chosen from a list, or a graph dropped on a figure),
 their plot areas lined up by measuring every panel's margins, X or Y shared (one range and one
@@ -2025,7 +2161,7 @@ coloured or sized by a third column with a colour bar, the area between two spec
 in two colours, hatched fills that PDF and EPS keep, and the graph copied to the clipboard as
 a picture.
 
-Two rounds before: the plotting options the user chose. The import dialog never plots, and
+Three rounds before: the plotting options the user chose. The import dialog never plots, and
 files dropped on the window are read and plotted at once (on the graph they land on, a new
 graph, or an Explorer folder; "Read it differently" undoes and opens the dialog). A Project
 Explorer as Origin's: folders and subfolders, the worksheet, each file with its spectra and
@@ -2038,7 +2174,7 @@ root, probability; dates and times read from files and the worksheet and numbere
 a second Y axis in other units (transmittance over absorbance, a × y + b, a formula). Fixes:
 a graph dragged over by a file shrank to a line (a class name shared with the History).
 
-Three rounds before: plotting when you are ready, from a user's request. The import dialog
+Four rounds before: plotting when you are ready, from a user's request. The import dialog
 lists every column of the file with what it becomes (X, a spectrum, error bars, data kept for
 formulas, or left out), reads X,Y pairs only when they look like pairs, and plots nothing
 unless asked: Plot is Not yet (the worksheet takes the graph's place), one graph, one each
@@ -2051,7 +2187,7 @@ new project did nothing after the import (no message, no worksheet); an undo jus
 a value left the undone change in the log; a cell chosen just after Enter could lose the edit
 begun in it.
 
-Four rounds before: the worksheet for manual work, from a user's bug report. Typing far
+Five rounds before: the worksheet for manual work, from a user's bug report. Typing far
 down the sheet no longer jumps to the top, and values typed one after another are all kept
 (they were lost whenever the delayed save landed mid-entry). Raw data is editable like any
 spreadsheet (type over, clear, paste and fill over, insert and delete rows, every change one
@@ -2062,7 +2198,7 @@ column; double-click edits in the first rows too (it did nothing there); a colum
 selects with its first cell active; leaving the page saves what was just typed. A random-user
 harness drives the worksheet in hundreds of unscripted steps and checks the data after each.
 
-Five rounds before: reading, windows and filling, from a user's review. Text has two
+Six rounds before: reading, windows and filling, from a user's review. Text has two
 colours, the secondary one darker (7:1 or more in every theme and style), and headings are
 sentence case in the text colour instead of small grey capitals; disabled controls are dimmer,
 not unreadable. Windows as in Excel: the project's documents (graphs, worksheet, trend graphs)
@@ -2075,7 +2211,7 @@ Fill Column With: series by a step or a factor with a stop value, evenly between
 Poisson counts) from a seed, and the trend of the values above; into empty cells of a column
 or a new one, with a preview, one undo step and a record entry.
 
-Six rounds before: a gamma spectrum, from a user's file of background radiation. One-column
+Seven rounds before: a gamma spectrum, from a user's file of background radiation. One-column
 files of counts per channel are read (a .TKA file's live and real time into the metadata, X
 the channel number from 0 or 1, √N error bars as a computed column, counts per second by a
 step); calibrated to energy by a step (coefficients, remembered for the next file, or fitted
@@ -2090,7 +2226,7 @@ peaks and the lines. The taskbar tells open, minimised and closed windows apart,
 button and a Windows list. Each edge of the frame has its own ticks and numbers, set by
 clicking the edge in a picture of the frame.
 
-Seven rounds before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
+Eight rounds before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
 their corners, filled or not, behind the data or over it, with text inside, pinned or at data
 values). Axis breaks on X and Y, suggested over the widest empty stretch, cut with two strokes,
 the two sides on one scale, followed by zoom, wheel and pan, and named in the report. A second
@@ -2103,7 +2239,7 @@ writer: vectors, clipping, opacity (PDF), images, gradients, insets and every gr
 figure, text in the standard fonts placed by their own widths. The toolbar keeps to one row
 down to 860 px.
 
-Eight rounds before: bugs found by using the app the way nobody does. A tab that froze for good
+Nine rounds before: bugs found by using the app the way nobody does. A tab that froze for good
 (ticks added up after a deep zoom), tick labels all alike on a nanosecond axis, NaN drawn for
 equal or extreme limits; a second tab wiping the first's projects, a full store that still
 said Saved, two projects sharing an id, a corrupt saved layout; typographic minus signs, French
@@ -2114,7 +2250,7 @@ undo during a drag; ten-second saves with 300 spectra, 200 ms undo steps on big 
 names pushing title-bar buttons out of reach; batch rows of deleted spectra. Each fixed by its
 class, and `tools/odd-test.mjs` keeps them fixed.
 
-Nine rounds before: graphs and projects, from a bug report. Deleting a project could leave its
+Ten rounds before: graphs and projects, from a bug report. Deleting a project could leave its
 graphs on the desk and the next import going into it (a store's events in the other order); a
 graph in front that went away took the live plot with it. Both fixed. The taskbar names the
 project its windows belong to, the project list says what each holds, new projects get names
@@ -2124,7 +2260,7 @@ spectrum by its chip, onto a graph, its taskbar button or the desk; Ctrl keeps t
 dropped; it scrolls on a phone), from menus, or in Combine graphs… with a layout; spectra
 come from another project with their processing, peaks and colours.
 
-Ten rounds before: finding and labelling peaks, from what people asked. The Peaks window
+Eleven rounds before: finding and labelling peaks, from what people asked. The Peaks window
 says where it looks (the spectrum, always shown, and From … to … typed, taken from the view
 or dragged on the graph, shaded there, kept with the set) and ends in Done; the Fit window
 says which spectrum and range it fits, and ends in Done too. Fitted peaks are labelled with
@@ -2133,7 +2269,7 @@ errors and units; above, inside, or in a row along the top with leaders; turned,
 boxed, dragged; each peak can be named, and its name goes to Results, the report and the
 exports.
 
-Eleven rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
+Twelve rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
 spectrum shares (centres, widths, areas, shapes, the baseline, or parameter by parameter; a
 curve model's parameters), each spectrum first fitted with those held so the fit starts where
 it belongs, one block-sparse Levenberg–Marquardt problem, every row a normal fit that says what
@@ -2144,7 +2280,7 @@ on the desk: several quantities, left and right axes, lines with slopes, SVG, PN
 Each spectrum keeps its file's header, and a field that differs (a temperature, the time it was
 taken) is what a series can be plotted against.
 
-Twelve rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
+Thirteen rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
 every title, legend entry and label (`cm^{-1}`, `\alpha`), with buttons and a word
 processor's keys; arrows drawn by dragging, their heads snapping to data points, with heads
 of four kinds; insets made from a zoom, dragged and resized, outlined on the graph with
@@ -2154,7 +2290,7 @@ print, lines scaled with the text or not, SVG at its size, PNG with its dpi reco
 transparent backgrounds, a preview); formats saved by name and used on any graph in any
 project, with five of Kurve's; a toolbar that keeps to one row at every width.
 
-Thirteen rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
+Fourteen rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
 Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
 its own font, size in points, bold, italic, underline and colour; a real font picker (each
 name in its face, search, web fonts that look the same everywhere, which fonts this computer
@@ -2169,7 +2305,7 @@ graph at once. Labels and text over several lines, turned to any angle, in a box
 pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
 richer right-click menus on axes, titles, the legend and annotations.
 
-Fourteen rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+Fifteen rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
 started from its result, from the neighbour in the series, or from the peaks found in each;
 every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
 the History, replaced by a fit by hand, out of date when its processing changes). The Batch
@@ -2249,6 +2385,17 @@ Next, in order:
 
 ## Known gaps
 
+- Text with LaTeX: no matrices, arrays, aligned equations, `\newcommand`, or colours and sizes
+  inside a text (the whole text has one colour and size); a legend's rows and a label's lines
+  keep their spacing however tall a fraction in them is; the Help shows fractions and roots on
+  one line (HTML), the graph sets them properly
+- The legend: its entries are the spectra and the fit; there is no free line of text in it (a
+  text pinned to the plot does that), and entries are typed over one at a time
+- An axis title's own style is font, size, weight, slant, underline and colour; its place is
+  the axis's (along it, or dragged)
+- Moving columns moves whole columns of the Raw sheet (not cells within a column, not the Final
+  sheet's); the colours of the interface follow DESIGN.md's rules, but the graph's own colours
+  (data, grid, a colour picked for a label) are the figure's and are not checked
 - Project Explorer: one item moves at a time (no multiple selection); a spectrum lives under its
   file and cannot be filed apart from it; folders organise the tree only (they do not hide or
   show windows as Origin's active folder can); dropping on a folder imports and plots with the
