@@ -51,7 +51,10 @@ four the taskbar gathers them under one Graphs button. Graphs plotted one by one
 together by holding and dropping: a graph by the grip in its title bar onto another graph
 (or its taskbar button) merges into it, a spectrum's chip adds that spectrum (or, dropped on
 the empty desk, gets a graph of its own); Window › Combine graphs… does it from a list, and
-File › Bring in from another project… copies spectra between projects. The **graph window** has its own bar repeating the Data, Math, Analysis, Statistics
+File › Bring in from another project… copies spectra between projects. Graphs can also be
+the **panels of a figure** (Window › New graph › A figure…, a graph's Put in a figure, or a
+graph dropped on a figure): one window with the graphs in rows and columns, their plot areas
+lined up, X or Y shared, lettered (a), (b)…; the panel clicked is worked on. The **graph window** has its own bar repeating the Data, Math, Analysis, Statistics
 and Plot menus, a Python button, and a chip saying which stage of the processing is shown
 when it is not the final data. Right-click on the graph (or Shift+F10) gives the spectrum's
 colour, plot type and style, a line, text or peak label where you clicked, the frame, ticks,
@@ -92,7 +95,11 @@ choices and plotted at once (on the graph they are dropped on, a new graph, or a
 the Explorer), with "Read it differently" to undo and open the dialog. Error bars are Y or X,
 both ways or one side, drawn as bars or a band; an axis can be linear, log, ln, log₂, 1/x,
 1/(x + c), √x or a probability scale, numbered as dates and times, and have a second Y axis in
-other units. Below 860 px the windows stack in one column,
+other units. A series of spectra can be drawn as a **map** (the heat map layout) against its
+series variable at real spacing, as an image, filled contours or contour lines with their
+levels, and cut at one X or one value; points can be joined by splines, symbols coloured or
+sized by a third column, the area between two spectra filled, fills hatched, and the graph
+copied to the clipboard as a picture. Below 860 px the windows stack in one column,
 graph first, with the taskbar kept at the bottom of the screen.
 
 ## Code layout (all inside the `<script>` block of kurve.html)
@@ -670,6 +677,40 @@ graph first, with the taskbar kept at the bottom of the screen.
   when a graph would be under 250 × 235 px that way, the graphs take the whole desk and the
   other windows are minimised. A picture smaller than 250 × 160 px is drawn at that size and
   scaled down, so its labels never collide.
+  **Figures** (panels, as Origin's graph layers and Merge Graphs): a figure is a graph in
+  `p.graphs` with `fig = {rows, cols, cells:[{gid, r, c, rs, cs}], shareX, shareY, gap,
+  letters, w, h}` and no spectra of its own; its panels are ordinary graphs (the first graph
+  too) with no window of their own. `figOf(id)` (the figure a graph is a panel of), `isFigId`,
+  `deskGraphIds` (the documents: figures, not their panels), `drawGraphIds` (what draws
+  spectra: panels, not figures), `figOrder`, `figLetterOf`/`figLetter`, `graphTitle` ("Figure 1
+  › (b) Graph 3"), `figNb` (the sides another panel touches). `winOfGraph(panel)` is the
+  figure's window (`section.win.gwin.figw`: `.fbar` chips `[data-fpanel]`, `.figgrid` of
+  `.fcell[data-fcell]` made by `figCells`); `winShut` counts a panel as shut, so the first
+  graph's own window closes while it is a panel and comes back after (`S.gshut`). `layoutFigs(only,
+  {quiet})` (in `renderAll` before `renderPlot`, and on the grid's ResizeObserver) measures each
+  panel's margins (`figMeasure`: `buildPlot(…, {measure:true})` under `S.figMeasure`, memoised)
+  and `figLayout` gives each cell its rectangle and the margins of its column (widest left and
+  right) and row (tallest top and bottom), an inner shared edge keeping only what is really
+  there; `S.figLay[fid] = {m, W, H}`, `S.figSmall[fid]` (one text size for every panel).
+  `plotCfg` for a panel: the inner shared axes' numbers and titles off, the shared range
+  (`figRange`: every panel's data, in the first's X units) as the limits when none are typed,
+  `figPrune` (numbers at a touching edge give way, in `drawFrame`), `figLetter`, `figM` (its
+  margins: `buildPlot` takes `opt.figM || cfg.figM`). `moveLive` puts the live pane into the
+  panel's cell and the ribbon above the grid; `activateGraph(fig)` brings `S.figAct[fid]` or the
+  first panel; `viewFor` links X (shareX) and Y (shareY) between panels (`xAuto` when only Y
+  is linked, `resolveYAuto`); `runSnaps` draws a panel's picture at its cell's exact size.
+  Pictures and exports: `figSvg(fid, W, H, colEx, k)` (every panel in its place, ids prefixed),
+  `figH`, `handPic(W, H, k)` (the graph in hand as a still picture, a panel bringing its figure:
+  `exportSvg`, `exportPng`, `exportVec`, `copyGraphPicture`), `expBuild` (at the size asked),
+  `exportGraphIds`/`allGraphsSvg` (a figure is one item, lettered inside). Commands:
+  `makeFigure(gids, o)`, `figPerSpectrum`, `figAddPanel(fid, {gid|cids})`, `figRemovePanel(gid,
+  {del})`, `figMovePanel`, `figSave`, `deleteFigure(fid, withPanels)`, `duplicateFigure`,
+  `figDlg` (Panels…), `newFigureDlg`, `figMenuItems` (the figure's ⋯), `figPanelItems`;
+  `graphIn(el, w)` is the graph under a point of a graph window (a figure's panel), for drops;
+  `gDropAt`'s `kind:"fig"` (`figTarget`) makes a dropped graph a panel and a chip a new panel.
+  `normalize` keeps figures and cleans their cells (each graph in one cell, none a figure,
+  inside the grid). The History has a box per panel (`graphTitle`), the Explorer a figure row
+  with its panels inside.
 - **Tools and menus**: `TOOL_GROUPS` lists every op by kind; `toolMenuItems({col, at})` is
   the menu the History's "+" and Step buttons open, one submenu per group (a group of one
   tool stays a plain item); `dataMenu`, `mathMenu`, `analysisMenu`,
@@ -1040,7 +1081,24 @@ graph first, with the taskbar kept at the bottom of the screen.
   axis page and the axis menu have the edge across too. The title takes `TS.title.align` and `titleDx`/`titleDy`. `layout` (`LAYOUTS`): overlay,
   offset (a waterfall, each trace labelled), stack (a panel per spectrum, shared X, the
   analysed one on top), dy (the others on a right axis), heat (one row per spectrum, drawn as
-  one image from `heatImage`, with a colour bar; `CMAPS`). The legend goes in the emptiest
+  one image from `heatImage`, with a colour bar; `CMAPS`). **Maps** (the heat layout):
+  `cfg.mapY` (`index`, or `series`: `mapRows` puts each spectrum at its `seriesVals`, sorted,
+  falling back to the order with `why`), `cfg.mapKind` (`MAP_KINDS`: image, filled, lines,
+  both), `cfg.mapLevels` (about n, `mapLevels`: round numbers inside the range, in log10 with
+  Log Y), `cfg.mapLab`; rows between spectra interpolated in a straight line (`mapAt`); contour
+  lines by marching squares (`contourLines`, saddles split by the cell's mean, segments joined
+  into polylines), their values written along the longer stretches where they clear each
+  other; the levels across the colour bar. `S.geo` keeps `mapRows`, `mapSeries`, `mapLevs`,
+  `mapWhy`, `mapZ(x, y)` (the readout's value). Cuts: `mapCutX(x)` (the series' `cuts` `[{x,
+  xu}]`, a dashed line and a trend graph of `cut@x`, `valueAtX`, one undo entry), `mapCutY(row)`
+  (the nearest spectrum, `mapNearest`, on a graph of its own); `mapMenuItems` (the graph
+  menu's Map). **Styling**: `serStyle`'s `conn` (`CONN_KINDS`: `smoothD`, Catmull–Rom or a
+  clamped uniform B-spline, up to 4000 points), `zcol`/`scol` (`zMapOf`: a third column's
+  value at each point's recorded row, as a colour from the map or a size; the first series
+  coloured gets a colour bar, `zbar`, room made in the margin), `fillTo`/`fill2`
+  (`fillBetweenSvg`: over the X both have, split where they cross, overlaid only, under every
+  series) and `hatch` (`HATCHES`, `hatchSvg`: lines clipped to the region, so PDF and EPS draw
+  them); `zSt` hands `seriesSvg` the mapping and an id (`hid`) for its clip. The legend goes in the emptiest
   corner, a chosen one, outside on the right, below the graph (`below`: as many columns as
   fit, rows read across), where it was dragged (`legend:"custom"`, `legendPos` as fractions
   of the plot area), or nowhere; it can have a title, columns (`legendCols`, filled down),
@@ -1305,7 +1363,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   every graph too). `resultsText` is the same as TSV for `copyResults`. With several graphs,
   `allGraphsSvg(pw, ph)` draws each (through `withGraph`, as it is on the desk) into one SVG
   lettered (a), (b)…, for `exportAllSvg`, `exportAllPng` and the report; `exportAllCsv` writes
-  every spectrum's final X and Y side by side with each one's steps.
+  every spectrum's final X and Y side by side with each one's steps. `copyGraphPicture` puts
+  the graph (or a panel's figure, `handPic`) on the clipboard as a PNG at 2.5×, handing
+  `ClipboardItem` a promise so the click still counts; a browser that refuses gets the PNG
+  export offered (Edit, Export, the graph's right-click and ⋯ menus).
 - **Boot**: `boot()` asks `window.claude.use(...)` for `db`, `user`, `room`, `downloads`. Outside
   claude.ai these are absent, so the app falls back to `LocalStore` and hides presence.
 
@@ -1825,9 +1886,38 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   January in another; only year-first dates are read, and in UTC, so a project reads the same
   wherever it is opened.
 
+- **Two panels that touch share an edge.** With X shared the rows touch, and the top panel's
+  lowest Y number and the next one's highest were drawn on the same pixels, one half hidden
+  under the other's picture. Numbers within half a line of a touching edge give way.
+- **A text size chosen by width differs between panels.** `buildPlot` draws smaller text below
+  480 px, so a figure whose columns were 2 : 1 had two sizes of text side by side. A figure
+  decides once for all its panels.
+- **A label at the middle of every line piles up where the lines run together.** Every level
+  of a narrow band's contours was written at one height, on top of the others. Labels go
+  where they clear those placed before, along the longer stretches, or not at all.
+- **A name is taken more often than you think.** The figure's panel menu was first written as
+  `panelItems`, already the Window › Panels list; the duplicate-function check caught it
+  before it replaced the other. Run it before the first drive.
+
 ## Roadmap
 
-Done in this round: the plotting options the user chose. The import dialog never plots, and
+Done in this round: the next plotting options the user chose. Figures of panels, as Origin's
+graph layers and Merge Graphs: graphs become the panels of one figure in rows and columns (a
+panel per spectrum in one command, graphs chosen from a list, or a graph dropped on a figure),
+their plot areas lined up by measuring every panel's margins, X or Y shared (one range and one
+zoom, numbers on the outer edge only, the panels touching, the numbers at a shared edge giving
+way), lettered (a), (b)…, columns and rows of chosen widths and heights; the panel clicked is
+drawn live in its cell and the others as pictures; every export, the PDF and the report write
+the whole figure. Maps of a series: the heat map against the series variable at real spacing
+(rows between spectra interpolated), as an image, filled contours, contour lines with their
+levels written along them, or the image with lines, the levels marked on the colour bar; cut
+at one X (a trend graph of every spectrum's value there) or at one value of the series (the
+nearest spectrum on a graph). Styling: points joined by a spline or a B-spline, symbols
+coloured or sized by a third column with a colour bar, the area between two spectra filled
+in two colours, hatched fills that PDF and EPS keep, and the graph copied to the clipboard as
+a picture.
+
+Round before: the plotting options the user chose. The import dialog never plots, and
 files dropped on the window are read and plotted at once (on the graph they land on, a new
 graph, or an Explorer folder; "Read it differently" undoes and opens the dialog). A Project
 Explorer as Origin's: folders and subfolders, the worksheet, each file with its spectra and
@@ -1840,7 +1930,7 @@ root, probability; dates and times read from files and the worksheet and numbere
 a second Y axis in other units (transmittance over absorbance, a × y + b, a formula). Fixes:
 a graph dragged over by a file shrank to a line (a class name shared with the History).
 
-Round before: plotting when you are ready, from a user's request. The import dialog
+Two rounds before: plotting when you are ready, from a user's request. The import dialog
 lists every column of the file with what it becomes (X, a spectrum, error bars, data kept for
 formulas, or left out), reads X,Y pairs only when they look like pairs, and plots nothing
 unless asked: Plot is Not yet (the worksheet takes the graph's place), one graph, one each
@@ -1853,7 +1943,7 @@ new project did nothing after the import (no message, no worksheet); an undo jus
 a value left the undone change in the log; a cell chosen just after Enter could lose the edit
 begun in it.
 
-Two rounds before: the worksheet for manual work, from a user's bug report. Typing far
+Three rounds before: the worksheet for manual work, from a user's bug report. Typing far
 down the sheet no longer jumps to the top, and values typed one after another are all kept
 (they were lost whenever the delayed save landed mid-entry). Raw data is editable like any
 spreadsheet (type over, clear, paste and fill over, insert and delete rows, every change one
@@ -1864,7 +1954,7 @@ column; double-click edits in the first rows too (it did nothing there); a colum
 selects with its first cell active; leaving the page saves what was just typed. A random-user
 harness drives the worksheet in hundreds of unscripted steps and checks the data after each.
 
-Three rounds before: reading, windows and filling, from a user's review. Text has two
+Four rounds before: reading, windows and filling, from a user's review. Text has two
 colours, the secondary one darker (7:1 or more in every theme and style), and headings are
 sentence case in the text colour instead of small grey capitals; disabled controls are dimmer,
 not unreadable. Windows as in Excel: the project's documents (graphs, worksheet, trend graphs)
@@ -1877,7 +1967,7 @@ Fill Column With: series by a step or a factor with a stop value, evenly between
 Poisson counts) from a seed, and the trend of the values above; into empty cells of a column
 or a new one, with a preview, one undo step and a record entry.
 
-Four rounds before: a gamma spectrum, from a user's file of background radiation. One-column
+Five rounds before: a gamma spectrum, from a user's file of background radiation. One-column
 files of counts per channel are read (a .TKA file's live and real time into the metadata, X
 the channel number from 0 or 1, √N error bars as a computed column, counts per second by a
 step); calibrated to energy by a step (coefficients, remembered for the next file, or fitted
@@ -1892,7 +1982,7 @@ peaks and the lines. The taskbar tells open, minimised and closed windows apart,
 button and a Windows list. Each edge of the frame has its own ticks and numbers, set by
 clicking the edge in a picture of the frame.
 
-Five rounds before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
+Six rounds before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
 their corners, filled or not, behind the data or over it, with text inside, pinned or at data
 values). Axis breaks on X and Y, suggested over the widest empty stretch, cut with two strokes,
 the two sides on one scale, followed by zoom, wheel and pan, and named in the report. A second
@@ -1905,7 +1995,7 @@ writer: vectors, clipping, opacity (PDF), images, gradients, insets and every gr
 figure, text in the standard fonts placed by their own widths. The toolbar keeps to one row
 down to 860 px.
 
-Six rounds before: bugs found by using the app the way nobody does. A tab that froze for good
+Seven rounds before: bugs found by using the app the way nobody does. A tab that froze for good
 (ticks added up after a deep zoom), tick labels all alike on a nanosecond axis, NaN drawn for
 equal or extreme limits; a second tab wiping the first's projects, a full store that still
 said Saved, two projects sharing an id, a corrupt saved layout; typographic minus signs, French
@@ -1916,7 +2006,7 @@ undo during a drag; ten-second saves with 300 spectra, 200 ms undo steps on big 
 names pushing title-bar buttons out of reach; batch rows of deleted spectra. Each fixed by its
 class, and `tools/odd-test.mjs` keeps them fixed.
 
-Seven rounds before: graphs and projects, from a bug report. Deleting a project could leave its
+Eight rounds before: graphs and projects, from a bug report. Deleting a project could leave its
 graphs on the desk and the next import going into it (a store's events in the other order); a
 graph in front that went away took the live plot with it. Both fixed. The taskbar names the
 project its windows belong to, the project list says what each holds, new projects get names
@@ -1926,7 +2016,7 @@ spectrum by its chip, onto a graph, its taskbar button or the desk; Ctrl keeps t
 dropped; it scrolls on a phone), from menus, or in Combine graphs… with a layout; spectra
 come from another project with their processing, peaks and colours.
 
-Eight rounds before: finding and labelling peaks, from what people asked. The Peaks window
+Nine rounds before: finding and labelling peaks, from what people asked. The Peaks window
 says where it looks (the spectrum, always shown, and From … to … typed, taken from the view
 or dragged on the graph, shaded there, kept with the set) and ends in Done; the Fit window
 says which spectrum and range it fits, and ends in Done too. Fitted peaks are labelled with
@@ -1935,7 +2025,7 @@ errors and units; above, inside, or in a row along the top with leaders; turned,
 boxed, dragged; each peak can be named, and its name goes to Results, the report and the
 exports.
 
-Nine rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
+Ten rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
 spectrum shares (centres, widths, areas, shapes, the baseline, or parameter by parameter; a
 curve model's parameters), each spectrum first fitted with those held so the fit starts where
 it belongs, one block-sparse Levenberg–Marquardt problem, every row a normal fit that says what
@@ -1946,7 +2036,7 @@ on the desk: several quantities, left and right axes, lines with slopes, SVG, PN
 Each spectrum keeps its file's header, and a field that differs (a temperature, the time it was
 taken) is what a series can be plotted against.
 
-Ten rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
+Eleven rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
 every title, legend entry and label (`cm^{-1}`, `\alpha`), with buttons and a word
 processor's keys; arrows drawn by dragging, their heads snapping to data points, with heads
 of four kinds; insets made from a zoom, dragged and resized, outlined on the graph with
@@ -1956,7 +2046,7 @@ print, lines scaled with the text or not, SVG at its size, PNG with its dpi reco
 transparent backgrounds, a preview); formats saved by name and used on any graph in any
 project, with five of Kurve's; a toolbar that keeps to one row at every width.
 
-Eleven rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
+Twelve rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
 Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
 its own font, size in points, bold, italic, underline and colour; a real font picker (each
 name in its face, search, web fonts that look the same everywhere, which fonts this computer
@@ -1971,7 +2061,7 @@ graph at once. Labels and text over several lines, turned to any angle, in a box
 pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
 richer right-click menus on axes, titles, the legend and annotations.
 
-Twelve rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+Thirteen rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
 started from its result, from the neighbour in the series, or from the peaks found in each;
 every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
 the History, replaced by a fit by hand, out of date when its processing changes). The Batch
@@ -2030,12 +2120,10 @@ Next, in order:
    CHN and CNF are binary), FWHM and efficiency against energy, net peak areas over a local
    continuum with their counting errors and activities, a nuclide named by the set of its lines
    (their intensity ratios, interferences), region edges dragged on the graph
-2. Plots Origin has and Kurve lacks, by use: panels of different spectra (graph layers, grids
-   of panels); a contour or image of a series against its variable (temperature, time) rather
-   than one row per spectrum; column and bar charts, histograms with bins, box and violin
-   plots; symbols coloured or sized by a third column; spline and B-spline connectors, fill
-   between two curves, hatched fills for black and white; copy the graph to the clipboard as a
-   picture; X errors in fits (orthogonal distance regression)
+2. Plots Origin has and Kurve lacks, by use: column and bar charts, histograms with bins, box
+   and violin plots; X errors in fits (orthogonal distance regression); a size legend for
+   symbols sized by a column; panels spanning several cells and per-row or per-column shared
+   axes; a map from scattered X, Y, Z (triangulated) rather than from spectra
 3. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
    with its own scale on each side, polygons and curved arrows
 4. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
@@ -2120,8 +2208,23 @@ Next, in order:
   styles and its labels, not its axes, titles or format. Bringing in copies (a later change in
   the other project does not follow), and leaves behind fits, band windows, comments and
   trends; a computed column arrives as its values
-- Several graphs: the X zoom is linked, not Y or the pointer; there are no graph layers or
-  graphs with panels of different spectra, and no keyboard shortcut to step through
+- Figures: every panel takes one cell (cells have `rs`/`cs`, but nothing sets them yet); a
+  figure cannot be a panel of another; sharing X or Y is for the whole figure, not a row or
+  a column; a shared range is the panels' data in the first panel's X units, and a panel in
+  other units keeps its own; the text is small in every panel when the figure's columns are
+  narrower than 400 px; a picture panel shows no readout until clicked
+- Maps: the rows between two spectra are a straight-line interpolation; the side always spans
+  the series (a Y zoom is not followed); contour levels are round numbers (about n), not
+  values chosen one by one; a level whose lines have no stretch 60 px long goes unlabelled; a
+  cut at one value of the series shows the nearest measured spectrum, not one interpolated
+- Styling: symbols sized by a column have no size legend; colour and size are read by
+  recorded row, so a derived spectrum's points take its source's rows; a fill between two
+  spectra is drawn only with overlaid spectra, and only between two spectra (not to a value or
+  the fit); a spline can overshoot between unevenly spaced points; hatching is in the series'
+  colour at one spacing; copying a picture needs a browser that allows images on the
+  clipboard
+- Several graphs: the X zoom is linked, not Y or the pointer (panels of a figure link Y when
+  they share it); there is no keyboard shortcut to step through
   the graphs (the browser keeps Ctrl+Tab); a picture shows no readout until it is clicked. A
   graph's annotations stay on it if one of its spectra moves to another graph
 - A batch import reads each file with the automatic choices (the single-file dialog's
