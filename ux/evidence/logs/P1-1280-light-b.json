@@ -1,0 +1,748 @@
+{
+ "meta": {
+  "run": "P1-1280-light-b",
+  "app": "/home/user/kurve-coldtest/kurve.html",
+  "viewport": [
+   1280,
+   720
+  ],
+  "theme": "light"
+ },
+ "events": [
+  {
+   "t": 7.85,
+   "wall": "2026-10-15T22:32:43+00:00",
+   "task": null,
+   "kind": "open",
+   "target": "http://127.0.0.1:60781/kurve.html",
+   "viewport": "1280x720",
+   "theme": "light"
+  },
+  {
+   "t": 9.728,
+   "wall": "2026-10-15T22:32:45+00:00",
+   "task": "T2",
+   "kind": "task_start",
+   "target": "(continued after the server restart) read slope ± error and R², show line and equation on the graph"
+  },
+  {
+   "t": 10.021,
+   "wall": "2026-10-15T22:32:45+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "t2-reopened",
+   "path": "shots/P1-1280-light-b/01-t2-reopened.png"
+  },
+  {
+   "t": 19.487,
+   "wall": "2026-10-15T22:32:55+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "arrow beside the project name",
+   "x": 1087,
+   "y": 19,
+   "presses": 1
+  },
+  {
+   "t": 20.233,
+   "wall": "2026-10-15T22:32:55+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "t2-project-list",
+   "path": "shots/P1-1280-light-b/02-t2-project-list.png"
+  },
+  {
+   "t": 38.428,
+   "wall": "2026-10-15T22:33:14+00:00",
+   "task": "T2",
+   "kind": "key",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 38.531,
+   "wall": "2026-10-15T22:33:14+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "(rig: the previous browser was killed by the session's time limit and its storage never reached disk; the T2 import is repeated)"
+  },
+  {
+   "t": 38.792,
+   "wall": "2026-10-15T22:33:14+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "text 'File'",
+   "x": 120,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 39.374,
+   "wall": "2026-10-15T22:33:15+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "menuitem 'Import data…'",
+   "x": 215,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 39.534,
+   "wall": "2026-10-15T22:33:15+00:00",
+   "task": "T2",
+   "kind": "choose_file",
+   "target": "calibration.csv",
+   "files": [
+    "calibration.csv"
+   ]
+  },
+  {
+   "t": 40.774,
+   "wall": "2026-10-15T22:33:16+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "button 'Import 3 columns'",
+   "x": 1087,
+   "y": 675,
+   "presses": 1
+  },
+  {
+   "t": 42.151,
+   "wall": "2026-10-15T22:33:17+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "t2-imported-b",
+   "path": "shots/P1-1280-light-b/03-t2-imported-b.png"
+  },
+  {
+   "t": 56.623,
+   "wall": "2026-10-15T22:33:32+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "The toast is gone before I got to it. Select columns A and B and press Plot on the worksheet bar."
+  },
+  {
+   "t": 56.623,
+   "wall": "2026-10-15T22:33:32+00:00",
+   "task": "T2",
+   "kind": "wrong_turn",
+   "text": "Reached for 'Plot it now' after the toast had gone"
+  },
+  {
+   "t": 56.814,
+   "wall": "2026-10-15T22:33:32+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "column A letter",
+   "x": 382,
+   "y": 163,
+   "presses": 1
+  },
+  {
+   "t": 57.129,
+   "wall": "2026-10-15T22:33:32+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "column B letter",
+   "x": 482,
+   "y": 163,
+   "mods": [
+    "Shift"
+   ],
+   "presses": 1
+  },
+  {
+   "t": 57.679,
+   "wall": "2026-10-15T22:33:33+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "worksheet Plot button",
+   "x": 750,
+   "y": 132,
+   "presses": 1
+  },
+  {
+   "t": 58.426,
+   "wall": "2026-10-15T22:33:34+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "t2-ws-plot-menu-b",
+   "path": "shots/P1-1280-light-b/04-t2-ws-plot-menu-b.png"
+  },
+  {
+   "t": 64.572,
+   "wall": "2026-10-15T22:33:40+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "menuitem 'Symbols'",
+   "x": 840,
+   "y": 260,
+   "presses": 1
+  },
+  {
+   "t": 65.89,
+   "wall": "2026-10-15T22:33:41+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "text 'Analysis'",
+   "x": 350,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 66.394,
+   "wall": "2026-10-15T22:33:42+00:00",
+   "task": "T2",
+   "kind": "hover",
+   "target": "Fit",
+   "x": 447,
+   "y": 168
+  },
+  {
+   "t": 67.537,
+   "wall": "2026-10-15T22:33:43+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "menuitem 'Curve fit'",
+   "x": 688,
+   "y": 168,
+   "presses": 1
+  },
+  {
+   "t": 68.842,
+   "wall": "2026-10-15T22:33:44+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "Model list",
+   "x": 1018,
+   "y": 288,
+   "presses": 1
+  },
+  {
+   "t": 69.1,
+   "wall": "2026-10-15T22:33:44+00:00",
+   "task": "T2",
+   "kind": "key",
+   "keys": "ArrowUp",
+   "presses": 3
+  },
+  {
+   "t": 69.247,
+   "wall": "2026-10-15T22:33:45+00:00",
+   "task": "T2",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 69.989,
+   "wall": "2026-10-15T22:33:45+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "t2-linear-b",
+   "path": "shots/P1-1280-light-b/05-t2-linear-b.png"
+  },
+  {
+   "t": 77.279,
+   "wall": "2026-10-15T22:33:53+00:00",
+   "task": "T2",
+   "kind": "finding",
+   "text": "At 1280×720, plotting from the worksheet puts the graph in a 280 px strip between the worksheet and the Fit window; points beyond 30 mg/L are hidden under the Fit window."
+  },
+  {
+   "t": 77.482,
+   "wall": "2026-10-15T22:33:53+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "Model list",
+   "x": 1018,
+   "y": 253,
+   "presses": 1
+  },
+  {
+   "t": 77.741,
+   "wall": "2026-10-15T22:33:53+00:00",
+   "task": "T2",
+   "kind": "key",
+   "keys": "ArrowUp",
+   "presses": 3
+  },
+  {
+   "t": 77.897,
+   "wall": "2026-10-15T22:33:53+00:00",
+   "task": "T2",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 78.69,
+   "wall": "2026-10-15T22:33:54+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "button 'Fit'",
+   "x": 999,
+   "y": 590,
+   "presses": 1
+  },
+  {
+   "t": 80.245,
+   "wall": "2026-10-15T22:33:56+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "t2-fitted-b",
+   "path": "shots/P1-1280-light-b/06-t2-fitted-b.png"
+  },
+  {
+   "t": 88.815,
+   "wall": "2026-10-15T22:34:04+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "Slope and R squared readable, same as before. The graph is a sliver behind three windows. Maximise it and type the equation as text, as I had to before."
+  },
+  {
+   "t": 88.816,
+   "wall": "2026-10-15T22:34:04+00:00",
+   "task": "T2",
+   "kind": "finding",
+   "text": "At 1280×720 after a fit, the graph shows about 270×270 px between the worksheet, the Fit window and Results; the fitted line cannot be checked without rearranging windows."
+  },
+  {
+   "t": 89.087,
+   "wall": "2026-10-15T22:34:04+00:00",
+   "task": "T2",
+   "kind": "dblclick",
+   "target": "graph title bar",
+   "x": 700,
+   "y": 99,
+   "presses": 2
+  },
+  {
+   "t": 90.194,
+   "wall": "2026-10-15T22:34:05+00:00",
+   "task": "T2",
+   "kind": "rightclick",
+   "target": "upper left of the plot",
+   "x": 500,
+   "y": 250,
+   "presses": 1
+  },
+  {
+   "t": 90.958,
+   "wall": "2026-10-15T22:34:06+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "text 'Text here…'",
+   "x": 656,
+   "y": 620,
+   "presses": 1
+  },
+  {
+   "t": 92.848,
+   "wall": "2026-10-15T22:34:08+00:00",
+   "task": "T2",
+   "kind": "type",
+   "text": "y = 0.02420x + 0.0139, R^{2} = 0.9994",
+   "keys": 37
+  },
+  {
+   "t": 92.955,
+   "wall": "2026-10-15T22:34:08+00:00",
+   "task": "T2",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 93.865,
+   "wall": "2026-10-15T22:34:09+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "t2-eq-b",
+   "path": "shots/P1-1280-light-b/07-t2-eq-b.png"
+  },
+  {
+   "t": 100.822,
+   "wall": "2026-10-15T22:34:16+00:00",
+   "task": "T2",
+   "kind": "task_end",
+   "success": "partial",
+   "note": "as at 1366: numbers readable, equation only as typed text; the graph was a 270 px strip under the Fit and Results windows until maximised"
+  },
+  {
+   "t": 100.823,
+   "wall": "2026-10-15T22:34:16+00:00",
+   "task": "T8",
+   "kind": "task_start",
+   "target": "raman_raw.txt: remove spikes, subtract baseline, find and fit the peaks, table with errors"
+  },
+  {
+   "t": 101.042,
+   "wall": "2026-10-15T22:34:16+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "text 'File'",
+   "x": 120,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 101.623,
+   "wall": "2026-10-15T22:34:17+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "menuitem 'Import data…'",
+   "x": 215,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 101.809,
+   "wall": "2026-10-15T22:34:17+00:00",
+   "task": "T8",
+   "kind": "choose_file",
+   "target": "raman_raw.txt",
+   "files": [
+    "raman_raw.txt"
+   ]
+  },
+  {
+   "t": 102.95,
+   "wall": "2026-10-15T22:34:18+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Import 2 columns'",
+   "x": 1087,
+   "y": 675,
+   "presses": 1
+  },
+  {
+   "t": 104.292,
+   "wall": "2026-10-15T22:34:20+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "t8-imported-1280",
+   "path": "shots/P1-1280-light-b/08-t8-imported-1280.png"
+  },
+  {
+   "t": 110.854,
+   "wall": "2026-10-15T22:34:26+00:00",
+   "task": "T8",
+   "kind": "finding",
+   "text": "At 1280×720, a new project from an import opens with the previous project's Fit window (Gaussian peak, Curve fit) and an empty Results window still on the desk; the worksheet is 320 px wide."
+  },
+  {
+   "t": 117.158,
+   "wall": "2026-10-15T22:34:32+00:00",
+   "task": "T8",
+   "kind": "wrong_turn",
+   "text": "The toast with 'Plot it now' was gone again before it could be clicked"
+  },
+  {
+   "t": 117.343,
+   "wall": "2026-10-15T22:34:33+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "column A letter",
+   "x": 382,
+   "y": 163,
+   "presses": 1
+  },
+  {
+   "t": 117.66,
+   "wall": "2026-10-15T22:34:33+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "column B letter",
+   "x": 482,
+   "y": 163,
+   "mods": [
+    "Shift"
+   ],
+   "presses": 1
+  },
+  {
+   "t": 117.973,
+   "wall": "2026-10-15T22:34:33+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "worksheet Plot icon",
+   "x": 488,
+   "y": 133,
+   "presses": 1
+  },
+  {
+   "t": 118.803,
+   "wall": "2026-10-15T22:34:34+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "menuitem 'Line'",
+   "x": 594,
+   "y": 232,
+   "presses": 1
+  },
+  {
+   "t": 120.251,
+   "wall": "2026-10-15T22:34:36+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "close Fit",
+   "x": 1263,
+   "y": 99,
+   "presses": 1
+  },
+  {
+   "t": 120.986,
+   "wall": "2026-10-15T22:34:36+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "t8-plotted-1280",
+   "path": "shots/P1-1280-light-b/09-t8-plotted-1280.png"
+  },
+  {
+   "t": 128.36,
+   "wall": "2026-10-15T22:34:44+00:00",
+   "task": "T8",
+   "kind": "finding",
+   "text": "At 1280×720 the spectrum's graph opens 320×290 px in the lower left, the worksheet above it squeezed to two rows, while the middle of the desk stays empty grey."
+  },
+  {
+   "t": 128.63,
+   "wall": "2026-10-15T22:34:44+00:00",
+   "task": "T8",
+   "kind": "dblclick",
+   "target": "graph title bar",
+   "x": 400,
+   "y": 388,
+   "presses": 2
+  },
+  {
+   "t": 129.771,
+   "wall": "2026-10-15T22:34:45+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "text 'Data'",
+   "x": 246,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 130.292,
+   "wall": "2026-10-15T22:34:46+00:00",
+   "task": "T8",
+   "kind": "hover",
+   "target": "Clean",
+   "x": 338,
+   "y": 204
+  },
+  {
+   "t": 131.456,
+   "wall": "2026-10-15T22:34:47+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "menuitem 'Remove cosmic-ray spikes…'",
+   "x": 565,
+   "y": 288,
+   "presses": 1
+  },
+  {
+   "t": 132.799,
+   "wall": "2026-10-15T22:34:48+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "t8-despike-1280",
+   "path": "shots/P1-1280-light-b/10-t8-despike-1280.png"
+  },
+  {
+   "t": 139.447,
+   "wall": "2026-10-15T22:34:55+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'OK'",
+   "x": 950,
+   "y": 543,
+   "presses": 1
+  },
+  {
+   "t": 140.588,
+   "wall": "2026-10-15T22:34:56+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "text 'Analysis'",
+   "x": 350,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 141.23,
+   "wall": "2026-10-15T22:34:56+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "menuitem 'Subtract background…'",
+   "x": 447,
+   "y": 232,
+   "presses": 1
+  },
+  {
+   "t": 142.568,
+   "wall": "2026-10-15T22:34:58+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "t8-bg-1280",
+   "path": "shots/P1-1280-light-b/11-t8-bg-1280.png"
+  },
+  {
+   "t": 142.824,
+   "wall": "2026-10-15T22:34:58+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'OK'",
+   "x": 950,
+   "y": 506,
+   "presses": 1
+  },
+  {
+   "t": 143.953,
+   "wall": "2026-10-15T22:34:59+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "text 'Analysis'",
+   "x": 350,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 144.475,
+   "wall": "2026-10-15T22:35:00+00:00",
+   "task": "T8",
+   "kind": "hover",
+   "target": "Fit",
+   "x": 447,
+   "y": 168
+  },
+  {
+   "t": 145.641,
+   "wall": "2026-10-15T22:35:01+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "menuitem 'Peak fit'",
+   "x": 688,
+   "y": 196,
+   "presses": 1
+  },
+  {
+   "t": 147.194,
+   "wall": "2026-10-15T22:35:02+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "t8-peakfit-1280",
+   "path": "shots/P1-1280-light-b/12-t8-peakfit-1280.png"
+  },
+  {
+   "t": 155.131,
+   "wall": "2026-10-15T22:35:10+00:00",
+   "task": "T8",
+   "kind": "finding",
+   "text": "At 1280×720 the Peak fit window covers 1100–1800 cm⁻¹ of the spectrum: five of the nine bands (both doublets) are hidden under it while peaks are being found."
+  },
+  {
+   "t": 155.292,
+   "wall": "2026-10-15T22:35:11+00:00",
+   "task": "T8",
+   "kind": "wheel",
+   "target": "scroll Fit window",
+   "x": 1060,
+   "y": 450,
+   "dx": 0,
+   "dy": 600
+  },
+  {
+   "t": 156.256,
+   "wall": "2026-10-15T22:35:12+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Use these 9 peaks'",
+   "x": 950,
+   "y": 389,
+   "presses": 1
+  },
+  {
+   "t": 157.967,
+   "wall": "2026-10-15T22:35:13+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Fit 9 peaks'",
+   "x": 964,
+   "y": 635,
+   "presses": 1
+  },
+  {
+   "t": 160.843,
+   "wall": "2026-10-15T22:35:16+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "t8-fitted-1280",
+   "path": "shots/P1-1280-light-b/13-t8-fitted-1280.png"
+  },
+  {
+   "t": 161.157,
+   "wall": "2026-10-15T22:35:16+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Copy table'",
+   "x": 312,
+   "y": 533,
+   "presses": 1
+  },
+  {
+   "t": 161.585,
+   "wall": "2026-10-15T22:35:17+00:00",
+   "task": "T8",
+   "kind": "task_end",
+   "success": "success",
+   "note": "same path as at 1366; with less room the tool windows hide most of the spectrum, and the 'Plot it now' toast was gone before it could be used"
+  },
+  {
+   "t": 169.935,
+   "wall": "2026-10-15T22:35:25+00:00",
+   "task": null,
+   "kind": "finding",
+   "text": "At 1280×720 after the peak fit, Results shows two of the nine peak rows without scrolling, and with the Fit window covers all but the left 30% of the graph."
+  },
+  {
+   "t": 169.948,
+   "wall": "2026-10-15T22:35:25+00:00",
+   "task": null,
+   "kind": "close",
+   "errors": []
+  }
+ ],
+ "summary": {
+  "T2": {
+   "title": "(continued after the server restart) read slope ± error and R², show line and equation on the graph",
+   "success": "partial",
+   "clicks": 17,
+   "keys": 47,
+   "drags": 0,
+   "wrong_turns": 1,
+   "guesses": 0,
+   "help": 0,
+   "shots": 7,
+   "seconds": 91.1,
+   "klm_seconds": 58.2
+  },
+  "T8": {
+   "title": "raman_raw.txt: remove spikes, subtract baseline, find and fit the peaks, table with errors",
+   "success": "success",
+   "clicks": 21,
+   "keys": 0,
+   "drags": 0,
+   "wrong_turns": 1,
+   "guesses": 0,
+   "help": 0,
+   "shots": 6,
+   "seconds": 60.8,
+   "klm_seconds": 55.6
+  }
+ }
+}

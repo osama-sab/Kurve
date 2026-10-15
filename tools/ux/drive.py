@@ -416,11 +416,16 @@ class Rig:
             elif k == "task_end":
                 s["success"] = ev.get("success")
                 s["seconds"] = round(ev["t"] - start.get(tid, ev["t"]), 1)
+        # A person's time by the keystroke-level model (Card, Moran and Newell): each click a
+        # decision, a point and a press (1.35 + 1.1 + 0.2 s), each key 0.28 s, a drag one more
+        # point. The rig's own seconds include the driver's thinking between steps.
+        for s in out.values():
+            s["klm_seconds"] = round(s["clicks"] * 2.65 + s["keys"] * 0.28 + s["drags"] * 1.1, 1)
         return out
 
     def report(self):
         for tid, s in self.summary().items():
-            print(f"{tid}: {s['success']} | clicks {s['clicks']} | keys {s['keys']} | {s['seconds']} s | "
+            print(f"{tid}: {s['success']} | clicks {s['clicks']} | keys {s['keys']} | {s['seconds']} s (KLM {s['klm_seconds']} s) | "
                   f"wrong turns {s['wrong_turns']} | guesses {s['guesses']} | help {s['help']} | shots {s['shots']}")
         if self.errors:
             print("page errors:", *self.errors[:5], sep="\n  ")

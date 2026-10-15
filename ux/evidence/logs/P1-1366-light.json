@@ -1,0 +1,6221 @@
+{
+ "meta": {
+  "run": "P1-1366-light",
+  "app": "/home/user/kurve-coldtest/kurve.html",
+  "viewport": [
+   1366,
+   768
+  ],
+  "theme": "light"
+ },
+ "events": [
+  {
+   "t": 0.943,
+   "wall": "2026-10-15T17:38:20+00:00",
+   "task": null,
+   "kind": "open",
+   "target": "http://127.0.0.1:32801/kurve.html",
+   "viewport": "1366x768",
+   "theme": "light"
+  },
+  {
+   "t": 2.741,
+   "wall": "2026-10-15T17:38:21+00:00",
+   "task": "T1",
+   "kind": "task_start",
+   "target": "A: type 6 x,y pairs, scatter plot, axis titles with units, export PNG"
+  },
+  {
+   "t": 2.742,
+   "wall": "2026-10-15T17:38:21+00:00",
+   "task": "T1",
+   "kind": "say",
+   "text": "OK, a new app. Where do I type my numbers?"
+  },
+  {
+   "t": 3.065,
+   "wall": "2026-10-15T17:38:22+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "first-screen",
+   "path": "shots/P1-1366-light/01-first-screen.png"
+  },
+  {
+   "t": 12.188,
+   "wall": "2026-10-15T17:38:31+00:00",
+   "task": "T1",
+   "kind": "say",
+   "text": "'Bring in a spectrum or a curve'? I don't have a spectrum, I just want to type six numbers. The big middle window wants a file."
+  },
+  {
+   "t": 12.189,
+   "wall": "2026-10-15T17:38:31+00:00",
+   "task": "T1",
+   "kind": "say",
+   "text": "There's a little table bottom-right called Worksheet. It shows one row. Is that where I type?"
+  },
+  {
+   "t": 12.19,
+   "wall": "2026-10-15T17:38:31+00:00",
+   "task": "T1",
+   "kind": "finding",
+   "text": "First screen at 1366x768: the worksheet is the smallest window and shows exactly one data row under five label rows; the empty graph and an empty History take most of the desk."
+  },
+  {
+   "t": 12.388,
+   "wall": "2026-10-15T17:38:31+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "worksheet cell A1",
+   "x": 1074,
+   "y": 672,
+   "presses": 1
+  },
+  {
+   "t": 12.566,
+   "wall": "2026-10-15T17:38:31+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "1",
+   "keys": 1
+  },
+  {
+   "t": 12.654,
+   "wall": "2026-10-15T17:38:31+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 12.891,
+   "wall": "2026-10-15T17:38:32+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "2.1",
+   "keys": 3
+  },
+  {
+   "t": 13.146,
+   "wall": "2026-10-15T17:38:32+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 13.584,
+   "wall": "2026-10-15T17:38:32+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "typed-first-pair",
+   "path": "shots/P1-1366-light/02-typed-first-pair.png"
+  },
+  {
+   "t": 22.566,
+   "wall": "2026-10-15T17:38:41+00:00",
+   "task": "T1",
+   "kind": "say",
+   "text": "It plotted after one point. Fine. But the table scrolled and I can only see the row I'm typing in, not what I typed above."
+  },
+  {
+   "t": 22.567,
+   "wall": "2026-10-15T17:38:41+00:00",
+   "task": "T1",
+   "kind": "finding",
+   "text": "While typing, the worksheet shows only the current row: earlier rows scroll out of a one-row window."
+  },
+  {
+   "t": 22.567,
+   "wall": "2026-10-15T17:38:41+00:00",
+   "task": "T1",
+   "kind": "finding",
+   "text": "History, unasked, shows 'Recorded data 2 columns · e563fbf5cf90', 'column B Raw · 1 points' and 'What the fit, the peak finder and the exports use'; the worksheet footer shows a sha256 link."
+  },
+  {
+   "t": 22.617,
+   "wall": "2026-10-15T17:38:41+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "2",
+   "keys": 1
+  },
+  {
+   "t": 22.72,
+   "wall": "2026-10-15T17:38:41+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 22.952,
+   "wall": "2026-10-15T17:38:42+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "3.9",
+   "keys": 3
+  },
+  {
+   "t": 23.033,
+   "wall": "2026-10-15T17:38:42+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 23.18,
+   "wall": "2026-10-15T17:38:42+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "3",
+   "keys": 1
+  },
+  {
+   "t": 23.274,
+   "wall": "2026-10-15T17:38:42+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 23.503,
+   "wall": "2026-10-15T17:38:42+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "6.2",
+   "keys": 3
+  },
+  {
+   "t": 23.584,
+   "wall": "2026-10-15T17:38:42+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 23.734,
+   "wall": "2026-10-15T17:38:42+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "4",
+   "keys": 1
+  },
+  {
+   "t": 23.82,
+   "wall": "2026-10-15T17:38:42+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 24.048,
+   "wall": "2026-10-15T17:38:43+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "7.8",
+   "keys": 3
+  },
+  {
+   "t": 24.133,
+   "wall": "2026-10-15T17:38:43+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 24.279,
+   "wall": "2026-10-15T17:38:43+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "5",
+   "keys": 1
+  },
+  {
+   "t": 24.37,
+   "wall": "2026-10-15T17:38:43+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 24.652,
+   "wall": "2026-10-15T17:38:43+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "10.1",
+   "keys": 4
+  },
+  {
+   "t": 24.738,
+   "wall": "2026-10-15T17:38:43+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 24.887,
+   "wall": "2026-10-15T17:38:44+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "6",
+   "keys": 1
+  },
+  {
+   "t": 24.987,
+   "wall": "2026-10-15T17:38:44+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 25.265,
+   "wall": "2026-10-15T17:38:44+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "12.2",
+   "keys": 4
+  },
+  {
+   "t": 25.363,
+   "wall": "2026-10-15T17:38:44+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 25.741,
+   "wall": "2026-10-15T17:38:44+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "six-pairs-typed",
+   "path": "shots/P1-1366-light/03-six-pairs-typed.png"
+  },
+  {
+   "t": 33.985,
+   "wall": "2026-10-15T17:38:53+00:00",
+   "task": "T1",
+   "kind": "say",
+   "text": "Oh, it's already a scatter plot. Good. Now axis titles. In Excel I'd click the title and type over it. Let me double-click that 'X'."
+  },
+  {
+   "t": 34.292,
+   "wall": "2026-10-15T17:38:53+00:00",
+   "task": "T1",
+   "kind": "dblclick",
+   "target": "x-axis title 'X'",
+   "x": 619,
+   "y": 676,
+   "presses": 2
+  },
+  {
+   "t": 34.673,
+   "wall": "2026-10-15T17:38:53+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "dblclick-x-title",
+   "path": "shots/P1-1366-light/04-dblclick-x-title.png"
+  },
+  {
+   "t": 40.577,
+   "wall": "2026-10-15T17:38:59+00:00",
+   "task": "T1",
+   "kind": "say",
+   "text": "A box opened, good. 'LaTeX: x^{2} H_{2}O \\alpha' — no idea what that is, ignoring it. Typing my title."
+  },
+  {
+   "t": 40.911,
+   "wall": "2026-10-15T17:39:00+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "Time (s)",
+   "keys": 8
+  },
+  {
+   "t": 41.009,
+   "wall": "2026-10-15T17:39:00+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 41.113,
+   "wall": "2026-10-15T17:39:00+00:00",
+   "task": "T1",
+   "kind": "say",
+   "text": "Now the Y one, same trick."
+  },
+  {
+   "t": 41.392,
+   "wall": "2026-10-15T17:39:00+00:00",
+   "task": "T1",
+   "kind": "dblclick",
+   "target": "y-axis title 'Y'",
+   "x": 283,
+   "y": 404,
+   "presses": 2
+  },
+  {
+   "t": 41.791,
+   "wall": "2026-10-15T17:39:00+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "dblclick-y-title",
+   "path": "shots/P1-1366-light/05-dblclick-y-title.png"
+  },
+  {
+   "t": 54.954,
+   "wall": "2026-10-15T17:39:14+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "Distance (m)",
+   "keys": 12
+  },
+  {
+   "t": 55.06,
+   "wall": "2026-10-15T17:39:14+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 55.165,
+   "wall": "2026-10-15T17:39:14+00:00",
+   "task": "T1",
+   "kind": "say",
+   "text": "Titles done. Now save it as a PNG. In Excel I'd right-click the chart, 'Save as Picture'."
+  },
+  {
+   "t": 55.357,
+   "wall": "2026-10-15T17:39:14+00:00",
+   "task": "T1",
+   "kind": "rightclick",
+   "target": "graph area (right-click)",
+   "x": 600,
+   "y": 300,
+   "presses": 1
+  },
+  {
+   "t": 55.743,
+   "wall": "2026-10-15T17:39:14+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "graph-rightclick",
+   "path": "shots/P1-1366-light/06-graph-rightclick.png"
+  },
+  {
+   "t": 62.835,
+   "wall": "2026-10-15T17:39:21+00:00",
+   "task": "T1",
+   "kind": "say",
+   "text": "Colours, plot type, lines, arrows... no 'Save as picture' here. Is there more below? The menu runs off the bottom of the screen."
+  },
+  {
+   "t": 62.837,
+   "wall": "2026-10-15T17:39:21+00:00",
+   "task": "T1",
+   "kind": "finding",
+   "text": "Graph right-click menu at 1366x768 is taller than the screen; its end (export, format) is cut off."
+  },
+  {
+   "t": 62.966,
+   "wall": "2026-10-15T17:39:22+00:00",
+   "task": "T1",
+   "kind": "wheel",
+   "target": "scroll the context menu",
+   "x": 745,
+   "y": 700,
+   "dx": 0,
+   "dy": 300
+  },
+  {
+   "t": 63.429,
+   "wall": "2026-10-15T17:39:22+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "graph-rightclick-scrolled",
+   "path": "shots/P1-1366-light/07-graph-rightclick-scrolled.png"
+  },
+  {
+   "t": 68.57,
+   "wall": "2026-10-15T17:39:27+00:00",
+   "task": "T1",
+   "kind": "say",
+   "text": "There: 'Export the figure'. Also 'Find and mark peaks' and 'Integrate bands' on my distance-vs-time chart, odd."
+  },
+  {
+   "t": 68.683,
+   "wall": "2026-10-15T17:39:27+00:00",
+   "task": "T1",
+   "kind": "hover",
+   "target": "Export the figure",
+   "x": 683,
+   "y": 751
+  },
+  {
+   "t": 69.856,
+   "wall": "2026-10-15T17:39:28+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "export-submenu",
+   "path": "shots/P1-1366-light/08-export-submenu.png"
+  },
+  {
+   "t": 75.391,
+   "wall": "2026-10-15T17:39:34+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "As PNG (image, for slides)",
+   "x": 1000,
+   "y": 742,
+   "presses": 1
+  },
+  {
+   "t": 75.811,
+   "wall": "2026-10-15T17:39:34+00:00",
+   "task": "T1",
+   "kind": "download",
+   "target": "export PNG",
+   "file": "downloads/P1-1366-light/Untitled_analysis.png",
+   "suggested": "Untitled_analysis.png"
+  },
+  {
+   "t": 76.063,
+   "wall": "2026-10-15T17:39:35+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "after-png-export",
+   "path": "shots/P1-1366-light/09-after-png-export.png"
+  },
+  {
+   "t": 76.065,
+   "wall": "2026-10-15T17:39:35+00:00",
+   "task": "T1",
+   "kind": "task_end",
+   "success": "yes",
+   "note": "PNG saved with both titles; export found only by scrolling a context menu taller than the screen"
+  },
+  {
+   "t": 83.403,
+   "wall": "2026-10-15T17:39:42+00:00",
+   "task": "T2",
+   "kind": "task_start",
+   "target": "A: fit a straight line to calibration.csv, read slope ± error and R², show line and equation on the graph"
+  },
+  {
+   "t": 83.405,
+   "wall": "2026-10-15T17:39:42+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "Next: my calibration file. File menu, Open."
+  },
+  {
+   "t": 83.7,
+   "wall": "2026-10-15T17:39:42+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "button 'File'",
+   "x": 120,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 84.074,
+   "wall": "2026-10-15T17:39:43+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "file-menu",
+   "path": "shots/P1-1366-light/10-file-menu.png"
+  },
+  {
+   "t": 89.982,
+   "wall": "2026-10-15T17:39:49+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "No Open, no Save... 'Import data…' then. Do I lose my first graph? There's no Save. It says 'Saved in this browser' at the bottom, so maybe it saves itself."
+  },
+  {
+   "t": 90.197,
+   "wall": "2026-10-15T17:39:49+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "menuitem 'Import data…'",
+   "x": 215,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 90.351,
+   "wall": "2026-10-15T17:39:49+00:00",
+   "task": "T2",
+   "kind": "choose_file",
+   "target": "calibration.csv",
+   "files": [
+    "calibration.csv"
+   ]
+  },
+  {
+   "t": 91.114,
+   "wall": "2026-10-15T17:39:50+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "import-dialog",
+   "path": "shots/P1-1366-light/11-import-dialog.png"
+  },
+  {
+   "t": 99.127,
+   "wall": "2026-10-15T17:39:58+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "A preview, good. 'Y, a spectrum'? It's absorbance, not a spectrum, whatever. It even spotted the SD column. I'll just press the blue button."
+  },
+  {
+   "t": 99.129,
+   "wall": "2026-10-15T17:39:58+00:00",
+   "task": "T2",
+   "kind": "guess",
+   "text": "Accepted the default 'Add these columns, keeping what is here' without knowing what it does to the first graph"
+  },
+  {
+   "t": 99.615,
+   "wall": "2026-10-15T17:39:58+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "button 'Import 3 columns'",
+   "x": 1130,
+   "y": 723,
+   "presses": 1
+  },
+  {
+   "t": 100.024,
+   "wall": "2026-10-15T17:39:59+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "after-import",
+   "path": "shots/P1-1366-light/12-after-import.png"
+  },
+  {
+   "t": 109.563,
+   "wall": "2026-10-15T17:40:08+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "Wait. The graph now shows my calibration points, but the axis still says 'Distance (m)'. And the message says 'not plotted yet'? It IS plotted. Where did my distance points go?"
+  },
+  {
+   "t": 109.565,
+   "wall": "2026-10-15T17:40:08+00:00",
+   "task": "T2",
+   "kind": "finding",
+   "text": "After importing into a project with typed data, the graph switches to the new data but keeps the old graph's typed axis title ('Distance (m)' over absorbance); the toast says the new columns are 'not plotted yet' while the graph shows them; the typed points vanish from view."
+  },
+  {
+   "t": 121.817,
+   "wall": "2026-10-15T17:40:20+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "toast-gone",
+   "path": "shots/P1-1366-light/13-toast-gone.png"
+  },
+  {
+   "t": 130.284,
+   "wall": "2026-10-15T17:40:29+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "And now it's absorbance against concentration but labelled 'Time (s)' and 'Distance (m)'. My titles stuck to the graph, not to my data. I'll fix that later."
+  },
+  {
+   "t": 130.288,
+   "wall": "2026-10-15T17:40:29+00:00",
+   "task": "T2",
+   "kind": "finding",
+   "text": "Axis titles typed for one data set stay on the graph when it switches to another data set: absorbance vs concentration is drawn under 'Time (s)' and 'Distance (m)'."
+  },
+  {
+   "t": 130.291,
+   "wall": "2026-10-15T17:40:29+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "Fit a line. In Excel: right-click the points, Add Trendline."
+  },
+  {
+   "t": 130.51,
+   "wall": "2026-10-15T17:40:29+00:00",
+   "task": "T2",
+   "kind": "rightclick",
+   "target": "a data point (right-click)",
+   "x": 619,
+   "y": 400,
+   "presses": 1
+  },
+  {
+   "t": 130.907,
+   "wall": "2026-10-15T17:40:30+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "point-rightclick",
+   "path": "shots/P1-1366-light/14-point-rightclick.png"
+  },
+  {
+   "t": 136.842,
+   "wall": "2026-10-15T17:40:35+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "No trendline. 'Label the peak at 20'? It's a calibration point, not a peak."
+  },
+  {
+   "t": 136.844,
+   "wall": "2026-10-15T17:40:35+00:00",
+   "task": "T2",
+   "kind": "wrong_turn",
+   "text": "Right-clicked the data for 'Add trendline' (Excel habit); the menu has no fit"
+  },
+  {
+   "t": 136.901,
+   "wall": "2026-10-15T17:40:36+00:00",
+   "task": "T2",
+   "kind": "key",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 137.005,
+   "wall": "2026-10-15T17:40:36+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "Analysis menu, then."
+  },
+  {
+   "t": 137.229,
+   "wall": "2026-10-15T17:40:36+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "button 'Analysis'",
+   "x": 350,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 137.618,
+   "wall": "2026-10-15T17:40:36+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "analysis-menu",
+   "path": "shots/P1-1366-light/15-analysis-menu.png"
+  },
+  {
+   "t": 142.8,
+   "wall": "2026-10-15T17:40:41+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "Mostly peaks and spectroscopy. 'Fit' is in the middle."
+  },
+  {
+   "t": 142.912,
+   "wall": "2026-10-15T17:40:42+00:00",
+   "task": "T2",
+   "kind": "hover",
+   "target": "Fit submenu",
+   "x": 360,
+   "y": 166
+  },
+  {
+   "t": 144.075,
+   "wall": "2026-10-15T17:40:43+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "fit-submenu",
+   "path": "shots/P1-1366-light/16-fit-submenu.png"
+  },
+  {
+   "t": 148.827,
+   "wall": "2026-10-15T17:40:47+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "'Curve fit' or 'Peak fit'. A line is a curve, I suppose. No 'Linear fit' anywhere."
+  },
+  {
+   "t": 148.829,
+   "wall": "2026-10-15T17:40:47+00:00",
+   "task": "T2",
+   "kind": "guess",
+   "text": "Picked 'Curve fit' hoping a straight line is in it"
+  },
+  {
+   "t": 149.059,
+   "wall": "2026-10-15T17:40:48+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "Curve fit",
+   "x": 632,
+   "y": 166,
+   "presses": 1
+  },
+  {
+   "t": 149.431,
+   "wall": "2026-10-15T17:40:48+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "curve-fit-window",
+   "path": "shots/P1-1366-light/17-curve-fit-window.png"
+  },
+  {
+   "t": 156.968,
+   "wall": "2026-10-15T17:40:56+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "'Gaussian peak'?! My data is a straight line. And this window covers the right side of my graph, the top point is hidden behind it."
+  },
+  {
+   "t": 156.97,
+   "wall": "2026-10-15T17:40:56+00:00",
+   "task": "T2",
+   "kind": "finding",
+   "text": "Curve fit on linear calibration data defaults to 'Gaussian peak'."
+  },
+  {
+   "t": 156.972,
+   "wall": "2026-10-15T17:40:56+00:00",
+   "task": "T2",
+   "kind": "finding",
+   "text": "The Fit window opens over the right third of the graph and hides the highest data point."
+  },
+  {
+   "t": 156.974,
+   "wall": "2026-10-15T17:40:56+00:00",
+   "task": "T2",
+   "kind": "finding",
+   "text": "'Weight by the Y error column' is already on: the SD column became error bars at import without the user deciding to weight."
+  },
+  {
+   "t": 157.184,
+   "wall": "2026-10-15T17:40:56+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "Model dropdown",
+   "x": 1080,
+   "y": 288,
+   "presses": 1
+  },
+  {
+   "t": 157.583,
+   "wall": "2026-10-15T17:40:56+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "model-dropdown",
+   "path": "shots/P1-1366-light/18-model-dropdown.png"
+  },
+  {
+   "t": 252.205,
+   "wall": "2026-10-15T17:42:31+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "Linear",
+   "x": 959,
+   "y": 97,
+   "presses": 1
+  },
+  {
+   "t": 253.002,
+   "wall": "2026-10-15T17:42:32+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "linear-chosen",
+   "path": "shots/P1-1366-light/19-linear-chosen.png"
+  },
+  {
+   "t": 259.184,
+   "wall": "2026-10-15T17:42:38+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "(rig: the native list's popup did not take the click in headless Chromium; choosing with the keys, as a person could)"
+  },
+  {
+   "t": 259.388,
+   "wall": "2026-10-15T17:42:38+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "Model dropdown",
+   "x": 1086,
+   "y": 288,
+   "presses": 1
+  },
+  {
+   "t": 259.661,
+   "wall": "2026-10-15T17:42:38+00:00",
+   "task": "T2",
+   "kind": "key",
+   "target": "move up the list",
+   "keys": "ArrowUp",
+   "presses": 3
+  },
+  {
+   "t": 259.827,
+   "wall": "2026-10-15T17:42:38+00:00",
+   "task": "T2",
+   "kind": "key",
+   "target": "choose",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 260.589,
+   "wall": "2026-10-15T17:42:39+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "linear-chosen-2",
+   "path": "shots/P1-1366-light/20-linear-chosen-2.png"
+  },
+  {
+   "t": 265.839,
+   "wall": "2026-10-15T17:42:44+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "y = a + bx. OK, b is the slope. Weight by the Y error column, 1 over sigma squared... I don't know if I want that. Excel never asked. I'll leave it."
+  },
+  {
+   "t": 265.841,
+   "wall": "2026-10-15T17:42:44+00:00",
+   "task": "T2",
+   "kind": "guess",
+   "text": "Left 'Weight by the Y error column (1/σ²)' on without knowing what it changes"
+  },
+  {
+   "t": 266.215,
+   "wall": "2026-10-15T17:42:45+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "button 'Fit'",
+   "x": 1067,
+   "y": 608,
+   "presses": 1
+  },
+  {
+   "t": 267.022,
+   "wall": "2026-10-15T17:42:46+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "after-fit",
+   "path": "shots/P1-1366-light/21-after-fit.png"
+  },
+  {
+   "t": 273.946,
+   "wall": "2026-10-15T17:42:53+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "Slope 0.02420 plus or minus 0.00021, R squared 0.9994. Got those. But this Results window landed on top of my graph. Now the equation on the chart, like Excel's 'Display equation on chart'. Right-click the line."
+  },
+  {
+   "t": 278.458,
+   "wall": "2026-10-15T17:42:57+00:00",
+   "task": "T2",
+   "kind": "rightclick",
+   "target": "the red fit line",
+   "x": 700,
+   "y": 301,
+   "presses": 1
+  },
+  {
+   "t": 279.274,
+   "wall": "2026-10-15T17:42:58+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "fitline-rightclick",
+   "path": "shots/P1-1366-light/22-fitline-rightclick.png"
+  },
+  {
+   "t": 284.76,
+   "wall": "2026-10-15T17:43:03+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "This menu is about the data points, 'Absorbance (analysed)'. Nothing about the fit or an equation. Maybe further down."
+  },
+  {
+   "t": 284.907,
+   "wall": "2026-10-15T17:43:04+00:00",
+   "task": "T2",
+   "kind": "wheel",
+   "target": "scroll the menu",
+   "x": 845,
+   "y": 600,
+   "dx": 0,
+   "dy": 400
+  },
+  {
+   "t": 285.801,
+   "wall": "2026-10-15T17:43:04+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "fitline-menu-scrolled",
+   "path": "shots/P1-1366-light/23-fitline-menu-scrolled.png"
+  },
+  {
+   "t": 291.433,
+   "wall": "2026-10-15T17:43:10+00:00",
+   "task": "T2",
+   "kind": "wrong_turn",
+   "text": "Right-clicked the fit line looking for 'Display equation on chart': the menu is the data series' and lists no fit or equation option"
+  },
+  {
+   "t": 291.436,
+   "wall": "2026-10-15T17:43:10+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "Nothing says equation. The pointer passing over the list opened a Legend submenu by itself. Let me close this and try the Plot menu."
+  },
+  {
+   "t": 291.497,
+   "wall": "2026-10-15T17:43:10+00:00",
+   "task": "T2",
+   "kind": "key",
+   "target": "close menu",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 291.647,
+   "wall": "2026-10-15T17:43:10+00:00",
+   "task": "T2",
+   "kind": "key",
+   "target": "close menu",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 291.991,
+   "wall": "2026-10-15T17:43:11+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "text 'Plot'",
+   "x": 584,
+   "y": 131,
+   "presses": 1
+  },
+  {
+   "t": 292.78,
+   "wall": "2026-10-15T17:43:11+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "graph-plot-menu",
+   "path": "shots/P1-1366-light/24-graph-plot-menu.png"
+  },
+  {
+   "t": 296.308,
+   "wall": "2026-10-15T17:43:15+00:00",
+   "task": "T2",
+   "kind": "hover",
+   "target": "Annotate",
+   "x": 620,
+   "y": 527
+  },
+  {
+   "t": 297.485,
+   "wall": "2026-10-15T17:43:16+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "annotate-sub",
+   "path": "shots/P1-1366-light/25-annotate-sub.png"
+  },
+  {
+   "t": 304.005,
+   "wall": "2026-10-15T17:43:23+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "Lines, boxes, peaks... no 'equation'. 'Fitted peak labels' - mine is not a peak. Maybe the Results window can put it on the graph."
+  },
+  {
+   "t": 304.008,
+   "wall": "2026-10-15T17:43:23+00:00",
+   "task": "T2",
+   "kind": "wrong_turn",
+   "text": "Plot › Annotate: no fit equation item; 'Fitted peak labels' does not apply to a curve fit"
+  },
+  {
+   "t": 304.064,
+   "wall": "2026-10-15T17:43:23+00:00",
+   "task": "T2",
+   "kind": "key",
+   "target": "close menu",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 304.216,
+   "wall": "2026-10-15T17:43:23+00:00",
+   "task": "T2",
+   "kind": "key",
+   "target": "close menu",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 304.584,
+   "wall": "2026-10-15T17:43:23+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "button 'Results'",
+   "x": 1302,
+   "y": 602,
+   "presses": 1
+  },
+  {
+   "t": 305.392,
+   "wall": "2026-10-15T17:43:24+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "results-again",
+   "path": "shots/P1-1366-light/26-results-again.png"
+  },
+  {
+   "t": 312.64,
+   "wall": "2026-10-15T17:43:31+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "Copy table, Save report, Export data. Nothing that puts the equation on the graph. Fine, I'll type it myself like a text box in PowerPoint."
+  },
+  {
+   "t": 312.644,
+   "wall": "2026-10-15T17:43:31+00:00",
+   "task": "T2",
+   "kind": "wrong_turn",
+   "text": "Results window: no way to show the equation on the graph"
+  },
+  {
+   "t": 312.835,
+   "wall": "2026-10-15T17:43:31+00:00",
+   "task": "T2",
+   "kind": "rightclick",
+   "target": "graph, upper left, to bring it forward",
+   "x": 460,
+   "y": 270,
+   "presses": 1
+  },
+  {
+   "t": 313.627,
+   "wall": "2026-10-15T17:43:32+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "graph-rightclick-for-text",
+   "path": "shots/P1-1366-light/27-graph-rightclick-for-text.png"
+  },
+  {
+   "t": 317.302,
+   "wall": "2026-10-15T17:43:36+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "text 'Text here…'",
+   "x": 616,
+   "y": 640,
+   "presses": 1
+  },
+  {
+   "t": 318.083,
+   "wall": "2026-10-15T17:43:37+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "text-here-box",
+   "path": "shots/P1-1366-light/28-text-here-box.png"
+  },
+  {
+   "t": 325.12,
+   "wall": "2026-10-15T17:43:44+00:00",
+   "task": "T2",
+   "kind": "type",
+   "text": "y = 0.02420x + 0.0139, R^2 = 0.9994",
+   "keys": 35
+  },
+  {
+   "t": 325.784,
+   "wall": "2026-10-15T17:43:44+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "text-typed",
+   "path": "shots/P1-1366-light/29-text-typed.png"
+  },
+  {
+   "t": 331.45,
+   "wall": "2026-10-15T17:43:50+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "It still shows R^2, not R squared. The grey hint says x^{2} with curly brackets. Whatever, good enough."
+  },
+  {
+   "t": 331.453,
+   "wall": "2026-10-15T17:43:50+00:00",
+   "task": "T2",
+   "kind": "finding",
+   "text": "Typing R^2 (as in Excel or most chat apps) is kept literally; only R^{2} makes a superscript. The preview doesn't say why."
+  },
+  {
+   "t": 331.589,
+   "wall": "2026-10-15T17:43:50+00:00",
+   "task": "T2",
+   "kind": "key",
+   "target": "keep text",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 332.347,
+   "wall": "2026-10-15T17:43:51+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "text-placed",
+   "path": "shots/P1-1366-light/30-text-placed.png"
+  },
+  {
+   "t": 341.295,
+   "wall": "2026-10-15T17:44:00+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "There. But I had to copy the numbers by hand, and if I refit it won't update. And a second little graph of 'Residual' appeared under mine that I didn't ask for. The axes still say Time and Distance from my first data, which is wrong now."
+  },
+  {
+   "t": 341.3,
+   "wall": "2026-10-15T17:44:00+00:00",
+   "task": "T2",
+   "kind": "finding",
+   "text": "No way to show a curve fit's equation, slope or R² on the graph: the user retyped the numbers as free text, which will not follow a refit."
+  },
+  {
+   "t": 341.303,
+   "wall": "2026-10-15T17:44:00+00:00",
+   "task": "T2",
+   "kind": "finding",
+   "text": "After the fit a residual panel appears under the graph unasked, shrinking the plot."
+  },
+  {
+   "t": 341.306,
+   "wall": "2026-10-15T17:44:00+00:00",
+   "task": "T2",
+   "kind": "finding",
+   "text": "Axis titles typed for the first data stay on the graph after it switches to other data (Time (s)/Distance (m) over absorbance vs concentration)."
+  },
+  {
+   "t": 341.309,
+   "wall": "2026-10-15T17:44:00+00:00",
+   "task": "T2",
+   "kind": "task_end",
+   "success": "partial",
+   "note": "slope ± error and R² read in the Fit and Results windows; line drawn; equation only by retyping it as free text"
+  },
+  {
+   "t": 347.894,
+   "wall": "2026-10-15T17:44:07+00:00",
+   "task": "T3",
+   "kind": "task_start",
+   "target": "Add Y error bars from the SD column of calibration.csv and refit weighted"
+  },
+  {
+   "t": 347.897,
+   "wall": "2026-10-15T17:44:07+00:00",
+   "task": "T3",
+   "kind": "say",
+   "text": "Error bars from the SD column. In Excel that's the + next to the chart, Error bars, Custom. Here, right-click the points, there was an 'Error bars' item."
+  },
+  {
+   "t": 348.09,
+   "wall": "2026-10-15T17:44:07+00:00",
+   "task": "T3",
+   "kind": "rightclick",
+   "target": "a data point at x=20",
+   "x": 625,
+   "y": 342,
+   "presses": 1
+  },
+  {
+   "t": 348.737,
+   "wall": "2026-10-15T17:44:07+00:00",
+   "task": "T3",
+   "kind": "hover",
+   "target": "Error bars",
+   "x": 560,
+   "y": 462
+  },
+  {
+   "t": 349.913,
+   "wall": "2026-10-15T17:44:09+00:00",
+   "task": "T3",
+   "kind": "shot",
+   "target": "errorbars-sub",
+   "path": "shots/P1-1366-light/31-errorbars-sub.png"
+  },
+  {
+   "t": 353.671,
+   "wall": "2026-10-15T17:44:12+00:00",
+   "task": "T3",
+   "kind": "hover",
+   "target": "Error bars",
+   "x": 689,
+   "y": 534
+  },
+  {
+   "t": 354.844,
+   "wall": "2026-10-15T17:44:13+00:00",
+   "task": "T3",
+   "kind": "shot",
+   "target": "errorbars-sub-2",
+   "path": "shots/P1-1366-light/32-errorbars-sub-2.png"
+  },
+  {
+   "t": 362.626,
+   "wall": "2026-10-15T17:44:21+00:00",
+   "task": "T3",
+   "kind": "say",
+   "text": "'Bars' is already ticked? I see only tiny ticks on the points. It doesn't say they come from SD. I guess the import did it. OK, weighted: that switch in the Fit window was on already, so my first fit was weighted? Let me press Fit again to be sure."
+  },
+  {
+   "t": 362.629,
+   "wall": "2026-10-15T17:44:21+00:00",
+   "task": "T3",
+   "kind": "guess",
+   "text": "Assumed the error bars already shown are the SD column (nothing on the graph or the menu names the column)"
+  },
+  {
+   "t": 362.693,
+   "wall": "2026-10-15T17:44:21+00:00",
+   "task": "T3",
+   "kind": "key",
+   "target": "close menu",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 362.846,
+   "wall": "2026-10-15T17:44:21+00:00",
+   "task": "T3",
+   "kind": "key",
+   "target": "close menu",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 363.291,
+   "wall": "2026-10-15T17:44:22+00:00",
+   "task": "T3",
+   "kind": "click",
+   "target": "button 'Fit'",
+   "x": 977,
+   "y": 649,
+   "presses": 1
+  },
+  {
+   "t": 364.083,
+   "wall": "2026-10-15T17:44:23+00:00",
+   "task": "T3",
+   "kind": "shot",
+   "target": "refit-weighted",
+   "path": "shots/P1-1366-light/33-refit-weighted.png"
+  },
+  {
+   "t": 368.943,
+   "wall": "2026-10-15T17:44:28+00:00",
+   "task": "T3",
+   "kind": "say",
+   "text": "'Converged in 0 iterations'. Did it do anything? Same numbers. Does it say weighted anywhere? Scroll the results."
+  },
+  {
+   "t": 369.12,
+   "wall": "2026-10-15T17:44:28+00:00",
+   "task": "T3",
+   "kind": "wheel",
+   "target": "scroll Results",
+   "x": 595,
+   "y": 620,
+   "dx": 0,
+   "dy": 300
+  },
+  {
+   "t": 370.03,
+   "wall": "2026-10-15T17:44:29+00:00",
+   "task": "T3",
+   "kind": "shot",
+   "target": "results-scrolled",
+   "path": "shots/P1-1366-light/34-results-scrolled.png"
+  },
+  {
+   "t": 377.547,
+   "wall": "2026-10-15T17:44:36+00:00",
+   "task": "T3",
+   "kind": "say",
+   "text": "'Weighting: instrumental, 1/sigma squared'. Instrumental? I'll take that as yes. But it was weighted from the start, I never chose it, and 'Iterations 0' makes me think the second Fit did nothing."
+  },
+  {
+   "t": 377.55,
+   "wall": "2026-10-15T17:44:36+00:00",
+   "task": "T3",
+   "kind": "finding",
+   "text": "A refit with nothing changed reports 'Converged in 0 iterations', which reads as 'nothing happened'."
+  },
+  {
+   "t": 377.553,
+   "wall": "2026-10-15T17:44:36+00:00",
+   "task": "T3",
+   "kind": "finding",
+   "text": "Results says 'Weighting: instrumental, 1/σ²' only at the bottom of the statistics block, below the fold at 1366×768; the weighting of a fit is not stated near its numbers."
+  },
+  {
+   "t": 377.555,
+   "wall": "2026-10-15T17:44:36+00:00",
+   "task": "T3",
+   "kind": "task_end",
+   "success": "success",
+   "note": "error bars and weighting were already on from the import; the user confirmed them, not chose them"
+  },
+  {
+   "t": 385.514,
+   "wall": "2026-10-15T17:44:44+00:00",
+   "task": "T4",
+   "kind": "task_start",
+   "target": "Import growth_eu.csv, plot all three samples against time with a legend"
+  },
+  {
+   "t": 385.517,
+   "wall": "2026-10-15T17:44:44+00:00",
+   "task": "T4",
+   "kind": "say",
+   "text": "Now the bacteria growth file. File, Import data, like before."
+  },
+  {
+   "t": 385.736,
+   "wall": "2026-10-15T17:44:44+00:00",
+   "task": "T4",
+   "kind": "click",
+   "target": "text 'File'",
+   "x": 120,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 386.333,
+   "wall": "2026-10-15T17:44:45+00:00",
+   "task": "T4",
+   "kind": "click",
+   "target": "menuitem 'Import data…'",
+   "x": 215,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 386.473,
+   "wall": "2026-10-15T17:44:45+00:00",
+   "task": "T4",
+   "kind": "choose_file",
+   "target": "growth_eu.csv",
+   "files": [
+    "growth_eu.csv"
+   ]
+  },
+  {
+   "t": 387.645,
+   "wall": "2026-10-15T17:44:46+00:00",
+   "task": "T4",
+   "kind": "shot",
+   "target": "growth-import-dialog",
+   "path": "shots/P1-1366-light/35-growth-import-dialog.png"
+  },
+  {
+   "t": 396.174,
+   "wall": "2026-10-15T17:44:55+00:00",
+   "task": "T4",
+   "kind": "say",
+   "text": "It figured out the semicolons and commas, nice. 'Already holds 2 spectra' - this is a different experiment, I'll put it in a new project. Columns say OD600, OD600, OD600... fine I guess."
+  },
+  {
+   "t": 396.404,
+   "wall": "2026-10-15T17:44:55+00:00",
+   "task": "T4",
+   "kind": "click",
+   "target": "text 'Put it in a new project'",
+   "x": 941,
+   "y": 512,
+   "presses": 1
+  },
+  {
+   "t": 397.041,
+   "wall": "2026-10-15T17:44:56+00:00",
+   "task": "T4",
+   "kind": "click",
+   "target": "button 'Import 4 columns'",
+   "x": 1130,
+   "y": 723,
+   "presses": 1
+  },
+  {
+   "t": 398.232,
+   "wall": "2026-10-15T17:44:57+00:00",
+   "task": "T4",
+   "kind": "shot",
+   "target": "growth-imported",
+   "path": "shots/P1-1366-light/36-growth-imported.png"
+  },
+  {
+   "t": 404.406,
+   "wall": "2026-10-15T17:45:03+00:00",
+   "task": "T4",
+   "kind": "click",
+   "target": "button 'Plot them now'",
+   "x": 934,
+   "y": 698,
+   "presses": 1
+  },
+  {
+   "t": 405.607,
+   "wall": "2026-10-15T17:45:04+00:00",
+   "task": "T4",
+   "kind": "shot",
+   "target": "growth-plotted",
+   "path": "shots/P1-1366-light/37-growth-plotted.png"
+  },
+  {
+   "t": 415.124,
+   "wall": "2026-10-15T17:45:14+00:00",
+   "task": "T4",
+   "kind": "say",
+   "text": "Three curves, but the legend says OD600, OD600 (2), OD600 (3). The file said Sample A, B, C! And one is dots and two are lines. And the graph is squashed into a narrow strip between two other windows."
+  },
+  {
+   "t": 415.128,
+   "wall": "2026-10-15T17:45:14+00:00",
+   "task": "T4",
+   "kind": "finding",
+   "text": "growth_eu.csv: the import took the units row (line 2) as the column names, so the sample names (Sample A/B/C) were lost; legend reads 'OD600, OD600 (2), OD600 (3)' and Units stay empty."
+  },
+  {
+   "t": 415.132,
+   "wall": "2026-10-15T17:45:14+00:00",
+   "task": "T4",
+   "kind": "finding",
+   "text": "Plotting three columns at once drew the first as symbols and the other two as lines."
+  },
+  {
+   "t": 415.136,
+   "wall": "2026-10-15T17:45:14+00:00",
+   "task": "T4",
+   "kind": "finding",
+   "text": "The new graph opened 345 px wide between the worksheet and a Fit window left over from the previous project (showing 'Gaussian peak' for growth curves)."
+  },
+  {
+   "t": 415.14,
+   "wall": "2026-10-15T17:45:14+00:00",
+   "task": "T4",
+   "kind": "say",
+   "text": "In Excel I'd just rename the header. Type over the name in the worksheet."
+  },
+  {
+   "t": 418.981,
+   "wall": "2026-10-15T17:45:18+00:00",
+   "task": "T4",
+   "kind": "dblclick",
+   "target": "Long Name cell of column B",
+   "x": 482,
+   "y": 189,
+   "presses": 2
+  },
+  {
+   "t": 419.614,
+   "wall": "2026-10-15T17:45:18+00:00",
+   "task": "T4",
+   "kind": "shot",
+   "target": "longname-edit",
+   "path": "shots/P1-1366-light/38-longname-edit.png"
+  },
+  {
+   "t": 426.445,
+   "wall": "2026-10-15T17:45:25+00:00",
+   "task": "T4",
+   "kind": "key",
+   "target": "select the name",
+   "keys": "Control+a",
+   "presses": 1
+  },
+  {
+   "t": 426.882,
+   "wall": "2026-10-15T17:45:25+00:00",
+   "task": "T4",
+   "kind": "type",
+   "text": "Sample A",
+   "keys": 8
+  },
+  {
+   "t": 427.011,
+   "wall": "2026-10-15T17:45:26+00:00",
+   "task": "T4",
+   "kind": "key",
+   "target": "next column",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 427.469,
+   "wall": "2026-10-15T17:45:26+00:00",
+   "task": "T4",
+   "kind": "type",
+   "text": "Sample B",
+   "keys": 8
+  },
+  {
+   "t": 427.577,
+   "wall": "2026-10-15T17:45:26+00:00",
+   "task": "T4",
+   "kind": "key",
+   "target": "next column",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 428.043,
+   "wall": "2026-10-15T17:45:27+00:00",
+   "task": "T4",
+   "kind": "type",
+   "text": "Sample C",
+   "keys": 8
+  },
+  {
+   "t": 428.173,
+   "wall": "2026-10-15T17:45:27+00:00",
+   "task": "T4",
+   "kind": "key",
+   "target": "keep",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 429.334,
+   "wall": "2026-10-15T17:45:28+00:00",
+   "task": "T4",
+   "kind": "shot",
+   "target": "renamed",
+   "path": "shots/P1-1366-light/39-renamed.png"
+  },
+  {
+   "t": 438.508,
+   "wall": "2026-10-15T17:45:37+00:00",
+   "task": "T4",
+   "kind": "say",
+   "text": "Legend says Sample A, B, C now. But the Y axis title turned into 'Sample A', which is wrong, it's OD for all three. And X just says 'h'."
+  },
+  {
+   "t": 438.513,
+   "wall": "2026-10-15T17:45:37+00:00",
+   "task": "T4",
+   "kind": "finding",
+   "text": "The Y-axis title is the first spectrum's name: renaming column B to 'Sample A' made the Y axis read 'Sample A' for a graph of three samples."
+  },
+  {
+   "t": 438.516,
+   "wall": "2026-10-15T17:45:37+00:00",
+   "task": "T4",
+   "kind": "finding",
+   "text": "After the import the worksheet opened scrolled to row 7, hiding rows 1–6; after Enter in the label rows it scrolled sideways and hid the X column."
+  },
+  {
+   "t": 438.818,
+   "wall": "2026-10-15T17:45:37+00:00",
+   "task": "T4",
+   "kind": "dblclick",
+   "target": "Y axis title",
+   "x": 628,
+   "y": 405,
+   "presses": 2
+  },
+  {
+   "t": 439.246,
+   "wall": "2026-10-15T17:45:38+00:00",
+   "task": "T4",
+   "kind": "key",
+   "target": "select",
+   "keys": "Control+a",
+   "presses": 1
+  },
+  {
+   "t": 439.566,
+   "wall": "2026-10-15T17:45:38+00:00",
+   "task": "T4",
+   "kind": "type",
+   "text": "OD600",
+   "keys": 5
+  },
+  {
+   "t": 439.694,
+   "wall": "2026-10-15T17:45:38+00:00",
+   "task": "T4",
+   "kind": "key",
+   "target": "keep",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 440.075,
+   "wall": "2026-10-15T17:45:39+00:00",
+   "task": "T4",
+   "kind": "dblclick",
+   "target": "X axis title",
+   "x": 792,
+   "y": 676,
+   "presses": 2
+  },
+  {
+   "t": 440.504,
+   "wall": "2026-10-15T17:45:39+00:00",
+   "task": "T4",
+   "kind": "key",
+   "target": "select",
+   "keys": "Control+a",
+   "presses": 1
+  },
+  {
+   "t": 440.953,
+   "wall": "2026-10-15T17:45:40+00:00",
+   "task": "T4",
+   "kind": "type",
+   "text": "Time (h)",
+   "keys": 8
+  },
+  {
+   "t": 441.056,
+   "wall": "2026-10-15T17:45:40+00:00",
+   "task": "T4",
+   "kind": "key",
+   "target": "keep",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 441.844,
+   "wall": "2026-10-15T17:45:40+00:00",
+   "task": "T4",
+   "kind": "shot",
+   "target": "growth-titles",
+   "path": "shots/P1-1366-light/40-growth-titles.png"
+  },
+  {
+   "t": 450.305,
+   "wall": "2026-10-15T17:45:49+00:00",
+   "task": "T4",
+   "kind": "task_end",
+   "success": "success",
+   "note": "legend right only after retyping the three names in the worksheet (the import had named them OD600); Y and X titles retyped too"
+  },
+  {
+   "t": 450.31,
+   "wall": "2026-10-15T17:45:49+00:00",
+   "task": "T5",
+   "kind": "task_start",
+   "target": "Make a new column = log10 of a sample column, plot it"
+  },
+  {
+   "t": 450.314,
+   "wall": "2026-10-15T17:45:49+00:00",
+   "task": "T5",
+   "kind": "say",
+   "text": "A new column with LOG10 of Sample A. In Excel: next empty column, =LOG10(B2), fill down. The worksheet is half hidden behind the graph. There's a '+' up there."
+  },
+  {
+   "t": 450.434,
+   "wall": "2026-10-15T17:45:49+00:00",
+   "task": "T5",
+   "kind": "hover",
+   "target": "the + button on the worksheet bar",
+   "x": 575,
+   "y": 133
+  },
+  {
+   "t": 451.608,
+   "wall": "2026-10-15T17:45:50+00:00",
+   "task": "T5",
+   "kind": "shot",
+   "target": "plus-hover",
+   "path": "shots/P1-1366-light/41-plus-hover.png"
+  },
+  {
+   "t": 460.483,
+   "wall": "2026-10-15T17:45:59+00:00",
+   "task": "T5",
+   "kind": "say",
+   "text": "No label on it. The worksheet is too cramped anyway, let me make it big."
+  },
+  {
+   "t": 460.488,
+   "wall": "2026-10-15T17:45:59+00:00",
+   "task": "T5",
+   "kind": "finding",
+   "text": "Worksheet bar buttons lose their words when the worksheet is narrow (+, lock, chart icon, magnifier); at the default layout of 1366×768 a first-time user sees bare icons."
+  },
+  {
+   "t": 460.705,
+   "wall": "2026-10-15T17:45:59+00:00",
+   "task": "T5",
+   "kind": "click",
+   "target": "worksheet maximise button",
+   "x": 579,
+   "y": 99,
+   "presses": 1
+  },
+  {
+   "t": 461.525,
+   "wall": "2026-10-15T17:46:00+00:00",
+   "task": "T5",
+   "kind": "shot",
+   "target": "ws-max",
+   "path": "shots/P1-1366-light/42-ws-max.png"
+  },
+  {
+   "t": 467.621,
+   "wall": "2026-10-15T17:46:06+00:00",
+   "task": "T5",
+   "kind": "say",
+   "text": "Better. Rows start at 7? Scroll up first. Then in column E, row 1, type a formula like in Excel."
+  },
+  {
+   "t": 467.785,
+   "wall": "2026-10-15T17:46:06+00:00",
+   "task": "T5",
+   "kind": "wheel",
+   "target": "scroll the sheet up",
+   "x": 800,
+   "y": 450,
+   "dx": 0,
+   "dy": -600
+  },
+  {
+   "t": 468.667,
+   "wall": "2026-10-15T17:46:07+00:00",
+   "task": "T5",
+   "kind": "shot",
+   "target": "ws-top",
+   "path": "shots/P1-1366-light/43-ws-top.png"
+  },
+  {
+   "t": 473.872,
+   "wall": "2026-10-15T17:46:12+00:00",
+   "task": "T5",
+   "kind": "click",
+   "target": "cell E1",
+   "x": 782,
+   "y": 310,
+   "presses": 1
+  },
+  {
+   "t": 474.443,
+   "wall": "2026-10-15T17:46:13+00:00",
+   "task": "T5",
+   "kind": "type",
+   "text": "=LOG10(B1)",
+   "keys": 10
+  },
+  {
+   "t": 474.968,
+   "wall": "2026-10-15T17:46:14+00:00",
+   "task": "T5",
+   "kind": "shot",
+   "target": "excel-formula-typed",
+   "path": "shots/P1-1366-light/44-excel-formula-typed.png"
+  },
+  {
+   "t": 475.023,
+   "wall": "2026-10-15T17:46:14+00:00",
+   "task": "T5",
+   "kind": "key",
+   "target": "enter formula",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 475.795,
+   "wall": "2026-10-15T17:46:14+00:00",
+   "task": "T5",
+   "kind": "shot",
+   "target": "excel-formula-entered",
+   "path": "shots/P1-1366-light/45-excel-formula-entered.png"
+  },
+  {
+   "t": 483.707,
+   "wall": "2026-10-15T17:46:22+00:00",
+   "task": "T5",
+   "kind": "say",
+   "text": "'Not a number'. So no formulas in cells?! There's a row called F(x)= up top. Maybe that's for formulas."
+  },
+  {
+   "t": 483.71,
+   "wall": "2026-10-15T17:46:22+00:00",
+   "task": "T5",
+   "kind": "wrong_turn",
+   "text": "Typed an Excel formula =LOG10(B1) into a cell: refused as 'not a number', with no pointer to where formulas go"
+  },
+  {
+   "t": 483.781,
+   "wall": "2026-10-15T17:46:22+00:00",
+   "task": "T5",
+   "kind": "key",
+   "target": "leave the cell",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 484.08,
+   "wall": "2026-10-15T17:46:23+00:00",
+   "task": "T5",
+   "kind": "click",
+   "target": "F(x)= cell of column E",
+   "x": 782,
+   "y": 262,
+   "presses": 1
+  },
+  {
+   "t": 484.899,
+   "wall": "2026-10-15T17:46:24+00:00",
+   "task": "T5",
+   "kind": "type",
+   "text": "=LOG10(B1)",
+   "keys": 10
+  },
+  {
+   "t": 485.464,
+   "wall": "2026-10-15T17:46:24+00:00",
+   "task": "T5",
+   "kind": "shot",
+   "target": "fx-typed",
+   "path": "shots/P1-1366-light/46-fx-typed.png"
+  },
+  {
+   "t": 491.128,
+   "wall": "2026-10-15T17:46:30+00:00",
+   "task": "T5",
+   "kind": "say",
+   "text": "'No function called LOG10. Known: ... log10'. So it's lowercase. Picky."
+  },
+  {
+   "t": 491.134,
+   "wall": "2026-10-15T17:46:30+00:00",
+   "task": "T5",
+   "kind": "finding",
+   "text": "Formulas are case-sensitive: LOG10 (as Excel writes it) is 'no function called LOG10'; only log10 works."
+  },
+  {
+   "t": 491.209,
+   "wall": "2026-10-15T17:46:30+00:00",
+   "task": "T5",
+   "kind": "key",
+   "target": "select all",
+   "keys": "Control+a",
+   "presses": 1
+  },
+  {
+   "t": 491.737,
+   "wall": "2026-10-15T17:46:30+00:00",
+   "task": "T5",
+   "kind": "type",
+   "text": "=log10(B1)",
+   "keys": 10
+  },
+  {
+   "t": 492.327,
+   "wall": "2026-10-15T17:46:31+00:00",
+   "task": "T5",
+   "kind": "shot",
+   "target": "fx-lower",
+   "path": "shots/P1-1366-light/47-fx-lower.png"
+  },
+  {
+   "t": 498.204,
+   "wall": "2026-10-15T17:46:37+00:00",
+   "task": "T5",
+   "kind": "say",
+   "text": "'B1 is one cell... so write B'. OK, whole columns. log10(B) then."
+  },
+  {
+   "t": 498.208,
+   "wall": "2026-10-15T17:46:37+00:00",
+   "task": "T5",
+   "kind": "finding",
+   "text": "The formula hint is cut off at the bar's edge ('…so write B' ends mid-sentence) at 1366 px with the worksheet maximised."
+  },
+  {
+   "t": 498.262,
+   "wall": "2026-10-15T17:46:37+00:00",
+   "task": "T5",
+   "kind": "key",
+   "target": "select all",
+   "keys": "Control+a",
+   "presses": 1
+  },
+  {
+   "t": 498.76,
+   "wall": "2026-10-15T17:46:37+00:00",
+   "task": "T5",
+   "kind": "type",
+   "text": "=log10(B)",
+   "keys": 9
+  },
+  {
+   "t": 499.019,
+   "wall": "2026-10-15T17:46:38+00:00",
+   "task": "T5",
+   "kind": "key",
+   "target": "set formula",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 500.057,
+   "wall": "2026-10-15T17:46:39+00:00",
+   "task": "T5",
+   "kind": "shot",
+   "target": "fx-done",
+   "path": "shots/P1-1366-light/48-fx-done.png"
+  },
+  {
+   "t": 506.945,
+   "wall": "2026-10-15T17:46:46+00:00",
+   "task": "T5",
+   "kind": "say",
+   "text": "It worked. The header says 'fx hidden' - hidden from what? And the numbers run off the cell with dots. Now plot it: click the column, press Plot."
+  },
+  {
+   "t": 506.948,
+   "wall": "2026-10-15T17:46:46+00:00",
+   "task": "T5",
+   "kind": "finding",
+   "text": "A new formula column's header says 'fx hidden' with no explanation of what is hidden."
+  },
+  {
+   "t": 506.952,
+   "wall": "2026-10-15T17:46:46+00:00",
+   "task": "T5",
+   "kind": "finding",
+   "text": "Computed values show 16 significant digits, cut off with an ellipsis in a 100 px column ('-0.9507819…')."
+  },
+  {
+   "t": 507.136,
+   "wall": "2026-10-15T17:46:46+00:00",
+   "task": "T5",
+   "kind": "click",
+   "target": "column E letter",
+   "x": 752,
+   "y": 163,
+   "presses": 1
+  },
+  {
+   "t": 507.768,
+   "wall": "2026-10-15T17:46:46+00:00",
+   "task": "T5",
+   "kind": "click",
+   "target": "button 'Plot'",
+   "x": 202,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 508.58,
+   "wall": "2026-10-15T17:46:47+00:00",
+   "task": "T5",
+   "kind": "shot",
+   "target": "plot-E-menu",
+   "path": "shots/P1-1366-light/49-plot-E-menu.png"
+  },
+  {
+   "t": 514.479,
+   "wall": "2026-10-15T17:46:53+00:00",
+   "task": "T5",
+   "kind": "say",
+   "text": "(rig: that click hit the menu bar's Plot, not the worksheet's; carrying on from there as a person would)"
+  },
+  {
+   "t": 514.597,
+   "wall": "2026-10-15T17:46:53+00:00",
+   "task": "T5",
+   "kind": "hover",
+   "target": "Plot the selected columns",
+   "x": 290,
+   "y": 83
+  },
+  {
+   "t": 515.76,
+   "wall": "2026-10-15T17:46:54+00:00",
+   "task": "T5",
+   "kind": "shot",
+   "target": "plot-selected-sub",
+   "path": "shots/P1-1366-light/50-plot-selected-sub.png"
+  },
+  {
+   "t": 520.993,
+   "wall": "2026-10-15T17:47:00+00:00",
+   "task": "T5",
+   "kind": "click",
+   "target": "Symbols",
+   "x": 479,
+   "y": 175,
+   "presses": 1
+  },
+  {
+   "t": 522.178,
+   "wall": "2026-10-15T17:47:01+00:00",
+   "task": "T5",
+   "kind": "shot",
+   "target": "log-plotted",
+   "path": "shots/P1-1366-light/51-log-plotted.png"
+  },
+  {
+   "t": 531.568,
+   "wall": "2026-10-15T17:47:10+00:00",
+   "task": "T5",
+   "kind": "say",
+   "text": "There it is, in a little Graph 2. The message says 'Plotted column ?' - question mark? The Y axis is just 'Y'. And now B, C and D say 'hidden' too, but they're on Graph 1... so hidden means 'not on this graph'?"
+  },
+  {
+   "t": 531.572,
+   "wall": "2026-10-15T17:47:10+00:00",
+   "task": "T5",
+   "kind": "finding",
+   "text": "Toast after plotting a formula column reads 'Plotted column ? in Graph 2.' (a literal question mark for the column's name)."
+  },
+  {
+   "t": 531.577,
+   "wall": "2026-10-15T17:47:10+00:00",
+   "task": "T5",
+   "kind": "finding",
+   "text": "Plotting a formula column titles its Y axis 'Y' and names it 'column E', though the formula is shown above it."
+  },
+  {
+   "t": 531.58,
+   "wall": "2026-10-15T17:47:10+00:00",
+   "task": "T5",
+   "kind": "finding",
+   "text": "Column headers say 'hidden' for columns that are not on the graph in front; with two graphs, B–D (plotted on Graph 1) read 'hidden' while Graph 2 is in front."
+  },
+  {
+   "t": 531.583,
+   "wall": "2026-10-15T17:47:10+00:00",
+   "task": "T5",
+   "kind": "finding",
+   "text": "The new graph opens as a 345×300 px window over the maximised worksheet, its X-axis title cut off at the bottom."
+  },
+  {
+   "t": 531.586,
+   "wall": "2026-10-15T17:47:10+00:00",
+   "task": "T5",
+   "kind": "task_end",
+   "success": "success",
+   "note": "only after two refused formulas (an Excel formula in a cell; LOG10 in capitals) and a third with a cell reference; the hints led the way"
+  },
+  {
+   "t": 536.064,
+   "wall": "2026-10-15T17:47:15+00:00",
+   "task": "T6",
+   "kind": "task_start",
+   "target": "Descriptive statistics and a histogram per group for survey.csv; compare the groups"
+  },
+  {
+   "t": 536.068,
+   "wall": "2026-10-15T17:47:15+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "Reaction times in three groups. I need mean, SD and n for each group, and a histogram each. Import it first, new project."
+  },
+  {
+   "t": 536.304,
+   "wall": "2026-10-15T17:47:15+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "text 'File'",
+   "x": 120,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 536.893,
+   "wall": "2026-10-15T17:47:16+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "menuitem 'Import data…'",
+   "x": 215,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 537.035,
+   "wall": "2026-10-15T17:47:16+00:00",
+   "task": "T6",
+   "kind": "choose_file",
+   "target": "survey.csv",
+   "files": [
+    "survey.csv"
+   ]
+  },
+  {
+   "t": 538.22,
+   "wall": "2026-10-15T17:47:17+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "survey-import-dialog",
+   "path": "shots/P1-1366-light/52-survey-import-dialog.png"
+  },
+  {
+   "t": 551.004,
+   "wall": "2026-10-15T17:47:30+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "'No rows of numbers were found in that file'?? It's a normal CSV, there are 200 numbers in it! Maybe the other import button does something different."
+  },
+  {
+   "t": 551.009,
+   "wall": "2026-10-15T17:47:30+00:00",
+   "task": "T6",
+   "kind": "finding",
+   "text": "survey.csv (Participant, Group, Reaction time: two text columns and one number column) is refused outright: 'No rows of numbers were found in that file.' No dialog, no preview, no way to pick the numeric column."
+  },
+  {
+   "t": 551.202,
+   "wall": "2026-10-15T17:47:30+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "toolbar upload icon",
+   "x": 72,
+   "y": 61,
+   "presses": 1
+  },
+  {
+   "t": 551.983,
+   "wall": "2026-10-15T17:47:31+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "toolbar-import",
+   "path": "shots/P1-1366-light/53-toolbar-import.png"
+  },
+  {
+   "t": 557.428,
+   "wall": "2026-10-15T17:47:36+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "toolbar upload icon",
+   "x": 72,
+   "y": 61,
+   "presses": 1
+  },
+  {
+   "t": 557.57,
+   "wall": "2026-10-15T17:47:36+00:00",
+   "task": "T6",
+   "kind": "choose_file",
+   "target": "survey.csv again",
+   "files": [
+    "survey.csv"
+   ]
+  },
+  {
+   "t": 558.762,
+   "wall": "2026-10-15T17:47:37+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "survey-again",
+   "path": "shots/P1-1366-light/54-survey-again.png"
+  },
+  {
+   "t": 566.346,
+   "wall": "2026-10-15T17:47:45+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "Same thing. It's a CSV from our survey software, text and numbers. Is there help? The question mark at the top."
+  },
+  {
+   "t": 566.351,
+   "wall": "2026-10-15T17:47:45+00:00",
+   "task": "T6",
+   "kind": "wrong_turn",
+   "text": "Imported survey.csv again from the toolbar: same refusal"
+  },
+  {
+   "t": 566.354,
+   "wall": "2026-10-15T17:47:45+00:00",
+   "task": "T6",
+   "kind": "help",
+   "text": "Help (top bar ?) to find out why a CSV with text columns is refused"
+  },
+  {
+   "t": 566.586,
+   "wall": "2026-10-15T17:47:45+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "Help button in the title bar",
+   "x": 1309,
+   "y": 19,
+   "presses": 1
+  },
+  {
+   "t": 567.421,
+   "wall": "2026-10-15T17:47:46+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "help-open",
+   "path": "shots/P1-1366-light/55-help-open.png"
+  },
+  {
+   "t": 577.425,
+   "wall": "2026-10-15T17:47:56+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "Importing data link",
+   "x": 996,
+   "y": 403,
+   "presses": 1
+  },
+  {
+   "t": 578.22,
+   "wall": "2026-10-15T17:47:57+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "help-importing",
+   "path": "shots/P1-1366-light/56-help-importing.png"
+  },
+  {
+   "t": 584.849,
+   "wall": "2026-10-15T17:48:03+00:00",
+   "task": "T6",
+   "kind": "finding",
+   "text": "Help window: a heading 'Plotting after the dialog' is drawn over the Back/Contents bar at the top of the 'Importing data' article."
+  },
+  {
+   "t": 584.978,
+   "wall": "2026-10-15T17:48:04+00:00",
+   "task": "T6",
+   "kind": "wheel",
+   "target": "scroll the help",
+   "x": 1100,
+   "y": 500,
+   "dx": 0,
+   "dy": 500
+  },
+  {
+   "t": 585.869,
+   "wall": "2026-10-15T17:48:04+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "help-importing-2",
+   "path": "shots/P1-1366-light/57-help-importing-2.png"
+  },
+  {
+   "t": 586.011,
+   "wall": "2026-10-15T17:48:05+00:00",
+   "task": "T6",
+   "kind": "wheel",
+   "target": "scroll the help",
+   "x": 1100,
+   "y": 500,
+   "dx": 0,
+   "dy": 500
+  },
+  {
+   "t": 586.939,
+   "wall": "2026-10-15T17:48:06+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "help-importing-3",
+   "path": "shots/P1-1366-light/58-help-importing-3.png"
+  },
+  {
+   "t": 603.047,
+   "wall": "2026-10-15T17:48:22+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "Nothing about text columns. 'Paste: copy columns from a spreadsheet'. OK, I'll open it in Excel, sort by group and put each group in its own column, then paste. New project first."
+  },
+  {
+   "t": 603.245,
+   "wall": "2026-10-15T17:48:22+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "close Help",
+   "x": 1349,
+   "y": 118,
+   "presses": 1
+  },
+  {
+   "t": 603.61,
+   "wall": "2026-10-15T17:48:22+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "text 'File'",
+   "x": 120,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 604.264,
+   "wall": "2026-10-15T17:48:23+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "file-menu",
+   "path": "shots/P1-1366-light/59-file-menu.png"
+  },
+  {
+   "t": 608.786,
+   "wall": "2026-10-15T17:48:27+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "text 'New project'",
+   "x": 225,
+   "y": 56,
+   "presses": 1
+  },
+  {
+   "t": 609.988,
+   "wall": "2026-10-15T17:48:29+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "new-project",
+   "path": "shots/P1-1366-light/60-new-project.png"
+  },
+  {
+   "t": 627.7,
+   "wall": "2026-10-15T17:48:46+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "'Undid plotting column E'?! I clicked New project, not undo. My Graph 2 is gone and I'm still in growth_eu."
+  },
+  {
+   "t": 627.705,
+   "wall": "2026-10-15T17:48:46+00:00",
+   "task": "T6",
+   "kind": "finding",
+   "text": "File › New project, clicked once, did not make a project: the toast said 'Undid plotting column E.', Graph 2 vanished, and the redo arrow lit up (needs reproducing)."
+  },
+  {
+   "t": 628.118,
+   "wall": "2026-10-15T17:48:47+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "redo arrow",
+   "x": 186,
+   "y": 61,
+   "presses": 1
+  },
+  {
+   "t": 629.112,
+   "wall": "2026-10-15T17:48:48+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "after-redo",
+   "path": "shots/P1-1366-light/61-after-redo.png"
+  },
+  {
+   "t": 634.492,
+   "wall": "2026-10-15T17:48:53+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "Again: File, New project."
+  },
+  {
+   "t": 634.742,
+   "wall": "2026-10-15T17:48:53+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "text 'File'",
+   "x": 120,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 635.619,
+   "wall": "2026-10-15T17:48:54+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "menuitem 'New project'",
+   "x": 215,
+   "y": 56,
+   "presses": 1
+  },
+  {
+   "t": 636.149,
+   "wall": "2026-10-15T17:48:55+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "new-project-2-quick",
+   "path": "shots/P1-1366-light/62-new-project-2-quick.png"
+  },
+  {
+   "t": 637.21,
+   "wall": "2026-10-15T17:48:56+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "new-project-2",
+   "path": "shots/P1-1366-light/63-new-project-2.png"
+  },
+  {
+   "t": 645.904,
+   "wall": "2026-10-15T17:49:05+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "It did it again! 'New project' is undoing my last thing. Great. Let me try the little arrow by the project name."
+  },
+  {
+   "t": 645.908,
+   "wall": "2026-10-15T17:49:05+00:00",
+   "task": "T6",
+   "kind": "finding",
+   "text": "REPRODUCED: File › New project performs an Undo ('Undid plotting column E.') instead of creating a project, twice in a row at 1366×768."
+  },
+  {
+   "t": 645.911,
+   "wall": "2026-10-15T17:49:05+00:00",
+   "task": "T6",
+   "kind": "wrong_turn",
+   "text": "File › New project: undid the last action instead (twice)"
+  },
+  {
+   "t": 646.351,
+   "wall": "2026-10-15T17:49:05+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "redo arrow",
+   "x": 186,
+   "y": 61,
+   "presses": 1
+  },
+  {
+   "t": 647.064,
+   "wall": "2026-10-15T17:49:06+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "arrow beside the project name",
+   "x": 1130,
+   "y": 19,
+   "presses": 1
+  },
+  {
+   "t": 647.875,
+   "wall": "2026-10-15T17:49:06+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "project-switcher",
+   "path": "shots/P1-1366-light/64-project-switcher.png"
+  },
+  {
+   "t": 652.468,
+   "wall": "2026-10-15T17:49:11+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "menuitem 'New project'",
+   "x": 1008,
+   "y": 149,
+   "presses": 1
+  },
+  {
+   "t": 652.995,
+   "wall": "2026-10-15T17:49:12+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "np3-quick",
+   "path": "shots/P1-1366-light/65-np3-quick.png"
+  },
+  {
+   "t": 654.059,
+   "wall": "2026-10-15T17:49:13+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "np3",
+   "path": "shots/P1-1366-light/66-np3.png"
+  },
+  {
+   "t": 668.575,
+   "wall": "2026-10-15T17:49:27+00:00",
+   "task": "T6",
+   "kind": "external_copy",
+   "target": "survey reshaped in Excel: Control, Caffeine, Sleep-deprived columns with headers",
+   "chars": 830
+  },
+  {
+   "t": 668.582,
+   "wall": "2026-10-15T17:49:27+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "In Excel: sorted by group, one column per group with the group as header, copied. Now paste at the top-left cell."
+  },
+  {
+   "t": 668.781,
+   "wall": "2026-10-15T17:49:27+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "cell A1",
+   "x": 382,
+   "y": 310,
+   "presses": 1
+  },
+  {
+   "t": 669.314,
+   "wall": "2026-10-15T17:49:28+00:00",
+   "task": "T6",
+   "kind": "key",
+   "target": "paste",
+   "keys": "Control+v",
+   "presses": 1
+  },
+  {
+   "t": 670.525,
+   "wall": "2026-10-15T17:49:29+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "survey-pasted",
+   "path": "shots/P1-1366-light/67-survey-pasted.png"
+  },
+  {
+   "t": 677.594,
+   "wall": "2026-10-15T17:49:36+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "Pasted, and it took my headers as names. 'A (X)' for Control? Whatever. Now the statistics: the Statistics menu."
+  },
+  {
+   "t": 677.842,
+   "wall": "2026-10-15T17:49:36+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "text 'Statistics'",
+   "x": 420,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 678.545,
+   "wall": "2026-10-15T17:49:37+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "stats-menu",
+   "path": "shots/P1-1366-light/68-stats-menu.png"
+  },
+  {
+   "t": 683.171,
+   "wall": "2026-10-15T17:49:42+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "'Overview of the spectrum' first? These aren't spectra. 'Descriptive statistics', that's it."
+  },
+  {
+   "t": 683.452,
+   "wall": "2026-10-15T17:49:42+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "menuitem 'Descriptive statistics'",
+   "x": 500,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 684.674,
+   "wall": "2026-10-15T17:49:43+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "desc-stats",
+   "path": "shots/P1-1366-light/69-desc-stats.png"
+  },
+  {
+   "t": 693.873,
+   "wall": "2026-10-15T17:49:52+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "Caffeine and Sleep-deprived... where is Control? Oh, Control is the X column because I pasted it first. And 'Noise sigma', 'X at max', 'Area above zero' of reaction times against Control? Meaningless for me. Mean and SD I can read. Let me make Control a normal column: the little arrow on its header."
+  },
+  {
+   "t": 693.877,
+   "wall": "2026-10-15T17:49:52+00:00",
+   "task": "T6",
+   "kind": "finding",
+   "text": "Descriptive statistics leaves out the first pasted column (made X by position): the Control group has no statistics, and nothing says why."
+  },
+  {
+   "t": 693.881,
+   "wall": "2026-10-15T17:49:52+00:00",
+   "task": "T6",
+   "kind": "finding",
+   "text": "Statistics shows spectroscopy measures for non-spectral data (X at max, Noise σ, area above zero, area above the end-to-end line, correlation 'on Caffeine's X'): the reaction times are treated as a spectrum against the Control values."
+  },
+  {
+   "t": 694.096,
+   "wall": "2026-10-15T17:49:53+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "column A's menu arrow",
+   "x": 418,
+   "y": 163,
+   "presses": 1
+  },
+  {
+   "t": 694.797,
+   "wall": "2026-10-15T17:49:53+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "colA-menu",
+   "path": "shots/P1-1366-light/70-colA-menu.png"
+  },
+  {
+   "t": 705.275,
+   "wall": "2026-10-15T17:50:04+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "Use as Y",
+   "x": 467,
+   "y": 254,
+   "presses": 1
+  },
+  {
+   "t": 706.263,
+   "wall": "2026-10-15T17:50:05+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "after-use-as-Y",
+   "path": "shots/P1-1366-light/71-after-use-as-Y.png"
+  },
+  {
+   "t": 712.476,
+   "wall": "2026-10-15T17:50:11+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "It made a new empty X column in front and moved Control over. Odd but fine. Statistics again."
+  },
+  {
+   "t": 712.483,
+   "wall": "2026-10-15T17:50:11+00:00",
+   "task": "T6",
+   "kind": "finding",
+   "text": "'Use as Y' on the first column inserted a new, empty X column A and shifted every column right; the sparklines disappeared."
+  },
+  {
+   "t": 712.695,
+   "wall": "2026-10-15T17:50:11+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "Statistics taskbar button",
+   "x": 900,
+   "y": 725,
+   "presses": 1
+  },
+  {
+   "t": 713.708,
+   "wall": "2026-10-15T17:50:12+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "stats-after-Y",
+   "path": "shots/P1-1366-light/72-stats-after-Y.png"
+  },
+  {
+   "t": 723.122,
+   "wall": "2026-10-15T17:50:22+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "Now Control is there: 67, mean 409.9, SD 38. Caffeine 66, 365, 37. Sleep-deprived 65, 458, 50. 'Points' means n, I guess. 'Noise sigma' is different from SD, no idea what that is. No standard error, no t-test. Now the histograms. Close this, select the three columns, Statistics, Histogram."
+  },
+  {
+   "t": 723.129,
+   "wall": "2026-10-15T17:50:22+00:00",
+   "task": "T6",
+   "kind": "finding",
+   "text": "Statistics has n (as 'Points'), mean and SD per group, but no standard error and no test to compare groups (t-test/ANOVA); 'Noise σ' sits beside SD with a different value and no explanation."
+  },
+  {
+   "t": 723.344,
+   "wall": "2026-10-15T17:50:22+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "close Statistics",
+   "x": 1014,
+   "y": 187,
+   "presses": 1
+  },
+  {
+   "t": 723.691,
+   "wall": "2026-10-15T17:50:22+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "column B letter",
+   "x": 470,
+   "y": 163,
+   "presses": 1
+  },
+  {
+   "t": 724.048,
+   "wall": "2026-10-15T17:50:23+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "column D letter",
+   "x": 670,
+   "y": 163,
+   "mods": [
+    "Shift"
+   ],
+   "presses": 1
+  },
+  {
+   "t": 724.674,
+   "wall": "2026-10-15T17:50:23+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "text 'Statistics'",
+   "x": 420,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 725.539,
+   "wall": "2026-10-15T17:50:24+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "menuitem 'Histogram of the values'",
+   "x": 500,
+   "y": 232,
+   "presses": 1
+  },
+  {
+   "t": 726.928,
+   "wall": "2026-10-15T17:50:26+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "histograms",
+   "path": "shots/P1-1366-light/73-histograms.png"
+  },
+  {
+   "t": 734.448,
+   "wall": "2026-10-15T17:50:33+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "Only one histogram, Caffeine's, though I had all three columns selected. And the message talks about 'its Histogram step' and 'the History'. Let me try the worksheet's Plot button with the three columns."
+  },
+  {
+   "t": 734.453,
+   "wall": "2026-10-15T17:50:33+00:00",
+   "task": "T6",
+   "kind": "finding",
+   "text": "Statistics › Histogram of the values made one histogram (of the analysed column, Caffeine) though three columns were selected; the toast speaks of a 'Histogram step' and 'the History'."
+  },
+  {
+   "t": 734.459,
+   "wall": "2026-10-15T17:50:33+00:00",
+   "task": "T6",
+   "kind": "wrong_turn",
+   "text": "Statistics › Histogram of the values: one histogram instead of three"
+  },
+  {
+   "t": 734.665,
+   "wall": "2026-10-15T17:50:33+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "worksheet Plot button",
+   "x": 1217,
+   "y": 132,
+   "presses": 1
+  },
+  {
+   "t": 735.358,
+   "wall": "2026-10-15T17:50:34+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "ws-plot-menu",
+   "path": "shots/P1-1366-light/74-ws-plot-menu.png"
+  },
+  {
+   "t": 740.344,
+   "wall": "2026-10-15T17:50:39+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "'Histogram of each'. And a box chart, that's how I'd compare groups. Histograms first."
+  },
+  {
+   "t": 741.026,
+   "wall": "2026-10-15T17:50:40+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "menuitem 'Histogram of each'",
+   "x": 1195,
+   "y": 437,
+   "presses": 1
+  },
+  {
+   "t": 742.623,
+   "wall": "2026-10-15T17:50:41+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "hist-each",
+   "path": "shots/P1-1366-light/75-hist-each.png"
+  },
+  {
+   "t": 750.907,
+   "wall": "2026-10-15T17:50:50+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "Three histograms, (a) (b) (c). But which is which? No group names on them, and each has its own X range, so I can't compare by eye. Let me try the box chart for comparing."
+  },
+  {
+   "t": 750.918,
+   "wall": "2026-10-15T17:50:50+00:00",
+   "task": "T6",
+   "kind": "finding",
+   "text": "'Histogram of each' makes a figure of three panels lettered (a)–(c) with no group names, no X titles, and a different X range in each, so the groups cannot be compared by eye; the figure opens 512 px wide over the worksheet."
+  },
+  {
+   "t": 751.134,
+   "wall": "2026-10-15T17:50:50+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "worksheet Plot button",
+   "x": 1217,
+   "y": 132,
+   "presses": 1
+  },
+  {
+   "t": 752.219,
+   "wall": "2026-10-15T17:50:51+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "menuitem 'Box chart'",
+   "x": 1195,
+   "y": 465,
+   "presses": 1
+  },
+  {
+   "t": 753.833,
+   "wall": "2026-10-15T17:50:52+00:00",
+   "task": "T6",
+   "kind": "shot",
+   "target": "boxchart",
+   "path": "shots/P1-1366-light/76-boxchart.png"
+  },
+  {
+   "t": 764.28,
+   "wall": "2026-10-15T17:51:03+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "A box chart: that compares them. Sleep-deprived is highest. But the names under the boxes run into each other ('CaffeSleep-deprived'), and the window is tiny. Good enough to see it."
+  },
+  {
+   "t": 764.285,
+   "wall": "2026-10-15T17:51:03+00:00",
+   "task": "T6",
+   "kind": "finding",
+   "text": "Box chart: category names overlap ('CaffeSleep-deprived') in the 258 px-wide window it opens in; the graph's title bar is truncated to 'G.. C.'"
+  },
+  {
+   "t": 764.292,
+   "wall": "2026-10-15T17:51:03+00:00",
+   "task": "T6",
+   "kind": "task_end",
+   "success": "partial",
+   "note": "survey.csv could not be imported at all; done only after reshaping it in a spreadsheet and pasting; the pasted first column became X and was left out of the statistics until changed; one histogram per group via the worksheet's Plot, unlabeled; box chart compares"
+  },
+  {
+   "t": 770.77,
+   "wall": "2026-10-15T17:51:09+00:00",
+   "task": "T7",
+   "kind": "task_start",
+   "target": "Fit decay.txt with a single exponential with offset, then with a user-defined double exponential"
+  },
+  {
+   "t": 770.779,
+   "wall": "2026-10-15T17:51:09+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "(Persona B, Origin user) Lifetime data. Import, new project, ExpDec1 with offset, then my own ExpDec2."
+  },
+  {
+   "t": 771.039,
+   "wall": "2026-10-15T17:51:10+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "text 'File'",
+   "x": 120,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 771.652,
+   "wall": "2026-10-15T17:51:10+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "menuitem 'Import data…'",
+   "x": 215,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 771.815,
+   "wall": "2026-10-15T17:51:10+00:00",
+   "task": "T7",
+   "kind": "choose_file",
+   "target": "decay.txt",
+   "files": [
+    "decay.txt"
+   ]
+  },
+  {
+   "t": 773.017,
+   "wall": "2026-10-15T17:51:12+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "decay-import",
+   "path": "shots/P1-1366-light/77-decay-import.png"
+  },
+  {
+   "t": 781.732,
+   "wall": "2026-10-15T17:51:20+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "Header found, Time (ns) and Counts. Counting data, so sqrt(N) error bars, yes. New project."
+  },
+  {
+   "t": 781.739,
+   "wall": "2026-10-15T17:51:20+00:00",
+   "task": "T7",
+   "kind": "finding",
+   "text": "The survey project 'already holds 7 spectra' after 3 pasted groups: histograms count as spectra in the import dialog's wording."
+  },
+  {
+   "t": 781.952,
+   "wall": "2026-10-15T17:51:21+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "√N error bars switch",
+   "x": 712,
+   "y": 347,
+   "presses": 1
+  },
+  {
+   "t": 787.553,
+   "wall": "2026-10-15T17:51:26+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "decay-import-sqrt",
+   "path": "shots/P1-1366-light/78-decay-import-sqrt.png"
+  },
+  {
+   "t": 795.003,
+   "wall": "2026-10-15T17:51:34+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "Put it in a new project",
+   "x": 782,
+   "y": 455,
+   "presses": 1
+  },
+  {
+   "t": 795.637,
+   "wall": "2026-10-15T17:51:34+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "Import 2 columns",
+   "x": 1129,
+   "y": 723,
+   "presses": 1
+  },
+  {
+   "t": 796.842,
+   "wall": "2026-10-15T17:51:35+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "decay-imported",
+   "path": "shots/P1-1366-light/79-decay-imported.png"
+  },
+  {
+   "t": 802.999,
+   "wall": "2026-10-15T17:51:42+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "button 'Plot it now'",
+   "x": 945,
+   "y": 698,
+   "presses": 1
+  },
+  {
+   "t": 804.189,
+   "wall": "2026-10-15T17:51:43+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "decay-plotted",
+   "path": "shots/P1-1366-light/80-decay-plotted.png"
+  },
+  {
+   "t": 811.222,
+   "wall": "2026-10-15T17:51:50+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "The graph is a tall thin strip. Fine for now. Analysis, Fit, Curve fit, like Origin's NLFit."
+  },
+  {
+   "t": 811.227,
+   "wall": "2026-10-15T17:51:50+00:00",
+   "task": "T7",
+   "kind": "finding",
+   "text": "Plotting from the import toast opens the graph as a 345 px-wide strip over the maximised worksheet."
+  },
+  {
+   "t": 811.476,
+   "wall": "2026-10-15T17:51:50+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "text 'Analysis'",
+   "x": 350,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 812.036,
+   "wall": "2026-10-15T17:51:51+00:00",
+   "task": "T7",
+   "kind": "hover",
+   "target": "Fit",
+   "x": 447,
+   "y": 168
+  },
+  {
+   "t": 813.211,
+   "wall": "2026-10-15T17:51:52+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "analysis-fit",
+   "path": "shots/P1-1366-light/81-analysis-fit.png"
+  },
+  {
+   "t": 818.99,
+   "wall": "2026-10-15T17:51:58+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "menuitem 'Curve fit'",
+   "x": 688,
+   "y": 168,
+   "presses": 1
+  },
+  {
+   "t": 820.206,
+   "wall": "2026-10-15T17:51:59+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "decay-fitwin",
+   "path": "shots/P1-1366-light/82-decay-fitwin.png"
+  },
+  {
+   "t": 827.162,
+   "wall": "2026-10-15T17:52:06+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "Gaussian peak again as the default, for a decay. Model list: Exponential decay."
+  },
+  {
+   "t": 827.167,
+   "wall": "2026-10-15T17:52:06+00:00",
+   "task": "T7",
+   "kind": "finding",
+   "text": "Curve fit defaults to 'Gaussian peak' whatever the data (a decay here, a line in T2)."
+  },
+  {
+   "t": 827.38,
+   "wall": "2026-10-15T17:52:06+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "Model list",
+   "x": 1086,
+   "y": 253,
+   "presses": 1
+  },
+  {
+   "t": 827.605,
+   "wall": "2026-10-15T17:52:06+00:00",
+   "task": "T7",
+   "kind": "key",
+   "target": "down the list",
+   "keys": "ArrowDown",
+   "presses": 2
+  },
+  {
+   "t": 827.773,
+   "wall": "2026-10-15T17:52:06+00:00",
+   "task": "T7",
+   "kind": "key",
+   "target": "choose",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 828.54,
+   "wall": "2026-10-15T17:52:07+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "expdec-chosen",
+   "path": "shots/P1-1366-light/83-expdec-chosen.png"
+  },
+  {
+   "t": 833.748,
+   "wall": "2026-10-15T17:52:12+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "y = y0 + A exp(-x/tau). That's ExpDec1 with offset. Fit."
+  },
+  {
+   "t": 834.091,
+   "wall": "2026-10-15T17:52:13+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "Fit button",
+   "x": 1066,
+   "y": 625,
+   "presses": 1
+  },
+  {
+   "t": 835.688,
+   "wall": "2026-10-15T17:52:14+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "expdec-fitted",
+   "path": "shots/P1-1366-light/84-expdec-fitted.png"
+  },
+  {
+   "t": 843.1,
+   "wall": "2026-10-15T17:52:22+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "tau 6.34 plus-minus 0.03 ns, reduced chi-squared 9: a single exponential is not enough, as I expected. '1 note' - let me see it."
+  },
+  {
+   "t": 843.235,
+   "wall": "2026-10-15T17:52:22+00:00",
+   "task": "T7",
+   "kind": "wheel",
+   "target": "scroll Results",
+   "x": 595,
+   "y": 640,
+   "dx": 0,
+   "dy": 500
+  },
+  {
+   "t": 844.128,
+   "wall": "2026-10-15T17:52:23+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "expdec-note",
+   "path": "shots/P1-1366-light/85-expdec-note.png"
+  },
+  {
+   "t": 850.039,
+   "wall": "2026-10-15T17:52:29+00:00",
+   "task": "T7",
+   "kind": "wheel",
+   "target": "scroll Results up a little",
+   "x": 595,
+   "y": 640,
+   "dx": 0,
+   "dy": -180
+  },
+  {
+   "t": 850.943,
+   "wall": "2026-10-15T17:52:30+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "expdec-note-2",
+   "path": "shots/P1-1366-light/86-expdec-note-2.png"
+  },
+  {
+   "t": 856.183,
+   "wall": "2026-10-15T17:52:35+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "Good, it tells me the residuals are systematic. Now my own double exponential: '+ Function'."
+  },
+  {
+   "t": 856.441,
+   "wall": "2026-10-15T17:52:35+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "+ Function",
+   "x": 1309,
+   "y": 252,
+   "presses": 1
+  },
+  {
+   "t": 857.629,
+   "wall": "2026-10-15T17:52:36+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "fn-editor",
+   "path": "shots/P1-1366-light/87-fn-editor.png"
+  },
+  {
+   "t": 865.732,
+   "wall": "2026-10-15T17:52:44+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "A function editor with a live preview, nice. Name: ExpDec2. Formula: two exponentials and an offset."
+  },
+  {
+   "t": 865.915,
+   "wall": "2026-10-15T17:52:45+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "Name field",
+   "x": 706,
+   "y": 98,
+   "presses": 1
+  },
+  {
+   "t": 866.357,
+   "wall": "2026-10-15T17:52:45+00:00",
+   "task": "T7",
+   "kind": "type",
+   "text": "ExpDec2",
+   "keys": 7
+  },
+  {
+   "t": 866.572,
+   "wall": "2026-10-15T17:52:45+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "formula box",
+   "x": 682,
+   "y": 185,
+   "presses": 1
+  },
+  {
+   "t": 866.751,
+   "wall": "2026-10-15T17:52:45+00:00",
+   "task": "T7",
+   "kind": "key",
+   "target": "select all",
+   "keys": "Control+a",
+   "presses": 1
+  },
+  {
+   "t": 868.511,
+   "wall": "2026-10-15T17:52:47+00:00",
+   "task": "T7",
+   "kind": "type",
+   "text": "y = y0 + A1*exp(-x/t1) + A2*exp(-x/t2)",
+   "keys": 38
+  },
+  {
+   "t": 869.308,
+   "wall": "2026-10-15T17:52:48+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "fn-typed",
+   "path": "shots/P1-1366-light/88-fn-typed.png"
+  },
+  {
+   "t": 876.71,
+   "wall": "2026-10-15T17:52:55+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "It found 5 parameters. The 'auto' starts give one slow curve; for ExpDec2 I'd give t1 and t2 apart: 3 and 15."
+  },
+  {
+   "t": 876.904,
+   "wall": "2026-10-15T17:52:56+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "t1 start",
+   "x": 494,
+   "y": 529,
+   "presses": 1
+  },
+  {
+   "t": 877.084,
+   "wall": "2026-10-15T17:52:56+00:00",
+   "task": "T7",
+   "kind": "type",
+   "text": "3",
+   "keys": 1
+  },
+  {
+   "t": 877.289,
+   "wall": "2026-10-15T17:52:56+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "t2 start",
+   "x": 494,
+   "y": 595,
+   "presses": 1
+  },
+  {
+   "t": 877.504,
+   "wall": "2026-10-15T17:52:56+00:00",
+   "task": "T7",
+   "kind": "type",
+   "text": "15",
+   "keys": 2
+  },
+  {
+   "t": 877.699,
+   "wall": "2026-10-15T17:52:56+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "A1 start",
+   "x": 494,
+   "y": 496,
+   "presses": 1
+  },
+  {
+   "t": 878.006,
+   "wall": "2026-10-15T17:52:57+00:00",
+   "task": "T7",
+   "kind": "type",
+   "text": "3000",
+   "keys": 4
+  },
+  {
+   "t": 878.197,
+   "wall": "2026-10-15T17:52:57+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "A2 start",
+   "x": 494,
+   "y": 562,
+   "presses": 1
+  },
+  {
+   "t": 878.502,
+   "wall": "2026-10-15T17:52:57+00:00",
+   "task": "T7",
+   "kind": "type",
+   "text": "1000",
+   "keys": 4
+  },
+  {
+   "t": 879.294,
+   "wall": "2026-10-15T17:52:58+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "fn-starts",
+   "path": "shots/P1-1366-light/89-fn-starts.png"
+  },
+  {
+   "t": 879.773,
+   "wall": "2026-10-15T17:52:58+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "button 'Add the function'",
+   "x": 962,
+   "y": 723,
+   "presses": 1
+  },
+  {
+   "t": 881.007,
+   "wall": "2026-10-15T17:53:00+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "fn-added",
+   "path": "shots/P1-1366-light/90-fn-added.png"
+  },
+  {
+   "t": 886.491,
+   "wall": "2026-10-15T17:53:05+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "Added and selected, starts in place. Fit."
+  },
+  {
+   "t": 886.854,
+   "wall": "2026-10-15T17:53:05+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "Fit button",
+   "x": 1020,
+   "y": 682,
+   "presses": 1
+  },
+  {
+   "t": 888.76,
+   "wall": "2026-10-15T17:53:07+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "expdec2-fitted",
+   "path": "shots/P1-1366-light/91-expdec2-fitted.png"
+  },
+  {
+   "t": 896.031,
+   "wall": "2026-10-15T17:53:15+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "t1 3.87 plus-minus 0.09, t2 14.95 plus-minus 0.81, reduced chi-squared 1.00. That's the answer. Now: where is my first fit's report? In Origin I'd have two report sheets to compare."
+  },
+  {
+   "t": 896.183,
+   "wall": "2026-10-15T17:53:15+00:00",
+   "task": "T7",
+   "kind": "wheel",
+   "target": "scroll Results to the top",
+   "x": 595,
+   "y": 600,
+   "dx": 0,
+   "dy": -800
+  },
+  {
+   "t": 897.077,
+   "wall": "2026-10-15T17:53:16+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "results-top-expdec2",
+   "path": "shots/P1-1366-light/92-results-top-expdec2.png"
+  },
+  {
+   "t": 903.135,
+   "wall": "2026-10-15T17:53:22+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "Only the new fit. The single exponential's report is gone from here. Maybe History keeps it."
+  },
+  {
+   "t": 903.336,
+   "wall": "2026-10-15T17:53:22+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "History taskbar button",
+   "x": 582,
+   "y": 725,
+   "presses": 1
+  },
+  {
+   "t": 904.555,
+   "wall": "2026-10-15T17:53:23+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "history-decay",
+   "path": "shots/P1-1366-light/93-history-decay.png"
+  },
+  {
+   "t": 910.855,
+   "wall": "2026-10-15T17:53:29+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "A flow chart, tiny, and half the window is a details pane. Scroll down to find the fits."
+  },
+  {
+   "t": 911.001,
+   "wall": "2026-10-15T17:53:30+00:00",
+   "task": "T7",
+   "kind": "wheel",
+   "target": "scroll the flow chart",
+   "x": 1100,
+   "y": 250,
+   "dx": 0,
+   "dy": 300
+  },
+  {
+   "t": 911.899,
+   "wall": "2026-10-15T17:53:31+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "history-scrolled",
+   "path": "shots/P1-1366-light/94-history-scrolled.png"
+  },
+  {
+   "t": 917.626,
+   "wall": "2026-10-15T17:53:36+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "'Fit: ExpDec2, 1 earlier'. Click it."
+  },
+  {
+   "t": 917.993,
+   "wall": "2026-10-15T17:53:37+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "Fit box",
+   "x": 1042,
+   "y": 273,
+   "presses": 1
+  },
+  {
+   "t": 918.989,
+   "wall": "2026-10-15T17:53:38+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "history-fitbox",
+   "path": "shots/P1-1366-light/95-history-fitbox.png"
+  },
+  {
+   "t": 925.45,
+   "wall": "2026-10-15T17:53:44+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "'Fits of Counts: 2 made'. Scroll the details to the earlier one."
+  },
+  {
+   "t": 925.588,
+   "wall": "2026-10-15T17:53:44+00:00",
+   "task": "T7",
+   "kind": "wheel",
+   "target": "scroll History details",
+   "x": 1150,
+   "y": 400,
+   "dx": 0,
+   "dy": 300
+  },
+  {
+   "t": 926.493,
+   "wall": "2026-10-15T17:53:45+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "history-fits-list",
+   "path": "shots/P1-1366-light/96-history-fits-list.png"
+  },
+  {
+   "t": 932.265,
+   "wall": "2026-10-15T17:53:51+00:00",
+   "task": "T7",
+   "kind": "wheel",
+   "target": "scroll History details up a little",
+   "x": 1150,
+   "y": 400,
+   "dx": 0,
+   "dy": -130
+  },
+  {
+   "t": 933.16,
+   "wall": "2026-10-15T17:53:52+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "history-fits-list-2",
+   "path": "shots/P1-1366-light/97-history-fits-list-2.png"
+  },
+  {
+   "t": 939.711,
+   "wall": "2026-10-15T17:53:58+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "There's the earlier one: R squared, chi-squared, a thumbnail. Not its parameters. Click it."
+  },
+  {
+   "t": 939.895,
+   "wall": "2026-10-15T17:53:59+00:00",
+   "task": "T7",
+   "kind": "click",
+   "target": "earlier fit entry",
+   "x": 1170,
+   "y": 360,
+   "presses": 1
+  },
+  {
+   "t": 941.132,
+   "wall": "2026-10-15T17:54:00+00:00",
+   "task": "T7",
+   "kind": "shot",
+   "target": "earlier-fit-clicked",
+   "path": "shots/P1-1366-light/98-earlier-fit-clicked.png"
+  },
+  {
+   "t": 951.122,
+   "wall": "2026-10-15T17:54:10+00:00",
+   "task": "T7",
+   "kind": "say",
+   "text": "Clicking it does nothing. So my single-exponential report, tau plus-minus error, is gone unless I'd saved it. In Origin both report sheets stay in the workbook."
+  },
+  {
+   "t": 951.132,
+   "wall": "2026-10-15T17:54:10+00:00",
+   "task": "T7",
+   "kind": "finding",
+   "text": "A new fit replaces the previous fit's report: the earlier fit survives only as a line in History (R², χ², a thumbnail), not its parameters and errors; clicking it does nothing, so two models cannot be compared side by side."
+  },
+  {
+   "t": 951.141,
+   "wall": "2026-10-15T17:54:10+00:00",
+   "task": "T7",
+   "kind": "finding",
+   "text": "The History window opens at 420×360 px with the details pane taking half; the flow chart shows two boxes at a time."
+  },
+  {
+   "t": 951.15,
+   "wall": "2026-10-15T17:54:10+00:00",
+   "task": "T7",
+   "kind": "task_end",
+   "success": "partial",
+   "note": "both fits made with errors (single: tau 6.343±0.027, chi2 9; double: 3.873±0.089 and 14.95±0.81, chi2 1.00), user function editor was good; the first report could not be brought back after the second fit"
+  },
+  {
+   "t": 956.076,
+   "wall": "2026-10-15T17:54:15+00:00",
+   "task": "T8",
+   "kind": "task_start",
+   "target": "raman_raw.txt: remove spikes, subtract baseline, find and fit the peaks, table of position, FWHM, area with errors"
+  },
+  {
+   "t": 956.083,
+   "wall": "2026-10-15T17:54:15+00:00",
+   "task": "T8",
+   "kind": "say",
+   "text": "Polystyrene Raman spectrum. Import into a new project."
+  },
+  {
+   "t": 956.386,
+   "wall": "2026-10-15T17:54:15+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "text 'File'",
+   "x": 120,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 956.994,
+   "wall": "2026-10-15T17:54:16+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "menuitem 'Import data…'",
+   "x": 215,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 957.14,
+   "wall": "2026-10-15T17:54:16+00:00",
+   "task": "T8",
+   "kind": "choose_file",
+   "target": "raman_raw.txt",
+   "files": [
+    "raman_raw.txt"
+   ]
+  },
+  {
+   "t": 958.363,
+   "wall": "2026-10-15T17:54:17+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "raman-import",
+   "path": "shots/P1-1366-light/99-raman-import.png"
+  },
+  {
+   "t": 964.733,
+   "wall": "2026-10-15T17:54:23+00:00",
+   "task": "T8",
+   "kind": "say",
+   "text": "It suggests a new project itself, and I can see the two cosmic-ray spikes in the preview. Import."
+  },
+  {
+   "t": 965.002,
+   "wall": "2026-10-15T17:54:24+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Import 2 columns",
+   "x": 1129,
+   "y": 723,
+   "presses": 1
+  },
+  {
+   "t": 966.184,
+   "wall": "2026-10-15T17:54:25+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "raman-imported",
+   "path": "shots/P1-1366-light/100-raman-imported.png"
+  },
+  {
+   "t": 972.126,
+   "wall": "2026-10-15T17:54:31+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Plot it now'",
+   "x": 945,
+   "y": 698,
+   "presses": 1
+  },
+  {
+   "t": 973.547,
+   "wall": "2026-10-15T17:54:32+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "raman-plotted",
+   "path": "shots/P1-1366-light/101-raman-plotted.png"
+  },
+  {
+   "t": 982.681,
+   "wall": "2026-10-15T17:54:41+00:00",
+   "task": "T8",
+   "kind": "say",
+   "text": "A spectrum drawn as dots, in a strip 345 pixels wide. Maximise the graph and make it a line."
+  },
+  {
+   "t": 982.687,
+   "wall": "2026-10-15T17:54:41+00:00",
+   "task": "T8",
+   "kind": "finding",
+   "text": "A 1024-point spectrum is plotted as symbols by default (the toolbar's type stays 'Symbols' from the start), drawing a cloud of dots instead of a line."
+  },
+  {
+   "t": 982.968,
+   "wall": "2026-10-15T17:54:42+00:00",
+   "task": "T8",
+   "kind": "dblclick",
+   "target": "graph title bar",
+   "x": 700,
+   "y": 99,
+   "presses": 2
+  },
+  {
+   "t": 983.891,
+   "wall": "2026-10-15T17:54:43+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "plot type list (Symbols)",
+   "x": 806,
+   "y": 61,
+   "presses": 1
+  },
+  {
+   "t": 984.592,
+   "wall": "2026-10-15T17:54:43+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "type-list",
+   "path": "shots/P1-1366-light/102-type-list.png"
+  },
+  {
+   "t": 990.09,
+   "wall": "2026-10-15T17:54:49+00:00",
+   "task": "T8",
+   "kind": "key",
+   "target": "to Line",
+   "keys": "ArrowUp",
+   "presses": 1
+  },
+  {
+   "t": 990.365,
+   "wall": "2026-10-15T17:54:49+00:00",
+   "task": "T8",
+   "kind": "key",
+   "target": "choose",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 990.976,
+   "wall": "2026-10-15T17:54:50+00:00",
+   "task": "T8",
+   "kind": "say",
+   "text": "Now the spikes. Data menu."
+  },
+  {
+   "t": 991.262,
+   "wall": "2026-10-15T17:54:50+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "text 'Data'",
+   "x": 246,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 991.964,
+   "wall": "2026-10-15T17:54:51+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "data-menu",
+   "path": "shots/P1-1366-light/103-data-menu.png"
+  },
+  {
+   "t": 997.697,
+   "wall": "2026-10-15T17:54:56+00:00",
+   "task": "T8",
+   "kind": "hover",
+   "target": "Clean",
+   "x": 338,
+   "y": 204
+  },
+  {
+   "t": 998.879,
+   "wall": "2026-10-15T17:54:57+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "data-clean",
+   "path": "shots/P1-1366-light/104-data-clean.png"
+  },
+  {
+   "t": 1004.643,
+   "wall": "2026-10-15T17:55:03+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "menuitem 'Remove cosmic-ray spikes…'",
+   "x": 565,
+   "y": 288,
+   "presses": 1
+  },
+  {
+   "t": 1006.034,
+   "wall": "2026-10-15T17:55:05+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "despike-tool",
+   "path": "shots/P1-1366-light/105-despike-tool.png"
+  },
+  {
+   "t": 1012.488,
+   "wall": "2026-10-15T17:55:11+00:00",
+   "task": "T8",
+   "kind": "say",
+   "text": "'2 spikes removed', with a before and after. Clear. OK."
+  },
+  {
+   "t": 1012.904,
+   "wall": "2026-10-15T17:55:12+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'OK'",
+   "x": 1003,
+   "y": 556,
+   "presses": 1
+  },
+  {
+   "t": 1014.102,
+   "wall": "2026-10-15T17:55:13+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "despiked",
+   "path": "shots/P1-1366-light/106-despiked.png"
+  },
+  {
+   "t": 1020.215,
+   "wall": "2026-10-15T17:55:19+00:00",
+   "task": "T8",
+   "kind": "say",
+   "text": "Spikes gone. Now baseline: I saw 'Subtract background' under Analysis."
+  },
+  {
+   "t": 1020.48,
+   "wall": "2026-10-15T17:55:19+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "text 'Analysis'",
+   "x": 350,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 1021.215,
+   "wall": "2026-10-15T17:55:20+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "menuitem 'Subtract background…'",
+   "x": 447,
+   "y": 232,
+   "presses": 1
+  },
+  {
+   "t": 1022.815,
+   "wall": "2026-10-15T17:55:21+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "bg-tool",
+   "path": "shots/P1-1366-light/107-bg-tool.png"
+  },
+  {
+   "t": 1029.959,
+   "wall": "2026-10-15T17:55:29+00:00",
+   "task": "T8",
+   "kind": "say",
+   "text": "arPLS, the dashed baseline follows under the bands, the result is flat. But this dialog covers the 1200-1800 region, exactly where my overlapping bands are; I can't check the baseline under them without moving it. OK anyway."
+  },
+  {
+   "t": 1029.966,
+   "wall": "2026-10-15T17:55:29+00:00",
+   "task": "T8",
+   "kind": "finding",
+   "text": "Tool dialogs (spikes, background) open over the right third of the graph and hide the part being judged (1200–1800 cm⁻¹ here)."
+  },
+  {
+   "t": 1030.565,
+   "wall": "2026-10-15T17:55:29+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'OK'",
+   "x": 1003,
+   "y": 519,
+   "presses": 1
+  },
+  {
+   "t": 1031.787,
+   "wall": "2026-10-15T17:55:30+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "bg-done",
+   "path": "shots/P1-1366-light/108-bg-done.png"
+  },
+  {
+   "t": 1038.728,
+   "wall": "2026-10-15T17:55:37+00:00",
+   "task": "T8",
+   "kind": "say",
+   "text": "Flat baseline. Now Peak Analyzer: Analysis, Fit, Peak fit."
+  },
+  {
+   "t": 1039.01,
+   "wall": "2026-10-15T17:55:38+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "text 'Analysis'",
+   "x": 350,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 1039.56,
+   "wall": "2026-10-15T17:55:38+00:00",
+   "task": "T8",
+   "kind": "hover",
+   "target": "Fit",
+   "x": 447,
+   "y": 168
+  },
+  {
+   "t": 1040.781,
+   "wall": "2026-10-15T17:55:39+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "menuitem 'Peak fit'",
+   "x": 688,
+   "y": 196,
+   "presses": 1
+  },
+  {
+   "t": 1042.384,
+   "wall": "2026-10-15T17:55:41+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "peakfit-win",
+   "path": "shots/P1-1366-light/109-peakfit-win.png"
+  },
+  {
+   "t": 1050.872,
+   "wall": "2026-10-15T17:55:49+00:00",
+   "task": "T8",
+   "kind": "say",
+   "text": "It found 9 peaks, the right ones, and marks dozens of grey triangles I don't care about. Fit is greyed out. I have to do something in between: scroll."
+  },
+  {
+   "t": 1050.88,
+   "wall": "2026-10-15T17:55:49+00:00",
+   "task": "T8",
+   "kind": "finding",
+   "text": "Peak fit: after it finds the peaks the Fit button stays disabled; the step that hands the peaks to the fit is below the fold. The graph also shows dozens of open triangles for turned-down candidates in the noise."
+  },
+  {
+   "t": 1051.044,
+   "wall": "2026-10-15T17:55:50+00:00",
+   "task": "T8",
+   "kind": "wheel",
+   "target": "scroll Fit window",
+   "x": 1130,
+   "y": 450,
+   "dx": 0,
+   "dy": 500
+  },
+  {
+   "t": 1051.923,
+   "wall": "2026-10-15T17:55:51+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "peakfit-scrolled",
+   "path": "shots/P1-1366-light/110-peakfit-scrolled.png"
+  },
+  {
+   "t": 1058.875,
+   "wall": "2026-10-15T17:55:57+00:00",
+   "task": "T8",
+   "kind": "say",
+   "text": "'Use these 9 peaks'. Gaussian shape by default; for Raman I'd want Lorentzian or Voigt, but let's see first."
+  },
+  {
+   "t": 1059.381,
+   "wall": "2026-10-15T17:55:58+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Use these 9 peaks'",
+   "x": 1000,
+   "y": 464,
+   "presses": 1
+  },
+  {
+   "t": 1060.609,
+   "wall": "2026-10-15T17:55:59+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "peaks-used",
+   "path": "shots/P1-1366-light/111-peaks-used.png"
+  },
+  {
+   "t": 1069.253,
+   "wall": "2026-10-15T17:56:08+00:00",
+   "task": "T8",
+   "kind": "say",
+   "text": "Nine peak cards, each with its own shape list. To make them all Lorentzian I'd change nine lists; Origin has 'set all'. I'll fit Gaussians first."
+  },
+  {
+   "t": 1069.259,
+   "wall": "2026-10-15T17:56:08+00:00",
+   "task": "T8",
+   "kind": "finding",
+   "text": "Peak shape is set per peak card (nine lists for nine peaks); 'New peaks' only applies to peaks added later. No 'all peaks' shape switch in view."
+  },
+  {
+   "t": 1070.362,
+   "wall": "2026-10-15T17:56:09+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Fit 9 peaks'",
+   "x": 1032,
+   "y": 683,
+   "presses": 1
+  },
+  {
+   "t": 1073.327,
+   "wall": "2026-10-15T17:56:12+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "peaks-fitted",
+   "path": "shots/P1-1366-light/112-peaks-fitted.png"
+  },
+  {
+   "t": 1082.544,
+   "wall": "2026-10-15T17:56:21+00:00",
+   "task": "T8",
+   "kind": "say",
+   "text": "Converged. Table: centre, height, FWHM, area, area percent, all with errors. Reduced chi-squared 6063 looks terrible though; I didn't weight it, so that's counts squared, but it doesn't say. Now export the table as CSV: 'Export data'?"
+  },
+  {
+   "t": 1082.55,
+   "wall": "2026-10-15T17:56:21+00:00",
+   "task": "T8",
+   "kind": "finding",
+   "text": "An unweighted peak fit reports 'reduced χ² = 6063' in the toast and the Fit window with no unit or explanation; it reads as a failed fit."
+  },
+  {
+   "t": 1082.878,
+   "wall": "2026-10-15T17:56:21+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Export data'",
+   "x": 521,
+   "y": 562,
+   "presses": 1
+  },
+  {
+   "t": 1083.029,
+   "wall": "2026-10-15T17:56:22+00:00",
+   "task": "T8",
+   "kind": "download",
+   "target": "Export data from Results",
+   "file": "downloads/P1-1366-light/raman_raw.csv",
+   "suggested": "raman_raw.csv"
+  },
+  {
+   "t": 1083.789,
+   "wall": "2026-10-15T17:56:22+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "export-data",
+   "path": "shots/P1-1366-light/113-export-data.png"
+  },
+  {
+   "t": 1095.65,
+   "wall": "2026-10-15T17:56:34+00:00",
+   "task": "T8",
+   "kind": "finding",
+   "text": "'Export data' writes every data point (1026 rows of curves); the peak table is at the end as '#' comment lines, and has no error for height or FWHM (the screen shows FWHM ± error). Opening it in a spreadsheet, the table is at row 1039 behind '#'."
+  },
+  {
+   "t": 1095.943,
+   "wall": "2026-10-15T17:56:35+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Copy table'",
+   "x": 312,
+   "y": 562,
+   "presses": 1
+  },
+  {
+   "t": 1096.577,
+   "wall": "2026-10-15T17:56:35+00:00",
+   "task": "T8",
+   "kind": "external_paste",
+   "target": "pasted the copied table into a spreadsheet",
+   "chars": 3773
+  },
+  {
+   "t": 1096.891,
+   "wall": "2026-10-15T17:56:36+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "copy-table",
+   "path": "shots/P1-1366-light/114-copy-table.png"
+  },
+  {
+   "t": 1109.369,
+   "wall": "2026-10-15T17:56:48+00:00",
+   "task": "T8",
+   "kind": "say",
+   "text": "Copy table gives every number with its error, ready for a spreadsheet; the CSV export has the table only as comments and without FWHM errors. And I can't see my fit: the Fit window and Results cover three quarters of the graph."
+  },
+  {
+   "t": 1109.375,
+   "wall": "2026-10-15T17:56:48+00:00",
+   "task": "T8",
+   "kind": "finding",
+   "text": "After a peak fit, the Fit window (right) and Results (bottom) cover about three quarters of the graph at 1366×768: the fit cannot be judged without moving or closing windows."
+  },
+  {
+   "t": 1109.382,
+   "wall": "2026-10-15T17:56:48+00:00",
+   "task": "T8",
+   "kind": "task_end",
+   "success": "success",
+   "note": "9 peaks found, fitted (Gaussian), table with errors via Copy table; the CSV file holds the table only as comments without FWHM/height errors"
+  },
+  {
+   "t": 1114.569,
+   "wall": "2026-10-15T17:56:53+00:00",
+   "task": "T9",
+   "kind": "task_start",
+   "target": "Two-panel publication figure (raw and fitted) with matching axes, export as SVG/PDF"
+  },
+  {
+   "t": 1114.58,
+   "wall": "2026-10-15T17:56:53+00:00",
+   "task": "T9",
+   "kind": "say",
+   "text": "Figure for the paper: top panel the raw spectrum, bottom the fitted one, same X. In Origin: a graph with two layers, or Merge Graphs. Close these windows first, then look in Window."
+  },
+  {
+   "t": 1114.796,
+   "wall": "2026-10-15T17:56:53+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "close Results",
+   "x": 925,
+   "y": 474,
+   "presses": 1
+  },
+  {
+   "t": 1115.152,
+   "wall": "2026-10-15T17:56:54+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "close Fit",
+   "x": 1349,
+   "y": 99,
+   "presses": 1
+  },
+  {
+   "t": 1115.979,
+   "wall": "2026-10-15T17:56:55+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "text 'Window'",
+   "x": 488,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 1116.689,
+   "wall": "2026-10-15T17:56:55+00:00",
+   "task": "T9",
+   "kind": "shot",
+   "target": "window-menu",
+   "path": "shots/P1-1366-light/115-window-menu.png"
+  },
+  {
+   "t": 1123.043,
+   "wall": "2026-10-15T17:57:02+00:00",
+   "task": "T9",
+   "kind": "say",
+   "text": "Now I can see the fit, nice. 'New graph' has a submenu."
+  },
+  {
+   "t": 1123.24,
+   "wall": "2026-10-15T17:57:02+00:00",
+   "task": "T9",
+   "kind": "hover",
+   "target": "New graph",
+   "x": 574,
+   "y": 437
+  },
+  {
+   "t": 1124.428,
+   "wall": "2026-10-15T17:57:03+00:00",
+   "task": "T9",
+   "kind": "shot",
+   "target": "new-graph-sub",
+   "path": "shots/P1-1366-light/116-new-graph-sub.png"
+  },
+  {
+   "t": 1130.279,
+   "wall": "2026-10-15T17:57:09+00:00",
+   "task": "T9",
+   "kind": "say",
+   "text": "'A figure of panels...'. That's my two-panel figure."
+  },
+  {
+   "t": 1130.59,
+   "wall": "2026-10-15T17:57:09+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "menuitem 'A figure of panels…'",
+   "x": 816,
+   "y": 558,
+   "presses": 1
+  },
+  {
+   "t": 1131.803,
+   "wall": "2026-10-15T17:57:10+00:00",
+   "task": "T9",
+   "kind": "shot",
+   "target": "figure-dialog",
+   "path": "shots/P1-1366-light/117-figure-dialog.png"
+  },
+  {
+   "t": 1141.079,
+   "wall": "2026-10-15T17:57:20+00:00",
+   "task": "T9",
+   "kind": "say",
+   "text": "One panel for each spectrum (1)... Make it is greyed. I have one spectrum; I want it twice, raw and fitted. What else does Panels offer?"
+  },
+  {
+   "t": 1141.283,
+   "wall": "2026-10-15T17:57:20+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "Panels list",
+   "x": 708,
+   "y": 300,
+   "presses": 1
+  },
+  {
+   "t": 1141.998,
+   "wall": "2026-10-15T17:57:21+00:00",
+   "task": "T9",
+   "kind": "shot",
+   "target": "panels-list",
+   "path": "shots/P1-1366-light/118-panels-list.png"
+  },
+  {
+   "t": 1149.065,
+   "wall": "2026-10-15T17:57:28+00:00",
+   "task": "T9",
+   "kind": "say",
+   "text": "Only graphs. So I need a second graph that shows the raw data. Duplicate this graph, then switch the copy to Raw."
+  },
+  {
+   "t": 1149.124,
+   "wall": "2026-10-15T17:57:28+00:00",
+   "task": "T9",
+   "kind": "key",
+   "target": "close list",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 1149.553,
+   "wall": "2026-10-15T17:57:28+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "button 'Cancel'",
+   "x": 788,
+   "y": 514,
+   "presses": 1
+  },
+  {
+   "t": 1150.235,
+   "wall": "2026-10-15T17:57:29+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "graph ⋯ menu",
+   "x": 1229,
+   "y": 99,
+   "presses": 1
+  },
+  {
+   "t": 1150.942,
+   "wall": "2026-10-15T17:57:30+00:00",
+   "task": "T9",
+   "kind": "shot",
+   "target": "graph-dots-menu",
+   "path": "shots/P1-1366-light/119-graph-dots-menu.png"
+  },
+  {
+   "t": 1157.57,
+   "wall": "2026-10-15T17:57:36+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "menuitem 'Duplicate'",
+   "x": 1239,
+   "y": 217,
+   "presses": 1
+  },
+  {
+   "t": 1158.981,
+   "wall": "2026-10-15T17:57:38+00:00",
+   "task": "T9",
+   "kind": "shot",
+   "target": "duplicated",
+   "path": "shots/P1-1366-light/120-duplicated.png"
+  },
+  {
+   "t": 1166.013,
+   "wall": "2026-10-15T17:57:45+00:00",
+   "task": "T9",
+   "kind": "say",
+   "text": "Graph 2, a copy. Now show raw on it: the Raw button."
+  },
+  {
+   "t": 1166.396,
+   "wall": "2026-10-15T17:57:45+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "button 'Raw'",
+   "x": 247,
+   "y": 61,
+   "presses": 1
+  },
+  {
+   "t": 1167.6,
+   "wall": "2026-10-15T17:57:46+00:00",
+   "task": "T9",
+   "kind": "shot",
+   "target": "graph2-raw",
+   "path": "shots/P1-1366-light/121-graph2-raw.png"
+  },
+  {
+   "t": 1176.044,
+   "wall": "2026-10-15T17:57:55+00:00",
+   "task": "T9",
+   "kind": "say",
+   "text": "Graph 2 shows raw now. Make the figure from the two graphs."
+  },
+  {
+   "t": 1176.356,
+   "wall": "2026-10-15T17:57:55+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "text 'Window'",
+   "x": 488,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 1176.938,
+   "wall": "2026-10-15T17:57:56+00:00",
+   "task": "T9",
+   "kind": "hover",
+   "target": "New graph",
+   "x": 574,
+   "y": 465
+  },
+  {
+   "t": 1178.14,
+   "wall": "2026-10-15T17:57:57+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "menuitem 'A figure of panels…'",
+   "x": 816,
+   "y": 586,
+   "presses": 1
+  },
+  {
+   "t": 1179.064,
+   "wall": "2026-10-15T17:57:58+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "Panels list",
+   "x": 708,
+   "y": 300,
+   "presses": 1
+  },
+  {
+   "t": 1179.503,
+   "wall": "2026-10-15T17:57:58+00:00",
+   "task": "T9",
+   "kind": "key",
+   "target": "The graphs ticked below",
+   "keys": "ArrowUp",
+   "presses": 1
+  },
+  {
+   "t": 1179.67,
+   "wall": "2026-10-15T17:57:58+00:00",
+   "task": "T9",
+   "kind": "key",
+   "target": "choose",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 1180.479,
+   "wall": "2026-10-15T17:57:59+00:00",
+   "task": "T9",
+   "kind": "shot",
+   "target": "figure-dialog-graphs",
+   "path": "shots/P1-1366-light/122-figure-dialog-graphs.png"
+  },
+  {
+   "t": 1188.32,
+   "wall": "2026-10-15T17:58:07+00:00",
+   "task": "T9",
+   "kind": "say",
+   "text": "Both graphs ticked. I want them stacked, one column, X shared."
+  },
+  {
+   "t": 1188.535,
+   "wall": "2026-10-15T17:58:07+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "Columns list",
+   "x": 713,
+   "y": 397,
+   "presses": 1
+  },
+  {
+   "t": 1189.267,
+   "wall": "2026-10-15T17:58:08+00:00",
+   "task": "T9",
+   "kind": "shot",
+   "target": "columns-list",
+   "path": "shots/P1-1366-light/123-columns-list.png"
+  },
+  {
+   "t": 1195.125,
+   "wall": "2026-10-15T17:58:14+00:00",
+   "task": "T9",
+   "kind": "key",
+   "target": "to 1",
+   "keys": "ArrowDown",
+   "presses": 1
+  },
+  {
+   "t": 1195.298,
+   "wall": "2026-10-15T17:58:14+00:00",
+   "task": "T9",
+   "kind": "key",
+   "target": "choose",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 1196.004,
+   "wall": "2026-10-15T17:58:15+00:00",
+   "task": "T9",
+   "kind": "shot",
+   "target": "columns-1",
+   "path": "shots/P1-1366-light/124-columns-1.png"
+  },
+  {
+   "t": 1204.408,
+   "wall": "2026-10-15T17:58:23+00:00",
+   "task": "T9",
+   "kind": "say",
+   "text": "'Share X (automatic for one column)' but the switch is off. Which is it? Turn it on to be sure. And raw should be on top, but there's no way to order them here; Graph 1 is the fitted one."
+  },
+  {
+   "t": 1204.42,
+   "wall": "2026-10-15T17:58:23+00:00",
+   "task": "T9",
+   "kind": "finding",
+   "text": "Figure dialog: 'Share X (automatic for one column)' shows a switch that stays off with one column chosen, so it is unclear whether X will be shared; the panels' order cannot be set in the dialog."
+  },
+  {
+   "t": 1204.614,
+   "wall": "2026-10-15T17:58:23+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "Share X switch",
+   "x": 550,
+   "y": 428,
+   "presses": 1
+  },
+  {
+   "t": 1205.469,
+   "wall": "2026-10-15T17:58:24+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "button 'Make it'",
+   "x": 862,
+   "y": 526,
+   "presses": 1
+  },
+  {
+   "t": 1207.361,
+   "wall": "2026-10-15T17:58:26+00:00",
+   "task": "T9",
+   "kind": "shot",
+   "target": "figure-made",
+   "path": "shots/P1-1366-light/125-figure-made.png"
+  },
+  {
+   "t": 1215.894,
+   "wall": "2026-10-15T17:58:35+00:00",
+   "task": "T9",
+   "kind": "say",
+   "text": "Two panels, (a) fitted on top, (b) raw below, X shared. The two Y-axis titles run into each other at the join ('Intensity (counts)ntensity (counts)'), and it's a small window. Export it: File, Export."
+  },
+  {
+   "t": 1215.903,
+   "wall": "2026-10-15T17:58:35+00:00",
+   "task": "T9",
+   "kind": "finding",
+   "text": "Two-panel figure with shared X: the two Y-axis titles overlap where the panels meet; the figure opens 515×350 px over the worksheet."
+  },
+  {
+   "t": 1216.237,
+   "wall": "2026-10-15T17:58:35+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "text 'File'",
+   "x": 120,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 1216.803,
+   "wall": "2026-10-15T17:58:35+00:00",
+   "task": "T9",
+   "kind": "hover",
+   "target": "Export",
+   "x": 215,
+   "y": 176
+  },
+  {
+   "t": 1217.989,
+   "wall": "2026-10-15T17:58:37+00:00",
+   "task": "T9",
+   "kind": "shot",
+   "target": "file-export-sub",
+   "path": "shots/P1-1366-light/126-file-export-sub.png"
+  },
+  {
+   "t": 1225.112,
+   "wall": "2026-10-15T17:58:44+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "menuitem 'Figure as SVG (vector, for papers)'",
+   "x": 457,
+   "y": 204,
+   "presses": 1
+  },
+  {
+   "t": 1225.748,
+   "wall": "2026-10-15T17:58:44+00:00",
+   "task": "T9",
+   "kind": "download",
+   "target": "Figure as SVG",
+   "file": "downloads/P1-1366-light/raman_raw_Graph_2.svg",
+   "suggested": "raman_raw_Graph_2.svg"
+  },
+  {
+   "t": 1226.455,
+   "wall": "2026-10-15T17:58:45+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "text 'File'",
+   "x": 120,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 1227.035,
+   "wall": "2026-10-15T17:58:46+00:00",
+   "task": "T9",
+   "kind": "hover",
+   "target": "Export",
+   "x": 215,
+   "y": 176
+  },
+  {
+   "t": 1228.119,
+   "wall": "2026-10-15T17:58:47+00:00",
+   "task": "T9",
+   "kind": "hover",
+   "target": "Figure as PDF or EPS",
+   "x": 457,
+   "y": 232
+  },
+  {
+   "t": 1229.325,
+   "wall": "2026-10-15T17:58:48+00:00",
+   "task": "T9",
+   "kind": "shot",
+   "target": "pdf-sub",
+   "path": "shots/P1-1366-light/127-pdf-sub.png"
+  },
+  {
+   "t": 1238.541,
+   "wall": "2026-10-15T17:58:57+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "menuitem 'PDF (vector, standard fonts)'",
+   "x": 699,
+   "y": 232,
+   "presses": 1
+  },
+  {
+   "t": 1238.677,
+   "wall": "2026-10-15T17:58:57+00:00",
+   "task": "T9",
+   "kind": "download",
+   "target": "Figure as PDF",
+   "file": "downloads/P1-1366-light/raman_raw_Graph_2.pdf",
+   "suggested": "raman_raw_Graph_2.pdf"
+  },
+  {
+   "t": 1239.361,
+   "wall": "2026-10-15T17:58:58+00:00",
+   "task": "T9",
+   "kind": "shot",
+   "target": "pdf-done",
+   "path": "shots/P1-1366-light/128-pdf-done.png"
+  },
+  {
+   "t": 1262.16,
+   "wall": "2026-10-15T17:59:21+00:00",
+   "task": "T9",
+   "kind": "say",
+   "text": "(opens the PDF) Both panels are the fitted spectrum! Panel (b) was raw on screen. The exported figure is not the one I made. And the file is called 'raman_raw_Graph_2', not Figure 1."
+  },
+  {
+   "t": 1262.171,
+   "wall": "2026-10-15T17:59:21+00:00",
+   "task": "T9",
+   "kind": "finding",
+   "text": "SILENTLY WRONG EXPORT: a figure whose panel (b) showed the raw data on screen (Raw pressed on that graph) exports to SVG and PDF with both panels showing the processed data and fit; 'Raw' is a view of the graph in front, not a property of the panel, and nothing says so."
+  },
+  {
+   "t": 1262.182,
+   "wall": "2026-10-15T17:59:21+00:00",
+   "task": "T9",
+   "kind": "finding",
+   "text": "Exports of a figure are named after the panel in front ('raman_raw_Graph_2.pdf'), not the figure."
+  },
+  {
+   "t": 1262.193,
+   "wall": "2026-10-15T17:59:21+00:00",
+   "task": "T9",
+   "kind": "task_end",
+   "success": "fail",
+   "note": "figure of two panels made with shared X and exported as SVG and PDF, but the exported 'raw' panel shows the processed data with the fit: the files are wrong without warning"
+  },
+  {
+   "t": 1269.529,
+   "wall": "2026-10-15T17:59:28+00:00",
+   "task": "T10",
+   "kind": "task_start",
+   "target": "Restyle one curve (colour, line width), change the axis tick font size, reverse the X axis"
+  },
+  {
+   "t": 1269.54,
+   "wall": "2026-10-15T17:59:28+00:00",
+   "task": "T10",
+   "kind": "say",
+   "text": "Styling. Make the figure big first, then right-click the curve in panel (a)."
+  },
+  {
+   "t": 1269.753,
+   "wall": "2026-10-15T17:59:28+00:00",
+   "task": "T10",
+   "kind": "click",
+   "target": "figure maximise",
+   "x": 761,
+   "y": 124,
+   "presses": 1
+  },
+  {
+   "t": 1270.961,
+   "wall": "2026-10-15T17:59:30+00:00",
+   "task": "T10",
+   "kind": "shot",
+   "target": "figure-max",
+   "path": "shots/P1-1366-light/129-figure-max.png"
+  },
+  {
+   "t": 1287.464,
+   "wall": "2026-10-15T17:59:46+00:00",
+   "task": "T10",
+   "kind": "say",
+   "text": "Make the fitted curve in (a) dark green and thicker. Right-click it."
+  },
+  {
+   "t": 1287.887,
+   "wall": "2026-10-15T17:59:47+00:00",
+   "task": "T10",
+   "kind": "rightclick",
+   "target": "blue curve in panel (a)",
+   "x": 560,
+   "y": 384,
+   "presses": 1
+  },
+  {
+   "t": 1288.806,
+   "wall": "2026-10-15T17:59:47+00:00",
+   "task": "T10",
+   "kind": "shot",
+   "target": "panel-a-rightclick",
+   "path": "shots/P1-1366-light/130-panel-a-rightclick.png"
+  },
+  {
+   "t": 1299.068,
+   "wall": "2026-10-15T17:59:58+00:00",
+   "task": "T10",
+   "kind": "say",
+   "text": "Wait - clicking panel (a) swapped them: now (a) is the raw spectrum and (b) has the fit, with a residual strip. The 'Raw' button follows whichever panel I click."
+  },
+  {
+   "t": 1299.076,
+   "wall": "2026-10-15T17:59:58+00:00",
+   "task": "T10",
+   "kind": "finding",
+   "text": "In a figure, the toolbar's Raw/Final state follows the panel clicked: clicking panel (a) made (a) raw and (b) final, swapping what the two panels showed."
+  },
+  {
+   "t": 1299.353,
+   "wall": "2026-10-15T17:59:58+00:00",
+   "task": "T10",
+   "kind": "click",
+   "target": "dark green swatch",
+   "x": 654,
+   "y": 51,
+   "presses": 1
+  },
+  {
+   "t": 1300.39,
+   "wall": "2026-10-15T17:59:59+00:00",
+   "task": "T10",
+   "kind": "rightclick",
+   "target": "the curve in panel (a)",
+   "x": 560,
+   "y": 384,
+   "presses": 1
+  },
+  {
+   "t": 1301.291,
+   "wall": "2026-10-15T18:00:00+00:00",
+   "task": "T10",
+   "kind": "click",
+   "target": "menuitem 'Line, symbols and colour…'",
+   "x": 706,
+   "y": 83,
+   "presses": 1
+  },
+  {
+   "t": 1302.522,
+   "wall": "2026-10-15T18:00:01+00:00",
+   "task": "T10",
+   "kind": "shot",
+   "target": "series-format",
+   "path": "shots/P1-1366-light/131-series-format.png"
+  },
+  {
+   "t": 1311.266,
+   "wall": "2026-10-15T18:00:10+00:00",
+   "task": "T10",
+   "kind": "say",
+   "text": "Format dialog, like Origin's Plot Details. Width: drag to about 2.5."
+  },
+  {
+   "t": 1311.979,
+   "wall": "2026-10-15T18:00:11+00:00",
+   "task": "T10",
+   "kind": "drag",
+   "target": "Width slider",
+   "x": 1017,
+   "y": 381,
+   "x2": 1085,
+   "y2": 381
+  },
+  {
+   "t": 1312.759,
+   "wall": "2026-10-15T18:00:11+00:00",
+   "task": "T10",
+   "kind": "shot",
+   "target": "width-dragged",
+   "path": "shots/P1-1366-light/132-width-dragged.png"
+  },
+  {
+   "t": 1313.17,
+   "wall": "2026-10-15T18:00:12+00:00",
+   "task": "T10",
+   "kind": "click",
+   "target": "text 'Text and fonts'",
+   "x": 730,
+   "y": 364,
+   "presses": 1
+  },
+  {
+   "t": 1314.094,
+   "wall": "2026-10-15T18:00:13+00:00",
+   "task": "T10",
+   "kind": "shot",
+   "target": "text-fonts-page",
+   "path": "shots/P1-1366-light/133-text-fonts-page.png"
+  },
+  {
+   "t": 1321.447,
+   "wall": "2026-10-15T18:00:20+00:00",
+   "task": "T10",
+   "kind": "say",
+   "text": "Tick numbers, 10 pt. Make it 13."
+  },
+  {
+   "t": 1321.642,
+   "wall": "2026-10-15T18:00:20+00:00",
+   "task": "T10",
+   "kind": "click",
+   "target": "tick numbers size",
+   "x": 1022,
+   "y": 541,
+   "presses": 1
+  },
+  {
+   "t": 1321.819,
+   "wall": "2026-10-15T18:00:20+00:00",
+   "task": "T10",
+   "kind": "key",
+   "target": "select",
+   "keys": "Control+a",
+   "presses": 1
+  },
+  {
+   "t": 1322.011,
+   "wall": "2026-10-15T18:00:21+00:00",
+   "task": "T10",
+   "kind": "type",
+   "text": "13",
+   "keys": 2
+  },
+  {
+   "t": 1322.103,
+   "wall": "2026-10-15T18:00:21+00:00",
+   "task": "T10",
+   "kind": "key",
+   "target": "set",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 1323.167,
+   "wall": "2026-10-15T18:00:22+00:00",
+   "task": "T10",
+   "kind": "click",
+   "target": "button 'OK'",
+   "x": 1315,
+   "y": 729,
+   "presses": 1
+  },
+  {
+   "t": 1324.102,
+   "wall": "2026-10-15T18:00:23+00:00",
+   "task": "T10",
+   "kind": "say",
+   "text": "Now reverse X: Raman people like it either way, my PI wants it reversed. Toolbar has a ⇄ icon."
+  },
+  {
+   "t": 1324.235,
+   "wall": "2026-10-15T18:00:23+00:00",
+   "task": "T10",
+   "kind": "hover",
+   "target": "the ⇄ toolbar icon",
+   "x": 1022,
+   "y": 61
+  },
+  {
+   "t": 1325.445,
+   "wall": "2026-10-15T18:00:24+00:00",
+   "task": "T10",
+   "kind": "click",
+   "target": "⇄ toolbar icon",
+   "x": 1022,
+   "y": 61,
+   "presses": 1
+  },
+  {
+   "t": 1326.652,
+   "wall": "2026-10-15T18:00:25+00:00",
+   "task": "T10",
+   "kind": "shot",
+   "target": "after-style",
+   "path": "shots/P1-1366-light/134-after-style.png"
+  },
+  {
+   "t": 1338.953,
+   "wall": "2026-10-15T18:00:38+00:00",
+   "task": "T10",
+   "kind": "say",
+   "text": "Green and thicker: yes. Tick numbers bigger: only in (a); (b) keeps the small ones. And Reverse X flipped only panel (a): its peaks now run 1600 to 200 while the shared axis below still reads 200 to 1800 - the 1001 band in (a) sits over '1000' by luck, the 1600 doublet sits over '400'. That's a wrong figure."
+  },
+  {
+   "t": 1338.961,
+   "wall": "2026-10-15T18:00:38+00:00",
+   "task": "T10",
+   "kind": "finding",
+   "text": "WRONG FIGURE: in a two-panel figure with X shared, Reverse X reverses only the panel in front; the shared axis numbers (drawn under the other panel) stay ascending, so panel (a)'s bands sit over the wrong wavenumbers."
+  },
+  {
+   "t": 1338.968,
+   "wall": "2026-10-15T18:00:38+00:00",
+   "task": "T10",
+   "kind": "finding",
+   "text": "Format changes (tick number size) apply to the panel in front only; a figure ends up with two text sizes unless 'Use on every graph' is found."
+  },
+  {
+   "t": 1338.976,
+   "wall": "2026-10-15T18:00:38+00:00",
+   "task": "T10",
+   "kind": "task_end",
+   "success": "partial",
+   "note": "colour and line width changed via right-click and the Format dialog; tick font size set but only on one panel; Reverse X reversed one panel under a shared axis that did not follow"
+  },
+  {
+   "t": 1347.434,
+   "wall": "2026-10-15T18:00:46+00:00",
+   "task": null,
+   "kind": "click",
+   "target": "⇄ toolbar icon (undo the reverse)",
+   "x": 1022,
+   "y": 61,
+   "presses": 1
+  },
+  {
+   "t": 1348.072,
+   "wall": "2026-10-15T18:00:47+00:00",
+   "task": "T11",
+   "kind": "task_start",
+   "target": "Make a mistake three steps back in T8 and fix it without starting over"
+  },
+  {
+   "t": 1348.082,
+   "wall": "2026-10-15T18:00:47+00:00",
+   "task": "T11",
+   "kind": "say",
+   "text": "Say my supervisor says the baseline was too stiff: three steps back (spikes, background, fit). I want to change the background without redoing everything. History."
+  },
+  {
+   "t": 1348.289,
+   "wall": "2026-10-15T18:00:47+00:00",
+   "task": "T11",
+   "kind": "click",
+   "target": "History taskbar button",
+   "x": 625,
+   "y": 725,
+   "presses": 1
+  },
+  {
+   "t": 1349.52,
+   "wall": "2026-10-15T18:00:48+00:00",
+   "task": "T11",
+   "kind": "shot",
+   "target": "t11-history",
+   "path": "shots/P1-1366-light/135-t11-history.png"
+  },
+  {
+   "t": 1357.344,
+   "wall": "2026-10-15T18:00:56+00:00",
+   "task": "T11",
+   "kind": "say",
+   "text": "Tiny window again. Maximise the History."
+  },
+  {
+   "t": 1357.548,
+   "wall": "2026-10-15T18:00:56+00:00",
+   "task": "T11",
+   "kind": "click",
+   "target": "History maximise",
+   "x": 1319,
+   "y": 99,
+   "presses": 1
+  },
+  {
+   "t": 1358.763,
+   "wall": "2026-10-15T18:00:57+00:00",
+   "task": "T11",
+   "kind": "shot",
+   "target": "t11-history-max",
+   "path": "shots/P1-1366-light/136-t11-history-max.png"
+  },
+  {
+   "t": 1366.975,
+   "wall": "2026-10-15T18:01:06+00:00",
+   "task": "T11",
+   "kind": "say",
+   "text": "Now this is clear: Spikes, Background, Final, Fit, and my two panels. Background is selected, stiffness 10^5. Make it less stiff, 10^4."
+  },
+  {
+   "t": 1369.593,
+   "wall": "2026-10-15T18:01:08+00:00",
+   "task": "T11",
+   "kind": "drag",
+   "target": "Stiffness slider",
+   "x": 1118,
+   "y": 314,
+   "x2": 1075,
+   "y2": 314
+  },
+  {
+   "t": 1370.856,
+   "wall": "2026-10-15T18:01:09+00:00",
+   "task": "T11",
+   "kind": "shot",
+   "target": "t11-lambda",
+   "path": "shots/P1-1366-light/137-t11-lambda.png"
+  },
+  {
+   "t": 1384.356,
+   "wall": "2026-10-15T18:01:23+00:00",
+   "task": "T11",
+   "kind": "say",
+   "text": "Whoa, a chart appeared above the slider while I was dragging, the slider jumped down and I ended at 10^2.6, not 10^4. Drag it back to 10^4. Good: the Fit box got a warning mark and the status bar says 'Fit out of date'."
+  },
+  {
+   "t": 1384.369,
+   "wall": "2026-10-15T18:01:23+00:00",
+   "task": "T11",
+   "kind": "finding",
+   "text": "Moving a step's slider in the History inspector inserts a before/after chart above it on the first change: the slider jumps ~140 px down mid-drag and the value lands far from where the pointer is (10^2.6 instead of 10^4)."
+  },
+  {
+   "t": 1386.528,
+   "wall": "2026-10-15T18:01:25+00:00",
+   "task": "T11",
+   "kind": "drag",
+   "target": "Stiffness slider",
+   "x": 1075,
+   "y": 452,
+   "x2": 1091,
+   "y2": 452
+  },
+  {
+   "t": 1387.773,
+   "wall": "2026-10-15T18:01:26+00:00",
+   "task": "T11",
+   "kind": "shot",
+   "target": "t11-lambda-2",
+   "path": "shots/P1-1366-light/138-t11-lambda-2.png"
+  },
+  {
+   "t": 1395.954,
+   "wall": "2026-10-15T18:01:35+00:00",
+   "task": "T11",
+   "kind": "say",
+   "text": "10^3.5. The slider is coarse and there's no box to type 10^4 into. Fine. Now redo the fit: click the Fit box."
+  },
+  {
+   "t": 1395.962,
+   "wall": "2026-10-15T18:01:35+00:00",
+   "task": "T11",
+   "kind": "finding",
+   "text": "Background stiffness is a slider only (no typed value); hitting a round value like 10^4 takes several tries."
+  },
+  {
+   "t": 1396.435,
+   "wall": "2026-10-15T18:01:35+00:00",
+   "task": "T11",
+   "kind": "click",
+   "target": "Fit box",
+   "x": 351,
+   "y": 520,
+   "presses": 1
+  },
+  {
+   "t": 1397.441,
+   "wall": "2026-10-15T18:01:36+00:00",
+   "task": "T11",
+   "kind": "shot",
+   "target": "t11-fitbox",
+   "path": "shots/P1-1366-light/139-t11-fitbox.png"
+  },
+  {
+   "t": 1404.077,
+   "wall": "2026-10-15T18:01:43+00:00",
+   "task": "T11",
+   "kind": "say",
+   "text": "'The processing has changed since.' Good. Open the Fit window and fit again."
+  },
+  {
+   "t": 1404.571,
+   "wall": "2026-10-15T18:01:43+00:00",
+   "task": "T11",
+   "kind": "click",
+   "target": "button 'Open the Fit window'",
+   "x": 1112,
+   "y": 219,
+   "presses": 1
+  },
+  {
+   "t": 1406.048,
+   "wall": "2026-10-15T18:01:45+00:00",
+   "task": "T11",
+   "kind": "shot",
+   "target": "t11-fitwin",
+   "path": "shots/P1-1366-light/140-t11-fitwin.png"
+  },
+  {
+   "t": 1413.918,
+   "wall": "2026-10-15T18:01:53+00:00",
+   "task": "T11",
+   "kind": "click",
+   "target": "button 'Fit 9 peaks'",
+   "x": 986,
+   "y": 683,
+   "presses": 1
+  },
+  {
+   "t": 1416.867,
+   "wall": "2026-10-15T18:01:55+00:00",
+   "task": "T11",
+   "kind": "shot",
+   "target": "t11-refit",
+   "path": "shots/P1-1366-light/141-t11-refit.png"
+  },
+  {
+   "t": 1426.45,
+   "wall": "2026-10-15T18:02:05+00:00",
+   "task": "T11",
+   "kind": "say",
+   "text": "Refitted: areas changed (peak 1 22012 -> 21046), chi-squared down. I fixed a step three back without starting over. But I never saw the new baseline on the big graph: History was maximised, then Fit and Results opened on top."
+  },
+  {
+   "t": 1426.46,
+   "wall": "2026-10-15T18:02:05+00:00",
+   "task": "T11",
+   "kind": "finding",
+   "text": "Correcting a step from a maximised History, the graph is never in view: the effect is judged on a 310 px preview, and the Fit and Results windows then open over everything."
+  },
+  {
+   "t": 1426.467,
+   "wall": "2026-10-15T18:02:05+00:00",
+   "task": "T11",
+   "kind": "task_end",
+   "success": "success",
+   "note": "background stiffness changed in History; the fit was flagged out of date in three places; refit from the Fit box; slider jumped mid-drag and cannot be typed"
+  },
+  {
+   "t": 1431.157,
+   "wall": "2026-10-15T18:02:10+00:00",
+   "task": "T12",
+   "kind": "task_start",
+   "target": "Reload the T8 project and explain, from the app alone, every step done to the data and whether the peak table can be trusted"
+  },
+  {
+   "t": 1431.165,
+   "wall": "2026-10-15T18:02:10+00:00",
+   "task": "T12",
+   "kind": "say",
+   "text": "(Persona C, the PI) My student says the Raman analysis is in Kurve. I open it."
+  },
+  {
+   "t": 1431.174,
+   "wall": "2026-10-15T18:02:10+00:00",
+   "task": "T12",
+   "kind": "key",
+   "keys": "F5",
+   "target": "reload"
+  },
+  {
+   "t": 1434.459,
+   "wall": "2026-10-15T18:02:13+00:00",
+   "task": "T12",
+   "kind": "shot",
+   "target": "t12-reloaded",
+   "path": "shots/P1-1366-light/142-t12-reloaded.png"
+  },
+  {
+   "t": 1444.607,
+   "wall": "2026-10-15T18:02:23+00:00",
+   "task": "T12",
+   "kind": "say",
+   "text": "It opens where my student left it: History, Fit, Results all on top of each other. I want to read what was done. Close the fit things, enlarge History."
+  },
+  {
+   "t": 1444.821,
+   "wall": "2026-10-15T18:02:23+00:00",
+   "task": "T12",
+   "kind": "click",
+   "target": "close Results",
+   "x": 925,
+   "y": 474,
+   "presses": 1
+  },
+  {
+   "t": 1445.163,
+   "wall": "2026-10-15T18:02:24+00:00",
+   "task": "T12",
+   "kind": "click",
+   "target": "close Fit",
+   "x": 1349,
+   "y": 99,
+   "presses": 1
+  },
+  {
+   "t": 1445.873,
+   "wall": "2026-10-15T18:02:24+00:00",
+   "task": "T12",
+   "kind": "dblclick",
+   "target": "History title bar",
+   "x": 575,
+   "y": 99,
+   "presses": 2
+  },
+  {
+   "t": 1447.128,
+   "wall": "2026-10-15T18:02:26+00:00",
+   "task": "T12",
+   "kind": "shot",
+   "target": "t12-history",
+   "path": "shots/P1-1366-light/143-t12-history.png"
+  },
+  {
+   "t": 1455.582,
+   "wall": "2026-10-15T18:02:34+00:00",
+   "task": "T12",
+   "kind": "say",
+   "text": "The figure behind shows the same spectrum twice. Odd. Let me make the History big with its square button."
+  },
+  {
+   "t": 1455.592,
+   "wall": "2026-10-15T18:02:34+00:00",
+   "task": "T12",
+   "kind": "finding",
+   "text": "After a reload, the figure the student built as 'raw above fitted' shows the processed spectrum in both panels: the raw view was never saved with the panel."
+  },
+  {
+   "t": 1455.791,
+   "wall": "2026-10-15T18:02:34+00:00",
+   "task": "T12",
+   "kind": "click",
+   "target": "History maximise",
+   "x": 1319,
+   "y": 99,
+   "presses": 1
+  },
+  {
+   "t": 1456.996,
+   "wall": "2026-10-15T18:02:36+00:00",
+   "task": "T12",
+   "kind": "shot",
+   "target": "t12-history-max",
+   "path": "shots/P1-1366-light/144-t12-history-max.png"
+  },
+  {
+   "t": 1466.2,
+   "wall": "2026-10-15T18:02:45+00:00",
+   "task": "T12",
+   "kind": "say",
+   "text": "This reads like a lab notebook: recorded data with a fingerprint, spikes removed, background, final, a fit, the figure. Background says 'lambda = 10...' cut off. Click Spikes, then Background."
+  },
+  {
+   "t": 1466.581,
+   "wall": "2026-10-15T18:02:45+00:00",
+   "task": "T12",
+   "kind": "click",
+   "target": "Spikes box",
+   "x": 351,
+   "y": 337,
+   "presses": 1
+  },
+  {
+   "t": 1467.489,
+   "wall": "2026-10-15T18:02:46+00:00",
+   "task": "T12",
+   "kind": "shot",
+   "target": "t12-spikes",
+   "path": "shots/P1-1366-light/145-t12-spikes.png"
+  },
+  {
+   "t": 1467.879,
+   "wall": "2026-10-15T18:02:46+00:00",
+   "task": "T12",
+   "kind": "click",
+   "target": "Background box",
+   "x": 351,
+   "y": 411,
+   "presses": 1
+  },
+  {
+   "t": 1468.775,
+   "wall": "2026-10-15T18:02:47+00:00",
+   "task": "T12",
+   "kind": "shot",
+   "target": "t12-bg",
+   "path": "shots/P1-1366-light/146-t12-bg.png"
+  },
+  {
+   "t": 1479.657,
+   "wall": "2026-10-15T18:02:58+00:00",
+   "task": "T12",
+   "kind": "say",
+   "text": "Each step's settings are there, but I'm one drag away from changing them: the inspector is an editor, not a record. 'Added 7 min ago' but not by whom, or that the stiffness was changed from 10^5 after the first fit. The Log tab may say."
+  },
+  {
+   "t": 1479.669,
+   "wall": "2026-10-15T18:02:58+00:00",
+   "task": "T12",
+   "kind": "finding",
+   "text": "For a reviewer, the History inspector is the step's live editor: reading a step's settings puts the reader one slip of the mouse from changing them; there is no read-only view."
+  },
+  {
+   "t": 1485.292,
+   "wall": "2026-10-15T18:03:04+00:00",
+   "task": "T12",
+   "kind": "click",
+   "target": "Log tab",
+   "x": 356,
+   "y": 133,
+   "presses": 1
+  },
+  {
+   "t": 1486.285,
+   "wall": "2026-10-15T18:03:05+00:00",
+   "task": "T12",
+   "kind": "shot",
+   "target": "t12-log",
+   "path": "shots/P1-1366-light/147-t12-log.png"
+  },
+  {
+   "t": 1494.429,
+   "wall": "2026-10-15T18:03:13+00:00",
+   "task": "T12",
+   "kind": "say",
+   "text": "Now I can reconstruct it: imported, spikes (2 removed), arPLS 10^5, 9 peaks found at SNR 4, fitted, then the background was softened twice to 10^3.5 and refitted. Grammar slip: 'You Graph 1: reversed'. Every line says 'You': I'm not the one who did this."
+  },
+  {
+   "t": 1494.439,
+   "wall": "2026-10-15T18:03:13+00:00",
+   "task": "T12",
+   "kind": "finding",
+   "text": "Log lines say 'You …' for every action, even when read by someone else; several read 'You Graph 1: reversed the X axis' (broken grammar)."
+  },
+  {
+   "t": 1494.448,
+   "wall": "2026-10-15T18:03:13+00:00",
+   "task": "T12",
+   "kind": "say",
+   "text": "Can I trust the table? Gaussians for Raman bands: Raman bands are Lorentzian. The reduced chi-squared of 4936 unweighted tells me little. The report may give caveats. File, Export, Report."
+  },
+  {
+   "t": 1494.731,
+   "wall": "2026-10-15T18:03:13+00:00",
+   "task": "T12",
+   "kind": "click",
+   "target": "text 'File'",
+   "x": 120,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 1495.311,
+   "wall": "2026-10-15T18:03:14+00:00",
+   "task": "T12",
+   "kind": "hover",
+   "target": "Export",
+   "x": 215,
+   "y": 176
+  },
+  {
+   "t": 1496.496,
+   "wall": "2026-10-15T18:03:15+00:00",
+   "task": "T12",
+   "kind": "click",
+   "target": "menuitem 'Report as HTML'",
+   "x": 457,
+   "y": 428,
+   "presses": 1
+  },
+  {
+   "t": 1497.279,
+   "wall": "2026-10-15T18:03:16+00:00",
+   "task": "T12",
+   "kind": "download",
+   "target": "Report as HTML",
+   "file": "downloads/P1-1366-light/raman_raw_report.html",
+   "suggested": "raman_raw_report.html"
+  },
+  {
+   "t": 1497.959,
+   "wall": "2026-10-15T18:03:17+00:00",
+   "task": "T12",
+   "kind": "shot",
+   "target": "t12-report-saved",
+   "path": "shots/P1-1366-light/148-t12-report-saved.png"
+  },
+  {
+   "t": 1508.575,
+   "wall": "2026-10-15T18:03:27+00:00",
+   "task": "T12",
+   "kind": "external_read",
+   "target": "opened the report in a browser tab",
+   "chars": 6821
+  },
+  {
+   "t": 1533.273,
+   "wall": "2026-10-15T18:03:52+00:00",
+   "task": "T12",
+   "kind": "say",
+   "text": "The report is a proper record: fingerprint of the raw data, both steps with settings, both fits with the processing each was made on, a timestamped list. So I can explain every step. Whether to trust the table: it has no notes or warnings at all. It doesn't say the fit is unweighted with chi-squared 4936 or that the residuals spike at the 1001 band, and it doesn't say anything about Gaussians for Raman bands. Provenance yes, judgement no; I would ask for Lorentzian or Voigt shapes and a look at the residuals."
+  },
+  {
+   "t": 1533.285,
+   "wall": "2026-10-15T18:03:52+00:00",
+   "task": "T12",
+   "kind": "finding",
+   "text": "The report records provenance completely (raw fingerprint, steps and settings, fit history with the processing of each, timestamped actions) but gives the reader no quality verdict: no notes for this fit, reduced χ² of 4936 unexplained, residual structure at the strongest band not mentioned."
+  },
+  {
+   "t": 1533.298,
+   "wall": "2026-10-15T18:03:52+00:00",
+   "task": "T12",
+   "kind": "finding",
+   "text": "The report's figure is panel (a) only at the top, then the whole figure under 'All graphs'; both panels show the fitted spectrum, not raw and fitted as built."
+  },
+  {
+   "t": 1533.306,
+   "wall": "2026-10-15T18:03:52+00:00",
+   "task": "T12",
+   "kind": "task_end",
+   "success": "success",
+   "note": "every step explained from the History, the Log and the report; trust judged by the reader's own expertise (Gaussian shapes for Raman, unweighted, residual structure) since the app offers no verdict"
+  },
+  {
+   "t": 1542.687,
+   "wall": "2026-10-15T18:04:01+00:00",
+   "task": "T13",
+   "kind": "task_start",
+   "target": "Deliberately misuse: fit with 2 points, import a broken file, type text in a number column"
+  },
+  {
+   "t": 1542.696,
+   "wall": "2026-10-15T18:04:01+00:00",
+   "task": "T13",
+   "kind": "say",
+   "text": "(Persona A again) Let's break things. First the file my labmate sent, results.csv."
+  },
+  {
+   "t": 1542.973,
+   "wall": "2026-10-15T18:04:02+00:00",
+   "task": "T13",
+   "kind": "click",
+   "target": "text 'File'",
+   "x": 120,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 1543.634,
+   "wall": "2026-10-15T18:04:02+00:00",
+   "task": "T13",
+   "kind": "click",
+   "target": "menuitem 'Import data…'",
+   "x": 215,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 1543.783,
+   "wall": "2026-10-15T18:04:02+00:00",
+   "task": "T13",
+   "kind": "choose_file",
+   "target": "results.csv (an xlsx renamed)",
+   "files": [
+    "results.csv"
+   ]
+  },
+  {
+   "t": 1544.967,
+   "wall": "2026-10-15T18:04:04+00:00",
+   "task": "T13",
+   "kind": "shot",
+   "target": "t13-broken-file",
+   "path": "shots/P1-1366-light/149-t13-broken-file.png"
+  },
+  {
+   "t": 1558.22,
+   "wall": "2026-10-15T18:04:17+00:00",
+   "task": "T13",
+   "kind": "say",
+   "text": "'Looks like a binary instrument file. Export it as CSV from the instrument software.' It's from Excel, not an instrument. Still, I get it: save it as CSV properly. Now a fit with two points. New project from the arrow by the name."
+  },
+  {
+   "t": 1558.229,
+   "wall": "2026-10-15T18:04:17+00:00",
+   "task": "T13",
+   "kind": "finding",
+   "text": "An Excel workbook renamed .csv is refused as 'a binary instrument file … export it from the instrument software': the right refusal, the wrong remedy for an .xlsx (save as CSV from Excel; or read xlsx)."
+  },
+  {
+   "t": 1558.43,
+   "wall": "2026-10-15T18:04:17+00:00",
+   "task": "T13",
+   "kind": "click",
+   "target": "arrow beside the project name",
+   "x": 1130,
+   "y": 19,
+   "presses": 1
+  },
+  {
+   "t": 1559.126,
+   "wall": "2026-10-15T18:04:18+00:00",
+   "task": "T13",
+   "kind": "click",
+   "target": "menuitem 'New project'",
+   "x": 996,
+   "y": 233,
+   "presses": 1
+  },
+  {
+   "t": 1560.702,
+   "wall": "2026-10-15T18:04:19+00:00",
+   "task": "T13",
+   "kind": "shot",
+   "target": "t13-newproj",
+   "path": "shots/P1-1366-light/150-t13-newproj.png"
+  },
+  {
+   "t": 1567.118,
+   "wall": "2026-10-15T18:04:26+00:00",
+   "task": "T13",
+   "kind": "say",
+   "text": "A new project, but the maximised History is still filling the screen ('1 spectrum', 'No data yet'). Open the worksheet from the taskbar."
+  },
+  {
+   "t": 1567.132,
+   "wall": "2026-10-15T18:04:26+00:00",
+   "task": "T13",
+   "kind": "finding",
+   "text": "A new project inherits the previous project's maximised History window; its title says '1 spectrum' while the body says 'No data yet'."
+  },
+  {
+   "t": 1567.341,
+   "wall": "2026-10-15T18:04:26+00:00",
+   "task": "T13",
+   "kind": "click",
+   "target": "Worksheet taskbar button",
+   "x": 560,
+   "y": 725,
+   "presses": 1
+  },
+  {
+   "t": 1568.324,
+   "wall": "2026-10-15T18:04:27+00:00",
+   "task": "T13",
+   "kind": "shot",
+   "target": "t13-ws",
+   "path": "shots/P1-1366-light/151-t13-ws.png"
+  },
+  {
+   "t": 1574.54,
+   "wall": "2026-10-15T18:04:33+00:00",
+   "task": "T13",
+   "kind": "say",
+   "text": "Two points: (1, 2) and (2, 3.5). Then a word in the number column."
+  },
+  {
+   "t": 1574.59,
+   "wall": "2026-10-15T18:04:33+00:00",
+   "task": "T13",
+   "kind": "type",
+   "text": "1",
+   "keys": 1
+  },
+  {
+   "t": 1574.655,
+   "wall": "2026-10-15T18:04:33+00:00",
+   "task": "T13",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 1574.818,
+   "wall": "2026-10-15T18:04:33+00:00",
+   "task": "T13",
+   "kind": "type",
+   "text": "2",
+   "keys": 1
+  },
+  {
+   "t": 1574.898,
+   "wall": "2026-10-15T18:04:34+00:00",
+   "task": "T13",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 1575.052,
+   "wall": "2026-10-15T18:04:34+00:00",
+   "task": "T13",
+   "kind": "type",
+   "text": "2",
+   "keys": 1
+  },
+  {
+   "t": 1575.116,
+   "wall": "2026-10-15T18:04:34+00:00",
+   "task": "T13",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 1575.346,
+   "wall": "2026-10-15T18:04:34+00:00",
+   "task": "T13",
+   "kind": "type",
+   "text": "3.5",
+   "keys": 3
+  },
+  {
+   "t": 1575.438,
+   "wall": "2026-10-15T18:04:34+00:00",
+   "task": "T13",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 1575.589,
+   "wall": "2026-10-15T18:04:34+00:00",
+   "task": "T13",
+   "kind": "type",
+   "text": "3",
+   "keys": 1
+  },
+  {
+   "t": 1575.648,
+   "wall": "2026-10-15T18:04:34+00:00",
+   "task": "T13",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 1576.158,
+   "wall": "2026-10-15T18:04:35+00:00",
+   "task": "T13",
+   "kind": "type",
+   "text": "about four",
+   "keys": 10
+  },
+  {
+   "t": 1576.224,
+   "wall": "2026-10-15T18:04:35+00:00",
+   "task": "T13",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 1577.184,
+   "wall": "2026-10-15T18:04:36+00:00",
+   "task": "T13",
+   "kind": "shot",
+   "target": "t13-text-in-number",
+   "path": "shots/P1-1366-light/152-t13-text-in-number.png"
+  },
+  {
+   "t": 1590.286,
+   "wall": "2026-10-15T18:04:49+00:00",
+   "task": "T13",
+   "kind": "say",
+   "text": "What happened? I typed into the worksheet and the graph came up, and the project name is selected for renaming. My numbers went nowhere."
+  },
+  {
+   "t": 1590.296,
+   "wall": "2026-10-15T18:04:49+00:00",
+   "task": "T13",
+   "kind": "finding",
+   "text": "After bringing the worksheet forward from the taskbar, cell A1 shows as selected but does not take typing: the keys went elsewhere (the graph came to the front and the project name opened for renaming)."
+  },
+  {
+   "t": 1590.364,
+   "wall": "2026-10-15T18:04:49+00:00",
+   "task": "T13",
+   "kind": "key",
+   "target": "leave the name",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 1590.987,
+   "wall": "2026-10-15T18:04:50+00:00",
+   "task": "T13",
+   "kind": "click",
+   "target": "Worksheet taskbar button",
+   "x": 560,
+   "y": 725,
+   "presses": 1
+  },
+  {
+   "t": 1591.868,
+   "wall": "2026-10-15T18:04:50+00:00",
+   "task": "T13",
+   "kind": "shot",
+   "target": "t13-ws-again",
+   "path": "shots/P1-1366-light/153-t13-ws-again.png"
+  },
+  {
+   "t": 1598.653,
+   "wall": "2026-10-15T18:04:57+00:00",
+   "task": "T13",
+   "kind": "say",
+   "text": "Nothing was typed. Click in the cell first this time."
+  },
+  {
+   "t": 1598.867,
+   "wall": "2026-10-15T18:04:57+00:00",
+   "task": "T13",
+   "kind": "click",
+   "target": "cell A1",
+   "x": 382,
+   "y": 310,
+   "presses": 1
+  },
+  {
+   "t": 1599.056,
+   "wall": "2026-10-15T18:04:58+00:00",
+   "task": "T13",
+   "kind": "type",
+   "text": "1",
+   "keys": 1
+  },
+  {
+   "t": 1599.194,
+   "wall": "2026-10-15T18:04:58+00:00",
+   "task": "T13",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 1599.363,
+   "wall": "2026-10-15T18:04:58+00:00",
+   "task": "T13",
+   "kind": "type",
+   "text": "2",
+   "keys": 1
+  },
+  {
+   "t": 1599.48,
+   "wall": "2026-10-15T18:04:58+00:00",
+   "task": "T13",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 1599.644,
+   "wall": "2026-10-15T18:04:58+00:00",
+   "task": "T13",
+   "kind": "type",
+   "text": "2",
+   "keys": 1
+  },
+  {
+   "t": 1599.791,
+   "wall": "2026-10-15T18:04:58+00:00",
+   "task": "T13",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 1600.036,
+   "wall": "2026-10-15T18:04:59+00:00",
+   "task": "T13",
+   "kind": "type",
+   "text": "3.5",
+   "keys": 3
+  },
+  {
+   "t": 1600.151,
+   "wall": "2026-10-15T18:04:59+00:00",
+   "task": "T13",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 1600.322,
+   "wall": "2026-10-15T18:04:59+00:00",
+   "task": "T13",
+   "kind": "type",
+   "text": "3",
+   "keys": 1
+  },
+  {
+   "t": 1600.445,
+   "wall": "2026-10-15T18:04:59+00:00",
+   "task": "T13",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 1601.04,
+   "wall": "2026-10-15T18:05:00+00:00",
+   "task": "T13",
+   "kind": "type",
+   "text": "about four",
+   "keys": 10
+  },
+  {
+   "t": 1601.118,
+   "wall": "2026-10-15T18:05:00+00:00",
+   "task": "T13",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 1602.113,
+   "wall": "2026-10-15T18:05:01+00:00",
+   "task": "T13",
+   "kind": "shot",
+   "target": "t13-text-in-number-2",
+   "path": "shots/P1-1366-light/154-t13-text-in-number-2.png"
+  },
+  {
+   "t": 1609.025,
+   "wall": "2026-10-15T18:05:08+00:00",
+   "task": "T13",
+   "kind": "say",
+   "text": "Clear: 'not a number, type one or press Esc'. The cell stays red with my text. Esc. Now fit a Gaussian peak to two points, just to see."
+  },
+  {
+   "t": 1609.142,
+   "wall": "2026-10-15T18:05:08+00:00",
+   "task": "T13",
+   "kind": "key",
+   "target": "leave the cell",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 1609.805,
+   "wall": "2026-10-15T18:05:08+00:00",
+   "task": "T13",
+   "kind": "click",
+   "target": "text 'Analysis'",
+   "x": 350,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 1610.37,
+   "wall": "2026-10-15T18:05:09+00:00",
+   "task": "T13",
+   "kind": "hover",
+   "target": "Fit",
+   "x": 447,
+   "y": 168
+  },
+  {
+   "t": 1611.58,
+   "wall": "2026-10-15T18:05:10+00:00",
+   "task": "T13",
+   "kind": "click",
+   "target": "menuitem 'Curve fit'",
+   "x": 688,
+   "y": 168,
+   "presses": 1
+  },
+  {
+   "t": 1612.979,
+   "wall": "2026-10-15T18:05:12+00:00",
+   "task": "T13",
+   "kind": "shot",
+   "target": "t13-fit-2pts",
+   "path": "shots/P1-1366-light/155-t13-fit-2pts.png"
+  },
+  {
+   "t": 1618.836,
+   "wall": "2026-10-15T18:05:17+00:00",
+   "task": "T13",
+   "kind": "say",
+   "text": "'Fits 2 unmasked points.' Four parameters, two points. The Fit button doesn't object. Press it."
+  },
+  {
+   "t": 1619.043,
+   "wall": "2026-10-15T18:05:18+00:00",
+   "task": "T13",
+   "kind": "click",
+   "target": "Fit button",
+   "x": 1066,
+   "y": 663,
+   "presses": 1
+  },
+  {
+   "t": 1620.628,
+   "wall": "2026-10-15T18:05:19+00:00",
+   "task": "T13",
+   "kind": "shot",
+   "target": "t13-fit-2pts-result",
+   "path": "shots/P1-1366-light/156-t13-fit-2pts-result.png"
+  },
+  {
+   "t": 1627.452,
+   "wall": "2026-10-15T18:05:26+00:00",
+   "task": "T13",
+   "kind": "say",
+   "text": "'Need more than 4 points to fit 4 free parameters (have 2).' Fair and clear, though the Fit button looked fine before I pressed it. Now a straight line on two points."
+  },
+  {
+   "t": 1627.659,
+   "wall": "2026-10-15T18:05:26+00:00",
+   "task": "T13",
+   "kind": "click",
+   "target": "Model list",
+   "x": 1086,
+   "y": 253,
+   "presses": 1
+  },
+  {
+   "t": 1627.936,
+   "wall": "2026-10-15T18:05:27+00:00",
+   "task": "T13",
+   "kind": "key",
+   "target": "up",
+   "keys": "ArrowUp",
+   "presses": 3
+  },
+  {
+   "t": 1628.115,
+   "wall": "2026-10-15T18:05:27+00:00",
+   "task": "T13",
+   "kind": "key",
+   "target": "choose Linear",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 1628.875,
+   "wall": "2026-10-15T18:05:27+00:00",
+   "task": "T13",
+   "kind": "click",
+   "target": "button 'Fit'",
+   "x": 1067,
+   "y": 593,
+   "presses": 1
+  },
+  {
+   "t": 1630.507,
+   "wall": "2026-10-15T18:05:29+00:00",
+   "task": "T13",
+   "kind": "shot",
+   "target": "t13-line-2pts",
+   "path": "shots/P1-1366-light/157-t13-line-2pts.png"
+  },
+  {
+   "t": 1645.974,
+   "wall": "2026-10-15T18:05:45+00:00",
+   "task": "T13",
+   "kind": "say",
+   "text": "Two points, a straight line: refused, 'need more than 2 points'. Excel would draw that line and call R squared 1. I understand why not, but nothing offers to just draw the line through them."
+  },
+  {
+   "t": 1645.982,
+   "wall": "2026-10-15T18:05:45+00:00",
+   "task": "T13",
+   "kind": "finding",
+   "text": "A straight line through exactly two points is refused ('need more than 2 points to fit 2 free parameters'); Excel draws it. Defensible, but the message gives no way forward (e.g. no errors can be computed, the line is exact)."
+  },
+  {
+   "t": 1645.991,
+   "wall": "2026-10-15T18:05:45+00:00",
+   "task": "T13",
+   "kind": "finding",
+   "text": "The Fit button gives no warning before it is pressed: a model with more parameters than points is only refused after Fit."
+  },
+  {
+   "t": 1645.998,
+   "wall": "2026-10-15T18:05:45+00:00",
+   "task": "T13",
+   "kind": "task_end",
+   "success": "success",
+   "note": "each misuse refused with a message in words and recovered from: binary file (wrong remedy for an xlsx), text in a number cell (kept, red, Esc), too few points (refused after Fit); a new hazard: keys typed after bringing the worksheet forward went to shortcuts"
+  },
+  {
+   "t": 1656.564,
+   "wall": "2026-10-15T18:05:55+00:00",
+   "task": null,
+   "kind": "close",
+   "errors": []
+  }
+ ],
+ "summary": {
+  "T1": {
+   "title": "A: type 6 x,y pairs, scatter plot, axis titles with units, export PNG",
+   "success": "yes",
+   "clicks": 7,
+   "keys": 60,
+   "drags": 0,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 9,
+   "seconds": 73.3,
+   "klm_seconds": 35.4
+  },
+  "T2": {
+   "title": "A: fit a straight line to calibration.csv, read slope ± error and R², show line and equation on the graph",
+   "success": "partial",
+   "clicks": 15,
+   "keys": 45,
+   "drags": 0,
+   "wrong_turns": 4,
+   "guesses": 3,
+   "help": 0,
+   "shots": 21,
+   "seconds": 257.9,
+   "klm_seconds": 52.4
+  },
+  "T3": {
+   "title": "Add Y error bars from the SD column of calibration.csv and refit weighted",
+   "success": "success",
+   "clicks": 2,
+   "keys": 2,
+   "drags": 0,
+   "wrong_turns": 0,
+   "guesses": 1,
+   "help": 0,
+   "shots": 4,
+   "seconds": 29.7,
+   "klm_seconds": 5.9
+  },
+  "T4": {
+   "title": "Import growth_eu.csv, plot all three samples against time with a legend",
+   "success": "success",
+   "clicks": 11,
+   "keys": 45,
+   "drags": 0,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 6,
+   "seconds": 64.8,
+   "klm_seconds": 41.8
+  },
+  "T5": {
+   "title": "Make a new column = log10 of a sample column, plot it",
+   "success": "success",
+   "clicks": 6,
+   "keys": 44,
+   "drags": 0,
+   "wrong_turns": 1,
+   "guesses": 0,
+   "help": 0,
+   "shots": 11,
+   "seconds": 81.3,
+   "klm_seconds": 28.2
+  },
+  "T6": {
+   "title": "Descriptive statistics and a histogram per group for survey.csv; compare the groups",
+   "success": "partial",
+   "clicks": 30,
+   "keys": 1,
+   "drags": 0,
+   "wrong_turns": 3,
+   "guesses": 0,
+   "help": 1,
+   "shots": 25,
+   "seconds": 228.2,
+   "klm_seconds": 79.8
+  },
+  "T7": {
+   "title": "Fit decay.txt with a single exponential with offset, then with a user-defined double exponential",
+   "success": "partial",
+   "clicks": 22,
+   "keys": 60,
+   "drags": 0,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 22,
+   "seconds": 180.4,
+   "klm_seconds": 75.1
+  },
+  "T8": {
+   "title": "raman_raw.txt: remove spikes, subtract baseline, find and fit the peaks, table of position, FWHM, area with errors",
+   "success": "success",
+   "clicks": 19,
+   "keys": 2,
+   "drags": 0,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 16,
+   "seconds": 153.3,
+   "klm_seconds": 50.9
+  },
+  "T9": {
+   "title": "Two-panel publication figure (raw and fitted) with matching axes, export as SVG/PDF",
+   "success": "fail",
+   "clicks": 19,
+   "keys": 5,
+   "drags": 0,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 14,
+   "seconds": 147.6,
+   "klm_seconds": 51.8
+  },
+  "T10": {
+   "title": "Restyle one curve (colour, line width), change the axis tick font size, reverse the X axis",
+   "success": "partial",
+   "clicks": 10,
+   "keys": 4,
+   "drags": 1,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 6,
+   "seconds": 69.4,
+   "klm_seconds": 28.7
+  },
+  "T11": {
+   "title": "Make a mistake three steps back in T8 and fix it without starting over",
+   "success": "success",
+   "clicks": 7,
+   "keys": 0,
+   "drags": 2,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 7,
+   "seconds": 78.4,
+   "klm_seconds": 20.8
+  },
+  "T12": {
+   "title": "Reload the T8 project and explain, from the app alone, every step done to the data and whether the peak table can be trusted",
+   "success": "success",
+   "clicks": 10,
+   "keys": 1,
+   "drags": 0,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 7,
+   "seconds": 102.1,
+   "klm_seconds": 26.8
+  },
+  "T13": {
+   "title": "Deliberately misuse: fit with 2 points, import a broken file, type text in a number column",
+   "success": "success",
+   "clicks": 12,
+   "keys": 52,
+   "drags": 0,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 9,
+   "seconds": 103.3,
+   "klm_seconds": 46.4
+  }
+ }
+}
