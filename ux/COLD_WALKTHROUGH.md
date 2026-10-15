@@ -164,9 +164,11 @@ has fewer clicks. The 1280 T2 was interrupted (see section 5) and redone from th
   ([refused](evidence/1366-52-survey-import-dialog.png))
 - Help's "Importing data" says nothing about text columns, and its heading overlaps the
   Back bar. ([Help](evidence/1366-56-help-importing.png))
-- **File › New project performed an Undo instead**, twice: "Undid plotting column E." and
-  T5's graph vanished. ([first](evidence/1366-60-new-project.png),
+- **Aiming at File › New project performed an Undo instead**, twice: "Undid plotting column
+  E." and T5's graph vanished. ([first](evidence/1366-60-new-project.png),
   [second](evidence/1366-63-new-project-2.png)) The project switcher's "New project" worked.
+  *Corrected in Phase 2 (section 8):* the pointer's diagonal path crossed "Edit", the open
+  menu changed to Edit, and the click landed on Undo. New project itself is correct.
 - The persona reshaped the file "in Excel" (one column per group) and pasted it. Because a
   real clipboard cannot be used headless, the rig wrote that table to the clipboard from
   another tab. ([pasted](evidence/1366-67-survey-pasted.png))
@@ -301,9 +303,11 @@ The PI's written explanation, from the app alone:
   ([refused](evidence/1366-149-t13-broken-file.png))
 - A new project inherited the maximised History ("1 spectrum", "No data yet").
   ([new](evidence/1366-150-t13-newproj.png))
-- **Keys typed after bringing the worksheet forward from the taskbar went to shortcuts.**
-  The graph came forward and the project name opened for renaming.
-  ([lost keys](evidence/1366-152-t13-text-in-number.png))
+- **Keys typed after bringing the worksheet forward from the taskbar did not reach the
+  sheet.** The graph came forward and the project name opened for renaming.
+  ([lost keys](evidence/1366-152-t13-text-in-number.png)) *Corrected in Phase 2
+  (section 8):* there are no single-key shortcuts. The focus stayed on the taskbar button,
+  Tab moved it along the taskbar and title bar, and Enter pressed whatever had it.
 - "about four" in a number cell is kept, red, with "not a number… or press Esc".
   ([cell](evidence/1366-154-t13-text-in-number-2.png))
 - A Gaussian on two points is refused after Fit ("Need more than 4 points…"), and so is a
@@ -423,8 +427,9 @@ On the last row:
 - **Menus.** Short and grouped, but Analysis is a spectroscopist's menu.
 - **Empty state.** Clean, but it confused A ("a spectrum?").
 - **Dark mode.** Clean except the near-black desk and the faint confidence band.
-- **Typing like Excel.** Yes once a cell has the focus. Without the focus, keys trigger
-  window shortcuts (T13, dark T1).
+- **Typing like Excel.** Yes once a cell has the focus. Without the focus, keys go to
+  whatever button has it: Tab moves along the taskbar and Enter presses (T13, dark T1;
+  corrected in section 8).
 
 ## 7. The ten worst moments
 
@@ -443,10 +448,13 @@ Ranked by harm: a silently wrong result first, then lost work or a dead end, the
    - "No rows of numbers were found in that file": no dialog, no preview, and no way to
      keep the numeric column or group by the text one.
    - ([refused](evidence/1366-52-survey-import-dialog.png))
-4. **T6: File › New project performs an Undo.**
+4. **T6: aiming at File › New project performs an Undo.**
    - Twice: "Undid plotting column E.", taking the last action away instead of making a
      project.
    - ([undo](evidence/1366-63-new-project-2.png))
+   - *Corrected in Phase 2 (section 8):* the cause is the menu bar opening Edit as the
+     pointer crosses its name on the way down. The click lands on Edit › Undo, not on a
+     wrong action behind New project. It would now rank below 5–8.
 5. **T7: a second fit replaces the first fit's report.**
    - The earlier fit's parameters and errors cannot be brought back, so two models cannot
      be compared.
@@ -470,7 +478,9 @@ Ranked by harm: a silently wrong result first, then lost work or a dead end, the
    - ([legend](evidence/1366-37-growth-plotted.png))
 9. **The worksheet hides what is typed and loses keys.**
    - It shows one data row at 1366×768 and none at 1280×720.
-   - Keys typed when no cell has the focus close windows or open a rename instead.
+   - Keys typed when no cell has the focus go to the taskbar button that has it: Tab moves
+     along the buttons and Enter presses them, bringing windows forward or opening a rename
+     (corrected in section 8).
    - ([1280](evidence/1280-01-first-screen.png),
      [lost keys](evidence/1366-152-t13-text-in-number.png))
 10. **T8/T12: the outputs a colleague receives under-inform.**
@@ -484,3 +494,27 @@ Close behind these:
 - T11's slider jumps mid-drag and cannot be typed.
 - T3: weighting and error bars arrive by default without being chosen.
 - Projects live only in the browser's storage, with no Save or Open (section 5).
+
+## 8. Corrections after Phase 2
+
+Phase 2 allowed reading the code, which showed two findings above were put down to the wrong
+cause. The findings still stand; only their cause changes.
+
+- **New project and Undo (T6, worst moment 4).**
+  - `newProject` does what it says.
+  - The menu bar changes menus on hover: while one menu is open, passing over another menu's
+    name opens that one. The rig moved diagonally from "File" towards New project, crossed
+    "Edit", and the click landed on Edit's first item, Undo.
+  - Reproduced with the same path. A path straight down and then across opens New project.
+  - A person moving diagonally can do the same. It is a hover problem in the menu bar, not
+    a wrong action behind a right label. Undo's own label said what it undid.
+- **Keys after the taskbar (T13, dark T1).**
+  - Kurve has no single-key window shortcuts.
+  - The taskbar button that brought the worksheet forward kept the focus. Letters did
+    nothing, Tab moved the focus along the taskbar and the title bar, and Enter pressed the
+    button that had it. That brought the graph forward and opened the project's name for
+    renaming.
+  - The finding is now: after the taskbar brings the worksheet forward, no cell has the
+    focus, so typing goes nowhere and Enter presses buttons.
+
+`ux/FEATURE_INVENTORY.md` records both, beside the entry points they affect.
