@@ -1,0 +1,7 @@
+# UX rig output: screenshots, action logs, downloads and browser profiles of each run.
+# Reports copy the screenshots they cite into ux/evidence/, which is kept.
+ux/shots/
+ux/logs/
+ux/downloads/
+ux/profiles/
+__pycache__/
