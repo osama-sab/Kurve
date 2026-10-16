@@ -42,6 +42,8 @@ differences in contrast and colors for the user to be able to make out the app f
 | Text on the accent (on, chosen, in front) | the accent | 4.5:1 |
 | Good news, warnings, errors | the panel | 4.5:1 |
 | Words on a menu's highlight or a selection | that highlight | 7:1 |
+| Disabled words (`--ink-off`) | every surface a control sits on | 4.5:1 |
+| Words on a filled status shape (`--on-fill`) | `--ok`, `--warn`, `--bad`, `--badge` | 4.5:1 |
 
 **Surfaces, from back to front** (Bench light; the other three sets follow the same order):
 
@@ -62,7 +64,21 @@ control, the front window's taskbar button, an open menu-bar menu. A menu's item
 pointer gets a strong highlight (`--hi`) and a 3 px accent bar on its left.
 
 **Text has two colours**, `--ink` and `--muted`; `--faint` is for icons and lines, never words.
-Headings are sentence case in the text colour, not small grey capitals.
+Headings are sentence case in the text colour, not small grey capitals. **On a highlight, one
+ink:** on a menu item under the pointer, a selection, a hovered or pressed button, every word is
+`--ink`, since `--muted` falls to 5.4–6.9:1 there.
+
+**States differ by more than a shade.** Rest, hover (`--btn-bg-h`, a darker edge), pressed
+(`--press` and an inset shadow), focus (a 2 px `--focus` ring), on (filled with the accent) and
+disabled (`--ink-off` words, a dashed `--rule-2` edge, no fill). Disabled is never opacity: at
+.40–.55 it took words below 4.5:1, by an amount that depended on the control. A number or word
+on a filled status shape (a step's number, a badge, the danger button) is `--on-fill`, white in
+light and near-black in dark: white on dark mode's light green and amber read at 1.8–2.0:1.
+
+**Sizes are tokens.** Six type sizes (11, 12, 13, 14, 16, 20 px), eight spacing steps (2, 4, 6, 8,
+12, 16, 24, 32 px) and three radii (4, 6, 8 px) replaced 17 sizes, 36 spacing values and 13
+radii (`ux/UX_SPEC.md` §3.5). What is left raw is justified in `ux/spec/TOKEN_MAP.md`: pills,
+round shapes, a font sample, the symbol picker's glyphs, the x² button's script, two offsets.
 
 **Styles and themes.** Bench (default): IBM Plex, blue for everything you can change.
 Graphite: Geist, black and white, blue only for the keyboard focus; its "accent" is black in
@@ -70,6 +86,12 @@ light and near-white in dark, so the front window's title bar is black (or light
 Light and dark each have their own set. The data colours (`--data`, `--fit`…) are shared, so
 a figure does not change with the style. Graphite's dark blocks set again every token its
 light block sets (CSS specificity: see CLAUDE.md).
+
+**Curves are coloured by worksheet order**, from eight hues that pass the colour-blind and
+normal-vision checks on the graph's light and dark backgrounds (`ux/UX_SPEC.md` §3.5). The
+earlier default drew the analysed curve in blue and the others in cool tints; teal and green, and
+in dark violet and periwinkle, could not be told apart even with full colour vision, and a curve
+changed colour when another was analysed. The analysed curve is now drawn heavier instead.
 
 **The worksheet's grid** has its own line colour (`--ws-grid`, 1.5:1, as Excel's) so cells
 show without competing with the data; the graph's grid (`--grid`) is part of the figure.
@@ -189,3 +211,12 @@ bar; F(x)= on a single click; a strong selection; Fill in the context menus; no 
 Plot setup; a LaTeX typesetter of Kurve's own with previews; one typing box; one menu order;
 per-axis title styles; the legend selectable and typed over in place; one Add menu; a proper
 line dialog; and the high-contrast palette above, enforced by `tools/contrast-test.mjs`.
+
+### 2026-10-16: tokens and contrast (UX rework, Phase 4 slice 1)
+
+From the UX spec (`ux/UX_SPEC.md`), measured in Phase 3: 17 type sizes, 36 spacing values and 13
+radii in the CSS; disabled controls faded by opacity; white on light status fills in dark mode;
+secondary words on highlights below 7:1; a default curve palette that fails colour-blind and
+normal-vision checks. Decided: the type, spacing and radius tokens; `--ink-off`, `--press`,
+`--on-fill` and `--badge`; one ink on a highlight; the validated palette in worksheet order.
+`tools/contrast-test.mjs` checks the new roles and a disabled button as drawn.

@@ -42,14 +42,20 @@ PAIRS.push(["a window's edge on the desk", "--win-bd", "--paper", 3], ["a window
   ["the accent on a panel", "--accent", "--panel", 4.5], ["the focus ring on a panel", "--focus", "--panel", 3],
   ["a switch that is off", "--sw-off", "--panel", 3], ["a checkbox's edge", "--cb-bd", "--panel", 3], ["a slider's track", "--trk", "--panel", 3],
   ["words on a menu's highlight", "--ink", "--hi", 7], ["words on a selection", "--ink", "--sel", 7],
-  ["good news", "--ok", "--panel", 4.5], ["a warning", "--warn", "--panel", 4.5], ["an error", "--bad", "--panel", 4.5]);
+  ["good news", "--ok", "--panel", 4.5], ["a warning", "--warn", "--panel", 4.5], ["an error", "--bad", "--panel", 4.5],
+  ["words on the worksheet's selection", "--ink", "--ws-sel", 7], ["words on a pressed button", "--ink", "--press", 7]);
+// Disabled words still read (UX_SPEC §3.5): 4.5:1 on every surface a control sits on.
+for (const bg of ["--panel", "--panel-2", "--panel-3", "--chrome", "--btn-bg", "--win-h-bg"]) PAIRS.push(["disabled words on " + bg, "--ink-off", bg, 4.5]);
+// Numbers and words on a filled status shape: step numbers, badges, the danger button.
+for (const bg of ["--ok", "--warn", "--bad", "--badge"]) PAIRS.push(["words on a " + bg.slice(2) + " fill", "--on-fill", bg, 4.5]);
 
 for (const theme of ["light", "dark"]) for (const style of ["bench", "graphite"]) {
   console.log(`${style}, ${theme}`);
   const r = await p.evaluate(([th, st, pairs]) => {
     document.documentElement.dataset.theme = th; applyStyle(st);
     const probe = document.createElement("div"); document.body.appendChild(probe);
-    const rgb = c => { probe.style.color = ""; probe.style.color = c; const m = getComputedStyle(probe).color.match(/[\d.]+/g).map(Number); return m; };
+    // A colour-mix() token computes to "color(srgb r g b)" with channels from 0 to 1.
+    const rgb = c => { probe.style.color = ""; probe.style.color = c; const s = getComputedStyle(probe).color, m = s.match(/[\d.]+/g).map(Number); return s.startsWith("color(") ? m.map((v, i) => i < 3 ? v * 255 : v) : m; };
     const lum = c => { const v = rgb(c).slice(0, 3).map(x => x / 255).map(x => x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
     const cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
     const cs = getComputedStyle(document.documentElement), tok = n => cs.getPropertyValue(n).trim();
@@ -60,6 +66,13 @@ for (const theme of ["light", "dark"]) for (const style of ["bench", "graphite"]
     el(".win.active .win-h", "the front window's title bar, as drawn", 4.5);
     el(".tb[aria-pressed=\"true\"]", "a switched-on toolbar button, as drawn", 4.5);
     el(".tk.front", "the front window's taskbar button, as drawn", 4.5);
+    // A disabled button as drawn: no fill of its own, so its words are read against the panel under it.
+    const db = document.createElement("button"); db.className = "btn"; db.disabled = true; db.textContent = "Fit";
+    const host = document.querySelector("#w-fit .win-b") || document.body; host.appendChild(db);
+    const painted = e => { while (e && e !== document.documentElement) { const c = getComputedStyle(e).backgroundColor; if (c && !/rgba\(0, 0, 0, 0\)|transparent/.test(c)) return c; e = e.parentElement; } return getComputedStyle(document.body).backgroundColor; };
+    { const s = getComputedStyle(db), bgc = painted(host); out.push({ n: "a disabled button, as drawn", v: cr(s.color, bgc), need: 4.5, f: s.color, b: bgc });
+      out.push({ n: "a disabled button is not faded (opacity 1)", v: +s.opacity >= 1 ? 99 : 0, need: 1, f: s.opacity, b: "" }); }
+    db.remove();
     probe.remove(); return out;
   }, [theme, style, PAIRS]);
   for (const q of r) check(`${q.n}: ${q.v.toFixed(2)}:1 (at least ${q.need}:1)`, q.v >= q.need, `${q.f} on ${q.b}`);

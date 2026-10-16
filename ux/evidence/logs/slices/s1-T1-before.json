@@ -1,0 +1,357 @@
+{
+ "events": [
+  {
+   "t": 0.824,
+   "wall": "2026-10-16T17:46:55+00:00",
+   "task": null,
+   "kind": "open",
+   "target": "http://127.0.0.1:36213/kurve.html",
+   "viewport": "1366x768",
+   "theme": "light"
+  },
+  {
+   "t": 3.551,
+   "wall": "2026-10-16T17:46:58+00:00",
+   "task": "T1",
+   "kind": "task_start",
+   "target": "Type 6 x,y pairs, scatter plot, axis titles with units, export PNG"
+  },
+  {
+   "t": 3.833,
+   "wall": "2026-10-16T17:46:58+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "worksheet cell A1",
+   "x": 1075,
+   "y": 674,
+   "presses": 1
+  },
+  {
+   "t": 4.003,
+   "wall": "2026-10-16T17:46:59+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "1",
+   "keys": 1
+  },
+  {
+   "t": 4.076,
+   "wall": "2026-10-16T17:46:59+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 4.31,
+   "wall": "2026-10-16T17:46:59+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "2.1",
+   "keys": 3
+  },
+  {
+   "t": 4.425,
+   "wall": "2026-10-16T17:46:59+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 4.571,
+   "wall": "2026-10-16T17:46:59+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "2",
+   "keys": 1
+  },
+  {
+   "t": 4.66,
+   "wall": "2026-10-16T17:46:59+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 4.892,
+   "wall": "2026-10-16T17:46:59+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "3.9",
+   "keys": 3
+  },
+  {
+   "t": 4.976,
+   "wall": "2026-10-16T17:47:00+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 5.123,
+   "wall": "2026-10-16T17:47:00+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "3",
+   "keys": 1
+  },
+  {
+   "t": 5.205,
+   "wall": "2026-10-16T17:47:00+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 5.453,
+   "wall": "2026-10-16T17:47:00+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "6.2",
+   "keys": 3
+  },
+  {
+   "t": 5.547,
+   "wall": "2026-10-16T17:47:00+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 5.694,
+   "wall": "2026-10-16T17:47:00+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "4",
+   "keys": 1
+  },
+  {
+   "t": 5.793,
+   "wall": "2026-10-16T17:47:00+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 6.023,
+   "wall": "2026-10-16T17:47:01+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "8.1",
+   "keys": 3
+  },
+  {
+   "t": 6.108,
+   "wall": "2026-10-16T17:47:01+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 6.258,
+   "wall": "2026-10-16T17:47:01+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "5",
+   "keys": 1
+  },
+  {
+   "t": 6.342,
+   "wall": "2026-10-16T17:47:01+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 6.572,
+   "wall": "2026-10-16T17:47:01+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "9.8",
+   "keys": 3
+  },
+  {
+   "t": 6.655,
+   "wall": "2026-10-16T17:47:01+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 6.804,
+   "wall": "2026-10-16T17:47:01+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "6",
+   "keys": 1
+  },
+  {
+   "t": 6.885,
+   "wall": "2026-10-16T17:47:01+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 7.158,
+   "wall": "2026-10-16T17:47:02+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "12.2",
+   "keys": 4
+  },
+  {
+   "t": 7.261,
+   "wall": "2026-10-16T17:47:02+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 8.297,
+   "wall": "2026-10-16T17:47:03+00:00",
+   "task": "T1",
+   "kind": "dblclick",
+   "target": "x-axis title",
+   "x": 617,
+   "y": 675,
+   "presses": 2
+  },
+  {
+   "t": 8.758,
+   "wall": "2026-10-16T17:47:03+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "Time (s)",
+   "keys": 8
+  },
+  {
+   "t": 8.845,
+   "wall": "2026-10-16T17:47:03+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 9.569,
+   "wall": "2026-10-16T17:47:04+00:00",
+   "task": "T1",
+   "kind": "dblclick",
+   "target": "y-axis title",
+   "x": 283,
+   "y": 404,
+   "presses": 2
+  },
+  {
+   "t": 10.194,
+   "wall": "2026-10-16T17:47:05+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "Distance (m)",
+   "keys": 12
+  },
+  {
+   "t": 10.287,
+   "wall": "2026-10-16T17:47:05+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 10.904,
+   "wall": "2026-10-16T17:47:05+00:00",
+   "task": "T1",
+   "kind": "rightclick",
+   "target": "graph area (right-click)",
+   "x": 596,
+   "y": 345,
+   "presses": 1
+  },
+  {
+   "t": 11.512,
+   "wall": "2026-10-16T17:47:06+00:00",
+   "task": "T1",
+   "kind": "wheel",
+   "target": "scroll the menu",
+   "x": 742,
+   "y": 732,
+   "dx": 0,
+   "dy": 240
+  },
+  {
+   "t": 12.045,
+   "wall": "2026-10-16T17:47:07+00:00",
+   "task": "T1",
+   "kind": "wheel",
+   "target": "scroll the menu",
+   "x": 742,
+   "y": 732,
+   "dx": 0,
+   "dy": 240
+  },
+  {
+   "t": 12.579,
+   "wall": "2026-10-16T17:47:07+00:00",
+   "task": "T1",
+   "kind": "hover",
+   "target": "Export the figure",
+   "x": 742,
+   "y": 743
+  },
+  {
+   "t": 13.203,
+   "wall": "2026-10-16T17:47:08+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "As PNG (image, for slides)",
+   "x": 1000,
+   "y": 743,
+   "presses": 1
+  },
+  {
+   "t": 13.552,
+   "wall": "2026-10-16T17:47:08+00:00",
+   "task": "T1",
+   "kind": "download",
+   "target": "export PNG",
+   "file": "downloads/s1-T1-before/t1.png",
+   "suggested": "Untitled_analysis.png"
+  },
+  {
+   "t": 13.554,
+   "wall": "2026-10-16T17:47:08+00:00",
+   "task": "T1",
+   "kind": "task_end",
+   "success": "yes",
+   "note": ""
+  }
+ ],
+ "summary": {
+  "T1": {
+   "title": "Type 6 x,y pairs, scatter plot, axis titles with units, export PNG",
+   "success": "yes",
+   "clicks": 7,
+   "keys": 59,
+   "drags": 0,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 0,
+   "seconds": 10.0,
+   "klm_seconds": 35.1
+  }
+ }
+}

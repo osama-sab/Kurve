@@ -1240,11 +1240,14 @@ graph first, with the taskbar kept at the bottom of the screen.
   its own text style, line samples of any length (`legendLine`), row spacing (`legendSp`), a
   frame and background of its own (`legendFrame`, `legendFill`, `legendOp`, `legendBd`,
   `legendLw`, `legendR`), and its text in each spectrum's colour (`legendText:"match"`); a
-  series with `leg:false` is left out of it. **Colour schemes**: `SCHEMES` (Kurve's, distinct hues from a validated
-  categorical palette, Okabe–Ito, viridis in table order, black and greys with dashes) and
+  series with `leg:false` is left out of it. **Colour schemes**: `SCHEMES` (Kurve's: the eight hues of `COL_TINTS_LIGHT`/`_DARK`,
+  validated for colour-blind and normal vision on the graph's light and dark backgrounds,
+  UX_SPEC §3.5; Okabe–Ito; viridis in table order; black and greys with dashes; the older
+  `categorical`, the same hues, `hide`n from the list) and
   `PEAK_SCHEMES`; `yTint(id, light, scheme)` (the scheme passed by `serStyle`, else read from `plotCfg()`) and `peakColor(k)` read them, so the graph, the legend, the
-  worksheet header, the fit panel and the results table change together. Every scheme but
-  Kurve's colours by table order, so a colour stays with its spectrum. On two Y axes with one
+  worksheet header, the fit panel and the results table change together. Every scheme colours
+  by table order, so a colour stays with its spectrum; the analysed one is drawn heavier, never
+  recoloured. On two Y axes with one
   other spectrum each axis's numbers and title take its spectrum's colour (`axisMatch`).
   **Annotations** (`p.plot.annos`, each `{id, t, x, y, x2, text, color, lw, dash, size, unit,
   rot, bold, font, ser, dx, dy, xu, yu}`, and on labels `mk`, plus `grp`, `lab`, `pk`,
@@ -1410,7 +1413,17 @@ graph first, with the taskbar kept at the bottom of the screen.
   Y, a heat map or stacked panels; `frameEdges`, the axis lists (`setAxisKeys("all")`,
   `allax.`, quick styles, `fmtOf`, `styleFrom`, `plotCfg`) and `figNotes` know it.
 - **Styles and controls** (the tokens at the top of the `<style>`): one token set per theme
-  and per style. Text has two colours: `--ink`, and `--muted` for what is secondary (7:1 or
+  and per style. Sizes are tokens too (UX_SPEC §3.5, `ux/spec/TOKEN_MAP.md`): six type sizes
+  `--fs-cap` 11, `--fs-tab` 12, `--fs-body` 13, `--fs-title` 14, `--fs-head` 16, `--fs-hero`
+  20 px; spacing `--sp-1` … `--sp-8` (2, 4, 6, 8, 12, 16, 24, 32 px; a negative margin that
+  cancels a padding is `calc(var(--sp-n) * -1)`, and an offset tied to a scroller's padding,
+  `.composer`, `.pkfoot`, the windows' `.fbar`, the menu's search, moves with it); radii
+  `--r-s` 4, `--r` 6, `--r-l` 8 px (`--r-win`, `--cb-r` alias them). A raw size in the CSS is
+  one TOKEN_MAP.md justifies (a pill, a font sample, a layout offset) or a mistake. States:
+  disabled is `--ink-off` words (4.5:1 or more) and a dashed `--rule-2` edge, never opacity;
+  pressed is `--press` with an inset shadow; words on a filled status shape (step numbers,
+  badges on `--badge`, the danger button) are `--on-fill`; on a highlight (a menu item under
+  the pointer, a selection) secondary words take `--ink`. Text has two colours: `--ink`, and `--muted` for what is secondary (7:1 or
   more against every panel, in both themes and both styles); `--ink-2` is a near-ink for
   labels and buttons, and `--faint` is for lines and icons, never words. Headings (`.gh`,
   `.sect`, `.pane-h h2`, menu groups) are sentence case in the text colour, not small grey
