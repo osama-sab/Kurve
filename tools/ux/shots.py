@@ -37,7 +37,7 @@ SCREENS = [
     ("menu-file", None, "File"),
     ("menu-plot", None, "Plot"),
     ("menu-analysis", None, "Analysis"),
-    ("graph-rightclick", "() => { const g = S.geo, c = activeYCol(); openGraphMenu({ clientX: 520, clientY: 330, preventDefault() {} }, c.id); }", None),
+    ("graph-rightclick", "() => { const f = $('#figure').getBoundingClientRect(), d = derived(), i = Math.floor(d.x.length * 0.55); openGraphMenu({ clientX: f.left + S.geo.X(d.x[i]), clientY: f.top + S.geo.Y(d.y[i]), preventDefault() {} }); }", None),
     ("fit-peaks", "() => { S.fitMode = 'peaks'; showTab('fit'); renderPlot(); runPeakFinder(); }", None),
     ("format-axis", "() => { openPlotDetails(null, 'ax:x'); }", None),
     ("tool-smooth", "() => { openTool('smooth'); }", None),
@@ -45,6 +45,7 @@ SCREENS = [
     ("history", "() => { openWin('flow', {render: true}); focusWin('flow'); }", None),
     ("peaks", "() => { openPeakFinder(); }", None),
     ("statistics", "() => { openWin('stats', {render: true}); focusWin('stats'); }", None),
+    ("menu-spectroscopy", None, "Spectroscopy"),  # from slice 4; skipped where there is no such menu
 ]
 
 
@@ -63,6 +64,8 @@ def shoot(theme):
                 except Exception as e:  # noqa: BLE001 - a screen that cannot be set up is recorded as such
                     print(f"  {name}: {str(e)[:120]}", file=sys.stderr)
             r.wait_quiet(700)
+            if menu and not r.page.locator(".menubar .mb", has_text=menu).count():
+                continue
             if menu:
                 r.click_role("button", menu, exact=True, within=r.page.locator(".menubar"))
                 r.wait_quiet(400)

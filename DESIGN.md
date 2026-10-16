@@ -134,6 +134,41 @@ layouts), or **Plot setup…** (Plot menu, the top of the quick list, and what P
 nothing is selected): kinds as pictures, the X column, the Y columns ticked, the target graph,
 and a sketch of the result. Plotting is never automatic after an import from the dialog.
 
+## Menus and the toolbar
+
+The menu tree is `ux/spec/menus-after.txt`; `tools/ux/menucheck.py` compares the app's with it.
+
+- **Nine menus**: File, Edit, Data, Plot, Analysis, Statistics, Spectroscopy, Window, Help. Math
+  folded into Analysis (Mathematics, Smooth and filter), as Origin's Analysis does.
+  Spectroscopy has a menu of its own: the Overview, spikes, background, peaks, known lines, the
+  X-axis tools and the corrections were spread over five menus where a general user met them.
+- **One place each, by what it is.** Making a graph is plotting (Plot › New graph); Window
+  lists and arranges windows. Copying from another project is File's. Edit has the worksheet's
+  Copy, Paste, Clear and Find, because a spreadsheet user looks there. A command that combines
+  graphs already made sits in Window › Graphs beside Combine graphs… (A figure of panels…
+  too, where T9 looked first).
+- **Shown when it can apply**: Fit every column… with two columns or more, Batch results after
+  a batch, a trend graph with several columns, the second axes' pages once they are on, the
+  inset when zoomed, Python (a menu and the graph's button) once the project uses Python, under
+  Analysis › More until then.
+- **An ellipsis means more to come**: a dialog or a window that asks before it acts. Report and
+  Histogram act at once and have none. A shortcut beside an item is a real one (Format graph…
+  has no "Double-click": a double click on the plot shows all the data).
+- **Moving along the menu bar** opens the next menu only after the pointer rests on its name for
+  150 ms: a pointer crossing the bar on its way into a submenu changed menus (Phase 1, T2).
+- **Toolbar**: Explorer │ Import, Export │ Undo, Redo │ Zoom, Pan, Mask, Label, Arrow, Shape │
+  Show all │ Reverse X, Log Y, Grid. The switches are off until there is data. Comment shows
+  in a shared project only (alone, Add here › A comment here…). What the graph shows, Original,
+  Processed or Both, is on the graph window's own bar, beside the menus it repeats; the plot
+  type and the layout are in Plot and a curve's right-click; the residual panel is switched in
+  the Fit window and Analysis › Fit; Add a peak is a button in the peak fit's second part.
+- **Right-click menus** hold what belongs to the thing clicked, then Add here, then Format
+  graph…, Copy the graph as a picture and Export (the File › Export list). A curve's menu needs
+  the click on the curve (within 14 px of a point); elsewhere it is the plot's, with Add here
+  inline. None repeats a Plot submenu; the axis menu leaves the outward offset and the edge
+  across to the Format dialog. The worksheet's column menu chooses a use (Use as › X, Y, Error
+  bars, Other data) and the active column.
+
 ## Text on the graph
 
 ### LaTeX, typeset by Kurve
@@ -220,3 +255,15 @@ secondary words on highlights below 7:1; a default curve palette that fails colo
 normal-vision checks. Decided: the type, spacing and radius tokens; `--ink-off`, `--press`,
 `--on-fill` and `--badge`; one ink on a highlight; the validated palette in worksheet order.
 `tools/contrast-test.mjs` checks the new roles and a disabled button as drawn.
+
+### 2026-10-16: menus and toolbar (UX rework, Phase 4 slice 4)
+
+From the Phase 1 walkthrough and the Phase 2 inventory: a menu bar that put spectroscopy in the
+way of general work and New graph under Window; right-click menus of up to 120 items with
+Export at the very bottom, off the screen at 1366 × 768; the same command under several names
+in several places; a toolbar holding the plot type, the layout, Raw/Final/Compare, Residuals and
+Add peak; the pointer crossing the menu bar changing menus. Decided: the nine menus above, a
+Spectroscopy menu, short right-click menus that end in Format, Copy and Export, the toolbar
+above, the menu-bar delay, and items hidden until they can apply. The approved removals (R1,
+R2, R3, R6) wait for slice 7, and the processing tools keep their names until slice 3.
+

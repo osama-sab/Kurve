@@ -4,7 +4,7 @@ Every item of today's menu bar (`ux/inventory/crawl.json`) and what becomes of i
 proposed menu bar (`ux/spec/menus-after.txt`, shown in full in `ux/UX_SPEC.md` §3.3). Written
 and checked by `tools/ux/menudiff.py`: an item with no fate fails the check.
 
-**320 items today:** 168 kept, 60 renamed, 57 moved, 19 merged, 10 removed, 6 hidden.
+**320 items today:** 169 kept, 60 renamed, 56 moved, 19 merged, 10 removed, 6 hidden.
 
 *kept*: same place (a list the app fills in counts as its parent). *moved*: same name,
 another menu. *renamed*: a new name, perhaps a new place. *merged*: one entry now does it.
@@ -351,7 +351,7 @@ approved at STOP 2 (R1, R2, R3, R6). The R4 submenu and the R5 bar stay.
 | New graph › With every spectrum | renamed | Plot › New graph › With every column |
 | New graph › One for each spectrum | renamed | Plot › New graph › One for each column |
 | New graph › A figure, a panel for each spectrum | renamed | Plot › New graph › A figure, a panel for each column |
-| New graph › A figure of panels… | moved | Plot › New graph › A figure of panels… |
+| New graph › A figure of panels… | kept | Window › Graphs › A figure of panels… |
 | New graph › A trend of the series | hidden | Plot › New graph › A trend of the series (until there is a series (several columns)) |
 | Combine graphs… | merged | Window › Graphs › Combine graphs… |
 | Bring in from another project… | merged | File › Copy from another project… |
@@ -389,3 +389,4 @@ there (Edit's Copy and Paste, as in every program) or because the toolkit needed
 - Data › Fill › Right: new route: the cell menu's Fill › Right
 - Data › Sort the view: new route: the cell and column menus' "Sort the sheet by …"
 - Spectroscopy: new menu: the toolkit, gathered from Data, Math, Analysis, Statistics and Plot
+- Window › Graphs › A figure of panels…: new route (slice 4): Plot › New graph's, beside Combine graphs…, where T9 looked first

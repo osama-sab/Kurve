@@ -64,7 +64,7 @@ CRAWL = r"""() => {
   };
   const grab = (name, fn) => { try { out[name] = walk(fn(), [], 0); } catch (e) { out[name] = [{ error: String(e) }]; } };
   // Menu bar (the graph window's own bar opens the same lists by name).
-  ["file", "edit", "plot", "data", "math", "analysis", "statistics", "window", "help"].forEach(m => grab("menubar:" + m, () => menuItems(m)));
+  [...document.querySelectorAll(".menubar .mb")].map(b => b.dataset.menu).forEach(m => grab("menubar:" + m, () => menuItems(m)));
   const act = activeYCol(), gid = GID(), cfg = plotCfg();
   // Graph right-click: on empty plot, on a spectrum, on the fit curve, with a point under the pointer.
   const pt = S.geo ? toData(300, 200) : null; if (pt) pt.inside = true;

@@ -389,7 +389,7 @@ class Rig:
             tid = ev.get("task")
             if ev["kind"] == "task_start":
                 start[tid] = ev["t"]
-                out[tid] = {"title": ev.get("target", ""), "success": None, "clicks": 0, "keys": 0, "drags": 0,
+                out[tid] = {"title": ev.get("target", ""), "success": None, "clicks": 0, "keys": 0, "drags": 0, "hovers": 0,
                             "wrong_turns": 0, "guesses": 0, "help": 0, "shots": 0, "seconds": None}
                 continue
             if tid not in out:
@@ -405,6 +405,8 @@ class Rig:
                 s["keys"] += ev.get("keys", 0)
             elif k == "key":
                 s["keys"] += ev.get("presses", 1)
+            elif k == "hover":
+                s["hovers"] += 1
             elif k == "wrong_turn":
                 s["wrong_turns"] += 1
             elif k == "guess":
@@ -421,6 +423,8 @@ class Rig:
         # point. The rig's own seconds include the driver's thinking between steps.
         for s in out.values():
             s["klm_seconds"] = round(s["clicks"] * 2.65 + s["keys"] * 0.28 + s["drags"] * 1.1, 1)
+            # The same with each hover (opening a submenu, reading a tooltip) as one more point, 1.1 s.
+            s["klm_hover_seconds"] = round(s["klm_seconds"] + s["hovers"] * 1.1, 1)
         return out
 
     def report(self):

@@ -222,6 +222,7 @@ Window
   Graphs  ## ~ "Open a graph"; + Plot's copy
     (each graph, the front one ticked)
     Combine graphs…  ## + Window's own "Combine graphs…"
+    A figure of panels…  ## new route (slice 4): Plot › New graph's, beside Combine graphs…, where T9 looked first
     Link the X zoom of the graphs  ## + "Link the X zoom"
   Theme
     Light

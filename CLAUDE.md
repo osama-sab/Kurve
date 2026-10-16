@@ -9,13 +9,12 @@ changes the interface updates it with the decision and the reason.
 
 ## The screen
 
-A desktop-style frame, top to bottom: a title bar with the **menus** (File, Edit, Plot, Data,
-Math, Analysis, Statistics, Window, Help; each short, its kinds opening side submenus on
+A desktop-style frame, top to bottom: a title bar with the **menus** (File, Edit, Data, Plot,
+Analysis, Statistics, Spectroscopy, Window, Help; the tree is `ux/spec/menus-after.txt`; each short, its kinds opening side submenus on
 hover, and a tool opening its dialog) and the project name (click to rename; the arrow
 beside it switches, creates and deletes projects); a **toolbar** (the Project Explorer's switch, Import, Export, undo/redo,
-**Raw / Final / Compare** (what the graph shows), the pointer tools Zoom / Pan / Mask / Add
-peak / Label / Arrow / Shape (a box or an ellipse, chosen from its menu) / Comment, show-all, the analysed spectrum's plot type, the layout of several
-spectra, and the Reverse X / Log Y / Grid / Residuals toggles; it keeps to one row, dropping labels
+the pointer tools Zoom / Pan / Mask / Label / Arrow / Shape (a box or an ellipse, chosen from its menu) / Comment (in a
+shared project only), show-all, and the Reverse X / Log Y / Grid toggles, off until there is data; it keeps to one row, dropping labels
 in stages while it would wrap and last the Explorer's switch (not on a phone), `fitToolbar`); the **Project Explorer** docked at the desk's left
 (the project as a tree, as Origin's: folders and subfolders of your own, the worksheet, each file
 imported with its spectra and data columns, every graph, closed ones marked hidden, and the trend
@@ -35,7 +34,7 @@ its edges, maximises on a double-click of the title, minimises to the **taskbar*
 bottom of the desk and closes with its ×. As a workbook keeps a tab per sheet, the project's
 **documents** (its graphs, the worksheet, its trend graphs) always have a taskbar button and
 minimise (a graph can also be closed: off the desk and the taskbar, kept in the project, and
-opened again from Window › Open a graph); **panels** (History, Peaks, Fit…) are in the taskbar only while open or
+opened again from Window › Graphs); **panels** (History, Peaks, Fit…) are in the taskbar only while open or
 minimised, so a panel never opened is in no list. An open window's button is raised with a
 bar under it (the front one in colour), a minimised one's flat with no bar, and the words keep
 the text colour in both. The taskbar starts with the project's name (every window on the desk
@@ -43,11 +42,12 @@ is that project's; click it to switch), groups more than four graphs (or three t
 under one button, puts what does not fit in one row under a "n more" button (least recently
 used first, never the front window), and has Tile and Cascade. **Window** lists the windows in
 use as Excel's Switch Windows does (the front one ticked, minimised ones marked; a search past
-a dozen), **Window › Panels** every panel ticked while in use (Origin's View menu), Minimise
-the others, Close the panels, and Theme and Style as submenus. Every title bar has a **?** that opens
+a dozen), **Window › Tool windows** every panel ticked while in use (Origin's View menu), Minimise
+the others, Close the tool windows, Graphs (every graph, Combine graphs…, A figure of panels…, the linked
+zoom), and Theme and Style as submenus. Every title bar has a **?** that opens
 the window's article in the **Help window** (F1 does it for the window in front; a tool's
 opens its step's article). A first visit opens Graph, History and Worksheet. A project can
-have **several graphs**, each in its own window (Window › New graph: with the analysed
+have **several graphs**, each in its own window (Plot › New graph: with the analysed
 spectrum, with every spectrum, or one for each spectrum, tiled): the one clicked is worked on
 (it is drawn live, its spectrum is analysed and every window follows), the others show a
 picture and chips naming their spectra; each has a ⋯ menu (rename, spectra on it, duplicate,
@@ -55,15 +55,17 @@ export, delete), the X zoom is linked between them unless switched off, and with
 four the taskbar gathers them under one Graphs button. Graphs plotted one by one are put
 together by holding and dropping: a graph by the grip in its title bar onto another graph
 (or its taskbar button) merges into it, a spectrum's chip adds that spectrum (or, dropped on
-the empty desk, gets a graph of its own); Window › Combine graphs… does it from a list, and
-File › Bring in from another project… copies spectra between projects. Graphs can also be
-the **panels of a figure** (Window › New graph › A figure…, a graph's Put in a figure, or a
+the empty desk, gets a graph of its own); Window › Graphs › Combine graphs… does it from a list, and
+File › Copy from another project… copies spectra between projects. Graphs can also be
+the **panels of a figure** (Plot › New graph › A figure…, Window › Graphs › A figure of panels…, a graph's Put in a figure, or a
 graph dropped on a figure): one window with the graphs in rows and columns, their plot areas
-lined up, X or Y shared, lettered (a), (b)…; the panel clicked is worked on. The **graph window** has its own bar repeating the Data, Math, Analysis, Statistics
-and Plot menus, a Python button, and a chip saying which stage of the processing is shown
-when it is not the final data. Right-click on the graph (or Shift+F10) gives the spectrum's
-colour, plot type and style, a line, text or peak label where you clicked, the frame, ticks,
-layout and legend; right-click a line, a label, the legend, a title or an axis's numbers for
+lined up, X or Y shared, lettered (a), (b)…; the panel clicked is worked on. The **graph window** has its own bar repeating the Data, Plot, Analysis, Statistics
+and Spectroscopy menus, then **Original / Processed / Both** (what the graph shows), a chip saying
+which stage of the processing is shown when it is not the final data, and a Python button once
+the project uses Python. Right-click on a curve (or Shift+F10) gives its
+colour, plot type and style, then Add here (a line, text, a peak label, a shape, a title or a
+comment where you clicked), Format graph…, Copy the graph as a picture and Export; on the empty
+plot, Add here's items themselves; right-click a line, a label, the legend, a title or an axis's numbers for
 its own options. Lines, shaded ranges, text, peak labels, the legend, the titles and the axes
 (by their numbers) drag with the pointer; a double click (or Enter) on a label, a text or a
 title opens a box over it to type in (Shift+Enter for a new line), and one on a line, a range
@@ -74,10 +76,10 @@ units, the frame and grid (with quick
 styles), the text (each kind its own font, size in points, bold, italic, underline, colour,
 like a word processor), the legend (place, columns, size, box), the layout and colours, and
 the labels and lines (each with its own text, style, turn, box and place). The **Peaks
-window** (Analysis › Find peaks…) finds the peaks of the analysed spectrum and marks them on
+window** (Spectroscopy › Find peaks…) finds the peaks of the analysed spectrum and marks them on
 the graph, each with a symbol, a drop line, a vertical line, a leader or nothing, and a label
 you type (in its table, on the graph, or in the History); fitting them is one button, not
-the way in. The **Integrate window** (Analysis › Integrate bands…) measures bands without a
+the way in. The **Integrate window** (Analysis › Integrate…) measures bands without a
 fit: windows dragged on the graph, each with a local baseline, giving areas with errors,
 heights, positions, FWHM, shares of the total and ratios to a chosen band, for one spectrum
 or every one. The **Help window** is the documentation: a contents list by kind, a search over every
@@ -243,7 +245,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   whose shoulders have no prominence by definition). The app passes both. `seedPeak` takes the
   half width from whichever side reaches half height first, and returns the height `h` it saw;
   callers turn that into each shape's own area with `peakAreaForHeight`.
-  `peakSearch(X, Y, o)` is the finder behind Analysis › Find peaks. Methods `max`, `window`,
+  `peakSearch(X, Y, o)` is the finder behind Spectroscopy › Find peaks. Methods `max`, `window`,
   `deriv1`, `deriv2`; `log` searches on log10 of the data; `smooth` is `"auto"` (half the
   narrowest clear band's width in points), 0 or a window; `thr` is `{mode, v}` with modes
   `snr` (prominence over `noiseSigma`, default 4), `pct` (of the largest), `abs` and `decades`
@@ -491,7 +493,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   place. It is edited in the worksheet like any spreadsheet (typed over, cleared, pasted and
   filled over, rows inserted and deleted), each change one undo entry and an entry in the
   raw-data record, unless the project **locks** it (`p.rawLock`, in `UNDO_KEYS`; `rawLocked()`,
-  `setRawLock(on)`: the lock button `#wsLockBtn` above the grid and Data › Lock the raw data).
+  `setRawLock(on)`: the lock button `#wsLockBtn` above the grid and Data › Lock the original data).
   Locked, empty cells can still be filled; typing over a recorded value opens `correctCell`,
   which asks for a reason and adds a `correct` step to the pipeline of every spectrum that uses
   the value; pasting over values offers new columns (`pasteAsNew`); Delete keeps values; rows
@@ -629,7 +631,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   fit (panels before documents, minimised before open, the lowest `z` first, never the front
   window) into `S.tkMore` behind `[data-tk-more]`. `winMin`, `inBar`, `winStateName`,
   `frontWinId`; `winItem` (the front one ticked, "minimised" as a note), `panelItems`
-  (Window › Panels: ticked while in use, a click opens or closes), `winFinder` (every window
+  (Window › Tool windows: ticked while in use, a click opens or closes), `winFinder` (every window
   in use, searched), `windowItems` (the Window menu). `openWin(id, {render})`, `closeWin`, `toggleWin`, `focusWin`, `toggleMax`,
   `tileWins`, `cascadeWins`, `resetWins`, `renderWin(id)` (which window renders what),
   `renderTaskbar`, `setupWins` (move, resize, min/max buttons, and the "?" `[data-whelp]`
@@ -680,7 +682,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   off the desk wherever it is opened: `syncGraphWins` closes a shut graph's window and opens
   one that was shut and no longer is (an undo, a colleague; `S.gshut` remembers per project),
   `saveGraphLayout` records a shut graph as open so its place is kept. `showGraph` opens a
-  shut one; `graphsMenuItems` notes "closed" (Window › Open a graph, Plot › Open a graph);
+  shut one; `graphsMenuItems` notes "closed" (Window › Graphs, the taskbar's Graphs button);
   the History's graph box says Closed with Open it. `mainFreeNow()`: the first graph closed
   with nothing on it, where the next plot goes. `plotBase(pl)` is a new graph's look from
   another's (no spectra, ranges, title, labels, list or state); `graphBase(from)` uses it.
@@ -744,8 +746,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `gDropAt(x, y, o)` reads `elementsFromPoint`: a graph window or a graph's taskbar button
   (`dropTarget`, `already` when a chip's spectrum is on it), the bare desk for a chip; the
   ghost (`.gghost`) says what a drop would do (`dropText`), the target is outlined (`.gdrop`),
-  and Ctrl, Alt or Cmd at the drop keeps the graph. `combineDlg(into)` (Window › Combine
-  graphs…): which graphs, onto which (or a new one), the layout, keep or not.
+  and Ctrl, Alt or Cmd at the drop keeps the graph. `combineDlg(into)` (Window › Graphs ›
+  Combine graphs…): which graphs, onto which (or a new one), the layout, keep or not.
   `syncGraphWins` moves the live plot out of a window before removing it (`rescueLive`). `tileWins` puts the graphs in a grid on the
   left (as near square as the desk allows, the last row stretched) and the rest in a column;
   when a graph would be under 250 × 235 px that way, the graphs take the whole desk and the
@@ -794,9 +796,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   with its panels inside.
 - **Tools and menus**: `TOOL_GROUPS` lists every op by kind; `toolMenuItems({col, at})` is
   the menu the History's "+" and Step buttons open, one submenu per group (a group of one
-  tool stays a plain item); `dataMenu`, `mathMenu`, `analysisMenu`,
-  `statisticsMenu` and `plotMenu` build the menu bar (and the graph window's bar), each a short
-  list of kinds with the tools in submenus.
+  tool stays a plain item); `dataMenu`, `plotMenu`, `analysisMenu`,
+  `statisticsMenu` and `spectroscopyMenu` build the menu bar (and the graph window's bar), each a short
+  list of kinds with the tools in submenus (DESIGN.md, Menus and the toolbar; `tools/ux/menucheck.py`
+  compares a crawl of them with `ux/spec/menus-after.txt`). Items that cannot apply are left out
+  (Fit every column… with one column, Batch results without a batch, the second axes' pages while
+  they are off); `pyUsed()` puts Python in Analysis (and the graph's button) once the project uses
+  it, under Analysis › More until then. `sortViewItems(ci)` is Data › Sort the view and the cell
+  menu's; Edit's Copy, Paste (`wsPasteMenu`), Clear and Find act on the worksheet. The menu bar
+  moves to another menu only after the pointer rests 150 ms on its name.
   `openTool(op, {col, at, p})` opens the Tool window with a pending step (ops without settings
   are added at once by `addPipeStep`); `renderTool` shows the target spectrum, the position,
   a before-and-after chart (`beforeAfter`) and the step's form.
@@ -878,7 +886,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   the finder's settings in `S.pf`, a live preview on the graph from `pfRun`, the peaks it would
   find in a table and the ones it turned down with their reasons, each with an Add button;
   `runPeakFinder(append)` seeds the draft from them, measuring a peak on a larger one's tail
-  from its own valleys), 2 Peaks and baseline, 3 Fit. `pfBaseline` subtracts the draft's
+  from its own valleys), 2 Peaks and baseline (its header's **Add a
+  peak**, `#pfAddMode`, is the Add peak pointer mode, which left the toolbar), 3 Fit; both fits have
+  Residuals under the graph (`fitResidHtml`, `#fitResid`), also Analysis › Fit. `pfBaseline` subtracts the draft's
   baseline before searching without changing it. Its "Mark and label them" hands the peaks to
   the Peaks window's set instead (`findPeaksInto`, over the fit's range). Above both kinds of
   fit, `fitWhereHtml` says what is fitted: Spectrum (with several; `goSpectrum`) and Range from
@@ -987,7 +997,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   smooth only if the narrowest band spans 7 points or more), each opening its tool
   (`openTool`) with settings measured from the data, and marked done when the spectrum already
   has the step. It opens after an import (`autoOverview`, off per browser under
-  `kurve.ovAuto`), from Analysis and Statistics, and from a raw box in the History.
+  `kurve.ovAuto`), from Spectroscopy › Overview of the spectrum…, and from a raw box in the History.
 - **Typing on the graph**: one box for every text, `inlineBox(o)` (`.inled`: `#inledIn`, an
   input or for several lines a textarea, `rtool("inledIn")`, ⋯ `data-inmore` for `o.more`,
   and `.inled-pv`: the text typeset by `texPreview(v, 17, o.st)` in its own style once it has
@@ -1077,8 +1087,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   gone project. Names: `projName`, `isUntitled` ("Untitled analysis", "(2)" too),
   `uniqueProjName(nm, except)` (every new project; imports that rename an untitled one),
   `batchProjName(names)` (what the files' names share, or "first to last"); `switchProject`
-  (the list's run) toasts what is in the project. **Bringing in** (File › Bring in from
-  another project…, `bringInDlg(gid)`, `bringIn(groups, onto, gid)`): `copySpectra(q, cids)`
+  (the list's run) toasts what is in the project. **Bringing in** (File › Copy from
+  another project…, the Explorer's project menu, `bringInDlg(gid)`, `bringIn(groups, onto, gid)`): `copySpectra(q, cids)`
   copies chosen spectra with their sources and what their steps read (`stepReads`, from each
   op's `deps`), their X (nearest left of the root) and error columns, with new column and step
   ids (`ref`, `cols`, `reads`, `readSigs` remapped), a computed column as values, and
@@ -1209,8 +1219,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   a histogram's bins (`histOf(id)`, the step's `bins.w`) or 0.8 of the median spacing, several
   spectra as columns side by side (`colGrp`, `cgk`/`cgn` through `zSt`); a graph of columns
   stands on zero and is widened to whole columns when nothing is typed or zoomed.
-  **Histograms**: `histogramCols(cids)` (Plot › Histogram, Statistics › Histogram of the
-  values, a spectrum's right-click; one undo entry) makes `Histogram of …`, a spectrum derived
+  **Histograms**: `histogramCols(cids)` (Plot › Histogram, Statistics › Histogram (the selected
+  columns, or the active one), a spectrum's right-click; one undo entry) makes `Histogram of …`, a spectrum derived
   from each column's final data with a `hist` step, each on a graph of its own, several in a
   figure; `editHistStep(cid)` opens the step in the History (right-click Histogram bins…).
   **Maps** (the heat layout):
@@ -1319,7 +1329,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   peak's or the text's), `peakLabBox`, `TS.peaks`. All these are format (`FMT_KEYS`); drag
   offsets are not (`peakLabOff`, pixels by peak id, `S.fldrag`, a leader back to the peak).
   On screen each label is `g[data-fpl][data-fplid]`: drag, double-click to name its peak
-  (`namePeakDlg`), right-click for `fplMenuItems(k)` (also Plot › Fitted peak labels), hover
+  (`namePeakDlg`), right-click for `fplMenuItems(k)`, hover
   tip. A peak's **name** is `spec.peaks[k].lab` (carried by the draft, `runPeakFit` and
   `batchTemplate`; `peakMetrics` returns it as `name`): `setPeakName(k, v, from)` writes it on
   the fit, the draft and every batch row by peak id, and turns the name field on; Results, the
@@ -1346,7 +1356,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `axisMenuItems(k)`; `setAxisKeys(k|"all", patch, log)`, `setTxtKey(el, patch, log)`. The
   peak finder's preview marks (`S.pfPreview`) are drawn on screen only. Right-click:
   `openGraphMenu` → `graphMenuItems` (swatch rows are `{swatches, current, pick}` menu
-  items). **The Format dialog**: `openPlotDetails(id, page)` (`#plotModal`; pages `series`
+  items; `seriesAt` gives the curve within 14 px of a point, or none, and then the plot's own menu
+  with Add here inline; `commentAt(pt)` is Add here › A comment here…). **The Format dialog**: `openPlotDetails(id, page)` (`#plotModal`; pages `series`
   with `S.pdSel`, `ax:x|y|y2`, `frame`, `text`, `legend`, `layout`, `labels`, or
   `anno:<id>`; the old tab names map through `PD_PAGES`), `renderPlotDetails` (a side list
   of pages, each page in groups; focus and scroll kept across redraws), `pdSet(path, v)` on
@@ -1363,10 +1374,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   per-browser library (`fmtLib`, `fmtLibSave`, under `kurve.formats`); `saveFormatAs` asks
   which (the project by default when the store is shared), `renameFormat`, `copyFormat`,
   `deleteFormat`, `allFormats()`; `useFormat(f, every)` gives one to the graph or every
-  graph, `formatMenuItems` lists them by group (Plot › Formats, and the Format dialog's Formats
-  button, which applies to the working copy). `txtAuto(cfg, el)` is a kind of text's automatic style.
+  graph, `formatMenuItems` lists them by group (Plot › Saved styles, and the Format dialog's Saved styles
+  button, which applies to the working copy; "saved style" is the interface's word for a format). `txtAuto(cfg, el)` is a kind of text's automatic style.
   `renderTop`, `renderWs`, `renderPlot` (+ `renderStatusBar`), `renderStages` (now the graph
-  window's stage chip and the toolbar's Raw/Final/Compare), `renderFit` (it also refreshes
+  window's stage chip and its Original/Processed/Both, `renderViewSeg`), `renderFit` (it also refreshes
   `renderResults`, `renderTabMarks` and the status bar), `renderFlow`, `renderTool`,
   `renderStats`, `renderPy`, `renderThread`, `renderLog`, `renderAll`. Dense data (over 1500
   points) is drawn as one path of dots, and error bars as one path.
@@ -1400,7 +1411,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   axis through them), and numbers the axis with `scaleTicks` (powers of e or 2, the probability
   paper's percentages, or round numbers by `x2Layout` with the identity; `lab.b` is a label's
   base for `tLab`/`labW`). Breaks are for linear and log10 axes only. `setAxisScale(k, kind)`
-  (one undo entry; the axis menu's Scale, Plot › Axis options, the Format dialog's Type through
+  (one undo entry; the axis menu's Scale, Plot › Axes, the Format dialog's Type through
   `pdSet("axscale.k")`); Log Y on the toolbar clears a curved Y scale. `probit` (in NUMERICS,
   tested) is the probability scale's transform. **Dates and times** on an axis: `ax.fmt` `time`
   (seconds as h:mm:ss) or `date` (seconds since 1970, UTC), `timeTicks` (steps from a second to
@@ -2442,7 +2453,7 @@ Next, in order:
   among eV, keV and MeV
 - The worksheet and trend graphs minimise but never close (graphs close, and stay in the
   project); a closed panel
-  shows no news in the taskbar (open threads show in Window › Panels and on the History's
+  shows no news in the taskbar (open threads show in Window › Tool windows and on the History's
   boxes). One worksheet per project; windows have no tabs of their own
 - Fill writes numbers down one column: no text or date series, no fill across a row by a
   series, no Excel-style flash fill; random numbers come from a seeded mulberry32, fine for
