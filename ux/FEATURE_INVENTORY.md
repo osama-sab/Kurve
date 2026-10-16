@@ -699,6 +699,9 @@ moves, merges, renames, re-defaults or hides. Mark each one: remove, keep, or hi
 | R5 | **The graph window's own menu bar** (Data, Math, Analysis, Statistics, Plot) | the graph in front | Five menus that repeat, item for item, five of the menu bar's nine, a row below them, in the graph window in front (the sealed appendix). They cost the graph a row and caused a misaimed click in T5. | A route to the menus that stays with the graph when it is maximised. Its Python button and stage chip would move to the graph's title bar. |
 | R6 | **"All graphs as one figure"** (SVG, PDF, EPS, PNG) | File › Export; TB Export; G⋯ › Export (SVG and PNG only) | A figure of panels does this properly: plot areas lined up, shared axes, lettered panels. These entries tile every graph in a plain grid, and the ⋯ menu offers half the formats under other names. The report keeps the drawing for its own use. | One click to dump every graph into one file, without making a figure first. |
 
+**Decided at STOP 2 (2026-10-16):** remove R1, R2, R3 and R6. R4 and R5 were not marked, so they
+stay; the UX spec renames R4 ("Format a part") and keeps R5 matched to the menu bar.
+
 ## Corrections to the Phase 1 report
 
 Reading the code for Phase 2 turned up two findings in `ux/COLD_WALKTHROUGH.md` that were

@@ -1,0 +1,238 @@
+# Kurve's menu bar after the rework: every item.
+#
+# Two spaces per level. "  [Ctrl+O]" after a label is its shortcut. After " ## " a note:
+#   ~ "old"     renamed from "old"
+#   ← where     moved here from there
+#   + what      another entry merged into this one
+#   ↓ when      hidden by default: shown only when it can apply, or under More
+#   new route   an existing command reached from here too (it was in a context menu)
+# Lines starting "(…)" stand for a list the app fills in (graphs, fonts, sizes).
+# tools/ux/menudiff.py checks that every item of today's menu bar is here or has a fate.
+
+File
+  New project
+  Import data…  [Ctrl+O]
+  Copy from another project…  ## ~ "Bring in from another project…"; + Window's copy (R: six routes become File and the Explorer)
+  Examples
+    Infrared: overlapping bands
+    Raman: raw polystyrene (background, spikes)
+    Exponential decay (fluorescence)  ## ~ "Fluorescence decay"
+  Export
+    Graph for a paper or slides…  ## ~ "Figure for a paper or slides…"
+    Graph as SVG  ## ~ "Figure as SVG (vector, for papers)"
+    Graph as PDF  ## ~ "PDF (vector, standard fonts)"; ← out of the "Figure as PDF or EPS" submenu
+    Graph as EPS  ## ~ "EPS (vector, standard fonts)"; ← out of the "Figure as PDF or EPS" submenu
+    Graph as PNG  ## ~ "Figure as PNG (image, for slides)"
+    Processed data and fit as CSV  ## ~ "Final data and fit as CSV"
+    Original data as CSV  ## ~ "Raw data as CSV, with its fingerprint"
+    Report…  ## ~ "Report as HTML"
+  Rename the project…  ## ~ "Rename project"
+  Delete the project…  ## ~ "Delete project…"
+
+Edit
+  Undo (what it undoes)  [Ctrl+Z]
+  Redo (what it redoes)  [Ctrl+Y]
+  Copy  [Ctrl+C]  ## new route: the worksheet's Copy
+  Paste  [Ctrl+V]  ## new route: the worksheet's Paste
+  Clear  [Delete]  ## new route: the worksheet's Clear
+  Find…  [Ctrl+F]  ## new route: the worksheet's Find
+  Copy the graph as a picture  ## + "Copy the figure as a picture" (File › Export), "Copy as a picture" (the graph's menus)
+  Copy the results table  ## ~ "Copy results table"; ← no longer in Export
+
+Data
+  Worksheet
+  Add a column  ## + Edit's "Add a Y column"
+  Fill
+    Down  [Ctrl+D]  ## new route: the cell menu's Fill › Down
+    Right  [Ctrl+R]  ## new route: the cell menu's Fill › Right
+    Series…
+    Growth series…
+    Evenly between two values…
+    Row numbers…
+    Repeat a list…
+    Random numbers…
+    Continue the trend…
+  Sort the view  ## new route: the cell and column menus' "Sort the sheet by …"
+    Ascending
+    Descending
+    Original order  ## ~ "As recorded (unsort)"
+  Clean
+    Crop…  ## + "Crop to the visible range": Crop… opens on the range in view
+    Leave out an X range…  ## ~ "Remove a region…"
+    Sort by X (as a step)  ## ~ "Sort by X"
+    Average duplicate X
+    Resample to even spacing…
+  Masks
+    Mask points on the graph
+    Restore every masked point  ## ~ "Restore all masked points"
+  Columns  ## ~ "Spectra"
+    New column from the processed data  ## ~ "New spectrum from the processed data"
+    Copy with the same processing  ## ~ "Copy with the same steps"
+    Apply this processing to every column  ## ~ "Give every spectrum these steps"
+    Rename the column…  ## ~ "Rename the spectrum…"
+  Show on the graph
+    Original  ## ~ "Raw data"
+    Processed  ## ~ "Final data"
+    Both  ## ~ "Final, with the raw data behind"
+  Lock the original data  ## ~ "Lock the raw data"
+
+Plot
+  Plot setup…
+  Plot the selected columns
+    Plot setup…
+    (heading: "Or select the columns to plot first" / "Plot <column> in a new graph as")
+    Line
+    Symbols
+    Line + symbols
+    Drop lines  ## ~ "Sticks"
+    Columns
+    Area
+    Steps
+    Histogram
+    Box chart
+    Violin plot
+    Add to a graph
+      (each graph)
+  New graph  ## ← Window
+    With (the active column)
+    With every column  ## ~ "With every spectrum"
+    One for each column  ## ~ "One for each spectrum"
+    A figure, a panel for each column  ## ~ "A figure, a panel for each spectrum"
+    A figure of panels…
+    A trend of the series  ## ↓ until there is a series (several columns)
+  Format graph…  [Double-click]
+  Format a part  ## ~ "Format" (R4 kept: renamed so it does not read as "Formats")
+    X axis…
+    Y axis…
+    Second X axis…  ## ↓ while there is none
+    Second Y axis…  ## ↓ while there is none
+    Frame and grid…
+    Text and fonts…  ## + "More fonts, and each element's own…" (Plot › Font)
+    Legend…
+    Lines and symbols…
+  Saved styles  ## ~ "Formats"
+    (Kurve's own; Journal; Classic; Slides; Minimal; the project's; this browser's)
+    Save this style…  ## ~ "Save this format…"
+    Give every graph a style  ## ~ "Give every graph a format"
+      (each style)
+  Plot type  ## + the toolbar's plot-type list
+    Line
+    Symbols
+    Line + symbols
+    Drop lines  ## ~ "Sticks"
+    Columns
+    Area
+    Steps
+  Several curves  ## ~ "Several spectra"; + the toolbar's layout list
+    Overlay
+    Offset (waterfall)
+    Stacked panels
+    Two Y axes  ## ~ "Double Y"
+    Heat map
+  Axes  ## ~ "Axis options"
+    Reverse X  ## ~ "Reverse X axis"
+    X scale  ## ~ "X axis scale"
+      (Linear; Logarithmic (log₁₀); Natural log (ln); Log₂; Reciprocal (1/x); Offset reciprocal, 1/(x + c); Square root; Probability (%))
+    Y scale  ## ~ "Y axis scale"; + "Logarithmic Y axis", which set the same thing
+      (the same eight)
+    Grid lines
+  Font
+    (Kurve's; Source Sans 3; Source Serif 4; Inter; STIX Two Text; Arial; Helvetica; Times New Roman; Courier New)
+    Text and fonts…  ## ~ "More fonts, and each element's own…"
+    (heading: "Size of all the text") Small; Normal; Large; Larger; Largest
+  Legend
+    Place
+      (Emptiest corner; Top right; Top left; Bottom right; Bottom left; Outside, right; Below the graph; No legend)
+    Text in each curve's colour  ## ~ "Text in each spectrum's colour"
+    Add a legend title…  ## ~ "Legend title…"
+  Annotate
+    Vertical line…
+    Horizontal line…
+    Text (click the graph)  ## ~ "Label peaks with the Label tool": it picks the Label tool, which writes text or a peak's label
+    Arrow (drag on the graph)
+    Box (drag on the graph)
+    Ellipse (drag on the graph)
+    Shade an X range (drag on the graph)
+    Inset of the zoomed region  ## ↓ until the graph is zoomed
+    Labels and lines…  ## ~ "Lines, labels and legend…"
+    Remove every annotation
+  Layout and colours…
+  Show all the data  [Double-click]
+
+Analysis
+  Fit
+    Curve fit…  ## ~ "Curve fit"
+    Peak fit…  ## ~ "Peak fit"
+    New fit function…
+    Run the fit  [Ctrl+Enter]
+    Residuals under the graph  ## ~ "Residual panel"; ← Plot › Axis options and the toolbar
+    Fit every column…  ## ~ "Fit every spectrum…"; ↓ until there are two columns or more
+    Batch results  ## ↓ until there is a batch
+    Remove the fit
+  Results
+  Mathematics  ## ← the Math menu (Origin's Analysis › Mathematics)
+    Scale and offset Y…
+    Scale and offset X…
+    Normalize…
+    Subtract or divide by another column…  ## ~ "Subtract or divide by another spectrum…"
+    Average with other columns…  ## ~ "Average with other spectra…"
+    Derivative…  ## + "Derivative, as a new spectrum…": a choice in the tool
+    Cumulative integral…
+    Logarithm…
+  Smooth and filter  ## ← Math
+    Smooth…
+    FFT filter…
+  Integrate…  ## ~ "Integrate bands…"; + Statistics' copy (R: three menus become one)
+  Python  ## ← Math; ↓ under More until Python has been used in the project
+    Python on the active column…  ## ~ "Python on this spectrum…"
+    A new column with Python…  ## ~ "A new spectrum with Python…"
+    Python window
+
+Statistics
+  Descriptive statistics…  ## + "Integrate the visible range", "Noise and signal to noise": sections of the one window
+  Correlation between columns…  ## ~ "Correlation between spectra"
+  Histogram…  ## ~ "Histogram of the values"; now takes the selected columns
+
+Spectroscopy  ## new menu: the toolkit, gathered from Data, Math, Analysis, Statistics and Plot
+  Overview of the spectrum…  ## ← Analysis "Overview…" + Statistics "Overview of the spectrum"
+  Remove cosmic-ray spikes…  ## ← Data › Clean
+  Subtract background…  ## ← Analysis
+  Find peaks…  ## ← Analysis; + Plot › Annotate "Find and mark peaks…"
+  Name the peaks from known lines…  ## ← Analysis
+  X axis
+    Energy calibration…  ## ← Analysis › Spectroscopy
+    Wavelength to Raman shift…  ## ← Analysis › Spectroscopy
+    Convert X units…  ## ← Analysis › Spectroscopy
+    Calibrate X on reference peaks…  ## ← Analysis › Spectroscopy
+  Corrections
+    Transmittance to absorbance…  ## ← Analysis › Spectroscopy; + Math › Transforms' copy
+    Kubelka–Munk…  ## ← Analysis › Spectroscopy; + Math › Transforms' copy
+    Bose–Einstein correction…  ## ← Analysis › Spectroscopy
+
+Window
+  (heading: Windows in use) (each window in use, the front one ticked)
+  Tool windows  ## ~ "Panels"
+    (History; Overview; Peaks; Integrate; Fit; Results; Batch; Statistics; Python; Discussion; Help)
+  Project Explorer  [Alt+1]
+  Tile  ## + "Tile the graphs", which ran the same tiling
+  Cascade
+  Minimise the others
+  Close the tool windows  ## ~ "Close the panels"
+  Restore the default arrangement
+  Graphs  ## ~ "Open a graph"; + Plot's copy
+    (each graph, the front one ticked)
+    Combine graphs…  ## + Window's own "Combine graphs…"
+    Link the X zoom of the graphs  ## + "Link the X zoom"
+  Theme
+    Light
+    Dark
+    Match the system
+
+Help
+  Kurve help  [F1]
+  Search help…
+  Getting started
+  Keyboard shortcuts  [?]
+  About processing  ## ~ "Processing steps"
+  How Kurve computes
+  About Kurve

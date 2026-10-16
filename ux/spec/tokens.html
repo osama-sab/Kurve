@@ -1,0 +1,200 @@
+<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>
+<title>Kurve token sheet</title><style>
+:root{--bg:#F4F6F9;--card:#FFFFFF;--tx:#0B1220;--mu:#364255;--bd:#C6CED8}
+@media (prefers-color-scheme: dark){:root:not([data-theme=light]){--bg:#0E141C;--card:#151C27;--tx:#F2F5F9;--mu:#BAC4D1;--bd:#2E3949}}
+:root[data-theme=dark]{--bg:#0E141C;--card:#151C27;--tx:#F2F5F9;--mu:#BAC4D1;--bd:#2E3949}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.45 'IBM Plex Sans',system-ui,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:24px 16px 48px}h1{font-size:20px;margin:0 0 4px}h2{font-size:16px;margin:28px 0 8px}
+p.lead{color:var(--mu);margin:0 0 8px;max-width:72ch}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:12px}.card h3{font-size:14px;margin:0 0 8px}
+table{border-collapse:collapse;width:100%}td,th{padding:4px 6px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:middle}th{font-weight:600;color:var(--mu);font-size:12px}
+.sw{display:inline-block;width:18px;height:18px;border-radius:4px;border:1px solid rgba(127,127,127,.5);vertical-align:middle}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px}.ok{color:inherit}.bad{color:#B3261E;font-weight:700}
+.set{border-radius:8px;padding:12px;border:1px solid var(--bd)}.chip{display:inline-flex;align-items:center;padding:4px 10px;border-radius:6px;border:1px solid;margin:0 6px 6px 0;font-size:13px}
+.bar{height:10px;background:currentColor;border-radius:2px}.scroll{overflow-x:auto}
+</style></head><body><main>
+<h1>Kurve token sheet</h1>
+<p class=lead>Phase 3 of the UX rework. Type, spacing and radii are proposed; the colour roles are Kurve's tokens as they are, plus a disabled ink and a pressed fill. Every ratio below is computed (<span class=mono>tools/ux/tokens.py</span>); the full list is <span class=mono>ux/spec/contrast.md</span>. <b>120 pairs, 0 below threshold.</b></p>
+<h2>Type scale: six sizes, from 18 in the app's CSS today</h2><div class=card><table><tr><th>Token</th><th>Size</th><th>Role</th><th>Sample</th></tr>
+<tr><td class=mono>--fs-cap</td><td>11 px</td><td>caption: units, badges, row numbers, keys, notes</td><td style='font-size:11px'>Absorbance (cm⁻¹) 1 602.8 ± 0.3</td></tr>
+<tr><td class=mono>--fs-tab</td><td>12 px</td><td>table and label: worksheet cells, result tables, field labels, the status bar</td><td style='font-size:12px'>Absorbance (cm⁻¹) 1 602.8 ± 0.3</td></tr>
+<tr><td class=mono>--fs-body</td><td>13 px</td><td>body: controls, menus, paragraphs, the tree</td><td style='font-size:13px'>Absorbance (cm⁻¹) 1 602.8 ± 0.3</td></tr>
+<tr><td class=mono>--fs-title</td><td>14 px</td><td>window title: title bars, the graph window's name, the typing box</td><td style='font-size:14px'>Absorbance (cm⁻¹) 1 602.8 ± 0.3</td></tr>
+<tr><td class=mono>--fs-head</td><td>16 px</td><td>heading: dialog titles, section headings in Help, formulas</td><td style='font-size:16px'>Absorbance (cm⁻¹) 1 602.8 ± 0.3</td></tr>
+<tr><td class=mono>--fs-hero</td><td>20 px</td><td>hero: the empty state, a Help article's title</td><td style='font-size:20px'>Absorbance (cm⁻¹) 1 602.8 ± 0.3</td></tr>
+</table></div>
+<h2>Spacing: eight steps</h2><div class=card><table><tr><th>Token</th><th>Size</th><th></th></tr>
+<tr><td class=mono>--sp-1</td><td>2 px</td><td><div class=bar style='width:8px;color:#2a78d6'></div></td></tr>
+<tr><td class=mono>--sp-2</td><td>4 px</td><td><div class=bar style='width:16px;color:#2a78d6'></div></td></tr>
+<tr><td class=mono>--sp-3</td><td>6 px</td><td><div class=bar style='width:24px;color:#2a78d6'></div></td></tr>
+<tr><td class=mono>--sp-4</td><td>8 px</td><td><div class=bar style='width:32px;color:#2a78d6'></div></td></tr>
+<tr><td class=mono>--sp-5</td><td>12 px</td><td><div class=bar style='width:48px;color:#2a78d6'></div></td></tr>
+<tr><td class=mono>--sp-6</td><td>16 px</td><td><div class=bar style='width:64px;color:#2a78d6'></div></td></tr>
+<tr><td class=mono>--sp-7</td><td>24 px</td><td><div class=bar style='width:96px;color:#2a78d6'></div></td></tr>
+<tr><td class=mono>--sp-8</td><td>32 px</td><td><div class=bar style='width:128px;color:#2a78d6'></div></td></tr>
+</table></div>
+<h2>Radii: three</h2><div class=grid>
+<div class=card><h3>Bench</h3>
+<div style='display:flex;gap:10px;align-items:center;margin:6px 0'><div style='width:44px;height:28px;border:2px solid #717E90;border-radius:4px'></div><span class=mono>--r-s</span> 4 px <span style='color:var(--mu)'>checkboxes, chips, cells, keys</span></div>
+<div style='display:flex;gap:10px;align-items:center;margin:6px 0'><div style='width:44px;height:28px;border:2px solid #717E90;border-radius:6px'></div><span class=mono>--r</span> 6 px <span style='color:var(--mu)'>buttons, fields, menus, toasts</span></div>
+<div style='display:flex;gap:10px;align-items:center;margin:6px 0'><div style='width:44px;height:28px;border:2px solid #717E90;border-radius:8px'></div><span class=mono>--r-l</span> 8 px <span style='color:var(--mu)'>windows, dialogs, popovers</span></div>
+</div>
+</div><p class=lead>Round shapes (switch knobs, swatches, avatars) use 50 % and are shapes, not radii.</p>
+<h2>Colour roles</h2><div class=grid>
+<div class=set style='background:#FFFFFF;color:#0B1220'><h3 style='margin:0 0 8px'>Bench light</h3>
+<div style='font-size:12px;font-weight:600;margin:8px 0 4px'>Surfaces, back to front</div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#BCC6D2'></span><span class=mono>--paper</span><span class=mono style='opacity:.85'>#BCC6D2</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#DFE5EC'></span><span class=mono>--chrome</span><span class=mono style='opacity:.85'>#DFE5EC</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#E6EBF1'></span><span class=mono>--well</span><span class=mono style='opacity:.85'>#E6EBF1</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#FFFFFF'></span><span class=mono>--panel</span><span class=mono style='opacity:.85'>#FFFFFF</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#EEF2F6'></span><span class=mono>--panel-2</span><span class=mono style='opacity:.85'>#EEF2F6</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#DDE3EA'></span><span class=mono>--panel-3</span><span class=mono style='opacity:.85'>#DDE3EA</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#E4E9EF'></span><span class=mono>--win-h-bg</span><span class=mono style='opacity:.85'>#E4E9EF</span></div>
+<div style='font-size:12px;font-weight:600;margin:8px 0 4px'>Text</div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#0B1220'></span><span class=mono>--ink</span><span class=mono style='opacity:.85'>#0B1220</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#364255'></span><span class=mono>--muted</span><span class=mono style='opacity:.85'>#364255</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#56627A'></span><span class=mono>--ink-off</span><span class=mono style='opacity:.85'>#56627A</span></div>
+<div style='font-size:12px;font-weight:600;margin:8px 0 4px'>Borders and icons</div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#717E90'></span><span class=mono>--rule</span><span class=mono style='opacity:.85'>#717E90</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#C6CED8'></span><span class=mono>--rule-2</span><span class=mono style='opacity:.85'>#C6CED8</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#5E6B7D'></span><span class=mono>--win-bd</span><span class=mono style='opacity:.85'>#5E6B7D</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#5F6C7E'></span><span class=mono>--faint</span><span class=mono style='opacity:.85'>#5F6C7E</span></div>
+<div style='font-size:12px;font-weight:600;margin:8px 0 4px'>Accent, focus, selection</div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#1D4ED8'></span><span class=mono>--accent</span><span class=mono style='opacity:.85'>#1D4ED8</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#FFFFFF'></span><span class=mono>--accent-ink</span><span class=mono style='opacity:.85'>#FFFFFF</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#1D4ED8'></span><span class=mono>--focus</span><span class=mono style='opacity:.85'>#1D4ED8</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#D3E0FC'></span><span class=mono>--sel</span><span class=mono style='opacity:.85'>#D3E0FC</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#C5D7FB'></span><span class=mono>--hi</span><span class=mono style='opacity:.85'>#C5D7FB</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#C9D5F6'></span><span class=mono>--ws-sel</span><span class=mono style='opacity:.85'>#C9D5F6</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#1D4ED8'></span><span class=mono>--ws-sel-bd</span><span class=mono style='opacity:.85'>#1D4ED8</span></div>
+<div style='font-size:12px;font-weight:600;margin:8px 0 4px'>States</div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#F4F6F9'></span><span class=mono>--btn-bg</span><span class=mono style='opacity:.85'>#F4F6F9</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#E1E7EE'></span><span class=mono>--btn-bg-h</span><span class=mono style='opacity:.85'>#E1E7EE</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#C6CED8'></span><span class=mono>--press</span><span class=mono style='opacity:.85'>#C6CED8</span></div>
+<div style='font-size:12px;font-weight:600;margin:8px 0 4px'>Status</div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#15603A'></span><span class=mono>--ok</span><span class=mono style='opacity:.85'>#15603A</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#DDF1E4'></span><span class=mono>--ok-bg</span><span class=mono style='opacity:.85'>#DDF1E4</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#7C4A03'></span><span class=mono>--warn</span><span class=mono style='opacity:.85'>#7C4A03</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#FCEFC7'></span><span class=mono>--warn-bg</span><span class=mono style='opacity:.85'>#FCEFC7</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#B3261E'></span><span class=mono>--bad</span><span class=mono style='opacity:.85'>#B3261E</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#FBE1DE'></span><span class=mono>--bad-bg</span><span class=mono style='opacity:.85'>#FBE1DE</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#FFFFFF'></span><span class=mono>--on-fill</span><span class=mono style='opacity:.85'>#FFFFFF</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#7C4A03'></span><span class=mono>--badge</span><span class=mono style='opacity:.85'>#7C4A03</span></div>
+<div style='font-size:12px;font-weight:600;margin:8px 0 4px'>The figure</div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#1D5FA8'></span><span class=mono>--data</span><span class=mono style='opacity:.85'>#1D5FA8</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#C23B22'></span><span class=mono>--fit</span><span class=mono style='opacity:.85'>#C23B22</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#E3E9EF'></span><span class=mono>--grid</span><span class=mono style='opacity:.85'>#E3E9EF</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#9AA5B4'></span><span class=mono>--masked</span><span class=mono style='opacity:.85'>#9AA5B4</span></div>
+<div style='font-size:12px;font-weight:600;margin:10px 0 4px'>A button in each state</div><div>
+<span class=chip style='background:#F4F6F9;border-color:#717E90;color:#0B1220;'>Rest</span>
+<span class=chip style='background:#E1E7EE;border-color:#1B2535;color:#0B1220;'>Hover</span>
+<span class=chip style='background:#C6CED8;border-color:#1B2535;color:#0B1220;box-shadow:inset 0 1px 2px rgba(0,0,0,.35);'>Pressed</span>
+<span class=chip style='background:#F4F6F9;border-color:#717E90;color:#0B1220;outline:2px solid #1D4ED8;outline-offset:1px;'>Focus</span>
+<span class=chip style='background:#1D4ED8;border-color:#1D4ED8;color:#FFFFFF;'>On</span>
+<span class=chip style='background:transparent;border-color:#C6CED8;color:#56627A;border-style:dashed;'>Disabled</span>
+</div></div>
+<div class=set style='background:#151C27;color:#F2F5F9'><h3 style='margin:0 0 8px'>Bench dark</h3>
+<div style='font-size:12px;font-weight:600;margin:8px 0 4px'>Surfaces, back to front</div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#06090E'></span><span class=mono>--paper</span><span class=mono style='opacity:.85'>#06090E</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#1B2431'></span><span class=mono>--chrome</span><span class=mono style='opacity:.85'>#1B2431</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#0E141C'></span><span class=mono>--well</span><span class=mono style='opacity:.85'>#0E141C</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#151C27'></span><span class=mono>--panel</span><span class=mono style='opacity:.85'>#151C27</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#1C2533'></span><span class=mono>--panel-2</span><span class=mono style='opacity:.85'>#1C2533</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#273345'></span><span class=mono>--panel-3</span><span class=mono style='opacity:.85'>#273345</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#222C3B'></span><span class=mono>--win-h-bg</span><span class=mono style='opacity:.85'>#222C3B</span></div>
+<div style='font-size:12px;font-weight:600;margin:8px 0 4px'>Text</div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#F2F5F9'></span><span class=mono>--ink</span><span class=mono style='opacity:.85'>#F2F5F9</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#BAC4D1'></span><span class=mono>--muted</span><span class=mono style='opacity:.85'>#BAC4D1</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#97A3B4'></span><span class=mono>--ink-off</span><span class=mono style='opacity:.85'>#97A3B4</span></div>
+<div style='font-size:12px;font-weight:600;margin:8px 0 4px'>Borders and icons</div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#6A788C'></span><span class=mono>--rule</span><span class=mono style='opacity:.85'>#6A788C</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#2E3949'></span><span class=mono>--rule-2</span><span class=mono style='opacity:.85'>#2E3949</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#5D6A7E'></span><span class=mono>--win-bd</span><span class=mono style='opacity:.85'>#5D6A7E</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#8D9AAC'></span><span class=mono>--faint</span><span class=mono style='opacity:.85'>#8D9AAC</span></div>
+<div style='font-size:12px;font-weight:600;margin:8px 0 4px'>Accent, focus, selection</div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#8CB2FF'></span><span class=mono>--accent</span><span class=mono style='opacity:.85'>#8CB2FF</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#081022'></span><span class=mono>--accent-ink</span><span class=mono style='opacity:.85'>#081022</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#8CB2FF'></span><span class=mono>--focus</span><span class=mono style='opacity:.85'>#8CB2FF</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#24375C'></span><span class=mono>--sel</span><span class=mono style='opacity:.85'>#24375C</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#2D4475'></span><span class=mono>--hi</span><span class=mono style='opacity:.85'>#2D4475</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#32405B'></span><span class=mono>--ws-sel</span><span class=mono style='opacity:.85'>#32405B</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#8CB2FF'></span><span class=mono>--ws-sel-bd</span><span class=mono style='opacity:.85'>#8CB2FF</span></div>
+<div style='font-size:12px;font-weight:600;margin:8px 0 4px'>States</div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#212B3A'></span><span class=mono>--btn-bg</span><span class=mono style='opacity:.85'>#212B3A</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#2C394B'></span><span class=mono>--btn-bg-h</span><span class=mono style='opacity:.85'>#2C394B</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#404D64'></span><span class=mono>--press</span><span class=mono style='opacity:.85'>#404D64</span></div>
+<div style='font-size:12px;font-weight:600;margin:8px 0 4px'>Status</div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#74CC98'></span><span class=mono>--ok</span><span class=mono style='opacity:.85'>#74CC98</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#163021'></span><span class=mono>--ok-bg</span><span class=mono style='opacity:.85'>#163021</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#EDBA5A'></span><span class=mono>--warn</span><span class=mono style='opacity:.85'>#EDBA5A</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#3A2C10'></span><span class=mono>--warn-bg</span><span class=mono style='opacity:.85'>#3A2C10</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#FF8A70'></span><span class=mono>--bad</span><span class=mono style='opacity:.85'>#FF8A70</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#3D211C'></span><span class=mono>--bad-bg</span><span class=mono style='opacity:.85'>#3D211C</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#0B1220'></span><span class=mono>--on-fill</span><span class=mono style='opacity:.85'>#0B1220</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#EDBA5A'></span><span class=mono>--badge</span><span class=mono style='opacity:.85'>#EDBA5A</span></div>
+<div style='font-size:12px;font-weight:600;margin:8px 0 4px'>The figure</div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#72A9E6'></span><span class=mono>--data</span><span class=mono style='opacity:.85'>#72A9E6</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#F0785C'></span><span class=mono>--fit</span><span class=mono style='opacity:.85'>#F0785C</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#222D3C'></span><span class=mono>--grid</span><span class=mono style='opacity:.85'>#222D3C</span></div>
+<div style='display:flex;align-items:center;gap:8px;margin:2px 0'><span class=sw style='background:#5E6B7D'></span><span class=mono>--masked</span><span class=mono style='opacity:.85'>#5E6B7D</span></div>
+<div style='font-size:12px;font-weight:600;margin:10px 0 4px'>A button in each state</div><div>
+<span class=chip style='background:#212B3A;border-color:#6A788C;color:#F2F5F9;'>Rest</span>
+<span class=chip style='background:#2C394B;border-color:#DDE3EB;color:#F2F5F9;'>Hover</span>
+<span class=chip style='background:#404D64;border-color:#DDE3EB;color:#F2F5F9;box-shadow:inset 0 1px 2px rgba(0,0,0,.35);'>Pressed</span>
+<span class=chip style='background:#212B3A;border-color:#6A788C;color:#F2F5F9;outline:2px solid #8CB2FF;outline-offset:1px;'>Focus</span>
+<span class=chip style='background:#8CB2FF;border-color:#8CB2FF;color:#081022;'>On</span>
+<span class=chip style='background:transparent;border-color:#2E3949;color:#97A3B4;border-style:dashed;'>Disabled</span>
+</div></div>
+</div>
+<h2>Contrast, worst pair per role</h2><div class='card scroll'><table><tr><th>Role</th><th>Bench light</th><th>Bench dark</th><th>Needs</th></tr>
+<tr><td>text, primary</td><td class=ok>11.79 <span style='color:var(--mu);font-size:11px'>--press</span></td><td class=ok>7.80 <span style='color:var(--mu);font-size:11px'>--press</span></td><td>7</td></tr>
+<tr><td>text, secondary</td><td class=ok>7.86 <span style='color:var(--mu);font-size:11px'>--panel-3</span></td><td class=ok>7.23 <span style='color:var(--mu);font-size:11px'>--panel-3</span></td><td>7</td></tr>
+<tr><td>text, disabled</td><td class=ok>4.75 <span style='color:var(--mu);font-size:11px'>--panel-3</span></td><td class=ok>4.99 <span style='color:var(--mu);font-size:11px'>--panel-3</span></td><td>4.5</td></tr>
+<tr><td>text on the accent</td><td class=ok>6.70 <span style='color:var(--mu);font-size:11px'>--accent</span></td><td class=ok>8.96 <span style='color:var(--mu);font-size:11px'>--accent</span></td><td>4.5</td></tr>
+<tr><td>text on the front title bar</td><td class=ok>6.70 <span style='color:var(--mu);font-size:11px'>--win-h-act-bg</span></td><td class=ok>8.96 <span style='color:var(--mu);font-size:11px'>--win-h-act-bg</span></td><td>4.5</td></tr>
+<tr><td>text on a chosen segment</td><td class=ok>6.70 <span style='color:var(--mu);font-size:11px'>--seg-on</span></td><td class=ok>8.96 <span style='color:var(--mu);font-size:11px'>--seg-on</span></td><td>4.5</td></tr>
+<tr><td>status ok</td><td class=ok>7.59 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td class=ok>8.83 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td>4.5</td></tr>
+<tr><td>status ok on its own fill</td><td class=ok>6.43 <span style='color:var(--mu);font-size:11px'>--ok-bg</span></td><td class=ok>7.33 <span style='color:var(--mu);font-size:11px'>--ok-bg</span></td><td>4.5</td></tr>
+<tr><td>status warn</td><td class=ok>7.40 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td class=ok>9.59 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td>4.5</td></tr>
+<tr><td>status warn on its own fill</td><td class=ok>6.45 <span style='color:var(--mu);font-size:11px'>--warn-bg</span></td><td class=ok>7.61 <span style='color:var(--mu);font-size:11px'>--warn-bg</span></td><td>4.5</td></tr>
+<tr><td>status bad</td><td class=ok>6.54 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td class=ok>7.43 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td>4.5</td></tr>
+<tr><td>status bad on its own fill</td><td class=ok>5.27 <span style='color:var(--mu);font-size:11px'>--bad-bg</span></td><td class=ok>6.37 <span style='color:var(--mu);font-size:11px'>--bad-bg</span></td><td>4.5</td></tr>
+<tr><td>comments (talk)</td><td class=ok>7.99 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td class=ok>8.11 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td>4.5</td></tr>
+<tr><td>text on a status fill</td><td class=ok>6.54 <span style='color:var(--mu);font-size:11px'>--bad</span></td><td class=ok>8.13 <span style='color:var(--mu);font-size:11px'>--bad</span></td><td>4.5</td></tr>
+<tr><td>text on a comment badge</td><td class=ok>7.99 <span style='color:var(--mu);font-size:11px'>--talk</span></td><td class=ok>8.80 <span style='color:var(--mu);font-size:11px'>--talk</span></td><td>4.5</td></tr>
+<tr><td>boundary: control edge</td><td class=ok>3.25 <span style='color:var(--mu);font-size:11px'>--chrome</span></td><td class=ok>3.18 <span style='color:var(--mu);font-size:11px'>--btn-bg</span></td><td>3</td></tr>
+<tr><td>icon</td><td class=ok>4.21 <span style='color:var(--mu);font-size:11px'>--chrome</span></td><td class=ok>5.00 <span style='color:var(--mu);font-size:11px'>--btn-bg</span></td><td>3</td></tr>
+<tr><td>boundary: window edge</td><td class=ok>3.13 <span style='color:var(--mu);font-size:11px'>--paper</span></td><td class=ok>3.12 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td>3</td></tr>
+<tr><td>boundary: desk vs window</td><td class=ok>1.73 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td class=ok>1.17 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td>1.1</td></tr>
+<tr><td>focus ring</td><td class=ok>5.28 <span style='color:var(--mu);font-size:11px'>--chrome</span></td><td class=ok>7.39 <span style='color:var(--mu);font-size:11px'>--chrome</span></td><td>3</td></tr>
+<tr><td>switch, off</td><td class=ok>3.08 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td class=ok>3.11 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td>3</td></tr>
+<tr><td>checkbox edge</td><td class=ok>5.34 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td class=ok>5.99 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td>3</td></tr>
+<tr><td>slider track</td><td class=ok>3.08 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td class=ok>3.11 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td>3</td></tr>
+<tr><td>selection edge</td><td class=ok>6.70 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td class=ok>8.09 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td>3</td></tr>
+<tr><td>accent as a fill</td><td class=ok>6.70 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td class=ok>8.09 <span style='color:var(--mu);font-size:11px'>--panel</span></td><td>3</td></tr>
+<tr><td>hover vs rest</td><td class=ok>1.15 <span style='color:var(--mu);font-size:11px'>--btn-bg</span></td><td class=ok>1.22 <span style='color:var(--mu);font-size:11px'>--btn-bg</span></td><td>1.08</td></tr>
+<tr><td>pressed vs hover</td><td class=ok>1.28 <span style='color:var(--mu);font-size:11px'>--btn-bg-h</span></td><td class=ok>1.37 <span style='color:var(--mu);font-size:11px'>--btn-bg-h</span></td><td>1.25</td></tr>
+</table></div>
+<h2>Data palette: eight hues, in worksheet order</h2><p class=lead>Kurve's "Distinct hues" scheme, with its light violet lightened to <span class=mono>#6250d6</span>, as the default. Validated with the six checks (lightness band, chroma, adjacent-pair colour-blind separation, normal-vision floor, contrast): it passes on the graph's light (#FFFFFF) and dark (#151C27) backgrounds. Three light slots are below 3:1 on white, so a legend is always shown for two curves or more. The current default fails both themes (see the spec).</p><div class=grid>
+<div class=set style='background:#FFFFFF;color:#0B1220'><h3 style='margin:0 0 8px'>On the light graph</h3><svg viewBox='0 0 340 150' width='100%' role='img' aria-label='Eight sample curves in the light palette'>
+<path d='M10 18 C 60 8, 110 28, 160 18 S 230 10, 250 18' fill='none' stroke='#2a78d6' stroke-width='1.6'/><text x='256' y='22' font-size='11' fill='#0B1220'>1 blue</text>
+<path d='M10 34 C 60 24, 110 44, 160 34 S 230 26, 250 34' fill='none' stroke='#eb6834' stroke-width='1.6'/><text x='256' y='38' font-size='11' fill='#0B1220'>2 orange</text>
+<path d='M10 50 C 60 40, 110 60, 160 50 S 230 42, 250 50' fill='none' stroke='#1baf7a' stroke-width='1.6'/><text x='256' y='54' font-size='11' fill='#0B1220'>3 aqua</text>
+<path d='M10 66 C 60 56, 110 76, 160 66 S 230 58, 250 66' fill='none' stroke='#eda100' stroke-width='1.6'/><text x='256' y='70' font-size='11' fill='#0B1220'>4 yellow</text>
+<path d='M10 82 C 60 72, 110 92, 160 82 S 230 74, 250 82' fill='none' stroke='#e87ba4' stroke-width='1.6'/><text x='256' y='86' font-size='11' fill='#0B1220'>5 magenta</text>
+<path d='M10 98 C 60 88, 110 108, 160 98 S 230 90, 250 98' fill='none' stroke='#008300' stroke-width='1.6'/><text x='256' y='102' font-size='11' fill='#0B1220'>6 green</text>
+<path d='M10 114 C 60 104, 110 124, 160 114 S 230 106, 250 114' fill='none' stroke='#6250d6' stroke-width='1.6'/><text x='256' y='118' font-size='11' fill='#0B1220'>7 violet</text>
+<path d='M10 130 C 60 120, 110 140, 160 130 S 230 122, 250 130' fill='none' stroke='#e34948' stroke-width='1.6'/><text x='256' y='134' font-size='11' fill='#0B1220'>8 red</text>
+</svg><div class=mono style='margin-top:6px'>#2a78d6 #eb6834 #1baf7a #eda100 #e87ba4 #008300 #6250d6 #e34948</div></div>
+<div class=set style='background:#151C27;color:#F2F5F9'><h3 style='margin:0 0 8px'>On the dark graph</h3><svg viewBox='0 0 340 150' width='100%' role='img' aria-label='Eight sample curves in the dark palette'>
+<path d='M10 18 C 60 8, 110 28, 160 18 S 230 10, 250 18' fill='none' stroke='#3987e5' stroke-width='1.6'/><text x='256' y='22' font-size='11' fill='#F2F5F9'>1 blue</text>
+<path d='M10 34 C 60 24, 110 44, 160 34 S 230 26, 250 34' fill='none' stroke='#d95926' stroke-width='1.6'/><text x='256' y='38' font-size='11' fill='#F2F5F9'>2 orange</text>
+<path d='M10 50 C 60 40, 110 60, 160 50 S 230 42, 250 50' fill='none' stroke='#199e70' stroke-width='1.6'/><text x='256' y='54' font-size='11' fill='#F2F5F9'>3 aqua</text>
+<path d='M10 66 C 60 56, 110 76, 160 66 S 230 58, 250 66' fill='none' stroke='#c98500' stroke-width='1.6'/><text x='256' y='70' font-size='11' fill='#F2F5F9'>4 yellow</text>
+<path d='M10 82 C 60 72, 110 92, 160 82 S 230 74, 250 82' fill='none' stroke='#d55181' stroke-width='1.6'/><text x='256' y='86' font-size='11' fill='#F2F5F9'>5 magenta</text>
+<path d='M10 98 C 60 88, 110 108, 160 98 S 230 90, 250 98' fill='none' stroke='#008300' stroke-width='1.6'/><text x='256' y='102' font-size='11' fill='#F2F5F9'>6 green</text>
+<path d='M10 114 C 60 104, 110 124, 160 114 S 230 106, 250 114' fill='none' stroke='#9085e9' stroke-width='1.6'/><text x='256' y='118' font-size='11' fill='#F2F5F9'>7 violet</text>
+<path d='M10 130 C 60 120, 110 140, 160 130 S 230 122, 250 130' fill='none' stroke='#e66767' stroke-width='1.6'/><text x='256' y='134' font-size='11' fill='#F2F5F9'>8 red</text>
+</svg><div class=mono style='margin-top:6px'>#3987e5 #d95926 #199e70 #c98500 #d55181 #008300 #9085e9 #e66767</div></div>
+</div>
+</main></body></html>

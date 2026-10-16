@@ -1,0 +1,411 @@
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1920 2308' width='1920' height='2308' font-family='IBM Plex Sans, Segoe UI, Arial, sans-serif'>
+<rect width='1920' height='2308' fill='#F4F6F9'/>
+<text x='4' y='22' font-size='16' font-weight='600' fill='#0B1220' text-anchor='start'>1920×1080, first launch: an empty project. Worksheet rows in view: 36.</text>
+<g transform='translate(0 34)'><rect x='0' y='0' width='1920' height='1080' rx='0' fill='#BCC6D2' stroke='none' stroke-width='1' />
+<rect x='0' y='0' width='1920' height='28' rx='0' fill='#DFE5EC' stroke='none' stroke-width='1' />
+<text x='10' y='19' font-size='13' font-weight='700' fill='#0B1220' text-anchor='start'>Kurve</text>
+<text x='70' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>File</text>
+<text x='117.6' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>Edit</text>
+<text x='165.2' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>Data</text>
+<text x='212.79999999999998' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>Plot</text>
+<text x='260.4' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>Analysis</text>
+<text x='337.59999999999997' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>Statistics</text>
+<text x='429.59999999999997' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>Spectroscopy</text>
+<text x='536.4' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>Window</text>
+<text x='598.8' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>Help</text>
+<text x='1080.0' y='19' font-size='13' font-weight='600' fill='#0B1220' text-anchor='middle'>Project name ▾</text>
+<rect x='0' y='28' width='1920' height='40' rx='0' fill='#EEF2F6' stroke='#717E90' stroke-width='1' />
+<rect x='8' y='35' width='64' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='40.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Explorer</text>
+<line x1='80' y1='36' x2='80' y2='60' stroke='#717E90'/>
+<rect x='84' y='35' width='60' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='114.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Import</text>
+<rect x='150' y='35' width='68' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='184.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Export ▾</text>
+<line x1='226' y1='36' x2='226' y2='60' stroke='#717E90'/>
+<rect x='230' y='35' width='48' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='254.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Undo</text>
+<rect x='284' y='35' width='48' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='308.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Redo</text>
+<line x1='340' y1='36' x2='340' y2='60' stroke='#717E90'/>
+<rect x='344' y='35' width='48' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='368.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Zoom</text>
+<rect x='398' y='35' width='40' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='418.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Pan</text>
+<rect x='444' y='35' width='46' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='467.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Mask</text>
+<rect x='496' y='35' width='48' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='520.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Label</text>
+<rect x='550' y='35' width='50' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='575.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Arrow</text>
+<rect x='606' y='35' width='60' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='636.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Shape ▾</text>
+<line x1='674' y1='36' x2='674' y2='60' stroke='#717E90'/>
+<rect x='678' y='35' width='64' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='710.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Show all</text>
+<line x1='750' y1='36' x2='750' y2='60' stroke='#717E90'/>
+<rect x='754' y='35' width='74' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='791.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Reverse X</text>
+<rect x='834' y='35' width='50' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='859.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Log Y</text>
+<rect x='890' y='35' width='44' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='912.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Grid</text>
+<rect x='0' y='1026' width='1920' height='30' rx='0' fill='#DFE5EC' stroke='#717E90' stroke-width='1' />
+<rect x='228' y='1030' width='120' height='22' rx='4' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='288.0' y='1045' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Project name</text>
+<rect x='354' y='1030' width='96' height='22' rx='4' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='402.0' y='1045' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Worksheet</text>
+<rect x='456' y='1030' width='84' height='22' rx='4' fill='#1D4ED8' stroke='#717E90' stroke-width='1' />
+<text x='498.0' y='1045' font-size='12' font-weight='600' fill='#FFFFFF' text-anchor='middle'>Graph 1</text>
+<rect x='0' y='1056' width='1920' height='24' rx='0' fill='#DFE5EC' stroke='#717E90' stroke-width='1' />
+<text x='10' y='1072' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>Click a cell and type · Saved in this browser</text>
+<rect x='0' y='68' width='220' height='958' rx='0' fill='#EEF2F6' stroke='#717E90' stroke-width='1' />
+<text x='10' y='88' font-size='13' font-weight='600' fill='#0B1220' text-anchor='start'>Project Explorer</text>
+<text x='12' y='114' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'>▾ Project</text>
+<text x='12' y='136' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>   Worksheet</text>
+<text x='12' y='158' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>   Graph 1</text>
+<rect x='220' y='68' width='748' height='958' rx='4' fill='#FFFFFF' stroke='#5E6B7D' stroke-width='1' />
+<rect x='220' y='68' width='748' height='28' rx='4' fill='#E4E9EF' stroke='none' stroke-width='0' />
+<text x='230' y='86' font-size='13' font-weight='600' fill='#0B1220' text-anchor='start'>Worksheet</text>
+<rect x='220' y='96' width='748' height='34' rx='0' fill='#EEF2F6' stroke='#717E90' stroke-width='1' />
+<text x='228' y='118' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>A1 │ value or formula        Plot  Find  Lock  + Column</text>
+<rect x='220' y='130' width='748' height='66' rx='0' fill='#E4E9EF' stroke='#717E90' stroke-width='1' />
+<text x='226' y='146' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>⋯ rows</text>
+<text x='226' y='168' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>Long Name</text>
+<text x='226' y='190' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>Units</text>
+<text x='302' y='146' font-size='12' font-weight='600' fill='#0B1220' text-anchor='start'>A (X)</text>
+<text x='302' y='168' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'></text>
+<text x='302' y='190' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'></text>
+<text x='402' y='146' font-size='12' font-weight='600' fill='#0B1220' text-anchor='start'>B (Y)</text>
+<text x='402' y='168' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'></text>
+<text x='402' y='190' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'></text>
+<text x='502' y='146' font-size='12' font-weight='600' fill='#0B1220' text-anchor='start'></text>
+<text x='502' y='168' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'></text>
+<text x='502' y='190' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'></text>
+<text x='602' y='146' font-size='12' font-weight='600' fill='#0B1220' text-anchor='start'></text>
+<text x='602' y='168' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'></text>
+<text x='602' y='190' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'></text>
+<text x='702' y='146' font-size='12' font-weight='600' fill='#0B1220' text-anchor='start'></text>
+<text x='702' y='168' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'></text>
+<text x='702' y='190' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'></text>
+<text x='802' y='146' font-size='12' font-weight='600' fill='#0B1220' text-anchor='start'></text>
+<text x='802' y='168' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'></text>
+<text x='802' y='190' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'></text>
+<text x='902' y='146' font-size='12' font-weight='600' fill='#0B1220' text-anchor='start'></text>
+<text x='902' y='168' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'></text>
+<text x='902' y='190' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'></text>
+<line x1='220' y1='218' x2='968' y2='218' stroke='#C9D1DB'/>
+<text x='226' y='212' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>1</text>
+<line x1='220' y1='240' x2='968' y2='240' stroke='#C9D1DB'/>
+<text x='226' y='234' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>2</text>
+<line x1='220' y1='262' x2='968' y2='262' stroke='#C9D1DB'/>
+<text x='226' y='256' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>3</text>
+<line x1='220' y1='284' x2='968' y2='284' stroke='#C9D1DB'/>
+<text x='226' y='278' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>4</text>
+<line x1='220' y1='306' x2='968' y2='306' stroke='#C9D1DB'/>
+<text x='226' y='300' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>5</text>
+<line x1='220' y1='328' x2='968' y2='328' stroke='#C9D1DB'/>
+<text x='226' y='322' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>6</text>
+<line x1='220' y1='350' x2='968' y2='350' stroke='#C9D1DB'/>
+<text x='226' y='344' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>7</text>
+<line x1='220' y1='372' x2='968' y2='372' stroke='#C9D1DB'/>
+<text x='226' y='366' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>8</text>
+<line x1='220' y1='394' x2='968' y2='394' stroke='#C9D1DB'/>
+<text x='226' y='388' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>9</text>
+<line x1='220' y1='416' x2='968' y2='416' stroke='#C9D1DB'/>
+<text x='226' y='410' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>10</text>
+<line x1='220' y1='438' x2='968' y2='438' stroke='#C9D1DB'/>
+<text x='226' y='432' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>11</text>
+<line x1='220' y1='460' x2='968' y2='460' stroke='#C9D1DB'/>
+<text x='226' y='454' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>12</text>
+<line x1='220' y1='482' x2='968' y2='482' stroke='#C9D1DB'/>
+<text x='226' y='476' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>13</text>
+<line x1='220' y1='504' x2='968' y2='504' stroke='#C9D1DB'/>
+<text x='226' y='498' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>14</text>
+<line x1='220' y1='526' x2='968' y2='526' stroke='#C9D1DB'/>
+<text x='226' y='520' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>15</text>
+<line x1='220' y1='548' x2='968' y2='548' stroke='#C9D1DB'/>
+<text x='226' y='542' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>16</text>
+<line x1='220' y1='570' x2='968' y2='570' stroke='#C9D1DB'/>
+<text x='226' y='564' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>17</text>
+<line x1='220' y1='592' x2='968' y2='592' stroke='#C9D1DB'/>
+<text x='226' y='586' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>18</text>
+<line x1='220' y1='614' x2='968' y2='614' stroke='#C9D1DB'/>
+<text x='226' y='608' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>19</text>
+<line x1='220' y1='636' x2='968' y2='636' stroke='#C9D1DB'/>
+<text x='226' y='630' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>20</text>
+<line x1='220' y1='658' x2='968' y2='658' stroke='#C9D1DB'/>
+<text x='226' y='652' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>21</text>
+<line x1='220' y1='680' x2='968' y2='680' stroke='#C9D1DB'/>
+<text x='226' y='674' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>22</text>
+<line x1='220' y1='702' x2='968' y2='702' stroke='#C9D1DB'/>
+<text x='226' y='696' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>23</text>
+<line x1='220' y1='724' x2='968' y2='724' stroke='#C9D1DB'/>
+<text x='226' y='718' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>24</text>
+<line x1='220' y1='746' x2='968' y2='746' stroke='#C9D1DB'/>
+<text x='226' y='740' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>25</text>
+<line x1='220' y1='768' x2='968' y2='768' stroke='#C9D1DB'/>
+<text x='226' y='762' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>26</text>
+<line x1='220' y1='790' x2='968' y2='790' stroke='#C9D1DB'/>
+<text x='226' y='784' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>27</text>
+<line x1='220' y1='812' x2='968' y2='812' stroke='#C9D1DB'/>
+<text x='226' y='806' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>28</text>
+<line x1='220' y1='834' x2='968' y2='834' stroke='#C9D1DB'/>
+<text x='226' y='828' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>29</text>
+<line x1='220' y1='856' x2='968' y2='856' stroke='#C9D1DB'/>
+<text x='226' y='850' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>30</text>
+<line x1='220' y1='878' x2='968' y2='878' stroke='#C9D1DB'/>
+<text x='226' y='872' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>31</text>
+<line x1='220' y1='900' x2='968' y2='900' stroke='#C9D1DB'/>
+<text x='226' y='894' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>32</text>
+<line x1='220' y1='922' x2='968' y2='922' stroke='#C9D1DB'/>
+<text x='226' y='916' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>33</text>
+<line x1='220' y1='944' x2='968' y2='944' stroke='#C9D1DB'/>
+<text x='226' y='938' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>34</text>
+<line x1='220' y1='966' x2='968' y2='966' stroke='#C9D1DB'/>
+<text x='226' y='960' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>35</text>
+<line x1='220' y1='988' x2='968' y2='988' stroke='#C9D1DB'/>
+<text x='226' y='982' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>36</text>
+<line x1='296' y1='130' x2='296' y2='988' stroke='#C9D1DB'/>
+<line x1='396' y1='130' x2='396' y2='988' stroke='#C9D1DB'/>
+<line x1='496' y1='130' x2='496' y2='988' stroke='#C9D1DB'/>
+<line x1='596' y1='130' x2='596' y2='988' stroke='#C9D1DB'/>
+<line x1='696' y1='130' x2='696' y2='988' stroke='#C9D1DB'/>
+<line x1='796' y1='130' x2='796' y2='988' stroke='#C9D1DB'/>
+<line x1='896' y1='130' x2='896' y2='988' stroke='#C9D1DB'/>
+<rect x='220' y='1002' width='748' height='24' rx='0' fill='#EEF2F6' stroke='#717E90' stroke-width='1' />
+<text x='228' y='1018' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>Count  Sum  Average  Min  Max      (36 data rows visible: first launch)</text>
+<rect x='968' y='68' width='952' height='958' rx='4' fill='#FFFFFF' stroke='#1D4ED8' stroke-width='2' />
+<rect x='968' y='68' width='952' height='28' rx='4' fill='#1D4ED8' stroke='none' stroke-width='0' />
+<text x='978' y='86' font-size='13' font-weight='600' fill='#FFFFFF' text-anchor='start'>Graph 1</text>
+<rect x='968' y='96' width='952' height='30' rx='0' fill='#EEF2F6' stroke='#717E90' stroke-width='1' />
+<text x='976' y='116' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>Data ▾ Plot ▾ Analysis ▾ Statistics ▾ Spectroscopy ▾   (R5: kept)</text>
+<text x='1912' y='116' font-size='12' font-weight='400' fill='#0B1220' text-anchor='end'>Original │ Processed │ Both</text>
+<text x='1444.0' y='556.0' font-size='20' font-weight='600' fill='#0B1220' text-anchor='middle'>Type in the worksheet, or import a file</text>
+<text x='1444.0' y='586.0' font-size='13' font-weight='600' fill='#1D4ED8' text-anchor='middle'>[ Import… ]   [ Examples ▾ ]</text>
+<text x='1444.0' y='610.0' font-size='12' font-weight='400' fill='#364255' text-anchor='middle'>Nothing here is active until there is data.</text></g>
+<rect x='0' y='34' width='1920' height='1080' rx='0' fill='none' stroke='#0B1220' stroke-width='1' />
+<text x='4' y='1176' font-size='16' font-weight='600' fill='#0B1220' text-anchor='start'>1920×1080, working: columns plotted, the Fit tool docked. Worksheet rows in view: 36.</text>
+<g transform='translate(0 1188)'><rect x='0' y='0' width='1920' height='1080' rx='0' fill='#BCC6D2' stroke='none' stroke-width='1' />
+<rect x='0' y='0' width='1920' height='28' rx='0' fill='#DFE5EC' stroke='none' stroke-width='1' />
+<text x='10' y='19' font-size='13' font-weight='700' fill='#0B1220' text-anchor='start'>Kurve</text>
+<text x='70' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>File</text>
+<text x='117.6' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>Edit</text>
+<text x='165.2' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>Data</text>
+<text x='212.79999999999998' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>Plot</text>
+<text x='260.4' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>Analysis</text>
+<text x='337.59999999999997' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>Statistics</text>
+<text x='429.59999999999997' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>Spectroscopy</text>
+<text x='536.4' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>Window</text>
+<text x='598.8' y='19' font-size='13' font-weight='400' fill='#0B1220' text-anchor='start'>Help</text>
+<text x='1080.0' y='19' font-size='13' font-weight='600' fill='#0B1220' text-anchor='middle'>Project name ▾</text>
+<rect x='0' y='28' width='1920' height='40' rx='0' fill='#EEF2F6' stroke='#717E90' stroke-width='1' />
+<rect x='8' y='35' width='64' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='40.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Explorer</text>
+<line x1='80' y1='36' x2='80' y2='60' stroke='#717E90'/>
+<rect x='84' y='35' width='60' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='114.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Import</text>
+<rect x='150' y='35' width='68' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='184.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Export ▾</text>
+<line x1='226' y1='36' x2='226' y2='60' stroke='#717E90'/>
+<rect x='230' y='35' width='48' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='254.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Undo</text>
+<rect x='284' y='35' width='48' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='308.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Redo</text>
+<line x1='340' y1='36' x2='340' y2='60' stroke='#717E90'/>
+<rect x='344' y='35' width='48' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='368.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Zoom</text>
+<rect x='398' y='35' width='40' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='418.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Pan</text>
+<rect x='444' y='35' width='46' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='467.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Mask</text>
+<rect x='496' y='35' width='48' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='520.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Label</text>
+<rect x='550' y='35' width='50' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='575.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Arrow</text>
+<rect x='606' y='35' width='60' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='636.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Shape ▾</text>
+<line x1='674' y1='36' x2='674' y2='60' stroke='#717E90'/>
+<rect x='678' y='35' width='64' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='710.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Show all</text>
+<line x1='750' y1='36' x2='750' y2='60' stroke='#717E90'/>
+<rect x='754' y='35' width='74' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='791.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Reverse X</text>
+<rect x='834' y='35' width='50' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='859.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Log Y</text>
+<rect x='890' y='35' width='44' height='26' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='912.0' y='53' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Grid</text>
+<rect x='0' y='1026' width='1920' height='30' rx='0' fill='#DFE5EC' stroke='#717E90' stroke-width='1' />
+<rect x='228' y='1030' width='120' height='22' rx='4' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='288.0' y='1045' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Project name</text>
+<rect x='354' y='1030' width='96' height='22' rx='4' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='402.0' y='1045' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Worksheet</text>
+<rect x='456' y='1030' width='84' height='22' rx='4' fill='#1D4ED8' stroke='#717E90' stroke-width='1' />
+<text x='498.0' y='1045' font-size='12' font-weight='600' fill='#FFFFFF' text-anchor='middle'>Graph 1</text>
+<rect x='546' y='1030' width='50' height='22' rx='4' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='571.0' y='1045' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Fit</text>
+<rect x='602' y='1030' width='74' height='22' rx='4' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='639.0' y='1045' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Results</text>
+<rect x='0' y='1056' width='1920' height='24' rx='0' fill='#DFE5EC' stroke='#717E90' stroke-width='1' />
+<text x='10' y='1072' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>Tool hint · cursor X, Y · 7 points · fit current · Saved in this browser</text>
+<rect x='0' y='68' width='220' height='958' rx='0' fill='#EEF2F6' stroke='#717E90' stroke-width='1' />
+<text x='10' y='88' font-size='13' font-weight='600' fill='#0B1220' text-anchor='start'>Project Explorer</text>
+<text x='12' y='114' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'>▾ Project</text>
+<text x='12' y='136' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>   Worksheet</text>
+<text x='12' y='158' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>   ▸ calibration.csv</text>
+<text x='12' y='180' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>   Graph 1</text>
+<rect x='220' y='68' width='520' height='958' rx='4' fill='#FFFFFF' stroke='#5E6B7D' stroke-width='1' />
+<rect x='220' y='68' width='520' height='28' rx='4' fill='#E4E9EF' stroke='none' stroke-width='0' />
+<text x='230' y='86' font-size='13' font-weight='600' fill='#0B1220' text-anchor='start'>Worksheet</text>
+<rect x='220' y='96' width='520' height='34' rx='0' fill='#EEF2F6' stroke='#717E90' stroke-width='1' />
+<text x='228' y='118' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>A1 │ value or formula        Plot  Find  Lock  + Column</text>
+<rect x='220' y='130' width='520' height='66' rx='0' fill='#E4E9EF' stroke='#717E90' stroke-width='1' />
+<text x='226' y='146' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>⋯ rows</text>
+<text x='226' y='168' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>Long Name</text>
+<text x='226' y='190' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>Units</text>
+<text x='302' y='146' font-size='12' font-weight='600' fill='#0B1220' text-anchor='start'>A (X)</text>
+<text x='302' y='168' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'>Time</text>
+<text x='302' y='190' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'>s</text>
+<text x='402' y='146' font-size='12' font-weight='600' fill='#0B1220' text-anchor='start'>B (Y)</text>
+<text x='402' y='168' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'>Distance</text>
+<text x='402' y='190' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'>m</text>
+<text x='502' y='146' font-size='12' font-weight='600' fill='#0B1220' text-anchor='start'>C (yEr±)</text>
+<text x='502' y='168' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'>SD</text>
+<text x='502' y='190' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'>m</text>
+<text x='602' y='146' font-size='12' font-weight='600' fill='#0B1220' text-anchor='start'>D (Y)</text>
+<text x='602' y='168' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'></text>
+<text x='602' y='190' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'></text>
+<line x1='220' y1='218' x2='740' y2='218' stroke='#C9D1DB'/>
+<text x='226' y='212' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>1</text>
+<line x1='220' y1='240' x2='740' y2='240' stroke='#C9D1DB'/>
+<text x='226' y='234' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>2</text>
+<line x1='220' y1='262' x2='740' y2='262' stroke='#C9D1DB'/>
+<text x='226' y='256' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>3</text>
+<line x1='220' y1='284' x2='740' y2='284' stroke='#C9D1DB'/>
+<text x='226' y='278' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>4</text>
+<line x1='220' y1='306' x2='740' y2='306' stroke='#C9D1DB'/>
+<text x='226' y='300' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>5</text>
+<line x1='220' y1='328' x2='740' y2='328' stroke='#C9D1DB'/>
+<text x='226' y='322' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>6</text>
+<line x1='220' y1='350' x2='740' y2='350' stroke='#C9D1DB'/>
+<text x='226' y='344' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>7</text>
+<line x1='220' y1='372' x2='740' y2='372' stroke='#C9D1DB'/>
+<text x='226' y='366' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>8</text>
+<line x1='220' y1='394' x2='740' y2='394' stroke='#C9D1DB'/>
+<text x='226' y='388' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>9</text>
+<line x1='220' y1='416' x2='740' y2='416' stroke='#C9D1DB'/>
+<text x='226' y='410' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>10</text>
+<line x1='220' y1='438' x2='740' y2='438' stroke='#C9D1DB'/>
+<text x='226' y='432' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>11</text>
+<line x1='220' y1='460' x2='740' y2='460' stroke='#C9D1DB'/>
+<text x='226' y='454' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>12</text>
+<line x1='220' y1='482' x2='740' y2='482' stroke='#C9D1DB'/>
+<text x='226' y='476' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>13</text>
+<line x1='220' y1='504' x2='740' y2='504' stroke='#C9D1DB'/>
+<text x='226' y='498' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>14</text>
+<line x1='220' y1='526' x2='740' y2='526' stroke='#C9D1DB'/>
+<text x='226' y='520' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>15</text>
+<line x1='220' y1='548' x2='740' y2='548' stroke='#C9D1DB'/>
+<text x='226' y='542' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>16</text>
+<line x1='220' y1='570' x2='740' y2='570' stroke='#C9D1DB'/>
+<text x='226' y='564' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>17</text>
+<line x1='220' y1='592' x2='740' y2='592' stroke='#C9D1DB'/>
+<text x='226' y='586' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>18</text>
+<line x1='220' y1='614' x2='740' y2='614' stroke='#C9D1DB'/>
+<text x='226' y='608' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>19</text>
+<line x1='220' y1='636' x2='740' y2='636' stroke='#C9D1DB'/>
+<text x='226' y='630' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>20</text>
+<line x1='220' y1='658' x2='740' y2='658' stroke='#C9D1DB'/>
+<text x='226' y='652' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>21</text>
+<line x1='220' y1='680' x2='740' y2='680' stroke='#C9D1DB'/>
+<text x='226' y='674' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>22</text>
+<line x1='220' y1='702' x2='740' y2='702' stroke='#C9D1DB'/>
+<text x='226' y='696' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>23</text>
+<line x1='220' y1='724' x2='740' y2='724' stroke='#C9D1DB'/>
+<text x='226' y='718' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>24</text>
+<line x1='220' y1='746' x2='740' y2='746' stroke='#C9D1DB'/>
+<text x='226' y='740' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>25</text>
+<line x1='220' y1='768' x2='740' y2='768' stroke='#C9D1DB'/>
+<text x='226' y='762' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>26</text>
+<line x1='220' y1='790' x2='740' y2='790' stroke='#C9D1DB'/>
+<text x='226' y='784' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>27</text>
+<line x1='220' y1='812' x2='740' y2='812' stroke='#C9D1DB'/>
+<text x='226' y='806' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>28</text>
+<line x1='220' y1='834' x2='740' y2='834' stroke='#C9D1DB'/>
+<text x='226' y='828' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>29</text>
+<line x1='220' y1='856' x2='740' y2='856' stroke='#C9D1DB'/>
+<text x='226' y='850' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>30</text>
+<line x1='220' y1='878' x2='740' y2='878' stroke='#C9D1DB'/>
+<text x='226' y='872' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>31</text>
+<line x1='220' y1='900' x2='740' y2='900' stroke='#C9D1DB'/>
+<text x='226' y='894' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>32</text>
+<line x1='220' y1='922' x2='740' y2='922' stroke='#C9D1DB'/>
+<text x='226' y='916' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>33</text>
+<line x1='220' y1='944' x2='740' y2='944' stroke='#C9D1DB'/>
+<text x='226' y='938' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>34</text>
+<line x1='220' y1='966' x2='740' y2='966' stroke='#C9D1DB'/>
+<text x='226' y='960' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>35</text>
+<line x1='220' y1='988' x2='740' y2='988' stroke='#C9D1DB'/>
+<text x='226' y='982' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>36</text>
+<line x1='296' y1='130' x2='296' y2='988' stroke='#C9D1DB'/>
+<line x1='396' y1='130' x2='396' y2='988' stroke='#C9D1DB'/>
+<line x1='496' y1='130' x2='496' y2='988' stroke='#C9D1DB'/>
+<line x1='596' y1='130' x2='596' y2='988' stroke='#C9D1DB'/>
+<line x1='696' y1='130' x2='696' y2='988' stroke='#C9D1DB'/>
+<rect x='220' y='1002' width='520' height='24' rx='0' fill='#EEF2F6' stroke='#717E90' stroke-width='1' />
+<text x='228' y='1018' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>Count  Sum  Average  Min  Max      (36 data rows visible: working)</text>
+<rect x='740' y='68' width='760' height='958' rx='4' fill='#FFFFFF' stroke='#1D4ED8' stroke-width='2' />
+<rect x='740' y='68' width='760' height='28' rx='4' fill='#1D4ED8' stroke='none' stroke-width='0' />
+<text x='750' y='86' font-size='13' font-weight='600' fill='#FFFFFF' text-anchor='start'>Graph 1</text>
+<rect x='740' y='96' width='760' height='30' rx='0' fill='#EEF2F6' stroke='#717E90' stroke-width='1' />
+<text x='748' y='116' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>Data ▾ Plot ▾ Analysis ▾ Statistics ▾ Spectroscopy ▾   (R5: kept)</text>
+<text x='1492' y='116' font-size='12' font-weight='400' fill='#0B1220' text-anchor='end'>Original │ Processed │ Both</text>
+<rect x='800' y='146' width='680' height='834' rx='0' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<line x1='840.8' y1='897.616' x2='840.8' y2='915.616' stroke='#2a78d6' stroke-width='1.2'/>
+<circle cx='840.8' cy='906.616' r='4.5' fill='#2a78d6'/>
+<line x1='939.4' y1='786.694' x2='939.4' y2='804.694' stroke='#2a78d6' stroke-width='1.2'/>
+<circle cx='939.4' cy='795.694' r='4.5' fill='#2a78d6'/>
+<line x1='1038.0' y1='715.387' x2='1038.0' y2='733.387' stroke='#2a78d6' stroke-width='1.2'/>
+<circle cx='1038.0' cy='724.387' r='4.5' fill='#2a78d6'/>
+<line x1='1136.6' y1='588.619' x2='1136.6' y2='606.619' stroke='#2a78d6' stroke-width='1.2'/>
+<circle cx='1136.6' cy='597.619' r='4.5' fill='#2a78d6'/>
+<line x1='1235.1999999999998' y1='501.4660000000001' x2='1235.1999999999998' y2='519.4660000000001' stroke='#2a78d6' stroke-width='1.2'/>
+<circle cx='1235.1999999999998' cy='510.4660000000001' r='4.5' fill='#2a78d6'/>
+<line x1='1333.8' y1='374.6980000000001' x2='1333.8' y2='392.6980000000001' stroke='#2a78d6' stroke-width='1.2'/>
+<circle cx='1333.8' cy='383.6980000000001' r='4.5' fill='#2a78d6'/>
+<line x1='1432.4' y1='303.3910000000001' x2='1432.4' y2='321.3910000000001' stroke='#2a78d6' stroke-width='1.2'/>
+<circle cx='1432.4' cy='312.3910000000001' r='4.5' fill='#2a78d6'/>
+<line x1='820.4' y1='928.3' x2='1459.6' y2='252.76' stroke='#C23B22' stroke-width='2'/>
+<text x='812' y='168' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'>y = a + b·x   b = 0.0242 ± 0.0002   R² = 0.9994</text>
+<text x='1140.0' y='1012' font-size='12' font-weight='400' fill='#0B1220' text-anchor='middle'>Time (s)</text>
+<text x='1474' y='164' font-size='11' font-weight='400' fill='#364255' text-anchor='end'>plot area 680 px wide</text>
+<rect x='1500' y='68' width='420' height='958' rx='0' fill='#FFFFFF' stroke='#5E6B7D' stroke-width='1' />
+<rect x='1500' y='68' width='70' height='28' rx='0' fill='#1D4ED8' stroke='#717E90' stroke-width='1' />
+<text x='1535.0' y='86' font-size='13' font-weight='600' fill='#FFFFFF' text-anchor='middle'>Fit</text>
+<rect x='1570' y='68' width='70' height='28' rx='0' fill='#E4E9EF' stroke='#717E90' stroke-width='1' />
+<text x='1605.0' y='86' font-size='13' font-weight='600' fill='#0B1220' text-anchor='middle'>Results</text>
+<rect x='1640' y='68' width='70' height='28' rx='0' fill='#E4E9EF' stroke='#717E90' stroke-width='1' />
+<text x='1675.0' y='86' font-size='13' font-weight='600' fill='#0B1220' text-anchor='middle'>History</text>
+<text x='1910' y='86' font-size='13' font-weight='600' fill='#0B1220' text-anchor='end'>?  ×</text>
+<text x='1514' y='120' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'>Curve fit │ Peak fit</text>
+<text x='1514' y='140' font-size='12' font-weight='400' fill='#364255' text-anchor='start'></text>
+<text x='1514' y='160' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'>Model   [ Straight line ▾ ]  (suggested: the data</text>
+<text x='1514' y='180' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>        look straight)</text>
+<text x='1514' y='200' font-size='12' font-weight='400' fill='#364255' text-anchor='start'></text>
+<text x='1514' y='220' font-size='12' font-weight='400' fill='#0B1220' text-anchor='start'>y = a + b·x</text>
+<text x='1514' y='240' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>a   [ 0.012 ]  ☐ fix</text>
+<text x='1514' y='260' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>b   [ 0.0242 ]  ☐ fix</text>
+<text x='1514' y='280' font-size='12' font-weight='400' fill='#364255' text-anchor='start'></text>
+<text x='1514' y='300' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>Range   all the data   [Use the view]</text>
+<text x='1514' y='320' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>Weighted by column C (SD)  ☑</text>
+<text x='1514' y='340' font-size='12' font-weight='400' fill='#364255' text-anchor='start'></text>
+<text x='1514' y='360' font-size='12' font-weight='400' fill='#364255' text-anchor='start'>▸ Advanced (bounds, X errors, method)</text>
+<rect x='1500' y='982' width='420' height='44' rx='0' fill='#EEF2F6' stroke='#717E90' stroke-width='1' />
+<text x='1514' y='1009' font-size='13' font-weight='600' fill='#1D4ED8' text-anchor='start'>Reset</text>
+<rect x='1752' y='990' width='76' height='28' rx='6' fill='#1D4ED8' stroke='#1D4ED8' stroke-width='1' />
+<text x='1790' y='1009' font-size='13' font-weight='600' fill='#FFFFFF' text-anchor='middle'>Fit</text>
+<rect x='1836' y='990' width='70' height='28' rx='6' fill='#FFFFFF' stroke='#717E90' stroke-width='1' />
+<text x='1871' y='1009' font-size='13' font-weight='600' fill='#0B1220' text-anchor='middle'>Done</text>
+<text x='1514' y='970' font-size='11' font-weight='400' fill='#364255' text-anchor='start'>The dock takes its width from the graph; it never floats over it.</text></g>
+<rect x='0' y='1188' width='1920' height='1080' rx='0' fill='none' stroke='#0B1220' stroke-width='1' />
+</svg>
