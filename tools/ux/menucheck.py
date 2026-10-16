@@ -27,10 +27,6 @@ DEFERRED = {
     ("File", "Export", "Processing steps as JSON"): "R3, removed in slice 7",
     ("Window", "Theme"): None,
     ("Window", "Style"): "R1, removed in slice 7",
-    ("Data", "Clean", "Remove a region…"): "renamed in slice 3 (Leave out an X range…)",
-    ("Data", "Clean", "Sort by X"): "renamed in slice 3 (Sort by X (as a step))",
-    ("Analysis", "Mathematics", "Subtract or divide by another spectrum…"): "renamed in slice 3 (…another column…)",
-    ("Analysis", "Mathematics", "Average with other spectra…"): "renamed in slice 3 (…other columns…)",
     ("Analysis", "Mathematics", "Derivative, as a new column…"): "merged into Derivative… in slice 6",
     ("File", "Export", "Every column's processed data as CSV"): "shown with two columns or more (spec: under Export, unlisted)",
     ("File", "Export", "Batch results as CSV"): "shown after a batch fit (spec: under Export, unlisted)",
@@ -46,13 +42,8 @@ SAME = {
 }
 
 
-# The spec's names for items the app keeps under today's name until a later slice.
-LATER = {
-    ("Data", "Clean", "Leave out an X range…"): ("Data", "Clean", "Remove a region…"),
-    ("Data", "Clean", "Sort by X (as a step)"): ("Data", "Clean", "Sort by X"),
-    ("Analysis", "Mathematics", "Subtract or divide by another column…"): ("Analysis", "Mathematics", "Subtract or divide by another spectrum…"),
-    ("Analysis", "Mathematics", "Average with other columns…"): ("Analysis", "Mathematics", "Average with other spectra…"),
-}
+# The spec's names for items the app keeps under today's name until a later slice (none since slice 3).
+LATER = {}
 COND = set()  # spec items marked ↓: shown only when they can apply
 
 

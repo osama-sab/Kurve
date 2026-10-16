@@ -253,6 +253,31 @@ for Add a title, Hide this entry, and the legend's place, columns and frame.
   position in the axis's units, the text (its position, your own words with LaTeX and a
   preview, or none), and the line's colour, style and width.
 
+## Words
+
+One word for each thing, everywhere it is shown (UX_SPEC §3.6, checked by `tools/ux/terms.py`):
+
+- **Column**, not spectrum, data set or series, for a column of the worksheet with its
+  processing; **curve** for one drawn on a graph (its colour, the legend, overlaid curves).
+  A column's use is **X**, **Y**, **error bars** or **other data (not plotted)**.
+- **Active** column, not analysed.
+- **Original** data (as typed or imported) and **processed** data (after every step), not raw
+  and final: the worksheet's two sheets, the graph's view switch, the History's boxes, exports.
+- **Check code**, not fingerprint, for the SHA-256 of the original data.
+- **Tool window** (and the **dock**), not panel, for Fit, History, Peaks…; a **panel** is one
+  graph of a figure.
+- **Saved style**, not format, for a named set of graph settings; the Format dialog keeps its
+  name.
+- **Untitled project**, not Untitled analysis.
+- **Not counted as a peak**, not turned down, for a candidate the finder set aside.
+- **Spectroscopy's words** (spectrum, band, background, spike, Raman shift, known line) belong
+  to the Spectroscopy menu and its windows (Peaks, Peak fit, Integrate, Overview, the
+  spectroscopy tools), where they are the right words, and nowhere else.
+
+Code keeps its names (`raw`, `final`, `p.raw`, Python's `spectra`): renaming them would buy
+nothing and break saved projects. Help's search words keep the old words too, so a person who
+searches for "fingerprint" or "spectrum" still finds the article.
+
 ## Help
 
 An article per window, tool and step, opened by the **?** on every title bar or F1. The
@@ -304,3 +329,13 @@ closing the graph. Decided: the two-window first screen, the dock with its drawe
 thinner bars, the Explorer as a drawer below 1600 px, the three-row worksheet header with its ⋯,
 22 px rows, the empty graph's Plot setup…, History in the dock with the first step, 480 px for
 any graph, and a formula typed into a cell moving to the F(x)= row.
+
+### 2026-10-16: words (UX rework, Phase 4 slice 3)
+
+From the Phase 2 inventory and the Phase 3 glossary: one thing under several names (spectrum,
+column, data set, series; raw, recorded, original; final, processed; fingerprint, hash), and
+spectroscopy's words in general places, which told a person with a calibration line or a
+survey that the app was not for them. Decided: the glossary's words in every label, tooltip,
+toast, History box, report line and Help article (696 words off the glossary in the file's
+prose before, 0 after), the two tools renamed (Leave out an X range…, Sort by X (as a step)),
+and `tools/ux/terms.py` to keep it so.

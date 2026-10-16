@@ -102,11 +102,11 @@ it (a step, the raw data, the final data, the peaks, the fits, the recorded data
 figure) has its own
 **discussion** at the foot of its inspector, with a badge on the box counting open threads;
 the Discussion window lists every thread with a link back. The
-**worksheet** is a spreadsheet grid as in Excel, with Origin's label rows: a **Raw** sheet (the
-data as recorded or typed, editable, every change in the raw-data record, unless the project
-locks it) and a **Final** sheet (the analysed spectrum after processing, read only). An import
-puts every column of the file there, as X, a spectrum, error bars or data that is not a
-spectrum, and plots nothing: columns are plotted when ready, by selecting them and pressing
+**worksheet** is a spreadsheet grid as in Excel, with Origin's label rows: an **Original** sheet
+(the data as typed or imported, editable, every change in the original-data record, unless the
+project locks it) and a **Processed** sheet (the active column after processing, read only). An
+import puts every column of the file there, as X, Y, error bars or other data (not plotted),
+and plots nothing: columns are plotted when ready, by selecting them and pressing
 **Plot** on the worksheet's bar, or in **Plot setup…** (kinds as pictures, X, the Ys ticked,
 the graph, a sketch). Columns move by dragging their letters, their values align left, centre
 or right, and the value box above the grid is a formula bar. Every text on the graph is
@@ -481,7 +481,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   number (`rawSeries`, `anyVal`, xn "Row").
 - **Columns and spectra**: a project is a table. `p.cols` is `[{id, role, name, unit, data, of?,
   pipe?, mask?, src?, from?, file?, meta?}]` (`file` and `meta`, the file a spectrum came from and
-  its header's fields, `colMetaOf`, shown in its Raw data box in the History; Python's `meta` is
+  its header's fields, `colMetaOf`, shown in its Original data box in the History; Python's `meta` is
   the project's with the spectrum's over it) with roles `x` / `y` / `e` (an error column names its Y in `of`, and is one of six kinds, see
   Error bars) /
   `ignore`. There may be several X columns: as in Origin, a Y column is plotted against the
@@ -685,7 +685,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   (`role=treeitem`, `aria-level`, a roving tabindex, `--lv` indent, `data-xfold` on folders and
   the project), called from `renderAll` and `renderTaskbar`. `xSelect` changes the selection in
   place (redrawing on the first click would lose the double click); `xOpen` opens (a graph:
-  `showGraph`; a file or data column: `xRevealCols`, selected in the Raw sheet; a spectrum:
+  `showGraph`; a file or data column: `xRevealCols`, selected in the Original sheet; a spectrum:
   `goSpectrum`); `xMenu(r)` is each kind's menu with Move to; `xNewFolder`, `xRenameFolder`,
   `xDeleteFolder` (what it held moves up), `xMove` (no folder into itself), `xRenameFile` (gives
   an older file an id), `xDeleteFile` (confirmed; its columns and the spectra made from them,
@@ -848,8 +848,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   underline). In the History the form ends with "About this step" (`data-act="help"`); the
   Tool window has its title bar's "?" instead, so it calls `stepForm(s, {tool:true})`.
 - **History** (`renderFlow`, `flowLayout`): lanes of boxes, one per spectrum, placed depth
-  first so a derived spectrum branches off its source's raw or final box; a "Recorded data"
-  box above the raw spectra; step boxes in order (dashed while pending); the final box; a
+  first so a derived spectrum branches off its source's original or processed box; an
+  "Original data" box above the columns (their check codes); step boxes in order (dashed while
+  pending); the processed box; a
   Peaks box when the spectrum has a peak set (its labels typed in the inspector, what it was
   found with, a warning when the processing changed since); a Bands box when bands are drawn on
   its axis (`integ:` + id: the areas, shares and ratios); a fit box when the spectrum has
@@ -913,7 +914,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   each against the analysed one, not a square table); Copy gives it as TSV.
 - **Peak fit panel** (`renderPeakFit`): three numbered parts: 1 Find peaks (`pfPanelHtml`,
   the finder's settings in `S.pf`, a live preview on the graph from `pfRun`, the peaks it would
-  find in a table and the ones it turned down with their reasons, each with an Add button;
+  find in a table and the ones not counted as peaks with their reasons, each with an Add button;
   `runPeakFinder(append)` seeds the draft from them, measuring a peak on a larger one's tail
   from its own valleys), 2 Peaks and baseline (its header's **Add a
   peak**, `#pfAddMode`, is the Add peak pointer mode, which left the toolbar), 3 Fit; both fits have
@@ -1113,7 +1114,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   removes, then (if no list has done so) `leaveProject(pid)` (drops a waiting worksheet save,
   forgets its layout, clears `S.pid`) and opens the most recent other project, saying which;
   a project deleted elsewhere is left the same way, with a toast. `save` never writes to a
-  gone project. Names: `projName`, `isUntitled` ("Untitled analysis", "(2)" too),
+  gone project. Names: `projName`, `isUntitled` ("Untitled project", "(2)" too, and the older
+  "Untitled analysis"),
   `uniqueProjName(nm, except)` (every new project; imports that rename an untitled one),
   `batchProjName(names)` (what the files' names share, or "first to last"); `switchProject`
   (the list's run) toasts what is in the project. **Bringing in** (File › Copy from
@@ -1121,7 +1123,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   copies chosen spectra with their sources and what their steps read (`stepReads`, from each
   op's `deps`), their X (nearest left of the root) and error columns, with new column and step
   ids (`ref`, `cols`, `reads`, `readSigs` remapped), a computed column as values, and
-  `origin {pid, proj, col, t, by, computed?}` (the History's Raw data box says "Brought in");
+  `origin {pid, proj, col, t, by, computed?}` (the History's Original data box says "Brought in");
   an X column equal to the last one here is shared. Peak sets (`found`, `pk:` annotations) and
   series styles come too; one undo entry, a raw-data record entry and a log line naming the
   project. Onto the graph in hand, a new graph, or one each (an empty project's first graph
@@ -1588,6 +1590,15 @@ presence, names) depends on the claude.ai runtime and would need a real backend 
 `LocalStore` / `makeDbStore` interface.
 
 ## Checking a change
+
+**Words.** What the app shows follows the glossary (`ux/UX_SPEC.md` §3.6): column (a curve on
+the graph), active, original and processed data, check code, tool window, saved style,
+Untitled project, not counted as a peak; spectroscopy's words (spectrum, band, background…)
+only in the Spectroscopy menu and its panels. Code names (`raw`, `final`, `rawFp`, `p.raw`,
+`S.sheet`, Python's `spectra`) are not renamed. `python tools/ux/terms.py [path]` counts the
+words off the glossary in every prose literal of the file (`--list term` shows where); it
+reads 0, and a new string should keep it there. Help's search words (`kw`) keep the old words
+so either finds the article.
 
 `node tools/fit-test.mjs`, `node tools/pipe-test.mjs`, `node tools/parser-test.mjs` and
 `node tools/tex-test.mjs` cover the numerics, the processing steps with their checks and the
@@ -2446,7 +2457,7 @@ Next, in order:
   text pinned to the plot does that), and entries are typed over one at a time
 - An axis title's own style is font, size, weight, slant, underline and colour; its place is
   the axis's (along it, or dragged)
-- Moving columns moves whole columns of the Raw sheet (not cells within a column, not the Final
+- Moving columns moves whole columns of the Original sheet (not cells within a column, not the Processed
   sheet's); the colours of the interface follow DESIGN.md's rules, but the graph's own colours
   (data, grid, a colour picked for a label) are the figure's and are not checked
 - Project Explorer: one item moves at a time (no multiple selection); a spectrum lives under its

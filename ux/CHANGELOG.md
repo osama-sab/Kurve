@@ -299,3 +299,94 @@ Task re-runs (`tools/ux/tasks.py`, the same paths on the slice-4 file and on thi
   - the dock's edge lay under the windows, so it could not be held;
   - an empty graph counted the active column's points, so it drew empty axes instead of
     offering Plot.
+
+## Slice 3: terminology
+
+**What changed** (UX_SPEC §3.6, the glossary): every label, tooltip, toast, History box,
+report and CSV line, and Help article uses the glossary's words.
+
+| Instead of | Now | Where it shows most |
+|---|---|---|
+| spectrum, spectra (outside spectroscopy) | column; curve for what is drawn | the worksheet, Data, Analysis, Batch, History, Help |
+| the analysed spectrum, being analysed | the active column | menus, History, Fit, Batch |
+| raw data, the Raw sheet | original data, the Original sheet | the worksheet's tabs, History, exports |
+| final data, the Final sheet | processed data, the Processed sheet | the same |
+| recorded data or values | original data or values | the worksheet's toasts, the lock |
+| fingerprint | check code | the History, the original-data CSV, Help |
+| panels (for windows) | tool windows | Help's desk article |
+| formats | saved styles | log lines and toasts |
+| Untitled analysis | Untitled project | new projects; older names still count as untitled |
+| turned down | not counted as a peak | the peak finder |
+| Data, not a spectrum | Other data (not plotted) | the import dialog, Fill, the column's use |
+
+- **Renamed tools:**
+  - *Remove a region…* is *Leave out an X range…*.
+  - *Sort by X* is *Sort by X (as a step)*. Its History box keeps the short name *Sort by X*.
+  - *Subtract or divide by another spectrum…* is *…another column…*.
+  - *Average with other spectra…* is *…other columns…*.
+  - `tools/ux/menucheck.py` no longer defers any rename.
+- **Kept on purpose:**
+  - **Spectroscopy's words** inside the Spectroscopy menu and its windows (Peaks, Peak fit,
+    Integrate, Overview, the spectroscopy tools).
+  - **The gamma-spectrum part** of the import article.
+  - **The examples' names and descriptions.**
+  - **Python's API names** (`spectra`, `peaks`).
+  - **Code names** (`raw`, `final`, `p.raw`).
+  - **Help's search words**, so a search for "fingerprint" or "spectrum" still finds its
+    article.
+- **A new tool, `tools/ux/terms.py`**, counts the words off the glossary in every prose literal
+  of the file. Its contexts tell the spectroscopy windows from the rest. CLAUDE.md asks that
+  it stay at 0.
+
+**Findings it answers:**
+- **The Phase 2 language audit** (FEATURE_INVENTORY §2): one thing under several names.
+  - spectrum, column, data set and series;
+  - raw, recorded and original;
+  - final and processed;
+  - fingerprint and hash;
+  - panel for both a window and a figure's graph.
+- **Phase 1 T1 and T6:** "I don't have a spectrum". Persona A met spectroscopy's words in the
+  worksheet, the statistics and the Fit window, with a distance–time chart and a survey.
+
+**Measured effect:**
+
+| | Before | After |
+|---|---|---|
+| Words off the glossary in the file's prose (`tools/ux/terms.py`) | 696 | 0 |
+| … of them "spectrum" or "spectra" outside spectroscopy | 421 | 0 |
+| … "raw", "final", "recorded" | 201 | 0 |
+| Old words on screen: text, tooltips and lists of 13 windows on the IR example, with a step, a peak fit and a peak set | 60 | 0 |
+| Menu items under a name the spec replaces (`menucheck.py`'s deferred renames) | 4 | 0 |
+| Help articles that render, and links that resolve | all | all |
+
+Task re-runs (`tools/ux/tasks.py`, the same paths on the slice-2 file and on this one, at
+1366 × 768). Logs are `evidence/logs/slices/s3-before-*` and `s3-after-*`.
+
+| Task | Before: clicks · keys · hovers · wrong turns · KLM (+hovers) | After |
+|---|---|---|
+| T1 | 7 · 59 · 1 · 0 · 35.1 s (36.2) | the same |
+| T2 | 13 · 45 · 2 · 4 · 47.0 s (49.2) | the same |
+| T5 | 5 · 33 · 2 · 0 · 22.5 s (24.7) | the same |
+| T6 | 19 · 2 · 1 · 1 · 50.9 s (52.0) | the same |
+| T8 | 19 · 0 · 2 · 0 · 50.4 s (52.6) | the same |
+| T9 | 18 · 4 · 4 · 1 · 48.8 s (53.2) | the same |
+| T10 | 10 · 4 · 1 · 0 · 28.7 s (29.8) | the same |
+| T12 | 4 · 1 · 1 · 0 · 10.9 s (12.0) | the same |
+
+- **No task got worse, and none got faster.** The paths go to the same controls, and none of
+  them was renamed.
+- **What the words change is reading:** the guesses Phase 1 logged ("Raw?", "a spectrum?"). A
+  scripted path cannot measure that. Phase 5's fresh walkthrough will.
+
+**Tools, after the slice:**
+- fit, pipe, parser and tex tests: all pass.
+- contrast-test: 189 of 189.
+- odd-test: 51 of 51.
+- sheet-fuzz, seeds 1 and 2: clean.
+- Duplicate-function check: none.
+- `menucheck.py`: 0 missing, 0 extra.
+- `terms.py`: 0.
+- A drive of the slice: 10 of 10 in light and dark. It covered the new project's name, the
+  older names, the worksheet's sheets, the History's boxes, the words on screen in 13 windows,
+  the renamed tools, every Help article and link, and Help's search for the old word.
+- Slices 2 and 4's drives still pass: 45 of 45 and 41 of 41.
