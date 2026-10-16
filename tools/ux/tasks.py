@@ -224,10 +224,14 @@ def t5(r):
     r.click(pg.locator(f'#ws td[data-r="0"][data-ci="{ci}"]'), "cell E1")
     r.type("=LOG10(B1)")
     r.press("Enter", "enter formula")
-    r.wrong_turn("Typed an Excel formula =LOG10(B1) into a cell: refused as 'not a number'")
-    r.press("Escape", "leave the cell")
-    r.click(pg.locator(f'#ws td[data-r="-1"][data-ci="{ci}"]'), "F(x)= cell of column E")
-    r.type("=LOG10(B1)")
+    if pg.locator("#dockBar").count():
+        # Since slice 2 a formula typed into a cell moves to the column's F(x)= row, still being typed.
+        r.say("The formula moved to the F(x)= row; the message says a letter is the whole column")
+    else:
+        r.wrong_turn("Typed an Excel formula =LOG10(B1) into a cell: refused as 'not a number'")
+        r.press("Escape", "leave the cell")
+        r.click(pg.locator(f'#ws td[data-r="-1"][data-ci="{ci}"]'), "F(x)= cell of column E")
+        r.type("=LOG10(B1)")
     r.press("Control+a", "select all")
     r.type("=log10(B1)")
     r.press("Control+a", "select all")

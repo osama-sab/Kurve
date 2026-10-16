@@ -104,6 +104,28 @@ show without competing with the data; the graph's grid (`--grid`) is part of the
 - Documents (graphs, the worksheet, trend graphs) always have a taskbar button; panels only
   while open or minimised. Open buttons are raised with a bar, minimised ones flat, the front
   one filled.
+- **The first screen is the worksheet and the graph, side by side** (44 % and 56 %), and
+  nothing else: a first visit used to open History too, and stacked it under a worksheet that
+  then showed no data rows at all at 1366 × 768.
+- **Tool windows dock.** Fit, Results, Peaks, Integrate, History, Statistics, the Overview,
+  Help, Discussion and the processing tools open as tabs in one column at the desk's right
+  (360, 380 or 420 px by the screen's width), one shown at a time. The worksheet and the graph
+  share what is left, so a tool never covers the graph it acts on: at 1366 px the graph beside
+  the Fit window went from a 346 px strip, an eighth of it under the Fit window, to 552 px in
+  full. Batch and Python float, being worksheets of their own.
+- **A drawer when the room is not there.** Below 1100 px, or when a 480 px graph and a 300 px
+  worksheet would not fit beside it, the dock lies over the right of the desk (a shadow says
+  it is on top) with a pin to put it beside them and an arrow to put it away. Floating is
+  always one drag away (a tab, or the title bar), never the default; the window's dock button
+  brings it back.
+- **The bars are thin**: toolbar 40, taskbar 30, status bar 24 px. The Project Explorer is
+  220 px and a drawer below 1600 px, so at 1366 it no longer takes 250 px from every window.
+- **New graphs keep 480 px.** A graph made beside the worksheet takes its share; otherwise it
+  goes beside or below the graph in front, and when neither leaves 480 by 300 px it takes the
+  old graph's place and the old one waits in the taskbar.
+- **The empty graph says what to do next.** Before data: Import and the examples. With columns
+  but nothing plotted (after an import, which plots nothing): "Nothing plotted yet" and Plot
+  setup…, where before the import closed the graph and left an empty desk.
 
 ## The worksheet
 
@@ -121,6 +143,12 @@ Excel's and Origin's conventions, unless noted.
 - **Formula bar**: the value box beside the address is editable, as Excel's; a computed cell
   shows and edits its formula. The **F(x)=** cell opens for typing on a single click (it did
   nothing before, which read as broken).
+- **Three header rows**: the letters, Long Name and Units (66 px; it was 148). Comments, F(x)=
+  and Sparklines are behind the ⋯ in the corner, per project. F(x)= shows itself once a
+  column has a formula, and a formula typed into a cell as in a spreadsheet (`=log10(B1)`)
+  moves there, still being typed, with a message that a letter is the whole column: Phase 1's
+  user typed exactly that and was told it was not a number. Rows are 22 px: 21 data rows in
+  view at 1366 × 768 on a first visit, where there were none.
 - **Fill** lives in the column's and the cell's right-click menus and in Data › Fill, not on the
   bar: a fill is something you do to a column. The fill handle on the selection's corner stays,
   as in Excel.
@@ -267,3 +295,12 @@ Spectroscopy menu, short right-click menus that end in Format, Copy and Export, 
 above, the menu-bar delay, and items hidden until they can apply. The approved removals (R1,
 R2, R3, R6) wait for slice 7, and the processing tools keep their names until slice 3.
 
+### 2026-10-16: layout and the dock (UX rework, Phase 4 slice 2)
+
+From the Phase 3 measurements: no worksheet rows in view on a first visit at 1280 and 1366 px; a
+graph squeezed to 346 px beside the worksheet after a Plot, then partly covered by the Fit
+window; History open on a first visit; the Explorer taking 250 px at every width; an import
+closing the graph. Decided: the two-window first screen, the dock with its drawer and pin,
+thinner bars, the Explorer as a drawer below 1600 px, the three-row worksheet header with its ⋯,
+22 px rows, the empty graph's Plot setup…, History in the dock with the first step, 480 px for
+any graph, and a formula typed into a cell moving to the F(x)= row.

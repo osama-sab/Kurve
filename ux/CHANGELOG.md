@@ -176,3 +176,126 @@ submenu) are now counted too; the second KLM column adds 1.1 s for each.
   comment here…, Export › Graph as PNG, the axis and column menus, Statistics › Histogram,
   Residuals in the Fit window and Analysis › Fit, Add a peak, the Spectroscopy menu and its
   tools, Several curves, Window › Graphs, and Python appearing once used.
+
+## Slice 2: layout and docking
+
+**What changed** (UX_SPEC §3.2):
+- **The first screen is two windows**: the worksheet (44 %) and the graph (56 %), side by
+  side. History no longer opens on a first visit.
+- **The dock.** The tool windows open as tabs in one column at the desk's right, one shown at
+  a time, and the worksheet and the graph share the rest:
+  - It holds Fit, Results, Peaks, Integrate, History, Statistics, the Overview, Help,
+    Discussion and the processing tools. Batch and Python still float.
+  - Its width is 360, 380 or 420 px by the screen. Its left edge drags, or takes the arrow
+    keys.
+  - A tab double-clicked takes the whole desk. A tab dragged out, or a title bar dragged,
+    floats the window, and the window's dock button docks it again.
+  - It becomes a drawer over the documents below 1100 px, or when a 480 px graph and a 300 px
+    worksheet would not fit beside it. The drawer has a pin, to put the dock beside them, and an
+    arrow that puts the windows away in the taskbar.
+  - It is remembered per browser: layout version 3, with the dock order, width and pin.
+- **Bars**: the toolbar is 40 px, the taskbar 30 and the status bar 24. The Project Explorer is
+  220 px wide, and a drawer below 1600 px (it used to be docked down to 1000 px).
+- **The worksheet's header** is the letters, Long Name and Units.
+  - Comments, F(x)= and Sparklines are behind the ⋯ in the corner, per project.
+  - F(x)= shows itself when a column has a formula.
+  - Rows are 22 px.
+  - A formula typed into a cell (`=LOG10(B1)`) moves to the column's F(x)= row, still being
+    typed, with a message that a letter there is the whole column.
+- **An import plots nothing and closes nothing.** The empty graph says *Nothing plotted yet*
+  and offers *Plot setup…*. Fit, Peaks and Integrate plot the active column on it when it is
+  empty.
+- **History opens in the dock with a column's first processing step**, rather than with an
+  import.
+- **A new graph is never narrower than 480 px.**
+  - Beside the worksheet, the worksheet keeps 300 px up to 44 %.
+  - Otherwise the new graph goes beside or under the graph in front.
+  - When neither fits, it takes that graph's place and the old one waits in the taskbar.
+- **The graph's bar** drops its menus' arrows and some padding in a graph narrower than
+  700 px, so *Original / Processed / Both* stays in view beside the dock.
+- **Help**: *Windows and the desk* explains the dock; the Explorer and worksheet articles give
+  the new widths and the ⋯.
+
+**Findings it answers:**
+- **Phase 3 measurements**:
+  - no worksheet rows in view on a first visit at 1280 and 1366 px;
+  - a 148 px worksheet header;
+  - after a Plot, a 346 px graph at 1366 px, an eighth of it under the Fit window;
+  - History hidden under other windows;
+  - the Explorer taking 250 px at every width.
+- **Phase 1 T5**: `=LOG10(B1)` typed into a cell was refused as "not a number". This slice
+  hides F(x)= by default, which would have made T5 worse, so the cell now hands the formula
+  to F(x)= instead.
+- **Phase 1 summary, finding 7**: "Every size: windows cover the graph they are about". Tool
+  dialogs, the Fit window and Results hid 50–75 % of the plot, and new graphs opened as
+  280–510 px strips even at 1920 × 1080. In particular:
+  - **T2**: the Fit window covered the graph's right third.
+  - **T4 and T8**: the graph opened as a 345 px strip.
+  - **T8**: after the fit, the Fit and Results windows covered three quarters of the graph.
+- **T11 and T12**: History was read maximised, over the graph. It now takes the whole desk
+  from a double-click on its tab, and goes back with another.
+
+**Measured effect** (`tools/ux/measure.py --layout`: window rectangles, and the part of each
+window not covered by another; `evidence/slices/s2-layout-before.json` and `-after.json`):
+
+| | Before | After |
+|---|---|---|
+| Windows open on a first visit | 3 | 2 |
+| Worksheet data rows in view, first visit: 1280 · 1366 · 1920 px | 0 · 0 · 6 | 19 · 21 · 35 |
+| Worksheet header | 148 px | 66 px |
+| Desk at 1366 × 768 | 1115 × 660 | 1366 × 663 |
+| IR example, Fit open, 1366: graph window (width, share in view) | 346 px, 88 % | 552 px, 100 % |
+| … its plot area | 330 px | 536 px |
+| IR example, Fit open, 1280 · 1920: plot area | 303 · 501 px | 499 · 700 px |
+| After an import and Plot, 1366: graph window | 346 px | 765 px |
+| History, IR example | open, 0 % in view | closed until asked or a step is added |
+
+Task re-runs (`tools/ux/tasks.py`, the same paths on the slice-4 file and on this one, at
+1366 × 768). Logs are `evidence/logs/slices/s2-before-*` and `s2-after-*`.
+
+| Task | Before: clicks · keys · hovers · wrong turns · KLM (+hovers) | After | |
+|---|---|---|---|
+| T1 type, plot, titles, PNG | 7 · 59 · 1 · 0 · 35.1 s (36.2) | 7 · 59 · 1 · 0 · 35.1 s (36.2) | same |
+| T2 straight-line fit | 13 · 45 · 2 · 4 · 47.0 s (49.2) | 13 · 45 · 2 · 4 · 47.0 s (49.2) | same |
+| T5 log10 column, plot | 6 · 44 · 2 · 1 · 28.2 s (30.4) | 5 · 33 · 2 · 0 · 22.5 s (24.7) | **better**: the formula typed into a cell is taken |
+| T6 statistics and histograms | 19 · 2 · 1 · 1 · 50.9 s (52.0) | 19 · 2 · 1 · 1 · 50.9 s (52.0) | same |
+| T8 Raman: spikes, baseline, peaks | 19 · 0 · 2 · 0 · 50.4 s (52.6) | 19 · 0 · 2 · 0 · 50.4 s (52.6) | same |
+| T9 two-panel figure, SVG, PDF | 18 · 4 · 4 · 1 · 48.8 s (53.2) | 18 · 4 · 4 · 1 · 48.8 s (53.2) | same |
+| T10 restyle, tick size, reverse X | 10 · 4 · 1 · 0 · 28.7 s (29.8) | 10 · 4 · 1 · 0 · 28.7 s (29.8) | same |
+| T12 explain the project | 4 · 1 · 1 · 0 · 10.9 s (12.0) | 4 · 1 · 1 · 0 · 10.9 s (12.0) | same |
+
+- **No touched task got worse.** Clicks and keys do not measure what this slice changed: how
+  much of the graph and the worksheet a person sees while working. The layout table above
+  measures that.
+- **The paths run with their windows where they now open.** The rig aims at what is drawn, so
+  a control under another window would have failed the run.
+- **In dark mode** T1, T2, T5 and T8 count the same as in light.
+
+**Tools, after the slice:**
+- fit, pipe, parser and tex tests: all pass.
+- contrast-test: 189 of 189.
+- odd-test: 51 of 51.
+- sheet-fuzz, seeds 1 and 2: clean.
+- Duplicate-function check: none.
+- A drive of every control the slice touched: 45 of 45 in light and in dark, no page errors.
+  It covered:
+  - the first screen's two windows and their shares;
+  - the bars' heights;
+  - the Explorer as a drawer, opened by Alt+1;
+  - the worksheet's three header rows, 22 px rows, the ⋯ menu, and ↑ skipping hidden rows;
+  - Fit docking and the documents sharing the rest;
+  - a second tab, switching tabs, a tab's ×;
+  - the edge widening the dock;
+  - floating a window by its tab and by its title bar, and docking it again;
+  - a tab maximised;
+  - the drawer at 1024 px, its pin, putting it away;
+  - an import leaving the empty graph with Plot setup…, which plots;
+  - History docking with the first step;
+  - two graphs of 765 px;
+  - no dock on a phone;
+  - the dock restored after a reload.
+- Slice 4's drive still passes: 41 of 41.
+- Two bugs the drive found and the slice fixed before measuring:
+  - the dock's edge lay under the windows, so it could not be held;
+  - an empty graph counted the active column's points, so it drew empty axes instead of
+    offering Plot.

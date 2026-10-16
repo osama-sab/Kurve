@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from drive import Rig  # noqa: E402
 
-APP = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).resolve().parents[2] / "kurve.html"
+APP = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else Path(__file__).resolve().parents[2] / "kurve.html"
 FIX = Path(__file__).resolve().parent / "fixtures"
 
 LAYOUT = r"""() => {
@@ -119,6 +119,10 @@ def layout_runs(width, height):
         r.page.evaluate("() => { loadExample('ir'); }")
         r.wait_quiet(1500)
         out["IR example"] = r.page.evaluate(LAYOUT)
+        # Working: a fit in progress, the Fit window open beside the graph.
+        r.page.evaluate("() => { S.fitMode = 'peaks'; showTab('fit'); renderPlot(); }")
+        r.wait_quiet(1200)
+        out["IR example, Fit open"] = r.page.evaluate(LAYOUT)
         out["errors"] = r.errors
     return out
 
@@ -149,6 +153,11 @@ def dialogs():
 
 
 if __name__ == "__main__":
+    # --layout: the layout runs only (slice 2's before and after), not every dialog.
+    if "--layout" in sys.argv:
+        APP = Path(next((a for a in sys.argv[1:] if not a.startswith("--")), str(APP))).resolve()
+        print(json.dumps({"layout": {f"{w}x{h}": layout_runs(w, h) for w, h in [(1280, 720), (1366, 768), (1920, 1080)]}}, ensure_ascii=False, indent=1))
+        sys.exit(0)
     lay = {f"{w}x{h}": layout_runs(w, h) for w, h in [(1280, 720), (1366, 768), (1920, 1080)]}
     dl, errs = dialogs()
     print(json.dumps({"layout": lay, "dialogs": dl, "errors": errs}, ensure_ascii=False, indent=1))

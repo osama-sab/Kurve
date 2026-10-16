@@ -214,10 +214,10 @@ input[type=range]:disabled{opacity:.45;cursor:not-allowed}
 /* The Project Explorer docks at the desk's left, as Origin's; the desk takes the rest. */
 .work{display:flex;min-height:0;min-width:0}
 .work>.desk{flex:1 1 auto}
-.xpl{flex:0 0 var(--xplw,250px);width:var(--xplw,250px);display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--panel);border-right:1px solid var(--rule)}
+.xpl{flex:0 0 var(--xplw,220px);width:var(--xplw,220px);display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--panel);border-right:1px solid var(--rule)}
 .xpl[hidden],.xpl-split[hidden]{display:none}
 /* Below 1000 px the Explorer slides over the desk from the left, under dialogs and menus. */
-@media (max-width: 999px){ .xpl{position:fixed;left:0;top:0;bottom:0;width:min(330px,88vw);z-index:39;box-shadow:var(--win-sh-act);padding-bottom:var(--sp-7)} .xpl-split{display:none} }
+@media (max-width: 1599px){ .xpl{position:fixed;left:0;top:0;bottom:0;width:min(330px,88vw);z-index:39;box-shadow:var(--win-sh-act);padding-bottom:var(--sp-7)} .xpl-split{display:none} }
 .xpl-h{display:flex;align-items:center;gap:var(--sp-2);height:32px;padding:0 var(--sp-2) 0 var(--sp-4);border-bottom:1px solid var(--rule);background:var(--chrome);flex:0 0 auto;min-width:0}
 .xpl-h>.ic{color:var(--muted);flex:0 0 auto}
 .xpl-h h2{font:600 var(--fs-tab)/1 var(--sans);margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
@@ -258,7 +258,7 @@ input[type=range]:disabled{opacity:.45;cursor:not-allowed}
 .people{display:flex;align-items:center;margin-right:var(--sp-3)}
 .people img{width:24px;height:24px;border-radius:50%;border:2px solid var(--chrome);margin-left:calc(var(--sp-3) * -1);background:var(--panel-2)}
 
-.toolbar{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2) var(--sp-4);background:var(--panel);border-bottom:1px solid var(--rule);flex-wrap:wrap;min-height:42px}
+.toolbar{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2) var(--sp-4);background:var(--panel);border-bottom:1px solid var(--rule);flex-wrap:wrap;min-height:40px}
 .tsep{width:1px;height:22px;background:var(--rule);margin:0 var(--sp-3);flex:0 0 auto}
 .tb{display:inline-flex;align-items:center;justify-content:center;gap:var(--sp-3);height:30px;min-width:30px;padding:0 var(--sp-4);border:1px solid transparent;border-radius:var(--r);transition:background-color .15s,border-color .15s,color .15s;background:transparent;cursor:pointer;white-space:nowrap;color:var(--ink)}
 .tb.icon{padding:0;width:30px}
@@ -282,7 +282,7 @@ input[type=range]:disabled{opacity:.45;cursor:not-allowed}
 .pane-h h2{font:600 var(--fs-tab)/1 var(--sans);color:var(--ink);margin:0}
 .pane-h .sub{color:var(--muted);font-size:var(--fs-tab);margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-.statusbar{display:flex;align-items:center;height:26px;padding:0 var(--sp-2) 0 var(--sp-5);background:var(--chrome);border-top:1px solid var(--rule);font-size:var(--fs-tab);color:var(--ink-2);min-width:0;overflow:hidden}
+.statusbar{display:flex;align-items:center;height:24px;padding:0 var(--sp-2) 0 var(--sp-5);background:var(--chrome);border-top:1px solid var(--rule);font-size:var(--fs-tab);color:var(--ink-2);min-width:0;overflow:hidden}
 .sb-hint{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
 .sb-cell{flex:0 0 auto;padding:0 var(--sp-4);border-left:1px solid var(--rule);white-space:nowrap;display:flex;align-items:center;gap:var(--sp-3)}
 .sb-cell:empty{display:none}
@@ -295,12 +295,14 @@ input[type=range]:disabled{opacity:.45;cursor:not-allowed}
 /* ---- Worksheet: a spreadsheet grid ---------------------------------------- */
 .ws{flex:1;overflow:auto;min-height:0;background:var(--panel);outline:none;position:relative}
 .ws table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:var(--fs-body);font-variant-numeric:tabular-nums}
-.ws th,.ws td{border-right:1px solid var(--ws-grid);border-bottom:1px solid var(--ws-grid);padding:0 var(--sp-3);height:24px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ws th,.ws td{border-right:1px solid var(--ws-grid);border-bottom:1px solid var(--ws-grid);padding:0 var(--sp-3);height:22px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ws thead th,.ws thead td{position:sticky;z-index:2;background:var(--panel-2)}
-.ws thead tr.hr1 th{height:28px;border-bottom-color:var(--rule)}
-.ws th.corner{left:0;z-index:5;background:var(--panel-3);cursor:pointer}
+.ws thead tr.hr1 th{height:22px;border-bottom-color:var(--rule)}
+.ws th.corner{left:0;z-index:5;background:var(--panel-3);cursor:pointer;padding:0;text-align:right}
+.ws .wsrows{height:20px;min-width:22px;padding:0 var(--sp-2);border:1px solid transparent;border-radius:var(--r-s);background:transparent;color:var(--ink-2);font:600 var(--fs-tab)/1 var(--sans);cursor:pointer;margin-right:var(--sp-1)}
+.ws .wsrows:hover,.ws .wsrows[aria-expanded="true"]{background:var(--btn-bg-h);border-color:var(--rule)}
 .ws th.ch{padding:0;font-weight:600;text-align:left;user-select:none}
-.ws .hc{display:flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-1) 0 var(--sp-3);height:27px;cursor:pointer}
+.ws .hc{display:flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-1) 0 var(--sp-3);height:21px;cursor:pointer}
 .ws .hc .cl{font-weight:700}
 .ws .hc .cd{color:var(--muted);font-weight:500;font-size:var(--fs-tab)}
 .ws .hc .hoff{font-size:var(--fs-cap);font-style:italic}
@@ -322,7 +324,7 @@ body.colmoving,body.colmoving *{cursor:grabbing!important;user-select:none}
 .ws .rz:hover{box-shadow:inset -2px 0 0 var(--accent)}
 .ws th.rl{left:0;z-index:4;color:var(--muted);font-weight:500;font-size:var(--fs-cap);text-align:right;padding:0 var(--sp-3);user-select:none}
 .ws thead td.lc{font-size:var(--fs-tab);color:var(--ink-2);text-align:left;cursor:cell;background:var(--panel-2)}
-.ws tr.spk td,.ws tr.spk th{height:24px;border-bottom-color:var(--rule)}
+.ws tr.spk td,.ws tr.spk th{height:22px;border-bottom-color:var(--rule)}
 .ws tr.spk td{padding:var(--sp-1) var(--sp-3);color:var(--data)}
 .ws .wspark{width:100%;height:16px;display:block}
 .ws tbody th.rh{position:sticky;left:0;z-index:1;background:var(--panel-2);color:var(--muted);font-size:var(--fs-cap);font-weight:400;text-align:right;padding:0 var(--sp-3);user-select:none;cursor:pointer}
@@ -396,6 +398,7 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .empty h3{font:600 var(--fs-hero)/1.25 var(--serif);margin:var(--sp-5) 0 var(--sp-3)}
 .empty p{color:var(--muted);margin:0 0 var(--sp-6);font-size:var(--fs-title)}
 .empty .row{display:flex;gap:var(--sp-4);justify-content:center;flex-wrap:wrap}
+.empty [hidden]{display:none!important}
 .empty .ex{margin-top:var(--sp-7);padding-top:var(--sp-6);border-top:1px solid var(--rule-2)}
 .empty .ex .lab{display:block;margin-bottom:var(--sp-4)}
 .empty .fine{margin-top:var(--sp-6);font-size:var(--fs-tab);color:var(--muted)}
@@ -783,7 +786,7 @@ details.more>table{margin-top:var(--sp-4)}
 .desk{position:relative;min-height:0;min-width:0;overflow:hidden;overflow:clip;background:var(--paper);isolation:isolate}
 .win{position:absolute;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel);border:1px solid var(--win-bd);border-radius:var(--r-win);box-shadow:var(--win-sh);overflow:hidden;overflow:clip}
 .win.active{border-color:var(--win-bd-act);box-shadow:var(--win-sh-act),0 0 0 1px var(--win-bd-act)}
-.win.max{left:0!important;top:0!important;width:100%!important;height:calc(100% - 34px)!important;border-radius:0}
+.win.max{border-radius:0}
 .win-h{display:flex;align-items:center;gap:var(--sp-3);height:32px;padding:0 var(--sp-2) 0 var(--sp-4);border-bottom:1px solid var(--rule);background:var(--win-h-bg);color:var(--win-h-ink);flex:0 0 auto;cursor:default;user-select:none;touch-action:none;min-width:0}
 .win.active .win-h{background:var(--win-h-act-bg);color:var(--win-h-act-ink);border-bottom-color:var(--win-h-act-bg)}
 .win-h>.ic{color:var(--muted)}
@@ -798,13 +801,31 @@ details.more>table{margin-top:var(--sp-4)}
 .win-h .tb.sm{color:var(--muted)}
 .win-b{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;overflow:clip;position:relative}
 .win-rz{position:absolute;z-index:4;touch-action:none}
+/* The dock: tool windows as tabs in a column at the desk's right (UX_SPEC 3.2). */
+.dockbar{position:absolute;top:0;height:30px;display:flex;align-items:flex-end;gap:2px;padding:0 var(--sp-1) 0 var(--sp-2);background:var(--chrome);border-left:1px solid var(--win-bd);border-bottom:1px solid var(--win-bd);box-sizing:border-box;overflow-x:auto;scrollbar-width:none}
+.dockbar[hidden],.dockedge[hidden]{display:none}
+.dockbar .sp{flex:1 1 0;min-width:var(--sp-2)}
+.dockbar>.tb{align-self:center}
+.dtab{display:inline-flex;align-items:center;gap:var(--sp-2);height:26px;max-width:160px;padding:0 var(--sp-1) 0 var(--sp-3);border:1px solid var(--rule);border-bottom:0;border-radius:var(--r-s) var(--r-s) 0 0;background:var(--panel-2);color:var(--ink-2);font-size:var(--fs-tab);white-space:nowrap;cursor:pointer;flex:0 0 auto;user-select:none;touch-action:none}
+.dtab>span{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.dtab:hover{background:var(--btn-bg-h);color:var(--ink)}
+.dtab.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.dtab:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.dtab .dx{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;border:0;border-radius:var(--r-s);background:transparent;color:inherit;cursor:pointer;flex:0 0 auto}
+.dtab .dx:hover{background:color-mix(in srgb,currentColor 18%,transparent)}
+.dtab .dx .ic{width:12px;height:12px}
+.dockedge{position:absolute;top:0;width:7px;margin-left:-3px;cursor:ew-resize;touch-action:none}
+.dockedge:hover,.dockedge:focus-visible{background:color-mix(in srgb,var(--accent) 40%,transparent);outline:none}
+.win.docked{border-radius:0;border-top:0;box-shadow:none}
+.win.docked .win-rz{display:none}
+.win.docked.drawer,.dockbar.drawer{box-shadow:var(--win-sh-act)}
 .win-rz.e{top:8px;right:-2px;bottom:8px;width:7px;cursor:ew-resize}
 .win-rz.w{top:8px;left:-2px;bottom:8px;width:7px;cursor:ew-resize}
 .win-rz.s{left:8px;right:8px;bottom:-2px;height:7px;cursor:ns-resize}
 .win-rz.se{right:-2px;bottom:-2px;width:14px;height:14px;cursor:nwse-resize}
 .win.max .win-rz{display:none}
-.taskbar{position:absolute;left:0;right:0;bottom:0;height:34px;display:flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-3);background:var(--chrome);border-top:1px solid var(--rule);z-index:9000;overflow-x:auto;scrollbar-width:thin}
-.tk{display:inline-flex;align-items:center;gap:var(--sp-3);height:26px;padding:0 var(--sp-4);border:1px solid var(--rule);border-radius:var(--r);background:var(--panel);cursor:pointer;white-space:nowrap;color:var(--ink-2);font-size:var(--fs-tab);flex:0 0 auto}
+.taskbar{position:absolute;left:0;right:0;bottom:0;height:30px;display:flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-3);background:var(--chrome);border-top:1px solid var(--rule);z-index:9000;overflow-x:auto;scrollbar-width:thin}
+.tk{display:inline-flex;align-items:center;gap:var(--sp-3);height:24px;padding:0 var(--sp-4);border:1px solid var(--rule);border-radius:var(--r);background:var(--panel);cursor:pointer;white-space:nowrap;color:var(--ink-2);font-size:var(--fs-tab);flex:0 0 auto}
 .tk:hover{border-color:var(--ink-2);color:var(--ink)}
 .tk.front:hover{color:var(--accent-ink)}
 .tk>span:not(.badge){max-width:180px;overflow:hidden;text-overflow:ellipsis}
@@ -852,6 +873,14 @@ body.gdragging{user-select:none}
 
 /* Graph window */
 .graph-win{background:var(--well);container:gwin/inline-size}
+/* A graph beside the worksheet and the dock (about 550 px at 1366) keeps its
+   ribbon on one row: the menus lose their arrows, everything its padding. */
+@container gwin (max-width: 700px){
+  .rb{padding:0 var(--sp-2)}
+  .rb .ic{display:none}
+  .ribbon .rsep{margin:var(--sp-2) var(--sp-1)}
+  .ribbon .seg>button{padding:0 var(--sp-3)}
+}
 /* A graph tiled small keeps every menu of its ribbon in view. */
 @container gwin (max-width: 440px){
   .ribbon{padding:var(--sp-1) var(--sp-2);gap:0}
@@ -1503,7 +1532,7 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
   .ws{max-height:60vh}
   .sticky{position:static;margin:var(--sp-5) 0 0;padding:var(--sp-4) 0}
   .rgrid{grid-template-columns:minmax(0,1fr)}
-  .taskbar{position:sticky;bottom:26px;order:99;margin:0 calc(var(--sp-3) * -1)}
+  .taskbar{position:sticky;bottom:24px;order:99;margin:0 calc(var(--sp-3) * -1)}
   .statusbar{position:sticky;bottom:0;z-index:9001}
   .sheet-b{grid-template-columns:minmax(0,1fr)}
   .rawbox{max-height:180px;border-right:0;border-bottom:1px solid var(--rule)}
@@ -1567,6 +1596,8 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
   <symbol id="i-table" viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="16" rx="1.5"/><path d="M3.5 9.5h17M3.5 14.8h17M9.5 9.5V20"/></symbol>
   <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3.5 3.5v17h17"/><path d="M6.5 16c2.5-.5 3.5-9 6-9s3 7 6 7.5"/></symbol>
   <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M3.5 15h17"/></symbol>
+  <symbol id="i-dock" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 3.5h6M10 3.5v6l-3 4h10l-3-4v-6M12 13.5v7"/></symbol>
   <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.4c-.6.3-1 .8-1 1.5v.8M12 17h.01"/></symbol>
   <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><circle cx="9" cy="9" r="1.8"/><path d="m20.5 15.5-5-5-11 10"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></symbol>
@@ -1694,7 +1725,7 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
                 <svg class="ic lg" style="width:44px;height:44px;margin:0 auto;color:var(--faint);stroke-width:1.3"><use href="#i-chart"/></svg>
                 <h3 id="emptyTitle">Bring in a spectrum or a curve</h3>
                 <p id="emptyText">Drop a file here, or paste columns into the worksheet.</p>
-                <div class="row"><button class="btn primary lg" id="emptyImport"><svg class="ic"><use href="#i-upload"/></svg>Import a file…</button></div>
+                <div class="row"><button class="btn primary lg" id="emptyImport"><svg class="ic"><use href="#i-upload"/></svg>Import a file…</button><button class="btn primary lg" id="emptyPlot" hidden><svg class="ic"><use href="#i-chart"/></svg>Plot setup…</button></div>
                 <div class="ex"><span class="lab">Or explore with an example</span>
                   <div class="row">
                     <button class="btn" data-example="ir">Infrared: overlapping bands</button>
@@ -1796,6 +1827,8 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
       <div class="win-b"><div class="tabbody" id="pane-tool"></div></div>
     </section>
 
+    <div class="dockbar" id="dockBar" role="tablist" aria-label="Tool windows" hidden></div>
+    <div class="dockedge" id="dockEdge" role="separator" aria-orientation="vertical" aria-label="Width of the dock" tabindex="0" hidden></div>
     <nav class="taskbar" id="taskbar" aria-label="Windows"></nav>
   </main>
   </div>
@@ -7578,11 +7611,16 @@ function buildPlot(W,H,pal,colEx,opt){
 }
 function renderPlot(){
   const svg=$("#plot"), fig=$("#figure");
-  const p=P(); const has=p&&(pointsAll().length>0||plotState().d.x.length>0);
+  // Something to draw: a column on this graph, with points.
+  const p=P(); const has=p&&allCols().some(c=>c.role==="y"&&inGraph(c))&&(pointsAll().length>0||plotState().d.x.length>0);
   $("#empty").hidden=!!has;
   renderStatusBar();
   if(!p){ svg.innerHTML=""; S.geo=null; $("#emptyTitle").textContent=S.store?"Bring in a spectrum or a curve":"Opening workspace…"; return; }
-  $("#emptyTitle").textContent="Bring in a spectrum or a curve";
+  // Columns in the worksheet and nothing on this graph: the graph offers Plot.
+  const cols=!has&&allCols().some(c=>(c.role==="y"||c.role==="ignore")&&!c.src&&(c.data||[]).some(v=>v!=null));
+  $("#emptyTitle").textContent=cols?"Nothing plotted yet":"Bring in a spectrum or a curve";
+  $("#emptyText").textContent=cols?"Select columns in the worksheet and press Plot, or choose them here.":"Drop a file here, or paste columns into the worksheet.";
+  { const ep=$("#emptyPlot"), ei=$("#emptyImport"), ex=document.querySelector("#empty .ex"); if(ep) ep.hidden=!cols; if(ei) ei.hidden=cols; if(ex) ex.hidden=cols; }
   if(!has){ svg.innerHTML=""; S.geo=null; return; }
   const W=fig.clientWidth, H=fig.clientHeight; if(W<10||H<10) return;
   if(S.view&&S.view.xu===undefined) S.view.xu=plotState().d.xu||"";
@@ -9469,7 +9507,7 @@ function wsFxHint(text){
   else try{ fxParse(text,col); msg=`${q?q.letter:""} = ${fxPrep(text)}`; }catch(err){ msg=err.message; bad=true; }
   const h=$("#wsValHint"); if(h){ h.className="wshint "+(bad?"badt":"lab"); h.textContent=msg; }
 }
-function wsEditFormula(ci){ if(S.sheet!=="raw"){ S.sheet="raw"; renderWs(); } wsSelect(-1,ci,false); wsBeginEdit(null,"edit"); const e=S.ws.edit; if(e) wsFxHint(e.val); }
+function wsEditFormula(ci,init){ if(S.sheet!=="raw"){ S.sheet="raw"; renderWs(); } if(!wsLabShown(WS_LABS.find(z=>z.r===-1))) wsRowsSet("fx",true); wsSelect(-1,ci,false); wsBeginEdit(init!=null?init:null,"edit"); const e=S.ws.edit; if(e) wsFxHint(e.val); }
 
 /* ---- Sorting the view -------------------------------------------------------
    Sorting shows the rows in another order; the data keep the order they were
@@ -9758,6 +9796,25 @@ function wsFindCount(){ const el=$("#wsFindN"), f=S.wsFind; if(!el) return;
 const WS_IDX=82, WS_W=100, WS_MINW=36;
 const WS_LABS=[{r:-4,k:"name",label:"Long Name",max:60},{r:-3,k:"unit",label:"Units",max:30},{r:-2,k:"comm",label:"Comments",max:200},{r:-1,k:"fx",label:"F(x)=",max:400}];
 const WS_TOP=-4;
+/* Under the letters the worksheet shows Long Name and Units; Comments, F(x)= and
+   the sparklines come from the "⋯" corner and stay per project in this browser
+   (kurve.wsrows), and F(x)= shows by itself once a column has a formula. A
+   hidden row is still there: copy and paste reach it, the arrow keys step over it. */
+function wsRowsPref(){ const pid=S.pid||""; if(!S._wrp||S._wrp.pid!==pid){ let o={}; try{ o=(JSON.parse(localStorage.getItem("kurve.wsrows")||"{}")||{})[pid]||{}; }catch(e){} S._wrp={pid,o:o&&typeof o==="object"?o:{}}; } return S._wrp.o; }
+function wsRowsSet(k,on){ const pid=S.pid||""; try{ const all=JSON.parse(localStorage.getItem("kurve.wsrows")||"{}")||{}; all[pid]=Object.assign({},all[pid],{[k]:!!on}); const ks=Object.keys(all); if(ks.length>60) delete all[ks[0]]; localStorage.setItem("kurve.wsrows",JSON.stringify(all)); }catch(e){}
+  S._wrp={pid,o:Object.assign({},wsRowsPref(),{[k]:!!on})}; renderWs(); }
+const wsAnyFx=()=>!!P()&&allCols().some(c=>c.fx);
+function wsLabShown(L){ if(!L) return false; if(L.k==="name"||L.k==="unit") return true; const pr=wsRowsPref(); return L.k==="fx"?!!pr.fx||wsAnyFx():!!pr[L.k]; }
+const wsLabRows=()=>WS_LABS.filter(wsLabShown);
+// A row a move lands on that is hidden: the next shown one the way the move went.
+function wsLabSnap(r,from){ if(r>=0||wsLabShown(WS_LABS.find(z=>z.r===r))) return r; const dir=r<from?-1:1; let q=r;
+  while(q<0&&q>=WS_TOP&&!wsLabShown(WS_LABS.find(z=>z.r===q))) q+=dir;
+  if(q<WS_TOP){ q=r; while(q<0&&!wsLabShown(WS_LABS.find(z=>z.r===q))) q++; } return q; }
+function wsRowsMenu(btn){ const pr=wsRowsPref(), fx=wsAnyFx();
+  toggleMenu(btn,()=>[{group:"Rows under the letters",plain:true},{label:"Long Name",checked:true,enabled:false},{label:"Units",checked:true,enabled:false},
+    {label:"Comments",checked:!!pr.comm,run:()=>wsRowsSet("comm",!pr.comm)},
+    {label:"F(x)= (formulas)",checked:!!pr.fx||fx,enabled:!fx,note:fx?"a column has one":"",run:()=>wsRowsSet("fx",!pr.fx)},
+    {label:"Sparklines",checked:!!pr.spk,run:()=>wsRowsSet("spk",!pr.spk)}],{label:"Rows"}); }
 function wsLetter(i){ let s=""; i++; while(i>0){ const m=(i-1)%26; s=String.fromCharCode(65+m)+s; i=Math.floor((i-1)/26); } return s; }
 function wsModel(){
   const p=P(), box=$("#ws"), W=p.wsw||{};
@@ -9826,10 +9883,10 @@ function renderWs(){
   S.wsMask=new Set(m.kind==="raw"?maskOf(activeYCol()):maskOf(m.c)); S.wsFixed=m.kind==="raw"?fixedCells():new Map();
   const tw=WS_IDX+m.cols.reduce((a,q)=>a+q.w,0), sx=box.scrollLeft, sy=box.scrollTop;
   let h=`<table class="grid" style="width:${tw}px"><colgroup><col style="width:${WS_IDX}px">${m.cols.map(q=>`<col data-cw="${esc(q.id)}" style="width:${q.w}px">`).join("")}</colgroup><thead>`;
-  h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"></th>${m.cols.map((q,i)=>`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.calc?`<span class="fxm${q.fxErr?" bad":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx)}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.off?`<span class="lab hoff" title="Hidden on the graph">hidden</span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`).join("")}</tr>`;
+  h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"><button type="button" class="wsrows" data-wsrows aria-haspopup="menu" aria-expanded="false" title="Rows under the letters: Comments, F(x)=, Sparklines" aria-label="Rows to show under the letters">⋯</button></th>${m.cols.map((q,i)=>`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.calc?`<span class="fxm${q.fxErr?" bad":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx)}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.off?`<span class="lab hoff" title="Hidden on the graph">hidden</span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`).join("")}</tr>`;
   const AL=p.wsAlign||{};
-  WS_LABS.forEach(L=>{ h+=`<tr class="lab"><th class="rl" scope="row"${L.k==="fx"?` title="A column's formula: letters are columns (B*2, (B-C)/A, log10(B)), x the row's X value, i the row number. Click a cell here to type one."`:""}>${L.label}</th>${m.cols.map((q,i)=>{ const bd=L.k==="fx"&&q.fxErr, al=L.k!=="fx"&&AL[q.id]?" al-"+AL[q.id]:""; return `<td class="lc${L.k==="fx"?" fxc":""}${bd?" bad":""}${al}" data-r="${L.r}" data-ci="${i}"${bd?` title="${esc(q.fxErr)}"`:L.k==="fx"&&m.kind==="raw"&&!q.lab.fx?` title="Click to type a formula for column ${q.letter}"`:""}>${esc(q.lab[L.k]||"")}</td>`; }).join("")}</tr>`; });
-  h+=`<tr class="spk"><th class="rl" scope="row">Sparklines</th>${m.cols.map(q=>`<td>${q.spark||""}</td>`).join("")}</tr>`;
+  wsLabRows().forEach(L=>{ h+=`<tr class="lab"><th class="rl" scope="row" data-lr="${L.r}"${L.k==="fx"?` title="A column's formula: letters are columns (B*2, (B-C)/A, log10(B)), x the row's X value, i the row number. Click a cell here to type one."`:""}>${L.label}</th>${m.cols.map((q,i)=>{ const bd=L.k==="fx"&&q.fxErr, al=L.k!=="fx"&&AL[q.id]?" al-"+AL[q.id]:""; return `<td class="lc${L.k==="fx"?" fxc":""}${bd?" bad":""}${al}" data-r="${L.r}" data-ci="${i}"${bd?` title="${esc(q.fxErr)}"`:L.k==="fx"&&m.kind==="raw"&&!q.lab.fx?` title="Click to type a formula for column ${q.letter}"`:""}>${esc(q.lab[L.k]||"")}</td>`; }).join("")}</tr>`; });
+  if(wsRowsPref().spk) h+=`<tr class="spk"><th class="rl" scope="row">Sparklines</th>${m.cols.map(q=>`<td>${q.spark||""}</td>`).join("")}</tr>`;
   // A spacer as tall as the rows, so the scroll can be put back before they are drawn.
   h+=`</thead><tbody><tr class="gap" aria-hidden="true"><td colspan="${m.cols.length+1}" style="height:${wsRowCount(m)*(S.ws.rowH||25)}px"></td></tr></tbody></table>`;
   box.innerHTML=h; box.scrollLeft=sx; box.scrollTop=sy;
@@ -9883,7 +9940,7 @@ function wsPaintSel(){
   const nC=m.cols.filter(q=>!q.phantom).length, fullCol=r0<=0&&r1>=Math.max(0,m.n-1)&&m.n>0, fullRow=c0===0&&c1>=Math.max(0,nC-1);
   box.querySelectorAll("th[data-ch]").forEach(th=>{ const c=+th.dataset.ch, on=c>=c0&&c<=c1; th.classList.toggle("hs",on); th.classList.toggle("hsel",on&&fullCol&&!(m.cols[c]||{}).phantom); });
   box.querySelectorAll("th[data-rh]").forEach(th=>{ const r=+th.dataset.rh, on=r>=r0&&r<=r1; th.classList.toggle("hs",on); th.classList.toggle("hsel",on&&fullRow&&r<m.n); });
-  box.querySelectorAll("th.rl").forEach((th,k)=>{ if(k<WS_LABS.length){ const r=k-WS_LABS.length; th.classList.toggle("hs",r>=r0&&r<=r1); } });
+  box.querySelectorAll("th.rl[data-lr]").forEach(th=>{ const r=+th.dataset.lr; th.classList.toggle("hs",r>=r0&&r<=r1); });
   wsBar(); wsStats();
 }
 // The cell's address and content, above the grid, as in a spreadsheet.
@@ -9988,6 +10045,7 @@ function wsSelect(r,c,extend){
   s.want=null;
   const R=wsRowCount(m)-1+(m.kind==="raw"?200:0), C=m.cols.length-1;
   r=Math.max(WS_TOP,Math.min(R,r)); c=Math.max(0,Math.min(C,c));
+  r=wsLabSnap(r,s.r);
   s.r=r; s.c=c; if(!extend){ s.ar=r; s.ac=c; }
   if(r>=wsRowCount(m)-1&&m.kind==="raw"){ s.extra=(s.extra||0)+200; S.ws.win=null; }
   wsEnsureVisible(r,c); wsPaintSel();
@@ -10059,6 +10117,12 @@ function wsCommit(dr,dc,stay,how){
   // put right (Esc gives the cell back); leaving it another way keeps the old
   // value and says what was not taken.
   const bad=e.r>=0&&val!==e.orig&&String(val).trim()!==""&&parseNum(val)==null;
+  // "=…" in a cell, as in a spreadsheet: a formula fills a whole column here, so
+  // it moves to the column's F(x)= row (shown for it), to be finished there.
+  if(bad&&!stay&&/^\s*=/.test(val)){ const ci=e.c; S.ws.edit=null; S.editing=false; S.pendingWs=false;
+    if(td){ td.classList.remove("editing"); td.textContent=wsText(S.wsm,e.r,e.c); }
+    toast("A formula fills the whole column, so it goes in the F(x)= row: there a letter stands for that column's value in each row (B, not B1).");
+    wsEditFormula(ci,String(val).trim()); return; }
   if(bad&&!stay&&inp){ inp.classList.add("bad"); inp.setAttribute("aria-invalid","true"); inp.focus({preventScroll:true});
     toast(`“${String(val).trim().slice(0,40)}” is not a number. Type one (3.14, 2,5 or 1e-3), or press Esc to leave the cell as it was.`); return; }
   S.ws.edit=null; S.editing=false; S.pendingWs=false;
@@ -10216,6 +10280,7 @@ function wsCellMenu(ev,r,c){
 async function wsPasteMenu(){ try{ const t=await navigator.clipboard.readText(); wsPasteText(t); }catch(e){ toast("The browser did not let Kurve read the clipboard here: press Ctrl+V instead."); } }
 function setupWs(){
   const box=$("#ws"); box.tabIndex=0;
+  box.addEventListener("click",e=>{ const b=e.target.closest&&e.target.closest("[data-wsrows]"); if(b){ e.preventDefault(); wsRowsMenu(b); } });
   box.setAttribute("role","grid"); box.setAttribute("aria-label","Worksheet");
   let drag=null, raf=0;
   box.addEventListener("scroll",()=>{ if(raf) return; raf=requestAnimationFrame(()=>{ raf=0; const m=S.wsm; if(!m) return;
@@ -10233,6 +10298,7 @@ function setupWs(){
     const t=e.target;
     if(t.closest("input.wsed")) return;
     if(t.closest("[data-cmenu]")) return;
+    if(t.closest("[data-wsrows]")) return;
     const rz=t.closest(".rz");
     if(rz&&e.detail===2){ e.preventDefault(); wsAutofit(+rz.dataset.rz); return; }
     if(rz){ e.preventDefault(); const i=+rz.dataset.rz, q=S.wsm.cols[i], x0=e.clientX, w0=q.w, colEl=box.querySelector(`col[data-cw="${CSS.escape(q.id)}"]`), tb=box.querySelector("table.grid"), tw0=parseFloat(tb.style.width);
@@ -11544,7 +11610,8 @@ function afterImport(how,ids,made,msg,undoable){
   made.forEach(id=>{ const w=winOfGraph(id); if(WINS[w]&&!winOpen(w)) openWin(w,{quiet:true}); });
   if(made.length>1) tileWins();
   showGraph(made[0]);
-  if(ids.length===1){ showTab("clean"); setTimeout(autoOverview,250); }
+  // History opens when asked for, or with the first processing step; not with the data.
+  if(ids.length===1) setTimeout(autoOverview,250);
   toast(msg+(made.length>1?" Click a graph to work on it.":""),undoable?{action:"Undo",run:undo}:{});
 }
 function whenOpen(fn,n){ n=n==null?80:n; if(P()){ fn(); return; } if(n>0) setTimeout(()=>whenOpen(fn,n-1),25); }
@@ -11567,7 +11634,8 @@ function impGraphs(p,ids,how,fresh){
   // A first graph without a list of its own shows every spectrum not hidden: these are not for it.
   else if(!list) plot.hidden=(plot.hidden||[]).concat(ids.filter(k=>!(plot.hidden||[]).includes(k)));
   const ys=new Set((p.cols||[]).filter(c=>c.role==="y").map(c=>c.id)), mainFree=fresh||(!!plot.shut&&!!list&&!list.some(k=>ys.has(k)&&!ids.includes(k)));
-  if(how==="none"||!ids.length){ if(fresh) plot.shut=true; return []; }
+  // The empty first graph stays on the desk beside the worksheet, offering Plot (UX_SPEC 3.2).
+  if(how==="none"||!ids.length) return [];
   const base=plotBase(plot), lay=how==="stack"?"stack":null, made=[];
   (how==="each"?ids.map(k=>[k]):[ids]).forEach((cs,k)=>{
     if(k===0&&mainFree){ plot.cols=cs.slice(); plot.hidden=[]; delete plot.shut; if(lay) plot.layout=lay; made.push("main"); return; }
@@ -11767,11 +11835,11 @@ async function autoImport(files,o){
    a folder are imported and plotted into it. The folder of what is selected
    is the active folder: graphs and files made while the Explorer is open go
    into it, as Origin puts new windows in the active folder. */
-const XPL=(()=>{ let o={}; try{ o=JSON.parse(localStorage.getItem("kurve.xpl")||"{}")||{}; }catch(e){} return {open:o.open!==false, w:Number.isFinite(+o.w)?Math.max(180,Math.min(520,+o.w)):250}; })();
+const XPL=(()=>{ let o={}; try{ o=JSON.parse(localStorage.getItem("kurve.xpl")||"{}")||{}; }catch(e){} return {open:o.open!==false, w:Number.isFinite(+o.w)?Math.max(180,Math.min(520,+o.w)):220}; })();
 function xplSave(){ try{ localStorage.setItem("kurve.xpl",JSON.stringify({open:XPL.open,w:XPL.w})); }catch(e){} }
-// Below 1000 px it slides over the desk, closed until asked for: docked, it would
-// leave the windows a desk too narrow for them.
-const xplDrawer=()=>window.innerWidth<1000;
+// Below 1600 px it slides over the desk, closed until asked for: docked, it would
+// take a fifth of a laptop's screen from the worksheet and the graph (UX_SPEC 3.2).
+const xplDrawer=()=>window.innerWidth<1600;
 const xplShown=()=>xplDrawer()?!!S.xplNarrow:XPL.open;
 function applyXpl(){
   const a=$("#xpl"), sp=$("#xplSplit"), on=xplShown(); if(!a) return;
@@ -14157,13 +14225,16 @@ function applyTool(opt){
   const s=pd.step; S.pending=null;
   if(s.op==="ecal") ecalKeep(s.p);
   pushUndo("adding "+stepShort(s).toLowerCase());
+  const firstStep=!allCols().some(q=>(q.pipe||[]).length);
   c.pipe=c.pipe||[]; const at=Math.min(pd.at,c.pipe.length); c.pipe.splice(at,0,s);
   const n=pd.all?applyStepToAll(s.id,true,{measure:pd.measure}):0;
   const after=c.pipe[at+1];
   save({cols:P().cols},`added the step "${stepText(s,stageOfStep(s))}" to ${specName(c)}${after?` as step ${at+1}, before "${stepTitle(after)}"`:""}${n?`, and the same step to ${n} other spectr${n===1?"um":"a"}${pd.measure&&PIPE_OPS[s.op].init?", with settings measured on each":""}`:""}`);
   S.selStep=null; S.stage=null; S.flowSel="step:"+s.id;
-  if(!(opt&&opt.keepWin)&&winOpen("tool")){ winState("tool").open=false; applyWins(); saveLayout(); }
+  if(!(opt&&opt.keepWin)&&winOpen("tool")){ winState("tool").open=false; dockForget("tool"); applyWins(); saveLayout(); }
   renderAll();
+  // The project's first processing step brings the History into the dock, where the step is recorded.
+  if(firstStep&&!inBar("flow")) openWin("flow",{render:true,quiet:true});
   const w=stageWarnings(stageOfStep(stepById(s.id)));
   toast(`${stepTitle(s)} recorded as step ${at+1} of ${specName(c)}${n?`, and on ${n} more`:""}.${w.length?` ${w.length} warning${w.length===1?"":"s"} on it: see the History.`:""} The raw data is unchanged.`,{action:"Undo",run:undo});
   return s.id;
@@ -16437,9 +16508,14 @@ const DOCS=[
 <h2>Two promises</h2>
 <ul><li><strong>The analysis never changes the raw data.</strong> Every processing step sits on top of them, and you can edit, reorder, switch off or delete it. The raw data change only when you edit them in the worksheet, and every such change is recorded; lock them to keep them as they are. ${DA("rawdata","Raw data and its fingerprint")}</li>
 <li><strong>Everything can be undone.</strong> ${K("Ctrl","Z")} takes back your last change, whatever window it was made in.</li></ul>`},
-{id:"desk", g:"Basics", t:"Windows and the desk", kw:"window move resize maximise minimise close panels documents switch taskbar tile cascade layout toolbar status bar phone theme dark style bench graphite appearance",
- lead:"The graph, the worksheet, the History and the rest are windows on a desk, as in Origin. Arrange them the way you work.",
- body:`<h2>Arranging windows</h2>
+{id:"desk", g:"Basics", t:"Windows and the desk", kw:"window move resize maximise minimise close panels documents switch taskbar tile cascade layout toolbar status bar phone theme dark style bench graphite appearance dock tab drawer pin float",
+ lead:"The worksheet and the graph share the desk; the tool windows (Fit, History, Peaks…) open in a dock at its right. Arrange them the way you work.",
+ body:`<p>A new project opens with the worksheet on the left and the graph beside it, and nothing else. The other windows open when you ask for them, from the menus.</p>
+<h2 id="dock">The dock</h2>
+<p>The tool windows (Fit, Results, Peaks, Integrate, History, Statistics, the Overview, Help, Discussion and the processing tools) open in the <strong>dock</strong>, a column at the right of the desk with a tab for each. One shows at a time: click a tab to bring its window forward, its × to close it. The worksheet and the graph share what is left of the desk, and get it back when the dock is empty.</p>
+${DL([["Width","Drag the dock's left edge (or focus it and press "+K("←")+" "+K("→")+")."],["Read at full size","Double-click a tab: its window takes the whole desk. Again to give it back."],["Float","Drag a tab out of the dock, or drag the window's title bar: it becomes a window of its own, where you let go. The dock button in its title bar puts it back."],["A smaller screen","Below 1100 pixels, or when the worksheet and a 480-pixel graph would not fit beside it, the dock lies over the right of the desk as a drawer. Its pin puts it beside them instead; the arrow puts it away, its windows waiting in the taskbar."]])}
+<p>A window that floated stays floating the next time it opens, and a docked one docked; the dock's width and its pin are remembered in this browser. History opens in the dock by itself with a column's first processing step.</p>
+<h2>Arranging windows</h2>
 ${DL([["Move","Drag the title bar."],["Resize","Drag an edge or the bottom-right corner."],["Maximise","Double-click the title bar, or its square button. Again to restore."],["Minimise","The dash button. The window leaves the desk; its button stays in the taskbar."],["Close","The × button, on panels and graphs. The window leaves the desk and the taskbar; a panel's menu, or "+MP("Window › Tool windows")+", opens it again. A graph closed is kept in the project: "+MP("Window › Graphs")+" opens it again. "+DA("plotting#close","Closing a graph")],["Help","The <strong>?</strong> button opens the article about that window. "+K("F1")+" does the same for the window in front."]])}
 <h2 id="states">What the taskbar shows</h2>
 <p>As a workbook keeps a tab for each sheet, the taskbar keeps a button for each of the project's <strong>documents</strong>: its graphs, the worksheet and its trend graphs. They minimise; a graph can also be closed, and then leaves the taskbar until it is opened again. After them come the <strong>panels</strong> in use (History, Peaks, Fit…), only while they are open or minimised: a panel you never opened is not there, and one you close leaves.</p>
@@ -16454,7 +16530,7 @@ ${DL([["Import, Export","Bring a file in; save the graph, data or a report."],["
 <h2>The status bar</h2>
 <p>What the current tool does, the value under the pointer, how many points are in use (masked and in view), the fit's state, and whether the project is saved.</p>
 <h2>On a phone</h2>
-<p>Below 860 pixels the windows stack in one column, graph first, and the taskbar stays at the bottom of the screen.</p>
+<p>Below 860 pixels the windows stack in one column, graph first, and the taskbar stays at the bottom of the screen. There is no dock there: every window takes the width of the screen.</p>
 <h2>Theme and style</h2>
 <p>${MP("Window › Theme")}: light, dark, or the system's. The moon and sun button in the title bar switches between them.</p>
 <p>${MP("Window › Style")}: <strong>Bench</strong> marks everything you can change in blue; <strong>Graphite</strong> is black and white, with blue only for the keyboard focus. Both are remembered in this browser. They change the interface only: the graph's colours are set in the Format dialog and stay as they are.</p>
@@ -16478,7 +16554,7 @@ ${DL([["Import, Export","Bring a file in; save the graph, data or a report."],["
 {id:"explorer", g:"Basics", t:"The Project Explorer", kw:"project explorer tree folder subfolder files graphs hidden closed organise organize move drag rename delete filter origin alt+1 sidebar",
  lead:"The project as a tree beside the desk, as in Origin: folders and subfolders holding the worksheet, the files you imported with their spectra, the graphs (hidden ones too) and the trend graphs.",
  body:`<h2>Showing it</h2>
-<p>The tree button at the start of the toolbar, ${MP("Window › Project Explorer")} or ${K("Alt","1")} shows and hides it. Drag its right edge to make it wider. In a window narrower than 1000 pixels it slides over the desk instead, and closes when you open something or press beside it.</p>
+<p>The tree button at the start of the toolbar, ${MP("Window › Project Explorer")} or ${K("Alt","1")} shows and hides it. Drag its right edge to make it wider. In a window narrower than 1600 pixels it slides over the desk instead, so the worksheet and the graph keep their width, and closes when you open something or press beside it.</p>
 <h2 id="items">What is in it</h2>
 ${DL([["The project","The top of the tree, with the project's name. Right-click it for a new folder, to rename the project, or to switch to another."],["Folders","Yours, nested as deep as you like. They only organise: nothing is deleted with a folder, and what it held moves up a level."],["Worksheet","The project's worksheet."],["Files","Each file imported, with the columns that came in with it. Open it to see its spectra and its data columns, and the spectra made from them; columns typed into the worksheet are under <em>Typed in the worksheet</em>."],["Graphs","Every graph, closed ones too, marked <em>hidden</em> with a crossed-out eye; the one in front is in bold. A tooltip lists what each shows."],["Trend graphs","From the "+DA("batch","Batch window")+"."]])}
 <h2 id="use">Using it</h2>
@@ -16531,6 +16607,7 @@ ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move between boxes"],[K(
 <p>Columns are lettered A, B, C… and each has a role, shown after its letter: <strong>(X)</strong>, <strong>(Y)</strong>, <strong>(yEr±)</strong> for error bars (or <strong>(yEr+)</strong>, <strong>(yEr−)</strong>, <strong>(xEr±)</strong>…: ${DA("errbars","Error bars")}), or <strong>(—)</strong> for data that is not a spectrum, kept for formulas. A Y column is plotted against the nearest X column to its left, so spectra measured on different axes each keep their own X. Every Y column is a ${DA("spectra","spectrum")}.</p>
 <p>Click a column's header arrow, or right-click its letter, for its menu: its role, whose error bars it holds, analyse it, plot it, move it, align its values, fill it, show or hide it, set its values by a formula, sort by it, delete it. <em>Plot</em> on the bar above the grid plots the selected columns, or opens <em>Plot setup</em> when none is selected. ${DA("plotting","Plotting columns")}</p>
 <h2>Label rows</h2>
+<p>Under the letters are <em>Long Name</em> and <em>Units</em>. The <strong>⋯</strong> in the top-left corner shows or hides the others, for this project: Comments, F(x)= and Sparklines. F(x)= shows by itself once a column has a formula, and the formula bar above the grid always shows a computed column's formula.</p>
 ${DL([["Long Name","The column's name, used on the axes and in the legend."],["Units","Written after the name: <code>cm⁻¹</code>, <code>counts</code>."],["Comments","A note that travels with the column."],["F(x)=","A formula that computes the column: click the cell and type. "+DA("formulas","Column formulas")],["Sparklines","A thumbnail of each column."]])}
 <h2>Selecting and editing</h2>
 <p>Click a cell, Shift+click or drag for a range, click a header or row number for a whole column or row, or the corner for everything. The bar above shows the active cell's address and its value, which can be typed over there, as in Excel's formula bar (a computed cell shows its formula); the bar below shows Count, Sum, Average, Min and Max of the selection. What is selected is filled in blue with a dark edge, and the letters and row numbers of the selection are filled too, so you can see what <em>Plot</em> will take. Typing starts an edit; ${K("F2")} or a double-click edits in place. ${DA("keys#k-sheet","All the keys")}</p>
@@ -17311,24 +17388,26 @@ function wireHelp(box){
    windows stack in one column instead.
    ============================================================ */
 const WINS={
-  graph:{title:"Graph", icon:"chart", def:[0,0,.62,1], open:true},
-  flow:{title:"History", icon:"flow", def:[.62,0,.38,.58], open:true},
-  sheet:{title:"Worksheet", icon:"table", def:[.62,.58,.38,.42], open:true},
-  fit:{title:"Fit", icon:"peak", def:[.58,0,.42,1], open:false},
-  peaks:{title:"Peaks", icon:"tag", def:[.6,.03,.4,.94], open:false},
-  integ:{title:"Integrate", icon:"area", def:[.52,.03,.48,.94], open:false},
-  over:{title:"Overview", icon:"info", def:[.5,.04,.5,.92], open:false},
-  help:{title:"Help", icon:"help", def:[.54,.03,.46,.94], open:false},
-  res:{title:"Results", icon:"table", def:[0,.6,.62,.4], open:false},
+  graph:{title:"Graph", icon:"chart", def:[.44,0,.56,1], open:true},
+  flow:{title:"History", icon:"flow", def:[.5,0,.5,1], open:false, dock:true},
+  sheet:{title:"Worksheet", icon:"table", def:[0,0,.44,1], open:true},
+  fit:{title:"Fit", icon:"peak", def:[.58,0,.42,1], open:false, dock:true},
+  peaks:{title:"Peaks", icon:"tag", def:[.6,.03,.4,.94], open:false, dock:true},
+  integ:{title:"Integrate", icon:"area", def:[.52,.03,.48,.94], open:false, dock:true},
+  over:{title:"Overview", icon:"info", def:[.5,.04,.5,.92], open:false, dock:true},
+  help:{title:"Help", icon:"help", def:[.54,.03,.46,.94], open:false, dock:true},
+  res:{title:"Results", icon:"table", def:[0,.6,.62,.4], open:false, dock:true},
   batch:{title:"Batch", icon:"sigma", def:[.18,.04,.64,.9], open:false},
-  disc:{title:"Discussion", icon:"comment", def:[.64,.3,.36,.7], open:false},
+  disc:{title:"Discussion", icon:"comment", def:[.64,.3,.36,.7], open:false, dock:true},
   py:{title:"Python", icon:"code", def:[.2,.06,.56,.86], open:false},
-  stats:{title:"Statistics", icon:"sigma", def:[.2,.14,.5,.62], open:false},
-  tool:{title:"Tool", icon:"wand", def:[.62,.04,.36,.8], open:false, transient:true}
+  stats:{title:"Statistics", icon:"sigma", def:[.2,.14,.5,.62], open:false, dock:true},
+  tool:{title:"Tool", icon:"wand", def:[.62,.04,.36,.8], open:false, transient:true, dock:true}
 };
 const WIN_ORDER=["graph","sheet","flow","over","peaks","integ","fit","res","batch","stats","py","disc"];
-const LAYOUT={v:2, wins:{}, z:10};
-function winState(id){ if(!LAYOUT.wins[id]) LAYOUT.wins[id]={g:WINS[id].def.slice(), open:!!WINS[id].open, max:false, z:++LAYOUT.z}; return LAYOUT.wins[id]; }
+// Version 3: the worksheet and the graph side by side, tool windows in the dock. An
+// older arrangement (a graph, History and a small worksheet) is not brought back.
+const LAYOUT={v:3, wins:{}, z:10, dockOrder:[]};
+function winState(id){ if(!LAYOUT.wins[id]) LAYOUT.wins[id]={g:WINS[id].def.slice(), open:!!WINS[id].open, max:false, z:++LAYOUT.z, dock:!!WINS[id].dock}; return LAYOUT.wins[id]; }
 /* A layout read back from storage (another version, a hand edit, a bug) is
    checked before it is used: a window placed at NaN, or 10^11 pixels tall,
    is put back where it starts, and it can never again be out of reach. */
@@ -17336,11 +17415,15 @@ function saneWin(st,def){
   const g=Array.isArray(st.g)?st.g.slice(0,4).map(Number):[];
   const okG=g.length===4&&g.every(Number.isFinite)&&g[2]>0.02&&g[3]>0.02&&g[2]<=1.5&&g[3]<=1.5&&g[0]>-1&&g[0]<1&&g[1]>=-0.05&&g[1]<1;
   st.g=okG?[g[0],Math.max(0,g[1]),Math.min(1,g[2]),Math.min(1,g[3])]:def.slice();
-  st.open=!!st.open; st.min=!st.open&&!!st.min; st.max=!!st.max; st.z=Number.isFinite(+st.z)?Math.max(0,Math.min(1e6,Math.round(+st.z))):0;
+  st.open=!!st.open; st.min=!st.open&&!!st.min; st.max=!!st.max; st.dock=!!st.dock; st.z=Number.isFinite(+st.z)?Math.max(0,Math.min(1e6,Math.round(+st.z))):0;
   return st; }
 function loadLayout(){
-  try{ const o=JSON.parse(localStorage.getItem("kurve.layout")||"{}"); if(o&&o.v===2&&o.wins&&typeof o.wins==="object") Object.assign(LAYOUT,o); }catch(e){}
+  try{ const o=JSON.parse(localStorage.getItem("kurve.layout")||"{}"); if(o&&o.v===3&&o.wins&&typeof o.wins==="object") Object.assign(LAYOUT,o); }catch(e){}
   if(!Number.isFinite(+LAYOUT.z)||LAYOUT.z>1e6) LAYOUT.z=10;
+  if(!Array.isArray(LAYOUT.dockOrder)) LAYOUT.dockOrder=[];
+  LAYOUT.dockOrder=LAYOUT.dockOrder.filter(k=>typeof k==="string").slice(0,40);
+  if(!(Number.isFinite(+LAYOUT.dockW)&&+LAYOUT.dockW>=240&&+LAYOUT.dockW<=4000)) delete LAYOUT.dockW;
+  LAYOUT.dockPin=!!LAYOUT.dockPin;
   Object.keys(LAYOUT.wins).forEach(k=>{ const st=LAYOUT.wins[k]; if(!st||typeof st!=="object"){ delete LAYOUT.wins[k]; return; } saneWin(st,WINS[k]?WINS[k].def:[0.1,0.1,0.5,0.5]); LAYOUT.z=Math.max(LAYOUT.z,st.z); });
   Object.keys(WINS).forEach(winState); LAYOUT.wins.tool.open=false;
   applyWins();
@@ -17369,22 +17452,106 @@ function restoreGraphLayout(){
 }
 const isNarrow=()=>window.innerWidth<=860;
 const winOpen=id=>!!(LAYOUT.wins[id]&&LAYOUT.wins[id].open);
-function deskSize(){ const d=$("#desk"), tb=$("#taskbar"); return {W:d.clientWidth, H:Math.max(120,d.clientHeight-(tb?tb.offsetHeight:0))}; }
+/* The dock (UX_SPEC 3.2): the tool windows (Fit, Results, Peaks, Integrate,
+   History, Statistics, the processing tools, Help…) open as tabs in one column at
+   the desk's right, one shown at a time. Beside the documents (graphs, the
+   worksheet) when there is room for them, which then share what is left; a
+   drawer over them on a smaller screen, with a pin to put it beside them. A tab
+   dragged out, or a window's title bar, floats it; its button docks it again. */
+const isDocked=id=>!!(WINS[id]&&!isDoc(id)&&LAYOUT.wins[id]&&LAYOUT.wins[id].dock);
+function dockIds(){ if(isNarrow()) return [];
+  const o=(LAYOUT.dockOrder||[]).filter(id=>WINS[id]&&winOpen(id)&&isDocked(id));
+  Object.keys(WINS).forEach(id=>{ if(winOpen(id)&&isDocked(id)&&!o.includes(id)) o.push(id); }); return o; }
+const dockDefW=()=>{ const v=window.innerWidth; return v<1320?360:v<1700?380:420; };
+function dockGeo(){
+  const d=$("#desk"), tb=$("#taskbar"), W=d?d.clientWidth:0, H=d?Math.max(120,d.clientHeight-(tb?tb.offsetHeight:0)):0, ids=dockIds(), on=ids.length>0;
+  let dw=on?Math.round(Math.max(300,Math.min(W-200,+LAYOUT.dockW||dockDefW()))):0;
+  // Beside the documents while they keep a graph of 480 px and a worksheet of 300;
+  // otherwise over them, unless pinned (and then they keep 300 px at least).
+  const drawer=on&&!LAYOUT.dockPin&&(window.innerWidth<=1100||W-dw<780);
+  if(on&&!drawer) dw=Math.max(240,Math.min(dw,W-300));
+  return {W,H,ids,on,dw,drawer,docsW:on&&!drawer?W-dw:W}; }
+// The part of the desk the documents and floating windows share.
+function deskSize(){ const g=dockGeo(); return {W:Math.max(1,g.docsW), H:g.H}; }
+function dockRemember(id){ const o=LAYOUT.dockOrder=(LAYOUT.dockOrder||[]).filter(k=>k!==id); if(isDocked(id)) o.push(id); }
+function dockForget(id){ LAYOUT.dockOrder=(LAYOUT.dockOrder||[]).filter(k=>k!==id); }
+// Out of the dock, to float where the pointer is (cx, cy), at the dock's width.
+function undockAt(id,cx,cy){
+  const st=winState(id), was=dockGeo(); st.dock=false; st.max=false; dockForget(id); applyWins();
+  const {W,H}=deskSize(), d=$("#desk").getBoundingClientRect(), w=Math.min(0.9,Math.max(300,was.dw)/W), h=Math.min(0.92,0.8);
+  st.g=[Math.max(0,Math.min(1-w,(cx-d.left-80)/W)),Math.max(0,Math.min(1-0.1,(cy-d.top-14)/H)),w,h]; st.z=++LAYOUT.z;
+  applyWins(); saveLayout(); }
+function setDocked(id,on){ const st=winState(id); if(isDoc(id)||!!st.dock===!!on) return;
+  if(!on){ const r=$("#w-"+id).getBoundingClientRect(); undockAt(id,r.left+80,r.top+14); return; }
+  st.dock=true; st.max=false; st.z=++LAYOUT.z; dockRemember(id); applyWins(); saveLayout(); }
+function renderDock(dg,dfront){
+  const bar=$("#dockBar"), edge=$("#dockEdge"); if(!bar) return;
+  const show=dg.on&&!isNarrow()&&!(dfront&&winState(dfront).max);
+  bar.hidden=!show; if(edge) edge.hidden=!show||dg.drawer;
+  if(!show){ bar._sig=""; return; }
+  const x=dg.W-dg.dw, z=dg.drawer?"8001":"3";
+  bar.style.left=x+"px"; bar.style.width=dg.dw+"px"; bar.style.zIndex=z; bar.classList.toggle("drawer",dg.drawer);
+  if(edge){ edge.style.left=x+"px"; edge.style.height=dg.H+"px"; edge.style.zIndex=String(Math.min(7999,dg.ez||4)); }
+  const title=id=>{ const h=document.querySelector(`#w-${id} .win-t`); return (h&&h.textContent.trim())||WINS[id].title; };
+  const sig=JSON.stringify([dg.ids.map(title),dfront,dg.drawer,!!LAYOUT.dockPin]);
+  if(bar._sig===sig) return; bar._sig=sig;
+  bar.innerHTML=dg.ids.map(id=>{ const on=id===dfront, t=title(id);
+    return `<div class="dtab${on?" on":""}" role="tab" aria-selected="${on}" tabindex="${on?0:-1}" data-dtab="${id}" title="${esc(t)}: drag it out to float it; double-click to give it the desk">${ICON(WINS[id].icon,"sm")}<span>${esc(t)}</span><button type="button" class="dx" data-dclose="${id}" tabindex="-1" aria-label="Close ${esc(t)}" title="Close">${ICON("x","sm")}</button></div>`; }).join("")
+    +`<span class="sp"></span>`
+    +(dg.drawer||LAYOUT.dockPin?`<button type="button" class="tb sm icon" data-dpin aria-pressed="${!!LAYOUT.dockPin}" title="${LAYOUT.dockPin?"Let the dock lie over the windows again":"Put the dock beside the windows, which then share the rest"}" aria-label="Pin the dock beside the windows">${ICON("pin","sm")}</button>`:"")
+    +(dg.drawer?`<button type="button" class="tb sm icon" data-dhide title="Put the dock away: its windows wait in the taskbar" aria-label="Put the dock away">${ICON("chevr","sm")}</button>`:""); }
+function wireDock(){
+  const bar=$("#dockBar"), edge=$("#dockEdge"); if(!bar) return;
+  bar.addEventListener("click",e=>{
+    const x=e.target.closest("[data-dclose]"); if(x){ closeWin(x.dataset.dclose); return; }
+    if(e.target.closest("[data-dpin]")){ LAYOUT.dockPin=!LAYOUT.dockPin; applyWins(); saveLayout(); return; }
+    if(e.target.closest("[data-dhide]")){ dockIds().forEach(id=>minimiseWin(id)); return; }
+    const tb=e.target.closest("[data-dtab]"); if(tb) focusWin(tb.dataset.dtab); });
+  bar.addEventListener("dblclick",e=>{ const tb=e.target.closest("[data-dtab]"); if(tb&&!e.target.closest("button")) toggleMax(tb.dataset.dtab); });
+  bar.addEventListener("keydown",e=>{ const tb=e.target.closest("[data-dtab]"); if(!tb) return; const all=[...bar.querySelectorAll("[data-dtab]")], i=all.indexOf(tb);
+    if(e.key==="ArrowRight"||e.key==="ArrowLeft"){ e.preventDefault(); const n=all[(i+(e.key==="ArrowRight"?1:-1)+all.length)%all.length]; focusWin(n.dataset.dtab); const f=bar.querySelector(`[data-dtab="${n.dataset.dtab}"]`); if(f) f.focus(); }
+    else if(e.key==="Delete"){ e.preventDefault(); closeWin(tb.dataset.dtab); } });
+  // A tab dragged out of the bar floats its window, which follows the pointer until let go.
+  bar.addEventListener("pointerdown",e=>{ const tb=e.target.closest("[data-dtab]"); if(!tb||e.button!==0||e.target.closest("button")) return;
+    const id=tb.dataset.dtab, x0=e.clientX, y0=e.clientY; let out=false, W=1, H=1, g0=null, gx=0, gy=0;
+    const mv=ev=>{ if(!out){ if(Math.hypot(ev.clientX-x0,ev.clientY-y0)<24) return; out=true; undockAt(id,ev.clientX,ev.clientY); ({W,H}=deskSize()); g0=winState(id).g.slice(); gx=ev.clientX; gy=ev.clientY; return; }
+      const st=winState(id); st.g[0]=Math.min(1-80/W,Math.max(-g0[2]+80/W,g0[0]+(ev.clientX-gx)/W)); st.g[1]=Math.min(1-32/H,Math.max(0,g0[1]+(ev.clientY-gy)/H)); applyWins(); };
+    const up=()=>{ removeEventListener("pointermove",mv); removeEventListener("pointerup",up); removeEventListener("pointercancel",up); if(out) saveLayout(); };
+    addEventListener("pointermove",mv); addEventListener("pointerup",up); addEventListener("pointercancel",up); });
+  // Its left edge sets the dock's width.
+  if(edge){ edge.addEventListener("pointerdown",e=>{ if(e.button!==0) return; e.preventDefault(); edge.setPointerCapture(e.pointerId); const x0=e.clientX, w0=dockGeo().dw;
+      const mv=ev=>{ LAYOUT.dockW=Math.round(Math.max(300,w0-(ev.clientX-x0))); applyWins(); };
+      const up=()=>{ edge.removeEventListener("pointermove",mv); edge.removeEventListener("pointerup",up); edge.removeEventListener("pointercancel",up); saveLayout(); };
+      edge.addEventListener("pointermove",mv); edge.addEventListener("pointerup",up); edge.addEventListener("pointercancel",up); });
+    edge.addEventListener("keydown",e=>{ if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight") return; e.preventDefault(); LAYOUT.dockW=Math.max(300,dockGeo().dw+(e.key==="ArrowLeft"?16:-16)); applyWins(); saveLayout(); }); }
+}
 function applyWins(){
   const desk=$("#desk"); if(!desk) return;
-  const {W,H}=deskSize(), narrow=isNarrow();
+  const dg=dockGeo(), H=dg.H, W=Math.max(1,dg.docsW), narrow=isNarrow(), TABH=30;
+  // The dock shows one tool window, the one brought forward last.
+  const dfront=dg.ids.slice().sort((a,b)=>winState(b).z-winState(a).z)[0]||null;
   let front=null;
+  // The dock's edge lies over whatever window it touches, so it can be held.
+  const ex=dg.W-dg.dw; dg.ez=4;
   Object.keys(WINS).forEach(id=>{ const el=$("#w-"+id), st=winState(id); if(!el) return;
-    el.hidden=!st.open;
-    if(st.open&&(!front||st.z>winState(front).z)) front=id;
+    const dk=dg.ids.includes(id);
+    el.hidden=!st.open||(dk&&id!==dfront);
+    el.classList.toggle("docked",dk); el.classList.toggle("drawer",dk&&dg.drawer);
+    if(st.open&&!el.hidden&&(!front||st.z>winState(front).z)) front=id;
+    const db=el.querySelector(".win-h [data-wdock]"); if(db){ db.setAttribute("aria-pressed",String(dk)); db.title=dk?"Take it out of the dock (or drag its title bar or its tab)":"Put it in the dock, beside the worksheet and the graph"; db.hidden=narrow; }
     if(narrow){ el.style.left=el.style.top=el.style.width=el.style.height=""; el.style.zIndex=""; el.classList.remove("max"); el.style.order=String(id==="graph"||WINS[id].graph?0:id==="tool"?1:WIN_ORDER.indexOf(id)<0?50:WIN_ORDER.indexOf(id)+2); return; }
     el.classList.toggle("max",!!st.max);
-    const [x,y,w,h]=st.g;
-    el.style.left=Math.round(x*W)+"px"; el.style.top=Math.round(y*H)+"px";
-    el.style.width=Math.round(Math.max(240,w*W))+"px"; el.style.height=Math.round(Math.max(150,h*H))+"px";
-    el.style.zIndex=String(st.z);
+    let x,y,w,h;
+    // Maximised: the whole desk for a docked window, the documents' part beside the dock for the others.
+    if(st.max){ x=0; y=0; w=dk?dg.W:W; h=H; }
+    else if(dk){ x=dg.W-dg.dw; y=TABH; w=dg.dw; h=H-TABH; }
+    else { const g=st.g; x=Math.round(g[0]*W); y=Math.round(g[1]*H); w=Math.round(Math.max(240,g[2]*W)); h=Math.round(Math.max(150,g[3]*H)); }
+    el.style.left=x+"px"; el.style.top=y+"px"; el.style.width=w+"px"; el.style.height=h+"px";
+    el.style.zIndex=String(dk&&dg.drawer&&!st.max?8000:st.z);
+    if(!el.hidden&&x<=ex+4&&x+w>=ex-4) dg.ez=Math.max(dg.ez,st.z+1);
   });
   document.querySelectorAll(".win").forEach(el=>el.classList.toggle("active",el.dataset.win===front));
+  renderDock(dg,dfront);
   renderTaskbar(); if(multiGraph()) scheduleSnaps(60);
 }
 function focusWin(id){ const st=winState(id); if(st.z<LAYOUT.z){ st.z=++LAYOUT.z; applyWins(); saveLayout(); } }
@@ -17412,11 +17579,12 @@ function minimiseWin(id){ const st=winState(id); if(!st.open) return; closeWin(i
 function openWin(id,opt){
   const st=winState(id), was=st.open;
   st.open=true; st.min=false; st.z=++LAYOUT.z;
+  if(!was) dockRemember(id);
   applyWins(); saveLayout();
   if(!was||(opt&&opt.render)) renderWin(id);
   if(isNarrow()&&!(opt&&opt.quiet)){ const el=$("#w-"+id); if(el) el.scrollIntoView({block:"start",behavior:"smooth"}); }
 }
-function closeWin(id){ const st=winState(id); if(!st.open){ if(st.min){ st.min=false; applyWins(); saveLayout(); } return; } st.open=false; st.min=false; st.max=false;
+function closeWin(id){ const st=winState(id); if(!st.open){ if(st.min){ st.min=false; applyWins(); saveLayout(); } return; } st.open=false; st.min=false; st.max=false; dockForget(id);
   if(id==="tool") cancelTool(true);
   applyWins(); saveLayout();
   // The peak finder's marks belong to the Fit window.
@@ -17446,7 +17614,7 @@ function renderWin(id){
 /* Tile: the graph takes the left three fifths, the others share the rest in
    up to three rows per column. Cascade: stepped, each the same size. */
 function tileWins(){
-  const open=Object.keys(WINS).filter(id=>winOpen(id)&&id!=="tool");
+  const open=Object.keys(WINS).filter(id=>winOpen(id)&&id!=="tool"&&!isDocked(id));
   // Help goes last, so it tiles beside what it explains.
   open.sort((a,b)=>(a==="help")-(b==="help"));
   // The graphs share the left of the desk in a grid as near square as it
@@ -17468,11 +17636,11 @@ function tileWins(){
   applyWins(); saveLayout();
 }
 function cascadeWins(){
-  const open=Object.keys(WINS).filter(id=>winOpen(id)&&id!=="tool").sort((a,b)=>winState(a).z-winState(b).z);
+  const open=Object.keys(WINS).filter(id=>winOpen(id)&&id!=="tool"&&!isDocked(id)).sort((a,b)=>winState(a).z-winState(b).z);
   open.forEach((id,i)=>Object.assign(winState(id),{g:[0.02+i*0.035,0.03+i*0.05,0.6,0.7],max:false,z:++LAYOUT.z}));
   applyWins(); saveLayout();
 }
-function resetWins(){ LAYOUT.wins={}; Object.keys(WINS).forEach(id=>{ winState(id).min=false; }); applyWins(); saveLayout(); Object.keys(WINS).forEach(id=>{ if(winOpen(id)) renderWin(id); }); }
+function resetWins(){ LAYOUT.wins={}; LAYOUT.dockOrder=[]; delete LAYOUT.dockW; LAYOUT.dockPin=false; Object.keys(WINS).forEach(id=>{ winState(id).min=false; }); applyWins(); saveLayout(); Object.keys(WINS).forEach(id=>{ if(winOpen(id)) renderWin(id); }); }
 function renderTaskbar(){
   const tb=$("#taskbar"); if(!tb) return;
   // The graph's Python button comes with the Python window, which opens without a full redraw.
@@ -17524,6 +17692,7 @@ function setupWins(){
     const mb=e.target.closest("[data-tk-more]"); if(mb){ toggleMenu(mb,()=>(S.tkMore||[]).map(winItem),{label:"More windows"}); return; }
     const a=e.target.closest("[data-tk-act]"); if(a) (a.dataset.tkAct==="tile"?tileWins:cascadeWins)(); });
   new ResizeObserver(()=>applyWins()).observe(desk);
+  wireDock();
 }
 /* A window's title-bar buttons, moving, resizing and bringing to the front.
    A graph window also has its options (⋯), and a click anywhere on it makes
@@ -17546,6 +17715,7 @@ function wireWin(el){
       const gm=h.querySelector("[data-gmenu]"); gm.onclick=()=>toggleMenu(gm,()=>graphWinItems(graphOfWin(id)),{label:"Graph options"});
       const snap=el.querySelector(".gsnap"); if(snap){ snap.tabIndex=0; snap.setAttribute("role","button"); snap.setAttribute("aria-label","Work on this graph");
         snap.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); activateGraph(graphOfWin(id)); } }); } }
+    if(!isDoc(id)) h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-wdock aria-pressed="false" title="Put it in the dock" aria-label="Dock the ${esc(WINS[id].title)} window">${ICON("dock","sm")}</button>`);
     if(id!=="help") h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-whelp title="Help on this window (F1)" aria-label="Help on the ${esc(WINS[id].title)} window">${ICON("help","sm")}</button>`);
     h.insertAdjacentHTML("beforeend",`${id==="help"||WINS[id].transient?"":`<button class="tb sm icon" data-wmin title="Minimise: off the desk; its button stays in the taskbar" aria-label="Minimise the ${esc(WINS[id].title)} window">${ICON("min","sm")}</button>`}<button class="tb sm icon" data-wmax title="Maximise or restore (double-click the title bar)" aria-label="Maximise the ${esc(WINS[id].title)} window">${ICON("max","sm")}</button>${keepsBtn(id)&&!graphOfWin(id)?"":`<button class="tb sm icon" data-wclose title="${graphOfWin(id)?"Close the graph: off the desk and out of the taskbar, kept in the project; Window › Graphs opens it again":"Close: off the desk and out of the taskbar; its menu opens it again"}" aria-label="Close the ${esc(WINS[id].title)} window">${ICON("x","sm")}</button>`}`);
     ["e","s","se","w"].forEach(k=>el.insertAdjacentHTML("beforeend",`<div class="win-rz ${k}" data-rz="${k}" aria-hidden="true"></div>`));
@@ -17555,6 +17725,7 @@ function wireWin(el){
     const wmn=h.querySelector("[data-wmin]"); if(wmn) wmn.onclick=()=>minimiseWin(id);
     const wcl=h.querySelector("[data-wclose]"); if(wcl) wcl.onclick=()=>{ const g=graphOfWin(id); if(g&&P()) closeGraph(g); else closeWin(id); };
     const hb=h.querySelector("[data-whelp]"); if(hb) hb.onclick=()=>openHelp(helpFor(id));
+    const dkb=h.querySelector("[data-wdock]"); if(dkb) dkb.onclick=()=>setDocked(id,!isDocked(id));
     h.querySelector("[data-wmax]").onclick=()=>toggleMax(id);
     h.addEventListener("dblclick",e=>{ if(!e.target.closest("button")) toggleMax(id); });
     // Move by the title bar.
@@ -17562,8 +17733,11 @@ function wireWin(el){
       if(e.button!==0||e.target.closest("button,select,input")||isNarrow()) return;
       const st=winState(id); if(st.max) return;
       e.preventDefault(); h.setPointerCapture(e.pointerId);
-      const {W,H}=deskSize(), g0=st.g.slice(), x0=e.clientX, y0=e.clientY;
-      const mv=ev=>{ const nx=g0[0]+(ev.clientX-x0)/W, ny=g0[1]+(ev.clientY-y0)/H;
+      let {W,H}=deskSize(), g0=st.g.slice(), x0=e.clientX, y0=e.clientY, docked=isDocked(id);
+      const mv=ev=>{
+        // A docked window held by its title bar comes out of the dock once it is pulled.
+        if(docked){ if(Math.hypot(ev.clientX-x0,ev.clientY-y0)<16) return; docked=false; undockAt(id,ev.clientX,ev.clientY); ({W,H}=deskSize()); g0=st.g.slice(); x0=ev.clientX; y0=ev.clientY; return; }
+        const nx=g0[0]+(ev.clientX-x0)/W, ny=g0[1]+(ev.clientY-y0)/H;
         st.g[0]=Math.min(1-80/W,Math.max(-g0[2]+80/W,nx)); st.g[1]=Math.min(1-32/H,Math.max(0,ny)); applyWins(); };
       const up=()=>{ h.removeEventListener("pointermove",mv); h.removeEventListener("pointerup",up); h.removeEventListener("pointercancel",up); saveLayout(); };
       h.addEventListener("pointermove",mv); h.addEventListener("pointerup",up); h.addEventListener("pointercancel",up);
@@ -18744,8 +18918,15 @@ function newGraphFrom(ids,opt){
 }
 function splitInto(from,to){ const a=winState(from), b=winState(to);
   if(isNarrow()||!a.open||a.max){ b.z=++LAYOUT.z; applyWins(); saveLayout(); return; }
-  const [x,y,w,h]=a.g, {W,H}=deskSize();
-  if(w*W>=h*H*1.1){ a.g=[x,y,w/2,h]; b.g=[x+w/2,y,w/2,h]; } else { a.g=[x,y,w,h/2]; b.g=[x,y+h/2,w,h/2]; }
+  const [x,y,w,h]=a.g, {W,H}=deskSize(), pw=w*W, ph=h*H;
+  // The worksheet keeps 300 px beside a graph of 480 when there is room for both.
+  if(from==="sheet"&&pw>=780){ const sw=Math.max(300,Math.min(pw*0.44,pw-480))/W; a.g=[x,y,sw,h]; b.g=[x+sw,y,w-sw,h]; }
+  // A graph shares its place side by side, or one above the other, never narrower than
+  // 480 px nor lower than 300; past that the new one takes the place and the old waits in the taskbar.
+  else if(pw/2>=480&&pw>=ph*1.1){ a.g=[x,y,w/2,h]; b.g=[x+w/2,y,w/2,h]; }
+  else if(pw>=480&&ph/2>=300){ a.g=[x,y,w,h/2]; b.g=[x,y+h/2,w,h/2]; }
+  else if(pw/2>=480){ a.g=[x,y,w/2,h]; b.g=[x+w/2,y,w/2,h]; }
+  else { b.g=a.g.slice(); if(from!=="sheet"){ a.open=false; a.min=true; } }
   b.open=true; b.max=false; b.z=++LAYOUT.z; applyWins(); saveLayout(); }
 // Every spectrum on a graph of its own: the main graph keeps the first.
 function onePerSpectrum(){
@@ -18829,7 +19010,8 @@ const winShut=w=>{ const g=graphOfWin(w); return !!g&&(graphShut(g)||!!figOf(g))
 // The first graph's own list of spectra, or null.
 const mainList=p=>{ p=p||P(); const l=p&&p.plot&&p.plot.cols; return Array.isArray(l)?l:null; };
 // Closed with nothing on it: the next plot goes there rather than to a new graph.
-function mainFreeNow(){ const p=P(), l=mainList(p); return !!p&&!!(p.plot||{}).shut&&!!l&&!l.some(k=>{ const c=colById(k); return c&&c.role==="y"; }); }
+// The first graph with nothing on it, open or closed: where the next plot goes.
+function mainFreeNow(){ const p=P(), l=mainList(p); return !!p&&!!l&&!l.some(k=>{ const c=colById(k); return c&&c.role==="y"; }); }
 function setGraphShut(id,on,o){
   o=o||{}; const p=P(); if(!p||S.readOnly||(id!=="main"&&!graphOf(id))||graphShut(id)===!!on) return false;
   if(!o.noUndo) pushUndo((on?"closing ":"opening ")+graphName(id));
@@ -18904,8 +19086,9 @@ function plotCols(cids,o){
 // closed; with nothing plotted yet, the analysed spectrum is plotted.
 function ensureGraph(){ const p=P(), act=activeYCol(); if(!p||!act||S.readOnly) return; const id=S.gid||"main";
   { const f=figOf(id); if(f){ if(graphShut(f.id)){ setGraphShut(f.id,false); openWin(f.id,{quiet:true}); } return; } }
-  if(!graphShut(id)) return;
+  // The first graph with nothing on it (after an import, which plots nothing) takes the active column.
   if(id==="main"&&mainFreeNow()){ plotCols([act.id],{into:"main",undo:"plotting "+specName(act)}); return; }
+  if(!graphShut(id)) return;
   setGraphShut(id,false); openWin(winOfGraph(id),{quiet:true}); }
 // The Plot menu for some columns: a plot type (a new graph, or the first graph
 // when nothing is plotted yet), several spectra in panels, or onto a graph.
@@ -19555,6 +19738,7 @@ function wireStatic(){
   ni.addEventListener("change",e=>{ if(!P()) return; const v=e.target.value.trim().slice(0,80)||"Untitled analysis"; if(v===P().name) return; save({name:v},`renamed the project to "${v}"`); renderTop(); renderTaskbar(); });
   ni.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); ni.blur(); } else if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); ni.value=P()?P().name||"":""; ni.blur(); } });
   $("#importBtn").onclick=pickFile; $("#emptyImport").onclick=pickFile;
+  $("#emptyPlot").onclick=()=>openPlotDlg(wsSelColIds());
   $("#fileIn").addEventListener("change",e=>{ const fs=[...e.target.files]; if(fs.length>1) readFilesIn(fs); else if(fs[0]) readFileIn(fs[0]); e.target.value=""; });
   $("#addColBtn").onclick=addColumn;
   // With columns to plot selected, the quick list (and Plot setup… at its top); with none, the dialog.

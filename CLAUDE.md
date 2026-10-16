@@ -18,7 +18,8 @@ shared project only), show-all, and the Reverse X / Log Y / Grid toggles, off un
 in stages while it would wrap and last the Explorer's switch (not on a phone), `fitToolbar`); the **Project Explorer** docked at the desk's left
 (the project as a tree, as Origin's: folders and subfolders of your own, the worksheet, each file
 imported with its spectra and data columns, every graph, closed ones marked hidden, and the trend
-graphs; Alt+1 or the toolbar's first button shows it, its edge drags; below 1000 px a drawer);
+graphs; Alt+1 or the toolbar's first button shows it, its edge drags; 220 px wide, and below 1600 px a
+drawer over the desk);
 the **desk**; and a **status bar**
 (tool hint, live cursor readout, point counts, fit state, save state). Window › Theme picks
 light or dark, and Window › Style the look of the interface: **Bench** (the default: IBM Plex,
@@ -46,7 +47,16 @@ a dozen), **Window › Tool windows** every panel ticked while in use (Origin's 
 the others, Close the tool windows, Graphs (every graph, Combine graphs…, A figure of panels…, the linked
 zoom), and Theme and Style as submenus. Every title bar has a **?** that opens
 the window's article in the **Help window** (F1 does it for the window in front; a tool's
-opens its step's article). A first visit opens Graph, History and Worksheet. A project can
+opens its step's article). The **dock** (UX_SPEC §3.2) is a column at the desk's right where the
+tool windows open as tabs (Fit, Results, Peaks, Integrate, History, Statistics, the Overview,
+Help, Discussion, the processing tools; Batch and Python float), one shown at a time; the
+documents share what is left, and get it back when it empties. Its left edge sets its width
+(360 px below 1320, 380 below 1700, 420 above); a tab double-clicked takes the whole desk,
+dragged out floats (as does the title bar), and the title bar's dock button docks it again.
+Below 1100 px, or when a 480 px graph and a 300 px worksheet would not fit beside it, it is a
+drawer over the documents, with a pin and a button that puts it away. A first visit opens the
+Worksheet (44 %) and the Graph (56 %) side by side, and nothing else; History opens in the dock
+with a column's first processing step. A project can
 have **several graphs**, each in its own window (Plot › New graph: with the analysed
 spectrum, with every spectrum, or one for each spectrum, tiled): the one clicked is worked on
 (it is drawn live, its spectrum is analysed and every window follows), the others show a
@@ -440,7 +450,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `impXFor`, or the row number), Y and error. Error columns are `e` (±), `e+`, `e-` and `xe`
   (`impIsErr`; `impUseDefault` reads the kind from the name: `x err`, `dx`, a `+` or `−` at
   the end). `impGraphs(p, ids, how, fresh)` decides the graphs before the save (`how` is
-  `none` from the dialog: fresh, the first graph is closed and empty, `shut`, `cols:[]`).
+  `none` from the dialog: fresh, the first graph is left open and empty, `cols:[]`, and says
+  "Nothing plotted yet" with a Plot setup… button, `#emptyPlot`, instead of Import).
   `impBuild` makes the columns in the file's order (an X of row numbers when none is X; the
   fixes as steps on every spectrum; √N columns), `doImport` puts them in a new project, beside
   the project's (the first X shared with the last X column when `sameAxis`), or in place of
@@ -507,7 +518,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
   window: empty "phantom" columns and rows fill the rest, and typing into one makes a column.
   Under the letters come Long Name, Units, Comments and F(x)= (rows -4 … -1, `WS_LABS`,
-  `WS_TOP`, typed into like any cell) and a Sparklines row.
+  `WS_TOP`, typed into like any cell) and a Sparklines row; only Long Name and Units show
+  unless the corner's ⋯ (`[data-wsrows]`, `wsRowsMenu`) shows the others, per project and
+  browser (`wsRowsPref`/`wsRowsSet`, `kurve.wsrows`); F(x)= shows itself when a column has a
+  formula (`wsAnyFx`), and `wsLabShown`, `wsLabRows`, `wsLabSnap` keep the selection off the
+  hidden ones. Rows are 22 px. A value typed into a cell that starts with `=` (`=log10(B1)`,
+  as in a spreadsheet) moves to the column's F(x)= row, still being typed (`wsCommit` →
+  `wsEditFormula(ci, init)`), with a toast that a letter is the whole column.
   **Formulas** (the F(x)= row, or "Set column values…" in the column and cell menus): a
   column computed row by row from others, `c.fx = {src, refs}`: the formula as typed and the
   column id each letter meant, so inserting or deleting a column never makes it read the
@@ -604,7 +621,8 @@ graph first, with the taskbar kept at the bottom of the screen.
 - **Pending step**: a tool dialog previews its step as `S.pending` (`{col, at, step, all}`).
   `pipeSteps(c)` puts it into the spectrum's steps for `pipeOf`, so the graph, the History and
   every check see it, but it is not in the document: `applyTool` splices it into `c.pipe`
-  (and onto every spectrum if `all`), `cancelTool` drops it. `stepById`, `colOfStep`,
+  (and onto every spectrum if `all`; a spectrum's first step opens History in the dock),
+  `cancelTool` drops it. `stepById`, `colOfStep`,
   `stageOfStep` and `inputOfStep` look steps up by id in any spectrum, pending included, and
   `procWarnings` and the report skip the pending one. A project switch drops it.
 - **Stages**: `S.stage` is the stage the graph shows (`null` = final, 0 = raw, k = after step k,
@@ -617,9 +635,20 @@ graph first, with the taskbar kept at the bottom of the screen.
   shifts; the fit's view is `curView()`, the drawn one is `S.geo.v`.
 - **Windows** (`WINS`, `LAYOUT`): each window is `section.win#w-<id>` with a `.win-h` title bar
   and a `.win-b` body; `LAYOUT.wins[id]` keeps `{g: [x, y, w, h] as fractions of the desk,
-  open, max, z}`, saved per browser under `kurve.layout` (version 2; an older layout is
-  ignored; every window state read back goes through `saneWin`, so NaN or absurd sizes put the
-  window back where it starts). A window is open, minimised (`min`, its taskbar button kept;
+  open, max, z, dock}`, saved per browser under `kurve.layout` (version 3, with `dockOrder`,
+  `dockW` and `dockPin`; an older layout is ignored; every window state read back goes through
+  `saneWin`, so NaN or absurd sizes put the window back where it starts). **The dock**: a
+  window's `dock` (its default `WINS[id].dock`) puts it there while open (`isDocked`,
+  `dockIds` in `dockOrder`, `dockRemember`/`dockForget` on opening and closing); `dockGeo()`
+  is `{W, H, ids, on, dw, drawer, docsW}`, `deskSize()` the documents' part, which every
+  fraction of a floating window is of; `applyWins` shows the docked window in front (highest
+  `z`) below `#dockBar` and hides the others, a drawer's at z 8000, and `renderDock` draws the
+  tabs (`[data-dtab]`, `[data-dclose]`, `[data-dpin]`, `[data-dhide]`) and puts `#dockEdge`
+  over whatever window it touches; `wireDock` (tabs, keys, drag out, the edge), `undockAt`,
+  `setDocked` (the title bar's `[data-wdock]`; a title-bar drag of 16 px undocks). Tile and
+  Cascade leave the dock alone. `splitInto` gives a new graph its place: beside the worksheet
+  (which keeps 300 to 44 %), else side by side, else stacked, never narrower than 480 px;
+  else it takes the old graph's place and the old one is minimised. A window is open, minimised (`min`, its taskbar button kept;
   `minimiseWin`, the title bar's –, a click on the front window's button, tiling that leaves
   windows out) or closed (`closeWin`, the ×, a Done button: out of the taskbar). Documents
   (`isDoc`: graphs, the worksheet, trend graphs; `docWinIds`) keep their buttons
@@ -668,7 +697,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   tree (`text/x-kurve-node`, `S.xdrag`; a drag counts only when its `dataTransfer` carries that
   type, since the row dragged can be redrawn away before its `dragend`) onto folders, and a
   spectrum, data column or file onto a graph window (plotted there); the splitter; Alt+1.
-  `XPL` (`kurve.xpl`: shown, width 180–520) per browser; below 1000 px (`xplDrawer`) it is a
+  `XPL` (`kurve.xpl`: shown, width 180–520, 220 by default) per browser; below 1600 px (`xplDrawer`) it is a
   drawer over the desk (`S.xplNarrow`, under the toolbar, or from the top on a phone), closed by
   opening an item or a press outside, so the windows keep a desk wide enough for them.
 - **Graphs**: `p.graphs` (in `UNDO_KEYS`) is `[{id, name, cols, plot}]`; the first graph,
@@ -700,7 +729,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   columns ticked with All and None and each one's error bars named, Into (a new graph or one
   of the project's), and `plotDlgSketch(st)`; OK is `plotCols` (or `histogramCols`). A
   `type` given to `plotCols` goes to every spectrum it plots, not only the analysed one. `ensureGraph()` (Peaks, Fit, Integrate)
-  opens a shut graph, plotting the analysed spectrum on a free first graph. `GID()` is the graph in hand (`S.gctx` while drawing
+  plots the analysed spectrum on a free first graph (open or shut) and opens a shut graph. `GID()` is the graph in hand (`S.gctx` while drawing
   another, else `S.gid`, the one in front); `GP()`/`plotOf(id)` its settings, and every
   reader of plot settings goes through them; `savePlot(patch, log)` writes them (an extra
   graph's `hidden` becomes its `cols`; its log line is prefixed with the graph's name).
