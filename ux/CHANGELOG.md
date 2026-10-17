@@ -390,3 +390,112 @@ Task re-runs (`tools/ux/tasks.py`, the same paths on the slice-2 file and on thi
   older names, the worksheet's sheets, the History's boxes, the words on screen in 13 windows,
   the renamed tools, every Help article and link, and Help's search for the old word.
 - Slices 2 and 4's drives still pass: 45 of 45 and 41 of 41.
+
+## Slice 5: defaults that fit the data
+
+**What changed** (UX_SPEC §3.7, from the defaults audit in FEATURE_INVENTORY §3). Each default
+now follows the data; a choice made by hand, or kept in an older project, is left alone.
+
+| Default | Before | Now |
+|---|---|---|
+| Plot type | Symbols for the active curve, lines for the others; a line only for an import of over 3000 points or one column | **Automatic**: a line for 500 points or more, or 40 or more in order and evenly spaced; symbols otherwise. One rule for typing, pasting, importing, dropping and plotting. *Automatic* is first in the curve's Plot type, with what it picked; a type chosen there is the curve's own |
+| Residual panel | Under every fit | Under a peak fit, not a curve fit; the Fit window's switch turns it on or off for any fit |
+| Curve fit's model | Gaussian | Suggested from the shape of the points: a straight line, an exponential, a sigmoid or a Gaussian, named under the list with a button to choose it again |
+| Weighting | Said only by the Weight switch | Stated by the Fit button: *Weighted by column C (σ)* or *Unweighted: every point counts the same* (curve and peak fits) |
+| Error bars | The curve's Error bars menu did not say where they came from | Its first line names the column (*From column C (σ)*), or *Carried through the processing* |
+| The fit's range | The graph's zoom, without saying so | **All the data**. A typed range, or *Use the view*, sets it; zooming alone does not. What the fit leaves out is shaded while the Fit window is open. *Fit them…* from the Peaks window takes the set's range |
+| A units row | A last header line of units became the names (Sample A, B, C lost) | Under a line of names it fills the Units row: *Sample A (OD600)* |
+| No X-like column | The first column was X, whatever it held | X is the first column that rises or falls steadily, else the first named as an axis (time, wavelength, concentration…). With neither, every column is a Y against the row number. The same holds for a file, a drop, and a paste into an empty sheet, where the sheet's empty X column moves after the pasted ones |
+| √N error bars | Offered for any column of whole numbers of zero or more | Only for whole numbers named as counts (*counts*, *cts*, *cps*, *events*) or read from a TKA file |
+| The Overview, and *Label the peak at…* on a curve | After every import that plots one column; on any curve | Only for data that looks like a spectrum, by the Overview's own measures (50 points or more, in order, evenly spaced, with a band at least five times the noise). Spectroscopy › Overview still opens it for any data |
+| Descriptive statistics | Points, min, max, X at max, mean, SD, median, noise σ, S/N, area, centroid | **n, mean, SD, SE, median, min, max**. *Noise, S/N and area* adds the spectral measures; it starts on for a spectrum and off otherwise. The copied table follows |
+| Examples | Infrared first | The fluorescence decay first (File › Examples, the empty graph, Help). The Raman one-band example stays until slice 7 (R2) |
+| The Y axis's automatic title | The active column's name and unit | The same for one curve. With several overlaid or offset: their name when they share it, else their shared unit, else *Value*. A title typed by hand stays |
+| A figure's Share X | "Share X (automatic for one column)", unticked | Ticked and fixed while the panels will be in one column, a choice again with two or more |
+
+- **The glossary counter** (`tools/ux/terms.py`) now also reads fragments joined to a number,
+  such as `n + " spectra"` or `${n} spectra`. On the slice-3 file it finds 23 more words off the
+  glossary, in toasts, log lines, dialog titles and menu notes. They are fixed, with three in
+  this slice's own new text. A name in code type
+  (`<code>spectra</code>`, Python's API) is skipped.
+- **Removed:** `setViewX`. The Fit window no longer zooms the graph.
+
+**Findings it answers:**
+- **FEATURE_INVENTORY §3, the defaults audit:** each row above is one of its lines. The
+  wrong-for-most-users defaults were the plot type, the residual panel, the Gaussian, the
+  hidden fit range, the units row, the first column as X, √N for whole numbers, and the
+  spectral statistics.
+- **Phase 1 T2:** the model list had to be scrolled from Gaussian to Straight line.
+- **Phase 1 T4:** the units row took the place of the names.
+- **Phase 1 T6:** the first pasted group (Control) was made X and left out of the statistics.
+- **Phase 1 T8, and slice 4's one regression:** the Raman spectrum was drawn as dots and had to
+  be made a line by hand.
+
+**Measured effect.** The same probes on the slice-3 file and on this one
+(`measure5.py`, at 1366 × 768):
+
+| Probe | Before | After |
+|---|---|---|
+| 400 evenly spaced points pasted | symbols | line |
+| Six typed points | symbols | symbols |
+| growth_eu.csv's names | h, OD600, OD600, OD600 | Time (h), Sample A (OD600), Sample B (OD600), Sample C (OD600) |
+| Three groups side by side (Control, Placebo, Drug), imported or pasted | X, Y, Y | Y, Y, Y (against the row number) |
+| … groups in the descriptive statistics | 2 of 3 | 3 of 3 |
+| … the Y title | "Placebo" | "Value" |
+| √N offered for a column of ages | yes | no |
+| A decay's curve fit starts from | Gaussian | Exponential decay |
+| Residual panel under that curve fit | on | off |
+| Residual panel under a peak fit (IR example) | on | on |
+| Points fitted after zooming to a third of the IR example | 76 of 201, and the fit said it was out of date | 201 of 201, up to date |
+| The Overview opening by itself after a dropped file: 60 scattered points; a straight line; a band | yes; yes; yes | no; no; yes |
+
+Task re-runs (`tools/ux/tasks.py`, the same paths on the slice-3 file and on this one, at
+1366 × 768; dark counts the same as light). T2 and T6 take the step only while it is still
+needed, as T5 and T8 already did. Logs are `evidence/logs/slices/s5-before-*` and `s5-after-*`.
+
+| Task | Before: clicks · keys · hovers · wrong turns · KLM (+hovers) | After | |
+|---|---|---|---|
+| T1 | 7 · 59 · 1 · 0 · 35.1 s (36.2) | the same | |
+| T2 | 13 · 45 · 2 · 4 · 47.0 s (49.2) | 12 · 41 · 2 · 4 · 43.3 s (45.5) | **better**: Straight line is suggested, no list to scroll |
+| T5 | 5 · 33 · 2 · 0 · 22.5 s (24.7) | the same | |
+| T6 | 19 · 2 · 1 · 1 · 50.9 s (52.0) | 16 · 2 · 0 · 1 · 43.0 s (43.0) | **better**: Control is a Y, no Use as › Y |
+| T8 | 19 · 0 · 2 · 0 · 50.4 s (52.6) | 17 · 0 · 1 · 0 · 45.0 s (46.1) | **better**: the spectrum is a line from the start |
+| T9 | 18 · 4 · 4 · 1 · 48.8 s (53.2) | the same | |
+| T10 | 10 · 4 · 1 · 0 · 28.7 s (29.8) | the same | |
+| T12 | 4 · 1 · 1 · 0 · 10.9 s (12.0) | the same | |
+
+- **No task got worse.**
+- **Slice 4's regression on T8 is gone.** Before slice 4, T8 took 18 clicks, 2 keys and 2
+  hovers. Now it takes 17 clicks, no keys and 1 hover.
+- **T6 still ends "partial".** survey.csv (participant, group, value in rows) is still refused
+  and reshaped by hand. Reading a long table into groups is a feature, so it is outside the
+  freeze.
+
+**Tools, after the slice:**
+- Unit tests:
+  - fit, pipe and tex tests: all pass.
+  - parser test: 148, of which 10 are new (units rows of four kinds, a second line of names that
+    is not units, groups with no X, an unsorted column named as an axis, error columns).
+- contrast-test: 189 of 189.
+- odd-test: 51 of 51.
+- sheet-fuzz, seeds 1 and 2: clean.
+- Duplicate-function check: none.
+- `menucheck.py`: 0 missing, 0 extra. Plot type's *Automatic* was added to `spec/menus-after.txt`.
+- `terms.py`: 0, with the fragment rule.
+- A drive of the slice: 48 of 48. It covered:
+  - the plot type for typed, even and uneven data, and the Plot type menu;
+  - the suggestion for four shapes, and its button;
+  - the residual switch under both kinds of fit;
+  - the weighting line;
+  - the fit's range: all, zoom, Use the view, the shading, out of date, All;
+  - the statistics' columns, switch and copy;
+  - pasted groups;
+  - the units row through the dialog;
+  - the shared-unit title, and a typed title that stays;
+  - √N by name;
+  - the examples' order;
+  - no Overview for five points;
+  - Share X in one and two columns;
+  - an older project's settings.
+- Slices 2, 3 and 4's drives still pass: 45 of 45, 10 of 10, 41 of 41. Slice 4's residual check
+  now asks `residOn`, since "auto" is not `false`.

@@ -6,7 +6,8 @@ Reads kurve.html without running it. Every string and template literal of the ma
 script, and the static markup, is reduced to what a person reads: `${…}` expressions,
 tags and entities go, the values of title, aria-label, placeholder and alt stay.
 What is left counts as prose when it has two words or more and does not look like
-code (a selector, a CSS rule, a key path, an identifier). Each literal is placed in
+code (a selector, a CSS rule, a key path, an identifier), or when it is a fragment of a
+sentence joined to a number or a name (`n + " spectra"`, `${n} spectra`). Each literal is placed in
 a context: the function or the object key (DOCS article, PIPE_OPS op) it is written in.
 
 Spectroscopy contexts (the Spectroscopy menu, its panels and tools, their Help articles)
@@ -50,7 +51,7 @@ TERMS = {
 }
 # Senses of a word the glossary keeps: (term, context regex, text regex around the word).
 SENSE = {
-    "panels (windows)": (re.compile(r"fig|Fig|panel|Panel|unshut|renderGraphHeads|dropText|gDropAt|graphTitle|newGraphItems|deleteFigure|wireWin|syncGraphWins|graphsMenuItems|DOC:(?:panels|graphs|style|export|plotting|keys)"),
+    "panels (windows)": (re.compile(r"fig|Fig|panel|Panel|unshut|renderGraphHeads|dropText|xRows|gDropAt|graphTitle|newGraphItems|deleteFigure|wireWin|syncGraphWins|graphsMenuItems|DOC:(?:panels|graphs|style|export|plotting|keys)"),
                          re.compile(r"residual panel|panel (?:under|of the residuals)|panels? of (?:a|the) figure|stacked panels|Stacked panels|a panel per|panel for each|in panels|panel's|Panels…", re.I)),
 }
 # Words that are spectroscopy's own, allowed in its contexts only.
@@ -172,6 +173,15 @@ def prose(t):
     return True
 
 
+def fragment(t):
+    """A piece of a sentence joined to a number or a name, such as `n + " spectra"` or
+    `${n} spectra, ${m} graphs`: one word, so prose() passes it by, but read on screen."""
+    s = t.replace("⁣", " ")
+    if not re.search(r"[A-Za-z][a-z]{2,}", s) or re.search(r"[{};=<>#\[\]\\/]|\.[a-z]", s):
+        return False
+    return "⁣" in t or bool(re.match(r"^\s+[A-Za-z]|.*[A-Za-z]\s+$", t))
+
+
 # Contexts: the nearest enclosing `function name(`, DOCS article `{id:"…"`, or PIPE_OPS op key.
 FN = [(m.start(), m.group(1)) for m in re.finditer(r"(?:^|\n)\s*(?:async\s+)?function\s+([A-Za-z0-9_]+)\s*\(", src)]
 FN += [(m.start(), m.group(1)) for m in re.finditer(r"(?:^|\n)\s*(?:const|let)\s+([A-Za-z0-9_]+)\s*=\s*(?:\([^)]*\)|[A-Za-z0-9_]+)\s*=>", src)]
@@ -213,8 +223,10 @@ for a, b in script_ranges(src):
     if b - a < 1000:
         continue
     for pos, text, kind in literals(src[a:b], a):
+        if re.fullmatch(r"\s*<code>[^<]*</code>\s*", text):
+            continue  # a name in code type: the API's own (Python's spectra)
         t = readable(text) if "<" in text or "=" in text else text
-        if not prose(t):
+        if not prose(t) and not fragment(t):
             continue
         if src[pos - 3:pos] == "kw:":
             continue  # Help's search words: they keep the old words, so either finds the article

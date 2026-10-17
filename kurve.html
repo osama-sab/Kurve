@@ -493,6 +493,7 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .fbhelp code{font-size:var(--fs-cap)}
 .range{font-size:var(--fs-tab);color:var(--muted);margin:var(--sp-4) 0}
 .err{color:var(--bad);font-size:var(--fs-body);margin:var(--sp-4) 0}
+.sticky .fitwt{flex:1 0 100%;font-size:var(--fs-cap);color:var(--muted)}
 .sticky{position:sticky;bottom:0;z-index:3;background:var(--panel);margin:var(--sp-5) calc(var(--sp-5) * -1) 0;padding:var(--sp-4) var(--sp-5);border-top:1px solid var(--rule);display:flex;gap:var(--sp-3);flex-wrap:wrap}
 .sticky .btn.primary{flex:1 1 auto;min-width:110px;max-width:360px}
 .note{display:flex;gap:var(--sp-4);align-items:flex-start;padding:var(--sp-4) var(--sp-4);border-radius:var(--r);font-size:var(--fs-tab);margin:var(--sp-4) 0;background:var(--panel-2);border:1px solid var(--rule-2);border-left:3px solid var(--faint);color:var(--ink)}
@@ -1728,10 +1729,10 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
                 <div class="row"><button class="btn primary lg" id="emptyImport"><svg class="ic"><use href="#i-upload"/></svg>Import a file…</button><button class="btn primary lg" id="emptyPlot" hidden><svg class="ic"><use href="#i-chart"/></svg>Plot setup…</button></div>
                 <div class="ex"><span class="lab">Or explore with an example</span>
                   <div class="row">
+                    <button class="btn" data-example="decay">Fluorescence decay</button>
                     <button class="btn" data-example="ir">Infrared: overlapping bands</button>
                     <button class="btn" data-example="ps">Raman: raw polystyrene</button>
                     <button class="btn" data-example="raman">Raman: one band</button>
-                    <button class="btn" data-example="decay">Fluorescence decay</button>
                   </div>
                 </div>
               </div>
@@ -3987,7 +3988,7 @@ const PIPE_OPS={
       if(keep.length<2) throw new Error("The columns do not overlap in X.");
       const q=pickPts(d,keep), dropped=d.x.length-keep.length;
       if(keep.length<d.x.length*0.5) warn.push(`Only ${keep.length} of ${d.x.length} points lie inside every column's range.`);
-      return {d:pser(q,q.x,y,p.how==="mean"&&p.err?e:null,q.idx), note:`${p.how==="sum"?"Sum":p.how==="median"?"Median":"Mean"} of ${m} spectra${dropped?`; ${dropped} point${dropped===1?"":"s"} outside their common range dropped`:""}`, warn};
+      return {d:pser(q,q.x,y,p.how==="mean"&&p.err?e:null,q.idx), note:`${p.how==="sum"?"Sum":p.how==="median"?"Median":"Mean"} of ${m} columns${dropped?`; ${dropped} point${dropped===1?"":"s"} outside their common range dropped`:""}`, warn};
     }},
   cumint:{group:"math", rank:8, label:"Cumulative integral", short:"∫ Y dX",
     help:"The running area under the curve, by trapezoids, from the low-X end: the last value is the total area. For a titration, a dose, or the fraction of a band's area below each X.",
@@ -4233,7 +4234,7 @@ function fitStale(f){
   if(f.range){
     const r=usedRange(fitPoints());
     if(r&&(Math.abs(r[0]-f.range[0])>Math.abs(f.range[1]-f.range[0])*1e-6||Math.abs(r[1]-f.range[1])>Math.abs(f.range[1]-f.range[0])*1e-6))
-      return `This fit covered x ${fmt(f.range[0],6)} to ${fmt(f.range[1],6)}; the view now selects ${fmt(r[0],6)} to ${fmt(r[1],6)}.`;
+      return `This fit covered x ${fmt(f.range[0],6)} to ${fmt(f.range[1],6)}; the fit's range is now ${fmt(r[0],6)} to ${fmt(r[1],6)}.`;
   }
   if(f.kind==="composite"&&S.pdraft&&S.pdraft.pid===S.pid){
     const d=S.pdraft;
@@ -4715,6 +4716,15 @@ function splitColName(h){
   const t=String(h||"").trim();
   return {long:t.slice(0,60),unit:guessUnit(t)};
 }
+/* A row of units as people write them under a column's name: "nm", "cm-1", "°C",
+   "counts/s", "a.u.", "OD600", "(s)", or nothing. Every cell must be one, and one at
+   least must be there. */
+const UNIT_BASE="m|s|g|l|L|M|mol|Hz|eV|J|W|V|A|Pa|bar|N|T|K|Ω|Ohm|ohm|rad|sr|Bq|Gy|Sv|cal|min|h|hr|d|counts?|cts|cps|AU|au|mAU|OD|ppm|ppb|deg|°C|°F|°|%|‰|cm⁻¹";
+const UNIT_RE=new RegExp(`^[pnuµμmcdkMGT]?(?:${UNIT_BASE})(?:\\^?[-−⁻]?[0-9¹²³⁰⁴-⁹]+)?(?:\\s*[/·*.]\\s*[pnuµμmcdkMGT]?(?:${UNIT_BASE})(?:\\^?[-−⁻]?[0-9¹²³⁰⁴-⁹]+)?)*$`);
+function isUnitWord(t){ t=String(t||"").trim(); if(!t) return true; if(t.length>24) return false;
+  if(/^[\(\[].{0,20}[\)\]]$/.test(t)) return true;
+  return UNIT_RE.test(t)||/^(a\.?\s?u\.?|arb\.?\s*(units?|u\.?)|1\s*\/\s*[a-zµμ]+|hours?|days?|seconds?|minutes?|years?)$/i.test(t); }
+function isUnitsRow(f){ return f.some(c=>String(c||"").trim()!=="")&&f.every(isUnitWord); }
 function isMonotonic(a){
   let up=0,down=0;
   for(let i=1;i<a.length;i++){ if(a[i]==null||a[i-1]==null) continue; if(a[i]>a[i-1]) up++; else if(a[i]<a[i-1]) down++; }
@@ -4730,11 +4740,19 @@ function detectPaired(cols){
   for(let c=0;c<cols.length;c+=2) if(!isMonotonic(cols[c])) return false;
   return cols.every(c=>c.some(v=>v!=null));
 }
+/* A column named as an axis is named after what was set, not measured: a time, a
+   wavelength, a concentration. Read as X when no column rises or falls steadily. */
+const X_NAME=/^\s*(x|t|time|elapsed|wavelength|wave\s*number|wavenumber|raman\s*shift|shift|energy|binding\s*energy|channel|frequency|freq|temperature|temp|position|distance|depth|angle|2\s*theta|2θ|potential|voltage|field|concentration|conc|dose|date|day|hour|minute|second|cycle|scan|index|row|n)\b/i;
 function detectRoles(header,cols){
   const n=cols.length, roles=new Array(n).fill("y");
   // One column has nothing to be plotted against but its row number (xi -1).
   if(n===1) return {roles,xi:-1};
-  let xi=cols.findIndex(c=>isMonotonic(c)!==0); if(xi<0) xi=0;
+  // X is the first column that rises or falls steadily, else the first named as an
+  // axis; with neither, every column is a Y against its row number (UX_SPEC 3.7):
+  // groups of measurements side by side have no X, and making the first one X lost it.
+  let xi=cols.findIndex(c=>isMonotonic(c)!==0);
+  if(xi<0&&header) xi=header.findIndex((h,i)=>X_NAME.test(String(h||""))&&!/err|error|unc|sigma|σ|\bsd\b/i.test(String(h||""))&&cols[i]&&cols[i].some(v=>v!=null));
+  if(xi<0){ if(header) header.forEach((h,i)=>{ if(/(^|[\s_-])(err|error|sd|std|stdev|sigma|σ|dev|unc|uncertainty)([\s_-]|$)/i.test(String(h))) roles[i]="e"; }); return {roles,xi:-1}; }
   roles[xi]="x";
   if(header) header.forEach((h,i)=>{ if(i!==xi&&/(^|[\s_-])(err|error|sd|std|stdev|sigma|σ|dev|unc|uncertainty)([\s_-]|$)/i.test(String(h))) roles[i]="e"; });
   return {roles,xi};
@@ -4787,6 +4805,15 @@ function analyzeFile(raw,opt){
     else if(ncol===1&&f.length===1&&f[0].trim()!==""&&toNumber(f[0],dec)===null){ headerRow=[f[0].trim().replace(/^"|"$/g,"")]; headerAt=i; }
     break;
   }
+  // A last header line of units ("h;OD600;OD600") under a line of names is the Units
+  // row: each name takes its unit, as "Sample A (OD600)" (UX_SPEC 3.7).
+  let unitsAt=-1;
+  if(headerRow&&headerAt>0&&opt.headerAt==null&&isUnitsRow(headerRow)){
+    for(let i=headerAt-1;i>=0&&i>=headerAt-3;i--){ if(lines[i].trim()==="") continue;
+      const f=splitLine(lines[i],delim).map(s=>s.trim().replace(/^"|"$/g,""));
+      if(f.length===ncol&&f.some(c=>c!==""&&toNumber(c,dec)===null)&&!isUnitsRow(f)){ unitsAt=headerAt;
+        headerRow=f.map((nm,j)=>{ const u=headerRow[j].replace(/^[\(\[]\s*|\s*[\)\]]$/g,""); return u&&!/[\(\[].*[\)\]]\s*$/.test(nm)?(nm?nm+" ("+u+")":u):nm; }); headerAt=i; }
+      break; } }
 
   const rows=[], skipped=[], tk=Array.from({length:ncol},()=>({n:0,date:0,time:0}));
   for(let i=start;i<end;i++){
@@ -4806,7 +4833,7 @@ function analyzeFile(raw,opt){
   if(tka){ meta["Live time"]=tka.live+" s"; meta["Real time"]=tka.real+" s";
     if(tka.real>=tka.live) meta["Dead time"]=(+((1-tka.live/tka.real)*100).toFixed(2))+" %"; }
   return {
-    text,lines,delim,dec,ncol,start,end,headerRow,headerAt,rows,cols,roles,paired,tka,single:ncol===1,tkind,
+    text,lines,delim,dec,ncol,start,end,headerRow,headerAt,unitsAt,rows,cols,roles,paired,tka,single:ncol===1,tkind,
     auto:{delim:auto.delim,dec:auto.dec},
     meta,
     metaLineCount:metaLines.filter(l=>l.trim()!=="").length,
@@ -4997,6 +5024,10 @@ function setErrKind(id,kind){
   const y=colById(c.of);
   save({cols:p.cols,activeY:p.activeY},`used ${c.name||colLetter(c)||"a column"} as the ${errKindName(c).toLowerCase()}${y?` of ${specName(y)}`:""}`); renderAll(); }
 // The column menu's choices of error bars.
+// Where a curve's error bars come from, said at the top of its Error bars menu (UX_SPEC 3.7).
+function errSourceText(c){ const o=errColsOf(c.id), ks=Object.keys(o);
+  if(!ks.length) return "Carried through the processing";
+  return "From "+ks.map(k=>{ const e=o[k]; return "column "+colLetter(e)+(e.name?" ("+e.name+")":"")+(ks.length>1?", "+errKindName(e).toLowerCase():""); }).join("; "); }
 function errKindItems(c,ro){ const cur=errKind(c); return ERR_KINDS.map(([k,l])=>({label:l, radio:true, checked:cur===k, enabled:!ro, run:()=>setErrKind(c.id,k)})); }
 const isDerived=c=>!!(c&&c.src);
 function srcOf(c){ return c&&c.src?colById(c.src):null; }
@@ -5279,7 +5310,7 @@ function renderUndo(){
 function blankProject(name){
   const xc=makeCol("x","",""), yc=Object.assign(makeCol("y","",""),{pipe:[],mask:[]});
   return {v:DOC_V, name:name||"Untitled project", cols:[xc,yc], activeY:yc.id,
-    meta:{}, plot:{style:"scatter", logY:false, grid:false, resid:true}, fit:null, fits:[], raw:{fp:"",hist:[]}, log:[], created:Date.now(), updated:Date.now()};
+    meta:{}, plot:{style:"auto", logY:false, grid:false, resid:"auto"}, fit:null, fits:[], raw:{fp:"",hist:[]}, log:[], created:Date.now(), updated:Date.now()};
 }
 /* This browser's store. Each project has a key of its own (kurve.p.<id>, and
    kurve.c.<id> for its comments), so a save writes only its own project: a
@@ -5456,6 +5487,19 @@ function pointsAll(){ const p=P(); if(!p) return [];
   if(ptsMemo.d!==d||ptsMemo.logY!==logY) ptsMemo={d,logY,val:seriesPoints(d,logY)};
   return ptsMemo.val; }
 // "Counts (counts)" says one thing twice: a unit that is the name is left off.
+/* The Y axis's automatic title (UX_SPEC 3.7): the active column's name and unit; with
+   several columns overlaid or offset on one axis, their name when they share one, else
+   their shared unit ("Value" when none has a unit). A title typed by hand stays. */
+function autoYTitle(d,cols,layout){
+  if(!cols||!cols.length||!(layout==="overlay"||layout==="offset"||!layout)) return axisLabel(d.yn,d.yu,"Y");
+  const ds=[d].concat(cols.map(finalOf)), nm=new Set(ds.map(q=>(q.yn||"").trim())), un=new Set(ds.map(q=>(q.yu||"").trim()));
+  if(nm.size===1) return axisLabel(d.yn,un.size===1?d.yu:"","Y");
+  if(un.size===1) return [...un][0]||"Value";
+  return axisLabel(d.yn,d.yu,"Y"); }
+// The same for the graph in hand, as buildPlot draws it.
+function autoYOf(){ const ps=plotState(), cfg=plotCfg(), act=activeYCol(), d=ps.d;
+  const others=ps.final&&act?yCols().filter(c=>c.id!==act.id&&!cfg.hidden.includes(c.id)&&(finalOf(c).xu||"")===(d.xu||"")):[];
+  return autoYTitle(d,others,cfg.layout); }
 function axisLabel(long,unit,fallback){ const l=(long||"").trim()||fallback, u=(unit||"").trim(); return u&&u.toLowerCase()!==l.toLowerCase()?`${l} (${u})`:l; }
 function hasErr(){ const d=finalOf(activeYCol()); return !!(d.e&&d.e.some(v=>v!=null&&v>0)); }
 // A spectrum's X error bars, and each point's X error (half its bar, in the final X units) for a fit.
@@ -5498,9 +5542,25 @@ function saneRange(a,b,log){
   return [a,b];
 }
 function saneView(v,logX,logY){ const [x0,x1]=saneRange(v.x0,v.x1,logX), [y0,y1]=saneRange(v.y0,v.y1,logY); return Object.assign({},v,{x0,x1,y0,y1}); }
-// The view the fit uses: the zoom, when it was set on data in these X units.
+// The view on the active column's X units: the zoom, when it was set on data in these units.
 function curView(){ const fx=finalOf(activeYCol()).xu||""; return S.view&&(S.view.xu==null||S.view.xu===fx)?S.view:autoView(); }
-function fitRange(){ const v=curView(); return [v.x0,v.x1]; }
+/* The X range the fit (and the Fit window's search for peaks) uses (UX_SPEC 3.7): all
+   the data, unless a range is typed in the Fit window or taken from the graph with Use
+   the view; the zoom alone never changes it. Kept per column in the units it was set in
+   (S.fitRng, by project and column; null is all the data); a column whose fit covered
+   part of its data, on the processing it has now, starts from that part. */
+function fitRngOf(c){ if(!c) return null; const m=S.fitRng||(S.fitRng={}), k=S.pid+":"+c.id, xu=finalOf(c).xu||"";
+  if(Object.prototype.hasOwnProperty.call(m,k)){ const r=m[k]; return r&&r.xu===xu?[r.x0,r.x1]:null; }
+  const f=P()&&P().fit; if(f&&f.onCol===c.id&&f.range&&f.pipeSig===pipeSig(c)){ const [lo,hi]=xExtent(finalOf(c).x);
+    if(lo!=null&&(f.range[0]>lo||f.range[1]<hi)) return [f.range[0],f.range[1]]; }
+  return null; }
+function xExtent(xs){ let lo=Infinity, hi=-Infinity; for(const v of xs){ if(!Number.isFinite(v)) continue; if(v<lo) lo=v; if(v>hi) hi=v; } return lo<=hi?[lo,hi]:[null,null]; }
+function setFitRange(a,b){ const c=activeYCol(); if(!c) return; const m=S.fitRng||(S.fitRng={}), k=S.pid+":"+c.id, d=finalOf(c);
+  if(a==null&&b==null) m[k]=null;
+  else { const [lo,hi]=xExtent(d.x); if(a==null) a=lo; if(b==null) b=hi; m[k]={x0:Math.min(a,b),x1:Math.max(a,b),xu:d.xu||""}; }
+  renderFit(); renderPlot(); renderStatusBar(); }
+function fitRange(){ const r=fitRngOf(activeYCol()); if(r) return [Math.min(r[0],r[1]),Math.max(r[0],r[1])];
+  const [lo,hi]=xExtent(pointsAll().map(q=>q.x)); return lo==null?[0,1]:[lo,hi]; }
 function fitPoints(){ const [a,b]=fitRange(); return pointsAll().filter(q=>q.x>=a&&q.x<=b&&!isMasked(q.i)); }
 
 /* ============================================================
@@ -5602,7 +5662,7 @@ function peakTops(m,params,peaks){
    heat map. On screen the graph can show any stage of the processing;
    exports are always the final data.
    ============================================================ */
-const PLOT_DEF={style:"scatter",logY:false,logX:false,grid:false,gridMinor:false,resid:true,revX:false,hidden:[],layout:"overlay",offset:0.35,legend:"auto",frame:"box",font:1,title:"",cmap:"viridis",series:{},ax:{},
+const PLOT_DEF={style:"auto",logY:false,logX:false,grid:false,gridMinor:false,resid:"auto",revX:false,hidden:[],layout:"overlay",offset:0.35,legend:"auto",frame:"box",font:1,title:"",cmap:"viridis",series:{},ax:{},
   legendText:"ink",legendFrame:true,legendTitle:"",fontFam:"default",fontName:"",titleItalic:true,scheme:"kurve",peakScheme:"warm",peakLab:"num",peakLabRot:false,peakLabDec:null,
   peakLabShow:null,peakLabTpl:"",peakLabErr:false,peakLabUnit:false,peakLabSep:"comma",peakLabPos:"top",peakLabMk:"none",peakLabCol:"peak",peakLabBox:"none",peakLabOff:null,axisMatch:true,annos:[],txt:{}};
 // The settings as drawn: the saved ones, or the Format dialog's while it
@@ -5930,11 +5990,22 @@ const LEGENDS=[["auto","Emptiest corner"],["tr","Top right"],["tl","Top left"],[
 // One spectrum's style: what was set for it, over the defaults (the analysed
 // one in the data colour with the toolbar's plot type, the others as lines in
 // their own tints).
+/* The plot type a curve takes when nobody chose one (UX_SPEC 3.7), one rule for
+   typed, imported and plotted data: a line for many evenly spaced points (a
+   spectrum, a time series), symbols for a few or unevenly spaced ones (a
+   calibration, a scatter of measurements). A graph's own type, or a curve's,
+   is used as before; older projects keep the type they had. */
+const AUTO_TYPE=new WeakMap();
+function autoType(id){ const c=colById(id); if(!c) return "scatter"; const d=finalOf(c); if(!d||!d.x) return "scatter";
+  const hit=AUTO_TYPE.get(d); if(hit) return hit;
+  const xs=d.x.filter(Number.isFinite), n=xs.length; let t="scatter";
+  if(n>=500) t="line"; else if(n>=40){ const sp=spacing(xs); if(sp.sorted&&!sp.none&&sp.uneven<=0.1) t="line"; }
+  AUTO_TYPE.set(d,t); return t; }
 function serStyle(id,active,pal,forExport,cfg){
   const o=(cfg.series||{})[id]||{};
   const mono=cfg.scheme==="mono"&&!active?["dash","dot","dashdot","solid"][Math.max(0,yCols().findIndex(c=>c.id===id))%4]:"solid";
   const hb=histOf(id);
-  return {type:o.type||(hb?"column":active?cfg.style:"line"), bw:hb?((finalOf(colById(id)).bins)||{}).w||null:null, color:o.color||yTint(id,forExport,cfg.scheme||"kurve"), lw:o.lw!=null?+o.lw:(active?1.4:1.2), leg:o.leg!==false,
+  return {type:o.type||(hb?"column":!cfg.style||cfg.style==="auto"?autoType(id):active?cfg.style:"line"), bw:hb?((finalOf(colById(id)).bins)||{}).w||null:null, color:o.color||yTint(id,forExport,cfg.scheme||"kurve"), lw:o.lw!=null?+o.lw:(active?1.4:1.2), leg:o.leg!==false,
     dash:o.dash||mono, sym:o.sym||"circle", ss:o.ss!=null?+o.ss:null, fill:o.fill!=null?+o.fill:0.18, label:o.label||"", op:o.op!=null?+o.op:(active?1:0.8),
     eb:o.eb||"bars", ebColor:o.ebColor||"", ebLw:o.ebLw!=null?+o.ebLw:1, ebCap:o.ebCap!=null?+o.ebCap:5, ebOp:o.ebOp!=null?+o.ebOp:0.22,
     conn:o.conn||"straight", zcol:o.zcol||"", scol:o.scol||"", hatch:o.hatch||"none", fillTo:o.fillTo||"", fill2:o.fill2||""};
@@ -6010,7 +6081,7 @@ function zColOptions(c){ const x=xColFor(c); return [["","Nothing"]].concat(allC
 // The graph as a picture on the clipboard, for a document or slides; a panel copies its figure.
 async function copyGraphPicture(){
   const p=P(); if(!p||!pointsAll().length){ toast("There is nothing on the graph to copy."); return; }
-  const pic=handPic(820,activeFit()&&GP().resid!==false?640:540), k=2.5;
+  const pic=handPic(820,residOn(GP(),activeFit())?640:540), k=2.5;
   const make=async()=>{ const url=URL.createObjectURL(new Blob([await embedFonts(pic.svg)],{type:"image/svg+xml;charset=utf-8"}));
     try{ const img=new Image(); await new Promise((res,rej)=>{ img.onload=res; img.onerror=()=>rej(new Error("render")); img.src=url; });
       const cv=document.createElement("canvas"); cv.width=Math.round(pic.W*k); cv.height=Math.round(pic.H*k); const g=cv.getContext("2d"); g.fillStyle="#FFFFFF"; g.fillRect(0,0,cv.width,cv.height); g.scale(k,k); g.drawImage(img,0,0,pic.W,pic.H);
@@ -6989,7 +7060,7 @@ function buildPlot(W,H,pal,colEx,opt){
   const legW=Math.max(ltw,lpad*2+legNc*colW+(legNc-1)*10), legH=legRows*lh+lpad+(legTitle?lh:0);
   const gap=10;
   let rp=[];
-  if(fit&&cfg.resid!==false){
+  if(residOn(cfg,fit)){
     const fr=fit.range||[-Infinity,Infinity], vx0=Math.min(v.x0,v.x1), vx1=Math.max(v.x0,v.x1);
     rp=pts.filter(q=>q.x>=fr[0]&&q.x<=fr[1]&&q.x>=vx0&&q.x<=vx1).map(q=>({...q,r:q.y-FM.f(q.x,fit.params)})).filter(q=>Number.isFinite(q.r));
   }
@@ -7461,7 +7532,7 @@ function buildPlot(W,H,pal,colEx,opt){
   // The axis titles, beside their numbers, wherever the axes went.
   // A box or violin chart is titled by what its values are: one name and unit, or one unit, or "Value".
   const distYl=dist?(()=>{ const ds=distC.map(finalOf), nm=new Set(ds.map(d=>d.yn0||d.yn||"")), un=new Set(ds.map(d=>d.yu||"")); return axisLabel(nm.size===1&&distC.length===1?[...nm][0]:"Value",un.size===1?[...un][0]:"","Value"); })():"";
-  const yl=cfg.ax.y.title||(heat?(mapS?seriesLabel():"Column"):dist?distYl:axisLabel(ps.d.yn,ps.d.yu,"Y")), xl=cfg.ax.x.title||(dist?"":axisLabel(ps.d.xn,ps.d.xu,"X"));
+  const yl=cfg.ax.y.title||(heat?(mapS?seriesLabel():"Column"):dist?distYl:autoYTitle(ps.d,others,layout)), xl=cfg.ax.x.title||(dist?"":axisLabel(ps.d.xn,ps.d.xu,"X"));
   if(YA.tshow){ const ys0=drawn.ySide, wy=ypM==="left"&&!YA.off?Math.max(drawn.yW,drawn.pW):drawn.yW, band=tkOut(YA.dir,YA.len)+5+(wy?wy+6:1);
     const tx=(ys0<0?drawn.yAx-band-AT("y").size*0.22:drawn.yAx+band+AT("y").size*0.22)+YA.tdx, al=axAlign(YA,AT("y"));
     const ty=(al==="start"?T+mhAll:al==="end"?T:T+mhAll/2)+YA.tdy, anc=ys0<0?(al==="start"?"start":al==="end"?"end":"middle"):(al==="start"?"end":al==="end"?"start":"middle");
@@ -7590,6 +7661,10 @@ function buildPlot(W,H,pal,colEx,opt){
       if(!fitLab) s+=numLabel(cx,cy-(handlesOn?2:0),t.k,col,(ov.d.peaks[t.k]||{}).lab||"");
     });
   } else if(fit&&FM&&FM.composite) s+=fitLabels(fit,FM);
+  // While the Fit window is open with a range of its own, what the fit leaves out is shaded.
+  if(!forExport&&!ins&&act&&ps.final&&!heat&&!dist&&winOpen("fit")&&!winOpen("peaks")){ const fr=fitRngOf(act);
+    if(fr){ const cl=v=>Math.max(L,Math.min(L+pw,v)), xa=X(fr[0]), xb=X(fr[1]), a=cl(Math.min(xa,xb)), b=cl(Math.max(xa,xb)), R=L+pw;
+      s+=`<g pointer-events="none" class="fitrange">${a>L?`<rect x="${L.toFixed(1)}" y="${T}" width="${(a-L).toFixed(1)}" height="${mh}" fill="${pal.muted}" fill-opacity="0.1"/>`:""}${b<R?`<rect x="${b.toFixed(1)}" y="${T}" width="${(R-b).toFixed(1)}" height="${mh}" fill="${pal.muted}" fill-opacity="0.1"/>`:""}${[a,b].filter(v=>v>L&&v<R).map(v=>`<path d="M${v.toFixed(1)},${T}v${mh}" stroke="${pal.muted}" stroke-dasharray="4 3" stroke-width="1"/>`).join("")}</g>`; } }
   // While the Peaks window is open, what lies outside the range it searches is shaded.
   // Several regions are numbered, the one whose settings are shown in the accent colour.
   if(!forExport&&!ins&&act&&ps.final&&!heat&&!dist&&winOpen("peaks")){ const regs=pkRegsOf(act);
@@ -7934,7 +8009,7 @@ function inlineEditTitle(k){
   const p=P(); if(!p||S.readOnly) return;
   const el=document.querySelector(`#plot [data-axtitle="${CSS.escape(k)}"]`);
   const gp=GP(), cur=k==="title"?(gp.title||""):(((gp.ax||{})[k]||{}).title||""), d=plotState().d;
-  const auto=k==="x"?axisLabel(d.xn,d.xu,"X"):k==="y"?axisLabel(d.yn,d.yu,"Y"):k==="title"?"Graph title":k==="x2"?x2AutoTitle():k==="yo"?yoAutoTitle():"Right axis title";
+  const auto=k==="x"?axisLabel(d.xn,d.xu,"X"):k==="y"?autoYOf():k==="title"?"Graph title":k==="x2"?x2AutoTitle():k==="yo"?yoAutoTitle():"Right axis title";
   inlineBox({el,cur,ph:auto,aria:k==="title"?"Graph title":`Title of the ${AXN(k)}`,max:160,st:titleStyleOf(k),
     keep:v=>{ if(v!==cur) setAxisTitle(k,v); else unfocusPlot(); },
     more:{title:"Font, size and position",run:()=>openPlotDetails(null,k==="title"?"text":"ax:"+k)}});
@@ -8310,10 +8385,10 @@ function graphMenuItems(id,at){
     items.push({group:(st.label?texPlain(st.label):specName(c))+(isAct?" (analysed)":""),plain:true},
       {swatches:SER_COLORS,current:st.color,pick:col=>setSeriesStyle(c.id,{color:col},`changed the colour of ${specName(c)}`),enabled:!ro},
       {label:"Line, symbols and colour…",run:()=>openPlotDetails(c.id,"series")},
-      {label:"Plot type",sub:()=>PLOT_TYPES.map(([k,l])=>({label:l,radio:true,checked:st.type===k,enabled:!ro,run:()=>{ if(isAct&&!(cfg.series[c.id]||{}).type){ setStyle(k); return; } setSeriesStyle(c.id,{type:k},`drew ${specName(c)} as ${l.toLowerCase()}`); }}))},
+      {label:"Plot type",sub:()=>plotTypeItems(c,ro)},
       {label:"Connect",sub:()=>CONN_KINDS.map(([k,l])=>({label:l,radio:true,checked:st.conn===k,enabled:!ro,run:()=>setSeriesStyle(c.id,{conn:k},`joined the points of ${specName(c)} by ${l.toLowerCase()}`)}))},
       {label:"Fill between it and",sub:()=>[{label:"Nothing",radio:true,checked:!st.fillTo,enabled:!ro,run:()=>setSeriesStyle(c.id,{fillTo:""},`left the area by ${specName(c)} unfilled`)}].concat(yCols().filter(o=>o!==c&&graphShows(o)).map(o=>({label:specName(o),radio:true,checked:st.fillTo===o.id,enabled:!ro,run:()=>setSeriesStyle(c.id,{fillTo:o.id},`filled between ${specName(c)} and ${specName(o)}`)})))},
-      hasErrCols(c.id)||(finalOf(c).e||[]).some(v=>v>0)?{label:"Error bars",sub:()=>[["bars","Bars"],["band","A shaded band"],["none","None"]].map(([k,l])=>({label:l,radio:true,checked:st.eb===k,enabled:!ro,run:()=>setSeriesStyle(c.id,{eb:k},`drew the error bars of ${specName(c)} as ${l.toLowerCase()}`)}))}:null);
+      hasErrCols(c.id)||(finalOf(c).e||[]).some(v=>v>0)?{label:"Error bars",sub:()=>[{group:errSourceText(c)}].concat([["bars","Bars"],["band","A shaded band"],["none","None"]].map(([k,l])=>({label:l,radio:true,checked:st.eb===k,enabled:!ro,run:()=>setSeriesStyle(c.id,{eb:k},`drew the error bars of ${specName(c)} as ${l.toLowerCase()}`)})))}:null);
     if(!isAct) items.push({label:"Make it the active curve",title:"The one the Fit, Results and the tools work on",run:()=>setActiveCol(c.id)},{label:GID()==="main"?"Hide it":"Take it off this graph",run:()=>toggleColVis(c.id),enabled:!ro});
     items.push({label:"Open in a new graph",run:()=>newGraphFrom([c.id]),enabled:!ro});
     items.push(histOf(c.id)?{label:"Histogram bins…",run:()=>editHistStep(c.id)}:{label:"Histogram of its values",run:()=>histogramCols([c.id]),enabled:!ro});
@@ -8325,7 +8400,7 @@ function graphMenuItems(id,at){
   // What can be added where the click was: a submenu on a curve, the menu itself on the empty plot.
   const add=[];
   if(at&&at.pt&&at.pt.inside&&!ro&&!(S.geo&&S.geo.heat)){ const hit=peakNear(at.px,at.py), n6=v=>+(+v).toPrecision(6);
-    if(hit) add.push({label:`Label the peak at ${fmt(hit.x,6)}…`,run:()=>addPeakLabel(hit,{type:true})});
+    if(hit&&looksLikeSpectrum(colById(hit.id)||activeYCol())) add.push({label:`Label the peak at ${fmt(hit.x,6)}…`,run:()=>addPeakLabel(hit,{type:true})});
     add.push({label:`Vertical line at x = ${fmt(at.pt.x,5)}`,run:()=>addAnno({t:"v",x:n6(at.pt.x)})},
       {label:`Horizontal line at y = ${fmt(at.pt.y,5)}`,run:()=>addAnno({t:"h",y:n6(at.pt.y)})},
       {label:"Text here…",run:()=>addTextAt(at.pt)},
@@ -8596,7 +8671,7 @@ function renderPlotDetails(){
         +(kind==="lin"||kind==="expr"?`<label for="pdyon">Name</label><input type="text" id="pdyon" data-pd="ax.yo.name" value="${esc(a.name||"")}" placeholder="Y"${ro}><label for="pdyou">Unit</label><div class="rfield"><div class="pair"><input type="text" id="pdyou" data-pd="ax.yo.unit" data-rich value="${esc(a.unit||"")}" placeholder="none"${ro}>${rtool("pdyou")}</div>${texPv("pdyou",a.unit)}</div>`:"")
         +(["dy","heat","stack"].includes(cfg.layout)?note("Not shown with two Y axes, a heat map or stacked panels."):"")
         +(a.on&&err?note(`<span class="warn">${esc(err)}</span>`):"")); }
-    const autoT=ky?yoAutoTitle():k2?x2AutoTitle():isX?axisLabel(dP.xn,dP.xu,"X"):k==="y"?(heat?"Column":axisLabel(dP.yn,dP.yu,"Y")):"from the data";
+    const autoT=ky?yoAutoTitle():k2?x2AutoTitle():isX?axisLabel(dP.xn,dP.xu,"X"):k==="y"?(heat?"Column":autoYOf()):"from the data";
     if(k2){ const kind=a.conv||x2Default(dP), det=xUnitKey(dP.xn,dP.xu), phys=kind!=="lin"&&kind!=="expr", usesL=phys&&(kind==="raman"||(a.from||det)==="raman"), err=S.geo&&S.geo.x2err;
       h+=grp("What it shows",chk("pdx2on","ax.x2.on",!!a.on,"Show it, across from the X axis")
         +`<label for="pdx2c">Shows</label>${sel("pdx2c",X2_KINDS,kind,"ax.x2.conv")}`
@@ -8708,7 +8783,7 @@ function renderPlotDetails(){
       +(isDistLayout(cfg.layout)?`<label for="pdDw">Whiskers</label>${sel("pdDw",DIST_WHISK,cfg.distWhisk==="range"?"range":"tukey","distWhisk")}`+chk("pdDp","distPts",!!cfg.distPts,"Show the values"):"")
       +chk("pdAxM","axisMatch",cfg.axisMatch!==false,"On two Y axes, colour each axis like its curve"));
     h+=grp("Colours",`<label for="pdSch">Curves</label>${sel("pdSch",Object.entries(SCHEMES).filter(([k,v])=>!v.hide||k===cfg.scheme).map(([k,v])=>[k,v.name]),cfg.scheme||"kurve","scheme")}<label for="pdPsch">Fitted peaks</label>${sel("pdPsch",Object.entries(PEAK_SCHEMES).map(([k,v])=>[k,v.name]),cfg.peakScheme||"warm","peakScheme")}`);
-    h+=grp("Fit",chk("pdRes","resid",cfg.resid!==false,"Residual panel under a fit"));
+    h+=grp("Fit",chk("pdRes","resid",residOn(cfg,shownFit()||residHint()),"Residual panel under a fit"));
   } else if(page==="fpeaks"){
     const f=activeFit(), fs=fplFields(cfg), tpl=String(cfg.peakLabTpl||""), offN=Object.keys(cfg.peakLabOff||{}).length, off=(cfg.peakLab||"num")==="off";
     if(!(f&&f.kind==="composite")) h+=`<p class="pd-note" style="margin:0 0 10px">No peak fit on this graph yet; these settings apply when there is one.</p>`;
@@ -8973,7 +9048,7 @@ function setupPlotDetails(){
     else if(pg==="frame"){ nul(["frameLw","frameColor","gridColor","gridLw","gridDash","gridX","gridY","plotBg","mL","mR","mT","mB"]); Object.assign(wk,{frame:"box",grid:false,gridMinor:false}); }
     else if(pg==="text"){ Object.assign(wk,{txt:{},font:1,fontFam:"default",fontName:"",titleItalic:true,titleDx:null,titleDy:null}); }
     else if(pg==="legend"){ nul(["legendPos","legendCols","legendLine","legendSp","legendFill","legendOp","legendBd","legendLw","legendR"]); Object.assign(wk,{legend:"auto",legendText:"ink",legendFrame:true,legendTitle:""}); }
-    else if(pg==="layout") Object.assign(wk,{layout:"overlay",offset:0.35,cmap:"viridis",scheme:"kurve",peakScheme:"warm",axisMatch:true,resid:true});
+    else if(pg==="layout") Object.assign(wk,{layout:"overlay",offset:0.35,cmap:"viridis",scheme:"kurve",peakScheme:"warm",axisMatch:true,resid:"auto"});
     else if(pg==="fpeaks"){ Object.assign(wk,{peakLab:"num",peakLabShow:null,peakLabTpl:"",peakLabErr:false,peakLabUnit:false,peakLabSep:"comma",peakLabPos:"top",peakLabMk:"none",peakLabCol:"peak",peakLabBox:"none",peakLabRot:false,peakLabDec:null,peakLabOff:null}); wk.txt=Object.assign({},wk.txt||{},{peaks:{}}); }
     else if(pg==="labels"){ if(S.pdAnno){ const o={}; ["font","fontName","pt","bold","i","u","color","align","ang","rot","box","bg","bd","lpos","lw","dash","op","edge","size"].forEach(k=>{ o[k]=null; }); pdSet("annos."+S.pdAnno,o); }
       else { Object.assign(wk,{peakLab:"num",peakLabRot:false,peakLabDec:null}); wk.txt=Object.assign({},wk.txt||{},{peaks:{}}); } }
@@ -8986,7 +9061,8 @@ function renderStatusBar(){
   const p=P(), pts=p?pointsAll():[];
   if(!p||!pts.length){ el.textContent=""; ef.innerHTML=""; ef.className="sb-cell"; ef.title=""; return; }
   const nm=maskOf(activeYCol()).length;
-  el.textContent=`${pts.length} point${pts.length===1?"":"s"}${nm?` · ${nm} masked`:""}${S.view?` · ${fitPoints().length} in view`:""}`;
+  const vr=viewRng(), inV=vr?pts.filter(q=>q.x>=vr[0]&&q.x<=vr[1]&&!isMasked(q.i)).length:0;
+  el.textContent=`${pts.length} point${pts.length===1?"":"s"}${nm?` · ${nm} masked`:""}${vr?` · ${inV} in view`:""}`;
   const f=activeFit();
   if(!f){ ef.className="sb-cell"; ef.innerHTML="<span>No fit yet</span>"; ef.title=""; return; }
   const st=f.stats||{}, stale=fitStale(f), bad=st.converged===false;
@@ -9273,13 +9349,23 @@ function setupGraph(){
 }
 function togglePlot(key){
   const p=P(); if(!p||S.readOnly) return;
-  const gp=GP(), val=key==="resid"?gp.resid===false:!gp[key];
+  const gp=GP(), val=key==="resid"?!residOn(gp,activeFit()||residHint()):!gp[key];
   if(key==="logY"){ S.view=null; if(((gp.ax||{}).y||{}).scale){ const ax=Object.assign({},gp.ax); ax.y=Object.assign({},ax.y); delete ax.y.scale; savePlot({ax},null); } }
   const logs={revX:val?"reversed the X axis":"restored the X axis direction",logY:val?"switched to a logarithmic Y axis":"switched to a linear Y axis"};
   savePlot({[key]:val},logs[key]||null);
   renderTop(); renderPlot(); if(key==="logY") renderFit();
 }
 function setStyle(v){ const p=P(); if(!p||S.readOnly) return; savePlot({style:v}); renderTop(); renderPlot(); }
+/* A curve's Plot type submenu: Automatic (UX_SPEC 3.7), then the types. While the
+   graph is on Automatic a type chosen is the curve's own, so the others keep theirs. */
+function plotTypeItems(c,ro){
+  const cfg=plotCfg(), own=c&&(cfg.series[c.id]||{}).type, auto=!cfg.style||cfg.style==="auto", act=c&&c.id===P().activeY;
+  const cur=c?serStyle(c.id,act,readPalette(),false,cfg).type:cfg.style, nm=k=>((PLOT_TYPES.find(t=>t[0]===k)||[])[1]||k).toLowerCase();
+  return [{label:"Automatic",note:c?nm(autoType(c.id)):"",radio:true,checked:!own&&auto,enabled:!ro,title:"A line for many evenly spaced points, symbols for a few or unevenly spaced ones",
+      run:()=>{ if(c&&own) setSeriesStyle(c.id,{type:null},`drew ${specName(c)} by the automatic type`); if(!auto) setStyle("auto"); }},"-"]
+    .concat(PLOT_TYPES.map(([k,l])=>({label:l,radio:true,checked:(!!own||!auto)&&cur===k,enabled:!ro,
+      run:()=>{ if(c&&(own||auto||!act)) setSeriesStyle(c.id,{type:k},`drew ${specName(c)} as ${l.toLowerCase()}`); else setStyle(k); }})));
+}
 const GRAPH_KEYS="Graph keys: ← → move between points · Home/End · + − zoom · 0 all data · [ ] set a range edge · M mask · P place a peak · Delete removes the selected peak · ? help";
 function sayPoint(){
   const live=$("#plotSay"); if(!live) return;
@@ -10195,7 +10281,14 @@ function wsPasteText(text){
   if(calc){ toast(`${calc} of those cells are in a computed column, which its formula fills.`,{action:"Paste as new columns",run:()=>pasteAsNew(rows,header,rs)}); return; }
   if(clash){ toast(`The original data is locked: ${clash} of those cells already hold original values.`,{action:"Paste as new columns",run:()=>pasteAsNew(rows,header,rs)}); return; }
   pushUndo("that paste");
-  if(rawc.length<c0+width) wsMakeCols(c0+width-1);
+  // Pasted into an empty sheet from its first cell, the columns are read as an import
+  // reads them: with no X-like column every one is a Y against its row number.
+  const fresh=rs===0&&c0===0&&rows.length>=2&&width>=2&&!rawc.some(o=>o.data.some(v=>v!=null));
+  const noX=fresh&&detectRoles(header,Array.from({length:width},(_,k)=>rows.map(r=>r[k]??null))).xi<0;
+  // A project keeps an X column: an empty one, after the pasted columns, so they stay
+  // where they were pasted and are plotted against their row numbers.
+  if(rawc.length<c0+width+(noX?1:0)) wsMakeCols(c0+width-1+(noX?1:0));
+  if(noX){ const xc=allCols().find(o=>!o.src&&o.role==="x"); if(xc&&!anyVal(xc.data)){ p.cols.splice(p.cols.indexOf(xc),1); p.cols.push(xc); } }
   const cols=allCols().filter(o=>!o.src), fxs=[]; let fxBad=0;
   for(let src=0;src<width;src++){ const col=cols[c0+src]; if(!col) continue;
     labs.forEach((l,j)=>{ const L=WS_LABS.find(z=>z.r===r0+j); if(!L||l[src]==null) return; if(L.k==="fx"){ fxs.push([col,l[src]]); return; } col[L.k]=String(l[src]).trim().slice(0,L.max); });
@@ -10489,7 +10582,7 @@ async function correctCell(col,r,v){
     if(!st){ st=makeStep("correct",{fixes:[]}); y.pipe.unshift(st); }
     const fixes=((st.p||{}).fixes||[]).filter(f=>!(f.row===r&&(f.field||"y")===field)).concat([{row:r,field,val,was,why,t:Date.now(),by:S.uid||""}]);
     st.p=Object.assign({},st.p,{fixes}); });
-  save({cols:P().cols},`corrected row ${r+1} of column ${L} from ${was} to ${val==null?"(left out)":val}${targets.length>1?` for ${targets.length} spectra`:""}: ${why}`);
+  save({cols:P().cols},`corrected row ${r+1} of column ${L} from ${was} to ${val==null?"(left out)":val}${targets.length>1?` for ${targets.length} columns`:""}: ${why}`);
   renderAll();
   toast(`Correction recorded as a step. The original value ${was} is kept.`,{action:"Undo",run:undo});
 }
@@ -11056,7 +11149,7 @@ function showRawInfo(){
   const c=activeYCol(); S.flowSel="raw:"+(c?rootOf(c).id:""); S.flowTab="flow"; openWin("flow",{render:true});
 }
 function measureHtml(){
-  const d=derived(), [a,b]=fitRange(), inR=[];
+  const d=derived(), [a,b]=viewRng()||[-Infinity,Infinity], inR=[];
   for(let i=0;i<Math.min(d.x.length,d.y.length);i++){ const xv=d.x[i], yv=d.y[i]; if(xv<a||xv>b) continue; if(isMasked(d.idx[i])) continue; inR.push([xv,yv]); }
   inR.sort((q,w)=>q[0]-w[0]);
   const xs=inR.map(q=>q[0]), vs=inR.map(q=>q[1]), area=trapz(xs,vs);
@@ -11265,7 +11358,7 @@ function reportDataHtml(pal){
   chain.forEach(col=>{ const r=pipeOf(col); if(!r) return;
     if(chain.length>1) out.push("<h3>"+esc2(specName(col))+(col.src?" <span class=\"lab\">(starts from the "+(col.from==="raw"?"original":"processed")+" data of "+esc2(specName(srcOf(col)))+")</span>":"")+"</h3>");
     const pipe=col.pipe||[];
-    if(!pipe.length) out.push("<p>No processing steps: "+(col.src?"its input is":"the original data are")+" what is analysed.</p>");
+    if(!pipe.length) out.push("<p>No processing steps: "+(col.src?"its input is":"the original data are")+" used as recorded.</p>");
     else out.push("<ol>"+pipe.map((s,i)=>{ const st=stageOfStep(s), w=stageWarnings(st);
       const th=nodeThreads("step:"+s.id), to=th.filter(t=>!t.root.resolved).length;
       const pyc=s.op==="python"?"<pre class=\"code\">"+esc2(String((s.p||{}).code||""))+"</pre>"+((s.p||{}).reads||[]).map(id=>colById(id)).filter(Boolean).map((o,i,a)=>(i?"":"<p class=\"lab\">Also reads: ")+esc2(specName(o))+(i===a.length-1?"</p>":", ")).join(""):"";
@@ -11369,7 +11462,12 @@ function impCols(){
 // Counting statistics: the error of N counts is √N, and of none, 1 (not 0,
 // which would give an empty channel infinite weight in a fit).
 const SQRT_FX="sqrt(max(B,1))", sqrtCounts=v=>v==null?null:Math.sqrt(Math.max(v,1));
-function impCounts(i){ const ys=(S.imp.res.cols[i]||[]).filter(v=>v!=null); return ys.length>=2&&ys.every(v=>v>=0&&Number.isInteger(v)); }
+/* A column of counts: whole numbers of zero or more, and named or united as counts
+   (counts, cts, cps, events), or in a counting format (TKA) (UX_SPEC 3.7). Whole
+   numbers alone are not counts: a survey's ages are whole numbers too. */
+const COUNT_NAME=/\b(counts?|cts|cps|events?|hits)\b/i;
+function impCounts(i){ const r=S.imp.res, ys=(r.cols[i]||[]).filter(v=>v!=null); if(!(ys.length>=2&&ys.every(v=>v>=0&&Number.isInteger(v)))) return false;
+  return !!r.tka||COUNT_NAME.test(String((r.headerRow||[])[i]||"")); }
 // The spectra of counts with no error column of their own: √N is offered for them.
 const impSqrtable=()=>impYs().filter(i=>impErrFor(i)<0&&impCounts(i));
 function impFindings(){
@@ -11550,8 +11648,6 @@ async function doImport(){
 
   if(!S.pid||mode==="new"){
     const pr=Object.assign(blankProject(base),{cols,activeY:ids[0]||null,fit:null,meta:r.meta,srcName:base,v:DOC_V});
-    // Thousands of channels read as a line, not a cloud of dots.
-    if(r.single||nPts>3000) pr.plot.style="line";
     const made=impGraphs(pr,ids,how,true);
     pr.raw=rawRecordFor(cols,`recorded from ${im.fname}`);
     await createProject(pr,`imported ${what} from ${im.fname}${stepNote}${how==="none"?", not plotted yet":""}`);
@@ -11707,7 +11803,7 @@ async function batchImport(items,o){
   const hasData=!!S.pid&&allCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null));
   const rows=items.map((it,k)=>it.fail?`<tr class="skip"><td class="nm" title="${esc(it.fname)}">${esc(it.fname)}</td><td colspan="3">Skipped: ${esc(it.fail)}</td></tr>`
     :`<tr><td class="nm" title="${esc(it.fname)}">${esc(it.fname)}</td><td class="num">${it.n}</td><td class="num">${esc(fmt(it.x0,5))} to ${esc(fmt(it.x1,5))}${it.xu?" "+esc(it.xu):""}</td><td><input type="text" id="biN${k}" value="${esc(it.name)}" maxlength="60" aria-label="Name of the column from ${esc(it.fname)}" style="width:150px"></td></tr>`).join("");
-  const r=await formDlg({title:`Import ${good.length} spectra`+(o.files?` from ${o.files} files`:o.fname?` from ${o.fname}`:""),wide:true,ok:`Import ${good.length} spectra`,
+  const r=await formDlg({title:`Import ${good.length} columns`+(o.files?` from ${o.files} files`:o.fname?` from ${o.fname}`:""),wide:true,ok:`Import ${good.length} columns`,
     html:`<div class="bimp"><table><thead><tr><th>${o.fname?"Column":"File"}</th><th>Points</th><th>X range</th><th>Name</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="grid2">${hasData?`<label for="biInto">Into</label><select id="biInto"><option value="here">“${esc(projName(P()))}”, beside its ${yCols().length} Y column${yCols().length===1?"":"s"}</option><option value="new">A new project</option></select>`:""}</div>`});
   if(!r) return;
@@ -11725,7 +11821,7 @@ async function doBatchImport(good,skip,o){
     newY.push(yc.id); });
   // The graphs, as asked: none yet, one, one each or stacked. A project that
   // held nothing gives its first graph to the new spectra.
-  const proj={cols,plot:keep?Object.assign({},p0.plot):{style:"line",logY:false,grid:false,resid:true},graphs:keep?(p0.graphs||[]).slice():[]};
+  const proj={cols,plot:keep?Object.assign({},p0.plot):{style:"auto",logY:false,grid:false,resid:"auto"},graphs:keep?(p0.graphs||[]).slice():[]};
   const made=impGraphs(proj,newY,o.graphs,!keep), plot=proj.plot, graphs=proj.graphs;
   const names=good.map(it=>it.name), list=names.length>4?names.slice(0,4).join(", ")+` and ${names.length-4} more`:names.join(", ");
   const lg=`imported ${good.length} columns from ${o.src} (${list})${skip.length?`; skipped ${skip.map(s=>s.fname).join(", ")}`:""}; ${o.graphs==="none"?"not plotted yet":o.graphs==="each"?"a graph for each":o.graphs==="stack"?"stacked in one graph":"all in one graph"}`;
@@ -11734,7 +11830,7 @@ async function doBatchImport(good,skip,o){
     pr.raw=rawRecordFor(cols,`recorded from ${o.src}`);
     await createProject(pr,lg);
   } else {
-    pushUndo(`importing ${good.length} spectra`);
+    pushUndo(`importing ${good.length} columns`);
     S.view=null; S.draft=null; S.pdraft=null; S.stage=null; S.selStep=null; S.gv={}; S.glead={};
     const p=P(); p.cols=cols; p.activeY=newY[0];
     const raw=recordRaw(`added ${good.length} columns from ${o.src}`);
@@ -11745,7 +11841,7 @@ async function doBatchImport(good,skip,o){
     renderAll();
   }
   const mks=metaKeys(cols.filter(c=>newY.includes(c.id)));
-  afterImport(o.graphs,newY,made,`Imported ${good.length} spectra${skip.length?`; skipped ${skip.length} (see the log)`:""}.${mks.length?` Their files differ in ${andList(mks.slice(0,2).map(k=>k.k))}: the Batch window can plot against ${mks.length>1?"either":"it"}.`:""}`,!intoNew);
+  afterImport(o.graphs,newY,made,`Imported ${good.length} columns${skip.length?`; skipped ${skip.length} (see the log)`:""}.${mks.length?` Their files differ in ${andList(mks.slice(0,2).map(k=>k.k))}: the Batch window can plot against ${mks.length>1?"either":"it"}.`:""}`,!intoNew);
 }
 /* ---- Dropped files: read, imported and plotted with no questions ---------------
    The Import dialog brings files into the worksheet and plots nothing: the
@@ -11815,7 +11911,7 @@ async function autoImport(files,o){
   const into=o.gid&&(o.gid==="main"||graphOf(o.gid))?o.gid:fresh?"main":undefined;
   plotCols(ids,{into,noUndo:true,quiet:true});
   if(o.folder&&S.gid) xFile(["g:"+S.gid],o.folder);
-  const nm=ids.length===1?specName(colById(ids[0])):`${ids.length} spectra`;
+  const nm=ids.length===1?specName(colById(ids[0])):`${ids.length} columns`;
   // One spectrum plotted: the Overview says what it is like, as after any import that plots one.
   if(ids.length===1) setTimeout(autoOverview,250);
   toast(`${nm} from ${what} ${ids.length===1?"is":"are"} plotted in ${graphName(S.gid)}${bad.length?`. Skipped: ${bad.join("; ")}`:""}.`,
@@ -12094,11 +12190,42 @@ function readFileIn(f){
 /* ============================================================
    Fit panel
    ============================================================ */
+/* The curve fit's model, suggested from the shape of the active column's points
+   (UX_SPEC 3.7): a straight line when they rise or fall with little curvature;
+   an exponential when they fall (or rise) quickly and then level off; a sigmoid
+   for a rise from one level to another; a Gaussian for one clear peak; else a
+   straight line, where Origin and Excel start. {id, why}, memoised per series. */
+const SUGG=new WeakMap();
+function suggestModel(){
+  const c=activeYCol(), d=c?finalOf(c):null; if(!d) return {id:"linear",why:"is a good place to start"};
+  const nm=maskOf(c).length, hit=SUGG.get(d); if(hit&&hit.nm===nm) return hit.r;
+  const q=pointsAll().filter(t=>!isMasked(t.i)&&Number.isFinite(t.x)&&Number.isFinite(t.y)).sort((a,b)=>a.x-b.x), n=q.length;
+  let r={id:"linear",why:"has no clearer shape, and a straight line is the plainest start"};
+  if(n<4) r={id:"linear",why:"has only a few points"};
+  else {
+    const X=q.map(t=>t.x), Y=q.map(t=>t.y), w=Math.max(1,Math.round(n/15));
+    const S2=Y.map((_,i)=>{ let s=0, k=0; for(let j=Math.max(0,i-w);j<=Math.min(n-1,i+w);j++){ s+=Y[j]; k++; } return s/k; });
+    let lo=Infinity, hi=-Infinity, ilo=0, ihi=0; S2.forEach((v,i)=>{ if(v<lo){ lo=v; ilo=i; } if(v>hi){ hi=v; ihi=i; } }); const span=hi-lo||1;
+    const cf=polyfit(X,Y,1)||[0,0], my=Y.reduce((a,v)=>a+v,0)/n;
+    let ssr=0, sst=0; Y.forEach((v,i)=>{ ssr+=(v-(cf[0]+cf[1]*X[i]))**2; sst+=(v-my)**2; }); const r2=sst>0?1-ssr/sst:1;
+    let up=0, dn=0; for(let i=1;i<n;i++){ const g=S2[i]-S2[i-1]; if(g>0) up++; else if(g<0) dn++; } const mono=Math.max(up,dn)/Math.max(1,up+dn);
+    const edge=Math.max(1,Math.round(n*0.1)), inner=i=>i>=edge&&i<n-edge;
+    const third=k=>{ const a=Math.floor(k*n/3), b=Math.max(a+1,Math.floor((k+1)*n/3)-1); return Math.abs(S2[b]-S2[a])/(Math.abs(X[b]-X[a])||1); };
+    const s0=third(0), s1=third(1), s2=third(2);
+    const peak=(inner(ihi)&&hi-S2[0]>0.5*span&&hi-S2[n-1]>0.5*span)||(inner(ilo)&&S2[0]-lo>0.5*span&&S2[n-1]-lo>0.5*span);
+    if(r2>=0.98) r={id:"linear",why:"rises or falls in a straight line"};
+    else if(peak&&n>=8) r={id:"gauss",why:"has one clear peak"};
+    else if(mono>=0.85&&s0>2.5*s2&&s0>=s1) r={id:"expdec",why:"changes quickly at first and then levels off"};
+    else if(mono>=0.85&&s1>1.8*s0&&s1>1.8*s2) r={id:"boltz",why:"rises from one level to another in an S"};
+    else if(mono>=0.85) r={id:"linear",why:"rises or falls steadily"};
+  }
+  SUGG.set(d,{nm,r}); return r;
+}
 function ensureDraft(){
   const p=P(); if(!p) return null;
   if(S.draft&&S.draft.pid===S.pid) return S.draft;
   const f=(activeFit()&&activeFit().kind!=="composite"?activeFit():null); // the curve panel only carries single-model fits
-  const model=f?f.model:(p.prefModel&&getModel(p.prefModel)?p.prefModel:"gauss");
+  const model=f?f.model:(p.prefModel&&getModel(p.prefModel)?p.prefModel:suggestModel().id);
   S.draft={pid:S.pid, model, fn:f&&f.fn?f.fn:null, init:f?f.params.slice():null, fixed:f?(f.fixed||f.params.map(()=>false)).slice():null, weighted:f?!!f.weighted:hasErr(), xerr:f?!!f.xerr:hasXErr()};
   if(!S.draft.init) guessDraft();
   return S.draft;
@@ -12114,38 +12241,44 @@ function renderFitRangeOnly(){
   const el=$("#fitRange"); if(!el||!P()) return;
   const pts=fitPoints(), r=usedRange(pts);
   el.innerHTML=pts.length
-    ? `Fits <strong>${pts.length}</strong> unmasked point${pts.length===1?"":"s"}, x ${esc(fmt(r[0],6))} to ${esc(fmt(r[1],6))}${S.view?" (the zoomed view)":" (all the data)"}. Zoom the graph to fit part of it.`
-    : "No unmasked points in view. Zoom out, or unmask some points.";
+    ? `Fits <strong>${pts.length}</strong> unmasked point${pts.length===1?"":"s"}, x ${esc(fmt(r[0],6))} to ${esc(fmt(r[1],6))}${fitRngOf(activeYCol())?" (the range above)":" (all the data)"}.`
+    : "No unmasked points in the range. Widen it, or unmask some points.";
   renderStatusBar();
 }
 const MODEL_GROUPS=[["Polynomial",["linear","poly2","poly3"]],["Peak",["gauss","lorentz"]],["Growth and decay",["expdec"]],["Sigmoid",["boltz"]]];
-/* Which spectrum the Fit window works on and the X range it fits (the graph's
-   zoom, typed here or dragged there). */
+/* Which column the Fit window works on and the X range it fits: all the data, a range
+   typed here, or the graph's view taken with Use the view (fitRngOf). */
 function fitWhereHtml(){
-  const ys=yCols(), c=activeYCol(); if(!c) return ""; const d=finalOf(c), v=viewRng(), xs=d.x.filter(Number.isFinite), ro=S.readOnly?" disabled":"";
+  const ys=yCols(), c=activeYCol(); if(!c) return ""; const d=finalOf(c), v=fitRngOf(c), vr=viewRng(), xs=d.x.filter(Number.isFinite), ro=S.readOnly?" disabled":"";
+  const same=v&&vr&&Math.abs(v[0]-vr[0])<=1e-9*Math.abs(vr[1]-vr[0])&&Math.abs(v[1]-vr[1])<=1e-9*Math.abs(vr[1]-vr[0]);
   if(!xs.length) return "";
   return `<div class="frow fwhere">${ys.length>1?`<label for="fwCol">Column</label><select id="fwCol">${ys.map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}</option>`).join("")}</select>`:""}
-    <label for="fwX0" class="tipd" title="The fit, and the search for peaks, use the points in this range: type it, or zoom the graph to it">Range</label><div class="pair"><input type="text" inputmode="decimal" id="fwX0" value="${v?esc(fmt(v[0],7)):""}" placeholder="${esc(fmt(Math.min(...xs),6))}" aria-label="Fit from"${ro}><span class="lab">to</span><input type="text" inputmode="decimal" id="fwX1" value="${v?esc(fmt(v[1],7)):""}" placeholder="${esc(fmt(Math.max(...xs),6))}" aria-label="Fit up to"${ro}><span class="lab">${esc(d.xu||"")}</span><button class="btn sm" id="fwAll"${v?"":" disabled"} title="Fit all the data">All</button></div></div>`; }
-// Zooms the graph to x a to b (either may be null: that end of the data), or to all of it.
-function setViewX(a,b){ const c=activeYCol(); if(!c) return; const d=finalOf(c), xs=d.x.filter(Number.isFinite);
-  if(a==null&&b==null) S.view=null;
-  else { if(a==null) a=Math.min(...xs); if(b==null) b=Math.max(...xs); const x0=Math.min(a,b), x1=Math.max(a,b), yr=yRangeIn(x0,x1); S.view={x0,x1,y0:yr[0],y1:yr[1],xu:d.xu||""}; }
-  renderPlot(); renderFit(); }
+    <label for="fwX0" class="tipd" title="The fit, and the search for peaks, use the points in this range: all the data unless you type a range or take the graph's view">Range</label><div class="pair"><input type="text" inputmode="decimal" id="fwX0" value="${v?esc(fmt(v[0],7)):""}" placeholder="${esc(fmt(Math.min(...xs),6))}" aria-label="Fit from"${ro}><span class="lab">to</span><input type="text" inputmode="decimal" id="fwX1" value="${v?esc(fmt(v[1],7)):""}" placeholder="${esc(fmt(Math.max(...xs),6))}" aria-label="Fit up to"${ro}><span class="lab">${esc(d.xu||"")}</span><button class="btn sm" id="fwView"${vr&&!same&&!S.readOnly?"":" disabled"} title="${vr?"Fit the X range the graph is zoomed to":"Zoom the graph first"}">Use the view</button><button class="btn sm" id="fwAll"${v&&!S.readOnly?"":" disabled"} title="Fit all the data">All</button></div></div>`; }
 function wireFitWhere(box){
   const cs=box.querySelector("#fwCol"); if(cs) cs.onchange=()=>goSpectrum(cs.value);
-  const all=box.querySelector("#fwAll"); if(all) all.onclick=()=>setViewX(null,null);
+  const all=box.querySelector("#fwAll"); if(all) all.onclick=()=>setFitRange(null,null);
+  const uv=box.querySelector("#fwView"); if(uv) uv.onclick=()=>{ const vr=viewRng(); if(vr) setFitRange(vr[0],vr[1]); };
   ["#fwX0","#fwX1"].forEach(id=>{ const el=box.querySelector(id); if(!el) return;
     el.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); el.blur(); } });
     el.addEventListener("change",()=>{ const a0=box.querySelector("#fwX0").value.trim(), b0=box.querySelector("#fwX1").value.trim(), a=a0?parseNum(a0):null, b=b0?parseNum(b0):null;
       if((a0&&a==null)||(b0&&b==null)){ toast("Type a number in X units, or leave it empty for the end of the data."); renderFit(); return; }
       if(a!=null&&a===b){ toast("The start and the end are the same: give the range some width."); renderFit(); return; }
-      setViewX(a,b); }); });
+      setFitRange(a,b); }); });
   const dn=box.querySelector("#fitDone"); if(dn) dn.onclick=()=>{ closeWin("fit"); if(S.pfPreview){ S.pfPreview=null; renderPlot(); } };
   const rs=box.querySelector("#fitResid"); if(rs) rs.onchange=()=>togglePlot("resid");
   const ap=box.querySelector("#pfAddMode"); if(ap) ap.onclick=()=>{ setMode(S.mode==="peak"?"zoom":"peak"); renderFit(); };
 }
 // The residual panel under the graph, switched where the fit is made.
-function fitResidHtml(){ const p=P(), on=!!p&&GP().resid!==false;
+/* The residual panel (UX_SPEC 3.7): shown under a peak fit, not under a curve
+   fit, unless switched on or off by hand (resid true or false; "auto" or
+   missing follows the fit). residHint() is what the Fit window is set to make. */
+function residOn(cfg,fit){ if(!fit) return false; const r=cfg&&cfg.resid; return r===true||r===false?r:fit.kind==="composite"; }
+const residHint=()=>({kind:S.fitMode==="peaks"?"composite":"curve"});
+// What the fit will weight by, said beside its Fit button (UX_SPEC 3.7).
+function weightHtml(d){ const c=activeYCol(), e=c&&errColFor(c.id);
+  if(d&&d.weighted&&hasErr()) return `<span class="fitwt" title="Each point counts as 1/σ², σ from its error bar; untick Weight by the Y error column to count every point the same">Weighted by ${e?`column ${esc(colLetter(e))}${e.name?` (${esc(e.name)})`:""}`:"the error bars"}</span>`;
+  return `<span class="fitwt" title="${hasErr()?"Tick Weight by the Y error column to weight by the error bars":"There is no Y error column"}">Unweighted: every point counts the same</span>`; }
+function fitResidHtml(){ const p=P(), on=!!p&&residOn(GP(),activeFit()||residHint());
   return `<label class="chk"><input type="checkbox" id="fitResid"${on?" checked":""}${S.readOnly||!p?" disabled":""}> Residuals under the graph</label>`; }
 function fitModeSeg(){
   return `<div class="seg full" role="group" aria-label="What to fit">
@@ -12190,6 +12323,7 @@ function renderFit(){
     (ufs.length||(m.user&&!inProj&&!lib.some(q=>"u:"+q.id===d.model))?`<optgroup label="Your functions">${ufs.map(q=>opt("u:"+q.id,q.name)).join("")}${m.user&&!inProj&&!lib.some(q=>"u:"+q.id===d.model)?opt(d.model,m.name+" (from the fit)"):""}</optgroup>`:"")+
     (lib.length?`<optgroup label="From this browser's library">${lib.map(q=>opt("u:"+q.id,q.name)).join("")}</optgroup>`:"")+
     `<optgroup label="Write your own"><option value="__new">New function…</option></optgroup></select><button class="btn sm" id="ufNew"${ro} title="Write your own fit function">${ICON("plus","sm")}Function</button></div>`;
+  { const sg=suggestModel(); if(MODELS[sg.id]&&!S.readOnly) h+=d.model===sg.id?`<div class="lab msugg" title="From the shape of the data in the fit's range">Suggested for this data: it ${esc(sg.why)}.</div>`:`<div class="lab msugg">Suggested for this data, which ${esc(sg.why)}: <button type="button" class="btn sm" id="useSugg">${esc(MODELS[sg.id].name)}</button></div>`; }
   h+=`<div class="formula${m.user?" user":""}">${m.formula}</div>`;
   if(m.user) h+=`<div class="actions ufacts">${inProj?`<button class="btn sm" id="ufEdit"${ro}>${ICON("edit","sm")}Edit…</button><button class="btn sm ghost" id="ufDup"${ro}>${ICON("copy","sm")}Duplicate</button><button class="btn sm ghost" id="ufDel"${ro}>${ICON("trash","sm")}Delete</button>`:`<button class="btn sm" id="ufDup"${ro}>${ICON("edit","sm")}Edit a copy…</button><span class="lab">${lib.some(q=>"u:"+q.id===d.model)?"From this browser's library: fitting adds it to the project.":"No longer in this project: the fit keeps its own copy."}</span>`}</div>`;
   h+=`<div class="gh">Parameters</div>`;
@@ -12205,7 +12339,7 @@ function renderFit(){
   h+=`<div class="range" id="fitRange"></div>`;
   if(S.fitError) h+=noteHtml("bad",S.fitError);
   if(f) h+=fitSummary(f);
-  h+=`<div class="sticky"><button class="btn primary" id="doFit"${ro} title="Fit (Ctrl+Enter)">${ICON("play")}Fit</button><button class="btn" id="doGuess"${ro} title="Measure the starting values from the data in view">Guess</button>${f&&yCols().length>1?`<button class="btn" id="fitAll"${ro} title="Fit every column with this model, starting from this fit">Fit every column…</button>`:""}${f?`<button class="btn ghost" id="clrFit"${ro}>Remove fit</button>`:""}<button class="btn ghost fdone" id="fitDone" title="Close the Fit window; the fit stays on the graph and in Results">Done</button></div>`;
+  h+=`<div class="sticky">${weightHtml(d)}<button class="btn primary" id="doFit"${ro} title="Fit (Ctrl+Enter)">${ICON("play")}Fit</button><button class="btn" id="doGuess"${ro} title="Measure the starting values from the data in view">Guess</button>${f&&yCols().length>1?`<button class="btn" id="fitAll"${ro} title="Fit every column with this model, starting from this fit">Fit every column…</button>`:""}${f?`<button class="btn ghost" id="clrFit"${ro}>Remove fit</button>`:""}<button class="btn ghost fdone" id="fitDone" title="Close the Fit window; the fit stays on the graph and in Results">Done</button></div>`;
   box.innerHTML=h; renderFitRangeOnly(); wire();
   $("#model").onchange=e=>{ const v=e.target.value;
     if(v==="__new"){ e.target.value=d.model; editUserFn(null); return; }
@@ -12213,6 +12347,7 @@ function renderFit(){
     const lf=lib.find(q=>"u:"+q.id===v); if(lf) adoptLibFn(lf);
     guessDraft(); renderFit(); };
   const un=$("#ufNew"); if(un) un.onclick=()=>editUserFn(null);
+  const us=$("#useSugg"); if(us) us.onclick=()=>{ pushUndo("changing the model"); d.model=suggestModel().id; d.fn=null; d.fixed=null; S.fitError=""; guessDraft(); renderFit(); };
   const ue=$("#ufEdit"); if(ue) ue.onclick=()=>editUserFn(d.model.slice(2));
   const ud=$("#ufDup"); if(ud) ud.onclick=()=>{ const def=m.def||{}; editUserFn(null,{from:{name:inProj?`${def.name||m.name} (copy)`:def.name||m.name,expr:def.expr||m.expr,params:def.params||[]}}); };
   const ux=$("#ufDel"); if(ux) ux.onclick=()=>deleteUserFn(d.model.slice(2));
@@ -12638,7 +12773,7 @@ function wirePf(box){
     res.addEventListener("toggle",e=>{ if(e.target.id==="pfRej"&&e.target.isConnected) S.pfRejOpen=e.target.open; },true); }
   const use=box.querySelector("#pfUse"); if(use) use.onclick=()=>runPeakFinder(false);
   const app=box.querySelector("#pfAppend"); if(app) app.onclick=()=>runPeakFinder(true);
-  const lb=box.querySelector("#pfLabel"); if(lb) lb.onclick=()=>{ const n=findPeaksInto({rng:viewRng()}); if(n==null) return; openWin("peaks",{render:true}); toast(`Marked ${n} peak${n===1?"":"s"} on the graph. Type their labels in the Peaks window.`,{action:"Undo",run:undo}); };
+  const lb=box.querySelector("#pfLabel"); if(lb) lb.onclick=()=>{ const n=findPeaksInto({rng:fitRngOf(activeYCol())}); if(n==null) return; openWin("peaks",{render:true}); toast(`Marked ${n} peak${n===1?"":"s"} on the graph. Type their labels in the Peaks window.`,{action:"Undo",run:undo}); };
   const df=box.querySelector("#pfDefaults"); if(df) df.onclick=()=>{ S.pf=Object.assign({},PF_DEF); pfSave(); renderFit(); };
 }
 /* The peaks found become the draft: each seeded from the data around it. A
@@ -12738,7 +12873,7 @@ function renderPeakFit(box,p,top){
   if(f) h+=fitSummary(f);
   if(f){ const c2=plotCfg(), fs2=fplFields(c2), tp2=fplTpl(c2);
     h+=`<div class="fplrow" role="group" aria-label="What the fitted peaks' labels show"><span class="lab">Labels show</span>${tp2?`<span class="lab"><em>your own text</em></span>`:FPL_FIELDS.map(([v,l])=>`<button type="button" class="fplc" data-fplf="${v}" aria-pressed="${fs2.includes(v)}"${ro}>${l}</button>`).join("")}<button type="button" class="btn sm ghost" id="fplMore">More…</button></div>`; }
-  h+=`</section><div class="sticky"><button class="btn primary" id="doPeakFit"${ro}${d.peaks.length?"":" disabled"} title="Fit (Ctrl+Enter)">${ICON("play")}${d.peaks.length?`Fit ${d.peaks.length} peak${d.peaks.length===1?"":"s"}`:"Fit"}</button>
+  h+=`</section><div class="sticky">${weightHtml(d)}<button class="btn primary" id="doPeakFit"${ro}${d.peaks.length?"":" disabled"} title="Fit (Ctrl+Enter)">${ICON("play")}${d.peaks.length?`Fit ${d.peaks.length} peak${d.peaks.length===1?"":"s"}`:"Fit"}</button>
     <button class="btn" id="reseed"${ro}${d.peaks.length?"":" disabled"} title="Measure every peak and the baseline again from the data">Reset to estimates</button>
     ${f&&yCols().length>1?`<button class="btn" id="fitAll"${ro} title="Fit every spectrum with these peaks, starting from this fit">Fit every spectrum…</button>`:""}
     ${f?`<button class="btn ghost" id="clrFit"${ro}>Remove fit</button>`:""}<button class="btn ghost fdone" id="fitDone" title="Close the Fit window; the fit stays on the graph and in Results">Done</button></div>`;
@@ -13350,7 +13485,7 @@ function onProjects(list){
 }
 function clone(o){ return o===undefined?undefined:JSON.parse(JSON.stringify(o)); }
 function normalize(p){ if(!p) return; const was=p.v||1;
-  p.plot=Object.assign({style:"scatter",logY:false,grid:false,resid:true},p.plot||{}); p.log=p.log||[]; migrate(p);
+  p.plot=Object.assign({style:"auto",logY:false,grid:false,resid:"auto"},p.plot||{}); p.log=p.log||[]; migrate(p);
   if(!p.found||typeof p.found!=="object") p.found={};
   if(p.batch&&!(p.batch.tmpl&&Array.isArray(p.batch.rows))) p.batch=null;
   // A batch keeps only rows of spectra that still exist: one deleted during
@@ -13363,7 +13498,7 @@ function normalize(p){ if(!p) return; const was=p.v||1;
   // Graphs keep only spectra that still exist; a graph with none left goes.
   { const yIds=new Set((p.cols||[]).filter(c=>c.role==="y").map(c=>c.id));
     p.graphs=(Array.isArray(p.graphs)?p.graphs:[]).filter(g=>g&&g.id).map(g=>{ g.cols=(g.cols||[]).filter(k=>yIds.has(k));
-      g.plot=Object.assign({style:"scatter",logY:false,grid:false,resid:true},g.plot||{}); delete g.plot.annos; if(!g.name) g.name="Graph"; return g; }).filter(g=>g.cols.length||(g.fig&&typeof g.fig==="object"));
+      g.plot=Object.assign({style:"auto",logY:false,grid:false,resid:"auto"},g.plot||{}); delete g.plot.annos; if(!g.name) g.name="Graph"; return g; }).filter(g=>g.cols.length||(g.fig&&typeof g.fig==="object"));
     // A figure's cells name graphs that exist, each in one cell of one figure, none a
     // figure itself, inside its grid; a figure shows no spectra of its own.
     const have=new Set(["main"].concat(p.graphs.filter(g=>!g.fig).map(g=>g.id))), used=new Set();
@@ -13500,7 +13635,7 @@ async function exportReport(){
   const p=P(), f=activeFit();
   if(!p||(!pointsAll().length&&!rawCols().length)){ toast("There is nothing to report yet."); return; }
   const FM=f?fitModel(f):null;
-  const fig=await embedFonts(buildPlot(820,f&&GP().resid!==false?640:540,EXPORT_PAL,true));
+  const fig=await embedFonts(buildPlot(820,residOn(GP(),f)?640:540,EXPORT_PAL,true));
   const esc2=t=>esc(String(t));
   const [xu,yu]=fitUnits(f), au=unitFor("yx",xu,yu);
   const html=["<!doctype html><html><head><meta charset=\"utf-8\"><title>"+esc2(p.name||"Analysis")+"</title>",
@@ -13848,7 +13983,7 @@ async function svgToVector(svg,o){
 async function exportVec(kind,all){
   const p=P(); if(!p) return; let svg, nm;
   if(all){ const r=allGraphsSvg(560,380); if(!r){ toast("There is no data to export."); return; } svg=r.svg; nm=safeName(p.name,"_graphs."+kind); }
-  else { if(!pointsAll().length){ toast("There is no data to export."); return; } svg=handPic(820,activeFit()&&GP().resid!==false?640:540).svg; nm=safeName(figName(),"."+kind); }
+  else { if(!pointsAll().length){ toast("There is no data to export."); return; } svg=handPic(820,residOn(GP(),activeFit())?640:540).svg; nm=safeName(figName(),"."+kind); }
   try{ const res=await svgToVector(svg,{kind,title:p.name}), ok=await saveFile(nm,res.blob,kind==="pdf"?"application/pdf":"application/postscript");
     if(ok) toast((ok==="dialog"?"Figure saved.":`Sent ${nm} to your downloads.`)+vecMissNote(res.miss)); }
   catch(e){ toast(`The figure could not be written as ${kind.toUpperCase()}: ${e.message}`); } }
@@ -13988,7 +14123,7 @@ function setupExportFigure(){
 /* A raster copy for slides, drawn from the same SVG the vector export uses. */
 async function exportPng(){
   const p=P(); if(!p||!pointsAll().length) return;
-  const pic=handPic(820,p.fit&&GP().resid!==false?640:540), W=pic.W, H=pic.H, k=2.5;
+  const pic=handPic(820,residOn(GP(),p.fit)?640:540), W=pic.W, H=pic.H, k=2.5;
   const url=URL.createObjectURL(new Blob([await embedFonts(pic.svg)],{type:"image/svg+xml;charset=utf-8"}));
   try{
     const img=new Image();
@@ -14018,7 +14153,7 @@ function resultsText(sep){
 }
 function copyResults(){ const t=resultsText(String.fromCharCode(9)); if(!t){ toast("Fit something first."); return; } copyText(t,"Results table"); }
 async function exportSvg(){
-  const str=await embedFonts(handPic(820,P().fit&&GP().resid!==false?640:540).svg);
+  const str=await embedFonts(handPic(820,residOn(GP(),P().fit)?640:540).svg);
   const oks=await saveFile(safeName(figName(),".svg"),new Blob([str],{type:"image/svg+xml"}));
   if(oks) toast(oks==="dialog"?"Figure saved.":`Sent ${safeName(figName(),".svg")} to your downloads.`);
 
@@ -14294,7 +14429,7 @@ function analysisMenu(){
       {label:"New fit function…", run:()=>{ S.fitMode="curve"; showTab("fit"); editUserFn(null); }, enabled:edit},
       "-",
       {label:"Run the fit", kbd:"Ctrl+Enter", run:fitNow, enabled:edit&&has},
-      {label:"Residuals under the graph", checked:!!p&&cfg.resid!==false, title:"A panel of the residuals under the graph, when there is a fit", run:()=>togglePlot("resid"), enabled:edit},
+      {label:"Residuals under the graph", checked:!!p&&residOn(cfg,activeFit()||residHint()), title:"A panel of the residuals under the graph, when there is a fit", run:()=>togglePlot("resid"), enabled:edit},
       yCols().length>1?{label:"Fit every column…", run:openBatchDialog, enabled:edit&&!!f, title:f?"":"Fit the active column first: its fit is the template"}:null,
       p&&p.batch?{label:"Batch results", run:()=>openWin("batch",{render:true})}:null,
       {label:"Remove the fit", run:removeFit, enabled:edit&&!!(p&&p.fit)}]},
@@ -14777,7 +14912,8 @@ function fplMenuItems(k){
    from the data around it. */
 function fitFoundPeaks(){
   const c=activeYCol(), rows=peakRows(c); if(!rows.length||S.readOnly) return;
-  const pts=fitPoints(); if(pts.length<6){ toast("Too few points in view to fit."); return; }
+  const pr=pkRangeOf(c); (S.fitRng||(S.fitRng={}))[S.pid+":"+c.id]=pr?{x0:Math.min(pr[0],pr[1]),x1:Math.max(pr[0],pr[1]),xu:finalOf(c).xu||""}:null;
+  const pts=fitPoints(); if(pts.length<6){ toast("Too few points in the fit's range to fit."); return; }
   S.fitMode="peaks"; const d=ensurePeakDraft();
   pushUndo("fitting the peaks found");
   syncPdraft(); seedBaseline();
@@ -15264,7 +15400,13 @@ function overviewSteps(o,c){
   return out;
 }
 const ovAuto=()=>{ try{ return localStorage.getItem("kurve.ovAuto")!=="0"; }catch(e){ return true; } };
-function autoOverview(){ if(ovAuto()&&P()&&activeYCol()) openOverview(); }
+/* Data that looks like a spectrum, by the Overview's own measures (UX_SPEC 3.7):
+   fifty points or more, in order and evenly spaced, with a band standing clear of
+   the noise. The Overview opens by itself, and a curve offers to label a peak,
+   only for such data; the Spectroscopy menu has both for any. */
+function looksLikeSpectrum(c){ if(!c) return false; const d=finalOf(c); if(!d||!d.x||d.x.length<50) return false;
+  const o=overviewOf(d); return !o.few&&o.n>=50&&o.sorted&&o.uneven<=0.1&&o.bands.length>0&&(o.snr==null||o.snr>=5); }
+function autoOverview(){ if(ovAuto()&&P()&&activeYCol()&&looksLikeSpectrum(activeYCol())) openOverview(); }
 function openOverview(){ if(!P()||!activeYCol()) return; openWin("over",{render:true}); }
 function renderOverview(){
   const box=$("#pane-over"); if(!box) return;
@@ -15324,7 +15466,7 @@ function statRow(c,of,rng){
   const srt=ys.slice().sort((a,b)=>a-b), med=n%2?srt[n>>1]:(srt[n/2-1]+srt[n/2])/2;
   let mn=Infinity, mx=-Infinity, imx=0; ys.forEach((v,k)=>{ if(v<mn) mn=v; if(v>mx){ mx=v; imx=k; } });
   const sig=noiseSigma(sy), area=trapz(sx,sy), mom=trapz(sx,sx.map((x,k)=>x*sy[k]));
-  return {c,d,n,x0:sx[0],x1:sx[n-1],mn,mx,xmax:xs[imx],mu,sd,med,sig,snr:sig>0?(mx-med)/sig:NaN,area,centroid:area?mom/area:NaN};
+  return {c,d,n,x0:sx[0],x1:sx[n-1],mn,mx,xmax:xs[imx],mu,sd,se:n>1?sd/Math.sqrt(n):NaN,med,sig,snr:sig>0?(mx-med)/sig:NaN,area,centroid:area?mom/area:NaN};
 }
 /* Pearson r between spectra on the analysed one's X. Symmetric, so each pair
    once; with only (an index) just that spectrum's row: a table of 300 × 300
@@ -15340,24 +15482,26 @@ function corrMatrix(cols,rng,only){
 }
 function statsData(){
   const o=S.stOpt||(S.stOpt={of:"final",range:"all"}), rng=o.range==="view"&&S.view?[Math.min(S.view.x0,S.view.x1),Math.max(S.view.x0,S.view.x1)]:null;
-  return {o,rng,rows:yCols().map(c=>statRow(c,o.of,rng))};
+  // The spectral measures sit behind a switch, on when the active column looks like a spectrum.
+  const spec=o.spec!=null?o.spec==="on":looksLikeSpectrum(activeYCol());
+  return {o,rng,spec,rows:yCols().map(c=>statRow(c,o.of,rng))};
 }
 function statsTsv(){
-  const {rows}=statsData(), f=v=>v==null||!Number.isFinite(v)?"":String(+v.toPrecision(8));
-  const head=["Spectrum","Points","X from","X to","Min","Max","X at max","Mean","SD","Median","Noise σ","S/N","Area","Centroid"];
-  return [head.join("\t")].concat(rows.map(r=>[specName(r.c),r.n,f(r.x0),f(r.x1),f(r.mn),f(r.mx),f(r.xmax),f(r.mu),f(r.sd),f(r.med),f(r.sig),f(r.snr),f(r.area),f(r.centroid)].join("\t"))).join("\n");
+  const {rows,spec}=statsData(), f=v=>v==null||!Number.isFinite(v)?"":String(+v.toPrecision(8));
+  const head=["Column","n","Mean","SD","SE","Median","Min","Max","X from","X to"].concat(spec?["X at max","Noise σ","S/N","Area","Centroid"]:[]);
+  return [head.join("\t")].concat(rows.map(r=>[specName(r.c),r.n,f(r.mu),f(r.sd),f(r.se),f(r.med),f(r.mn),f(r.mx),f(r.x0),f(r.x1)].concat(spec?[f(r.xmax),f(r.sig),f(r.snr),f(r.area),f(r.centroid)]:[]).join("\t"))).join("\n");
 }
 function renderStats(){
   const box=$("#pane-stats"); if(!box) return; const p=P();
   if(!p||!yCols().length){ box.innerHTML=`<p class="nothing">No columns yet.</p>`; return; }
-  const {o,rng,rows}=statsData(), f=(v,k)=>v==null||!Number.isFinite(v)?"—":esc(fmt(v,k||5));
+  const {o,rng,rows,spec}=statsData(), f=(v,k)=>v==null||!Number.isFinite(v)?"—":esc(fmt(v,k||5));
   const act=activeYCol(), [xu,yu]=dataUnits(), au=unitFor("yx",xu,yu);
   let h=`<div class="fbar"><div class="seg mini" role="group" aria-label="Which data"><button data-sto="of:final" aria-pressed="${o.of==="final"}">Processed data</button><button data-sto="of:raw" aria-pressed="${o.of==="raw"}">Original data</button></div>
-    <div class="seg mini" role="group" aria-label="Which range"><button data-sto="range:all" aria-pressed="${o.range!=="view"}">All X</button><button data-sto="range:view" aria-pressed="${o.range==="view"}"${S.view?"":" disabled title=\"Zoom the graph first\""}>Visible range</button></div><span class="sp"></span>
+    <div class="seg mini" role="group" aria-label="Which range"><button data-sto="range:all" aria-pressed="${o.range!=="view"}">All X</button><button data-sto="range:view" aria-pressed="${o.range==="view"}"${S.view?"":" disabled title=\"Zoom the graph first\""}>Visible range</button></div><label class="chk" title="Noise σ, signal to noise, area, centroid and the X of the maximum. On by itself for many evenly spaced points with a clear peak"><input type="checkbox" id="stSpec"${spec?" checked":""}> Noise, S/N and area</label><span class="sp"></span>
     <button class="btn sm" id="stCopy">${ICON("copy","sm")}Copy</button></div>`;
   h+=`<h3 class="gh" id="st-desc">Descriptive statistics <span class="cnt">${rng?`x ${esc(fmt(rng[0],6))} to ${esc(fmt(rng[1],6))}`:"all points"}</span></h3>
-    <div class="twrap"><table class="rtab stt"><thead><tr><th class="l">Column</th><th>Points</th><th>Min</th><th>Max</th><th>X at max</th><th>Mean</th><th>SD</th><th>Median</th><th title="Noise estimated from second differences, robust to the bands">Noise σ</th><th title="(max − median) / noise σ">S/N</th><th title="Trapezoidal, over X in ascending order">Area</th><th title="Area-weighted mean X">Centroid</th></tr></thead><tbody>`;
-  rows.forEach(r=>{ h+=`<tr class="${r.c===act?"sel":""}"><td class="l">${esc(specName(r.c))}</td><td>${r.n}</td><td>${f(r.mn)}</td><td>${f(r.mx)}</td><td>${f(r.xmax,6)}</td><td>${f(r.mu)}</td><td>${f(r.sd)}</td><td>${f(r.med)}</td><td>${f(r.sig,3)}</td><td>${f(r.snr,3)}</td><td>${f(r.area)}</td><td>${f(r.centroid,6)}</td></tr>`; });
+    <div class="twrap"><table class="rtab stt"><thead><tr><th class="l">Column</th><th title="Points counted">n</th><th>Mean</th><th title="Standard deviation (n − 1)">SD</th><th title="Standard error of the mean: SD / √n">SE</th><th>Median</th><th>Min</th><th>Max</th>${spec?`<th>X at max</th><th title="Noise estimated from second differences, robust to the bands">Noise σ</th><th title="(max − median) / noise σ">S/N</th><th title="Trapezoidal, over X in ascending order">Area</th><th title="Area-weighted mean X">Centroid</th>`:""}</tr></thead><tbody>`;
+  rows.forEach(r=>{ h+=`<tr class="${r.c===act?"sel":""}"><td class="l">${esc(specName(r.c))}</td><td>${r.n}</td><td>${f(r.mu)}</td><td>${f(r.sd)}</td><td>${f(r.se)}</td><td>${f(r.med)}</td><td>${f(r.mn)}</td><td>${f(r.mx)}</td>${spec?`<td>${f(r.xmax,6)}</td><td>${f(r.sig,3)}</td><td>${f(r.snr,3)}</td><td>${f(r.area)}</td><td>${f(r.centroid,6)}</td>`:""}</tr>`; });
   h+=`</tbody></table></div>`;
   h+=`<h3 class="gh" id="st-int">Integrate the visible range <span class="cnt">${esc(specName(act))}</span></h3>${act?measureHtml():""}`;
   const same=yCols().filter(c=>(finalOf(c).xu||"")===((act&&finalOf(act).xu)||""));
@@ -15372,6 +15516,7 @@ function renderStats(){
   box.innerHTML=h;
   box.querySelectorAll("[data-sto]").forEach(b=>b.onclick=()=>{ const [k,v]=b.dataset.sto.split(":"); S.stOpt=Object.assign({},o,{[k]:v}); renderStats(); });
   $("#stCopy").onclick=()=>copyText(statsTsv(),"Statistics copied as a tab-separated table.");
+  $("#stSpec").onchange=e=>{ S.stOpt=Object.assign({},o,{spec:e.target.checked?"on":"off"}); renderStats(); };
   if(S.statSec){ const el=document.getElementById("st-"+S.statSec); S.statSec=null; if(el) box.scrollTop=el.offsetTop-box.offsetTop-44; }
 }
 
@@ -15467,7 +15612,7 @@ function flowNodeHtml(n,cur){
     title=`Bands: ${res.length}`; sub=ok.length?`total ${fmt(res.total,4)}${res.ref&&ok.length>1?` · ÷ ${bandName(res.ref.b,res.ref.k)}`:""}`:"too few points"; cls+=" fitn"; }
   else if(n.kind==="figure"){ icon="chart"; title="Figure"; sub=annoCountText(n.annos); }
   else if(n.kind==="graph"){ icon="chart"; title=graphTitle(n.gid); if(n.gid===(S.gid||"main")) cls+=" live";
-    sub=[n.cs.length===1?specName(n.cs[0]):`${n.cs.length} spectra`,annoCountText(n.annos)].filter(Boolean).join(" · "); }
+    sub=[n.cs.length===1?specName(n.cs[0]):`${n.cs.length} curves`,annoCountText(n.annos)].filter(Boolean).join(" · "); }
   const th=n.pending?[]:nodeThreads(n.key), tOpen=th.filter(t=>!t.root.resolved).length;
   const talk=th.length?(tOpen?`${tOpen} open comment thread${tOpen===1?"":"s"}`:`${th.length} resolved comment thread${th.length===1?"":"s"}`):"";
   const tip=[title,sub].concat(warn).concat(talk?[talk]:[]).filter(Boolean).join("\n");
@@ -16503,8 +16648,8 @@ const DOCS=[
 <li><strong>Share it.</strong> Export the figure, the data, or a report with every number, step and caveat. ${DA("export","Exporting")}</li>
 </ol>
 <h2>Try an example</h2>
-<p>${MP("File › Examples")} opens a finished project: an infrared spectrum with overlapping bands, a Raman spectrum straight from the instrument, with a background and cosmic-ray spikes, a single Raman band, or a fluorescence decay.</p>
-<div class="actions"><button class="btn sm" data-doc-ex="ir">Infrared example</button><button class="btn sm" data-doc-ex="ps">Raman example</button></div>
+<p>${MP("File › Examples")} opens a finished project: a fluorescence decay to fit, an infrared spectrum with overlapping bands, a Raman spectrum straight from the instrument, with a background and cosmic-ray spikes, or a single Raman band.</p>
+<div class="actions"><button class="btn sm" data-doc-ex="decay">Decay example</button><button class="btn sm" data-doc-ex="ir">Infrared example</button><button class="btn sm" data-doc-ex="ps">Raman example</button></div>
 <h2>Two promises</h2>
 <ul><li><strong>The analysis never changes the original data.</strong> Every processing step sits on top of them, and you can edit, reorder, switch off or delete it. The original data change only when you edit them in the worksheet, and every such change is recorded; lock them to keep them as they are. ${DA("rawdata","Original data and its check code")}</li>
 <li><strong>Everything can be undone.</strong> ${K("Ctrl","Z")} takes back your last change, whatever window it was made in.</li></ul>`},
@@ -16563,11 +16708,11 @@ ${DL([["Open","Double-click or "+K("Enter")+": a graph comes onto the desk (a hi
 {id:"import", g:"Basics", t:"Importing data", kw:"import open file csv tsv txt delimiter decimal comma header metadata paste drop wizard add replace many several files batch columns role use as data not a spectrum leave out plot not yet worksheet only pairs",
  lead:"Text exports from almost any instrument work. Drop a file on the window and it is read and plotted at once; use Import to see how it is read and choose what each column becomes, and nothing is plotted until you ask.",
  body:`<h2>Three ways in</h2>
-${DL([["Drop files","Drop one file or many anywhere on the window. Each is read with the automatic choices and plotted: on the graph you drop it on, or else on a new graph. Dropped on a folder of the "+DA("explorer","Project Explorer")+", it is filed there. The message that follows has <em>Read it differently</em>, which undoes it and opens the dialog."],["Import","<em>Import</em> on the toolbar, "+MP("File › Import data…")+", or "+K("Ctrl","O")+": the dialog shows how the file is read, every choice can be changed, and the columns go into the worksheet. Nothing is plotted: select columns and press Plot when you are ready."],["Paste","Copy columns from a spreadsheet and paste them into a worksheet cell."]])}
+${DL([["Drop files","Drop one file or many anywhere on the window. Each is read with the automatic choices and plotted: on the graph you drop it on, or else on a new graph. Dropped on a folder of the "+DA("explorer","Project Explorer")+", it is filed there. The message that follows has <em>Read it differently</em>, which undoes it and opens the dialog."],["Import","<em>Import</em> on the toolbar, "+MP("File › Import data…")+", or "+K("Ctrl","O")+": the dialog shows how the file is read, every choice can be changed, and the columns go into the worksheet. Nothing is plotted: select columns and press Plot when you are ready."],["Paste","Copy columns from a spreadsheet and paste them into a worksheet cell. Pasted into an empty sheet, they are read as an import reads them: with no X-like column every one is a Y, and the sheet's empty X column moves after them."]])}
 <h2 id="drop">Dropping files</h2>
 <p>While a file is dragged over the window, the outline shows where it would go and a message says what would happen: <em>Drop to plot in Graph 2</em>, or <em>Drop to import into “2024” and plot</em> over a folder. A project with no data takes the file's name and header; beside other data, each file's columns are named after the file, and columns measured on the same X share a column. One Undo takes the whole drop back. A binary instrument file is refused with the reason.</p>
 <h2>What is detected</h2>
-${DL([["Delimiter and decimal mark","Decided together: <code>1,5;2,5</code> only makes sense as semicolons with decimal commas."],["Where the data start","The longest run of consistent numeric lines, so an instrument's preamble and a trailing footer are found, not fought."],["Names and units","From the line above the numbers, such as <code>Raman shift (cm-1)</code>."],["What each column is","Guessed from names and values: an X axis, a column, or error bars. Change any of them in the <em>Columns</em> list."],["Metadata","Lines such as <code>Laser: 532 nm</code> in the header are kept with the project and printed in the report."],["Dates and times","A column of dates or times (<code>2024-03-01 12:00</code>, <code>12:05:30</code>) is read as seconds, shown in the worksheet as dates and times, and numbers its axis that way. "+DA("scales#dates","Dates and times")]])}
+${DL([["Delimiter and decimal mark","Decided together: <code>1,5;2,5</code> only makes sense as semicolons with decimal commas."],["Where the data start","The longest run of consistent numeric lines, so an instrument's preamble and a trailing footer are found, not fought."],["Names and units","From the line above the numbers, such as <code>Raman shift (cm-1)</code>. A line of units under a line of names (<code>Time;Sample A</code> over <code>h;OD600</code>) fills the Units row: each name takes its unit."],["What each column is","Guessed from names and values. X is the first column that rises or falls steadily, else the first named as an axis (a time, a wavelength, a concentration); with neither, as for groups of measurements side by side, every column is a Y against its row number. A name with <em>err</em> or <em>sd</em> makes error bars. Change any of them in the <em>Columns</em> list."],["Metadata","Lines such as <code>Laser: 532 nm</code> in the header are kept with the project and printed in the report."],["Dates and times","A column of dates or times (<code>2024-03-01 12:00</code>, <code>12:05:30</code>) is read as seconds, shown in the worksheet as dates and times, and numbers its axis that way. "+DA("scales#dates","Dates and times")]])}
 <p>The dialog shows the file with the data lines highlighted, the choices beside it, and a preview of the curve. Every choice can be overridden.</p>
 <h2 id="columns">Columns</h2>
 <p>Every column of the file has a row in the <em>Columns</em> list, with its name, its values and what it becomes (<em>Use as</em>):</p>
@@ -16584,7 +16729,7 @@ ${DL([["Into","The project on the desk (named in the list, with how many columns
 <p>Each column keeps the name of its file and the fields of its header (its Original data box in the History lists them). Fields that differ between the files, such as a temperature or the time each was taken, are offered as what the ${DA("batch","Batch window")} plots against.</p>
 <h2 id="onecol">One column: counts per channel</h2>
 <p>A multichannel analyser writes one number per line, the counts of one channel, with no X column. Kurve reads such a file as one spectrum against its <strong>channel number</strong>:</p>
-${DL([["X column","<em>Channel number</em>: each line's position, counted from <em>First channel</em> (0 or 1). The channel numbers are kept as the spectrum's X column, so the record shows what the file said."],["The first two lines (TKA)","A <code>.TKA</code> file starts with the live time and the real time in seconds. With <em>The first two lines are the live and real time</em> ticked (the default for .TKA) they are not counts: they go into the metadata, with the dead time, and the counts start on line 3."],["Y error","<em>√N error bars for the counts</em> adds error bars of √N (1 for an empty channel), as a column computed from the counts: weights for a fit, and errors for a band's area."],["Counts per second","The line saying what was read from the TKA header has a button that adds a step dividing by the live time: the counts stay as recorded, the processed data are a count rate."]])}
+${DL([["X column","<em>Channel number</em>: each line's position, counted from <em>First channel</em> (0 or 1). The channel numbers are kept as the spectrum's X column, so the record shows what the file said."],["The first two lines (TKA)","A <code>.TKA</code> file starts with the live time and the real time in seconds. With <em>The first two lines are the live and real time</em> ticked (the default for .TKA) they are not counts: they go into the metadata, with the dead time, and the counts start on line 3."],["Y error","<em>√N error bars for the counts</em> adds error bars of √N (1 for an empty channel), as a column computed from the counts: weights for a fit, and errors for a band's area. It is offered for whole numbers named as counts (<em>counts</em>, <em>cts</em>, <em>cps</em>, <em>events</em>) or read from a TKA file; whole numbers alone (ages, scores) are not counts."],["Counts per second","The line saying what was read from the TKA header has a button that adds a step dividing by the live time: the counts stay as recorded, the processed data are a count rate."]])}
 <p>The spectrum is drawn as a line, not thousands of dots. Then calibrate it to energy: with the step ${DA("step-ecal","Energy calibration")} (${MP("Spectroscopy › X axis")}), a ${DA("formulas","worksheet formula")}, or ${DA("python","Python")}. The Overview suggests it. ${DA("gamma","A gamma spectrum, start to finish")}</p>
 <p>A column of numbers pasted or typed with no X column is drawn against its row number, as in Origin.</p>
 <h2>What is refused</h2>
@@ -16766,7 +16911,7 @@ ${DL([["Bars","A line from the lower end to the upper end, with caps."],["Band",
  lead:"Nothing has to be plotted until you are ready: import into the worksheet, work on the columns there, then select the ones to plot.",
  body:`<h2>Plotting the selected columns</h2>
 <p>Select columns in the worksheet (click a column's letter, Shift+click or drag across several) and press <em>Plot</em> on the worksheet's bar. The same list is in ${MP("Plot › Plot the selected columns")}, the right-click menu of the cells, and a column's header menu.</p>
-${DL([["Line, Symbols, Line + symbols, Sticks, Area, Steps, Columns","How the curves are drawn."],["Histogram, Box chart, Violin plot","The distribution of each column's values. "+DA("dists","Distributions")],["Stacked panels, Offset, Heat map","With several curves, how they share the graph."],["Add to a graph","Onto a graph you already have (a closed one opens again)."]])}
+${DL([["Line, Symbols, Line + symbols, Sticks, Area, Steps, Columns","How the curves are drawn. Until you choose, a curve is drawn by the <em>Automatic</em> type: a line for many evenly spaced points (500 or more, or 40 or more in order and evenly spaced), symbols for a few or unevenly spaced ones. The curve's right-click <em>Plot type</em> has <em>Automatic</em> first, with what it picked."],["Histogram, Box chart, Violin plot","The distribution of each column's values. "+DA("dists","Distributions")],["Stacked panels, Offset, Heat map","With several curves, how they share the graph."],["Add to a graph","Onto a graph you already have (a closed one opens again)."]])}
 <p>The first time, the columns go on the first graph; after that each Plot makes a new graph, as in Origin, unless you add to one.</p>
 <h2 id="setup">Plot setup</h2>
 <p>${MP("Plot › Plot setup…")} (first in the worksheet's <em>Plot</em> list too, and what <em>Plot</em> opens when no column is selected) sets the whole plot in one dialog, as Origin's Plot Setup does: the kind of plot, each shown as a small picture (line, symbols, line and symbols, columns, area, steps, sticks; stacked panels, offset, double Y, heat map; box chart, violin plot, histogram), the X column, the Y columns to plot (ticked, with All and None, a column's error bars named beside it), and the graph they go on, a new one or one you have. A sketch shows what it will look like. It starts from what is selected in the worksheet. The arrow keys move between the kinds.</p>
@@ -16996,10 +17141,11 @@ ${DL([["Area ± error","The trapezoidal sum over the points in the window, less 
 <h2>Every spectrum</h2>
 <p>The same windows apply to every spectrum on the same X axis. <em>Every spectrum</em> shows a row per spectrum, the numbers follow each one's processing, and <em>Copy</em> gives the whole table.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
-{id:"stats", g:"Analysis", t:"Statistics", win:"stats", kw:"statistics descriptive mean median sd noise signal to noise area centroid correlation pearson integrate visible range",
+{id:"stats", g:"Analysis", t:"Statistics", win:"stats", kw:"statistics descriptive n count mean median sd se standard error spectral measures noise signal to noise area centroid correlation pearson integrate visible range",
  lead:"Descriptive statistics of every column, the integral of the visible range, and how alike the columns are.",
  body:`<h2>Descriptive statistics</h2>
-<p>For each column, processed or original data, over all X or the visible range: points, minimum, maximum and where it is, mean, standard deviation, median, noise σ, signal to noise, area and centroid. Masked points are left out.</p>
+<p>For each column, processed or original data, over all X or the visible range: the number of points <em>n</em>, mean, standard deviation (n − 1), standard error of the mean (SD / √n), median, minimum and maximum. Masked points are left out.</p>
+<p><em>Noise, S/N and area</em> adds the X of the maximum, noise σ, signal to noise, area and centroid. It is on by itself when the active column has many evenly spaced points with a clear peak, and off for other data.</p>
 ${DL([["Noise σ","From second differences, so a band's slope does not count as noise."],["S/N","The largest point's height above the median, over σ."],["Area","Trapezoidal, over X in ascending order."],["Centroid","The area-weighted mean X."]])}
 <h2>Integrate the visible range</h2>
 <p>Zoom the graph to a range: its area above zero, above the straight line joining its ends, the mean and highest Y. For several bands with baselines of their own, use ${DA("integ","Integrate bands")}.</p>
@@ -17007,19 +17153,19 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <p>Pearson r between columns on the same X axis, interpolated onto the active column's X where they overlap. Near 1, the same shape; near 0, unrelated.</p>
 <p><em>Copy</em> gives every table as tab-separated text.</p>`},
 /* ---------------------------------------------------------------- Fitting */
-{id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge range from to spectrum done close",
+{id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge range from to use the view zoom all spectrum done close residuals weighting",
  lead:"Two kinds of fit, in the Fit window: a curve fit puts one model through the data; a peak fit describes a column as a sum of peaks on a baseline.",
  body:`${DL([[DA("curvefit","Curve fit"),"A line, polynomial, exponential decay, sigmoid, single peak or your own function."],[DA("peakfit","Peak fit"),"Any number of Gaussian, Lorentzian, Voigt, Pearson VII, Fano and other peaks on a baseline, found automatically or placed by hand, with handles on the graph."]])}
 <h2>What is fitted</h2>
-<p>The unmasked points of one column's processed data, over a range. The top of the Fit window says which: <em>Column</em> (with several) and <em>Range</em>, from … to …, in X units. Typing a range zooms the graph to it, and zooming the graph changes it; <em>All</em> is all the data. Mask points to leave them out. Press <em>Fit</em> or ${K("Ctrl","Enter")}; <em>Done</em> closes the window and keeps the fit.</p>
+<p>The unmasked points of one column's processed data, over a range. The top of the Fit window says which: <em>Column</em> (with several) and <em>Range</em>, from … to …, in X units. The range is all the data until you type one, or take the graph's zoom with <em>Use the view</em>; zooming the graph alone never changes it, and what the fit leaves out is shaded while the window is open. <em>All</em> is all the data again. Mask points to leave them out. Under the options, a line says how the fit is weighted. Press <em>Fit</em> or ${K("Ctrl","Enter")}; <em>Done</em> closes the window and keeps the fit.</p>
 <h2>After fitting</h2>
-<p>The curve is drawn over the data (with the residuals if <em>Residuals under the graph</em> is on, in the Fit window), and the ${DA("results","Results")} window gives every parameter with its uncertainty and anything that makes it less certain. Each fit is kept in the fit history; a fit whose data or processing changed since is marked out of date.</p>
+<p>The curve is drawn over the data, and the residuals under the graph after a peak fit (<em>Residuals under the graph</em> in the Fit window turns them on or off for any fit), and the ${DA("results","Results")} window gives every parameter with its uncertainty and anything that makes it less certain. Each fit is kept in the fit history; a fit whose data or processing changed since is marked out of date.</p>
 ${TIP("A fit belongs to its column. It is drawn only over the column it was fitted to.")}`},
-{id:"curvefit", g:"Fitting", t:"Curve fit", kw:"curve fit model linear polynomial exponential decay sigmoid boltzmann gaussian lorentzian guess initial fixed weights",
- lead:"One model, fitted to the points in view.",
+{id:"curvefit", g:"Fitting", t:"Curve fit", kw:"curve fit model suggested suggestion linear polynomial exponential decay sigmoid boltzmann gaussian lorentzian guess initial fixed weights",
+ lead:"One model, fitted to the points in the fit's range.",
  body:`<h2>Fitting</h2>
-<ol class="dsteps"><li>Choose a model. Its formula is shown under the list.</li>
-<li>Starting values are measured from the data. <em>Guess</em> measures them again from what is in view.</li>
+<ol class="dsteps"><li>Choose a model. The Fit window starts from the one that suits the shape of the points (a straight line for a steady rise or fall, an exponential for a quick change that levels off, a sigmoid for a rise from one level to another, a Gaussian for one clear peak) and names it under the list; when another is chosen, its button chooses it again. Its formula is shown under the list.</li>
+<li>Starting values are measured from the data. <em>Guess</em> measures them again from the points in the fit's range.</li>
 <li>Tick a parameter's lock to hold it fixed.</li>
 <li>With a Y error column, <em>Weight by the Y error column</em> fits with weights 1/σ²; otherwise the errors are scaled by the scatter of the residuals.</li>
 <li>With X error bars, <em>Include the X errors</em> fits by orthogonal distance regression: each point's true X is fitted too, within its error. Without Y errors, the scatter in Y is taken to be the same for every point and found from the fit (the Results give it as <em>s</em>). Peak fits and fits of every column have the same choice. ${DA("errbars#use","Error bars")}</li>
@@ -17994,7 +18140,7 @@ async function openBatchDialog(){
   const plist=`<div class="bfps">${t.params.map((_,i)=>prow(i)).join("")}</div>`;
   const shared=r=>t.params.map((_,i)=>can(i)&&!!r["bfP"+i]);
   const count=r=>{ const sh=shared(r).filter(Boolean).length, own=t.params.filter((_,i)=>can(i)).length-sh; return {sh,own,tot:sh+K*own}; };
-  const pr=formDlg({title:`Fit ${K} spectra`,ok:`Fit ${K} spectra`,
+  const pr=formDlg({title:`Fit ${K} columns`,ok:`Fit ${K} columns`,
     html:`<p class="lab" style="margin:0 0 12px">With ${esc(lcFirst(t.name))}, as fitted to ${esc(specName(src))}${t.range?`, over x ${esc(fmt(Math.min(...t.range),6))} to ${esc(fmt(Math.max(...t.range),6))}`:""}${t.weighted?", weighted by the Y errors":""}.</p>
     <div class="grid2"><label for="bfSeed">Start each from</label><select id="bfSeed"><option value="tmpl">This fit's result</option><option value="chain">The one before it in the series</option>${comp?`<option value="found">The peaks found in each column</option>`:""}</select>
     <label for="bfHow" class="tipd" title="Together: one fit of every column at once, the parameters ticked below taking one value for all of them (a global fit)">Fit them</label><select id="bfHow"><option value="each">Each on its own</option><option value="global"${prev?" selected":""}>Together, sharing parameters</option></select></div>
@@ -18060,9 +18206,9 @@ async function runBatch(o){
   const done=list.filter(r=>r.fit).length, failed=list.length-done, nc=list.filter(r=>r.fit&&r.fit.stats&&r.fit.stats.converged===false).length;
   pushUndo(glob?"fitting every column together":"fitting every column");
   const how=glob?`together, sharing ${shareSummary(t,glob.share)} (reduced χ² ${fmt(glob.stats.redChi2,4)}, ${glob.stats.m} parameters)`:SEEDS[o.seed];
-  save({batch:{at:Date.now(),by:S.uid||"",tmpl:t,seed:o.seed,rows:list,glob}},`fitted ${lcFirst(t.name)} to ${list.length} spectra${glob?" ":", "}${how}: ${done} fitted${nc?`, ${nc} without converging`:""}${failed?`, ${failed} failed`:""}${stopped?"; stopped before the end":""}${gfail?`; the fit of them together failed (${gfail}), so each has its own, with the shared parameters held at the template's values`:""}`);
+  save({batch:{at:Date.now(),by:S.uid||"",tmpl:t,seed:o.seed,rows:list,glob}},`fitted ${lcFirst(t.name)} to ${list.length} columns${glob?" ":", "}${how}: ${done} fitted${nc?`, ${nc} without converging`:""}${failed?`, ${failed} failed`:""}${stopped?"; stopped before the end":""}${gfail?`; the fit of them together failed (${gfail}), so each has its own, with the shared parameters held at the template's values`:""}`);
   renderAll(); openWin("batch",{render:true});
-  toast(gfail?`Fitting them together failed: ${gfail}. Each column keeps its own fit, with the shared parameters held at the template's values.`:`Fitted ${done} of ${list.length} spectra${glob?" together":""} in ${((performance.now()-t0)/1000).toFixed(1)} s.${failed?` ${failed} failed; the table says why.`:""}`,{action:"Undo",run:undo});
+  toast(gfail?`Fitting them together failed: ${gfail}. Each column keeps its own fit, with the shared parameters held at the template's values.`:`Fitted ${done} of ${list.length} columns${glob?" together":""} in ${((performance.now()-t0)/1000).toFixed(1)} s.${failed?` ${failed} failed; the table says why.`:""}`,{action:"Undo",run:undo});
 }
 function batchProgHtml(){ const r=S.batchRun; if(!r) return ""; if(r.together) return `<span>Fitting ${esc(r.name)}…</span><span class="bar"><i style="width:100%"></i></span>`; return `<span>Fitting ${r.i+1} of ${r.n}: ${esc(r.name)}…</span><span class="bar"><i style="width:${Math.round(100*r.i/Math.max(1,r.n))}%"></i></span><button class="btn sm" id="bStop">Stop</button>`; }
 function renderBatchProgress(){ const el=$("#bProg"); if(el){ el.innerHTML=batchProgHtml(); const s=$("#bStop"); if(s) s.onclick=()=>{ if(S.batchRun) S.batchRun.stop=true; }; } else if(winOpen("batch")) renderBatch(); }
@@ -18307,7 +18453,7 @@ async function exportTrendSvg(){ const qs=batchQuantities(), s=seriesOf(), q=qFi
 function reportBatchHtml(){ const p=P(), b=p&&p.batch; if(!b) return "";
   const qs=batchQuantities(), s=seriesOf(), q=qFind(qs,s.q), tr=q?trendData(q):null, e2=t=>esc(String(t)), rows=seriesCols(), c0=(rows[0]||{}).c;
   const gs=b.glob&&b.glob.stats;
-  let out="<h2>Batch fit</h2><p>"+e2(capFirst(lcFirst(b.tmpl.name)))+" fitted to "+b.rows.length+" spectra, "+(b.glob?"all at once, sharing "+e2(shareSummary(b.tmpl,b.glob.share))+": "+gs.n+" points, "+gs.m+" parameters ("+gs.sh+" shared, "+gs.own+" for each column), reduced χ² "+e2(fmtOr(gs.redChi2,5))+", "+gs.dof+" degrees of freedom; each column was first fitted on its own, "+e2(SEEDS[b.seed]||""):e2(SEEDS[b.seed]||""))+(b.tmpl.range?", over x "+e2(fmt(Math.min(...b.tmpl.range),6))+" to "+e2(fmt(Math.max(...b.tmpl.range),6)):"")+".</p>";
+  let out="<h2>Batch fit</h2><p>"+e2(capFirst(lcFirst(b.tmpl.name)))+" fitted to "+b.rows.length+" columns, "+(b.glob?"all at once, sharing "+e2(shareSummary(b.tmpl,b.glob.share))+": "+gs.n+" points, "+gs.m+" parameters ("+gs.sh+" shared, "+gs.own+" for each column), reduced χ² "+e2(fmtOr(gs.redChi2,5))+", "+gs.dof+" degrees of freedom; each column was first fitted on its own, "+e2(SEEDS[b.seed]||""):e2(SEEDS[b.seed]||""))+(b.tmpl.range?", over x "+e2(fmt(Math.min(...b.tmpl.range),6))+" to "+e2(fmt(Math.max(...b.tmpl.range),6)):"")+".</p>";
   if(tr&&tr.pts.length) out+="<figure>"+trendSvg(tr,q,640,380,EXPORT_PAL,true)+"</figure>"+(tr.fit?"<p>"+trendFitText(tr,q)+"</p>":"");
   out+="<table><thead><tr><th class=\"l\">Column</th><th>"+e2(seriesLabel(s))+"</th>"+qs.map(z=>{ const u=c0?qUnit(z,c0):""; return "<th>"+e2(z.label)+(u?" ("+e2(u)+")":"")+"</th>"; }).join("")+"<th class=\"l\">Notes</th></tr></thead><tbody>";
   rows.forEach(({c,v})=>{ const r=batchRowOf(c.id), f=r&&r.fit, st=f?batchStale(f):null, w=f?fitWarnings(f).filter(x=>x.kind!=="stale").map(x=>x.text):[];
@@ -18599,7 +18745,7 @@ function figPerSpectrum(cids,o){
   if(ys.length<2){ toast("A figure of panels needs two columns or more."); return; }
   pushUndo("making a figure, a panel per column");
   const made=newGraphs(ys.map(c=>[c.id]),{noUndo:true,from:GID(),log:`made a graph for each of ${ys.length} columns`});
-  makeFigure(made,Object.assign({noUndo:true,log:`put ${ys.length} spectra in panels of a figure`},o||{})); }
+  makeFigure(made,Object.assign({noUndo:true,log:`put ${ys.length} columns in panels of a figure`},o||{})); }
 function figSave(fid,F,log,o){ const p=P(); if(!p||S.readOnly) return; if(!(o&&o.noUndo)) pushUndo((o&&o.undo)||"changing the figure");
   save({graphs:(p.graphs||[]).map(g=>g.id===fid?Object.assign({},g,{fig:F}):g)},log||null); renderAll(); layoutFigs(fid); }
 // A graph, or a new one with some spectra, as a panel at the end of a figure.
@@ -18679,11 +18825,16 @@ async function newFigureDlg(pre){
   const ys=yCols();
   const r=await formDlg({title:"A figure of panels",ok:"Make it",
     html:`<div class="grid2"><label for="nfFrom">Panels</label><select id="nfFrom"><option value="graphs"${ids.length>1?" selected":""}>The graphs ticked below, one panel each</option><option value="spectra"${ids.length>1?"":" selected"}>One panel for each column (${ys.length})</option></select></div>
-      <div class="cglist">${ids.map(id=>{ const cs=graphCols(id); return `<label class="cbrow"><input type="checkbox" id="nfG_${id}"${!pre||pre.includes(id)?" checked":""}><span>${esc(graphName(id))}</span><span class="lab">${esc(cs.length===1?specName(cs[0]):cs.length+" spectra")}</span></label>`; }).join("")||`<p class="lab">No graph has columns yet.</p>`}</div>
+      <div class="cglist">${ids.map(id=>{ const cs=graphCols(id); return `<label class="cbrow"><input type="checkbox" id="nfG_${id}"${!pre||pre.includes(id)?" checked":""}><span>${esc(graphName(id))}</span><span class="lab">${esc(cs.length===1?specName(cs[0]):cs.length+" curves")}</span></label>`; }).join("")||`<p class="lab">No graph has columns yet.</p>`}</div>
       <div class="grid2"><label for="nfCols">Columns</label><select id="nfCols"><option value="">Automatic</option>${[1,2,3,4].map(c=>`<option value="${c}">${c}</option>`).join("")}</select>
-      <span></span><label class="chk"><input type="checkbox" id="nfSx"> Share X (automatic for one column)</label>
+      <span></span><label class="chk" title="One X range and zoom for every panel, numbered on the outer edge only. Panels in one column always share it"><input type="checkbox" id="nfSx"> Share X</label>
       <label for="nfLet">Letters</label><select id="nfLet">${FIG_LETTERS.map(([v,l])=>`<option value="${v}">${l}</option>`).join("")}</select></div>`,
-    valid:v=>v.nfFrom==="spectra"?ys.length>1:ids.some(id=>v["nfG_"+id])});
+    valid:v=>{ // In one column X is shared by itself: the box shows it, ticked and fixed (UX_SPEC 3.7).
+      const sx=document.getElementById("nfSx"), n=v.nfFrom==="spectra"?ys.length:ids.filter(id=>v["nfG_"+id]).length;
+      if(sx){ const one=(+v.nfCols||figGridFor(Math.max(1,n)).cols)===1;
+        if(one&&!sx.disabled){ sx.dataset.was=sx.checked?"1":""; sx.checked=true; sx.disabled=true; }
+        else if(!one&&sx.disabled){ sx.disabled=false; sx.checked=sx.dataset.was==="1"; } }
+      return v.nfFrom==="spectra"?ys.length>1:n>0; }});
   if(!r||!P()) return; const cols=+r.nfCols||null, o={cols,letters:r.nfLet}; if(r.nfSx||cols===1) o.shareX=true; else if(cols) o.shareX=false;
   if(r.nfFrom==="spectra") figPerSpectrum(null,o); else makeFigure(ids.filter(id=>r["nfG_"+id]),o); }
 // A figure window's ⋯ menu, with the panel in front's own items.
@@ -18692,7 +18843,7 @@ function figMenuItems(fid){
   const act=figOf(S.gid)===f?S.gid:(f.fig.cells[0]||{}).gid, others=deskGraphIds().filter(id=>!isFigId(id));
   return [{group:f.name,plain:true},
     {label:"Panels…", enabled:!ro, title:"Rows and columns, shared axes, letters, gap, widths and heights", run:()=>figDlg(fid)},
-    {label:"Add a panel", enabled:!ro, sub:()=>[{label:"With the active column",enabled:!!activeYCol(),run:()=>figAddPanel(fid,{cids:[activeYCol().id]})}].concat(others.length?["-",{group:"A graph, as it is"}].concat(others.map(id=>({label:graphName(id),note:graphCols(id).length+" spectra",run:()=>figAddPanel(fid,{gid:id})}))):[])},
+    {label:"Add a panel", enabled:!ro, sub:()=>[{label:"With the active column",enabled:!!activeYCol(),run:()=>figAddPanel(fid,{cids:[activeYCol().id]})}].concat(others.length?["-",{group:"A graph, as it is"}].concat(others.map(id=>({label:graphName(id),note:graphCols(id).length+" curves",run:()=>figAddPanel(fid,{gid:id})}))):[])},
     act?{label:`Panel ${figLetter(act)} ${graphName(act)}`, sub:()=>figPanelItems(act)}:null,
     "-",{label:"Rename the figure…", enabled:!ro, run:()=>renameGraph(fid)},
     {label:"Duplicate the figure", enabled:!ro, run:()=>duplicateFigure(fid)},
@@ -18890,7 +19041,7 @@ function renderGraphHeads(){
       return; }
     if(id===(S.gid||"main")) return;
     const cols=graphCols(id), lead=leadOf(id), pl=plotOf(id), sub=el.querySelector(".win-sub"), bar=el.querySelector(".gbar");
-    if(sub) sub.textContent=cols.length===1?specName(cols[0]):cols.length?`${cols.length} spectra`:"";
+    if(sub) sub.textContent=cols.length===1?specName(cols[0]):cols.length?`${cols.length} curves`:"";
     if(bar){ const keep=S.gctx; S.gctx=id;
       try{ bar.innerHTML=cols.map(c=>{ const col=((pl.series||{})[c.id]||{}).color||(c.id===lead?"var(--data)":yTint(c.id));
         return `<button class="gchip${c.id===lead?" on":""}" data-gchip="${c.id}" title="Work on ${esc(specName(c))} in this graph, or hold and drag it onto another graph"><span class="sw" style="background:${esc(col)}"></span>${esc(specName(c))}</button>`; }).join(""); }
@@ -18941,7 +19092,7 @@ function onePerSpectrum(){
   if(need.length) newGraphs(need.map(c=>[c.id]),{noUndo:true,patch:{plot},log:`gave each column a graph of its own (${need.length} new)`});
   else save({plot},`gave each column a graph of its own`);
   S.glead.main=first.id; renderAll(); tileWins(); renderAll();
-  toast(`${ys.length} spectra, ${ys.length} graphs. Click a graph to work on it.`,{action:"Undo",run:undo});
+  toast(`${ys.length} columns, ${ys.length} graphs. Click a graph to work on it.`,{action:"Undo",run:undo});
 }
 function allInOneGraph(){ const ys=yCols(); if(!ys.length) return; newGraphFrom(ys.map(c=>c.id),{log:`made a graph with every column`}); }
 function newGraphItems(){ const act=activeYCol(), ys=yCols(), ro=S.readOnly||!P();
@@ -19201,7 +19352,7 @@ async function openPlotDlg(cids){
 // The list of graphs (the taskbar's Graphs button and Window › Graphs).
 function graphsMenuItems(){ const cur=S.gid||"main";
   return deskGraphIds().map(id=>{ const fg=graphOf(id)&&graphOf(id).fig, cs=fg?[]:graphCols(id), n=fg?fg.cells.length:0;
-    return {label:graphName(id)+(fg?` · ${n} panel${n===1?"":"s"}`:cs.length===1?" · "+specName(cs[0]):cs.length?` · ${cs.length} spectra`:""), radio:true, checked:(fg?(figOf(cur)||{}).id===id:id===cur)&&!graphShut(id), note:graphShut(id)?"closed":winMin(winOfGraph(id))?"minimised":"", run:()=>showGraph(id)}; })
+    return {label:graphName(id)+(fg?` · ${n} panel${n===1?"":"s"}`:cs.length===1?" · "+specName(cs[0]):cs.length?` · ${cs.length} curves`:""), radio:true, checked:(fg?(figOf(cur)||{}).id===id:id===cur)&&!graphShut(id), note:graphShut(id)?"closed":winMin(winOfGraph(id))?"minimised":"", run:()=>showGraph(id)}; })
     .concat(["-",{label:"Combine graphs…", enabled:!S.readOnly&&drawGraphIds().length>1, run:()=>combineDlg()},{label:"A figure of panels…", enabled:!S.readOnly, title:"Graphs as the panels of one figure, their plot areas lined up", run:()=>newFigureDlg()},{label:"Link the X zoom of the graphs", checked:S.linkX, run:()=>setLinkX(!S.linkX)}]); }
 // A graph window's ⋯ menu.
 function graphWinItems(id){
@@ -19260,7 +19411,7 @@ function combineGraphs(srcs,into,opt){
   if(into==="new"){ if(opt.at) placeWinAt(tid,opt.at); else if(geo){ Object.assign(winState(tid),{g:geo,open:true,max:false,z:++LAYOUT.z}); applyWins(); saveLayout(); } else splitInto(winOfGraph(srcs[0]||GID()),tid); }
   else { const w=winOfGraph(tid); if(!winOpen(w)) openWin(w); else focusWin(w); }
   activateGraph(tid);
-  toast(del.length?`Merged ${andList(dnames)} into ${tname}.`:into==="new"&&!srcs.length?`${tname} shows ${what}.`:`${srcs.length?"The spectra of "+what+" are":what+(n===1?" is":" are")} on ${tname}.`,{action:"Undo",run:undo});
+  toast(del.length?`Merged ${andList(dnames)} into ${tname}.`:into==="new"&&!srcs.length?`${tname} shows ${what}.`:`${srcs.length?"The curves of "+what+" are":what+(n===1?" is":" are")} on ${tname}.`,{action:"Undo",run:undo});
   return tid;
 }
 // A new window where something was dropped on the desk.
@@ -19339,7 +19490,7 @@ function combineDlg(into){
   const p=P(); if(!p||S.readOnly) return; const ids=drawGraphIds();
   if(ids.length<2){ toast("There is only one graph. Columns from another project come with File › Copy from another project…"); return; }
   into=into&&ids.includes(into)?into:GID();
-  const row=id=>{ const cs=graphCols(id); return `<label class="cbrow"><input type="checkbox" id="cgG_${id}"${id!==into?" checked":""}><span>${esc(graphTitle(id))}</span><span class="lab">${esc(cs.length===1?specName(cs[0]):cs.length+" spectra")}</span></label>`; };
+  const row=id=>{ const cs=graphCols(id); return `<label class="cbrow"><input type="checkbox" id="cgG_${id}"${id!==into?" checked":""}><span>${esc(graphTitle(id))}</span><span class="lab">${esc(cs.length===1?specName(cs[0]):cs.length+" curves")}</span></label>`; };
   formDlg({title:"Combine graphs",ok:"Combine",focus:"#cgInto",
     html:`<p class="lab" style="margin:0 0 6px">The curves of</p><div class="cglist">${ids.map(row).join("")}</div>
     <div class="grid2"><label for="cgInto">Go on</label><select id="cgInto"><option value="new">A new graph</option>${ids.map(id=>`<option value="${id}"${id===into?" selected":""}>${esc(graphTitle(id))}</option>`).join("")}</select>
@@ -19505,7 +19656,7 @@ function plotMenu(){
       {label:"Legend…", run:()=>openPlotDetails(null,"legend"), enabled:!!p},{label:"Lines and symbols…", run:()=>openPlotDetails(act&&act.id,"series"), enabled:!!p}]},
     {label:"Saved styles", sub:()=>formatMenuItems(f=>useFormat(f,false),()=>GP()).concat(multiGraph()?["-",{label:"Give every graph a style",sub:()=>allFormats().map(f=>({label:f.name,enabled:edit,run:()=>useFormat(f,true)}))}]:[])},
     "-",
-    {label:"Plot type", sub:()=>PLOT_TYPES.map(([k,l])=>({label:l, radio:true, checked:st===k, enabled:edit, run:()=>{ if(act&&(cfg.series[act.id]||{}).type) setSeriesStyle(act.id,{type:k}); else setStyle(k); }}))},
+    {label:"Plot type", sub:()=>plotTypeItems(act,!edit)},
     {label:"Several curves", sub:()=>LAYOUTS.filter(([k])=>!isDistLayout(k)).map(([k,l])=>({label:l, radio:true, checked:cfg.layout===k, enabled:edit, run:()=>setPlotKey("layout",k,`laid the curves out as ${l.toLowerCase()}`)}))},
     {label:"Axes", sub:()=>[
       {label:"Reverse X", checked:!!cfg.revX, run:()=>togglePlot("revX"), enabled:edit},
@@ -19539,10 +19690,10 @@ function menuItems(which){
     {label:"Copy from another project…", title:"Columns from another project, with their processing, peaks and colours", run:()=>bringInDlg(), enabled:edit&&otherProjects().length>0},
     "-",
     {label:"Examples", sub:()=>[
+      {label:"Exponential decay (fluorescence)", run:()=>loadExample("decay"), enabled:can},
       {label:"Infrared: overlapping bands", run:()=>loadExample("ir"), enabled:can},
       {label:"Raman: raw polystyrene (background, spikes)", run:()=>loadExample("ps"), enabled:can},
-      {label:"Raman: one band", run:()=>loadExample("raman"), enabled:can},
-      {label:"Exponential decay (fluorescence)", run:()=>loadExample("decay"), enabled:can}]},
+      {label:"Raman: one band", run:()=>loadExample("raman"), enabled:can}]},
     {label:"Export", sub:exportItems},
     "-",
     {label:"Rename the project…", run:renameProject, enabled:edit},
@@ -19690,7 +19841,7 @@ function batchProjName(names){ if(names.length<2) return names[0]||"Untitled pro
   let pre=names[0]; names.forEach(n=>{ let i=0; while(i<pre.length&&i<n.length&&pre[i]===n[i]) i++; pre=pre.slice(0,i); });
   pre=pre.replace(/\d+$/,"").replace(/[\s_\-.,;:(\[]+$/,"").trim();
   const cut=s=>s.length>24?s.slice(0,23)+"…":s;
-  return pre.length>=3?`${cut(pre)} (${names.length} spectra)`:`${cut(names[0])} to ${cut(names[names.length-1])}`; }
+  return pre.length>=3?`${cut(pre)} (${names.length} columns)`:`${cut(names[0])} to ${cut(names[names.length-1])}`; }
 /* An example opens in the project you are on only if that project is empty;
    otherwise it gets a project of its own rather than replacing your data. */
 async function loadExample(kind){
@@ -19699,7 +19850,7 @@ async function loadExample(kind){
   const exX=makeCol("x",ex.xLong,ex.xUnit,ex.x), exY=Object.assign(makeCol("y",ex.yLong,ex.yUnit,ex.y),{pipe:[],mask:[]});
   const cols=[exX,exY]; if(ex.e) cols.push(makeCol("e",ex.eLong,ex.eUnit,ex.e,exY.id));
   const fid="f"+Math.random().toString(36).slice(2,9); cols.forEach(c=>{ c.fid=fid; c.file=`Example: ${ex.name}`; });
-  const plot={style:ex.kind==="ps"?"line":"scatter",logY:false,grid:false,resid:true,revX:!!ex.revX};
+  const plot={style:ex.kind==="ps"?"line":"scatter",logY:false,grid:false,resid:"auto",revX:!!ex.revX};
   if(kind==="ps") plot.style="line";
   const patch={cols,activeY:exY.id,fit:null,fits:[],meta:{},plot,prefFit:ex.fit||null,prefModel:ex.model||null,raw:rawRecordFor(cols,"recorded the example: "+ex.name)};
   const cur=P(), empty=!!cur&&!allCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null));

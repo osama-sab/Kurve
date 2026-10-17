@@ -46,6 +46,9 @@ SCREENS = [
     ("peaks", "() => { openPeakFinder(); }", None),
     ("statistics", "() => { openWin('stats', {render: true}); focusWin('stats'); }", None),
     ("menu-spectroscopy", None, "Spectroscopy"),  # from slice 4; skipped where there is no such menu
+    # From slice 5: a curve fit on the decay example, and statistics of groups pasted side by side.
+    ("fit-curve", "async () => { await loadExample('decay'); await new Promise(r => setTimeout(r, 500)); S.fitMode = 'curve'; showTab('fit'); renderFit(); }", None),
+    ("stats-groups", "async () => { newProject(); await new Promise(r => setTimeout(r, 600)); S.ws.r = 0; S.ws.c = 0; S.ws.ar = 0; S.ws.ac = 0; wsPasteText('Control\\tPlacebo\\tDrug\\n310\\t322\\t301\\n295\\t340\\t288\\n330\\t301\\t295\\n301\\t315\\t310\\n288\\t333\\t279'); openWin('stats', {render: true}); focusWin('stats'); }", None),
 ]
 
 

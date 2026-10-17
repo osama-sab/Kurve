@@ -403,7 +403,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   that sniff a file — `detectFormat` (delimiter and decimal mark decided together, since `1,5;2,5`
   only parses if you treat `;` plus comma-decimal as one hypothesis), `findBlock` (the longest run
   of consistent numeric lines, so an instrument preamble and a trailing footer are found rather
-  than fought), `parseMeta`, `detectRoles`, `detectPaired`, `analyzeFile`, and `checkColumns`
+  than fought), `parseMeta`, `detectRoles` (X is the first column that rises or falls steadily,
+  else the first whose name matches `X_NAME`, an axis's name; with neither, `xi` is -1 and every
+  column is a Y against its row number, error columns still found by name), `detectPaired`,
+  `analyzeFile` (a last header line of units under a line of names, `isUnitsRow`/`isUnitWord`/
+  `UNIT_RE`, fills the Units row: the names become "Sample A (OD600)" and `unitsAt` is the units
+  line), and `checkColumns`
   which reports findings without applying them. `numNorm` reads numbers as documents write
   them (a minus sign −, superscript exponents 5×10⁻³, thousands set off by no-break spaces, or
   by plain spaces in a comma-decimal number, full-width digits and signs as an input method
@@ -472,8 +477,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   reads the first two lines as live and real time (`res.tka`, into `meta` with the dead time;
   only when real ≥ live unless asked) and starts the data after them; `detectRoles` gives one
   column `xi:-1`. With no column as X the wizard's X is the row number ("The channel
-  number", from `im.ch0`, 0 or 1), `√N error bars for the counts` (`im.sqrt`, for spectra of
-  non-negative whole numbers with no error column, `impSqrtable`: an error column computed
+  number", from `im.ch0`, 0 or 1), `√N error bars for the counts` (`im.sqrt`, for columns of
+  non-negative whole numbers named or united as counts, `COUNT_NAME`, or from a TKA file
+  (`impCounts`), with no error column, `impSqrtable`: an error column computed
   by the formula `SQRT_FX`, `sqrt(max(B,1))`), and the TKA line a `rate` fix (a `scale` step by 1/live, Count rate in
   counts/s). X is named Channel, Y Counts (counts) for TKA, the file's name otherwise (and
   beside other spectra); thousands of points are drawn as a line. `batchFile` reads one-column
@@ -584,7 +590,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   menus; unlocked and unsorted only) moves every recorded column and, through
   `remapRawRows(p, fn)`, what names a raw row (masks, corrections, a peak label's `row`, a set's
   `ex` and `mem`, `S.sel`); one undo entry and a record entry. Copy and paste are TSV (`wsCopyText`, `wsPasteText`, the label rows
-  included). The bar above shows the cell's address (`#wsAddr`) and the **formula bar** (`#wsVal`:
+  included; a block pasted from A1 into an empty sheet is read as an import reads it, and with
+  no X-like column, `detectRoles`, every pasted column is a Y and the sheet's empty X column
+  moves after them, since `migrate` keeps an X column in every project). The bar above shows the cell's address (`#wsAddr`) and the **formula bar** (`#wsVal`:
   `#wsValIn` is typed into as Excel's, `wsBarBegin`, `wsBarEnd(dr, dc, stay)` (a computed
   column, or the F(x)= row, sets its formula through `setColFormula`; a value that is not a
   number is refused in `#wsValHint`), `wsBarCancel`), the alignment buttons (`#wsAlignSeg`,
@@ -810,7 +818,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `exportGraphIds`/`allGraphsSvg` (a figure is one item, lettered inside). Commands:
   `makeFigure(gids, o)`, `figPerSpectrum`, `figAddPanel(fid, {gid|cids})`, `figRemovePanel(gid,
   {del})`, `figMovePanel`, `figSave`, `deleteFigure(fid, withPanels)`, `duplicateFigure`,
-  `figDlg` (Panels…), `newFigureDlg`, `figMenuItems` (the figure's ⋯), `figPanelItems`;
+  `figDlg` (Panels…), `newFigureDlg` (its Share X shows ticked and fixed while the panels will
+  be in one column, from its `valid`), `figMenuItems` (the figure's ⋯), `figPanelItems`;
   **spans**: a cell's `rs`/`cs` (`figLayout` and `figNb` already honour them) are set by
   `figSpan(gid, dr, dc, whole)` (into empty cells only, `figFits`; refused in words) from the
   panel's Span submenu (`figSpanItems`: a column wider or narrower, a row taller or shorter,
@@ -908,8 +917,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   undo never takes a colleague's words back. The report ends with every thread, and each step
   in its Processing list says how many threads it has.
 - **Statistics window** (`renderStats`): descriptive statistics of every spectrum (final or
-  raw, all X or the visible range: points, min, max, mean, SD, median, noise σ, S/N, area,
-  centroid), the visible-range integral (`measureHtml`), and Pearson r between spectra on the
+  raw, all X or the visible range: n, mean, SD, SE, median, min, max; the spectral measures,
+  X at max, noise σ, S/N, area and centroid, behind *Noise, S/N and area*, `#stSpec`,
+  `S.stOpt.spec` "on"/"off", else on when `looksLikeSpectrum` of the active column; `statsData`
+  returns `spec`, and `statsTsv` copies the same columns), the visible-range integral
+  (`measureHtml`, over `viewRng()`, never the fit's range), and Pearson r between spectra on the
   analysed one's X (`corrMatrix(cols, rng, only)`: each pair once; past 12 spectra a column of
   each against the analysed one, not a square table); Copy gives it as TSV.
 - **Peak fit panel** (`renderPeakFit`): three numbered parts: 1 Find peaks (`pfPanelHtml`,
@@ -918,11 +930,22 @@ graph first, with the taskbar kept at the bottom of the screen.
   `runPeakFinder(append)` seeds the draft from them, measuring a peak on a larger one's tail
   from its own valleys), 2 Peaks and baseline (its header's **Add a
   peak**, `#pfAddMode`, is the Add peak pointer mode, which left the toolbar), 3 Fit; both fits have
-  Residuals under the graph (`fitResidHtml`, `#fitResid`), also Analysis › Fit. `pfBaseline` subtracts the draft's
+  Residuals under the graph (`fitResidHtml`, `#fitResid`), also Analysis › Fit: `residOn(cfg,
+  fit)` is every reader's door (`resid` true or false by hand; "auto" or missing: on for a peak
+  fit, off for a curve fit; `residHint()` the fit the window is set to make). Both stickies
+  start with `weightHtml(d)` (how the fit will be weighted, naming the error column). The curve
+  fit's model starts from `suggestModel()` (`{id, why}`, memoised per series: linear, expdec,
+  boltz or gauss from the points' shape) unless the project has a `prefModel`; the window names
+  it under the list, with `#useSugg` when another is chosen. `pfBaseline` subtracts the draft's
   baseline before searching without changing it. Its "Mark and label them" hands the peaks to
   the Peaks window's set instead (`findPeaksInto`, over the fit's range). Above both kinds of
   fit, `fitWhereHtml` says what is fitted: Spectrum (with several; `goSpectrum`) and Range from
-  … to …, which is the graph's zoom (`setViewX(a, b)`, null for all; `wireFitWhere`), and the
+  … to …: **all the data** unless typed or taken from the zoom with *Use the view* (`#fwView`;
+  `fitRngOf(c)` reads `S.fitRng[pid:colId]` `{x0, x1, xu}`, null for all, or a fit's own `range`
+  on the same processing; `setFitRange(a, b)`, `xExtent`; `fitRange`/`fitPoints` read it, and
+  zooming never changes it; `buildPlot` shades what it leaves out, `g.fitrange`, while the Fit
+  window is open and the Peaks window is not; `fitFoundPeaks` takes the set's range;
+  `wireFitWhere`), and the
   footer ends in **Done** (`#fitDone`, closes the window). Each peak card has a name field
   (`data-pname`, `setPeakName(k, v, "draft")`), and under the fit a row of chips says what the
   labels show (`data-fplf`, `fplToggleField`) with More… (the Format dialog's `fpeaks` page).
@@ -1026,7 +1049,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   in pipeline order (sort, average repeats, remove spikes, resample, subtract the background,
   smooth only if the narrowest band spans 7 points or more), each opening its tool
   (`openTool`) with settings measured from the data, and marked done when the spectrum already
-  has the step. It opens after an import (`autoOverview`, off per browser under
+  has the step. It opens after an import that plots one column, when that column looks like a
+  spectrum (`looksLikeSpectrum(c)`: 50 points or more, in order, evenly spaced, a band at least
+  five times the noise; the same test gates *Label the peak at…* on a curve and the statistics'
+  spectral measures) (`autoOverview`, off per browser under
   `kurve.ovAuto`), from Spectroscopy › Overview of the spectrum…, and from a raw box in the History.
 - **Typing on the graph**: one box for every text, `inlineBox(o)` (`.inled`: `#inledIn`, an
   input or for several lines a textarea, `rtool("inledIn")`, ⋯ `data-inmore` for `o.more`,
@@ -1160,7 +1186,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `S.snapRing` (alignment guides and the point an arrow snaps to, drawn on screen only),
   `S.altKey` (Alt held: no snapping), `S.insetCfg` (an inset's settings while it is drawn),
   `S.exp` (the export dialog's settings), `S.pkRng` (a Peaks window range before there is a set),
-  `S.fldrag`/`S.fplClick` (a fitted peak's label being dragged or clicked), `S.stOpt`, `S.annoSel` (the selected
+  `S.fldrag`/`S.fplClick` (a fitted peak's label being dragged or clicked), `S.stOpt`, `S.fitRng` (the fit's
+  range per column, see the Fit window), `S.annoSel` (the selected
   annotation; Delete removes it), `S.legSel` (the legend, its title or an entry, selected),
   `S.plotDlgKind` (Plot setup's last kind), `S.comments` with `S.cDrafts`, `S.cReply`, `S.cEdit` and
   `S.discFilter` (the Discussion window's Open/All). Window positions are `LAYOUT`.
@@ -1172,8 +1199,14 @@ graph first, with the taskbar kept at the bottom of the screen.
   space out with larger text (`tkDen`).
   It reads the plot settings through `plotCfg()`, which is the Format dialog's working copy
   while that dialog is open. Each spectrum has a style from `serStyle(id, active, …)`: `type`
-  (`PLOT_TYPES`: line, scatter, linesym, stick, area, step), `color`, `lw`, `dash`, `sym`
+  (`PLOT_TYPES`: line, scatter, linesym, stick, area, step; with the graph's `style` "auto",
+  the default of every new graph, `autoType(id)`: a line for 500 points or more, or 40 or more
+  sorted with even spacing, symbols otherwise; a curve's own `series[id].type` wins, and
+  `plotTypeItems(c, ro)` is the Plot type submenu, Automatic first), `color`, `lw`, `dash`, `sym`
   (`SYMS`, filled and open), `ss`, `fill`, `op`, `label`; the fit curve's is `series.__fit`.
+  The Y axis's automatic title is `autoYTitle(d, others, layout)`: the active column's name and
+  unit, or with several curves overlaid or offset their shared name, else their shared unit,
+  else "Value" (`autoYOf()` for the graph in hand: the title's placeholders).
   `seriesSvg` draws one spectrum as a handful of paths whatever its length. `axisTicks` honours
   each axis's `min`, `max`, `step`, `minor`, `fmt` (auto, decimal, scientific) and `dec`. Ticks
   (`niceTicks`, `axisTicks`) are counted by index with a cap, never added up step by step, and
@@ -1426,7 +1459,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   point has none) under the series, bars with caps over it, X bars either way; drawn for every
   spectrum shown (overlay, offset, double Y, stacked panels), at any stage. The style keys are
   the series' `eb` (`bars`, `band`, `none`), `ebColor`, `ebLw`, `ebCap`, `ebOp` (the Format
-  dialog's Error bars group, the spectrum's right-click Error bars). `setErrKind(id, kind)` and
+  dialog's Error bars group, the spectrum's right-click Error bars, headed by `errSourceText(c)`:
+  the column they come from, or carried through the processing). `setErrKind(id, kind)` and
   `errKindItems` (the column menu's Use as error bars); a locked correction refuses a column that
   is only drawn. The fit's **prediction band** (`cfg.bandPred`, dashed, `data-pband`) beside the
   confidence band (`cfg.bandConf`, default on), both in `FMT_KEYS`: the curve's variance plus
@@ -1596,7 +1630,8 @@ the graph), active, original and processed data, check code, tool window, saved 
 Untitled project, not counted as a peak; spectroscopy's words (spectrum, band, background…)
 only in the Spectroscopy menu and its panels. Code names (`raw`, `final`, `rawFp`, `p.raw`,
 `S.sheet`, Python's `spectra`) are not renamed. `python tools/ux/terms.py [path]` counts the
-words off the glossary in every prose literal of the file (`--list term` shows where); it
+words off the glossary in every prose literal of the file, and in fragments joined to a number
+or a name (`n + " spectra"`) (`--list term` shows where); it
 reads 0, and a new string should keep it there. Help's search words (`kw`) keep the old words
 so either finds the article.
 
@@ -2178,6 +2213,17 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A patch that adds a function before deleting the old one finds two.** Inserting the new
   `annoMenuItems` and then looking for the old one by its first line found both, and the
   script stopped (writing nothing, as it must). Delete first, insert after.
+- **A third value is not off.** `resid` gained "auto", and every reader that tested
+  `resid !== false` read it as on, a drive's check included. A setting that grows a value gets
+  one door (`residOn`), and every reader goes through it.
+- **A project always has an X column.** `migrate` puts one back at the start when none is
+  left, so making the first pasted column a Y only pushed the data one column to the right.
+  The empty X column goes after the pasted ones instead.
+- **A range that follows the zoom is a range nobody chose.** The fit's range was the graph's
+  zoom; looking closer at a band changed the result and marked the fit out of date. The range
+  is all the data until set, and shown.
+- **One word is still a word.** The glossary counter skipped literals of fewer than two words,
+  so `n + " spectra"` passed it 23 times. Fragments joined to a number or a name count now.
 
 ## Roadmap
 

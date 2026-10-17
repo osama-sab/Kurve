@@ -278,6 +278,35 @@ Code keeps its names (`raw`, `final`, `p.raw`, Python's `spectra`): renaming the
 nothing and break saved projects. Help's search words keep the old words too, so a person who
 searches for "fingerprint" or "spectrum" still finds the article.
 
+## Defaults
+
+A default is the choice most people would make for **this** data, decided from the data
+(UX_SPEC §3.7), not one setting for everyone. It is always shown, and one click changes it.
+A choice made by hand, or kept in an older project, is never re-decided.
+
+- **Plot type: Automatic.** A line for many evenly spaced points (500 or more, or 40 or more
+  in order and evenly spaced): a spectrum, a time series. Symbols for a few or unevenly spaced
+  points: a calibration, measurements. One rule for typing, pasting, importing and plotting.
+  The curve's Plot type lists *Automatic* first, with what it picked.
+- **Residuals** under a peak fit, where they show a missing component, and not under a curve
+  fit, where they mostly take room from the graph. One switch in the Fit window.
+- **The curve fit's model** is suggested from the points' shape, and the suggestion is named
+  in words (it "changes quickly at first and then levels off"), so it reads as advice, not a
+  verdict.
+- **Say what is assumed.** The weighting is stated beside the Fit button; the Error bars menu
+  names the column the bars come from.
+- **The fit's range is all the data.** A range that followed the zoom changed a result without
+  a word; *Use the view* is a button, and the range left out is shaded.
+- **Import reads what people write:** a line of units under a line of names, groups side by
+  side with no X, counts named as counts. Whole numbers alone are not counts.
+- **Spectroscopy appears for spectra.** The Overview, *Label the peak*, and the statistics'
+  noise, S/N and area are offered by themselves only for data that looks like a spectrum, by
+  the Overview's own test. The Spectroscopy menu always has them.
+- **Automatic titles follow the curves:** with several, their shared name or unit, else
+  *Value*, never one curve's name for all of them.
+- **A setting that is automatic shows its value:** a figure's Share X is ticked and fixed while
+  the panels are in one column.
+
 ## Help
 
 An article per window, tool and step, opened by the **?** on every title bar or F1. The
@@ -339,3 +368,12 @@ survey that the app was not for them. Decided: the glossary's words in every lab
 toast, History box, report line and Help article (696 words off the glossary in the file's
 prose before, 0 after), the two tools renamed (Leave out an X range…, Sort by X (as a step)),
 and `tools/ux/terms.py` to keep it so.
+
+### 2026-10-17: defaults (UX rework, Phase 4 slice 5)
+
+From the Phase 2 defaults audit and Phase 1 T2, T4, T6 and T8: a Gaussian offered for a
+straight line, a units row taken for the names, the first of three groups made X and left
+out of the statistics, a spectrum drawn as dots, residuals under every fit, a fit range that
+silently followed the zoom, √N offered for ages, spectroscopy's measures for a survey.
+Decided: the defaults above, each shown and one click from changed. T2, T6 and T8 each lost a
+step (T8's was slice 4's one regression); no task got worse.

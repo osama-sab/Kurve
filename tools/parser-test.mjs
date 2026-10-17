@@ -340,6 +340,28 @@ check("negative kept", close(P.toNumber("-999", "."), -999));
   check("dates: ordinary numbers are untouched", P.toNumber("2024") === 2024 && P.toNumber("1,5", ",") === 1.5 && P.toNumber("-0.5") === -0.5);
 }
 
+/* ---------- 21b. a units row, and files with no X (UX_SPEC 3.7) ---------- */
+{
+  const u = P.analyzeFile("Time;Sample A;Sample B;Sample C\nh;OD600;OD600;OD600\n0,0;0,112;0,093;0,085\n1,0;0,140;0,114;0,095\n2,0;0,174;0,137;0,119\n3,0;0,215;0,160;0,140\n");
+  check("units row: the names come from the line above it", u.headerRow.join("|") === "Time (h)|Sample A (OD600)|Sample B (OD600)|Sample C (OD600)", u.headerRow.join("|"));
+  check("units row: split back into name and unit", P.splitColName(u.headerRow[1]).long === "Sample A" && P.splitColName(u.headerRow[1]).unit === "OD600");
+  check("units row: the data still start after it", u.rows.length === 4 && u.cols[1][0] === 0.112, JSON.stringify(u.cols[1]));
+  const u2 = P.analyzeFile("Wavelength,Absorbance\n(nm),a.u.\n400,0.1\n410,0.2\n420,0.3\n430,0.25\n");
+  check("units row: brackets and a.u.", u2.headerRow.join("|") === "Wavelength (nm)|Absorbance (a.u.)", u2.headerRow.join("|"));
+  const u3 = P.analyzeFile("Raman shift (cm-1),Intensity (counts)\nx,y\n100,1\n101,2\n102,3\n103,2\n");
+  check("units row: a second line of names is not units", u3.headerRow.join("|") === "x|y", u3.headerRow.join("|"));
+  const u4 = P.analyzeFile("Energy,Rate\nkeV,counts/s\n1,5\n2,7\n3,6\n4,9\n");
+  check("units row: keV and counts/s", u4.headerRow.join("|") === "Energy (keV)|Rate (counts/s)", u4.headerRow.join("|"));
+  const g = P.analyzeFile("Control,Placebo,Drug\n310,322,301\n295,340,288\n330,301,295\n301,315,310\n288,333,279\n");
+  check("no X: groups side by side are every one a Y", g.roles.join() === "y,y,y" && P.detectRoles(g.headerRow, g.cols).xi === -1, g.roles.join());
+  const n = P.analyzeFile("Temperature,Yield\n40,3.1\n20,2.2\n30,2.9\n25,2.5\n35,3.0\n");
+  check("no X: a column named as an axis is X even unsorted", n.roles.join() === "x,y", n.roles.join());
+  const m = P.analyzeFile("t,y\n0,5\n1,4\n2,3.5\n3,3.1\n");
+  check("no X: a column that rises is X as before", m.roles.join() === "x,y", m.roles.join());
+  const e = P.analyzeFile("A,A err,B\n5,0.1,7\n3,0.2,9\n6,0.1,8\n4,0.2,6\n");
+  check("no X: error columns are still errors", e.roles.join() === "y,e,y", e.roles.join());
+}
+
 /* ---------- 22. a large file stays quick ---------- */
 {
   let text = "x,y\n";

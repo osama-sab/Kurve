@@ -1,0 +1,847 @@
+{
+ "events": [
+  {
+   "t": 2.14,
+   "wall": "2026-10-17T01:21:19+00:00",
+   "task": null,
+   "kind": "open",
+   "target": "http://127.0.0.1:38879/kurve.html",
+   "viewport": "1366x768",
+   "theme": "light"
+  },
+  {
+   "t": 4.875,
+   "wall": "2026-10-17T01:21:22+00:00",
+   "task": "T8",
+   "kind": "task_start",
+   "target": "raman_raw.txt: remove spikes, subtract baseline, find and fit the peaks, table of position, FWHM, area with errors"
+  },
+  {
+   "t": 5.197,
+   "wall": "2026-10-17T01:21:22+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'File'",
+   "x": 116,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 5.826,
+   "wall": "2026-10-17T01:21:23+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Import data…",
+   "x": 212,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 6.024,
+   "wall": "2026-10-17T01:21:23+00:00",
+   "task": "T8",
+   "kind": "choose_file",
+   "target": "raman_raw.txt",
+   "files": [
+    "raman_raw.txt"
+   ]
+  },
+  {
+   "t": 7.455,
+   "wall": "2026-10-17T01:21:25+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Import 2 columns",
+   "x": 1129,
+   "y": 725,
+   "presses": 1
+  },
+  {
+   "t": 9.065,
+   "wall": "2026-10-17T01:21:26+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Plot it now'",
+   "x": 945,
+   "y": 698,
+   "presses": 1
+  },
+  {
+   "t": 10.528,
+   "wall": "2026-10-17T01:21:28+00:00",
+   "task": "T8",
+   "kind": "dblclick",
+   "target": "graph title bar",
+   "x": 984,
+   "y": 98,
+   "presses": 2
+  },
+  {
+   "t": 11.248,
+   "wall": "2026-10-17T01:21:28+00:00",
+   "task": "T8",
+   "kind": "rightclick",
+   "target": "the curve (right-click)",
+   "x": 473,
+   "y": 615,
+   "presses": 1
+  },
+  {
+   "t": 11.798,
+   "wall": "2026-10-17T01:21:29+00:00",
+   "task": "T8",
+   "kind": "hover",
+   "target": "Plot type",
+   "x": 624,
+   "y": 351
+  },
+  {
+   "t": 12.372,
+   "wall": "2026-10-17T01:21:29+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Line",
+   "x": 887,
+   "y": 351,
+   "presses": 1
+  },
+  {
+   "t": 13.093,
+   "wall": "2026-10-17T01:21:30+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Spectroscopy'",
+   "x": 440,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 13.723,
+   "wall": "2026-10-17T01:21:31+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Remove cosmic-ray spikes…",
+   "x": 521,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 14.717,
+   "wall": "2026-10-17T01:21:32+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "OK",
+   "x": 1045,
+   "y": 555,
+   "presses": 1
+  },
+  {
+   "t": 15.844,
+   "wall": "2026-10-17T01:21:33+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Spectroscopy'",
+   "x": 440,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 16.467,
+   "wall": "2026-10-17T01:21:34+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Subtract background…",
+   "x": 521,
+   "y": 112,
+   "presses": 1
+  },
+  {
+   "t": 17.613,
+   "wall": "2026-10-17T01:21:35+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "OK",
+   "x": 1045,
+   "y": 518,
+   "presses": 1
+  },
+  {
+   "t": 18.846,
+   "wall": "2026-10-17T01:21:36+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Analysis'",
+   "x": 291,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 19.348,
+   "wall": "2026-10-17T01:21:36+00:00",
+   "task": "T8",
+   "kind": "hover",
+   "target": "Fit",
+   "x": 373,
+   "y": 56
+  },
+  {
+   "t": 19.947,
+   "wall": "2026-10-17T01:21:37+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Peak fit",
+   "x": 600,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 21.431,
+   "wall": "2026-10-17T01:21:38+00:00",
+   "task": "T8",
+   "kind": "wheel",
+   "target": "scroll Fit window",
+   "x": 1176,
+   "y": 428,
+   "dx": 0,
+   "dy": 500
+  },
+  {
+   "t": 21.903,
+   "wall": "2026-10-17T01:21:39+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Use these peaks",
+   "x": 1086,
+   "y": 527,
+   "presses": 1
+  },
+  {
+   "t": 23.536,
+   "wall": "2026-10-17T01:21:41+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Fit the peaks",
+   "x": 1075,
+   "y": 691,
+   "presses": 1
+  },
+  {
+   "t": 27.866,
+   "wall": "2026-10-17T01:21:45+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Copy table",
+   "x": 1045,
+   "y": 231,
+   "presses": 1
+  },
+  {
+   "t": 27.989,
+   "wall": "2026-10-17T01:21:45+00:00",
+   "task": "T8",
+   "kind": "task_end",
+   "success": "yes",
+   "note": ""
+  },
+  {
+   "t": 27.99,
+   "wall": "2026-10-17T01:21:45+00:00",
+   "task": "T9",
+   "kind": "task_start",
+   "target": "Two-panel publication figure (raw and fitted) with matching axes, export as SVG/PDF"
+  },
+  {
+   "t": 28.221,
+   "wall": "2026-10-17T01:21:45+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "close res",
+   "x": 1349,
+   "y": 126,
+   "presses": 1
+  },
+  {
+   "t": 28.565,
+   "wall": "2026-10-17T01:21:46+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "close fit",
+   "x": 1349,
+   "y": 126,
+   "presses": 1
+  },
+  {
+   "t": 28.895,
+   "wall": "2026-10-17T01:21:46+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "button 'Window'",
+   "x": 520,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 29.397,
+   "wall": "2026-10-17T01:21:46+00:00",
+   "task": "T9",
+   "kind": "hover",
+   "target": "Graphs",
+   "x": 606,
+   "y": 380
+  },
+  {
+   "t": 29.971,
+   "wall": "2026-10-17T01:21:47+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "A figure of panels…",
+   "x": 836,
+   "y": 445,
+   "presses": 1
+  },
+  {
+   "t": 30.596,
+   "wall": "2026-10-17T01:21:48+00:00",
+   "task": "T9",
+   "kind": "wrong_turn",
+   "text": "Tried the figure dialog with one column: Make it is off"
+  },
+  {
+   "t": 30.807,
+   "wall": "2026-10-17T01:21:48+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "Cancel",
+   "x": 785,
+   "y": 512,
+   "presses": 1
+  },
+  {
+   "t": 31.613,
+   "wall": "2026-10-17T01:21:49+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "graph ⋯ menu",
+   "x": 849,
+   "y": 98,
+   "presses": 1
+  },
+  {
+   "t": 32.483,
+   "wall": "2026-10-17T01:21:50+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "Duplicate",
+   "x": 956,
+   "y": 214,
+   "presses": 1
+  },
+  {
+   "t": 33.895,
+   "wall": "2026-10-17T01:21:51+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "Original",
+   "x": 413,
+   "y": 155,
+   "presses": 1
+  },
+  {
+   "t": 34.614,
+   "wall": "2026-10-17T01:21:52+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "button 'Window'",
+   "x": 520,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 35.114,
+   "wall": "2026-10-17T01:21:52+00:00",
+   "task": "T9",
+   "kind": "hover",
+   "target": "Graphs",
+   "x": 606,
+   "y": 408
+  },
+  {
+   "t": 35.675,
+   "wall": "2026-10-17T01:21:53+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "A figure of panels…",
+   "x": 836,
+   "y": 501,
+   "presses": 1
+  },
+  {
+   "t": 36.517,
+   "wall": "2026-10-17T01:21:54+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "Panels list",
+   "x": 709,
+   "y": 289,
+   "presses": 1
+  },
+  {
+   "t": 36.684,
+   "wall": "2026-10-17T01:21:54+00:00",
+   "task": "T9",
+   "kind": "key",
+   "target": "The graphs ticked below",
+   "keys": "ArrowUp",
+   "presses": 1
+  },
+  {
+   "t": 36.833,
+   "wall": "2026-10-17T01:21:54+00:00",
+   "task": "T9",
+   "kind": "key",
+   "target": "choose",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 37.153,
+   "wall": "2026-10-17T01:21:54+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "Columns list",
+   "x": 715,
+   "y": 396,
+   "presses": 1
+  },
+  {
+   "t": 37.319,
+   "wall": "2026-10-17T01:21:54+00:00",
+   "task": "T9",
+   "kind": "key",
+   "target": "to 1",
+   "keys": "ArrowDown",
+   "presses": 1
+  },
+  {
+   "t": 37.468,
+   "wall": "2026-10-17T01:21:55+00:00",
+   "task": "T9",
+   "kind": "key",
+   "target": "choose",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 37.571,
+   "wall": "2026-10-17T01:21:55+00:00",
+   "task": "T9",
+   "kind": "guess",
+   "text": "Switched Share X on without knowing whether it was already on"
+  },
+  {
+   "t": 37.776,
+   "wall": "2026-10-17T01:21:55+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "Share X switch",
+   "x": 715,
+   "y": 427,
+   "presses": 1
+  },
+  {
+   "t": 38.243,
+   "wall": "2026-10-17T01:21:55+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "Make it",
+   "x": 861,
+   "y": 523,
+   "presses": 1
+  },
+  {
+   "t": 39.779,
+   "wall": "2026-10-17T01:21:57+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "button 'File'",
+   "x": 116,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 40.28,
+   "wall": "2026-10-17T01:21:57+00:00",
+   "task": "T9",
+   "kind": "hover",
+   "target": "Export",
+   "x": 212,
+   "y": 176
+  },
+  {
+   "t": 40.881,
+   "wall": "2026-10-17T01:21:58+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "SVG",
+   "x": 439,
+   "y": 204,
+   "presses": 1
+  },
+  {
+   "t": 41.229,
+   "wall": "2026-10-17T01:21:58+00:00",
+   "task": "T9",
+   "kind": "download",
+   "target": "Figure as SVG",
+   "file": "downloads/s5-before-B/t9.svg",
+   "suggested": "raman_raw_Graph_2.svg"
+  },
+  {
+   "t": 41.428,
+   "wall": "2026-10-17T01:21:58+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "button 'File'",
+   "x": 116,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 41.93,
+   "wall": "2026-10-17T01:21:59+00:00",
+   "task": "T9",
+   "kind": "hover",
+   "target": "Export",
+   "x": 212,
+   "y": 176
+  },
+  {
+   "t": 42.525,
+   "wall": "2026-10-17T01:22:00+00:00",
+   "task": "T9",
+   "kind": "click",
+   "target": "Graph as PDF",
+   "x": 439,
+   "y": 232,
+   "presses": 1
+  },
+  {
+   "t": 42.65,
+   "wall": "2026-10-17T01:22:00+00:00",
+   "task": "T9",
+   "kind": "download",
+   "target": "Figure as PDF",
+   "file": "downloads/s5-before-B/t9.pdf",
+   "suggested": "raman_raw_Graph_2.pdf"
+  },
+  {
+   "t": 42.651,
+   "wall": "2026-10-17T01:22:00+00:00",
+   "task": "T9",
+   "kind": "task_end",
+   "success": "yes",
+   "note": ""
+  },
+  {
+   "t": 42.652,
+   "wall": "2026-10-17T01:22:00+00:00",
+   "task": "T10",
+   "kind": "task_start",
+   "target": "Restyle one curve (colour, line width), change the axis tick font size, reverse the X axis"
+  },
+  {
+   "t": 43.004,
+   "wall": "2026-10-17T01:22:00+00:00",
+   "task": "T10",
+   "kind": "click",
+   "target": "figure maximise",
+   "x": 446,
+   "y": 122,
+   "presses": 1
+  },
+  {
+   "t": 44.215,
+   "wall": "2026-10-17T01:22:01+00:00",
+   "task": "T10",
+   "kind": "rightclick",
+   "target": "the curve in panel (a) (right-click)",
+   "x": 365,
+   "y": 422,
+   "presses": 1
+  },
+  {
+   "t": 44.641,
+   "wall": "2026-10-17T01:22:02+00:00",
+   "task": "T10",
+   "kind": "say",
+   "text": "menu: blue | red | green | amber | violet | teal | pink | slate | olive | black | Line, symbols and colour… | Plot type | Connect | Fill between it and"
+  },
+  {
+   "t": 44.86,
+   "wall": "2026-10-17T01:22:02+00:00",
+   "task": "T10",
+   "kind": "click",
+   "target": "green swatch",
+   "x": 464,
+   "y": 100,
+   "presses": 1
+  },
+  {
+   "t": 45.582,
+   "wall": "2026-10-17T01:22:03+00:00",
+   "task": "T10",
+   "kind": "rightclick",
+   "target": "the curve in panel (a) (right-click)",
+   "x": 365,
+   "y": 422,
+   "presses": 1
+  },
+  {
+   "t": 46.233,
+   "wall": "2026-10-17T01:22:03+00:00",
+   "task": "T10",
+   "kind": "click",
+   "target": "Line, symbols and colour…",
+   "x": 516,
+   "y": 130,
+   "presses": 1
+  },
+  {
+   "t": 47.324,
+   "wall": "2026-10-17T01:22:04+00:00",
+   "task": "T10",
+   "kind": "drag",
+   "target": "Width slider",
+   "x": 957,
+   "y": 376,
+   "x2": 1084,
+   "y2": 376
+  },
+  {
+   "t": 47.701,
+   "wall": "2026-10-17T01:22:05+00:00",
+   "task": "T10",
+   "kind": "click",
+   "target": "Text and fonts",
+   "x": 730,
+   "y": 351,
+   "presses": 1
+  },
+  {
+   "t": 48.325,
+   "wall": "2026-10-17T01:22:05+00:00",
+   "task": "T10",
+   "kind": "click",
+   "target": "tick numbers size",
+   "x": 1021,
+   "y": 531,
+   "presses": 1
+  },
+  {
+   "t": 48.493,
+   "wall": "2026-10-17T01:22:06+00:00",
+   "task": "T10",
+   "kind": "key",
+   "target": "select",
+   "keys": "Control+a",
+   "presses": 1
+  },
+  {
+   "t": 48.674,
+   "wall": "2026-10-17T01:22:06+00:00",
+   "task": "T10",
+   "kind": "type",
+   "text": "13",
+   "keys": 2
+  },
+  {
+   "t": 48.742,
+   "wall": "2026-10-17T01:22:06+00:00",
+   "task": "T10",
+   "kind": "key",
+   "target": "set",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 49.111,
+   "wall": "2026-10-17T01:22:06+00:00",
+   "task": "T10",
+   "kind": "click",
+   "target": "OK",
+   "x": 1314,
+   "y": 729,
+   "presses": 1
+  },
+  {
+   "t": 49.966,
+   "wall": "2026-10-17T01:22:07+00:00",
+   "task": "T10",
+   "kind": "hover",
+   "target": "the ⇄ toolbar icon",
+   "x": 849,
+   "y": 60
+  },
+  {
+   "t": 50.692,
+   "wall": "2026-10-17T01:22:08+00:00",
+   "task": "T10",
+   "kind": "click",
+   "target": "⇄ toolbar icon",
+   "x": 849,
+   "y": 60,
+   "presses": 1
+  },
+  {
+   "t": 51.216,
+   "wall": "2026-10-17T01:22:08+00:00",
+   "task": "T10",
+   "kind": "task_end",
+   "success": "partial",
+   "note": "one panel restyled and reversed"
+  },
+  {
+   "t": 51.218,
+   "wall": "2026-10-17T01:22:08+00:00",
+   "task": "T12",
+   "kind": "task_start",
+   "target": "Reload the T8 project and explain, from the app alone, every step and whether the peak table can be trusted"
+  },
+  {
+   "t": 51.219,
+   "wall": "2026-10-17T01:22:08+00:00",
+   "task": "T12",
+   "kind": "key",
+   "keys": "F5",
+   "target": "reload"
+  },
+  {
+   "t": 54.212,
+   "wall": "2026-10-17T01:22:11+00:00",
+   "task": "T12",
+   "kind": "click",
+   "target": "History maximise",
+   "x": 1319,
+   "y": 126,
+   "presses": 1
+  },
+  {
+   "t": 54.958,
+   "wall": "2026-10-17T01:22:12+00:00",
+   "task": "T12",
+   "kind": "click",
+   "target": "Log tab",
+   "x": 107,
+   "y": 130,
+   "presses": 1
+  },
+  {
+   "t": 55.576,
+   "wall": "2026-10-17T01:22:13+00:00",
+   "task": "T12",
+   "kind": "click",
+   "target": "button 'File'",
+   "x": 116,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 56.079,
+   "wall": "2026-10-17T01:22:13+00:00",
+   "task": "T12",
+   "kind": "hover",
+   "target": "Export",
+   "x": 212,
+   "y": 176
+  },
+  {
+   "t": 56.654,
+   "wall": "2026-10-17T01:22:14+00:00",
+   "task": "T12",
+   "kind": "click",
+   "target": "Report",
+   "x": 439,
+   "y": 446,
+   "presses": 1
+  },
+  {
+   "t": 57.221,
+   "wall": "2026-10-17T01:22:14+00:00",
+   "task": "T12",
+   "kind": "download",
+   "target": "Report as HTML",
+   "file": "downloads/s5-before-B/t12.html",
+   "suggested": "raman_raw_report.html"
+  },
+  {
+   "t": 57.222,
+   "wall": "2026-10-17T01:22:14+00:00",
+   "task": "T12",
+   "kind": "task_end",
+   "success": "yes",
+   "note": ""
+  }
+ ],
+ "summary": {
+  "T8": {
+   "title": "raman_raw.txt: remove spikes, subtract baseline, find and fit the peaks, table of position, FWHM, area with errors",
+   "success": "yes",
+   "clicks": 19,
+   "keys": 0,
+   "drags": 0,
+   "hovers": 2,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 0,
+   "seconds": 23.1,
+   "klm_seconds": 50.4,
+   "klm_hover_seconds": 52.6
+  },
+  "T9": {
+   "title": "Two-panel publication figure (raw and fitted) with matching axes, export as SVG/PDF",
+   "success": "yes",
+   "clicks": 18,
+   "keys": 4,
+   "drags": 0,
+   "hovers": 4,
+   "wrong_turns": 1,
+   "guesses": 1,
+   "help": 0,
+   "shots": 0,
+   "seconds": 14.7,
+   "klm_seconds": 48.8,
+   "klm_hover_seconds": 53.2
+  },
+  "T10": {
+   "title": "Restyle one curve (colour, line width), change the axis tick font size, reverse the X axis",
+   "success": "partial",
+   "clicks": 10,
+   "keys": 4,
+   "drags": 1,
+   "hovers": 1,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 0,
+   "seconds": 8.6,
+   "klm_seconds": 28.7,
+   "klm_hover_seconds": 29.8
+  },
+  "T12": {
+   "title": "Reload the T8 project and explain, from the app alone, every step and whether the peak table can be trusted",
+   "success": "yes",
+   "clicks": 4,
+   "keys": 1,
+   "drags": 0,
+   "hovers": 1,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 0,
+   "seconds": 6.0,
+   "klm_seconds": 10.9,
+   "klm_hover_seconds": 12.0
+  }
+ }
+}

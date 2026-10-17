@@ -116,6 +116,7 @@ Plot
     Give every graph a style  ## ~ "Give every graph a format"
       (each style)
   Plot type  ## + the toolbar's plot-type list
+    Automatic  ## + slice 5: a line for many evenly spaced points, symbols otherwise (UX_SPEC 3.7)
     Line
     Symbols
     Line + symbols

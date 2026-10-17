@@ -167,9 +167,13 @@ def t2(r):
     r.click(menuitem(r, "Curve fit…" if new_ui(r) else "Curve fit", exact=True), "Curve fit")
     r.wait(500)
     pg.evaluate("() => focusWin('fit')")
-    r.click(pg.locator("#model"), "Model dropdown")
-    r.press("ArrowUp", "move up the list", times=3)
-    r.press("Enter", "choose")
+    if pg.evaluate("() => !!(S.draft && S.draft.model === 'linear')"):
+        # Since slice 5 the model is suggested from the data's shape (UX_SPEC 3.7).
+        r.say("The model already reads Straight line, suggested for data that rises in a straight line")
+    else:
+        r.click(pg.locator("#model"), "Model dropdown")
+        r.press("ArrowUp", "move up the list", times=3)
+        r.press("Enter", "choose")
     r.wait(300)
     r.guess("Left 'Weight by the Y error column (1/σ²)' on without knowing what it changes")
     r.click(pg.locator("#doFit"), "Fit")
@@ -287,17 +291,21 @@ def t6(r):
     bar(r, "Statistics")
     r.click(menuitem(r, "Descriptive statistics…" if new_ui(r) else "Descriptive statistics", exact=True), "Descriptive statistics")
     r.wait(500)
-    # Control is column A, made X by position: Use as Y.
-    r.click(pg.locator('#ws [data-cmenu]').first, "column A's menu arrow")
-    r.wait(250)
-    if new_ui(r):
-        r.hover(menuitem(r, "Use as", exact=True), "Use as", ms=350)
-        r.click(menuitem(r, "Y", exact=True), "Y")
+    if pg.evaluate("() => allCols().filter(c => !c.src)[0].role") == "y":
+        # Since slice 5 a paste with no X-like column makes every column a Y (UX_SPEC 3.7).
+        r.say("Control is a Y like the other groups: the statistics list all three")
     else:
-        r.click(menuitem(r, "Use as Y", exact=True), "Use as Y")
-    r.wait_quiet(700)
-    r.click(pg.locator('#taskbar .tk[data-tk="stats"]'), "Statistics taskbar button")
-    r.wait(400)
+        # Control is column A, made X by position: Use as Y.
+        r.click(pg.locator('#ws [data-cmenu]').first, "column A's menu arrow")
+        r.wait(250)
+        if new_ui(r):
+            r.hover(menuitem(r, "Use as", exact=True), "Use as", ms=350)
+            r.click(menuitem(r, "Y", exact=True), "Y")
+        else:
+            r.click(menuitem(r, "Use as Y", exact=True), "Use as Y")
+        r.wait_quiet(700)
+        r.click(pg.locator('#taskbar .tk[data-tk="stats"]'), "Statistics taskbar button")
+        r.wait(400)
     r.click(pg.locator("#w-stats .win-h [data-wclose]"), "close Statistics")
     pg.evaluate("() => { openWin('sheet', {render: true}); focusWin('sheet'); }")
     ys = pg.evaluate("() => S.wsm.cols.map((q, i) => q.col && q.col.role === 'y' ? i : -1).filter(i => i >= 0)")
