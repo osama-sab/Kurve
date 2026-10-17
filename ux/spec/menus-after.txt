@@ -184,10 +184,6 @@ Analysis
     Smooth…
     FFT filter…
   Integrate…  ## ~ "Integrate bands…"; + Statistics' copy (R: three menus become one)
-  Python  ## ← Math; ↓ under More until Python has been used in the project
-    Python on the active column…  ## ~ "Python on this spectrum…"
-    A new column with Python…  ## ~ "A new spectrum with Python…"
-    Python window
 
 Statistics
   Descriptive statistics…  ## + "Integrate the visible range", "Noise and signal to noise": sections of the one window
@@ -213,7 +209,7 @@ Spectroscopy  ## new menu: the toolkit, gathered from Data, Math, Analysis, Stat
 Window
   (heading: Windows in use) (each window in use, the front one ticked)
   Tool windows  ## ~ "Panels"
-    (History; Overview; Peaks; Integrate; Fit; Results; Batch; Statistics; Python; Discussion; Help)
+    (History; Overview; Peaks; Integrate; Fit; Results; Batch; Statistics; Discussion; Help)
   Project Explorer  [Alt+1]
   Tile  ## + "Tile the graphs", which ran the same tiling
   Cascade

@@ -239,8 +239,8 @@ console.log("Normalize and maths");
   check("Kubelka–Munk of 50% reflectance is 0.25", near(km.d.y[0], 0.25, 1e-12));
 }
 
-/* ---------- averaging, integrals, Fourier filtering, Python steps ---------- */
-console.log("Average, integral, FFT, Python");
+/* ---------- averaging, integrals, Fourier filtering, stored Python results ---------- */
+console.log("Average, integral, FFT, stored Python results");
 {
   const r = rng(21), x = Array.from({ length: 400 }, (_, i) => i), clean = x.map(v => 50 * Math.exp(-0.5 * ((v - 200) / 12) ** 2));
   const scans = [0, 1, 2, 3].map(() => clean.map(v => v + gauss(r)));
@@ -288,17 +288,17 @@ console.log("Average, integral, FFT, Python");
 {
   const x = [1, 2, 3, 4], y = [10, 20, 30, 40], d = series(x, y);
   const notRun = run(d, "python", { code: "y = y" });
-  check("Python: not run yet passes the data through and says so", notRun.d === d && /not been run/.test(notRun.warn[0]));
+  check("Stored Python result: none stored passes the data through and says so", notRun.d === d && /no stored result/.test(notRun.warn[0]));
   const out = { x: [1, 2, 3, 4], y: [20, 40, 60, 80] };
   const ok = run(d, "python", { code: "y=[2*v for v in y]", ranCode: "y=[2*v for v in y]", out, inSig: N.serSig(d), ranAt: 1 });
-  check("Python: the stored result is the output, rows kept", ok.d.y.join() === "20,40,60,80" && ok.d.idx.join() === "0,1,2,3" && !ok.warn.length, ok.warn.join());
+  check("Stored Python result: the stored output, rows kept", ok.d.y.join() === "20,40,60,80" && ok.d.idx.join() === "0,1,2,3" && !ok.warn.length, ok.warn.join());
   const stale = run(series(x, [1, 1, 1, 1]), "python", { code: "c", ranCode: "c", out, inSig: N.serSig(d) });
-  check("Python: a changed input makes the result out of date", stale.warn.some(w => /changed since/.test(w)));
+  check("Stored Python result: a changed input makes it out of date", stale.warn.some(w => /changed since/.test(w)));
   const edited = run(d, "python", { code: "new", ranCode: "old", out, inSig: N.serSig(d) });
-  check("Python: edited code without a run is flagged", edited.warn.some(w => /edited since/.test(w)));
+  check("Stored Python result: code edited after the run is flagged", edited.warn.some(w => /edited since/.test(w)));
   const fewer = run(d, "python", { code: "c", ranCode: "c", out: { x: [1.4, 3.6], y: [5, 6], yu: "a.u." }, inSig: N.serSig(d) });
-  check("Python: new X keeps the raw row of the nearest input point, and new units", fewer.d.idx.join() === "0,3" && fewer.d.yu === "a.u.", fewer.d.idx.join() + " " + fewer.d.yu);
-  check("Python: the step's key does not carry its whole output", JSON.stringify(N.stepPKey({ op: "python", p: { code: "c", out: { x: new Array(5000).fill(1), y: [] } } })).length < 200);
+  check("Stored Python result: new X keeps the raw row of the nearest input point, and new units", fewer.d.idx.join() === "0,3" && fewer.d.yu === "a.u.", fewer.d.idx.join() + " " + fewer.d.yu);
+  check("Stored Python result: the step's key does not carry its whole output", JSON.stringify(N.stepPKey({ op: "python", p: { code: "c", out: { x: new Array(5000).fill(1), y: [] } } })).length < 200);
 }
 /* ---------- anchors ---------- */
 console.log("Anchor interpolation");

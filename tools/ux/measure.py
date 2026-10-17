@@ -92,7 +92,6 @@ OPENERS = [
     ("Results", "res", "() => openWin('res', {render: true})", None),
     ("Statistics", "stats", "() => openWin('stats', {render: true})", None),
     ("Batch", "batch", "() => openWin('batch', {render: true})", None),
-    ("Python", "py", "() => openWin('py', {render: true})", None),
     ("History", "flow", "() => openWin('flow', {render: true})", None),
     ("Discussion", "disc", "() => openWin('disc', {render: true})", None),
     ("Help", "help", "() => openHelp()", None),
