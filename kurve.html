@@ -397,6 +397,39 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .fxs-k .ic{width:14px;height:14px}
 .fxs-foot{border-top:1px solid var(--rule-2);margin-top:var(--sp-1);padding:var(--sp-2) var(--sp-3) var(--sp-1);color:var(--muted);font-size:var(--fs-cap)}
 :root[data-noanim] .fxs{animation:none}
+/* Motion (DESIGN.md, Motion): short, eased, and only for what the user did. Menus and
+   dialogs come in from a few pixels away; the individual translate and scale properties
+   are used, so a transform of the element's own (a dialog moved by its title bar, the
+   toast's centring) is kept. Preferences › Animations off sets data-noanim; the system's
+   reduced motion turns every transition and animation off (at the end of the style). */
+@keyframes kIn{from{opacity:0;translate:0 -4px}to{opacity:1;translate:0 0}}
+@keyframes kInUp{from{opacity:0;translate:0 4px}to{opacity:1;translate:0 0}}
+@keyframes kInSide{from{opacity:0;translate:-4px 0}to{opacity:1;translate:0 0}}
+@keyframes kFade{from{opacity:0}to{opacity:1}}
+@keyframes kSheet{from{opacity:0;translate:0 10px;scale:.985}to{opacity:1;translate:0 0;scale:1}}
+@keyframes kToast{from{opacity:0;translate:0 10px}to{opacity:1;translate:0 0}}
+:root:not([data-noanim]) .menu{animation:kIn .12s cubic-bezier(.2,.8,.2,1)}
+:root:not([data-noanim]) .menu.up{animation-name:kInUp}
+:root:not([data-noanim]) .menu.sub{animation-name:kInSide}
+:root:not([data-noanim]) .menu.still{animation:none}
+:root:not([data-noanim]) .modal:not([hidden]){animation:kFade .14s ease-out}
+:root:not([data-noanim]) .modal:not([hidden])>.sheet{animation:kSheet .18s cubic-bezier(.2,.8,.2,1)}
+:root:not([data-noanim]) .toast:not([hidden]){animation:kToast .2s cubic-bezier(.2,.8,.2,1)}
+:root:not([data-noanim]) .xpl:not([hidden]){animation:kInSide .16s cubic-bezier(.2,.8,.2,1)}
+:root:not([data-noanim]) .sympick,:root:not([data-noanim]) .fpick,:root:not([data-noanim]) .cpick{animation:kIn .12s cubic-bezier(.2,.8,.2,1)}
+/* A group that opens and closes slides, where the browser can size to the content. */
+@supports (interpolate-size:allow-keywords){
+  :root:not([data-noanim]){interpolate-size:allow-keywords}
+  :root:not([data-noanim]) details.grp::details-content,:root:not([data-noanim]) details.more::details-content{height:0;overflow:clip;transition:height .18s cubic-bezier(.2,.8,.2,1),content-visibility .18s allow-discrete}
+  :root:not([data-noanim]) details.grp[open]::details-content,:root:not([data-noanim]) details.more[open]::details-content{height:auto}
+}
+/* A window on its way out (closed or minimised) is shown until its animation ends, and takes no clicks. */
+.win.wout{pointer-events:none}
+/* The worksheet's active cell: one frame that glides from cell to cell (wsCursor). */
+.ws .wscur{position:absolute;left:0;top:0;z-index:0;pointer-events:none;box-shadow:inset 0 0 0 2px var(--ws-sel-bd);transition:transform .09s cubic-bezier(.2,.8,.2,1),width .09s cubic-bezier(.2,.8,.2,1),height .09s cubic-bezier(.2,.8,.2,1)}
+.ws.glide td.cur:not(.in){box-shadow:none}
+.ws.glide td.cur.in{box-shadow:inset 0 var(--et) 0 var(--ws-sel-bd),inset 0 calc(-1*var(--eb)) 0 var(--ws-sel-bd),inset var(--el) 0 0 var(--ws-sel-bd),inset calc(-1*var(--er)) 0 0 var(--ws-sel-bd)}
+.ws.glide td.fixed.cur:not(.in){box-shadow:inset 5px 0 0 var(--warn)}
 .wsalign button{padding:0 var(--sp-3)}
 
 /* ---- Graph --------------------------------------------------------------- */
@@ -5439,12 +5472,17 @@ let toastT;
 function toast(msg,opt){
   const t=$("#toast"); if(!t) return;
   const a=$("#toastAct");
+  if(t._out){ t._out.cancel(); t._out=null; } t.style.pointerEvents="";
   t.hidden=false; $("#toastMsg").textContent=msg;
   if(opt&&opt.action&&opt.run){ a.hidden=false; a.textContent=opt.action; a.onclick=()=>{ hideToast(); opt.run(); }; }
   else { a.hidden=true; a.onclick=null; }
   clearTimeout(toastT); toastT=setTimeout(hideToast,opt&&opt.action?7000:4500);
 }
-function hideToast(){ const t=$("#toast"); if(t) t.hidden=true; clearTimeout(toastT); }
+function hideToast(){ const t=$("#toast"); clearTimeout(toastT); if(!t||t.hidden) return;
+  // It fades out, taking no clicks while it does.
+  if(!animOn()||t._out){ if(!t._out) t.hidden=true; return; }
+  t.style.pointerEvents="none"; const a=t._out=t.animate([{opacity:1},{opacity:0,translate:"0 6px"}],{duration:140,easing:"ease-in"});
+  a.onfinish=()=>{ if(t._out!==a) return; t._out=null; t.hidden=true; t.style.pointerEvents=""; }; }
 function setStatus(txt,warn){ const s=$("#status"); s.textContent=txt; s.classList.toggle("warn",!!warn); }
 
 function writeErr(e){
@@ -10240,7 +10278,27 @@ function wsPaintSel(){
   box.querySelectorAll("th[data-ch]").forEach(th=>{ const c=+th.dataset.ch, on=c>=c0&&c<=c1; th.classList.toggle("hs",on); th.classList.toggle("hsel",on&&fullCol&&!(m.cols[c]||{}).phantom); });
   box.querySelectorAll("th[data-rh]").forEach(th=>{ const r=+th.dataset.rh, on=r>=r0&&r<=r1; th.classList.toggle("hs",on); th.classList.toggle("hsel",on&&fullRow&&r<m.n); });
   box.querySelectorAll("th.rl[data-lr]").forEach(th=>{ const r=+th.dataset.lr; th.classList.toggle("hs",r>=r0&&r<=r1); });
-  wsBar(); wsStats();
+  wsCursor(); wsBar(); wsStats();
+}
+/* The active cell's edge is one frame that glides from cell to cell, as a
+   spreadsheet's animated cursor does, instead of a border that jumps. It lives in
+   the scrolled content (so it scrolls with the cells) under the sticky headers;
+   a jump of more than a screen, a redraw, or the label rows put it in place at
+   once; while a cell is typed in, the box's own edge shows instead. */
+function wsCursor(){
+  const box=$("#ws"), m=S.wsm, s=S.ws; if(!box) return;
+  let cur=box.querySelector(":scope>.wscur");
+  const td=m&&s&&s.r>=0&&!s.edit&&animOn()?wsTd(s.r,s.c):null;
+  if(!td){ if(cur) cur.style.opacity="0"; box.classList.remove("glide"); return; }
+  const fresh=!cur;
+  if(fresh){ cur=document.createElement("div"); cur.className="wscur"; cur.setAttribute("aria-hidden","true"); box.appendChild(cur); }
+  const br=box.getBoundingClientRect(), r=td.getBoundingClientRect();
+  const x=r.left-br.left+box.scrollLeft-box.clientLeft, y=r.top-br.top+box.scrollTop-box.clientTop, p=cur._p;
+  const snap=fresh||!p||Math.abs(p.x-x)+Math.abs(p.y-y)>Math.max(600,box.clientHeight);
+  cur.style.transition=snap?"none":"";
+  cur.style.transform=`translate(${x}px,${y}px)`; cur.style.width=r.width+"px"; cur.style.height=r.height+"px"; cur.style.opacity="1";
+  if(snap) void cur.offsetWidth;
+  cur._p={x,y}; box.classList.add("glide");
 }
 // The cell's address and content, above the grid, as in a spreadsheet.
 function wsBar(){
@@ -10397,7 +10455,7 @@ function wsRestoreEditor(){
   if(e.r>=0){ inp.inputMode="decimal"; inp.classList.add("num"); }
   { const al=(P().wsAlign||{})[q&&q.id]; if(al&&e.r!==-1) inp.classList.add("al-"+al); }
   if(e.r===-1){ inp.classList.add("fx"); inp.placeholder="B*2"; }
-  td.textContent=""; td.classList.add("editing"); td.classList.remove("fh"); td.appendChild(inp); inp.focus({preventScroll:true});
+  td.textContent=""; td.classList.add("editing"); td.classList.remove("fh"); td.appendChild(inp); inp.focus({preventScroll:true}); wsCursor();
   const n=inp.value.length; inp.setSelectionRange(n,n);
   inp.addEventListener("input",()=>{ e.val=inp.value; const bi=$("#wsValIn"); if(bi) bi.value=inp.value; if(e.r===-1) wsFxHint(inp.value); });
   // A formula (the F(x)= row, or a value starting with =) gets suggestions; their keys come first.
@@ -12193,7 +12251,7 @@ function applyXpl(){
   document.documentElement.style.setProperty("--xplw",XPL.w+"px");
   const b=$("#xplBtn"); if(b){ b.setAttribute("aria-pressed",String(on)); b.classList.toggle("on",on); }
 }
-function toggleXpl(on,o){ on=on==null?!xplShown():!!on; if(xplDrawer()) S.xplNarrow=on; else { XPL.open=on; xplSave(); }
+function toggleXpl(on,o){ on=on==null?!xplShown():!!on; if(xplDrawer()) S.xplNarrow=on; else { XPL.open=on; xplSave(); S.animLayout=true; }
   applyXpl(); if(on){ renderXpl(); if(o&&o.focus) xFocus(); } else if(document.activeElement&&$("#xpl").contains(document.activeElement)) $("#xplBtn").focus(); }
 function treeOf(p){ p=p||P(); const t=(p&&p.tree)||{};
   const folders=(Array.isArray(t.folders)?t.folders:[]).filter(f=>f&&typeof f.id==="string").map(f=>({id:f.id,name:String(f.name||"Folder").slice(0,80),parent:typeof f.parent==="string"?f.parent:null}));
@@ -16267,8 +16325,10 @@ function buildMenu(items,opt){
   return el;
 }
 function openMenu(trigger,items,opt){
-  opt=opt||{}; closeMenu(false);
+  opt=opt||{}; const had=!!menuOpen; closeMenu(false);
   const el=buildMenu(items,Object.assign({},opt,{level:0}));
+  // Moving along the menu bar from one open menu to the next does not fade each one in.
+  if(had&&opt.bar) el.classList.add("still");
   document.body.appendChild(el);
   const r=trigger.getBoundingClientRect(), mw=el.offsetWidth, mh=el.offsetHeight;
   let x=opt.align==="right"?r.right-mw:r.left, y=r.bottom+3;
@@ -16276,7 +16336,7 @@ function openMenu(trigger,items,opt){
   // Below the trigger if it fits; above if there is more room there; and a
   // long menu scrolls rather than leaving its trigger.
   const below=innerHeight-r.bottom-9, above=r.top-9;
-  if(mh>below&&above>below){ const h=Math.min(mh,above); y=r.top-h-3; el.style.maxHeight=h+"px"; }
+  if(mh>below&&above>below){ const h=Math.min(mh,above); y=r.top-h-3; el.style.maxHeight=h+"px"; el.classList.add("up"); }
   else el.style.maxHeight=Math.max(140,below)+"px";
   el.style.left=x+"px"; el.style.top=y+"px";
   trigger.setAttribute("aria-expanded","true");
@@ -17465,7 +17525,7 @@ function wireDock(){
 }
 function applyWins(){
   const desk=$("#desk"); if(!desk) return;
-  const dg=dockGeo(), H=dg.H, W=Math.max(1,dg.docsW), narrow=isNarrow(), TABH=30;
+  const dg=dockGeo(), H=dg.H, W=Math.max(1,dg.docsW), narrow=isNarrow(), TABH=30, mo=winMotionBegin();
   // The dock shows one tool window, the one brought forward last.
   const dfront=dg.ids.slice().sort((a,b)=>winState(b).z-winState(a).z)[0]||null;
   let front=null;
@@ -17473,7 +17533,10 @@ function applyWins(){
   const ex=dg.W-dg.dw; dg.ez=4;
   Object.keys(WINS).forEach(id=>{ const el=$("#w-"+id), st=winState(id); if(!el) return;
     const dk=dg.ids.includes(id);
+    // A window on its way out that is opened again stops going.
+    if(el.classList.contains("wout")&&st.open) winStop(el);
     el.hidden=!st.open||(dk&&id!==dfront);
+    if(el.classList.contains("wout")) el.hidden=false;
     el.classList.toggle("docked",dk); el.classList.toggle("drawer",dk&&dg.drawer);
     if(st.open&&!el.hidden&&(!front||st.z>winState(front).z)) front=id;
     const db=el.querySelector(".win-h [data-wdock]"); if(db){ db.setAttribute("aria-pressed",String(dk)); db.title=dk?"Take it out of the dock (or drag its title bar or its tab)":"Put it in the dock, beside the worksheet and the graph"; db.hidden=narrow; }
@@ -17484,15 +17547,76 @@ function applyWins(){
     if(st.max){ x=0; y=0; w=dk?dg.W:W; h=H; }
     else if(dk){ x=dg.W-dg.dw; y=TABH; w=dg.dw; h=H-TABH; }
     else { const g=st.g; x=Math.round(g[0]*W); y=Math.round(g[1]*H); w=Math.round(Math.max(240,g[2]*W)); h=Math.round(Math.max(150,g[3]*H)); }
-    el.style.left=x+"px"; el.style.top=y+"px"; el.style.width=w+"px"; el.style.height=h+"px";
+    if(!el.classList.contains("wout")){ el.style.left=x+"px"; el.style.top=y+"px"; el.style.width=w+"px"; el.style.height=h+"px"; }
     el.style.zIndex=String(dk&&dg.drawer&&!st.max?8000:st.z);
     if(!el.hidden&&x<=ex+4&&x+w>=ex-4) dg.ez=Math.max(dg.ez,st.z+1);
   });
   document.querySelectorAll(".win").forEach(el=>el.classList.toggle("active",el.dataset.win===front));
+  winMotionEnd(mo,dg);
   renderDock(dg,dfront);
   renderTaskbar(); if(multiGraph()) scheduleSnaps(60);
 }
 function focusWin(id){ const st=winState(id); if(st.z<LAYOUT.z){ st.z=++LAYOUT.z; applyWins(); saveLayout(); } }
+/* ---- Motion of windows ----------------------------------------------------------
+   As a desktop's windows do: opened, a window grows in from a little smaller (a
+   docked one fades in, so changing tabs cross-fades); closed, it fades; minimised,
+   it shrinks into its taskbar button, and grows out of it again when restored;
+   maximised, tiled, cascaded, moved over by the dock or by the Project Explorer, it
+   glides to its new place (its content already at the new size, scaled from the
+   old place, as the operating system does). Only what the user asked for moves: a
+   drag, a resize of the browser and the first layout are left alone, and nothing
+   moves when Preferences › Animations is off or the system asks for reduced motion
+   (animOn). WIN_VIS remembers what was shown, and minimised, after each layout. */
+const WIN_VIS=new Map(); let WIN_DESK="";
+const WIN_EASE="cubic-bezier(.2,.8,.2,1)";
+function winMotionBegin(){
+  if(!animOn()||isNarrow()||S.ptrDown||document.hidden) return null;
+  const b={}; Object.keys(WINS).forEach(id=>{ const el=$("#w-"+id); if(!el) return;
+    const w=parseFloat(el.style.width)||0;
+    b[id]={vis:!el.hidden&&!el.classList.contains("wout")&&w>20,x:parseFloat(el.style.left)||0,y:parseFloat(el.style.top)||0,w,h:parseFloat(el.style.height)||0}; });
+  return b; }
+function winMotionEnd(mo,dg){
+  const key=Math.round(dg.W)+"x"+Math.round(dg.H), first=!WIN_DESK, resized=!first&&WIN_DESK!==key&&!S.animLayout; WIN_DESK=key; S.animLayout=false;
+  const moves=[];
+  Object.keys(WINS).forEach(id=>{ const el=$("#w-"+id); if(!el) return; const st=winState(id);
+    const prev=WIN_VIS.get(id)||{vis:false,min:false}, vis=!el.hidden&&!el.classList.contains("wout");
+    WIN_VIS.set(id,{vis,min:winMin(id)});
+    if(!mo||first) return; const b=mo[id]||{vis:false};
+    const n={x:parseFloat(el.style.left)||0,y:parseFloat(el.style.top)||0,w:parseFloat(el.style.width)||0,h:parseFloat(el.style.height)||0};
+    if(b.vis&&vis){ if(!resized&&n.w>20&&n.h>20&&Math.abs(b.x-n.x)+Math.abs(b.y-n.y)+Math.abs(b.w-n.w)+Math.abs(b.h-n.h)>2) moves.push([el,b,n]); }
+    else if(!b.vis&&vis) winIn(el,id,prev.min);
+    else if(b.vis&&!vis&&!st.open) winOut(el,id,b); });
+  // Many windows moving at once (a project's dozen graphs) is no help to the eye.
+  if(moves.length<=12) moves.forEach(([el,b,n])=>winFlip(el,b,n)); }
+function winStop(el){ ["_wa","_wf"].forEach(k=>{ if(el[k]){ const a=el[k]; el[k]=null; a.cancel(); } }); el.classList.remove("wout"); el.inert=false; }
+// The taskbar button a window goes into: its own, its group's, or "n more".
+function winTkRect(id){ const tb=$("#taskbar"); if(!tb) return null;
+  const vis=e=>e&&!e.hidden&&e.offsetParent!==null;
+  let b=tb.querySelector(`.tk[data-tk="${id}"]`);
+  if(!vis(b)) b=WINS[id]&&WINS[id].graph||id==="graph"?tb.querySelector("[data-tk-graphs]"):WINS[id]&&WINS[id].trend?tb.querySelector("[data-tk-trends]"):null;
+  if(!vis(b)) b=tb.querySelector("[data-tk-more]");
+  if(!vis(b)) return null; const r=b.getBoundingClientRect(); return r.width>4?r:null; }
+const winToward=(r,t)=>`translate(${t.left-r.left}px,${t.top-r.top}px) scale(${Math.max(.02,t.width/r.width)},${Math.max(.02,t.height/r.height)})`;
+function winIn(el,id,wasMin){
+  winStop(el); const r=el.getBoundingClientRect(), tk=wasMin&&!el.classList.contains("docked")?winTkRect(id):null;
+  el._wa=tk?el.animate([{transformOrigin:"0 0",transform:winToward(r,tk),opacity:.25},{transformOrigin:"0 0",transform:"none",opacity:1}],{duration:220,easing:WIN_EASE})
+    :el.classList.contains("docked")?el.animate([{opacity:0},{opacity:1}],{duration:130,easing:"ease-out"})
+    :el.animate([{transform:"scale(.97)",opacity:0},{transform:"none",opacity:1}],{duration:170,easing:WIN_EASE});
+  const a=el._wa; a.onfinish=()=>{ if(el._wa===a) el._wa=null; }; }
+function winOut(el,id,b){
+  winStop(el); el.classList.add("wout"); el.hidden=false; el.inert=true;
+  el.style.left=b.x+"px"; el.style.top=b.y+"px"; el.style.width=b.w+"px"; el.style.height=b.h+"px";
+  const toBar=S.winMinAnim===id;
+  // The taskbar is drawn after this layout: the button is looked for a frame later.
+  requestAnimationFrame(()=>{ if(!el.classList.contains("wout")) return;
+    const r=el.getBoundingClientRect(), tk=toBar?winTkRect(id):null;
+    const a=el._wa=tk?el.animate([{transformOrigin:"0 0",transform:"none",opacity:1},{transformOrigin:"0 0",transform:winToward(r,tk),opacity:.15}],{duration:220,easing:"cubic-bezier(.4,0,.7,.2)"})
+      :el.animate([{transform:"none",opacity:1},{transform:"scale(.97)",opacity:0}],{duration:140,easing:"ease-in"});
+    a.onfinish=()=>{ if(el._wa!==a) return; el._wa=null; el.classList.remove("wout"); el.inert=false; if(!winState(id).open) el.hidden=true; }; }); }
+function winFlip(el,b,n){
+  if(el._wf){ el._wf.cancel(); el._wf=null; }
+  const a=el._wf=el.animate([{transformOrigin:"0 0",transform:`translate(${b.x-n.x}px,${b.y-n.y}px) scale(${b.w/n.w},${b.h/n.h})`},{transformOrigin:"0 0",transform:"none"}],{duration:200,easing:WIN_EASE});
+  a.onfinish=()=>{ if(el._wf===a) el._wf=null; }; }
 /* Opens a window (rendering what is in it) and brings it to the front. */
 /* A window is open (on the desk), minimised (off the desk, its button kept in
    the taskbar) or closed (off the desk and out of the taskbar). As a workbook
@@ -17513,7 +17637,7 @@ const winMin=id=>!!(LAYOUT.wins[id]&&!LAYOUT.wins[id].open&&(LAYOUT.wins[id].min
 const inBar=id=>winOpen(id)||winMin(id);
 function winStateName(id){ return winOpen(id)?(id===frontWinId()?"in front":"open"):winMin(id)?"minimised":"closed"; }
 function frontWinId(){ return Object.keys(WINS).filter(winOpen).sort((a,b)=>winState(b).z-winState(a).z)[0]||null; }
-function minimiseWin(id){ const st=winState(id); if(!st.open) return; closeWin(id); if(id!=="tool"&&id!=="help"){ st.min=true; applyWins(); saveLayout(); } }
+function minimiseWin(id){ const st=winState(id); if(!st.open) return; S.winMinAnim=id; closeWin(id); S.winMinAnim=null; if(id!=="tool"&&id!=="help"){ st.min=true; applyWins(); saveLayout(); } }
 function openWin(id,opt){
   const st=winState(id), was=st.open;
   st.open=true; st.min=false; st.z=++LAYOUT.z;
