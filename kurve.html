@@ -1889,7 +1889,7 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
     <div class="sheet-f"><button class="btn ghost" id="pdReset" title="Put this page back to the defaults">Defaults</button><button class="btn ghost" id="pdFormats" aria-haspopup="menu" title="Kurve's styles and the ones you saved">Saved styles <svg class="ic sm" aria-hidden="true"><use href="#i-chev"/></svg></button><button class="btn ghost" id="pdAll" hidden title="Give every graph in the project this graph's frame, axes, text, legend and colours">Use on every graph</button><span class="sp"></span><button class="btn" id="pdCancel">Cancel</button><button class="btn primary" id="pdOk">OK</button></div>
   </div>
 </div>
-<div class="dropzone" id="dropzone" hidden><div><svg class="ic lg"><use href="#i-upload"/></svg><span id="dzMsg">Drop to import and plot</span><span class="lab">Read automatically. Import… shows how a file is read, and plots nothing.</span></div></div>
+<div class="dropzone" id="dropzone" hidden><div><svg class="ic lg"><use href="#i-upload"/></svg><span id="dzMsg">Drop to bring into the worksheet</span><span class="lab">Read automatically, and plotted only when dropped on a graph. Import… shows how a file is read.</span></div></div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden><span id="toastMsg"></span><button id="toastAct" hidden></button><button id="toastX" aria-label="Dismiss"><svg class="ic sm"><use href="#i-x"/></svg></button></div>
 
 <script>
@@ -5310,7 +5310,7 @@ function renderUndo(){
 function blankProject(name){
   const xc=makeCol("x","",""), yc=Object.assign(makeCol("y","",""),{pipe:[],mask:[]});
   return {v:DOC_V, name:name||"Untitled project", cols:[xc,yc], activeY:yc.id,
-    meta:{}, plot:{style:"auto", logY:false, grid:false, resid:"auto"}, fit:null, fits:[], raw:{fp:"",hist:[]}, log:[], created:Date.now(), updated:Date.now()};
+    meta:{}, plot:{style:"auto", logY:false, grid:false, resid:"auto", cols:[], shut:true}, fit:null, fits:[], raw:{fp:"",hist:[]}, log:[], created:Date.now(), updated:Date.now()};
 }
 /* This browser's store. Each project has a key of its own (kurve.p.<id>, and
    kurve.c.<id> for its comments), so a save writes only its own project: a
@@ -9449,7 +9449,7 @@ function setMode(m,quiet){
   S.mode=m;
   document.querySelectorAll("#modeSeg button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===m)));
   $("#plot").setAttribute("class","mode-"+m);
-  const h=$("#hint"); h.textContent=(m==="shape"&&shapeKind()==="ellipse"?MODE_HINT.ellipse:MODE_HINT[m])||MODE_HINT.zoom; h.title=h.textContent;
+  const h=$("#hint"); if(graphWinIds().some(winOpen)){ h.textContent=(m==="shape"&&shapeKind()==="ellipse"?MODE_HINT.ellipse:MODE_HINT[m])||MODE_HINT.zoom; h.title=h.textContent; }
   if(m!=="range"&&m!=="anchor") S.pick=null;
   if(quiet) return;
   if(m==="peak"&&S.stage!=null&&!S.pending){ S.stage=null; S.selStep=null; renderStages(); if(winOpen("flow")) renderFlow(); }
@@ -11726,11 +11726,11 @@ function sheetForward(){
    it is saved; the ids of the graphs that show them are returned. */
 function impGraphs(p,ids,how,fresh){
   const plot=p.plot=Object.assign({},p.plot), graphs=p.graphs=(p.graphs||[]).slice(), list=Array.isArray(plot.cols)?plot.cols:null;
-  if(fresh){ plot.hidden=[]; plot.cols=[]; delete plot.shut; }
+  if(fresh){ plot.hidden=[]; plot.cols=[]; plot.shut=true; }
   // A first graph without a list of its own shows every spectrum not hidden: these are not for it.
   else if(!list) plot.hidden=(plot.hidden||[]).concat(ids.filter(k=>!(plot.hidden||[]).includes(k)));
   const ys=new Set((p.cols||[]).filter(c=>c.role==="y").map(c=>c.id)), mainFree=fresh||(!!plot.shut&&!!list&&!list.some(k=>ys.has(k)&&!ids.includes(k)));
-  // The empty first graph stays on the desk beside the worksheet, offering Plot (UX_SPEC 3.2).
+  // Nothing plotted: no graph on the desk at all, only the worksheet. Plot opens one.
   if(how==="none"||!ids.length) return [];
   const base=plotBase(plot), lay=how==="stack"?"stack":null, made=[];
   (how==="each"?ids.map(k=>[k]):[ids]).forEach((cs,k)=>{
@@ -11854,10 +11854,10 @@ async function doBatchImport(good,skip,o){
 function fileDropAt(x,y){
   const els=document.elementsFromPoint(x,y);
   for(const el of els){ if(!el.closest) continue;
-    const fo=el.closest("[data-xfold]"); if(fo&&P()) return {folder:fo.dataset.xfold, el:fo, text:`Drop to import into “${xFolderName(fo.dataset.xfold)}” and plot`};
+    const fo=el.closest("[data-xfold]"); if(fo&&P()) return {folder:fo.dataset.xfold, el:fo, text:`Drop to bring into the worksheet, filed in “${xFolderName(fo.dataset.xfold)}”`};
     const w=el.closest(".win.gwin"); if(w&&!w.hidden&&P()){ const g=graphIn(el,w); if(g) return {gid:g, el:figOf(g)?el.closest(".fcell")||w:w, text:`Drop to plot in ${graphTitle(g)}`}; }
     const tk=el.closest(".tk[data-tk]"); if(tk&&P()){ const g=graphOfWin(tk.dataset.tk); if(g&&!isFigId(g)) return {gid:g, el:tk, text:`Drop to plot in ${graphName(g)}`}; } }
-  return {text:!P()||mainFreeNow()||!allCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null))?"Drop to import and plot":"Drop to import and plot in a new graph"};
+  return {text:"Drop to bring into the worksheet"};
 }
 function readDropped(files){ return Promise.all(files.map(f=>new Promise(res=>{
   if(f.size>60e6){ res({name:f.name,fail:`${Math.round(f.size/1e6)} MB, too large for a text column`}); return; }
@@ -11895,7 +11895,7 @@ async function autoImport(files,o){
     // A project that held nothing takes the files' names and header, and its first graph takes them.
     Object.assign(patch,{meta:built[0].res.meta,fit:null,srcName:built[0].base});
     if(isUntitled(p.name)||(p.srcName&&p.name===p.srcName)) patch.name=uniqueProjName(built.length===1?built[0].base:batchProjName(built.map(b=>b.base)),S.pid);
-    const pl=Object.assign({},p.plot,{cols:[],hidden:[]}); delete pl.shut;
+    const pl=Object.assign({},p.plot,{cols:[],hidden:[]}); if(!o.gid) pl.shut=true; else delete pl.shut;
     if((built.some(b=>b.res.single)||nPts>3000)&&(pl.style||"scatter")==="scatter") pl.style="line";
     patch.plot=pl;
   } else {
@@ -11908,7 +11908,14 @@ async function autoImport(files,o){
   const fids=[...new Set(cols.filter(c=>built.some(b=>b.cols.includes(c))).map(c=>c.fid).filter(Boolean))];
   if(o.folder) xFile(fids.map(f=>"f:"+f),o.folder); else xNew(fids.map(f=>"f:"+f));
   if(!ids.length){ renderAll(); sheetForward(); toast(`Imported ${what}: no column is a Y column, so nothing was plotted. The columns are in the worksheet.`,{action:"Undo",run:undo}); return {fids}; }
-  const into=o.gid&&(o.gid==="main"||graphOf(o.gid))?o.gid:fresh?"main":undefined;
+  // Dropped anywhere but on a graph, the columns go into the worksheet and nothing is
+  // plotted: a graph is made when it is asked for (Plot, or a drop on a graph).
+  if(!o.gid||!(o.gid==="main"||graphOf(o.gid))){ renderAll(); sheetForward();
+    const nm=ids.length===1?specName(colById(ids[0])):`${ids.length} columns`;
+    toast(`${nm} from ${what} ${ids.length===1?"is":"are"} in the worksheet${bad.length?`. Skipped: ${bad.join("; ")}`:""}.`,
+      {action:"Plot",run:()=>plotCols(ids.filter(k=>colById(k)),{})});
+    return {fids}; }
+  const into=o.gid;
   plotCols(ids,{into,noUndo:true,quiet:true});
   if(o.folder&&S.gid) xFile(["g:"+S.gid],o.folder);
   const nm=ids.length===1?specName(colById(ids[0])):`${ids.length} columns`;
@@ -13523,15 +13530,17 @@ function renderTop(){
   if(document.activeElement!==ni||ni.dataset.pid!==(p?p.id:"")) ni.value=p?p.name||"":"";
   ni.dataset.pid=p?p.id:""; ni.disabled=!p||S.readOnly;
   ni.title=p?(S.readOnly?"Project name":"Project name. Click to rename it."):"";
-  const pl=p?GP():{}, off=!p||S.readOnly, has=!!(p&&pointsAll().length);
-  // Before there is data the graph's switches are drawn off: there is nothing for them to change yet.
+  const pl=p?GP():{}, off=!p||S.readOnly, data=!!(p&&pointsAll().length), has=data&&graphWinIds().some(winOpen);
+  // Before there is a graph on the desk its tools and switches are drawn off: there is
+  // nothing for them to change yet. The status bar says how to make one.
   [["revX",!!pl.revX],["logY",!!pl.logY],["grid",!!pl.grid]].forEach(([k,on])=>{ const b=$("#"+k); b.setAttribute("aria-pressed",String(on)); b.disabled=off||!has; });
+  { const h=$("#hint"); if(h){ const t=has?((S.mode==="shape"&&shapeKind()==="ellipse"?MODE_HINT.ellipse:MODE_HINT[S.mode])||MODE_HINT.zoom):data?"Select columns in the worksheet and press Plot to make a graph":"Type into any cell, paste a block from a spreadsheet, or Import a file"; if(h.textContent!==t){ h.textContent=t; h.title=t; } } }
   // A comment pinned to the graph is for the people sharing the project; alone, the History's comments serve.
   { const pb=$("#pinBtn"); if(pb){ pb.hidden=!(S.store&&S.store.mode==="db"); if(pb.hidden&&S.mode==="pin") setMode("zoom",true); } }
   { const rp=$("#rbPython"); if(rp) rp.hidden=!pyUsed(); }
   $("#resetView").disabled=!has;
   document.querySelectorAll("#modeSeg button").forEach(b=>b.disabled=!has);
-  $("#exportBtn").disabled=!has;
+  $("#exportBtn").disabled=!data;
   $("#importBtn").disabled=S.readOnly||!S.store; $("#fileIn").disabled=S.readOnly; $("#emptyImport").disabled=S.readOnly||!S.store;
   document.querySelectorAll("[data-example]").forEach(b=>b.disabled=S.readOnly||!S.store);
   $("#addColBtn").disabled=off; $("#wsPlotBtn").disabled=off; $("#projMenu").disabled=!S.store; renderViewSeg();
@@ -17536,7 +17545,7 @@ function wireHelp(box){
 const WINS={
   graph:{title:"Graph", icon:"chart", def:[.44,0,.56,1], open:true},
   flow:{title:"History", icon:"flow", def:[.5,0,.5,1], open:false, dock:true},
-  sheet:{title:"Worksheet", icon:"table", def:[0,0,.44,1], open:true},
+  sheet:{title:"Worksheet", icon:"table", def:[0,0,1,1], open:true},
   fit:{title:"Fit", icon:"peak", def:[.58,0,.42,1], open:false, dock:true},
   peaks:{title:"Peaks", icon:"tag", def:[.6,.03,.4,.94], open:false, dock:true},
   integ:{title:"Integrate", icon:"area", def:[.52,.03,.48,.94], open:false, dock:true},
@@ -17550,8 +17559,8 @@ const WINS={
   tool:{title:"Tool", icon:"wand", def:[.62,.04,.36,.8], open:false, transient:true, dock:true}
 };
 const WIN_ORDER=["graph","sheet","flow","over","peaks","integ","fit","res","batch","stats","py","disc"];
-// Version 3: the worksheet and the graph side by side, tool windows in the dock. An
-// older arrangement (a graph, History and a small worksheet) is not brought back.
+// Version 3: the worksheet on its own until something is plotted, tool windows in the
+// dock. An older arrangement (a graph, History and a small worksheet) is not brought back.
 const LAYOUT={v:3, wins:{}, z:10, dockOrder:[]};
 function winState(id){ if(!LAYOUT.wins[id]) LAYOUT.wins[id]={g:WINS[id].def.slice(), open:!!WINS[id].open, max:false, z:++LAYOUT.z, dock:!!WINS[id].dock}; return LAYOUT.wins[id]; }
 /* A layout read back from storage (another version, a hand edit, a bug) is
@@ -17594,6 +17603,9 @@ function restoreGraphLayout(){
   else if(!first) Object.assign(winState("graph"),{g:WINS.graph.def.slice(),open:true,max:false});
   // Windows of graphs no longer on the desk are forgotten after a while.
   const gone=Object.keys(LAYOUT.wins).filter(k=>!WINS[k]); if(gone.length>60) gone.forEach(k=>delete LAYOUT.wins[k]);
+  // A project with nothing plotted shows the worksheet alone: one still at the old
+  // default (beside a graph) takes the whole desk.
+  const sh=winState("sheet"); if(!graphIds().some(id=>!graphShut(id))&&!sh.max&&sh.g.join()===[0,0,.44,1].join()) sh.g=[0,0,1,1];
   applyWins();
 }
 const isNarrow=()=>window.innerWidth<=860;
@@ -19749,7 +19761,7 @@ function setupDrop(){
   let depth=0, raf=0; const dz=$("#dropzone"), msg=$("#dzMsg");
   const hasFiles=e=>!!(e.dataTransfer&&[...(e.dataTransfer.types||[])].includes("Files"));
   // "dropin", not the History's "fdrop" (its insertion line, 3 px high): a class name is global.
-  const mark=t=>{ document.querySelectorAll(".dropin").forEach(el=>{ if(!t||el!==t.el) el.classList.remove("dropin"); }); if(t&&t.el) t.el.classList.add("dropin"); if(msg) msg.textContent=t?t.text:"Drop to import and plot"; };
+  const mark=t=>{ document.querySelectorAll(".dropin").forEach(el=>{ if(!t||el!==t.el) el.classList.remove("dropin"); }); if(t&&t.el) t.el.classList.add("dropin"); if(msg) msg.textContent=t?t.text:"Drop to bring into the worksheet"; };
   window.addEventListener("dragenter",e=>{ if(!hasFiles(e)) return; e.preventDefault(); depth++; dz.hidden=false; });
   window.addEventListener("dragover",e=>{ if(!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect=S.readOnly||!S.store?"none":"copy";
     const x=e.clientX, y=e.clientY; if(!raf) raf=requestAnimationFrame(()=>{ raf=0; if(!dz.hidden) mark(fileDropAt(x,y)); }); });
