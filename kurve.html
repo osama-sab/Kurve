@@ -9941,6 +9941,7 @@ function wsSelRect(){ const s=S.ws; return {r0:Math.min(s.r,s.ar),r1:Math.max(s.
 function renderWs(){
   if(S.editing){ S.pendingWs=true; return; }      // never pull a cell from under the person typing in it
   const box=$("#ws"), p=P(), sub=$("#wsSub");
+  { const sw=$("#wsSheet"), show=anyProcessing(); if(sw) sw.hidden=!show; if(!show&&S.sheet==="final"){ S.sheet="raw"; if(S.ws){ S.ws.win=null; S.ws.extra=0; } } }
   document.querySelectorAll("#wsSheet button").forEach(b=>{ b.setAttribute("aria-pressed",String(b.dataset.sheet===S.sheet)); b.disabled=!p; });
   const ac=$("#addColBtn"); if(ac) ac.hidden=S.sheet==="final";
   const asg=$("#wsAlignSeg"); if(asg) asg.hidden=false;
@@ -11224,8 +11225,15 @@ function stageLegend(ps,pal){
   if(ex.spikes&&ex.spikes.length) out.push({label:"spikes removed", color:pal.fit, thin:true});
   return out;
 }
+/* Original and processed data differ only once a column has a processing step (or
+   is made from another): until then the worksheet, the graph and the statistics do
+   not offer the choice, and a first user is not asked to tell them apart. The export
+   always names both. */
+function anyProcessing(){ const p=P(); return !!p&&(!!S.pending||allCols().some(c=>c.role==="y"&&(!!c.src||(c.pipe||[]).some(s=>s.on!==false)))); }
 function renderViewSeg(){
   const seg=$("#viewSeg"); if(!seg) return;
+  const show=anyProcessing(), sep=seg.previousElementSibling; seg.hidden=!show; if(sep&&sep.classList.contains("rsep")) sep.hidden=!show;
+  if(!show&&(S.stage!=null||S.cmp)){ S.stage=null; S.cmp=false; }
   const p=P(), has=!!(p&&activeYCol()&&pipeOf(activeYCol())&&pipeOf(activeYCol()).input.x.length);
   const cur=S.stage===0?"raw":S.stage==null?(S.cmp?"cmp":"final"):"";
   seg.querySelectorAll("button").forEach(b=>{ b.setAttribute("aria-pressed",String(b.dataset.view===cur)); b.disabled=!has; });
@@ -14449,10 +14457,10 @@ function dataMenu(){
       {label:"Restore every masked point", run:unmaskAll, enabled:edit&&!!(p&&maskOf(activeYCol()).length)}]},
     {label:"Columns", sub:()=>spectrumItems().filter(it=>!it.group)},
     "-",
-    {label:"Show on the graph", sub:()=>[
+    anyProcessing()?{label:"Show on the graph", sub:()=>[
       {label:"Original", title:"The data as typed or imported", radio:true, checked:S.stage===0, run:()=>setViewMode("raw"), enabled:has},
       {label:"Processed", title:"After every processing step: what the fit uses", radio:true, checked:S.stage==null&&!S.cmp, run:()=>setViewMode("final"), enabled:has},
-      {label:"Both", title:"The processed data, with the original in grey behind it", radio:true, checked:S.stage==null&&S.cmp, run:()=>setViewMode("cmp"), enabled:has}]},
+      {label:"Both", title:"The processed data, with the original in grey behind it", radio:true, checked:S.stage==null&&S.cmp, run:()=>setViewMode("cmp"), enabled:has}]}:null,
     {label:"Lock the original data", checked:!!(p&&p.rawLock), enabled:edit, title:"Original values then stay as they are; typing over one records a correction step", run:()=>setRawLock(!(p&&p.rawLock))}];
 }
 function analysisMenu(){
@@ -15530,7 +15538,7 @@ function renderStats(){
   if(!p||!yCols().length){ box.innerHTML=`<p class="nothing">No columns yet.</p>`; return; }
   const {o,rng,rows,spec}=statsData(), f=(v,k)=>v==null||!Number.isFinite(v)?"—":esc(fmt(v,k||5));
   const act=activeYCol(), [xu,yu]=dataUnits(), au=unitFor("yx",xu,yu);
-  let h=`<div class="fbar"><div class="seg mini" role="group" aria-label="Which data"><button data-sto="of:final" aria-pressed="${o.of==="final"}">Processed data</button><button data-sto="of:raw" aria-pressed="${o.of==="raw"}">Original data</button></div>
+  let h=`<div class="fbar">${anyProcessing()?`<div class="seg mini" role="group" aria-label="Which data"><button data-sto="of:final" aria-pressed="${o.of==="final"}">Processed data</button><button data-sto="of:raw" aria-pressed="${o.of==="raw"}">Original data</button></div>`:""}
     <div class="seg mini" role="group" aria-label="Which range"><button data-sto="range:all" aria-pressed="${o.range!=="view"}">All X</button><button data-sto="range:view" aria-pressed="${o.range==="view"}"${S.view?"":" disabled title=\"Zoom the graph first\""}>Visible range</button></div><label class="chk" title="Noise σ, signal to noise, area, centroid and the X of the maximum. On by itself for many evenly spaced points with a clear peak"><input type="checkbox" id="stSpec"${spec?" checked":""}> Noise, S/N and area</label><span class="sp"></span>
     <button class="btn sm" id="stCopy">${ICON("copy","sm")}Copy</button></div>`;
   h+=`<h3 class="gh" id="st-desc">Descriptive statistics <span class="cnt">${rng?`x ${esc(fmt(rng[0],6))} to ${esc(fmt(rng[1],6))}`:"all points"}</span></h3>
