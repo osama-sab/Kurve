@@ -499,3 +499,31 @@ needed, as T5 and T8 already did. Logs are `evidence/logs/slices/s5-before-*` an
   - an older project's settings.
 - Slices 2, 3 and 4's drives still pass: 45 of 45, 10 of 10, 41 of 41. Slice 4's residual check
   now asks `residOn`, since "auto" is not `false`.
+
+## Round 6: the user's review after slice 5
+
+**What changed**, request by request:
+
+| The user asked | Now |
+|---|---|
+| Hide and Unhide for columns and rows | From the column's, the cell's and the row number's menus, and Data › Hide and show. A hidden column is a thin marked strip (double-click it to show it again); hidden rows leave a mark on the next row number (double-click it). The foot says how many are hidden, with *Show*. A view only: hidden values are still plotted, fitted and exported. Kept with the project, undone like any change |
+| Suggestions for functions in the formula row, not only errors | A list under the formula as it is typed: the columns by letter and by name, x and i, every function with its arguments and what it does, the constants. ↑ ↓, Tab, Esc, Ctrl+Space, a click. Inside a function's brackets, its arguments with the one being typed in bold. In the F(x)= row, a cell that starts with =, the formula bar and a fit function's formula. A formula not finished yet is said quietly; only a mistake is red |
+| Transitions refined and smooth, like Excel | Windows grow in, fade out, shrink into their taskbar button and grow back out, and glide when maximised, tiled, cascaded or moved by the dock or the Explorer; dock tabs cross-fade; the worksheet's cursor glides from cell to cell; menus, dialogs, pickers and messages come in from a few pixels away, and messages fade out. Nothing moves during a drag or a resize of the browser; Preferences › Animations and the system's reduced motion turn it off |
+| "Raw and final" only when exporting | The Original / Processed sheets, the graph's Original / Processed / Both, Data › Show on the graph and the statistics' choice appear only once a column has a processing step; the exports keep both |
+| A history switch in preferences, easy to find; off captures no history, only errors | Preferences (a gear in the title bar, File › and Edit › Preferences…, Ctrl+,). *Keep a history of changes* off: no log, no names or times on steps, no fit history, no record of the original data, History does not open by itself; errors are still logged (in the browser and the project's log) and listed in Preferences with Copy and Clear. *Clear this project's history…* |
+| Only a worksheet at the start; a graph only when I choose to plot | A new project, and an import, show the worksheet alone across the desk; the status bar and the import's message say how to plot. A file dropped on the window is still plotted (the drop is the choice) |
+| Remove the built-in Python | No Python window, menu item, button or worker. A project made with it keeps each Python step as a stored result that replays its output |
+
+**Measured effect.** Task re-runs (`tools/ux/tasks.py`, 1366 × 768; logs
+`evidence/logs/slices/round6-*`): T2, T5, T6, T8, T9, T10 and T12 take exactly what they took
+after slice 5. **T1 takes 11 clicks instead of 7**: typed data no longer makes a graph, so the
+path selects columns A and B and chooses Plot › Symbols. That is the cost of plotting being the
+user's choice, as asked; the status bar names the step.
+
+**Checks.** The unit tests (fit 243, pipe 125, parser 148, tex 25), contrast (189), odd-test
+(51; its test helper now plots its column, since a new project has no graph), sheet-fuzz seeds 1
+and 2 (117 steps each, no failures), menucheck (the spec gains Preferences… and Data › Hide and
+show), terms (0), every Help article rendering with every link resolving, and the slices'
+drives (44, 10, 43 and 48 checks) with their expectations brought up to this round: no graph on
+a first visit or after an import, no Python, the Original / Processed switches only after a
+step.

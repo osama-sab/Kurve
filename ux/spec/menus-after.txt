@@ -28,6 +28,7 @@ File
     Report…  ## ~ "Report as HTML"
   Rename the project…  ## ~ "Rename project"
   Delete the project…  ## ~ "Delete project…"
+  Preferences…  [Ctrl+,]  ## new (after slice 5): the history switch, theme, style, animations, errors
 
 Edit
   Undo (what it undoes)  [Ctrl+Z]
@@ -38,6 +39,7 @@ Edit
   Find…  [Ctrl+F]  ## new route: the worksheet's Find
   Copy the graph as a picture  ## + "Copy the figure as a picture" (File › Export), "Copy as a picture" (the graph's menus)
   Copy the results table  ## ~ "Copy results table"; ← no longer in Export
+  Preferences…  [Ctrl+,]  ## new route: File's, where Office keeps its options
 
 Data
   Worksheet
@@ -56,6 +58,11 @@ Data
     Ascending
     Descending
     Original order  ## ~ "As recorded (unsort)"
+  Hide and show  ## new (after slice 5): Excel's Hide and Unhide; also in the column and cell menus
+    Hide the selected column  ## "Hide the n selected columns" with several
+    Hide the selected row  ## "Hide the n selected rows" with several
+    Show every hidden column
+    Show every hidden row
   Clean
     Crop…  ## + "Crop to the visible range": Crop… opens on the range in view
     Leave out an X range…  ## ~ "Remove a region…"

@@ -1,7 +1,7 @@
 # Kurve: collaborative Origin-style data analysis
 
 Single-file web app (`kurve.html`): HTML, CSS and vanilla JS, no build step, no dependencies
-besides Google Fonts, and Pyodide from jsDelivr, loaded only when Python is first run. Open the
+besides Google Fonts. Open the
 file in a browser to run it. The file uses CRLF line endings;
 keep them (see the rules at the end). **DESIGN.md** records why the interface looks and
 behaves as it does (contrast, menus, typing, the worksheet's conventions); every round that
@@ -21,7 +21,10 @@ imported with its spectra and data columns, every graph, closed ones marked hidd
 graphs; Alt+1 or the toolbar's first button shows it, its edge drags; 220 px wide, and below 1600 px a
 drawer over the desk);
 the **desk**; and a **status bar**
-(tool hint, live cursor readout, point counts, fit state, save state). Window › Theme picks
+(tool hint, live cursor readout, point counts, fit state, save state). A gear at the title bar's right
+opens **Preferences** (File › Preferences…, Edit › Preferences…, Ctrl+,): whether a history of
+changes is kept (off, nothing but errors is logged), the theme, the style, animations, what
+opens after an import, and the errors met, all kept per browser. Window › Theme picks
 light or dark, and Window › Style the look of the interface: **Bench** (the default: IBM Plex,
 blue for everything you can change) or **Graphite** (Geist, black and white, blue only for the
 keyboard focus). Both are remembered per browser; neither changes the graph's colours. Both are
@@ -30,9 +33,10 @@ front window's title bar filled, and whatever is on, chosen or in front filled r
 tinted (DESIGN.md; `tools/contrast-test.mjs` checks the ratios).
 
 The desk holds **windows**, as in Origin: Graph, Worksheet, History, Overview, Peaks,
-Integrate, Fit, Results, Batch, any number of Trend graphs, Statistics, Python, Discussion, Help, and the transient Tool dialog. Each moves by its title bar, resizes from
+Integrate, Fit, Results, Batch, any number of Trend graphs, Statistics, Discussion, Help, and the transient Tool dialog. Each moves by its title bar, resizes from
 its edges, maximises on a double-click of the title, minimises to the **taskbar** along the
-bottom of the desk and closes with its ×. As a workbook keeps a tab per sheet, the project's
+bottom of the desk and closes with its ×; opening, closing, minimising (into its taskbar
+button), restoring, maximising, tiling and the dock animate briefly, as a desktop's windows do. As a workbook keeps a tab per sheet, the project's
 **documents** (its graphs, the worksheet, its trend graphs) always have a taskbar button and
 minimise (a graph can also be closed: off the desk and the taskbar, kept in the project, and
 opened again from Window › Graphs); **panels** (History, Peaks, Fit…) are in the taskbar only while open or
@@ -49,14 +53,16 @@ zoom), and Theme and Style as submenus. Every title bar has a **?** that opens
 the window's article in the **Help window** (F1 does it for the window in front; a tool's
 opens its step's article). The **dock** (UX_SPEC §3.2) is a column at the desk's right where the
 tool windows open as tabs (Fit, Results, Peaks, Integrate, History, Statistics, the Overview,
-Help, Discussion, the processing tools; Batch and Python float), one shown at a time; the
+Help, Discussion, the processing tools; Batch floats), one shown at a time; the
 documents share what is left, and get it back when it empties. Its left edge sets its width
 (360 px below 1320, 380 below 1700, 420 above); a tab double-clicked takes the whole desk,
 dragged out floats (as does the title bar), and the title bar's dock button docks it again.
 Below 1100 px, or when a 480 px graph and a 300 px worksheet would not fit beside it, it is a
 drawer over the documents, with a pin and a button that puts it away. A first visit opens the
-Worksheet (44 %) and the Graph (56 %) side by side, and nothing else; History opens in the dock
-with a column's first processing step. A project can
+Worksheet alone, across the desk: nothing is plotted until the user plots it (select columns
+and press Plot; an import's message offers to; a file dropped on the window is plotted), and a
+graph then shares the desk with it. History opens in the dock with a column's first
+processing step (unless the history is off). A project can
 have **several graphs**, each in its own window (Plot › New graph: with the analysed
 spectrum, with every spectrum, or one for each spectrum, tiled): the one clicked is worked on
 (it is drawn live, its spectrum is analysed and every window follows), the others show a
@@ -70,9 +76,11 @@ File › Copy from another project… copies spectra between projects. Graphs ca
 the **panels of a figure** (Plot › New graph › A figure…, Window › Graphs › A figure of panels…, a graph's Put in a figure, or a
 graph dropped on a figure): one window with the graphs in rows and columns, their plot areas
 lined up, X or Y shared, lettered (a), (b)…; the panel clicked is worked on. The **graph window** has its own bar repeating the Data, Plot, Analysis, Statistics
-and Spectroscopy menus, then **Original / Processed / Both** (what the graph shows), a chip saying
-which stage of the processing is shown when it is not the final data, and a Python button once
-the project uses Python. Right-click on a curve (or Shift+F10) gives its
+and Spectroscopy menus, then **Original / Processed / Both** (what the graph shows; only once a
+column has processing, `anyProcessing()`, which also gates the worksheet's Original/Processed
+sheets, Data › Show on the graph and the statistics' data switch: a first user has nothing to
+compare), and a chip saying which stage of the processing is shown when it is not the final
+data. Right-click on a curve (or Shift+F10) gives its
 colour, plot type and style, then Add here (a line, text, a peak label, a shape, a title or a
 comment where you clicked), Format graph…, Copy the graph as a picture and Export; on the empty
 plot, Add here's items themselves; right-click a line, a label, the legend, a title or an axis's numbers for
@@ -205,9 +213,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   bins, as counts, probability, percent or density, cumulative or not; X the bin centres named
   after the values (`d.yn0`, the source's value name, carried into a derived spectrum's input
   by `pipeOf`), `idx` negative, `bins {w, start, n, out}` for drawing; a start param is
-  `blank:true`, empty for automatic, which `wireStepForms` writes as null); python (stores its code and its output `{x, y, e?, xn?, xu?, yn?, yu?}`, plus the
-  `inSig` (`serSig`) of the input it ran on and `ranCode`, and warns when either has changed;
-  `stepPKey` keeps its output out of the cache key).
+  `blank:true`, empty for automatic, which `wireStepForms` writes as null); python ("Stored result
+  (Python)": a step from a project made while Kurve had Python, which replays the output it
+  stored, `{x, y, e?, xn?, xu?, yn?, yu?}`, and cannot be run or changed; in no menu, no
+  settings; `stepPKey` keeps its output out of the cache key; the report prints its code).
   **Every step checks its own work**: the background checks for over-subtraction (a stretch
   below −3σ) and for eating bands (`bgBandLoss`); spike removal warns about wide "spikes" and
   points changed inside a band; smoothing reports the height it takes off the narrowest band,
@@ -487,8 +496,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   number (`rawSeries`, `anyVal`, xn "Row").
 - **Columns and spectra**: a project is a table. `p.cols` is `[{id, role, name, unit, data, of?,
   pipe?, mask?, src?, from?, file?, meta?}]` (`file` and `meta`, the file a spectrum came from and
-  its header's fields, `colMetaOf`, shown in its Original data box in the History; Python's `meta` is
-  the project's with the spectrum's over it) with roles `x` / `y` / `e` (an error column names its Y in `of`, and is one of six kinds, see
+  its header's fields, `colMetaOf`, shown in its Original data box in the History) with roles `x` / `y` / `e` (an error column names its Y in `of`, and is one of six kinds, see
   Error bars) /
   `ignore`. There may be several X columns: as in Origin, a Y column is plotted against the
   nearest X column to its left (`xColFor`), so a spectrum imported on a different axis gets its
@@ -611,9 +619,37 @@ graph first, with the taskbar kept at the bottom of the screen.
   `recordRaw` (the order is part of the fingerprint) and a toast with Undo. **Alignment**:
   `p.wsAlign` (`{colId: "l"|"c"|"r"}`, in `UNDO_KEYS`), `wsSetAlign(ids, a, toggle)` (the same
   button again clears it), `wsSelAlignIds`, `colAlignItems` (the column menu's Align); cells
-  take `.al-l`/`.al-c`/`.al-r`. **The selection** is drawn by `td.in` (the `--ws-sel` fill)
+  take `.al-l`/`.al-c`/`.al-r`. **Hiding** (Excel's Hide and Unhide): `p.wsHide` (`{cols:[column
+  id], rows:[data row]}`, in `UNDO_KEYS`), a view only (hidden values are plotted, fitted and
+  exported). `wsHideOf(p)` (cleaned of what is gone), `wsHideCols`, `wsShowCols(ids|null)`,
+  `wsHideRows`, `wsShowRows(rows|null)`, `wsHideSave` (one undo entry, a log line, a toast with
+  Undo), `hideItems()` (Data › Hide and show, the cell and row menus; the column menu has Hide,
+  Show beside it, Show every). A hidden column stays in `wsModel`'s columns as
+  `{hidden:true, w:WS_HIDW}`, a 6 px marked strip (`th.ch.hidc`, `td.hid`) so the letters keep
+  their places; `wsMove` and `wsSelect` step over it (`wsVisCol`), and a double click on it shows
+  the run of hidden columns there. Hidden rows leave `wsOrder`'s `ord` (`inv` null for them,
+  `nd` the data's rows, `n` those shown, `hidR`), so `wsDR` maps around them; the row after them
+  is marked (`th.rh.hidab`, `wsHiddenAbove`) and a double click on its number shows them. The
+  address (`wsBar`) names the data row, as the row number does. The foot says how many are
+  hidden, with Show. **Formula suggestions** (`fxsAttach(inp, {on, items})`, `fxsUpdate`,
+  `fxsRender`, `fxsAccept`, `fxsKey`, `fxsClose`, `#fxSug` `.fxs`, `fxsOpen`): a list under a
+  formula as it is typed, in the F(x)= cell (and a cell starting with `=`, `wsRestoreEditor`),
+  the formula bar (`#wsValIn`) and a fit function (`#fbExpr`); `fxsSheetItems(self)` the columns
+  by letter and long name (not the one computed), `x`, `i`, then `fxsBase()` (the functions from
+  `FX_DOC`, `[args, what it does]`, and the constants, `FX_CDOC`); `fxsMatch` ranks by name
+  prefix, then by a word of a column's name; `fxsSig(before)` the function whose brackets the
+  caret is in and which argument. Keys: ↑/↓, Tab (Enter once an arrow has chosen), Esc
+  (`_fxsHush` keeps it shut until the text changes), Ctrl+Space; its keydown is attached before
+  the field's own, and the modal key handler leaves it Escape, Tab, Enter and the arrows; a
+  letter after a digit (`1e5`) is a number. `wsFxHint` says an unfinished formula (an error at
+  its end, or a name that a function starts with) quietly and marks a mistake inside it.
+  `wsBarEnd` sends `=…` typed for a value to the F(x)= row, as `wsCommit` does. **The
+  selection** is drawn by `td.in` (the `--ws-sel` fill)
   with 2 px edges on the range's outside only (`et`/`eb`/`el`/`er` setting `--et`… in one
-  inset box-shadow), `td.cur` (a 2 px edge on the panel), `th.hs` (a selected column's or
+  inset box-shadow), `td.cur` (a 2 px edge on the panel; with animations on, `wsCursor` draws
+  it instead as `.wscur`, one frame in the scrolled content under the sticky headers that glides
+  to the active cell in 90 ms, snaps on a jump of more than a screen or a redraw, hides while a
+  cell is typed in, and `.ws.glide` takes `td.cur`'s own edge away), `th.hs` (a selected column's or
   row's header, tinted with a 3 px bar) and `th.hsel` (a whole selected column's letter,
   filled solid, the grab cursor). There are no colour swatches in the headers: a spectrum's
   colour belongs to the graph.
@@ -654,7 +690,20 @@ graph first, with the taskbar kept at the bottom of the screen.
   tabs (`[data-dtab]`, `[data-dclose]`, `[data-dpin]`, `[data-dhide]`) and puts `#dockEdge`
   over whatever window it touches; `wireDock` (tabs, keys, drag out, the edge), `undockAt`,
   `setDocked` (the title bar's `[data-wdock]`; a title-bar drag of 16 px undocks). Tile and
-  Cascade leave the dock alone. `splitInto` gives a new graph its place: beside the worksheet
+  Cascade leave the dock alone. **Motion** (`winMotionBegin`/`winMotionEnd` around `applyWins`'
+  loop): the style rectangles before and after, and `WIN_VIS` (shown and minimised after the
+  last layout). A window shown is `winIn` (from its taskbar button, `winTkRect`, when it was
+  minimised; a docked one fades, so a tab change cross-fades; else it grows from 0.97); one
+  closed or minimised is `winOut` (kept shown as `.wout`, inert and deaf to the pointer, at its
+  old rectangle until it has faded or shrunk into its button, `S.winMinAnim` set by
+  `minimiseWin`; reopened, `winStop`); one moved is `winFlip` (a transform from the old
+  rectangle, 200 ms; at most 12 at once). Nothing animates while a pointer is down (a drag calls
+  `applyWins` every frame), on the first layout, when the desk changed size (unless
+  `S.animLayout`, set by the Explorer's switch), at phone width, or with `animOn()` false. Menus
+  (`.still` when moving along the bar, `.up`, `.sub`), dialogs, pickers, the toast (and
+  `hideToast`'s fade) and the Explorer animate by CSS keyframes on the individual `translate`
+  and `scale` properties, so their own `transform` (the toast's centring, a dialog moved by its
+  title bar) is kept; `details.grp`/`.more` slide where `interpolate-size` exists. `splitInto` gives a new graph its place: beside the worksheet
   (which keeps 300 to 44 %), else side by side, else stacked, never narrower than 480 px;
   else it takes the old graph's place and the old one is minimised. A window is open, minimised (`min`, its taskbar button kept;
   `minimiseWin`, the title bar's –, a click on the front window's button, tiling that leaves
@@ -839,8 +888,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   list of kinds with the tools in submenus (DESIGN.md, Menus and the toolbar; `tools/ux/menucheck.py`
   compares a crawl of them with `ux/spec/menus-after.txt`). Items that cannot apply are left out
   (Fit every column… with one column, Batch results without a batch, the second axes' pages while
-  they are off); `pyUsed()` puts Python in Analysis (and the graph's button) once the project uses
-  it, under Analysis › More until then. `sortViewItems(ci)` is Data › Sort the view and the cell
+  they are off). `sortViewItems(ci)` is Data › Sort the view and the cell
   menu's; Edit's Copy, Paste (`wsPasteMenu`), Clear and Find act on the worksheet. The menu bar
   moves to another menu only after the pointer rests 150 ms on its name.
   `openTool(op, {col, at, p})` opens the Tool window with a pending step (ops without settings
@@ -877,31 +925,24 @@ graph first, with the taskbar kept at the bottom of the screen.
   raw record and fingerprint, the final data's numbers and new-spectrum actions, or the list
   of fits, and under each its discussion (`flowDiscHtml`). A box with comments carries a badge
   (`.fn-c`, open threads, or the resolved count greyed); clicking it opens the discussion, and
-  C on a box does too. A Python step that reads other spectra gets a dashed arrow from each;
-  when any Python step is out of date the bar offers "Run Python again (n)". `S.flowInsp` hides
+  C on a box does too. `S.flowInsp` hides
   the inspector; `S.flowTab` is `flow` or `log`.
-- **Python** (`pyWorkerMain`, `pyStart`, `pyRun`, `renderPy`, `pyRunUI`): Pyodide
-  (`PY_VER`, from `cdn.jsdelivr.net/npm/pyodide@…`, packages from the Pyodide CDN) in a module
-  Web Worker made from a Blob, or on the page if workers are refused; it loads on first use and
-  Stop terminates it. The code gets `x, y, e`, the names and units, `meta` and `spectra`
-  (`PY_PRELUDE`, numpy arrays when numpy loads) and returns x and y (`PY_EPILOGUE`, lengths
-  checked). The result is **a step** (`S.py.dest` `step`: Run makes a pending `python` step;
-  "Record as a step" is `applyTool`) or **a new spectrum** (`new`: Run previews it in the window,
-  `S.py.preview`, over its input; `pyRecordNew` makes a derived spectrum from the raw or final
-  data, `newDerived(from, {src, bare, steps})`, whose first step is the code). `spectra` is a
-  dict subclass that records the names taken out of it; `pyRun(code, d, {target})` leaves out
-  the target and every spectrum made from it (`usesSpectrum`), so a step can never read itself,
-  and returns `readIds`. A step stores `reads` and `readSigs` (`pyParams`), its op declares them
-  as `deps` (dashed arrows, cache keys, `pipeSig`), and it warns when one of them changed.
-  `pyStale(s)` says why a step is out of date (`notrun`, `code`, `input`, `read`),
-  `rerunStalePython` runs every such step in order as one undo entry, and `rerunPythonStep`
-  one. In the History a Python step's code is editable, with "Also reads" chips. The report
-  prints each Python step's code. The code also gets `peaks` (the spectrum's peak set, dicts
-  with `x, y, fwhm, snr, label`) and `lines` (the Peaks window's chosen known lines, in the
-  spectrum's units); a third destination, **peak labels** (`dest:"labels"`, `mode` sent to the
-  worker so the epilogue skips x, y and e: an example once reused `e` and broke them), returns
-  each peak's `label`: the window lists the changes and `applyPyLabels` gives them, one undo
-  entry (`PY_LABEL_CODE`, the starting code and an example).
+- **Python** was removed (round 6, the user's request): no window, menu item, worker or Pyodide.
+  A project made with it keeps each Python step as a stored result (see the pipeline's
+  `python` op); nothing can run code.
+- **Preferences** (`openPrefs`, `#prefModal`, the gear `#prefBtn`, File and Edit ›
+  Preferences…, Ctrl+,): `PREF_DEF` (`history`, `anim`, `flowAuto`), `prefGet(k)`/`prefSet(k, v)`
+  under `kurve.pref.<k>`, per browser. **History off** (`histOn()` false) keeps nothing from then
+  on: `save` writes no log line (a deferred error line aside), `makeStep` no `t`/`by`,
+  `fitHistory` no new entry, `recordRaw` keeps the fingerprint but no record entry (so
+  `rawVerified()` still holds), `who()` names nobody, the History does not open by itself, and
+  the Log tab says the history is off; `clearHistory()` empties a project's log, fit history and
+  record (confirmed, one undo entry). **Errors** are kept either way: `noteError` (the
+  browser's list, `kurve.errors`, the last 50, shown in Preferences with Copy and Clear),
+  `logError` (that, and a project log entry `{err:true}`), and the window's `error` and
+  `unhandledrejection` listeners. **Animations**: `animOn()` (the preference and not the
+  system's reduced motion), `applyAnim()` sets `data-noanim` on the root, which every CSS
+  animation is guarded by. *Open the Overview* is `kurve.ovAuto`.
 - **Discussion** (`threadIndex`, `threadHtml`, `wireThreads`, `threadAct`, `renderThread`,
   `flowDiscHtml`, `renderFlowDisc`, `refreshComments`, `goNode`, `goAnchor`,
   `reportDiscussionHtml`): a comment is `{uid, text, anchor, t, resolved, resolvedBy, parent?,
@@ -1113,7 +1154,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   (`cols` carries the pipelines and masks, `raw` the fingerprint record, `fits` the fit history,
   `userFns` the project's fit functions, `found` the peak sets, `integ` the bands, `graphs`
   the extra graphs, `batch` and `series`, `trends` the trend graphs, `tree` the Explorer's
-  folders, `wsAlign` the worksheet's alignment) plus both drafts (`S.pdraft`, `S.draft`). A snapshot copies everything but the columns' data
+  folders, `wsAlign` the worksheet's alignment, `wsHide` its hidden columns and rows) plus both drafts (`S.pdraft`, `S.draft`). A snapshot copies everything but the columns' data
   arrays, which it shares (`cloneCols`): raw values are only ever replaced. Undo and redo wait
   while a pointer button is held anywhere (`S.ptrDown`, `heldBlocks`), so a drag cannot write
   back what was undone under it. It is per-session and local on purpose — rewinding your
@@ -1174,7 +1215,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   computed columns into derived spectra, and `normalize()` saves the upgrade at once). Panel
   state is `S.mode` (pointer tool), `S.fitMode` (`curve`/`peaks`), `S.sheet` (`raw`/`final`),
   `S.ws`/`S.wsm` (the worksheet's selection and model),
-  the stage and pending state above, `S.flowSel`/`S.flowTab`, `S.py` (the Python window),
+  the stage and pending state above, `S.flowSel`/`S.flowTab`,
   `S.pf` (the peak finder's settings, saved per browser under `kurve.pf`), `S.pfPreview`,
   `S.pkLast` (the Peaks window's last search, for its turned-down list), `S.bandSel`,
   `S.bdrag`, `S.igEvery` (the Integrate window's selected band, band drag and every-spectrum
@@ -1629,7 +1670,7 @@ presence, names) depends on the claude.ai runtime and would need a real backend 
 the graph), active, original and processed data, check code, tool window, saved style,
 Untitled project, not counted as a peak; spectroscopy's words (spectrum, band, background…)
 only in the Spectroscopy menu and its panels. Code names (`raw`, `final`, `rawFp`, `p.raw`,
-`S.sheet`, Python's `spectra`) are not renamed. `python tools/ux/terms.py [path]` counts the
+`S.sheet`) are not renamed. `python tools/ux/terms.py [path]` counts the
 words off the glossary in every prose literal of the file, and in fragments joined to a number
 or a name (`n + " spectra"`) (`--list term` shows where); it
 reads 0, and a new string should keep it there. Help's search words (`kw`) keep the old words
@@ -1662,11 +1703,9 @@ circle looks like a star. For anything else the UI
 has no test file: drive it in a real browser (Playwright with Chromium works headless),
 click every control you touched, and watch for page errors. Screenshots at 1440, 1024 and
 390 px wide, in both themes, catch most layout mistakes. Windows overlap: bring the one you
-are about to click to the front (`focusWin`) or the click lands on whatever lies over it.
-Python needs the Pyodide files: a Playwright route does not reach requests made inside a
-worker, so serve the app and a local copy of the `pyodide` npm package over HTTP and point
-`PY_INDEX` at it. That package has no numpy wheel, so drive Python with plain lists; the examples that
-use numpy need the real CDN. Comments, ties and user functions have no store or network of
+are about to click to the front (`focusWin`) or the click lands on whatever lies over it,
+and a window that has just opened, closed or moved is still animating for about 220 ms (wait,
+or set Preferences › Animations off with `prefSet("anim", false); applyAnim()`). Comments, ties and user functions have no store or network of
 their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 
 ## Things that have bitten, and the rules that came out of them
@@ -1768,8 +1807,6 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   bodies are `overflow:clip`; scroll the inner container by hand.
 - **Two ids in two places are one id too many.** The Plot details heading and its Title field
   were both `#pdTitle`, and the field could not be reached.
-- **This Pyodide release does not run in a classic worker.** It says "Classic web workers are
-  not supported": the worker is a module worker that imports `pyodide.mjs`.
 - **A slider's readout is its own.** A text field in the same form row wrote its value into the
   row's first `<output>`; only range inputs update an output.
 - **A click that redraws the graph swallows the double click.** The graph redraws on the first
@@ -2225,9 +2262,43 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **One word is still a word.** The glossary counter skipped literals of fewer than two words,
   so `n + " spectra"` passed it 23 times. Fragments joined to a number or a name count now.
 
+- **A test's helper builds today's project.** odd-test's `mkSpec` made its project with
+  `blankProject`, which now starts with no graph; three checks failed for want of a graph to
+  read ticks from, which looked like broken axes. The helper plots its column, as a user would.
+- **A hint that shouts at what is not finished is noise.** The formula bar was red for every
+  formula being typed (`max(A, B` is missing a bracket, `sq` is not a column): the only thing
+  a user saw while typing was an error. A mistake at the end, or a name a function starts with,
+  is said quietly.
+- **Motion must not move what the user holds.** `applyWins` runs on every frame of a window
+  drag; animating each change would chase the pointer. Only what the user asked for animates:
+  not while a button is held, not when the desk is resized, not on the first layout.
+- **A window on its way out is still on the desk.** Kept shown while it fades or shrinks into
+  the taskbar, a closed window took clicks meant for what was under it; it is inert and deaf
+  to the pointer until it is gone, and a window reopened mid-way stops going.
+- **An animation on `transform` replaces the element's own.** The toast is centred and a
+  dialog is placed by `transform`; an entrance written with `transform` snapped them to the
+  wrong place at its end. Entrances use the individual `translate` and `scale` properties.
+- **A class name is global, once more.** The pickers' entrance was first written for `.fp`,
+  which is the History's code for a fingerprint: every check code would have faded in. The
+  pickers are `.fpick` and `.cpick`; grep a class before styling it.
+
 ## Roadmap
 
-Done in this round: the user's review of the interface. Columns move by dragging their letters,
+Done in this round: the user's review after the UX rework's slice 5. The worksheet hides and shows
+columns and rows, as Excel's Hide and Unhide (a marked strip, a marked row number, a double click
+to show them, from the menus and Data › Hide and show), kept with the project and a view only.
+A formula gets suggestions as it is typed (the columns by letter and name, x and i, every
+function with its arguments and what it does, the constants; an argument hint inside a call),
+in the F(x)= row, the formula bar and a fit function, and an unfinished formula is no longer an
+error in red. Windows, menus, dialogs, toasts and the worksheet's cursor move briefly and
+smoothly, as a desktop's and Excel's do, and not at all with Preferences › Animations off or
+the system's reduced motion. Original and Processed appear only once there is processing. A
+Preferences dialog (a gear in the title bar, File and Edit › Preferences…, Ctrl+,) has a
+switch to keep no history at all, only errors. A new project, and an import, show the worksheet
+alone: nothing is plotted until the user plots it. Python was removed (old projects keep their
+Python steps' stored results).
+
+Round before: the user's review of the interface. Columns move by dragging their letters,
 or from their menu (Left, Right, To the start, To the end), each spectrum keeping its X; values
 align left, centre or right; the value box above the grid is a formula bar, and F(x)= opens on
 one click; the selection is a strong fill with a dark edge and filled headers; Fill moved from
@@ -2243,7 +2314,7 @@ with little contrast, measured by `tools/contrast-test.mjs`. DESIGN.md now recor
 interface's decisions and their reasons, round by round. A fix: plotting several columns with
 a chosen type drew only the analysed one in that type.
 
-Round before: plots Origin has and Kurve lacked (the roadmap's next item). Histograms
+Two rounds before: plots Origin has and Kurve lacked (the roadmap's next item). Histograms
 of a column's values, made by a step so they follow the processing (bins chosen for the data
 by Freedman–Diaconis, Sturges or the square root, or a number or width typed, a start; counts,
 probability, percent or a density with area 1, cumulative), drawn as columns, a figure of
@@ -2255,7 +2326,7 @@ curve, peak and batch fits, with or without Y errors. A legend of sizes for symb
 a column. Figure panels spanning several rows or columns. A fix: Results showed a fit's units
 from the analysed spectrum rather than its own.
 
-Two rounds before: the next plotting options the user chose. Figures of panels, as Origin's
+Three rounds before: the next plotting options the user chose. Figures of panels, as Origin's
 graph layers and Merge Graphs: graphs become the panels of one figure in rows and columns (a
 panel per spectrum in one command, graphs chosen from a list, or a graph dropped on a figure),
 their plot areas lined up by measuring every panel's margins, X or Y shared (one range and one
@@ -2271,7 +2342,7 @@ coloured or sized by a third column with a colour bar, the area between two spec
 in two colours, hatched fills that PDF and EPS keep, and the graph copied to the clipboard as
 a picture.
 
-Three rounds before: the plotting options the user chose. The import dialog never plots, and
+Four rounds before: the plotting options the user chose. The import dialog never plots, and
 files dropped on the window are read and plotted at once (on the graph they land on, a new
 graph, or an Explorer folder; "Read it differently" undoes and opens the dialog). A Project
 Explorer as Origin's: folders and subfolders, the worksheet, each file with its spectra and
@@ -2284,7 +2355,7 @@ root, probability; dates and times read from files and the worksheet and numbere
 a second Y axis in other units (transmittance over absorbance, a × y + b, a formula). Fixes:
 a graph dragged over by a file shrank to a line (a class name shared with the History).
 
-Four rounds before: plotting when you are ready, from a user's request. The import dialog
+Five rounds before: plotting when you are ready, from a user's request. The import dialog
 lists every column of the file with what it becomes (X, a spectrum, error bars, data kept for
 formulas, or left out), reads X,Y pairs only when they look like pairs, and plots nothing
 unless asked: Plot is Not yet (the worksheet takes the graph's place), one graph, one each
@@ -2297,7 +2368,7 @@ new project did nothing after the import (no message, no worksheet); an undo jus
 a value left the undone change in the log; a cell chosen just after Enter could lose the edit
 begun in it.
 
-Five rounds before: the worksheet for manual work, from a user's bug report. Typing far
+Six rounds before: the worksheet for manual work, from a user's bug report. Typing far
 down the sheet no longer jumps to the top, and values typed one after another are all kept
 (they were lost whenever the delayed save landed mid-entry). Raw data is editable like any
 spreadsheet (type over, clear, paste and fill over, insert and delete rows, every change one
@@ -2308,7 +2379,7 @@ column; double-click edits in the first rows too (it did nothing there); a colum
 selects with its first cell active; leaving the page saves what was just typed. A random-user
 harness drives the worksheet in hundreds of unscripted steps and checks the data after each.
 
-Six rounds before: reading, windows and filling, from a user's review. Text has two
+Seven rounds before: reading, windows and filling, from a user's review. Text has two
 colours, the secondary one darker (7:1 or more in every theme and style), and headings are
 sentence case in the text colour instead of small grey capitals; disabled controls are dimmer,
 not unreadable. Windows as in Excel: the project's documents (graphs, worksheet, trend graphs)
@@ -2321,7 +2392,7 @@ Fill Column With: series by a step or a factor with a stop value, evenly between
 Poisson counts) from a seed, and the trend of the values above; into empty cells of a column
 or a new one, with a preview, one undo step and a record entry.
 
-Seven rounds before: a gamma spectrum, from a user's file of background radiation. One-column
+Eight rounds before: a gamma spectrum, from a user's file of background radiation. One-column
 files of counts per channel are read (a .TKA file's live and real time into the metadata, X
 the channel number from 0 or 1, √N error bars as a computed column, counts per second by a
 step); calibrated to energy by a step (coefficients, remembered for the next file, or fitted
@@ -2336,7 +2407,7 @@ peaks and the lines. The taskbar tells open, minimised and closed windows apart,
 button and a Windows list. Each edge of the frame has its own ticks and numbers, set by
 clicking the edge in a picture of the frame.
 
-Eight rounds before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
+Nine rounds before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
 their corners, filled or not, behind the data or over it, with text inside, pinned or at data
 values). Axis breaks on X and Y, suggested over the widest empty stretch, cut with two strokes,
 the two sides on one scale, followed by zoom, wheel and pan, and named in the report. A second
@@ -2349,7 +2420,7 @@ writer: vectors, clipping, opacity (PDF), images, gradients, insets and every gr
 figure, text in the standard fonts placed by their own widths. The toolbar keeps to one row
 down to 860 px.
 
-Nine rounds before: bugs found by using the app the way nobody does. A tab that froze for good
+Ten rounds before: bugs found by using the app the way nobody does. A tab that froze for good
 (ticks added up after a deep zoom), tick labels all alike on a nanosecond axis, NaN drawn for
 equal or extreme limits; a second tab wiping the first's projects, a full store that still
 said Saved, two projects sharing an id, a corrupt saved layout; typographic minus signs, French
@@ -2360,7 +2431,7 @@ undo during a drag; ten-second saves with 300 spectra, 200 ms undo steps on big 
 names pushing title-bar buttons out of reach; batch rows of deleted spectra. Each fixed by its
 class, and `tools/odd-test.mjs` keeps them fixed.
 
-Ten rounds before: graphs and projects, from a bug report. Deleting a project could leave its
+Eleven rounds before: graphs and projects, from a bug report. Deleting a project could leave its
 graphs on the desk and the next import going into it (a store's events in the other order); a
 graph in front that went away took the live plot with it. Both fixed. The taskbar names the
 project its windows belong to, the project list says what each holds, new projects get names
@@ -2370,7 +2441,7 @@ spectrum by its chip, onto a graph, its taskbar button or the desk; Ctrl keeps t
 dropped; it scrolls on a phone), from menus, or in Combine graphs… with a layout; spectra
 come from another project with their processing, peaks and colours.
 
-Eleven rounds before: finding and labelling peaks, from what people asked. The Peaks window
+Twelve rounds before: finding and labelling peaks, from what people asked. The Peaks window
 says where it looks (the spectrum, always shown, and From … to … typed, taken from the view
 or dragged on the graph, shaded there, kept with the set) and ends in Done; the Fit window
 says which spectrum and range it fits, and ends in Done too. Fitted peaks are labelled with
@@ -2379,7 +2450,7 @@ errors and units; above, inside, or in a row along the top with leaders; turned,
 boxed, dragged; each peak can be named, and its name goes to Results, the report and the
 exports.
 
-Twelve rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
+Thirteen rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
 spectrum shares (centres, widths, areas, shapes, the baseline, or parameter by parameter; a
 curve model's parameters), each spectrum first fitted with those held so the fit starts where
 it belongs, one block-sparse Levenberg–Marquardt problem, every row a normal fit that says what
@@ -2390,7 +2461,7 @@ on the desk: several quantities, left and right axes, lines with slopes, SVG, PN
 Each spectrum keeps its file's header, and a field that differs (a temperature, the time it was
 taken) is what a series can be plotted against.
 
-Thirteen rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
+Fourteen rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
 every title, legend entry and label (`cm^{-1}`, `\alpha`), with buttons and a word
 processor's keys; arrows drawn by dragging, their heads snapping to data points, with heads
 of four kinds; insets made from a zoom, dragged and resized, outlined on the graph with
@@ -2400,7 +2471,7 @@ print, lines scaled with the text or not, SVG at its size, PNG with its dpi reco
 transparent backgrounds, a preview); formats saved by name and used on any graph in any
 project, with five of Kurve's; a toolbar that keeps to one row at every width.
 
-Fourteen rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
+Fifteen rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
 Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
 its own font, size in points, bold, italic, underline and colour; a real font picker (each
 name in its face, search, web fonts that look the same everywhere, which fonts this computer
@@ -2415,7 +2486,7 @@ graph at once. Labels and text over several lines, turned to any angle, in a box
 pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
 richer right-click menus on axes, titles, the legend and annotations.
 
-Fifteen rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+Sixteen rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
 started from its result, from the neighbour in the series, or from the peaks found in each;
 every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
 the History, replaced by a fit by hand, out of date when its processing changes). The Batch
@@ -2491,7 +2562,7 @@ Next, in order:
    between tabs); `tools/odd-test.mjs` grown to run every example end to end; the worksheet
    drawing only the columns in view; speed with thousands of spectra
 8. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
-   applied in one click, unread markers; Python steps that re-run on their own when asked
+   applied in one click, unread markers
 
 ## Known gaps
 
@@ -2612,11 +2683,11 @@ Next, in order:
   different parameters, and a user's function cannot be a peak shape in a peak fit
 - Comments have no mentions, unread markers or notifications; they are plain text
 - No Shirley or Tougaard background (XPS); no Fourier self-deconvolution
-- Python steps store their output and must be run again when their input or a spectrum they
-  read changes (they say so, and "Run Python again" does all of them); every other step stores
-  only its settings. Reads are recorded when code takes a spectrum out of `spectra` by name,
-  `get`, `items`, `values` or `copy`; `dict(spectra)` goes unseen. numpy loads from the Pyodide CDN, which a
-  strict content policy may block: the code then gets plain lists
+- Python is gone: a project made with it keeps each Python step's stored result, which cannot
+  be run again or changed (it does not follow a change to its input)
+- With the history off, nothing is recorded from then on, so a report or the original data's
+  record has nothing for that time; the switch is per browser, so in a shared project each
+  person's choice covers only their own changes
 - The History lays lanes out in a grid; with many spectra it scrolls rather than packs, and
   there is no zoom on the flow chart
 - Band integration uses the same windows for every spectrum on an axis (no per-spectrum

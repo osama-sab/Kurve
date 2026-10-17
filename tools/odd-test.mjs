@@ -29,7 +29,7 @@ const check = (name, cond, detail) => {
 // In the page: a project from arrays, and a Gaussian with noise.
 const HELP = `(()=>{ if(window.__h) return; window.__h=1;
   window.mkSpec=async(name,x,y,opt)=>{ opt=opt||{}; const xc=makeCol("x",opt.xn||"X","",x), yc=Object.assign(makeCol("y",name,"",y),{pipe:[],mask:[]});
-    const pr=Object.assign(blankProject(opt.proj||name),{cols:[xc,yc],activeY:yc.id}); await createProject(pr,"test"); await new Promise(r=>setTimeout(r,80)); renderAll(); };
+    const pr=Object.assign(blankProject(opt.proj||name),{cols:[xc,yc],activeY:yc.id}); /* plotted, as a user would */ Object.assign(pr.plot,{shut:false,cols:[yc.id]}); await createProject(pr,"test"); await new Promise(r=>setTimeout(r,80)); renderAll(); };
   window.gauss=(n,c,w,h,x0,dx,noise)=>{ const x=[],y=[]; let s=7; const r=()=>{ s=(s*16807)%2147483647; return s/2147483647-0.5; };
     for(let i=0;i<n;i++){ const v=x0+i*dx; x.push(v); y.push(h*Math.exp(-(((v-c)/w)**2))+(noise||0)*r()); } return {x,y}; };
 })()`;

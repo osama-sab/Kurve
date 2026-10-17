@@ -104,15 +104,20 @@ show without competing with the data; the graph's grid (`--grid`) is part of the
 - Documents (graphs, the worksheet, trend graphs) always have a taskbar button; panels only
   while open or minimised. Open buttons are raised with a bar, minimised ones flat, the front
   one filled.
-- **The first screen is the worksheet and the graph, side by side** (44 % and 56 %), and
-  nothing else: a first visit used to open History too, and stacked it under a worksheet that
-  then showed no data rows at all at 1366 × 768.
+- **The first screen is the worksheet, alone, across the desk.** A graph appears only when the
+  user plots something: "I don't want to see a graph until I choose to plot". The empty graph
+  that used to stand beside an empty worksheet said "nothing plotted yet" before anything had
+  been typed, and took 56 % of the desk from the data. An import plots nothing either; its
+  message offers *Plot them now*, and the status bar says *select columns in the worksheet and
+  press Plot*. A file dropped on the window is still plotted at once: dropping it on the app is
+  the choice. (Earlier: the worksheet and the graph side by side, 44 % and 56 %, after a first
+  visit had opened History too and stacked it under a worksheet with no rows in view.)
 - **Tool windows dock.** Fit, Results, Peaks, Integrate, History, Statistics, the Overview,
   Help, Discussion and the processing tools open as tabs in one column at the desk's right
   (360, 380 or 420 px by the screen's width), one shown at a time. The worksheet and the graph
   share what is left, so a tool never covers the graph it acts on: at 1366 px the graph beside
   the Fit window went from a 346 px strip, an eighth of it under the Fit window, to 552 px in
-  full. Batch and Python float, being worksheets of their own.
+  full. Batch floats, being a worksheet of its own.
 - **A drawer when the room is not there.** Below 1100 px, or when a 480 px graph and a 300 px
   worksheet would not fit beside it, the dock lies over the right of the desk (a shadow says
   it is on top) with a pin to put it beside them and an arrow to put it away. Floating is
@@ -123,9 +128,37 @@ show without competing with the data; the graph's grid (`--grid`) is part of the
 - **New graphs keep 480 px.** A graph made beside the worksheet takes its share; otherwise it
   goes beside or below the graph in front, and when neither leaves 480 by 300 px it takes the
   old graph's place and the old one waits in the taskbar.
-- **The empty graph says what to do next.** Before data: Import and the examples. With columns
-  but nothing plotted (after an import, which plots nothing): "Nothing plotted yet" and Plot
-  setup…, where before the import closed the graph and left an empty desk.
+- **What to do next is said where the user looks.** Before data, the worksheet's foot and the
+  status bar: type, paste or Import. With columns and nothing plotted: the status bar, the
+  worksheet's *Plot* button, and the import's message. A graph closed, or one in a project made
+  before this, still says "Nothing plotted yet" with Plot setup… when it is opened.
+
+## Motion
+
+The user found the interface's changes abrupt and asked for transitions "refined and smooth,
+like Excel". Motion here says where something came from and went to; it never decorates.
+
+- **Short and eased.** 90 ms for the worksheet's cursor, 120 to 180 ms for menus, dialogs and
+  windows coming in, 140 ms going out, 200 to 220 ms for a window that moves or goes into the
+  taskbar; one curve for things arriving (fast, then settling: `cubic-bezier(.2,.8,.2,1)`),
+  an ease-in for things leaving.
+- **Windows as a desktop's.** Opened, a window grows in from 97 %; closed, it fades; minimised,
+  it shrinks into its taskbar button, and grows out of it when restored, so the button reads as
+  where it went. Maximised, tiled, cascaded, or pushed aside by the dock or the Explorer, it
+  glides from its old place (its content already at the new size, scaled, as the operating
+  system does). Changing dock tabs cross-fades rather than growing.
+- **The worksheet's cursor glides** from cell to cell, as Excel's animated cursor does, so the
+  eye follows Enter, Tab and the arrows. A jump of more than a screen (Ctrl+End) is not
+  animated: a frame flying over thousands of rows says nothing.
+- **Menus, dialogs, pickers and messages** come in from 4 to 10 px away and fade; moving along
+  the menu bar does not replay each menu's entrance; a message fades out. Groups that fold slide
+  open where the browser can size them.
+- **Only what the user asked for moves.** Nothing animates while a button is held (a drag, a
+  resize: the window must stay under the pointer), when the browser is resized, on the first
+  layout, or at phone width; more than twelve windows moving at once are simply put in place.
+- **Off is a choice.** Preferences › Animations turns all of it off, and so does the system's
+  reduced-motion setting; nothing depends on an animation to work, and a window on its way out
+  takes no clicks.
 
 ## The worksheet
 
@@ -154,6 +187,25 @@ Excel's and Origin's conventions, unless noted.
   as in Excel.
 - **No colour swatches above the columns.** A spectrum's colour belongs to the graph (its
   Format page and right-click menu); a coloured chip in a header looked like noise.
+- **Hide and show columns and rows**, as Excel's Hide and Unhide: from the column's, the cell's
+  and the row number's menus, and Data › Hide and show. A hidden column is a thin marked strip,
+  so the letters keep their places and the strip is something to double-click; hidden rows
+  leave a mark on the next row number, and the numbers skip, so nothing looks lost. The foot
+  says how many are hidden, with *Show*. Hiding is a view: hidden values are still plotted,
+  fitted and exported (Excel's charts drop hidden cells, which surprises people more often than
+  it helps). Kept with the project and undone like any change.
+- **Formula suggestions**, as Excel's: a list under the formula as it is typed, of the columns
+  (by letter, and by the start of their name, since people think "Absorbance", not "B"), x and
+  i, every function with its arguments and what it does in a few words, and the constants;
+  inside a function's brackets, its arguments with the one being typed in bold. Tab puts a
+  suggestion in; Enter does only once an arrow has chosen, so Enter still means "keep the
+  formula as typed". The user saw "only errors" while typing: a formula not finished yet is now
+  said quietly, and only a mistake is red.
+- **Original and Processed appear when there is something to tell apart.** A first user does
+  not know what "raw" or "final" data are, and before any processing step the two are the same:
+  the sheets' switch, the graph's Original / Processed / Both, Data › Show on the graph and the
+  statistics' choice appear with the first step. The exports keep both names, where the
+  difference matters.
 
 ## Plotting
 
@@ -177,8 +229,7 @@ The menu tree is `ux/spec/menus-after.txt`; `tools/ux/menucheck.py` compares the
   too, where T9 looked first).
 - **Shown when it can apply**: Fit every column… with two columns or more, Batch results after
   a batch, a trend graph with several columns, the second axes' pages once they are on, the
-  inset when zoomed, Python (a menu and the graph's button) once the project uses Python, under
-  Analysis › More until then.
+  inset when zoomed, the Original / Processed switches once there is processing.
 - **An ellipsis means more to come**: a dialog or a window that asks before it acts. Report and
   Histogram act at once and have none. A shortcut beside an item is a real one (Format graph…
   has no "Double-click": a double click on the plot shows all the data).
@@ -274,7 +325,7 @@ One word for each thing, everywhere it is shown (UX_SPEC §3.6, checked by `tool
   to the Spectroscopy menu and its windows (Peaks, Peak fit, Integrate, Overview, the
   spectroscopy tools), where they are the right words, and nowhere else.
 
-Code keeps its names (`raw`, `final`, `p.raw`, Python's `spectra`): renaming them would buy
+Code keeps its names (`raw`, `final`, `p.raw`): renaming them would buy
 nothing and break saved projects. Help's search words keep the old words too, so a person who
 searches for "fingerprint" or "spectrum" still finds the article.
 
@@ -306,6 +357,20 @@ A choice made by hand, or kept in an older project, is never re-decided.
   *Value*, never one curve's name for all of them.
 - **A setting that is automatic shows its value:** a figure's Share X is ticked and fixed while
   the panels are in one column.
+
+## Preferences and the history
+
+- **Easy to find**: a gear at the right of the title bar, always there, beside Help and the
+  theme; File › Preferences… (where Office keeps its Options), Edit › Preferences… (where Mac
+  apps keep theirs) and Ctrl+,. One small dialog of switches, each taking effect at once.
+- **The history can be off.** Some people do not want their work tracked. Off, Kurve keeps
+  nothing from then on: no log of changes, no names or times on steps, no fit history, no
+  record of the original data, and History does not open by itself. Only errors are logged, in
+  this browser and in the project's log, so a problem can still be reported; Preferences lists
+  them, with Copy and Clear. The processing steps stay: they are the processed data, not a
+  record of it. A project's existing history can be cleared from the same place.
+- **Per browser**, like the theme: a person's choice about their own tracking, not the
+  project's; a colleague in a shared project keeps theirs.
 
 ## Help
 
@@ -368,6 +433,20 @@ survey that the app was not for them. Decided: the glossary's words in every lab
 toast, History box, report line and Help article (696 words off the glossary in the file's
 prose before, 0 after), the two tools renamed (Leave out an X range…, Sort by X (as a step)),
 and `tools/ux/terms.py` to keep it so.
+
+### 2026-10-17: the user's review after slice 5
+
+From the user: no Hide and Unhide for columns and rows; no suggestions for functions in the
+formula row, only errors; transitions not yet "refined and smooth as something like Excel";
+"raw and final" not understood by a first user, and wanted only when exporting; a history
+switch in preferences, easy to find, that when off captures no history, only error logs; no
+graph until the user chooses to plot, only a worksheet at the start; and Python, baked in, to
+be removed. Decided: hiding as above; suggestions as above, with unfinished formulas said
+quietly; the motion rules above; Original and Processed shown once there is processing (and
+always in the exports); the Preferences dialog with the history switch; the worksheet alone on
+the first screen and after an import; Python removed, its steps in old projects kept as stored
+results. T1 takes four more clicks (select the two columns, Plot, Symbols): the cost of
+plotting being the user's choice. No other task changed.
 
 ### 2026-10-17: defaults (UX rework, Phase 4 slice 5)
 

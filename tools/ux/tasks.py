@@ -96,6 +96,11 @@ def at_point(r, i, dy=0):
     return f["x"] + p["x"], f["y"] + p["y"] + dy
 
 
+def no_graph(r):
+    """Since round 6 nothing is plotted until the user plots it: no graph on the desk."""
+    return bool(r.page.evaluate("() => !graphWinIds().some(winOpen)"))
+
+
 def plot_frac(r, fx, fy):
     b = r.page.locator("#plot").bounding_box()
     return b["x"] + b["width"] * fx, b["y"] + b["height"] * fy
@@ -123,6 +128,17 @@ def t1(r):
         r.type(y)
         r.press("Enter")
     r.wait_quiet(600)
+    if no_graph(r):
+        # Since round 6 typed data makes no graph: select the columns and press Plot (the status bar says so).
+        r.say("No graph yet; the status bar says: select columns in the worksheet and press Plot")
+        r.click(r.page.locator('#ws th[data-ch="0"]'), "column A letter")
+        b = r.page.locator('#ws th[data-ch="1"]').bounding_box()
+        r.click_at(b["x"] + b["width"] / 2, b["y"] + b["height"] / 2, "column B letter (Shift)", mods=["Shift"])
+        r.click(r.page.locator("#wsPlotBtn"), "the worksheet's Plot button")
+        r.wait(250)
+        r.click(menuitem(r, "Symbols", exact=True), "Symbols")
+        r.wait_quiet(700)
+        front_graph(r)
     r.dblclick(r.page.locator('[data-axtitle="x"]').first, "x-axis title")
     r.type("Time (s)")
     r.press("Enter")
@@ -155,6 +171,10 @@ def t2(r):
     r.guess("Accepted the default 'Add these columns, keeping what is here' without knowing what it does to the first graph")
     r.click(pg.locator("#impGo"), "the dialog's Import button")
     r.wait_quiet(900)
+    if no_graph(r):
+        # Since round 6 an import plots nothing: the message under it offers to.
+        r.click(pg.locator("#toastAct"), "the message's Plot button")
+        r.wait_quiet(900)
     front_graph(r)
     x, y = at_point(r, 3)
     r.click_at(x, y, "a data point (right-click)", button="right")
