@@ -377,6 +377,26 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .wsval .wshint{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;padding-right:var(--sp-4);font-size:var(--fs-tab)}
 .wsval .wshint:empty{display:none}
 .wsval .ic{flex:0 0 auto;color:var(--muted);width:12px;height:12px}
+/* Formula suggestions (fxsUpdate): a list under the formula being typed, as a spreadsheet's. */
+.fxs{position:fixed;z-index:62;min-width:280px;max-width:min(440px,calc(100vw - 16px));background:var(--panel);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow);padding:var(--sp-2);font-size:var(--fs-tab);color:var(--ink);animation:fxsIn .12s ease-out}
+@keyframes fxsIn{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.fxs-sig{display:flex;align-items:baseline;gap:var(--sp-3);padding:var(--sp-2) var(--sp-3);white-space:nowrap;overflow:hidden}
+.fxs-sig code{font-family:var(--mono);color:var(--ink)}
+.fxs-sig code b{font-weight:700;color:var(--ink);text-decoration:underline;text-underline-offset:2px}
+.fxs-sig span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.fxs-sig+.fxs-list{border-top:1px solid var(--rule-2);margin-top:var(--sp-1);padding-top:var(--sp-1)}
+.fxs-list{max-height:236px;overflow:auto;overscroll-behavior:contain}
+.fxs-g{padding:var(--sp-2) var(--sp-3) var(--sp-1);font-size:var(--fs-cap);font-weight:600;color:var(--ink)}
+.fxs-i{display:flex;align-items:center;gap:var(--sp-3);height:26px;padding:0 var(--sp-3);border-radius:var(--r-s);cursor:default;white-space:nowrap}
+.fxs-i.on{background:var(--hi);box-shadow:inset 3px 0 0 var(--accent)}
+.fxs-i code{font-family:var(--mono);font-weight:600;color:var(--ink)}
+.fxs-a{font-family:var(--mono);color:var(--muted)}
+.fxs-d{margin-left:auto;padding-left:var(--sp-5);color:var(--muted);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.fxs-i.on .fxs-a,.fxs-i.on .fxs-d{color:var(--ink)}
+.fxs-k{flex:0 0 20px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);font-family:var(--mono);font-size:var(--fs-cap);font-weight:600}
+.fxs-k .ic{width:14px;height:14px}
+.fxs-foot{border-top:1px solid var(--rule-2);margin-top:var(--sp-1);padding:var(--sp-2) var(--sp-3) var(--sp-1);color:var(--muted);font-size:var(--fs-cap)}
+:root[data-noanim] .fxs{animation:none}
 .wsalign button{padding:0 var(--sp-3)}
 
 /* ---- Graph --------------------------------------------------------------- */
@@ -9583,10 +9603,156 @@ function wsFxHint(text){
   text=String(text||"").replace(/^\s*=\s*/,"");
   const q=m.cols[e?e.c:S.ws.c], col=q&&!q.phantom?q.col:null; let msg, bad=false;
   if(!fxPrep(text)) msg="Type a formula: B*2, (B-C)/A, log10(B), 1e7/x … Letters are columns, x the row's X, i the row number";
-  else try{ fxParse(text,col); msg=`${q?q.letter:""} = ${fxPrep(text)}`; }catch(err){ msg=err.message; bad=true; }
+  // A formula not finished yet (the mistake is at its end: a bracket still open, an
+  // operator waiting) is said quietly; a mistake inside it is marked.
+  else try{ fxParse(text,col); msg=`${q?q.letter:""} = ${fxPrep(text)}`; }catch(err){ const end=err.pos!=null&&err.pos>=fxPrep(text).length; msg=end?"Not finished yet: "+lcFirst(err.message):err.message; bad=!end; }
   const h=$("#wsValHint"); if(h){ h.className="wshint "+(bad?"badt":"lab"); h.textContent=msg; }
 }
 function wsEditFormula(ci,init){ if(S.sheet!=="raw"){ S.sheet="raw"; renderWs(); } if(!wsLabShown(WS_LABS.find(z=>z.r===-1))) wsRowsSet("fx",true); wsSelect(-1,ci,false); wsBeginEdit(init!=null?init:null,"edit"); const e=S.ws.edit; if(e) wsFxHint(e.val); }
+
+/* ---- Formula suggestions ------------------------------------------------------
+   While a formula is typed (a column's F(x)= cell, the formula bar, a cell that
+   starts with =, a fit function), a list under the text offers what can come
+   next, as a spreadsheet's does: the columns by letter and by name, x and i, the
+   functions and the constants, each saying what it is. It opens on the first
+   letter of a name (and on an empty formula, to show what there is); ↑ and ↓
+   choose, Tab puts the choice in (Enter too, once an arrow has chosen), Esc
+   closes the list, Ctrl+Space opens it anywhere. Inside a function's brackets a
+   line shows its arguments, the one being typed in bold. fxsAttach(inp, {on,
+   items}) wires any field: on() says whether it holds a formula now, items()
+   lists the names it can use. */
+const FX_DOC={exp:[["v"],"e to the power v"],ln:[["v"],"natural logarithm"],log:[["v"],"natural logarithm, as ln"],
+  log10:[["v"],"logarithm to base 10"],log2:[["v"],"logarithm to base 2"],sqrt:[["v"],"square root"],abs:[["v"],"absolute value"],
+  sin:[["angle"],"sine of an angle in radians"],cos:[["angle"],"cosine of an angle in radians"],tan:[["angle"],"tangent of an angle in radians"],
+  asin:[["v"],"inverse sine, in radians"],acos:[["v"],"inverse cosine, in radians"],atan:[["v"],"inverse tangent, in radians"],
+  atan2:[["y","x"],"angle of the point (x, y), in radians"],sinh:[["v"],"hyperbolic sine"],cosh:[["v"],"hyperbolic cosine"],tanh:[["v"],"hyperbolic tangent"],
+  pow:[["base","power"],"base to the power, as base^power"],min:[["a","b","…"],"the smallest of the values"],max:[["a","b","…"],"the largest of the values"],
+  erf:[["v"],"error function"],erfc:[["v"],"1 − erf(v)"],sign:[["v"],"−1, 0 or 1, by the sign of v"],step:[["v"],"0 below zero, 1 above, 0.5 at zero"]};
+const FX_CDOC={pi:"π, 3.14159…",e:"e, 2.71828…"};
+const fxsOwn=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
+// What every formula can use: the functions (in the order of FX_DOC) and the constants.
+function fxsBase(){ return Object.keys(FX_DOC).filter(k=>fxsOwn(EXPR_FN,k)).map(k=>({kind:"fn",name:k,ins:k+"(",args:FX_DOC[k][0],desc:FX_DOC[k][1]}))
+  .concat(Object.keys(EXPR_CONST).map(k=>({kind:"const",name:k,ins:k,desc:FX_CDOC[k]||""}))); }
+// The worksheet's: its columns (not the one being computed), x, i, then the rest.
+function fxsSheetItems(self){
+  const raw=allCols().filter(c=>!c.src), out=[];
+  raw.forEach((c,k)=>{ if(self&&c.id===self.id) return; const L=wsLetter(k), nm=(c.name||"").trim();
+    out.push({kind:"col",name:L,ins:L,alias:nm,desc:(nm||"no name")+(c.unit?` (${c.unit})`:"")+(c.role==="x"?", X":c.role==="e"?", error bars":"")}); });
+  if(!(self&&self.role==="x")) out.push({kind:"var",name:"x",ins:"x",desc:"this row's X value"});
+  out.push({kind:"var",name:"i",ins:"i",desc:"the row number: 1, 2, 3…"});
+  return out.concat(fxsBase()); }
+// The column a worksheet field is computing, if any.
+function fxsSheetSelf(c){ const m=S.wsm, q=m&&m.cols[c]; return q&&!q.phantom?q.col:null; }
+let fxsOpen=null;
+function fxsAttach(inp,opt){
+  if(!inp||inp._fxs) return; inp._fxs=opt;
+  inp.setAttribute("aria-autocomplete","list"); inp.setAttribute("aria-expanded","false");
+  const upd=()=>fxsUpdate(inp);
+  inp.addEventListener("input",upd);
+  inp.addEventListener("click",upd);
+  inp.addEventListener("keyup",e=>{ if(["ArrowLeft","ArrowRight","Home","End"].includes(e.key)) upd(); });
+  inp.addEventListener("focus",()=>setTimeout(upd,0));
+  inp.addEventListener("blur",()=>setTimeout(()=>{ if(fxsOpen&&fxsOpen.inp===inp&&document.activeElement!==inp) fxsClose(); },0));
+  inp.addEventListener("keydown",fxsKey);
+  if(document.activeElement===inp) setTimeout(upd,0); }
+// The function whose brackets the caret is inside, and which of its arguments.
+function fxsSig(before){ let depth=0, commas=0;
+  for(let i=before.length-1;i>=0;i--){ const ch=before[i];
+    if(ch===")") depth++;
+    else if(ch==="("){ if(depth>0){ depth--; continue; }
+      const m=/([\p{L}_][\p{L}\p{N}_]*)\s*$/u.exec(before.slice(0,i));
+      if(m&&fxsOwn(FX_DOC,m[1])&&fxsOwn(EXPR_FN,m[1])) return {name:m[1],arg:commas};
+      commas=0; }
+    else if(ch===","&&depth===0) commas++;
+    else if(ch==="\n") return null; }
+  return null; }
+function fxsMatch(items,pre){
+  const P0=pre.toLowerCase(), ord={col:0,var:1,fn:2,const:3}, out=[];
+  items.forEach(it=>{ const n=it.name.toLowerCase(); let s;
+    if(!pre) s=ord[it.kind];
+    else if(it.name===pre) s=0;
+    else if(n===P0) s=0.5;
+    else if(n.startsWith(P0)) s=1+ord[it.kind]/10;
+    else if(it.alias&&it.alias.toLowerCase().split(/[^\p{L}\p{N}]+/u).some(w=>w&&w.startsWith(P0))) s=3;
+    else return;
+    out.push([s,it]); });
+  return out.sort((a,b)=>a[0]-b[0]).slice(0,40).map(z=>z[1]); }
+function fxsUpdate(inp,force){
+  const opt=inp._fxs;
+  if(!opt||!inp.isConnected||document.activeElement!==inp||(opt.on&&!opt.on())){ if(fxsOpen&&fxsOpen.inp===inp) fxsClose(); return; }
+  const v=inp.value, at=inp.selectionStart==null?v.length:inp.selectionStart;
+  if(inp.selectionEnd!=null&&inp.selectionEnd!==at){ fxsClose(); return; }
+  if(inp._fxsHush&&inp._fxsHush===v&&!force){ fxsClose(); return; }
+  inp._fxsHush=null;
+  const before=v.slice(0,at), mm=/[\p{L}_][\p{L}\p{N}_]*$/u.exec(before), pre=mm?mm[0]:"", start=at-pre.length;
+  // A letter straight after a digit is part of a number (1e5), not a name.
+  const inNum=!!pre&&/[\d.]/.test(before[start-1]||"");
+  const empty=!v.replace(/^\s*=\s*/,"").trim();
+  let list=[];
+  if(!inNum&&(pre||empty||force)){ list=fxsMatch(opt.items(),pre); if(!force&&list.length===1&&list[0].ins===pre) list=[]; }
+  const sig=fxsSig(before);
+  if(!list.length&&!sig){ fxsClose(); return; }
+  const same=fxsOpen&&fxsOpen.inp===inp&&fxsOpen.pre===pre&&fxsOpen.start===start&&fxsOpen.list.length===list.length;
+  const o=same?fxsOpen:{inp,sel:0,moved:false,el:fxsOpen&&fxsOpen.el};
+  Object.assign(o,{list,pre,start,sig,heads:!pre}); if(o.sel>=list.length) o.sel=0;
+  fxsOpen=o; fxsRender(); }
+function fxsRender(){
+  const o=fxsOpen; if(!o) return; let el=o.el;
+  if(!el){ el=o.el=document.createElement("div"); el.className="fxs"; el.id="fxSug";
+    el.addEventListener("pointerdown",e=>e.preventDefault());
+    el.addEventListener("pointermove",e=>{ const it=e.target.closest("[data-fxi]"); if(!it||!fxsOpen) return; const i=+it.dataset.fxi; if(i!==fxsOpen.sel){ fxsOpen.sel=i; fxsPaint(); } });
+    el.addEventListener("click",e=>{ const it=e.target.closest("[data-fxi]"); if(it&&fxsOpen) fxsAccept(fxsOpen.list[+it.dataset.fxi]); });
+    document.body.appendChild(el); fxsTrack(); }
+  const head={col:"Columns",var:"Values",fn:"Functions",const:"Constants"}, tag={col:ICON("table","sm"),var:"·",fn:"fx",const:"π"};
+  let h="", last="";
+  if(o.sig){ const d=FX_DOC[o.sig.name], a=d[0], k=Math.min(o.sig.arg,a.length-1);
+    h+=`<div class="fxs-sig"><code>${esc(o.sig.name)}(${a.map((s,i)=>i===k?`<b>${esc(s)}</b>`:esc(s)).join(", ")})</code><span>${esc(d[1])}</span></div>`; }
+  if(o.list.length){ h+=`<div class="fxs-list" role="listbox" aria-label="Suggestions">`;
+    o.list.forEach((it,i)=>{ if(o.heads&&it.kind!==last){ h+=`<div class="fxs-g" role="presentation">${head[it.kind]}</div>`; last=it.kind; }
+      h+=`<div class="fxs-i${i===o.sel?" on":""}" role="option" id="fxs-${i}" data-fxi="${i}" aria-selected="${i===o.sel}"><span class="fxs-k" aria-hidden="true">${tag[it.kind]}</span><code>${esc(it.name)}</code>${it.args?`<span class="fxs-a">(${esc(it.args.join(", "))})</span>`:""}<span class="fxs-d">${esc(it.desc||"")}</span></div>`; });
+    h+=`</div><div class="fxs-foot">${o.moved?"Tab or Enter to put it in":"Tab to put it in"} · ↑↓ to choose · Esc to close</div>`; }
+  el.innerHTML=h;
+  o.inp.setAttribute("aria-expanded",String(!!o.list.length)); o.inp.setAttribute("aria-controls","fxSug");
+  if(o.list.length) o.inp.setAttribute("aria-activedescendant","fxs-"+o.sel); else o.inp.removeAttribute("aria-activedescendant");
+  fxsPlace(); fxsPaint(true); }
+function fxsPaint(scroll){ const o=fxsOpen; if(!o||!o.el) return;
+  o.el.querySelectorAll("[data-fxi]").forEach(it=>{ const on=+it.dataset.fxi===o.sel; it.classList.toggle("on",on); it.setAttribute("aria-selected",String(on)); if(on&&scroll!==false){ const L=o.el.querySelector(".fxs-list"); if(L){ const t=it.offsetTop-L.offsetTop; if(t<L.scrollTop) L.scrollTop=t; else if(t+it.offsetHeight>L.scrollTop+L.clientHeight) L.scrollTop=t+it.offsetHeight-L.clientHeight; } } });
+  if(o.list.length) o.inp.setAttribute("aria-activedescendant","fxs-"+o.sel); }
+// Under the name being typed (a single line), or under the field.
+function fxsPlace(){ const o=fxsOpen; if(!o||!o.el) return; const inp=o.inp, r=inp.getBoundingClientRect(), cs=getComputedStyle(inp);
+  let x=r.left;
+  if(inp.tagName==="INPUT"&&!/right|end/.test(cs.textAlign)){ const c=fxsPlace.c||(fxsPlace.c=document.createElement("canvas").getContext("2d"));
+    c.font=`${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    x=r.left+parseFloat(cs.borderLeftWidth||0)+parseFloat(cs.paddingLeft||0)+c.measureText(inp.value.slice(0,o.start)).width-inp.scrollLeft-28;
+    x=Math.max(r.left-28,Math.min(x,r.right-40)); }
+  const el=o.el, w=el.offsetWidth, h=el.offsetHeight;
+  let y=r.bottom+3; if(y+h>innerHeight-8&&r.top-h-3>8) y=r.top-h-3;
+  el.style.left=Math.max(8,Math.min(x,innerWidth-w-8))+"px"; el.style.top=Math.max(8,y)+"px"; o.at=r.left+","+r.top+","+r.width; }
+// While open, the list follows its field (a scrolled sheet) and goes with it.
+function fxsTrack(){ const step=()=>{ const o=fxsOpen; if(!o||!o.el) return;
+    if(!o.inp.isConnected||document.activeElement!==o.inp){ fxsClose(); return; }
+    const r=o.inp.getBoundingClientRect(); if(o.at!==r.left+","+r.top+","+r.width) fxsPlace();
+    requestAnimationFrame(step); }; requestAnimationFrame(step); }
+function fxsClose(hush){ const o=fxsOpen; if(!o) return; fxsOpen=null; if(o.el) o.el.remove();
+  if(o.inp){ o.inp.setAttribute("aria-expanded","false"); o.inp.removeAttribute("aria-activedescendant"); if(hush) o.inp._fxsHush=o.inp.value; } }
+function fxsAccept(it){ const o=fxsOpen; if(!o||!it) return; const inp=o.inp, v=inp.value, at=inp.selectionStart==null?v.length:inp.selectionStart;
+  // The rest of a name the caret is inside goes too, and a bracket already there is used.
+  const tail=/^[\p{L}\p{N}_]*/u.exec(v.slice(at))[0], rest=v.slice(at+tail.length);
+  let ins=it.ins, skip=0; if(ins.endsWith("(")){ const b=/^\s*\(/.exec(rest); if(b){ ins=ins.slice(0,-1); skip=b[0].length; } }
+  const nv=v.slice(0,o.start)+ins+rest, c=o.start+ins.length+skip;
+  inp.value=nv; inp.setSelectionRange(c,c);
+  // Nothing more to offer for what was just put in, until something is typed.
+  if(!ins.endsWith("(")) inp._fxsHush=nv;
+  inp.dispatchEvent(new Event("input",{bubbles:true})); fxsUpdate(inp); }
+function fxsKey(ev){ const inp=ev.currentTarget;
+  if(ev.key===" "&&ev.ctrlKey&&!ev.altKey&&!ev.metaKey){ ev.preventDefault(); ev.stopImmediatePropagation(); inp._fxsHush=null; fxsUpdate(inp,true); return; }
+  const o=fxsOpen; if(!o||o.inp!==inp) return; const k=ev.key, n=o.list.length;
+  const stop=()=>{ ev.preventDefault(); ev.stopImmediatePropagation(); ev.stopPropagation(); };
+  if(k==="Escape"){ stop(); fxsClose(true); return; }
+  if(!n) return;
+  if(k==="ArrowDown"||k==="ArrowUp"){ stop(); o.sel=(o.sel+(k==="ArrowDown"?1:-1)+n)%n; if(!o.moved){ o.moved=true; fxsRender(); } else fxsPaint(); return; }
+  if(k==="PageDown"||k==="PageUp"){ stop(); o.sel=Math.max(0,Math.min(n-1,o.sel+(k==="PageDown"?8:-8))); o.moved=true; fxsPaint(); return; }
+  if((k==="Tab"&&!ev.shiftKey)||(k==="Enter"&&o.moved&&!ev.ctrlKey&&!ev.metaKey)){ stop(); fxsAccept(o.list[o.sel]); } }
 
 /* ---- Sorting the view -------------------------------------------------------
    Sorting shows the rows in another order; the data keep the order they were
@@ -10119,6 +10285,9 @@ function wsBarBegin(){ const inp=$("#wsValIn"), m=S.wsm, s=S.ws; if(!inp||!m) re
 function wsBarEnd(dr,dc,stay){
   const b=S.ws&&S.ws.bar, inp=$("#wsValIn"); if(!b||!inp) return;
   let val=inp.value;
+  if(b.r>=0&&!b.calc&&!stay&&/^\s*=/.test(val)&&parseNum(val)==null){ S.ws.bar=null; S.editing=false; inp.value=b.orig; inp.classList.remove("bad"); fxsClose();
+    toast("A formula fills the whole column, so it goes in the F(x)= row: there a letter stands for that column's value in each row (B, not B1).");
+    wsEditFormula(b.c,val.trim()); return; }
   if(b.r>=0&&!b.calc&&val!==b.orig&&val.trim()!==""&&parseNum(val)==null&&!stay){ inp.classList.add("bad"); toast(`“${val.trim().slice(0,40)}” is not a number. Type one (3.14, 2,5 or 1e-3), or press Esc to leave the cell as it was.`); return; }
   S.ws.bar=null; S.editing=false; inp.classList.remove("bad");
   if(!stay) $("#ws").focus({preventScroll:true});
@@ -10231,6 +10400,8 @@ function wsRestoreEditor(){
   td.textContent=""; td.classList.add("editing"); td.classList.remove("fh"); td.appendChild(inp); inp.focus({preventScroll:true});
   const n=inp.value.length; inp.setSelectionRange(n,n);
   inp.addEventListener("input",()=>{ e.val=inp.value; const bi=$("#wsValIn"); if(bi) bi.value=inp.value; if(e.r===-1) wsFxHint(inp.value); });
+  // A formula (the F(x)= row, or a value starting with =) gets suggestions; their keys come first.
+  fxsAttach(inp,{on:()=>S.ws.edit===e&&(e.r===-1||/^\s*=/.test(inp.value)),items:()=>fxsSheetItems(fxsSheetSelf(e.c))});
   inp.addEventListener("keydown",wsEdKey);
   inp.addEventListener("blur",()=>{ setTimeout(()=>{ if(S.ws.edit===e&&document.activeElement!==inp&&inp.isConnected) wsCommit(0,0,true); },0); });
 }
@@ -10503,6 +10674,7 @@ function setupWs(){
   // The formula bar: the active cell's contents, edited there as in a spreadsheet.
   { const vi=$("#wsValIn");
     if(vi){ vi.addEventListener("focus",wsBarBegin);
+      fxsAttach(vi,{on:()=>{ const b=S.ws&&S.ws.bar; return !!b&&(b.r===-1||b.calc||/^\s*=/.test(vi.value)); },items:()=>fxsSheetItems(fxsSheetSelf(S.ws&&S.ws.bar?S.ws.bar.c:-1))});
       vi.addEventListener("input",()=>{ const b=S.ws&&S.ws.bar; vi.classList.remove("bad"); if(b&&b.r===-1||(b&&b.calc)) wsFxHint(vi.value); });
       vi.addEventListener("keydown",ev=>{ ev.stopPropagation();
         if(ev.key==="Enter"){ ev.preventDefault(); wsBarEnd(ev.shiftKey?-1:1,0); }
@@ -12535,6 +12707,11 @@ async function editUserFn(id,opt){
     <details class="grp fbhelp"><summary>How to write a function</summary><div class="gb"><p>Write it as on paper: <code>+ - * / ^</code> (or <code>**</code>), parentheses, numbers such as <code>1.5e-3</code>, and the functions <code>exp ln log10 sqrt abs sin cos tan asin acos atan sinh cosh tanh erf erfc pow min max sign step</code>; <code>log</code> is the natural logarithm, like <code>ln</code>. The constants are <code>pi</code> and <code>e</code>. A product needs its <code>*</code>.</p><p>Every name other than <code>x</code> is a parameter. Name a value on a line of its own and use it below: <code>u = (x - xc)/w</code>, then <code>y = A*exp(-u^2/2) + c</code>. <code>#</code> starts a comment.</p><p>An empty start is guessed from the data by the parameter's name: <code>y0</code> or <code>c</code> a baseline, <code>A</code> or <code>H</code> a height, <code>xc</code> or <code>x0</code> the position of the largest point, <code>w</code> or <code>sigma</code> a tenth of the range, <code>t</code> or <code>tau</code> a third of it; any other starts at 1.</p></div></details></div>`;
   const sheet=$("#formModal .sheet"); sheet.classList.remove("small"); sheet.classList.add("mid");
   let r;
+  // The formula gets suggestions: x, the parameters named so far, the functions and constants.
+  setTimeout(()=>{ const t=$("#fbExpr"); if(t) fxsAttach(t,{items:()=>{ let ids=[]; try{ ids=exprTokens(t.value).filter(z=>z.k==="id").map(z=>z.v); }catch(e){}
+    const at=t.selectionStart, cur=(/[\p{L}_][\p{L}\p{N}_]*$/u.exec(t.value.slice(0,at))||[""])[0];
+    const pars=[...new Set(ids)].filter(n=>n!=="x"&&n!=="y"&&n!==cur&&!fxsOwn(EXPR_FN,n)&&!fxsOwn(EXPR_CONST,n));
+    return [{kind:"var",name:"x",ins:"x",desc:"the variable"}].concat(pars.map(n=>({kind:"var",name:n,ins:n,desc:"a parameter"})),fxsBase()); }}); },0);
   try{ r=await formDlg({title:old?`Edit “${old.name}”`:"New fit function",html,ok:old?"Save":"Add the function",valid:update,focus:"#fbExpr"}); }
   finally{ sheet.classList.remove("mid"); sheet.classList.add("small"); }
   if(!r) return;
@@ -19555,6 +19732,8 @@ function wireStatic(){
     const m=MODALS[MODALS.length-1]; if(!m) return;
     // A menu opened from a dialog closes on Escape, and keeps its arrows.
     if(menuOpen){ if(e.key==="Escape"){ e.preventDefault(); e.stopImmediatePropagation(); closeMenu(true); } return; }
+    // Formula suggestions under a field keep their keys (Escape closes them, not the dialog).
+    if(fxsOpen&&e.target===fxsOpen.inp&&(e.key==="Escape"||fxsOpen.list.length&&["Tab","Enter","ArrowUp","ArrowDown"].includes(e.key))) return;
     // A font or colour picker over a dialog keeps its own keys: Escape closes it, not the dialog.
     const pop=(fpOpen&&fpOpen.el)||(cpOpen&&cpOpen.el)||(spOpen&&spOpen.el);
     if(pop){ if(e.key==="Escape"){ e.preventDefault(); e.stopImmediatePropagation(); closeFontPicker(); closeColorPicker(); closeSymPicker(); return; } if(pop.contains(e.target)) return; }
