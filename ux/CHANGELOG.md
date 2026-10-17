@@ -527,3 +527,13 @@ show), terms (0), every Help article rendering with every link resolving, and th
 drives (44, 10, 43 and 48 checks) with their expectations brought up to this round: no graph on
 a first visit or after an import, no Python, the Original / Processed switches only after a
 step.
+
+**Afterwards: the first graph can be deleted.** Its menu said "The first graph cannot be deleted"
+(the graph's ⋯, the Project Explorer, a figure's panel menu, and no button in its History box).
+Now *Delete this graph* works on it as on any other: its curves and its own labels go, the
+other graphs' labels and the peak sets stay, it leaves a figure it was a panel of, and it is
+left out of Window › Graphs, the taskbar, the Explorer, the History and the exports until the
+next plot uses it again. Its columns stay; Undo brings it back; with no graph left the
+worksheet takes the whole desk. Checked: deleting with one graph, with two (the other comes
+forward, keeps its labels), as a figure's panel, undo and redo, plotting again; odd-test (51),
+sheet-fuzz seed 1, menucheck and the drives (44, 43) pass.

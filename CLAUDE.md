@@ -793,7 +793,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   `plotCfg()` counts a spectrum not on the graph as hidden, so every `cfg.hidden` check works
   unchanged. Annotations of every graph stay in `p.plot.annos`, another graph's tagged `g`
   (`annoInGraph`; `addAnno`, `labelFoundPeaks` and the Format dialog tag them); a peak set
-  (`grp`) belongs to its spectrum and shows on every graph that draws it. `graphIds`,
+  (`grp`) belongs to its spectrum and shows on every graph that draws it. `graphIds` (the
+  first graph left out while `mainGone()`: closed with nothing on it, as a new project's is
+  and as deleting it leaves it, so no list, menu, History box, export or Explorer row shows
+  it; `allGraphIds` keeps it, for `syncGraphWins` and the next graph's name),
   `graphOf`, `graphName`, `inGraph`, `graphShows`, `graphCols`, `multiGraph`, `winOfGraph`
   (main's window is `graph`, another's is its id), `graphOfWin`. **Live and pictures**: one
   ribbon and one plot (`#gRibbon`, `#gPane`, with `#plot`, `#figure` and their handlers) move
@@ -815,7 +818,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   `resolveYAuto` fits Y to what is in range (offset and heat layouts are left whole).
   Making and changing: `newGraphs(groups, opt)`, `newGraphFrom(ids)` (it takes half of the
   front graph's window, `splitInto`), `onePerSpectrum`, `allInOneGraph`, `duplicateGraph`,
-  `renameGraph`, `deleteGraph` (its annotations go with it, never data), `toggleGraphCol`,
+  `renameGraph`, `deleteGraph` (its annotations go with it, never data; the first graph's is
+  `deleteMainGraph`: `p.plot` cannot go, since it keeps every graph's annotations, so it is
+  emptied to a new graph's look keeping the other graphs' and the peak sets' annotations,
+  taken out of a figure (`figWithout`, shared with `figRemovePanel`), closed, another graph
+  brought forward, and the worksheet given the desk when no graph is left), `toggleGraphCol`,
   `showGraph`; menus `graphWinItems(id)` (the ⋯), `graphsMenuItems` (the taskbar's Graphs
   button and Window › Graphs), `newGraphItems`. **Combining**: `combineGraphs(srcs, into,
   {cids, keep, layout, at})` puts the spectra of graphs `srcs` (and spectra `cids`) on `into`
@@ -2278,6 +2285,10 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **An animation on `transform` replaces the element's own.** The toast is centred and a
   dialog is placed by `transform`; an entrance written with `transform` snapped them to the
   wrong place at its end. Entrances use the individual `translate` and `scale` properties.
+- **What the code needs kept is not what the user must keep.** The first graph could not be
+  deleted, and its menu said so, because it is `p.plot`, which also stores every graph's
+  annotations. Emptied and closed it is gone to the eye: every list asks `graphIds`, which
+  leaves it out while `mainGone()`, and the next plot uses it again.
 - **A class name is global, once more.** The pickers' entrance was first written for `.fp`,
   which is the History's code for a fingerprint: every check code would have faded in. The
   pickers are `.fpick` and `.cpick`; grep a class before styling it.
@@ -2296,7 +2307,8 @@ the system's reduced motion. Original and Processed appear only once there is pr
 Preferences dialog (a gear in the title bar, File and Edit › Preferences…, Ctrl+,) has a
 switch to keep no history at all, only errors. A new project, and an import, show the worksheet
 alone: nothing is plotted until the user plots it. Python was removed (old projects keep their
-Python steps' stored results).
+Python steps' stored results). Afterwards, from a question: the first graph can be deleted like
+any other (it was the one graph that could not be).
 
 Round before: the user's review of the interface. Columns move by dragging their letters,
 or from their menu (Left, Right, To the start, To the end), each spectrum keeping its X; values

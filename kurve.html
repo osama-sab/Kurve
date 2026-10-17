@@ -5757,7 +5757,18 @@ const GID=()=>S.gctx||S.gid||"main";
 const winOfGraph=id=>{ const f=figOf(id); if(f) return f.id; return !id||id==="main"?"graph":id; };
 const graphOfWin=w=>w==="graph"?"main":(WINS[w]&&WINS[w].graph?w:null);
 const multiGraph=()=>!!(P()&&(P().graphs||[]).length);
-function graphIds(p){ p=p||P(); return p?["main"].concat((p.graphs||[]).map(g=>g.id)):[]; }
+// The graphs of a project, the first one ("main", p.plot) left out while it is gone
+// (mainGone): closed with nothing on it, as a new project's is and as deleting it leaves it.
+function graphIds(p){ p=p||P(); return p?(mainGone(p)?[]:["main"]).concat((p.graphs||[]).map(g=>g.id)):[]; }
+// Every graph, the first one whatever its state: for keeping windows and names in step.
+function allGraphIds(p){ p=p||P(); return p?["main"].concat((p.graphs||[]).map(g=>g.id)):[]; }
+/* The first graph is the project's own plot settings (p.plot), which also keep every
+   graph's annotations, so it cannot leave the project. Closed with nothing on it, it is
+   gone as far as anyone can see: in no list, no menu, no box of the History, no export;
+   the next plot uses it again. (A function, not a const: graphIds runs early.) */
+function mainGone(p){ p=p||P(); const pl=p&&p.plot; if(!pl||!pl.shut||!Array.isArray(pl.cols)) return false;
+  const ys=new Set((p.cols||[]).filter(c=>c.role==="y").map(c=>c.id));
+  return !pl.cols.some(k=>ys.has(k))&&!figOf("main",p); }
 function graphOf(id){ const p=P(); if(!p||!id||id==="main") return null; return (p.graphs||[]).find(g=>g.id===id)||null; }
 function graphName(id,p){ p=p||P(); if(!p) return "Graph"; if(!id||id==="main") return (p.plot&&p.plot.gname)||"Graph 1"; const g=(p.graphs||[]).find(q=>q.id===id); return g?g.name:"Graph"; }
 function plotOf(id){ const p=P(); if(!p) return {}; const g=graphOf(id); return g?g.plot:(p.plot||{}); }
@@ -12407,7 +12418,7 @@ function xMenu(r){
   if(r.kind==="graph"){ const on=graphWinItems(r.gid).find(i=>i&&i.label==="Curves on it"), shut=graphShut(r.gid);
     return [{group:r.name,plain:true},{label:shut?"Open":"Bring to the front",kbd:"Enter",run:()=>showGraph(r.gid)},{label:"Close (hide it)",enabled:!ro&&!shut,run:()=>closeGraph(r.gid)},
       {label:"Rename…",kbd:"F2",enabled:!ro,run:()=>renameGraph(r.gid)},on||null,{label:"Duplicate",enabled:!ro,run:()=>duplicateGraph(r.gid)},move,
-      "-",{label:r.gid==="main"?"The first graph cannot be deleted":"Delete the graph",kbd:r.gid==="main"?"":"Delete",danger:r.gid!=="main",enabled:!ro&&r.gid!=="main",run:()=>deleteGraph(r.gid)}]; }
+      "-",{label:"Delete the graph",kbd:"Delete",danger:true,enabled:!ro,run:()=>deleteGraph(r.gid)}]; }
   if(r.kind==="file"){ const ids=r.file.cols.filter(c=>c.role==="y"||c.role==="ignore").map(c=>c.id);
     return [{group:r.name,plain:true},{label:"Show in the worksheet",kbd:"Enter",run:()=>xOpen(r)},{label:"Plot its columns",enabled:!ro&&ids.length>0,sub:()=>plotItems(ids)},
       {label:"Rename…",kbd:"F2",enabled:!ro,run:()=>xRenameFile(r.key)},move,"-",{label:"Delete it and its columns…",kbd:"Delete",danger:true,enabled:!ro,run:()=>xDeleteFile(r.key)}]; }
@@ -12420,7 +12431,7 @@ function xMenu(r){
   return [];
 }
 function xRename(r){ if(!r||S.readOnly) return; if(r.kind==="folder") xRenameFolder(r.fid); else if(r.kind==="graph") renameGraph(r.gid); else if(r.kind==="trend") renameTrend(r.tid); else if(r.kind==="file") xRenameFile(r.key); else if(r.kind==="root") renameProject(); }
-function xDelete(r){ if(!r||S.readOnly) return; if(r.kind==="folder") xDeleteFolder(r.fid); else if(r.kind==="graph"&&r.gid!=="main") deleteGraph(r.gid); else if(r.kind==="trend") deleteTrend(r.tid); else if(r.kind==="file") xDeleteFile(r.key); }
+function xDelete(r){ if(!r||S.readOnly) return; if(r.kind==="folder") xDeleteFolder(r.fid); else if(r.kind==="graph") deleteGraph(r.gid); else if(r.kind==="trend") deleteTrend(r.tid); else if(r.kind==="file") xDeleteFile(r.key); }
 // What a drag from the tree carries, and where it may land.
 const xDragKind=k=>{ const r=xRow(k); return r?r.kind:null; };
 function wireXpl(){
@@ -16154,7 +16165,7 @@ function flowInspectorBody(n){
     h+=kvHtml([["Spectra",n.cs.length?esc(n.cs.map(specName).join(", ")):"none"],["Layout",esc(((LAYOUTS.find(q=>q[0]===(pl.layout||"overlay"))||[,""])[1]))],
       ["Zoom",S.linkX?"linked to the other graphs":"its own"],list.length?["Drawn on it",esc(annoCountText(list))]:null]);
     if(list.length) h+=`<ul class="fanno">${list.map(a=>`<li><span class="grow"><strong>${esc(ANNO_KINDS[a.t])}</strong> <span class="lab">${esc(annoWhere(a,6))}</span>${a.text?` “${esc(a.text)}”`:""}</span><button class="tb sm icon" data-fi="anedit" data-an="${esc(a.id)}" title="Edit" aria-label="Edit this ${esc(ANNO_KINDS[a.t].toLowerCase())}"${ro}>${ICON("edit","sm")}</button><button class="tb sm icon" data-fi="andel" data-an="${esc(a.id)}" title="Delete" aria-label="Delete this ${esc(ANNO_KINDS[a.t].toLowerCase())}"${ro}>${ICON("x","sm")}</button></li>`).join("")}</ul>`;
-    h+=`<div class="actions">${graphShut(gid)?btn("gfront","Open it","chart",{primary:true}):live?"":btn("gfront","Bring to the front","chart",{primary:true,view:true})}${btn("pdgraph","Format…","tag",{view:true})}${btn("svg","Export","download",{view:true})}${btn("grename","Rename…","edit")}${gid==="main"?"":btn("gdel","Delete the graph","trash",{danger:true,ghost:true})}</div>`;
+    h+=`<div class="actions">${graphShut(gid)?btn("gfront","Open it","chart",{primary:true}):live?"":btn("gfront","Bring to the front","chart",{primary:true,view:true})}${btn("pdgraph","Format…","tag",{view:true})}${btn("svg","Export","download",{view:true})}${btn("grename","Rename…","edit")}${btn("gdel","Delete the graph","trash",{danger:true,ghost:true})}</div>`;
     if(recent.length) h+=`<div class="gh">Recent changes</div><ul class="log rawlog">${recent.map(e=>`<li><span class="when" title="${esc(logWhen(e.t))}">${esc(ago(e.t))}</span><span>${esc(e.text)}</span></li>`).join("")}</ul>`;
     return h;
   }
@@ -16414,7 +16425,7 @@ function moveBar(dir){
   openMenu(nb,menuItems(nb.dataset.menu),{bar:true,label:nb.textContent});
 }
 function exportItems(){
-  const p=P(), has=!!(p&&pointsAll().length), f=p?activeFit():null;
+  const p=P(), has=!!(p&&pointsAll().length)&&!(GID()==="main"&&mainGone()), f=p?activeFit():null;
   return [
     {label:"Graph for a paper or slides…", title:"At a size in mm or inches with the text in points: SVG, PNG, TIFF, PDF or EPS", run:openExportFigure, enabled:has},
     {label:"Graph as SVG", title:"Vector, for papers", run:exportSvg, enabled:has},
@@ -16804,7 +16815,7 @@ ${DL([["One for each column",MP("Plot › New graph › One for each column")+":
 ${DL([["A whole graph","Hold the grip "+ICON("grip","sm")+" in its title bar and drop it on another graph (or on that graph's button in the taskbar). Its columns join that graph, with their colours and lines, and so do its labels; the graph you dropped goes. Hold "+K("Ctrl")+" as you drop to keep it. The first graph always stays."],["One spectrum","Hold a column's chip along the top of a graph that is not in front and drop it on another graph to add it there, or on the empty desk for a graph of its own."],["Changed your mind",K("Esc")+" while holding cancels; Undo takes a drop back."]])}
 <p>Without dragging: click the grip, or <em>Combine</em> in the graph's ⋯ menu, for <em>Merge it into</em> another graph or <em>Merge every other graph into this one</em>. ${MP("Window › Graphs › Combine graphs…")} takes any of the graphs, onto one of them or a new graph, laid out as you choose (overlaid, offset, stacked panels, double Y, heat map), and keeps the graphs merged or lets them go. Columns in another project are brought in with ${DA("projects#bring","Bring in from another project")}.</p>
 <h2>Each graph's settings</h2>
-<p>Plot type, layout, axes, legend, fonts, titles, lines and text belong to the graph they were made on; peaks found with the Peaks window belong to the column and show on every graph that draws it. The <strong>⋯</strong> on a graph's title bar renames it, chooses the columns on it, duplicates, exports, closes or deletes it. Closing keeps the graph in the project, off the desk; deleting removes it, never its data. ${DA("plotting#close","Closing a graph")}</p>
+<p>Plot type, layout, axes, legend, fonts, titles, lines and text belong to the graph they were made on; peaks found with the Peaks window belong to the column and show on every graph that draws it. The <strong>⋯</strong> on a graph's title bar renames it, chooses the columns on it, duplicates, exports, closes or deletes it. Closing keeps the graph in the project, off the desk; deleting removes it, never its data. Any graph can be deleted, the first one too, and Undo brings it back. ${DA("plotting#close","Closing a graph")}</p>
 <h2>Zoom together</h2>
 <p><em>Link the X zoom of the graphs</em> (in ${MP("Window › Graphs")}, on by default): zooming one graph shows the same X range on every graph in the same units, each with its own Y range. Off, each keeps its own zoom.</p>
 <h2>Arranging them</h2>
@@ -18556,7 +18567,7 @@ function figRange(fg){
 function graphIn(el,w){ const g=graphOfWin(w.dataset.win); if(g&&isFigId(g)){ const c=el.closest&&el.closest(".fcell"); return c&&w.contains(c)?c.dataset.fcell:null; } return g; }
 // A panel named with its figure: "Figure 1 › (b) Graph 3".
 function graphTitle(id){ const f=figOf(id); if(!f) return graphName(id); const l=figLetter(id); return `${f.name} › ${l?l+" ":""}${graphName(id)}`; }
-function nextFigName(p){ const used=new Set(graphIds(p).map(id=>graphName(id,p))); let n=1; while(used.has("Figure "+n)) n++; return "Figure "+n; }
+function nextFigName(p){ const used=new Set(allGraphIds(p).map(id=>graphName(id,p))); let n=1; while(used.has("Figure "+n)) n++; return "Figure "+n; }
 // Cells packed in reading order into a grid of so many columns.
 function figPack(gids,cols){ return gids.map((gid,i)=>({gid,r:Math.floor(i/cols),c:i%cols,rs:1,cs:1})); }
 /* Panels that span several cells: each keeps its span (no wider than the grid)
@@ -18697,10 +18708,13 @@ function figAddPanel(fid,o){
   renderAll(); activateGraph(gid); layoutFigs(fid);
   toast(`${graphName(gid)} is panel ${figLetter(gid)||n} of ${f.name}.`,{action:"Undo",run:undo}); }
 // A panel taken out: a graph of its own again, beside the figure; the others close up.
+// A figure's layout without one of its panels, the others packed in reading order.
+function figWithout(f,gid){ const F=clone(f.fig), rest=figOrder(F).filter(c=>c.gid!==gid), cols=Math.max(1,Math.min(F.cols,Math.max(rest.reduce((m,c)=>m+(c.cs||1),0),...rest.map(c=>c.cs||1),1)));
+  F.cells=figPackSpans(rest,cols); F.cols=cols; F.rows=Math.max(1,figRowsOf(F.cells)); return F; }
 function figRemovePanel(gid,o){
   const p=P(), f=figOf(gid); if(!p||!f||S.readOnly) return;
-  const F=clone(f.fig), rest=figOrder(F).filter(c=>c.gid!==gid), cols=Math.max(1,Math.min(F.cols,Math.max(rest.reduce((m,c)=>m+(c.cs||1),0),...rest.map(c=>c.cs||1),1)));
-  F.cells=figPackSpans(rest,cols); F.cols=cols; F.rows=Math.max(1,figRowsOf(F.cells));
+  if(o&&o.del&&gid==="main"){ deleteMainGraph(); layoutFigs(f.id); return; }
+  const F=figWithout(f,gid);
   if(o&&o.del){ pushUndo("deleting a panel"); save({graphs:(p.graphs||[]).filter(g=>g.id!==gid).map(g=>g.id===f.id?Object.assign({},g,{fig:F}):g),plot:Object.assign({},p.plot,{annos:(p.plot.annos||[]).filter(a=>a.g!==gid)})},`deleted the panel ${graphName(gid)} of ${f.name}`); }
   else figSave(f.id,F,`took ${graphName(gid)} out of ${f.name}: a graph of its own again`,{undo:"taking a panel out"});
   renderAll(); if(!(o&&o.del)){ splitInto(f.id,winOfGraph(gid)); } layoutFigs(f.id);
@@ -18793,7 +18807,7 @@ function figPanelItems(gid){
     {label:"Move", enabled:!ro, sub:()=>[["Up",-1,0],["Down",1,0],["Left",0,-1],["Right",0,1]].map(([l,dr,dc])=>({label:l,enabled:c.r+dr>=0&&c.c+dc>=0&&c.r+dr+(c.rs||1)<=F.rows&&c.c+dc+(c.cs||1)<=F.cols,run:()=>figMovePanel(gid,dr,dc)}))},
     {label:"Span", enabled:!ro&&(F.rows>1||F.cols>1), title:"Across several rows or columns of the figure", note:(c.rs||1)>1||(c.cs||1)>1?`${c.rs||1} × ${c.cs||1}`:"", sub:()=>figSpanItems(gid)},
     "-",{label:"Take it out of the figure", enabled:!ro, title:"A graph of its own again", run:()=>figRemovePanel(gid)},
-    {label:gid==="main"?"The first graph cannot be deleted":"Delete the panel", danger:gid!=="main", enabled:!ro&&gid!=="main", run:()=>figRemovePanel(gid,{del:true})}]; }
+    {label:"Delete the panel", danger:true, enabled:!ro, run:()=>figRemovePanel(gid,{del:true})}]; }
 function syncGraphWins(){
   const p=P(), list=(p&&p.graphs)||[];
   // A window that goes may hold the live graph (the graph in front was merged,
@@ -18824,7 +18838,8 @@ function syncGraphWins(){
   if(act&&!graphShows(act,S.gid)){ const to=graphForCol(act.id);
     if(to!==S.gid&&(to!=="main"||S.gid!=="main")){ S.gv[S.gid]=S.view; S.gid=to; S.view=resolveYAuto(S.linkX&&S.view?{x0:S.view.x0,x1:S.view.x1,xu:S.view.xu,yAuto:true}:S.gv[to]||null); } }
   const nWin=graphWinIds().length;
-  document.body.classList.toggle("mgraph",nWin>1);
+  // The grip that drags a graph onto another is for when there is another on the desk.
+  document.body.classList.toggle("mgraph",graphWinIds().filter(w=>!winShut(w)).length>1);
   if(p&&S.layoutPid!==S.pid) restoreGraphLayout();
   // Back to one graph in the same project (an undo, a delete): it gets its own size back.
   else if(p&&S.gcount>1&&nWin===1){ saneWin(Object.assign(winState("graph"),LAYOUT.single?clone(LAYOUT.single):{g:WINS.graph.def.slice(),open:true,max:false}),WINS.graph.def); applyWins(); saveLayout(); }
@@ -18832,7 +18847,7 @@ function syncGraphWins(){
   // A closed graph is off the desk wherever the project is open, and one
   // opened again (here, by undo, or by a colleague) comes back onto it.
   if(p){ S.gshut=S.gshut||{}; let ch=false;
-    graphIds().forEach(id=>{ const k=S.pid+":"+id;
+    allGraphIds().forEach(id=>{ const k=S.pid+":"+id;
       // A panel has no window of its own (the first graph's stays closed while it is one);
       // taken out of its figure, it comes back onto the desk.
       if(figOf(id)){ if(id==="main"){ const st=winState("graph"); if(st.open||st.min){ st.open=false; st.min=false; st.max=false; ch=true; } } S.gshut[k]=true; return; }
@@ -18982,7 +18997,7 @@ function renderGraphHeads(){
       finally{ S.gctx=keep; } } });
 }
 /* ---- Making, changing and removing graphs ---- */
-function nextGraphName(p){ const used=new Set(graphIds(p).map(id=>graphName(id,p))); let n=1; while(used.has("Graph "+n)) n++; return "Graph "+n; }
+function nextGraphName(p){ const used=new Set(allGraphIds(p).map(id=>graphName(id,p))); let n=1; while(used.has("Graph "+n)) n++; return "Graph "+n; }
 // A new graph looks like the one in front, with its own axes and no annotations.
 function plotBase(pl){ const o=clone(pl||{})||{}; ["annos","hidden","title","legendPos","gname","cols","shut"].forEach(k=>delete o[k]); o.ax={}; o.layout="overlay"; if(o.legend==="custom") o.legend="auto"; return o; }
 function graphBase(from){ return plotBase(plotOf(from||GID())); }
@@ -19058,11 +19073,33 @@ function duplicateGraph(id){
   renderAll(); splitInto(winOfGraph(id),nid); activateGraph(nid);
 }
 function deleteGraph(id){
+  if(id==="main") return deleteMainGraph();
   if(isFigId(id)) return deleteFigure(id,false); if(figOf(id)) return figRemovePanel(id,{del:true});
   const p=P(), g=graphOf(id); if(!p||!g||S.readOnly) return;
   pushUndo("deleting "+g.name);
   save({graphs:(p.graphs||[]).filter(q=>q.id!==id),plot:Object.assign({},p.plot,{annos:(p.plot.annos||[]).filter(a=>a.g!==id)})},`deleted ${g.name} (its columns stay in the project)`);
   renderAll(); toast(`Deleted ${g.name}. Its columns are still in the project.`,{action:"Undo",run:undo});
+}
+// The first graph cannot leave the project (it is p.plot, which keeps every graph's
+// annotations): deleting it takes its curves and its own annotations away, sets its look
+// back to a new graph's, takes it out of a figure, and closes it, so it is gone (mainGone)
+// until the next plot uses it. One undo entry, as for any graph.
+function deleteMainGraph(){
+  const p=P(); if(!p||S.readOnly) return; const nm=graphName("main"), f=figOf("main");
+  pushUndo("deleting "+nm);
+  const annos=(p.plot.annos||[]).filter(a=>(a.g&&a.g!=="main")||a.grp);
+  const patch={plot:{style:"auto",logY:false,grid:false,resid:"auto",cols:[],shut:true,annos}};
+  if(f) patch.graphs=(p.graphs||[]).map(g=>g.id===f.id?Object.assign({},g,{fig:figWithout(f,"main")}):g);
+  if(S.gv) S.gv.main=null; if(S.gid==="main") S.view=null; S.annoSel=null; S.legSel=null;
+  save(patch,`deleted ${nm} (its columns stay in the project)`);
+  closeWin("graph");
+  // Another graph on the desk comes forward, so the live graph is one that can be seen.
+  if((S.gid||"main")==="main"){ const to=deskGraphIds().find(id=>!graphShut(id)); if(to) activateGraph(to); }
+  // With no graph left on the desk, the worksheet has it: all of it when the two were side
+  // by side (the worksheet on the left, the graph filling the rest), else the graph's place.
+  if(!graphWinIds().some(winOpen)){ const sh=winState("sheet"), gg=winState("graph").g, near=(a,b)=>a.every((v,i)=>Math.abs(v-b[i])<0.02);
+    if(!sh.max&&near(sh.g,[0,0,sh.g[2],1])&&near(gg,[sh.g[2],0,1-sh.g[2],1])){ sh.g=[0,0,1,1]; applyWins(); saveLayout(); } else sheetForward(); }
+  renderAll(); toast(`Deleted ${nm}. Its columns are still in the project.`,{action:"Undo",run:undo});
 }
 // Puts a spectrum on a graph, or takes it off (the main graph hides it).
 function toggleGraphCol(id,cid){
@@ -19179,7 +19216,7 @@ function ensureGraph(){ const p=P(), act=activeYCol(); if(!p||!act||S.readOnly) 
 // when nothing is plotted yet), several spectra in panels, or onto a graph.
 function plotItems(cids){
   const p=P(), {ys}=plotWhat(cids), ro=S.readOnly||!p||!ys.length, many=ys.length>1, nm=ys.length?andList(ys.slice(0,3).map(specName))+(ys.length>3?` and ${ys.length-3} more`:""):"";
-  const where=mainFreeNow()?graphName("main"):"a new graph";
+  const where=mainFreeNow()&&!mainGone()?graphName("main"):"a new graph";
   const out=[{label:"Plot setup…", title:"Choose the kind of plot, the X and Y columns and the graph, with a sketch", enabled:!!p&&!S.readOnly, run:()=>openPlotDlg(cids)},"-",{group:ys.length?`Plot ${nm} in ${where} as`:"Or select the columns to plot first",plain:true}]
     .concat(PLOT_TYPES.map(([k,l])=>({label:l, enabled:!ro, run:()=>plotCols(cids,{type:k})})));
   out.push("-",{label:many?"Histogram of each":"Histogram", enabled:!ro, title:"The distribution of the values, as a column of its own on a graph of its own", run:()=>histogramCols(ys.map(c=>c.id))},
@@ -19260,7 +19297,7 @@ async function openPlotDlg(cids){
       <div class="grid2"><label for="pdlgX">X column</label><select id="pdlgX">${xs.map(c=>`<option value="${c.id}"${st.x===c.id?" selected":""}>${esc(colLetter(c))} ${esc(colLabel(c,""))}</option>`).join("")||`<option value="">Row number (no X column)</option>`}</select></div>
       <div class="pdlg-ys" role="group" aria-label="Y columns to plot"><div class="pdlg-yh"><span class="gh">Y columns</span><span class="sp"></span><button type="button" class="btn sm ghost" id="pdlgAll">All</button><button type="button" class="btn sm ghost" id="pdlgNone">None</button></div>
         ${cand.map(c=>`<label class="cbrow"><input type="checkbox" data-pdy="${c.id}"${st.ys.includes(c.id)?" checked":""}><span>${nm(c)}</span>${c.role==="ignore"?`<span class="lab" title="Other data: plotting it makes it a Y column">data</span>`:""}${errNote(c)}</label>`).join("")}</div>
-      <div class="grid2"><label for="pdlgInto">Into</label><select id="pdlgInto"><option value="">${mainFreeNow()?esc(graphName("main"))+" (empty)":"A new graph"}</option>${targets.map(id=>`<option value="${id}">${esc(graphTitle(id))}</option>`).join("")}</select></div>
+      <div class="grid2"><label for="pdlgInto">Into</label><select id="pdlgInto"><option value="">${mainFreeNow()&&!mainGone()?esc(graphName("main"))+" (empty)":"A new graph"}</option>${targets.map(id=>`<option value="${id}">${esc(graphTitle(id))}</option>`).join("")}</select></div>
       <div class="pdlg-sk" id="pdlgSk"></div>
     </div></div>`;
   const sh=$("#formModal .sheet"); sh.classList.remove("small"); sh.classList.add("plotdlg");
@@ -19304,7 +19341,7 @@ function graphWinItems(id){
       "-",{label:"All graphs as one SVG",run:exportAllSvg,enabled:multiGraph()},{label:"All graphs as one PNG",run:exportAllPng,enabled:multiGraph()}]},
     "-",{label:"New graph", sub:()=>newGraphItems(), enabled:!ro},
     "-",{label:"Close this graph", enabled:!!p, title:"Off the desk and out of the taskbar, kept in the project: Window › Graphs opens it again", run:()=>closeGraph(id)},
-    {label:main?"The first graph cannot be deleted":"Delete this graph", danger:!main, enabled:!ro&&!main, run:()=>deleteGraph(id)}];
+    {label:"Delete this graph", danger:true, enabled:!ro, title:"Its columns stay in the project; Undo brings the graph back", run:()=>deleteGraph(id)}];
 }
 
 /* ---- Combining graphs -------------------------------------------------------------

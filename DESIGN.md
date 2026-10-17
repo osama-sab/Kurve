@@ -448,6 +448,12 @@ the first screen and after an import; Python removed, its steps in old projects 
 results. T1 takes four more clicks (select the two columns, Plot, Symbols): the cost of
 plotting being the user's choice. No other task changed.
 
+Then, from a question ("why can't the first graph be deleted?"): every graph can be deleted,
+the first one too. It could not be because of how it is stored (the project's own plot
+settings, which also hold every graph's labels), which is no reason to show the user. Deleting
+it empties and closes it, and it is left out of every list until the next plot uses it; its
+columns stay, Undo brings it back, and with no graph left the worksheet takes the desk.
+
 ### 2026-10-17: defaults (UX rework, Phase 4 slice 5)
 
 From the Phase 2 defaults audit and Phase 1 T2, T4, T6 and T8: a Gaussian offered for a
