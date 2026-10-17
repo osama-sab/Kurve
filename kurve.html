@@ -709,6 +709,18 @@ details.more>table{margin-top:var(--sp-4)}
 .sheet-h h2{font:600 var(--fs-head)/1.2 var(--sans);margin:0;margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sheet-b{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);min-height:0;flex:1;overflow:hidden}
 .sheet-p{padding:var(--sp-5) var(--sp-6);overflow:auto;min-height:0}
+.prefs section{padding:0 0 var(--sp-6)}
+.prefs section+section{border-top:1px solid var(--rule-2);padding-top:var(--sp-5)}
+.prefs .gh{margin:0 0 var(--sp-4)}
+.prefs .chk{display:flex;align-items:center;gap:var(--sp-4);margin:0 0 var(--sp-3)}
+.prefs .prow{display:grid;grid-template-columns:110px 1fr;align-items:center;gap:var(--sp-4);margin:0 0 var(--sp-4)}
+.prefs .prow .seg{justify-self:start}
+.prefs .lab.ind{margin:0 0 var(--sp-4) 46px}
+.prefs .actions{margin:var(--sp-2) 0 var(--sp-3) 46px}
+.prefs .errs{list-style:none;margin:var(--sp-3) 0 0;padding:0;max-height:180px;overflow:auto;font-size:var(--fs-tab)}
+.prefs .errs li{display:grid;grid-template-columns:96px 1fr;gap:var(--sp-4);padding:var(--sp-2) 0;border-bottom:1px solid var(--rule-2)}
+.log li.logerr .ln{color:var(--bad)}
+.log li.logoff{display:flex;align-items:center;gap:var(--sp-3)}
 .sheet-p p{margin:0 0 var(--sp-5)}
 .sheet-f{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-5) var(--sp-6);border-top:1px solid var(--rule)}
 .sheet-f .sp{margin-left:auto}
@@ -1568,6 +1580,7 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
   <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M3.5 15h17"/></symbol>
   <symbol id="i-dock" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15"/></symbol>
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 3.5h6M10 3.5v6l-3 4h10l-3-4v-6M12 13.5v7"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></symbol>
   <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.4c-.6.3-1 .8-1 1.5v.8M12 17h.01"/></symbol>
   <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><circle cx="9" cy="9" r="1.8"/><path d="m20.5 15.5-5-5-11 10"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></symbol>
@@ -1623,6 +1636,7 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
     </div>
     <div class="tfill"></div>
     <div class="people" id="people" aria-label="People here now"></div>
+    <button class="tb icon" id="prefBtn" aria-label="Preferences" title="Preferences: history, appearance (Ctrl+,)"><svg class="ic"><use href="#i-gear"/></svg></button>
     <button class="tb icon" id="helpBtn" aria-label="Help" title="Help (F1)"><svg class="ic"><use href="#i-help"/></svg></button>
     <button class="tb icon" id="themeBtn" aria-label="Switch to dark theme" title="Switch to dark theme"><svg class="ic"><use href="#i-moon"/></svg></button>
   </header>
@@ -1828,6 +1842,13 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
     <div class="sheet-h"><h2 id="dlgTitle">Are you sure?</h2></div>
     <div class="sheet-p"><p id="dlgText"></p></div>
     <div class="sheet-f"><span class="sp"></span><button class="btn" id="dlgCancel">Cancel</button><button class="btn primary" id="dlgOk">OK</button></div>
+  </div>
+</div>
+<div class="modal" id="prefModal" hidden role="dialog" aria-modal="true" aria-labelledby="prefTitle">
+  <div class="sheet small wide">
+    <div class="sheet-h"><h2 id="prefTitle">Preferences</h2></div>
+    <div class="sheet-p" id="prefBody"></div>
+    <div class="sheet-f"><span class="lab">Kept in this browser</span><span class="sp"></span><button class="btn primary" id="prefDone">Done</button></div>
   </div>
 </div>
 <div class="modal" id="formModal" hidden role="dialog" aria-modal="true" aria-labelledby="formTitle">
@@ -5079,6 +5100,8 @@ const fpShort=fp=>fp?fp.slice(0,12):"—";
 function recordRaw(text,merge){
   const p=P(); if(!p) return null;
   const fp=rawFp(), r=p.raw||{fp:"",hist:[]}, hist=(r.hist||[]).slice(), last=hist[hist.length-1];
+  // History off: the check code follows the data, and nothing is added to the record.
+  if(!histOn()){ if(r.fp===fp) return null; p.raw={fp,hist}; return p.raw; }
   if(r.fp===fp&&hist.length) return null;
   // Cells typed one after another are one entry, not one per cell.
   if(merge&&last&&last.mk===merge&&last.uid===(S.uid||"")&&Date.now()-last.t<120000) hist[hist.length-1]=Object.assign({},last,{t:Date.now(),fp,n:(last.n||1)+1,text});
@@ -5089,7 +5112,7 @@ function recordRaw(text,merge){
 function rawRecordFor(cols,text){
   const withData=cols.filter(c=>!c.src&&!c.fx&&(c.data||[]).some(v=>v!=null));
   const fp=withData.length?sha256(rawText(withData.map(c=>c.data))):"";
-  return {fp,hist:fp?[{t:Date.now(),uid:S.uid||"",fp,prev:"",text}]:[]};
+  return {fp,hist:fp&&histOn()?[{t:Date.now(),uid:S.uid||"",fp,prev:"",text}]:[]};
 }
 // Whether the raw data still matches the fingerprint last recorded for it.
 function rawVerified(){ const p=P(); if(!p||!p.raw||!p.raw.fp) return null; return rawFp()===p.raw.fp; }
@@ -5143,7 +5166,7 @@ function pipeSig(c,seen){
   return hash32(parts.join("|"));
 }
 const newStepId=()=>"s"+Date.now().toString(36)+(colSeq++).toString(36);
-function makeStep(op,p){ return {id:newStepId(), op, on:true, p:p||{}, t:Date.now(), by:S.uid||""}; }
+function makeStep(op,p){ const s={id:newStepId(), op, on:true, p:p||{}}; if(histOn()){ s.t=Date.now(); s.by=S.uid||""; } return s; }
 function stepTitle(s){ const d=PIPE_OPS[s.op]; return d?d.label:s.op; }
 function stepShort(s){ const d=PIPE_OPS[s.op]; return d?(d.short||d.label):s.op; }
 function stepSummary(s,st,d){ const def=PIPE_OPS[s.op]; if(!def||!def.summary) return "";
@@ -5402,6 +5425,7 @@ function hideToast(){ const t=$("#toast"); if(t) t.hidden=true; clearTimeout(toa
 function setStatus(txt,warn){ const s=$("#status"); s.textContent=txt; s.classList.toggle("warn",!!warn); }
 
 function writeErr(e){
+  noteError("Not saved: "+String(e&&(e.code||e.message)||e),"storage");
   if(e&&e.code==="invalid_argument"&&S.store.mode==="db"){ S.readOnly=true; toast("You can view this workspace but not change it."); renderAll(); return; }
   if(e&&e.code==="quota_exceeded"){ toast(S.store&&S.store.mode==="local"?"This browser's storage is full, so the last change is not saved. Delete an old project, or export this one, and it will be saved with the next change.":"This workspace is full. Delete an old project or comments to add more."); return; }
   // Deleted in another tab or by a colleague: the project list says so.
@@ -5419,7 +5443,7 @@ async function save(patch, logText){
   if(Object.keys(wsPatch).length&&wsPid===S.pid){ clearTimeout(wsTimer); pendLog=patch&&"log" in patch?null:wsLog; patch=Object.assign({},wsPatch,patch); wsPatch={}; wsLog=null; }
   const p=S.proj; Object.assign(p,patch); p.updated=Date.now(); patch.updated=p.updated;
   if(patch.cols) recalcFx(p);         // formula columns follow the columns they use
-  if(logText||pendLog){ const add=[pendLog,logText].filter(Boolean).map(text=>({t:Date.now(),uid:S.uid||"",text}));
+  if((logText||pendLog)&&histOn()){ const add=[pendLog,logText].filter(Boolean).map(text=>({t:Date.now(),uid:S.uid||"",text}));
     const log=(p.log||[]).concat(add).slice(-80); p.log=log; patch.log=log; }
   setStatus("Saving…");
   try{ await S.store.save(S.pid,patch); setStatus(S.store.mode==="db"?"All changes shared":"Saved in this browser",false); }
@@ -8887,7 +8911,7 @@ async function saveFormatAs(src){
     +`<label class="chk"><input type="radio" name="fdFk" id="fdFkP"${shared&&!ro?" checked":""}${ro?" disabled":""}> In this project: whoever opens it has it</label>`
     +`<label class="chk"><input type="radio" name="fdFk" id="fdFkB"${shared&&!ro?"":" checked"}> In this browser: for every project opened here</label></div></div>`
     +`<p class="hint">The frame, axes, text, legend and colours: not the data, ranges, titles or labels.</p>`,ok:"Save",focus:"#fdFn",valid:q=>!!q.fdFn.trim()});
-  if(!r) return null; const name=r.fdFn.trim().slice(0,60), f={id:"f"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),name,at:Date.now(),by:S.uid||null,fmt:fmtOf(src)};
+  if(!r) return null; const name=r.fdFn.trim().slice(0,60), f={id:"f"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),name,at:Date.now(),by:who()||null,fmt:fmtOf(src)};
   if(r.fdFkP&&!ro){ const had=projFormats().some(q=>q.name===name); saveProjFormats(projFormats().filter(q=>q.name!==name).concat([f]),`${had?"replaced":"saved"} the style "${name}" in the project`);
     toast(`${had?"Replaced":"Saved"} the style "${name}" in this project.`,{action:"Undo",run:undo}); return f; }
   const had=fmtLib().some(q=>q.name===name); fmtLibSave(fmtLib().filter(q=>q.name!==name).concat([f])); toast(`${had?"Replaced":"Saved"} the style "${name}" in this browser.`); return f; }
@@ -10546,7 +10570,7 @@ async function correctCell(col,r,v){
   pushUndo("that correction");
   targets.forEach(y=>{ y.pipe=y.pipe||[]; let st=y.pipe.find(s=>s.op==="correct");
     if(!st){ st=makeStep("correct",{fixes:[]}); y.pipe.unshift(st); }
-    const fixes=((st.p||{}).fixes||[]).filter(f=>!(f.row===r&&(f.field||"y")===field)).concat([{row:r,field,val,was,why,t:Date.now(),by:S.uid||""}]);
+    const fixes=((st.p||{}).fixes||[]).filter(f=>!(f.row===r&&(f.field||"y")===field)).concat([{row:r,field,val,was,why,t:Date.now(),by:who()}]);
     st.p=Object.assign({},st.p,{fixes}); });
   save({cols:P().cols},`corrected row ${r+1} of column ${L} from ${was} to ${val==null?"(left out)":val}${targets.length>1?` for ${targets.length} columns`:""}: ${why}`);
   renderAll();
@@ -11293,7 +11317,7 @@ function fitRecord(fit){
     steps:(c&&c.pipe||[]).filter(s=>s.on!==false).map(s=>stepText(s,stageOfStep(s))), range:fit.range, peaks,
     notes:fitWarnings(fit).filter(w=>w.kind!=="stale").map(w=>w.kind), x:r6(t.x), y:r6(t.y), fx, fy};
 }
-function fitHistory(fit){ const p=P(); return (p.fits||[]).concat([fitRecord(fit)]).slice(-30); }
+function fitHistory(fit){ const p=P(); if(!histOn()) return p.fits||[]; return (p.fits||[]).concat([fitRecord(fit)]).slice(-30); }
 function fitChart(r,w,h,pal){
   return miniChart([{x:r.x,y:r.y,color:pal.data,dots:true},{x:r.fx,y:r.fy,color:pal.fit,width:1.4}],w,h,{revX:!!GP().revX,bg:pal.bg,frame:pal.grid,label:`${r.name}, R² ${fmt(r.R2,5)}`});
 }
@@ -11447,7 +11471,7 @@ function impFindings(){
 }
 function openImport(text,fname){
   const res=analyzeFile(text,{fname:fname||""});
-  if(!res.rows.length){ toast("No rows of numbers were found in that file."); return; }
+  if(!res.rows.length){ toast("No rows of numbers were found in that file."); logError(`Import of ${fname||"pasted data"}: no rows of numbers`,"import"); return; }
   const m=$("#impModal"), wasOpen=!m.hidden;
   S.imp={raw:text,fname:fname||"pasted data",opt:{fname:fname||""},res,use:impUseDefault(res),pv:-1,ch0:0,sqrt:false,fixes:{}};
   $("#impTitle").textContent="Import "+S.imp.fname;
@@ -11713,7 +11737,7 @@ function sameAxis(a,b){
 function importText(text,fname){
   // A binary instrument file read as text is mostly control characters and
   // replacement marks; better to say so than to show a wizard full of noise.
-  if(looksBinary(text)){ toast(`${fname||"That file"} looks like a binary instrument file. Export it as CSV or text from the instrument software, then import that.`); return; }
+  if(looksBinary(text)){ toast(`${fname||"That file"} looks like a binary instrument file. Export it as CSV or text from the instrument software, then import that.`); logError(`Import of ${fname||"a file"}: a binary instrument file`,"import"); return; }
   openImport(text,fname);
 }
 function looksBinary(text){ const head=String(text).slice(0,4096); let bad=0;
@@ -11836,7 +11860,7 @@ async function autoImport(files,o){
     const keep=S.imp; S.imp={raw:f.text,fname:f.name,opt:{fname:f.name},res,use:impUseDefault(res),pv:-1,ch0:0,sqrt:false,fixes:{}};
     try{ const b=impBuild(); if(b.cols.some(c=>c.data.some(v=>v!=null))) built.push(Object.assign(b,{fname:f.name,text:f.text,res})); else bad.push(`${f.name}, no numbers`); }
     finally{ S.imp=keep; } });
-  if(!built.length){ toast(`Nothing imported: ${bad.join("; ")}.`); return null; }
+  if(!built.length){ toast(`Nothing imported: ${bad.join("; ")}.`); logError(`Nothing imported: ${bad.join("; ")}`,"import"); return null; }
   if(!S.pid){ await createProject(blankProject(built[0].base),null); await new Promise(r=>whenOpen(r)); }
   const p=P(); if(!p) return null;
   if(S.ws&&S.ws.edit) wsCommit(0,0,true);
@@ -12436,7 +12460,7 @@ async function editUserFn(id,opt){
   if(!comp) return;
   const fn={id:old?old.id:"f"+Date.now().toString(36)+Math.random().toString(36).slice(2,5), name:(String(r.fbName||"").trim()||"My function").slice(0,60),
     expr:String(r.fbExpr||"").trim().slice(0,4000),
-    params:comp.params.map(n=>{ const v=vals[n]||{}; return {n,init:pnum(v.init),lo:pnum(v.lo),hi:pnum(v.hi),dim:v.dim||""}; }), at:Date.now(), by:S.uid||""};
+    params:comp.params.map(n=>{ const v=vals[n]||{}; return {n,init:pnum(v.init),lo:pnum(v.lo),hi:pnum(v.hi),dim:v.dim||""}; }), at:Date.now(), by:who()};
   const P0=P(), list=(P0.userFns||[]).slice(), at=list.findIndex(f=>f.id===fn.id);
   if(at>=0) list[at]=fn; else list.push(fn);
   pushUndo(old?"editing a fit function":"adding a fit function");
@@ -12945,9 +12969,9 @@ function runPeakFit(){
   const fT=L.length?(x,p)=>m.f(x,applyPeakLinks(p,L)):m.f;
   const SX=d.xerr?xErrsOf(activeYCol(),pts):null;
   const res0=SX?odrFit(fT,X,Y,useW?pts.map(q=>q.e):null,SX,applyPeakLinks(d.init.slice(),L),fixedT,{lo,hi,pscale}):lmFit(fT,X,Y,W,applyPeakLinks(d.init.slice(),L),fixedT,{lo,hi,pscale});
-  if(res0.error){ S.fitError=res0.error; renderFit(); return; }
+  if(res0.error){ S.fitError=res0.error; logError("Peak fit: "+res0.error,"fit"); renderFit(); return; }
   const res=linkResult(res0,L);
-  if(!res.params.every(Number.isFinite)){ S.fitError="The fit diverged. Try Reset to estimates, or fix a parameter."; renderFit(); return; }
+  if(!res.params.every(Number.isFinite)){ S.fitError="The fit diverged. Try Reset to estimates, or fix a parameter."; logError("Peak fit diverged","fit"); renderFit(); return; }
   const [a,b]=fitRange();
   pushUndo("that fit");
   const fit={kind:"composite", spec, x0:m.x0, params:res.params, errors:res.errors, cov:res.cov,
@@ -12955,7 +12979,7 @@ function runPeakFit(){
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(),
     hadErrCol:hasErr(),
     fixed:d.fixed.slice(), dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound, stats:res.stats,
-    range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, ...(SX?{xerr:true,odr:odrNote(res)}:{}), by:S.uid||"", at:Date.now()};
+    range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, ...(SX?{xerr:true,odr:odrNote(res)}:{}), by:who(), at:Date.now()};
   d.init=res.params.slice(); d.x0=m.x0; d.fitAt=fit.at;
   save(Object.assign({fit,fits:fitHistory(fit)},batchWith(fit)),`fitted ${describeSpec(spec)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
   renderFit(); renderPlot(); afterFit(fit);
@@ -12968,15 +12992,15 @@ function runFit(){
   const W=pts.map(q=>useW?1/q.e:1);
   const SX=d.xerr?xErrsOf(activeYCol(),pts):null;
   const res=SX?odrFit(m.f,X,Y,useW?pts.map(q=>q.e):null,SX,d.init.slice(),d.fixed.slice(),m.lo?{lo:m.lo,hi:m.hi}:undefined):lmFit(m.f,X,Y,W,d.init.slice(),d.fixed.slice(),m.lo?{lo:m.lo,hi:m.hi}:undefined);
-  if(res.error){ S.fitError=res.error; renderFit(); return; }
-  if(!res.params.every(Number.isFinite)){ S.fitError="The fit diverged. Try Guess, or fix one of the parameters."; renderFit(); return; }
+  if(res.error){ S.fitError=res.error; logError("Curve fit: "+res.error,"fit"); renderFit(); return; }
+  if(!res.params.every(Number.isFinite)){ S.fitError="The fit diverged. Try Guess, or fix one of the parameters."; logError("Curve fit diverged","fit"); renderFit(); return; }
   const [a,b]=fitRange();
   pushUndo("that fit");
   const fit={model:d.model, ...(m.user?{fn:JSON.parse(JSON.stringify(m.def))}:{}), params:res.params, errors:res.errors, cov:res.cov, fixed:d.fixed.slice(), stats:res.stats,
     dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound,
     onCol:(activeYCol()||{}).id, onColName:(activeYCol()||{}).name||"",
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(), hadErrCol:hasErr(),
-    range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, ...(SX?{xerr:true,odr:odrNote(res)}:{}), by:S.uid||"", at:Date.now()};
+    range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, ...(SX?{xerr:true,odr:odrNote(res)}:{}), by:who(), at:Date.now()};
   d.init=res.params.slice();
   const P0=P(), carry=m.user&&!(P0.userFns||[]).some(q=>q.id===m.fnId)?{userFns:(P0.userFns||[]).concat([JSON.parse(JSON.stringify(m.def))])}:{};
   save(Object.assign({fit,fits:fitHistory(fit)},carry,batchWith(fit)),`fitted ${m.user?`the function "${m.name}"`:lcFirst(m.name)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
@@ -13076,7 +13100,7 @@ function renderResults(){
   h+=`</div><div class="rside"><dl class="kv">${statsList(f).map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></div></div>`;
   h+=`<p class="rfoot">${f.xerr?"Errors come from the X and Y errors, through the orthogonal distance fit.":f.weighted?"Errors come from the instrumental weights.":"Errors are scaled by the square root of reduced χ², as Origin does when there are no weights."} ${GP().bandConf!==false?"Shaded band on the graph: the 95% confidence band of the fit.":""}${GP().bandPred?" Dashed lines: the 95% prediction band, where a new measurement would fall.":""}${FM.composite?" Dashed grey line: the fitted baseline. Coloured lines: each peak on top of it, numbered as in this table.":""}</p>`;
   box.innerHTML=h;
-  const by=$("#fitBy"); if(by) by.textContent=`Fitted by ${nameOf(f.by)}, ${ago(f.at)}`;
+  const by=$("#fitBy"); if(by) by.textContent=f.by?`Fitted by ${nameOf(f.by)}, ${ago(f.at)}`:`Fitted ${ago(f.at)}`;
   $("#rCopy").onclick=copyResults; $("#rReport").onclick=exportReport; $("#rCsv").onclick=exportCsv;
   $("#discussFit").onclick=()=>{ S.anchor={type:"fit",model:FM.composite?"peaks":f.model}; showDrawer("disc"); renderAnchor(); $("#cText").focus(); };
   const rp=$("#rParams"); if(rp) rp.addEventListener("toggle",()=>{ if(rp.isConnected) S.showParams=rp.open; });
@@ -13355,14 +13379,64 @@ function reportDiscussionHtml(){
     T.list.map(t=>"<div class=\"thr"+(t.root.resolved?" done":"")+"\"><p class=\"lab\">"+esc2(t.root.anchor?anchorLabel(t.root.anchor):"General")+" · "+(t.root.resolved?"resolved":"open")+"</p>"+one(t.root)+(t.replies.length?"<div class=\"rep\">"+t.replies.map(one).join("")+"</div>":"")+"</div>").join("");
 }
 function logWhen(t){ try{ return new Date(t).toLocaleString(); }catch(e){ return ""; } }
+/* The Preferences dialog: each switch takes effect at once and is kept in
+   this browser; Done closes it. */
+function openPrefs(){
+  const m=$("#prefModal"); if(!m) return;
+  const render=()=>{ const th=themeSetting(), st=styleSetting(), errs=errLog(), p=P(), ro=S.readOnly||!p;
+    const seg=(name,cur,opts)=>`<div class="seg" role="radiogroup" aria-label="${name}">${opts.map(([v,l])=>`<button type="button" role="radio" data-pref-${name.toLowerCase()}="${v}" aria-checked="${cur===v}">${l}</button>`).join("")}</div>`;
+    const sw=(id,on,label,tip,dis)=>`<label class="chk"${tip?` title="${esc(tip)}"`:""}><input type="checkbox" id="${id}"${on?" checked":""}${dis?" disabled":""}> ${label}</label>`;
+    $("#prefBody").innerHTML=`<div class="prefs">
+      <section aria-labelledby="prH"><h3 class="gh" id="prH">History</h3>
+        ${sw("prHist",histOn(),"Keep a history of changes")}
+        <p class="lab ind">The log of every change, with who made it and when; earlier fits; the original data's record. Off, none of it is kept and only errors are logged. Your processing steps stay either way: they make the processed data.</p>
+        ${sw("prFlow",prefGet("flowAuto")&&histOn(),"Open the History window with a column's first processing step","Never while the history is off",!histOn())}
+        <div class="actions"><button type="button" class="btn sm" id="prClear"${ro?" disabled":""}>Clear this project's history…</button></div></section>
+      <section aria-labelledby="prA"><h3 class="gh" id="prA">Appearance</h3>
+        <div class="prow"><span>Theme</span>${seg("Theme",th,[["light","Light"],["dark","Dark"],["auto","Match the system"]])}</div>
+        <div class="prow"><span>Style</span>${seg("Style",st,[["bench","Bench"],["graphite","Graphite"]])}</div>
+        ${sw("prAnim",prefGet("anim"),"Animate windows, menus and the worksheet's cursor","Off, everything changes at once. The system's reduced-motion setting turns it off too")}</section>
+      <section aria-labelledby="prS"><h3 class="gh" id="prS">After an import</h3>
+        ${sw("prOv",ovAuto(),"Open the Overview of a spectrum","When the column imported looks like a spectrum")}</section>
+      <section aria-labelledby="prE"><h3 class="gh" id="prE">Errors</h3>
+        <p class="lab">${errs.length?`${errs.length} error${errs.length===1?"":"s"} logged in this browser.`:"No errors logged in this browser."}</p>
+        ${errs.length?`<ul class="errs">${errs.slice(-20).reverse().map(e=>`<li><span class="lab" title="${esc(logWhen(e.t))}">${esc(ago(e.t))}</span><span>${esc(e.text)}</span></li>`).join("")}</ul><div class="actions" style="margin-left:0"><button type="button" class="btn sm" id="prErrCopy">Copy</button><button type="button" class="btn sm" id="prErrClear">Clear</button></div>`:""}</section></div>`;
+    const on=(id,f)=>{ const el=document.getElementById(id); if(el) el.onchange=()=>{ f(el.checked); render(); }; };
+    on("prHist",v=>{ prefSet("history",v); renderAll(); toast(v?"The history is kept from now on.":"The history is off: nothing more is recorded but errors."); });
+    on("prFlow",v=>prefSet("flowAuto",v));
+    on("prAnim",v=>{ prefSet("anim",v); applyAnim(); });
+    on("prOv",v=>{ try{ localStorage.setItem("kurve.ovAuto",v?"1":"0"); }catch(e){} });
+    $("#prefBody").querySelectorAll("[data-pref-theme]").forEach(b=>b.onclick=()=>{ applyTheme(b.dataset.prefTheme); render(); });
+    $("#prefBody").querySelectorAll("[data-pref-style]").forEach(b=>b.onclick=()=>{ applyStyle(b.dataset.prefStyle); render(); });
+    const cl=$("#prClear"); if(cl) cl.onclick=()=>{ clearHistory(); render(); };
+    const ec=$("#prErrClear"); if(ec) ec.onclick=()=>{ try{ localStorage.removeItem("kurve.errors"); }catch(e){} render(); };
+    const cp=$("#prErrCopy"); if(cp) cp.onclick=()=>copyText(errLog().map(e=>`${new Date(e.t).toISOString()}\t${e.where}\t${e.text}`).join("\n"),"Copied the error log.");
+  };
+  render();
+  const done=()=>{ m._cancel=null; closeModal(m); };
+  $("#prefDone").onclick=done; m._cancel=done;
+  if(m.hidden) openModal(m,$("#prHist"));
+}
+// Clears the project's record of changes: the log (errors stay), earlier fits, the
+// original data's record (its check code stays), and who made each step and when.
+function clearHistory(){
+  const p=P(); if(!p||S.readOnly) return;
+  pushUndo("clearing the history");
+  const cols=p.cols.map(c=>c.pipe?Object.assign({},c,{pipe:c.pipe.map(s=>{ const n=Object.assign({},s); delete n.t; delete n.by; return n; })}):c);
+  save({log:(p.log||[]).filter(l=>l.err),fits:[],raw:{fp:(p.raw||{}).fp||"",hist:[]},cols},null);
+  renderAll(); toast("This project's history is cleared.",{action:"Undo",run:undo});
+}
+function wireLogPrefs(box){ box.querySelectorAll("[data-prefs]").forEach(b=>b.onclick=()=>openPrefs()); }
 function renderLog(){
   const box=$("#log"), p=P(); if(!box) return; if(!p){ box.innerHTML=""; return; }
-  const items=(p.log||[]).slice().reverse();
-  if(!items.length){ box.innerHTML=`<li class="nothing">Every import, mask and fit will be recorded here, so anyone can retrace how the result was reached.</li>`; return; }
-  box.innerHTML=items.map((l,i)=>`<li data-i="${i}"><span class="when" title="${esc(logWhen(l.t))}">${esc(ago(l.t))}</span><span class="ln"></span></li>`).join("");
-  box.querySelectorAll("li").forEach((li,i)=>{ const l=items[i]; const nm=nameOf(l.uid);
-    const who=nm==="you"?"You":nm.charAt(0).toUpperCase()+nm.slice(1);
+  const items=(p.log||[]).slice().reverse(), on=histOn();
+  const off=on?"":`<li class="nothing logoff">${ICON("info","sm")}<span>The history is off in Preferences: only errors are logged.</span> <button class="btn sm" data-prefs>Preferences…</button></li>`;
+  if(!items.length){ box.innerHTML=off||`<li class="nothing">Every import, mask and fit will be recorded here, so anyone can retrace how the result was reached.</li>`; wireLogPrefs(box); return; }
+  box.innerHTML=off+items.map((l,i)=>`<li data-i="${i}"${l.err?' class="logerr"':""}><span class="when" title="${esc(logWhen(l.t))}">${esc(ago(l.t))}</span><span class="ln"></span></li>`).join("");
+  box.querySelectorAll("li[data-i]").forEach(li=>{ const l=items[+li.dataset.i]; if(l.err){ li.querySelector(".ln").textContent=`Error: ${l.text}`; return; }
+    const nm=nameOf(l.uid), who=nm==="you"?"You":nm.charAt(0).toUpperCase()+nm.slice(1);
     li.querySelector(".ln").textContent=`${who} ${l.text}`; });
+  wireLogPrefs(box);
   const foot=document.createElement("li");
   foot.className="nothing";
   foot.textContent="This record is rolled back by undo, so it always describes the project as it stands.";
@@ -13394,7 +13468,7 @@ function renderPeople(){
    ============================================================ */
 async function createProject(pr,logText){
   if(S.readOnly){ toast("You can view this workspace but not create projects."); return; }
-  if(logText) pr.log=[{t:Date.now(),uid:S.uid||"",text:logText}];
+  if(logText&&histOn()) pr.log=[{t:Date.now(),uid:S.uid||"",text:logText}];
   if(!pr.raw) pr.raw=rawRecordFor(pr.cols||[],logText||"created the project");
   pr.name=uniqueProjName(pr.name);
   // A shared store lists a new project before the write is confirmed, so it
@@ -14337,7 +14411,7 @@ function applyTool(opt){
   if(!(opt&&opt.keepWin)&&winOpen("tool")){ winState("tool").open=false; dockForget("tool"); applyWins(); saveLayout(); }
   renderAll();
   // The project's first processing step brings the History into the dock, where the step is recorded.
-  if(firstStep&&!inBar("flow")) openWin("flow",{render:true,quiet:true});
+  if(firstStep&&!inBar("flow")&&histOn()&&prefGet("flowAuto")) openWin("flow",{render:true,quiet:true});
   const w=stageWarnings(stageOfStep(stepById(s.id)));
   toast(`${stepTitle(s)} recorded as step ${at+1} of ${specName(c)}${n?`, and on ${n} more`:""}.${w.length?` ${w.length} warning${w.length===1?"":"s"} on it: see the History.`:""} The original data is unchanged.`,{action:"Undo",run:undo});
   return s.id;
@@ -14718,7 +14792,7 @@ function findPeaksInto(opt){
   const d=finalOf(c), o=Object.assign({},pfOpts()), sr=pkSelReg(pkRegsOf(c));
   const regs=opt.regs!==undefined?normRegs(opt.regs):opt.rng!==undefined?(opt.rng?normRegs([{id:regId(),x0:opt.rng[0],x1:opt.rng[1]}],sr?sr.o:o):[]):pkRegsOf(c);
   const r=searchRegions(c,regs,d.xu||"",o); if(!r){ toast(regs.length?"Too few points in those regions to look for peaks.":"Too few points to look for peaks."); return null; }
-  const {kept,rec}=mergePeakSet(c,r,foundOf(c),{opts:o,rng:regs.length===1?[regs[0].x0,regs[0].x1]:null,regs:regs.length?regs:null,at:Date.now(),by:S.uid||"",re:null});
+  const {kept,rec}=mergePeakSet(c,r,foundOf(c),{opts:o,rng:regs.length===1?[regs[0].x0,regs[0].x1]:null,regs:regs.length?regs:null,at:Date.now(),by:who(),re:null});
   if(opt.undo!==false) pkUndo("finding peaks");
   const found=Object.assign({},p.found||{},{[c.id]:rec});
   const annos=((p.plot.annos)||[]).filter(a=>a.grp!=="pk:"+c.id).concat(kept);
@@ -14738,7 +14812,7 @@ function findPeaksEvery(){
   // The analysed spectrum's range, for every spectrum on the same axis; the whole of the others.
   yCols().forEach(c=>{ const d=finalOf(c), regs=ar.length&&(d.xu||"")===ax?ar.map(g=>Object.assign({},g,{o:Object.assign({},g.o)})):[], r=searchRegions(c,regs,d.xu||"",o);
     if(!r){ none.push(specName(c)); return; }
-    const res=mergePeakSet(c,r,found[c.id],{opts:o,rng:regs.length===1?[regs[0].x0,regs[0].x1]:null,regs:regs.length?regs:null,at:Date.now(),by:S.uid||"",re:null});
+    const res=mergePeakSet(c,r,found[c.id],{opts:o,rng:regs.length===1?[regs[0].x0,regs[0].x1]:null,regs:regs.length?regs:null,at:Date.now(),by:who(),re:null});
     annos=annos.filter(a=>a.grp!=="pk:"+c.id).concat(res.kept); found[c.id]=res.rec; tot+=res.kept.length; n++; if(c===act) S.pkLast=r; });
   if(!n){ toast("Too few points to look for peaks in any spectrum."); return; }
   pushUndo("finding peaks in every spectrum");
@@ -17428,7 +17502,7 @@ function fitOne(c,t,seed,spec){
   const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), he=!!(d.e&&d.e.some(v=>v!=null&&v>0)), useW=t.weighted&&he&&pts.every(q=>q.e>0), W=pts.map(q=>useW?1/q.e:1);
   let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; X.forEach(v=>{ if(v<x0) x0=v; if(v>x1) x1=v; }); Y.forEach(v=>{ if(v<y0) y0=v; if(v>y1) y1=v; });
   const SX=t.xerr?xErrsOf(c,pts):null, SY=useW?pts.map(q=>q.e):null;
-  const base={onCol:c.id,onColName:c.name||"",maskSig:maskSig(c),pipeSig:pipeSig(c),rawFp:rawFp(),hadErrCol:he,range:[x0,x1],weighted:useW,by:S.uid||"",at:Date.now(),batch:true};
+  const base={onCol:c.id,onColName:c.name||"",maskSig:maskSig(c),pipeSig:pipeSig(c),rawFp:rawFp(),hadErrCol:he,range:[x0,x1],weighted:useW,by:who(),at:Date.now(),batch:true};
   const out=(res,more)=>Object.assign(more,{params:res.params,errors:res.errors,cov:res.cov,dep:finOrNull(res.dep),pval:finOrNull(res.pval),tval:finOrNull(res.tval),ci:finOrNull(res.ci),atBound:res.atBound,stats:res.stats},base,SX?{xerr:true,odr:odrNote(res)}:{});
   if(t.kind==="composite"){
     const sp=spec||t.spec, m=compileModel(sp,t.x0); if(m.n!==seed.length) return {fail:"the model and its starting values do not match"};
@@ -17516,7 +17590,7 @@ function fitTogether(list,t,share){
     const st=Object.assign({},res.stats); ["redChi2","R2","adjR2","rmse"].forEach(q=>{ if(!Number.isFinite(st[q])) st[q]=null; });
     const fit=Object.assign(comp?{kind:"composite",spec:clone(t.spec),x0:m.x0,fixed:t.fixed.slice()}:Object.assign({model:t.model,fixed:t.fixed.slice()},t.fn?{fn:clone(t.fn)}:{}),
       {params:res.params,errors:res.errors,cov:res.cov,dep:finOrNull(res.dep),pval:finOrNull(res.pval),tval:finOrNull(res.tval),ci:finOrNull(res.ci),atBound:res.atBound,stats:st,
-       onCol:z.c.id,onColName:z.c.name||"",maskSig:maskSig(z.c),pipeSig:pipeSig(z.c),rawFp:rawFp(),hadErrCol:z.he,range:[x0,x1],weighted:useW,by:S.uid||"",at,batch:true,
+       onCol:z.c.id,onColName:z.c.name||"",maskSig:maskSig(z.c),pipeSig:pipeSig(z.c),rawFp:rawFp(),hadErrCol:z.he,range:[x0,x1],weighted:useW,by:who(),at,batch:true,
        global:true,shared:sh.slice(),gstats});
     return {col:z.c.id,fit,fail:null}; });
   return {rows,glob:{share:sh.slice(),stats:gstats}};
@@ -17661,7 +17735,7 @@ async function runBatch(o){
   const done=list.filter(r=>r.fit).length, failed=list.length-done, nc=list.filter(r=>r.fit&&r.fit.stats&&r.fit.stats.converged===false).length;
   pushUndo(glob?"fitting every column together":"fitting every column");
   const how=glob?`together, sharing ${shareSummary(t,glob.share)} (reduced χ² ${fmt(glob.stats.redChi2,4)}, ${glob.stats.m} parameters)`:SEEDS[o.seed];
-  save({batch:{at:Date.now(),by:S.uid||"",tmpl:t,seed:o.seed,rows:list,glob}},`fitted ${lcFirst(t.name)} to ${list.length} columns${glob?" ":", "}${how}: ${done} fitted${nc?`, ${nc} without converging`:""}${failed?`, ${failed} failed`:""}${stopped?"; stopped before the end":""}${gfail?`; the fit of them together failed (${gfail}), so each has its own, with the shared parameters held at the template's values`:""}`);
+  save({batch:{at:Date.now(),by:who(),tmpl:t,seed:o.seed,rows:list,glob}},`fitted ${lcFirst(t.name)} to ${list.length} columns${glob?" ":", "}${how}: ${done} fitted${nc?`, ${nc} without converging`:""}${failed?`, ${failed} failed`:""}${stopped?"; stopped before the end":""}${gfail?`; the fit of them together failed (${gfail}), so each has its own, with the shared parameters held at the template's values`:""}`);
   renderAll(); openWin("batch",{render:true});
   toast(gfail?`Fitting them together failed: ${gfail}. Each column keeps its own fit, with the shared parameters held at the template's values.`:`Fitted ${done} of ${list.length} columns${glob?" together":""} in ${((performance.now()-t0)/1000).toFixed(1)} s.${failed?` ${failed} failed; the table says why.`:""}`,{action:"Undo",run:undo});
 }
@@ -18977,7 +19051,7 @@ function copySpectra(q,cids){
   const keep=sc.filter(c=>need.has(c.id)||xs.has(c.id)||(c.role==="e"&&need.has(c.of)));
   const map={}; keep.forEach(c=>{ map[c.id]=newColId(); }); const m=id=>map[id]||id, t=Date.now();
   const cols=keep.map(c=>{ const n=clone(c); n.id=map[c.id]; if(n.of) n.of=m(n.of); if(n.src) n.src=m(n.src);
-    n.origin={pid:q.id,proj:projName(q),col:c.id,t,by:S.uid||""};
+    n.origin={pid:q.id,proj:projName(q),col:c.id,t,by:who()};
     // A computed column arrives as its values: what it was computed from stays there.
     if(n.fx){ delete n.fx; n.origin.computed=true; }
     if(n.pipe) n.pipe=n.pipe.map(s=>{ const st=clone(s), pp=st.p||{}; st.id=newStepId();
@@ -19152,7 +19226,9 @@ function menuItems(which){
     {label:"Export", sub:exportItems},
     "-",
     {label:"Rename the project…", run:renameProject, enabled:edit},
-    {label:"Delete the project…", run:deleteProject, enabled:edit, danger:true}];
+    {label:"Delete the project…", run:deleteProject, enabled:edit, danger:true},
+    "-",
+    {label:"Preferences…", kbd:"Ctrl+,", title:"History, appearance, animations", run:()=>openPrefs()}];
   if(which==="edit"){ const ws=!!(p&&S.wsm&&S.ws&&winOpen("sheet")), wsRaw=ws&&S.sheet==="raw"&&!ro;
     return [
     {label:canUndo()?`Undo ${undoStack[undoStack.length-1].label}`:"Undo", kbd:"Ctrl+Z", run:undo, enabled:canUndo()},
@@ -19164,7 +19240,9 @@ function menuItems(which){
     {label:"Find…", kbd:"Ctrl+F", title:"In the worksheet", run:()=>{ openWin("sheet",{render:true}); wsFindOpen(); }, enabled:!!p},
     "-",
     {label:"Copy the graph as a picture", title:"A PNG on the clipboard, to paste into a document or slides", run:copyGraphPicture, enabled:has},
-    {label:"Copy the results table", run:copyResults, enabled:!!f}]; }
+    {label:"Copy the results table", run:copyResults, enabled:!!f},
+    "-",
+    {label:"Preferences…", kbd:"Ctrl+,", title:"History, appearance, animations", run:()=>openPrefs()}]; }
   if(which==="plot") return plotMenu();
   if(which==="data") return dataMenu();
   if(which==="analysis") return analysisMenu();
@@ -19216,6 +19294,32 @@ function setupDrop(){
     const fs=[...e.dataTransfer.files]; if(!fs.length) return;
     readDropped(fs).then(list=>autoImport(list,{gid:t.gid,folder:t.folder})); });
 }
+/* Preferences, kept in this browser (Preferences…, the gear in the title bar, Ctrl+,).
+   history: keep a history of changes, the log of every change (who, what, when),
+   earlier fits, the original data's record and who made each step and when. Off,
+   none of it is recorded; errors still are (logError). The processing steps are
+   kept either way: they make the processed data. anim: windows, menus and the
+   worksheet's cursor move instead of jumping. flowAuto: the History window opens
+   with a column's first processing step (never while history is off). */
+const PREF_DEF={history:true, anim:true, flowAuto:true};
+function prefGet(k){ try{ const v=localStorage.getItem("kurve.pref."+k); return v==null?PREF_DEF[k]:v==="1"; }catch(e){ return PREF_DEF[k]; } }
+function prefSet(k,v){ try{ localStorage.setItem("kurve.pref."+k,v?"1":"0"); }catch(e){} }
+function histOn(){ return prefGet("history"); }
+// Movement is on unless switched off here or by the system's reduced-motion setting.
+function animOn(){ return prefGet("anim")&&!(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches); }
+function applyAnim(){ document.documentElement.toggleAttribute("data-noanim",!animOn()); }
+// Who did something, when the history is kept; nobody, when it is not.
+function who(){ return histOn()?(S.uid||""):""; }
+/* Errors are logged whether or not the history is kept: in this browser
+   (kurve.errors, the last 50, Preferences shows them) and, for what went wrong
+   in a project (a fit that failed, a file refused), in its log, marked. */
+function errLog(){ try{ const l=JSON.parse(localStorage.getItem("kurve.errors")||"[]"); return Array.isArray(l)?l:[]; }catch(e){ return []; } }
+function noteError(text,where){ const l=errLog(); l.push({t:Date.now(),text:String(text||"error").slice(0,400),where:where||""}); try{ localStorage.setItem("kurve.errors",JSON.stringify(l.slice(-50))); }catch(e){} }
+function logError(text,where){ noteError(text,where);
+  const p=P(); if(!p||S.readOnly||!S.pid) return; const pid=S.pid;
+  setTimeout(()=>{ const q=P(); if(!q||S.pid!==pid) return; const log=(q.log||[]).concat([{t:Date.now(),uid:"",err:true,text:String(text).slice(0,300)}]).slice(-80); save({log}); },0); }
+addEventListener("error",e=>{ if(e&&e.message) noteError(e.message+(e.lineno?` (line ${e.lineno})`:""),"page"); });
+addEventListener("unhandledrejection",e=>noteError("Unhandled: "+String(e&&e.reason&&(e.reason.message||e.reason)),"page"));
 function themeSetting(){ try{ return localStorage.getItem("kurve.theme")||"auto"; }catch(e){ return "auto"; } }
 function applyTheme(t){
   if(t==="auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme",t);
@@ -19358,6 +19462,7 @@ function wireStatic(){
   const th=themeSetting(); if(th!=="auto") document.documentElement.setAttribute("data-theme",th);
   $("#themeBtn").onclick=()=>applyTheme(darkMode()?"light":"dark");
   try{ const mq=matchMedia("(prefers-color-scheme: dark)"); mq.addEventListener&&mq.addEventListener("change",()=>{ if(themeSetting()==="auto") onThemeChange(); }); }catch(e){}
+  $("#prefBtn").onclick=()=>openPrefs();
   $("#helpBtn").onclick=()=>winOpen("help")&&winState("help").z>=LAYOUT.z?closeWin("help"):openHelp();
   $("#impClose").onclick=closeImport; $("#impCancel").onclick=closeImport; $("#impGo").onclick=doImport;
   ["#impModal","#dlgModal","#formModal"].forEach(id=>{ const m=$(id); m.addEventListener("mousedown",e=>{ if(e.target===m) (m._cancel||(()=>closeModal(m)))(); }); });
@@ -19385,8 +19490,9 @@ function wireStatic(){
     const typing=!!t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.tagName==="SELECT"||t.isContentEditable);
     if(e.key==="Escape"){ if(S.mode!=="zoom"){ const was=S.mode; setMode("zoom"); if(was==="anchor"||was==="range") refreshForms(); } else if(S.pending&&t&&t.closest&&t.closest("#w-tool")){ cancelTool(); } else if(S.selPeak!=null&&!typing){ S.selPeak=null; renderPlot(); renderFit(); } return; }
     if((e.ctrlKey||e.metaKey)&&!e.altKey){
-      if(k==="enter"){ if(t&&(t.id==="cText"||(t.closest&&t.closest(".pyed,.pystep")))) return; e.preventDefault(); if(typing&&t.blur) t.blur(); fitNow(); return; }
+      if(k==="enter"){ if(t&&t.id==="cText") return; e.preventDefault(); if(typing&&t.blur) t.blur(); fitNow(); return; }
       if(k==="o"){ e.preventDefault(); pickFile(); return; }
+      if(k===","){ e.preventDefault(); openPrefs(); return; }
       if(k==="s"){ e.preventDefault(); toast(S.store&&S.store.mode==="db"?"Kurve saves every change as you make it, for everyone in this workspace.":"Kurve saves every change in this browser as you make it. To keep a copy elsewhere, use File › Export."); return; }
       // A cell has no undo of its own, so the app's undo must still work there.
       if(t&&t.tagName==="INPUT"&&t.dataset.r!=null){ if(k==="z"||k==="y"){ e.preventDefault(); t.blur(); (k==="z"&&!e.shiftKey)?undo():redo(); } return; }
@@ -19404,7 +19510,7 @@ function wireStatic(){
   setInterval(()=>{ if(winOpen("disc")) renderThread(); if(winOpen("flow")&&S.flowTab==="log") renderLog(); },60000);
 }
 async function boot(){
-  wireStatic(); renderAll();
+  applyAnim(); wireStatic(); renderAll();
   const cl=window.claude;
   const use=n=>cl&&cl.use?cl.use(n).catch(()=>null):Promise.resolve(null);
   const [db,user,room,dl]=await Promise.all([use("db"),use("user"),use("room"),use("downloads")]);
