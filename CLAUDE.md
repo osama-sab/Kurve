@@ -822,8 +822,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   `deleteMainGraph`: `p.plot` cannot go, since it keeps every graph's annotations, so it is
   emptied to a new graph's look keeping the other graphs' and the peak sets' annotations,
   taken out of a figure (`figWithout`, shared with `figRemovePanel`), closed, another graph
-  brought forward, and the worksheet given the desk when no graph is left), `toggleGraphCol`,
-  `showGraph`; menus `graphWinItems(id)` (the ⋯), `graphsMenuItems` (the taskbar's Graphs
+  brought forward, and the worksheet given the desk when no graph is left; its id "main" is
+  reused by the next first graph, so it also takes a new **generation**, `p.plot.gen`
+  (`mainGen`, 0 for a first graph never deleted; `plotBase` drops it), and anything kept
+  outside `p.plot` that names the first graph must be keyed by it or cleared here: its History
+  box is `mainKey()` (`figure`, then `figure:<gen>`), so the old box's comments read "(since
+  removed)" and come back with Undo, and its Explorer place `tree.at["g:main"]`, its zoom,
+  lead, figure focus and History selection go), `toggleGraphCol`, `showGraph`; menus `graphWinItems(id)` (the ⋯), `graphsMenuItems` (the taskbar's Graphs
   button and Window › Graphs), `newGraphItems`. **Combining**: `combineGraphs(srcs, into,
   {cids, keep, layout, at})` puts the spectra of graphs `srcs` (and spectra `cids`) on `into`
   (a graph id, `"main"`, which un-hides them, or `"new"`), copies each spectrum's series style
@@ -918,8 +923,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   Peaks box when the spectrum has a peak set (its labels typed in the inspector, what it was
   found with, a warning when the processing changed since); a Bands box when bands are drawn on
   its axis (`integ:` + id: the areas, shares and ratios); a fit box when the spectrum has
-  fits; with several graphs a box per graph (`kind:"graph"`, key `figure` for the first and
-  `graph:<id>` for the others) below the spectra, fed by dotted lines from the last box of
+  fits; with several graphs a box per graph (`kind:"graph"`, key `mainKey()` for the first,
+  `figure` or after a deletion `figure:<gen>`, and `graph:<id>` for the others) below the spectra, fed by dotted lines from the last box of
   each spectrum it shows, with its layout, annotations, recent changes and discussion
   (selecting it brings the graph forward); otherwise a Figure box below everything when the
   graph has lines, ranges, text or labels
@@ -955,7 +960,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `reportDiscussionHtml`): a comment is `{uid, text, anchor, t, resolved, resolvedBy, parent?,
   edited?, deleted?}`. The first comment of a thread carries the anchor: a point, a spot, the
   fit, or a History box (`{type:"node", key, col, label}`; `nodeAnchor(key)`, and `nodeLabel`
-  says "(since removed)" when the step is gone, until undo brings it back). A reply names its
+  says "(since removed)" when the step is gone, or the box is a deleted first graph's (its
+  key's generation is not `mainGen()`), until undo brings it back). A reply names its
   thread in `parent` and a reply to a resolved thread reopens it; deleting a first comment that
   has replies leaves "This comment was deleted" (`deleted`), and every delete offers Undo.
   Only your own comments can be edited or deleted. The same thread markup and handlers serve
@@ -1697,7 +1703,8 @@ layout, typographic minus signs, file names in any script, times across midnight
 holding a label, 300 spectra, a long graph name, a straight line through one X, a formula 300
 deep, breaks read from storage in every broken form, a second axis that cannot be numbered, a
 curved one, a PDF's cross-reference table and size, an EPS's bounding box, characters no
-standard font has, broken formats in the store. Run it after touching storage, the axes, the
+standard font has, broken formats in the store, a deleted first graph's comments and folder
+passing to the next first graph. Run it after touching storage, the axes, the
 parser, undo or the PDF and EPS writer. It serves the file over HTTP (a server of its own, on a
 free port) and waits for each page to be ready (a project on the desk), never a fixed time.
 `node tools/sheet-fuzz.mjs [path] [seed or a-b] [steps]` drives the worksheet as an erratic
@@ -2289,6 +2296,12 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   deleted, and its menu said so, because it is `p.plot`, which also stores every graph's
   annotations. Emptied and closed it is gone to the eye: every list asks `graphIds`, which
   leaves it out while `mainGone()`, and the next plot uses it again.
+- **An id used again inherits whatever still names it.** Deleting the first graph empties
+  `p.plot` and the next plot reuses "main"; a comment on the old graph's History box (keyed
+  `figure`) then sat on the new graph's box, and its Explorer folder carried over. What lives
+  outside `p.plot` and names the first graph is keyed by its generation (`mainKey()`) or
+  cleared by `deleteMainGraph`; odd-test deletes, plots again and checks nothing passed over.
+  Giving the first graph an id of its own, like the others', is on the roadmap.
 - **A class name is global, once more.** The pickers' entrance was first written for `.fp`,
   which is the History's code for a fingerprint: every check code would have faded in. The
   pickers are `.fpick` and `.cpick`; grep a class before styling it.
@@ -2308,7 +2321,9 @@ Preferences dialog (a gear in the title bar, File and Edit › Preferences…, C
 switch to keep no history at all, only errors. A new project, and an import, show the worksheet
 alone: nothing is plotted until the user plots it. Python was removed (old projects keep their
 Python steps' stored results). Afterwards, from a question: the first graph can be deleted like
-any other (it was the one graph that could not be).
+any other (it was the one graph that could not be), and, since the next first graph reuses its
+id, what named the old one (its History box's comments, its Explorer folder) does not pass to
+the new one.
 
 Round before: the user's review of the interface. Columns move by dragging their letters,
 or from their menu (Left, Right, To the start, To the end), each spectrum keeping its X; values
@@ -2572,7 +2587,9 @@ Next, in order:
 6. More files: JCAMP-DX, then SPC; OPUS and SPE last
 7. Under the hood: projects in IndexedDB rather than localStorage (no 5 MB limit, BroadcastChannel
    between tabs); `tools/odd-test.mjs` grown to run every example end to end; the worksheet
-   drawing only the columns in view; speed with thousands of spectra
+   drawing only the columns in view; speed with thousands of spectra; the first graph made
+   a graph like the others (an id of its own in `p.graphs`, every graph's annotations in a
+   list of their own, saved projects moved over), so no id is ever used again
 8. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
    applied in one click, unread markers
 

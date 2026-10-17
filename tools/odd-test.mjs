@@ -217,6 +217,27 @@ await page(async p => {
   check("broken formats in the store and in the project are left out, the good ones kept", r.proj.join() === "R" && r.lib.join() === "ok", JSON.stringify(r));
 }, { name: "formats" });
 
+console.log("A deleted first graph leaves nothing to the next one");
+await page(async p => {
+  const g = await p.evaluate(() => gauss(200, 150, 6, 10, 100, 1, 0));
+  await p.evaluate(async g => { await mkSpec("A", g.x, g.y); }, g); await p.waitForTimeout(200);
+  const wait = ms => p.waitForTimeout(ms);
+  const y0 = await p.evaluate(() => { const y0 = activeYCol().id, c2 = Object.assign(makeCol("y", "B", "", activeYCol().data.map(v => v * 2)), { pipe: [], mask: [] });
+    save({ cols: P().cols.concat([c2]) }); plotCols([c2.id], {}); return y0; }); await wait(200);
+  /* the first graph's id is reused: a comment on its box and its folder must not pass to the next first graph */
+  await p.evaluate(() => { S.cDrafts = S.cDrafts || {}; S.cDrafts["node:" + mainKey()] = "About the first graph"; postNodeComment(mainKey());
+    const t = treeOf(P()); t.folders.push({ id: "fo", name: "Old", parent: null }); t.at["g:main"] = "fo"; saveTree(t, null, { noUndo: true }); }); await wait(300);
+  const th = () => p.evaluate(() => (S.comments || []).filter(c => c.anchor && c.anchor.type === "node").map(c => ({ on: c.anchor.key === mainKey(), lab: nodeLabel(c.anchor) })));
+  await p.evaluate(() => deleteGraph("main")); await wait(300);
+  await p.evaluate(y0 => plotCols([y0], {}), y0); await wait(300);
+  const r = await p.evaluate(() => ({ reused: !mainGone() && graphName("main") === "Graph 1", at: treeOf(P()).at["g:main"] || null })), t1 = await th();
+  check("the next first graph gets none of the deleted one's comments", r.reused && t1.length === 1 && !t1[0].on && /since removed/.test(t1[0].lab), JSON.stringify([r, t1]));
+  check("nor its place in the Explorer", r.at === null, r.at);
+  await p.evaluate(() => { undo(); undo(); }); await wait(300);
+  const at = await p.evaluate(() => treeOf(P()).at["g:main"] || null), t2 = await th();
+  check("undoing the deletion gives both back", at === "fo" && t2.length === 1 && t2[0].on && !/since removed/.test(t2[0].lab), JSON.stringify([at, t2]));
+}, { name: "first graph deleted" });
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

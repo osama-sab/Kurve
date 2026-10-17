@@ -537,3 +537,12 @@ next plot uses it again. Its columns stay; Undo brings it back; with no graph le
 worksheet takes the whole desk. Checked: deleting with one graph, with two (the other comes
 forward, keeps its labels), as a figure's panel, undo and redo, plotting again; odd-test (51),
 sheet-fuzz seed 1, menucheck and the drives (44, 43) pass.
+
+**Then: nothing of a deleted first graph passes to the next.** The next plot reuses the deleted
+first graph's place, and two things still named it: a comment on its History box sat on the
+new graph's box, and the Explorer folder it was in took the new graph. The first graph now takes
+a new generation when it is deleted; its History box is keyed by it, so the old comments read
+"(since removed)" in the Discussion window and come back with Undo, and its folder, zoom and
+History selection are cleared. odd-test deletes it with a comment and a folder, plots again and
+checks that neither passed over and that Undo gives both back (55 checks; the new ones fail on
+the previous commit).

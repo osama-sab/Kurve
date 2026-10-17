@@ -5766,6 +5766,14 @@ function allGraphIds(p){ p=p||P(); return p?["main"].concat((p.graphs||[]).map(g
    graph's annotations, so it cannot leave the project. Closed with nothing on it, it is
    gone as far as anyone can see: in no list, no menu, no box of the History, no export;
    the next plot uses it again. (A function, not a const: graphIds runs early.) */
+/* The first graph keeps the id "main" whatever happens to it, so what is attached to it
+   from outside p.plot cannot use that id alone: its History box (and so the comments on
+   it) is keyed by its generation, p.plot.gen, which deleting it moves on. A thread on a
+   deleted first graph then reads "(since removed)" instead of turning up on the next one,
+   and Undo, which puts the old p.plot back, brings it back. Anything new that is keyed by
+   a graph's id and lives outside p.plot must be keyed this way, or cleared in deleteMainGraph. */
+function mainGen(p){ p=p||P(); const g=p&&p.plot&&p.plot.gen; return Number.isInteger(g)&&g>0?g:0; }
+function mainKey(p){ const g=mainGen(p); return g?"figure:"+g:"figure"; }
 function mainGone(p){ p=p||P(); const pl=p&&p.plot; if(!pl||!pl.shut||!Array.isArray(pl.cols)) return false;
   const ys=new Set((p.cols||[]).filter(c=>c.role==="y").map(c=>c.id));
   return !pl.cols.some(k=>ys.has(k))&&!figOf("main",p); }
@@ -13482,7 +13490,7 @@ function nodeLabel(a){
     if(s&&c&&!isPending(s)) return `Step ${c.pipe.indexOf(s)+1} of ${specName(c)}: ${stepShort(s)}`;
     return `${capFirst(a.label||"a step")} (since removed)`; }
   if(kind==="table") return "Original data";
-  if(kind==="figure") return multiGraph()?graphName("main"):"Figure";
+  if(kind==="figure"){ if(String(id||"")!==String(mainGen()||"")) return `${capFirst(a.label||"the first graph")} (since removed)`; return multiGraph()?graphName("main"):"Figure"; }
   if(kind==="graph") return graphOf(id)?graphName(id):`${capFirst(a.label||"a graph")} (since removed)`;
   const c=colById(id); if(!c) return `${capFirst(a.label||"a column")} (since removed)`;
   return `${NODE_KIND[kind]||"Box"} of ${specName(c)}`;
@@ -13620,7 +13628,7 @@ function goNode(key,opt){
   opt=opt||{}; if(!P()) return;
   S.flowTab="flow"; if(S.flowInsp===false) S.flowInsp=true;
   openWin("flow",{render:true});
-  const L=flowLayout(); if(!L.by[key]){ toast("That box is no longer in the History: the step it was on has been removed."); return; }
+  const L=flowLayout(); if(!L.by[key]){ toast("That box is no longer in the History: the step or graph it was on has been removed."); return; }
   flowSelect(key,L);
   requestAnimationFrame(()=>{ scrollFlowTo(key); if(opt.disc) scrollInspToDisc(opt.tid,opt.focus); });
 }
@@ -15935,11 +15943,11 @@ function flowLayout(){
     drawGraphIds().forEach(gid=>{ const cs=graphCols(gid).filter(c=>endOf[c.id]), lanes=cs.map(c=>endOf[c.id].col);
       const want=lanes.length?lanes.reduce((a,b)=>a+b,0)/lanes.length:0; let row=base;
       while(placed.some(q=>q.row===row&&Math.abs(q.col-want)<1)) row++;
-      const key=gid==="main"?"figure":"graph:"+gid;
+      const key=gid==="main"?mainKey():"graph:"+gid;
       add({key,kind:"graph",gid,col:want,row,cs,annos:annos.filter(a=>(a.g||"main")===gid)}); placed.push({row,col:want});
       cs.forEach(c=>edges.push({a:endOf[c.id].key,b:key,feed:true})); }); }
   else if(annos.length&&nodes.length){ const maxRow=nodes.reduce((m,n)=>Math.max(m,n.row),0), cols=nodes.map(n=>n.col);
-    add({key:"figure",kind:"figure",col:(Math.min(...cols)+Math.max(...cols))/2,row:maxRow+1,annos}); }
+    add({key:mainKey(),kind:"figure",col:(Math.min(...cols)+Math.max(...cols))/2,row:maxRow+1,annos}); }
   // Steps that read another spectrum: a dashed line from what they read.
   nodes.filter(n=>n.kind==="step"&&!n.st.off).forEach(n=>{ const def=PIPE_OPS[n.s.op]; if(!def||!def.deps) return;
     def.deps(Object.assign({},def.defaults||{},n.s.p||{})).forEach(([id,use])=>{ const o=colById(id); if(!o) return;
@@ -18999,7 +19007,7 @@ function renderGraphHeads(){
 /* ---- Making, changing and removing graphs ---- */
 function nextGraphName(p){ const used=new Set(allGraphIds(p).map(id=>graphName(id,p))); let n=1; while(used.has("Graph "+n)) n++; return "Graph "+n; }
 // A new graph looks like the one in front, with its own axes and no annotations.
-function plotBase(pl){ const o=clone(pl||{})||{}; ["annos","hidden","title","legendPos","gname","cols","shut"].forEach(k=>delete o[k]); o.ax={}; o.layout="overlay"; if(o.legend==="custom") o.legend="auto"; return o; }
+function plotBase(pl){ const o=clone(pl||{})||{}; ["annos","hidden","title","legendPos","gname","cols","shut","gen"].forEach(k=>delete o[k]); o.ax={}; o.layout="overlay"; if(o.legend==="custom") o.legend="auto"; return o; }
 function graphBase(from){ return plotBase(plotOf(from||GID())); }
 function newGraphs(groups,opt){ opt=opt||{}; const p=P(); if(!p||S.readOnly) return [];
   groups=groups.map(ids=>ids.filter(k=>{ const c=colById(k); return c&&c.role==="y"; })).filter(g=>g.length); if(!groups.length) return [];
@@ -19088,9 +19096,13 @@ function deleteMainGraph(){
   const p=P(); if(!p||S.readOnly) return; const nm=graphName("main"), f=figOf("main");
   pushUndo("deleting "+nm);
   const annos=(p.plot.annos||[]).filter(a=>(a.g&&a.g!=="main")||a.grp);
-  const patch={plot:{style:"auto",logY:false,grid:false,resid:"auto",cols:[],shut:true,annos}};
+  const patch={plot:{style:"auto",logY:false,grid:false,resid:"auto",cols:[],shut:true,annos,gen:mainGen(p)+1}};
   if(f) patch.graphs=(p.graphs||[]).map(g=>g.id===f.id?Object.assign({},g,{fig:figWithout(f,"main")}):g);
-  if(S.gv) S.gv.main=null; if(S.gid==="main") S.view=null; S.annoSel=null; S.legSel=null;
+  // Its place in the Explorer goes with it (the next first graph is filed afresh).
+  { const t=treeOf(p); if(t.at["g:main"]){ delete t.at["g:main"]; patch.tree=t; } }
+  if(S.gv) S.gv.main=null; if(S.glead) delete S.glead.main; if(S.figAct) Object.keys(S.figAct).forEach(k=>{ if(S.figAct[k]==="main") delete S.figAct[k]; });
+  if(S.gid==="main") S.view=null; S.annoSel=null; S.legSel=null;
+  if(S.flowSel===mainKey(p)) S.flowSel=null;
   save(patch,`deleted ${nm} (its columns stay in the project)`);
   closeWin("graph");
   // Another graph on the desk comes forward, so the live graph is one that can be seen.

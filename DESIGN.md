@@ -453,6 +453,9 @@ the first one too. It could not be because of how it is stored (the project's ow
 settings, which also hold every graph's labels), which is no reason to show the user. Deleting
 it empties and closes it, and it is left out of every list until the next plot uses it; its
 columns stay, Undo brings it back, and with no graph left the worksheet takes the desk.
+A graph made after it starts clean: the old graph's comments say it was removed, and its
+folder in the Explorer is not given to the new one, since a thing the user deleted must not
+reappear on what replaced it.
 
 ### 2026-10-17: defaults (UX rework, Phase 4 slice 5)
 
