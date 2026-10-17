@@ -720,6 +720,9 @@ details.more>table{margin-top:var(--sp-4)}
 .prefs .errs{list-style:none;margin:var(--sp-3) 0 0;padding:0;max-height:180px;overflow:auto;font-size:var(--fs-tab)}
 .prefs .errs li{display:grid;grid-template-columns:96px 1fr;gap:var(--sp-4);padding:var(--sp-2) 0;border-bottom:1px solid var(--rule-2)}
 .log li.logerr .ln{color:var(--bad)}
+#ws th.ch.hidc,#ws td.hid{padding:0;background:var(--rule-2);border-left:2px solid var(--muted);border-right:2px solid var(--muted);cursor:col-resize}
+#ws td.hid{font-size:0}
+#ws th.rh.hidab{box-shadow:inset 0 3px 0 var(--muted);cursor:row-resize}
 .log li.logoff{display:flex;align-items:center;gap:var(--sp-3)}
 .sheet-p p{margin:0 0 var(--sp-5)}
 .sheet-f{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-5) var(--sp-6);border-top:1px solid var(--rule)}
@@ -5246,7 +5249,7 @@ function migrate(p){
 
 /* Undo is per-session and local: it rewinds your own edits, not other
    people's. Cross-user undo in a shared document is a different problem. */
-const UNDO_KEYS=["cols","activeY","meta","fit","plot","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","lines","rawLock","tree","wsAlign"];
+const UNDO_KEYS=["cols","activeY","meta","fit","plot","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","lines","rawLock","tree","wsAlign","wsHide"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
 /* Raw values are replaced, never changed in place, so a snapshot keeps each
    column's data array as it is and copies the rest: with 20 spectra of 50 000
@@ -9591,15 +9594,63 @@ function wsEditFormula(ci,init){ if(S.sheet!=="raw"){ S.sheet="raw"; renderWs();
    hashes that order). m.ord maps a row of the sheet to its data row, m.inv
    back; the row numbers shown are the data rows'. */
 function wsOrder(m){
-  const s=S.wsSort; if(!s||s.sheet!==m.kind) return m;
-  const ci=m.cols.findIndex(q=>q.id===s.id&&!q.phantom); if(ci<0) return m;
-  const q=m.cols[ci], get=k=>{ const v=m.kind==="final"?q.get(k):q.col.data[k]; return v==null||!Number.isFinite(v)?null:v; };
-  const ord=Array.from({length:m.n},(_,k)=>k).sort((a,b)=>{ const va=get(a), vb=get(b);
-    if(va==null&&vb==null) return a-b; if(va==null) return 1; if(vb==null) return -1; return (va-vb)*s.dir||a-b; });
-  const inv=new Array(m.n); ord.forEach((k,r)=>{ inv[k]=r; });
-  return Object.assign(m,{ord,inv,sortCi:ci,sortDir:s.dir});
+  const s=S.wsSort, ci=s&&s.sheet===m.kind?m.cols.findIndex(q=>q.id===s.id&&!q.phantom):-1;
+  // Rows hidden in the Original sheet leave its order, as they would a filter;
+  // m.n is then the rows shown and m.nd the rows of data.
+  const H=m.kind==="raw"?new Set(wsHideOf(m.p).rows.filter(k=>k<m.n)):null;
+  if(ci<0&&!(H&&H.size)) return m;
+  let ord=Array.from({length:m.n},(_,k)=>k);
+  if(ci>=0){ const q=m.cols[ci], get=k=>{ const v=m.kind==="final"?q.get(k):q.col.data[k]; return v==null||!Number.isFinite(v)?null:v; };
+    ord.sort((a,b)=>{ const va=get(a), vb=get(b);
+      if(va==null&&vb==null) return a-b; if(va==null) return 1; if(vb==null) return -1; return (va-vb)*s.dir||a-b; }); }
+  if(H&&H.size) ord=ord.filter(k=>!H.has(k));
+  const inv=new Array(m.n).fill(null); ord.forEach((k,r)=>{ inv[k]=r; });
+  return Object.assign(m,{ord,inv,nd:m.n,n:ord.length,sorted:ci>=0,sortCi:ci>=0?ci:null,sortDir:ci>=0?s.dir:0,hidR:H&&H.size?H:null});
 }
-const wsDR=(m,r)=>m&&m.ord&&r>=0&&r<m.n?m.ord[r]:r;   // a row of the sheet → its data row
+// A row of the sheet → its data row; below the data shown, the rows after the data.
+const wsDR=(m,r)=>m&&m.ord&&r>=0?(r<m.n?m.ord[r]:r-m.n+m.nd):r;
+/* Hidden columns and rows (Excel's Hide and Unhide): p.wsHide = {cols:[column id],
+   rows:[data row]}, kept with the project and in UNDO_KEYS. A view only: hidden
+   data are still plotted, fitted, counted and exported. A hidden column is a thin
+   marked strip, so the letters stay where they were (double-click it to show it);
+   hidden rows leave the sheet's order (wsOrder), and the row after them carries a
+   mark (double-click its number). */
+function wsHideOf(p){ const h=(p&&p.wsHide)||{}, ids=new Set(allCols().filter(c=>!c.src).map(c=>c.id));
+  return {cols:(h.cols||[]).filter(id=>ids.has(id)), rows:(h.rows||[]).filter(k=>Number.isInteger(k)&&k>=0)}; }
+function wsHideSave(cols,rows,label,log){ const p=P(); if(!p||S.readOnly) return;
+  pushUndo(label); save({wsHide:{cols:[...new Set(cols)],rows:[...new Set(rows)].sort((a,b)=>a-b)}},log);
+  if(S.ws) S.ws.win=null; renderWs(); }
+function wsHideCols(ids){ const p=P(), h=wsHideOf(p), m=S.wsm; ids=ids.filter(id=>colById(id)&&!h.cols.includes(id)); if(!ids.length) return;
+  const L=ids.map(id=>colLetter(colById(id))).join(", ");
+  wsHideSave(h.cols.concat(ids),h.rows,"hiding columns",`hid column${ids.length===1?"":"s"} ${L} in the worksheet`);
+  // The active cell leaves a column that is hidden.
+  if(m&&S.ws){ const c=wsVisCol(S.wsm,S.ws.c,1); S.ws.c=S.ws.ac=c; wsPaintSel(); }
+  toast(`Column${ids.length===1?"":"s"} ${L} hidden. Double-click the strip, or Data › Hide and show, to show ${ids.length===1?"it":"them"} again.`,{action:"Undo",run:undo}); }
+function wsShowCols(ids){ const p=P(), h=wsHideOf(p), set=ids?new Set(ids):null, keep=h.cols.filter(id=>set&&!set.has(id)); if(keep.length===h.cols.length) return;
+  wsHideSave(keep,h.rows,"showing columns",`showed ${h.cols.length-keep.length} hidden column${h.cols.length-keep.length===1?"":"s"}`); }
+function wsHideRows(rows){ const p=P(), h=wsHideOf(p); rows=rows.filter(k=>!h.rows.includes(k)); if(!rows.length) return;
+  wsHideSave(h.cols,h.rows.concat(rows),"hiding rows",`hid ${rows.length} row${rows.length===1?"":"s"} in the worksheet`);
+  if(S.ws){ S.ws.ar=S.ws.r=Math.min(S.ws.r,Math.max(0,(S.wsm||{n:1}).n-1)); wsPaintSel(); }
+  toast(`${rows.length} row${rows.length===1?"":"s"} hidden. Double-click the marked row number, or Data › Hide and show, to show ${rows.length===1?"it":"them"} again.`,{action:"Undo",run:undo}); }
+function wsShowRows(rows){ const p=P(), h=wsHideOf(p), set=rows?new Set(rows):null, keep=h.rows.filter(k=>set&&!set.has(k)); if(keep.length===h.rows.length) return;
+  wsHideSave(h.cols,keep,"showing rows",`showed ${h.rows.length-keep.length} hidden row${h.rows.length-keep.length===1?"":"s"}`); }
+// The nearest column shown, from c in direction dir (then the other way).
+function wsVisCol(m,c,dir){ if(!m||!m.cols[c]||!m.cols[c].hidden) return c;
+  for(let i=c;i>=0&&i<m.cols.length;i+=dir) if(!m.cols[i].hidden) return i;
+  for(let i=c;i>=0&&i<m.cols.length;i-=dir) if(!m.cols[i].hidden) return i; return c; }
+// The data rows of the sheet rows r0…r1 (the Original sheet).
+function wsDataRows(r0,r1){ const m=S.wsm, out=[]; if(!m||m.kind!=="raw") return out; for(let r=Math.max(r0,0);r<=Math.min(r1,m.n-1);r++) out.push(wsDR(m,r)); return out; }
+// The hidden rows just above sheet row r (in recorded order), for its mark.
+function wsHiddenAbove(m,r){ if(!m||!m.hidR||m.sorted||r<0||r>m.n) return null;
+  const k=r<m.n?m.ord[r]:m.nd, prev=r>0?m.ord[r-1]:-1, out=[]; for(let j=prev+1;j<k;j++) if(m.hidR.has(j)) out.push(j); return out.length?out:null; }
+// Data › Hide and show, and the same in the menus of a column, a cell and a row.
+function hideItems(){ const m=S.wsm, p=P(), raw=!!m&&m.kind==="raw", ro=S.readOnly||!p, h=wsHideOf(p), {r0,r1}=S.ws?wsSelRect():{r0:0,r1:-1};
+  const ids=raw?wsSelColIds():[], rows=raw?wsDataRows(r0,r1):[];
+  return [{label:ids.length>1?`Hide the ${ids.length} selected columns`:"Hide the selected column", enabled:!ro&&raw&&ids.length>0, run:()=>wsHideCols(ids)},
+    {label:rows.length>1?`Hide the ${rows.length} selected rows`:"Hide the selected row", enabled:!ro&&raw&&rows.length>0, run:()=>wsHideRows(rows)},
+    "-",
+    {label:h.cols.length?`Show every hidden column (${h.cols.length})`:"Show every hidden column", enabled:!ro&&h.cols.length>0, run:()=>wsShowCols(null)},
+    {label:h.rows.length?`Show every hidden row (${h.rows.length})`:"Show every hidden row", enabled:!ro&&h.rows.length>0, run:()=>wsShowRows(null)}]; }
 function wsSortBy(id,dir){ S.wsSort=id&&dir?{sheet:S.sheet,id,dir}:null; if(S.ws) S.ws.win=null; renderWs(); }
 
 /* ---- Filling -------------------------------------------------------------------
@@ -9639,7 +9690,7 @@ function wsFill(src,dir,to,alt){
   const p=P(), m=wsLive(); if(!p||!m) return;
   if(m.kind!=="raw"){ toast("The Processed sheet is read only."); return; }
   if(S.readOnly) return;
-  if(m.ord){ toast("Unsort the sheet first: filling follows the rows in the order they were recorded."); return; }
+  if(m.ord){ toast(m.hidR?"Show the hidden rows first: filling follows every row in the order they were recorded.":"Unsort the sheet first: filling follows the rows in the order they were recorded."); return; }
   const {writes,bad}=wsFillPlan(src,dir,to,alt);
   if(bad<0){ toast("Fill down continues the values of data rows: select some first."); return; }
   if(bad){ toast(rawLocked()?`The original data is locked, so filling writes only into empty cells: ${bad} cell${bad===1?" in the way holds a value":"s in the way hold values"}.`:`${bad} cell${bad===1?" in the way is":"s in the way are"} in a computed column, which its formula fills.`); return; }
@@ -9753,7 +9804,8 @@ async function openFillDlg(kind,opt){
   const p=P(); if(!p||S.readOnly) return; opt=opt||{};
   if(!winOpen("sheet")) openWin("sheet",{render:true}); else focusWin("sheet");
   if(S.sheet!=="raw") setSheet("raw");
-  if(S.wsm&&S.wsm.ord){ toast("Unsort the sheet first: a fill follows the rows in the order they were recorded.",{action:"Unsort",run:()=>wsSortBy(null,0)}); return; }
+  if(S.wsm&&S.wsm.ord){ if(S.wsm.hidR&&!S.wsm.sorted){ toast("Show the hidden rows first: a fill follows every row in the order they were recorded.",{action:"Show them",run:()=>wsShowRows(null)}); return; }
+    toast("Unsort the sheet first: a fill follows the rows in the order they were recorded.",{action:"Unsort",run:()=>wsSortBy(null,0)}); return; }
   const L=fillLast(), t=fillTarget(opt.col), k0=FILL_KINDS.some(([k])=>k===kind)?kind:L.kind;
   // A column full in the rows chosen gives way to a new one, and so does one
   // with recorded values there when only a cell was selected.
@@ -9869,7 +9921,7 @@ function wsFindCount(){ const el=$("#wsFindN"), f=S.wsFind; if(!el) return;
    as quickly as a short one. S.ws is the selection ({r, c} active, {ar, ac}
    the other corner; label rows are r = -4 … -1) and S.wsm the model
    drawn: columns, the number of data rows and how to read a cell. */
-const WS_IDX=82, WS_W=100, WS_MINW=36;
+const WS_IDX=82, WS_W=100, WS_MINW=36, WS_HIDW=6;
 const WS_LABS=[{r:-4,k:"name",label:"Long Name",max:60},{r:-3,k:"unit",label:"Units",max:30},{r:-2,k:"comm",label:"Comments",max:200},{r:-1,k:"fx",label:"F(x)=",max:400}];
 const WS_TOP=-4;
 /* Under the letters the worksheet shows Long Name and Units; Comments, F(x)= and
@@ -9904,8 +9956,10 @@ function wsModel(){
       q.spark=q.id==="f:y"?sparkSvg(d,Math.max(20,q.w-12),16,"wspark"):""; });
     return wsOrder({kind:"final", cols, n:d.x.length, d, c, p});
   }
-  const cols=allCols().filter(c=>!c.src), n=nRows(), hidden=plotCfg().hidden, actRoot=rootOf(activeYCol()), xs=cols.filter(c=>c.role==="x"), gOpen=winOpen(winOfGraph(S.gid||"main"));
-  const mc=cols.map((c,i)=>{ const isY=c.role==="y", isAct=c===actRoot, off=isY&&!isAct&&gOpen&&hidden.includes(c.id), L=wsLetter(i), w=W[c.id]||WS_W;
+  const cols=allCols().filter(c=>!c.src), n=nRows(), hidden=plotCfg().hidden, actRoot=rootOf(activeYCol()), xs=cols.filter(c=>c.role==="x"), gOpen=winOpen(winOfGraph(S.gid||"main")), hid=new Set(wsHideOf(p).cols);
+  const mc=cols.map((c,i)=>{ const isY=c.role==="y", isAct=c===actRoot, off=isY&&!isAct&&gOpen&&hidden.includes(c.id), L=wsLetter(i), w=hid.has(c.id)?WS_HIDW:W[c.id]||WS_W;
+    if(hid.has(c.id)) return {id:c.id, col:c, letter:L, role:ROLE_LABEL[c.role]||c.role, w, hidden:true, lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx,
+      title:`Column ${L}${c.name?" ("+c.name+")":""} is hidden. Double-click to show it.`};
     let spark="";
     if(c.data.some(v=>v!=null)){ const xc=isY||c.role==="e"?xColFor(c.role==="e"?colById(c.of)||c:c):null, idx=[], ys=[];
       c.data.forEach((v,k)=>{ if(v==null) return; const xv=xc?xc.data[k]:k; if(xv==null) return; idx.push(xv); ys.push(v); });
@@ -9960,10 +10014,10 @@ function renderWs(){
   S.wsMask=new Set(m.kind==="raw"?maskOf(activeYCol()):maskOf(m.c)); S.wsFixed=m.kind==="raw"?fixedCells():new Map();
   const tw=WS_IDX+m.cols.reduce((a,q)=>a+q.w,0), sx=box.scrollLeft, sy=box.scrollTop;
   let h=`<table class="grid" style="width:${tw}px"><colgroup><col style="width:${WS_IDX}px">${m.cols.map(q=>`<col data-cw="${esc(q.id)}" style="width:${q.w}px">`).join("")}</colgroup><thead>`;
-  h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"><button type="button" class="wsrows" data-wsrows aria-haspopup="menu" aria-expanded="false" title="Rows under the letters: Comments, F(x)=, Sparklines" aria-label="Rows to show under the letters">⋯</button></th>${m.cols.map((q,i)=>`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.calc?`<span class="fxm${q.fxErr?" bad":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx)}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.off?`<span class="lab hoff" title="Hidden on the graph">hidden</span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`).join("")}</tr>`;
+  h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"><button type="button" class="wsrows" data-wsrows aria-haspopup="menu" aria-expanded="false" title="Rows under the letters: Comments, F(x)=, Sparklines" aria-label="Rows to show under the letters">⋯</button></th>${m.cols.map((q,i)=>q.hidden?`<th class="ch hidc" data-ch="${i}" title="${esc(q.title)}" aria-label="${esc(q.title)}"></th>`:`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.calc?`<span class="fxm${q.fxErr?" bad":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx)}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.off?`<span class="lab hoff" title="Not on the graph in front">not plotted</span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`).join("")}</tr>`;
   const AL=p.wsAlign||{};
-  wsLabRows().forEach(L=>{ h+=`<tr class="lab"><th class="rl" scope="row" data-lr="${L.r}"${L.k==="fx"?` title="A column's formula: letters are columns (B*2, (B-C)/A, log10(B)), x the row's X value, i the row number. Click a cell here to type one."`:""}>${L.label}</th>${m.cols.map((q,i)=>{ const bd=L.k==="fx"&&q.fxErr, al=L.k!=="fx"&&AL[q.id]?" al-"+AL[q.id]:""; return `<td class="lc${L.k==="fx"?" fxc":""}${bd?" bad":""}${al}" data-r="${L.r}" data-ci="${i}"${bd?` title="${esc(q.fxErr)}"`:L.k==="fx"&&m.kind==="raw"&&!q.lab.fx?` title="Click to type a formula for column ${q.letter}"`:""}>${esc(q.lab[L.k]||"")}</td>`; }).join("")}</tr>`; });
-  if(wsRowsPref().spk) h+=`<tr class="spk"><th class="rl" scope="row">Sparklines</th>${m.cols.map(q=>`<td>${q.spark||""}</td>`).join("")}</tr>`;
+  wsLabRows().forEach(L=>{ h+=`<tr class="lab"><th class="rl" scope="row" data-lr="${L.r}"${L.k==="fx"?` title="A column's formula: letters are columns (B*2, (B-C)/A, log10(B)), x the row's X value, i the row number. Click a cell here to type one."`:""}>${L.label}</th>${m.cols.map((q,i)=>{ const bd=L.k==="fx"&&q.fxErr, al=L.k!=="fx"&&AL[q.id]?" al-"+AL[q.id]:""; if(q.hidden) return `<td class="lc hid" data-r="${L.r}" data-ci="${i}"></td>`; return `<td class="lc${L.k==="fx"?" fxc":""}${bd?" bad":""}${al}" data-r="${L.r}" data-ci="${i}"${bd?` title="${esc(q.fxErr)}"`:L.k==="fx"&&m.kind==="raw"&&!q.lab.fx?` title="Click to type a formula for column ${q.letter}"`:""}>${esc(q.lab[L.k]||"")}</td>`; }).join("")}</tr>`; });
+  if(wsRowsPref().spk) h+=`<tr class="spk"><th class="rl" scope="row">Sparklines</th>${m.cols.map(q=>q.hidden?`<td class="hid"></td>`:`<td>${q.spark||""}</td>`).join("")}</tr>`;
   // A spacer as tall as the rows, so the scroll can be put back before they are drawn.
   h+=`</thead><tbody><tr class="gap" aria-hidden="true"><td colspan="${m.cols.length+1}" style="height:${wsRowCount(m)*(S.ws.rowH||25)}px"></td></tr></tbody></table>`;
   box.innerHTML=h; box.scrollLeft=sx; box.scrollTop=sy;
@@ -9976,9 +10030,11 @@ function renderWs(){
 }
 function wsRowHtml(m,r){
   const fin=m.kind==="final", k=wsDR(m,r), idx=fin?(r<m.n?m.d.idx[k]:null):k, masked=idx!=null&&(fin||r<m.n)&&S.wsMask.has(idx), pt=idx!=null&&S.sel===idx&&r<m.n;
-  let h=`<tr class="dr${masked?" masked":""}${pt?" pt":""}" data-r="${r}"><th class="rh" data-rh="${r}" scope="row"${r<m.n?` title="Select row ${k+1}${masked?" (masked)":""}; its point is marked on the graph"`:""}>${k+1}</th>`;
+  const ha=wsHiddenAbove(m,r), hat=ha?` · rows ${ha[0]+1}${ha.length>1?"–"+(ha[ha.length-1]+1):""} above are hidden: double-click to show them`:"";
+  let h=`<tr class="dr${masked?" masked":""}${pt?" pt":""}" data-r="${r}"><th class="rh${ha?" hidab":""}" data-rh="${r}" scope="row"${r<m.n||ha?` title="${r<m.n?`Select row ${k+1}${masked?" (masked)":""}; its point is marked on the graph`:`Row ${k+1}`}${hat}"`:""}>${k+1}</th>`;
   const AL=m.p&&m.p.wsAlign||{};
-  m.cols.forEach((q,i)=>{ const fx=!fin&&!q.phantom?S.wsFixed.get(q.id+":"+k):null, al=AL[q.id], cls=[fx?"fixed":"",q.calc?"calc":"",al?"al-"+al:""].filter(Boolean).join(" ");
+  m.cols.forEach((q,i)=>{ if(q.hidden){ h+=`<td class="hid" data-r="${r}" data-ci="${i}"></td>`; return; }
+    const fx=!fin&&!q.phantom?S.wsFixed.get(q.id+":"+k):null, al=AL[q.id], cls=[fx?"fixed":"",q.calc?"calc":"",al?"al-"+al:""].filter(Boolean).join(" ");
     h+=`<td data-r="${r}" data-ci="${i}"${cls?` class="${cls}"`:""}${fx?` title="${esc(fx)}"`:""}>${esc(wsText(m,r,i))}</td>`; });
   return h+`</tr>`;
 }
@@ -10025,7 +10081,8 @@ function wsBar(){
   const a=$("#wsAddr"), v=$("#wsVal"); if(!a||!v) return;
   const m=S.wsm; if(!m||!P()){ a.textContent=""; v.textContent=""; return; }
   const s=S.ws, {r0,r1,c0,c1}=wsSelRect(), q=m.cols[s.c];
-  const ref=(r,c)=>{ const L=(m.cols[c]||{}).letter||"?"; if(r>=0) return L+(r+1); const lab=WS_LABS.find(z=>z.r===r); return L+" "+(lab?lab.label:""); };
+  const ref=(r,c)=>{ const L=(m.cols[c]||{}).letter||"?"; // A row is named by its number in the data, as its header shows it (rows hidden or sorted).
+  if(r>=0) return L+(wsDR(m,r)+1); const lab=WS_LABS.find(z=>z.r===r); return L+" "+(lab?lab.label:""); };
   a.textContent=r0!==r1||c0!==c1?`${ref(r0,c0)}:${ref(r1,c1)}`:ref(s.r,s.c);
   const t=wsText(m,s.r,s.c), calc=m.kind==="raw"&&s.r>=0&&q&&q.calc, locked=rawLocked()&&!calc&&m.kind==="raw"&&s.r>=0&&q&&!q.phantom&&q.col.data[wsDR(m,s.r)]!=null;
   const inp=$("#wsValIn"), ic=$("#wsValIc"), hint=$("#wsValHint"); wsAlignBar();
@@ -10087,21 +10144,24 @@ function wsFoot(){
   let left;
   if(m.kind==="final"){ const steps=(m.c&&m.c.pipe||[]).filter(s=>s.on!==false).length;
     left=`${m.n} point${m.n===1?"":"s"} of ${esc(specName(m.c))} after ${steps?`${steps} processing step${steps===1?"":"s"}`:"no processing (the original data)"} · read only`; }
-  else { const n=m.n, nm=S.wsMask.size, ok=rawVerified(), fp=(p.raw&&p.raw.fp)||"";
+  else { const n=m.nd!=null?m.nd:m.n, nm=S.wsMask.size, ok=rawVerified(), fp=(p.raw&&p.raw.fp)||"";
     const lk=rawLocked();
     left=n?`<span${lk?` title="The original data is locked: empty cells can be filled or pasted into; typing over a value asks for a reason and records a correction step instead."`:""}>${lk?ICON("lock","sm")+" ":""}${n} row${n===1?"":"s"}${lk?", locked":""}${fp?` · <a href="#" id="wsFp" title="${esc("SHA-256 of the original values: "+fp+(ok===false?" (the data no longer matches it)":"")+". Every change to them is in the original-data record.")}">${ok===false?"check code differs":"sha256 "+esc(fpShort(fp))}</a>`:""}${nm?` · ${nm} masked`:""}${S.wsFixed.size?` · ${S.wsFixed.size} corrected`:""}</span>`
       :"Empty · type into any cell, or paste a block from a spreadsheet"; }
-  if(m.ord) left+=` · <span title="Only the view is sorted: the data keep the order they were recorded in">sorted by ${esc(m.cols[m.sortCi].letter)} ${m.sortDir>0?"↑":"↓"}</span> <a href="#" id="wsUnsort">Unsort</a>`;
+  if(m.sorted) left+=` · <span title="Only the view is sorted: the data keep the order they were recorded in">sorted by ${esc(m.cols[m.sortCi].letter)} ${m.sortDir>0?"↑":"↓"}</span> <a href="#" id="wsUnsort">Unsort</a>`;
+  if(m.kind==="raw"){ const h=wsHideOf(p), nc=h.cols.length, nr=m.hidR?m.hidR.size:0;
+    if(nc||nr) left+=` · <span title="Hidden from view, still in the data">${[nc?`${nc} column${nc===1?"":"s"}`:"",nr?`${nr} row${nr===1?"":"s"}`:""].filter(Boolean).join(" and ")} hidden</span> <a href="#" id="wsShowAll">Show</a>`; }
   foot.innerHTML=`<span class="wsl">${left}</span><span class="sp"></span><span id="wsStat" class="wsstat"></span>`;
   const wf=$("#wsFp"); if(wf) wf.onclick=e=>{ e.preventDefault(); showRawInfo(); };
   const wu=$("#wsUnsort"); if(wu) wu.onclick=e=>{ e.preventDefault(); wsSortBy(null,0); };
+  const wa=$("#wsShowAll"); if(wa) wa.onclick=e=>{ e.preventDefault(); const h=wsHideOf(P()); if(!h.cols.length&&!h.rows.length) return; wsHideSave([],[],"showing everything hidden",`showed every hidden column and row`); };
   wsStats();
 }
 function renderWsSel(){
   document.querySelectorAll("#ws tr.dr").forEach(tr=>{ const r=+tr.dataset.r, m=S.wsm, k=wsDR(m,r), idx=m&&m.kind==="final"?(r<m.n?m.d.idx[k]:null):k; tr.classList.toggle("pt",idx!=null&&S.sel===idx&&r<(m?m.n:0)); });
 }
 // The worksheet row of a raw row number (the Final sheet lists processed points).
-function wsRowOf(i){ const m=S.wsm; if(!m) return i; const k=m.kind==="final"?m.d.idx.indexOf(i):i; if(k<0) return null; return m.inv&&k<m.n?m.inv[k]:k; }
+function wsRowOf(i){ const m=S.wsm; if(!m) return i; const k=m.kind==="final"?m.d.idx.indexOf(i):i; if(k<0) return null; if(!m.inv) return k; return k<m.nd?m.inv[k]:k-m.nd+m.n; }
 function scrollRow(i){ const box=$("#ws"); if(!box||!S.wsm) return; const r=wsRowOf(i); if(r==null) return;
   const rowH=S.ws.rowH||25, vis=box.clientHeight-(S.ws.head||0), y=r*rowH;
   if(y<box.scrollTop||y+rowH>box.scrollTop+vis) box.scrollTop=Math.max(0,y-vis/2); wsRows(false); renderWsSel(); }
@@ -10123,6 +10183,7 @@ function wsSelect(r,c,extend){
   const R=wsRowCount(m)-1+(m.kind==="raw"?200:0), C=m.cols.length-1;
   r=Math.max(WS_TOP,Math.min(R,r)); c=Math.max(0,Math.min(C,c));
   r=wsLabSnap(r,s.r);
+  if(!extend) c=wsVisCol(m,c,c>=s.c?1:-1);
   s.r=r; s.c=c; if(!extend){ s.ar=r; s.ac=c; }
   if(r>=wsRowCount(m)-1&&m.kind==="raw"){ s.extra=(s.extra||0)+200; S.ws.win=null; }
   wsEnsureVisible(r,c); wsPaintSel();
@@ -10135,11 +10196,12 @@ function wsMove(dr,dc,extend,jump,how){
   else if(how==="enter"&&dr===1&&s.tabFrom!=null&&!extend){ c=s.tabFrom; s.tabFrom=null; r+=1; wsSelect(r,c,false); s.want={r:s.r,c:s.c,t:performance.now()}; return; }
   else s.tabFrom=null;
   if(jump){
-    if(dr>0){ const q=m.cols[c], last=m.kind==="final"?m.n-1:q&&!q.phantom?q.col.data.length-1:m.n-1; r=r<last?Math.max(last,0):wsRowCount(m)-1; }
+    if(dr>0){ const q=m.cols[c], last=m.kind==="final"||m.ord?m.n-1:q&&!q.phantom&&!q.hidden?q.col.data.length-1:m.n-1; r=r<last?Math.max(last,0):wsRowCount(m)-1; }
     else if(dr<0) r=r>0?0:WS_TOP;
     if(dc>0){ const lastReal=m.cols.filter(q=>!q.phantom).length-1; c=c<lastReal?lastReal:m.cols.length-1; }
     else if(dc<0) c=0;
   } else { r+=dr; c+=dc; }
+  if(dc&&m.cols[c]&&m.cols[c].hidden){ const v=wsVisCol(m,c,dc>0?1:-1); if(!m.cols[v].hidden&&(dc>0?v>=c:v<=c)) c=v; else c=s.c; }
   wsSelect(r,c,extend);
   // A move by the keys keeps its cell in view even if a scroll still under way
   // (the wheel's smooth scroll) lands elsewhere just after; the wheel turned
@@ -10261,7 +10323,7 @@ function wsPasteText(text){
   const lines=unwrapQuoted(String(text).replace(/\r\n?/g,"\n")).split("\n"); while(lines.length&&!lines[lines.length-1].trim()) lines.pop();
   if(!lines.length) return;
   if(lines.length===1&&!lines[0].includes("\t")){ wsSetCell(r0,c0,lines[0]); return; }
-  if(m.ord){ toast("Unsort the sheet to paste a block: the rows are shown in another order than they were recorded in."); return; }
+  if(m.ord){ toast(m.sorted?"Unsort the sheet to paste a block: the rows are shown in another order than they were recorded in.":"Show the hidden rows to paste a block: it fills every row, hidden or not.",m.sorted?{}:{action:"Show them",run:()=>wsShowRows(null)}); return; }
   const labs=r0<0?lines.splice(0,Math.min(-r0,lines.length)).map(l=>l.split("\t")):[];
   const g=lines.length?parseGrid(lines.join("\n")):{rows:[],header:null}, rows=g.rows, header=labs.length?null:g.header, rs=Math.max(0,r0);
   const width=Math.max(rows.reduce((a,r)=>Math.max(a,r.length),0),labs.reduce((a,r)=>Math.max(a,r.length),0));
@@ -10346,13 +10408,14 @@ function wsCellMenu(ev,r,c){
     {label:"Copy", kbd:"Ctrl+C", run:()=>copyText(wsCopyText(),"Copied the selected cells.")},
     {label:"Paste", kbd:"Ctrl+V", enabled:raw&&!S.readOnly, run:wsPasteMenu},
     {label:"Clear", kbd:"Delete", enabled:raw&&!S.readOnly, run:wsClear},
-    raw&&r1>=0?{label:r1>Math.max(r0,0)?`Insert ${r1-Math.max(r0,0)+1} rows above`:"Insert a row above", enabled:!S.readOnly&&!rawLocked()&&!m.ord, title:rawLocked()?"The original data is locked":m.ord?"Put the view back in its original order first":"", run:()=>wsRowsEdit("insert")}:null,
+    raw&&r1>=0?{label:r1>Math.max(r0,0)?`Insert ${r1-Math.max(r0,0)+1} rows above`:"Insert a row above", enabled:!S.readOnly&&!rawLocked()&&!m.ord, title:rawLocked()?"The original data is locked":m.hidR?"Show the hidden rows first":m.ord?"Put the view back in its original order first":"", run:()=>wsRowsEdit("insert")}:null,
     raw&&r1>=0?{label:r1>Math.max(r0,0)?`Delete rows ${Math.max(r0,0)+1}–${r1+1}`:`Delete row ${r1+1}`, danger:true, enabled:!S.readOnly&&!rawLocked()&&!m.ord&&Math.max(r0,0)<m.n, title:rawLocked()?"The original data is locked":m.ord?"Put the view back in its original order first":"", run:()=>wsRowsEdit("delete")}:null,
     "-",
     raw?{label:"Plot the selected columns", enabled:!S.readOnly, sub:()=>plotItems(wsSelColIds())}:null,
     raw?{label:"Fill", sub:fillMenuItems}:null,
     raw&&q&&(q.phantom||q.calc||!q.col.data.some(v=>v!=null))?{label:q.calc?"Edit the formula…":"Set column values (formula)…", enabled:!S.readOnly, run:()=>wsEditFormula(c)}:null,
     {label:"Sort the view", enabled:!!q&&!q.phantom, sub:()=>sortViewItems(c)},
+    raw?{label:"Hide and show", sub:hideItems}:null,
     {label:"Find…", kbd:"Ctrl+F", run:wsFindOpen},
     "-",
     {label:allMasked?`Restore ${rows.length===1?"this point":"these "+rows.length+" points"}`:`Mask ${rows.length===1?"this point":"these "+rows.length+" points"} in ${specName(act)}`, enabled:!!rows.length&&!!act&&!S.readOnly, run:()=>toggleMask(rows,!allMasked)},
@@ -10394,6 +10457,11 @@ function setupWs(){
     const m=S.wsm, s=S.ws; s.tabFrom=null;
     if(t.closest("th.corner")){ e.preventDefault(); box.focus({preventScroll:true}); s.r=WS_TOP; s.c=0; s.ar=Math.max(0,m.n-1); s.ac=Math.max(0,m.cols.filter(q=>!q.phantom).length-1); wsPaintSel(); return; }
     const ch=t.closest("th[data-ch]");
+    // A hidden column's strip shows it again on a double click; a single click selects beside it.
+    if(ch&&ch.classList.contains("hidc")){ e.preventDefault(); const c=+ch.dataset.ch;
+      if(e.detail===2&&!S.readOnly){ const run=[]; for(let i=c;i>=0&&m.cols[i]&&m.cols[i].hidden;i--) run.unshift(m.cols[i].id); for(let i=c+1;m.cols[i]&&m.cols[i].hidden;i++) run.push(m.cols[i].id); wsShowCols(run); }
+      return; }
+    { const rh0=t.closest("th.rh.hidab"); if(rh0&&e.detail===2&&!S.readOnly){ e.preventDefault(); const ha=wsHiddenAbove(m,+rh0.dataset.rh); if(ha) wsShowRows(ha); return; } }
     if(ch){ e.preventDefault(); box.focus({preventScroll:true}); const c=+ch.dataset.ch, sr=wsSelRect(), q=m.cols[c];
       // A column of a whole-column selection is held and dragged to move them (as in a
       // spreadsheet); a click without moving selects it alone.
@@ -10527,7 +10595,8 @@ function wsRowsEdit(kind){
   const p=P(), m=wsLive(); if(!p||!m||S.readOnly) return;
   if(m.kind!=="raw"){ toast("The Processed sheet is read only."); return; }
   if(rawLocked()){ toast("The original data is locked, so rows cannot be inserted or deleted.",{action:"Unlock",run:()=>setRawLock(false)}); return; }
-  if(m.ord){ toast("Unsort the sheet first: rows are inserted and deleted in the order they were recorded.",{action:"Unsort",run:()=>wsSortBy(null,0)}); return; }
+  if(m.ord){ if(m.hidR&&!m.sorted){ toast("Show the hidden rows first: rows are inserted and deleted among every row.",{action:"Show them",run:()=>wsShowRows(null)}); return; }
+    toast("Unsort the sheet first: rows are inserted and deleted in the order they were recorded.",{action:"Unsort",run:()=>wsSortBy(null,0)}); return; }
   if(S.ws.edit) wsCommit(0,0,true);
   const {r0,r1}=wsSelRect(), a=Math.max(0,r0), n=r1-a+1; if(r1<0||n<1) return;
   const raw=allCols().filter(c=>!c.src&&!c.fx);
@@ -10623,12 +10692,17 @@ function openColMenu(id,btn){
   const rawIdx=cols.filter(o=>!o.src).indexOf(c), recorded=!c.fx&&c.data.some(v=>v!=null);
   items.push("-",plotIt,{label:c.fx?"Edit the formula…":"Set column values (formula)…", enabled:!ro&&!recorded, title:recorded?"This column holds original values; type a formula into an empty column":"", run:()=>{ openWin("sheet"); wsEditFormula(rawIdx); }},
     {label:"Fill column with", enabled:!ro&&!c.fx, title:c.fx?"A computed column is filled by its formula":"A series, row numbers, a list, random numbers or a trend", sub:()=>FILL_KINDS.map(([k,l,t])=>({label:l+"…", title:t, run:()=>openFillDlg(k,{col:id})}))},
-    {label:"Sort the view by this column", title:"The data keep their recorded order", sub:()=>{ const m=S.wsm, on=m&&m.ord&&m.cols[m.sortCi]&&m.cols[m.sortCi].id===id; return [
+    {label:"Sort the view by this column", title:"The data keep their recorded order", sub:()=>{ const m=S.wsm, on=m&&m.sorted&&m.cols[m.sortCi]&&m.cols[m.sortCi].id===id; return [
       {label:"Ascending", radio:true, checked:!!(on&&m.sortDir>0), run:()=>{ if(S.sheet!=="raw") setSheet("raw"); wsSortBy(id,1); }},
       {label:"Descending", radio:true, checked:!!(on&&m.sortDir<0), run:()=>{ if(S.sheet!=="raw") setSheet("raw"); wsSortBy(id,-1); }},
-      "-",{label:"Original order", title:"The rows as they were recorded", enabled:!!(m&&m.ord), run:()=>wsSortBy(null,0)}]; }});
+      "-",{label:"Original order", title:"The rows as they were recorded", enabled:!!(m&&m.sorted), run:()=>wsSortBy(null,0)}]; }});
   if(c.fx&&FX_ERR.get(c.id)) items.push({group:"Formula: "+FX_ERR.get(c.id),plain:true});
   { const n=colMenuTargets(id).length; items.push("-",{label:n>1?`Move the ${n} columns`:"Move", title:"Or drag the selected columns by their letters", sub:()=>colMoveItems(id)},{label:"Align", sub:()=>colAlignItems(id)}); }
+  { const ids=colMenuTargets(id), h=wsHideOf(p), raw=allCols().filter(o=>!o.src), i=raw.indexOf(c), near=[];
+    for(let j=i-1;j>=0&&h.cols.includes(raw[j].id);j--) near.push(raw[j].id); for(let j=i+1;j<raw.length&&h.cols.includes(raw[j].id);j++) near.push(raw[j].id);
+    items.push({label:ids.length>1?`Hide the ${ids.length} columns`:"Hide", title:"Off the worksheet, still in the data: plotted, fitted and exported as before", enabled:!ro, run:()=>wsHideCols(ids)});
+    if(near.length) items.push({label:`Show the hidden column${near.length===1?"":"s"} beside it`, enabled:!ro, run:()=>wsShowCols(near)});
+    else if(h.cols.length) items.push({label:`Show every hidden column (${h.cols.length})`, enabled:!ro, run:()=>wsShowCols(null)}); }
   items.push("-",{label:"Delete column", danger:true, enabled:!ro&&cols.length>2, title:cols.length>2?"":"A project keeps at least two columns", run:()=>deleteCol(id)});
   openMenu(btn,items,{label:`Column ${L} options`});
 }
@@ -14437,11 +14511,11 @@ function spectrumItems(){
 // Sorting the worksheet's view (the data keep their recorded order): by the
 // column of the cell in hand, or by column ci.
 function sortViewItems(ci){
-  const m=S.wsm, i=ci!=null?ci:S.ws?S.ws.c:-1, q=m&&i>=0?m.cols[i]:null, ok=!!(q&&!q.phantom&&q.id), on=!!(ok&&m.ord&&m.sortCi===i);
+  const m=S.wsm, i=ci!=null?ci:S.ws?S.ws.c:-1, q=m&&i>=0?m.cols[i]:null, ok=!!(q&&!q.phantom&&q.id), on=!!(ok&&m.sorted&&m.sortCi===i);
   return [{group:ok?`By column ${q.letter}`:"Select a cell of the column to sort by",plain:true},
     {label:"Ascending", radio:true, checked:on&&m.sortDir>0, enabled:ok, run:()=>wsSortBy(q.id,1)},
     {label:"Descending", radio:true, checked:on&&m.sortDir<0, enabled:ok, run:()=>wsSortBy(q.id,-1)},
-    "-",{label:"Original order", title:"The rows as they were recorded", enabled:!!(m&&m.ord), run:()=>wsSortBy(null,0)}];
+    "-",{label:"Original order", title:"The rows as they were recorded", enabled:!!(m&&m.sorted), run:()=>wsSortBy(null,0)}];
 }
 function dataMenu(){
   const p=P(), has=!!(p&&pointsAll().length), edit=!!p&&!S.readOnly;
@@ -14451,6 +14525,7 @@ function dataMenu(){
     {label:"Add a column", run:addColumn, enabled:edit},
     {label:"Fill", sub:fillMenuItems, enabled:edit},
     {label:"Sort the view", title:"By the column of the selected cell; the data keep their recorded order", sub:()=>sortViewItems(), enabled:!!p},
+    {label:"Hide and show", title:"Columns and rows of the worksheet: hidden from view, still in the data", sub:hideItems, enabled:!!p},
     "-",
     {label:"Clean", sub:()=>[t("crop"), t("exclude"), t("sort"), t("dedupe"), t("resample")]},
     {label:"Masks", sub:()=>[{label:"Mask points on the graph", run:()=>setMode("mask"), enabled:has},
