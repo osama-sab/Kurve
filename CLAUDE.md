@@ -2568,29 +2568,38 @@ Python again"); user-defined fit functions with a library; true Voigt and Fano s
 peak parameters (one width, area ratios, fixed spacings).
 
 Next, in order:
-1. Counting spectra, further: other analysers' files (Maestro .Spe with its calibration, N42;
+1. The curve fit as complete as Origin's fitting dialogs, the user's choice; the task, its
+   decisions and its slices are `ux/spec/FIT_SPEC.md`: fit control shown and set, with a
+   1 Iteration button and the iterations listed; one parameter grid with limits for every
+   model; about 25 more models, searchable, each with a sketch; a confidence level, ANOVA,
+   the covariance and correlation matrices, studentised residuals, residual plots and
+   outliers; Find X/Y; the fitted values and residuals in the worksheet; counting and
+   column weights, an apparent fit; starting values and constraints as formulas; fit
+   settings saved by name, and fits that follow their data; the function editor grown, and
+   an organizer. In the docked Fit window, in Kurve's words, running no code
+2. Counting spectra, further: other analysers' files (Maestro .Spe with its calibration, N42;
    CHN and CNF are binary), FWHM and efficiency against energy, net peak areas over a local
    continuum with their counting errors and activities, a nuclide named by the set of its lines
    (their intensity ratios, interferences), region edges dragged on the graph
-2. Plots Origin has and Kurve lacks, further: a distribution fitted over a histogram (normal,
+3. Plots Origin has and Kurve lacks, further: a distribution fitted over a histogram (normal,
    log-normal) with its parameters; box charts of one column grouped by another, notched
    boxes; stacked and grouped bars with category names; per-row or per-column shared axes in a
    figure; a map from scattered X, Y, Z (triangulated) rather than from spectra
-3. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
+4. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
    with its own scale on each side, polygons and curved arrows
-4. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
+5. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
    lanes, keyboard access to annotations and peak handles, handles for shape parameters
    (Lorentz fraction, Pearson m, Fano 1/q)
-5. Many spectra, further: a parameter that follows the series in a global fit (a centre
+6. Many spectra, further: a parameter that follows the series in a global fit (a centre
    linear in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the
    files' header fields as rows of the worksheet, global fits in a worker
-6. More files: JCAMP-DX, then SPC; OPUS and SPE last
-7. Under the hood: projects in IndexedDB rather than localStorage (no 5 MB limit, BroadcastChannel
+7. More files: JCAMP-DX, then SPC; OPUS and SPE last
+8. Under the hood: projects in IndexedDB rather than localStorage (no 5 MB limit, BroadcastChannel
    between tabs); `tools/odd-test.mjs` grown to run every example end to end; the worksheet
    drawing only the columns in view; speed with thousands of spectra; the first graph made
    a graph like the others (an id of its own in `p.graphs`, every graph's annotations in a
    list of their own, saved projects moved over), so no id is ever used again
-8. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
+9. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
    applied in one click, unread markers
 
 ## Known gaps
