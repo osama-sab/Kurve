@@ -238,6 +238,18 @@ await page(async p => {
   check("undoing the deletion gives both back", at === "fo" && t2.length === 1 && t2[0].on && !/since removed/.test(t2[0].lab), JSON.stringify([at, t2]));
 }, { name: "first graph deleted" });
 
+console.log("A curve fit held to one iteration, a tolerance of zero, starting values it cannot use");
+await page(async p => {
+  const g = await p.evaluate(() => { const x=[], y=[]; for(let i=0;i<120;i++){ x.push(i*0.1); y.push(1+4*Math.exp(-i*0.1/1.7)+0.01*Math.sin(i)); } return {x,y}; });
+  await p.evaluate(async g => { await mkSpec("decay", g.x, g.y); }, g); await p.waitForTimeout(200);
+  const r = await p.evaluate(() => { S.fitMode="curve"; showTab("fit"); const d=ensureDraft(); d.model="expdec"; d.fn=null; d.fixed=null; guessDraft();
+    d.init=[0,1,0]; stepFit(); const bad=S.fitError||"";
+    d.init=[0,1,1]; S.fitError=""; d.ctl={maxIter:1,tol:0}; runFit(); const f=P().fit;
+    return { bad, iter:f&&f.stats.iter, conv:f&&f.stats.converged, nan:/NaN|Infinity/.test(document.querySelector("#plot").innerHTML), run:!!S.fitRun }; });
+  check("one iteration from starting values the model cannot use says so in words", /can't be evaluated/.test(r.bad), r.bad);
+  check("a fit held to one iteration stops after one, unsettled, and draws no NaN", r.iter===1 && r.conv===false && !r.nan && !r.run, JSON.stringify(r));
+}, { name: "fit control" });
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

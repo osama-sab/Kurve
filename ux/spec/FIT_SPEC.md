@@ -61,7 +61,8 @@ Origin's help pages it was compared with: the NLFit dialog's
 Each slice ships on its own: unit tests, a drive, its help article, DESIGN.md's reason,
 CLAUDE.md, the menu spec when a menu changes.
 
-1. **Fit control and stepping.** The draft carries `ctl = {maxIter, tol, method}` (method:
+1. **Fit control and stepping** (done 2026-10-21; *Remove fit* moved into the fit's summary
+   to keep the footer one row; 1 iteration is not offered with the X errors). The draft carries `ctl = {maxIter, tol, method}` (method:
    Levenberg–Marquardt, or orthogonal distance when X errors are on); `lmFit` and `odrFit`
    take `opt.maxIter` and `opt.tol` instead of their fixed 400 and 10⁻¹². A **1 Iteration**
    button takes one step from the current starts and makes the result the new starts; Fit

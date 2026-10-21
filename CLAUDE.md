@@ -143,6 +143,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   units of each parameter's own curvature, and finite-difference steps sized from an optional
   `pscale`. Those last two are what let a model mixing areas of 1e6 with widths of 10 converge.
   It returns standard errors, 95% CI, t and p values, `dep` (dependency), `atBound`, AIC and BIC.
+  Fit control: `opt.maxIter` (400) and `opt.tol` (1e-12, the fall in χ² as a fraction of it
+  below which a step counts as settled; or no parameter moving by one part in 10¹⁰);
+  `opt.onIter({iter, chi, lambda, p})` hears each step taken; `opt.lambda0`, `opt.pscale` and
+  `opt.deadline` (a `performance.now()` time) run a fit in slices: between iterations the state
+  is the parameters and λ alone, so a fit paused (`stats.paused`) and carried on from its
+  `params` and returned `lambda`, or taken one step (`maxIter:1`) at a time, follows exactly
+  the path of one uninterrupted fit. `stats.iter` counts the steps taken.
   `opt.blocks = {seg, of}` makes it block-sparse: `seg` the point ranges (covering every point),
   `of[i]` the range parameter i alone moves (or -1 for all); each point then keeps only the
   derivatives that can be non-zero, so the Jacobian and the normal equations cost the number of
@@ -191,7 +198,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   every point, is found in rounds so that the reduced χ² is 1. A point with no X error keeps
   its X. It starts from `lmFit`'s result, settles when χ² stops falling or neither the
   parameters nor the shifts move (the first step moves the shifts alone), and returns
-  `lmFit`'s fields plus `odr {s, iter, conv, rounds, dx}`. For a straight line with the same
+  `lmFit`'s fields plus `odr {s, iter, conv, rounds, dx}`; `opt.maxIter` (300 here) and `opt.tol`
+  as `lmFit`'s. For a straight line with the same
   errors everywhere it is Deming regression.
 - **Pipeline** (`==PIPE:START/END==`, pure, after PEAKS): the processing steps. `PIPE_OPS` maps an
   op to `{group, rank, label, short, help, params (a schema the panel renders), defaults,
@@ -297,7 +305,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   histogram bins, and orthogonal distance regression (a line's slope not pulled flat by
   errors in X while an ordinary fit's is, its error against its spread over 300 repeats,
   Deming's closed form, no X errors equal to a weighted fit, the Y scatter found, a decay with
-  errors in time). Run it after touching any of this.
+  errors in time), and fit control (an iteration limit, a looser tolerance, one step equal to
+  a fit's first, steps one at a time and slices paused by a deadline ending exactly where the
+  whole fit does, orthogonal distance's limit). Run it after touching any of this.
   `matchPeakTracks(lists, {tol, dx})` follows the same peak through a series: each spectrum's
   peaks (`{x, w}`) join the track whose last position is nearest, within `tol` (0.5) of the
   larger FWHM (`dx` when neither has one), closest pairs first, two peaks of one spectrum never
@@ -341,6 +351,29 @@ graph first, with the taskbar kept at the bottom of the screen.
   `fitStale` notices a lost X-error column; the prediction band uses s². A global fit does not
   use X errors. `fitUnits(f)` gives the units of the fit's own spectrum (Results, the copied
   table and the report used the analysed spectrum's).
+  **Fit control** (`ux/spec/FIT_SPEC.md` slice 1; curve fits): the draft's `ctl`
+  (`{maxIter, tol}`, `FIT_CTL` 400 and 1e-12, read through `fitCtl`), the Fit window's *Fit
+  control* group (`fitCtlHtml`, `wireFitCtl`: the method named, *Iterations, at most*,
+  *Tolerance*, back to the defaults; a field updates the group in place, never redraws the
+  form), stored on the fit as `ctl {maxIter, tol, method:"lm"|"odr"}` and said by `ctlText(f)`
+  (Results' Fit control row, the report's Algorithm line, the CSV; a fit from before has none
+  and ran with the defaults, 300 iterations for orthogonal distance). `runFit` runs
+  Levenberg–Marquardt in slices of about 80 ms (`S.fitRun {stop, d, pid, col, model, done, p,
+  lam}`; the footer's Fit becomes *Stop*; a change of column, model or project ends it), and
+  saves through `saveCurveFit`; a fit that settles in its first slice is done before `runFit`
+  returns. *Stop* makes the last values the starting values and saves nothing. **1 iteration**
+  (`stepFit`, not with X errors) takes one step from the starting values and makes the result
+  the new ones (one undo entry, no fit saved). **Iterations** (`S.fitLog`: `fitLogFor` starts
+  or carries on a list, carrying on when the run starts where the last ended, with its λ and
+  finite-difference scale; `fitLogRow`, `fitLogBody`, `fitLogHtml`, `renderFitLog`, the last
+  `FITLOG_MAX` rows): row 0 the starting values, then every step's reduced χ², λ and
+  parameters, and a note on how it ended; open by itself only while running or after a step
+  (`L.byStep`), else as the user last left it (`S.flogOpen`, from the summary's click). While
+  the Fit window is open the model at its starting values is drawn dashed over the data
+  (`curveOverlay`, "estimate" in the legend, `path[data-cstart]`), and not when it is the fit.
+  `fitWarnings` says when a fit stopped at its limit; `batchTemplate` carries `ctl` and
+  `fitOne` runs with it. *Remove fit* is in the fit's summary (`fitSummary(f, more)`), so the
+  footer (Fit, 1 iteration, Guess, Done) keeps to one row in the dock.
 - **Batch fits and series** (`p.batch`, `p.series`, both in `UNDO_KEYS`): the analysed
   spectrum's fit is the template (`batchTemplate`: model, peaks with shapes, ties and fixed
   parameters, baseline or curve model, X range, weighting, X units). `runBatch({tmpl, seed,
@@ -1704,7 +1737,8 @@ holding a label, 300 spectra, a long graph name, a straight line through one X, 
 deep, breaks read from storage in every broken form, a second axis that cannot be numbered, a
 curved one, a PDF's cross-reference table and size, an EPS's bounding box, characters no
 standard font has, broken formats in the store, a deleted first graph's comments and folder
-passing to the next first graph. Run it after touching storage, the axes, the
+passing to the next first graph, a curve fit held to one iteration or started where its
+model cannot be evaluated. Run it after touching storage, the axes, the
 parser, undo or the PDF and EPS writer. It serves the file over HTTP (a server of its own, on a
 free port) and waits for each page to be ready (a project on the desk), never a fixed time.
 `node tools/sheet-fuzz.mjs [path] [seed or a-b] [steps]` drives the worksheet as an erratic
@@ -2302,11 +2336,30 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   outside `p.plot` and names the first graph is keyed by its generation (`mainKey()`) or
   cleared by `deleteMainGraph`; odd-test deletes, plots again and checks nothing passed over.
   Giving the first graph an id of its own, like the others', is on the roadmap.
+- **One more button can push a switch out of reach.** *1 iteration* made the Fit window's
+  footer two rows in the 356 px of the dock, and the sticky footer then covered the
+  *Residuals under the graph* switch: a drive's click landed on the footer. *Remove fit* moved
+  into the fit's summary; count a footer's buttons against the dock's width.
+- **An editor may write an escape as its character.** A patch's old text `Levenberg\u2013`,
+  saved through a file writer, became `Levenberg–` and no longer matched the source, which
+  writes the escape. The script reported the miss and wrote nothing, as it must; match escapes
+  as the source has them.
+- **A test project must fit in the store.** A drive's 300 000-point project was refused by
+  localStorage (a few megabytes), so `createProject` never opened it and the drive fitted the
+  previous project. Make a slow fit from fewer points and a slower model (a user's function).
 - **A class name is global, once more.** The pickers' entrance was first written for `.fp`,
   which is the History's code for a fingerprint: every check code would have faded in. The
   pickers are `.fpick` and `.cpick`; grep a class before styling it.
 
 ## Roadmap
+
+Under way: the curve fit as complete as Origin's fitting dialogs (`ux/spec/FIT_SPEC.md`, the
+roadmap's first item). Slice 1 done: Fit control in the Fit window (the method named, the
+iterations at most, the tolerance), stored with each fit and said by Results, the report and
+the CSV; *1 iteration*, one step from the starting values, which it replaces; the iterations
+listed as they go (reduced χ², λ, the parameters), steps taken one at a time following Fit's
+own path; a long fit run in slices with *Stop*; the curve at its starting values drawn dashed
+while the Fit window is open; fits of every column run with the template's control.
 
 Done in this round: the user's review after the UX rework's slice 5. The worksheet hides and shows
 columns and rows, as Excel's Hide and Unhide (a marked strip, a marked row number, a double click
@@ -2721,6 +2774,10 @@ Next, in order:
   different parameters, and a user's function cannot be a peak shape in a peak fit
 - Comments have no mentions, unread markers or notifications; they are plain text
 - No Shirley or Tougaard background (XPS); no Fourier self-deconvolution
+- Fit control is the curve fit's: a peak fit and a global fit run with the defaults (400
+  iterations, 1e-12); *1 iteration* is a Levenberg–Marquardt step (not with the X errors); the
+  list of iterations keeps the last 200 rows, is this browser's alone and is not in the
+  project; *Stop* is heard between slices, so an iteration slower than a slice ends first
 - Python is gone: a project made with it keeps each Python step's stored result, which cannot
   be run again or changed (it does not follow a change to its input)
 - With the history off, nothing is recorded from then on, so a report or the original data's

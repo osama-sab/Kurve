@@ -737,5 +737,35 @@ check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
     check("a decay with errors in time: converges, and finds its time constant", r.stats.converged && Math.abs(r.params[1]-1.5)<3*r.errors[1] && Math.abs(r.stats.redChi2-1)<0.5 && r.odr.dx.length===60, JSON.stringify({p:r.params,e:r.errors,c:r.stats.redChi2,it:r.odr.iter})); }
 }
 
+/* ---------- fit control: the iteration limit, the tolerance, one step at a time, slices ---------- */
+{
+  // A decay seen from poor starts takes a number of steps.
+  const f=(x,p)=>p[0]+p[1]*Math.exp(-x/p[2]), rnd=N.mulberry32(5), X=[], Y=[];
+  for(let i=0;i<80;i++){ const x=i*0.1; X.push(x); Y.push(1+4*Math.exp(-x/1.7)+0.02*(rnd()-0.5)); }
+  const W=X.map(()=>1), p0=[0,1,0.5], fx=[false,false,false], ps=p0.map(v=>Math.abs(v)||1);
+  const full=N.lmFit(f,X,Y,W,p0,fx), steps=[];
+  N.lmFit(f,X,Y,W,p0,fx,{onIter:q=>steps.push(q)});
+  check("fit control: a fit counts its steps, and each is heard", full.stats.converged && full.stats.iter===steps.length && steps.length>3, `${full.stats.iter} vs ${steps.length}`);
+  const one=N.lmFit(f,X,Y,W,p0,fx,{maxIter:1});
+  check("one iteration stops after one step, not settled, the parameters moved", one.stats.iter===1 && !one.stats.converged && one.params.some((v,i)=>v!==p0[i]));
+  check("one iteration is exactly the first step of the whole fit", one.params.every((v,i)=>v===steps[0].p[i]) && one.lambda===steps[0].lambda);
+  // One step at a time, carrying lambda and the finite-difference scale, is the whole fit's path.
+  let p=p0.slice(), lam, k=0, last=null;
+  while(k<500){ last=N.lmFit(f,X,Y,W,p,fx,{maxIter:1,lambda0:lam,pscale:ps}); k++; p=last.params; lam=last.lambda; if(last.stats.converged) break; }
+  check("steps taken one at a time follow the whole fit's path to the same result", p.every((v,i)=>v===full.params[i]), JSON.stringify([p,full.params]));
+  // Slices by a deadline already past: a pause after every step, carried on.
+  let q=p0.slice(), lq, done=0, slices=0, r=null;
+  do { r=N.lmFit(f,X,Y,W,q,fx,{maxIter:400-done,lambda0:lq,pscale:ps,deadline:-1}); slices++; done+=r.stats.iter; q=r.params; lq=r.lambda; } while(r.stats.paused && slices<500);
+  check("a fit run in slices pauses after each and ends where the whole fit does", slices>3 && q.every((v,i)=>v===full.params[i]) && done===full.stats.iter, `${slices} slices, ${done} steps`);
+  const loose=N.lmFit(f,X,Y,W,p0,fx,{tol:1e-3});
+  check("a looser tolerance settles in fewer steps", loose.stats.converged && loose.stats.iter<full.stats.iter, `${loose.stats.iter} vs ${full.stats.iter}`);
+  const lim=N.lmFit(f,X,Y,W,p0,fx,{maxIter:3});
+  check("an iteration limit stops a fit that has not settled", lim.stats.iter===3 && !lim.stats.converged && !lim.stats.paused);
+  const atMin=N.lmFit(f,X,Y,W,full.params,fx,{maxIter:1});
+  check("from the minimum, one iteration settles at once", atMin.stats.converged && atMin.stats.iter<=1, atMin.stats.iter);
+  const SX=X.map(()=>0.02), o=N.odrFit(f,X,Y,null,SX,p0,fx,{maxIter:2});
+  check("orthogonal distance honours the iteration limit", !o.error && o.odr.iter<=2, o.error||o.odr.iter);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -577,6 +577,19 @@ details.grp>summary::before{content:"";width:6px;height:6px;border-right:1.6px s
 details.grp[open]>summary::before{transform:rotate(45deg);margin-top:calc(var(--sp-1) * -1)}
 details.grp>summary .sum{margin-left:auto;font-weight:400;color:var(--muted);font-size:var(--fs-tab);text-align:right}
 details.grp>.gb{padding:var(--sp-1) var(--sp-4) var(--sp-4)}
+/* Fit control and the iterations of a curve fit */
+details.fctl,details.flog{margin:var(--sp-5) 0}
+.fctl .frow{grid-template-columns:128px minmax(0,1fr);margin-bottom:var(--sp-4)}
+.fctl .frow>input[type=text]{max-width:160px;font-family:var(--mono);text-align:right}
+.fctl .fcm{color:var(--ink)}
+.flnote{font-size:var(--fs-tab);margin:0 0 var(--sp-3)}
+.flscroll{max-height:200px;overflow:auto;border:1px solid var(--rule-2);border-radius:var(--r-s)}
+table.flog-t{border-collapse:collapse;font-size:var(--fs-cap);width:max-content;min-width:100%}
+.flog-t th{position:sticky;top:0;z-index:1;background:var(--panel-2);font-weight:500;color:var(--muted);text-align:right;padding:var(--sp-1) var(--sp-3);border-bottom:1px solid var(--rule);white-space:nowrap}
+.flog-t th i{font-family:var(--serif);font-size:var(--fs-tab)}
+.flog-t td{font-family:var(--mono);text-align:right;padding:var(--sp-1) var(--sp-3);white-space:nowrap;border-bottom:1px solid var(--rule-2)}
+.flog-t tr:last-child td{border-bottom:0}
+.flog-t tr.flhid td{text-align:center;color:var(--muted);font-family:var(--sans)}
 
 /* Parameter tables and peak cards */
 table.ptab{width:100%;border-collapse:collapse;font-size:var(--fs-tab)}
@@ -1629,6 +1642,7 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="12" height="12" rx="2"/><path d="M15.5 8.5V5.5a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></symbol>
   <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5"/></symbol>
   <symbol id="i-wand" viewBox="0 0 24 24"><path d="m3 21 11-11"/><path d="m14 10 3-3"/><path d="M17.5 2.5v3M19 4h-3M20.5 9.5v2M21.5 10.5h-2M9.5 3.5v2M10.5 4.5h-2"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V4.5h5V7M18 7l-.8 12.2a2 2 0 0 1-2 1.8H8.8a2 2 0 0 1-2-1.8L6 7"/></symbol>
   <symbol id="i-table" viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="16" rx="1.5"/><path d="M3.5 9.5h17M3.5 14.8h17M9.5 9.5V20"/></symbol>
@@ -2021,7 +2035,7 @@ function lmFit(f, X, Y, W, p0, fixed, opt){
   const ss=r=>r.reduce((s,v)=>s+v*v,0);
   let r=resid(p), chi=ss(r);
   if(!Number.isFinite(chi)) return {error:"The model can't be evaluated at these starting values. Try different initial values."};
-  let lambda=1e-3, iter=0, J=null;
+  let lambda=opt.lambda0>0?opt.lambda0:1e-3, iter=0, J=null;
   // A finite-difference step scaled to each parameter's own size. Without a
   // per-parameter floor, a peak centre near 1700 and an area near 1e6 in the
   // same model cannot both get a usable derivative.
@@ -2057,8 +2071,17 @@ function lmFit(f, X, Y, W, p0, fixed, opt){
     for(let a=0;a<m;a++) for(let b=0;b<a;b++) A[a][b]=A[b][a];
     return {A,g};
   };
-  let converged=false;
-  for(iter=0;iter<400;iter++){
+  /* opt.maxIter (400) and opt.tol (1e-12: the fall in chi-squared, as a
+     fraction of it, below which a step counts as settled) are Fit control's.
+     opt.lambda0, opt.pscale and opt.deadline (a time from performance.now())
+     let a long fit run in slices and carry on exactly where it paused:
+     between iterations the state is the parameters and lambda alone.
+     opt.onIter({iter, chi, lambda, p}) hears each step taken; stats.iter
+     counts them. */
+  const maxIter=opt.maxIter>0?Math.floor(opt.maxIter):400, tol=opt.tol>=0?opt.tol:1e-12;
+  const clock=()=>typeof performance!=="undefined"&&performance.now?performance.now():Date.now();
+  let converged=false, paused=false, its=0;
+  for(iter=0;iter<maxIter;iter++){
     J=jac(p); const {A,g}=normal(J);
     let stepped=false;
     // The normal equations are solved in units of each parameter's own
@@ -2079,14 +2102,16 @@ function lmFit(f, X, Y, W, p0, fixed, opt){
           const rel=(chi-ct)/Math.max(chi,1e-300);
           const dpRel=Math.max(...free.map((pi,j)=>Math.abs(pc[pi]-p[pi])/(Math.abs(p[pi])+Math.abs(pscale[pi])*1e-6+1e-12)));
           p=pc; r=rt; chi=ct; lambda=Math.max(lambda/9,1e-12); stepped=true;
-          if(rel<1e-12 || dpRel<1e-10) converged=true;
+          if(rel<tol || dpRel<1e-10) converged=true;
           break;
         }
       }
       lambda*=11;
     }
     if(!stepped){ converged=true; break; }
+    its=iter+1; if(opt.onIter) opt.onIter({iter:its, chi, lambda, p:p.slice()});
     if(converged) break;
+    if(opt.deadline&&its<maxIter&&clock()>opt.deadline){ paused=true; break; }
   }
   J=jac(p); const {A}=normal(J);
   const inv=inverse(A);
@@ -2112,7 +2137,7 @@ function lmFit(f, X, Y, W, p0, fixed, opt){
   const R2=1-ssRes/ssTot, adjR2=1-(1-R2)*(n-1)/dof;
   const aic=n*Math.log(ssRes/n)+2*(m+1), bic=n*Math.log(ssRes/n)+(m+1)*Math.log(n);
   return {params:p, errors:errs, cov, dep, tval, pval, ci, atBound,
-    stats:{n, dof, chi2:chi, redChi2:red, R2, adjR2, rss:ssRes, rmse:Math.sqrt(red), aic, bic, iter, converged, singular:!inv}};
+    stats:{n, dof, chi2:chi, redChi2:red, R2, adjR2, rss:ssRes, rmse:Math.sqrt(red), aic, bic, iter:its, converged, paused, singular:!inv}, lambda};
 }
 /* Several data sets fitted at once by one model: the parameters marked shared
    take one value for every set, the rest are each set's own. The sets are laid
@@ -2528,6 +2553,7 @@ const fmtW=w=>String(+(+w).toPrecision(4));
    lmFit does, with odr {s, iter, conv, dx}. */
 function odrFit(f,X,Y,SY,SX,p0,fixed,opt){
   opt=opt||{};
+  const maxIt=opt.maxIter>0?Math.floor(opt.maxIter):300, tolR=opt.tol>=0?opt.tol:1e-12;
   const lo=opt.lo||p0.map(()=>-Infinity), hi=opt.hi||p0.map(()=>Infinity), clamp=pp=>pp.map((v,i)=>Math.min(Math.max(v,lo[i]),hi[i]));
   const free=p0.map((_,i)=>i).filter(i=>!fixed[i]), n=X.length, m=free.length;
   if(m===0) return {error:"Every parameter is fixed. Unfix at least one to fit."};
@@ -2539,7 +2565,7 @@ function odrFit(f,X,Y,SY,SX,p0,fixed,opt){
   const run=(sy,p,d)=>{
     const chiOf=(pp,dd)=>{ let c=0; for(let i=0;i<n;i++){ const r=(Y[i]-f(X[i]+dd[i],pp))/sy[i]; c+=r*r; if(sx[i]) c+=(dd[i]/sx[i])**2; } return c; };
     let chi=chiOf(p,d); if(!Number.isFinite(chi)) return {error:"The model can't be evaluated at these starting values. Try different initial values."};
-    let lambda=1e-3, iter=0, conv=false, last=null;
+    let lambda=1e-3, iter=0, its=0, conv=false, last=null;
     const build=(pp,dd)=>{ const a=Array.from({length:n},()=>new Float64Array(m)), g=new Float64Array(n), rho=new Float64Array(n);
       free.forEach((pi,j)=>{ const h=Math.max(Math.abs(pp[pi])*1e-6,Math.abs(pscale[pi])*1e-7,1e-12), A=pp.slice(), B=pp.slice(); A[pi]+=h; B[pi]-=h;
         for(let i=0;i<n;i++) a[i][j]=(f(X[i]+dd[i],A)-f(X[i]+dd[i],B))/(2*h)/sy[i]; });
@@ -2555,7 +2581,7 @@ function odrFit(f,X,Y,SY,SX,p0,fixed,opt){
         for(let j=0;j<m;j++){ r[j]+=e*ai[j]; for(let k=j;k<m;k++) M[j][k]-=c*ai[j]*ai[k]; } }
       for(let j=0;j<m;j++) for(let k=0;k<j;k++) M[j][k]=M[k][j];
       return {M,r,w}; };
-    for(iter=0;iter<300;iter++){
+    for(iter=0;iter<maxIt;iter++){
       const L=build(p,d); let stepped=false;
       while(lambda<1e14){
         const {M,r,w}=schur(L,lambda), D=M.map((row,j)=>{ const q=Math.sqrt(Math.abs(row[j])); return q>1e-150?q:1; });
@@ -2567,11 +2593,11 @@ function odrFit(f,X,Y,SY,SX,p0,fixed,opt){
             // Settled when chi-squared no longer falls, or neither the parameters nor the shifts move
             // (the first step can move the shifts alone).
             let ddRel=0; for(let i=0;i<n;i++) if(sx[i]) ddRel=Math.max(ddRel,Math.abs(dt[i]-d[i])/sx[i]);
-            p=pc; d=dt; chi=ct; lambda=Math.max(lambda/9,1e-12); stepped=true; if(rel<1e-12||(dpRel<1e-10&&ddRel<1e-8)) conv=true; break; } }
+            p=pc; d=dt; chi=ct; lambda=Math.max(lambda/9,1e-12); stepped=true; if(rel<tolR||(dpRel<1e-10&&ddRel<1e-8)) conv=true; break; } }
         lambda*=11; }
-      if(!stepped){ conv=true; break; } if(conv) break; }
+      if(!stepped){ conv=true; break; } its=iter+1; if(conv) break; }
     last=schur(build(p,d),0);
-    return {p,d,chi,iter,conv,M:last.M}; };
+    return {p,d,chi,iter:its,conv,M:last.M}; };
   // Y errors given, or s found: an ordinary fit first, then s from what X errors leave unexplained.
   const start=lmFit(f,X,Y,SY?SY.map(v=>1/v):X.map(()=>1),p0,fixed,opt); if(start.error) return start;
   let p=start.params.slice(), d=X.map(()=>0), s=null, R=null, rounds=0;
@@ -4510,7 +4536,8 @@ function fitWarnings(f){
   const pw=procWarnings(colById(f.onCol)||activeYCol());
   if(pw.length) out.push({level:"warn", kind:"proc", text:`The data this fit used ${pw.length===1?"went through a processing step that carries a warning":`went through ${pw.length} processing steps that carry warnings`}: ${pw.map(q=>`step ${q.k}, ${stepTitle(q.step).toLowerCase()}${q.col!==activeYCol()?` of ${specName(q.col)}`:""}: ${q.texts[0]}`).join(" ")} The History and the report's Processing section give the details.`});
   if(f.xerr&&f.odr&&f.odr.s!=null) out.push({level:"info", kind:"xerr", text:`Fitted with the X errors by orthogonal distance regression. With no Y errors, the scatter in Y was taken to be the same for every point and found from the fit: s = ${fmt(f.odr.s,4)}.`});
-  if(st.converged===false) out.push({level:"bad", kind:"conv", text:`This fit did not converge. It stopped after ${st.iter} iterations still moving, so the numbers are wherever it had got to, not a result. Try ${FM.composite?"Reset to estimates":"Guess initial values"}, fix a parameter, or narrow the range.`});
+  if(st.converged===false&&f.ctl&&st.iter>=fitCtl(f.ctl).maxIter) out.push({level:"bad", kind:"conv", text:`This fit stopped at its limit of ${st.iter} iterations without converging, so the numbers are wherever it had got to, not a result. Fit again to carry on from here, or raise the limit in Fit control.`});
+  else if(st.converged===false) out.push({level:"bad", kind:"conv", text:`This fit did not converge. It stopped after ${st.iter} iterations still moving, so the numbers are wherever it had got to, not a result. Try ${FM.composite?"Reset to estimates":"Guess initial values"}, fix a parameter, or narrow the range.`});
   if(FM.composite){
     const failed=peakMetrics(f).filter(r=>!r.ok);
     if(failed.length) out.push({level:"bad", kind:"unusable", text:`${failed.length} component${failed.length>1?"s are":" is"} not a usable peak and ${failed.length>1?"have":"has"} been left out of Area %. ${
@@ -5557,6 +5584,15 @@ function hasErr(){ const d=finalOf(activeYCol()); return !!(d.e&&d.e.some(v=>v!=
 function hasXErr(c){ c=c||activeYCol(); const g=c?errGeom(c,finalOf(c)):null; return !!(g&&g.hasX); }
 function xErrsOf(c,pts){ const g=c?errGeom(c,finalOf(c)):null; if(!g||!g.hasX) return null; const sx=pts.map(q=>{ const w=g.at(q); return (w.l+w.r)/2; }); return sx.some(v=>v>0)?sx:null; }
 // What a fit keeps of its orthogonal distance regression (not each point's shift).
+/* Fit control (ux/spec/FIT_SPEC.md, slice 1): how long a curve fit may run
+   and when it has settled. A draft carries its own (d.ctl), a fit the one it
+   ran with (f.ctl, with its method); a fit from before has none and ran with
+   these (an orthogonal distance fit with at most 300 iterations). */
+const FIT_CTL={maxIter:400,tol:1e-12};
+function fitCtl(c){ c=c||{}; const n=Math.floor(+c.maxIter), t=+c.tol;
+  return {maxIter:n>=1&&n<=100000?n:FIT_CTL.maxIter, tol:Number.isFinite(t)&&t>=0&&t<1?t:FIT_CTL.tol}; }
+function ctlText(f,ascii){ const odr=!!(f&&(f.xerr||(f.ctl&&f.ctl.method==="odr"))), c=f&&f.ctl?fitCtl(f.ctl):{maxIter:odr?300:FIT_CTL.maxIter,tol:FIT_CTL.tol};
+  return (odr?"orthogonal distance regression":ascii?"Levenberg-Marquardt":"Levenberg–Marquardt")+`, at most ${c.maxIter} iterations, tolerance ${c.tol}`; }
 function odrNote(res){ const o=res&&res.odr; return o?{s:o.s!=null&&Number.isFinite(o.s)?o.s:null,iter:o.iter,conv:!!o.conv}:null; }
 // How a fit was weighted, in words (the Results, the copied table, the report, the CSV).
 function weightText(f,ascii){
@@ -5661,6 +5697,17 @@ function draftOverlay(fit){
   // Straight after a fit the guesses are the fitted values, already drawn.
   const same=!!(fit&&fit.kind==="composite"&&d.fitAt&&fit.at===d.fitAt);
   return {m,d,same};
+}
+/* The curve fit's model at its starting values, drawn dashed while the Fit
+   window is open: what Guess measured, what was typed, or where 1 iteration
+   has got to. Not drawn when it is the fit itself. */
+function curveOverlay(fit){
+  if(S.fitMode!=="curve"||!winOpen("fit")) return null;
+  const d=S.draft; if(!d||d.pid!==S.pid||!Array.isArray(d.init)) return null;
+  let m=getModel(d.model); if(!m&&d.fn){ try{ m=userModel(d.fn); }catch(e){ m=null; } }
+  if(!m||d.init.length!==m.params.length||!d.init.every(Number.isFinite)) return null;
+  if(fit&&fit.kind!=="composite"&&fit.model===d.model&&fit.params.length===d.init.length&&fit.params.every((v,i)=>v===d.init[i])) return null;
+  return {m,p:d.init.slice()};
 }
 /* Where each peak's top and half-height points are, for labels and handles. */
 /* Fitted peaks' labels. What each says: any of its number, its name, centre,
@@ -7116,6 +7163,8 @@ function buildPlot(W,H,pal,colEx,opt){
   if(fit&&FM&&FM.composite&&(fit.spec.peaks||[]).length&&(fit.spec.peaks||[]).length<=6) (fit.spec.peaks||[]).forEach((pk,j)=>entries.push({type:"line",label:`peak ${j+1}`,color:pcol(j),lw:1.3,dash:"solid"}));
   const ov=forExport||!ps.final||heat||dist?null:draftOverlay(fit);
   if(ov&&!ov.same) entries.push({type:"line",label:"estimate",color:pal.muted,lw:1.3,dash:"dash"});
+  const cst=forExport||!ps.final||heat||dist||ov?null:curveOverlay(fit);
+  if(cst) entries.push({type:"line",label:"estimate",color:pal.muted,lw:1.3,dash:"dash"});
   const seenLab={}; entries.forEach(e=>{ const k=(seenLab[e.label]=(seenLab[e.label]||0)+1); if(k>1) e.label=e.label+" ("+k+")"; });
   for(let i=entries.length-1;i>=0;i--) if(entries[i].leg===false) entries.splice(i,1);
   const legTitle=cfg.legendTitle||"";
@@ -7373,6 +7422,9 @@ function buildPlot(W,H,pal,colEx,opt){
       const pp=path(x=>pf(x,d.init)+m.baseF(x,d.init)); if(pp) s+=`<path d="${pp}" fill="none" stroke="${peakColor(k)}" stroke-width="${on?2:1.3}" stroke-dasharray="6 3"/>`; });
     const sp=path(x=>m.f(x,d.init)); if(sp) s+=`<path d="${sp}" fill="none" stroke="${pal.ink}" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="2 3"/>`;
   }
+  if(cst){ const fr=fitRange(), a=Math.max(Math.min(v.x0,v.x1),fr[0]), b=Math.min(Math.max(v.x0,v.x1),fr[1]), N=300, q=[];
+    if(b>a) for(let k=0;k<=N;k++){ const x=a+(b-a)*k/N, yv=cst.m.f(x,cst.p); if(Number.isFinite(yv)&&(!logY||yv>0)){ const py=Y(yv); if(Number.isFinite(py)) q.push(X(x).toFixed(1)+","+Math.max(-1e5,Math.min(1e5,py)).toFixed(1)); } }
+    if(q.length>1) s+=`<path data-cstart="1" d="M${q.join("L")}" fill="none" stroke="${pal.ink}" stroke-opacity="0.55" stroke-width="1.3" stroke-dasharray="6 3"/>`; }
   // A series' symbols coloured or sized by a column, and its hatching's own ids.
   // Several spectra as columns on one graph stand side by side, in the table's order.
   const colGrp=layout==="overlay"?yCols().filter(c=>(c===act||oser.some(o=>o.c===c))&&serStyle(c.id,c===act,pal,colEx,cfg).type==="column").map(c=>c.id):[];
@@ -12554,7 +12606,7 @@ function ensureDraft(){
   if(S.draft&&S.draft.pid===S.pid) return S.draft;
   const f=(activeFit()&&activeFit().kind!=="composite"?activeFit():null); // the curve panel only carries single-model fits
   const model=f?f.model:(p.prefModel&&getModel(p.prefModel)?p.prefModel:suggestModel().id);
-  S.draft={pid:S.pid, model, fn:f&&f.fn?f.fn:null, init:f?f.params.slice():null, fixed:f?(f.fixed||f.params.map(()=>false)).slice():null, weighted:f?!!f.weighted:hasErr(), xerr:f?!!f.xerr:hasXErr()};
+  S.draft={pid:S.pid, model, fn:f&&f.fn?f.fn:null, init:f?f.params.slice():null, fixed:f?(f.fixed||f.params.map(()=>false)).slice():null, weighted:f?!!f.weighted:hasErr(), xerr:f?!!f.xerr:hasXErr(), ctl:fitCtl(f&&f.ctl)};
   if(!S.draft.init) guessDraft();
   return S.draft;
 }
@@ -12616,12 +12668,12 @@ function fitModeSeg(){
 const noteHtml=(level,text,raw)=>`<div class="note ${level==="info"?"":level}"${level==="bad"?' role="alert"':""}>${ICON(level==="info"?"info":level==="ok"?"check":"alert")}<p>${raw?text:esc(text)}</p></div>`;
 /* The fit panel's own word on the current result: one line, with the way to
    the full table. Warnings are counted here and spelled out in Results. */
-function fitSummary(f){
+function fitSummary(f,more){
   const st=f.stats||{}, w=fitWarnings(f), stale=w.some(x=>x.kind==="stale"), bad=w.some(x=>x.level==="bad");
   const head=stale?"Out of date":st.converged===false?"Did not converge":bad?"Fitted, with problems":"Fitted";
   const notes=w.filter(x=>x.kind!=="stale").length;
   return `<div class="fitsum${stale?" stale":bad?" bad":""}">${ICON(stale||bad?"alert":"check")}<div class="grow"><strong>${head}</strong> · R² ${esc(fmt(st.R2,5))} · reduced χ² ${esc(fmt(st.redChi2,4))}${
-    stale?`<div class="lab">${esc(fitStale(f))}</div>`:notes?`<div class="lab">${notes} note${notes===1?"":"s"} on this fit in Results</div>`:""}</div><button class="btn sm" data-go-res>${ICON("table","sm")}Results</button></div>`;
+    stale?`<div class="lab">${esc(fitStale(f))}</div>`:notes?`<div class="lab">${notes} note${notes===1?"":"s"} on this fit in Results</div>`:""}</div><button class="btn sm" data-go-res>${ICON("table","sm")}Results</button>${more||""}</div>`;
 }
 function renderFit(){
   const box=$("#pane-fit"), p=P();
@@ -12640,6 +12692,8 @@ function renderFit(){
   if(S.fitMode==="peaks"){ renderPeakFit(box,p,top); wire(); return; }
   const d=ensureDraft(), m=draftModel(d), f=(activeFit()&&activeFit().kind!=="composite"?activeFit():null), ro=S.readOnly?" disabled":"";
   if(!d.init||d.init.length!==m.params.length||!d.fixed||d.fixed.length!==m.params.length) guessDraft();
+  if(!d.ctl) d.ctl=fitCtl();
+  const run=S.fitRun&&S.fitRun.d===d?S.fitRun:null, rb=ro||(run?" disabled":"");
   const sameModel=f&&f.model===d.model&&f.params.length===m.params.length;
   const ufs=p.userFns||[], lib=libFns().filter(q=>!ufs.some(u=>u.id===q.id)), inProj=ufs.some(q=>"u:"+q.id===d.model);
   const [xuC,yuC]=dataUnits();
@@ -12665,9 +12719,13 @@ function renderFit(){
   if(!hasErr()) h+=`<div class="lab" style="margin:3px 0 0 22px">No Y-error column, so every point counts equally.</div>`;
   h+=fitResidHtml();
   h+=`<div class="range" id="fitRange"></div>`;
+  h+=fitCtlHtml(d);
   if(S.fitError) h+=noteHtml("bad",S.fitError);
-  if(f) h+=fitSummary(f);
-  h+=`<div class="sticky">${weightHtml(d)}<button class="btn primary" id="doFit"${ro} title="Fit (Ctrl+Enter)">${ICON("play")}Fit</button><button class="btn" id="doGuess"${ro} title="Measure the starting values from the data in view">Guess</button>${f&&yCols().length>1?`<button class="btn" id="fitAll"${ro} title="Fit every column with this model, starting from this fit">Fit every column…</button>`:""}${f?`<button class="btn ghost" id="clrFit"${ro}>Remove fit</button>`:""}<button class="btn ghost fdone" id="fitDone" title="Close the Fit window; the fit stays on the graph and in Results">Done</button></div>`;
+  // Remove fit sits with the fit it removes, so the buttons below keep to one row in the dock.
+  if(f) h+=fitSummary(f,`<button class="btn sm ghost" id="clrFit"${rb}>Remove fit</button>`);
+  h+=fitLogHtml(d);
+  const odr=d.xerr&&hasXErr();
+  h+=`<div class="sticky">${weightHtml(d)}${run?`<button class="btn primary" id="fitStop" title="Stop the fit: its last values become the starting values, and Fit carries on from them"${run.stop?" disabled":""}>${ICON("stop")}${run.stop?"Stopping…":"Stop"}</button>`:`<button class="btn primary" id="doFit"${ro} title="Fit (Ctrl+Enter)">${ICON("play")}Fit</button>`}<button class="btn" id="doStep"${rb||(odr?" disabled":"")} title="${odr?"One step is for the Levenberg–Marquardt fit: untick Include the X errors to take one":"One step of the fit from the starting values; the result becomes the new starting values"}">1 iteration</button><button class="btn" id="doGuess"${rb} title="Measure the starting values from the data in view">Guess</button>${f&&yCols().length>1?`<button class="btn" id="fitAll"${rb} title="Fit every column with this model, starting from this fit">Fit every column…</button>`:""}<button class="btn ghost fdone" id="fitDone" title="Close the Fit window; the fit stays on the graph and in Results">Done</button></div>`;
   box.innerHTML=h; renderFitRangeOnly(); wire();
   $("#model").onchange=e=>{ const v=e.target.value;
     if(v==="__new"){ e.target.value=d.model; editUserFn(null); return; }
@@ -12687,9 +12745,70 @@ function renderFit(){
   const wt=$("#wt"); if(wt) wt.onchange=()=>d.weighted=wt.checked;
   const wx=$("#wtx"); if(wx) wx.onchange=()=>d.xerr=wx.checked;
   $("#doGuess").onclick=()=>{ pushUndo("guessing initial values"); S.fitError=""; guessDraft(); renderFit(); toast("Initial values measured from the data in view."); };
-  $("#doFit").onclick=runFit; { const fa=$("#fitAll"); if(fa) fa.onclick=openBatchDialog; }
+  { const df=$("#doFit"); if(df) df.onclick=runFit; const fa=$("#fitAll"); if(fa) fa.onclick=openBatchDialog; }
   const cf=$("#clrFit"); if(cf) cf.onclick=removeFit;
+  { const ds=$("#doStep"); if(ds) ds.onclick=stepFit; const fs=$("#fitStop"); if(fs) fs.onclick=()=>{ if(S.fitRun){ S.fitRun.stop=true; fs.disabled=true; fs.lastChild.textContent="Stopping…"; } }; }
+  wireFitCtl(box,d);
+  // Only the user's own click is remembered: a group created open fires its toggle later.
+  { const lg=$("#fitLog"), sm=lg&&lg.querySelector("summary"); if(sm) sm.addEventListener("click",()=>{ S.flogOpen=!lg.open; }); const sc=box.querySelector(".flscroll"); if(sc) sc.scrollTop=sc.scrollHeight; }
 }
+/* Fit control in the Fit window: the method (chosen by Include the X errors),
+   the iterations at most and the tolerance. A field writes the draft and
+   updates its group in place: redrawing the form on change would take away
+   the field the user has just tabbed to. */
+function fitCtlHtml(d){ const c=fitCtl(d.ctl), odr=d.xerr&&hasXErr(), ro=S.readOnly?" disabled":"", def=c.maxIter===FIT_CTL.maxIter&&c.tol===FIT_CTL.tol;
+  return `<details class="grp fctl" id="fitCtl"${S.fcOpen?" open":""}><summary>Fit control<span class="sum" id="fcSum">${fitCtlSum(c)}</span></summary><div class="gb">
+    <div class="frow"><label class="tipd" title="Include the X errors (above) fits by orthogonal distance regression; otherwise Levenberg–Marquardt">Method</label><span class="fcm">${odr?"Orthogonal distance regression":"Levenberg–Marquardt"}</span></div>
+    <div class="frow"><label for="fcIter" class="tipd" title="Where a fit that has not settled stops, with a note in Results; Fit again carries on from there">Iterations, at most</label><input type="text" inputmode="numeric" id="fcIter" value="${c.maxIter}"${ro}></div>
+    <div class="frow"><label for="fcTol" class="tipd" title="The fit has settled when a step lowers χ² by less than this fraction of it, or moves no parameter by more than one part in 10¹⁰">Tolerance</label><input type="text" inputmode="decimal" id="fcTol" value="${esc(String(c.tol))}"${ro}></div>
+    <button type="button" class="btn sm ghost" id="fcDef"${def?" hidden":""}${ro}>Back to ${FIT_CTL.maxIter} iterations and ${FIT_CTL.tol}</button>
+  </div></details>`; }
+const fitCtlSum=c=>`${c.maxIter} iterations · tolerance ${c.tol}`;
+function wireFitCtl(box,d){
+  const g=box.querySelector("#fitCtl"); if(!g) return;
+  { const sm=g.querySelector("summary"); if(sm) sm.addEventListener("click",()=>{ S.fcOpen=!g.open; }); }
+  const put=c=>{ d.ctl=c; const s=box.querySelector("#fcSum"), b=box.querySelector("#fcDef"), i=box.querySelector("#fcIter"), t=box.querySelector("#fcTol");
+    if(s) s.textContent=fitCtlSum(c); if(b) b.hidden=c.maxIter===FIT_CTL.maxIter&&c.tol===FIT_CTL.tol;
+    if(i&&document.activeElement!==i) i.value=c.maxIter; if(t&&document.activeElement!==t) t.value=String(c.tol); };
+  const it=box.querySelector("#fcIter"), tl=box.querySelector("#fcTol"), df=box.querySelector("#fcDef");
+  [it,tl].forEach(inp=>{ if(inp) inp.onkeydown=ev=>{ if(ev.key==="Enter"){ ev.preventDefault(); inp.blur(); } }; });
+  if(it) it.onchange=()=>{ const v=parseNum(it.value), c=fitCtl(d.ctl);
+    if(!(v!=null&&Number.isInteger(v)&&v>=1&&v<=100000)){ it.value=c.maxIter; toast("Iterations, at most: a whole number from 1 to 100 000."); return; }
+    if(v===c.maxIter) return; pushUndo("the fit's iteration limit"); put(Object.assign(c,{maxIter:v})); };
+  if(tl) tl.onchange=()=>{ const v=parseNum(tl.value), c=fitCtl(d.ctl);
+    if(!(v!=null&&v>=0&&v<1)){ tl.value=String(c.tol); toast("Tolerance: a number from 0 up to 1 (not 1 itself), such as 1e-9."); return; }
+    if(v===c.tol) return; pushUndo("the fit's tolerance"); put(Object.assign(c,{tol:v})); };
+  if(df) df.onclick=()=>{ pushUndo("the fit's control settings"); put(fitCtl()); };
+}
+/* The iterations of a curve fit, as Origin's fitting dialog lists them: the
+   starting values as row 0, then every step, taken by Fit or by 1 iteration.
+   A run that starts where the last one ended (same column, model, points,
+   weights, fixed parameters and starting values) carries on its rows, its
+   damping and its finite-difference scale, so steps taken one at a time
+   follow the very path a Fit takes. It is what this browser saw, not part of
+   the project. */
+const FITLOG_MAX=200;
+function fitLogFor(d,m,c,X,Y,W,useW){
+  const L=S.fitLog, fx=JSON.stringify(d.fixed);
+  if(L&&L.pid===S.pid&&L.col===c.id&&L.model===d.model&&L.fx===fx&&L.n===X.length&&L.wt===!!useW&&L.last&&L.last.length===d.init.length&&L.last.every((v,i)=>v===d.init[i])) return L;
+  const dof=Math.max(1,X.length-d.fixed.filter(v=>!v).length);
+  let chi=0; for(let i=0;i<X.length;i++){ const r=(Y[i]-m.f(X[i],d.init))*W[i]; chi+=r*r; }
+  S.fitLog={pid:S.pid,col:c.id,model:d.model,fx,n:X.length,wt:!!useW,dof,pscale:d.init.map(v=>Math.abs(v)||1),lam:undefined,last:d.init.slice(),
+    rows:[{k:0,red:chi/dof,lam:null,p:d.init.slice()}],hid:0,state:"",note:"",ph:(m.ph||m.params).slice()};
+  return S.fitLog;
+}
+function fitLogRow(L,k,q){ L.rows.push({k,red:q.chi/L.dof,lam:q.lambda,p:q.p}); if(L.rows.length>FITLOG_MAX){ L.rows.splice(1,1); L.hid++; } }
+const fitLogSum=L=>{ const n=L.rows[L.rows.length-1].k; return (L.state==="run"?"running · ":"")+`${n} iteration${n===1?"":"s"}`; };
+function fitLogBody(L){
+  const num=(v,s)=>v==null||!Number.isFinite(v)?"—":esc(fmt(v,s));
+  return `${L.note||L.state==="run"?`<p class="flnote" role="status">${esc(L.state==="run"?"Fitting…":L.note)}</p>`:""}<div class="flscroll"><table class="flog-t"><thead><tr><th>#</th><th>Reduced χ²</th><th class="tipd" title="The damping: large while the fit feels its way, small near the minimum">λ</th>${L.ph.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${
+    L.rows.map((r,i)=>`<tr><td>${r.k}</td><td>${num(r.red,6)}</td><td>${num(r.lam,2)}</td>${r.p.map(v=>`<td>${num(v,6)}</td>`).join("")}</tr>${i===0&&L.hid?`<tr class="flhid"><td colspan="${3+L.ph.length}">${L.hid} more not shown</td></tr>`:""}`).join("")}</tbody></table></div>`; }
+function fitLogHtml(d){ const L=S.fitLog, c=activeYCol();
+  if(!L||L.pid!==S.pid||!c||L.col!==c.id||L.model!==d.model||(L.rows.length<2&&!L.note&&L.state!=="run")) return "";
+  const open=S.flogOpen!=null?S.flogOpen:(L.state==="run"||L.byStep);
+  return `<details class="grp flog" id="fitLog"${open?" open":""}><summary>Iterations<span class="sum" id="flSum">${esc(fitLogSum(L))}</span></summary><div class="gb" id="fitLogB">${fitLogBody(L)}</div></details>`; }
+function renderFitLog(){ const L=S.fitLog, b=$("#fitLogB"), s=$("#flSum"); if(!L||!b){ renderFit(); return; }
+  b.innerHTML=fitLogBody(L); if(s) s.textContent=fitLogSum(L); const sc=b.querySelector(".flscroll"); if(sc) sc.scrollTop=sc.scrollHeight; }
 function removeFit(){
   const p=P(), af=activeFit(); if(!p||S.readOnly) return;
   if(af&&af.batch&&af!==p.fit){ const c=colById(af.onCol); pushUndo("removing the fit");
@@ -13324,13 +13443,64 @@ function runPeakFit(){
   renderFit(); renderPlot(); afterFit(fit);
 }
 
+/* A curve fit. With the X errors it is one orthogonal distance fit; else
+   Levenberg–Marquardt in slices of about 80 ms (lmFit's deadline), the rows
+   of Iterations growing between them and Stop heard there. A fit that settles
+   in its first slice, as nearly every one does, is done before runFit
+   returns. */
 function runFit(){
-  const d=ensureDraft(), m=draftModel(d), pts=fitPoints(); S.fitError="";
+  if(S.fitRun||S.readOnly) return;
+  const d=ensureDraft(), m=draftModel(d), pts=fitPoints(), c=activeYCol(); S.fitError="";
+  if(!d.ctl) d.ctl=fitCtl();
   const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), useW=d.weighted&&hasErr();
   if(useW&&pts.some(q=>!(q.e>0))){ S.fitError="Some points in range have no Y error, so they can't be weighted. Fill in the errors or turn weighting off."; renderFit(); return; }
   const W=pts.map(q=>useW?1/q.e:1);
-  const SX=d.xerr?xErrsOf(activeYCol(),pts):null;
-  const res=SX?odrFit(m.f,X,Y,useW?pts.map(q=>q.e):null,SX,d.init.slice(),d.fixed.slice(),m.lo?{lo:m.lo,hi:m.hi}:undefined):lmFit(m.f,X,Y,W,d.init.slice(),d.fixed.slice(),m.lo?{lo:m.lo,hi:m.hi}:undefined);
+  const SX=d.xerr?xErrsOf(c,pts):null, ctl=fitCtl(d.ctl), opt=Object.assign(m.lo?{lo:m.lo,hi:m.hi}:{},{maxIter:ctl.maxIter,tol:ctl.tol});
+  if(SX){ if(S.fitLog&&S.fitLog.pid===S.pid&&S.fitLog.col===(c||{}).id) S.fitLog=null; // the list is of Levenberg–Marquardt steps
+    saveCurveFit(odrFit(m.f,X,Y,useW?pts.map(q=>q.e):null,SX,d.init.slice(),d.fixed.slice(),opt),{d,m,X,SX,useW,ctl}); return; }
+  const L=fitLogFor(d,m,c,X,Y,W,useW), k0=L.rows[L.rows.length-1].k;
+  const run={stop:false,d,pid:S.pid,col:c.id,model:d.model,done:0,p:d.init.slice(),lam:L.lam,shown:false};
+  L.state="run"; L.note=""; L.byStep=false; S.fitRun=run;
+  const tick=()=>{
+    if(S.fitRun!==run) return;
+    const cur=P()&&S.pid===run.pid?activeYCol():null;
+    if(!cur||cur.id!==run.col||S.draft!==d||d.model!==run.model){ S.fitRun=null; L.state=""; L.note="The fit stopped: the column, the model or the project changed while it ran."; renderFit(); return; }
+    if(run.stop){ S.fitRun=null; pushUndo("stopping the fit"); d.init=run.p.slice(); L.last=d.init.slice(); L.state="";
+      L.note=`Stopped after ${run.done} iteration${run.done===1?"":"s"}. The last values are the starting values now: Fit carries on from them.`; renderFit(); renderPlot(); return; }
+    const res=lmFit(m.f,X,Y,W,run.p,d.fixed.slice(),Object.assign({},opt,{maxIter:ctl.maxIter-run.done,lambda0:run.lam,pscale:L.pscale,deadline:performance.now()+80,onIter:q=>fitLogRow(L,k0+run.done+q.iter,q)}));
+    if(res.error){ S.fitRun=null; L.state=""; S.fitError=res.error; logError("Curve fit: "+res.error,"fit"); renderFit(); return; }
+    run.done+=res.stats.iter; run.p=res.params.slice(); run.lam=res.lambda; L.lam=res.lambda; L.last=res.params.slice();
+    if(res.stats.paused&&run.done<ctl.maxIter){ if(run.shown) renderFitLog(); else { run.shown=true; renderFit(); } setTimeout(tick,0); return; }
+    S.fitRun=null; delete res.stats.paused; res.stats.iter=run.done; L.state="";
+    L.note=res.stats.converged?`Converged after ${run.done} iteration${run.done===1?"":"s"}.`:`Stopped at the limit of ${ctl.maxIter} iterations without converging. Fit again to carry on from here, or raise the limit in Fit control.`;
+    saveCurveFit(res,{d,m,X,SX:null,useW,ctl});
+  };
+  tick();
+}
+/* One step of Levenberg–Marquardt from the starting values, which it then
+   replaces; nothing is saved as a fit. Its row joins Iterations, and its
+   damping is kept for the next step, so steps taken one by one follow Fit's
+   own path. */
+function stepFit(){
+  if(S.fitRun||S.readOnly||!P()) return;
+  const d=ensureDraft(), m=draftModel(d), pts=fitPoints(), c=activeYCol(); S.fitError="";
+  if(!d.ctl) d.ctl=fitCtl();
+  if(d.xerr&&hasXErr()){ toast("One step is for the Levenberg–Marquardt fit: untick Include the X errors to take one."); return; }
+  const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), useW=d.weighted&&hasErr();
+  if(useW&&pts.some(q=>!(q.e>0))){ S.fitError="Some points in range have no Y error, so they can't be weighted. Fill in the errors or turn weighting off."; renderFit(); return; }
+  const W=pts.map(q=>useW?1/q.e:1), ctl=fitCtl(d.ctl), L=fitLogFor(d,m,c,X,Y,W,useW), k0=L.rows[L.rows.length-1].k, red0=L.rows[L.rows.length-1].red;
+  const res=lmFit(m.f,X,Y,W,d.init.slice(),d.fixed.slice(),Object.assign(m.lo?{lo:m.lo,hi:m.hi}:{},{maxIter:1,tol:ctl.tol,lambda0:L.lam,pscale:L.pscale,onIter:q=>fitLogRow(L,k0+q.iter,q)}));
+  if(res.error){ S.fitError=res.error; renderFit(); return; }
+  if(!res.params.every(Number.isFinite)){ S.fitError="That step diverged. Try Guess, or fix one of the parameters."; renderFit(); return; }
+  pushUndo("one iteration of the fit"); d.init=res.params.slice(); L.last=d.init.slice(); L.lam=res.lambda; L.state=""; L.byStep=true;
+  const red1=L.rows[L.rows.length-1].red;
+  L.note=!res.stats.iter?"No step from here lowers χ²: these values are at a minimum. Fit saves them as the fit."
+    :res.stats.converged?`Settled: reduced χ² ${fmt(red0,6)} → ${fmt(red1,6)}, a change below the tolerance. Fit saves the result.`
+    :`One iteration: reduced χ² ${fmt(red0,6)} → ${fmt(red1,6)}.`;
+  renderFit(); renderPlot();
+}
+function saveCurveFit(res,o){
+  const {d,m,X,SX,useW,ctl}=o;
   if(res.error){ S.fitError=res.error; logError("Curve fit: "+res.error,"fit"); renderFit(); return; }
   if(!res.params.every(Number.isFinite)){ S.fitError="The fit diverged. Try Guess, or fix one of the parameters."; logError("Curve fit diverged","fit"); renderFit(); return; }
   const [a,b]=fitRange();
@@ -13339,14 +13509,15 @@ function runFit(){
     dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound,
     onCol:(activeYCol()||{}).id, onColName:(activeYCol()||{}).name||"",
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(), hadErrCol:hasErr(),
-    range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, ...(SX?{xerr:true,odr:odrNote(res)}:{}), by:who(), at:Date.now()};
-  d.init=res.params.slice();
+    range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, ...(SX?{xerr:true,odr:odrNote(res)}:{}),
+    ctl:{maxIter:ctl.maxIter,tol:ctl.tol,method:SX?"odr":"lm"}, by:who(), at:Date.now()};
+  d.init=res.params.slice(); if(S.fitLog&&S.fitLog.pid===S.pid&&!SX) S.fitLog.last=d.init.slice();
   const P0=P(), carry=m.user&&!(P0.userFns||[]).some(q=>q.id===m.fnId)?{userFns:(P0.userFns||[]).concat([JSON.parse(JSON.stringify(m.def))])}:{};
   save(Object.assign({fit,fits:fitHistory(fit)},carry,batchWith(fit)),`fitted ${m.user?`the function "${m.name}"`:lcFirst(m.name)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
   renderFit(); renderPlot(); afterFit(fit);
 }
 function fitNow(){
-  if(S.readOnly||!P()||!pointsAll().length) return;
+  if(S.readOnly||!P()||!pointsAll().length||S.fitRun) return;
   if(S.stage!=null){ S.stage=null; S.selStep=null; renderPlot(); renderStages(); }
   showTab("fit");
   if(S.fitMode==="peaks") runPeakFit(); else runFit();
@@ -13392,7 +13563,7 @@ function statsList(f){
   const out=[["Points",st.n],["Free parameters",st.n!=null&&st.dof!=null?st.n-st.dof:null],["Degrees of freedom",st.dof],
     ["Reduced χ²",fmtOr(st.redChi2,5)],["R² (COD)",fmtOr(st.R2,6)],["Adjusted R²",fmtOr(st.adjR2,6)],
     ["Residual sum of squares",fmtOr(st.rss,6)],["AIC",fmtOr(st.aic,6)],["BIC",fmtOr(st.bic,6)],
-    ["Iterations",st.iter==null?"—":`${st.iter}${st.converged?"":" (not converged)"}`],
+    ["Iterations",st.iter==null?"—":`${st.iter}${st.converged?"":" (not converged)"}`],["Fit control",capFirst(ctlText(f))],
     ["Weighting",weightText(f)]].concat(f.odr&&f.odr.s!=null?[["Scatter in Y, s",fmt(f.odr.s,4)]]:[]);
   if(f.range) out.push(["Fitted over",`x ${fmt(f.range[0],6)} to ${fmt(f.range[1],6)}`]);
   return out.map(([k,v])=>[k,v==null||v===""?"—":String(v)]);
@@ -13997,7 +14168,7 @@ function methodLines(){
       out.push("Function, defined in the project: "+FM.model.expr+(lim.length?" (limits: "+lim.join("; ")+")":"")); }
     if(f.range) out.push("Fitted over x = "+fmt(f.range[0],8)+" to "+fmt(f.range[1],8));
     out.push("Weighting: "+weightText(f));
-    out.push("Algorithm: Levenberg\u2013Marquardt"+(f.stats&&f.stats.converged?", converged in "+f.stats.iter+" iterations":", DID NOT CONVERGE"));
+    out.push("Algorithm: "+capFirst(ctlText(f))+(f.stats&&f.stats.converged?"; converged in "+f.stats.iter+" iterations":"; DID NOT CONVERGE"+(f.stats&&f.stats.iter!=null?" (stopped after "+f.stats.iter+" iterations)":"")));
   }
   return out;
 }
@@ -14622,6 +14793,7 @@ async function exportCsv(){
     if(FM.model.user) lines.push("# function,"+q(FM.model.expr));
     if(f.range) lines.push(`# fitted over x,${f.range[0]},${f.range[1]}`);
     lines.push(`# weighting,${weightText(f,true)}`);
+    lines.push(`# fit control,${q(ctlText(f,true))}`); if(f.stats) lines.push(`# iterations,${f.stats.iter},${f.stats.converged?"converged":"not converged"}`);
     if(comp){
       lines.push("# peak,shape,centre,centre error,height,FWHM,area,area error,area %,name");
       peakMetrics(f).forEach(r=>lines.push(`# ${r.k+1},${r.type},${r.xc},${r.xcErr},${r.height},${r.fwhm},${r.area},${r.areaErr},${r.areaPct},${String(r.name||"").replace(/[,\n]/g," ")}`));
@@ -17051,7 +17223,7 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <h2>After fitting</h2>
 <p>The curve is drawn over the data, and the residuals under the graph after a peak fit (<em>Residuals under the graph</em> in the Fit window turns them on or off for any fit), and the ${DA("results","Results")} window gives every parameter with its uncertainty and anything that makes it less certain. Each fit is kept in the fit history; a fit whose data or processing changed since is marked out of date.</p>
 ${TIP("A fit belongs to its column. It is drawn only over the column it was fitted to.")}`},
-{id:"curvefit", g:"Fitting", t:"Curve fit", kw:"curve fit model suggested suggestion linear polynomial exponential decay sigmoid boltzmann gaussian lorentzian guess initial fixed weights",
+{id:"curvefit", g:"Fitting", t:"Curve fit", kw:"curve fit model suggested suggestion linear polynomial exponential decay sigmoid boltzmann gaussian lorentzian guess initial fixed weights control iteration iterations tolerance step stop lambda damping estimate starting values",
  lead:"One model, fitted to the points in the fit's range.",
  body:`<h2>Fitting</h2>
 <ol class="dsteps"><li>Choose a model. The Fit window starts from the one that suits the shape of the points (a straight line for a steady rise or fall, an exponential for a quick change that levels off, a sigmoid for a rise from one level to another, a Gaussian for one clear peak) and names it under the list; when another is chosen, its button chooses it again. Its formula is shown under the list.</li>
@@ -17060,6 +17232,9 @@ ${TIP("A fit belongs to its column. It is drawn only over the column it was fitt
 <li>With a Y error column, <em>Weight by the Y error column</em> fits with weights 1/σ²; otherwise the errors are scaled by the scatter of the residuals.</li>
 <li>With X error bars, <em>Include the X errors</em> fits by orthogonal distance regression: each point's true X is fitted too, within its error. Without Y errors, the scatter in Y is taken to be the same for every point and found from the fit (the Results give it as <em>s</em>). Peak fits and fits of every column have the same choice. ${DA("errbars#use","Error bars")}</li>
 <li><em>Fit</em>, or ${K("Ctrl","Enter")}.</li></ol>
+<h2 id="ctl">Fit control and iterations</h2>
+<p>The fit is Levenberg–Marquardt: from the starting values it takes steps that lower χ², and it has settled when a step lowers χ² by less than the <em>Tolerance</em> (a fraction of it; 1e-12 unless set) or moves no parameter by more than one part in 10¹⁰. <em>Iterations, at most</em> (400 unless set) is where a fit that has not settled stops, with a note in Results; <em>Fit</em> again carries on from there. Both are under <em>Fit control</em> in the Fit window, and Results, the report and the CSV say what each fit ran with. With the X errors included the method is orthogonal distance regression.</p>
+<p>While the Fit window is open, the curve at the starting values is drawn dashed over the data (<em>estimate</em> in the legend). <em>1 iteration</em> takes one step from them and makes the result the new starting values, so the dashed curve moves towards the data a step at a time; <em>Iterations</em> lists every step (reduced χ², the damping λ and the parameters), the starting values as row 0. Steps taken one at a time follow the same path as <em>Fit</em>, which carries on the list. A long fit lists its steps as they come, and <em>Stop</em> stops it: its last values become the starting values.</p>
 <h2>Models</h2>
 <div id="docModelList"></div>
 <p><em>Function</em> beside the list, or ${MP("Analysis › Fit › New fit function…")}, adds ${DA("userfn","your own")}.</p>`},
@@ -17914,7 +18089,7 @@ function batchWith(fit){ const p=P(), b=p&&p.batch; if(!b||b.glob) return {}; co
     :fit.kind!=="composite"&&fit.model===t.model;
   if(!same) return {};
   return {batch:Object.assign({},b,{rows:b.rows.map(q=>q===r?{col:q.col,fit:Object.assign({},fit,{batch:true,byHand:true}),fail:null}:q)})}; }
-function batchTemplate(f){ if(!f) return null; const c=colById(f.onCol)||activeYCol(), xu=finalOf(c).xu||"", common={params:f.params.slice(),fixed:(f.fixed||f.params.map(()=>false)).slice(),weighted:!!f.weighted,xerr:!!f.xerr,range:f.range?f.range.slice():null,logY:!!GP().logY,xu,from:c?c.id:null};
+function batchTemplate(f){ if(!f) return null; const c=colById(f.onCol)||activeYCol(), xu=finalOf(c).xu||"", common={params:f.params.slice(),fixed:(f.fixed||f.params.map(()=>false)).slice(),weighted:!!f.weighted,xerr:!!f.xerr,range:f.range?f.range.slice():null,logY:!!GP().logY,xu,from:c?c.id:null,ctl:f.ctl?fitCtl(f.ctl):null};
   if(f.kind==="composite") return Object.assign({kind:"composite",spec:clone(f.spec),x0:f.x0,name:describeSpec(f.spec)},common);
   return Object.assign({kind:"model",model:f.model,fn:f.fn?clone(f.fn):null,name:(fitModel(f)||{}).name||"the model"},common); }
 function batchPts(c,t){ const d=finalOf(c), mk=new Set(maskOf(c)), r=t.range, lo=r?Math.min(r[0],r[1]):-Infinity, hi=r?Math.max(r[0],r[1]):Infinity;
@@ -17939,9 +18114,10 @@ function fitOne(c,t,seed,spec){
     return {fit:out(res,{kind:"composite",spec:clone(sp),x0:m.x0,fixed})};
   }
   let m=null; try{ m=t.fn?userModel(t.fn):getModel(t.model); }catch(e){ m=null; } if(!m) return {fail:"its model is no longer available"};
-  const res=SX?odrFit(m.f,X,Y,SY,SX,seed.slice(),t.fixed.slice(),m.lo?{lo:m.lo,hi:m.hi}:undefined):lmFit(m.f,X,Y,W,seed.slice(),t.fixed.slice(),m.lo?{lo:m.lo,hi:m.hi}:undefined); if(res.error) return {fail:res.error};
+  const fo=Object.assign(m.lo?{lo:m.lo,hi:m.hi}:{},t.ctl?{maxIter:t.ctl.maxIter,tol:t.ctl.tol}:{});
+  const res=SX?odrFit(m.f,X,Y,SY,SX,seed.slice(),t.fixed.slice(),fo):lmFit(m.f,X,Y,W,seed.slice(),t.fixed.slice(),fo); if(res.error) return {fail:res.error};
   if(!res.params.every(Number.isFinite)) return {fail:"the fit diverged"};
-  return {fit:out(res,Object.assign({model:t.model,fixed:t.fixed.slice()},t.fn?{fn:clone(t.fn)}:{}))};
+  return {fit:out(res,Object.assign({model:t.model,fixed:t.fixed.slice()},t.fn?{fn:clone(t.fn)}:{},t.ctl?{ctl:Object.assign({},t.ctl,{method:SX?"odr":"lm"})}:{}))};
 }
 // Peaks from the peak finder in this spectrum, each of the template's first shape, on its baseline.
 function batchFoundSeed(c,t){

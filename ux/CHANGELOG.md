@@ -546,3 +546,28 @@ a new generation when it is deleted; its History box is keyed by it, so the old 
 History selection are cleared. odd-test deletes it with a comment and a folder, plots again and
 checks that neither passed over and that Undo gives both back (55 checks; the new ones fail on
 the previous commit).
+
+## The curve fit, slice 1: fit control (2026-10-21)
+
+From `ux/spec/FIT_SPEC.md`, the user's request to replicate Origin's fitting dialogs.
+
+- **Fit control** in the Fit window: the method (Levenberg–Marquardt, or orthogonal distance
+  regression with the X errors), *Iterations, at most* (400) and *Tolerance* (1e-12), back to
+  the defaults in one click. Each fit keeps what it ran with; Results, the report's Method and
+  the CSV say it; a fit stopped by its limit says so in Results, with how to carry on. Fits of
+  every column run with the template's control.
+- **1 iteration**: one step from the starting values, which it replaces; undone like any
+  change; no fit saved.
+- **Iterations**: the starting values and every step (reduced χ², λ, the parameters), steps
+  taken one at a time following Fit's own path; a note on how the run ended.
+- **Stop**: a long fit runs in slices of about 80 ms, listing its steps as it goes; Stop makes
+  its last values the starting values and saves nothing.
+- **The starting values on the graph**: dashed, "estimate" in the legend, while the Fit window
+  is open, until they are the fit.
+- *Remove fit* moved into the fit's summary, so the footer keeps to one row in the dock.
+
+Checked: fit-test 252 (9 new: the limit, the tolerance, one step equal to a fit's first, steps
+one at a time and slices ending exactly where one fit does, orthogonal distance's limit),
+odd-test 58 (2 new), a drive of every new control (26, Stop and its undo included), the
+slices' drives (44, 10, 43, 48), contrast 189, menucheck, terms 0, the help's 70 articles,
+sheet-fuzz seed 4; screenshots at 1024, 1366 and 1440 (dark) and 390 px.

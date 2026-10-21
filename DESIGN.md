@@ -214,6 +214,30 @@ layouts), or **Plot setup…** (Plot menu, the top of the quick list, and what P
 nothing is selected): kinds as pictures, the X column, the Y columns ticked, the target graph,
 and a sketch of the result. Plotting is never automatic after an import from the dialog.
 
+## Fitting
+
+The fit is set up in the docked Fit window, beside the live graph, never in a dialog: a
+dialog makes the desk inert, and the graph is the fit's preview, as the small preview in
+Origin's dialog is there. Origin's upper panel becomes the window's parts and its lower panel
+a strip at the foot (`ux/spec/FIT_SPEC.md`). What Kurve lets you type into a fit is formulas,
+never code.
+
+- **Fit control** is a group closed by default, its values in its heading ("400 iterations ·
+  tolerance 1e-12"), since most fits never need it. Its fields write the draft and update the
+  group in place: redrawing the form on a change would take away the field just tabbed to.
+- **The starting values are drawn.** While the Fit window is open the model at its starting
+  values is a dashed curve over the data ("estimate"), as the peak fit's draft is: a guess can
+  be judged before fitting, and *1 iteration* is watched moving towards the data.
+- **Iterations** are listed as Origin's messages list them, the starting values as row 0. The
+  list opens by itself only while a fit runs or after a single step; after an ordinary Fit it
+  stays closed, its heading saying how many there were. Steps taken one at a time follow the
+  same path as Fit, so the list reads as one run.
+- **A long fit can be stopped.** It runs in slices of about 80 ms, listing its steps between
+  them, with *Stop* in Fit's place. A stopped fit is not a result: nothing is saved, its last
+  values become the starting values, and Fit carries on from them.
+- **The footer keeps to one row** in the dock: Fit, 1 iteration, Guess, Done. *Remove fit* is
+  in the fit's summary, beside Results, with the fit it removes.
+
 ## Menus and the toolbar
 
 The menu tree is `ux/spec/menus-after.txt`; `tools/ux/menucheck.py` compares the app's with it.
@@ -456,6 +480,14 @@ columns stay, Undo brings it back, and with no graph left the worksheet takes th
 A graph made after it starts clean: the old graph's comments say it was removed, and its
 folder in the Explorer is not given to the new one, since a thing the user deleted must not
 reappear on what replaced it.
+
+### 2026-10-21: the curve fit, slice 1 (fit control)
+
+From the user: replicate Origin's curve-fitting dialogs, in the docked Fit window and with
+formulas rather than code. Slice 1 decided as above: Fit control closed with its values in
+its heading; the starting values drawn dashed; the iterations listed, opening only while
+running or stepping; Stop for a long fit, saving nothing; Remove fit moved into the fit's
+summary when the new button made the footer two rows and covered the switch above it.
 
 ### 2026-10-17: defaults (UX rework, Phase 4 slice 5)
 
