@@ -504,6 +504,24 @@ brings an open one forward, and a column shown with every graph closed gets a gr
 "Not plotted" over a column means on no graph, not "not on the graph in front", which read as
 false with several graphs.
 
+### 2026-10-22: sheets (from the user's question)
+
+"We are limited to one worksheet per project, why not multiple?" The worksheet has sheets, as
+a workbook has, rather than several worksheet windows: one grid stays live (its keys, its
+formula bar, its selection), and sheets are what Excel and Origin users switch between by a
+tab. The tabs sit under the grid, as Excel's do; the sheet shown is filled, as anything chosen
+is; a double click renames, the right-click menu moves and deletes, + adds. A sheet is a
+place, not a separate project: its columns are lettered from A, its rows and X columns are its
+own, but graphs show columns from any sheet and the processing, fits and check code are the
+project's. A column moved to another sheet keeps the X it is plotted against, so no graph
+changes under the move. A file brought in beside data goes on a sheet of its own, named after
+it, as Origin opens a book per file; the dialog offers the sheet shown instead. The two
+views of the worksheet are now called views (Original, Processed), since "sheet" names a tab.
+
+A value being typed stays open while its cell is scrolled out of view, as Excel's does: Esc
+still cancels it, Enter, Tab and the arrows enter it, typing brings the cell back. Entering it
+when it scrolled away (as the grid did) made a scroll an answer the user had not given.
+
 ### 2026-10-17: defaults (UX rework, Phase 4 slice 5)
 
 From the Phase 2 defaults audit and Phase 1 T2, T4, T6 and T8: a Gaussian offered for a

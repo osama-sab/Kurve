@@ -597,3 +597,31 @@ copying in and the History's boxes (15), the slices' drives (44, 10, 43, 48) and
 contrast 189 (now measured with transitions off: one run in five caught a colour mid-change),
 menucheck, terms 0, the help's articles, sheet-fuzz; screenshots at 1440, 1024 and 390 px in
 both themes.
+
+## Sheets (2026-10-22)
+
+From the user's question, "why not several worksheets?".
+- **Sheets, as a workbook has**: tabs under the grid (a click shows a sheet, a double click or
+  F2 renames it, the right-click menu moves or deletes it, + adds one), Data › Sheets, and a row
+  per sheet in the Project Explorer.
+- **A sheet's own**: columns lettered from A, rows, X columns (a Y is plotted against the nearest
+  X to its left on its sheet), formulas' letters, sort, hidden rows and selection.
+- **The project's**: graphs (any sheet's columns), the processing, fits, and the original data's
+  check code.
+- **Moving columns to another sheet** (the column menu's Move › To another sheet, or a new
+  sheet): with their error bars, each keeping the X it is plotted against; noted in the
+  original-data record.
+- **Bringing data in**: beside data, a file imported (the dialog's default, Add them on a new
+  sheet), files dropped and columns copied from another project go on a sheet of their own,
+  named after them; into the sheet shown when it is empty.
+- **Words**: the worksheet's two views are the Original and Processed views.
+- **A fix the random user found** (seed 9, on the version before too): a value being typed in a
+  cell that was then scrolled far away was entered at once, so Esc afterwards kept it. The edit
+  now waits while its cell is out of view, as a spreadsheet's does: Esc cancels it, Enter, Tab
+  and the arrows enter it, typing brings the cell back, and leaving the grid enters it.
+
+Checked: a drive of the sheets (19: tabs, paste, X per sheet, formulas, rename, move with the
+X kept, undo, hidden rows, the Explorer, import on a new sheet, delete and undo, reload, plot),
+odd-test's Sheets block (7: a project from before sheets, broken stored sheets, a sheet moved
+first, hidden rows per sheet, the last sheet kept), and every suite from the round before.
+

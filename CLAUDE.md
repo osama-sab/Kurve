@@ -110,10 +110,13 @@ it (a step, the raw data, the final data, the peaks, the fits, the recorded data
 figure) has its own
 **discussion** at the foot of its inspector, with a badge on the box counting open threads;
 the Discussion window lists every thread with a link back. The
-**worksheet** is a spreadsheet grid as in Excel, with Origin's label rows: an **Original** sheet
+**worksheet** is a spreadsheet grid as in Excel, with Origin's label rows and **sheets** as a
+workbook has (tabs under the grid: a click shows one, a double click renames it, + adds one,
+the right-click menu moves or deletes it; each sheet has its own columns lettered from A, rows,
+X columns and formulas; graphs show columns from any sheet), shown in two views: **Original**
 (the data as typed or imported, editable, every change in the original-data record, unless the
-project locks it) and a **Processed** sheet (the active column after processing, read only). An
-import puts every column of the file there, as X, Y, error bars or other data (not plotted),
+project locks it) and **Processed** (the active column after processing, read only). An
+import puts every column of the file there (beside data, on a sheet of its own named after the file), as X, Y, error bars or other data (not plotted),
 and plots nothing: columns are plotted when ready, by selecting them and pressing
 **Plot** on the worksheet's bar, or in **Plot setup…** (kinds as pictures, X, the Ys ticked,
 the graph, a sketch). Columns move by dragging their letters, their values align left, centre
@@ -530,8 +533,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   pipe?, mask?, src?, from?, file?, meta?}]` (`file` and `meta`, the file a spectrum came from and
   its header's fields, `colMetaOf`, shown in its Original data box in the History) with roles `x` / `y` / `e` (an error column names its Y in `of`, and is one of six kinds, see
   Error bars) /
-  `ignore`. There may be several X columns: as in Origin, a Y column is plotted against the
-  nearest X column to its left (`xColFor`), so a spectrum imported on a different axis gets its
+  `ignore`. A column is on a **sheet** (`c.sheet`, see Sheets). There may be several X columns: as in Origin, a Y column is plotted against the
+  nearest X column to its left on its sheet (`xColFor`), so a spectrum imported on a different axis gets its
   own X column instead of being interpolated. Every Y column is a **spectrum** with its own
   processing `pipe` (steps `{id, op, on, p, t, by}`) and its own `mask` (raw row numbers left out
   of the fit). A **derived** spectrum has no data of its own: it starts from another spectrum's
@@ -559,6 +562,35 @@ graph first, with the taskbar kept at the bottom of the screen.
   value in a cell, a column deleted), and `rawVerified()` compares the data with the last
   recorded fingerprint. The raw-data CSV export writes exactly the hashed lines under `#`
   comments, so `grep -v '^#' file.csv | sha256sum` reproduces the fingerprint.
+- **Sheets** (`p.sheets`, `[{id, name}]` in tab order, in `UNDO_KEYS`): the worksheet's sheets,
+  as a workbook's. A column's sheet is `c.sheet`, a derived column's its source's, and a column
+  naming none (or a sheet that has gone) is on the first; `sheetList(p)` (a project from before
+  sheets has one, `SHEET0`, which nothing records until a second is made), `sheetOf(c)`,
+  `curSheet()` (the one shown, `S.sheetAt[pid]`), `sheetName`, `sheetCols(sid)` (a sheet's
+  non-derived columns in the table's order: every worksheet reader uses it, so letters
+  (`colLetter`), rows (`nRows(sid)`), formulas' letters (`fxParse`, `fxShow`, which names a
+  column read from another sheet `Sheet!L`), the nearest X (`xColFor`; a chosen `xcol` may be on
+  another sheet), paste, fill, moving columns and Plot setup are a sheet's own); `colRef(c)` is
+  `Sheet!L` with several sheets, for what names a column project-wide (`specName`'s fallback,
+  the raw-data CSV, the report, the History's Original data box). `stampSheets(p)` writes every
+  column's sheet before the sheets change (moving the first sheet would otherwise move the
+  columns naming none). `showSheet(sid, {quiet})` (the selection, sort and find start afresh;
+  `setSheet` is still the Original/Processed view), `newSheet` (an empty X and Y, as a new
+  project), `renameSheet` (unique names), `moveSheet`, `deleteSheet` (its columns, the columns
+  made from them and their error bars go, off every graph; confirmed when it holds values; a
+  raw-data record entry; one sheet stays), `moveColsToSheet(ids, sid|"new")` (with their error
+  bars; a column whose X would change keeps it as `xcol`; the order is part of the check code,
+  so a record entry), `sheetMenuItems` (a tab's right-click), `sheetsMenuItems` (Data › Sheets),
+  `renderWsTabs`/`wireWsTabs` (`#wsTabs`, `role=tablist`, the shown tab filled, arrows move, F2
+  renames, a double click read from the press's `detail`, hidden in the Processed view).
+  `remapRawRows(p, fn, sid)` maps only that sheet's rows; hidden rows are per sheet
+  (`wsHide.by[sid]`, the older `wsHide.rows` the first sheet's; `wsHideSave` keeps other sheets'
+  hidden columns). Imports: the dialog's `sheet` mode (Add them on a new sheet, the default
+  beside data on the sheet shown, named after the file by `sheetNameFor`) beside `add` (the
+  sheet shown), `replace` (one sheet again) and `new`; batch imports, dropped files and columns
+  copied from another project go on a sheet of their own beside data, and into the sheet shown
+  when it is empty. The Explorer has a row per sheet (`ws:<id>`; the older `ws` key is the first
+  sheet's, `treeOf`).
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
@@ -620,7 +652,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   redraw never jumps to the top; `wsRows(false)` redraws only when the view leaves the rows
   drawn (at either end of the sheet the margin does not apply). A double click is read from
   the press itself (`e.detail === 2` in the mousedown: a cell opens, a resize edge fits, the
-  fill handle fills down), the `dblclick` listener kept as a fallback (`S.ws.dblAt`). A move by
+  fill handle fills down), the `dblclick` listener kept as a fallback (`S.ws.dblAt`). An edit
+  outlives the rows drawn, as a spreadsheet's does: scrolled away, its text waits in `S.ws.edit`
+  (`wsRows` moves the focus to the grid first), the grid takes the keys (Esc cancels, Enter, Tab
+  and the arrows enter it, anything typed brings the cell back and goes on in it), and leaving
+  the grid enters it. A move by
   the keys records `S.ws.want`: for 0.6 s the scroll handler brings that cell back if a scroll
   already under way (the wheel's smooth scroll) lands elsewhere; turning the wheel, or any
   new selection (`wsSelect`), clears it. Clicking
@@ -764,7 +800,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   as a tree, as Origin's. `p.tree` (in `UNDO_KEYS`) is `{folders:[{id, name, parent}], at:{key:
   folderId}}`, read through `treeOf(p)` (folders whose parent is gone go to the top, `at`
   entries naming no folder dropped) and written by `saveTree(t, log, {noUndo, undo})`, which also
-  drops entries for items the project no longer has (`xKeys`). Items are keyed `ws`, `f:<fid>`
+  drops entries for items the project no longer has (`xKeys`). Items are keyed `ws:<sheet id>`, `f:<fid>`
   (a file: `xFiles(p)` groups non-derived columns by `fid`, else by `file` name, `"f:@"` for
   columns typed in the worksheet, listed only once something is typed), `g:<id>` (graphs, closed
   ones marked hidden with `i-eyeoff`), `t:<id>` (trend graphs); a file's children
@@ -774,7 +810,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   (`role=treeitem`, `aria-level`, a roving tabindex, `--lv` indent, `data-xfold` on folders and
   the project), called from `renderAll` and `renderTaskbar`. `xSelect` changes the selection in
   place (redrawing on the first click would lose the double click); `xOpen` opens (a graph:
-  `showGraph`; a file or data column: `xRevealCols`, selected in the Original sheet; a spectrum:
+  `showGraph`; a sheet: `showSheet`; a file or data column: `xRevealCols`, selected on its sheet in the Original view; a spectrum:
   `goSpectrum`); `xMenu(r)` is each kind's menu with Move to; `xNewFolder`, `xRenameFolder`,
   `xDeleteFolder` (what it held moves up), `xMove` (no folder into itself), `xRenameFile` (gives
   an older file an id), `xDeleteFile` (confirmed; its columns and the spectra made from them,
@@ -2213,6 +2249,9 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   snapshot with the waiting edit merged first, and the edit's log line was added after the
   snapshot's log: the log said a value had changed that the undo had put back. A save that
   brings its own `log` drops the waiting line.
+- **Scrolling is not leaving.** An edit whose cell was scrolled more than 30 rows away was
+  entered there and then, so the Esc that followed had nothing to cancel and kept what was
+  typed; the random user found it (seed 9). The edit waits while its cell is out of view.
 - **An earlier stage drawn behind must be on the same X.** Channels drawn behind energies are
   another graph on one axis: the ghost and the before-and-after chart check X's name and unit,
   not only Y's scale.
@@ -2386,6 +2425,14 @@ been lost); a graph's last curve cannot be taken off (Delete the graph is offere
 graph in front brings an open one forward, and a column shown while the graphs are closed gets
 a graph of its own instead of joining a closed one. The worksheet's "not plotted" means on no
 graph, not "not on the graph in front".
+
+Then, from the user's question "why not several worksheets?": sheets, as a workbook has. Tabs under
+the grid (click, double-click to rename, right-click to move or delete, + for a new one), Data ›
+Sheets, a row per sheet in the Project Explorer; each sheet its own letters, rows, X columns,
+formulas, sort and hidden rows; columns moved to another sheet with their error bars, keeping
+the X they are plotted against; a file imported, dropped or copied in beside data on a sheet of
+its own, named after it. Graphs show columns from any sheet. The worksheet's two views are
+called the Original and Processed views now, as "sheet" names a tab.
 
 Done in this round: the user's review after the UX rework's slice 5. The worksheet hides and shows
 columns and rows, as Excel's Hide and Unhide (a marked strip, a marked row number, a double click
@@ -2689,8 +2736,8 @@ Next, in order:
   text pinned to the plot does that), and entries are typed over one at a time
 - An axis title's own style is font, size, weight, slant, underline and colour; its place is
   the axis's (along it, or dragged)
-- Moving columns moves whole columns of the Original sheet (not cells within a column, not the Processed
-  sheet's); the colours of the interface follow DESIGN.md's rules, but the graph's own colours
+- Moving columns moves whole columns of the Original view (not cells within a column, not the Processed
+  view's); the colours of the interface follow DESIGN.md's rules, but the graph's own colours
   (data, grid, a colour picked for a label) are the figure's and are not checked
 - Project Explorer: one item moves at a time (no multiple selection); a spectrum lives under its
   file and cannot be filed apart from it; folders organise the tree only (they do not hide or
@@ -2726,7 +2773,10 @@ Next, in order:
 - The worksheet and trend graphs minimise but never close (graphs close, and stay in the
   project); a closed panel
   shows no news in the taskbar (open threads show in Window › Tool windows and on the History's
-  boxes). One worksheet per project; windows have no tabs of their own
+  boxes). One worksheet window, showing one sheet at a time (two sheets cannot be seen side by
+  side); a formula reads columns of its own sheet by letter (one that has moved to another sheet
+  is still read, and shown as `Sheet!L`, but cannot be typed so); sheets cannot be copied
+  whole; windows other than the worksheet have no tabs of their own
 - Fill writes numbers down one column: no text or date series, no fill across a row by a
   series, no Excel-style flash fill; random numbers come from a seeded mulberry32, fine for
   simulation, not for cryptography

@@ -264,6 +264,26 @@ await page(async p => {
   check("every graph deleted leaves a project with none, the worksheet on the desk", r.gs.length === 0 && r.live === "gPark" && await p.evaluate(() => winOpen("sheet")), JSON.stringify(r));
 }, { name: "graphs come and go" });
 
+console.log("Sheets");
+await page(async p => {
+  const wait = ms => p.waitForTimeout(ms);
+  const g = await p.evaluate(() => gauss(40, 20, 3, 5, 0, 1, 0));
+  await p.evaluate(async g => { await mkSpec("A", g.x, g.y); }, g); await wait(200);
+  let r = await p.evaluate(() => ({ n: sheetList().length, saved: Array.isArray(P().sheets), on: sheetCols().map(c => c.name) }));
+  check("a project from before sheets has one, and nothing records it", r.n === 1 && !r.saved && r.on.join() === "X,A", JSON.stringify(r));
+  r = await p.evaluate(() => { const q = { sheets: [{ id: "a", name: "One" }, { id: "a", name: "Dup" }, null, { name: "no id" }, { id: "b", name: 7 }] }; normalize(Object.assign(P(), q)); const s1 = sheetList().map(s => s.id + ":" + s.name).join(); P().sheets = "junk"; normalize(P()); const s2 = P().sheets; return { s1, s2, on: sheetCols().map(c => c.name).join() }; });
+  check("sheets read from storage in a broken form are cleaned, and columns naming none are on the first", r.s1 === "a:One,b:7" && r.s2 === null && r.on === "X,A", JSON.stringify(r));
+  await p.evaluate(() => { newSheet(); }); await wait(200);
+  r = await p.evaluate(() => { const [a, b] = sheetList(); moveSheet(b.id, -1); return { order: sheetList().map(s => s.name).join(), first: sheetCols(sheetList()[1].id).map(c => c.name).join() }; }); await wait(200);
+  check("a sheet moved first keeps its columns, and the old first sheet its own", r.order === "Sheet 2,Sheet 1" && r.first === "X,A", JSON.stringify(r));
+  r = await p.evaluate(() => { const s1 = sheetList().find(s => s.name === "Sheet 1").id; showSheet(s1, { quiet: true }); wsHideRows([3, 4]); const s2 = sheetList().find(s => s.name === "Sheet 2").id; showSheet(s2, { quiet: true }); const h2 = wsHideOf(P()).rows.slice(); wsHideRows([1]); showSheet(s1, { quiet: true }); return { h1: wsHideOf(P()).rows.join(), h2: h2.join() }; }); await wait(200);
+  check("hidden rows are each sheet's own", r.h1 === "3,4" && r.h2 === "", JSON.stringify(r));
+  r = await p.evaluate(async () => { const ids = sheetList().map(s => s.id); await deleteSheet(ids.find(i => sheetCols(i).every(c => !c.data.some(v => v != null)))); const n = sheetList().length; await deleteSheet(sheetList()[0].id); return { n, after: sheetList().length }; }); await wait(300);
+  check("an empty sheet is deleted at once, and the last sheet stays", r.n === 1 && r.after === 1, JSON.stringify(r));
+  r = await p.evaluate(() => { P().wsHide = { cols: [], rows: [2] }; return wsHideOf(P()).rows.join(); });
+  check("hidden rows kept before sheets are the first sheet's", r === "2", r);
+}, { name: "sheets" });
+
 console.log("A curve fit held to one iteration, a tolerance of zero, starting values it cannot use");
 await page(async p => {
   const g = await p.evaluate(() => { const x=[], y=[]; for(let i=0;i<120;i++){ x.push(i*0.1); y.push(1+4*Math.exp(-i*0.1/1.7)+0.01*Math.sin(i)); } return {x,y}; });

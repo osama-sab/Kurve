@@ -43,6 +43,11 @@ Edit
 
 Data
   Worksheet
+  Sheets  ## new (after slice 1 of the curve fit): the worksheet's sheets, as a workbook's; their tabs are under the grid
+    (each sheet, the one shown ticked)
+    New sheet
+    Rename this sheet…
+    Delete this sheet…
   Add a column  ## + Edit's "Add a Y column"
   Fill
     Down  [Ctrl+D]  ## new route: the cell menu's Fill › Down
