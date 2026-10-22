@@ -598,6 +598,35 @@ contrast 189 (now measured with transitions off: one run in five caught a colour
 menucheck, terms 0, the help's articles, sheet-fuzz; screenshots at 1440, 1024 and 390 px in
 both themes.
 
+## Curve fit, slice 2: one parameter grid (2026-10-22)
+
+`ux/spec/FIT_SPEC.md` slice 2.
+- **One grid** in the Fit window: each parameter with its unit and what it means (also in
+  Results), Start and Fix, Lowest and Highest, Fitted ± error, the 95% interval, Dependency and
+  Digits. In the dock one view at a time (Starting values, Limits, Results), the fitted value
+  beside the starts too; in a wider window every column.
+- **Limits for every model**: typed, the function's own (its placeholder), or none; each
+  "or equal" (≤) or strict (<, the fit stays just inside it). A parameter that reaches one is
+  at its limit, with no standard error. Equal limits hold a parameter there; crossed ones are
+  refused in words. A start outside its limits is marked and the fit begins at the nearest.
+- **Kept with the fit**: Results' Limits row, the report's Method and the CSV state them; fits
+  of every column, one by one or together, run within the template's.
+- **Digits** per parameter: the grid, Results and the report show the value with them; the
+  CSV and the copied table keep every digit.
+- **A fix to the fitter**: a limit that binds used to leave the other parameters crawling
+  along it (a decay held at τ ≥ 2 ran all 400 iterations, short of the minimum; orthogonal
+  distance all 300). A parameter on its limit that a step would push past now sits that step
+  out, and the fit settles in a few iterations where the same fit with it fixed there does.
+  Fits without a binding limit take exactly the path they took before.
+
+Checked: fit-test (17 on limits: typed over the model's own, strict, equal, crossed, fixed,
+binding and not, a start outside, and a binding limit settling quickly in both fitters),
+odd-test (4: a strict limit at the start, every parameter held, crossed limits and junk from
+storage), a drive of the grid (31), screenshots in the dock, wide, dark and at 390 px, and
+every suite from the round before (drive5b now scrolls to the Residuals switch, which the
+taller grid moved below the fold; the Fit window's scroller stops what it brings into view
+above its sticky footer).
+
 ## Sheets (2026-10-22)
 
 From the user's question, "why not several worksheets?".

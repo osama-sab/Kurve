@@ -142,7 +142,9 @@ graph first, with the taskbar kept at the bottom of the screen.
 
 - **Numerics** (`==NUMERICS:START/END==`): `solve`, `inverse`, `lmFit`, `polyfit`, `tPvalue`.
   `lmFit` is Levenberg–Marquardt with a central-difference Jacobian, covariance scaled by reduced
-  chi² when unweighted (as Origin does), box bounds by projection, normal equations solved in
+  chi² when unweighted (as Origin does), box bounds by projection with an active set (a
+  parameter on its limit that a step would push past it sits that step out, and the others
+  are solved for without it; `odrFit` does the same), normal equations solved in
   units of each parameter's own curvature, and finite-difference steps sized from an optional
   `pscale`. Those last two are what let a model mixing areas of 1e6 with widths of 10 converge.
   It returns standard errors, 95% CI, t and p values, `dep` (dependency), `atBound`, AIC and BIC.
@@ -153,6 +155,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   is the parameters and λ alone, so a fit paused (`stats.paused`) and carried on from its
   `params` and returned `lambda`, or taken one step (`maxIter:1`) at a time, follows exactly
   the path of one uninterrupted fit. `stats.iter` counts the steps taken.
+  `fitBounds(n, {lo, hi, slo, shi, mlo, mhi, p0, fixed, names})` turns a curve fit's limits
+  into `lmFit`'s box: each limit typed (a number), the model's own (null: `mlo`/`mhi`, a
+  function's) or none (false), strict ones (`slo`/`shi`) one part in 10⁹ inside, so a parameter
+  that reaches one is `atBound` as at any other; a fixed parameter is free of its limits, equal
+  limits hold one (fixed, its start the limit, `held`); crossed or empty strict ones `fail` in
+  words. It returns the limits as stated too (`L`, `H`, `sl`, `sh`) and `any`.
   `opt.blocks = {seg, of}` makes it block-sparse: `seg` the point ranges (covering every point),
   `of[i]` the range parameter i alone moves (or -1 for all); each point then keeps only the
   derivatives that can be non-zero, so the Jacobian and the normal equations cost the number of
@@ -310,7 +318,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   Deming's closed form, no X errors equal to a weighted fit, the Y scatter found, a decay with
   errors in time), and fit control (an iteration limit, a looser tolerance, one step equal to
   a fit's first, steps one at a time and slices paused by a deadline ending exactly where the
-  whole fit does, orthogonal distance's limit). Run it after touching any of this.
+  whole fit does, orthogonal distance's limit), and limits (typed over the model's own, none,
+  strict, equal, crossed, a fixed parameter free of them; a slope held at 0 or more ending at
+  0, strictly above it just above, limits that do not bind giving the free fit exactly, a start
+  outside them, a parameter held by equal ones). Run it after touching any of this.
   `matchPeakTracks(lists, {tol, dx})` follows the same peak through a series: each spectrum's
   peaks (`{x, w}`) join the track whose last position is nearest, within `tol` (0.5) of the
   larger FWHM (`dx` when neither has one), closest pairs first, two peaks of one spectrum never
@@ -377,6 +388,26 @@ graph first, with the taskbar kept at the bottom of the screen.
   `fitWarnings` says when a fit stopped at its limit; `batchTemplate` carries `ctl` and
   `fitOne` runs with it. *Remove fit* is in the fit's summary (`fitSummary(f, more)`), so the
   footer (Fit, 1 iteration, Guess, Done) keeps to one row in the dock.
+  **The parameter grid** (`FIT_SPEC.md` slice 2; `paramGridHtml`, `wirePGrid`, `pgMarks`):
+  each parameter with its unit and meaning (`MODELS[k].mean`, also in Results), Start and
+  Fix, Lowest and Highest (each with a ≤ or < button, `data-prel`; typed, empty for the
+  model's own, shown as the placeholder, or `none`), Fitted ± error, the 95% interval,
+  Dependency and Digits. In a window narrower than 700 px one view at a time (`PG_VIEWS`,
+  `S.pgView`: Starting values, Limits, Results; the fitted value is beside the starts too),
+  by container query on `.pgw`; wider, every column. The draft keeps `d.lim` (`{lo, hi, slo,
+  shi}`: a number, null for the model's own, false for none; `draftLims` sizes it,
+  `boundsOf(L, m, p0, fixed)` resolves it through `fitBounds`) and `d.dig` (significant digits
+  per parameter, null for automatic); a model change clears both. A field writes the draft and
+  marks in place (a start outside its limits `.oob`, `.pgnote` for a parameter held by equal
+  limits), never redrawing the form; crossed limits are refused with a toast and the field put
+  back. `runFit`, `stepFit`, `fitOne` and `fitTogether` fit within them; a fit stores `lim`
+  (`limRec`: only when something is typed) and `dig`, and its `fixed` includes a parameter
+  held by equal limits. `limText(f, ascii)` says them ("0 < w; 1 ≤ xc ≤ 5", resolved over the
+  fit's own model, fixed ones left out): Results' Limits row, the report's Method (`Limits:`,
+  once, the function's line no longer carrying them) and the CSV (`# limits`). `fmtPMd(v, e,
+  dig)` shows a value and its error with chosen digits (the grid, Results and the report; the
+  CSV and the copied table keep every digit); changing the digits of the fit on screen saves
+  them on it at once (one undo entry).
 - **Batch fits and series** (`p.batch`, `p.series`, both in `UNDO_KEYS`): the analysed
   spectrum's fit is the template (`batchTemplate`: model, peaks with shapes, ties and fixed
   parameters, baseline or curve model, X range, weighting, X units). `runBatch({tmpl, seed,
@@ -1777,7 +1808,8 @@ standard font has, broken formats in the store, graphs coming and going (a proje
 the first deleted like any other, its comments and folder not passing to the next graph, the
 analysed curve taken off a graph of two, a graph's last curve, a column shown while the graphs
 are closed), a curve fit held to one iteration or started where its
-model cannot be evaluated. Run it after touching storage, the axes, the
+model cannot be evaluated, limits (strict right at the start, every parameter held by equal
+ones, crossed ones from storage, ones of the wrong shape). Run it after touching storage, the axes, the
 parser, undo or the PDF and EPS writer. It serves the file over HTTP (a server of its own, on a
 free port) and waits for each page to be ready (a project on the desk), never a fixed time.
 `node tools/sheet-fuzz.mjs [path] [seed or a-b] [steps]` drives the worksheet as an erratic
@@ -2249,6 +2281,13 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   snapshot with the waiting edit merged first, and the edit's log line was added after the
   snapshot's log: the log said a value had changed that the undo had put back. A save that
   brings its own `log` drops the waiting line.
+- **A step cut back to a limit is not a step.** Box limits were kept by projecting each step
+  onto them; with one limit binding, the other parameters crawled along it, and a decay held at
+  τ ≥ 2 ran all 400 iterations without settling, short of the true minimum. Found on the first
+  screenshot of the new grid, not by a test: the tests had only checked where a bound fit ends.
+  A parameter on its limit that the step would push past now sits the step out (an active set),
+  and the fit settles where the same fit with it fixed there does. Test a fit's iterations,
+  not only its answer.
 - **Scrolling is not leaving.** An edit whose cell was scrolled more than 30 rows away was
   entered there and then, so the Esc that followed had nothing to cancel and kept what was
   typed; the random user found it (seed 9). The edit waits while its cell is out of view.
@@ -2410,7 +2449,13 @@ iterations at most, the tolerance), stored with each fit and said by Results, th
 the CSV; *1 iteration*, one step from the starting values, which it replaces; the iterations
 listed as they go (reduced χ², λ, the parameters), steps taken one at a time following Fit's
 own path; a long fit run in slices with *Stop*; the curve at its starting values drawn dashed
-while the Fit window is open; fits of every column run with the template's control.
+while the Fit window is open; fits of every column run with the template's control. Slice 2
+done: one parameter grid, each parameter with its unit and meaning, its start and Fix, limits
+for every model (lowest and highest, each "or equal" or strict, over a function's own, none
+typed as none), the fitted value with its 95% interval and dependency, and the digits it is
+shown with; one view at a time in the dock, every column in a wider window; equal limits hold
+a parameter, crossed ones are refused in words; the limits are kept with the fit, stated by
+Results, the report and the CSV, and used by fits of every column, together or not.
 
 Between slices 1 and 2, from the user's bug reports: graphs as one list (document version 5).
 A project has no graph until something is plotted, so a project can be worksheet calculations
@@ -2847,6 +2892,10 @@ Next, in order:
   different parameters, and a user's function cannot be a peak shape in a peak fit
 - Comments have no mentions, unread markers or notifications; they are plain text
 - No Shirley or Tougaard background (XPS); no Fourier self-deconvolution
+- Limits and digits are the curve fit's: a peak fit keeps its shapes' own bounds; Share stays
+  in Fit every column… rather than the grid; digits change what is shown, not the numbers kept
+  (the CSV and the copied table keep every digit), and a fit of every column takes the
+  template's
 - Fit control is the curve fit's: a peak fit and a global fit run with the defaults (400
   iterations, 1e-12); *1 iteration* is a Levenberg–Marquardt step (not with the X errors); the
   list of iterations keeps the last 200 rows, is this browser's alone and is not in the

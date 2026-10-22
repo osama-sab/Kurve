@@ -504,6 +504,25 @@ brings an open one forward, and a column shown with every graph closed gets a gr
 "Not plotted" over a column means on no graph, not "not on the graph in front", which read as
 false with several graphs.
 
+### 2026-10-22: the curve fit's parameter grid (FIT_SPEC slice 2)
+
+Origin spreads a parameter over two tabs (Parameters, Bounds); Kurve keeps one grid, a row per
+parameter, because a limit is only read beside the value it limits. The dock is 360 to 420 px
+wide, too narrow for nine columns, so there the grid shows one view at a time (Starting values,
+Limits, Results, a segmented control above it); the fitted value sits beside the starts as
+well, since that is what is compared after a fit. A wider Fit window (700 px or more, a
+container query) shows every column and no switch. Each parameter says what it means under
+its name, in the muted colour, so the grid needs no legend and Results says the same. A limit
+is a field and a button: the button reads ≤ or <, the relation itself, rather than a word or a
+tick, and clicking it changes it; the lowest's button follows its field and the highest's
+precedes it, so a row reads "1 ≤ … ≤ 5". An empty field is the model's own limit, shown as its
+placeholder; "none" is typed, because an empty field cannot mean two things. Nothing in the
+grid redraws the form while it is typed in (the lesson of Fit control): a start outside its
+limits is marked in place in the warning colour, and a parameter held by equal limits is said
+under the grid; crossed limits are refused with a toast and the field put back, never kept
+half-wrong. Digits are a list per parameter (Auto first) in the Results view, because they are
+how the result is read; the exports keep every digit.
+
 ### 2026-10-22: sheets (from the user's question)
 
 "We are limited to one worksheet per project, why not multiple?" The worksheet has sheets, as

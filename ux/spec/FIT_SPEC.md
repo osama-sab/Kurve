@@ -30,8 +30,8 @@ Origin's help pages it was compared with: the NLFit dialog's
 | Residual analysis | a panel of residuals under the graph, a runs test | standardised and studentised residuals, residual plots, outliers |
 | Output | Results, copied table, report, CSV, fit history | fitted values and residuals as worksheet columns |
 | Code tab | none (Kurve runs no code) | starting values and constraints as formulas |
-| Parameters tab | name, start, Fix, fitted ± error | one grid: meaning, limits, share, CI and dependency |
-| Bounds tab | limits for your functions only | limits for every model, < or ≤ |
+| Parameters tab | one grid: name, unit, meaning, start, Fix, limits, fitted ± error, 95 % interval, dependency, digits (slice 2) | share in the grid |
+| Bounds tab | limits for every model, < or ≤, over a function's own (slice 2) | none |
 | Buttons | Fit, Guess, Fit every column…, Remove fit, Done | 1 Iteration |
 | Saved settings, Recalculate | none; an out-of-date fit is marked | fit settings by name; refit when the data change |
 | Lower panel | the live graph, the residual panel, the formula, a summary line | the iterations as they go, a sketch of the model |
@@ -69,7 +69,9 @@ CLAUDE.md, the menu spec when a menu changes.
    runs on to convergence. A strip lists the iterations as they go (number, χ²ᵣ, λ, the
    parameters) with Stop for a long fit. The fit stores `ctl`; Results, the report's Method
    and the CSV state it; `fitWarnings` says when the iteration limit stopped the fit.
-2. **One parameter grid.** Parameter (and unit), its meaning, Start, Fix, Lowest, Highest
+2. **One parameter grid** (done 2026-10-22; Share stays in Fit every column…, where fitting
+   together is chosen; the digits change what is shown, not the numbers exported).
+   Parameter (and unit), its meaning, Start, Fix, Lowest, Highest
    (each `<` or `≤`), Fitted ± error, CI and dependency; Share when fitting columns together.
    Every model gets limits, kept on the draft (`d.lo`, `d.hi`, `d.strict`) over the model's
    own; a strict limit stops just inside it, and a parameter that reaches it is "at its

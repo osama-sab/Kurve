@@ -294,6 +294,20 @@ await page(async p => {
     return { bad, iter:f&&f.stats.iter, conv:f&&f.stats.converged, nan:/NaN|Infinity/.test(document.querySelector("#plot").innerHTML), run:!!S.fitRun }; });
   check("one iteration from starting values the model cannot use says so in words", /can't be evaluated/.test(r.bad), r.bad);
   check("a fit held to one iteration stops after one, unsettled, and draws no NaN", r.iter===1 && r.conv===false && !r.nan && !r.run, JSON.stringify(r));
+  const L = await p.evaluate(() => { const d=S.draft, out={}; d.ctl=null; S.fitError="";
+    // a strict lowest value right at the start, where the model cannot be evaluated
+    d.init=[0,1,0]; d.lim={lo:[null,null,0],hi:[null,null,null],slo:[false,false,true],shi:[false,false,false]}; runFit();
+    out.strict={err:S.fitError||"", t:P().fit&&P().fit.params[2], nan:/NaN|Infinity/.test(document.querySelector("#plot").innerHTML)};
+    // every parameter held by equal limits
+    S.fitError=""; d.init=[1,4,1.7]; d.lim={lo:[1,4,1.7],hi:[1,4,1.7],slo:[false,false,false],shi:[false,false,false]}; runFit(); out.held=S.fitError||"";
+    // crossed limits, as storage might hand them back
+    S.fitError=""; d.lim={lo:[null,5,null],hi:[null,1,null],slo:[],shi:"x"}; runFit(); out.crossed=S.fitError||"";
+    S.fitError=""; d.lim={lo:"junk",hi:null}; renderFit(); runFit(); out.junk={err:S.fitError||"", ok:!!(P().fit&&P().fit.params.every(Number.isFinite))};
+    return out; });
+  check("a strict limit right at the start: the fit starts just inside it, and draws no NaN", (L.strict.t>0 || /words|evaluated|fixed|points/.test(L.strict.err)) && !L.strict.nan, JSON.stringify(L.strict));
+  check("every parameter held by equal limits is refused in words", /Every parameter is fixed/.test(L.held), L.held);
+  check("crossed limits from storage are refused in words, not fitted", /above its highest/.test(L.crossed), L.crossed);
+  check("limits of the wrong shape are taken as none", !L.junk.err && L.junk.ok, JSON.stringify(L.junk));
 }, { name: "fit control" });
 
 await browser.close(); server.close();

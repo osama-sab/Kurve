@@ -15,7 +15,7 @@ const grab = (tag) => {
 // Interpolation, integration and normalizing live in the pipeline block now;
 // tools/pipe-test.mjs tests the rest of it.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -765,6 +765,47 @@ check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
   check("from the minimum, one iteration settles at once", atMin.stats.converged && atMin.stats.iter<=1, atMin.stats.iter);
   const SX=X.map(()=>0.02), o=N.odrFit(f,X,Y,null,SX,p0,fx,{maxIter:2});
   check("orthogonal distance honours the iteration limit", !o.error && o.odr.iter<=2, o.error||o.odr.iter);
+}
+
+/* ---------- limits: typed over the model's own, strict or not, equal, crossed ---------- */
+{
+  const B0=N.fitBounds(3,{p0:[1,2,3],fixed:[false,false,false]});
+  check("limits: none gives an open box and says there are none", B0.lo.every(v=>v===-Infinity)&&B0.hi.every(v=>v===Infinity)&&!B0.any&&!B0.fail);
+  const own=N.fitBounds(2,{mlo:[0,-Infinity],mhi:[5,Infinity],p0:[1,1],fixed:[false,false]});
+  check("limits: the model's own are used when none is typed", own.lo[0]===0&&own.hi[0]===5&&own.lo[1]===-Infinity&&own.any);
+  const typed=N.fitBounds(2,{lo:[1,null],hi:[false,null],mlo:[0,0],mhi:[5,5],p0:[2,2],fixed:[false,false]});
+  check("limits: a typed one wins over the model's, and none removes it", typed.lo[0]===1&&typed.hi[0]===Infinity&&typed.lo[1]===0&&typed.hi[1]===5);
+  const st=N.fitBounds(1,{lo:[0],slo:[true],p0:[2],fixed:[false]});
+  check("limits: a strict one stops just inside", st.lo[0]>0&&st.lo[0]<1e-8&&st.L[0]===0&&st.sl[0]===true, st.lo[0]);
+  const eq=N.fitBounds(2,{lo:[3,null],hi:[3,null],p0:[1,1],fixed:[false,false]});
+  check("limits: equal ones hold the parameter there, as Fix does", eq.fixed[0]===true&&eq.p0[0]===3&&eq.held.join()==="0"&&eq.lo[0]===-Infinity);
+  check("limits: crossed ones are refused in words", /above its highest/.test(N.fitBounds(1,{lo:[5],hi:[1],p0:[2],fixed:[false],names:["xc"]}).fail||""));
+  check("limits: equal and strict leave nothing between, and say so", /strictly between/.test(N.fitBounds(1,{lo:[2],hi:[2],shi:[true],p0:[2],fixed:[false]}).fail||""));
+  const fx=N.fitBounds(1,{lo:[0],hi:[1],p0:[7],fixed:[true]});
+  check("limits: a fixed parameter keeps its start whatever its limits", fx.lo[0]===-Infinity&&fx.hi[0]===Infinity&&fx.p0[0]===7&&!fx.any);
+  // y = a + b x through points falling with slope -1: a slope held at 0 or more ends at 0, at its limit.
+  const X=[], Y=[]; for(let i=0;i<30;i++){ X.push(i); Y.push(10-i+0.01*Math.sin(i)); }
+  const W=X.map(()=>1), f=(x,p)=>p[0]+p[1]*x, free=N.lmFit(f,X,Y,W,[1,1],[false,false]);
+  const Bi=N.fitBounds(2,{lo:[null,0],p0:[1,1],fixed:[false,false]}), inc=N.lmFit(f,X,Y,W,Bi.p0,Bi.fixed,{lo:Bi.lo,hi:Bi.hi});
+  check("limits: a slope held at 0 or more ends at 0, at its limit", inc.params[1]===0&&inc.atBound[1]&&!inc.atBound[0], JSON.stringify(inc.params));
+  const Bs=N.fitBounds(2,{lo:[null,0],slo:[false,true],p0:[1,1],fixed:[false,false]}), str=N.lmFit(f,X,Y,W,Bs.p0,Bs.fixed,{lo:Bs.lo,hi:Bs.hi});
+  check("limits: held strictly above 0, it stops just above, at its limit", str.params[1]>0&&str.params[1]<1e-6&&str.atBound[1], str.params[1]);
+  const Bn=N.fitBounds(2,{lo:[-100,-50],hi:[100,50],p0:[1,1],fixed:[false,false]}), non=N.lmFit(f,X,Y,W,Bn.p0,Bn.fixed,{lo:Bn.lo,hi:Bn.hi});
+  check("limits: limits that do not bind give the free fit exactly", non.params.every((v,i)=>v===free.params[i])&&non.errors.every((v,i)=>v===free.errors[i])&&!non.atBound.some(Boolean));
+  const Bo=N.fitBounds(2,{lo:[null,-5],hi:[null,-0.5],p0:[0,3],fixed:[false,false]}), oob=N.lmFit(f,X,Y,W,Bo.p0,Bo.fixed,{lo:Bo.lo,hi:Bo.hi});
+  check("limits: a start outside them begins at the nearest and still finds the fit", Math.abs(oob.params[1]+1)<1e-3&&oob.stats.converged, JSON.stringify(oob.params));
+  const He=N.fitBounds(2,{lo:[10,null],hi:[10,null],p0:[1,1],fixed:[false,false]}), held=N.lmFit(f,X,Y,W,He.p0,He.fixed,{lo:He.lo,hi:He.hi});
+  check("limits: a parameter held by equal limits is not fitted, the other is", held.params[0]===10&&held.stats.dof===29&&Math.abs(held.params[1]+1)<1e-3);
+  // A limit that binds: the parameter sits the step out (an active set) and the
+  // others settle as they would with it fixed there, in a few iterations, not 400.
+  const rd=N.mulberry32(3), Xd=[], Yd=[]; for(let i=0;i<80;i++){ const x=i*0.1; Xd.push(x); Yd.push(1+4*Math.exp(-x/1.7)+0.03*(rd()-0.5)); }
+  const fd=(x,p)=>p[0]+p[1]*Math.exp(-x/p[2]), Wd=Xd.map(()=>1);
+  const Bd=N.fitBounds(3,{lo:[null,null,2],p0:[0.9,3.5,1.5],fixed:[false,false,false]}), bd=N.lmFit(fd,Xd,Yd,Wd,Bd.p0,Bd.fixed,{lo:Bd.lo,hi:Bd.hi});
+  const fxd=N.lmFit(fd,Xd,Yd,Wd,[0.9,3.5,2],[false,false,true]);
+  check("limits: one that binds settles in a few iterations", bd.stats.converged&&bd.stats.iter<20&&bd.params[2]===2&&bd.atBound[2], `${bd.stats.iter} iterations`);
+  const SXd=Xd.map(()=>0.01), od=N.odrFit(fd,Xd,Yd,null,SXd,Bd.p0,Bd.fixed,{lo:Bd.lo,hi:Bd.hi});
+  check("limits: orthogonal distance with one that binds settles too, on the limit", !od.error&&od.odr.conv&&od.odr.iter<40&&od.params[2]===2&&od.atBound[2], od.error||`${od.odr.iter} iterations, ${od.params}`);
+  check("limits: …where the fit with that parameter fixed at the limit settles", rel(bd.params[0],fxd.params[0],1e-6)&&rel(bd.params[1],fxd.params[1],1e-6)&&rel(bd.stats.chi2,fxd.stats.chi2,1e-9), JSON.stringify([bd.params,fxd.params]));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
