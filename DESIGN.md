@@ -541,6 +541,25 @@ A value being typed stays open while its cell is scrolled out of view, as Excel'
 still cancels it, Enter, Tab and the arrows enter it, typing brings the cell back. Entering it
 when it scrolled away (as the grid did) made a scroll an answer the user had not given.
 
+### 2026-10-22: the curve fit's models (FIT_SPEC slice 3)
+
+Twenty-five models do not fit a drop-down: a native list of that length is a wall of names
+that says nothing of their shapes, cannot be searched, and in the dock is as tall as the
+screen. The model is a button showing the model in use (its sketch and name) that opens a
+list by kind, as the font picker does and in its popover, so one such list is open at a time
+and the same things close it. Each model has a sketch drawn from typical values, because a
+shape is recognised before a name is remembered (an extreme-value peak, a Gompertz rise), and
+its formula under the name, in the formula's own face. The search box is focused when the list
+opens and every word typed must match: the name, the formula, what the parameters mean, or
+other names. Origin's names (ExpDec2, DoseResp, SineDamp) find a model but never name it: the
+words on screen are Kurve's, and someone coming from Origin still finds what they knew. The
+list scrolls to the model in use, ticked as a menu ticks a radio item; Enter takes the first
+found, the arrows, Home and End move, Escape gives the focus back to the button. A polynomial
+is one entry: its order is a list beside the button (1 to 9, 1 the straight line), since nine
+rows of "Polynomial of order k" would bury the other kinds. A model that takes the logarithm
+of x refuses X it cannot take in words before fitting, rather than letting the fit fail on a
+NaN; the message says what to do (a range of X above 0).
+
 ### 2026-10-17: defaults (UX rework, Phase 4 slice 5)
 
 From the Phase 2 defaults audit and Phase 1 T2, T4, T6 and T8: a Gaussian offered for a

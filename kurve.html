@@ -530,8 +530,34 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 #pfAddMode[aria-pressed="true"]{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
 .formula .ufx{font:var(--fs-body)/1.6 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
 .mrow{display:flex;gap:var(--sp-3);align-items:center}
-.mrow select{flex:1;min-width:0}
 .mrow .btn{flex:0 0 auto}
+/* The model's button and the model picker (FIT_SPEC slice 3). A sketch is a
+   picture of a shape, so its 56 × 22 px is a size of its own (TOKEN_MAP: a sample). */
+.mbtn{flex:1;min-width:0;display:flex;align-items:center;gap:var(--sp-3);height:28px;padding:0 var(--sp-3) 0 var(--sp-1);border:1px solid var(--rule);border-radius:var(--r);background:var(--btn-bg);color:var(--ink);text-align:left;cursor:pointer}
+.mbtn:hover:not(:disabled){background:var(--btn-bg-h)}
+.mbtn[aria-expanded="true"]{background:var(--press);border-color:var(--ink-2);box-shadow:inset 0 1px 2px rgba(11,18,32,.28)}
+.mbtn .mb-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.mbtn>.ic{flex:0 0 auto;color:var(--ink-2)}
+.mbtn:disabled{color:var(--ink-off);border-style:dashed;border-color:var(--rule-2);background:transparent;cursor:default}
+.msk{flex:0 0 auto;width:56px;height:22px;border-radius:var(--r-s);background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--rule-2);color:var(--accent)}
+.msk path{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
+.msk text{font:italic 15px var(--serif);fill:currentColor}
+.mord{display:flex;align-items:center;gap:var(--sp-2);flex:0 0 auto;color:var(--ink-2)}
+.fpick.mpick{width:min(400px,calc(100vw - 16px))}
+.mp-l{position:relative}
+.mp-i{display:flex;align-items:center;gap:var(--sp-4);width:100%;padding:var(--sp-2) var(--sp-3);border:0;border-radius:var(--r-s);background:none;color:var(--ink);text-align:left;cursor:pointer}
+.mp-i:hover,.mp-i:focus{background:var(--hi);box-shadow:inset 3px 0 0 var(--accent);outline:none}
+.mp-i[aria-selected="true"] .mp-n{font-weight:600}
+.mp-i>.ic{flex:0 0 auto;color:var(--accent)}
+.mp-t{flex:1;min-width:0;display:flex;flex-direction:column}
+.mp-n{font-size:var(--fs-body);line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mp-n em{font-style:normal;font-size:var(--fs-cap);color:var(--muted)}
+.mp-f{font:var(--fs-tab)/1.4 var(--serif);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mp-f.mono{font-family:var(--mono)}
+.mp-i:hover .mp-f,.mp-i:focus .mp-f,.mp-i:hover .mp-n em,.mp-i:focus .mp-n em{color:var(--ink)}
+.mp-i[hidden]{display:none}
+.mp-none{margin:0;padding:var(--sp-5) var(--sp-4);color:var(--muted)}
+.mpick .fp-f .lab{margin-left:auto}
 .ufacts{margin:calc(var(--sp-2) * -1) 0 var(--sp-3);flex-wrap:wrap;align-items:center}
 .rfx code{font:var(--fs-tab)/1.5 var(--mono);color:var(--ink-2);overflow-wrap:anywhere}
 .fnb .fblab{display:block;margin:var(--sp-1) 0 var(--sp-2);color:var(--ink-2)}
@@ -4399,7 +4425,7 @@ function fitStale(f){
 // A model's name in the middle of a sentence: lower case, except the names of
 // people (a Gaussian peak stays Gaussian).
 // Eponyms keep their capital, and so do acronyms (FWHM, R²).
-const lcFirst=s=>/^(Gauss|Lorentz|Voigt|Pearson|Fano|Boltzmann|Breit)|^[A-Z][A-Z0-9²]/.test(String(s))?String(s):String(s).charAt(0).toLowerCase()+String(s).slice(1);
+const lcFirst=s=>/^(Gauss|Lorentz|Voigt|Pearson|Fano|Boltzmann|Breit|Michaelis|Arrhenius|Gompertz|Hill\b)|^[A-Z][A-Z0-9²]/.test(String(s))?String(s):String(s).charAt(0).toLowerCase()+String(s).slice(1);
 function describeSpec(spec){
   const n=(spec.peaks||[]).length;
   // Shapes are named after people (Gauss, Lorentz, Voigt, Pearson, Fano), so
@@ -4481,6 +4507,54 @@ function peakMetrics(fit){
   rows.sort((a,b)=>(a.xc??0)-(b.xc??0));
   return rows;
 }
+/* A parameter's unit is the data's units combined the way the parameter
+   combines them. A composite unit with a blank half is no unit at all: an area
+   labelled "cm-1" alone is dimensionally false, which is worse than silence.
+   "1/x" is per X (a frequency), y/xN Y over a power of X, "=unit" a unit of
+   its own (an activation energy in J/mol). */
+function unitFor(dim,xu,yu){
+  xu=(xu||"").trim(); yu=(yu||"").trim();
+  if(typeof dim==="string"&&dim.charAt(0)==="=") return dim.slice(1);
+  if(dim==="x") return xu;
+  if(dim==="y") return yu;
+  if(dim==="1/x"){ if(!xu) return ""; if(/\u207b\u00b9$/.test(xu)) return xu.slice(0,-2); return /^[\p{L}°]+$/u.test(xu)?xu+"\u207b\u00b9":"1/("+xu+")"; }
+  if(!xu||!yu) return "";
+  if(dim==="yx") return yu+"\u00b7"+xu;
+  if(dim==="y/x") return yu+"/"+xu;
+  { const m=/^y\/x([2-9])$/.exec(dim||""); if(m) return yu+"/"+xu+SUPN[+m[1]]; }
+  return "";
+}
+function dataUnits(){ const d=finalOf(activeYCol()); return [(d.xu||"").trim(),(d.yu||"").trim()]; }
+// A fit's units are those of the spectrum it was made on, which need not be the analysed one.
+function fitUnits(f){ const c=f&&f.onCol&&colById(f.onCol); if(!c) return dataUnits(); const d=finalOf(c); return [(d.xu||"").trim(),(d.yu||"").trim()]; }
+// A model parameter's label (HTML) as plain text: tags gone, entities such as &tau; written out.
+function phPlain(s){ s=String(s||"").replace(/<[^>]+>/g,""); if(!/&/.test(s)) return s; const d=document.createElement("textarea"); d.innerHTML=s; return d.value; }
+/* ==MODELS:START== */
+/* ============================================================
+   The curve fit's models (ux/spec/FIT_SPEC.md, slice 3). Pure, after NUMERICS
+   and PEAKS, which tools/fit-test.mjs loads with it. Each model has a name,
+   params, ph (each parameter's label, HTML), mean (what it means), dim (its
+   unit: x, y, yx, y/x, y/xN, 1/x, "=J/mol" a unit of its own, "" none),
+   formula (HTML), f(x, p), guess(X, Y) measured from the data, optionally lo
+   and hi (the model's own limits), derived ({name, dim, fn, exact?}: fn smooth
+   for the delta method, exact the value shown), xpos (X above 0, or "0": 0 and
+   above), sketch {x:[a, b], p} (typical values, drawn in the picker) and kw
+   (words the picker's search also finds it by, Origin's names among them).
+   An id never changes once shipped: a stored fit names its model by it.
+   ============================================================ */
+const SQ2PI=Math.sqrt(2*Math.PI), FW=2*Math.sqrt(2*Math.log(2)), R_GAS=8.314462618, F_EV=96485.33212;
+const meanOf=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:NaN;
+// The points with finite X and Y, in order of X.
+function sortXY(X,Y){ const idx=[]; for(let i=0;i<X.length;i++) if(Number.isFinite(X[i])&&Number.isFinite(Y[i])) idx.push(i);
+  idx.sort((a,b)=>X[a]-X[b]); return {x:idx.map(i=>X[i]),y:idx.map(i=>Y[i])}; }
+// A straight line [a, b] by least squares about the mean of X; null when X does not spread.
+function linFitXY(X,Y){ const n=X.length; if(n<2) return null; const mx=meanOf(X), my=meanOf(Y); let sxx=0, sxy=0;
+  for(let i=0;i<n;i++){ const dx=X[i]-mx; sxx+=dx*dx; sxy+=dx*(Y[i]-my); }
+  if(!(sxx>1e-24*Math.max(1,mx*mx)*n)||!Number.isFinite(sxy)) return null; const b=sxy/sxx; return [my-b*mx,b]; }
+// A moving average over about a fifteenth of the points, to read levels and crossings through noise.
+function smoothY(y){ const n=y.length, w=Math.round(n/30), c=[0]; for(let i=0;i<n;i++) c.push(c[i]+y[i]);
+  return y.map((_,i)=>{ const a=Math.max(0,i-w), b=Math.min(n-1,i+w); return (c[b+1]-c[a])/(b-a+1); }); }
+// The largest point's distance from the ends' level, its position and its width at half that height, each side.
 function peakGuess(X,Y){
   const idx=X.map((_,i)=>i).sort((a,b)=>X[a]-X[b]); const xs=idx.map(i=>X[i]), ys=idx.map(i=>Y[i]);
   const n=xs.length, k=Math.max(1,Math.floor(n*0.1));
@@ -4489,74 +4563,266 @@ function peakGuess(X,Y){
   const H=ys[im]-base, half=base+H/2;
   let l=im, r=im; while(l>0 && (ys[l]-half)*Math.sign(H)>0) l--; while(r<n-1 && (ys[r]-half)*Math.sign(H)>0) r++;
   const fwhm=Math.max(xs[r]-xs[l], (xs[n-1]-xs[0])/50);
-  return {base, H, xc:xs[im], fwhm};
+  return {base, H, xc:xs[im], fwhm, lw:xs[im]-xs[l], rw:xs[r]-xs[im]};
 }
-const SQ2PI=Math.sqrt(2*Math.PI), FW=2*Math.sqrt(2*Math.log(2));
-/* A parameter's unit is the data's units combined the way the parameter
-   combines them. A composite unit with a blank half is no unit at all: an area
-   labelled "cm-1" alone is dimensionally false, which is worse than silence. */
-function unitFor(dim,xu,yu){
-  xu=(xu||"").trim(); yu=(yu||"").trim();
-  if(dim==="x") return xu;
-  if(dim==="y") return yu;
-  if(!xu||!yu) return "";
-  if(dim==="yx") return yu+"\u00b7"+xu;
-  if(dim==="y/x") return yu+"/"+xu;
-  if(dim==="y/x2") return yu+"/"+xu+"\u00b2";
-  if(dim==="y/x3") return yu+"/"+xu+"\u00b3";
-  return "";
+/* A step from one level to another: the levels (the first and last tenth of
+   the points) and where the smoothed points cross 10, 50 and 90% of the way,
+   interpolated; w is the width from 10 to 90%. */
+function stepGuess(X,Y){
+  const s=sortXY(X,Y), x=s.x, n=x.length; if(n<3) return null;
+  const k=Math.max(1,Math.floor(n*0.1)), A1=meanOf(s.y.slice(0,k)), A2=meanOf(s.y.slice(-k)), span=(x[n-1]-x[0])||1, d=A2-A1;
+  const flat={A1,A2,mid:(x[0]+x[n-1])/2,w:span/4,span}; if(!d) return flat;
+  const fr=smoothY(s.y).map(v=>(v-A1)/d);
+  const at=(j,lev)=>{ const a=fr[j], b=fr[j+1]; return (a-lev)*(b-lev)<=0&&a!==b?x[j]+(lev-a)/(b-a)*(x[j+1]-x[j]):null; };
+  let jm=-1; for(let j=0;j<n-1;j++) if(at(j,0.5)!=null){ jm=j; break; } if(jm<0) return flat;
+  let lo=null, hi=null; for(let j=jm;j>=0&&lo==null;j--) lo=at(j,0.1); for(let j=jm;j<n-1&&hi==null;j++) hi=at(j,0.9);
+  return {A1,A2,mid:at(jm,0.5),w:Math.max((hi==null?x[n-1]:hi)-(lo==null?x[0]:lo),span/100),span};
 }
-function dataUnits(){ const d=finalOf(activeYCol()); return [(d.xu||"").trim(),(d.yu||"").trim()]; }
-// A fit's units are those of the spectrum it was made on, which need not be the analysed one.
-function fitUnits(f){ const c=f&&f.onCol&&colById(f.onCol); if(!c) return dataUnits(); const d=finalOf(c); return [(d.xu||"").trim(),(d.yu||"").trim()]; }
-// A model parameter's label (HTML) as plain text: tags gone, entities such as &tau; written out.
-function phPlain(s){ s=String(s||"").replace(/<[^>]+>/g,""); if(!/&/.test(s)) return s; const d=document.createElement("textarea"); d.innerHTML=s; return d.value; }
+// One decay to a level: [level, amplitude at x = 0, decay time], from where it has fallen to 1/e of the way.
+function decayGuess(X,Y){
+  const idx=X.map((_,i)=>i).sort((a,b)=>X[a]-X[b]); const n=idx.length, k=Math.max(1,Math.floor(n*0.1));
+  const y0=idx.slice(-k).reduce((s,i)=>s+Y[i],0)/k; const x0=X[idx[0]], x1=X[idx[n-1]];
+  const yA=Y[idx[0]]-y0; const target=y0+yA/Math.E; let t=(x1-x0)/3;
+  for(const i of idx){ if((Y[i]-target)*Math.sign(yA)<=0){ t=Math.max(X[i]-x0,(x1-x0)/100); break; } }
+  return [y0, yA*Math.exp(x0/t), t];
+}
+/* Several decays at once: for each set of decay times from a grid (a
+   fiftieth of the range to three ranges, evenly on a log scale) the level and
+   the amplitudes are a linear least-squares fit, and the set that fits best
+   is the start. On at most 400 points, so the guess stays quick.
+   [level, A1, t1, A2, t2, …], the fastest first. */
+function expGrid(X,Y,k){
+  const s=sortXY(X,Y), n=s.x.length, st=Math.max(1,Math.ceil(n/400)), x=[], y=[];
+  for(let i=0;i<n;i+=st){ x.push(s.x[i]); y.push(s.y[i]); }
+  const x0=x[0], span=(x[x.length-1]-x0)||1, G=16, ts=[]; for(let g=0;g<G;g++) ts.push(span/50*Math.pow(150,g/(G-1)));
+  let best=null;
+  const tryT=T=>{ const m=T.length+1, A=Array.from({length:m},()=>new Array(m).fill(0)), b=new Array(m).fill(0), E=x.map(v=>T.map(t=>Math.exp(-(v-x0)/t)));
+    for(let i=0;i<x.length;i++){ const r=[1].concat(E[i]); for(let a=0;a<m;a++){ b[a]+=r[a]*y[i]; for(let c=0;c<m;c++) A[a][c]+=r[a]*r[c]; } }
+    const c=solve(A,b); if(!c||!c.every(Number.isFinite)) return;
+    let ss=0; for(let i=0;i<x.length;i++){ let v=c[0]; for(let j=0;j<T.length;j++) v+=c[j+1]*E[i][j]; ss+=(y[i]-v)**2; }
+    if(!best||ss<best.ss) best={ss,c,T:T.slice()}; };
+  const rec=(from,T)=>{ if(T.length===k){ tryT(T); return; } for(let g=from;g<G;g++) rec(g+1,T.concat([ts[g]])); };
+  rec(0,[]);
+  if(!best){ const g=decayGuess(X,Y), out=[g[0]]; for(let j=0;j<k;j++) out.push(g[1]/k,g[2]*Math.pow(4,j-(k-1)/2)); return out; }
+  const out=[best.c[0]]; best.T.forEach((t,j)=>{ const a=best.c[j+1]*Math.exp(x0/t); out.push(Number.isFinite(a)?a:best.c[j+1],t); }); return out;
+}
+/* A wave: its level (the mean) and the period whose sine and cosine fit the
+   rest best, tried from half a cycle over the range up to half the points'
+   count, four trials a cycle, then finer around the best. On at most 600
+   points. Returns {y0, A, xc, T} and the points, for the damped wave. */
+function waveGuess(X,Y){
+  const s=sortXY(X,Y), n=s.x.length, st=Math.max(1,Math.ceil(n/600)), x=[], y=[];
+  for(let i=0;i<n;i+=st){ x.push(s.x[i]); y.push(s.y[i]); }
+  const m=x.length, x0=x[0], span=(x[m-1]-x0)||1, y0=meanOf(y), r=y.map(v=>v-y0);
+  const fitAt=f=>{ const w=2*Math.PI*f; let ss=0, sc=0, cc=0, ys=0, yc=0;
+    for(let i=0;i<m;i++){ const a=Math.sin(w*(x[i]-x0)), b=Math.cos(w*(x[i]-x0)); ss+=a*a; sc+=a*b; cc+=b*b; ys+=r[i]*a; yc+=r[i]*b; }
+    const det=ss*cc-sc*sc; if(!(det>1e-9*ss*cc)) return null; const A=(ys*cc-yc*sc)/det, B=(yc*ss-ys*sc)/det; return {f,A,B,pw:A*ys+B*yc}; };
+  const df=0.25/span, top=Math.max(2,m/2)/span; let best=null;
+  for(let j=2;j*df<=top;j++){ const q=fitAt(j*df); if(q&&(!best||q.pw>best.pw)) best=q; }
+  if(!best) return {y0,A:(Math.max(...y)-Math.min(...y))/2,xc:x0,T:span,x,y};
+  for(let it=1;it<=3;it++){ const d=df/Math.pow(5,it); let b2=best; for(let k=-5;k<=5;k++){ const q=fitAt(best.f+k*d); if(q&&q.pw>b2.pw) b2=q; } best=b2; }
+  const T=1/best.f, ph=Math.atan2(best.B,best.A), xc=x0+(((-ph/(2*Math.PI*best.f))%T)+T)%T;
+  return {y0,A:Math.hypot(best.A,best.B),xc,T,x,y};
+}
+// Chebyshev's polynomial of order k in powers of x: it turns k − 1 times between −1 and 1, which is what a sketch of order k should show.
+function chebCoef(k){ let a=[1], b=[0,1]; if(!k) return a; for(let j=1;j<k;j++){ const c=new Array(j+2).fill(0); b.forEach((v,i)=>{ c[i+1]+=2*v; }); a.forEach((v,i)=>{ c[i]-=v; }); a=b; b=c; } return b; }
+const SUPN=["","","²","³","⁴","⁵","⁶","⁷","⁸","⁹"];
+// The polynomial of order k (2 to 9), fitted as written, guessed by an exact least-squares fit about the mean of X.
+function polyModel(k){
+  const pw=j=>j===0?"":j===1?"<i>x</i>":`<i>x</i><sup>${j}</sup>`, term=j=>`<i>a</i><sub>${j}</sub>${pw(j)}`;
+  const js=k<=3?Array.from({length:k+1},(_,j)=>j):[0,1,2,-1,k];
+  return {name:`Polynomial of order ${k}`, listAs:"Polynomial", order:k,
+    params:Array.from({length:k+1},(_,j)=>"a"+j), ph:Array.from({length:k+1},(_,j)=>`<i>a</i><sub>${j}</sub>`),
+    mean:Array.from({length:k+1},(_,j)=>j===0?"value at x = 0":j===1?"coefficient of x":`coefficient of x${SUPN[j]}`),
+    dim:Array.from({length:k+1},(_,j)=>j===0?"y":j===1?"y/x":"y/x"+j),
+    formula:`<i>y</i> = ${js.map(j=>j<0?"…":term(j)).join(" + ")}`,
+    f:(x,p)=>{ let v=p[k]; for(let j=k-1;j>=0;j--) v=v*x+p[j]; return v; }, guess:(X,Y)=>polyfit(X,Y,k),
+    sketch:{x:[-1,1],p:chebCoef(k)}, kw:"polynomial quadratic cubic quartic parabola order Poly", hide:k>2};
+}
+const vgp=p=>[p[2],p[1],p[3],p[4]]; // [y0, A, xc, w…, shape] to PEAKS' [xc, A, w…, shape]
+// The width of the extreme-value peak at half its height, in units of w.
+const EXT_FW=(()=>{ const g=z=>Math.exp(-z)+z-1-Math.LN2, root=(a,b)=>{ for(let i=0;i<80;i++){ const m=(a+b)/2; if(g(a)*g(m)<=0) b=m; else a=m; } return (a+b)/2; }; return root(0,6)-root(-6,0); })();
 const MODELS={
-  linear:{name:"Linear", params:["a","b"], mean:["intercept","slope"], ph:["<i>a</i>","<i>b</i>"], dim:["y","y/x"],
+  linear:{name:"Straight line", params:["a","b"], mean:["value at x = 0 (the intercept)","slope"], ph:["<i>a</i>","<i>b</i>"], dim:["y","y/x"],
     formula:"<i>y</i> = <i>a</i> + <i>b</i><i>x</i>",
-    f:(x,p)=>p[0]+p[1]*x, guess:(X,Y)=>polyfit(X,Y,1)},
-  poly2:{name:"Polynomial, 2nd order", params:["a","b","c"], mean:["intercept","linear coefficient","quadratic coefficient"], ph:["<i>a</i>","<i>b</i>","<i>c</i>"], dim:["y","y/x","y/x2"],
-    formula:"<i>y</i> = <i>a</i> + <i>b</i><i>x</i> + <i>c</i><i>x</i><sup>2</sup>",
-    f:(x,p)=>p[0]+x*(p[1]+x*p[2]), guess:(X,Y)=>polyfit(X,Y,2)},
-  poly3:{name:"Polynomial, 3rd order", params:["a","b","c","d"], mean:["intercept","linear coefficient","quadratic coefficient","cubic coefficient"], ph:["<i>a</i>","<i>b</i>","<i>c</i>","<i>d</i>"], dim:["y","y/x","y/x2","y/x3"],
-    formula:"<i>y</i> = <i>a</i> + <i>b</i><i>x</i> + <i>c</i><i>x</i><sup>2</sup> + <i>d</i><i>x</i><sup>3</sup>",
-    f:(x,p)=>p[0]+x*(p[1]+x*(p[2]+x*p[3])), guess:(X,Y)=>polyfit(X,Y,3)},
+    f:(x,p)=>p[0]+p[1]*x, guess:(X,Y)=>polyfit(X,Y,1), sketch:{x:[0,1],p:[0.2,1]}, kw:"linear straight line slope intercept regression proportional"},
+  poly2:polyModel(2), poly3:polyModel(3), poly4:polyModel(4), poly5:polyModel(5), poly6:polyModel(6), poly7:polyModel(7), poly8:polyModel(8), poly9:polyModel(9),
+  expdec:{name:"Exponential decay", params:["y0","A","t"], mean:["level it decays to","amplitude at x = 0","decay time"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>&tau;</i>"], dim:["y","y","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> exp(&minus;<i>x</i>/<i>&tau;</i>)",
+    f:(x,p)=>p[0]+p[1]*Math.exp(-x/p[2]), guess:decayGuess,
+    derived:[{name:"Half-life", dim:"x", fn:p=>Math.abs(p[2])*Math.LN2}], sketch:{x:[0,5],p:[0,1,1]}, kw:"exponential decay lifetime relaxation first order kinetics ExpDec1"},
+  expdec2:{name:"Exponential decay, two terms", params:["y0","A1","t1","A2","t2"], mean:["level it decays to","amplitude of the first term at x = 0","decay time of the first term","amplitude of the second term at x = 0","decay time of the second term"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i><sub>1</sub>","<i>&tau;</i><sub>1</sub>","<i>A</i><sub>2</sub>","<i>&tau;</i><sub>2</sub>"], dim:["y","y","x","y","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i><sub>1</sub> exp(&minus;<i>x</i>/<i>&tau;</i><sub>1</sub>) + <i>A</i><sub>2</sub> exp(&minus;<i>x</i>/<i>&tau;</i><sub>2</sub>)",
+    f:(x,p)=>p[0]+p[1]*Math.exp(-x/p[2])+p[3]*Math.exp(-x/p[4]), guess:(X,Y)=>expGrid(X,Y,2),
+    derived:[{name:"Half-life 1", dim:"x", fn:p=>Math.abs(p[2])*Math.LN2},{name:"Half-life 2", dim:"x", fn:p=>Math.abs(p[4])*Math.LN2}],
+    sketch:{x:[0,8],p:[0,0.6,0.4,0.4,3]}, kw:"exponential decay biexponential two lifetimes double ExpDec2"},
+  expdec3:{name:"Exponential decay, three terms", params:["y0","A1","t1","A2","t2","A3","t3"], mean:["level it decays to","amplitude of the first term at x = 0","decay time of the first term","amplitude of the second term at x = 0","decay time of the second term","amplitude of the third term at x = 0","decay time of the third term"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i><sub>1</sub>","<i>&tau;</i><sub>1</sub>","<i>A</i><sub>2</sub>","<i>&tau;</i><sub>2</sub>","<i>A</i><sub>3</sub>","<i>&tau;</i><sub>3</sub>"], dim:["y","y","x","y","x","y","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i><sub>1</sub> exp(&minus;<i>x</i>/<i>&tau;</i><sub>1</sub>) + <i>A</i><sub>2</sub> exp(&minus;<i>x</i>/<i>&tau;</i><sub>2</sub>) + <i>A</i><sub>3</sub> exp(&minus;<i>x</i>/<i>&tau;</i><sub>3</sub>)",
+    f:(x,p)=>p[0]+p[1]*Math.exp(-x/p[2])+p[3]*Math.exp(-x/p[4])+p[5]*Math.exp(-x/p[6]), guess:(X,Y)=>expGrid(X,Y,3),
+    derived:[1,2,3].map(j=>({name:"Half-life "+j, dim:"x", fn:p=>Math.abs(p[2*j])*Math.LN2})),
+    sketch:{x:[0,12],p:[0,0.4,0.25,0.3,1.5,0.3,6]}, kw:"exponential decay triexponential three lifetimes ExpDec3"},
+  expgrow:{name:"Exponential growth", params:["y0","A","t"], mean:["level it grows from","amplitude at x = 0","growth time: it grows e-fold over this"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>&tau;</i>"], dim:["y","y","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> exp(<i>x</i>/<i>&tau;</i>)",
+    f:(x,p)=>p[0]+p[1]*Math.exp(x/p[2]), guess:(X,Y)=>decayGuess(X.map(v=>-v),Y),
+    derived:[{name:"Doubling time", dim:"x", fn:p=>Math.abs(p[2])*Math.LN2}], sketch:{x:[0,3],p:[0,0.05,1]}, kw:"exponential growth doubling ExpGrow1"},
+  riseplat:{name:"Rise to a plateau", params:["y0","A","t"], mean:["value at x = 0","rise from there to the plateau","time constant"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>&tau;</i>"], dim:["y","y","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> [1 &minus; exp(&minus;<i>x</i>/<i>&tau;</i>)]",
+    f:(x,p)=>p[0]+p[1]*(1-Math.exp(-x/p[2])), guess:(X,Y)=>{ const g=decayGuess(X,Y); return [g[0]+g[1],-g[1],g[2]]; },
+    derived:[{name:"Plateau", dim:"y", fn:p=>p[0]+p[1]},{name:"Half-time", dim:"x", fn:p=>Math.abs(p[2])*Math.LN2}],
+    sketch:{x:[0,5],p:[0,1,1]}, kw:"exponential association saturation charging recovery plateau first order rise ExpAssoc BoxLucas"},
+  boltz:{name:"Sigmoid (Boltzmann)", params:["A1","A2","x0","dx"], mean:["level before the step","level after the step","middle of the step","width of the step"], ph:["<i>A</i><sub>1</sub>","<i>A</i><sub>2</sub>","<i>x</i><sub>0</sub>","d<i>x</i>"], dim:["y","y","x","x"],
+    formula:"<i>y</i> = <i>A</i><sub>2</sub> + (<i>A</i><sub>1</sub> &minus; <i>A</i><sub>2</sub>) / [1 + exp((<i>x</i> &minus; <i>x</i><sub>0</sub>)/d<i>x</i>)]",
+    f:(x,p)=>p[1]+(p[0]-p[1])/(1+Math.exp((x-p[2])/p[3])),
+    guess:(X,Y)=>{ const g=stepGuess(X,Y); return g?[g.A1,g.A2,g.mid,g.w/4.3944]:[0,1,0,1]; },
+    sketch:{x:[-5,5],p:[0,1,0,0.8]}, kw:"sigmoid S curve step Boltzmann titration transition melting"},
+  logistic:{name:"Logistic", params:["A1","A2","x0","p"], mean:["level at small x","level at large x","x halfway between the levels","steepness: the power of x"], ph:["<i>A</i><sub>1</sub>","<i>A</i><sub>2</sub>","<i>x</i><sub>0</sub>","<i>p</i>"], dim:["y","y","x",""],
+    formula:"<i>y</i> = <i>A</i><sub>2</sub> + (<i>A</i><sub>1</sub> &minus; <i>A</i><sub>2</sub>) / [1 + (<i>x</i>/<i>x</i><sub>0</sub>)<sup><i>p</i></sup>]",
+    f:(x,p)=>p[1]+(p[0]-p[1])/(1+Math.pow(x/p[2],p[3])), lo:[-Infinity,-Infinity,0,-Infinity], xpos:true,
+    guess:(X,Y)=>{ const lx=[], ly=[]; X.forEach((v,i)=>{ if(v>0){ lx.push(Math.log(v)); ly.push(Y[i]); } }); const g=stepGuess(lx,ly); return g?[g.A1,g.A2,Math.exp(g.mid),4.3944/g.w]:[0,1,1,1]; },
+    sketch:{x:[0.05,4],p:[0,1,1,3]}, kw:"logistic sigmoid S curve four parameter 4PL Logistic"},
+  doseresp:{name:"Dose–response (log dose)", params:["A1","A2","x0","p"], mean:["level at low doses","level at high doses","log₁₀ of the dose halfway between the levels","slope (Hill's coefficient)"], ph:["<i>A</i><sub>1</sub>","<i>A</i><sub>2</sub>","log<i>x</i><sub>0</sub>","<i>p</i>"], dim:["y","y","x",""],
+    formula:"<i>y</i> = <i>A</i><sub>1</sub> + (<i>A</i><sub>2</sub> &minus; <i>A</i><sub>1</sub>) / [1 + 10<sup>(log<i>x</i><sub>0</sub> &minus; <i>x</i>) <i>p</i></sup>], <i>x</i> the log₁₀ of the dose",
+    f:(x,p)=>p[0]+(p[1]-p[0])/(1+Math.pow(10,(p[2]-x)*p[3])),
+    guess:(X,Y)=>{ const g=stepGuess(X,Y); return g?[g.A1,g.A2,g.mid,1.9085/g.w]:[0,1,0,1]; },
+    derived:[{name:"Dose halfway (EC50)", dim:"", fn:p=>Math.pow(10,p[2])}],
+    sketch:{x:[-3,3],p:[0,1,0,1]}, kw:"dose response EC50 IC50 four parameter logistic 4PL pharmacology inhibition DoseResp"},
+  hill:{name:"Hill", params:["Vmax","k","n"], mean:["level it saturates at","x at half that level","Hill's coefficient: the steepness"], ph:["<i>V</i><sub>max</sub>","<i>k</i>","<i>n</i>"], dim:["y","x",""],
+    formula:"<i>y</i> = <i>V</i><sub>max</sub> <i>x</i><sup><i>n</i></sup> / (<i>k</i><sup><i>n</i></sup> + <i>x</i><sup><i>n</i></sup>)",
+    f:(x,p)=>p[0]/(1+Math.pow(p[1]/x,p[2])), lo:[-Infinity,0,-Infinity], xpos:"0",
+    guess:(X,Y)=>{ const s=sortXY(X,Y), ys=smoothY(s.y); let top=-Infinity, bot=Infinity; ys.forEach(v=>{ if(v>top) top=v; if(v<bot) bot=v; });
+      const V=(Math.abs(top)>=Math.abs(bot)?top:bot)*1.05, lx=[], ly=[];
+      s.x.forEach((x,i)=>{ const f=ys[i]/V; if(x>0&&f>0.05&&f<0.95){ lx.push(Math.log(x)); ly.push(Math.log(f/(1-f))); } });
+      const L=lx.length>=2?linFitXY(lx,ly):null;
+      if(L&&L[1]){ const k=Math.exp(-L[0]/L[1]); if(Number.isFinite(k)&&k>0) return [V,k,L[1]]; }
+      let k=meanOf(s.x.filter(v=>v>0))||1; for(let i=0;i<ys.length;i++) if(ys[i]/V>=0.5&&s.x[i]>0){ k=s.x[i]; break; } return [V,k,1]; },
+    sketch:{x:[0,4],p:[1,1,3]}, kw:"Hill binding cooperativity ligand receptor saturation"},
+  gompertz:{name:"Gompertz", params:["a","k","xc"], mean:["level it rises to","rate of the rise","x where it rises fastest"], ph:["<i>a</i>","<i>k</i>","<i>x</i><sub>c</sub>"], dim:["y","1/x","x"],
+    formula:"<i>y</i> = <i>a</i> exp[&minus;exp(&minus;<i>k</i>(<i>x</i> &minus; <i>x</i><sub>c</sub>))]",
+    f:(x,p)=>p[0]*Math.exp(-Math.exp(-p[1]*(x-p[2]))),
+    guess:(X,Y)=>{ const g=stepGuess(X,Y); if(!g) return [1,1,0]; const up=Math.abs(g.A2)>=Math.abs(g.A1), k=(up?1:-1)*3.0844/g.w; return [up?g.A2:g.A1,k,g.mid-0.36651/k]; },
+    derived:[{name:"Steepest slope", dim:"y/x", fn:p=>p[0]*p[1]/Math.E}],
+    sketch:{x:[-2,6],p:[1,1,0]}, kw:"Gompertz asymmetric sigmoid growth tumour bacterial"},
+  mm:{name:"Michaelis–Menten", params:["Vmax","Km"], mean:["rate it saturates at","x at half that rate"], ph:["<i>V</i><sub>max</sub>","<i>K</i><sub>m</sub>"], dim:["y","x"],
+    formula:"<i>y</i> = <i>V</i><sub>max</sub> <i>x</i> / (<i>K</i><sub>m</sub> + <i>x</i>)",
+    f:(x,p)=>p[0]*x/(p[1]+x), lo:[-Infinity,0], xpos:"0",
+    guess:(X,Y)=>{ const s=sortXY(X,Y), hx=[], hy=[]; s.x.forEach((x,i)=>{ const v=x/s.y[i]; if(x>0&&Number.isFinite(v)){ hx.push(x); hy.push(v); } });
+      const L=hx.length>=2?linFitXY(hx,hy):null; if(L&&L[1]>0&&L[0]>0) return [1/L[1],L[0]/L[1]];
+      const V=Math.max(...s.y)*1.2; let km=meanOf(s.x)||1; for(let i=0;i<s.x.length;i++) if(s.y[i]>=V/2){ km=s.x[i]||km; break; } return [V,Math.abs(km)]; },
+    sketch:{x:[0,10],p:[1,1.5]}, kw:"Michaelis Menten enzyme kinetics substrate saturation Vmax Km Langmuir hyperbola"},
   gauss:{name:"Gaussian peak", params:["y0","A","xc","w"], mean:["baseline","height above the baseline","centre","width (standard deviation)"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i>"], dim:["y","y","x","x"],
     formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> exp[&minus;(<i>x</i> &minus; <i>x</i><sub>c</sub>)<sup>2</sup> / 2<i>w</i><sup>2</sup>]",
     f:(x,p)=>p[0]+p[1]*Math.exp(-((x-p[2])**2)/(2*p[3]*p[3])),
     guess:(X,Y)=>{const g=peakGuess(X,Y); return [g.base,g.H,g.xc,g.fwhm/FW];},
-    derived:[{name:"FWHM", dim:"x", fn:p=>FW*Math.abs(p[3])},{name:"Area", dim:"yx", fn:p=>p[1]*Math.abs(p[3])*SQ2PI}]},
+    derived:[{name:"FWHM", dim:"x", fn:p=>FW*Math.abs(p[3])},{name:"Area", dim:"yx", fn:p=>p[1]*Math.abs(p[3])*SQ2PI}],
+    sketch:{x:[-3,3],p:[0,1,0,0.7]}, kw:"Gaussian normal bell peak GaussAmp"},
   lorentz:{name:"Lorentzian peak", params:["y0","H","xc","w"], mean:["baseline","height above the baseline","centre","full width at half maximum"], ph:["<i>y</i><sub>0</sub>","<i>H</i>","<i>x</i><sub>c</sub>","<i>w</i>"], dim:["y","y","x","x"],
     formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>H</i> / [1 + 4(<i>x</i> &minus; <i>x</i><sub>c</sub>)<sup>2</sup>/<i>w</i><sup>2</sup>]",
     f:(x,p)=>p[0]+p[1]/(1+4*((x-p[2])/p[3])**2),
     guess:(X,Y)=>{const g=peakGuess(X,Y); return [g.base,g.H,g.xc,g.fwhm];},
-    derived:[{name:"FWHM", dim:"x", fn:p=>Math.abs(p[3])},{name:"Area", dim:"yx", fn:p=>p[1]*Math.PI*Math.abs(p[3])/2}]},
-  expdec:{name:"Exponential decay", params:["y0","A","t"], mean:["level it decays to","amplitude at x = 0","decay time"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>&tau;</i>"], dim:["y","y","x"],
-    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> exp(&minus;<i>x</i>/<i>&tau;</i>)",
-    f:(x,p)=>p[0]+p[1]*Math.exp(-x/p[2]),
-    guess:(X,Y)=>{ const idx=X.map((_,i)=>i).sort((a,b)=>X[a]-X[b]); const n=idx.length, k=Math.max(1,Math.floor(n*0.1));
-      const y0=idx.slice(-k).reduce((s,i)=>s+Y[i],0)/k; const x0=X[idx[0]], x1=X[idx[n-1]];
-      const yA=Y[idx[0]]-y0; const target=y0+yA/Math.E; let t=(x1-x0)/3;
-      for(const i of idx){ if((Y[i]-target)*Math.sign(yA)<=0){ t=Math.max(X[i]-x0,(x1-x0)/100); break; } }
-      return [y0, yA*Math.exp(x0/t), t]; },
-    derived:[{name:"Half-life", dim:"x", fn:p=>Math.abs(p[2])*Math.LN2}]},
-  boltz:{name:"Sigmoid (Boltzmann)", params:["A1","A2","x0","dx"], mean:["level before the step","level after the step","middle of the step","width of the step"], ph:["<i>A</i><sub>1</sub>","<i>A</i><sub>2</sub>","<i>x</i><sub>0</sub>","d<i>x</i>"], dim:["y","y","x","x"],
-    formula:"<i>y</i> = <i>A</i><sub>2</sub> + (<i>A</i><sub>1</sub> &minus; <i>A</i><sub>2</sub>) / [1 + exp((<i>x</i> &minus; <i>x</i><sub>0</sub>)/d<i>x</i>)]",
-    f:(x,p)=>p[1]+(p[0]-p[1])/(1+Math.exp((x-p[2])/p[3])),
-    guess:(X,Y)=>{ const idx=X.map((_,i)=>i).sort((a,b)=>X[a]-X[b]); const n=idx.length, k=Math.max(1,Math.floor(n*0.1));
-      const A1=idx.slice(0,k).reduce((s,i)=>s+Y[i],0)/k, A2=idx.slice(-k).reduce((s,i)=>s+Y[i],0)/k, mid=(A1+A2)/2;
-      let x0=(X[idx[0]]+X[idx[n-1]])/2; for(let j=1;j<n;j++){ if((Y[idx[j]]-mid)*(Y[idx[j-1]]-mid)<=0){ x0=X[idx[j]]; break; } }
-      return [A1,A2,x0,(X[idx[n-1]]-X[idx[0]])/12]; }}
+    derived:[{name:"FWHM", dim:"x", fn:p=>Math.abs(p[3])},{name:"Area", dim:"yx", fn:p=>p[1]*Math.PI*Math.abs(p[3])/2}],
+    sketch:{x:[-3,3],p:[0,1,0,1.2]}, kw:"Lorentzian Cauchy resonance peak"},
+  voigt:{name:"Voigt peak", params:["y0","A","xc","wG","wL"], mean:["baseline","area above the baseline","centre","width of its Gaussian part (FWHM)","width of its Lorentzian part (FWHM)"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i><sub>G</sub>","<i>w</i><sub>L</sub>"], dim:["y","yx","x","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> &middot; (Gaussian &lowast; Lorentzian)(<i>x</i> &minus; <i>x</i><sub>c</sub>), widths <i>w</i><sub>G</sub> and <i>w</i><sub>L</sub>",
+    f:(x,p)=>p[0]+PEAKS.voigt.f(x,vgp(p)), lo:[-Infinity,-Infinity,-Infinity,0,0],
+    guess:(X,Y)=>{ const g=peakGuess(X,Y), w=0.61*g.fwhm; return [g.base,peakAreaForHeight(PEAKS.voigt,[g.xc,1,w,w],g.H),g.xc,w,w]; },
+    derived:[{name:"Height", dim:"y", fn:p=>PEAKS.voigt.height(vgp(p))},{name:"FWHM", dim:"x", fn:p=>PEAKS.voigt.fwhmApprox(vgp(p)), exact:p=>PEAKS.voigt.fwhm(vgp(p))}],
+    sketch:{x:[-4,4],p:[0,1,0,1,1]}, kw:"Voigt convolution Gaussian Lorentzian line shape peak"},
+  pvoigt:{name:"Pseudo-Voigt peak", params:["y0","A","xc","w","mu"], mean:["baseline","area above the baseline","centre","full width at half maximum","Lorentzian share (0 Gaussian, 1 Lorentzian)"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i>","<i>&mu;</i>"], dim:["y","yx","x","x",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> [<i>&mu;</i> L(<i>x</i>) + (1 &minus; <i>&mu;</i>) G(<i>x</i>)], L and G of unit area, centre <i>x</i><sub>c</sub> and FWHM <i>w</i>",
+    f:(x,p)=>p[0]+PEAKS.psdvoigt.f(x,vgp(p)), lo:[-Infinity,-Infinity,-Infinity,0,0], hi:[Infinity,Infinity,Infinity,Infinity,1],
+    guess:(X,Y)=>{ const g=peakGuess(X,Y); return [g.base,peakAreaForHeight(PEAKS.psdvoigt,[g.xc,1,g.fwhm,0.5],g.H),g.xc,g.fwhm,0.5]; },
+    derived:[{name:"Height", dim:"y", fn:p=>PEAKS.psdvoigt.height(vgp(p))}],
+    sketch:{x:[-4,4],p:[0,1,0,1.6,0.5]}, kw:"pseudo Voigt line shape peak PsdVoigt"},
+  pearson7:{name:"Pearson VII peak", params:["y0","A","xc","w","m"], mean:["baseline","area above the baseline","centre","full width at half maximum","shape: 1 Lorentzian, larger towards Gaussian"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i>","<i>m</i>"], dim:["y","yx","x","x",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> &middot; <i>c</i> [1 + 4(2<sup>1/<i>m</i></sup> &minus; 1)(<i>x</i> &minus; <i>x</i><sub>c</sub>)<sup>2</sup>/<i>w</i><sup>2</sup>]<sup>&minus;<i>m</i></sup>, <i>c</i> making its area 1",
+    f:(x,p)=>p[0]+PEAKS.pearson7.f(x,vgp(p)), lo:[-Infinity,-Infinity,-Infinity,0,0.51], hi:[Infinity,Infinity,Infinity,Infinity,50],
+    guess:(X,Y)=>{ const g=peakGuess(X,Y); return [g.base,peakAreaForHeight(PEAKS.pearson7,[g.xc,1,g.fwhm,1.5],g.H),g.xc,g.fwhm,1.5]; },
+    derived:[{name:"Height", dim:"y", fn:p=>PEAKS.pearson7.height(vgp(p))}],
+    sketch:{x:[-4,4],p:[0,1,0,1.4,1.2]}, kw:"Pearson VII line shape peak"},
+  lognormal:{name:"Log-normal peak", params:["y0","A","xc","w"], mean:["baseline","area above the baseline","median: half the area lies below it","spread of ln x (its standard deviation)"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i>"], dim:["y","yx","x",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> / (&radic;(2&pi;) <i>w</i> <i>x</i>) exp[&minus;ln<sup>2</sup>(<i>x</i>/<i>x</i><sub>c</sub>) / 2<i>w</i><sup>2</sup>]",
+    f:(x,p)=>{ if(!(x>0)||!(p[2]>0)||!(p[3]>0)) return p[0]; const u=Math.log(x/p[2]); return p[0]+p[1]/(SQ2PI*p[3]*x)*Math.exp(-u*u/(2*p[3]*p[3])); },
+    lo:[-Infinity,-Infinity,0,0],
+    // Its log is a Gaussian of width w (FWHM w·2.355 in ln x), whose top sits at xc·exp(−w²).
+    guess:(X,Y)=>{ const g=peakGuess(X,Y), pos=X.filter(v=>v>0).sort((a,b)=>a-b), mode=g.xc>0?g.xc:(pos[pos.length>>1]||1), xl=mode-g.lw, xr=mode+g.rw;
+      const w=Math.min(2,Math.max(0.01,xl>0&&xr>xl?Math.log(xr/xl)/FW:g.fwhm/(FW*mode))), xc=mode*Math.exp(w*w);
+      return [g.base,g.H*SQ2PI*w*xc*Math.exp(-w*w/2),xc,w]; },
+    derived:[{name:"Top (mode)", dim:"x", fn:p=>p[2]*Math.exp(-p[3]*p[3])},{name:"Mean", dim:"x", fn:p=>p[2]*Math.exp(p[3]*p[3]/2)},{name:"Height", dim:"y", fn:p=>p[1]*Math.exp(p[3]*p[3]/2)/(SQ2PI*p[3]*p[2])}],
+    sketch:{x:[0.01,5],p:[0,1,1,0.5]}, kw:"log normal skewed particle size distribution LogNormal"},
+  extreme:{name:"Extreme-value peak (Gumbel)", params:["y0","A","xc","w"], mean:["baseline","height above the baseline","the top","width: positive leans right, negative left"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i>"], dim:["y","y","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> exp(1 &minus; <i>z</i> &minus; e<sup>&minus;<i>z</i></sup>), <i>z</i> = (<i>x</i> &minus; <i>x</i><sub>c</sub>)/<i>w</i>",
+    f:(x,p)=>{ const z=(x-p[2])/p[3]; return p[0]+p[1]*Math.exp(1-z-Math.exp(-z)); },
+    guess:(X,Y)=>{ const g=peakGuess(X,Y); return [g.base,g.H,g.xc,(g.rw>=g.lw?1:-1)*g.fwhm/EXT_FW]; },
+    derived:[{name:"FWHM", dim:"x", fn:p=>EXT_FW*Math.abs(p[3])},{name:"Area", dim:"yx", fn:p=>Math.E*p[1]*Math.abs(p[3])}],
+    sketch:{x:[-3,6],p:[0,1,0,1]}, kw:"extreme value Gumbel skewed asymmetric tailing peak Extreme"},
+  power:{name:"Power law", params:["A","b"], mean:["value at x = 1","exponent"], ph:["<i>A</i>","<i>b</i>"], dim:["",""],
+    formula:"<i>y</i> = <i>A</i> <i>x</i><sup><i>b</i></sup>",
+    f:(x,p)=>p[0]*Math.pow(x,p[1]), xpos:true,
+    guess:(X,Y)=>{ const sg=Y.filter(v=>v>0).length>=Y.filter(v=>v<0).length?1:-1, lx=[], ly=[];
+      X.forEach((x,i)=>{ const y=Y[i]*sg; if(x>0&&y>0){ lx.push(Math.log(x)); ly.push(Math.log(y)); } });
+      const L=lx.length>=2?linFitXY(lx,ly):null; return L?[sg*Math.exp(L[0]),L[1]]:[sg*meanOf(Y.map(Math.abs)),1]; },
+    sketch:{x:[0.02,3],p:[1,1.7]}, kw:"power law allometric scaling exponent Allometric1 Freundlich"},
+  logarithm:{name:"Logarithm", params:["a","b"], mean:["value at x = 1","rise for each factor of e in x"], ph:["<i>a</i>","<i>b</i>"], dim:["y","y"],
+    formula:"<i>y</i> = <i>a</i> + <i>b</i> ln <i>x</i>",
+    f:(x,p)=>p[0]+p[1]*Math.log(x), xpos:true,
+    guess:(X,Y)=>{ const lx=[], ly=[]; X.forEach((x,i)=>{ if(x>0){ lx.push(Math.log(x)); ly.push(Y[i]); } }); return linFitXY(lx,ly)||[meanOf(Y),0]; },
+    sketch:{x:[0.05,5],p:[0,1]}, kw:"logarithm natural log ln Weber Fechner"},
+  arrhenius:{name:"Arrhenius", params:["A","Ea"], mean:["the rate at very high temperature (the prefactor)","activation energy; x is the temperature in kelvins"], ph:["<i>A</i>","<i>E</i><sub>a</sub>"], dim:["y","=J/mol"],
+    formula:"<i>y</i> = <i>A</i> exp(&minus;<i>E</i><sub>a</sub> / <i>R</i><i>x</i>), <i>R</i> = 8.314 J/(mol K), <i>x</i> in K",
+    f:(x,p)=>p[0]*Math.exp(-p[1]/(R_GAS*x)), xpos:true,
+    guess:(X,Y)=>{ const lx=[], ly=[]; X.forEach((x,i)=>{ if(x>0&&Y[i]>0){ lx.push(1/x); ly.push(Math.log(Y[i])); } });
+      const L=lx.length>=2?linFitXY(lx,ly):null; return L?[Math.exp(L[0]),-L[1]*R_GAS]:[meanOf(Y),1e4]; },
+    derived:[{name:"Activation energy", dim:"=kJ/mol", fn:p=>p[1]/1000},{name:"Activation energy per molecule", dim:"=eV", fn:p=>p[1]/F_EV}],
+    sketch:{x:[250,450],p:[1e6,4e4]}, kw:"Arrhenius temperature activation energy rate constant kinetics"},
+  sine:{name:"Sine wave", params:["y0","A","xc","T"], mean:["middle level","amplitude","x where it rises through the middle","period"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>T</i>"], dim:["y","y","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> sin[2&pi;(<i>x</i> &minus; <i>x</i><sub>c</sub>)/<i>T</i>]",
+    f:(x,p)=>p[0]+p[1]*Math.sin(2*Math.PI*(x-p[2])/p[3]),
+    guess:(X,Y)=>{ const g=waveGuess(X,Y); return [g.y0,g.A,g.xc,g.T]; },
+    derived:[{name:"Frequency", dim:"1/x", fn:p=>1/Math.abs(p[3])}],
+    sketch:{x:[0,2],p:[0,1,0,1]}, kw:"sine wave periodic oscillation cosine period frequency Sine"},
+  dsine:{name:"Damped sine wave", params:["y0","A","xc","T","t"], mean:["middle level","amplitude at x = 0","x where it rises through the middle","period","decay time of the amplitude"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>T</i>","<i>&tau;</i>"], dim:["y","y","x","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> exp(&minus;<i>x</i>/<i>&tau;</i>) sin[2&pi;(<i>x</i> &minus; <i>x</i><sub>c</sub>)/<i>T</i>]",
+    f:(x,p)=>p[0]+p[1]*Math.exp(-x/p[4])*Math.sin(2*Math.PI*(x-p[2])/p[3]),
+    // The period from the wave; then, for each decay time on a grid, the level and the amplitude are linear, and the best is the start.
+    guess:(X,Y)=>{ const g=waveGuess(X,Y), x=g.x, y=g.y, x0=x[0], span=(x[x.length-1]-x0)||1, w=2*Math.PI/g.T; let best=null;
+      for(let j=0;j<16;j++){ const t=span/20*Math.pow(1000,j/15), A=[[0,0,0],[0,0,0],[0,0,0]], b=[0,0,0];
+        x.forEach((v,i)=>{ const e=Math.exp(-(v-x0)/t), r=[1,e*Math.sin(w*(v-x0)),e*Math.cos(w*(v-x0))]; for(let a=0;a<3;a++){ b[a]+=r[a]*y[i]; for(let c=0;c<3;c++) A[a][c]+=r[a]*r[c]; } });
+        const c=solve(A,b); if(!c||!c.every(Number.isFinite)) continue; let ss=0;
+        x.forEach((v,i)=>{ const e=Math.exp(-(v-x0)/t); ss+=(y[i]-c[0]-e*(c[1]*Math.sin(w*(v-x0))+c[2]*Math.cos(w*(v-x0))))**2; });
+        if(!best||ss<best.ss) best={ss,c,t}; }
+      if(!best) return [g.y0,g.A,g.xc,g.T,span];
+      const ph=Math.atan2(best.c[2],best.c[1]), xc=x0+(((-ph/w)%g.T)+g.T)%g.T, A=Math.hypot(best.c[1],best.c[2])*Math.exp(x0/best.t);
+      return [best.c[0],Number.isFinite(A)?A:g.A,xc,g.T,best.t]; },
+    derived:[{name:"Frequency", dim:"1/x", fn:p=>1/Math.abs(p[3])}],
+    sketch:{x:[0,6],p:[0,1,0,1,2]}, kw:"damped sine ringing oscillation decay oscillator SineDamp"}
 };
+// The model list, by kind; a polynomial is listed once, its order chosen beside the list.
+const MODEL_GROUPS=[["Lines and polynomials",["linear","poly2"]],["Growth and decay",["expdec","expdec2","expdec3","expgrow","riseplat"]],
+  ["Steps and saturation",["boltz","logistic","doseresp","hill","gompertz","mm"]],["Peaks",["gauss","lorentz","voigt","pvoigt","pearson7","lognormal","extreme"]],
+  ["Powers and logarithms",["power","logarithm","arrhenius"]],["Waves",["sine","dsine"]]];
+const polyOrderOf=id=>id==="linear"?1:/^poly[2-9]$/.test(id)?+id.slice(4):0;
+const polyIdOf=k=>k===1?"linear":"poly"+k;
+// The first X a model cannot take (it takes the log of x, or a power of it), and whether 0 will do; null when every X will.
+function modelXBad(m,X){ if(!m||!m.xpos) return null; const strict=m.xpos!=="0", bad=X.find(v=>strict?!(v>0):!(v>=0)); return bad===undefined?null:{x:bad,strict}; }
 function gradient(f,x,p,fixed){
   return p.map((v,i)=>{ if(fixed&&fixed[i]) return 0; const h=Math.max(Math.abs(v)*1e-6,1e-10); const a=p.slice(), b=p.slice(); a[i]+=h; b[i]-=h; return (f(x,a)-f(x,b))/(2*h); });
 }
 function deltaVar(g,cov){ let s=0; for(let i=0;i<g.length;i++) for(let j=0;j<g.length;j++) s+=g[i]*cov[i][j]*g[j]; return Math.max(s,0); }
+// A derived value and its error by the delta method; the value shown is the exact one where the smooth form is an approximation.
 function derivedWithErr(model,p,cov){
   return (model.derived||[]).map(d=>{ const h=p.map(v=>Math.max(Math.abs(v)*1e-6,1e-10));
     const g=p.map((v,i)=>{ const a=p.slice(), b=p.slice(); a[i]+=h[i]; b[i]-=h[i]; return (d.fn(a)-d.fn(b))/(2*h[i]); });
-    return {name:d.name, v:d.fn(p), e:Math.sqrt(deltaVar(g,cov))}; });
+    return {name:d.name, v:(d.exact||d.fn)(p), e:Math.sqrt(deltaVar(g,cov))}; });
 }
+/* ==MODELS:END== */
 
 /* ============================================================
    Formatting helpers
@@ -6103,7 +6369,7 @@ const fontPrevStack=f=>f[4]?`'KP ${f[4]}', ${f[2]}`:f[2];
    fonts on this computer. pick(key, name) is called with the choice; key ""
    is the inherited font when opt.inherit names it. */
 let fpOpen=null;
-function closeFontPicker(){ if(!fpOpen) return; const o=fpOpen; fpOpen=null; o.el.remove(); document.removeEventListener("pointerdown",o.out,true); if(o.btn&&o.btn.isConnected) o.btn.focus({preventScroll:true}); }
+function closeFontPicker(){ if(!fpOpen) return; const o=fpOpen; fpOpen=null; o.el.remove(); document.removeEventListener("pointerdown",o.out,true); if(o.model&&o.btn) o.btn.setAttribute("aria-expanded","false"); if(o.btn&&o.btn.isConnected) o.btn.focus({preventScroll:true}); }
 function placePop(el,btn){ const r=btn.getBoundingClientRect(), w=el.offsetWidth, h=el.offsetHeight;
   let x=Math.min(r.left,innerWidth-w-8), y=r.bottom+4; if(y+h>innerHeight-8&&r.top-h-4>8) y=r.top-h-4; if(y+h>innerHeight-8) y=Math.max(8,innerHeight-h-8);
   el.style.left=Math.max(8,x)+"px"; el.style.top=y+"px"; }
@@ -12907,7 +13173,6 @@ function renderFitRangeOnly(){
     : "No unmasked points in the range. Widen it, or unmask some points.";
   renderStatusBar();
 }
-const MODEL_GROUPS=[["Polynomial",["linear","poly2","poly3"]],["Peak",["gauss","lorentz"]],["Growth and decay",["expdec"]],["Sigmoid",["boltz"]]];
 /* Which column the Fit window works on and the X range it fits: all the data, a range
    typed here, or the graph's view taken with Use the view (fitRngOf). */
 function fitWhereHtml(){
@@ -12983,11 +13248,10 @@ function renderFit(){
   const uC=t=>t?` <span class="unit">(${esc(t)})</span>`:"";
   let h=top;
   h+=`<div class="gh">Model</div>`;
-  const opt=(v,nm)=>`<option value="${esc(v)}"${v===d.model?" selected":""}>${esc(nm)}</option>`;
-  h+=`<div class="mrow"><select id="model" aria-label="Model"${ro}>${MODEL_GROUPS.map(([g,ks])=>`<optgroup label="${esc(g)}">${ks.map(k=>opt(k,MODELS[k].name)).join("")}</optgroup>`).join("")}`+
-    (ufs.length||(m.user&&!inProj&&!lib.some(q=>"u:"+q.id===d.model))?`<optgroup label="Your functions">${ufs.map(q=>opt("u:"+q.id,q.name)).join("")}${m.user&&!inProj&&!lib.some(q=>"u:"+q.id===d.model)?opt(d.model,m.name+" (from the fit)"):""}</optgroup>`:"")+
-    (lib.length?`<optgroup label="From this browser's library">${lib.map(q=>opt("u:"+q.id,q.name)).join("")}</optgroup>`:"")+
-    `<optgroup label="Write your own"><option value="__new">New function…</option></optgroup></select><button class="btn sm" id="ufNew"${ro} title="Write your own fit function">${ICON("plus","sm")}Function</button></div>`;
+  const ord=polyOrderOf(d.model), fromFit=m.user&&!inProj&&!lib.some(q=>"u:"+q.id===d.model);
+  h+=`<div class="mrow"><button type="button" class="mbtn" id="model" aria-haspopup="listbox" aria-expanded="false" aria-label="Model: ${esc(m.name)}" title="Choose the model from the list, by kind or by searching"${ro}>${modelSketch(m)}<span class="mb-n">${esc(m.listAs||m.name)}${fromFit?" (from the fit)":""}</span>${ICON("chev","sm")}</button>`+
+    (ord?`<label class="mord" title="The polynomial's order: its highest power of x"><span>Order</span><select id="polyOrder"${ro}>${[1,2,3,4,5,6,7,8,9].map(k=>`<option value="${k}"${k===ord?" selected":""}>${k}</option>`).join("")}</select></label>`:"")+
+    `<button class="btn sm" id="ufNew"${ro} title="Write your own fit function">${ICON("plus","sm")}Function</button></div>`;
   { const sg=suggestModel(); if(MODELS[sg.id]&&!S.readOnly) h+=d.model===sg.id?`<div class="lab msugg" title="From the shape of the data in the fit's range">Suggested for this data: it ${esc(sg.why)}.</div>`:`<div class="lab msugg">Suggested for this data, which ${esc(sg.why)}: <button type="button" class="btn sm" id="useSugg">${esc(MODELS[sg.id].name)}</button></div>`; }
   h+=`<div class="formula${m.user?" user":""}">${m.formula}</div>`;
   if(m.user) h+=`<div class="actions ufacts">${inProj?`<button class="btn sm" id="ufEdit"${ro}>${ICON("edit","sm")}Edit…</button><button class="btn sm ghost" id="ufDup"${ro}>${ICON("copy","sm")}Duplicate</button><button class="btn sm ghost" id="ufDel"${ro}>${ICON("trash","sm")}Delete</button>`:`<button class="btn sm" id="ufDup"${ro}>${ICON("edit","sm")}Edit a copy…</button><span class="lab">${lib.some(q=>"u:"+q.id===d.model)?"From this browser's library: fitting adds it to the project.":"No longer in this project: the fit keeps its own copy."}</span>`}</div>`;
@@ -13007,13 +13271,11 @@ function renderFit(){
   const odr=d.xerr&&hasXErr();
   h+=`<div class="sticky">${weightHtml(d)}${run?`<button class="btn primary" id="fitStop" title="Stop the fit: its last values become the starting values, and Fit carries on from them"${run.stop?" disabled":""}>${ICON("stop")}${run.stop?"Stopping…":"Stop"}</button>`:`<button class="btn primary" id="doFit"${ro} title="Fit (Ctrl+Enter)">${ICON("play")}Fit</button>`}<button class="btn" id="doStep"${rb||(odr?" disabled":"")} title="${odr?"One step is for the Levenberg–Marquardt fit: untick Include the X errors to take one":"One step of the fit from the starting values; the result becomes the new starting values"}">1 iteration</button><button class="btn" id="doGuess"${rb} title="Measure the starting values from the data in view">Guess</button>${f&&yCols().length>1?`<button class="btn" id="fitAll"${rb} title="Fit every column with this model, starting from this fit">Fit every column…</button>`:""}<button class="btn ghost fdone" id="fitDone" title="Close the Fit window; the fit stays on the graph and in Results">Done</button></div>`;
   box.innerHTML=h; renderFitRangeOnly(); wire();
-  $("#model").onchange=e=>{ const v=e.target.value;
-    if(v==="__new"){ e.target.value=d.model; editUserFn(null); return; }
-    pushUndo("changing the model"); d.model=v; d.fn=null; d.fixed=null; d.lim=null; d.dig=null; S.fitError="";
-    const lf=lib.find(q=>"u:"+q.id===v); if(lf) adoptLibFn(lf);
-    guessDraft(); renderFit(); };
+  { const mb=$("#model"); mb.onclick=()=>{ if(fpOpen&&fpOpen.btn===mb){ closeFontPicker(); return; }
+      openModelPicker(mb,d.model,v=>chooseModel(v),{fromFit:fromFit?{id:d.model,m}:null}); };
+    const po=$("#polyOrder"); if(po) po.onchange=()=>chooseModel(polyIdOf(+po.value),"#polyOrder"); }
   const un=$("#ufNew"); if(un) un.onclick=()=>editUserFn(null);
-  const us=$("#useSugg"); if(us) us.onclick=()=>{ pushUndo("changing the model"); d.model=suggestModel().id; d.fn=null; d.fixed=null; d.lim=null; d.dig=null; S.fitError=""; guessDraft(); renderFit(); };
+  const us=$("#useSugg"); if(us) us.onclick=()=>chooseModel(suggestModel().id);
   const ue=$("#ufEdit"); if(ue) ue.onclick=()=>editUserFn(d.model.slice(2));
   const ud=$("#ufDup"); if(ud) ud.onclick=()=>{ const def=m.def||{}; editUserFn(null,{from:{name:inProj?`${def.name||m.name} (copy)`:def.name||m.name,expr:def.expr||m.expr,params:def.params||[]}}); };
   const ux=$("#ufDel"); if(ux) ux.onclick=()=>deleteUserFn(d.model.slice(2));
@@ -13204,6 +13466,74 @@ function draftModel(d){
   if(!m&&d.fn){ try{ m=userModel(d.fn); }catch(e){ m=null; } }
   if(!m){ d.model="gauss"; d.fn=null; m=MODELS.gauss; }
   return m;
+}
+/* Choosing a model (the picker, the polynomial's order, the suggestion): one
+   undo entry; the limits, digits and Fix ticks were the old model's, and the
+   starting values are measured afresh. A function from this browser's
+   library joins the project. */
+function chooseModel(v,focus){
+  const d=ensureDraft(); if(!d||S.readOnly||!v||v===d.model||!getModel(v)) return;
+  pushUndo("changing the model"); d.model=v; d.fn=null; d.fixed=null; d.lim=null; d.dig=null; S.fitError="";
+  const p=P(); if(v.startsWith("u:")&&!((p&&p.userFns)||[]).some(q=>"u:"+q.id===v)){ const lf=libFns().find(q=>"u:"+q.id===v); if(lf) adoptLibFn(lf); }
+  guessDraft(); renderFit(); const el=$(focus||"#model"); if(el) el.focus({preventScroll:true});
+}
+/* A model's sketch: the curve at typical values (the model's sketch, or a
+   function's own starting values over 0 to 10), 56 × 22, drawn once. */
+const MSK=new Map();
+function modelSketch(m){
+  const key=m.user?"u\u0000"+(m.expr||"")+"\u0000"+JSON.stringify((m.def&&m.def.params)||[]):"m\u0000"+m.name;
+  const hit=MSK.get(key); if(hit) return hit;
+  let a=0, b=10, p=null;
+  if(m.sketch){ a=m.sketch.x[0]; b=m.sketch.x[1]; p=m.sketch.p; }
+  else if(m.user){ const st=Object.create(null); ((m.def&&m.def.params)||[]).forEach(q=>{ if(q&&q.n&&q.init!=null&&q.init!==""&&Number.isFinite(+q.init)) st[q.n]=+q.init; }); p=m.params.map(n=>n in st?st[n]:1); }
+  const xs=[], ys=[];
+  if(p) for(let i=0;i<48;i++){ let y; try{ y=m.f(a+(b-a)*i/47,p); }catch(e){ y=NaN; } if(Number.isFinite(y)){ xs.push(i); ys.push(y); } }
+  let svg;
+  if(xs.length<24) svg=`<svg class="msk" viewBox="0 0 56 22" aria-hidden="true"><text x="28" y="16" text-anchor="middle">ƒ</text></svg>`;
+  else { let lo=Infinity, hi=-Infinity; ys.forEach(v=>{ if(v<lo) lo=v; if(v>hi) hi=v; }); if(!(hi-lo>1e-12*Math.max(1,Math.abs(hi)))){ lo-=1; hi+=1; }
+    svg=`<svg class="msk" viewBox="0 0 56 22" aria-hidden="true"><path d="${xs.map((i,j)=>`${j?"L":"M"}${(3+50*i/47).toFixed(1)} ${(19-16*(ys[j]-lo)/(hi-lo)).toFixed(1)}`).join("")}"/></svg>`; }
+  if(MSK.size>200) MSK.clear(); MSK.set(key,svg); return svg;
+}
+/* The model picker (FIT_SPEC slice 3): every model by kind, each with its
+   sketch, name and formula, searched by any word of those, of what its
+   parameters mean, or of its other names (Origin's among them); your
+   functions and this browser's library after them, and New function… at the
+   foot. It shares the font picker's slot (fpOpen), so one such list is open
+   at a time and the same things close it. pick(id) is called with the
+   choice. */
+function openModelPicker(btn,cur,pick,opt){
+  opt=opt||{}; closeFontPicker(); closeColorPicker();
+  const p=P(), ufs=(p&&p.userFns)||[], lib=libFns().filter(q=>!ufs.some(u=>u.id===q.id)), poly=polyOrderOf(cur)>1;
+  const um=fn=>{ try{ return userModel(fn); }catch(e){ return null; } };
+  const row=(id,m,note)=>{ const on=id===cur||(id==="poly2"&&poly), q=[m.listAs||"",m.name,phPlain(m.formula||""),(m.mean||[]).join(" "),m.kw||"",m.user?m.expr||"":"",note||""].join(" ").toLowerCase();
+    return `<button type="button" class="mp-i" role="option" aria-selected="${on}" tabindex="-1" data-mid="${esc(id)}" data-q="${esc(q)}">${modelSketch(m)}<span class="mp-t"><span class="mp-n">${esc(m.listAs||m.name)}${note?` <em>${esc(note)}</em>`:""}</span><span class="mp-f${m.user?" mono":""}">${m.user?esc(m.expr||""):m.formula}</span></span>${on?ICON("check","sm"):""}</button>`; };
+  let h=`<div class="fp-s"><input type="search" placeholder="Find a model" aria-label="Find a model" autocomplete="off" spellcheck="false"></div><div class="fp-l mp-l" role="listbox" aria-label="Models">`;
+  MODEL_GROUPS.forEach(([g,ids])=>{ h+=`<div class="fp-g">${esc(g)}</div>`+ids.map(id=>row(id,MODELS[id],id==="poly2"?"order 2 to 9":"")).join(""); });
+  const mine=ufs.map(fn=>[fn,um(fn)]).filter(x=>x[1]), fl=lib.map(fn=>[fn,um(fn)]).filter(x=>x[1]), ff=opt.fromFit;
+  if(mine.length||ff) h+=`<div class="fp-g">Your functions</div>`+mine.map(([fn,m])=>row("u:"+fn.id,m)).join("")+(ff?row(ff.id,ff.m,"from the fit"):"");
+  if(fl.length) h+=`<div class="fp-g">From this browser's library</div>`+fl.map(([fn,m])=>row("u:"+fn.id,m)).join("");
+  h+=`<p class="mp-none" hidden>No model matches. Write your own with New function.</p></div><div class="fp-f"><button type="button" class="btn sm" data-mnew>${ICON("plus","sm")}New function…</button><span class="lab">${Object.values(MODELS).filter(m=>!m.hide).length} models</span></div>`;
+  const el=document.createElement("div"); el.className="fpick mpick"; el.setAttribute("role","dialog"); el.setAttribute("aria-label","Models"); el.innerHTML=h;
+  document.body.appendChild(el); placePop(el,btn); btn.setAttribute("aria-expanded","true");
+  const q=el.querySelector('input[type="search"]'), list=el.querySelector(".mp-l"), none=el.querySelector(".mp-none");
+  const done=id=>{ closeFontPicker(); pick(id); };
+  el.addEventListener("click",e=>{ const b=e.target.closest(".mp-i"); if(b){ done(b.dataset.mid); return; }
+    if(e.target.closest("[data-mnew]")){ closeFontPicker(); editUserFn(null); } });
+  q.addEventListener("input",()=>{ const ws=q.value.trim().toLowerCase().split(/\s+/).filter(Boolean); let grp=null, any=false, all=false;
+    list.querySelectorAll(".fp-g,.mp-i").forEach(n=>{ if(n.classList.contains("fp-g")){ if(grp) grp.hidden=!any; grp=n; any=false; return; }
+      const hit=ws.every(w=>n.dataset.q.includes(w)); n.hidden=!hit; if(hit){ any=true; all=true; } }); if(grp) grp.hidden=!any; none.hidden=all; list.scrollTop=0; });
+  el.addEventListener("keydown",e=>{
+    if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); closeFontPicker(); return; }
+    const items=[...list.querySelectorAll(".mp-i:not([hidden])")], i=items.indexOf(document.activeElement);
+    const go=n=>{ if(!n) return; n.focus({preventScroll:true}); const t=n.offsetTop, b=t+n.offsetHeight; if(t<list.scrollTop) list.scrollTop=t-4; else if(b>list.scrollTop+list.clientHeight) list.scrollTop=b-list.clientHeight+4; };
+    if(e.key==="ArrowDown"||e.key==="ArrowUp"){ e.preventDefault(); if(i<0&&e.key==="ArrowUp") return; go(items[Math.max(0,Math.min(items.length-1,i<0?0:i+(e.key==="ArrowDown"?1:-1)))]); }
+    else if((e.key==="Home"||e.key==="End")&&i>=0){ e.preventDefault(); go(items[e.key==="Home"?0:items.length-1]); }
+    else if(e.key==="Enter"&&e.target===q&&items[0]){ e.preventDefault(); items[0].click(); } });
+  const out=e=>{ if(!el.contains(e.target)&&e.target!==btn&&!btn.contains(e.target)) closeFontPicker(); };
+  document.addEventListener("pointerdown",out,true);
+  fpOpen={el,btn,out,model:true}; q.focus();
+  // The chosen model in the middle of the list, scrolled by hand: scrollIntoView would move the desk too.
+  const on=list.querySelector('.mp-i[aria-selected="true"]'); if(on) list.scrollTop=Math.max(0,on.offsetTop-list.clientHeight/2+on.offsetHeight/2);
 }
 const ufnKey=n=>"p"+Array.from(n).map(c=>c.codePointAt(0).toString(36)).join("_");
 /* The function editor: the formula, a live check, a preview of the function
@@ -13801,6 +14131,7 @@ function runFit(){
   if(!d.ctl) d.ctl=fitCtl();
   const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), useW=d.weighted&&hasErr();
   if(useW&&pts.some(q=>!(q.e>0))){ S.fitError="Some points in range have no Y error, so they can't be weighted. Fill in the errors or turn weighting off."; renderFit(); return; }
+  { const xb=modelXBad(m,X); if(xb){ S.fitError=xbText(m,xb); renderFit(); return; } }
   const W=pts.map(q=>useW?1/q.e:1);
   const B=boundsOf(draftLims(d,m),m,d.init,d.fixed); if(B.fail){ S.fitError=B.fail; renderFit(); return; }
   const SX=d.xerr?xErrsOf(c,pts):null, ctl=fitCtl(d.ctl), opt={lo:B.lo,hi:B.hi,maxIter:ctl.maxIter,tol:ctl.tol};
@@ -13836,6 +14167,7 @@ function stepFit(){
   if(d.xerr&&hasXErr()){ toast("One step is for the Levenberg–Marquardt fit: untick Include the X errors to take one."); return; }
   const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), useW=d.weighted&&hasErr();
   if(useW&&pts.some(q=>!(q.e>0))){ S.fitError="Some points in range have no Y error, so they can't be weighted. Fill in the errors or turn weighting off."; renderFit(); return; }
+  { const xb=modelXBad(m,X); if(xb){ S.fitError=xbText(m,xb); renderFit(); return; } }
   const W=pts.map(q=>useW?1/q.e:1), ctl=fitCtl(d.ctl), L=fitLogFor(d,m,c,X,Y,W,useW), k0=L.rows[L.rows.length-1].k, red0=L.rows[L.rows.length-1].red;
   const B=boundsOf(draftLims(d,m),m,d.init,d.fixed); if(B.fail){ S.fitError=B.fail; renderFit(); return; }
   const res=lmFit(m.f,X,Y,W,B.p0.slice(),B.fixed.slice(),{lo:B.lo,hi:B.hi,maxIter:1,tol:ctl.tol,lambda0:L.lam,pscale:L.pscale,onIter:q=>fitLogRow(L,k0+q.iter,q)});
@@ -13848,6 +14180,7 @@ function stepFit(){
     :`One iteration: reduced χ² ${fmt(red0,6)} → ${fmt(red1,6)}.`;
   renderFit(); renderPlot();
 }
+const xbText=(m,b)=>`${m.name} needs X ${b.strict?"above 0":"of 0 or more"}, and the fit's range reaches x = ${fmt(b.x,6)}. Fit a range of X ${b.strict?"above 0":"from 0 up"}.`;
 function saveCurveFit(res,o){
   const {d,m,X,SX,useW,ctl}=o;
   if(res.error){ S.fitError=res.error; logError("Curve fit: "+res.error,"fit"); renderFit(); return; }
@@ -17589,10 +17922,10 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <h2>After fitting</h2>
 <p>The curve is drawn over the data, and the residuals under the graph after a peak fit (<em>Residuals under the graph</em> in the Fit window turns them on or off for any fit), and the ${DA("results","Results")} window gives every parameter with its uncertainty and anything that makes it less certain. Each fit is kept in the fit history; a fit whose data or processing changed since is marked out of date.</p>
 ${TIP("A fit belongs to its column. It is drawn only over the column it was fitted to.")}`},
-{id:"curvefit", g:"Fitting", t:"Curve fit", kw:"curve fit model suggested suggestion linear polynomial exponential decay sigmoid boltzmann gaussian lorentzian guess initial fixed weights control iteration iterations tolerance step stop lambda damping estimate starting values limits bounds lowest highest strict digits significant meaning confidence interval dependency",
+{id:"curvefit", g:"Fitting", t:"Curve fit", kw:"curve fit model models list picker search sketch suggested suggestion linear straight line polynomial order quadratic cubic exponential decay biexponential growth plateau association sigmoid boltzmann logistic dose response ec50 hill gompertz michaelis menten enzyme gaussian lorentzian voigt pseudo-voigt pearson log-normal lognormal extreme gumbel power law allometric logarithm arrhenius activation energy sine damped wave period frequency derived guess initial fixed weights control iteration iterations tolerance step stop lambda damping estimate starting values limits bounds lowest highest strict digits significant meaning confidence interval dependency",
  lead:"One model, fitted to the points in the fit's range.",
  body:`<h2>Fitting</h2>
-<ol class="dsteps"><li>Choose a model. The Fit window starts from the one that suits the shape of the points (a straight line for a steady rise or fall, an exponential for a quick change that levels off, a sigmoid for a rise from one level to another, a Gaussian for one clear peak) and names it under the list; when another is chosen, its button chooses it again. Its formula is shown under the list.</li>
+<ol class="dsteps"><li>Choose a model. The model's button opens the list of every model by kind, each with a sketch of its shape and its formula; type to find one by its name, by a word of what it is for or of what its parameters mean, or by its name in Origin (${K("↑")} ${K("↓")} and ${K("Enter")} choose). A polynomial's order, 1 to 9, is chosen beside the button. The Fit window starts from the model that suits the shape of the points (a straight line for a steady rise or fall, an exponential for a quick change that levels off, a sigmoid for a rise from one level to another, a Gaussian for one clear peak) and names it under the button; when another is chosen, its button chooses it again. Its formula is shown under the button.</li>
 <li>Starting values are measured from the data. <em>Guess</em> measures them again from the points in the fit's range.</li>
 <li>Tick a parameter's <em>Fix</em> to hold it at its starting value.</li>
 <li>With a Y error column, <em>Weight by the Y error column</em> fits with weights 1/σ²; otherwise the errors are scaled by the scatter of the residuals.</li>
@@ -17605,9 +17938,11 @@ ${DL([["Start, Fix","Where the fit starts, and whether the parameter is held the
 <h2 id="ctl">Fit control and iterations</h2>
 <p>The fit is Levenberg–Marquardt: from the starting values it takes steps that lower χ², and it has settled when a step lowers χ² by less than the <em>Tolerance</em> (a fraction of it; 1e-12 unless set) or moves no parameter by more than one part in 10¹⁰. <em>Iterations, at most</em> (400 unless set) is where a fit that has not settled stops, with a note in Results; <em>Fit</em> again carries on from there. Both are under <em>Fit control</em> in the Fit window, and Results, the report and the CSV say what each fit ran with. With the X errors included the method is orthogonal distance regression.</p>
 <p>While the Fit window is open, the curve at the starting values is drawn dashed over the data (<em>estimate</em> in the legend). <em>1 iteration</em> takes one step from them and makes the result the new starting values, so the dashed curve moves towards the data a step at a time; <em>Iterations</em> lists every step (reduced χ², the damping λ and the parameters), the starting values as row 0. Steps taken one at a time follow the same path as <em>Fit</em>, which carries on the list. A long fit lists its steps as they come, and <em>Stop</em> stops it: its last values become the starting values.</p>
-<h2>Models</h2>
+<h2 id="models">Models</h2>
+<p>Each model's parameters have a meaning and a unit, and its starting values are measured from the data: a straight line through the logarithms for a power law, a logarithm and Arrhenius; the two levels and the width from 10 to 90% of the way for a step; the best of a grid of decay times for two or three decays; the strongest period for a wave. Many give values derived from the parameters, with their errors (a half-life, a FWHM and an area, the dose halfway, an activation energy in kJ/mol and in eV, a frequency), which Results lists under the parameters.</p>
+<p>The logistic, the power law, the logarithm and Arrhenius take the logarithm of <i>x</i> or a power of it, so they need X above 0; Hill and Michaelis–Menten need X of 0 or more. A fit over other X says so instead of fitting: set the ${DA("fit","range")} to the X they can take. Arrhenius reads X as the temperature in kelvins.</p>
 <div id="docModelList"></div>
-<p><em>Function</em> beside the list, or ${MP("Analysis › Fit › New fit function…")}, adds ${DA("userfn","your own")}.</p>`},
+<p><em>Function</em> beside the model's button, <em>New function…</em> at the foot of the list, or ${MP("Analysis › Fit › New fit function…")}, adds ${DA("userfn","your own")}.</p>`},
 {id:"peakfit", g:"Fitting", t:"Peak fit", kw:"peak fit deconvolution peaks baseline draft handles drag find peaks reset estimates shape name label labels number centre area fwhm height errors units leader row turned",
  lead:"A spectrum as a sum of peaks on a baseline, each peak described by its centre, area and width.",
  body:`<h2>1 · Find peaks</h2>
@@ -17838,7 +18173,9 @@ function docText(d){ if(!DOC_TXT.has(d.id)){ const el=document.createElement("di
 function docBody(d){
   let b=d.body||"";
   if(d.id==="steps") b=b.replace('<div id="docStepList"></div>',TOOL_GROUPS.map(([g,ops])=>`<h3>${esc(g)}</h3><ul class="doc-links">${ops.map(op=>PIPE_OPS[op]?`<li>${DA("step-"+op,esc(PIPE_OPS[op].label))}<span>${esc((PIPE_OPS[op].help||"").split(/(?<=\.)\s/)[0])}</span></li>`:"").join("")}</ul>`).join("")+`<h3>Corrections</h3><ul class="doc-links"><li>${DA("step-correct","Correct values")}<span>${esc(PIPE_OPS.correct.help.split(/(?<=\.)\s/)[0])}</span></li></ul>`);
-  if(d.id==="curvefit") b=b.replace('<div id="docModelList"></div>',`<table class="doc-tab"><tbody>${Object.values(MODELS).map(m=>`<tr><th>${esc(m.name)}</th><td class="eqi">${m.formula||""}</td></tr>`).join("")}</tbody></table>`);
+  if(d.id==="curvefit") b=b.replace('<div id="docModelList"></div>',MODEL_GROUPS.map(([g,ids])=>`<h3>${esc(g)}</h3><table class="doc-tab"><tbody>${ids.map(id=>id==="poly2"
+    ?`<tr><th>Polynomial, order 2 to 9</th><td class="eqi"><i>y</i> = <i>a</i><sub>0</sub> + <i>a</i><sub>1</sub><i>x</i> + <i>a</i><sub>2</sub><i>x</i><sup>2</sup> + … + <i>a</i><sub><i>k</i></sub><i>x</i><sup><i>k</i></sup></td></tr>`
+    :`<tr><th>${esc(MODELS[id].name)}</th><td class="eqi">${MODELS[id].formula||""}</td></tr>`).join("")}</tbody></table>`).join(""));
   if(d.id==="about"){ const local=!S.store||S.store.mode==="local";
     b=b.replace('<p id="docLocal"></p>',`<p>${local?"Projects are saved in this browser as you work, and nothing is uploaded. To keep a copy elsewhere, export it.":"Projects in this workspace are shared: everyone here sees each change as it is made."}</p>`); }
   return b;
@@ -18487,6 +18824,7 @@ function fitOne(c,t,seed,spec){
     return {fit:out(res,{kind:"composite",spec:clone(sp),x0:m.x0,fixed})};
   }
   let m=null; try{ m=t.fn?userModel(t.fn):getModel(t.model); }catch(e){ m=null; } if(!m) return {fail:"its model is no longer available"};
+  { const xb=modelXBad(m,X); if(xb) return {fail:`its X reaches ${fmt(xb.x,6)}, and ${lcFirst(m.name)} needs X ${xb.strict?"above 0":"of 0 or more"}`}; }
   const Bt=boundsOf(t.lim,m,seed,t.fixed); if(Bt.fail) return {fail:Bt.fail};
   const fo=Object.assign({lo:Bt.lo,hi:Bt.hi},t.ctl?{maxIter:t.ctl.maxIter,tol:t.ctl.tol}:{});
   const res=SX?odrFit(m.f,X,Y,SY,SX,Bt.p0.slice(),Bt.fixed.slice(),fo):lmFit(m.f,X,Y,W,Bt.p0.slice(),Bt.fixed.slice(),fo); if(res.error) return {fail:res.error};

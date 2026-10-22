@@ -627,6 +627,39 @@ every suite from the round before (drive5b now scrolls to the Residuals switch, 
 taller grid moved below the fold; the Fit window's scroller stops what it brings into view
 above its sticky footer).
 
+## Curve fit, slice 3: more models, found easily (2026-10-22)
+
+`ux/spec/FIT_SPEC.md` slice 3.
+- **25 models in six kinds**: lines and polynomials (a straight line; a polynomial of order 2 to
+  9, its order chosen beside the model), growth and decay (exponential decay with one, two or
+  three terms, growth, rise to a plateau), steps and saturation (Boltzmann, logistic,
+  dose–response, Hill, Gompertz, Michaelis–Menten), peaks (Gaussian, Lorentzian, Voigt,
+  pseudo-Voigt, Pearson VII, log-normal, extreme value), powers and logarithms (power law,
+  logarithm, Arrhenius) and waves (sine, damped sine). Each parameter has its meaning and unit;
+  each model guesses its starting values from the data (a straight line through the logarithms,
+  the step's levels and width, a grid of decay times, the strongest period); many give derived
+  values with errors (half-lives, FWHM and area, the dose halfway, an activation energy in
+  kJ/mol and eV, a frequency).
+- **The picker**: the model is a button with the model's sketch that opens a list by kind, each
+  model with its sketch and formula; typing searches names, formulas, what the parameters mean
+  and other names (Origin's included); the keys move and choose; your functions and the
+  browser's library follow, and New function… is at the foot.
+- **X a model cannot take** (a logarithm of x at 0) is refused in words before fitting, in a
+  fit of every column too.
+- **Stored fits keep working**: the ids shipped before are unchanged (`poly2` is the polynomial
+  of order 2), and the models are a block of their own (`==MODELS==`), tested under node.
+
+Checked: fit-test (18 on models: every model recovered from its own guess at 0.01% and 2% noise
+within five standard errors, derived values against their definitions, a wave of 1.3 cycles, a
+peak leaning left, the X checks, the ids shipped before), a drive of the picker (42: opening,
+the kinds, search by name, Origin's name, purpose and parameter, the keys, undo, the order,
+refusing X, Arrhenius and a sine fitted from the window, every guess finite, the help, a phone
+screen), odd-test's Models block (8: a fit stored as `poly2` before, a model that is gone, every
+guess on X through 0, X refused alone and in a fit of every column, a function that does not
+compile, a search of brackets), screenshots in light, dark and at 390 px, and every suite from
+the round before (drive4b now scrolls to the Residuals switch, which the straight line's longer
+meanings moved under the Fit window's footer).
+
 ## Sheets (2026-10-22)
 
 From the user's question, "why not several worksheets?".

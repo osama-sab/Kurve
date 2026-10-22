@@ -321,7 +321,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   whole fit does, orthogonal distance's limit), and limits (typed over the model's own, none,
   strict, equal, crossed, a fixed parameter free of them; a slope held at 0 or more ending at
   0, strictly above it just above, limits that do not bind giving the free fit exactly, a start
-  outside them, a parameter held by equal ones). Run it after touching any of this.
+  outside them, a parameter held by equal ones), and the curve fit's models (each recovered
+  from its own guess at 0.01% and 2% noise within five errors, derived values against their
+  definitions, a wave of 1.3 cycles, a peak leaning left, the X checks, the ids shipped
+  before). Run it after touching any of this.
   `matchPeakTracks(lists, {tol, dx})` follows the same peak through a series: each spectrum's
   peaks (`{x, w}`) join the track whose last position is nearest, within `tol` (0.5) of the
   larger FWHM (`dx` when neither has one), closest pairs first, two peaks of one spectrum never
@@ -331,6 +334,36 @@ graph first, with the taskbar kept at the bottom of the screen.
   i}`): a line within `tol` or `tolW` of the peak's FWHM, the nearest pairs first (equal ones to
   the stronger line), each line one peak at most; per peak `{line, j, d, alts}` (or `line:null`
   with alternatives taken by nearer peaks, or null), `n`, and `shift`, the median offset.
+- **Models** (`==MODELS:START/END==`, pure, after PIPE; `tools/fit-test.mjs` loads it with
+  NUMERICS and PEAKS): the curve fit's 25 models (`ux/spec/FIT_SPEC.md` slice 3) in
+  `MODEL_GROUPS`, six kinds (lines and polynomials, growth and decay, steps and saturation,
+  peaks, powers and logarithms, waves). Each `MODELS[id]`: `name`, `params`, `ph` (labels,
+  HTML), `mean`, `dim` (units for `unitFor`: `x`, `y`, `yx`, `y/x`, `y/xN` to 9, `1/x`, `"=J/mol"`
+  a unit of its own, `""`), `formula` (HTML), `f(x, p)`, `guess(X, Y)`, optional `lo`/`hi` (the
+  model's own limits, as a function's), `derived` (`{name, dim, fn, exact?}`: `fn` smooth for
+  the delta method, `exact` the value shown, a Voigt's FWHM by bisection), `xpos` (true: X above
+  0; `"0"`: 0 and above; `modelXBad(m, X)` gives `{x, strict}` or null, checked by `runFit`,
+  `stepFit` and `fitOne`, said by `xbText`), `sketch {x:[a, b], p}` (typical values, drawn by
+  `modelSketch`), `kw` (search words, Origin's names among them, never shown), and for the
+  polynomials `hide`, `listAs`, `order` (`polyModel(k)`: `poly2`…`poly9` with `a0`…`ak`, one
+  list entry; `polyOrderOf(id)`, `polyIdOf(k)`, order 1 being `linear`). Guesses: `peakGuess`
+  (with each side's half width, `lw`/`rw`), `stepGuess` (the levels of the first and last
+  tenth, the 10, 50 and 90% crossings of the smoothed points, `smoothY`), `decayGuess`,
+  `expGrid(X, Y, k)` (the best of a grid of k decay times, level and amplitudes linear),
+  `waveGuess` (a least-squares periodogram, then finer), `linFitXY` (through logarithms for the
+  power law, logarithm and Arrhenius, Hill's linearisation, Hanes–Woolf for Michaelis–Menten).
+  The peaks use `PEAKS` (`vgp` reorders `[y0, A, xc, w…]`); `EXT_FW` is the extreme-value FWHM
+  in units of w; `R_GAS`, `F_EV`. An id never changes once shipped: a stored fit names its
+  model by it (`poly2` is the polynomial of order 2). `gradient`, `deltaVar` and
+  `derivedWithErr` live here too.
+  **The picker**: the Fit window's model is a button (`#model.mbtn`: the sketch, the name,
+  `aria-expanded`) opening `openModelPicker(btn, cur, pick, {fromFit})`, in the font picker's
+  popover and slot (`fpOpen`, `.fpick.mpick`): a search box, every model by kind with its
+  sketch, name and formula (`data-q` the words searched, every word typed must match), then
+  your functions, the browser's library and a function kept by the fit, and New function…;
+  ↑/↓, Home/End, Enter, Escape; the chosen row scrolled to by hand. `chooseModel(id, focus)`
+  (the picker, `#polyOrder` beside a polynomial, the suggestion): one undo entry, Fix, limits
+  and digits cleared, starts guessed, a library function adopted.
 - **Fits** come in two kinds. `MODELS` (each with `params`, `ph`, `formula`, `f(x,p)`,
   `guess`, optional `derived` with delta-method errors) drives "Curve fit".
   `{kind:"composite", spec, x0, …}` drives "Peak fit". `fitModel(fit)` hands either to
@@ -1809,7 +1842,9 @@ the first deleted like any other, its comments and folder not passing to the nex
 analysed curve taken off a graph of two, a graph's last curve, a column shown while the graphs
 are closed), a curve fit held to one iteration or started where its
 model cannot be evaluated, limits (strict right at the start, every parameter held by equal
-ones, crossed ones from storage, ones of the wrong shape). Run it after touching storage, the axes, the
+ones, crossed ones from storage, ones of the wrong shape), the curve fit's models (a fit stored
+as `poly2` before, a model that is gone, every guess on X through 0, X a model cannot take,
+a function that does not compile in the list). Run it after touching storage, the axes, the
 parser, undo or the PDF and EPS writer. It serves the file over HTTP (a server of its own, on a
 free port) and waits for each page to be ready (a project on the desk), never a fixed time.
 `node tools/sheet-fuzz.mjs [path] [seed or a-b] [steps]` drives the worksheet as an erratic
@@ -2437,6 +2472,13 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A test project must fit in the store.** A drive's 300 000-point project was refused by
   localStorage (a few megabytes), so `createProject` never opened it and the drive fitted the
   previous project. Make a slow fit from fewer points and a slower model (a user's function).
+- **A rule of the same weight written earlier loses.** The model picker's width (`.mpick`) was
+  written in the CSS above the font picker's (`.fpick`), which it is built on, and lost to it:
+  the list stayed 300 px wide and cut every formula. A component built on another's class
+  takes both in its selector (`.fpick.mpick`).
+- **A fixed element has no offsetParent.** A drive's test of visibility (`offsetParent !==
+  null`) said the picker never opened, and that it had closed when it was open. Ask for the
+  element, or its rectangle.
 - **A class name is global, once more.** The pickers' entrance was first written for `.fp`,
   which is the History's code for a fingerprint: every check code would have faded in. The
   pickers are `.fpick` and `.cpick`; grep a class before styling it.
@@ -2455,7 +2497,14 @@ for every model (lowest and highest, each "or equal" or strict, over a function'
 typed as none), the fitted value with its 95% interval and dependency, and the digits it is
 shown with; one view at a time in the dock, every column in a wider window; equal limits hold
 a parameter, crossed ones are refused in words; the limits are kept with the fit, stated by
-Results, the report and the CSV, and used by fits of every column, together or not.
+Results, the report and the CSV, and used by fits of every column, together or not. Slice 3
+done: 25 models in six kinds (a polynomial of order 1 to 9; one, two and three decays, growth,
+a rise to a plateau; Boltzmann, logistic, dose–response, Hill, Gompertz, Michaelis–Menten;
+Gaussian, Lorentzian, Voigt, pseudo-Voigt, Pearson VII, log-normal and extreme-value peaks;
+power law, logarithm, Arrhenius; sine and damped sine), each parameter with its meaning and
+unit, a guess from the data, derived values with errors; picked from a list by kind with a
+sketch and the formula of each, searched by name, purpose, parameter or Origin's name; X a
+model cannot take refused in words.
 
 Between slices 1 and 2, from the user's bug reports: graphs as one list (document version 5).
 A project has no graph until something is plotted, so a project can be worksheet calculations
@@ -2892,6 +2941,11 @@ Next, in order:
   different parameters, and a user's function cannot be a peak shape in a peak fit
 - Comments have no mentions, unread markers or notifications; they are plain text
 - No Shirley or Tougaard background (XPS); no Fourier self-deconvolution
+- Models: 25 built in (Origin has about 200); a polynomial is fitted in powers of x as written,
+  so a high order far from x = 0 is badly conditioned (its guess is exact, about the mean); the
+  guesses are measured heuristics (two or three decays from a grid of 16 decay times, a wave's
+  period from at most 600 points), and a sketch shows typical values, not the data's; your
+  functions have no kind of their own in the list yet
 - Limits and digits are the curve fit's: a peak fit keeps its shapes' own bounds; Share stays
   in Fit every column… rather than the grid; digits change what is shown, not the numbers kept
   (the CSV and the copied table keep every digit), and a fit of every column takes the

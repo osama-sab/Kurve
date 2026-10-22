@@ -310,6 +310,38 @@ await page(async p => {
   check("limits of the wrong shape are taken as none", !L.junk.err && L.junk.ok, JSON.stringify(L.junk));
 }, { name: "fit control" });
 
+console.log("The curve fit's models: fits from before, a model that is gone, X a model cannot take, a broken function in the list");
+await page(async p => {
+  const g = await p.evaluate(() => { const x=[], y=[]; for(let i=0;i<60;i++){ const t=-3+i*0.1; x.push(t); y.push(1+0.5*t-0.2*t*t); } return {x,y}; });
+  await p.evaluate(async g => { await mkSpec("parabola", g.x, g.y); }, g); await p.waitForTimeout(200);
+  let r = await p.evaluate(() => { const c=activeYCol(), base={onCol:c.id,onColName:c.name,maskSig:maskSig(c),pipeSig:pipeSig(c),stats:{n:60,dof:57,R2:1,redChi2:0,converged:true,iter:1},at:Date.now()};
+    // a fit made before slice 3: poly2 with parameters a, b, c, stored by id
+    const fit=Object.assign({model:"poly2",params:[1,0.5,-0.2],errors:[0,0,0],cov:[[0,0,0],[0,0,0],[0,0,0]],fixed:[false,false,false]},base);
+    save({fit}); renderAll(); const rows=paramRows(P().fit).map(q=>q.label).join(), nan=/NaN|Infinity/.test(document.querySelector("#plot").innerHTML);
+    // a fit naming a model this version does not have
+    save({fit:Object.assign({},fit,{model:"expdec9"})}); let err=""; try{ renderAll(); renderResults(); }catch(e){ err=e.message; }
+    return { rows, nan, err, gone:fitModel(P().fit)===null }; });
+  check("a fit stored as poly2 before still reads, as a polynomial of order 2, and draws no NaN", r.rows === "a0,a1,a2" && !r.nan, JSON.stringify(r));
+  check("a fit naming a model that is gone is left out, nothing throws", r.gone && !r.err, JSON.stringify(r));
+  r = await p.evaluate(() => { save({fit:null}); S.fitMode="curve"; showTab("fit"); const out={bad:[], power:"", fail:""};
+    // every model's guess on X from -3 to 3 (through zero): finite starts, no throw
+    for(const id of Object.keys(MODELS)){ try{ chooseModel(id); if(!S.draft.init.every(Number.isFinite)) out.bad.push(id); }catch(e){ out.bad.push(id+": "+e.message); } }
+    chooseModel("power"); S.fitError=""; runFit(); out.power=S.fitError; out.saved=!!P().fit;
+    const t=Object.assign({},{kind:"curve",model:"logarithm",fixed:[false,false],xu:finalOf(activeYCol()).xu||"",weighted:false}); const o=fitOne(activeYCol(),t,[0,1],null); out.fail=o.fail||"";
+    return out; });
+  check("every model's guess gives finite starts on X through 0", !r.bad.length, r.bad.join("; "));
+  check("a power law over X through 0 is refused in words and nothing is saved", /needs X above 0/.test(r.power) && !r.saved, JSON.stringify(r));
+  check("a fit of every column with a logarithm over X through 0 says why that column failed", /needs X above 0/.test(r.fail), r.fail);
+  r = await p.evaluate(() => { P().userFns=[{id:"bad",name:"Broken",expr:"y = (x +",params:[]},{id:"ok",name:"Mine",expr:"y = a*x",params:[]}]; save({userFns:P().userFns});
+    let err=""; try{ renderFit(); document.querySelector("#model").click(); }catch(e){ err=e.message; }
+    const rows=[...document.querySelectorAll(".mpick .mp-i")].map(b=>b.dataset.mid);
+    const q=document.querySelector(".mpick input[type=search]"); let err2=""; try{ q.value="(["; q.dispatchEvent(new Event("input")); }catch(e){ err2=e.message; }
+    const shown=[...document.querySelectorAll(".mpick .mp-i")].filter(b=>!b.hidden).length; closeFontPicker();
+    return { err, err2, mine:rows.includes("u:ok"), broken:rows.includes("u:bad"), n:rows.length, shown }; });
+  check("a function that does not compile is left out of the list, the others shown", !r.err && r.mine && !r.broken && r.n === 26, JSON.stringify(r));
+  check("a search of brackets finds nothing and throws nothing", !r.err2 && r.shown === 0, JSON.stringify(r));
+}, { name: "models" });
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

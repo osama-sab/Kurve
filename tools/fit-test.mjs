@@ -13,9 +13,10 @@ const grab = (tag) => {
   return m[1];
 };
 // Interpolation, integration and normalizing live in the pipeline block now;
-// tools/pipe-test.mjs tests the rest of it.
-const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds};`;
+// tools/pipe-test.mjs tests the rest of it. The curve fit's models are a block of
+// their own (MODELS), after the pipeline.
+const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("MODELS")}\n` +
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -806,6 +807,65 @@ check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
   const SXd=Xd.map(()=>0.01), od=N.odrFit(fd,Xd,Yd,null,SXd,Bd.p0,Bd.fixed,{lo:Bd.lo,hi:Bd.hi});
   check("limits: orthogonal distance with one that binds settles too, on the limit", !od.error&&od.odr.conv&&od.odr.iter<40&&od.params[2]===2&&od.atBound[2], od.error||`${od.odr.iter} iterations, ${od.params}`);
   check("limits: …where the fit with that parameter fixed at the limit settles", rel(bd.params[0],fxd.params[0],1e-6)&&rel(bd.params[1],fxd.params[1],1e-6)&&rel(bd.stats.chi2,fxd.stats.chi2,1e-9), JSON.stringify([bd.params,fxd.params]));
+}
+
+/* ---------- the curve fit's models: each recovered from its own curve, from its own guess ---------- */
+{
+  const M = N.MODELS, ids = Object.keys(M);
+  // A model's id never changes: stored fits name theirs by it, with these many parameters.
+  const shipped = { linear: 2, poly2: 3, poly3: 4, gauss: 4, lorentz: 4, expdec: 3, boltz: 4 };
+  check("models: the ids shipped before are there with their parameters", Object.entries(shipped).every(([k, n]) => M[k] && M[k].params.length === n));
+  const listed = N.MODEL_GROUPS.flatMap(g => g[1]);
+  check("models: 25 in the list, each once, each a model", listed.length === 25 && new Set(listed).size === 25 && listed.every(k => M[k]), listed.length);
+  check("models: every model not hidden is in the list", ids.filter(k => !M[k].hide).every(k => listed.includes(k)), ids.filter(k => !M[k].hide && !listed.includes(k)).join(","));
+  check("models: polynomials of order 1 to 9, the order and the id going both ways", [1, 2, 3, 4, 5, 6, 7, 8, 9].every(k => M[N.polyIdOf(k)] && N.polyOrderOf(N.polyIdOf(k)) === k && M[N.polyIdOf(k)].params.length === k + 1) && N.polyOrderOf("gauss") === 0);
+  const shape = ids.filter(k => { const m = M[k], n = m.params.length;
+    return !(m.ph.length === n && m.mean.length === n && m.dim.length === n && typeof m.formula === "string" && m.formula.length && (!m.lo || m.lo.length === n) && (!m.hi || m.hi.length === n) && (m.derived || []).every(d => typeof d.fn === "function")); });
+  check("models: every model has a label, a meaning and a unit for each parameter, and a formula", !shape.length, shape.join(","));
+  const flat = ids.filter(k => { const m = M[k], [a, b] = m.sketch.x, ys = []; for (let i = 0; i < 48; i++) { const y = m.f(a + (b - a) * i / 47, m.sketch.p); if (Number.isFinite(y)) ys.push(y); }
+    return ys.length < 40 || Math.max(...ys) - Math.min(...ys) <= 1e-9 * Math.max(1, Math.abs(Math.max(...ys))); });
+  check("models: every sketch is drawn from finite values and is not flat", !flat.length, flat.join(","));
+  // Synthetic data from typical values, the model's own guess, and a fit within its own limits.
+  const cases = { linear: [[0, 10], [2, 0.5]], poly2: [[-2, 3], [1, -0.5, 0.3]], poly3: [[-2, 3], [1, -0.5, 0.3, 0.1]], poly4: [[-2, 2], [1, -0.5, 0.3, 0.1, -0.05]],
+    poly5: [[-2, 2], [1, -0.5, 0.3, 0.1, -0.05, 0.02]], poly6: [[-1.5, 1.5], [1, -0.5, 0.3, 0.1, -0.05, 0.02, 0.01]], poly7: [[-1.5, 1.5], [1, -0.5, 0.3, 0.1, -0.05, 0.02, 0.01, -0.01]],
+    poly8: [[-1.5, 1.5], [1, -0.5, 0.3, 0.1, -0.05, 0.02, 0.01, -0.01, 0.005]], poly9: [[-1.5, 1.5], [1, -0.5, 0.3, 0.1, -0.05, 0.02, 0.01, -0.01, 0.005, 0.003]],
+    expdec: [[0, 10], [1, 5, 2]], expdec2: [[0, 20], [0.5, 4, 0.8, 2, 6]], expdec3: [[0, 40], [0.2, 3, 0.5, 2, 3, 1.5, 15]], expgrow: [[0, 5], [1, 0.5, 1.5]], riseplat: [[0, 10], [0.5, 3, 2]],
+    boltz: [[-10, 10], [1, 5, 0.5, 1.2]], logistic: [[0.05, 20], [0.2, 4, 2, 2.5]], doseresp: [[-4, 4], [10, 90, 0.3, 1.2]], hill: [[0, 10], [3, 2, 2.5]], gompertz: [[-2, 8], [5, 0.8, 1.5]], mm: [[0, 20], [4, 3]],
+    gauss: [[-10, 10], [0.5, 3, 1, 1.5]], lorentz: [[-10, 10], [0.5, 3, 1, 2]], voigt: [[-10, 10], [0.2, 10, 0.5, 1.5, 1.0]], pvoigt: [[-10, 10], [0.2, 10, 0.5, 2, 0.4]], pearson7: [[-10, 10], [0.2, 10, 0.5, 2, 1.8]],
+    lognormal: [[0.05, 10], [0.1, 5, 2, 0.4]], extreme: [[-5, 10], [0.3, 4, 1, 1.2]], power: [[0.1, 10], [2, 1.5]], logarithm: [[0.1, 10], [1, 2]], arrhenius: [[250, 400], [1e7, 5e4]],
+    sine: [[0, 10], [0.5, 2, 0.3, 2.5]], dsine: [[0, 10], [0.5, 3, 0.3, 1.7, 4]] };
+  check("models: every model has a recovery case", ids.every(k => cases[k]), ids.filter(k => !cases[k]).join(","));
+  const run = (k, r, pt, noise, seed) => { const m = M[k], rnd = N.mulberry32(seed), n = k.startsWith("expdec") ? 300 : 200, X = [];
+    for (let i = 0; i < n; i++) X.push(r[0] + (r[1] - r[0]) * i / (n - 1));
+    const top = Math.max(...X.map(x => Math.abs(m.f(x, pt)))), Y = X.map(x => m.f(x, pt) + top * noise * (2 * rnd() - 1));
+    const g = m.guess(X, Y), B = N.fitBounds(pt.length, { mlo: m.lo, mhi: m.hi, p0: g, fixed: g.map(() => false), names: m.params });
+    return { m, g, X, res: N.lmFit(m.f, X, Y, X.map(() => 1), B.p0, B.fixed, { lo: B.lo, hi: B.hi }) }; };
+  for (const [noise, tag] of [[1e-4, "a little noise"], [0.02, "2% noise"]]) {
+    const bad = [];
+    for (const [k, [r, pt]] of Object.entries(cases)) { const { m, g, res } = run(k, r, pt, noise, 7);
+      const ok = g.length === pt.length && !res.error && res.stats.converged && res.params.every((v, i) => Math.abs(v - pt[i]) <= 5 * res.errors[i] + 1e-9 * Math.abs(pt[i]))
+        && N.derivedWithErr(m, res.params, res.cov).every(d => Number.isFinite(d.v) && Number.isFinite(d.e));
+      if (!ok) bad.push(`${k} ${res.error || JSON.stringify(res.params.map(v => +v.toPrecision(4)))}`); }
+    check(`models: each one's guess leads its fit to the true values, within 5 errors (${tag})`, !bad.length, bad.join("; "));
+  }
+  // The guesses on their own: a wave of 1.3 cycles, an extreme-value peak leaning left.
+  { const { res } = run("sine", [0, 13], [1, 2, 0.7, 10], 0.01, 3); check("models: a sine wave of 1.3 cycles is found from its own guess", !res.error && rel(Math.abs(res.params[1]), 2, 0.02) && rel(res.params[3], 10, 0.02), JSON.stringify(res.params)); }
+  { const { g, res } = run("extreme", [-10, 5], [0.3, 4, -1, -1.2], 1e-3, 5); check("models: an extreme-value peak leaning left is guessed with a negative width and found", g[3] < 0 && !res.error && rel(res.params[3], -1.2, 0.01), JSON.stringify(g)); }
+  // Derived values mean what they say.
+  { const p = [0.2, 10, 0.5, 1.5, 1.0], d = N.derivedWithErr(M.voigt, p, p.map(() => p.map(() => 0)));
+    check("models: a Voigt's FWHM is the profile's own, its height the top's", rel(d[1].v, N.PEAKS.voigt.fwhm([0.5, 10, 1.5, 1.0]), 1e-9) && rel(d[0].v, M.voigt.f(0.5, p) - 0.2, 1e-9)); }
+  { const p = [0.1, 5, 2, 0.4], z = p.map(() => p.map(() => 0)), d = N.derivedWithErr(M.lognormal, p, z), area = numericArea((x, q) => M.lognormal.f(x, q) - q[0], p, 1e-6, 60);
+    const mode = d[0].v; check("models: a log-normal peak's area is A, its top at the mode with the height said", rel(area, 5, 1e-4) && rel(M.lognormal.f(mode, p) - 0.1, d[2].v, 1e-9) && M.lognormal.f(mode * 1.001, p) < M.lognormal.f(mode, p) && M.lognormal.f(mode * 0.999, p) < M.lognormal.f(mode, p), JSON.stringify([area, d])); }
+  { const p = [0, 4, 1, 1.2], d = N.derivedWithErr(M.extreme, p, p.map(() => p.map(() => 0))), f = (x, q) => M.extreme.f(x, q);
+    check("models: an extreme-value peak's FWHM and area are what it says", rel(d[0].v, numericFWHM(f, p, 1, 30), 1e-6) && rel(d[1].v, numericArea(f, p, -20, 80), 1e-5) && near(N.EXT_FW, 2.4464, 1e-4), JSON.stringify(d)); }
+  { const p = [5, 0.8, 1.5], d = N.derivedWithErr(M.gompertz, p, p.map(() => p.map(() => 0))), h = 1e-5, sl = (M.gompertz.f(1.5 + h, p) - M.gompertz.f(1.5 - h, p)) / (2 * h);
+    check("models: Gompertz rises fastest at xc, at the slope said", rel(d[0].v, sl, 1e-6), `${d[0].v} vs ${sl}`); }
+  { const d = N.derivedWithErr(M.doseresp, [10, 90, 0.3, 1.2], [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0.01, 0], [0, 0, 0, 0]]);
+    check("models: the dose halfway is 10 to the power of log x0, with its error carried", rel(d[0].v, Math.pow(10, 0.3), 1e-12) && rel(d[0].e, Math.pow(10, 0.3) * Math.LN10 * 0.1, 1e-4), JSON.stringify(d)); }
+  { const d = N.derivedWithErr(M.arrhenius, [1e7, 5e4], [[0, 0], [0, 0]]); check("models: an activation energy in kJ/mol and in eV", rel(d[0].v, 50, 1e-12) && rel(d[1].v, 0.5182, 1e-3), JSON.stringify(d)); }
+  // X a model cannot take is said, not fitted.
+  const xb = N.modelXBad(M.power, [0, 1, 2]), xh = N.modelXBad(M.hill, [0, 1, 2]), xh2 = N.modelXBad(M.hill, [-1, 1]);
+  check("models: X a model cannot take is found (a power of x at 0; Hill below 0), and every X of the others will do", xb && xb.x === 0 && xb.strict && xh === null && xh2 && xh2.x === -1 && !xh2.strict && N.modelXBad(M.gauss, [-5, 0, 5]) === null);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

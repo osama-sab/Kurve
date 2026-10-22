@@ -20,7 +20,7 @@ Origin's help pages it was compared with: the NLFit dialog's
 
 | Origin's part | Kurve now | Gap |
 |---|---|---|
-| Function selection | 7 built-in models in 4 groups (`MODELS`, `MODEL_GROUPS`), your functions and a library, a suggestion | about 25 more models, categories, a sketch of each, search |
+| Function selection | 25 built-in models in 6 kinds (`MODELS`, `MODEL_GROUPS`), each with a sketch, searched by name, purpose, parameter or Origin's name; your functions and a library; a suggestion (slice 3) | none |
 | Data selection | one column, its range, its mask; every column, alone or together | none worth the work (no concatenated fit) |
 | Weights | none, or 1/σ² from the Y error column; X errors by orthogonal distance | counting (1/y), a column's values as weights, apparent fit |
 | Fitted curves | drawn with a 95 % confidence band and a 95 % prediction band | the level, the points, the curve past the data |
@@ -34,8 +34,8 @@ Origin's help pages it was compared with: the NLFit dialog's
 | Bounds tab | limits for every model, < or ≤, over a function's own (slice 2) | none |
 | Buttons | Fit, Guess, Fit every column…, Remove fit, Done | 1 Iteration |
 | Saved settings, Recalculate | none; an out-of-date fit is marked | fit settings by name; refit when the data change |
-| Lower panel | the live graph, the residual panel, the formula, a summary line | the iterations as they go, a sketch of the model |
-| Linear and Polynomial | linear, order 2 and 3; Fix on a or b fixes the intercept or slope | orders up to 9, apparent fit, outliers |
+| Lower panel | the live graph, the residual panel, the formula, a summary line, the iterations as they go (slice 1), the model's sketch on its button (slice 3) | none |
+| Linear and Polynomial | a polynomial of order 1 to 9, its order beside the model (slice 3); Fix on a or b fixes the intercept or slope | apparent fit, outliers |
 | Function Builder | one editor: name, formula, live check, parameters with start, limits and unit, preview | category, meanings, start formulas, constraints, derived values |
 | Function Organizer | the model list's groups | your functions filed by category |
 
@@ -76,7 +76,8 @@ CLAUDE.md, the menu spec when a menu changes.
    Every model gets limits, kept on the draft (`d.lo`, `d.hi`, `d.strict`) over the model's
    own; a strict limit stops just inside it, and a parameter that reaches it is "at its
    limit" as now. Digits per parameter.
-3. **More models, found easily.** About 25 built-in models, each with its parameters'
+3. **More models, found easily** (done 2026-10-22; Origin's names find a model in the search,
+   never name it; the picker shares the font picker's popover). About 25 built-in models, each with its parameters'
    meanings and units, a guess from the data, derived values with errors, and a recovery test
    in `tools/fit-test.mjs`: polynomial of order 1 to 9 (one model, its order a setting;
    `polyfit` about the mean); exponential decay with one, two and three terms, growth, rise
