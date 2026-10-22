@@ -489,6 +489,21 @@ its heading; the starting values drawn dashed; the iterations listed, opening on
 running or stepping; Stop for a long fit, saving nothing; Remove fit moved into the fit's
 summary when the new button made the footer two rows and covered the switch above it.
 
+### 2026-10-22: graphs as one list (from the user's bug reports)
+
+From the user: delete the first graph in the interface and in the project alike; no graph
+until something is plotted, since a project may be worksheet calculations alone; two curves
+drawn together that were meant to be apart; a graph lost when a curve was turned off. A project
+starts with no graph and the worksheet across the desk; every Plot makes a graph or adds to
+one, and every graph, the first too, is deleted the same way. A graph lists the curves it
+shows and nothing else, and keeps one at least: taking off the last is deleting the graph,
+which the message offers rather than leaving an empty frame. Taking the analysed curve off a
+graph keeps that graph in front, with another of its curves analysed, so the desk does not
+jump to another graph. A closed graph is never where a column goes: closing the graph in front
+brings an open one forward, and a column shown with every graph closed gets a graph of its own.
+"Not plotted" over a column means on no graph, not "not on the graph in front", which read as
+false with several graphs.
+
 ### 2026-10-17: defaults (UX rework, Phase 4 slice 5)
 
 From the Phase 2 defaults audit and Phase 1 T2, T4, T6 and T8: a Gaussian offered for a

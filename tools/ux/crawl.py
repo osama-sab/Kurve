@@ -74,7 +74,7 @@ CRAWL = r"""() => {
   ["x", "y", "y2", "x2", "yo"].forEach(k => grab("axis:" + k, () => axisMenuItems(k)));
   ["x", "y", "title"].forEach(k => grab("title:" + k, () => titleMenuItems(k)));
   grab("legend:box", () => legendMenuItems("box")); grab("legend:title", () => legendMenuItems("title")); grab("legend:entry", () => legendMenuItems("leg:" + act.id));
-  const annos = (P().plot.annos || []);
+  const annos = (P().annos || []);
   const seenT = new Set(); annos.forEach(a => { const t = a.grp ? "peak label" : a.t; if (seenT.has(t)) return; seenT.add(t); grab("annotation:" + t, () => annoMenuItems(a.id)); });
   grab("fitted peak label", () => fplMenuItems(0));
   grab("graph window ⋯", () => graphWinItems(gid));

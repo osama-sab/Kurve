@@ -571,3 +571,29 @@ one at a time and slices ending exactly where one fit does, orthogonal distance'
 odd-test 58 (2 new), a drive of every new control (26, Stop and its undo included), the
 slices' drives (44, 10, 43, 48), contrast 189, menucheck, terms 0, the help's 70 articles,
 sheet-fuzz seed 4; screenshots at 1024, 1366 and 1440 (dark) and 390 px.
+
+## Graphs as one list (2026-10-22)
+
+From the user's bug reports, before the curve fit's slice 2.
+- **No graph until something is plotted**: a new project, an import and a paste make none; the
+  worksheet has the desk. Examples still open plotted.
+- **The first graph is a graph like the others**: deleted from the project (not emptied and
+  hidden), with an id of its own; there is no fixed graph window, and nothing reuses an id.
+- **Annotations** are a list of their own, each tagged with its graph.
+- **Older projects move over** when opened (document version 5): the first graph keeps what it
+  showed but for the columns with graphs of their own, which it used to draw as well (two
+  curves meant to be apart, drawn together); its labels, figure place, Explorer folder and the
+  comments on its History box follow it.
+- **Turning a curve off**: the analysed curve taken off a graph of two leaves that graph in front
+  (it used to jump to another graph); a graph's last curve stays, with Delete the graph offered.
+- **Closed graphs**: closing the graph in front brings an open one forward; a column shown with
+  every graph closed gets a graph of its own, not a place on a closed graph.
+- **"Not plotted"** over a column means on no graph.
+
+Checked: odd-test 65 (a new block, Graphs come and go: 10 checks), a smoke drive (17), an upgrade
+drive of four old projects (13: a first graph with no list, one deleted, one a panel, one beside
+graphs of every column; an old form read twice), a drive of combining, figures, duplicating,
+copying in and the History's boxes (15), the slices' drives (44, 10, 43, 48) and slice 1's (26),
+contrast 189 (now measured with transitions off: one run in five caught a colour mid-change),
+menucheck, terms 0, the help's articles, sheet-fuzz; screenshots at 1440, 1024 and 390 px in
+both themes.

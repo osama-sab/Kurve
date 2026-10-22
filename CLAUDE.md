@@ -497,8 +497,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   `impXFor`, or the row number), Y and error. Error columns are `e` (±), `e+`, `e-` and `xe`
   (`impIsErr`; `impUseDefault` reads the kind from the name: `x err`, `dx`, a `+` or `−` at
   the end). `impGraphs(p, ids, how, fresh)` decides the graphs before the save (`how` is
-  `none` from the dialog: fresh, the first graph is left open and empty, `cols:[]`, and says
-  "Nothing plotted yet" with a Plot setup… button, `#emptyPlot`, instead of Import).
+  `none` from the dialog, which makes no graph; fresh, the project's graphs go).
   `impBuild` makes the columns in the file's order (an X of row numbers when none is X; the
   fixes as steps on every spectrum; √N columns), `doImport` puts them in a new project, beside
   the project's (the first X shared with the last X column when `sameAxis`), or in place of
@@ -790,26 +789,31 @@ graph first, with the taskbar kept at the bottom of the screen.
   `XPL` (`kurve.xpl`: shown, width 180–520, 220 by default) per browser; below 1600 px (`xplDrawer`) it is a
   drawer over the desk (`S.xplNarrow`, under the toolbar, or from the top on a phone), closed by
   opening an item or a press outside, so the windows keep a desk wide enough for them.
-- **Graphs**: `p.graphs` (in `UNDO_KEYS`) is `[{id, name, cols, plot}]`; the first graph,
-  "main", is `p.plot` (its name `p.plot.gname`, default "Graph 1") and shows every spectrum not
-  hidden, or, once plotted from the worksheet or by an import, its own list `p.plot.cols`
-  (`mainList`: `inGraph`, `graphCols`, `plotCfg`, `savePlot`'s hidden, `toggleGraphCol`,
-  `combineGraphs`, `onePerSpectrum` and `bringIn` read it), so a column made later does not
-  join it unasked; another shows `cols`, in order. **Closed graphs**: `plot.shut` (main's or a
-  graph's; `graphShut`, `setGraphShut(id, on)` with an undo entry and no log line,
-  `closeGraph` from the ×, the ⋯ menu's Close this graph) is the project's, so the graph is
+- **Graphs**: `p.graphs` (in `UNDO_KEYS`) is `[{id, name, cols, plot}]`, every graph the
+  project has and none until something is plotted (a new project, `blankProject`, has
+  `graphs:[]`); each shows its own list `cols`, in order, so a column made later joins no graph
+  unasked, and none is special: the first is made, deleted and named like the last. Ids are
+  `newGid()` ("g" and a random part), never used again. A graph shows one curve at least:
+  `toggleGraphCol` refuses to take off the last (offering Delete the graph), and taking the
+  analysed curve off the graph in front makes another of its curves the analysed one, so that
+  graph stays in front (`stashDrafts`, `S.glead`). **Closed graphs**: `plot.shut`
+  (`graphShut`, `graphOpen` (a panel is open while its figure is), `setGraphShut(id, on)` with
+  an undo entry and no log line, `closeGraph` from the ×, the ⋯ menu's Close this graph, which
+  brings an open graph forward when the one in front closes) is the project's, so the graph is
   off the desk wherever it is opened: `syncGraphWins` closes a shut graph's window and opens
   one that was shut and no longer is (an undo, a colleague; `S.gshut` remembers per project),
   `saveGraphLayout` records a shut graph as open so its place is kept. `showGraph` opens a
   shut one; `graphsMenuItems` notes "closed" (Window › Graphs, the taskbar's Graphs button);
-  the History's graph box says Closed with Open it. `mainFreeNow()`: the first graph closed
-  with nothing on it, where the next plot goes. `plotBase(pl)` is a new graph's look from
+  the History's graph box says Closed with Open it. `plotBase(pl)` is a new graph's look from
   another's (no spectra, ranges, title, labels, list or state); `graphBase(from)` uses it.
   **Plotting** (`plotCols(cids, {type, layout, into, undo})`, one undo entry): a Y column as
   it is, an `ignore` column made a spectrum, a selected X column what the Ys are plotted
-  against (each the selected X nearest to its left, `xcol`), into `into`, else the free first
-  graph, else a new graph (with `plotBase` of the graph in hand); a graph coming onto the desk
-  shares the worksheet's place (no graph open) or the front graph's (`splitInto`).
+  against (each the selected X nearest to its left, `xcol`), into `into`, else a new graph
+  (with `plotBase` of the graph in hand); a graph coming onto the desk shares the worksheet's
+  place (no graph open) or the front graph's (`splitInto`, which takes a missing or closed
+  `from` as the worksheet's place, or none). `toggleColVis` (the worksheet's and the curve's
+  show or hide) toggles the column on the graph in front, and with no graph on the desk (none,
+  or the one in front closed) plots it on a graph of its own, never beside a closed graph's curves.
   `plotItems(cids)` is the menu (PLOT_TYPES, panels, offset, heat map, Add to a graph), from
   the worksheet's `#wsPlotBtn`, Plot › Plot the selected columns, the cell menu and the
   column menu (`wsSelColIds`, `plotTargets(cid)`); its first item is **Plot setup…**:
@@ -819,28 +823,34 @@ graph first, with the taskbar kept at the bottom of the screen.
   columns ticked with All and None and each one's error bars named, Into (a new graph or one
   of the project's), and `plotDlgSketch(st)`; OK is `plotCols` (or `histogramCols`). A
   `type` given to `plotCols` goes to every spectrum it plots, not only the analysed one. `ensureGraph()` (Peaks, Fit, Integrate)
-  plots the analysed spectrum on a free first graph (open or shut) and opens a shut graph. `GID()` is the graph in hand (`S.gctx` while drawing
-  another, else `S.gid`, the one in front); `GP()`/`plotOf(id)` its settings, and every
-  reader of plot settings goes through them; `savePlot(patch, log)` writes them (an extra
-  graph's `hidden` becomes its `cols`; its log line is prefixed with the graph's name).
+  brings forward a graph showing the analysed column (`graphForCol`), opening it if closed, or
+  plots the column on a new graph when none shows it. `GID()` is the graph in hand (`S.gctx` while drawing
+  another, else `S.gid`, the one in front, null when the project has no graph); `GP()`/`plotOf(id)` its settings (`{}` with no graph,
+  so `plotCfg` gives the defaults), and every
+  reader of plot settings goes through them; `savePlot(patch, log)` writes them (a
+  graph's `hidden` becomes its `cols`; its log line is prefixed with the graph's name; with no graph only annotations are saved).
   `plotCfg()` counts a spectrum not on the graph as hidden, so every `cfg.hidden` check works
-  unchanged. Annotations of every graph stay in `p.plot.annos`, another graph's tagged `g`
-  (`annoInGraph`; `addAnno`, `labelFoundPeaks` and the Format dialog tag them); a peak set
-  (`grp`) belongs to its spectrum and shows on every graph that draws it. `graphIds` (the
-  first graph left out while `mainGone()`: closed with nothing on it, as a new project's is
-  and as deleting it leaves it, so no list, menu, History box, export or Explorer row shows
-  it; `allGraphIds` keeps it, for `syncGraphWins` and the next graph's name),
-  `graphOf`, `graphName`, `inGraph`, `graphShows`, `graphCols`, `multiGraph`, `winOfGraph`
-  (main's window is `graph`, another's is its id), `graphOfWin`. **Live and pictures**: one
+  unchanged. Annotations of every graph are `p.annos` (in `UNDO_KEYS`), each tagged `g` with its graph
+  (`annoInGraph`; `addAnno`, `labelFoundPeaks` and the Format dialog tag them; `deleteGraph`, `deleteFigure`
+  and a panel deleted take theirs, `combineGraphs` re-tags them); a peak set
+  (`grp`) belongs to its spectrum and shows on every graph that draws it (`projAnnos(q)` reads another
+  project's, in either form). `graphIds`,
+  `graphOf`, `graphName`, `inGraph`, `graphShows`, `graphCols`, `multiGraph` (more than one), `winOfGraph`
+  (a graph's window is its id, a panel's its figure's; null for none), `graphOfWin`. **Live and pictures**: one
   ribbon and one plot (`#gRibbon`, `#gPane`, with `#plot`, `#figure` and their handlers) move
-  into the window of the graph in front (`moveLive`); the others show `.gbar` (chips of their
+  into the window of the graph in front (`moveLive`, which marks that window `.haslive`), and wait in
+  `#gPark` (hidden, `parkLive`) while there is none; every graph window is made by `syncGraphWins`
+  (the first graph's too: there is no fixed graph window); the others show `.gbar` (chips of their
   spectra) and `.gsnap` (a picture). `activateGraph(id, colId)` brings one forward: it keeps
   the old one's zoom and spectrum (`S.gv`, `S.glead`), parks drafts per spectrum
   (`stashDrafts`, `S.dstash`), sets everything before `save({activeY})` (which redraws at
   once in this browser), and draws the old one's picture straight away. A pointerdown on a
   graph window activates it (a chip's click is read there, since activation hides the chip);
-  `syncGraphWins()` (first in `renderAll`) makes and removes windows, and brings forward the
-  graph that shows the analysed spectrum when the one in front does not (`graphForCol`).
+  `syncGraphWins()` (first in `renderAll`) makes and removes windows, puts a graph in front when
+  the one there has gone (`graphFallback`: one showing the analysed column, the front-most open
+  one, any), and brings forward the graph that shows the analysed spectrum when the one in front
+  does not (`graphForCol(cid, {open})`: its own graph first, then the smallest, open before
+  closed; null when none shows it, and then nothing moves).
   `withGraph(id, fn)` draws as another graph: its settings, lead (`leadOf`) and zoom
   (`viewFor`) put in place and every live state (stage, selection, drafts, preview) set aside,
   then restored. `runSnaps` redraws only pictures whose `snapSig` changed (size, palette,
@@ -851,22 +861,14 @@ graph first, with the taskbar kept at the bottom of the screen.
   `resolveYAuto` fits Y to what is in range (offset and heat layouts are left whole).
   Making and changing: `newGraphs(groups, opt)`, `newGraphFrom(ids)` (it takes half of the
   front graph's window, `splitInto`), `onePerSpectrum`, `allInOneGraph`, `duplicateGraph`,
-  `renameGraph`, `deleteGraph` (its annotations go with it, never data; the first graph's is
-  `deleteMainGraph`: `p.plot` cannot go, since it keeps every graph's annotations, so it is
-  emptied to a new graph's look keeping the other graphs' and the peak sets' annotations,
-  taken out of a figure (`figWithout`, shared with `figRemovePanel`), closed, another graph
-  brought forward, and the worksheet given the desk when no graph is left; its id "main" is
-  reused by the next first graph, so it also takes a new **generation**, `p.plot.gen`
-  (`mainGen`, 0 for a first graph never deleted; `plotBase` drops it), and anything kept
-  outside `p.plot` that names the first graph must be keyed by it or cleared here: its History
-  box is `mainKey()` (`figure`, then `figure:<gen>`), so the old box's comments read "(since
-  removed)" and come back with Undo, and its Explorer place `tree.at["g:main"]`, its zoom,
-  lead, figure focus and History selection go), `toggleGraphCol`, `showGraph`; menus `graphWinItems(id)` (the ⋯), `graphsMenuItems` (the taskbar's Graphs
+  `renameGraph`, `deleteGraph` (any graph, the first too: off the project with its
+  annotations, never data; another open graph comes forward, and the worksheet has the desk
+  when no graph is left; its zoom, lead and figure focus go), `toggleGraphCol`, `showGraph`; menus `graphWinItems(id)` (the ⋯), `graphsMenuItems` (the taskbar's Graphs
   button and Window › Graphs), `newGraphItems`. **Combining**: `combineGraphs(srcs, into,
   {cids, keep, layout, at})` puts the spectra of graphs `srcs` (and spectra `cids`) on `into`
-  (a graph id, `"main"`, which un-hides them, or `"new"`), copies each spectrum's series style
+  (a graph id or `"new"`), copies each spectrum's series style
   from where it came unless the target has one, and unless `keep` deletes the source graphs
-  (never main) with their annotations re-tagged to the target; one undo entry, a log line and
+  with their annotations re-tagged to the target; one undo entry, a log line and
   a toast. A new graph takes a deleted source's window, the drop point (`placeWinAt`) or half
   the source's (`splitInto`). Dragging is `startGraphDrag(e, {gid, cid, click})`, pointer
   events on `window` (a click under 6 px runs `click`; Escape cancels; at phone width holding
@@ -886,8 +888,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   scaled down, so its labels never collide.
   **Figures** (panels, as Origin's graph layers and Merge Graphs): a figure is a graph in
   `p.graphs` with `fig = {rows, cols, cells:[{gid, r, c, rs, cs}], shareX, shareY, gap,
-  letters, w, h}` and no spectra of its own; its panels are ordinary graphs (the first graph
-  too) with no window of their own. `figOf(id)` (the figure a graph is a panel of), `isFigId`,
+  letters, w, h}` and no spectra of its own; its panels are ordinary graphs with no window of their own. `figOf(id)` (the figure a graph is a panel of), `isFigId`,
   `deskGraphIds` (the documents: figures, not their panels), `drawGraphIds` (what draws
   spectra: panels, not figures), `figOrder`, `figLetterOf`/`figLetter`, `graphTitle` ("Figure 1
   › (b) Graph 3"), `figNb` (the sides another panel touches). `winOfGraph(panel)` is the
@@ -956,8 +957,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   Peaks box when the spectrum has a peak set (its labels typed in the inspector, what it was
   found with, a warning when the processing changed since); a Bands box when bands are drawn on
   its axis (`integ:` + id: the areas, shares and ratios); a fit box when the spectrum has
-  fits; with several graphs a box per graph (`kind:"graph"`, key `mainKey()` for the first,
-  `figure` or after a deletion `figure:<gen>`, and `graph:<id>` for the others) below the spectra, fed by dotted lines from the last box of
+  fits; with several graphs a box per graph (`kind:"graph"`, key `graph:<id>`) below the spectra, fed by dotted lines from the last box of
   each spectrum it shows, with its layout, annotations, recent changes and discussion
   (selecting it brings the graph forward); otherwise a Figure box below everything when the
   graph has lines, ranges, text or labels
@@ -993,8 +993,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   `reportDiscussionHtml`): a comment is `{uid, text, anchor, t, resolved, resolvedBy, parent?,
   edited?, deleted?}`. The first comment of a thread carries the anchor: a point, a spot, the
   fit, or a History box (`{type:"node", key, col, label}`; `nodeAnchor(key)`, and `nodeLabel`
-  says "(since removed)" when the step is gone, or the box is a deleted first graph's (its
-  key's generation is not `mainGen()`), until undo brings it back). A reply names its
+  says "(since removed)" when the step or graph is gone, until undo brings it back; a key from
+  before version 5, `figure` or `figure:<n>`, the first graph's box then, is the graph it became,
+  `p.mainWas`, through `nodeKeyNow`/`legacyFigGraph`, in `threadIndex`, `nodeLabel` and `goNode`). A reply names its
   thread in `parent` and a reply to a resolved thread reopens it; deleting a first comment that
   has replies leaves "This comment was deleted" (`deleted`), and every delete offers Undo.
   Only your own comments can be edited or deleted. The same thread markup and handlers serve
@@ -1239,8 +1240,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   `origin {pid, proj, col, t, by, computed?}` (the History's Original data box says "Brought in");
   an X column equal to the last one here is shared. Peak sets (`found`, `pk:` annotations) and
   series styles come too; one undo entry, a raw-data record entry and a log line naming the
-  project. Onto the graph in hand, a new graph, or one each (an empty project's first graph
-  takes them). `projSpectra(q)`, `otherProjects()`.
+  project. Onto the graph in hand, a new graph, or one each (an empty project gets a new graph). `projSpectra(q)`, `otherProjects()`.
 - **State**: global `S`; the current project is `S.proj` with `cols` (see Columns above),
   `activeY`, `raw` (`{fp, hist}`), `meta` (captured from the imported file's header), `plot`
   settings (`style`, `logY`, `grid`, `resid`, `revX`, `hidden`, and from the Format dialog
@@ -1251,7 +1251,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   older `axes`, `none`), `frameLw`, `frameColor`, `font`, `fontFam`, `fontName`, `titleItalic`,
   `txt` (per kind of text), `title`, `titleDx`, `titleDy`, `cmap`, `scheme`, `peakScheme`,
   `peakLab`, `peakLabRot`, `peakLabDec`, `axisMatch`, `annos`, `series[id]` and `ax.x|y|y2`,
-  see Rendering; `gname`, the first graph's name), `graphs` (see Graphs), `batch`, `series` and
+  see Rendering; per graph, in `graphs[i].plot`), `graphs` (see Graphs), `annos` (every graph's
+  annotations, see Rendering), `batch`, `series` and
   `trends` (see Batch fits), `fit`, `fits` (the fit history:
   numbers, the processing, and a decimated thumbnail of each fit), `userFns`, `found` (the
   peak sets, see the Peaks window), `integ` (the bands, see the Integrate window), `wsw`
@@ -1410,7 +1411,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   by table order, so a colour stays with its spectrum; the analysed one is drawn heavier, never
   recoloured. On two Y axes with one
   other spectrum each axis's numbers and title take its spectrum's colour (`axisMatch`).
-  **Annotations** (`p.plot.annos`, each `{id, t, x, y, x2, text, color, lw, dash, size, unit,
+  **Annotations** (`p.annos`, each tagged `g` with its graph's id, `{id, t, x, y, x2, text, color, lw, dash, size, unit,
   rot, bold, font, ser, dx, dy, xu, yu}`, and on labels `mk`, plus `grp`, `lab`, `pk`,
   `manual` on a peak set's, `t` one of `v`, `h`, `band`, `text`, `label`; and from the Format
   dialog `fontName`, `pt` (size in points, over `size`), `i`, `u`, `align`, `ang` (any angle;
@@ -1736,8 +1737,10 @@ layout, typographic minus signs, file names in any script, times across midnight
 holding a label, 300 spectra, a long graph name, a straight line through one X, a formula 300
 deep, breaks read from storage in every broken form, a second axis that cannot be numbered, a
 curved one, a PDF's cross-reference table and size, an EPS's bounding box, characters no
-standard font has, broken formats in the store, a deleted first graph's comments and folder
-passing to the next first graph, a curve fit held to one iteration or started where its
+standard font has, broken formats in the store, graphs coming and going (a project with none,
+the first deleted like any other, its comments and folder not passing to the next graph, the
+analysed curve taken off a graph of two, a graph's last curve, a column shown while the graphs
+are closed), a curve fit held to one iteration or started where its
 model cannot be evaluated. Run it after touching storage, the axes, the
 parser, undo or the PDF and EPS writer. It serves the file over HTTP (a server of its own, on a
 free port) and waits for each page to be ready (a project on the desk), never a fixed time.
@@ -1973,8 +1976,8 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **Every reader of a setting goes through one door.** With one graph, `p.plot` was read in
   sixty places. Several graphs meant sending every one of them through `GP()` and every write
   through `savePlot`; a reader left on `p.plot` would quietly show the first graph's setting
-  on another. Grep `\.plot\b` after touching plot settings: only annotations and the first
-  graph's own code may use it.
+  on another. Grep `\.plot\b` after touching plot settings: only a graph's own `g.plot` and the
+  upgrade of an older project (`migrateGraphs`, `projAnnos`) may use it.
 - **A picture must not borrow ids.** Every graph drawn by `buildPlot` has a `clipM`; eleven
   pictures on one page share ids, and a clip path resolves to the first. Pictures and the
   combined figure prefix their ids.
@@ -2194,7 +2197,7 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A project just created is not current yet.** `afterImport` returned at once because `P()`
   was still null after `await createProject`: imports into a new project got no worksheet
   forward and no message. `whenOpen` waits for the store to list it.
-- **Opening a window again opens it where it was.** Un-closing the first graph in
+- **Opening a window again opens it where it was.** Un-closing a graph in
   `syncGraphWins` put it back at its full size, over the worksheet that had taken its place;
   the plot decided where it goes by whether it was open before the save, not after.
 - **A column that drifts upward looks like an axis.** `detectPaired` took a dark current
@@ -2327,15 +2330,24 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   dialog is placed by `transform`; an entrance written with `transform` snapped them to the
   wrong place at its end. Entrances use the individual `translate` and `scale` properties.
 - **What the code needs kept is not what the user must keep.** The first graph could not be
-  deleted, and its menu said so, because it is `p.plot`, which also stores every graph's
-  annotations. Emptied and closed it is gone to the eye: every list asks `graphIds`, which
-  leaves it out while `mainGone()`, and the next plot uses it again.
-- **An id used again inherits whatever still names it.** Deleting the first graph empties
-  `p.plot` and the next plot reuses "main"; a comment on the old graph's History box (keyed
-  `figure`) then sat on the new graph's box, and its Explorer folder carried over. What lives
-  outside `p.plot` and names the first graph is keyed by its generation (`mainKey()`) or
-  cleared by `deleteMainGraph`; odd-test deletes, plots again and checks nothing passed over.
-  Giving the first graph an id of its own, like the others', is on the roadmap.
+  deleted, because it was `p.plot`, which also stored every graph's annotations; then it could
+  only be emptied and hidden, and its id "main" was reused, so whatever named it (a comment on
+  its History box, its Explorer folder) passed to the next first graph unless keyed by a
+  generation. A special case grows special cases. Version 5 made it a graph like the others in
+  `p.graphs`, with an id of its own, the annotations a list of their own (`p.annos`), and a
+  project no graph until something is plotted; nothing names "main" any more but the upgrade.
+- **A list that means "everything" is a bug waiting.** The old first graph, without a list of
+  its own, showed every column, those on graphs of their own too: two curves meant to be apart
+  were drawn together on it, and taking a curve off a graph sent the desk to it (the graph that
+  "showed" the curve). Every graph lists its curves; nothing shows a column it was not given.
+- **A closed graph is not a target.** With the graph in front closed, showing a column in the
+  worksheet added it to that closed graph, beside a curve nobody could see; opened later it held
+  two. Closing the graph in front brings an open one forward, and with none open a column
+  shown gets a graph of its own.
+- **An upgrade can be read twice.** The store may hand the old form back before the upgrade's
+  save lands (a save in between emits it); a random id for the migrated first graph would then
+  make two. Its id is fixed (`MAIN_WAS`), the upgrade adds nothing already there, and the save
+  of the upgrade is made once a project (`S.upg`).
 - **One more button can push a switch out of reach.** *1 iteration* made the Fit window's
   footer two rows in the 356 px of the dock, and the sticky footer then covered the
   *Residuals under the graph* switch: a drive's click landed on the footer. *Remove fit* moved
@@ -2360,6 +2372,20 @@ the CSV; *1 iteration*, one step from the starting values, which it replaces; th
 listed as they go (reduced χ², λ, the parameters), steps taken one at a time following Fit's
 own path; a long fit run in slices with *Stop*; the curve at its starting values drawn dashed
 while the Fit window is open; fits of every column run with the template's control.
+
+Between slices 1 and 2, from the user's bug reports: graphs as one list (document version 5).
+A project has no graph until something is plotted, so a project can be worksheet calculations
+alone; the first graph is a graph like the others, deleted from the project like any other,
+with an id of its own; annotations are a list of their own (`p.annos`); there is no fixed graph
+window. Older projects move over on opening: the first graph keeps what it showed but for the
+columns that have graphs of their own (it used to draw every column, so two curves meant to be
+apart were drawn together on it), its labels, its place in a figure and the Explorer, and the
+comments on its History box. Taking the analysed curve off a graph of two keeps that graph in
+front (it used to jump to whichever graph "showed" the curve, which looked like the graph had
+been lost); a graph's last curve cannot be taken off (Delete the graph is offered); closing the
+graph in front brings an open one forward, and a column shown while the graphs are closed gets
+a graph of its own instead of joining a closed one. The worksheet's "not plotted" means on no
+graph, not "not on the graph in front".
 
 Done in this round: the user's review after the UX rework's slice 5. The worksheet hides and shows
 columns and rows, as Excel's Hide and Unhide (a marked strip, a marked row number, a double click
@@ -2649,9 +2675,7 @@ Next, in order:
 7. More files: JCAMP-DX, then SPC; OPUS and SPE last
 8. Under the hood: projects in IndexedDB rather than localStorage (no 5 MB limit, BroadcastChannel
    between tabs); `tools/odd-test.mjs` grown to run every example end to end; the worksheet
-   drawing only the columns in view; speed with thousands of spectra; the first graph made
-   a graph like the others (an id of its own in `p.graphs`, every graph's annotations in a
-   list of their own, saved projects moved over), so no id is ever used again
+   drawing only the columns in view; speed with thousands of spectra
 9. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
    applied in one click, unread markers
 
@@ -2707,8 +2731,7 @@ Next, in order:
   series, no Excel-style flash fill; random numbers come from a seeded mulberry32, fine for
   simulation, not for cryptography
 - Plotting from the worksheet plots whole columns (no range of rows, no plot of a selection
-  of cells), against an X column; an older project's first graph shows every spectrum until
-  it is plotted from the worksheet; a closed graph is closed for everyone who opens the
+  of cells), against an X column; a closed graph is closed for everyone who opens the
   project, and a viewer who cannot edit cannot open it
 - The worksheet holds numbers only (no text cells); rows are inserted and deleted whole, never
   cells shifted within a column; a comment attached to a point keeps its row number when rows

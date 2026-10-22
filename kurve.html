@@ -1569,11 +1569,11 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
   .win-rz,.win-h [data-wmax]{display:none}
   .win.gwin .win-b{height:52vh;min-height:300px;flex:0 0 auto;overflow:hidden}
   .win.figw .win-b{height:84vh;min-height:420px}
-  #w-graph .win-b{height:68vh;min-height:360px;flex:0 0 auto}
+  .win.gwin.haslive:not(.figw) .win-b{height:68vh;min-height:360px}
   #w-sheet .win-b{max-height:70vh}
   #w-help .win-b{height:80vh;overflow:hidden;flex:0 0 auto}
   .win-b{overflow:visible}
-  #w-graph .win-b,#w-sheet .win-b{overflow:hidden}
+  #w-sheet .win-b{overflow:hidden}
   .flow-body{flex-direction:column}
   .flow-scroll{flex:0 0 auto;max-height:52vh}
   .finsp{flex:0 0 auto;border-left:0;border-top:1px solid var(--rule);overflow:visible}
@@ -1749,9 +1749,8 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
   </aside>
   <div class="xpl-split" id="xplSplit" role="separator" aria-orientation="vertical" aria-label="Width of the Project Explorer" tabindex="0"></div>
   <main class="desk" id="desk" aria-label="Windows">
-    <section class="win gwin" id="w-graph" data-win="graph" aria-label="Graph">
-      <header class="win-h"><svg class="ic sm"><use href="#i-chart"/></svg><h2 class="win-t">Graph</h2><span class="win-sub" id="graphSub"></span><span class="sp"></span></header>
-      <div class="win-b graph-win">
+    <!-- The live graph (its bar and plot) waits here while no graph is on the desk; it moves into the window of the graph in front. -->
+    <div id="gPark" hidden>
         <div class="ribbon" id="gRibbon" role="toolbar" aria-label="Data tools">
           <button class="rb" data-rmenu="data" aria-haspopup="menu" aria-expanded="false">Data<svg class="ic sm"><use href="#i-chev"/></svg></button>
           <button class="rb" data-rmenu="plot" aria-haspopup="menu" aria-expanded="false">Plot<svg class="ic sm"><use href="#i-chev"/></svg></button>
@@ -1791,8 +1790,7 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
             </div>
           </div>
         </div>
-      </div>
-    </section>
+    </div>
 
     <section class="win" id="w-sheet" data-win="sheet" aria-label="Worksheet">
       <header class="win-h"><svg class="ic sm"><use href="#i-table"/></svg><h2 class="win-t">Worksheet</h2><span class="win-sub" id="wsSub"></span><span class="sp"></span></header>
@@ -4988,7 +4986,7 @@ function parseFillList(text){
    output; the raw data stays exactly as it was imported, with a fingerprint
    that proves it.
    ============================================================ */
-const DOC_V=4;
+const DOC_V=5;
 const mean=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:null;
 
 /* ---- Columns ------------------------------------------------------------
@@ -5318,8 +5316,9 @@ function migrate(p){
     if(!p.raw){ p.raw=rawRecordFor(p.cols,"first check code of the original data (recorded when this project was opened in a version of Kurve that locks original data)"); }
     p._sealFit=true;
   }
+  if(p.v<5){ migrateGraphs(p); p.v=5; }
   // Keys of older versions can come back from storage after an upgrade.
-  ["x","y","e","xLong","xUnit","yLong","yUnit","eLong","eUnit","steps","mask"].forEach(k=>{ if(k in p) delete p[k]; });
+  ["x","y","e","xLong","xUnit","yLong","yUnit","eLong","eUnit","steps","mask","plot"].forEach(k=>{ if(k in p) delete p[k]; });
   p.cols.forEach(c=>{ c.data=c.data||[]; if(c.role==="y"){ c.pipe=c.pipe||[]; c.mask=c.mask||[]; } });
   if(!p.cols.some(c=>c.role==="x")) p.cols.unshift(makeCol("x","",""));
   if(!p.cols.some(c=>c.id===p.activeY)){ const y=p.cols.find(c=>c.role==="y"); p.activeY=y?y.id:null; }
@@ -5327,9 +5326,46 @@ function migrate(p){
   return p;
 }
 
+/* v5: the first graph was the project's own plot settings (p.plot) under the id
+   "main", which also kept every graph's annotations; with no list of its own it
+   showed every column, those on graphs of their own too. It becomes a graph like
+   the others, at the start of p.graphs with an id of its own, showing what it
+   showed but for the columns that have graphs of their own, and only if it showed
+   anything (a closed first graph with nothing on it was no graph at all). The
+   annotations go to p.annos, the first graph's tagged with its new id. What named
+   it ("main" in a figure's cells, the Explorer, a comment on its History box) is
+   pointed at it; p.mainWas keeps the old name for comments, which live outside
+   the project and keep their keys. Its new id is the same however often the old
+   form is read. */
+const MAIN_WAS="gfirst";
+function migrateGraphs(p){
+  const pl=p.plot&&typeof p.plot==="object"?p.plot:null; p.graphs=Array.isArray(p.graphs)?p.graphs:[];
+  const annos=(pl&&Array.isArray(pl.annos)?pl.annos:[]).filter(a=>a&&typeof a==="object");
+  const ys=(p.cols||[]).filter(c=>c.role==="y").map(c=>c.id), yset=new Set(ys);
+  const inFig=p.graphs.some(g=>g&&g.fig&&(g.fig.cells||[]).some(c=>c&&c.gid==="main"));
+  let main=null;
+  if(pl){ const hid=new Set(Array.isArray(pl.hidden)?pl.hidden:[]);
+    let list=Array.isArray(pl.cols)?pl.cols.filter(k=>yset.has(k)&&!hid.has(k)):null;
+    if(!list){ const own=new Set(); p.graphs.forEach(g=>{ if(g&&!g.fig) (g.cols||[]).forEach(k=>own.add(k)); });
+      const vis=ys.filter(k=>!hid.has(k)); list=vis.filter(k=>!own.has(k));
+      // Everything it showed is on other graphs too: it keeps them, unless it was closed.
+      if(!list.length&&!pl.shut) list=vis; }
+    if(list.length||inFig){ const plot=Object.assign({},pl); ["annos","cols","hidden","gname","gen"].forEach(k=>delete plot[k]);
+      main={id:MAIN_WAS,name:String(pl.gname||"").trim()||"Graph 1",cols:list,plot}; } }
+  // Read again before the upgrade is saved, the project may hold part of it already: nothing is added twice.
+  if(p.graphs.some(g=>g&&g.id===MAIN_WAS)) main=p.graphs.find(g=>g.id===MAIN_WAS);
+  else if(main) p.graphs.unshift(main);
+  p.mainWas={id:main?main.id:null,gen:pl&&Number.isInteger(pl.gen)&&pl.gen>0?pl.gen:0};
+  if(main){
+    p.graphs.forEach(g=>{ if(g&&g.fig&&Array.isArray(g.fig.cells)) g.fig.cells.forEach(c=>{ if(c&&c.gid==="main") c.gid=main.id; }); });
+    if(p.tree&&p.tree.at&&p.tree.at["g:main"]){ p.tree.at["g:"+main.id]=p.tree.at["g:main"]; delete p.tree.at["g:main"]; } }
+  else if(p.tree&&p.tree.at) delete p.tree.at["g:main"];
+  const have=new Set((Array.isArray(p.annos)?p.annos:[]).map(a=>a&&a.id));
+  p.annos=(Array.isArray(p.annos)?p.annos:[]).concat(annos.filter(a=>!have.has(a.id)&&(a.grp||a.g&&a.g!=="main"||main)).map(a=>a.grp||(a.g&&a.g!=="main")?a:Object.assign({},a,{g:main.id})));
+}
 /* Undo is per-session and local: it rewinds your own edits, not other
    people's. Cross-user undo in a shared document is a different problem. */
-const UNDO_KEYS=["cols","activeY","meta","fit","plot","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","lines","rawLock","tree","wsAlign","wsHide"];
+const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","lines","rawLock","tree","wsAlign","wsHide"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
 /* Raw values are replaced, never changed in place, so a snapshot keeps each
    column's data array as it is and copies the rest: with 20 spectra of 50 000
@@ -5382,7 +5418,7 @@ function renderUndo(){
 function blankProject(name){
   const xc=makeCol("x","",""), yc=Object.assign(makeCol("y","",""),{pipe:[],mask:[]});
   return {v:DOC_V, name:name||"Untitled project", cols:[xc,yc], activeY:yc.id,
-    meta:{}, plot:{style:"auto", logY:false, grid:false, resid:"auto", cols:[], shut:true}, fit:null, fits:[], raw:{fp:"",hist:[]}, log:[], created:Date.now(), updated:Date.now()};
+    meta:{}, graphs:[], annos:[], fit:null, fits:[], raw:{fp:"",hist:[]}, log:[], created:Date.now(), updated:Date.now()};
 }
 /* This browser's store. Each project has a key of its own (kurve.p.<id>, and
    kurve.c.<id> for its comments), so a save writes only its own project: a
@@ -5489,7 +5525,7 @@ const S={
   // Graphs: the one in front (drawn live), the graph being drawn as a picture,
   // each graph's zoom and spectrum while another is in front, drafts kept per
   // spectrum, the pictures' signatures, and whether zooms are linked.
-  gid:"main", gctx:null, gv:{}, glead:{}, dstash:{}, snap:{},
+  gid:null, gctx:null, gv:{}, glead:{}, dstash:{}, snap:{},
   linkX:(()=>{ try{ return localStorage.getItem("kurve.linkX")!=="0"; }catch(e){ return true; } })()
 };
 const $=s=>document.querySelector(s);
@@ -5771,8 +5807,8 @@ function plotCfg(){
   o.ax={x:Object.assign({},(src.ax||{}).x),y:Object.assign({},(src.ax||{}).y),y2:Object.assign({},(src.ax||{}).y2),x2:Object.assign({},(src.ax||{}).x2),yo:Object.assign({},(src.ax||{}).yo)};
   o.series=src.series||{}; o.hidden=src.hidden||[];
   // On a graph of its own, a spectrum not on it counts as hidden.
-  const g=S.plotPreview?null:graphOf(id), on=g?g.cols:S.plotPreview||id!=="main"?null:mainList(p); if(on) o.hidden=o.hidden.concat(yCols().filter(c=>!on.includes(c.id)).map(c=>c.id));
-  o.annos=((S.plotPreview?src.annos:(p&&p.plot&&p.plot.annos))||[]).filter(a=>annoInGraph(a,id));
+  const g=S.plotPreview?null:graphOf(id), on=g?g.cols:S.plotPreview?null:[]; if(on) o.hidden=o.hidden.concat(yCols().filter(c=>!on.includes(c.id)).map(c=>c.id));
+  o.annos=((S.plotPreview?src.annos:(p&&p.annos))||[]).filter(a=>annoInGraph(a,id));
   // A panel of a figure: its shared axes' inner numbers and titles give way, the
   // panels sharing an axis show the same range of it, it carries its letter, and
   // its margins are those that line its plot area up with the others'.
@@ -5790,62 +5826,44 @@ function plotCfg(){
   return o;
 }
 /* ---- Graphs -------------------------------------------------------------------
-   A project has one or more graphs, as Origin has graph windows. The first, the
-   main graph, keeps its settings in p.plot and shows every spectrum that is not
-   hidden, or its own list of them (p.plot.cols) once one is plotted from the
-   worksheet or imported; the others are p.graphs, each {id, name, cols, plot}: the spectra it
-   shows, in order, and its own settings. Every graph's annotations are kept in
-   one list, p.plot.annos, those of another graph tagged g (its id); a peak set
-   belongs to its spectrum and is drawn wherever the spectrum is. Only the graph
-   in front (S.gid) is drawn live, with the tools; the others are pictures, drawn
-   again only when something they show has changed, a few at a time. */
-const GID=()=>S.gctx||S.gid||"main";
-// A panel of a figure is drawn in its figure's window.
-const winOfGraph=id=>{ const f=figOf(id); if(f) return f.id; return !id||id==="main"?"graph":id; };
-const graphOfWin=w=>w==="graph"?"main":(WINS[w]&&WINS[w].graph?w:null);
-const multiGraph=()=>!!(P()&&(P().graphs||[]).length);
-// The graphs of a project, the first one ("main", p.plot) left out while it is gone
-// (mainGone): closed with nothing on it, as a new project's is and as deleting it leaves it.
-function graphIds(p){ p=p||P(); return p?(mainGone(p)?[]:["main"]).concat((p.graphs||[]).map(g=>g.id)):[]; }
-// Every graph, the first one whatever its state: for keeping windows and names in step.
-function allGraphIds(p){ p=p||P(); return p?["main"].concat((p.graphs||[]).map(g=>g.id)):[]; }
-/* The first graph is the project's own plot settings (p.plot), which also keep every
-   graph's annotations, so it cannot leave the project. Closed with nothing on it, it is
-   gone as far as anyone can see: in no list, no menu, no box of the History, no export;
-   the next plot uses it again. (A function, not a const: graphIds runs early.) */
-/* The first graph keeps the id "main" whatever happens to it, so what is attached to it
-   from outside p.plot cannot use that id alone: its History box (and so the comments on
-   it) is keyed by its generation, p.plot.gen, which deleting it moves on. A thread on a
-   deleted first graph then reads "(since removed)" instead of turning up on the next one,
-   and Undo, which puts the old p.plot back, brings it back. Anything new that is keyed by
-   a graph's id and lives outside p.plot must be keyed this way, or cleared in deleteMainGraph. */
-function mainGen(p){ p=p||P(); const g=p&&p.plot&&p.plot.gen; return Number.isInteger(g)&&g>0?g:0; }
-function mainKey(p){ const g=mainGen(p); return g?"figure:"+g:"figure"; }
-function mainGone(p){ p=p||P(); const pl=p&&p.plot; if(!pl||!pl.shut||!Array.isArray(pl.cols)) return false;
-  const ys=new Set((p.cols||[]).filter(c=>c.role==="y").map(c=>c.id));
-  return !pl.cols.some(k=>ys.has(k))&&!figOf("main",p); }
-function graphOf(id){ const p=P(); if(!p||!id||id==="main") return null; return (p.graphs||[]).find(g=>g.id===id)||null; }
-function graphName(id,p){ p=p||P(); if(!p) return "Graph"; if(!id||id==="main") return (p.plot&&p.plot.gname)||"Graph 1"; const g=(p.graphs||[]).find(q=>q.id===id); return g?g.name:"Graph"; }
-function plotOf(id){ const p=P(); if(!p) return {}; const g=graphOf(id); return g?g.plot:(p.plot||{}); }
+   A project has as many graphs as have been plotted, and none until something
+   is: p.graphs, each {id, name, cols, plot}, the curves it shows in order and
+   its own settings, as Origin has graph windows. None is special: the first
+   is deleted like the last, and a project with no graph is a worksheet alone.
+   Every graph's annotations are kept in one list, p.annos, each tagged g with
+   its graph's id; a peak set (grp) belongs to its column and is drawn wherever
+   the column is. Only the graph in front (S.gid) is drawn live, with the tools;
+   the others are pictures, drawn again only when something they show has
+   changed, a few at a time. */
+const GID=()=>S.gctx||S.gid||null;
+const newGid=()=>"g"+Math.random().toString(36).slice(2,9);
+// A graph's window is its own id; a panel of a figure is drawn in its figure's.
+const winOfGraph=id=>{ if(!id) return null; const f=figOf(id); return f?f.id:id; };
+const graphOfWin=w=>w&&WINS[w]&&WINS[w].graph?w:null;
+const multiGraph=()=>!!(P()&&(P().graphs||[]).length>1);
+function graphIds(p){ p=p||P(); return p?(p.graphs||[]).map(g=>g.id):[]; }
+function graphOf(id){ const p=P(); if(!p||!id) return null; return (p.graphs||[]).find(g=>g.id===id)||null; }
+function graphName(id,p){ p=p||P(); const g=p&&id?(p.graphs||[]).find(q=>q.id===id):null; return g?g.name:"Graph"; }
+// With no graph there are no settings but the defaults (plotCfg fills them in).
+function plotOf(id){ const g=graphOf(id); return g?g.plot:{}; }
 function GP(){ return plotOf(GID()); }
-// On the graph (the main graph has every spectrum), and drawn there.
-function inGraph(c,id){ if(!c) return false; id=id||GID(); if(id==="main"){ const l=mainList(); return !l||l.includes(c.id); } const g=graphOf(id); return !!g&&g.cols.includes(c.id); }
+// On the graph, and drawn there.
+function inGraph(c,id){ if(!c) return false; const g=graphOf(id||GID()); return !!g&&g.cols.includes(c.id); }
 function graphShows(c,id){ id=id||GID(); return inGraph(c,id)&&!((plotOf(id).hidden)||[]).includes(c.id); }
-function graphCols(id){ id=id||GID(); const g=graphOf(id), l=g?g.cols:id==="main"?mainList():null; return l?l.map(colById).filter(c=>c&&c.role==="y"&&graphShows(c,id)):yCols().filter(c=>graphShows(c,id)); }
-function annoInGraph(a,id){ return a.grp?true:(a.g||"main")===(id||GID()); }
+function graphCols(id){ id=id||GID(); const g=graphOf(id); return g?g.cols.map(colById).filter(c=>c&&c.role==="y"&&graphShows(c,id)):[]; }
+function annoInGraph(a,id){ return a.grp?true:!!a.g&&a.g===(id||GID()); }
+// Another project's annotations: in its first graph's settings before version 5, in a list of their own since.
+function projAnnos(q){ return (q&&(q.annos||(q.plot&&q.plot.annos)))||[]; }
 /* Saves settings of the graph in hand; with several graphs its log line says
-   which. Annotations always go to the one list in p.plot. */
+   which. Annotations go to the one list, p.annos. */
 function savePlot(patch,log){
   const p=P(); if(!p) return; const id=GID(), g=graphOf(id), lg=log&&multiGraph()?`${graphName(id)}: ${log}`:log;
-  if(!g){ const pp=Object.assign({},patch), l=mainList(p);
-    // With a list of its own, hiding a spectrum takes it off the first graph.
-    if(l&&"hidden" in pp){ const hid=pp.hidden||[]; pp.cols=l.filter(k=>!hid.includes(k)).concat(yCols().map(c=>c.id).filter(k=>!hid.includes(k)&&!l.includes(k))); pp.hidden=[]; }
-    save({plot:Object.assign({},p.plot,pp)},lg); return; }
   const pp=Object.assign({},patch), out={};
-  if("annos" in pp){ out.plot=Object.assign({},p.plot,{annos:pp.annos}); delete pp.annos; }
+  if("annos" in pp){ out.annos=pp.annos; delete pp.annos; }
+  if(!g){ if(out.annos) save(out,lg); return; }
   out.graphs=(p.graphs||[]).map(q=>{ if(q.id!==id) return q;
     const n=Object.assign({},q,{plot:Object.assign({},q.plot,pp)});
-    // On a graph of its own, hiding a spectrum takes it off the graph.
+    // Hiding a curve takes it off the graph; a graph keeps one at least.
     if("hidden" in pp){ const hid=pp.hidden||[], all=yCols().map(c=>c.id);
       n.cols=q.cols.filter(k=>!hid.includes(k)).concat(all.filter(k=>!hid.includes(k)&&!q.cols.includes(k)));
       if(!n.cols.length) n.cols=q.cols.slice(0,1); n.plot.hidden=[]; }
@@ -6384,9 +6402,9 @@ const cutId=x=>`cut@${fmt(x,6)}`;
 function mapCutX(x){
   const p=P(), act=activeYCol(); if(!p||S.readOnly||!act) return; const xu=finalOf(act).xu||"", s=seriesOf();
   const cuts=(s.cuts||[]).filter(q=>!((q.xu||"")===xu&&Math.abs(q.x-x)<=Math.abs(x)*1e-9)).concat([{x,xu}]);
-  const id="t"+Math.random().toString(36).slice(2,9), name=nextTrendName(), line={id:annoId(),t:"v",x,xu,dash:"dash",text:""}; if(GID()!=="main") line.g=GID();
+  const id="t"+Math.random().toString(36).slice(2,9), name=nextTrendName(), line={id:annoId(),t:"v",x,xu,dash:"dash",text:""}; if(GID()) line.g=GID();
   pushUndo("cutting the map");
-  save({series:Object.assign(s,{cuts}),trends:trendList().concat([{id,name,ys:[{q:cutId(x),ax:"l"}],line:false}]),plot:Object.assign({},p.plot,{annos:(p.plot.annos||[]).concat([line])})},
+  save({series:Object.assign(s,{cuts}),trends:trendList().concat([{id,name,ys:[{q:cutId(x),ax:"l"}],line:false}]),annos:(p.annos||[]).concat([line])},
     `cut the map at X = ${fmt(x,5)}${xu?" "+xu:""}: ${name}, every column's value there against ${seriesLabel(s)}`);
   xNew(["t:"+id]); renderAll(); openWin(id,{render:true});
   toast(`${name}: the profile at X = ${fmt(x,5)}${xu?" "+xu:""} against ${seriesLabel(s)}.`,{action:"Undo",run:undo}); }
@@ -7830,7 +7848,7 @@ function renderPlot(){
 
 /* ---- Annotations ------------------------------------------------------------
    Lines, shaded ranges, text and peak labels on the graph. They are part of the
-   plot settings (p.plot.annos), so they are saved with the project, undone like
+   project (p.annos, each tagged with its graph), so they are saved with it, undone like
    any other change and exported with the figure. Each remembers the units it
    was placed in and is drawn only on data in those units: a line at 532 nm
    means nothing on a Raman-shift axis. A peak label keeps its offset in pixels
@@ -7838,7 +7856,7 @@ function renderPlot(){
 const ANNO_KINDS={v:"Vertical line",h:"Horizontal line",band:"Shaded range",text:"Text",label:"Peak label",arrow:"Arrow",inset:"Inset",rect:"Box",ellipse:"Ellipse"};
 const ANNO_COLORS=[["","Automatic"],["#111820","Black"],["#5B6778","Grey"],["#1D5FA8","Blue"],["#C23B22","Red"],["#2E7D4F","Green"],["#B26B00","Amber"],["#6A3FB5","Violet"],["custom","Custom…"]];
 const annoId=()=>"a"+Date.now().toString(36)+(colSeq++).toString(36);
-function annoById(id){ return ((P()&&P().plot&&P().plot.annos)||[]).find(a=>a.id===id)||null; }
+function annoById(id){ return ((P()&&P().annos)||[]).find(a=>a.id===id)||null; }
 // What a line or label says: its own text, or its value (text null), or nothing ("").
 // {x} in the text of a line or a label stands for its position.
 function annoPos(a,xu){ return (a.dec!=null?(+a.x).toFixed(+a.dec):fmt(a.x,5))+(a.unit&&xu?" "+xu:""); }
@@ -7975,27 +7993,27 @@ function annoSvg(layer,c){
   });
   return s;
 }
-function saveAnnos(annos,log){ const p=P(); save({plot:Object.assign({},p.plot,{annos})},log&&multiGraph()?`${graphName(GID())}: ${log}`:log); renderPlot(); if(winOpen("stats")) renderStats(); }
+function saveAnnos(annos,log){ save({annos},log&&multiGraph()?`${graphName(GID())}: ${log}`:log); renderPlot(); if(winOpen("stats")) renderStats(); }
 // New annotations are placed in the units of the data on view.
 function addAnno(a,log){
   const p=P(); if(!p||S.readOnly) return null;
   const d=plotState().d;
-  a=Object.assign({id:annoId()},a); if(GID()!=="main"&&!a.grp) a.g=GID(); if(a.t!=="h") a.xu=d.xu||""; if(a.t==="h"||a.t==="text"||a.t==="label"||twoEnds(a)||a.t==="inset") a.yu=d.yu||"";
+  a=Object.assign({id:annoId()},a); if(GID()&&!a.grp) a.g=GID(); if(a.t!=="h") a.xu=d.xu||""; if(a.t==="h"||a.t==="text"||a.t==="label"||twoEnds(a)||a.t==="inset") a.yu=d.yu||"";
   pushUndo("adding "+ANNO_KINDS[a.t].toLowerCase());
   S.annoSel=a.id;
-  saveAnnos((p.plot.annos||[]).concat([a]),log||`added ${annoDesc(a)}`);
+  saveAnnos((p.annos||[]).concat([a]),log||`added ${annoDesc(a)}`);
   return a.id;
 }
 function updateAnno(id,patch,log){
   const p=P(), a=annoById(id); if(!a||S.readOnly) return;
   pushUndo("changing "+ANNO_KINDS[a.t].toLowerCase());
-  saveAnnos((p.plot.annos||[]).map(q=>q.id===id?Object.assign({},q,patch):q),log||`changed ${annoDesc(Object.assign({},a,patch))}`);
+  saveAnnos((p.annos||[]).map(q=>q.id===id?Object.assign({},q,patch):q),log||`changed ${annoDesc(Object.assign({},a,patch))}`);
 }
 function deleteAnno(id){
   const p=P(), a=annoById(id); if(!a||S.readOnly) return;
   if(a.grp){ removeFoundPeak(id); return; }
   pushUndo("deleting "+ANNO_KINDS[a.t].toLowerCase()); if(S.annoSel===id) S.annoSel=null;
-  saveAnnos((p.plot.annos||[]).filter(q=>q.id!==id),`deleted ${annoDesc(a)}`);
+  saveAnnos((p.annos||[]).filter(q=>q.id!==id),`deleted ${annoDesc(a)}`);
   toast(`Deleted the ${ANNO_KINDS[a.t].toLowerCase()}.`,{action:"Undo",run:undo});
 }
 function annoDesc(a){ const t=a.text?` "${a.text}"`:"";
@@ -8026,7 +8044,7 @@ function dragAnno(x,y){
     // Text lines up with the plot's centre and with other text: guides show it, Alt drags freely.
     const e=annoEnds(o,g); let sx=e.t.x+px, sy=e.t.y+py; const gd=[];
     if(!S.altKey){ const cx=[g.L+g.pw/2], cy=[g.T+g.mh/2];
-      ((P().plot&&P().plot.annos)||[]).forEach(b=>{ if(b.id===a.id||b.t!=="text"||!annoInGraph(b)) return; const p=annoEnds(b,g).t; if(Number.isFinite(p.x)){ cx.push(p.x); cy.push(p.y); } });
+      (P().annos||[]).forEach(b=>{ if(b.id===a.id||b.t!=="text"||!annoInGraph(b)) return; const p=annoEnds(b,g).t; if(Number.isFinite(p.x)){ cx.push(p.x); cy.push(p.y); } });
       const nx=cx.reduce((m,v)=>Math.abs(v-sx)<Math.abs(m-sx)?v:m,Infinity), ny=cy.reduce((m,v)=>Math.abs(v-sy)<Math.abs(m-sy)?v:m,Infinity);
       if(Math.abs(nx-sx)<6){ sx=nx; gd.push({x:nx}); } if(Math.abs(ny-sy)<6){ sy=ny; gd.push({y:ny}); } }
     S.guides=gd.length?gd:null;
@@ -8056,7 +8074,7 @@ function dragAnno(x,y){
 }
 function commitAnnoDrag(ad){
   const a=annoById(ad.id); if(!a) return;
-  save({plot:Object.assign({},P().plot)},`moved ${annoDesc(a)}`); renderPlot();
+  save({annos:(P().annos||[]).slice()},`moved ${annoDesc(a)}`); renderPlot();
 }
 function dragLegend(x,y){
   const lg=S.lgdrag, g=S.geo, p=P(); if(!g||!p) return;
@@ -8082,7 +8100,7 @@ function peakNear(px,py){
    type, a box opens over it to type its label at once. */
 function addPeakLabel(hit,opt){
   if(!hit) return; opt=opt||{}; const c=colById(hit.id);
-  const dup=((P().plot.annos)||[]).find(a=>a.t==="label"&&a.ser===hit.id&&annoInGraph(a)&&Math.abs(a.x-hit.x)<1e-9);
+  const dup=(P().annos||[]).find(a=>a.t==="label"&&a.ser===hit.id&&annoInGraph(a)&&Math.abs(a.x-hit.x)<1e-9);
   if(dup){ S.annoSel=dup.id; renderPlot(); if(opt.type) inlineEditAnno(dup.id); else toast("That peak is labelled already. Drag its label to move it, or double-click to edit it."); return; }
   const id=c&&foundOf(c)?addToPeakSet(c,{x:hit.x,y:hit.y}):addAnno({t:"label",x:hit.x,y:hit.y,ser:hit.id},`labelled the peak at ${fmt(hit.x,6)} of ${specName(c)}`);
   if(id&&opt.type) inlineEditAnno(id,{fresh:true});
@@ -8295,7 +8313,7 @@ function pdAddAnno(k){
   const wk=S.plotPreview; if(!wk||S.readOnly) return;
   const g=S.geo, v=g?g.v:curView(), d=plotState().d;
   const cx=+((v.x0+v.x1)/2).toPrecision(6), cy=+(g&&g.logY?Math.sqrt(v.y0*v.y1):(v.y0+v.y1)/2).toPrecision(6), w=Math.abs(v.x1-v.x0);
-  const a={id:annoId(),t:k,xu:d.xu||"",yu:d.yu||""}; if(GID()!=="main") a.g=GID();
+  const a={id:annoId(),t:k,xu:d.xu||"",yu:d.yu||""}; if(GID()) a.g=GID();
   const at=(fx,fy)=>toData(g.L+g.pw*fx,g.T+g.mh*fy), n6=q=>+(+q).toPrecision(6);
   if(k==="v") a.x=cx; else if(k==="h"){ a.y=cy; delete a.xu; } else if(k==="band"){ a.x=n6(cx-w*0.05); a.x2=n6(cx+w*0.05); }
   else if(k==="inset"){ Object.assign(a,{x0:n6(cx-w*0.08),x1:n6(cx+w*0.08),y0:null,y1:null,fx:0.6,fy:0.05,fw:0.36,fh:0.4}); }
@@ -8345,16 +8363,16 @@ async function addLineDlg(t){
 function shadeRange(){ if(!P()) return; S.pick={band:true}; setMode("range"); toast("Drag across the graph to choose the range to shade. Esc cancels."); }
 function labelFoundPeaks(r){
   r=r||pfRun(); const p=P(), c=activeYCol(); if(!r||!r.found.length||!c||S.readOnly){ toast("No peaks found in view to label."); return; }
-  const have=(p.plot.annos||[]).filter(a=>a.t==="label"&&a.ser===c.id&&annoInGraph(a)), add=[], gt=GID()!=="main"?{g:GID()}:{};
+  const have=(p.annos||[]).filter(a=>a.t==="label"&&a.ser===c.id&&annoInGraph(a)), add=[], gt=GID()?{g:GID()}:{};
   const d=plotState().d;
   r.found.forEach(q=>{ const pt=r.pts[q.i]; if(!pt||have.some(a=>Math.abs(a.x-pt.x)<1e-9)) return;
     add.push(Object.assign({id:annoId(),t:"label",x:pt.x,y:pt.y,ser:c.id,xu:d.xu||"",yu:d.yu||""},gt)); });
   if(!add.length){ toast("Those peaks are labelled already."); return; }
   pushUndo("labelling the peaks");
-  saveAnnos((p.plot.annos||[]).concat(add),`labelled ${add.length} peak${add.length===1?"":"s"} of ${specName(c)} with their positions`);
+  saveAnnos((p.annos||[]).concat(add),`labelled ${add.length} peak${add.length===1?"":"s"} of ${specName(c)} with their positions`);
   toast(`Labelled ${add.length} peak${add.length===1?"":"s"}.`,{action:"Undo",run:undo});
 }
-function clearAnnos(){ const p=P(), all=(p&&p.plot.annos)||[], n=all.filter(a=>annoInGraph(a)).length; if(!n||S.readOnly) return;
+function clearAnnos(){ const p=P(), all=(p&&p.annos)||[], n=all.filter(a=>annoInGraph(a)).length; if(!n||S.readOnly) return;
   pushUndo("removing the annotations"); saveAnnos(all.filter(a=>!annoInGraph(a)),`removed ${n} annotation${n===1?"":"s"} from the graph`);
   toast(`Removed ${n} annotation${n===1?"":"s"}.`,{action:"Undo",run:undo}); }
 // Every setting of a line, range, text or label: the Format dialog, open at it.
@@ -8511,7 +8529,7 @@ function graphMenuItems(id,at){
       {label:"Connect",sub:()=>CONN_KINDS.map(([k,l])=>({label:l,radio:true,checked:st.conn===k,enabled:!ro,run:()=>setSeriesStyle(c.id,{conn:k},`joined the points of ${specName(c)} by ${l.toLowerCase()}`)}))},
       {label:"Fill between it and",sub:()=>[{label:"Nothing",radio:true,checked:!st.fillTo,enabled:!ro,run:()=>setSeriesStyle(c.id,{fillTo:""},`left the area by ${specName(c)} unfilled`)}].concat(yCols().filter(o=>o!==c&&graphShows(o)).map(o=>({label:specName(o),radio:true,checked:st.fillTo===o.id,enabled:!ro,run:()=>setSeriesStyle(c.id,{fillTo:o.id},`filled between ${specName(c)} and ${specName(o)}`)})))},
       hasErrCols(c.id)||(finalOf(c).e||[]).some(v=>v>0)?{label:"Error bars",sub:()=>[{group:errSourceText(c)}].concat([["bars","Bars"],["band","A shaded band"],["none","None"]].map(([k,l])=>({label:l,radio:true,checked:st.eb===k,enabled:!ro,run:()=>setSeriesStyle(c.id,{eb:k},`drew the error bars of ${specName(c)} as ${l.toLowerCase()}`)})))}:null);
-    if(!isAct) items.push({label:"Make it the active curve",title:"The one the Fit, Results and the tools work on",run:()=>setActiveCol(c.id)},{label:GID()==="main"?"Hide it":"Take it off this graph",run:()=>toggleColVis(c.id),enabled:!ro});
+    if(!isAct) items.push({label:"Make it the active curve",title:"The one the Fit, Results and the tools work on",run:()=>setActiveCol(c.id)},{label:"Take it off this graph",run:()=>toggleColVis(c.id),enabled:!ro});
     items.push({label:"Open in a new graph",run:()=>newGraphFrom([c.id]),enabled:!ro});
     items.push(histOf(c.id)?{label:"Histogram bins…",run:()=>editHistStep(c.id)}:{label:"Histogram of its values",run:()=>histogramCols([c.id]),enabled:!ro});
   }
@@ -8588,7 +8606,7 @@ function openPlotDetails(id,tab){
 // What the dialog edits: the graph's settings, with every graph's annotations
 // (the dialog lists this graph's) and, on a graph of its own, the spectra not
 // on it as hidden.
-function pdBase(){ const p=P(); return Object.assign({},GP(),{hidden:plotCfg().hidden,annos:(p.plot&&p.plot.annos)||[]}); }
+function pdBase(){ const p=P(); return Object.assign({},GP(),{hidden:plotCfg().hidden,annos:p.annos||[]}); }
 function closePlotDetails(ok){
   closeFontPicker(); closeColorPicker();
   const m=$("#plotModal"), wk=S.plotPreview; S.plotPreview=null; closeModal(m);
@@ -9063,7 +9081,7 @@ function deleteFormat(f,where){
 function allFormats(){ return FMT_BUILTIN.concat(projFormats(),fmtLib()); }
 function useFormat(f,every){
   const p=P(); if(!p||S.readOnly) return; pushUndo("formatting the graph");
-  if(every&&multiGraph()) save({plot:styleFrom(f.fmt,p.plot||{}),graphs:(p.graphs||[]).map(g=>Object.assign({},g,{plot:styleFrom(f.fmt,g.plot||{})}))},`gave every graph the saved style "${f.name}"`);
+  if(every&&multiGraph()) save({graphs:(p.graphs||[]).map(g=>Object.assign({},g,{plot:styleFrom(f.fmt,g.plot||{})}))},`gave every graph the saved style "${f.name}"`);
   else savePlot(styleFrom(f.fmt,GP()),`gave the graph the saved style "${f.name}"`);
   S.snap={}; renderTop(); renderPlot(); if(multiGraph()) scheduleSnaps(0);
   toast(every?`Every graph has the style "${f.name}".`:`The graph has the style "${f.name}".`,{action:"Undo",run:undo});
@@ -9081,7 +9099,7 @@ function formatMenuItems(apply,src){
 function formatEveryGraph(){
   const p=P(); if(!p||S.readOnly||!multiGraph()) return; const src=GP(), style=pl=>styleFrom(src,pl);
   pushUndo("formatting every graph");
-  save({plot:style(p.plot||{}),graphs:(p.graphs||[]).map(g=>Object.assign({},g,{plot:style(g.plot||{})}))},`gave every graph the look of ${graphName(GID())}`);
+  save({graphs:(p.graphs||[]).map(g=>Object.assign({},g,{plot:style(g.plot||{})}))},`gave every graph the look of ${graphName(GID())}`);
   S.snap={}; renderPlot(); scheduleSnaps(0);
   toast("Every graph now has this graph's format.",{action:"Undo",run:undo});
 }
@@ -10234,8 +10252,10 @@ function wsModel(){
       q.spark=q.id==="f:y"?sparkSvg(d,Math.max(20,q.w-12),16,"wspark"):""; });
     return wsOrder({kind:"final", cols, n:d.x.length, d, c, p});
   }
-  const cols=allCols().filter(c=>!c.src), n=nRows(), hidden=plotCfg().hidden, actRoot=rootOf(activeYCol()), xs=cols.filter(c=>c.role==="x"), gOpen=winOpen(winOfGraph(S.gid||"main")), hid=new Set(wsHideOf(p).cols);
-  const mc=cols.map((c,i)=>{ const isY=c.role==="y", isAct=c===actRoot, off=isY&&!isAct&&gOpen&&hidden.includes(c.id), L=wsLetter(i), w=hid.has(c.id)?WS_HIDW:W[c.id]||WS_W;
+  const cols=allCols().filter(c=>!c.src), n=nRows(), actRoot=rootOf(activeYCol()), xs=cols.filter(c=>c.role==="x"), hid=new Set(wsHideOf(p).cols);
+  // "Not plotted" is a column with values on no graph at all, whichever graph is in front.
+  const onG=new Set(); (p.graphs||[]).forEach(g=>{ if(!g.fig) g.cols.forEach(k=>onG.add(k)); });
+  const mc=cols.map((c,i)=>{ const isY=c.role==="y", isAct=c===actRoot, off=isY&&!onG.has(c.id)&&c.data.some(v=>v!=null), L=wsLetter(i), w=hid.has(c.id)?WS_HIDW:W[c.id]||WS_W;
     if(hid.has(c.id)) return {id:c.id, col:c, letter:L, role:ROLE_LABEL[c.role]||c.role, w, hidden:true, lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx,
       title:`Column ${L}${c.name?" ("+c.name+")":""} is hidden. Double-click to show it.`};
     let spark="";
@@ -10244,7 +10264,7 @@ function wsModel(){
       if(ys.length>1) spark=sparkSvg({x:idx,y:ys},Math.max(20,w-12),16,"wspark"); }
     return {id:c.id, col:c, letter:L, role:c.role==="x"&&xs.length>1?"X"+(xs.indexOf(c)+1):c.role==="e"?errTag(c):ROLE_LABEL[c.role]||c.role, w, sw:isY?yTint(c.id):null, off, act:isAct, menu:true, spark,
       lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx, fxErr:c.fx?FX_ERR.get(c.id)||"":"",
-      title:`Column ${L}${c.name?": "+c.name:""}. ${roleText(c)}${c.fx?`, computed: = ${fxShow(c)}${FX_ERR.get(c.id)?` (${FX_ERR.get(c.id)})`:""}`:""}${isAct?", active":off?", hidden on the graph":""}. Click to select it; right-click, or the arrow, for its options; drag its right edge to resize it.`}; });
+      title:`Column ${L}${c.name?": "+c.name:""}. ${roleText(c)}${c.fx?`, computed: = ${fxShow(c)}${FX_ERR.get(c.id)?` (${FX_ERR.get(c.id)})`:""}`:""}${isAct?", active":""}${off?", on no graph yet":""}. Click to select it; right-click, or the arrow, for its options; drag its right edge to resize it.`}; });
   // Empty columns to the edge of the window and a little beyond, as a grid has.
   const used=WS_IDX+mc.reduce((s,q)=>s+q.w,0), cw=box&&box.clientWidth?box.clientWidth:900, K=Math.max(3,Math.ceil((cw-used)/WS_W)+2);
   for(let j=0;j<K;j++){ const i=cols.length+j, L=wsLetter(i);
@@ -10292,7 +10312,7 @@ function renderWs(){
   S.wsMask=new Set(m.kind==="raw"?maskOf(activeYCol()):maskOf(m.c)); S.wsFixed=m.kind==="raw"?fixedCells():new Map();
   const tw=WS_IDX+m.cols.reduce((a,q)=>a+q.w,0), sx=box.scrollLeft, sy=box.scrollTop;
   let h=`<table class="grid" style="width:${tw}px"><colgroup><col style="width:${WS_IDX}px">${m.cols.map(q=>`<col data-cw="${esc(q.id)}" style="width:${q.w}px">`).join("")}</colgroup><thead>`;
-  h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"><button type="button" class="wsrows" data-wsrows aria-haspopup="menu" aria-expanded="false" title="Rows under the letters: Comments, F(x)=, Sparklines" aria-label="Rows to show under the letters">⋯</button></th>${m.cols.map((q,i)=>q.hidden?`<th class="ch hidc" data-ch="${i}" title="${esc(q.title)}" aria-label="${esc(q.title)}"></th>`:`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.calc?`<span class="fxm${q.fxErr?" bad":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx)}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.off?`<span class="lab hoff" title="Not on the graph in front">not plotted</span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`).join("")}</tr>`;
+  h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"><button type="button" class="wsrows" data-wsrows aria-haspopup="menu" aria-expanded="false" title="Rows under the letters: Comments, F(x)=, Sparklines" aria-label="Rows to show under the letters">⋯</button></th>${m.cols.map((q,i)=>q.hidden?`<th class="ch hidc" data-ch="${i}" title="${esc(q.title)}" aria-label="${esc(q.title)}"></th>`:`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.calc?`<span class="fxm${q.fxErr?" bad":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx)}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.off?`<span class="lab hoff" title="On no graph yet: select it and press Plot">not plotted</span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`).join("")}</tr>`;
   const AL=p.wsAlign||{};
   wsLabRows().forEach(L=>{ h+=`<tr class="lab"><th class="rl" scope="row" data-lr="${L.r}"${L.k==="fx"?` title="A column's formula: letters are columns (B*2, (B-C)/A, log10(B)), x the row's X value, i the row number. Click a cell here to type one."`:""}>${L.label}</th>${m.cols.map((q,i)=>{ const bd=L.k==="fx"&&q.fxErr, al=L.k!=="fx"&&AL[q.id]?" al-"+AL[q.id]:""; if(q.hidden) return `<td class="lc hid" data-r="${L.r}" data-ci="${i}"></td>`; return `<td class="lc${L.k==="fx"?" fxc":""}${bd?" bad":""}${al}" data-r="${L.r}" data-ci="${i}"${bd?` title="${esc(q.fxErr)}"`:L.k==="fx"&&m.kind==="raw"&&!q.lab.fx?` title="Click to type a formula for column ${q.letter}"`:""}>${esc(q.lab[L.k]||"")}</td>`; }).join("")}</tr>`; });
   if(wsRowsPref().spk) h+=`<tr class="spk"><th class="rl" scope="row">Sparklines</th>${m.cols.map(q=>q.hidden?`<td class="hid"></td>`:`<td>${q.spark||""}</td>`).join("")}</tr>`;
@@ -10891,7 +10911,7 @@ function remapRawRows(p,fn){
   allCols().forEach(c=>{
     if(Array.isArray(c.mask)) c.mask=c.mask.map(fn).filter(v=>v!=null);
     (c.pipe||[]).forEach(s=>{ if(s.op==="correct"&&s.p&&Array.isArray(s.p.fixes)) s.p=Object.assign({},s.p,{fixes:s.p.fixes.map(f=>{ const r=fn(f.row); return r==null?null:Object.assign({},f,{row:r}); }).filter(Boolean)}); }); });
-  ((p.plot&&p.plot.annos)||[]).forEach(a=>{ if(a.row!=null){ const r=fn(a.row); if(r==null) delete a.row; else a.row=r; } });
+  (p.annos||[]).forEach(a=>{ if(a.row!=null){ const r=fn(a.row); if(r==null) delete a.row; else a.row=r; } });
   Object.values(p.found||{}).forEach(f=>{ ["ex","mem"].forEach(k=>{ if(Array.isArray(f[k])) f[k]=f[k].map(o=>{ if(o.row==null) return o; const r=fn(o.row); const q=Object.assign({},o); if(r==null) delete q.row; else q.row=r; return q; }); }); });
   if(S.sel!=null) S.sel=fn(S.sel);
 }
@@ -10912,7 +10932,7 @@ function wsRowsEdit(kind){
   const what=kind==="insert"?`inserted ${n} row${n===1?"":"s"} above row ${a+1}`:`deleted row${n===1?"":"s"} ${a+1}${n>1?`–${a+n}`:""}`;
   const rr=recordRaw(what+" in the worksheet");
   S.ws.ar=a; S.ws.r=kind==="insert"?a+n-1:a; S.ws.ac=0; S.ws.c=Math.max(0,m.cols.filter(q=>!q.phantom).length-1); S.ws.win=null;
-  save(Object.assign({cols:p.cols,activeY:p.activeY,plot:p.plot,found:p.found},rr?{raw:rr}:{}),what); renderAll();
+  save(Object.assign({cols:p.cols,activeY:p.activeY,annos:p.annos,found:p.found},rr?{raw:rr}:{}),what); renderAll();
   toast(`${capFirst(what)}.`,{action:"Undo",run:undo});
 }
 /* Raw data can be edited (typed over, cleared, pasted and filled over), and
@@ -11062,13 +11082,11 @@ function setActiveCol(id,quiet){
   renderAll(); if(!quiet) toast(`Now analysing ${specName(c)}.`);
 }
 function toggleColVis(id){
-  const p=P(); if(!p||S.readOnly) return;
-  // On a closed graph, showing a spectrum is plotting it there.
-  if(graphShut(GID())){ plotCols([id],{into:GID()}); return; }
-  if(GID()!=="main"||mainList(p)){ toggleGraphCol(GID(),id); return; }
-  const hid=(p.plot.hidden||[]).slice(), i=hid.indexOf(id);
-  if(i<0) hid.push(id); else hid.splice(i,1);
-  save({plot:Object.assign({},p.plot,{hidden:hid})}); renderWs(); renderPlot(); if(winOpen("flow")) renderFlow(); scheduleSnaps();
+  const p=P(); if(!p||S.readOnly) return; const g=GID();
+  // With no graph on the desk, showing a column is plotting it, on a graph of its own
+  // (not on a closed graph, which would show it beside curves nobody can see).
+  if(!graphOf(g)||!graphOpen(g)){ plotCols([id],{}); return; }
+  toggleGraphCol(g,id);
 }
 function deleteCol(id){
   if(S.readOnly) return; const p=P(), c=colById(id); if(!p||!c||allCols().length<=2) return;
@@ -12044,7 +12062,7 @@ async function doImport(){
     if(ids.length) p.activeY=ids[0]; p.meta=Object.assign({},p.meta||{},r.meta);
     const made=impGraphs(p,ids,how,false);
     const raw=recordRaw(`added ${what} from ${im.fname}`);
-    await save(Object.assign({cols:p.cols,activeY:p.activeY,meta:p.meta,plot:p.plot,graphs:p.graphs},raw?{raw}:{}),`added ${what} from ${im.fname}${stepNote}${own?", with its own X column because it was measured on a different axis":""}${how==="none"?", not plotted yet":""}`);
+    await save(Object.assign({cols:p.cols,activeY:p.activeY,meta:p.meta,graphs:p.graphs},raw?{raw}:{}),`added ${what} from ${im.fname}${stepNote}${own?", with its own X column because it was measured on a different axis":""}${how==="none"?", not plotted yet":""}`);
     if(cols[0]&&cols[0].fid) xNew(["f:"+cols[0].fid]);
     afterImport(how,ids,made,own?`Added ${what}. ${ys.length===1?"It was":"They were"} measured on a different X axis, so ${ys.length===1?"it has":"they have"} an X column of ${ys.length===1?"its":"their"} own. Nothing was interpolated.`:`Added ${what}.`,true);
     return;
@@ -12055,9 +12073,8 @@ async function doImport(){
   // gone; a name the user chose is theirs and is left alone.
   if(isUntitled(p.name)||(p.srcName&&p.name===p.srcName)) patch.name=uniqueProjName(base,S.pid);
   // The other graphs showed the data replaced, so they go with it.
-  const q={cols,plot:Object.assign({},p.plot,{annos:((p.plot||{}).annos||[]).filter(a=>!a.g)}),graphs:[]};
-  if((r.single||nPts>3000)&&(q.plot.style||"scatter")==="scatter") q.plot.style="line";
-  const made=impGraphs(q,ids,how,true); patch.plot=q.plot; patch.graphs=q.graphs;
+  const q={cols,graphs:[]};
+  const made=impGraphs(q,ids,how,true); patch.graphs=q.graphs; patch.annos=[];
   S.fitMode=null; S.selPeak=null;
   Object.assign(p,patch);
   const raw=recordRaw(`replaced all the original data with ${im.fname}`); if(raw) patch.raw=raw;
@@ -12084,31 +12101,25 @@ function afterImport(how,ids,made,msg,undoable){
   toast(msg+(made.length>1?" Click a graph to work on it.":""),undoable?{action:"Undo",run:undo}:{});
 }
 function whenOpen(fn,n){ n=n==null?80:n; if(P()){ fn(); return; } if(n>0) setTimeout(()=>whenOpen(fn,n-1),25); }
-// With nothing plotted the worksheet is the document: it takes the graph's
-// place on the desk when it is the smaller of the two.
-function sheetForward(){
-  const st=winState("sheet"), gs=winState("graph");
-  if(!isNarrow()&&!st.max&&!graphWinIds().some(winOpen)&&st.g[2]*st.g[3]<gs.g[2]*gs.g[3]) st.g=gs.g.slice();
+// With nothing plotted the worksheet is the document: it takes the place of the
+// graph that went (or the whole desk) when it is the smaller of the two.
+function sheetForward(gg){
+  const st=winState("sheet"); gg=gg||[0,0,1,1];
+  if(!isNarrow()&&!st.max&&!graphWinIds().some(winOpen)&&st.g[2]*st.g[3]<gg[2]*gg[3]) st.g=gg.slice();
   openWin("sheet",{render:true});
 }
-/* Puts the spectra just imported on graphs, as the import was told: on none
-   yet (the worksheet only), in one graph, one each, or one graph stacked. In
-   a project that holds nothing else (fresh) the first graph takes them; beside
-   other spectra they get graphs of their own, unless the first graph is
-   closed with nothing on it. p is the project being made or changed, before
-   it is saved; the ids of the graphs that show them are returned. */
+/* Puts the columns just imported on graphs, as the import was told: on none
+   yet (the worksheet only), one graph, one each, or one graph stacked. In a
+   project that holds nothing else (fresh) the graphs there go. p is the
+   project being made or changed, before it is saved; the ids of the graphs
+   made are returned. */
 function impGraphs(p,ids,how,fresh){
-  const plot=p.plot=Object.assign({},p.plot), graphs=p.graphs=(p.graphs||[]).slice(), list=Array.isArray(plot.cols)?plot.cols:null;
-  if(fresh){ plot.hidden=[]; plot.cols=[]; plot.shut=true; }
-  // A first graph without a list of its own shows every spectrum not hidden: these are not for it.
-  else if(!list) plot.hidden=(plot.hidden||[]).concat(ids.filter(k=>!(plot.hidden||[]).includes(k)));
-  const ys=new Set((p.cols||[]).filter(c=>c.role==="y").map(c=>c.id)), mainFree=fresh||(!!plot.shut&&!!list&&!list.some(k=>ys.has(k)&&!ids.includes(k)));
+  const graphs=p.graphs=(fresh?[]:(p.graphs||[])).slice();
   // Nothing plotted: no graph on the desk at all, only the worksheet. Plot opens one.
   if(how==="none"||!ids.length) return [];
-  const base=plotBase(plot), lay=how==="stack"?"stack":null, made=[];
-  (how==="each"?ids.map(k=>[k]):[ids]).forEach((cs,k)=>{
-    if(k===0&&mainFree){ plot.cols=cs.slice(); plot.hidden=[]; delete plot.shut; if(lay) plot.layout=lay; made.push("main"); return; }
-    const g={id:"g"+Math.random().toString(36).slice(2,9),name:nextGraphName({plot,graphs}),cols:cs.slice(),plot:clone(base)};
+  const front=graphs.find(g=>g.id===S.gid)||graphs.find(g=>!g.fig), base=plotBase(front?front.plot:{}), lay=how==="stack"?"stack":null, made=[];
+  (how==="each"?ids.map(k=>[k]):[ids]).forEach(cs=>{
+    const g={id:newGid(),name:nextGraphName({graphs}),cols:cs.slice(),plot:clone(base)};
     if(lay) g.plot.layout=lay; graphs.push(g); made.push(g.id); });
   return made;
 }
@@ -12192,14 +12203,13 @@ async function doBatchImport(good,skip,o){
     if(it.e) cols.push(makeCol("e","σ",it.yu,it.e,yc.id));
     const fid="f"+Math.random().toString(36).slice(2,9); cols.slice(at).forEach(c=>{ c.fid=fid; if(!c.file) c.file=String(it.fname).slice(0,200); });
     newY.push(yc.id); });
-  // The graphs, as asked: none yet, one, one each or stacked. A project that
-  // held nothing gives its first graph to the new spectra.
-  const proj={cols,plot:keep?Object.assign({},p0.plot):{style:"auto",logY:false,grid:false,resid:"auto"},graphs:keep?(p0.graphs||[]).slice():[]};
-  const made=impGraphs(proj,newY,o.graphs,!keep), plot=proj.plot, graphs=proj.graphs;
+  // The graphs, as asked: none yet, one, one each or stacked.
+  const proj={cols,graphs:keep?(p0.graphs||[]).slice():[]};
+  const made=impGraphs(proj,newY,o.graphs,!keep), graphs=proj.graphs;
   const names=good.map(it=>it.name), list=names.length>4?names.slice(0,4).join(", ")+` and ${names.length-4} more`:names.join(", ");
   const lg=`imported ${good.length} columns from ${o.src} (${list})${skip.length?`; skipped ${skip.map(s=>s.fname).join(", ")}`:""}; ${o.graphs==="none"?"not plotted yet":o.graphs==="each"?"a graph for each":o.graphs==="stack"?"stacked in one graph":"all in one graph"}`;
   if(intoNew){
-    const pr=Object.assign(blankProject(batchProjName(names)),{cols,activeY:newY[0],plot,graphs,meta:good[0].meta||{},v:DOC_V});
+    const pr=Object.assign(blankProject(batchProjName(names)),{cols,activeY:newY[0],graphs,meta:good[0].meta||{},v:DOC_V});
     pr.raw=rawRecordFor(cols,`recorded from ${o.src}`);
     await createProject(pr,lg);
   } else {
@@ -12207,7 +12217,7 @@ async function doBatchImport(good,skip,o){
     S.view=null; S.draft=null; S.pdraft=null; S.stage=null; S.selStep=null; S.gv={}; S.glead={};
     const p=P(); p.cols=cols; p.activeY=newY[0];
     const raw=recordRaw(`added ${good.length} columns from ${o.src}`);
-    const patch=Object.assign({cols,activeY:newY[0],plot,graphs},raw?{raw}:{},keep?{}:{meta:good[0].meta||{},fit:null});
+    const patch=Object.assign({cols,activeY:newY[0],graphs},raw?{raw}:{},keep?{}:{meta:good[0].meta||{},fit:null,annos:[]});
     if(!keep&&isUntitled(p.name)) patch.name=uniqueProjName(batchProjName(names),S.pid);
     await save(patch,lg);
     xNew([...new Set(cols.filter(c=>c.fid&&newY.some(y=>colById(y)&&colById(y).fid===c.fid)).map(c=>"f:"+c.fid))]);
@@ -12221,8 +12231,7 @@ async function doBatchImport(good,skip,o){
    person plots what they want when they want it. A file dropped on the window
    is the quick way: it is read with the automatic choices (as the dialog would
    read it), its columns join the project, and its spectra are plotted at once,
-   on the graph it was dropped on, or else on a new graph (on the first graph
-   when nothing is plotted yet). One undo entry takes it all back, and "Read it
+   on the graph it was dropped on, or else on a new graph. One undo entry takes it all back, and "Read it
    differently" undoes it and opens the dialog on the file. */
 function fileDropAt(x,y){
   const els=document.elementsFromPoint(x,y);
@@ -12265,15 +12274,14 @@ async function autoImport(files,o){
   p.cols=cols; if(ids.length) p.activeY=ids[0];
   const patch={cols:p.cols,activeY:p.activeY};
   if(fresh){
-    // A project that held nothing takes the files' names and header, and its first graph takes them.
+    // A project that held nothing takes the files' names and header.
     Object.assign(patch,{meta:built[0].res.meta,fit:null,srcName:built[0].base});
     if(isUntitled(p.name)||(p.srcName&&p.name===p.srcName)) patch.name=uniqueProjName(built.length===1?built[0].base:batchProjName(built.map(b=>b.base)),S.pid);
-    const pl=Object.assign({},p.plot,{cols:[],hidden:[]}); if(!o.gid) pl.shut=true; else delete pl.shut;
-    if((built.some(b=>b.res.single)||nPts>3000)&&(pl.style||"scatter")==="scatter") pl.style="line";
-    patch.plot=pl;
+    // Its graphs showed nothing: they go, and a file dropped on one is plotted on a graph of its own.
+    patch.graphs=[]; patch.annos=[];
   } else {
     patch.meta=Object.assign({},p.meta||{},built[0].res.meta);
-    const q={plot:p.plot,graphs:p.graphs,cols}; impGraphs(q,ids,"none",false); patch.plot=q.plot;
+
   }
   Object.assign(p,patch);
   const raw=recordRaw(fresh?`recorded from ${what}`:`added ${what}`); if(raw) patch.raw=raw;
@@ -12283,12 +12291,12 @@ async function autoImport(files,o){
   if(!ids.length){ renderAll(); sheetForward(); toast(`Imported ${what}: no column is a Y column, so nothing was plotted. The columns are in the worksheet.`,{action:"Undo",run:undo}); return {fids}; }
   // Dropped anywhere but on a graph, the columns go into the worksheet and nothing is
   // plotted: a graph is made when it is asked for (Plot, or a drop on a graph).
-  if(!o.gid||!(o.gid==="main"||graphOf(o.gid))){ renderAll(); sheetForward();
+  if(!o.gid||!(fresh||graphOf(o.gid))){ renderAll(); sheetForward();
     const nm=ids.length===1?specName(colById(ids[0])):`${ids.length} columns`;
     toast(`${nm} from ${what} ${ids.length===1?"is":"are"} in the worksheet${bad.length?`. Skipped: ${bad.join("; ")}`:""}.`,
       {action:"Plot",run:()=>plotCols(ids.filter(k=>colById(k)),{})});
     return {fids}; }
-  const into=o.gid;
+  const into=fresh?null:o.gid;
   plotCols(ids,{into,noUndo:true,quiet:true});
   if(o.folder&&S.gid) xFile(["g:"+S.gid],o.folder);
   const nm=ids.length===1?specName(colById(ids[0])):`${ids.length} columns`;
@@ -12378,7 +12386,7 @@ function xRows(){
     items.filter(it=>fold(it.key)===fid).forEach(it=>{ const kids=it.kind==="file"?xFileKids(it.file,p):it.panels||null, open=!!kids&&kids.length>0&&(q?true:it.panels?exp[it.key]!==false:exp[it.key]===true);
       rows.push(Object.assign({},it,{level,parent:pk,exp:!!(kids&&kids.length),open}));
       if(open&&it.panels){ it.panels.forEach(g=>{ const cs=graphCols(g); rows.push({key:"g:"+g,kind:"graph",gid:g,panel:true,name:[figLetter(g),graphName(g)].filter(Boolean).join(" "),icon:"chart",level:level+1,parent:it.key,
-        note:g===(S.gid||"main")?"in front":"", tip:`${graphTitle(g)}: ${cs.length?andList(cs.slice(0,6).map(specName)):"nothing plotted"}`}); }); return; }
+        note:g===S.gid?"in front":"", tip:`${graphTitle(g)}: ${cs.length?andList(cs.slice(0,6).map(specName)):"nothing plotted"}`}); }); return; }
       if(open) kids.forEach(c=>rows.push({key:"c:"+c.id,kind:c.role==="y"?"spec":"col",cid:c.id,name:specName(c),icon:c.role==="y"?"peak":"table",level:level+1,parent:it.key,
         note:c.id===p.activeY?"analysed":c.src?"derived":c.role==="ignore"?"data":""})); });
   };
@@ -13639,18 +13647,23 @@ function threadIndex(){
   const list=all.filter(c=>!c.parent||!ids.has(c.parent)).map(r=>({root:r,replies:(kids[r.id]||[]).sort((a,b)=>a.t-b.t)}))
     .filter(t=>!(t.root.deleted&&!t.replies.length)).sort((a,b)=>a.root.t-b.root.t);
   const byNode={};
-  list.forEach(t=>{ const a=t.root.anchor; if(a&&a.type==="node") (byNode[a.key]=byNode[a.key]||[]).push(t); });
+  list.forEach(t=>{ const a=t.root.anchor; if(a&&a.type==="node"){ const k=nodeKeyNow(a.key); (byNode[k]=byNode[k]||[]).push(t); } });
   THR_MEMO={src:all,list,byNode}; return THR_MEMO;
 }
 const nodeThreads=key=>threadIndex().byNode[key]||[];
 const NODE_KIND={raw:"Original data",src:"Input",final:"Processed data",fit:"Fits",peaks:"Peaks",integ:"Band integrals"};
 function splitKey(key){ const i=String(key).indexOf(":"); return i<0?[key,""]:[key.slice(0,i),key.slice(i+1)]; }
+/* A comment made before version 5 on the first graph's box has the key "figure"
+   (or "figure:<n>" after it had been deleted n times): it belongs to the graph the
+   first graph became, if that is the one it was made on and it is still there. */
+function legacyFigGraph(gen){ const p=P(), w=p&&p.mainWas; if(!w||!w.id) return null; return (+gen||0)===(w.gen||0)&&graphOf(w.id)?w.id:null; }
+function nodeKeyNow(key){ const [kind,id]=splitKey(key||""); if(kind!=="figure") return key; const g=legacyFigGraph(id); return g?"graph:"+g:key; }
 // The anchor for a History box, labelled as the box is now.
 function nodeAnchor(key){
   const [kind,id]=splitKey(key);
   if(kind==="step"){ const s=stepById(id), c=s&&colOfStep(s); return {type:"node",key,col:c?c.id:null,label:s&&c?`${stepShort(s)}, step ${c.pipe.indexOf(s)+1} of ${specName(c)}`:"a step"}; }
   if(kind==="table") return {type:"node",key,col:null,label:"the original data"};
-  if(kind==="figure") return {type:"node",key,col:null,label:multiGraph()?graphName("main"):"the figure"};
+  if(kind==="figure"){ const g=legacyFigGraph(id); return {type:"node",key,col:null,label:g?graphName(g):"the figure"}; }
   if(kind==="graph") return {type:"node",key,col:null,label:graphName(id)};
   const c=colById(id); return {type:"node",key,col:id,label:`${(NODE_KIND[kind]||"box").toLowerCase()} of ${c?specName(c):"a column"}`};
 }
@@ -13661,7 +13674,7 @@ function nodeLabel(a){
     if(s&&c&&!isPending(s)) return `Step ${c.pipe.indexOf(s)+1} of ${specName(c)}: ${stepShort(s)}`;
     return `${capFirst(a.label||"a step")} (since removed)`; }
   if(kind==="table") return "Original data";
-  if(kind==="figure"){ if(String(id||"")!==String(mainGen()||"")) return `${capFirst(a.label||"the first graph")} (since removed)`; return multiGraph()?graphName("main"):"Figure"; }
+  if(kind==="figure"){ const g=legacyFigGraph(id); return g?graphName(g):`${capFirst(a.label||"the first graph")} (since removed)`; }
   if(kind==="graph") return graphOf(id)?graphName(id):`${capFirst(a.label||"a graph")} (since removed)`;
   const c=colById(id); if(!c) return `${capFirst(a.label||"a column")} (since removed)`;
   return `${NODE_KIND[kind]||"Box"} of ${specName(c)}`;
@@ -13796,7 +13809,7 @@ function renderThread(){
 function pointByRow(i){ return pointsAll().find(q=>q.i===i)||null; }
 /* Opens the History on a box, with its discussion in view. */
 function goNode(key,opt){
-  opt=opt||{}; if(!P()) return;
+  opt=opt||{}; if(!P()) return; key=nodeKeyNow(key);
   S.flowTab="flow"; if(S.flowInsp===false) S.flowInsp=true;
   openWin("flow",{render:true});
   const L=flowLayout(); if(!L.by[key]){ toast("That box is no longer in the History: the step or graph it was on has been removed."); return; }
@@ -14000,7 +14013,7 @@ function openProject(id){
   // A tool left open on the last project would record its step on this one.
   S.pending=null; if(winOpen("tool")){ winState("tool").open=false; applyWins(); }
   S.flowSel=null; S.pfPreview=null; S.pfOpen=null; S.plotPreview=null; S.annoSel=null; S.legSel=null; S.andrag=null; S.lgdrag=null; S.pkLast=null; S.pkReg=null; S.bandSel=null; S.bdrag=null;
-  S.gid="main"; S.gctx=null; S.gv={}; S.glead={}; S.dstash={}; S.snap={};
+  S.gid=null; S.gctx=null; S.gv={}; S.glead={}; S.dstash={}; S.snap={};
   { const ed=document.querySelector(".inled"); if(ed) ed.remove(); }
   const tipEl=document.getElementById("tip"); if(tipEl) tipEl.style.display="none";
   const roEl=document.getElementById("readout"); if(roEl) roEl.textContent="";
@@ -14038,7 +14051,7 @@ function onProjects(list){
 }
 function clone(o){ return o===undefined?undefined:JSON.parse(JSON.stringify(o)); }
 function normalize(p){ if(!p) return; const was=p.v||1;
-  p.plot=Object.assign({style:"auto",logY:false,grid:false,resid:"auto"},p.plot||{}); p.log=p.log||[]; migrate(p);
+  p.log=p.log||[]; migrate(p); if(!Array.isArray(p.annos)) p.annos=[];
   if(!p.found||typeof p.found!=="object") p.found={};
   if(p.batch&&!(p.batch.tmpl&&Array.isArray(p.batch.rows))) p.batch=null;
   // A batch keeps only rows of spectra that still exist: one deleted during
@@ -14054,7 +14067,7 @@ function normalize(p){ if(!p) return; const was=p.v||1;
       g.plot=Object.assign({style:"auto",logY:false,grid:false,resid:"auto"},g.plot||{}); delete g.plot.annos; if(!g.name) g.name="Graph"; return g; }).filter(g=>g.cols.length||(g.fig&&typeof g.fig==="object"));
     // A figure's cells name graphs that exist, each in one cell of one figure, none a
     // figure itself, inside its grid; a figure shows no spectra of its own.
-    const have=new Set(["main"].concat(p.graphs.filter(g=>!g.fig).map(g=>g.id))), used=new Set();
+    const have=new Set(p.graphs.filter(g=>!g.fig).map(g=>g.id)), used=new Set();
     p.graphs.forEach(g=>{ if(!g.fig) return; const F=g.fig; g.cols=[];
       F.cols=Math.max(1,Math.min(12,Math.round(+F.cols)||1)); F.rows=Math.max(1,Math.min(24,Math.round(+F.rows)||1));
       F.cells=(Array.isArray(F.cells)?F.cells:[]).filter(c=>c&&have.has(c.gid)&&!used.has(c.gid)&&!!used.add(c.gid))
@@ -14067,8 +14080,13 @@ function normalize(p){ if(!p) return; const was=p.v||1;
   if(was<DOC_V&&p===S.proj){
     if(p.fit&&p.fit.pipeSig==null){ const fc=colById(p.fit.onCol)||activeYCol(); if(fc) p.fit.pipeSig=pipeSig(fc); }
     delete p._sealFit;
-    if(!S.readOnly){ const pid=S.pid, patch={v:p.v,cols:p.cols,activeY:p.activeY,raw:p.raw,fits:p.fits,fit:p.fit,steps:null,mask:null,x:null,y:null,e:null,xLong:null,xUnit:null,yLong:null,yUnit:null,eLong:null,eUnit:null};
-      setTimeout(()=>{ if(S.pid===pid) save(patch,"upgraded the project: the original data is now locked with a check code, and each column has its own processing steps"); },0); }
+    // Saved once: the store may hand the old form back before the save lands, and it is read the same way again.
+    S.upg=S.upg||{};
+    if(!S.readOnly&&!S.upg[S.pid]){ const pid=S.pid; S.upg[pid]=true;
+      const patch={v:p.v,graphs:p.graphs,annos:p.annos,mainWas:p.mainWas||null,plot:null};
+      if(p.tree) patch.tree=p.tree;
+      if(was<4) Object.assign(patch,{cols:p.cols,activeY:p.activeY,raw:p.raw,fits:p.fits,fit:p.fit,steps:null,mask:null,x:null,y:null,e:null,xLong:null,xUnit:null,yLong:null,yUnit:null,eLong:null,eUnit:null});
+      setTimeout(()=>{ if(S.pid===pid) save(patch,was<4?"upgraded the project: the original data is now locked with a check code, and each column has its own processing steps":"upgraded the project: its graphs are a list in which the first is like any other"); },0); }
   }
 }
 function renderTop(){
@@ -15079,7 +15097,7 @@ function identifyPeaks(c){
   const L=linesFor(lib,xu); if(L.err){ toast(L.err); return null; }
   const mo=idMatchOpts(io,rows,d), tol=mo.tol, r=matchLines(rows.map(q=>({x:q.x,w:q.w})),L.lines,mo);
   const st=Object.assign({},PK_STYLE,f.style), at=new Map(rows.map((q,i)=>[q.a.id,i])); let n=0, kept=0;
-  const annos=(p.plot.annos||[]).map(a=>{ const i=at.get(a.id); if(i==null) return a; const m=r.m[i];
+  const annos=(p.annos||[]).map(a=>{ const i=at.get(a.id); if(i==null) return a; const m=r.m[i];
     if(io.keep!==false&&a.lab&&(a.typed||!a.line)){ kept++; return a; }
     if(m&&m.line){ n++; const lab=lineLabel(m.line,io.fmt,xu), o=Object.assign({},a,{lab,text:peakText(st,lab),line:{x:m.line.x,name:m.line.name,lib:lib.id,d:m.d}}); delete o.typed; return o; }
     if(a.line){ const o=Object.assign({},a,{lab:"",text:peakText(st,"")}); delete o.line; delete o.typed; return o; }
@@ -15097,7 +15115,7 @@ function setPeakLine(id,line){
   const c=colById(a.ser), f=foundOf(c), st=Object.assign({},PK_STYLE,f&&f.style), io=idfOpts(), xu=finalOf(c).xu||"";
   const lab=line?lineLabel(line,io.fmt,xu):"";
   pushUndo("naming a peak");
-  saveAnnos((p.plot.annos||[]).map(q=>{ if(q.id!==id) return q; const o=Object.assign({},q,{lab,text:peakText(st,lab)}); delete o.typed; if(line) o.line={x:line.x,name:line.name,lib:line.lib,d:q.x-line.x}; else delete o.line; return o; }),
+  saveAnnos((p.annos||[]).map(q=>{ if(q.id!==id) return q; const o=Object.assign({},q,{lab,text:peakText(st,lab)}); delete o.typed; if(line) o.line={x:line.x,name:line.name,lib:line.lib,d:q.x-line.x}; else delete o.line; return o; }),
     line?`named the peak at ${fmt(a.x,6)} of ${specName(c)} “${lab}” (the line at ${fmt(line.x,6)})`:`took the line's name off the peak at ${fmt(a.x,6)}`);
   if(winOpen("peaks")) renderPeaks();
 }
@@ -15145,7 +15163,7 @@ function deleteLineList(id){ const p=P(), own=p&&(p.lines||[]).find(l=>l.id===id
 const PK_SHOW=[["pos","The position"],["lab","Your label, or else the position"],["both","Your label and the position"],["labonly","Only your label"],["none","No text"]];
 const PK_STYLE={mk:"sym",show:"lab",rot:false,dec:null,unit:false,color:null,size:1};
 function foundOf(c){ const p=P(); return c&&p&&p.found&&p.found[c.id]||null; }
-function peakGroup(cid){ const p=P(); return ((p&&p.plot.annos)||[]).filter(a=>a.grp==="pk:"+cid).sort((a,b)=>a.x-b.x); }
+function peakGroup(cid){ const p=P(); return ((p&&p.annos)||[]).filter(a=>a.grp==="pk:"+cid).sort((a,b)=>a.x-b.x); }
 function peakText(st,lab){ lab=String(lab||"").trim();
   if(st.show==="none") return ""; if(st.show==="pos") return null;
   if(st.show==="labonly") return lab; if(st.show==="both") return lab?(lab.includes("{x}")?lab:lab+" {x}"):null; return lab||null; }
@@ -15307,11 +15325,11 @@ function findPeaksInto(opt){
   const {kept,rec}=mergePeakSet(c,r,foundOf(c),{opts:o,rng:regs.length===1?[regs[0].x0,regs[0].x1]:null,regs:regs.length?regs:null,at:Date.now(),by:who(),re:null});
   if(opt.undo!==false) pkUndo("finding peaks");
   const found=Object.assign({},p.found||{},{[c.id]:rec});
-  const annos=((p.plot.annos)||[]).filter(a=>a.grp!=="pk:"+c.id).concat(kept);
+  const annos=(p.annos||[]).filter(a=>a.grp!=="pk:"+c.id).concat(kept);
   const xu=d.xu||"", one=regs.length===1?regs[0].o:o, mode=PF_MODES.find(q=>q[0]===one.mode)||PF_MODES[0];
   const how=regs.length>1?` in ${regs.length} regions: ${regs.map(g=>`${fmt(g.x0,6)} to ${fmt(g.x1,6)}${xu?" "+xu:""} (${pfSummary(g.o)})`).join("; ")}`
     :`${regs.length?`, x ${fmt(regs[0].x0,6)} to ${fmt(regs[0].x1,6)}${xu?" "+xu:""}`:""} (${(PF_METHODS.find(q=>q[0]===one.method)||[,""])[1].toLowerCase()}, ${mode[1].toLowerCase()} ${one.v} ${mode[2]}${one.log?", on a log scale":""}${r.noiseMode==="given"?", noise √N":r.noiseMode==="local"?", noise measured along the spectrum":""})`;
-  save({found,plot:Object.assign({},p.plot,{annos})},opt.log===false?null:`found ${kept.length} peak${kept.length===1?"":"s"} in ${specName(c)}${how}`);
+  save({found,annos},opt.log===false?null:`found ${kept.length} peak${kept.length===1?"":"s"} in ${specName(c)}${how}`);
   S.pkLast=r; renderPlot(); if(winOpen("flow")) renderFlow();
   return kept.length;
 }
@@ -15320,7 +15338,7 @@ function findPeaksInto(opt){
 function findPeaksEvery(){
   const p=P(), act=activeYCol(); if(!p||!act||S.readOnly) return;
   const o=Object.assign({},pfOpts()), ax=finalOf(act).xu||"", ar=pkRegsOf(act);
-  let annos=(p.plot.annos||[]).slice(), tot=0, n=0; const found=Object.assign({},p.found||{}), none=[];
+  let annos=(p.annos||[]).slice(), tot=0, n=0; const found=Object.assign({},p.found||{}), none=[];
   // The analysed spectrum's range, for every spectrum on the same axis; the whole of the others.
   yCols().forEach(c=>{ const d=finalOf(c), regs=ar.length&&(d.xu||"")===ax?ar.map(g=>Object.assign({},g,{o:Object.assign({},g.o)})):[], r=searchRegions(c,regs,d.xu||"",o);
     if(!r){ none.push(specName(c)); return; }
@@ -15328,7 +15346,7 @@ function findPeaksEvery(){
     annos=annos.filter(a=>a.grp!=="pk:"+c.id).concat(res.kept); found[c.id]=res.rec; tot+=res.kept.length; n++; if(c===act) S.pkLast=r; });
   if(!n){ toast("Too few points to look for peaks in any spectrum."); return; }
   pushUndo("finding peaks in every spectrum");
-  save({found,plot:Object.assign({},p.plot,{annos})},`found ${tot} peak${tot===1?"":"s"} in ${n} spectr${n===1?"um":"a"}`);
+  save({found,annos},`found ${tot} peak${tot===1?"":"s"} in ${n} spectr${n===1?"um":"a"}`);
   renderPlot(); if(winOpen("peaks")) renderPeaks(); if(winOpen("flow")) renderFlow();
   toast(`Found ${tot} peak${tot===1?"":"s"} in ${n} spectr${n===1?"um":"a"}${none.length?` (too few points in ${none.join(", ")})`:""}. Choose a spectrum above to see and label its peaks.`,{action:"Undo",run:undo});
 }
@@ -15342,14 +15360,14 @@ function followPeakSets(){
   const p=P(); if(!p||S.readOnly||!p.found||S.editing) return false;
   const todo=yCols().filter(c=>{ const f=p.found[c.id]; return f&&f.follow!==false&&f.sig&&f.sig!==pipeSig(c); });
   if(!todo.length) return false;
-  let annos=(p.plot.annos||[]).slice(); const found=Object.assign({},p.found), names=[];
+  let annos=(p.annos||[]).slice(); const found=Object.assign({},p.found), names=[];
   todo.forEach(c=>{ const f=p.found[c.id], d=finalOf(c), sameU=f.xu==null||f.xu===(d.xu||"");
     const regs=sameU?regsOfSet(f):[], r=searchRegions(c,regs,d.xu||"",Object.assign({},PF_DEF,f.opts||{}));
     if(!r){ found[c.id]=Object.assign({},f,{sig:pipeSig(c)}); return; }
     const res=mergePeakSet(c,r,f,{rng:regs.length===1?[regs[0].x0,regs[0].x1]:null,regs:regs.length?regs:null,re:Date.now()});
     annos=annos.filter(a=>a.grp!=="pk:"+c.id).concat(res.kept); found[c.id]=res.rec; names.push(`${specName(c)} (${res.kept.length})`);
     if(c===activeYCol()) S.pkLast=r; });
-  save({found,plot:Object.assign({},p.plot,{annos})},names.length?`found the peaks again after the processing changed: ${names.join(", ")}`:null);
+  save({found,annos},names.length?`found the peaks again after the processing changed: ${names.join(", ")}`:null);
   return true;
 }
 function allFoundTableText(){
@@ -15359,8 +15377,8 @@ function setPeakStyle(patch,log){
   const p=P(), c=activeYCol(), f=foundOf(c); if(!p||!c||!f||S.readOnly) return;
   const st=Object.assign({},PK_STYLE,f.style,patch);
   pkUndo("changing how the peaks are marked");
-  const annos=(p.plot.annos||[]).map(a=>a.grp!=="pk:"+c.id?a:Object.assign({},a,{mk:st.mk,rot:!!st.rot,dec:st.dec,unit:!!st.unit,color:st.color||null,size:st.size||1,text:peakText(st,a.lab),dy:"rot" in patch||"mk" in patch?null:a.dy}));
-  save({found:Object.assign({},p.found,{[c.id]:Object.assign({},f,{style:st})}),plot:Object.assign({},p.plot,{annos})},log||null);
+  const annos=(p.annos||[]).map(a=>a.grp!=="pk:"+c.id?a:Object.assign({},a,{mk:st.mk,rot:!!st.rot,dec:st.dec,unit:!!st.unit,color:st.color||null,size:st.size||1,text:peakText(st,a.lab),dy:"rot" in patch||"mk" in patch?null:a.dy}));
+  save({found:Object.assign({},p.found,{[c.id]:Object.assign({},f,{style:st})}),annos},log||null);
   renderPlot(); renderPeaks(); if(winOpen("flow")) renderFlow();
 }
 // Types a peak's own label; what it shows follows the set's style.
@@ -15370,7 +15388,7 @@ function labelTrack(i,lab){
   const v=String(lab||"").trim().slice(0,80); if(t.items.every(it=>(it.r.lab||"")===v)) return;
   const of=new Map(t.items.map(it=>[it.r.a.id,it.c]));
   pushUndo("labelling a peak in every spectrum");
-  saveAnnos((p.plot.annos||[]).map(q=>{ if(!of.has(q.id)) return q; const f=foundOf(of.get(q.id)), st=Object.assign({},PK_STYLE,f&&f.style); return Object.assign({},q,{lab:v,text:peakText(st,v)}); }),
+  saveAnnos((p.annos||[]).map(q=>{ if(!of.has(q.id)) return q; const f=foundOf(of.get(q.id)), st=Object.assign({},PK_STYLE,f&&f.style); return Object.assign({},q,{lab:v,text:peakText(st,v)}); }),
     v?`labelled the peak near ${fmt(t.x,6)} "${v}" in ${t.n} spectra`:`cleared the label of the peak near ${fmt(t.x,6)} in ${t.n} spectra`);
   renderPlot(); if(winOpen("peaks")) renderPeaks(); if(winOpen("flow")) renderFlow(); if(winOpen("batch")) renderBatch(); scheduleSnaps(0);
 }
@@ -15383,7 +15401,7 @@ function setPeakLabel(id,lab){
   if(v===(a.lab||"")) return;
   pushUndo("labelling a peak");
   // A label typed by hand is kept when the peaks are named from lines again.
-  saveAnnos((p.plot.annos||[]).map(q=>{ if(q.id!==id) return q; const o=Object.assign({},q,{lab:v,text:peakText(st,v)}); if(v) o.typed=true; else delete o.typed; return o; }),v?`labelled the peak at ${fmt(a.x,6)} of ${specName(c)} "${v}"`:`cleared the label of the peak at ${fmt(a.x,6)}`);
+  saveAnnos((p.annos||[]).map(q=>{ if(q.id!==id) return q; const o=Object.assign({},q,{lab:v,text:peakText(st,v)}); if(v) o.typed=true; else delete o.typed; return o; }),v?`labelled the peak at ${fmt(a.x,6)} of ${specName(c)} "${v}"`:`cleared the label of the peak at ${fmt(a.x,6)}`);
   if(winOpen("peaks")) renderPeaks(); if(winOpen("flow")) renderFlow();
   if(v&&f&&(st.show==="pos"||st.show==="none")) toast(`Kept the label "${v}". The peaks show ${st.show==="pos"?"their positions":"no text"}: choose "Your label" under Label with to see it.`);
 }
@@ -15392,7 +15410,7 @@ function removeFoundPeak(id){
   const c=colById(a.ser), f=foundOf(c);
   pushUndo("removing a peak");
   const found=f&&!a.manual?Object.assign({},p.found,{[c.id]:Object.assign({},f,{ex:(f.ex||[]).concat([{x:a.x,xu:a.xu,row:a.row}])})}):p.found;
-  save({found,plot:Object.assign({},p.plot,{annos:(p.plot.annos||[]).filter(q=>q.id!==id)})},`removed the peak at ${fmt(a.x,6)} from the peaks of ${specName(c)}`);
+  save({found,annos:(p.annos||[]).filter(q=>q.id!==id)},`removed the peak at ${fmt(a.x,6)} from the peaks of ${specName(c)}`);
   if(S.annoSel===id) S.annoSel=null;
   renderPlot(); renderPeaks(); if(winOpen("flow")) renderFlow();
   toast(`Removed the peak at ${fmt(a.x,6)}. A new search leaves it out.`,{action:"Undo",run:undo});
@@ -15401,7 +15419,7 @@ function clearFoundPeaks(){
   const p=P(), c=activeYCol(); if(!p||!c||!foundOf(c)||S.readOnly) return;
   const n=peakGroup(c.id).length; pushUndo("removing the peaks");
   const found=Object.assign({},p.found); delete found[c.id];
-  save({found,plot:Object.assign({},p.plot,{annos:(p.plot.annos||[]).filter(a=>a.grp!=="pk:"+c.id)})},`removed the ${n} peak${n===1?"":"s"} of ${specName(c)}`);
+  save({found,annos:(p.annos||[]).filter(a=>a.grp!=="pk:"+c.id)},`removed the ${n} peak${n===1?"":"s"} of ${specName(c)}`);
   renderPlot(); renderPeaks(); if(winOpen("flow")) renderFlow();
   toast(`Removed ${n} peak${n===1?"":"s"}.`,{action:"Undo",run:undo});
 }
@@ -15607,7 +15625,7 @@ function wirePeaks(box){
   on("#idDel",()=>deleteLineList(idfOpts().lib));
   on("#idClear",()=>{ const p=P(), c=activeYCol(), f=foundOf(c); if(!p||!f) return; const st=Object.assign({},PK_STYLE,f.style);
     pushUndo("taking the lines' names off the peaks");
-    saveAnnos((p.plot.annos||[]).map(a=>{ if(a.grp!=="pk:"+c.id||!a.line) return a; const o=Object.assign({},a); delete o.line; if(!o.typed){ o.lab=""; o.text=peakText(st,""); } return o; }),`took the lines' names off the peaks of ${specName(c)}`);
+    saveAnnos((p.annos||[]).map(a=>{ if(a.grp!=="pk:"+c.id||!a.line) return a; const o=Object.assign({},a); delete o.line; if(!o.typed){ o.lab=""; o.text=peakText(st,""); } return o; }),`took the lines' names off the peaks of ${specName(c)}`);
     S.idLast=null; renderPeaks(); });
   const pid=box.querySelector("#pkId"); if(pid) pid.addEventListener("toggle",()=>{ if(pid.isConnected) S.pkIdOpen=pid.open; });
   box.querySelectorAll("[data-pkline]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); peakLineMenu(b,b.dataset.pkline); });
@@ -15647,7 +15665,7 @@ function addToPeakSet(c,pt){
   const st=Object.assign({},PK_STYLE,f.style), a=peakAnno(c,Object.assign({i:d.idx[k]},pt),st,{manual:true});
   pushUndo("adding a peak");
   const ex=(f.ex||[]).filter(e=>Math.abs((typeof e==="number"?e:e.x)-pt.x)>(pointSpacing()||0)*2.5);
-  save({found:Object.assign({},p.found,{[c.id]:Object.assign({},f,{ex})}),plot:Object.assign({},p.plot,{annos:(p.plot.annos||[]).concat([a])})},`added the peak at ${fmt(pt.x,6)} to the peaks of ${specName(c)}`);
+  save({found:Object.assign({},p.found,{[c.id]:Object.assign({},f,{ex})}),annos:(p.annos||[]).concat([a])},`added the peak at ${fmt(pt.x,6)} to the peaks of ${specName(c)}`);
   S.annoSel=a.id; renderPlot(); renderPeaks(); if(winOpen("flow")) renderFlow();
   return a.id;
 }
@@ -15998,7 +16016,7 @@ function wireOverview(box){
 // A typing box grows with its lines.
 function growTa(t){ t.style.height="auto"; t.style.height=Math.min(140,Math.max(26,t.scrollHeight))+"px"; }
 
-function deleteAnnoQuiet(id){ const p=P(); if(!p) return; saveAnnos((p.plot.annos||[]).filter(q=>q.id!==id),null); if(S.annoSel===id) S.annoSel=null; }
+function deleteAnnoQuiet(id){ const p=P(); if(!p) return; saveAnnos((p.annos||[]).filter(q=>q.id!==id),null); if(S.annoSel===id) S.annoSel=null; }
 
 
 /* ---- Statistics window ---------------------------------------------------- */
@@ -16109,17 +16127,18 @@ function flowLayout(){
     add({key:"table",kind:"table",col:mid,row:0});
     nodes.filter(n=>n.kind==="raw").forEach(n=>edges.push({a:"table",b:n.key})); }
   // What is drawn on the graph by hand, below everything: lines, ranges, text, labels.
-  // With several graphs, a box for each, fed by the spectra it shows.
-  const annos=((p.plot&&p.plot.annos)||[]).filter(a=>!a.grp);
+  // With several graphs, a box for each, fed by the columns it shows.
+  const annos=(p.annos||[]).filter(a=>!a.grp);
   if(multiGraph()&&nodes.length){ const base=nodes.reduce((m,n)=>Math.max(m,n.row),0)+1, placed=[];
     drawGraphIds().forEach(gid=>{ const cs=graphCols(gid).filter(c=>endOf[c.id]), lanes=cs.map(c=>endOf[c.id].col);
       const want=lanes.length?lanes.reduce((a,b)=>a+b,0)/lanes.length:0; let row=base;
       while(placed.some(q=>q.row===row&&Math.abs(q.col-want)<1)) row++;
-      const key=gid==="main"?mainKey():"graph:"+gid;
-      add({key,kind:"graph",gid,col:want,row,cs,annos:annos.filter(a=>(a.g||"main")===gid)}); placed.push({row,col:want});
+      const key="graph:"+gid;
+      add({key,kind:"graph",gid,col:want,row,cs,annos:annos.filter(a=>a.g===gid)}); placed.push({row,col:want});
       cs.forEach(c=>edges.push({a:endOf[c.id].key,b:key,feed:true})); }); }
-  else if(annos.length&&nodes.length){ const maxRow=nodes.reduce((m,n)=>Math.max(m,n.row),0), cols=nodes.map(n=>n.col);
-    add({key:mainKey(),kind:"figure",col:(Math.min(...cols)+Math.max(...cols))/2,row:maxRow+1,annos}); }
+  else { const gid=drawGraphIds()[0], own=gid?annos.filter(a=>a.g===gid):[];
+    if(own.length&&nodes.length){ const maxRow=nodes.reduce((m,n)=>Math.max(m,n.row),0), cols=nodes.map(n=>n.col);
+      add({key:"graph:"+gid,kind:"figure",gid,col:(Math.min(...cols)+Math.max(...cols))/2,row:maxRow+1,annos:own}); } }
   // Steps that read another spectrum: a dashed line from what they read.
   nodes.filter(n=>n.kind==="step"&&!n.st.off).forEach(n=>{ const def=PIPE_OPS[n.s.op]; if(!def||!def.deps) return;
     def.deps(Object.assign({},def.defaults||{},n.s.p||{})).forEach(([id,use])=>{ const o=colById(id); if(!o) return;
@@ -16157,7 +16176,7 @@ function flowNodeHtml(n,cur){
   else if(n.kind==="integ"){ icon="area"; const res=bandCalc(n.c), ok=res.filter(q=>!q.r.fail);
     title=`Bands: ${res.length}`; sub=ok.length?`total ${fmt(res.total,4)}${res.ref&&ok.length>1?` · ÷ ${bandName(res.ref.b,res.ref.k)}`:""}`:"too few points"; cls+=" fitn"; }
   else if(n.kind==="figure"){ icon="chart"; title="Figure"; sub=annoCountText(n.annos); }
-  else if(n.kind==="graph"){ icon="chart"; title=graphTitle(n.gid); if(n.gid===(S.gid||"main")) cls+=" live";
+  else if(n.kind==="graph"){ icon="chart"; title=graphTitle(n.gid); if(n.gid===S.gid) cls+=" live";
     sub=[n.cs.length===1?specName(n.cs[0]):`${n.cs.length} curves`,annoCountText(n.annos)].filter(Boolean).join(" · "); }
   const th=n.pending?[]:nodeThreads(n.key), tOpen=th.filter(t=>!t.root.resolved).length;
   const talk=th.length?(tOpen?`${tOpen} open comment thread${tOpen===1?"":"s"}`:`${th.length} resolved comment thread${th.length===1?"":"s"}`):"";
@@ -16227,7 +16246,7 @@ function flowSelect(key,L){
   const n=L.by[key]; if(!n) return;
   // A box of a spectrum not on the graph in front, or a graph's own box,
   // brings that graph forward first.
-  if(n.kind==="graph"&&n.gid!==(S.gid||"main")) activateGraph(n.gid);
+  if(n.kind==="graph"&&n.gid!==S.gid) activateGraph(n.gid);
   else if(n.c&&multiGraph()&&!graphShows(n.c,S.gid)) activateGraph(graphForCol(n.c.id),n.c.id);
   S.flowSel=key;
   if(n.c&&n.c!==activeYCol()){ P().activeY=n.c.id; S.draft=null; S.pdraft=null; S.selPeak=null; if(S.view&&(S.view.xu||"")!==((finalOf(n.c)||{}).xu||"")) S.view=null; }
@@ -16339,7 +16358,7 @@ function flowInspectorBody(n){
     return h;
   }
   if(n.kind==="graph"){
-    const gid=n.gid, live=gid===(S.gid||"main"), pl=plotOf(gid), nm=graphName(gid), list=n.annos;
+    const gid=n.gid, live=gid===S.gid, pl=plotOf(gid), nm=graphName(gid), list=n.annos;
     const recent=(p.log||[]).filter(e=>e.text.includes(nm)).slice(-8).reverse();
     h+=`<div class="fi-h">${ICON("chart")}<div class="grow"><div class="fi-t">${esc(nm)}</div><div class="lab">${graphShut(gid)?"Closed: off the desk, kept in the project":live?"In front: the graph being worked on":"A graph on the desk"}</div></div>${discChip(n.key)}</div>`;
     h+=kvHtml([["Spectra",n.cs.length?esc(n.cs.map(specName).join(", ")):"none"],["Layout",esc(((LAYOUTS.find(q=>q[0]===(pl.layout||"overlay"))||[,""])[1]))],
@@ -16435,7 +16454,7 @@ function flowInspAction(act,el,L){
   if(act==="andel"){ deleteAnno(el.dataset.an); return; }
   if(act==="pdlabels"){ openPlotDetails((activeYCol()||{}).id,"labels"); return; }
   if(act==="batchwin"){ openWin("batch",{render:true}); return; }
-  if(n.kind==="graph"){ if(n.gid!==(S.gid||"main")) activateGraph(n.gid);
+  if(n.kind==="graph"){ if(n.gid!==S.gid) activateGraph(n.gid);
     if(act==="gfront"){ showGraph(n.gid); return; }
     if(act==="pdgraph"){ openPlotDetails(null,"frame"); return; }
     if(act==="grename"){ renameGraph(n.gid); return; }
@@ -16605,7 +16624,7 @@ function moveBar(dir){
   openMenu(nb,menuItems(nb.dataset.menu),{bar:true,label:nb.textContent});
 }
 function exportItems(){
-  const p=P(), has=!!(p&&pointsAll().length)&&!(GID()==="main"&&mainGone()), f=p?activeFit():null;
+  const p=P(), has=!!(p&&pointsAll().length)&&!!graphOf(GID()), f=p?activeFit():null;
   return [
     {label:"Graph for a paper or slides…", title:"At a size in mm or inches with the text in points: SVG, PNG, TIFF, PDF or EPS", run:openExportFigure, enabled:has},
     {label:"Graph as SVG", title:"Vector, for papers", run:exportSvg, enabled:has},
@@ -16624,7 +16643,7 @@ function exportItems(){
 }
 function projectItems(){
   // Each with what is in it, so two projects are told apart before opening one.
-  const list=S.projects.slice(0,40).map(x=>{ const ns=projSpectra(x).length, ng=1+(x.graphs||[]).length;
+  const list=S.projects.slice(0,40).map(x=>{ const ns=projSpectra(x).length, ng=(x.v>=5?0:1)+(x.graphs||[]).length;
     return {label:projName(x), note:ns?`${ns} Y column${ns===1?"":"s"}${ng>1?` · ${ng} graphs`:""}`:"empty", radio:true, checked:x.id===S.pid, run:()=>switchProject(x.id)}; });
   return [{group:"Projects"}].concat(list.length?list:[{label:"No projects yet", enabled:false}],["-",
     {label:"New project", run:newProject, enabled:!S.readOnly&&!!S.store},
@@ -16974,25 +16993,25 @@ ${DL([["Bars","A line from the lower end to the upper end, with caps."],["Band",
  body:`<h2>Plotting the selected columns</h2>
 <p>Select columns in the worksheet (click a column's letter, Shift+click or drag across several) and press <em>Plot</em> on the worksheet's bar. The same list is in ${MP("Plot › Plot the selected columns")}, the right-click menu of the cells, and a column's header menu.</p>
 ${DL([["Line, Symbols, Line + symbols, Sticks, Area, Steps, Columns","How the curves are drawn. Until you choose, a curve is drawn by the <em>Automatic</em> type: a line for many evenly spaced points (500 or more, or 40 or more in order and evenly spaced), symbols for a few or unevenly spaced ones. The curve's right-click <em>Plot type</em> has <em>Automatic</em> first, with what it picked."],["Histogram, Box chart, Violin plot","The distribution of each column's values. "+DA("dists","Distributions")],["Stacked panels, Offset, Heat map","With several curves, how they share the graph."],["Add to a graph","Onto a graph you already have (a closed one opens again)."]])}
-<p>The first time, the columns go on the first graph; after that each Plot makes a new graph, as in Origin, unless you add to one.</p>
+<p>A project has no graph until you plot: each Plot makes a new graph, as in Origin, unless you add to one. A graph shows one column at least: taking off its last is deleting the graph, which its ⋯ menu does, the first graph like any other.</p>
 <h2 id="setup">Plot setup</h2>
 <p>${MP("Plot › Plot setup…")} (first in the worksheet's <em>Plot</em> list too, and what <em>Plot</em> opens when no column is selected) sets the whole plot in one dialog, as Origin's Plot Setup does: the kind of plot, each shown as a small picture (line, symbols, line and symbols, columns, area, steps, sticks; stacked panels, offset, double Y, heat map; box chart, violin plot, histogram), the X column, the Y columns to plot (ticked, with All and None, a column's error bars named beside it), and the graph they go on, a new one or one you have. A sketch shows what it will look like. It starts from what is selected in the worksheet. The arrow keys move between the kinds.</p>
 <h2>What is plotted</h2>
 ${DL([["A Y column","As it is: a column, with its processing."],["Other data","Plotting it makes it a Y column. "+DA("import#columns","Other data")],["An X column","Selected with Y columns, it is what they are plotted against: each against the selected X nearest to its left."],["Error bars","Come with their column."]])}
-<p>Once plotted from the worksheet or by an import, the first graph keeps its own list of columns, as other graphs do: a column you make later is not added to it until you plot it there, or tick it in its ⋯ menu's <em>Columns on it</em>.</p>
+<p>Every graph keeps its own list of columns: a column you make later is not added to one until you plot it there, or tick it in its ⋯ menu's <em>Columns on it</em>.</p>
 <h2 id="close">Closing a graph</h2>
 <p>The × on a graph's title bar (or <em>Close this graph</em> in its ⋯ menu) closes it: it leaves the desk and the taskbar but stays in the project with its columns, format and labels, for everyone who opens the project. ${MP("Window › Graphs")} lists every graph, the closed ones marked, and open one again; so does its box in the History. Undo opens a graph closed by mistake. Deleting a graph is in its ⋯ menu.</p>
-<p>The tools that work on the graph (${MP("Spectroscopy › Find peaks…")}, the Fit window, ${MP("Analysis › Integrate…")}) open it when it is closed, and when nothing is plotted yet they plot the active column.</p>`},
+<p>The tools that work on the graph (${MP("Spectroscopy › Find peaks…")}, the Fit window, ${MP("Analysis › Integrate…")}) open it when it is closed, and when the active column is on no graph they plot it.</p>`},
 {id:"graphs", g:"Graph", t:"Several graphs", kw:"graphs windows several many multiple each spectrum own graph tile grid link zoom compare sample series panel figure new duplicate rename delete combine merge drag drop hold together one graph overlay add",
  lead:"A project can have as many graphs as it needs, each in its own window: one per sample, or a few columns together. The graph you click is the one you work on; the others wait beside it.",
  body:`<h2>Making graphs</h2>
-${DL([["One for each column",MP("Plot › New graph › One for each column")+": every column on a graph of its own, tiled on the desk. The first graph keeps the first column."],["With the active column","A new graph with it, taking half of the window of the graph you are on."],["With every column","A new graph with all of them overlaid, to compare."],["From the worksheet","Select columns and press <em>Plot</em>: a new graph, or added to one. "+DA("plotting","Plotting columns")],["From a curve","<em>Open in a new graph</em> in the graph's right-click menu, or <em>Plot</em> in a column's header menu."],["When importing","Several files, or one file with several Y columns, can come in with a graph each, in one graph, or on none yet. "+DA("import#plot","Plot, or not yet")]])}
+${DL([["One for each column",MP("Plot › New graph › One for each column")+": every column on a graph of its own, tiled on the desk. A column that has a graph of its own already keeps it."],["With the active column","A new graph with it, taking half of the window of the graph you are on."],["With every column","A new graph with all of them overlaid, to compare."],["From the worksheet","Select columns and press <em>Plot</em>: a new graph, or added to one. "+DA("plotting","Plotting columns")],["From a curve","<em>Open in a new graph</em> in the graph's right-click menu, or <em>Plot</em> in a column's header menu."],["When importing","Several files, or one file with several Y columns, can come in with a graph each, in one graph, or on none yet. "+DA("import#plot","Plot, or not yet")]])}
 <h2>Working on one</h2>
 <p>Click anywhere on a graph to work on it: it comes to the front with its own zoom, the column you were last working on on it becomes the active one, and every window (the History, Peaks, Integrate, Fit, the worksheet) follows. Its title bar has a coloured line underneath. The chips along the top of a graph that is not in front name its columns: click one to work on that column there.</p>
 <p>A peak fit you were building stays with its column, so coming back to a graph finds it where you left it.</p>
 <h2 id="combine">Putting graphs together</h2>
 <p>Graphs plotted one by one can be put on one graph by holding and dropping:</p>
-${DL([["A whole graph","Hold the grip "+ICON("grip","sm")+" in its title bar and drop it on another graph (or on that graph's button in the taskbar). Its columns join that graph, with their colours and lines, and so do its labels; the graph you dropped goes. Hold "+K("Ctrl")+" as you drop to keep it. The first graph always stays."],["One spectrum","Hold a column's chip along the top of a graph that is not in front and drop it on another graph to add it there, or on the empty desk for a graph of its own."],["Changed your mind",K("Esc")+" while holding cancels; Undo takes a drop back."]])}
+${DL([["A whole graph","Hold the grip "+ICON("grip","sm")+" in its title bar and drop it on another graph (or on that graph's button in the taskbar). Its columns join that graph, with their colours and lines, and so do its labels; the graph you dropped goes. Hold "+K("Ctrl")+" as you drop to keep it."],["One spectrum","Hold a column's chip along the top of a graph that is not in front and drop it on another graph to add it there, or on the empty desk for a graph of its own."],["Changed your mind",K("Esc")+" while holding cancels; Undo takes a drop back."]])}
 <p>Without dragging: click the grip, or <em>Combine</em> in the graph's ⋯ menu, for <em>Merge it into</em> another graph or <em>Merge every other graph into this one</em>. ${MP("Window › Graphs › Combine graphs…")} takes any of the graphs, onto one of them or a new graph, laid out as you choose (overlaid, offset, stacked panels, double Y, heat map), and keeps the graphs merged or lets them go. Columns in another project are brought in with ${DA("projects#bring","Bring in from another project")}.</p>
 <h2>Each graph's settings</h2>
 <p>Plot type, layout, axes, legend, fonts, titles, lines and text belong to the graph they were made on; peaks found with the Peaks window belong to the column and show on every graph that draws it. The <strong>⋯</strong> on a graph's title bar renames it, chooses the columns on it, duplicates, exports, closes or deletes it. Closing keeps the graph in the project, off the desk; deleting removes it, never its data. Any graph can be deleted, the first one too, and Undo brings it back. ${DA("plotting#close","Closing a graph")}</p>
@@ -17545,10 +17564,12 @@ function renderDocArt(){
   const h=helpState(), art=$("#docArt"); if(!art) return;
   const d=docById(h.id)||DOCS[0], list=docList().filter(x=>!!x.sub===!!d.sub), i=list.indexOf(d);
   const prev=list[i-1], next=list[i+1];
+  // The graph article opens the graph in front; with nothing plotted there is none to open.
+  const ow=d.win==="graph"?winOfGraph(S.gid):d.win;
   const OPEN={graph:"Graph",sheet:"Worksheet",flow:"History",over:"Overview",peaks:"Peaks",integ:"Integrate",fit:"Fit",res:"Results",stats:"Statistics",disc:"Discussion"};
   art.innerHTML=`<div class="doc-top"><button class="tb sm" id="docBack"${h.back.length?"":" disabled"} aria-label="Back">${ICON("chevl","sm")}Back</button><button class="tb sm docs-tocbtn" id="docNav" aria-label="Contents">${ICON("panel","sm")}Contents</button><span class="doc-crumb">${esc(d.g)}${d.sub?` › ${DA("steps","Processing steps")}`:""}</span></div>
     <h1>${esc(d.t)}</h1>${d.lead?`<p class="doc-lead">${d.lead}</p>`:""}
-    ${d.win&&OPEN[d.win]?`<div class="doc-open"><button class="btn sm" data-doc-open="${d.win}">${ICON(WINS[d.win].icon,"sm")}Open ${esc(OPEN[d.win])}</button></div>`:""}
+    ${ow&&OPEN[d.win]&&WINS[ow]?`<div class="doc-open"><button class="btn sm" data-doc-open="${ow}">${ICON(WINS[ow].icon,"sm")}Open ${esc(OPEN[d.win])}</button></div>`:""}
     <div class="doc-body">${docBody(d)}</div>
     ${prev||next?`<nav class="doc-pn">${prev?`<a href="#" data-doc="${prev.id}" class="p"><span>Previous</span>${esc(prev.t)}</a>`:"<span></span>"}${next?`<a href="#" data-doc="${next.id}" class="n"><span>Next</span>${esc(next.t)}</a>`:""}</nav>`:""}`;
   if(h.q.trim()) docMark(art.querySelector(".doc-body"),h.q);
@@ -17599,7 +17620,6 @@ function wireHelp(box){
    windows stack in one column instead.
    ============================================================ */
 const WINS={
-  graph:{title:"Graph", icon:"chart", def:[.44,0,.56,1], open:true},
   flow:{title:"History", icon:"flow", def:[.5,0,.5,1], open:false, dock:true},
   sheet:{title:"Worksheet", icon:"table", def:[0,0,1,1], open:true},
   fit:{title:"Fit", icon:"peak", def:[.58,0,.42,1], open:false, dock:true},
@@ -17613,7 +17633,7 @@ const WINS={
   stats:{title:"Statistics", icon:"sigma", def:[.2,.14,.5,.62], open:false, dock:true},
   tool:{title:"Tool", icon:"wand", def:[.62,.04,.36,.8], open:false, transient:true, dock:true}
 };
-const WIN_ORDER=["graph","sheet","flow","over","peaks","integ","fit","res","batch","stats","disc"];
+const WIN_ORDER=["sheet","flow","over","peaks","integ","fit","res","batch","stats","disc"];
 // Version 3: the worksheet on its own until something is plotted, tool windows in the
 // dock. An older arrangement (a graph, History and a small worksheet) is not brought back.
 const LAYOUT={v:3, wins:{}, z:10, dockOrder:[]};
@@ -17643,19 +17663,21 @@ function saveLayout(){ saveGraphLayout(); try{ localStorage.setItem("kurve.layou
    leave the next project's single graph at its own size. A project with one
    graph shares the single-graph arrangement. */
 function saveGraphLayout(){
-  const pid=S.layoutPid; if(!pid||pid!==S.pid||!LAYOUT.wins.graph) return;
-  const ids=graphWinIds(), o={}; ids.forEach(id=>{ const st=LAYOUT.wins[id]; if(st) o[id]={g:st.g.slice(),open:st.open||winShut(id),max:st.max}; });
+  const pid=S.layoutPid; if(!pid||pid!==S.pid) return;
+  const ids=graphWinIds(); if(!ids.length) return; const o={}; ids.forEach(id=>{ const st=LAYOUT.wins[id]; if(st) o[id]={g:st.g.slice(),open:st.open||winShut(id),max:st.max}; });
   LAYOUT.proj=LAYOUT.proj||{};
   if(ids.length>1){ delete LAYOUT.proj[pid]; LAYOUT.proj[pid]=o; const ks=Object.keys(LAYOUT.proj); if(ks.length>30) delete LAYOUT.proj[ks[0]]; }
-  else { delete LAYOUT.proj[pid]; LAYOUT.single=o.graph; }
+  else { delete LAYOUT.proj[pid]; if(o[ids[0]]) LAYOUT.single=o[ids[0]]; }
 }
 function restoreGraphLayout(){
-  const o=(LAYOUT.proj||{})[S.pid], ids=graphWinIds(), first=!S.layoutPid; S.layoutPid=S.pid;
+  const p=P(), o=(LAYOUT.proj||{})[S.pid], ids=graphWinIds(), first=!S.layoutPid; S.layoutPid=S.pid;
+  // Kept before version 5, the first graph's place was the window called "graph".
+  const mw=p&&p.mainWas&&p.mainWas.id; if(o&&mw&&o.graph&&!o[mw]){ o[mw]=o.graph; delete o.graph; }
   if(o) ids.forEach(id=>{ if(o[id]&&typeof o[id]==="object") saneWin(Object.assign(winState(id),o[id]),WINS[id].def); });
   else if(ids.length>1) tileWins();
   // One graph: where one graph was last; on the first project of a visit, where it is.
-  else if(LAYOUT.single&&typeof LAYOUT.single==="object") saneWin(Object.assign(winState("graph"),LAYOUT.single),WINS.graph.def);
-  else if(!first) Object.assign(winState("graph"),{g:WINS.graph.def.slice(),open:true,max:false});
+  else if(ids.length&&LAYOUT.single&&typeof LAYOUT.single==="object") saneWin(Object.assign(winState(ids[0]),LAYOUT.single),WINS[ids[0]].def);
+  else if(ids.length&&!first) Object.assign(winState(ids[0]),{g:GRAPH_DEF.slice(),open:true,max:false});
   // Windows of graphs no longer on the desk are forgotten after a while.
   const gone=Object.keys(LAYOUT.wins).filter(k=>!WINS[k]); if(gone.length>60) gone.forEach(k=>delete LAYOUT.wins[k]);
   // A project with nothing plotted shows the worksheet alone: one still at the old
@@ -17755,7 +17777,7 @@ function applyWins(){
     el.classList.toggle("docked",dk); el.classList.toggle("drawer",dk&&dg.drawer);
     if(st.open&&!el.hidden&&(!front||st.z>winState(front).z)) front=id;
     const db=el.querySelector(".win-h [data-wdock]"); if(db){ db.setAttribute("aria-pressed",String(dk)); db.title=dk?"Take it out of the dock (or drag its title bar or its tab)":"Put it in the dock, beside the worksheet and the graph"; db.hidden=narrow; }
-    if(narrow){ el.style.left=el.style.top=el.style.width=el.style.height=""; el.style.zIndex=""; el.classList.remove("max"); el.style.order=String(id==="graph"||WINS[id].graph?0:id==="tool"?1:WIN_ORDER.indexOf(id)<0?50:WIN_ORDER.indexOf(id)+2); return; }
+    if(narrow){ el.style.left=el.style.top=el.style.width=el.style.height=""; el.style.zIndex=""; el.classList.remove("max"); el.style.order=String(WINS[id].graph?0:id==="tool"?1:WIN_ORDER.indexOf(id)<0?50:WIN_ORDER.indexOf(id)+2); return; }
     el.classList.toggle("max",!!st.max);
     let x,y,w,h;
     // Maximised: the whole desk for a docked window, the documents' part beside the dock for the others.
@@ -17808,7 +17830,7 @@ function winStop(el){ ["_wa","_wf"].forEach(k=>{ if(el[k]){ const a=el[k]; el[k]
 function winTkRect(id){ const tb=$("#taskbar"); if(!tb) return null;
   const vis=e=>e&&!e.hidden&&e.offsetParent!==null;
   let b=tb.querySelector(`.tk[data-tk="${id}"]`);
-  if(!vis(b)) b=WINS[id]&&WINS[id].graph||id==="graph"?tb.querySelector("[data-tk-graphs]"):WINS[id]&&WINS[id].trend?tb.querySelector("[data-tk-trends]"):null;
+  if(!vis(b)) b=WINS[id]&&WINS[id].graph?tb.querySelector("[data-tk-graphs]"):WINS[id]&&WINS[id].trend?tb.querySelector("[data-tk-trends]"):null;
   if(!vis(b)) b=tb.querySelector("[data-tk-more]");
   if(!vis(b)) return null; const r=b.getBoundingClientRect(); return r.width>4?r:null; }
 const winToward=(r,t)=>`translate(${t.left-r.left}px,${t.top-r.top}px) scale(${Math.max(.02,t.width/r.width)},${Math.max(.02,t.height/r.height)})`;
@@ -17841,7 +17863,7 @@ function winFlip(el,b,n){
    open or minimised, so it and the Window menu list what is in use and never
    what was not opened; a closed panel comes back from its menu, or from
    Window › Tool windows. */
-const isDoc=id=>!!(WINS[id]&&(WINS[id].graph||WINS[id].trend||id==="graph"||id==="sheet"));
+const isDoc=id=>!!(WINS[id]&&(WINS[id].graph||WINS[id].trend||id==="sheet"));
 // A graph closed (plot.shut) is out of the taskbar, as a closed panel is.
 const keepsBtn=id=>isDoc(id)&&!winShut(id);
 function docWinIds(){ return graphWinIds().filter(id=>!winShut(id)).concat(WINS.sheet?["sheet"]:[],trendWinIds()); }
@@ -17873,7 +17895,7 @@ function renderWin(id){
   if(id==="help"){ renderHelp(); return; }
   if(!P()) return;
   const gw=graphOfWin(id);
-  if(gw){ if(gw===(S.gid||"main")){ renderPlot(); renderStages(); } else scheduleSnaps(0); }
+  if(gw){ if(gw===S.gid){ renderPlot(); renderStages(); } else scheduleSnaps(0); }
   else if(id==="sheet") renderWs();
   else if(id==="flow") renderFlow();
   else if(id==="fit") renderFit();
@@ -17995,7 +18017,7 @@ function wireWin(el){
     ["e","s","se","w"].forEach(k=>el.insertAdjacentHTML("beforeend",`<div class="win-rz ${k}" data-rz="${k}" aria-hidden="true"></div>`));
     el.addEventListener("pointerdown",e=>{ focusWin(id); const g=graphOfWin(id)?graphIn(e.target,el):null;
       // A chip or the grip may be the start of a drag: they bring the graph forward on a click of their own.
-      if(g&&P()&&g!==(S.gid||"main")&&!(e.target.closest&&e.target.closest("[data-gchip],[data-gdrag]"))) activateGraph(g); },true);
+      if(g&&P()&&g!==S.gid&&!(e.target.closest&&e.target.closest("[data-gchip],[data-gdrag]"))) activateGraph(g); },true);
     const wmn=h.querySelector("[data-wmin]"); if(wmn) wmn.onclick=()=>minimiseWin(id);
     const wcl=h.querySelector("[data-wclose]"); if(wcl) wcl.onclick=()=>{ const g=graphOfWin(id); if(g&&P()) closeGraph(g); else closeWin(id); };
     const hb=h.querySelector("[data-whelp]"); if(hb) hb.onclick=()=>openHelp(helpFor(id));
@@ -18708,7 +18730,9 @@ function reportTrendsHtml(){ const list=trendList(); if(!list.length) return "";
    own zoom and spectrum. The pictures are drawn by the same code as the live
    graph, with the state of their graph put in place for the drawing (withGraph),
    and only when something they show has changed (snapSig), a few per frame. */
-function graphWinIds(){ return ["graph"].concat(((P()&&P().graphs)||[]).map(g=>g.id).filter(id=>WINS[id])); }
+function graphWinIds(){ return ((P()&&P().graphs)||[]).map(g=>g.id).filter(id=>WINS[id]&&WINS[id].graph); }
+// Where a project's only graph opens when nothing else places it: beside the worksheet.
+const GRAPH_DEF=[.44,0,.56,1];
 /* ---- Figures of panels -----------------------------------------------------------
    As Origin's graph layers: a figure is a graph whose page holds other graphs
    as panels, in rows and columns. Each panel is a graph of the project like
@@ -18722,7 +18746,7 @@ function graphWinIds(){ return ["graph"].concat(((P()&&P().graphs)||[]).map(g=>g
    bottom ones. The panel worked on is drawn live in its cell, the others as
    pictures; a click on one brings it forward. */
 function figOf(id,p){ p=p||P(); if(!p||!id) return null; return (p.graphs||[]).find(g=>g.fig&&(g.fig.cells||[]).some(c=>c.gid===id))||null; }
-function isFigId(id,p){ p=p||P(); if(!p||!id||id==="main") return false; const g=(p.graphs||[]).find(q=>q.id===id); return !!(g&&g.fig); }
+function isFigId(id,p){ p=p||P(); if(!p||!id) return false; const g=(p.graphs||[]).find(q=>q.id===id); return !!(g&&g.fig); }
 // The graphs that are documents on the desk (figures, not their panels), and those that draw spectra (panels, not figures).
 function deskGraphIds(p){ p=p||P(); return graphIds(p).filter(id=>!figOf(id,p)); }
 function drawGraphIds(p){ p=p||P(); return graphIds(p).filter(id=>!isFigId(id,p)); }
@@ -18751,7 +18775,7 @@ function figRange(fg){
 function graphIn(el,w){ const g=graphOfWin(w.dataset.win); if(g&&isFigId(g)){ const c=el.closest&&el.closest(".fcell"); return c&&w.contains(c)?c.dataset.fcell:null; } return g; }
 // A panel named with its figure: "Figure 1 › (b) Graph 3".
 function graphTitle(id){ const f=figOf(id); if(!f) return graphName(id); const l=figLetter(id); return `${f.name} › ${l?l+" ":""}${graphName(id)}`; }
-function nextFigName(p){ const used=new Set(allGraphIds(p).map(id=>graphName(id,p))); let n=1; while(used.has("Figure "+n)) n++; return "Figure "+n; }
+function nextFigName(p){ p=p||P(); const used=new Set(((p&&p.graphs)||[]).map(g=>g.name)); let n=1; while(used.has("Figure "+n)) n++; return "Figure "+n; }
 // Cells packed in reading order into a grid of so many columns.
 function figPack(gids,cols){ return gids.map((gid,i)=>({gid,r:Math.floor(i/cols),c:i%cols,rs:1,cs:1})); }
 /* Panels that span several cells: each keeps its span (no wider than the grid)
@@ -18791,7 +18815,7 @@ function figMeasure(gid,w,h,o){
    line its plot area up with the others'. */
 function figLayout(fid,W,H,o){
   o=o||{}; const g=graphOf(fid), F=g&&g.fig; if(!F) return {cells:[],W,H};
-  const cells=(F.cells||[]).filter(c=>c.gid==="main"||graphOf(c.gid)), R=Math.max(1,F.rows|0), C=Math.max(1,F.cols|0), gap=Math.max(0,numOr(F.gap,14));
+  const cells=(F.cells||[]).filter(c=>graphOf(c.gid)), R=Math.max(1,F.rows|0), C=Math.max(1,F.cols|0), gap=Math.max(0,numOr(F.gap,14));
   const gx=F.shareY?0:gap, gy=F.shareX?0:gap, wt=i=>Math.max(0.1,+((F.w||[])[i])||1), ht=i=>Math.max(0.1,+((F.h||[])[i])||1);
   const sw=Array.from({length:C},(_,i)=>wt(i)).reduce((a,b)=>a+b,0), sh=Array.from({length:R},(_,i)=>ht(i)).reduce((a,b)=>a+b,0);
   const nat={}; cells.forEach(c=>{ let a=0,b=0; for(let i=c.c;i<c.c+c.cs;i++) a+=wt(i); for(let i=c.r;i<c.r+c.rs;i++) b+=ht(i); nat[c.gid]=figMeasure(c.gid,W*a/sw,H*b/sh,o); });
@@ -18852,15 +18876,15 @@ function handPic(W,H,k){ const f=figOf(GID());
    windows give way to the figure's, which takes the first one's place. */
 function makeFigure(gids,o){
   o=o||{}; const p=P(); if(!p||S.readOnly) return null;
-  gids=gids.filter((id,i,a)=>a.indexOf(id)===i&&(id==="main"||graphOf(id))&&!isFigId(id)&&!figOf(id));
+  gids=gids.filter((id,i,a)=>a.indexOf(id)===i&&graphOf(id)&&!isFigId(id)&&!figOf(id));
   if(!gids.length){ toast("Choose graphs that are not panels of a figure already."); return null; }
-  const n=gids.length, gr=o.cols?{cols:o.cols,rows:Math.ceil(n/o.cols)}:figGridFor(n), fid="g"+Math.random().toString(36).slice(2,9), name=nextFigName(p);
+  const n=gids.length, gr=o.cols?{cols:o.cols,rows:Math.ceil(n/o.cols)}:figGridFor(n), fid=newGid(), name=nextFigName(p);
   const fig={rows:gr.rows,cols:gr.cols,cells:figPack(gids,gr.cols),shareX:o.shareX!=null?!!o.shareX:gr.cols===1&&n>1,shareY:!!o.shareY,gap:14,letters:o.letters||"a",w:[],h:[]};
   const from=winOfGraph(gids.includes(S.gid)?S.gid:gids[0]), geo=winOpen(from)?winState(from).g.slice():null;
   if(!o.noUndo) pushUndo("making a figure");
   const unshut=pl=>{ const q=Object.assign({},pl); delete q.shut; return q; };
   const graphs=(p.graphs||[]).map(q=>gids.includes(q.id)?Object.assign({},q,{plot:unshut(q.plot)}):q).concat([{id:fid,name,cols:[],plot:{},fig}]);
-  const patch={graphs}; if(gids.includes("main")) patch.plot=unshut(p.plot);
+  const patch={graphs};
   save(patch,o.log||`put ${andList(gids.map(id=>graphName(id)))} into ${name} as panels`);
   xNew(["g:"+fid]);
   renderAll();
@@ -18888,7 +18912,7 @@ function figAddPanel(fid,o){
   // The first free cell in reading order (or a new row), the others staying where they are.
   F.cells=F.cells.concat([{gid,r:at.r,c:at.c,rs:1,cs:1}]); F.rows=Math.max(1,figRowsOf(F.cells));
   const graphs=(q.graphs||[]).map(g=>g.id===fid?Object.assign({},g,{fig:F}):g.id===gid?Object.assign({},g,{plot:Object.assign({},g.plot,{shut:undefined})}):g);
-  save(Object.assign({graphs},gid==="main"?{plot:Object.assign({},q.plot,{shut:undefined})}:{}),`added ${graphName(gid)} to ${f.name} as a panel`);
+  save({graphs},`added ${graphName(gid)} to ${f.name} as a panel`);
   renderAll(); activateGraph(gid); layoutFigs(fid);
   toast(`${graphName(gid)} is panel ${figLetter(gid)||n} of ${f.name}.`,{action:"Undo",run:undo}); }
 // A panel taken out: a graph of its own again, beside the figure; the others close up.
@@ -18897,9 +18921,8 @@ function figWithout(f,gid){ const F=clone(f.fig), rest=figOrder(F).filter(c=>c.g
   F.cells=figPackSpans(rest,cols); F.cols=cols; F.rows=Math.max(1,figRowsOf(F.cells)); return F; }
 function figRemovePanel(gid,o){
   const p=P(), f=figOf(gid); if(!p||!f||S.readOnly) return;
-  if(o&&o.del&&gid==="main"){ deleteMainGraph(); layoutFigs(f.id); return; }
   const F=figWithout(f,gid);
-  if(o&&o.del){ pushUndo("deleting a panel"); save({graphs:(p.graphs||[]).filter(g=>g.id!==gid).map(g=>g.id===f.id?Object.assign({},g,{fig:F}):g),plot:Object.assign({},p.plot,{annos:(p.plot.annos||[]).filter(a=>a.g!==gid)})},`deleted the panel ${graphName(gid)} of ${f.name}`); }
+  if(o&&o.del){ pushUndo("deleting a panel"); save({graphs:(p.graphs||[]).filter(g=>g.id!==gid).map(g=>g.id===f.id?Object.assign({},g,{fig:F}):g),annos:(p.annos||[]).filter(a=>a.g!==gid)},`deleted the panel ${graphName(gid)} of ${f.name}`); }
   else figSave(f.id,F,`took ${graphName(gid)} out of ${f.name}: a graph of its own again`,{undo:"taking a panel out"});
   renderAll(); if(!(o&&o.del)){ splitInto(f.id,winOfGraph(gid)); } layoutFigs(f.id);
   toast(o&&o.del?`Deleted the panel ${graphName(gid)}.`:`${graphName(gid)} is a graph of its own again.`,{action:"Undo",run:undo}); }
@@ -18912,22 +18935,22 @@ function figMovePanel(gid,dr,dc){ const f=figOf(gid); if(!f) return; const F=clo
   a.r=r; a.c=c; figSave(f.id,F,`moved ${graphName(gid)} in ${f.name}`,{undo:"moving a panel"}); }
 // The figure goes; its panels become graphs again, or go with it.
 function deleteFigure(fid,withPanels){
-  const p=P(), f=graphOf(fid); if(!p||!f||!f.fig||S.readOnly) return; const ids=f.fig.cells.map(c=>c.gid).filter(k=>k!=="main");
+  const p=P(), f=graphOf(fid); if(!p||!f||!f.fig||S.readOnly) return; const ids=f.fig.cells.map(c=>c.gid);
   pushUndo("deleting "+f.name);
   const gone=new Set([fid].concat(withPanels?ids:[]));
-  save({graphs:(p.graphs||[]).filter(g=>!gone.has(g.id)),plot:Object.assign({},p.plot,{annos:(p.plot.annos||[]).filter(a=>!gone.has(a.g))})},withPanels?`deleted ${f.name} and its ${ids.length} panels`:`deleted ${f.name} (its panels are graphs again)`);
+  save({graphs:(p.graphs||[]).filter(g=>!gone.has(g.id)),annos:(p.annos||[]).filter(a=>!gone.has(a.g))},withPanels?`deleted ${f.name} and its ${ids.length} panels`:`deleted ${f.name} (its panels are graphs again)`);
   renderAll(); if(!withPanels&&ids.length>1) tileWins();
   toast(withPanels?`Deleted ${f.name} and its panels.`:`Deleted ${f.name}. Its panels are graphs of their own again.`,{action:"Undo",run:undo}); }
 // A figure copied with copies of its panels.
 function duplicateFigure(fid){
   const p=P(), f=graphOf(fid); if(!p||!f||!f.fig||S.readOnly) return; pushUndo("duplicating "+f.name);
-  const graphs=(p.graphs||[]).slice(), annos=(p.plot.annos||[]).slice(), map={};
-  f.fig.cells.forEach(c=>{ const nid="g"+Math.random().toString(36).slice(2,9), src=plotOf(c.gid), pl=clone(src); ["annos","hidden","gname","cols","shut"].forEach(k=>delete pl[k]); map[c.gid]=nid;
+  const graphs=(p.graphs||[]).slice(), annos=(p.annos||[]).slice(), map={};
+  f.fig.cells.forEach(c=>{ const nid=newGid(), src=plotOf(c.gid), pl=clone(src); ["annos","hidden","gname","cols","shut"].forEach(k=>delete pl[k]); map[c.gid]=nid;
     graphs.push({id:nid,name:nextGraphName(Object.assign({},p,{graphs})),cols:graphCols(c.gid).map(q=>q.id),plot:pl});
-    annos.filter(a=>!a.grp&&(a.g||"main")===c.gid).forEach(a=>annos.push(Object.assign({},a,{id:annoId(),g:nid}))); });
-  const F=clone(f.fig); F.cells.forEach(c=>{ c.gid=map[c.gid]; }); const nid="g"+Math.random().toString(36).slice(2,9), name=nextFigName(Object.assign({},p,{graphs}));
+    annos.filter(a=>!a.grp&&a.g===c.gid).forEach(a=>annos.push(Object.assign({},a,{id:annoId(),g:nid}))); });
+  const F=clone(f.fig); F.cells.forEach(c=>{ c.gid=map[c.gid]; }); const nid=newGid(), name=nextFigName(Object.assign({},p,{graphs}));
   graphs.push({id:nid,name,cols:[],plot:{},fig:F});
-  save({graphs,plot:Object.assign({},p.plot,{annos})},`duplicated ${f.name} as ${name}`);
+  save({graphs,annos},`duplicated ${f.name} as ${name}`);
   renderAll(); splitInto(fid,nid); activateGraph(nid); layoutFigs(nid); }
 /* The layout dialog: rows and columns, shared axes, letters, the gap, the
    widths of the columns and heights of the rows. */
@@ -18999,42 +19022,36 @@ function syncGraphWins(){
   // would go with the window and every later drawing would find nothing.
   // A graph that became a panel is drawn in its figure's window, and gives up its own.
   Object.keys(WINS).forEach(k=>{ if(WINS[k].graph&&(!list.some(g=>g.id===k)||figOf(k,p))){ const el=$("#w-"+k); if(el){ rescueLive(el); el.remove(); } delete WINS[k]; delete S.snap[k]; } });
-  let prev=$("#w-graph"), made=false;
+  let prev=$("#gPark"), made=false; const nDesk=list.filter(g=>!figOf(g.id,p)).length;
   list.forEach((g,i)=>{ if(figOf(g.id,p)) return; const fw=!!g.fig;
-    if(!WINS[g.id]){ WINS[g.id]={title:g.name, icon:fw?"tile":"chart", def:fw?[0.03,0.03,0.6,0.88]:[0.04+(i%8)*0.03,0.04+(i%8)*0.04,0.46,0.56], open:true, graph:true, fig:fw};
+    if(!WINS[g.id]){ WINS[g.id]={title:g.name, icon:fw?"tile":"chart", def:fw?[0.03,0.03,0.6,0.88]:nDesk===1?GRAPH_DEF.slice():[0.04+(i%8)*0.03,0.04+(i%8)*0.04,0.46,0.56], open:true, graph:true, fig:fw};
       prev.insertAdjacentHTML("afterend",fw?`<section class="win gwin figw" id="w-${g.id}" data-win="${g.id}" aria-label="${esc(g.name)}"><header class="win-h">${ICON("tile","sm")}<h2 class="win-t">${esc(g.name)}</h2><span class="win-sub"></span><span class="sp"></span></header><div class="win-b graph-win"><div class="gbar fbar" role="toolbar" aria-label="Panels of this figure"></div><div class="figgrid"></div></div></section>`
         :`<section class="win gwin" id="w-${g.id}" data-win="${g.id}" aria-label="${esc(g.name)}"><header class="win-h">${ICON("chart","sm")}<h2 class="win-t">${esc(g.name)}</h2><span class="win-sub"></span><span class="sp"></span></header><div class="win-b graph-win"><div class="gbar" role="toolbar" aria-label="Curves on this graph"></div><div class="gsnap" title="Click to work on this graph"></div></div></section>`);
       wireWin($("#w-"+g.id)); winState(g.id); made=true;
       // A figure lays its panels out again whenever its window changes size.
       if(fw){ const grid=$("#w-"+g.id+" .figgrid"); new ResizeObserver(()=>{ if(!grid._rz) grid._rz=requestAnimationFrame(()=>{ grid._rz=0; if(grid.isConnected) layoutFigs(g.id); }); }).observe(grid); } }
     WINS[g.id].title=g.name; prev=$("#w-"+g.id)||prev; if(fw) figCells(g.id); });
-  WINS.graph.title=list.length?graphName("main"):"Graph";
-  // The main window gets a place for its picture the first time it needs one.
-  const mb=$("#w-graph .win-b"); if(mb&&!mb.querySelector(".gsnap")) mb.insertAdjacentHTML("beforeend",`<div class="gbar" role="toolbar" aria-label="Curves on this graph" hidden></div><div class="gsnap" title="Click to work on this graph" hidden></div>`);
-  if(mb&&!mb._snapWired){ mb._snapWired=true; const sn=mb.querySelector(".gsnap"); sn.tabIndex=0; sn.setAttribute("role","button"); sn.setAttribute("aria-label","Work on this graph");
-    sn.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); activateGraph("main"); } }); }
-  if(S.gid!=="main"&&!graphOf(S.gid)){ S.gid="main"; S.view=S.gv.main||null; }
-  // A figure is not worked on itself: one of its panels is.
-  if(isFigId(S.gid)){ const c=figOrder(graphOf(S.gid).fig)[0]; S.gid=c?c.gid:"main"; S.view=S.gv[S.gid]||null; }
-  // The spectrum being analysed is on the graph in front: if it is not, the
-  // graph that shows it comes forward.
+  // The graph in front is one of this project's, a panel rather than a figure, or none at all.
+  if(!graphOf(S.gid)){ S.gid=graphFallback(); S.view=S.gid?resolveYAuto(S.gv[S.gid]||null):null; }
+  if(isFigId(S.gid)){ const c=figOrder(graphOf(S.gid).fig)[0]; S.gid=c?c.gid:null; S.view=S.gid?S.gv[S.gid]||null:null; }
+  // The column being analysed is on the graph in front: if it is not, a graph
+  // that shows it comes forward (a column on no graph leaves the graph as it is).
   const act=p?activeYCol():null;
-  if(act&&!graphShows(act,S.gid)){ const to=graphForCol(act.id);
-    if(to!==S.gid&&(to!=="main"||S.gid!=="main")){ S.gv[S.gid]=S.view; S.gid=to; S.view=resolveYAuto(S.linkX&&S.view?{x0:S.view.x0,x1:S.view.x1,xu:S.view.xu,yAuto:true}:S.gv[to]||null); } }
+  if(act&&S.gid&&!graphShows(act,S.gid)){ const to=graphForCol(act.id,graphOpen(S.gid)?{open:true}:null);
+    if(to&&to!==S.gid){ S.gv[S.gid]=S.view; S.gid=to; S.view=resolveYAuto(S.linkX&&S.view?{x0:S.view.x0,x1:S.view.x1,xu:S.view.xu,yAuto:true}:S.gv[to]||null); } }
   const nWin=graphWinIds().length;
   // The grip that drags a graph onto another is for when there is another on the desk.
   document.body.classList.toggle("mgraph",graphWinIds().filter(w=>!winShut(w)).length>1);
   if(p&&S.layoutPid!==S.pid) restoreGraphLayout();
   // Back to one graph in the same project (an undo, a delete): it gets its own size back.
-  else if(p&&S.gcount>1&&nWin===1){ saneWin(Object.assign(winState("graph"),LAYOUT.single?clone(LAYOUT.single):{g:WINS.graph.def.slice(),open:true,max:false}),WINS.graph.def); applyWins(); saveLayout(); }
+  else if(p&&S.gcount>1&&nWin===1){ const w=graphWinIds()[0]; saneWin(Object.assign(winState(w),LAYOUT.single?clone(LAYOUT.single):{g:WINS[w].def.slice(),open:true,max:false}),WINS[w].def); applyWins(); saveLayout(); }
   else if(made) applyWins();
   // A closed graph is off the desk wherever the project is open, and one
   // opened again (here, by undo, or by a colleague) comes back onto it.
   if(p){ S.gshut=S.gshut||{}; let ch=false;
-    allGraphIds().forEach(id=>{ const k=S.pid+":"+id;
-      // A panel has no window of its own (the first graph's stays closed while it is one);
-      // taken out of its figure, it comes back onto the desk.
-      if(figOf(id)){ if(id==="main"){ const st=winState("graph"); if(st.open||st.min){ st.open=false; st.min=false; st.max=false; ch=true; } } S.gshut[k]=true; return; }
+    graphIds().forEach(id=>{ const k=S.pid+":"+id;
+      // A panel has no window of its own; taken out of its figure, it comes back onto the desk.
+      if(figOf(id)){ S.gshut[k]=true; return; }
       const w=winOfGraph(id); if(!WINS[w]) return; const st=winState(w), sh=graphShut(id);
       if(sh&&(st.open||st.min)){ st.open=false; st.min=false; st.max=false; ch=true; }
       else if(!sh&&S.gshut[k]===true&&!st.open){ st.open=true; st.min=false; st.z=++LAYOUT.z; ch=true; }
@@ -19043,18 +19060,28 @@ function syncGraphWins(){
   S.gcount=nWin;
   moveLive();
 }
-function rescueLive(el){ const body=$("#w-graph .win-b"), rb=$("#gRibbon"), pane=$("#gPane");
-  if(body&&rb&&pane&&el.contains(rb)){ body.prepend(pane); body.prepend(rb); } }
-// The graph that shows a spectrum: one of its own first, then the smallest.
-function graphForCol(cid){ const c=colById(cid), p=P(); if(!c||!p) return "main";
-  const gs=(p.graphs||[]).filter(g=>g.cols.includes(cid)).sort((a,b)=>a.cols.length-b.cols.length);
-  if(gs.length&&(!graphShows(c,"main")||gs[0].cols.length===1)) return gs[0].id;
-  return "main"; }
+// The graph to put in front when the one there has gone: one showing the analysed
+// column, else the front-most on the desk, else any; a figure gives its first panel.
+function graphFallback(o){ o=o||{}; const p=P(); if(!p||!(p.graphs||[]).length) return null;
+  const act=activeYCol(), on=act?graphForCol(act.id,o):null; if(on) return on;
+  const z=id=>{ const w=winOfGraph(id); return WINS[w]&&winOpen(w)?winState(w).z:-1; };
+  let id=deskGraphIds().filter(k=>!graphShut(k)).sort((a,b)=>z(b)-z(a))[0]||(o.open?null:drawGraphIds()[0])||null;
+  if(id&&isFigId(id)){ const c=figOrder(graphOf(id).fig)[0]; id=c?c.gid:null; }
+  return id; }
+function parkLive(){ const park=$("#gPark"), rb=$("#gRibbon"), pane=$("#gPane"); if(park&&rb&&pane&&(rb.parentElement!==park||pane.parentElement!==park)) park.append(rb,pane); }
+function rescueLive(el){ const rb=$("#gRibbon"), pane=$("#gPane"); if(rb&&pane&&(el.contains(rb)||el.contains(pane))) parkLive(); }
+// The graph that shows a column: one of its own first, then the smallest, an
+// open one before a closed one; null when no graph shows it.
+function graphForCol(cid,o){ const p=P(); if(!p) return null;
+  const gs=(p.graphs||[]).filter(g=>!g.fig&&g.cols.includes(cid)&&!((g.plot&&g.plot.hidden)||[]).includes(cid)&&!(o&&o.open&&!graphOpen(g.id))).sort((a,b)=>(!!(a.plot&&a.plot.shut))-(!!(b.plot&&b.plot.shut))||a.cols.length-b.cols.length);
+  return gs.length?gs[0].id:null; }
 // Puts the live graph (ribbon and plot) into the window of the graph in front;
 // a panel's plot goes into its cell of the figure, the ribbon above them all.
 function moveLive(){
-  const id=S.gid||"main", f=figOf(id), el=$("#w-"+winOfGraph(id)), body=el&&el.querySelector(".win-b"), rb=$("#gRibbon"), pane=$("#gPane");
-  if(!body||!rb||!pane) return;
+  const id=S.gid, f=id?figOf(id):null, el=id?$("#w-"+winOfGraph(id)):null, body=el&&el.querySelector(".win-b"), rb=$("#gRibbon"), pane=$("#gPane");
+  if(!rb||!pane) return;
+  document.querySelectorAll(".win.gwin").forEach(w=>w.classList.toggle("haslive",w===el));
+  if(!body){ parkLive(); return; }
   if(f&&!el.querySelector(`.fcell[data-fcell="${id}"]`)) figCells(f.id);
   const cell=f?el.querySelector(`.fcell[data-fcell="${id}"]`):null;
   if(rb.parentElement!==body) body.prepend(rb);
@@ -19075,13 +19102,13 @@ function leadOf(id){ const p=P(); if(!p) return null; const want=S.glead[id], wc
    asked for) is analysed, and every window follows. Drafts are kept with
    their spectrum, so coming back to a graph finds the fit where it was. */
 function activateGraph(id,colId){
-  const p=P(); if(!p) return; if(id!=="main"&&!graphOf(id)) id="main";
+  const p=P(); if(!p||!graphOf(id)) return;
   // A figure brings forward the panel last worked on in it, or its first.
   if(isFigId(id)){ const F=graphOf(id).fig, last=(S.figAct||{})[id]; id=last&&F.cells.some(c=>c.gid===last)?last:(figOrder(F)[0]||{}).gid; if(!id) return; }
   { const f=figOf(id); if(f){ S.figAct=S.figAct||{}; S.figAct[f.id]=id; } }
-  const was=S.gid||"main", cc=colId&&colById(colId), want=cc&&graphShows(cc,id)?colId:null;
+  const was=S.gid, cc=colId&&colById(colId), want=cc&&graphShows(cc,id)?colId:null;
   if(id===was&&(!want||want===p.activeY)) return;
-  if(id!==was){ S.gv[was]=S.view; S.glead[was]=p.activeY; }
+  if(id!==was&&was){ S.gv[was]=S.view; S.glead[was]=p.activeY; }
   const lead=want||leadOf(id);
   const fw=figOf(was), nv=id===was?S.view:fw&&fw===figOf(id)?viewFor(id):(S.linkX&&S.view?{x0:S.view.x0,x1:S.view.x1,xu:S.view.xu,yAuto:true}:(S.gv[id]||null));
   S.gid=id;
@@ -19090,7 +19117,7 @@ function activateGraph(id,colId){
   if(changed){ stashDrafts(lead); p.activeY=lead; }
   S.view=resolveYAuto(nv);
   moveLive();
-  if(id!==was){ delete S.snap[was]; runSnaps(); }
+  if(id!==was){ if(was) delete S.snap[was]; runSnaps(); }
   if(figOf(id)||figOf(was)) layoutFigs(null,{quiet:true});
   if(changed) save({activeY:lead},null);
   renderAll();
@@ -19114,8 +19141,8 @@ function resolveYAuto(v){ if(v&&v.xAuto){ const av=autoView(); return {x0:av.x0,
 /* The zoom a graph not in front is drawn with: the front one's X when the X
    zoom is linked, or between panels of a figure that share X; its Y too
    between panels that share Y. */
-function viewFor(id){ if(id===(S.gid||"main")) return S.view;
-  const f=figOf(S.gid||"main"), same=!!f&&f===figOf(id), lx=S.linkX||same&&f.fig.shareX, ly=same&&f.fig.shareY, v=S.view;
+function viewFor(id){ if(id===S.gid) return S.view;
+  const f=figOf(S.gid), same=!!f&&f===figOf(id), lx=S.linkX||same&&f.fig.shareX, ly=same&&f.fig.shareY, v=S.view;
   if(!lx&&!ly) return S.gv[id]||null;
   if(!v) return lx?null:S.gv[id]||null;
   if(lx) return ly?{x0:v.x0,x1:v.x1,y0:v.y0,y1:v.y1,xu:v.xu}:{x0:v.x0,x1:v.x1,xu:v.xu,yAuto:true};
@@ -19135,7 +19162,7 @@ function withGraph(id,fn){
   } finally { p.activeY=act; keys.forEach(k=>{ S[k]=keep[k]; }); }
 }
 function snapSig(id,W,H){ const p=P(), cols=graphCols(id), lead=leadOf(id), lc=colById(lead);
-  return [W,H,lead,JSON.stringify(plotOf(id)),JSON.stringify((p.plot.annos||[]).filter(a=>annoInGraph(a,id))),
+  return [W,H,lead,JSON.stringify(plotOf(id)),JSON.stringify((p.annos||[]).filter(a=>annoInGraph(a,id))),
     cols.concat(lc&&!cols.includes(lc)?[lc]:[]).map(c=>`${c.id}:${c.name}:${(c.mask||[]).length}:${pipeSig(c)}:${allCols().filter(o=>o.role==="e"&&o.of===c.id).map(o=>errKind(o)+arrKey(o.data)).join(",")}`).join("|"),
     JSON.stringify(viewFor(id)),p.fit?`${p.fit.at}:${p.fit.onCol}`:"",JSON.stringify(p.integ||null),
     S.pending&&cols.some(c=>c.id===S.pending.col)?JSON.stringify(S.pending.step):"",S.comments.length].join("\n"); }
@@ -19143,7 +19170,7 @@ let snapT=0;
 function scheduleSnaps(delay){ if(snapT) return; snapT=setTimeout(()=>{ snapT=0; runSnaps(); },delay==null?40:delay); }
 function runSnaps(){ const p=P(); if(!p||!multiGraph()) return;
   const pk=JSON.stringify(readPalette()), t0=performance.now();
-  for(const id of drawGraphIds()){ if(id===(S.gid||"main")) continue; const w=winOfGraph(id); if(!WINS[w]||!winOpen(w)) continue;
+  for(const id of drawGraphIds()){ if(id===S.gid) continue; const w=winOfGraph(id); if(!WINS[w]||!winOpen(w)) continue;
     // A panel's picture fills its cell exactly, with the margins of its row and column.
     const f=figOf(id), box=document.querySelector(f?`#w-${w} .fcell[data-fcell="${id}"] .gsnap`:`#w-${w} .gsnap`); if(!box||box.hidden) continue;
     const pad=f?0:12, W=box.clientWidth-pad, H=box.clientHeight-pad; if(W<10||H<10) continue;
@@ -19172,7 +19199,7 @@ function renderGraphHeads(){
     if(fg){ const sub=el.querySelector(".win-sub"), bar=el.querySelector(".fbar"), ord=figOrder(fg), n=ord.length; if(sub) sub.textContent=`${n} panel${n===1?"":"s"}`;
       if(bar) bar.innerHTML=ord.map(c=>`<button class="gchip${c.gid===S.gid?" on":""}" data-fpanel="${esc(c.gid)}" title="Work on this panel">${esc([figLetter(c.gid),graphName(c.gid)].filter(Boolean).join(" "))}</button>`).join("");
       return; }
-    if(id===(S.gid||"main")) return;
+    if(id===S.gid) return;
     const cols=graphCols(id), lead=leadOf(id), pl=plotOf(id), sub=el.querySelector(".win-sub"), bar=el.querySelector(".gbar");
     if(sub) sub.textContent=cols.length===1?specName(cols[0]):cols.length?`${cols.length} curves`:"";
     if(bar){ const keep=S.gctx; S.gctx=id;
@@ -19181,14 +19208,14 @@ function renderGraphHeads(){
       finally{ S.gctx=keep; } } });
 }
 /* ---- Making, changing and removing graphs ---- */
-function nextGraphName(p){ const used=new Set(allGraphIds(p).map(id=>graphName(id,p))); let n=1; while(used.has("Graph "+n)) n++; return "Graph "+n; }
+function nextGraphName(p){ p=p||P(); const used=new Set(((p&&p.graphs)||[]).map(g=>g.name)); let n=1; while(used.has("Graph "+n)) n++; return "Graph "+n; }
 // A new graph looks like the one in front, with its own axes and no annotations.
 function plotBase(pl){ const o=clone(pl||{})||{}; ["annos","hidden","title","legendPos","gname","cols","shut","gen"].forEach(k=>delete o[k]); o.ax={}; o.layout="overlay"; if(o.legend==="custom") o.legend="auto"; return o; }
 function graphBase(from){ return plotBase(plotOf(from||GID())); }
 function newGraphs(groups,opt){ opt=opt||{}; const p=P(); if(!p||S.readOnly) return [];
   groups=groups.map(ids=>ids.filter(k=>{ const c=colById(k); return c&&c.role==="y"; })).filter(g=>g.length); if(!groups.length) return [];
   const graphs=(p.graphs||[]).slice(), made=[], base=graphBase(opt.from);
-  groups.forEach(ids=>{ const g={id:"g"+Math.random().toString(36).slice(2,9),name:nextGraphName(Object.assign({},p,{graphs})),cols:ids,plot:clone(base)}; graphs.push(g); made.push(g); });
+  groups.forEach(ids=>{ const g={id:newGid(),name:nextGraphName({graphs}),cols:ids,plot:clone(base)}; graphs.push(g); made.push(g); });
   if(!opt.noUndo) pushUndo(opt.undo||"making a new graph");
   save(Object.assign({graphs},opt.patch||{}),opt.log||(made.length===1?`made ${made[0].name}, showing ${made[0].cols.map(k=>specName(colById(k))).join(", ")}`:`made ${made.length} graphs`));
   xNew(made.map(g=>"g:"+g.id));
@@ -19200,7 +19227,10 @@ function newGraphFrom(ids,opt){
   renderAll(); splitInto(from,made[0]); activateGraph(made[0]);
   toast(`${graphName(made[0])} is on the desk. Click a graph to work on it.`,{action:"Undo",run:undo});
 }
-function splitInto(from,to){ const a=winState(from), b=winState(to);
+function splitInto(from,to){ if(!WINS[to]) return;
+  if(!from||!WINS[from]||!winOpen(from)) from=winOpen("sheet")&&!graphWinIds().some(w=>w!==to&&winOpen(w))?"sheet":null;
+  if(!from){ const b=winState(to); b.open=true; b.min=false; b.z=++LAYOUT.z; applyWins(); saveLayout(); return; }
+  const a=winState(from), b=winState(to);
   if(isNarrow()||!a.open||a.max){ b.z=++LAYOUT.z; applyWins(); saveLayout(); return; }
   const [x,y,w,h]=a.g, {W,H}=deskSize(), pw=w*W, ph=h*H;
   // The worksheet keeps 300 px beside a graph of 480 when there is room for both.
@@ -19212,19 +19242,15 @@ function splitInto(from,to){ const a=winState(from), b=winState(to);
   else if(pw/2>=480){ a.g=[x,y,w/2,h]; b.g=[x+w/2,y,w/2,h]; }
   else { b.g=a.g.slice(); if(from!=="sheet"){ a.open=false; a.min=true; } }
   b.open=true; b.max=false; b.z=++LAYOUT.z; applyWins(); saveLayout(); }
-// Every spectrum on a graph of its own: the main graph keeps the first.
+// Every column on a graph of its own: those that have one already keep it.
 function onePerSpectrum(){
   const p=P(); if(!p||S.readOnly) return; const ys=yCols(); if(ys.length<2){ toast("There is only one column."); return; }
-  const mainCols=graphCols("main"), plot=Object.assign({},p.plot);
-  let first=mainCols.length===1?mainCols[0]:null;
-  if(!first){ first=ys[0]; if(mainList(p)){ plot.cols=[first.id]; plot.hidden=[]; } else plot.hidden=ys.filter(c=>c!==first).map(c=>c.id); }
-  delete plot.shut;
-  const own=new Set([first.id]); (p.graphs||[]).forEach(g=>{ if(g.cols.length===1) own.add(g.cols[0]); });
+  const own=new Set(); (p.graphs||[]).forEach(g=>{ if(!g.fig&&g.cols.length===1) own.add(g.cols[0]); });
   const need=ys.filter(c=>!own.has(c.id));
+  if(!need.length){ toast("Every column has a graph of its own already."); return; }
   pushUndo("giving each column a graph");
-  if(need.length) newGraphs(need.map(c=>[c.id]),{noUndo:true,patch:{plot},log:`gave each column a graph of its own (${need.length} new)`});
-  else save({plot},`gave each column a graph of its own`);
-  S.glead.main=first.id; renderAll(); tileWins(); renderAll();
+  newGraphs(need.map(c=>[c.id]),{noUndo:true,log:`gave each column a graph of its own (${need.length} new)`});
+  renderAll(); tileWins(); renderAll();
   toast(`${ys.length} columns, ${ys.length} graphs. Click a graph to work on it.`,{action:"Undo",run:undo});
 }
 function allInOneGraph(){ const ys=yCols(); if(!ys.length) return; newGraphFrom(ys.map(c=>c.id),{log:`made a graph with every column`}); }
@@ -19241,100 +19267,83 @@ function renameGraph(id){
   const p=P(); if(!p||S.readOnly) return; const cur=graphName(id);
   formDlg({title:"Rename the graph",html:`<div class="grid2"><label for="fdGn">Name</label><input id="fdGn" type="text" maxlength="60" value="${esc(cur)}"></div>`,ok:"Rename",focus:"#fdGn",valid:v=>v.fdGn.trim().length>0}).then(r=>{
     if(!r) return; const v=r.fdGn.trim().slice(0,60); if(!v||v===cur||!P()) return; const q=P(); pushUndo("renaming the graph");
-    if(id==="main") save({plot:Object.assign({},q.plot,{gname:v})},`renamed ${cur} "${v}"`);
-    else save({graphs:(q.graphs||[]).map(g=>g.id===id?Object.assign({},g,{name:v}):g)},`renamed ${cur} "${v}"`);
+    save({graphs:(q.graphs||[]).map(g=>g.id===id?Object.assign({},g,{name:v}):g)},`renamed ${cur} "${v}"`);
     renderAll(); });
 }
 function duplicateGraph(id){
   if(isFigId(id)) return duplicateFigure(id);
-  const p=P(); if(!p||S.readOnly) return; const src=plotOf(id), cols=id==="main"?graphCols("main").map(c=>c.id):graphOf(id).cols.slice();
+  const p=P(), g=graphOf(id); if(!p||!g||S.readOnly) return; const src=plotOf(id), cols=g.cols.slice();
   pushUndo("duplicating the graph");
-  const nid="g"+Math.random().toString(36).slice(2,9), name=nextGraphName(p), plot=clone(src); ["annos","hidden","gname","cols","shut"].forEach(k=>delete plot[k]);
-  const copies=(p.plot.annos||[]).filter(a=>!a.grp&&(a.g||"main")===id).map(a=>Object.assign({},a,{id:annoId(),g:nid}));
-  save({graphs:(p.graphs||[]).concat([{id:nid,name,cols,plot}]),plot:Object.assign({},p.plot,{annos:(p.plot.annos||[]).concat(copies)})},`duplicated ${graphName(id)} as ${name}`);
+  const nid=newGid(), name=nextGraphName(p), plot=clone(src); ["annos","hidden","gname","cols","shut"].forEach(k=>delete plot[k]);
+  const copies=(p.annos||[]).filter(a=>!a.grp&&a.g===id).map(a=>Object.assign({},a,{id:annoId(),g:nid}));
+  save({graphs:(p.graphs||[]).concat([{id:nid,name,cols,plot}]),annos:(p.annos||[]).concat(copies)},`duplicated ${graphName(id)} as ${name}`);
   // The copy goes beside the graph it copies.
   const fo=treeOf().at["g:"+id]; if(fo) xFile(["g:"+nid],fo); else xNew(["g:"+nid]);
   renderAll(); splitInto(winOfGraph(id),nid); activateGraph(nid);
 }
 function deleteGraph(id){
-  if(id==="main") return deleteMainGraph();
   if(isFigId(id)) return deleteFigure(id,false); if(figOf(id)) return figRemovePanel(id,{del:true});
   const p=P(), g=graphOf(id); if(!p||!g||S.readOnly) return;
+  const w=winOfGraph(id), gg=winState(w).g.slice(), front=S.gid===id;
+  // Another graph on the desk comes forward in its place.
+  const to=front?deskGraphIds().filter(k=>k!==id&&!graphShut(k)).sort((a,b)=>winState(winOfGraph(b)).z-winState(winOfGraph(a)).z)[0]||null:null;
   pushUndo("deleting "+g.name);
-  save({graphs:(p.graphs||[]).filter(q=>q.id!==id),plot:Object.assign({},p.plot,{annos:(p.plot.annos||[]).filter(a=>a.g!==id)})},`deleted ${g.name} (its columns stay in the project)`);
-  renderAll(); toast(`Deleted ${g.name}. Its columns are still in the project.`,{action:"Undo",run:undo});
-}
-// The first graph cannot leave the project (it is p.plot, which keeps every graph's
-// annotations): deleting it takes its curves and its own annotations away, sets its look
-// back to a new graph's, takes it out of a figure, and closes it, so it is gone (mainGone)
-// until the next plot uses it. One undo entry, as for any graph.
-function deleteMainGraph(){
-  const p=P(); if(!p||S.readOnly) return; const nm=graphName("main"), f=figOf("main");
-  pushUndo("deleting "+nm);
-  const annos=(p.plot.annos||[]).filter(a=>(a.g&&a.g!=="main")||a.grp);
-  const patch={plot:{style:"auto",logY:false,grid:false,resid:"auto",cols:[],shut:true,annos,gen:mainGen(p)+1}};
-  if(f) patch.graphs=(p.graphs||[]).map(g=>g.id===f.id?Object.assign({},g,{fig:figWithout(f,"main")}):g);
-  // Its place in the Explorer goes with it (the next first graph is filed afresh).
-  { const t=treeOf(p); if(t.at["g:main"]){ delete t.at["g:main"]; patch.tree=t; } }
-  if(S.gv) S.gv.main=null; if(S.glead) delete S.glead.main; if(S.figAct) Object.keys(S.figAct).forEach(k=>{ if(S.figAct[k]==="main") delete S.figAct[k]; });
-  if(S.gid==="main") S.view=null; S.annoSel=null; S.legSel=null;
-  if(S.flowSel===mainKey(p)) S.flowSel=null;
-  save(patch,`deleted ${nm} (its columns stay in the project)`);
-  closeWin("graph");
-  // Another graph on the desk comes forward, so the live graph is one that can be seen.
-  if((S.gid||"main")==="main"){ const to=deskGraphIds().find(id=>!graphShut(id)); if(to) activateGraph(to); }
+  if(S.gv) delete S.gv[id]; if(S.glead) delete S.glead[id]; if(S.figAct) Object.keys(S.figAct).forEach(k=>{ if(S.figAct[k]===id) delete S.figAct[k]; });
+  if(front){ S.view=null; S.annoSel=null; S.legSel=null; }
+  if(S.flowSel==="graph:"+id) S.flowSel=null;
+  save({graphs:(p.graphs||[]).filter(q=>q.id!==id),annos:(p.annos||[]).filter(a=>a.g!==id)},`deleted ${g.name} (its columns stay in the project)`);
+  renderAll();
+  if(to) activateGraph(to);
   // With no graph left on the desk, the worksheet has it: all of it when the two were side
   // by side (the worksheet on the left, the graph filling the rest), else the graph's place.
-  if(!graphWinIds().some(winOpen)){ const sh=winState("sheet"), gg=winState("graph").g, near=(a,b)=>a.every((v,i)=>Math.abs(v-b[i])<0.02);
-    if(!sh.max&&near(sh.g,[0,0,sh.g[2],1])&&near(gg,[sh.g[2],0,1-sh.g[2],1])){ sh.g=[0,0,1,1]; applyWins(); saveLayout(); } else sheetForward(); }
-  renderAll(); toast(`Deleted ${nm}. Its columns are still in the project.`,{action:"Undo",run:undo});
+  if(!graphWinIds().some(winOpen)){ const sh=winState("sheet"), near=(a,b)=>a.every((v,i)=>Math.abs(v-b[i])<0.02);
+    if(!sh.max&&near(sh.g,[0,0,sh.g[2],1])&&near(gg,[sh.g[2],0,1-sh.g[2],1])){ sh.g=[0,0,1,1]; openWin("sheet"); applyWins(); saveLayout(); } else sheetForward(gg); }
+  toast(`Deleted ${g.name}. Its columns are still in the project.`,{action:"Undo",run:undo});
 }
-// Puts a spectrum on a graph, or takes it off (the main graph hides it).
+/* Puts a curve on a graph, or takes it off. A graph shows one curve at least:
+   taking off its last is deleting the graph, which is offered. Taking the
+   analysed curve off the graph in front makes another of its curves the
+   analysed one, so the graph stays in front rather than giving way to
+   whichever graph shows the curve taken off. */
 function toggleGraphCol(id,cid){
-  const p=P(), c=colById(cid); if(!p||!c||S.readOnly) return; const nm=graphName(id);
-  if(id==="main"&&mainList(p)){ const l=mainList(p), hid=p.plot.hidden||[], on=l.includes(cid)&&!hid.includes(cid);
-    pushUndo(on?"taking a curve off the graph":"adding a curve to the graph");
-    save({plot:Object.assign({},p.plot,{cols:on?l.filter(k=>k!==cid):l.includes(cid)?l:l.concat([cid]),hidden:hid.filter(k=>k!==cid)})},`${nm}: ${on?"took "+specName(c)+" off":"added "+specName(c)}`); renderAll(); return; }
-  if(id==="main"){ const hid=(p.plot.hidden||[]).slice(), i=hid.indexOf(cid); if(i<0) hid.push(cid); else hid.splice(i,1);
-    pushUndo("changing what the graph shows"); save({plot:Object.assign({},p.plot,{hidden:hid})},multiGraph()?`${nm}: ${i<0?"hid":"showed"} ${specName(c)}`:null); renderAll(); return; }
-  const g=graphOf(id); if(!g) return; const on=g.cols.includes(cid);
-  if(on&&g.cols.length<2){ toast("A graph shows at least one curve. Delete the graph instead."); return; }
+  const p=P(), c=colById(cid), g=graphOf(id); if(!p||!c||!g||S.readOnly) return; const nm=graphName(id);
+  const hid=(g.plot&&g.plot.hidden)||[], on=g.cols.includes(cid)&&!hid.includes(cid);
+  if(on&&g.cols.length<2){ toast(`${nm} shows only ${specName(c)}. Delete the graph to take it away.`,{action:"Delete the graph",run:()=>deleteGraph(id)}); return; }
   pushUndo(on?"taking a curve off the graph":"adding a curve to the graph");
-  save({graphs:(p.graphs||[]).map(q=>q.id===id?Object.assign({},q,{cols:on?q.cols.filter(k=>k!==cid):q.cols.concat([cid])}):q)},`${nm}: ${on?"took "+specName(c)+" off":"added "+specName(c)}`);
+  const cols=on?g.cols.filter(k=>k!==cid):g.cols.includes(cid)?g.cols:g.cols.concat([cid]), patch={graphs:(p.graphs||[]).map(q=>q.id===id?Object.assign({},q,{cols,plot:Object.assign({},q.plot,{hidden:hid.filter(k=>k!==cid)})}):q)};
+  if(on&&p.activeY===cid&&id===S.gid){ const next=cols.map(colById).find(q=>q&&q.role==="y");
+    if(next){ stashDrafts(next.id); p.activeY=next.id; patch.activeY=next.id; S.glead[id]=next.id; S.view=resolveYAuto(S.view); } }
+  save(patch,`${nm}: ${on?"took "+specName(c)+" off":"added "+specName(c)}`);
   renderAll();
 }
 function showGraph(id){ const f=figOf(id), sid=f?f.id:id; if(graphShut(sid)) setGraphShut(sid,false); const w=winOfGraph(id); if(!winOpen(w)) openWin(w); else focusWin(w); activateGraph(id); }
 /* ---- Closing graphs, and plotting when ready ----------------------------------
    A graph can be closed (its ×): it leaves the desk and the taskbar but stays
-   in the project with its spectra, format and labels, as Origin hides a graph
+   in the project with its curves, format and labels, as Origin hides a graph
    window; Window › Graphs, its History box and Plot open it again. The state
-   is the project's (plot.shut), so a project imported into the worksheet only
-   has no graph anywhere it is opened, and undo opens a graph closed by
-   mistake. With nothing plotted the data are worked on in the worksheet and
-   plotted when ready: select columns and press Plot. The first graph's
-   spectra are then a list of its own (p.plot.cols), as another graph's are,
-   so a column made later does not join it unasked; without one it shows
-   every spectrum not hidden, as it always did. */
-const graphShut=id=>!!(P()&&(id==="main"||graphOf(id))&&plotOf(id).shut);
+   is the project's (plot.shut), so a closed graph is closed wherever the
+   project is opened, and undo opens a graph closed by mistake. A project has
+   no graph until something is plotted: the data are worked on in the worksheet
+   and plotted when ready (select columns and press Plot), each plot making a
+   graph or adding to one. */
+const graphShut=id=>!!(graphOf(id)&&plotOf(id).shut);
 const winShut=w=>{ const g=graphOfWin(w); return !!g&&(graphShut(g)||!!figOf(g)); };
-// The first graph's own list of spectra, or null.
-const mainList=p=>{ p=p||P(); const l=p&&p.plot&&p.plot.cols; return Array.isArray(l)?l:null; };
-// Closed with nothing on it: the next plot goes there rather than to a new graph.
-// The first graph with nothing on it, open or closed: where the next plot goes.
-function mainFreeNow(){ const p=P(), l=mainList(p); return !!p&&!!l&&!l.some(k=>{ const c=colById(k); return c&&c.role==="y"; }); }
+// Not closed: a panel is open while its figure is.
+const graphOpen=id=>{ const f=figOf(id); return !!graphOf(id)&&!graphShut(f?f.id:id); };
 function setGraphShut(id,on,o){
-  o=o||{}; const p=P(); if(!p||S.readOnly||(id!=="main"&&!graphOf(id))||graphShut(id)===!!on) return false;
+  o=o||{}; const p=P(); if(!p||S.readOnly||!graphOf(id)||graphShut(id)===!!on) return false;
   if(!o.noUndo) pushUndo((on?"closing ":"opening ")+graphName(id));
   const set=pl=>{ const n=Object.assign({},pl); if(on) n.shut=true; else delete n.shut; return n; };
-  if(id==="main") save({plot:set(p.plot)},null);
-  else save({graphs:(p.graphs||[]).map(g=>g.id===id?Object.assign({},g,{plot:set(g.plot)}):g)},null);
+  save({graphs:(p.graphs||[]).map(g=>g.id===id?Object.assign({},g,{plot:set(g.plot)}):g)},null);
   return true;
 }
 function closeGraph(id){
   { const f=figOf(id); if(f) id=f.id; }
-  const w=winOfGraph(id), nm=graphName(id);
+  const w=winOfGraph(id), nm=graphName(id), front=winOfGraph(S.gid)===w;
   if(!setGraphShut(id,true)){ closeWin(w); return; }
   closeWin(w); renderAll();
+  // The graph in front closed: an open one comes forward, so what the tools work on can be seen.
+  if(front){ const to=graphFallback({open:true}); if(to&&to!==S.gid) activateGraph(to); }
   toast(`${nm} is closed, not deleted: Window › Graphs opens it again.`,{action:"Undo",run:undo});
 }
 // The columns selected in the Raw sheet, left to right.
@@ -19347,8 +19356,7 @@ function plotWhat(cids){ const cs=cids.map(colById).filter(Boolean); return {cs,
    spectrum (plotting it is asking for that), an X column selected with them
    is what they are plotted against (each Y against the selected X nearest to
    its left, as Origin plots a selection), error columns come with their Y.
-   Into a graph named (o.into), or else the first graph when it is closed with
-   nothing on it, or a new graph. One undo entry. */
+   Into a graph named (o.into), or a new graph. One undo entry. */
 function plotCols(cids,o){
   o=o||{}; const p=P(); if(!p) return; if(S.readOnly){ toast("You can view this workspace but not change it."); return; }
   if(S.ws&&S.ws.edit) wsCommit(0,0,true);
@@ -19360,58 +19368,48 @@ function plotCols(cids,o){
     for(let j=i-1;j>=0;j--) if(xs.includes(all[j])){ x=all[j]; break; } x=x||xs[0];
     if(xColFor(y)===x) return; y.xcol=x.id; let near=null; for(let j=i-1;j>=0;j--) if(all[j].role==="x"){ near=all[j]; break; } if(near===x) delete y.xcol; }); }
   migrate(p);
-  const ids=ys.map(c=>c.id), plot=Object.assign({},p.plot), graphs=(p.graphs||[]).map(g=>Object.assign({},g,{cols:g.cols.slice(),plot:Object.assign({},g.plot)}));
+  const ids=ys.map(c=>c.id), graphs=(p.graphs||[]).map(g=>Object.assign({},g,{cols:g.cols.slice(),plot:Object.assign({},g.plot)}));
   // A type asked for is the type of every one of these spectra there, not only the analysed one's.
   const typed=tp=>{ if(!o.type) return; tp.series=Object.assign({},tp.series); ids.forEach(k=>{ tp.series[k]=Object.assign({},tp.series[k],{type:o.type}); }); };
   let gid, tp, isNewG=false;
-  if(o.into==="main"||(o.into&&graphs.some(g=>g.id===o.into))){
-    gid=o.into; tp=gid==="main"?plot:graphs.find(g=>g.id===gid).plot;
-    if(gid==="main"){ const l=mainList(p); if(l) plot.cols=l.concat(ids.filter(k=>!l.includes(k))); plot.hidden=(plot.hidden||[]).filter(k=>!ids.includes(k)); }
-    else { const g=graphs.find(q=>q.id===gid); g.cols=g.cols.concat(ids.filter(k=>!g.cols.includes(k))); }
-    if(o.type){ tp.series=Object.assign({},tp.series); ids.forEach(k=>{ tp.series[k]=Object.assign({},tp.series[k],{type:o.type}); }); }
-    if(o.layout) tp.layout=o.layout;
-    delete tp.shut;
-  } else if(mainFreeNow()){
-    gid="main"; tp=plot; plot.cols=ids.slice(); plot.hidden=[]; delete plot.shut; plot.layout=o.layout||"overlay";
-    if(o.type){ plot.style=o.type; typed(plot); }
-  } else {
-    gid="g"+Math.random().toString(36).slice(2,9); tp=plotBase(GP()); if(o.type){ tp.style=o.type; typed(tp); } if(o.layout) tp.layout=o.layout;
-    graphs.push({id:gid,name:nextGraphName(Object.assign({},p,{graphs})),cols:ids.slice(),plot:tp}); isNewG=true;
-  }
+  const into=o.into?graphs.find(g=>g.id===o.into&&!g.fig):null;
+  if(into){ gid=into.id; tp=into.plot; into.cols=into.cols.concat(ids.filter(k=>!into.cols.includes(k))); tp.hidden=(tp.hidden||[]).filter(k=>!ids.includes(k));
+    typed(tp); if(o.layout) tp.layout=o.layout; delete tp.shut; }
+  else { gid=newGid(); tp=plotBase(GP()); if(o.type){ tp.style=o.type; typed(tp); } if(o.layout) tp.layout=o.layout;
+    graphs.push({id:gid,name:nextGraphName({graphs}),cols:ids.slice(),plot:tp}); isNewG=true; }
   if(o.plot) Object.assign(tp,o.plot);
-  const nm=gid==="main"?graphName("main"):graphs.find(g=>g.id===gid).name, wasOpen=graphWinIds().some(winOpen), from=winOfGraph(S.gid), gWas=winOpen(winOfGraph(gid));
+  const nm=graphs.find(g=>g.id===gid).name, wasOpen=graphWinIds().some(winOpen), from=winOfGraph(S.gid), gWas=!isNewG&&winOpen(winOfGraph(gid));
   const xNote=xs.length?` against ${andList(xs.map(c=>colLetter(c)+(c.name?` (${c.name})`:"")))}`:"";
-  save({cols:p.cols,plot,graphs},`plotted ${andList(ys.map(specName))}${xNote} in ${nm}${made.length?`, making ${andList(made.map(specName))} ${made.length===1?"a Y column":"Y columns"}`:""}`);
+  save({cols:p.cols,graphs},`plotted ${andList(ys.map(specName))}${xNote} in ${nm}${made.length?`, making ${andList(made.map(specName))} ${made.length===1?"a Y column":"Y columns"}`:""}`);
   renderAll();
   const w=winOfGraph(gid);
   // A graph coming onto the desk shares a window's place: on a desk with no
   // graph the worksheet's, otherwise the graph in front's.
-  if(!gWas){ if(!wasOpen&&winOpen("sheet")) splitInto("sheet",w); else if(wasOpen&&winOpen(from)&&from!==w) splitInto(from,w); else openWin(w); }
+  if(!gWas){ if(!wasOpen&&winOpen("sheet")) splitInto("sheet",w); else if(wasOpen&&from&&winOpen(from)&&from!==w) splitInto(from,w); else openWin(w); }
   else focusWin(w);
   activateGraph(gid,ids[0]);
   if(isNewG) xNew(["g:"+gid]);
   if(!o.quiet) toast(`Plotted ${andList(ys.map(specName))} in ${nm}.${made.length?` ${andList(made.map(specName))} ${made.length===1?"is a Y column":"are Y columns"} now.`:""}`,{action:"Undo",run:undo});
 }
 // The tools that work on the graph (peaks, fits, bands) open it when it is
-// closed; with nothing plotted yet, the analysed spectrum is plotted.
-function ensureGraph(){ const p=P(), act=activeYCol(); if(!p||!act||S.readOnly) return; const id=S.gid||"main";
-  { const f=figOf(id); if(f){ if(graphShut(f.id)){ setGraphShut(f.id,false); openWin(f.id,{quiet:true}); } return; } }
-  // The first graph with nothing on it (after an import, which plots nothing) takes the active column.
-  if(id==="main"&&mainFreeNow()){ plotCols([act.id],{into:"main",undo:"plotting "+specName(act)}); return; }
-  if(!graphShut(id)) return;
-  setGraphShut(id,false); openWin(winOfGraph(id),{quiet:true}); }
-// The Plot menu for some columns: a plot type (a new graph, or the first graph
-// when nothing is plotted yet), several spectra in panels, or onto a graph.
+// closed; with the analysed column on no graph, it is plotted.
+function ensureGraph(){ const p=P(), act=activeYCol(); if(!p||!act||S.readOnly) return; let id=S.gid;
+  if(!graphOf(id)||!graphShows(act,id)){ const on=graphForCol(act.id); if(!on){ plotCols([act.id],{undo:"plotting "+specName(act)}); return; } id=on; }
+  { const f=figOf(id); if(f){ if(graphShut(f.id)){ setGraphShut(f.id,false); openWin(f.id,{quiet:true}); } if(id!==S.gid) activateGraph(id); return; } }
+  if(graphShut(id)){ setGraphShut(id,false); openWin(winOfGraph(id),{quiet:true}); }
+  if(id!==S.gid) activateGraph(id); }
+// The Plot menu for some columns: a plot type (on a new graph), several
+// spectra in panels, or onto a graph.
 function plotItems(cids){
   const p=P(), {ys}=plotWhat(cids), ro=S.readOnly||!p||!ys.length, many=ys.length>1, nm=ys.length?andList(ys.slice(0,3).map(specName))+(ys.length>3?` and ${ys.length-3} more`:""):"";
-  const where=mainFreeNow()&&!mainGone()?graphName("main"):"a new graph";
+  const where="a new graph";
   const out=[{label:"Plot setup…", title:"Choose the kind of plot, the X and Y columns and the graph, with a sketch", enabled:!!p&&!S.readOnly, run:()=>openPlotDlg(cids)},"-",{group:ys.length?`Plot ${nm} in ${where} as`:"Or select the columns to plot first",plain:true}]
     .concat(PLOT_TYPES.map(([k,l])=>({label:l, enabled:!ro, run:()=>plotCols(cids,{type:k})})));
   out.push("-",{label:many?"Histogram of each":"Histogram", enabled:!ro, title:"The distribution of the values, as a column of its own on a graph of its own", run:()=>histogramCols(ys.map(c=>c.id))},
     {label:"Box chart", enabled:!ro, title:"Each column's values as a box: median, quartiles, whiskers and outliers", run:()=>plotCols(cids,{layout:"box"})},
     {label:"Violin plot", enabled:!ro, title:"Each column's values as the shape of their distribution", run:()=>plotCols(cids,{layout:"violin"})});
   if(many) out.push("-",{label:"Stacked panels", enabled:!ro, run:()=>plotCols(cids,{layout:"stack"})},{label:"Offset (waterfall)", enabled:!ro, run:()=>plotCols(cids,{layout:"offset"})},{label:"Contour map against the series", enabled:!ro, title:"Each column at its value of the series variable, with contour lines over the colours", run:()=>plotCols(cids,{layout:"heat",plot:{mapKind:"both",mapY:"series"}})},{label:"Heat map", enabled:!ro, run:()=>plotCols(cids,{layout:"heat"})});
-  const gs=drawGraphIds().filter(id=>!(id==="main"&&mainFreeNow())), shut=id=>{ const f=figOf(id); return graphShut(f?f.id:id); };
+  const gs=drawGraphIds(), shut=id=>{ const f=figOf(id); return graphShut(f?f.id:id); };
   if(gs.length) out.push("-",{label:"Add to a graph", enabled:!ro, sub:()=>gs.map(id=>({label:graphTitle(id), note:shut(id)?"closed":"", run:()=>plotCols(cids,{into:id})}))});
   return out;
 }
@@ -19476,7 +19474,7 @@ async function openPlotDlg(cids){
   const ys=(selY.length?selY:[activeYCol()&&!activeYCol().src?activeYCol():cand[0]]).filter(Boolean).map(c=>c.id);
   const x0=selX||(ys.length?xColFor(colById(ys[0])):null)||xs[0]||null;
   const st={kind:S.plotDlgKind||"line",x:x0?x0.id:"",ys:ys.slice()};
-  const targets=drawGraphIds().filter(id=>!(id==="main"&&mainFreeNow()));
+  const targets=drawGraphIds();
   const nm=c=>`<b>${esc(colLetter(c))}</b> ${esc(c.name||"")}${c.unit?` <span class="unit">(${esc(c.unit)})</span>`:""}`;
   const errNote=c=>{ const e=errColsOf(c.id), k=Object.keys(e); return k.length?`<span class="lab" title="Its error bars come with it">± ${k.map(q=>colLetter(e[q])).join(", ")}</span>`:""; };
   const html=`<div class="pdlg">
@@ -19485,7 +19483,7 @@ async function openPlotDlg(cids){
       <div class="grid2"><label for="pdlgX">X column</label><select id="pdlgX">${xs.map(c=>`<option value="${c.id}"${st.x===c.id?" selected":""}>${esc(colLetter(c))} ${esc(colLabel(c,""))}</option>`).join("")||`<option value="">Row number (no X column)</option>`}</select></div>
       <div class="pdlg-ys" role="group" aria-label="Y columns to plot"><div class="pdlg-yh"><span class="gh">Y columns</span><span class="sp"></span><button type="button" class="btn sm ghost" id="pdlgAll">All</button><button type="button" class="btn sm ghost" id="pdlgNone">None</button></div>
         ${cand.map(c=>`<label class="cbrow"><input type="checkbox" data-pdy="${c.id}"${st.ys.includes(c.id)?" checked":""}><span>${nm(c)}</span>${c.role==="ignore"?`<span class="lab" title="Other data: plotting it makes it a Y column">data</span>`:""}${errNote(c)}</label>`).join("")}</div>
-      <div class="grid2"><label for="pdlgInto">Into</label><select id="pdlgInto"><option value="">${mainFreeNow()&&!mainGone()?esc(graphName("main"))+" (empty)":"A new graph"}</option>${targets.map(id=>`<option value="${id}">${esc(graphTitle(id))}</option>`).join("")}</select></div>
+      <div class="grid2"><label for="pdlgInto">Into</label><select id="pdlgInto"><option value="">A new graph</option>${targets.map(id=>`<option value="${id}">${esc(graphTitle(id))}</option>`).join("")}</select></div>
       <div class="pdlg-sk" id="pdlgSk"></div>
     </div></div>`;
   const sh=$("#formModal .sheet"); sh.classList.remove("small"); sh.classList.add("plotdlg");
@@ -19509,18 +19507,18 @@ async function openPlotDlg(cids){
   else plotCols(ids,Object.assign({layout:st.kind,into},st.kind==="heat"?{plot:{mapKind:"both",mapY:"series"}}:{}));
 }
 // The list of graphs (the taskbar's Graphs button and Window › Graphs).
-function graphsMenuItems(){ const cur=S.gid||"main";
+function graphsMenuItems(){ const cur=S.gid;
   return deskGraphIds().map(id=>{ const fg=graphOf(id)&&graphOf(id).fig, cs=fg?[]:graphCols(id), n=fg?fg.cells.length:0;
     return {label:graphName(id)+(fg?` · ${n} panel${n===1?"":"s"}`:cs.length===1?" · "+specName(cs[0]):cs.length?` · ${cs.length} curves`:""), radio:true, checked:(fg?(figOf(cur)||{}).id===id:id===cur)&&!graphShut(id), note:graphShut(id)?"closed":winMin(winOfGraph(id))?"minimised":"", run:()=>showGraph(id)}; })
     .concat(["-",{label:"Combine graphs…", enabled:!S.readOnly&&drawGraphIds().length>1, run:()=>combineDlg()},{label:"A figure of panels…", enabled:!S.readOnly, title:"Graphs as the panels of one figure, their plot areas lined up", run:()=>newFigureDlg()},{label:"Link the X zoom of the graphs", checked:S.linkX, run:()=>setLinkX(!S.linkX)}]); }
 // A graph window's ⋯ menu.
 function graphWinItems(id){
   if(isFigId(id)) return figMenuItems(id);
-  const p=P(), ro=S.readOnly||!p, main=id==="main", ys=yCols(), on=graphCols(id), has=!!(p&&pointsAll().length);
+  const p=P(), ro=S.readOnly||!p, ys=yCols(), on=graphCols(id), has=!!(p&&pointsAll().length);
   return [{group:graphName(id),plain:true},
     {label:"Rename…", enabled:!ro, run:()=>renameGraph(id)},
     {label:"Curves on it", enabled:!!ys.length, sub:()=>ys.map(c=>{ const shown=on.includes(c);
-      return {label:specName(c), checked:shown, enabled:!ro&&!(shown&&!main&&on.length<2), run:()=>toggleGraphCol(id,c.id)}; })},
+      return {label:specName(c), checked:shown, enabled:!ro&&!(shown&&on.length<2), run:()=>toggleGraphCol(id,c.id)}; })},
     {label:"Duplicate", enabled:!ro, run:()=>duplicateGraph(id)},
     {label:"Combine", sub:()=>combineMenuItems(id).slice(1)},
     {label:"Put in a figure", enabled:!ro, title:"As a panel of a figure, its plot area lined up with the others'", sub:()=>{ const figs=deskGraphIds().filter(k=>isFigId(k));
@@ -19540,32 +19538,31 @@ function graphWinItems(id){
    empty desk gets a graph of its own. The menus do the same (combineGraphs). */
 function combineGraphs(srcs,into,opt){
   opt=opt||{}; const p=P(); if(!p||S.readOnly) return null;
-  if(into!=="new"&&into!=="main"&&(!graphOf(into)||isFigId(into))) return null;
-  srcs=(srcs||[]).filter((id,i,a)=>a.indexOf(id)===i&&id!==into&&(id==="main"||graphOf(id))&&!isFigId(id));
+  if(into!=="new"&&(!graphOf(into)||isFigId(into))) return null;
+  srcs=(srcs||[]).filter((id,i,a)=>a.indexOf(id)===i&&id!==into&&graphOf(id)&&!isFigId(id));
   const ids=[]; srcs.forEach(id=>graphCols(id).forEach(c=>{ if(!ids.includes(c.id)) ids.push(c.id); }));
   (opt.cids||[]).forEach(k=>{ const c=colById(k); if(c&&c.role==="y"&&!ids.includes(k)) ids.push(k); });
   if(!ids.length) return null;
-  const graphs=(p.graphs||[]).map(g=>Object.assign({},g,{cols:g.cols.slice(),plot:Object.assign({},g.plot)})), plot=Object.assign({},p.plot);
+  const graphs=(p.graphs||[]).map(g=>Object.assign({},g,{cols:g.cols.slice(),plot:Object.assign({},g.plot)}));
   let tid=into, tp, fresh=0;
-  if(into==="new"){ tid="g"+Math.random().toString(36).slice(2,9); tp=graphBase(srcs[0]||GID()); graphs.push({id:tid,name:nextGraphName(p),cols:ids.slice(),plot:tp}); fresh=ids.length; }
-  else if(into==="main"){ tp=plot; const hid=plot.hidden||[], l=mainList(p); fresh=ids.filter(k=>hid.includes(k)||(l&&!l.includes(k))).length; plot.hidden=hid.filter(k=>!ids.includes(k)); if(l) plot.cols=l.concat(ids.filter(k=>!l.includes(k))); }
-  else { const g=graphs.find(q=>q.id===into); tp=g.plot; const nw=ids.filter(k=>!g.cols.includes(k)); fresh=nw.length; g.cols=g.cols.concat(nw); }
+  if(into==="new"){ tid=newGid(); tp=graphBase(srcs[0]||GID()); graphs.push({id:tid,name:nextGraphName(p),cols:ids.slice(),plot:tp}); fresh=ids.length; }
+  else { const g=graphs.find(q=>q.id===into); tp=g.plot; const hid=tp.hidden||[], nw=ids.filter(k=>!g.cols.includes(k)||hid.includes(k)); fresh=nw.length; g.cols=g.cols.concat(nw.filter(k=>!g.cols.includes(k))); tp.hidden=hid.filter(k=>!ids.includes(k)); }
   // Each spectrum keeps the look it had where it came from, unless it has one here.
-  srcs.forEach(s=>{ const sp=s==="main"?p.plot:graphOf(s).plot; graphCols(s).forEach(c=>{ const st=sp.series&&sp.series[c.id];
+  srcs.forEach(s=>{ const sp=graphOf(s).plot; graphCols(s).forEach(c=>{ const st=sp.series&&sp.series[c.id];
     if(st&&!(tp.series&&tp.series[c.id])) tp.series=Object.assign({},tp.series,{[c.id]:clone(st)}); }); });
   if(opt.layout) tp.layout=opt.layout;
   if(tp.shut){ delete tp.shut; fresh=fresh||ids.length; }
-  // The graphs merged go (never the first), and their labels move with their spectra.
-  const del=opt.keep?[]:srcs.filter(id=>id!=="main"&&id!==tid);
+  // The graphs merged go, and their labels move with their spectra.
+  const del=opt.keep?[]:srcs.filter(id=>id!==tid);
   if(!fresh&&!del.length&&!opt.layout){ toast(`${ids.length===1?specName(colById(ids[0]))+" is":"Those curves are"} on ${graphName(into)} already.`); return null; }
   const out=graphs.filter(g=>!del.includes(g.id));
-  plot.annos=(p.plot.annos||[]).map(a=>del.includes(a.g)?Object.assign({},a,{g:tid==="main"?undefined:tid}):a);
+  const annos=(p.annos||[]).map(a=>del.includes(a.g)?Object.assign({},a,{g:tid}):a);
   const tname=into==="new"?out.find(g=>g.id===tid).name:graphName(into), dnames=del.map(id=>graphName(id)), n=ids.length, ns=`${n} curve${n===1?"":"s"}`;
   const what=srcs.length?andList(srcs.map(id=>graphName(id))):andList(ids.map(k=>specName(colById(k))));
   const log=into==="new"&&!srcs.length?`made ${tname}, showing ${what}`:del.length?`merged ${andList(dnames)} into ${tname} (${ns})`:srcs.length?`put the curves of ${what} on ${tname} (${ns})`:`put ${what} on ${tname}`;
   const geo=del.length&&into==="new"&&winState(winOfGraph(del[0])).open?winState(winOfGraph(del[0])).g.slice():null;
   pushUndo(srcs.length?"combining graphs":"putting a spectrum on a graph");
-  save({graphs:out,plot},log);
+  save({graphs:out,annos},log);
   renderAll();
   if(into==="new"){ if(opt.at) placeWinAt(tid,opt.at); else if(geo){ Object.assign(winState(tid),{g:geo,open:true,max:false,z:++LAYOUT.z}); applyWins(); saveLayout(); } else splitInto(winOfGraph(srcs[0]||GID()),tid); }
   else { const w=winOfGraph(tid); if(!winOpen(w)) openWin(w); else focusWin(w); }
@@ -19573,7 +19570,6 @@ function combineGraphs(srcs,into,opt){
   toast(del.length?`Merged ${andList(dnames)} into ${tname}.`:into==="new"&&!srcs.length?`${tname} shows ${what}.`:`${srcs.length?"The curves of "+what+" are":what+(n===1?" is":" are")} on ${tname}.`,{action:"Undo",run:undo});
   return tid;
 }
-// A new window where something was dropped on the desk.
 function placeWinAt(id,pt){ const d=$("#desk").getBoundingClientRect(), {W,H}=deskSize(), w=Math.min(0.46,Math.max(300/W,0.3)), h=Math.min(0.56,Math.max(240/H,0.36));
   const x=Math.max(0,Math.min(1-w,(pt.x-d.left)/W-w/2)), y=Math.max(0,Math.min(1-h,(pt.y-d.top)/H-0.03));
   Object.assign(winState(id),{g:[x,y,w,h],open:true,max:false,z:++LAYOUT.z}); applyWins(); saveLayout(); }
@@ -19598,7 +19594,7 @@ function dropText(t,o,copy){
   if(t.kind==="fig") return o.cid?`Drop for a panel of its own in ${graphName(t.g)}`:`Drop to make it a panel of ${graphName(t.g)}`;
   const tn=graphTitle(t.g);
   if(o.cid) return t.already?`Already on ${tn}`:`Drop to put it on ${tn}`;
-  return copy||o.gid==="main"?`Drop to put its curves on ${tn}`:`Drop to merge it into ${tn} (Ctrl keeps it)`; }
+  return copy?`Drop to put its curves on ${tn}`:`Drop to merge it into ${tn} (Ctrl keeps it)`; }
 function startGraphDrag(e,o){
   if(e.button!==0||!P()) return;
   e.preventDefault(); e.stopPropagation();
@@ -19639,9 +19635,9 @@ function startGraphDrag(e,o){
 }
 // The grip's menu, and the Combine part of a graph's ⋯ menu.
 function combineMenuItems(id){
-  const ro=S.readOnly||!P(), others=drawGraphIds().filter(k=>k!==id), main=id==="main";
+  const ro=S.readOnly||!P(), others=drawGraphIds().filter(k=>k!==id);
   return [{group:`Combine ${graphName(id)}`,plain:true},
-    {label:main?"Put its curves on":"Merge it into", enabled:!ro&&others.length>0, title:main?"The first graph stays":"It goes, and its curves and labels join the other graph", sub:()=>others.map(k=>({label:graphTitle(k), run:()=>combineGraphs([id],k)}))},
+    {label:"Merge it into", enabled:!ro&&others.length>0, title:"It goes, and its curves and labels join the other graph", sub:()=>others.map(k=>({label:graphTitle(k), run:()=>combineGraphs([id],k)}))},
     {label:"Merge every other graph into this one", enabled:!ro&&others.length>0, run:()=>combineGraphs(others,id)},
     {label:"Combine graphs…", enabled:!ro&&others.length>0, run:()=>combineDlg(id)}];
 }
@@ -19654,9 +19650,9 @@ function combineDlg(into){
     html:`<p class="lab" style="margin:0 0 6px">The curves of</p><div class="cglist">${ids.map(row).join("")}</div>
     <div class="grid2"><label for="cgInto">Go on</label><select id="cgInto"><option value="new">A new graph</option>${ids.map(id=>`<option value="${id}"${id===into?" selected":""}>${esc(graphTitle(id))}</option>`).join("")}</select>
     <label for="cgLay">Laid out</label><select id="cgLay"><option value="">As that graph has them</option>${LAYOUTS.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join("")}</select>
-    <label for="cgKeep">The graphs merged</label><select id="cgKeep"><option value="del">Go (the first graph stays)</option><option value="keep">Stay</option></select></div>`,
+    <label for="cgKeep">The graphs merged</label><select id="cgKeep"><option value="del">Go</option><option value="keep">Stay</option></select></div>`,
     valid:v=>ids.some(id=>v["cgG_"+id]&&id!==v.cgInto)}).then(r=>{
-    if(!r||!P()) return; const pick=ids.filter(id=>r["cgG_"+id]&&id!==r.cgInto&&(id==="main"||graphOf(id)));
+    if(!r||!P()) return; const pick=ids.filter(id=>r["cgG_"+id]&&id!==r.cgInto&&graphOf(id));
     combineGraphs(pick,r.cgInto,{keep:r.cgKeep==="keep",layout:r.cgLay||null}); });
 }
 
@@ -19695,7 +19691,7 @@ function bringIn(groups,onto,gid){
   const p=P(); if(!p||S.readOnly) return;
   const empty=!allCols().some(c=>c.role!=="x"&&(c.data||[]).some(v=>v!=null));
   let cols=empty?[]:p.cols.slice(); const shown=[], brought=[], names=[], from=[], styles={};
-  const found=Object.assign({},p.found||{}), annos=(p.plot.annos||[]).slice();
+  const found=Object.assign({},p.found||{}), annos=(p.annos||[]).slice();
   groups.forEach(({q,cids})=>{ const r=copySpectra(q,cids); if(!r.cols.length) return; from.push(`“${projName(q)}”`);
     // An X column the same as the last one here is shared, not repeated.
     const lastX=cols.slice().reverse().find(c=>c.role==="x"&&c.data.some(v=>v!=null)), first=r.cols[0];
@@ -19703,43 +19699,37 @@ function bringIn(groups,onto,gid){
     cids.forEach(k=>{ const nid=r.map[k]; if(nid&&!shown.includes(nid)){ shown.push(nid); names.push(specName(r.cols.find(c=>c.id===nid))); } });
     r.need.forEach(k=>{ const nid=r.map[k]; brought.push(nid);
       if(q.found&&q.found[k]) found[nid]=clone(q.found[k]);
-      ((q.plot&&q.plot.annos)||[]).filter(a=>a.grp==="pk:"+k).forEach(a=>annos.push(Object.assign(clone(a),{id:annoId(),grp:"pk:"+nid,ser:a.ser===k?nid:a.ser,g:undefined})));
-      const st=(q.plot&&q.plot.series&&q.plot.series[k])||(q.graphs||[]).map(g=>g.plot&&g.plot.series&&g.plot.series[k]).find(Boolean);
+      projAnnos(q).filter(a=>a.grp==="pk:"+k).forEach(a=>annos.push(Object.assign(clone(a),{id:annoId(),grp:"pk:"+nid,ser:a.ser===k?nid:a.ser,g:undefined})));
+      const st=(q.graphs||[]).map(g=>g.plot&&g.plot.series&&g.plot.series[k]).concat([q.plot&&q.plot.series&&q.plot.series[k]]).find(Boolean);
       if(st) styles[nid]=clone(st); }); });
   if(!shown.length) return;
-  const plot=Object.assign({},p.plot,{annos}), graphs=(p.graphs||[]).map(g=>Object.assign({},g)), made=[], pick=o=>{ const r={}; o.forEach(k=>{ if(styles[k]) r[k]=styles[k]; }); return r; };
-  const hideMain=ids=>{ plot.hidden=(plot.hidden||[]).concat(ids.filter(k=>!(plot.hidden||[]).includes(k))); };
-  // A first graph with a list of its own takes them onto the list.
-  const putMain=ids=>{ if(Array.isArray(plot.cols)) plot.cols=plot.cols.concat(ids.filter(k=>!plot.cols.includes(k))); delete plot.shut; };
-  let target=gid;
-  if(onto==="graph"&&(gid==="main"||!graphOf(gid))){ target="main"; hideMain(brought.filter(k=>!shown.includes(k))); putMain(shown); plot.series=Object.assign({},plot.series,pick(shown)); }
-  else if(onto==="graph"){ const g=graphs.find(q=>q.id===gid); g.cols=g.cols.concat(shown.filter(k=>!g.cols.includes(k))); g.plot=Object.assign({},g.plot,{series:Object.assign({},g.plot.series,pick(shown))}); hideMain(brought); }
-  else { let groupsOf=onto==="each"?shown.map(k=>[k]):[shown];
-    // An empty project's first graph takes the first of them.
-    if(empty){ const first=groupsOf[0]; hideMain(brought.filter(k=>!first.includes(k))); putMain(first); plot.series=Object.assign({},plot.series,pick(first)); target="main"; groupsOf=groupsOf.slice(1); }
-    else hideMain(brought);
-    const base=graphBase(GID());
-    groupsOf.forEach(ids=>{ const g={id:"g"+Math.random().toString(36).slice(2,9),name:nextGraphName(Object.assign({},p,{plot,graphs})),cols:ids,plot:Object.assign(clone(base),{series:pick(ids)})}; graphs.push(g); made.push(g.id); });
-    if(made.length&&!empty) target=made[0]; }
+  const graphs=(p.graphs||[]).map(g=>Object.assign({},g)), made=[], pick=o=>{ const r={}; o.forEach(k=>{ if(styles[k]) r[k]=styles[k]; }); return r; };
+  // Onto the graph in hand, beside what is on it; or onto new graphs.
+  const tg=onto==="graph"&&!empty?graphs.find(q=>q.id===gid&&!q.fig):null; let target=null;
+  if(tg){ tg.cols=tg.cols.concat(shown.filter(k=>!tg.cols.includes(k))); tg.plot=Object.assign({},tg.plot,{series:Object.assign({},tg.plot.series,pick(shown))}); delete tg.plot.shut; target=tg.id; }
+  else { const base=graphBase(GID());
+    (onto==="each"?shown.map(k=>[k]):[shown]).forEach(ids=>{ const g={id:newGid(),name:nextGraphName({graphs}),cols:ids,plot:Object.assign(clone(base),{series:pick(ids)})}; graphs.push(g); made.push(g.id); });
+    target=made[0]; }
   pushUndo("bringing in spectra");
+  const fromW=winOfGraph(S.gid), wasOpen=graphWinIds().some(winOpen);
   p.cols=cols; const raw=recordRaw(`brought in ${andList(names)} from ${andList(from)}`);
-  const patch=Object.assign({cols,plot,graphs,found},raw?{raw}:{},empty?{activeY:shown[0]}:{});
+  const patch=Object.assign({cols,graphs,found,annos},raw?{raw}:{},empty?{activeY:shown[0]}:{});
   const list=names.length>4?names.slice(0,4).join(", ")+` and ${names.length-4} more`:names.join(", ");
   save(patch,`brought in ${names.length} column${names.length===1?"":"s"} (${list}) from ${andList(from)}${brought.length>shown.length?`, with ${brought.length-shown.length} they are made from`:""}`);
   renderAll();
-  if(made.length===1&&!empty) splitInto(winOfGraph(gid),made[0]); else if(made.length) tileWins();
+  if(made.length===1){ if(wasOpen&&fromW&&winOpen(fromW)) splitInto(fromW,made[0]); else if(winOpen("sheet")) splitInto("sheet",made[0]); } else if(made.length) tileWins();
   activateGraph(target);
   toast(`Brought in ${list} from ${andList(from)}, on ${graphName(target)}.`,{action:"Undo",run:undo});
 }
 function bringInDlg(gid){
   const p=P(); if(!p||S.readOnly) return; const ps=otherProjects();
   if(!ps.length){ toast("No other project has columns to bring in."); return; }
-  gid=gid&&(gid==="main"||graphOf(gid))?gid:GID(); let k=0; const keys=[];
+  gid=graphOf(gid)&&!isFigId(gid)?gid:graphOf(GID())?GID():null; let k=0; const keys=[];
   const blocks=ps.map(q=>{ const ss=projSpectra(q);
     return `<fieldset><legend><label class="cbrow"><input type="checkbox" data-binall="${q.id}"><b>${esc(projName(q))}</b><span class="lab">${ss.length} column${ss.length===1?"":"s"}</span></label></legend>${ss.map(c=>{ const id="biC"+(k++); keys.push([id,q,c.id]);
       return `<label class="cbrow"><input type="checkbox" id="${id}" data-binof="${q.id}"><span>${esc(c.name||"Unnamed")}</span>${c.src?`<span class="lab">derived</span>`:""}</label>`; }).join("")}</fieldset>`; }).join("");
   const prom=formDlg({title:"Copy from another project",ok:"Copy",wide:true,
-    html:`<div class="binl">${blocks}</div><div class="grid2"><label for="biOn">On</label><select id="biOn"><option value="graph">${esc(graphName(gid))}, beside what is on it</option><option value="new">A new graph</option><option value="each">A graph for each</option></select></div>`,
+    html:`<div class="binl">${blocks}</div><div class="grid2"><label for="biOn">On</label><select id="biOn">${gid?`<option value="graph">${esc(graphName(gid))}, beside what is on it</option>`:""}<option value="new">A new graph</option><option value="each">A graph for each</option></select></div>`,
     valid:v=>keys.some(([id])=>v[id])});
   // Ticking a project ticks its spectra; the project's box says whether all of them are.
   const body=$("#formBody"), fire=()=>{ const m=$("#formModal"); if(m.oninput) m.oninput(); };
@@ -19754,7 +19744,7 @@ function bringInDlg(gid){
 // Opening a project from the list says what is in it.
 function switchProject(id){ if(id===S.pid) return; openProject(id); const p=P(); if(!p) return;
   const ns=yCols().filter(c=>c.src||(c.data||[]).some(v=>v!=null)).length, ng=graphIds().length;
-  toast(`“${projName(p)}”: ${ns?`${ns} Y column${ns===1?"":"s"}`:"no data yet"}${ng>1?` on ${ng} graphs`:""}.`); }
+  toast(`“${projName(p)}”: ${ns?`${ns} Y column${ns===1?"":"s"}`:"no data yet"}${ng>1?` on ${ng} graphs`:ns&&!ng?", nothing plotted yet":""}.`); }
 
 /* The chip on the graph window's ribbon: which stage of the processing the
    graph is showing, when it is not the final data, and the way back. */
@@ -19890,7 +19880,7 @@ function menuItems(which){
     "-",{label:"About Kurve", run:()=>openHelp("about")}];
   return [];
 }
-function onThemeChange(){ renderTop(); renderPlot(); Object.keys(WINS).forEach(id=>{ if(id!=="graph"&&winOpen(id)) renderWin(id); }); }
+function onThemeChange(){ renderTop(); renderPlot(); Object.keys(WINS).forEach(id=>{ if(id!==winOfGraph(S.gid)&&winOpen(id)) renderWin(id); }); }
 let renderCount=0;
 function renderAll(){
   normalize(S.proj); clampStage();
@@ -20041,7 +20031,8 @@ async function loadExample(kind){
   const fid="f"+Math.random().toString(36).slice(2,9); cols.forEach(c=>{ c.fid=fid; c.file=`Example: ${ex.name}`; });
   const plot={style:ex.kind==="ps"?"line":"scatter",logY:false,grid:false,resid:"auto",revX:!!ex.revX};
   if(kind==="ps") plot.style="line";
-  const patch={cols,activeY:exY.id,fit:null,fits:[],meta:{},plot,prefFit:ex.fit||null,prefModel:ex.model||null,raw:rawRecordFor(cols,"recorded the example: "+ex.name)};
+  // An example is opened to be looked at: it comes plotted, on a graph of its own.
+  const patch={cols,activeY:exY.id,fit:null,fits:[],meta:{},graphs:[{id:newGid(),name:"Graph 1",cols:[exY.id],plot}],annos:[],prefFit:ex.fit||null,prefModel:ex.model||null,raw:rawRecordFor(cols,"recorded the example: "+ex.name)};
   const cur=P(), empty=!!cur&&!allCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null));
   S.fitMode=null; S.selPeak=null; S.stage=null; S.selStep=null;
   if(!empty){ await createProject(Object.assign(blankProject(ex.name),patch),"opened the example: "+ex.name); showTab(ex.tab||"fit"); return; }

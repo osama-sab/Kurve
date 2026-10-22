@@ -29,7 +29,7 @@ const check = (name, cond, detail) => {
 // In the page: a project from arrays, and a Gaussian with noise.
 const HELP = `(()=>{ if(window.__h) return; window.__h=1;
   window.mkSpec=async(name,x,y,opt)=>{ opt=opt||{}; const xc=makeCol("x",opt.xn||"X","",x), yc=Object.assign(makeCol("y",name,"",y),{pipe:[],mask:[]});
-    const pr=Object.assign(blankProject(opt.proj||name),{cols:[xc,yc],activeY:yc.id}); /* plotted, as a user would */ Object.assign(pr.plot,{shut:false,cols:[yc.id]}); await createProject(pr,"test"); await new Promise(r=>setTimeout(r,80)); renderAll(); };
+    const pr=Object.assign(blankProject(opt.proj||name),{cols:[xc,yc],activeY:yc.id}); /* plotted, as a user would */ pr.graphs=[{id:newGid(),name:"Graph 1",cols:[yc.id],plot:{style:"auto"}}]; await createProject(pr,"test"); await new Promise(r=>setTimeout(r,80)); renderAll(); };
   window.gauss=(n,c,w,h,x0,dx,noise)=>{ const x=[],y=[]; let s=7; const r=()=>{ s=(s*16807)%2147483647; return s/2147483647-0.5; };
     for(let i=0;i<n;i++){ const v=x0+i*dx; x.push(v); y.push(h*Math.exp(-(((v-c)/w)**2))+(noise||0)*r()); } return {x,y}; };
 })()`;
@@ -84,10 +84,10 @@ await page(async (p, ctx) => {
   check("a second tab saving keeps the first tab's projects", stored === "Renamed in B,Tab A", stored);
   check("the second tab sees the first tab's new project", (await b.evaluate(() => S.projects.map(q => q.name))).includes("Tab A"));
   await b.evaluate(() => { switchProject(S.projects.find(q => q.name === "Tab A").id); }); await b.waitForTimeout(300);
-  await p.evaluate(() => { save({ plot: Object.assign({}, P().plot, { grid: true }) }, "grid"); }); await p.waitForTimeout(300);
+  await p.evaluate(() => { savePlot({ grid: true }, "grid"); }); await p.waitForTimeout(300);
   await b.evaluate(() => { save({ name: "Tab A, renamed in B" }, "rename"); }); await b.waitForTimeout(300);
   const q = await p.evaluate(() => JSON.parse(localStorage.getItem("kurve.p." + S.pid)));
-  check("two tabs changing different parts of one project keep both", q.name === "Tab A, renamed in B" && q.plot.grid === true, q.name + " " + q.plot.grid);
+  check("two tabs changing different parts of one project keep both", q.name === "Tab A, renamed in B" && q.graphs[0].plot.grid === true, q.name + " " + q.graphs[0].plot.grid);
 }, { name: "two tabs" });
 await page(async p => {
   await p.evaluate(() => { const blk = "x".repeat(1 << 18); try { for (let n = 0; n < 200; n++) localStorage.setItem("junk" + n, blk); } catch (e) {} });
@@ -101,9 +101,9 @@ await page(async p => {
 await page(async p => {
   await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith("kurve.")) localStorage.removeItem(k);
     localStorage.setItem("kurve.v1", JSON.stringify({ projects: { pa: { name: "Old A", v: 4, cols: [] } }, comments: { pa: { c1: { text: "old", t: 1 } } } }));
-    localStorage.setItem("kurve.layout", JSON.stringify({ v: 2, z: 5, wins: { graph: { g: [null, "a", -5, 1e9], open: true, z: 3 } } })); });
+    localStorage.setItem("kurve.layout", JSON.stringify({ v: 3, z: 5, wins: { sheet: { g: [null, "a", -5, 1e9], open: true, z: 3 } } })); });
   await p.reload(); await ready(p);
-  const r = await p.evaluate(() => ({ keys: Object.keys(localStorage).filter(k => /^kurve\.(p|c)\.|^kurve\.v1$/.test(k)).sort().join(","), h: document.querySelector("#w-graph").getBoundingClientRect().height }));
+  const r = await p.evaluate(() => ({ keys: Object.keys(localStorage).filter(k => /^kurve\.(p|c)\.|^kurve\.v1$/.test(k)).sort().join(","), h: document.querySelector("#w-sheet").getBoundingClientRect().height }));
   check("the single store of earlier versions is split into one key a project", r.keys === "kurve.c.pa,kurve.p.pa", r.keys);
   check("a corrupt saved layout is put back where a window starts", r.h > 100 && r.h < 2000, r.h);
 }, { name: "earlier versions" });
@@ -128,7 +128,7 @@ await page(async p => {
   const el = await p.$("#plot [data-anno]"), b = await el.boundingBox();
   await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await p.mouse.down(); await p.mouse.move(b.x + 60, b.y + 40, { steps: 5 });
   await p.keyboard.press("Control+z"); await p.mouse.move(b.x + 90, b.y + 60, { steps: 3 }); await p.mouse.up(); await p.waitForTimeout(300);
-  const r = await p.evaluate(() => ({ n: (P().plot.annos || []).length, redo: redoStack.length }));
+  const r = await p.evaluate(() => ({ n: (P().annos || []).length, redo: redoStack.length }));
   check("undo waits while a label is held, so letting go cannot bring back what it undid", r.n === 1 && r.redo === 0, JSON.stringify(r));
 }, { name: "undo while holding" });
 await page(async p => {
@@ -217,26 +217,52 @@ await page(async p => {
   check("broken formats in the store and in the project are left out, the good ones kept", r.proj.join() === "R" && r.lib.join() === "ok", JSON.stringify(r));
 }, { name: "formats" });
 
-console.log("A deleted first graph leaves nothing to the next one");
+console.log("Graphs come and go");
 await page(async p => {
-  const g = await p.evaluate(() => gauss(200, 150, 6, 10, 100, 1, 0));
-  await p.evaluate(async g => { await mkSpec("A", g.x, g.y); }, g); await p.waitForTimeout(200);
   const wait = ms => p.waitForTimeout(ms);
-  const y0 = await p.evaluate(() => { const y0 = activeYCol().id, c2 = Object.assign(makeCol("y", "B", "", activeYCol().data.map(v => v * 2)), { pipe: [], mask: [] });
-    save({ cols: P().cols.concat([c2]) }); plotCols([c2.id], {}); return y0; }); await wait(200);
-  /* the first graph's id is reused: a comment on its box and its folder must not pass to the next first graph */
-  await p.evaluate(() => { S.cDrafts = S.cDrafts || {}; S.cDrafts["node:" + mainKey()] = "About the first graph"; postNodeComment(mainKey());
-    const t = treeOf(P()); t.folders.push({ id: "fo", name: "Old", parent: null }); t.at["g:main"] = "fo"; saveTree(t, null, { noUndo: true }); }); await wait(300);
-  const th = () => p.evaluate(() => (S.comments || []).filter(c => c.anchor && c.anchor.type === "node").map(c => ({ on: c.anchor.key === mainKey(), lab: nodeLabel(c.anchor) })));
-  await p.evaluate(() => deleteGraph("main")); await wait(300);
-  await p.evaluate(y0 => plotCols([y0], {}), y0); await wait(300);
-  const r = await p.evaluate(() => ({ reused: !mainGone() && graphName("main") === "Graph 1", at: treeOf(P()).at["g:main"] || null })), t1 = await th();
-  check("the next first graph gets none of the deleted one's comments", r.reused && t1.length === 1 && !t1[0].on && /since removed/.test(t1[0].lab), JSON.stringify([r, t1]));
-  check("nor its place in the Explorer", r.at === null, r.at);
+  const st = () => p.evaluate(() => ({ gid: S.gid, act: (activeYCol() || {}).name, gs: (P().graphs || []).map(g => ({ id: g.id, cols: g.cols.map(k => colById(k).name), shut: !!g.plot.shut })), live: $("#gPane").parentElement.id }));
+  await p.evaluate(async () => { await createProject(blankProject("No graph"), "test"); }); await wait(300);
+  let r = await st();
+  check("a new project has no graph, and the live graph waits off the desk", r.gs.length === 0 && r.gid === null && r.live === "gPark", JSON.stringify(r));
+  const g = await p.evaluate(() => gauss(200, 150, 6, 10, 100, 1, 0));
+  await p.evaluate(async g => { await mkSpec("A", g.x, g.y); }, g); await wait(200);
+  const ids = await p.evaluate(() => { const a = activeYCol().id, c2 = Object.assign(makeCol("y", "B", "", activeYCol().data.map(v => v * 2)), { pipe: [], mask: [] });
+    save({ cols: P().cols.concat([c2]) }); plotCols([c2.id], {}); return [a, c2.id]; }); await wait(200);
+  r = await st(); const g1 = r.gs[0].id;
+  check("plotting one column, then another, makes a graph for each", r.gs.length === 2 && r.gs[0].cols.join() === "A" && r.gs[1].cols.join() === "B", JSON.stringify(r));
+  /* a comment on the first graph's box, and its folder */
+  await p.evaluate(g1 => { S.cDrafts = S.cDrafts || {}; S.cDrafts["node:graph:" + g1] = "About the first graph"; postNodeComment("graph:" + g1);
+    const t = treeOf(P()); t.folders.push({ id: "fo", name: "Old", parent: null }); t.at["g:" + g1] = "fo"; saveTree(t, null, { noUndo: true }); }, g1); await wait(300);
+  const th = () => p.evaluate(() => (S.comments || []).filter(c => c.anchor && c.anchor.type === "node").map(c => ({ key: c.anchor.key, lab: nodeLabel(c.anchor) })));
+  await p.evaluate(g1 => deleteGraph(g1), g1); await wait(300);
+  r = await st();
+  check("the first graph is deleted like any other: gone from the project", r.gs.length === 1 && !r.gs.some(q => q.id === g1) && r.gid === r.gs[0].id, JSON.stringify(r));
+  await p.evaluate(a => plotCols([a], {}), ids[0]); await wait(300);
+  r = await st(); const t1 = await th(), g4 = r.gs[r.gs.length - 1].id;
+  check("the next graph has an id of its own, and none of the deleted one's comments", g4 !== g1 && t1.length === 1 && t1[0].key === "graph:" + g1 && /since removed/.test(t1[0].lab), JSON.stringify([r, t1]));
+  check("nor its place in the Explorer", await p.evaluate(g4 => !(treeOf(P()).at || {})["g:" + g4], g4), "");
   await p.evaluate(() => { undo(); undo(); }); await wait(300);
-  const at = await p.evaluate(() => treeOf(P()).at["g:main"] || null), t2 = await th();
-  check("undoing the deletion gives both back", at === "fo" && t2.length === 1 && t2[0].on && !/since removed/.test(t2[0].lab), JSON.stringify([at, t2]));
-}, { name: "first graph deleted" });
+  const at = await p.evaluate(g1 => treeOf(P()).at["g:" + g1] || null, g1), t2 = await th();
+  check("undoing the deletion gives both back", at === "fo" && t2.length === 1 && !/since removed/.test(t2[0].lab), JSON.stringify([at, t2]));
+  /* the bugs reported: a curve taken off a graph of two */
+  await p.evaluate(ids => plotCols(ids, {}), ids); await wait(300);
+  r = await st(); const g3 = r.gid;
+  await p.evaluate(a => { setActiveCol(a, true); toggleColVis(a); }, ids[0]); await wait(300);
+  r = await st();
+  check("taking the analysed curve off a graph of two keeps that graph in front, the other analysed", r.gid === g3 && r.act === "B" && r.gs.find(q => q.id === g3).cols.join() === "B", JSON.stringify(r));
+  await p.evaluate(b => toggleColVis(b), ids[1]); await wait(300);
+  r = await st();
+  check("a graph's last curve stays: the graph is deleted, not emptied", r.gs.find(q => q.id === g3).cols.join() === "B", JSON.stringify(r));
+  await p.evaluate(g3 => closeGraph(g3), g3); await wait(300);
+  await p.evaluate(() => { for (const g of P().graphs.slice()) if (!g.plot.shut) closeGraph(g.id); }); await wait(300);
+  const n0 = (await st()).gs.length;
+  await p.evaluate(a => toggleColVis(a), ids[0]); await wait(300);
+  r = await st();
+  check("with the graphs closed, showing a column plots it on a graph of its own, not beside a closed graph's curves", r.gs.length === n0 + 1 && r.gs[r.gs.length - 1].cols.join() === "A" && r.gs.find(q => q.id === g3).cols.join() === "B", JSON.stringify(r));
+  await p.evaluate(() => { for (const g of P().graphs.slice()) deleteGraph(g.id); }); await wait(300);
+  r = await st();
+  check("every graph deleted leaves a project with none, the worksheet on the desk", r.gs.length === 0 && r.live === "gPark" && await p.evaluate(() => winOpen("sheet")), JSON.stringify(r));
+}, { name: "graphs come and go" });
 
 console.log("A curve fit held to one iteration, a tolerance of zero, starting values it cannot use");
 await page(async p => {

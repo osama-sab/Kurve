@@ -32,6 +32,8 @@ await p.addInitScript(() => { try { localStorage.setItem("kurve.ovAuto", "0"); }
 await p.goto(URL);
 await p.waitForFunction(() => typeof S !== "undefined" && S.pid && S.proj, null, { timeout: 15000 });
 await p.evaluate(async () => { await loadExample("ir"); }); await p.waitForTimeout(500);
+// Colours are measured as they settle, not part way through a transition from the last theme or state.
+await p.addStyleTag({ content: "*,*::before,*::after{transition:none!important}" });
 
 // [what, foreground token, background token, at least]
 const PAIRS = [];
@@ -61,7 +63,7 @@ for (const theme of ["light", "dark"]) for (const style of ["bench", "graphite"]
     const cs = getComputedStyle(document.documentElement), tok = n => cs.getPropertyValue(n).trim();
     const out = pairs.map(([n, f, b, need]) => ({ n, v: cr(tok(f), tok(b)), need, f: tok(f), b: tok(b) }));
     // Elements as drawn: the front window's title bar, a switched-on toolbar button, the front taskbar button.
-    focusWin("graph");
+    { const w = winOfGraph(S.gid) || "sheet"; focusWin(w); }
     const el = (sel, n, need) => { const e = document.querySelector(sel); if (!e) { out.push({ n: n + " (not found: " + sel + ")", v: 0, need }); return; } const s = getComputedStyle(e); out.push({ n, v: cr(s.color, s.backgroundColor), need, f: s.color, b: s.backgroundColor }); };
     el(".win.active .win-h", "the front window's title bar, as drawn", 4.5);
     el(".tb[aria-pressed=\"true\"]", "a switched-on toolbar button, as drawn", 4.5);
