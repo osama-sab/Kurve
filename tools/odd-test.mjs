@@ -342,6 +342,34 @@ await page(async p => {
   check("a search of brackets finds nothing and throws nothing", !r.err2 && r.shown === 0, JSON.stringify(r));
 }, { name: "models" });
 
+console.log("Confidence levels and residuals: junk from storage, no degrees of freedom, two points");
+await page(async p => {
+  const g = await p.evaluate(() => { const x=[], y=[]; for(let i=0;i<40;i++){ x.push(i*0.5); y.push(2+0.7*i*0.5+0.1*Math.sin(i*1.7)); } return {x,y}; });
+  await p.evaluate(async g => { await mkSpec("line", g.x, g.y); }, g); await p.waitForTimeout(200);
+  let r = await p.evaluate(() => { S.fitMode="curve"; showTab("fit"); chooseModel("linear"); runFit(); const f=P().fit, out={};
+    out.lev=["x",2,-1,null,0,1,"0.9"].map(c=>confPct(confOf(Object.assign({},f,{conf:c}))));
+    // A fit from before slice 4: no level, intervals at 95%.
+    const old=Object.assign({},f); delete old.conf; out.oldCi=JSON.stringify(ciOf(old,1))===JSON.stringify(ciOf(f,1));
+    save({fit:Object.assign({},f,{conf:"junk"})}); let err=""; try{ showDrawer("res"); renderResults(); renderPlot(); }catch(e){ err=e.message; }
+    out.err=err; out.head=(document.querySelector("#pane-res .rtab thead")||{}).textContent||"";
+    savePlot({residKind:"bogus",resid:true}); let err2=""; try{ renderPlot(); renderResults(); }catch(e){ err2=e.message; } out.err2=err2; out.kind=resKind();
+    out.nan=/NaN|Infinity/.test(document.querySelector("#plot").innerHTML+document.querySelector("#pane-res").innerHTML);
+    return out; });
+  check("a level that is not one from storage reads as 95%; 0.9 reads as 90%", JSON.stringify(r.lev) === JSON.stringify(["95","95","95","95","95","95","90"]), JSON.stringify(r.lev));
+  check("a fit from before has its intervals at 95%", r.oldCi);
+  check("junk for a level and for the residuals' kind draws, without NaN", !r.err && !r.err2 && r.head.includes("95% confidence interval") && r.kind === "raw" && !r.nan, JSON.stringify(r));
+  r = await p.evaluate(() => { const f=P().fit, out={};
+    // Every parameter fixed: no free parameter, nothing to invert.
+    const fx=Object.assign({},f,{fixed:[true,true],at:f.at+1}); let e1=""; try{ const D=fitDiag(fx); out.fx=D?{m:D.m,h:D.h.every(v=>v===0),lim:D.out.lim}:null; diagHtml(fx); }catch(e){ e1=e.message; } out.e1=e1;
+    // Two points: no degrees of freedom left for s, nor for an outlier limit.
+    const rs=residualStats((x,p)=>p[0]+p[1]*x,[0,1],[1,3],null,[1,2],[true,true]); out.two={s:rs.s,lim:outliersOf(rs,0.95).lim,idx:outliersOf(rs,0.95).idx.length};
+    const D0=fitDiag(f); out.n0=D0.n;
+    return out; });
+  check("every parameter fixed: no leverage, the analysis still made, nothing thrown", !r.e1 && r.fx && r.fx.m === 0 && r.fx.h, JSON.stringify(r));
+  check("two points and two parameters: no scatter, no outlier limit, no outlier", Number.isNaN(r.two.s) && Number.isNaN(r.two.lim) && r.two.idx === 0, JSON.stringify(r.two));
+  check("the analysis is of the points the fit used", r.n0 === 40, r.n0);
+}, { name: "conf and residuals" });
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

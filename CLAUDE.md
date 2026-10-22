@@ -148,6 +148,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   units of each parameter's own curvature, and finite-difference steps sized from an optional
   `pscale`. Those last two are what let a model mixing areas of 1e6 with widths of 10 converge.
   It returns standard errors, 95% CI, t and p values, `dep` (dependency), `atBound`, AIC and BIC.
+  `tCrit(level, dof)` is Student's t for a two-sided level, `tPvalue` turned round by bisection
+  (memoised, `TCRIT`); `tQuantile975` is its 95%, exact (it was an expansion good to 10⁻³).
+  `fPvalue(F, d1, d2)` is F's probability. `residualStats(f, X, Y, W, p, free)` gives a fit's
+  residuals in four kinds (`r`, weighted `e`, `std` e/s, `stud` e/(s√(1 − h)), `del` with s from
+  the fit without the point, in closed form) and each point's leverage `h` from the weighted
+  Jacobian over the free parameters (columns scaled before the inverse); `outliersOf(rs, level)`
+  is the points whose `del` is past the t limit for the largest of n (Bonferroni);
+  `fitAnova(Y, W, rss, m)` is Origin's table (model against the uncorrected total, residual,
+  both totals, F, p); `corrMat(cov, idx)`.
   Fit control: `opt.maxIter` (400) and `opt.tol` (1e-12, the fall in χ² as a fraction of it
   below which a step counts as settled; or no parameter moving by one part in 10¹⁰);
   `opt.onIter({iter, chi, lambda, p})` hears each step taken; `opt.lambda0`, `opt.pscale` and
@@ -324,7 +333,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   outside them, a parameter held by equal ones), and the curve fit's models (each recovered
   from its own guess at 0.01% and 2% noise within five errors, derived values against their
   definitions, a wave of 1.3 cycles, a peak leaning left, the X checks, the ids shipped
-  before). Run it after touching any of this.
+  before), and the residual analysis (t against the tables, F's closed form, a straight line's
+  leverage, the deleted residual against refitting without each point, fixed parameters,
+  weights, a curve's leverages, a planted outlier found and clean data rarely flagged, the
+  ANOVA's sums, the correlation matrix). Run it after touching any of this.
   `matchPeakTracks(lists, {tol, dx})` follows the same peak through a series: each spectrum's
   peaks (`{x, w}`) join the track whose last position is nearest, within `tol` (0.5) of the
   larger FWHM (`dx` when neither has one), closest pairs first, two peaks of one spectrum never
@@ -441,6 +453,28 @@ graph first, with the taskbar kept at the bottom of the screen.
   dig)` shows a value and its error with chosen digits (the grid, Results and the report; the
   CSV and the copied table keep every digit); changing the digits of the fit on screen saves
   them on it at once (one undo entry).
+  **The confidence level and the residuals** (`FIT_SPEC.md` slice 4): a draft's `d.conf` and a
+  fit's `conf` (null or missing for 95%; `confOf`, `confPct`, `confKeep`), set in both Fit
+  windows' options (`confHtml`, `wireConf`, `setConf`: 90, 95, 99, 99.9 or Other…; the fit on
+  screen takes it at once, one undo entry), carried by `batchTemplate`, `fitOne` and global
+  rows. `ciOf(f, i)` is a parameter's interval at it (`ciDof`: a global row's whole dof),
+  read by the grid, `paramRows`, Results, the copied table, the report and the CSV; the bands
+  use `tCrit(confOf(fit), …)`, and their labels say the level. `fitDiag(f, {auto})` is the
+  analysis on the fit's own points (in its range, weighted as it was; tied, fixed and at-limit
+  parameters not free; memoised in `DIAG`): `residualStats`, `out` (`outliersOf`) and `anova`;
+  null for a fit with the X errors; with `auto` (the notes, the raw panel) null when 2m sweeps
+  of the model, timed on one, pass 120 ms (`DSKIP`). `RES_KINDS` (raw, std, stud, del) and
+  `RES_VIEWS` (x, fit, order, hist, prob, lag); the graph's `residKind` (`resKind()`, the Format
+  dialog's layout page, Results' list) is what the panel under the graph shows, against X, with
+  the deleted residuals' limit (`data-rlim`) and outliers ringed (`data-rout`); `S.resView`
+  (`kurve.resview`) is Results' view. `residChartSvg(D, kind, view, o)` draws one view (one path
+  of dots, the limit, rings, a histogram's normal curve, probability paper's line `data-rref`).
+  Results' `diagHtml(f)`/`wireDiag`: three folding parts (`details.rd`, `S.rOpen`): Analysis of
+  variance (`anovaRows`), Correlation and covariance (`covRows`: the free parameters; above 0.95
+  marked), Residuals (kind and view lists, the chart, s and the limit, the outliers with
+  `maskOutliers`, one undo entry); only while Results is open, and for a heavy fit a single
+  part that works them out when opened. `fitWarnings` adds `outliers`; `reportDiagHtml` and
+  `diagText` (the copied table, the CSV under `# `) carry the same.
 - **Batch fits and series** (`p.batch`, `p.series`, both in `UNDO_KEYS`): the analysed
   spectrum's fit is the template (`batchTemplate`: model, peaks with shapes, ties and fixed
   parameters, baseline or curve model, X range, weighting, X units). `runBatch({tmpl, seed,
@@ -1844,7 +1878,9 @@ are closed), a curve fit held to one iteration or started where its
 model cannot be evaluated, limits (strict right at the start, every parameter held by equal
 ones, crossed ones from storage, ones of the wrong shape), the curve fit's models (a fit stored
 as `poly2` before, a model that is gone, every guess on X through 0, X a model cannot take,
-a function that does not compile in the list). Run it after touching storage, the axes, the
+a function that does not compile in the list), the confidence level and residuals (a level or a
+kind of residual that is junk from storage, a fit from before, every parameter fixed, two
+points). Run it after touching storage, the axes, the
 parser, undo or the PDF and EPS writer. It serves the file over HTTP (a server of its own, on a
 free port) and waits for each page to be ready (a project on the desk), never a fixed time.
 `node tools/sheet-fuzz.mjs [path] [seed or a-b] [steps]` drives the worksheet as an erratic
@@ -2479,6 +2515,11 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A fixed element has no offsetParent.** A drive's test of visibility (`offsetParent !==
   null`) said the picker never opened, and that it had closed when it was open. Ask for the
   element, or its rectangle.
+- **A diagnostic worked out on every render costs every render.** `renderFit` redraws Results,
+  and Results first worked out the residual analysis for the fit each time it drew: a third
+  of a second for a peak fit of 4000 points and eight Voigt peaks, paid on every fit with
+  Results closed. It is worked out only while Results is open, a heavy one when asked, and the
+  notes time one sweep of the model before deciding to.
 - **A class name is global, once more.** The pickers' entrance was first written for `.fp`,
   which is the History's code for a fingerprint: every check code would have faded in. The
   pickers are `.fpick` and `.cpick`; grep a class before styling it.
@@ -2504,7 +2545,12 @@ Gaussian, Lorentzian, Voigt, pseudo-Voigt, Pearson VII, log-normal and extreme-v
 power law, logarithm, Arrhenius; sine and damped sine), each parameter with its meaning and
 unit, a guess from the data, derived values with errors; picked from a list by kind with a
 sketch and the formula of each, searched by name, purpose, parameter or Origin's name; X a
-model cannot take refused in words.
+model cannot take refused in words. Slice 4 done: a confidence level for every fit (90, 95, 99,
+99.9% or any), for its intervals, its bands and its outlier limit; the analysis of variance; the
+correlation and covariance of the parameters; residuals regular, standardised, studentised and
+studentised deleted, under the graph and in six views in Results; outliers past a Bonferroni
+limit, ringed, listed and masked in one step; all of it in the report, the copied table and the
+CSV.
 
 Between slices 1 and 2, from the user's bug reports: graphs as one list (document version 5).
 A project has no graph until something is plotted, so a project can be worksheet calculations
@@ -2877,6 +2923,9 @@ Next, in order:
 - Plotting from the worksheet plots whole columns (no range of rows, no plot of a selection
   of cells), against an X column; a closed graph is closed for everyone who opens the
   project, and a viewer who cannot edit cannot open it
+- Under heavy load (three random users at once) the worksheet can lose a value typed just after
+  leaving a cell whose text was not a number, or miss a double click: `sheet-fuzz.mjs` seed 9
+  finds it then, and is clean alone
 - The worksheet holds numbers only (no text cells); rows are inserted and deleted whole, never
   cells shifted within a column; a comment attached to a point keeps its row number when rows
   above it are inserted or deleted; the sorted view is a view, so a value typed into it takes
@@ -2946,6 +2995,12 @@ Next, in order:
   guesses are measured heuristics (two or three decays from a grid of 16 decay times, a wave's
   period from at most 600 points), and a sketch shows typical values, not the data's; your
   functions have no kind of their own in the list yet
+- Residual analysis: the leverage is from the Jacobian, so a curve's studentised deleted
+  residuals are the first-order answer (exact for a model linear in its parameters); a fit
+  with the X errors has none; the panel under the graph shows residuals against X only (the
+  other views are in Results); the ANOVA's model row is against the uncorrected total, as
+  Origin's NLFit (R² is the corrected comparison); no Durbin–Watson statistic; a global fit's
+  row is analysed on its own points; the confidence level is the fit's, not chosen per graph
 - Limits and digits are the curve fit's: a peak fit keeps its shapes' own bounds; Share stays
   in Fit every column… rather than the grid; digits change what is shown, not the numbers kept
   (the CSV and the copied table keep every digit), and a fit of every column takes the

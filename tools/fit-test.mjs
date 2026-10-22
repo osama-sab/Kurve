@@ -16,7 +16,7 @@ const grab = (tag) => {
 // tools/pipe-test.mjs tests the rest of it. The curve fit's models are a block of
 // their own (MODELS), after the pipeline.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("MODELS")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -866,6 +866,53 @@ check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
   // X a model cannot take is said, not fitted.
   const xb = N.modelXBad(M.power, [0, 1, 2]), xh = N.modelXBad(M.hill, [0, 1, 2]), xh2 = N.modelXBad(M.hill, [-1, 1]);
   check("models: X a model cannot take is found (a power of x at 0; Hill below 0), and every X of the others will do", xb && xb.x === 0 && xb.strict && xh === null && xh2 && xh2.x === -1 && !xh2.strict && N.modelXBad(M.gauss, [-5, 0, 5]) === null);
+}
+
+/* ---------- confidence levels, the F test, residuals and leverage, outliers, ANOVA ---------- */
+{
+  const tab = [[0.95, 1, 12.7062047], [0.95, 2, 4.3026527], [0.95, 10, 2.2281389], [0.99, 1, 63.6567412], [0.99, 30, 2.7499957], [0.9, 5, 2.0150484], [0.999, 3, 12.9239786]];
+  check("t for any confidence level, against the tables", tab.every(([l, d, t]) => near(N.tCrit(l, d), t, 2e-6)), tab.map(([l, d]) => N.tCrit(l, d)).join(","));
+  check("t at 95% for a great many degrees of freedom is the normal 1.96", near(N.tCrit(0.95, 1e6), 1.959966, 1e-5) && near(N.tCrit(0.6827, 1e6), 1.0, 2e-4));
+  check("the 97.5% t is t at 95%, exact now", N.tQuantile975(7) === N.tCrit(0.95, 7) && near(N.tQuantile975(7), 2.3646243, 1e-6));
+  check("t refuses a level outside (0, 1) or no degrees of freedom", [N.tCrit(1, 5), N.tCrit(0, 5), N.tCrit(0.95, 0), N.tCrit(NaN, 5)].every(Number.isNaN));
+  check("F's probability: (1 + d1 F/d2)^(-d2/2) when d1 = 2", rel(N.fPvalue(4, 2, 10), Math.pow(1.8, -5), 1e-9) && N.fPvalue(0, 3, 9) === 1 && Number.isNaN(N.fPvalue(2, 0, 9)));
+  // A straight line, where leverage and the deleted residuals have closed forms.
+  const rnd = N.mulberry32(11), n = 25, X = [], Y = [];
+  for (let i = 0; i < n; i++) { const x = i * 0.4 + (i % 3) * 0.13; X.push(x); Y.push(2 + 0.7 * x + 0.3 * (rnd() - 0.5) * 2); }
+  const lin = (x, p) => p[0] + p[1] * x, fit = N.lmFit(lin, X, Y, X.map(() => 1), [0, 1], [false, false]);
+  const rs = N.residualStats(lin, X, Y, null, fit.params, [true, true]);
+  const mx = X.reduce((a, b) => a + b) / n, sxx = X.reduce((a, x) => a + (x - mx) ** 2, 0);
+  check("leverage of a straight line is 1/n + (x − x̄)²/Sxx, and adds up to 2", rs.h.every((h, i) => near(h, 1 / n + (X[i] - mx) ** 2 / sxx, 1e-7)) && near(rs.h.reduce((a, b) => a + b), 2, 1e-7));
+  check("s² is the residual sum of squares over the degrees of freedom", rel(rs.s * rs.s, fit.stats.rss / (n - 2), 1e-9) && rs.dof === n - 2);
+  check("standardised and studentised residuals", rs.std.every((v, i) => rel(v, rs.e[i] / rs.s, 1e-12)) && rs.stud.every((v, i) => rel(v, rs.e[i] / (rs.s * Math.sqrt(1 - rs.h[i])), 1e-12)));
+  // The deleted residual against refitting without the point, every point.
+  const brute = X.map((_, k) => { const Xk = X.filter((_, i) => i !== k), Yk = Y.filter((_, i) => i !== k), fk = N.lmFit(lin, Xk, Yk, Xk.map(() => 1), fit.params.slice(), [false, false]);
+    return rs.e[k] / (Math.sqrt(fk.stats.rss / (n - 3)) * Math.sqrt(1 - rs.h[k])); });
+  check("a studentised deleted residual is the point's residual against s refitted without it", rs.del.every((v, i) => rel(v, brute[i], 1e-5)), JSON.stringify([rs.del[3], brute[3]]));
+  const rf = N.residualStats(lin, X, Y, null, fit.params, [true, false]);
+  check("a fixed parameter is not free: the leverages add up to 1", near(rf.h.reduce((a, b) => a + b), 1, 1e-7) && rf.dof === n - 1);
+  const W = X.map((_, i) => 1 / (0.2 + 0.05 * i)), fw = N.lmFit(lin, X, Y, W, [0, 1], [false, false]), rw = N.residualStats(lin, X, Y, W, fw.params, [true, true]);
+  check("weighted: the residuals are W·(y − f), s² is reduced χ², the leverages add up to 2", rw.e.every((v, i) => rel(v, (Y[i] - lin(X[i], fw.params)) * W[i], 1e-12)) && rel(rw.s * rw.s, fw.stats.redChi2, 1e-9) && near(rw.h.reduce((a, b) => a + b), 2, 1e-7));
+  // A curve: the leverages add up to the free parameters there too.
+  const M = N.MODELS.expdec, Xd = [], Yd = [], rd = N.mulberry32(4); for (let i = 0; i < 60; i++) { const x = i * 0.15; Xd.push(x); Yd.push(M.f(x, [1, 4, 1.7]) + 0.02 * (rd() - 0.5)); }
+  const fd = N.lmFit(M.f, Xd, Yd, Xd.map(() => 1), M.guess(Xd, Yd), [false, false, false]), rdd = N.residualStats(M.f, Xd, Yd, null, fd.params, [true, true, true]);
+  check("a curve's leverages add up to its free parameters, each between 0 and 1", near(rdd.h.reduce((a, b) => a + b), 3, 1e-5) && rdd.h.every(h => h >= 0 && h <= 1));
+  // Outliers: one planted is found and only it; clean data rarely flag anything.
+  const Yo = Y.slice(); Yo[12] += 2.5; const fo = N.lmFit(lin, X, Yo, X.map(() => 1), [0, 1], [false, false]), ro = N.residualStats(lin, X, Yo, null, fo.params, [true, true]), oo = N.outliersOf(ro, 0.95);
+  check("a planted outlier is the one point past the limit", oo.idx.length === 1 && oo.idx[0] === 12 && oo.lim > N.tCrit(0.95, n - 3), JSON.stringify(oo));
+  let any = 0; const rr = N.mulberry32(21);
+  for (let k = 0; k < 200; k++) { const Yc = X.map(x => 2 + 0.7 * x + 0.3 * Math.sqrt(-2 * Math.log(rr() || 1e-12)) * Math.cos(2 * Math.PI * rr())), fc = N.lmFit(lin, X, Yc, X.map(() => 1), [0, 1], [false, false]);
+    if (N.outliersOf(N.residualStats(lin, X, Yc, null, fc.params, [true, true]), 0.95).idx.length) any++; }
+  check("with no outlier, some point is flagged in about one data set in twenty, not in every one", any <= 22, `${any} of 200`);
+  check("too few points for a deleted residual: no outliers, no limit", Number.isNaN(N.outliersOf(N.residualStats(lin, [0, 1, 2], [1, 2, 4], null, [1, 1], [true, true]), 0.95).lim));
+  // ANOVA.
+  const an = N.fitAnova(Y, null, rs.rss, 2), my = Y.reduce((a, b) => a + b) / n;
+  check("ANOVA: what the fit explains and the residual make the uncorrected total", rel(an.reg.ss + an.res.ss, Y.reduce((a, y) => a + y * y, 0), 1e-12) && an.reg.df === 2 && an.res.df === n - 2 && an.utot.df === n && an.ctot.df === n - 1);
+  check("ANOVA: the corrected total, mean squares, F and its probability", rel(an.ctot.ss, Y.reduce((a, y) => a + (y - my) ** 2, 0), 1e-12) && rel(an.reg.F, (an.reg.ss / 2) / (an.res.ss / (n - 2)), 1e-12) && an.reg.p === N.fPvalue(an.reg.F, 2, n - 2));
+  const aw = N.fitAnova(Y, W, rw.rss, 2);
+  check("ANOVA weighted: sums of w·y² about zero and about the weighted mean", rel(aw.utot.ss, Y.reduce((a, y, i) => a + W[i] * W[i] * y * y, 0), 1e-12) && aw.ctot.ss < aw.utot.ss);
+  const C = N.corrMat(fit.cov, [0, 1]);
+  check("the correlation matrix: ones on the diagonal, symmetric, the intercept and slope anticorrelated over positive x", near(C[0][0], 1, 1e-12) && near(C[1][1], 1, 1e-12) && C[0][1] === C[1][0] && C[0][1] < 0);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

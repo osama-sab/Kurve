@@ -560,6 +560,34 @@ rows of "Polynomial of order k" would bury the other kinds. A model that takes t
 of x refuses X it cannot take in words before fitting, rather than letting the fit fail on a
 NaN; the message says what to do (a range of X above 0).
 
+### 2026-10-22: the fit's level and its residuals (FIT_SPEC slice 4)
+
+A fit has one confidence level, and it is a way of reading the fit rather than a way of making
+it: the intervals, the two bands and the outlier limit follow it, and changing it changes the
+fit on screen at once (as its digits do), with one undo entry. It sits with the fit's options,
+a list of the usual levels (90, 95, 99, 99.9) and Other… for any, so the common choice is one
+click and an odd one (68.27) is still possible; a level outside 0 to 100 is refused in words.
+
+The panel under the graph keeps one view, against X, because it shares the graph's X axis and
+that is where a reader looks for where the model misses; it shows the kind of residual chosen.
+The other views (against the fitted value, in the order recorded, as a histogram, on
+probability paper, against the residual before) are a chart in Results, beside the numbers
+they explain, as Origin puts its residual plots in the report sheet. Results' new parts (the
+analysis of variance, the correlation and covariance, the residuals) fold, so the parameters
+stay at the top of a short dock; Residuals opens by itself when there are outliers, and the
+notes above the table say so, so the report does too.
+
+An outlier is a point whose studentised deleted residual is past the t limit for the largest
+of all the points (Bonferroni), not past a per-point 95% limit, which would flag one point in
+twenty of perfectly good data and teach people to ignore the flag. Outliers are ringed on the
+graph and in the chart, listed with their leverage, and masked in one step, which leaves the
+fit out of date until it is fitted again: masking is the user's decision, refitting too.
+
+The analysis costs a Jacobian, which for a peak fit of thousands of points is a third of a
+second. It is worked out only while Results is open, and for a fit that heavy only when its
+section is opened; the notes check for outliers only when the model is cheap (timed on one
+sweep), so a fit never waits on its own diagnostics.
+
 ### 2026-10-17: defaults (UX rework, Phase 4 slice 5)
 
 From the Phase 2 defaults audit and Phase 1 T2, T4, T6 and T8: a Gaussian offered for a

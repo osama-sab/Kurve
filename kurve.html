@@ -558,6 +558,20 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .mp-i[hidden]{display:none}
 .mp-none{margin:0;padding:var(--sp-5) var(--sp-4);color:var(--muted)}
 .mpick .fp-f .lab{margin-left:auto}
+/* The confidence level, and Results' analysis of variance, matrices and residuals (FIT_SPEC slice 4). */
+.fconf .pair input{width:72px}
+details.rd{margin-top:var(--sp-5)}
+details.rd>summary .rbad{color:var(--bad);font-weight:600}
+.rscroll{overflow-x:auto;max-width:100%}
+.rtab.rmat td,.rtab.rmat th{white-space:nowrap}
+.rtab .rhi{color:var(--bad);font-weight:600}
+.rtab .pn{font-style:italic;font-family:var(--serif)}
+.rsub{margin:var(--sp-4) 0 var(--sp-2);font-size:var(--fs-body);font-weight:600}
+.rsel{display:flex;gap:var(--sp-3);flex-wrap:wrap;margin:var(--sp-3) 0}
+.rsel select{flex:1 1 140px;min-width:0}
+.rchartw{max-width:520px}
+.rchart{display:block;width:100%;height:auto;background:var(--panel-2);border-radius:var(--r-s)}
+.rdnone{margin-top:var(--sp-5)}
 .ufacts{margin:calc(var(--sp-2) * -1) 0 var(--sp-3);flex-wrap:wrap;align-items:center}
 .rfx code{font:var(--fs-tab)/1.5 var(--mono);color:var(--ink-2);overflow-wrap:anywhere}
 .fnb .fblab{display:block;margin:var(--sp-1) 0 var(--sp-2);color:var(--ink-2)}
@@ -2037,13 +2051,8 @@ function inverse(A){
     if(!x.every(Number.isFinite)) return null; cols.push(x); }
   return A.map((_,i)=>cols.map(c=>c[i]));
 }
-function tQuantile975(dof){ // Cornish–Fisher style expansion, good to ~1e-3 for dof>=3
-  if(dof<=0) return NaN;
-  const table=[12.706,4.303,3.182,2.776,2.571];
-  if(dof<=5) return table[Math.round(dof)-1];
-  const z=1.959964, n=dof;
-  return z+(z**3+z)/(4*n)+(5*z**5+16*z**3+3*z)/(96*n*n)+(3*z**7+19*z**5+17*z**3-15*z)/(384*n**3);
-}
+// The t of a 95% interval: tCrit's, exact (it was an expansion good to 1e-3).
+function tQuantile975(dof){ return tCrit(0.95,dof); }
 /* Regularised incomplete beta, for the p-value of each fitted parameter. */
 function betacf(a,b,x){
   const FPMIN=1e-300; let qab=a+b,qap=a+1,qam=a-1,c=1,d=1-qab*x/qap;
@@ -2074,6 +2083,63 @@ function tPvalue(t,dof){ // two-sided P(>|t|)
   if(!Number.isFinite(t)||dof<=0) return NaN;
   return betai(dof/2,0.5,dof/(dof+t*t));
 }
+/* Student's t for a two-sided confidence level (0.95 gives t at 97.5%):
+   tPvalue turned round by bisection, to the precision of betai. A level
+   strictly between 0 and 1 and degrees of freedom above 0, else NaN. */
+const TCRIT=new Map();
+function tCrit(level,dof){
+  if(!(dof>0)||!(level>0&&level<1)) return NaN;
+  const key=level+":"+dof, hit=TCRIT.get(key); if(hit!==undefined) return hit;
+  const a=1-level; let lo=0, hi=1;
+  while(tPvalue(hi,dof)>a&&hi<1e300) hi*=2;
+  for(let i=0;i<200&&hi-lo>1e-15*hi;i++){ const m=(lo+hi)/2; if(tPvalue(m,dof)>a) lo=m; else hi=m; }
+  const t=(lo+hi)/2; if(TCRIT.size>500) TCRIT.clear(); TCRIT.set(key,t); return t;
+}
+// The chance of an F at least this large with d1 and d2 degrees of freedom.
+function fPvalue(F,d1,d2){ if(!(d1>0&&d2>0)||!Number.isFinite(F)||Number.isNaN(F)) return NaN; return F<=0?1:betai(d2/2,d1/2,d2/(d2+d1*F)); }
+/* A fit's residuals in the four forms Origin offers, and each point's
+   leverage. e is the weighted residual W·(y − f) (W = 1/σ, or 1), s² = Σe²/dof;
+   the hat matrix is J(JᵀJ)⁻¹Jᵀ of the weighted Jacobian over the free
+   parameters (fixed, tied and at-a-limit ones are not free), so the leverages
+   add up to their number. Standardised: e/s. Studentised: e/(s√(1 − h)).
+   Studentised deleted: the same with s from the fit without that point, in
+   closed form (exact for a model linear in its parameters, the first-order
+   answer for a curve). Columns of J are scaled to unit length before the
+   inverse, which leaves h as it is. Null with no points. */
+function residualStats(f,X,Y,W,p,free,opt){
+  opt=opt||{}; const n=X.length; if(!n) return null;
+  const idx=p.map((_,i)=>i).filter(i=>free[i]), m=idx.length, dof=n-m, w=W||X.map(()=>1);
+  const yhat=X.map(x=>f(x,p)), r=Y.map((y,i)=>y-yhat[i]), e=r.map((v,i)=>v*w[i]);
+  let ss=0; e.forEach(v=>{ ss+=v*v; }); const s=dof>0?Math.sqrt(ss/dof):NaN;
+  const ps=opt.pscale||p.map(v=>Math.abs(v)||1), J=X.map(()=>new Array(m).fill(0)), nrm=new Array(m).fill(0);
+  idx.forEach((pi,j)=>{ const h=Math.max(Math.abs(p[pi])*1e-6,Math.abs(ps[pi])*1e-7,1e-12), a=p.slice(), b=p.slice(); a[pi]+=h; b[pi]-=h;
+    for(let i=0;i<n;i++){ const d=w[i]*(f(X[i],a)-f(X[i],b))/(2*h); J[i][j]=Number.isFinite(d)?d:0; nrm[j]+=J[i][j]*J[i][j]; } });
+  let h=new Array(n).fill(m?NaN:0);
+  if(m){ const sc=nrm.map(v=>v>0?1/Math.sqrt(v):0); J.forEach(row=>{ for(let j=0;j<m;j++) row[j]*=sc[j]; });
+    const A=Array.from({length:m},(_,a)=>Array.from({length:m},(_,b)=>{ let t=0; for(let i=0;i<n;i++) t+=J[i][a]*J[i][b]; return t; })), inv=inverse(A);
+    if(inv) h=J.map(row=>{ let t=0; for(let a=0;a<m;a++){ if(!row[a]) continue; let u=0; for(let b=0;b<m;b++) u+=inv[a][b]*row[b]; t+=row[a]*u; } return Math.min(1,Math.max(0,t)); }); }
+  const std=e.map(v=>v/s), stud=e.map((v,i)=>{ const q=1-h[i]; return q>1e-12?v/(s*Math.sqrt(q)):NaN; });
+  const del=e.map((v,i)=>{ const q=1-h[i]; if(!(q>1e-12)||dof<2) return NaN; const s2=(dof*s*s-v*v/q)/(dof-1); return s2>0?v/Math.sqrt(s2*q):NaN; });
+  return {n,m,dof,s,rss:ss,yhat,r,e,h,std,stud,del};
+}
+/* Outliers: the points whose studentised deleted residual is past the t
+   limit for the largest of n at this level (Bonferroni), so a good point is
+   flagged with a chance of about 1 − level, not at every twentieth point. */
+function outliersOf(rs,level){ if(!rs||!(rs.dof>=2)) return {lim:NaN,idx:[]};
+  const lim=tCrit(1-(1-level)/rs.n,rs.dof-1); return {lim,idx:rs.del.map((v,i)=>Math.abs(v)>lim?i:-1).filter(i=>i>=0)}; }
+/* Origin's analysis of variance for a fit: what it explains (the uncorrected
+   total less the residual, m degrees of freedom), the residual, and the
+   totals about zero and about the (weighted) mean; F = (SSreg/m)/(RSS/dof),
+   with its probability. W as lmFit's (1/σ, or none); rss the weighted sum. */
+function fitAnova(Y,W,rss,m){
+  const n=Y.length, w=W?W.map(v=>v*v):Y.map(()=>1); let sw=0, swy=0, uy=0;
+  Y.forEach((y,i)=>{ sw+=w[i]; swy+=w[i]*y; uy+=w[i]*y*y; });
+  const mean=swy/sw; let ct=0; Y.forEach((y,i)=>{ ct+=w[i]*(y-mean)*(y-mean); });
+  const dof=n-m, reg=uy-rss, msr=m>0?reg/m:NaN, mse=dof>0?rss/dof:NaN, F=msr/mse;
+  return {n,m,dof,reg:{df:m,ss:reg,ms:msr,F,p:fPvalue(F,m,dof)},res:{df:dof,ss:rss,ms:mse},utot:{df:n,ss:uy},ctot:{df:n-1,ss:ct}};
+}
+// The correlation matrix of the parameters idx from a covariance matrix.
+function corrMat(cov,idx){ return idx.map(i=>idx.map(j=>{ const d=Math.sqrt(cov[i][i]*cov[j][j]); return d>0?cov[i][j]/d:NaN; })); }
 
 function lmFit(f, X, Y, W, p0, fixed, opt){
   opt=opt||{};
@@ -4924,6 +4990,8 @@ function fitWarnings(f){
   }
   if(f.global&&f.gstats){ const b=P()&&P().batch, t=b&&b.tmpl, sh=f.shared||[], names=t&&t.params.length===sh.length?shareSummary(t,sh):`${sh.filter(Boolean).length} parameters`;
     out.push({level:"info", kind:"global", text:`Fitted together with ${f.gstats.K-1} other columns, sharing ${names}: ${sh.filter(Boolean).length===1?"that value is":"those values are"} the same in all of them, and every error comes from all their points (${f.gstats.n} points, ${f.gstats.m} parameters, reduced χ² ${fmtOr(f.gstats.redChi2,4)}).`}); }
+  { const D=fitDiag(f,{auto:true}); if(D&&D.out.idx.length){ const k=D.out.idx.length, xs=D.out.idx.slice(0,6).map(i=>fmt(D.pts[i].x,5)).join(", ")+(k>6?", …":"");
+    out.push({level:"warn", kind:"outliers", text:`${k} point${k===1?" is":"s are"} past the outlier limit, a studentised deleted residual beyond ±${fmt(D.out.lim,3)} (the t limit at ${confPct(confOf(f))}% for the largest of ${D.n}): x = ${xs}. Results › Residuals lists ${k===1?"it":"them"}, and can mask ${k===1?"it":"them"} for the next fit.`}); } }
   const rt=runsTest(fitResiduals(f));
   if(rt&&rt.p<0.001) out.push({level:"info", kind:"runs", text:`The residuals run in long stretches of one sign (${rt.runs} runs where about ${Math.round(rt.expected)} would be expected by chance), so the model is missing something systematic even though R\u00b2 may look good. ${FM.composite?"Try another peak shape, an extra peak, or a higher-order baseline.":"Try a different model."} The residual panel under the graph shows where.`});
   return out;
@@ -7582,10 +7650,16 @@ function buildPlot(W,H,pal,colEx,opt){
   const legRows=Math.ceil(entries.length/legNc), ltw=legTitle?richW(legTitle,Object.assign({},LS,{b:true}))+lpad*2:0;
   const legW=Math.max(ltw,lpad*2+legNc*colW+(legNc-1)*10), legH=legRows*lh+lpad+(legTitle?lh:0);
   const gap=10;
-  let rp=[];
+  let rp=[], rpK=null;
   if(residOn(cfg,fit)){
     const fr=fit.range||[-Infinity,Infinity], vx0=Math.min(v.x0,v.x1), vx1=Math.max(v.x0,v.x1);
     rp=pts.filter(q=>q.x>=fr[0]&&q.x<=fr[1]&&q.x>=vx0&&q.x<=vx1).map(q=>({...q,r:q.y-FM.f(q.x,fit.params)})).filter(q=>Number.isFinite(q.r));
+    // Standardised or studentised, the points the fit used; outliers ringed in any kind.
+    const rk=resKindOf(cfg.residKind), D=fitDiag(fit,{auto:rk==="raw"});
+    if(D){ const vals=resVals(D,rk), at=new Map(), out=new Set(D.out.idx); D.pts.forEach((q,i)=>at.set(q.i,i));
+      if(rk!=="raw") rp=rp.filter(q=>at.has(q.i)&&Number.isFinite(vals[at.get(q.i)])).map(q=>({...q,r:vals[at.get(q.i)]}));
+      rp.forEach(q=>{ if(at.has(q.i)&&out.has(at.get(q.i))) q.out=true; });
+      if(rk!=="raw") rpK={kind:rk,lim:rk==="del"&&Number.isFinite(D.out.lim)?D.out.lim:null}; }
   }
   // Too small a graph has no room for residuals worth reading; it shows the fit alone.
   const showRes=rp.length>0&&H>=280, resH=showRes?Math.max(64,Math.round(H*0.2)):0;
@@ -7780,7 +7854,7 @@ function buildPlot(W,H,pal,colEx,opt){
   if(fit){
     const fr=fit.range||[v.x0,v.x1], a=Math.max(fr[0],Math.min(v.x0,v.x1)), b=Math.min(fr[1],Math.max(v.x0,v.x1));
     if(b>a){
-      const N=240, tq=tQuantile975(fit.stats?fit.stats.dof:30); const up=[], lo=[], mid=[], pu=[], pl=[];
+      const N=240, tq=tCrit(confOf(fit),fit.stats?ciDof(fit):30); const up=[], lo=[], mid=[], pu=[], pl=[];
       const showC=cfg.bandConf!==false, showP=!!cfg.bandPred, ylo=w=>logY?Math.max(w,v.y0*1e-3):w;
       /* The prediction band adds the scatter of one new measurement to the
          curve's own uncertainty: the residual variance (reduced chi-squared)
@@ -7997,16 +8071,19 @@ function buildPlot(W,H,pal,colEx,opt){
       s+=richText(t2,{attrs:ed("y2"),tf:`translate(${f1(tx)},${f1(ty)}) rotate(90)`,anchor:al==="start"?"end":al==="end"?"start":"middle",st:AT("y2"),fill:Y2A.col||axR||pal.ink}); } }
   if(showRes){
     const un=rp.filter(q=>!isMasked(q.i));
-    const ra=(un.length?un:rp).reduce((m,q)=>Math.max(m,Math.abs(q.r)),1e-300)*1.15; const top=T+mhAll+gap;
+    const ra=Math.max((un.length?un:rp).reduce((m,q)=>Math.max(m,Math.abs(q.r)),1e-300),rpK&&rpK.lim?rpK.lim:0)*1.15; const top=T+mhAll+gap;
     const RY=val=>top+resH/2-val/ra*(resH/2);
     const rt=niceTicks(-ra,ra,resH/32), r=pts.length>400?2:pts.length>150?2.8:3.4;
     s+=plotBg(top,resH);
     s+=`<g clip-path="url(#clipR)"><line x1="${L}" x2="${L+pw}" y1="${RY(0)}" y2="${RY(0)}" stroke="${fitSt.color}" stroke-width="1" stroke-dasharray="4 3"/>`;
-    rp.forEach(q=>{ const x=X(q.x), y=RY(q.r), c=isMasked(q.i)?pal.masked:actSt.color; s+=`<line x1="${x}" x2="${x}" y1="${RY(0)}" y2="${y}" stroke="${c}" stroke-width="1" opacity="0.6"/><circle cx="${x}" cy="${y}" r="${Math.min(r,2.6)}" fill="${isMasked(q.i)?pal.bg:c}" stroke="${c}" stroke-width="1"/>`; });
+    if(rpK&&rpK.lim) [rpK.lim,-rpK.lim].forEach(l=>{ s+=`<line x1="${L}" x2="${L+pw}" y1="${f1(RY(l))}" y2="${f1(RY(l))}" stroke="${pal.muted}" stroke-width="1" stroke-dasharray="6 3" data-rlim="1"/>`; });
+    rp.forEach(q=>{ const x=X(q.x), y=RY(q.r), c=isMasked(q.i)?pal.masked:actSt.color; s+=`<line x1="${x}" x2="${x}" y1="${RY(0)}" y2="${y}" stroke="${c}" stroke-width="1" opacity="0.6"/><circle cx="${x}" cy="${y}" r="${Math.min(r,2.6)}" fill="${isMasked(q.i)?pal.bg:c}" stroke="${c}" stroke-width="1"/>`;
+      if(q.out) s+=`<circle cx="${x}" cy="${y}" r="5" fill="none" stroke="${fitSt.color}" stroke-width="1.4" data-rout="1"/>`; });
     s+=`</g>`;
     s+=drawFrame(top,resH,{ticks:rt.ticks.map(t=>({v:t,lab:tickLabel(t,rt.step)})),minor:[]},RY,xpMain==="bottom",true,null,false);
     const rx=L-(tkOut(YA.dir,YA.len)+5+(drawn.pW?drawn.pW+6:1))-TS.axis.size*0.22;
-    s+=`<text transform="translate(${f1(rx)},${f1(top+resH/2)}) rotate(-90)" text-anchor="middle"${tAt(Object.assign({},TK,{color:null}),pal.muted)}>Residual</text>`;
+    const rlab=rpK?({std:"Standardised",stud:"Studentised",del:"Studentised, deleted"})[rpK.kind]:"Residual", rl=textW(rlab,TK)<=resH-4?rlab:"Residual";
+    s+=`<text transform="translate(${f1(rx)},${f1(top+resH/2)}) rotate(-90)" text-anchor="middle"${tAt(Object.assign({},TK,{color:null}),pal.muted)}>${rl}</text>`;
   }
   // Breaks: whatever runs through a gap is covered, and the frame is cut there with two strokes.
   if(SX.gaps.length||SY.gaps.length){
@@ -8905,8 +8982,8 @@ function graphMenuItems(id,at){
   if(id==="__fit"){ const f=Object.assign({color:pal.fit,lw:2},cfg.series.__fit||{});
     items.push({group:"Fit curve"},{swatches:SER_COLORS,current:f.color,pick:col=>setSeriesStyle("__fit",{color:col},"changed the colour of the fit curve"),enabled:!ro},
       {label:"Line and colour…",run:()=>openPlotDetails("__fit","series")},
-      {label:"95% confidence band",checked:cfg.bandConf!==false,enabled:!ro,run:()=>setPlotKey("bandConf",cfg.bandConf===false,cfg.bandConf===false?"showed the fit's confidence band":"hid the fit's confidence band")},
-      {label:"95% prediction band",checked:!!cfg.bandPred,enabled:!ro,title:"Where a new measurement would fall",run:()=>setPlotKey("bandPred",!cfg.bandPred,cfg.bandPred?"hid the fit's prediction band":"showed the fit's prediction band")}); }
+      {label:`${confPct(confOf(shownFit()))}% confidence band`,checked:cfg.bandConf!==false,enabled:!ro,run:()=>setPlotKey("bandConf",cfg.bandConf===false,cfg.bandConf===false?"showed the fit's confidence band":"hid the fit's confidence band")},
+      {label:`${confPct(confOf(shownFit()))}% prediction band`,checked:!!cfg.bandPred,enabled:!ro,title:"Where a new measurement would fall",run:()=>setPlotKey("bandPred",!cfg.bandPred,cfg.bandPred?"hid the fit's prediction band":"showed the fit's prediction band")}); }
   if(c){
     items.push({group:(st.label?texPlain(st.label):specName(c))+(isAct?" (analysed)":""),plain:true},
       {swatches:SER_COLORS,current:st.color,pick:col=>setSeriesStyle(c.id,{color:col},`changed the colour of ${specName(c)}`),enabled:!ro},
@@ -9167,7 +9244,7 @@ function renderPlotDetails(){
   if(page==="series"){
     if(S.pdSel==="__fit"){ const f=Object.assign({color:pal.fit,lw:2},cfg.series.__fit||{});
       h+=grp("Line",`<label>Colour</label>${cb("series.__fit.color",(cfg.series.__fit||{}).color,"Automatic",pal.fit)}<label for="pdFlw">Width</label>${rng("pdFlw",f.lw,"series.__fit.lw",0.5,5,0.1)}`)
-        +grp("Bands",chk("pdBandC","bandConf",cfg.bandConf!==false,"95% confidence band, shaded")+chk("pdBandP","bandPred",!!cfg.bandPred,"95% prediction band, dashed")+note("Where the fitted curve lies, and where a new measurement would fall, each with 95% probability."))
+        +grp("Bands",chk("pdBandC","bandConf",cfg.bandConf!==false,`${confPct(confOf(shownFit()))}% confidence band, shaded`)+chk("pdBandP","bandPred",!!cfg.bandPred,`${confPct(confOf(shownFit()))}% prediction band, dashed`)+note(`Where the fitted curve lies, and where a new measurement would fall, each with ${confPct(confOf(shownFit()))}% probability: the fit's confidence level, set in the Fit window.`))
         +grp("Peaks",chk("pdPkFill","series.__peaks.fill",(cfg.series.__peaks||{}).fill!==false,"Shade each fitted peak")+`<label for="pdPsch2">Colours</label>${sel("pdPsch2",Object.entries(PEAK_SCHEMES).map(([k,v])=>[k,v.name]),cfg.peakScheme||"warm","peakScheme")}`)
         +grp("Legend",`<label for="pdFitLab">Label</label><input type="text" id="pdFitLab" data-pd="series.__fit.label" value="${esc((cfg.series.__fit||{}).label||"")}" placeholder="fit"${ro}>`+chk("pdFitLeg","series.__fit.leg",(cfg.series.__fit||{}).leg!==false,"Show in the legend")); }
     else if(selC){ const c=selC, isA=c===act, st=serStyle(c.id,isA,pal,false,cfg), b="series."+c.id, own=(cfg.series||{})[c.id]||{};
@@ -9309,7 +9386,7 @@ function renderPlotDetails(){
       +(isDistLayout(cfg.layout)?`<label for="pdDw">Whiskers</label>${sel("pdDw",DIST_WHISK,cfg.distWhisk==="range"?"range":"tukey","distWhisk")}`+chk("pdDp","distPts",!!cfg.distPts,"Show the values"):"")
       +chk("pdAxM","axisMatch",cfg.axisMatch!==false,"On two Y axes, colour each axis like its curve"));
     h+=grp("Colours",`<label for="pdSch">Curves</label>${sel("pdSch",Object.entries(SCHEMES).filter(([k,v])=>!v.hide||k===cfg.scheme).map(([k,v])=>[k,v.name]),cfg.scheme||"kurve","scheme")}<label for="pdPsch">Fitted peaks</label>${sel("pdPsch",Object.entries(PEAK_SCHEMES).map(([k,v])=>[k,v.name]),cfg.peakScheme||"warm","peakScheme")}`);
-    h+=grp("Fit",chk("pdRes","resid",residOn(cfg,shownFit()||residHint()),"Residual panel under a fit"));
+    h+=grp("Fit",chk("pdRes","resid",residOn(cfg,shownFit()||residHint()),"Residual panel under a fit")+`<label for="pdRk">Residuals as</label>${sel("pdRk",RES_KINDS,resKindOf(cfg.residKind),"residKind")}`);
   } else if(page==="fpeaks"){
     const f=activeFit(), fs=fplFields(cfg), tpl=String(cfg.peakLabTpl||""), offN=Object.keys(cfg.peakLabOff||{}).length, off=(cfg.peakLab||"num")==="off";
     if(!(f&&f.kind==="composite")) h+=`<p class="pd-note" style="margin:0 0 10px">No peak fit on this graph yet; these settings apply when there is one.</p>`;
@@ -13154,7 +13231,7 @@ function ensureDraft(){
   if(S.draft&&S.draft.pid===S.pid) return S.draft;
   const f=(activeFit()&&activeFit().kind!=="composite"?activeFit():null); // the curve panel only carries single-model fits
   const model=f?f.model:(p.prefModel&&getModel(p.prefModel)?p.prefModel:suggestModel().id);
-  S.draft={pid:S.pid, model, fn:f&&f.fn?f.fn:null, init:f?f.params.slice():null, fixed:f?(f.fixed||f.params.map(()=>false)).slice():null, weighted:f?!!f.weighted:hasErr(), xerr:f?!!f.xerr:hasXErr(), ctl:fitCtl(f&&f.ctl), lim:f&&f.lim?clone(f.lim):null, dig:f&&Array.isArray(f.dig)?f.dig.slice():null};
+  S.draft={pid:S.pid, model, fn:f&&f.fn?f.fn:null, init:f?f.params.slice():null, fixed:f?(f.fixed||f.params.map(()=>false)).slice():null, weighted:f?!!f.weighted:hasErr(), xerr:f?!!f.xerr:hasXErr(), ctl:fitCtl(f&&f.ctl), lim:f&&f.lim?clone(f.lim):null, dig:f&&Array.isArray(f.dig)?f.dig.slice():null, conf:f?confKeep(confOf(f)):null};
   if(!S.draft.init) guessDraft();
   return S.draft;
 }
@@ -13201,6 +13278,191 @@ function wireFitWhere(box){
    missing follows the fit). residHint() is what the Fit window is set to make. */
 function residOn(cfg,fit){ if(!fit) return false; const r=cfg&&cfg.resid; return r===true||r===false?r:fit.kind==="composite"; }
 const residHint=()=>({kind:S.fitMode==="peaks"?"composite":"curve"});
+/* ---- The confidence level, and the fit's residuals (FIT_SPEC slice 4) ----
+   A fit has one confidence level (95% unless set): its parameters' intervals
+   and the bands on the graph are at it. The draft's d.conf, a fit's conf
+   (null or missing for 95%), confOf reads either. */
+const CONF_PRESETS=[0.9,0.95,0.99,0.999];
+const confOf=f=>{ const c=f?+f.conf:NaN; return c>0&&c<1?c:0.95; };
+const confPct=c=>String(+(c*100).toPrecision(6));
+const confKeep=c=>c===0.95?null:c;
+// The degrees of freedom a fit's intervals use: a global fit's, whose errors come from all its points.
+const ciDof=f=>f&&f.global&&f.gstats?f.gstats.dof:f&&f.stats?f.stats.dof:NaN;
+// A parameter's interval at its fit's level: null where the fit gave none (fixed, tied, at a limit, a singular fit).
+function ciOf(f,i){ const c=(f.ci||[])[i]; if(!c||c[0]==null||c[1]==null||!Number.isFinite(c[0])||!Number.isFinite(c[1])) return null;
+  const e=(f.errors||[])[i], t=tCrit(confOf(f),ciDof(f)), v=f.params[i]; return e>0&&Number.isFinite(t)?[v-t*e,v+t*e]:c.slice(); }
+function confHtml(d){ const c=confOf(d), pre=CONF_PRESETS.includes(c), ro=S.readOnly?" disabled":"";
+  return `<div class="frow fconf"><label for="fitConf" class="tipd" title="The level of the parameters' confidence intervals and of the bands drawn round the fit; the outlier limit is at it too">Confidence level</label><span class="pair"><select id="fitConf"${ro}>${CONF_PRESETS.map(v=>`<option value="${v}"${v===c?" selected":""}>${confPct(v)}%</option>`).join("")}<option value="other"${pre?"":" selected"}>Other…</option></select><input type="text" inputmode="decimal" id="fitConfIn" value="${pre?"":confPct(c)}" aria-label="Confidence level, in percent"${pre?" hidden":""}${ro}><span class="lab" id="fitConfPc"${pre?" hidden":""}>%</span></span></div>`; }
+function wireConf(box,d){
+  const s=box.querySelector("#fitConf"), inp=box.querySelector("#fitConfIn"), pc=box.querySelector("#fitConfPc"); if(!s) return;
+  s.onchange=()=>{ if(s.value==="other"){ inp.hidden=false; pc.hidden=false; inp.value=confPct(confOf(d)); inp.focus(); inp.select(); return; } setConf(d,+s.value); };
+  inp.onkeydown=ev=>{ if(ev.key==="Enter"){ ev.preventDefault(); inp.blur(); } };
+  inp.onchange=()=>{ const v=parseNum(inp.value); if(!(v!=null&&v>0&&v<100)){ toast("A confidence level is a percentage above 0 and below 100, such as 68.27."); inp.value=confPct(confOf(d)); return; } setConf(d,v/100); };
+}
+// The level is how the fit is read, so the fit on screen takes it at once (one undo entry).
+function setConf(d,v){ if(!d||S.readOnly||confOf(d)===v) return;
+  pushUndo("the confidence level"); d.conf=confKeep(v);
+  const p=P(), f=p&&p.fit;
+  if(f&&activeFit()===f&&(f.kind==="composite")===(S.fitMode==="peaks")) save({fit:Object.assign({},f,{conf:confKeep(v)})},`set the confidence level of the fit to ${confPct(v)}%`);
+  renderFit(); renderPlot(); renderResults(); const el=document.querySelector("#pane-fit #fitConf"); if(el) el.focus({preventScroll:true}); }
+/* Residuals, in the four forms (RES_KINDS), seen in six ways (RES_VIEWS). The
+   panel under the graph shows the kind chosen (the graph's residKind) against
+   X; Results shows any view. fitDiag is the analysis on the fit's own points
+   (fitPts, in its range, weighted as it was), memoised per fit and data:
+   residualStats, the outliers at the fit's level (outliersOf) and fitAnova.
+   Null for a fit with the X errors, whose residuals are not distances in Y,
+   and, when opt.auto (the notes, the panel's marks), when the work would cost
+   more than a glance should (2m sweeps of the model, timed on one, past
+   120 ms). */
+const RES_KINDS=[["raw","Regular"],["std","Standardised"],["stud","Studentised"],["del","Studentised deleted"]];
+const RES_VIEWS=[["x","Against X"],["fit","Against the fitted value"],["order","In the order recorded"],["hist","As a histogram"],["prob","On probability paper"],["lag","Against the one before"]];
+const resKindOf=k=>RES_KINDS.some(r=>r[0]===k)?k:"raw";
+const resViewOf=v=>RES_VIEWS.some(r=>r[0]===v)?v:"x";
+const resKindName=k=>({raw:"Residual",std:"Standardised residual",stud:"Studentised residual",del:"Studentised deleted residual"})[resKindOf(k)];
+const resVals=(D,k)=>({raw:D.r,std:D.std,stud:D.stud,del:D.del})[resKindOf(k)];
+function resKind(){ return resKindOf(GP().residKind||S.resKind); }
+function resView(){ if(S.resView==null){ try{ S.resView=localStorage.getItem("kurve.resview")||"x"; }catch(e){ S.resView="x"; } } return resViewOf(S.resView); }
+const DIAG=new Map(), DSKIP=new Set();
+function fitDiag(f,opt){
+  opt=opt||{}; if(!f||f.xerr) return null; const FM=fitModel(f); if(!FM||!Array.isArray(f.params)) return null;
+  const c=colById(f.onCol)||activeYCol(); if(!c) return null;
+  const key=[f.at,f.onCol,pipeSig(c),maskSig(c),GP().logY?1:0,confOf(f),f.weighted?1:0,f.params.join(",")].join("|");
+  if(DIAG.has(key)) return DIAG.get(key); if(opt.auto&&DSKIP.has(key)) return null;
+  const rg=f.range||[-Infinity,Infinity];
+  const pts=fitPts(f).filter(q=>q.x>=rg[0]&&q.x<=rg[1]&&Number.isFinite(q.x)&&Number.isFinite(q.y)&&(!f.weighted||q.e>0)).sort((a,b)=>a.x-b.x);
+  const free=f.params.map((_,i)=>!(f.fixed&&f.fixed[i])&&!(f.atBound&&f.atBound[i]));
+  let fT=FM.f;
+  if(FM.composite){ const L=peakLinks(f.spec.peaks,FM.model); L.forEach(l=>{ free[l.gi]=false; }); if(L.length) fT=(x,p)=>FM.f(x,applyPeakLinks(p.slice(),L)); }
+  const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), W=f.weighted?pts.map(q=>1/q.e):null;
+  // Unasked, the analysis may cost what a glance should: the Jacobian is 2m sweeps of the model, timed on one.
+  if(opt.auto){ const m=free.filter(Boolean).length, t0=performance.now(), pp=f.params.slice(); for(let i=0;i<X.length;i++) fT(X[i],pp); if((performance.now()-t0)*2*m>120){ if(DSKIP.size>32) DSKIP.clear(); DSKIP.add(key); return null; } }
+  const rs=residualStats(fT,X,Y,W,f.params.slice(),free);
+  const D=rs?Object.assign(rs,{pts,X,Y,W,out:outliersOf(rs,confOf(f)),anova:fitAnova(Y,W,rs.rss,rs.m)}):null;
+  if(DIAG.size>16) DIAG.clear(); DIAG.set(key,D); return D;
+}
+// The outliers left out of the next fit: added to their column's mask, one undo entry.
+function maskOutliers(f){ const D=fitDiag(f), c=f&&colById(f.onCol); if(!D||!c||S.readOnly||!D.out.idx.length) return;
+  const rows=D.out.idx.map(i=>D.pts[i].i), n=rows.length, xs=D.out.idx.map(i=>fmt(D.pts[i].x,6));
+  pushUndo("masking the outliers"); c.mask=[...new Set(maskOf(c).concat(rows))].sort((a,b)=>a-b);
+  save({cols:P().cols},`masked ${n} outlier${n===1?"":"s"} of ${specName(c)} (x = ${xs.join(", ")})`); renderAll();
+  toast(`Masked ${n} point${n===1?"":"s"}. Fit again to fit without ${n===1?"it":"them"}.`,{action:"Undo",run:undo}); }
+/* A small chart of the residuals in one view: against X, the fitted value,
+   the order recorded or the residual before; a histogram with the normal
+   curve it should follow; or on probability paper against the normal
+   quantiles (Blom's), with the line it should lie on. Outliers are ringed,
+   and the deleted residuals' limit is drawn. One path of dots, so thousands
+   of points cost little. */
+function residChartSvg(D,kind,view,o){
+  o=o||{}; const W=o.W||360, H=o.H||196, pal=o.pal||SCREEN_PAL(), v=resVals(D,kind), n=v.length, out=new Set(D.out.idx), fin=i=>Number.isFinite(v[i]);
+  const L=50, R=10, T=8, B=32, pw=W-L-R, ph=H-T-B, ff=o.font||"inherit", f1=x=>x.toFixed(1);
+  const px=[], py=[], ids=[]; let xl="", yl=resKindName(kind), bars=null, curve=null, ref=null, join=false, symY=true, symX=false;
+  const all=D.pts.map((_,i)=>i).filter(fin);
+  if(view==="fit"){ all.forEach(i=>{ px.push(D.yhat[i]); py.push(v[i]); ids.push(i); }); xl="Fitted value"; }
+  else if(view==="order"){ all.slice().sort((a,b)=>D.pts[a].i-D.pts[b].i).forEach((i,k)=>{ px.push(k+1); py.push(v[i]); ids.push(i); }); xl="Order recorded"; join=true; }
+  else if(view==="lag"){ for(let k=1;k<n;k++) if(fin(k)&&fin(k-1)){ px.push(v[k-1]); py.push(v[k]); ids.push(k); } xl="The residual before (in X)"; symX=true; }
+  else if(view==="prob"){ const s=all.slice().sort((a,b)=>v[a]-v[b]), m=s.length; s.forEach((i,k)=>{ px.push(probit((k+1-0.375)/(m+0.25))); py.push(v[i]); ids.push(i); });
+    xl="Normal quantile"; symY=false; const sl=kind==="raw"?(D.W?NaN:D.s):1; if(sl>0) ref=sl; }
+  else if(view==="hist"){ const vals=all.map(i=>v[i]), hb=vals.length>=2?histBins(vals,{rule:"fd"}):{fail:"too few"}; if(!hb.fail) bars=hb;
+    xl=yl; yl="Count"; symY=false; const sd=kind==="raw"?(D.W?NaN:D.s):1;
+    if(bars&&sd>0) curve=x=>vals.length*bars.w*Math.exp(-0.5*(x/sd)**2)/(sd*Math.sqrt(2*Math.PI)); }
+  else { all.forEach(i=>{ px.push(D.X[i]); py.push(v[i]); ids.push(i); }); xl="X"; }
+  const lim=kind==="del"&&Number.isFinite(D.out.lim)&&view!=="hist"&&view!=="prob"?D.out.lim:null;
+  let x0, x1, y0, y1;
+  if(bars){ x0=bars.edges[0]; x1=bars.edges[bars.edges.length-1]; y0=0; y1=Math.max(1,...bars.counts); if(curve) for(let k=0;k<=60;k++) y1=Math.max(y1,curve(x0+(x1-x0)*k/60)); y1*=1.08; }
+  else { const mx=a=>a.reduce((m,q)=>Math.max(m,Math.abs(q)),0);
+    if(symY){ const a=Math.max(mx(py),lim||0,1e-300)*1.12; y0=-a; y1=a; } else { y0=Math.min(...py); y1=Math.max(...py); const d=(y1-y0)*0.08||1; y0-=d; y1+=d; }
+    if(symX){ const a=Math.max(mx(px),1e-300)*1.12; x0=-a; x1=a; } else { x0=Math.min(...px); x1=Math.max(...px); const d=(x1-x0)*0.04||1; x0-=d; x1+=d; } }
+  if(!(x1>x0)){ x0-=1; x1+=1; } if(!(y1>y0)){ y0-=1; y1+=1; }
+  const SX=x=>L+(x-x0)/(x1-x0)*pw, SY=y=>T+ph-(y-y0)/(y1-y0)*ph;
+  const xt=niceTicks(x0,x1,Math.max(2,pw/70)), yt=niceTicks(y0,y1,Math.max(2,ph/34));
+  const txt=(x,y,t,a,ex)=>`<text x="${f1(x)}" y="${f1(y)}" font-size="11" font-family="${esc(ff)}" fill="${pal.muted}"${a?` text-anchor="${a}"`:""}${ex||""}>${esc(t)}</text>`;
+  let s=`<svg class="rchart" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(yl+", "+((RES_VIEWS.find(r=>r[0]===view)||[])[1]||"").toLowerCase())}">`;
+  s+=`<rect x="${L}" y="${T}" width="${pw}" height="${ph}" fill="none" stroke="${pal.grid}"/>`;
+  xt.ticks.forEach(t=>{ if(t<x0||t>x1) return; const x=SX(t); s+=`<line x1="${f1(x)}" x2="${f1(x)}" y1="${T+ph}" y2="${T+ph+4}" stroke="${pal.muted}"/>`+txt(x,T+ph+15,tickLabel(t,xt.step),"middle"); });
+  yt.ticks.forEach(t=>{ if(t<y0||t>y1) return; const y=SY(t); s+=`<line x1="${L-4}" x2="${L}" y1="${f1(y)}" y2="${f1(y)}" stroke="${pal.muted}"/>`+txt(L-6,y+4,tickLabel(t,yt.step),"end"); });
+  s+=txt(L+pw/2,H-3,xl,"middle")+txt(12,T+ph/2,yl,"middle",` transform="rotate(-90 12 ${f1(T+ph/2)})"`);
+  if(!bars&&y0<0&&y1>0) s+=`<line x1="${L}" x2="${L+pw}" y1="${f1(SY(0))}" y2="${f1(SY(0))}" stroke="${pal.muted}" stroke-dasharray="4 3"/>`;
+  if(symX&&x0<0&&x1>0) s+=`<line y1="${T}" y2="${T+ph}" x1="${f1(SX(0))}" x2="${f1(SX(0))}" stroke="${pal.muted}" stroke-dasharray="4 3"/>`;
+  if(lim) [lim,-lim].forEach(l=>{ s+=`<line x1="${L}" x2="${L+pw}" y1="${f1(SY(l))}" y2="${f1(SY(l))}" stroke="${pal.fit}" stroke-dasharray="6 3" data-rlim="1"/>`; });
+  if(bars){ bars.counts.forEach((c,k)=>{ const a=SX(bars.edges[k]), b=SX(bars.edges[k+1]); if(c>0) s+=`<rect x="${f1(a)}" y="${f1(SY(c))}" width="${f1(Math.max(0.5,b-a-1))}" height="${f1(SY(0)-SY(c))}" fill="${pal.data}" fill-opacity="0.35" stroke="${pal.data}"/>`; });
+    if(curve){ const q=[]; for(let k=0;k<=80;k++){ const x=x0+(x1-x0)*k/80; q.push(f1(SX(x))+","+f1(SY(curve(x)))); } s+=`<path d="M${q.join("L")}" fill="none" stroke="${pal.fit}" stroke-width="1.4"/>`; } }
+  else {
+    // The line the points lie on if the residuals are normal, kept inside the plot.
+    if(ref){ const a=Math.max(x0,y0/ref), b=Math.min(x1,y1/ref); if(b>a) s+=`<path d="M${f1(SX(a))},${f1(SY(a*ref))}L${f1(SX(b))},${f1(SY(b*ref))}" fill="none" stroke="${pal.fit}" stroke-width="1.2" data-rref="1"/>`; }
+    if(join&&px.length>1) s+=`<path d="M${px.map((x,k)=>f1(SX(x))+","+f1(SY(py[k]))).join("L")}" fill="none" stroke="${pal.data}" stroke-opacity="0.35"/>`;
+    let dots="", ring="";
+    px.forEach((x,k)=>{ const a=f1(SX(x)), b=f1(SY(py[k])); if(out.has(ids[k])) ring+=`<circle cx="${a}" cy="${b}" r="4" fill="${pal.fit}" fill-opacity="0.25" stroke="${pal.fit}" stroke-width="1.4" data-rout="1"/>`; else dots+=`M${a} ${b}h0`; });
+    if(dots) s+=`<path d="${dots}" stroke="${pal.data}" stroke-width="${px.length>600?2.6:4.2}" stroke-linecap="round" fill="none"/>`;
+    s+=ring; }
+  return s+`</svg>`;
+}
+// The parameters with an error of their own, for the matrices: not fixed, not tied, not at a limit.
+const covRows=f=>paramRows(f).filter(r=>!r.hold&&!r.tied&&r.e>0&&f.cov&&f.cov[r.i]);
+function anovaRows(A){ return [["Model",A.reg],["Residual",A.res],["Total, uncorrected",A.utot],["Total, about the mean",A.ctot]]; }
+/* Results' three parts below the parameters: the analysis of variance, the
+   parameters' correlation and covariance, and the residuals (a chart in any
+   view, the outlier limit, and the outliers with Mask them). Each folds, and
+   remembers whether it is open; Residuals opens by itself when there are
+   outliers. */
+function diagHtml(f){
+  if(f.xerr) return `<p class="lab rdnone">A fit with the X errors has no analysis of variance or residual analysis here: its residuals are not distances in Y.</p>`;
+  // Worked out only while Results is open, and for a heavy fit only once asked for.
+  if(!winOpen("res")) return "";
+  let D=fitDiag(f,{auto:true}); const o0=S.rOpen||{};
+  if(!D&&(o0.anova||o0.cov||o0.resid||o0.all)) D=fitDiag(f);
+  if(!D) return `<details class="more rd" data-rd="all"><summary>Analysis of variance, correlation and residuals</summary><p class="lab">A large fit: opening this works them out, which takes a moment.</p></details>`;
+  const o=S.rOpen||{}, nOut=D.out.idx.length, op=k=>(o[k]!=null?o[k]:k==="resid"&&nOut>0)?" open":"", A=D.anova, pct=confPct(confOf(f)), ro=S.readOnly?" disabled":"";
+  let h=`<details class="more rd" data-rd="anova"${op("anova")}><summary>Analysis of variance</summary><div class="rscroll"><table class="rtab"><thead><tr><th class="l">Source</th><th>DF</th><th>Sum of squares</th><th>Mean square</th><th>F</th><th>Prob &gt; F</th></tr></thead><tbody>${
+    anovaRows(A).map(([nm,r],k)=>`<tr><td class="l">${nm}</td><td>${r.df}</td><td>${esc(fmtOr(r.ss,6))}</td><td>${r.ms!=null?esc(fmtOr(r.ms,6)):""}</td><td>${k?"":esc(fmtOr(r.F,5))}</td><td>${k?"":esc(fmtP(r.p))}</td></tr>`).join("")}</tbody></table></div>${f.weighted?`<p class="lab">Weighted: each sum is of w·y², w = 1/σ².</p>`:""}</details>`;
+  const cr=covRows(f);
+  if(cr.length>=2){ const idx=cr.map(r=>r.i), C=corrMat(f.cov,idx), lab=r=>r.html?`<span class="pn">${r.html}</span>`:esc(r.label);
+    const tab=(fn,cls)=>`<div class="rscroll"><table class="rtab rmat${cls||""}"><thead><tr><th></th>${cr.map(r=>`<th>${lab(r)}</th>`).join("")}</tr></thead><tbody>${cr.map((r,a)=>`<tr><th class="l">${lab(r)}</th>${cr.map((q,b)=>fn(a,b)).join("")}</tr>`).join("")}</tbody></table></div>`;
+    h+=`<details class="more rd" data-rd="cov"${op("cov")}><summary>Correlation and covariance of the parameters</summary><h4 class="rsub">Correlation</h4>${
+      tab((a,b)=>{ const v=C[a][b]; return `<td${a!==b&&Math.abs(v)>0.95?' class="rhi" title="Above 0.95: these two parameters move together"':""}>${a===b?"1":esc(fmtOr(v,3))}</td>`; })}<h4 class="rsub">Covariance</h4>${
+      tab((a,b)=>`<td>${esc(fmtOr(f.cov[idx[a]][idx[b]],4))}</td>`)}</details>`; }
+  const kind=resKind(), view=resView(), vals=resVals(D,kind);
+  h+=`<details class="more rd" data-rd="resid"${op("resid")}><summary>Residuals${nOut?` <span class="rbad">· ${nOut} outlier${nOut===1?"":"s"}</span>`:""}</summary>
+    <div class="rsel"><select id="rKind" aria-label="Which residuals">${RES_KINDS.map(([k,l])=>`<option value="${k}"${k===kind?" selected":""}>${l}</option>`).join("")}</select><select id="rView" aria-label="Seen how">${RES_VIEWS.map(([k,l])=>`<option value="${k}"${k===view?" selected":""}>${l}</option>`).join("")}</select></div>
+    <div class="rchartw">${residChartSvg(D,kind,view)}</div>
+    <p class="lab">${D.n} points, ${D.m} free parameter${D.m===1?"":"s"}; s = ${esc(fmtOr(D.s,4))}. ${Number.isFinite(D.out.lim)?`Outlier limit: a studentised deleted residual beyond ±${esc(fmt(D.out.lim,4))}, the t limit at ${pct}% for the largest of ${D.n}.`:"Too few points for an outlier limit."}</p>`;
+  if(nOut){ h+=`<div class="rscroll"><table class="rtab"><thead><tr><th>x</th><th>y</th><th>Residual</th><th>Studentised deleted</th><th>Leverage</th></tr></thead><tbody>${D.out.idx.map(i=>`<tr><td>${esc(fmt(D.X[i],6))}</td><td>${esc(fmt(D.Y[i],6))}</td><td>${esc(fmtOr(D.r[i],4))}</td><td class="rhi">${esc(fmtOr(D.del[i],4))}</td><td>${esc(fmtOr(D.h[i],3))}</td></tr>`).join("")}</tbody></table></div>
+    <button class="btn sm" id="rMaskOut"${ro} title="Mask ${nOut===1?"it":"them"} in the worksheet's column, so the next fit leaves ${nOut===1?"it":"them"} out (undo brings ${nOut===1?"it":"them"} back)">Mask ${nOut===1?"it":"them"}</button>`; }
+  else if(Number.isFinite(D.out.lim)) h+=`<p class="lab">No point is past the limit.</p>`;
+  if(kind!=="raw"&&vals.some(v=>!Number.isFinite(v))) h+=`<p class="lab">Points whose leverage is 1 (one parameter set by them alone) have no ${kind==="std"?"standardised":"studentised"} residual and are left out.</p>`;
+  return h+`</details>`;
+}
+function wireDiag(box,f){
+  box.querySelectorAll("details.rd").forEach(dt=>dt.addEventListener("toggle",()=>{ if(!dt.isConnected) return; S.rOpen=Object.assign({},S.rOpen,{[dt.dataset.rd]:dt.open});
+    if(dt.dataset.rd==="all"&&dt.open){ dt.querySelector("p").textContent="Working them out…"; setTimeout(()=>{ S.rOpen=Object.assign({},S.rOpen,{all:false,resid:true}); renderResults(); },30); } }));
+  const k=box.querySelector("#rKind"); if(k) k.onchange=()=>{ const v=resKindOf(k.value); S.resKind=v;
+    if(GID()&&!S.readOnly) setPlotKey("residKind",v,`showed the residuals as ${resKindName(v).toLowerCase()}s`); renderResults(); const k2=document.querySelector("#rKind"); if(k2) k2.focus({preventScroll:true}); };
+  const v=box.querySelector("#rView"); if(v) v.onchange=()=>{ S.resView=resViewOf(v.value); try{ localStorage.setItem("kurve.resview",S.resView); }catch(e){} renderResults(); const v2=document.querySelector("#rView"); if(v2) v2.focus({preventScroll:true}); };
+  const mk=box.querySelector("#rMaskOut"); if(mk) mk.onclick=()=>maskOutliers(f);
+}
+// The same three parts in the report, the residuals in the view chosen.
+function reportDiagHtml(f){
+  if(!f||f.xerr) return ""; const D=fitDiag(f); if(!D) return "";
+  const A=D.anova, e2=t=>esc(String(t)); let h="<h2>Analysis of variance</h2><table><thead><tr><th class=\"l\">Source</th><th>DF</th><th>Sum of squares</th><th>Mean square</th><th>F</th><th>Prob &gt; F</th></tr></thead><tbody>"+
+    anovaRows(A).map(([nm,r],k)=>"<tr><td class=\"l\">"+nm+"</td><td>"+r.df+"</td><td>"+e2(fmtOr(r.ss,6))+"</td><td>"+(r.ms!=null?e2(fmtOr(r.ms,6)):"")+"</td><td>"+(k?"":e2(fmtOr(r.F,5)))+"</td><td>"+(k?"":e2(fmtP(r.p)))+"</td></tr>").join("")+"</tbody></table>";
+  const cr=covRows(f);
+  if(cr.length>=2){ const C=corrMat(f.cov,cr.map(r=>r.i));
+    h+="<h2>Correlation of the parameters</h2><table><thead><tr><th></th>"+cr.map(r=>"<th>"+e2(r.label)+"</th>").join("")+"</tr></thead><tbody>"+cr.map((r,a)=>"<tr><th class=\"l\">"+e2(r.label)+"</th>"+cr.map((q,b)=>"<td"+(a!==b&&Math.abs(C[a][b])>0.95?" class=\"bad\"":"")+">"+(a===b?"1":e2(fmtOr(C[a][b],3)))+"</td>").join("")+"</tr>").join("")+"</tbody></table>"; }
+  const kind=resKind(), view=resView(), pct=confPct(confOf(f));
+  h+="<h2>Residuals</h2><figure>"+residChartSvg(D,kind,view,{pal:EXPORT_PAL,W:520,H:240,font:"Georgia, serif"})+"<figcaption class=\"meta\">"+e2(resKindName(kind))+", "+e2(((RES_VIEWS.find(r=>r[0]===view)||[])[1]||"").toLowerCase())+"; s = "+e2(fmtOr(D.s,4))+".</figcaption></figure>";
+  h+="<p class=\"meta\">"+(Number.isFinite(D.out.lim)?"Outlier limit: a studentised deleted residual beyond ±"+e2(fmt(D.out.lim,4))+", the t limit at "+pct+"% for the largest of "+D.n+". ":"")+(D.out.idx.length?D.out.idx.length+" point"+(D.out.idx.length===1?" is":"s are")+" past it:":"No point is past it.")+"</p>";
+  if(D.out.idx.length) h+="<table><thead><tr><th>x</th><th>y</th><th>Residual</th><th>Studentised deleted</th><th>Leverage</th></tr></thead><tbody>"+D.out.idx.map(i=>"<tr><td>"+e2(fmt(D.X[i],6))+"</td><td>"+e2(fmt(D.Y[i],6))+"</td><td>"+e2(fmtOr(D.r[i],4))+"</td><td>"+e2(fmtOr(D.del[i],4))+"</td><td>"+e2(fmtOr(D.h[i],3))+"</td></tr>").join("")+"</tbody></table>";
+  return h;
+}
+// As text, tab- or comma-separated: the copied table and the CSV.
+function diagText(f,sep,pre){
+  pre=pre||""; if(!f||f.xerr) return []; const D=fitDiag(f); if(!D) return []; const out=[];
+  out.push(pre+["Analysis of variance","DF","Sum of squares","Mean square","F","Prob>F"].join(sep));
+  anovaRows(D.anova).forEach(([nm,r],k)=>out.push(pre+[nm,r.df,fmt(r.ss,10),r.ms!=null?fmt(r.ms,10):"",k?"":fmtOr(r.F,8,""),k?"":fmtOr(r.p,6,"")].join(sep)));
+  const cr=covRows(f); if(cr.length>=2){ const C=corrMat(f.cov,cr.map(r=>r.i)); out.push(pre+["Correlation"].concat(cr.map(r=>r.label)).join(sep)); cr.forEach((r,a)=>out.push(pre+[r.label].concat(C[a].map(v=>fmtOr(v,6,""))).join(sep))); }
+  if(Number.isFinite(D.out.lim)){ out.push(pre+["Outlier limit (studentised deleted)",fmt(D.out.lim,6),`${confPct(confOf(f))}%, the largest of ${D.n}`].join(sep));
+    if(D.out.idx.length){ out.push(pre+["Outlier x","y","Residual","Studentised deleted","Leverage"].join(sep)); D.out.idx.forEach(i=>out.push(pre+[D.X[i],D.Y[i],fmtOr(D.r[i],8,""),fmtOr(D.del[i],6,""),fmtOr(D.h[i],6,"")].join(sep))); } }
+  return out;
+}
 // What the fit will weight by, said beside its Fit button (UX_SPEC 3.7).
 function weightHtml(d){ const c=activeYCol(), e=c&&errColFor(c.id);
   if(d&&d.weighted&&hasErr()) return `<span class="fitwt" title="Each point counts as 1/σ², σ from its error bar; untick Weight by the Y error column to count every point the same">Weighted by ${e?`column ${esc(colLetter(e))}${e.name?` (${esc(e.name)})`:""}`:"the error bars"}</span>`;
@@ -13262,6 +13524,7 @@ function renderFit(){
   if(hasXErr()) h+=`<label class="chk"><input type="checkbox" id="wtx"${d.xerr?" checked":""}${S.readOnly?" disabled":""}> <span class="tipd" title="Orthogonal distance regression: each point's true X is fitted too, within its X error, so the curve is not pulled flat by errors in X, and the parameters' errors include them. Without Y errors, the scatter in Y is found from the fit.">Include the X errors</span></label>`;
   if(!hasErr()) h+=`<div class="lab" style="margin:3px 0 0 22px">No Y-error column, so every point counts equally.</div>`;
   h+=fitResidHtml();
+  h+=confHtml(d);
   h+=`<div class="range" id="fitRange"></div>`;
   h+=fitCtlHtml(d);
   if(S.fitError) h+=noteHtml("bad",S.fitError);
@@ -13290,7 +13553,7 @@ function renderFit(){
   { const df=$("#doFit"); if(df) df.onclick=runFit; const fa=$("#fitAll"); if(fa) fa.onclick=openBatchDialog; }
   const cf=$("#clrFit"); if(cf) cf.onclick=removeFit;
   { const ds=$("#doStep"); if(ds) ds.onclick=stepFit; const fs=$("#fitStop"); if(fs) fs.onclick=()=>{ if(S.fitRun){ S.fitRun.stop=true; fs.disabled=true; fs.lastChild.textContent="Stopping…"; } }; }
-  wireFitCtl(box,d); wirePGrid(box,d,m,f,sameModel);
+  wireFitCtl(box,d); wirePGrid(box,d,m,f,sameModel); wireConf(box,d);
   // Only the user's own click is remembered: a group created open fires its toggle later.
   { const lg=$("#fitLog"), sm=lg&&lg.querySelector("summary"); if(sm) sm.addEventListener("click",()=>{ S.flogOpen=!lg.open; }); const sc=box.querySelector(".flscroll"); if(sc) sc.scrollTop=sc.scrollHeight; }
 }
@@ -13329,11 +13592,11 @@ function paramGridHtml(d,m,f,same,ro){
     return `<input type="text" inputmode="decimal" data-plim="${k}:${i}" value="${esc(val)}" placeholder="${o!=null?esc(fmt(o,6)):"none"}" aria-label="${k==="lo"?"Lowest":"Highest"} value of ${esc(m.params[i])}" title="${o!=null?`Empty: the function's own limit, ${esc(fmt(o,6))}; none: no limit`:"A number, or empty for no limit"}"${ro}>`; };
   const rel=(k,i)=>{ const s=!!L[k==="lo"?"slo":"shi"][i]; return `<button type="button" class="prel" data-prel="${k}:${i}" title="${esc(pgRelTip(s))}" aria-label="${esc(pgRelLabel(k,m.params[i],s))}"${ro}>${s?"&lt;":"≤"}</button>`; };
   let h=`<div class="pgw" data-pgv="${v}"><div class="seg pgseg" role="group" aria-label="Columns shown">${PG_VIEWS.map(([k,t])=>`<button type="button" data-pgview="${k}" aria-pressed="${v===k}">${t}</button>`).join("")}</div>
-  <table class="ptab pg"><thead><tr><th>Parameter</th><th class="r" data-v="start">Start</th><th data-v="start" title="Hold this parameter at its starting value">Fix</th><th class="r" data-v="lim" title="The lowest value the fit may give it">Lowest</th><th data-v="lim" title="The highest value the fit may give it">Highest</th><th class="r" data-v="start res">Fitted ± error</th><th class="r pgci" data-v="res" title="95% confidence interval">95% interval</th><th class="r" data-v="res" title="Near 1: this parameter is doing the same job as others and is not independently determined">Dependency</th><th data-v="res" title="Significant digits the fitted value is shown with, here, in Results and in the report">Digits</th></tr></thead><tbody>`;
+  <table class="ptab pg"><thead><tr><th>Parameter</th><th class="r" data-v="start">Start</th><th data-v="start" title="Hold this parameter at its starting value">Fix</th><th class="r" data-v="lim" title="The lowest value the fit may give it">Lowest</th><th data-v="lim" title="The highest value the fit may give it">Highest</th><th class="r" data-v="start res">Fitted ± error</th><th class="r pgci" data-v="res" title="The confidence interval at the fit's level">${confPct(confOf(same?f:d))}% interval</th><th class="r" data-v="res" title="Near 1: this parameter is doing the same job as others and is not independently determined">Dependency</th><th data-v="res" title="Significant digits the fitted value is shown with, here, in Results and in the report">Digits</th></tr></thead><tbody>`;
   m.params.forEach((nm,i)=>{
     const fx=same&&f.fixed&&f.fixed[i], bd=same&&!fx&&f.atBound&&f.atBound[i], dg=dig[i]||null;
     const res=same?(fx?`${fmtPMd(f.params[i],0,dg)} <span class="lab">fixed</span>`:bd?`${fmtPMd(f.params[i],0,dg)} <span class="lab">at its limit</span>`:fmtPMd(f.params[i],f.errors[i],dg)):"";
-    const ci=same&&!fx&&!bd&&f.ci&&f.ci[i]&&Number.isFinite(f.ci[i][0])&&Number.isFinite(f.ci[i][1])?`${esc(fmt(f.ci[i][0],5))} to ${esc(fmt(f.ci[i][1],5))}`:"";
+    const cv=same&&!fx&&!bd?ciOf(f,i):null, ci=cv?`${esc(fmt(cv[0],5))} to ${esc(fmt(cv[1],5))}`:"";
     const dv=same&&!fx&&!bd&&f.dep?f.dep[i]:null, mean=(m.mean||[])[i];
     h+=`<tr><td class="pn">${m.ph[i]}${uC(unitFor((m.dim||[])[i],xuC,yuC))}${mean?`<div class="pmean">${esc(mean)}</div>`:""}</td>`+
       `<td data-v="start"><input type="text" inputmode="decimal" data-pi="${i}" value="${esc(fmt(d.init[i],6))}" aria-label="Starting value of ${nm}"${ro}></td>`+
@@ -13625,7 +13888,7 @@ function ensurePeakDraft(){
   if(S.pdraft&&S.pdraft.pid===S.pid) return S.pdraft;
   const f=activeFit()&&activeFit().kind==="composite"?activeFit():null;
   S.pdraft=f
-    ? {pid:S.pid, base:f.spec.base, peaks:f.spec.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{},k.lab?{lab:k.lab}:{})), init:f.params.slice(), fixed:(f.fixed||f.params.map(()=>false)).slice(), weighted:!!f.weighted, xerr:!!f.xerr, x0:f.x0, fitAt:f.at}
+    ? {pid:S.pid, base:f.spec.base, peaks:f.spec.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{},k.lab?{lab:k.lab}:{})), init:f.params.slice(), fixed:(f.fixed||f.params.map(()=>false)).slice(), weighted:!!f.weighted, xerr:!!f.xerr, conf:confKeep(confOf(f)), x0:f.x0, fitAt:f.at}
     : {pid:S.pid, base:"linear", peaks:[], init:[], fixed:[], weighted:hasErr(), xerr:hasXErr(), x0:null, fitAt:null};
   return S.pdraft;
 }
@@ -13997,6 +14260,7 @@ function renderPeakFit(box,p,top){
   h+=`<section class="stepsec"><h3 class="gh"><span class="sn">3</span>Fit</h3><label class="chk"><input type="checkbox" id="pwt"${d.weighted&&hasErr()?" checked":""}${hasErr()&&!S.readOnly?"":" disabled"}> Weight by the Y error column (1/σ²)</label>`;
   if(hasXErr()) h+=`<label class="chk"><input type="checkbox" id="pwtx"${d.xerr?" checked":""}${S.readOnly?" disabled":""}> <span class="tipd" title="Orthogonal distance regression: each point's true X is fitted too, within its X error, so the curve is not pulled flat by errors in X, and the parameters' errors include them. Without Y errors, the scatter in Y is found from the fit.">Include the X errors</span></label>`;
   h+=fitResidHtml();
+  h+=confHtml(d);
   h+=`<div class="range" id="fitRange"></div>`;
   if(S.fitError) h+=noteHtml("bad",S.fitError);
   if(f) h+=fitSummary(f);
@@ -14073,6 +14337,7 @@ function renderPeakFit(box,p,top){
   });
   const pw=$("#pwt"); if(pw) pw.onchange=()=>d.weighted=pw.checked;
   const pwx=$("#pwtx"); if(pwx) pwx.onchange=()=>d.xerr=pwx.checked;
+  wireConf(box,d);
   $("#doPeakFit").onclick=runPeakFit; { const fa=$("#fitAll"); if(fa) fa.onclick=openBatchDialog; }
   const cf=$("#clrFit"); if(cf) cf.onclick=removeFit;
 }
@@ -14114,7 +14379,7 @@ function runPeakFit(){
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(),
     hadErrCol:hasErr(),
     fixed:d.fixed.slice(), dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound, stats:res.stats,
-    range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, ...(SX?{xerr:true,odr:odrNote(res)}:{}), by:who(), at:Date.now()};
+    range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, ...(SX?{xerr:true,odr:odrNote(res)}:{}), ...(confKeep(confOf(d))?{conf:confOf(d)}:{}), by:who(), at:Date.now()};
   d.init=res.params.slice(); d.x0=m.x0; d.fitAt=fit.at;
   save(Object.assign({fit,fits:fitHistory(fit)},batchWith(fit)),`fitted ${describeSpec(spec)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
   renderFit(); renderPlot(); afterFit(fit);
@@ -14188,7 +14453,7 @@ function saveCurveFit(res,o){
   const [a,b]=fitRange();
   pushUndo("that fit");
   const lr=limRec(d.lim), dg=Array.isArray(d.dig)&&d.dig.some(v=>v)?d.dig.slice():null;
-  const fit={model:d.model, ...(m.user?{fn:JSON.parse(JSON.stringify(m.def))}:{}), params:res.params, errors:res.errors, cov:res.cov, fixed:(o.fixed||d.fixed).slice(), stats:res.stats, ...(lr?{lim:lr}:{}), ...(dg?{dig:dg}:{}),
+  const fit={model:d.model, ...(m.user?{fn:JSON.parse(JSON.stringify(m.def))}:{}), params:res.params, errors:res.errors, cov:res.cov, fixed:(o.fixed||d.fixed).slice(), stats:res.stats, ...(lr?{lim:lr}:{}), ...(dg?{dig:dg}:{}), ...(confKeep(confOf(d))?{conf:confOf(d)}:{}),
     dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound,
     onCol:(activeYCol()||{}).id, onColName:(activeYCol()||{}).name||"",
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(), hadErrCol:hasErr(),
@@ -14219,7 +14484,7 @@ function paramRows(f){
   const FM=fitModel(f); if(!FM) return [];
   const [xu,yu]=fitUnits(f), rows=[];
   const push=(i,label,meaning,dim)=>rows.push({i,label,meaning,unit:unitFor(dim,xu,yu),v:f.params[i],e:(f.errors||[])[i],
-    t:(f.tval||[])[i],pv:(f.pval||[])[i],ci:(f.ci||[])[i],dep:(f.dep||[])[i],fixed:!!(f.fixed&&f.fixed[i]),
+    t:(f.tval||[])[i],pv:(f.pval||[])[i],ci:ciOf(f,i),dep:(f.dep||[])[i],fixed:!!(f.fixed&&f.fixed[i]),
     // At a limit, the curvature says nothing about the uncertainty: no ±.
     bound:!(f.fixed&&f.fixed[i])&&!!(f.atBound&&f.atBound[i]),hold:!!(f.fixed&&f.fixed[i])||!!(f.atBound&&f.atBound[i]),shared:!!(f.shared&&f.shared[i])});
   if(FM.composite){ FM.model.slots.forEach((s,i)=>{
@@ -14240,21 +14505,21 @@ function statsList(f){
   if(f.global&&f.gstats){ const g=f.gstats;
     const out=[["Points",st.n],["Parameters",`${g.own} of its own, ${g.sh} shared`],["Reduced χ²",fmtOr(st.redChi2,5)],["R² (COD)",fmtOr(st.R2,6)],["Residual sum of squares",fmtOr(st.rss,6)],
       ["Fitted together with",`${g.K-1} other columns`],["Points in all",g.n],["Parameters in all",g.m],["Degrees of freedom",g.dof],["Reduced χ² of them all",fmtOr(g.redChi2,5)],
-      ["Iterations",g.iter==null?"—":`${g.iter}${g.converged===false?" (not converged)":""}`],["Weighting",f.weighted?"instrumental, 1/σ²":"none; errors scaled by √(reduced χ² of them all)"]];
+      ["Iterations",g.iter==null?"—":`${g.iter}${g.converged===false?" (not converged)":""}`],["Weighting",f.weighted?"instrumental, 1/σ²":"none; errors scaled by √(reduced χ² of them all)"],["Confidence level",confPct(confOf(f))+"%"]];
     if(f.range) out.push(["Fitted over",`x ${fmt(f.range[0],6)} to ${fmt(f.range[1],6)}`]);
     return out.map(([k,v])=>[k,v==null||v===""?"—":String(v)]); }
   const out=[["Points",st.n],["Free parameters",st.n!=null&&st.dof!=null?st.n-st.dof:null],["Degrees of freedom",st.dof],
     ["Reduced χ²",fmtOr(st.redChi2,5)],["R² (COD)",fmtOr(st.R2,6)],["Adjusted R²",fmtOr(st.adjR2,6)],
     ["Residual sum of squares",fmtOr(st.rss,6)],["AIC",fmtOr(st.aic,6)],["BIC",fmtOr(st.bic,6)],
     ["Iterations",st.iter==null?"—":`${st.iter}${st.converged?"":" (not converged)"}`],["Fit control",capFirst(ctlText(f))],
-    ["Weighting",weightText(f)]].concat(f.odr&&f.odr.s!=null?[["Scatter in Y, s",fmt(f.odr.s,4)]]:[],limText(f)?[["Limits",limText(f)]]:[]);
+    ["Weighting",weightText(f)],["Confidence level",confPct(confOf(f))+"%"]].concat(f.odr&&f.odr.s!=null?[["Scatter in Y, s",fmt(f.odr.s,4)]]:[],limText(f)?[["Limits",limText(f)]]:[]);
   if(f.range) out.push(["Fitted over",`x ${fmt(f.range[0],6)} to ${fmt(f.range[1],6)}`]);
   return out.map(([k,v])=>[k,v==null||v===""?"—":String(v)]);
 }
 function paramTableHtml(f){
   const rows=paramRows(f), der=derivedRows(f);
   const u=t=>t?` <span class="unit">(${esc(t)})</span>`:"";
-  return `<table class="rtab"><thead><tr><th class="l">Parameter</th><th>Value ± standard error</th><th>t</th><th>Prob &gt; |t|</th><th>95% confidence interval</th><th title="Near 1: this parameter is doing the same job as others and is not independently determined">Dependency</th></tr></thead><tbody>${
+  return `<table class="rtab"><thead><tr><th class="l">Parameter</th><th>Value ± standard error</th><th>t</th><th>Prob &gt; |t|</th><th>${confPct(confOf(f))}% confidence interval</th><th title="Near 1: this parameter is doing the same job as others and is not independently determined">Dependency</th></tr></thead><tbody>${
     rows.map(r=>`<tr${Number.isFinite(r.dep)&&r.dep>0.99&&!r.hold?' class="badrow"':""}><td class="l">${r.html?`<span style="font-style:italic;font-family:'Source Serif 4',Georgia,serif;font-size:1.08em">${r.html}</span>`:esc(r.label)}${u(r.unit)}${r.meaning?` <span class="lab">${esc(r.meaning)}</span>`:""}</td><td>${r.tied?`${fmtPM(r.v,r.e)} <span class="lab">${esc(r.tied)}</span>`:r.hold?`${fmtPMd(r.v,0,r.dig)} <span class="lab">${r.fixed?"fixed":"at its limit"}</span>`:fmtPMd(r.v,r.e,r.dig)}${r.shared&&!r.tied?` <span class="lab shd" title="One value for every column of the global fit">shared</span>`:""}</td><td>${r.hold?"":esc(fmtOr(r.t,4))}</td><td>${r.hold?"":esc(fmtP(r.pv))}</td><td>${r.hold||!r.ci||!Number.isFinite(r.ci[0])||!Number.isFinite(r.ci[1])?"":`${esc(fmt(r.ci[0],6))} to ${esc(fmt(r.ci[1],6))}`}</td><td>${r.hold?"":esc(fmtOr(r.dep,4))}</td></tr>`).join("")
   }${der.map(x=>`<tr><td class="l">${esc(x.name)}${u(x.unit)} <span class="lab">derived</span></td><td>${fmtPM(x.v,x.e)}</td><td></td><td></td><td></td><td></td></tr>`).join("")}</tbody></table>`;
 }
@@ -14290,11 +14555,12 @@ function renderResults(){
     h+=`<details class="more" id="rParams"${S.showParams?" open":""}><summary>All ${f.params.length} fitted parameters, with t, p, confidence intervals and dependency</summary>${paramTableHtml(f)}</details>`;
   } else h+=paramTableHtml(f);
   warns.filter(w=>w.level==="info").forEach(w=>{ h+=noteHtml(w.level,w.text); });
+  h+=diagHtml(f);
   h+=`</div><div class="rside"><dl class="kv">${statsList(f).map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></div></div>`;
-  h+=`<p class="rfoot">${f.xerr?"Errors come from the X and Y errors, through the orthogonal distance fit.":f.weighted?"Errors come from the instrumental weights.":"Errors are scaled by the square root of reduced χ², as Origin does when there are no weights."} ${GP().bandConf!==false?"Shaded band on the graph: the 95% confidence band of the fit.":""}${GP().bandPred?" Dashed lines: the 95% prediction band, where a new measurement would fall.":""}${FM.composite?" Dashed grey line: the fitted baseline. Coloured lines: each peak on top of it, numbered as in this table.":""}</p>`;
+  h+=`<p class="rfoot">${f.xerr?"Errors come from the X and Y errors, through the orthogonal distance fit.":f.weighted?"Errors come from the instrumental weights.":"Errors are scaled by the square root of reduced χ², as Origin does when there are no weights."} ${GP().bandConf!==false?`Shaded band on the graph: the ${confPct(confOf(f))}% confidence band of the fit.`:""}${GP().bandPred?` Dashed lines: the ${confPct(confOf(f))}% prediction band, where a new measurement would fall.`:""}${FM.composite?" Dashed grey line: the fitted baseline. Coloured lines: each peak on top of it, numbered as in this table.":""}</p>`;
   box.innerHTML=h;
   const by=$("#fitBy"); if(by) by.textContent=f.by?`Fitted by ${nameOf(f.by)}, ${ago(f.at)}`:`Fitted ${ago(f.at)}`;
-  $("#rCopy").onclick=copyResults; $("#rReport").onclick=exportReport; $("#rCsv").onclick=exportCsv;
+  $("#rCopy").onclick=copyResults; $("#rReport").onclick=exportReport; $("#rCsv").onclick=exportCsv; wireDiag(box,f);
   $("#discussFit").onclick=()=>{ S.anchor={type:"fit",model:FM.composite?"peaks":f.model}; showDrawer("disc"); renderAnchor(); $("#cText").focus(); };
   const rp=$("#rParams"); if(rp) rp.addEventListener("toggle",()=>{ if(rp.isConnected) S.showParams=rp.open; });
   box.querySelectorAll("[data-prow]").forEach(tr=>tr.onclick=()=>{ const k=+tr.dataset.prow;
@@ -14923,6 +15189,7 @@ async function exportReport(){
   if(f){
     html.push("<h2>"+(FM.composite?"All fitted parameters":"Fitted parameters")+"</h2>"+paramTableHtml(f));
     html.push("<h2>Fit statistics</h2><dl>"+statsList(f).map(([k,v])=>"<dt>"+esc2(k)+"</dt><dd>"+esc2(v)+"</dd>").join("")+"</dl>");
+    html.push(reportDiagHtml(f));
   }
   html.push(reportPeaksHtml());
   html.push(reportBandsHtml());
@@ -15390,13 +15657,15 @@ function resultsText(sep){
   const f=activeFit(); if(!f) return "";
   const FM=fitModel(f), out=[], NL=String.fromCharCode(10);
   if(FM.composite){ out.push(peakTableText(sep)); out.push(""); }
-  out.push(["Parameter","Unit","Value","Standard error","t","Prob>|t|","95% CI low","95% CI high","Dependency","Fixed"].join(sep));
+  const pc=confPct(confOf(f));
+  out.push(["Parameter","Unit","Value","Standard error","t","Prob>|t|",pc+"% CI low",pc+"% CI high","Dependency","Fixed"].join(sep));
   paramRows(f).forEach(r=>{ const ci=r.ci&&Number.isFinite(r.ci[0])&&Number.isFinite(r.ci[1])&&!r.hold;
     out.push([r.label,r.unit,fmt(r.v,10),r.fixed||r.bound?"":(r.e===null?"unknown":fmtOr(r.e,4,"")),r.hold?"":fmtOr(r.t,5,""),r.hold?"":fmtOr(r.pv,4,""),
       ci?fmt(r.ci[0],8):"",ci?fmt(r.ci[1],8):"",r.hold?"":fmtOr(r.dep,4,""),r.fixed?"yes":r.bound?"at limit":r.tied?"tied "+r.tied:""].join(sep)); });
   derivedRows(f).forEach(x=>out.push([x.name+" (derived)",x.unit,fmt(x.v,10),fmtOr(x.e,4,""),"","","","","",""].join(sep)));
   out.push("");
   statsList(f).forEach(([k,v])=>out.push(k+sep+v));
+  { const dt=diagText(f,sep); if(dt.length){ out.push(""); dt.forEach(l=>out.push(l)); } }
   const w=fitWarnings(f); if(w.length){ out.push(""); w.forEach(x=>out.push("Note"+sep+x.text)); }
   return out.join(NL);
 }
@@ -15496,6 +15765,7 @@ async function exportCsv(){
       comp.slots.forEach((s,i)=>lines.push(`# ${s.kind==="peak"?`peak ${s.peak+1} ${s.name}`:`baseline ${s.name}`},${f.params[i]},${f.errors[i]},${f.dep?f.dep[i]:""}`));
     } else { const m=FM.model; m.params.forEach((nm,i)=>lines.push(`# ${nm},${f.params[i]},${f.errors[i]}`)); }
     lines.push(`# reduced chi2,${f.stats.redChi2}`); lines.push(`# R2,${f.stats.R2}`); lines.push(`# adjusted R2,${f.stats.adjR2}`);
+    lines.push(`# confidence level,${confPct(confOf(f))}%`); diagText(f,",","# ").forEach(l=>lines.push(l));
   }
   const okc=await saveFile(safeName(p.name,".csv"),lines.join(String.fromCharCode(10)),"text/csv;charset=utf-8");
   if(okc) toast(okc==="dialog"?"Data saved.":`Sent ${safeName(p.name,".csv")} to your downloads.`);
@@ -17667,7 +17937,7 @@ ${DL([["Bars","A line from the lower end to the upper end, with caps."],["Band",
 <h2 id="use">What uses them</h2>
 <p>A ${DA("fit","weighted fit")} weights each point by its Y error, the mean of the two sides when they differ. With X errors, a fit can include them too: <em>Include the X errors</em> in the Fit window makes it an orthogonal distance regression, which fits each point's true X within its X error along with the parameters, so errors in X do not pull a slope flat and the parameters' errors include them. A band's area in the ${DA("integ","Integrate window")} carries the Y errors; it treats X as exact.</p>
 <h2 id="pred">Confidence and prediction bands</h2>
-<p>A fit is drawn with its <strong>95% confidence band</strong> (shaded): where the true curve lies, from the fit's covariance. The <strong>95% prediction band</strong> (dashed) adds the scatter of one new measurement: where a new point would fall. For an unweighted fit that scatter is the residual variance (reduced χ²); for a weighted one, the error of the nearest point. Right-click the fit curve to show either, or ${MP("Plot › Format graph…")}, the fit's page.</p>`},
+<p>A fit is drawn with its <strong>confidence band</strong> (shaded): where the true curve lies, from the fit's covariance. The <strong>prediction band</strong> (dashed) adds the scatter of one new measurement: where a new point would fall. For an unweighted fit that scatter is the residual variance (reduced χ²); for a weighted one, the error of the nearest point. Right-click the fit curve to show either, or ${MP("Plot › Format graph…")}, the fit's page. Both are at the fit's confidence level, 95% unless set in the Fit window (${DA("curvefit#conf","Confidence level")}).</p>`},
 {id:"plotting", g:"Graph", t:"Plotting columns", kw:"plot plotting select columns worksheet line scatter symbols sticks area steps new graph add to graph close closed hide reopen open a graph not plotted worksheet only later data column",
  lead:"Nothing has to be plotted until you are ready: import into the worksheet, work on the columns there, then select the ones to plot.",
  body:`<h2>Plotting the selected columns</h2>
@@ -17922,7 +18192,7 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <h2>After fitting</h2>
 <p>The curve is drawn over the data, and the residuals under the graph after a peak fit (<em>Residuals under the graph</em> in the Fit window turns them on or off for any fit), and the ${DA("results","Results")} window gives every parameter with its uncertainty and anything that makes it less certain. Each fit is kept in the fit history; a fit whose data or processing changed since is marked out of date.</p>
 ${TIP("A fit belongs to its column. It is drawn only over the column it was fitted to.")}`},
-{id:"curvefit", g:"Fitting", t:"Curve fit", kw:"curve fit model models list picker search sketch suggested suggestion linear straight line polynomial order quadratic cubic exponential decay biexponential growth plateau association sigmoid boltzmann logistic dose response ec50 hill gompertz michaelis menten enzyme gaussian lorentzian voigt pseudo-voigt pearson log-normal lognormal extreme gumbel power law allometric logarithm arrhenius activation energy sine damped wave period frequency derived guess initial fixed weights control iteration iterations tolerance step stop lambda damping estimate starting values limits bounds lowest highest strict digits significant meaning confidence interval dependency",
+{id:"curvefit", g:"Fitting", t:"Curve fit", kw:"curve fit confidence level 90 95 99 percent model models list picker search sketch suggested suggestion linear straight line polynomial order quadratic cubic exponential decay biexponential growth plateau association sigmoid boltzmann logistic dose response ec50 hill gompertz michaelis menten enzyme gaussian lorentzian voigt pseudo-voigt pearson log-normal lognormal extreme gumbel power law allometric logarithm arrhenius activation energy sine damped wave period frequency derived guess initial fixed weights control iteration iterations tolerance step stop lambda damping estimate starting values limits bounds lowest highest strict digits significant meaning confidence interval dependency",
  lead:"One model, fitted to the points in the fit's range.",
  body:`<h2>Fitting</h2>
 <ol class="dsteps"><li>Choose a model. The model's button opens the list of every model by kind, each with a sketch of its shape and its formula; type to find one by its name, by a word of what it is for or of what its parameters mean, or by its name in Origin (${K("↑")} ${K("↓")} and ${K("Enter")} choose). A polynomial's order, 1 to 9, is chosen beside the button. The Fit window starts from the model that suits the shape of the points (a straight line for a steady rise or fall, an exponential for a quick change that levels off, a sigmoid for a rise from one level to another, a Gaussian for one clear peak) and names it under the button; when another is chosen, its button chooses it again. Its formula is shown under the button.</li>
@@ -17930,10 +18200,11 @@ ${TIP("A fit belongs to its column. It is drawn only over the column it was fitt
 <li>Tick a parameter's <em>Fix</em> to hold it at its starting value.</li>
 <li>With a Y error column, <em>Weight by the Y error column</em> fits with weights 1/σ²; otherwise the errors are scaled by the scatter of the residuals.</li>
 <li>With X error bars, <em>Include the X errors</em> fits by orthogonal distance regression: each point's true X is fitted too, within its error. Without Y errors, the scatter in Y is taken to be the same for every point and found from the fit (the Results give it as <em>s</em>). Peak fits and fits of every column have the same choice. ${DA("errbars#use","Error bars")}</li>
+<li id="conf"><em>Confidence level</em> (95% unless set: 90, 99, 99.9 or any level typed under <em>Other…</em>) is the level of the parameters' intervals, of the bands drawn round the fit, and of the outlier limit. It is how the fit is read, so changing it changes the fit on screen at once, and its intervals in Results, the report and the CSV.</li>
 <li><em>Fit</em>, or ${K("Ctrl","Enter")}.</li></ol>
 <h2 id="params">Parameters</h2>
 <p>Each parameter is listed with its unit and what it means. In the dock the grid shows one set of columns at a time (<em>Starting values</em>, <em>Limits</em>, <em>Results</em>); in a wider Fit window, all of them.</p>
-${DL([["Start, Fix","Where the fit starts, and whether the parameter is held there."],["Lowest, Highest","The values the fit may not go past. Empty is no limit (for a function of yours, its own limit, shown greyed; type <em>none</em> to have none). The button beside each says whether the fit may reach the limit (≤) or must stay strictly inside it (&lt;). A parameter that ends at a limit is marked <em>at its limit</em> and has no standard error. Equal limits hold the parameter there, as Fix does; limits that cross are refused, in words."],["Fitted ± error, 95% interval, Dependency","The result: the value with its standard error, the 95% confidence interval, and how much the parameter depends on the others (near 1: not determined on its own)."],["Digits","How many significant digits the value is shown with, here, in Results and in the report; Auto takes them from the error. The CSV and the copied table keep every digit."]])}
+${DL([["Start, Fix","Where the fit starts, and whether the parameter is held there."],["Lowest, Highest","The values the fit may not go past. Empty is no limit (for a function of yours, its own limit, shown greyed; type <em>none</em> to have none). The button beside each says whether the fit may reach the limit (≤) or must stay strictly inside it (&lt;). A parameter that ends at a limit is marked <em>at its limit</em> and has no standard error. Equal limits hold the parameter there, as Fix does; limits that cross are refused, in words."],["Fitted ± error, interval, Dependency","The result: the value with its standard error, the confidence interval at the fit's level, and how much the parameter depends on the others (near 1: not determined on its own)."],["Digits","How many significant digits the value is shown with, here, in Results and in the report; Auto takes them from the error. The CSV and the copied table keep every digit."]])}
 <p>A fit keeps its limits and digits: Results, the report's Method and the CSV state the limits, and ${DA("batch","fitting every column")} uses them.</p>
 <h2 id="ctl">Fit control and iterations</h2>
 <p>The fit is Levenberg–Marquardt: from the starting values it takes steps that lower χ², and it has settled when a step lowers χ² by less than the <em>Tolerance</em> (a fraction of it; 1e-12 unless set) or moves no parameter by more than one part in 10¹⁰. <em>Iterations, at most</em> (400 unless set) is where a fit that has not settled stops, with a note in Results; <em>Fit</em> again carries on from there. Both are under <em>Fit control</em> in the Fit window, and Results, the report and the CSV say what each fit ran with. With the X errors included the method is orthogonal distance regression.</p>
@@ -18000,15 +18271,23 @@ ${DL([["Equal","The same value."],["A multiple","For areas: the 2 to 1 of a spin
 <p>Each has a start (empty: guessed from its name, such as <code>y0</code> a baseline, <code>A</code> a height, <code>xc</code> the position of the largest point, <code>w</code> a tenth of the range), optional lower and upper limits, and a unit. A preview draws the function at its starts over the data as you type, and a mistake is named with its line.</p>
 <h2>Keeping them</h2>
 <p>A function belongs to the project and, if you choose, to this browser's library for later projects. A fit keeps a copy of the function it used, so editing the function never changes a result already made; the report and the CSV state the formula and its limits.</p>`},
-{id:"results", g:"Fitting", t:"Reading the results", win:"res", kw:"results parameters standard error t p value confidence interval dependency chi square r2 aic bic residuals warnings notes history",
+{id:"results", g:"Fitting", t:"Reading the results", win:"res", kw:"results parameters standard error t p value confidence interval level dependency chi square r2 aic bic residuals warnings notes history anova analysis of variance f test sum of squares mean square covariance correlation matrix standardised studentised standardized studentized deleted leverage hat outlier outliers mask probability paper normal histogram lag",
  lead:"Every parameter with its uncertainty, the fit statistics, and plain notes on anything that makes the numbers less trustworthy.",
  body:`<h2>Parameters</h2>
-${DL([["Value ± standard error","From the covariance matrix. Without weights, scaled by √(reduced χ²), as Origin does."],["t, Prob > |t|","The value over its error, and the chance of a t that large if the parameter were really zero."],["95% confidence interval","Value ± t₀.₉₇₅ × error."],["Dependency","Near 1, the parameter is doing the same job as others and is not independently determined. Such rows are highlighted."],["At its limit","A parameter that stopped at a bound has no meaningful standard error, and is left out of derived quantities' errors."]])}
+${DL([["Value ± standard error","From the covariance matrix. Without weights, scaled by √(reduced χ²), as Origin does."],["t, Prob > |t|","The value over its error, and the chance of a t that large if the parameter were really zero."],["Confidence interval","Value ± t × error, t for the fit's confidence level (95% unless set in the Fit window) and its degrees of freedom."],["Dependency","Near 1, the parameter is doing the same job as others and is not independently determined. Such rows are highlighted."],["At its limit","A parameter that stopped at a bound has no meaningful standard error, and is left out of derived quantities' errors."]])}
 <p>A peak fit adds each peak's height and FWHM, derived with their errors.</p>
 <h2>Statistics</h2>
 ${DL([["Reduced χ²","The residual sum of squares over the degrees of freedom (weighted: near 1 for a good fit)."],["R², adjusted R²","The share of the variance explained; adjusted for the number of parameters."],["AIC, BIC","For comparing models on the same data: lower is better, and more parameters must earn their place."]])}
+<h2 id="anova">Analysis of variance</h2>
+<p>As Origin's: what the model explains (the total about zero less the residual, as many degrees of freedom as free parameters), the residual, and the totals about zero and about the mean; F, the model's mean square over the residual's, with the chance of an F that large. A weighted fit's sums are of w·y², w = 1/σ².</p>
+<h2 id="cov">Correlation and covariance</h2>
+<p>Of the free parameters (not fixed, tied or at a limit), from the fit's covariance. A correlation above 0.95 is marked: those two parameters move together, and the data hardly tell them apart.</p>
+<h2 id="resid">Residuals and outliers</h2>
+${DL([["Regular","y − f(x)."],["Standardised","The residual over s, the scatter left by the fit (√ of reduced χ²; for a weighted fit each residual is first multiplied by 1/σ)."],["Studentised","The same over s√(1 − h), h the point's leverage: how much the point alone sets the curve where it is (the leverages add up to the number of free parameters)."],["Studentised deleted","The same with s from the fit without that point. Past the outlier limit, a point is an outlier."]])}
+<p>Results shows any of them against X, against the fitted value, in the order recorded, as a histogram with the normal curve they should follow, on probability paper with the line they should lie on, or against the residual before (a pattern there means the points are not independent). The panel under the graph shows the kind chosen against X (${MP("Plot › Format graph…")}, the layout page, has it too).</p>
+<p>The <strong>outlier limit</strong> is the t limit, at the fit's confidence level, for the largest studentised deleted residual of all the points (a Bonferroni limit): so with no outlier at all, some point is flagged about one data set in twenty at 95%, not every twentieth point. Outliers are listed with their x, y, residual and leverage, ringed on the graph and in the chart, and named in the notes; <em>Mask them</em> masks them in their column, so the next fit leaves them out (Undo brings them back). For a fit with the X errors there is no residual analysis: its residuals are not distances in Y. For a large fit the three parts are worked out when opened.</p>
 <h2>Notes</h2>
-<p>The fit did not converge; a peak is unusable; the covariance is singular; parameters depend on each other; a parameter is at a limit; the residuals run in long stretches of one sign (a runs test: the model misses a feature); the fit is out of date; warnings from the processing. The same notes are in the report.</p>
+<p>The fit did not converge; a peak is unusable; the covariance is singular; parameters depend on each other; a parameter is at a limit; points are past the outlier limit; the residuals run in long stretches of one sign (a runs test: the model misses a feature); the fit is out of date; warnings from the processing. The same notes are in the report.</p>
 <h2>History</h2>
 <p>Every fit is kept with its numbers, the processing it was made on and a thumbnail, to compare or bring back. <em>Copy</em> gives the tables as tab-separated text.</p>
 <p>With a batch fit, Results shows the active column's own fit. ${DA("batch","Fitting every column")}</p>`},
@@ -18799,7 +19078,7 @@ function batchWith(fit){ const p=P(), b=p&&p.batch; if(!b||b.glob) return {}; co
     :fit.kind!=="composite"&&fit.model===t.model;
   if(!same) return {};
   return {batch:Object.assign({},b,{rows:b.rows.map(q=>q===r?{col:q.col,fit:Object.assign({},fit,{batch:true,byHand:true}),fail:null}:q)})}; }
-function batchTemplate(f){ if(!f) return null; const c=colById(f.onCol)||activeYCol(), xu=finalOf(c).xu||"", common={params:f.params.slice(),fixed:(f.fixed||f.params.map(()=>false)).slice(),weighted:!!f.weighted,xerr:!!f.xerr,range:f.range?f.range.slice():null,logY:!!GP().logY,xu,from:c?c.id:null,ctl:f.ctl?fitCtl(f.ctl):null,lim:f.lim?clone(f.lim):null,dig:Array.isArray(f.dig)?f.dig.slice():null};
+function batchTemplate(f){ if(!f) return null; const c=colById(f.onCol)||activeYCol(), xu=finalOf(c).xu||"", common={params:f.params.slice(),fixed:(f.fixed||f.params.map(()=>false)).slice(),weighted:!!f.weighted,xerr:!!f.xerr,range:f.range?f.range.slice():null,logY:!!GP().logY,xu,from:c?c.id:null,ctl:f.ctl?fitCtl(f.ctl):null,lim:f.lim?clone(f.lim):null,dig:Array.isArray(f.dig)?f.dig.slice():null,conf:confKeep(confOf(f))};
   if(f.kind==="composite") return Object.assign({kind:"composite",spec:clone(f.spec),x0:f.x0,name:describeSpec(f.spec)},common);
   return Object.assign({kind:"model",model:f.model,fn:f.fn?clone(f.fn):null,name:(fitModel(f)||{}).name||"the model"},common); }
 function batchPts(c,t){ const d=finalOf(c), mk=new Set(maskOf(c)), r=t.range, lo=r?Math.min(r[0],r[1]):-Infinity, hi=r?Math.max(r[0],r[1]):Infinity;
@@ -18811,7 +19090,7 @@ function fitOne(c,t,seed,spec){
   const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), he=!!(d.e&&d.e.some(v=>v!=null&&v>0)), useW=t.weighted&&he&&pts.every(q=>q.e>0), W=pts.map(q=>useW?1/q.e:1);
   let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; X.forEach(v=>{ if(v<x0) x0=v; if(v>x1) x1=v; }); Y.forEach(v=>{ if(v<y0) y0=v; if(v>y1) y1=v; });
   const SX=t.xerr?xErrsOf(c,pts):null, SY=useW?pts.map(q=>q.e):null;
-  const base={onCol:c.id,onColName:c.name||"",maskSig:maskSig(c),pipeSig:pipeSig(c),rawFp:rawFp(),hadErrCol:he,range:[x0,x1],weighted:useW,by:who(),at:Date.now(),batch:true};
+  const base={onCol:c.id,onColName:c.name||"",maskSig:maskSig(c),pipeSig:pipeSig(c),rawFp:rawFp(),hadErrCol:he,range:[x0,x1],weighted:useW,by:who(),at:Date.now(),batch:true,...(t.conf?{conf:t.conf}:{})};
   const out=(res,more)=>Object.assign(more,{params:res.params,errors:res.errors,cov:res.cov,dep:finOrNull(res.dep),pval:finOrNull(res.pval),tval:finOrNull(res.tval),ci:finOrNull(res.ci),atBound:res.atBound,stats:res.stats},base,SX?{xerr:true,odr:odrNote(res)}:{});
   if(t.kind==="composite"){
     const sp=spec||t.spec, m=compileModel(sp,t.x0); if(m.n!==seed.length) return {fail:"the model and its starting values do not match"};
@@ -18903,7 +19182,7 @@ function fitTogether(list,t,share){
     const fit=Object.assign(comp?{kind:"composite",spec:clone(t.spec),x0:m.x0,fixed:t.fixed.slice()}:Object.assign({model:t.model,fixed:t.fixed.slice()},t.fn?{fn:clone(t.fn)}:{},t.lim?{lim:clone(t.lim)}:{},t.dig?{dig:t.dig.slice()}:{}),
       {params:res.params,errors:res.errors,cov:res.cov,dep:finOrNull(res.dep),pval:finOrNull(res.pval),tval:finOrNull(res.tval),ci:finOrNull(res.ci),atBound:res.atBound,stats:st,
        onCol:z.c.id,onColName:z.c.name||"",maskSig:maskSig(z.c),pipeSig:pipeSig(z.c),rawFp:rawFp(),hadErrCol:z.he,range:[x0,x1],weighted:useW,by:who(),at,batch:true,
-       global:true,shared:sh.slice(),gstats});
+       global:true,shared:sh.slice(),gstats,...(t.conf?{conf:t.conf}:{})});
     return {col:z.c.id,fit,fail:null}; });
   return {rows,glob:{share:sh.slice(),stats:gstats}};
 }

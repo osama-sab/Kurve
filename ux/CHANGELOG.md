@@ -627,6 +627,39 @@ every suite from the round before (drive5b now scrolls to the Residuals switch, 
 taller grid moved below the fold; the Fit window's scroller stops what it brings into view
 above its sticky footer).
 
+## Curve fit, slice 4: the confidence level, ANOVA and residual analysis (2026-10-22)
+
+`ux/spec/FIT_SPEC.md` slice 4.
+- **A confidence level** for every fit (90, 95, 99, 99.9% or any typed), in both Fit windows: the
+  parameters' intervals (the grid, Results, the copied table, the report, the CSV), the confidence
+  and prediction bands and the outlier limit are at it; the fit on screen takes it at once; fits of
+  every column take the template's. t for any level is exact now (it was an expansion good to 10⁻³).
+- **Analysis of variance** in Results, as Origin's: the model, the residual, the totals about zero
+  and about the mean; F and its probability (weighted fits weighted).
+- **Correlation and covariance** of the free parameters, a correlation above 0.95 marked.
+- **Residuals** regular, standardised, studentised (each point's leverage from the Jacobian) or
+  studentised deleted: under the graph against X, and in Results against X, the fitted value, the
+  order recorded, as a histogram with its normal curve, on probability paper with its line, or
+  against the residual before.
+- **Outliers**: past a Bonferroni t limit on the studentised deleted residual at the fit's level;
+  ringed, listed with their leverage, named in the notes and the report, and masked in one step.
+- **In the report, the copied table and the CSV**: the level, the ANOVA, the correlation, the
+  residuals' chart (the report) and the outliers.
+- A peak fit of thousands of points works its analysis out only when asked (a third of a second
+  for 4000 points and eight Voigt peaks).
+
+Checked: fit-test (19: t against the tables, F's closed form, a straight line's leverage, the
+deleted residual against refitting without each point, a fixed parameter, weights, a curve's
+leverages, a planted outlier found and clean data rarely flagged in 200 sets, the ANOVA's sums,
+the correlation matrix), odd-test (7: a level or a kind of residual that is junk from storage, a
+fit from before, every parameter fixed, two points), a drive (32: the level and its undo, Other…,
+a refusal, Results' three parts, every kind in every view without NaN, the limit and the ring on
+the graph and in the chart, the copied table, the CSV and the report, Mask it, undo, fitting
+again), a timing of a large peak fit, screenshots, and every suite from the round before. The
+worksheet fuzzer's seed 9 fails when three runs share the machine, on the version before this one
+too (a value typed just after leaving a cell whose text was not a number, or a double click, is
+lost), and is clean alone: a timing issue in the worksheet, not this slice's, left for its own round.
+
 ## Curve fit, slice 3: more models, found easily (2026-10-22)
 
 `ux/spec/FIT_SPEC.md` slice 3.

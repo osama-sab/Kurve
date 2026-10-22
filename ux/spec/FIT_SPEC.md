@@ -23,11 +23,11 @@ Origin's help pages it was compared with: the NLFit dialog's
 | Function selection | 25 built-in models in 6 kinds (`MODELS`, `MODEL_GROUPS`), each with a sketch, searched by name, purpose, parameter or Origin's name; your functions and a library; a suggestion (slice 3) | none |
 | Data selection | one column, its range, its mask; every column, alone or together | none worth the work (no concatenated fit) |
 | Weights | none, or 1/σ² from the Y error column; X errors by orthogonal distance | counting (1/y), a column's values as weights, apparent fit |
-| Fitted curves | drawn with a 95 % confidence band and a 95 % prediction band | the level, the points, the curve past the data |
+| Fitted curves | drawn with a confidence band and a prediction band at the fit's level (slice 4) | the points, the curve past the data |
 | Find X/Y | none | X for a Y and Y for an X, from the fit |
 | Fit control | Levenberg–Marquardt, 400 iterations and a tolerance of 10⁻¹² fixed in `lmFit` | shown and set: method, iterations, tolerance |
-| Quantities | every parameter's value, error, t, p, 95 % CI, dependency; derived values; n, dof, χ²ᵣ, R², adjusted R², RSS, AIC, BIC, iterations | ANOVA, covariance and correlation matrices, another confidence level |
-| Residual analysis | a panel of residuals under the graph, a runs test | standardised and studentised residuals, residual plots, outliers |
+| Quantities | every parameter's value, error, t, p, CI at any level, dependency; derived values; n, dof, χ²ᵣ, R², adjusted R², RSS, AIC, BIC, iterations; ANOVA, covariance and correlation matrices (slice 4) | none |
+| Residual analysis | regular, standardised, studentised and studentised deleted residuals, under the graph and in six views in Results; outliers with Mask them; a runs test (slice 4) | none |
 | Output | Results, copied table, report, CSV, fit history | fitted values and residuals as worksheet columns |
 | Code tab | none (Kurve runs no code) | starting values and constraints as formulas |
 | Parameters tab | one grid: name, unit, meaning, start, Fix, limits, fitted ± error, 95 % interval, dependency, digits (slice 2) | share in the grid |
@@ -35,7 +35,7 @@ Origin's help pages it was compared with: the NLFit dialog's
 | Buttons | Fit, Guess, Fit every column…, Remove fit, Done | 1 Iteration |
 | Saved settings, Recalculate | none; an out-of-date fit is marked | fit settings by name; refit when the data change |
 | Lower panel | the live graph, the residual panel, the formula, a summary line, the iterations as they go (slice 1), the model's sketch on its button (slice 3) | none |
-| Linear and Polynomial | a polynomial of order 1 to 9, its order beside the model (slice 3); Fix on a or b fixes the intercept or slope | apparent fit, outliers |
+| Linear and Polynomial | a polynomial of order 1 to 9, its order beside the model (slice 3); Fix on a or b fixes the intercept or slope; outliers (slice 4) | apparent fit |
 | Function Builder | one editor: name, formula, live check, parameters with start, limits and unit, preview | category, meanings, start formulas, constraints, derived values |
 | Function Organizer | the model list's groups | your functions filed by category |
 
@@ -86,7 +86,9 @@ CLAUDE.md, the menu spec when a menu changes.
    sine and damped sine; Michaelis–Menten, Arrhenius. The picker becomes a searchable list by
    kind, each with its formula and a sketch drawn from typical values. Stored fits keep
    working: a model's id never changes once shipped (`poly2` reads as a polynomial of order 2).
-4. **Quantities and residual analysis.** A confidence level (90, 95, 99 % or typed) for the
+4. **Quantities and residual analysis** (done 2026-10-22; the views other than against X are in Results, since the panel under the
+   graph shares the graph's X; outliers past a Bonferroni limit, so clean data rarely flag one; a heavy fit's analysis is worked out
+   when opened). A confidence level (90, 95, 99 % or typed) for the
    intervals and both bands, which needs a t quantile for any level (`tQuantile975` is the
    97.5 % one only); an ANOVA table (regression, residual and total sums of squares, degrees
    of freedom, mean squares, F and its p, which needs the F distribution); the covariance and
