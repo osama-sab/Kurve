@@ -188,12 +188,25 @@ Excel's and Origin's conventions, unless noted.
 - **Formula bar**: the value box beside the address is editable, as Excel's; a computed cell
   shows and edits its formula. The **F(x)=** cell opens for typing on a single click (it did
   nothing before, which read as broken).
-- **Three header rows**: the letters, Long Name and Units (66 px; it was 148). Comments, F(x)=
-  and Sparklines are behind the ⋯ in the corner, per project. F(x)= shows itself once a
-  column has a formula, and a formula typed into a cell as in a spreadsheet (`=log10(B1)`)
-  moves there, still being typed, with a message that a letter is the whole column: Phase 1's
-  user typed exactly that and was told it was not a number. Rows are 22 px: 21 data rows in
-  view at 1366 × 768 on a first visit, where there were none.
+- **Four header rows**: the letters, Long Name, Units and **F(x)=** (88 px; it was 148).
+  Comments and Sparklines are behind the ⋯ in the corner, per project. F(x)= is always there
+  (the ⋯ shows it ticked and fixed): it used to appear only once a column had a formula, so
+  there were two places a formula seemed to live and the row came and went under the user's
+  hand, which they found unintuitive and chose the visible row. A formula typed into a cell as
+  in a spreadsheet (`=log10(B1)`) still works: it moves to the F(x)= row, still being typed,
+  with a message that a letter is the whole column (Phase 1's user typed exactly that and was
+  told it was not a number). Rows are 22 px: about 20 data rows in view at 1366 × 768 on a
+  first visit, where there were none.
+- **Insert and delete rows and columns** where a spreadsheet user looks for them: *Insert* and
+  *Delete* in the cell's right-click menu (Row above, Row below, Column to the left, Column to
+  the right, A column at the end, A sheet; Rows…, Columns…), the column menu's *Insert a column
+  to the left / right* and *Delete*, the bar's **Insert** button (it was "+ Column", which only
+  added at the end), Edit › Insert and Delete, and Excel's keys, Ctrl+Shift+= and Ctrl+−
+  (whole columns selected: columns; else rows). The user could not find them: rows were only in
+  the cell menu, by other names, and columns only at the end. As many as are selected are
+  inserted, a new column is a Y (the role a typed column gets), each change one undo step and an
+  entry in the original-data record; rows still need the data unlocked and unsorted, and are
+  refused past the data's end, where the rows are empty already.
 - **Fill** lives in the column's and the cell's right-click menus and in Data › Fill, not on the
   bar: a fill is something you do to a column. The fill handle on the selection's corner stays,
   as in Excel.
@@ -230,6 +243,37 @@ Two routes, as in Origin: **select columns and press Plot** (a quick list of plo
 layouts), or **Plot setup…** (Plot menu, the top of the quick list, and what Plot opens when
 nothing is selected): kinds as pictures, the X column, the Y columns ticked, the target graph,
 and a sketch of the result. Plotting is never automatic after an import from the dialog.
+
+### Large data
+
+A graph of 50 000 points or more was slow to zoom, pan and hover, and a curve's processing could
+take seconds: the user asked for it to be made usable. Decided:
+
+- **Draw what the screen can show.** Past 3000 points, a line keeps per column of pixels (half
+  a pixel on a high-density screen) its first, lowest, highest and last point, in order (M4):
+  the line drawn covers the same pixels as one through every point. Areas and steps the same;
+  symbols one per spot of half a pixel; sticks per half column; Y error bars merged per half
+  column where they overlap, their caps one per quarter-pixel spot, X bars one per pixel; a
+  band per column at its widest; the residual panel as two paths. A drive compares the two
+  drawings pixel by pixel: no pixel inked in one is blank in the other for lines, areas, steps,
+  bands and zooms, and fewer than 0.2 % for symbols and error bars (edge shading differs, since
+  hundreds of overlapping strokes darken an edge that one stroke shades). 200 000 points draw in
+  about 40 ms (170 before), and ten turns of the wheel take 1.3 s where they took 9.
+- **Never in an export.** SVG, PNG, PDF, EPS, the clipboard and the report draw every point;
+  the data, the processing, the fits and the peak finder always use every point.
+- **Work out once what each frame asks again.** Where each point is on the screen (per drawing,
+  so a pointer move searches only the points near it), the mask, the fit's points and
+  residuals, the data's extent, the worksheet's sparklines (four points per bucket of rows, in
+  one pass). Moving the pointer with the Reader over 200 000 points went from about 8 ms a move
+  to under 1 ms; a redraw with a fit and its residuals from about 200 ms to about 110.
+- **What was quadratic is not.** The spike check walked a whole band from every noise maximum on
+  it (four seconds to smooth 200 000 points; now 0.3 s); a model suggestion smoothed with a
+  window per point; the peak finder compared each candidate with every earlier one to drop
+  duplicates (fourteen seconds to open the Peaks window; now 1.3). And Statistics no longer fits
+  the Overview's background to decide whether to show spectral measures (1.9 s; now 0.6). The tests now time 200 000 points (`tools/odd-test.mjs`).
+- **The store is the next limit.** This browser keeps projects in localStorage, a few megabytes
+  for all of them: three columns of 200 000 rows do not fit, and the status bar says Not saved.
+  Moving projects to IndexedDB is on the roadmap.
 
 ### The Format dialog
 
@@ -690,6 +734,14 @@ kind of text folded under its own line; formatted text or LaTeX, with a large li
 and no preview for formatted text; transitions that survive the redraw they cause; boxes put in
 their rows (the edge-by-edge choices, a lone Add, a link, the Fit window's range clipped to two
 characters in the dock).
+
+### 2026-10-23: the user's review: one formula row, insert, Plot setup, large data
+
+The F(x)= row is always shown (the user's choice between it and formulas only in cells; typing
+`=` in a cell still works). Insert and Delete for rows and columns where Excel has them. Plot
+setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md`: ranges,
+which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
+screen can show it, and what every frame asked again worked out once.
 
 ### 2026-10-17: defaults (UX rework, Phase 4 slice 5)
 

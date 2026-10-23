@@ -191,6 +191,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   the values above), cleaning floating-point dust at the step's precision, refusing in words,
   at most `FILL_MAX` values; `lgammaFn` (Lanczos) and `poissonRand` (multiplication below a
   mean of 30, Hörmann's PTRS above) serve it.
+  `amin`/`amax` are the smallest and largest of an array in a loop (NaN if any is): `Math.min(
+  ...a)` throws past about 120 000 values, so nothing spreads a column into arguments.
   `polyfit` fits about the mean of X and shifts back, so a wavenumber axis is not hopeless;
   `lineFit` (the trend lines) is a weighted straight line about the mean of X too, and returns
   null when the X values do not spread beyond 10⁻¹² of their size.
@@ -698,11 +700,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
   window: empty "phantom" columns and rows fill the rest, and typing into one makes a column.
   Under the letters come Long Name, Units, Comments and F(x)= (rows -4 … -1, `WS_LABS`,
-  `WS_TOP`, typed into like any cell) and a Sparklines row; only Long Name and Units show
-  unless the corner's ⋯ (`[data-wsrows]`, `wsRowsMenu`) shows the others, per project and
-  browser (`wsRowsPref`/`wsRowsSet`, `kurve.wsrows`); F(x)= shows itself when a column has a
-  formula (`wsAnyFx`), and `wsLabShown`, `wsLabRows`, `wsLabSnap` keep the selection off the
-  hidden ones. Rows are 22 px. A value typed into a cell that starts with `=` (`=log10(B1)`,
+  `WS_TOP`, typed into like any cell) and a Sparklines row; Long Name, Units and F(x)= always
+  show (the user chose one visible formula row over formulas that appear only in cells; the
+  corner's ⋯ lists F(x)= ticked and fixed), Comments and Sparklines when the corner's ⋯
+  (`[data-wsrows]`, `wsRowsMenu`) shows them, per project and browser (`wsRowsPref`/
+  `wsRowsSet`, `kurve.wsrows`); `wsLabShown`, `wsLabRows`, `wsLabSnap` keep the selection off
+  the hidden ones. Rows are 22 px. A value typed into a cell that starts with `=` (`=log10(B1)`,
   as in a spreadsheet) moves to the column's F(x)= row, still being typed (`wsCommit` →
   `wsEditFormula(ci, init)`), with a toast that a letter is the whole column.
   **Formulas** (the F(x)= row, or "Set column values…" in the column and cell menus): a
@@ -767,10 +770,18 @@ graph first, with the taskbar kept at the bottom of the screen.
   new selection (`wsSelect`), clears it. Clicking
   a column letter, a row number, the corner or Ctrl+A makes the first cell the active one, as
   in a spreadsheet. `flushEdits` (on `pagehide`, `beforeunload` and the page hidden) enters a
-  value still in its box and saves a delayed save at once, so leaving the page loses nothing. Rows: `wsRowsEdit("insert"|"delete")` (the cell and row-number
-  menus; unlocked and unsorted only) moves every recorded column and, through
-  `remapRawRows(p, fn)`, what names a raw row (masks, corrections, a peak label's `row`, a set's
-  `ex` and `mem`, `S.sel`); one undo entry and a record entry. Copy and paste are TSV (`wsCopyText`, `wsPasteText`, the label rows
+  value still in its box and saves a delayed save at once, so leaving the page loses nothing. **Inserting and deleting**, where Excel has them: `wsInsertItems()` (the cell menu's
+  Insert, the bar's `#addColBtn` "Insert", Edit › Insert: Row above, Row below, Column to the
+  left, Column to the right, A column at the end, A sheet) and `wsDeleteItems()` (Delete:
+  Rows…, Columns…); the column menu's Insert a column to the left / right and Delete; Ctrl+Shift+=
+  and Ctrl+− in the grid (whole columns selected, `wsWholeCols`: columns; else rows). Rows:
+  `wsRowsEdit("insert"|"delete", below)` (as many as are selected, above or below them;
+  unlocked and unsorted only; refused past the data's end, where rows are empty already) moves
+  every recorded column and, through `remapRawRows(p, fn)`, what names a raw row (masks,
+  corrections, a peak label's `row`, a set's `ex` and `mem`, `S.sel`); one undo entry and a
+  record entry. Columns: `wsInsertCols(side)` (as many Y columns as are selected, beside them on
+  the sheet, the new ones selected, a toast with Undo), `deleteCols(ids)` (`wsDeleteCols`; one
+  undo entry and a record entry; one column is always left). Copy and paste are TSV (`wsCopyText`, `wsPasteText`, the label rows
   included; a block pasted from A1 into an empty sheet is read as an import reads it, and with
   no X-like column, `detectRoles`, every pasted column is a Y and the sheet's empty X column
   moves after them, since `migrate` keeps an X column in every project). The bar above shows the cell's address (`#wsAddr`) and the **formula bar** (`#wsVal`:
@@ -1493,7 +1504,17 @@ graph first, with the taskbar kept at the bottom of the screen.
   The Y axis's automatic title is `autoYTitle(d, others, layout)`: the active column's name and
   unit, or with several curves overlaid or offset their shared name, else their shared unit,
   else "Value" (`autoYOf()` for the graph in hand: the title's placeholders).
-  `seriesSvg` draws one spectrum as a handful of paths whatever its length. `axisTicks` honours
+  `seriesSvg` draws one spectrum as a handful of paths whatever its length. **What the screen
+  can show** (DESIGN.md, Large data): past `DEC_MIN` (3000) points, `decOn(n, full)`, a line,
+  area or step keeps per column of `decW()` pixels (1, or ½ on a high-density screen) its
+  first, lowest, highest and last point in order (`m4`), symbols one per spot of half that
+  (`spotsOf`), sticks `m4` at half; `errSvg` merges Y bars per half column where they overlap,
+  keeps caps one per quarter-pixel spot and X bars one per pixel, a band at each column's
+  widest; the grey earlier stage is `m4`'d; more than 1500 residuals are two paths (stems per
+  column, dots per spot) and the outlier rings one. `geo.full` (`!!colEx`: every export, the
+  clipboard, the report) draws every point; pictures on screen are decimated like the live
+  graph. A drive compares the two drawings by what is inked: no pixel inked in one is blank in
+  the other for lines, areas, steps and bands; under 0.2 % for symbols and error bars. `axisTicks` honours
   each axis's `min`, `max`, `step`, `minor`, `fmt` (auto, decimal, scientific) and `dec`. Ticks
   (`niceTicks`, `axisTicks`) are counted by index with a cap, never added up step by step, and
   `tickLabel` gives as many digits as the step needs (ticks 10⁹ apart on 1.7×10¹⁸ all differ).
@@ -1735,7 +1756,17 @@ graph first, with the taskbar kept at the bottom of the screen.
   window's stage chip and its Original/Processed/Both, `renderViewSeg`), `renderFit` (it also refreshes
   `renderResults`, `renderTabMarks` and the status bar), `renderFlow`, `renderTool`,
   `renderStats`, `renderPy`, `renderThread`, `renderLog`, `renderAll`. Dense data (over 1500
-  points) is drawn as one path of dots, and error bars as one path.
+  points) is drawn as one path of dots, and error bars as one path. **Per frame, once**: where
+  each point is on the screen (`scrOf(geo, pts)`, per drawing; `scrSpan` the points within
+  reach of the pointer by halves when in screen order, `scrNearest`; `nearest`, `readerNear`
+  and `xhCrossings` use them; `rdPts` keeps another curve's list for the readers), the analysed
+  mask (`isMasked`, finding the column again only when the project, `activeY` or the list of
+  columns changes), `fitPoints` (`fitPtsMemo`: the points, range and mask), `ptsExtent`,
+  `xExtent` (per array), a fit's residuals at the points drawn (`residsOf`, by the fit's `at`,
+  model, range and parameters), `resAbsMax`, `diagAt` (each row's place in a fit's analysis);
+  the status bar counts in a loop; `afterView()` after a zoom or pan renders the Fit window only
+  while it is open (else the status bar). The worksheet's sparklines are `sparkPts` (the first,
+  lowest, highest and last of each bucket of rows, one pass), as is any long `sparkSvg`.
 - **Error bars** (`ERR_KINDS`): an error column (role `e`, `of` its spectrum) is Y both ways
   (the default), Y upward (`side:"+"`) or downward (`side:"-"`), or the same for X (`ax:"x"`);
   `errKind`, `errTag` (the worksheet's yEr±, yEr+, yEr−, xEr±…), `errKindName`, `errColsOf(id)`
@@ -1949,7 +1980,8 @@ ones, crossed ones from storage, ones of the wrong shape), the curve fit's model
 as `poly2` before, a model that is gone, every guess on X through 0, X a model cannot take,
 a function that does not compile in the list), the confidence level and residuals (a level or a
 kind of residual that is junk from storage, a fit from before, every parameter fixed, two
-points). Run it after touching storage, the axes, the
+points), and 200 000 points (drawn, zoomed, hovered, smoothed and shown in the worksheet within
+a time, an export keeping every point). Run it after touching storage, the axes, the
 parser, undo or the PDF and EPS writer. It serves the file over HTTP (a server of its own, on a
 free port) and waits for each page to be ready (a project on the desk), never a fixed time.
 `node tools/sheet-fuzz.mjs [path] [seed or a-b] [steps]` drives the worksheet as an erratic
@@ -2628,6 +2660,46 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A field squeezed by its neighbours in a dock shows two characters.** The fit's range fields
   shrank to fit the row in the 356 px dock and read "1(" for 1550; the row wraps instead.
 
+- **Two places for one thing is one too many, again.** Formulas could be typed in a cell or in
+  the F(x)= row, and the row appeared only once a formula existed: the user found it
+  unintuitive and chose the row, always shown. A cell's `=` still goes there.
+- **A command people look for has to be where they look.** Inserting rows lived only in the
+  cell menu, under other names, and columns could only be added at the end ("+ Column"): the
+  user asked where insert was. It is now where Excel has it: the cell menu, the column menu,
+  Edit, the bar and Ctrl+Shift+= / Ctrl+−.
+- **A spread is an argument list.** `Math.min(...a)` throws "Maximum call stack size exceeded"
+  past about 120 000 values; at 200 000 points the Fit window, the peak finder, the Peaks
+  window and the statistics threw. `amin`/`amax` loop; nothing spreads a column.
+- **A walk stops where its answer is known.** The spike check counted every point above a
+  candidate's half height to compare the count with 3; from each of thousands of noise maxima
+  on a band it walked the whole band, and smoothing 200 000 points took four seconds. It counts
+  to 3. A model suggestion smoothed with a window summed per point (a running sum now), and the
+  peak finder dropped duplicate candidates by comparing each with every earlier one (`filter`
+  with `some`: fourteen seconds to open the Peaks window; a set now). And what is asked for
+  cheaply should not pay for what is not: `looksLikeSpectrum` read the Overview, which fitted
+  its background first; `overviewOf`'s `bg` is now worked out when read.
+- **A screen has a thousand columns of pixels.** 200 000 points drawn one by one made a 2.7 MB
+  path, redrawn on every turn of the wheel (nine seconds for ten turns). Drawn per pixel column
+  (first, lowest, highest, last), the line covers the same pixels; exports still draw every
+  point. Compare two drawings by what is inked, not by shade: hundreds of overlapping strokes
+  darken an anti-aliased edge that one stroke shades lightly, and a test of shades failed a
+  drawing that covered exactly the same pixels.
+- **A frame asks again what the last one knew.** Every redraw rebuilt 200 000 residuals by
+  object spread, filtered every point for the status bar's count and the fit's points, and
+  every pointer move mapped every point through the axes; a hidden Fit window was re-guessed
+  after each zoom. Each is kept with what it came from (the points, the fit, the drawing) or
+  skipped when nothing shows it.
+- **A wait for stillness starts its clock when it starts.** The random user's `visibleCell`
+  kept the time of the last movement from its previous call, so straight after a wheel it saw
+  the old scroll position as already still, measured a cell, and double-clicked a row 28 rows
+  away once the wheel landed: it looked like the worksheet scrolling by itself. The clock is
+  reset per wait, and a wheel waits for its scroll. And a click that enters a value still in
+  its box over a locked cell opens the correction dialog: what the harness typed next was the
+  reason. Read the trail, and the harness, before the app.
+- **A name is taken, once more.** `fpMemo`, the fingerprint's cache, nearly became the fit
+  points' too: a `let` collides as a function does, and the syntax check caught it.
+  `grep -oE '^(const|let) [A-Za-z0-9_]+' kurve.html | sort | uniq -d` finds them.
+
 ## Roadmap
 
 Under way: the curve fit as complete as Origin's fitting dialogs (`ux/spec/FIT_SPEC.md`, the
@@ -2667,6 +2739,19 @@ of text folded under a line saying how it looks; text typed formatted, as in a w
 stored as LaTeX either way; switches and segmented choices that keep their transition through
 the redraw they cause; boxes put in their rows (the edge-by-edge choices, Add, a link, the fit's
 range in the dock).
+
+Then, also before slice 5, the user's review of the worksheet, Plot setup and large data. The
+F(x)= row is always shown (the user chose it over formulas that appear only in cells; `=` in a
+cell still goes there). Rows and columns are inserted and deleted where Excel has it: the cell
+menu's Insert and Delete, the column menu, Edit, the bar's Insert, Ctrl+Shift+= and Ctrl+−, as
+many as are selected. Plot setup was compared with Origin's (its three panels, the Range dialog,
+Layer Contents) and the plan is `ux/spec/PLOT_SPEC.md`, the roadmap's second item. Graphs of
+50 000 points and more are drawn as the screen can show them (per pixel column; exports keep
+every point), and what each frame asked again is kept: at 200 000 points a draw is about 40 ms
+(170), ten turns of the wheel 1.3 s (9.3), smoothing 0.3 s (4.6), the Peaks window
+1.3 s (14), a pointer move with the Reader under 1 ms; nothing spreads a column into arguments any more (it threw past 120 000 values).
+The random user's two failures were its own: a stillness clock left running, and a correction's
+reason typed as a value.
 
 Between slices 1 and 2, from the user's bug reports: graphs as one list (document version 5).
 A project has no graph until something is plotted, so a project can be worksheet calculations
@@ -2959,27 +3044,35 @@ Next, in order:
    column weights, an apparent fit; starting values and constraints as formulas; fit
    settings saved by name, and fits that follow their data; the function editor grown, and
    an organizer. In the docked Fit window, in Kurve's words, running no code
-2. Counting spectra, further: other analysers' files (Maestro .Spe with its calibration, N42;
+2. Plot setup as Origin's, the user's question ("why can I not choose how I want to plot the
+   graph, for example the range, which axis is the error axis"); the comparison, the decisions
+   and six slices are `ux/spec/PLOT_SPEC.md`: what each curve on a graph uses (`curveUse`: its
+   range by row or by X, its axis, a label column), Plot setup rebuilt in three parts (the
+   columns of every sheet; what each column is, X, Y, Y error ±/+/−, X error, labels, colour,
+   size; the curves on the graph with Add, Replace, Remove, order, range and axis) with the real
+   graph as its preview, the same dialog on an existing graph (Origin's Layer Contents), groups,
+   kinds that need more columns, and setups remembered
+3. Counting spectra, further: other analysers' files (Maestro .Spe with its calibration, N42;
    CHN and CNF are binary), FWHM and efficiency against energy, net peak areas over a local
    continuum with their counting errors and activities, a nuclide named by the set of its lines
    (their intensity ratios, interferences), region edges dragged on the graph
-3. Plots Origin has and Kurve lacks, further: a distribution fitted over a histogram (normal,
+4. Plots Origin has and Kurve lacks, further: a distribution fitted over a histogram (normal,
    log-normal) with its parameters; box charts of one column grouped by another, notched
    boxes; stacked and grouped bars with category names; per-row or per-column shared axes in a
    figure; a map from scattered X, Y, Z (triangulated) rather than from spectra
-4. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
+5. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
    with its own scale on each side, polygons and curved arrows
-5. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
+6. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
    lanes, keyboard access to annotations and peak handles, handles for shape parameters
    (Lorentz fraction, Pearson m, Fano 1/q)
-6. Many spectra, further: a parameter that follows the series in a global fit (a centre
+7. Many spectra, further: a parameter that follows the series in a global fit (a centre
    linear in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the
    files' header fields as rows of the worksheet, global fits in a worker
-7. More files: JCAMP-DX, then SPC; OPUS and SPE last
-8. Under the hood: projects in IndexedDB rather than localStorage (no 5 MB limit, BroadcastChannel
+8. More files: JCAMP-DX, then SPC; OPUS and SPE last
+9. Under the hood: projects in IndexedDB rather than localStorage (no 5 MB limit, BroadcastChannel
    between tabs); `tools/odd-test.mjs` grown to run every example end to end; the worksheet
    drawing only the columns in view; speed with thousands of spectra
-9. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
+10. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
    applied in one click, unread markers
 
 ## Known gaps
@@ -3146,6 +3239,10 @@ Next, in order:
   rich text is scripts and symbols only (no
   bold or italic inside a text, no nested scripts); snapping is text to text and to the plot's
   centre, and an arrow's head to data points; nothing can be nudged with the keys
+- Large data on screen: past 3000 points a curve is drawn per column of pixels, so two points
+  within half a pixel are one symbol and a dashed line's dashes fall a little differently; the
+  exports draw every point. A fit, the peak finder and the processing use every point, so a fit
+  of 200 000 points takes seconds, run on the page
 - Storage in this browser is localStorage: a few megabytes for every project together (a few
   hundred thousand points). A project larger than that says Not saved and must be exported;
   two tabs editing the same part of one project keep the later change

@@ -39,6 +39,8 @@ SAME = {
     ("Edit", "Redo (what it redoes)"): re.compile(r"^Redo\b"),
     ("Plot", "New graph", "With (the active column)"): re.compile(r"^With (?!every)"),
     ("Plot", "Format graph…"): "Format graph…",
+    ("Edit", "Delete", "Row"): re.compile(r"^Rows? \d"),          # names the rows selected
+    ("Edit", "Delete", "Columns"): re.compile(r"^Columns?\b"),     # names the columns selected
 }
 
 

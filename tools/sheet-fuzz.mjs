@@ -58,6 +58,9 @@ async function closeDialogs(){ for(let i=0;i<3;i++){ const open=await page.evalu
 // a cell measured while the window grows out of its taskbar button, or while a wheel's smooth
 // scroll runs (it may start a frame or two after the wheel), is elsewhere by the click.
 async function visibleCell(opts={}){
+  // The clock starts now: one left running from before an action took the place where the
+  // wheel had not landed yet for one that had held still (a double click 28 rows off).
+  await page.evaluate(()=>{ window.__fzK=null; });
   await page.waitForFunction(()=>{ const w=$("#w-sheet"), b=$("#ws"); if(w&&(w._wa||w._wf)) return false; if(!b) return true;
     const r=b.getBoundingClientRect(), k=[b.scrollTop,b.scrollLeft,Math.round(r.top),Math.round(r.left)].join(","), now=performance.now();
     if(window.__fzK!==k){ window.__fzK=k; window.__fzT=now; return false; } return now-window.__fzT>=150; },null,{timeout:3000,polling:"raf"}).catch(()=>{});
@@ -100,6 +103,9 @@ async function typeValue(){
     await page.keyboard.press("Control+A"); }
   else { await page.mouse.click(c.x,c.y); await wait(ri(0,80)); if(how==="f2"){ await page.keyboard.press("F2"); await page.keyboard.press("Control+A"); } }
   if(how!=="dbl"){ const k=await page.evaluate(()=>{ const a=document.activeElement; return !!a&&!!a.closest&&!!a.closest("#ws"); }); if(!k&&!(await state()).modal) fail(`a click on ${c.r+1}:${c.c} left the keys outside the grid`); }
+  // A click that enters a value still in its box over a locked one opens the correction
+  // dialog: what is typed next is its reason, not this cell's value.
+  if((await state()).modal){ log("  a dialog opened on the click"); await closeDialogs(); return; }
   const s1=await state(); const before=await cellVal(s1.r,s1.c); const K=before.k;
   const delay=pick([0,0,20,80,160]);
   if(text==="") { await page.keyboard.press("Backspace"); }
@@ -141,7 +147,8 @@ async function typeValue(){
 const actions=[
   ["type",30,typeValue],
   ["click",8,async()=>{ const c=await visibleCell(); if(c){ log(`click ${c.r+1}:${c.c}`); await page.mouse.click(c.x,c.y,{modifiers:rnd()<0.2?["Shift"]:[]}); } }],
-  ["wheel",8,async()=>{ const dy=pick([-3000,-600,-120,120,600,3000,9000]); log(`wheel ${dy}`); const b=await page.$("#ws"); const bb=b&&await b.boundingBox(); if(bb){ await page.mouse.move(bb.x+bb.width/2,bb.y+bb.height/2); await page.mouse.wheel(0,dy); } }],
+  ["wheel",8,async()=>{ const dy=pick([-3000,-600,-120,120,600,3000,9000]); log(`wheel ${dy}`); const b=await page.$("#ws"); const bb=b&&await b.boundingBox(); if(bb){ await page.mouse.move(bb.x+bb.width/2,bb.y+bb.height/2); const t0=await page.evaluate(()=>$("#ws").scrollTop); await page.mouse.wheel(0,dy);
+      await page.waitForFunction(t=>{ const b=$("#ws"); return !b||b.scrollTop!==t; },t0,{timeout:400,polling:"raf"}).catch(()=>{}); } }],
   ["keys",8,async()=>{ const k=pick(["ArrowDown","ArrowUp","ArrowLeft","ArrowRight","PageDown","PageUp","Home","End","Control+End","Control+Home","Shift+ArrowDown","Shift+ArrowRight","Tab","Enter","Control+ArrowDown","Escape"]); log(`key ${k}`); await page.keyboard.press(k); }],
   ["undo",7,async()=>{ const k=pick(["Control+z","Control+z","Control+y","Control+Shift+z"]); log(`key ${k}`); await page.keyboard.press(k); }],
   ["delete",5,async()=>{ log("Delete"); await page.keyboard.press(pick(["Delete","Backspace"])); await wait(150); await closeDialogs(); }],
@@ -152,7 +159,10 @@ const actions=[
   ["sheet",3,async()=>{ const s=pick(["raw","final","raw"]); log(`sheet ${s}`); await page.click(`#wsSheet [data-sheet="${s}"]`).catch(()=>{}); }],
   ["sort",2,async()=>{ const d=pick([1,-1,0]); log(`sort ${d}`); await page.evaluate(d=>{ const m=S.wsm; const q=m&&m.cols.find(q=>!q.phantom); if(q) wsSortBy(d?q.id:null,d); },d); }],
   ["lock",3,async()=>{ log("lock toggle"); await page.click("#wsLockBtn").catch(()=>{}); }],
-  ["addcol",2,async()=>{ log("add column"); await page.click("#addColBtn").catch(()=>{}); }],
+  ["addcol",3,async()=>{ const w=pick(["A column at the end","Row above","Row below","Column to the left","Column to the right","A column at the end"]); log(`insert: ${w}`);
+      await page.click("#addColBtn").catch(()=>{}); await wait(80);
+      await page.evaluate(w=>{ const it=[...document.querySelectorAll(".menu .mi")].find(e=>(e.querySelector(".mlab")||{}).textContent===w||((e.querySelector(".mlab")||{}).textContent||"").replace(/^\d+ /,"").replace(/s (above|below|to)/," $1")===w); if(it&&!it.disabled) it.click(); else if(typeof closeMenu==="function") closeMenu(false); },w).catch(()=>{}); await wait(100); await closeDialogs(); }],
+  ["delrows",1,async()=>{ log("delete rows (Ctrl+-)"); await page.evaluate(()=>{ const b=$("#ws"); if(b) b.focus({preventScroll:true}); }); await page.keyboard.press("Control+Minus"); await wait(100); await closeDialogs(); }],
   ["resize",2,async()=>{ const w=pick([1440,1100,900,700,420]), h=pick([900,700,600]); log(`viewport ${w}x${h}`); await page.setViewportSize({width:w,height:h}); }],
   ["minimise",2,async()=>{ const bar=rnd()<0.5; log(`minimise and restore the worksheet${bar?" from its taskbar button":""}`); await page.evaluate(()=>minimiseWin("sheet")); await wait(ri(50,400));
       const b=bar&&await page.$('#taskbar .tk[data-tk="sheet"]:not([hidden])');

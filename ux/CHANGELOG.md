@@ -792,3 +792,60 @@ Checked: `tools/tex-test.mjs` (10 new: the conversion both ways draws the same, 
 escapes, placeholders, a sub- then a superscript, lines, symbols), new drives of the Format
 dialog (19), the transitions (4), formatted and LaTeX typing in the dialog, on the graph and in
 the line dialog (29), the readers (18), and every suite from the rounds before.
+
+## The user's review: one formula row, insert, Plot setup, large data (2026-10-23)
+
+Four points. Each, what changed:
+
+- **"You either have the function row visible from the start, or use the Excel per-cell version,
+  not both."** The user chose the row: F(x)= is always under Long Name and Units (the corner's ⋯
+  lists it ticked and fixed). A value typed into a cell starting with `=` still works; it moves
+  to the F(x)= row, still being typed.
+- **"Where is insert new row and column?"** Where Excel has them. A cell's right-click menu has
+  *Insert* (Row above, Row below, Column to the left, Column to the right, A column at the end,
+  A sheet) and *Delete* (Rows…, Columns…); a column's menu has *Insert a column to the left /
+  right* and *Delete*; Edit has Insert and Delete; the bar's "+ Column" became **Insert**, with
+  the same list; Ctrl+Shift+= inserts and Ctrl+− deletes (columns when whole columns are
+  selected, else rows). As many as are selected, one undo step each, in the original-data
+  record. Before, rows were only in the cell menu and columns only at the end.
+- **"Why is the plot setup so primitive … the range, which axis is the error axis … look into it
+  very thoroughly, then create a new plan."** Origin's Plot Setup (its Available Data, Plot
+  Designations and Plot List panels, the Range dialog by index or by X with Rescale) and Layer
+  Contents were compared with Kurve's, part by part, and the plan is
+  [`spec/PLOT_SPEC.md`](spec/PLOT_SPEC.md): the gap table, six decisions (what a column is stays
+  the column's; what a curve uses on one graph is the graph's, `curveUse`; a range is the graph's,
+  not the data's; each curve on its axis; a modal dialog with the real graph as its preview;
+  Kurve's words) and six slices. Nothing of it is built yet: it is the roadmap's second item.
+- **"The app struggles with plotting more than 50k datapoints."** Measured, then fixed where the
+  time went:
+
+  | At 200 000 points | Before | After |
+  |---|---|---|
+  | Drawing the graph | 173 ms | 37 ms |
+  | Longest path on screen | 2.7 MB | 0.18 MB |
+  | Ten turns of the wheel | 9.3 s | 1.3 s |
+  | Twenty steps of a pan | 14 s | 1.8 s |
+  | Twenty pointer moves with the Reader | 154 ms | 17 ms |
+  | Smoothing (a new step's checks) | 4.6 s | 0.27 s |
+  | A redraw with a fit and its residuals | about 200 ms | about 115 ms |
+  | The worksheet's redraw | 109 ms | 56 ms |
+  | Opening the Peaks window (finding the peaks) | 14 s | 1.3 s |
+  | Opening Statistics | 1.9 s | 0.6 s |
+
+  The graph is drawn as the screen can show it (per column of pixels, the first, lowest,
+  highest and last point of a line; one symbol per half-pixel spot; error bars merged where they
+  overlap), compared pixel by pixel with the full drawing; exports draw every point. Where each
+  point is on the screen, the mask, the fit's points and residuals are worked out once per
+  drawing rather than per frame or per pointer move. Three quadratic steps became linear (the spike check, a model's suggestion, and the peak
+  finder's duplicate candidates, compared pairwise), the Overview's background is worked out only
+  when the Overview is read, and the
+  Fit window is no longer re-guessed after a zoom while it is closed. Columns past about 120 000
+  values had thrown "Maximum call stack size exceeded" in the Fit and Peaks windows and the
+  statistics (an array spread into `Math.min`); nothing spreads a column now. Still a limit:
+  this browser's storage holds a few megabytes, so three columns of 200 000 rows say Not saved.
+
+Checked: every unit suite, a new large-data drive (16 checks: each plot type and both kinds of
+error bars against the full drawing, a zoom, a fit with residuals, the export, the Reader and
+the X–Y lines), six new checks in `tools/odd-test.mjs` (104 pass), and the random user over six
+seeds, whose two failures this round were its own (a stillness clock left running from before a
+wheel, and a correction's reason typed as a cell's value) and are fixed in the harness.

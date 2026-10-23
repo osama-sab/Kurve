@@ -36,6 +36,16 @@ Edit
   Copy  [Ctrl+C]  ## new route: the worksheet's Copy
   Paste  [Ctrl+V]  ## new route: the worksheet's Paste
   Clear  [Delete]  ## new route: the worksheet's Clear
+  Insert  ## new (the user: "where is insert new row and column?"): where the worksheet's selection is
+    Row above  [Ctrl+Shift+=]
+    Row below
+    Column to the left
+    Column to the right
+    A column at the end
+    A sheet
+  Delete
+    Row  [Ctrl+-]
+    Columns
   Find…  [Ctrl+F]  ## new route: the worksheet's Find
   Copy the graph as a picture  ## + "Copy the figure as a picture" (File › Export), "Copy as a picture" (the graph's menus)
   Copy the results table  ## ~ "Copy results table"; ← no longer in Export

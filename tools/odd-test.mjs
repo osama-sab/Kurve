@@ -141,6 +141,31 @@ await page(async p => {
   check("an undo step does not copy the recorded data", t < 50, t.toFixed(1) + " ms");
 }, { name: "many spectra", timeout: 120000 });
 await page(async p => {
+  // 200 000 points: drawn as the screen can show them, every point kept in an export.
+  await p.evaluate(async (N) => { const x = [], y = []; let s = 7; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+    for (let i = 0; i < N; i++) { const v = 400 + i * (3600 / N); x.push(+v.toFixed(4)); y.push(+(0.2 + 5 * Math.exp(-(((v - 1600) / 4) ** 2)) + 0.05 * r()).toFixed(5)); }
+    await mkSpec("big", x, y, { xn: "Wavenumber" }); }, 200000);
+  await p.waitForTimeout(500);
+  const r = await p.evaluate(() => { const t = k => { const a = performance.now(); k(); return performance.now() - a; };
+    renderPlot(); const draw = t(() => renderPlot()), d = Math.max(...[...document.querySelectorAll("#plot path")].map(e => (e.getAttribute("d") || "").length));
+    const full = buildPlot(800, 500, EXPORT_PAL, true), fd = Math.max(...[...full.matchAll(/ d="([^"]*)"/g)].map(m => m[1].length));
+    const v = S.geo.v, zoom = t(() => { for (let i = 1; i <= 5; i++) { const k = 1 - i * 0.1, c = (v.x0 + v.x1) / 2; S.view = { x0: c - (c - v.x0) * k, x1: c + (v.x1 - c) * k, y0: v.y0, y1: v.y1, xu: v.xu || "" }; renderPlot(); } }) / 5;
+    S.view = null; renderPlot(); readerNear(300, 200, 30);
+    const hover = t(() => { for (let i = 0; i < 50; i++) { readerNear(200 + 8 * i, 220, 30); nearest(200 + 8 * i, 220, 12); } });
+    const smooth = t(() => runPipe(rawSeries(activeYCol()), [{ id: "t1", op: "smooth", on: true, p: Object.assign({}, PIPE_OPS.smooth.defaults) }], {}));
+    return { draw, zoom, d, fd, hover, smooth }; });
+  check("200 000 points draw in under 150 ms, and a zoom step too", r.draw < 150 && r.zoom < 150, JSON.stringify(r));
+  check("the graph on screen is what the screen can show, not every point", r.d < 300000, r.d);
+  check("an export keeps every point", r.fd > 10 * r.d, r.fd + " against " + r.d);
+  check("50 pointer moves find the nearest point in under 100 ms", r.hover < 100, r.hover.toFixed(1) + " ms");
+  check("smoothing 200 000 points takes under 2 s (its checks were quadratic)", r.smooth < 2000, Math.round(r.smooth) + " ms");
+  const st = await p.evaluate(() => { const c = activeYCol(), t = performance.now(); renderWs(); return performance.now() - t; });
+  check("the worksheet of 200 000 rows redraws in under 150 ms", st < 150, Math.round(st) + " ms");
+  const w = await p.evaluate(() => { const t = k => { const a = performance.now(); k(); return performance.now() - a; };
+    return { stats: t(() => openWin("stats", { render: true })), peaks: t(() => openPeakFinder()), found: (P().annos || []).filter(a => a.grp).length }; });
+  check("Statistics opens in under 2 s and the Peaks window finds the band in under 4 s (its candidates were compared pairwise)", w.stats < 2000 && w.peaks < 4000 && w.found >= 1, JSON.stringify(w));
+}, { name: "large data", timeout: 120000 });
+await page(async p => {
   await p.evaluate(async () => { const g = gauss(100, 50, 5, 10, 0, 1, 0); await mkSpec("s", g.x, g.y); const c = activeYCol(); newGraphFrom([c.id]); save({ graphs: P().graphs.map(q => Object.assign({}, q, { name: "N".repeat(400) })) }, null); renderAll(); });
   await p.waitForTimeout(500);
   const r = await p.evaluate(() => [...document.querySelectorAll(".win.gwin")].map(w => { const h = w.querySelector(".win-h"), m = w.querySelector("[data-wmin]"); return h.scrollWidth <= h.clientWidth + 2 && m.getBoundingClientRect().right <= w.getBoundingClientRect().right + 1; }));

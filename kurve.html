@@ -1956,7 +1956,7 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
           <button class="tb sm icon" id="wsFindBtn" title="Find in the sheet (Ctrl+F)" aria-label="Find in the sheet"><svg class="ic sm"><use href="#i-search"/></svg></button>
           <button class="tb sm" id="wsPlotBtn" aria-haspopup="menu" title="Plot the selected columns, or, with none selected, choose them in the Plot dialog" aria-label="Plot"><svg class="ic sm"><use href="#i-chart"/></svg><span>Plot</span></button>
           <button class="tb sm icon" id="wsLockBtn" aria-pressed="false" title="Lock the original data" aria-label="Lock the original data"><svg class="ic sm"><use href="#i-lock"/></svg></button>
-          <button class="tb sm" id="addColBtn" title="Add a Y column" aria-label="Add a Y column"><svg class="ic sm"><use href="#i-plus"/></svg><span>Column</span></button></div>
+          <button class="tb sm" id="addColBtn" aria-haspopup="menu" title="Insert rows or columns where the selection is (Ctrl+Shift+=), a column at the end, or a sheet" aria-label="Insert"><svg class="ic sm"><use href="#i-plus"/></svg><span>Insert</span></button></div>
         <div class="ws" id="ws" tabindex="0"></div>
         <div class="wstabs" id="wsTabs" role="tablist" aria-label="Sheets"></div>
         <div class="ws-foot" id="wsFoot"></div>
@@ -2107,6 +2107,11 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
    Numerics: linear algebra, Levenberg–Marquardt, models
    ==NUMERICS:START==
    ============================================================ */
+/* The least and the greatest of an array, as Math.min(...a) and Math.max(...a)
+   give them (each value read as a number; NaN if one is not), without passing
+   every value as an argument: past about 120 000 values that overflows the stack. */
+function amin(a){ let m=Infinity; for(let i=0;i<a.length;i++){ const v=+a[i]; if(v!==v) return NaN; if(v<m) m=v; } return m; }
+function amax(a){ let m=-Infinity; for(let i=0;i<a.length;i++){ const v=+a[i]; if(v!==v) return NaN; if(v>m) m=v; } return m; }
 function solve(A, b){ // Gaussian elimination, partial pivoting. Returns null if singular.
   const n=b.length, M=A.map((r,i)=>r.slice().concat([b[i]]));
   for(let c=0;c<n;c++){
@@ -2320,7 +2325,7 @@ function lmFit(f, X, Y, W, p0, fixed, opt){
         const rt=resid(pc), ct=ss(rt);
         if(Number.isFinite(ct) && ct<=chi){
           const rel=(chi-ct)/Math.max(chi,1e-300);
-          const dpRel=Math.max(...free.map((pi,j)=>Math.abs(pc[pi]-p[pi])/(Math.abs(p[pi])+Math.abs(pscale[pi])*1e-6+1e-12)));
+          const dpRel=amax(free.map((pi,j)=>Math.abs(pc[pi]-p[pi])/(Math.abs(p[pi])+Math.abs(pscale[pi])*1e-6+1e-12)));
           p=pc; r=rt; chi=ct; lambda=Math.max(lambda/9,1e-12); stepped=true;
           if(rel<tol || dpRel<1e-10) converged=true;
           break;
@@ -3090,7 +3095,7 @@ function findPeaks(X,Y,o){
   const dir=o.direction||"positive";
   const sign=dir==="negative"?-1:1;
   const yv=Y.map(v=>v==null?0:v*sign);
-  const span=Math.max(...yv)-Math.min(...yv);
+  const span=amax(yv)-amin(yv);
   const win=Math.max(3,(o.window||Math.max(5,Math.round(n/40)))|1);
   const hMed=(X[n-1]-X[0])/(n-1)||1;
   const sm=sgApply(yv,win,2,0);
@@ -3114,7 +3119,7 @@ function findPeaks(X,Y,o){
   }
   // Merge candidates that landed on the same feature, then filter on height.
   const minSep=Math.max(1,Math.round((o.minSep||win)/2));
-  const lowest=Math.min(...yv);
+  const lowest=amin(yv);
   const floor=lowest+span*((o.minHeightPct==null?5:o.minHeightPct)/100);
   // A feature with a single point above its own half height is a spike (a
   // cosmic ray, a dropout), not a peak: nothing constrains its width and the
@@ -3122,9 +3127,11 @@ function findPeaks(X,Y,o){
   // shadow a real peak beside it, and returned so the caller can say so.
   const minPts=o.minPts==null?1:o.minPts, spikes=[];
   if(minPts>1) cand=cand.filter(i=>{
+    // Counted only as far as minPts: walking the whole band from every noise maximum on
+    // it made this quadratic (four seconds at 200 000 points).
     const half=lowest+(yv[i]-lowest)/2; let c=1;
-    for(let j=i-1;j>=0&&yv[j]>half;j--) c++;
-    for(let j=i+1;j<n&&yv[j]>half;j++) c++;
+    for(let j=i-1;j>=0&&yv[j]>half&&c<minPts;j--) c++;
+    for(let j=i+1;j<n&&yv[j]>half&&c<minPts;j++) c++;
     if(c>=minPts) return true;
     if(yv[i]>=floor&&!spikes.some(j=>Math.abs(j-i)<minSep)) spikes.push(i);
     return false;
@@ -3172,8 +3179,9 @@ function seedPeak(X,Y,i,baseY){
 }
 // Noise from second differences, robust to the peaks themselves.
 function noiseSigma(Y){
-  const d=[]; for(let i=1;i<Y.length-1;i++){ const v=(Y[i+1]-2*Y[i]+Y[i-1])/Math.sqrt(6); if(Number.isFinite(v)) d.push(Math.abs(v)); }
-  if(!d.length) return 0; d.sort((a,b)=>a-b); return d[d.length>>1]*1.4826;
+  const d=new Float64Array(Math.max(0,Y.length-2)), r6=Math.sqrt(6); let m=0;
+  for(let i=1;i<Y.length-1;i++){ const v=(Y[i+1]-2*Y[i]+Y[i-1])/r6; if(Number.isFinite(v)) d[m++]=Math.abs(v); }
+  if(!m) return 0; const s=d.subarray(0,m).sort(); return s[m>>1]*1.4826;
 }
 // The area that gives a peak of this shape and width a chosen height. Height is
 // linear in area for every shape here, so one evaluation at unit area is enough.
@@ -3299,8 +3307,9 @@ function peakSearch(X,Y,o){
   } else {
     for(let i=1;i<n-1;i++) if(sm[i]>sm[i-1]&&sm[i]>=sm[i+1]) cand.push(M(i));
   }
-  // Duplicates from one plateau.
-  cand=cand.filter((q,k)=>!cand.some((r,j)=>j<k&&r.i===q.i));
+  // Duplicates from one plateau (by a set: comparing each with every earlier one took twelve
+  // seconds over the noise maxima of 200 000 points).
+  { const seen=new Set(); cand=cand.filter(q=>{ if(seen.has(q.i)) return false; seen.add(q.i); return true; }); }
   const rej=(q,code,why)=>{ q.code=code; q.why=why; res.rejected.push(q); };
   const f3=v=>{ const a=Math.abs(v); return !Number.isFinite(v)?"?":a!==0&&(a>=1e5||a<1e-3)?v.toExponential(2):String(+v.toPrecision(3)); };
   const minW=o.minWidth==null?2:+o.minWidth, maxW=o.maxWidth==null?0.33:+o.maxWidth;
@@ -3416,10 +3425,10 @@ function pickPts(d,keep){ return pser(d,keep.map(i=>d.x[i]),keep.map(i=>d.y[i]),
 // Signed median step (negative on an axis recorded high to low) and how uneven
 // the spacing is: the spread of the middle 90% of steps over the median.
 function spacing(x){
-  const d=[]; let down=0, up=0;
+  let d=[], down=0, up=0;
   for(let i=1;i<x.length;i++){ const g=x[i]-x[i-1]; if(!Number.isFinite(g)||g===0) continue; if(g<0) down++; else up++; d.push(Math.abs(g)); }
   if(!d.length) return {h:1,abs:1,uneven:0,sorted:true,none:true};
-  d.sort((a,b)=>a-b); const med=d[d.length>>1];
+  d=Float64Array.from(d).sort(); const med=d[d.length>>1];
   const lo=d[Math.floor(d.length*0.05)], hi=d[Math.min(d.length-1,Math.floor(d.length*0.95))];
   return {h:down>up?-med:med, abs:med, uneven:(hi-lo)/(med||1), sorted:!(down&&up)};
 }
@@ -4596,7 +4605,7 @@ function FM_slots(fit){ const FM=fitModel(fit); return FM&&FM.composite?FM.model
    everything downstream (table, area %, export, report) honours it. */
 function peakProblems(fit,rows){
   const xs=fitPts(fit).map(q=>q.x);
-  const lo=xs.length?Math.min(...xs):-Infinity, hi=xs.length?Math.max(...xs):Infinity;
+  const lo=xs.length?amin(xs):-Infinity, hi=xs.length?amax(xs):Infinity;
   const span=hi-lo;
   const med=(()=>{ const d=[]; const sorted=xs.slice().sort((a,b)=>a-b);
     for(let i=1;i<sorted.length;i++){ const g=sorted[i]-sorted[i-1]; if(g>0) d.push(g); }
@@ -4614,7 +4623,7 @@ function peakProblems(fit,rows){
       else if(span>0&&r.fwhm>span*1.5) bad.push("it is wider than the fitted range, so it is acting as a baseline");
       if(r.xc<lo||r.xc>hi) bad.push(`its centre (${fmt(r.xc,6)}) lies outside the fitted data (${fmt(lo,6)} to ${fmt(hi,6)})`);
       if(Math.abs(r.height)>0&&xs.length){ const ys=fitPts(fit).map(q=>Math.abs(q.y));
-        const ymax=Math.max(...ys,0);
+        const ymax=Math.max(amax(ys),0);
         if(ymax>0&&Math.abs(r.height)>ymax*50) bad.push("it is far taller than the data");
       }
     }
@@ -4773,7 +4782,7 @@ function waveGuess(X,Y){
     const det=ss*cc-sc*sc; if(!(det>1e-9*ss*cc)) return null; const A=(ys*cc-yc*sc)/det, B=(yc*ss-ys*sc)/det; return {f,A,B,pw:A*ys+B*yc}; };
   const df=0.25/span, top=Math.max(2,m/2)/span; let best=null;
   for(let j=2;j*df<=top;j++){ const q=fitAt(j*df); if(q&&(!best||q.pw>best.pw)) best=q; }
-  if(!best) return {y0,A:(Math.max(...y)-Math.min(...y))/2,xc:x0,T:span,x,y};
+  if(!best) return {y0,A:(amax(y)-amin(y))/2,xc:x0,T:span,x,y};
   for(let it=1;it<=3;it++){ const d=df/Math.pow(5,it); let b2=best; for(let k=-5;k<=5;k++){ const q=fitAt(best.f+k*d); if(q&&q.pw>b2.pw) b2=q; } best=b2; }
   const T=1/best.f, ph=Math.atan2(best.B,best.A), xc=x0+(((-ph/(2*Math.PI*best.f))%T)+T)%T;
   return {y0,A:Math.hypot(best.A,best.B),xc,T,x,y};
@@ -4863,7 +4872,7 @@ const MODELS={
     f:(x,p)=>p[0]*x/(p[1]+x), lo:[-Infinity,0], xpos:"0",
     guess:(X,Y)=>{ const s=sortXY(X,Y), hx=[], hy=[]; s.x.forEach((x,i)=>{ const v=x/s.y[i]; if(x>0&&Number.isFinite(v)){ hx.push(x); hy.push(v); } });
       const L=hx.length>=2?linFitXY(hx,hy):null; if(L&&L[1]>0&&L[0]>0) return [1/L[1],L[0]/L[1]];
-      const V=Math.max(...s.y)*1.2; let km=meanOf(s.x)||1; for(let i=0;i<s.x.length;i++) if(s.y[i]>=V/2){ km=s.x[i]||km; break; } return [V,Math.abs(km)]; },
+      const V=amax(s.y)*1.2; let km=meanOf(s.x)||1; for(let i=0;i<s.x.length;i++) if(s.y[i]>=V/2){ km=s.x[i]||km; break; } return [V,Math.abs(km)]; },
     sketch:{x:[0,10],p:[1,1.5]}, kw:"Michaelis Menten enzyme kinetics substrate saturation Vmax Km Langmuir hyperbola"},
   gauss:{name:"Gaussian peak", params:["y0","A","xc","w"], mean:["baseline","height above the baseline","centre","width (standard deviation)"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i>"], dim:["y","y","x","x"],
     formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> exp[&minus;(<i>x</i> &minus; <i>x</i><sub>c</sub>)<sup>2</sup> / 2<i>w</i><sup>2</sup>]",
@@ -5450,7 +5459,7 @@ function checkColumns(x,y){
   if(bad) out.push({id:"gaps",level:"info",text:`${bad} row${bad>1?"s have":" has"} no Y value. ${bad>1?"They are":"It is"} skipped in the plot and the fit.`});
   const fin=y.filter(v=>v!=null);
   if(fin.length>6){
-    const max=Math.max(...fin), flat=fin.filter(v=>v===max).length;
+    const max=fin.reduce((a,b)=>Math.max(a,b),-Infinity), flat=fin.filter(v=>v===max).length;
     if(flat>=4) out.push({id:"sat",level:"warn",text:`${flat} points sit exactly at the maximum (${fmt(max,6)}). That usually means the detector saturated, and those peaks cannot be fitted.`});
   }
   return out;
@@ -5597,16 +5606,32 @@ function errSvg(g,pts,st,X,Y,pal,masked,o){
   const f1=v=>v.toFixed(1), col=st.ebColor||st.color, lw=Math.max(0.3,+st.ebLw||1), cap=Math.max(0,+st.ebCap||0), hc=cap/2, band=st.eb==="band"&&g.hasY;
   const lo=v=>o&&o.logY?Math.max(v,o.yMin):v;
   let eb="", em=""; const runs=[]; let run=[];
+  // Past DEC_MIN points on screen, the Y bars of one column of half a pixel are merged where
+  // they overlap, caps are kept one per spot of a quarter, X bars one per spot of a pixel.
+  const dense=decOn(pts.length,o&&o.full), dw=dense?decW()/2:1, colY=dense?new Map():null, seenX=dense?new Set():null, seenC=dense?new Set():null;
+  const capAt=(x,y)=>{ const k=Math.floor(x/dw)+","+Math.round(2*y/dw); if(seenC.has(k)) return ""; seenC.add(k); return `M${f1(x-hc)},${f1(y)}h${cap}`; };
   pts.forEach(q=>{ const w=g.at(q), x=X(q.x), y=Y(q.y); if(!Number.isFinite(x)||!Number.isFinite(y)) return; let seg="";
     if(g.hasY&&(w.up>0||w.dn>0)){ const y1=Y(q.y+w.up), y0=Y(lo(q.y-w.dn));
       if(band) run.push([x,y1,y0]);
-      else if(Number.isFinite(y0)&&Number.isFinite(y1)){ seg+=`M${f1(x)},${f1(y0)}V${f1(y1)}`; if(hc>0){ if(w.up>0) seg+=`M${f1(x-hc)},${f1(y1)}h${cap}`; if(w.dn>0) seg+=`M${f1(x-hc)},${f1(y0)}h${cap}`; } } }
+      else if(Number.isFinite(y0)&&Number.isFinite(y1)){
+        if(colY&&!(masked&&masked(q.i))){ const k=Math.floor(x/dw); let c=colY.get(k); if(!c){ c={x,iv:[]}; colY.set(k,c); } c.iv.push(y1<y0?[y1,y0]:[y0,y1]);
+          if(hc>0){ if(w.up>0) seg+=capAt(x,y1); if(w.dn>0) seg+=capAt(x,y0); } }
+        else { seg+=`M${f1(x)},${f1(y0)}V${f1(y1)}`; if(hc>0&&!dense){ if(w.up>0) seg+=`M${f1(x-hc)},${f1(y1)}h${cap}`; if(w.dn>0) seg+=`M${f1(x-hc)},${f1(y0)}h${cap}`; } } } }
     else if(band&&run.length){ runs.push(run); run=[]; }
-    if(g.hasX&&(w.l>0||w.r>0)){ const x0=X(q.x-w.l), x1=X(q.x+w.r); if(Number.isFinite(x0)&&Number.isFinite(x1)){ seg+=`M${f1(x0)},${f1(y)}H${f1(x1)}`; if(hc>0){ if(w.l>0) seg+=`M${f1(x0)},${f1(y-hc)}v${cap}`; if(w.r>0) seg+=`M${f1(x1)},${f1(y-hc)}v${cap}`; } } }
+    if(g.hasX&&(w.l>0||w.r>0)){ const x0=X(q.x-w.l), x1=X(q.x+w.r); if(Number.isFinite(x0)&&Number.isFinite(x1)){
+      const sk=seenX?Math.round(x0/dw/2)+","+Math.round(x1/dw/2)+","+Math.round(y/dw/2):null;
+      if(!sk||!seenX.has(sk)){ if(sk) seenX.add(sk); seg+=`M${f1(x0)},${f1(y)}H${f1(x1)}`; if(hc>0&&!dense){ if(w.l>0) seg+=`M${f1(x0)},${f1(y-hc)}v${cap}`; if(w.r>0) seg+=`M${f1(x1)},${f1(y-hc)}v${cap}`; } } } }
     if(seg){ if(masked&&masked(q.i)) em+=seg; else eb+=seg; } });
+  if(colY) colY.forEach(c=>{ const iv=c.iv.sort((a,b)=>a[0]-b[0]); let a=iv[0][0], b=iv[0][1];
+    for(let j=1;j<=iv.length;j++){ if(j<iv.length&&iv[j][0]<=b+0.5){ if(iv[j][1]>b) b=iv[j][1]; continue; } eb+=`M${f1(c.x)},${f1(b)}V${f1(a)}`; if(j<iv.length){ a=iv[j][0]; b=iv[j][1]; } } });
   if(run.length) runs.push(run);
   const op=st.op<1?` opacity="${st.op}"`:"";
-  runs.forEach(r=>{ if(r.length<2) return; r.sort((a,b)=>a[0]-b[0]); const up=r.filter(z=>Number.isFinite(z[1])), dn=r.filter(z=>Number.isFinite(z[2])).reverse(); if(up.length<2||dn.length<2) return;
+  runs.forEach(r=>{ if(r.length<2) return; r.sort((a,b)=>a[0]-b[0]);
+    // A dense band: per column of pixels its first and last X at the column's widest.
+    if(dense&&decOn(r.length,false)){ const z=[]; let i=0; while(i<r.length){ const c=Math.floor(r[i][0]/dw); let j=i, t=r[i][1], b=r[i][2];
+        while(j+1<r.length&&Math.floor(r[j+1][0]/dw)===c){ j++; if(r[j][1]<t||!Number.isFinite(t)) t=r[j][1]; if(r[j][2]>b||!Number.isFinite(b)) b=r[j][2]; }
+        z.push([r[i][0],t,b]); if(j>i) z.push([r[j][0],t,b]); i=j+1; } r=z; }
+    const up=r.filter(z=>Number.isFinite(z[1])), dn=r.filter(z=>Number.isFinite(z[2])).reverse(); if(up.length<2||dn.length<2) return;
     out.under+=`<path d="M${up.map(z=>f1(z[0])+","+f1(z[1])).join("L")}L${dn.map(z=>f1(z[0])+","+f1(z[2])).join("L")}Z" fill="${col}" fill-opacity="${(+st.ebOp>0?+st.ebOp:0.22).toFixed(2)}" stroke="none"${op}/>`; });
   if(eb) out.over+=`<path d="${eb}" stroke="${col}" stroke-width="${lw}" fill="none"${op}/>`;
   if(em) out.over+=`<path d="${em}" stroke="${pal.masked}" stroke-width="${lw}" fill="none"/>`;
@@ -5805,8 +5830,13 @@ function insertAt(pipe,op){
    numbers, which every step carries through (resampling maps each new point
    to its nearest raw row). */
 function maskOf(c){ return (c&&c.mask)||[]; }
-let maskMemo={arr:null,set:new Set()};
-function isMasked(i){ const a=maskOf(activeYCol()); if(maskMemo.arr!==a) maskMemo={arr:a,set:new Set(a)}; return maskMemo.set.has(i); }
+// Asked once per point while drawing, so the analysed column is found again only when the
+// project, its analysed column or its list of columns changes (a search per point was a
+// tenth of every frame of a large graph).
+let maskMemo={arr:null,set:new Set(),p:null,aid:null,cols:null,c:null,ci:-1};
+function isMasked(i){ const p=P(), m=maskMemo;
+  if(m.p!==p||!p||m.aid!==p.activeY||m.cols!==p.cols||(m.c?p.cols[m.ci]!==m.c:true)){ m.c=activeYCol(); m.p=p; m.aid=p&&p.activeY; m.cols=p&&p.cols; m.ci=p&&m.c?p.cols.indexOf(m.c):-1; }
+  const a=maskOf(m.c); if(m.arr!==a){ m.arr=a; m.set=new Set(a); } return m.set.has(i); }
 const maskSig=c=>maskOf(c).slice().sort((a,b)=>a-b).join(",");
 
 /* ---- Old documents -------------------------------------------------------
@@ -6219,14 +6249,36 @@ function fitRngOf(c){ if(!c) return null; const m=S.fitRng||(S.fitRng={}), k=S.p
   const f=P()&&P().fit; if(f&&f.onCol===c.id&&f.range&&f.pipeSig===pipeSig(c)){ const [lo,hi]=xExtent(finalOf(c).x);
     if(lo!=null&&(f.range[0]>lo||f.range[1]<hi)) return [f.range[0],f.range[1]]; }
   return null; }
-function xExtent(xs){ let lo=Infinity, hi=-Infinity; for(const v of xs){ if(!Number.isFinite(v)) continue; if(v<lo) lo=v; if(v>hi) hi=v; } return lo<=hi?[lo,hi]:[null,null]; }
+// Kept per array: a processed series' X is never changed in place.
+const XEXT=new WeakMap();
+function xExtent(xs){ const c=XEXT.get(xs); if(c) return c; let lo=Infinity, hi=-Infinity; for(const v of xs){ if(!Number.isFinite(v)) continue; if(v<lo) lo=v; if(v>hi) hi=v; }
+  const r=lo<=hi?[lo,hi]:[null,null]; XEXT.set(xs,r); return r; }
 function setFitRange(a,b){ const c=activeYCol(); if(!c) return; const m=S.fitRng||(S.fitRng={}), k=S.pid+":"+c.id, d=finalOf(c);
   if(a==null&&b==null) m[k]=null;
   else { const [lo,hi]=xExtent(d.x); if(a==null) a=lo; if(b==null) b=hi; m[k]={x0:Math.min(a,b),x1:Math.max(a,b),xu:d.xu||""}; }
   renderFit(); renderPlot(); renderStatusBar(); }
 function fitRange(){ const r=fitRngOf(activeYCol()); if(r) return [Math.min(r[0],r[1]),Math.max(r[0],r[1])];
-  const [lo,hi]=xExtent(pointsAll().map(q=>q.x)); return lo==null?[0,1]:[lo,hi]; }
-function fitPoints(){ const [a,b]=fitRange(); return pointsAll().filter(q=>q.x>=a&&q.x<=b&&!isMasked(q.i)); }
+  const [lo,hi]=ptsExtent(pointsAll()); return lo==null?[0,1]:[lo,hi]; }
+/* Lists of points asked for on every redraw are kept while what they come from is the same
+   (the points, the range, the mask): at 200 000 points each was a pass and an allocation
+   per status bar. Callers never change what they are handed, as with pointsAll. */
+const PEXT=new WeakMap();
+function ptsExtent(pts){ let r=PEXT.get(pts); if(!r){ let lo=Infinity, hi=-Infinity; for(const q of pts){ const v=q.x; if(!Number.isFinite(v)) continue; if(v<lo) lo=v; if(v>hi) hi=v; } r=lo<=hi?[lo,hi]:[null,null]; PEXT.set(pts,r); } return r; }
+let fitPtsMemo={};
+function fitPoints(){ const [a,b]=fitRange(), all=pointsAll(), mk=maskOf(activeYCol()), m=fitPtsMemo;
+  if(m.all===all&&m.a===a&&m.b===b&&m.mk===mk) return m.val;
+  const val=all.filter(q=>q.x>=a&&q.x<=b&&!isMasked(q.i)); fitPtsMemo={all,a,b,mk,val}; return val; }
+// Each recorded row's place among a fit's analysed points, kept with the analysis.
+const DIAGAT=new WeakMap();
+function diagAt(D){ let m=DIAGAT.get(D); if(!m){ m=new Map(); D.pts.forEach((q,i)=>m.set(q.i,i)); DIAGAT.set(D,m); } return m; }
+// The largest residual, of the points not masked (all of them when every one is).
+function resAbsMax(rp){ let a=0, b=0, any=false; for(const q of rp){ const v=Math.abs(q.r); if(v>b) b=v; if(!isMasked(q.i)){ any=true; if(v>a) a=v; } } return Math.max(any?a:b,1e-300); }
+// A fit's residuals at the points drawn, in its range: kept per list of points and fit.
+const RESID=new WeakMap();
+function residsOf(pts,fit,FM){ const fr=fit.range||[-Infinity,Infinity], key=(fit.at||"")+"|"+(fit.model||fit.kind||"")+"|"+fr.join(",")+"|"+(fit.params||[]).join(",");
+  let m=RESID.get(pts); if(m&&m.key===key) return m.val;
+  const val=[]; for(const q of pts){ if(!(q.x>=fr[0]&&q.x<=fr[1])) continue; const r=q.y-FM.f(q.x,fit.params); if(Number.isFinite(r)) val.push({i:q.i,x:q.x,y:q.y,e:q.e,r}); }
+  RESID.set(pts,{key,val}); return val; }
 
 /* ============================================================
    Plot renderer (SVG string, reused for on-screen and export)
@@ -6769,6 +6821,25 @@ async function copyGraphPicture(){
     await navigator.clipboard.write([new ClipboardItem({"image/png":make()})]);
     S.lastCopy="png"; toast(`Copied ${pic.fig?pic.fig.name:"the graph"} as a picture: paste it into a document or slides.`); }
   catch(e){ toast("This browser would not put a picture on the clipboard here. Export it as PNG instead.",{action:"Export PNG",run:exportPng}); } }
+/* What a screen can show of a long series (DESIGN.md, Large data). Per column of w
+   pixels a line keeps its first, lowest, highest and last point, in their order (M4):
+   drawn, it covers the same pixels as every point would. Symbols keep one per spot of
+   half of w. Pictures on screen use them past DEC_MIN points; exports never do. */
+const DEC_MIN=3000;
+function decOn(n,full){ return !full&&n>DEC_MIN; }
+function decW(){ const r=typeof devicePixelRatio==="number"&&devicePixelRatio>0?devicePixelRatio:1; return 1/Math.min(2,r); }
+function m4(xy,w){
+  const n=xy.length; if(n<5) return xy; const out=[]; let i=0;
+  while(i<n){ const c=Math.floor(xy[i][0]/w); let j=i, lo=i, hi=i;
+    while(j+1<n&&Math.floor(xy[j+1][0]/w)===c){ j++; if(xy[j][1]<xy[lo][1]) lo=j; if(xy[j][1]>xy[hi][1]) hi=j; }
+    out.push(xy[i]); const a=Math.min(lo,hi), b=Math.max(lo,hi);
+    if(a!==i&&a!==j) out.push(xy[a]); if(b!==i&&b!==j&&b!==a) out.push(xy[b]); if(j!==i) out.push(xy[j]);
+    i=j+1; }
+  return out; }
+function spotsOf(xy,w,key){ const seen=new Set(), out=[];
+  for(let i=0;i<xy.length;i++){ const q=xy[i], s0=Math.round(q[0]/w)*1048576+Math.round(q[1]/w), k=key?s0+"|"+key(i):s0;
+    if(seen.has(k)) continue; seen.add(k); out.push(q); }
+  return out; }
 function seriesSvg(pts,st,X,Y,geo,pal,masked){
   const n=pts.length; if(!n) return "";
   let s=""; const col=st.color, f1=v=>v.toFixed(1);
@@ -6776,10 +6847,11 @@ function seriesSvg(pts,st,X,Y,geo,pal,masked){
   const lo=geo.T+geo.mh, zero=geo.logY?lo:Math.max(geo.T,Math.min(lo,Y(0)));
   const ln=st.type==="line"||st.type==="linesym"||st.type==="area"||st.type==="step", sym=st.type==="scatter"||st.type==="linesym";
   const dash=DASHES[st.dash]; const op=st.op<1?` opacity="${st.op}"`:"";
-  const xy=keep.map(q=>[X(q.x),Y(q.y)]).filter(q=>Number.isFinite(q[0])&&Number.isFinite(q[1]));
+  const xy0=[]; for(let i=0;i<keep.length;i++){ const q=keep[i], a=X(q.x), b=Y(q.y); if(Number.isFinite(a)&&Number.isFinite(b)) xy0.push([a,b]); }
   // Joined by a spline or a B-spline (up to a few thousand points; past that a line is as smooth).
-  const smooth=(st.conn==="spline"||st.conn==="bspline")&&xy.length>2&&xy.length<=4000&&st.type!=="step";
-  if(st.type==="area"&&xy.length>1){ const ord=xy.slice().sort((a,b)=>a[0]-b[0]), sm=smooth?smoothD(ord,st.conn):null;
+  const smooth=(st.conn==="spline"||st.conn==="bspline")&&xy0.length>2&&xy0.length<=4000&&st.type!=="step";
+  const dec=decOn(xy0.length,geo.full), dw=dec?decW():1, xy=dec&&!smooth?m4(xy0,dw):xy0;
+  if(st.type==="area"&&xy.length>1){ let ord=xy0.slice().sort((a,b)=>a[0]-b[0]); if(dec&&!smooth) ord=m4(ord,dw); const sm=smooth?smoothD(ord,st.conn):null;
     const d=sm?`M${f1(ord[0][0])},${f1(zero)}L${sm.m.slice(1)}${sm.c}L${f1(ord[ord.length-1][0])},${f1(zero)}Z`:`M${f1(ord[0][0])},${f1(zero)}L${ord.map(q=>f1(q[0])+","+f1(q[1])).join("L")}L${f1(ord[ord.length-1][0])},${f1(zero)}Z`;
     s+=`<path d="${d}" fill="${col}" fill-opacity="${st.fill}" stroke="none"/>`+hatchSvg(d,st.hatch,col,"hz-"+(st.hid||"s"),{L:geo.L!=null?geo.L:0,T:geo.T,W:geo.pw!=null?geo.pw:2000,H:geo.mh}); }
   // Columns: from zero to each value, a bin wide (a histogram) or most of the spacing,
@@ -6790,7 +6862,7 @@ function seriesSvg(pts,st,X,Y,geo,pal,masked){
     ord.forEach(q=>{ const a=X(q.x-w/2+k*sub), b=X(q.x-w/2+(k+1)*sub), y=Y(q.y); if(!Number.isFinite(a)||!Number.isFinite(b)||!Number.isFinite(y)) return;
       d+=`M${f1(Math.min(a,b))},${f1(zero)}V${f1(y)}H${f1(Math.max(a,b))}V${f1(zero)}Z`; });
     if(d) s+=`<path d="${d}" fill="${col}" fill-opacity="${(Math.max(0.15,Math.min(1,0.85*st.op))).toFixed(2)}" stroke="${pal.bg}" stroke-width="${st.bw>0||n>1?0.7:0.9}"/>`+hatchSvg(d,st.hatch,col,"hc-"+(st.hid||"s"),{L:geo.L!=null?geo.L:0,T:geo.T,W:geo.pw!=null?geo.pw:2000,H:geo.mh}); }
-  if(st.type==="stick"){ let d=""; xy.forEach(q=>{ d+=`M${f1(q[0])},${f1(zero)}V${f1(q[1])}`; }); if(d) s+=`<path d="${d}" stroke="${col}" stroke-width="${st.lw}" fill="none"${op}/>`; }
+  if(st.type==="stick"){ let d=""; (dec?m4(xy0,dw/2):xy).forEach(q=>{ d+=`M${f1(q[0])},${f1(zero)}V${f1(q[1])}`; }); if(d) s+=`<path d="${d}" stroke="${col}" stroke-width="${st.lw}" fill="none"${op}/>`; }
   if(ln&&dash!==null&&xy.length>1){
     let d;
     if(st.type==="step"){ d="M"+f1(xy[0][0])+","+f1(xy[0][1]); for(let k=1;k<xy.length;k++){ const mx=(xy[k-1][0]+xy[k][0])/2; d+=`H${f1(mx)}V${f1(xy[k][1])}`; } d+=`H${f1(xy[xy.length-1][0])}`; }
@@ -6801,15 +6873,16 @@ function seriesSvg(pts,st,X,Y,geo,pal,masked){
   if(sym){
     const r=st.ss!=null?st.ss:(n>400?2:n>150?2.8:3.4);
     // Coloured or sized by a third column: one path per colour, each point its size.
-    if(st.zf||st.sf){ const by=new Map(), open=symOpen(st.sym);
+    if(st.zf||st.sf){ const by=new Map(), open=symOpen(st.sym), seen=dec?new Set():null;
       keep.forEach(q=>{ const x=X(q.x), y=Y(q.y); if(!Number.isFinite(x)||!Number.isFinite(y)) return; const c=st.zf?st.zf(q):col, rr=st.sf?st.sf(q):r;
+        if(seen){ const sk=Math.round(2*x/dw)+","+Math.round(2*y/dw)+","+c+","+rr; if(seen.has(sk)) return; seen.add(sk); }
         const k=c||pal.masked; by.set(k,(by.get(k)||"")+symD(st.sym,x,y,rr==null?r*0.6:rr)); });
-      by.forEach((d,c)=>{ s+=open?`<path d="${d}" fill="${/^o/.test(st.sym)?pal.bg:"none"}" stroke="${c}" stroke-width="${Math.max(1,st.lw*0.9).toFixed(1)}"${op}/>`:`<path d="${d}" fill="${c}" fill-opacity="${(0.92*st.op).toFixed(2)}" stroke="${pal.bg}" stroke-width="${xy.length>600?0.3:0.6}"/>`; }); }
-    else if(st.sym==="circle"&&xy.length>1500){ let d=""; xy.forEach(q=>{ d+=`M${f1(q[0])},${f1(q[1])}h0`; });
+      by.forEach((d,c)=>{ s+=open?`<path d="${d}" fill="${/^o/.test(st.sym)?pal.bg:"none"}" stroke="${c}" stroke-width="${Math.max(1,st.lw*0.9).toFixed(1)}"${op}/>`:`<path d="${d}" fill="${c}" fill-opacity="${(0.92*st.op).toFixed(2)}" stroke="${pal.bg}" stroke-width="${xy0.length>600?0.3:0.6}"/>`; }); }
+    else if(st.sym==="circle"&&xy0.length>1500){ let d=""; (dec?spotsOf(xy0,dw/2):xy0).forEach(q=>{ d+=`M${f1(q[0])},${f1(q[1])}h0`; });
       s+=`<path d="${d}" fill="none" stroke="${col}" stroke-opacity="${0.88*st.op}" stroke-width="${(2*r).toFixed(1)}" stroke-linecap="round"/>`; }
-    else { let d=""; xy.forEach(q=>{ d+=symD(st.sym,q[0],q[1],r); });
+    else { let d=""; (dec?spotsOf(xy0,dw/2):xy0).forEach(q=>{ d+=symD(st.sym,q[0],q[1],r); });
       s+=symOpen(st.sym)?`<path d="${d}" fill="${symOpen(st.sym)&&/^o/.test(st.sym)?pal.bg:"none"}" stroke="${col}" stroke-width="${Math.max(1,st.lw*0.9).toFixed(1)}"${op}/>`
-        :`<path d="${d}" fill="${col}" fill-opacity="${(0.88*st.op).toFixed(2)}" stroke="${pal.bg}" stroke-width="${xy.length>600?0.4:0.8}"/>`; }
+        :`<path d="${d}" fill="${col}" fill-opacity="${(0.88*st.op).toFixed(2)}" stroke="${pal.bg}" stroke-width="${xy0.length>600?0.4:0.8}"/>`; }
   }
   if(masked){ const r=3.4; let d=""; pts.forEach(q=>{ if(!masked(q.i)) return; const x=X(q.x), y=Y(q.y); d+=`M${f1(x-r)},${f1(y-r)}L${f1(x+r)},${f1(y+r)}M${f1(x+r)},${f1(y-r)}L${f1(x-r)},${f1(y+r)}`; });
     if(d) s+=`<path d="${d}" stroke="${pal.masked}" stroke-width="1.4" fill="none"/>`; }
@@ -7754,7 +7827,7 @@ function timeTicks(a,b,target,mode){
 // Ticks from several stretches of one axis, as one list, with no two numbers on top of each other.
 function mergeTicks(list,pos,wOf,minGap){
   const seen=new Set(), t=[], mi=[];
-  list.forEach(r=>{ r.ticks.forEach(q=>{ const k=+(+q.v).toPrecision(12); if(!seen.has(k)){ seen.add(k); t.push(q); } }); mi.push(...r.minor); });
+  list.forEach(r=>{ r.ticks.forEach(q=>{ const k=+(+q.v).toPrecision(12); if(!seen.has(k)){ seen.add(k); t.push(q); } }); for(const q of r.minor) mi.push(q); });
   t.sort((a,b)=>pos(a.v)-pos(b.v)); const keep=[];
   t.forEach(q=>{ const l=keep[keep.length-1]; if(!l||Math.abs(pos(q.v)-pos(l.v))>=(wOf(q)+wOf(l))/2+minGap) keep.push(q); });
   return {ticks:keep,minor:mi,step:(list[0]||{}).step};
@@ -7966,19 +8039,19 @@ function buildPlot(W,H,pal,colEx,opt){
   const legRows=Math.ceil(entries.length/legNc), ltw=legTitle?richW(legTitle,Object.assign({},LS,{b:true}))+lpad*2:0;
   const legW=Math.max(ltw,lpad*2+legNc*colW+(legNc-1)*10), legH=legRows*lh+lpad+(legTitle?lh:0);
   const gap=10;
-  let rp=[], rpK=null;
+  let rp=[], rpK=null; const rpOut=new Set();
   if(residOn(cfg,fit)){
-    const fr=fit.range||[-Infinity,Infinity], vx0=Math.min(v.x0,v.x1), vx1=Math.max(v.x0,v.x1);
-    rp=pts.filter(q=>q.x>=fr[0]&&q.x<=fr[1]&&q.x>=vx0&&q.x<=vx1).map(q=>({...q,r:q.y-FM.f(q.x,fit.params)})).filter(q=>Number.isFinite(q.r));
+    const vx0=Math.min(v.x0,v.x1), vx1=Math.max(v.x0,v.x1);
+    rp=residsOf(pts,fit,FM).filter(q=>q.x>=vx0&&q.x<=vx1);
     // Standardised or studentised, the points the fit used; outliers ringed in any kind.
     const rk=resKindOf(cfg.residKind), D=fitDiag(fit,{auto:rk==="raw"});
-    if(D){ const vals=resVals(D,rk), at=new Map(), out=new Set(D.out.idx); D.pts.forEach((q,i)=>at.set(q.i,i));
-      if(rk!=="raw") rp=rp.filter(q=>at.has(q.i)&&Number.isFinite(vals[at.get(q.i)])).map(q=>({...q,r:vals[at.get(q.i)]}));
-      rp.forEach(q=>{ if(at.has(q.i)&&out.has(at.get(q.i))) q.out=true; });
-      if(rk!=="raw") rpK={kind:rk,lim:rk==="del"&&Number.isFinite(D.out.lim)?D.out.lim:null}; }
+    if(D){ for(const j of D.out.idx){ const q=D.pts[j]; if(q) rpOut.add(q.i); }
+      if(rk!=="raw"){ const vals=resVals(D,rk), at=diagAt(D);
+        rp=rp.filter(q=>at.has(q.i)&&Number.isFinite(vals[at.get(q.i)])).map(q=>({i:q.i,x:q.x,y:q.y,e:q.e,r:vals[at.get(q.i)]}));
+        rpK={kind:rk,lim:rk==="del"&&Number.isFinite(D.out.lim)?D.out.lim:null}; } }
   }
   // Too small a graph has no room for residuals worth reading; it shows the fit alone.
-  const showRes=rp.length>0&&H>=280, resH=showRes?Math.max(64,Math.round(H*0.2)):0;
+  const showRes=rp.length>0&&H>=280, resH=showRes?Math.max(64,Math.round(H*0.2)):0, rpMax=showRes?resAbsMax(rp):0;
   /* Margins fit what lies outside the plot: the numbers, measured in their own
      font, ticks pointing out, offsets, the axis titles, the graph's title, a
      right axis, a colour bar, a legend outside. A margin typed in the Format
@@ -7994,21 +8067,21 @@ function buildPlot(W,H,pal,colEx,opt){
     if(YA.rot) ylw=TK.size*1.05;
     else { const tg=Math.max(40,(H-110)/npE)/((stack?40:55)*tkDen); ylw=yMaxW(v.y0,v.y1,tg);
       if(stack) oser.forEach(o=>{ const rg=fY?scaleRange(0,1,fY,o.pts.filter(q=>q.x>=Math.min(v.x0,v.x1)&&q.x<=Math.max(v.x0,v.x1)).map(q=>q.y)):yRangeFor(o.pts,v.x0,v.x1,logY); ylw=Math.max(ylw,yMaxW(rg[0],rg[1],tg)); });
-      if(showRes){ const un=rp.filter(q=>!isMasked(q.i)), ra=(un.length?un:rp).reduce((m,q)=>Math.max(m,Math.abs(q.r)),1e-300)*1.15, rt=niceTicks(-ra,ra,resH/32);
+      if(showRes){ const ra=rpMax*1.15, rt=niceTicks(-ra,ra,resH/32);
         rt.ticks.forEach(t=>{ ylw=Math.max(ylw,labW(tickLabel(t,rt.step),TK)); }); } } }
   const yBlock=YA.off+tkOut(YA.dir,YA.len)+5+(YA.labs||heat?ylw+6:1)+(YA.tshow?AT("y").size+2:0)+8;
   // The second Y axis, across from the first: its conversion, and room for its numbers and title.
   const YO=axisCfg(cfg,"yo"); let yoc=null, yow=0;
   if(cfg.ax.yo&&cfg.ax.yo.on&&!ins&&!heat&&!dist&&!dy&&!stack){ yoc=yoConv(cfg.ax.yo);
     if(!yoc.err){ const S0=axScale(v.y0,v.y1,fY||logY,brY,0), vals=[]; for(let i=0;i<=64;i++){ const q=yoc.f(S0.inv(i/64)); if(Number.isFinite(q)) vals.push(q); }
-      if(vals.length>8){ if(YO.labs) yow=axisTicks(Math.min(...vals),Math.max(...vals),6,Object.assign({},cfg.ax.yo,{min:null,max:null}),false).ticks.reduce((m,t)=>Math.max(m,labW(t.lab,TK)),0)+textW("0",TK); }
+      if(vals.length>8){ if(YO.labs) yow=axisTicks(amin(vals),amax(vals),6,Object.assign({},cfg.ax.yo,{min:null,max:null}),false).ticks.reduce((m,t)=>Math.max(m,labW(t.lab,TK)),0)+textW("0",TK); }
       else yoc={err:"Over the Y range on view the conversion has no value."}; } }
   const yoRight=ypM!=="right", yoBlock=yoc&&!yoc.err?YO.off+tkOut(YO.dir,YO.len)+5+(YO.labs?yow+6:1)+(YO.tshow?AT("yo").size+2:0)+8:0;
   // The second X axis, across from the first: its conversion, and room for its numbers and title.
   let x2c=null, x2h=0;
   if(cfg.ax.x2&&cfg.ax.x2.on&&!ins){ x2c=x2Conv(cfg.ax.x2,ps.d,laserOf(act));
     if(x2c&&!x2c.err){ const S0=axScale(v.x0,v.x1,fX||logX,brX,0), vals=[]; for(let i=0;i<=64;i++){ const q=x2c.f(S0.inv(i/64)); if(Number.isFinite(q)) vals.push(q); }
-      if(vals.length>8){ const et=axisTicks(Math.min(...vals),Math.max(...vals),6,Object.assign({},cfg.ax.x2,{min:null,max:null}),false), rr=X2.rot*Math.PI/180;
+      if(vals.length>8){ const et=axisTicks(amin(vals),amax(vals),6,Object.assign({},cfg.ax.x2,{min:null,max:null}),false), rr=X2.rot*Math.PI/180;
         x2h=!X2.labs?0:X2.rot?et.ticks.reduce((m,t)=>Math.max(m,labW(t.lab,TK)*Math.abs(Math.sin(rr))+TK.size*Math.abs(Math.cos(rr))),0):TK.size*1.05; }
       else x2c={err:"Over the X range on view the conversion has no value."}; } }
   const x2Top=xpM!=="top", x2Block=x2c&&!x2c.err?X2.off+tkOut(X2.dir,X2.len)+(X2.labs?4+x2h:0)+(X2.tshow?6+AT("x2").size*1.08:0)+5:0;
@@ -8049,7 +8122,7 @@ function buildPlot(W,H,pal,colEx,opt){
   if(sb){ const tol=1e-9*(sb.hi-sb.lo); let tk=axisTicks(sb.lo,sb.hi,4,{},false).ticks.filter(t=>t.v>=sb.lo-tol&&t.v<=sb.hi+tol);
     while(tk.length>5) tk=tk.filter((t,i)=>i%2===0);
     if(tk.length<2) tk=[{v:sb.lo,lab:fmt(sb.lo,3)},{v:sb.hi,lab:fmt(sb.hi,3)}];
-    sbV=tk; sbM=Math.max(...tk.map(t=>sb.sz(t.v))); sbX=R; R+=6+2*sbM+6+tk.reduce((m,t)=>Math.max(m,labW(t.lab,sbS)),0)+8+TS.axis.size+6; }
+    sbV=tk; sbM=amax(tk.map(t=>sb.sz(t.v))); sbX=R; R+=6+2*sbM+6+tk.reduce((m,t)=>Math.max(m,labW(t.lab,sbS)),0)+8+TS.axis.size+6; }
   [["mL","L"],["mR","R"],["mT","T"],["mB","B"]].forEach(([k,side])=>{ const m=numOr(cfg[k],null); if(m==null) return; const q=Math.max(0,Math.min(400,m));
     if(side==="L") L=q; else if(side==="R") R=q; else if(side==="T") T=q; else B=q; });
   if(legOn&&cfg.legend==="out") R+=legW+14;
@@ -8069,7 +8142,7 @@ function buildPlot(W,H,pal,colEx,opt){
   let SY=axScale(v.y0,v.y1,fY||logY,brY,brY.length?10/mh:0), Y=brY.length||fY?(y=>T+mh-SY.f(y)*mh):mkY(v.y0,v.y1,T,mh,logY);
   if(yR) yR.Y=mkY(yR.y0,yR.y1,T,mh,logY);
   if(heat){ v=Object.assign({},v,mapS?{y0:mapS.lo,y1:mapS.hi}:{y0:-0.5,y1:oser.length+0.5}); Y=mkY(v.y0,v.y1,T,mh,false); SY=axScale(v.y0,v.y1,false,[],0); }
-  const geo={L,pw,T,mh,v,logY:heat?false:logY,logX:dist?false:logX,W,H,X,Y,revX,handles:[],heat:heat||dist,dist,distC,axes:null,sx:SX,sy:SY,rx:SX.rate/pw,ry:SY.rate/mh,brk:SX.gaps.length+SY.gaps.length,fx:fX,fy:fY};
+  const geo={L,pw,T,mh,v,full:!!colEx,logY:heat?false:logY,logX:dist?false:logX,W,H,X,Y,revX,handles:[],heat:heat||dist,dist,distC,axes:null,sx:SX,sy:SY,rx:SX.rate/pw,ry:SY.rate/mh,brk:SX.gaps.length+SY.gaps.length,fx:fX,fy:fY};
   // The second X axis's numbers, now that the plot's width is known.
   let x2L=null; if(x2c&&!x2c.err){ x2L=x2Layout(x2c.f,SX,pw,{ax:cfg.ax.x2,lw:l=>labW(l,TK),rot:X2.rot,size:TK.size}); if(x2L.err){ geo.x2err=x2L.err; x2L=null; } } else if(x2c&&x2c.err) geo.x2err=x2c.err;
   let yoL=null; if(yoc&&!yoc.err){ yoL=x2Layout(yoc.f,SY,mh,{ax:cfg.ax.yo,lw:()=>TK.size,rot:90,size:TK.size}); if(yoL.err){ geo.yoerr=yoL.err.replace(/X range/g,"Y range").replace(/a negative wavelength…/,"a logarithm of zero or less…"); yoL=null; } } else if(yoc&&yoc.err) geo.yoerr=yoc.err;
@@ -8150,7 +8223,7 @@ function buildPlot(W,H,pal,colEx,opt){
     distC.forEach((c,k)=>{ const vals=distV[k]; if(!vals.length) return; const st=serStyle(c.id,c===act,pal,colEx,cfg), col=st.color, b=boxStats(vals), cx=X(k+1);
       const lo=range?b.min:b.lo, hi=range?b.max:b.hi, Yq=y=>Y(y), tip=`${specName(c)}: ${b.n} values, median ${fmt(b.med,4)}, quartiles ${fmt(b.q1,4)} to ${fmt(b.q3,4)}, mean ${fmt(b.mean,4)} ± ${fmt(b.sd,3)} (SD)${!range&&b.out.length?`, ${b.out.length} beyond the whiskers`:""}`;
       let g=`<g data-dist="${k}">${forExport?"":`<title>${esc(tip)}</title>`}`;
-      if(layout==="violin"&&vals.length>1){ const bw=kdeBandwidth(vals), a=logY?b.min:b.min-2*bw, z=logY?b.max:b.max+2*bw, n=90, ys=Array.from({length:n},(_,i)=>a+(z-a)*i/(n-1)), dn=kdeAt(vals,ys,bw), dm=Math.max(...dn)||1;
+      if(layout==="violin"&&vals.length>1){ const bw=kdeBandwidth(vals), a=logY?b.min:b.min-2*bw, z=logY?b.max:b.max+2*bw, n=90, ys=Array.from({length:n},(_,i)=>a+(z-a)*i/(n-1)), dn=kdeAt(vals,ys,bw), dm=amax(dn)||1;
         const pts2=ys.map((y,i)=>[dn[i]/dm*hw,Yq(y)]).filter(q=>Number.isFinite(q[1]));
         g+=`<path d="M${pts2.map(q=>f1(cx+q[0])+","+f1(q[1])).join("L")}L${pts2.slice().reverse().map(q=>f1(cx-q[0])+","+f1(q[1])).join("L")}Z" fill="${col}" fill-opacity="${Math.max(0.15,Math.min(0.6,st.fill>0.18?st.fill:0.35)).toFixed(2)}" stroke="${col}" stroke-width="1.2" stroke-linejoin="round"/>`;
         const iw=Math.max(2,hw*0.09);
@@ -8231,18 +8304,19 @@ function buildPlot(W,H,pal,colEx,opt){
   // The other spectra, behind the analysed one.
   if(!heat&&!dist&&!stack) oser.forEach((o,k)=>{
     const st=zSt(serStyle(o.c.id,false,pal,colEx,cfg),o.pts,o.c.id), eg=errGeom(o.c,finalOf(o.c));
-    if(dy){ const ee=errSvg(eg,o.pts,st,X,yR.Y,pal,null,{logY:false});
+    if(dy){ const ee=errSvg(eg,o.pts,st,X,yR.Y,pal,null,{logY:false,full:!!colEx});
       s+=`<g data-ser="${o.c.id}">${ee.under}${seriesSvg(o.pts,st,X,yR.Y,geo,pal,null)}${ee.over}</g>`; return; }
-    const q=layout==="offset"?shiftPts(o.pts,k+1):o.pts, ee=errSvg(eg,q,st,X,Y,pal,null,{logY,yMin:v.y0*1e-3});
+    const q=layout==="offset"?shiftPts(o.pts,k+1):o.pts, ee=errSvg(eg,q,st,X,Y,pal,null,{logY,yMin:v.y0*1e-3,full:!!colEx});
     s+=`<g data-ser="${o.c.id}">${ee.under}${seriesSvg(q,st,X,Y,geo,pal,null)}${ee.over}</g>`;
     if(layout==="offset"&&q.length){ const last=q.reduce((m,z)=>(revX?z.x<m.x:z.x>m.x)?z:m,q[0]); const lxp=Math.min(L+pw-4,X(last.x)+4), lyp=Y(last.y);
       if(Number.isFinite(lyp)&&lyp>T&&lyp<T+mh) s+=richText((st.label||o.c.name||"").slice(0,40),{x:lxp,y:lyp-4,anchor:"end",st:LSc,fill:st.color}); }
   });
-  if(showGhost) s+=`<path d="M${gpts.map(q=>X(q.x).toFixed(1)+","+Y(q.y).toFixed(1)).join("L")}" fill="none" stroke="${pal.muted}" stroke-width="1.3" opacity="0.7"/>`;
+  if(showGhost){ let gx=[]; for(const q of gpts){ const a=X(q.x), b=Y(q.y); if(Number.isFinite(a)&&Number.isFinite(b)) gx.push([a,b]); } if(decOn(gx.length,forExport)) gx=m4(gx,decW());
+    if(gx.length) s+=`<path d="M${gx.map(q=>q[0].toFixed(1)+","+q[1].toFixed(1)).join("L")}" fill="none" stroke="${pal.muted}" stroke-width="1.3" opacity="0.7"/>`; }
   if(!forExport&&!heat&&!dist) s+=stageMarks(ps,X,Y,pal,v,geo,true);
   if(!heat&&!dist&&act){
     // Its error bars, at any stage: what the processing made of them by then.
-    const ee=errSvg(errGeom(act,ps.d),pts,actSt,X,Y,pal,isMasked,{logY,yMin:v.y0*1e-3});
+    const ee=errSvg(errGeom(act,ps.d),pts,actSt,X,Y,pal,isMasked,{logY,yMin:v.y0*1e-3,full:!!colEx});
     s+=`<g data-ser="${act.id}">${ee.under}${seriesSvg(pts,zSt(actSt,pts,act.id),X,Y,geo,pal,isMasked)}${ee.over}</g>`;
     if(layout==="offset"&&oser.length&&pts.length){ const last=pts.reduce((m,z)=>(revX?z.x<m.x:z.x>m.x)?z:m,pts[0]), lyp=Y(last.y);
       if(Number.isFinite(lyp)&&lyp>T&&lyp<T+mh) s+=richText((actSt.label||act.name||"").slice(0,40),{x:L+pw-4,y:lyp-4,anchor:"end",st:Object.assign({},LSc,{b:true}),fill:actSt.color}); }
@@ -8271,8 +8345,8 @@ function buildPlot(W,H,pal,colEx,opt){
     if(fY){ rg=scaleRange(0,1,fY,o.pts.filter(q=>q.x>=Math.min(v.x0,v.x1)&&q.x<=Math.max(v.x0,v.x1)).map(q=>q.y)); const SP=axScale(rg[0],rg[1],fY,[],0); Yp=y=>top+ph-SP.f(y)*ph; yt=scaleTicks(rg[0],rg[1],ph,fY,cfg.ax.y,{lw:()=>TK.size,rot:90,size:TK.size}); }
     else { rg=yRangeFor(o.pts,v.x0,v.x1,logY); Yp=mkY(rg[0],rg[1],top,ph,logY); yt=axisTicks(rg[0],rg[1],ph/(40*tkDen),cfg.ax.y,logY); }
     s+=gridLines(top,ph,Yp,yt);
-    const ee=errSvg(errGeom(o.c,finalOf(o.c)),o.pts,st,X,Yp,pal,null,{logY,yMin:rg[0]*1e-3});
-    s+=`<g clip-path="url(#clipP${k})" data-ser="${o.c.id}">${ee.under}${seriesSvg(o.pts,st,X,Yp,{T:top,mh:ph,logY},pal,null)}${ee.over}</g>`;
+    const ee=errSvg(errGeom(o.c,finalOf(o.c)),o.pts,st,X,Yp,pal,null,{logY,yMin:rg[0]*1e-3,full:!!colEx});
+    s+=`<g clip-path="url(#clipP${k})" data-ser="${o.c.id}">${ee.under}${seriesSvg(o.pts,st,X,Yp,{T:top,mh:ph,logY,full:!!colEx},pal,null)}${ee.over}</g>`;
     panels.push({top,h:ph,Yf:Yp,yt,label:st.label||o.c.name||"",color:st.color});
   });
   /* Frame, axes, ticks and numbers. An axis sits on its edge, at zero or at a
@@ -8386,15 +8460,26 @@ function buildPlot(W,H,pal,colEx,opt){
       const al=axAlign(Y2A,AT("y2")), tx=ax2+o2+(Y2A.labs?w2:0)+6+AT("y2").size*0.22+Y2A.tdx, ty=(al==="start"?T+mh:al==="end"?T:T+mh/2)+Y2A.tdy;
       s+=richText(t2,{attrs:ed("y2"),tf:`translate(${f1(tx)},${f1(ty)}) rotate(90)`,anchor:al==="start"?"end":al==="end"?"start":"middle",st:AT("y2"),fill:Y2A.col||axR||pal.ink}); } }
   if(showRes){
-    const un=rp.filter(q=>!isMasked(q.i));
-    const ra=Math.max((un.length?un:rp).reduce((m,q)=>Math.max(m,Math.abs(q.r)),1e-300),rpK&&rpK.lim?rpK.lim:0)*1.15; const top=T+mhAll+gap;
+    const ra=Math.max(rpMax,rpK&&rpK.lim?rpK.lim:0)*1.15; const top=T+mhAll+gap;
     const RY=val=>top+resH/2-val/ra*(resH/2);
     const rt=niceTicks(-ra,ra,resH/32), r=pts.length>400?2:pts.length>150?2.8:3.4;
     s+=plotBg(top,resH);
     s+=`<g clip-path="url(#clipR)"><line x1="${L}" x2="${L+pw}" y1="${RY(0)}" y2="${RY(0)}" stroke="${fitSt.color}" stroke-width="1" stroke-dasharray="4 3"/>`;
     if(rpK&&rpK.lim) [rpK.lim,-rpK.lim].forEach(l=>{ s+=`<line x1="${L}" x2="${L+pw}" y1="${f1(RY(l))}" y2="${f1(RY(l))}" stroke="${pal.muted}" stroke-width="1" stroke-dasharray="6 3" data-rlim="1"/>`; });
-    rp.forEach(q=>{ const x=X(q.x), y=RY(q.r), c=isMasked(q.i)?pal.masked:actSt.color; s+=`<line x1="${x}" x2="${x}" y1="${RY(0)}" y2="${y}" stroke="${c}" stroke-width="1" opacity="0.6"/><circle cx="${x}" cy="${y}" r="${Math.min(r,2.6)}" fill="${isMasked(q.i)?pal.bg:c}" stroke="${c}" stroke-width="1"/>`;
-      if(q.out) s+=`<circle cx="${x}" cy="${y}" r="5" fill="none" stroke="${fitSt.color}" stroke-width="1.4" data-rout="1"/>`; });
+    // Many residuals are two paths, not two elements each; on screen a column of pixels
+    // keeps one stem (from zero to its furthest residuals) and a dot per spot.
+    if(rp.length>1500){ const dec=decOn(rp.length,forExport), dw=decW(), y0=RY(0), st={u:"",m:""}, dt={u:"",m:""}, cl=new Map(), seen=new Set(); let ring="";
+      rp.forEach(q=>{ const x=X(q.x), y=RY(q.r); if(!Number.isFinite(x)||!Number.isFinite(y)) return; const mm=isMasked(q.i), m=mm?"m":"u";
+        if(dec){ const ck=2*Math.floor(x/dw)+(mm?1:0), c=cl.get(ck); if(c){ if(y<c[1]) c[1]=y; if(y>c[2]) c[2]=y; } else cl.set(ck,[x,y,y,m]);
+          const sk=(Math.round(x/dw)*1048576+Math.round(y/dw))*2+(mm?1:0); if(!seen.has(sk)){ seen.add(sk); dt[m]+=`M${f1(x)},${f1(y)}h0`; } }
+        else { st[m]+=`M${f1(x)},${f1(y0)}V${f1(y)}`; dt[m]+=`M${f1(x)},${f1(y)}h0`; }
+        if(rpOut.has(q.i)){ const rk="r"+Math.round(2*x)+","+Math.round(2*y); if(!seen.has(rk)){ seen.add(rk); ring+=`M${f1(x+5)},${f1(y)}a5,5 0 1,0 -10,0a5,5 0 1,0 10,0`; } } });
+      cl.forEach(c=>{ st[c[3]]+=`M${f1(c[0])},${f1(Math.min(y0,c[1]))}V${f1(Math.max(y0,c[2]))}`; });
+      [["u",actSt.color],["m",pal.masked]].forEach(([m,c])=>{ if(st[m]) s+=`<path d="${st[m]}" stroke="${c}" stroke-width="1" opacity="0.6" fill="none"/>`;
+        if(dt[m]) s+=`<path d="${dt[m]}" stroke="${c}" stroke-width="${(2*Math.min(r,2.6)).toFixed(1)}" stroke-linecap="round" fill="none"/>`; });
+      if(ring) s+=`<path d="${ring}" fill="none" stroke="${fitSt.color}" stroke-width="1.4" data-rout="1"/>`; }
+    else rp.forEach(q=>{ const x=X(q.x), y=RY(q.r), c=isMasked(q.i)?pal.masked:actSt.color; s+=`<line x1="${x}" x2="${x}" y1="${RY(0)}" y2="${y}" stroke="${c}" stroke-width="1" opacity="0.6"/><circle cx="${x}" cy="${y}" r="${Math.min(r,2.6)}" fill="${isMasked(q.i)?pal.bg:c}" stroke="${c}" stroke-width="1"/>`;
+      if(rpOut.has(q.i)) s+=`<circle cx="${x}" cy="${y}" r="5" fill="none" stroke="${fitSt.color}" stroke-width="1.4" data-rout="1"/>`; });
     s+=`</g>`;
     s+=drawFrame(top,resH,{ticks:rt.ticks.map(t=>({v:t,lab:tickLabel(t,rt.step)})),minor:[]},RY,xpMain==="bottom",true,null,false);
     const rx=L-(tkOut(YA.dir,YA.len)+5+(drawn.pW?drawn.pW+6:1))-TS.axis.size*0.22;
@@ -8535,7 +8620,7 @@ function buildPlot(W,H,pal,colEx,opt){
     // In a row along the top, neighbours are spread so they never overlap.
     if(pos==="row"){ const rs=rows.slice().sort((a,b)=>a.x-b.x); let prev=-Infinity; rs.forEach(r=>{ const h2=across(r)/2; r.cx=Math.max(r.x,prev+h2+6); prev=r.cx+h2; });
       const last=rs[rs.length-1], over=last.cx+across(last)/2-(L+pw-2), room=rs[0].cx-across(rs[0])/2-(L+2); if(over>0) rs.forEach(r=>{ r.cx-=Math.min(over,Math.max(0,room)); }); }
-    const rowB=pos==="row"&&!rot?T+6+Math.max(...rows.map(r=>r.n*lh)):0;
+    const rowB=pos==="row"&&!rot?T+6+amax(rows.map(r=>r.n*lh)):0;
     let out="";
     rows.forEach(r=>{
       const dd=!forExport&&S.fldrag&&S.fldrag.id===r.id?S.fldrag.cur:(offs[r.id]||[0,0]), dx=+dd[0]||0, dy=+dd[1]||0, moved=Math.abs(dx)+Math.abs(dy)>0.5;
@@ -9997,7 +10082,7 @@ function renderStatusBar(){
   const p=P(), pts=p?pointsAll():[];
   if(!p||!pts.length){ el.textContent=""; ef.innerHTML=""; ef.className="sb-cell"; ef.title=""; return; }
   const nm=maskOf(activeYCol()).length;
-  const vr=viewRng(), inV=vr?pts.filter(q=>q.x>=vr[0]&&q.x<=vr[1]&&!isMasked(q.i)).length:0;
+  const vr=viewRng(); let inV=0; if(vr) for(let k=0;k<pts.length;k++){ const q=pts[k]; if(q.x>=vr[0]&&q.x<=vr[1]&&!isMasked(q.i)) inV++; }
   el.textContent=`${pts.length} point${pts.length===1?"":"s"}${nm?` · ${nm} masked`:""}${vr?` · ${inV} in view`:""}`;
   const f=activeFit();
   if(!f){ ef.className="sb-cell"; ef.innerHTML="<span>No fit yet</span>"; ef.title=""; return; }
@@ -10016,8 +10101,24 @@ function toData(px,py){ const g=S.geo; if(!g) return null; const v=g.v;
   const x=g.sx?g.sx.inv(t):g.logX?10**(Math.log10(v.x0)+t*(Math.log10(v.x1)-Math.log10(v.x0))):v.x0+t*(v.x1-v.x0);
   let y; if(g.sy) y=g.sy.inv(u); else if(g.logY){ const a=Math.log10(v.y0), b=Math.log10(v.y1); y=10**(a+u*(b-a)); } else y=v.y0+u*(v.y1-v.y0);
   return {x,y,inside:px>=g.L&&px<=g.L+g.pw&&py>=g.T&&py<=g.T+g.mh}; }
-function nearest(px,py,maxd=12){ const g=S.geo; if(!g) return null; let best=null, bd=maxd*maxd;
-  (S.shownPts||pointsAll()).forEach(q=>{ const dx=g.X(q.x)-px, dy=g.Y(q.y)-py, d=dx*dx+dy*dy; if(d<bd){bd=d;best=q;} }); return best; }
+/* Where a list of points is on the screen, worked out once per drawing (DESIGN.md, Large
+   data): every pointer move asked each point's place through the axes again, most of a
+   move's cost at 200 000 points. A list in screen order is searched by halves. */
+const SCR=new WeakMap();
+function scrOf(g,pts){ let m=SCR.get(g); if(!m){ m=new WeakMap(); SCR.set(g,m); } let r=m.get(pts); if(r) return r;
+  const n=pts.length, sx=new Float64Array(n), sy=new Float64Array(n); let up=true, dn=true;
+  for(let k=0;k<n;k++){ sx[k]=g.X(pts[k].x); sy[k]=g.Y(pts[k].y); if(k){ if(!(sx[k]>=sx[k-1])) up=false; if(!(sx[k]<=sx[k-1])) dn=false; } }
+  r={sx,sy,mono:up?1:dn?-1:0}; m.set(pts,r); return r; }
+// The rows k of pts whose screen X is within lim of px, as [a, b): all of them unless in order.
+function scrSpan(r,px,lim){ const sx=r.sx, n=sx.length; if(!r.mono||n<64) return [0,n];
+  const lo=px-lim, hi=px+lim, first=t=>{ let a=0, b=n; while(a<b){ const m=(a+b)>>1; if(t(sx[m])) b=m; else a=m+1; } return a; };
+  return r.mono>0?[first(v=>v>=lo),first(v=>v>hi)]:[first(v=>v<=hi),first(v=>v<lo)]; }
+// The nearest of pts to (px, py) within sqrt(bd) pixels: {k, d}, or null; the first wins a tie.
+function scrNearest(g,pts,px,py,bd){ const r=scrOf(g,pts), [a,b]=scrSpan(r,px,Math.sqrt(bd)); let k=-1;
+  for(let i=a;i<b;i++){ const dx=r.sx[i]-px, dy=r.sy[i]-py, d=dx*dx+dy*dy; if(d<bd){ bd=d; k=i; } }
+  return k<0?null:{k,d:bd}; }
+function nearest(px,py,maxd=12){ const g=S.geo; if(!g) return null; const pts=S.shownPts||pointsAll(), h=scrNearest(g,pts,px,py,maxd*maxd);
+  return h?pts[h.k]:null; }
 function localXY(ev){ const r=$("#figure").getBoundingClientRect(); return [ev.clientX-r.left, ev.clientY-r.top]; }
 let drag=null, lastPres=0, wheelT=null, downEl=null;
 /* Y limits that frame whatever lies between two X values, for a zoom that
@@ -10071,6 +10172,9 @@ function handleTip(k){
   const [xu,yu]=dataUnits();
   return `Peak ${k+1}   centre ${fmt(pv[0],6)}${xu?" "+xu:""}   height ${fmt(def.height(pv),4)}${yu?" "+yu:""}   FWHM ${fmt(Math.abs(peakFWHM(def,pv)),4)}${xu?" "+xu:""}`;
 }
+// After the view changes (a zoom settled, a pan let go): the Fit window follows when it is
+// open; otherwise only the status bar's counts, not a fresh guess for a window nobody sees.
+function afterView(){ if(winOpen("fit")) renderFit(); else renderStatusBar(); }
 function panTo(dr,x,y){
   const g=S.geo, v=dr.v, dxp=x-dr.x0, dyp=y-dr.y0;
   // A curved scale moves by fractions of its axis, through its own transform.
@@ -10099,7 +10203,7 @@ function onGraphDouble(tg){ tg=tg||$("#plot"); const an=tg.closest&&tg.closest("
     const axt=tg.closest&&tg.closest("[data-axtitle]"); if(axt){ inlineEditTitle(axt.dataset.axtitle); return; }
     const axz=tg.closest&&tg.closest("[data-axis]"); if(axz){ openPlotDetails(null,"ax:"+axz.dataset.axis); return; }
     if(tg.closest&&tg.closest("[data-legbox]")) return;
-    if(tg.closest&&tg.closest("[data-h]")) return; S.view=null; renderPlot(); renderFit();
+    if(tg.closest&&tg.closest("[data-h]")) return; S.view=null; renderPlot(); afterView();
 }
 function setupGraph(){
   const svg=$("#plot"), zr=$("#zrect");
@@ -10227,7 +10331,7 @@ function setupGraph(){
     if(S.hdrag){ const hd=S.hdrag; S.hdrag=null; hideTip(); renderFit(); renderPlot();
       if(hd.moved) $("#plotSay").textContent=handleTip(hd.k); return; }
     if(!drag) return; const d=drag; drag=null; zr.style.display="none"; svg.classList.remove("panning");
-    if(d.pan){ if(d.moved) renderFit(); return; }
+    if(d.pan){ if(d.moved) afterView(); return; }
     if(S.mode==="shape"){ const sd=S.shapeDraft; S.shapeDraft=null; if(d.moved&&sd&&Math.abs(sd.x1-sd.x0)>5&&Math.abs(sd.y1-sd.y0)>5&&!S.readOnly) makeShape(sd); else renderPlot(); return; }
     if(S.mode==="arrow"){ const ad=S.arrowDraft; S.arrowDraft=null; if(d.moved&&ad&&Math.hypot(ad.x1-ad.x0,ad.y1-ad.y0)>8&&!S.readOnly) makeArrow(ad); else renderPlot(); return; }
     if(S.mode==="range"){ if(d.moved){ const a=toData(Math.min(d.x0,d.x1),0), b=toData(Math.max(d.x0,d.x1),0); setPickedRange(Math.min(a.x,b.x),Math.max(a.x,b.x)); } return; }
@@ -10273,16 +10377,16 @@ function setupGraph(){
     if(S.geo.fx||S.geo.fy){ const g=S.geo, sx=axScale(v.x0,v.x1,g.fx||g.logX,[],0), sy=axScale(v.y0,v.y1,g.fy||g.logY,[],0), tx=sx.f(c.x), ty=sy.f(c.y);
       const nx=[sx.inv(tx-tx*k),sx.inv(tx+(1-tx)*k)], ny=[sy.inv(ty-ty*k),sy.inv(ty+(1-ty)*k)], okx=nx.every(q=>Number.isFinite(q)&&(!g.fx||g.fx.ok(q))), oky=ny.every(q=>Number.isFinite(q)&&(!g.fy||g.fy.ok(q)));
       if(!(nx[1]>nx[0])||!(ny[1]>ny[0])) return;
-      S.view={x0:okx?nx[0]:v.x0,x1:okx?nx[1]:v.x1,y0:oky?ny[0]:v.y0,y1:oky?ny[1]:v.y1}; renderPlot(); renderFitRangeOnly(); clearTimeout(wheelT); wheelT=setTimeout(()=>renderFit(),240); return; }
+      S.view={x0:okx?nx[0]:v.x0,x1:okx?nx[1]:v.x1,y0:oky?ny[0]:v.y0,y1:oky?ny[1]:v.y1}; renderPlot(); renderFitRangeOnly(); clearTimeout(wheelT); wheelT=setTimeout(afterView,240); return; }
     const nv=S.geo.logX?(()=>{ const lx=Math.log10(c.x); return {x0:10**(lx-(lx-Math.log10(v.x0))*k),x1:10**(lx+(Math.log10(v.x1)-lx)*k)}; })():{x0:Math.min(c.x-(c.x-v.x0)*k, c.x+(v.x1-c.x)*k), x1:Math.max(c.x-(c.x-v.x0)*k, c.x+(v.x1-c.x)*k)};
     if(S.geo.logY){ const ly=Math.log10(c.y); nv.y0=10**(ly-(ly-Math.log10(v.y0))*k); nv.y1=10**(ly+(Math.log10(v.y1)-ly)*k); } else { nv.y0=c.y-(c.y-v.y0)*k; nv.y1=c.y+(v.y1-c.y)*k; }
     // Past the precision of the numbers the zoom stops, rather than drawing nothing.
     const sx=saneRange(nv.x0,nv.x1,S.geo.logX); if(ev.deltaY<0&&sx[1]-sx[0]>(nv.x1-nv.x0)*1.0001) return;
     S.view=nv; renderPlot(); renderFitRangeOnly();
     // The fit panel follows once the wheel settles, so its stale notes and range agree.
-    clearTimeout(wheelT); wheelT=setTimeout(()=>renderFit(),240); },{passive:false});
+    clearTimeout(wheelT); wheelT=setTimeout(afterView,240); },{passive:false});
   document.querySelectorAll("#modeSeg button").forEach(b=>b.addEventListener("click",()=>b.dataset.mode==="shape"?shapeMenu(b):setMode(b.dataset.mode)));
-  $("#resetView").onclick=()=>{ S.view=null; renderPlot(); renderFit(); };
+  $("#resetView").onclick=()=>{ S.view=null; renderPlot(); afterView(); };
   ["revX","logY","grid"].forEach(k=>$("#"+k).onclick=()=>togglePlot(k));
   new ResizeObserver(()=>renderPlot()).observe($("#figure"));
   svg.addEventListener("keydown",graphKey);
@@ -10396,11 +10500,14 @@ function xhMode(){ try{ const m=localStorage.getItem("kurve.xh"); return XH_MODE
 function setXhMode(m){ if(!XH_MODES.some(q=>q[0]===m)) m="both"; try{ localStorage.setItem("kurve.xh",m); }catch(e){}
   if(S.xh) S.xh.mode=m; if(S.mode!=="cross") setMode("cross"); else { drawReaders(); renderRdCard(true); } }
 // The curves the readers read: the analysed one, and the others overlaid on the same axes.
+// A curve's points for the readers, the same list while its data are (so scrOf keeps them).
+const RDP=new WeakMap();
+function rdPts(d,logY){ let m=RDP.get(d); if(!m||m.logY!==logY){ m={logY,pts:seriesPoints(d,logY)}; RDP.set(d,m); } return m.pts; }
 function readerCurves(){
   const g=S.geo, p=P(); if(!g||!p||g.heat) return [];
   const cfg=plotCfg(), act=activeYCol(), xu=(S.ps&&S.ps.d&&S.ps.d.xu)||"", out=[];
   if(act&&!cfg.hidden.includes(act.id)) out.push({c:act,pts:S.shownPts||[]});
-  if(cfg.layout==="overlay"&&S.ps&&S.ps.final) yCols().filter(c=>c!==act&&!cfg.hidden.includes(c.id)&&(finalOf(c).xu||"")===xu).forEach(c=>out.push({c,pts:seriesPoints(finalOf(c),cfg.logY)}));
+  if(cfg.layout==="overlay"&&S.ps&&S.ps.final) yCols().filter(c=>c!==act&&!cfg.hidden.includes(c.id)&&(finalOf(c).xu||"")===xu).forEach(c=>out.push({c,pts:rdPts(finalOf(c),!!cfg.logY)}));
   return out.filter(rc=>rc.pts.length);
 }
 const rdUnits=()=>{ const d=S.ps&&S.ps.d; return [((d&&d.xu)||"").trim(),((d&&d.yu)||"").trim()]; };
@@ -10415,7 +10522,7 @@ function rdPoint(){
 // The nearest plotted point to a place on the screen, within maxd pixels.
 function readerNear(px,py,maxd){
   const g=S.geo; if(!g) return null; let best=null, bd=(maxd||30)**2;
-  readerCurves().forEach(rc=>rc.pts.forEach((q,k)=>{ const e=(g.X(q.x)-px)**2+(g.Y(q.y)-py)**2; if(e<bd){ bd=e; best={rc,k,q}; } }));
+  readerCurves().forEach(rc=>{ const h=scrNearest(g,rc.pts,px,py,bd); if(h){ bd=h.d; best={rc,k:h.k,q:rc.pts[h.k]}; } });
   return best;
 }
 function rdPin(hit,say){
@@ -10456,8 +10563,8 @@ function xhState(){
    then back to data. Several crossings are kept, the first few named. */
 function xhCrossings(rc,axis,at){
   const g=S.geo, out=[], P=rc.pts; if(!g||P.length<1) return out;
-  const pos=axis==="v"?g.X(at):g.Y(at);
-  for(let k=0;k+1<P.length;k++){ const a=P[k], b=P[k+1], ax=g.X(a.x), bx=g.X(b.x), ay=g.Y(a.y), by=g.Y(b.y);
+  const pos=axis==="v"?g.X(at):g.Y(at), r=scrOf(g,P);
+  for(let k=0;k+1<P.length;k++){ const ax=r.sx[k], bx=r.sx[k+1], ay=r.sy[k], by=r.sy[k+1];
     const u=axis==="v"?ax:ay, w=axis==="v"?bx:by; if(!Number.isFinite(u)||!Number.isFinite(w)) continue;
     if((pos<Math.min(u,w))||(pos>Math.max(u,w))||u===w&&pos!==u) continue;
     const t=u===w?0:(pos-u)/(w-u), sx=ax+t*(bx-ax), sy=ay+t*(by-ay), d=toData(sx,sy); if(!d) continue;
@@ -10634,7 +10741,7 @@ function shapeMenu(btn){ const k=S.mode==="shape"?shapeKind():null;
 let fitTbT=0;
 function fitToolbar(){
   const t=document.querySelector(".toolbar"); if(!t) return;
-  const wraps=()=>{ const kids=[...t.children].filter(k=>k.offsetWidth>2&&k.offsetParent!==null); if(!kids.length) return false; const top=Math.min(...kids.map(k=>k.offsetTop)); return kids.some(k=>k.offsetTop>top+k.offsetHeight*0.6); };
+  const wraps=()=>{ const kids=[...t.children].filter(k=>k.offsetWidth>2&&k.offsetParent!==null); if(!kids.length) return false; const top=amin(kids.map(k=>k.offsetTop)); return kids.some(k=>k.offsetTop>top+k.offsetHeight*0.6); };
   ["c1","c2","c3","c4","c5","c6"].forEach(c=>t.classList.remove(c));
   // Last of all the Explorer's switch goes (the Window menu and Alt+1 remain), but not on a
   // phone, where the toolbar wraps anyway and the switch is the way to the drawer.
@@ -11276,7 +11383,7 @@ function wsFindCount(){ const el=$("#wsFindN"), f=S.wsFind; if(!el) return;
    (drag a header's right edge; double-click it to fit the contents) and the
    grid runs on past the data, with empty columns and rows to type into.
    Under the column headers sit Origin's label rows: Long Name, Units,
-   Comments, F(x)= (the column's formula, if it has one), and a sparkline
+   F(x)= (the column's formula; always shown), Comments and a sparkline
    of each column. One cell is active; a range is
    selected by dragging, by Shift with a click or the arrow keys, or by
    clicking a column letter or a row number. Typing starts an edit (F2 or a
@@ -11289,24 +11396,25 @@ function wsFindCount(){ const el=$("#wsFindN"), f=S.wsFind; if(!el) return;
 const WS_IDX=82, WS_W=100, WS_MINW=36, WS_HIDW=6;
 const WS_LABS=[{r:-4,k:"name",label:"Long Name",max:60},{r:-3,k:"unit",label:"Units",max:30},{r:-2,k:"comm",label:"Comments",max:200},{r:-1,k:"fx",label:"F(x)=",max:400}];
 const WS_TOP=-4;
-/* Under the letters the worksheet shows Long Name and Units; Comments, F(x)= and
-   the sparklines come from the "⋯" corner and stay per project in this browser
-   (kurve.wsrows), and F(x)= shows by itself once a column has a formula. A
-   hidden row is still there: copy and paste reach it, the arrow keys step over it. */
+/* Under the letters the worksheet shows Long Name, Units and F(x)= (a column's
+   formula, always there to type into, as Origin's; a formula typed into a cell
+   with = goes there too); Comments and the sparklines come from the "⋯" corner
+   and stay per project in this browser (kurve.wsrows). A hidden row is still
+   there: copy and paste reach it, the arrow keys step over it. */
 function wsRowsPref(){ const pid=S.pid||""; if(!S._wrp||S._wrp.pid!==pid){ let o={}; try{ o=(JSON.parse(localStorage.getItem("kurve.wsrows")||"{}")||{})[pid]||{}; }catch(e){} S._wrp={pid,o:o&&typeof o==="object"?o:{}}; } return S._wrp.o; }
 function wsRowsSet(k,on){ const pid=S.pid||""; try{ const all=JSON.parse(localStorage.getItem("kurve.wsrows")||"{}")||{}; all[pid]=Object.assign({},all[pid],{[k]:!!on}); const ks=Object.keys(all); if(ks.length>60) delete all[ks[0]]; localStorage.setItem("kurve.wsrows",JSON.stringify(all)); }catch(e){}
   S._wrp={pid,o:Object.assign({},wsRowsPref(),{[k]:!!on})}; renderWs(); }
 const wsAnyFx=()=>!!P()&&allCols().some(c=>c.fx);
-function wsLabShown(L){ if(!L) return false; if(L.k==="name"||L.k==="unit") return true; const pr=wsRowsPref(); return L.k==="fx"?!!pr.fx||wsAnyFx():!!pr[L.k]; }
+function wsLabShown(L){ if(!L) return false; if(L.k==="name"||L.k==="unit"||L.k==="fx") return true; return !!wsRowsPref()[L.k]; }
 const wsLabRows=()=>WS_LABS.filter(wsLabShown);
 // A row a move lands on that is hidden: the next shown one the way the move went.
 function wsLabSnap(r,from){ if(r>=0||wsLabShown(WS_LABS.find(z=>z.r===r))) return r; const dir=r<from?-1:1; let q=r;
   while(q<0&&q>=WS_TOP&&!wsLabShown(WS_LABS.find(z=>z.r===q))) q+=dir;
   if(q<WS_TOP){ q=r; while(q<0&&!wsLabShown(WS_LABS.find(z=>z.r===q))) q++; } return q; }
-function wsRowsMenu(btn){ const pr=wsRowsPref(), fx=wsAnyFx();
+function wsRowsMenu(btn){ const pr=wsRowsPref();
   toggleMenu(btn,()=>[{group:"Rows under the letters",plain:true},{label:"Long Name",checked:true,enabled:false},{label:"Units",checked:true,enabled:false},
+    {label:"F(x)= (formulas)",checked:true,enabled:false},
     {label:"Comments",checked:!!pr.comm,run:()=>wsRowsSet("comm",!pr.comm)},
-    {label:"F(x)= (formulas)",checked:!!pr.fx||fx,enabled:!fx,note:fx?"a column has one":"",run:()=>wsRowsSet("fx",!pr.fx)},
     {label:"Sparklines",checked:!!pr.spk,run:()=>wsRowsSet("spk",!pr.spk)}],{label:"Rows"}); }
 function wsLetter(i){ let s=""; i++; while(i>0){ const m=(i-1)%26; s=String.fromCharCode(65+m)+s; i=Math.floor((i-1)/26); } return s; }
 function wsModel(){
@@ -11328,9 +11436,8 @@ function wsModel(){
     if(hid.has(c.id)) return {id:c.id, col:c, letter:L, role:ROLE_LABEL[c.role]||c.role, w, hidden:true, lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx,
       title:`Column ${L}${c.name?" ("+c.name+")":""} is hidden. Double-click to show it.`};
     let spark="";
-    if(c.data.some(v=>v!=null)){ const xc=isY||c.role==="e"?xColFor(c.role==="e"?colById(c.of)||c:c):null, idx=[], ys=[];
-      c.data.forEach((v,k)=>{ if(v==null) return; const xv=xc?xc.data[k]:k; if(xv==null) return; idx.push(xv); ys.push(v); });
-      if(ys.length>1) spark=sparkSvg({x:idx,y:ys},Math.max(20,w-12),16,"wspark"); }
+    if(c.data.some(v=>v!=null)){ const xc=isY||c.role==="e"?xColFor(c.role==="e"?colById(c.of)||c:c):null, sw=Math.max(20,w-12), t=sparkPts(c.data,xc?xc.data:null,2*sw);
+      if(t.y.length>1) spark=sparkSvg(t,sw,16,"wspark"); }
     return {id:c.id, col:c, letter:L, role:c.role==="x"&&xs.length>1?"X"+(xs.indexOf(c)+1):c.role==="e"?errTag(c):ROLE_LABEL[c.role]||c.role, w, sw:isY?yTint(c.id):null, off, act:isAct, menu:true, spark,
       lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx, fxErr:c.fx?FX_ERR.get(c.id)||"":"",
       title:`Column ${L}${c.name?": "+c.name:""}. ${roleText(c)}${c.fx?`, computed: = ${fxShow(c)}${FX_ERR.get(c.id)?` (${FX_ERR.get(c.id)})`:""}`:""}${isAct?", active":""}${off?", on no graph yet":""}. Click to select it; right-click, or the arrow, for its options; drag its right edge to resize it.`}; });
@@ -11803,8 +11910,8 @@ function wsCellMenu(ev,r,c){
     {label:"Copy", kbd:"Ctrl+C", run:()=>copyText(wsCopyText(),"Copied the selected cells.")},
     {label:"Paste", kbd:"Ctrl+V", enabled:raw&&!S.readOnly, run:wsPasteMenu},
     {label:"Clear", kbd:"Delete", enabled:raw&&!S.readOnly, run:wsClear},
-    raw&&r1>=0?{label:r1>Math.max(r0,0)?`Insert ${r1-Math.max(r0,0)+1} rows above`:"Insert a row above", enabled:!S.readOnly&&!rawLocked()&&!m.ord, title:rawLocked()?"The original data is locked":m.hidR?"Show the hidden rows first":m.ord?"Put the view back in its original order first":"", run:()=>wsRowsEdit("insert")}:null,
-    raw&&r1>=0?{label:r1>Math.max(r0,0)?`Delete rows ${Math.max(r0,0)+1}–${r1+1}`:`Delete row ${r1+1}`, danger:true, enabled:!S.readOnly&&!rawLocked()&&!m.ord&&Math.max(r0,0)<m.n, title:rawLocked()?"The original data is locked":m.ord?"Put the view back in its original order first":"", run:()=>wsRowsEdit("delete")}:null,
+    raw?{label:"Insert", enabled:!S.readOnly, sub:wsInsertItems}:null,
+    raw?{label:"Delete", enabled:!S.readOnly, sub:wsDeleteItems}:null,
     "-",
     raw?{label:"Plot the selected columns", enabled:!S.readOnly, sub:()=>plotItems(wsSelColIds())}:null,
     raw?{label:"Fill", sub:fillMenuItems}:null,
@@ -11963,6 +12070,9 @@ function setupWs(){
     if(k==="Escape"){ if(S.ws.r!==S.ws.ar||S.ws.c!==S.ws.ac){ stop(); S.ws.ar=S.ws.r; S.ws.ac=S.ws.c; wsPaintSel(); } return; }
     if(ctrl&&(k==="f"||k==="F")){ stop(); wsFindOpen(); return; }
     if(k==="F3"){ stop(); wsFindGo(e.shiftKey?-1:1); return; }
+    // Ctrl+Shift+= (Ctrl++) inserts and Ctrl+- deletes, as in Excel: columns when whole columns are selected, else rows.
+    if(ctrl&&!e.altKey&&(k==="+"||e.code==="NumpadAdd"||(e.code==="Equal"&&e.shiftKey))){ stop(); if(wsWholeCols()) wsInsertCols("left"); else wsRowsEdit("insert"); return; }
+    if(ctrl&&!e.altKey&&(k==="-"||e.code==="Minus"||e.code==="NumpadSubtract")){ stop(); if(wsWholeCols()) wsDeleteCols(); else wsRowsEdit("delete"); return; }
     if(ctrl&&(k==="d"||k==="D")){ stop(); wsFillCtrl("down"); return; }
     if(ctrl&&(k==="r"||k==="R")){ stop(); wsFillCtrl("right"); return; }
     if(ctrl&&(k==="a"||k==="A")){ stop(); S.ws.r=WS_TOP; S.ws.c=0; S.ws.ar=Math.max(0,m.n-1); S.ws.ac=Math.max(0,m.cols.filter(q=>!q.phantom).length-1); wsPaintSel(); return; }
@@ -12009,23 +12119,24 @@ function remapRawRows(p,fn,sid){
   Object.keys(p.found||{}).forEach(cid=>{ const f=p.found[cid]; if(!on(colById(cid))) return; ["ex","mem"].forEach(k=>{ if(Array.isArray(f[k])) f[k]=f[k].map(o=>{ if(o.row==null) return o; const r=fn(o.row); const q=Object.assign({},o); if(r==null) delete q.row; else q.row=r; return q; }); }); });
   if(S.sel!=null&&on(activeYCol())) S.sel=fn(S.sel);
 }
-function wsRowsEdit(kind){
+function wsRowsEdit(kind,below){
   const p=P(), m=wsLive(); if(!p||!m||S.readOnly) return;
   if(m.kind!=="raw"){ toast("The Processed view is read only."); return; }
   if(rawLocked()){ toast("The original data is locked, so rows cannot be inserted or deleted.",{action:"Unlock",run:()=>setRawLock(false)}); return; }
   if(m.ord){ if(m.hidR&&!m.sorted){ toast("Show the hidden rows first: rows are inserted and deleted among every row.",{action:"Show them",run:()=>wsShowRows(null)}); return; }
     toast("Unsort the sheet first: rows are inserted and deleted in the order they were recorded.",{action:"Unsort",run:()=>wsSortBy(null,0)}); return; }
   if(S.ws.edit) wsCommit(0,0,true);
-  const {r0,r1}=wsSelRect(), a=Math.max(0,r0), n=r1-a+1; if(r1<0||n<1) return;
+  const {r0,r1}=wsSelRect(), n=r1-Math.max(0,r0)+1, a=kind==="insert"&&below?r1+1:Math.max(0,r0); if(r1<0||n<1) return;
   const raw=sheetCols().filter(c=>!c.fx);
   if(kind==="delete"&&a>=nRows()){ toast("Those rows are empty already."); return; }
+  if(kind==="insert"&&a>=nRows()){ toast("The rows after the data are empty already: type into them."); return; }
   pushUndo(kind==="insert"?"inserting rows":"deleting rows");
-  raw.forEach(c=>{ if(c.data.length<=a) return; const d=c.data.slice(); if(kind==="insert") d.splice(a,0,...new Array(n).fill(null)); else d.splice(a,n); trimTail(d); c.data=d; });
+  raw.forEach(c=>{ if(c.data.length<=a) return; let d=c.data.slice(); if(kind==="insert") d=d.slice(0,a).concat(new Array(n).fill(null),d.slice(a)); else d.splice(a,n); trimTail(d); c.data=d; });
   remapRawRows(p,kind==="insert"?(i=>i>=a?i+n:i):(i=>i<a?i:i<a+n?null:i-n),curSheet());
   migrate(p);
-  const what=kind==="insert"?`inserted ${n} row${n===1?"":"s"} above row ${a+1}`:`deleted row${n===1?"":"s"} ${a+1}${n>1?`–${a+n}`:""}`;
+  const what=kind==="insert"?(below?`inserted ${n} row${n===1?"":"s"} below row ${a}`:`inserted ${n} row${n===1?"":"s"} above row ${a+1}`):`deleted row${n===1?"":"s"} ${a+1}${n>1?`–${a+n}`:""}`;
   const rr=recordRaw(what+" in the worksheet");
-  S.ws.ar=a; S.ws.r=kind==="insert"?a+n-1:a; S.ws.ac=0; S.ws.c=Math.max(0,m.cols.filter(q=>!q.phantom).length-1); S.ws.win=null;
+  S.ws.ar=a; S.ws.r=kind==="insert"?a+n-1:a; S.ws.ac=0; S.ws.want=null; S.ws.c=Math.max(0,m.cols.filter(q=>!q.phantom).length-1); S.ws.win=null;
   save(Object.assign({cols:p.cols,activeY:p.activeY,annos:p.annos,found:p.found},rr?{raw:rr}:{}),what); renderAll();
   toast(`${capFirst(what)}.`,{action:"Undo",run:undo});
 }
@@ -12121,7 +12232,10 @@ function openColMenu(id,btn){
     items.push({label:ids.length>1?`Hide the ${ids.length} columns`:"Hide", title:"Off the worksheet, still in the data: plotted, fitted and exported as before", enabled:!ro, run:()=>wsHideCols(ids)});
     if(near.length) items.push({label:`Show the hidden column${near.length===1?"":"s"} beside it`, enabled:!ro, run:()=>wsShowCols(near)});
     else if(h.cols.length) items.push({label:`Show every hidden column (${h.cols.length})`, enabled:!ro, run:()=>wsShowCols(null)}); }
-  items.push("-",{label:"Delete column", danger:true, enabled:!ro&&cols.length>2, title:cols.length>2?"":"A project keeps at least two columns", run:()=>deleteCol(id)});
+  { const ids=colMenuTargets(id), n=ids.length, pick=()=>{ if(!ids.includes(id)||n===1){ const m=S.wsm, ci=m?m.cols.findIndex(q=>q.id===id):-1; if(ci>=0){ S.ws.ar=0; S.ws.ac=ci; S.ws.c=ci; S.ws.r=Math.max(0,m.n-1); } } };
+    items.push("-",{label:n>1?`Insert ${n} columns to the left`:"Insert a column to the left", enabled:!ro, run:()=>{ pick(); wsInsertCols("left"); }},
+      {label:n>1?`Insert ${n} columns to the right`:"Insert a column to the right", enabled:!ro, run:()=>{ pick(); wsInsertCols("right"); }},
+      {label:n>1?`Delete the ${n} columns`:"Delete column", danger:true, enabled:!ro&&cols.length>n, title:cols.length>n?"":"A project keeps one column at least", run:()=>n>1?deleteCols(ids):deleteCol(id)}); }
   openMenu(btn,items,{label:`Column ${L} options`});
 }
 function setColRole(id,role){
@@ -12233,7 +12347,7 @@ function wsMoveCols(ids,dir){
   const nx=raw.slice(j+1).find(c=>!set.has(c.id)); moveColsBefore(ids,nx?nx.id:null); }
 // The columns a column's menu acts on: the selected ones when it is one of them.
 function colMenuTargets(id){ const sel=wsSelColIds(); return sel.includes(id)?sel:[id]; }
-function colMoveItems(id){ const ids=colMenuTargets(id), raw=sheetCols(), ix=ids.map(k=>raw.findIndex(c=>c.id===k)).filter(i=>i>=0), lo=Math.min(...ix), hi=Math.max(...ix), ro=S.readOnly, contiguous=hi-lo+1===ix.length;
+function colMoveItems(id){ const ids=colMenuTargets(id), raw=sheetCols(), ix=ids.map(k=>raw.findIndex(c=>c.id===k)).filter(i=>i>=0), lo=amin(ix), hi=amax(ix), ro=S.readOnly, contiguous=hi-lo+1===ix.length;
   return [{label:"Left",enabled:!ro&&(lo>0||!contiguous),run:()=>wsMoveCols(ids,-1)},{label:"Right",enabled:!ro&&(hi<raw.length-1||!contiguous),run:()=>wsMoveCols(ids,1)},
     "-",{label:"To the start",enabled:!ro&&(lo>0||!contiguous),run:()=>wsMoveCols(ids,"first")},{label:"To the end",enabled:!ro&&(hi<raw.length-1||!contiguous),run:()=>wsMoveCols(ids,"last")},
     "-",{label:"To another sheet",enabled:!ro,title:"With their error bars; a column keeps the X it is plotted against",sub:()=>sheetList().filter(s=>s.id!==curSheet()).map(s=>({label:s.name,run:()=>moveColsToSheet(ids,s.id)})).concat([sheetList().length>1?"-":null,{label:"A new sheet",run:()=>moveColsToSheet(ids,"new")}]).filter(Boolean)}]; }
@@ -12257,6 +12371,55 @@ function addColumn(){
   S.sheet="raw"; const ci=sheetCols().length-1; S.ws=Object.assign(S.ws||{},{r:0,c:ci,ar:0,ac:ci}); renderAll();
   openWin("sheet"); wsEnsureVisible(0,ci); wsPaintSel(); $("#ws").focus({preventScroll:true});
 }
+/* Columns inserted where the selection is, as many as it spans, to its left or
+   right (Excel's Insert Sheet Columns, Origin's Insert): empty Y columns among
+   the sheet's. A Y column takes nothing from the others: each keeps the X to its
+   left, and formulas name their columns by id. One undo entry. */
+function wsInsertCols(side){
+  const p=P(), m=wsLive(); if(!p||!m||S.readOnly) return;
+  if(m.kind!=="raw"){ toast("Columns are inserted in the Original view."); return; }
+  if(S.ws.edit) wsCommit(0,0,true);
+  const {c0,c1}=wsSelRect(), at=m.cols[side==="right"?c1:c0], n=Math.max(1,Math.min(26,c1-c0+1));
+  if(!at||at.phantom||!at.col){ for(let k=0;k<n;k++) addColumn(); return; }
+  pushUndo(n>1?"inserting columns":"inserting a column");
+  const news=Array.from({length:n},()=>Object.assign(makeCol("y","",""),{pipe:[],mask:[],sheet:curSheet()}));
+  const i=p.cols.indexOf(at.col)+(side==="right"?1:0); p.cols.splice(i,0,...news);
+  const L=at.letter, what=`inserted ${n===1?"a column":n+" columns"} ${side==="right"?"to the right of":"to the left of"} column ${L}`;
+  save({cols:p.cols},what); S.sheet="raw";
+  const ci=sheetCols().indexOf(colById(news[0].id)); S.ws=Object.assign(S.ws||{},{r:0,c:ci+n-1,ar:0,ac:ci,want:null,win:null}); renderAll();
+  wsEnsureVisible(0,ci); wsPaintSel(); $("#ws").focus({preventScroll:true});
+  toast(`${capFirst(what)}.`,{action:"Undo",run:undo});
+}
+// The selected columns deleted (with the columns made from them and their error bars), one undo entry.
+function deleteCols(ids){
+  if(S.readOnly) return; const p=P(); ids=(ids||[]).filter(id=>colById(id)); if(!p||!ids.length) return;
+  if(ids.length===1) return deleteCol(ids[0]);
+  const gone=new Set(ids); let grew=true;
+  while(grew){ grew=false; p.cols.forEach(o=>{ if(o.src&&gone.has(o.src)&&!gone.has(o.id)){ gone.add(o.id); grew=true; } }); }
+  if(allCols().filter(o=>!gone.has(o.id)).length<1){ toast("A project keeps one column at least."); return; }
+  pushUndo("deleting columns");
+  const k=ids.reduce((s,id)=>s+colById(id).data.filter(v=>v!=null).length,0), Ls=ids.map(id=>colLetter(colById(id))).join(", ");
+  p.cols=p.cols.filter(o=>!gone.has(o.id)&&!gone.has(o.of));
+  migrate(p); S.draft=null; S.pdraft=null; S.stage=null; S.selStep=null;
+  const raw=recordRaw(`deleted columns ${Ls} (${k} value${k===1?"":"s"})`);
+  save(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),`deleted columns ${Ls}`); renderAll();
+  toast(`Deleted columns ${Ls} and their ${k} value${k===1?"":"s"}. The original-data record notes it.`,{action:"Undo",run:undo});
+}
+function wsDeleteCols(){ const ids=wsSelColIds(); if(!ids.length){ toast("Select the columns to delete: click their letters."); return; } deleteCols(ids); }
+// Whole columns selected (every row, from a click on their letters), rather than cells or rows.
+function wsWholeCols(){ const m=S.wsm; if(!m) return false; const {r0,r1}=wsSelRect(); return r0<=0&&r1>=m.n-1&&m.n>1&&wsSelColIds().length>0; }
+// Insert and Delete, as Excel's Home › Insert and Delete: for the bar, the Edit menu and the cell menu.
+function wsInsertItems(){ const m=S.wsm, raw=!!m&&m.kind==="raw", ed=raw&&!S.readOnly, rowsOk=ed&&!rawLocked()&&!(m&&m.ord), {r0,r1,c0,c1}=S.ws?wsSelRect():{r0:0,r1:0,c0:0,c1:0};
+  const nr=Math.max(1,r1-Math.max(0,r0)+1), nc=Math.max(1,c1-c0+1), why=rawLocked()?"The original data is locked":m&&m.ord?"Put the view back in its recorded order first":"";
+  return [{label:nr>1?`${nr} rows above`:"Row above", enabled:rowsOk, title:why, kbd:"Ctrl+Shift+=", run:()=>wsRowsEdit("insert")},
+    {label:nr>1?`${nr} rows below`:"Row below", enabled:rowsOk, title:why, run:()=>wsRowsEdit("insert",true)},
+    {label:nc>1?`${nc} columns to the left`:"Column to the left", enabled:ed, run:()=>wsInsertCols("left")},
+    {label:nc>1?`${nc} columns to the right`:"Column to the right", enabled:ed, run:()=>wsInsertCols("right")},
+    "-",{label:"A column at the end", enabled:ed, run:addColumn},
+    {label:"A sheet", enabled:ed, run:()=>newSheet()}]; }
+function wsDeleteItems(){ const m=S.wsm, raw=!!m&&m.kind==="raw", ed=raw&&!S.readOnly, {r0,r1}=S.ws?wsSelRect():{r0:0,r1:0}, a=Math.max(0,r0), ids=wsSelColIds();
+  return [{label:r1>a?`Rows ${a+1}–${r1+1}`:`Row ${r1+1}`, danger:true, kbd:"Ctrl+-", enabled:ed&&!rawLocked()&&!(m&&m.ord)&&r1>=0&&a<(m?m.n:0), title:rawLocked()?"The original data is locked":"", run:()=>wsRowsEdit("delete")},
+    {label:ids.length>1?`Columns ${ids.map(id=>colLetter(colById(id))).join(", ")}`:ids.length?`Column ${colLetter(colById(ids[0]))}`:"Columns", danger:true, enabled:ed&&ids.length>0, run:wsDeleteCols}]; }
 function trimTail(arr){ while(arr.length&&arr[arr.length-1]==null) arr.pop(); }
 /* ---- Sheets: the tabs and what they do ---------------------------------------------
    Tabs under the grid, as Excel's: a click shows a sheet, a double click (or F2)
@@ -12566,7 +12729,20 @@ function stepMenuItems(s){
     "-",{label:"Delete step", kbd:"Delete", danger:true, run:()=>removePipeStep(s.id), enabled:!ro}];
 }
 /* A thumbnail of a stage: the data after the step, in a small box. */
+/* A column's points for its sparkline in one pass, at most four per bucket of rows (the
+   first, lowest, highest and last): the sheet is drawn again on every save, and copying
+   200 000 rows twice for 80 pixels cost a twentieth of a second a column. */
+function sparkPts(ys,xs,B){
+  const n=ys.length, X=[], Y=[], per=Math.max(1,Math.ceil(n/Math.max(1,B)));
+  const ok=k=>ys[k]!=null&&(xs?xs[k]!=null:true);
+  if(per<4){ for(let k=0;k<n;k++) if(ok(k)){ X.push(xs?xs[k]:k); Y.push(ys[k]); } return {x:X,y:Y}; }
+  for(let a=0;a<n;a+=per){ const b=Math.min(n,a+per); let f=-1, l=-1, lo=-1, hi=-1;
+    for(let k=a;k<b;k++){ if(!ok(k)) continue; const v=ys[k]; if(f<0) f=k; l=k; if(lo<0||v<ys[lo]) lo=k; if(hi<0||v>ys[hi]) hi=k; }
+    if(f<0) continue; const ks=[f,lo,hi,l].sort((p,q)=>p-q);
+    for(let j=0;j<4;j++) if(j===0||ks[j]!==ks[j-1]){ X.push(xs?xs[ks[j]]:ks[j]); Y.push(ys[ks[j]]); } }
+  return {x:X,y:Y}; }
 function sparkSvg(d,w,h,cls){
+  if(Math.min(d.x.length,d.y.length)>8*w) d=sparkPts(d.y,d.x,2*w);
   const fx=[], fy=[]; for(let i=0;i<Math.min(d.x.length,d.y.length);i++){ const a=d.x[i], b=d.y[i]; if(typeof a==="number"&&typeof b==="number"&&Number.isFinite(a)&&Number.isFinite(b)){ fx.push(a); fy.push(b); } }
   const t=decimate(fx,fy,Math.max(40,w)); if(t.x.length<2) return `<svg class="${cls||"spark"}" viewBox="0 0 ${w} ${h}" aria-hidden="true"></svg>`;
   let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; t.x.forEach((v,i)=>{ const y=t.y[i]; if(v<x0)x0=v; if(v>x1)x1=v; if(y<y0)y0=y; if(y>y1)y1=y; });
@@ -12658,7 +12834,7 @@ function wireStepForms(box){
   box.addEventListener("change",e=>{
     const s=stepOf(e.target); if(!s) return;
     if(e.target.matches("[data-act=refStd]")){ const r=CAL_REFS[+e.target.value]; if(!r) return; const inp=inputOfStep(s), d=inp?inp.d:null;
-      const lo=d?Math.min(...d.x):-Infinity, hi=d?Math.max(...d.x):Infinity; const add=r.lines.filter(v=>v>=lo&&v<=hi);
+      const lo=d?amin(d.x):-Infinity, hi=d?amax(d.x):Infinity; const add=r.lines.filter(v=>v>=lo&&v<=hi);
       if(!add.length){ toast(`None of the ${r.gamma?r.name:r.name.toLowerCase()} lines lie inside this column's X range.`); e.target.value=""; return; }
       const refs=(s.p.refs||[]).filter(q=>!add.includes(+q.ref)).concat(add.map(v=>({ref:v,name:r.name})));
       setParam(s,"refs",refs,true); return; }
@@ -12713,7 +12889,7 @@ function stepAction(s,act,el){
   if(act==="pairAdd"){ const pr=(s.p.pairs||[]).slice(), used=pr.map(q=>+q.ch), b=bandWidthPts(d);
     const top=b&&b.bands.slice().sort((u,v)=>v.h-u.h).find(q=>used.every(c=>!(Math.abs(c-q.x)<=Math.max(3,q.fwhm))));
     pr.push({ch:top?+fmt(top.x,6):null,en:null}); setParam(s,"pairs",pr,true); return; }
-  if(act==="refAdd"){ const b=bandWidthPts(d); const top=b&&b.bands.length?b.bands.reduce((a,q)=>q.h>a.h?q:a).x:(Math.min(...d.x)+Math.max(...d.x))/2;
+  if(act==="refAdd"){ const b=bandWidthPts(d); const top=b&&b.bands.length?b.bands.reduce((a,q)=>q.h>a.h?q:a).x:(amin(d.x)+amax(d.x))/2;
     setParam(s,"refs",(s.p.refs||[]).concat([{ref:+fmt(top,6)}]),true); return; }
   if(act==="pygo"&&el&&el.dataset.col){ goNode("final:"+el.dataset.col); return; }
 }
@@ -12739,7 +12915,7 @@ function measureHtml(){
   return `<dl class="kv"><dt>Range</dt><dd>${xs.length?`${esc(fmt(xs[0],6))} to ${esc(fmt(xs[xs.length-1],6))}${xu?" "+esc(xu):""}`:"—"}</dd>
     <dt>Points</dt><dd>${xs.length}</dd><dt>Area above zero</dt><dd>${esc(fmt(area,6))}${au?" "+esc(au):""}</dd>
     <dt title="With a straight line between the first and last point of the range removed">Area above the end-to-end line</dt><dd>${esc(fmt(areaB,6))}${au?" "+esc(au):""}</dd>
-    <dt>Mean Y</dt><dd>${vs.length?esc(fmt(mean(vs),6)):"—"}</dd><dt>Highest Y</dt><dd>${vs.length?esc(fmt(Math.max(...vs),6)):"—"}</dd></dl>`;
+    <dt>Mean Y</dt><dd>${vs.length?esc(fmt(mean(vs),6)):"—"}</dd><dt>Highest Y</dt><dd>${vs.length?esc(fmt(amax(vs),6)):"—"}</dd></dl>`;
 }
 
 /* ============================================================
@@ -13021,7 +13197,7 @@ const impIsErr=k=>k==="e"||k==="e+"||k==="e-"||k==="xe";
 // is not an axis, so the range has to match before pairs are assumed.
 const impPairs=res=>res.cols.map((_,i)=>i%2?"y":"x");
 function impPairsLikely(res){
-  if(!res.paired) return false; const rg=c=>{ const v=c.filter(x=>x!=null); return [Math.min(...v),Math.max(...v)]; }, [a0,a1]=rg(res.cols[0]);
+  if(!res.paired) return false; const rg=c=>{ const v=c.filter(x=>x!=null); return [amin(v),amax(v)]; }, [a0,a1]=rg(res.cols[0]);
   for(let i=2;i<res.cols.length;i+=2){ const [b0,b1]=rg(res.cols[i]), ov=Math.min(a1,b1)-Math.max(a0,b0); if(!(ov>0.5*Math.min(a1-a0,b1-b0))) return false; }
   return true; }
 function impUseDefault(res){
@@ -13147,11 +13323,11 @@ function renderImport(){
     // A spectrum that shares no X range with this project cannot be lined up
     // with it, so the default becomes a project of its own.
     const exX=(xCol()?xCol().data:[]).filter(v=>v!=null), inX=x.filter(v=>v!=null);
-    const apart=exX.length&&inX.length&&(Math.max(...inX)<Math.min(...exX)||Math.min(...inX)>Math.max(...exX));
+    const apart=exX.length&&inX.length&&(amax(inX)<amin(exX)||amin(inX)>amax(exX));
     // Beside data, a file goes on a sheet of its own unless the sheet shown is empty.
     if(im.mode==null) im.mode=sheetCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null))?"sheet":"add";
     const ny=yCols().length;
-    h+=`<div class="impmode"><div class="t">“${esc(projName(P()))}” already holds ${ny} Y column${ny===1?"":"s"}</div>${apart?`<p class="lab" style="margin:0 0 6px">This file covers x ${fmt(Math.min(...inX),5)} to ${fmt(Math.max(...inX),5)}; the project covers ${fmt(Math.min(...exX),5)} to ${fmt(Math.max(...exX),5)}. They do not overlap: a sheet or a project of its own keeps them apart.</p>`:""}
+    h+=`<div class="impmode"><div class="t">“${esc(projName(P()))}” already holds ${ny} Y column${ny===1?"":"s"}</div>${apart?`<p class="lab" style="margin:0 0 6px">This file covers x ${fmt(amin(inX),5)} to ${fmt(amax(inX),5)}; the project covers ${fmt(amin(exX),5)} to ${fmt(amax(exX),5)}. They do not overlap: a sheet or a project of its own keeps them apart.</p>`:""}
       <label class="chk"><input type="radio" name="impmode" value="sheet"${im.mode==="sheet"?" checked":""}> Add them on a new sheet, keeping what is here</label>
       <label class="chk"><input type="radio" name="impmode" value="add"${im.mode==="add"?" checked":""}> Add them to ${esc(sheetName(curSheet()))}, beside its columns</label>
       <label class="chk"><input type="radio" name="impmode" value="replace"${im.mode==="replace"?" checked":""}> Replace everything in this project</label>
@@ -13162,7 +13338,7 @@ function renderImport(){
     const xs=x.filter(v=>v!=null), yv=y.filter(v=>v!=null);
     // In file order, not sorted: printing "1400 to 1800" above "X decreases down
     // the file" made the wizard contradict itself.
-    h+=`<div class="impcap">${ys.length>1?`${impLetter(pv)} against ${xi<0?"the row number":impLetter(xi)} · `:""}${xs.length?`X ${fmt(xs[0],5)} to ${fmt(xs[xs.length-1],5)} · Y ${yv.length?`${fmt(Math.min(...yv),5)} to ${fmt(Math.max(...yv),5)}`:"—"}`:"No numeric X values in that column."}</div>`;
+    h+=`<div class="impcap">${ys.length>1?`${impLetter(pv)} against ${xi<0?"the row number":impLetter(xi)} · `:""}${xs.length?`X ${fmt(xs[0],5)} to ${fmt(xs[xs.length-1],5)} · Y ${yv.length?`${fmt(amin(yv),5)} to ${fmt(amax(yv),5)}`:"—"}`:"No numeric X values in that column."}</div>`;
   }
 
   const fs=impFindings();
@@ -13654,7 +13830,7 @@ function xRevealCols(ids){ if(!P()) return; if(S.sheet!=="raw") setSheet("raw");
   { const c=ids.map(colById).find(Boolean), sid=c?sheetOf(c):null; if(sid&&sid!==curSheet()) showSheet(sid,{quiet:true}); }
   openWin("sheet",{render:true}); focusWin("sheet");
   const m=wsLive(); const idx=m.cols.map((q,i)=>q.col&&ids.includes(q.col.id)?i:-1).filter(i=>i>=0); if(!idx.length) return;
-  const s=S.ws; s.c=Math.min(...idx); s.ac=Math.max(...idx); s.r=0; s.ar=Math.max(0,m.n-1); s.want=null; wsEnsureVisible(0,s.c); wsPaintSel(); }
+  const s=S.ws; s.c=amin(idx); s.ac=amax(idx); s.r=0; s.ar=Math.max(0,m.n-1); s.want=null; wsEnsureVisible(0,s.c); wsPaintSel(); }
 async function xNewFolder(parent,thenKey){ if(S.readOnly||!P()) return;
   const r=await formDlg({title:parent?`New folder in “${xFolderName(parent)}”`:"New folder",html:`<div class="grid2"><label for="fdXf">Name</label><input id="fdXf" type="text" maxlength="80" value="New folder"></div>`,ok:"Make it",focus:"#fdXf",valid:v=>v.fdXf.trim().length>0});
   if(!r||!P()) return; const t=treeOf(), id="d"+Math.random().toString(36).slice(2,9);
@@ -13807,12 +13983,14 @@ const SUGG=new WeakMap();
 function suggestModel(){
   const c=activeYCol(), d=c?finalOf(c):null; if(!d) return {id:"linear",why:"is a good place to start"};
   const nm=maskOf(c).length, hit=SUGG.get(d); if(hit&&hit.nm===nm) return hit.r;
-  const q=pointsAll().filter(t=>!isMasked(t.i)&&Number.isFinite(t.x)&&Number.isFinite(t.y)).sort((a,b)=>a.x-b.x), n=q.length;
+  // The shape is judged on at most 4000 points, evenly taken: a guess needs no more, and every pass below is linear.
+  const q0=pointsAll().filter(t=>!isMasked(t.i)&&Number.isFinite(t.x)&&Number.isFinite(t.y)).sort((a,b)=>a.x-b.x), st=Math.max(1,Math.ceil(q0.length/4000)), q=st>1?q0.filter((t,i)=>i%st===0):q0, n=q.length;
   let r={id:"linear",why:"has no clearer shape, and a straight line is the plainest start"};
   if(n<4) r={id:"linear",why:"has only a few points"};
   else {
     const X=q.map(t=>t.x), Y=q.map(t=>t.y), w=Math.max(1,Math.round(n/15));
-    const S2=Y.map((_,i)=>{ let s=0, k=0; for(let j=Math.max(0,i-w);j<=Math.min(n-1,i+w);j++){ s+=Y[j]; k++; } return s/k; });
+    const cum=new Float64Array(n+1); for(let i=0;i<n;i++) cum[i+1]=cum[i]+Y[i];
+    const S2=Y.map((_,i)=>{ const a=Math.max(0,i-w), b=Math.min(n-1,i+w); return (cum[b+1]-cum[a])/(b-a+1); });
     let lo=Infinity, hi=-Infinity, ilo=0, ihi=0; S2.forEach((v,i)=>{ if(v<lo){ lo=v; ilo=i; } if(v>hi){ hi=v; ihi=i; } }); const span=hi-lo||1;
     const cf=polyfit(X,Y,1)||[0,0], my=Y.reduce((a,v)=>a+v,0)/n;
     let ssr=0, sst=0; Y.forEach((v,i)=>{ ssr+=(v-(cf[0]+cf[1]*X[i]))**2; sst+=(v-my)**2; }); const r2=sst>0?1-ssr/sst:1;
@@ -13844,7 +14022,7 @@ function guessDraft(){
   else d.init=m.params.map(()=>1);
   if(!d.fixed||d.fixed.length!==m.params.length) d.fixed=m.params.map(()=>false);
 }
-function usedRange(pts){ if(!pts.length) return null; const xs=pts.map(q=>q.x); return [Math.min(...xs),Math.max(...xs)]; }
+function usedRange(pts){ if(!pts.length) return null; const xs=pts.map(q=>q.x); return [amin(xs),amax(xs)]; }
 function renderFitRangeOnly(){
   const el=$("#fitRange"); if(!el||!P()) return;
   const pts=fitPoints(), r=usedRange(pts);
@@ -13860,7 +14038,7 @@ function fitWhereHtml(){
   const same=v&&vr&&Math.abs(v[0]-vr[0])<=1e-9*Math.abs(vr[1]-vr[0])&&Math.abs(v[1]-vr[1])<=1e-9*Math.abs(vr[1]-vr[0]);
   if(!xs.length) return "";
   return `<div class="frow fwhere">${ys.length>1?`<label for="fwCol">Column</label><select id="fwCol">${ys.map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}</option>`).join("")}</select>`:""}
-    <label for="fwX0" class="tipd" title="The fit, and the search for peaks, use the points in this range: all the data unless you type a range or take the graph's view">Range</label><div class="pair"><input type="text" inputmode="decimal" id="fwX0" value="${v?esc(fmt(v[0],7)):""}" placeholder="${esc(fmt(Math.min(...xs),6))}" aria-label="Fit from"${ro}><span class="lab">to</span><input type="text" inputmode="decimal" id="fwX1" value="${v?esc(fmt(v[1],7)):""}" placeholder="${esc(fmt(Math.max(...xs),6))}" aria-label="Fit up to"${ro}><span class="lab">${esc(d.xu||"")}</span><button class="btn sm" id="fwView"${vr&&!same&&!S.readOnly?"":" disabled"} title="${vr?"Fit the X range the graph is zoomed to":"Zoom the graph first"}">Use the view</button><button class="btn sm" id="fwAll"${v&&!S.readOnly?"":" disabled"} title="Fit all the data">All</button></div></div>`; }
+    <label for="fwX0" class="tipd" title="The fit, and the search for peaks, use the points in this range: all the data unless you type a range or take the graph's view">Range</label><div class="pair"><input type="text" inputmode="decimal" id="fwX0" value="${v?esc(fmt(v[0],7)):""}" placeholder="${esc(fmt(amin(xs),6))}" aria-label="Fit from"${ro}><span class="lab">to</span><input type="text" inputmode="decimal" id="fwX1" value="${v?esc(fmt(v[1],7)):""}" placeholder="${esc(fmt(amax(xs),6))}" aria-label="Fit up to"${ro}><span class="lab">${esc(d.xu||"")}</span><button class="btn sm" id="fwView"${vr&&!same&&!S.readOnly?"":" disabled"} title="${vr?"Fit the X range the graph is zoomed to":"Zoom the graph first"}">Use the view</button><button class="btn sm" id="fwAll"${v&&!S.readOnly?"":" disabled"} title="Fit all the data">All</button></div></div>`; }
 function wireFitWhere(box){
   const cs=box.querySelector("#fwCol"); if(cs) cs.onchange=()=>goSpectrum(cs.value);
   const all=box.querySelector("#fwAll"); if(all) all.onclick=()=>setFitRange(null,null);
@@ -13976,8 +14154,8 @@ function residChartSvg(D,kind,view,o){
   let x0, x1, y0, y1;
   if(bars){ x0=bars.edges[0]; x1=bars.edges[bars.edges.length-1]; y0=0; y1=Math.max(1,...bars.counts); if(curve) for(let k=0;k<=60;k++) y1=Math.max(y1,curve(x0+(x1-x0)*k/60)); y1*=1.08; }
   else { const mx=a=>a.reduce((m,q)=>Math.max(m,Math.abs(q)),0);
-    if(symY){ const a=Math.max(mx(py),lim||0,1e-300)*1.12; y0=-a; y1=a; } else { y0=Math.min(...py); y1=Math.max(...py); const d=(y1-y0)*0.08||1; y0-=d; y1+=d; }
-    if(symX){ const a=Math.max(mx(px),1e-300)*1.12; x0=-a; x1=a; } else { x0=Math.min(...px); x1=Math.max(...px); const d=(x1-x0)*0.04||1; x0-=d; x1+=d; } }
+    if(symY){ const a=Math.max(mx(py),lim||0,1e-300)*1.12; y0=-a; y1=a; } else { y0=amin(py); y1=amax(py); const d=(y1-y0)*0.08||1; y0-=d; y1+=d; }
+    if(symX){ const a=Math.max(mx(px),1e-300)*1.12; x0=-a; x1=a; } else { x0=amin(px); x1=amax(px); const d=(x1-x0)*0.04||1; x0-=d; x1+=d; } }
   if(!(x1>x0)){ x0-=1; x1+=1; } if(!(y1>y0)){ y0-=1; y1+=1; }
   const SX=x=>L+(x-x0)/(x1-x0)*pw, SY=y=>T+ph-(y-y0)/(y1-y0)*ph;
   const xt=niceTicks(x0,x1,Math.max(2,pw/70)), yt=niceTicks(y0,y1,Math.max(2,ph/34));
@@ -14547,7 +14725,7 @@ function reseedPeaks(){
   const X=pts.map(q=>q.x);
   const Y=(BASELINES[d.base]||BASELINES.none).params.length
     ? pts.map(q=>q.y-m.baseF(q.x,d.init)) : pts.map(q=>q.y);
-  const lo=Math.min(...X), hi=Math.max(...X);
+  const lo=amin(X), hi=amax(X);
   let moved=0;
   d.peaks.forEach((pk,k)=>{
     const def=PEAKS[pk.type]||PEAKS.gauss, o=m.offsets[k], xc=d.init[o];
@@ -14734,7 +14912,7 @@ function pfSchedule(){ clearTimeout(pfTimer); pfTimer=setTimeout(()=>{ const r=p
 function pfResultHtml(r){
   if(!r) return `<p class="lab">Too few points in view to look for peaks.</p>`;
   const [xu]=dataUnits(), f=v=>esc(fmt(v,6));
-  const xa=Math.min(...r.X), xb=Math.max(...r.X);
+  const xa=amin(r.X), xb=amax(r.X);
   let h=`<p class="pfsum"><strong>${r.found.length} peak${r.found.length===1?"":"s"}</strong> between ${esc(fmt(xa,6))} and ${esc(fmt(xb,6))}${xu?" "+esc(xu):""}${r.found.length?`, at ${r.found.slice(0,12).map(q=>f(q.x)).join(", ")}${r.found.length>12?", …":""}${xu?" "+esc(xu):""}`:""}. <span class="lab">${r.noiseMode==="given"?`Noise √N from the counts, σ ${esc(fmt(r.sigma,3))} typical`:r.noiseMode==="local"?`Noise measured along the spectrum, σ ${esc(fmt(r.sigma,3))} typical`:`Noise σ ${esc(fmt(r.sigma,3))}`}${r.log?" (in log units)":""}${r.smooth?`, smoothed over ${r.smooth} points`:", not smoothed"}.</span></p>`;
   if(r.found.length) h+=`<div class="twrap"><table class="rtab pftab"><thead><tr><th>#</th><th>X</th><th title="Signal to noise">S/N</th><th>Height</th><th>FWHM</th></tr></thead><tbody>${r.found.map((q,k)=>`<tr><td>${k+1}</td><td>${f(q.x)}</td><td>${Number.isFinite(q.snr)?esc(fmt(q.snr,3)):"—"}</td><td>${esc(fmt(Math.abs(q.h),4))}</td><td>${Number.isFinite(q.w)?esc(fmt(q.w,4)):"—"}</td></tr>`).join("")}</tbody></table></div>`;
   const rj=r.rejected.slice().sort((a,b)=>(b.snr||0)-(a.snr||0));
@@ -14972,8 +15150,8 @@ function runPeakFit(){
   const spec={base:d.base,peaks:d.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{},k.lab?{lab:k.lab}:{}))};
   const {lo,hi}=modelBounds(spec,m,d.init);
   const L=peakLinks(spec.peaks,m), fixedT=d.fixed.slice(); L.forEach(l=>{ fixedT[l.gi]=true; });
-  const span=Math.abs(Math.max(...X)-Math.min(...X))||1;
-  const yspan=Math.abs(Math.max(...Y)-Math.min(...Y))||1;
+  const span=Math.abs(amax(X)-amin(X))||1;
+  const yspan=Math.abs(amax(Y)-amin(Y))||1;
   // Scale hints so the finite-difference steps suit each parameter's meaning.
   const pscale=d.init.map((v,i)=>Math.abs(v)||1);
   m.slots.forEach((s,i)=>{ if(s.kind==="peak"){ if(s.name==="xc") pscale[i]=span; else if(s.name==="A") pscale[i]=yspan*span; else if(/^w/.test(s.name)) pscale[i]=span/20; } });
@@ -14990,7 +15168,7 @@ function runPeakFit(){
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(),
     hadErrCol:hasErr(),
     fixed:d.fixed.slice(), dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound, stats:res.stats,
-    range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, ...(SX?{xerr:true,odr:odrNote(res)}:{}), ...(confKeep(confOf(d))?{conf:confOf(d)}:{}), by:who(), at:Date.now()};
+    range:[Math.max(a,amin(X)),Math.min(b,amax(X))], weighted:useW, ...(SX?{xerr:true,odr:odrNote(res)}:{}), ...(confKeep(confOf(d))?{conf:confOf(d)}:{}), by:who(), at:Date.now()};
   d.init=res.params.slice(); d.x0=m.x0; d.fitAt=fit.at;
   save(Object.assign({fit,fits:fitHistory(fit)},batchWith(fit)),`fitted ${describeSpec(spec)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
   renderFit(); renderPlot(); afterFit(fit);
@@ -15068,7 +15246,7 @@ function saveCurveFit(res,o){
     dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound,
     onCol:(activeYCol()||{}).id, onColName:(activeYCol()||{}).name||"",
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(), hadErrCol:hasErr(),
-    range:[Math.max(a,Math.min(...X)),Math.min(b,Math.max(...X))], weighted:useW, ...(SX?{xerr:true,odr:odrNote(res)}:{}),
+    range:[Math.max(a,amin(X)),Math.min(b,amax(X))], weighted:useW, ...(SX?{xerr:true,odr:odrNote(res)}:{}),
     ctl:{maxIter:ctl.maxIter,tol:ctl.tol,method:SX?"odr":"lm"}, by:who(), at:Date.now()};
   d.init=res.params.slice(); if(S.fitLog&&S.fitLog.pid===S.pid&&!SX) S.fitLog.last=d.init.slice();
   const P0=P(), carry=m.user&&!(P0.userFns||[]).some(q=>q.id===m.fnId)?{userFns:(P0.userFns||[]).concat([JSON.parse(JSON.stringify(m.def))])}:{};
@@ -16823,7 +17001,7 @@ function mergePeakSet(c,r,was,more){
 /* The X range a spectrum's peaks are searched over: its set's own (as found,
    in the units it was found in), or before there is a set, the one chosen in
    the Peaks window; null is the whole spectrum. */
-function pkRangeOf(c){ const g=pkRegsOf(c); return g.length?[Math.min(...g.map(q=>q.x0)),Math.max(...g.map(q=>q.x1))]:null; }
+function pkRangeOf(c){ const g=pkRegsOf(c); return g.length?[amin(g.map(q=>q.x0)),amax(g.map(q=>q.x1))]:null; }
 /* Regions: parts of a spectrum searched each with its own settings, for a
    spectrum whose noise or peaks differ along it (a gamma spectrum's crowded
    low energies and quiet high ones). A set keeps them (f.regs: [{id, x0, x1,
@@ -17048,7 +17226,7 @@ function fitFoundPeaks(){
   syncPdraft(); seedBaseline();
   const m0=pdraftModel(), X=pts.map(q=>q.x), Y=pts.map(q=>q.y-m0.baseF(q.x,d.init)), nb=(BASELINES[d.base]||BASELINES.none).params.length;
   const keep=d.init.slice(0,nb); d.peaks=[]; d.init=keep; d.fixed=keep.map(()=>false);
-  const inView=rows.filter(r=>r.x>=Math.min(...X)&&r.x<=Math.max(...X));
+  const inView=rows.filter(r=>r.x>=amin(X)&&r.x<=amax(X));
   inView.forEach(()=>d.peaks.push({type:S.peakType||"gauss"})); syncPdraft();
   const m=pdraftModel();
   inView.forEach((r,k)=>{ let i=0; X.forEach((x,j)=>{ if(Math.abs(x-r.x)<Math.abs(X[i]-r.x)) i=j; });
@@ -17082,7 +17260,7 @@ function renderPeaks(){
   const ae=document.activeElement, focusId=ae&&box.contains(ae)?ae.id:null, sc=box.scrollTop, keepV=focusId&&ae.matches("input[type=text]")?[ae.value,ae.selectionStart,ae.selectionEnd]:null;
   const many=yCols().length>1, nSets=yCols().filter(y=>foundOf(y)).length;
   // Where: which spectrum, and from where to where along X.
-  const regs=pkRegsOf(c), sr=pkSelReg(regs), xs=d.x.filter(Number.isFinite), dlo=xs.length?Math.min(...xs):0, dhi=xs.length?Math.max(...xs):0, vr=viewRng(), picking=S.mode==="range"&&S.pick&&S.pick.pkr;
+  const regs=pkRegsOf(c), sr=pkSelReg(regs), xs=d.x.filter(Number.isFinite), dlo=xs.length?amin(xs):0, dhi=xs.length?amax(xs):0, vr=viewRng(), picking=S.mode==="range"&&S.pick&&S.pick.pkr;
   const inV=vr&&regs.some(g=>Math.abs(vr[0]-g.x0)<=1e-9*Math.abs(dhi-dlo||1)&&Math.abs(vr[1]-g.x1)<=1e-9*Math.abs(dhi-dlo||1));
   const pkIn=g=>rows.filter(r=>r.x>=g.x0&&r.x<=g.x1).length;
   let h=`<section class="pkwhere" aria-label="Where to look"><h3 class="gh">Find peaks in</h3><div class="frow">
@@ -17497,15 +17675,18 @@ function overviewOf(d){
   const Yc=sk.y;
   o.bands=detectBands(X,Yc).sort((a,b)=>b.h-a.h);
   const top=o.bands[0]; o.snr=top&&o.sigma>0?top.h/o.sigma:null;
-  o.minPts=o.bands.length?Math.min(...o.bands.map(b=>b.pts)):null;
+  o.minPts=o.bands.length?amin(o.bands.map(b=>b.pts)):null;
   // Three or more points in a row at the very top: a detector at its limit.
   let run=1; o.sat=0; for(let i=1;i<n;i++){ if(Yc[i]===Yc[i-1]&&Yc[i]===hi){ run++; if(run===3) o.sat++; } else run=1; }
-  if(n>=20){ try{
+  // The background is worked out when it is first read (the Overview, its first steps): the
+  // statistics ask only whether this looks like a spectrum, and at 200 000 points the
+  // background step took most of a second of that.
+  if(n>=20){ let bgDone=false, bgVal; Object.defineProperty(o,"bg",{enumerable:true,configurable:true,get(){ if(bgDone) return bgVal; bgDone=true; try{
     const dd={x:X,y:Yc,e:null,idx:srt.map(q=>q.i),xn:d.xn,xu:d.xu,yn:d.yn,yu:d.yu}, p=stepParams("bg",dd), r=PIPE_OPS.bg.run(dd,p), base=r&&r.extra&&r.extra.base;
     if(base&&base.length===n){ let bl=Infinity, bh=-Infinity; base.forEach(v=>{ if(v<bl) bl=v; if(v>bh) bh=v; });
       const span=bh-bl, ref=top?top.h:((hi-lo)||1), xs=X.map(v=>v-X[0]), cf=polyfit(xs,base,1)||[0,0];
-      const res=base.map((v,i)=>v-((cf[0]||0)+(cf[1]||0)*xs[i])), curv=Math.max(...res)-Math.min(...res);
-      o.bg={span,rel:span/ref,level:bl,kind:span<Math.max(3*o.sigma,0.03*ref)?"flat":curv<0.15*span?"sloping":"curved",method:p.method}; } }catch(e){} }
+      const res=base.map((v,i)=>v-((cf[0]||0)+(cf[1]||0)*xs[i])), curv=amax(res)-amin(res);
+      bgVal={span,rel:span/ref,level:bl,kind:span<Math.max(3*o.sigma,0.03*ref)?"flat":curv<0.15*span?"sloping":"curved",method:p.method}; } }catch(e){} return bgVal; }}); }
   OV_MEMO.set(d,o); return o;
 }
 // What to do first, in the order it should be done; a step already there is done.
@@ -17687,7 +17868,7 @@ function flowLayout(){
   roots.forEach(c=>place(c,hasTable?1:0));
   ys.forEach(c=>{ if(!seen.has(c.id)) place(c,hasTable?1:0); });
   if(hasTable){ const rl=nodes.filter(n=>n.kind==="raw"&&n.row===1).map(n=>n.col);
-    const mid=rl.length?(Math.min(...rl)+Math.max(...rl))/2:0;
+    const mid=rl.length?(amin(rl)+amax(rl))/2:0;
     add({key:"table",kind:"table",col:mid,row:0});
     nodes.filter(n=>n.kind==="raw").forEach(n=>edges.push({a:"table",b:n.key})); }
   // What is drawn on the graph by hand, below everything: lines, ranges, text, labels.
@@ -17702,7 +17883,7 @@ function flowLayout(){
       cs.forEach(c=>edges.push({a:endOf[c.id].key,b:key,feed:true})); }); }
   else { const gid=drawGraphIds()[0], own=gid?annos.filter(a=>a.g===gid):[];
     if(own.length&&nodes.length){ const maxRow=nodes.reduce((m,n)=>Math.max(m,n.row),0), cols=nodes.map(n=>n.col);
-      add({key:"graph:"+gid,kind:"figure",gid,col:(Math.min(...cols)+Math.max(...cols))/2,row:maxRow+1,annos:own}); } }
+      add({key:"graph:"+gid,kind:"figure",gid,col:(amin(cols)+amax(cols))/2,row:maxRow+1,annos:own}); } }
   // Steps that read another spectrum: a dashed line from what they read.
   nodes.filter(n=>n.kind==="step"&&!n.st.off).forEach(n=>{ const def=PIPE_OPS[n.s.op]; if(!def||!def.deps) return;
     def.deps(Object.assign({},def.defaults||{},n.s.p||{})).forEach(([id,use])=>{ const o=colById(id); if(!o) return;
@@ -18402,7 +18583,7 @@ ${DL([[K("Ctrl","Z"),"Undo"],[K("Ctrl","Shift","Z")+" · "+K("Ctrl","Y"),"Redo"]
 <h2 id="k-graph">On the graph</h2>
 ${DL([[K("←")+" "+K("→"),"Previous or next point (click the graph first)"],[K("Home")+" "+K("End"),"First or last point"],[K("+")+" "+K("−")+" "+K("0"),"Zoom in, zoom out, show all"],[K("[")+" "+K("]"),"Start or end the view at the selected point"],[K("M"),"Mask or restore the selected point"],[K("P"),"Put a peak at the selected point"],[K("Delete"),"Remove the selected peak, label, line or band"],[K("Enter")+" · "+K("F2"),"Type over the selected label, text or legend entry; "+K("Shift","Enter")+" starts a new line"],[K("←")+" "+K("→")+" · "+K("↑")+" "+K("↓"),"With the Reader: the previous or next point, the next curve; with the X–Y lines: move them ("+K("Shift")+" ten pixels)"],[K("↑")+" "+K("↓"),"With the legend selected: the entry above or below"],[K("Ctrl","Shift","=")+" · "+K("Ctrl","="),"While typing: superscript · subscript"],[K("Alt")+" while dragging","No snapping: text off its guides, an arrow's head off the data"],[K("Ctrl")+" while dropping a graph","Keep it: its columns are put on the other graph, and it stays"],[K("Esc")+" while holding a graph","Cancel the drop"],["Middle-drag","Pan, in any tool"],["Scroll","Zoom at the pointer"],["Double-click","Show all the data"],[K("Shift","F10"),"The graph's menu"]],"keys")}
 <h2 id="k-sheet">In the worksheet</h2>
-${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move; with "+K("Shift")+", select; with "+K("Ctrl")+", jump to the end of the data"],[K("Enter")+" · "+K("Tab"),"Next row · next column"],[K("F2")+" · double-click","Edit the cell; typing replaces it; "+K("Esc")+" cancels"],[K("Delete"),"Clear the selection (labels, and values unless the original data is locked)"],[K("Ctrl","C")+" "+K("Ctrl","V"),"Copy and paste, as tab-separated text"],[K("Ctrl","D")+" · "+K("Ctrl","R"),"Fill down · fill right"],[K("Ctrl","Space"),"In a formula: the suggestions; "+K("↑")+" "+K("↓")+" choose, "+K("Tab")+" puts one in, "+K("Esc")+" closes them"],[K("Ctrl","F"),"Find; "+K("Enter")+", "+K("Shift","Enter")+" or "+K("F3")+" for the next or previous match"],[K("Ctrl","Home")+" "+K("Ctrl","End"),"First or last cell"],[K("PgUp")+" "+K("PgDn"),"A screen up or down"]],"keys")}
+${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move; with "+K("Shift")+", select; with "+K("Ctrl")+", jump to the end of the data"],[K("Enter")+" · "+K("Tab"),"Next row · next column"],[K("F2")+" · double-click","Edit the cell; typing replaces it; "+K("Esc")+" cancels"],[K("Delete"),"Clear the selection (labels, and values unless the original data is locked)"],[K("Ctrl","C")+" "+K("Ctrl","V"),"Copy and paste, as tab-separated text"],[K("Ctrl","D")+" · "+K("Ctrl","R"),"Fill down · fill right"],[K("Ctrl","Shift","=")+" · "+K("Ctrl","−"),"Insert · delete rows, or columns when whole columns are selected"],[K("Ctrl","Space"),"In a formula: the suggestions; "+K("↑")+" "+K("↓")+" choose, "+K("Tab")+" puts one in, "+K("Esc")+" closes them"],[K("Ctrl","F"),"Find; "+K("Enter")+", "+K("Shift","Enter")+" or "+K("F3")+" for the next or previous match"],[K("Ctrl","Home")+" "+K("Ctrl","End"),"First or last cell"],[K("PgUp")+" "+K("PgDn"),"A screen up or down"]],"keys")}
 <h2 id="k-flow">In the History</h2>
 ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move between boxes"],[K("Alt","↑")+" "+K("Alt","↓"),"Move the selected step earlier or later"],[K("Delete"),"Delete the selected step"],[K("C"),"Comment on the selected box"],["Right-click","The box's menu"]],"keys")}`},
 /* ---------------------------------------------------------------- Data */
@@ -18414,7 +18595,7 @@ ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move between boxes"],[K(
 <p>Columns are lettered A, B, C… and each has a role, shown after its letter: <strong>(X)</strong>, <strong>(Y)</strong>, <strong>(yEr±)</strong> for error bars (or <strong>(yEr+)</strong>, <strong>(yEr−)</strong>, <strong>(xEr±)</strong>…: ${DA("errbars","Error bars")}), or <strong>(—)</strong> for other data, kept for formulas. A Y column is plotted against the nearest X column to its left, so columns measured on different axes each keep their own X. Every Y column has its own ${DA("spectra","processing")}.</p>
 <p>Click a column's header arrow, or right-click its letter, for its menu: its role, whose error bars it holds, analyse it, plot it, move it, align its values, fill it, show or hide it on the graph, hide it in the sheet, set its values by a formula, sort by it, delete it. <em>Plot</em> on the bar above the grid plots the selected columns, or opens <em>Plot setup</em> when none is selected. ${DA("plotting","Plotting columns")}</p>
 <h2>Label rows</h2>
-<p>Under the letters are <em>Long Name</em> and <em>Units</em>. The <strong>⋯</strong> in the top-left corner shows or hides the others, for this project: Comments, F(x)= and Sparklines. F(x)= shows by itself once a column has a formula, and the formula bar above the grid always shows a computed column's formula.</p>
+<p>Under the letters are <em>Long Name</em>, <em>Units</em> and <em>F(x)=</em>, where a column's formula is typed (a value typed into a cell starting with ${K("=")} goes there too). The <strong>⋯</strong> in the top-left corner shows or hides Comments and Sparklines, for this project, and the formula bar above the grid always shows a computed column's formula.</p>
 ${DL([["Long Name","The column's name, used on the axes and in the legend."],["Units","Written after the name: <code>cm⁻¹</code>, <code>counts</code>."],["Comments","A note that travels with the column."],["F(x)=","A formula that computes the column: click the cell and type. "+DA("formulas","Column formulas")],["Sparklines","A thumbnail of each column."]])}
 <h2>Selecting and editing</h2>
 <p>Click a cell, Shift+click or drag for a range, click a header or row number for a whole column or row, or the corner for everything. The bar above shows the active cell's address and its value, which can be typed over there, as in Excel's formula bar (a computed cell shows its formula); the bar below shows Count, Sum, Average, Min and Max of the selection. What is selected is filled in blue with a dark edge, and the letters and row numbers of the selection are filled too, so you can see what <em>Plot</em> will take. Typing starts an edit; ${K("F2")} or a double-click edits in place. ${DA("keys#k-sheet","All the keys")}</p>
@@ -18427,7 +18608,7 @@ ${DL([["Long Name","The column's name, used on the axes and in the legend."],["U
 <h2 id="align">Alignment</h2>
 <p>The three buttons on the bar align the selected columns' values to the left, the centre or the right; the same button again goes back to the automatic alignment (numbers to the right, as in a spreadsheet). A column's menu has <em>Align</em> too. Alignment is kept with the project and undone like any change.</p>
 <h2 id="edit">Editing the original data</h2>
-<p>Type over a value to change it, ${K("Delete")} to clear the selection, paste or fill over values, and right-click a cell or a row number to <em>Insert rows above</em> or <em>Delete rows</em> (masked points and corrections move with their rows). Each change is one undo step and goes into the original-data record with the check code, so what was changed, when and by whom is kept.</p>
+<p>Type over a value to change it, ${K("Delete")} to clear the selection, and paste or fill over values. To insert or delete, right-click a cell: <em>Insert</em> › Row above, Row below, Column to the left, Column to the right, A column at the end or A sheet, and <em>Delete</em> › Rows or Columns; as many rows or columns are inserted as are selected. The same are in a column's menu, in Edit › Insert and Delete, on the <strong>Insert</strong> button above the grid, and on the keys: ${K("Ctrl","Shift","=")} inserts and ${K("Ctrl","−")} deletes (columns when whole columns are selected, rows otherwise). Masked points and corrections move with their rows. Each change is one undo step and goes into the original-data record with the check code, so what was changed, when and by whom is kept.</p>
 <h2 id="lock">Locking the original data</h2>
 <p>The lock button above the grid, or ${MP("Data › Lock the original data")}, keeps the original values as they are, for the whole project. Empty cells can still be filled. Typing over a value then asks for a reason and adds a <em>Correct values</em> step, so the original stays in the original data and the correction shows in the History, the report and the CSV; pasting over values offers new columns; rows cannot be inserted or deleted. ${DA("rawdata","Original data and its check code")}</p>`},
 {id:"formulas", g:"Data", t:"Column formulas", kw:"formula f(x) set column values compute calculate expression function log sqrt",
@@ -19850,7 +20031,7 @@ function metaSeries(cols,key){ const ps=cols.map(c=>metaParse((c.meta||{})[key])
     // twelve hours before the one before it was taken after midnight. Without
     // this, 00:10 came before 23:50 and a night's run was put out of order.
     if(ps.every(q=>!q||q.t==null||q.tod)){ let add=0, prev=null; ts.forEach((t,i)=>{ if(t==null) return; if(prev!=null&&t+add<prev-12*3600e3) add+=24*3600e3; ts[i]=t+add; prev=ts[i]; }); }
-    const ok=ts.filter(v=>v!=null), t0=Math.min(...ok), span=(Math.max(...ok)-t0)/1000;
+    const ok=ts.filter(v=>v!=null), t0=amin(ok), span=(amax(ok)-t0)/1000;
     const [u,k]=span<=180?["s",1]:span<=3*3600?["min",60]:span<=72*3600?["h",3600]:["d",86400];
     return {vals:ts.map(t=>t==null?null:(t-t0)/1000/k),unit:u,time:true}; }
   const us=[...new Set(ps.filter(q=>q&&q.u).map(q=>q.u))];
@@ -19896,7 +20077,7 @@ async function openBatchDialog(){
   const shared=r=>t.params.map((_,i)=>can(i)&&!!r["bfP"+i]);
   const count=r=>{ const sh=shared(r).filter(Boolean).length, own=t.params.filter((_,i)=>can(i)).length-sh; return {sh,own,tot:sh+K*own}; };
   const pr=formDlg({title:`Fit ${K} columns`,ok:`Fit ${K} columns`,
-    html:`<p class="lab" style="margin:0 0 12px">With ${esc(lcFirst(t.name))}, as fitted to ${esc(specName(src))}${t.range?`, over x ${esc(fmt(Math.min(...t.range),6))} to ${esc(fmt(Math.max(...t.range),6))}`:""}${t.weighted?", weighted by the Y errors":""}.</p>
+    html:`<p class="lab" style="margin:0 0 12px">With ${esc(lcFirst(t.name))}, as fitted to ${esc(specName(src))}${t.range?`, over x ${esc(fmt(amin(t.range),6))} to ${esc(fmt(amax(t.range),6))}`:""}${t.weighted?", weighted by the Y errors":""}.</p>
     <div class="grid2"><label for="bfSeed">Start each from</label><select id="bfSeed"><option value="tmpl">This fit's result</option><option value="chain">The one before it in the series</option>${comp?`<option value="found">The peaks found in each column</option>`:""}</select>
     <label for="bfHow" class="tipd" title="Together: one fit of every column at once, the parameters ticked below taking one value for all of them (a global fit)">Fit them</label><select id="bfHow"><option value="each">Each on its own</option><option value="global"${prev?" selected":""}>Together, sharing parameters</option></select></div>
     <div id="bfShare" hidden><div class="lab">Shared by every column</div>
@@ -20134,7 +20315,7 @@ function renderBatch(){
   if(run) h+=`<div class="bprog" id="bProg">${batchProgHtml()}</div>`;
   if(b){ const t=b.tmpl, stale=b.rows.filter(r=>r.fit&&batchStale(r.fit)).length, failed=b.rows.filter(r=>!r.fit).length;
     const gl=b.glob, gs=gl&&gl.stats;
-    h+=`<p class="bsum">${esc(capFirst(lcFirst(t.name)))}${t.range?` · x ${esc(fmt(Math.min(...t.range),5))} to ${esc(fmt(Math.max(...t.range),5))}`:""} · ${gl?`<span title="${esc(`${gs.K} columns, ${gs.n} points and ${gs.m} parameters fitted at once (${gs.sh} shared, ${gs.own} for each column); ${gs.dof} degrees of freedom`)}">fitted together, sharing ${esc(shareSummary(t,gl.share))} · reduced χ² ${esc(fmtOr(gs.redChi2,4))}${gs.converged===false?" (not converged)":""}</span>`:esc(SEEDS[b.seed]||"")} · ${esc(ago(b.at))}${failed?` · ${failed} failed`:""}${stale?` · <span class="chip">${stale} out of date</span>`:""}</p>`; }
+    h+=`<p class="bsum">${esc(capFirst(lcFirst(t.name)))}${t.range?` · x ${esc(fmt(amin(t.range),5))} to ${esc(fmt(amax(t.range),5))}`:""} · ${gl?`<span title="${esc(`${gs.K} columns, ${gs.n} points and ${gs.m} parameters fitted at once (${gs.sh} shared, ${gs.own} for each column); ${gs.dof} degrees of freedom`)}">fitted together, sharing ${esc(shareSummary(t,gl.share))} · reduced χ² ${esc(fmtOr(gs.redChi2,4))}${gs.converged===false?" (not converged)":""}</span>`:esc(SEEDS[b.seed]||"")} · ${esc(ago(b.at))}${failed?` · ${failed} failed`:""}${stale?` · <span class="chip">${stale} out of date</span>`:""}</p>`; }
   else if(!qs.length){ box.innerHTML=h+`<p class="nothing">${af?"Fit every column with the active column's fit, then compare them here.":"Fit one column (its fit is the template for the others), or mark peaks or bands in every column, to compare them here."}</p>`; wireBatch(box); return; }
   const q=qFind(qs,s.q), tr=trendData(q), W=Math.max(320,Math.min(900,box.clientWidth-30)), pal=readPalette();
   h+=`<div class="trendbar"><label for="bQ">Plot</label><select id="bQ">${qs.map(z=>`<option value="${esc(z.id)}"${z===q?" selected":""}>${esc(z.label)}</option>`).join("")}</select>
@@ -20194,7 +20375,7 @@ function batchTableText(sep){
   return out.join("\n");
 }
 async function exportBatchCsv(){ const p=P(); if(!p) return; const b=p.batch, s=seriesOf(), lines=[batchTableText(",")];
-  if(b){ const t=b.tmpl; lines.push("",`# Batch fit,${t.name}`,`# started,${SEEDS[b.seed]||""}`); if(t.range) lines.push(`# fitted over x,${Math.min(...t.range)},${Math.max(...t.range)}`);
+  if(b){ const t=b.tmpl; lines.push("",`# Batch fit,${t.name}`,`# started,${SEEDS[b.seed]||""}`); if(t.range) lines.push(`# fitted over x,${amin(t.range)},${amax(t.range)}`);
     if(b.glob){ const g=b.glob.stats; lines.push(`# fitted together sharing,${shareSummary(t,b.glob.share).replace(/,/g," ")}`,`# global fit,columns,${g.K},points,${g.n},parameters,${g.m},degrees of freedom,${g.dof},reduced chi2,${g.redChi2}`); }
     lines.push(`# weighting,${t.weighted?"instrumental (1/sigma^2)":"none; errors scaled by sqrt(reduced chi2)"}`);
     b.rows.forEach(r=>{ const c=colById(r.col); if(!r.fit) lines.push(`# ${specName(c).replace(/,/g," ")},not fitted: ${String(r.fail).replace(/,/g," ")}`); else { const st=batchStale(r.fit); if(st) lines.push(`# ${specName(c).replace(/,/g," ")},${st.replace(/,/g," ")}`); } }); }
@@ -20208,7 +20389,7 @@ async function exportTrendSvg(){ const qs=batchQuantities(), s=seriesOf(), q=qFi
 function reportBatchHtml(){ const p=P(), b=p&&p.batch; if(!b) return "";
   const qs=batchQuantities(), s=seriesOf(), q=qFind(qs,s.q), tr=q?trendData(q):null, e2=t=>esc(String(t)), rows=seriesCols(), c0=(rows[0]||{}).c;
   const gs=b.glob&&b.glob.stats;
-  let out="<h2>Batch fit</h2><p>"+e2(capFirst(lcFirst(b.tmpl.name)))+" fitted to "+b.rows.length+" columns, "+(b.glob?"all at once, sharing "+e2(shareSummary(b.tmpl,b.glob.share))+": "+gs.n+" points, "+gs.m+" parameters ("+gs.sh+" shared, "+gs.own+" for each column), reduced χ² "+e2(fmtOr(gs.redChi2,5))+", "+gs.dof+" degrees of freedom; each column was first fitted on its own, "+e2(SEEDS[b.seed]||""):e2(SEEDS[b.seed]||""))+(b.tmpl.range?", over x "+e2(fmt(Math.min(...b.tmpl.range),6))+" to "+e2(fmt(Math.max(...b.tmpl.range),6)):"")+".</p>";
+  let out="<h2>Batch fit</h2><p>"+e2(capFirst(lcFirst(b.tmpl.name)))+" fitted to "+b.rows.length+" columns, "+(b.glob?"all at once, sharing "+e2(shareSummary(b.tmpl,b.glob.share))+": "+gs.n+" points, "+gs.m+" parameters ("+gs.sh+" shared, "+gs.own+" for each column), reduced χ² "+e2(fmtOr(gs.redChi2,5))+", "+gs.dof+" degrees of freedom; each column was first fitted on its own, "+e2(SEEDS[b.seed]||""):e2(SEEDS[b.seed]||""))+(b.tmpl.range?", over x "+e2(fmt(amin(b.tmpl.range),6))+" to "+e2(fmt(amax(b.tmpl.range),6)):"")+".</p>";
   if(tr&&tr.pts.length) out+="<figure>"+trendSvg(tr,q,640,380,EXPORT_PAL,true)+"</figure>"+(tr.fit?"<p>"+trendFitText(tr,q)+"</p>":"");
   out+="<table><thead><tr><th class=\"l\">Column</th><th>"+e2(seriesLabel(s))+"</th>"+qs.map(z=>{ const u=c0?qUnit(z,c0):""; return "<th>"+e2(z.label)+(u?" ("+e2(u)+")":"")+"</th>"; }).join("")+"<th class=\"l\">Notes</th></tr></thead><tbody>";
   rows.forEach(({c,v})=>{ const r=batchRowOf(c.id), f=r&&r.fit, st=f?batchStale(f):null, w=f?fitWarnings(f).filter(x=>x.kind!=="stale").map(x=>x.text):[];
@@ -21465,6 +21646,8 @@ function menuItems(which){
     {label:"Copy", kbd:"Ctrl+C", title:"The selected cells of the worksheet", run:()=>copyText(wsCopyText(),"Copied the selected cells."), enabled:ws},
     {label:"Paste", kbd:"Ctrl+V", title:"Into the worksheet, at the selected cell", run:wsPasteMenu, enabled:wsRaw},
     {label:"Clear", kbd:"Delete", title:"The selected cells of the worksheet", run:wsClear, enabled:wsRaw},
+    {label:"Insert", title:"Rows or columns in the worksheet, where the selection is", enabled:wsRaw, sub:wsInsertItems},
+    {label:"Delete", title:"Rows or columns of the worksheet", enabled:wsRaw, sub:wsDeleteItems},
     {label:"Find…", kbd:"Ctrl+F", title:"In the worksheet", run:()=>{ openWin("sheet",{render:true}); wsFindOpen(); }, enabled:!!p},
     "-",
     {label:"Copy the graph as a picture", title:"A PNG on the clipboard, to paste into a document or slides", run:copyGraphPicture, enabled:has},
@@ -21680,7 +21863,7 @@ function wireStatic(){
   $("#importBtn").onclick=pickFile; $("#emptyImport").onclick=pickFile;
   $("#emptyPlot").onclick=()=>openPlotDlg(wsSelColIds());
   $("#fileIn").addEventListener("change",e=>{ const fs=[...e.target.files]; if(fs.length>1) readFilesIn(fs); else if(fs[0]) readFileIn(fs[0]); e.target.value=""; });
-  $("#addColBtn").onclick=addColumn;
+  $("#addColBtn").onclick=e=>toggleMenu(e.currentTarget,wsInsertItems,{label:"Insert"});
   // With columns to plot selected, the quick list (and Plot setup… at its top); with none, the dialog.
   { const pb=$("#wsPlotBtn"); pb.onclick=()=>{ const sel=wsSelColIds(); if(!plotWhat(sel).ys.length&&!(menuOpen&&menuOpen.trigger===pb)){ openPlotDlg(sel); return; } toggleMenu(pb,()=>plotItems(sel),{label:"Plot"}); }; }
   $("#wsLockBtn").onclick=()=>setRawLock(!rawLocked());
