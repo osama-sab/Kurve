@@ -750,7 +750,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   redraw never jumps to the top; `wsRows(false)` redraws only when the view leaves the rows
   drawn (at either end of the sheet the margin does not apply). A double click is read from
   the press itself (`e.detail === 2` in the mousedown: a cell opens, a resize edge fits, the
-  fill handle fills down), the `dblclick` listener kept as a fallback (`S.ws.dblAt`). An edit
+  fill handle fills down), the `dblclick` listener kept as a fallback (`S.ws.dblAt`); a cell's
+  first press is remembered (`S.ws.press`: its cell, whether on the fill handle, where and
+  when), and a second press within 800 ms and 4 px acts on that cell, whatever is under the
+  pointer after the first press scrolled a half-hidden cell into view. An edit
   outlives the rows drawn, as a spreadsheet's does: scrolled away, its text waits in `S.ws.edit`
   (`wsRows` moves the focus to the grid first), the grid takes the keys (Esc cancels, Enter, Tab
   and the arrows enter it, anything typed brings the cell back and goes on in it), and leaving
@@ -885,6 +888,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `frontWinId`; `winItem` (the front one ticked, "minimised" as a note), `panelItems`
   (Window › Tool windows: ticked while in use, a click opens or closes), `winFinder` (every window
   in use, searched), `windowItems` (the Window menu). `openWin(id, {render})`, `closeWin`, `toggleWin`, `focusWin`, `toggleMax`,
+  `winTakeFocus(id)` (a window brought forward by its taskbar button or the Window menu takes
+  the keys: the worksheet's grid, or its edit's box, any other window itself, `tabindex=-1`),
   `tileWins`, `cascadeWins`, `resetWins`, `renderWin(id)` (which window renders what),
   `renderTaskbar`, `setupWins` (move, resize, min/max buttons, and the "?" `[data-whelp]`
   that opens `helpFor(id)`). `renderAll` renders only open
@@ -1885,8 +1890,10 @@ parser, undo or the PDF and EPS writer. It serves the file over HTTP (a server o
 free port) and waits for each page to be ready (a project on the desk), never a fixed time.
 `node tools/sheet-fuzz.mjs [path] [seed or a-b] [steps]` drives the worksheet as an erratic
 user would (see its header) and checks the data, the drawing, the fingerprint and the store
-after every step, and a reload at the end; a few minutes a seed, `V=1` prints every step. Run
-some seeds after touching the worksheet, editing, saving or undo. To look at a PDF or EPS, render it: Ghostscript
+after every step, and a reload at the end; a few minutes a seed, `V=1` prints every step and
+`SLOW=n` runs the page n times slower (Chrome's CPU throttling). Several runs at once change
+the path a seed takes (what is in view when it picks a cell), which finds more than one alone.
+Run some seeds after touching the worksheet, editing, saving or undo. To look at a PDF or EPS, render it: Ghostscript
 (`gs -dSAFER -dBATCH -dNOPAUSE -sDEVICE=png16m -r110 -dGraphicsAlphaBits=4 -dTextAlphaBits=4`,
 with `-dEPSCrop` for an EPS) or PyMuPDF; at low resolution without anti-aliasing a small
 circle looks like a star. For anything else the UI
@@ -2365,6 +2372,18 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **An earlier stage drawn behind must be on the same X.** Channels drawn behind energies are
   another graph on one axis: the ghost and the before-and-after chart check X's name and unit,
   not only Y's scale.
+- **A double click is one gesture, and the first press can move the page.** A cell cut by the
+  view's bottom and right edges is scrolled into view by the first press; the second, at the
+  same place on the screen, then lands on the cell's fill-handle corner, and a double click
+  meant to edit a value filled 233 cells down the column over recorded values. The second press
+  now acts on what the first pressed. Seen as "fails under load", it was geometry: running
+  three at once only changed what the random user had in view, and so where it clicked.
+- **A window restored hands back the keys.** Minimised, the worksheet lost the focus to the
+  page; restored from its taskbar button, typing went nowhere. A window brought forward by the
+  user takes the keys. And a test that measures a window while it grows out of its taskbar
+  button clicks the desk, and one that measures a cell while a wheel's smooth scroll runs (it
+  may start a frame or two later, and below 860 px it is the page's) clicks a row 136 rows
+  away: wait until what is aimed at has held still, as a person does.
 
 - **A class name is global, again.** The outline of a graph a file is dragged over reused
   `fdrop`, which the History already uses for its 3 px insertion line, absolutely placed and
@@ -2923,9 +2942,6 @@ Next, in order:
 - Plotting from the worksheet plots whole columns (no range of rows, no plot of a selection
   of cells), against an X column; a closed graph is closed for everyone who opens the
   project, and a viewer who cannot edit cannot open it
-- Under heavy load (three random users at once) the worksheet can lose a value typed just after
-  leaving a cell whose text was not a number, or miss a double click: `sheet-fuzz.mjs` seed 9
-  finds it then, and is clean alone
 - The worksheet holds numbers only (no text cells); rows are inserted and deleted whole, never
   cells shifted within a column; a comment attached to a point keeps its row number when rows
   above it are inserted or deleted; the sorted view is a view, so a value typed into it takes

@@ -720,3 +720,32 @@ X kept, undo, hidden rows, the Explorer, import on a new sheet, delete and undo,
 odd-test's Sheets block (7: a project from before sheets, broken stored sheets, a sheet moved
 first, hidden rows per sheet, the last sheet kept), and every suite from the round before.
 
+
+## Two worksheet bugs the random user found (2026-10-23)
+
+The worksheet fuzzer's seed 9 failed only when three runs shared the machine, and was put down
+to load. It was not timing: running several at once changed what the random user had in view,
+and so where it clicked.
+- **A double click on a cell half out of view edited another place.** The first press scrolls a
+  cell cut by the view's edges into view, as Excel's does; the second press, at the same spot on
+  the screen, was then over a different part of the cell. With the cell cut by both the bottom
+  and the right edge, that part was the fill handle: a double click meant to edit one value
+  filled the column down over recorded values (233 cells in the test). The second press now
+  acts on the cell the first pressed.
+- **Typing after restoring the worksheet went nowhere.** Minimised, the worksheet lost the
+  keyboard focus to the page, and restoring it from its taskbar button did not give it back. A
+  window brought forward from its taskbar button or the Window menu now takes the keys: the
+  worksheet's active cell takes what is typed next.
+- The fill handle shows again as soon as Esc leaves a cell (it waited for the next redraw).
+- **The fuzzer** aims as a person does: at a worksheet whose window, scroll and place on the
+  page have held still for 150 ms. It had clicked cells measured while the window grew out of its
+  taskbar button, or while a wheel's smooth scroll (of the grid, or of the page below 860 px) was
+  still running, and landed up to 136 rows away. It restores the worksheet from its taskbar button half the
+  time, and checks that a click on a cell gives the grid the keys and that a double click opens
+  the cell aimed at. Backspace on a selected cell clears it, as Delete does, so Esc afterwards has
+  nothing to give back. `SLOW=n` runs the page n times slower.
+
+Checked: odd-test (5 new: a cell cut by both edges of the view double-clicked, which opens that
+cell and fills nothing, where before it filled 233 cells; typing into it; typing at once after a
+restore from the taskbar, which before went to the page), the fuzzer on seeds 1 to 24 three at a
+time (and 1 to 8 three times slower), all clean, and every suite from the round before.

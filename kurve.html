@@ -352,6 +352,7 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .ws thead td.lc.fxc{font-family:var(--mono);font-size:var(--fs-tab)}
 .ws thead td.lc.bad{color:var(--bad);box-shadow:inset 0 -2px 0 var(--bad)}
 .ws td.hit,.ws thead td.lc.hit{background:color-mix(in srgb,var(--warn) 24%,var(--panel))}
+.win[tabindex="-1"]:focus{outline:none}
 .ws tbody td.fh{position:relative}
 .ws tbody td.fh::after{content:"";position:absolute;right:0;bottom:0;width:7px;height:7px;background:var(--accent);box-shadow:0 0 0 1px var(--panel);cursor:crosshair}
 .ws td.fillp{box-shadow:inset 0 0 0 1px var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--panel))}
@@ -11047,7 +11048,7 @@ function wsEdKey(ev){
 function wsCancelEdit(){
   const e=S.ws.edit; if(!e) return; S.ws.edit=null; S.editing=false;
   const td=wsTd(e.r,e.c); if(td){ td.classList.remove("editing"); td.textContent=wsText(S.wsm,e.r,e.c); }
-  $("#ws").focus({preventScroll:true}); if(S.pendingWs){ S.pendingWs=false; renderWs(); }
+  $("#ws").focus({preventScroll:true}); if(S.pendingWs){ S.pendingWs=false; renderWs(); } else wsPaintSel();
 }
 function wsCommit(dr,dc,stay,how){
   const e=S.ws.edit; if(!e) return;
@@ -11255,6 +11256,14 @@ function setupWs(){
       document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up); return; }
     if(S.ws.edit) wsCommit(0,0,true);
     const m=S.wsm, s=S.ws; s.tabFrom=null;
+    // A double click is two presses at one place, and the second acts on what the
+    // first pressed: a first press on a cell half out of view scrolls it in, and
+    // what is under the pointer then is another cell, or the fill handle's corner.
+    const pr=s.press; s.press=null;
+    if(e.detail===2&&pr&&performance.now()-pr.t<800&&Math.abs(e.clientX-pr.x)<=4&&Math.abs(e.clientY-pr.y)<=4){ e.preventDefault(); box.focus({preventScroll:true});
+      if(pr.fh) wsFillDbl(); else if(!e.shiftKey){ wsSelect(pr.r,pr.c,false); wsBeginEdit(null,"edit"); }
+      s.dblAt=Date.now(); return; }
+    const press=(td,fh)=>{ s.press={r:+td.dataset.r,c:+td.dataset.ci,fh,x:e.clientX,y:e.clientY,t:performance.now()}; };
     if(t.closest("th.corner")){ e.preventDefault(); box.focus({preventScroll:true}); s.r=WS_TOP; s.c=0; s.ar=Math.max(0,m.n-1); s.ac=Math.max(0,m.cols.filter(q=>!q.phantom).length-1); wsPaintSel(); return; }
     const ch=t.closest("th[data-ch]");
     // A hidden column's strip shows it again on a double click; a single click selects beside it.
@@ -11277,13 +11286,13 @@ function setupWs(){
         wsPaintSel(); drag={kind:"row"};
         // The row's point is marked on the graph, as it always was.
         const k=wsDR(m,r), idx=m.kind==="final"?(r<m.n?m.d.idx[k]:null):(r<m.n?k:null); if(idx!=null&&!e.shiftKey){ S.sel=S.sel===idx?null:idx; renderWsSel(); renderPlot(); } }
-      else if(td&&td.classList.contains("fh")&&(()=>{ const rc=td.getBoundingClientRect(); return e.clientX>=rc.right-10&&e.clientY>=rc.bottom-10; })()){ e.preventDefault(); box.focus({preventScroll:true}); if(e.detail===2) wsFillDbl(); else wsFillDrag(); return; }
+      else if(td&&td.classList.contains("fh")&&(()=>{ const rc=td.getBoundingClientRect(); return e.clientX>=rc.right-10&&e.clientY>=rc.bottom-10; })()){ e.preventDefault(); box.focus({preventScroll:true}); if(e.detail===2){ wsFillDbl(); s.dblAt=Date.now(); } else { press(td,true); wsFillDrag(); } return; }
       // A double click is read from the press itself (its count): a redraw
       // between the two clicks would otherwise keep the browser's dblclick away.
       else if(td&&e.detail===2&&!e.shiftKey){ e.preventDefault(); wsSelect(+td.dataset.r,+td.dataset.ci,false); wsBeginEdit(null,"edit"); S.ws.dblAt=Date.now(); return; }
       // The F(x)= row is where a formula is typed: a click opens it.
       else if(td&&+td.dataset.r===-1&&m.kind==="raw"&&!S.readOnly&&!e.shiftKey){ e.preventDefault(); wsEditFormula(+td.dataset.ci); return; }
-      else if(td){ e.preventDefault(); box.focus({preventScroll:true}); wsSelect(+td.dataset.r,+td.dataset.ci,e.shiftKey); drag={kind:"cell"}; }
+      else if(td){ e.preventDefault(); box.focus({preventScroll:true}); if(!e.shiftKey) press(td,false); wsSelect(+td.dataset.r,+td.dataset.ci,e.shiftKey); drag={kind:"cell"}; }
       else return; }
     const mv=ev=>{ if(!drag) return;
       if(drag.kind==="colmove"){ if(!drag.moving&&Math.abs(ev.clientX-drag.x0)<6) return; drag.moving=true; document.body.classList.add("colmoving"); drag.to=wsMoveMark(ev.clientX); return; }
@@ -18856,7 +18865,17 @@ function closeWin(id){ const st=winState(id); if(!st.open){ if(st.min){ st.min=f
   // The peak finder's marks belong to the Fit window.
   if(id==="fit"&&S.pfPreview){ S.pfPreview=null; renderPlot(); } }
 function toggleWin(id){ const st=winState(id); if(!st.open) openWin(id); else if(document.querySelector(`#w-${id}.active`)){ minimiseWin(id); return; } else focusWin(id);
-  const g=graphOfWin(id); if(g&&P()) activateGraph(g); }
+  const g=graphOfWin(id); if(g&&P()) activateGraph(g); winTakeFocus(id); }
+/* A window brought forward by its taskbar button or the Window menu takes the
+   keys, as a desktop's does: the worksheet's grid (typing goes into the active
+   cell, or the text box of an edit under way), any other window itself. Not
+   when the keys are already in it. A minimised window lost them when it went:
+   restored, typing went nowhere. */
+function winTakeFocus(id){ const el=$("#w-"+id); if(!el||el.hidden||!winOpen(id)) return;
+  const a=document.activeElement; if(a&&a!==document.body&&el.contains(a)) return;
+  const t=id==="sheet"?($("#ws input.wsed")||$("#ws")):el; if(!t) return;
+  if(t===el&&!el.hasAttribute("tabindex")) el.tabIndex=-1;
+  t.focus({preventScroll:true}); }
 function toggleMax(id){ const st=winState(id); st.max=!st.max; st.z=++LAYOUT.z; applyWins(); saveLayout(); }
 function renderWin(id){
   if(id==="help"){ renderHelp(); return; }
@@ -19022,7 +19041,7 @@ function wireWin(el){
 // A window in a menu, as Excel's Switch Windows lists them: the one in front
 // ticked, a minimised one says so; a click brings it to the front.
 function winItem(id){ const g=graphOfWin(id), cs=g?graphCols(g):[];
-  return {label:WINS[id].title+(g&&cs.length===1&&WINS[id].title!==specName(cs[0])?" · "+specName(cs[0]):""), checked:id===frontWinId(), note:winMin(id)?"minimised":"", run:()=>{ if(winOpen(id)) focusWin(id); else openWin(id); if(g&&P()) activateGraph(g); }}; }
+  return {label:WINS[id].title+(g&&cs.length===1&&WINS[id].title!==specName(cs[0])?" · "+specName(cs[0]):""), checked:id===frontWinId(), note:winMin(id)?"minimised":"", run:()=>{ if(winOpen(id)) focusWin(id); else openWin(id); if(g&&P()) activateGraph(g); winTakeFocus(id); }}; }
 // Every panel, ticked while it is in the taskbar (Origin's View menu): a click
 // opens a closed one and closes an open one.
 function panelItems(){

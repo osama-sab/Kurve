@@ -33,6 +33,8 @@ const browser=await chromium.launch();
 const W0=pick([1440,1280,1024,900]);
 const ctx=await browser.newContext({viewport:{width:W0,height:pick([900,800,700])}});
 const page=await ctx.newPage(); const errors=[], fails=[], trail=[];
+// SLOW=n runs the page n times slower (Chrome's CPU throttling), for the races a fast machine hides.
+if(+process.env.SLOW>1){ const cdp=await ctx.newCDPSession(page); await cdp.send("Emulation.setCPUThrottlingRate",{rate:+process.env.SLOW}); }
 page.on("pageerror",e=>errors.push("pageerror: "+e.message+" @ "+(e.stack||"").split("\n").slice(1,3).join(" | ")));
 page.on("console",m=>{ if(m.type()==="error"&&!/Failed to load resource/.test(m.text())) errors.push("console: "+m.text()); });
 page.on("dialog",d=>{ errors.push("native dialog "+d.message()); d.dismiss().catch(()=>{}); });
@@ -50,8 +52,15 @@ const wait=ms=>page.waitForTimeout(ms);
 const hideToast=()=>page.evaluate(()=>{ const t=document.querySelector("#toast"); if(t) t.hidden=true; });
 // Close any dialog that opened (a correction, a fill, a confirm).
 async function closeDialogs(){ for(let i=0;i<3;i++){ const open=await page.evaluate(()=>[...document.querySelectorAll(".modal")].some(m=>!m.hidden)); if(!open) return; await page.keyboard.press("Escape"); await wait(120); } }
-// A cell whose centre really is that cell (not under the sticky header or another window).
+// A cell whose centre really is that cell (not under the sticky header or another window),
+// measured once the worksheet has stopped moving: its window, its scroll and its place on the
+// page (which scrolls itself below 860 px) the same for 150 ms. A person clicks what they see;
+// a cell measured while the window grows out of its taskbar button, or while a wheel's smooth
+// scroll runs (it may start a frame or two after the wheel), is elsewhere by the click.
 async function visibleCell(opts={}){
+  await page.waitForFunction(()=>{ const w=$("#w-sheet"), b=$("#ws"); if(w&&(w._wa||w._wf)) return false; if(!b) return true;
+    const r=b.getBoundingClientRect(), k=[b.scrollTop,b.scrollLeft,Math.round(r.top),Math.round(r.left)].join(","), now=performance.now();
+    if(window.__fzK!==k){ window.__fzK=k; window.__fzT=now; return false; } return now-window.__fzT>=150; },null,{timeout:3000,polling:"raf"}).catch(()=>{});
   return page.evaluate(o=>{ const box=$("#ws"); if(!box) return null; const bb=box.getBoundingClientRect();
     const tds=[...box.querySelectorAll("td[data-ci][data-r]")].filter(td=>{ const r=+td.dataset.r; if(o.data&&r<0) return false; if(o.label&&r>=0) return false; const rc=td.getBoundingClientRect(); const x=rc.x+rc.width/2, y=rc.y+rc.height/2; if(x<bb.left||x>bb.right-12||y<bb.top||y>bb.bottom-12) return false; const el=document.elementFromPoint(x,y); return el&&(el===td||td.contains(el)); });
     if(!tds.length) return null; const td=tds[Math.floor(o.u*tds.length)], rc=td.getBoundingClientRect();
@@ -86,8 +95,11 @@ async function typeValue(){
   const valid=rnd()<0.75, text=valid?nums():junk();
   const how=pick(["type","type","dbl","f2"]);
   const c=await visibleCell({data:true}); if(!c) return;
-  if(how==="dbl"){ await page.mouse.dblclick(c.x,c.y); await wait(60); const sd=await state(); if(!sd.edit&&!sd.modal&&sd.sheet==="raw") fail(`double-click on ${c.r+1}:${c.c} did not open the cell`); await page.keyboard.press("Control+A"); }
+  if(how==="dbl"){ await page.mouse.dblclick(c.x,c.y); await wait(60); const sd=await state(); if(!sd.edit&&!sd.modal&&sd.sheet==="raw"){ fail(`double-click on ${c.r+1}:${c.c} did not open the cell`+(sd.r!==c.r||sd.c!==c.c?` (the active cell is ${sd.r+1}:${sd.c})`:"")); return; }
+    if(sd.edit&&(sd.r!==c.r||sd.c!==c.c)) fail(`double-click on ${c.r+1}:${c.c} opened ${sd.r+1}:${sd.c}`);
+    await page.keyboard.press("Control+A"); }
   else { await page.mouse.click(c.x,c.y); await wait(ri(0,80)); if(how==="f2"){ await page.keyboard.press("F2"); await page.keyboard.press("Control+A"); } }
+  if(how!=="dbl"){ const k=await page.evaluate(()=>{ const a=document.activeElement; return !!a&&!!a.closest&&!!a.closest("#ws"); }); if(!k&&!(await state()).modal) fail(`a click on ${c.r+1}:${c.c} left the keys outside the grid`); }
   const s1=await state(); const before=await cellVal(s1.r,s1.c); const K=before.k;
   const delay=pick([0,0,20,80,160]);
   if(text==="") { await page.keyboard.press("Backspace"); }
@@ -96,6 +108,8 @@ async function typeValue(){
   // sometimes do something else before finishing
   if(rnd()<0.15){ const dy=ri(-800,800); await page.mouse.wheel(0,dy); log(`  wheel ${dy} mid-edit`); await wait(ri(0,300)); }
   if(rnd()<0.12){ await wait(ri(600,1200)); log("  waited past the delayed save mid-edit"); }
+  // Where the typing went, for the failure's message.
+  const mid=await page.evaluate(()=>{ const e=S.ws.edit, a=document.activeElement; return {edit:e?{r:e.r,c:e.c,val:e.val}:null,focus:a?(a.id||a.className||a.tagName):null}; });
   const end=pick(["Enter","Enter","Enter","Tab","ArrowDown","ArrowRight","Shift+Enter","click","Escape"]);
   log(`type "${text}" into ${s1.r+1}:${s1.c} (${how}) then ${end}${s1.lock?" [locked]":""}`);
   if(end==="click"){ const c2=await visibleCell({data:true}); if(c2&&!(c2.r===s1.r&&c2.c===s1.c)) await page.mouse.click(c2.x,c2.y); else await page.keyboard.press("Enter"); }
@@ -105,7 +119,9 @@ async function typeValue(){
   const num=await page.evaluate(t=>parseNum(t),text);
   const after=await cellVal(s1.r,s1.c,K);
   const typedOver=before.v!=null;
-  if(end==="Escape"){ if(after.v!==before.v) fail(`Escape changed ${s1.r+1}:${s1.c} from ${before.v} to ${after.v}`); }
+  // Backspace on a selected cell clears it at once, as Delete does (and Google Sheets'),
+  // so Escape after it has nothing to give back; in a cell's text box it only deletes text.
+  if(end==="Escape"){ const want=text===""&&how==="type"&&!s1.lock&&!before.fx?null:before.v; if(after.v!==want) fail(`Escape changed ${s1.r+1}:${s1.c} from ${before.v} to ${after.v}`); }
   else if(how!=="type"&&end.startsWith("Arrow")&&s2.edit){ /* arrows move the caret in edit mode */ await page.keyboard.press("Enter"); await wait(100); }
   else if(before.fx){ if(after.v!==before.v) fail(`a computed cell changed`); }
   else if(text.trim()===""&&!typedOver){ if(after.v!=null) fail(`empty text left ${after.v}`); }
@@ -115,7 +131,7 @@ async function typeValue(){
     if(s2.edit){ await page.keyboard.press("Escape"); await wait(60); }
   } else if(s1.lock&&typedOver){ if(after.v!==before.v) fail(`locked value changed`); await closeDialogs(); }
   else if(s1.ord&&false){}
-  else { const want=text.trim()===""?null:num; if(after.v!==want){ const ctx2=await page.evaluate(()=>({toast:($("#toast")&&!$("#toast").hidden)?$("#toast").innerText.replace(/\s+/g," "):"",log:(P().log||[]).slice(-2).map(l=>l.text).join(" / "),cols:allCols().filter(c=>!c.src).map(c=>colLetter(c)+(c.fx?"=fx":"")+":"+c.data.length).join(" "),edit:!!S.ws.edit,ord:!!(S.wsm&&S.wsm.ord)})); fail(`typed "${text}" into ${s1.r+1}:${s1.c} then ${end}: holds ${JSON.stringify(after.v)}, expected ${JSON.stringify(want)} | ${JSON.stringify(ctx2)} | before ${JSON.stringify(before)}`); }
+  else { const want=text.trim()===""?null:num; if(after.v!==want){ const ctx2=await page.evaluate(()=>({toast:($("#toast")&&!$("#toast").hidden)?$("#toast").innerText.replace(/\s+/g," "):"",log:(P().log||[]).slice(-2).map(l=>l.text).join(" / "),cols:allCols().filter(c=>!c.src).map(c=>colLetter(c)+(c.fx?"=fx":"")+":"+c.data.length).join(" "),edit:!!S.ws.edit,ord:!!(S.wsm&&S.wsm.ord)})); fail(`typed "${text}" into ${s1.r+1}:${s1.c} then ${end}: holds ${JSON.stringify(after.v)}, expected ${JSON.stringify(want)} | ${JSON.stringify(ctx2)} | before ${JSON.stringify(before)} | before ${end} ${JSON.stringify(mid)}`); }
     // after the delayed save it must still be there
     if(rnd()<0.3){ await wait(900); const a2=await cellVal(s1.r,s1.c,K); if(a2.v!==want) fail(`after the delayed save ${s1.r+1}:${s1.c} holds ${JSON.stringify(a2.v)}, expected ${JSON.stringify(want)}`); }
     // the cell moved to must be on screen, not scrolled away
@@ -138,7 +154,10 @@ const actions=[
   ["lock",3,async()=>{ log("lock toggle"); await page.click("#wsLockBtn").catch(()=>{}); }],
   ["addcol",2,async()=>{ log("add column"); await page.click("#addColBtn").catch(()=>{}); }],
   ["resize",2,async()=>{ const w=pick([1440,1100,900,700,420]), h=pick([900,700,600]); log(`viewport ${w}x${h}`); await page.setViewportSize({width:w,height:h}); }],
-  ["minimise",2,async()=>{ log("minimise and restore the worksheet"); await page.evaluate(()=>minimiseWin("sheet")); await wait(ri(50,400)); await page.evaluate(()=>{ openWin("sheet"); focusWin("sheet"); }); }],
+  ["minimise",2,async()=>{ const bar=rnd()<0.5; log(`minimise and restore the worksheet${bar?" from its taskbar button":""}`); await page.evaluate(()=>minimiseWin("sheet")); await wait(ri(50,400));
+      const b=bar&&await page.$('#taskbar .tk[data-tk="sheet"]:not([hidden])');
+      if(b){ await b.click().catch(()=>{}); await wait(30); const k=await page.evaluate(()=>{ const a=document.activeElement; return winOpen("sheet")&&!!a&&!!a.closest&&!!a.closest("#w-sheet"); }); if(!k) fail("the worksheet restored from its taskbar button does not have the keys"); }
+      else await page.evaluate(()=>{ openWin("sheet"); focusWin("sheet"); }); }],
   ["elsewhere",2,async()=>{ log("click the graph"); await page.evaluate(()=>{ const w=winOfGraph(S.gid); if(w) openWin(w); }); const g=await page.$("#plot"); if(g){ const bb=await g.boundingBox(); if(bb) await page.mouse.click(bb.x+20,bb.y+20); } await page.evaluate(()=>focusWin("sheet")); }],
   ["fillh",2,async()=>{ log("fill handle drag"); const h=await page.evaluate(()=>{ const td=document.querySelector("#ws td.fh"); if(!td) return null; const r=td.getBoundingClientRect(); return {x:r.right-3,y:r.bottom-3}; }); if(!h) return; await page.mouse.move(h.x,h.y); await page.mouse.down(); await page.mouse.move(h.x,h.y+ri(30,200),{steps:5}); await page.mouse.up(); await wait(100); }],
   ["filldlg",2,async()=>{ const k=pick(["linear","rows","random","list","even","trend"]); log(`fill dialog ${k}`); await page.evaluate(k=>{ openFillDlg(k); },k); await wait(300); await page.keyboard.press(pick(["Enter","Escape"])); await wait(200); await closeDialogs(); }],

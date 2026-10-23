@@ -128,6 +128,11 @@ show without competing with the data; the graph's grid (`--grid`) is part of the
 - **New graphs keep 480 px.** A graph made beside the worksheet takes its share; otherwise it
   goes beside or below the graph in front, and when neither leaves 480 by 300 px it takes the
   old graph's place and the old one waits in the taskbar.
+- **A window brought forward takes the keys**, as a desktop's does: restored from its taskbar
+  button or chosen in the Window menu, the worksheet's active cell takes what is typed next
+  (before, a minimised worksheet had lost the focus to the page, and typing after restoring it
+  went nowhere). A window brought forward by the app itself (History opening on a first step)
+  leaves the keys where they are, so it never takes them from a field being typed in.
 - **What to do next is said where the user looks.** Before data, the worksheet's foot and the
   status bar: type, paste or Import. With columns and nothing plotted: the status bar, the
   worksheet's *Plot* button, and the import's message. A graph closed, or one in a project made
@@ -201,6 +206,11 @@ Excel's and Origin's conventions, unless noted.
   suggestion in; Enter does only once an arrow has chosen, so Enter still means "keep the
   formula as typed". The user saw "only errors" while typing: a formula not finished yet is now
   said quietly, and only a mistake is red.
+- **A double click is on the cell first pressed.** A click on a cell half out of view scrolls
+  it in, as Excel's does, so the second press of a double click is no longer over the same spot
+  of the cell; when the cell was cut by both the bottom and the right edge, it was over the fill
+  handle, and a double click meant to edit filled the column down. Both presses count as one
+  gesture on the first one's cell, as the person meant.
 - **Original and Processed appear when there is something to tell apart.** A first user does
   not know what "raw" or "final" data are, and before any processing step the two are the same:
   the sheets' switch, the graph's Original / Processed / Both, Data › Show on the graph and the
@@ -587,6 +597,16 @@ The analysis costs a Jacobian, which for a peak fit of thousands of points is a 
 second. It is worked out only while Results is open, and for a fit that heavy only when its
 section is opened; the notes check for outliers only when the model is cheap (timed on one
 sweep), so a fit never waits on its own diagnostics.
+
+### 2026-10-23: two worksheet bugs the random user found
+
+Both had been put down to load, since the fuzzer's seed 9 failed only when three runs shared the
+machine; neither was about timing. A double click on a cell cut by the view's bottom and right
+edges scrolled it in on the first press and landed the second on the fill handle (filling the
+column down over recorded values): the second press now acts on the first's cell. And a
+worksheet minimised and restored had no keyboard focus, so typing straight after went nowhere:
+a window the user brings forward takes the keys. The fill handle also comes back at once after
+Esc (it waited for the next redraw).
 
 ### 2026-10-17: defaults (UX rework, Phase 4 slice 5)
 

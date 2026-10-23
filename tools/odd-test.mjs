@@ -370,6 +370,37 @@ await page(async p => {
   check("the analysis is of the points the fit used", r.n0 === 40, r.n0);
 }, { name: "conf and residuals" });
 
+console.log("The worksheet clicked where its cells are half out of view, and restored");
+await page(async p => {
+  await p.evaluate(() => { Object.keys(WINS).forEach(id=>{ if(id!=="sheet"&&!isDoc(id)) closeWin(id); }); openWin("sheet",{render:true}); focusWin("sheet"); wsSelect(0,0,false);
+    wsPasteText(Array.from({length:300},(_,i)=>Array.from({length:20},(_,j)=>i*20+j).join("\t")).join("\n")); });
+  await p.waitForTimeout(400);
+  // Scroll so that a cell is cut by 8 px at the bottom and 42 px at the right (its centre 8 px in, clear of
+  // the window's resize edge): a first
+  // press scrolls it into view, which puts the second press on its fill handle.
+  const c = await p.evaluate(async () => { const box=$("#ws"), rowH=S.ws.rowH, frame=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+    const edges=()=>{ const b=box.getBoundingClientRect(); return {right:b.left+box.clientWidth, bottom:b.top+box.clientHeight}; };
+    const cut=()=>{ const e=edges(); return [...box.querySelectorAll("td[data-ci][data-r]")].filter(td=>+td.dataset.r>=0).map(td=>({td,r:td.getBoundingClientRect()})).find(o=>o.r.bottom>e.bottom&&o.r.top<e.bottom&&o.r.right>e.right&&o.r.left<e.right); };
+    box.scrollTop=40*rowH; box.scrollLeft=300; await frame();
+    let o=cut(), e=edges(); if(!o) return null;
+    box.scrollTop+=(((o.r.bottom-e.bottom)-8)%rowH+rowH)%rowH; box.scrollLeft+=(((o.r.right-e.right)-42)%100+100)%100; await frame();
+    o=cut(); e=edges(); if(!o) return null;
+    return {r:+o.td.dataset.r, c:+o.td.dataset.ci, x:o.r.left+o.r.width/2, y:o.r.top+o.r.height/2, cutY:Math.round(o.r.bottom-e.bottom), cutX:Math.round(o.r.right-e.right), data:JSON.stringify(sheetCols().map(q=>q.data))}; });
+  check("a cell cut by both edges of the view, to double-click", !!c && c.cutY === 8 && c.cutX === 42, JSON.stringify(c && { cutY: c.cutY, cutX: c.cutX }));
+  if (!c) return;
+  await p.mouse.dblclick(c.x, c.y); await p.waitForTimeout(100);
+  const r = await p.evaluate(() => ({ edit: S.ws.edit ? [S.ws.edit.r, S.ws.edit.c] : null, data: JSON.stringify(sheetCols().map(q=>q.data)) }));
+  check("a double click on it opens that cell, though the first press scrolled it", JSON.stringify(r.edit) === JSON.stringify([c.r, c.c]), JSON.stringify(r.edit) + " wanted " + JSON.stringify([c.r, c.c]));
+  check("and fills nothing down", r.data === c.data);
+  await p.keyboard.press("Control+A"); await p.keyboard.type("-1"); await p.keyboard.press("Enter"); await p.waitForTimeout(100);
+  check("what is typed goes into it", (await p.evaluate(([r, c]) => sheetCols()[c].data[r], [c.r, c.c])) === -1);
+  // Minimised and restored from its taskbar button, the worksheet takes the keys.
+  await p.evaluate(() => { wsSelect(2, 1, false); minimiseWin("sheet"); }); await p.waitForTimeout(300);
+  await p.click('#taskbar .tk[data-tk="sheet"]'); await p.waitForTimeout(30);
+  await p.keyboard.type("4242"); await p.keyboard.press("Enter"); await p.waitForTimeout(100);
+  check("restored from the taskbar, typing at once goes into the active cell", (await p.evaluate(() => sheetCols()[1].data[2])) === 4242, await p.evaluate(() => [sheetCols()[1].data[2], document.activeElement && (document.activeElement.id || document.activeElement.tagName)]));
+}, { name: "worksheet clicks" });
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
