@@ -164,6 +164,13 @@ like Excel". Motion here says where something came from and went to; it never de
 - **Off is a choice.** Preferences › Animations turns all of it off, and so does the system's
   reduced-motion setting; nothing depends on an animation to work, and a window on its way out
   takes no clicks.
+- **A change survives the redraw it causes.** Most forms draw themselves again when a setting
+  changes, so a switch flicked or a segmented choice clicked was replaced by a control already
+  in its new state, and the slide or the fill never showed (the user: "some toggles don't have
+  smooth transitions"). The control changed is remembered for half a second (`MKEEP`); when a
+  redraw puts its twin in its place, the knob's slide or the choice's fill is played on the
+  twin. A segmented choice cross-fades its fill rather than sliding a pill, which would stretch
+  the words.
 
 ## The worksheet
 
@@ -224,6 +231,28 @@ layouts), or **Plot setup…** (Plot menu, the top of the quick list, and what P
 nothing is selected): kinds as pictures, the X column, the Y columns ticked, the target graph,
 and a sketch of the result. Plotting is never automatic after an import from the dialog.
 
+### The Format dialog
+
+- **Typed or picked, as Excel does; sliders where the feel is the point.** Sizes, widths,
+  lengths, offsets and spacings (a legend's line sample and row spacing, tick lengths, a
+  frame's width, a font size) are a field with a list beside it (`comboHtml`): typed, picked
+  from the usual values, or stepped through them with ↑ and ↓, and clamped to what makes sense.
+  The user: "don't use sliders everywhere … a slider for opacity, on the other hand, makes
+  total sense". Opacity and fill stay sliders.
+- **Each kind of text folds** (the user found the six text styles in a row confusing). The Text
+  and fonts page has the graph's font and size for all text, then a line per kind (title, axis
+  titles, tick numbers, legend, labels, fitted peak labels) saying how it looks now (font, size,
+  bold, italic, *its own* when set apart); open one to change it. What is open stays open
+  across the dialog's redraws.
+- **Rows line up.** A text bar is a row labelled *Font* in the label column like any setting,
+  not a block of its own; the edge-by-edge picture keeps its size and its choices their width
+  (they were stretched across the page); a link is a link in the value column, not a button
+  floating on its own line; Add sits in the heading of the list it adds to.
+- **What of the fit is drawn is chosen where the fit is made.** The Fit window's *On the graph*
+  group switches the residuals, the confidence band (shaded), the prediction band (dashed) and,
+  for a peak fit, each fitted peak's shading (the user: "why is there no setting to choose if I
+  want a shading on the fitted curve or not?"); the Graph menu has the same switches.
+
 ## Fitting
 
 The fit is set up in the docked Fit window, beside the live graph, never in a dialog: a
@@ -269,8 +298,20 @@ The menu tree is `ux/spec/menus-after.txt`; `tools/ux/menucheck.py` compares the
   has no "Double-click": a double click on the plot shows all the data).
 - **Moving along the menu bar** opens the next menu only after the pointer rests on its name for
   150 ms: a pointer crossing the bar on its way into a submenu changed menus (Phase 1, T2).
-- **Toolbar**: Explorer │ Import, Export │ Undo, Redo │ Zoom, Pan, Mask, Label, Arrow, Shape │
-  Show all │ Reverse X, Log Y, Grid. The switches are off until there is data. Comment shows
+- **The graph's tools only with a graph** (the user: "they shouldn't be there when I am using
+  the worksheet and no graph is open"). The Graph menu (after Plot: the pointer tools, the two
+  ways of reading values, the view, what of the fit is drawn, Format graph…) and the toolbar's
+  graph group are there while a graph is on the desk, and gone with the worksheet alone
+  (`syncGraphTools`, `body.nograph`); the graph window's own bar repeats the menu.
+- **Reading values, two ways** (Origin's Data Reader and its screen reader's crosshair): the
+  Reader snaps to the plotted point nearest the pointer and pins it on a click, with a card on
+  the graph that names the curve, the row, X and Y, steps along the curve and between curves
+  with the arrows, and finds a point by a typed X or Y; the X–Y lines are two lines dragged
+  across the graph, the card giving every curve's Y at the vertical one and where each curve
+  crosses the horizontal one, either line alone if asked. Both are pointer tools, so they leave
+  the zoom and the selection alone, and neither writes to the project.
+- **Toolbar**: Explorer │ Import, Export │ Undo, Redo │ Zoom, Pan, Mask, Label, Arrow, Shape,
+  Reader, X–Y lines │ Show all │ Reverse X, Log Y, Grid. The switches are off until there is data. Comment shows
   in a shared project only (alone, Add here › A comment here…). What the graph shows, Original,
   Processed or Both, is on the graph window's own bar, beside the menus it repeats; the plot
   type and the layout are in Plot and a curve's right-click; the residual panel is switched in
@@ -299,13 +340,45 @@ cannot go into an SVG exported as a figure or into Kurve's PDF writer. The types
 and writes positioned text and rules. Nothing in it runs code; an unknown command is shown as
 typed so a mistake is visible. The earlier markup could not nest (`PER_{log_{10}}` broke).
 
+### Two ways to type it: formatted, or LaTeX
+
+The user found the LaTeX field with its buttons and preview "unpolished", and asked for a
+choice: LaTeX, or natural text with symbols and raised and lowered characters picked from a
+large list, shown as in Word, with no renderer. So every rich field types either way, chosen by
+its *LaTeX* button (or Preferences › Typing text), kept per browser:
+
+- **Formatted** (the default): a contenteditable editor over the field (`.ned`) shows the text
+  as it reads, raised and lowered characters raised and lowered, symbols as themselves. x² and
+  x₂ (Ctrl+Shift+= and Ctrl+=) raise or lower the selection or what is typed next, and show
+  whether the caret is raised; αΩ opens the symbols. No preview: what is in the field is what
+  is drawn. Bold, italic and colour are not per letter (the text's style is set whole), so
+  Ctrl+B and the like do nothing there rather than show something that would not be drawn.
+- **LaTeX**: the source, with its preview under it, the buttons writing `^{}`/`_{}` and a
+  symbol's command where LaTeX has a usual one.
+- **One stored text.** Both keep the same text (with LaTeX), so a project typed one way opens
+  the other, exports are unchanged and nothing migrates. `texToNat`/`natToTex` (in the TEX
+  block, tested) convert, and a text written back draws exactly as it did. A text a word
+  processor cannot show (maths, a fraction, a root, an accent, a font, a script on a script)
+  stays in LaTeX and says so; a sub- then a superscript are written with `{}` between, so they
+  follow one another as the field showed them; `{x}`, `{name}` and the other placeholders are
+  kept as typed.
+- **The input stays the field.** The editor writes the field's own input on every change and
+  announces input and change as the input would, so every form reads it unchanged; focus sent
+  to the input goes to the editor, and Enter in a one-line field enters it (a change, and OK in
+  a dialog that takes Enter).
+- **A large list of symbols** (about 240, by kind: Greek, units and letters, operators,
+  relations, arrows, raised and lowered digits, fractions, brackets, punctuation, accented
+  letters), searched by name (*alpha*, *degree*, *arrow*), with the hovered one named and its
+  command shown; Shift+click picks several.
+
 ### One box for typing
 
-`inlineBox` is the only in-place editor: a field over the text, the superscript, subscript
-and symbol buttons, a line showing the LaTeX typeset as it will be drawn (or, before any
-LaTeX, the keys and a few examples), Enter to keep, Esc to leave, ⋯ for every setting. Titles,
-legend entries, the legend's title, labels, text and line text all use it. In dialogs, every
-rich field is `.rfield`: the field, the same three buttons, and the same preview under it.
+`inlineBox` is the only in-place editor: a field over the text (formatted or LaTeX, as
+chosen), the superscript, subscript, symbol and LaTeX buttons, a line showing the LaTeX
+typeset as it will be drawn (formatted: only the keys), Enter to keep, Esc to leave, ⋯ for
+every setting. Titles, legend entries, the legend's title, labels, text and line text all use
+it. In dialogs, every rich field is `.rfield`: the field, the same four buttons, and in LaTeX
+the same preview under it.
 
 ### One menu order
 
@@ -607,6 +680,16 @@ column down over recorded values): the second press now acts on the first's cell
 worksheet minimised and restored had no keyboard focus, so typing straight after went nowhere:
 a window the user brings forward takes the keys. The fill handle also comes back at once after
 Esc (it waited for the next redraw).
+
+### 2026-10-23: the user's issues from before 19.10
+
+Eight points from the user, each answered above: a Graph menu and the toolbar's graph group
+only while a graph is on the desk; a Data reader and X–Y lines for reading values; the fit's
+shading and bands switched in the Fit window; values typed or picked rather than slid; each
+kind of text folded under its own line; formatted text or LaTeX, with a large list of symbols
+and no preview for formatted text; transitions that survive the redraw they cause; boxes put in
+their rows (the edge-by-edge choices, a lone Add, a link, the Fit window's range clipped to two
+characters in the dock).
 
 ### 2026-10-17: defaults (UX rework, Phase 4 slice 5)
 

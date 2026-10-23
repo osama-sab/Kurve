@@ -10,11 +10,12 @@ changes the interface updates it with the decision and the reason.
 ## The screen
 
 A desktop-style frame, top to bottom: a title bar with the **menus** (File, Edit, Data, Plot,
-Analysis, Statistics, Spectroscopy, Window, Help; the tree is `ux/spec/menus-after.txt`; each short, its kinds opening side submenus on
+Graph (only while a graph is on the desk), Analysis, Statistics, Spectroscopy, Window, Help; the tree is `ux/spec/menus-after.txt`; each short, its kinds opening side submenus on
 hover, and a tool opening its dialog) and the project name (click to rename; the arrow
 beside it switches, creates and deletes projects); a **toolbar** (the Project Explorer's switch, Import, Export, undo/redo,
 the pointer tools Zoom / Pan / Mask / Label / Arrow / Shape (a box or an ellipse, chosen from its menu) / Comment (in a
-shared project only), show-all, and the Reverse X / Log Y / Grid toggles, off until there is data; it keeps to one row, dropping labels
+shared project only) / Reader / X–Y lines, show-all, and the Reverse X / Log Y / Grid toggles, off until there is data, the
+graph's group (`.tg`) only while a graph is on the desk; it keeps to one row, dropping labels
 in stages while it would wrap and last the Explorer's switch (not on a phone), `fitToolbar`); the **Project Explorer** docked at the desk's left
 (the project as a tree, as Origin's: folders and subfolders of your own, the worksheet, each file
 imported with its spectra and data columns, every graph, closed ones marked hidden, and the trend
@@ -23,8 +24,8 @@ drawer over the desk);
 the **desk**; and a **status bar**
 (tool hint, live cursor readout, point counts, fit state, save state). A gear at the title bar's right
 opens **Preferences** (File › Preferences…, Edit › Preferences…, Ctrl+,): whether a history of
-changes is kept (off, nothing but errors is logged), the theme, the style, animations, what
-opens after an import, and the errors met, all kept per browser. Window › Theme picks
+changes is kept (off, nothing but errors is logged), the theme, the style, animations, how text
+is typed (formatted or LaTeX), what opens after an import, and the errors met, all kept per browser. Window › Theme picks
 light or dark, and Window › Style the look of the interface: **Bench** (the default: IBM Plex,
 blue for everything you can change) or **Graphite** (Geist, black and white, blue only for the
 keyboard focus). Both are remembered per browser; neither changes the graph's colours. Both are
@@ -121,8 +122,11 @@ and plots nothing: columns are plotted when ready, by selecting them and pressin
 **Plot** on the worksheet's bar, or in **Plot setup…** (kinds as pictures, X, the Ys ticked,
 the graph, a sketch). Columns move by dragging their letters, their values align left, centre
 or right, and the value box above the grid is a formula bar. Every text on the graph is
-written in **LaTeX**, typeset by Kurve in the graph's own font (and so in every export), and
-typed in place in one box with a preview; the legend is selected by a click and its entries
+typed **formatted** (as in a word processor: raised and lowered characters, symbols from a long
+list, no preview) or in **LaTeX** (the source and a preview), chosen per browser, and stored as
+LaTeX either way, typeset by Kurve in the graph's own font (and so in every export), typed in
+place in one box; values are read off the graph with the **Reader** (a point pinned, found by its
+X or Y) or the **X–Y lines** (every curve's Y at one X, where the curves cross one Y); the legend is selected by a click and its entries
 typed over; everything with text has one right-click menu order. Files **dropped** on the window are read with the automatic
 choices and plotted at once (on the graph they are dropped on, a new graph, or a folder of
 the Explorer), with "Read it differently" to undo and open the dialog. Error bars are Y or X,
@@ -1157,7 +1161,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   `runPeakFinder(append)` seeds the draft from them, measuring a peak on a larger one's tail
   from its own valleys), 2 Peaks and baseline (its header's **Add a
   peak**, `#pfAddMode`, is the Add peak pointer mode, which left the toolbar), 3 Fit; both fits have
-  Residuals under the graph (`fitResidHtml`, `#fitResid`), also Analysis › Fit: `residOn(cfg,
+  an *On the graph* group (`fitResidHtml(peaks)`, `.fitshow`: the residuals `#fitResid`, the
+  confidence band `#fitBandC` (`bandConf`), the prediction band `#fitBandP` (`bandPred`), and
+  for a peak fit each fitted peak shaded `#fitPkFill` (`series.__peaks.fill`)), also Analysis › Fit
+  and the Graph menu; for the residuals `residOn(cfg,
   fit)` is every reader's door (`resid` true or false by hand; "auto" or missing: on for a peak
   fit, off for a curve fit; `residHint()` the fit the window is set to make). Both stickies
   start with `weightHtml(d)` (how the fit will be weighted, naming the error column). The curve
@@ -1281,10 +1288,36 @@ graph first, with the taskbar kept at the bottom of the screen.
   five times the noise; the same test gates *Label the peak at…* on a curve and the statistics'
   spectral measures) (`autoOverview`, off per browser under
   `kurve.ovAuto`), from Spectroscopy › Overview of the spectrum…, and from a raw box in the History.
+- **Reading values** (the `readers` module after `MODE_HINT`; DESIGN.md, Menus and the toolbar):
+  two pointer modes, `reader` and `cross`. `readerCurves()` (the curves drawn, their points on
+  screen), `readerNear(px, py, maxd)`, `rdPin(hit, say)`, `rdStep(dk, dc)` (along a curve, between
+  curves), `rdIntoView`, `rdFind(axis, txt)` (the nearest point with that X or Y, brought into
+  view), keyed per project and graph (`rdKey`); the X–Y lines `xhState()` (`{x, y, mode}`),
+  `XH_MODES` (both, vertical, horizontal; `xhMode`/`setXhMode`, `kurve.xh`), `xhCrossings(rc, axis,
+  at)` (by interpolation on screen), dragged by `xhDown`/`xhMove` (`S.xhdrag`). `drawReaders()`
+  draws `#rdLayer` over the plot (rings, guides, the lines with hit strips `data-xh="v|h|c"`, tags
+  `.rdtag`) after every `renderPlot`; `renderRdCard(full)` the card `#rdCard` in `#figure`
+  (rebuilt only when its `data-sig` changes, the values written in place; `placeRdCard`,
+  `wireRdCard`, `rdText` for Copy). The keys are in `graphKey`. Neither writes to the project.
+  `graphOnDesk()`/`syncGraphTools()` (end of `renderTop` and `applyWins`) hide the Graph menu
+  (`[data-menu="graph"]`, `graphToolsMenu()`, the graph window's `data-rmenu="graph"`) and the
+  toolbar's `.tg` group with no graph on the desk (`body.nograph`).
+- **Values typed or picked** (`comboHtml(attrs, val, list, {unit, ro, ph})`, `CMB` the lists,
+  `setupCombos`): a text field carrying the form's own attributes (`data-pd`, `data-num`,
+  `data-min`/`data-max`, clamped by the Format dialog's `onVal`) and `.combo-b`, which drops the
+  list (`toggleMenu`, `focus:"checked"`: `openMenu` puts the keys on the checked radio item);
+  ↑/↓ step through the list (`comboSet` dispatches input and change). The Format dialog's `cmb`
+  replaced its sliders but opacity's; the text bar's size is one (`.tszc`).
+- **Transitions that survive a redraw** (`setupMotionKeep`, `MKEEP`, `ctlKey`, `segKey`): a
+  switch changed or a segmented choice clicked is remembered for 500 ms; when a redraw puts its
+  twin in its place (a MutationObserver), the knob's slide or the fill's cross-fade is played on
+  the twin with `animate`.
 - **Typing on the graph**: one box for every text, `inlineBox(o)` (`.inled`: `#inledIn`, an
-  input or for several lines a textarea, `rtool("inledIn")`, ⋯ `data-inmore` for `o.more`,
-  and `.inled-pv`: the text typeset by `texPreview(v, 17, o.st)` in its own style once it has
-  LaTeX, else the keys and a few examples). `o.el` (or `o.rect`) is what it covers; Enter
+  input or for several lines a textarea, formatted or LaTeX (`richMount(box)`, its editor
+  `#inledInNed` with `data-enterkeeps`; the box's keys and blur listen on both), `rtool("inledIn")`,
+  ⋯ `data-inmore` for `o.more`, and `.inled-pv`: in LaTeX the text typeset by
+  `texPreview(v, 17, o.st)` in its own style once it has LaTeX, else the keys and a few examples;
+  formatted, the keys only; redrawn on the input's `richmode` event). `o.el` (or `o.rect`) is what it covers; Enter
   keeps (`o.keep(v)`), Esc leaves (`o.cancel`), a click elsewhere keeps unless the symbol grid
   is open (`spOpen`). Built on it: `inlineEditTitle(k)` (graph and axis titles,
   `titleStyleOf(k)` for the preview), `inlineEditLegend(hit)` (`"title"`, or `"leg:<id>"`: the
@@ -1296,7 +1329,33 @@ graph first, with the taskbar kept at the bottom of the screen.
   when the press was on it (`S.andrag.txt`), else its Format page. Rich text groups carry
   `data-rt`, so `[data-rt], text` finds what to cover. In dialogs a rich field is `.rfield`: the
   field, `rtool(id)` and `texPv(id, v)` (`.texpv[data-texpv]`, kept up to date by an input
-  listener in `setupRichTools`).
+  listener in `setupRichTools`, empty while formatted).
+- **Formatted or LaTeX** (DESIGN.md, Text: two ways to type it): every `[data-rich]` field is
+  mounted by `richMount(root)` (a MutationObserver in `setupRichTools`, and directly by
+  `inlineBox` and `renderPlotDetails` before they restore the focus): `richApply(inp, want)` puts
+  a contenteditable editor before it (`.inp.ned`, `.multi` for a textarea, id `<input id>Ned`,
+  `inp._ned`, `inp._mode` `"nat"` or `"tex"`) and, formatted, shows `natHtml(texToNat(value))`
+  and hides the input (`.rich-hid`: focusable, tabindex -1, aria-hidden; focus sent to it goes to
+  the editor, `richFocus(inp, all)`), the `.rfield`/`.inled` marked `.nat`. LaTeX is
+  `prefGet("texLatex")` (`texLatexOn()`, `PREF_DEF` false), set by `setTexMode(latex, from)`
+  (the `[data-rtmode]` button of `rtool`, Preferences › Typing text), which applies to every
+  mounted field; a value `texToNat` cannot show stays `"tex"` (a toast when it was the field
+  clicked). `natWire`: every edit writes `natToTex(natRead(ned))` into the input and dispatches
+  `input` (`natSync`); leaving dispatches `change` (not when the focus went into the symbol
+  list); Enter in one line dispatches `change` and then a keydown Enter on the input (a dialog's
+  OK), in several lines a `<br>` (`insertLineBreak`); Ctrl+B/I/U and `format*` inputs other than
+  scripts are refused; paste is plain text. `natScript(inp, "^"|"_")` is
+  `execCommand("superscript"|"subscript")`, and `natTools` (on `selectionchange`) presses x² or
+  x₂ where the caret is. The pure part is in the TEX block: `texToNat(src)` (runs `{s, v}`, v 1
+  raised, -1 lowered; null for maths, fractions, roots, accents, fonts, set spaces, nested
+  scripts, a stacked sub- and superscript, or `\{x\}`), `natToTex(runs)` (`natEsc`: `\ $ { } ~`
+  escaped, placeholders `NAT_PH` kept; `{}` between a subscript and a superscript), `natMerge`;
+  `tools/tex-test.mjs` checks that every text written back draws as before. **The symbols**:
+  `SYM_KINDS` (eleven kinds, about 240, each `char name words`), `SYM_TEX` (LaTeX's usual
+  command, from `TEX_SYM` less Kurve's own names), `openSymPicker(btn, target, {keys})` (`.sympick`:
+  a search `.sysearch`, kinds `.syk` with grids `.sygrid`, the hovered one named in `.syname`;
+  the editor's selection kept and put back; formatted, `insertText` of the character; LaTeX, the
+  command, with `{}` before a letter; Shift+click keeps it open; arrows, Enter, Escape).
 - **The legend selected** (`S.legSel = {g, hit}`, `hit` `"box"`, `"title"` or `"leg:<id>"`): a
   click selects (a dashed outline round the legend, the entry shaded, both drawn by
   `buildPlot` with `pointer-events="none"`; every entry and the title have a transparent hit
@@ -1651,7 +1710,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   with Add here inline; `commentAt(pt)` is Add here › A comment here…). **The Format dialog**: `openPlotDetails(id, page)` (`#plotModal`; pages `series`
   with `S.pdSel`, `ax:x|y|y2`, `frame`, `text`, `legend`, `layout`, `labels`, or
   `anno:<id>`; the old tab names map through `PD_PAGES`), `renderPlotDetails` (a side list
-  of pages, each page in groups; focus and scroll kept across redraws), `pdSet(path, v)` on
+  of pages, each page in groups; focus and scroll kept across redraws; sizes and widths are
+  `cmb` fields, opacity the only sliders; the Text and fonts page has the graph's font and size,
+  then a folding card per kind of text, `details.grp.pdcard[data-pdcard]`, its summary saying how
+  it looks, its open state in `S.pdOpen` (a capture `toggle` listener that checks
+  `isConnected`); a text bar is a row labelled Font; Labels and lines has Add in its heading,
+  `.pd-hadd`), `pdSet(path, v)` on
   the working copy (`series.`, `ax.`, `allax.`, `txt.`, `annos.<id>[.key]`, `hidden.`, or a
   top-level key) with `pdGet`, `pdTxtGet`/`pdTxtSet` (an annotation's text bar maps to its
   own keys, `ANNO_TX`), `pdPreset` (quick styles), `pdAct`, `pdAnnoEditor(a)`, and
@@ -2543,6 +2607,27 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   which is the History's code for a fingerprint: every check code would have faded in. The
   pickers are `.fpick` and `.cpick`; grep a class before styling it.
 
+- **A form that draws itself again on a change takes its own transitions with it.** A switch
+  flicked or a segmented choice clicked was replaced, within the same event, by a control
+  already in its new state, so its CSS transition never ran and the user saw toggles snap. The
+  change is remembered and played on the replacement (`MKEEP`); a redraw that cannot be
+  avoided need not look like one.
+- **An editor that is not an input must still be the input.** The formatted editor is a
+  contenteditable, and every form reads inputs (`data-pd`, `input` and `change` events, Enter
+  for OK, `label for`, focus restored by id after a redraw). The input stays, hidden but
+  focusable; the editor writes it and announces what an input would, focus sent to the input
+  goes to the editor, Tab skips the hidden input, and a redraw mounts the new editor before the
+  focus comes back (`richMount` in `renderPlotDetails`, not only the observer, which runs too
+  late for that).
+- **`{x}` is a group to LaTeX and a placeholder to a label.** The first converter from typed text
+  to LaTeX escaped every brace, so a label's `{x}` would have stopped showing the position. What
+  the app fills in is kept as typed both ways, and `\{x\}` (braces meant as characters) stays in
+  LaTeX rather than becoming the placeholder.
+- **A list opened from a value opens on the value.** The value lists opened with their first
+  item under the keys, so ↓ and Enter from 18 px picked 10 px. `openMenu(…, {focus:"checked"})`.
+- **A field squeezed by its neighbours in a dock shows two characters.** The fit's range fields
+  shrank to fit the row in the 356 px dock and read "1(" for 1550; the row wraps instead.
+
 ## Roadmap
 
 Under way: the curve fit as complete as Origin's fitting dialogs (`ux/spec/FIT_SPEC.md`, the
@@ -2570,6 +2655,18 @@ correlation and covariance of the parameters; residuals regular, standardised, s
 studentised deleted, under the graph and in six views in Results; outliers past a Bonferroni
 limit, ringed, listed and masked in one step; all of it in the report, the copied table and the
 CSV.
+
+Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
+graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
+click, stepped along and between curves, found by a typed X or Y, in a card on the graph) and
+X–Y lines (dragged across the graph: every curve's Y at one X, where each crosses one Y, either
+line alone); the fit's bands and peak shading switched in the Fit window (*On the graph*) and the
+Graph menu; sizes typed or picked from a list instead of slid, opacity alone a slider; each kind
+of text folded under a line saying how it looks; text typed formatted, as in a word processor
+(raised and lowered characters, about 240 symbols searched by name, no preview), or in LaTeX,
+stored as LaTeX either way; switches and segmented choices that keep their transition through
+the redraw they cause; boxes put in their rows (the edge-by-edge choices, Add, a link, the fit's
+range in the dock).
 
 Between slices 1 and 2, from the user's bug reports: graphs as one list (document version 5).
 A project has no graph until something is plotted, so a project can be worksheet calculations
@@ -2887,6 +2984,9 @@ Next, in order:
 
 ## Known gaps
 
+- Formatted text has one level of raised and lowered characters (no script on a script, no
+  sub- and superscript stacked; those stay in LaTeX), no bold or italic inside a text, and uses
+  the browser's own superscript command (`execCommand`), which every browser still has
 - Text with LaTeX: no matrices, arrays, aligned equations, `\newcommand`, or colours and sizes
   inside a text (the whole text has one colour and size); a legend's rows and a label's lines
   keep their spacing however tall a fraction in them is; the Help shows fractions and roots on

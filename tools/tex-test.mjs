@@ -11,7 +11,7 @@ const html = readFileSync(process.argv[2] || join(here, "..", "kurve.html"), "ut
 const m = html.match(/==TEX:START==[\s\S]*?\*\/([\s\S]*?)\/\* ==TEX:END==/);
 if (!m) { console.error("Could not find the TEX block"); process.exit(1); }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const T = new Function("esc", m[1] + "\nreturn {texParse,texLayout,texSvgOf,texHtml,texPlain,texNeeds};")(esc);
+const T = new Function("esc", m[1] + "\nreturn {texParse,texLayout,texSvgOf,texHtml,texPlain,texNeeds,texToNat,natToTex,natMerge};")(esc);
 let pass = 0, fail = 0;
 const check = (name, ok, info) => { if (ok) { pass++; console.log("  ok   " + name); } else { fail++; console.log("  FAIL " + name + (info !== undefined ? "  (" + (typeof info === "string" ? info : JSON.stringify(info)) + ")" : "")); } };
 const meas = (s, z) => [...s].length * 0.5 * z;
@@ -55,5 +55,19 @@ check("HTML escapes what it is given", T.texHtml("a<b & $c$") === "a&lt;b &amp; 
 { const b = L("$x^2_i + \\frac{a}{b}$"), svg = T.texSvgOf(b, "#123456", 10, 20);
   check("SVG: positioned text in its sizes and styles, the rule in the text's colour", /<text x="10\.00" y="20\.00" font-size="12\.00" font-style="italic">x<\/text>/.test(svg) && /<path d="M[^"]+" fill="none" stroke="#123456"/.test(svg), svg); }
 check("SVG leaves out spaces at the ends but keeps their width", (() => { const b = L("a $x$"), svg = T.texSvgOf(b, "#000", 0, 0); return />a<\/text>/.test(svg) && !/> a</.test(svg); })());
+
+// Formatted text (a word processor's runs) and LaTeX: the same drawing either way.
+{ const same = s => { const n = T.texToNat(s); return n && JSON.stringify(L(T.natToTex(n))) === JSON.stringify(L(s)); };
+  const ok = ["cm^{-1}", "H_{2}O", "Wavenumber (cm^{-1})", "\\alpha-Fe_{2}O_{3}", "T_{g} = 75 \\deg C", "price $5", "back\\\\slash", "a~b", "sample_01", "run^2", "{abc}", "\\{abc\\}"];
+  check("formatted runs read from LaTeX draw the same once written back", ok.every(same), ok.filter(s => !same(s)));
+  check("runs: on the line, raised and lowered", JSON.stringify(T.texToNat("Wavenumber (cm^{-1})")) === JSON.stringify([{ s: "Wavenumber (cm", v: 0 }, { s: "-1", v: 1 }, { s: ")", v: 0 }]));
+  check("what a word processor cannot show stays LaTeX", ["$x$", "\\frac{a}{b}", "\\sqrt{2}", "\\{x\\}", "\\hat{x}", "\\textbf{x}", "\\mathrm{d}", "x^{a^{b}}", "x_{2}^{3}", "a\\,b"].every(s => T.texToNat(s) === null));
+  check("characters LaTeX reads are escaped", T.natToTex([{ s: "a\\b $5 {c} ~d", v: 0 }]) === "a\\\\b \\$5 \\{c\\} \\~d", T.natToTex([{ s: "a\\b $5 {c} ~d", v: 0 }]));
+  check("placeholders are kept as typed, both ways", T.natToTex([{ s: "{n}: {name} at {xc}", v: 0 }]) === "{n}: {name} at {xc}" && JSON.stringify(T.texToNat("{x} cm^{-1}")) === JSON.stringify([{ s: "{x} cm", v: 0 }, { s: "-1", v: 1 }]));
+  check("a subscript then a superscript follow one another ({} between)", T.natToTex([{ s: "x", v: 0 }, { s: "2", v: -1 }, { s: "3", v: 1 }]) === "x_{2}{}^{3}" && same("x_{2}{}^{3}"));
+  check("runs merge, and a new line in a script comes back to the line", JSON.stringify(T.natMerge([{ s: "a", v: 0 }, { s: "b", v: 0 }, { s: "1\n2", v: 1 }, { s: "", v: -1 }])) === JSON.stringify([{ s: "ab", v: 0 }, { s: "1", v: 1 }, { s: "\n", v: 0 }, { s: "2", v: 1 }]));
+  check("lines read one by one", JSON.stringify(T.texToNat("a^{2}\nb_{1}")) === JSON.stringify([{ s: "a", v: 0 }, { s: "2", v: 1 }, { s: "\nb", v: 0 }, { s: "1", v: -1 }]));
+  check("symbols come as their characters", JSON.stringify(T.texToNat("\\alpha\\deg{}\\pm")) === JSON.stringify([{ s: "α°±", v: 0 }]), T.texToNat("\\alpha\\deg{}\\pm"));
+  check("empty text, empty runs", JSON.stringify(T.texToNat("")) === "[]" && T.natToTex([]) === ""); }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

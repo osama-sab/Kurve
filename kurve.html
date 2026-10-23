@@ -385,6 +385,31 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .rdcard td{font-family:var(--mono);overflow-wrap:anywhere}
 .rdcard thead th{color:var(--muted);font-weight:600}
 .rdcard .sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:var(--sp-2)}
+/* A combo box: a number typed, or picked from the list its button drops (Excel's widths and sizes). */
+.combo{display:inline-flex;align-items:stretch;width:92px;height:28px;flex:0 0 auto;border:1px solid var(--rule);border-radius:var(--r);background:var(--panel);transition:border-color .15s,box-shadow .15s}
+.combo:focus-within{border-color:var(--focus);box-shadow:0 0 0 3px var(--focus-soft)}
+.combo input,.combo input[type=text]{flex:1;min-width:0;width:auto;height:100%;border:0;border-radius:var(--r) 0 0 var(--r);box-shadow:none;background:transparent;padding:0 var(--sp-2) 0 var(--sp-3);font-family:var(--mono);font-size:var(--fs-tab);text-align:right}
+.combo input:focus{box-shadow:none;outline:none}
+.combo-b{flex:0 0 22px;display:grid;place-items:center;padding:0;border:0;border-left:1px solid var(--rule-2);border-radius:0 var(--r) var(--r) 0;background:transparent;color:var(--ink-2);cursor:pointer}
+.combo-b:hover:not(:disabled){background:var(--btn-bg-h);color:var(--ink)}
+.combo:has(input:disabled){border-style:dashed;border-color:var(--rule-2)}
+.cmb{justify-self:start}
+.tbar .tszw{display:inline-flex;align-items:center;gap:var(--sp-1);flex:0 0 auto}
+.tbar .tszc{width:72px}
+.tbar .tszc .tsz{width:auto;height:100%;padding:0 var(--sp-1) 0 var(--sp-2)}
+/* Text bars in the Format dialog's label grid: the font on the first line, the rest after. */
+.pd-grp .frow>.tbar{row-gap:var(--sp-3)}
+.pd-grp .frow>.tbar>.fpbtn{flex:1 1 180px;max-width:260px}
+details.grp.pdcard{margin-bottom:var(--sp-3)}
+details.grp.pdcard>summary .sum{display:inline-flex;align-items:center;gap:var(--sp-2)}
+details.grp.pdcard .frow{margin-bottom:0}
+.pdsw{display:inline-block;width:10px;height:10px;border-radius:2px;border:1px solid var(--rule)}
+.pd-foot{margin-top:var(--sp-5)}
+.edgectl>.seg{align-self:flex-start}
+.edgepic{width:208px}
+.edgectl .frow{grid-template-columns:64px max-content}
+.fitshow{display:flex;flex-direction:column;gap:var(--sp-2);margin:var(--sp-3) 0}
+.fitshow>.lab{font-weight:600;color:var(--ink)}
 .ws tbody td.fh{position:relative}
 .ws tbody td.fh::after{content:"";position:absolute;right:0;bottom:0;width:7px;height:7px;background:var(--accent);box-shadow:0 0 0 1px var(--panel);cursor:crosshair}
 .ws td.fillp{box-shadow:inset 0 0 0 1px var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--panel))}
@@ -1320,9 +1345,32 @@ input[type=checkbox]:indeterminate:not(.chk>input){background-color:var(--ctl-on
 .rtool button{min-width:28px;height:28px;padding:0 var(--sp-2);border:1px solid var(--rule);border-radius:var(--r);background:var(--panel);color:var(--ink-2);cursor:pointer;font:var(--fs-body)/1 var(--serif,Georgia),serif}
 .rtool button:hover{border-color:var(--faint);color:var(--ink)}
 .rtool sup,.rtool sub{font-size:9px;line-height:0}
-.sympick{position:fixed;z-index:70;display:grid;grid-template-columns:repeat(9,28px);gap:var(--sp-1);padding:var(--sp-3);background:var(--panel);border:1px solid var(--rule);border-radius:var(--r-win);box-shadow:0 12px 32px rgba(16,24,40,.22),0 2px 6px rgba(16,24,40,.08)}
-.sympick button{height:28px;border:0;border-radius:var(--r-s);background:transparent;color:var(--ink);cursor:pointer;font:15px/1 Georgia,'Times New Roman',serif}
-.sympick button:hover,.sympick button:focus-visible{background:var(--accent-soft)}
+.sympick{position:fixed;z-index:70;display:flex;flex-direction:column;width:348px;max-height:min(380px,70vh);background:var(--panel);border:1px solid var(--rule);border-radius:var(--r-win);box-shadow:0 12px 32px rgba(16,24,40,.22),0 2px 6px rgba(16,24,40,.08);overflow:hidden}
+.sympick .sysearch{margin:var(--sp-3) var(--sp-3) var(--sp-2);flex:0 0 auto}
+.sympick .syscroll{overflow-y:auto;padding:0 var(--sp-3) var(--sp-2);flex:1 1 auto}
+.sympick .syk h4{margin:var(--sp-3) 0 var(--sp-1);font:600 var(--fs-cap)/1.3 var(--sans);color:var(--ink)}
+.sympick .syk[hidden]{display:none}
+.sympick .sygrid{display:grid;grid-template-columns:repeat(10,30px);gap:var(--sp-1)}
+.sympick .sygrid button{height:30px;border:0;border-radius:var(--r-s);background:transparent;color:var(--ink);cursor:pointer;font:16px/1 Georgia,'Times New Roman',serif}
+.sympick .sygrid button[hidden]{display:none}
+.sympick .sygrid button:hover,.sympick .sygrid button:focus-visible{background:var(--hi);outline:none;box-shadow:inset 0 0 0 1px var(--accent)}
+.sympick .synone{margin:var(--sp-4) 0;color:var(--muted);font-size:var(--fs-tab)}
+.sympick .syname{flex:0 0 auto;padding:var(--sp-2) var(--sp-4);border-top:1px solid var(--rule);background:var(--panel-2);color:var(--muted);font-size:var(--fs-tab);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rtool button[aria-pressed="true"]{background:var(--seg-on);color:var(--seg-on-ink);border-color:var(--seg-on)}
+.rtool .rtmode{font:600 var(--fs-cap)/1 var(--sans);padding:0 var(--sp-3)}
+.ned{display:block;cursor:text;color:var(--ink);font-size:var(--fs-body);line-height:26px;white-space:pre;overflow:hidden;scrollbar-width:none}
+.ned::-webkit-scrollbar{display:none}
+.ned.multi{height:auto;min-height:28px;max-height:140px;overflow-y:auto;line-height:20px;padding:var(--sp-2) var(--sp-4);white-space:pre-wrap}
+.ned:empty::before{content:attr(data-ph);color:var(--muted);pointer-events:none}
+.ned[hidden]{display:none}
+.ned sup,.ned sub{font-size:72%;line-height:0}
+.ned[contenteditable="false"]{color:var(--ink-off);border-style:dashed;cursor:default}
+.pair>.ned{flex:1 1 auto;min-width:0}
+.rfield .pair>.ned{max-width:340px}
+.rich-hid{position:absolute!important;width:1px!important;height:1px!important;min-height:0!important;padding:0!important;border:0!important;opacity:0;pointer-events:none;overflow:hidden;clip-path:inset(50%)}
+.rfield.nat .texpv{display:none}
+.inled .ned{flex:1;min-width:0;height:28px;border:0;outline:none;background:transparent;padding:0 var(--sp-3);box-shadow:none;line-height:28px}
+.inled .ned.multi{height:auto;line-height:19px;padding:var(--sp-2) var(--sp-3)}
 .pd-place{display:grid;grid-template-columns:repeat(3,26px);grid-template-rows:repeat(3,20px);gap:var(--sp-1);padding:var(--sp-1);border:1px solid var(--rule);border-radius:var(--r);width:max-content;background:var(--panel-2)}
 .pd-place button{border:0;background:transparent;border-radius:var(--r-s);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
 .pd-place button i{width:7px;height:7px;border-radius:50%;background:var(--faint)}
@@ -1460,7 +1508,8 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
 /* The Peaks pane has 14px of padding below: the footer sits on the window's edge, not above it. */
 @media (min-width:861px){ .sticky.pkfoot{bottom:calc(var(--sp-5) * -1);margin-bottom:calc(var(--sp-5) * -1)} }
 .fwhere{margin:var(--sp-5) 0 var(--sp-1)}
-.fwhere .pair input{width:90px}
+.fwhere .pair{flex-wrap:wrap;row-gap:var(--sp-2)}
+.fwhere .pair input{flex:0 0 auto;width:78px}
 .sticky .fdone{margin-left:auto}
 .pcard-h .pname{flex:0 1 130px;min-width:60px;height:24px;font-size:var(--fs-tab);padding:var(--sp-1) var(--sp-3)}
 .fplrow{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-3);margin:var(--sp-5) 0 var(--sp-1)}
@@ -1618,7 +1667,7 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
 .lndlg .seg>button .ic{margin-right:calc(var(--sp-1) * -1)}
 .lndlg select{width:auto}
 .lndlg>.seg{justify-self:start}
-.pd-anhead{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);margin:0 0 var(--sp-3)}
+.pd-grp>h4 .pd-hadd{margin-left:auto}
 .fanno{list-style:none;padding:0;margin:0 0 var(--sp-4)}
 .fanno li{display:flex;gap:var(--sp-2);align-items:center;padding:var(--sp-1) 0;border-bottom:1px solid var(--rule-2);font-size:var(--fs-tab)}
 .fanno li .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -6578,7 +6627,7 @@ function txtBarHtml(path,st,auto,opt){
   const on=k=>st[k]!=null?!!st[k]:!!auto[k];
   const tog=(k,lab,inner)=>`<button type="button" class="tbt${on(k)?" on":""}" data-tbt="${k}" aria-pressed="${on(k)}" title="${lab}" aria-label="${lab}"${ro}>${inner}</button>`;
   let h=`<div class="tbar" data-tb="${esc(path)}" data-inh="${esc(opt.inheritLabel||"")}"><button type="button" class="fpbtn" data-tbf aria-label="Font" title="Font" style="font-family:${esc(fstk)}"${ro}><span>${esc(flab)}</span>${ICON("chev","sm")}</button>`;
-  h+=`<input type="text" class="tsz" data-tbs list="ptSizes" inputmode="decimal" value="${st.size?esc(String(st.size)):""}" placeholder="${auto.size?esc(String(PT(auto.size))):""}" aria-label="Size in points" title="Size in points; empty for automatic"${ro}><span class="tbu">pt</span>`;
+  h+=`<span class="tszw"><span class="combo tszc"><input type="text" class="tsz" data-tbs data-list="${CMB.pt.join(" ")}" inputmode="decimal" autocomplete="off" value="${st.size?esc(String(st.size)):""}" placeholder="${auto.size?esc(String(PT(auto.size))):""}" aria-label="Size in points" title="Size in points; empty for automatic"${ro}><button type="button" class="combo-b" tabindex="-1" aria-label="Sizes" title="Choose a size"${ro}>${ICON("chev","sm")}</button></span><span class="tbu">pt</span></span>`;
   h+=tog("b","Bold","<b>B</b>")+tog("i","Italic","<i>I</i>")+tog("u","Underline","<u>U</u>");
   h+=colorBtn(`data-tbc data-c="${esc(st.color||"")}"`,st.color||auto.color||"","Text colour");
   if(opt.align) h+=`<span class="tbgrp" role="group" aria-label="Alignment">${["left","center","right"].map(a=>`<button type="button" class="tbt${(st.align||opt.align)===a?" on":""}" data-tba="${a}" aria-pressed="${(st.align||opt.align)===a}" title="Align ${a==="center"?"centre":a}" aria-label="Align ${a==="center"?"centre":a}"${ro}><svg viewBox="0 0 16 16"><path d="${ALIGN_SVG[a]}" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg></button>`).join("")}</span>`;
@@ -7192,6 +7241,45 @@ function texHtml(src){
 function texPlain(src){
   const p=n=>!n?"":n.k==="c"?n.s:n.k==="sp"?(n.w>0?" ":""):n.k==="g"?n.l.map(p).join(""):n.k==="sc"?p(n.b)+(n.sub?p(n.sub):"")+(n.sup?p(n.sup):""):n.k==="fr"?p(n.n)+"/"+p(n.d):n.k==="sq"?"√"+p(n.b):n.k==="ac"?p(n.b):"";
   return p(texParse(src)); }
+/* Text as a word processor shows it (DESIGN.md, Text: two ways to type it):
+   runs {s, v} of characters on the line (v 0), raised (1, a superscript) or
+   lowered (-1, a subscript), "\n" a new line. texToNat reads a stored text
+   into runs, or gives null when it uses LaTeX that runs cannot show (maths,
+   a fraction, a root, an accent, a font, a space of a set width, a script on
+   a script, a sub- and a superscript stacked); natToTex writes runs as text
+   with LaTeX that draws the same: \ $ { } and ~ escaped, a script as ^{…} or
+   _{…}, and {} between a subscript and a superscript so they follow one
+   another rather than stack. A placeholder ({x}, {name}, {xc}…) is kept as
+   typed either way, since labels fill it in. */
+const NAT_PH=/\{(?:n|num|name|xc|x|h|height|fwhm|w|area|a|pct)\}/;
+function natMerge(runs){ const out=[];
+  for(const r of runs||[]){ if(!r||!r.s) continue; const v=r.v>0?1:r.v<0?-1:0;
+    // A new line is always on the line, even typed inside a script.
+    const parts=v?String(r.s).split("\n"):[String(r.s)];
+    parts.forEach((t,j)=>{ if(j) push("\n",0); if(t) push(t,v); }); }
+  function push(s,v){ const last=out[out.length-1]; if(last&&last.v===v) last.s+=s; else out.push({s,v}); }
+  return out; }
+function natEsc(t){ const re=new RegExp(NAT_PH.source+"|[\\\\${}~]","g"); return String(t).replace(re,m=>m.length>1?m:"\\"+m); }
+function natToTex(runs){ let s="", prev=0;
+  for(const r of natMerge(runs)){ if(r.v){ if(prev&&prev!==r.v) s+="{}"; s+=(r.v>0?"^{":"_{")+natEsc(r.s)+"}"; } else s+=natEsc(r.s); prev=r.v; }
+  return s; }
+function texToNat(src){
+  const out=[], ph=[];
+  // Braces written as characters round a placeholder's name would become the placeholder.
+  if(new RegExp("\\\\"+NAT_PH.source.replace("\\}","\\\\\\}")).test(String(src==null?"":src))) return null;
+  // Placeholders stand aside as characters of the private use area while the rest is read.
+  const re=new RegExp("(?<![\\^_\\\\]|\\\\[A-Za-z]+)"+NAT_PH.source,"g");
+  const lines=String(src==null?"":src).replace(re,m=>{ ph.push(m); return String.fromCharCode(0xE000+ph.length-1); }).split("\n");
+  const walk=(l,v)=>{ for(const n of l){
+    if(!n) continue;
+    if(n.k==="c"){ if(n.f) return false; out.push({s:n.s.replace(/[-]/g,c=>ph[c.charCodeAt(0)-0xE000]||""),v}); continue; }
+    if(n.k==="g"){ if(n.math||!walk(n.l,v)) return false; continue; }
+    if(n.k==="sc"){ if(v||(n.sub&&n.sup)) return false; if(n.b&&!walk([n.b],0)) return false;
+      const a=n.sub||n.sup, w=n.sub?-1:1; if(a&&!walk(a.k==="g"?a.l:[a],w)) return false; continue; }
+    return false; }
+    return true; };
+  for(let i=0;i<lines.length;i++){ if(i) out.push({s:"\n",v:0}); if(!walk(texParse(lines[i]).l,0)) return null; }
+  return natMerge(out); }
 /* ==TEX:END== */
 
 /* Text on a graph is drawn through richText: plain text as one <text>, text
@@ -7214,36 +7302,225 @@ function texPreview(s,size,ts){ s=String(s==null?"":s); if(!texNeeds(s)) return 
   const z=size||15, fam=(ts&&ts.fam)||getComputedStyle(document.body).fontFamily||"sans-serif", it=!!(ts&&ts.i), bd=!!(ts&&ts.b);
   const b=texLayout(s,z,(t,q,i2,b2)=>textW(t,{size:q,fam,i:i2,b:b2}),{it,b:bd}), pad=3, W=Math.ceil(b.w+2*pad), H=Math.ceil(b.a+b.d+2*pad);
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(texPlain(s))}" font-family="${esc(fam)}"${it?` font-style="italic"`:""}${bd?` font-weight="700"`:""} fill="currentColor">${texSvgOf(b,"currentColor",pad,pad+b.a)}</svg>`; }
-// A field's preview of its LaTeX, kept up to date as it is typed (setupRichTools).
+// A field's preview of its LaTeX, kept up to date as it is typed (setupRichTools); not shown while the field is formatted.
 const texPv=(id,v)=>`<div class="texpv" data-texpv="${id}" title="How it will look">${texPreview(v)}</div>`;
-/* Buttons beside a text field: superscript, subscript, and a grid of Greek
-   letters and symbols. The same keys as a word processor: Ctrl+Shift+= and Ctrl+=. */
-const rtool=id=>`<span class="rtool" data-rtfor="${id}"><button type="button" data-rtw="^" title="Superscript (Ctrl+Shift+=)" aria-label="Superscript">x<sup>2</sup></button><button type="button" data-rtw="_" title="Subscript (Ctrl+=)" aria-label="Subscript">x<sub>2</sub></button><button type="button" data-rtsym title="Greek letters and symbols" aria-label="Greek letters and symbols">αΩ</button></span>`;
+/* Buttons beside a text field: superscript, subscript, a list of symbols, and
+   LaTeX on or off. The same keys as a word processor: Ctrl+Shift+= and Ctrl+=. */
+const rtool=id=>`<span class="rtool" data-rtfor="${id}"><button type="button" data-rtw="^" title="Superscript (Ctrl+Shift+=)" aria-label="Superscript" aria-pressed="false">x<sup>2</sup></button><button type="button" data-rtw="_" title="Subscript (Ctrl+=)" aria-label="Subscript" aria-pressed="false">x<sub>2</sub></button><button type="button" data-rtsym title="Symbols: Greek letters, signs, arrows, units, accented letters" aria-label="Symbols" aria-haspopup="dialog">αΩ</button><button type="button" class="rtmode" data-rtmode aria-pressed="${texLatexOn()}" title="Type LaTeX (on), or formatted text as in a word processor (off)">LaTeX</button></span>`;
 function rtWrap(el,k){ if(!el) return; const a=el.selectionStart??el.value.length, b=el.selectionEnd??a, v=el.value, mid=v.slice(a,b);
   el.value=v.slice(0,a)+k+"{"+mid+"}"+v.slice(b); el.focus(); const p=a+2+mid.length; el.setSelectionRange(mid?p+1:p,mid?p+1:p);
   el.dispatchEvent(new Event("input",{bubbles:true})); }
 function rtInsert(el,ch){ if(!el) return; const a=el.selectionStart??el.value.length, b=el.selectionEnd??a, v=el.value;
   el.value=v.slice(0,a)+ch+v.slice(b); el.focus(); el.setSelectionRange(a+ch.length,a+ch.length); el.dispatchEvent(new Event("input",{bubbles:true})); }
-const RT_GRID=["α","β","γ","δ","ε","θ","κ","λ","μ","ν","π","ρ","σ","τ","φ","χ","ψ","ω","Γ","Δ","Θ","Λ","Π","Σ","Φ","Ψ","Ω","°","±","×","·","Å","µ","∞","≈","≤","≥","≠","→","←","↔","′","″","‰","∂","√","ħ","ℓ","⁻","¹","²","³"];
+/* Text typed two ways (DESIGN.md, Text: two ways to type it). Formatted, the
+   default: a field shows the text as a word processor does, raised and lowered
+   characters and symbols as they are, and nothing beside it to preview. LaTeX:
+   the field shows the source and a preview under it. Both keep the same text
+   (with LaTeX) in the field's own input, which stays the one the forms read:
+   the formatted editor (.ned, contenteditable) writes it on every change and
+   announces input and change as the input would. A text that uses LaTeX a
+   word processor cannot show stays in LaTeX, whatever the choice. */
+const texLatexOn=()=>prefGet("texLatex");
+function natHtml(runs){ const r=runs||[], h=r.map(q=>{ const t=esc(q.s).replace(/\n/g,"<br>"); return q.v>0?`<sup>${t}</sup>`:q.v<0?`<sub>${t}</sub>`:t; }).join("");
+  // A last empty line needs a second break to be seen.
+  return h+(r.length&&/\n$/.test(r[r.length-1].s)?"<br>":""); }
+function natRead(el,multi){ const out=[], nl=multi?"\n":" ";
+  const walk=(n,v)=>{ for(const c of n.childNodes){
+    if(c.nodeType===3){ const t=c.nodeValue.replace(/\u200B/g,"").replace(/\u00A0/g," "); if(t) out.push({s:multi?t:t.replace(/\n/g," "),v}); continue; }
+    if(c.nodeType!==1) continue; const tg=c.tagName;
+    // The browser keeps a last <br> to give an empty line its height; it is not a line of its own.
+    if(tg==="BR"){ if(!(n===el&&c===el.lastChild)) out.push({s:nl,v:0}); continue; }
+    const va=(c.style&&c.style.verticalAlign)||"", nv=tg==="SUP"||va==="super"?v||1:tg==="SUB"||va==="sub"?v||-1:v;
+    if((tg==="DIV"||tg==="P")&&out.length&&!/\n$/.test(out[out.length-1].s)) out.push({s:nl,v:0});
+    walk(c,nv); } };
+  walk(el,0); return natMerge(out); }
+function natSync(inp){ const ned=inp&&inp._ned; if(!ned||inp._mode!=="nat") return;
+  const v=natToTex(natRead(ned,inp.tagName==="TEXTAREA"));
+  if(!v&&ned.innerHTML&&!ned.textContent) ned.innerHTML="";
+  if(v!==inp.value){ inp.value=v; inp.dispatchEvent(new Event("input",{bubbles:true})); } }
+function caretEnd(el){ const r=document.createRange(); r.selectNodeContents(el); r.collapse(false); const s=getSelection(); s.removeAllRanges(); s.addRange(r); }
+// Put the keys in a rich field, the formatted editor or the input, the caret at the end or everything selected.
+function richFocus(inp,all){ if(!inp) return; const ned=inp._ned;
+  if(ned&&inp._mode==="nat"){ ned.focus({preventScroll:true}); if(all){ const r=document.createRange(); r.selectNodeContents(ned); const s=getSelection(); s.removeAllRanges(); s.addRange(r); } else caretEnd(ned); return; }
+  inp.focus({preventScroll:true}); if(all) inp.select(); }
+// Show a rich field formatted ("nat") or as LaTeX ("tex"), by the choice made unless one is given.
+function richApply(inp,want){
+  const multi=inp.tagName==="TEXTAREA", runs=(want||(texLatexOn()?"tex":"nat"))==="nat"?texToNat(inp.value):null, mode=runs?"nat":"tex";
+  let ned=inp._ned; const had=document.activeElement===inp||(ned&&document.activeElement===ned);
+  if(!ned){ ned=document.createElement("div"); inp._ned=ned; ned.className="inp ned"+(multi?" multi":"");
+    if(inp.id) ned.id=inp.id+"Ned"; ned.setAttribute("role","textbox"); if(multi) ned.setAttribute("aria-multiline","true");
+    ned.spellcheck=false; ned.dataset.ph=texPlain(inp.getAttribute("placeholder")||"");
+    const lab=inp.getAttribute("aria-label")||(inp.id&&document.querySelector(`label[for="${CSS.escape(inp.id)}"]`)||{}).textContent||""; if(lab) ned.setAttribute("aria-label",lab.trim());
+    inp.parentNode.insertBefore(ned,inp); natWire(inp,ned); }
+  inp._mode=mode;
+  const off=inp.disabled||inp.readOnly; ned.contentEditable=off?"false":"true"; if(off) ned.setAttribute("aria-disabled","true");
+  if(mode==="nat"){ ned.innerHTML=natHtml(runs); ned.hidden=false; inp.classList.add("rich-hid"); inp.tabIndex=-1; inp.setAttribute("aria-hidden","true"); }
+  else { ned.hidden=true; inp.classList.remove("rich-hid"); inp.removeAttribute("tabindex"); inp.removeAttribute("aria-hidden"); }
+  const f=inp.closest(".rfield,.inled"); if(f) f.classList.toggle("nat",mode==="nat");
+  const pv=inp.id&&document.querySelector(`[data-texpv="${CSS.escape(inp.id)}"]`); if(pv) pv.innerHTML=mode==="nat"?"":texPreview(inp.value);
+  const tool=inp.id&&document.querySelector(`[data-rtfor="${CSS.escape(inp.id)}"]`);
+  if(tool){ const b=tool.querySelector("[data-rtmode]"); if(b) b.setAttribute("aria-pressed",String(mode==="tex"));
+    tool.querySelectorAll("[data-rtw]").forEach(x=>x.setAttribute("aria-pressed","false")); }
+  if(mode==="tex"&&multi&&inp.isConnected) growTa(inp);
+  if(had) richFocus(inp);
+  inp.dispatchEvent(new Event("richmode"));
+  return mode; }
+function natWire(inp,ned){
+  const multi=inp.tagName==="TEXTAREA"; let v0=inp.value;
+  inp.addEventListener("focus",()=>{ if(inp._mode==="nat") richFocus(inp); });
+  ned.addEventListener("focus",()=>{ v0=inp.value; });
+  ned.addEventListener("input",()=>natSync(inp));
+  // Leaving the field is a change, as for an input; a symbol picked from the list is not leaving it.
+  ned.addEventListener("blur",e=>{ if(spOpen&&e.relatedTarget&&spOpen.el.contains(e.relatedTarget)) return; natSync(inp); if(inp.value!==v0){ v0=inp.value; inp.dispatchEvent(new Event("change",{bubbles:true})); } });
+  // Bold, italic and colour belong to the whole text (its style), not to a few letters of it.
+  ned.addEventListener("beforeinput",e=>{ if(/^format(?!Superscript|Subscript)/.test(e.inputType)) e.preventDefault(); });
+  ned.addEventListener("paste",e=>{ e.preventDefault(); let t=(e.clipboardData&&e.clipboardData.getData("text/plain"))||""; if(!multi) t=t.replace(/\s*[\r\n]+\s*/g," "); document.execCommand("insertText",false,t); });
+  ned.addEventListener("drop",e=>e.preventDefault());
+  ned.addEventListener("keydown",e=>{
+    const mod=e.ctrlKey||e.metaKey;
+    if(mod&&!e.altKey&&/^[biu]$/i.test(e.key)){ e.preventDefault(); return; }
+    if(mod&&e.code==="Equal"){ e.preventDefault(); e.stopPropagation(); natScript(inp,e.shiftKey?"^":"_"); return; }
+    if(e.key!=="Enter"||e.isComposing) return;
+    if(multi){ if(ned.dataset.enterkeeps&&!e.shiftKey) return; e.preventDefault(); document.execCommand("insertLineBreak"); return; }
+    if(ned.dataset.enterkeeps) return;
+    // Enter in one line enters it, as in an input: a change, and the key for a dialog that takes Enter as OK.
+    e.preventDefault(); natSync(inp); if(inp.value!==v0){ v0=inp.value; inp.dispatchEvent(new Event("change",{bubbles:true})); }
+    inp.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",code:"Enter",bubbles:true,cancelable:true})); });
+}
+// Raise or lower the selection, or what is typed next, as a word processor's buttons do.
+function natScript(inp,k){ const ned=inp._ned; if(!ned) return; if(document.activeElement!==ned) richFocus(inp);
+  document.execCommand(k==="^"?"superscript":"subscript"); natSync(inp); natTools(); }
+// The x² and x₂ buttons show whether the caret is raised or lowered.
+function natTools(){ const a=document.activeElement; if(!a||!a.classList||!a.classList.contains("ned")) return;
+  const inp=a.nextElementSibling, tool=inp&&inp.id&&document.querySelector(`[data-rtfor="${CSS.escape(inp.id)}"]`); if(!tool) return;
+  let sup=false, sub=false; try{ sup=document.queryCommandState("superscript"); sub=document.queryCommandState("subscript"); }catch(e){}
+  tool.querySelectorAll("[data-rtw]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.rtw==="^"?sup:sub))); }
+function richMount(root){ (root||document).querySelectorAll("[data-rich]").forEach(inp=>{ if(!inp._ned) richApply(inp); }); }
+// LaTeX on or off, for every rich field shown now and from now on.
+function setTexMode(latex,from){ prefSet("texLatex",!!latex); let stuck=false;
+  document.querySelectorAll("[data-rich]").forEach(inp=>{ if(!inp._ned) return; natSync(inp); const m=richApply(inp); if(inp===from&&!latex&&m==="tex") stuck=true; });
+  if(stuck) toast("This text uses LaTeX a word processor cannot show (maths, a fraction, a root, a font…), so it stays in LaTeX. Clear it to type it formatted.");
+}
+/* The symbols, by kind, each with the words it is found by. Picked into a
+   formatted field, a symbol is the character; into LaTeX, the command when
+   LaTeX has a usual one (\alpha, \pm, \to), else the character. */
+const SYM_KINDS=[
+  ["Greek, small","α alpha;β beta;γ gamma;δ delta;ε varepsilon epsilon;ϵ epsilon lunate;ζ zeta;η eta;θ theta;ϑ vartheta theta;ι iota;κ kappa;λ lambda wavelength;μ mu micro;ν nu frequency;ξ xi;ο omicron;π pi;ϖ varpi;ρ rho density;ϱ varrho;σ sigma;ς varsigma sigma at the end of a word;τ tau;υ upsilon;φ varphi phi;ϕ phi;χ chi;ψ psi;ω omega"],
+  ["Greek, capital","Γ Gamma;Δ Delta difference;Θ Theta;Λ Lambda;Ξ Xi;Π Pi product;Σ Sigma sum;Υ Upsilon;Φ Phi;Ψ Psi;Ω Omega ohm"],
+  ["Units and letters","° degree;Å angstrom;µ micro;Ω ohm;ħ hbar planck;ℓ ell litre;‰ per mille thousand;‱ per ten thousand;℃ degree celsius;℉ degree fahrenheit;∅ empty set;ℜ real part;ℑ imaginary part;ℵ aleph;℘ weierstrass;ℕ natural numbers;ℤ integers;ℚ rationals;ℝ real numbers;ℂ complex numbers"],
+  ["Operators","− minus;± plus minus pm;∓ minus plus mp;× times multiply;· cdot dot middle;÷ divide;∗ asterisk;⋆ star;∘ circ ring;• bullet;√ square root;∛ cube root;∑ sum;∏ product;∫ integral;∬ double integral;∮ contour integral;∂ partial;∇ nabla del;∞ infinity;∝ proportional;′ prime;″ double prime;‴ triple prime;∧ and wedge;∨ or vee;¬ not;⊕ oplus;⊗ otimes"],
+  ["Relations","≠ not equal;≈ approx approximately;∼ sim tilde;≃ simeq;≅ cong congruent;≡ equiv identical;≤ le less or equal;≥ ge greater or equal;≪ much less;≫ much greater;∈ in element;∉ not in;∋ ni contains;⊂ subset;⊃ superset;⊆ subseteq;⊇ supseteq;∪ union cup;∩ intersection cap;⊥ perpendicular;∥ parallel;∣ divides mid;∀ for all;∃ exists;∴ therefore;∵ because"],
+  ["Arrows","→ right arrow to;← left arrow;↔ left right arrow;⇒ implies right double;⇐ left double;⇔ iff double;↑ up arrow;↓ down arrow;↕ up down;↗ north east;↘ south east;↦ maps to;⇌ equilibrium harpoons;⟶ long right arrow;⟵ long left arrow"],
+  ["Raised and lowered","⁰ superscript 0;¹ superscript 1;² superscript 2 squared;³ superscript 3 cubed;⁴ superscript 4;⁵ superscript 5;⁶ superscript 6;⁷ superscript 7;⁸ superscript 8;⁹ superscript 9;⁺ superscript plus;⁻ superscript minus;⁼ superscript equals;⁽ superscript bracket;⁾ superscript bracket;ⁿ superscript n;₀ subscript 0;₁ subscript 1;₂ subscript 2;₃ subscript 3;₄ subscript 4;₅ subscript 5;₆ subscript 6;₇ subscript 7;₈ subscript 8;₉ subscript 9;₊ subscript plus;₋ subscript minus;₌ subscript equals;₍ subscript bracket;₎ subscript bracket"],
+  ["Fractions","½ half;⅓ third;⅔ two thirds;¼ quarter;¾ three quarters;⅕ fifth;⅙ sixth;⅛ eighth"],
+  ["Brackets and dots","⟨ left angle;⟩ right angle;⌊ left floor;⌋ right floor;⌈ left ceiling;⌉ right ceiling;‖ double bar norm;… ellipsis dots;⋯ centred dots;⋮ vertical dots;⋱ diagonal dots"],
+  ["Punctuation and signs","– en dash;— em dash;† dagger;‡ double dagger;§ section;¶ paragraph;© copyright;® registered;™ trade mark;✓ check tick;✗ cross;€ euro;£ pound;¥ yen;¢ cent;« left guillemet;» right guillemet;‹ left single guillemet;› right single guillemet;¿ inverted question;¡ inverted exclamation"],
+  ["Accented letters","á a acute;à a grave;â a circumflex;ä a umlaut;ã a tilde;å a ring;æ ae;ç c cedilla;é e acute;è e grave;ê e circumflex;ë e umlaut;í i acute;ì i grave;î i circumflex;ï i umlaut;ñ n tilde;ó o acute;ò o grave;ô o circumflex;ö o umlaut;õ o tilde;ø o slash;œ oe;ß sharp s eszett;ú u acute;ù u grave;û u circumflex;ü u umlaut;ý y acute;ÿ y umlaut;Ä A umlaut;Ö O umlaut;Ü U umlaut;Å A ring;Æ AE;Ø O slash;Ç C cedilla;É E acute;Ñ N tilde"]];
+// LaTeX's usual command for a symbol, from the typesetter's own list (Kurve's own names left out).
+const SYM_TEX=(()=>{ const m=Object.create(null), own=new Set(["micro","permil","textperthousand","ohm","angstrom","sqrtsign","minus","deg","degree","textdegree","dprime","checkmark","textendash","textemdash"]);
+  for(const k of Object.keys(TEX_SYM)) if(!own.has(k)&&!(TEX_SYM[k] in m)) m[TEX_SYM[k]]=k; return m; })();
 let spOpen=null;
 function closeSymPicker(){ if(!spOpen) return; const o=spOpen; spOpen=null; o.el.remove(); document.removeEventListener("pointerdown",o.out,true); }
-function openSymPicker(btn,target){
-  closeSymPicker(); closeColorPicker(); closeFontPicker();
-  const el=document.createElement("div"); el.className="sympick"; el.setAttribute("role","dialog"); el.setAttribute("aria-label","Greek letters and symbols");
-  el.innerHTML=RT_GRID.map(c=>`<button type="button" data-sy="${esc(c)}" title="${esc(c)}">${esc(c)}</button>`).join("");
+function openSymPicker(btn,target,o){
+  closeSymPicker(); closeColorPicker(); closeFontPicker(); o=o||{};
+  const id=target&&target.id, ned=target&&target._mode==="nat"?target._ned:null, sel=getSelection();
+  const range=ned&&sel.rangeCount&&ned.contains(sel.getRangeAt(0).startContainer)?sel.getRangeAt(0).cloneRange():null;
+  const el=document.createElement("div"); el.className="sympick"; el.setAttribute("role","dialog"); el.setAttribute("aria-label","Symbols");
+  const kinds=SYM_KINDS.map(([k,l])=>[k,l.split(";").map(t=>{ const i=t.indexOf(" "); return [t.slice(0,i),t.slice(i+1)]; })]);
+  el.innerHTML=`<input type="text" class="sysearch" placeholder="Search: alpha, degree, arrow…" aria-label="Search the symbols" autocomplete="off" spellcheck="false"><div class="syscroll">`
+    +kinds.map(([k,l])=>`<section class="syk"><h4>${esc(k)}</h4><div class="sygrid">${l.map(([c,n])=>`<button type="button" data-sy="${esc(c)}" data-q="${esc((n+" "+(SYM_TEX[c]||"")).toLowerCase())}" title="${esc(n.split(" ")[0]+(SYM_TEX[c]?"  \\"+SYM_TEX[c]:""))}" aria-label="${esc(n)}">${esc(c)}</button>`).join("")}</div></section>`).join("")
+    +`<p class="synone" hidden>No symbol matches.</p></div><div class="syname" aria-live="polite">Shift+click to pick several</div>`;
   document.body.appendChild(el); placePop(el,btn);
-  el.addEventListener("mousedown",e=>e.preventDefault());
-  el.addEventListener("click",e=>{ const b=e.target.closest("[data-sy]"); if(!b) return; rtInsert(target,b.dataset.sy); if(!e.shiftKey) closeSymPicker(); });
-  el.addEventListener("keydown",e=>{ if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); closeSymPicker(); target&&target.focus(); } });
+  const q=el.querySelector(".sysearch"), nm=el.querySelector(".syname"), btns=()=>[...el.querySelectorAll("[data-sy]")].filter(b=>!b.hidden);
+  const pick=(b,keep)=>{ const t=id?document.getElementById(id):target; if(!t) return; const c=b.dataset.sy;
+    if(t._mode==="nat"&&t._ned){ const n=t._ned; n.focus({preventScroll:true}); const s=getSelection(); s.removeAllRanges();
+      if(range&&n.contains(range.startContainer)) s.addRange(range); else caretEnd(n);
+      document.execCommand("insertText",false,c); natSync(t); if(range&&s.rangeCount){ const r=s.getRangeAt(0); range.setStart(r.startContainer,r.startOffset); range.collapse(true); } }
+    else { const cmd=SYM_TEX[c], a=t.selectionStart??t.value.length, nx=t.value.charAt(t.selectionEnd??a);
+      rtInsert(t,cmd?"\\"+cmd+(!nx||/[A-Za-z]/.test(nx)?"{}":""):c); }
+    if(!keep) closeSymPicker(); else q.blur(); };
+  el.addEventListener("mousedown",e=>{ if(!e.target.closest(".sysearch")) e.preventDefault(); });
+  el.addEventListener("click",e=>{ const b=e.target.closest("[data-sy]"); if(b) pick(b,e.shiftKey); });
+  el.addEventListener("pointerover",e=>{ const b=e.target.closest("[data-sy]"); if(b) nm.textContent=b.dataset.sy+"  "+b.getAttribute("aria-label")+(SYM_TEX[b.dataset.sy]?"   \\"+SYM_TEX[b.dataset.sy]:""); });
+  q.addEventListener("input",()=>{ const w=q.value.trim().toLowerCase().split(/\s+/).filter(Boolean); let any=false;
+    el.querySelectorAll(".syk").forEach(s=>{ let n=0; s.querySelectorAll("[data-sy]").forEach(b=>{ const ok=!w.length||w.every(x=>b.dataset.q.includes(x)||b.dataset.sy===x); b.hidden=!ok; if(ok) n++; }); s.hidden=!n; if(n) any=true; });
+    el.querySelector(".synone").hidden=any; });
+  el.addEventListener("keydown",e=>{
+    if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); closeSymPicker(); const t=id?document.getElementById(id):target; if(t) richFocus(t); return; }
+    const list=btns(), i=list.indexOf(document.activeElement);
+    if(e.target===q){ if(e.key==="Enter"&&list[0]){ e.preventDefault(); pick(list[0],e.shiftKey); } else if(e.key==="ArrowDown"&&list[0]){ e.preventDefault(); list[0].focus(); } return; }
+    if(i<0) return; const step={ArrowRight:1,ArrowLeft:-1,ArrowDown:10,ArrowUp:-10}[e.key];
+    if(step){ e.preventDefault(); const j=i+step; if(j<0) q.focus(); else (list[Math.min(list.length-1,j)]||list[i]).focus(); }
+    else if(e.key==="Enter"||e.key===" "){ e.preventDefault(); pick(list[i],e.shiftKey); } });
   const out=e=>{ if(!el.contains(e.target)&&e.target!==btn&&!btn.contains(e.target)) closeSymPicker(); };
   document.addEventListener("pointerdown",out,true); spOpen={el,out};
+  if(o.keys) q.focus();
+}
+/* A number typed, or picked from a list, as Excel's font size and line width
+   boxes (DESIGN.md: sliders only where a feel for the amount is the point,
+   opacity): a text field and a button that drops the list, ↑ and ↓ stepping
+   through it. The field carries its own attributes (data-pd and the like), so
+   the form it is in reads it as it reads any number field; a pick is typed in
+   and announced as input and change. */
+const CMB={lw:[0.25,0.5,0.75,1,1.25,1.5,2,2.5,3,4,5,6],ss:[1,1.5,2,2.5,3,3.5,4,5,6,8,10],tl:[0,2,3,4,5,6,8,10,12,16,20],ml:[0,1,1.5,2,3,4,5,6,8],
+  tw:[0.25,0.5,0.75,1,1.25,1.5,2,3],off:[0,2,4,6,8,10,15,20,30,40],font:[0.6,0.7,0.8,0.9,1,1.1,1.2,1.25,1.5,1.75,2],legL:[6,10,14,18,24,30,40,50,60],
+  legS:[0.8,1,1.15,1.25,1.5,2,2.5],bw:[0,0.5,0.75,1,1.5,2,3],rad:[0,2,3,4,6,8,10,12],cap:[0,2,3,4,5,6,8,10,14],offs:[0.1,0.2,0.25,0.35,0.5,0.75,1,1.5,2],
+  lev:[3,4,5,6,8,10,12,15,20,25,30],rx:[0,2,4,6,8,10,15,20,30],hs:[0.5,0.75,1,1.25,1.5,2,2.5,3],ts:[0.5,0.6,0.7,0.8,0.85,0.9,1,1.1,1.2,1.3],
+  pt:[6,7,8,9,10,10.5,11,12,14,16,18,20,24,28,32,36,48]};
+function comboHtml(attrs,val,list,o){ o=o||{};
+  return `<div class="pair cmb"><span class="combo"><input type="text" inputmode="decimal" ${attrs} value="${val==null||val===""?"":esc(String(val))}" data-list="${list.join(" ")}" autocomplete="off" spellcheck="false"${o.ph?` placeholder="${esc(o.ph)}"`:""}${o.ro?" disabled":""}><button type="button" class="combo-b" tabindex="-1" aria-label="Choose a value" title="Choose a value"${o.ro?" disabled":""}>${ICON("chev","sm")}</button></span>${o.unit?`<span class="lab">${esc(o.unit)}</span>`:""}</div>`; }
+function comboSet(inp,v){ inp.value=String(v); inp.dispatchEvent(new Event("input",{bubbles:true})); inp.dispatchEvent(new Event("change",{bubbles:true})); }
+function setupCombos(){
+  document.addEventListener("mousedown",e=>{ if(e.target.closest&&e.target.closest(".combo-b")) e.preventDefault(); });
+  document.addEventListener("click",e=>{ const b=e.target.closest&&e.target.closest(".combo-b"); if(!b||b.disabled) return; const inp=b.parentElement.querySelector("input"); if(!inp||inp.disabled) return;
+    const list=(inp.dataset.list||"").split(" ").filter(Boolean).map(Number), cur=parseNum(inp.value), unit=((b.closest(".cmb,.tbar")||{}).querySelector?.(".lab,.tbu")||{}).textContent||"";
+    toggleMenu(b,()=>list.map(v=>({label:String(v)+(unit?" "+unit:""),radio:true,checked:cur!=null&&Math.abs(v-cur)<1e-9,run:()=>{ comboSet(inp,v); inp.focus({preventScroll:true}); }})),{label:inp.getAttribute("aria-label")||"Values",focus:"checked"}); });
+  // ↑ and ↓ step through the list, from what is typed.
+  document.addEventListener("keydown",e=>{ const t=e.target; if(!t||!t.matches||!t.matches(".combo input")||t.disabled||(e.key!=="ArrowUp"&&e.key!=="ArrowDown")||e.altKey) return;
+    e.preventDefault(); e.stopPropagation(); const list=(t.dataset.list||"").split(" ").filter(Boolean).map(Number).sort((a,b)=>a-b); if(!list.length) return;
+    const cur=parseNum(t.value); let nv;
+    if(cur==null) nv=list[0]; else if(e.key==="ArrowUp") nv=list.find(v=>v>cur+1e-12); else nv=list.slice().reverse().find(v=>v<cur-1e-12);
+    if(nv!=null) comboSet(t,nv); },true);
+}
+/* Transitions that survive a redraw. Most forms draw themselves again on a
+   change, so a switch flicked or a segmented choice clicked was replaced by one
+   already in its new state, and the slide or fill never showed (the user: "some
+   toggles don't have smooth transitions"). The control changed is remembered
+   for a moment; if a redraw puts a new one in its place, the change is played
+   on the new one. */
+let MKEEP=null;
+const ctlKey=el=>{ if(!el) return null; if(el.id) return "#"+el.id; for(const a of el.attributes){ if(/^data-(pd|pdseg|pdsel|pdmt|pdedge|pdedgeset|pdedgeall|mode|xhm|fmode|view|sheet|rdax|tbt|tba)$/.test(a.name)) return `[${a.name}="${a.value}"]`; } return el.name?`[name="${el.name}"]`:null; };
+const segKey=g=>{ if(!g) return null; const b=g.querySelector("button"); const lab=g.getAttribute("aria-label"); const k=b&&ctlKey(b); return lab?`[aria-label="${lab}"]`+(g.id?"#"+g.id:""):k?k.replace(/="[^"]*"\]$/,"]"):null; };
+function setupMotionKeep(){
+  document.addEventListener("change",e=>{ const t=e.target; if(!animOn()||!t||!t.matches||!t.matches(".chk>input[type=checkbox],.switch>input[type=checkbox]")) return;
+    const k=ctlKey(t); if(k) MKEEP={kind:"sw",key:k,el:t,on:t.checked,t:performance.now()}; },true);
+  document.addEventListener("click",e=>{ const b=e.target.closest&&e.target.closest(".seg button"); if(!animOn()||!b) return; const g=b.closest(".seg"), old=g&&g.querySelector('button[aria-pressed="true"]'), k=segKey(g);
+    if(k&&old!==b) MKEEP={kind:"seg",key:k,el:g,idx:old?[...g.querySelectorAll("button")].indexOf(old):-1,t:performance.now()}; },true);
+  new MutationObserver(()=>{ const r=MKEEP; if(!r||performance.now()-r.t>500) return; if(r.el.isConnected) return; MKEEP=null;
+    let nu=null; try{ nu=document.querySelector(r.kind==="sw"?`.chk>input${r.key},.switch>input${r.key}`:`.seg${r.key}`); }catch(e){ return; } if(!nu) return;
+    if(r.kind==="sw"){ if(nu.checked!==r.on) return; const w=nu.offsetWidth, h=nu.offsetHeight, cs=getComputedStyle(nu), off=cs.getPropertyValue("--sw-off").trim(), onc=cs.getPropertyValue("--ctl-on").trim();
+      nu.animate([{backgroundPosition:r.on?"0px 50%":`${w-h}px 50%`,backgroundColor:r.on?off:onc},{backgroundPosition:r.on?`${w-h}px 50%`:"0px 50%",backgroundColor:r.on?onc:off}],{duration:180,easing:"cubic-bezier(.2,.8,.2,1)"}); return; }
+    const to=nu.querySelector('button[aria-pressed="true"]'); if(!to) return;
+    // The new choice's fill fades in and the old one's out, as the CSS transition would have.
+    const was=nu.querySelectorAll("button")[r.idx], a=getComputedStyle(to), onBg=a.backgroundColor, onInk=a.color;
+    const b2=was&&was!==to?getComputedStyle(was):null, offBg=b2?b2.backgroundColor:"rgba(0,0,0,0)", offInk=b2?b2.color:onInk, o={duration:170,easing:"ease-out"};
+    to.animate([{backgroundColor:offBg,color:offInk},{backgroundColor:onBg,color:onInk}],o);
+    if(b2) was.animate([{backgroundColor:onBg,color:onInk},{backgroundColor:offBg,color:offInk}],o);
+  }).observe(document.body,{childList:true,subtree:true});
 }
 function setupRichTools(){
-  document.addEventListener("input",e=>{ const t=e.target; if(!t||!t.matches||!t.matches("[data-rich]")||!t.id) return; const pv=document.querySelector(`[data-texpv="${CSS.escape(t.id)}"]`); if(pv) pv.innerHTML=texPreview(t.value); });
-  document.addEventListener("mousedown",e=>{ if(e.target.closest&&e.target.closest("[data-rtw],[data-rtsym]")) e.preventDefault(); });
-  document.addEventListener("click",e=>{ const b=e.target.closest&&e.target.closest("[data-rtw],[data-rtsym]"); if(!b) return;
+  document.addEventListener("input",e=>{ const t=e.target; if(!t||!t.matches||!t.matches("[data-rich]")||!t.id) return; const pv=document.querySelector(`[data-texpv="${CSS.escape(t.id)}"]`); if(pv) pv.innerHTML=t._mode==="nat"?"":texPreview(t.value); });
+  document.addEventListener("mousedown",e=>{ if(e.target.closest&&e.target.closest("[data-rtw],[data-rtsym],[data-rtmode]")) e.preventDefault(); });
+  document.addEventListener("click",e=>{ const b=e.target.closest&&e.target.closest("[data-rtw],[data-rtsym],[data-rtmode]"); if(!b) return;
     const tool=b.closest("[data-rtfor]"), el=tool?document.getElementById(tool.dataset.rtfor):null; if(!el||el.disabled) return;
-    if(b.dataset.rtw) rtWrap(el,b.dataset.rtw); else openSymPicker(b,el); });
+    if(b.hasAttribute("data-rtmode")){ closeSymPicker(); setTexMode(el._mode==="nat",el); richFocus(el); return; }
+    if(b.dataset.rtw){ if(el._mode==="nat") natScript(el,b.dataset.rtw); else rtWrap(el,b.dataset.rtw); }
+    else if(spOpen) closeSymPicker(); else openSymPicker(b,el,{keys:e.detail===0}); });
+  document.addEventListener("selectionchange",natTools);
+  // Every rich field is shown formatted or as LaTeX as soon as it is drawn.
+  new MutationObserver(recs=>{ for(const r of recs) for(const n of r.addedNodes) if(n.nodeType===1&&!n.classList.contains("ned")&&(n.matches("[data-rich]")||n.querySelector("[data-rich]"))) richMount(n.parentNode||n); })
+    .observe(document.body,{childList:true,subtree:true});
+  richMount(document);
   // Ctrl+Shift+= superscript, Ctrl+= subscript, in any field that takes rich text.
   document.addEventListener("keydown",e=>{ const t=e.target; if(!(e.ctrlKey||e.metaKey)||e.code!=="Equal"||!t||!t.matches||!t.matches("[data-rich],.inled input,.inled textarea")) return;
     e.preventDefault(); e.stopPropagation(); rtWrap(t,e.shiftKey?"^":"_"); },true);
@@ -8629,17 +8906,20 @@ function inlineBox(o){
   box.style.width=w+"px"; box.style.left=Math.max(4,Math.min(fr.width-w-4,cx-w/2))+"px";
   const inp=box.querySelector("#inledIn"), pv=box.querySelector(".inled-pv");
   const place=()=>{ const h=box.offsetHeight; box.style.top=Math.max(4,Math.min(fr.height-h-4,cy-17))+"px"; };
-  const show=()=>{ const v=inp.value, tex=texNeeds(v);
-    pv.innerHTML=tex?texPreview(v,17,o.st):`<span>${multi?"Enter keeps, Shift+Enter starts a line":"Enter keeps"}, Esc cancels. LaTeX: <code>x^{2}</code> <code>H_{2}O</code> <code>\\alpha</code> <code>$\\frac{a}{b}$</code></span>`;
+  richMount(box); const ned=inp._ned; if(ned) ned.dataset.enterkeeps="1";
+  const show=()=>{ const v=inp.value, nat=inp._mode==="nat", tex=!nat&&texNeeds(v), keys=`${multi?"Enter keeps, Shift+Enter starts a line":"Enter keeps"}, Esc cancels.`;
+    pv.innerHTML=tex?texPreview(v,17,o.st):nat?`<span>${keys}</span>`:`<span>${keys} LaTeX: <code>x^{2}</code> <code>H_{2}O</code> <code>\\alpha</code> <code>$\\frac{a}{b}$</code></span>`;
     pv.classList.toggle("tex",tex); place(); };
   let done=false;
   const finish=keep=>{ if(done) return; done=true; closeSymPicker(); box.remove(); const v=inp.value.trim();
     if(keep) o.keep(v); else { if(o.cancel) o.cancel(); const pl=$("#plot"); if(pl) pl.focus({preventScroll:true}); } };
   inp.addEventListener("input",()=>{ if(multi) growTa(inp); show(); });
-  inp.addEventListener("keydown",e=>{ e.stopPropagation(); if(e.key==="Enter"&&!(multi&&e.shiftKey)){ e.preventDefault(); finish(true); } else if(e.key==="Escape"){ e.preventDefault(); finish(false); } });
-  inp.addEventListener("blur",()=>setTimeout(()=>{ if(!done&&!box.contains(document.activeElement)&&!spOpen) finish(true); },0));
+  inp.addEventListener("richmode",show);
+  const onKey=e=>{ e.stopPropagation(); if(e.isComposing) return; if(e.key==="Enter"&&!(multi&&e.shiftKey)){ e.preventDefault(); natSync(inp); finish(true); } else if(e.key==="Escape"){ e.preventDefault(); finish(false); } };
+  const onBlur=()=>setTimeout(()=>{ if(!done&&!box.contains(document.activeElement)&&!spOpen) finish(true); },0);
+  [inp,ned].forEach(t=>{ if(t){ t.addEventListener("keydown",onKey); t.addEventListener("blur",onBlur); } });
   const mb=box.querySelector("[data-inmore]"); if(mb){ mb.addEventListener("mousedown",e=>e.preventDefault()); mb.addEventListener("click",()=>{ finish(true); o.more.run(); }); }
-  inp.focus({preventScroll:true}); if(o.select!==false) inp.select(); if(multi) growTa(inp); show();
+  richFocus(inp,o.select!==false); if(multi&&inp._mode!=="nat") growTa(inp); show();
   return box;
 }
 const unfocusPlot=()=>{ const pl=$("#plot"); if(pl) pl.focus({preventScroll:true}); };
@@ -9259,6 +9539,8 @@ function renderPlotDetails(){
   const sel=(id,opts,val,path)=>`<select id="${id}" data-pd="${path}"${ro}>${opts.map(([k,l])=>`<option value="${esc(k)}"${String(k)===String(val)?" selected":""}>${esc(l)}</option>`).join("")}</select>`;
   const num=(id,val,path,ph,w,x)=>`<input type="text" inputmode="decimal" id="${id}" data-pd="${path}" data-num${x||""} value="${val==null||val===""?"":esc(String(val))}" placeholder="${esc(ph==null?"auto":ph)}"${ro} style="width:${w||100}px">`;
   const rng=(id,val,path,min,max,step,u)=>`<div class="pair"><input type="range" id="${id}" data-pd="${path}" data-num min="${min}" max="${max}" step="${step}" value="${val}"${ro} style="flex:1"><output for="${id}" data-u="${u||""}">${fmtR(val)}${u||""}</output></div>`;
+  // A width, size, length or spacing is typed or picked from a list, as in Excel; sliders stay for opacity.
+  const cmb=(id,val,path,min,max,list,u)=>comboHtml(`id="${id}" data-pd="${path}" data-num data-min="${min}" data-max="${max}"`,fmtR(val),list,{unit:(u||"").trim(),ro:!!ro});
   const chk=(id,path,on,label,x)=>`<span></span><label class="chk"><input type="checkbox" id="${id}" data-pd="${path}" data-bool${x||""}${on?" checked":""}${ro}> ${label}</label>`;
   const seg=(path,opts,val,label,n)=>`<div class="seg mini pdseg" role="group" aria-label="${esc(label)}">${opts.map(([k,l,tip])=>`<button type="button" data-pdseg="${path}" data-v="${esc(String(k))}"${n?" data-n":""} aria-pressed="${String(val)===String(k)}"${tip?` title="${esc(tip)}" aria-label="${esc(tip)}"`:""}${ro}>${l}</button>`).join("")}</div>`;
   const cb=(path,stored,auto,eff)=>colorBtn(`data-pdc="${path}" data-auto="${esc(auto||"Automatic")}" data-eff="${esc(eff||"")}"`,stored||eff||"",null).replace(/title="[^"]*"/,`title="${esc(stored||auto||"Automatic")}"`);
@@ -9283,15 +9565,15 @@ function renderPlotDetails(){
   h+=`</nav><div class="pd-main" data-page="${esc(page)}"><div class="pd-title" role="heading" aria-level="3">${esc(page==="series"?(S.pdSel==="__fit"?"Fit curve":selC?specName(selC):""):TITLES[page]||"")}</div>`;
   if(page==="series"){
     if(S.pdSel==="__fit"){ const f=Object.assign({color:pal.fit,lw:2},cfg.series.__fit||{});
-      h+=grp("Line",`<label>Colour</label>${cb("series.__fit.color",(cfg.series.__fit||{}).color,"Automatic",pal.fit)}<label for="pdFlw">Width</label>${rng("pdFlw",f.lw,"series.__fit.lw",0.5,5,0.1)}`)
+      h+=grp("Line",`<label>Colour</label>${cb("series.__fit.color",(cfg.series.__fit||{}).color,"Automatic",pal.fit)}<label for="pdFlw">Width</label>${cmb("pdFlw",f.lw,"series.__fit.lw",0.5,5,CMB.lw)}`)
         +grp("Bands",chk("pdBandC","bandConf",cfg.bandConf!==false,`${confPct(confOf(shownFit()))}% confidence band, shaded`)+chk("pdBandP","bandPred",!!cfg.bandPred,`${confPct(confOf(shownFit()))}% prediction band, dashed`)+note(`Where the fitted curve lies, and where a new measurement would fall, each with ${confPct(confOf(shownFit()))}% probability: the fit's confidence level, set in the Fit window.`))
         +grp("Peaks",chk("pdPkFill","series.__peaks.fill",(cfg.series.__peaks||{}).fill!==false,"Shade each fitted peak")+`<label for="pdPsch2">Colours</label>${sel("pdPsch2",Object.entries(PEAK_SCHEMES).map(([k,v])=>[k,v.name]),cfg.peakScheme||"warm","peakScheme")}`)
         +grp("Legend",`<label for="pdFitLab">Label</label><input type="text" id="pdFitLab" data-pd="series.__fit.label" value="${esc((cfg.series.__fit||{}).label||"")}" placeholder="fit"${ro}>`+chk("pdFitLeg","series.__fit.leg",(cfg.series.__fit||{}).leg!==false,"Show in the legend")); }
     else if(selC){ const c=selC, isA=c===act, st=serStyle(c.id,isA,pal,false,cfg), b="series."+c.id, own=(cfg.series||{})[c.id]||{};
       h+=grp("Spectrum",(isA?"":chk("pdShow","hidden."+c.id,!cfg.hidden.includes(c.id),"Show on the graph"))+`<label for="pdLabel">Legend label</label><div class="rfield"><div class="pair"><input type="text" id="pdLabel" data-pd="${b}.label" data-rich value="${esc(st.label)}" placeholder="${esc(specName(c))}"${ro}>${rtool("pdLabel")}</div>${texPv("pdLabel",st.label)}</div>`+chk("pdInLeg",b+".leg",st.leg!==false,"Show in the legend"));
-      h+=grp("Line",`<label for="pdType">Plot type</label>${sel("pdType",PLOT_TYPES,st.type,b+".type")}<label for="pdConn">Connect</label>${sel("pdConn",CONN_KINDS,st.conn,b+".conn")}<label>Colour</label>${cb(b+".color",own.color,"Automatic",st.color)}<label>Style</label>${seg(b+".dash",DASH_OPTS.concat([["none","None","No line"]]),st.dash,"Line style")}<label for="pdLw">Width</label>${rng("pdLw",st.lw,b+".lw",0.5,6,0.1)}`);
+      h+=grp("Line",`<label for="pdType">Plot type</label>${sel("pdType",PLOT_TYPES,st.type,b+".type")}<label for="pdConn">Connect</label>${sel("pdConn",CONN_KINDS,st.conn,b+".conn")}<label>Colour</label>${cb(b+".color",own.color,"Automatic",st.color)}<label>Style</label>${seg(b+".dash",DASH_OPTS.concat([["none","None","No line"]]),st.dash,"Line style")}<label for="pdLw">Width</label>${cmb("pdLw",st.lw,b+".lw",0.5,6,CMB.lw)}`);
       const zo=zColOptions(c), symT=st.type==="scatter"||st.type==="linesym";
-      h+=grp("Symbols",`<label for="pdSym">Symbol</label>${sel("pdSym",SYMS,st.sym,b+".sym")}<label for="pdSs">Size</label>${rng("pdSs",st.ss==null?3:st.ss,b+".ss",1,10,0.5)}`
+      h+=grp("Symbols",`<label for="pdSym">Symbol</label>${sel("pdSym",SYMS,st.sym,b+".sym")}<label for="pdSs">Size</label>${cmb("pdSs",st.ss==null?3:st.ss,b+".ss",1,10,CMB.ss)}`
         +`<label for="pdZc">Colour by</label>${sel("pdZc",zo,st.zcol,b+".zcol")}<label for="pdSc">Size by</label>${sel("pdSc",zo,st.scol,b+".scol")}`
         +((st.zcol||st.scol)&&!symT?note("Shown with the Symbols or Line + symbols plot type."):"")+(st.scol?chk("pdSl","sizeLeg",cfg.sizeLeg!==false,"A legend of the sizes"):"")+(st.zcol?`<label for="pdCm2">Colour map</label>${sel("pdCm2",CMAP_LIST,cfg.cmap||"viridis","cmap")}`:""));
       const fto=[["","Nothing (Area fills down to zero)"]].concat(yCols().filter(o=>o!==c&&graphShows(o)).map(o=>[o.id,specName(o)]));
@@ -9300,7 +9582,7 @@ function renderPlotDetails(){
         +`<label for="pdHatch">Hatching</label>${sel("pdHatch",HATCHES,st.hatch,b+".hatch")}<label for="pdOp">Opacity</label>${rng("pdOp",st.op,b+".op",0.1,1,0.05)}`
         +(st.fillTo&&cfg.layout!=="overlay"?note("The fill between two curves is drawn when they are overlaid."):""));
       const eks=allCols().filter(o=>o.role==="e"&&o.of===c.id);
-      if(eks.length||(finalOf(c).e||[]).some(v=>v>0)) h+=grp("Error bars",`<label>Show as</label>${seg(b+".eb",[["bars","Bars"],["band","Band"],["none","None"]],st.eb,"How the error bars are drawn: bars with caps, or a shaded band between their ends")}<label>Colour</label>${cb(b+".ebColor",own.ebColor,"The spectrum's",st.color)}<label for="pdEbLw">Width</label>${rng("pdEbLw",st.ebLw,b+".ebLw",0.5,4,0.1)}<label for="pdEbCap">Caps</label>${rng("pdEbCap",st.ebCap,b+".ebCap",0,14,1)}<label for="pdEbOp">Band opacity</label>${rng("pdEbOp",st.ebOp,b+".ebOp",0.05,0.8,0.05)}`
+      if(eks.length||(finalOf(c).e||[]).some(v=>v>0)) h+=grp("Error bars",`<label>Show as</label>${seg(b+".eb",[["bars","Bars"],["band","Band"],["none","None"]],st.eb,"How the error bars are drawn: bars with caps, or a shaded band between their ends")}<label>Colour</label>${cb(b+".ebColor",own.ebColor,"The spectrum's",st.color)}<label for="pdEbLw">Width</label>${cmb("pdEbLw",st.ebLw,b+".ebLw",0.5,4,CMB.lw)}<label for="pdEbCap">Caps</label>${cmb("pdEbCap",st.ebCap,b+".ebCap",0,14,CMB.cap)}<label for="pdEbOp">Band opacity</label>${rng("pdEbOp",st.ebOp,b+".ebOp",0.05,0.8,0.05)}`
         +note(eks.length?`From ${eks.map(o=>`${esc(colLetter(o))} (${errTag(o)})`).join(", ")}. A column's menu in the worksheet sets which kind it is.`:"Carried from the curve this one is made from.")); }
   } else if(page.startsWith("ax:")){
     const k=page.slice(3), a=cfg.ax[k]||{}, A=axisCfg(cfg,k), b="ax."+k, isX=k==="x"||k==="x2", heat=cfg.layout==="heat", cs=k==="y2"&&heat, dP=plotState().d, k2=k==="x2";
@@ -9328,7 +9610,7 @@ function renderPlotDetails(){
       +chk("pd"+k+"ts",b+".tshow",A.tshow,"Show the title")
       +`<label>Position</label>${seg(b+".talign",isX?[["start","Left"],["center","Centre"],["end","Right"]]:[["start","Bottom"],["center","Middle"],["end","Top"]],al,"Where the title sits along the axis")}`
       +(A.tdx||A.tdy?`<span></span><div><button type="button" class="btn sm" data-pdact="tdreset:${k}"${ro}>Put it back by the axis</button> <span class="lab">dragged ${Math.round(Math.hypot(A.tdx,A.tdy))} px</span></div>`:"")
-      +wide(txtBarHtml("axt:"+k,a.tst||{},Object.assign({color:pal.ink},txtStyle(cfg,"axis",txtAuto(cfg,"axis"),KSERIF)),{inheritLabel:"Every axis title's font"})+`<div class="pd-note">This axis's title. The style of every axis title is on <button type="button" class="lnk" data-pdpage="text">Text and fonts</button>.</div>`),a.tst&&Object.keys(a.tst).length?`<button type="button" class="pd-rst" data-pdtxreset="axt:${k}"${ro}>Like every axis title</button>`:"");
+      +`<label>Font</label>`+txtBarHtml("axt:"+k,a.tst||{},Object.assign({color:pal.ink},txtStyle(cfg,"axis",txtAuto(cfg,"axis"),KSERIF)),{inheritLabel:"Every axis title's font"})+note(`This axis's own. Every axis title's style is on <button type="button" class="lnk" data-pdpage="text">Text and fonts</button>.`),a.tst&&Object.keys(a.tst).length?`<button type="button" class="pd-rst" data-pdtxreset="axt:${k}"${ro}>Like every axis title</button>`:"");
     if(!k2&&!ky) h+=grp(cs?"Range":"Scale",`<label for="pd${k}a">From</label>${num("pd"+k+"a",a.min,b+".min")}<label for="pd${k}b">To</label>${num("pd"+k+"b",a.max,b+".max")}`
       +(cs?"":`<label for="pd${k}s">Major ticks every</label>${num("pd"+k+"s",a.step,b+".step")}`)
       +(k==="x"||(k==="y"&&!heat)?`<label for="pd${k}sc">Type</label>${sel("pd"+k+"sc",AX_SCALES,scaleKind(cfg,k),"axscale."+k)}`+(scaleKind(cfg,k)==="orecip"?`<label for="pd${k}c">c</label><div class="pair">${num("pd"+k+"c",a.c,b+".c","273.15",90)}<span class="lab">1/(x + c)</span></div>`:""):"")
@@ -9344,25 +9626,25 @@ function renderPlotDetails(){
       const posO=isX?[["bottom","Bottom"],["top","Top"],["zero","At y = 0"],["at","At y ="]]:[["left","Left"],["right","Right"],["zero","At x = 0"],["at","At x ="]];
       h+=grp("Position",(k==="y2"||k2||ky?"":`<label>Axis</label>${seg(b+".pos",posO,A.pos,"Where the axis is")}`)
         +(A.pos==="at"&&k!=="y2"&&!k2&&!ky?`<label for="pd${k}at">${isX?"y":"x"} =</label>${num("pd"+k+"at",a.at,b+".at","0")}`:"")
-        +(edge?`<label for="pd${k}off">Offset outward</label>${rng("pd"+k+"off",A.off,b+".off",0,40,1," px")}`:"")
+        +(edge?`<label for="pd${k}off">Offset outward</label>${cmb("pd"+k+"off",A.off,b+".off",0,40,CMB.off," px")}`:"")
         +(k==="y"&&cfg.layout==="dy"?note("With two Y axes this one stays on the left."):"")
         +(isX&&cfg.layout==="stack"&&(A.pos==="zero"||A.pos==="at")?note("Stacked panels keep it at the bottom."):"")
         +(k2?note("It sits across from the X axis."):ky?note("It sits across from the Y axis."):note("Or drag the axis's numbers on the graph.")));
       h+=grp("Line and ticks",chk("pd"+k+"ln",b+".line",A.line,"Axis line")
-        +`<label>Colour</label>${cb(b+".color",a.color,"Automatic",pal.ink)}<label for="pd${k}lw">Line width</label>${rng("pd"+k+"lw",A.lw,b+".lw",0.25,4,0.25)}`
+        +`<label>Colour</label>${cb(b+".color",a.color,"Automatic",pal.ink)}<label for="pd${k}lw">Line width</label>${cmb("pd"+k+"lw",A.lw,b+".lw",0.25,4,CMB.lw)}`
         +`<label>Ticks</label>${seg(b+".ticks",[["in","In"],["out","Out"],["both","Both"],["none","None"]],A.dir,"Which way the ticks point")}`
-        +`<label for="pd${k}tl">Major length</label>${rng("pd"+k+"tl",A.len,b+".tlen",0,20,0.5," px")}`
+        +`<label for="pd${k}tl">Major length</label>${cmb("pd"+k+"tl",A.len,b+".tlen",0,20,CMB.tl," px")}`
         +`<label for="pd${k}m">Minor ticks</label>${sel("pd"+k+"m",k2||ky?[["0","None"],["1","Where there is room"]]:[["0","None"],["1","1 between"],["2","2"],["3","3"],["4","4"],["9","9"]],a.minor==null?1:k2||ky?Math.min(1,+a.minor):a.minor,b+".minor")}`
-        +`<label for="pd${k}ml">Minor length</label>${rng("pd"+k+"ml",A.mlen,b+".mlen",0,12,0.5," px")}`
-        +`<label for="pd${k}tw">Tick width</label>${rng("pd"+k+"tw",A.tw,b+".tw",0.25,3,0.25)}`
+        +`<label for="pd${k}ml">Minor length</label>${cmb("pd"+k+"ml",A.mlen,b+".mlen",0,12,CMB.ml," px")}`
+        +`<label for="pd${k}tw">Tick width</label>${cmb("pd"+k+"tw",A.tw,b+".tw",0.25,3,CMB.tw)}`
         +(k==="y2"||k2||ky?"":`<label>Across from it</label><div class="seg mini pdseg" role="group" aria-label="Which way the ticks across from the axis point">${[["","Same"],["in","In"],["out","Out"],["both","Both"],["none","None"]].map(([v,l])=>`<button type="button" data-pdmt="${k}:${v}" aria-pressed="${v==="none"?!A.mirror:A.mirror&&(a.mticks||"")===v}"${ro}>${l}</button>`).join("")}</div>`
           +chk("pd"+k+"mlb",b+".mlabs",A.mlabs,"Numbers across from it too")
-          +wide(`<button type="button" class="btn sm ghost" data-pdpage="frame">Every edge, one by one…</button>`)));
+          +`<span></span><div><button type="button" class="lnk" data-pdpage="frame">Every edge, one by one…</button></div>`));
     }
     h+=grp("Numbers",(cs?"":chk("pd"+k+"lb",b+".labs",A.labs,"Show the numbers"))
       +`<label for="pd${k}f">Format</label><div class="pair">${sel("pd"+k+"f",[["auto","Automatic"],["dec","Decimal"],["sci","Scientific"]].concat(k==="x2"||k==="yo"?[]:[["time","Time, h:mm:ss (from seconds)"],["date","Date and time, UTC (seconds since 1970)"]]),a.fmt||"auto",b+".fmt")}${sel("pd"+k+"n",[0,1,2,3,4,5,6].map(i=>[String(i),i+" dec."]),a.dec==null?2:a.dec,b+".dec")}</div>`
       +(cs?"":`<label>Turn</label>${seg(b+".lrot",isX?[[0,"0°"],[45,"45°"],[90,"90°"]]:[[0,"0°"],[90,"90°"]],A.rot,"Turn the numbers",true)}`)
-      +wide(tbar("ticks")+`<div class="pd-note">The font of every axis's numbers.</div>`),txReset("ticks"));
+      +`<label>Font</label>${tbar("ticks")}`+note("The font of every axis's numbers."),txReset("ticks"));
   } else if(page==="frame"){
     const FRc=frameOf(cfg), XA=axisCfg(cfg,"x"), YA=axisCfg(cfg,"y");
     const curve=`<path d="M12 27l7-9 5 4 7-13 6 12 6-5" fill="none" stroke="var(--accent)" stroke-width="1.4"/>`;
@@ -9375,7 +9657,7 @@ function renderPlotDetails(){
       if(k==="open") return `<svg viewBox="0 0 52 38" aria-hidden="true"><path d="M3 4V29M9 35H48" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="${[12,22,32,42].map(x=>`M${x},35v3`).join("")}${[10,18,26].map(y=>`M3,${y}h-3`).join("")}" stroke="currentColor"/>${curve}</svg>`;
       return `<svg viewBox="0 0 52 38" aria-hidden="true"><path d="M6 11H48M6 18H48M6 25H48M16 4V32M26 4V32M36 4V32" stroke="currentColor" stroke-width="1" opacity=".4"/>${curve}</svg>`; };
     h+=grp("Frame",wide(`<div class="pd-frames" role="group" aria-label="Frame">${[["box","Box"],["l","Axes only"],["none","None"]].map(([k,l])=>`<button type="button" class="pd-fr" data-pdseg="frame" data-v="${k}" aria-pressed="${FRc.kind===k}"${ro}>${frSvg(k)}<span>${l}</span></button>`).join("")}</div>`)
-      +`<label for="pdFrw">Line width</label>${rng("pdFrw",FRc.lw,"frameLw",0.25,4,0.25)}<label>Colour</label>${cb("frameColor",cfg.frameColor,"Automatic",pal.ink)}`);
+      +`<label for="pdFrw">Line width</label>${cmb("pdFrw",FRc.lw,"frameLw",0.25,4,CMB.lw)}<label>Colour</label>${cb("frameColor",cfg.frameColor,"Automatic",pal.ink)}`);
     h+=grp("Quick styles",wide(`<div class="pd-frames">${PD_PRESETS.map(([k,l])=>`<button type="button" class="pd-fr" data-pdpreset="${k}"${ro}>${preSvg(k)}<span>${l}</span></button>`).join("")}</div>`));
     // Edge by edge: click an edge of the picture (or name it), then its ticks and numbers.
     const E=frameEdges(cfg), se=EDGES.some(q=>q[0]===S.pdEdge)?S.pdEdge:"bottom", q=E[se], eTk=[["in","In"],["out","Out"],["both","Both"],["none","None"]];
@@ -9387,32 +9669,41 @@ function renderPlotDetails(){
         <label>Numbers</label><div class="seg mini pdseg" role="group" aria-label="Numbers on the ${se} edge">${[["1","Show"],["0","Hide"]].map(([v,l])=>`<button type="button" data-pdedgeset="${se}:labs:${v}" aria-pressed="${(!!q.labs&&!q.noLabs)===(v==="1")}"${ro||q.noLabs?" disabled":""}>${l}</button>`).join("")}</div></div>
       </div></div>`)
       +`<label>Every edge</label><div class="seg mini pdseg" role="group" aria-label="Every edge's ticks">${eTk.map(([v,l])=>`<button type="button" data-pdedgeall="${v}" aria-pressed="${allSame===v}"${ro}>${l}</button>`).join("")}</div>`
-      +`<label for="pdAtl">Major length</label>${rng("pdAtl",XA.len,"allax.tlen",0,20,0.5," px")}`
+      +`<label for="pdAtl">Major length</label>${cmb("pdAtl",XA.len,"allax.tlen",0,20,CMB.tl," px")}`
       +note("An axis's own page has its tick lengths, widths and minor ticks."));
     h+=grp("Grid",chk("pdGrid","grid",!!cfg.grid,"Major grid lines")+chk("pdGridM","gridMinor",!!cfg.gridMinor,"Minor grid lines")
       +chk("pdGx","gridX",cfg.gridX!==false,"Vertical lines, at the X ticks")+chk("pdGy","gridY",cfg.gridY!==false,"Horizontal lines, at the Y ticks")
-      +`<label>Colour</label>${cb("gridColor",cfg.gridColor,"Automatic",pal.grid)}<label for="pdGlw">Width</label>${rng("pdGlw",numOr(cfg.gridLw,1),"gridLw",0.25,3,0.25)}<label>Style</label>${seg("gridDash",DASH_OPTS,cfg.gridDash||"solid","Grid line style")}`);
+      +`<label>Colour</label>${cb("gridColor",cfg.gridColor,"Automatic",pal.grid)}<label for="pdGlw">Width</label>${cmb("pdGlw",numOr(cfg.gridLw,1),"gridLw",0.25,3,CMB.lw)}<label>Style</label>${seg("gridDash",DASH_OPTS,cfg.gridDash||"solid","Grid line style")}`);
     h+=grp("Background",`<label>Plot area</label>${cb("plotBg",cfg.plotBg,"None","")}`);
     h+=grp("Margins",wide(`<div class="pd-marg">${[["mL","Left"],["mR","Right"],["mT","Top"],["mB","Bottom"]].map(([k,l])=>`<label>${l}${num("pd"+k,cfg[k],k,"auto",72)}</label>`).join("")}</div><div class="pd-note">In pixels; empty fits the numbers and titles.</div>`));
   } else if(page==="text"){
-    const gk=cfg.fontFam||"default";
+    const gk=cfg.fontFam||"default", open=S.pdOpen||(S.pdOpen=new Set());
     h+=grp("All text",`<label>Font</label><button type="button" class="fpbtn" data-pdfont="graph" style="font-family:${esc(fontStack(gk,cfg.fontName)||KSANS)}"${ro}><span>${esc(fontNameOf(gk,cfg.fontName))}</span>${ICON("chev","sm")}</button>`
-      +`<label for="pdFont">Size</label>${rng("pdFont",+cfg.font||1,"font",0.6,2.2,0.05,"×")}`+chk("pdItal","titleItalic",cfg.titleItalic!==false,"Axis titles in italics")
-      +note("Each kind of text below can have its own font, size and colour."));
-    h+=grp("Graph title",`<label for="pdTitle">Text</label><div class="rfield"><div class="pair"><input type="text" id="pdTitle" data-pd="title" data-rich value="${esc(cfg.title||"")}" placeholder="none"${ro}>${rtool("pdTitle")}</div>${texPv("pdTitle",cfg.title)}</div>`+wide(tbar("title",{align:"center"}))
-      +((cfg.titleDx||cfg.titleDy)?`<span></span><div><button type="button" class="btn sm" data-pdact="tdreset:title"${ro}>Put it back above the graph</button></div>`:""),txReset("title"));
-    [["axis","Axis titles","Where each sits along its axis is on the axis's page."],["ticks","Tick numbers",""],["legend","Legend",""],["labels","Labels and text on the graph","A label or text can have its own style too."],["peaks","Fitted peak labels","What they say and where they go: the Fitted peak labels page."]].forEach(([el,l,n])=>{
-      h+=grp(l,wide(tbar(el)+(n?`<div class="pd-note">${n}</div>`:"")),txReset(el)); });
+      +`<label for="pdFont">Size</label>${cmb("pdFont",+cfg.font||1,"font",0.6,2.2,CMB.font,"×")}`+chk("pdItal","titleItalic",cfg.titleItalic!==false,"Axis titles in italics")
+      +note("Each kind of text below can have its own font, size and colour: open it to change them."));
+    // Each kind of text folds; its line says how it looks now, so the page reads as a list.
+    const card=(el,l,inner)=>{ const st=(cfg.txt||{})[el]||{}, a=auto(el), on=k=>st[k]!=null?!!st[k]:!!a[k], own=Object.keys(st).filter(k=>st[k]!=null&&st[k]!=="").length;
+      const bits=[st.fam?fontNameOf(st.fam,st.name):"The graph's font",`${fmtR(st.size||PT(a.size))} pt`].concat([["b","bold"],["i","italic"],["u","underlined"]].filter(([k])=>on(k)).map(q=>q[1]));
+      return `<details class="grp pdcard" data-pdcard="${el}"${open.has(el)?" open":""}><summary><span>${l}</span><span class="sum">${st.color?`<i class="pdsw" style="background:${esc(st.color)}"></i>`:""}${esc(bits.join(" · "))}${own?" · its own":""}</span></summary><div class="gb"><div class="frow">${inner}${own?`<span></span><div>${txReset(el)}</div>`:""}</div></div></details>`; };
+    h+=`<section class="pd-grp"><h4>Each kind of text</h4>`
+      +card("title","Graph title",`<label for="pdTitle">Text</label><div class="rfield"><div class="pair"><input type="text" id="pdTitle" data-pd="title" data-rich value="${esc(cfg.title||"")}" placeholder="none"${ro}>${rtool("pdTitle")}</div>${texPv("pdTitle",cfg.title)}</div>`
+        +`<label>Font</label>${tbar("title",{align:"center"})}`+((cfg.titleDx||cfg.titleDy)?`<span></span><div><button type="button" class="btn sm" data-pdact="tdreset:title"${ro}>Put it back above the graph</button></div>`:""))
+      +card("axis","Axis titles",`<label>Font</label>${tbar("axis")}`+note("Each axis's title can have a style of its own, and its place along the axis: on the axis's page."))
+      +card("ticks","Tick numbers",`<label>Font</label>${tbar("ticks")}`)
+      +card("legend","Legend",`<label>Font</label>${tbar("legend")}`)
+      +card("labels","Labels and text on the graph",`<label>Font</label>${tbar("labels")}`+note("A label or a text can have a style of its own too."))
+      +card("peaks","Fitted peak labels",`<label>Font</label>${tbar("peaks")}`+note(`What they say and where they go: <button type="button" class="lnk" data-pdpage="fpeaks">Fitted peak labels</button>.`))
+      +`</section>`;
   } else if(page==="legend"){
     h+=grp("Place",`<label for="pdLeg">Where</label>${sel("pdLeg",LEGENDS.concat(cfg.legend==="custom"?[["custom","Where you dragged it"]]:[]),cfg.legend,"legend")}`
       +`<label>Columns</label>${seg("legendCols",[["","Auto"],[1,"1"],[2,"2"],[3,"3"],[4,"4"]],cfg.legendCols==null?"":cfg.legendCols,"Columns",true)}`
       +`<label for="pdLegTi">Title</label><div class="rfield"><div class="pair"><input type="text" id="pdLegTi" data-pd="legendTitle" data-rich value="${esc(cfg.legendTitle||"")}" placeholder="none"${ro}>${rtool("pdLegTi")}</div>${texPv("pdLegTi",cfg.legendTitle)}</div>`
       +note("Drag the legend on the graph to put it anywhere."));
-    h+=grp("Text",wide(tbar("legend"))+chk("pdLegT","legendText",cfg.legendText==="match","Each entry in its curve's colour",` data-map="match|ink"`),txReset("legend"));
-    h+=grp("Entries",`<label for="pdLegL">Line sample</label>${rng("pdLegL",numOr(cfg.legendLine,18),"legendLine",6,60,1," px")}<label for="pdLegS">Row spacing</label>${rng("pdLegS",numOr(cfg.legendSp,1),"legendSp",0.6,2.5,0.05,"×")}`);
+    h+=grp("Text",`<label>Font</label>${tbar("legend")}`+chk("pdLegT","legendText",cfg.legendText==="match","Each entry in its curve's colour",` data-map="match|ink"`),txReset("legend"));
+    h+=grp("Entries",`<label for="pdLegL">Line sample</label>${cmb("pdLegL",numOr(cfg.legendLine,18),"legendLine",6,60,CMB.legL," px")}<label for="pdLegS">Row spacing</label>${cmb("pdLegS",numOr(cfg.legendSp,1),"legendSp",0.6,2.5,CMB.legS,"×")}`);
     h+=grp("Box",chk("pdLegF","legendFrame",cfg.legendFrame!==false,"Frame and background")
       +`<label>Background</label>${cb("legendFill",cfg.legendFill,"Automatic",pal.bg)}<label for="pdLegO">Opacity</label>${rng("pdLegO",numOr(cfg.legendOp,0.85),"legendOp",0,1,0.05)}`
-      +`<label>Border</label>${cb("legendBd",cfg.legendBd,"Automatic",pal.grid)}<label for="pdLegW">Border width</label>${rng("pdLegW",numOr(cfg.legendLw,1),"legendLw",0,3,0.25)}<label for="pdLegR">Corners</label>${rng("pdLegR",numOr(cfg.legendR,3),"legendR",0,12,0.5," px")}`);
+      +`<label>Border</label>${cb("legendBd",cfg.legendBd,"Automatic",pal.grid)}<label for="pdLegW">Border width</label>${cmb("pdLegW",numOr(cfg.legendLw,1),"legendLw",0,3,CMB.bw)}<label for="pdLegR">Corners</label>${cmb("pdLegR",numOr(cfg.legendR,3),"legendR",0,12,CMB.rad," px")}`);
     let t=`<table class="pdann pd-ents"><thead><tr><th>Listed</th><th>Label</th></tr></thead><tbody>`;
     list.forEach(c=>{ if(cfg.hidden.includes(c.id)&&c!==act) return; const st=serStyle(c.id,c===act,pal,false,cfg);
       t+=`<tr><td><input type="checkbox" data-pd="series.${c.id}.leg" data-bool${st.leg!==false?" checked":""} aria-label="List ${esc(specName(c))}"${ro}></td><td><div class="pd-ent"><span class="sw" style="background:${st.color}"></span><input type="text" data-pd="series.${c.id}.label" value="${esc(st.label)}" placeholder="${esc(specName(c))}" aria-label="Label of ${esc(specName(c))}"${ro}></div></td></tr>`; });
@@ -9420,9 +9711,9 @@ function renderPlotDetails(){
     h+=grp("What it lists",wide(t+`</tbody></table>`));
   } else if(page==="layout"){
     h+=grp("Several curves",`<label for="pdLay">Layout</label>${sel("pdLay",LAYOUTS,cfg.layout,"layout")}`
-      +(cfg.layout==="offset"?`<label for="pdOff">Offset</label>${rng("pdOff",cfg.offset,"offset",0,2,0.05)}`:"")
+      +(cfg.layout==="offset"?`<label for="pdOff">Offset</label>${cmb("pdOff",cfg.offset,"offset",0,2,CMB.offs)}`:"")
       +(cfg.layout==="heat"?`<label for="pdCm">Colour map</label>${sel("pdCm",CMAP_LIST,cfg.cmap,"cmap")}<label for="pdMy">Up the side</label>${sel("pdMy",MAP_Y,cfg.mapY||"index","mapY")}<label for="pdMk">Drawn as</label>${sel("pdMk",MAP_KINDS,cfg.mapKind||"image","mapKind")}`
-        +((cfg.mapKind||"image")!=="image"?`<label for="pdMl">Levels</label>${rng("pdMl",numOr(cfg.mapLevels,8),"mapLevels",3,30,1)}`+chk("pdMlb","mapLab",cfg.mapLab!==false,"Number the contour lines"):""):"")
+        +((cfg.mapKind||"image")!=="image"?`<label for="pdMl">Levels</label>${cmb("pdMl",numOr(cfg.mapLevels,8),"mapLevels",3,30,CMB.lev)}`+chk("pdMlb","mapLab",cfg.mapLab!==false,"Number the contour lines"):""):"")
       +(isDistLayout(cfg.layout)?`<label for="pdDw">Whiskers</label>${sel("pdDw",DIST_WHISK,cfg.distWhisk==="range"?"range":"tukey","distWhisk")}`+chk("pdDp","distPts",!!cfg.distPts,"Show the values"):"")
       +chk("pdAxM","axisMatch",cfg.axisMatch!==false,"On two Y axes, colour each axis like its curve"));
     h+=grp("Colours",`<label for="pdSch">Curves</label>${sel("pdSch",Object.entries(SCHEMES).filter(([k,v])=>!v.hide||k===cfg.scheme).map(([k,v])=>[k,v.name]),cfg.scheme||"kurve","scheme")}<label for="pdPsch">Fitted peaks</label>${sel("pdPsch",Object.entries(PEAK_SCHEMES).map(([k,v])=>[k,v.name]),cfg.peakScheme||"warm","peakScheme")}`);
@@ -9441,25 +9732,25 @@ function renderPlotDetails(){
       +(offN?`<span></span><div><button type="button" class="btn sm" data-pdact="fploff:"${ro}>Put ${offN===1?"the dragged label":`the ${offN} dragged labels`} back</button></div>`:"")
       +note("Drag a label on the graph to move it; a leader goes back to its peak."));
     h+=grp("Mark and look",`<label for="pdFplM">Mark each peak with</label>${sel("pdFplM",FPL_MARKS,cfg.peakLabMk||"none","peakLabMk")}<label>Colour</label>${seg("peakLabCol",[["peak","Each peak's"],["text","The text's"]],cfg.peakLabCol||"peak","Colour")}<label>Box</label>${seg("peakLabBox",[["none","None"],["line","Outline"],["fill","Filled"]],cfg.peakLabBox||"none","Box")}`
-      +wide(tbar("peaks")),txReset("peaks"));
+      +`<label>Font</label>${tbar("peaks")}`,txReset("peaks"));
     if(off) h+=`<p class="pd-note">The labels are off: tick what they should show.</p>`;
   } else if(page==="labels"){
     const d=plotState().d, all=cfg.annos||[], lst=all.filter(a=>!a.grp), sets=yCols().filter(c=>all.some(a=>a.grp==="pk:"+c.id));
     const selA=S.pdAnno?all.find(a=>a.id===S.pdAnno)||null:null; if(!selA) S.pdAnno=null;
-    h+=grp("Fitted peaks",`<span></span><div><button type="button" class="btn sm" data-pdpage="fpeaks">Their labels…</button></div>`);
     let L1=`<div class="pd-anl">`;
     lst.forEach(a=>{ const on=!!selA&&selA.id===a.id, col=annoColor(a,pal,false,cfg);
       const hid=a.pin!=="plot"&&((a.xu!=null&&a.t!=="h"&&a.xu!==(d.xu||""))||(a.t!=="v"&&a.t!=="band"&&a.yu!=null&&a.yu!==(d.yu||"")));
       L1+=`<div class="pd-an${on?" on":""}"><button type="button" class="pd-anb" data-pdanno="${a.id}" aria-pressed="${on}"><span class="sw" style="background:${esc(col)}"></span><span class="k">${esc(ANNO_KINDS[a.t])}</span><span class="grow">${esc(annoBrief(a,d))}</span>${hid?`<span class="lab" title="Placed in other units: not drawn on the data now shown">other units</span>`:""}</button><button type="button" class="tb sm icon" data-pdandel="${a.id}" aria-label="Delete this ${esc(ANNO_KINDS[a.t].toLowerCase())}" title="Delete"${ro}>${ICON("x","sm")}</button></div>`; });
     if(!lst.length) L1+=`<p class="pd-note">None yet. Add one, or right-click the graph where you want it.</p>`;
     L1+=`</div>`;
-    L1=`<div class="pd-anhead"><span class="lab">${lst.length?`${lst.length} on this graph`:""}</span><button type="button" class="btn sm" data-pdaddmenu aria-haspopup="menu"${ro}>${ICON("plus","sm")}Add${ICON("chev","sm")}</button></div>`+L1;
+    const addB=`${lst.length?`<span class="lab">${lst.length} on this graph</span>`:""}<button type="button" class="btn sm pd-hadd" data-pdaddmenu aria-haspopup="menu"${ro}>${ICON("plus","sm")}Add${ICON("chev","sm")}</button>`;
     if(sets.length) L1+=`<p class="pd-note">${sets.map(c=>`${esc(specName(c))}: ${all.filter(a=>a.grp==="pk:"+c.id).length} peaks marked`).join(" · ")}. The set's labels and marks are in the <a href="#" data-pdpeaks>Peaks window</a>.</p>`;
-    h+=grp(`Lines, ranges, text and labels`,wide(L1));
-    if(selA) h+=pdAnnoEditor(selA,{cfg,pal,d,ro,sel,num,rng,chk,seg,cb,grp,wide,note,DASH_OPTS,auto});
+    h+=grp(`Lines, ranges, text and labels`,wide(L1),addB);
+    h+=`<p class="pd-note pd-foot">The fitted peaks' labels have a page of their own: <button type="button" class="lnk" data-pdpage="fpeaks">Fitted peak labels</button>.</p>`;
+    if(selA) h+=pdAnnoEditor(selA,{cfg,pal,d,ro,sel,num,rng,cmb,chk,seg,cb,grp,wide,note,DASH_OPTS,auto});
   }
   h+=`</div></div>`;
-  body.innerHTML=h;
+  body.innerHTML=h; richMount(body);
   wireTxtBars(body,pdTxtGet,(path,patch,final)=>{ pdTxtSet(path,patch); if(final) renderPlotDetails(); },{inherit:"The graph's font"});
   const main=body.querySelector(".pd-main"); if(main&&sc) main.scrollTop=sc;
   if(fkey){ const el=body.querySelector(fkey); if(el) el.focus({preventScroll:true}); }
@@ -9467,22 +9758,22 @@ function renderPlotDetails(){
 /* One line, range, text or label: its text and style, where it is, how it is
    turned and boxed, and its line. */
 function pdAnnoEditor(a,o){
-  if(a.t==="inset"){ const {pal,ro,num,rng,chk,cb,grp,note}=o, b="annos."+a.id, pc=(k,d)=>+(numOr(a[k],d)*100).toFixed(1);
+  if(a.t==="inset"){ const {pal,ro,num,rng,cmb,chk,cb,grp,note}=o, b="annos."+a.id, pc=(k,d)=>+(numOr(a[k],d)*100).toFixed(1);
     return `<div class="pd-aned">`+grp(`Inset<button type="button" class="pd-rst" data-pdandel="${a.id}"${ro}>Delete</button>`,
         `<label for="pdInX0">X from</label><div class="pair">${num("pdInX0",fmt(a.x0,7),b+".x0","",110)}<span class="lab">to</span>${num("pdInX1",fmt(a.x1,7),b+".x1","",110)}</div>`
         +`<label for="pdInY0">Y from</label><div class="pair">${num("pdInY0",a.y0==null?"":fmt(a.y0,7),b+".y0","auto",110)}<span class="lab">to</span>${num("pdInY1",a.y1==null?"":fmt(a.y1,7),b+".y1","auto",110)}</div>`+note("Empty Y fits the data in the X range."))
       +grp("Where",`<label for="pdInFx">Across</label><div class="pair">${num("pdInFx",pc("fx",0.6),b+".fx","60",70,` data-pct`)}<span class="lab">%</span>${num("pdInFy",pc("fy",0.05),b+".fy","5",70,` data-pct`)}<span class="lab">% down</span></div>`
         +`<label for="pdInFw">Size</label><div class="pair">${num("pdInFw",pc("fw",0.36),b+".fw","36",70,` data-pct`)}<span class="lab">% wide</span>${num("pdInFh",pc("fh",0.4),b+".fh","40",70,` data-pct`)}<span class="lab">% high</span></div>`+note("Of the plot. Or drag the inset, and its corner, on the graph."))
       +grp("Look",chk("pdInBox",b+".box",a.box!==false,"Outline the region on the graph")+chk("pdInCon",b+".conn",a.conn!==false,"Lines from the region to the inset")+chk("pdInTi",b+".titles",!!a.titles,"Axis titles")
-        +`<label>Colour</label>${cb(b+".color",a.color,"Automatic",pal.muted)}<label for="pdInTs">Text size</label>${rng("pdInTs",numOr(a.ts,0.85),b+".ts",0.5,1.3,0.05,"×")}`)+`</div>`; }
-  const {cfg,pal,ro,sel,num,rng,chk,seg,cb,grp,wide,note,DASH_OPTS,auto}=o, b="annos."+a.id, isLine=a.t==="v"||a.t==="h", g=!!a.grp, pinned=a.t==="text"&&a.pin==="plot", ang=annoAng(a);
+        +`<label>Colour</label>${cb(b+".color",a.color,"Automatic",pal.muted)}<label for="pdInTs">Text size</label>${cmb("pdInTs",numOr(a.ts,0.85),b+".ts",0.5,1.3,CMB.ts,"×")}`)+`</div>`; }
+  const {cfg,pal,ro,sel,num,rng,cmb,chk,seg,cb,grp,wide,note,DASH_OPTS,auto}=o, b="annos."+a.id, isLine=a.t==="v"||a.t==="h", g=!!a.grp, pinned=a.t==="text"&&a.pin==="plot", ang=annoAng(a);
   const tst={}; Object.entries(ANNO_TX).forEach(([k,f])=>{ if(a[f]!=null) tst[k]=a[f]; });
   const base=auto("labels"), aut=Object.assign({},base,{size:base.size*(+a.size||1),color:annoColor(a,pal,false,cfg)});
   const tv=g?(a.lab||""):(a.text==null?"":a.text);
   let e=`<label for="pdAnT">${g?"Label":"Text"}</label><div class="rfield"><div class="pair top"><textarea data-rich id="pdAnT" rows="${Math.min(5,Math.max(1,tv.split("\n").length))}" data-pd="${b}.${g?"lab":"text"}"${g?"":" data-null"} placeholder="${esc(a.t==="text"?"Text":a.t==="band"||twoEnds(a)?"none":"the position")}"${ro}>${esc(tv)}</textarea>${rtool("pdAnT")}</div>${texPv("pdAnT",tv)}</div>`;
   const shp=!!SHAPE_T[a.t];
   if(!g&&a.t!=="text"&&!shp) e+=chk("pdAnNo",b+".text",a.text==="","No text",` data-notext`);
-  e+=note((a.t==="text"||shp?(shp?"Inside it. ":"")+"Enter starts a new line.":"Empty shows the value; {x} stands for the position. Enter starts a new line.")+" LaTeX: x^{2}, H_{2}O, \\alpha, $\\frac{a}{b}$.");
+  e+=note((a.t==="text"||shp?(shp?"Inside it. ":"")+"Enter starts a new line.":"Empty shows the value; {x} stands for the position. Enter starts a new line.")+(texLatexOn()?" LaTeX: x^{2}, H_{2}O, \\alpha, $\\frac{a}{b}$.":""));
   e+=wide(txtBarHtml("anno:"+a.id,tst,aut,{align:a.t==="text"||a.t==="label"?"center":false,inheritLabel:"The labels' font"}));
   let pos="";
   if(a.t==="text"){ pos+=`<span></span><label class="chk"><input type="checkbox" id="pdAnPin" data-pdpin="${a.id}"${pinned?" checked":""}${ro}> Pinned to the plot, not to data values</label>`;
@@ -9512,9 +9803,9 @@ function pdAnnoEditor(a,o){
     if(a.dx||a.dy!=null) pos+=`<span></span><div><button type="button" class="btn sm" data-pdact="labreset:${a.id}"${ro}>Put the text back by its mark</button></div>`; }
   if(isLine||a.t==="band") pos+=`<label>Text at</label>${seg(b+".lpos",a.t==="h"?[["left","Left"],["middle","Middle"],["right","Right"]]:[["top","Top"],["middle","Middle"],["bottom","Bottom"]],a.lpos||(a.t==="h"?"right":"top"),"Where its text goes")}`;
   const angO=a.t==="v"?[[0,"Beside the line"],[90,"Along the line"]]:[[0,"0°"],[45,"45°"],[90,"90°"],[-90,"−90°"]];
-  if(shp){ const ln2=`<label>Outline</label>${cb(b+".color",a.color,"Automatic",annoColor(a,pal,false,cfg))}<label>Style</label>${seg(b+".dash",DASH_OPTS,a.dash||"solid","Line style")}<label for="pdAnLw">Width</label>${rng("pdAnLw",a.lw!=null?a.lw:1.2,b+".lw",0,6,0.1)}`
+  if(shp){ const ln2=`<label>Outline</label>${cb(b+".color",a.color,"Automatic",annoColor(a,pal,false,cfg))}<label>Style</label>${seg(b+".dash",DASH_OPTS,a.dash||"solid","Line style")}<label for="pdAnLw">Width</label>${cmb("pdAnLw",a.lw!=null?a.lw:1.2,b+".lw",0,6,CMB.lw)}`
       +`<label>Fill</label>${cb(b+".fill",a.fill,"None","")}`+(a.fill?`<label for="pdAnOp">Opacity</label>${rng("pdAnOp",numOr(a.op,0.18),b+".op",0,1,0.01)}`:"")
-      +(a.t==="rect"?`<label for="pdAnRx">Corners</label>${rng("pdAnRx",numOr(a.rx,0),b+".rx",0,30,1," px")}`:"")+chk("pdAnBh",b+".behind",!!a.behind,"Behind the data");
+      +(a.t==="rect"?`<label for="pdAnRx">Corners</label>${cmb("pdAnRx",numOr(a.rx,0),b+".rx",0,30,CMB.rx," px")}`:"")+chk("pdAnBh",b+".behind",!!a.behind,"Behind the data");
     const hd2=`${esc(ANNO_KINDS[a.t])}<button type="button" class="pd-rst" data-pdandel="${a.id}"${ro}>Delete</button>`;
     return `<div class="pd-aned">`+grp(hd2,e)+grp("Where",pos)+grp("Outline and fill",ln2)+`</div>`; }
   let look=`<label>Turn</label><div class="pair">${seg(b+".ang",angO,ang,"Turn the text",true)}${a.t==="v"?"":num("pdAnAng",ang,b+".ang","0",58)+`<span class="lab">°</span>`}</div>`;
@@ -9523,9 +9814,9 @@ function pdAnnoEditor(a,o){
   if(a.box==="line"||a.box==="both") look+=`<label>Outline</label>${cb(b+".bd",a.bd,"Automatic",annoColor(a,pal,false,cfg))}`;
   if(!g&&a.t!=="band"&&a.t!=="text") look+=chk("pdAnU",b+".unit",!!a.unit,"Show the unit with the value");
   let ln="";
-  if(a.t==="arrow") ln+=`<label>Colour</label>${cb(b+".color",a.color,"Automatic",annoColor(a,pal,false,cfg))}<label>Style</label>${seg(b+".dash",DASH_OPTS,a.dash||"solid","Line style")}<label for="pdAnLw">Width</label>${rng("pdAnLw",a.lw!=null?a.lw:1.2,b+".lw",0.3,6,0.1)}`
-    +`<label>Head</label>${seg(b+".head",[["none","None"],["open","Open"],["end","Filled"],["both","Both ends"]],a.head||"end","Its head")}<label for="pdAnHs">Head size</label>${rng("pdAnHs",numOr(a.hs,1),b+".hs",0.5,3,0.1,"×")}`;
-  if(isLine||a.t==="band"){ ln+=`<label>Colour</label>${cb(b+".color",a.color,"Automatic",annoColor(a,pal,false,cfg))}<label>Style</label>${seg(b+".dash",DASH_OPTS,a.dash||(isLine?"dash":"solid"),"Line style")}<label for="pdAnLw">Width</label>${rng("pdAnLw",a.lw!=null?a.lw:1.2,b+".lw",0.3,6,0.1)}`;
+  if(a.t==="arrow") ln+=`<label>Colour</label>${cb(b+".color",a.color,"Automatic",annoColor(a,pal,false,cfg))}<label>Style</label>${seg(b+".dash",DASH_OPTS,a.dash||"solid","Line style")}<label for="pdAnLw">Width</label>${cmb("pdAnLw",a.lw!=null?a.lw:1.2,b+".lw",0.3,6,CMB.lw)}`
+    +`<label>Head</label>${seg(b+".head",[["none","None"],["open","Open"],["end","Filled"],["both","Both ends"]],a.head||"end","Its head")}<label for="pdAnHs">Head size</label>${cmb("pdAnHs",numOr(a.hs,1),b+".hs",0.5,3,CMB.hs,"×")}`;
+  if(isLine||a.t==="band"){ ln+=`<label>Colour</label>${cb(b+".color",a.color,"Automatic",annoColor(a,pal,false,cfg))}<label>Style</label>${seg(b+".dash",DASH_OPTS,a.dash||(isLine?"dash":"solid"),"Line style")}<label for="pdAnLw">Width</label>${cmb("pdAnLw",a.lw!=null?a.lw:1.2,b+".lw",0.3,6,CMB.lw)}`;
     if(a.t==="band") ln+=`<label for="pdAnOp">Shading</label>${rng("pdAnOp",a.op!=null?a.op:0.13,b+".op",0,1,0.01)}`+chk("pdAnEd",b+".edge",!!a.edge,"Lines at its edges"); }
   const head=`${esc(ANNO_KINDS[a.t])}${g?` <span class="lab">in a peak set</span>`:""}`+(g?"":`<button type="button" class="pd-rst" data-pdandel="${a.id}"${ro}>Delete</button>`);
   return `<div class="pd-aned">`+grp(head,e)+grp("Where",pos)+grp("Look",look)+(ln?grp(a.t==="band"?"Shading and edges":a.t==="arrow"?"Line and head":"Line",ln):"")+`</div>`;
@@ -9650,7 +9941,7 @@ function setupPlotDetails(){
     if(el.dataset.map){ const [on,off]=el.dataset.map.split("|"); v=v?on:off; }
     if(el.dataset.notext!=null) v=el.checked?"":null;
     if(el.dataset.null!=null&&String(v).trim()==="") v=null;
-    if(el.dataset.num!=null){ if(String(v).trim()===""){ v=null; } else { const q=parseNum(v); if(q==null){ if(final){ toast("Enter a number, or leave it empty for automatic."); renderPlotDetails(); } return; } v=q; } }
+    if(el.dataset.num!=null){ if(String(v).trim()===""){ v=null; } else { const q=parseNum(v); if(q==null){ if(final){ toast("Enter a number, or leave it empty for automatic."); renderPlotDetails(); } return; } v=q; if(el.dataset.min!=null&&v<+el.dataset.min){ v=+el.dataset.min; el.value=String(v); } if(el.dataset.max!=null&&v>+el.dataset.max){ v=+el.dataset.max; el.value=String(v); } } }
     if(el.dataset.pct!=null&&v!=null) v=v/100;
     if(path.endsWith(".minor")||path.endsWith(".dec")) v=+v;
     if(path==="peakLabDec") v=v===""?null:+v;
@@ -9666,6 +9957,8 @@ function setupPlotDetails(){
   // What the fitted peaks' labels show: the ticked boxes, in their order.
   body.addEventListener("change",e=>{ const el=e.target; if(!el||el.dataset.pdfpl==null||S.readOnly||!S.plotPreview) return;
     const arr=[...body.querySelectorAll("[data-pdfpl]")].filter(x=>x.checked).map(x=>x.dataset.pdfpl); pdSet("peakLabShow",arr); pdSet("peakLab",arr.length?"custom":"off"); renderPlotDetails(); });
+  // Which kinds of text are open, kept across redraws (a stale toggle of one redrawn away is ignored).
+  body.addEventListener("toggle",e=>{ const d=e.target; if(!d||!d.isConnected||!d.dataset||d.dataset.pdcard==null) return; const s=S.pdOpen||(S.pdOpen=new Set()); if(d.open) s.add(d.dataset.pdcard); else s.delete(d.dataset.pdcard); },true);
   // Up and down move through the pages.
   body.addEventListener("keydown",e=>{ const it=e.target.closest&&e.target.closest(".pd-item"); if(!it||(e.key!=="ArrowDown"&&e.key!=="ArrowUp")) return;
     e.preventDefault(); const all=[...body.querySelectorAll(".pd-item")], i=all.indexOf(it), n=all[Math.max(0,Math.min(all.length-1,i+(e.key==="ArrowDown"?1:-1)))]; if(n&&n!==it){ n.click(); const f=body.querySelector(".pd-item.on"); if(f) f.focus(); } });
@@ -13580,6 +13873,9 @@ function wireFitWhere(box){
       setFitRange(a,b); }); });
   const dn=box.querySelector("#fitDone"); if(dn) dn.onclick=()=>{ closeWin("fit"); if(S.pfPreview){ S.pfPreview=null; renderPlot(); } };
   const rs=box.querySelector("#fitResid"); if(rs) rs.onchange=()=>togglePlot("resid");
+  const bc=box.querySelector("#fitBandC"); if(bc) bc.onchange=()=>setPlotKey("bandConf",bc.checked,bc.checked?"showed the fit's confidence band":"hid the fit's confidence band");
+  const bp=box.querySelector("#fitBandP"); if(bp) bp.onchange=()=>setPlotKey("bandPred",bp.checked,bp.checked?"showed the fit's prediction band":"hid the fit's prediction band");
+  const pk=box.querySelector("#fitPkFill"); if(pk) pk.onchange=()=>setSeriesStyle("__peaks",{fill:pk.checked},pk.checked?"shaded the fitted peaks":"took the shading off the fitted peaks");
   const ap=box.querySelector("#pfAddMode"); if(ap) ap.onclick=()=>{ setMode(S.mode==="peak"?"zoom":"peak"); renderFit(); };
 }
 // The residual panel under the graph, switched where the fit is made.
@@ -13777,8 +14073,13 @@ function diagText(f,sep,pre){
 function weightHtml(d){ const c=activeYCol(), e=c&&errColFor(c.id);
   if(d&&d.weighted&&hasErr()) return `<span class="fitwt" title="Each point counts as 1/σ², σ from its error bar; untick Weight by the Y error column to count every point the same">Weighted by ${e?`column ${esc(colLetter(e))}${e.name?` (${esc(e.name)})`:""}`:"the error bars"}</span>`;
   return `<span class="fitwt" title="${hasErr()?"Tick Weight by the Y error column to weight by the error bars":"There is no Y error column"}">Unweighted: every point counts the same</span>`; }
-function fitResidHtml(){ const p=P(), on=!!p&&residOn(GP(),activeFit()||residHint());
-  return `<label class="chk"><input type="checkbox" id="fitResid"${on?" checked":""}${S.readOnly||!p?" disabled":""}> Residuals under the graph</label>`; }
+// What the fit puts on the graph, set where it is made (the user had found no way to turn the shading off).
+function fitResidHtml(peaks){ const p=P(), on=!!p&&residOn(GP(),activeFit()||residHint()), cfg=p?plotCfg():{}, dis=S.readOnly||!p?" disabled":"", lv=confPct(confOf(activeFit()||{}));
+  return `<div class="fitshow" role="group" aria-label="On the graph"><span class="lab">On the graph</span>`
+    +`<label class="chk"><input type="checkbox" id="fitResid"${on?" checked":""}${dis}> Residuals under the graph</label>`
+    +`<label class="chk"><input type="checkbox" id="fitBandC"${cfg.bandConf!==false?" checked":""}${dis}> ${lv}% confidence band, shaded</label>`
+    +`<label class="chk"><input type="checkbox" id="fitBandP"${cfg.bandPred?" checked":""}${dis}> ${lv}% prediction band, dashed</label>`
+    +(peaks?`<label class="chk"><input type="checkbox" id="fitPkFill"${((cfg.series||{}).__peaks||{}).fill!==false?" checked":""}${dis}> Each fitted peak shaded</label>`:"")+`</div>`; }
 function fitModeSeg(){
   return `<div class="seg full" role="group" aria-label="What to fit">
     <button data-fmode="curve" aria-pressed="${S.fitMode==="curve"}" title="One model through the points in view">${ICON("chart")}<span>Curve fit</span></button>
@@ -14569,7 +14870,7 @@ function renderPeakFit(box,p,top){
   // 3 Fit
   h+=`<section class="stepsec"><h3 class="gh"><span class="sn">3</span>Fit</h3><label class="chk"><input type="checkbox" id="pwt"${d.weighted&&hasErr()?" checked":""}${hasErr()&&!S.readOnly?"":" disabled"}> Weight by the Y error column (1/σ²)</label>`;
   if(hasXErr()) h+=`<label class="chk"><input type="checkbox" id="pwtx"${d.xerr?" checked":""}${S.readOnly?" disabled":""}> <span class="tipd" title="Orthogonal distance regression: each point's true X is fitted too, within its X error, so the curve is not pulled flat by errors in X, and the parameters' errors include them. Without Y errors, the scatter in Y is found from the fit.">Include the X errors</span></label>`;
-  h+=fitResidHtml();
+  h+=fitResidHtml(true);
   h+=confHtml(d);
   h+=`<div class="range" id="fitRange"></div>`;
   if(S.fitError) h+=noteHtml("bad",S.fitError);
@@ -15170,6 +15471,9 @@ function openPrefs(){
         <div class="prow"><span>Theme</span>${seg("Theme",th,[["light","Light"],["dark","Dark"],["auto","Match the system"]])}</div>
         <div class="prow"><span>Style</span>${seg("Style",st,[["bench","Bench"],["graphite","Graphite"]])}</div>
         ${sw("prAnim",prefGet("anim"),"Animate windows, menus and the worksheet's cursor","Off, everything changes at once. The system's reduced-motion setting turns it off too")}</section>
+      <section aria-labelledby="prT"><h3 class="gh" id="prT">Typing text</h3>
+        <div class="prow"><span>Titles, labels and legend</span>${seg("Text",texLatexOn()?"tex":"nat",[["nat","Formatted, as in a word processor"],["tex","LaTeX"]])}</div>
+        <p class="lab ind">Formatted: raised and lowered characters and symbols shown as they are, picked with the buttons beside the field. LaTeX: the source, with a preview. A text with maths, a fraction or a root stays in LaTeX.</p></section>
       <section aria-labelledby="prS"><h3 class="gh" id="prS">After an import</h3>
         ${sw("prOv",ovAuto(),"Open the Overview","When the column imported has many evenly spaced points with clear features")}</section>
       <section aria-labelledby="prE"><h3 class="gh" id="prE">Errors</h3>
@@ -15182,6 +15486,7 @@ function openPrefs(){
     on("prOv",v=>{ try{ localStorage.setItem("kurve.ovAuto",v?"1":"0"); }catch(e){} });
     $("#prefBody").querySelectorAll("[data-pref-theme]").forEach(b=>b.onclick=()=>{ applyTheme(b.dataset.prefTheme); render(); });
     $("#prefBody").querySelectorAll("[data-pref-style]").forEach(b=>b.onclick=()=>{ applyStyle(b.dataset.prefStyle); render(); });
+    $("#prefBody").querySelectorAll("[data-pref-text]").forEach(b=>b.onclick=()=>{ setTexMode(b.dataset.prefText==="tex"); render(); });
     const cl=$("#prClear"); if(cl) cl.onclick=()=>{ clearHistory(); render(); };
     const ec=$("#prErrClear"); if(ec) ec.onclick=()=>{ try{ localStorage.removeItem("kurve.errors"); }catch(e){} render(); };
     const cp=$("#prErrCopy"); if(cp) cp.onclick=()=>copyText(errLog().map(e=>`${new Date(e.t).toISOString()}\t${e.where}\t${e.text}`).join("\n"),"Copied the error log.");
@@ -17826,7 +18131,7 @@ function openMenu(trigger,items,opt){
       tree.hidden=true; fl.hidden=false; });
     sin.focus();
   } else if(opt.focus==="menu") el.focus();
-  else { const first=el.querySelector(".mi:not(:disabled)"); (first||el).focus(); }
+  else { const on=opt.focus==="checked"&&el.querySelector('.mi[role="menuitemradio"][aria-checked="true"]:not(:disabled)'), first=on||el.querySelector(".mi:not(:disabled)"); (first||el).focus(); }
 }
 function openSub(parentEl,btn,it,focus){
   if(!menuOpen) return;
@@ -18095,7 +18400,7 @@ ${DL([["Theme","Light, dark, or as the system is."],["Style","Bench (blue for ev
  body:`<h2 id="k-all">Everywhere</h2>
 ${DL([[K("Ctrl","Z"),"Undo"],[K("Ctrl","Shift","Z")+" · "+K("Ctrl","Y"),"Redo"],[K("Ctrl","O"),"Import a file"],[K("Ctrl","Enter"),"Run the fit · post a comment"],[K("Esc"),"Close a menu or dialog; back to the Zoom tool"],[K("F1"),"Help on the window in front"],[K("Ctrl",","),"Preferences"],[K("?"),"This page"]],"keys")}
 <h2 id="k-graph">On the graph</h2>
-${DL([[K("←")+" "+K("→"),"Previous or next point (click the graph first)"],[K("Home")+" "+K("End"),"First or last point"],[K("+")+" "+K("−")+" "+K("0"),"Zoom in, zoom out, show all"],[K("[")+" "+K("]"),"Start or end the view at the selected point"],[K("M"),"Mask or restore the selected point"],[K("P"),"Put a peak at the selected point"],[K("Delete"),"Remove the selected peak, label, line or band"],[K("Enter")+" · "+K("F2"),"Type over the selected label, text or legend entry; "+K("Shift","Enter")+" starts a new line"],[K("↑")+" "+K("↓"),"With the legend selected: the entry above or below"],[K("Ctrl","Shift","=")+" · "+K("Ctrl","="),"While typing: superscript · subscript"],[K("Alt")+" while dragging","No snapping: text off its guides, an arrow's head off the data"],[K("Ctrl")+" while dropping a graph","Keep it: its columns are put on the other graph, and it stays"],[K("Esc")+" while holding a graph","Cancel the drop"],["Middle-drag","Pan, in any tool"],["Scroll","Zoom at the pointer"],["Double-click","Show all the data"],[K("Shift","F10"),"The graph's menu"]],"keys")}
+${DL([[K("←")+" "+K("→"),"Previous or next point (click the graph first)"],[K("Home")+" "+K("End"),"First or last point"],[K("+")+" "+K("−")+" "+K("0"),"Zoom in, zoom out, show all"],[K("[")+" "+K("]"),"Start or end the view at the selected point"],[K("M"),"Mask or restore the selected point"],[K("P"),"Put a peak at the selected point"],[K("Delete"),"Remove the selected peak, label, line or band"],[K("Enter")+" · "+K("F2"),"Type over the selected label, text or legend entry; "+K("Shift","Enter")+" starts a new line"],[K("←")+" "+K("→")+" · "+K("↑")+" "+K("↓"),"With the Reader: the previous or next point, the next curve; with the X–Y lines: move them ("+K("Shift")+" ten pixels)"],[K("↑")+" "+K("↓"),"With the legend selected: the entry above or below"],[K("Ctrl","Shift","=")+" · "+K("Ctrl","="),"While typing: superscript · subscript"],[K("Alt")+" while dragging","No snapping: text off its guides, an arrow's head off the data"],[K("Ctrl")+" while dropping a graph","Keep it: its columns are put on the other graph, and it stays"],[K("Esc")+" while holding a graph","Cancel the drop"],["Middle-drag","Pan, in any tool"],["Scroll","Zoom at the pointer"],["Double-click","Show all the data"],[K("Shift","F10"),"The graph's menu"]],"keys")}
 <h2 id="k-sheet">In the worksheet</h2>
 ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move; with "+K("Shift")+", select; with "+K("Ctrl")+", jump to the end of the data"],[K("Enter")+" · "+K("Tab"),"Next row · next column"],[K("F2")+" · double-click","Edit the cell; typing replaces it; "+K("Esc")+" cancels"],[K("Delete"),"Clear the selection (labels, and values unless the original data is locked)"],[K("Ctrl","C")+" "+K("Ctrl","V"),"Copy and paste, as tab-separated text"],[K("Ctrl","D")+" · "+K("Ctrl","R"),"Fill down · fill right"],[K("Ctrl","Space"),"In a formula: the suggestions; "+K("↑")+" "+K("↓")+" choose, "+K("Tab")+" puts one in, "+K("Esc")+" closes them"],[K("Ctrl","F"),"Find; "+K("Enter")+", "+K("Shift","Enter")+" or "+K("F3")+" for the next or previous match"],[K("Ctrl","Home")+" "+K("Ctrl","End"),"First or last cell"],[K("PgUp")+" "+K("PgDn"),"A screen up or down"]],"keys")}
 <h2 id="k-flow">In the History</h2>
@@ -18210,7 +18515,7 @@ ${DL([["Insert","The + on a line, or the <em>Step</em> button, opens the tool li
 <h2>The steps</h2>
 <div id="docStepList"></div>`},
 /* ---------------------------------------------------------------- Graph */
-{id:"graph", g:"Graph", t:"The graph", win:"graph", kw:"graph plot zoom pan mask add peak label comment tool pointer readout stage raw final compare reverse log grid residuals right-click",
+{id:"graph", g:"Graph", t:"The graph", win:"graph", kw:"graph plot zoom pan mask add peak label comment tool pointer readout stage raw final compare reverse log grid residuals right-click reader data reader read value find point search x-y lines crosshair cross hair vertical horizontal line read off graph menu",
  lead:"The active column's curve and the others beside it, with the pointer tools on the toolbar.",
  body:`<h2>Pointer tools</h2>
 ${DL([["Zoom","Drag a box to zoom; a flat box zooms X only. Scroll to zoom at the pointer. Click a point to select it."],["Pan","Drag to move the view. The middle button pans in any tool."],["Mask","Click a point or drag a box to leave points out of the fit, the peak finder and the integrals; click again to bring them back."],["Add a peak","In the Fit window's peak fit: click where you see a peak to add it to the fit."],["Label","Click a peak to label it and type; click an empty spot to write text. "+DA("annos","Labels and text")],["Arrow","Drag from where the arrow starts to what it points at; its head snaps to a data point. "+DA("annos#arrows","Arrows")],["Comment","In a shared project: click a point or a spot to start a comment anchored there. Alone, right-click the graph › Add here › A comment here…"]])}
@@ -18221,8 +18526,11 @@ ${DL([["Zoom","Drag a box to zoom; a flat box zooms X only. Scroll to zoom at th
 ${DL([["Reverse X","High to low, as wavenumbers are usually drawn."],["Log Y","A logarithmic Y axis."],["Grid","Grid lines."],["Residuals","A panel under the graph with the fit's residuals."]])}
 <h2>Right-click</h2>
 <p>On a curve: its colour, plot type and style. On an empty spot: a line, text or a peak label there; axes, layout and legend. On a line, a label, the legend or a title: its own options. ${K("Shift","F10")} opens the same menu from the keyboard.</p>
-<h2>Reading values</h2>
-<p>The status bar shows the value under the pointer. A selected point can be moved with ${K("←")} ${K("→")}. ${DA("keys#k-graph","All the graph's keys")}</p>`},
+<h2 id="graphmenu">The Graph menu</h2>
+<p>While a graph is on the desk, the menu bar has a <em>Graph</em> menu after Plot, and the toolbar its pointer tools and switches: the tools, the two ways of reading values, the view (show all, Reverse X, Log Y, grid lines), what of the fit is drawn and Format graph…. With only the worksheet on the desk neither is there, so nothing offers to act on a graph that is not shown. The graph window's own bar has the same menu.</p>
+<h2 id="reader">Reading values</h2>
+<p>The status bar shows the value under the pointer. A selected point can be moved with ${K("←")} ${K("→")}. ${DA("keys#k-graph","All the graph's keys")}</p>
+${DL([["Data reader","The <em>Reader</em> tool: hovering rings the plotted point nearest the pointer, a click pins it, and a card on the graph gives its curve, its row and its X and Y (with its error, if it has one). "+K("←")+" "+K("→")+" step along the curve, "+K("↑")+" "+K("↓")+" go to the next curve, "+K("Home")+" "+K("End")+" the first and last points. The card's <em>Find</em> takes an X or a Y and goes to the nearest point with it, bringing it into view; <em>Copy</em> copies what it reads."],["X–Y lines","The <em>X–Y lines</em> tool: a vertical and a horizontal line through the graph, dragged by either (or where they cross). Where the vertical line is, the card gives every curve's Y; where the horizontal line is, the X at which each curve crosses it. Its list chooses both lines, the vertical alone (each curve's Y at one X) or the horizontal alone (where the curves cross one Y). The arrows move the lines a pixel at a time, ten with "+K("Shift")+"; X and Y can also be typed in the card."]])}`},
 {id:"scales", g:"Graph", t:"Axis scales, dates and a second Y axis", kw:"scale log logarithmic ln natural log2 reciprocal 1/x arrhenius offset reciprocal celsius kelvin square root sqrt probability normal percent quantile date time clock hours timestamp second y axis right transmittance absorbance other units",
  lead:"Besides linear and logarithmic, an axis can be on a natural log, log₂, reciprocal, offset reciprocal, square-root or probability scale; its numbers can read as dates and times; and a second Y axis can show the heights in other units.",
  body:`<h2 id="kinds">Scales</h2>
@@ -18343,14 +18651,15 @@ ${DL([["Units","Wavelength (nm or µm), wavenumber (cm⁻¹), photon energy (eV)
 <h2 id="frame">Frame and grid</h2>
 ${DL([["Frame","A box, the axis lines only, or none; its width and colour."],["Quick styles","Box with ticks in; box with ticks out; out on the axes and in across from them; axes with ticks out (the usual journal style); open axes, set off from the plot; grid only."],["Ticks and numbers, edge by edge","A picture of the frame: click an edge (or name it) and choose its ticks (in, out, both, none) and whether it has numbers. An axis's own edge and the edge across from it are set apart, so the bottom can have ticks out and numbers while the top has ticks in and none, or the right edge can repeat the Y numbers. <em>Every edge</em> sets them all at once."],["Grid","Major and minor lines, vertical and horizontal, in their own colour, width and style."],["Background and margins","A colour for the plot area; margins in pixels, or measured from the numbers and titles."]])}
 <h2 id="text">Text and fonts</h2>
-<p>The graph's font and a size for all of it; then, for the title, the axis titles, the tick numbers, the legend, the labels and text, and the fitted peak numbers, each its own font, size in points, bold, italic, underline and colour, and alignment for the title. ${DA("fonts","Fonts")}</p>
+<p>The graph's font and a size for all of it; then each kind of text (the title, the axis titles, the tick numbers, the legend, the labels and text, the fitted peak labels) folded under its own line, which says how it looks now; open one for its font, size in points, bold, italic, underline and colour, and alignment for the title. A kind set apart from the graph's says <em>its own</em>, and <em>Back to the graph's style</em> undoes it. ${DA("fonts","Fonts")}</p>
+<p>Sizes, widths and lengths are typed, or picked from the list beside them (as a word processor's font size), and ${K("↑")} ${K("↓")} step through that list; only opacity, where the feel of the amount is the point, is a slider.</p>
 <h2 id="legend">Legend</h2>
 ${DL([["Place","The emptiest corner, a chosen corner, outside on the right, below the graph, none, or wherever it is dragged."],["Columns, title","One to four columns, or as many as fit below the graph; a title."],["Text and entries","Its font and size, each entry in its curve's colour, the length of the line samples and the spacing of the rows."],["Box","Frame and background, their colours, the background's opacity, the border's width, rounded corners."],["What it lists","Each curve and the fit, with a label of its own."]])}
 <h2>Layout and colours</h2>
 ${DL([["Layout","<em>Overlay</em>; <em>Offset</em> (a waterfall, each trace labelled); <em>Stacked</em> (a panel per curve, shared X); <em>Double Y</em> (the others on a right axis); <em>Heat map</em> (one row per curve, with a colour scale)."],["Colours","A scheme for the curves (Kurve's, distinct hues, Okabe–Ito for colour-blind readers, viridis, black and greys for print) and one for peaks. Schemes other than Kurve's colour by table order, so a curve keeps its colour."]])}
 <h2>On the graph itself</h2>
 <ul><li>Drag the <strong>legend</strong>, a <strong>title</strong> or an <strong>axis's numbers</strong> to move them. An axis dragged into the plot sits at that value (it snaps to zero); dragged out, it is set off from the plot. A title dragged back within 5 px of its place snaps home.</li>
-<li>Double-click a title, a legend entry, a label, a text or a line's text to type over it, in a box with the buttons for superscripts, subscripts and symbols and a preview of any LaTeX (${DA("latex","Text with LaTeX")}); double-click an axis's numbers for its page.</li>
+<li>Double-click a title, a legend entry, a label, a text or a line's text to type over it, in a box with the buttons for superscripts, subscripts and symbols, formatted as in a word processor or in LaTeX (${DA("latex","Text: formatted or LaTeX")}); double-click an axis's numbers for its page.</li>
 <li id="legend-edit">Click the <strong>legend</strong> to select it, the entry clicked shaded; click that entry again, double-click it or press ${K("Enter")} to type over it. ${K("↑")} and ${K("↓")} move between the entries and the title, ${K("Esc")} lets go. An entry's text is its curve's legend label: the curve keeps its name, and clearing the text brings the name back. Right-click the legend for <em>Add a title</em>, <em>Hide this entry</em>, and its place, columns and frame.</li>
 <li>Right-click an axis's numbers, a title, the legend or an empty spot for their menus. Everything with text has the same menu in the same order: <em>Edit text</em>; <em>Size</em>, <em>Bold</em>, <em>Italic</em> and <em>Colour</em>; what is its own (an axis title's place along the axis, a line's style and width, a label's mark, the legend's place and columns); <em>Format…</em> for its page of the Format dialog; <em>Delete</em>.</li>
 <li>An axis title can have a font, size, weight, slant and colour of its own: its axis's page (or the title's right-click menu). The style of every axis title is on the <em>Text and fonts</em> page.</li></ul>
@@ -18367,12 +18676,16 @@ ${DL([["Layout","<em>Overlay</em>; <em>Offset</em> (a waterfall, each trace labe
 <h2>Which text</h2>
 ${DL([["All text",MP("Plot › Font")+", or "+MP("Format graph › Text and fonts")+": the font and size of everything on the graph."],["Each kind","The title, axis titles, tick numbers, legend, labels and text, and fitted peak numbers each have a bar, as in a word processor: font, size in points, bold, italic, underline, colour and, for the title, alignment. A setting left empty follows the graph's."],["One label","A label, text or line has the same bar on its own page, over the labels' style."]])}
 <h2 id="rich">Superscripts, subscripts, symbols and maths</h2>
-<p>Every text on the graph is written in LaTeX: <code>cm^{-1}</code>, <code>H_{2}O</code>, <code>\\alpha</code>, <code>$\\frac{dI}{dV}$</code>, nested as deep as you like. ${DA("latex","Text with LaTeX")}</p>
+<p>Every text on the graph is typed formatted, as in a word processor (raised and lowered characters, symbols from a list), or in LaTeX: <code>cm^{-1}</code>, <code>H_{2}O</code>, <code>\\alpha</code>, <code>$\\frac{dI}{dV}$</code>, nested as deep as you like. ${DA("latex","Text: formatted or LaTeX")}</p>
 <h2>In exports</h2>
 <p>An SVG or PNG takes the web fonts it uses with it: the letters it draws, embedded in the file. A PNG would otherwise fall back to a default face, and an SVG to whatever the other computer has. Without a connection the figure is exported as it is, and the fonts installed here are used by name.</p>`},
-{id:"latex", g:"Graph", t:"Text with LaTeX", kw:"latex tex math maths formula equation superscript subscript nested greek symbol fraction root sqrt accent tilde hat bar vector italic upright mathrm text unit cm^-1 katex mathjax alpha nu delta degree angstrom preview typeset",
- lead:"Titles, axis titles, legend entries, labels, text and the text of lines and shapes are written in a subset of LaTeX, typeset by Kurve itself in the graph's own font, on screen and in every export.",
- body:`<h2>Two ways to write</h2>
+{id:"latex", g:"Graph", t:"Text: formatted or LaTeX", kw:"formatted word processor natural rich text latex tex math maths formula equation superscript subscript nested greek symbol fraction root sqrt accent tilde hat bar vector italic upright mathrm text unit cm^-1 katex mathjax alpha nu delta degree angstrom preview typeset",
+ lead:"Titles, axis titles, legend entries, labels, text and the text of lines and shapes are typed formatted, as in a word processor, or in LaTeX; either way Kurve sets them in the graph's own font, on screen and in every export.",
+ body:`<h2>Formatted or LaTeX</h2>
+<p>Every field that takes such a text has four buttons beside it: x<sup>2</sup> raises, x<sub>2</sub> lowers, αΩ opens the symbols, and <em>LaTeX</em> switches between the two ways of typing. The choice is kept in this browser, for every field, and is also in ${MP("File › Preferences…")}.</p>
+${DL([["Formatted (the default)","The field shows the text as it will read: raised and lowered characters raised and lowered, symbols as themselves, nothing to learn and no preview. Select some letters and press x<sup>2</sup> or x<sub>2</sub> (or "+K("Ctrl","Shift","=")+" and "+K("Ctrl","=")+"), or press it and type; press it again to come back to the line. The symbols are a long list by kind (Greek, units, operators, relations, arrows, fractions, accented letters…), searched by name: <em>alpha</em>, <em>degree</em>, <em>arrow</em>. Shift+click picks several. Bold, italics and colour belong to the whole text and are set in its menu or the Format dialog."],["LaTeX","The field shows the source, and a preview under it as soon as it has LaTeX in it. The buttons write <code>^{…}</code> and <code>_{…}</code>, and a symbol is written as its command (<code>\\alpha</code>, <code>\\pm</code>) where LaTeX has one."]])}
+<p>Both keep the same text, so a project typed one way opens the other way. A text that uses what a word processor cannot show (maths between dollar signs, a fraction, a root, an accent, a font, a script inside a script) stays in LaTeX whatever the choice, and the field says so. <code>{x}</code> in a label, and <code>{name}</code>, <code>{xc}</code> and the rest in a fitted peak's label, are kept as typed either way.</p>
+<h2>LaTeX: two ways to write</h2>
 ${DL([["Text","Outside dollar signs: your words as they are, in the text's own font. <code>^{…}</code> and <code>_{…}</code> make a superscript and a subscript, nested as deep as you like. Only braces make them, so a column called <code>sample_01</code> keeps its underscore. <code>\\alpha</code>, <code>\\deg</code> and the other commands give symbols."],["Maths","Between <code>$…$</code>, set as LaTeX sets it: letters italic, digits and function names (<code>\\log</code>, <code>\\sin</code>, <code>\\exp</code>) upright, <code>-</code> a true minus, spaces from the operators rather than from what you type, and <code>x^2</code> or <code>x_i</code> without braces."]])}
 <h2>Examples</h2>
 ${DL(["PER_{log_{10}} (dB)","Wavenumber (cm^{-1})","$\\tilde{\\nu}$ (cm^{-1})","Intensity (10^{3} counts s^{-1})","T_{g} = 75 \\deg C","\\alpha-Fe_{2}O_{3}","$E = h\\nu$","$\\frac{dI}{dV}$","$\\sqrt{x^2 + y^2}$","$\\Delta G^{\\circ}$ / kJ mol^{-1}"].map(s=>["<code>"+esc(s)+"</code>",texHtml(s)]),"code")}
@@ -18381,7 +18694,7 @@ ${DL(["PER_{log_{10}} (dB)","Wavenumber (cm^{-1})","$\\tilde{\\nu}$ (cm^{-1})","
 ${DL([["Greek","<code>\\alpha</code> … <code>\\omega</code>, <code>\\Gamma</code> … <code>\\Omega</code>, <code>\\varepsilon</code>, <code>\\vartheta</code>, <code>\\varphi</code>"],["Symbols","<code>\\deg</code> °, <code>\\pm</code> ±, <code>\\times</code> ×, <code>\\cdot</code> ·, <code>\\AA</code> Å, <code>\\micro</code> µ, <code>\\hbar</code> ħ, <code>\\infty</code> ∞, <code>\\partial</code> ∂, <code>\\nabla</code> ∇, <code>\\approx</code> ≈, <code>\\propto</code> ∝, <code>\\le</code> ≤, <code>\\ge</code> ≥, <code>\\ne</code> ≠, <code>\\to</code> →, <code>\\rightleftharpoons</code> ⇌, <code>\\sum</code>, <code>\\int</code>, <code>\\langle</code> <code>\\rangle</code>, <code>\\ldots</code>"],["Fractions and roots","<code>\\frac{a}{b}</code>, <code>\\sqrt{x}</code>, <code>\\sqrt[3]{x}</code>"],["Accents","<code>\\hat{x}</code>, <code>\\bar{x}</code>, <code>\\vec{v}</code>, <code>\\dot{x}</code>, <code>\\ddot{x}</code>, <code>\\tilde{\\nu}</code>, <code>\\overline{AB}</code>"],["Fonts","<code>\\mathrm{…}</code> upright letters in maths, <code>\\text{…}</code> words in maths, <code>\\mathit</code>, <code>\\mathbf</code>, <code>\\textbf</code>, <code>\\emph</code>"],["Spaces","<code>\\,</code> <code>\\:</code> <code>\\;</code> <code>\\quad</code> <code>\\qquad</code>, and <code>\\!</code> to close one up"],["Brackets","<code>\\left( … \\right)</code> grow to fit what they hold"],["The characters themselves","<code>\\$</code>, <code>\\^</code>, <code>\\_</code>, <code>\\{</code>, <code>\\}</code>"]])}
 <p>A command Kurve does not know is left as you typed it, so a mistake shows on the graph rather than vanishing.</p>
 <h2>Typing it</h2>
-<p>Double-click a title, a legend entry, a label or a text on the graph and a box opens over it. The buttons beside it make a superscript (x²) or a subscript (x₂) of what is selected, or insert a Greek letter or a symbol (αΩ); as soon as the text has LaTeX in it, the box shows it typeset, as it will be drawn. Every text field of the Format dialog, the line dialog and the peak's name has the same buttons and preview. While typing, ${K("Ctrl","Shift","=")} makes a superscript and ${K("Ctrl","=")} a subscript, as in a word processor.</p>
+<p>Double-click a title, a legend entry, a label or a text on the graph and a box opens over it, formatted or in LaTeX as chosen, with the same four buttons; in LaTeX it shows the text typeset as soon as it has LaTeX in it. Every text field of the Format dialog, the line dialog and the peak's name has the same buttons. ${K("Ctrl","Shift","=")} makes a superscript and ${K("Ctrl","=")} a subscript in either way, as in a word processor.</p>
 <h2>Where it works</h2>
 <p>The graph title, the axis titles and a second axis's unit, legend entries and the legend's title, peak labels, text on the plot, the text of lines, ranges, arrows and shapes, fitted peaks' names and their labels' template. Lists and menus (the Format dialog's pages, the right-click menus, Results and the report) show it typeset or as plain text.</p>
 <h2>In exports</h2>
@@ -18501,7 +18814,7 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <h2>What is fitted</h2>
 <p>The unmasked points of one column's processed data, over a range. The top of the Fit window says which: <em>Column</em> (with several) and <em>Range</em>, from … to …, in X units. The range is all the data until you type one, or take the graph's zoom with <em>Use the view</em>; zooming the graph alone never changes it, and what the fit leaves out is shaded while the window is open. <em>All</em> is all the data again. Mask points to leave them out. Under the options, a line says how the fit is weighted. Press <em>Fit</em> or ${K("Ctrl","Enter")}; <em>Done</em> closes the window and keeps the fit.</p>
 <h2>After fitting</h2>
-<p>The curve is drawn over the data, and the residuals under the graph after a peak fit (<em>Residuals under the graph</em> in the Fit window turns them on or off for any fit), and the ${DA("results","Results")} window gives every parameter with its uncertainty and anything that makes it less certain. Each fit is kept in the fit history; a fit whose data or processing changed since is marked out of date.</p>
+<p>The curve is drawn over the data, and the residuals under the graph after a peak fit. The Fit window's <em>On the graph</em> switches choose what else is drawn: the residuals under the graph, the confidence band (shaded), the prediction band (dashed) and, for a peak fit, each fitted peak shaded; the Graph menu has them too. The ${DA("results","Results")} window gives every parameter with its uncertainty and anything that makes it less certain. Each fit is kept in the fit history; a fit whose data or processing changed since is marked out of date.</p>
 ${TIP("A fit belongs to its column. It is drawn only over the column it was fitted to.")}`},
 {id:"curvefit", g:"Fitting", t:"Curve fit", kw:"curve fit confidence level 90 95 99 percent model models list picker search sketch suggested suggestion linear straight line polynomial order quadratic cubic exponential decay biexponential growth plateau association sigmoid boltzmann logistic dose response ec50 hill gompertz michaelis menten enzyme gaussian lorentzian voigt pseudo-voigt pearson log-normal lognormal extreme gumbel power law allometric logarithm arrhenius activation energy sine damped wave period frequency derived guess initial fixed weights control iteration iterations tolerance step stop lambda damping estimate starting values limits bounds lowest highest strict digits significant meaning confidence interval dependency",
  lead:"One model, fitted to the points in the fit's range.",
@@ -21217,7 +21530,7 @@ function setupDrop(){
    kept either way: they make the processed data. anim: windows, menus and the
    worksheet's cursor move instead of jumping. flowAuto: the History window opens
    with a column's first processing step (never while history is off). */
-const PREF_DEF={history:true, anim:true, flowAuto:true};
+const PREF_DEF={history:true, anim:true, flowAuto:true, texLatex:false};
 function prefGet(k){ try{ const v=localStorage.getItem("kurve.pref."+k); return v==null?PREF_DEF[k]:v==="1"; }catch(e){ return PREF_DEF[k]; } }
 function prefSet(k,v){ try{ localStorage.setItem("kurve.pref."+k,v?"1":"0"); }catch(e){} }
 function histOn(){ return prefGet("history"); }
@@ -21342,7 +21655,7 @@ async function loadExample(kind){
    Boot
    ============================================================ */
 function wireStatic(){
-  setupRanges(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); wireXpl(); setupPlotDetails(); setupRichTools(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
+  setupRanges(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); wireXpl(); setupPlotDetails(); setupRichTools(); setupCombos(); setupMotionKeep(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
   document.querySelectorAll(".rb[data-rmenu]").forEach(b=>b.addEventListener("click",()=>toggleMenu(b,()=>menuItems(b.dataset.rmenu),{label:b.textContent.trim()})));
   // With a menu open, the pointer passing over another menu's name opens it only after
   // resting there 150 ms, so a pointer crossing the bar on its way to a submenu changes nothing.

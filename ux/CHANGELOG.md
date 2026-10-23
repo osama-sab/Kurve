@@ -749,3 +749,46 @@ Checked: odd-test (5 new: a cell cut by both edges of the view double-clicked, w
 cell and fills nothing, where before it filled 233 cells; typing into it; typing at once after a
 restore from the taskbar, which before went to the page), the fuzzer on seeds 1 to 24 three at a
 time (and 1 to 8 three times slower), all clean, and every suite from the round before.
+
+## The user's issues from before 19.10 (2026-10-23)
+
+Eight points, asked to be fixed before the fit's slice 5. Each, what changed:
+
+- **"Why is there no setting to choose if I want a shading on the fitted curve or not?"** The
+  Fit window has an *On the graph* group: the residuals under the graph, the confidence band
+  (shaded), the prediction band (dashed) and, for a peak fit, each fitted peak shaded. The
+  Graph menu has the same switches.
+- **Graph quick tools: a data point finder and X–Y lines.** The *Reader* rings the plotted point
+  nearest the pointer and pins it on a click; a card on the graph gives its curve, row, X and Y,
+  steps along the curve (←/→) and between curves (↑/↓), and finds the nearest point to a typed
+  X or Y. The *X–Y lines* are a vertical and a horizontal line dragged across the graph; the
+  card gives every curve's Y at the vertical line and where each curve crosses the horizontal
+  one, with either line alone if chosen.
+- **"A separate menu for the graph tools … not there when I am using the worksheet."** A Graph
+  menu after Plot, and the toolbar's graph group, shown only while a graph is on the desk.
+- **The edge-by-edge choices were far too wide.** They keep their own width now, beside a
+  picture of the frame that keeps its size.
+- **Text settings for every kind of text were confusing.** The Text and fonts page has the
+  graph's font and size, then a folding line per kind of text saying how it looks now (font,
+  size, bold, italic, *its own*); open one to change it, and it stays open across redraws.
+- **"Don't use sliders everywhere."** 26 sliders (line sample, row spacing, widths, lengths,
+  offsets, sizes, levels…) became fields with a list, as Excel's font size box: typed, picked,
+  or stepped through with ↑/↓, and clamped. Opacity and fill stay sliders. The list opens on the
+  value it holds.
+- **"Either LaTeX or natural language … for natural language no renderer."** Every text field
+  (titles, the legend, labels, line text, a peak's name, the second axes' units) types either
+  way, switched by its *LaTeX* button or in Preferences, kept per browser. Formatted, the
+  default: the field shows the text as Word does, raised and lowered characters (x², x₂,
+  Ctrl+Shift+= and Ctrl+=) and symbols as themselves, and no preview. LaTeX: the source with its
+  preview, as before. The symbols are about 240 in eleven kinds, searched by name. Both store the
+  same text (LaTeX), so nothing migrates and exports are unchanged; a text a word processor
+  cannot show (maths, fractions, roots) stays in LaTeX and says so.
+- **"Some toggles don't have smooth transitions … boxes placed at weird locations."** A switch or
+  a segmented choice keeps its slide or fade through the redraw it causes. Boxes were put in
+  their rows: a text bar is a row labelled Font, a lone link became a link in its row, Add sits
+  in its list's heading, and the fit's range, which showed "1(" for 1550 in the dock, wraps.
+
+Checked: `tools/tex-test.mjs` (10 new: the conversion both ways draws the same, what stays LaTeX,
+escapes, placeholders, a sub- then a superscript, lines, symbols), new drives of the Format
+dialog (19), the transitions (4), formatted and LaTeX typing in the dialog, on the graph and in
+the line dialog (29), the readers (18), and every suite from the rounds before.
