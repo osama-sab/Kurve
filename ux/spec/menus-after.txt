@@ -172,6 +172,31 @@ Plot
   Layout and colours…
   Show all the data  [Double-click]
 
+Graph  ## new (round after slice 4): the graph's tools, from the toolbar; ↓ only while a graph is open
+  Zoom
+  Pan
+  Mask points
+  Label
+  Arrow
+  Shape
+    Box
+    Ellipse
+  Comment  ## ↓ in a shared project
+  Data reader  ## new: click a point to read it; find one by its X or Y
+  X–Y lines  ## new: a vertical and a horizontal line, read where they cross the curves
+    Both lines
+    Vertical line
+    Horizontal line
+  Show all the data  [Double-click]
+  Reverse X
+  Log Y
+  Grid lines
+  Confidence band, shaded  ## new route: the fit's page of the Format dialog
+  Prediction band, dashed  ## new route: the fit's page of the Format dialog
+  Each fitted peak shaded  ## ↓ with a peak fit; new route: the fit's page
+  Residuals under the graph  ## new route: the Fit window
+  Format graph…
+
 Analysis
   Fit
     Curve fit…  ## ~ "Curve fit"

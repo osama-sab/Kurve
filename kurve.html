@@ -353,6 +353,38 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .ws thead td.lc.bad{color:var(--bad);box-shadow:inset 0 -2px 0 var(--bad)}
 .ws td.hit,.ws thead td.lc.hit{background:color-mix(in srgb,var(--warn) 24%,var(--panel))}
 .win[tabindex="-1"]:focus{outline:none}
+/* The readers: the lines, their hit zones and value tags, and the card on the graph. */
+#rdLayer .xhl{stroke:var(--accent);stroke-width:1.4;stroke-dasharray:5 3;pointer-events:none}
+#rdLayer .xhhit{fill:transparent;pointer-events:all}
+#rdLayer .xhhit[data-xh="v"]{cursor:ew-resize}
+#rdLayer .xhhit[data-xh="h"]{cursor:ns-resize}
+#rdLayer .xhc{fill:var(--panel);stroke:var(--accent);stroke-width:2;cursor:move;pointer-events:all}
+#rdLayer .rdtag{pointer-events:none}
+#rdLayer .rdtag rect{fill:var(--accent)}
+#rdLayer .rdtag text{fill:var(--accent-ink);font:600 11px var(--mono)}
+#plot.mode-reader,#plot.mode-cross{cursor:crosshair}
+.rdcard{position:absolute;z-index:6;width:256px;max-height:calc(100% - 8px);overflow:auto;background:var(--panel);border:1px solid var(--win-bd);border-radius:var(--r-l);box-shadow:var(--win-sh);font-size:var(--fs-tab);color:var(--ink)}
+.rdcard .rdh{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-4);border-bottom:1px solid var(--rule-2);cursor:move;background:var(--panel-2);border-radius:var(--r-l) var(--r-l) 0 0;user-select:none}
+.rdcard .rdh .t{flex:1;display:flex;align-items:center;gap:var(--sp-3);font-weight:600}
+.rdcard .rdb{padding:var(--sp-4);display:flex;flex-direction:column;gap:var(--sp-3)}
+.rdcard .rdr{display:grid;grid-template-columns:48px minmax(0,1fr);align-items:center;gap:var(--sp-3)}
+.rdcard .rdr>label{color:var(--muted)}
+.rdcard .rdval{font-family:var(--mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.rdcard .rdstep{display:flex;align-items:center;gap:var(--sp-2)}
+.rdcard .rdstep span{flex:1;text-align:center;font-family:var(--mono);font-size:var(--fs-cap)}
+.rdcard select{width:100%;min-width:0}
+.rdcard .pair{display:flex;gap:var(--sp-2);align-items:center;min-width:0}
+.rdcard input[type=text]{flex:1;min-width:0;height:26px;font-family:var(--mono);padding:0 var(--sp-3)}
+.rdcard .rdacts{display:flex;gap:var(--sp-2);justify-content:flex-end}
+.rdcard .rdhint{margin:0;color:var(--muted)}
+.rdcard .rdhint:empty{display:none}
+.rdcard .rdmodes{align-self:flex-start}
+.rdcard table{width:100%;border-collapse:collapse;font-size:var(--fs-cap)}
+.rdcard th,.rdcard td{text-align:left;padding:var(--sp-1) var(--sp-2);border-bottom:1px solid var(--rule-2);vertical-align:top}
+.rdcard tbody th{font-weight:500}
+.rdcard td{font-family:var(--mono);overflow-wrap:anywhere}
+.rdcard thead th{color:var(--muted);font-weight:600}
+.rdcard .sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:var(--sp-2)}
 .ws tbody td.fh{position:relative}
 .ws tbody td.fh::after{content:"";position:absolute;right:0;bottom:0;width:7px;height:7px;background:var(--accent);box-shadow:0 0 0 1px var(--panel);cursor:crosshair}
 .ws td.fillp{box-shadow:inset 0 0 0 1px var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--panel))}
@@ -1742,6 +1774,8 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
   <symbol id="i-ellipse" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8.5" ry="6"/></symbol>
   <symbol id="i-inset" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1.5"/><rect x="12" y="6.5" width="6.5" height="5.5"/></symbol>
   <symbol id="i-shape" viewBox="0 0 24 24"><rect x="3" y="3.5" width="11" height="9" rx="1"/><ellipse cx="15" cy="15.5" rx="6" ry="4.5"/></symbol>
+  <symbol id="i-reader" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/><circle cx="12" cy="12" r="1.3"/></symbol>
+  <symbol id="i-xylines" viewBox="0 0 24 24"><path d="M4 3.5V20h16.5"/><path d="M14 3.5V20M4 9.5h16.5" stroke-dasharray="2.6 2"/><circle cx="14" cy="9.5" r="1.9"/></symbol>
   <symbol id="i-tree" viewBox="0 0 24 24"><rect x="3" y="3.5" width="6" height="4.5" rx="1"/><rect x="12" y="10" width="9" height="4" rx="1"/><rect x="12" y="16.5" width="9" height="4" rx="1"/><path d="M6 8v10.5h6M6 12h6"/></symbol>
   <symbol id="i-eyeoff" viewBox="0 0 24 24"><path d="M9.9 5.2A9.6 9.6 0 0 1 12 5c6 0 9.5 7 9.5 7a16.7 16.7 0 0 1-2.6 3.5M6.6 6.6C4 8.3 2.5 12 2.5 12S6 19 12 19a9.3 9.3 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18"/></symbol>
   <symbol id="i-folderplus" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/><path d="M12 10.5v6M9 13.5h6"/></symbol>
@@ -1762,6 +1796,7 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
       <button class="mb" data-menu="edit" aria-haspopup="menu" aria-expanded="false">Edit</button>
       <button class="mb" data-menu="data" aria-haspopup="menu" aria-expanded="false">Data</button>
       <button class="mb" data-menu="plot" aria-haspopup="menu" aria-expanded="false">Plot</button>
+      <button class="mb" data-menu="graph" aria-haspopup="menu" aria-expanded="false" hidden>Graph</button>
       <button class="mb" data-menu="analysis" aria-haspopup="menu" aria-expanded="false">Analysis</button>
       <button class="mb" data-menu="statistics" aria-haspopup="menu" aria-expanded="false">Statistics</button>
       <button class="mb" data-menu="spectroscopy" aria-haspopup="menu" aria-expanded="false">Spectroscopy</button>
@@ -1789,21 +1824,23 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
     <div class="tsep"></div>
     <button class="tb icon" id="undoBtn" title="Nothing to undo" aria-label="Undo" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
     <button class="tb icon" id="redoBtn" title="Nothing to redo" aria-label="Redo" disabled><svg class="ic"><use href="#i-redo"/></svg></button>
-    <div class="tsep"></div>
-    <div class="seg" role="group" aria-label="Pointer tool" id="modeSeg">
+    <div class="tsep tg"></div>
+    <div class="seg tg" role="group" aria-label="Pointer tool" id="modeSeg">
       <button data-mode="zoom" aria-pressed="true" title="Zoom: drag a box to zoom, click a point to select it (Esc returns here)"><svg class="ic"><use href="#i-zoom"/></svg><span>Zoom</span></button>
       <button data-mode="pan" aria-pressed="false" title="Pan: drag to move the view"><svg class="ic"><use href="#i-pan"/></svg><span>Pan</span></button>
       <button data-mode="mask" aria-pressed="false" title="Mask: click or drag to leave points out of the fit"><svg class="ic"><use href="#i-mask"/></svg><span>Mask</span></button>
       <button data-mode="label" aria-pressed="false" title="Label: click a peak to label it with its position, or an empty spot to add text"><svg class="ic"><use href="#i-tag"/></svg><span>Label</span></button>
       <button data-mode="arrow" aria-pressed="false" title="Arrow: drag from where it starts to what it points at"><svg class="ic"><use href="#i-arrow"/></svg><span>Arrow</span></button>
       <button data-mode="shape" aria-pressed="false" aria-haspopup="menu" title="Shape: a box or an ellipse, dragged on the graph"><svg class="ic"><use href="#i-shape"/></svg><span>Shape</span></button>
+      <button data-mode="reader" aria-pressed="false" title="Data reader: click a point to read it, or find one by its X or Y"><svg class="ic"><use href="#i-reader"/></svg><span>Reader</span></button>
+      <button data-mode="cross" aria-pressed="false" title="X–Y lines: drag a vertical and a horizontal line, and read the curves where they cross"><svg class="ic"><use href="#i-xylines"/></svg><span>X–Y lines</span></button>
       <button data-mode="pin" id="pinBtn" aria-pressed="false" hidden title="Comment: click the graph to start a comment there, for the people sharing the project"><svg class="ic"><use href="#i-comment"/></svg><span>Comment</span></button>
     </div>
-    <button class="tb icon" id="resetView" title="Show all the data (or double-click the graph)" aria-label="Show all the data"><svg class="ic"><use href="#i-fitview"/></svg></button>
-    <div class="tsep"></div>
-    <button class="tb lbl opt" id="revX" aria-pressed="false" title="Run the X axis high to low, as wavenumber and binding-energy axes do"><svg class="ic"><use href="#i-reverse"/></svg><span>Reverse X</span></button>
-    <button class="tb lbl opt" id="logY" aria-pressed="false" title="Logarithmic Y axis"><svg class="ic"><use href="#i-log"/></svg><span>Log Y</span></button>
-    <button class="tb lbl opt" id="grid" aria-pressed="false" title="Grid lines"><svg class="ic"><use href="#i-grid"/></svg><span>Grid</span></button>
+    <button class="tb icon tg" id="resetView" title="Show all the data (or double-click the graph)" aria-label="Show all the data"><svg class="ic"><use href="#i-fitview"/></svg></button>
+    <div class="tsep tg"></div>
+    <button class="tb lbl opt tg" id="revX" aria-pressed="false" title="Run the X axis high to low, as wavenumber and binding-energy axes do"><svg class="ic"><use href="#i-reverse"/></svg><span>Reverse X</span></button>
+    <button class="tb lbl opt tg" id="logY" aria-pressed="false" title="Logarithmic Y axis"><svg class="ic"><use href="#i-log"/></svg><span>Log Y</span></button>
+    <button class="tb lbl opt tg" id="grid" aria-pressed="false" title="Grid lines"><svg class="ic"><use href="#i-grid"/></svg><span>Grid</span></button>
   </div>
 
   <div class="work" id="work">
@@ -1823,6 +1860,7 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
         <div class="ribbon" id="gRibbon" role="toolbar" aria-label="Data tools">
           <button class="rb" data-rmenu="data" aria-haspopup="menu" aria-expanded="false">Data<svg class="ic sm"><use href="#i-chev"/></svg></button>
           <button class="rb" data-rmenu="plot" aria-haspopup="menu" aria-expanded="false">Plot<svg class="ic sm"><use href="#i-chev"/></svg></button>
+          <button class="rb" data-rmenu="graph" aria-haspopup="menu" aria-expanded="false">Graph<svg class="ic sm"><use href="#i-chev"/></svg></button>
           <button class="rb" data-rmenu="analysis" aria-haspopup="menu" aria-expanded="false">Analysis<svg class="ic sm"><use href="#i-chev"/></svg></button>
           <button class="rb" data-rmenu="statistics" aria-haspopup="menu" aria-expanded="false">Statistics<svg class="ic sm"><use href="#i-chev"/></svg></button>
           <button class="rb" data-rmenu="spectroscopy" aria-haspopup="menu" aria-expanded="false">Spectroscopy<svg class="ic sm"><use href="#i-chev"/></svg></button>
@@ -8294,19 +8332,20 @@ function renderPlot(){
   const p=P(); const has=p&&allCols().some(c=>c.role==="y"&&inGraph(c))&&(pointsAll().length>0||plotState().d.x.length>0);
   $("#empty").hidden=!!has;
   renderStatusBar();
-  if(!p){ svg.innerHTML=""; S.geo=null; $("#emptyTitle").textContent=S.store?"Bring in a spectrum or a curve":"Opening workspace…"; return; }
+  if(!p){ svg.innerHTML=""; S.geo=null; renderRdCard(); $("#emptyTitle").textContent=S.store?"Bring in a spectrum or a curve":"Opening workspace…"; return; }
   // Columns in the worksheet and nothing on this graph: the graph offers Plot.
   const cols=!has&&allCols().some(c=>(c.role==="y"||c.role==="ignore")&&!c.src&&(c.data||[]).some(v=>v!=null));
   $("#emptyTitle").textContent=cols?"Nothing plotted yet":"Bring in a spectrum or a curve";
   $("#emptyText").textContent=cols?"Select columns in the worksheet and press Plot, or choose them here.":"Drop a file here, or paste columns into the worksheet.";
   { const ep=$("#emptyPlot"), ei=$("#emptyImport"), ex=document.querySelector("#empty .ex"); if(ep) ep.hidden=!cols; if(ei) ei.hidden=cols; if(ex) ex.hidden=cols; }
-  if(!has){ svg.innerHTML=""; S.geo=null; return; }
+  if(!has){ svg.innerHTML=""; S.geo=null; renderRdCard(); return; }
   const W=fig.clientWidth, H=fig.clientHeight; if(W<10||H<10) return;
   if(S.view&&S.view.xu===undefined) S.view.xu=plotState().d.xu||"";
   const str=buildPlot(W,H,readPalette(),false);
   svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
   svg.innerHTML=str.replace(/^<svg[^>]*>/,"").replace(/<\/svg>$/,"");
   const sub=document.querySelector(`#w-${winOfGraph(S.gid)} .win-sub`); if(sub){ const c=activeYCol(), ps=S.ps; sub.textContent=c?specName(c)+(ps&&!ps.final?" · "+stageName(ps):""):""; }
+  drawReaders(); renderRdCard();
   if(multiGraph()) scheduleSnaps();
 }
 
@@ -9774,6 +9813,7 @@ function setupGraph(){
   svg.addEventListener("pointerdown",ev=>{ downEl=ev.target;
     if(!S.geo||!P()||ev.button===2) return;
     const [x,y]=localXY(ev);
+    if(S.mode==="cross"&&ev.button===0&&xhDown(ev,x,y)){ ev.preventDefault(); svg.setPointerCapture(ev.pointerId); return; }
     const an=ev.target&&ev.target.closest?ev.target.closest("[data-anc]"):null;
     if(an&&ev.button===0&&!S.readOnly&&anchorStep()){ ev.preventDefault(); svg.setPointerCapture(ev.pointerId); S.adrag={k:+an.dataset.anc,moved:false}; return; }
     const h=hitHandle(ev);
@@ -9817,6 +9857,7 @@ function setupGraph(){
       else if(g.heat&&d&&d.inside){ const z=g.mapZ?g.mapZ(d.x,d.y):null, near=mapNearest(d.y);
         ro.textContent=`x ${fmt(d.x,6)}${xu?" "+xu:""}   ${g.mapSeries?`${seriesLabel()} ${fmt(d.y,5)}`:near?specName(near.c):""}   ${z!=null?`value ${fmt(z,5)}${yu?" "+yu:""}`:""}`; }
       else ro.textContent=d&&d.inside?`x ${fmt(d.x,6)}${xu?" "+xu:""}   y ${fmt(d.y,5)}${yu?" "+yu:""}`:""; }
+    if(S.xhdrag){ xhMove(x,y); return; }
     if(S.andrag){ dragAnno(x,y); return; }
     if(S.fldrag){ const fd=S.fldrag; fd.cur=[fd.d0[0]+x-fd.x0,fd.d0[1]+y-fd.y0]; if(Math.abs(x-fd.x0)+Math.abs(y-fd.y0)>3) fd.moved=true; if(fd.moved) renderPlot(); return; }
     if(S.lgdrag){ dragLegend(x,y); return; }
@@ -9844,7 +9885,9 @@ function setupGraph(){
     const h=drag?null:hitHandle(ev);
     const hT=drag||hAn?null:(ev.target&&ev.target.closest?ev.target.closest("[data-axtitle],[data-axis]"):null);
     const hF=drag||hAn?null:(ev.target&&ev.target.closest?ev.target.closest("[data-fpl]"):null);
-    if(hF) showTip(`Peak ${+hF.dataset.fpl+1}${S.readOnly?"":"   · drag to move · double-click to name it · right-click for its options"}`,x,y);
+    if(S.mode==="reader"&&!drag){ const hv=readerNear(x,y,30), was=S.rdHover; S.rdHover=hv; if((hv&&hv.q)!==(was&&was.q)) drawReaders();
+      if(hv){ const [xu,yu]=rdUnits(); showTip(`${specName(hv.rc.c)} · row ${hv.q.i+1}   x = ${fmt(hv.q.x)}${xu?" "+xu:""}   y = ${fmt(hv.q.y)}${yu?" "+yu:""}`,x,y); } else hideTip(); }
+    else if(hF) showTip(`Peak ${+hF.dataset.fpl+1}${S.readOnly?"":"   · drag to move · double-click to name it · right-click for its options"}`,x,y);
     else if(hAn) showTip(annoTip(hAn)+(S.readOnly?"":"   · drag to move"),x,y);
     else if(hT&&!S.readOnly) showTip(hT.dataset.axis?"Drag to move the axis · double-click for its settings":"Drag to move · double-click to type",x,y);
     else if(h&&S.pdraft&&S.pdraft.peaks[h.k]) showTip(handleTip(h.k)+(h.kind==="c"?"   · drag to move":"   · drag to change the width"),x,y);
@@ -9853,9 +9896,10 @@ function setupGraph(){
       else hideTip(); }
     if(S.room&&d&&Date.now()-lastPres>90){ lastPres=Date.now(); S.room.presence(d.inside?{uid:S.uid,pid:S.pid,cx:d.x,cy:d.y}:{uid:S.uid,pid:S.pid,cx:null,cy:null}).catch(()=>{}); }
   });
-  svg.addEventListener("pointerleave",()=>{ if(S.hdrag||drag) return; hideTip(); const ro=$("#readout"); if(ro) ro.textContent=""; if(S.room) S.room.presence({cx:null,cy:null}).catch(()=>{}); });
-  svg.addEventListener("pointercancel",()=>{ drag=null; S.hdrag=null; S.andrag=null; if(S.fldrag){ S.fldrag=null; renderPlot(); } S.lgdrag=null; S.bdrag=null; S.ttdrag=null; S.axdrag=null; S.arrowDraft=null; S.shapeDraft=null; S.guides=null; S.snapRing=null; zr.style.display="none"; svg.classList.remove("panning"); });
+  svg.addEventListener("pointerleave",()=>{ if(S.hdrag||drag||S.xhdrag) return; hideTip(); if(S.rdHover){ S.rdHover=null; drawReaders(); } const ro=$("#readout"); if(ro) ro.textContent=""; if(S.room) S.room.presence({cx:null,cy:null}).catch(()=>{}); });
+  svg.addEventListener("pointercancel",()=>{ drag=null; S.hdrag=null; S.xhdrag=null; S.andrag=null; if(S.fldrag){ S.fldrag=null; renderPlot(); } S.lgdrag=null; S.bdrag=null; S.ttdrag=null; S.axdrag=null; S.arrowDraft=null; S.shapeDraft=null; S.guides=null; S.snapRing=null; zr.style.display="none"; svg.classList.remove("panning"); });
   svg.addEventListener("pointerup",ev=>{
+    if(S.xhdrag){ S.xhdrag=null; return; }
     if(S.bdrag){ const bd=S.bdrag; S.bdrag=null; hideTip(); S.noDbl=Date.now(); if(bd.moved){ commitBandDrag(bd); return; }
       S.bandSel=bd.id; renderPlot(); openWin("integ",{render:true}); return; }
     // A click selects; a second click on the same one soon after edits it. (The
@@ -9918,6 +9962,7 @@ function setupGraph(){
     if(S.mode==="anchor"){ const pd=toData(d.x0,d.y0); if(pd&&pd.inside&&!S.readOnly) addAnchorAt(pd.x); return; }
     if(S.mode==="zoom"||S.mode==="pan"){ S.sel=q?q.i:null; S.annoSel=null; S.legSel=null; renderPlot(); renderWsSel(); if(q) scrollRow(q.i); }
     else if(S.mode==="mask"){ if(q) toggleMask([q.i],!isMasked(q.i)); }
+    else if(S.mode==="reader"){ const hit=readerNear(d.x0,d.y0,30); if(hit) rdPin(hit,true); }
     else if(S.mode==="peak"){ if(S.readOnly) return; if(S.ps&&!S.ps.final){ S.selStep=null; setStage(null); toast("Peaks are placed on the processed data, so the graph is back on it. Click again to place the peak."); return; }
       const pd=toData(d.x0,d.y0); if(!pd||!pd.inside) return;
       S.fitMode="peaks"; showTab("fit"); addPeakAt(q?q.x:pd.x); }
@@ -9982,6 +10027,14 @@ function graphKey(ev){
   if(ev.key==="ContextMenu"||(ev.shiftKey&&ev.key==="F10")){ ev.preventDefault(); const r=$("#figure").getBoundingClientRect(); openGraphMenu({preventDefault(){},target:$("#plot"),clientX:r.left+r.width/2,clientY:r.top+r.height/3}); return; }
   if(ev.ctrlKey||ev.metaKey||ev.altKey) return;
   if(!S.geo||!P()) return;
+  if(S.mode==="reader"&&["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Home","End"].includes(ev.key)){ ev.preventDefault();
+    if(ev.key==="ArrowLeft"||ev.key==="ArrowRight") rdStep(ev.key==="ArrowRight"?1:-1,0);
+    else if(ev.key==="ArrowUp"||ev.key==="ArrowDown") rdStep(0,ev.key==="ArrowDown"?1:-1);
+    else { const c=rdPoint(), rc=c?c.rc:readerCurves()[0]; if(rc){ const k=ev.key==="Home"?0:rc.pts.length-1; rdPin({rc,k,q:rc.pts[k]},true); rdIntoView(rc.pts[k]); } }
+    return; }
+  if(S.mode==="cross"&&/^Arrow/.test(ev.key)){ const xh=xhState(), g=S.geo; if(!xh) return; ev.preventDefault(); const st=ev.shiftKey?10:1; let px=g.X(xh.x), py=g.Y(xh.y);
+    if(ev.key==="ArrowLeft") px-=st; else if(ev.key==="ArrowRight") px+=st; else if(ev.key==="ArrowUp") py-=st; else py+=st;
+    const d=toData(px,py); if(d){ if(xh.mode!=="h") xh.x=d.x; if(xh.mode!=="v") xh.y=d.y; } drawReaders(); renderRdCard(); return; }
   const all=S.shownPts||pointsAll(); if(!all.length) return;
   const k=ev.key, at=()=>all.findIndex(q=>q.i===S.sel);
   const pick=j=>{ j=Math.min(all.length-1,Math.max(0,j)); S.sel=all[j].i;
@@ -10031,8 +10084,254 @@ const MODE_HINT={
   label:"Click a peak to label it · Click an empty spot for text · Double-click to edit",
   arrow:"Drag from where the arrow starts to what it points at · It snaps to data points (Alt: no snap) · Esc when done",
   shape:"Drag a box · Shift: a square · Esc when done",
-  ellipse:"Drag an ellipse · Shift: a circle · Esc when done"
+  ellipse:"Drag an ellipse · Shift: a circle · Esc when done",
+  reader:"Click a point to read it · ← → along the curve, ↑ ↓ to the next curve · Esc when done",
+  cross:"Drag the lines, or click to put them there · Arrows move them (Shift: further) · Esc when done"
 };
+/* ---- Reading values off the graph -------------------------------------------
+   Two pointer tools, as Origin's Data Reader and its vertical and horizontal
+   cursors. The Data reader snaps to the plotted point nearest the pointer, on
+   any curve drawn on these axes, and pins it with a click; the X–Y lines are a
+   vertical and a horizontal line dragged across the plot (both, or one), read
+   where they cross each curve. Neither changes the project: what they hold is
+   this session's (S.rdr, S.xh, keyed by project and graph), drawn over the live
+   graph after each draw (drawReaders, the #rdLayer group, never in an export),
+   and said in a small card on the graph (#rdCard), moved by its head, with a
+   field to find a point by its X or Y, or to put a line at a value. */
+const XH_MODES=[["both","Both lines","An X and a Y","Both"],["v","Vertical line","Each curve's Y at an X","Vertical"],["h","Horizontal line","Where each curve crosses a Y","Horizontal"]];
+function xhMode(){ try{ const m=localStorage.getItem("kurve.xh"); return XH_MODES.some(q=>q[0]===m)?m:"both"; }catch(e){ return "both"; } }
+function setXhMode(m){ if(!XH_MODES.some(q=>q[0]===m)) m="both"; try{ localStorage.setItem("kurve.xh",m); }catch(e){}
+  if(S.xh) S.xh.mode=m; if(S.mode!=="cross") setMode("cross"); else { drawReaders(); renderRdCard(true); } }
+// The curves the readers read: the analysed one, and the others overlaid on the same axes.
+function readerCurves(){
+  const g=S.geo, p=P(); if(!g||!p||g.heat) return [];
+  const cfg=plotCfg(), act=activeYCol(), xu=(S.ps&&S.ps.d&&S.ps.d.xu)||"", out=[];
+  if(act&&!cfg.hidden.includes(act.id)) out.push({c:act,pts:S.shownPts||[]});
+  if(cfg.layout==="overlay"&&S.ps&&S.ps.final) yCols().filter(c=>c!==act&&!cfg.hidden.includes(c.id)&&(finalOf(c).xu||"")===xu).forEach(c=>out.push({c,pts:seriesPoints(finalOf(c),cfg.logY)}));
+  return out.filter(rc=>rc.pts.length);
+}
+const rdUnits=()=>{ const d=S.ps&&S.ps.d; return [((d&&d.xu)||"").trim(),((d&&d.yu)||"").trim()]; };
+const rdKey=()=>S.pid+"|"+GID();
+// The point a reader holds, found again in its curve (by its recorded row) after a redraw.
+function rdPoint(){
+  const r=S.rdr; if(!r||r.key!==rdKey()) return null;
+  const rc=readerCurves().find(q=>q.c.id===r.cid); if(!rc) return null;
+  let k=rc.pts.findIndex(q=>q.i===r.i); if(k<0) k=Math.min(rc.pts.length-1,Math.max(0,r.k|0));
+  const q=rc.pts[k]; return q?{rc,k,q}:null;
+}
+// The nearest plotted point to a place on the screen, within maxd pixels.
+function readerNear(px,py,maxd){
+  const g=S.geo; if(!g) return null; let best=null, bd=(maxd||30)**2;
+  readerCurves().forEach(rc=>rc.pts.forEach((q,k)=>{ const e=(g.X(q.x)-px)**2+(g.Y(q.y)-py)**2; if(e<bd){ bd=e; best={rc,k,q}; } }));
+  return best;
+}
+function rdPin(hit,say){
+  if(!hit){ return; } S.rdr={key:rdKey(),cid:hit.rc.c.id,i:hit.q.i,k:hit.k};
+  drawReaders(); renderRdCard();
+  if(say){ const [xu,yu]=rdUnits(); $("#plotSay").textContent=`${specName(hit.rc.c)}, row ${hit.q.i+1}: x ${fmt(hit.q.x,6)}${xu?" "+xu:""}, y ${fmt(hit.q.y,6)}${yu?" "+yu:""}`; }
+}
+// Steps along the curve (dk), or to the next curve (dc) at the nearest X.
+function rdStep(dk,dc){
+  const cur=rdPoint(), list=readerCurves(); if(!list.length) return;
+  if(!cur){ rdPin({rc:list[0],k:0,q:list[0].pts[0]},true); return; }
+  if(dc){ const j=(list.findIndex(q=>q.c.id===cur.rc.c.id)+dc+list.length)%list.length, rc=list[j];
+    let k=0, bd=Infinity; rc.pts.forEach((q,i)=>{ const e=Math.abs(q.x-cur.q.x); if(e<bd){ bd=e; k=i; } }); rdPin({rc,k,q:rc.pts[k]},true); return; }
+  const k=Math.max(0,Math.min(cur.rc.pts.length-1,cur.k+dk)); rdPin({rc:cur.rc,k,q:cur.rc.pts[k]},true); rdIntoView(cur.rc.pts[k]);
+}
+// A point found off the view brings the view to it, keeping the zoom.
+function rdIntoView(q){
+  const g=S.geo; if(!g||!q) return; const v=g.v; let nv=null;
+  if(q.x<Math.min(v.x0,v.x1)||q.x>Math.max(v.x0,v.x1)){ const w=v.x1-v.x0; nv=Object.assign({},v,{x0:q.x-w/2,x1:q.x+w/2}); }
+  if(q.y<Math.min(v.y0,v.y1)||q.y>Math.max(v.y0,v.y1)){ const h=v.y1-v.y0; nv=Object.assign({},nv||v,{y0:q.y-h/2,y1:q.y+h/2}); }
+  if(nv&&!g.logX&&!g.logY){ S.view=Object.assign(nv,{xu:(S.ps&&S.ps.d.xu)||""}); renderPlot(); renderFitRangeOnly(); }
+}
+// Find the point of a curve whose X (or Y) is nearest a value typed.
+function rdFind(axis,txt){
+  const v=parseNum(txt); if(v==null){ toast("Type a number to find, as on the axis."); return; }
+  const cur=rdPoint(), list=readerCurves(), rc=cur?cur.rc:list[0]; if(!rc) return;
+  let k=0, bd=Infinity; rc.pts.forEach((q,i)=>{ const e=Math.abs((axis==="y"?q.y:q.x)-v); if(e<bd){ bd=e; k=i; } });
+  rdPin({rc,k,q:rc.pts[k]},true); rdIntoView(rc.pts[k]);
+}
+// The lines start in the middle of the view, and stay where they were put.
+function xhState(){
+  const g=S.geo; if(!g||g.heat) return null; const [xu,yu]=rdUnits();
+  if(!S.xh||S.xh.key!==rdKey()||S.xh.xu!==xu||S.xh.yu!==yu){ const t=toData(g.L+g.pw/2,g.T+g.mh/2); if(!t) return null; S.xh={key:rdKey(),x:t.x,y:t.y,xu,yu,mode:xhMode()}; }
+  return S.xh;
+}
+/* Where the curves cross the lines: on the screen, where each segment drawn
+   between two points crosses the line (so a log axis reads as it is drawn),
+   then back to data. Several crossings are kept, the first few named. */
+function xhCrossings(rc,axis,at){
+  const g=S.geo, out=[], P=rc.pts; if(!g||P.length<1) return out;
+  const pos=axis==="v"?g.X(at):g.Y(at);
+  for(let k=0;k+1<P.length;k++){ const a=P[k], b=P[k+1], ax=g.X(a.x), bx=g.X(b.x), ay=g.Y(a.y), by=g.Y(b.y);
+    const u=axis==="v"?ax:ay, w=axis==="v"?bx:by; if(!Number.isFinite(u)||!Number.isFinite(w)) continue;
+    if((pos<Math.min(u,w))||(pos>Math.max(u,w))||u===w&&pos!==u) continue;
+    const t=u===w?0:(pos-u)/(w-u), sx=ax+t*(bx-ax), sy=ay+t*(by-ay), d=toData(sx,sy); if(!d) continue;
+    const val=axis==="v"?d.y:d.x; if(out.length&&Math.abs(out[out.length-1].v-val)<=Math.abs(val)*1e-9) continue;
+    out.push({v:val,px:sx,py:sy}); if(out.length>40) break; }
+  if(P.length===1){ const q=P[0], qx=g.X(q.x), qy=g.Y(q.y); if(Math.abs((axis==="v"?qx:qy)-pos)<1) out.push({v:axis==="v"?q.y:q.x,px:qx,py:qy}); }
+  return out;
+}
+// The overlay: the pinned point and the hovered one, or the lines, their values and crossings.
+function drawReaders(){
+  const svg=$("#plot"); if(!svg) return; let lay=svg.querySelector("#rdLayer");
+  const g=S.geo, on=(S.mode==="reader"||S.mode==="cross")&&g&&!g.heat&&P();
+  if(!on){ if(lay) lay.remove(); return; }
+  if(!lay){ lay=document.createElementNS("http://www.w3.org/2000/svg","g"); lay.id="rdLayer"; svg.appendChild(lay); }
+  const f1=v=>(+v).toFixed(1), pal=readPalette(), acc=pal.sel||"#1d5fa8", L=g.L, T=g.T, R=g.L+g.pw, B=g.T+g.mh, cfg=plotCfg();
+  const colOf=c=>serStyle(c.id,c===activeYCol(),pal,false,cfg).color;
+  const tag=(x,y,txt,anc)=>{ const w=Math.max(28,txt.length*6.6+10), x0=anc==="end"?x-w:anc==="middle"?x-w/2:x;
+    return `<g class="rdtag"><rect x="${f1(x0)}" y="${f1(y-9)}" width="${f1(w)}" height="18" rx="3"/><text x="${f1(x0+w/2)}" y="${f1(y+4)}" text-anchor="middle">${esc(txt)}</text></g>`; };
+  let h="";
+  if(S.mode==="reader"){
+    const hv=S.rdHover, pin=rdPoint();
+    if(hv&&(!pin||hv.q!==pin.q)){ const x=g.X(hv.q.x), y=g.Y(hv.q.y); h+=`<circle cx="${f1(x)}" cy="${f1(y)}" r="6" fill="none" stroke="${acc}" stroke-width="1.4" opacity=".55"/>`; }
+    if(pin){ const x=g.X(pin.q.x), y=g.Y(pin.q.y);
+      if(x>=L-1&&x<=R+1&&y>=T-1&&y<=B+1){
+        h+=`<path d="M${f1(x)},${f1(y)}V${f1(B)}M${f1(x)},${f1(y)}H${f1(g.revX?R:L)}" stroke="${acc}" stroke-width="1" stroke-dasharray="3 3" fill="none"/>`
+          +`<circle cx="${f1(x)}" cy="${f1(y)}" r="7" fill="none" stroke="${colOf(pin.rc.c)}" stroke-width="2.4"/><circle cx="${f1(x)}" cy="${f1(y)}" r="7" fill="none" stroke="${acc}" stroke-width="1" stroke-dasharray="2 2"/>`; } }
+  } else {
+    const xh=xhState(); if(!xh){ lay.innerHTML=""; return; } const [xu,yu]=rdUnits();
+    const vx=g.X(xh.x), hy=g.Y(xh.y), showV=xh.mode!=="h"&&vx>=L&&vx<=R, showH=xh.mode!=="v"&&hy>=T&&hy<=B;
+    if(showV) h+=`<line x1="${f1(vx)}" y1="${T}" x2="${f1(vx)}" y2="${B}" class="xhl"/><rect x="${f1(vx-6)}" y="${T}" width="12" height="${f1(B-T)}" class="xhhit" data-xh="v"/>`;
+    if(showH) h+=`<line x1="${L}" y1="${f1(hy)}" x2="${R}" y2="${f1(hy)}" class="xhl"/><rect x="${L}" y="${f1(hy-6)}" width="${f1(R-L)}" height="12" class="xhhit" data-xh="h"/>`;
+    readerCurves().forEach(rc=>{ const col=colOf(rc.c);
+      if(showV) xhCrossings(rc,"v",xh.x).slice(0,6).forEach(q=>{ h+=`<circle cx="${f1(q.px)}" cy="${f1(q.py)}" r="4.2" fill="${col}" stroke="${pal.bg}" stroke-width="1.5" pointer-events="none"/>`; });
+      if(showH) xhCrossings(rc,"h",xh.y).slice(0,12).forEach(q=>{ h+=`<circle cx="${f1(q.px)}" cy="${f1(q.py)}" r="4.2" fill="${col}" stroke="${pal.bg}" stroke-width="1.5" pointer-events="none"/>`; }); });
+    if(showV&&showH) h+=`<circle cx="${f1(vx)}" cy="${f1(hy)}" r="6" class="xhc" data-xh="c"/>`;
+    if(showV) h+=tag(Math.max(L+30,Math.min(R-30,vx)),B-12,fmt(xh.x,5)+(xu?" "+xu:""),"middle");
+    if(showH) h+=tag(g.revX?R-4:L+4,Math.max(T+12,Math.min(B-30,hy-13)),fmt(xh.y,5)+(yu?" "+yu:""),g.revX?"end":"start");
+  }
+  lay.innerHTML=h;
+}
+// The card: what the reader holds, or what the lines cross, and the ways to move them.
+function renderRdCard(full){
+  const fig=$("#figure"); if(!fig) return; let card=$("#rdCard");
+  const tool=S.mode==="reader"?"reader":S.mode==="cross"?"cross":null, g=S.geo;
+  if(!tool||!g||!P()||g.heat){ if(card) card.hidden=true; return; }
+  if(!card){ card=document.createElement("div"); card.id="rdCard"; card.className="rdcard"; card.setAttribute("role","dialog"); fig.appendChild(card); wireRdCard(card); }
+  if(card.parentElement!==fig) fig.appendChild(card);
+  card.hidden=false; const [xu,yu]=rdUnits(), list=readerCurves(), ro=S.readOnly;
+  // Built again only when its tool or curves change: a field being typed in keeps its
+  // text, a button its focus, and only the values around them change.
+  const sig=tool+"|"+list.map(q=>q.c.id).join(",")+"|"+(tool==="cross"?(S.xh&&S.xh.mode):"");
+  if(full||card.dataset.sig!==sig){
+    const head=`<div class="rdh" data-rdmove><span class="t">${tool==="reader"?ICON("reader","sm")+"Data reader":ICON("xylines","sm")+"X–Y lines"}</span><button type="button" class="tb sm icon" data-rdx aria-label="Close" title="Close (Esc)">${ICON("x","sm")}</button></div>`;
+    let b="";
+    if(tool==="reader"){ const cur=rdPoint();
+      b+=(list.length>1?`<div class="rdr"><label for="rdCv">Curve</label><select id="rdCv">${list.map(rc=>`<option value="${rc.c.id}"${cur&&cur.rc.c.id===rc.c.id?" selected":""}>${esc(specName(rc.c))}</option>`).join("")}</select></div>`:"")
+        +`<div class="rdr"><label>Point</label><div class="rdstep"><button type="button" class="tb sm icon" data-rdk="-1" aria-label="The point before" title="The point before (←)">${ICON("chevl","sm")}</button><span data-rdv="n"></span><button type="button" class="tb sm icon" data-rdk="1" aria-label="The next point" title="The next point (→)">${ICON("chevr","sm")}</button></div></div>`
+        +`<div class="rdr"><label>X</label><span class="rdval" data-rdv="x"></span></div><div class="rdr"><label>Y</label><span class="rdval" data-rdv="y"></span></div><div class="rdr" data-rdv="erow"><label>Error</label><span class="rdval" data-rdv="e"></span></div>`
+        +`<div class="rdr rdfind"><label for="rdFv">Find</label><div class="pair"><div class="seg mini" role="group" aria-label="Find by"><button type="button" data-rdax="x" aria-pressed="${(S.rdAx||"x")==="x"}">X</button><button type="button" data-rdax="y" aria-pressed="${S.rdAx==="y"}">Y</button></div><input type="text" id="rdFv" inputmode="decimal" placeholder="a value" autocomplete="off" spellcheck="false"><button type="button" class="btn sm" data-rdfind>Find</button></div></div>`
+        +`<div class="rdacts"><button type="button" class="btn sm" data-rdcopy>Copy</button><button type="button" class="btn sm" data-rdlab${ro?" disabled":""}>Label it</button></div>`
+        +`<p class="rdhint" data-rdv="hint"></p>`;
+    } else { const xh=xhState()||{mode:xhMode()};
+      b+=`<div class="seg mini rdmodes" role="group" aria-label="Which lines">${XH_MODES.map(([k,l,t,sh])=>`<button type="button" data-xhm="${k}" aria-pressed="${xh.mode===k}" title="${esc(l+": "+t.toLowerCase())}">${sh}</button>`).join("")}</div>`
+        +(xh.mode!=="h"?`<div class="rdr"><label for="rdXv">X</label><div class="pair"><input type="text" id="rdXv" inputmode="decimal" autocomplete="off" spellcheck="false"><span class="lab">${esc(xu)}</span></div></div>`:"")
+        +(xh.mode!=="v"?`<div class="rdr"><label for="rdYv">Y</label><div class="pair"><input type="text" id="rdYv" inputmode="decimal" autocomplete="off" spellcheck="false"><span class="lab">${esc(yu)}</span></div></div>`:"")
+        +`<div class="rdtab" data-rdv="tab"></div><div class="rdacts"><button type="button" class="btn sm" data-rdcopy>Copy</button></div>`;
+    }
+    card.innerHTML=head+`<div class="rdb">`+b+`</div>`; card.dataset.sig=sig; card.setAttribute("aria-label",tool==="reader"?"Data reader":"X–Y lines");
+  }
+  // The values.
+  const put=(k,t)=>{ const el=card.querySelector(`[data-rdv="${k}"]`); if(el) el.textContent=t; };
+  if(tool==="reader"){ const cur=rdPoint();
+    if(cur){ const q=cur.q; put("n",`row ${q.i+1}  ·  ${cur.k+1} of ${cur.rc.pts.length}`); put("x",fmt(q.x,7)+(xu?" "+xu:"")); put("y",fmt(q.y,7)+(yu?" "+yu:""));
+      const er=card.querySelector('[data-rdv="erow"]'); if(er) er.hidden=!(q.e>0); put("e",q.e>0?"± "+fmt(q.e,4):"");
+      put("hint",cur.rc.c===activeYCol()&&isMasked(q.i)?"This point is masked: the fit leaves it out.":"");
+      const sel=card.querySelector("#rdCv"); if(sel&&document.activeElement!==sel) sel.value=cur.rc.c.id; }
+    else { put("n","none yet"); put("x","—"); put("y","—"); const er=card.querySelector('[data-rdv="erow"]'); if(er) er.hidden=true; put("hint","Click a point, or find one by its X or Y."); }
+  } else { const xh=xhState(); if(!xh) return;
+    const fx=card.querySelector("#rdXv"), fy=card.querySelector("#rdYv");
+    if(fx&&document.activeElement!==fx) fx.value=fmt(xh.x,6); if(fy&&document.activeElement!==fy) fy.value=fmt(xh.y,6);
+    const tb=card.querySelector('[data-rdv="tab"]');
+    if(tb){ const rows=list.map(rc=>{ const vy=xh.mode!=="h"?xhCrossings(rc,"v",xh.x).map(q=>q.v):[], vx=xh.mode!=="v"?xhCrossings(rc,"h",xh.y).map(q=>q.v):[];
+        const lst=(a,n)=>a.length?a.slice(0,n).map(v=>fmt(v,5)).join(", ")+(a.length>n?` … ${a.length-n} more`:""):"none in view";
+        return `<tr><th scope="row"><span class="sw" style="background:${serStyle(rc.c.id,rc.c===activeYCol(),readPalette(),false,plotCfg()).color}"></span>${esc(specName(rc.c))}</th>${xh.mode!=="h"?`<td>${esc(lst(vy,3))}</td>`:""}${xh.mode!=="v"?`<td>${esc(lst(vx,4))}</td>`:""}</tr>`; }).join("");
+      tb.innerHTML=list.length?`<table><thead><tr><th></th>${xh.mode!=="h"?`<th>Y at the X</th>`:""}${xh.mode!=="v"?`<th>X at the Y</th>`:""}</tr></thead><tbody>${rows}</tbody></table>`:`<p class="rdhint">No curve on these axes.</p>`; } }
+  placeRdCard(card);
+}
+// The card sits in the figure's top right, or where it was dragged, and stays inside it.
+function placeRdCard(card){ const fig=$("#figure"); if(!fig||!card) return; const W=fig.clientWidth, H=fig.clientHeight, w=card.offsetWidth, h=card.offsetHeight, o=S.rdPos||{dx:0,dy:0};
+  const x=Math.max(4,Math.min(W-w-4,W-w-10+o.dx)), y=Math.max(4,Math.min(Math.max(4,H-h-4),10+o.dy)); card.style.left=x+"px"; card.style.top=y+"px"; }
+function wireRdCard(card){
+  card.addEventListener("click",e=>{ const t=e.target;
+    if(t.closest("[data-rdx]")){ setMode("zoom"); return; }
+    const k=t.closest("[data-rdk]"); if(k){ rdStep(+k.dataset.rdk,0); return; }
+    const ax=t.closest("[data-rdax]"); if(ax){ S.rdAx=ax.dataset.rdax; card.querySelectorAll("[data-rdax]").forEach(b=>b.setAttribute("aria-pressed",String(b===ax))); const f=card.querySelector("#rdFv"); if(f) f.focus(); return; }
+    if(t.closest("[data-rdfind]")){ const f=card.querySelector("#rdFv"); if(f) rdFind(S.rdAx||"x",f.value); return; }
+    const m=t.closest("[data-xhm]"); if(m){ setXhMode(m.dataset.xhm); return; }
+    if(t.closest("[data-rdlab]")){ const cur=rdPoint(); if(cur&&!S.readOnly) addPeakLabel({id:cur.rc.c.id,x:cur.q.x,y:cur.q.y},{type:true}); return; }
+    if(t.closest("[data-rdcopy]")){ copyText(rdText(),"Copied what the reader shows."); return; } });
+  card.addEventListener("change",e=>{ if(e.target.id==="rdCv"){ const rc=readerCurves().find(q=>q.c.id===e.target.value), cur=rdPoint(); if(!rc) return;
+    let k=0, bd=Infinity; rc.pts.forEach((q,i)=>{ const d=Math.abs(q.x-(cur?cur.q.x:q.x)); if(d<bd){ bd=d; k=i; } }); rdPin({rc,k,q:rc.pts[k]},true); } });
+  card.addEventListener("keydown",e=>{ const t=e.target; e.stopPropagation();
+    if(e.key==="Escape"){ e.preventDefault(); setMode("zoom"); const pl=$("#plot"); if(pl) pl.focus({preventScroll:true}); return; }
+    if(e.key!=="Enter") return; e.preventDefault();
+    if(t.id==="rdFv") rdFind(S.rdAx||"x",t.value);
+    else if(t.id==="rdXv"||t.id==="rdYv"){ const v=parseNum(t.value), xh=xhState(); if(v==null||!xh){ toast("Type a number, as on the axis."); return; } if(t.id==="rdXv") xh.x=v; else xh.y=v; t.blur(); drawReaders(); renderRdCard(); } });
+  card.addEventListener("pointerdown",e=>{ const hd=e.target.closest("[data-rdmove]"); if(!hd||e.target.closest("button")||e.button!==0) return; e.preventDefault(); hd.setPointerCapture(e.pointerId);
+    const o=S.rdPos||{dx:0,dy:0}, x0=e.clientX, y0=e.clientY;
+    const mv=ev=>{ S.rdPos={dx:o.dx+ev.clientX-x0,dy:o.dy+ev.clientY-y0}; placeRdCard(card); };
+    const up=()=>{ hd.removeEventListener("pointermove",mv); hd.removeEventListener("pointerup",up); const fig=$("#figure"), r=card.getBoundingClientRect(), fr=fig.getBoundingClientRect();
+      // What it was dragged to, kept as an offset from its home, inside the figure.
+      S.rdPos={dx:r.left-fr.left-(fr.width-r.width-10),dy:r.top-fr.top-10}; };
+    hd.addEventListener("pointermove",mv); hd.addEventListener("pointerup",up); });
+}
+// What the card says, as text to paste.
+function rdText(){
+  const [xu,yu]=rdUnits();
+  if(S.mode==="reader"){ const c=rdPoint(); if(!c) return ""; return `${specName(c.rc.c)}\trow ${c.q.i+1}\nx${xu?" ("+xu+")":""}\t${c.q.x}\ny${yu?" ("+yu+")":""}\t${c.q.y}`+(c.q.e>0?`\terror\t${c.q.e}`:""); }
+  const xh=xhState(); if(!xh) return ""; const out=[];
+  if(xh.mode!=="h") out.push(`x${xu?" ("+xu+")":""}\t${xh.x}`); if(xh.mode!=="v") out.push(`y${yu?" ("+yu+")":""}\t${xh.y}`);
+  readerCurves().forEach(rc=>{ if(xh.mode!=="h") out.push(`${specName(rc.c)}\ty at the x\t`+xhCrossings(rc,"v",xh.x).map(q=>q.v).join("\t"));
+    if(xh.mode!=="v") out.push(`${specName(rc.c)}\tx at the y\t`+xhCrossings(rc,"h",xh.y).map(q=>q.v).join("\t")); });
+  return out.join("\n");
+}
+// A press in the X–Y lines tool: on a line (or where they cross) drags it; anywhere else moves them there.
+function xhDown(ev,x,y){
+  const xh=xhState(), g=S.geo; if(!xh||!g) return false; const d=toData(x,y); if(!d||!d.inside) return false;
+  const on=ev.target&&ev.target.closest?ev.target.closest("[data-xh]"):null; let which=on?on.dataset.xh:null;
+  if(!which){ which=xh.mode==="v"?"v":xh.mode==="h"?"h":"c"; if(which!=="h") xh.x=d.x; if(which!=="v") xh.y=d.y; }
+  S.xhdrag={which}; drawReaders(); renderRdCard(); return true;
+}
+function xhMove(x,y){ const xh=S.xh, dr=S.xhdrag, g=S.geo; if(!xh||!dr||!g) return;
+  const d=toData(Math.max(g.L,Math.min(g.L+g.pw,x)),Math.max(g.T,Math.min(g.T+g.mh,y))); if(!d) return;
+  if(dr.which!=="h") xh.x=d.x; if(dr.which!=="v") xh.y=d.y; drawReaders(); renderRdCard(); }
+/* The graph's tools are the graph's: their menu and their part of the toolbar
+   are there only while a graph is open on the desk (UX: "they shouldn't be
+   there when I am using the worksheet and no graph is open"). */
+function graphOnDesk(){ return !!P()&&graphWinIds().some(id=>winOpen(id)); }
+function syncGraphTools(){
+  const on=graphOnDesk(), was=!document.body.classList.contains("nograph");
+  document.body.classList.toggle("nograph",!on);
+  document.querySelectorAll('[data-menu="graph"],.toolbar .tg').forEach(el=>{ el.hidden=!on; });
+  if(on!==was) fitToolbar();
+}
+// The Graph menu: the pointer tools, the readers, the view, the fit's bands, Format graph.
+function graphToolsMenu(){
+  const p=P(), has=!!(p&&pointsAll().length), cfg=plotCfg(), edit=!!p&&!S.readOnly, m=S.mode, f=shownFit();
+  const tool=(k,l,kbd,t)=>({label:l,radio:true,checked:m===k,enabled:has,title:t,kbd,run:()=>setMode(k)});
+  return [{group:"Pointer"},tool("zoom","Zoom",null,"Drag a box to zoom; click a point to select it"),tool("pan","Pan",null,"Drag to move the view"),tool("mask","Mask points",null,"Click or drag to leave points out of the fit"),
+    tool("label","Label",null,"Click a peak to label it, or an empty spot to write text"),tool("arrow","Arrow",null,"Drag from where it starts to what it points at"),
+    {label:"Shape",sub:()=>[{label:"Box",radio:true,checked:m==="shape"&&shapeKind()==="rect",enabled:edit&&has,run:()=>pickShape("rect")},{label:"Ellipse",radio:true,checked:m==="shape"&&shapeKind()==="ellipse",enabled:edit&&has,run:()=>pickShape("ellipse")}]},
+    S.room?tool("pin","Comment",null,"Click the graph to start a comment there"):null,
+    "-",{group:"Read values"},
+    tool("reader","Data reader",null,"Click a point to read it; find one by its X or Y"),
+    {label:"X–Y lines",sub:()=>XH_MODES.map(([k,l,t])=>({label:l,note:t,radio:true,checked:m==="cross"&&xhMode()===k,enabled:has,run:()=>setXhMode(k)}))},
+    "-",{group:"View"},
+    {label:"Show all the data",kbd:"Double-click",enabled:has,run:()=>{ S.view=null; renderPlot(); renderFit(); }},
+    {label:"Reverse X",checked:!!cfg.revX,enabled:edit,run:()=>togglePlot("revX")},
+    {label:"Log Y",checked:!!cfg.logY,enabled:edit&&cfg.layout!=="heat",run:()=>togglePlot("logY")},
+    {label:"Grid lines",checked:!!cfg.grid,enabled:edit,run:()=>togglePlot("grid")},
+    "-",{group:"The fit on the graph"},
+    {label:"Confidence band, shaded",checked:cfg.bandConf!==false,enabled:edit&&!!f,run:()=>setPlotKey("bandConf",cfg.bandConf===false,cfg.bandConf===false?"showed the fit's confidence band":"hid the fit's confidence band")},
+    {label:"Prediction band, dashed",checked:!!cfg.bandPred,enabled:edit&&!!f,run:()=>setPlotKey("bandPred",!cfg.bandPred,cfg.bandPred?"hid the fit's prediction band":"showed the fit's prediction band")},
+    f&&f.kind==="composite"?{label:"Each fitted peak shaded",checked:(cfg.series.__peaks||{}).fill!==false,enabled:edit,run:()=>setSeriesStyle("__peaks",{fill:(cfg.series.__peaks||{}).fill===false},(cfg.series.__peaks||{}).fill===false?"shaded the fitted peaks":"took the shading off the fitted peaks")}:null,
+    {label:"Residuals under the graph",checked:residOn(cfg,f||residHint()),enabled:edit&&!!f,run:()=>togglePlot("resid")},
+    "-",{label:"Format graph…",enabled:!!p,run:()=>openPlotDetails(activeYCol()&&activeYCol().id,"frame")}].filter(Boolean);
+}
 // The Shape tool draws a box or an ellipse, whichever was chosen last in this browser.
 function shapeKind(){ if(!S.shapeKind){ try{ S.shapeKind=localStorage.getItem("kurve.shape")==="ellipse"?"ellipse":"rect"; }catch(e){ S.shapeKind="rect"; } } return S.shapeKind; }
 function pickShape(k){ S.shapeKind=k==="ellipse"?"ellipse":"rect"; try{ localStorage.setItem("kurve.shape",S.shapeKind); }catch(e){} setMode("shape"); }
@@ -10055,6 +10354,8 @@ function setMode(m,quiet){
   $("#plot").setAttribute("class","mode-"+m);
   const h=$("#hint"); if(graphWinIds().some(winOpen)){ h.textContent=(m==="shape"&&shapeKind()==="ellipse"?MODE_HINT.ellipse:MODE_HINT[m])||MODE_HINT.zoom; h.title=h.textContent; }
   if(m!=="range"&&m!=="anchor") S.pick=null;
+  if(m!=="reader") S.rdHover=null;
+  drawReaders(); renderRdCard();
   if(quiet) return;
   if(m==="peak"&&S.stage!=null&&!S.pending){ S.stage=null; S.selStep=null; renderStages(); if(winOpen("flow")) renderFlow(); }
   // Choosing Add peak is choosing to fit peaks.
@@ -15061,6 +15362,7 @@ function renderTop(){
   const dark=darkMode(), tb=$("#themeBtn"), lab=dark?"Switch to the light theme":"Switch to the dark theme";
   tb.innerHTML=ICON(dark?"sun":"moon"); tb.title=lab; tb.setAttribute("aria-label",lab);
   document.title=(p&&p.name?p.name+" — ":"")+"Kurve";
+  syncGraphTools();
 }
 
 /* ============================================================
@@ -17577,7 +17879,7 @@ function menuKey(e){
 }
 function toggleMenu(btn,itemsFn,opt){ if(menuOpen&&menuOpen.trigger===btn){ closeMenu(false); return; } openMenu(btn,itemsFn(),opt); }
 function moveBar(dir){
-  const bs=[...document.querySelectorAll(".mb")], i=bs.indexOf(menuOpen.trigger), nb=bs[(i+dir+bs.length)%bs.length];
+  const bs=[...document.querySelectorAll(".mb")].filter(b=>!b.hidden), i=bs.indexOf(menuOpen.trigger), nb=bs[(i+dir+bs.length)%bs.length];
   openMenu(nb,menuItems(nb.dataset.menu),{bar:true,label:nb.textContent});
 }
 function exportItems(){
@@ -18768,6 +19070,7 @@ function applyWins(){
   winMotionEnd(mo,dg);
   renderDock(dg,dfront);
   renderTaskbar(); if(multiGraph()) scheduleSnaps(60);
+  syncGraphTools();
 }
 function focusWin(id){ const st=winState(id); if(st.z<LAYOUT.z){ st.z=++LAYOUT.z; applyWins(); saveLayout(); } }
 /* ---- Motion of windows ----------------------------------------------------------
@@ -20856,6 +21159,7 @@ function menuItems(which){
     "-",
     {label:"Preferences…", kbd:"Ctrl+,", title:"History, appearance, animations", run:()=>openPrefs()}]; }
   if(which==="plot") return plotMenu();
+  if(which==="graph") return graphToolsMenu();
   if(which==="data") return dataMenu();
   if(which==="analysis") return analysisMenu();
   if(which==="statistics") return statisticsMenu();
@@ -21049,7 +21353,7 @@ function wireStatic(){
     b.addEventListener("pointerleave",()=>clearTimeout(mbT));
     b.addEventListener("keydown",e=>{
       if(e.key==="ArrowDown"){ e.preventDefault(); openMenu(b,menuItems(b.dataset.menu),{bar:true,label:b.textContent}); }
-      else if(e.key==="ArrowRight"||e.key==="ArrowLeft"){ e.preventDefault(); const bs=[...document.querySelectorAll(".mb")], i=bs.indexOf(b); bs[(i+(e.key==="ArrowRight"?1:-1)+bs.length)%bs.length].focus(); }
+      else if(e.key==="ArrowRight"||e.key==="ArrowLeft"){ e.preventDefault(); const bs=[...document.querySelectorAll(".mb")].filter(q=>!q.hidden), i=bs.indexOf(b); bs[(i+(e.key==="ArrowRight"?1:-1)+bs.length)%bs.length].focus(); }
     });
   });
   document.addEventListener("pointerdown",e=>{ if(menuOpen&&!(e.target.closest&&e.target.closest(".menu"))&&!menuOpen.trigger.contains(e.target)) closeMenu(false); },true);
