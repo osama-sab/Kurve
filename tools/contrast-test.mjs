@@ -45,7 +45,8 @@ PAIRS.push(["a window's edge on the desk", "--win-bd", "--paper", 3], ["a window
   ["a switch that is off", "--sw-off", "--panel", 3], ["a checkbox's edge", "--cb-bd", "--panel", 3], ["a slider's track", "--trk", "--panel", 3],
   ["words on a menu's highlight", "--ink", "--hi", 7], ["words on a selection", "--ink", "--sel", 7],
   ["good news", "--ok", "--panel", 4.5], ["a warning", "--warn", "--panel", 4.5], ["an error", "--bad", "--panel", 4.5],
-  ["words on the worksheet's selection", "--ink", "--ws-sel", 7], ["words on a pressed button", "--ink", "--press", 7]);
+  ["words on the worksheet's selection", "--ink", "--ws-sel", 7], ["words on a pressed button", "--ink", "--press", 7],
+  ["words on the graph bar's contextual menu", "--ink", "--accent-soft", 7], ["the contextual menu's bar on its fill", "--accent", "--accent-soft", 3]);
 // Disabled words still read (UX_SPEC §3.5): 4.5:1 on every surface a control sits on.
 for (const bg of ["--panel", "--panel-2", "--panel-3", "--chrome", "--btn-bg", "--win-h-bg"]) PAIRS.push(["disabled words on " + bg, "--ink-off", bg, 4.5]);
 // Numbers and words on a filled status shape: step numbers, badges, the danger button.

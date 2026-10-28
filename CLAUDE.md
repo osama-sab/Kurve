@@ -1513,6 +1513,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `S.fldrag`/`S.fplClick` (a fitted peak's label being dragged or clicked), `S.stOpt`, `S.fitRng` (the fit's
   range per column, see the Fit window), `S.annoSel` (the selected
   annotation; Delete removes it), `S.legSel` (the legend, its title or an entry, selected),
+  `S.gsel` (a curve, the fit or an axis selected), `S.ctxFromWs`/`S.wsTouch` (a column's menu in
+  the graph's bar),
   `S.plotDlgKind` (Plot setup's last kind), `S.comments` with `S.cDrafts`, `S.cReply`, `S.cEdit` and
   `S.discFilter` (the Discussion window's Open/All). Window positions are `LAYOUT`.
 - **Rendering**: `buildPlot(W,H,palette,colEx,opt)` returns an SVG string used both on screen and
@@ -1762,8 +1764,26 @@ graph first, with the taskbar kept at the bottom of the screen.
   `axisMenuItems(k)`; `setAxisKeys(k|"all", patch, log)`, `setTxtKey(el, patch, log)`. The
   peak finder's preview marks (`S.pfPreview`) are drawn on screen only. Right-click:
   `openGraphMenu` → `graphMenuItems` (swatch rows are `{swatches, current, pick}` menu
-  items; `seriesAt` gives the curve within 14 px of a point, or none, and then the plot's own menu
-  with Add here inline; `commentAt(pt)` is Add here › A comment here…). **The Format dialog**: `openPlotDetails(id, page)` (`#plotModal`; pages `series`
+  items; `seriesAt` gives the curve within 14 px of a point, or `"__fit"` where the fit's curve is
+  nearer (its screen points, `geo.fitPx`, kept by `buildPlot` with the path's `data-fitc`), or
+  none, and then the plot's own menu with Add here inline; `commentAt(pt)` is Add here › A comment
+  here…; the fit's menu has Show residuals, Results, Copy the results table, Fit window and Remove
+  fit; a band's strip or edge gives `bandMenuItems(id)` (baseline, the reference, `regionItems`,
+  the band table, remove), and a shaded range's menu `regionItems(lo, hi, xu)` too: Zoom to it,
+  Fit in this range (`setFitRange`), Integrate it). **What is selected** (DS_SPEC slice 4):
+  `ctxOf()` is `{kind, lab, name, title?, id|k, items}` for, in order, a whole column selected in
+  the worksheet that the graph shows while `S.ctxFromWs` (set by `wsPaintSel` while `S.wsTouch`,
+  the last press or key in `#ws`, `setupCtx`; a press on `#plot` clears it), the annotation
+  (`S.annoSel`, "Region" for a shaded range), the legend (`S.legSel`), a band (`S.bandSel`), and
+  `S.gsel` (`{g, kind: "curve"|"fit"|"axis", id|k}`, set by a click in Zoom or Pan, an axis's
+  numbers clicked, or a right-click, `gSelect(sel, quiet)`; Esc in `graphKey` lets go of it, the
+  annotation and the band); its `items` are the thing's right-click menu (`graphMenuItems(id)`,
+  `axisMenuItems`, `annoMenuItems`, `legendMenuItems`, `bandMenuItems`, `colMenuItems`, which
+  `openColMenu` now opens). `renderCtx()` (from `renderPlot`, `wsPaintSel` and `renderTaskbar`)
+  shows `#ctxBtn` (`.rb.ctx`, `data-rmenu="ctx"`, `menuItems("ctx")`) after `#ctxSep` in the
+  graph's bar, and outlines the thing by a rule in `#gselCss` (a drop-shadow on `g[data-ser]`'s
+  paths or `path[data-fitc]`, a dashed box on `rect[data-axis]`), so the drawing is untouched;
+  Shift+F10 on the graph opens that menu. **The Format dialog**: `openPlotDetails(id, page)` (`#plotModal`; pages `series`
   with `S.pdSel`, `ax:x|y|y2`, `frame`, `text`, `legend`, `layout`, `labels`, or
   `anno:<id>`; the old tab names map through `PD_PAGES`), `renderPlotDetails` (a side list
   of pages, each page in groups; focus and scroll kept across redraws; sizes and widths are
@@ -2766,6 +2786,9 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   the Fit window's switch label into three flex items, the label's gap between them: "(1/σ 2 )".
   A test of the markup passed; a screenshot of another slice showed it. Text changed in place
   keeps its pieces in one span where its parent lays children out.
+- **Where a menu is shown must be visible when it is shown.** The Column menu in the graph's bar
+  first appeared while the worksheet was in front, and in front the worksheet can cover the graph:
+  the button was there and could not be pressed. It follows the last place pressed or typed in.
 - **A search judged by its tests alone finds what the tests ask.** The palette passed its checks
   and still answered *export* with "Save this style…" and *power spectrum* with nothing: twenty
   queries read by eye found four wrong answers. Read a ranking's results, not only its first.
@@ -2785,8 +2808,10 @@ Figure › Annotate and Axes, and Analyze › Fit; Statistics and Spectroscopy s
 the background step Data › Baseline › Subtract baseline…, beside Linear detrend…; File ›
 Export and Edit's copies Publish. Slice 3 done: Find a command (Ctrl+K, Help › Find a command…),
 every command of the menu bar by its name, its menu or a word people use for it, grouped by
-menu with where it lives, Enter running it, the commands used last when nothing is typed. Next:
-commands that appear when a thing is selected on the graph, the Format pane docked and live,
+menu with where it lives, Enter running it, the commands used last when nothing is typed. Slice 4
+done: what is selected has its menu in the graph's bar (a curve, the fit's curve, an axis, a band
+or shaded range, an annotation, the legend, a column selected in the worksheet), the same as its
+right-click menu, the thing outlined on the graph. Next: the Format pane docked and live,
 the status bar's statistics of a selection, the Fit window and Results as designed, the
 dialogs, galleries drawn with the data, two displays.
 

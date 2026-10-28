@@ -123,7 +123,7 @@ await page(async p => {
     const find = (items, l) => (typeof items === "function" ? items() : items || []).find(i => i && i.label === l);
     const an = menuItems("analyze"), sp = find(an, "Spectroscopy"), pub = menuItems("publish"), ed = menuItems("edit"), pl = menuItems("plot"), dt = menuItems("data");
     return { bar: [...document.querySelectorAll(".menubar .mb")].map(b => b.textContent.trim()).join(),
-      ribbon: [...document.querySelectorAll("#gRibbon [data-rmenu]")].map(b => b.textContent.trim()).join(),
+      ribbon: [...document.querySelectorAll("#gRibbon [data-rmenu]")].filter(b => !b.hidden).map(b => b.textContent.trim()).join(),
       an: labs(an), sp: labs(sp && sp.sub), pub: labs(pub), ed: labs(ed), view: labs((find(pl, "View") || {}).sub), base: labs((find(dt, "Baseline") || {}).sub),
       tr: labs((find(dt, "Transform") || {}).sub), fit: labs((find(an, "Fit") || {}).sub) }; });
   check("the menu bar is in the order of the work", m.bar === "File,Edit,Data,Plot,Analyze,Figure,Publish,Window,Help", m.bar);
@@ -218,6 +218,67 @@ await page(async p => {
     await new Promise(r => setTimeout(r, 50)); const n = l.children.length, k = l.firstElementChild && l.firstElementChild.tagName, s = !!l.querySelector("sup"); l.remove(); return { n, k, s }; });
   check("a superscript in a flex label is not an item of its own", fl.n === 1 && fl.k === "SPAN" && fl.s, JSON.stringify(fl));
 }, { name: "palette" });
+
+console.log("Slice 4: what is selected has its menu in the graph's bar");
+await page(async p => {
+  await raman(p);
+  await p.evaluate(() => { focusWin(winOfGraph(GID())); }); await p.waitForTimeout(250);
+  const ctx = () => p.evaluate(() => ({ hid: $("#ctxBtn").hidden, sep: $("#ctxSep").hidden, lab: $("#ctxLab").textContent, title: $("#ctxBtn").title, css: ($("#gselCss") || {}).textContent || "" }));
+  const labels = () => p.evaluate(() => [...document.querySelectorAll(".menu")].pop() ? [...[...document.querySelectorAll(".menu")].pop().querySelectorAll("[role^=menuitem]")].map(e => e.textContent.trim()).filter(Boolean) : []);
+  check("nothing selected, no contextual menu", (await ctx()).hid);
+  // A curve, clicked on.
+  const pt = await p.evaluate(() => { const r = $("#plot").getBoundingClientRect(), q = S.shownPts[Math.floor(S.shownPts.length * 0.3)]; return { x: r.x + S.geo.X(q.x), y: r.y + S.geo.Y(q.y) }; });
+  await p.mouse.click(pt.x, pt.y); await p.waitForTimeout(150);
+  let c = await ctx();
+  check("a click on a curve puts Curve at the end of the graph's bar", !c.hid && !c.sep && c.lab === "Curve" && /Intensity/.test(c.title), JSON.stringify(c));
+  check("and outlines the curve on the graph", /g\[data-ser=.*drop-shadow/.test(c.css), c.css);
+  await p.click("#ctxBtn"); await p.waitForTimeout(150); const bar = await labels(); await p.keyboard.press("Escape"); await p.waitForTimeout(100);
+  await p.mouse.click(pt.x, pt.y, { button: "right" }); await p.waitForTimeout(150); const rc = await labels(); await p.keyboard.press("Escape"); await p.waitForTimeout(100);
+  check("its menu is the curve's right-click menu, item for item", bar.length > 6 && bar.includes("Line, symbols and colour…") && JSON.stringify(bar) === JSON.stringify(rc.filter(l => !/^(Add here|Vertical line|Horizontal line|Text here|An arrow|A box|An ellipse|Shade an X|A comment|Label the peak|A graph title|Make this zoom)/.test(l))), JSON.stringify({ bar, rc }));
+  // Nothing: a click on an empty spot lets go.
+  const empty = await p.evaluate(() => { const r = $("#plot").getBoundingClientRect(), g = S.geo; return { x: r.x + g.L + g.pw * 0.12, y: r.y + g.T + 12 }; });
+  await p.mouse.click(empty.x, empty.y); await p.waitForTimeout(150);
+  c = await ctx(); check("a click on nothing lets go", c.hid && !c.css, JSON.stringify(c));
+  // An axis, by its numbers.
+  const ax = await p.evaluate(() => { const r = document.querySelector('#plot rect[data-axis="x"]').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await p.mouse.click(ax.x, ax.y); await p.waitForTimeout(150);
+  c = await ctx(); check("an axis's numbers clicked: Axis, the axis outlined", c.lab === "Axis" && /X axis/.test(c.title) && /data-axis="x"/.test(c.css), JSON.stringify(c));
+  await p.click("#ctxBtn"); await p.waitForTimeout(150); const axm = await labels(); await p.keyboard.press("Escape");
+  check("with the axis's own menu", axm.some(l => /^Scale/.test(l)), axm);
+  await p.focus("#plot"); await p.keyboard.press("Escape"); await p.waitForTimeout(100);
+  check("Esc lets go", (await ctx()).hid);
+  // The fit's curve.
+  await p.evaluate(() => { S.fitMode = "curve"; showTab("fit"); }); await p.waitForTimeout(300);
+  await p.evaluate(() => runFit()); await p.waitForTimeout(900);
+  await p.evaluate(() => { focusWin(winOfGraph(GID())); hideToast(); }); await p.waitForTimeout(250);
+  const fp = await p.evaluate(() => { const r = $("#plot").getBoundingClientRect(), fp = S.geo.fitPx || [], pts = S.shownPts.map(q => [S.geo.X(q.x), S.geo.Y(q.y)]); let best = null;
+    for (const f of fp) { let dm = 1e9; for (const q of pts) dm = Math.min(dm, Math.hypot(q[0] - f[0], q[1] - f[1])); if (dm > 9 && (!best || dm > best.dm)) best = { f, dm }; }
+    return best ? { x: r.x + best.f[0], y: r.y + best.f[1] } : null; });
+  if (fp) { await p.mouse.click(fp.x, fp.y); await p.waitForTimeout(150); }
+  c = await ctx(); check("a click on the fit's curve: Fit, the curve outlined", !!fp && c.lab === "Fit" && /data-fitc/.test(c.css), JSON.stringify(c));
+  await p.click("#ctxBtn"); await p.waitForTimeout(150); const fm = await labels(); await p.keyboard.press("Escape");
+  check("the fit's menu has Results and Remove fit", ["Results", "Copy the results table", "Show residuals", "Remove fit"].every(l => fm.includes(l)), fm);
+  // A band: Region, with what can be done over it.
+  await p.evaluate(() => { addBand(510, 530); focusWin(winOfGraph(GID())); }); await p.waitForTimeout(300);
+  const bb = await p.evaluate(() => { const e = document.querySelector("#plot [data-bb]"); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  if (bb) { await p.mouse.click(bb.x, bb.y); await p.waitForTimeout(250); await p.evaluate(() => focusWin(winOfGraph(GID()))); await p.waitForTimeout(150); }
+  c = await ctx(); check("a band clicked: Region", c.lab === "Region" && /Band 1/.test(c.title), JSON.stringify(c));
+  await p.click("#ctxBtn"); await p.waitForTimeout(150); const bm = await labels();
+  check("its menu zooms, fits and removes", ["Zoom to it", "Fit in this range", "Remove the band", "Baseline"].every(l => bm.includes(l)), bm);
+  await p.evaluate(() => { [...document.querySelectorAll(".menu [role^=menuitem]")].find(e => e.textContent.trim() === "Fit in this range").click(); }); await p.waitForTimeout(300);
+  check("Fit in this range sets the fit's range", await p.evaluate(() => { const r = fitRngOf(activeYCol()); return !!r && Math.abs(Math.min(r[0], r[1]) - 510) < 1e-9 && Math.abs(Math.max(r[0], r[1]) - 530) < 1e-9; }));
+  // A whole column selected in the worksheet, while the graph shows it.
+  await p.evaluate(() => { focusWin("sheet"); }); await p.waitForTimeout(200);
+  await p.click('#ws th.ch[data-ch="1"] .cl'); await p.waitForTimeout(200);
+  await p.evaluate(() => { focusWin(winOfGraph(GID())); }); await p.waitForTimeout(200);
+  c = await ctx(); check("a column selected in the worksheet: Column, its curve outlined, with the graph brought forward", c.lab === "Column" && /^Column B: Intensity$/.test(c.title) && /data-ser/.test(c.css), JSON.stringify(c));
+  await p.click("#ctxBtn"); await p.waitForTimeout(150); const cm = await labels(); await p.keyboard.press("Escape");
+  check("with the column's own menu", cm.some(l => /^Use as/.test(l)) && cm.includes("Show on the graph"), cm);
+  // Shift+F10 on the graph opens the menu of what is selected.
+  await p.mouse.click(pt.x, pt.y); await p.waitForTimeout(150); await p.focus("#plot"); await p.keyboard.press("Shift+F10"); await p.waitForTimeout(150);
+  check("Shift+F10 opens the selected curve's menu", await p.evaluate(() => $("#ctxBtn").getAttribute("aria-expanded") === "true"));
+  await p.keyboard.press("Escape");
+}, { name: "contextual" });
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();

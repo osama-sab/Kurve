@@ -1701,6 +1701,12 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
 @media (max-width: 1010px){ #modeSeg>button{padding:0 var(--sp-3)} .toolbar .tsep{margin:0 var(--sp-1)} }
 
 /* ---- Narrow screens: the windows stack, graph first ---------------------- */
+/* What is selected on the graph has its menu in the graph's bar (ux/spec/DS_SPEC.md, slice 4): the
+   system's accent fill, with the words in ink and an accent bar (accent words on it are 5:1, short
+   of the 7:1 words take here; DESIGN.md, Contrast). */
+.rb.ctx{color:var(--ink);background:var(--accent-soft);box-shadow:inset 0 -2px 0 var(--accent)}
+.rb.ctx .ic{color:inherit}
+.rb.ctx:hover,.rb.ctx[aria-expanded="true"]{background:var(--accent);color:var(--accent-ink)}
 /* Find a command (Ctrl+K; ux/spec/DS_SPEC.md, slice 3): the design system's command palette. */
 .modal.cmdk-modal{align-items:flex-start;padding-top:12vh}
 .cmdk{background:var(--panel);border:1px solid var(--win-bd);border-radius:var(--r-win);width:min(620px,100%);max-height:76vh;box-shadow:var(--win-sh-act);display:flex;flex-direction:column;overflow:hidden}
@@ -2044,6 +2050,8 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
           <button class="rb" data-rmenu="plot" aria-haspopup="menu" aria-expanded="false">Plot<svg class="ic sm"><use href="#i-chev"/></svg></button>
           <button class="rb" data-rmenu="analyze" aria-haspopup="menu" aria-expanded="false">Analyze<svg class="ic sm"><use href="#i-chev"/></svg></button>
           <button class="rb" data-rmenu="figure" aria-haspopup="menu" aria-expanded="false">Figure<svg class="ic sm"><use href="#i-chev"/></svg></button>
+          <span class="rsep" id="ctxSep" aria-hidden="true" hidden></span>
+          <button class="rb ctx" id="ctxBtn" data-rmenu="ctx" aria-haspopup="menu" aria-expanded="false" hidden><span id="ctxLab">Curve</span><svg class="ic sm"><use href="#i-chev"/></svg></button>
           <span class="rsep" aria-hidden="true"></span>
           <div class="seg" role="group" aria-label="Data shown on the graph" id="viewSeg">
             <button data-view="raw" aria-pressed="false">Original</button>
@@ -8433,7 +8441,7 @@ function buildPlot(W,H,pal,colEx,opt){
           }
         });
       }
-      if(mid.length) s+=`<path d="M${mid.map(q=>q[0].toFixed(1)+","+q[1].toFixed(1)).join("L")}" fill="none" stroke="${fitSt.color}" stroke-width="${fitSt.lw}"/>`;
+      if(mid.length){ s+=`<path d="M${mid.map(q=>q[0].toFixed(1)+","+q[1].toFixed(1)).join("L")}" fill="none" stroke="${fitSt.color}" stroke-width="${fitSt.lw}"${forExport?"":' data-fitc="1"'}/>`; if(!forExport) geo.fitPx=mid; }
     }
   }
   if(ov&&!ov.same){
@@ -8848,7 +8856,7 @@ function renderPlot(){
   // Something to draw: a column on this graph, with points.
   const p=P(); const has=p&&allCols().some(c=>c.role==="y"&&inGraph(c))&&(pointsAll().length>0||plotState().d.x.length>0);
   $("#empty").hidden=!!has;
-  renderStatusBar();
+  renderStatusBar(); renderCtx();
   if(!p){ svg.innerHTML=""; S.geo=null; renderRdCard(); $("#emptyTitle").textContent=S.store?"Bring in a spectrum or a curve":"Opening workspace…"; return; }
   // Columns in the worksheet and nothing on this graph: the graph offers Plot.
   const cols=!has&&allCols().some(c=>(c.role==="y"||c.role==="ignore")&&!c.src&&(c.data||[]).some(v=>v!=null));
@@ -9319,6 +9327,7 @@ function annoMenuItems(id){
     {label:"Lines to the region",checked:a.conn!==false,enabled:!ro,run:()=>updateAnno(id,{conn:a.conn===false})},
     {label:"Axis titles",checked:!!a.titles,enabled:!ro,run:()=>updateAnno(id,{titles:!a.titles})},
     {label:"Zoom the graph to it",run:()=>{ const d=plotState().d; S.view={x0:Math.min(a.x0,a.x1),x1:Math.max(a.x0,a.x1),y0:a.y0!=null&&a.y0!==""?+a.y0:S.geo.v.y0,y1:a.y1!=null&&a.y1!==""?+a.y1:S.geo.v.y1,xu:d.xu||""}; if(a.y0==null||a.y0===""){ const r=yRangeIn(S.view.x0,S.view.x1); S.view.y0=r[0]; S.view.y1=r[1]; } renderPlot(); renderFit(); }});
+  if(a.t==="band"&&a.x2!=null) own.push("-",...regionItems(Math.min(a.x,a.x2),Math.max(a.x,a.x2),a.xu));
   if(a.t==="label"&&a.color) own.push({label:"Back to the curve's colour",enabled:!ro,run:()=>updateAnno(id,{color:null})});
   const txt=a.text?texPlain(String(a.text).split("\n")[0]):"";
   return textMenu({title:ANNO_KINDS[a.t]+(txt?`: ${txt.length>40?txt.slice(0,39)+"…":txt}`:""),
@@ -9525,6 +9534,8 @@ function seriesAt(ev){
   const test=(id,pts,Yf)=>{ const step=Math.max(1,Math.floor(pts.length/3000)); for(let i=0;i<pts.length;i+=step){ const q=pts[i], dx=geo.X(q.x)-x, dy=Yf(q.y)-y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=id; } } };
   test(act.id,S.shownPts||[],geo.Y);
   if(cfg.layout==="overlay"&&S.ps&&S.ps.final) yCols().filter(c=>c!==act&&!cfg.hidden.includes(c.id)).forEach(c=>test(c.id,seriesPoints(finalOf(c),cfg.logY),geo.Y));
+  // The fit's curve, where it is nearer than any point.
+  const fp=geo.fitPx; if(fp&&fp.length&&shownFit()){ let fd=bd; for(let i=0;i<fp.length;i++){ const dx=fp[i][0]-x, dy=fp[i][1]-y, d=dx*dx+dy*dy; if(d<fd) fd=d; } if(fd<bd) best="__fit"; }
   // Nothing within reach: the plot's own menu, not the active curve's.
   return best;
 }
@@ -9543,7 +9554,13 @@ function graphMenuItems(id,at){
     items.push({group:"Fit curve"},{swatches:SER_COLORS,current:f.color,pick:col=>setSeriesStyle("__fit",{color:col},"changed the colour of the fit curve"),enabled:!ro},
       {label:"Line and colour…",run:()=>openPlotDetails("__fit","series")},
       {label:`${confPct(confOf(shownFit()))}% confidence band`,checked:cfg.bandConf!==false,enabled:!ro,run:()=>setPlotKey("bandConf",cfg.bandConf===false,cfg.bandConf===false?"showed the fit's confidence band":"hid the fit's confidence band")},
-      {label:`${confPct(confOf(shownFit()))}% prediction band`,checked:!!cfg.bandPred,enabled:!ro,title:"Where a new measurement would fall",run:()=>setPlotKey("bandPred",!cfg.bandPred,cfg.bandPred?"hid the fit's prediction band":"showed the fit's prediction band")}); }
+      {label:`${confPct(confOf(shownFit()))}% prediction band`,checked:!!cfg.bandPred,enabled:!ro,title:"Where a new measurement would fall",run:()=>setPlotKey("bandPred",!cfg.bandPred,cfg.bandPred?"hid the fit's prediction band":"showed the fit's prediction band")});
+    const sf=shownFit(), pk=(cfg.series||{}).__peaks||{};
+    items.push({label:"Show residuals",checked:residOn(cfg,sf),enabled:!ro,run:()=>togglePlot("resid")},
+      sf&&sf.kind==="composite"?{label:"Shade each fitted peak",checked:pk.fill!==false,enabled:!ro,run:()=>setSeriesStyle("__peaks",{fill:pk.fill===false},pk.fill===false?"shaded the fitted peaks":"took the shading off the fitted peaks")}:null,
+      "-",{label:"Results",run:()=>openWin("res",{render:true})},{label:"Copy the results table",run:copyResults},
+      {label:"Fit window",run:()=>{ if(sf) S.fitMode=sf.kind==="composite"?"peaks":"curve"; showTab("fit"); }},
+      {label:"Remove fit",enabled:!ro&&!!sf,run:removeFit}); }
   if(c){
     items.push({group:(st.label?texPlain(st.label):specName(c))+(isAct?" (analysed)":""),plain:true},
       {swatches:SER_COLORS,current:st.color,pick:col=>setSeriesStyle(c.id,{color:col},`changed the colour of ${specName(c)}`),enabled:!ro},
@@ -9584,6 +9601,73 @@ function graphMenuItems(id,at){
     {label:"Export",sub:exportItems});
   return items;
 }
+// A region of X (a shaded range, a band to integrate): look at it, fit in it, integrate it.
+function regionItems(lo,hi,xu,opt){
+  const c=activeYCol(), d=c?finalOf(c):null, ro=S.readOnly, same=!!d&&(d.xu||"")===(xu||"");
+  return [{label:"Zoom to it",enabled:same,run:()=>{ const r=yRangeIn(lo,hi); S.view={x0:lo,x1:hi,y0:r[0],y1:r[1]}; renderPlot(); renderFit(); }},
+    {label:"Fit in this range",enabled:same&&!ro,run:()=>{ setFitRange(lo,hi); showTab("fit"); }},
+    opt&&opt.integ===false?null:{label:"Integrate it",enabled:same&&!ro,run:()=>{ addBand(lo,hi); openIntegrate(); }}];
+}
+// A band of the Integrate window, from the graph: its right-click menu, and the bar's while it is selected.
+function bandMenuItems(id){
+  const g=integOf(), k=g.bands.findIndex(b=>b.id===id); if(k<0) return [];
+  const b=g.bands[k], ro=S.readOnly, nm=bandName(b,k);
+  return [{group:nm,plain:true},
+    {label:"Baseline",sub:()=>BAND_BASES.map(([v,l])=>({label:l,radio:true,checked:(b.base||"line")===v,enabled:!ro,run:()=>updateBand(id,{base:v},`gave ${nm} the baseline: ${l.toLowerCase()}`)}))},
+    {label:"Divide the others by it",checked:g.ref===id,enabled:!ro&&g.ref!==id,run:()=>{ pushUndo("the reference band"); saveInteg({ref:id},`divided the bands by ${nm}`); }},
+    ...regionItems(Math.min(b.x1,b.x2),Math.max(b.x1,b.x2),b.xu,{integ:false}),
+    "-",{label:"The band table…",run:()=>{ S.bandSel=id; openIntegrate(); }},
+    {label:"Remove the band",danger:true,enabled:!ro,run:()=>removeBand(id)}];
+}
+// ---- What is selected on the graph (ux/spec/DS_SPEC.md, slice 4). The thing clicked (a curve, the
+// fit, an axis by its numbers, a band, an annotation, the legend) or a whole column selected in the
+// worksheet that the graph shows puts its menu at the end of the graph's bar, the same items as its
+// right-click menu, and is outlined on the graph; a click on nothing, or Esc, lets go. Annotations,
+// the legend and bands keep their own selections (S.annoSel, S.legSel, S.bandSel); curves, the fit
+// and axes are S.gsel ({g, kind, id|k}), the graph's own. A column counts while the worksheet was
+// the last place pressed or typed in (S.ctxFromWs, setupCtx), not while it is in front: in front, it
+// can cover the graph whose bar the menu is in.
+const AX_WORD={x:"X axis",y:"Y axis",y2:"Right Y axis",x2:"Second X axis",yo:"Second Y axis"};
+function ctxOf(){
+  const p=P(), g=GID(); if(!p||!g) return null;
+  if(S.ctxFromWs&&S.sheet==="raw"&&wsWholeCols()){ const id=wsSelColIds()[0], c=id&&colById(id);
+    if(c&&c.role==="y"&&inGraph(c)) return {kind:"column",lab:"Column",id:c.id,name:c.name||colLetter(c),title:`Column ${colLetter(c)}${c.name?": "+c.name:""}`,items:()=>colMenuItems(c.id)}; }
+  if(S.annoSel){ const a=annoById(S.annoSel);
+    if(a&&annoInGraph(a,g)){ const txt=a.text?texPlain(String(a.text).split("\n")[0]):"";
+      return {kind:a.t==="band"?"region":"anno",lab:a.t==="band"?"Region":ANNO_KINDS[a.t]||"Annotation",name:txt,items:()=>annoMenuItems(a.id)}; } }
+  if(S.legSel&&S.legSel.g===g){ const hit=S.legSel.hit; return {kind:"legend",lab:"Legend",name:"",items:()=>legendMenuItems(hit)}; }
+  if(S.bandSel){ const ig=integOf(), k=ig.bands.findIndex(b=>b.id===S.bandSel); if(k>=0){ const id=S.bandSel; return {kind:"region",lab:"Region",name:bandName(ig.bands[k],k),items:()=>bandMenuItems(id)}; } }
+  const s=S.gsel; if(!s||s.g!==g) return null;
+  if(s.kind==="curve"){ const c=colById(s.id); if(c&&inGraph(c)) return {kind:"curve",lab:"Curve",id:c.id,name:specName(c),items:()=>graphMenuItems(c.id)}; }
+  else if(s.kind==="fit"){ if(shownFit()) return {kind:"fit",lab:"Fit",name:"",items:()=>graphMenuItems("__fit")}; }
+  else if(s.kind==="axis"&&AX_WORD[s.k]) return {kind:"axis",lab:"Axis",k:s.k,name:AX_WORD[s.k],items:()=>axisMenuItems(s.k)};
+  return null;
+}
+// The bar's button and the outline on the graph (a style rule, so the drawing itself is untouched).
+function renderCtx(){
+  const b=$("#ctxBtn"), sep=$("#ctxSep"); if(!b) return;
+  const c=ctxOf();
+  b.hidden=!c; if(sep) sep.hidden=!c;
+  if(c){ $("#ctxLab").textContent=c.lab; const nm=c.title||(c.name?`${c.lab}: ${c.name}`:c.lab); if(b.title!==nm) b.title=nm; b.setAttribute("aria-label",`${nm}, menu`); }
+  const ring="filter:drop-shadow(0 0 1.5px var(--focus)) drop-shadow(0 0 1px var(--focus))";
+  let css="";
+  if(c&&(c.kind==="curve"||c.kind==="column")) css=`#plot g[data-ser="${CSS.escape(c.id)}"]>path{${ring}}`;
+  else if(c&&c.kind==="fit") css=`#plot path[data-fitc]{${ring}}`;
+  else if(c&&c.kind==="axis") css=`#plot rect[data-axis="${c.k}"]{fill:var(--focus-soft);stroke:var(--focus);stroke-width:1;stroke-dasharray:3 2}`;
+  let st=$("#gselCss"); if(!st){ st=document.createElement("style"); st.id="gselCss"; document.head.appendChild(st); }
+  if(st.textContent!==css) st.textContent=css;
+}
+function setupCtx(){
+  window.addEventListener("pointerdown",e=>{ const t=e.target, inWs=!!(t&&t.closest&&t.closest("#ws")); S.wsTouch=inWs; if(!inWs&&t&&t.closest&&t.closest("#plot")) S.ctxFromWs=false; },true);
+  window.addEventListener("keydown",e=>{ const t=e.target; if(t&&t.closest&&t.closest("#ws")) S.wsTouch=true; },true);
+}
+// A click (or a right-click) on the graph chooses what is selected; announced for a screen reader.
+function gSelect(sel,quiet){
+  S.gsel=sel?Object.assign({g:GID()},sel):null;
+  if(sel){ S.annoSel=null; S.legSel=null; S.bandSel=null; }
+  renderCtx();
+  if(!quiet){ const c=ctxOf(), say=$("#plotSay"); if(say&&c&&S.gsel) say.textContent=`${c.lab} selected${c.name?": "+c.name:""}. Its menu is at the end of the graph's bar.`; }
+}
 // A comment anchored where the graph was right-clicked, as the Comment tool does.
 function commentAt(pt){ if(!pt||!P()) return; S.anchor={type:"xy",x:pt.x,y:pt.y}; showDrawer("disc"); renderAnchor(); renderPlot(); const t=$("#cText"); if(t) t.focus(); }
 function openGraphMenu(ev){
@@ -9596,12 +9680,16 @@ function openGraphMenu(ev){
   a._back=$("#plot");
   const tg=ev.target&&ev.target.closest?ev.target:null;
   const fpe=tg&&tg.closest("[data-fpl]"); if(fpe){ openMenu(a,fplMenuItems(+fpe.dataset.fpl),{label:"Peak label"}); return; }
-  const ag=tg&&tg.closest("[data-anno]"); if(ag){ S.annoSel=ag.dataset.anno; renderPlot(); openMenu(a,annoMenuItems(ag.dataset.anno),{label:"Annotation"}); return; }
+  const ag=tg&&tg.closest("[data-anno]"); if(ag){ S.annoSel=ag.dataset.anno; S.gsel=null; S.legSel=null; S.bandSel=null; renderPlot(); openMenu(a,annoMenuItems(ag.dataset.anno),{label:"Annotation"}); return; }
   if(tg&&tg.closest("[data-legbox]")){ const le=tg.closest("[data-leg]"), hit=le?"leg:"+le.dataset.leg:tg.closest("[data-legtitle]")?"title":"box";
-    S.legSel={g:GID(),hit}; S.annoSel=null; renderPlot(); openMenu(a,legendMenuItems(hit),{label:"Legend"}); return; }
+    S.legSel={g:GID(),hit}; S.annoSel=null; S.gsel=null; S.bandSel=null; renderPlot(); openMenu(a,legendMenuItems(hit),{label:"Legend"}); return; }
+  const bhe=tg&&tg.closest("[data-bh],[data-bb]"); if(bhe){ const bid=(bhe.dataset.bh||bhe.dataset.bb).split(":")[0];
+    if(integOf().bands.some(b=>b.id===bid)){ S.bandSel=bid; S.annoSel=null; S.legSel=null; S.gsel=null; renderPlot(); openMenu(a,bandMenuItems(bid),{label:"Region"}); return; } }
   const axt=tg&&tg.closest("[data-axtitle]"); if(axt){ openMenu(a,titleMenuItems(axt.dataset.axtitle),{label:"Title"}); return; }
-  const axz=tg&&tg.closest("[data-axis]"); if(axz){ openMenu(a,axisMenuItems(axz.dataset.axis),{label:"Axis"}); return; }
+  const axz=tg&&tg.closest("[data-axis]"); if(axz){ gSelect({kind:"axis",k:axz.dataset.axis},true); openMenu(a,axisMenuItems(axz.dataset.axis),{label:"Axis"}); return; }
   const id=seriesAt(ev), pt=S.geo?toData(x,y):null;
+  if(id) gSelect({kind:id==="__fit"?"fit":"curve",id},true);
+  else if(S.gsel||S.annoSel||S.legSel||S.bandSel){ S.gsel=null; S.annoSel=null; S.legSel=null; S.bandSel=null; renderPlot(); }
   openMenu(a,graphMenuItems(id,{px:x,py:y,pt}),{label:"Graph options"});
 }
 
@@ -10453,14 +10541,14 @@ function setupGraph(){
   svg.addEventListener("pointerup",ev=>{
     if(S.xhdrag){ S.xhdrag=null; return; }
     if(S.bdrag){ const bd=S.bdrag; S.bdrag=null; hideTip(); S.noDbl=Date.now(); if(bd.moved){ commitBandDrag(bd); return; }
-      S.bandSel=bd.id; renderPlot(); openWin("integ",{render:true}); return; }
+      S.bandSel=bd.id; S.gsel=null; S.annoSel=null; S.legSel=null; renderPlot(); openWin("integ",{render:true}); return; }
     // A click selects; a second click on the same one soon after edits it. (The
     // first click redraws the graph, so the browser's dblclick never arrives.)
     if(S.andrag){ const ad=S.andrag; S.andrag=null; hideTip(); S.guides=null; S.snapRing=null; if(ad.moved){ commitAnnoDrag(ad); return; }
       const now=Date.now(), lc=S.annoClick; S.annoClick={id:ad.id,t:now};
       S.noDbl=now;
       if(lc&&lc.id===ad.id&&now-lc.t<450){ S.annoClick=null; annoDouble(ad.id,ad.txt); return; }
-      if(S.annoSel!==ad.id||S.legSel){ S.annoSel=ad.id; S.legSel=null; renderPlot(); } return; }
+      if(S.annoSel!==ad.id||S.legSel||S.gsel||S.bandSel){ S.annoSel=ad.id; S.legSel=null; S.gsel=null; S.bandSel=null; renderPlot(); } return; }
     if(S.fldrag){ const fd=S.fldrag; S.fldrag=null; S.noDbl=Date.now();
       if(fd.moved){ pushUndo("moving a peak's label"); const o=Object.assign({},GP().peakLabOff||{}), v=[Math.round(fd.cur[0]),Math.round(fd.cur[1])];
         if(Math.abs(v[0])+Math.abs(v[1])<2) delete o[fd.id]; else o[fd.id]=v;
@@ -10473,7 +10561,7 @@ function setupGraph(){
       S.legClick={hit:lg.hit,t:now}; S.noDbl=now;
       if(ed&&lc&&lc.hit===lg.hit&&now-lc.t<450){ S.legClick=null; inlineEditLegend(lg.hit); return; }
       if(ed&&was&&!(lc&&now-lc.t<450)&&!S.readOnly){ S.legClick=null; inlineEditLegend(lg.hit); return; }
-      S.legSel={g:GID(),hit:lg.hit}; S.annoSel=null; renderPlot();
+      S.legSel={g:GID(),hit:lg.hit}; S.annoSel=null; S.gsel=null; S.bandSel=null; renderPlot();
       $("#plotSay").textContent=ed?"Selected in the legend. Click it again, double-click or press Enter to type over it; the arrow keys move between entries.":"Legend selected. Drag it to move it; right-click for its options.";
       return; }
     if(S.ttdrag){ const td=S.ttdrag; S.ttdrag=null; hideTip(); if(td.moved){ commitTitleDrag(td); return; }
@@ -10481,6 +10569,7 @@ function setupGraph(){
       if(lc&&lc.k===td.k&&now-lc.t<450){ S.ttClick=null; inlineEditTitle(td.k); } return; }
     if(S.axdrag){ const ad=S.axdrag; S.axdrag=null; hideTip(); if(ad.moved){ commitAxisDrag(ad); return; }
       const now=Date.now(), lc=S.axClick; S.axClick={k:ad.k,t:now}; S.noDbl=now;
+      if(!(S.gsel&&S.gsel.kind==="axis"&&S.gsel.k===ad.k&&S.gsel.g===GID())){ const was=S.annoSel||S.legSel||S.bandSel; gSelect({kind:"axis",k:ad.k}); if(was) renderPlot(); }
       if(lc&&lc.k===ad.k&&now-lc.t<450){ S.axClick=null; openPlotDetails(null,"ax:"+ad.k); } return; }
     if(S.adrag){ const ad=S.adrag; S.adrag=null; hideTip(); const s=anchorStep(); if(ad.moved&&s) setParam(s,"anchors",s.p.anchors,true); return; }
     if(S.hdrag){ const hd=S.hdrag; S.hdrag=null; hideTip(); renderFit(); renderPlot();
@@ -10512,7 +10601,9 @@ function setupGraph(){
       if(lc&&now-lc.t<420&&Math.abs(lc.x-d.x0)<6&&Math.abs(lc.y-d.y0)<6&&(onTitle||S.mode==="zoom"||S.mode==="pan")){ S.gClick=null; S.noDbl=now; onGraphDouble(downEl); return; } }
     const q=nearest(d.x0,d.y0);
     if(S.mode==="anchor"){ const pd=toData(d.x0,d.y0); if(pd&&pd.inside&&!S.readOnly) addAnchorAt(pd.x); return; }
-    if(S.mode==="zoom"||S.mode==="pan"){ S.sel=q?q.i:null; S.annoSel=null; S.legSel=null; renderPlot(); renderWsSel(); if(q) scrollRow(q.i); }
+    if(S.mode==="zoom"||S.mode==="pan"){ S.sel=q?q.i:null; S.annoSel=null; S.legSel=null; S.bandSel=null;
+      const sid=seriesAt(ev); S.gsel=sid?{g:GID(),kind:sid==="__fit"?"fit":"curve",id:sid}:null;
+      renderPlot(); renderWsSel(); if(q) scrollRow(q.i); if(sid) gSelect(S.gsel,false); }
     else if(S.mode==="mask"){ if(q) toggleMask([q.i],!isMasked(q.i)); }
     else if(S.mode==="reader"){ const hit=readerNear(d.x0,d.y0,30); if(hit) rdPin(hit,true); }
     else if(S.mode==="peak"){ if(S.readOnly) return; if(S.ps&&!S.ps.final){ S.selStep=null; setStage(null); toast("Peaks are placed on the processed data, so the graph is back on it. Click again to place the peak."); return; }
@@ -10576,7 +10667,8 @@ function sayPoint(){
   live.textContent=`Point ${q.i+1} of ${pointsAll().length}. x ${fmt(q.x,6)}${xu?" "+xu:""}, y ${fmt(q.y,6)}${yu?" "+yu:""}${isMasked(q.i)?", masked":""}`;
 }
 function graphKey(ev){
-  if(ev.key==="ContextMenu"||(ev.shiftKey&&ev.key==="F10")){ ev.preventDefault(); const r=$("#figure").getBoundingClientRect(); openGraphMenu({preventDefault(){},target:$("#plot"),clientX:r.left+r.width/2,clientY:r.top+r.height/3}); return; }
+  if(ev.key==="ContextMenu"||(ev.shiftKey&&ev.key==="F10")){ ev.preventDefault();
+    { const cx=ctxOf(), cb=$("#ctxBtn"); if(cx&&cx.kind!=="column"&&cb&&!cb.hidden&&cb.offsetParent){ toggleMenu(cb,()=>cx.items(),{label:cx.lab}); return; } } const r=$("#figure").getBoundingClientRect(); openGraphMenu({preventDefault(){},target:$("#plot"),clientX:r.left+r.width/2,clientY:r.top+r.height/3}); return; }
   if(ev.ctrlKey||ev.metaKey||ev.altKey) return;
   if(!S.geo||!P()) return;
   if(S.mode==="reader"&&["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Home","End"].includes(ev.key)){ ev.preventDefault();
@@ -10605,6 +10697,7 @@ function graphKey(ev){
     if((k==="Enter"||k==="F2")&&(h==="title"||h.startsWith("leg:"))&&!S.readOnly){ ev.preventDefault(); inlineEditLegend(h); return; }
     if((k==="ArrowDown"||k==="ArrowUp")&&ord.length){ ev.preventDefault(); const i=ord.indexOf(h), j=i<0?0:Math.max(0,Math.min(ord.length-1,i+(k==="ArrowDown"?1:-1))); S.legSel={g:GID(),hit:ord[j]}; renderPlot(); return; }
     if(k==="Escape"){ ev.preventDefault(); S.legSel=null; renderPlot(); return; } }
+  if(k==="Escape"&&(S.gsel||S.annoSel||S.bandSel)){ ev.preventDefault(); S.gsel=null; S.annoSel=null; S.bandSel=null; renderPlot(); $("#plotSay").textContent="Nothing selected."; return; }
   if((k==="Enter"||k==="F2")&&S.annoSel&&annoById(S.annoSel)&&!S.readOnly){ ev.preventDefault(); annoDouble(S.annoSel); return; }
   if((k==="Delete"||k==="Backspace")&&S.annoSel&&annoById(S.annoSel)&&!S.readOnly){ ev.preventDefault(); deleteAnno(S.annoSel); $("#plotSay").textContent="Annotation deleted."; return; }
   if((k==="Delete"||k==="Backspace")&&S.bandSel&&integOf().bands.some(b=>b.id===S.bandSel)&&!S.readOnly){ ev.preventDefault(); removeBand(S.bandSel); $("#plotSay").textContent="Band removed."; return; }
@@ -11670,6 +11763,8 @@ function wsRows(force){
 function wsTd(r,c){ return document.querySelector(`#ws td[data-r="${r}"][data-ci="${c}"]`); }
 function wsPaintSel(){
   const box=$("#ws"); if(!box||!S.wsm) return;
+  if(S.wsTouch) S.ctxFromWs=wsWholeCols();
+  renderCtx();
   const s=S.ws, m=S.wsm, {r0,r1,c0,c1}=wsSelRect(), multi=r0!==r1||c0!==c1;
   // The fill handle sits on the corner of the selection, on the Raw sheet in recorded order.
   const hits=S.wsFind&&S.wsFind.set, fh=m.kind==="raw"&&!S.readOnly&&!m.ord&&r1>=0&&!S.ws.edit?r1+":"+c1:null;
@@ -12324,8 +12419,9 @@ function pasteAsNew(rows,header,r0){
   save(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),`pasted ${rows.length} rows as ${width} new column${width===1?"":"s"} (the cells pasted over already held original values)`);
   renderAll(); toast(`Pasted into ${width} new column${width===1?"":"s"}. The original values are untouched.`,{action:"Undo",run:undo});
 }
-function openColMenu(id,btn){
-  const p=P(), c=colById(id); if(!p||!c) return;
+function openColMenu(id,btn){ const c=colById(id); if(!P()||!c) return; openMenu(btn,colMenuItems(id),{label:`Column ${colLetter(c)} options`}); }
+function colMenuItems(id){
+  const p=P(), c=colById(id); if(!p||!c) return [];
   const cols=allCols(), L=colLetter(c), ro=S.readOnly;
   const hidden=plotCfg().hidden.includes(id);
   const role=c.role==="x"?"X":c.role==="y"?"Y":c.role==="e"?errTag(c):"Other data";
@@ -12368,7 +12464,7 @@ function openColMenu(id,btn){
     items.push("-",{label:n>1?`Insert ${n} columns to the left`:"Insert a column to the left", enabled:!ro, run:()=>{ pick(); wsInsertCols("left"); }},
       {label:n>1?`Insert ${n} columns to the right`:"Insert a column to the right", enabled:!ro, run:()=>{ pick(); wsInsertCols("right"); }},
       {label:n>1?`Delete the ${n} columns`:"Delete column", danger:true, enabled:!ro&&cols.length>n, title:cols.length>n?"":"A project keeps one column at least", run:()=>n>1?deleteCols(ids):deleteCol(id)}); }
-  openMenu(btn,items,{label:`Column ${L} options`});
+  return items;
 }
 function setColRole(id,role){
   if(S.readOnly) return; const p=P(), c=colById(id); if(!p||!c||c.role===role) return;
@@ -15878,7 +15974,7 @@ function openProject(id){
   S.hdrag=null; S.adrag=null; S.stage=null; S.selStep=null; S.cmp=false; S.pick=null; S.showParams=false; closeMenu(false);
   // A tool left open on the last project would record its step on this one.
   S.pending=null; if(winOpen("tool")){ winState("tool").open=false; applyWins(); }
-  S.flowSel=null; S.pfPreview=null; S.pfOpen=null; S.plotPreview=null; S.annoSel=null; S.legSel=null; S.andrag=null; S.lgdrag=null; S.pkLast=null; S.pkReg=null; S.bandSel=null; S.bdrag=null;
+  S.flowSel=null; S.pfPreview=null; S.pfOpen=null; S.plotPreview=null; S.annoSel=null; S.legSel=null; S.gsel=null; S.andrag=null; S.lgdrag=null; S.pkLast=null; S.pkReg=null; S.bandSel=null; S.bdrag=null;
   S.gid=null; S.gctx=null; S.gv={}; S.glead={}; S.dstash={}; S.snap={};
   { const ed=document.querySelector(".inled"); if(ed) ed.remove(); }
   const tipEl=document.getElementById("tip"); if(tipEl) tipEl.style.display="none";
@@ -18997,7 +19093,9 @@ ${DL([["Zoom","Drag a box to zoom; a flat box zooms X only. Scroll to zoom at th
 <h2>Switches</h2>
 ${DL([["Reverse X","High to low, as wavenumbers are usually drawn."],["Log Y","A logarithmic Y axis."],["Grid","Grid lines."],["Residuals","A panel under the graph with the fit's residuals."]])}
 <h2>Right-click</h2>
-<p>On a curve: its colour, plot type and style. On an empty spot: a line, text or a peak label there; axes, layout and legend. On a line, a label, the legend or a title: its own options. ${K("Shift","F10")} opens the same menu from the keyboard.</p>
+<p>On a curve: its colour, plot type and style; on the fit's curve, its look, its bands, Results and Remove fit. On an empty spot: a line, text or a peak label there; axes, layout and legend. On a line, a label, the legend or a title: its own options. ${K("Shift","F10")} opens the same menu from the keyboard.</p>
+<h2 id="select">What is selected</h2>
+<p>Click a curve, the fit's curve, an axis's numbers, a band, a line or a label to select it: it is outlined on the graph, and its menu, the same as its right-click menu, appears at the end of the graph's own bar as a coloured button (<em>Curve</em>, <em>Fit</em>, <em>Axis</em>, <em>Region</em>, <em>Text</em>…). A whole column selected in the worksheet does the same for its curve. A click on an empty spot, or ${K("Esc")}, lets go; ${K("Shift","F10")} opens that menu from the keyboard.</p>
 <h2 id="graphmenu">The graph's menus</h2>
 <p>The graph window's own bar repeats the menu bar's <em>Data</em>, <em>Plot</em>, <em>Analyze</em> and <em>Figure</em>. ${MP("Plot › View")} has the ways of looking (Zoom, Pan, the Reader, the X–Y lines, show all), ${MP("Figure")} the look (format, Reverse X, Log Y, scales, grid lines, fonts, legend, annotations), and ${MP("Analyze › Fit")} what of the fit is drawn. While a graph is on the desk the toolbar has its pointer tools and switches; with only the worksheet on the desk they are not there, so nothing offers to act on a graph that is not shown.</p>
 <h2 id="reader">Reading values</h2>
@@ -20037,7 +20135,7 @@ function renderTaskbar(){
   tb.innerHTML=(pj?`<button class="tk proj" data-tk-proj aria-haspopup="menu" title="${esc(projName(pj))}" aria-label="Project: ${esc(projName(pj))}">${ICON("folder","sm")}<span>${esc(projName(pj))}</span>${ICON("chev","sm").replace('class="ic','class="tk-chev ic')}</button><span class="tksep" aria-hidden="true"></span>`:"")
     +docs.join("")+(panels.length?`<span class="tksep" aria-hidden="true"></span>`+panels.join(""):"")
     +`<button class="tk more" data-tk-more aria-haspopup="menu" hidden></button><span class="sp"></span><span class="tkacts"><button class="tb sm icon" data-tk-act="tile" title="Tile" aria-label="Tile the open windows">${ICON("tile","sm")}</button><button class="tb sm icon" data-tk-act="cascade" title="Cascade" aria-label="Cascade the open windows">${ICON("cascade","sm")}</button></span>`;
-  fitTaskbar(tb,front); refreshDock();
+  fitTaskbar(tb,front); refreshDock(); renderCtx();
   // What is open, minimised or in front shows in the Explorer too.
   if(typeof renderXpl==="function") renderXpl();
 }
@@ -21944,6 +22042,7 @@ function publishMenu(){
     {label:"Copy the results table", run:copyResults, enabled:!!f}]);
 }
 function menuItems(which){
+  if(which==="ctx"){ const c=ctxOf(); return c?c.items():[]; }
   const p=P(), f=p?activeFit():null, ro=S.readOnly, edit=!!p&&!ro, can=!ro&&!!S.store, has=!!(p&&pointsAll().length);
   if(which==="file") return [
     {label:"New project", run:newProject, enabled:can},
@@ -22178,7 +22277,7 @@ async function loadExample(kind){
    Boot
    ============================================================ */
 function wireStatic(){
-  setupRanges(); setupSupify(); setupCmdk(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); wireXpl(); setupPlotDetails(); setupRichTools(); setupCombos(); setupMotionKeep(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
+  setupRanges(); setupSupify(); setupCmdk(); setupCtx(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); wireXpl(); setupPlotDetails(); setupRichTools(); setupCombos(); setupMotionKeep(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
   document.querySelectorAll(".rb[data-rmenu]").forEach(b=>b.addEventListener("click",()=>toggleMenu(b,()=>menuItems(b.dataset.rmenu),{label:b.textContent.trim()})));
   // With a menu open, the pointer passing over another menu's name opens it only after
   // resting there 150 ms, so a pointer crossing the bar on its way to a submenu changes nothing.

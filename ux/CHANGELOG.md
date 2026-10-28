@@ -914,3 +914,22 @@ nothing missing either way, the glossary count at 0. `tools/ds-test.mjs` has 18 
 
 `tools/ds-test.mjs` has 18 new checks (63); the glossary count skips the palette's list of words
 people type (`CMDK_SYN`).
+
+## The design system into the app, slice 4: what is selected has its menu in the graph's bar (2026-10-28)
+
+- **A click selects** a curve, the fit's curve (it could not be clicked before), an axis by its
+  numbers, a band, a shaded range, an annotation or the legend; a right-click selects what it is
+  on. What is selected is outlined on the graph: a glow in the focus colour on a curve or the fit,
+  a dashed box round an axis's numbers.
+- **Its menu appears at the end of the graph's own bar** as the system's contextual button:
+  *Curve*, *Fit*, *Axis*, *Region*, *Text*, *Legend*…, the same items as its right-click menu.
+  A whole column selected in the worksheet does the same for its curve (*Column*). A click on
+  nothing, or Esc, lets go; Shift+F10 opens the menu.
+- **New commands where the menus lacked them**: the fit's curve has Show residuals, Results,
+  Copy the results table, Fit window and Remove fit; a band and a shaded range have Zoom to it,
+  Fit in this range and (for a shaded range) Integrate it; a band its baseline, Divide the others
+  by it and Remove the band, from the graph.
+- The button's words are ink on the accent fill with an accent bar: the system's accent words on
+  that fill measured 5:1, and words here take 7:1 (`tools/contrast-test.mjs` checks it now).
+
+`tools/ds-test.mjs` has 17 new checks (80).

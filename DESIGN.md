@@ -404,6 +404,19 @@ The menu tree is `ux/spec/menus-after.txt`; `tools/ux/menucheck.py` compares the
   inline. None repeats a Plot submenu; the axis menu leaves the outward offset and the edge
   across to the Format dialog. The worksheet's column menu chooses a use (Use as › X, Y, Error
   bars, Other data) and the active column.
+- **What is selected has its menu in the graph's bar** (the design system's contextual menu,
+  slice 4): a click on a curve, on the fit's curve, on an axis's numbers, on a band or a shaded
+  range, on an annotation or the legend selects it, outlines it on the graph (a glow in the focus
+  colour, a dashed box round an axis's numbers), and puts its right-click menu, item for item, at
+  the end of the graph's own bar: *Curve*, *Fit*, *Axis*, *Region*, *Text*… The right-click
+  menus stay: the bar's button is the same menu for whoever does not right-click, or does not
+  know there is one. A click on nothing, or Esc, lets go; a right-click selects what it is on. A
+  whole column selected in the worksheet does the same for its curve, while the worksheet was
+  the last place pressed or typed in, not while it is in front, since in front it can cover the
+  graph whose bar it is. The button is the system's accent fill with the words in ink and an
+  accent bar under them: the system's accent words on that fill are 5:1, short of the 7:1 words
+  take here. A band and a shaded range share their region's commands (Zoom to it, Fit in this
+  range, Integrate it), and the fit's curve got its own (Results, Show residuals, Remove fit).
 
 ## Text on the graph
 
@@ -796,6 +809,17 @@ The F(x)= row is always shown (the user's choice between it and formulas only in
 setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md`: ranges,
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
+
+### 2026-10-28: the design system into the app, slice 4 (what is selected has its menu)
+
+The system's graph window grows a contextual menu after its Data, Plot, Analyze and Figure when
+something is selected. The app had selections for annotations, the legend and bands, none for a
+curve, the fit or an axis, and the fit's curve could not be clicked at all: a click on it was
+read as a click near the data. A curve, the fit and an axis are now selected by a click (the fit
+when its curve is nearer than any point), and each kind's menu is its right-click menu. Two
+mistakes on the way: the Column menu first followed the window in front, and the worksheet in
+front covered the graph whose bar held it (a test found it, clicking the button behind the
+worksheet); and the system's accent words on the accent fill measured 5:1, so the words are ink.
 
 ### 2026-10-28: the design system into the app, slice 3 (Find a command)
 
