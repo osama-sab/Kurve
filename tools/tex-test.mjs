@@ -11,7 +11,7 @@ const html = readFileSync(process.argv[2] || join(here, "..", "kurve.html"), "ut
 const m = html.match(/==TEX:START==[\s\S]*?\*\/([\s\S]*?)\/\* ==TEX:END==/);
 if (!m) { console.error("Could not find the TEX block"); process.exit(1); }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const T = new Function("esc", m[1] + "\nreturn {texParse,texLayout,texSvgOf,texHtml,texPlain,texNeeds,texToNat,natToTex,natMerge};")(esc);
+const T = new Function("esc", m[1] + "\nreturn {texParse,texLayout,texSvgOf,texHtml,texPlain,texNeeds,texToNat,natToTex,natMerge,uniRuns,texUni,supHtml};")(esc);
 let pass = 0, fail = 0;
 const check = (name, ok, info) => { if (ok) { pass++; console.log("  ok   " + name); } else { fail++; console.log("  FAIL " + name + (info !== undefined ? "  (" + (typeof info === "string" ? info : JSON.stringify(info)) + ")" : "")); } };
 const meas = (s, z) => [...s].length * 0.5 * z;
@@ -69,5 +69,14 @@ check("SVG leaves out spaces at the ends but keeps their width", (() => { const 
   check("lines read one by one", JSON.stringify(T.texToNat("a^{2}\nb_{1}")) === JSON.stringify([{ s: "a", v: 0 }, { s: "2", v: 1 }, { s: "\nb", v: 0 }, { s: "1", v: -1 }]));
   check("symbols come as their characters", JSON.stringify(T.texToNat("\\alpha\\deg{}\\pm")) === JSON.stringify([{ s: "α°±", v: 0 }]), T.texToNat("\\alpha\\deg{}\\pm"));
   check("empty text, empty runs", JSON.stringify(T.texToNat("")) === "[]" && T.natToTex([]) === ""); }
+// Unicode's raised and lowered characters, set as real scripts (ux/spec/DS_SPEC.md, slice 1).
+{ check("runs of raised and lowered characters, the minus as a minus sign", JSON.stringify(T.uniRuns("cm⁻¹ and x₀²")) === JSON.stringify([{ s: "cm", v: 0 }, { s: "−1", v: 1 }, { s: " and x", v: 0 }, { s: "0", v: -1 }, { s: "2", v: 1 }]), T.uniRuns("cm⁻¹ and x₀²"));
+  check("text with none is left alone", T.texUni("Raman shift (cm-1)") === "Raman shift (cm-1)" && T.supHtml("<b>R2</b>") === "<b>R2</b>");
+  check("as LaTeX's scripts, which the graph sets as scripts", T.texUni("Raman shift (cm⁻¹)") === "Raman shift (cm^{−1})" && T.texNeeds(T.texUni("R²")));
+  { const b = L(T.texUni("cm⁻¹")), one = find(b, "−1"), cm = find(b, "cm");
+    check("cm⁻¹ typeset: the exponent smaller and raised after cm", cm && one && one.z < cm.z && one.y < cm.y && one.x >= cm.x + meas("cm", 12) - 1e-9, b.items); }
+  check("as HTML: <sup> and <sub> in the text, never in a tag, a title or code",
+    T.supHtml('<p title="cm⁻¹">Area (counts·cm⁻¹), x₀</p><title>R²</title><code>m²</code>') === '<p title="cm⁻¹">Area (counts·cm<sup>−1</sup>), x<sub>0</sub></p><title>R²</title><code>m²</code>', T.supHtml('<p title="cm⁻¹">Area (counts·cm⁻¹), x₀</p><title>R²</title><code>m²</code>'));
+  check("an SVG in a page keeps its own text", T.supHtml("<svg><text>R²</text></svg><span>R²</span>") === "<svg><text>R²</text></svg><span>R<sup>2</sup></span>"); }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

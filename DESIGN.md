@@ -102,8 +102,13 @@ show without competing with the data; the graph's grid (`--grid`) is part of the
   has a 2 px accent edge and a filled title bar. A graph that is live but not in front keeps
   a 3 px accent line under its title bar.
 - Documents (graphs, the worksheet, trend graphs) always have a taskbar button; panels only
-  while open or minimised. Open buttons are raised with a bar, minimised ones flat, the front
-  one filled.
+  while open or minimised. **The taskbar is the design system's** (DS_SPEC slice 1): the project
+  switcher first, a white field with a folder and a chevron; the windows flat on the chrome; the
+  front window a raised white key with a 20 px accent bar under it, other open ones a short grey
+  bar, minimised ones none and their names lighter; Tile and Cascade together in a tray at the
+  right. Before, every button was a raised box and the front one filled with the accent: the
+  system's review of 25 October found a row of boxes noisier than the windows it names, and a
+  white key reads as "in front" as surely as a fill.
 - **The first screen is the worksheet, alone, across the desk.** A graph appears only when the
   user plots something: "I don't want to see a graph until I choose to plot". The empty graph
   that used to stand beside an empty worksheet said "nothing plotted yet" before anything had
@@ -120,10 +125,17 @@ show without competing with the data; the graph's grid (`--grid`) is part of the
   full. Batch floats, being a worksheet of its own.
 - **A drawer when the room is not there.** Below 1100 px, or when a 480 px graph and a 300 px
   worksheet would not fit beside it, the dock lies over the right of the desk (a shadow says
-  it is on top) with a pin to put it beside them and an arrow to put it away. Floating is
-  always one drag away (a tab, or the title bar), never the default; the window's dock button
-  brings it back.
-- **The bars are thin**: toolbar 40, taskbar 30, status bar 24 px. The Project Explorer is
+  it is on top) with a pin to put it beside them. Floating is always one drag away (a tab), or
+  Undock, never the default; the window's dock button brings it back.
+- **The dock is a tab strip the window hangs from** (the design system's Dock): a small *Tools*
+  label, the tools not shown as icons alone (named by their tooltip), the one shown a raised
+  tab with its name, its × and a 3 px accent cap, sharing the window's fill so tab and window
+  read as one sheet. The docked window has no title bar of its own: its name is on the tab, and
+  Help, Undock and Hide are at the strip's right. Before, a docked window had its own title bar
+  under a row of named tabs, two headings for one window, and the tabs ran out of room at
+  four.
+- **The bars are thin**: toolbar 40, the dock's strip 36, taskbar 42 (the design system's: room
+  for the raised key and its bar), status bar 24 px. The Project Explorer is
   220 px and a drawer below 1600 px, so at 1366 it no longer takes 250 px from every window.
 - **New graphs keep 480 px.** A graph made beside the worksheet takes its share; otherwise it
   goes beside or below the graph in front, and when neither leaves 480 by 300 px it takes the
@@ -340,6 +352,11 @@ The menu tree is `ux/spec/menus-after.txt`; `tools/ux/menucheck.py` compares the
 - **An ellipsis means more to come**: a dialog or a window that asks before it acts. Report and
   Histogram act at once and have none. A shortcut beside an item is a real one (Format graph…
   has no "Double-click": a double click on the plot shows all the data).
+- **Tooltips name the thing**, with its shortcut ("Zoom", "Import (Ctrl+O)", "Help (F1)"),
+  on the toolbar, the title bar, the window buttons, the taskbar and the dock. They used to
+  explain ("Zoom: drag a box to zoom, click a point to select it (Esc returns here)"), and an
+  explanation read on every hover is noise; what a tool does is said by the status bar's hint
+  while it is on, and by Help. A setting's dotted hint (`.tipd`) still explains it.
 - **Moving along the menu bar** opens the next menu only after the pointer rests on its name for
   150 ms: a pointer crossing the bar on its way into a submenu changed menus (Phase 1, T2).
 - **The graph's tools only with a graph** (the user: "they shouldn't be there when I am using
@@ -475,6 +492,20 @@ One word for each thing, everywhere it is shown (UX_SPEC §3.6, checked by `tool
 - **Spectroscopy's words** (spectrum, band, background, spike, Raman shift, known line) belong
   to the Spectroscopy menu and its windows (Peaks, Peak fit, Integrate, Overview, the
   spectroscopy tools), where they are the right words, and nowhere else.
+
+- **No internal identifiers** in the interface (the design system): no hash in the worksheet's
+  foot, no "in this browser" in the status bar. The check code is still in the History's
+  Original data box, the report and the exports, where it is the record; the worksheet says
+  "Original data changed" only when it no longer matches.
+- **Real superscripts and subscripts.** Unicode's ⁻¹ ² ₀ sit too high and look clipped (the
+  design system): text arriving in the page has them set as `<sup>` and `<sub>` (`supifyText`, a
+  MutationObserver, never in a field, a list, code, the formatted editor, the symbol list or the
+  graph's SVG), the graph typesets them as LaTeX's scripts (`texUni` in `richText`), and the
+  report as HTML's (`supHtml`). The data keep the characters as typed.
+- **Fields as wide as what they hold** (the review of 25 October): text fields 12em, numbers
+  7em, lists as wide as their choices, a control in a form row starting at the row's left
+  rather than stretching to its end. A form of stretched fields reads as one wide band; sized
+  fields say how much each one takes.
 
 Code keeps its names (`raw`, `final`, `p.raw`): renaming them would buy
 nothing and break saved projects. Help's search words keep the old words too, so a person who
@@ -742,6 +773,17 @@ The F(x)= row is always shown (the user's choice between it and formulas only in
 setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md`: ranges,
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
+
+### 2026-10-26: the design system into the app, slice 1 (the frame and the rules)
+
+The user pointed at the Kurve design system (built from this repository, then reviewed on 25
+October) and chose to bring the app up to it; `ux/spec/DS_SPEC.md` lists every difference and
+ten slices. Slice 1: the review's stylesheet (fields as wide as their content, windows rounded
+to 12 px and 9 in Graphite, the taskbar, the dock's strip, the project name as a field in the
+title bar), tooltips that name, no internal identifiers in the interface (the worksheet's foot
+says "81 rows · 3 columns", not a SHA-256; the status bar says "Saved", not where), and real
+superscripts. Where the system and this file disagreed (the taskbar's filled front button), the
+system won, and the entries above say why.
 
 ### 2026-10-17: defaults (UX rework, Phase 4 slice 5)
 

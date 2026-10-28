@@ -1701,6 +1701,113 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
 @media (max-width: 1010px){ #modeSeg>button{padding:0 var(--sp-3)} .toolbar .tsep{margin:0 var(--sp-1)} }
 
 /* ---- Narrow screens: the windows stack, graph first ---------------------- */
+/* ── The design system's review of 25 Oct 2026 (ux/spec/DS_SPEC.md, slice 1): controls as wide as their content,
+   rounder windows, a flat taskbar with a raised key for the front window, a dock bar of icon tabs, the project name as a field ── */
+/* Fields are as wide as what they hold, the way Office dialogs size them; a label column never stretches its control. */
+:where(input[type=text]){width:12em}
+:where(input[type=text][inputmode="decimal"]){width:7em}
+/* The review had 5.5em here; 7em, the system's number field, shows a value such as 1550.25 whole. */
+.fwhere .pair input[type=text]{width:7em}
+select:not([multiple]):not([size]){width:auto;max-width:100%}
+.frow>select,.frow>input[type=text],.frow>.seg,.frow>.mbtn,.frow>.combo{justify-self:start}
+.frow>select{min-width:8em;max-width:16em}
+.pair>select{flex:0 1 auto}
+.mrow{justify-content:flex-start}
+.mbtn{flex:0 1 auto;max-width:18em}
+.mbtn .mb-n{flex:0 1 auto}
+.seg.full{display:inline-grid;grid-auto-flow:column;grid-auto-columns:1fr;max-width:100%}
+.seg.full>button{min-width:0}
+.sticky .btn.primary{flex:0 0 auto;min-width:96px}
+/* Rich text field: the placeholder and typed text get room, and nothing clips a descender. */
+.rfield .pair{flex-wrap:wrap}
+.rfield .pair>.ned{flex:1 1 9em;min-width:9em;max-width:340px}
+/* Line-style segments start on the same edge as every other control and stay on one line. */
+.seg.mini.pdseg{flex-wrap:nowrap;margin-left:0;max-width:100%}
+.seg.mini.pdseg>button{padding:0 var(--sp-2);min-width:0}
+.seg.mini.pdseg>button svg{width:20px}
+/* Windows */
+:root{--r-win:12px}
+:root[data-style="graphite"]{--r-win:9px}
+/* Taskbar: the project switcher on the left, then one button per window. Windows sit flat on the chrome;
+   the front window is a raised white key with an accent pill, open ones carry a grey pill, minimised ones none. */
+.taskbar{height:42px;gap:2px;padding:0 var(--sp-3);background:var(--chrome);border-top:1px solid var(--rule);box-shadow:inset 0 1px 0 color-mix(in srgb,var(--panel) 55%,transparent)}
+.tk{position:relative;height:32px;gap:var(--sp-3);padding:0 var(--sp-4);border:1px solid transparent;border-radius:var(--r);background:transparent;color:var(--ink-2);font-size:var(--fs-tab);font-weight:500}
+.tk>.ic{color:var(--muted)}
+.tk:hover{background:color-mix(in srgb,var(--panel) 65%,transparent);border-color:var(--rule-2);color:var(--ink)}
+.tk.on::after{content:"";position:absolute;left:50%;right:auto;width:12px;margin-left:-6px;bottom:2px;height:3px;border-radius:99px;background:var(--faint)}
+.tk.front{background:var(--panel);border-color:var(--rule-2);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(16,24,40,.14)}
+.tk.front>.ic{color:var(--accent)}
+.tk.front::after{display:block;width:20px;margin-left:-10px;background:var(--accent)}
+.tk.front:hover{background:var(--panel);color:var(--ink);border-color:var(--rule)}
+.tk.min{color:var(--muted);font-weight:400}
+.tk.min::after{display:none}
+.tk.more{border-color:var(--rule);border-style:dashed}
+.tk.proj{order:-1;max-width:280px;height:30px;margin-right:var(--sp-2);padding:0 var(--sp-3);border:1px solid var(--rule);background:var(--panel);color:var(--ink);font-weight:600}
+.tk.proj>.ic{color:var(--ink-2)}
+.tk.proj::after{display:none}
+.tk.proj .tk-chev{margin-left:var(--sp-1);color:var(--muted)}
+.tk.proj:hover{border-color:var(--ink-2);background:var(--panel)}
+.tksep{width:1px;height:20px;margin:0 var(--sp-3);background:var(--rule)}
+.tdot{width:6px;height:6px}
+.taskbar .tkacts{display:inline-flex;gap:2px;padding:2px;border:1px solid var(--rule-2);border-radius:var(--r);background:color-mix(in srgb,var(--panel) 50%,transparent);flex:0 0 auto}
+/* Results: value and standard error in their own columns, figures on tabular numerals. */
+table.rtab{font-variant-numeric:tabular-nums}
+.rtab th{background:transparent;color:var(--ink-2);border-bottom:1.5px solid var(--ink-2)}
+.rtab td{border-bottom-color:var(--grid)}
+.rtab td.se,.rtab th.se{color:var(--muted);padding-left:var(--sp-2)}
+.rtab td.val{font-weight:600;color:var(--ink)}
+.rtab td.l .pmean{color:var(--muted);margin-left:var(--sp-2)}
+.rtab tr.rgrp td{padding-top:var(--sp-4);color:var(--muted);font-size:var(--fs-cap);font-weight:600;text-transform:uppercase;letter-spacing:.04em;border-bottom:0;text-align:left}
+.rsec{margin-top:var(--sp-6)}
+.rsec>h4{font:600 var(--fs-body)/1.3 var(--sans);color:var(--ink);margin:0 0 var(--sp-3)}
+/* Detected import settings: the value is tinted instead of spelled out. */
+.grid2 select.det,.grid2 input.det{border-color:var(--ok);background-color:var(--ok-bg)}
+/* Facts live in read-only fields, not loose text. */
+.ro{display:inline-flex;align-items:center;height:28px;padding:0 var(--sp-4);border:1px solid var(--rule-2);border-radius:var(--r);background:var(--panel-2);color:var(--ink-2);font-size:var(--fs-tab);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* Units such as cm−1 are set with a real superscript, never the Unicode ⁻¹ glyphs (supify). */
+sup{font-size:.72em;line-height:0;vertical-align:.5em}
+sub{font-size:.72em;line-height:0;vertical-align:-.25em}
+/* The formatted editor's scripts keep the browser's own alignment: execCommand reads "superscript" from it. */
+.ned sup{vertical-align:super}
+.ned sub{vertical-align:sub}
+.rtab tbody th{background:transparent;border-bottom:1px solid var(--grid);color:var(--ink-2);text-align:left}
+table.rtab.rmat{width:auto;min-width:50%}
+.rtab.rmat td{padding-left:var(--sp-6)}
+.rsec h4+.rscroll{margin-bottom:var(--sp-5)}
+.rsel select{flex:0 0 auto}
+.sform .pair:has(input[type=range]){max-width:22em}
+input[type=search]{height:28px;padding:0 var(--sp-4);border:1px solid var(--rule);border-radius:var(--r);background-color:var(--panel);color:var(--ink);font:inherit;min-width:0;transition:border-color .15s,box-shadow .15s}
+input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0 3px var(--focus-soft)}
+/* Dock: a tab strip on the chrome that the docked window hangs from. Inactive tools are icons only (name on hover);
+   the shown tool is a raised tab with its name, joined to the window below by sharing its fill, with an accent cap.
+   The docked window's own title bar gives way to the strip (Help, Undock and Hide are on it). */
+.dockbar{height:36px;display:flex;align-items:flex-end;gap:2px;padding:0 var(--sp-2) 0 var(--sp-3);background:var(--chrome);border-left:1px solid var(--win-bd);border-bottom:1px solid var(--rule);box-sizing:border-box}
+.dockbar .dk-lab{align-self:flex-end;height:28px;display:flex;align-items:center;margin-right:var(--sp-3);font:600 var(--fs-cap)/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--faint);flex:0 0 auto}
+.dtab{position:relative;height:28px;max-width:180px;gap:var(--sp-2);padding:0 var(--sp-3);margin-bottom:-1px;border:1px solid transparent;border-bottom:0;border-radius:var(--r) var(--r) 0 0;background:transparent;color:var(--muted);font-weight:400}
+.dtab>span{display:none}
+.dtab .dx{display:none}
+.dtab:hover{background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink)}
+.dtab.on{height:31px;padding:0 var(--sp-1) 0 var(--sp-4);background:var(--panel);border-color:var(--rule);color:var(--ink);font-weight:600}
+.dtab.on:hover{background:var(--panel)}
+.dtab.on>span{display:inline}
+.dtab.on .dx{display:inline-flex;color:var(--muted)}
+.dtab.on .dx:hover{color:var(--ink)}
+.dtab.on>.ic{color:var(--accent)}
+.dtab.on::after{content:"";position:absolute;left:-1px;right:-1px;top:-1px;bottom:auto;width:auto;margin:0;height:3px;border-radius:var(--r) var(--r) 0 0;background:var(--accent)}
+.dtab .badge{min-width:15px;line-height:15px;font-size:var(--fs-cap)}
+.dockbar>.tb{align-self:flex-end;margin-bottom:2px}
+.win.docked:not(.max)>.win-h{display:none}
+.sb-hint:empty{flex:1 1 auto}
+.sb-hint:empty+.sb-cell{border-left:0}
+/* Title bar: the project name is one visible field with its projects menu, in ink, never a faint placeholder on the chrome. */
+.titlebar .proj{flex:0 1 320px;height:30px;gap:0;border:1px solid var(--rule-2);border-radius:var(--r);background:var(--panel);overflow:hidden}
+.titlebar .proj:hover{border-color:var(--rule)}
+.titlebar .proj:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.titlebar .proj input,.titlebar .proj input:hover:not(:disabled),.titlebar .proj input:focus{height:100%;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--ink)}
+.titlebar .proj input::placeholder{color:var(--ink-2);opacity:1;font-weight:600}
+.titlebar .proj .tb{height:100%;width:30px;border:0;border-left:1px solid var(--rule-2);border-radius:0;color:var(--ink-2)}
+.titlebar .proj .tb:hover{background:var(--panel-2);color:var(--ink)}
+@media (max-width: 860px){ .titlebar .proj{flex:1 1 200px} }
 @media (max-width: 1100px){
   .tb.lbl>span{display:none}
   .tb.lbl{padding:0;width:30px}
@@ -1855,39 +1962,39 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
     <div class="tfill"></div>
     <div class="proj">
       <input id="projName" aria-label="Project name" placeholder="Untitled project" maxlength="80" autocomplete="off" spellcheck="false">
-      <button class="tb icon" id="projMenu" aria-haspopup="menu" aria-expanded="false" aria-label="Projects" title="Switch, create or delete projects"><svg class="ic"><use href="#i-chev"/></svg></button>
+      <button class="tb icon" id="projMenu" aria-haspopup="menu" aria-expanded="false" aria-label="Projects" title="Projects"><svg class="ic"><use href="#i-chev"/></svg></button>
     </div>
     <div class="tfill"></div>
     <div class="people" id="people" aria-label="People here now"></div>
-    <button class="tb icon" id="prefBtn" aria-label="Preferences" title="Preferences: history, appearance (Ctrl+,)"><svg class="ic"><use href="#i-gear"/></svg></button>
+    <button class="tb icon" id="prefBtn" aria-label="Preferences" title="Preferences (Ctrl+,)"><svg class="ic"><use href="#i-gear"/></svg></button>
     <button class="tb icon" id="helpBtn" aria-label="Help" title="Help (F1)"><svg class="ic"><use href="#i-help"/></svg></button>
-    <button class="tb icon" id="themeBtn" aria-label="Switch to dark theme" title="Switch to dark theme"><svg class="ic"><use href="#i-moon"/></svg></button>
+    <button class="tb icon" id="themeBtn" aria-label="Switch to the dark theme" title="Dark theme"><svg class="ic"><use href="#i-moon"/></svg></button>
   </header>
 
   <div class="toolbar" role="toolbar" aria-label="Tools">
-    <button class="tb icon" id="xplBtn" aria-pressed="true" aria-controls="xpl" aria-label="Project Explorer" title="Project Explorer: the project's folders, files and graphs (Alt+1)"><svg class="ic"><use href="#i-tree"/></svg></button>
+    <button class="tb icon" id="xplBtn" aria-pressed="true" aria-controls="xpl" aria-label="Project Explorer" title="Project Explorer (Alt+1)"><svg class="ic"><use href="#i-tree"/></svg></button>
     <div class="tsep"></div>
-    <button class="tb lbl" id="importBtn" title="Import a data file (Ctrl+O). You can also drop a file anywhere."><svg class="ic"><use href="#i-upload"/></svg><span>Import</span></button>
+    <button class="tb lbl" id="importBtn" title="Import (Ctrl+O)"><svg class="ic"><use href="#i-upload"/></svg><span>Import</span></button>
     <input type="file" id="fileIn" accept=".csv,.txt,.tsv,.dat,.asc,.xy,.prn,.dpt,.text" class="sr" tabindex="-1" aria-hidden="true" multiple>
-    <button class="tb lbl" id="exportBtn" aria-haspopup="menu" aria-expanded="false" title="Export the figure, the data or a report"><svg class="ic"><use href="#i-download"/></svg><span>Export</span><svg class="ic sm"><use href="#i-chev"/></svg></button>
+    <button class="tb lbl" id="exportBtn" aria-haspopup="menu" aria-expanded="false" title="Export"><svg class="ic"><use href="#i-download"/></svg><span>Export</span><svg class="ic sm"><use href="#i-chev"/></svg></button>
     <div class="tsep"></div>
-    <button class="tb icon" id="undoBtn" title="Nothing to undo" aria-label="Undo" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
-    <button class="tb icon" id="redoBtn" title="Nothing to redo" aria-label="Redo" disabled><svg class="ic"><use href="#i-redo"/></svg></button>
+    <button class="tb icon" id="undoBtn" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
+    <button class="tb icon" id="redoBtn" title="Redo (Ctrl+Y)" aria-label="Redo" disabled><svg class="ic"><use href="#i-redo"/></svg></button>
     <div class="tsep tg"></div>
     <div class="seg tg" role="group" aria-label="Pointer tool" id="modeSeg">
-      <button data-mode="zoom" aria-pressed="true" title="Zoom: drag a box to zoom, click a point to select it (Esc returns here)"><svg class="ic"><use href="#i-zoom"/></svg><span>Zoom</span></button>
-      <button data-mode="pan" aria-pressed="false" title="Pan: drag to move the view"><svg class="ic"><use href="#i-pan"/></svg><span>Pan</span></button>
-      <button data-mode="mask" aria-pressed="false" title="Mask: click or drag to leave points out of the fit"><svg class="ic"><use href="#i-mask"/></svg><span>Mask</span></button>
-      <button data-mode="label" aria-pressed="false" title="Label: click a peak to label it with its position, or an empty spot to add text"><svg class="ic"><use href="#i-tag"/></svg><span>Label</span></button>
-      <button data-mode="arrow" aria-pressed="false" title="Arrow: drag from where it starts to what it points at"><svg class="ic"><use href="#i-arrow"/></svg><span>Arrow</span></button>
-      <button data-mode="shape" aria-pressed="false" aria-haspopup="menu" title="Shape: a box or an ellipse, dragged on the graph"><svg class="ic"><use href="#i-shape"/></svg><span>Shape</span></button>
-      <button data-mode="reader" aria-pressed="false" title="Data reader: click a point to read it, or find one by its X or Y"><svg class="ic"><use href="#i-reader"/></svg><span>Reader</span></button>
-      <button data-mode="cross" aria-pressed="false" title="X–Y lines: drag a vertical and a horizontal line, and read the curves where they cross"><svg class="ic"><use href="#i-xylines"/></svg><span>X–Y lines</span></button>
-      <button data-mode="pin" id="pinBtn" aria-pressed="false" hidden title="Comment: click the graph to start a comment there, for the people sharing the project"><svg class="ic"><use href="#i-comment"/></svg><span>Comment</span></button>
+      <button data-mode="zoom" aria-pressed="true" title="Zoom"><svg class="ic"><use href="#i-zoom"/></svg><span>Zoom</span></button>
+      <button data-mode="pan" aria-pressed="false" title="Pan"><svg class="ic"><use href="#i-pan"/></svg><span>Pan</span></button>
+      <button data-mode="mask" aria-pressed="false" title="Mask points"><svg class="ic"><use href="#i-mask"/></svg><span>Mask</span></button>
+      <button data-mode="label" aria-pressed="false" title="Label"><svg class="ic"><use href="#i-tag"/></svg><span>Label</span></button>
+      <button data-mode="arrow" aria-pressed="false" title="Arrow"><svg class="ic"><use href="#i-arrow"/></svg><span>Arrow</span></button>
+      <button data-mode="shape" aria-pressed="false" aria-haspopup="menu" title="Shape"><svg class="ic"><use href="#i-shape"/></svg><span>Shape</span></button>
+      <button data-mode="reader" aria-pressed="false" title="Reader"><svg class="ic"><use href="#i-reader"/></svg><span>Reader</span></button>
+      <button data-mode="cross" aria-pressed="false" title="X–Y lines"><svg class="ic"><use href="#i-xylines"/></svg><span>X–Y lines</span></button>
+      <button data-mode="pin" id="pinBtn" aria-pressed="false" hidden title="Comment"><svg class="ic"><use href="#i-comment"/></svg><span>Comment</span></button>
     </div>
-    <button class="tb icon tg" id="resetView" title="Show all the data (or double-click the graph)" aria-label="Show all the data"><svg class="ic"><use href="#i-fitview"/></svg></button>
+    <button class="tb icon tg" id="resetView" title="Show all" aria-label="Show all the data"><svg class="ic"><use href="#i-fitview"/></svg></button>
     <div class="tsep tg"></div>
-    <button class="tb lbl opt tg" id="revX" aria-pressed="false" title="Run the X axis high to low, as wavenumber and binding-energy axes do"><svg class="ic"><use href="#i-reverse"/></svg><span>Reverse X</span></button>
+    <button class="tb lbl opt tg" id="revX" aria-pressed="false" title="Reverse X"><svg class="ic"><use href="#i-reverse"/></svg><span>Reverse X</span></button>
     <button class="tb lbl opt tg" id="logY" aria-pressed="false" title="Logarithmic Y axis"><svg class="ic"><use href="#i-log"/></svg><span>Log Y</span></button>
     <button class="tb lbl opt tg" id="grid" aria-pressed="false" title="Grid lines"><svg class="ic"><use href="#i-grid"/></svg><span>Grid</span></button>
   </div>
@@ -1895,10 +2002,10 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
   <div class="work" id="work">
   <aside class="xpl" id="xpl" aria-label="Project Explorer">
     <div class="xpl-h"><svg class="ic sm" aria-hidden="true"><use href="#i-tree"/></svg><h2>Project Explorer</h2><span class="sp"></span>
-      <button class="tb sm icon" id="xplNew" title="New folder (in the folder selected)" aria-label="New folder"><svg class="ic sm"><use href="#i-folderplus"/></svg></button>
-      <button class="tb sm icon" id="xplFold" title="Collapse everything" aria-label="Collapse everything"><svg class="ic sm"><use href="#i-collapse"/></svg></button>
-      <button class="tb sm icon" id="xplHelp" title="About the Project Explorer" aria-label="Help: the Project Explorer"><svg class="ic sm"><use href="#i-help"/></svg></button>
-      <button class="tb sm icon" id="xplClose" title="Hide the Project Explorer (Alt+1)" aria-label="Hide the Project Explorer"><svg class="ic sm"><use href="#i-x"/></svg></button></div>
+      <button class="tb sm icon" id="xplNew" title="New folder" aria-label="New folder"><svg class="ic sm"><use href="#i-folderplus"/></svg></button>
+      <button class="tb sm icon" id="xplFold" title="Collapse all" aria-label="Collapse everything"><svg class="ic sm"><use href="#i-collapse"/></svg></button>
+      <button class="tb sm icon" id="xplHelp" title="About" aria-label="Help: the Project Explorer"><svg class="ic sm"><use href="#i-help"/></svg></button>
+      <button class="tb sm icon" id="xplClose" title="Hide (Alt+1)" aria-label="Hide the Project Explorer"><svg class="ic sm"><use href="#i-x"/></svg></button></div>
     <input type="search" class="xpl-q" id="xplQ" placeholder="Filter by name" aria-label="Filter the project by name" autocomplete="off" spellcheck="false">
     <div class="xpl-tree" id="xplTree" role="tree" aria-label="The project"></div>
   </aside>
@@ -1915,9 +2022,9 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
           <button class="rb" data-rmenu="spectroscopy" aria-haspopup="menu" aria-expanded="false">Spectroscopy<svg class="ic sm"><use href="#i-chev"/></svg></button>
           <span class="rsep" aria-hidden="true"></span>
           <div class="seg" role="group" aria-label="Data shown on the graph" id="viewSeg">
-            <button data-view="raw" aria-pressed="false" title="The original data, as typed or imported">Original</button>
-            <button data-view="final" aria-pressed="true" title="The data after every processing step: what the fit uses">Processed</button>
-            <button data-view="cmp" aria-pressed="false" title="The processed data, with the original in grey behind it">Both</button>
+            <button data-view="raw" aria-pressed="false">Original</button>
+            <button data-view="final" aria-pressed="true">Processed</button>
+            <button data-view="cmp" aria-pressed="false">Both</button>
           </div>
           <span class="sp"></span>
           <span class="stagechip" id="stageChip" hidden></span>
@@ -1952,11 +2059,11 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
       <header class="win-h"><svg class="ic sm"><use href="#i-table"/></svg><h2 class="win-t">Worksheet</h2><span class="win-sub" id="wsSub"></span><span class="sp"></span></header>
       <div class="win-b sheet-win">
         <div class="wbar"><div class="seg mini" role="group" aria-label="Data shown" id="wsSheet"><button data-sheet="raw" aria-pressed="true" title="The original data, as typed or imported">Original</button><button data-sheet="final" aria-pressed="false" title="The active column after processing, read only">Processed</button></div><span class="wsaddr" id="wsAddr" title="The active cell, or the selected range"></span><label class="wsval" id="wsVal"><span class="wsvic" id="wsValIc"></span><input id="wsValIn" type="text" spellcheck="false" autocomplete="off" aria-label="The active cell's contents: click to edit them here"><span class="wshint" id="wsValHint" aria-live="polite"></span></label>
-          <div class="seg mini wsalign" role="group" aria-label="Alignment of the selected columns" id="wsAlignSeg"><button data-wsal="l" title="Align the selected columns to the left" aria-label="Align left"><svg class="ic sm"><use href="#i-alignl"/></svg></button><button data-wsal="c" title="Centre the selected columns" aria-label="Centre"><svg class="ic sm"><use href="#i-alignc"/></svg></button><button data-wsal="r" title="Align the selected columns to the right" aria-label="Align right"><svg class="ic sm"><use href="#i-alignr"/></svg></button></div>
-          <button class="tb sm icon" id="wsFindBtn" title="Find in the sheet (Ctrl+F)" aria-label="Find in the sheet"><svg class="ic sm"><use href="#i-search"/></svg></button>
-          <button class="tb sm" id="wsPlotBtn" aria-haspopup="menu" title="Plot the selected columns, or, with none selected, choose them in the Plot dialog" aria-label="Plot"><svg class="ic sm"><use href="#i-chart"/></svg><span>Plot</span></button>
+          <div class="seg mini wsalign" role="group" aria-label="Alignment of the selected columns" id="wsAlignSeg"><button data-wsal="l" title="Align left" aria-label="Align left"><svg class="ic sm"><use href="#i-alignl"/></svg></button><button data-wsal="c" title="Centre" aria-label="Centre"><svg class="ic sm"><use href="#i-alignc"/></svg></button><button data-wsal="r" title="Align right" aria-label="Align right"><svg class="ic sm"><use href="#i-alignr"/></svg></button></div>
+          <button class="tb sm icon" id="wsFindBtn" title="Find (Ctrl+F)" aria-label="Find in the sheet"><svg class="ic sm"><use href="#i-search"/></svg></button>
+          <button class="tb sm" id="wsPlotBtn" aria-haspopup="menu" title="Plot" aria-label="Plot"><svg class="ic sm"><use href="#i-chart"/></svg><span>Plot</span></button>
           <button class="tb sm icon" id="wsLockBtn" aria-pressed="false" title="Lock the original data" aria-label="Lock the original data"><svg class="ic sm"><use href="#i-lock"/></svg></button>
-          <button class="tb sm" id="addColBtn" aria-haspopup="menu" title="Insert rows or columns where the selection is (Ctrl+Shift+=), a column at the end, or a sheet" aria-label="Insert"><svg class="ic sm"><use href="#i-plus"/></svg><span>Insert</span></button></div>
+          <button class="tb sm" id="addColBtn" aria-haspopup="menu" title="Insert (Ctrl+Shift+=)" aria-label="Insert"><svg class="ic sm"><use href="#i-plus"/></svg><span>Insert</span></button></div>
         <div class="ws" id="ws" tabindex="0"></div>
         <div class="wstabs" id="wsTabs" role="tablist" aria-label="Sheets"></div>
         <div class="ws-foot" id="wsFoot"></div>
@@ -5974,8 +6081,8 @@ function renderUndo(){
   const u=$("#undoBtn"), r=$("#redoBtn"); if(!u) return;
   const canU=canUndo(), canR=canRedo();
   u.disabled=!canU; r.disabled=!canR;
-  u.title=canU?`Undo ${undoStack[undoStack.length-1].label} (Ctrl+Z)`:"Nothing to undo";
-  r.title=canR?`Redo ${redoStack[redoStack.length-1].label} (Ctrl+Shift+Z)`:"Nothing to redo";
+  u.title=canU?`Undo ${undoStack[undoStack.length-1].label} (Ctrl+Z)`:"Undo (Ctrl+Z)";
+  r.title=canR?`Redo ${redoStack[redoStack.length-1].label} (Ctrl+Y)`:"Redo (Ctrl+Y)";
 }
 
 /* ============================================================
@@ -6136,7 +6243,7 @@ async function save(patch, logText){
   if((logText||pendLog)&&histOn()){ const add=[pendLog,logText].filter(Boolean).map(text=>({t:Date.now(),uid:S.uid||"",text}));
     const log=(p.log||[]).concat(add).slice(-80); p.log=log; patch.log=log; }
   setStatus("Saving…");
-  try{ await S.store.save(S.pid,patch); setStatus(S.store.mode==="db"?"All changes shared":"Saved in this browser",false); }
+  try{ await S.store.save(S.pid,patch); setStatus(S.store.mode==="db"?"Shared":"Saved",false); }
   catch(e){ setStatus("Not saved",true); writeErr(e); }
 }
 let wsTimer=null, wsPatch={}, wsLog=null, wsPid=null;
@@ -7353,6 +7460,23 @@ function texToNat(src){
     return true; };
   for(let i=0;i<lines.length;i++){ if(i) out.push({s:"\n",v:0}); if(!walk(texParse(lines[i]).l,0)) return null; }
   return natMerge(out); }
+// Unicode's raised and lowered characters (cm⁻¹, R², x₀) sit too high and look clipped: they are set as
+// real scripts instead (ux/spec/DS_SPEC.md). uniRuns splits a text into runs, v 1 raised, -1 lowered, 0 neither,
+// with each script character as its plain one (⁻ as the minus sign).
+const UNI_SUP="⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱ", UNI_SUPV="0123456789+−=()ni";
+const UNI_SUB="₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓₕₖₗₘₙₚₛₜ", UNI_SUBV="0123456789+−=()aeoxhklmnpst";
+const UNI_RE=/[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓₕₖₗₘₙₚₛₜ]/;
+function uniRuns(s){ const out=[]; let cur=null;
+  for(const ch of String(s)){ let v=0, c=ch, k=UNI_SUP.indexOf(ch);
+    if(k>=0){ v=1; c=UNI_SUPV[k]; } else if((k=UNI_SUB.indexOf(ch))>=0){ v=-1; c=UNI_SUBV[k]; }
+    if(cur&&cur.v===v) cur.s+=c; else out.push(cur={s:c,v}); }
+  return out; }
+// The same text with them as LaTeX's scripts, so the graph sets them as it sets cm^{-1}.
+function texUni(s){ s=String(s==null?"":s); if(!UNI_RE.test(s)) return s; return uniRuns(s).map(r=>r.v?(r.v>0?"^{":"_{")+r.s+"}":r.s).join(""); }
+// And as HTML's <sup> and <sub>, outside tags and outside what cannot hold them (a title, a style, code, an SVG).
+function supHtml(h){ h=String(h==null?"":h); if(!UNI_RE.test(h)) return h; let skip=0;
+  return h.split(/(<[^>]*>)/).map(part=>{ if(part[0]==="<"){ const m=/^<(\/?)(title|style|script|textarea|option|code|pre|svg)\b/i.exec(part); if(m&&!/\/>$/.test(part)) skip=Math.max(0,skip+(m[1]?-1:1)); return part; }
+    return skip>0||!UNI_RE.test(part)?part:uniRuns(part).map(r=>r.v?(r.v>0?"<sup>":"<sub>")+r.s+(r.v>0?"</sup>":"</sub>"):r.s).join(""); }).join(""); }
 /* ==TEX:END== */
 
 /* Text on a graph is drawn through richText: plain text as one <text>, text
@@ -7365,11 +7489,11 @@ function texBox(s,st){ const key=s+"\u0001"+(+st.size).toFixed(2)+"|"+st.fam+"|"
   let b=TEXC.get(key); if(!b){ b=texLayout(s,+st.size,(t,z,it,bd)=>textW(t,Object.assign({},st,{size:z,i:it,b:bd})),{it:!!st.i,b:!!st.b}); if(TEXC.size>3000) TEXC.clear(); TEXC.set(key,b); } return b; }
 // o: {x, y} or {tf, a transform that places it}, anchor, st (the text style), fill, attrs (more attributes).
 function richText(str,o){
-  const s=String(str==null?"":str), st=o.st, f1=v=>(+v).toFixed(1), anc=o.anchor||"start";
+  const s=texUni(str), st=o.st, f1=v=>(+v).toFixed(1), anc=o.anchor||"start";
   if(!texNeeds(s)) return `<text${o.attrs||""}${o.tf?` transform="${o.tf}"`:` x="${f1(o.x)}" y="${f1(o.y)}"`} text-anchor="${anc}"${tAt(st,o.fill)}>${esc(s)}</text>`;
   const b=texBox(s,st), dx=anc==="end"?-b.w:anc==="middle"?-b.w/2:0;
   return `<g data-rt="1"${o.attrs||""} transform="${o.tf?o.tf:`translate(${f1(o.x)},${f1(o.y)})`}"${tAt(st,o.fill)}>${texSvgOf(b,st.color||o.fill,dx,0)}</g>`; }
-function richW(str,st){ const s=String(str==null?"":str); return texNeeds(s)?texBox(s,st).w:textW(s,st); }
+function richW(str,st){ const s=texUni(str); return texNeeds(s)?texBox(s,st).w:textW(s,st); }
 // How a text with LaTeX will look, beside the field it is typed in (in the interface's font).
 function texPreview(s,size,ts){ s=String(s==null?"":s); if(!texNeeds(s)) return "";
   const z=size||15, fam=(ts&&ts.fam)||getComputedStyle(document.body).fontFamily||"sans-serif", it=!!(ts&&ts.i), bd=!!(ts&&ts.b);
@@ -11646,7 +11770,7 @@ function wsFoot(){
     left=`${m.n} point${m.n===1?"":"s"} of ${esc(specName(m.c))} after ${steps?`${steps} processing step${steps===1?"":"s"}`:"no processing (the original data)"} · read only`; }
   else { const n=m.nd!=null?m.nd:m.n, nm=S.wsMask.size, ok=rawVerified(), fp=(p.raw&&p.raw.fp)||"";
     const lk=rawLocked();
-    left=n?`<span${lk?` title="The original data is locked: empty cells can be filled or pasted into; typing over a value asks for a reason and records a correction step instead."`:""}>${lk?ICON("lock","sm")+" ":""}${n} row${n===1?"":"s"}${lk?", locked":""}${fp?` · <a href="#" id="wsFp" title="${esc("SHA-256 of the original values: "+fp+(ok===false?" (the data no longer matches it)":"")+". Every change to them is in the original-data record.")}">${ok===false?"check code differs":"sha256 "+esc(fpShort(fp))}</a>`:""}${nm?` · ${nm} masked`:""}${S.wsFixed.size?` · ${S.wsFixed.size} corrected`:""}</span>`
+    left=n?`<span${lk?` title="The original data is locked: empty cells can be filled or pasted into; typing over a value asks for a reason and records a correction step instead."`:""}>${lk?ICON("lock","sm")+" ":""}${n} row${n===1?"":"s"}${lk?", locked":""}${(()=>{ const nc=sheetCols(curSheet()).filter(c=>c.data.some(v=>v!=null)).length; return nc?` · ${nc} column${nc===1?"":"s"}`:""; })()}${fp&&ok===false?` · <a href="#" id="wsFp">Original data changed</a>`:""}${nm?` · ${nm} masked`:""}${S.wsFixed.size?` · ${S.wsFixed.size} corrected`:""}</span>`
       :"Empty · type into any cell, or paste a block from a spreadsheet"; }
   if(m.sorted) left+=` · <span title="Only the view is sorted: the data keep the order they were recorded in">sorted by ${esc(m.cols[m.sortCi].letter)} ${m.sortDir>0?"↑":"↓"}</span> <a href="#" id="wsUnsort">Unsort</a>`;
   if(m.kind==="raw"){ const h=wsHideOf(p), nc=h.cols.length, nr=m.hidR?m.hidR.size:0;
@@ -15843,7 +15967,7 @@ function renderTop(){
   document.querySelectorAll("[data-example]").forEach(b=>b.disabled=S.readOnly||!S.store);
   $("#addColBtn").disabled=off; $("#wsPlotBtn").disabled=off; $("#projMenu").disabled=!S.store; renderViewSeg();
   const dark=darkMode(), tb=$("#themeBtn"), lab=dark?"Switch to the light theme":"Switch to the dark theme";
-  tb.innerHTML=ICON(dark?"sun":"moon"); tb.title=lab; tb.setAttribute("aria-label",lab);
+  tb.innerHTML=ICON(dark?"sun":"moon"); tb.title=dark?"Light theme":"Dark theme"; tb.setAttribute("aria-label",lab);
   document.title=(p&&p.name?p.name+" — ":"")+"Kurve";
   syncGraphTools();
 }
@@ -15997,7 +16121,7 @@ async function exportReport(){
   if(log.length) html.push("<h2>What was done</h2><ul class=\"meta\">"+
     log.map(l=>"<li>"+esc2(new Date(l.t).toLocaleString())+" — "+esc2(l.text)+"</li>").join("")+"</ul>");
   html.push("<p class=\"meta\">Made with Kurve.</p></body></html>");
-  const okr=await saveFile(safeName(p.name,"_report.html"),html.join(String.fromCharCode(10)),"text/html;charset=utf-8");
+  const okr=await saveFile(safeName(p.name,"_report.html"),supHtml(html.join(String.fromCharCode(10))),"text/html;charset=utf-8");
   if(okr) toast(okr==="dialog"
     ? "Report saved. Open it in a browser and print to PDF if you need one."
     : `Sent ${safeName(p.name,"_report.html")} to your downloads. Open it in a browser and print to PDF if you need one.`);
@@ -16625,7 +16749,7 @@ function renderTool(){
   if(!pd||!s||!c||!PIPE_OPS[s.op]){ box.innerHTML=`<p class="nothing">Choose a tool from the Data, Analysis or Spectroscopy menu, or from the + on a line in the History.</p>`; $("#toolTitle").textContent="Tool"; return; }
   const def=PIPE_OPS[s.op], pipe=c.pipe||[];
   const keep=document.activeElement&&box.contains(document.activeElement)?document.activeElement.id:null, sc=box.scrollTop;
-  $("#toolTitle").textContent=def.label;
+  $("#toolTitle").textContent=def.label; refreshDock();
   let h=`<div class="frow tool-target"><label for="tlCol">Column</label><select id="tlCol">${yCols().map(y=>`<option value="${y.id}"${y.id===pd.col?" selected":""}>${esc((y.src?"↳ ":"")+specName(y))}</option>`).join("")}</select>`;
   h+=`<label for="tlAt">Position</label><select id="tlAt">${Array.from({length:pipe.length+1},(_,i)=>`<option value="${i}"${i===pd.at?" selected":""}>${i===0?(pipe.length?`First, before ${esc(stepShort(pipe[0]))}`:"The first step"):i===pipe.length?`Last, after ${esc(stepShort(pipe[i-1]))}`:`After step ${i}, ${esc(stepShort(pipe[i-1]))}`}</option>`).join("")}</select></div>`;
   h+=`<div class="beforeafter">${beforeAfter(s)}</div>`;
@@ -18484,8 +18608,8 @@ const DOCS=[
  lead:"The worksheet and the graph share the desk; the tool windows (Fit, History, Peaks…) open in a dock at its right. Arrange them the way you work.",
  body:`<p>A new project opens with the worksheet alone, across the desk. Nothing is plotted until you choose to: select columns and press <em>Plot</em> on the worksheet's bar (${DA("plotting","Plotting columns")}), and the graph then shares the desk with the worksheet. The other windows open when you ask for them, from the menus.</p>
 <h2 id="dock">The dock</h2>
-<p>The tool windows (Fit, Results, Peaks, Integrate, History, Statistics, the Overview, Help, Discussion and the processing tools) open in the <strong>dock</strong>, a column at the right of the desk with a tab for each. One shows at a time: click a tab to bring its window forward, its × to close it. The worksheet and the graph share what is left of the desk, and get it back when the dock is empty.</p>
-${DL([["Width","Drag the dock's left edge (or focus it and press "+K("←")+" "+K("→")+")."],["Read at full size","Double-click a tab: its window takes the whole desk. Again to give it back."],["Float","Drag a tab out of the dock, or drag the window's title bar: it becomes a window of its own, where you let go. The dock button in its title bar puts it back."],["A smaller screen","Below 1100 pixels, or when the worksheet and a 480-pixel graph would not fit beside it, the dock lies over the right of the desk as a drawer. Its pin puts it beside them instead; the arrow puts it away, its windows waiting in the taskbar."]])}
+<p>The tool windows (Fit, Results, Peaks, Integrate, History, Statistics, the Overview, Help, Discussion and the processing tools) open in the <strong>dock</strong>, a column at the right of the desk. Its strip, headed <em>Tools</em>, has a tab for each: the window shown has its name and an ×, the others their icon (hover for the name). One shows at a time: click a tab to bring its window forward. At the strip's right, <strong>?</strong> opens the shown window's help, <em>Undock</em> floats it, and <em>Hide</em> puts the dock away (its windows wait in the taskbar). The worksheet and the graph share what is left of the desk, and get it back when the dock is empty.</p>
+${DL([["Width","Drag the dock's left edge (or focus it and press "+K("←")+" "+K("→")+")."],["Read at full size","Double-click a tab: its window takes the whole desk. Again to give it back."],["Float","Drag a tab out of the dock, or press Undock on its strip: it becomes a window of its own, where you let go. The dock button in its title bar puts it back."],["A smaller screen","Below 1100 pixels, or when the worksheet and a 480-pixel graph would not fit beside it, the dock lies over the right of the desk as a drawer. Its pin puts it beside them instead; the arrow puts it away, its windows waiting in the taskbar."]])}
 <p>A window that floated stays floating the next time it opens, and a docked one docked; the dock's width and its pin are remembered in this browser. History opens in the dock by itself with a column's first processing step.</p>
 <h2>Arranging windows</h2>
 ${DL([["Move","Drag the title bar."],["Resize","Drag an edge or the bottom-right corner."],["Maximise","Double-click the title bar, or its square button. Again to restore."],["Minimise","The dash button. The window leaves the desk; its button stays in the taskbar."],["Close","The × button, on tool windows and graphs. The window leaves the desk and the taskbar; the menu it came from, or "+MP("Window › Tool windows")+", opens it again. A graph closed is kept in the project: "+MP("Window › Graphs")+" opens it again. "+DA("plotting#close","Closing a graph")],["Help","The <strong>?</strong> button opens the article about that window. "+K("F1")+" does the same for the window in front."]])}
@@ -18493,8 +18617,8 @@ ${DL([["Move","Drag the title bar."],["Resize","Drag an edge or the bottom-right
 <p>Windows move as a desktop's do: an opened window grows in, a closed one fades, a minimised one shrinks into its taskbar button and grows out of it again, and a maximised, tiled or cascaded one glides to its place. Menus, dialogs and messages come in from a few pixels away, and the worksheet's active cell glides from cell to cell. Only what you do moves: dragging, resizing the browser and opening a project do not animate. ${MP("File › Preferences…")} turns animations off; so does your system's <em>reduce motion</em> setting. ${DA("prefs","Preferences")}</p>
 <h2 id="states">What the taskbar shows</h2>
 <p>As a workbook keeps a tab for each sheet, the taskbar keeps a button for each of the project's <strong>documents</strong>: its graphs, the worksheet and its trend graphs. They minimise; a graph can also be closed, and then leaves the taskbar until it is opened again. After them come the <strong>tool windows</strong> in use (History, Peaks, Fit…), only while they are open or minimised: one you never opened is not there, and one you close leaves.</p>
-${DL([["Open","A raised button with a bar under it; the window in front is filled in colour. Click the one in front to minimise it, another to bring it forward."],["Minimised","A flat button, no bar. Click it to bring the window back where it was."]])}
-<p>With more than four graphs they share one <em>Graphs</em> button that lists them, and so do more than three trend graphs. When the buttons do not fit in one row, those least recently used go into a <em>more</em> button at the end, never the window in front.</p>
+${DL([["In front","A raised white key with a short coloured bar under it. Click it to minimise the window."],["Open","Flat, with a short grey bar under it. Click it to bring the window forward."],["Minimised","Flat, no bar, its name lighter. Click it to bring the window back where it was."]])}
+<p>The taskbar starts with the project's name: every window on the desk is that project's, and a click switches projects. <em>Tile</em> and <em>Cascade</em> sit together at its right end. With more than four graphs they share one <em>Graphs</em> button that lists them, and so do more than three trend graphs. When the buttons do not fit in one row, those least recently used go into a <em>more</em> button at the end, never the window in front.</p>
 <h2 id="winmenu">The Window menu</h2>
 <p>${MP("Window")} lists the windows in use, as Excel's <em>Switch Windows</em> does: the one in front is ticked, a minimised one says so, and a click brings any to the front. With many, it offers a search instead. ${MP("Window › Tool windows")} lists every tool window (History, Fit, Results and the rest), ticked while it is in use: click to open one or to close it. <em>Minimise the others</em> leaves only the window in front on the desk; <em>Close the tool windows</em> closes every one and keeps the documents. A badge counts open comment threads; a dot shows a fit's state or a warning in the processing. <em>Tile</em> and <em>Cascade</em>, also at the taskbar's right, arrange the open windows; <em>Restore the default arrangement</em> starts again.</p>
 <p>The arrangement is remembered in this browser, as fractions of the desk, so it survives a resized window; graph windows are remembered per project. ${DA("graphs","Several graphs")}</p>
@@ -19498,21 +19622,31 @@ function renderDock(dg,dfront){
   if(!show){ bar._sig=""; return; }
   const x=dg.W-dg.dw, z=dg.drawer?"8001":"3";
   bar.style.left=x+"px"; bar.style.width=dg.dw+"px"; bar.style.zIndex=z; bar.classList.toggle("drawer",dg.drawer);
-  if(edge){ edge.style.left=x+"px"; edge.style.height=dg.H+"px"; edge.style.zIndex=String(Math.min(7999,dg.ez||4)); }
+  // The edge lies over the windows it touches (applyWins measures it); a redraw of the tabs alone keeps that.
+  if(dg.ez!=null) S.dockEz=dg.ez;
+  if(edge){ edge.style.left=x+"px"; edge.style.height=dg.H+"px"; edge.style.zIndex=String(Math.min(7999,S.dockEz||4)); }
   const title=id=>{ const h=document.querySelector(`#w-${id} .win-t`); return (h&&h.textContent.trim())||WINS[id].title; };
-  const sig=JSON.stringify([dg.ids.map(title),dfront,dg.drawer,!!LAYOUT.dockPin]);
+  const sig=JSON.stringify([dg.ids.map(title),dg.ids.map(winBadge),dfront,dg.drawer,!!LAYOUT.dockPin]);
   if(bar._sig===sig) return; bar._sig=sig;
-  bar.innerHTML=dg.ids.map(id=>{ const on=id===dfront, t=title(id);
-    return `<div class="dtab${on?" on":""}" role="tab" aria-selected="${on}" tabindex="${on?0:-1}" data-dtab="${id}" title="${esc(t)}: drag it out to float it; double-click to give it the desk">${ICON(WINS[id].icon,"sm")}<span>${esc(t)}</span><button type="button" class="dx" data-dclose="${id}" tabindex="-1" aria-label="Close ${esc(t)}" title="Close">${ICON("x","sm")}</button></div>`; }).join("")
+  const ft=dfront?title(dfront):"";
+  bar.innerHTML=`<span class="dk-lab" aria-hidden="true">Tools</span>`+dg.ids.map(id=>{ const on=id===dfront, t=title(id), bd=on?"":winBadge(id);
+    return `<div class="dtab${on?" on":""}" role="tab" aria-selected="${on}" tabindex="${on?0:-1}" data-dtab="${id}" title="${esc(t)}" aria-label="${esc(t)}">${ICON(WINS[id].icon,"sm")}<span>${esc(t)}</span>${bd}<button type="button" class="dx" data-dclose="${id}" tabindex="-1" aria-label="Close ${esc(t)}" title="Close">${ICON("x","sm")}</button></div>`; }).join("")
     +`<span class="sp"></span>`
-    +(dg.drawer||LAYOUT.dockPin?`<button type="button" class="tb sm icon" data-dpin aria-pressed="${!!LAYOUT.dockPin}" title="${LAYOUT.dockPin?"Let the dock lie over the windows again":"Put the dock beside the windows, which then share the rest"}" aria-label="Pin the dock beside the windows">${ICON("pin","sm")}</button>`:"")
-    +(dg.drawer?`<button type="button" class="tb sm icon" data-dhide title="Put the dock away: its windows wait in the taskbar" aria-label="Put the dock away">${ICON("chevr","sm")}</button>`:""); }
+    +(dfront&&dfront!=="help"?`<button type="button" class="tb sm icon" data-dhelp title="Help (F1)" aria-label="Help on the ${esc(ft)} window">${ICON("help","sm")}</button>`:"")
+    +(dfront?`<button type="button" class="tb sm icon" data-dundock title="Undock" aria-label="Undock ${esc(ft)}">${ICON("dock","sm")}</button>`:"")
+    +(dg.drawer||LAYOUT.dockPin?`<button type="button" class="tb sm icon" data-dpin aria-pressed="${!!LAYOUT.dockPin}" title="${LAYOUT.dockPin?"Unpin":"Pin"}" aria-label="Pin the dock beside the windows">${ICON("pin","sm")}</button>`:"")
+    +`<button type="button" class="tb sm icon" data-dhide title="Hide dock" aria-label="Hide the dock">${ICON("min","sm")}</button>`; }
+// The dock's tabs again, when a docked window's name or news changed without a layout (the tool's step, a fit).
+function refreshDock(){ const dg=dockGeo(); renderDock(dg,dg.ids.slice().sort((a,b)=>winState(b).z-winState(a).z)[0]||null); }
 function wireDock(){
   const bar=$("#dockBar"), edge=$("#dockEdge"); if(!bar) return;
   bar.addEventListener("click",e=>{
     const x=e.target.closest("[data-dclose]"); if(x){ closeWin(x.dataset.dclose); return; }
     if(e.target.closest("[data-dpin]")){ LAYOUT.dockPin=!LAYOUT.dockPin; applyWins(); saveLayout(); return; }
     if(e.target.closest("[data-dhide]")){ dockIds().forEach(id=>minimiseWin(id)); return; }
+    const fr=()=>dockIds().slice().sort((a,b)=>winState(b).z-winState(a).z)[0];
+    if(e.target.closest("[data-dhelp]")){ const id=fr(); if(id) openHelp(helpFor(id)); return; }
+    if(e.target.closest("[data-dundock]")){ const id=fr(); if(id) setDocked(id,false); return; }
     const tb=e.target.closest("[data-dtab]"); if(tb) focusWin(tb.dataset.dtab); });
   bar.addEventListener("dblclick",e=>{ const tb=e.target.closest("[data-dtab]"); if(tb&&!e.target.closest("button")) toggleMax(tb.dataset.dtab); });
   bar.addEventListener("keydown",e=>{ const tb=e.target.closest("[data-dtab]"); if(!tb) return; const all=[...bar.querySelectorAll("[data-dtab]")], i=all.indexOf(tb);
@@ -19534,7 +19668,7 @@ function wireDock(){
 }
 function applyWins(){
   const desk=$("#desk"); if(!desk) return;
-  const dg=dockGeo(), H=dg.H, W=Math.max(1,dg.docsW), narrow=isNarrow(), TABH=30, mo=winMotionBegin();
+  const dg=dockGeo(), H=dg.H, W=Math.max(1,dg.docsW), narrow=isNarrow(), TABH=36, mo=winMotionBegin();
   // The dock shows one tool window, the one brought forward last.
   const dfront=dg.ids.slice().sort((a,b)=>winState(b).z-winState(a).z)[0]||null;
   let front=null;
@@ -19548,7 +19682,7 @@ function applyWins(){
     if(el.classList.contains("wout")) el.hidden=false;
     el.classList.toggle("docked",dk); el.classList.toggle("drawer",dk&&dg.drawer);
     if(st.open&&!el.hidden&&(!front||st.z>winState(front).z)) front=id;
-    const db=el.querySelector(".win-h [data-wdock]"); if(db){ db.setAttribute("aria-pressed",String(dk)); db.title=dk?"Take it out of the dock (or drag its title bar or its tab)":"Put it in the dock, beside the worksheet and the graph"; db.hidden=narrow; }
+    const db=el.querySelector(".win-h [data-wdock]"); if(db){ db.setAttribute("aria-pressed",String(dk)); db.title=dk?"Undock":"Dock"; db.hidden=narrow; }
     if(narrow){ el.style.left=el.style.top=el.style.width=el.style.height=""; el.style.zIndex=""; el.classList.remove("max"); el.style.order=String(WINS[id].graph?0:id==="tool"?1:WIN_ORDER.indexOf(id)<0?50:WIN_ORDER.indexOf(id)+2); return; }
     el.classList.toggle("max",!!st.max);
     let x,y,w,h;
@@ -19727,16 +19861,16 @@ function renderTaskbar(){
   const front=frontWinId(), pj=P(), gs=graphWinIds().filter(id=>!winShut(id)), ts=trendWinIds();
   // One button per window in use: open ones have a bar under them and the one
   // in front is in colour; minimised ones are flat, with no bar.
-  const btn=id=>{ const on=winOpen(id), t=WINS[id].title, what=on?(id===front?"in front: click to minimise it":"open: click to bring it to the front"):"minimised: click to bring it back";
-    return `<button class="tk ${on?(id===front?"on front":"on"):"min"}" data-tk="${id}" aria-pressed="${on}" aria-label="${esc(t)}, ${winStateName(id)}" title="${esc(t)}, ${what}">${ICON(WINS[id].icon,"sm")}<span>${esc(t)}</span>${winBadge(id)}</button>`; };
+  const btn=id=>{ const on=winOpen(id), t=WINS[id].title;
+    return `<button class="tk ${on?(id===front?"on front":"on"):"min"}" data-tk="${id}" aria-pressed="${on}" aria-label="${esc(t)}, ${winStateName(id)}" title="${esc(t)}">${ICON(WINS[id].icon,"sm")}<span>${esc(t)}</span>${winBadge(id)}</button>`; };
   // Many of one kind share a button that lists them.
-  const grp=(ids,attr,icon,label)=>`<button class="tk ${ids.includes(front)?"on front":ids.some(winOpen)?"on":"min"}" ${attr} aria-haspopup="menu" title="The ${ids.length} ${label.toLowerCase()}: click for the list">${ICON(icon,"sm")}<span>${label}</span><span class="badge">${ids.length}</span></button>`;
+  const grp=(ids,attr,icon,label)=>`<button class="tk ${ids.includes(front)?"on front":ids.some(winOpen)?"on":"min"}" ${attr} aria-haspopup="menu" title="${label}">${ICON(icon,"sm")}<span>${label}</span><span class="badge">${ids.length}</span></button>`;
   const docs=(gs.length>4?[grp(gs,"data-tk-graphs","chart","Graphs")]:gs.map(btn)).concat(WINS.sheet?[btn("sheet")]:[],ts.length>3?[grp(ts,"data-tk-trends","chart","Trend graphs")]:ts.map(btn));
   const panels=panelIds().filter(inBar).map(btn);
-  tb.innerHTML=(pj?`<button class="tk proj" data-tk-proj aria-haspopup="menu" title="The project on the desk; every window shows it. Click to switch projects.">${ICON("folder","sm")}<span>${esc(projName(pj))}</span></button><span class="tksep" aria-hidden="true"></span>`:"")
+  tb.innerHTML=(pj?`<button class="tk proj" data-tk-proj aria-haspopup="menu" title="${esc(projName(pj))}" aria-label="Project: ${esc(projName(pj))}">${ICON("folder","sm")}<span>${esc(projName(pj))}</span>${ICON("chev","sm").replace('class="ic','class="tk-chev ic')}</button><span class="tksep" aria-hidden="true"></span>`:"")
     +docs.join("")+(panels.length?`<span class="tksep" aria-hidden="true"></span>`+panels.join(""):"")
-    +`<button class="tk more" data-tk-more aria-haspopup="menu" hidden></button><span class="sp"></span><button class="tb sm icon" data-tk-act="tile" title="Tile the open windows" aria-label="Tile the open windows">${ICON("tile","sm")}</button><button class="tb sm icon" data-tk-act="cascade" title="Cascade the open windows" aria-label="Cascade the open windows">${ICON("cascade","sm")}</button>`;
-  fitTaskbar(tb,front);
+    +`<button class="tk more" data-tk-more aria-haspopup="menu" hidden></button><span class="sp"></span><span class="tkacts"><button class="tb sm icon" data-tk-act="tile" title="Tile" aria-label="Tile the open windows">${ICON("tile","sm")}</button><button class="tb sm icon" data-tk-act="cascade" title="Cascade" aria-label="Cascade the open windows">${ICON("cascade","sm")}</button></span>`;
+  fitTaskbar(tb,front); refreshDock();
   // What is open, minimised or in front shows in the Explorer too.
   if(typeof renderXpl==="function") renderXpl();
 }
@@ -19749,7 +19883,7 @@ function fitTaskbar(tb,front){
   const cands=[...tb.querySelectorAll(".tk[data-tk]")].filter(b=>b.dataset.tk!==front).sort((a,b)=>rank(a)-rank(b));
   more.hidden=false;
   for(const b of cands){ if(tb.scrollWidth<=tb.clientWidth+1) break; b.hidden=true; S.tkMore.push(b.dataset.tk);
-    const n=S.tkMore.length; more.innerHTML=`<span>${n} more</span>${ICON("chevup","sm")}`; more.title=`${n} more window${n===1?"":"s"}: click for the list`; more.setAttribute("aria-label",`${n} more window${n===1?"":"s"}`); }
+    const n=S.tkMore.length; more.innerHTML=`<span>${n} more</span>${ICON("chevup","sm")}`; more.title=`${n} more`; more.setAttribute("aria-label",`${n} more window${n===1?"":"s"}`); }
   const order=barWinIds(); S.tkMore.sort((a,b)=>order.indexOf(a)-order.indexOf(b));
   tb.querySelectorAll(".tksep").forEach(s=>{ let n=s.nextElementSibling; while(n&&n.hidden) n=n.nextElementSibling; s.hidden=!n||!n.matches(".tk[data-tk],.tk[data-tk-graphs],.tk[data-tk-trends]"); });
 }
@@ -19779,7 +19913,7 @@ function setupWins(){
 function wireWin(el){
     const id=el.dataset.win, h=el.querySelector(".win-h");
     if(graphOfWin(id)){ const fw=el.classList.contains("figw");
-      h.insertAdjacentHTML("beforeend",`${fw?"":`<button class="tb sm icon" data-gdrag aria-haspopup="menu" title="Hold and drag onto another graph to put this graph's curves there, or onto a figure to make it a panel" aria-label="Combine this graph with another">${ICON("grip","sm")}</button>`}<button class="tb sm icon" data-gmenu aria-haspopup="menu" title="${fw?"Figure options":"Graph options"}" aria-label="Options for this ${fw?"figure":"graph"}">${ICON("more","sm")}</button>`);
+      h.insertAdjacentHTML("beforeend",`${fw?"":`<button class="tb sm icon" data-gdrag aria-haspopup="menu" title="Combine" aria-label="Combine this graph with another">${ICON("grip","sm")}</button>`}<button class="tb sm icon" data-gmenu aria-haspopup="menu" title="${fw?"Figure options":"Graph options"}" aria-label="Options for this ${fw?"figure":"graph"}">${ICON("more","sm")}</button>`);
       // Held by its grip, the graph goes onto another; clicked, the grip lists where.
       const gd=h.querySelector("[data-gdrag]");
       if(gd){ gd.addEventListener("pointerdown",e=>startGraphDrag(e,{gid:graphOfWin(id),click:()=>toggleMenu(gd,()=>combineMenuItems(graphOfWin(id)),{label:"Combine"})}));
@@ -19794,9 +19928,9 @@ function wireWin(el){
       const gm=h.querySelector("[data-gmenu]"); gm.onclick=()=>toggleMenu(gm,()=>graphWinItems(graphOfWin(id)),{label:"Graph options"});
       const snap=el.querySelector(".gsnap"); if(snap){ snap.tabIndex=0; snap.setAttribute("role","button"); snap.setAttribute("aria-label","Work on this graph");
         snap.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); activateGraph(graphOfWin(id)); } }); } }
-    if(!isDoc(id)) h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-wdock aria-pressed="false" title="Put it in the dock" aria-label="Dock the ${esc(WINS[id].title)} window">${ICON("dock","sm")}</button>`);
-    if(id!=="help") h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-whelp title="Help on this window (F1)" aria-label="Help on the ${esc(WINS[id].title)} window">${ICON("help","sm")}</button>`);
-    h.insertAdjacentHTML("beforeend",`${id==="help"||WINS[id].transient?"":`<button class="tb sm icon" data-wmin title="Minimise: off the desk; its button stays in the taskbar" aria-label="Minimise the ${esc(WINS[id].title)} window">${ICON("min","sm")}</button>`}<button class="tb sm icon" data-wmax title="Maximise or restore (double-click the title bar)" aria-label="Maximise the ${esc(WINS[id].title)} window">${ICON("max","sm")}</button>${keepsBtn(id)&&!graphOfWin(id)?"":`<button class="tb sm icon" data-wclose title="${graphOfWin(id)?"Close the graph: off the desk and out of the taskbar, kept in the project; Window › Graphs opens it again":"Close: off the desk and out of the taskbar; its menu opens it again"}" aria-label="Close the ${esc(WINS[id].title)} window">${ICON("x","sm")}</button>`}`);
+    if(!isDoc(id)) h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-wdock aria-pressed="false" title="Dock" aria-label="Dock the ${esc(WINS[id].title)} window">${ICON("dock","sm")}</button>`);
+    if(id!=="help") h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-whelp title="Help (F1)" aria-label="Help on the ${esc(WINS[id].title)} window">${ICON("help","sm")}</button>`);
+    h.insertAdjacentHTML("beforeend",`${id==="help"||WINS[id].transient?"":`<button class="tb sm icon" data-wmin title="Minimise" aria-label="Minimise the ${esc(WINS[id].title)} window">${ICON("min","sm")}</button>`}<button class="tb sm icon" data-wmax title="Maximise" aria-label="Maximise the ${esc(WINS[id].title)} window">${ICON("max","sm")}</button>${keepsBtn(id)&&!graphOfWin(id)?"":`<button class="tb sm icon" data-wclose title="Close" aria-label="Close the ${esc(WINS[id].title)} window">${ICON("x","sm")}</button>`}`);
     ["e","s","se","w"].forEach(k=>el.insertAdjacentHTML("beforeend",`<div class="win-rz ${k}" data-rz="${k}" aria-hidden="true"></div>`));
     el.addEventListener("pointerdown",e=>{ focusWin(id); const g=graphOfWin(id)?graphIn(e.target,el):null;
       // A chip or the grip may be the start of a drag: they bring the graph forward on a click of their own.
@@ -21759,6 +21893,25 @@ function setupRanges(){
     .observe(document.body,{childList:true,subtree:true});
   paintRanges();
 }
+// Text arriving in the page has its Unicode scripts set as <sup> and <sub> (uniRuns), except where an
+// element cannot hold them or the text is typed (a field, a list, code, the formatted editor, the symbol
+// list, the graph's SVG).
+const SUP_SKIP="script,style,textarea,option,select,title,code,pre,kbd,[contenteditable],.sympick,.nosup";
+function supifyText(t){ const el=t.parentElement;
+  if(!el||!t.isConnected||el.namespaceURI!=="http://www.w3.org/1999/xhtml"||!UNI_RE.test(t.data)||el.closest(SUP_SKIP)) return;
+  const f=document.createDocumentFragment();
+  uniRuns(t.data).forEach(r=>{ if(!r.v) f.appendChild(document.createTextNode(r.s)); else { const e=document.createElement(r.v>0?"sup":"sub"); e.textContent=r.s; f.appendChild(e); } });
+  t.replaceWith(f); }
+function supifyIn(n){
+  if(n.nodeType===3){ supifyText(n); return; }
+  if(n.nodeType!==1||n.namespaceURI!=="http://www.w3.org/1999/xhtml"||!UNI_RE.test(n.textContent)) return;
+  const w=document.createTreeWalker(n,NodeFilter.SHOW_TEXT), list=[]; let t;
+  while((t=w.nextNode())) if(UNI_RE.test(t.data)) list.push(t);
+  list.forEach(supifyText); }
+function setupSupify(){
+  new MutationObserver(recs=>{ for(const r of recs){ if(r.type==="characterData") supifyText(r.target); else r.addedNodes.forEach(supifyIn); } })
+    .observe(document.body,{childList:true,subtree:true,characterData:true});
+  supifyIn(document.body); }
 function tabKeys(sel,attr,fn){
   const bar=$(sel);
   bar.addEventListener("keydown",e=>{
@@ -21838,7 +21991,7 @@ async function loadExample(kind){
    Boot
    ============================================================ */
 function wireStatic(){
-  setupRanges(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); wireXpl(); setupPlotDetails(); setupRichTools(); setupCombos(); setupMotionKeep(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
+  setupRanges(); setupSupify(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); wireXpl(); setupPlotDetails(); setupRichTools(); setupCombos(); setupMotionKeep(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
   document.querySelectorAll(".rb[data-rmenu]").forEach(b=>b.addEventListener("click",()=>toggleMenu(b,()=>menuItems(b.dataset.rmenu),{label:b.textContent.trim()})));
   // With a menu open, the pointer passing over another menu's name opens it only after
   // resting there 150 ms, so a pointer crossing the bar on its way to a submenu changes nothing.
@@ -21908,7 +22061,7 @@ function wireStatic(){
       if(k==="enter"){ if(t&&t.id==="cText") return; e.preventDefault(); if(typing&&t.blur) t.blur(); fitNow(); return; }
       if(k==="o"){ e.preventDefault(); pickFile(); return; }
       if(k===","){ e.preventDefault(); openPrefs(); return; }
-      if(k==="s"){ e.preventDefault(); toast(S.store&&S.store.mode==="db"?"Kurve saves every change as you make it, for everyone in this workspace.":"Kurve saves every change in this browser as you make it. To keep a copy elsewhere, use File › Export."); return; }
+      if(k==="s"){ e.preventDefault(); toast(S.store&&S.store.mode==="db"?"Kurve saves every change as you make it, for everyone in this workspace.":"Kurve saves every change as you make it. To keep a copy elsewhere, use File › Export."); return; }
       // A cell has no undo of its own, so the app's undo must still work there.
       if(t&&t.tagName==="INPUT"&&t.dataset.r!=null){ if(k==="z"||k==="y"){ e.preventDefault(); t.blur(); (k==="z"&&!e.shiftKey)?undo():redo(); } return; }
       // Sliders, boxes and lists have no undo of their own; the app's applies.
@@ -21935,7 +22088,7 @@ async function boot(){
     S.store=makeDbStore(db); setStatus(S.readOnly?"View only":"All changes shared");
     S.store.watchProjects(onProjects,e=>{ if(e.code==="revoked") setStatus("Access changed. Reload to continue.",true); else if(e.code==="resource_exhausted") toast("Too many updates at once. Slow down for a moment."); });
   } else {
-    LocalStore.load(); S.store=LocalStore; setStatus("Saved in this browser",false);
+    LocalStore.load(); S.store=LocalStore; setStatus("Saved",false);
     $("#status").title="Projects are kept in this browser's storage as you work. Nothing is uploaded.";
     S.store.watchProjects(onProjects);
   }

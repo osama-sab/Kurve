@@ -11,7 +11,7 @@ changes the interface updates it with the decision and the reason.
 
 A desktop-style frame, top to bottom: a title bar with the **menus** (File, Edit, Data, Plot,
 Graph (only while a graph is on the desk), Analysis, Statistics, Spectroscopy, Window, Help; the tree is `ux/spec/menus-after.txt`; each short, its kinds opening side submenus on
-hover, and a tool opening its dialog) and the project name (click to rename; the arrow
+hover, and a tool opening its dialog) and the project name, a field (click to rename; the arrow
 beside it switches, creates and deletes projects); a **toolbar** (the Project Explorer's switch, Import, Export, undo/redo,
 the pointer tools Zoom / Pan / Mask / Label / Arrow / Shape (a box or an ellipse, chosen from its menu) / Comment (in a
 shared project only) / Reader / X–Y lines, show-all, and the Reverse X / Log Y / Grid toggles, off until there is data, the
@@ -41,9 +41,10 @@ button), restoring, maximising, tiling and the dock animate briefly, as a deskto
 **documents** (its graphs, the worksheet, its trend graphs) always have a taskbar button and
 minimise (a graph can also be closed: off the desk and the taskbar, kept in the project, and
 opened again from Window › Graphs); **panels** (History, Peaks, Fit…) are in the taskbar only while open or
-minimised, so a panel never opened is in no list. An open window's button is raised with a
-bar under it (the front one in colour), a minimised one's flat with no bar, and the words keep
-the text colour in both. The taskbar starts with the project's name (every window on the desk
+minimised, so a panel never opened is in no list. Buttons sit flat on the chrome: the front
+window's is a raised white key with an accent bar under it, an open one's has a short grey bar,
+a minimised one's none and lighter words. The taskbar starts with the project's name, a field
+with a folder and a chevron (every window on the desk
 is that project's; click it to switch), groups more than four graphs (or three trend graphs)
 under one button, puts what does not fit in one row under a "n more" button (least recently
 used first, never the front window), and has Tile and Cascade. **Window** lists the windows in
@@ -54,7 +55,9 @@ zoom), and Theme and Style as submenus. Every title bar has a **?** that opens
 the window's article in the **Help window** (F1 does it for the window in front; a tool's
 opens its step's article). The **dock** (UX_SPEC §3.2) is a column at the desk's right where the
 tool windows open as tabs (Fit, Results, Peaks, Integrate, History, Statistics, the Overview,
-Help, Discussion, the processing tools; Batch floats), one shown at a time; the
+Help, Discussion, the processing tools; Batch floats), one shown at a time, its strip as the
+design system's Dock (a *Tools* label, icon tabs, the shown one raised with its name and ×,
+Help, Undock and Hide at the right; a docked window has no title bar of its own); the
 documents share what is left, and get it back when it empties. Its left edge sets its width
 (360 px below 1320, 380 below 1700, 420 above); a tab double-clicked takes the whole desk,
 dragged out floats (as does the title bar), and the title bar's dock button docks it again.
@@ -870,9 +873,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   `dockIds` in `dockOrder`, `dockRemember`/`dockForget` on opening and closing); `dockGeo()`
   is `{W, H, ids, on, dw, drawer, docsW}`, `deskSize()` the documents' part, which every
   fraction of a floating window is of; `applyWins` shows the docked window in front (highest
-  `z`) below `#dockBar` and hides the others, a drawer's at z 8000, and `renderDock` draws the
-  tabs (`[data-dtab]`, `[data-dclose]`, `[data-dpin]`, `[data-dhide]`) and puts `#dockEdge`
-  over whatever window it touches; `wireDock` (tabs, keys, drag out, the edge), `undockAt`,
+  `z`) below `#dockBar` (36 px, `TABH`) and hides the others, a drawer's at z 8000, and `renderDock` draws the
+  strip (`.dk-lab`, tabs `[data-dtab]` with `[data-dclose]` and the window's `winBadge`,
+  `[data-dhelp]`, `[data-dundock]`, `[data-dpin]` in a drawer or pinned, `[data-dhide]`), with a
+  signature so it redraws only on a change, and puts `#dockEdge` over whatever window it touches
+  (the z that `applyWins` measured, kept in `S.dockEz`); `refreshDock()` redraws the strip outside a
+  layout (the tool's step named, a badge; called from `renderTaskbar`); `.win.docked:not(.max)>.win-h`
+  is hidden; `wireDock` (tabs, keys, drag out, the edge, Help and Undock for the window in front), `undockAt`,
   `setDocked` (the title bar's `[data-wdock]`; a title-bar drag of 16 px undocks). Tile and
   Cascade leave the dock alone. **Motion** (`winMotionBegin`/`winMotionEnd` around `applyWins`'
   loop): the style rectangles before and after, and `WIN_VIS` (shown and minimised after the
@@ -1681,7 +1688,14 @@ graph first, with the taskbar kept at the bottom of the screen.
   `$…$` with `^{}`/`_{}` only with braces, maths inside with LaTeX's italics and spacing;
   fractions, roots with an index, accents, `\left…\right`, `\mathrm`, `\text`; 2000
   characters at most; an unknown command stays as typed), `texHtml` writes HTML (Results, the
-  report, the Format dialog's list) and `texPlain` plain text (menus, lists). `textBlock` uses
+  report, the Format dialog's list) and `texPlain` plain text (menus, lists). Unicode's raised
+  and lowered characters (cm⁻¹, R², x₀) are set as real scripts (the design system: the glyphs sit
+  too high and look clipped): `uniRuns(s)` splits a text into runs, `texUni(s)` writes them as
+  `^{…}`/`_{…}` (in `richText` and `richW`, so the graph typesets them), `supHtml(h)` as `<sup>`/`<sub>`
+  outside tags, titles, code and SVG (the report); in the page a MutationObserver
+  (`setupSupify`, `supifyIn`, `supifyText`, `SUP_SKIP`: never in a field, a list, code, the
+  formatted editor, the symbol list or SVG) does the same to text as it arrives, so code reading
+  `textContent` sees "cm−1". The data keep the characters as typed. `textBlock` uses
   `richText` per line. `rtool(id)` puts x², x₂ and a symbol grid (`openSymPicker`) beside a
   field, and Ctrl+Shift+= / Ctrl+= wrap the selection (`setupRichTools`, fields marked
   `data-rich` and the inline editors). The PDF and EPS writer maps what the standard fonts
@@ -1811,7 +1825,17 @@ graph first, with the taskbar kept at the bottom of the screen.
   Y, a heat map or stacked panels; `frameEdges`, the axis lists (`setAxisKeys("all")`,
   `allax.`, quick styles, `fmtOf`, `styleFrom`, `plotCfg`) and `figNotes` know it.
 - **Styles and controls** (the tokens at the top of the `<style>`): one token set per theme
-  and per style. Sizes are tokens too (UX_SPEC §3.5, `ux/spec/TOKEN_MAP.md`): six type sizes
+  and per style. After the tokens' rules comes the design system's review of 25 October
+  (DS_SPEC slice 1): fields as wide as what they hold (`:where(input[type=text])` 12em, decimal
+  ones and the fit's range 7em, selects as wide as their choices, `.frow` controls
+  `justify-self:start`), windows rounded to 12 px (9 in Graphite), the taskbar (`.tk`, `.tk.front`,
+  `.tk.on`, `.tk.min`, `.tk.proj` with `.tk-chev`, `.tkacts`), the dock's strip (`.dk-lab`, `.dtab.on`),
+  the project name as a field (`.titlebar .proj`), `.ro` (a fact in a read-only field), `sup`/`sub`
+  (but `.ned sup` keeps `vertical-align:super`: `execCommand`'s superscript state reads it), `.rtab`'s
+  value and error columns and `.grid2 .det` (for slices 7 and 8). Tooltips name the thing and its
+  shortcut ("Zoom", "Help (F1)", "Undo adding … (Ctrl+Z)"); a setting's `.tipd` hint explains.
+  No internal identifier is shown (the worksheet's foot counts rows and columns; the status bar
+  says "Saved"). Sizes are tokens too (UX_SPEC §3.5, `ux/spec/TOKEN_MAP.md`): six type sizes
   `--fs-cap` 11, `--fs-tab` 12, `--fs-body` 13, `--fs-title` 14, `--fs-head` 16, `--fs-hero`
   20 px; spacing `--sp-1` … `--sp-8` (2, 4, 6, 8, 12, 16, 24, 32 px; a negative margin that
   cancels a padding is `calc(var(--sp-n) * -1)`, and an offset tied to a scroller's padding,
@@ -1957,6 +1981,9 @@ or a name (`n + " spectra"`) (`--list term` shows where); it
 reads 0, and a new string should keep it there. Help's search words (`kw`) keep the old words
 so either finds the article.
 
+`node tools/ds-test.mjs [path]` (Playwright) checks what each slice of the design system
+(`ux/spec/DS_SPEC.md`) changed: the taskbar, the dock's strip, the tooltips, the absent
+identifiers, the real superscripts, the fields' widths; run it after touching the frame.
 `node tools/fit-test.mjs`, `node tools/pipe-test.mjs`, `node tools/parser-test.mjs` and
 `node tools/tex-test.mjs` cover the numerics, the processing steps with their checks and the
 fingerprint, the parser, and the LaTeX typesetter (nesting, italics, spacing, fractions, roots,
@@ -2018,7 +2045,22 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   shipped with a checkbox, a renderer and no `onchange`; the derivative sign and the Add-peak
   hint were the same shape of mistake.
 - **Patch scripts must report what they applied and what they missed.** One that threw partway
-  wrote nothing, and five fixes were believed to be in the file for an hour.
+  wrote nothing, and five fixes were believed to be in the file for an hour. And one that missed
+  must write nothing: a shared helper wrote whatever it had applied, and a half patch was saved
+  over the working copy. The helper refuses to save after a miss; a helper that finds text
+  itself converts line endings as `rep` does.
+- **The container is not a disk.** A cloud session's container is reclaimed when it idles or
+  when a usage limit stops the session: three slices of the design-system work, and every test
+  drive kept in the scratchpad, were gone at the next start, and were rebuilt from the
+  conversation. Commit and push each slice as soon as its tests pass, and keep the drives that
+  matter in the repository (`tools/ds-test.mjs`), not in the scratchpad.
+- **A browser's own editing reads its own style.** The formatted editor toggles a superscript
+  with `execCommand("superscript")`, and Chrome decides whether the caret is already in one from
+  the computed `vertical-align: super`; a global `sup{vertical-align:.5em}` (the design system's)
+  made every second press add another superscript. `.ned sup` keeps `super`.
+- **A redraw of part of a thing must keep what the whole computed.** `refreshDock()` drew the
+  dock's tabs from a fresh `dockGeo()`, which has no z for the dock's edge; the edge fell under
+  the docked window and could not be dragged. The z `applyWins` measures is kept (`S.dockEz`).
 - **Patch scripts must not eat backslashes, or line endings.** A CSS escape `\25B8` went through
   a tool that read `\25` as an escape and left a control byte plus a literal "b8" beside every
   collapsible heading for several releases. Prefer real characters or SVG over escapes in CSS.
@@ -2702,7 +2744,19 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 
 ## Roadmap
 
-Under way: the curve fit as complete as Origin's fitting dialogs (`ux/spec/FIT_SPEC.md`, the
+Under way, the user's choice of 26.10: the app brought up to the Kurve design system (a claude.ai
+Design System artifact made from this repository and reviewed on 25 October). The differences,
+the decisions and ten slices are `ux/spec/DS_SPEC.md`. Slice 1 done: the frame as the system
+has it (the taskbar flat with a raised key in front, the project's field first and Tile and
+Cascade in a tray; the dock a strip of icon tabs the docked window hangs from, Help, Undock and
+Hide on it; the project name a field; windows rounded to 12 px; fields as wide as their
+content), tooltips that name, no internal identifiers, Unicode scripts set as real ones in the
+page, the graph and the report. Next: the menus in the stage of work, Find a command (Ctrl+K),
+commands that appear when a thing is selected on the graph, the Format pane docked and live,
+the status bar's statistics of a selection, the Fit window and Results as designed, the
+dialogs, galleries drawn with the data, two displays.
+
+Then: the curve fit as complete as Origin's fitting dialogs (`ux/spec/FIT_SPEC.md`, the
 roadmap's first item). Slice 1 done: Fit control in the Fit window (the method named, the
 iterations at most, the tolerance), stored with each fit and said by Results, the report and
 the CSV; *1 iteration*, one step from the starting values, which it replaces; the iterations

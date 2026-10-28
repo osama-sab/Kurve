@@ -849,3 +849,27 @@ error bars against the full drawing, a zoom, a fit with residuals, the export, t
 the X–Y lines), six new checks in `tools/odd-test.mjs` (104 pass), and the random user over six
 seeds, whose two failures this round were its own (a stillness clock left running from before a
 wheel, and a correction's reason typed as a cell's value) and are fixed in the harness.
+
+## The design system into the app, slice 1: the frame and the rules (2026-10-26)
+
+The user pointed at the Kurve design system (a claude.ai Design System artifact made from this
+repository, reviewed on 25 October) and chose to bring the app up to it. Every difference, the
+decisions and ten slices are [`spec/DS_SPEC.md`](spec/DS_SPEC.md). Slice 1:
+
+- **The taskbar** as the system draws it: the project switcher first, a white field with a
+  folder and a chevron; the windows flat on the chrome; the front one a raised white key with an
+  accent bar, open ones a short grey bar, minimised ones none; Tile and Cascade in a tray. 42 px.
+- **The dock** a strip the docked window hangs from: *Tools*, the windows not shown as icons
+  (named by their tooltip), the shown one a raised tab with its name and ×; the docked window's
+  own title bar gives way, Help, Undock and Hide on the strip.
+- **The project name** a field in the title bar; **windows** rounded to 12 px (9 in Graphite);
+  **fields** as wide as what they hold (text 12em, numbers 7em, lists their choices').
+- **Tooltips** name the thing and its shortcut (toolbar, title bar, window buttons, taskbar,
+  dock): "Zoom", "Import (Ctrl+O)", "Help (F1)".
+- **No internal identifiers**: the worksheet's foot says "81 rows · 3 columns" instead of
+  "sha256 fb44fe9c436a"; the status bar says "Saved" instead of "Saved in this browser".
+- **Real superscripts**: cm⁻¹, R², x₀ are set as `<sup>`/`<sub>` in every window, typeset as
+  scripts on the graph, and written as HTML's in the report; fields, lists and code keep the
+  characters as typed.
+
+Checked by the new `tools/ds-test.mjs` (27 checks), and the unit, contrast, odd and fuzz tests.
