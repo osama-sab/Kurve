@@ -873,3 +873,28 @@ decisions and ten slices are [`spec/DS_SPEC.md`](spec/DS_SPEC.md). Slice 1:
   characters as typed.
 
 Checked by the new `tools/ds-test.mjs` (27 checks), and the unit, contrast, odd and fuzz tests.
+
+## The design system into the app, slice 2: menus in the order of the work (2026-10-28)
+
+The system's menu bar follows the stage of work; the app's had three menus by subject
+(Analysis, Statistics, Spectroscopy) and a Graph menu that came and went with the graph.
+
+- **The bar**: File, Edit, Data, Plot, Analyze, Figure, Publish, Window, Help. The graph
+  window's own bar repeats Data, Plot, Analyze and Figure.
+- **Data** prepares: the worksheet, Clean, a new **Baseline** submenu (*Subtract baseline…*,
+  the old Subtract background, and *Linear detrend…*, the same step on a straight line) and
+  **Transform** (scale, normalize, logarithm, X, another column, averaging).
+- **Plot** makes graphs and looks at them: **View** holds Zoom, Pan, the Reader, the X–Y lines
+  and Show all the data; *Show on the graph* moved here from Data.
+- **Analyze** measures: Fit (with the switches for residuals, bands and peak shading), Peaks…
+  (the old Find peaks…), Integrate…, Signal processing, Calculus, Statistics and
+  **Spectroscopy** as submenus, Results, Batch results.
+- **Figure** is the graph's look: Format, saved styles, axes (Log Y beside Reverse X), font,
+  legend, annotations (the Graph menu's Label, Arrow, Shape and Comment). Greyed, not hidden,
+  with no graph, so the bar keeps its shape.
+- **Publish** is what leaves Kurve: every export, the report, Copy the graph as a picture and
+  Copy the results table (out of File › Export and Edit).
+- Help's menu paths follow; `ux/spec/menus-after.txt` is the new tree.
+
+Every item kept a home: the crawl before and after compared leaf by leaf, `menucheck.py` with
+nothing missing either way, the glossary count at 0. `tools/ds-test.mjs` has 18 new checks (45).

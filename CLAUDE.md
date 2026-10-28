@@ -10,7 +10,8 @@ changes the interface updates it with the decision and the reason.
 ## The screen
 
 A desktop-style frame, top to bottom: a title bar with the **menus** (File, Edit, Data, Plot,
-Graph (only while a graph is on the desk), Analysis, Statistics, Spectroscopy, Window, Help; the tree is `ux/spec/menus-after.txt`; each short, its kinds opening side submenus on
+Analyze, Figure, Publish, Window, Help, in the order of the work: Data prepares, Plot makes and
+looks, Analyze measures, Figure styles, Publish exports; the tree is `ux/spec/menus-after.txt`; each short, its kinds opening side submenus on
 hover, and a tool opening its dialog) and the project name, a field (click to rename; the arrow
 beside it switches, creates and deletes projects); a **toolbar** (the Project Explorer's switch, Import, Export, undo/redo,
 the pointer tools Zoom / Pan / Mask / Label / Arrow / Shape (a box or an ellipse, chosen from its menu) / Comment (in a
@@ -79,10 +80,10 @@ the empty desk, gets a graph of its own); Window › Graphs › Combine graphs�
 File › Copy from another project… copies spectra between projects. Graphs can also be
 the **panels of a figure** (Plot › New graph › A figure…, Window › Graphs › A figure of panels…, a graph's Put in a figure, or a
 graph dropped on a figure): one window with the graphs in rows and columns, their plot areas
-lined up, X or Y shared, lettered (a), (b)…; the panel clicked is worked on. The **graph window** has its own bar repeating the Data, Plot, Analysis, Statistics
-and Spectroscopy menus, then **Original / Processed / Both** (what the graph shows; only once a
+lined up, X or Y shared, lettered (a), (b)…; the panel clicked is worked on. The **graph window** has its own bar repeating the Data, Plot, Analyze
+and Figure menus, then **Original / Processed / Both** (what the graph shows; only once a
 column has processing, `anyProcessing()`, which also gates the worksheet's Original/Processed
-sheets, Data › Show on the graph and the statistics' data switch: a first user has nothing to
+sheets, Plot › Show on the graph and the statistics' data switch: a first user has nothing to
 compare), and a chip saying which stage of the processing is shown when it is not the final
 data. Right-click on a curve (or Shift+F10) gives its
 colour, plot type and style, then Add here (a line, text, a peak label, a shape, a title or a
@@ -91,17 +92,17 @@ plot, Add here's items themselves; right-click a line, a label, the legend, a ti
 its own options. Lines, shaded ranges, text, peak labels, the legend, the titles and the axes
 (by their numbers) drag with the pointer; a double click (or Enter) on a label, a text or a
 title opens a box over it to type in (Shift+Enter for a new line), and one on a line, a range
-or an axis's numbers opens its page of the **Format dialog** (Plot › Format graph…): pages
+or an axis's numbers opens its page of the **Format dialog** (Figure › Format graph…): pages
 for each spectrum and the fit, each axis (title and where it sits, scale, position: an edge,
 zero or a value, set off outward; line, ticks, numbers; breaks), a second X axis in other
 units, the frame and grid (with quick
 styles), the text (each kind its own font, size in points, bold, italic, underline, colour,
 like a word processor), the legend (place, columns, size, box), the layout and colours, and
 the labels and lines (each with its own text, style, turn, box and place). The **Peaks
-window** (Spectroscopy › Find peaks…) finds the peaks of the analysed spectrum and marks them on
+window** (Analyze › Peaks…) finds the peaks of the analysed spectrum and marks them on
 the graph, each with a symbol, a drop line, a vertical line, a leader or nothing, and a label
 you type (in its table, on the graph, or in the History); fitting them is one button, not
-the way in. The **Integrate window** (Analysis › Integrate…) measures bands without a
+the way in. The **Integrate window** (Analyze › Integrate…) measures bands without a
 fit: windows dragged on the graph, each with a local baseline, giving areas with errors,
 heights, positions, FWHM, shares of the total and ratios to a chosen band, for one spectrum
 or every one. The **Help window** is the documentation: a contents list by kind, a search over every
@@ -246,7 +247,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   norm; scale (with an optional new Y name and unit, `yn`/`yu`: Count rate, counts/s), ref (another spectrum, interpolated), combine (mean, median or sum with
   other spectra, the spread as error bars), deriv, cumint (running integral), fft
   (zero-phase Butterworth low- or high-pass, `fftFilter`, ends mirrored), log, absorb, km,
-  bose; hist (Statistics › Histogram: the values of Y, or of X, counted into `histBins`'
+  bose; hist (Analyze › Statistics › Histogram: the values of Y, or of X, counted into `histBins`'
   bins, as counts, probability, percent or density, cumulative or not; X the bin centres named
   after the values (`d.yn0`, the source's value name, carried into a derived spectrum's input
   by `pipeOf`), `idx` negative, `bins {w, start, n, out}` for drawing; a start param is
@@ -301,7 +302,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   whose shoulders have no prominence by definition). The app passes both. `seedPeak` takes the
   half width from whichever side reaches half height first, and returns the height `h` it saw;
   callers turn that into each shape's own area with `peakAreaForHeight`.
-  `peakSearch(X, Y, o)` is the finder behind Spectroscopy › Find peaks. Methods `max`, `window`,
+  `peakSearch(X, Y, o)` is the finder behind Analyze › Peaks…. Methods `max`, `window`,
   `deriv1`, `deriv2`; `log` searches on log10 of the data; `smooth` is `"auto"` (half the
   narrowest clear band's width in points), 0 or a window; `thr` is `{mode, v}` with modes
   `snr` (prominence over `noiseSigma`, default 4), `pct` (of the largest), `abs` and `decades`
@@ -1090,8 +1091,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   with its panels inside.
 - **Tools and menus**: `TOOL_GROUPS` lists every op by kind; `toolMenuItems({col, at})` is
   the menu the History's "+" and Step buttons open, one submenu per group (a group of one
-  tool stays a plain item); `dataMenu`, `plotMenu`, `analysisMenu`,
-  `statisticsMenu` and `spectroscopyMenu` build the menu bar (and the graph window's bar), each a short
+  tool stays a plain item); `dataMenu` (with Clean, Baseline and Transform), `plotMenu`
+  (with View), `analyzeMenu` (Fit, Peaks, Integrate, Signal processing, Calculus, Statistics,
+  and Spectroscopy, `spectroscopyItems`), `figureMenu` and `publishMenu` (`exportItems()` and the
+  two copies) build the menu bar (and the graph window's bar), each a short
   list of kinds with the tools in submenus (DESIGN.md, Menus and the toolbar; `tools/ux/menucheck.py`
   compares a crawl of them with `ux/spec/menus-after.txt`). Items that cannot apply are left out
   (Fit every column… with one column, Batch results without a batch, the second axes' pages while
@@ -1181,8 +1184,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   peak**, `#pfAddMode`, is the Add peak pointer mode, which left the toolbar), 3 Fit; both fits have
   an *On the graph* group (`fitResidHtml(peaks)`, `.fitshow`: the residuals `#fitResid`, the
   confidence band `#fitBandC` (`bandConf`), the prediction band `#fitBandP` (`bandPred`), and
-  for a peak fit each fitted peak shaded `#fitPkFill` (`series.__peaks.fill`)), also Analysis › Fit
-  and the Graph menu; for the residuals `residOn(cfg,
+  for a peak fit each fitted peak shaded `#fitPkFill` (`series.__peaks.fill`)), also Analyze ›
+  Fit; for the residuals `residOn(cfg,
   fit)` is every reader's door (`resid` true or false by hand; "auto" or missing: on for a peak
   fit, off for a curve fit; `residHint()` the fit the window is set to make). Both stickies
   start with `weightHtml(d)` (how the fit will be weighted, naming the error column). The curve
@@ -1305,7 +1308,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   spectrum (`looksLikeSpectrum(c)`: 50 points or more, in order, evenly spaced, a band at least
   five times the noise; the same test gates *Label the peak at…* on a curve and the statistics'
   spectral measures) (`autoOverview`, off per browser under
-  `kurve.ovAuto`), from Spectroscopy › Overview of the spectrum…, and from a raw box in the History.
+  `kurve.ovAuto`), from Analyze › Spectroscopy › Overview of the spectrum…, and from a raw box in the History.
 - **Reading values** (the `readers` module after `MODE_HINT`; DESIGN.md, Menus and the toolbar):
   two pointer modes, `reader` and `cross`. `readerCurves()` (the curves drawn, their points on
   screen), `readerNear(px, py, maxd)`, `rdPin(hit, say)`, `rdStep(dk, dc)` (along a curve, between
@@ -1317,9 +1320,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   `.rdtag`) after every `renderPlot`; `renderRdCard(full)` the card `#rdCard` in `#figure`
   (rebuilt only when its `data-sig` changes, the values written in place; `placeRdCard`,
   `wireRdCard`, `rdText` for Copy). The keys are in `graphKey`. Neither writes to the project.
-  `graphOnDesk()`/`syncGraphTools()` (end of `renderTop` and `applyWins`) hide the Graph menu
-  (`[data-menu="graph"]`, `graphToolsMenu()`, the graph window's `data-rmenu="graph"`) and the
-  toolbar's `.tg` group with no graph on the desk (`body.nograph`).
+  `graphOnDesk()`/`syncGraphTools()` (end of `renderTop` and `applyWins`) hide the toolbar's
+  `.tg` group with no graph on the desk (`body.nograph`); the menus keep their shape, and Plot ›
+  View and Figure's items are greyed without `GID()`.
 - **Values typed or picked** (`comboHtml(attrs, val, list, {unit, ro, ph})`, `CMB` the lists,
   `setupCombos`): a text field carrying the form's own attributes (`data-pd`, `data-num`,
   `data-min`/`data-max`, clamped by the Format dialog's `onVal`) and `.combo-b`, which drops the
@@ -1392,7 +1395,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   page by `txtBarHtml("axt:"+k, …)` (`pdTxtGet`/`pdTxtSet` map `axt:` onto `ax.k.tst`).
 - **Adding annotations**: the Format dialog's Labels and lines page has one Add button
   (`data-pdaddmenu`, a menu of `ANNO_ADD` with icons) calling `pdAddAnno(k)`; `addLineDlg(t)`
-  (Plot › Annotate › Vertical line…, Horizontal line…) is one dialog: direction and text as
+  (Figure › Annotate › Vertical line…, Horizontal line…) is one dialog: direction and text as
   segmented radiogroups (`data-lns`), the position in the axis's units, your own text in an
   `.rfield`, colour, style and width.
 - **Peak draft**: the peak set being built is `S.pdraft` (`{base, peaks, init, fixed, x0,
@@ -1597,7 +1600,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   a histogram's bins (`histOf(id)`, the step's `bins.w`) or 0.8 of the median spacing, several
   spectra as columns side by side (`colGrp`, `cgk`/`cgn` through `zSt`); a graph of columns
   stands on zero and is widened to whole columns when nothing is typed or zoomed.
-  **Histograms**: `histogramCols(cids)` (Plot › Histogram, Statistics › Histogram (the selected
+  **Histograms**: `histogramCols(cids)` (Plot › Plot the selected columns › Histogram, Analyze › Statistics › Histogram (the selected
   columns, or the active one), a spectrum's right-click; one undo entry) makes `Histogram of …`, a spectrum derived
   from each column's final data with a `hist` step, each on a graph of its own, several in a
   figure; `editHistStep(cid)` opens the step in the History (right-click Histogram bins…).
@@ -1728,7 +1731,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   `openFontPicker(btn, cur, pick, opt)` lists them by kind, each in its own face
   (`loadFontPreviews`: subsets named `KP <family>`), with search, a name box and, where the
   browser allows, this computer's fonts (`queryLocalFonts`). The graph's font is
-  `fontFam`/`fontName` and `font` (a scale); `fontMenuItems` is Plot › Font.
+  `fontFam`/`fontName` and `font` (a scale); `fontMenuItems` is Figure › Font.
   **Colours**: `openColorPicker(btn, cur, onInput, onDone, opt)` (a saturation/value square
   and hue strip drawn in CSS, hex, Kurve's colours, recent ones in `kurve.colors`, an eye
   dropper; `onInput` at most once a frame while dragging), `colorBtn`. **Text bars**:
@@ -1764,7 +1767,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   per-browser library (`fmtLib`, `fmtLibSave`, under `kurve.formats`); `saveFormatAs` asks
   which (the project by default when the store is shared), `renameFormat`, `copyFormat`,
   `deleteFormat`, `allFormats()`; `useFormat(f, every)` gives one to the graph or every
-  graph, `formatMenuItems` lists them by group (Plot › Saved styles, and the Format dialog's Saved styles
+  graph, `formatMenuItems` lists them by group (Figure › Saved styles, and the Format dialog's Saved styles
   button, which applies to the working copy; "saved style" is the interface's word for a format). `txtAuto(cfg, el)` is a kind of text's automatic style.
   `renderTop`, `renderWs`, `renderPlot` (+ `renderStatusBar`), `renderStages` (now the graph
   window's stage chip and its Original/Processed/Both, `renderViewSeg`), `renderFit` (it also refreshes
@@ -1812,7 +1815,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   axis through them), and numbers the axis with `scaleTicks` (powers of e or 2, the probability
   paper's percentages, or round numbers by `x2Layout` with the identity; `lab.b` is a label's
   base for `tLab`/`labW`). Breaks are for linear and log10 axes only. `setAxisScale(k, kind)`
-  (one undo entry; the axis menu's Scale, Plot › Axes, the Format dialog's Type through
+  (one undo entry; the axis menu's Scale, Figure › Axes, the Format dialog's Type through
   `pdSet("axscale.k")`); Log Y on the toolbar clears a curved Y scale. `probit` (in NUMERICS,
   tested) is the probability scale's transform. **Dates and times** on an axis: `ax.fmt` `time`
   (seconds as h:mm:ss) or `date` (seconds since 1970, UTC), `timeTicks` (steps from a second to
@@ -1959,7 +1962,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   every spectrum's final X and Y side by side with each one's steps. `copyGraphPicture` puts
   the graph (or a panel's figure, `handPic`) on the clipboard as a PNG at 2.5×, handing
   `ClipboardItem` a promise so the click still counts; a browser that refuses gets the PNG
-  export offered (Edit, Export, the graph's right-click and ⋯ menus).
+  export offered (Publish, the graph's right-click and ⋯ menus).
 - **Boot**: `boot()` asks `window.claude.use(...)` for `db`, `user`, `room`, `downloads`. Outside
   claude.ai these are absent, so the app falls back to `LocalStore` and hides presence.
 
@@ -1974,7 +1977,7 @@ presence, names) depends on the claude.ai runtime and would need a real backend 
 **Words.** What the app shows follows the glossary (`ux/UX_SPEC.md` §3.6): column (a curve on
 the graph), active, original and processed data, check code, tool window, saved style,
 Untitled project, not counted as a peak; spectroscopy's words (spectrum, band, background…)
-only in the Spectroscopy menu and its panels. Code names (`raw`, `final`, `rawFp`, `p.raw`,
+only in Analyze › Spectroscopy and its panels. Code names (`raw`, `final`, `rawFp`, `p.raw`,
 `S.sheet`) are not renamed. `python tools/ux/terms.py [path]` counts the
 words off the glossary in every prose literal of the file, and in fragments joined to a number
 or a name (`n + " spectra"`) (`--list term` shows where); it
@@ -2751,7 +2754,11 @@ has it (the taskbar flat with a raised key in front, the project's field first a
 Cascade in a tray; the dock a strip of icon tabs the docked window hangs from, Help, Undock and
 Hide on it; the project name a field; windows rounded to 12 px; fields as wide as their
 content), tooltips that name, no internal identifiers, Unicode scripts set as real ones in the
-page, the graph and the report. Next: the menus in the stage of work, Find a command (Ctrl+K),
+page, the graph and the report. Slice 2 done: the menus in the order of the work (File, Edit,
+Data, Plot, Analyze, Figure, Publish, Window, Help): the Graph menu's tools into Plot › View,
+Figure › Annotate and Axes, and Analyze › Fit; Statistics and Spectroscopy submenus of Analyze;
+the background step Data › Baseline › Subtract baseline…, beside Linear detrend…; File ›
+Export and Edit's copies Publish. Next: Find a command (Ctrl+K),
 commands that appear when a thing is selected on the graph, the Format pane docked and live,
 the status bar's statistics of a selection, the Fit window and Results as designed, the
 dialogs, galleries drawn with the data, two displays.

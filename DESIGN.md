@@ -307,7 +307,7 @@ take seconds: the user asked for it to be made usable. Decided:
 - **What of the fit is drawn is chosen where the fit is made.** The Fit window's *On the graph*
   group switches the residuals, the confidence band (shaded), the prediction band (dashed) and,
   for a peak fit, each fitted peak's shading (the user: "why is there no setting to choose if I
-  want a shading on the fitted curve or not?"); the Graph menu has the same switches.
+  want a shading on the fitted curve or not?"); Analyze › Fit has the same switches.
 
 ## Fitting
 
@@ -337,10 +337,18 @@ never code.
 
 The menu tree is `ux/spec/menus-after.txt`; `tools/ux/menucheck.py` compares the app's with it.
 
-- **Nine menus**: File, Edit, Data, Plot, Analysis, Statistics, Spectroscopy, Window, Help. Math
-  folded into Analysis (Mathematics, Smooth and filter), as Origin's Analysis does.
-  Spectroscopy has a menu of its own: the Overview, spikes, background, peaks, known lines, the
-  X-axis tools and the corrections were spread over five menus where a general user met them.
+- **Menus in the order of the work** (the design system's slice 2): File, Edit, Data, Plot,
+  Analyze, Figure, Publish, Window, Help. Data is the worksheet and what prepares it (cleaning,
+  Baseline, Transform); Plot makes graphs and looks at them (View: zoom, pan, the Reader, the X–Y
+  lines); Analyze measures (Fit, Peaks, Integrate, Signal processing, Calculus, Statistics, and
+  Spectroscopy as one submenu); Figure is the graph's look (Format, saved styles, axes, font,
+  legend, annotations); Publish is what leaves Kurve (every export, the report, the two copies).
+  Never a menu for a kind of mathematics: someone who wants a baseline off their data looks in
+  the stage they are at, not under "Mathematics" or "Spectroscopy", and a baseline, peaks and a
+  linear detrend belong to any data, not only spectra. The last menu bar had nine menus too,
+  but three were by subject (Analysis, Statistics, Spectroscopy) and a fourth, Graph, came and
+  went with the graph, so the bar changed under the pointer; five of them had to be tried to
+  find a command.
 - **One place each, by what it is.** Making a graph is plotting (Plot › New graph); Window
   lists and arranges windows. Copying from another project is File's. Edit has the worksheet's
   Copy, Paste, Clear and Find, because a spreadsheet user looks there. A command that combines
@@ -360,10 +368,12 @@ The menu tree is `ux/spec/menus-after.txt`; `tools/ux/menucheck.py` compares the
 - **Moving along the menu bar** opens the next menu only after the pointer rests on its name for
   150 ms: a pointer crossing the bar on its way into a submenu changed menus (Phase 1, T2).
 - **The graph's tools only with a graph** (the user: "they shouldn't be there when I am using
-  the worksheet and no graph is open"). The Graph menu (after Plot: the pointer tools, the two
-  ways of reading values, the view, what of the fit is drawn, Format graph…) and the toolbar's
-  graph group are there while a graph is on the desk, and gone with the worksheet alone
-  (`syncGraphTools`, `body.nograph`); the graph window's own bar repeats the menu.
+  the worksheet and no graph is open"). The toolbar's graph group is there while a graph is on
+  the desk and gone with the worksheet alone (`syncGraphTools`, `body.nograph`). The Graph menu
+  that did the same for the menu bar went in slice 2: its pointer tools are in Plot › View and
+  Figure › Annotate, its switches in Figure › Axes and Analyze › Fit. Plot › View and Figure stay
+  on the bar and are greyed with no graph, so the bar keeps its shape; the graph window's own
+  bar repeats Data, Plot, Analyze and Figure.
 - **Reading values, two ways** (Origin's Data Reader and its screen reader's crosshair): the
   Reader snaps to the plotted point nearest the pointer and pins it on a click, with a card on
   the graph that names the curve, the row, X and Y, steps along the curve and between curves
@@ -376,9 +386,9 @@ The menu tree is `ux/spec/menus-after.txt`; `tools/ux/menucheck.py` compares the
   in a shared project only (alone, Add here › A comment here…). What the graph shows, Original,
   Processed or Both, is on the graph window's own bar, beside the menus it repeats; the plot
   type and the layout are in Plot and a curve's right-click; the residual panel is switched in
-  the Fit window and Analysis › Fit; Add a peak is a button in the peak fit's second part.
+  the Fit window and Analyze › Fit; Add a peak is a button in the peak fit's second part.
 - **Right-click menus** hold what belongs to the thing clicked, then Add here, then Format
-  graph…, Copy the graph as a picture and Export (the File › Export list). A curve's menu needs
+  graph…, Copy the graph as a picture and Export (the Publish list). A curve's menu needs
   the click on the curve (within 14 px of a point); elsewhere it is the plot's, with Add here
   inline. None repeats a Plot submenu; the axis menu leaves the outward offset and the edge
   across to the Format dialog. The worksheet's column menu chooses a use (Use as › X, Y, Error
@@ -490,8 +500,10 @@ One word for each thing, everywhere it is shown (UX_SPEC §3.6, checked by `tool
 - **Untitled project**, not Untitled analysis.
 - **Not counted as a peak**, not turned down, for a candidate the finder set aside.
 - **Spectroscopy's words** (spectrum, band, background, spike, Raman shift, known line) belong
-  to the Spectroscopy menu and its windows (Peaks, Peak fit, Integrate, Overview, the
-  spectroscopy tools), where they are the right words, and nowhere else.
+  to Analyze › Spectroscopy and its windows (Peaks, Peak fit, Integrate, Overview, the
+  spectroscopy tools), where they are the right words, and nowhere else. The background step
+  is *Subtract baseline* in Data › Baseline, since any data can have one; *Linear detrend…*
+  is the same step with its straight line chosen.
 
 - **No internal identifiers** in the interface (the design system): no hash in the worksheet's
   foot, no "in this browser" in the status bar. The check code is still in the History's
@@ -534,7 +546,7 @@ A choice made by hand, or kept in an older project, is never re-decided.
   side with no X, counts named as counts. Whole numbers alone are not counts.
 - **Spectroscopy appears for spectra.** The Overview, *Label the peak*, and the statistics'
   noise, S/N and area are offered by themselves only for data that looks like a spectrum, by
-  the Overview's own test. The Spectroscopy menu always has them.
+  the Overview's own test. Analyze › Spectroscopy always has them.
 - **Automatic titles follow the curves:** with several, their shared name or unit, else
   *Value*, never one curve's name for all of them.
 - **A setting that is automatic shows its value:** a figure's Share X is ticked and fixed while
@@ -773,6 +785,16 @@ The F(x)= row is always shown (the user's choice between it and formulas only in
 setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md`: ranges,
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
+
+### 2026-10-28: the design system into the app, slice 2 (menus in the order of the work)
+
+The system's menu bar is File, Edit, Data, Plot, Analyze, Figure, Publish, Window, Help, and
+the app's had three menus by subject and a Graph menu that came and went. Every item kept a home
+(the crawl before and after, compared leaf by leaf, and `menucheck.py` in both directions):
+the Graph menu's tools went into Plot › View, Figure › Annotate, Figure › Axes and Analyze ›
+Fit; Statistics and Spectroscopy became submenus of Analyze; Subtract background became Data ›
+Baseline › Subtract baseline…, beside Linear detrend…; Find peaks… became Analyze › Peaks…;
+File › Export and Edit's two copies became Publish. Help's menu paths follow.
 
 ### 2026-10-26: the design system into the app, slice 1 (the frame and the rules)
 

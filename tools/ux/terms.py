@@ -58,7 +58,7 @@ SENSE = {
 SPEC_ONLY = {"spectrum"}
 
 # Contexts where spectroscopy's words belong: functions and DOCS/PIPE_OPS keys.
-SPEC_CTX = re.compile(r"^(?:spectroscopyMenu|renderPeaks|wirePeaks|openPeakFinder|pf[A-Z]\w*|pk[A-Z]\w*|pkUndo|pkIn|peak\w*|Peak\w*|PK_\w+|PF_\w+|resOf|on|e2|u|t|"
+SPEC_CTX = re.compile(r"^(?:spectroscopyMenu|spectroscopyItems|renderPeaks|wirePeaks|openPeakFinder|pf[A-Z]\w*|pk[A-Z]\w*|pkUndo|pkIn|peak\w*|Peak\w*|PK_\w+|PF_\w+|resOf|on|e2|u|t|"
                       r"renderInteg|wireInteg|openIntegrate|integ\w*|band\w*|Band\w*|bandsFromPeaksUI|renderOverview|overview\w*|openOverview|autoOverview|"
                       r"identifyPeaks|idf\w*|idMatchOpts|lineLib\w*|linesFor|lineScale|lineLabel|LINE_LIBS|editLineList|deleteLineList|setPeakLine|setPeakShape|"
                       r"findPeaks\w*|runPeakFinder|fitFoundPeaks|despike\w*|countNoise|countsPerY|liveTimeOf|searchRegions|labelFoundPeaks|followPeakSets|"

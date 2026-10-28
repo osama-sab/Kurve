@@ -115,6 +115,54 @@ await page(async p => {
   check("and to 9 px in Graphite", gg === "9px", gg);
 }, { name: "windows" });
 
+console.log("Slice 2: menus in the order of the work");
+await page(async p => {
+  await raman(p);
+  const m = await p.evaluate(() => {
+    const labs = items => (typeof items === "function" ? items() : items || []).filter(i => i && i !== "-" && i.label).map(i => i.label);
+    const find = (items, l) => (typeof items === "function" ? items() : items || []).find(i => i && i.label === l);
+    const an = menuItems("analyze"), sp = find(an, "Spectroscopy"), pub = menuItems("publish"), ed = menuItems("edit"), pl = menuItems("plot"), dt = menuItems("data");
+    return { bar: [...document.querySelectorAll(".menubar .mb")].map(b => b.textContent.trim()).join(),
+      ribbon: [...document.querySelectorAll("#gRibbon [data-rmenu]")].map(b => b.textContent.trim()).join(),
+      an: labs(an), sp: labs(sp && sp.sub), pub: labs(pub), ed: labs(ed), view: labs((find(pl, "View") || {}).sub), base: labs((find(dt, "Baseline") || {}).sub),
+      tr: labs((find(dt, "Transform") || {}).sub), fit: labs((find(an, "Fit") || {}).sub) }; });
+  check("the menu bar is in the order of the work", m.bar === "File,Edit,Data,Plot,Analyze,Figure,Publish,Window,Help", m.bar);
+  check("the graph window's bar repeats Data, Plot, Analyze and Figure", m.ribbon === "Data,Plot,Analyze,Figure", m.ribbon);
+  check("Analyze measures: Fit, Peaks, Integrate, then kinds", m.an.join("|") === ["Fit", "Peaks…", "Integrate…", "Signal processing", "Calculus", "Statistics", "Spectroscopy", "Results"].join("|"), m.an);
+  check("Spectroscopy is a submenu of Analyze", m.sp.join("|") === ["Overview of the spectrum…", "Remove cosmic-ray spikes…", "Name the peaks from known lines…", "X axis", "Corrections"].join("|"), m.sp);
+  check("Data has Baseline: Subtract baseline… and Linear detrend…", m.base.join("|") === "Subtract baseline…|Linear detrend…", m.base);
+  check("Data's Transform holds what changes values or units", m.tr.length === 6 && m.tr[0] === "Scale and offset Y…", m.tr);
+  check("Plot's View has the graph's pointer tools", ["Zoom", "Pan", "Reader", "X–Y lines", "Show all the data"].every(l => m.view.includes(l)), m.view);
+  check("Analyze › Fit switches what of the fit is drawn", ["Show residuals", "Confidence band", "Prediction band", "Remove fit"].every(l => m.fit.includes(l)), m.fit);
+  check("Publish has every export and the two copies", ["Graph as PDF", "Report", "Copy the graph as a picture", "Copy the results table"].every(l => m.pub.includes(l)), m.pub);
+  check("Edit no longer copies the graph", !m.ed.some(l => /graph|results/i.test(l)), m.ed);
+  // Linear detrend is the baseline step with its straight line chosen.
+  const ld = await p.evaluate(() => { const b = menuItems("data").find(i => i && i.label === "Baseline"); b.sub().find(i => i.label === "Linear detrend…").run();
+    return S.pending ? { op: S.pending.step.op, m: S.pending.step.p.method } : null; });
+  check("Linear detrend… opens the baseline step on a straight line", ld && ld.op === "bg" && ld.m === "line", JSON.stringify(ld));
+  await p.evaluate(() => cancelTool());
+  // The menu bar opens the new menus.
+  await p.click('.menubar [data-menu="analyze"]'); await p.waitForTimeout(250);
+  const open = await p.evaluate(() => [...document.querySelectorAll(".menu [role=menuitem]")].map(e => e.textContent.trim()).slice(0, 3));
+  check("Analyze opens from the bar", /^Fit/.test(open[0] || ""), open);
+  await p.keyboard.press("Escape");
+  // Help's articles render and every link goes somewhere.
+  const h = await p.evaluate(() => { const bad = [], ids = new Set(docList().map(d => d.id)); let n = 0;
+    for (const d of docList()) { try { openHelp(d.id); n++; const b = document.querySelector("#w-help .win-b"); if (!b || /\$\{/.test(b.innerHTML)) bad.push(d.id + ": ${");
+      b.querySelectorAll("[data-doc]").forEach(a => { const id = a.dataset.doc.split("#")[0]; if (id && !ids.has(id)) bad.push(d.id + " → " + a.dataset.doc); }); } catch (e) { bad.push(d.id + ": " + e.message); } }
+    const txt = docList().map(d => d.lead + " " + (typeof d.body === "string" ? d.body : "")).join(" ");
+    return { n, bad, old: (txt.match(/(Analysis|Statistics|Spectroscopy|File) › (Fit|Integrate|Histogram|Find peaks|Subtract|Export|Overview)/g) || []).slice(0, 5) }; });
+  check("every help article renders, every link resolves", h.n > 60 && !h.bad.length, h.n + " " + h.bad.slice(0, 5).join("; "));
+  check("help names the new menu paths", !h.old.length, h.old);
+}, { name: "menus" });
+await page(async p => {
+  // With the worksheet alone, the graph's menus keep their place and are greyed.
+  const g = await p.evaluate(() => { const f = menuItems("figure"), v = menuItems("plot").find(i => i && i.label === "View");
+    return { gid: GID(), fig: f.filter(i => i && i.label).every(i => i.enabled === false), view: v && v.enabled === false, bar: !!document.querySelector('.menubar [data-menu="figure"]') }; });
+  check("with no graph, Figure is on the bar and greyed", g.gid == null && g.bar && g.fig, JSON.stringify(g));
+  check("and so is Plot › View", g.view === true, JSON.stringify(g));
+}, { name: "no graph" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

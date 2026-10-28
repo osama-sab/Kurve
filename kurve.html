@@ -1952,10 +1952,9 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
       <button class="mb" data-menu="edit" aria-haspopup="menu" aria-expanded="false">Edit</button>
       <button class="mb" data-menu="data" aria-haspopup="menu" aria-expanded="false">Data</button>
       <button class="mb" data-menu="plot" aria-haspopup="menu" aria-expanded="false">Plot</button>
-      <button class="mb" data-menu="graph" aria-haspopup="menu" aria-expanded="false" hidden>Graph</button>
-      <button class="mb" data-menu="analysis" aria-haspopup="menu" aria-expanded="false">Analysis</button>
-      <button class="mb" data-menu="statistics" aria-haspopup="menu" aria-expanded="false">Statistics</button>
-      <button class="mb" data-menu="spectroscopy" aria-haspopup="menu" aria-expanded="false">Spectroscopy</button>
+      <button class="mb" data-menu="analyze" aria-haspopup="menu" aria-expanded="false">Analyze</button>
+      <button class="mb" data-menu="figure" aria-haspopup="menu" aria-expanded="false">Figure</button>
+      <button class="mb" data-menu="publish" aria-haspopup="menu" aria-expanded="false">Publish</button>
       <button class="mb" data-menu="window" aria-haspopup="menu" aria-expanded="false">Window</button>
       <button class="mb" data-menu="help" aria-haspopup="menu" aria-expanded="false">Help</button>
     </nav>
@@ -2016,10 +2015,8 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
         <div class="ribbon" id="gRibbon" role="toolbar" aria-label="Data tools">
           <button class="rb" data-rmenu="data" aria-haspopup="menu" aria-expanded="false">Data<svg class="ic sm"><use href="#i-chev"/></svg></button>
           <button class="rb" data-rmenu="plot" aria-haspopup="menu" aria-expanded="false">Plot<svg class="ic sm"><use href="#i-chev"/></svg></button>
-          <button class="rb" data-rmenu="graph" aria-haspopup="menu" aria-expanded="false">Graph<svg class="ic sm"><use href="#i-chev"/></svg></button>
-          <button class="rb" data-rmenu="analysis" aria-haspopup="menu" aria-expanded="false">Analysis<svg class="ic sm"><use href="#i-chev"/></svg></button>
-          <button class="rb" data-rmenu="statistics" aria-haspopup="menu" aria-expanded="false">Statistics<svg class="ic sm"><use href="#i-chev"/></svg></button>
-          <button class="rb" data-rmenu="spectroscopy" aria-haspopup="menu" aria-expanded="false">Spectroscopy<svg class="ic sm"><use href="#i-chev"/></svg></button>
+          <button class="rb" data-rmenu="analyze" aria-haspopup="menu" aria-expanded="false">Analyze<svg class="ic sm"><use href="#i-chev"/></svg></button>
+          <button class="rb" data-rmenu="figure" aria-haspopup="menu" aria-expanded="false">Figure<svg class="ic sm"><use href="#i-chev"/></svg></button>
           <span class="rsep" aria-hidden="true"></span>
           <div class="seg" role="group" aria-label="Data shown on the graph" id="viewSeg">
             <button data-view="raw" aria-pressed="false">Original</button>
@@ -4118,7 +4115,7 @@ const PIPE_OPS={
       const warn=dx<sp.abs*0.6?[`A spacing of ${nf(dx,4)} is finer than the data's own (${nf(sp.abs,4)}): the extra points are interpolated, not measured, and fit statistics will count them as if they were.`]:[];
       return {d:pser(d,x,y,e,idx), note:`${N} points, every ${nf(dx,4)}${ux(d)}`, warn};
     }},
-  bg:{group:"bg", rank:6, label:"Subtract background", short:"Background",
+  bg:{group:"bg", rank:6, label:"Subtract baseline", short:"Baseline",
     help:"Estimates the slowly varying background under the bands (fluorescence, stray light, a sloping baseline) and subtracts it. The graph shows the input with the background drawn under it.",
     params:[{k:"method",label:"Method",type:"sel",opts:BG_METHODS},
       {k:"lam",label:"Stiffness λ",type:"log",min:1,max:12,step:0.1,show:p=>["als","arpls","airpls"].includes(p.method),hint:"Larger is stiffer: the background bends less and follows the bands less."},
@@ -4539,9 +4536,9 @@ function orderWarnings(steps){
   const first=op=>{ const q=on.find(z=>z.s.op===op); return q?q.i:-1; };
   const bg=first("bg");
   on.forEach(q=>{
-    if(q.s.op==="norm"&&bg>q.i) add(q.i,"Normalized before the background was subtracted, so the scale factor includes the background. Move Normalize below Subtract background.");
+    if(q.s.op==="norm"&&bg>q.i) add(q.i,"Normalized before the background was subtracted, so the scale factor includes the background. Move Normalize below Subtract baseline.");
     if(q.s.op==="smooth"&&first("despike")>q.i) add(q.i,"Smoothing before spike removal spreads each spike over its neighbours, where it no longer looks like a spike. Move Remove spikes above Smooth.");
-    if(q.s.op==="deriv"&&bg>q.i) add(bg,"This background is subtracted from a derivative. Move Subtract background above Derivative.");
+    if(q.s.op==="deriv"&&bg>q.i) add(bg,"This background is subtracted from a derivative. Move Subtract baseline above Derivative.");
   });
   return out;
 }
@@ -10830,31 +10827,8 @@ function graphOnDesk(){ return !!P()&&graphWinIds().some(id=>winOpen(id)); }
 function syncGraphTools(){
   const on=graphOnDesk(), was=!document.body.classList.contains("nograph");
   document.body.classList.toggle("nograph",!on);
-  document.querySelectorAll('[data-menu="graph"],.toolbar .tg').forEach(el=>{ el.hidden=!on; });
+  document.querySelectorAll('.toolbar .tg').forEach(el=>{ el.hidden=!on; });
   if(on!==was) fitToolbar();
-}
-// The Graph menu: the pointer tools, the readers, the view, the fit's bands, Format graph.
-function graphToolsMenu(){
-  const p=P(), has=!!(p&&pointsAll().length), cfg=plotCfg(), edit=!!p&&!S.readOnly, m=S.mode, f=shownFit();
-  const tool=(k,l,kbd,t)=>({label:l,radio:true,checked:m===k,enabled:has,title:t,kbd,run:()=>setMode(k)});
-  return [{group:"Pointer"},tool("zoom","Zoom",null,"Drag a box to zoom; click a point to select it"),tool("pan","Pan",null,"Drag to move the view"),tool("mask","Mask points",null,"Click or drag to leave points out of the fit"),
-    tool("label","Label",null,"Click a peak to label it, or an empty spot to write text"),tool("arrow","Arrow",null,"Drag from where it starts to what it points at"),
-    {label:"Shape",sub:()=>[{label:"Box",radio:true,checked:m==="shape"&&shapeKind()==="rect",enabled:edit&&has,run:()=>pickShape("rect")},{label:"Ellipse",radio:true,checked:m==="shape"&&shapeKind()==="ellipse",enabled:edit&&has,run:()=>pickShape("ellipse")}]},
-    S.room?tool("pin","Comment",null,"Click the graph to start a comment there"):null,
-    "-",{group:"Read values"},
-    tool("reader","Data reader",null,"Click a point to read it; find one by its X or Y"),
-    {label:"X–Y lines",sub:()=>XH_MODES.map(([k,l,t])=>({label:l,note:t,radio:true,checked:m==="cross"&&xhMode()===k,enabled:has,run:()=>setXhMode(k)}))},
-    "-",{group:"View"},
-    {label:"Show all the data",kbd:"Double-click",enabled:has,run:()=>{ S.view=null; renderPlot(); renderFit(); }},
-    {label:"Reverse X",checked:!!cfg.revX,enabled:edit,run:()=>togglePlot("revX")},
-    {label:"Log Y",checked:!!cfg.logY,enabled:edit&&cfg.layout!=="heat",run:()=>togglePlot("logY")},
-    {label:"Grid lines",checked:!!cfg.grid,enabled:edit,run:()=>togglePlot("grid")},
-    "-",{group:"The fit on the graph"},
-    {label:"Confidence band, shaded",checked:cfg.bandConf!==false,enabled:edit&&!!f,run:()=>setPlotKey("bandConf",cfg.bandConf===false,cfg.bandConf===false?"showed the fit's confidence band":"hid the fit's confidence band")},
-    {label:"Prediction band, dashed",checked:!!cfg.bandPred,enabled:edit&&!!f,run:()=>setPlotKey("bandPred",!cfg.bandPred,cfg.bandPred?"hid the fit's prediction band":"showed the fit's prediction band")},
-    f&&f.kind==="composite"?{label:"Each fitted peak shaded",checked:(cfg.series.__peaks||{}).fill!==false,enabled:edit,run:()=>setSeriesStyle("__peaks",{fill:(cfg.series.__peaks||{}).fill===false},(cfg.series.__peaks||{}).fill===false?"shaded the fitted peaks":"took the shading off the fitted peaks")}:null,
-    {label:"Residuals under the graph",checked:residOn(cfg,f||residHint()),enabled:edit&&!!f,run:()=>togglePlot("resid")},
-    "-",{label:"Format graph…",enabled:!!p,run:()=>openPlotDetails(activeYCol()&&activeYCol().id,"frame")}].filter(Boolean);
 }
 // The Shape tool draws a box or an ellipse, whichever was chosen last in this browser.
 function shapeKind(){ if(!S.shapeKind){ try{ S.shapeKind=localStorage.getItem("kurve.shape")==="ellipse"?"ellipse":"rect"; }catch(e){ S.shapeKind="rect"; } } return S.shapeKind; }
@@ -12650,7 +12624,7 @@ function wireWsTabs(){ const box=$("#wsTabs"); if(!box) return;
 
 /* ============================================================
    Steps. Every change to a spectrum's data is a step in its pipeline, made
-   from a tool dialog (the Data, Math, Analysis menus) and edited later from
+   from a tool dialog (the Data and Analyze menus) and edited later from
    the History window. The step a tool dialog is previewing is S.pending: it
    is drawn and checked like any other step, but it is not in the document
    until OK is pressed.
@@ -13361,7 +13335,7 @@ const impSqrtable=()=>impYs().filter(i=>impErrFor(i)<0&&impCounts(i));
 function impFindings(){
   const {x,y}=impCols(), out=[], r=S.imp.res, ny=impYs().length;
   if(r.tka) out.push({id:"tka",level:"good",text:`Live time ${r.tka.live} s and real time ${r.tka.real} s, read from the first two lines. The counts are kept as recorded.`,fix:"rate",fixLabel:"Counts per second"});
-  else if(r.single) out.push({id:"single",level:"info",text:"One column: each line is a channel, plotted against its number. Calibrate it to energy afterwards (Spectroscopy › X axis) or with a formula in the worksheet."});
+  else if(r.single) out.push({id:"single",level:"info",text:"One column: each line is a channel, plotted against its number. Calibrate it to energy afterwards (Analyze › Spectroscopy › X axis) or with a formula in the worksheet."});
   if(r.metaLineCount&&!r.tka) out.push({id:"meta",level:"good",text:`${Object.keys(r.meta).length} metadata field${Object.keys(r.meta).length===1?"":"s"} read from ${r.metaLineCount} header line${r.metaLineCount===1?"":"s"} and kept with the project.`});
   if(r.footerCount) out.push({id:"foot",level:"info",text:`${r.footerCount} line${r.footerCount===1?"":"s"} after the data ignored.`});
   if(r.skipped.length) out.push({id:"ragged",level:"warn",text:`${r.skipped.length} row${r.skipped.length===1?"":"s"} inside the data block had the wrong number of columns and were skipped.`});
@@ -16690,8 +16664,8 @@ async function exportCsv(){
 }
 
 /* ============================================================
-   Tools. Every operation starts from a menu: Data, Math, Analysis and
-   Statistics in the menu bar, repeated on the graph window's ribbon, and the
+   Tools. Every operation starts from a menu: Data and Analyze in the menu
+   bar, repeated on the graph window's ribbon, and the
    "+" on any line of the History flow chart. A tool that changes the data
    opens as a dialog window: its settings, a before-and-after chart, and the
    result live on the graph and in the History, with nothing recorded until
@@ -16746,7 +16720,7 @@ function openTool(op,opt){
 function renderTool(){
   const box=$("#pane-tool"); if(!box) return;
   const pd=S.pending, s=pd&&pd.step, c=pd&&colById(pd.col);
-  if(!pd||!s||!c||!PIPE_OPS[s.op]){ box.innerHTML=`<p class="nothing">Choose a tool from the Data, Analysis or Spectroscopy menu, or from the + on a line in the History.</p>`; $("#toolTitle").textContent="Tool"; return; }
+  if(!pd||!s||!c||!PIPE_OPS[s.op]){ box.innerHTML=`<p class="nothing">Choose a tool from the Data or Analyze menu, or from the + on a line in the History.</p>`; $("#toolTitle").textContent="Tool"; return; }
   const def=PIPE_OPS[s.op], pipe=c.pipe||[];
   const keep=document.activeElement&&box.contains(document.activeElement)?document.activeElement.id:null, sc=box.scrollTop;
   $("#toolTitle").textContent=def.label; refreshDock();
@@ -16829,6 +16803,9 @@ function sortViewItems(ci){
     {label:"Descending", radio:true, checked:on&&m.sortDir<0, enabled:ok, run:()=>wsSortBy(q.id,-1)},
     "-",{label:"Original order", title:"The rows as they were recorded", enabled:!!(m&&m.sorted), run:()=>wsSortBy(null,0)}];
 }
+// The menu bar follows the stage of work (ux/spec/DS_SPEC.md, slice 2): Data, Plot, Analyze, Figure,
+// Publish, never a mathematical category; each command has one home.
+// Data: the worksheet's commands, then what prepares the data (cleaning, the baseline, transforms).
 function dataMenu(){
   const p=P(), has=!!(p&&pointsAll().length), edit=!!p&&!S.readOnly;
   const t=op=>toolItem(op);
@@ -16839,60 +16816,61 @@ function dataMenu(){
     {label:"Fill", sub:fillMenuItems, enabled:edit},
     {label:"Sort the view", title:"By the column of the selected cell; the data keep their recorded order", sub:()=>sortViewItems(), enabled:!!p},
     {label:"Hide and show", title:"Columns and rows of the worksheet: hidden from view, still in the data", sub:hideItems, enabled:!!p},
-    "-",
-    {label:"Clean", sub:()=>[t("crop"), t("exclude"), t("sort"), t("dedupe"), t("resample")]},
+    {label:"Columns", sub:()=>spectrumItems().filter(it=>!it.group)},
     {label:"Masks", sub:()=>[{label:"Mask points on the graph", run:()=>setMode("mask"), enabled:has},
       {label:"Restore every masked point", run:unmaskAll, enabled:edit&&!!(p&&maskOf(activeYCol()).length)}]},
-    {label:"Columns", sub:()=>spectrumItems().filter(it=>!it.group)},
+    {label:"Lock the original data", checked:!!(p&&p.rawLock), enabled:edit, title:"Original values then stay as they are; typing over one records a correction step", run:()=>setRawLock(!(p&&p.rawLock))},
     "-",
-    anyProcessing()?{label:"Show on the graph", sub:()=>[
-      {label:"Original", title:"The data as typed or imported", radio:true, checked:S.stage===0, run:()=>setViewMode("raw"), enabled:has},
-      {label:"Processed", title:"After every processing step: what the fit uses", radio:true, checked:S.stage==null&&!S.cmp, run:()=>setViewMode("final"), enabled:has},
-      {label:"Both", title:"The processed data, with the original in grey behind it", radio:true, checked:S.stage==null&&S.cmp, run:()=>setViewMode("cmp"), enabled:has}]}:null,
-    {label:"Lock the original data", checked:!!(p&&p.rawLock), enabled:edit, title:"Original values then stay as they are; typing over one records a correction step", run:()=>setRawLock(!(p&&p.rawLock))}];
+    {label:"Clean", sub:()=>[t("crop"), t("exclude"), t("sort"), t("dedupe"), t("resample")]},
+    {label:"Baseline", sub:()=>[t("bg"), Object.assign(toolItem("bg",{p:{method:"line"}})||{},{label:"Linear detrend…", title:"A straight line between the ends of the data, subtracted"})]},
+    {label:"Transform", sub:()=>[t("scale"), t("norm"), t("log"), t("xlin"), t("ref"), t("combine")]}];
 }
-function analysisMenu(){
-  const p=P(), has=!!(p&&pointsAll().length), edit=!!p&&!S.readOnly, cfg=p?plotCfg():{}, f=p?activeFit():null;
-  const t=op=>toolItem(op);
-  return [
-    {label:"Fit", sub:()=>[
-      {label:"Curve fit…", run:()=>{ S.fitMode="curve"; showTab("fit"); renderPlot(); }, enabled:!!p},
-      {label:"Peak fit…", run:()=>{ S.fitMode="peaks"; showTab("fit"); renderPlot(); }, enabled:!!p},
-      {label:"New fit function…", run:()=>{ S.fitMode="curve"; showTab("fit"); editUserFn(null); }, enabled:edit},
-      "-",
-      {label:"Run the fit", kbd:"Ctrl+Enter", run:fitNow, enabled:edit&&has},
-      {label:"Residuals under the graph", checked:!!p&&residOn(cfg,activeFit()||residHint()), title:"A panel of the residuals under the graph, when there is a fit", run:()=>togglePlot("resid"), enabled:edit},
-      yCols().length>1?{label:"Fit every column…", run:openBatchDialog, enabled:edit&&!!f, title:f?"":"Fit the active column first: its fit is the template"}:null,
-      p&&p.batch?{label:"Batch results", run:()=>openWin("batch",{render:true})}:null,
-      {label:"Remove the fit", run:removeFit, enabled:edit&&!!(p&&p.fit)}]},
-    {label:"Results", run:()=>openWin("res",{render:true}), enabled:!!p},
-    "-",
-    {label:"Mathematics", sub:()=>[t("scale"), t("xlin"), t("norm"), t("ref"), t("combine"), t("deriv"),
-      {label:"Derivative, as a new column…", title:"Keeps this column and adds its derivative beside it", run:()=>{ const id=newDerived("final",{quiet:true,name:`d/dx ${specName(activeYCol())}`}); if(id) openTool("deriv",{col:id}); }, enabled:edit&&has},
-      t("cumint"), t("log")]},
-    {label:"Smooth and filter", sub:()=>[t("smooth"), t("fft")]},
-    {label:"Integrate…", title:"Areas between windows you drag on the graph, each over a local baseline, without a fit", run:()=>openIntegrate(), enabled:!!p&&has}];
-}
-function statisticsMenu(){
-  const p=P(), has=!!(p&&pointsAll().length);
-  const go=sec=>()=>{ S.statSec=sec; openWin("stats",{render:true}); renderStats(); };
-  // The columns selected in the worksheet, or the active one.
-  const hist=()=>{ const sel=wsSelColIds().filter(id=>{ const c=colById(id); return c&&(c.role==="y"||c.role==="ignore"); }); return sel.length?sel:[activeYCol().id]; };
-  return [{label:"Descriptive statistics…", title:"Each column's numbers, the integral of the range in view, the noise and the signal to noise", run:go("desc"), enabled:has},
-    {label:"Correlation between columns…", run:go("corr"), enabled:has&&yCols().length>1},
-    {label:"Histogram", title:"The distribution of the selected columns' values (or the active column's), as a column of its own on a graph of its own", run:()=>histogramCols(hist()), enabled:has&&!S.readOnly}];
-}
-// Spectroscopy's own tools, gathered in one menu.
-function spectroscopyMenu(){
-  const p=P(), has=!!(p&&pointsAll().length);
-  const t=op=>toolItem(op);
+// Analyze › Spectroscopy: spectroscopy's own tools, gathered in one place.
+function spectroscopyItems(){
+  const p=P(), has=!!(p&&pointsAll().length), t=op=>toolItem(op);
   return [{label:"Overview of the spectrum…", title:"What the spectrum is like (spacing, noise, bands, spikes, background) and what to do first", run:openOverview, enabled:!!p&&has},
-    t("despike"), t("bg"),
-    {label:"Find peaks…", run:()=>openPeakFinder(), enabled:!!p&&has},
+    t("despike"),
     {label:"Name the peaks from known lines…", title:"Each peak found takes the name of the nearest known line within a tolerance", run:()=>{ S.pkIdOpen=true; openPeakFinder(); setTimeout(()=>pkScrollTo("#pkId"),60); }, enabled:!!p&&has},
     "-",
     {label:"X axis", sub:()=>[t("ecal"), t("shift"), t("xunit"), t("calib")]},
     {label:"Corrections", sub:()=>[t("absorb"), t("km"), t("bose")]}];
+}
+// Analyze: fitting, peaks and bands first, then the kinds of tool, then the results.
+function analyzeMenu(){
+  const p=P(), has=!!(p&&pointsAll().length), edit=!!p&&!S.readOnly, cfg=p?plotCfg():{}, f=p?activeFit():null, sf=p?shownFit():null;
+  const t=op=>toolItem(op), pk=(cfg.series||{}).__peaks||{};
+  const go=sec=>()=>{ S.statSec=sec; openWin("stats",{render:true}); renderStats(); };
+  // The columns selected in the worksheet, or the active one.
+  const hist=()=>{ const sel=wsSelColIds().filter(id=>{ const c=colById(id); return c&&(c.role==="y"||c.role==="ignore"); }); return sel.length?sel:[activeYCol().id]; };
+  return [
+    {label:"Fit", sub:()=>[
+      {label:"Curve fit…", run:()=>{ S.fitMode="curve"; showTab("fit"); renderPlot(); }, enabled:!!p},
+      {label:"Peak fit…", run:()=>{ S.fitMode="peaks"; showTab("fit"); renderPlot(); }, enabled:!!p},
+      {label:"New function…", run:()=>{ S.fitMode="curve"; showTab("fit"); editUserFn(null); }, enabled:edit},
+      "-",
+      {label:"Fit", kbd:"Ctrl+Enter", run:fitNow, enabled:edit&&has},
+      yCols().length>1?{label:"Fit every column…", run:openBatchDialog, enabled:edit&&!!f, title:f?"":"Fit the active column first: its fit is the template"}:null,
+      "-",
+      {label:"Show residuals", checked:!!p&&residOn(cfg,sf||residHint()), title:"A panel of the residuals under the graph, when there is a fit", run:()=>togglePlot("resid"), enabled:edit},
+      {label:"Confidence band", checked:cfg.bandConf!==false, enabled:edit&&!!sf, run:()=>setPlotKey("bandConf",cfg.bandConf===false,cfg.bandConf===false?"showed the fit's confidence band":"hid the fit's confidence band")},
+      {label:"Prediction band", checked:!!cfg.bandPred, enabled:edit&&!!sf, run:()=>setPlotKey("bandPred",!cfg.bandPred,cfg.bandPred?"hid the fit's prediction band":"showed the fit's prediction band")},
+      sf&&sf.kind==="composite"?{label:"Shade each fitted peak", checked:pk.fill!==false, enabled:edit, run:()=>setSeriesStyle("__peaks",{fill:pk.fill===false},pk.fill===false?"shaded the fitted peaks":"took the shading off the fitted peaks")}:null,
+      "-",
+      {label:"Remove fit", run:removeFit, enabled:edit&&!!(p&&p.fit)}]},
+    {label:"Peaks…", title:"Find, mark and label peaks, without fitting them", run:()=>openPeakFinder(), enabled:!!p&&has},
+    {label:"Integrate…", title:"Areas between windows you drag on the graph, each over a local baseline, without a fit", run:()=>openIntegrate(), enabled:!!p&&has},
+    "-",
+    {label:"Signal processing", sub:()=>[t("smooth"), t("fft")]},
+    {label:"Calculus", sub:()=>[t("deriv"),
+      {label:"Derivative, as a new column…", title:"Keeps this column and adds its derivative beside it", run:()=>{ const id=newDerived("final",{quiet:true,name:`d/dx ${specName(activeYCol())}`}); if(id) openTool("deriv",{col:id}); }, enabled:edit&&has},
+      t("cumint")]},
+    {label:"Statistics", sub:()=>[{label:"Descriptive statistics…", title:"Each column's numbers, the integral of the range in view, the noise and the signal to noise", run:go("desc"), enabled:has},
+      {label:"Correlation between columns…", run:go("corr"), enabled:has&&yCols().length>1},
+      {label:"Histogram", title:"The distribution of the selected columns' values (or the active column's), as a column of its own on a graph of its own", run:()=>histogramCols(hist()), enabled:has&&!S.readOnly}]},
+    {label:"Spectroscopy", sub:spectroscopyItems},
+    "-",
+    {label:"Results", run:()=>openWin("res",{render:true}), enabled:!!p},
+    p&&p.batch?{label:"Batch results", run:()=>openWin("batch",{render:true})}:null];
 }
 /* ============================================================
    Peaks: find them, mark them and label them, on their own. Fitting is one
@@ -16946,7 +16924,7 @@ function idTolAuto(rows,d){ const ws=rows.map(r=>r.w).filter(v=>v>0).sort((a,b)=
   const sp=d?spacingOf(d.x):0; return sp?+fmt(3*sp,2):1; }
 // The lines of a list in a spectrum's units, or null with the reason.
 function linesFor(lib,xu){ if(!lib) return {err:"Choose a list of lines."}; const k=lineScale(lib.unit,xu);
-  if(k==null) return {err:`The lines are in ${lib.unit||"no unit"} and the spectrum's X is in ${xu||"no unit"}${/^chan/i.test(xu||"")||!xu?": calibrate it to energy first (Spectroscopy › X axis › Energy calibration)":""}.`};
+  if(k==null) return {err:`The lines are in ${lib.unit||"no unit"} and the spectrum's X is in ${xu||"no unit"}${/^chan/i.test(xu||"")||!xu?": calibrate it to energy first (Analyze › Spectroscopy › X axis › Energy calibration)":""}.`};
   return {lines:lib.items.map(l=>Object.assign({},l,{x:l.x*k}))}; }
 /* The reach of a line: the distance typed, or with none each peak's own FWHM
    (resolution grows with energy, so a line at 2.6 MeV is allowed further than
@@ -17450,7 +17428,7 @@ function wirePeaks(box){
   const on=(sel,fn)=>{ const el=box.querySelector(sel); if(el) el.onclick=fn; };
   on("#pkFind",()=>{ const n=findPeaksInto(); renderPeaks(); if(n!=null) toast(`${n} peak${n===1?"":"s"} marked.`,{action:"Undo",run:undo}); });
   on("#pkDone",()=>{ const c=activeYCol(), n=c?peakGroup(c.id).length:0; if(S.mode==="label"||(S.pick&&S.pick.pkr)){ S.pick=null; setMode("zoom"); } closeWin("peaks"); renderPlot();
-    if(n) toast(`${n} peak${n===1?"":"s"} marked on ${specName(c)}. ${MP_TXT("Spectroscopy › Find peaks…")} opens this again.`); });
+    if(n) toast(`${n} peak${n===1?"":"s"} marked on ${specName(c)}. ${MP_TXT("Analyze › Peaks…")} opens this again.`); });
   on("#pkAll",()=>{ if(pkRegsOf(activeYCol()).length) setPkRegs([],"searching the whole spectrum"); });
   on("#pkView",()=>{ const v=viewRng(); if(v) addPkRegion(v[0],v[1]); });
   on("#pkPick",()=>pickPkRange());
@@ -17836,7 +17814,7 @@ const ovAuto=()=>{ try{ return localStorage.getItem("kurve.ovAuto")!=="0"; }catc
 /* Data that looks like a spectrum, by the Overview's own measures (UX_SPEC 3.7):
    fifty points or more, in order and evenly spaced, with a band standing clear of
    the noise. The Overview opens by itself, and a curve offers to label a peak,
-   only for such data; the Spectroscopy menu has both for any. */
+   only for such data; Analyze › Spectroscopy has both for any. */
 function looksLikeSpectrum(c){ if(!c) return false; const d=finalOf(c); if(!d||!d.x||d.x.length<50) return false;
   const o=overviewOf(d); return !o.few&&o.n>=50&&o.sorted&&o.uneven<=0.1&&o.bands.length>0&&(o.snr==null||o.snr>=5); }
 function autoOverview(){ if(ovAuto()&&P()&&activeYCol()&&looksLikeSpectrum(activeYCol())) openOverview(); }
@@ -18594,7 +18572,7 @@ const DOCS=[
 <ol class="dsteps">
 <li><strong>Bring the data in.</strong> Drop a file anywhere on the window, press <em>Import</em>, or paste columns into the worksheet. Every column goes into the worksheet; work on them there and plot what you need when you are ready. ${DA("import","Importing data")} · ${DA("plotting","Plotting columns")}</li>
 <li><strong>Look at it.</strong> For a spectrum, the Overview says what it is like (noise, bands, spikes, background) and what to do first. ${DA("overview","The Overview")}</li>
-<li><strong>Process it.</strong> Every operation is a tool in the <em>Data</em>, <em>Analysis</em> and <em>Spectroscopy</em> menus. It previews on the graph; <em>OK</em> records it as a step in the History. ${DA("steps","Processing steps")}</li>
+<li><strong>Process it.</strong> Every operation is a tool in the <em>Data</em> and <em>Analyze</em> menus. It previews on the graph; <em>OK</em> records it as a step in the History. ${DA("steps","Processing steps")}</li>
 <li><strong>Measure it.</strong> Find and label peaks, integrate bands, or fit a model or a set of peaks. ${DA("peaks","Peaks")} · ${DA("integ","Bands")} · ${DA("fit","Fitting")}</li>
 <li><strong>Share it.</strong> Export the figure, the data, or a report with every number, step and caveat. ${DA("export","Exporting")}</li>
 </ol>
@@ -18619,12 +18597,14 @@ ${DL([["Move","Drag the title bar."],["Resize","Drag an edge or the bottom-right
 <p>As a workbook keeps a tab for each sheet, the taskbar keeps a button for each of the project's <strong>documents</strong>: its graphs, the worksheet and its trend graphs. They minimise; a graph can also be closed, and then leaves the taskbar until it is opened again. After them come the <strong>tool windows</strong> in use (History, Peaks, Fit…), only while they are open or minimised: one you never opened is not there, and one you close leaves.</p>
 ${DL([["In front","A raised white key with a short coloured bar under it. Click it to minimise the window."],["Open","Flat, with a short grey bar under it. Click it to bring the window forward."],["Minimised","Flat, no bar, its name lighter. Click it to bring the window back where it was."]])}
 <p>The taskbar starts with the project's name: every window on the desk is that project's, and a click switches projects. <em>Tile</em> and <em>Cascade</em> sit together at its right end. With more than four graphs they share one <em>Graphs</em> button that lists them, and so do more than three trend graphs. When the buttons do not fit in one row, those least recently used go into a <em>more</em> button at the end, never the window in front.</p>
+<h2 id="menus">The menus</h2>
+<p>The menu bar follows the stage of work, left to right: <em>File</em> and <em>Edit</em>, then <em>Data</em> (the worksheet, and what prepares the data: cleaning, the baseline, transforms), <em>Plot</em> (making graphs and looking at them), <em>Analyze</em> (fits, peaks, integrals, signal processing, calculus, statistics, spectroscopy, the results), <em>Figure</em> (how a graph looks: format, axes, fonts, legend, annotations) and <em>Publish</em> (exports, the report, copies), then <em>Window</em> and <em>Help</em>. Each command has one place. A graph window repeats Data, Plot, Analyze and Figure on its own bar.</p>
 <h2 id="winmenu">The Window menu</h2>
 <p>${MP("Window")} lists the windows in use, as Excel's <em>Switch Windows</em> does: the one in front is ticked, a minimised one says so, and a click brings any to the front. With many, it offers a search instead. ${MP("Window › Tool windows")} lists every tool window (History, Fit, Results and the rest), ticked while it is in use: click to open one or to close it. <em>Minimise the others</em> leaves only the window in front on the desk; <em>Close the tool windows</em> closes every one and keeps the documents. A badge counts open comment threads; a dot shows a fit's state or a warning in the processing. <em>Tile</em> and <em>Cascade</em>, also at the taskbar's right, arrange the open windows; <em>Restore the default arrangement</em> starts again.</p>
 <p>The arrangement is remembered in this browser, as fractions of the desk, so it survives a resized window; graph windows are remembered per project. ${DA("graphs","Several graphs")}</p>
 <h2>The toolbar</h2>
 ${DL([["Import, Export","Bring a file in; save the graph, data or a report."],["Undo, Redo","Every change, in every window."],["Zoom … Shape","The pointer tools; in a shared project, Comment too. "+DA("graph","The graph")],["Show all","Back to all the data."],["Reverse X, Log Y, Grid","Axis and graph switches, drawn off until a graph is on the desk."]])}
-<p>The plot type and the layout of several curves are in ${MP("Plot")} and a curve's right-click menu; the residual panel is in ${MP("Analysis › Fit")} and the Fit window; what the graph shows (original, processed or both) is on the graph window's own bar.</p>
+<p>The plot type and the layout of several curves are in ${MP("Plot")} and a curve's right-click menu; the residual panel is in ${MP("Analyze › Fit")} and the Fit window; what the graph shows (original, processed or both) is on the graph window's own bar.</p>
 <h2>The status bar</h2>
 <p>What the current tool does, the value under the pointer, how many points are in use (masked and in view), the fit's state, and whether the project is saved.</p>
 <h2>On a phone</h2>
@@ -18683,7 +18663,7 @@ ${DL([["Into","The project on the desk (named in the list, with how many columns
 <h2 id="onecol">One column: counts per channel</h2>
 <p>A multichannel analyser writes one number per line, the counts of one channel, with no X column. Kurve reads such a file as one spectrum against its <strong>channel number</strong>:</p>
 ${DL([["X column","<em>Channel number</em>: each line's position, counted from <em>First channel</em> (0 or 1). The channel numbers are kept as the spectrum's X column, so the record shows what the file said."],["The first two lines (TKA)","A <code>.TKA</code> file starts with the live time and the real time in seconds. With <em>The first two lines are the live and real time</em> ticked (the default for .TKA) they are not counts: they go into the metadata, with the dead time, and the counts start on line 3."],["Y error","<em>√N error bars for the counts</em> adds error bars of √N (1 for an empty channel), as a column computed from the counts: weights for a fit, and errors for a band's area. It is offered for whole numbers named as counts (<em>counts</em>, <em>cts</em>, <em>cps</em>, <em>events</em>) or read from a TKA file; whole numbers alone (ages, scores) are not counts."],["Counts per second","The line saying what was read from the TKA header has a button that adds a step dividing by the live time: the counts stay as recorded, the processed data are a count rate."]])}
-<p>The spectrum is drawn as a line, not thousands of dots. Then calibrate it to energy: with the step ${DA("step-ecal","Energy calibration")} (${MP("Spectroscopy › X axis")}), or a ${DA("formulas","worksheet formula")}. The Overview suggests it. ${DA("gamma","A gamma spectrum, start to finish")}</p>
+<p>The spectrum is drawn as a line, not thousands of dots. Then calibrate it to energy: with the step ${DA("step-ecal","Energy calibration")} (${MP("Analyze › Spectroscopy › X axis")}), or a ${DA("formulas","worksheet formula")}. The Overview suggests it. ${DA("gamma","A gamma spectrum, start to finish")}</p>
 <p>A column of numbers pasted or typed with no X column is drawn against its row number, as in Origin.</p>
 <h2>What is refused</h2>
 <p>Binary instrument files (SPC, OPUS, SPE) are refused with a reason. Export them as text from the instrument software first. JCAMP-DX is not read yet.</p>
@@ -18774,7 +18754,7 @@ ${DL([["Series","From a start, adding a step each row (below zero counts down). 
 <h2>The check code</h2>
 <p>Whenever original data change (an import, a paste, a value typed or changed, a deleted column or row), Kurve records a SHA-256 check code of every original column. The <em>Original data</em> box in the History shows the record: when, by whom, what changed, and whether today's data still match the last check code.</p>
 <h2>Checking it yourself</h2>
-<p>${MP("Export › Original data as CSV")} writes exactly the lines that were fingerprinted, under comment lines. Anyone can check it:</p>
+<p>${MP("Publish › Original data as CSV")} writes exactly the lines that were fingerprinted, under comment lines. Anyone can check it:</p>
 <pre>grep -v '^#' data.csv | sha256sum</pre>
 <p>The result must equal the check code in the file's header, the History and the report.</p>`},
 {id:"spectra", g:"Data", t:"Columns and new columns", kw:"spectrum spectra column analysed active derived copy branch hide show multiple several x axis",
@@ -18790,7 +18770,7 @@ ${DL([["Series","From a start, adding a step each row (below zero counts down). 
 <h2>New columns from old</h2>
 <p>A derived column has no data of its own: it starts from another column's original or processed data and has steps of its own, drawn as a branch in the History. From an original or processed box in the History, <em>New column</em>:</p>
 ${DL([["From this processed data","A new column that starts where this one ends: for a derivative beside the column, or a second route to compare."],["A copy with the same steps","The same processing, to change one setting and compare."]])}
-<p>${MP("Analysis › Mathematics › Derivative, as a new column…")} makes the derivative as a column of its own, keeping the original.</p>`},
+<p>${MP("Analyze › Calculus › Derivative, as a new column…")} makes the derivative as a column of its own, keeping the original.</p>`},
 /* ---------------------------------------------------------------- Processing */
 {id:"history", g:"Processing", t:"The History", win:"flow", kw:"history flow chart steps boxes lanes inspector stage log reorder",
  lead:"A flow chart of the data: what was recorded, every step applied to each column, and what came out. Click any box to see the data at that point.",
@@ -18807,7 +18787,7 @@ ${DL([["Insert","The + on a line, or the <em>Step</em> button, opens the tool li
 {id:"steps", g:"Processing", t:"Processing steps", kw:"tool step dialog preview suggest settings apply every spectrum checks warnings order",
  lead:"Every change to the data is a step: a tool you choose from a menu, preview on the graph, and record with OK.",
  body:`<h2>Using a tool</h2>
-<ol class="dsteps"><li>Choose it from ${MP("Data")}, ${MP("Analysis")} or ${MP("Spectroscopy")}, from the graph window's own bar, or from the + in the History.</li>
+<ol class="dsteps"><li>Choose it from ${MP("Data")}, ${MP("Analyze")} or ${MP("Analyze › Spectroscopy")}, from the graph window's own bar, or from the + in the History.</li>
 <li>The tool window shows the column it works on, where the step goes, a before-and-after chart, and the settings, first measured from the data the step will receive.</li>
 <li>The graph previews the result as you change a setting. <em>Suggest settings</em> measures them again.</li>
 <li><em>OK</em> records the step; <em>Cancel</em> leaves no trace. With several columns, <em>Apply the same step to every other column</em> adds it to all, with these settings or with settings measured on each column (the method and choices stay; the numbers are each one's own suggestion).</li></ol>
@@ -18826,27 +18806,27 @@ ${DL([["Insert","The + on a line, or the <em>Step</em> button, opens the tool li
 ${DL([["Zoom","Drag a box to zoom; a flat box zooms X only. Scroll to zoom at the pointer. Click a point to select it."],["Pan","Drag to move the view. The middle button pans in any tool."],["Mask","Click a point or drag a box to leave points out of the fit, the peak finder and the integrals; click again to bring them back."],["Add a peak","In the Fit window's peak fit: click where you see a peak to add it to the fit."],["Label","Click a peak to label it and type; click an empty spot to write text. "+DA("annos","Labels and text")],["Arrow","Drag from where the arrow starts to what it points at; its head snaps to a data point. "+DA("annos#arrows","Arrows")],["Comment","In a shared project: click a point or a spot to start a comment anchored there. Alone, right-click the graph › Add here › A comment here…"]])}
 <p>Double-click the graph, or <em>Show all</em>, to see all the data again. A zoom belongs to the X units it was made in.</p>
 <h2>Original, Processed, Both</h2>
-<p>The graph normally shows the processed data. On the graph window's own bar (or ${MP("Data › Show on the graph")}), <em>Original</em> shows the data as typed or imported, <em>Both</em> the two together. Selecting a box in the History shows the data at that point, and a chip on the graph's bar says which stage it is, with the way back.</p>
+<p>The graph normally shows the processed data. On the graph window's own bar (or ${MP("Plot › Show on the graph")}), <em>Original</em> shows the data as typed or imported, <em>Both</em> the two together. Selecting a box in the History shows the data at that point, and a chip on the graph's bar says which stage it is, with the way back.</p>
 <h2>Switches</h2>
 ${DL([["Reverse X","High to low, as wavenumbers are usually drawn."],["Log Y","A logarithmic Y axis."],["Grid","Grid lines."],["Residuals","A panel under the graph with the fit's residuals."]])}
 <h2>Right-click</h2>
 <p>On a curve: its colour, plot type and style. On an empty spot: a line, text or a peak label there; axes, layout and legend. On a line, a label, the legend or a title: its own options. ${K("Shift","F10")} opens the same menu from the keyboard.</p>
-<h2 id="graphmenu">The Graph menu</h2>
-<p>While a graph is on the desk, the menu bar has a <em>Graph</em> menu after Plot, and the toolbar its pointer tools and switches: the tools, the two ways of reading values, the view (show all, Reverse X, Log Y, grid lines), what of the fit is drawn and Format graph…. With only the worksheet on the desk neither is there, so nothing offers to act on a graph that is not shown. The graph window's own bar has the same menu.</p>
+<h2 id="graphmenu">The graph's menus</h2>
+<p>The graph window's own bar repeats the menu bar's <em>Data</em>, <em>Plot</em>, <em>Analyze</em> and <em>Figure</em>. ${MP("Plot › View")} has the ways of looking (Zoom, Pan, the Reader, the X–Y lines, show all), ${MP("Figure")} the look (format, Reverse X, Log Y, scales, grid lines, fonts, legend, annotations), and ${MP("Analyze › Fit")} what of the fit is drawn. While a graph is on the desk the toolbar has its pointer tools and switches; with only the worksheet on the desk they are not there, so nothing offers to act on a graph that is not shown.</p>
 <h2 id="reader">Reading values</h2>
 <p>The status bar shows the value under the pointer. A selected point can be moved with ${K("←")} ${K("→")}. ${DA("keys#k-graph","All the graph's keys")}</p>
 ${DL([["Data reader","The <em>Reader</em> tool: hovering rings the plotted point nearest the pointer, a click pins it, and a card on the graph gives its curve, its row and its X and Y (with its error, if it has one). "+K("←")+" "+K("→")+" step along the curve, "+K("↑")+" "+K("↓")+" go to the next curve, "+K("Home")+" "+K("End")+" the first and last points. The card's <em>Find</em> takes an X or a Y and goes to the nearest point with it, bringing it into view; <em>Copy</em> copies what it reads."],["X–Y lines","The <em>X–Y lines</em> tool: a vertical and a horizontal line through the graph, dragged by either (or where they cross). Where the vertical line is, the card gives every curve's Y; where the horizontal line is, the X at which each curve crosses it. Its list chooses both lines, the vertical alone (each curve's Y at one X) or the horizontal alone (where the curves cross one Y). The arrows move the lines a pixel at a time, ten with "+K("Shift")+"; X and Y can also be typed in the card."]])}`},
 {id:"scales", g:"Graph", t:"Axis scales, dates and a second Y axis", kw:"scale log logarithmic ln natural log2 reciprocal 1/x arrhenius offset reciprocal celsius kelvin square root sqrt probability normal percent quantile date time clock hours timestamp second y axis right transmittance absorbance other units",
  lead:"Besides linear and logarithmic, an axis can be on a natural log, log₂, reciprocal, offset reciprocal, square-root or probability scale; its numbers can read as dates and times; and a second Y axis can show the heights in other units.",
  body:`<h2 id="kinds">Scales</h2>
-<p>${MP("Plot › Axes › X scale")} (or Y), an axis's menu (right-click its numbers), or the Format dialog's axis page, <em>Type</em>. Each value is drawn where its transform puts it and numbered in its own units.</p>
+<p>${MP("Figure › Axes › X scale")} (or Y), an axis's menu (right-click its numbers), or the Format dialog's axis page, <em>Type</em>. Each value is drawn where its transform puts it and numbered in its own units.</p>
 ${DL([["Linear","The default."],["Logarithmic (log₁₀)","As the toolbar's Log Y (and the Y scale's). Numbered in powers of ten."],["Natural log (ln)","Numbered in powers of e: 1, e, e², e³."],["Log₂","Numbered in powers of two: 1, 2, 4, 8…"],["Reciprocal (1/x)","An Arrhenius plot: temperatures in kelvin on a scale of 1/T, so ln k against 1/T is a straight line, numbered in kelvin. Turn the axis round with Reverse X to have 1/T rise to the right."],["Offset reciprocal","1/(x + c): temperatures in degrees Celsius with c = 273.15, or any c you type."],["Square root","Counts whose small values matter beside large ones."],["Probability (%)","Percentages at their normal quantile, as on probability paper: a cumulative normal distribution is a straight line. Numbered 1, 5, 10, 50, 90, 95, 99…"]])}
 <p>Points a scale cannot show (zero or less on a log or reciprocal scale, 0 % or 100 % on a probability scale) are left out of the graph, never of the data. A scale's view is padded in its own coordinates; zoom and pan move through it. Breaks are for linear and log₁₀ axes only.</p>
 <h2 id="dates">Dates and times</h2>
 <p>A file's column of dates (<code>2024-03-01</code>, <code>2024-03-01 12:05:30</code>, with <code>T</code>, <code>Z</code> or a time zone such as <code>+02:00</code>) is read as seconds since 1970 in UTC, and a column of times (<code>12:05</code>, <code>1:30:15</code>) as seconds. The worksheet shows them as dates and times, and takes them typed the same way. Only dates that start with the year are read: <code>03/01/2024</code> is March or January depending on who wrote it.</p>
 <p>A graph against such a column numbers its X axis in dates and times, stepped in seconds, minutes, hours, days, months or years, with the day written wherever it changes. Any axis can do the same from its <em>Format</em>: <em>Time, h:mm:ss</em> reads seconds as a duration, <em>Date and time</em> reads seconds since 1970.</p>
 <h2 id="yo">A second Y axis</h2>
-<p>Across from the Y axis, the same heights in other units: transmittance (%) from absorbance, absorbance from transmittance, a × y + b with its own name and unit, or a formula in y (<code>10*log10(y)</code>). Right-click the Y axis's numbers › <em>A second Y axis in other units…</em>; once it is on, ${MP("Plot › Format a part › Second Y axis…")}. It follows the Y axis's scale and look, sits on the right (on the left when Y is on the right), and the report says what it shows. Not with two Y axes, a heat map or stacked panels, which use that edge.</p>`},
+<p>Across from the Y axis, the same heights in other units: transmittance (%) from absorbance, absorbance from transmittance, a × y + b with its own name and unit, or a formula in y (<code>10*log10(y)</code>). Right-click the Y axis's numbers › <em>A second Y axis in other units…</em>; once it is on, ${MP("Figure › Format a part › Second Y axis…")}. It follows the Y axis's scale and look, sits on the right (on the left when Y is on the right), and the report says what it shows. Not with two Y axes, a heat map or stacked panels, which use that edge.</p>`},
 {id:"errbars", g:"Graph", t:"Error bars", kw:"error bars error bar yerr xerr yer xer asymmetric plus minus upward downward upper lower band shaded caps sigma uncertainty standard deviation prediction band confidence band",
  lead:"A column's error bars come from columns of the worksheet: in Y or in X, both ways or one side only. They are drawn as bars or as a shaded band, and they follow the processing.",
  body:`<h2 id="kinds">Which columns</h2>
@@ -18857,11 +18837,11 @@ ${DL([["yEr±","Y, both ways: the usual kind."],["yEr+, yEr−","Y, upward and d
 <p>The Y error (the ± column, or the mean of the upward and downward ones) is carried by every step: scaled when the data are scaled, propagated through a logarithm, combined when columns are averaged. Upward and downward bars keep their recorded ratio. X bars are stretched as the processing stretches X: converted to Raman shift or to energy, an X error is an error in the new units.</p>
 <h2 id="draw">How they are drawn</h2>
 ${DL([["Bars","A line from the lower end to the upper end, with caps."],["Band","A shaded band between the lower and upper ends, under the curve: clearer for thousands of points. X errors stay bars."],["None","Not drawn; still used by a weighted fit."]])}
-<p>Right-click the curve, <em>Error bars</em>; or ${MP("Plot › Format graph…")}, the curve's page: show as, colour (the curve's by default), width, caps and the band's opacity. Every column shown has its own.</p>
+<p>Right-click the curve, <em>Error bars</em>; or ${MP("Figure › Format graph…")}, the curve's page: show as, colour (the curve's by default), width, caps and the band's opacity. Every column shown has its own.</p>
 <h2 id="use">What uses them</h2>
 <p>A ${DA("fit","weighted fit")} weights each point by its Y error, the mean of the two sides when they differ. With X errors, a fit can include them too: <em>Include the X errors</em> in the Fit window makes it an orthogonal distance regression, which fits each point's true X within its X error along with the parameters, so errors in X do not pull a slope flat and the parameters' errors include them. A band's area in the ${DA("integ","Integrate window")} carries the Y errors; it treats X as exact.</p>
 <h2 id="pred">Confidence and prediction bands</h2>
-<p>A fit is drawn with its <strong>confidence band</strong> (shaded): where the true curve lies, from the fit's covariance. The <strong>prediction band</strong> (dashed) adds the scatter of one new measurement: where a new point would fall. For an unweighted fit that scatter is the residual variance (reduced χ²); for a weighted one, the error of the nearest point. Right-click the fit curve to show either, or ${MP("Plot › Format graph…")}, the fit's page. Both are at the fit's confidence level, 95% unless set in the Fit window (${DA("curvefit#conf","Confidence level")}).</p>`},
+<p>A fit is drawn with its <strong>confidence band</strong> (shaded): where the true curve lies, from the fit's covariance. The <strong>prediction band</strong> (dashed) adds the scatter of one new measurement: where a new point would fall. For an unweighted fit that scatter is the residual variance (reduced χ²); for a weighted one, the error of the nearest point. Right-click the fit curve to show either, or ${MP("Figure › Format graph…")}, the fit's page. Both are at the fit's confidence level, 95% unless set in the Fit window (${DA("curvefit#conf","Confidence level")}).</p>`},
 {id:"plotting", g:"Graph", t:"Plotting columns", kw:"plot plotting select columns worksheet line scatter symbols sticks area steps new graph add to graph close closed hide reopen open a graph not plotted worksheet only later data column",
  lead:"Nothing has to be plotted until you are ready: import into the worksheet, work on the columns there, then select the ones to plot.",
  body:`<h2>Plotting the selected columns</h2>
@@ -18875,7 +18855,7 @@ ${DL([["A Y column","As it is: a column, with its processing."],["Other data","P
 <p>Every graph keeps its own list of columns: a column you make later is not added to one until you plot it there, or tick it in its ⋯ menu's <em>Columns on it</em>.</p>
 <h2 id="close">Closing a graph</h2>
 <p>The × on a graph's title bar (or <em>Close this graph</em> in its ⋯ menu) closes it: it leaves the desk and the taskbar but stays in the project with its columns, format and labels, for everyone who opens the project. ${MP("Window › Graphs")} lists every graph, the closed ones marked, and open one again; so does its box in the History. Undo opens a graph closed by mistake. Deleting a graph is in its ⋯ menu.</p>
-<p>The tools that work on the graph (${MP("Spectroscopy › Find peaks…")}, the Fit window, ${MP("Analysis › Integrate…")}) open it when it is closed, and when the active column is on no graph they plot it.</p>`},
+<p>The tools that work on the graph (${MP("Analyze › Peaks…")}, the Fit window, ${MP("Analyze › Integrate…")}) open it when it is closed, and when the active column is on no graph they plot it.</p>`},
 {id:"graphs", g:"Graph", t:"Several graphs", kw:"graphs windows several many multiple each spectrum own graph tile grid link zoom compare sample series panel figure new duplicate rename delete combine merge drag drop hold together one graph overlay add",
  lead:"A project can have as many graphs as it needs, each in its own window: one per sample, or a few columns together. The graph you click is the one you work on; the others wait beside it.",
  body:`<h2>Making graphs</h2>
@@ -18896,7 +18876,7 @@ ${DL([["A whole graph","Hold the grip "+ICON("grip","sm")+" in its title bar and
 <h2>Fast with many</h2>
 <p>Only the graph in front is live. The others are pictures, drawn again only when something they show changes (their data, processing, settings, zoom or labels), a few at a time, so twelve graphs cost little more than one.</p>
 <h2>History and exports</h2>
-<p>With several graphs, the History has a box for each, below the columns it shows, with its layout, what is drawn on it, its recent changes and its own discussion; the log names the graph each change was made on. ${MP("Export › All graphs as one figure")} lays every graph out in one SVG or PNG, lettered (a), (b)…; <em>Every column's processed data as CSV</em> writes them side by side; the report shows every graph. ${DA("export","Exporting")}</p>`},
+<p>With several graphs, the History has a box for each, below the columns it shows, with its layout, what is drawn on it, its recent changes and its own discussion; the log names the graph each change was made on. ${MP("Publish › All graphs as one figure")} lays every graph out in one SVG or PNG, lettered (a), (b)…; <em>Every column's processed data as CSV</em> writes them side by side; the report shows every graph. ${DA("export","Exporting")}</p>`},
 {id:"maps", g:"Graph", t:"Maps of a series", kw:"map heat map contour contours image colour map color map levels series temperature time series variable cut profile slice real spacing interpolate colour bar color bar filled",
  lead:"A series of columns (a temperature run, a time series) drawn as one map: X along, the series variable up the side at its real spacing, the intensity as colour, with contour lines and their levels, and cuts through it.",
  body:`<h2>Making one</h2>
@@ -18913,7 +18893,7 @@ ${DL([["The profile at one X","A trend graph of every column's value at that X a
 {id:"dists", g:"Graph", t:"Distributions: histograms, boxes and violins", kw:"histogram bins bin width frequency count probability density percent cumulative distribution box chart box plot boxplot whisker whiskers quartile quartiles median interquartile iqr outlier outliers tukey violin kernel density kde bandwidth silverman column chart bar chart columns bars categories",
  lead:"How a column's values are spread: counted into bins as a histogram, or summed up per column as boxes or violins side by side.",
  body:`<h2>Histograms</h2>
-<p>Select columns in the worksheet and press ${MP("Plot › Histogram")} on the worksheet's bar, or use ${MP("Statistics › Histogram")} (the selected columns, or the active one). Each histogram is a column of its own, <em>Histogram of …</em>, made from the column's processed data by a <em>Histogram</em> step, on a graph of its own (several go in one figure, a panel each). As it is a step, it follows the processing: change a value, mask a point, and the counts change with it.</p>
+<p>Select columns in the worksheet and press ${MP("Plot › Histogram")} on the worksheet's bar, or use ${MP("Analyze › Statistics › Histogram")} (the selected columns, or the active one). Each histogram is a column of its own, <em>Histogram of …</em>, made from the column's processed data by a <em>Histogram</em> step, on a graph of its own (several go in one figure, a panel each). As it is a step, it follows the processing: change a value, mask a point, and the counts change with it.</p>
 ${DL([["Bins","Chosen for the data (Freedman–Diaconis: twice the interquartile range over the cube root of the count, rounded to 1, 2, 2.5 or 5 times a power of ten), Sturges' or the square-root rule, a number of bins, or a width you type. A start you type puts the first edge there; left empty, it is a whole number of widths below the smallest value."],["Shown as","Counts, the probability or percent of the values in each bin, or a density (the probability over the bin's width, so the columns' area is 1 and a fitted distribution can be compared with it)."],["Cumulative","Each bin with all those before it: the cumulative probability rises to 1."],["Values left out","Values below the start you typed are not counted, and the step says how many."]])}
 <p>Change the bins in the History (the step's box) or with the histogram's right-click <em>Histogram bins…</em>. A histogram is fitted like any column: a Gaussian through it gives the mean and width of the values.</p>
 <h2>Columns</h2>
@@ -18933,12 +18913,12 @@ ${DL([["One panel per column",MP("Plot › New graph › A figure, a panel for e
 ${DL([["Rows and columns","The panels fill them in reading order."],["Share X","The rows touch, only the bottom row has numbers and a title, every panel shows the same X range, and zooming one zooms them all."],["Share Y","The columns touch, only the left column has numbers, and every panel shows the same Y range."],["Gap","The space between panels that do not touch."],["Letters","(a), (b)… at the top left of each plot, in reading order, or A, B…, or none."],["Widths and heights","Relative: <code>2, 1</code> makes the first column (or row) twice the second."]])}
 <p>Each plot area is lined up with its row's and column's: every panel takes the widest left margin of its column and the tallest bottom margin of its row, so axes line up even when one panel's numbers are longer. The panel's own ⋯ items (in the figure's ⋯ menu) choose its columns, rename it, move it up, down, left or right, take it out (a graph of its own again) or delete it. <em>Span</em> makes a panel wider or taller, over empty cells next to it, or across its whole row: a wide panel under two small ones. <em>Panels…</em> adds the rows or columns to make room.</p>
 <h2>Exporting</h2>
-<p>Any export of a panel (SVG, PDF, EPS, PNG, or ${MP("Export › Graph for a paper or slides…")}) writes the whole figure, at its proportions on screen or at the size asked for, each panel with its own ids. A figure is one item in <em>All graphs as one SVG</em> (or PNG), with its panels lettered inside it.</p>
+<p>Any export of a panel (SVG, PDF, EPS, PNG, or ${MP("Publish › Graph for a paper or slides…")}) writes the whole figure, at its proportions on screen or at the size asked for, each panel with its own ids. A figure is one item in <em>All graphs as one SVG</em> (or PNG), with its panels lettered inside it.</p>
 <h2>Deleting</h2>
 <p><em>Delete the figure</em> makes its panels graphs of their own again; <em>Delete the figure and its panels</em> removes those graphs too (never their columns). Closing it keeps it in the project, as a graph.</p>`},
 {id:"style", g:"Graph", t:"Formatting the graph", kw:"format plot details spline b-spline smooth connect colour by color by size by third column colormap fill between hatch hatching pattern black and white style colour color line symbol width dash fill axes axis ticks tick length mirror position offset zero frame box grid background margin legend columns layout overlay offset stack double y heat map font scheme title quick styles every graph formats saved template journal slides break broken axis gap leave out second x axis top axis wavelength raman shift wavenumber energy ev micrometre conversion project colleagues share",
  lead:"The Format dialog holds every setting of the figure, page by page. Changes show on the graph as you make them; OK keeps them as one undo step, Cancel leaves the graph as it was.",
- body:`<p>Open it from ${MP("Plot › Format graph…")}, the graph's right-click menu, a double-click on an axis's numbers, or <em>Font, size and every setting…</em> on anything drawn. Drag its title bar to move it off what it hides; a double click puts it back. <em>Defaults</em> resets the page in front.</p>
+ body:`<p>Open it from ${MP("Figure › Format graph…")}, the graph's right-click menu, a double-click on an axis's numbers, or <em>Font, size and every setting…</em> on anything drawn. Drag its title bar to move it off what it hides; a double click puts it back. <em>Defaults</em> resets the page in front.</p>
 <h2 id="data">Data</h2>
 <p>For each curve: whether it is shown, its legend label, plot type (line, symbols, line and symbols, sticks, area, steps, columns), colour, line style and width, symbol and size, fill and opacity. The fit curve has its own page, with the shading and colours of fitted peaks.</p>
 ${DL([["Connect","Straight lines between the points, a spline through them, or a B-spline (smooth, near them but not through them). Up to a few thousand points; past that the line is drawn straight, which looks the same."],["Colour by, size by","Symbols coloured by the values of a third column (a temperature, a time, a concentration), each point by the value in its own row, with a colour bar titled with the column; or sized by them, small to large, with a legend of a few round values and their sizes beside the graph (the curve's page turns it off). For the Symbols and Line + symbols types. The colour map is the graph's (Map › Colour map)."],["Fill between it and","The area between this curve and another, over the X they share, in its colour where it is the higher and in a second colour (<em>Where it is lower</em>) where it is not. Overlaid curves only."],["Hatching","Lines across an area or a fill between two curves (diagonal, crossed, horizontal, vertical, dots), for a figure printed in black and white. Set the fill's opacity to nothing for hatching alone."]])}
@@ -18969,7 +18949,7 @@ ${DL([["Layout","<em>Overlay</em>; <em>Offset</em> (a waterfall, each trace labe
 <li>Right-click an axis's numbers, a title, the legend or an empty spot for their menus. Everything with text has the same menu in the same order: <em>Edit text</em>; <em>Size</em>, <em>Bold</em>, <em>Italic</em> and <em>Colour</em>; what is its own (an axis title's place along the axis, a line's style and width, a label's mark, the legend's place and columns); <em>Format…</em> for its page of the Format dialog; <em>Delete</em>.</li>
 <li>An axis title can have a font, size, weight, slant and colour of its own: its axis's page (or the title's right-click menu). The style of every axis title is on the <em>Text and fonts</em> page.</li></ul>
 <h2 id="formats">Saved styles</h2>
-<p>A saved style is a graph's frame, axes, text, legend and colours, without its data, ranges, titles or labels. ${MP("Plot › Saved styles")} gives the graph one of Kurve's (its own; a journal's, sans serif at 8 pt with the axes alone and ticks out; classic serif in a box; slides, with large text and heavy axes; minimal, open axes on a light grid) or one you saved. <em>Save this style…</em> keeps the graph's <strong>in this project</strong>, where it is saved, undone and shared with the project, so a colleague who opens it has it, or <strong>in this browser</strong>, for any graph in any project opened here. <em>Rename or delete a style</em> renames, deletes, or copies one from the project to the browser and back. In the Format dialog, <em>Saved styles</em> shows one on the graph before OK keeps it. With several graphs, <em>Give every graph a style</em>.</p>
+<p>A saved style is a graph's frame, axes, text, legend and colours, without its data, ranges, titles or labels. ${MP("Figure › Saved styles")} gives the graph one of Kurve's (its own; a journal's, sans serif at 8 pt with the axes alone and ticks out; classic serif in a box; slides, with large text and heavy axes; minimal, open axes on a light grid) or one you saved. <em>Save this style…</em> keeps the graph's <strong>in this project</strong>, where it is saved, undone and shared with the project, so a colleague who opens it has it, or <strong>in this browser</strong>, for any graph in any project opened here. <em>Rename or delete a style</em> renames, deletes, or copies one from the project to the browser and back. In the Format dialog, <em>Saved styles</em> shows one on the graph before OK keeps it. With several graphs, <em>Give every graph a style</em>.</p>
 <h2>Every graph alike</h2>
 <p>With several graphs, <em>Use on every graph</em> gives all of them this graph's frame, axes, text, legend and colours; their data, ranges, titles and labels stay their own. ${DA("graphs","Several graphs")}</p>
 <h2>Labels and lines</h2>
@@ -18979,7 +18959,7 @@ ${DL([["Layout","<em>Overlay</em>; <em>Offset</em> (a waterfall, each trace labe
  body:`<h2>Choosing a font</h2>
 <p>Every font button opens the same list: each name in its own face, grouped into sans serif, serif and monospace, with a search box. Fonts marked <em>web</em> load from Google Fonts the first time they are used, so they look the same on every computer. A font marked <em>not on this computer</em> would be drawn in its fallback; choose another, or one marked web. Any font can be typed by name: one on this computer is used as it is, and a name Google Fonts has is loaded from there. Where the browser allows, <em>This computer's fonts…</em> lists the fonts installed here (it asks first).</p>
 <h2>Which text</h2>
-${DL([["All text",MP("Plot › Font")+", or "+MP("Format graph › Text and fonts")+": the font and size of everything on the graph."],["Each kind","The title, axis titles, tick numbers, legend, labels and text, and fitted peak numbers each have a bar, as in a word processor: font, size in points, bold, italic, underline, colour and, for the title, alignment. A setting left empty follows the graph's."],["One label","A label, text or line has the same bar on its own page, over the labels' style."]])}
+${DL([["All text",MP("Figure › Font")+", or "+MP("Format graph › Text and fonts")+": the font and size of everything on the graph."],["Each kind","The title, axis titles, tick numbers, legend, labels and text, and fitted peak numbers each have a bar, as in a word processor: font, size in points, bold, italic, underline, colour and, for the title, alignment. A setting left empty follows the graph's."],["One label","A label, text or line has the same bar on its own page, over the labels' style."]])}
 <h2 id="rich">Superscripts, subscripts, symbols and maths</h2>
 <p>Every text on the graph is typed formatted, as in a word processor (raised and lowered characters, symbols from a list), or in LaTeX: <code>cm^{-1}</code>, <code>H_{2}O</code>, <code>\\alpha</code>, <code>$\\frac{dI}{dV}$</code>, nested as deep as you like. ${DA("latex","Text: formatted or LaTeX")}</p>
 <h2>In exports</h2>
@@ -19009,7 +18989,7 @@ ${DL([["Greek","<code>\\alpha</code> … <code>\\omega</code>, <code>\\Gamma</co
 {id:"annos", g:"Graph", t:"Labels, text, lines, arrows, shapes and insets", kw:"annotation label text line vertical horizontal range shade arrow inset zoom magnify peak label move drag type edit delete x snap guide align box rectangle ellipse circle square shape fill outline region highlight",
  lead:"Annotations belong to the figure: peak labels, free text, vertical and horizontal lines, and shaded X ranges.",
  body:`<h2>Adding</h2>
-${DL([["Peak label","The <em>Label</em> tool: click a peak and type. Or right-click near a peak."],["Text","The Label tool on an empty spot, or right-click › Text here."],["Lines","Right-click › Vertical or Horizontal line, at the spot clicked; or "+MP("Plot › Annotate › Vertical line…")+": a dialog asks which way, where (in the axis's units), what its text says (its position, your own words, or nothing) and how it looks."],["Anything, from the Format dialog","<em>Add</em> on its <em>Labels and lines</em> page."],["Shaded range",MP("Plot › Annotate › Shade an X range")+", then drag across the graph."],["A whole set",DA("peaks","The Peaks window")+" marks and labels every peak it finds."]])}
+${DL([["Peak label","The <em>Label</em> tool: click a peak and type. Or right-click near a peak."],["Text","The Label tool on an empty spot, or right-click › Text here."],["Lines","Right-click › Vertical or Horizontal line, at the spot clicked; or "+MP("Figure › Annotate › Vertical line…")+": a dialog asks which way, where (in the axis's units), what its text says (its position, your own words, or nothing) and how it looks."],["Anything, from the Format dialog","<em>Add</em> on its <em>Labels and lines</em> page."],["Shaded range",MP("Figure › Annotate › Shade an X range")+", then drag across the graph."],["A whole set",DA("peaks","The Peaks window")+" marks and labels every peak it finds."]])}
 <h2>Editing</h2>
 <ul><li><strong>Move</strong>: drag it. A moved label keeps a leader line to its peak.</li>
 <li><strong>Type</strong>: double-click a label or text (or select it and press ${K("Enter")}), or the text of a line, range, arrow or shape. ${K("Enter")} keeps, ${K("Shift","Enter")} starts a new line, ${K("Esc")} leaves it. A line's text left empty shows its position; <em>Text shows</em> in its menu chooses the position, your own text or nothing.</li>
@@ -19019,20 +18999,20 @@ ${DL([["Peak label","The <em>Label</em> tool: click a peak and type. Or right-cl
 <p>An empty label shows the value; <code>{x}</code> anywhere in a label or line's text stands for its position. Text can run over several lines.</p>
 ${DL([["Style","Its own font, size in points, bold, italic, underline, colour and alignment, over the graph's style for labels. "+DA("fonts","Fonts")],["Turn","Upright, 45°, 90°, −90°, or any angle typed. A vertical line's text runs beside the line or along it."],["Box","None, an outline, a fill, or both, each in a colour of its own."],["Where","Text sits at data values, so it moves with the data when you zoom, or is <em>pinned to the plot</em>: placed by fractions of the plot's width and height, so it stays put. Nine buttons place pinned text in a corner, at an edge or in the centre; <em>Centre across the plot</em> centres any text."],["Lines and ranges","Their text at the top, middle or bottom (left, middle or right on a horizontal line); colour, dash and width; a range's shading and lines at its edges."]])}
 <h2 id="arrows">Arrows</h2>
-<p>The <em>Arrow</em> tool on the toolbar (or ${MP("Plot › Annotate › Arrow")}, or the graph's right-click menu): drag from where the arrow starts to what it points at. Its head snaps to the nearest data point; hold ${K("Alt")} to place it freely. Select it and drag either end, or the arrow itself. Its head can be filled, open, at both ends or none (a plain line), with its size, the line's colour, dash and width; text written for it sits beyond its tail. Like text, it can be pinned to the plot.</p>
+<p>The <em>Arrow</em> tool on the toolbar (or ${MP("Figure › Annotate › Arrow")}, or the graph's right-click menu): drag from where the arrow starts to what it points at. Its head snaps to the nearest data point; hold ${K("Alt")} to place it freely. Select it and drag either end, or the arrow itself. Its head can be filled, open, at both ends or none (a plain line), with its size, the line's colour, dash and width; text written for it sits beyond its tail. Like text, it can be pinned to the plot.</p>
 <h2 id="shapes">Boxes and ellipses</h2>
-<p>The <em>Shape</em> tool on the toolbar opens a choice of a box or an ellipse; then drag across the graph from one corner to the other (${K("Shift")} makes a square or a circle). ${MP("Plot › Annotate")} and the graph's right-click menu have both. Select one and drag a corner to resize it, or the shape to move it. Its outline has a colour, dash and width (or none), its fill a colour and opacity (or none); a box can have rounded corners; it can sit <em>behind the data</em>, and hold text inside at its top, middle or bottom. Like text and arrows, it stays at data values or is pinned to the plot; <em>Make it an ellipse</em> (or a box) changes its kind.</p>
+<p>The <em>Shape</em> tool on the toolbar opens a choice of a box or an ellipse; then drag across the graph from one corner to the other (${K("Shift")} makes a square or a circle). ${MP("Figure › Annotate")} and the graph's right-click menu have both. Select one and drag a corner to resize it, or the shape to move it. Its outline has a colour, dash and width (or none), its fill a colour and opacity (or none); a box can have rounded corners; it can sit <em>behind the data</em>, and hold text inside at its top, middle or bottom. Like text and arrows, it stays at data values or is pinned to the plot; <em>Make it an ellipse</em> (or a box) changes its kind.</p>
 <h2 id="insets">Insets</h2>
-<p>Zoom into a region, then <em>Make this zoom an inset</em> from the graph's right-click menu (or ${MP("Plot › Annotate › Inset of the zoomed region")}): the graph returns to all the data with the region drawn small inside it, in the emptiest corner that does not cover the region, outlined on the graph with lines to the inset. Drag the inset to move it and its corner to resize it; its page sets the X and Y range (empty Y fits the data there), its place and size, the outline and lines, axis titles and the size of its text.</p>
+<p>Zoom into a region, then <em>Make this zoom an inset</em> from the graph's right-click menu (or ${MP("Figure › Annotate › Inset of the zoomed region")}): the graph returns to all the data with the region drawn small inside it, in the emptiest corner that does not cover the region, outlined on the graph with lines to the inset. Drag the inset to move it and its corner to resize it; its page sets the X and Y range (empty Y fits the data there), its place and size, the outline and lines, axis titles and the size of its text.</p>
 <h2>Lining things up</h2>
 <p>Dragged text lines up with the centre of the plot and with other text: a dashed guide shows when it does. Hold ${K("Alt")} to drag freely.</p>
 <h2>Marks</h2>
 <p>A peak label marks its peak with a triangle above it, a drop line to the axis, a dashed vertical line with the text along it, a leader line, or nothing.</p>
 ${TIP("Annotations are drawn only on data in the units they were placed in: a label placed on Raman shifts does not appear on a wavelength axis.")}`},
 {id:"export", g:"Graph", t:"Exporting", kw:"export save download svg png tiff tif pdf eps postscript vector latex illustrator csv report html json recipe copy clipboard paste picture figure paper journal column width dpi resolution slides transparent points size",
- lead:"The graph, the data and a report, from the Export button, File › Export or the graph's right-click menu.",
+ lead:"The graph, the data and a report, from the Export button, Publish or the graph's right-click menu.",
  body:`<h2 id="paper">A figure for a paper or slides</h2>
-<p>${MP("Export › Graph for a paper or slides…")} makes the figure at the size it will be printed, with a preview:</p>
+<p>${MP("Publish › Graph for a paper or slides…")} makes the figure at the size it will be printed, with a preview:</p>
 ${DL([["Size","One column (85 mm), one and a half (114 mm) or two (174 mm); Nature's 89 and 183 mm; ACS's 3.25 and 7 in; a 1920 × 1080 slide; as on screen; or your own width and height in mm, inches or pixels. <em>As on screen</em> takes the graph's proportions."],["Tick numbers","Their size in points at the printed size; every other text keeps its size beside them, so 8 pt numbers come out as 8 pt on the page."],["Lines and symbols","<em>Scale with the text</em>: the whole figure keeps the proportions it has on screen, lines and symbols as thick beside the text as there (best for slides). <em>As drawn</em>: lines keep their width in points whatever the text size."],["Format","SVG, vector, at that size in mm or inches, its web fonts embedded; PDF and EPS, vector at that size, for journals and LaTeX (below); PNG at 150 to 1200 dpi, which it records so a word processor places it at its size; TIFF, lossless, with its resolution, for journals that ask for it."],["Background","White, or transparent for PNG, TIFF and SVG."],["Graphs","With several graphs, this one or all of them as one figure."]])}
 <p>The settings are remembered in this browser.</p>
 <h2>Everything else</h2>
@@ -19048,11 +19028,11 @@ ${TIP("The report can never say less than the screen: its notes come from the sa
 ${DL([["Points","How many, any missing, repeated X values, gaps."],["X","The range, which way it runs, the step and whether it is even."],["Noise","σ, from second differences, and how far the strongest band stands above it."],["Bands","Each band's position and width, in X and in points."],["Spikes","One- and two-point spikes, such as cosmic rays."],["Flat tops","Points stuck at the maximum: a saturated detector."],["Below zero","Only a warning past five times the noise."],["Background","What <em>Subtract background</em> would take away, called flat, sloping or curved against the strongest band."]])}
 <h2>First steps</h2>
 <p>From that, suggestions in the order they belong: sort, average repeats, remove spikes, resample, subtract the background, and smooth only if the narrowest band spans 7 points or more. Each opens its tool with settings measured from the data; nothing is recorded until you press OK there. A suggestion already done is ticked.</p>
-<p><em>As recorded</em> and <em>After processing</em> switch between the original and processed data. It opens after every import; its checkbox turns that off. Also in ${MP("Spectroscopy › Overview of the spectrum…")} and a spectrum's original box in the History.</p>`},
+<p><em>As recorded</em> and <em>After processing</em> switch between the original and processed data. It opens after every import; its checkbox turns that off. Also in ${MP("Analyze › Spectroscopy › Overview of the spectrum…")} and a spectrum's original box in the History.</p>`},
 {id:"peaks", g:"Analysis", t:"Finding and labelling peaks", win:"peaks", kw:"peaks find mark label symbol drop line vertical leader table threshold every spectrum follow processing across matched series same peak label all range from to start end where view pick done close",
  lead:"Find the peaks of a spectrum, mark them on the graph and type a label for each, without fitting anything.",
  body:`<h2 id="where">Where to look</h2>
-<p>${MP("Spectroscopy › Find peaks…")} opens the Peaks window. Its first part says what is searched:</p>
+<p>${MP("Analyze › Peaks…")} opens the Peaks window. Its first part says what is searched:</p>
 ${DL([["Spectrum","Which spectrum's processed data. With several, choose any; <em>In every spectrum</em> finds the peaks of all of them with the same settings (in the same regions, for those on the same X axis), in one undo step."],["Whole spectrum","All of it, with the finder's settings."],["+ What's in view","Adds the range the graph is zoomed to as a region. The first search, when the window opens, takes the view."],["+ Drag on the graph","Adds a region by dragging across the graph."]])}
 <p id="regions"><strong>Regions</strong> are parts of the spectrum searched each with <em>its own settings</em>: a strict threshold where the counts are high and the noise wiggles, a gentle one where a weak line stands alone. The table lists them: their edges (type to change them), their settings in a few words (click to show them below), how many peaks each found, and × to remove one. The settings below are the selected region's (<em>Settings of</em>, with <em>Use in every region</em>); with no regions they are the finder's own. While the window is open the graph shades what no region covers, and numbers the regions. Each change is its own undo step, and the log says where and how the peaks were looked for.</p>
 <h2>Finding them</h2>
@@ -19072,13 +19052,13 @@ ${DL([["Lines","Kurve's lists: the natural background (the gamma lines of the ur
 <p>When several spectra on the same X axis have peaks marked, <em>Across the spectra</em> lists each peak once, matched between the spectra by position: a peak joins the nearest one of the spectrum before it, if within half the larger of their widths, so a band that drifts along the series stays one row. Each row says where the peak is, how far it moves, and in how many spectra it is found; rows the active spectrum lacks are greyed.</p>
 ${DL([["Label in every one","Type once: the peak is labelled so in every spectrum that has it, in one undo step."],["The chart button","Plots the peak's position against the series in the "+DA("batch","Batch window")+", with no fit needed; its value at the peak is there too."],["Copy","One table: a row per spectrum, a column per peak."]])}
 <h2>Done, or more</h2>
-<p><em>Done</em> closes the window; the peaks stay marked on the graph, in the exports and the report, and ${MP("Spectroscopy › Find peaks…")} opens it again. Nothing else is needed. If you want more: <em>Fit them…</em> sends them to the ${DA("peakfit","peak fit")}, and <em>Integrate them</em> puts a ${DA("integ","band")} around each.</p>`},
+<p><em>Done</em> closes the window; the peaks stay marked on the graph, in the exports and the report, and ${MP("Analyze › Peaks…")} opens it again. Nothing else is needed. If you want more: <em>Fit them…</em> sends them to the ${DA("peakfit","peak fit")}, and <em>Integrate them</em> puts a ${DA("integ","band")} around each.</p>`},
 {id:"gamma", g:"Analysis", t:"A gamma spectrum, start to finish", kw:"gamma spectrum tka multichannel analyser mca channel energy calibration kev background radiation nuclide identification lines literature counts live time real time dead time poisson sqrt n regions prominence",
  lead:"From a file of counts per channel to named peaks: import, calibrate, find the peaks region by region, name them from known lines.",
  body:`<ol class="dsteps">
 <li><strong>Import.</strong> Drop the <code>.TKA</code> file on the window. Its first two lines are the live and real time: they become metadata (with the dead time), and each later line is a channel. X is the channel number from 0. Tick <em>√Y, counting statistics</em> for error bars, and <em>Counts per second</em> for a count rate. ${DA("import#onecol","One column: counts per channel")}</li>
-<li><strong>Calibrate.</strong> ${MP("Spectroscopy › X axis › Energy calibration…")}: type the gain and offset (E = a·channel + b, in keV), or give two peaks or more of known energy and let it fit the line. The last calibration is remembered for the next file. Or in the worksheet type <code>0.3258*A+0.6937</code> into an empty column's F(x)= row and press <em>Use as X</em>; or in Python <code>x = [0.3258*v + 0.6937 for v in x]</code>. ${DA("step-ecal","Energy calibration")}</li>
-<li><strong>Find the peaks, region by region.</strong> ${MP("Spectroscopy › Find peaks…")}. The noise of counts is √N, and the finder knows it: a wiggle on hundreds of counts is not a peak, a line on a few counts is. Add regions (<em>+ Drag on the graph</em>) where you want other settings, for instance S/N ≥ 8 below 700 keV, where the continuum is high, and S/N ≥ 3 above. ${DA("peaks#regions","Regions")}</li>
+<li><strong>Calibrate.</strong> ${MP("Analyze › Spectroscopy › X axis › Energy calibration…")}: type the gain and offset (E = a·channel + b, in keV), or give two peaks or more of known energy and let it fit the line. The last calibration is remembered for the next file. Or in the worksheet type <code>0.3258*A+0.6937</code> into an empty column's F(x)= row and press <em>Use as X</em>; or in Python <code>x = [0.3258*v + 0.6937 for v in x]</code>. ${DA("step-ecal","Energy calibration")}</li>
+<li><strong>Find the peaks, region by region.</strong> ${MP("Analyze › Peaks…")}. The noise of counts is √N, and the finder knows it: a wiggle on hundreds of counts is not a peak, a line on a few counts is. Add regions (<em>+ Drag on the graph</em>) where you want other settings, for instance S/N ≥ 8 below 700 keV, where the continuum is high, and S/N ≥ 3 above. ${DA("peaks#regions","Regions")}</li>
 <li><strong>Name them.</strong> <em>Name them from known lines</em>, with the natural background's lines or your own list from the literature, within each peak's FWHM or a tolerance you type. ${DA("peaks#names","Naming from known lines")}</li>
 <li><strong>Look and report.</strong> Choose how the labels look (<em>On the graph</em>), copy the table, integrate the bands (<em>Integrate them</em>, with √N errors), or export a report: every step, the regions and the line each peak was named from are in it.</li></ol>`},
 {id:"finder", g:"Analysis", t:"The peak finder's settings", kw:"peak finder threshold signal to noise snr percent decades log scale smoothing narrowest closest at most derivative shoulder turned down reasons",
@@ -19142,7 +19122,7 @@ ${DL([["Start, Fix","Where the fit starts, and whether the parameter is held the
 <p>Each model's parameters have a meaning and a unit, and its starting values are measured from the data: a straight line through the logarithms for a power law, a logarithm and Arrhenius; the two levels and the width from 10 to 90% of the way for a step; the best of a grid of decay times for two or three decays; the strongest period for a wave. Many give values derived from the parameters, with their errors (a half-life, a FWHM and an area, the dose halfway, an activation energy in kJ/mol and in eV, a frequency), which Results lists under the parameters.</p>
 <p>The logistic, the power law, the logarithm and Arrhenius take the logarithm of <i>x</i> or a power of it, so they need X above 0; Hill and Michaelis–Menten need X of 0 or more. A fit over other X says so instead of fitting: set the ${DA("fit","range")} to the X they can take. Arrhenius reads X as the temperature in kelvins.</p>
 <div id="docModelList"></div>
-<p><em>Function</em> beside the model's button, <em>New function…</em> at the foot of the list, or ${MP("Analysis › Fit › New fit function…")}, adds ${DA("userfn","your own")}.</p>`},
+<p><em>Function</em> beside the model's button, <em>New function…</em> at the foot of the list, or ${MP("Analyze › Fit › New function…")}, adds ${DA("userfn","your own")}.</p>`},
 {id:"peakfit", g:"Fitting", t:"Peak fit", kw:"peak fit deconvolution peaks baseline draft handles drag find peaks reset estimates shape name label labels number centre area fwhm height errors units leader row turned",
  lead:"A spectrum as a sum of peaks on a baseline, each peak described by its centre, area and width.",
  body:`<h2>1 · Find peaks</h2>
@@ -19193,7 +19173,7 @@ ${DL([["Equal","The same value."],["A multiple","For areas: the 2 to 1 of a spin
 {id:"userfn", g:"Fitting", t:"Your own fit functions", kw:"user function custom formula expression parameters limits library",
  lead:"Write a function of x as on paper, and fit it like any built-in model.",
  body:`<h2>Writing one</h2>
-<p>${MP("Analysis › Fit › New fit function…")}, or <em>Function</em> beside the model list.</p>
+<p>${MP("Analyze › Fit › New function…")}, or <em>Function</em> beside the model list.</p>
 <pre>y = y0 + A*exp(-(x/t)^b)</pre>
 <p>Every name other than <code>x</code>, the functions and <code>pi</code>, <code>e</code> is a parameter, in order of appearance. Lines like <code>u = (x - xc)/w</code> name values for the lines below. The same arithmetic and functions as ${DA("formulas","column formulas")}.</p>
 <h2>Parameters</h2>
@@ -19213,7 +19193,7 @@ ${DL([["Reduced χ²","The residual sum of squares over the degrees of freedom (
 <p>Of the free parameters (not fixed, tied or at a limit), from the fit's covariance. A correlation above 0.95 is marked: those two parameters move together, and the data hardly tell them apart.</p>
 <h2 id="resid">Residuals and outliers</h2>
 ${DL([["Regular","y − f(x)."],["Standardised","The residual over s, the scatter left by the fit (√ of reduced χ²; for a weighted fit each residual is first multiplied by 1/σ)."],["Studentised","The same over s√(1 − h), h the point's leverage: how much the point alone sets the curve where it is (the leverages add up to the number of free parameters)."],["Studentised deleted","The same with s from the fit without that point. Past the outlier limit, a point is an outlier."]])}
-<p>Results shows any of them against X, against the fitted value, in the order recorded, as a histogram with the normal curve they should follow, on probability paper with the line they should lie on, or against the residual before (a pattern there means the points are not independent). The panel under the graph shows the kind chosen against X (${MP("Plot › Format graph…")}, the layout page, has it too).</p>
+<p>Results shows any of them against X, against the fitted value, in the order recorded, as a histogram with the normal curve they should follow, on probability paper with the line they should lie on, or against the residual before (a pattern there means the points are not independent). The panel under the graph shows the kind chosen against X (${MP("Figure › Format graph…")}, the layout page, has it too).</p>
 <p>The <strong>outlier limit</strong> is the t limit, at the fit's confidence level, for the largest studentised deleted residual of all the points (a Bonferroni limit): so with no outlier at all, some point is flagged about one data set in twenty at 95%, not every twentieth point. Outliers are listed with their x, y, residual and leverage, ringed on the graph and in the chart, and named in the notes; <em>Mask them</em> masks them in their column, so the next fit leaves them out (Undo brings them back). For a fit with the X errors there is no residual analysis: its residuals are not distances in Y. For a large fit the three parts are worked out when opened.</p>
 <h2>Notes</h2>
 <p>The fit did not converge; a peak is unusable; the covariance is singular; parameters depend on each other; a parameter is at a limit; points are past the outlier limit; the residuals run in long stretches of one sign (a runs test: the model misses a feature); the fit is out of date; warnings from the processing. The same notes are in the report.</p>
@@ -19224,7 +19204,7 @@ ${DL([["Regular","y − f(x)."],["Standardised","The residual over s, the scatte
  lead:"Fit one column, then every column from it, and compare them in one table and a trend plot: a peak's position against temperature, an area against time.",
  body:`<h2>From one fit to all of them</h2>
 <ol class="dsteps"><li>Fit one column, a peak fit or a curve fit, until you are happy with it. ${DA("fit","Fitting")}</li>
-<li><em>Fit every column…</em> in the Fit window, ${MP("Analysis › Fit › Fit every column…")}, or the Batch window.</li>
+<li><em>Fit every column…</em> in the Fit window, ${MP("Analyze › Fit › Fit every column…")}, or the Batch window.</li>
 <li>Choose where each fit starts, and OK. The Batch window shows the progress; <em>Stop</em> keeps what is done.</li></ol>
 <p>That fit is the template: its peaks with their shapes, ties and fixed parameters and its baseline (or its curve model), its X range and its weighting. Every column measured on the same X axis is fitted with it, each on its own processed data with its own masked points, by the same engine and with the same checks as a fit made by hand.</p>
 ${DL([["This fit's result","Every column starts from the template's numbers. For samples that differ little."],["The one before it in the series","For a series that drifts, such as a band moving with temperature: the fit starts at the template's column and runs out both ways, each column starting from its neighbour's result."],["The peaks found in each column","For different samples: the peak finder, with its current settings, finds each column's peaks, which are then fitted with the template's first shape and its baseline."]])}
@@ -19300,14 +19280,14 @@ const DOC_STEP={
   norm:`${DL([["Maximum = 1","Divide by the largest value."],["Range 0 to 1","Minimum to 0, maximum to 1."],["Area = 1","Divide by the area."],["Vector length = 1","Divide by √(Σy²)."],["Standard normal variate","Subtract the mean, divide by the standard deviation."],["A band","Divide by a band's height or area: an internal standard."]])}${TIP("Normalise after subtracting the background, or the background's size sets the scale.")}`,
   scale:`<p>A dark level to subtract, a gain to correct, a sign to flip.</p>`,
   ref:`<p>The other column is interpolated onto this one's X; points outside its range are dropped. A dashed line in the History shows which column the step reads, and the step is redone when that column changes.</p>`,
-  deriv:`<p>A Savitzky–Golay derivative of the order chosen, over the window chosen. Needs even spacing (resample first). ${MP("Analysis › Mathematics › Derivative, as a new column…")} keeps the column and adds its derivative beside it.</p>`,
+  deriv:`<p>A Savitzky–Golay derivative of the order chosen, over the window chosen. Needs even spacing (resample first). ${MP("Analyze › Calculus › Derivative, as a new column…")} keeps the column and adds its derivative beside it.</p>`,
   log:`<p>Points at or below zero have no logarithm and are left out.</p>`,
   absorb:`<div class="eq">A = −log₁₀ T</div><p>With transmittance in percent, T is divided by 100 first.</p>`,
   km:`<p>R is the diffuse reflectance, as a fraction or in percent.</p>`,
   bose:`<p>The temperature is the sample's, in kelvin. Needs X as a Raman shift in cm⁻¹.</p>`,
   combine:`<p>Choose the columns to combine with. With the mean, <em>Standard error between the columns as Y errors</em> turns their spread into error bars, which a weighted fit can use.</p>`,
   cumint:`<p>The last value is the total area. Scaled to 1, it reads as the fraction of the area below each X.</p>`,
-  hist:`<p>${MP("Statistics › Histogram")} (or Plot › Histogram on the worksheet's bar) makes the histogram as a column of its own, from the processed data, so the column it counts stays as it is. A bin holds the values from its left edge up to, not including, its right edge; the largest value is counted in the last bin. The column is drawn as columns, each a bin wide. Counts, probabilities (each bin's share), percentages and densities (counts over the count and the width, so the area is 1) can be cumulative; a cumulative density is the cumulative probability.</p>`,
+  hist:`<p>${MP("Analyze › Statistics › Histogram")} (or Plot › Histogram on the worksheet's bar) makes the histogram as a column of its own, from the processed data, so the column it counts stays as it is. A bin holds the values from its left edge up to, not including, its right edge; the largest value is counted in the last bin. The column is drawn as columns, each a bin wide. Counts, probabilities (each bin's share), percentages and densities (counts over the count and the width, so the area is 1) can be cumulative; a cumulative density is the cumulative probability.</p>`,
   fft:`<p>A zero-phase Butterworth response: <em>Steepness</em> is its order. The step warns when the spacing is uneven, since a Fourier filter assumes even spacing.</p>`,
   python:`<p>Python was removed from Kurve. A project made with it keeps each Python step's stored result; its code is printed in the report.</p>`
 };
@@ -19352,10 +19332,10 @@ const DOC_KW={ecal:"energy calibration channel kev gamma mca gain offset quadrat
   xunit:"units nm wavelength wavenumber ev energy frequency convert",calib:"calibration silicon neon lamp reference",combine:"average mean median repeated scans sum",
   fft:"fourier low-pass high-pass drift noise butterworth",cumint:"integral running area",hist:"histogram distribution bins frequency count probability density cumulative freedman diaconis sturges",ref:"dark reference white lamp subtract divide",crop:"range cut trim",
   exclude:"region remove notch laser line",resample:"interpolate even spacing grid",dedupe:"duplicate repeated average",sort:"order ascending",correct:"correction typo reason fix wrong value",python:"code script"};
-const DOC_MENU={crop:"Data › Clean",exclude:"Data › Clean",despike:"Spectroscopy",sort:"Data › Clean",dedupe:"Data › Clean",resample:"Data › Clean",
-  bg:"Spectroscopy",smooth:"Analysis › Smooth and filter",fft:"Analysis › Smooth and filter",scale:"Analysis › Mathematics",xlin:"Analysis › Mathematics",norm:"Analysis › Mathematics",
-  ref:"Analysis › Mathematics",combine:"Analysis › Mathematics",deriv:"Analysis › Mathematics",cumint:"Analysis › Mathematics",hist:"Statistics",log:"Analysis › Mathematics",absorb:"Spectroscopy › Corrections",
-  km:"Spectroscopy › Corrections",shift:"Spectroscopy › X axis",xunit:"Spectroscopy › X axis",calib:"Spectroscopy › X axis",ecal:"Spectroscopy › X axis",bose:"Spectroscopy › Corrections"};
+const DOC_MENU={crop:"Data › Clean",exclude:"Data › Clean",despike:"Analyze › Spectroscopy",sort:"Data › Clean",dedupe:"Data › Clean",resample:"Data › Clean",
+  bg:"Data › Baseline",smooth:"Analyze › Signal processing",fft:"Analyze › Signal processing",scale:"Data › Transform",xlin:"Data › Transform",norm:"Data › Transform",
+  ref:"Data › Transform",combine:"Data › Transform",deriv:"Analyze › Calculus",cumint:"Analyze › Calculus",hist:"Analyze › Statistics",log:"Data › Transform",absorb:"Analyze › Analyze › Spectroscopy › Corrections",
+  km:"Analyze › Analyze › Spectroscopy › Corrections",shift:"Analyze › Spectroscopy › X axis",xunit:"Analyze › Spectroscopy › X axis",calib:"Analyze › Spectroscopy › X axis",ecal:"Analyze › Spectroscopy › X axis",bose:"Analyze › Analyze › Spectroscopy › Corrections"};
 // The article of each window, for its "?" and F1.
 const WIN_DOC={xpl:"explorer",graph:"graph",sheet:"sheet",flow:"history",over:"overview",peaks:"peaks",integ:"integ",fit:"fit",res:"results",batch:"batch",stats:"stats",disc:"disc"};
 function stepDoc(op){
@@ -21713,33 +21693,48 @@ const WIN_MENU=()=>{ const th=themeSetting(); return windowItems().concat(["-",
     {label:"Match the system", radio:true, checked:th==="auto", run:()=>applyTheme("auto")}]},
   {label:"Style", sub:()=>[{label:"Bench: blue for what you can change", radio:true, checked:styleSetting()==="bench", run:()=>applyStyle("bench")},
     {label:"Graphite: black and white", radio:true, checked:styleSetting()==="graphite", run:()=>applyStyle("graphite")}]}]); };
+// Plot: making graphs and looking at them.
 function plotMenu(){
-  const p=P(), has=!!(p&&pointsAll().length), cfg=plotCfg(), edit=!!p&&!S.readOnly, act=activeYCol(), ax=cfg.ax||{};
-  const st=act?serStyle(act.id,true,readPalette(),false,cfg).type:cfg.style;
+  const p=P(), has=!!(p&&pointsAll().length), cfg=plotCfg(), edit=!!p&&!S.readOnly, act=activeYCol(), m=S.mode, g=!!(p&&GID());
+  const tool=(k,l)=>({label:l, radio:true, checked:m===k, enabled:has&&g, run:()=>setMode(k)});
   return [{label:"Plot setup…", run:()=>openPlotDlg(wsSelColIds()), enabled:!!p&&!S.readOnly, title:"Choose the kind of plot, the X and Y columns and the graph"},
     {label:"Plot the selected columns", sub:()=>plotItems(wsSelColIds()), enabled:!!p&&!S.readOnly},
     {label:"New graph", sub:()=>newGraphItems(), enabled:edit},
     "-",
-    {label:"Format graph…", run:()=>openPlotDetails(act&&act.id,"frame"), enabled:!!p},
-    {label:"Format a part", sub:()=>[{label:"X axis…", run:()=>openPlotDetails(null,"ax:x"), enabled:!!p},{label:"Y axis…", run:()=>openPlotDetails(null,"ax:y"), enabled:!!p},
-      (ax.x2||{}).on?{label:"Second X axis…", run:()=>openPlotDetails(null,"ax:x2"), enabled:!!p}:null,
-      (ax.yo||{}).on?{label:"Second Y axis…", run:()=>openPlotDetails(null,"ax:yo"), enabled:!!p}:null,
-      {label:"Frame and grid…", run:()=>openPlotDetails(null,"frame"), enabled:!!p},{label:"Text and fonts…", run:()=>openPlotDetails(null,"text"), enabled:!!p},
-      {label:"Legend…", run:()=>openPlotDetails(null,"legend"), enabled:!!p},{label:"Lines and symbols…", run:()=>openPlotDetails(act&&act.id,"series"), enabled:!!p}]},
-    {label:"Saved styles", sub:()=>formatMenuItems(f=>useFormat(f,false),()=>GP()).concat(multiGraph()?["-",{label:"Give every graph a style",sub:()=>allFormats().map(f=>({label:f.name,enabled:edit,run:()=>useFormat(f,true)}))}]:[])},
+    {label:"Plot type", sub:()=>plotTypeItems(act,!edit), enabled:g},
+    {label:"Several curves", sub:()=>LAYOUTS.filter(([k])=>!isDistLayout(k)).map(([k,l])=>({label:l, radio:true, checked:cfg.layout===k, enabled:edit, run:()=>setPlotKey("layout",k,`laid the curves out as ${l.toLowerCase()}`)})), enabled:g},
+    anyProcessing()?{label:"Show on the graph", sub:()=>[
+      {label:"Original", title:"The data as typed or imported", radio:true, checked:S.stage===0, run:()=>setViewMode("raw"), enabled:has},
+      {label:"Processed", title:"After every processing step: what the fit uses", radio:true, checked:S.stage==null&&!S.cmp, run:()=>setViewMode("final"), enabled:has},
+      {label:"Both", title:"The processed data, with the original in grey behind it", radio:true, checked:S.stage==null&&S.cmp, run:()=>setViewMode("cmp"), enabled:has}]}:null,
     "-",
-    {label:"Plot type", sub:()=>plotTypeItems(act,!edit)},
-    {label:"Several curves", sub:()=>LAYOUTS.filter(([k])=>!isDistLayout(k)).map(([k,l])=>({label:l, radio:true, checked:cfg.layout===k, enabled:edit, run:()=>setPlotKey("layout",k,`laid the curves out as ${l.toLowerCase()}`)}))},
-    {label:"Axes", sub:()=>[
-      {label:"Reverse X", checked:!!cfg.revX, run:()=>togglePlot("revX"), enabled:edit},
-      {label:"X scale", sub:()=>{ const cur=scaleKind(cfg,"x"); return AX_SCALES.map(([v,l])=>({label:l,radio:true,checked:cur===v,enabled:edit,run:()=>setAxisScale("x",v)})); }},
-      {label:"Y scale", sub:()=>{ const cur=scaleKind(cfg,"y"); return AX_SCALES.map(([v,l])=>({label:l,radio:true,checked:cur===v,enabled:edit&&cfg.layout!=="heat",run:()=>setAxisScale("y",v)})); }},
-      {label:"Grid lines", checked:!!cfg.grid, run:()=>togglePlot("grid"), enabled:edit}]},
-    {label:"Font", sub:()=>fontMenuItems()},
-    {label:"Legend", sub:()=>[{label:"Place", note:(LEGENDS.find(q=>q[0]===cfg.legend)||[,cfg.legend==="custom"?"Dragged":""])[1], sub:()=>LEGENDS.map(([k,l])=>({label:l, radio:true, checked:cfg.legend===k, enabled:edit, run:()=>setPlotKey("legend",k)})).concat(cfg.legend==="custom"?[{label:"Where you dragged it", radio:true, checked:true, enabled:false}]:[])},
+    {label:"View", sub:()=>[tool("zoom","Zoom"), tool("pan","Pan"), tool("reader","Reader"),
+      {label:"X–Y lines", sub:()=>XH_MODES.map(([k,l,t])=>({label:l, note:t, radio:true, checked:m==="cross"&&xhMode()===k, enabled:has&&g, run:()=>setXhMode(k)}))},
+      "-",
+      {label:"Show all the data", kbd:"Double-click", run:()=>{ S.view=null; renderPlot(); renderFit(); }, enabled:has&&g}], enabled:g}];
+}
+// Figure: how the graph looks, its axes, text and annotations.
+function figureMenu(){
+  const p=P(), has=!!(p&&pointsAll().length), cfg=plotCfg(), edit=!!p&&!S.readOnly, act=activeYCol(), ax=cfg.ax||{}, g=!!(p&&GID()), eg=edit&&g;
+  return [{label:"Format graph…", run:()=>openPlotDetails(act&&act.id,"frame"), enabled:g},
+    {label:"Format a part", enabled:g, sub:()=>[{label:"X axis…", run:()=>openPlotDetails(null,"ax:x")},{label:"Y axis…", run:()=>openPlotDetails(null,"ax:y")},
+      (ax.x2||{}).on?{label:"Second X axis…", run:()=>openPlotDetails(null,"ax:x2")}:null,
+      (ax.yo||{}).on?{label:"Second Y axis…", run:()=>openPlotDetails(null,"ax:yo")}:null,
+      {label:"Frame and grid…", run:()=>openPlotDetails(null,"frame")},{label:"Text and fonts…", run:()=>openPlotDetails(null,"text")},
+      {label:"Legend…", run:()=>openPlotDetails(null,"legend")},{label:"Lines and symbols…", run:()=>openPlotDetails(act&&act.id,"series")}]},
+    {label:"Saved styles", enabled:g, sub:()=>formatMenuItems(f=>useFormat(f,false),()=>GP()).concat(multiGraph()?["-",{label:"Give every graph a style",sub:()=>allFormats().map(f=>({label:f.name,enabled:edit,run:()=>useFormat(f,true)}))}]:[])},
+    "-",
+    {label:"Axes", enabled:g, sub:()=>[
+      {label:"Reverse X", checked:!!cfg.revX, run:()=>togglePlot("revX"), enabled:eg},
+      {label:"Log Y", checked:!!cfg.logY, run:()=>togglePlot("logY"), enabled:eg&&cfg.layout!=="heat"},
+      {label:"X scale", sub:()=>{ const cur=scaleKind(cfg,"x"); return AX_SCALES.map(([v,l])=>({label:l,radio:true,checked:cur===v,enabled:eg,run:()=>setAxisScale("x",v)})); }},
+      {label:"Y scale", sub:()=>{ const cur=scaleKind(cfg,"y"); return AX_SCALES.map(([v,l])=>({label:l,radio:true,checked:cur===v,enabled:eg&&cfg.layout!=="heat",run:()=>setAxisScale("y",v)})); }},
+      {label:"Grid lines", checked:!!cfg.grid, run:()=>togglePlot("grid"), enabled:eg}]},
+    {label:"Font", enabled:g, sub:()=>fontMenuItems()},
+    {label:"Legend", enabled:g, sub:()=>[{label:"Place", note:(LEGENDS.find(q=>q[0]===cfg.legend)||[,cfg.legend==="custom"?"Dragged":""])[1], sub:()=>LEGENDS.map(([k,l])=>({label:l, radio:true, checked:cfg.legend===k, enabled:edit, run:()=>setPlotKey("legend",k)})).concat(cfg.legend==="custom"?[{label:"Where you dragged it", radio:true, checked:true, enabled:false}]:[])},
       {label:"Text in each curve's colour", checked:cfg.legendText==="match", enabled:edit, run:()=>setPlotKey("legendText",cfg.legendText==="match"?"ink":"match")},
       {label:cfg.legendTitle?"Edit the legend title…":"Add a legend title…", run:()=>inlineEditLegend("title"), enabled:edit}]},
-    {label:"Annotate", sub:()=>[
+    {label:"Annotate", enabled:g, sub:()=>[
       {label:"Vertical line…", run:()=>addLineDlg("v"), enabled:edit&&has},
       {label:"Horizontal line…", run:()=>addLineDlg("h"), enabled:edit&&has},
       {label:"Text (click the graph)", title:"The Label tool: click a peak to label it, or an empty spot to write text", run:()=>setMode("label"), enabled:edit&&has},
@@ -21748,11 +21743,18 @@ function plotMenu(){
       {label:"Ellipse (drag on the graph)", run:()=>pickShape("ellipse"), enabled:edit&&has},
       {label:"Shade an X range (drag on the graph)", run:shadeRange, enabled:edit&&has},
       S.view?{label:"Inset of the zoomed region", run:makeInset, enabled:edit&&has}:null,
+      S.room?{label:"Comment (click the graph)", run:()=>setMode("pin"), enabled:has}:null,
       "-",
-      {label:"Labels and lines…", run:()=>openPlotDetails(act&&act.id,"labels"), enabled:!!p},
+      {label:"Labels and lines…", run:()=>openPlotDetails(act&&act.id,"labels")},
       {label:"Remove every annotation", danger:true, run:clearAnnos, enabled:edit&&!!(cfg.annos||[]).length}]},
-    "-",{label:"Layout and colours…", run:()=>openPlotDetails(null,"layout"), enabled:!!p},
-    {label:"Show all the data", kbd:"Double-click", run:()=>{ S.view=null; renderPlot(); renderFit(); }, enabled:has}];
+    "-",{label:"Layout and colours…", run:()=>openPlotDetails(null,"layout"), enabled:g}];
+}
+// Publish: the figure, the data and the report, out of Kurve.
+function publishMenu(){
+  const p=P(), f=p?activeFit():null, has=!!(p&&pointsAll().length);
+  return exportItems().concat(["-",
+    {label:"Copy the graph as a picture", title:"A PNG on the clipboard, to paste into a document or slides", run:copyGraphPicture, enabled:has&&!!(p&&GID())},
+    {label:"Copy the results table", run:copyResults, enabled:!!f}]);
 }
 function menuItems(which){
   const p=P(), f=p?activeFit():null, ro=S.readOnly, edit=!!p&&!ro, can=!ro&&!!S.store, has=!!(p&&pointsAll().length);
@@ -21766,7 +21768,6 @@ function menuItems(which){
       {label:"Infrared: overlapping bands", run:()=>loadExample("ir"), enabled:can},
       {label:"Raman: raw polystyrene (background, spikes)", run:()=>loadExample("ps"), enabled:can},
       {label:"Raman: one band", run:()=>loadExample("raman"), enabled:can}]},
-    {label:"Export", sub:exportItems},
     "-",
     {label:"Rename the project…", run:renameProject, enabled:edit},
     {label:"Delete the project…", run:deleteProject, enabled:edit, danger:true},
@@ -21784,16 +21785,12 @@ function menuItems(which){
     {label:"Delete", title:"Rows or columns of the worksheet", enabled:wsRaw, sub:wsDeleteItems},
     {label:"Find…", kbd:"Ctrl+F", title:"In the worksheet", run:()=>{ openWin("sheet",{render:true}); wsFindOpen(); }, enabled:!!p},
     "-",
-    {label:"Copy the graph as a picture", title:"A PNG on the clipboard, to paste into a document or slides", run:copyGraphPicture, enabled:has},
-    {label:"Copy the results table", run:copyResults, enabled:!!f},
-    "-",
     {label:"Preferences…", kbd:"Ctrl+,", title:"History, appearance, animations", run:()=>openPrefs()}]; }
-  if(which==="plot") return plotMenu();
-  if(which==="graph") return graphToolsMenu();
   if(which==="data") return dataMenu();
-  if(which==="analysis") return analysisMenu();
-  if(which==="statistics") return statisticsMenu();
-  if(which==="spectroscopy") return spectroscopyMenu();
+  if(which==="plot") return plotMenu();
+  if(which==="analyze") return analyzeMenu();
+  if(which==="figure") return figureMenu();
+  if(which==="publish") return publishMenu();
   if(which==="window") return WIN_MENU();
   if(which==="help") return [
     {label:"Kurve help", kbd:"F1", run:()=>openHelp()},
@@ -22061,7 +22058,7 @@ function wireStatic(){
       if(k==="enter"){ if(t&&t.id==="cText") return; e.preventDefault(); if(typing&&t.blur) t.blur(); fitNow(); return; }
       if(k==="o"){ e.preventDefault(); pickFile(); return; }
       if(k===","){ e.preventDefault(); openPrefs(); return; }
-      if(k==="s"){ e.preventDefault(); toast(S.store&&S.store.mode==="db"?"Kurve saves every change as you make it, for everyone in this workspace.":"Kurve saves every change as you make it. To keep a copy elsewhere, use File › Export."); return; }
+      if(k==="s"){ e.preventDefault(); toast(S.store&&S.store.mode==="db"?"Kurve saves every change as you make it, for everyone in this workspace.":"Kurve saves every change as you make it. To keep a copy elsewhere, use Publish."); return; }
       // A cell has no undo of its own, so the app's undo must still work there.
       if(t&&t.tagName==="INPUT"&&t.dataset.r!=null){ if(k==="z"||k==="y"){ e.preventDefault(); t.blur(); (k==="z"&&!e.shiftKey)?undo():redo(); } return; }
       // Sliders, boxes and lists have no undo of their own; the app's applies.

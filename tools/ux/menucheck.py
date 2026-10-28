@@ -23,22 +23,22 @@ spec_txt = (ROOT / "ux" / "spec" / "menus-after.txt").read_text(encoding="utf-8"
 # Kept on purpose until a later slice: (path, why).
 DEFERRED = {
     ("File", "Examples", "Raman: one band"): "R2, removed in slice 7",
-    ("File", "Export", "All graphs as one figure"): "R6, removed in slice 7",
-    ("File", "Export", "Processing steps as JSON"): "R3, removed in slice 7",
+    ("Publish", "All graphs as one figure"): "R6, removed in slice 7",
+    ("Publish", "Processing steps as JSON"): "R3, removed in slice 7",
     ("Window", "Theme"): None,
     ("Window", "Style"): "R1, removed in slice 7",
-    ("Analysis", "Mathematics", "Derivative, as a new column…"): "merged into Derivative… in slice 6",
-    ("File", "Export", "Every column's processed data as CSV"): "shown with two columns or more (spec: under Export, unlisted)",
-    ("File", "Export", "Batch results as CSV"): "shown after a batch fit (spec: under Export, unlisted)",
+    ("Analyze", "Calculus", "Derivative, as a new column…"): "merged into Derivative… in slice 6",
+    ("Publish", "Every column's processed data as CSV"): "shown with two columns or more (spec: under Publish, unlisted)",
+    ("Publish", "Batch results as CSV"): "shown after a batch fit (spec: under Publish, unlisted)",
 }
 # Spec names that are the same item under the app's dynamic or deliberate label.
 SAME = {
-    ("File", "Export", "Report…"): "Report",          # no dialog follows, so no ellipsis
-    ("Statistics", "Histogram…"): "Histogram",        # the same: it acts at once
+    ("Publish", "Report…"): "Report",          # no dialog follows, so no ellipsis
+    ("Analyze", "Statistics", "Histogram…"): "Histogram",        # the same: it acts at once
     ("Edit", "Undo (what it undoes)"): re.compile(r"^Undo\b"),
     ("Edit", "Redo (what it redoes)"): re.compile(r"^Redo\b"),
     ("Plot", "New graph", "With (the active column)"): re.compile(r"^With (?!every)"),
-    ("Plot", "Format graph…"): "Format graph…",
+    ("Figure", "Format graph…"): "Format graph…",
     ("Edit", "Delete", "Row"): re.compile(r"^Rows? \d"),          # names the rows selected
     ("Edit", "Delete", "Columns"): re.compile(r"^Columns?\b"),     # names the columns selected
 }
