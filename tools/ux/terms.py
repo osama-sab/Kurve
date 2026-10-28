@@ -43,8 +43,8 @@ TERMS = {
     "fingerprint": (r"\bfingerprint\b", "check code"),
     # a figure's panels and the residual panel are other things: counted only outside them (see SENSE)
     "panels (windows)": (r"\bpanels?\b", "tool windows"),
-    # the Format dialog keeps its name
-    "format (style)": (r"\b(?:saved )?formats\b(?! dialog)|\ba format\b|\bthe format\b(?! dialog)|\bformat as\b", "saved style"),
+    # the Format pane (once the Format dialog) keeps its name
+    "format (style)": (r"\b(?:saved )?formats\b(?! dialog| pane)|\ba format\b|\bthe format\b(?! dialog| pane)|\bformat as\b", "saved style"),
     "untitled analysis": (r"\buntitled analysis\b", "Untitled project"),
     "turned down": (r"\bturned down\b|\bturns? down\b", "not counted as a peak"),
     "data (not a spectrum)": (r"\bnot a spectrum\b", "other data"),

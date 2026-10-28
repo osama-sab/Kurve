@@ -64,7 +64,7 @@ MEASURE = r"""(want) => {
 }"""
 
 CLOSE = r"""() => { try { document.querySelectorAll(".modal").forEach(m => { if (!m.hidden && m._cancel) m._cancel(); });
-  if (typeof closePlotDetails === "function" && !document.querySelector("#plotModal").hidden) closePlotDetails(false);
+  if (typeof closePlotDetails === "function" && winOpen("format")) closePlotDetails();
   if (S.pending) cancelTool(); ["tool","fit","peaks","integ","over","res","batch","stats","py","disc","help","flow"].forEach(id => { try { if (winOpen(id)) closeWin(id); } catch (e) {} }); } catch (e) {} }"""
 
 # label, the window to read (null for a modal), the code that opens it

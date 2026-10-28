@@ -1289,22 +1289,20 @@ input[type=checkbox]:indeterminate:not(.chk>input){background-color:var(--ctl-on
 .btab .bst.warn .ic{color:var(--warn)}
 .btab .bst.ok .ic{color:var(--ok)}
 
-/* The Format dialog */
-#plotModal{background:rgba(10,16,24,.16);justify-content:flex-end;align-items:stretch;padding:var(--sp-5)}
-#plotModal .sheet{width:min(720px,100%);max-height:100%}
-#plotModal .sheet-h{padding:var(--sp-4) var(--sp-5) var(--sp-4) var(--sp-6)}
-.pd-h{font-size:var(--fs-cap);font-weight:600;color:var(--muted);padding:var(--sp-5) var(--sp-4) var(--sp-1);letter-spacing:.02em}
-.pd-h:first-child{padding-top:var(--sp-2)}
-.pd-title{font:600 var(--fs-head)/1.3 var(--sans);margin:var(--sp-5) 0 var(--sp-1);color:var(--ink)}
+/* The Format pane (ux/spec/DS_SPEC.md, slice 5): the Format dialog docked as a tool window, live. */
+.fmtwin{display:flex;flex-direction:column;min-height:0}
+.pd-selrow{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-4) var(--sp-5);border-bottom:1px solid var(--rule-2);flex:none}
+.pd-selrow label{font-weight:600;font-size:var(--fs-tab);color:var(--ink-2)}
+.pd-selrow select{flex:1 1 auto;min-width:0;max-width:300px}
+.pd-main>.pd-grp:first-child{border-top:0;margin-top:0}
+.fmtfoot{display:flex;flex-wrap:wrap;gap:var(--sp-3);align-items:center;padding:var(--sp-3) var(--sp-5);border-top:1px solid var(--rule);background:var(--panel);flex:none}
 .pd-grp{border-top:1px solid var(--rule-2);padding:var(--sp-4) 0 var(--sp-1);margin-top:var(--sp-4)}
-.pd-title+.pd-grp{border-top:0;margin-top:0}
 .pd-grp>h4{display:flex;align-items:center;gap:var(--sp-4);font:600 var(--fs-tab)/1.3 var(--sans);color:var(--ink);margin:0 0 var(--sp-4)}
 .pd-grp>h4 .lab{font-weight:400}
 .pd-grp .frow{margin-bottom:var(--sp-2)}
 .pd-grp .frow>.pd-wide{grid-column:1/-1;min-width:0}
 .pd-grp .frow>.cbtn,.pd-grp .frow>.seg,.pd-grp .frow>.fpbtn,.pd-grp .frow>.pd-place{justify-self:start}
 .pd-grp .frow>.cbtn{min-width:44px}
-#plotModal .sheet-h{cursor:move;user-select:none}
 .pd-rst{margin-left:auto;border:0;background:none;color:var(--accent);font:500 var(--fs-tab) var(--sans);cursor:pointer;padding:var(--sp-1) var(--sp-2);border-radius:var(--r-s)}
 .pd-rst:hover{text-decoration:underline}
 .pd-note{font-size:var(--fs-tab);color:var(--muted);line-height:1.4}
@@ -1376,14 +1374,8 @@ input[type=checkbox]:indeterminate:not(.chk>input){background-color:var(--ctl-on
 .pd-place button i{width:7px;height:7px;border-radius:50%;background:var(--faint)}
 .pd-place button:hover{background:var(--accent-soft)}
 .pd-place button:hover i{background:var(--accent)}
-#pdBody{padding:0;flex:1;min-height:0;display:flex}
-.pd{display:grid;grid-template-columns:190px minmax(0,1fr);min-height:0;flex:1}
-.pd-list{border-right:1px solid var(--rule);overflow:auto;padding:var(--sp-3);background:var(--panel-2)}
-.pd-item{display:flex;align-items:center;gap:var(--sp-4);width:100%;padding:var(--sp-3) var(--sp-4);border:0;border-radius:var(--r);background:transparent;text-align:left;cursor:pointer;color:var(--ink);font-size:var(--fs-tab)}
-.pd-item:hover{background:var(--panel-3)}
-.pd-item.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
-.pd-item .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pd-item .sw{width:12px;height:12px;border-radius:var(--r-s)}
+#pdBody{padding:0;flex:1;min-height:0;display:flex;flex-direction:column}
+.pd{display:flex;flex-direction:column;min-height:0;flex:1}
 .pd-main{min-width:0;overflow:auto;padding:var(--sp-4) var(--sp-5) var(--sp-5)}
 .pd-main>.seg{margin-bottom:var(--sp-5)}
 .pd-panel .frow{grid-template-columns:120px minmax(0,1fr)}
@@ -1878,12 +1870,6 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
   .sheet-b{grid-template-columns:minmax(0,1fr)}
   .rawbox{max-height:180px;border-right:0;border-bottom:1px solid var(--rule)}
   .composer{position:static}
-  #plotModal{align-items:flex-end;padding:0}
-  #plotModal .sheet{max-height:82vh;width:100%}
-  .pd{grid-template-columns:minmax(0,1fr)}
-  .pd-list{display:flex;overflow-x:auto;border-right:0;border-bottom:1px solid var(--rule)}
-  .pd-item{width:auto;flex:0 0 auto}
-  .pd-h{display:none}
 }
 @media (max-width: 520px){
   #modeSeg>button>span{display:none}
@@ -2164,6 +2150,11 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
       <div class="win-b"><div class="dbody" id="pane-stats"></div></div>
     </section>
 
+    <section class="win" id="w-format" data-win="format" aria-label="Format">
+      <header class="win-h"><svg class="ic sm"><use href="#i-edit"/></svg><h2 class="win-t">Format</h2><span class="win-sub" id="pdHead"></span><span class="sp"></span></header>
+      <div class="win-b fmtwin"><div id="pdBody"></div><div class="fmtfoot"><button class="btn sm ghost" id="pdReset">Defaults</button><button class="btn sm ghost" id="pdFormats" aria-haspopup="menu">Saved styles <svg class="ic sm" aria-hidden="true"><use href="#i-chev"/></svg></button><button class="btn sm ghost" id="pdAll" hidden>Use on every graph</button></div></div>
+    </section>
+
     <section class="win tool" id="w-tool" data-win="tool" aria-label="Tool">
       <header class="win-h"><svg class="ic sm"><use href="#i-wand"/></svg><h2 class="win-t" id="toolTitle">Tool</h2><span class="sp"></span></header>
       <div class="win-b"><div class="tabbody" id="pane-tool"></div></div>
@@ -2235,13 +2226,6 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
     <div class="sheet-h"><h2 id="expHead">Export the figure</h2></div>
     <div class="sheet-b"><div class="sheet-p" id="expForm"></div><div class="exp-prev" id="expPrev"></div></div>
     <div class="sheet-f"><span class="lab exp-info" id="expInfo"></span><span class="sp"></span><button class="btn" id="expCancel">Cancel</button><button class="btn primary" id="expGo">Export</button></div>
-  </div>
-</div>
-<div class="modal" id="plotModal" hidden role="dialog" aria-modal="true" aria-labelledby="pdHead">
-  <div class="sheet">
-    <div class="sheet-h"><h2 id="pdHead">Format graph</h2></div>
-    <div class="sheet-p" id="pdBody"></div>
-    <div class="sheet-f"><button class="btn ghost" id="pdReset" title="Put this page back to the defaults">Defaults</button><button class="btn ghost" id="pdFormats" aria-haspopup="menu" title="Kurve's styles and the ones you saved">Saved styles <svg class="ic sm" aria-hidden="true"><use href="#i-chev"/></svg></button><button class="btn ghost" id="pdAll" hidden title="Give every graph in the project this graph's frame, axes, text, legend and colours">Use on every graph</button><span class="sp"></span><button class="btn" id="pdCancel">Cancel</button><button class="btn primary" id="pdOk">OK</button></div>
   </div>
 </div>
 <div class="dropzone" id="dropzone" hidden><div><svg class="ic lg"><use href="#i-upload"/></svg><span id="dzMsg">Drop to bring into the worksheet</span><span class="lab">Read automatically, and plotted only when dropped on a graph. Import… shows how a file is read.</span></div></div>
@@ -6086,6 +6070,7 @@ function cloneCols(cols){ return Array.isArray(cols)?cols.map(c=>{ if(!c||typeof
 function snapshot(){ const p=P(); if(!p) return null; const o={pid:S.pid}; UNDO_KEYS.forEach(k=>{ o[k]=k==="cols"?cloneCols(p[k]):clone(p[k]); });
   o.pdraft=S.pdraft?clone(S.pdraft):null; o.draft=S.draft?clone(S.draft):null; return o; }
 function pushUndo(label){
+  if(S.plotPreview&&!S.pdCommitting) pdCommit();
   const s=snapshot(); if(!s) return;
   s.label=label||"that change";
   undoStack.push(s); if(undoStack.length>UNDO_MAX) undoStack.shift();
@@ -6103,12 +6088,14 @@ function applySnapshot(s){
    and letting go wrote it back from the drag's copy, out of step with redo. */
 function heldBlocks(){ if(!S.ptrDown) return false; toast("Let go of what you are dragging first, then undo."); return true; }
 function undo(){
+  if(S.plotPreview) pdCommit();
   if(!undoStack.length||S.readOnly||heldBlocks()) return;
   const s=undoStack.pop(); if(s.pid!==S.pid){ renderUndo(); return; }
   redoStack.push(Object.assign(snapshot(),{label:s.label}));
   applySnapshot(s); toast(`Undid ${s.label}.`); renderUndo();
 }
 function redo(){
+  if(S.plotPreview) pdCommit();
   if(!redoStack.length||S.readOnly||heldBlocks()) return;
   const s=redoStack.pop(); if(s.pid!==S.pid){ renderUndo(); return; }
   undoStack.push(Object.assign(snapshot(),{label:s.label}));
@@ -6291,6 +6278,7 @@ let wsTimer=null, wsPatch={}, wsLog=null, wsPid=null;
    entered, and an edit waiting for its delayed save is saved now. The local
    store writes synchronously, so this lands before the page goes. */
 function flushEdits(){
+  try{ pdCommit(); }catch(e){}
   try{ const e=S.ws&&S.ws.edit; if(e&&P()){ const inp=document.querySelector("#ws input.wsed"), v=inp?inp.value:e.val; if(v!==e.orig&&(e.r<0||String(v).trim()===""||parseNum(v)!=null)) wsCommit(0,0,true); } }catch(err){}
   if(Object.keys(wsPatch).length&&wsPid===S.pid){ clearTimeout(wsTimer); const pp=wsPatch, l=wsLog; wsPatch={}; wsLog=null; save(pp,l); }
 }
@@ -9342,7 +9330,7 @@ function annoDouble(id,onText){ const a=annoById(id); if(!a||S.readOnly) return;
    menu, each kind placed in the middle of the view, selected, with its page open. */
 const ANNO_ADD=[["v","Vertical line","vline"],["h","Horizontal line","hline"],["band","Shaded X range","band"],["text","Text","text"],["arrow","Arrow","arrow"],["rect","Box","rect"],["ellipse","Ellipse","ellipse"],["inset","Inset of the view","inset"]];
 function pdAddAnno(k){
-  const wk=S.plotPreview; if(!wk||S.readOnly) return;
+  const wk=pdWk(); if(!wk) return;
   const g=S.geo, v=g?g.v:curView(), d=plotState().d;
   const cx=+((v.x0+v.x1)/2).toPrecision(6), cy=+(g&&g.logY?Math.sqrt(v.y0*v.y1):(v.y0+v.y1)/2).toPrecision(6), w=Math.abs(v.x1-v.x0);
   const a={id:annoId(),t:k,xu:d.xu||"",yu:d.yu||""}; if(GID()) a.g=GID();
@@ -9643,10 +9631,23 @@ function ctxOf(){
   else if(s.kind==="axis"&&AX_WORD[s.k]) return {kind:"axis",lab:"Axis",k:s.k,name:AX_WORD[s.k],items:()=>axisMenuItems(s.k)};
   return null;
 }
+// The Format pane turns to what is selected, when the selection changes (not on every redraw).
+const ctxKey=c=>c?c.kind+":"+(c.id||c.k||c.name||""):"";
+function fmtFollow(c){
+  if(!c) return false;
+  if(c.kind==="curve"||c.kind==="column"){ S.pdTab="series"; S.pdSel=c.id; }
+  else if(c.kind==="fit"){ S.pdTab="series"; S.pdSel="__fit"; }
+  else if(c.kind==="axis") S.pdTab="ax:"+c.k;
+  else if((c.kind==="anno"||c.kind==="region")&&S.annoSel&&annoById(S.annoSel)){ S.pdTab="labels"; S.pdAnno=S.annoSel; }
+  else if(c.kind==="legend") S.pdTab="legend";
+  else return false;
+  return true;
+}
 // The bar's button and the outline on the graph (a style rule, so the drawing itself is untouched).
 function renderCtx(){
   const b=$("#ctxBtn"), sep=$("#ctxSep"); if(!b) return;
   const c=ctxOf();
+  if(fmtOpen()){ const key=ctxKey(c); if(key!==S.fmtFollow){ S.fmtFollow=key; if(fmtFollow(c)){ pdCommit(); setTimeout(()=>renderPlotDetails(),0); } } }
   b.hidden=!c; if(sep) sep.hidden=!c;
   if(c){ $("#ctxLab").textContent=c.lab; const nm=c.title||(c.name?`${c.lab}: ${c.name}`:c.lab); if(b.title!==nm) b.title=nm; b.setAttribute("aria-label",`${nm}, menu`); }
   const ring="filter:drop-shadow(0 0 1.5px var(--focus)) drop-shadow(0 0 1px var(--focus))";
@@ -9694,38 +9695,53 @@ function openGraphMenu(ev){
 }
 
 /* ---- Format graph ---------------------------------------------------------------
-   Origin's Plot Details as a format pane: the pages down the side (each
-   spectrum and the fit curve; each axis; the frame and grid, the text, the
-   legend, the layout and colours, the labels and lines), each page in groups.
-   Every change shows on the graph at once; OK keeps them all as one undoable
-   change, Cancel puts everything back. */
+   Origin's Plot Details as a docked tool window, the Format pane (DS_SPEC slice 5):
+   its pages (each spectrum and the fit curve; each axis; the frame and grid, the
+   text, the legend, the layout and colours, the labels and lines) chosen by the
+   Selected list at its top or by what is selected on the graph, each page in
+   groups. Every change shows on the graph at once and is saved, a burst of
+   changes as one undo step (pdWk, pdCommit); there is no OK and no Cancel. */
 const PD_PAGES={series:"series",axes:"ax:x",graph:"layout",labels:"labels",text:"text",legend:"legend",frame:"frame",layout:"layout"};
 function openPlotDetails(id,tab){
   const p=P(); if(!p) return;
-  S.plotPreview=JSON.parse(JSON.stringify(pdBase()));
+  pdCommit();
   S.pdSel=id&&(id==="__fit"||colById(id))?id:(activeYCol()||{}).id||"__fit";
   let t=tab||"series"; S.pdAnno=null;
   if(t.startsWith("anno:")){ S.pdAnno=t.slice(5); S.annoSel=S.pdAnno; t="labels"; }
   S.pdTab=PD_PAGES[t]||t;
-  const m=$("#plotModal"); m._cancel=()=>closePlotDetails(false);
-  $("#pdHead").textContent=multiGraph()?`Format ${graphName(GID())}`:"Format graph";
-  const all=$("#pdAll"); if(all) all.hidden=!multiGraph();
-  const sh=m.querySelector(".sheet"); if(sh) sh.style.transform=S.pdPos&&innerWidth>=600?`translate(${S.pdPos.x}px,${S.pdPos.y}px)`:"";
+  S.fmtFollow=ctxKey(ctxOf());
+  openWin("format"); focusWin("format");
   renderPlot(); renderPlotDetails();
-  openModal(m,m.querySelector(".pd-item.on")||null);
+  const f=$("#fmtSel"); if(f) f.focus({preventScroll:true});
 }
-// What the dialog edits: the graph's settings, with every graph's annotations
-// (the dialog lists this graph's) and, on a graph of its own, the spectra not
+const fmtOpen=()=>winOpen("format");
+// What the pane edits: the graph's settings, with every graph's annotations
+// (the pane lists this graph's) and, on a graph of its own, the spectra not
 // on it as hidden.
 function pdBase(){ const p=P(); return Object.assign({},GP(),{hidden:plotCfg().hidden,annos:p.annos||[]}); }
-function closePlotDetails(ok){
-  closeFontPicker(); closeColorPicker();
-  const m=$("#plotModal"), wk=S.plotPreview; S.plotPreview=null; closeModal(m);
-  if(ok&&wk&&P()&&!S.readOnly){ const was=pdBase();
-    if(JSON.stringify(wk)!==JSON.stringify(was)){ const reset=wk.layout!==was.layout||wk.logX!==was.logX;
-      pushUndo("formatting the graph"); savePlot(wk,pdLog(was,wk)); if(reset) S.view=null; } }
-  renderTop(); renderPlot();
+/* The pane is live: there is no OK. Its working copy lives for one burst of changes: the first
+   change makes it from the graph's settings, every change shows on the graph at once (plotCfg
+   reads it), and it is saved as one undo step 400 ms after the last (pdCommit), or at once
+   before anything else changes the project (pushUndo, undo, another graph, another project, the
+   pane closed, the page left). */
+function pdWk(){ const p=P(); if(!p||S.readOnly) return null;
+  if(!S.plotPreview){ S.plotPreview=JSON.parse(JSON.stringify(pdBase())); S.pdGid=GID(); }
+  clearTimeout(S.pdT); S.pdT=setTimeout(pdCommit,400); return S.plotPreview; }
+function pdCommit(){
+  clearTimeout(S.pdT); S.pdT=null;
+  const wk=S.plotPreview; if(!wk) return false;
+  S.plotPreview=null;
+  if(!P()||S.readOnly||S.pdGid!==GID()){ renderPlot(); return false; }
+  const was=pdBase();
+  if(JSON.stringify(wk)===JSON.stringify(was)){ renderPlot(); return false; }
+  const reset=wk.layout!==was.layout||wk.logX!==was.logX;
+  S.pdCommitting=true;
+  try{ pushUndo("formatting the graph"); savePlot(wk,pdLog(was,wk)); }
+  finally{ S.pdCommitting=false; }
+  if(reset) S.view=null;
+  renderTop(); renderPlot(); return true;
 }
+function closePlotDetails(){ pdCommit(); closeFontPicker(); closeColorPicker(); if(fmtOpen()) closeWin("format"); }
 // The log line names what changed: one annotation, or the parts of the figure.
 function pdLog(a,b){
   const keys=[...new Set(Object.keys(a).concat(Object.keys(b)))].filter(k=>JSON.stringify(a[k]??null)!==JSON.stringify(b[k]??null));
@@ -9738,20 +9754,20 @@ function pdLog(a,b){
   const named=[...new Set(keys.map(part).filter(Boolean))];
   return named.length&&named.length<=3?"formatted "+named.join(", "):"formatted the graph";
 }
-function pdGet(path){ const wk=S.plotPreview||{}, k=path.split(".");
+function pdGet(path){ const wk=S.plotPreview||(P()?pdBase():{}), k=path.split(".");
   if(k[0]==="series") return ((wk.series||{})[k[1]]||{})[k[2]];
   if(k[0]==="ax") return ((wk.ax||{})[k[1]]||{})[k[2]];
   if(k[0]==="txt") return ((wk.txt||{})[k[1]]||{})[k[2]];
   if(k[0]==="annos"){ const a=(wk.annos||[]).find(q=>q.id===k[1]); return a?a[k[2]]:null; }
   return wk[k[0]]; }
 function pdSet(path,val){
-  const wk=S.plotPreview; if(!wk) return; const k=path.split(".");
+  const wk=pdWk(); if(!wk) return; const k=path.split(".");
   const clean=o=>{ Object.keys(o).forEach(q=>{ if(o[q]==null||o[q]==="") delete o[q]; }); return o; };
   if(k[0]==="series"){ wk.series=Object.assign({},wk.series||{}); wk.series[k[1]]=Object.assign({},wk.series[k[1]]||{},{[k[2]]:val}); }
   else if(k[0]==="ax"&&k[2]==="brk"&&k.length===5){ wk.ax=Object.assign({},wk.ax||{}); const nb=(((wk.ax[k[1]]||{}).brk)||[]).map(q=>q.slice()); if(nb[+k[3]]) nb[+k[3]][+k[4]]=val; wk.ax[k[1]]=Object.assign({},wk.ax[k[1]]||{},{brk:nb}); }
   else if(k[0]==="ax"){ wk.ax=Object.assign({},wk.ax||{}); wk.ax[k[1]]=Object.assign({},(wk.ax||{})[k[1]]||{},{[k[2]]:val}); }
   else if(k[0]==="axscale"){ const kind=val; wk.ax=Object.assign({},wk.ax||{}); wk.ax[k[1]]=Object.assign({},wk.ax[k[1]]||{});
-    if(kind==="lin"||kind==="log10") delete wk.ax[k[1]].scale; else { wk.ax[k[1]].scale=kind; wk.ax[k[1]].brk=null; } wk[k[1]==="x"?"logX":"logY"]=kind==="log10"; S.view=null; setTimeout(()=>{ if(S.plotPreview) renderPlotDetails(); },0); }
+    if(kind==="lin"||kind==="log10") delete wk.ax[k[1]].scale; else { wk.ax[k[1]].scale=kind; wk.ax[k[1]].brk=null; } wk[k[1]==="x"?"logX":"logY"]=kind==="log10"; S.view=null; setTimeout(()=>{ if(fmtOpen()) renderPlotDetails(); },0); }
   else if(k[0]==="allax"){ wk.ax=Object.assign({},wk.ax||{}); ["x","y","y2","x2","yo"].forEach(a=>{ wk.ax[a]=Object.assign({},wk.ax[a]||{},{[k[1]]:val}); }); }
   else if(k[0]==="txt"){ wk.txt=Object.assign({},wk.txt||{}); wk.txt[k[1]]=clean(Object.assign({},wk.txt[k[1]]||{},k[2]?{[k[2]]:val}:val)); }
   else if(k[0]==="annos"){ wk.annos=(wk.annos||[]).map(a=>{ if(a.id!==k[1]) return a;
@@ -9770,12 +9786,12 @@ function txtAuto(cfg,el){
   return ({title:{size:fs+3,fam:sans,b:true},axis:{size:fs+2.5,fam:serif,i:cfg.titleItalic!==false},ticks:{size:fs,fam:sans},legend:{size:Math.max(9,fs-1),fam:sans},labels:{size:fs-1,fam:sans},peaks:{size:Math.max(9,fs-1.5),fam:sans,b:true}})[el]||{size:fs,fam:sans};
 }
 const ANNO_TX={fam:"font",name:"fontName",size:"pt",b:"bold",i:"i",u:"u",color:"color",align:"align"};
-function pdTxtGet(path){ const wk=S.plotPreview||{};
+function pdTxtGet(path){ const wk=S.plotPreview||(P()?pdBase():{});
   if(path.startsWith("axt:")) return ((((wk.ax||{})[path.slice(4)])||{}).tst)||{};
   if(path.startsWith("anno:")){ const a=(wk.annos||[]).find(q=>q.id===path.slice(5))||{}, o={}; Object.entries(ANNO_TX).forEach(([k,f])=>{ if(a[f]!=null) o[k]=a[f]; }); return o; }
   return ((wk.txt||{})[path.slice(4)])||{}; }
 function pdTxtSet(path,patch){
-  if(path.startsWith("axt:")){ const k=path.slice(4), wk=S.plotPreview; if(!wk) return; const o=Object.assign({},((wk.ax||{})[k]||{}).tst||{},patch); Object.keys(o).forEach(q=>{ if(o[q]==null||o[q]==="") delete o[q]; }); pdSet("ax."+k+".tst",Object.keys(o).length?o:null); return; }
+  if(path.startsWith("axt:")){ const k=path.slice(4), wk=pdWk(); if(!wk) return; const o=Object.assign({},((wk.ax||{})[k]||{}).tst||{},patch); Object.keys(o).forEach(q=>{ if(o[q]==null||o[q]==="") delete o[q]; }); pdSet("ax."+k+".tst",Object.keys(o).length?o:null); return; }
   if(path.startsWith("anno:")){ const o={}; Object.entries(patch).forEach(([k,v])=>{ if(ANNO_TX[k]) o[ANNO_TX[k]]=v; }); pdSet("annos."+path.slice(5),o); return; }
   pdSet(path,patch); }
 // Quick styles: a frame with its ticks, in one click.
@@ -9807,7 +9823,7 @@ function pdEdgeSet(edge,what,v){
   pdSet(b+".mirror",true); pdSet(b+".mticks",v===axisCfg(plotCfg(),e.k).dir?null:v);
 }
 // Every edge alike: the axes' ticks one way, repeated across from them the same way.
-function pdEdgesAll(v){ const wk=S.plotPreview; if(!wk) return; wk.ax=Object.assign({},wk.ax||{});
+function pdEdgesAll(v){ const wk=pdWk(); if(!wk) return; wk.ax=Object.assign({},wk.ax||{});
   ["x","y","y2","x2","yo"].forEach(a=>{ wk.ax[a]=Object.assign({},wk.ax[a]||{},{ticks:v,mticks:null,mirror:v==="none"?false:a==="x"||a==="y"?true:wk.ax[a]&&wk.ax[a].mirror}); }); renderPlot(); }
 // The frame drawn small, each edge with its ticks and numbers; click an edge to choose it.
 function edgePicSvg(E,sel){
@@ -9828,14 +9844,14 @@ function edgePicSvg(E,sel){
     s+=`<g class="edge${on?" on":""}" data-pdedge="${k}"><path d="${seg[k]}" class="ehit"/><path d="${seg[k]}" class="eline"/><path d="${tk(k,q.ticks)}" class="etick"/><g class="enum">${nums(k,q)}</g></g>`; });
   return s+`</svg>`; }
 const PD_PRESETS=[["classic","Box, ticks in"],["boxout","Box, ticks out"],["mixed","Out on the axes, in across"],["journal","Axes, ticks out"],["open","Open axes"],["minimal","Grid only"]];
-function pdPreset(k){ const wk=S.plotPreview; if(!wk) return;
+function pdPreset(k){ const wk=pdWk(); if(!wk) return;
   const q={classic:{frame:"box",t:"in",mir:null,off:null,grid:false},boxout:{frame:"box",t:"out",mir:false,off:null},mixed:{frame:"box",t:"out",mir:true,mt:"in",off:null,grid:false},journal:{frame:"l",t:"out",mir:false,off:null,grid:false},
     open:{frame:"l",t:"out",mir:false,off:6,grid:false},minimal:{frame:"none",t:"none",mir:false,off:null,grid:true}}[k]; if(!q) return;
   wk.frame=q.frame; wk.ax=Object.assign({},wk.ax||{});
   ["x","y","y2","x2","yo"].forEach(a=>{ wk.ax[a]=Object.assign({},wk.ax[a]||{},{ticks:q.t,mirror:q.mir,mticks:q.mt||null,mlabs:null,off:q.off}); });
   if(q.grid!=null) wk.grid=q.grid;
   renderPlot(); }
-function pdAct(s){ const wk=S.plotPreview; if(!wk) return; const i=s.indexOf(":"), k=s.slice(0,i), id=s.slice(i+1);
+function pdAct(s){ const wk=pdWk(); if(!wk) return; const i=s.indexOf(":"), k=s.slice(0,i), id=s.slice(i+1);
   if(k==="fploff"){ wk.peakLabOff=null; renderPlot(); return; }
   if(k==="tdreset"){ if(id==="title"){ wk.titleDx=null; wk.titleDy=null; renderPlot(); } else { pdSet("ax."+id+".tdx",null); pdSet("ax."+id+".tdy",null); } return; }
   const a=(wk.annos||[]).find(q=>q.id===id); if(!a) return; const g=S.geo, v=g?g.v:curView();
@@ -9852,8 +9868,10 @@ function annoWhere(a,dg){ dg=dg||5;
   if(a.t==="arrow") return `to x = ${fmt(a.x2,dg)}`; return `x = ${fmt(a.x,dg)}`; }
 const annoBrief=(a,d)=>{ const t=annoLabelText(a,d.xu||"",d.yu||""), w=annoWhere(a);
   return (a.t==="inset"?"":(t?texPlain(String(t).split("\n")[0]).slice(0,40):"no text")+" · ")+w; };
-function renderPlotDetails(){
-  const m=$("#plotModal"), body=$("#pdBody"); if(!m||!body||!S.plotPreview) return;
+function renderPlotDetails(o){
+  const body=$("#pdBody"); if(!body||!P()||!fmtOpen()) return;
+  // A redraw from a save must not take what is being typed.
+  if(o&&o.fromSave){ const a=document.activeElement; if(a&&body.contains(a)&&(a.tagName==="INPUT"&&a.type==="text"||a.tagName==="TEXTAREA"||a.isContentEditable)) return; }
   const cfg=plotCfg(), pal=readPalette(), act=activeYCol(), ro=S.readOnly?" disabled":"";
   if(S.pdTab==="ax:y2"&&cfg.layout!=="dy"&&cfg.layout!=="heat") S.pdTab="ax:y";
   const page=S.pdTab;
@@ -9881,16 +9899,20 @@ function renderPlotDetails(){
   const tbar=(el,o)=>txtBarHtml("txt."+el,(cfg.txt||{})[el]||{},auto(el),o);
   const txReset=el=>Object.keys((cfg.txt||{})[el]||{}).length?`<button type="button" class="pd-rst" data-pdtxreset="${el}"${ro}>Back to the graph's style</button>`:"";
   const list=[act].concat(yCols().filter(c=>c!==act)).filter(Boolean);
-  let h=`<div class="pd"><nav class="pd-list" aria-label="What to format"><div class="pd-h">Data</div>`;
-  list.forEach(c=>{ const st=serStyle(c.id,c===act,pal,false,cfg), on=page==="series"&&S.pdSel===c.id, hid=cfg.hidden.includes(c.id)&&c!==act;
-    h+=`<button class="pd-item${on?" on":""}" data-pdsel="${c.id}" aria-current="${on?"page":"false"}"><span class="sw" style="background:${st.color}"></span><span class="grow">${st.label?texHtml(st.label):esc(specName(c))}</span>${hid?`<span class="lab">hidden</span>`:""}</button>`; });
-  if(activeFit()){ const on=page==="series"&&S.pdSel==="__fit"; h+=`<button class="pd-item${on?" on":""}" data-pdsel="__fit" aria-current="${on?"page":"false"}"><span class="sw" style="background:${(cfg.series.__fit||{}).color||pal.fit}"></span><span class="grow">Fit curve</span></button>`; }
-  const nav=(k,l)=>`<button class="pd-item${page===k?" on":""}" data-pdpage="${k}" aria-current="${page===k?"page":"false"}"><span class="grow">${l}</span></button>`;
-  h+=`<div class="pd-h">Axes</div>`+nav("ax:x","X axis")+nav("ax:x2","Second X axis")+nav("ax:y",cfg.layout==="dy"?"Left Y axis":"Y axis")+(["dy","heat","stack"].includes(cfg.layout)?"":nav("ax:yo","Second Y axis"))+(cfg.layout==="dy"?nav("ax:y2","Right Y axis"):cfg.layout==="heat"?nav("ax:y2","Colour scale"):"");
-  h+=`<div class="pd-h">Graph</div>`+nav("frame","Frame and grid")+nav("text","Text and fonts")+nav("legend","Legend")+nav("layout","Layout and colours")+nav("labels","Labels and lines")+nav("fpeaks","Fitted peak labels");
+  // What to format, as the design system's pane has it: a list at the top (each curve and the fit,
+  // each axis, each part of the graph); a click on the graph chooses it too (renderCtx).
+  const cur=page==="series"?"s:"+S.pdSel:"p:"+page, opt=(v,l)=>`<option value="${esc(v)}"${cur===v?" selected":""}>${esc(l)}</option>`;
+  let h=`<div class="pd"><div class="pd-selrow"><label for="fmtSel">Selected</label><select id="fmtSel"><optgroup label="Data">`;
+  list.forEach(c=>{ const st=serStyle(c.id,c===act,pal,false,cfg), hid=cfg.hidden.includes(c.id)&&c!==act; h+=opt("s:"+c.id,(st.label?texPlain(st.label):specName(c))+(hid?" (hidden)":"")); });
+  if(activeFit()) h+=opt("s:__fit","Fit curve");
+  const nav=(k,l)=>opt("p:"+k,l);
+  h+=`</optgroup><optgroup label="Axes">`+nav("ax:x","X axis")+nav("ax:x2","Second X axis")+nav("ax:y",cfg.layout==="dy"?"Left Y axis":"Y axis")+(["dy","heat","stack"].includes(cfg.layout)?"":nav("ax:yo","Second Y axis"))+(cfg.layout==="dy"?nav("ax:y2","Right Y axis"):cfg.layout==="heat"?nav("ax:y2","Colour scale"):"");
+  h+=`</optgroup><optgroup label="Graph">`+nav("frame","Frame and grid")+nav("text","Text and fonts")+nav("legend","Legend")+nav("layout","Layout and colours")+nav("labels","Labels and lines")+nav("fpeaks","Fitted peak labels")+`</optgroup></select></div>`;
   const TITLES={frame:"Frame and grid",text:"Text and fonts",legend:"Legend",layout:"Layout and colours",labels:"Labels and lines",fpeaks:"Fitted peak labels","ax:x":"X axis","ax:yo":"Second Y axis","ax:x2":"Second X axis","ax:y":cfg.layout==="dy"?"Left Y axis":"Y axis","ax:y2":cfg.layout==="heat"?"Colour scale":"Right Y axis"};
   const selC=page==="series"&&S.pdSel!=="__fit"?(colById(S.pdSel)||act):null;
-  h+=`</nav><div class="pd-main" data-page="${esc(page)}"><div class="pd-title" role="heading" aria-level="3">${esc(page==="series"?(S.pdSel==="__fit"?"Fit curve":selC?specName(selC):""):TITLES[page]||"")}</div>`;
+  { const hd=$("#pdHead"); if(hd) hd.textContent=page==="series"?(S.pdSel==="__fit"?"Fit curve":selC?specName(selC):""):TITLES[page]||""; }
+  { const all=$("#pdAll"); if(all) all.hidden=!multiGraph(); }
+  h+=`<div class="pd-main" data-page="${esc(page)}">`;
   if(page==="series"){
     if(S.pdSel==="__fit"){ const f=Object.assign({color:pal.fit,lw:2},cfg.series.__fit||{});
       h+=grp("Line",`<label>Colour</label>${cb("series.__fit.color",(cfg.series.__fit||{}).color,"Automatic",pal.fit)}<label for="pdFlw">Width</label>${cmb("pdFlw",f.lw,"series.__fit.lw",0.5,5,CMB.lw)}`)
@@ -10078,10 +10100,13 @@ function renderPlotDetails(){
     if(selA) h+=pdAnnoEditor(selA,{cfg,pal,d,ro,sel,num,rng,cmb,chk,seg,cb,grp,wide,note,DASH_OPTS,auto});
   }
   h+=`</div></div>`;
+  const keep=fe&&body.contains(fe)&&fe.tagName==="INPUT"&&fe.type==="text"?[fe.value,fe.selectionStart,fe.selectionEnd]:null;
   body.innerHTML=h; richMount(body);
   wireTxtBars(body,pdTxtGet,(path,patch,final)=>{ pdTxtSet(path,patch); if(final) renderPlotDetails(); },{inherit:"The graph's font"});
   const main=body.querySelector(".pd-main"); if(main&&sc) main.scrollTop=sc;
-  if(fkey){ const el=body.querySelector(fkey); if(el) el.focus({preventScroll:true}); }
+  if(fkey){ const el=body.querySelector(fkey); if(el){ el.focus({preventScroll:true});
+    // A number being typed is not in the settings yet: it stays in its field, the caret where it was.
+    if(keep&&el.tagName==="INPUT"){ if(el.value!==keep[0]) el.value=keep[0]; try{ el.setSelectionRange(keep[1],keep[2]); }catch(e){} } } }
 }
 /* One line, range, text or label: its text and style, where it is, how it is
    turned and boxed, and its line. */
@@ -10226,14 +10251,15 @@ function formatEveryGraph(){
   toast("Every graph now has this graph's format.",{action:"Undo",run:undo});
 }
 function setupPlotDetails(){
-  const m=$("#plotModal"); if(!m) return;
-  const body=$("#pdBody");
+  const body=$("#pdBody"); if(!body) return;
+  body.addEventListener("change",e=>{ const el=e.target; if(!el||el.id!=="fmtSel") return; const v=el.value;
+    pdCommit(); if(v.startsWith("s:")){ S.pdSel=v.slice(2); S.pdTab="series"; } else S.pdTab=v.slice(2); S.pdAnno=null; renderPlotDetails(); });
   body.addEventListener("click",e=>{
-    const t=e.target, wk=S.plotPreview; if(!wk) return;
+    const t=e.target; if(!P()) return;
     const s=t.closest("[data-pdsel]"); if(s){ S.pdSel=s.dataset.pdsel; S.pdTab="series"; renderPlotDetails(); return; }
     const pg=t.closest("[data-pdpage]"); if(pg){ S.pdTab=pg.dataset.pdpage; renderPlotDetails(); return; }
     const an=t.closest("[data-pdanno]"); if(an){ S.pdAnno=S.pdAnno===an.dataset.pdanno?null:an.dataset.pdanno; S.annoSel=S.pdAnno; renderPlot(); renderPlotDetails(); return; }
-    const pk=t.closest("[data-pdpeaks]"); if(pk){ e.preventDefault(); closePlotDetails(true); openPeakFinder(); return; }
+    const pk=t.closest("[data-pdpeaks]"); if(pk){ e.preventDefault(); pdCommit(); openPeakFinder(); return; }
     if(S.readOnly) return;
     const sg=t.closest("[data-pdseg]"); if(sg){ let v=sg.dataset.v; if(sg.dataset.n!=null) v=v===""?null:+v; else if(v==="") v=null; pdSet(sg.dataset.pdseg,v); renderPlotDetails(); return; }
     const c=t.closest("[data-pdc]"); if(c){ const path=c.dataset.pdc;
@@ -10243,19 +10269,19 @@ function setupPlotDetails(){
     const mt=t.closest("[data-pdmt]"); if(mt){ const [ak,v]=mt.dataset.pdmt.split(":"); if(v==="none") pdSet(`ax.${ak}.mirror`,false); else { pdSet(`ax.${ak}.mirror`,true); pdSet(`ax.${ak}.mticks`,v||null); } renderPlotDetails(); return; }
     const ea=t.closest("[data-pdedgeall]"); if(ea){ pdEdgesAll(ea.dataset.pdedgeall); renderPlotDetails(); return; }
     const eg=t.closest("[data-pdedge]"); if(eg){ S.pdEdge=eg.dataset.pdedge; renderPlotDetails(); return; }
-    const fb=t.closest("[data-pdfont]"); if(fb){ openFontPicker(fb,{k:wk.fontFam||"default",name:wk.fontName||""},(k,name)=>{ wk.fontFam=k||"default"; wk.fontName=k==="custom"?name:""; renderPlot(); renderPlotDetails(); },{kurve:true,label:"Font of the graph"}); return; }
-    const tr=t.closest("[data-pdtxreset]"); if(tr){ const rs=tr.dataset.pdtxreset; if(rs.startsWith("axt:")) pdSet("ax."+rs.slice(4)+".tst",null); else { wk.txt=Object.assign({},wk.txt||{}); wk.txt[rs]={}; renderPlot(); } renderPlotDetails(); return; }
+    const fb=t.closest("[data-pdfont]"); if(fb){ openFontPicker(fb,{k:pdGet("fontFam")||"default",name:pdGet("fontName")||""},(k,name)=>{ const wk=pdWk(); if(!wk) return; wk.fontFam=k||"default"; wk.fontName=k==="custom"?name:""; renderPlot(); renderPlotDetails(); },{kurve:true,label:"Font of the graph"}); return; }
+    const tr=t.closest("[data-pdtxreset]"); if(tr){ const rs=tr.dataset.pdtxreset; if(rs.startsWith("axt:")) pdSet("ax."+rs.slice(4)+".tst",null); else { const wk=pdWk(); if(wk){ wk.txt=Object.assign({},wk.txt||{}); wk.txt[rs]={}; renderPlot(); } } renderPlotDetails(); return; }
     const ac=t.closest("[data-pdact]"); if(ac){ pdAct(ac.dataset.pdact); renderPlotDetails(); return; }
     const pl=t.closest("[data-pdplace]"); if(pl&&S.pdAnno){ const [fx,fy]=pl.dataset.pdplace.split(",").map(Number);
       pdSet("annos."+S.pdAnno,{pin:"plot",fx:fx===0?0.03:fx===1?0.97:0.5,fy:fy===0?0.09:fy===1?0.94:0.5,align:fx===0?"left":fx===1?"right":"center"}); renderPlotDetails(); return; }
-    const ba=t.closest("[data-pdbrkadd]"); if(ba){ const k=ba.dataset.pdbrkadd, sg=suggestBreak(k); if(!sg) return; pdSet("ax."+k+".brk",((((wk.ax||{})[k]||{}).brk)||[]).map(q=>q.slice()).concat([sg.r])); renderPlotDetails(); return; }
-    const bd=t.closest("[data-pdbrkdel]"); if(bd){ const [k,i]=bd.dataset.pdbrkdel.split(":"), nb=((((wk.ax||{})[k]||{}).brk)||[]).filter((q,j)=>j!==+i); pdSet("ax."+k+".brk",nb.length?nb:null); renderPlotDetails(); return; }
-    const del=t.closest("[data-pdandel]"); if(del){ wk.annos=(wk.annos||[]).filter(a=>a.id!==del.dataset.pdandel); if(S.pdAnno===del.dataset.pdandel) S.pdAnno=null; renderPlot(); renderPlotDetails(); return; }
+    const ba=t.closest("[data-pdbrkadd]"); if(ba){ const k=ba.dataset.pdbrkadd, sg=suggestBreak(k); if(!sg) return; pdSet("ax."+k+".brk",(pdGet("ax."+k+".brk")||[]).map(q=>q.slice()).concat([sg.r])); renderPlotDetails(); return; }
+    const bd=t.closest("[data-pdbrkdel]"); if(bd){ const [k,i]=bd.dataset.pdbrkdel.split(":"), nb=(pdGet("ax."+k+".brk")||[]).filter((q,j)=>j!==+i); pdSet("ax."+k+".brk",nb.length?nb:null); renderPlotDetails(); return; }
+    const del=t.closest("[data-pdandel]"); if(del){ const wk=pdWk(); if(!wk) return; wk.annos=(wk.annos||[]).filter(a=>a.id!==del.dataset.pdandel); if(S.pdAnno===del.dataset.pdandel) S.pdAnno=null; renderPlot(); renderPlotDetails(); return; }
     const am=t.closest("[data-pdaddmenu]"); if(am){ openMenu(am,ANNO_ADD.map(([k,l,ic])=>({label:l,icon:ic,run:()=>pdAddAnno(k)})),{label:"Add to the graph"}); return; }
   });
   const onVal=(e,final)=>{
-    const el=e.target; if(S.readOnly||!S.plotPreview) return;
-    if(el.dataset.pdpin!=null){ if(!final) return; const id=el.dataset.pdpin, a=(S.plotPreview.annos||[]).find(q=>q.id===id), g=S.geo; if(!a||!g) return;
+    const el=e.target; if(S.readOnly||!P()) return;
+    if(el.dataset.pdpin!=null){ if(!final) return; const id=el.dataset.pdpin, a=((S.plotPreview||pdBase()).annos||[]).find(q=>q.id===id), g=S.geo; if(!a||!g) return;
       if(twoEnds(a)){ const e=annoEnds(a,g), d=plotState().d;
         if(el.checked) pdSet("annos."+id,{pin:"plot",fx:+((e.t.x-g.L)/g.pw).toFixed(4),fy:+((e.t.y-g.T)/g.mh).toFixed(4),fx2:+((e.h.x-g.L)/g.pw).toFixed(4),fy2:+((e.h.y-g.T)/g.mh).toFixed(4)});
         else { const p=toData(e.t.x,e.t.y), q=toData(e.h.x,e.h.y); pdSet("annos."+id,{pin:null,x:+p.x.toPrecision(7),y:+p.y.toPrecision(7),x2:+q.x.toPrecision(7),y2:+q.y.toPrecision(7),xu:d.xu||"",yu:d.yu||""}); }
@@ -10277,36 +10303,20 @@ function setupPlotDetails(){
     pdSet(path,v);
     if(final&&(el.tagName==="SELECT"||el.type==="checkbox")) renderPlotDetails();
     // A text field is redrawn after its change: redrawing inside it takes the field away mid-event.
-    else if(final&&el.dataset.redraw!=null) setTimeout(()=>{ if(S.plotPreview) renderPlotDetails(); },0);
+    else if(final&&el.dataset.redraw!=null) setTimeout(()=>{ if(fmtOpen()) renderPlotDetails(); },0);
   };
   // Sliders and typed text show on the graph as they change; numbers when complete.
   body.addEventListener("input",e=>{ const el=e.target; if(el.type==="range"||el.tagName==="TEXTAREA"||(el.type==="text"&&el.dataset.pd&&el.dataset.num==null)) onVal(e,false); });
   body.addEventListener("change",e=>onVal(e,true));
   // What the fitted peaks' labels show: the ticked boxes, in their order.
-  body.addEventListener("change",e=>{ const el=e.target; if(!el||el.dataset.pdfpl==null||S.readOnly||!S.plotPreview) return;
+  body.addEventListener("change",e=>{ const el=e.target; if(!el||el.dataset.pdfpl==null||S.readOnly||!P()) return;
     const arr=[...body.querySelectorAll("[data-pdfpl]")].filter(x=>x.checked).map(x=>x.dataset.pdfpl); pdSet("peakLabShow",arr); pdSet("peakLab",arr.length?"custom":"off"); renderPlotDetails(); });
   // Which kinds of text are open, kept across redraws (a stale toggle of one redrawn away is ignored).
   body.addEventListener("toggle",e=>{ const d=e.target; if(!d||!d.isConnected||!d.dataset||d.dataset.pdcard==null) return; const s=S.pdOpen||(S.pdOpen=new Set()); if(d.open) s.add(d.dataset.pdcard); else s.delete(d.dataset.pdcard); },true);
-  // Up and down move through the pages.
-  body.addEventListener("keydown",e=>{ const it=e.target.closest&&e.target.closest(".pd-item"); if(!it||(e.key!=="ArrowDown"&&e.key!=="ArrowUp")) return;
-    e.preventDefault(); const all=[...body.querySelectorAll(".pd-item")], i=all.indexOf(it), n=all[Math.max(0,Math.min(all.length-1,i+(e.key==="ArrowDown"?1:-1)))]; if(n&&n!==it){ n.click(); const f=body.querySelector(".pd-item.on"); if(f) f.focus(); } });
-  // The dialog moves by its title bar, off whatever it hides; a double click puts it back.
-  const sh=m.querySelector(".sheet"), hd=m.querySelector(".sheet-h");
-  hd.title="Drag to move; double-click to put it back";
-  hd.addEventListener("pointerdown",e=>{ if(e.button!==0||innerWidth<600||e.target.closest("button,input,select")) return; e.preventDefault(); hd.setPointerCapture(e.pointerId);
-    const o=S.pdPos||{x:0,y:0}, x0=e.clientX, y0=e.clientY, r=sh.getBoundingClientRect();
-    const mv=ev=>{ let dx=o.x+ev.clientX-x0, dy=o.y+ev.clientY-y0; const l=r.left+dx-o.x, t=r.top+dy-o.y;
-      if(l<80-r.width) dx+=80-r.width-l; if(l>innerWidth-80) dx-=l-(innerWidth-80); if(t<0) dy-=t; if(t>innerHeight-48) dy-=t-(innerHeight-48);
-      S.pdPos={x:Math.round(dx),y:Math.round(dy)}; sh.style.transform=`translate(${S.pdPos.x}px,${S.pdPos.y}px)`; };
-    const up=()=>{ hd.removeEventListener("pointermove",mv); hd.removeEventListener("pointerup",up); hd.removeEventListener("pointercancel",up); };
-    hd.addEventListener("pointermove",mv); hd.addEventListener("pointerup",up); hd.addEventListener("pointercancel",up); });
-  hd.addEventListener("dblclick",()=>{ S.pdPos=null; sh.style.transform=""; });
-  $("#pdOk").onclick=()=>closePlotDetails(true);
-  $("#pdCancel").onclick=()=>closePlotDetails(false);
-  $("#pdFormats").onclick=e=>{ const wk=S.plotPreview; if(!wk) return;
-    toggleMenu(e.currentTarget,()=>formatMenuItems(f=>{ const w=S.plotPreview; if(!w) return; Object.assign(w,styleFrom(f.fmt,w)); renderPlot(); renderPlotDetails(); toast(`Showing the style "${f.name}". OK keeps it.`); },()=>S.plotPreview),{label:"Saved styles"}); };
-  $("#pdAll").onclick=()=>{ if(S.readOnly) return; closePlotDetails(true); formatEveryGraph(); };
-  $("#pdReset").onclick=()=>{ const wk=S.plotPreview; if(!wk||S.readOnly) return; const pg=S.pdTab, nul=ks=>ks.forEach(k=>{ wk[k]=null; });
+  $("#pdFormats").onclick=e=>{ if(!P()) return;
+    toggleMenu(e.currentTarget,()=>formatMenuItems(f=>{ const w=pdWk(); if(!w) return; Object.assign(w,styleFrom(f.fmt,w)); pdCommit(); renderPlotDetails(); toast(`The graph has the style "${f.name}".`,{action:"Undo",run:undo}); },()=>S.plotPreview||pdBase()),{label:"Saved styles"}); };
+  $("#pdAll").onclick=()=>{ if(S.readOnly) return; pdCommit(); formatEveryGraph(); };
+  $("#pdReset").onclick=()=>{ const wk=pdWk(); if(!wk) return; const pg=S.pdTab, nul=ks=>ks.forEach(k=>{ wk[k]=null; });
     if(pg==="series"){ const series=Object.assign({},wk.series||{}); delete series[S.pdSel]; if(S.pdSel==="__fit") delete series.__peaks; wk.series=series; }
     else if(pg.startsWith("ax:")){ const k=pg.slice(3); wk.ax=Object.assign({},wk.ax||{}); wk.ax[k]={}; if(k==="x") wk.logX=false; }
     else if(pg==="frame"){ nul(["frameLw","frameColor","gridColor","gridLw","gridDash","gridX","gridY","plotBg","mL","mR","mT","mB"]); Object.assign(wk,{frame:"box",grid:false,gridMinor:false}); }
@@ -10316,7 +10326,7 @@ function setupPlotDetails(){
     else if(pg==="fpeaks"){ Object.assign(wk,{peakLab:"num",peakLabShow:null,peakLabTpl:"",peakLabErr:false,peakLabUnit:false,peakLabSep:"comma",peakLabPos:"top",peakLabMk:"none",peakLabCol:"peak",peakLabBox:"none",peakLabRot:false,peakLabDec:null,peakLabOff:null}); wk.txt=Object.assign({},wk.txt||{},{peaks:{}}); }
     else if(pg==="labels"){ if(S.pdAnno){ const o={}; ["font","fontName","pt","bold","i","u","color","align","ang","rot","box","bg","bd","lpos","lw","dash","op","edge","size"].forEach(k=>{ o[k]=null; }); pdSet("annos."+S.pdAnno,o); }
       else { Object.assign(wk,{peakLab:"num",peakLabRot:false,peakLabDec:null}); wk.txt=Object.assign({},wk.txt||{},{peaks:{}}); } }
-    renderPlot(); renderPlotDetails(); };
+    pdCommit(); renderPlotDetails(); };
 }
 
 /* Status bar: what the data and the fit are, at a glance. */
@@ -15965,7 +15975,7 @@ function openProject(id){
   if(S.pid===id&&S.proj) return;
   if(S.ws&&S.ws.edit) wsCommit(0,0,true);
   if(Object.keys(wsPatch).length&&wsPid===S.pid&&S.pid){ clearTimeout(wsTimer); const pp=wsPatch, l=wsLog; wsPatch={}; wsLog=null; save(pp,l); }
-  saveGraphLayout();
+  pdCommit(); saveGraphLayout();
   S.pid=id; S.view=null; S.sel=null; S.anchor=null; S.draft=null; S.fitError=""; S.comments=[]; S.cReply=null; S.cEdit=null;
   S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.editing=false; S.wsSort=null; S.wsFind=null; { const fb=document.getElementById("wsFind"); if(fb) fb.hidden=true; }
   // Panel state belongs to the spectrum being looked at, not to the session:
@@ -18894,7 +18904,7 @@ ${DL([["Import, Export","Bring a file in; save the graph, data or a report."],["
 <p>Below 860 pixels the windows stack in one column, graph first, and the taskbar stays at the bottom of the screen. There is no dock there: every window takes the width of the screen.</p>
 <h2>Theme and style</h2>
 <p>${MP("Window › Theme")}: light, dark, or the system's. The moon and sun button in the title bar switches between them.</p>
-<p>${MP("Window › Style")}: <strong>Bench</strong> marks everything you can change in blue; <strong>Graphite</strong> is black and white, with blue only for the keyboard focus. Both are remembered in this browser. They change the interface only: the graph's colours are set in the Format dialog and stay as they are.</p>
+<p>${MP("Window › Style")}: <strong>Bench</strong> marks everything you can change in blue; <strong>Graphite</strong> is black and white, with blue only for the keyboard focus. Both are remembered in this browser. They change the interface only: the graph's colours are set in the Format pane and stay as they are.</p>
 <p>Both are made to be read on a screen with little contrast. The desk is darker than the windows on it and every window has a dark edge; the window in front has its title bar filled (blue in Bench, black in Graphite, light in their dark themes); whatever is on, chosen or in front is filled rather than tinted (a toolbar switch, the choice in a row of buttons, the front window's taskbar button, the item under the pointer in a menu); edges of buttons, fields and boxes are 3:1 or more against what they sit on, and words 7:1 or more.</p>`},
 {id:"projects", g:"Basics", t:"Projects, saving and undo", kw:"project rename new delete switch save local browser shared workspace undo redo log taskbar which bring in another copy spectra combine merge tabs storage full quota not saved",
  lead:"A project is one table of data with its processing, peaks, bands, fits, figure and discussion. It saves itself as you work.",
@@ -19104,7 +19114,7 @@ ${DL([["Data reader","The <em>Reader</em> tool: hovering rings the plotted point
 {id:"scales", g:"Graph", t:"Axis scales, dates and a second Y axis", kw:"scale log logarithmic ln natural log2 reciprocal 1/x arrhenius offset reciprocal celsius kelvin square root sqrt probability normal percent quantile date time clock hours timestamp second y axis right transmittance absorbance other units",
  lead:"Besides linear and logarithmic, an axis can be on a natural log, log₂, reciprocal, offset reciprocal, square-root or probability scale; its numbers can read as dates and times; and a second Y axis can show the heights in other units.",
  body:`<h2 id="kinds">Scales</h2>
-<p>${MP("Figure › Axes › X scale")} (or Y), an axis's menu (right-click its numbers), or the Format dialog's axis page, <em>Type</em>. Each value is drawn where its transform puts it and numbered in its own units.</p>
+<p>${MP("Figure › Axes › X scale")} (or Y), an axis's menu (right-click its numbers), or the Format pane's axis page, <em>Type</em>. Each value is drawn where its transform puts it and numbered in its own units.</p>
 ${DL([["Linear","The default."],["Logarithmic (log₁₀)","As the toolbar's Log Y (and the Y scale's). Numbered in powers of ten."],["Natural log (ln)","Numbered in powers of e: 1, e, e², e³."],["Log₂","Numbered in powers of two: 1, 2, 4, 8…"],["Reciprocal (1/x)","An Arrhenius plot: temperatures in kelvin on a scale of 1/T, so ln k against 1/T is a straight line, numbered in kelvin. Turn the axis round with Reverse X to have 1/T rise to the right."],["Offset reciprocal","1/(x + c): temperatures in degrees Celsius with c = 273.15, or any c you type."],["Square root","Counts whose small values matter beside large ones."],["Probability (%)","Percentages at their normal quantile, as on probability paper: a cumulative normal distribution is a straight line. Numbered 1, 5, 10, 50, 90, 95, 99…"]])}
 <p>Points a scale cannot show (zero or less on a log or reciprocal scale, 0 % or 100 % on a probability scale) are left out of the graph, never of the data. A scale's view is padded in its own coordinates; zoom and pan move through it. Breaks are for linear and log₁₀ axes only.</p>
 <h2 id="dates">Dates and times</h2>
@@ -19186,7 +19196,7 @@ ${DL([["Bins","Chosen for the data (Freedman–Diaconis: twice the interquartile
 <h2 id="box">Box charts and violins</h2>
 <p>Choose <em>Box chart</em> or <em>Violin plot</em> in ${MP("Plot")} on the worksheet's bar, or ${MP("Plot › Plot the selected columns")}. Each curve on the graph becomes one box at a place of its own along X, named under it; its values are its processed data with the masked points left out (and those at or below zero on a log axis).</p>
 ${DL([["The box","From the first to the third quartile (as R's and Excel's QUARTILE.INC), the median as a heavy line across, the mean as a diamond."],["Whiskers","To the furthest values within 1.5 times the interquartile range of the box, with any value beyond drawn as an open circle (Tukey's rule); or to the smallest and largest values, with none beyond."],["A violin","The values' density (Gaussian kernels, Silverman's bandwidth) mirrored about the middle, each violin as wide as the others at its widest; inside, the box as a thin bar and the median as a dot."],["Show the values","Every value as a dot, scattered across the box's width (the same way every time)."]])}
-<p>The graph's right-click menu has <em>Box chart</em> or <em>Violin plot</em> for these settings, and so does the Format dialog's Layout page. A box's tooltip gives its count, median, quartiles, mean and standard deviation; the status bar names the column under the pointer.</p>`},
+<p>The graph's right-click menu has <em>Box chart</em> or <em>Violin plot</em> for these settings, and so does the Format pane's Layout page. A box's tooltip gives its count, median, quartiles, mean and standard deviation; the status bar names the column under the pointer.</p>`},
 {id:"panels", g:"Graph", t:"Figures of panels", kw:"panel panels figure layer layers grid multi-panel multipanel subplot subplots stacked column row share shared axis axes link align aligned letters (a) (b) merge graphs page layout origin",
  lead:"A figure puts several graphs on one page as its panels, in rows and columns, as Origin's graph layers and Merge Graphs do: each panel keeps its own columns, axes and format, and their plot areas line up.",
  body:`<h2>Making one</h2>
@@ -19202,8 +19212,8 @@ ${DL([["Rows and columns","The panels fill them in reading order."],["Share X","
 <h2>Deleting</h2>
 <p><em>Delete the figure</em> makes its panels graphs of their own again; <em>Delete the figure and its panels</em> removes those graphs too (never their columns). Closing it keeps it in the project, as a graph.</p>`},
 {id:"style", g:"Graph", t:"Formatting the graph", kw:"format plot details spline b-spline smooth connect colour by color by size by third column colormap fill between hatch hatching pattern black and white style colour color line symbol width dash fill axes axis ticks tick length mirror position offset zero frame box grid background margin legend columns layout overlay offset stack double y heat map font scheme title quick styles every graph formats saved template journal slides break broken axis gap leave out second x axis top axis wavelength raman shift wavenumber energy ev micrometre conversion project colleagues share",
- lead:"The Format dialog holds every setting of the figure, page by page. Changes show on the graph as you make them; OK keeps them as one undo step, Cancel leaves the graph as it was.",
- body:`<p>Open it from ${MP("Figure › Format graph…")}, the graph's right-click menu, a double-click on an axis's numbers, or <em>Font, size and every setting…</em> on anything drawn. Drag its title bar to move it off what it hides; a double click puts it back. <em>Defaults</em> resets the page in front.</p>
+ lead:"The Format pane holds every setting of the figure, page by page, docked beside the graph. Every change shows on the graph at once and is kept: there is no OK, and each burst of changes is one undo step.",
+ body:`<p>Open it from ${MP("Figure › Format graph…")}, the graph's right-click menu, a double-click on an axis's numbers, or <em>Format…</em> on anything drawn. <em>Selected</em>, at its top, chooses what it sets: a curve or the fit, an axis, or a part of the graph; a click on the graph (a curve, the fit, an axis's numbers, a line or a label, the legend) chooses it too. Drag its tab out of the dock to float it. <em>Defaults</em> resets the page shown; ${K("Ctrl","Z")} takes back the last change.</p>
 <h2 id="data">Data</h2>
 <p>For each curve: whether it is shown, its legend label, plot type (line, symbols, line and symbols, sticks, area, steps, columns), colour, line style and width, symbol and size, fill and opacity. The fit curve has its own page, with the shading and colours of fitted peaks.</p>
 ${DL([["Connect","Straight lines between the points, a spline through them, or a B-spline (smooth, near them but not through them). Up to a few thousand points; past that the line is drawn straight, which looks the same."],["Colour by, size by","Symbols coloured by the values of a third column (a temperature, a time, a concentration), each point by the value in its own row, with a colour bar titled with the column; or sized by them, small to large, with a legend of a few round values and their sizes beside the graph (the curve's page turns it off). For the Symbols and Line + symbols types. The colour map is the graph's (Map › Colour map)."],["Fill between it and","The area between this curve and another, over the X they share, in its colour where it is the higher and in a second colour (<em>Where it is lower</em>) where it is not. Overlaid curves only."],["Hatching","Lines across an area or a fill between two curves (diagonal, crossed, horizontal, vertical, dots), for a figure printed in black and white. Set the fill's opacity to nothing for hatching alone."]])}
@@ -19231,10 +19241,10 @@ ${DL([["Layout","<em>Overlay</em>; <em>Offset</em> (a waterfall, each trace labe
 <ul><li>Drag the <strong>legend</strong>, a <strong>title</strong> or an <strong>axis's numbers</strong> to move them. An axis dragged into the plot sits at that value (it snaps to zero); dragged out, it is set off from the plot. A title dragged back within 5 px of its place snaps home.</li>
 <li>Double-click a title, a legend entry, a label, a text or a line's text to type over it, in a box with the buttons for superscripts, subscripts and symbols, formatted as in a word processor or in LaTeX (${DA("latex","Text: formatted or LaTeX")}); double-click an axis's numbers for its page.</li>
 <li id="legend-edit">Click the <strong>legend</strong> to select it, the entry clicked shaded; click that entry again, double-click it or press ${K("Enter")} to type over it. ${K("↑")} and ${K("↓")} move between the entries and the title, ${K("Esc")} lets go. An entry's text is its curve's legend label: the curve keeps its name, and clearing the text brings the name back. Right-click the legend for <em>Add a title</em>, <em>Hide this entry</em>, and its place, columns and frame.</li>
-<li>Right-click an axis's numbers, a title, the legend or an empty spot for their menus. Everything with text has the same menu in the same order: <em>Edit text</em>; <em>Size</em>, <em>Bold</em>, <em>Italic</em> and <em>Colour</em>; what is its own (an axis title's place along the axis, a line's style and width, a label's mark, the legend's place and columns); <em>Format…</em> for its page of the Format dialog; <em>Delete</em>.</li>
+<li>Right-click an axis's numbers, a title, the legend or an empty spot for their menus. Everything with text has the same menu in the same order: <em>Edit text</em>; <em>Size</em>, <em>Bold</em>, <em>Italic</em> and <em>Colour</em>; what is its own (an axis title's place along the axis, a line's style and width, a label's mark, the legend's place and columns); <em>Format…</em> for its page of the Format pane; <em>Delete</em>.</li>
 <li>An axis title can have a font, size, weight, slant and colour of its own: its axis's page (or the title's right-click menu). The style of every axis title is on the <em>Text and fonts</em> page.</li></ul>
 <h2 id="formats">Saved styles</h2>
-<p>A saved style is a graph's frame, axes, text, legend and colours, without its data, ranges, titles or labels. ${MP("Figure › Saved styles")} gives the graph one of Kurve's (its own; a journal's, sans serif at 8 pt with the axes alone and ticks out; classic serif in a box; slides, with large text and heavy axes; minimal, open axes on a light grid) or one you saved. <em>Save this style…</em> keeps the graph's <strong>in this project</strong>, where it is saved, undone and shared with the project, so a colleague who opens it has it, or <strong>in this browser</strong>, for any graph in any project opened here. <em>Rename or delete a style</em> renames, deletes, or copies one from the project to the browser and back. In the Format dialog, <em>Saved styles</em> shows one on the graph before OK keeps it. With several graphs, <em>Give every graph a style</em>.</p>
+<p>A saved style is a graph's frame, axes, text, legend and colours, without its data, ranges, titles or labels. ${MP("Figure › Saved styles")} gives the graph one of Kurve's (its own; a journal's, sans serif at 8 pt with the axes alone and ticks out; classic serif in a box; slides, with large text and heavy axes; minimal, open axes on a light grid) or one you saved. <em>Save this style…</em> keeps the graph's <strong>in this project</strong>, where it is saved, undone and shared with the project, so a colleague who opens it has it, or <strong>in this browser</strong>, for any graph in any project opened here. <em>Rename or delete a style</em> renames, deletes, or copies one from the project to the browser and back. In the Format pane, <em>Saved styles</em> gives the graph one at once (one undo step). With several graphs, <em>Give every graph a style</em>.</p>
 <h2>Every graph alike</h2>
 <p>With several graphs, <em>Use on every graph</em> gives all of them this graph's frame, axes, text, legend and colours; their data, ranges, titles and labels stay their own. ${DA("graphs","Several graphs")}</p>
 <h2>Labels and lines</h2>
@@ -19253,7 +19263,7 @@ ${DL([["All text",MP("Figure › Font")+", or "+MP("Format graph › Text and fo
  lead:"Titles, axis titles, legend entries, labels, text and the text of lines and shapes are typed formatted, as in a word processor, or in LaTeX; either way Kurve sets them in the graph's own font, on screen and in every export.",
  body:`<h2>Formatted or LaTeX</h2>
 <p>Every field that takes such a text has four buttons beside it: x<sup>2</sup> raises, x<sub>2</sub> lowers, αΩ opens the symbols, and <em>LaTeX</em> switches between the two ways of typing. The choice is kept in this browser, for every field, and is also in ${MP("File › Preferences…")}.</p>
-${DL([["Formatted (the default)","The field shows the text as it will read: raised and lowered characters raised and lowered, symbols as themselves, nothing to learn and no preview. Select some letters and press x<sup>2</sup> or x<sub>2</sub> (or "+K("Ctrl","Shift","=")+" and "+K("Ctrl","=")+"), or press it and type; press it again to come back to the line. The symbols are a long list by kind (Greek, units, operators, relations, arrows, fractions, accented letters…), searched by name: <em>alpha</em>, <em>degree</em>, <em>arrow</em>. Shift+click picks several. Bold, italics and colour belong to the whole text and are set in its menu or the Format dialog."],["LaTeX","The field shows the source, and a preview under it as soon as it has LaTeX in it. The buttons write <code>^{…}</code> and <code>_{…}</code>, and a symbol is written as its command (<code>\\alpha</code>, <code>\\pm</code>) where LaTeX has one."]])}
+${DL([["Formatted (the default)","The field shows the text as it will read: raised and lowered characters raised and lowered, symbols as themselves, nothing to learn and no preview. Select some letters and press x<sup>2</sup> or x<sub>2</sub> (or "+K("Ctrl","Shift","=")+" and "+K("Ctrl","=")+"), or press it and type; press it again to come back to the line. The symbols are a long list by kind (Greek, units, operators, relations, arrows, fractions, accented letters…), searched by name: <em>alpha</em>, <em>degree</em>, <em>arrow</em>. Shift+click picks several. Bold, italics and colour belong to the whole text and are set in its menu or the Format pane."],["LaTeX","The field shows the source, and a preview under it as soon as it has LaTeX in it. The buttons write <code>^{…}</code> and <code>_{…}</code>, and a symbol is written as its command (<code>\\alpha</code>, <code>\\pm</code>) where LaTeX has one."]])}
 <p>Both keep the same text, so a project typed one way opens the other way. A text that uses what a word processor cannot show (maths between dollar signs, a fraction, a root, an accent, a font, a script inside a script) stays in LaTeX whatever the choice, and the field says so. <code>{x}</code> in a label, and <code>{name}</code>, <code>{xc}</code> and the rest in a fitted peak's label, are kept as typed either way.</p>
 <h2>LaTeX: two ways to write</h2>
 ${DL([["Text","Outside dollar signs: your words as they are, in the text's own font. <code>^{…}</code> and <code>_{…}</code> make a superscript and a subscript, nested as deep as you like. Only braces make them, so a column called <code>sample_01</code> keeps its underscore. <code>\\alpha</code>, <code>\\deg</code> and the other commands give symbols."],["Maths","Between <code>$…$</code>, set as LaTeX sets it: letters italic, digits and function names (<code>\\log</code>, <code>\\sin</code>, <code>\\exp</code>) upright, <code>-</code> a true minus, spaces from the operators rather than from what you type, and <code>x^2</code> or <code>x_i</code> without braces."]])}
@@ -19264,21 +19274,21 @@ ${DL(["PER_{log_{10}} (dB)","Wavenumber (cm^{-1})","$\\tilde{\\nu}$ (cm^{-1})","
 ${DL([["Greek","<code>\\alpha</code> … <code>\\omega</code>, <code>\\Gamma</code> … <code>\\Omega</code>, <code>\\varepsilon</code>, <code>\\vartheta</code>, <code>\\varphi</code>"],["Symbols","<code>\\deg</code> °, <code>\\pm</code> ±, <code>\\times</code> ×, <code>\\cdot</code> ·, <code>\\AA</code> Å, <code>\\micro</code> µ, <code>\\hbar</code> ħ, <code>\\infty</code> ∞, <code>\\partial</code> ∂, <code>\\nabla</code> ∇, <code>\\approx</code> ≈, <code>\\propto</code> ∝, <code>\\le</code> ≤, <code>\\ge</code> ≥, <code>\\ne</code> ≠, <code>\\to</code> →, <code>\\rightleftharpoons</code> ⇌, <code>\\sum</code>, <code>\\int</code>, <code>\\langle</code> <code>\\rangle</code>, <code>\\ldots</code>"],["Fractions and roots","<code>\\frac{a}{b}</code>, <code>\\sqrt{x}</code>, <code>\\sqrt[3]{x}</code>"],["Accents","<code>\\hat{x}</code>, <code>\\bar{x}</code>, <code>\\vec{v}</code>, <code>\\dot{x}</code>, <code>\\ddot{x}</code>, <code>\\tilde{\\nu}</code>, <code>\\overline{AB}</code>"],["Fonts","<code>\\mathrm{…}</code> upright letters in maths, <code>\\text{…}</code> words in maths, <code>\\mathit</code>, <code>\\mathbf</code>, <code>\\textbf</code>, <code>\\emph</code>"],["Spaces","<code>\\,</code> <code>\\:</code> <code>\\;</code> <code>\\quad</code> <code>\\qquad</code>, and <code>\\!</code> to close one up"],["Brackets","<code>\\left( … \\right)</code> grow to fit what they hold"],["The characters themselves","<code>\\$</code>, <code>\\^</code>, <code>\\_</code>, <code>\\{</code>, <code>\\}</code>"]])}
 <p>A command Kurve does not know is left as you typed it, so a mistake shows on the graph rather than vanishing.</p>
 <h2>Typing it</h2>
-<p>Double-click a title, a legend entry, a label or a text on the graph and a box opens over it, formatted or in LaTeX as chosen, with the same four buttons; in LaTeX it shows the text typeset as soon as it has LaTeX in it. Every text field of the Format dialog, the line dialog and the peak's name has the same buttons. ${K("Ctrl","Shift","=")} makes a superscript and ${K("Ctrl","=")} a subscript in either way, as in a word processor.</p>
+<p>Double-click a title, a legend entry, a label or a text on the graph and a box opens over it, formatted or in LaTeX as chosen, with the same four buttons; in LaTeX it shows the text typeset as soon as it has LaTeX in it. Every text field of the Format pane, the line dialog and the peak's name has the same buttons. ${K("Ctrl","Shift","=")} makes a superscript and ${K("Ctrl","=")} a subscript in either way, as in a word processor.</p>
 <h2>Where it works</h2>
-<p>The graph title, the axis titles and a second axis's unit, legend entries and the legend's title, peak labels, text on the plot, the text of lines, ranges, arrows and shapes, fitted peaks' names and their labels' template. Lists and menus (the Format dialog's pages, the right-click menus, Results and the report) show it typeset or as plain text.</p>
+<p>The graph title, the axis titles and a second axis's unit, legend entries and the legend's title, peak labels, text on the plot, the text of lines, ranges, arrows and shapes, fitted peaks' names and their labels' template. Lists and menus (the Format pane's pages, the right-click menus, Results and the report) show it typeset or as plain text.</p>
 <h2>In exports</h2>
 <p>SVG and PNG draw it as on screen. PDF and EPS draw it in the standard fonts (Helvetica, Times or Courier, with Symbol for Greek and signs), the bars of fractions, roots and accents as lines. ${DA("export","Exporting")}</p>
 <h2>What it does not do</h2>
-<p>Matrices and arrays, aligned equations, <code>\\newcommand</code>, colours and sizes inside a text (<code>\\color</code>, <code>\\large</code>): the text's colour and size are set as a whole, in its menu or the Format dialog. Kurve reads a small language and draws it; nothing in it is ever run. A label or a text runs over several lines with ${K("Shift","Enter")}.</p>`},
+<p>Matrices and arrays, aligned equations, <code>\\newcommand</code>, colours and sizes inside a text (<code>\\color</code>, <code>\\large</code>): the text's colour and size are set as a whole, in its menu or the Format pane. Kurve reads a small language and draws it; nothing in it is ever run. A label or a text runs over several lines with ${K("Shift","Enter")}.</p>`},
 {id:"annos", g:"Graph", t:"Labels, text, lines, arrows, shapes and insets", kw:"annotation label text line vertical horizontal range shade arrow inset zoom magnify peak label move drag type edit delete x snap guide align box rectangle ellipse circle square shape fill outline region highlight",
  lead:"Annotations belong to the figure: peak labels, free text, vertical and horizontal lines, and shaded X ranges.",
  body:`<h2>Adding</h2>
-${DL([["Peak label","The <em>Label</em> tool: click a peak and type. Or right-click near a peak."],["Text","The Label tool on an empty spot, or right-click › Text here."],["Lines","Right-click › Vertical or Horizontal line, at the spot clicked; or "+MP("Figure › Annotate › Vertical line…")+": a dialog asks which way, where (in the axis's units), what its text says (its position, your own words, or nothing) and how it looks."],["Anything, from the Format dialog","<em>Add</em> on its <em>Labels and lines</em> page."],["Shaded range",MP("Figure › Annotate › Shade an X range")+", then drag across the graph."],["A whole set",DA("peaks","The Peaks window")+" marks and labels every peak it finds."]])}
+${DL([["Peak label","The <em>Label</em> tool: click a peak and type. Or right-click near a peak."],["Text","The Label tool on an empty spot, or right-click › Text here."],["Lines","Right-click › Vertical or Horizontal line, at the spot clicked; or "+MP("Figure › Annotate › Vertical line…")+": a dialog asks which way, where (in the axis's units), what its text says (its position, your own words, or nothing) and how it looks."],["Anything, from the Format pane","<em>Add</em> on its <em>Labels and lines</em> page."],["Shaded range",MP("Figure › Annotate › Shade an X range")+", then drag across the graph."],["A whole set",DA("peaks","The Peaks window")+" marks and labels every peak it finds."]])}
 <h2>Editing</h2>
 <ul><li><strong>Move</strong>: drag it. A moved label keeps a leader line to its peak.</li>
 <li><strong>Type</strong>: double-click a label or text (or select it and press ${K("Enter")}), or the text of a line, range, arrow or shape. ${K("Enter")} keeps, ${K("Shift","Enter")} starts a new line, ${K("Esc")} leaves it. A line's text left empty shows its position; <em>Text shows</em> in its menu chooses the position, your own text or nothing.</li>
-<li><strong>Everything else</strong>: double-click a line, a range or a shape (not its text), or <em>Format…</em> in anything's right-click menu (or the ⋯ in the typing box): the ${DA("style","Format dialog")}'s <em>Labels and lines</em> page, open at it. The right-click menu has the text's size, bold, italic and colour first, as every text on the graph does.</li>
+<li><strong>Everything else</strong>: double-click a line, a range or a shape (not its text), or <em>Format…</em> in anything's right-click menu (or the ⋯ in the typing box): the ${DA("style","Format pane")}'s <em>Labels and lines</em> page, open at it. The right-click menu has the text's size, bold, italic and colour first, as every text on the graph does.</li>
 <li><strong>Delete</strong>: select it and press ${K("Delete")}.</li></ul>
 <h2>Text</h2>
 <p>An empty label shows the value; <code>{x}</code> anywhere in a label or line's text stands for its position. Text can run over several lines.</p>
@@ -19421,7 +19431,7 @@ ${DL([["Numbered dot","Drag to move the peak's centre and height."],["Side handl
 <p><em>Fit</em> or ${K("Ctrl","Enter")}. <em>Reset to estimates</em> measures every peak again from the data, and puts a peak that has run off the spectrum back on the largest feature no other peak describes.</p>
 <p>Shapes: ${DA("shapes","Peak shapes")}.</p>
 <h2 id="labels">Labels on the graph</h2>
-<p>Each fitted peak is labelled on the graph. <em>Labels show</em>, under the fit, picks what they say; the right-click menu of a label, and the Format dialog's <em>Fitted peak labels</em> page have everything:</p>
+<p>Each fitted peak is labelled on the graph. <em>Labels show</em>, under the fit, picks what they say; the right-click menu of a label, and the Format pane's <em>Fitted peak labels</em> page have everything:</p>
 ${DL([["Each label shows","Any of its number, name, centre, height, FWHM, area and share of the area."],["Or your own text","Your words around the numbers: <code>{n}</code> the number, <code>{name}</code>, <code>{xc}</code> the centre, <code>{h}</code> the height, <code>{fwhm}</code>, <code>{area}</code>, <code>{pct}</code>. A new line starts a new line."],["The numbers","Decimals, with ± their standard errors, with their units."],["Where","Above the peak, inside it, or in a row along the top with a leader to each peak (spread so none overlap); one line or stacked; turned 90°. A label that would rise above the plot sits beside its peak."],["Mark and look","A dot on the top, a line down to the baseline or through the graph; each peak's colour or the text's; a box; the font, size and style of the text."]])}
 <p>Drag a label to move it (a leader goes back to its peak); double-click it to name its peak; right-click it for its options and <em>Put its label back</em>. The settings belong to the graph, so each graph of a project can label its peaks its own way; they travel with ${DA("style#formats","formats")}.</p>`},
 {id:"shapes", g:"Fitting", t:"Peak shapes", kw:"gaussian lorentzian pseudo-voigt voigt pearson fano breit wigner shape formula area fwhm",
@@ -19622,7 +19632,7 @@ const DOC_MENU={crop:"Data › Clean",exclude:"Data › Clean",despike:"Analyze 
   ref:"Data › Transform",combine:"Data › Transform",deriv:"Analyze › Calculus",cumint:"Analyze › Calculus",hist:"Analyze › Statistics",log:"Data › Transform",absorb:"Analyze › Analyze › Spectroscopy › Corrections",
   km:"Analyze › Analyze › Spectroscopy › Corrections",shift:"Analyze › Spectroscopy › X axis",xunit:"Analyze › Spectroscopy › X axis",calib:"Analyze › Spectroscopy › X axis",ecal:"Analyze › Spectroscopy › X axis",bose:"Analyze › Analyze › Spectroscopy › Corrections"};
 // The article of each window, for its "?" and F1.
-const WIN_DOC={xpl:"explorer",graph:"graph",sheet:"sheet",flow:"history",over:"overview",peaks:"peaks",integ:"integ",fit:"fit",res:"results",batch:"batch",stats:"stats",disc:"disc"};
+const WIN_DOC={xpl:"explorer",graph:"graph",sheet:"sheet",flow:"history",over:"overview",peaks:"peaks",integ:"integ",fit:"fit",res:"results",batch:"batch",stats:"stats",disc:"disc",format:"style"};
 function stepDoc(op){
   const d=PIPE_OPS[op]; if(!d) return null;
   const opt=q=>(q.opts||[]).length?`<span class="doc-opts">${q.opts.map(o=>esc(Array.isArray(o)?o[1]:o)).join(" · ")}</span>`:"";
@@ -19792,9 +19802,10 @@ const WINS={
   batch:{title:"Batch", icon:"sigma", def:[.18,.04,.64,.9], open:false},
   disc:{title:"Discussion", icon:"comment", def:[.64,.3,.36,.7], open:false, dock:true},
   stats:{title:"Statistics", icon:"sigma", def:[.2,.14,.5,.62], open:false, dock:true},
+  format:{title:"Format", icon:"edit", def:[.6,.03,.4,.94], open:false, dock:true},
   tool:{title:"Tool", icon:"wand", def:[.62,.04,.36,.8], open:false, transient:true, dock:true}
 };
-const WIN_ORDER=["sheet","flow","over","peaks","integ","fit","res","batch","stats","disc"];
+const WIN_ORDER=["sheet","flow","over","peaks","integ","fit","res","format","batch","stats","disc"];
 // Version 3: the worksheet on its own until something is plotted, tool windows in the
 // dock. An older arrangement (a graph, History and a small worksheet) is not brought back.
 const LAYOUT={v:3, wins:{}, z:10, dockOrder:[]};
@@ -20055,7 +20066,7 @@ function openWin(id,opt){
   if(!was||(opt&&opt.render)) renderWin(id);
   if(isNarrow()&&!(opt&&opt.quiet)){ const el=$("#w-"+id); if(el) el.scrollIntoView({block:"start",behavior:"smooth"}); }
 }
-function closeWin(id){ const st=winState(id); if(!st.open){ if(st.min){ st.min=false; applyWins(); saveLayout(); } return; } st.open=false; st.min=false; st.max=false; dockForget(id);
+function closeWin(id){ if(id==="format") pdCommit(); const st=winState(id); if(!st.open){ if(st.min){ st.min=false; applyWins(); saveLayout(); } return; } st.open=false; st.min=false; st.max=false; dockForget(id);
   if(id==="tool") cancelTool(true);
   applyWins(); saveLayout();
   // The peak finder's marks belong to the Fit window.
@@ -20087,6 +20098,7 @@ function renderWin(id){
   else if(id==="res") renderResults();
   else if(id==="disc"){ renderThread(); renderAnchor(); }
   else if(id==="stats") renderStats();
+  else if(id==="format") renderPlotDetails({fromSave:true});
   else if(id==="batch") renderBatch();
   else if(WINS[id]&&WINS[id].trend) renderTrendWin(id);
   else if(id==="tool") renderTool();
@@ -21287,6 +21299,7 @@ function leadOf(id){ const p=P(); if(!p) return null; const want=S.glead[id], wc
    their spectrum, so coming back to a graph finds the fit where it was. */
 function activateGraph(id,colId){
   const p=P(); if(!p||!graphOf(id)) return;
+  if(S.plotPreview) pdCommit();
   // A figure brings forward the panel last worked on in it, or its first.
   if(isFigId(id)){ const F=graphOf(id).fig, last=(S.figAct||{})[id]; id=last&&F.cells.some(c=>c.gid===last)?last:(figOrder(F)[0]||{}).gid; if(!id) return; }
   { const f=figOf(id); if(f){ S.figAct=S.figAct||{}; S.figAct[f.id]=id; } }
@@ -22100,7 +22113,7 @@ function renderAll(){
   if(S.pending&&(!P()||!colById(S.pending.col))) S.pending=null;
   syncGraphWins(); syncTrendWins(); layoutFigs(null,{quiet:true});
   renderTop(); renderPlot(); renderStages(); renderTabMarks(); renderGraphHeads(); scheduleSnaps(0);
-  ["sheet","flow","over","peaks","integ","fit","res","batch","disc","stats","tool"].forEach(id=>{ if(winOpen(id)) renderWin(id); });
+  ["sheet","flow","over","peaks","integ","fit","res","batch","disc","stats","tool","format"].forEach(id=>{ if(winOpen(id)) renderWin(id); });
   trendWinIds().forEach(id=>{ if(winOpen(id)) renderTrendWin(id); });
   renderUndo(); renderTaskbar(); renderXpl();
 }

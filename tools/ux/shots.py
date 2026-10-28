@@ -27,7 +27,7 @@ for a in sys.argv[1:]:
 OUT = ROOT / "ux" / "evidence" / "slices"
 
 CLOSE = """() => { try { document.querySelectorAll('.modal').forEach(m => { if (!m.hidden && m._cancel) m._cancel(); });
-  if (!document.querySelector('#plotModal').hidden) closePlotDetails(false);
+  if (winOpen('format')) closePlotDetails();
   if (S.pending) cancelTool(); } catch (e) {} }"""
 
 # name, setup (JS run before the picture), and an optional menu-bar name to click open

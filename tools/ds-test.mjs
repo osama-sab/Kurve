@@ -280,6 +280,66 @@ await page(async p => {
   await p.keyboard.press("Escape");
 }, { name: "contextual" });
 
+console.log("Slice 5: the Format pane, docked and live");
+await page(async p => {
+  await raman(p);
+  await p.evaluate(() => { focusWin(winOfGraph(GID())); }); await p.waitForTimeout(200);
+  await p.evaluate(() => { menuItems("figure").find(i => i && i.label === "Format graph…").run(); }); await p.waitForTimeout(400);
+  const o = await p.evaluate(() => ({ open: winOpen("format"), docked: isDocked("format"), modals: MODALS.length, dialog: !!document.getElementById("plotModal"),
+    btns: [...document.querySelectorAll("#w-format .fmtfoot button")].filter(b => !b.hidden).map(b => b.textContent.trim()), sel: !!$("#fmtSel"), tab: (document.querySelector('#dockBar .dtab.on span') || {}).textContent }));
+  check("Figure › Format graph… opens the Format pane in the dock, not a dialog", o.open && o.docked && !o.modals && !o.dialog && o.tab === "Format", JSON.stringify(o));
+  check("it has Selected at its top and no OK or Cancel", o.sel && o.btns.join() === "Defaults,Saved styles", JSON.stringify(o.btns));
+  // A change shows at once and is kept as one undo step.
+  await p.selectOption("#fmtSel", "p:frame"); await p.waitForTimeout(200);
+  const u0 = await p.evaluate(() => undoStack.length);
+  await p.click("#pdGrid"); await p.waitForTimeout(80);
+  const now = await p.evaluate(() => ({ cfg: !!plotCfg().grid, saved: !!GP().grid }));
+  await p.waitForTimeout(600);
+  const later = await p.evaluate(u0 => ({ saved: !!GP().grid, undo: undoStack.length - u0, pending: !!S.plotPreview }), u0);
+  check("a change shows on the graph at once", now.cfg && !now.saved, JSON.stringify(now));
+  check("and is kept, as one undo step, with no OK", later.saved && later.undo === 1 && !later.pending, JSON.stringify(later));
+  await p.keyboard.press("Control+z"); await p.waitForTimeout(200);
+  check("Ctrl+Z takes it back", await p.evaluate(() => !GP().grid));
+  // A change still in its burst is saved before an undo, and the undo takes it back.
+  await p.click("#pdGrid"); await p.waitForTimeout(50);
+  const mid = await p.evaluate(() => { const was = !!S.plotPreview; undo(); return { was, grid: !!GP().grid, pending: !!S.plotPreview, redo: redoStack.length }; });
+  check("an undo in the middle of a burst saves it, then takes it back", mid.was && !mid.grid && !mid.pending && mid.redo > 0, JSON.stringify(mid));
+  // A click on the curve turns the pane to it; a double click on an axis's numbers to the axis.
+  const pt = await p.evaluate(() => { const r = $("#plot").getBoundingClientRect(), q = S.shownPts[Math.floor(S.shownPts.length * 0.3)]; return { x: r.x + S.geo.X(q.x), y: r.y + S.geo.Y(q.y) }; });
+  await p.mouse.click(pt.x, pt.y); await p.waitForTimeout(300);
+  const fc = await p.evaluate(() => ({ v: $("#fmtSel").value, id: activeYCol().id }));
+  check("a click on a curve turns the pane to the curve", fc.v === "s:" + fc.id, JSON.stringify(fc));
+  const ax = await p.evaluate(() => { const r = document.querySelector('#plot rect[data-axis="y"]').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await p.mouse.dblclick(ax.x, ax.y); await p.waitForTimeout(300);
+  check("a double click on an axis's numbers opens its page", await p.evaluate(() => $("#fmtSel").value === "p:ax:y"));
+  // A number being typed survives a redraw from a save, and is kept when entered.
+  await p.selectOption("#fmtSel", "s:" + fc.id); await p.waitForTimeout(200);
+  await p.fill("#pdLw", "2.5"); await p.waitForTimeout(50);
+  await p.evaluate(() => { renderAll(); }); await p.waitForTimeout(100);
+  const typed = await p.evaluate(() => ({ v: $("#pdLw") && $("#pdLw").value, f: document.activeElement && document.activeElement.id }));
+  check("a number being typed survives a redraw from a save", typed.v === "2.5" && typed.f === "pdLw", JSON.stringify(typed));
+  await p.keyboard.press("Enter"); await p.waitForTimeout(600);
+  check("and is kept when entered", await p.evaluate(id => ((GP().series || {})[id] || {}).lw === 2.5, fc.id));
+  // A saved style is used at once, and undone.
+  const fr0 = await p.evaluate(() => GP().frame || "box");
+  await p.click("#pdFormats"); await p.waitForTimeout(200);
+  await p.evaluate(() => { const it = [...document.querySelectorAll(".menu [role^=menuitem]")].find(e => /^Journal/.test(e.textContent.trim())); if (it) it.click(); }); await p.waitForTimeout(300);
+  const st = await p.evaluate(() => ({ frame: GP().frame, pending: !!S.plotPreview }));
+  check("a saved style is used at once", st.frame === "l" && !st.pending, JSON.stringify(st));
+  await p.evaluate(() => { hideToast(); undo(); }); await p.waitForTimeout(200);
+  check("and undone in one step", await p.evaluate(f => (GP().frame || "box") === f, fr0));
+  // A colour picker over the pane keeps Escape for itself.
+  await p.selectOption("#fmtSel", "p:frame"); await p.waitForTimeout(200);
+  const cb = await p.evaluate(() => { const e = document.querySelector("#pdBody [data-pdc]"); return e ? true : false; });
+  if (cb) { await p.click("#pdBody [data-pdc] >> nth=0"); await p.waitForTimeout(200); }
+  const cp = await p.evaluate(() => !!(cpOpen && cpOpen.el));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+  check("a colour picker opens from the pane and Esc closes it, the pane staying", cb && cp && await p.evaluate(() => !(cpOpen && cpOpen.el) && winOpen("format")), JSON.stringify({ cb, cp }));
+  // Closing the pane saves what waits.
+  await p.click("#pdGrid"); await p.waitForTimeout(50); await p.evaluate(() => closeWin("format")); await p.waitForTimeout(150);
+  check("closing the pane keeps the change still in its burst", await p.evaluate(() => !!GP().grid && !S.plotPreview));
+}, { name: "format pane" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

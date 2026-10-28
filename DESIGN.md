@@ -287,8 +287,19 @@ take seconds: the user asked for it to be made usable. Decided:
   for all of them: three columns of 200 000 rows do not fit, and the status bar says Not saved.
   Moving projects to IndexedDB is on the roadmap.
 
-### The Format dialog
+### The Format pane
 
+- **Docked and live, with no OK** (the design system's Format pane, slice 5). The Format dialog
+  was a modal over the desk, its changes previewed on a working copy and kept by OK: the graph
+  could not be clicked while it was open, and a change was one step from being thrown away by
+  Cancel or Escape. It is now a tool window in the dock beside the graph. *Selected*, a list at
+  its top, chooses what it sets (each curve and the fit, each axis, each part of the graph), and
+  a click on the graph chooses it too: the pane turns to what is selected, when the selection
+  changes, never on a redraw. Every change shows at once and is saved; a burst of changes (400 ms
+  apart at most) is one undo step, and a burst is saved before anything else changes the project
+  (an undo, another graph, the pane closed, the page left), so no change waits to be lost.
+  Defaults, Saved styles and Use on every graph stay at its foot; Saved styles applies at once,
+  with Undo in its toast. A redraw from a save leaves a field being typed in alone.
 - **Typed or picked, as Excel does; sliders where the feel is the point.** Sizes, widths,
   lengths, offsets and spacings (a legend's line sample and row spacing, tick lengths, a
   frame's width, a font size) are a field with a list beside it (`comboHtml`): typed, picked
@@ -402,7 +413,7 @@ The menu tree is `ux/spec/menus-after.txt`; `tools/ux/menucheck.py` compares the
   graph…, Copy the graph as a picture and Export (the Publish list). A curve's menu needs
   the click on the curve (within 14 px of a point); elsewhere it is the plot's, with Add here
   inline. None repeats a Plot submenu; the axis menu leaves the outward offset and the edge
-  across to the Format dialog. The worksheet's column menu chooses a use (Use as › X, Y, Error
+  across to the Format pane. The worksheet's column menu chooses a use (Use as › X, Y, Error
   bars, Other data) and the active column.
 - **What is selected has its menu in the graph's bar** (the design system's contextual menu,
   slice 4): a click on a curve, on the fit's curve, on an axis's numbers, on a band or a shaded
@@ -484,7 +495,7 @@ Everything with text has the same right-click menu, built by `textMenu`:
 3. **Size** › points, **Bold**, **Italic**, **Colour** › swatches and Automatic
 4. what is its own (an axis title's place, a line's style and width, a label's mark, the
    legend's place and columns…)
-5. **Format…**, its page of the Format dialog
+5. **Format…**, its page of the Format pane
 6. **Delete**, where it can be deleted
 
 An axis title's Size, Bold, Italic and Colour change that axis's title only (`ax[k].tst`),
@@ -500,7 +511,7 @@ for Add a title, Hide this entry, and the legend's place, columns and frame.
 
 ### Lines and annotations
 
-- The Format dialog's Labels and lines page has **one Add button** with a menu (each kind with
+- The Format pane's Labels and lines page has **one Add button** with a menu (each kind with
   its icon), not a row of eight "+ chips" that read like tags on a form.
 - **Add a line** is one dialog: direction (vertical, horizontal) as a segmented choice, the
   position in the axis's units, the text (its position, your own words with LaTeX and a
@@ -519,7 +530,7 @@ One word for each thing, everywhere it is shown (UX_SPEC §3.6, checked by `tool
 - **Check code**, not fingerprint, for the SHA-256 of the original data.
 - **Tool window** (and the **dock**), not panel, for Fit, History, Peaks…; a **panel** is one
   graph of a figure.
-- **Saved style**, not format, for a named set of graph settings; the Format dialog keeps its
+- **Saved style**, not format, for a named set of graph settings; the Format pane keeps its
   name.
 - **Untitled project**, not Untitled analysis.
 - **Not counted as a peak**, not turned down, for a candidate the finder set aside.
@@ -809,6 +820,15 @@ The F(x)= row is always shown (the user's choice between it and formulas only in
 setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md`: ranges,
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
+
+### 2026-10-28: the design system into the app, slice 5 (the Format pane)
+
+The Format dialog became the system's Format pane: a docked tool window, live, following what is
+selected on the graph. Its working copy is kept for a burst of changes only, and every other
+change to the project saves it first. One mistake on the way, found by a test: the pane was not
+among the windows `renderAll` redraws, so after an undo it still showed the undone value, and the
+next click put it back to what the graph already had; the burst then saved nothing and the undo
+that followed took back the step before it.
 
 ### 2026-10-28: the design system into the app, slice 4 (what is selected has its menu)
 

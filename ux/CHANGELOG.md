@@ -933,3 +933,19 @@ people type (`CMDK_SYN`).
   that fill measured 5:1, and words here take 7:1 (`tools/contrast-test.mjs` checks it now).
 
 `tools/ds-test.mjs` has 17 new checks (80).
+
+## The design system into the app, slice 5: the Format pane (2026-10-28)
+
+- **The Format dialog is now the Format pane**, a tool window in the dock beside the graph (the
+  system's FormatPane), not a dialog over the desk: the graph can be clicked, zoomed and read
+  while it is open.
+- **Live, with no OK or Cancel.** Every change shows on the graph at once and is kept; a burst of
+  changes is one undo step (Ctrl+Z takes it back), and a burst still running is saved before an
+  undo, another graph, another project, the pane closed or the page left.
+- **Selected**, at its top, chooses what it sets (each curve and the fit, each axis, each part of
+  the graph); a click on the graph chooses it too: the pane turns to the curve, the fit, the axis,
+  the annotation or the legend selected.
+- Defaults, Saved styles (applied at once, with Undo) and Use on every graph at its foot.
+- A number being typed stays in its field through a redraw from a save.
+
+`tools/ds-test.mjs` has 14 new checks (95); the UX scripts that closed the dialog close the pane.

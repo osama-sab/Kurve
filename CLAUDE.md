@@ -35,7 +35,7 @@ front window's title bar filled, and whatever is on, chosen or in front filled r
 tinted (DESIGN.md; `tools/contrast-test.mjs` checks the ratios).
 
 The desk holds **windows**, as in Origin: Graph, Worksheet, History, Overview, Peaks,
-Integrate, Fit, Results, Batch, any number of Trend graphs, Statistics, Discussion, Help, and the transient Tool dialog. Each moves by its title bar, resizes from
+Integrate, Fit, Results, Format, Batch, any number of Trend graphs, Statistics, Discussion, Help, and the transient Tool dialog. Each moves by its title bar, resizes from
 its edges, maximises on a double-click of the title, minimises to the **taskbar** along the
 bottom of the desk and closes with its ×; opening, closing, minimising (into its taskbar
 button), restoring, maximising, tiling and the dock animate briefly, as a desktop's windows do. As a workbook keeps a tab per sheet, the project's
@@ -55,7 +55,7 @@ the others, Close the tool windows, Graphs (every graph, Combine graphs…, A fi
 zoom), and Theme and Style as submenus. Every title bar has a **?** that opens
 the window's article in the **Help window** (F1 does it for the window in front; a tool's
 opens its step's article). The **dock** (UX_SPEC §3.2) is a column at the desk's right where the
-tool windows open as tabs (Fit, Results, Peaks, Integrate, History, Statistics, the Overview,
+tool windows open as tabs (Fit, Results, Format, Peaks, Integrate, History, Statistics, the Overview,
 Help, Discussion, the processing tools; Batch floats), one shown at a time, its strip as the
 design system's Dock (a *Tools* label, icon tabs, the shown one raised with its name and ×,
 Help, Undock and Hide at the right; a docked window has no title bar of its own); the
@@ -92,7 +92,7 @@ plot, Add here's items themselves; right-click a line, a label, the legend, a ti
 its own options. Lines, shaded ranges, text, peak labels, the legend, the titles and the axes
 (by their numbers) drag with the pointer; a double click (or Enter) on a label, a text or a
 title opens a box over it to type in (Shift+Enter for a new line), and one on a line, a range
-or an axis's numbers opens its page of the **Format dialog** (Figure › Format graph…): pages
+or an axis's numbers opens its page of the **Format pane** (Figure › Format graph…; docked and live, no OK): pages
 for each spectrum and the fit, each axis (title and where it sits, scale, position: an edge,
 zero or a value, set off outward; line, ticks, numbers; breaks), a second X axis in other
 units, the frame and grid (with quick
@@ -1503,7 +1503,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   `S.pkLast` (the Peaks window's last search, for its turned-down list), `S.bandSel`,
   `S.bdrag`, `S.igEvery` (the Integrate window's selected band, band drag and every-spectrum
   view), `S.ovStage` (the Overview's raw or final data),
-  `S.plotPreview` (the Format dialog's working copy; `S.pdTab` its page, `S.pdSel` the
+  `S.plotPreview` (the Format pane's working copy, for a burst; `S.pdTab` its page, `S.pdSel` the
   spectrum, `S.pdAnno` the annotation, `S.pdPos` where it was dragged), `S.ttdrag`/`S.axdrag`
   (a title or an axis being dragged), `S.arrowDraft` (an arrow being drawn), `S.shapeDraft`
   and `S.shapeKind` (a box or ellipse being drawn, and which), `S.guides` and
@@ -1523,7 +1523,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   zones or side effects on `S`), which is also what `opt.inset` asks for, drawn in the
   screen's colours. `opt.k` scales every text (for an export at a size in points), and ticks
   space out with larger text (`tkDen`).
-  It reads the plot settings through `plotCfg()`, which is the Format dialog's working copy
+  It reads the plot settings through `plotCfg()`, which is the Format pane's working copy
   while that dialog is open. Each spectrum has a style from `serStyle(id, active, …)`: `type`
   (`PLOT_TYPES`: line, scatter, linesym, stick, area, step; with the graph's `style` "auto",
   the default of every new graph, `autoType(id)`: a line for 500 points or more, or 40 or more
@@ -1783,20 +1783,29 @@ graph first, with the taskbar kept at the bottom of the screen.
   shows `#ctxBtn` (`.rb.ctx`, `data-rmenu="ctx"`, `menuItems("ctx")`) after `#ctxSep` in the
   graph's bar, and outlines the thing by a rule in `#gselCss` (a drop-shadow on `g[data-ser]`'s
   paths or `path[data-fitc]`, a dashed box on `rect[data-axis]`), so the drawing is untouched;
-  Shift+F10 on the graph opens that menu. **The Format dialog**: `openPlotDetails(id, page)` (`#plotModal`; pages `series`
+  Shift+F10 on the graph opens that menu. **The Format pane** (DS_SPEC slice 5; once the Format
+  dialog, and still called so in code comments): `openPlotDetails(id, page)` opens the tool
+  window `format` (`#w-format`, docked, `#pdBody` and the foot `.fmtfoot`; pages `series`
   with `S.pdSel`, `ax:x|y|y2`, `frame`, `text`, `legend`, `layout`, `labels`, or
-  `anno:<id>`; the old tab names map through `PD_PAGES`), `renderPlotDetails` (a side list
-  of pages, each page in groups; focus and scroll kept across redraws; sizes and widths are
+  `anno:<id>`; the old tab names map through `PD_PAGES`), `renderPlotDetails(o)` (the
+  *Selected* list `#fmtSel` at the top, values `s:<colId>`, `s:__fit` or `p:<page>`, the page
+  named in `#pdHead`; each page in groups; focus, scroll, and a text field's value and caret
+  kept across redraws, and a redraw from a save, `{fromSave}` from `renderWin`, skipped while a
+  field of the pane is being typed in; sizes and widths are
   `cmb` fields, opacity the only sliders; the Text and fonts page has the graph's font and size,
   then a folding card per kind of text, `details.grp.pdcard[data-pdcard]`, its summary saying how
   it looks, its open state in `S.pdOpen` (a capture `toggle` listener that checks
   `isConnected`); a text bar is a row labelled Font; Labels and lines has Add in its heading,
   `.pd-hadd`), `pdSet(path, v)` on
-  the working copy (`series.`, `ax.`, `allax.`, `txt.`, `annos.<id>[.key]`, `hidden.`, or a
+  the working copy of a burst (`pdWk()` makes it from `pdBase()` and sets `S.pdT`, 400 ms;
+  `pdCommit()` saves it as one undo entry, `pushUndo` with `S.pdCommitting`, then `savePlot` with
+  `pdLog`; `pushUndo`, `undo`, `redo`, `activateGraph`, a project switch, `closeWin("format")` and
+  `flushEdits` commit first, and a commit on another graph, `S.pdGid`, is dropped) (`series.`, `ax.`, `allax.`, `txt.`, `annos.<id>[.key]`, `hidden.`, or a
   top-level key) with `pdGet`, `pdTxtGet`/`pdTxtSet` (an annotation's text bar maps to its
   own keys, `ANNO_TX`), `pdPreset` (quick styles), `pdAct`, `pdAnnoEditor(a)`, and
-  `closePlotDetails(ok)` (one undo entry; `pdLog` names what changed). It moves by its title
-  bar (`S.pdPos`); *Defaults* resets the page (top-level keys to null: `savePlot` merges);
+  `closePlotDetails()` (commits, closes the pane). It follows the graph's selection
+  (`fmtFollow(c)` from `renderCtx` when `ctxKey(ctxOf())` changes, `S.fmtFollow`); *Defaults*
+  resets the page (top-level keys to null: `savePlot` merges) and commits;
   *Use on every graph* is `formatEveryGraph` (`FMT_KEYS`, `FMT_AX`: format, not data,
   ranges, titles or annotations; through `styleFrom(src, pl)`, which puts a missing key back to
   its default). **Formats**: `fmtOf(pl)` is a graph's format alone; `FMT_BUILTIN` (Kurve's,
@@ -1930,7 +1939,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   search box (`opt.search`) searches every submenu and lists the matches flat with their path;
   `menuItems(name)` defines the menu bar and the graph window's bar. `openModal`/`closeModal` make everything behind a
   dialog inert, trap Tab, route Escape to the dialog's `_cancel`, and return focus; the import
-  wizard, `confirmDlg`, `formDlg` and the Format dialog use them. A font or colour picker
+  wizard, `confirmDlg` and `formDlg` use them. A font or colour picker
   open over a dialog keeps Escape and Tab for itself: the modal key handler looks at
   `fpOpen`/`cpOpen`/`spOpen` first, and a menu opened from a dialog closes on Escape.
 - **Help** (`DOCS`, `openHelp(id, {search})`, `renderHelp`): a window (`#w-help`, not in
@@ -2786,6 +2795,10 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   the Fit window's switch label into three flex items, the label's gap between them: "(1/σ 2 )".
   A test of the markup passed; a screenshot of another slice showed it. Text changed in place
   keeps its pieces in one span where its parent lays children out.
+- **A window not redrawn shows the past.** The Format pane was left out of `renderAll`'s list of
+  windows; after an undo it still showed the undone value, and a click on that switch set the
+  graph to what it already had, so the burst saved nothing and the undo after it took back the
+  step before. A window added to the desk is added to that list.
 - **Where a menu is shown must be visible when it is shown.** The Column menu in the graph's bar
   first appeared while the worksheet was in front, and in front the worksheet can cover the graph:
   the button was there and could not be pressed. It follows the last place pressed or typed in.
@@ -2811,7 +2824,9 @@ every command of the menu bar by its name, its menu or a word people use for it,
 menu with where it lives, Enter running it, the commands used last when nothing is typed. Slice 4
 done: what is selected has its menu in the graph's bar (a curve, the fit's curve, an axis, a band
 or shaded range, an annotation, the legend, a column selected in the worksheet), the same as its
-right-click menu, the thing outlined on the graph. Next: the Format pane docked and live,
+right-click menu, the thing outlined on the graph. Slice 5 done: the Format pane, the Format
+dialog docked as a tool window, live (no OK; a burst of changes one undo step), Selected at its
+top, turning to what is selected on the graph. Next:
 the status bar's statistics of a selection, the Fit window and Results as designed, the
 dialogs, galleries drawn with the data, two displays.
 
@@ -3255,7 +3270,7 @@ Next, in order:
 - Numbers across from an axis: on the top panel only when stacked; not across from a second X
   axis; a heat map's Y edge has none
 - Help cannot be opened over a dialog (a dialog makes the desk inert), so the import wizard
-  and the Format dialog have no "?" of their own; their articles are in the contents. Articles have
+  has no "?" of its own; their articles are in the contents. Articles have
   no pictures, and search matches words, not meanings
 - A global fit shares a parameter's value exactly: a parameter cannot follow the series (a
   centre linear in temperature) or be tied to another parameter across spectra; it runs on the
