@@ -1701,6 +1701,33 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
 @media (max-width: 1010px){ #modeSeg>button{padding:0 var(--sp-3)} .toolbar .tsep{margin:0 var(--sp-1)} }
 
 /* ---- Narrow screens: the windows stack, graph first ---------------------- */
+/* Find a command (Ctrl+K; ux/spec/DS_SPEC.md, slice 3): the design system's command palette. */
+.modal.cmdk-modal{align-items:flex-start;padding-top:12vh}
+.cmdk{background:var(--panel);border:1px solid var(--win-bd);border-radius:var(--r-win);width:min(620px,100%);max-height:76vh;box-shadow:var(--win-sh-act);display:flex;flex-direction:column;overflow:hidden}
+.cmdk-q{display:flex;align-items:center;gap:var(--sp-4);height:44px;padding:0 var(--sp-5);border-bottom:1px solid var(--rule);flex:none}
+.cmdk-q:focus-within{border-bottom-color:var(--focus)}
+.cmdk-q>.ic{color:var(--muted);flex:none}
+.cmdk-q input,.cmdk-q input:focus,.cmdk-q input:focus-visible{flex:1;width:auto;min-width:0;border:0;background:transparent;color:var(--ink);font:inherit;font-size:var(--fs-title);padding:0;outline:none;box-shadow:none}
+.cmdk kbd{font-family:var(--mono);font-size:var(--fs-cap);color:var(--muted);border:1px solid var(--rule);border-radius:var(--r-s);padding:1px var(--sp-2);background:var(--panel-2)}
+.cmdk-l{position:relative;overflow:auto;max-height:min(360px,56vh);padding:var(--sp-2) 0}
+.cmdk-h{font-size:var(--fs-cap);font-weight:600;color:var(--muted);padding:var(--sp-4) var(--sp-5) var(--sp-2)}
+.cmdk-i{display:flex;align-items:center;gap:var(--sp-4);height:32px;padding:0 var(--sp-5);color:var(--ink);font-size:var(--fs-body);cursor:pointer}
+.cmdk-i>.ic{color:var(--muted);flex:none}
+.cmdk-i .lab{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 0 auto;max-width:62%}
+.cmdk-i .lab b{font-weight:700}
+.cmdk-i .ck{flex:none;display:inline-flex;color:var(--accent)}
+.cmdk-i .where{color:var(--muted);font-size:var(--fs-tab);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:3em}
+.cmdk-i .syn{margin-left:auto;color:var(--muted);font-size:var(--fs-tab);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0;max-width:40%}
+.cmdk-i .syn b{font-weight:600}
+.cmdk-i .kb{margin-left:auto;font-family:var(--mono);font-size:var(--fs-cap);color:var(--muted);flex:none}
+.cmdk-i .syn+.kb{margin-left:var(--sp-4)}
+.cmdk-i.off{color:var(--ink-off);cursor:default}
+.cmdk-i.on{background:var(--hi);box-shadow:inset 3px 0 0 var(--accent)}
+.cmdk-i.on .where,.cmdk-i.on .syn,.cmdk-i.on .kb,.cmdk-i.on>.ic{color:var(--ink)}
+.cmdk-none{padding:var(--sp-6) var(--sp-5);color:var(--muted)}
+.cmdk-f{display:flex;gap:var(--sp-6);padding:var(--sp-3) var(--sp-5);border-top:1px solid var(--rule);color:var(--muted);font-size:var(--fs-cap);flex:none}
+:root:not([data-noanim]) .modal:not([hidden])>.cmdk{animation:kSheet .18s cubic-bezier(.2,.8,.2,1)}
+@media (max-width:600px){ .cmdk-i .syn,.cmdk-i .kb,.cmdk-f,.cmdk-q kbd{display:none} .cmdk-i .lab{max-width:72%} }
 /* ── The design system's review of 25 Oct 2026 (ux/spec/DS_SPEC.md, slice 1): controls as wide as their content,
    rounder windows, a flat taskbar with a raised key for the front window, a dock bar of icon tabs, the project name as a field ── */
 /* Fields are as wide as what they hold, the way Office dialogs size them; a label column never stretches its control. */
@@ -2164,6 +2191,13 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
       <button class="btn" id="impCancel">Cancel</button>
       <button class="btn primary" id="impGo">Import</button>
     </div>
+  </div>
+</div>
+<div class="modal cmdk-modal" id="cmdkModal" hidden role="dialog" aria-modal="true" aria-label="Find a command">
+  <div class="cmdk">
+    <div class="cmdk-q"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg><input type="text" id="cmdkQ" placeholder="Find a command" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cmdkL" aria-autocomplete="list"><kbd>Esc</kbd></div>
+    <div class="cmdk-l" id="cmdkL" role="listbox" aria-label="Commands"></div>
+    <div class="cmdk-f"><span>↑↓ Move</span><span>Enter Run</span><span>Ctrl+K Close</span></div>
   </div>
 </div>
 <div class="modal" id="dlgModal" hidden role="alertdialog" aria-modal="true" aria-labelledby="dlgTitle" aria-describedby="dlgText">
@@ -16684,7 +16718,7 @@ const toolLabel=op=>{ const d=PIPE_OPS[op]; return d?d.label+((d.params||[]).len
 function toolItem(op,opt){
   const c=opt&&opt.col?colById(opt.col):activeYCol(), has=!!(c&&(finalOf(c).x.length||rawSeries(c).x.length||isDerived(c)));
   const d=PIPE_OPS[op]; if(!d) return null;
-  return {label:toolLabel(op), title:d.help||"", enabled:has&&!S.readOnly&&!(op==="ref"&&yCols().length<2)&&!(op==="combine"&&yCols().length<2), run:()=>openTool(op,opt)};
+  return {label:toolLabel(op), title:d.help||"", op, enabled:has&&!S.readOnly&&!(op==="ref"&&yCols().length<2)&&!(op==="combine"&&yCols().length<2), run:()=>openTool(op,opt)};
 }
 // Every tool that becomes a step, grouped, for the "+" in the History and the
 // Step button there.
@@ -18502,6 +18536,158 @@ function projectItems(){
    Escape cancels it, and focus goes back where it came from.
    ============================================================ */
 const MODALS=[];
+// ---- Find a command (Ctrl+K, Help › Find a command…; ux/spec/DS_SPEC.md, slice 3): every item of
+// the menu bar, found by its name, the menu it is in, or a word people use for it. It runs what the
+// menu item runs, so it can never do what the menus cannot, and a command that cannot apply now is
+// listed dimmed rather than left out, so a search says it exists.
+const CMDK_MENUS=[["file","File","file"],["edit","Edit","edit"],["data","Data","table"],["plot","Plot","chart"],["analyze","Analyze","peak"],["figure","Figure","shape"],["publish","Publish","download"],["window","Window","tile"],["help","Help","help"]];
+// Words people use for a command whose name is another (Origin's, Excel's, a field's).
+const CMDK_SYN=[["background","baseline","detrend","continuum"],["fourier","fft","fourier transform","power spectrum","frequency"],["smooth","smoothing","denoise","noise","savitzky","golay","moving average"],
+  ["derivative","differentiate","slope","gradient","calculus"],["integral","integrate","area","cumulative"],["normalize","normalise","normalization","scale to 1"],["logarithm","log","ln"],
+  ["fit","fitting","regression","model","curve fit","least squares"],["peak","peaks","maximum","maxima","band","bands"],["export","download","publish","exporting"],
+  ["picture","image","png","clipboard","screenshot"],["histogram","distribution","bins","frequency count"],["statistics","stats","mean","average","sd","median","describe"],
+  ["correlation","pearson","correlate"],["spike","cosmic ray","despike","glitch"],["calibration","calibrate","energy"],["units","wavelength","wavenumber","raman shift","convert"],
+  ["crop","trim","cut","range"],["mask","exclude","leave out","ignore"],["axis","axes","scale","log scale","reverse"],["font","typeface","text size"],
+  ["annotate","annotation","label","text","arrow","line","box","ellipse","inset"],["report","html","summary"],["theme","dark","light"],["preferences","settings","options"],
+  ["import","open","load","read","csv","file"],["worksheet","spreadsheet","sheet","table","cells"],["plot","graph","chart","figure"],["reader","cursor","read","value","crosshair"],
+  ["zoom","magnify"],["insert","add"],["delete","remove","clear"],["style","format","look","appearance"],["column","columns","series","dataset"],["window","windows","tile","cascade"]];
+function cmdkSynOf(w){
+  const out=new Set();
+  CMDK_SYN.forEach(g=>{ if(g.some(s=>s===w||(w.length>=3&&s.startsWith(w)))) g.forEach(s=>out.add(s)); });
+  out.delete(w); return [...out];
+}
+function cmdkIndex(){
+  const out=[];
+  const walk=(items,top,icon,path,depth)=>{
+    let list; try{ list=typeof items==="function"?items():items; }catch(e){ return; }
+    (list||[]).forEach(it=>{
+      if(!it||it==="-"||it.group||it.swatches||!it.label) return;
+      if(it.sub){ if(it.enabled===false||depth>=3) return; walk(it.sub,top,icon,path.concat(String(it.label)),depth+1); return; }
+      if(typeof it.run!=="function") return;
+      out.push({top, icon, path, label:String(it.label), op:it.op||null, run:it.run, kbd:it.kbd||"", title:it.title||"",
+        kw:(it.op&&DOC_KW[it.op])||"", checked:it.checked===true, enabled:it.enabled!==false});
+    });
+  };
+  CMDK_MENUS.forEach(([k,name,icon])=>walk(()=>menuItems(k),name,icon,[name],0));
+  return out;
+}
+const cmdkWords=s=>s.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+// What was typed, as the words to look for: a phrase that is a word for something ("power
+// spectrum", "cosmic ray") is kept whole.
+const CMDK_PHRASES=CMDK_SYN.flat().filter(s=>s.includes(" ")).sort((a,b)=>b.length-a.length);
+function cmdkTerms(q){
+  let s=" "+q.toLowerCase().replace(/\s+/g," ").trim()+" "; const out=[];
+  CMDK_PHRASES.forEach(ph=>{ const k=s.indexOf(" "+ph+" "); if(k>=0){ out.push(ph); s=s.slice(0,k)+" "+s.slice(k+ph.length+1); } });
+  return out.concat(s.split(" ").filter(Boolean));
+}
+// How well a command answers the words typed; null when a word is nowhere. Its name counts most
+// (its start, a word's start, anywhere), then a word for it, its menu, its step's search words,
+// its tooltip; a one- or two-letter word only at the start of a word of its name or menu. With
+// `spare`, that many words may be nowhere (when nothing has them all).
+function cmdkScore(it,words,spare){
+  const L=it.label.toLowerCase(), LW=cmdkWords(it.label), PW=cmdkWords(it.path.join(" ")), K=it.kw.toLowerCase(), T=it.title.toLowerCase();
+  let sc=0, syn=null, inTitle=false, miss=0;
+  for(const w of words){
+    let s=0; const short=w.length<3;
+    if(L.startsWith(w)) s=12;
+    else if(LW.some(x=>x.startsWith(w))) s=9;
+    else if(!short&&L.includes(w)) s=6;
+    else if(short){ if(PW.some(x=>x.startsWith(w))) s=3; }
+    else {
+      const ss=cmdkSynOf(w);
+      if(ss.some(x=>L.includes(x))){ s=8; if(!syn) syn=w; }
+      else if(PW.some(x=>x.startsWith(w))||ss.some(x=>PW.includes(x))) s=3;
+      else if(K.includes(w)||ss.some(x=>K.includes(x))) s=2;
+      else if(T.includes(w)){ s=1; inTitle=true; }
+    }
+    if(!s){ if(++miss>(spare||0)) return null; continue; }
+    sc+=s;
+  }
+  return {sc:sc+(it.enabled?1:0)+(it.op?2:0), syn, inTitle};
+}
+const cmdkKey=it=>it.path.concat(it.label).join(" › ");
+function cmdkRecent(){ try{ const v=JSON.parse(localStorage.getItem("kurve.cmdk")||"[]"); return Array.isArray(v)?v.filter(x=>typeof x==="string").slice(0,8):[]; }catch(e){ return []; } }
+function cmdkRemember(it){ try{ const k=cmdkKey(it); localStorage.setItem("kurve.cmdk",JSON.stringify([k].concat(cmdkRecent().filter(x=>x!==k)).slice(0,8))); }catch(e){} }
+const CMDK={items:[], shown:[], at:-1};
+function openCmdk(){
+  const m=$("#cmdkModal"), q=$("#cmdkQ");
+  if(!m.hidden){ closeCmdk(); return; }
+  CMDK.items=cmdkIndex(); CMDK.at=-1; q.value="";
+  m._cancel=closeCmdk; openModal(m,q); renderCmdk();
+}
+function closeCmdk(){ closeModal($("#cmdkModal")); }
+// A label with the words typed in bold, each at its first place.
+function cmdkMark(label,words){
+  const low=label.toLowerCase(), on=new Array(label.length).fill(false);
+  words.forEach(w=>{ const i=low.indexOf(w); if(i>=0) for(let k=i;k<i+w.length;k++) on[k]=true; });
+  let h="", b=false;
+  for(let i=0;i<label.length;i++){ if(on[i]!==b){ h+=on[i]?"<b>":"</b>"; b=on[i]; } h+=esc(label[i]); }
+  return h+(b?"</b>":"");
+}
+function renderCmdk(){
+  const q=$("#cmdkQ").value.trim(), words=cmdkTerms(q), L=$("#cmdkL");
+  let groups=[];
+  if(!words.length){
+    const rec=cmdkRecent().map(k=>CMDK.items.find(it=>cmdkKey(it)===k)).filter(Boolean);
+    if(rec.length) groups=[{h:"Recent", its:rec}];
+    else groups=[{h:"Start here", its:["Import data…","Plot setup…","Curve fit…","Peaks…","Format graph…","Graph for a paper or slides…"].map(l=>CMDK.items.find(it=>it.label===l)).filter(Boolean)}];
+  } else {
+    const sc=[];
+    const score=spare=>CMDK.items.forEach((it,i)=>{ const r=cmdkScore(it,words,spare); if(r) sc.push({it,i,sc:r.sc,syn:r.syn,inTitle:r.inTitle}); });
+    score(0); if(!sc.length&&words.length>1) score(1);
+    sc.sort((a,b)=>b.sc-a.sc||a.i-b.i);
+    // Grouped by menu, the menus in the order of their best answer, the best first within each.
+    const by=new Map();
+    sc.slice(0,40).forEach(r=>{ if(!by.has(r.it.top)) by.set(r.it.top,[]); by.get(r.it.top).push(Object.assign({},r.it,{_syn:r.syn,_t:r.inTitle})); });
+    groups=[...by.entries()].map(([h,its])=>({h,its}));
+  }
+  CMDK.shown=[]; let h="";
+  groups.forEach(g=>{
+    h+=`<div class="cmdk-h" role="presentation">${esc(g.h)}</div>`;
+    g.its.forEach(it=>{
+      const i=CMDK.shown.length; CMDK.shown.push(it);
+      const note=it._syn?`<span class="syn">matches <b>${esc(it._syn)}</b></span>`:it._t?`<span class="syn">${esc(it.title.length>48?it.title.slice(0,47)+"…":it.title)}</span>`:"";
+      h+=`<div class="cmdk-i${it.enabled?"":" off"}" role="option" id="cmdk-${i}" data-ci="${i}" aria-selected="false"${it.enabled?"":' aria-disabled="true" title="Not available now"'}>${ICON(it.icon)}<span class="lab">${cmdkMark(it.label,words)}</span>${it.checked?`<span class="ck" aria-label="on">${ICON("check","sm")}</span>`:""}<span class="where">${esc(it.path.join(" › "))}</span>${note}${it.kbd?`<span class="kb">${esc(it.kbd)}</span>`:""}</div>`;
+    });
+  });
+  if(!CMDK.shown.length) h=`<div class="cmdk-none">${words.length?`No command matches “${esc(q)}”.`:"No commands."}</div>`;
+  L.innerHTML=h; L.scrollTop=0;
+  cmdkHi(CMDK.shown.findIndex(it=>it.enabled));
+}
+function cmdkHi(i){
+  const L=$("#cmdkL"), q=$("#cmdkQ");
+  const old=L.querySelector(".cmdk-i.on"); if(old){ old.classList.remove("on"); old.setAttribute("aria-selected","false"); }
+  CMDK.at=i; const e=i>=0?$("#cmdk-"+i):null;
+  if(!e){ q.removeAttribute("aria-activedescendant"); return; }
+  e.classList.add("on"); e.setAttribute("aria-selected","true"); q.setAttribute("aria-activedescendant",e.id);
+  // By hand: scrollIntoView would scroll what is behind the dialog too.
+  if(e.offsetTop<L.scrollTop+28) L.scrollTop=Math.max(0,e.offsetTop-28);
+  else if(e.offsetTop+e.offsetHeight>L.scrollTop+L.clientHeight) L.scrollTop=e.offsetTop+e.offsetHeight-L.clientHeight;
+}
+function cmdkMove(d,far){
+  const n=CMDK.shown.length; if(!n) return;
+  if(far){ const order=[...Array(n).keys()]; const j=(d>0?order.reverse():order).find(k=>CMDK.shown[k].enabled); if(j!=null) cmdkHi(j); return; }
+  for(let k=1;k<=n;k++){ const j=((CMDK.at<0?(d>0?-1:0):CMDK.at)+d*k+n*k)%n; if(CMDK.shown[j].enabled){ cmdkHi(j); return; } }
+}
+function cmdkRun(i){
+  const it=CMDK.shown[i]; if(!it||!it.enabled) return;
+  cmdkRemember(it); closeCmdk();
+  setTimeout(()=>{ try{ it.run(); }catch(e){ const msg=String((e&&e.message)||e); logError(msg,"Find a command"); toast("“"+it.label+"” could not run: "+msg); } },0);
+}
+function setupCmdk(){
+  const m=$("#cmdkModal"), q=$("#cmdkQ"), L=$("#cmdkL");
+  q.addEventListener("input",renderCmdk);
+  q.addEventListener("keydown",e=>{
+    if(e.key==="ArrowDown"||e.key==="ArrowUp"){ e.preventDefault(); cmdkMove(e.key==="ArrowDown"?1:-1); }
+    else if(e.key==="PageDown"||e.key==="PageUp"){ e.preventDefault(); cmdkMove(e.key==="PageDown"?1:-1,true); }
+    else if(e.key==="Enter"){ e.preventDefault(); cmdkRun(CMDK.at); }
+    else if((e.ctrlKey||e.metaKey)&&!e.altKey&&e.key.toLowerCase()==="k"){ e.preventDefault(); e.stopPropagation(); closeCmdk(); }
+  });
+  L.addEventListener("mousemove",e=>{ const r=e.target.closest("[data-ci]"); if(!r) return; const i=+r.dataset.ci; if(i!==CMDK.at&&CMDK.shown[i]&&CMDK.shown[i].enabled) cmdkHi(i); });
+  L.addEventListener("mousedown",e=>e.preventDefault());
+  L.addEventListener("click",e=>{ const r=e.target.closest("[data-ci]"); if(r) cmdkRun(+r.dataset.ci); });
+  m.addEventListener("mousedown",e=>{ if(e.target===m) closeCmdk(); });
+}
 function openModal(m,focusEl){
   closeMenu(false); hideToast();
   if(m.hidden){ m._ret=document.activeElement; m.hidden=false; MODALS.push(m); }
@@ -18599,6 +18785,7 @@ ${DL([["In front","A raised white key with a short coloured bar under it. Click 
 <p>The taskbar starts with the project's name: every window on the desk is that project's, and a click switches projects. <em>Tile</em> and <em>Cascade</em> sit together at its right end. With more than four graphs they share one <em>Graphs</em> button that lists them, and so do more than three trend graphs. When the buttons do not fit in one row, those least recently used go into a <em>more</em> button at the end, never the window in front.</p>
 <h2 id="menus">The menus</h2>
 <p>The menu bar follows the stage of work, left to right: <em>File</em> and <em>Edit</em>, then <em>Data</em> (the worksheet, and what prepares the data: cleaning, the baseline, transforms), <em>Plot</em> (making graphs and looking at them), <em>Analyze</em> (fits, peaks, integrals, signal processing, calculus, statistics, spectroscopy, the results), <em>Figure</em> (how a graph looks: format, axes, fonts, legend, annotations) and <em>Publish</em> (exports, the report, copies), then <em>Window</em> and <em>Help</em>. Each command has one place. A graph window repeats Data, Plot, Analyze and Figure on its own bar.</p>
+<p id="cmdk"><strong>Find a command</strong> (${K("Ctrl","K")}, or ${MP("Help › Find a command…")}) finds any command of the menu bar by its name, by the menu it is in, or by a word people use for it: <em>background</em> finds <em>Subtract baseline…</em> and <em>Linear detrend…</em>, <em>fourier</em> the FFT filter. Type, move with ↑ and ↓, and press Enter; it runs what the menu item runs. With nothing typed it lists the commands used last. A command that cannot apply now is listed dimmed, so a search still says where it is.</p>
 <h2 id="winmenu">The Window menu</h2>
 <p>${MP("Window")} lists the windows in use, as Excel's <em>Switch Windows</em> does: the one in front is ticked, a minimised one says so, and a click brings any to the front. With many, it offers a search instead. ${MP("Window › Tool windows")} lists every tool window (History, Fit, Results and the rest), ticked while it is in use: click to open one or to close it. <em>Minimise the others</em> leaves only the window in front on the desk; <em>Close the tool windows</em> closes every one and keeps the documents. A badge counts open comment threads; a dot shows a fit's state or a warning in the processing. <em>Tile</em> and <em>Cascade</em>, also at the taskbar's right, arrange the open windows; <em>Restore the default arrangement</em> starts again.</p>
 <p>The arrangement is remembered in this browser, as fractions of the desk, so it survives a resized window; graph windows are remembered per project. ${DA("graphs","Several graphs")}</p>
@@ -18683,7 +18870,7 @@ ${DL([["Theme","Light, dark, or as the system is."],["Style","Bench (blue for ev
 {id:"keys", g:"Basics", t:"Keyboard shortcuts", kw:"keys keyboard shortcuts hotkeys ctrl",
  lead:"Everything has a pointer route; these are the quicker ones.",
  body:`<h2 id="k-all">Everywhere</h2>
-${DL([[K("Ctrl","Z"),"Undo"],[K("Ctrl","Shift","Z")+" · "+K("Ctrl","Y"),"Redo"],[K("Ctrl","O"),"Import a file"],[K("Ctrl","Enter"),"Run the fit · post a comment"],[K("Esc"),"Close a menu or dialog; back to the Zoom tool"],[K("F1"),"Help on the window in front"],[K("Ctrl",","),"Preferences"],[K("?"),"This page"]],"keys")}
+${DL([[K("Ctrl","Z"),"Undo"],[K("Ctrl","Shift","Z")+" · "+K("Ctrl","Y"),"Redo"],[K("Ctrl","O"),"Import a file"],[K("Ctrl","K"),"Find a command, by its name or a word for it"],[K("Ctrl","Enter"),"Run the fit · post a comment"],[K("Esc"),"Close a menu or dialog; back to the Zoom tool"],[K("F1"),"Help on the window in front"],[K("Ctrl",","),"Preferences"],[K("?"),"This page"]],"keys")}
 <h2 id="k-graph">On the graph</h2>
 ${DL([[K("←")+" "+K("→"),"Previous or next point (click the graph first)"],[K("Home")+" "+K("End"),"First or last point"],[K("+")+" "+K("−")+" "+K("0"),"Zoom in, zoom out, show all"],[K("[")+" "+K("]"),"Start or end the view at the selected point"],[K("M"),"Mask or restore the selected point"],[K("P"),"Put a peak at the selected point"],[K("Delete"),"Remove the selected peak, label, line or band"],[K("Enter")+" · "+K("F2"),"Type over the selected label, text or legend entry; "+K("Shift","Enter")+" starts a new line"],[K("←")+" "+K("→")+" · "+K("↑")+" "+K("↓"),"With the Reader: the previous or next point, the next curve; with the X–Y lines: move them ("+K("Shift")+" ten pixels)"],[K("↑")+" "+K("↓"),"With the legend selected: the entry above or below"],[K("Ctrl","Shift","=")+" · "+K("Ctrl","="),"While typing: superscript · subscript"],[K("Alt")+" while dragging","No snapping: text off its guides, an arrow's head off the data"],[K("Ctrl")+" while dropping a graph","Keep it: its columns are put on the other graph, and it stays"],[K("Esc")+" while holding a graph","Cancel the drop"],["Middle-drag","Pan, in any tool"],["Scroll","Zoom at the pointer"],["Double-click","Show all the data"],[K("Shift","F10"),"The graph's menu"]],"keys")}
 <h2 id="k-sheet">In the worksheet</h2>
@@ -21795,6 +21982,7 @@ function menuItems(which){
   if(which==="help") return [
     {label:"Kurve help", kbd:"F1", run:()=>openHelp()},
     {label:"Search help…", run:()=>openHelp(null,{search:true})},
+    {label:"Find a command…", kbd:"Ctrl+K", run:()=>setTimeout(openCmdk,0)},
     "-",
     {label:"Getting started", run:()=>openHelp("start")},
     {label:"Keyboard shortcuts", kbd:"?", run:()=>openHelp("keys")},
@@ -21898,7 +22086,9 @@ function supifyText(t){ const el=t.parentElement;
   if(!el||!t.isConnected||el.namespaceURI!=="http://www.w3.org/1999/xhtml"||!UNI_RE.test(t.data)||el.closest(SUP_SKIP)) return;
   const f=document.createDocumentFragment();
   uniRuns(t.data).forEach(r=>{ if(!r.v) f.appendChild(document.createTextNode(r.s)); else { const e=document.createElement(r.v>0?"sup":"sub"); e.textContent=r.s; f.appendChild(e); } });
-  t.replaceWith(f); }
+  // In a flex or grid box each piece would be an item of its own, with the gap between them.
+  if(/flex|grid/.test(getComputedStyle(el).display)){ const s=document.createElement("span"); s.appendChild(f); t.replaceWith(s); }
+  else t.replaceWith(f); }
 function supifyIn(n){
   if(n.nodeType===3){ supifyText(n); return; }
   if(n.nodeType!==1||n.namespaceURI!=="http://www.w3.org/1999/xhtml"||!UNI_RE.test(n.textContent)) return;
@@ -21988,7 +22178,7 @@ async function loadExample(kind){
    Boot
    ============================================================ */
 function wireStatic(){
-  setupRanges(); setupSupify(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); wireXpl(); setupPlotDetails(); setupRichTools(); setupCombos(); setupMotionKeep(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
+  setupRanges(); setupSupify(); setupCmdk(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); wireXpl(); setupPlotDetails(); setupRichTools(); setupCombos(); setupMotionKeep(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
   document.querySelectorAll(".rb[data-rmenu]").forEach(b=>b.addEventListener("click",()=>toggleMenu(b,()=>menuItems(b.dataset.rmenu),{label:b.textContent.trim()})));
   // With a menu open, the pointer passing over another menu's name opens it only after
   // resting there 150 ms, so a pointer crossing the bar on its way to a submenu changes nothing.
@@ -22058,6 +22248,7 @@ function wireStatic(){
       if(k==="enter"){ if(t&&t.id==="cText") return; e.preventDefault(); if(typing&&t.blur) t.blur(); fitNow(); return; }
       if(k==="o"){ e.preventDefault(); pickFile(); return; }
       if(k===","){ e.preventDefault(); openPrefs(); return; }
+      if(k==="k"){ e.preventDefault(); openCmdk(); return; }
       if(k==="s"){ e.preventDefault(); toast(S.store&&S.store.mode==="db"?"Kurve saves every change as you make it, for everyone in this workspace.":"Kurve saves every change as you make it. To keep a copy elsewhere, use Publish."); return; }
       // A cell has no undo of its own, so the app's undo must still work there.
       if(t&&t.tagName==="INPUT"&&t.dataset.r!=null){ if(k==="z"||k==="y"){ e.preventDefault(); t.blur(); (k==="z"&&!e.shiftKey)?undo():redo(); } return; }

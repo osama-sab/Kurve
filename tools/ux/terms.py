@@ -190,6 +190,8 @@ DOCS0 = src.find("const DOCS=")
 DOCIDS = [(m.start(), m.group(1)) for m in re.finditer(r'\{id:"([a-z0-9-]+)", g:"', src)]
 OPS0, OPS1 = src.find("const PIPE_OPS="), src.find("==PIPE:END==")
 OPKEYS = [(m.start(), m.group(1)) for m in re.finditer(r"\n  ([a-z0-9]+):\{group:", src)]
+SYN0 = src.find("const CMDK_SYN=")
+SYN1 = src.find("];", SYN0) if SYN0 >= 0 else -1
 
 
 def context(pos):
@@ -230,6 +232,8 @@ for a, b in script_ranges(src):
             continue
         if src[pos - 3:pos] == "kw:":
             continue  # Help's search words: they keep the old words, so either finds the article
+        if SYN0 >= 0 and SYN0 <= pos < SYN1:
+            continue  # Find a command's words for commands: what people type, not what Kurve says
         if re.search(r"===|!==|&&|=>|\)\{|\bconst [A-Za-z_]+=|;\s*(?:if|return|const|let)\b", t):
             continue  # code the lexer took for a literal
         if re.search(r"^\s*#|import numpy|\bnp\.\w|print\(", t):

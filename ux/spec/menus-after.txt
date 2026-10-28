@@ -273,6 +273,7 @@ Window
 Help
   Kurve help  [F1]
   Search help…
+  Find a command…  [Ctrl+K]  ## new (DS3): every command of the menu bar, by its name, its menu or a word for it
   Getting started
   Keyboard shortcuts  [?]
   About processing  ## ~ "Processing steps"

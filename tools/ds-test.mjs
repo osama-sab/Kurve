@@ -163,6 +163,62 @@ await page(async p => {
   check("and so is Plot › View", g.view === true, JSON.stringify(g));
 }, { name: "no graph" });
 
+console.log("Slice 3: Find a command");
+await page(async p => {
+  await raman(p);
+  await p.keyboard.press("Control+k"); await p.waitForTimeout(200);
+  const o = await p.evaluate(() => ({ open: !$("#cmdkModal").hidden, focus: document.activeElement && document.activeElement.id, n: CMDK.items.length,
+    start: [...document.querySelectorAll("#cmdkL .cmdk-i .lab")].map(e => e.textContent) }));
+  check("Ctrl+K opens it, the search box focused", o.open && o.focus === "cmdkQ", JSON.stringify(o));
+  check("it knows every command of the menu bar", o.n > 150, o.n);
+  check("with nothing typed it offers where to start", o.start[0] === "Import data…" && o.start.includes("Curve fit…"), o.start);
+  const first = async q => { await p.fill("#cmdkQ", q); await p.waitForTimeout(50);
+    return p.evaluate(() => ({ labs: [...document.querySelectorAll("#cmdkL .cmdk-i")].map(e => e.querySelector(".lab").textContent),
+      on: (document.querySelector("#cmdkL .cmdk-i.on .lab") || {}).textContent, where: (document.querySelector("#cmdkL .cmdk-i.on .where") || {}).textContent,
+      syn: (document.querySelector("#cmdkL .cmdk-i.on .syn") || {}).textContent, ad: $("#cmdkQ").getAttribute("aria-activedescendant") })); };
+  let r = await first("background");
+  check("“background” finds Subtract baseline… first, and Linear detrend…", r.on === "Subtract baseline…" && r.labs.includes("Linear detrend…") && /matches background/.test(r.syn || ""), JSON.stringify(r));
+  r = await first("fourier");
+  check("“fourier” finds the FFT filter", r.on === "FFT filter…" && r.where === "Analyze › Signal processing", JSON.stringify(r));
+  r = await first("power spectrum");
+  check("a phrase people use is kept whole", r.on === "FFT filter…", JSON.stringify(r));
+  r = await first("export");
+  check("“export” finds the Publish menu", /^Graph/.test(r.on || "") && /^Publish/.test(r.where || ""), JSON.stringify(r));
+  r = await first("log y");
+  check("“log y” finds Figure › Axes › Log Y first", r.on === "Log Y" && r.where === "Figure › Axes" && !!r.ad, JSON.stringify(r));
+  await p.keyboard.press("Enter"); await p.waitForTimeout(250);
+  const lg = await p.evaluate(() => ({ log: !!plotCfg().logY, closed: $("#cmdkModal").hidden }));
+  check("Enter runs it and closes", lg.log && lg.closed, JSON.stringify(lg));
+  await p.keyboard.press("Control+k"); await p.waitForTimeout(150);
+  const rec = await p.evaluate(() => ({ h: (document.querySelector("#cmdkL .cmdk-h") || {}).textContent, l: (document.querySelector("#cmdkL .cmdk-i .lab") || {}).textContent }));
+  check("what was run comes back under Recent", rec.h === "Recent" && rec.l === "Log Y", JSON.stringify(rec));
+  await p.fill("#cmdkQ", "curve fit"); await p.waitForTimeout(50);
+  await p.keyboard.press("ArrowDown"); await p.keyboard.press("ArrowUp");
+  const cf = await p.evaluate(() => (document.querySelector("#cmdkL .cmdk-i.on .lab") || {}).textContent);
+  await p.keyboard.press("Enter"); await p.waitForTimeout(400);
+  check("the arrows move and come back; Curve fit… opens the Fit window", cf === "Curve fit…" && await p.evaluate(() => winOpen("fit") && S.fitMode === "curve"), cf);
+  await p.keyboard.press("Control+k"); await p.waitForTimeout(150);
+  await p.fill("#cmdkQ", "zzzqqq"); await p.waitForTimeout(50);
+  check("nothing found says so", /No command matches/.test(await p.evaluate(() => $("#cmdkL").textContent)));
+  await p.keyboard.press("Control+k"); await p.waitForTimeout(150);
+  check("Ctrl+K again closes it", await p.evaluate(() => $("#cmdkModal").hidden));
+  await p.keyboard.press("Control+k"); await p.waitForTimeout(150); await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+  check("Escape closes it", await p.evaluate(() => $("#cmdkModal").hidden));
+  // A command that cannot apply is listed, dimmed, and Enter passes over it.
+  await p.keyboard.press("Control+k"); await p.waitForTimeout(150); await p.fill("#cmdkQ", "remove fit"); await p.waitForTimeout(50);
+  const off = await p.evaluate(() => { const e = [...document.querySelectorAll("#cmdkL .cmdk-i")].find(x => x.querySelector(".lab").textContent === "Remove fit"); return e && { off: e.classList.contains("off"), on: e.classList.contains("on"), title: e.title }; });
+  check("a command that cannot apply now is dimmed, not hidden", off && off.off && !off.on && off.title === "Not available now", JSON.stringify(off));
+  await p.keyboard.press("Escape");
+  // From the Help menu.
+  await p.evaluate(() => { menuItems("help").find(i => i && i.label === "Find a command…").run(); }); await p.waitForTimeout(200);
+  check("Help › Find a command… opens it", await p.evaluate(() => !$("#cmdkModal").hidden));
+  await p.keyboard.press("Escape");
+  // Unicode scripts in a flex box stay one piece of text.
+  const fl = await p.evaluate(async () => { const l = document.createElement("label"); l.style.cssText = "display:flex;gap:9px"; l.textContent = "Weight (1/σ²)"; document.body.appendChild(l);
+    await new Promise(r => setTimeout(r, 50)); const n = l.children.length, k = l.firstElementChild && l.firstElementChild.tagName, s = !!l.querySelector("sup"); l.remove(); return { n, k, s }; });
+  check("a superscript in a flex label is not an item of its own", fl.n === 1 && fl.k === "SPAN" && fl.s, JSON.stringify(fl));
+}, { name: "palette" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

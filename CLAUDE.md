@@ -1101,6 +1101,23 @@ graph first, with the taskbar kept at the bottom of the screen.
   they are off). `sortViewItems(ci)` is Data › Sort the view and the cell
   menu's; Edit's Copy, Paste (`wsPasteMenu`), Clear and Find act on the worksheet. The menu bar
   moves to another menu only after the pointer rests 150 ms on its name.
+  **Find a command** (Ctrl+K in the global key handler, Help › Find a command…; `#cmdkModal`, a
+  modal through `openModal` with `_cancel`): `cmdkIndex()` walks `menuItems(k)` for every menu of
+  `CMDK_MENUS` (with its icon) to three levels, leaving out separators, headings, swatch rows and
+  disabled submenus, each entry `{top, icon, path, label, op, run, kbd, title, kw (DOC_KW[op];
+  `toolItem` returns its `op`), checked, enabled}`; `cmdkTerms(q)` the words typed, a phrase of
+  `CMDK_SYN` (`CMDK_PHRASES`) kept whole; `cmdkScore(it, words, spare)` (the name's start 12, a
+  word's start 9, anywhere 6, a word for it in the name 8 (`cmdkSynOf`, the groups of
+  `CMDK_SYN`), the menu's words or a word for them 3, the step's search words 2, the tooltip 1; a
+  word of one or two letters only at a word's start; +1 enabled, +2 a step; `spare` words may be
+  missing, 1 when nothing has them all); `renderCmdk` (Recent from `kurve.cmdk`, `cmdkRecent`/
+  `cmdkRemember`, else six to start; else the best 40 grouped by menu in the order of each
+  group's best, `cmdkMark` bolds the words, `.syn` says "matches <word>" or the tooltip,
+  disabled ones `.off` titled Not available now), `cmdkHi` (the highlight, `aria-activedescendant`,
+  scrolled by hand), `cmdkMove` (↑/↓ and PageUp/PageDown over the disabled), `cmdkRun` (remembers,
+  closes, then runs on a timer, an error logged and toasted), `setupCmdk` (Ctrl+K inside closes;
+  a press on the backdrop closes). `tools/ux/terms.py` leaves `CMDK_SYN` out: it is what people
+  type, not what Kurve says.
   `openTool(op, {col, at, p})` opens the Tool window with a pending step (ops without settings
   are added at once by `addPipeStep`); `renderTool` shows the target spectrum, the position,
   a before-and-after chart (`beforeAfter`) and the step's form.
@@ -1697,7 +1714,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `^{…}`/`_{…}` (in `richText` and `richW`, so the graph typesets them), `supHtml(h)` as `<sup>`/`<sub>`
   outside tags, titles, code and SVG (the report); in the page a MutationObserver
   (`setupSupify`, `supifyIn`, `supifyText`, `SUP_SKIP`: never in a field, a list, code, the
-  formatted editor, the symbol list or SVG) does the same to text as it arrives, so code reading
+  formatted editor, the symbol list or SVG) does the same to text as it arrives (inside a span
+  when its parent is a flex or grid box, so the pieces stay one item), so code reading
   `textContent` sees "cm−1". The data keep the characters as typed. `textBlock` uses
   `richText` per line. `rtool(id)` puts x², x₂ and a symbol grid (`openSymPicker`) beside a
   field, and Ctrl+Shift+= / Ctrl+= wrap the selection (`setupRichTools`, fields marked
@@ -2744,6 +2762,13 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A name is taken, once more.** `fpMemo`, the fingerprint's cache, nearly became the fit
   points' too: a `let` collides as a function does, and the syntax check caught it.
   `grep -oE '^(const|let) [A-Za-z0-9_]+' kurve.html | sort | uniq -d` finds them.
+- **An element put into text is an item of a flex box.** Setting ² as a `<sup>` split "1/σ²" in
+  the Fit window's switch label into three flex items, the label's gap between them: "(1/σ 2 )".
+  A test of the markup passed; a screenshot of another slice showed it. Text changed in place
+  keeps its pieces in one span where its parent lays children out.
+- **A search judged by its tests alone finds what the tests ask.** The palette passed its checks
+  and still answered *export* with "Save this style…" and *power spectrum* with nothing: twenty
+  queries read by eye found four wrong answers. Read a ranking's results, not only its first.
 
 ## Roadmap
 
@@ -2758,7 +2783,9 @@ page, the graph and the report. Slice 2 done: the menus in the order of the work
 Data, Plot, Analyze, Figure, Publish, Window, Help): the Graph menu's tools into Plot › View,
 Figure › Annotate and Axes, and Analyze › Fit; Statistics and Spectroscopy submenus of Analyze;
 the background step Data › Baseline › Subtract baseline…, beside Linear detrend…; File ›
-Export and Edit's copies Publish. Next: Find a command (Ctrl+K),
+Export and Edit's copies Publish. Slice 3 done: Find a command (Ctrl+K, Help › Find a command…),
+every command of the menu bar by its name, its menu or a word people use for it, grouped by
+menu with where it lives, Enter running it, the commands used last when nothing is typed. Next:
 commands that appear when a thing is selected on the graph, the Format pane docked and live,
 the status bar's statistics of a selection, the Fit window and Results as designed, the
 dialogs, galleries drawn with the data, two displays.
@@ -3123,7 +3150,7 @@ Next, in order:
    figure; a map from scattered X, Y, Z (triangulated) rather than from spectra
 5. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
    with its own scale on each side, polygons and curved arrows
-6. Getting around: a command search (Ctrl+K), a visible undo list, flow chart zoom and packed
+6. Getting around: a visible undo list, flow chart zoom and packed
    lanes, keyboard access to annotations and peak handles, handles for shape parameters
    (Lorentz fraction, Pearson m, Fano 1/q)
 7. Many spectra, further: a parameter that follows the series in a global fit (a centre

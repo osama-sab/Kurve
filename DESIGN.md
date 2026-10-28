@@ -349,6 +349,17 @@ The menu tree is `ux/spec/menus-after.txt`; `tools/ux/menucheck.py` compares the
   but three were by subject (Analysis, Statistics, Spectroscopy) and a fourth, Graph, came and
   went with the graph, so the bar changed under the pointer; five of them had to be tried to
   find a command.
+- **Find a command** (Ctrl+K, Help › Find a command…; the design system's command palette): a
+  box over the desk that finds any command of the menu bar by its name, by the menu it is in,
+  or by a word people use for it (*background* finds Subtract baseline… and Linear detrend…,
+  *fourier* or *power spectrum* the FFT filter, *export* the Publish menu), grouped by menu,
+  each with where it lives, so a search also teaches the menus. It runs what the menu item runs,
+  so it can never do what the menus cannot. A command that cannot apply now is listed dimmed
+  ("Not available now") and passed over by the keys, rather than left out: a search that finds
+  nothing would say the command does not exist. A word for a command is matched when it is in
+  the command's name or its menu's ("export" is Publish), and a phrase people use ("power
+  spectrum") is kept whole. With nothing typed it lists the commands run last, else six places
+  to start. On a phone the notes and the key hints give way to the names.
 - **One place each, by what it is.** Making a graph is plotting (Plot › New graph); Window
   lists and arranges windows. Copying from another project is File's. Edit has the worksheet's
   Copy, Paste, Clear and Find, because a spreadsheet user looks there. A command that combines
@@ -785,6 +796,19 @@ The F(x)= row is always shown (the user's choice between it and formulas only in
 setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md`: ranges,
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
+
+### 2026-10-28: the design system into the app, slice 3 (Find a command)
+
+The system has a command palette and the app had none: a command was found by trying menus.
+Ctrl+K finds every item of the menu bar (about 250) by name, menu or a word for it, from a list
+of the field's words (`CMDK_SYN`: baseline and background, Fourier and FFT, regression and fit,
+cosmic ray and spike, …). Its first answers were judged by eye on twenty queries, and four were
+wrong: *export* found "Save this style…" (save had been put among export's words) and not the
+Publish menu, whose name the matching did not read; *power spectrum* found nothing (split into
+two words); *fourier transform* found nothing (a word nowhere sinks the command, so with no
+command having every word, one word may now be missing). A fifth was in slice 1: a superscript
+set into a flex label became an item of its own, the gap of the flex box around it ("1/σ 2 )");
+it is wrapped in a span there.
 
 ### 2026-10-28: the design system into the app, slice 2 (menus in the order of the work)
 

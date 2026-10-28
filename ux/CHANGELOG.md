@@ -898,3 +898,19 @@ The system's menu bar follows the stage of work; the app's had three menus by su
 
 Every item kept a home: the crawl before and after compared leaf by leaf, `menucheck.py` with
 nothing missing either way, the glossary count at 0. `tools/ds-test.mjs` has 18 new checks (45).
+
+## The design system into the app, slice 3: Find a command (2026-10-28)
+
+- **Ctrl+K** (or Help › Find a command…) opens the system's command palette over the desk: a
+  search box and every command of the menu bar (about 250), found by its name, the menu it is in,
+  or a word people use for it (*background*, *detrend* → Subtract baseline… and Linear detrend…;
+  *fourier*, *power spectrum* → FFT filter…; *export* → the Publish menu; *cosmic ray* → Remove
+  cosmic-ray spikes…), grouped by menu with each one's path, the words typed in bold and the word
+  that matched named. ↑/↓ move, Enter runs, Escape or Ctrl+K closes.
+- A command that cannot apply now is listed dimmed and passed over, not hidden. With nothing
+  typed: the commands run last, else six places to start.
+- A fix from slice 1: a superscript set into a flex label (the Fit window's "1/σ²") had become an
+  item of its own with the label's gap around it.
+
+`tools/ds-test.mjs` has 18 new checks (63); the glossary count skips the palette's list of words
+people type (`CMDK_SYN`).
