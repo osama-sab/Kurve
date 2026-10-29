@@ -140,7 +140,8 @@ reason, CLAUDE.md, the menu spec when a menu changes.
    it) in one undo entry, writing the column changes (an X, an error column's owner and kind)
    with it and saying which; the worksheet's roles are the starting point, as Origin's default
    designation.
-3. **Plot setup on a graph** (Origin's Layer Contents). The graph's ⋯ menu, the Graph menu
+3. **Plot setup on a graph** (done 2026-10-29; no kind chosen when it opens, so each curve keeps
+   how it is drawn; the Plot menu's item is *What this graph plots…*) (Origin's Layer Contents). The graph's ⋯ menu, the Graph menu
    and the plot's right-click have *What it plots…*: the dialog opened with that graph's curves
    in the list, to add, replace, remove, reorder, re-range or move between axes; a figure's
    panel the same. *Curves on it* stays as the quick list.

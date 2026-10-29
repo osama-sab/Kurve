@@ -874,6 +874,24 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-10-29: Plot setup on a graph (PLOT_SPEC slice 3)
+
+*What it plots…* opens Plot setup on a graph's own curves, as Origin's Layer Contents does, from
+every menu that is about that graph (its ⋯ menu, a panel's, its right-click, Plot).
+
+- **The same dialog, not a second one.** One place to learn: the list, Add and Replace, ranges
+  and axes work as when making a graph. What differs is said in the title (*What Graph 1 plots*)
+  and where Into was (*On Graph 1*).
+- **No kind is chosen when it opens.** A graph's curves may each be drawn differently (one as
+  symbols, one as a line); a kind checked by default would have redrawn them all on OK. Until a
+  card is picked, each keeps its own; the histogram card is off, since a histogram is a column of
+  its own.
+- **The preview is that graph**, changed for one drawing and put back, so its labels, its zoom
+  and its look are there.
+- **One step, or none.** OK with nothing changed adds no step to undo; otherwise the log and the
+  toast name what changed ("Graph 1: took off Third and put the curves in a new order").
+- *Curves on it* stays beside it: ticking one curve is quicker than a dialog.
+
 ### 2026-10-29: Plot setup rebuilt (PLOT_SPEC slice 2)
 
 The old dialog chose one X and ticked Ys: nothing could say which column was the error, against

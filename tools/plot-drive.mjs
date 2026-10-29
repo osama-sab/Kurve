@@ -224,6 +224,54 @@ await page(async p => {
   check("…and Plot works from there", await p.evaluate(() => P().graphs.length === 1));
 }, { name: "Plot setup, phone", vw: { width: 390, height: 844 } });
 
+console.log("Slice 3: Plot setup on a graph");
+await page(async p => {
+  const id = await six(p);
+  await p.evaluate(id => { plotCols([id.B, id.D, id.E], { quiet: true }); }, id); await p.waitForTimeout(400);
+  await p.evaluate(() => { addAnno({ t: "text", x: 5, y: 300, text: "Hello there" }); }); await p.waitForTimeout(200);
+  let r = await p.evaluate(id => { const lab = a => a.filter(i => i && i.label).map(i => i.label); return { plot: lab(plotMenu()).includes("What this graph plots…"), right: lab(graphMenuItems(id.B)).includes("What it plots…"), empty: lab(graphMenuItems(null)).includes("What it plots…"), win: lab(graphWinItems(GID())).includes("What it plots…") }; }, id);
+  check("What it plots… in the Plot menu, the curve's and the plot's right-click and the graph's ⋯ menu", r.plot && r.right && r.empty && r.win, JSON.stringify(r));
+  await p.evaluate(() => { plotsOf(); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ title: $("#formTitle").textContent, ok: $("#formOk").textContent, cur: [...document.querySelectorAll("#psuCur [data-pcur]")].map(t => t.dataset.pcur), kind: [...document.querySelectorAll("#formBody [data-pk]")].filter(b => b.getAttribute("aria-checked") === "true").length, hist: $('#formBody [data-pk="hist"]').disabled, into: !!$("#pdlgInto"), hello: /Hello there/.test($("#pdlgSk").innerHTML), add: !$("#psuAdd").disabled, ax: document.querySelectorAll("#psuCur [data-cax]").length }));
+  check("opened on the graph: its curves in order with their axes, no kind chosen (it keeps its own), no histogram, no Into, its labels in the preview, nothing to add", r.title === "What Graph 1 plots" && r.ok === "OK" && r.cur.join() === [id.B, id.D, id.E].join() && r.kind === 0 && r.hist && !r.into && r.hello && !r.add && r.ax === 3, JSON.stringify(r));
+  // Take one off, reorder, a range: OK is one step, said in the log.
+  await p.click(`#psuCur [data-pcur="${id.E}"] td`); await p.click("#psuDel");
+  await p.click(`#psuCur [data-pcur="${id.D}"] td`); await p.click("#psuUp");
+  await p.selectOption(`#psuCur [data-crng="${id.B}"]`, "row"); await p.fill(`#psuCur [data-crb="${id.B}"]`, "30"); await p.press(`#psuCur [data-crb="${id.B}"]`, "Enter"); await p.waitForTimeout(150);
+  const u0 = await p.evaluate(() => undoStack.length);
+  await p.click("#formOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(id => { const g = P().graphs[0]; return { cols: g.cols, rng: (g.plot.use || {})[id.B], act: P().activeY, undo: undoStack.length, log: (P().log || []).slice(-1)[0].text, n: P().graphs.length }; }, id);
+  check("OK: E taken off, D first, B drawing rows 1 to 30; one undo step; the log says what changed", r.cols.join() === [id.D, id.B].join() && r.rng && r.rng.rng.b === 30 && r.act === id.B && r.undo === u0 + 1 && r.n === 1 && /Graph 1: took off Third, put the curves in a new order and changed what the curves draw/.test(r.log), JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  check("one undo puts the curves and the range back", await p.evaluate(id => { const g = P().graphs[0]; return g.cols.join() === [id.B, id.D, id.E].join() && !curveUse(id.B, g.plot).rng; }, id));
+  // The active curve taken off: the graph keeps one it shows as the active one. A kind chosen: every curve.
+  await p.evaluate(() => { plotsOf(); }); await p.waitForTimeout(400);
+  await p.click(`#psuCur [data-pcur="${id.B}"] td`); await p.click("#psuDel"); await p.click('#formBody [data-pk="scatter"]'); await p.waitForTimeout(150);
+  await p.click("#formOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(id => { const g = P().graphs[0]; return { cols: g.cols, act: P().activeY, types: g.cols.map(k => (g.plot.series[k] || {}).type) }; }, id);
+  check("the active curve taken off: D is the active one; Symbols chosen: every curve drawn so", r.cols.join() === [id.D, id.E].join() && r.act === id.D && r.types.every(t => t === "scatter"), JSON.stringify(r));
+  // Nothing changed: no undo step.
+  const u1 = await p.evaluate(() => undoStack.length);
+  await p.evaluate(() => { plotsOf(); }); await p.waitForTimeout(400); await p.click("#formOk"); await p.waitForTimeout(300);
+  check("OK with nothing changed makes no undo step", await p.evaluate(u => undoStack.length === u, u1));
+  // Add from the marks: a data column as error bars of a curve on the graph.
+  await p.evaluate(() => { plotsOf(); }); await p.waitForTimeout(400);
+  await use(p, id.B, "y"); await use(p, id.C, "e:y"); await p.click("#psuAdd"); await p.waitForTimeout(150);
+  r = await psu(p);
+  check("on the graph, Add puts B back with its error bars from C", r.curves.map(q => q.id).join() === [id.D, id.E, id.B].join() && /yEr± C/.test(r.curves[2].with), JSON.stringify(r.curves));
+  await p.click("#formOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(id => ({ cols: P().graphs[0].cols, c: [colById(id.C).role, colById(id.C).of === id.B] }), id);
+  check("…and OK adds it, C being B's error bars now", r.cols.join() === [id.D, id.E, id.B].join() && r.c[0] === "e" && r.c[1], JSON.stringify(r));
+  // A figure's panel.
+  await p.evaluate(id => { plotCols([id.H], { quiet: true }); }, id); await p.waitForTimeout(300);
+  await p.evaluate(() => { makeFigure(P().graphs.map(g => g.id)); }); await p.waitForTimeout(500);
+  r = await p.evaluate(() => { const pan = P().graphs.filter(g => !g.fig)[0]; return { has: figPanelItems(pan.id).some(i => i && i.label === "What it plots…"), id: pan.id }; });
+  await p.evaluate(g => { plotsOf(g); }, r.id); await p.waitForTimeout(400);
+  const t = await p.evaluate(() => ({ title: $("#formTitle").textContent, pv: /<svg/.test($("#pdlgSk").innerHTML) }));
+  check("a figure's panel has What it plots… and opens on its curves", r.has && /^What Figure 1 › \(a\)/.test(t.title) && t.pv, JSON.stringify([r, t]));
+  await p.click("#formCancel"); await p.waitForTimeout(200);
+}, { name: "Plot setup on a graph" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

@@ -1163,9 +1163,20 @@ graph first, with the taskbar kept at the bottom of the screen.
   (`.psu-tabs`, `data-ptab`, `.psu[data-tab]`). OK: one undo entry; data columns made X or
   error bars, a Y's X (`xcol`, `"row"` for the row number, read by `xColFor`; the other Ys of
   the sheet pinned to the X they had), an error column's owner and kind, said in the toast and
-  the log (`plotCols`' `say` and `note`); then `plotCols(ids, {into, use, series, type|layout})`
-  (`use` and `series` merged into the graph's) or `histogramCols`. The column menu's *Plot
-  against* has *Its row number* (`setXOf(id, "row")`). A
+  the log (`plotCols`' `say` and `note`, through `psuColChanges(curves)`); then `plotCols(ids,
+  {into, use, series, type|layout})` (`use` and `series` merged into the graph's) or
+  `histogramCols`. The column menu's *Plot against* has *Its row number* (`setXOf(id, "row")`).
+  **On a graph** (PLOT_SPEC slice 3, Origin's Layer Contents): `openPlotDlg(null, {gid})`, from
+  `plotsOf(gid)` (*What it plots…* in the graph's ⋯ menu, a panel's `figPanelItems`, the plot's
+  right-click `graphMenuItems`, Plot › What this graph plots…; not a figure itself): the title
+  *What Graph 1 plots*, `psuFromGraph(g)` the graph's curves with their ranges, axes, labels,
+  colour and size and the marks they make, no kind chosen (`st.kind` null: each curve keeps its
+  type, the gallery checked only when one is picked; the histogram card disabled), no Into but
+  *On <graph>*, the preview the graph itself changed in place for one drawing (its annotations
+  and zoom), OK `psuSetGraph(gid, curves, st, kind, ov, said)`: the list, each curve's `use` and
+  `series` (`zcol`, `scol`, a type when chosen) or the layout, one undo entry (none when nothing
+  changed), the active curve moved to the first when taken off the graph in front, a log line and
+  a toast naming what changed. A
   `type` given to `plotCols` goes to every spectrum it plots, not only the analysed one. `ensureGraph()` (Peaks, Fit, Integrate)
   brings forward a graph showing the analysed column (`graphForCol`), opening it if closed, or
   plots the column on a new graph when none shows it. `GID()` is the graph in hand (`S.gctx` while drawing
@@ -2286,7 +2297,10 @@ selection, the options a column refuses, error bars and labels marked and added,
 Remove, Replace with a ticked column, every sheet and the filter, Cancel changing nothing, OK
 with a range, an axis, labels and error bars in one undo entry said in the toast and the log, the
 row number as X, a data column made X with the other columns kept on theirs, into a graph with
-curves, and the tabs at phone width); run it after touching the graph's drawing or Plot setup.
+curves, and the tabs at phone width; slice 3: What it plots… in its four menus, opened on a graph
+with its axes, labels and no kind, a curve taken off, reordered and given a range in one undo step
+said in the log, the active curve taken off, a kind for every curve, no step when nothing changed,
+Add with error bars, a figure's panel); run it after touching the graph's drawing or Plot setup.
 `node tools/fit-drive.mjs [path]` (Playwright) clicks and types into what each slice of the
 curve fit (`ux/spec/FIT_SPEC.md`) from slice 5 on added (Find X/Y: the readouts against the
 functions, a redraw while typing, Fill a column… both ways, undo); run it after touching the Fit
@@ -3215,6 +3229,9 @@ columns of a sheet or every sheet, each with what it is (X, Y, Y or X error, lab
 size), started from the worksheet's roles and marked several at a time; the curves on the graph,
 a list of their own (Add, Replace, Remove, Up, Down), each with its X (any X of its sheet, or the
 row number), range and axis. OK is one undo step, and what it changes of the columns is said.
+Slice 3 done: the same dialog on a graph (*What it plots…*, Origin's Layer Contents): its curves to
+add, replace, take off, reorder, re-range or move between axes, each keeping how it is drawn until a
+kind is chosen; a figure's panel the same.
 
 Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
 graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
@@ -3707,8 +3724,8 @@ Next, in order:
   by rows or by X, not both, and labels are a column's numbers (the worksheet has no text cells)
 - Plot setup: a Y column cannot be made an X or error bars there (nor an X a Y): the worksheet's
   header menu changes those roles; a curve is a column (a graph cannot draw one column twice, as
-  against two X columns); it makes a new graph or adds to one (changing a graph's own curves is
-  slice 3); colour and size from a column are set here but styled in the Format pane
+  against two X columns); colour and size from a column are set here but styled in the Format
+  pane; What it plots… is for a graph or a panel, not a whole figure (each panel has its own)
 - Your functions: a derived value has no unit of its own (it is shown without one); a category is
   one word or phrase, not a tree; the organizer works on one function at a time
 - Saved fit settings are a curve fit's (a peak fit's peaks are its own); a column's weights and a

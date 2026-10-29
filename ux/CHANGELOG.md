@@ -1024,6 +1024,18 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plot setup, slice 3: on a graph (2026-10-29)
+
+`ux/spec/PLOT_SPEC.md` slice 3.
+- **What it plots…** in a graph's ⋯ menu, a figure panel's menu, the graph's right-click and Plot ›
+  What this graph plots…: Plot setup opened on that graph's curves, to add, replace, take off,
+  reorder, re-range or move between axes; the preview is the graph itself, labels included.
+- No kind is chosen until one is picked, so each curve keeps how it is drawn.
+- OK is one undo step (none when nothing changed), said in the log and a toast; a curve taken off
+  that was the active one hands that to the graph's first.
+
+Checked: `tools/plot-drive.mjs` (10 new, 47), a screenshot, and every suite from the round before.
+
 ## Plot setup, slice 2: rebuilt, in three parts beside the graph (2026-10-29)
 
 `ux/spec/PLOT_SPEC.md` slice 2.
