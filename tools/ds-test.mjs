@@ -528,6 +528,52 @@ await page(async p => {
   check("a click gives the graph the style", await p.evaluate(() => GP().frame === "l" && !S.hoverPv && !document.querySelector(".sgalpick")));
 }, { name: "galleries" });
 
+console.log("Slice 10: two displays");
+await page(async (p, ctx) => {
+  await p.evaluate(async () => { await loadExample("ir"); }); await p.waitForTimeout(600);
+  const gw = await p.evaluate(() => winOfGraph(GID()));
+  // Move to new window: the graph in a browser window of its own, drawn there, its button marked in the taskbar.
+  const pop = ctx.waitForEvent("page"); await p.click(`#w-${gw} [data-wpop]`); const c = await pop; await c.waitForLoadState(); await p.waitForTimeout(500);
+  let r = await p.evaluate(w => ({ hidden: $("#w-" + w).hidden, tk: !!document.querySelector(`.tk.away[data-tk="${w}"]`), tip: (document.querySelector(`.tk[data-tk="${w}"]`) || {}).title, front: frontWinId() !== w }), gw);
+  check("Move to new window takes the graph off the desk; its taskbar button is dashed and says where it is", r.hidden && r.tk && /in a window of its own|on Display/.test(r.tip || "") && r.front, JSON.stringify(r));
+  r = await c.evaluate(() => ({ t: document.querySelector(".dwin-t").textContent, svg: !!document.querySelector(".dgraph svg"), live: !document.body.classList.contains("paused"), ret: !!document.querySelector(".dwin-ret") }));
+  check("the window has the strip (its name, Live, Return to desk) and the graph drawn", r.t === "Graph 1" && r.svg && r.live && r.ret, JSON.stringify(r));
+  await c.setViewportSize({ width: 900, height: 600 }); await c.waitForTimeout(300);
+  const box = await c.evaluate(() => { const q = document.querySelector(".dgraph").getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; });
+  await c.mouse.move(box.x, box.y); await c.waitForTimeout(100);
+  check("over the graph it reads the pointer", /^x .* · y /.test(await c.evaluate(() => document.querySelector(".dwin-msg").textContent)));
+  await c.mouse.wheel(0, -300); await c.waitForTimeout(400);
+  const z = await p.evaluate(() => S.view ? S.view.x1 - S.view.x0 : null);
+  await c.mouse.dblclick(box.x, box.y); await c.waitForTimeout(300);
+  check("the wheel zooms the graph, which the main window keeps; a double click shows it all", z > 0 && z < 250 && await p.evaluate(() => !S.view), z);
+  const s0 = await c.evaluate(() => document.querySelector(".dgraph").innerHTML);
+  await p.evaluate(() => { const c = activeYCol(), d = c.data.slice(); d[3] += 0.5; c.data = d; save({ cols: P().cols }); }); await p.waitForTimeout(400);
+  const s1 = await c.evaluate(() => document.querySelector(".dgraph").innerHTML);
+  check("a change in the main window is drawn there", s1 !== s0 && /<svg/.test(s1));
+  await c.click(".dwin-ret"); await p.waitForTimeout(400);
+  check("Return to desk closes it and puts the graph back", c.isClosed() && await p.evaluate(w => !$("#w-" + w).hidden && !AWAY.has(w), gw));
+  // A tool window: its body mirrored, its changes sent back to the original.
+  await p.evaluate(() => { S.fitMode = "curve"; showTab("fit"); chooseModel("gauss"); runFit(); showDrawer("res"); }); await p.waitForTimeout(400);
+  const pop2 = ctx.waitForEvent("page"); await p.evaluate(() => detachWin("res")); const c2 = await pop2; await c2.waitForLoadState(); await p.waitForTimeout(500);
+  r = await c2.evaluate(() => ({ tab: !!document.querySelector(".dwin-w .rtab"), kind: (document.querySelector("#rKind") || {}).value }));
+  check("Results in its own window is the same Results", r.tab && r.kind === "raw", JSON.stringify(r));
+  await c2.selectOption("#rKind", "stud"); await p.waitForTimeout(400);
+  check("a list changed there changes Results here, and both show it", await p.evaluate(() => resKind()) === "stud" && await c2.evaluate(() => document.querySelector("#rKind").value) === "stud");
+  await c2.click("#rCopy").catch(() => {}); await p.waitForTimeout(300);
+  check("a button pressed there runs here, and its message shows there", /copied/i.test(await c2.evaluate(() => document.querySelector(".dwin-msg").textContent)));
+  r = await p.evaluate(() => { const its = menuItems("window").filter(x => x && x.label); const f = l => its.find(x => x.label === l); return { move: !!f("Move to new window"), ret: f("Return all to desk") && f("Return all to desk").enabled !== false, item: (its.find(x => /^Results/.test(x.label)) || {}).note }; });
+  check("the Window menu: Move to new window, Return all to desk, and where Results is", r.move && r.ret && /own|Display/.test(r.item || ""), JSON.stringify(r));
+  await c2.close(); await p.waitForTimeout(1400);
+  check("closed by the user, it comes back to the desk", await p.evaluate(() => !AWAY.has("res") && winOpen("res") && !$("#w-res").hidden));
+  // The main window gone: the detached one pauses, and Reconnect asks to be served again.
+  const pop3 = ctx.waitForEvent("page"); await p.evaluate(w => detachWin(w), gw); const c3 = await pop3; await c3.waitForLoadState(); await p.waitForTimeout(300);
+  await p.reload(); await ready(p); await c3.waitForTimeout(1600);
+  const paused = await c3.evaluate(() => document.body.classList.contains("paused"));
+  await c3.click('[data-dw="reconnect"]'); await c3.waitForTimeout(1500);
+  check("with the main window gone it says Paused; Reconnect makes it live again", paused && await c3.evaluate(() => !document.body.classList.contains("paused")) && await p.evaluate(w => AWAY.has(w), gw), paused);
+  await c3.close().catch(() => {});
+}, { name: "two displays" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

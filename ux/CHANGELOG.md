@@ -1023,3 +1023,22 @@ people type (`CMDK_SYN`).
   applies it, Escape puts the graph back, More… is the menu with save, rename and delete.
 
 `tools/ds-test.mjs` has 9 new checks (145).
+
+## The design system into the app, slice 10: two displays (2026-10-29)
+
+- **Move to new window** (a window's title-bar button, Window › Move to new window, Ctrl+Shift+D)
+  puts a graph, or the Results, Statistics, Help, Overview or Discussion window, into a browser
+  window of its own, for another display. Window › Open on display lists the screens where the
+  browser can (it asks once).
+- **The main window keeps the project.** A graph is drawn in its own window at that window's
+  size and kept up to date; the wheel zooms it, a drag pans it, a double click shows it all, and
+  the strip reads the pointer's X and Y. A tool window there is the same window: its buttons,
+  lists and fields act on the window here, and its messages show there too.
+- **The strip**: the window's name, the project, *Live* (or *Paused* when the main window is gone,
+  with Reconnect and Close), the display list, *Return to desk*.
+- **The taskbar** shows a window away with a dashed edge and the display's tag; the Window menu
+  says where it is and has *Return all to desk*. Closing the window returns it; switching projects
+  returns them all, and Preferences › Displays can offer to reopen them and send new graphs to
+  another display.
+
+`tools/ds-test.mjs` has 13 new checks (158). The design system's ten slices are done.

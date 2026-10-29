@@ -258,6 +258,9 @@ Window
   Project Explorer  [Alt+1]
   Tile  ## + "Tile the graphs", which ran the same tiling
   Cascade
+  Move to new window  [Ctrl+Shift+D]  ## new (DS10): the window in front into a browser window of its own
+  Open on display  ## new (DS10); ↓ where the browser can list the screens
+  Return all to desk  ## new (DS10)
   Minimise the others
   Close the tool windows  ## ~ "Close the panels"
   Restore the default arrangement

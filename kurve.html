@@ -425,6 +425,35 @@ details.grp.pdcard .frow{margin-bottom:0}
 .wsfind .sp{flex:1}
 .ws-foot{display:flex;align-items:center;gap:var(--sp-4);min-height:28px;padding:var(--sp-2) var(--sp-5);border-top:1px solid var(--rule);font-size:var(--fs-tab);color:var(--muted);flex:0 0 auto;background:var(--panel-2)}
 .ws-foot .sp{flex:1}
+/* A window in a browser window of its own (the design system's DetachedWindow): a strip, then the window's body. */
+body.dwin-page{margin:0;height:100vh;overflow:hidden;background:var(--panel);color:var(--ink);font:var(--fs-body)/1.4 var(--sans)}
+.dwin{display:flex;flex-direction:column;height:100vh}
+.dwin-h{display:flex;align-items:center;gap:var(--sp-4);height:36px;padding:0 var(--sp-4);background:var(--chrome);border-bottom:1px solid var(--rule);flex:0 0 auto;font-size:var(--fs-tab);min-width:0}
+.dwin-h .brand{margin:0;font-size:var(--fs-title)}
+.dwin-t{font-weight:600;color:var(--ink);white-space:nowrap}
+.dwin-p{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+.dwin-sync{display:inline-flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-3);height:20px;border-radius:999px;border:1px solid var(--rule-2);color:var(--ink-2);white-space:nowrap}
+.dwin-sync i{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.dwin-page.paused .dwin-sync i{background:var(--warn)}
+.dwin-page .dwin-sync .p,.dwin-page.paused .dwin-sync .l{display:none}
+.dwin-page.paused .dwin-sync .p{display:inline}
+.dwin-h .sp{flex:1 1 0}
+.dwin-msg{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto;max-width:40%}
+.dwin-disp{min-width:0;max-width:16em}
+.dwin-paused{margin:var(--sp-3) var(--sp-4)}
+.dwin-page:not(.paused) .dwin-paused{display:none}
+.dwin-page.paused .dwin-w{opacity:.55;pointer-events:none}
+.dwin .win.dwin-w{position:relative;inset:auto;width:auto;height:auto;flex:1 1 auto;min-height:0;border:0;border-radius:0;box-shadow:none;display:flex;flex-direction:column}
+.dwin .dwin-w>.win-b{flex:1 1 auto;min-height:0}
+.dwin .dwin-w>.win-b.dgraph{background:var(--well);overflow:hidden;cursor:crosshair;touch-action:none}
+.dwin .dgraph>svg{display:block}
+/* The taskbar's button of a window on another display: a dashed edge, no pill, the display's tag. */
+.tk.away{border:1px dashed var(--rule);background:transparent}
+.tk.away::after{display:none}
+.tk-disp{display:inline-flex;align-items:center;gap:2px;padding:0 var(--sp-2);margin-left:var(--sp-2);border-radius:var(--r-s);background:var(--accent-soft);color:var(--ink);font-size:var(--fs-cap)}
+.tk-disp .ic{width:12px;height:12px}
+.mdisp{display:inline-flex;align-items:center;gap:2px;color:var(--muted);font-size:var(--fs-cap)}
+.mdisp .ic{width:12px;height:12px}
 /* The empty desk (the design system's EmptyState): over an empty worksheet, a serif headline, one line and the ways in. The grid stays usable around it. */
 .wsempty{position:absolute;left:50%;top:54%;translate:-50% -50%;z-index:4;width:min(480px,calc(100% - var(--sp-7)));max-height:calc(100% - 120px);overflow:auto;padding:var(--sp-7) var(--sp-6);text-align:center;background:var(--panel);border:1px solid var(--rule);border-radius:var(--r-l);box-shadow:var(--shadow)}
 .wsempty .ic.lg{width:40px;height:40px;color:var(--faint);stroke-width:1.3}
@@ -1891,7 +1920,7 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
   .work{display:block}
   .win{position:relative!important;left:auto!important;top:auto!important;width:auto!important;height:auto!important;z-index:auto!important;flex:0 0 auto}
   .win.max{height:auto!important}
-  .win-rz,.win-h [data-wmax]{display:none}
+  .win-rz,.win-h [data-wmax],.win-h [data-wpop]{display:none}
   .win.gwin .win-b{height:52vh;min-height:300px;flex:0 0 auto;overflow:hidden}
   .win.figw .win-b{height:84vh;min-height:420px}
   .win.gwin.haslive:not(.figw) .win-b{height:68vh;min-height:360px}
@@ -1925,7 +1954,7 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
 </head>
 <body>
 <script>try{var t=localStorage.getItem("kurve.theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(localStorage.getItem("kurve.style")==="graphite")document.documentElement.setAttribute("data-style","graphite");}catch(e){}</script>
-<svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+<svg id="kSprite" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
   <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3.5A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V15"/></symbol>
   <symbol id="i-alignl" viewBox="0 0 24 24"><path d="M4 6h16M4 10h10M4 14h16M4 18h10"/></symbol>
   <symbol id="i-alignc" viewBox="0 0 24 24"><path d="M4 6h16M7 10h10M4 14h16M7 18h10"/></symbol>
@@ -1968,6 +1997,9 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
   <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3.5 3.5v17h17"/><path d="M6.5 16c2.5-.5 3.5-9 6-9s3 7 6 7.5"/></symbol>
   <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M3.5 15h17"/></symbol>
   <symbol id="i-dock" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15"/></symbol>
+  <symbol id="i-popout" viewBox="0 0 24 24"><path d="M11 5.5H5.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M14 3.5h6.5V10M20.5 3.5 11.5 12.5"/></symbol>
+  <symbol id="i-popin" viewBox="0 0 24 24"><path d="M11 5.5H5.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M20.5 3.5 12 12M12 6.5V12h5.5"/></symbol>
+  <symbol id="i-display" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M9 20h6M12 16v4"/></symbol>
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 3.5h6M10 3.5v6l-3 4h10l-3-4v-6M12 13.5v7"/></symbol>
   <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></symbol>
   <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.4c-.6.3-1 .8-1 1.5v.8M12 17h.01"/></symbol>
@@ -6312,6 +6344,8 @@ function toast(msg,opt){
   const a=$("#toastAct");
   if(t._out){ t._out.cancel(); t._out=null; } t.style.pointerEvents="";
   t.hidden=false; $("#toastMsg").textContent=msg;
+  // What a detached window asked for is answered there too.
+  if(S.awayLast&&Date.now()-S.awayLast.t<2000&&typeof awayMsg==="function") awayMsg(S.awayLast.id,msg);
   if(opt&&opt.action&&opt.run){ a.hidden=false; a.textContent=opt.action; a.onclick=()=>{ hideToast(); opt.run(); }; }
   else { a.hidden=true; a.onclick=null; }
   clearTimeout(toastT); toastT=setTimeout(hideToast,opt&&opt.action?7000:4500);
@@ -8918,7 +8952,7 @@ function buildPlot(W,H,pal,colEx,opt){
   s+=`</svg>`;
   return s;
 }
-function renderPlot(){
+function renderPlot(){ scheduleAway();
   const svg=$("#plot"), fig=$("#figure");
   // Something to draw: a column on this graph, with points.
   const p=P(); const has=p&&allCols().some(c=>c.role==="y"&&inGraph(c))&&(pointsAll().length>0||plotState().d.x.length>0);
@@ -12061,6 +12095,141 @@ function wsStats(){
     for(let r=ra;r<=rb;r++){ const k=wsDR(m,r), v=m.kind==="final"?q.get(k):q.col.data[k]; if(v==null||!Number.isFinite(v)) continue; n++; sum+=v; if(v<lo) lo=v; if(v>hi) hi=v; } }
   el.textContent=n>1?`Count ${n} · Sum ${fmt(sum,8)} · Average ${fmt(sum/n,8)} · Min ${fmt(lo,8)} · Max ${fmt(hi,8)}`:n===1?"Count 1":"";
 }
+/* ---- Two displays (the design system's DetachedWindow and DisplayMenu; DS_SPEC slice 10) ----
+   A window moved off the desk into a browser window of its own, on another display.
+   The main window keeps the project, undo and saving; the detached window is a page
+   it writes and keeps up to date. A graph is drawn there by the main window at that
+   window's size (zoomed by the wheel, panned by a drag, all of it by a double click);
+   a tool window's body is mirrored there, and its clicks and changes are sent back to
+   the original, which stays in this page, hidden, doing what it always did, so the
+   two never disagree. Closing it, or Return to desk, puts the window back where it
+   was. AWAY maps a window id to {w (the browser window), disp (the display's number,
+   or null), sig, geo}. The detached page notices on its own when this page is gone
+   (Paused), and asks it back with Reconnect. */
+const AWAY=new Map(), AWAY_PANELS=["res","stats","help","overview","disc"];
+const winAway=id=>AWAY.has(id);
+// What can be moved out: a graph (not a figure, not at phone width) or a tool window that reads more than it is typed into.
+function canDetach(id){ if(!WINS[id]||isNarrow()||!P()) return false; if(WINS[id].graph){ const g=graphOfWin(id); return !!g&&!isFigId(g)&&!graphShut(g); } return AWAY_PANELS.includes(id); }
+const awayName=id=>`kurve-${S.pid}-${id}`;
+const awayTitle=id=>{ const g=graphOfWin(id); return g?graphTitle(g):WINS[id]?WINS[id].title:"Kurve"; };
+function awayPath(root,el){ const p=[]; while(el&&el!==root){ const par=el.parentElement; if(!par) return null; p.unshift(Array.prototype.indexOf.call(par.children,el)); el=par; } return el===root?p:null; }
+function awayAt(root,p){ let el=root; for(const i of p){ el=el&&el.children[i]; if(!el) return null; } return el; }
+// The window the user is moving out, in front or not: from its title bar, the taskbar or the Window menu.
+async function detachWin(id,scr){
+  if(!id) return; if(winAway(id)){ try{ AWAY.get(id).w.focus(); }catch(e){} return; }
+  if(!canDetach(id)){ toast(WINS[id]&&WINS[id].graph?"A figure, and a closed graph, stay on the desk.":"This window stays on the desk."); return; }
+  const el=$("#w-"+id), r=el&&!el.hidden?el.getBoundingClientRect():null, W=Math.max(520,Math.round(r&&r.width>100?r.width:760)), H=Math.max(380,Math.round(r&&r.height>100?r.height:540));
+  const x=scr?scr.availLeft+60:Math.round(window.screenX+Math.max(0,window.outerWidth-W-60)), y=scr?scr.availTop+60:Math.round(window.screenY+90);
+  const w=window.open("",awayName(id),`popup=yes,width=${W},height=${H},left=${x},top=${y}`);
+  if(!w){ toast("The browser kept the new window from opening: allow pop-ups for Kurve, then try again."); return; }
+  const st=winState(id); if(!st.open){ st.open=true; delete st.min; }
+  AWAY.set(id,{w,id,disp:scr?scr.n:null,sig:"",geo:null}); awayWrite(id); applyWins(); saveLayout(); awaySync(true); renderWin(id);
+  LAYOUT.awayOf=Object.assign({},LAYOUT.awayOf,{[S.pid]:[...AWAY.keys()]});
+  toast(`${awayTitle(id)} is in a window of its own${scr?` on Display ${scr.n}`:""}. Return to desk brings it back.`); }
+// Back to the desk: the browser window closed (unless it closed itself), the window where it was, in front.
+function returnWin(id,quiet){ const a=AWAY.get(id); if(!a) return; AWAY.delete(id); if(a.obs) a.obs.disconnect();
+  try{ if(!a.w.closed) a.w.close(); }catch(e){}
+  if(S.pid&&LAYOUT.awayOf) LAYOUT.awayOf[S.pid]=[...AWAY.keys()];
+  if(WINS[id]){ applyWins(); focusWin(id); renderWin(id); if(WINS[id].graph) renderPlot(); } saveLayout();
+  if(!quiet) toast(`${awayTitle(id)} is back on the desk.`); }
+function returnAllToDesk(quiet){ [...AWAY.keys()].forEach(id=>returnWin(id,true)); if(!quiet) toast("Every window is back on the desk."); }
+// The detached page: the app's stylesheet and icons, a strip, the window's body.
+function awayWrite(id){ const a=AWAY.get(id); if(!a) return; const d=a.w.document, root=document.documentElement, g=graphOfWin(id);
+  const head=[...document.querySelectorAll('style,link[rel="stylesheet"]')].map(n=>n.outerHTML).join(""), attrs=[...root.attributes].map(x=>` ${x.name}="${esc(x.value)}"`).join("");
+  const body=g?`<section class="win dwin-w gwin" id="w-${esc(id)}" data-win="${esc(id)}"><div class="win-b dgraph" role="img" aria-label="${esc(awayTitle(id))}"></div></section>`
+    :`<section class="win dwin-w" id="w-${esc(id)}" data-win="${esc(id)}"><div class="${esc(($("#w-"+id+" .win-b")||{}).className||"win-b")}"></div></section>`;
+  d.open(); d.write(`<!doctype html><html${attrs}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(awayTitle(id))} · Kurve</title>${AWAY_SCRIPT}${head}</head><body class="dwin-page">${$("#kSprite").outerHTML}
+<div class="dwin"><header class="dwin-h"><span class="brand" aria-hidden="true">${$(".titlebar .brand svg")?$(".titlebar .brand svg").outerHTML:""}</span><span class="dwin-t"></span><span class="dwin-p"></span>
+<span class="dwin-sync" title="Live: kept up to date by the main Kurve window. Paused: the main window is gone"><i></i><span class="l">Live</span><span class="p">Paused</span></span><span class="sp"></span><span class="dwin-msg" role="status"></span>
+<select class="dwin-disp" aria-label="Display" hidden></select><button type="button" class="btn sm dwin-ret" title="Return to desk (Ctrl+Shift+D)">${ICON("popin","sm")}Return to desk</button></header>
+<div class="note warn dwin-paused">${ICON("alert")}<p>The main Kurve window is gone: this one waits.</p><span class="acts"><button type="button" class="btn sm" data-dw="reconnect">Reconnect</button><button type="button" class="btn sm" data-dw="close">Close</button></span></div>
+${body}</div></body></html>`);
+  d.close(); awayWire(id); }
+/* The detached page's own script: it notices when the main window is gone (Paused) and asks to be
+   served again (Reconnect). It comes before the stylesheets, which a script waits for: offline,
+   the web fonts' sheet never loads, and a script after it would never run. */
+const AWAY_SCRIPT=`<script>(function(){var nm=window.name;function ok(){try{var o=window.opener;return !!(o&&!o.closed&&o.kurveServes&&o.kurveServes(nm));}catch(e){return false;}}
+setInterval(function(){if(document.body)document.body.classList.toggle("paused",!ok());},1000);
+document.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest("[data-dw]");if(!b)return;if(b.dataset.dw==="close")window.close();else{try{window.opener.kurveReattach(window);}catch(x){}}});})();<\/script>`;
+// What the main window hears from the detached one: the strip, the keys, closing, and the body's own events.
+function awayWire(id){ const a=AWAY.get(id); if(!a) return; const d=a.w.document, b=d.querySelector(".dwin-w>.win-b"), g=graphOfWin(id);
+  d.querySelector(".dwin-ret").onclick=()=>returnWin(id);
+  d.addEventListener("keydown",e=>{ const k=e.key.toLowerCase(), m=e.ctrlKey||e.metaKey;
+    if(m&&e.shiftKey&&k==="d"){ e.preventDefault(); returnWin(id); }
+    else if(m&&!e.shiftKey&&k==="z"&&!/^(INPUT|TEXTAREA|SELECT)$/.test((e.target||{}).tagName||"")){ e.preventDefault(); undo(); }
+    else if(m&&(k==="y"||e.shiftKey&&k==="z")&&!/^(INPUT|TEXTAREA|SELECT)$/.test((e.target||{}).tagName||"")){ e.preventDefault(); redo(); } });
+  a.w.addEventListener("pagehide",()=>setTimeout(()=>{ if(AWAY.get(id)===a&&a.w.closed) returnWin(id,true); },80));
+  a.w.addEventListener("resize",()=>{ a.sig=""; scheduleAway(); });
+  awayDisplays(id);
+  if(g){ let drag=null;
+    const at=e=>{ const r=b.getBoundingClientRect(); return [e.clientX-r.left,e.clientY-r.top]; }, data=(x,y)=>{ if(!a.geo) return null; const keep=S.geo; S.geo=a.geo; try{ return toData(x,y); } finally{ S.geo=keep; } };
+    const setV=v=>{ const gg=graphOfWin(id); if(!gg) return; if(gg===S.gid){ S.view=v; renderPlot(); afterView(); } else { S.gv[gg]=v; } a.sig=""; scheduleAway(); };
+    b.addEventListener("wheel",e=>{ e.preventDefault(); const [x,y]=at(e), c=data(x,y); if(!c||!a.geo) return; const v=a.geo.v, k=e.deltaY>0?1.18:1/1.18, g0=a.geo;
+      if(g0.fx||g0.fy||g0.sx&&g0.sx.gaps&&g0.sx.gaps.length) return;
+      const lin=(c0,a0,b0,lg)=>lg?(()=>{ const l=Math.log10(c0); return [10**(l-(l-Math.log10(a0))*k),10**(l+(Math.log10(b0)-l)*k)]; })():[c0-(c0-a0)*k,c0+(b0-c0)*k];
+      const [x0,x1]=lin(c.x,v.x0,v.x1,g0.logX), [y0,y1]=lin(c.y,v.y0,v.y1,g0.logY); if(!(x1>x0)||!(y1>y0)) return;
+      setV({x0,x1,y0,y1,xu:v.xu!=null?v.xu:(plotStateOf(graphOfWin(id))||"")}); },{passive:false});
+    b.addEventListener("pointerdown",e=>{ if(e.button!==0||!a.geo) return; drag={x:e.clientX,y:e.clientY,v:Object.assign({},a.geo.v),g:a.geo}; b.setPointerCapture(e.pointerId); });
+    b.addEventListener("pointermove",e=>{ const [x,y]=at(e);
+      if(drag){ const g0=drag.g, v=drag.v; if(g0.logX||g0.logY||g0.fx||g0.fy) return; const dx=(e.clientX-drag.x)/g0.pw*(v.x1-v.x0)*(g0.revX?-1:1), dy=(e.clientY-drag.y)/g0.mh*(v.y1-v.y0);
+        setV({x0:v.x0-dx,x1:v.x1-dx,y0:v.y0+dy,y1:v.y1+dy,xu:v.xu}); return; }
+      const c=data(x,y); awayMsg(id,c&&c.inside?`x ${fmt(c.x,6)} · y ${fmt(c.y,5)}`:""); });
+    b.addEventListener("pointerup",()=>{ drag=null; }); b.addEventListener("pointercancel",()=>{ drag=null; });
+    b.addEventListener("pointerleave",()=>{ if(!drag) awayMsg(id,""); });
+    b.addEventListener("dblclick",()=>setV(null)); return; }
+  // A tool window: its body mirrored, its events sent back to the original.
+  const orig=t=>{ const src=$("#w-"+id+" .win-b"), p=src&&awayPath(b,t); return p?awayAt(src,p):null; }, sent=()=>{ S.awayLast={id,t:Date.now()}; };
+  b.addEventListener("click",e=>{ const t=e.target.closest&&e.target.closest('button,a,summary,input[type="checkbox"],input[type="radio"],[role="radio"],[role="tab"],[role="option"],[data-prow],[data-doc],[data-nact]');
+    if(!t||!b.contains(t)) return; e.preventDefault(); const o=orig(t); if(o){ sent(); o.click(); } });
+  b.addEventListener("change",e=>{ const t=e.target; if(t.type==="checkbox"||t.type==="radio") return; const o=orig(t); if(!o) return; sent(); o.value=t.value; o.dispatchEvent(new Event("change",{bubbles:true})); });
+  b.addEventListener("input",e=>{ const t=e.target; if(t.type==="checkbox"||t.type==="radio") return; const o=orig(t); if(!o) return; o.value=t.value; o.dispatchEvent(new Event("input",{bubbles:true})); });
+  b.addEventListener("keydown",e=>{ if(!["Enter","Escape"].includes(e.key)) return; const o=orig(e.target); if(!o) return; sent(); o.dispatchEvent(new KeyboardEvent("keydown",{key:e.key,shiftKey:e.shiftKey,ctrlKey:e.ctrlKey,bubbles:true,cancelable:true})); });
+  const src=$("#w-"+id+" .win-b"); if(src){ a.obs=new MutationObserver(()=>{ a.dirty=true; scheduleAway(); }); a.obs.observe(src,{subtree:true,childList:true,attributes:true,characterData:true}); a.dirty=true; } }
+let awayT=0;
+function awayMsg(id,t){ const a=AWAY.get(id); if(!a) return; try{ const m=a.w.document.querySelector(".dwin-msg"); if(m&&m.textContent!==t) m.textContent=t; }catch(e){} }
+const plotStateOf=g=>{ const c=colById(leadOf(g)); return c?finalOf(c).xu||"":""; };
+function scheduleAway(){ if(!AWAY.size||awayT) return; awayT=requestAnimationFrame(()=>{ awayT=0; awaySync(); }); }
+// Every detached window brought up to date: gone ones back on the desk, the strip, the theme, a graph's drawing, a mirror.
+function awaySync(force){
+  AWAY.forEach((a,id)=>{ let w=a.w; if(!w||w.closed||!WINS[id]||!canDetach(id)){ returnWin(id,true); return; }
+    let d; try{ d=w.document; }catch(e){ returnWin(id,true); return; } if(!d||!d.body) return;
+    const root=document.documentElement, cr=d.documentElement; [...root.attributes].forEach(x=>{ if(cr.getAttribute(x.name)!==x.value) cr.setAttribute(x.name,x.value); }); [...cr.attributes].forEach(x=>{ if(!root.hasAttribute(x.name)) cr.removeAttribute(x.name); });
+    const t=d.querySelector(".dwin-t"), pj=d.querySelector(".dwin-p"), tt=awayTitle(id); if(t&&t.textContent!==tt){ t.textContent=tt; d.title=tt+" · Kurve"; } if(pj&&P()&&pj.textContent!==projName(P())) pj.textContent=projName(P());
+    const b=d.querySelector(".dwin-w>.win-b"); if(!b) return;
+    if(WINS[id].graph){ awayGraph(id,a,b,force); return; }
+    if(a.dirty||force){ a.dirty=false; awayMirror(id,a,b); } }); }
+function awayGraph(id,a,b,force){ const g=graphOfWin(id), W=b.clientWidth, H=b.clientHeight; if(!g||W<60||H<60) return;
+  const sig=[W,H,snapSig(g,W,H),JSON.stringify(viewFor(g)),document.documentElement.getAttribute("data-theme")||"",document.documentElement.getAttribute("data-style")||""].join("|"); if(!force&&sig===a.sig) return; a.sig=sig;
+  let str="", geo=null; withGraph(g,()=>{ const c=activeYCol(); if(!c||!(pointsAll().length||plotState().d.x.length)) return; str=buildPlot(W,H,readPalette(),false); geo=S.geo; });
+  a.geo=geo; const pre="aw"+id+"-";
+  b.innerHTML=str?str.replace(/\bid="([^"]+)"/g,`id="${pre}$1"`).replace(/url\(#([^)]+)\)/g,`url(#${pre}$1)`):`<p class="gsnap-empty">No data on this graph</p>`; }
+function awayMirror(id,a,b){ const src=$("#w-"+id+" .win-b"); if(!src) return; const d=a.w.document;
+  const ae=d.activeElement, fp=ae&&b.contains(ae)?awayPath(b,ae):null, val=fp&&ae.value!=null?ae.value:null, sel=fp&&ae.selectionStart!=null?[ae.selectionStart,ae.selectionEnd]:null;
+  const scr=[...b.querySelectorAll("*")].filter(e=>e.scrollTop>0).map(e=>[awayPath(b,e),e.scrollTop]); if(b.scrollTop>0) scr.push([[],b.scrollTop]);
+  b.className=src.className; b.innerHTML=src.innerHTML;
+  // innerHTML carries an input's first value, not the one it has now.
+  src.querySelectorAll("input,select,textarea").forEach(o=>{ const p=awayPath(src,o), n=p&&awayAt(b,p); if(!n) return; if(o.type==="checkbox"||o.type==="radio") n.checked=o.checked; else n.value=o.value; });
+  scr.forEach(([p,v])=>{ const n=p.length?awayAt(b,p):b; if(n) n.scrollTop=v; });
+  if(fp){ const n=awayAt(b,fp); if(n){ if(val!=null&&n.value!==undefined&&/^(INPUT|TEXTAREA)$/.test(n.tagName)) n.value=val; try{ n.focus({preventScroll:true}); if(sel&&n.setSelectionRange) n.setSelectionRange(sel[0],sel[1]); }catch(e){} } } }
+// The displays, where the browser can list them (the Window Management API): the strip's picker, the Window menu's submenu.
+function screensApi(){ return typeof window.getScreenDetails==="function"; }
+async function loadScreens(from){ if(!screensApi()) return null; try{ const sd=await (from||window).getScreenDetails(); S.screens=sd.screens.map((s,i)=>({n:i+1,label:s.label||`Display ${i+1}`,w:s.width,h:s.height,availLeft:s.availLeft,availTop:s.availTop,availWidth:s.availWidth,availHeight:s.availHeight,primary:!!s.isPrimary,ref:s}));
+    sd.addEventListener&&sd.addEventListener("screenschange",()=>{ S.screens=null; }); return S.screens; }catch(e){ return null; } }
+function screenOf(w){ const ss=S.screens; if(!ss||!w) return null; try{ const x=w.screenX+w.outerWidth/2, y=w.screenY+w.outerHeight/2; return ss.find(s=>x>=s.availLeft&&x<s.availLeft+s.availWidth&&y>=s.availTop&&y<s.availTop+s.availHeight)||null; }catch(e){ return null; } }
+function awayDisplays(id){ const a=AWAY.get(id); if(!a) return; const sel=a.w.document.querySelector(".dwin-disp"); if(!sel) return;
+  if(!screensApi()){ sel.hidden=true; return; } sel.hidden=false; const ss=S.screens, cur=screenOf(a.w);
+  sel.innerHTML=ss&&ss.length?ss.map(s=>`<option value="${s.n}"${cur&&cur.n===s.n?" selected":""}>Display ${s.n}${s.label?`: ${esc(s.label)}`:""}</option>`).join(""):`<option value="">This display</option><option value="find">Find the displays…</option>`;
+  sel.onchange=async()=>{ const v=sel.value;
+    if(v==="find"){ await loadScreens(a.w); awayDisplays(id); renderTaskbar(); return; }
+    const s=(S.screens||[]).find(q=>String(q.n)===v); if(!s) return; try{ a.w.moveTo(s.availLeft+60,s.availTop+60); }catch(e){} a.disp=s.n; renderTaskbar(); }; }
+// The detached page asks: is it still served, and to be served again after this page came back.
+window.kurveServes=nm=>[...AWAY.values()].some(a=>{ try{ return a.w.name===nm&&!a.w.closed; }catch(e){ return false; } });
+window.kurveReattach=w=>{ try{ const m=/^kurve-(.+)-([^-]+)$/.exec(w.name||""); if(!m||m[1]!==S.pid||!canDetach(m[2])){ w.close(); return; }
+  const id=m[2]; if(AWAY.has(id)) return; const st=winState(id); st.open=true; AWAY.set(id,{w,id,disp:null,sig:"",geo:null}); awayWrite(id); applyWins(); awaySync(true); renderWin(id); }catch(e){} };
+// Leaving a project takes its detached windows back first, remembered so they can be reopened with it.
+function awayLeave(){ if(!AWAY.size) return; if(S.pid) LAYOUT.awayOf=Object.assign({},LAYOUT.awayOf,{[S.pid]:[...AWAY.keys()]}); returnAllToDesk(true); }
+function awayOffer(){ const ids=((LAYOUT.awayOf||{})[S.pid]||[]).filter(id=>!AWAY.has(id)&&canDetach(id)); if(!ids.length||!prefGet("awayReopen")) return;
+  const id=ids[0]; toast(`${awayTitle(id)} was in a window of its own.`,{action:"Reopen",run:()=>{ detachWin(id); setTimeout(awayOffer,300); }}); }
 // The empty desk: shown over an empty worksheet until the first press or key in the grid.
 function wsEmptyShow(){ const el=$("#wsEmpty"); if(!el) return; const p=P();
   const empty=!!p&&!S.readOnly&&!!S.store&&!S.wsEmptyGone&&S.sheet!=="final"&&!allCols().some(c=>(c.data||[]).some(v=>v!=null));
@@ -14727,6 +14896,12 @@ const NOTE_ACTS={
   pkhow:()=>{ const d=$("#pkHow"); if(d){ d.open=true; S.pkHow=true; const s=d.querySelector("select,input"); if(s) s.focus({preventScroll:true}); } },
   peaks:b=>{ const p=P(); if(b.dataset.col&&p&&p.activeY!==b.dataset.col) goSpectrum(b.dataset.col); openPeakFinder(); }
 };
+// Detached windows: one closed by the user comes back to the desk; the theme and style follow into them.
+function setupAway(){
+  setInterval(()=>{ AWAY.forEach((a,id)=>{ let c=true; try{ c=a.w.closed; }catch(e){} if(c) returnWin(id,true); }); },1000);
+  new MutationObserver(()=>{ AWAY.forEach(a=>{ a.sig=""; }); scheduleAway(); }).observe(document.documentElement,{attributes:true});
+  // The screens, if the browser has already been allowed to list them.
+  if(screensApi()&&navigator.permissions&&navigator.permissions.query) navigator.permissions.query({name:"window-management"}).then(r=>{ if(r.state==="granted") loadScreens(); }).catch(()=>{}); }
 function setupNotes(){ document.addEventListener("click",e=>{ const b=e.target.closest&&e.target.closest("button[data-nact]"); if(!b||b.disabled) return;
   const fn=NOTE_ACTS[b.dataset.nact]; if(fn){ e.preventDefault(); try{ fn(b); }catch(err){ logError(String(err&&err.message||err),"note"); } } }); }
 /* The fit panel's own word on the current result: one line, with the way to
@@ -16116,6 +16291,9 @@ function openPrefs(){
         <div class="prow"><span>Theme</span>${seg("Theme",th,[["light","Light"],["dark","Dark"],["auto","System"]])}</div>
         <div class="prow"><span>Style</span>${seg("Style",st,[["bench","Bench"],["graphite","Graphite"]])}</div>
         ${sw("prAnim",prefGet("anim"),"Animations","Windows, menus and the worksheet's cursor move briefly. Off, everything changes at once; the system's reduced-motion setting turns it off too")}</section>
+      ${screensApi()?`<section aria-labelledby="prD"><h3 class="gh" id="prD">Displays</h3>
+        ${S.screens&&S.screens.length>1?`<div class="prow"><span class="tipd" title="Where a graph made from Plot opens: on the desk, or in a window of its own on another display">New graphs</span>${seg("Displays",String(prefGet("newGraphsOn")||"here"),[["here","This display"]].concat(S.screens.filter(s=>!s.primary||S.screens.length>1).map(s=>[String(s.n),`Display ${s.n}`])))}</div>`:`<div class="actions" style="margin-left:0"><button type="button" class="btn sm" id="prScr" title="The browser asks once to see the screens">Find the displays…</button></div>`}
+        ${sw("prAway",prefGet("awayReopen"),"Offer to reopen detached windows with the project","When a project is opened, the windows that were in windows of their own are offered back")}</section>`:""}
       <section aria-labelledby="prT"><h3 class="gh" id="prT">Typing text</h3>
         <div class="prow"><span class="tipd" title="Titles, labels and the legend. Formatted: raised and lowered characters and symbols shown as they are, as in a word processor. LaTeX: the source, with a preview. A text with maths, a fraction or a root stays in LaTeX">Text input</span>${seg("Text",texLatexOn()?"tex":"nat",[["nat","Formatted"],["tex","LaTeX"]])}</div></section>
       <section aria-labelledby="prS"><h3 class="gh" id="prS">After an import</h3>
@@ -16128,6 +16306,9 @@ function openPrefs(){
     on("prFlow",v=>prefSet("flowAuto",v));
     on("prAnim",v=>{ prefSet("anim",v); applyAnim(); });
     on("prOv",v=>{ try{ localStorage.setItem("kurve.ovAuto",v?"1":"0"); }catch(e){} });
+    on("prAway",v=>prefSet("awayReopen",v));
+    $("#prefBody").querySelectorAll("[data-pref-displays]").forEach(b=>b.onclick=()=>{ prefSet("newGraphsOn",b.dataset.prefDisplays); render(); });
+    { const sb=$("#prScr"); if(sb) sb.onclick=async()=>{ await loadScreens(); render(); }; }
     $("#prefBody").querySelectorAll("[data-pref-theme]").forEach(b=>b.onclick=()=>{ applyTheme(b.dataset.prefTheme); render(); });
     $("#prefBody").querySelectorAll("[data-pref-style]").forEach(b=>b.onclick=()=>{ applyStyle(b.dataset.prefStyle); render(); });
     $("#prefBody").querySelectorAll("[data-pref-text]").forEach(b=>b.onclick=()=>{ setTexMode(b.dataset.prefText==="tex"); render(); });
@@ -16203,8 +16384,8 @@ function openProject(id){
   if(S.pid===id&&S.proj) return;
   if(S.ws&&S.ws.edit) wsCommit(0,0,true);
   if(Object.keys(wsPatch).length&&wsPid===S.pid&&S.pid){ clearTimeout(wsTimer); const pp=wsPatch, l=wsLog; wsPatch={}; wsLog=null; save(pp,l); }
-  pdCommit(); saveGraphLayout();
-  S.pid=id; S.view=null; S.sel=null; S.anchor=null; S.draft=null; S.fitError=""; S.comments=[]; S.cReply=null; S.cEdit=null;
+  pdCommit(); saveGraphLayout(); awayLeave();
+  S.pid=id; setTimeout(()=>{ if(S.pid===id) awayOffer(); },900); S.view=null; S.sel=null; S.anchor=null; S.draft=null; S.fitError=""; S.comments=[]; S.cReply=null; S.cEdit=null;
   S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.editing=false; S.wsSort=null; S.wsFind=null; { const fb=document.getElementById("wsFind"); if(fb) fb.hidden=true; }
   // Panel state belongs to the spectrum being looked at, not to the session:
   // arriving at an exponential decay with "Pearson VII" pre-selected is noise.
@@ -19113,7 +19294,7 @@ const DOCS=[
 <h2>Two promises</h2>
 <ul><li><strong>The analysis never changes the original data.</strong> Every processing step sits on top of them, and you can edit, reorder, switch off or delete it. The original data change only when you edit them in the worksheet, and every such change is recorded; lock them to keep them as they are. ${DA("rawdata","Original data and its check code")}</li>
 <li><strong>Everything can be undone.</strong> ${K("Ctrl","Z")} takes back your last change, whatever window it was made in.</li></ul>`},
-{id:"desk", g:"Basics", t:"Windows and the desk", kw:"window move resize maximise minimise close panels documents switch taskbar tile cascade layout toolbar status bar phone theme dark style bench graphite appearance dock tab drawer pin float",
+{id:"desk", g:"Basics", t:"Windows and the desk", kw:"window move resize maximise minimise close panels documents switch taskbar tile cascade layout second display monitor screen detach new window pop out popout return to desk live paused toolbar status bar phone theme dark style bench graphite appearance dock tab drawer pin float",
  lead:"The worksheet and the graph share the desk; the tool windows (Fit, History, Peaks…) open in a dock at its right. Arrange them the way you work.",
  body:`<p>A new project opens with the worksheet alone, across the desk. Nothing is plotted until you choose to: select columns and press <em>Plot</em> on the worksheet's bar (${DA("plotting","Plotting columns")}), and the graph then shares the desk with the worksheet. The other windows open when you ask for them, from the menus.</p>
 <h2 id="dock">The dock</h2>
@@ -19126,14 +19307,18 @@ ${DL([["Move","Drag the title bar."],["Resize","Drag an edge or the bottom-right
 <p>Windows move as a desktop's do: an opened window grows in, a closed one fades, a minimised one shrinks into its taskbar button and grows out of it again, and a maximised, tiled or cascaded one glides to its place. Menus, dialogs and messages come in from a few pixels away, and the worksheet's active cell glides from cell to cell. Only what you do moves: dragging, resizing the browser and opening a project do not animate. ${MP("File › Preferences…")} turns animations off; so does your system's <em>reduce motion</em> setting. ${DA("prefs","Preferences")}</p>
 <h2 id="states">What the taskbar shows</h2>
 <p>As a workbook keeps a tab for each sheet, the taskbar keeps a button for each of the project's <strong>documents</strong>: its graphs, the worksheet and its trend graphs. They minimise; a graph can also be closed, and then leaves the taskbar until it is opened again. After them come the <strong>tool windows</strong> in use (History, Peaks, Fit…), only while they are open or minimised: one you never opened is not there, and one you close leaves.</p>
-${DL([["In front","A raised white key with a short coloured bar under it. Click it to minimise the window."],["Open","Flat, with a short grey bar under it. Click it to bring the window forward."],["Minimised","Flat, no bar, its name lighter. Click it to bring the window back where it was."]])}
+${DL([["In front","A raised white key with a short coloured bar under it. Click it to minimise the window."],["Open","Flat, with a short grey bar under it. Click it to bring the window forward."],["Minimised","Flat, no bar, its name lighter. Click it to bring the window back where it was."],["In a window of its own","A dashed edge, no bar, a display's tag. Click it to bring that browser window forward. "+DA("desk#away","Two displays")]])}
 <p>The taskbar starts with the project's name: every window on the desk is that project's, and a click switches projects. <em>Tile</em> and <em>Cascade</em> sit together at its right end. With more than four graphs they share one <em>Graphs</em> button that lists them, and so do more than three trend graphs. When the buttons do not fit in one row, those least recently used go into a <em>more</em> button at the end, never the window in front.</p>
 <h2 id="menus">The menus</h2>
 <p>The menu bar follows the stage of work, left to right: <em>File</em> and <em>Edit</em>, then <em>Data</em> (the worksheet, and what prepares the data: cleaning, the baseline, transforms), <em>Plot</em> (making graphs and looking at them), <em>Analyze</em> (fits, peaks, integrals, signal processing, calculus, statistics, spectroscopy, the results), <em>Figure</em> (how a graph looks: format, axes, fonts, legend, annotations) and <em>Publish</em> (exports, the report, copies), then <em>Window</em> and <em>Help</em>. Each command has one place. A graph window repeats Data, Plot, Analyze and Figure on its own bar.</p>
 <p id="cmdk"><strong>Find a command</strong> (${K("Ctrl","K")}, or ${MP("Help › Find a command…")}) finds any command of the menu bar by its name, by the menu it is in, or by a word people use for it: <em>background</em> finds <em>Subtract baseline…</em> and <em>Linear detrend…</em>, <em>fourier</em> the FFT filter. Type, move with ↑ and ↓, and press Enter; it runs what the menu item runs. With nothing typed it lists the commands used last. A command that cannot apply now is listed dimmed, so a search still says where it is.</p>
 <h2 id="winmenu">The Window menu</h2>
-<p>${MP("Window")} lists the windows in use, as Excel's <em>Switch Windows</em> does: the one in front is ticked, a minimised one says so, and a click brings any to the front. With many, it offers a search instead. ${MP("Window › Tool windows")} lists every tool window (History, Fit, Results and the rest), ticked while it is in use: click to open one or to close it. <em>Minimise the others</em> leaves only the window in front on the desk; <em>Close the tool windows</em> closes every one and keeps the documents. A badge counts open comment threads; a dot shows a fit's state or a warning in the processing. <em>Tile</em> and <em>Cascade</em>, also at the taskbar's right, arrange the open windows; <em>Restore the default arrangement</em> starts again.</p>
+<p>${MP("Window")} lists the windows in use, as Excel's <em>Switch Windows</em> does: the one in front is ticked, a minimised one says so, one in a window of its own says where, and a click brings any to the front. With many, it offers a search instead. ${MP("Window › Tool windows")} lists every tool window (History, Fit, Results and the rest), ticked while it is in use: click to open one or to close it. <em>Minimise the others</em> leaves only the window in front on the desk; <em>Close the tool windows</em> closes every one and keeps the documents. A badge counts open comment threads; a dot shows a fit's state or a warning in the processing. <em>Tile</em> and <em>Cascade</em>, also at the taskbar's right, arrange the open windows; <em>Restore the default arrangement</em> starts again.</p>
 <p>The arrangement is remembered in this browser, as fractions of the desk, so it survives a resized window; graph windows are remembered per project. ${DA("graphs","Several graphs")}</p>
+<h2 id="away">Two displays</h2>
+<p>A graph, or the Results, Statistics, Help, Overview or Discussion window, can be moved into a browser window of its own, to put on another display: its title bar's ${ICON("popout","sm")} button, ${MP("Window › Move to new window")} or ${K("Ctrl","Shift","D")} for the window in front, or ${MP("Window › Open on display")} where the browser can list the screens (it asks once). This window keeps the project, undo and saving; the other is kept up to date from here. A graph is drawn there at that window's size: turn the wheel to zoom, drag to pan, double-click to see it all; its X and Y are read off under the pointer. A tool window works there as here: its buttons, lists and fields act on the window here, which stays hidden while it is away.</p>
+${DL([["Live, Paused","Its strip says <em>Live</em> while this window keeps it up to date. If this window is closed or reloaded it says <em>Paused</em> and waits: <em>Reconnect</em> asks to be kept up to date again, <em>Close</em> closes it."],["Return to desk","Or its own window closed, or "+K("Ctrl","Shift","D")+" there: the window comes back where it was. "+MP("Window › Return all to desk")+" brings every one back."],["Display","Its strip's list moves it to another display, once the browser has been allowed to list them."]])}
+<p>Switching projects brings every one back first; Preferences can offer to reopen them when the project opens again. The worksheet, the History, a figure and the tool windows that are mostly typed into stay on the desk.</p>
 <h2>The toolbar</h2>
 ${DL([["Import, Export","Bring a file in; save the graph, data or a report."],["Undo, Redo","Every change, in every window."],["Zoom … Shape","The pointer tools; in a shared project, Comment too. "+DA("graph","The graph")],["Show all","Back to all the data."],["Reverse X, Log Y, Grid","Axis and graph switches, drawn off until a graph is on the desk."]])}
 <p>The plot type and the layout of several curves are in ${MP("Plot")} and a curve's right-click menu; the residual panel is in ${MP("Analyze › Fit")} and the Fit window; what the graph shows (original, processed or both) is on the graph window's own bar.</p>
@@ -19210,6 +19395,8 @@ ${DL([["Keep a history of changes","On (the default), Kurve keeps the log of eve
 ${DL([["Theme","Light, Dark, or System: as the system is."],["Style","Bench (blue for everything you can change) or Graphite (black and white). Neither changes the graph's colours."],["Animations","Windows, menus, dialogs and the worksheet's cursor move briefly; off, everything changes at once. "+DA("desk#motion","Animations")]])}
 <h2>Typing text</h2>
 <p><em>Text input</em>: <em>Formatted</em> (raised and lowered characters and symbols shown as they are, as in a word processor) or <em>LaTeX</em> (the source, with a preview), for titles, labels and the legend. ${DA("latex","Text: formatted or LaTeX")}</p>
+<h2>Displays</h2>
+<p>Where the browser can list the screens: <em>New graphs</em> (on this display, or in a window of their own on another one) and <em>Offer to reopen detached windows with the project</em>. ${DA("desk#away","Two displays")}</p>
 <h2>After an import</h2>
 <p><em>Open the Overview</em>: after an import of one column with many evenly spaced points and clear features, the Overview says what it is like and what to do first. ${DA("overview","The Overview")}</p>
 <h2>Errors</h2>
@@ -19217,7 +19404,7 @@ ${DL([["Theme","Light, Dark, or System: as the system is."],["Style","Bench (blu
 {id:"keys", g:"Basics", t:"Keyboard shortcuts", kw:"keys keyboard shortcuts hotkeys ctrl",
  lead:"Everything has a pointer route; these are the quicker ones.",
  body:`<h2 id="k-all">Everywhere</h2>
-${DL([[K("Ctrl","Z"),"Undo"],[K("Ctrl","Shift","Z")+" · "+K("Ctrl","Y"),"Redo"],[K("Ctrl","O"),"Import a file"],[K("Ctrl","K"),"Find a command, by its name or a word for it"],[K("Ctrl","Enter"),"Run the fit · post a comment"],[K("Esc"),"Close a menu or dialog; back to the Zoom tool"],[K("F1"),"Help on the window in front"],[K("Ctrl",","),"Preferences"],[K("?"),"This page"]],"keys")}
+${DL([[K("Ctrl","Z"),"Undo"],[K("Ctrl","Shift","Z")+" · "+K("Ctrl","Y"),"Redo"],[K("Ctrl","O"),"Import a file"],[K("Ctrl","K"),"Find a command, by its name or a word for it"],[K("Ctrl","Enter"),"Run the fit · post a comment"],[K("Esc"),"Close a menu or dialog; back to the Zoom tool"],[K("F1"),"Help on the window in front"],[K("Ctrl",","),"Preferences"],[K("Ctrl","Shift","D"),"The window in front into a window of its own, for another display; there, back to the desk"],[K("?"),"This page"]],"keys")}
 <h2 id="k-graph">On the graph</h2>
 ${DL([[K("←")+" "+K("→"),"Previous or next point (click the graph first)"],[K("Home")+" "+K("End"),"First or last point"],[K("+")+" "+K("−")+" "+K("0"),"Zoom in, zoom out, show all"],[K("[")+" "+K("]"),"Start or end the view at the selected point"],[K("M"),"Mask or restore the selected point"],[K("P"),"Put a peak at the selected point"],[K("Delete"),"Remove the selected peak, label, line or band"],[K("Enter")+" · "+K("F2"),"Type over the selected label, text or legend entry; "+K("Shift","Enter")+" starts a new line"],[K("←")+" "+K("→")+" · "+K("↑")+" "+K("↓"),"With the Reader: the previous or next point, the next curve; with the X–Y lines: move them ("+K("Shift")+" ten pixels)"],[K("↑")+" "+K("↓"),"With the legend selected: the entry above or below"],[K("Ctrl","Shift","=")+" · "+K("Ctrl","="),"While typing: superscript · subscript"],[K("Alt")+" while dragging","No snapping: text off its guides, an arrow's head off the data"],[K("Ctrl")+" while dropping a graph","Keep it: its columns are put on the other graph, and it stays"],[K("Esc")+" while holding a graph","Cancel the drop"],["Middle-drag","Pan, in any tool"],["Scroll","Zoom at the pointer"],["Double-click","Show all the data"],[K("Shift","F10"),"The graph's menu"]],"keys")}
 <h2 id="k-sheet">In the worksheet</h2>
@@ -20109,8 +20296,8 @@ const winOpen=id=>!!(LAYOUT.wins[id]&&LAYOUT.wins[id].open);
    dragged out, or a window's title bar, floats it; its button docks it again. */
 const isDocked=id=>!!(WINS[id]&&!isDoc(id)&&LAYOUT.wins[id]&&LAYOUT.wins[id].dock);
 function dockIds(){ if(isNarrow()) return [];
-  const o=(LAYOUT.dockOrder||[]).filter(id=>WINS[id]&&winOpen(id)&&isDocked(id));
-  Object.keys(WINS).forEach(id=>{ if(winOpen(id)&&isDocked(id)&&!o.includes(id)) o.push(id); }); return o; }
+  const o=(LAYOUT.dockOrder||[]).filter(id=>WINS[id]&&winOpen(id)&&isDocked(id)&&!winAway(id));
+  Object.keys(WINS).forEach(id=>{ if(winOpen(id)&&isDocked(id)&&!winAway(id)&&!o.includes(id)) o.push(id); }); return o; }
 const dockDefW=()=>{ const v=window.innerWidth; return v<1320?360:v<1700?380:420; };
 function dockGeo(){
   const d=$("#desk"), tb=$("#taskbar"), W=d?d.clientWidth:0, H=d?Math.max(120,d.clientHeight-(tb?tb.offsetHeight:0)):0, ids=dockIds(), on=ids.length>0;
@@ -20196,7 +20383,7 @@ function applyWins(){
     const dk=dg.ids.includes(id);
     // A window on its way out that is opened again stops going.
     if(el.classList.contains("wout")&&st.open) winStop(el);
-    el.hidden=!st.open||(dk&&id!==dfront);
+    el.hidden=!st.open||winAway(id)||(dk&&id!==dfront);
     if(el.classList.contains("wout")) el.hidden=false;
     el.classList.toggle("docked",dk); el.classList.toggle("drawer",dk&&dg.drawer);
     if(st.open&&!el.hidden&&(!front||st.z>winState(front).z)) front=id;
@@ -20297,8 +20484,9 @@ function panelIds(){ return WIN_ORDER.filter(id=>!isDoc(id)).concat(["help"]).fi
 function barWinIds(){ return docWinIds().concat(panelIds().filter(inBar)); }
 const winMin=id=>!!(LAYOUT.wins[id]&&!LAYOUT.wins[id].open&&(LAYOUT.wins[id].min||keepsBtn(id)));
 const inBar=id=>winOpen(id)||winMin(id);
-function winStateName(id){ return winOpen(id)?(id===frontWinId()?"in front":"open"):winMin(id)?"minimised":"closed"; }
-function frontWinId(){ return Object.keys(WINS).filter(winOpen).sort((a,b)=>winState(b).z-winState(a).z)[0]||null; }
+function winStateName(id){ return winAway(id)?awayWhere(id):winOpen(id)?(id===frontWinId()?"in front":"open"):winMin(id)?"minimised":"closed"; }
+const awayWhere=id=>{ const a=AWAY.get(id), s=a&&(screenOf(a.w)||(a.disp?{n:a.disp}:null)); return s?`on Display ${s.n}`:"in a window of its own"; };
+function frontWinId(){ return Object.keys(WINS).filter(id=>winOpen(id)&&!winAway(id)).sort((a,b)=>winState(b).z-winState(a).z)[0]||null; }
 function minimiseWin(id){ const st=winState(id); if(!st.open) return; S.winMinAnim=id; closeWin(id); S.winMinAnim=null; if(id!=="tool"&&id!=="help"){ st.min=true; applyWins(); saveLayout(); } }
 function openWin(id,opt){
   const st=winState(id), was=st.open;
@@ -20381,6 +20569,7 @@ function renderTaskbar(){
   // One button per window in use: open ones have a bar under them and the one
   // in front is in colour; minimised ones are flat, with no bar.
   const btn=id=>{ const on=winOpen(id), t=WINS[id].title;
+    if(winAway(id)){ const a=AWAY.get(id), s=screenOf(a.w)||(a.disp?{n:a.disp}:null); return `<button class="tk away" data-tk="${id}" aria-pressed="false" aria-label="${esc(t)}, ${winStateName(id)}" title="${esc(t)}, ${awayWhere(id)}">${ICON(WINS[id].icon,"sm")}<span>${esc(t)}</span><span class="tk-disp">${ICON("display","sm")}${s?s.n:""}</span>${winBadge(id)}</button>`; }
     return `<button class="tk ${on?(id===front?"on front":"on"):"min"}" data-tk="${id}" aria-pressed="${on}" aria-label="${esc(t)}, ${winStateName(id)}" title="${esc(t)}">${ICON(WINS[id].icon,"sm")}<span>${esc(t)}</span>${winBadge(id)}</button>`; };
   // Many of one kind share a button that lists them.
   const grp=(ids,attr,icon,label)=>`<button class="tk ${ids.includes(front)?"on front":ids.some(winOpen)?"on":"min"}" ${attr} aria-haspopup="menu" title="${label}">${ICON(icon,"sm")}<span>${label}</span><span class="badge">${ids.length}</span></button>`;
@@ -20417,7 +20606,7 @@ function winBadge(id){
 function setupWins(){
   const desk=$("#desk");
   document.querySelectorAll(".win").forEach(wireWin);
-  $("#taskbar").addEventListener("click",e=>{ const b=e.target.closest("[data-tk]"); if(b){ toggleWin(b.dataset.tk); return; }
+  $("#taskbar").addEventListener("click",e=>{ const b=e.target.closest("[data-tk]"); if(b){ const a=AWAY.get(b.dataset.tk); if(a){ try{ a.w.focus(); }catch(x){} return; } toggleWin(b.dataset.tk); return; }
     const gb=e.target.closest("[data-tk-graphs]"); if(gb){ toggleMenu(gb,graphsMenuItems,{label:"Graphs"}); return; }
     const pb=e.target.closest("[data-tk-proj]"); if(pb){ toggleMenu(pb,projectItems,{label:"Projects"}); return; }
     const tr=e.target.closest("[data-tk-trends]"); if(tr){ toggleMenu(tr,()=>trendWinIds().map(winItem),{label:"Trend graphs"}); return; }
@@ -20447,6 +20636,7 @@ function wireWin(el){
       const gm=h.querySelector("[data-gmenu]"); gm.onclick=()=>toggleMenu(gm,()=>graphWinItems(graphOfWin(id)),{label:"Graph options"});
       const snap=el.querySelector(".gsnap"); if(snap){ snap.tabIndex=0; snap.setAttribute("role","button"); snap.setAttribute("aria-label","Work on this graph");
         snap.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); activateGraph(graphOfWin(id)); } }); } }
+    if((graphOfWin(id)&&!el.classList.contains("figw"))||AWAY_PANELS.includes(id)) h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-wpop title="Move to new window (Ctrl+Shift+D)" aria-label="Move the ${esc(WINS[id].title)} window to a window of its own">${ICON("popout","sm")}</button>`);
     if(!isDoc(id)) h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-wdock aria-pressed="false" title="Dock" aria-label="Dock the ${esc(WINS[id].title)} window">${ICON("dock","sm")}</button>`);
     if(id!=="help") h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-whelp title="Help (F1)" aria-label="Help on the ${esc(WINS[id].title)} window">${ICON("help","sm")}</button>`);
     h.insertAdjacentHTML("beforeend",`${id==="help"||WINS[id].transient?"":`<button class="tb sm icon" data-wmin title="Minimise" aria-label="Minimise the ${esc(WINS[id].title)} window">${ICON("min","sm")}</button>`}<button class="tb sm icon" data-wmax title="Maximise" aria-label="Maximise the ${esc(WINS[id].title)} window">${ICON("max","sm")}</button>${keepsBtn(id)&&!graphOfWin(id)?"":`<button class="tb sm icon" data-wclose title="Close" aria-label="Close the ${esc(WINS[id].title)} window">${ICON("x","sm")}</button>`}`);
@@ -20458,6 +20648,7 @@ function wireWin(el){
     const wcl=h.querySelector("[data-wclose]"); if(wcl) wcl.onclick=()=>{ const g=graphOfWin(id); if(g&&P()) closeGraph(g); else closeWin(id); };
     const hb=h.querySelector("[data-whelp]"); if(hb) hb.onclick=()=>openHelp(helpFor(id));
     const dkb=h.querySelector("[data-wdock]"); if(dkb) dkb.onclick=()=>setDocked(id,!isDocked(id));
+    const pop=h.querySelector("[data-wpop]"); if(pop) pop.onclick=()=>detachWin(id);
     h.querySelector("[data-wmax]").onclick=()=>toggleMax(id);
     h.addEventListener("dblclick",e=>{ if(!e.target.closest("button")) toggleMax(id); });
     // Move by the title bar.
@@ -20491,7 +20682,7 @@ function wireWin(el){
 // A window in a menu, as Excel's Switch Windows lists them: the one in front
 // ticked, a minimised one says so; a click brings it to the front.
 function winItem(id){ const g=graphOfWin(id), cs=g?graphCols(g):[];
-  return {label:WINS[id].title+(g&&cs.length===1&&WINS[id].title!==specName(cs[0])?" · "+specName(cs[0]):""), checked:id===frontWinId(), note:winMin(id)?"minimised":"", run:()=>{ if(winOpen(id)) focusWin(id); else openWin(id); if(g&&P()) activateGraph(g); winTakeFocus(id); }}; }
+  return {label:WINS[id].title+(g&&cs.length===1&&WINS[id].title!==specName(cs[0])?" · "+specName(cs[0]):""), checked:id===frontWinId(), note:winAway(id)?awayWhere(id):winMin(id)?"minimised":"", run:()=>{ if(winOpen(id)) focusWin(id); else openWin(id); if(g&&P()) activateGraph(g); winTakeFocus(id); }}; }
 // Every panel, ticked while it is in the taskbar (Origin's View menu): a click
 // opens a closed one and closes an open one.
 function panelItems(){
@@ -20510,11 +20701,15 @@ function windowItems(){
   return [{group:"Windows in use"}].concat(list,[{label:"Tool windows", sub:panelItems},
     {label:"Project Explorer", kbd:"Alt+1", checked:xplShown(), title:"The project's folders, files and graphs, in a tree beside the desk", run:()=>toggleXpl(null,{focus:true})},
     "-",{label:"Tile", run:tileWins},{label:"Cascade", run:cascadeWins},
+    "-",{label:"Move to new window", kbd:"Ctrl+Shift+D", enabled:!!front&&canDetach(front), title:front?`${awayTitle(front)} in a browser window of its own, for another display`:"", run:()=>detachWin(front)}]
+    .concat(screensApi()&&!isNarrow()?[{label:"Open on display", enabled:!!front&&canDetach(front), sub:()=>S.screens&&S.screens.length?S.screens.map(s=>({label:`Display ${s.n}`, note:`${s.label?s.label+", ":""}${s.w} × ${s.h}`, radio:true, checked:false, run:()=>detachWin(front,s)}))
+      :[{label:"Find the displays…", title:"The browser asks once to see the screens", run:async()=>{ await loadScreens(); if(S.screens&&S.screens.length) toast(`${S.screens.length} display${S.screens.length===1?"":"s"} found: Window › Open on display lists them.`); else toast("The displays could not be listed in this browser."); }}]}]:[])
+    .concat([{label:"Return all to desk", enabled:AWAY.size>0, run:()=>returnAllToDesk()},
     {label:"Minimise the others", enabled:!!others.length, title:"Keep only the window in front on the desk", run:()=>{ others.forEach(id=>{ if(isDoc(id)) Object.assign(winState(id),{open:false}); else Object.assign(winState(id),{open:false,min:true}); }); applyWins(); saveLayout(); }},
     {label:"Close the tool windows", enabled:!!panelsIn.length, title:"Close every tool window; the graphs and the worksheet stay", run:()=>{ panelsIn.forEach(id=>closeWin(id)); }},
     {label:"Restore the default arrangement", run:resetWins},
     "-",
-    {label:"Graphs", sub:graphsMenuItems, enabled:!!P(), note:nShut?`${nShut} closed`:""}]);
+    {label:"Graphs", sub:graphsMenuItems, enabled:!!P(), note:nShut?`${nShut} closed`:""}]));
 }
 /* ---- Fitting every spectrum -----------------------------------------------------
    The fit of one spectrum is the template: its model (the peaks with their
@@ -21828,6 +22023,8 @@ function plotCols(cids,o){
   else focusWin(w);
   activateGraph(gid,ids[0]);
   if(isNewG) xNew(["g:"+gid]);
+  // Preferences › Displays may send a new graph to another display.
+  if(isNewG&&!o.quiet&&screensApi()&&S.screens&&prefGet("newGraphsOn")!=="here"){ const s=S.screens.find(q=>String(q.n)===String(prefGet("newGraphsOn"))); if(s){ detachWin(winOfGraph(gid),s); return; } }
   if(!o.quiet) toast(`Plotted ${andList(ys.map(specName))} in ${nm}.${made.length?` ${andList(made.map(specName))} ${made.length===1?"is a Y column":"are Y columns"} now.`:""}`,{action:"Undo",run:undo});
 }
 // The tools that work on the graph (peaks, fits, bands) open it when it is
@@ -22378,7 +22575,7 @@ function menuItems(which){
 }
 function onThemeChange(){ renderTop(); renderPlot(); Object.keys(WINS).forEach(id=>{ if(id!==winOfGraph(S.gid)&&winOpen(id)) renderWin(id); }); }
 let renderCount=0;
-function renderAll(){
+function renderAll(){ scheduleAway();
   normalize(S.proj); clampStage();
   // A set that follows its spectrum is found again first; with this browser's
   // store the save has already drawn everything by the time it returns.
@@ -22417,7 +22614,7 @@ function setupDrop(){
    kept either way: they make the processed data. anim: windows, menus and the
    worksheet's cursor move instead of jumping. flowAuto: the History window opens
    with a column's first processing step (never while history is off). */
-const PREF_DEF={history:true, anim:true, flowAuto:true, texLatex:false};
+const PREF_DEF={history:true, anim:true, flowAuto:true, texLatex:false, awayReopen:true, newGraphsOn:"here"};
 function prefGet(k){ try{ const v=localStorage.getItem("kurve.pref."+k); return v==null?PREF_DEF[k]:v==="1"; }catch(e){ return PREF_DEF[k]; } }
 function prefSet(k,v){ try{ localStorage.setItem("kurve.pref."+k,v?"1":"0"); }catch(e){} }
 function histOn(){ return prefGet("history"); }
@@ -22522,7 +22719,7 @@ async function deleteProject(){
 }
 /* Off a project that has gone: its waiting edits are dropped, its layout
    forgotten, and the desk is cleared until another opens. */
-function leaveProject(pid){
+function leaveProject(pid){ if(S.pid===pid) awayLeave();
   if(wsPid===pid){ clearTimeout(wsTimer); wsPatch={}; wsLog=null; }
   if(LAYOUT.proj) delete LAYOUT.proj[pid];
   if(S.layoutPid===pid) S.layoutPid=null;
@@ -22567,7 +22764,7 @@ async function loadExample(kind){
    Boot
    ============================================================ */
 function wireStatic(){
-  setupRanges(); setupSupify(); setupCmdk(); setupNotes(); setupCtx(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); wireXpl(); setupPlotDetails(); setupRichTools(); setupCombos(); setupMotionKeep(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
+  setupRanges(); setupSupify(); setupCmdk(); setupNotes(); setupAway(); setupCtx(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); wireXpl(); setupPlotDetails(); setupRichTools(); setupCombos(); setupMotionKeep(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
   document.querySelectorAll(".rb[data-rmenu]").forEach(b=>b.addEventListener("click",()=>toggleMenu(b,()=>menuItems(b.dataset.rmenu),{label:b.textContent.trim()})));
   // With a menu open, the pointer passing over another menu's name opens it only after
   // resting there 150 ms, so a pointer crossing the bar on its way to a submenu changes nothing.
@@ -22639,6 +22836,7 @@ function wireStatic(){
       if(k==="o"){ e.preventDefault(); pickFile(); return; }
       if(k===","){ e.preventDefault(); openPrefs(); return; }
       if(k==="k"){ e.preventDefault(); openCmdk(); return; }
+      if(k==="d"&&e.shiftKey){ e.preventDefault(); const f=frontWinId(); if(f) detachWin(f); return; }
       if(k==="s"){ e.preventDefault(); toast(S.store&&S.store.mode==="db"?"Kurve saves every change as you make it, for everyone in this workspace.":"Kurve saves every change as you make it. To keep a copy elsewhere, use Publish."); return; }
       // A cell has no undo of its own, so the app's undo must still work there.
       if(t&&t.tagName==="INPUT"&&t.dataset.r!=null){ if(k==="z"||k==="y"){ e.preventDefault(); t.blur(); (k==="z"&&!e.shiftKey)?undo():redo(); } return; }

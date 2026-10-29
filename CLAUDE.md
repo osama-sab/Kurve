@@ -2006,6 +2006,37 @@ graph first, with the taskbar kept at the bottom of the screen.
   wizard, `confirmDlg` and `formDlg` use them. A font or colour picker
   open over a dialog keeps Escape and Tab for itself: the modal key handler looks at
   `fpOpen`/`cpOpen`/`spOpen` first, and a menu opened from a dialog closes on Escape.
+- **Two displays** (the design system's DetachedWindow and DisplayMenu, DS_SPEC slice 10; the
+  `AWAY` map, before the empty desk's code): a graph (not a figure, not closed) or one of
+  `AWAY_PANELS` (Results, Statistics, Help, Overview, Discussion) moved into a browser window of
+  its own (`detachWin(id, screen)`: the title bar's `[data-wpop]`, Window › Move to new window,
+  Ctrl+Shift+D, Window › Open on display; `canDetach`; `window.open` named `awayName(id)`,
+  refused at phone width). The main window keeps the project, undo and saving; the detached
+  window is a page it writes (`awayWrite`: the root's attributes, the app's stylesheets and
+  `#kSprite`, a strip `.dwin-h` with the name, the project, Live or Paused, the pointer's reading
+  or the last message `.dwin-msg`, the display list `.dwin-disp`, Return to desk; and the page's
+  own small script, `AWAY_SCRIPT`, put before the stylesheets because a script waits for them,
+  which notices when `kurveServes(name)` stops answering and asks `kurveReattach(window)` on
+  Reconnect). A graph is drawn there by the main window (`awayGraph`: `withGraph`, `buildPlot` at
+  that window's size, a signature from `snapSig` and `viewFor`), and its wheel, drag and double
+  click set the graph's view (`S.view` for the graph in front, `S.gv` for another), the reading
+  under the pointer through the drawing's `geo` and `toData`. A tool window's body is mirrored
+  (`awayMirror`, on a MutationObserver of the original: the HTML, each field's value, the scroll
+  and the focus kept), and its clicks, changes, input and Enter or Escape are sent back to the
+  original by their place in the tree (`awayPath`, `awayAt`), which stays in the main page,
+  `open` but hidden (`winAway`: `applyWins`, `dockIds` and `frontWinId` leave it out), doing what
+  it always did; a message the action toasts shows there too (`S.awayLast`). `scheduleAway` (from
+  `renderAll` and `renderPlot`) and `awaySync` keep them up to date, the theme and style
+  following (a MutationObserver on the root, `setupAway`); a window closed by the user, or found
+  closed by the poll every second, comes back (`returnWin`, `returnAllToDesk`). The taskbar's
+  `.tk.away` (dashed, no pill, `.tk-disp` with the display's number; a click focuses that
+  window), `winStateName`/`awayWhere` ("on Display 2", "in a window of its own"), the Window
+  menu's Move to new window, Open on display (where `getScreenDetails` exists: `loadScreens`,
+  `S.screens`, `screenOf`; the permission asked once, from a click) and Return all to desk.
+  Switching projects brings them back first (`awayLeave`, remembered in `LAYOUT.awayOf`) and
+  `awayOffer` offers to reopen them one at a time (a click opens one window; Preferences'
+  `awayReopen`); Preferences › Displays has `newGraphsOn` (a new graph from Plot opened on that
+  display, `plotCols`) where the screens can be listed.
 - **Help** (`DOCS`, `openHelp(id, {search})`, `renderHelp`): a window (`#w-help`, not in
   `WIN_ORDER`; in the taskbar only while open), not a dialog, so it stays open beside what it
   explains. `DOCS` is the articles, each `{id, g (one of DOC_GROUPS), t, kw, lead, body, win?}`
@@ -2873,6 +2904,14 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **Where a menu is shown must be visible when it is shown.** The Column menu in the graph's bar
   first appeared while the worksheet was in front, and in front the worksheet can cover the graph:
   the button was there and could not be pressed. It follows the last place pressed or typed in.
+- **A script waits for the stylesheets before it.** The detached page's own script (the one that
+  notices the main window has gone) came after the app's stylesheets, among them Google Fonts';
+  offline, or with that request held, the sheet never loaded and the script never ran, so the
+  page never said Paused. A test that aborts the font requests found it. The script goes first.
+- **A mirror sends events back by place, not by id.** A detached tool window's body is a copy of
+  the original's HTML, so every id is there twice in two documents; what was clicked is found
+  in the original by its place in the tree, which the copy has the same because it is made from
+  it after every change.
 - **A preview is a third copy of the settings.** The galleries show a card on the graph while it
   is hovered; written into the Format pane's working copy, a hover would have started a burst and
   saved itself 400 ms later. It is a copy of its own (`S.hoverPv`), read before the working copy
@@ -2895,7 +2934,7 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 
 ## Roadmap
 
-Under way, the user's choice of 26.10: the app brought up to the Kurve design system (a claude.ai
+Done, the user's choice of 26.10: the app brought up to the Kurve design system (a claude.ai
 Design System artifact made from this repository and reviewed on 25 October). The differences,
 the decisions and ten slices are `ux/spec/DS_SPEC.md`. Slice 1 done: the frame as the system
 has it (the taskbar flat with a raised key in front, the project's field first and Tile and
@@ -2934,7 +2973,14 @@ Identify; Done, Fit…, Integrate, Labels… on one row); and the empty desk's h
 over an empty worksheet. Slice 9 done: galleries drawn with the data: Plot setup's kinds as cards
 of the columns ticked (hovering one shows it in the sketch), the colour schemes as cards of the
 graph's own curves and the saved styles as the graph drawn in each, both shown on the graph while
-hovered or focused and applied by a click. Next: two displays.
+hovered or focused and applied by a click. Slice 10 done: two displays: a graph or a tool window
+that reads more than it is typed into (Results, Statistics, Help, Overview, Discussion) moved into
+a browser window of its own (its title bar's button, Window › Move to new window, Ctrl+Shift+D,
+Window › Open on display), kept up to date by the main window, which keeps the project: a graph
+drawn there and zoomed, panned and read there; a tool window's body mirrored, its clicks and
+changes acting on the original; Live or Paused, Reconnect, Return to desk, a display list; the
+taskbar's dashed button with the display's tag; Return all to desk; Preferences › Displays. The
+design system's ten slices are done.
 
 Then: the curve fit as complete as Origin's fitting dialogs (`ux/spec/FIT_SPEC.md`, the
 roadmap's first item). Slice 1 done: Fit control in the Fit window (the method named, the
@@ -3311,6 +3357,16 @@ Next, in order:
 
 ## Known gaps
 
+- Two displays: a graph (not a figure) and five tool windows (Results, Statistics, Help, the
+  Overview, Discussion) can go into a window of their own; the worksheet, the History and the
+  forms stay on the desk. A detached graph is a view: it zooms, pans and reads, but has no
+  pointer tools, handles, labels to drag or right-click menu, and draws no fit draft or preview.
+  A detached tool window's menus, pickers and dialogs open in the main window. The windows
+  belong to this session: after a reload of the main window each asks to be reconnected, and
+  reopening them with a project is offered one window per click (a browser opens one per
+  click). Placing a window on a given display needs the browser to list the screens (the
+  Window Management API: Chrome and Edge, after asking once); elsewhere it is dragged across
+  by hand
 - Formatted text has one level of raised and lowered characters (no script on a script, no
   sub- and superscript stacked; those stay in LaTeX), no bold or italic inside a text, and uses
   the browser's own superscript command (`execCommand`), which every browser still has

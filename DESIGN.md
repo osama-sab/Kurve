@@ -854,6 +854,33 @@ setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
 
+### 2026-10-29: the design system into the app, slice 10 (two displays)
+
+The system's DetachedWindow and DisplayMenu, as DS_SPEC's decision 5 planned: the detached window
+is a page the main window writes and keeps up to date, and the main window keeps the project,
+its undo and its saving, so there is never a second copy of it. Decisions:
+
+- **A graph is drawn there, a tool window is mirrored there.** The graph is the main window's
+  drawing at the detached window's size, which zooms (the wheel), pans (a drag), shows everything
+  (a double click) and reads the pointer's X and Y, as a second screen is for looking. A tool
+  window's body is the original's HTML, copied after every change, and what is pressed, chosen or
+  typed there is sent back to the original, which runs exactly the code it always runs: the two
+  cannot disagree, and nothing had to be written twice.
+- **What goes**: a graph (not a figure, whose panels are live cells), and the tool windows that
+  are read more than typed into: Results, Statistics, Help, the Overview, Discussion. The
+  worksheet, the History's flow chart and the forms of Fit, Peaks and the processing tools stay on
+  the desk: their menus, pickers and drags open in the main window, which a copy cannot follow.
+- **Live, then Paused.** The detached page notices on its own when the main window is gone
+  (closed or reloaded) and says Paused, with Reconnect and Close; it never edits on its own.
+- **Closing is returning.** The detached window's close, Return to desk, Ctrl+Shift+D there, or
+  Window › Return all to desk puts the window back where it was; switching projects brings every
+  one back first, and Preferences can offer to reopen them, one at a time, since a browser opens
+  one window per click.
+- **Where it is shows where you look for it**: the taskbar's button dashed, with no pill and the
+  display's tag, its tooltip and the Window menu saying "on Display 2" or "in a window of its own";
+  the Window menu's Open on display lists the screens where the browser can (it asks once, from a
+  click), and the strip's list moves the window between them.
+
 ### 2026-10-29: the design system into the app, slice 9 (galleries drawn with the data)
 
 The system's PlotGallery: choosing by the result, not by a name. Plot setup's kinds are cards
