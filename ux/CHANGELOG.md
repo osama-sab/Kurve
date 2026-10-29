@@ -1024,6 +1024,19 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Curve fit, slice 9: saved fit settings, and fits that follow their data (2026-10-29)
+
+`ux/spec/FIT_SPEC.md` slice 9.
+- **Saved settings**, in the Model heading and Analyze › Fit: a curve fit's settings by name (the
+  model, starts or their formulas, Fix, limits, constraints, weights, the apparent fit, fit control,
+  the level, the range), kept in the project or in this browser, renamed, deleted, copied between
+  the two. Choosing them sets the Fit window up (one undo step) and offers Fit.
+- **Fit again when the data change**: a fit made again, with its own settings, whenever its
+  column's processing, data or mask change; a log line and no undo step of its own; a refit that
+  fails keeps the fit and says why.
+
+Checked: fit-drive (13 new, 79), screenshots, and every suite from the round before.
+
 ## Curve fit, slice 8: starting values and constraints as formulas (2026-10-29)
 
 `ux/spec/FIT_SPEC.md` slice 8.

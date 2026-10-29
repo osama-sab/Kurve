@@ -854,6 +854,23 @@ setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
 
+### 2026-10-29: saved fit settings, and fits that follow their data (FIT_SPEC slice 9)
+
+- **Fit settings are kept as saved styles are**, by name, in the project (shared and undone with
+  it) or in this browser, from one menu (*Saved settings*, in the Model heading, where what they
+  set begins; Analyze › Fit has it too), with Rename, Delete and a copy between the two. Choosing
+  them sets the Fit window up rather than fitting, since the data may need a look first; the toast
+  offers Fit. What depends on the project's columns (a column of weights) is not kept; a range
+  is kept with its X units and used only on data in the same units; formula starts are measured
+  on the data they are used on.
+- **A fit can follow its data**, as a set of peaks does: made again with its own settings, from
+  its last values, whenever the column's processing, data or mask change, with a line in the log
+  and no undo step of its own, so one undo takes back the change and the refit together. A refit
+  that fails changes nothing and says why in the fit's notes, and is not tried again until the
+  data change again. Off unless ticked: a fit that changes by itself must be asked for.
+- The *Saved settings* button sits in the Model heading rather than beside the model's button,
+  which then kept too little room for the model's name in the dock.
+
 ### 2026-10-29: starting values and constraints as formulas (FIT_SPEC slice 8)
 
 Origin has a Code tab for both (LabTalk run before a fit); Kurve runs no code (FIT_SPEC's

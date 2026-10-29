@@ -302,6 +302,61 @@ await page(async p => {
   check("after a reload the Fit window has the fit's constraints", r.cons === "A2 = A1/2" && r.model === "expdec2", JSON.stringify(r));
 }, { name: "formulas and constraints" });
 
+console.log("Slice 9: saved fit settings, and fits that follow their data");
+await page(async p => {
+  await decayFit(p);
+  await p.evaluate(() => { showTab("fit"); const d = ensureDraft(); d.initFx = [null, "max(y) - min(y)", null]; d.cons = "y0 = A/60"; renderFit(); });
+  // Saved in this browser.
+  await p.click("#fitSets"); await p.waitForTimeout(150);
+  let r = await p.evaluate(() => [...document.querySelectorAll(".menu [role=menuitem], .menu button")].map(b => b.textContent.trim()).filter(Boolean));
+  check("Saved settings opens a menu that offers to save these", r.some(t => /Save these settings/.test(t)) && r.some(t => /None saved yet/.test(t)), JSON.stringify(r));
+  await p.keyboard.press("Escape");
+  await p.evaluate(() => { saveFitSetAs(); }); await p.waitForTimeout(200);
+  await p.fill("#fsN", "Decay, level held"); await p.click("#formOk"); await p.waitForTimeout(200);
+  r = await p.evaluate(() => { const l = JSON.parse(localStorage.getItem("kurve.fitsets") || "[]"); return l.map(s => ({ name: s.name, model: s.model, fx: s.initFx, cons: s.cons, w: s.weight })); });
+  check("saved in this browser: the model, the formula starts, the constraints, the weights", r.length === 1 && r[0].name === "Decay, level held" && r[0].model === "expdec" && r[0].fx[1] === "max(y) - min(y)" && r[0].cons === "y0 = A/60" && r[0].w === "yerr", JSON.stringify(r));
+  // Another model, then the settings again.
+  await p.evaluate(() => chooseModel("gauss")); await p.waitForTimeout(150);
+  await p.evaluate(() => { useFitSet(fitSetLib()[0]); }); await p.waitForTimeout(250);
+  r = await p.evaluate(() => { const d = ensureDraft(); return { model: d.model, cons: d.cons, fx: d.initFx && d.initFx[1], toast: $("#toastMsg").textContent, act: $("#toastAct") && $("#toastAct").textContent }; });
+  check("used again: the model, its formula starts and constraints come back; the toast offers Fit", r.model === "expdec" && r.cons === "y0 = A/60" && r.fx === "max(y) - min(y)" && /fit settings "Decay, level held"/.test(r.toast), JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(150);
+  check("one undo puts the model back", await p.evaluate(() => ensureDraft().model === "gauss"));
+  await p.evaluate(() => redo()); await p.waitForTimeout(150);
+  // In the project: saved and shared with it, and undone with it.
+  await p.evaluate(() => { saveFitSetAs(); }); await p.waitForTimeout(200);
+  await p.fill("#fsN", "In the project"); await p.check("#fsKP"); await p.click("#formOk"); await p.waitForTimeout(250);
+  r = await p.evaluate(() => ({ ps: projFitSets().map(s => s.name), menu: fitSetMenuItems().filter(i => i && i.group).map(i => i.group) }));
+  check("saved in the project too; the menu has both groups", JSON.stringify(r.ps) === JSON.stringify(["In the project"]) && r.menu.join() === "In this project,Saved in this browser", JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(150);
+  check("saving in the project is one undo step", await p.evaluate(() => projFitSets().length === 0));
+  // Analyze › Fit has them.
+  r = await p.evaluate(() => { const fit = (menuItems("analyze").find(i => i && i.label === "Fit") || {}).sub, items = typeof fit === "function" ? fit() : fit || []; const s = items.find(i => i && i.label === "Saved fit settings"); return !!s && (typeof s.sub === "function" ? s.sub() : s.sub).some(i => i && i.label === "Decay, level held"); });
+  check("Analyze › Fit › Saved fit settings lists them", r);
+  // Deleted, with Undo in the toast.
+  await p.evaluate(() => deleteFitSet(fitSetLib()[0], "lib")); await p.waitForTimeout(100);
+  r = await p.evaluate(() => fitSetLib().length);
+  await p.evaluate(() => { const b = $("#toastAct"); if (b) b.click(); }); await p.waitForTimeout(100);
+  check("deleted from the browser, and back with the toast's Undo", r === 0 && await p.evaluate(() => fitSetLib().length === 1));
+  // Following: the fit is made again when the processing changes, with a log line and no undo step of its own.
+  await p.evaluate(() => { const d = ensureDraft(); d.cons = ""; d.initFx = null; runFit(); }); await p.waitForTimeout(500);
+  await p.evaluate(() => { showTab("fit"); renderFit(); }); await p.waitForTimeout(100);
+  await p.click("#fitFollow"); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ f: activeFit().follow, row: statsList(activeFit()).find(x => x[0] === "Fitted again") }));
+  check("Fit again when the data change: set on the fit at once, and said in Results", r.f === true && r.row && r.row[1] === "when its data change", JSON.stringify(r));
+  const before = await p.evaluate(() => ({ at: activeFit().at, p: activeFit().params.slice(), undo: S.undo ? S.undo.length : null }));
+  await p.evaluate(() => { const c = activeYCol(); pushUndo("masking"); c.mask = (c.mask || []).concat([5, 6, 7]); save({ cols: P().cols }, "masked three points"); renderAll(); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const f = activeFit(), c = activeYCol(); return { at: f.at, stale: fitStale(f), ms: f.maskSig === maskSig(c), log: (P().log || []).slice(-1)[0].text, n: f.stats.n, follow: f.follow }; });
+  check("a mask changed: the fit is made again on the points left, and says so in the log", r.at !== before.at && !r.stale && r.ms && /fitted .* again, following its data/.test(r.log) && r.n === 57 && r.follow, JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  r = await p.evaluate(b => { const f = activeFit(); return { at: f.at, same: f.params.every((v, i) => v === b.p[i]), stale: fitStale(f) }; }, before);
+  check("one undo takes back the mask and the fit made again with it", r.at === before.at && r.same && !r.stale, JSON.stringify(r));
+  // A refit that fails keeps the fit and says why.
+  await p.evaluate(() => { const c = activeYCol(), n = finalOf(c).x.length; pushUndo("masking"); c.mask = Array.from({ length: n - 3 }, (_, i) => i); save({ cols: P().cols }); renderAll(); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const f = activeFit(); return { fail: f.followFail, notes: fitWarnings(f).map(w => w.kind) }; });
+  check("a refit that cannot be made keeps the fit, and the notes say why", /fewer than four points/.test(r.fail || "") && r.notes.includes("follow") && r.notes.includes("stale"), JSON.stringify(r));
+}, { name: "fit settings and following" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

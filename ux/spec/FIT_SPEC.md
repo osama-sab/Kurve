@@ -33,7 +33,7 @@ Origin's help pages it was compared with: the NLFit dialog's
 | Parameters tab | one grid: name, unit, meaning, start, Fix, limits, fitted ± error, 95 % interval, dependency, digits (slice 2) | share in the grid |
 | Bounds tab | limits for every model, < or ≤, over a function's own (slice 2) | none |
 | Buttons | Fit, Guess, Fit every column…, Remove fit, Done | 1 Iteration |
-| Saved settings, Recalculate | none; an out-of-date fit is marked | fit settings by name; refit when the data change |
+| Saved settings, Recalculate | fit settings by name in the project or the browser; a fit that follows its data (slice 9) | none |
 | Lower panel | the live graph, the residual panel, the formula, a summary line, the iterations as they go (slice 1), the model's sketch on its button (slice 3) | none |
 | Linear and Polynomial | a polynomial of order 1 to 9, its order beside the model (slice 3); Fix on a or b fixes the intercept or slope; outliers (slice 4); an apparent fit (slice 7) | none |
 | Function Builder | one editor: name, formula, live check, parameters with start, limits and unit, preview | category, meanings, start formulas, constraints, derived values |
@@ -120,7 +120,9 @@ CLAUDE.md, the menu spec when a menu changes.
    (`xc2 = xc1 + 5`) work as ties do in the peak fit (the tied one fixed, the model applying
    it, `linkResult` carrying the errors); inequalities between two parameters (`w1 < w2`) by
    reparametrisation. The hardest slice; the last of the fit itself.
-9. **Saved fit settings, and refitting.** Fit settings saved by name (model, starts or their
+9. **Saved fit settings, and refitting** (done 2026-10-29; from the Model heading and Analyze ›
+   Fit; choosing them sets the window up and offers Fit; following is off unless ticked, the fit
+   on screen's, and a failure changes nothing and says why). Fit settings saved by name (model, starts or their
    formulas, limits, fixed, weights, control, range rule), in the project or the browser as
    saved styles are; a fit can follow its data (refit when its column's processing or data
    change, as peak sets follow theirs, `followPeakSets`), with a log line and no undo entry of

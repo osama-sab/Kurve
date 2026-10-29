@@ -355,6 +355,8 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .ws .fxm.old{color:var(--warn)}
 .ptab.pg input.pgsfx{font-style:italic;color:var(--accent)}
 .ptab.pg input.pgfol{font-style:italic}
+.gh.ghact{display:flex;align-items:center;gap:var(--sp-3)}
+.gh.ghact>.btn{margin-left:auto;font-weight:400}
 .fcons{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--sp-2) var(--sp-4);align-items:start;margin:var(--sp-4) 0}
 .fcons textarea{font-family:var(--mono);font-size:var(--fs-body);min-height:3.2em;resize:vertical;width:100%}
 .fcons .lab{grid-column:2}
@@ -5469,6 +5471,7 @@ function fitWarnings(f){
   const pw=procWarnings(colById(f.onCol)||act);
   if(pw.length) add("warn","proc",`The data this fit used ${pw.length===1?"went through a processing step that carries a warning":`went through ${pw.length} processing steps that carry warnings`}: ${pw.map(q=>`step ${q.k}, ${stepTitle(q.step).toLowerCase()}${q.col!==act?` of ${specName(q.col)}`:""}: ${q.texts[0]}`).join(" ")} The History and the report's Processing section give the details.`,
     `${pw.length} processing step${pw.length===1?" carries a warning":"s carry warnings"}: ${[...new Set(pw.map(q=>stepTitle(q.step).toLowerCase()))].join(", ")}.`,[["History","history"]]);
+  if(f.follow&&f.followFail&&stale) add("warn","follow",`Set to be fitted again when its data change, it could not be: ${f.followFail}. It is as it was before the change.`,`Not fitted again: ${f.followFail}.`,[["Fit again","fitagain"]]);
   if(f.app) add("info","app",`An apparent fit: fitted as ${appText(f.app)}, as the points look on the graph's logarithmic ${f.app.x&&f.app.y?"axes":"axis"}, so the parameters, R², χ² and the residuals are in those terms.`,`Apparent fit: ${appText(f.app)}.`);
   if(f.xerr&&f.odr&&f.odr.s!=null) add("info","xerr",`Fitted with the X errors by orthogonal distance regression. With no Y errors, the scatter in Y was taken to be the same for every point and found from the fit: s = ${fmt(f.odr.s,4)}.`,
     `s = ${fmt(f.odr.s,4)}: the scatter in Y, found with the X errors.`);
@@ -6357,7 +6360,7 @@ function migrateGraphs(p){
 }
 /* Undo is per-session and local: it rewinds your own edits, not other
    people's. Cross-user undo in a shared document is a different problem. */
-const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","lines","rawLock","tree","wsAlign","wsHide","sheets"];
+const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","fitSets","lines","rawLock","tree","wsAlign","wsHide","sheets"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
 /* Raw values are replaced, never changed in place, so a snapshot keeps each
    column's data array as it is and copies the rest: with 20 spectra of 50 000
@@ -14868,7 +14871,7 @@ function ensureDraft(){
   if(S.draft&&S.draft.pid===S.pid) return S.draft;
   const f=(activeFit()&&activeFit().kind!=="composite"?activeFit():null); // the curve panel only carries single-model fits
   const model=f?f.model:(p.prefModel&&getModel(p.prefModel)?p.prefModel:suggestModel().id);
-  S.draft={pid:S.pid, model, fn:f&&f.fn?f.fn:null, init:f?f.params.slice():null, fixed:f?(f.fixed||f.params.map(()=>false)).slice():null, weighted:f?!!f.weighted:hasErr(), weight:f?weightOf(f):hasErr()?"yerr":"none", wcol:f&&f.wcol||null, app:!!(f&&f.app), xerr:f?!!f.xerr:hasXErr(), ctl:fitCtl(f&&f.ctl), lim:f&&f.lim?clone(f.lim):null, dig:f&&Array.isArray(f.dig)?f.dig.slice():null, conf:f?confKeep(confOf(f)):null, cons:f&&f.cons||"", initFx:f&&Array.isArray(f.initFx)?f.initFx.slice():null};
+  S.draft={pid:S.pid, model, fn:f&&f.fn?f.fn:null, init:f?f.params.slice():null, fixed:f?(f.fixed||f.params.map(()=>false)).slice():null, weighted:f?!!f.weighted:hasErr(), weight:f?weightOf(f):hasErr()?"yerr":"none", wcol:f&&f.wcol||null, app:!!(f&&f.app), xerr:f?!!f.xerr:hasXErr(), ctl:fitCtl(f&&f.ctl), lim:f&&f.lim?clone(f.lim):null, dig:f&&Array.isArray(f.dig)?f.dig.slice():null, conf:f?confKeep(confOf(f)):null, cons:f&&f.cons||"", initFx:f&&Array.isArray(f.initFx)?f.initFx.slice():null, follow:!!(f&&f.follow)};
   if(!S.draft.init) guessDraft();
   return S.draft;
 }
@@ -15192,6 +15195,97 @@ function fitToSheet(f){
   const n=(colById(news[0].id)||news[0]).data.filter(v=>v!=null).length;
   toast(`Columns ${Ls}: the fitted values and residuals of ${nm}, ${n} row${n===1?"":"s"}, computed from the fit and written again by each new fit.`,{action:"Undo",run:undo});
 }
+/* Saved fit settings (FIT_SPEC slice 9): a curve fit's settings by name, kept in the project
+   (p.fitSets: saved, shared and undone with it) or in this browser (kurve.fitsets), as saved
+   styles are. The model (a function of yours carried with it), the starts (numbers, or formulas
+   of the data), Fix, limits, digits, weights (a column's become none: the column is the
+   project's), the apparent fit, the constraints, fit control, the confidence level, the X
+   errors, and the range: all the data, or the one typed, in its X units. */
+function fitSetLib(){ try{ return JSON.parse(localStorage.getItem("kurve.fitsets")||"[]").filter(s=>s&&s.id&&s.name&&s.model); }catch(e){ return []; } }
+function fitSetLibSave(list){ try{ localStorage.setItem("kurve.fitsets",JSON.stringify(list)); }catch(e){ toast("This browser would not keep the fit settings."); } }
+function projFitSets(){ const p=P(); return p&&Array.isArray(p.fitSets)?p.fitSets.filter(s=>s&&s.id&&s.name&&s.model):[]; }
+function saveProjFitSets(list,log){ const p=P(); if(!p||S.readOnly) return; pushUndo("changing the project's fit settings"); save({fitSets:list.length?list:null},log); }
+function fitSetOf(d,c){ const r=c?fitRngOf(c):null, k=weightOf(d);
+  return {model:d.model, fn:d.fn?clone(d.fn):d.model&&d.model.startsWith("u:")?clone(((P().userFns||[]).find(q=>"u:"+q.id===d.model))||null):null,
+    init:(d.init||[]).slice(), initFx:Array.isArray(d.initFx)?d.initFx.slice():null, fixed:(d.fixed||[]).slice(), lim:d.lim?clone(d.lim):null, dig:Array.isArray(d.dig)?d.dig.slice():null,
+    weight:k==="col"?"none":k, app:!!d.app, cons:d.cons||"", ctl:d.ctl?fitCtl(d.ctl):null, conf:d.conf??null, xerr:!!d.xerr, follow:!!d.follow, range:r?{x0:r[0],x1:r[1],xu:(finalOf(c).xu||"")}:null}; }
+// What a saved setting says, for its tooltip.
+function fitSetText(s){ const m=s.fn?(()=>{ try{ return userModel(s.fn); }catch(e){ return null; } })():getModel(s.model), bits=[m?m.name:"a model that is gone"];
+  if(Array.isArray(s.initFx)&&s.initFx.some(Boolean)&&m) bits.push("starts "+s.initFx.map((x,i)=>x?`${m.params[i]} = ${x}`:null).filter(Boolean).join(", "));
+  if(s.cons) bits.push("constraints "+String(s.cons).split(/\r?\n/).map(t=>t.replace(/#.*$/,"").trim()).filter(Boolean).join("; "));
+  if(s.weight&&s.weight!=="none") bits.push({yerr:"weighted by the Y error",counts:"counting weights"}[s.weight]||"weighted");
+  if(s.app) bits.push("an apparent fit"); if(s.range) bits.push(`x ${fmt(s.range.x0,6)} to ${fmt(s.range.x1,6)}${s.range.xu?" "+s.range.xu:""}`); if(s.follow) bits.push("fitted again when the data change");
+  return capFirst(bits.join("; ")); }
+async function saveFitSetAs(){
+  const p=P(), d=S.draft&&S.draft.pid===S.pid?S.draft:ensureDraft(), c=activeYCol(); if(!p||!d||!c) return null;
+  const shared=!!S.room, ro=S.readOnly;
+  const r=await formDlg({title:"Save these fit settings",html:`<div class="grid2"><label for="fsN">Name</label><input id="fsN" type="text" maxlength="60" placeholder="e.g. Two decays, in order"><span class="lab" style="align-self:start;padding-top:3px">Keep them</span><div class="fdk">`
+    +`<label class="chk"><input type="radio" name="fsK" id="fsKP"${shared&&!ro?" checked":""}${ro?" disabled":""}> In this project: whoever opens it has them</label>`
+    +`<label class="chk"><input type="radio" name="fsK" id="fsKB"${shared&&!ro?"":" checked"}> In this browser: for every project opened here</label></div></div>`
+    +`<p class="hint">The model, its starts or their formulas, Fix, limits, constraints, weights, fit control and the range: not the data, nor the results.</p>`,ok:"Save",focus:"#fsN",valid:q=>!!q.fsN.trim()});
+  if(!r) return null; const name=r.fsN.trim().slice(0,60), s=Object.assign({id:"s"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),name,at:Date.now(),by:who()||null},fitSetOf(d,c));
+  if(r.fsKP&&!ro){ const had=projFitSets().some(q=>q.name===name); saveProjFitSets(projFitSets().filter(q=>q.name!==name).concat([s]),`${had?"replaced":"saved"} the fit settings "${name}" in the project`);
+    toast(`${had?"Replaced":"Saved"} the fit settings "${name}" in this project.`,{action:"Undo",run:undo}); return s; }
+  const had=fitSetLib().some(q=>q.name===name); fitSetLibSave(fitSetLib().filter(q=>q.name!==name).concat([s])); toast(`${had?"Replaced":"Saved"} the fit settings "${name}" in this browser.`); return s; }
+async function renameFitSet(s,where){
+  const r=await formDlg({title:"Rename the fit settings",html:`<div class="grid2"><label for="fsR">Name</label><input id="fsR" type="text" maxlength="60" value="${esc(s.name)}"></div>`,ok:"Rename",focus:"#fsR",valid:q=>!!q.fsR.trim()&&q.fsR.trim()!==s.name});
+  if(!r) return; const name=r.fsR.trim().slice(0,60);
+  if(where==="proj") saveProjFitSets(projFitSets().filter(q=>q.name!==name).map(q=>q.id===s.id?Object.assign({},q,{name}):q),`renamed the fit settings "${s.name}" to "${name}"`);
+  else fitSetLibSave(fitSetLib().filter(q=>q.name!==name).map(q=>q.id===s.id?Object.assign({},q,{name}):q));
+  toast(`Renamed the fit settings to "${name}".`); }
+function copyFitSet(s,to){ const c=Object.assign({},s,{id:"s"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),at:Date.now()});
+  if(to==="proj"){ if(S.readOnly||!P()) return; saveProjFitSets(projFitSets().filter(q=>q.name!==s.name).concat([c]),`added the fit settings "${s.name}" to the project`); toast(`The project has the fit settings "${s.name}".`); }
+  else { fitSetLibSave(fitSetLib().filter(q=>q.name!==s.name).concat([c])); toast(`This browser keeps the fit settings "${s.name}" for every project.`); } }
+function deleteFitSet(s,where){
+  if(where==="proj"){ saveProjFitSets(projFitSets().filter(q=>q.id!==s.id),`deleted the fit settings "${s.name}" from the project`); toast(`Deleted the fit settings "${s.name}" from this project.`,{action:"Undo",run:undo}); return; }
+  const before=fitSetLib(); fitSetLibSave(before.filter(q=>q.id!==s.id)); toast(`Deleted the fit settings "${s.name}".`,{action:"Undo",run:()=>{ fitSetLibSave(before); toast(`The fit settings "${s.name}" are back.`); }}); }
+// Settings applied to the curve fit's draft (one undo entry); Fit then uses them. Formula starts are measured on these data.
+function useFitSet(s){
+  const p=P(); if(!p||S.readOnly||!s) return; if(S.fitMode!=="curve"){ S.fitMode="curve"; } const d=ensureDraft(); if(!d) return;
+  let model=s.model;
+  if(model.startsWith("u:")){ if(!s.fn){ toast(`The fit settings "${s.name}" name a function that is not here.`); return; } }
+  else if(!getModel(model)){ toast(`The fit settings "${s.name}" name a model Kurve no longer has.`); return; }
+  pushUndo(`the fit settings "${s.name}"`);
+  if(model.startsWith("u:")&&!(p.userFns||[]).some(q=>"u:"+q.id===model)) adoptLibFn(s.fn);
+  Object.assign(d,{model, fn:model.startsWith("u:")?clone(s.fn):null, init:(s.init||[]).slice(), initFx:Array.isArray(s.initFx)?s.initFx.slice():null, fixed:(s.fixed||[]).slice(),
+    lim:s.lim?clone(s.lim):null, dig:Array.isArray(s.dig)?s.dig.slice():null, weight:s.weight==="yerr"&&!hasErr()?"none":s.weight||"none", wcol:null, app:!!s.app, cons:s.cons||"",
+    ctl:s.ctl?fitCtl(s.ctl):fitCtl(), conf:s.conf??null, xerr:!!s.xerr&&hasXErr(), follow:!!s.follow}); d.weighted=d.weight!=="none";
+  const m=draftModel(d); if(!Array.isArray(d.init)||d.init.length!==m.params.length||!d.init.every(Number.isFinite)) guessDraft();
+  if(!Array.isArray(d.fixed)||d.fixed.length!==m.params.length) d.fixed=m.params.map(()=>false);
+  const c=activeYCol(), xu=c?(finalOf(c).xu||""):""; let note="";
+  if(s.range&&s.range.xu===xu) setFitRange(s.range.x0,s.range.x1); else { if(s.range) note=` Its range was in ${s.range.xu||"other units"}: this fit takes all the data.`; setFitRange(null,null); }
+  { const [Xs,Ys]=fitXY(d), e=startsFx(d,m,Xs,Ys); if(e) note+=" "+e; }
+  S.fitError=""; showTab("fit"); renderFit(); renderPlot();
+  toast(`The fit settings "${s.name}".${note}`,{action:"Fit",run:()=>fitNow()}); }
+function fitSetMenuItems(){
+  const ro=S.readOnly||!P(), lib=fitSetLib(), ps=projFitSets(), it=s=>({label:s.name,enabled:!ro,title:fitSetText(s),run:()=>useFitSet(s),note:s.by&&S.uid&&s.by!==S.uid?personName(s.by):""});
+  const items=[]; if(ps.length) items.push({group:"In this project"},...ps.map(it)); if(lib.length) items.push(ps.length?"-":null,{group:"Saved in this browser"},...lib.map(it));
+  if(!ps.length&&!lib.length) items.push({label:"None saved yet",enabled:false});
+  items.push("-",{label:"Save these settings…",enabled:!!P()&&!!activeYCol(),run:()=>saveFitSetAs()});
+  if(ps.length||lib.length) items.push({label:"Rename or delete settings",sub:()=>ps.map(s=>({label:s.name,note:"project",sub:()=>[{label:"Rename…",enabled:!ro,run:()=>renameFitSet(s,"proj")},{label:"Keep them in this browser too",run:()=>copyFitSet(s,"lib")},"-",{label:"Delete",danger:true,enabled:!ro,run:()=>deleteFitSet(s,"proj")}]}))
+    .concat(lib.map(s=>({label:s.name,note:"browser",sub:()=>[{label:"Rename…",run:()=>renameFitSet(s,"lib")},{label:"Put them in this project",enabled:!ro,run:()=>copyFitSet(s,"proj")},"-",{label:"Delete",danger:true,run:()=>deleteFitSet(s,"lib")}]})))});
+  return items.filter(x=>x!==null); }
+/* A fit that follows its data (follow): fitted again, with its own settings and from its own
+   values (fitOne through batchTemplate), whenever its column's processing, data or mask change,
+   first thing in renderAll as a peak set is found again; a log line and no undo entry of its
+   own (undoing the change brings the old fit back with it). A refit that fails keeps the fit,
+   says why (followFail, in fitWarnings), and is not tried again until the data change again. */
+function followFits(){
+  const p=P(); if(!p||S.readOnly||S.editing||S.fitRun) return false; const f=p.fit; if(!f||!f.follow||f.batch||!fitModel(f)) return false;
+  const c=colById(f.onCol); if(!c) return false; const ps=pipeSig(c), ms=maskSig(c);
+  if(f.pipeSig===ps&&f.maskSig===ms) return false; const key=ps+"|"+ms; if(f.followTried===key) return false;
+  const t=batchTemplate(f); if(weightOf(f)==="col"&&f.wcol&&colById(f.wcol)){ t.weight="col"; t.wcol=f.wcol; }
+  let r; try{ r=fitOne(c,t,f.params.slice()); }catch(e){ r={fail:String(e&&e.message||e)}; }
+  if(!r||!r.fit){ const why=(r&&r.fail)||"the fit did not work"; save({fit:Object.assign({},f,{followTried:key,followFail:why})},`could not fit ${specName(c)} again after its data changed: ${why}`); return true; }
+  const nf=Object.assign({},r.fit,{follow:true,by:who(),at:Date.now()},f.initFx?{initFx:f.initFx.slice()}:{},f.lab?{lab:f.lab}:{}); delete nf.batch; delete nf.followTried; delete nf.followFail;
+  if(f.kind==="composite") Object.assign(nf,{spec:clone(f.spec),x0:f.x0});
+  save({fit:nf,fits:fitHistory(nf)},`fitted ${specName(c)} again, following its data (R² = ${fmt(nf.stats.R2,5)}, ${nf.stats.n} points)`);
+  if(S.draft&&S.draft.pid===S.pid&&nf.kind!=="composite"&&S.draft.model===nf.model) S.draft.init=nf.params.slice();
+  return true; }
+function followSw(id,d){ const f=activeFit(), on=f&&(f.kind==="composite")===(S.fitMode==="peaks")?!!f.follow:!!d.follow;
+  return `<label class="chk"><input type="checkbox" id="${id}"${on?" checked":""}${S.readOnly?" disabled":""}> <span class="tipd" title="Fit again, with these settings and from the last values, whenever the column's processing, data or mask change: a line in the log, no undo step of its own">Fit again when the data change</span></label>`; }
+function setFollow(d,v){ d.follow=!!v; const f=activeFit();
+  if(f&&!f.batch&&(f.kind==="composite")===(S.fitMode==="peaks")&&!S.readOnly){ pushUndo(v?"fitting again when the data change":"keeping the fit as it is"); save({fit:Object.assign({},f,{follow:!!v,followTried:null,followFail:null})},v?"set the fit to be fitted again when its data change":"set the fit to stay as it is when its data change"); renderFit(); } }
 // The residuals' own figures, for the statistics beside the table.
 function diagStats(f){ if(f.xerr||!rShow().resid||!winOpen("res")) return []; const D=resDiag(f); if(!D) return [];
   return [["Residual scatter, s",fmtOr(D.s,4)],["Outlier limit",Number.isFinite(D.out.lim)?"±"+fmt(D.out.lim,4):"too few points"]]; }
@@ -15327,7 +15421,7 @@ function renderFit(){
   const [xuC,yuC]=dataUnits();
   const uC=t=>t?` <span class="unit">(${esc(t)})</span>`:"";
   let h=top;
-  h+=`<div class="gh">Model</div>`;
+  h+=`<div class="gh ghact">Model<button class="btn sm ghost" id="fitSets" aria-haspopup="menu" aria-expanded="false" title="Fit settings saved by name: use, save, rename or delete">Saved settings${ICON("chev","sm")}</button></div>`;
   const ord=polyOrderOf(d.model), fromFit=m.user&&!inProj&&!lib.some(q=>"u:"+q.id===d.model);
   h+=`<div class="mrow"><button type="button" class="mbtn" id="model" aria-haspopup="listbox" aria-expanded="false" aria-label="Model: ${esc(m.name)}" title="Choose the model from the list, by kind or by searching"${ro}>${modelSketch(m)}<span class="mb-n">${esc(m.listAs||m.name)}${fromFit?" (from the fit)":""}</span>${ICON("chev","sm")}</button>`+
     (ord?`<label class="mord" title="The polynomial's order: its highest power of x"><span>Order</span><select id="polyOrder"${ro}>${[1,2,3,4,5,6,7,8,9].map(k=>`<option value="${k}"${k===ord?" selected":""}>${k}</option>`).join("")}</select></label>`:"")+
@@ -15341,6 +15435,7 @@ function renderFit(){
   { const C=consOf(d,m); h+=`<div class="fcons"><label for="fitCons" class="tipd" title="One a line: a = a formula of the other parameters (a follows them), or a < b, a ≤ b (b stays above a). # begins a note.">Constraints</label><textarea id="fitCons" rows="2" spellcheck="false" autocomplete="off" placeholder="b = 2*a + 1&#10;w1 &lt; w2"${ro}>${esc(d.cons||"")}</textarea><div class="lab" id="fitConsHint" role="status">${C?C.err?`<span class="rbad">${esc(consErr(C))}</span>`:esc(consHint(C,m.params)):""}</div></div>`; }
   h+=`<div class="gh">Options</div>`;
   h+=weightSel("wt",d);
+  h+=followSw("fitFollow",d);
   { const A=appOf(); if(A||d.app) h+=`<label class="chk"><input type="checkbox" id="fitApp"${d.app&&A?" checked":""}${S.readOnly||!A?" disabled":""}> <span class="tipd" title="${esc(A?`Fit ${appText(A)}, as the points look on this graph's logarithmic ${A.x&&A.y?"axes":"axis"}: a straight line then fits a straight line on the graph. The parameters, R² and χ² are in those terms.`:"The graph has no logarithmic axis now")}">Apparent fit</span></label>`; }
   if(hasXErr()) h+=`<label class="chk"><input type="checkbox" id="wtx"${d.xerr?" checked":""}${S.readOnly?" disabled":""}> <span class="tipd" title="Orthogonal distance regression: each point's true X is fitted too, within its X error, so the curve is not pulled flat by errors in X, and the parameters' errors include them. Without Y errors, the scatter in Y is found from the fit.">Include the X errors</span></label>`;
   h+=fitResidHtml();
@@ -15375,6 +15470,7 @@ function renderFit(){
   });
   box.querySelectorAll("input[data-fx]").forEach(inp=>inp.onchange=()=>{ d.fixed[+inp.dataset.fx]=inp.checked; pgMarks(box,d,m); });
   const wt=$("#wt"); if(wt) wt.onchange=()=>setWeight(d,wt.value);
+  { const fw=$("#fitFollow"); if(fw) fw.onchange=()=>setFollow(d,fw.checked); const fs=$("#fitSets"); if(fs) fs.onclick=()=>toggleMenu(fs,fitSetMenuItems,{label:"Saved fit settings"}); }
   { const ct=$("#fitCons"), hn=$("#fitConsHint"); if(ct){ const say=()=>{ const C=consOf({cons:ct.value},m); hn.innerHTML=C?C.err?`<span class="rbad">${esc(consErr(C))}</span>`:esc(consHint(C,m.params)):""; };
     ct.oninput=say; ct.onchange=()=>{ if((d.cons||"")===ct.value) return; pushUndo("the constraints"); d.cons=ct.value; S.fitError=""; setTimeout(()=>renderFit(),0); }; } }
   // The parameters mean other things in the axes' terms: switched, the starting values are measured again.
@@ -15722,7 +15818,7 @@ function ensurePeakDraft(){
   if(S.pdraft&&S.pdraft.pid===S.pid) return S.pdraft;
   const f=activeFit()&&activeFit().kind==="composite"?activeFit():null;
   S.pdraft=f
-    ? {pid:S.pid, base:f.spec.base, peaks:f.spec.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{},k.lab?{lab:k.lab}:{})), init:f.params.slice(), fixed:(f.fixed||f.params.map(()=>false)).slice(), weighted:!!f.weighted, weight:weightOf(f), wcol:f.wcol||null, xerr:!!f.xerr, conf:confKeep(confOf(f)), x0:f.x0, fitAt:f.at}
+    ? {pid:S.pid, base:f.spec.base, peaks:f.spec.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{},k.lab?{lab:k.lab}:{})), init:f.params.slice(), fixed:(f.fixed||f.params.map(()=>false)).slice(), weighted:!!f.weighted, weight:weightOf(f), wcol:f.wcol||null, follow:!!f.follow, xerr:!!f.xerr, conf:confKeep(confOf(f)), x0:f.x0, fitAt:f.at}
     : {pid:S.pid, base:"linear", peaks:[], init:[], fixed:[], weighted:hasErr(), weight:hasErr()?"yerr":"none", xerr:hasXErr(), x0:null, fitAt:null};
   return S.pdraft;
 }
@@ -16092,7 +16188,7 @@ function renderPeakFit(box,p,top){
   }
   h+=`</section>`;
   // 3 Fit
-  h+=`<section class="stepsec"><h3 class="gh"><span class="sn">3</span>Fit</h3>${weightSel("pwt",d)}`;
+  h+=`<section class="stepsec"><h3 class="gh"><span class="sn">3</span>Fit</h3>${weightSel("pwt",d)}${followSw("pfFollow",d)}`;
   if(hasXErr()) h+=`<label class="chk"><input type="checkbox" id="pwtx"${d.xerr?" checked":""}${S.readOnly?" disabled":""}> <span class="tipd" title="Orthogonal distance regression: each point's true X is fitted too, within its X error, so the curve is not pulled flat by errors in X, and the parameters' errors include them. Without Y errors, the scatter in Y is found from the fit.">Include the X errors</span></label>`;
   h+=fitResidHtml(true);
   h+=confHtml(d);
@@ -16171,6 +16267,7 @@ function renderPeakFit(box,p,top){
     const k=+c.dataset.peak; S.selPeak=S.selPeak===k?null:k; renderFit(); renderPlot();
   });
   const pw=$("#pwt"); if(pw) pw.onchange=()=>setWeight(d,pw.value);
+  { const fw=$("#pfFollow"); if(fw) fw.onchange=()=>setFollow(d,fw.checked); }
   const pwx=$("#pwtx"); if(pwx) pwx.onchange=()=>d.xerr=pwx.checked;
   wireConf(box,d);
   $("#doPeakFit").onclick=runPeakFit;
@@ -16215,7 +16312,7 @@ function runPeakFit(){
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(),
     hadErrCol:hasErr(),
     fixed:d.fixed.slice(), dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound, stats:res.stats,
-    range:[Math.max(a,amin(X)),Math.min(b,amax(X))], ...weightRec(WT), ...(SX?{xerr:true,odr:odrNote(res)}:{}), ...(confKeep(confOf(d))?{conf:confOf(d)}:{}), by:who(), at:Date.now()};
+    range:[Math.max(a,amin(X)),Math.min(b,amax(X))], ...weightRec(WT), ...(SX?{xerr:true,odr:odrNote(res)}:{}), ...(confKeep(confOf(d))?{conf:confOf(d)}:{}), ...(d.follow?{follow:true}:{}), by:who(), at:Date.now()};
   d.init=res.params.slice(); d.x0=m.x0; d.fitAt=fit.at;
   save(Object.assign({fit,fits:fitHistory(fit)},batchWith(fit)),`fitted ${describeSpec(spec)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
   renderFit(); renderPlot(); afterFit(fit);
@@ -16311,7 +16408,7 @@ function saveCurveFit(res,o){
     dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound,
     onCol:(activeYCol()||{}).id, onColName:(activeYCol()||{}).name||"",
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(), hadErrCol:hasErr(),
-    range:[Math.max(a,amin(X)),Math.min(b,amax(X))], ...weightRec(WT), ...(SX?{xerr:true,odr:odrNote(res)}:{}), ...(o.A?{app:{x:o.A.x,y:o.A.y}}:{}), ...(o.C?{cons:String(d.cons).trim()}:{}), ...(Array.isArray(d.initFx)&&d.initFx.some(Boolean)?{initFx:d.initFx.slice()}:{}),
+    range:[Math.max(a,amin(X)),Math.min(b,amax(X))], ...weightRec(WT), ...(SX?{xerr:true,odr:odrNote(res)}:{}), ...(o.A?{app:{x:o.A.x,y:o.A.y}}:{}), ...(o.C?{cons:String(d.cons).trim()}:{}), ...(Array.isArray(d.initFx)&&d.initFx.some(Boolean)?{initFx:d.initFx.slice()}:{}), ...(d.follow?{follow:true}:{}),
     ctl:{maxIter:ctl.maxIter,tol:ctl.tol,method:SX?"odr":"lm"}, by:who(), at:Date.now()};
   d.init=res.params.slice(); if(S.fitLog&&S.fitLog.pid===S.pid&&!SX) S.fitLog.last=d.init.slice();
   const P0=P(), carry=m.user&&!(P0.userFns||[]).some(q=>q.id===m.fnId)?{userFns:(P0.userFns||[]).concat([JSON.parse(JSON.stringify(m.def))])}:{};
@@ -16370,6 +16467,7 @@ function statsList(f){
     ["Iterations",st.iter==null?"—":`${st.iter}${st.converged?"":" (not converged)"}`],["Fit control",capFirst(ctlText(f))],
     ["Weighting",weightText(f)]].concat((C=>C&&!C.err?[["Constraints",consSummary(C,FM0.model.params)]]:[])(FM0&&consOf(f,FM0.model)),f.app?[["Fitted as",capFirst(appText(f.app))+", an apparent fit"]]:[],[["Confidence level",confPct(confOf(f))+"%"]],f.odr&&f.odr.s!=null?[["Scatter in Y, s",fmt(f.odr.s,4)]]:[],limText(f)?[["Limits",limText(f)]]:[]);
   if(f.range) out.push(["Fitted over",`x ${fmt(f.range[0],6)} to ${fmt(f.range[1],6)}`]);
+  if(f.follow) out.push(["Fitted again","when its data change"]);
   return out.map(([k,v])=>[k,v==null||v===""?"—":String(v)]);
 }
 // The parameters as journals print them: the value and its standard error in
@@ -17842,6 +17940,7 @@ function analyzeMenu(){
       {label:"Fit", kbd:"Ctrl+Enter", run:fitNow, enabled:edit&&has},
       yCols().length>1?{label:"Fit every column…", run:openBatchDialog, enabled:edit&&!!f, title:f?"":"Fit the active column first: its fit is the template"}:null,
       {label:"Put the fit in the worksheet", run:()=>fitToSheet(), enabled:edit&&!!f, title:f?"The fitted values and the residuals as columns beside the column fitted":"Fit the active column first"},
+      {label:"Saved fit settings", sub:()=>fitSetMenuItems()},
       "-",
       {label:"Show residuals", checked:!!p&&residOn(cfg,sf||residHint()), title:"A panel of the residuals under the graph, when there is a fit", run:()=>togglePlot("resid"), enabled:edit},
       {label:"Confidence band", checked:cfg.bandConf!==false, enabled:edit&&!!sf, run:()=>setPlotKey("bandConf",cfg.bandConf===false,cfg.bandConf===false?"showed the fit's confidence band":"hid the fit's confidence band")},
@@ -20253,7 +20352,7 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <p>Pearson r between columns on the same X axis, interpolated onto the active column's X where they overlap. Near 1, the same shape; near 0, unrelated.</p>
 <p><em>Copy</em> gives every table as tab-separated text.</p>`},
 /* ---------------------------------------------------------------- Fitting */
-{id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge range from to use the view from view points zoom all spectrum done close residuals weighting weights weight counting statistics poisson 1/y instrumental arbitrary column of weights apparent fit log scale logarithmic axis straight line on log axes constraint constraints tie equal follows inequality order starting value formula start max(y) xat fwhm in the results report sections",
+{id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge range from to use the view from view points zoom all spectrum done close residuals weighting weights weight counting statistics poisson 1/y instrumental arbitrary column of weights apparent fit log scale logarithmic axis straight line on log axes constraint constraints tie equal follows inequality order starting value formula start max(y) xat fwhm saved fit settings preset template recipe save settings fit again when the data change follow refit recalculate automatic in the results report sections",
  lead:"Two kinds of fit, in the Fit window: a curve fit puts one model through the data; a peak fit describes a column as a sum of peaks on a baseline.",
  body:`${DL([[DA("curvefit","Curve fit"),"A line, polynomial, exponential decay, sigmoid, single peak or your own function."],[DA("peakfit","Peak fit"),"Any number of Gaussian, Lorentzian, Voigt, Pearson VII, Fano and other peaks on a baseline, found automatically or placed by hand, with handles on the graph."]])}
 <h2>What is fitted</h2>
@@ -20279,6 +20378,10 @@ ${DL([["Start, Fix","Where the fit starts, and whether the parameter is held the
 <h2 id="fxstart">Starting values as formulas</h2>
 <p>A start can be typed as a formula of the data in the fit's range instead of a number: <code>max(y) - min(y)</code> for an amplitude, <code>xat</code> for a peak's position, <code>fwhm/2.3548</code> for a Gaussian's width. It is shown as typed (in italics; its value now is its tooltip), measured again by <em>Guess</em> and by every fit, and kept with the fit. A number typed over it takes its place; <em>1 iteration</em> and <em>Stop</em> replace it by the value they reach. For an apparent fit the data are as fitted, in the logarithms.</p>
 ${DL([["<code>xmin</code>, <code>xmax</code>, <code>xmean</code>, <code>xspan</code>","The lowest, the highest and the mean x, and their difference; <code>min(x)</code>, <code>max(x)</code>, <code>mean(x)</code> too."],["<code>ymin</code>, <code>ymax</code>, <code>ymean</code>, <code>yspan</code>","The same of y; <code>min(y)</code>, <code>max(y)</code>, <code>mean(y)</code> too."],["<code>yfirst</code>, <code>ylast</code>","y at the lowest and the highest x."],["<code>xat</code>, <code>xatmin</code>","x where y is highest, and lowest."],["<code>fwhm</code>","The width of the highest peak at half its height above the lowest point."],["<code>area</code>, <code>n</code>","The area under the points, and how many there are."]],"code")}
+<h2 id="sets">Saved fit settings</h2>
+<p><em>Saved settings</em>, beside the Model heading (and ${MP("Analyze › Fit › Saved fit settings")}), keeps a curve fit's settings by name: the model (a function of yours goes with them), the starts or their formulas, Fix, the limits and digits, the constraints, the weights (a column's weights are the project's, so they are kept as none), the apparent fit, fit control, the confidence level and the range (all the data, or the one typed, used again on data in the same X units). Keep them in the project, where whoever opens it has them (saved and undone with it), or in this browser, for every project opened here. Choosing them sets the Fit window up, one undo step, and the toast offers <em>Fit</em>. <em>Rename or delete settings</em> renames them, deletes them, or copies them between the project and the browser.</p>
+<h2 id="follow">Fit again when the data change</h2>
+<p>Ticked (the Fit window's options, the fit on screen at once), the fit is made again, with its own settings and from its last values, whenever its column's processing, original data or mask change, as a set of peaks is found again: a line in the log and no undo step of its own, so undoing the change brings the old fit back with it. A fit that cannot be made again (too few points left, a model the data no longer suit) stays as it was, marked out of date, and its note says why. Results lists <em>Fitted again: when its data change</em>.</p>
 <h2 id="cons">Constraints</h2>
 <p>The <em>Constraints</em> box under the parameters takes one rule a line (<code>#</code> begins a note), read as it is typed:</p>
 ${DL([["<code>b = 2*a + 1</code>","b follows the others: it is not fitted on its own, the model applies the formula, and its error is carried from theirs. Its start is the formula, its Fix is off, and Results says what it follows."],["<code>t1 &lt; t2</code>, <code>t1 &lt;= t2</code>","t2 stays above t1 (≤ and ≥ work too, and &gt;): it is fitted as t1 plus a difference that cannot go below 0, strictly above it with &lt;, so two decays or two peaks keep their order. Its own limits do not apply; one that ends on t1 is marked at its limit."]],"code")}
@@ -21203,7 +21306,7 @@ function fitOne(c,t,seed,spec){
   const d=finalOf(c); if((d.xu||"")!==(t.xu||"")) return {fail:`its X is in ${d.xu||"other units"}, not ${t.xu||"the template's units"}`};
   const pts=batchPts(c,t); if(pts.length<4) return {fail:"fewer than four points in the range"};
   const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), he=!!(d.e&&d.e.some(v=>v!=null&&v>0)), tk=weightOf(t);
-  const WT0=tk==="yerr"&&he?fitWeights("yerr",Y,pts.map(q=>q.e)):tk==="counts"?fitWeights("counts",Y):null, WT=WT0&&!WT0.fail?Object.assign(WT0,{kind:tk,key:tk}):{W:pts.map(()=>1),scale:true,kind:"none",key:"none"}, useW=WT.kind!=="none", W=WT.W;
+  const wcc=tk==="col"&&t.wcol?colById(t.wcol):null, WT0=tk==="yerr"&&he?fitWeights("yerr",Y,pts.map(q=>q.e)):tk==="counts"?fitWeights("counts",Y):wcc?fitWeights("col",Y,null,pts.map(q=>wcc.data[q.i])):null, WT=WT0&&!WT0.fail?Object.assign(WT0,{kind:tk,key:tk==="col"?"col:"+t.wcol:tk}):{W:pts.map(()=>1),scale:true,kind:"none",key:"none"}, useW=WT.kind!=="none", W=WT.W;
   let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; X.forEach(v=>{ if(v<x0) x0=v; if(v>x1) x1=v; }); Y.forEach(v=>{ if(v<y0) y0=v; if(v>y1) y1=v; });
   const SX=t.xerr?xErrsOf(c,pts):null, SY=useW?W.map(w=>1/w):null;
   const base={onCol:c.id,onColName:c.name||"",maskSig:maskSig(c),pipeSig:pipeSig(c),rawFp:rawFp(),hadErrCol:he,range:[x0,x1],...weightRec(WT),by:who(),at:Date.now(),batch:true,...(t.conf?{conf:t.conf}:{})};
@@ -21225,7 +21328,7 @@ function fitOne(c,t,seed,spec){
   const Bt=boundsOf(t.lim,m,seed,t.fixed); if(Bt.fail) return {fail:Bt.fail};
   const Ct=consOf(t,m); if(Ct&&Ct.err) return {fail:"its constraints: "+lcFirst(consErr(Ct))}; if(Ct&&SX) return {fail:"constraints are not taken with the X errors"};
   if(Ct&&Ct.ineqs.some(r=>Bt.fixed[r.hi])) return {fail:"a fixed parameter is kept above another by a constraint"};
-  const fo=Object.assign({lo:Bt.lo,hi:Bt.hi},t.ctl?{maxIter:t.ctl.maxIter,tol:t.ctl.tol}:{});
+  const fo=Object.assign({lo:Bt.lo,hi:Bt.hi,scale:WT.scale},t.ctl?{maxIter:t.ctl.maxIter,tol:t.ctl.tol}:{});
   const res=SX?odrFit(m.f,X,Y,SY,SX,Bt.p0.slice(),Bt.fixed.slice(),fo):consFit(m.f,Xm,Ym,Wm,Bt.p0.slice(),Bt.fixed.slice(),fo,Ct); if(res.error) return {fail:res.error};
   if(!res.params.every(Number.isFinite)) return {fail:"the fit diverged"};
   return {fit:out(res,Object.assign({model:t.model,fixed:Bt.fixed.slice()},t.app?{app:clone(t.app)}:{},Ct?{cons:t.cons}:{},t.fn?{fn:clone(t.fn)}:{},t.ctl?{ctl:Object.assign({},t.ctl,{method:SX?"odr":"lm"})}:{},t.lim?{lim:clone(t.lim)}:{},t.dig?{dig:t.dig.slice()}:{}))};
@@ -23037,6 +23140,8 @@ function renderAll(){ scheduleAway();
   // A set that follows its spectrum is found again first; with this browser's
   // store the save has already drawn everything by the time it returns.
   const rc=++renderCount; if(followPeakSets()&&renderCount!==rc) return;
+  // So does a fit set to follow its data.
+  const rc2=++renderCount; if(followFits()&&renderCount!==rc2) return;
   if(S.pending&&(!P()||!colById(S.pending.col))) S.pending=null;
   syncGraphWins(); syncTrendWins(); layoutFigs(null,{quiet:true});
   renderTop(); renderPlot(); renderStages(); renderTabMarks(); renderGraphHeads(); scheduleSnaps(0);

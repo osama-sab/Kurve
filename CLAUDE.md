@@ -501,6 +501,20 @@ graph first, with the taskbar kept at the bottom of the screen.
   takes followers as not free through `consApply`; `statsList`'s Constraints (`consSummary`), the
   report's Method (and the formula starts, `fxStartsText`) and the CSV state them;
   `batchTemplate` carries `cons`, `fitOne` uses `consFit`, `fitTogether` refuses them.
+  **Saved fit settings and following** (`FIT_SPEC.md` slice 9): `p.fitSets` (in `UNDO_KEYS`,
+  `projFitSets`, `saveProjFitSets`) and the browser's `kurve.fitsets` (`fitSetLib`,
+  `fitSetLibSave`), each `{id, name, at, by, model, fn, init, initFx, fixed, lim, dig, weight (a
+  column's as none), app, cons, ctl, conf, xerr, follow, range {x0, x1, xu} or null}` from
+  `fitSetOf(d, c)`; `fitSetText` (the tooltip), `saveFitSetAs`, `renameFitSet`, `copyFitSet`,
+  `deleteFitSet`, `useFitSet(s)` (the draft set, one undo entry, a carried function adopted, the
+  range used only in the same X units, formula starts measured, a toast with Fit),
+  `fitSetMenuItems` (`#fitSets` in the Model heading, `.gh.ghact`; Analyze › Fit › Saved fit
+  settings). A fit's `follow` (the drafts' `follow`; `followSw`, `#fitFollow`, `#pfFollow`,
+  `setFollow`: the fit on screen at once, one undo entry): `followFits()` in `renderAll` after
+  `followPeakSets` refits `p.fit` through `fitOne(c, batchTemplate(f), f.params)` (a column's
+  weights kept, `fitOne` now taking them) when its column's `pipeSig` or `maskSig` changed, saving
+  with a log line and no undo entry; a failure stores `followFail` and `followTried` (not tried
+  again for the same data), said by `fitWarnings` (`follow`); `statsList` has *Fitted again*.
   **The parameter grid** (`FIT_SPEC.md` slice 2; `paramGridHtml`, `wirePGrid`, `pgMarks`):
   each parameter with its unit and meaning (`MODELS[k].mean`, also in Results), Start and
   Fix, Lowest and Highest (each with a ≤ or < button, `data-prel`; typed, empty for the
@@ -2227,7 +2241,10 @@ line through the logarithms, drawn in the data's terms without units, Results' r
 residuals, Find X/Y, a refusal, the axis made linear again). Slice 8: a formula start typed,
 measured, refused and measured again by Guess; a constraint read as typed, the follower in the
 grid and fitted with its error carried, Results' row, a refusal by the box and by Fit, a model
-change clearing them, two decays kept in order, 1 iteration, a reload.
+change clearing them, two decays kept in order, 1 iteration, a reload. Slice 9: the menu, saved
+in the browser and the project (one undo step), used again and undone, Analyze › Fit's list,
+deleted and back; following set at once, a mask change refitted with a log line, one undo taking
+both back, a refit that cannot be made said in the notes.
 `node tools/fit-test.mjs`, `node tools/pipe-test.mjs`, `node tools/parser-test.mjs` and
 `node tools/tex-test.mjs` cover the numerics, the processing steps with their checks and the
 fingerprint, the parser, and the LaTeX typesetter (nesting, italics, spacing, fractions, roots,
@@ -3118,7 +3135,11 @@ data in range (`max(y) - min(y)`, `xat`, `fwhm`), shown as typed and measured ag
 each fit; constraints, one a line: a parameter that follows a formula of the others (its error
 carried, as a tie's), and an inequality that keeps two in order at every iteration
 (reparametrised as a difference that cannot go below 0); refused in words where they mean
-nothing; kept with the fit and stated by Results, the report and the CSV.
+nothing; kept with the fit and stated by Results, the report and the CSV. Slice 9 done: fit
+settings saved by name in the project or the browser, as saved styles are (the model, the starts
+or their formulas, limits, constraints, weights, control, the range), used from the Model heading
+or Analyze › Fit; and a fit that follows its data, made again whenever its column's processing,
+data or mask change, with a log line and no undo step of its own.
 
 Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
 graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
@@ -3434,7 +3455,7 @@ Next, in order:
    the covariance and correlation matrices, studentised residuals, residual plots and
    outliers; Find X/Y (done); the fitted values and residuals in the worksheet (done); counting and
    column weights, an apparent fit (done); starting values and constraints as formulas (done); fit
-   settings saved by name, and fits that follow their data; the function editor grown, and
+   settings saved by name, and fits that follow their data (done); the function editor grown, and
    an organizer. In the docked Fit window, in Kurve's words, running no code
 2. Plot setup as Origin's, the user's question ("why can I not choose how I want to plot the
    graph, for example the range, which axis is the error axis"); the comparison, the decisions
@@ -3606,6 +3627,9 @@ Next, in order:
   guesses are measured heuristics (two or three decays from a grid of 16 decay times, a wave's
   period from at most 600 points), and a sketch shows typical values, not the data's; your
   functions have no kind of their own in the list yet
+- Saved fit settings are a curve fit's (a peak fit's peaks are its own); a column's weights and a
+  range in other X units are not carried. Following is the fit on screen's (not a batch row's), and
+  it refits from the last values with the stored settings (formula starts are not measured again)
 - Constraints: curve fits only (a peak fit has its ties); an equality's formula reads parameters,
   not the data; an inequality is between two parameters (not `a < 2*b`, not three at once); not
   with the X errors or a fit of every column together; a formula start reads the data's measures,
