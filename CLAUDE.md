@@ -515,6 +515,22 @@ graph first, with the taskbar kept at the bottom of the screen.
   weights kept, `fitOne` now taking them) when its column's `pipeSig` or `maskSig` changed, saving
   with a log line and no undo entry; a failure stores `followFail` and `followTried` (not tried
   again for the same data), said by `fitWarnings` (`follow`); `statsList` has *Fitted again*.
+  **The function editor grown** (`FIT_SPEC.md` slice 10): a function of yours may carry `cat`, per
+  parameter `mean` and `fx` (a start formula, `init` null), `cons` and `derived` (text, one a line;
+  `parseDerived(text, names)` in MODELS, `{list:[{name, src, fn}]}` or `{err:{line, msg}}`).
+  `userModel` gives `mean`, `cat`, `cons`, `derived` (for `derivedWithErr`) and a `guess` that
+  measures `fx` (`evalStart` on `dataMeasures`); its cache key carries them. `editUserFn` has
+  Category (`#fbCat`, a datalist of those in use), a Meaning column (`fbM_<key>`), starts as
+  formulas (checked on the preview's data, or the names alone with none), Constraints (`#fbCons`,
+  `parseCons`) and Derived values (`#fbDer`), each refused in the one message with its line.
+  Choosing a function (`chooseModel`, the editor's save) gives the draft its constraints and
+  formula starts (`ufnDraftFrom`). The model list files your functions and the library's by
+  category (`byCat`; a category is searched too) and has *Your functions…* (`data-morg`).
+  `openFnOrganizer()` (Analyze › Fit › Your functions…): every function of the project and the
+  library in one table by category (`#fnOrg`, `.fnorg`), name and category typed in place (one
+  undo entry for the project's, the library's copy too), Edit… (closes it, adopting a library
+  function first), To browser, To project, Delete (`deleteUserFn`, or the library's with a
+  toast's Undo).
   **The parameter grid** (`FIT_SPEC.md` slice 2; `paramGridHtml`, `wirePGrid`, `pgMarks`):
   each parameter with its unit and meaning (`MODELS[k].mean`, also in Results), Start and
   Fix, Lowest and Highest (each with a ≤ or < button, `data-prel`; typed, empty for the
@@ -2244,7 +2260,10 @@ grid and fitted with its error carried, Results' row, a refusal by the box and b
 change clearing them, two decays kept in order, 1 iteration, a reload. Slice 9: the menu, saved
 in the browser and the project (one undo step), used again and undone, Analyze › Fit's list,
 deleted and back; following set at once, a mask change refitted with a log line, one undo taking
-both back, a refit that cannot be made said in the notes.
+both back, a refit that cannot be made said in the notes. Slice 10: the editor's refusals (a start,
+a derived value), a function saved with its category, formula start, meaning, constraints and
+derived values, the Fit window starting with them, the derived value and its error in Results,
+the model list's category, the organizer (renamed and filed in place, undone, deleted).
 `node tools/fit-test.mjs`, `node tools/pipe-test.mjs`, `node tools/parser-test.mjs` and
 `node tools/tex-test.mjs` cover the numerics, the processing steps with their checks and the
 fingerprint, the parser, and the LaTeX typesetter (nesting, italics, spacing, fractions, roots,
@@ -3139,7 +3158,11 @@ nothing; kept with the fit and stated by Results, the report and the CSV. Slice 
 settings saved by name in the project or the browser, as saved styles are (the model, the starts
 or their formulas, limits, constraints, weights, control, the range), used from the Model heading
 or Analyze › Fit; and a fit that follows its data, made again whenever its column's processing,
-data or mask change, with a log line and no undo step of its own.
+data or mask change, with a log line and no undo step of its own. Slice 10 done: the function
+editor grown (a category, each parameter's meaning, starts as formulas of the data, constraints
+the Fit window starts with, derived values with their errors) and an organizer for your functions
+(by category, renamed and filed in place, edited, deleted, copied between the project and the
+browser). The curve fit's ten slices are done.
 
 Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
 graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
@@ -3456,7 +3479,7 @@ Next, in order:
    outliers; Find X/Y (done); the fitted values and residuals in the worksheet (done); counting and
    column weights, an apparent fit (done); starting values and constraints as formulas (done); fit
    settings saved by name, and fits that follow their data (done); the function editor grown, and
-   an organizer. In the docked Fit window, in Kurve's words, running no code
+   an organizer (done; all ten slices done 29.10). In the docked Fit window, in Kurve's words, running no code
 2. Plot setup as Origin's, the user's question ("why can I not choose how I want to plot the
    graph, for example the range, which axis is the error axis"); the comparison, the decisions
    and six slices are `ux/spec/PLOT_SPEC.md`: what each curve on a graph uses (`curveUse`: its
@@ -3627,6 +3650,8 @@ Next, in order:
   guesses are measured heuristics (two or three decays from a grid of 16 decay times, a wave's
   period from at most 600 points), and a sketch shows typical values, not the data's; your
   functions have no kind of their own in the list yet
+- Your functions: a derived value has no unit of its own (it is shown without one); a category is
+  one word or phrase, not a tree; the organizer works on one function at a time
 - Saved fit settings are a curve fit's (a peak fit's peaks are its own); a column's weights and a
   range in other X units are not carried. Following is the fit on screen's (not a batch row's), and
   it refits from the last values with the stored settings (formula starts are not measured again)

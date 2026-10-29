@@ -355,6 +355,17 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .ws .fxm.old{color:var(--warn)}
 .ptab.pg input.pgsfx{font-style:italic;color:var(--accent)}
 .ptab.pg input.pgfol{font-style:italic}
+.fbmore{margin-top:var(--sp-4)}
+.fbpars input[id^="fbM_"]{text-align:left}
+.fbmore textarea{font-family:var(--mono);width:100%;min-height:3.2em;resize:vertical}
+.fnorg{width:100%}
+.fnorg td input[type=text]{width:100%}
+.fnorg td input[type=text]{text-align:left}
+.fnorg td input[data-fnname]{min-width:12em}
+.fnorg td input[data-fncat]{min-width:8em}
+.fnorg .fngrp th{text-align:left;padding-top:var(--sp-4);font-weight:600}
+.fnorg td.fe{font-family:var(--mono);max-width:11em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fnorg td.fa{white-space:nowrap}
 .gh.ghact{display:flex;align-items:center;gap:var(--sp-3)}
 .gh.ghact>.btn{margin-left:auto;font-weight:400}
 .fcons{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--sp-2) var(--sp-4);align-items:start;margin:var(--sp-4) 0}
@@ -5296,6 +5307,7 @@ function parseCons(text,names){
       if(cm.usesX) return bad(k+1,"a constraint is between parameters: x has no place in it");
       for(const nm of cm.params){ if(!has(nm)) return bad(k+1,`“${nm}” is not a parameter`); if(nm===a) return bad(k+1,`${a} cannot follow itself`); }
       eqs.push({i:idx[a],deps:cm.params.map(nm=>idx[nm]),f:cm.f,rhs:m[2].trim(),line:k+1,src:s}); continue; }
+    if(new RegExp(`^(${ID})\\s*(<=|>=|≤|≥|<|>)\\s*[-+]?[\\d.]`,"u").test(s)) return bad(k+1,"a constraint is between two parameters: a limit such as b ≤ 1 goes in the parameter's Lowest or Highest");
     return bad(k+1,"write a = a formula of the other parameters, or a < b"); }
   const owner=new Map();
   for(const q of eqs.map(e=>({t:e.i,line:e.line})).concat(ineqs.map(r=>({t:r.hi,line:r.line})))){ if(owner.has(q.t)) return bad(q.line,`${names[q.t]} is set by line ${owner.get(q.t)} already`); owner.set(q.t,q.line); }
@@ -5333,6 +5345,20 @@ function consFit(f,X,Y,W,p0,fixed,opt,C){
   if(!C||!C.any) return lmFit(f,X,Y,W,p0,fixed,opt);
   const pr=consProblem(C,f,p0,fixed,opt&&opt.lo,opt&&opt.hi), res=lmFit(pr.f,X,Y,W,pr.q0,pr.fixed,Object.assign({},opt||{},{lo:pr.lo,hi:pr.hi}));
   return res.error?res:consResult(res,C);
+}
+/* A function's derived values (FIT_SPEC slice 10), one a line: "a name = a formula of the
+   parameters" (Half-life = t*ln(2)); each is fn(p), for derivedWithErr's delta method. A name
+   given twice, x, or a name that is no parameter is refused, with its line. */
+function parseDerived(text,names){
+  const idx=Object.create(null); names.forEach((n,i)=>{ idx[n]=i; }); const list=[], seen=new Set(), lines=String(text==null?"":text).split(/\r?\n/);
+  for(let k=0;k<lines.length;k++){ const s=lines[k].replace(/#.*$/,"").trim(); if(!s) continue;
+    const m=/^([^=]+?)\s*=\s*(.+)$/.exec(s); if(!m) return {err:{line:k+1,msg:"write a name = a formula of the parameters"}};
+    const name=m[1].trim().slice(0,40); if(seen.has(name)) return {err:{line:k+1,msg:`“${name}” is named twice`}}; seen.add(name);
+    let cm; try{ cm=compileExpr(m[2],{allowNone:true}); }catch(e){ return {err:{line:k+1,msg:e.message}}; }
+    if(cm.usesX) return {err:{line:k+1,msg:"a derived value is of the parameters: x has no place in it"}};
+    for(const nm of cm.params) if(!Object.prototype.hasOwnProperty.call(idx,nm)) return {err:{line:k+1,msg:`“${nm}” is not a parameter`}};
+    const ii=cm.params.map(nm=>idx[nm]); list.push({name,src:m[2].trim(),fn:p=>cm.f(0,ii.map(j=>p[j]))}); }
+  return {list};
 }
 /* Find X/Y (FIT_SPEC slice 5). The curve's Y at an X, with its standard error by the delta
    method (the confidence band's at that X) and its interval at t; null where the curve has no
@@ -15630,7 +15656,7 @@ function removeFit(){
 const UFN_CACHE=new Map(), UFN_LIB="kurve.fns";
 const UFN_DIMS=[["","none"],["x","as X"],["y","as Y"],["yx","Y·X"],["y/x","Y/X"]];
 function userModel(fn){
-  const key=(fn.name||"")+"\u0000"+fn.expr+"\u0000"+JSON.stringify(fn.params||[]);
+  const key=(fn.name||"")+"\u0000"+fn.expr+"\u0000"+JSON.stringify(fn.params||[])+"\u0000"+(fn.derived||"")+"\u0000"+(fn.cons||"")+"\u0000"+(fn.cat||"");
   const hit=UFN_CACHE.get(key); if(hit) return hit;
   const c=compileExpr(fn.expr), meta=Object.create(null); (fn.params||[]).forEach(q=>{ if(q&&q.n) meta[q.n]=q; });
   const num=v=>v!=null&&v!==""&&Number.isFinite(+v)?+v:null;
@@ -15640,7 +15666,11 @@ function userModel(fn){
     formula:`<span class="ufx">${lines.map(esc).join("<br>")}</span>`, f:c.f,
     lo:c.params.map(n=>{ const v=num(meta[n]&&meta[n].lo); return v==null?-Infinity:v; }),
     hi:c.params.map(n=>{ const v=num(meta[n]&&meta[n].hi); return v==null?Infinity:v; }),
-    guess:(X,Y)=>{ const g=guessUserParams(c.params,X,Y); return c.params.map((n,i)=>{ const v=num(meta[n]&&meta[n].init); return v==null?g[i]:v; }); }};
+    mean:c.params.map(n=>(meta[n]&&meta[n].mean)||""), cat:String(fn.cat||"").trim(), cons:String(fn.cons||""),
+    derived:(()=>{ const r=parseDerived(fn.derived||"",c.params); return r.err?[]:r.list.map(q=>({name:q.name,dim:"",fn:q.fn})); })(),
+    // A start is a number, a formula of the data (measured on the points given), or guessed from the parameter's name.
+    guess:(X,Y)=>{ const g=guessUserParams(c.params,X,Y); let M=null; return c.params.map((n,i)=>{ const q=meta[n], v=num(q&&q.init);
+      if(v!=null) return v; if(q&&q.fx){ M=M||dataMeasures(X,Y); const r=evalStart(q.fx,M); if(!r.err) return r.v; } return g[i]; }); }};
   if(UFN_CACHE.size>60) UFN_CACHE.clear(); UFN_CACHE.set(key,m); return m;
 }
 function libFns(){ try{ const a=JSON.parse(localStorage.getItem(UFN_LIB)||"[]"); return Array.isArray(a)?a.filter(f=>f&&f.id&&typeof f.expr==="string"):[]; }catch(e){ return []; } }
@@ -15668,8 +15698,12 @@ function chooseModel(v,focus){
   const d=ensureDraft(); if(!d||S.readOnly||!v||v===d.model||!getModel(v)) return;
   pushUndo("changing the model"); d.model=v; d.fn=null; d.fixed=null; d.lim=null; d.dig=null; d.cons=""; d.initFx=null; S.fitError="";
   const p=P(); if(v.startsWith("u:")&&!((p&&p.userFns)||[]).some(q=>"u:"+q.id===v)){ const lf=libFns().find(q=>"u:"+q.id===v); if(lf) adoptLibFn(lf); }
+  ufnDraftFrom(d,getModel(v));
   guessDraft(); renderFit(); const el=$(focus||"#model"); if(el) el.focus({preventScroll:true});
 }
+// A function of yours gives the draft its constraints and formula starts.
+function ufnDraftFrom(d,m){ if(!d||!m||!m.user) return; d.cons=m.cons||""; const ps=(m.def&&m.def.params)||[];
+  const fx=m.params.map(n=>{ const q=ps.find(z=>z&&z.n===n); return q&&q.fx?q.fx:null; }); d.initFx=fx.some(Boolean)?fx:null; }
 /* A model's sketch: the curve at typical values (the model's sketch, or a
    function's own starting values over 0 to 10), 56 × 22, drawn once. */
 const MSK=new Map();
@@ -15698,20 +15732,24 @@ function openModelPicker(btn,cur,pick,opt){
   opt=opt||{}; closeFontPicker(); closeColorPicker();
   const p=P(), ufs=(p&&p.userFns)||[], lib=libFns().filter(q=>!ufs.some(u=>u.id===q.id)), poly=polyOrderOf(cur)>1;
   const um=fn=>{ try{ return userModel(fn); }catch(e){ return null; } };
-  const row=(id,m,note)=>{ const on=id===cur||(id==="poly2"&&poly), q=[m.listAs||"",m.name,phPlain(m.formula||""),(m.mean||[]).join(" "),m.kw||"",m.user?m.expr||"":"",note||""].join(" ").toLowerCase();
+  const row=(id,m,note)=>{ const on=id===cur||(id==="poly2"&&poly), q=[m.listAs||"",m.cat||"",m.name,phPlain(m.formula||""),(m.mean||[]).join(" "),m.kw||"",m.user?m.expr||"":"",note||""].join(" ").toLowerCase();
     return `<button type="button" class="mp-i" role="option" aria-selected="${on}" tabindex="-1" data-mid="${esc(id)}" data-q="${esc(q)}">${modelSketch(m)}<span class="mp-t"><span class="mp-n">${esc(m.listAs||m.name)}${note?` <em>${esc(note)}</em>`:""}</span><span class="mp-f${m.user?" mono":""}">${m.user?esc(m.expr||""):m.formula}</span></span>${on?ICON("check","sm"):""}</button>`; };
   let h=`<div class="fp-s"><input type="search" placeholder="Find a model" aria-label="Find a model" autocomplete="off" spellcheck="false"></div><div class="fp-l mp-l" role="listbox" aria-label="Models">`;
   MODEL_GROUPS.forEach(([g,ids])=>{ h+=`<div class="fp-g">${esc(g)}</div>`+ids.map(id=>row(id,MODELS[id],id==="poly2"?"order 2 to 9":"")).join(""); });
   const mine=ufs.map(fn=>[fn,um(fn)]).filter(x=>x[1]), fl=lib.map(fn=>[fn,um(fn)]).filter(x=>x[1]), ff=opt.fromFit;
-  if(mine.length||ff) h+=`<div class="fp-g">Your functions</div>`+mine.map(([fn,m])=>row("u:"+fn.id,m)).join("")+(ff?row(ff.id,ff.m,"from the fit"):"");
-  if(fl.length) h+=`<div class="fp-g">From this browser's library</div>`+fl.map(([fn,m])=>row("u:"+fn.id,m)).join("");
-  h+=`<p class="mp-none" hidden>No model matches. Write your own with New function.</p></div><div class="fp-f"><button type="button" class="btn sm" data-mnew>${ICON("plus","sm")}New function…</button><span class="lab">${Object.values(MODELS).filter(m=>!m.hide).length} models</span></div>`;
+  // Your functions by category, those with none first.
+  const byCat=(list,t)=>{ const cs=[...new Set(list.map(([fn])=>String(fn.cat||"").trim()))].sort((a,b)=>a===""?-1:b===""?1:a.localeCompare(b));
+    return cs.map(c=>`<div class="fp-g">${esc(c?`${t}: ${c}`:t)}</div>`+list.filter(([fn])=>String(fn.cat||"").trim()===c).map(([fn,m])=>row("u:"+fn.id,m)).join("")).join(""); };
+  if(mine.length) h+=byCat(mine,"Your functions"); if(ff) h+=(mine.length?"":`<div class="fp-g">Your functions</div>`)+row(ff.id,ff.m,"from the fit");
+  if(fl.length) h+=byCat(fl,"From this browser's library");
+  h+=`<p class="mp-none" hidden>No model matches. Write your own with New function.</p></div><div class="fp-f"><button type="button" class="btn sm" data-mnew>${ICON("plus","sm")}New function…</button>${ufs.length||lib.length?`<button type="button" class="btn sm ghost" data-morg>Your functions…</button>`:""}<span class="lab">${Object.values(MODELS).filter(m=>!m.hide).length} models</span></div>`;
   const el=document.createElement("div"); el.className="fpick mpick"; el.setAttribute("role","dialog"); el.setAttribute("aria-label","Models"); el.innerHTML=h;
   document.body.appendChild(el); placePop(el,btn); btn.setAttribute("aria-expanded","true");
   const q=el.querySelector('input[type="search"]'), list=el.querySelector(".mp-l"), none=el.querySelector(".mp-none");
   const done=id=>{ closeFontPicker(); pick(id); };
   el.addEventListener("click",e=>{ const b=e.target.closest(".mp-i"); if(b){ done(b.dataset.mid); return; }
-    if(e.target.closest("[data-mnew]")){ closeFontPicker(); editUserFn(null); } });
+    if(e.target.closest("[data-mnew]")){ closeFontPicker(); editUserFn(null); }
+    if(e.target.closest("[data-morg]")){ closeFontPicker(); openFnOrganizer(); } });
   q.addEventListener("input",()=>{ const ws=q.value.trim().toLowerCase().split(/\s+/).filter(Boolean); let grp=null, any=false, all=false;
     list.querySelectorAll(".fp-g,.mp-i").forEach(n=>{ if(n.classList.contains("fp-g")){ if(grp) grp.hidden=!any; grp=n; any=false; return; }
       const hit=ws.every(w=>n.dataset.q.includes(w)); n.hidden=!hit; if(hit){ any=true; all=true; } }); if(grp) grp.hidden=!any; none.hidden=all; list.scrollTop=0; });
@@ -15736,16 +15774,16 @@ async function editUserFn(id,opt){
   const p=P(); if(!p||S.readOnly) return;
   const old=id?(p.userFns||[]).find(f=>f.id===id):null;
   const base=old||(opt&&opt.from)||{name:"",expr:"y = y0 + A*exp(-(x/t)^b)",params:[{n:"b",init:1,lo:0.1,hi:3}]};
-  const vals=Object.create(null); (base.params||[]).forEach(q=>{ vals[q.n]={init:q.init==null?"":String(q.init),lo:q.lo==null?"":String(q.lo),hi:q.hi==null?"":String(q.hi),dim:q.dim||""}; });
+  const vals=Object.create(null); (base.params||[]).forEach(q=>{ vals[q.n]={init:q.fx?q.fx:q.init==null?"":String(q.init),lo:q.lo==null?"":String(q.lo),hi:q.hi==null?"":String(q.hi),dim:q.dim||"",mean:q.mean||""}; });
   const inLib=old?libFns().some(f=>f.id===old.id):true;
   const pts=(fitPoints().length>=2?fitPoints():pointsAll()).slice().sort((a,b)=>a.x-b.x), X=pts.map(q=>q.x), Y=pts.map(q=>q.y);
   let comp=null, shown=null;
   const pnum=s=>{ const v=parseNum(s); return v==null?null:v; };
-  const rows=params=>params.map(n=>{ const v=vals[n]||(vals[n]={init:"",lo:"",hi:"",dim:""}), k=ufnKey(n);
-    return `<tr><td class="pn"><i>${esc(n)}</i></td><td><input type="text" inputmode="decimal" id="fbS_${k}" value="${esc(v.init)}" placeholder="auto" title="Empty: guessed from the data" aria-label="Starting value of ${esc(n)}"></td><td><input type="text" inputmode="decimal" id="fbL_${k}" value="${esc(v.lo)}" placeholder="none" aria-label="Lowest value of ${esc(n)}"></td><td><input type="text" inputmode="decimal" id="fbH_${k}" value="${esc(v.hi)}" placeholder="none" aria-label="Highest value of ${esc(n)}"></td><td><select id="fbU_${k}" aria-label="Unit of ${esc(n)}">${UFN_DIMS.map(([dv,l])=>`<option value="${dv}"${dv===v.dim?" selected":""}>${esc(l)}</option>`).join("")}</select></td></tr>`; }).join("");
+  const rows=params=>params.map(n=>{ const v=vals[n]||(vals[n]={init:"",lo:"",hi:"",dim:"",mean:""}), k=ufnKey(n);
+    return `<tr><td class="pn"><i>${esc(n)}</i></td><td><input type="text" id="fbS_${k}" value="${esc(v.init)}" placeholder="auto" title="A number, a formula of the data (max(y) - min(y), xat, fwhm…), or empty: guessed from the data" aria-label="Starting value of ${esc(n)}" spellcheck="false"></td><td><input type="text" inputmode="decimal" id="fbL_${k}" value="${esc(v.lo)}" placeholder="none" aria-label="Lowest value of ${esc(n)}"></td><td><input type="text" inputmode="decimal" id="fbH_${k}" value="${esc(v.hi)}" placeholder="none" aria-label="Highest value of ${esc(n)}"></td><td><select id="fbU_${k}" aria-label="Unit of ${esc(n)}">${UFN_DIMS.map(([dv,l])=>`<option value="${dv}"${dv===v.dim?" selected":""}>${esc(l)}</option>`).join("")}</select></td><td><input type="text" id="fbM_${k}" value="${esc(v.mean||"")}" maxlength="80" placeholder="what it is" aria-label="What ${esc(n)} means"></td></tr>`; }).join("");
   const preview=()=>{
     if(!comp||X.length<2) return `<p class="lab">No data in view to preview on.</p>`;
-    const g=guessUserParams(comp.params,X,Y), p0=comp.params.map((n,i)=>{ const v=pnum(vals[n]&&vals[n].init); return v==null?g[i]:v; });
+    const g=guessUserParams(comp.params,X,Y), M=dataMeasures(X,Y), p0=comp.params.map((n,i)=>{ const s=vals[n]&&vals[n].init, v=pnum(s); if(v!=null) return v; if(String(s||"").trim()){ const e=evalStart(s,M); if(!e.err) return e.v; } return g[i]; });
     let a=Infinity,b=-Infinity; X.forEach(v=>{ if(v<a) a=v; if(v>b) b=v; });
     const fx=[], fy=[]; for(let i=0;i<=240;i++){ const x=a+(b-a)*i/240, y=comp.f(x,p0); if(Number.isFinite(y)){ fx.push(x); fy.push(y); } }
     if(fx.length<2) return `<p class="fbwarn">${ICON("alert","sm")}The function gives no number anywhere in this range at these starting values. Change a start, or the formula.</p>`;
@@ -15754,24 +15792,34 @@ async function editUserFn(id,opt){
       +`<div class="ba-leg"><span><i style="background:${pal.muted}"></i>data in view</span><span><i style="background:${pal.fit}"></i>the function at its starting values</span>${fx.length<200?`<span class="warnt">undefined at ${241-fx.length} of 241 points</span>`:""}</div>`;
   };
   const update=r=>{
-    if(comp) comp.params.forEach(n=>{ const k=ufnKey(n); if(("fbS_"+k) in r) vals[n]={init:r["fbS_"+k],lo:r["fbL_"+k],hi:r["fbH_"+k],dim:r["fbU_"+k]}; });
+    if(comp) comp.params.forEach(n=>{ const k=ufnKey(n); if(("fbS_"+k) in r) vals[n]={init:r["fbS_"+k],lo:r["fbL_"+k],hi:r["fbH_"+k],dim:r["fbU_"+k],mean:r["fbM_"+k]||""}; });
     const msg=$("#fbMsg"), prev=$("#fbPrev"), tb=$("#fbPars tbody"), tbl=$("#fbPars"); if(!msg) return false;
     try{ comp=compileExpr(r.fbExpr); }
     catch(e){ comp=null; shown=null; msg.className="fbmsg bad"; msg.innerHTML=`${ICON("alert","sm")}<span>${esc((e.line&&String(r.fbExpr).includes("\n")?`Line ${e.line}: `:"")+e.message)}</span>`; tb.innerHTML=""; tbl.hidden=true; prev.innerHTML=""; return false; }
     const sig=comp.params.join("\u0000"); if(sig!==shown){ tb.innerHTML=rows(comp.params); shown=sig; } tbl.hidden=false;
-    const bad=comp.params.find(n=>["init","lo","hi"].some(f=>String(vals[n][f]||"").trim()!==""&&pnum(vals[n][f])==null));
+    const bad=comp.params.find(n=>["lo","hi"].some(f=>String(vals[n][f]||"").trim()!==""&&pnum(vals[n][f])==null));
+    // A start that is not a number must read as a formula of the data (with no data, its names are checked).
+    const MM=X.length?dataMeasures(X,Y):Object.fromEntries(START_NAMES.map(q=>[q[0],1])), sbad=comp.params.map(n=>{ const s=String(vals[n].init||"").trim(); if(!s||pnum(s)!=null) return null; const e=evalStart(s,MM); return e.err?[n,e.err]:null; }).find(Boolean);
+    if(sbad){ msg.className="fbmsg bad"; msg.innerHTML=`${ICON("alert","sm")}<span>The start of ${esc(sbad[0])}: ${esc(sbad[1])}.</span>`; prev.innerHTML=preview(); return false; }
     const crossed=comp.params.find(n=>{ const lo=pnum(vals[n].lo), hi=pnum(vals[n].hi), s=pnum(vals[n].init); return (lo!=null&&hi!=null&&lo>=hi)||(s!=null&&((lo!=null&&s<lo)||(hi!=null&&s>hi))); });
-    if(bad||crossed){ msg.className="fbmsg bad"; msg.innerHTML=`${ICON("alert","sm")}<span>${bad?`The start and limits of ${esc(bad)} must be numbers, or left empty.`:`${esc(crossed)}: the lowest value must be below the highest, and the start between them.`}</span>`; prev.innerHTML=preview(); return false; }
+    if(bad||crossed){ msg.className="fbmsg bad"; msg.innerHTML=`${ICON("alert","sm")}<span>${bad?`The limits of ${esc(bad)} must be numbers, or left empty.`:`${esc(crossed)}: the lowest value must be below the highest, and the start between them.`}</span>`; prev.innerHTML=preview(); return false; }
+    { const C=String(r.fbCons||"").trim()?parseCons(r.fbCons,comp.params):null, Dv=parseDerived(r.fbDer||"",comp.params);
+      if(C&&C.err){ msg.className="fbmsg bad"; msg.innerHTML=`${ICON("alert","sm")}<span>Constraints, line ${C.err.line}: ${esc(C.err.msg)}.</span>`; prev.innerHTML=preview(); return false; }
+      if(Dv.err){ msg.className="fbmsg bad"; msg.innerHTML=`${ICON("alert","sm")}<span>Derived values, line ${Dv.err.line}: ${esc(Dv.err.msg)}.</span>`; prev.innerHTML=preview(); return false; } }
     msg.className="fbmsg ok"; msg.innerHTML=`${ICON("check","sm")}<span>${comp.params.length} parameter${comp.params.length===1?"":"s"}: ${comp.params.map(n=>`<i>${esc(n)}</i>`).join(", ")}${comp.usesX?"":". The formula does not use x, so it is a constant."}</span>`;
     prev.innerHTML=preview();
     return comp.usesX;
   };
-  const html=`<div class="fnb"><div class="grid2"><label for="fbName">Name</label><input id="fbName" type="text" maxlength="60" value="${esc(base.name||"")}" placeholder="Stretched exponential"></div>
+  const cats=[...new Set(((p.userFns||[]).concat(libFns())).map(f=>String(f.cat||"").trim()).filter(Boolean))].sort();
+  const html=`<div class="fnb"><div class="grid2"><label for="fbName">Name</label><input id="fbName" type="text" maxlength="60" value="${esc(base.name||"")}" placeholder="Stretched exponential">
+    <label for="fbCat" class="tipd" title="Where the model list files it, among your functions">Category</label><input id="fbCat" type="text" maxlength="40" list="fbCatL" value="${esc(base.cat||"")}" placeholder="none"><datalist id="fbCatL">${cats.map(c=>`<option value="${esc(c)}">`).join("")}</datalist></div>
     <label for="fbExpr" class="fblab">The function of <i>x</i></label>
     <textarea id="fbExpr" class="code" rows="3" spellcheck="false" autocapitalize="off" autocomplete="off">${esc(base.expr||"")}</textarea>
     <div id="fbMsg" class="fbmsg" role="status" aria-live="polite"></div>
     <div id="fbPrev" class="fbprev"></div>
-    <table class="ptab fbpars" id="fbPars"><thead><tr><th>Parameter</th><th>Start</th><th>Lowest</th><th>Highest</th><th>Unit</th></tr></thead><tbody></tbody></table>
+    <table class="ptab fbpars" id="fbPars"><thead><tr><th>Parameter</th><th>Start</th><th>Lowest</th><th>Highest</th><th>Unit</th><th>Meaning</th></tr></thead><tbody></tbody></table>
+    <div class="grid2 fbmore"><label for="fbCons" class="tipd" title="One a line: a = a formula of the other parameters, or a &lt; b. The Fit window starts with them when the function is chosen.">Constraints</label><textarea id="fbCons" class="code" rows="2" spellcheck="false" autocomplete="off" placeholder="t1 &lt; t2">${esc(base.cons||"")}</textarea>
+    <label for="fbDer" class="tipd" title="One a line: a name = a formula of the parameters. Results gives each with its error.">Derived values</label><textarea id="fbDer" class="code" rows="2" spellcheck="false" autocomplete="off" placeholder="Half-life = t*ln(2)">${esc(base.derived||"")}</textarea></div>
     <label class="chk"><input type="checkbox" id="fbLib"${inLib?" checked":""}> Keep it in this browser's library too, for other projects</label>
     <details class="grp fbhelp"><summary>How to write a function</summary><div class="gb"><p>Write it as on paper: <code>+ - * / ^</code> (or <code>**</code>), parentheses, numbers such as <code>1.5e-3</code>, and the functions <code>exp ln log10 sqrt abs sin cos tan asin acos atan sinh cosh tanh erf erfc pow min max sign step</code>; <code>log</code> is the natural logarithm, like <code>ln</code>. The constants are <code>pi</code> and <code>e</code>. A product needs its <code>*</code>.</p><p>Every name other than <code>x</code> is a parameter. Name a value on a line of its own and use it below: <code>u = (x - xc)/w</code>, then <code>y = A*exp(-u^2/2) + c</code>. <code>#</code> starts a comment.</p><p>An empty start is guessed from the data by the parameter's name: <code>y0</code> or <code>c</code> a baseline, <code>A</code> or <code>H</code> a height, <code>xc</code> or <code>x0</code> the position of the largest point, <code>w</code> or <code>sigma</code> a tenth of the range, <code>t</code> or <code>tau</code> a third of it; any other starts at 1.</p></div></details></div>`;
   const sheet=$("#formModal .sheet"); sheet.classList.remove("small"); sheet.classList.add("mid");
@@ -15788,12 +15836,13 @@ async function editUserFn(id,opt){
   if(!comp) return;
   const fn={id:old?old.id:"f"+Date.now().toString(36)+Math.random().toString(36).slice(2,5), name:(String(r.fbName||"").trim()||"My function").slice(0,60),
     expr:String(r.fbExpr||"").trim().slice(0,4000),
-    params:comp.params.map(n=>{ const v=vals[n]||{}; return {n,init:pnum(v.init),lo:pnum(v.lo),hi:pnum(v.hi),dim:v.dim||""}; }), at:Date.now(), by:who()};
+    params:comp.params.map(n=>{ const v=vals[n]||{}, s=String(v.init||"").trim(), num=pnum(s); return {n,init:num,fx:num==null&&s?s:null,lo:pnum(v.lo),hi:pnum(v.hi),dim:v.dim||"",mean:String(v.mean||"").trim().slice(0,80)}; }),
+    cat:String(r.fbCat||"").trim().slice(0,40), cons:String(r.fbCons||"").trim().slice(0,2000), derived:String(r.fbDer||"").trim().slice(0,2000), at:Date.now(), by:who()};
   const P0=P(), list=(P0.userFns||[]).slice(), at=list.findIndex(f=>f.id===fn.id);
   if(at>=0) list[at]=fn; else list.push(fn);
   pushUndo(old?"editing a fit function":"adding a fit function");
   libSave(fn,!!r.fbLib);
-  S.fitMode="curve"; const d=ensureDraft(); d.model="u:"+fn.id; d.fn=null; d.fixed=null; d.lim=null; d.dig=null; S.fitError="";
+  S.fitMode="curve"; const d=ensureDraft(); d.model="u:"+fn.id; d.fn=null; d.fixed=null; d.lim=null; d.dig=null; S.fitError=""; ufnDraftFrom(d,userModel(fn));
   save({userFns:list},old?`changed the fit function "${fn.name}" to ${userModel(fn).expr}`:`added the fit function "${fn.name}": ${userModel(fn).expr}`);
   guessDraft(); showTab("fit"); renderFit(); renderPlot();
   toast(old?`Saved “${fn.name}”.`:`Added “${fn.name}”. Its starting values are on the Fit window: press Fit.`,{action:"Undo",run:undo});
@@ -15806,6 +15855,37 @@ function deleteUserFn(id){
   renderFit();
   toast(`Deleted “${fn.name}” from this project${libFns().some(f=>f.id===id)?"; it stays in this browser's library":""}. Fits made with it keep their own copy.`,{action:"Undo",run:undo});
 }
+/* Your functions (FIT_SPEC slice 10): every function of the project and of this browser's
+   library, by category, each renamed and filed (typed in place, one undo entry for the project's),
+   edited, deleted, or copied between the project and the library. */
+function openFnOrganizer(){
+  const p=P(); if(!p) return; const ro=S.readOnly;
+  const all=()=>{ const pf=(P().userFns||[]), lf=libFns(), ids=[...new Set(pf.map(f=>f.id).concat(lf.map(f=>f.id)))];
+    return ids.map(id=>{ const a=pf.find(f=>f.id===id), b=lf.find(f=>f.id===id); return {fn:a||b, proj:!!a, lib:!!b}; }); };
+  const body=()=>{ const L=all(); if(!L.length) return `<p class="lab">No functions yet: New function… in the model list writes one.</p>`;
+    const cats=[...new Set(L.map(q=>String(q.fn.cat||"").trim()))].sort((a,b)=>a===""?-1:b===""?1:a.localeCompare(b)), cl=[...new Set(L.map(q=>String(q.fn.cat||"").trim()).filter(Boolean))].sort();
+    return `<datalist id="fnOrgCats">${cl.map(c=>`<option value="${esc(c)}">`).join("")}</datalist><div class="rscroll"><table class="ptab fnorg"><thead><tr><th>Name</th><th>Category</th><th>Function</th><th>Kept in</th><th></th></tr></thead><tbody>`
+      +cats.map(c=>`<tr class="fngrp"><th colspan="5">${esc(c||"No category")}</th></tr>`+L.filter(q=>String(q.fn.cat||"").trim()===c).sort((a,b)=>String(a.fn.name).localeCompare(String(b.fn.name))).map(q=>{ const f=q.fn;
+        return `<tr data-fnid="${esc(f.id)}"><td><input type="text" data-fnname maxlength="60" value="${esc(f.name||"")}" aria-label="Name of ${esc(f.name||"the function")}"${ro&&q.proj?" disabled":""}></td>`
+          +`<td><input type="text" data-fncat maxlength="40" list="fnOrgCats" value="${esc(f.cat||"")}" placeholder="none" aria-label="Category of ${esc(f.name||"the function")}"${ro&&q.proj?" disabled":""}></td>`
+          +`<td class="fe" title="${esc(f.expr||"")}">${esc(f.expr||"")}</td><td>${q.proj&&q.lib?"Both":q.proj?"Project":"Browser"}</td>`
+          +`<td class="fa"><button type="button" class="btn sm" data-fnact="edit"${ro?" disabled":""}>Edit…</button>${q.proj&&!q.lib?`<button type="button" class="btn sm ghost" data-fnact="tolib" title="Keep it in this browser too, for every project opened here">To browser</button>`:""}${q.lib&&!q.proj?`<button type="button" class="btn sm ghost" data-fnact="toproj"${ro?" disabled":""} title="Add it to this project, so the project carries it">To project</button>`:""}<button type="button" class="btn sm ghost danger" data-fnact="del"${ro&&q.proj?" disabled":""}>Delete</button></td></tr>`; }).join("")).join("")+`</tbody></table></div>`; };
+  formDlg({title:"Your functions",ok:"Done",wide:true,html:`<div id="fnOrg">${body()}</div>`});
+  const box=$("#fnOrg"); if(!box) return; const redraw=()=>{ if(box.isConnected) box.innerHTML=body(); };
+  // Each change made where the function lives: the project's (one undo entry) and the library's.
+  const change=(id,patch,what)=>{ const P0=P(), a=(P0.userFns||[]).find(f=>f.id===id), b=libFns().find(f=>f.id===id), cur=a||b;
+    if(!cur||Object.keys(patch).every(k=>String(cur[k]||"")===String(patch[k]||""))) return;
+    if(a&&!S.readOnly){ pushUndo(what); save({userFns:(P0.userFns||[]).map(f=>f.id===id?Object.assign({},f,patch):f)},`${what}: "${a.name}"`); }
+    if(b) libSave(Object.assign({},b,patch),true); renderFit(); };
+  box.addEventListener("change",e=>{ const tr=e.target.closest("tr[data-fnid]"); if(!tr) return; const id=tr.dataset.fnid, v=e.target.value.trim();
+    if(e.target.matches("[data-fnname]")){ if(!v){ redraw(); return; } change(id,{name:v.slice(0,60)},"renamed a fit function"); }
+    else if(e.target.matches("[data-fncat]")) change(id,{cat:v.slice(0,40)},"filed a fit function"); setTimeout(redraw,0); });
+  box.addEventListener("click",e=>{ const b=e.target.closest("[data-fnact]"), tr=b&&b.closest("tr[data-fnid]"); if(!tr) return; const id=tr.dataset.fnid, a=(P().userFns||[]).find(f=>f.id===id), lf=libFns().find(f=>f.id===id), act=b.dataset.fnact;
+    if(act==="edit"){ $("#formOk").click(); setTimeout(()=>{ if(!a&&lf) adoptLibFn(lf); editUserFn(id); },0); return; }
+    if(act==="tolib"&&a){ libSave(a,true); toast(`This browser keeps “${a.name}” for every project.`); }
+    if(act==="toproj"&&lf){ adoptLibFn(lf); toast(`The project has “${lf.name}”.`); }
+    if(act==="del"){ if(a) deleteUserFn(id); else if(lf){ libSave(lf,false); toast(`Deleted “${lf.name}” from this browser's library.`,{action:"Undo",run:()=>{ libSave(lf,true); toast(`“${lf.name}” is back in the library.`); }}); } }
+    setTimeout(redraw,0); }); }
 // Adds a library function to the project, so the project carries what it uses.
 function adoptLibFn(fn){
   const p=P(); if(!p||!fn||(p.userFns||[]).some(f=>f.id===fn.id)) return;
@@ -17936,6 +18016,7 @@ function analyzeMenu(){
       {label:"Curve fit…", run:()=>{ S.fitMode="curve"; showTab("fit"); renderPlot(); }, enabled:!!p},
       {label:"Peak fit…", run:()=>{ S.fitMode="peaks"; showTab("fit"); renderPlot(); }, enabled:!!p},
       {label:"New function…", run:()=>{ S.fitMode="curve"; showTab("fit"); editUserFn(null); }, enabled:edit},
+      {label:"Your functions…", title:"Every function of yours, by category: rename, file, edit, delete, or copy between the project and this browser", run:()=>openFnOrganizer(), enabled:!!p},
       "-",
       {label:"Fit", kbd:"Ctrl+Enter", run:fitNow, enabled:edit&&has},
       yCols().length>1?{label:"Fit every column…", run:openBatchDialog, enabled:edit&&!!f, title:f?"":"Fit the active column first: its fit is the template"}:null,
@@ -20441,16 +20522,19 @@ ${DL([["Equal","The same value."],["A multiple","For areas: the 2 to 1 of a spin
 <li>Dragging any peak of a tied group on the graph moves the group.</li>
 <li>Ties never chain: a peak can only follow a peak that follows no one.</li>
 <li>The report's method lists every tie.</li></ul>`},
-{id:"userfn", g:"Fitting", t:"Your own fit functions", kw:"user function custom formula expression parameters limits library",
+{id:"userfn", g:"Fitting", t:"Your own fit functions", kw:"user function custom formula expression parameters limits library category organizer organise organize meaning derived value half-life constraint start formula rename delete",
  lead:"Write a function of x as on paper, and fit it like any built-in model.",
  body:`<h2>Writing one</h2>
 <p>${MP("Analyze › Fit › New function…")}, or <em>Function</em> beside the model list.</p>
 <pre>y = y0 + A*exp(-(x/t)^b)</pre>
 <p>Every name other than <code>x</code>, the functions and <code>pi</code>, <code>e</code> is a parameter, in order of appearance. Lines like <code>u = (x - xc)/w</code> name values for the lines below. The same arithmetic and functions as ${DA("formulas","column formulas")}.</p>
 <h2>Parameters</h2>
-<p>Each has a start (empty: guessed from its name, such as <code>y0</code> a baseline, <code>A</code> a height, <code>xc</code> the position of the largest point, <code>w</code> a tenth of the range), optional lower and upper limits, and a unit. A preview draws the function at its starts over the data as you type, and a mistake is named with its line.</p>
+<p>Each has a start (a number; a ${DA("curvefit#fxstart","formula of the data")} such as <code>max(y) - min(y)</code> or <code>xat</code>, measured on the data it is fitted to; or empty: guessed from its name, such as <code>y0</code> a baseline, <code>A</code> a height, <code>xc</code> the position of the largest point, <code>w</code> a tenth of the range), optional lower and upper limits, a unit, and what it means (shown in the Fit window and Results). A preview draws the function at its starts over the data as you type, and a mistake is named with its line.</p>
+${DL([["Category","Where the model list files it, among your functions: <em>Your functions: Kinetics</em>."],["Constraints","One a line, as in the Fit window (<code>y0 = A/50</code>, <code>t1 &lt; t2</code>): the Fit window starts with them whenever the function is chosen. "+DA("curvefit#cons","Constraints")],["Derived values","One a line: a name = a formula of the parameters (<code>Half-life = t*ln(2)</code>). Results gives each with its error, by the delta method, as it does for the built-in models."]])}
 <h2>Keeping them</h2>
-<p>A function belongs to the project and, if you choose, to this browser's library for later projects. A fit keeps a copy of the function it used, so editing the function never changes a result already made; the report and the CSV state the formula and its limits.</p>`},
+<p>A function belongs to the project and, if you choose, to this browser's library for later projects. A fit keeps a copy of the function it used, so editing the function never changes a result already made; the report and the CSV state the formula and its limits.</p>
+<h2 id="org">Your functions</h2>
+<p>${MP("Analyze › Fit › Your functions…")}, or <em>Your functions…</em> at the foot of the model list, lists every function of the project and of this browser's library, by category. Type a name or a category in place to rename or file it (one undo step for the project's), <em>Edit…</em> opens the editor, <em>To project</em> and <em>To browser</em> copy it between the two, and <em>Delete</em> takes it out (Undo brings it back); fits made with it keep their own copy.</p>`},
 {id:"results", g:"Fitting", t:"Reading the results", win:"res", kw:"results parameters value standard error derived in the results sections t p value confidence interval level dependency chi square r2 aic bic residuals warnings notes history anova analysis of variance f test sum of squares mean square covariance correlation matrix standardised studentised standardized studentized deleted leverage hat outlier outliers mask probability paper normal histogram lag find x find y inverse prediction calibration curve read off value at to worksheet fitted values residual columns put the fit in the worksheet",
  lead:"Every parameter with its uncertainty, the fit statistics, and plain notes on anything that makes the numbers less trustworthy.",
  body:`<h2>Parameters</h2>

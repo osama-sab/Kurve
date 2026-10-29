@@ -854,6 +854,20 @@ setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
 
+### 2026-10-29: the function editor grown, and your functions (FIT_SPEC slice 10)
+
+- **A function of yours is a model like the built-in ones**: a category (the model list files it
+  under *Your functions: Kinetics*), each parameter's meaning (shown where a built-in model's is),
+  starts that may be formulas of the data, constraints the Fit window starts with when it is
+  chosen, and derived values (a name = a formula of the parameters) that Results gives with their
+  errors, as it does a half-life. Each is checked as it is typed, with its line, in the editor's one
+  message, as the formula already was.
+- **One organizer for every function**, the project's and the browser's in one table by category,
+  renamed and filed by typing in place (an organizer is for many small changes; a dialog each would
+  be slower than typing), with Edit, Delete and the copy between the project and the browser as
+  buttons on the row. It is reached where functions are chosen (the model list's foot) and from
+  Analyze › Fit.
+
 ### 2026-10-29: saved fit settings, and fits that follow their data (FIT_SPEC slice 9)
 
 - **Fit settings are kept as saved styles are**, by name, in the project (shared and undone with

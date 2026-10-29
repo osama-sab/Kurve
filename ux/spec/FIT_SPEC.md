@@ -36,8 +36,8 @@ Origin's help pages it was compared with: the NLFit dialog's
 | Saved settings, Recalculate | fit settings by name in the project or the browser; a fit that follows its data (slice 9) | none |
 | Lower panel | the live graph, the residual panel, the formula, a summary line, the iterations as they go (slice 1), the model's sketch on its button (slice 3) | none |
 | Linear and Polynomial | a polynomial of order 1 to 9, its order beside the model (slice 3); Fix on a or b fixes the intercept or slope; outliers (slice 4); an apparent fit (slice 7) | none |
-| Function Builder | one editor: name, formula, live check, parameters with start, limits and unit, preview | category, meanings, start formulas, constraints, derived values |
-| Function Organizer | the model list's groups | your functions filed by category |
+| Function Builder | one editor: name, category, formula, live check, parameters with start (a number or a formula of the data), limits, unit and meaning, constraints, derived values, preview (slice 10) | none |
+| Function Organizer | Your functions: the project's and the browser's by category, renamed, filed, edited, deleted, copied (slice 10) | none |
 
 ## Decisions (the defaults; the user may change them)
 
@@ -127,7 +127,8 @@ CLAUDE.md, the menu spec when a menu changes.
    saved styles are; a fit can follow its data (refit when its column's processing or data
    change, as peak sets follow theirs, `followPeakSets`), with a log line and no undo entry of
    its own.
-10. **The function editor, grown.** A category, each parameter's meaning, start formulas,
+10. **The function editor, grown** (done 2026-10-29; the organizer one table by category, typed
+    in place; a derived value without a unit of its own). A category, each parameter's meaning, start formulas,
     constraints and derived values (formulas of the parameters, with errors by the delta
     method); and an organizer for your functions (by category, renamed, moved, deleted, taken
     from the library).

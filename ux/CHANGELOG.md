@@ -1024,6 +1024,19 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Curve fit, slice 10: the function editor grown, and your functions (2026-10-29)
+
+`ux/spec/FIT_SPEC.md` slice 10, the last of the curve fit.
+- **The function editor** has a category, each parameter's meaning, starts as formulas of the data,
+  constraints (the Fit window starts with them when the function is chosen) and derived values (a
+  name = a formula of the parameters, given in Results with its error). Each is checked as typed.
+- **Your functions** (Analyze › Fit, and the model list's foot): every function of the project and
+  of this browser by category, renamed and filed in place, edited, deleted, copied between the two.
+  The model list files your functions under their categories.
+
+Checked: fit-test (3 new: derived values, their refusals and errors), fit-drive (14 new), and
+every suite from the round before.
+
 ## Curve fit, slice 9: saved fit settings, and fits that follow their data (2026-10-29)
 
 `ux/spec/FIT_SPEC.md` slice 9.

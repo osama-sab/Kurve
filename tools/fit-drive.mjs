@@ -357,6 +357,52 @@ await page(async p => {
   check("a refit that cannot be made keeps the fit, and the notes say why", /fewer than four points/.test(r.fail || "") && r.notes.includes("follow") && r.notes.includes("stale"), JSON.stringify(r));
 }, { name: "fit settings and following" });
 
+console.log("Slice 10: the function editor, grown, and your functions");
+await page(async p => {
+  await decayFit(p);
+  await p.evaluate(() => { showTab("fit"); editUserFn(null); }); await p.waitForTimeout(250);
+  await p.fill("#fbName", "My decay"); await p.fill("#fbCat", "Decays");
+  await p.fill("#fbExpr", "y = y0 + A*exp(-x/t)"); await p.dispatchEvent("#fbExpr", "input"); await p.waitForTimeout(150);
+  await p.fill('#formModal input[aria-label="Starting value of A"]', "height*2"); await p.dispatchEvent('#formModal input[aria-label="Starting value of A"]', "input"); await p.waitForTimeout(100);
+  let r = await p.evaluate(() => ({ msg: $("#fbMsg").textContent, ok: $("#formOk").disabled }));
+  check("a start that is no formula of the data is refused in the editor, in words", /The start of A: “height” is not a measure/.test(r.msg) && r.ok, JSON.stringify(r));
+  await p.fill('#formModal input[aria-label="Starting value of A"]', "max(y) - min(y)"); await p.fill('#formModal input[aria-label="What t means"]', "decay time");
+  await p.fill("#fbDer", "Half-life = t*q"); await p.dispatchEvent("#fbDer", "input"); await p.waitForTimeout(100);
+  r = await p.evaluate(() => ({ msg: $("#fbMsg").textContent, ok: $("#formOk").disabled }));
+  check("a derived value naming no parameter is refused, with its line", /Derived values, line 1: “q” is not a parameter/.test(r.msg) && r.ok, JSON.stringify(r));
+  await p.fill("#fbDer", "Half-life = t*ln(2)"); await p.fill("#fbCons", "y0 = A/50"); await p.dispatchEvent("#fbCons", "input"); await p.waitForTimeout(100);
+  r = await p.evaluate(() => ({ msg: $("#fbMsg").textContent, ok: $("#formOk").disabled }));
+  check("with good starts, constraints and derived values the editor says so", !r.ok && /3 parameters/.test(r.msg), JSON.stringify(r));
+  await p.click("#formOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const fn = (P().userFns || []).find(f => f.name === "My decay"), d = ensureDraft(); return fn && { cat: fn.cat, fxA: (fn.params.find(q => q.n === "A") || {}).fx, mean: (fn.params.find(q => q.n === "t") || {}).mean, cons: fn.cons, der: fn.derived, dcons: d.cons, dfx: d.initFx, model: d.model === "u:" + fn.id }; });
+  check("saved with its category, a formula start, a meaning, constraints and derived values", r && r.cat === "Decays" && r.fxA === "max(y) - min(y)" && r.mean === "decay time" && r.cons === "y0 = A/50" && r.der === "Half-life = t*ln(2)", JSON.stringify(r));
+  check("chosen, the Fit window starts with its constraints and formula start", r && r.model && r.dcons === "y0 = A/50" && Array.isArray(r.dfx) && r.dfx.includes("max(y) - min(y)"), JSON.stringify(r));
+  await p.evaluate(() => runFit()); await p.waitForTimeout(600);
+  r = await p.evaluate(() => { const f = activeFit(), m = fitModel(f).model, i = m.params.indexOf("t"), der = derivedRows(f), rows = paramRows(f); return { der: der.map(x => [x.name, x.v, x.e]), want: [f.params[i] * Math.LN2, f.errors[i] * Math.LN2], mean: rows[i].meaning, tied: rows[m.params.indexOf("y0")].tied }; });
+  check("Results gives the derived value with its error, and the parameter's meaning", r.der.length === 1 && r.der[0][0] === "Half-life" && Math.abs(r.der[0][1] - r.want[0]) <= r.want[0] * 1e-9 && Math.abs(r.der[0][2] - r.want[1]) <= r.want[1] * 1e-3 && r.mean === "decay time" && /follows/.test(r.tied || ""), JSON.stringify(r));
+  // The model list files it under its category.
+  await p.evaluate(() => { showTab("fit"); renderFit(); }); await p.waitForTimeout(100);
+  await p.click("#model"); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ g: [...document.querySelectorAll(".mpick .fp-g")].map(g => g.textContent), org: !!document.querySelector(".mpick [data-morg]") }));
+  check("the model list files it under Your functions: Decays, and offers Your functions…", r.g.includes("Your functions: Decays") && r.org, JSON.stringify(r));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(100);
+  // The organizer: renamed and filed in place, deleted with Undo.
+  await p.evaluate(() => openFnOrganizer()); await p.waitForTimeout(200);
+  r = await p.evaluate(() => [...document.querySelectorAll("#fnOrg tr")].map(t => t.textContent.trim().slice(0, 40)));
+  check("Your functions lists it by category, kept in the project and the browser", r.some(t => /^Decays/.test(t)) && r.some(t => /Both/.test(t)), JSON.stringify(r));
+  await p.fill("#fnOrg [data-fnname]", "Single decay"); await p.press("#fnOrg [data-fnname]", "Tab"); await p.waitForTimeout(150);
+  await p.fill("#fnOrg [data-fncat]", "Kinetics"); await p.press("#fnOrg [data-fncat]", "Tab"); await p.waitForTimeout(150);
+  r = await p.evaluate(() => { const fn = (P().userFns || [])[0], lf = libFns().find(f => f.id === fn.id); return { name: fn.name, cat: fn.cat, lname: lf && lf.name, lcat: lf && lf.cat, grp: [...document.querySelectorAll("#fnOrg .fngrp")].map(g => g.textContent) }; });
+  check("renamed and filed in place, in the project and the library, the list redrawn", r.name === "Single decay" && r.cat === "Kinetics" && r.lname === "Single decay" && r.lcat === "Kinetics" && r.grp.includes("Kinetics"), JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(150);
+  r = await p.evaluate(() => ({ cat: (P().userFns || [])[0].cat, name: (P().userFns || [])[0].name, held: heldBlocks(), top: undoStack.slice(-3).map(s => s.label) }));
+  check("filing it is one undo step in the project", r.cat === "Decays" && r.name === "Single decay", JSON.stringify(r));
+  await p.evaluate(() => { const b = document.querySelector('#fnOrg [data-fnact="del"]'); if (b) b.click(); }); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ n: (P().userFns || []).length, toast: $("#toastMsg").textContent }));
+  check("Delete takes it out of the project, with Undo", r.n === 0 && /Deleted “.*” from this project/.test(r.toast), JSON.stringify(r));
+  await p.evaluate(() => $("#formCancel").click());
+}, { name: "your functions" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

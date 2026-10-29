@@ -157,6 +157,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
     Curve fit…  ## ~ "Curve fit"
     Peak fit…  ## ~ "Peak fit"
     New function…  ## ~ "New fit function…"
+    Your functions…  ## new (FIT_SPEC slice 10)
     Fit  [Ctrl+Enter]  ## ~ "Run the fit"
     Fit every column…  ## ~ "Fit every spectrum…"; ↓ until there are two columns or more
     Put the fit in the worksheet  ## new (FIT_SPEC slice 6)

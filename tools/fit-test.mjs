@@ -16,7 +16,7 @@ const grab = (tag) => {
 // tools/pipe-test.mjs tests the rest of it. The curve fit's models are a block of
 // their own (MODELS), after the pipeline.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("MODELS")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -1015,6 +1015,7 @@ check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
   const nm = ["a", "b", "c"], E = t => (N.parseCons(t, nm).err || {}).msg || "";
   check("constraints refused in words: an unknown name, itself, set twice, a circle, x, nonsense", /“z” is not a parameter/.test(E("a = z + 1")) && /cannot follow itself/.test(E("a = a*2")) && /set by line 1 already/.test(E("b = a\na < b"))
     && /circle/.test(E("a = b\nb = a")) && /circle/.test(E("a < b\nb < a")) && /x has no place/.test(E("a = x")) && /write a = /.test(E("a +")), [E("a = z + 1"), E("b = a\na < b")].join(" | "));
+  check("a limit typed as a constraint is sent to Lowest or Highest", /goes in the parameter's Lowest or Highest/.test(E("a <= 1")) && /goes in the parameter's Lowest or Highest/.test(E("b > -0.5")));
   const C0 = N.parseCons("# a note\nc = b + 1\nb = 2*a", nm);
   check("constraints apply in the order they read each other: b before c", C0.order.map(o => nm[o.t]).join() === "b,c" && N.consBack(C0, [1, 0, 0]).join() === "1,2,3", JSON.stringify(N.consBack(C0, [1, 0, 0])));
   check("an inequality: the larger is the smaller plus its difference", (C => N.consBack(C, [2, 0.5, 0]).join() === "2,2.5,0" && N.consFwd(C, [2, 3, 0])[1] === 1 && N.consFwd(C, [2, 1, 0])[1] > 0)(N.parseCons("a <= b", nm)));
@@ -1034,6 +1035,17 @@ check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
   const D2 = N.MODELS.expdec2, Xd = [], Yd = []; for (let i = 0; i < 200; i++) { const x = i * 0.1; Xd.push(x); Yd.push(D2.f(x, [0.2, 5, 0.8, 2, 6]) + 0.002 * (rnd() - 0.5)); }
   const nmd = D2.params, Cd = N.parseCons(`${nmd[2]} < ${nmd[4]}`, nmd), fd = N.consFit(D2.f, Xd, Yd, Xd.map(() => 1), [0.2, 2, 6, 5, 0.8], [false, false, false, false, false], {}, Cd);
   check("two decays with τ1 < τ2, started the wrong way round, come out in order", fd.params[2] < fd.params[4] && rel(fd.params[2], 0.8, 0.02) && rel(fd.params[4], 6, 0.02), JSON.stringify({ names: nmd, p: fd.params }));
+}
+
+/* ---------- A function's derived values ---------- */
+{
+  const r = N.parseDerived("# a note\nHalf-life = t*ln(2)\nRate = 1/t", ["y0", "A", "t"]);
+  check("derived values: one a line, each a function of the parameters", !r.err && r.list.length === 2 && r.list[0].name === "Half-life" && rel(r.list[0].fn([0, 1, 2]), 2 * Math.LN2, 1e-15) && r.list[1].fn([0, 1, 4]) === 0.25);
+  const E = t => (N.parseDerived(t, ["a", "b"]).err || {});
+  check("derived values refused with their line: a name that is no parameter, x, a name twice, no formula", /“q” is not a parameter/.test(E("v = q").msg) && E("\nv = q").line === 2 && /x has no place/.test(E("v = a*x").msg) && /named twice/.test(E("v = a\nv = b").msg) && /write a name =/.test(E("v").msg));
+  const M = N.MODELS.expdec, d = N.derivedWithErr({ derived: r.list.map(q => ({ name: q.name, fn: q.fn })) }, [0, 1, 2], [[0, 0, 0], [0, 0, 0], [0, 0, 0.04]]);
+  check("their errors by the delta method: ln 2 times the error of t", rel(d[0].e, 0.2 * Math.LN2, 1e-6) && rel(d[1].e, 0.2 / 4, 1e-6));
+  void M;
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
