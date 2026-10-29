@@ -104,6 +104,7 @@ Plot
   What this graph plots…  ## new (PLOT_SPEC slice 3); off without a graph
   Plot the selected columns
     Plot setup…
+    Plot like the last time  ## new (PLOT_SPEC slice 6); off until Plot setup has plotted from the sheet
     (heading: "Or select the columns to plot first" / "Plot <column> in a new graph as")
     Line
     Symbols

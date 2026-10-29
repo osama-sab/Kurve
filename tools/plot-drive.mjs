@@ -368,6 +368,47 @@ await page(async p => {
   check("on a graph: Bubbles, said in the log", r.s === id.F && /drew them as bubbles/.test(r.log), JSON.stringify(r));
 }, { name: "kinds that need another column" });
 
+console.log("Slice 6: remembered setups");
+await page(async p => {
+  const id = await six(p);
+  let r = await p.evaluate(id => { const it = plotItems([id.B]).find(i => i && i.label === "Plot like the last time"); return it ? { en: it.enabled !== false } : null; }, id);
+  check("Plot like the last time is in the Plot list, off before Plot setup has plotted from the sheet", r && !r.en, JSON.stringify(r));
+  await p.evaluate(id => { openPlotDlg([id.B]); }, id); await p.waitForTimeout(400);
+  await p.click('#formBody [data-pk="bubble"]'); await use(p, id.F, "size"); await p.click("#psuAdd"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(id => { const m = ((JSON.parse(localStorage.getItem("kurve.psu") || "{}"))[S.pid] || {}).s1; return m ? { kind: m.kind, f: m.use[id.F] } : null; }, id);
+  check("OK remembers the kind and what each column was, per sheet", r && r.kind === "bubble" && r.f === "size", JSON.stringify(r));
+  await p.evaluate(id => { openPlotDlg([id.B]); }, id); await p.waitForTimeout(400);
+  r = await p.evaluate(id => ({ kind: [...document.querySelectorAll("#formBody [data-pk]")].filter(b => b.getAttribute("aria-checked") === "true").map(b => b.dataset.pk), f: $(`#psuCols [data-puse="${id.F}"]`).value, with: document.querySelector("#psuCur [data-pcur] td:nth-child(3)").textContent, ok: !$("#formOk").disabled }), id);
+  check("opened again on that sheet: Bubbles chosen, F still the size, B's curve sized by it, ready to plot", r.kind.join() === "bubble" && r.f === "size" && /size F/.test(r.with) && r.ok, JSON.stringify(r));
+  await p.click("#formCancel"); await p.waitForTimeout(200);
+  r = await p.evaluate(id => { const it = plotItems([id.E]).find(i => i && i.label === "Plot like the last time"); return { en: it.enabled !== false, note: it.note }; }, id);
+  const n0 = await p.evaluate(() => P().graphs.length);
+  await p.evaluate(id => { plotItems([id.E]).find(i => i && i.label === "Plot like the last time").run(); }, id); await p.waitForTimeout(400);
+  const r2 = await p.evaluate(id => { const g = P().graphs[P().graphs.length - 1], s = g.plot.series[id.E] || {}; return { n: P().graphs.length, open: !$("#formModal").hidden, cols: g.cols, scol: s.scol, type: s.type }; }, id);
+  check("Plot like the last time: E plotted at once as bubbles sized by F, no dialog", r.en && r.note === "bubbles" && r2.n === n0 + 1 && !r2.open && r2.cols.join() === id.E && r2.scol === id.F && r2.type === "scatter", JSON.stringify([r, r2]));
+  r = await p.evaluate(id => (plotItems([id.H]).find(i => i && i.label === "Plot like the last time") || {}).enabled, id);
+  check("…not on another sheet, which has nothing remembered", r === false, JSON.stringify(r));
+  // When what it needs has gone, the dialog opens instead.
+  await p.evaluate(id => { deleteCols([id.F]); }, id); await p.waitForTimeout(300);
+  await p.evaluate(id => { plotLikeLast([id.B]); }, id); await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ open: !$("#formModal").hidden, need: $("#psuNeed") ? $("#psuNeed").textContent : "" }));
+  check("…with the size column deleted, Plot like the last time opens the dialog, saying what to mark", r.open && /mark one as Size/.test(r.need), JSON.stringify(r));
+  await p.click("#formCancel"); await p.waitForTimeout(200);
+  // What it remembers never changes a column: error bars undone stay undone.
+  await p.evaluate(id => { openPlotDlg([id.B]); }, id); await p.waitForTimeout(400);
+  await p.click('#formBody [data-pk="scatter"]'); await use(p, id.C, "e:y"); await p.click("#psuAdd"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  await p.evaluate(id => { plotLikeLast([id.B]); }, id); await p.waitForTimeout(400);
+  r = await p.evaluate(id => ({ c: colById(id.C).role, open: !$("#formModal").hidden }), id);
+  check("…error bars undone are not given back by Plot like the last time", r.c === "ignore" && !r.open, JSON.stringify(r));
+  // Junk in storage.
+  await p.evaluate(() => { localStorage.setItem("kurve.psu", "{bad"); }); await p.evaluate(id => { openPlotDlg([id.B]); }, id); await p.waitForTimeout(300);
+  r = await p.evaluate(() => !$("#formModal").hidden && $("#formBody [data-pk][aria-checked=true]").dataset.pk); await p.click("#formCancel"); await p.waitForTimeout(150);
+  await p.evaluate(() => { localStorage.setItem("kurve.psu", JSON.stringify({ [S.pid]: { s1: { kind: "nope", use: 3 } } })); });
+  const r3 = await p.evaluate(id => (plotItems([id.B]).find(i => i && i.label === "Plot like the last time") || {}).enabled, id);
+  check("what storage gives back that does not read is not remembered", !!r && r3 === false, JSON.stringify([r, r3]));
+}, { name: "remembered setups" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

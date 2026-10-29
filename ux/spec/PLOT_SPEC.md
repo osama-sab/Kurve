@@ -158,7 +158,10 @@ reason, CLAUDE.md, the menu spec when a menu changes.
    (colour from a column, with its colour bar), labelled points (labels from a column), a plot
    of X and Y errors as boxes or crosses; each a picture in the kinds, with the boxes it needs.
    What exists (`zcol`, `scol`) moves under these, the Format dialog keeping the look.
-6. **Remembered setups.** The dialog remembers the last kind and how the columns were used per
+6. **Remembered setups** (done 2026-10-29; per project and sheet in this browser; what it
+   remembers never changes a column, so an X or error bars come back only where the column still
+   is one; Plot like the last time opens the dialog when the kind's column is missing). The
+   dialog remembers the last kind and how the columns were used per
    sheet (as `S.plotDlgKind` does for the kind), and *Plot like the last time* plots the
    selection that way from the worksheet's Plot menu.
 

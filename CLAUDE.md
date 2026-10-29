@@ -125,8 +125,9 @@ X columns and formulas; graphs show columns from any sheet), shown in two views:
 project locks it) and **Processed** (the active column after processing, read only). An
 import puts every column of the file there (beside data, on a sheet of its own named after the file), as X, Y, error bars or other data (not plotted),
 and plots nothing: columns are plotted when ready, by selecting them and pressing
-**Plot** on the worksheet's bar, or in **Plot setup…** (kinds as pictures, X, the Ys ticked,
-the graph, a sketch). Columns move by dragging their letters, their values align left, centre
+**Plot** on the worksheet's bar, or in **Plot setup…** (the kind as pictures, what each column
+is, the curves on the graph with their ranges, axes and groups, the graph itself as its preview;
+the same dialog on a graph is *What it plots…*). Columns move by dragging their letters, their values align left, centre
 or right, and the value box above the grid is a formula bar. Every text on the graph is
 typed **formatted** (as in a word processor: raised and lowered characters, symbols from a long
 list, no preview) or in **LaTeX** (the source and a preview), chosen per browser, and stored as
@@ -1181,6 +1182,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   `plotDraw` and `plotKindIcon`; error boxes are the series' `eb:"box"`, drawn by `errSvg` (a
   rectangle spanning each point's X and Y errors, filled under the data, `path[data-ebox]`, bars
   where a point has only one), also in the curve's Error bars menu and the Format pane.
+  **Remembered setups** (slice 6): `psuState(cids, g0)` makes the dialog's working copy;
+  `psuRemember(st)` at a new graph's OK keeps the kind and each column's use per project and sheet
+  in this browser (`kurve.psu`, `psuMemAll`, the last 20 projects by `psuNewest`), `psuMemOf(sid)`
+  reads it back (a kind that is not one, or uses that are not an object, read as nothing),
+  `psuRecall(st)` starts the dialog from it (the columns selected still the curves; a remembered
+  X or error bars only where the column still is one, so nothing an undo took back returns),
+  `psuSheetOf`, `psuLastFor(cids)`, and *Plot like the last time* (`plotLikeLast(cids)`, in
+  `plotItems` after Plot setup…, its note the kind) runs `psuApply` with no dialog, or opens the
+  dialog when `psuNeed` says something is missing. `psuApply(st, {into, g0})` is OK for both.
   OK: one undo entry; data columns made X or
   error bars, a Y's X (`xcol`, `"row"` for the row number, read by `xColFor`; the other Ys of
   the sheet pinned to the X they had), an error column's owner and kind, said in the toast and
@@ -2325,8 +2335,10 @@ Add with error bars, a figure's panel; slice 4: every curve in one group and how
 a curve's own colour winning, one type for the group, a group of one dropped, undo, Plot setup's
 Group column on a graph and on a new one, junk from storage; slice 5: the four cards drawn with the
 data, Bubbles waiting for a size and naming the curve without one, error boxes in the preview, the
-graph and an export, labelled points, colour by value, a kind on a graph said in the log); run it
-after touching the graph's drawing or Plot setup.
+graph and an export, labelled points, colour by value, a kind on a graph said in the log; slice 6:
+the kind and uses remembered per sheet, the dialog starting from them, Plot like the last time
+with no dialog, not on another sheet, the dialog when the size column has gone, error bars undone
+not given back, junk from storage); run it after touching the graph's drawing or Plot setup.
 `node tools/fit-drive.mjs [path]` (Playwright) clicks and types into what each slice of the
 curve fit (`ux/spec/FIT_SPEC.md`) from slice 5 on added (Find X/Y: the readouts against the
 functions, a redraw while typing, Fill a column… both ways, undo); run it after touching the Fit
@@ -3263,7 +3275,9 @@ alike) from the first curve's, each curve's own style still winning; from the cu
 and Plot setup's Group column; the legend lists every curve. Slice 5 done: the kinds that need
 another column beside each curve, as cards of their own (bubbles, colour by value, labelled points,
 error boxes), Plot waiting with a note until each curve has it; error boxes also a way to draw any
-curve's error bars.
+curve's error bars. Slice 6 done: Plot setup remembers, per sheet in this browser, the kind it last
+plotted and each column's use, starts from them, and *Plot like the last time* plots a selection
+that way at once; what it remembers never changes a column. Plot setup's six slices are done.
 
 Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
 graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
@@ -3588,7 +3602,7 @@ Next, in order:
    columns of every sheet; what each column is, X, Y, Y error ±/+/−, X error, labels, colour,
    size; the curves on the graph with Add, Replace, Remove, order, range and axis) with the real
    graph as its preview, the same dialog on an existing graph (Origin's Layer Contents), groups,
-   kinds that need more columns, and setups remembered
+   kinds that need more columns, and setups remembered (all six slices done 29.10)
 3. Counting spectra, further: other analysers' files (Maestro .Spe with its calibration, N42;
    CHN and CNF are binary), FWHM and efficiency against energy, net peak areas over a local
    continuum with their counting errors and activities, a nuclide named by the set of its lines
@@ -3762,6 +3776,9 @@ Next, in order:
   Kurve's lists of symbols and line styles (not lists of your own, as Origin's increment lists);
   the legend lists every curve of a group, not one entry for the group; groups are a graph's, not
   across the panels of a figure
+- Remembered setups are this browser's, per project and sheet (not in the project, so a colleague
+  starts afresh), the last one only (no list of setups by name, as Origin's templates), and only
+  for a new graph (What it plots… starts from the graph)
 - Kinds with another column: a bubble's size and a colour come from one column per curve (no
   second size column for another curve on one Add: each curve's own is marked beside it); an
   error box needs both errors of a point, and a point with one is drawn with a bar

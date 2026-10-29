@@ -1024,6 +1024,19 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plot setup, slice 6: remembered setups (2026-10-29)
+
+`ux/spec/PLOT_SPEC.md` slice 6, the last.
+- Plot setup remembers, per sheet in this browser, the kind it last plotted and what each column
+  was, and starts from them on that sheet (the columns selected still the curves).
+- **Plot like the last time** (the worksheet's Plot list, Plot › Plot the selected columns) plots
+  the selection that way at once; it opens Plot setup when the kind's column is missing.
+- What it remembers never changes a column: an X or error bars come back only where the column
+  still is one.
+
+Checked: `tools/plot-drive.mjs` (9 new, 79), and every suite from the round before. Plot setup's six
+slices are done.
+
 ## Plot setup, slice 5: kinds that need another column (2026-10-29)
 
 `ux/spec/PLOT_SPEC.md` slice 5.

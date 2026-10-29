@@ -20382,6 +20382,7 @@ ${DL([["Kind","Each kind of plot a card drawn with the curves, so you choose by 
 ["Curves on the graph","The list the graph will have. <em>Add</em> puts the columns marked Y on it (the ticked ones, when some are ticked), each against its own X when that is marked, else the nearest X marked to its left, with the error bars marked for it (else the nearest Y to their left), and the labels, colour and size beside it. <em>Replace</em> puts them in place of the selected curve, <em>Remove</em> takes it off, <em>Up</em> and <em>Down</em> (Alt+↑, Alt+↓) set the order. Each curve has what it is plotted against (any X of its sheet, or the row number), its range (all, rows, or X when X rises or falls steadily) and its axis (the left or the right, but the first)."],
 ["Into","A new graph, or one you have: then the graph shows its curves with the new ones."]])}
 <p>OK is one step to undo. What it changes of the columns themselves (other data made an X or error bars, a column's X, error bars given to another column) is the columns', so it is said: those are the same on every graph. What each curve draws (its range, its axis, its labels, its order) is the graph's alone. Cancel changes nothing. Below 860 px the three parts are tabs, with the graph under each.</p>
+<p>Plot setup remembers, in this browser, how it last plotted from each sheet: the kind, and what each column was. Opened again on that sheet it starts from them, the columns selected still being the curves. <em>Plot like the last time</em> (in the worksheet's <em>Plot</em> list and ${MP("Plot › Plot the selected columns")}) plots the columns selected that way at once, and opens Plot setup instead when what that kind needs is missing. What it remembers never changes a column: an X or error bars come back only where the column still is one.</p>
 <h2 id="plots">What a graph plots</h2>
 <p><em>What it plots…</em> (a graph's ⋯ menu, a panel's menu, the graph's right-click, ${MP("Plot › What this graph plots…")}) is the same dialog opened on that graph, as Origin's Layer Contents: its curves in the list, in their order, with their ranges and axes, and its labels and format in the preview. Add, replace, take off and reorder them; no kind is chosen, so each curve keeps how it is drawn until you pick one. OK changes that graph in one step; a curve taken off loses what it drew there, and when it was the active one, the graph's first curve is. <em>Curves on it</em>, in the same menus, stays the quick way to show or hide one.</p>
 <h2>What is plotted</h2>
@@ -22882,7 +22883,9 @@ function ensureGraph(){ const p=P(), act=activeYCol(); if(!p||!act||S.readOnly) 
 function plotItems(cids){
   const p=P(), {ys}=plotWhat(cids), ro=S.readOnly||!p||!ys.length, many=ys.length>1, nm=ys.length?andList(ys.slice(0,3).map(specName))+(ys.length>3?` and ${ys.length-3} more`:""):"";
   const where="a new graph";
-  const out=[{label:"Plot setup…", title:"Choose the kind of plot, what each column is and the curves on the graph, drawn as it will be", enabled:!!p&&!S.readOnly, run:()=>openPlotDlg(cids)},"-",{group:ys.length?`Plot ${nm} in ${where} as`:"Or select the columns to plot first",plain:true}]
+  const last=p&&psuLastFor(cids), lk=last&&PLOT_DLG_KINDS.find(k=>k[0]===last.kind);
+  const out=[{label:"Plot setup…", title:"Choose the kind of plot, what each column is and the curves on the graph, drawn as it will be", enabled:!!p&&!S.readOnly, run:()=>openPlotDlg(cids)},
+    {label:"Plot like the last time", note:lk?lk[1].toLowerCase():"", enabled:!ro&&!!last, title:last?"As Plot setup last plotted from this sheet: the same kind, each column used as it was":"Plot setup remembers how it last plotted from a sheet; nothing yet for this one", run:()=>plotLikeLast(cids)},"-",{group:ys.length?`Plot ${nm} in ${where} as`:"Or select the columns to plot first",plain:true}]
     .concat(PLOT_TYPES.map(([k,l])=>({label:l, enabled:!ro, run:()=>plotCols(cids,{type:k})})));
   out.push("-",{label:many?"Histogram of each":"Histogram", enabled:!ro, title:"The distribution of the values, as a column of its own on a graph of its own", run:()=>histogramCols(ys.map(c=>c.id))},
     {label:"Box chart", enabled:!ro, title:"Each column's values as a box: median, quartiles, whiskers and outliers", run:()=>plotCols(cids,{layout:"box"})},
@@ -23084,13 +23087,45 @@ function plotSetupPv(st,kind,W,H){
   } catch(e){ svg=""; }
   finally{ if(!g0){ p.graphs=p.graphs.filter(g=>g.id!==id); delete S.glead[id]; } for(let i=keep.length-1;i>=0;i--){ const [o,k,had,v]=keep[i]; if(had) o[k]=v; else delete o[k]; } }
   return svg?svg.replace(/\bid="([^"]+)"/g,'id="psu-$1"').replace(/url\(#([^)]+)\)/g,"url(#psu-$1)"):""; }
+// The dialog's working copy: from a graph's curves, or from the columns selected.
+function psuState(cids,g0){ const s0=g0?psuFromGraph(g0):psuStart(cids);
+  return {kind:g0?null:S.plotDlgKind||"line",use:s0.use,curves:s0.curves,sel:s0.curves.length?s0.curves[0].y.id:null,rng:s0.rng||{},ax:s0.ax||{},grp:Object.assign({},s0.grp),grps:clone(s0.grps||{}),sheet:curSheet(),q:"",tick:new Set(),into:"",tab:g0?"cur":"kind",gid:g0?g0.id:null}; }
+/* Remembered setups (PLOT_SPEC slice 6): Plot setup keeps, per project and sheet in this browser
+   (kurve.psu, the last 20 projects), the kind it last plotted and what each column of the sheet
+   was. The dialog starts from them on that sheet (the columns selected still being the curves),
+   and Plot like the last time plots a selection that way with no dialog. */
+function psuMemAll(){ try{ const o=JSON.parse(localStorage.getItem("kurve.psu")||"{}"); return o&&typeof o==="object"&&!Array.isArray(o)?o:{}; }catch(e){ return {}; } }
+function psuMemOf(sid){ const m=(psuMemAll()[S.pid]||{})[sid]; return m&&typeof m==="object"&&m.use&&typeof m.use==="object"&&PLOT_DLG_KINDS.some(k=>k[0]===m.kind)?m:null; }
+const psuNewest=o=>{ let t=0; Object.values(o||{}).forEach(m=>{ if(m&&+m.at>t) t=+m.at; }); return t; };
+function psuRemember(st){ if(!st.kind||!S.pid) return; const all=psuMemAll(), mine=Object.assign({},all[S.pid]), by={};
+  Object.keys(st.use).forEach(id=>{ const c=colById(id); if(!c||c.src) return; const s=sheetOf(c); (by[s]=by[s]||{})[id]=st.use[id]; });
+  const sids=new Set(st.curves.filter(q=>!q.y.src).map(q=>sheetOf(q.y))); if(!sids.size) return;
+  sids.forEach(s=>{ mine[s]={kind:st.kind,use:by[s]||{},at:Date.now()}; }); all[S.pid]=mine;
+  const keys=Object.keys(all); if(keys.length>20) keys.sort((a,b)=>psuNewest(all[a])-psuNewest(all[b])).slice(0,keys.length-20).forEach(k=>{ delete all[k]; });
+  try{ localStorage.setItem("kurve.psu",JSON.stringify(all)); }catch(e){} }
+// The sheet the columns selected are on, and what it remembers.
+function psuSheetOf(cids){ const c=(cids||[]).map(colById).find(c=>c&&!c.src&&(c.role==="y"||c.role==="ignore"))||activeYCol(); return c&&!c.src?sheetOf(c):curSheet(); }
+const psuLastFor=cids=>psuMemOf(psuSheetOf(cids));
+// The dialog started from what the sheet remembers: the kind, and each column's use; the curves stay the columns selected, each given what the marks give it.
+function psuRecall(st){ const y0=st.curves.find(q=>!q.y.src), sid=y0?sheetOf(y0.y):curSheet(), m=psuMemOf(sid); if(!m) return false;
+  st.kind=m.kind; const sel=new Set(st.curves.map(q=>q.y.id));
+  // What it remembers never changes a column: an X or error bars only where the column already is one (an undo may have taken it back).
+  Object.keys(m.use).forEach(id=>{ const c=colById(id), u=m.use[id]; if(!c||c.src||sheetOf(c)!==sid||!PSU_USES.some(q=>q[0]===u&&u)||psuWhyNot(c,u)) return; if(u==="y"&&!sel.has(id)) return;
+    if(u==="x"&&c.role!=="x"||u.startsWith("e:")&&!(c.role==="e"&&errKind(c)===u.slice(2))) return; if(st.use[id]==null) st.use[id]=u; });
+  const b=psuBuild(st).filter(q=>sel.has(q.y.id));
+  if(b.length===st.curves.length) st.curves=st.curves.map(q=>{ const n=b.find(z=>z.y===q.y); return n&&n.x===q.x?n:q; });
+  return true; }
+// Plot like the last time: the selection plotted as Plot setup last plotted from its sheet; the dialog when something it needs is missing.
+function plotLikeLast(cids){ const p=P(); if(!p||S.readOnly) return; const st=psuState(cids,null);
+  if(!st.curves.length||!psuRecall(st)||psuNeed(st)){ openPlotDlg(cids); return; }
+  psuApply(st,{}); }
 async function openPlotDlg(cids,o){
   o=o||{}; const p=P(); if(!p||S.readOnly) return; if(S.ws&&S.ws.edit) wsCommit(0,0,true);
   // On a graph (What it plots…): its curves in the list, and OK changes that graph.
   const g0=o.gid&&graphOf(o.gid)&&!graphOf(o.gid).fig?graphOf(o.gid):null; if(o.gid&&!g0) return;
   const any=allCols().some(c=>!c.src&&(c.role==="y"||c.role==="ignore")&&(c.data||[]).some(v=>v!=null))||yCols().some(c=>c.src);
   if(!g0&&!any){ toast("There is no column to plot yet: type or paste values into the worksheet, or import a file."); return; }
-  const s0=g0?psuFromGraph(g0):psuStart(cids), st={kind:g0?null:S.plotDlgKind||"line",use:s0.use,curves:s0.curves,sel:s0.curves.length?s0.curves[0].y.id:null,rng:s0.rng||{},ax:s0.ax||{},grp:Object.assign({},s0.grp),grps:clone(s0.grps||{}),sheet:curSheet(),q:"",tick:new Set(),into:"",tab:g0?"cur":"kind",gid:g0?g0.id:null};
+  const st=psuState(cids,g0); if(!g0) psuRecall(st);
   // A column chosen from another sheet shows every sheet.
   if(Object.keys(st.use).some(id=>{ const c=colById(id); return c&&sheetOf(c)!==st.sheet; })) st.sheet="all";
   const targets=drawGraphIds(), ss=sheetList(), many=ss.length>1, ro=v=>esc(v);
@@ -23196,10 +23231,16 @@ async function openPlotDlg(cids,o){
     const it=box.querySelector("#pdlgInto"); if(it) it.onchange=()=>{ st.into=it.value; sk(); }; }
   refresh(true); setTimeout(()=>{ const b=g0?box.querySelector(`#psuCur [data-pcur]`):box.querySelector(`[data-pk="${st.kind}"]`); if(b) b.focus(); },0);
   let r; try{ r=await pr; } finally{ sh.classList.remove("plotdlg","psuw"); sh.classList.add("small"); clearTimeout(pvT); }
-  const curves=st.curves.filter(q=>colById(q.y.id)); if(!r||!curves.length) return;
+  if(r) psuApply(st,{into:r.pdlgInto||undefined,g0});
+}
+/* What OK does, from the dialog or from Plot like the last time: the columns' own changes, then a
+   new graph (or one added to) through plotCols, or the graph's own list through psuSetGraph. */
+function psuApply(st,o){ const g0=o.g0||null, into=o.into;
+  const curves=st.curves.filter(q=>colById(q.y.id)); if(!curves.length) return;
   if(g0&&!graphOf(g0.id)) return;
   if(st.kind) S.plotDlgKind=st.kind;
-  const into=r.pdlgInto||undefined, kind=st.kind?PLOT_DLG_KINDS.find(q=>q[0]===st.kind)||PLOT_DLG_KINDS[0]:null, ids=curves.map(q=>q.y.id);
+  if(!g0) psuRemember(st);
+  const kind=st.kind?PLOT_DLG_KINDS.find(q=>q[0]===st.kind)||PLOT_DLG_KINDS[0]:null, ids=curves.map(q=>q.y.id);
   if(kind&&kind[2]==="hist"){ histogramCols(ids); return; }
   pushUndo(g0?`changing what ${graphName(g0.id)} plots`:`plotting ${andList(curves.map(q=>specName(q.y)))}`);
   const said=psuColChanges(curves);
