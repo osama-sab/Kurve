@@ -874,6 +874,26 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-10-29: groups of curves (PLOT_SPEC slice 4)
+
+- **A group is a way to say "these go together"**, as in Origin: a series measured at several
+  temperatures, two samples' repeats. Its curves share their plot type and step their look
+  together from the first curve's.
+- **What steps is a choice**: colour, symbol and line style together (the default), or one of
+  them with the others alike. *Symbol only* is the figure for a journal printed in one colour;
+  *Colour only* is the screen's. Colours step through the graph's scheme from the first curve's
+  place, so a group looks like the rest of Kurve.
+- **A curve's own style still wins.** Grouping never takes away a colour someone chose for one
+  curve; it only fills in what was left to the defaults.
+- **One type for the group.** *Plot type* on any of its curves changes them all, and a curve
+  joining a group takes the group's, or "shares its plot type" would be a promise the menu
+  breaks.
+- **Set per curve**, from its right-click (*Group*: not grouped, a group, a new group with
+  another, every curve in one; how the group steps) or Plot setup's Group column: no
+  multiple selection to learn. A group of one is no group, and goes.
+- **The legend lists every curve.** Origin's does by default; one entry for a group would hide
+  which symbol is which.
+
 ### 2026-10-29: Plot setup on a graph (PLOT_SPEC slice 3)
 
 *What it plots…* opens Plot setup on a graph's own curves, as Origin's Layer Contents does, from

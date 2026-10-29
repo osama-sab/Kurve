@@ -684,7 +684,19 @@ graph first, with the taskbar kept at the bottom of the screen.
   that column in its row (`g[data-plab]`, `TS.labels`, at most 1500 a curve on screen, every one in
   an export). The curve's right-click: *Range…* (`curveRangeDlg`: all, rows, X when it rises or
   falls steadily, *Fit the axes to it*, *Every curve of this graph*; `rngText`), *Right axis*,
-  *Labels from*. `tools/plot-drive.mjs` drives it.
+  *Labels from*. **Groups** (PLOT_SPEC slice 4): `use[id].grp` (`grpOk`) and `g.plot.grps =
+  {grp: {step}}` (`GRP_STEPS`: all, color, sym, dash), cleaned by `grpClean(pl)` (a group of one
+  dropped, a step that does not read made `all`, on copies; in `normalize`, `setGroup`, `plotCols`,
+  the dialog); `grpOf(cfg, id)` (memoised per settings object, `GRPM`, in the graph's order
+  `cfg.gcols`, set by `plotCfg`) gives `serStyle` a curve's place, and it steps the colour by
+  `tintAt(base + k)` (`yTint` is `tintAt` of the column's place), the symbol through `SYM_STEP`
+  and the line through `DASH_STEP` from the first curve's, each curve's own style first, and the
+  type is the first curve's; `graphGroups(pl, cols)` (named Group 1, 2… by their first curves),
+  `grpShareTypes`, `setGroup(ids, grp|"new"|null, log)`, `setGroupStep`, `groupItems(c, ro)` (the
+  curve's right-click *Group*), `plotTypeItems` of a grouped curve sets every curve's type
+  (`setTypeOf`); `plotBase` leaves `grps` out. Plot setup's Group column (`data-cgrp`, `New group`)
+  and steps (`data-gstep`), `st.grp`/`st.grps`, `psuGroups(st)` (a group of one listed so others
+  can join). `tools/plot-drive.mjs` drives it.
 - **Caveats** have one source: `fitWarnings(fit)` returns `{level, kind, text, brief, acts}` for staleness
   (`fitStale`), non-convergence, unusable components (`peakProblems`), a singular covariance,
   dependency, parameters at a bound, and residuals that run in long same-sign stretches
@@ -2300,7 +2312,10 @@ row number as X, a data column made X with the other columns kept on theirs, int
 curves, and the tabs at phone width; slice 3: What it plots… in its four menus, opened on a graph
 with its axes, labels and no kind, a curve taken off, reordered and given a range in one undo step
 said in the log, the active curve taken off, a kind for every curve, no step when nothing changed,
-Add with error bars, a figure's panel); run it after touching the graph's drawing or Plot setup.
+Add with error bars, a figure's panel; slice 4: every curve in one group and how each step looks,
+a curve's own colour winning, one type for the group, a group of one dropped, undo, Plot setup's
+Group column on a graph and on a new one, junk from storage); run it after touching the graph's
+drawing or Plot setup.
 `node tools/fit-drive.mjs [path]` (Playwright) clicks and types into what each slice of the
 curve fit (`ux/spec/FIT_SPEC.md`) from slice 5 on added (Find X/Y: the readouts against the
 functions, a redraw while typing, Fill a column… both ways, undo); run it after touching the Fit
@@ -3231,7 +3246,10 @@ a list of their own (Add, Replace, Remove, Up, Down), each with its X (any X of 
 row number), range and axis. OK is one undo step, and what it changes of the columns is said.
 Slice 3 done: the same dialog on a graph (*What it plots…*, Origin's Layer Contents): its curves to
 add, replace, take off, reorder, re-range or move between axes, each keeping how it is drawn until a
-kind is chosen; a figure's panel the same.
+kind is chosen; a figure's panel the same. Slice 4 done: groups, as Origin's: curves that share their
+plot type and step their colour, symbol or line style together (all three, or one with the others
+alike) from the first curve's, each curve's own style still winning; from the curve's right-click
+and Plot setup's Group column; the legend lists every curve.
 
 Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
 graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
@@ -3726,6 +3744,10 @@ Next, in order:
   header menu changes those roles; a curve is a column (a graph cannot draw one column twice, as
   against two X columns); colour and size from a column are set here but styled in the Format
   pane; What it plots… is for a graph or a panel, not a whole figure (each panel has its own)
+- Groups: a group steps through the graph's scheme from its first curve's place and through
+  Kurve's lists of symbols and line styles (not lists of your own, as Origin's increment lists);
+  the legend lists every curve of a group, not one entry for the group; groups are a graph's, not
+  across the panels of a figure
 - Your functions: a derived value has no unit of its own (it is shown without one); a category is
   one word or phrase, not a tree; the organizer works on one function at a time
 - Saved fit settings are a curve fit's (a peak fit's peaks are its own); a column's weights and a

@@ -1019,6 +1019,8 @@ details.more>table{margin-top:var(--sp-4)}
 .pgal [data-pk]:disabled{border-style:dashed;cursor:not-allowed}
 .pgal [data-pk]:disabled .pgl{color:var(--ink-off)}
 .psu-on{display:flex;align-items:baseline;gap:var(--sp-2)}
+.psu-gsteps{display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-5);padding:var(--sp-3) var(--sp-3) var(--sp-2);border-top:1px solid var(--rule)}
+.psu-gsteps label{display:flex;align-items:center;gap:var(--sp-2)}
 @media (max-width:860px){
   .psu{grid-template-columns:minmax(0,1fr);grid-template-areas:"tabs" "kinds" "cols" "cur" "pv"}
   .psu-tabs{display:flex}
@@ -6181,16 +6183,17 @@ function specName(c){ if(!c) return "a spectrum"; return c.name||(c.src?"derived
 // rest of the palette in order, so an overlay never shares the analysed
 // one's colour. Exports are printed on white and ask for the light set.
 // A caller that has the graph's settings passes its scheme: plotCfg() is not cheap with hundreds of spectra.
-function yTint(id,light,scheme){
-  const p=P(), pal=(light||!darkMode())?COL_TINTS_LIGHT:COL_TINTS_DARK, sch=SCHEMES[scheme!==undefined?scheme:plotCfg().scheme]||SCHEMES.kurve, dk=!(light||!darkMode());
+function yTint(id,light,scheme){ return tintAt(Math.max(0,yCols().findIndex(c=>c.id===id)),light,scheme); }
+// The colour at a position in the scheme (a column's place in the table, or a group's curve's step from its first).
+function tintAt(i,light,scheme){
+  const pal=(light||!darkMode())?COL_TINTS_LIGHT:COL_TINTS_DARK, sch=SCHEMES[scheme!==undefined?scheme:plotCfg().scheme]||SCHEMES.kurve, dk=!(light||!darkMode());
   // Every scheme but Kurve's colours by the order of the table, so a colour
   // stays with its spectrum whichever one is being analysed.
-  if(sch!==SCHEMES.kurve){ const ys=yCols(), i=Math.max(0,ys.findIndex(c=>c.id===id));
-    if(sch.seq){ const t=ys.length>1?i/(ys.length-1):0, a=dk?0.25:0, b=dk?1:0.82; return "#"+cmapAt("viridis",a+(b-a)*t).map(v=>v.toString(16).padStart(2,"0")).join(""); }
+  if(sch!==SCHEMES.kurve){ const n=yCols().length;
+    if(sch.seq){ const t=n>1?Math.min(1,i/(n-1)):0, a=dk?0.25:0, b=dk?1:0.82; return "#"+cmapAt("viridis",a+(b-a)*t).map(v=>v.toString(16).padStart(2,"0")).join(""); }
     if(sch.mono){ const g=dk?["#E3E8EF","#AEB8C5","#C5CEDA","#8C98A8"]:["#111820","#4A5361","#2B323C","#6B7482"]; return g[i%g.length]; }
     const arr=dk?sch.dark:sch.light; return arr[i%arr.length]; }
   // Kurve's own: the same hues by worksheet order. The active curve is drawn heavier, never recoloured.
-  const i=Math.max(0,yCols().findIndex(c=>c.id===id));
   return pal[i%pal.length];
 }
 
@@ -6954,6 +6957,7 @@ function plotCfg(){
   o.series=src.series||{}; o.hidden=src.hidden||[];
   // On a graph of its own, a spectrum not on it counts as hidden.
   const g=pv?null:graphOf(id), on=g?g.cols:pv?null:[]; if(on) o.hidden=o.hidden.concat(yCols().filter(c=>!on.includes(c.id)).map(c=>c.id));
+  o.gcols=g?g.cols:null;
   o.annos=((pv?src.annos:(p&&p.annos))||[]).filter(a=>annoInGraph(a,id));
   // A panel of a figure: its shared axes' inner numbers and titles give way, the
   // panels sharing an axis show the same range of it, it carries its letter, and
@@ -7009,19 +7013,70 @@ function projAnnos(q){ return (q&&(q.annos||(q.plot&&q.plot.annos)))||[]; }
    setCurveUse (one undo entry), cleaned by normalize (useClean); left out of saved styles (it is
    not in FMT_KEYS) and of a new graph's look (plotBase). The data, the processing, the fit and
    the other graphs are untouched. */
-const USE0=Object.freeze({rng:null,ax:null,lab:null});
+const USE0=Object.freeze({rng:null,ax:null,lab:null,grp:null});
 const rngOk=r=>!!r&&typeof r==="object"&&(r.by==="row"||r.by==="x")&&r.a!==""&&r.b!==""&&r.a!=null&&r.b!=null&&Number.isFinite(+r.a)&&Number.isFinite(+r.b);
 function curveUse(id,pl){ const u=id&&((pl||GP()||{}).use||{})[id]; if(!u||typeof u!=="object") return USE0;
-  return {rng:rngOk(u.rng)?{by:u.rng.by,a:+u.rng.a,b:+u.rng.b}:null, ax:u.ax==="r"?"r":null, lab:typeof u.lab==="string"&&colById(u.lab)?u.lab:null}; }
+  return {rng:rngOk(u.rng)?{by:u.rng.by,a:+u.rng.a,b:+u.rng.b}:null, ax:u.ax==="r"?"r":null, lab:typeof u.lab==="string"&&colById(u.lab)?u.lab:null, grp:grpOk(u.grp)?u.grp:null}; }
 // What storage gave back, kept only where it reads: curves on the graph, a range of two numbers, the right axis, a column that is there.
 function useClean(use,cols,allCols){ if(!use||typeof use!=="object") return null; const out={}, have=new Set(allCols.map(c=>c.id));
   for(const id of Object.keys(use)){ if(!cols.includes(id)) continue; const u=use[id]; if(!u||typeof u!=="object") continue; const o={};
-    if(rngOk(u.rng)) o.rng={by:u.rng.by,a:+u.rng.a,b:+u.rng.b}; if(u.ax==="r") o.ax="r"; if(typeof u.lab==="string"&&have.has(u.lab)) o.lab=u.lab;
+    if(rngOk(u.rng)) o.rng={by:u.rng.by,a:+u.rng.a,b:+u.rng.b}; if(u.ax==="r") o.ax="r"; if(typeof u.lab==="string"&&have.has(u.lab)) o.lab=u.lab; if(grpOk(u.grp)) o.grp=u.grp;
     if(Object.keys(o).length) out[id]=o; }
   return Object.keys(out).length?out:null; }
 function setCurveUse(ids,patch,log){ const p=P(); if(!p||S.readOnly||!GID()) return; const use=Object.assign({},GP().use||{});
   ids.forEach(id=>{ const o=Object.assign({},use[id]||{},patch); Object.keys(o).forEach(k=>{ if(o[k]==null) delete o[k]; }); if(Object.keys(o).length) use[id]=o; else delete use[id]; });
   pushUndo(log); savePlot({use:Object.keys(use).length?use:null},log); renderPlot(); }
+/* Groups of curves on a graph (PLOT_SPEC slice 4, as Origin's): the curves of a group share
+   their plot type, and their colour, symbol and line style step together from the first
+   curve's (all three, or one of them, the others alike), each curve's own style still winning. */
+const GRP_STEPS=[["all","Colour, symbol and line"],["color","Colour only"],["sym","Symbol only"],["dash","Line style only"]];
+const grpOk=g=>typeof g==="string"&&/^[A-Za-z0-9_-]{1,40}$/.test(g);
+const SYM_STEP=["circle","square","triangle","diamond","ocircle","osquare","otriangle","odiamond"], DASH_STEP=["solid","dash","dot","dashdot"];
+const newGrpId=()=>"q"+Math.random().toString(36).slice(2,8);
+// A group of one is no group; a group's step is one of GRP_STEPS. Mutates the plot settings given.
+function grpClean(pl){ if(!pl) return pl; const use=pl.use&&typeof pl.use==="object"?Object.fromEntries(Object.entries(pl.use).map(([k,u])=>[k,u&&typeof u==="object"?Object.assign({},u):u])):null, n={}; if(use) pl.use=use;
+  if(use) Object.values(use).forEach(u=>{ if(u&&grpOk(u.grp)) n[u.grp]=(n[u.grp]||0)+1; });
+  if(use) Object.keys(use).forEach(id=>{ const u=use[id]; if(u&&u.grp!=null&&!(n[u.grp]>=2)){ delete u.grp; if(!Object.keys(u).length) delete use[id]; } });
+  if(use&&!Object.keys(use).length) delete pl.use;
+  const g=pl.grps&&typeof pl.grps==="object"?pl.grps:{}, out={};
+  Object.keys(n).filter(k=>n[k]>=2).forEach(k=>{ const s=g[k]&&g[k].step; out[k]={step:GRP_STEPS.some(q=>q[0]===s)?s:"all"}; });
+  if(Object.keys(out).length) pl.grps=out; else delete pl.grps; return pl; }
+// Where a curve is in its group, worked out once per settings object: {g, k, n, first, base, step}.
+const GRPM=new WeakMap();
+function grpOf(cfg,id){ const use=cfg&&cfg.use; if(!use||!use[id]||!grpOk(use[id].grp)) return null;
+  let m=GRPM.get(cfg);
+  if(!m){ m=new Map(); const by={}, hid=new Set(cfg.hidden||[]), ys=yCols();
+    (cfg.gcols||Object.keys(use)).forEach(k=>{ const g=use[k]&&use[k].grp; if(grpOk(g)&&!hid.has(k)) (by[g]=by[g]||[]).push(k); });
+    Object.keys(by).forEach(g=>{ const ks=by[g]; if(ks.length<2) return; const base=Math.max(0,ys.findIndex(c=>c.id===ks[0])), step=((cfg.grps||{})[g]||{}).step||"all";
+      ks.forEach((k,i)=>m.set(k,{g,k:i,n:ks.length,first:ks[0],base,step})); });
+    GRPM.set(cfg,m); }
+  return m.get(id)||null; }
+// A graph's groups in the order of their first curves, each with its curves: [{g, ids, step, name}].
+function graphGroups(pl,cols){ const use=(pl&&pl.use)||{}, out=[];
+  (cols||[]).forEach(k=>{ const g=use[k]&&use[k].grp; if(!grpOk(g)) return; let q=out.find(o=>o.g===g); if(!q){ q={g,ids:[],step:(((pl.grps||{})[g])||{}).step||"all"}; out.push(q); } q.ids.push(k); });
+  return out.filter(q=>q.ids.length>1).map((q,i)=>Object.assign(q,{name:`Group ${i+1}`})); }
+// The curves of a group share the first curve's plot type.
+function grpShareTypes(pl,cols){ graphGroups(pl,cols).forEach(q=>{ const t=((pl.series||{})[q.ids[0]]||{}).type; pl.series=Object.assign({},pl.series);
+  q.ids.slice(1).forEach(k=>{ const s=Object.assign({},pl.series[k]); if(t) s.type=t; else delete s.type; if(Object.keys(s).length) pl.series[k]=s; else delete pl.series[k]; }); }); return pl; }
+// Puts curves of the graph in hand into a group (an id, "new"), or out of theirs (null); one undo entry.
+function setGroup(ids,grp,log){ const p=P(), gid=GID(), g=graphOf(gid); if(!p||S.readOnly||!g) return;
+  const pl=clone(g.plot||{}); pl.use=Object.assign({},pl.use); const to=grp==="new"?newGrpId():grp;
+  ids.forEach(id=>{ const u=Object.assign({},pl.use[id]); if(to) u.grp=to; else delete u.grp; if(Object.keys(u).length) pl.use[id]=u; else delete pl.use[id]; });
+  if(to&&!(pl.grps||{})[to]) pl.grps=Object.assign({},pl.grps,{[to]:{step:"all"}});
+  grpClean(pl); grpShareTypes(pl,g.cols);
+  pushUndo(log); savePlot({use:pl.use||null,grps:pl.grps||null,series:pl.series||{}},log); renderPlot(); }
+function setGroupStep(grp,step){ const g=graphOf(GID()); if(!g||S.readOnly||!GRP_STEPS.some(q=>q[0]===step)) return; const q=graphGroups(g.plot,g.cols).find(o=>o.g===grp); if(!q) return;
+  const l=(GRP_STEPS.find(o=>o[0]===step)[1]).toLowerCase(); pushUndo("a group's steps");
+  savePlot({grps:Object.assign({},g.plot.grps,{[grp]:{step}})},`stepped ${q.name.toLowerCase()} by ${l}`); renderPlot(); }
+// The curve's right-click: its group, another's, a new one, every curve in one, and how the group steps.
+function groupItems(c,ro){ const g=graphOf(GID()); if(!g||!c) return []; const gs=graphGroups(g.plot,g.cols), mine=gs.find(q=>q.ids.includes(c.id)), nm=k=>specName(colById(k));
+  const out=[{label:"Not grouped",radio:true,checked:!mine,enabled:!ro&&!!mine,run:()=>setGroup([c.id],null,`took ${specName(c)} out of ${mine.name.toLowerCase()}`)}];
+  gs.forEach(q=>out.push({label:q.name,note:andList(q.ids.map(nm)).slice(0,60),radio:true,checked:q===mine,enabled:!ro&&q!==mine,run:()=>setGroup([c.id],q.g,`put ${specName(c)} in ${q.name.toLowerCase()}`)}));
+  const others=g.cols.filter(k=>k!==c.id&&colById(k));
+  out.push("-",{label:"A new group with…",enabled:!ro&&!!others.length,sub:()=>others.map(k=>({label:nm(k),run:()=>setGroup([c.id,k],"new",`grouped ${specName(c)} with ${nm(k)}`)}))},
+    {label:"Every curve of this graph in one group",enabled:!ro&&g.cols.length>1,run:()=>setGroup(g.cols.slice(),"new","put every curve of the graph in one group")});
+  if(mine) out.push("-",{group:`${mine.name} steps`},...GRP_STEPS.map(([k,l])=>({label:l,radio:true,checked:mine.step===k,enabled:!ro,run:()=>setGroupStep(mine.g,k)})));
+  return out; }
 // A curve's points as this graph draws them.
 function useRange(id,pts,pl){ const r=curveUse(id,pl).rng; if(!r) return pts; const a=Math.min(r.a,r.b), b=Math.max(r.a,r.b);
   return r.by==="row"?pts.filter(q=>q.i+1>=a&&q.i+1<=b):pts.filter(q=>q.x>=a&&q.x<=b); }
@@ -7331,11 +7386,15 @@ function autoType(id){ const c=colById(id); if(!c) return "scatter"; const d=fin
   if(n>=500) t="line"; else if(n>=40){ const sp=spacing(xs); if(sp.sorted&&!sp.none&&sp.uneven<=0.1) t="line"; }
   AUTO_TYPE.set(d,t); return t; }
 function serStyle(id,active,pal,forExport,cfg){
-  const o=(cfg.series||{})[id]||{};
-  const mono=cfg.scheme==="mono"&&!active?["dash","dot","dashdot","solid"][Math.max(0,yCols().findIndex(c=>c.id===id))%4]:"solid";
+  const o=(cfg.series||{})[id]||{}, gi=grpOf(cfg,id), sc=cfg.scheme||"kurve";
+  let mono=cfg.scheme==="mono"&&!active?["dash","dot","dashdot","solid"][Math.max(0,yCols().findIndex(c=>c.id===id))%4]:"solid", gcol=null, gsym=null, gtype=null;
+  if(gi){ const f=(cfg.series||{})[gi.first]||{}, st=gi.step, k=gi.k, at=(arr,b)=>arr[((Math.max(0,arr.indexOf(b)))+k)%arr.length];
+    gcol=st==="all"||st==="color"?tintAt(gi.base+k,forExport,sc):(f.color||tintAt(gi.base,forExport,sc));
+    gsym=st==="all"||st==="sym"?at(SYM_STEP,f.sym||"circle"):(f.sym||"circle");
+    mono=st==="all"||st==="dash"?at(DASH_STEP,f.dash||"solid"):(f.dash||"solid"); gtype=f.type||null; }
   const hb=histOf(id);
-  return {type:o.type||(hb?"column":!cfg.style||cfg.style==="auto"?autoType(id):active?cfg.style:"line"), bw:hb?((finalOf(colById(id)).bins)||{}).w||null:null, color:o.color||yTint(id,forExport,cfg.scheme||"kurve"), lw:o.lw!=null?+o.lw:(active?1.4:1.2), leg:o.leg!==false,
-    dash:o.dash||mono, sym:o.sym||"circle", ss:o.ss!=null?+o.ss:null, fill:o.fill!=null?+o.fill:0.18, label:o.label||"", op:o.op!=null?+o.op:(active?1:0.8),
+  return {type:o.type||gtype||(hb?"column":!cfg.style||cfg.style==="auto"?autoType(id):active?cfg.style:"line"), bw:hb?((finalOf(colById(id)).bins)||{}).w||null:null, color:o.color||gcol||yTint(id,forExport,sc), lw:o.lw!=null?+o.lw:(active?1.4:1.2), leg:o.leg!==false,
+    dash:o.dash||mono, sym:o.sym||gsym||"circle", ss:o.ss!=null?+o.ss:null, fill:o.fill!=null?+o.fill:0.18, label:o.label||"", op:o.op!=null?+o.op:(active?1:0.8),
     eb:o.eb||"bars", ebColor:o.ebColor||"", ebLw:o.ebLw!=null?+o.ebLw:1, ebCap:o.ebCap!=null?+o.ebCap:5, ebOp:o.ebOp!=null?+o.ebOp:0.22,
     conn:o.conn||"straight", zcol:o.zcol||"", scol:o.scol||"", hatch:o.hatch||"none", fillTo:o.fillTo||"", fill2:o.fill2||""};
 }
@@ -10039,6 +10098,7 @@ function graphMenuItems(id,at){
       items.push("-",{label:"Range…",note:u.rng?rngText(u.rng,c):"",title:"What this graph draws of it: all, some rows, or an X range",enabled:!ro,run:()=>curveRangeDlg(c.id)},
         {label:"Right axis",checked:u.ax==="r"||(cfg.layout==="dy"&&!isAct),enabled:!ro&&ov&&!isAct,title:isAct?"The active curve stays on the left axis":!ov?"For overlaid curves (two Y axes puts every other curve on the right)":"On a Y axis of its own at the right",
           run:()=>setCurveUse([c.id],{ax:u.ax==="r"?null:"r"},`put ${specName(c)} on the ${u.ax==="r"?"left":"right"} axis`)},
+        {label:"Group",note:(()=>{ const g=graphOf(GID()), q=g&&graphGroups(g.plot,g.cols).find(o=>o.ids.includes(c.id)); return q?q.name:""; })(),title:"Curves that share their plot type, and step their colour, symbol or line style together",sub:()=>groupItems(c,ro)},
         {label:"Labels from",note:u.lab?`column ${colLetter(colById(u.lab))}`:"",title:"Each point labelled with the value of a column in its row",sub:()=>[{label:"Nothing",radio:true,checked:!u.lab,enabled:!ro,run:()=>setCurveUse([c.id],{lab:null},`took the labels off the points of ${specName(c)}`)}]
           .concat(sib.map(o=>({label:`Column ${colLetter(o)}${o.name?`: ${o.name}`:""}`,radio:true,checked:u.lab===o.id,enabled:!ro,run:()=>setCurveUse([c.id],{lab:o.id},`labelled the points of ${specName(c)} with column ${colLetter(o)}`)})))}); }
     if(!isAct) items.push({label:"Make it the active curve",title:"The one the Fit, Results and the tools work on",run:()=>setActiveCol(c.id)},{label:"Take it off this graph",run:()=>toggleColVis(c.id),enabled:!ro});
@@ -11251,8 +11311,14 @@ function togglePlot(key){
 function setStyle(v){ const p=P(); if(!p||S.readOnly) return; savePlot({style:v}); renderTop(); renderPlot(); }
 /* A curve's Plot type submenu: Automatic (UX_SPEC 3.7), then the types. While the
    graph is on Automatic a type chosen is the curve's own, so the others keep theirs. */
+function setTypeOf(ids,k,log){ const p=P(); if(!p||S.readOnly) return; pushUndo("changing the plot style");
+  const series=Object.assign({},GP().series||{}); ids.forEach(id=>{ const s=Object.assign({},series[id]); if(k) s.type=k; else delete s.type; series[id]=s; }); savePlot({series},log||null); renderTop(); renderPlot(); }
 function plotTypeItems(c,ro){
-  const cfg=plotCfg(), own=c&&(cfg.series[c.id]||{}).type, auto=!cfg.style||cfg.style==="auto", act=c&&c.id===P().activeY;
+  const cfg=plotCfg(), gi=c&&grpOf(cfg,c.id);
+  if(gi){ const g=graphOf(GID()), q=g&&graphGroups(g.plot,g.cols).find(o=>o.g===gi.g), ids=q?q.ids:[c.id], own=(cfg.series[gi.first]||{}).type, cur=serStyle(c.id,c.id===P().activeY,readPalette(),false,cfg).type, nm=q?q.name.toLowerCase():"the group";
+    return [{group:`For ${nm}`,plain:true},{label:"Automatic",note:own?"":((PLOT_TYPES.find(t=>t[0]===cur)||[])[1]||"").toLowerCase(),radio:true,checked:!own,enabled:!ro,run:()=>setTypeOf(ids,null,`drew ${nm} by the automatic type`)},"-"]
+      .concat(PLOT_TYPES.map(([k,l])=>({label:l,radio:true,checked:own===k,enabled:!ro,run:()=>setTypeOf(ids,k,`drew ${nm} as ${l.toLowerCase()}`)}))); }
+  const own=c&&(cfg.series[c.id]||{}).type, auto=!cfg.style||cfg.style==="auto", act=c&&c.id===P().activeY;
   const cur=c?serStyle(c.id,act,readPalette(),false,cfg).type:cfg.style, nm=k=>((PLOT_TYPES.find(t=>t[0]===k)||[])[1]||k).toLowerCase();
   return [{label:"Automatic",note:c?nm(autoType(c.id)):"",radio:true,checked:!own&&auto,enabled:!ro,title:"A line for many evenly spaced points, symbols for a few or unevenly spaced ones",
       run:()=>{ if(c&&own) setSeriesStyle(c.id,{type:null},`drew ${specName(c)} by the automatic type`); if(!auto) setStyle("auto"); }},"-"]
@@ -17165,7 +17231,8 @@ function normalize(p){ if(!p) return; const was=p.v||1;
   { const yIds=new Set((p.cols||[]).filter(c=>c.role==="y").map(c=>c.id));
     p.graphs=(Array.isArray(p.graphs)?p.graphs:[]).filter(g=>g&&g.id).map(g=>{ g.cols=(g.cols||[]).filter(k=>yIds.has(k));
       g.plot=Object.assign({style:"auto",logY:false,grid:false,resid:"auto"},g.plot||{}); delete g.plot.annos;
-      if("use" in g.plot){ const u=useClean(g.plot.use,g.cols,p.cols||[]); if(u) g.plot.use=u; else delete g.plot.use; } if(!g.name) g.name="Graph"; return g; }).filter(g=>g.cols.length||(g.fig&&typeof g.fig==="object"));
+      if("use" in g.plot){ const u=useClean(g.plot.use,g.cols,p.cols||[]); if(u) g.plot.use=u; else delete g.plot.use; }
+      if("use" in g.plot||"grps" in g.plot) grpClean(g.plot); if(!g.name) g.name="Graph"; return g; }).filter(g=>g.cols.length||(g.fig&&typeof g.fig==="object"));
     // A figure's cells name graphs that exist, each in one cell of one figure, none a
     // figure itself, inside its grid; a figure shows no spectra of its own.
     const have=new Set(p.graphs.filter(g=>!g.fig).map(g=>g.id)), used=new Set();
@@ -20263,8 +20330,8 @@ ${DL([["Reverse X","High to low, as wavenumbers are usually drawn."],["Log Y","A
 <h2>Right-click</h2>
 <p>On a curve: its colour, plot type and style; on the fit's curve, its look, its bands, Results and Remove fit. On an empty spot: a line, text or a peak label there; axes, layout and legend. On a line, a label, the legend or a title: its own options. ${K("Shift","F10")} opens the same menu from the keyboard.</p>
 <h2 id="use">What a curve draws on this graph</h2>
-<p>Three things on a curve's right-click belong to this graph alone: its data, its processing, the fit and the other graphs stay as they are.</p>
-${DL([["Range…","All of it, rows from and to (counted as the worksheet shows them), or X from and to (when X rises or falls steadily); with <em>Fit the axes to it</em> the graph shows just that, and <em>Every curve of this graph</em> gives them all the same range. The menu says the range a curve has."],["Right axis","An overlaid curve on a Y axis of its own at the right, fitted to it, with the legend saying left and right and the Format pane a <em>Right Y axis</em> page. The active curve stays on the left. The <em>Two Y axes</em> layout still puts every other curve on the right."],["Labels from","Each point drawn labelled with the value of a column in its row (a sample number, a temperature), in the labels' text style."]])}
+<p>Four things on a curve's right-click belong to this graph alone: its data, its processing, the fit and the other graphs stay as they are.</p>
+${DL([["Range…","All of it, rows from and to (counted as the worksheet shows them), or X from and to (when X rises or falls steadily); with <em>Fit the axes to it</em> the graph shows just that, and <em>Every curve of this graph</em> gives them all the same range. The menu says the range a curve has."],["Right axis","An overlaid curve on a Y axis of its own at the right, fitted to it, with the legend saying left and right and the Format pane a <em>Right Y axis</em> page. The active curve stays on the left. The <em>Two Y axes</em> layout still puts every other curve on the right."],["Labels from","Each point drawn labelled with the value of a column in its row (a sample number, a temperature), in the labels' text style."],["Group","Curves that go together, as Origin's groups: they share their plot type (<em>Plot type</em> on one changes them all), and their colour, symbol and line style step together from the first curve's, all three or one of them (<em>Colour only</em>, <em>Symbol only</em>, <em>Line style only</em>), the others alike. A curve's own colour, symbol or line still wins. Put a curve in a group, a new group with another, or every curve in one; Plot setup has a Group column too. The legend still lists every curve."]])}
 <h2 id="select">What is selected</h2>
 <p>Click a curve, the fit's curve, an axis's numbers, a band, a line or a label to select it: it is outlined on the graph, and its menu, the same as its right-click menu, appears at the end of the graph's own bar as a coloured button (<em>Curve</em>, <em>Fit</em>, <em>Axis</em>, <em>Region</em>, <em>Text</em>…). A whole column selected in the worksheet does the same for its curve. A click on an empty spot, or ${K("Esc")}, lets go; ${K("Shift","F10")} opens that menu from the keyboard.</p>
 <h2 id="graphmenu">The graph's menus</h2>
@@ -22612,7 +22679,7 @@ function renderGraphHeads(){
 /* ---- Making, changing and removing graphs ---- */
 function nextGraphName(p){ p=p||P(); const used=new Set(((p&&p.graphs)||[]).map(g=>g.name)); let n=1; while(used.has("Graph "+n)) n++; return "Graph "+n; }
 // A new graph looks like the one in front, with its own axes and no annotations.
-function plotBase(pl){ const o=clone(pl||{})||{}; ["annos","hidden","title","legendPos","gname","cols","shut","gen","use"].forEach(k=>delete o[k]); o.ax={}; o.layout="overlay"; if(o.legend==="custom") o.legend="auto"; return o; }
+function plotBase(pl){ const o=clone(pl||{})||{}; ["annos","hidden","title","legendPos","gname","cols","shut","gen","use","grps"].forEach(k=>delete o[k]); o.ax={}; o.layout="overlay"; if(o.legend==="custom") o.legend="auto"; return o; }
 function graphBase(from){ return plotBase(plotOf(from||GID())); }
 function newGraphs(groups,opt){ opt=opt||{}; const p=P(); if(!p||S.readOnly) return [];
   groups=groups.map(ids=>ids.filter(k=>{ const c=colById(k); return c&&c.role==="y"; })).filter(g=>g.length); if(!groups.length) return [];
@@ -22781,7 +22848,9 @@ function plotCols(cids,o){
     graphs.push({id:gid,name:nextGraphName({graphs}),cols:ids.slice(),plot:tp}); isNewG=true; }
   if(o.plot) Object.assign(tp,o.plot);
   if(o.use&&Object.keys(o.use).length) tp.use=Object.assign({},tp.use,o.use);
+  if(o.grps&&Object.keys(o.grps).length) tp.grps=Object.assign({},tp.grps,o.grps);
   if(o.series&&Object.keys(o.series).length){ tp.series=Object.assign({},tp.series); Object.keys(o.series).forEach(k=>{ tp.series[k]=Object.assign({},tp.series[k],o.series[k]); }); }
+  if(o.use||o.grps){ grpClean(tp); grpShareTypes(tp,graphs.find(g=>g.id===gid).cols); }
   const nm=graphs.find(g=>g.id===gid).name, wasOpen=graphWinIds().some(winOpen), from=winOfGraph(S.gid), gWas=!isNewG&&winOpen(winOfGraph(gid));
   const xNote=xs.length?` against ${andList(xs.map(c=>colLetter(c)+(c.name?` (${c.name})`:"")))}`:"";
   save({cols:p.cols,graphs},`plotted ${andList(ys.map(specName))}${xNote} in ${nm}${made.length?`, making ${andList(made.map(specName))} ${made.length===1?"a Y column":"Y columns"}`:""}${o.note?`; ${o.note}`:""}`);
@@ -22930,13 +22999,16 @@ function psuStart(cids){
   return {use,curves}; }
 // A graph's curves as the dialog's list, with what each uses and the marks they make.
 function psuFromGraph(g){
-  const pl=g.plot||{}, use={}, rng={}, ax={}, ser=pl.series||{};
+  const pl=g.plot||{}, use={}, rng={}, ax={}, grp={}, ser=pl.series||{};
   const curves=graphCols(g.id).map(y=>{ const u=curveUse(y.id,pl), eo=errColsOf(y.id), s=ser[y.id]||{}, col=k=>{ const c=k&&colById(k); return c||null; };
-    if(u.rng) rng[y.id]=Object.assign({},u.rng); if(u.ax==="r") ax[y.id]="r";
+    if(u.rng) rng[y.id]=Object.assign({},u.rng); if(u.ax==="r") ax[y.id]="r"; if(u.grp) grp[y.id]=u.grp;
     return {y,x:xColFor(y),e:Object.keys(eo).map(k=>({c:eo[k],k})),lab:col(u.lab),zcol:col(s.zcol),scol:col(s.scol)}; });
   curves.forEach(q=>{ if(!q.y.src) use[q.y.id]="y"; if(q.x) use[q.x.id]="x"; q.e.forEach(({c,k})=>{ use[c.id]="e:"+k; });
     if(q.lab&&!use[q.lab.id]) use[q.lab.id]="lab"; if(q.zcol&&!use[q.zcol.id]) use[q.zcol.id]="col"; if(q.scol&&!use[q.scol.id]) use[q.scol.id]="size"; });
-  return {use,curves,rng,ax}; }
+  return {use,curves,rng,ax,grp,grps:clone(pl.grps||{})}; }
+// The dialog's groups in the order of their first curves (a group of one too, so others can join it).
+function psuGroups(st){ const out=[]; st.curves.forEach(q=>{ const g=st.grp[q.y.id]; if(!g) return; let o=out.find(z=>z.g===g); if(!o){ o={g,ids:[]}; out.push(o); } o.ids.push(q.y.id); });
+  return out.map((o,i)=>Object.assign(o,{name:`Group ${i+1}`,step:((st.grps||{})[o.g]||{}).step||"all"})); }
 // The curves what is marked makes, sheet by sheet in the table's order.
 function psuBuild(st){
   const out=[];
@@ -22972,12 +23044,15 @@ function plotSetupPv(st,kind,W,H){
       q.e.forEach(({c,k})=>{ put(c,"role","e"); put(c,"of",y.id); put(c,"ax",k[0]==="x"?"x":undefined); put(c,"side",k[1]==="+"?"+":k[1]==="-"?"-":undefined); }); });
     cur.forEach(q=>{ const y=q.y; if(y.src) return; if(!q.x){ if(xColFor(y)) put(y,"xcol","row"); } else if(xColFor(y)!==q.x) put(y,"xcol",q.x.id);
       const u=Object.assign({},tp.use[y.id]); if(st.rng[y.id]&&rngOk(st.rng[y.id])) u.rng=st.rng[y.id]; else delete u.rng;
-      if(st.ax[y.id]==="r") u.ax="r"; else delete u.ax; if(q.lab) u.lab=q.lab.id; if(Object.keys(u).length) tp.use[y.id]=u; else delete tp.use[y.id];
+      if(st.ax[y.id]==="r") u.ax="r"; else delete u.ax; if(q.lab) u.lab=q.lab.id; if(st.grp[y.id]) u.grp=st.grp[y.id]; else delete u.grp; if(Object.keys(u).length) tp.use[y.id]=u; else delete tp.use[y.id];
       const s=Object.assign({},tp.series[y.id]); if(K&&K[2]==="type") s.type=kind;
       if(q.zcol) s.zcol=q.zcol.id; else if(g0) delete s.zcol; if(q.scol) s.scol=q.scol.id; else if(g0) delete s.scol; tp.series[y.id]=s; });
     cur.filter(q=>q.y.src).forEach(q=>{ const s=Object.assign({},tp.series[q.y.id]); if(K&&K[2]==="type") s.type=kind; tp.series[q.y.id]=s; });
+    const pcols=g0?ids:(into?into.cols.filter(k=>!ids.includes(k)):[]).concat(ids);
+    if(g0) Object.keys(tp.use).forEach(k=>{ if(!ids.includes(k)) delete tp.use[k]; });
+    tp.grps=g0?clone(st.grps||{}):Object.assign({},tp.grps,clone(st.grps||{})); grpClean(tp); grpShareTypes(tp,pcols);
     if(g0){ put(g0,"cols",ids); put(g0,"plot",tp); }
-    else { p.graphs.push({id,name:"Preview",cols:(into?into.cols.filter(k=>!ids.includes(k)):[]).concat(ids),plot:tp}); if(into) S.glead[id]=ids[0]; }
+    else { p.graphs.push({id,name:"Preview",cols:pcols,plot:tp}); if(into) S.glead[id]=ids[0]; }
     withGraph(g0?g0.id:id,()=>{ if(!activeYCol()) return; svg=buildPlot(W,H,readPalette(),false); });
   } catch(e){ svg=""; }
   finally{ if(!g0){ p.graphs=p.graphs.filter(g=>g.id!==id); delete S.glead[id]; } for(let i=keep.length-1;i>=0;i--){ const [o,k,had,v]=keep[i]; if(had) o[k]=v; else delete o[k]; } }
@@ -22988,7 +23063,7 @@ async function openPlotDlg(cids,o){
   const g0=o.gid&&graphOf(o.gid)&&!graphOf(o.gid).fig?graphOf(o.gid):null; if(o.gid&&!g0) return;
   const any=allCols().some(c=>!c.src&&(c.role==="y"||c.role==="ignore")&&(c.data||[]).some(v=>v!=null))||yCols().some(c=>c.src);
   if(!g0&&!any){ toast("There is no column to plot yet: type or paste values into the worksheet, or import a file."); return; }
-  const s0=g0?psuFromGraph(g0):psuStart(cids), st={kind:g0?null:S.plotDlgKind||"line",use:s0.use,curves:s0.curves,sel:s0.curves.length?s0.curves[0].y.id:null,rng:s0.rng||{},ax:s0.ax||{},sheet:curSheet(),q:"",tick:new Set(),into:"",tab:g0?"cur":"kind",gid:g0?g0.id:null};
+  const s0=g0?psuFromGraph(g0):psuStart(cids), st={kind:g0?null:S.plotDlgKind||"line",use:s0.use,curves:s0.curves,sel:s0.curves.length?s0.curves[0].y.id:null,rng:s0.rng||{},ax:s0.ax||{},grp:Object.assign({},s0.grp),grps:clone(s0.grps||{}),sheet:curSheet(),q:"",tick:new Set(),into:"",tab:g0?"cur":"kind",gid:g0?g0.id:null};
   // A column chosen from another sheet shows every sheet.
   if(Object.keys(st.use).some(id=>{ const c=colById(id); return c&&sheetOf(c)!==st.sheet; })) st.sheet="all";
   const targets=drawGraphIds(), ss=sheetList(), many=ss.length>1, ro=v=>esc(v);
@@ -23030,14 +23105,17 @@ async function openPlotDlg(cids,o){
   const curHtml=()=>{ const cur=st.curves, K=(PLOT_DLG_KINDS.find(q=>q[0]===st.kind)||[])[2], lay=g0&&(g0.plot||{}).layout, ov=st.kind?K==="type"||st.kind==="overlay":!lay||lay==="overlay";
     $("#psuN").textContent=cur.length?`${cur.length}`:"";
     if(!cur.length) return `<p class="lab">Mark a column as Y and press Add.</p>`;
-    return `<table class="ptab psu-c"><thead><tr><th class="l">Curve</th><th class="l">Against</th><th class="l">With</th><th class="l">Range</th>${ov?`<th class="l">Axis</th>`:""}</tr></thead><tbody>${cur.map((q,i)=>{ const y=q.y, r=st.rng[y.id], by=r?r.by:"", sp=psuSpan(q);
+    const gl=psuGroups(st);
+    return `<table class="ptab psu-c"><thead><tr><th class="l">Curve</th><th class="l">Against</th><th class="l">With</th><th class="l">Range</th>${ov?`<th class="l">Axis</th>`:""}<th class="l" title="Curves that share their plot type, and step their colour, symbol or line style together">Group</th></tr></thead><tbody>${cur.map((q,i)=>{ const y=q.y, r=st.rng[y.id], by=r?r.by:"", sp=psuSpan(q);
       const xs=y.src?[]:[...new Set(sheetCols(sheetOf(y)).filter(c=>c.role==="x"||st.use[c.id]==="x").concat(q.x&&sheetOf(q.x)===sheetOf(y)?[q.x]:[]))];
       const against=y.src?`<span title="A column made from another takes its X">${q.x?`<b>${ro(colRef(q.x))}</b> ${ro(q.x.name||"")}`:"the row number"}</span>`
         :`<select data-cx="${y.id}" aria-label="What ${ro(colRef(y))} is plotted against">${xs.map(c=>`<option value="${c.id}"${q.x===c?" selected":""}>${ro(colLetter(c))}${c.name?" "+ro(c.name):""}</option>`).join("")}<option value=""${q.x?"":" selected"}>Row number</option></select>`;
       const w=[...q.e.map(e=>`${(ERR_KINDS.find(z=>z[0]===e.k)||ERR_KINDS[0])[2]} ${colLetter(e.c)}`),q.lab?`labels ${colLetter(q.lab)}`:"",q.zcol?`colour ${colLetter(q.zcol)}`:"",q.scol?`size ${colLetter(q.scol)}`:""].filter(Boolean).join(", ");
       return `<tr data-pcur="${y.id}" tabindex="0" aria-selected="${st.sel===y.id}"${st.sel===y.id?` class="sel"`:""}><td class="l"><b>${ro(colRef(y)||"")}</b> ${ro(y.name||specName(y))}</td><td class="l">${against}</td><td class="l">${w?ro(w):`<span class="lab">—</span>`}</td>`
         +`<td class="l psu-rg"><select data-crng="${y.id}" aria-label="What of ${ro(specName(y))} the graph draws"><option value=""${!by?" selected":""}>All</option><option value="row"${by==="row"?" selected":""}>Rows</option><option value="x"${by==="x"?" selected":""}${sp.mono?"":` disabled title="X must rise or fall steadily to draw part of it by X"`}>X</option></select>${by?`<input type="text" inputmode="decimal" data-cra="${y.id}" value="${r?ro(String(r.a)):""}" aria-label="From"><span>to</span><input type="text" inputmode="decimal" data-crb="${y.id}" value="${r?ro(String(r.b)):""}" aria-label="To">`:""}</td>`
-        +(ov?`<td class="l"><select data-cax="${y.id}" aria-label="Axis of ${ro(specName(y))}"${i===0?` disabled title="The first curve, the active one, stays on the left"`:""}><option value="">Left</option><option value="r"${st.ax[y.id]==="r"&&i>0?" selected":""}>Right</option></select></td>`:"")+`</tr>`; }).join("")}</tbody></table>`; };
+        +(ov?`<td class="l"><select data-cax="${y.id}" aria-label="Axis of ${ro(specName(y))}"${i===0?` disabled title="The first curve, the active one, stays on the left"`:""}><option value="">Left</option><option value="r"${st.ax[y.id]==="r"&&i>0?" selected":""}>Right</option></select></td>`:"")
+        +`<td class="l"><select data-cgrp="${y.id}" aria-label="Group of ${ro(specName(y))}"><option value="">—</option>${gl.map(o=>`<option value="${o.g}"${st.grp[y.id]===o.g?" selected":""}>${o.name}</option>`).join("")}<option value="new">New group</option></select></td></tr>`; }).join("")}</tbody></table>`
+      +(gl.some(o=>o.ids.length>1)?`<div class="psu-gsteps">${gl.filter(o=>o.ids.length>1).map(o=>`<label>${o.name} steps <select data-gstep="${o.g}" aria-label="What ${o.name.toLowerCase()} steps">${GRP_STEPS.map(([k,l])=>`<option value="${k}"${o.step===k?" selected":""}>${l}</option>`).join("")}</select></label>`).join("")}</div>`:""); };
   let pvT=0; const sk=k=>{ const el=box.querySelector("#pdlgSk"); if(!el) return; clearTimeout(pvT); const draw=()=>{ if(!el.isConnected) return; const w=Math.max(260,Math.round(el.clientWidth||520)), h=Math.max(150,Math.round(w*0.56)); el.innerHTML=plotSetupPv(st,k||st.kind,w,h)||`<p class="lab psu-none">Nothing to draw yet</p>`; }; if(k) draw(); else pvT=setTimeout(draw,40); };
   const cards=()=>{ const cur=st.curves, ser=cur.length?plotDlgSer({x:cur[0].x?cur[0].x.id:"",ys:cur.map(q=>q.y.id)}):[]; box.querySelectorAll("[data-pk]").forEach(b=>{ b.querySelector(".pgt").innerHTML=plotDlgCard(b.dataset.pk,ser); }); };
   // What Add and Replace put on: the curves of the ticked columns when some are ticked (a Y ticked, or its X, error bars, labels, colour or size), else every column marked Y.
@@ -23077,7 +23155,9 @@ async function openPlotDlg(cids,o){
     if(t.matches("[data-cx]")){ const q=st.curves.find(q=>q.y.id===t.dataset.cx); if(q){ q.x=t.value?colById(t.value):null; if(!t.value||psuSpan(q).mono===false) { if(st.rng[q.y.id]&&st.rng[q.y.id].by==="x") delete st.rng[q.y.id]; } } refresh(); return; }
     if(t.matches("[data-crng]")){ const id=t.dataset.crng, q=st.curves.find(q=>q.y.id===id); if(!t.value) delete st.rng[id]; else { const s=psuSpan(q); st.rng[id]=t.value==="row"?{by:"row",a:1,b:Math.max(1,s.rows)}:{by:"x",a:+fmt(s.x0,8),b:+fmt(s.x1,8)}; } refresh(); return; }
     if(t.matches("[data-cra],[data-crb]")){ const id=t.dataset.cra||t.dataset.crb, r=st.rng[id], v=parseNum(t.value); if(r&&v!=null&&Number.isFinite(v)){ if(t.dataset.cra) r.a=v; else r.b=v; } else if(r) t.value=String(t.dataset.cra?r.a:r.b); sk(); return; }
-    if(t.matches("[data-cax]")){ if(t.value) st.ax[t.dataset.cax]="r"; else delete st.ax[t.dataset.cax]; sk(); } });
+    if(t.matches("[data-cax]")){ if(t.value) st.ax[t.dataset.cax]="r"; else delete st.ax[t.dataset.cax]; sk(); return; }
+    if(t.matches("[data-cgrp]")){ const id=t.dataset.cgrp; if(t.value==="new"){ const g=newGrpId(); st.grps[g]={step:"all"}; st.grp[id]=g; } else if(t.value) st.grp[id]=t.value; else delete st.grp[id]; refresh(); return; }
+    if(t.matches("[data-gstep]")){ st.grps[t.dataset.gstep]={step:t.value}; sk(); } });
   // Enter in a range field enters it, not the dialog.
   cur.addEventListener("keydown",e=>{ if(e.key==="Enter"&&e.target.matches("[data-cra],[data-crb]")){ e.preventDefault(); e.stopPropagation(); e.target.dispatchEvent(new Event("change",{bubbles:true})); } });
   $("#psuAdd").onclick=()=>{ const b=built(); if(!b.length) return; b.forEach(n=>{ const i=st.curves.findIndex(q=>q.y===n.y); if(i>=0) st.curves[i]=n; else st.curves.push(n); }); st.sel=b[b.length-1].y.id; refresh(); };
@@ -23098,10 +23178,10 @@ async function openPlotDlg(cids,o){
   const ov=kind?kind[2]==="type"||st.kind==="overlay":(g0.plot||{}).layout==null||(g0.plot||{}).layout==="overlay";
   if(g0){ psuSetGraph(g0.id,curves,st,kind,ov,said); return; }
   const use={}, series={};
-  curves.forEach(q=>{ const y=q.y, u={}; if(st.rng[y.id]&&rngOk(st.rng[y.id])) u.rng=st.rng[y.id]; if(st.ax[y.id]==="r"&&q!==curves[0]&&ov) u.ax="r"; if(q.lab) u.lab=q.lab.id; if(Object.keys(u).length) use[y.id]=u;
+  curves.forEach(q=>{ const y=q.y, u={}; if(st.rng[y.id]&&rngOk(st.rng[y.id])) u.rng=st.rng[y.id]; if(st.ax[y.id]==="r"&&q!==curves[0]&&ov) u.ax="r"; if(q.lab) u.lab=q.lab.id; if(st.grp[y.id]) u.grp=st.grp[y.id]; if(Object.keys(u).length) use[y.id]=u;
     if(q.zcol||q.scol) series[y.id]=Object.assign({},q.zcol?{zcol:q.zcol.id}:{},q.scol?{scol:q.scol.id}:{}); });
   const say=said.length?`${capFirst(andList(said))}, on every graph.`:"";
-  plotCols(ids,Object.assign({into,noUndo:true,use,series,say,note:said.length?andList(said):""},kind[2]==="type"?{type:st.kind}:{layout:st.kind},st.kind==="heat"?{plot:{mapKind:"both",mapY:"series"}}:{}));
+  plotCols(ids,Object.assign({into,noUndo:true,use,series,grps:st.grps,say,note:said.length?andList(said):""},kind[2]==="type"?{type:st.kind}:{layout:st.kind},st.kind==="heat"?{plot:{mapKind:"both",mapY:"series"}}:{}));
 }
 /* What Plot setup changes of the columns themselves, which every graph sees: a data column made
    an X or error bars, an error column given to another column or made another kind, a column's
@@ -23125,21 +23205,22 @@ function psuColChanges(curves){
    curve taken off loses what it used here. One save, after psuColChanges. */
 function psuSetGraph(gid,curves,st,kind,ov,said){
   const p=P(), graphs=(p.graphs||[]).map(g=>Object.assign({},g,{cols:g.cols.slice(),plot:Object.assign({},g.plot)})), g=graphs.find(q=>q.id===gid); if(!g) return;
-  const was=g.cols.slice(), ids=curves.map(q=>q.y.id), tp=g.plot, use=Object.assign({},tp.use), ser=Object.assign({},tp.series), before=JSON.stringify([use,ser]);
+  const was=g.cols.slice(), ids=curves.map(q=>q.y.id), tp=g.plot, use=Object.assign({},tp.use), ser=Object.assign({},tp.series), before=JSON.stringify([use,ser,tp.grps||null]);
   was.filter(k=>!ids.includes(k)).forEach(k=>{ delete use[k]; });
   curves.forEach((q,i)=>{ const y=q.y, u=Object.assign({},use[y.id]);
     if(st.rng[y.id]&&rngOk(st.rng[y.id])) u.rng=st.rng[y.id]; else delete u.rng;
     if(st.ax[y.id]==="r"&&i>0&&ov) u.ax="r"; else delete u.ax;
     if(q.lab) u.lab=q.lab.id; else delete u.lab;
+    if(st.grp[y.id]) u.grp=st.grp[y.id]; else delete u.grp;
     if(Object.keys(u).length) use[y.id]=u; else delete use[y.id];
     const s=Object.assign({},ser[y.id]); if(q.zcol) s.zcol=q.zcol.id; else delete s.zcol; if(q.scol) s.scol=q.scol.id; else delete s.scol;
     if(kind&&kind[2]==="type") s.type=st.kind; if(Object.keys(s).length) ser[y.id]=s; else delete ser[y.id]; });
-  tp.use=use; tp.series=ser; g.cols=ids;
+  tp.use=use; tp.series=ser; g.cols=ids; tp.grps=clone(st.grps||{}); grpClean(tp); grpShareTypes(tp,ids);
   if(kind&&kind[2]!=="type"){ tp.layout=st.kind; if(st.kind==="heat") Object.assign(tp,{mapKind:"both",mapY:"series"}); }
   const added=ids.filter(k=>!was.includes(k)), gone=was.filter(k=>!ids.includes(k)), same=was.filter(k=>ids.includes(k)), moved=same.join()!==ids.filter(k=>was.includes(k)).join();
   const nm=k=>specName(colById(k)), parts=[];
   if(added.length) parts.push(`added ${andList(added.map(nm))}`); if(gone.length) parts.push(`took off ${andList(gone.map(nm))}`); if(moved) parts.push("put the curves in a new order");
-  if(JSON.stringify([use,ser])!==before&&!kind) parts.push("changed what the curves draw"); if(kind) parts.push(`drew them as ${(PLOT_DLG_KINDS.find(q=>q[0]===st.kind)||[,"before"])[1].toLowerCase()}`);
+  if(JSON.stringify([tp.use||{},tp.series||{},tp.grps||null])!==before&&!kind) parts.push("changed what the curves draw"); if(kind) parts.push(`drew them as ${(PLOT_DLG_KINDS.find(q=>q[0]===st.kind)||[,"before"])[1].toLowerCase()}`);
   if(!parts.length&&!said.length){ undoStack.pop(); renderUndo(); return; }
   // The graph in front keeps a curve it shows as the active one.
   let act=p.activeY; const front=GID()===gid; if(front&&!ids.includes(act)) act=ids[0];

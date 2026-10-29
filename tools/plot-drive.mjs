@@ -272,6 +272,59 @@ await page(async p => {
   await p.click("#formCancel"); await p.waitForTimeout(200);
 }, { name: "Plot setup on a graph" });
 
+console.log("Slice 4: groups");
+await page(async p => {
+  const id = await three(p);
+  const look = () => p.evaluate(id => { const cfg = plotCfg(), pal = readPalette(); return [id.B, id.C, id.D].map(k => { const s = serStyle(k, k === P().activeY, pal, false, cfg); return { c: s.color, s: s.sym, d: s.dash, t: s.type }; }); }, id);
+  const before = await look();
+  let r = await p.evaluate(id => { const g = graphMenuItems(id.C).find(i => i && i.label === "Group"); return g ? g.sub().filter(i => i && i.label).map(i => i.label) : null; }, id);
+  check("a curve's right-click has Group: not grouped, a new group with…, every curve in one", r && r.includes("Not grouped") && r.includes("A new group with…") && r.includes("Every curve of this graph in one group"), JSON.stringify(r));
+  await p.evaluate(id => { graphMenuItems(id.C).find(i => i && i.label === "Group").sub().find(i => i.label === "Every curve of this graph in one group").run(); }, id); await p.waitForTimeout(200);
+  let a = await look();
+  check("every curve in one group: colours as they were, symbols and line styles stepping from the first", a.map(q => q.c).join() === before.map(q => q.c).join() && a.map(q => q.s).join() === "circle,square,triangle" && a.map(q => q.d).join() === "solid,dash,dot", JSON.stringify(a));
+  const g = await p.evaluate(() => graphGroups(GP(), P().graphs[0].cols)[0].g);
+  await p.evaluate(g => setGroupStep(g, "sym"), g); await p.waitForTimeout(150); a = await look();
+  check("Symbol only: one colour (the first curve's), the symbols stepping, one line style", a.every(q => q.c === before[0].c) && a.map(q => q.s).join() === "circle,square,triangle" && a.every(q => q.d === "solid"), JSON.stringify(a));
+  await p.evaluate(g => setGroupStep(g, "dash"), g); await p.waitForTimeout(150); a = await look();
+  check("Line style only: one colour and symbol, the line styles stepping", a.every(q => q.c === before[0].c && q.s === "circle") && a.map(q => q.d).join() === "solid,dash,dot", JSON.stringify(a));
+  await p.evaluate(id => setSeriesStyle(id.C, { color: "#aa0000" }), id); await p.waitForTimeout(150); a = await look();
+  check("a curve's own colour still wins in its group", a[1].c === "#aa0000" && a[0].c === before[0].c && a[2].c === before[0].c, JSON.stringify(a));
+  r = await p.evaluate(id => { const it = plotTypeItems(colById(id.C), false); return { head: it[0].group, run: !!it.find(i => i && i.label === "Symbols") }; }, id);
+  await p.evaluate(id => { plotTypeItems(colById(id.C), false).find(i => i && i.label === "Symbols").run(); }, id); await p.waitForTimeout(150); a = await look();
+  check("Plot type on one curve of a group is the group's: every curve drawn as symbols", r.head === "For group 1" && a.every(q => q.t === "scatter"), JSON.stringify([r, a]));
+  await p.evaluate(id => setGroup([id.D], null, "out"), id); await p.waitForTimeout(150);
+  r = await p.evaluate(() => graphGroups(GP(), P().graphs[0].cols).map(q => q.ids.length));
+  await p.evaluate(id => setGroup([id.C], null, "out"), id); await p.waitForTimeout(150);
+  const r2 = await p.evaluate(() => ({ grps: P().graphs[0].plot.grps || null, grp: Object.values(P().graphs[0].plot.use || {}).filter(u => u.grp).length }));
+  check("taking curves out: a group of two stays, a group of one is no group", JSON.stringify(r) === "[2]" && !r2.grps && r2.grp === 0, JSON.stringify([r, r2]));
+  for (let i = 0; i < 2; i++) await p.evaluate(() => undo()); await p.waitForTimeout(200);
+  check("undo puts them back in the group", await p.evaluate(() => graphGroups(GP(), P().graphs[0].cols).map(q => q.ids.length).join() === "3"));
+  // In Plot setup: the group column and the steps.
+  await p.evaluate(() => { setGroup(P().graphs[0].cols.slice(), null, "none"); }); await p.waitForTimeout(150);
+  await p.evaluate(() => { plotsOf(); }); await p.waitForTimeout(400);
+  await p.selectOption(`#psuCur [data-cgrp="${id.B}"]`, "new"); await p.waitForTimeout(120);
+  const gk = await p.evaluate(id => $(`#psuCur [data-cgrp="${id.B}"]`).value, id);
+  await p.selectOption(`#psuCur [data-cgrp="${id.D}"]`, gk); await p.waitForTimeout(120);
+  r = await p.evaluate(() => ({ steps: [...document.querySelectorAll("#psuCur [data-gstep]")].length, opts: [...document.querySelectorAll("#psuCur [data-cgrp]")][1].options.length }));
+  await p.selectOption(`#psuCur [data-gstep="${gk}"]`, "color"); await p.waitForTimeout(150);
+  const u0 = await p.evaluate(() => undoStack.length);
+  await p.click("#formOk"); await p.waitForTimeout(400);
+  const r3 = await p.evaluate(id => { const pl = P().graphs[0].plot, u = pl.use || {}; return { same: u[id.B] && u[id.D] && u[id.B].grp === u[id.D].grp, c: !(u[id.C] || {}).grp, step: ((pl.grps || {})[(u[id.B] || {}).grp] || {}).step, undo: undoStack.length, log: (P().log || []).slice(-1)[0].text }; }, id);
+  check("Plot setup's Group column: B in a new group, D joining it, its steps chosen; OK in one step", r.steps === 1 && r.opts === 3 && r3.same && r3.c && r3.step === "color" && r3.undo === u0 + 1 && /changed what the curves draw/.test(r3.log), JSON.stringify([r, r3]));
+  // A new graph made with a group.
+  await p.evaluate(id => { openPlotDlg([id.C, id.D]); }, id); await p.waitForTimeout(400);
+  await p.selectOption(`#psuCur [data-cgrp="${id.C}"]`, "new"); await p.waitForTimeout(100);
+  const gk2 = await p.evaluate(id => $(`#psuCur [data-cgrp="${id.C}"]`).value, id);
+  await p.selectOption(`#psuCur [data-cgrp="${id.D}"]`, gk2); await p.click("#formOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(id => { const g = P().graphs[P().graphs.length - 1]; return graphGroups(g.plot, g.cols).map(q => q.ids.join()); }, id);
+  check("a new graph from Plot setup keeps its group", JSON.stringify(r) === JSON.stringify([[id.C, id.D].join()]), JSON.stringify(r));
+  // What storage gives back.
+  r = await p.evaluate(id => { const q = P(), g = q.graphs[0]; g.plot.use = { [id.B]: { grp: 7 }, [id.C]: { grp: "a b" }, [id.D]: { grp: "solo" } }; g.plot.grps = { solo: { step: "zz" }, gone: { step: "all" } }; normalize(q); return { use: g.plot.use || null, grps: g.plot.grps || null }; }, id);
+  check("a group that does not read, or of one, is dropped by normalize", !r.use && !r.grps, JSON.stringify(r));
+  r = await p.evaluate(id => { const q = P(), g = q.graphs[0]; g.plot.use = { [id.B]: { grp: "k1" }, [id.C]: { grp: "k1" } }; g.plot.grps = { k1: { step: "zz" } }; normalize(q); return g.plot.grps; }, id);
+  check("…and a step that does not read becomes all three", JSON.stringify(r) === JSON.stringify({ k1: { step: "all" } }), JSON.stringify(r));
+}, { name: "groups" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

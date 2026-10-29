@@ -1024,6 +1024,19 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plot setup, slice 4: groups (2026-10-29)
+
+`ux/spec/PLOT_SPEC.md` slice 4.
+- **Group** on a curve's right-click: not grouped, a group, a new group with another curve, every
+  curve of the graph in one; and how the group steps: colour, symbol and line together, colour
+  only, symbol only or line style only.
+- A group's curves share their plot type (*Plot type* on one changes all) and step their look
+  from the first curve's; a curve's own colour, symbol or line still wins.
+- Plot setup has a Group column (and *New group*) and each group's steps under the list.
+- A group of one is dropped, and so is what storage gives back that does not read.
+
+Checked: `tools/plot-drive.mjs` (13 new, 60), screenshots, and every suite from the round before.
+
 ## Plot setup, slice 3: on a graph (2026-10-29)
 
 `ux/spec/PLOT_SPEC.md` slice 3.

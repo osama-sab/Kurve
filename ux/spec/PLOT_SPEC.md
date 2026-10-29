@@ -145,7 +145,9 @@ reason, CLAUDE.md, the menu spec when a menu changes.
    and the plot's right-click have *What it plots…*: the dialog opened with that graph's curves
    in the list, to add, replace, remove, reorder, re-range or move between axes; a figure's
    panel the same. *Curves on it* stays as the quick list.
-4. **Groups.** Curves selected in the list grouped: a group shares its plot type; its colour,
+4. **Groups** (done 2026-10-29; the legend lists every curve of a group, as Origin's does by
+   default, so no group entry; a group is set per curve, from its right-click or the list's Group
+   column, rather than by selecting several rows). Curves selected in the list grouped: a group shares its plot type; its colour,
    symbol and line style step together (colour only, symbol only, line style only, or all), from
    the graph's scheme, each curve's own style still winning; the legend can show a group as one
    entry *(to confirm what Origin's legend does)*. Group and ungroup in the list and the curve's
