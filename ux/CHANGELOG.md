@@ -961,3 +961,28 @@ people type (`CMDK_SYN`).
   Integrate window's for a band, each to the same digits.
 
 `tools/ds-test.mjs` has 7 new checks (102).
+
+## The design system into the app, slice 7: the Fit window and Results (2026-10-29)
+
+- **The Fit window as the system's FitPanel**: the range is its fields, *From view*, *All* and a
+  readout of its points (*81 points*); the suggestion is *Suggested:* and the model as a button,
+  its reason the tooltip; the grid has *Fitted* and *Error* in columns of their own; the *On the
+  graph* switches have short names (*Residuals*, *Confidence band*, *Prediction band*).
+- **In the results**: switches chosen before the fit for what Results reports (confidence
+  intervals, analysis of variance, correlation matrix, covariance matrix, residual analysis; a
+  peak fit adds every parameter), kept per browser. The report, the copied table and the CSV
+  carry all of it whatever is chosen.
+- **Footers of buttons only**: the line saying how the fit is weighted went (the switch, *Weight
+  by Y error*, names the column in its tooltip), and so did *Fit every column…* (Analyze › Fit
+  and the Batch window have it); a peak fit's *Remove fit* joined the fit's summary.
+- **Results as journals print it**: *Value* and *Standard error* in columns of their own, derived
+  quantities under a *Derived* row, the residuals' scatter and the outlier limit in the
+  statistics beside the table, the sections chosen open instead of folded, no paragraph at the
+  foot. In a narrow Results a parameter's meaning goes under its name, so the error stays in view.
+- **Notes of one line with their fix**: the number first, the fix a button at the end (*Mask*,
+  *Fit again*, *Guess*, *Fit control*, *Limits*, *Show residuals*, *History*, *Go to its column*,
+  *Fit window*), the whole text the tooltip and the report's. The Peaks window's and the
+  History's out-of-date peaks offer *Search again* and *Peaks window*, the Fit window with no
+  data *Import…*.
+
+`tools/ds-test.mjs` has 18 new checks (120).

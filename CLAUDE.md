@@ -442,11 +442,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   (`curveOverlay`, "estimate" in the legend, `path[data-cstart]`), and not when it is the fit.
   `fitWarnings` says when a fit stopped at its limit; `batchTemplate` carries `ctl` and
   `fitOne` runs with it. *Remove fit* is in the fit's summary (`fitSummary(f, more)`), so the
-  footer (Fit, 1 iteration, Guess, Done) keeps to one row in the dock.
+  footer (Fit, 1 iteration, Guess, Done; a peak fit's Fit n peaks, Reset to estimates, Done)
+  keeps to one row in the dock and holds buttons only: the weighting is said by its switch
+  (`weightChk(id, d)`, *Weight by Y error*, the column its tooltip), and *Fit every column…* is
+  Analyze › Fit's and the Batch window's.
   **The parameter grid** (`FIT_SPEC.md` slice 2; `paramGridHtml`, `wirePGrid`, `pgMarks`):
   each parameter with its unit and meaning (`MODELS[k].mean`, also in Results), Start and
   Fix, Lowest and Highest (each with a ≤ or < button, `data-prel`; typed, empty for the
-  model's own, shown as the placeholder, or `none`), Fitted ± error, the 95% interval,
+  model's own, shown as the placeholder, or `none`), Fitted and Error (columns of their own,
+  `fmtVE`, fmtPMd's pieces), the 95% interval,
   Dependency and Digits. In a window narrower than 700 px one view at a time (`PG_VIEWS`,
   `S.pgView`: Starting values, Limits, Results; the fitted value is beside the starts too),
   by container query on `.pgw`; wider, every column. The draft keeps `d.lim` (`{lo, hi, slo,
@@ -479,12 +483,19 @@ graph first, with the taskbar kept at the bottom of the screen.
   the deleted residuals' limit (`data-rlim`) and outliers ringed (`data-rout`); `S.resView`
   (`kurve.resview`) is Results' view. `residChartSvg(D, kind, view, o)` draws one view (one path
   of dots, the limit, rings, a histogram's normal curve, probability paper's line `data-rref`).
-  Results' `diagHtml(f)`/`wireDiag`: three folding parts (`details.rd`, `S.rOpen`): Analysis of
-  variance (`anovaRows`), Correlation and covariance (`covRows`: the free parameters; above 0.95
-  marked), Residuals (kind and view lists, the chart, s and the limit, the outliers with
-  `maskOutliers`, one undo entry); only while Results is open, and for a heavy fit a single
-  part that works them out when opened. `fitWarnings` adds `outliers`; `reportDiagHtml` and
-  `diagText` (the copied table, the CSV under `# `) carry the same.
+  Results' `diagHtml(f)`/`wireDiag`: the sections the Fit window's **In the results** chose
+  (`rShow()`, `RSHOW_DEF`, `RSHOW`, `setRShow`, `rShowHtml(peaks)`, `input[data-rshow]`, per
+  browser under `kurve.rshow`: `ci` the intervals' column (on), `anova` (off), `corr` (on),
+  `cov` (off), `resid` (on), and for a peak fit `par`, every parameter (off)), each an open
+  `section.rsec[data-rd]` with its `h4`, never folded: Analysis of variance (`anovaRows`),
+  Correlation matrix and Covariance matrix (`covRows`: the free parameters; above 0.95 marked;
+  no analysis needed), Residuals (kind and view lists, the chart, the outliers with Mask,
+  `maskOutliers`, one undo entry); `diagStats(f)` puts the residuals' scatter s and the outlier
+  limit in the statistics beside the table. Only while Results is open, and for a heavy fit one
+  section with *Work it out* (`#rDiagGo`, `S.rDiagAt` the fit asked for, `resDiag`).
+  `fitWarnings` adds `outliers`; `reportDiagHtml` and `diagText` (the copied table, the CSV
+  under `# `) carry everything whatever Results shows, as does the report's parameter table
+  (`paramTableHtml(f, true)`).
 - **Batch fits and series** (`p.batch`, `p.series`, both in `UNDO_KEYS`): the analysed
   spectrum's fit is the template (`batchTemplate`: model, peaks with shapes, ties and fixed
   parameters, baseline or curve model, X range, weighting, X units). `runBatch({tmpl, seed,
@@ -543,7 +554,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   `reportTrendsHtml`. `trendPlotSvg(ser, {W, H, pal, forExport, idp, single})` draws any number
   of quantities on a left and a right axis (margins measured, a legend row, symbols per
   quantity, an axis of one kind titled by the kind); `trendSvg` is it with one series.
-- **Caveats** have one source: `fitWarnings(fit)` returns `{level, kind, text}` for staleness
+- **Caveats** have one source: `fitWarnings(fit)` returns `{level, kind, text, brief, acts}` for staleness
   (`fitStale`), non-convergence, unusable components (`peakProblems`), a singular covariance,
   dependency, parameters at a bound, and residuals that run in long same-sign stretches
   (`runsTest`, Wald–Wolfowitz), and warnings from the processing the data went through
@@ -551,7 +562,16 @@ graph first, with the taskbar kept at the bottom of the screen.
   the meaning of a Fano's area. The results drawer, the fit panel's summary line, the copied table and
   the exported report all read it, so the report can never say less than the screen. The
   checks that look at data (`fitResiduals` for the runs test, `peakProblems`, the Voigt
-  width check) read the fit's own spectrum through `fitPts(f)`, not the analysed one.
+  width check) read the fit's own spectrum through `fitPts(f)`, not the analysed one. `text` is
+  the whole of it (the report, the copied table, the CSV, the note's tooltip); `brief` one line
+  with the number first, as Results shows it; `acts` its fixes, `[label, action, data]`.
+  **Notes** (`noteHtml(level, text, raw, acts, why)`, the design system's Note): one line and
+  its fixes as small buttons at its end (`.note .acts`, `button[data-nact]`), run by one
+  listener for the page (`setupNotes`) from `NOTE_ACTS` (`fitagain`, `guess`, `fitctl`,
+  `limits`, `fitwin` through `fitFix(what)`, which opens the Fit window on the fit's kind;
+  `mask`, `resid`, `history`, `gocol`, `import`, `pkfind`, `peaks`); one that edits
+  (`NOTE_EDIT`) is disabled for a viewer. The Peaks window's and the History's out-of-date
+  peaks and the Fit window with no data have theirs too.
 - **Import** (between the `==PARSER:START==`/`==PARSER:END==` markers): pure, DOM-free functions
   that sniff a file — `detectFormat` (delimiter and decimal mark decided together, since `1,5;2,5`
   only parses if you treat `;` plus comma-decimal as one hypothesis), `findBlock` (the longest run
@@ -1204,15 +1224,17 @@ graph first, with the taskbar kept at the bottom of the screen.
   for a peak fit each fitted peak shaded `#fitPkFill` (`series.__peaks.fill`)), also Analyze ›
   Fit; for the residuals `residOn(cfg,
   fit)` is every reader's door (`resid` true or false by hand; "auto" or missing: on for a peak
-  fit, off for a curve fit; `residHint()` the fit the window is set to make). Both stickies
-  start with `weightHtml(d)` (how the fit will be weighted, naming the error column). The curve
+  fit, off for a curve fit; `residHint()` the fit the window is set to make); then the
+  confidence level and *In the results* (`rShowHtml`, see the residuals above). The curve
   fit's model starts from `suggestModel()` (`{id, why}`, memoised per series: linear, expdec,
-  boltz or gauss from the points' shape) unless the project has a `prefModel`; the window names
-  it under the list, with `#useSugg` when another is chosen. `pfBaseline` subtracts the draft's
+  boltz or gauss from the points' shape) unless the project has a `prefModel`; while another is
+  chosen the window says *Suggested:* with the model's name as a button (`#useSugg`, the reason
+  its tooltip), and nothing while it is the one chosen. `pfBaseline` subtracts the draft's
   baseline before searching without changing it. Its "Mark and label them" hands the peaks to
   the Peaks window's set instead (`findPeaksInto`, over the fit's range). Above both kinds of
   fit, `fitWhereHtml` says what is fitted: Spectrum (with several; `goSpectrum`) and Range from
-  … to …: **all the data** unless typed or taken from the zoom with *Use the view* (`#fwView`;
+  … to …: **all the data** unless typed or taken from the zoom with *From view* (`#fwView`), the
+  points it holds a readout (`#fwN`, `.ro`, "81 points") (
   `fitRngOf(c)` reads `S.fitRng[pid:colId]` `{x0, x1, xu}`, null for all, or a fit's own `range`
   on the same processing; `setFitRange(a, b)`, `xExtent`; `fitRange`/`fitPoints` read it, and
   zooming never changes it; `buildPlot` shades what it leaves out, `g.fitrange`, while the Fit
@@ -2815,6 +2837,13 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **Where a menu is shown must be visible when it is shown.** The Column menu in the graph's bar
   first appeared while the worksheet was in front, and in front the worksheet can cover the graph:
   the button was there and could not be pressed. It follows the last place pressed or typed in.
+- **A view's setting must not reach what leaves the building.** Results' parameter table is the
+  report's too (`paramTableHtml`); switching the intervals off in Results would have taken them
+  out of every report saved after. The report asks for the whole table (`paramTableHtml(f,
+  true)`), and the copied table and the CSV never read the switches.
+- **A table in the dock is as wide as its widest row.** Results' parameter column kept its name,
+  unit and meaning on one line, so in the dock the standard error was off the right edge: a
+  screenshot found it, no test did. In a narrow Results the meaning goes under the name.
 - **A search judged by its tests alone finds what the tests ask.** The palette passed its checks
   and still answered *export* with "Save this style…" and *power spectrum* with nothing: twenty
   queries read by eye found four wrong answers. Read a ranking's results, not only its first.
@@ -2842,8 +2871,15 @@ dialog docked as a tool window, live (no OK; a burst of changes one undo step), 
 top, turning to what is selected on the graph. Slice 6 done: the status bar answers questions
 (cells selected: their range, N, mean, SD, minimum and maximum; a curve: the same; a band or a
 shaded range: area, peak, FWHM, span), each number as the Statistics or Integrate window writes
-it, the Statistics window listing the cells selected. Next: the Fit window and Results as designed, the
-dialogs, galleries drawn with the data, two displays.
+it, the Statistics window listing the cells selected. Slice 7 done: the Fit window and Results as
+designed: the range a readout of its points, the suggestion one word, *In the results* switches
+chosen before the fit (confidence intervals, analysis of variance, the correlation and
+covariance matrices, residual analysis, a peak fit's every parameter), footers of buttons only;
+Results with Value and Standard error in columns of their own, derived quantities under a group
+row, the statistics beside the table, the sections chosen open; notes one line, the number first,
+with their fixes as buttons (Fit again, Mask, Show residuals, Limits…), in Results, the Peaks
+window, the History and the Fit window. Next: the dialogs, galleries drawn with the data, two
+displays.
 
 Then: the curve fit as complete as Origin's fitting dialogs (`ux/spec/FIT_SPEC.md`, the
 roadmap's first item). Slice 1 done: Fit control in the Fit window (the method named, the

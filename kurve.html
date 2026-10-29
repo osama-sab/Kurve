@@ -622,8 +622,7 @@ details.grp.pdcard .frow{margin-bottom:0}
 .mpick .fp-f .lab{margin-left:auto}
 /* The confidence level, and Results' analysis of variance, matrices and residuals (FIT_SPEC slice 4). */
 .fconf .pair input{width:72px}
-details.rd{margin-top:var(--sp-5)}
-details.rd>summary .rbad{color:var(--bad);font-weight:600}
+.rsec>h4 .rbad{color:var(--bad);font-weight:600}
 .rscroll{overflow-x:auto;max-width:100%}
 .rtab.rmat td,.rtab.rmat th{white-space:nowrap}
 .rtab .rhi{color:var(--bad);font-weight:600}
@@ -656,7 +655,6 @@ details.rd>summary .rbad{color:var(--bad);font-weight:600}
 .fbhelp code{font-size:var(--fs-cap)}
 .range{font-size:var(--fs-tab);color:var(--muted);margin:var(--sp-4) 0}
 .err{color:var(--bad);font-size:var(--fs-body);margin:var(--sp-4) 0}
-.sticky .fitwt{flex:1 0 100%;font-size:var(--fs-cap);color:var(--muted)}
 /* What is scrolled into view (a field tabbed to, a control found) stops above a sticky footer, not under it. */
 [id^="pane-"]:has(> .sticky),.win-b:has(> .sticky){scroll-padding-bottom:96px}
 .sticky{position:sticky;bottom:0;z-index:3;background:var(--panel);margin:var(--sp-5) calc(var(--sp-5) * -1) 0;padding:var(--sp-4) var(--sp-5);border-top:1px solid var(--rule);display:flex;gap:var(--sp-3);flex-wrap:wrap}
@@ -674,6 +672,10 @@ details.rd>summary .rbad{color:var(--bad);font-weight:600}
 .note.ok>.ic{color:var(--ok)}
 .note p{margin:0}
 .note .btn{margin-top:var(--sp-3)}
+/* A note's fixes, at the end of its one line (the design system's Note). */
+.note .acts{margin-left:auto;display:flex;gap:var(--sp-3);flex:0 0 auto}
+.note .acts .btn{margin-top:0}
+.note p{flex:1 1 auto;min-width:0;align-self:center}
 .fitsum{display:flex;gap:var(--sp-4);align-items:center;flex-wrap:wrap;padding:var(--sp-4) var(--sp-4);border:1px solid var(--rule);border-radius:var(--r);margin:var(--sp-5) 0;background:var(--panel-2);font-size:var(--fs-tab)}
 .fitsum>.ic{color:var(--ok)}
 .fitsum.stale>.ic{color:var(--warn)}
@@ -710,6 +712,7 @@ table.ptab{width:100%;border-collapse:collapse;font-size:var(--fs-tab)}
 .pgseg{margin:0 0 var(--sp-2)}
 .ptab.pg [data-v]{display:none}
 .pgw[data-pgv="start"] .ptab.pg [data-v~="start"],.pgw[data-pgv="lim"] .ptab.pg [data-v~="lim"],.pgw[data-pgv="res"] .ptab.pg [data-v~="res"]{display:table-cell}
+.ptab.pg td.pgerr{color:var(--muted)}
 .ptab .pmean{font-size:var(--fs-cap);color:var(--muted);white-space:normal;line-height:1.25}
 .ptab .plim{display:flex;align-items:center;gap:var(--sp-1)}
 .ptab .plim input[type=text]{min-width:0;flex:1}
@@ -784,7 +787,12 @@ table.rtab{border-collapse:collapse;font-size:var(--fs-tab);width:100%}
 .rtab td.sub{color:var(--muted)}
 .rside{border:1px solid var(--rule-2);border-radius:var(--r);padding:var(--sp-4) var(--sp-5);background:var(--panel-2)}
 .rside .kv{margin:0}
-.rfoot{color:var(--muted);font-size:var(--fs-tab);margin:var(--sp-5) 0 0}
+.kv dd .nw{white-space:nowrap}
+/* A long value (the fit control, the weighting) takes the list's width under its name. */
+.rside .kv dd.w{grid-column:1/-1}
+/* In a narrow Results (the dock, a phone) a parameter's meaning goes under its name, so its value and error show without scrolling. */
+@container (max-width: 520px){ .rtab td.l{white-space:normal;min-width:9em} .rtab td.l>.lab{display:block} }
+.msugg{display:flex;align-items:center;gap:var(--sp-3);margin-top:var(--sp-2)}
 .rempty{display:flex;gap:var(--sp-6);align-items:center;color:var(--muted);padding:var(--sp-4) var(--sp-2);max-width:720px}
 .rempty>.ic{width:34px;height:34px;stroke-width:1.4;color:var(--faint);flex:0 0 auto}
 .rempty p{margin:0 0 var(--sp-4)}
@@ -1505,6 +1513,7 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
 @media (min-width:861px){ .sticky.pkfoot{bottom:calc(var(--sp-5) * -1);margin-bottom:calc(var(--sp-5) * -1)} }
 .fwhere{margin:var(--sp-5) 0 var(--sp-1)}
 .fwhere .pair{flex-wrap:wrap;row-gap:var(--sp-2)}
+.fwhere>label{align-self:start;padding-top:var(--sp-2)}
 .fwhere .pair input{flex:0 0 auto;width:78px}
 .sticky .fdone{margin-left:auto}
 .pcard-h .pname{flex:0 1 130px;min-width:60px;height:24px;font-size:var(--fs-tab);padding:var(--sp-1) var(--sp-3)}
@@ -5152,6 +5161,11 @@ function fmtPMd(v,e,dig){
   if(!e||!Number.isFinite(e)) return r(v);
   return `${r(v)} ± ${r(e)}`;
 }
+// A value and its error as two pieces, for tables that print them in columns of
+// their own (Results, the parameter grid): fmtPMd's digits, split.
+function fmtVE(v,e,dig){ const s=fmtPMd(v,e,dig), m=/^\((.*) ± (.*)\)e(-?\d+)$/.exec(s);
+  if(m) return [m[1]+"e"+m[3],m[2]+"e"+m[3]];
+  const k=s.indexOf(" ± "); return k<0?[s,""]:[s.slice(0,k),s.slice(k+3)]; }
 const fmtOr=(v,sig,dash)=>v==null||!Number.isFinite(v)?(dash==null?"\u2014":dash):fmt(v,sig);
 /* Wald-Wolfowitz runs test on the signs of the residuals, taken in X order.
    Too few runs means the residuals come in long same-sign stretches: the model
@@ -5182,49 +5196,67 @@ function fitResiduals(f){
 }
 /* Every caveat about a fit, worded once. The results panel, the fit panel's
    summary and the exported report all read this list, so the report can never
-   say less than the screen did. */
+   say less than the screen did. Each has its text in full (the report, the
+   copied table, the note's tooltip) and brief: one line, the number first (the
+   design system's Note), with acts, the fixes as NOTE_ACTS names them. */
 function fitWarnings(f){
   const out=[]; if(!f) return out;
   const FM=fitModel(f); if(!FM) return out;
-  const st=f.stats||{};
-  const stale=fitStale(f);
-  if(stale) out.push({level:"warn", kind:"stale", text:stale+" Fit again to bring it up to date."});
+  const st=f.stats||{}, pk=FM.composite, pl=(n,a,b)=>n===1?a:b;
+  const add=(level,kind,text,brief,acts)=>out.push({level,kind,text,brief:brief||text,acts:acts||[]});
+  const stale=fitStale(f), act=activeYCol();
+  if(stale) add("warn","stale",stale+" Fit again to bring it up to date.",stale,!f.batch&&f.onCol&&act&&f.onCol!==act.id&&colById(f.onCol)?[["Go to its column","gocol",{col:f.onCol}]]:[["Fit again","fitagain"]]);
   // What the processing said about itself belongs with the result it led to.
-  const pw=procWarnings(colById(f.onCol)||activeYCol());
-  if(pw.length) out.push({level:"warn", kind:"proc", text:`The data this fit used ${pw.length===1?"went through a processing step that carries a warning":`went through ${pw.length} processing steps that carry warnings`}: ${pw.map(q=>`step ${q.k}, ${stepTitle(q.step).toLowerCase()}${q.col!==activeYCol()?` of ${specName(q.col)}`:""}: ${q.texts[0]}`).join(" ")} The History and the report's Processing section give the details.`});
-  if(f.xerr&&f.odr&&f.odr.s!=null) out.push({level:"info", kind:"xerr", text:`Fitted with the X errors by orthogonal distance regression. With no Y errors, the scatter in Y was taken to be the same for every point and found from the fit: s = ${fmt(f.odr.s,4)}.`});
-  if(st.converged===false&&f.ctl&&st.iter>=fitCtl(f.ctl).maxIter) out.push({level:"bad", kind:"conv", text:`This fit stopped at its limit of ${st.iter} iterations without converging, so the numbers are wherever it had got to, not a result. Fit again to carry on from here, or raise the limit in Fit control.`});
-  else if(st.converged===false) out.push({level:"bad", kind:"conv", text:`This fit did not converge. It stopped after ${st.iter} iterations still moving, so the numbers are wherever it had got to, not a result. Try ${FM.composite?"Reset to estimates":"Guess initial values"}, fix a parameter, or narrow the range.`});
-  if(FM.composite){
+  const pw=procWarnings(colById(f.onCol)||act);
+  if(pw.length) add("warn","proc",`The data this fit used ${pw.length===1?"went through a processing step that carries a warning":`went through ${pw.length} processing steps that carry warnings`}: ${pw.map(q=>`step ${q.k}, ${stepTitle(q.step).toLowerCase()}${q.col!==act?` of ${specName(q.col)}`:""}: ${q.texts[0]}`).join(" ")} The History and the report's Processing section give the details.`,
+    `${pw.length} processing step${pw.length===1?" carries a warning":"s carry warnings"}: ${[...new Set(pw.map(q=>stepTitle(q.step).toLowerCase()))].join(", ")}.`,[["History","history"]]);
+  if(f.xerr&&f.odr&&f.odr.s!=null) add("info","xerr",`Fitted with the X errors by orthogonal distance regression. With no Y errors, the scatter in Y was taken to be the same for every point and found from the fit: s = ${fmt(f.odr.s,4)}.`,
+    `s = ${fmt(f.odr.s,4)}: the scatter in Y, found with the X errors.`);
+  if(st.converged===false){ const lim=f.ctl&&st.iter>=fitCtl(f.ctl).maxIter;
+    add("bad","conv",lim?`This fit stopped at its limit of ${st.iter} iterations without converging, so the numbers are wherever it had got to, not a result. Fit again to carry on from here, or raise the limit in Fit control.`
+      :`This fit did not converge. It stopped after ${st.iter} iterations still moving, so the numbers are wherever it had got to, not a result. Try ${pk?"Reset to estimates":"Guess initial values"}, fix a parameter, or narrow the range.`,
+      `Not converged after ${st.iter} iteration${pl(st.iter,"","s")}.`,lim?[["Fit again","fitagain"],["Fit control","fitctl"]]:[["Fit again","fitagain"],[pk?"Estimate":"Guess","guess"]]); }
+  if(pk){
     const failed=peakMetrics(f).filter(r=>!r.ok);
-    if(failed.length) out.push({level:"bad", kind:"unusable", text:`${failed.length} component${failed.length>1?"s are":" is"} not a usable peak and ${failed.length>1?"have":"has"} been left out of Area %. ${
-      failed.map(r=>`Peak ${r.k+1} (centre ${fmt(r.xc,6)}): ${r.problems.join("; ")}`).join(". ")}. Delete ${failed.length>1?"them":"it"}, or give ${failed.length>1?"them":"it"} a sensible starting value and fit again.`});
+    if(failed.length) add("bad","unusable",`${failed.length} component${failed.length>1?"s are":" is"} not a usable peak and ${failed.length>1?"have":"has"} been left out of Area %. ${
+      failed.map(r=>`Peak ${r.k+1} (centre ${fmt(r.xc,6)}): ${r.problems.join("; ")}`).join(". ")}. Delete ${failed.length>1?"them":"it"}, or give ${failed.length>1?"them":"it"} a sensible starting value and fit again.`,
+      `${failed.length} peak${failed.length>1?"s":""} not usable (${failed.map(r=>r.k+1).join(", ")}), left out of Area %.`,[["Fit window","fitwin"]]);
   }
-  if(FM.composite){ const fano=(f.spec.peaks||[]).map((pk,k)=>pk.type==="fano"?k+1:0).filter(Boolean);
+  if(pk){ const fano=(f.spec.peaks||[]).map((q,k)=>q.type==="fano"?k+1:0).filter(Boolean);
     const m=FM.model, sp=spacingOf(fitPts(f).map(q=>q.x).sort((a,b)=>a-b));
-    (f.spec.peaks||[]).forEach((pk,k)=>{ if(pk.type!=="voigt") return; const o=m.offsets[k], g=Math.abs(f.params[o+2]), l=Math.abs(f.params[o+3]), fw=0.5346*l+Math.sqrt(0.2166*l*l+g*g);
+    (f.spec.peaks||[]).forEach((q,k)=>{ if(q.type!=="voigt") return; const o=m.offsets[k], g=Math.abs(f.params[o+2]), l=Math.abs(f.params[o+3]), fw=0.5346*l+Math.sqrt(0.2166*l*l+g*g);
       const tiny=v=>v<Math.max(fw*0.02,sp*0.1);
-      if(tiny(g)&&!tiny(l)) out.push({level:"info", kind:"voigt", text:`Peak ${k+1}'s Gaussian width went to zero: the line is a Lorentzian, and nothing in the data measures a Gaussian part. Fit it as a Lorentzian, or fix its Gaussian FWHM at the instrument's resolution.`});
-      else if(tiny(l)&&!tiny(g)) out.push({level:"info", kind:"voigt", text:`Peak ${k+1}'s Lorentzian width went to zero: the line is a Gaussian. Fit it as a Gaussian, or fix one of its widths if it is known.`}); });
-    if(fano.length) out.push({level:"info", kind:"fano", text:`${fano.length===1?`Peak ${fano[0]} is a Fano profile`:`Peaks ${fano.join(", ")} are Fano profiles`}: the tail of an asymmetric Fano line never returns to zero, so its area is not finite. The area given is that of the Lorentzian it becomes as 1/q goes to 0, and its centre is the resonance position, not the top of the line.`}); }
-  if((f.errors||[]).some(e=>e===null||Number.isNaN(e))) out.push({level:"bad", kind:"singular", text:"The covariance matrix is singular, so no uncertainties could be computed for this fit. "+(FM.composite?"That usually means two components are describing the same feature.":"That usually means two parameters are doing the same job for these data.")});
+      if(tiny(g)&&!tiny(l)) add("info","voigt",`Peak ${k+1}'s Gaussian width went to zero: the line is a Lorentzian, and nothing in the data measures a Gaussian part. Fit it as a Lorentzian, or fix its Gaussian FWHM at the instrument's resolution.`,
+        `Peak ${k+1}: its Gaussian width went to zero, so it is a Lorentzian.`);
+      else if(tiny(l)&&!tiny(g)) add("info","voigt",`Peak ${k+1}'s Lorentzian width went to zero: the line is a Gaussian. Fit it as a Gaussian, or fix one of its widths if it is known.`,
+        `Peak ${k+1}: its Lorentzian width went to zero, so it is a Gaussian.`); });
+    if(fano.length) add("info","fano",`${fano.length===1?`Peak ${fano[0]} is a Fano profile`:`Peaks ${fano.join(", ")} are Fano profiles`}: the tail of an asymmetric Fano line never returns to zero, so its area is not finite. The area given is that of the Lorentzian it becomes as 1/q goes to 0, and its centre is the resonance position, not the top of the line.`,
+      `${fano.length===1?`Peak ${fano[0]} is a Fano profile`:`Peaks ${fano.join(", ")} are Fano profiles`}: the area given is the Lorentzian limit's.`); }
+  if((f.errors||[]).some(e=>e===null||Number.isNaN(e))) add("bad","singular","The covariance matrix is singular, so no uncertainties could be computed for this fit. "+(pk?"That usually means two components are describing the same feature.":"That usually means two parameters are doing the same job for these data."),
+    "Singular covariance: no uncertainties could be computed.",[["Fit window","fitwin"]]);
   const slots=FM_slots(f);
-  const whose=i=>{ if(FM.composite){ const sl=slots[i]; if(!sl) return "a parameter"; if(sl.kind!=="peak") return `baseline ${sl.name}`;
+  const whose=i=>{ if(pk){ const sl=slots[i]; if(!sl) return "a parameter"; if(sl.kind!=="peak") return `baseline ${sl.name}`;
     const pd=PEAKS[((f.spec.peaks||[])[sl.peak]||{}).type]||PEAKS.gauss; return `peak ${sl.peak+1} ${(pd.labels&&pd.labels[sl.name])||PARAM_LABEL[sl.name]||sl.name}`; } const ph=(FM.model.ph||[])[i]; return ph?phPlain(ph):((FM.model.params||[])[i]||"a parameter"); };
   const deps=(f.dep||[]).map((v,i)=>({v,i})).filter(q=>!(f.fixed&&f.fixed[q.i])&&Number.isFinite(q.v));
   const worst=deps.length?deps.reduce((a,b)=>b.v>a.v?b:a):null;
-  if(worst&&worst.v>0.99) out.push({level:"warn", kind:"dep", text:`${whose(worst.i)} is strongly tied to the other parameters (dependency ${fmt(worst.v,4)}). Its own value is less certain than its error suggests \u2014 ${FM.composite?"check that these peaks are really separable, and consider fixing a width or removing a peak.":"these data may not separate every parameter of this model."}`});
-  else if(worst&&worst.v>0.9) out.push({level:"info", kind:"dep", text:`Highest parameter dependency ${fmt(worst.v,4)} (${whose(worst.i)}). Above about 0.99 the parameters stop being independently determined.`});
+  if(worst&&worst.v>0.99) add("warn","dep",`${whose(worst.i)} is strongly tied to the other parameters (dependency ${fmt(worst.v,4)}). Its own value is less certain than its error suggests, as ${pk?"these peaks may not be separable: consider fixing a width or removing a peak.":"these data may not separate every parameter of this model."}`,
+    `Dependency ${fmt(worst.v,4)} for ${whose(worst.i)}: not determined on its own.`,[["Fit window","fitwin"]]);
+  else if(worst&&worst.v>0.9) add("info","dep",`Highest parameter dependency ${fmt(worst.v,4)} (${whose(worst.i)}). Above about 0.99 the parameters stop being independently determined.`,
+    `Highest dependency ${fmt(worst.v,4)}, ${whose(worst.i)}.`);
   if(f.atBound&&f.atBound.some(Boolean)){
     const names=f.atBound.map((b,i)=>b?whose(i):null).filter(Boolean);
-    out.push({level:"warn", kind:"bound", text:`Stopped at a bound: ${names.join(", ")}. ${names.length===1?"Its error understates":"Their errors understate"} the real uncertainty.`});
+    add("warn","bound",`Stopped at a bound: ${names.join(", ")}. ${names.length===1?"Its error understates":"Their errors understate"} the real uncertainty.`,
+      `${names.length} at a limit: ${names.join(", ")}. No standard error for ${pl(names.length,"it","them")}.`,[pk?["Fit window","fitwin"]:["Limits","limits"]]);
   }
   if(f.global&&f.gstats){ const b=P()&&P().batch, t=b&&b.tmpl, sh=f.shared||[], names=t&&t.params.length===sh.length?shareSummary(t,sh):`${sh.filter(Boolean).length} parameters`;
-    out.push({level:"info", kind:"global", text:`Fitted together with ${f.gstats.K-1} other columns, sharing ${names}: ${sh.filter(Boolean).length===1?"that value is":"those values are"} the same in all of them, and every error comes from all their points (${f.gstats.n} points, ${f.gstats.m} parameters, reduced χ² ${fmtOr(f.gstats.redChi2,4)}).`}); }
+    add("info","global",`Fitted together with ${f.gstats.K-1} other columns, sharing ${names}: ${sh.filter(Boolean).length===1?"that value is":"those values are"} the same in all of them, and every error comes from all their points (${f.gstats.n} points, ${f.gstats.m} parameters, reduced χ² ${fmtOr(f.gstats.redChi2,4)}).`,
+      `Fitted with ${f.gstats.K-1} other columns, sharing ${names}.`); }
   { const D=fitDiag(f,{auto:true}); if(D&&D.out.idx.length){ const k=D.out.idx.length, xs=D.out.idx.slice(0,6).map(i=>fmt(D.pts[i].x,5)).join(", ")+(k>6?", …":"");
-    out.push({level:"warn", kind:"outliers", text:`${k} point${k===1?" is":"s are"} past the outlier limit, a studentised deleted residual beyond ±${fmt(D.out.lim,3)} (the t limit at ${confPct(confOf(f))}% for the largest of ${D.n}): x = ${xs}. Results › Residuals lists ${k===1?"it":"them"}, and can mask ${k===1?"it":"them"} for the next fit.`}); } }
+    add("warn","outliers",`${k} point${k===1?" is":"s are"} past the outlier limit, a studentised deleted residual beyond ±${fmt(D.out.lim,3)} (the t limit at ${confPct(confOf(f))}% for the largest of ${D.n}): x = ${xs}. Results › Residuals lists ${k===1?"it":"them"}, and can mask ${k===1?"it":"them"} for the next fit.`,
+      `${k} outlier${pl(k,"","s")} at x = ${xs} (studentised residual beyond ±${fmt(D.out.lim,3)}).`,[["Mask","mask"]]); } }
   const rt=runsTest(fitResiduals(f));
-  if(rt&&rt.p<0.001) out.push({level:"info", kind:"runs", text:`The residuals run in long stretches of one sign (${rt.runs} runs where about ${Math.round(rt.expected)} would be expected by chance), so the model is missing something systematic even though R\u00b2 may look good. ${FM.composite?"Try another peak shape, an extra peak, or a higher-order baseline.":"Try a different model."} The residual panel under the graph shows where.`});
+  if(rt&&rt.p<0.001) add("info","runs",`The residuals run in long stretches of one sign (${rt.runs} runs where about ${Math.round(rt.expected)} would be expected by chance), so the model is missing something systematic even though R² may look good. ${pk?"Try another peak shape, an extra peak, or a higher-order baseline.":"Try a different model."} The residual panel under the graph shows where.`,
+    `Runs test: ${rt.runs} run${pl(rt.runs,"","s")}, ${Math.round(rt.expected)} expected. A systematic misfit.`,residOn(GP(),f)?[]:[["Show residuals","resid"]]);
   return out;
 }
 function ago(t){
@@ -6339,6 +6371,8 @@ function fitCtl(c){ c=c||{}; const n=Math.floor(+c.maxIter), t=+c.tol;
   return {maxIter:n>=1&&n<=100000?n:FIT_CTL.maxIter, tol:Number.isFinite(t)&&t>=0&&t<1?t:FIT_CTL.tol}; }
 function ctlText(f,ascii){ const odr=!!(f&&(f.xerr||(f.ctl&&f.ctl.method==="odr"))), c=f&&f.ctl?fitCtl(f.ctl):{maxIter:odr?300:FIT_CTL.maxIter,tol:FIT_CTL.tol};
   return (odr?"orthogonal distance regression":ascii?"Levenberg-Marquardt":"Levenberg–Marquardt")+`, at most ${c.maxIter} iterations, tolerance ${c.tol}`; }
+// The same, short, for Results' statistics: its pieces kept whole where the column wraps.
+function ctlShort(f){ const t=ctlText(f).split(", "); return [capFirst(t[0])].concat(t.slice(1).map(s=>s.replace(/^at most /,"≤ "))).join(" · "); }
 function odrNote(res){ const o=res&&res.odr; return o?{s:o.s!=null&&Number.isFinite(o.s)?o.s:null,iter:o.iter,conv:!!o.conv}:null; }
 // How a fit was weighted, in words (the Results, the copied table, the report, the CSV).
 function weightText(f,ascii){
@@ -14328,13 +14362,13 @@ function renderFitRangeOnly(){
   renderStatusBar();
 }
 /* Which column the Fit window works on and the X range it fits: all the data, a range
-   typed here, or the graph's view taken with Use the view (fitRngOf). */
+   typed here, or the graph's view taken with From view (fitRngOf). */
 function fitWhereHtml(){
   const ys=yCols(), c=activeYCol(); if(!c) return ""; const d=finalOf(c), v=fitRngOf(c), vr=viewRng(), xs=d.x.filter(Number.isFinite), ro=S.readOnly?" disabled":"";
   const same=v&&vr&&Math.abs(v[0]-vr[0])<=1e-9*Math.abs(vr[1]-vr[0])&&Math.abs(v[1]-vr[1])<=1e-9*Math.abs(vr[1]-vr[0]);
   if(!xs.length) return "";
   return `<div class="frow fwhere">${ys.length>1?`<label for="fwCol">Column</label><select id="fwCol">${ys.map(y=>`<option value="${y.id}"${y===c?" selected":""}>${esc(specName(y))}</option>`).join("")}</select>`:""}
-    <label for="fwX0" class="tipd" title="The fit, and the search for peaks, use the points in this range: all the data unless you type a range or take the graph's view">Range</label><div class="pair"><input type="text" inputmode="decimal" id="fwX0" value="${v?esc(fmt(v[0],7)):""}" placeholder="${esc(fmt(amin(xs),6))}" aria-label="Fit from"${ro}><span class="lab">to</span><input type="text" inputmode="decimal" id="fwX1" value="${v?esc(fmt(v[1],7)):""}" placeholder="${esc(fmt(amax(xs),6))}" aria-label="Fit up to"${ro}><span class="lab">${esc(d.xu||"")}</span><button class="btn sm" id="fwView"${vr&&!same&&!S.readOnly?"":" disabled"} title="${vr?"Fit the X range the graph is zoomed to":"Zoom the graph first"}">Use the view</button><button class="btn sm" id="fwAll"${v&&!S.readOnly?"":" disabled"} title="Fit all the data">All</button></div></div>`; }
+    <label for="fwX0" class="tipd" title="The fit, and the search for peaks, use the points in this range: all the data unless you type a range or take the graph's view">Range</label><div class="pair"><input type="text" inputmode="decimal" id="fwX0" value="${v?esc(fmt(v[0],7)):""}" placeholder="${esc(fmt(amin(xs),6))}" aria-label="Fit from"${ro}><span class="lab">to</span><input type="text" inputmode="decimal" id="fwX1" value="${v?esc(fmt(v[1],7)):""}" placeholder="${esc(fmt(amax(xs),6))}" aria-label="Fit up to"${ro}><span class="lab">${esc(d.xu||"")}</span><button class="btn sm" id="fwView"${vr&&!same&&!S.readOnly?"":" disabled"} title="${vr?"The graph's view":"Zoom the graph first"}">From view</button><button class="btn sm" id="fwAll"${v&&!S.readOnly?"":" disabled"} title="All the data">All</button><span class="ro" id="fwN" title="Points in the range">${fitPoints().length} points</span></div></div>`; }
 function wireFitWhere(box){
   const cs=box.querySelector("#fwCol"); if(cs) cs.onchange=()=>goSpectrum(cs.value);
   const all=box.querySelector("#fwAll"); if(all) all.onclick=()=>setFitRange(null,null);
@@ -14351,6 +14385,7 @@ function wireFitWhere(box){
   const bp=box.querySelector("#fitBandP"); if(bp) bp.onchange=()=>setPlotKey("bandPred",bp.checked,bp.checked?"showed the fit's prediction band":"hid the fit's prediction band");
   const pk=box.querySelector("#fitPkFill"); if(pk) pk.onchange=()=>setSeriesStyle("__peaks",{fill:pk.checked},pk.checked?"shaded the fitted peaks":"took the shading off the fitted peaks");
   const ap=box.querySelector("#pfAddMode"); if(ap) ap.onclick=()=>{ setMode(S.mode==="peak"?"zoom":"peak"); renderFit(); };
+  box.querySelectorAll("input[data-rshow]").forEach(i=>i.onchange=()=>setRShow(i.dataset.rshow,i.checked));
 }
 // The residual panel under the graph, switched where the fit is made.
 /* The residual panel (UX_SPEC 3.7): shown under a peak fit, not under a curve
@@ -14479,41 +14514,44 @@ function residChartSvg(D,kind,view,o){
 // The parameters with an error of their own, for the matrices: not fixed, not tied, not at a limit.
 const covRows=f=>paramRows(f).filter(r=>!r.hold&&!r.tied&&r.e>0&&f.cov&&f.cov[r.i]);
 function anovaRows(A){ return [["Model",A.reg],["Residual",A.res],["Total, uncorrected",A.utot],["Total, about the mean",A.ctot]]; }
-/* Results' three parts below the parameters: the analysis of variance, the
-   parameters' correlation and covariance, and the residuals (a chart in any
-   view, the outlier limit, and the outliers with Mask them). Each folds, and
-   remembers whether it is open; Residuals opens by itself when there are
-   outliers. */
+/* Results' sections below the parameters, as the Fit window's In the results
+   chooses them, each open (the design system's Results): the analysis of
+   variance, the correlation and covariance matrices of the free parameters,
+   and the residuals (a chart in any view, the outliers with Mask). Worked out
+   only while Results is open, and for a heavy fit once asked for (S.rDiagAt). */
+const resDiag=f=>fitDiag(f,{auto:true})||(S.rDiagAt===f.at?fitDiag(f):null);
 function diagHtml(f){
-  if(f.xerr) return `<p class="lab rdnone">A fit with the X errors has no analysis of variance or residual analysis here: its residuals are not distances in Y.</p>`;
-  // Worked out only while Results is open, and for a heavy fit only once asked for.
   if(!winOpen("res")) return "";
-  let D=fitDiag(f,{auto:true}); const o0=S.rOpen||{};
-  if(!D&&(o0.anova||o0.cov||o0.resid||o0.all)) D=fitDiag(f);
-  if(!D) return `<details class="more rd" data-rd="all"><summary>Analysis of variance, correlation and residuals</summary><p class="lab">A large fit: opening this works them out, which takes a moment.</p></details>`;
-  const o=S.rOpen||{}, nOut=D.out.idx.length, op=k=>(o[k]!=null?o[k]:k==="resid"&&nOut>0)?" open":"", A=D.anova, pct=confPct(confOf(f)), ro=S.readOnly?" disabled":"";
-  let h=`<details class="more rd" data-rd="anova"${op("anova")}><summary>Analysis of variance</summary><div class="rscroll"><table class="rtab"><thead><tr><th class="l">Source</th><th>DF</th><th>Sum of squares</th><th>Mean square</th><th>F</th><th>Prob &gt; F</th></tr></thead><tbody>${
-    anovaRows(A).map(([nm,r],k)=>`<tr><td class="l">${nm}</td><td>${r.df}</td><td>${esc(fmtOr(r.ss,6))}</td><td>${r.ms!=null?esc(fmtOr(r.ms,6)):""}</td><td>${k?"":esc(fmtOr(r.F,5))}</td><td>${k?"":esc(fmtP(r.p))}</td></tr>`).join("")}</tbody></table></div>${f.weighted?`<p class="lab">Weighted: each sum is of w·y², w = 1/σ².</p>`:""}</details>`;
-  const cr=covRows(f);
-  if(cr.length>=2){ const idx=cr.map(r=>r.i), C=corrMat(f.cov,idx), lab=r=>r.html?`<span class="pn">${r.html}</span>`:esc(r.label);
-    const tab=(fn,cls)=>`<div class="rscroll"><table class="rtab rmat${cls||""}"><thead><tr><th></th>${cr.map(r=>`<th>${lab(r)}</th>`).join("")}</tr></thead><tbody>${cr.map((r,a)=>`<tr><th class="l">${lab(r)}</th>${cr.map((q,b)=>fn(a,b)).join("")}</tr>`).join("")}</tbody></table></div>`;
-    h+=`<details class="more rd" data-rd="cov"${op("cov")}><summary>Correlation and covariance of the parameters</summary><h4 class="rsub">Correlation</h4>${
-      tab((a,b)=>{ const v=C[a][b]; return `<td${a!==b&&Math.abs(v)>0.95?' class="rhi" title="Above 0.95: these two parameters move together"':""}>${a===b?"1":esc(fmtOr(v,3))}</td>`; })}<h4 class="rsub">Covariance</h4>${
-      tab((a,b)=>`<td>${esc(fmtOr(f.cov[idx[a]][idx[b]],4))}</td>`)}</details>`; }
-  const kind=resKind(), view=resView(), vals=resVals(D,kind);
-  h+=`<details class="more rd" data-rd="resid"${op("resid")}><summary>Residuals${nOut?` <span class="rbad">· ${nOut} outlier${nOut===1?"":"s"}</span>`:""}</summary>
+  const o=rShow(), cr=covRows(f), lab=r=>r.html?`<span class="pn">${r.html}</span>`:esc(r.label);
+  const mat=(k,t,fn)=>`<section class="rsec" data-rd="${k}"><h4>${t}</h4><div class="rscroll"><table class="rtab rmat"><thead><tr><th></th>${cr.map(r=>`<th>${lab(r)}</th>`).join("")}</tr></thead><tbody>${cr.map((r,a)=>`<tr><th class="l">${lab(r)}</th>${cr.map((q,b)=>fn(a,b)).join("")}</tr>`).join("")}</tbody></table></div></section>`;
+  let mats="";
+  if(cr.length>=2&&(o.corr||o.cov)){ const idx=cr.map(r=>r.i), C=corrMat(f.cov,idx);
+    if(o.corr) mats+=mat("corr","Correlation matrix",(a,b)=>{ const v=C[a][b]; return `<td${a!==b&&Math.abs(v)>0.95?' class="rhi" title="Above 0.95: these two parameters move together"':""}>${a===b?"1":esc(fmtOr(v,3))}</td>`; });
+    if(o.cov) mats+=mat("cov","Covariance matrix",(a,b)=>`<td>${esc(fmtOr(f.cov[idx[a]][idx[b]],4))}</td>`); }
+  if(!o.anova&&!o.resid) return mats;
+  if(f.xerr) return mats+`<p class="lab rdnone">A fit with the X errors has no analysis of variance or residual analysis: its residuals are not distances in Y.</p>`;
+  const D=resDiag(f);
+  if(!D) return mats+`<section class="rsec" data-rd="all"><h4>${o.anova&&o.resid?"Analysis of variance and residuals":o.anova?"Analysis of variance":"Residuals"}</h4><span class="lab">A large fit: worked out when asked for.</span> <button type="button" class="btn sm" id="rDiagGo">Work it out</button></section>`;
+  const nOut=D.out.idx.length, A=D.anova, ro=S.readOnly?" disabled":"";
+  let h="";
+  if(o.anova) h+=`<section class="rsec" data-rd="anova"><h4>Analysis of variance</h4><div class="rscroll"><table class="rtab"><thead><tr><th class="l">Source</th><th>DF</th><th>Sum of squares</th><th>Mean square</th><th>F</th><th>Prob &gt; F</th></tr></thead><tbody>${
+    anovaRows(A).map(([nm,r],k)=>`<tr><td class="l">${nm}</td><td>${r.df}</td><td>${esc(fmtOr(r.ss,6))}</td><td>${r.ms!=null?esc(fmtOr(r.ms,6)):""}</td><td>${k?"":esc(fmtOr(r.F,5))}</td><td>${k?"":esc(fmtP(r.p))}</td></tr>`).join("")}</tbody></table></div>${f.weighted?`<p class="lab">Weighted: each sum is of w·y², w = 1/σ².</p>`:""}</section>`;
+  h+=mats;
+  if(o.resid){ const kind=resKind(), view=resView(), vals=resVals(D,kind);
+    h+=`<section class="rsec" data-rd="resid"><h4>Residuals${nOut?` <span class="rbad">· ${nOut} outlier${nOut===1?"":"s"}</span>`:""}</h4>
     <div class="rsel"><select id="rKind" aria-label="Which residuals">${RES_KINDS.map(([k,l])=>`<option value="${k}"${k===kind?" selected":""}>${l}</option>`).join("")}</select><select id="rView" aria-label="Seen how">${RES_VIEWS.map(([k,l])=>`<option value="${k}"${k===view?" selected":""}>${l}</option>`).join("")}</select></div>
-    <div class="rchartw">${residChartSvg(D,kind,view)}</div>
-    <p class="lab">${D.n} points, ${D.m} free parameter${D.m===1?"":"s"}; s = ${esc(fmtOr(D.s,4))}. ${Number.isFinite(D.out.lim)?`Outlier limit: a studentised deleted residual beyond ±${esc(fmt(D.out.lim,4))}, the t limit at ${pct}% for the largest of ${D.n}.`:"Too few points for an outlier limit."}</p>`;
-  if(nOut){ h+=`<div class="rscroll"><table class="rtab"><thead><tr><th>x</th><th>y</th><th>Residual</th><th>Studentised deleted</th><th>Leverage</th></tr></thead><tbody>${D.out.idx.map(i=>`<tr><td>${esc(fmt(D.X[i],6))}</td><td>${esc(fmt(D.Y[i],6))}</td><td>${esc(fmtOr(D.r[i],4))}</td><td class="rhi">${esc(fmtOr(D.del[i],4))}</td><td>${esc(fmtOr(D.h[i],3))}</td></tr>`).join("")}</tbody></table></div>
-    <button class="btn sm" id="rMaskOut"${ro} title="Mask ${nOut===1?"it":"them"} in the worksheet's column, so the next fit leaves ${nOut===1?"it":"them"} out (undo brings ${nOut===1?"it":"them"} back)">Mask ${nOut===1?"it":"them"}</button>`; }
-  else if(Number.isFinite(D.out.lim)) h+=`<p class="lab">No point is past the limit.</p>`;
-  if(kind!=="raw"&&vals.some(v=>!Number.isFinite(v))) h+=`<p class="lab">Points whose leverage is 1 (one parameter set by them alone) have no ${kind==="std"?"standardised":"studentised"} residual and are left out.</p>`;
-  return h+`</details>`;
+    <div class="rchartw">${residChartSvg(D,kind,view)}</div>`;
+    if(nOut) h+=`<div class="rscroll"><table class="rtab"><thead><tr><th>x</th><th>y</th><th>Residual</th><th>Studentised deleted</th><th>Leverage</th></tr></thead><tbody>${D.out.idx.map(i=>`<tr><td>${esc(fmt(D.X[i],6))}</td><td>${esc(fmt(D.Y[i],6))}</td><td>${esc(fmtOr(D.r[i],4))}</td><td class="rhi">${esc(fmtOr(D.del[i],4))}</td><td>${esc(fmtOr(D.h[i],3))}</td></tr>`).join("")}</tbody></table></div>
+    <button class="btn sm" id="rMaskOut"${ro} title="Leave ${nOut===1?"it":"them"} out of the next fit (Undo brings ${nOut===1?"it":"them"} back)">Mask</button>`;
+    if(kind!=="raw"&&vals.some(v=>!Number.isFinite(v))) h+=`<p class="lab">Points whose leverage is 1 (one parameter set by them alone) have no ${kind==="std"?"standardised":"studentised"} residual and are left out.</p>`;
+    h+=`</section>`; }
+  return h;
 }
+// The residuals' own figures, for the statistics beside the table.
+function diagStats(f){ if(f.xerr||!rShow().resid||!winOpen("res")) return []; const D=resDiag(f); if(!D) return [];
+  return [["Residual scatter, s",fmtOr(D.s,4)],["Outlier limit",Number.isFinite(D.out.lim)?"±"+fmt(D.out.lim,4):"too few points"]]; }
 function wireDiag(box,f){
-  box.querySelectorAll("details.rd").forEach(dt=>dt.addEventListener("toggle",()=>{ if(!dt.isConnected) return; S.rOpen=Object.assign({},S.rOpen,{[dt.dataset.rd]:dt.open});
-    if(dt.dataset.rd==="all"&&dt.open){ dt.querySelector("p").textContent="Working them out…"; setTimeout(()=>{ S.rOpen=Object.assign({},S.rOpen,{all:false,resid:true}); renderResults(); },30); } }));
+  const go=box.querySelector("#rDiagGo"); if(go) go.onclick=()=>{ go.disabled=true; go.textContent="Working it out…"; setTimeout(()=>{ S.rDiagAt=f.at; renderResults(); },30); };
   const k=box.querySelector("#rKind"); if(k) k.onchange=()=>{ const v=resKindOf(k.value); S.resKind=v;
     if(GID()&&!S.readOnly) setPlotKey("residKind",v,`showed the residuals as ${resKindName(v).toLowerCase()}s`); renderResults(); const k2=document.querySelector("#rKind"); if(k2) k2.focus({preventScroll:true}); };
   const v=box.querySelector("#rView"); if(v) v.onchange=()=>{ S.resView=resViewOf(v.value); try{ localStorage.setItem("kurve.resview",S.resView); }catch(e){} renderResults(); const v2=document.querySelector("#rView"); if(v2) v2.focus({preventScroll:true}); };
@@ -14543,23 +14581,56 @@ function diagText(f,sep,pre){
     if(D.out.idx.length){ out.push(pre+["Outlier x","y","Residual","Studentised deleted","Leverage"].join(sep)); D.out.idx.forEach(i=>out.push(pre+[D.X[i],D.Y[i],fmtOr(D.r[i],8,""),fmtOr(D.del[i],6,""),fmtOr(D.h[i],6,"")].join(sep))); } }
   return out;
 }
-// What the fit will weight by, said beside its Fit button (UX_SPEC 3.7).
-function weightHtml(d){ const c=activeYCol(), e=c&&errColFor(c.id);
-  if(d&&d.weighted&&hasErr()) return `<span class="fitwt" title="Each point counts as 1/σ², σ from its error bar; untick Weight by the Y error column to count every point the same">Weighted by ${e?`column ${esc(colLetter(e))}${e.name?` (${esc(e.name)})`:""}`:"the error bars"}</span>`;
-  return `<span class="fitwt" title="${hasErr()?"Tick Weight by the Y error column to weight by the error bars":"There is no Y error column"}">Unweighted: every point counts the same</span>`; }
+// The weighting switch: the error column it weights by is its tooltip.
+function weightChk(id,d){ const c=activeYCol(), e=c&&errColFor(c.id), he=hasErr();
+  return `<label class="chk" title="${he?`Each point counts as 1/σ², σ from ${e?`column ${esc(colLetter(e))}${e.name?` (${esc(e.name)})`:""}`:"its error bar"}`:"There is no Y error column: every point counts the same"}"><input type="checkbox" id="${id}"${d.weighted&&he?" checked":""}${he&&!S.readOnly?"":" disabled"}> Weight by Y error (1/σ²)</label>`; }
 // What the fit puts on the graph, set where it is made (the user had found no way to turn the shading off).
 function fitResidHtml(peaks){ const p=P(), on=!!p&&residOn(GP(),activeFit()||residHint()), cfg=p?plotCfg():{}, dis=S.readOnly||!p?" disabled":"", lv=confPct(confOf(activeFit()||{}));
   return `<div class="fitshow" role="group" aria-label="On the graph"><span class="lab">On the graph</span>`
-    +`<label class="chk"><input type="checkbox" id="fitResid"${on?" checked":""}${dis}> Residuals under the graph</label>`
-    +`<label class="chk"><input type="checkbox" id="fitBandC"${cfg.bandConf!==false?" checked":""}${dis}> ${lv}% confidence band, shaded</label>`
-    +`<label class="chk"><input type="checkbox" id="fitBandP"${cfg.bandPred?" checked":""}${dis}> ${lv}% prediction band, dashed</label>`
-    +(peaks?`<label class="chk"><input type="checkbox" id="fitPkFill"${((cfg.series||{}).__peaks||{}).fill!==false?" checked":""}${dis}> Each fitted peak shaded</label>`:"")+`</div>`; }
+    +`<label class="chk" title="Under the graph"><input type="checkbox" id="fitResid"${on?" checked":""}${dis}> Residuals</label>`
+    +`<label class="chk" title="${lv}%, shaded"><input type="checkbox" id="fitBandC"${cfg.bandConf!==false?" checked":""}${dis}> Confidence band</label>`
+    +`<label class="chk" title="${lv}%, dashed"><input type="checkbox" id="fitBandP"${cfg.bandPred?" checked":""}${dis}> Prediction band</label>`
+    +(peaks?`<label class="chk"><input type="checkbox" id="fitPkFill"${((cfg.series||{}).__peaks||{}).fill!==false?" checked":""}${dis}> Fitted peaks shaded</label>`:"")+`</div>`; }
+/* What Results reports, chosen before the fit as switches under "In the results"
+   (the design system's FitPanel): the intervals, the analysis of variance, the
+   two matrices and the residual analysis, and for a peak fit every parameter.
+   Results shows what is chosen open; the report and the copied table carry all
+   of it. Kept per browser (kurve.rshow). */
+const RSHOW_DEF={ci:true,anova:false,corr:true,cov:false,resid:true,par:false};
+const RSHOW=[["ci","Confidence intervals"],["anova","Analysis of variance"],["corr","Correlation matrix"],["cov","Covariance matrix"],["resid","Residual analysis"]];
+function rShow(){ if(!S.rShow){ let o=null; try{ o=JSON.parse(localStorage.getItem("kurve.rshow")||"null"); }catch(e){}
+    S.rShow={}; for(const k in RSHOW_DEF) S.rShow[k]=o&&typeof o==="object"&&typeof o[k]==="boolean"?o[k]:RSHOW_DEF[k]; }
+  return S.rShow; }
+function setRShow(k,v){ if(!(k in RSHOW_DEF)) return; rShow()[k]=!!v; try{ localStorage.setItem("kurve.rshow",JSON.stringify(S.rShow)); }catch(e){} renderResults(); }
+const rShowHtml=peaks=>{ const o=rShow(); return `<div class="fitshow" role="group" aria-label="In the results"><span class="lab">In the results</span>${(peaks?[["par","Every parameter"]]:[]).concat(RSHOW).map(([k,l])=>`<label class="chk"><input type="checkbox" data-rshow="${k}"${o[k]?" checked":""}> ${l}</label>`).join("")}</div>`; };
 function fitModeSeg(){
   return `<div class="seg full" role="group" aria-label="What to fit">
     <button data-fmode="curve" aria-pressed="${S.fitMode==="curve"}" title="One model through the points in view">${ICON("chart")}<span>Curve fit</span></button>
     <button data-fmode="peaks" aria-pressed="${S.fitMode==="peaks"}" title="Several peaks on a baseline, fitted together">${ICON("peak")}<span>Peak fit</span></button></div>`;
 }
-const noteHtml=(level,text,raw)=>`<div class="note ${level==="info"?"":level}"${level==="bad"?' role="alert"':""}>${ICON(level==="info"?"info":level==="ok"?"check":"alert")}<p>${raw?text:esc(text)}</p></div>`;
+/* A note (the design system's Note): one line, and its fixes as small buttons
+   at its end. acts are [label, action, data]: the action is one of NOTE_ACTS,
+   run by one listener for the page (setupNotes), so a note works wherever it
+   is drawn; why is the whole text, the line's tooltip. */
+const NOTE_EDIT=new Set(["fitagain","guess","mask","pkfind","import"]);
+const noteHtml=(level,text,raw,acts,why)=>`<div class="note ${level==="info"?"":level}"${level==="bad"?' role="alert"':""}>${ICON(level==="info"?"info":level==="ok"?"check":"alert")}<p${why&&why!==text?` title="${esc(why)}"`:""}>${raw?text:esc(text)}</p>${acts&&acts.length?`<span class="acts">${acts.map(([l,a,dat])=>`<button type="button" class="btn sm" data-nact="${a}"${Object.entries(dat||{}).map(([k,v])=>` data-${k}="${esc(v)}"`).join("")}${S.readOnly&&NOTE_EDIT.has(a)?" disabled":""}>${esc(l)}</button>`).join("")}</span>`:""}</div>`;
+// A fit's fixes, from wherever its note is: the Fit window opens on the fit's kind first.
+function fitFix(what){ const f=activeFit(); if(f) S.fitMode=f.kind==="composite"?"peaks":"curve";
+  if(what==="ctl") S.fcOpen=true; if(what==="lim") S.pgView="lim";
+  showTab("fit"); renderFit();
+  const b=what==="fit"?($("#doFit")||$("#doPeakFit")):what==="guess"?($("#doGuess")||$("#reseed")):null; if(b&&!b.disabled) b.click(); }
+const NOTE_ACTS={
+  fitagain:()=>fitFix("fit"), guess:()=>fitFix("guess"), fitctl:()=>fitFix("ctl"), limits:()=>fitFix("lim"), fitwin:()=>fitFix(null),
+  mask:()=>{ const f=activeFit(); if(f) maskOutliers(f); },
+  resid:()=>{ if(GID()&&!residOn(GP(),activeFit())) togglePlot("resid"); },
+  history:()=>openWin("flow",{render:true}),
+  gocol:b=>goSpectrum(b.dataset.col),
+  import:()=>pickFile(),
+  pkfind:()=>{ const b=$("#pkFind"); if(b&&!b.disabled) b.click(); },
+  peaks:b=>{ const p=P(); if(b.dataset.col&&p&&p.activeY!==b.dataset.col) goSpectrum(b.dataset.col); openPeakFinder(); }
+};
+function setupNotes(){ document.addEventListener("click",e=>{ const b=e.target.closest&&e.target.closest("button[data-nact]"); if(!b||b.disabled) return;
+  const fn=NOTE_ACTS[b.dataset.nact]; if(fn){ e.preventDefault(); try{ fn(b); }catch(err){ logError(String(err&&err.message||err),"note"); } } }); }
 /* The fit panel's own word on the current result: one line, with the way to
    the full table. Warnings are counted here and spelled out in Results. */
 function fitSummary(f,more){
@@ -14567,7 +14638,7 @@ function fitSummary(f,more){
   const head=stale?"Out of date":st.converged===false?"Did not converge":bad?"Fitted, with problems":"Fitted";
   const notes=w.filter(x=>x.kind!=="stale").length;
   return `<div class="fitsum${stale?" stale":bad?" bad":""}">${ICON(stale||bad?"alert":"check")}<div class="grow"><strong>${head}</strong> · R² ${esc(fmt(st.R2,5))} · reduced χ² ${esc(fmt(st.redChi2,4))}${
-    stale?`<div class="lab">${esc(fitStale(f))}</div>`:notes?`<div class="lab">${notes} note${notes===1?"":"s"} on this fit in Results</div>`:""}</div><button class="btn sm" data-go-res>${ICON("table","sm")}Results</button>${more||""}</div>`;
+    stale?`<div class="lab">${esc(fitStale(f))}</div>`:notes?`<div class="lab">${notes} note${notes===1?"":"s"}</div>`:""}</div><button class="btn sm" data-go-res>${ICON("table","sm")}Results</button>${more||""}</div>`;
 }
 function renderFit(){
   const box=$("#pane-fit"), p=P();
@@ -14580,7 +14651,7 @@ function renderFit(){
     box.querySelectorAll("[data-go-res]").forEach(b=>b.onclick=()=>showDrawer("res"));
   };
   if(!pointsAll().length){
-    box.innerHTML=top+noteHtml("info","Nothing is plotted yet. Import a file, drop one on the window, or paste two columns into the worksheet; then come back here to fit it.");
+    box.innerHTML=top+noteHtml("info","No data to fit yet.",false,[["Import…","import"]],"Import a file, drop one on the window, or paste two columns into the worksheet; then come back here to fit it.");
     wire(); return;
   }
   if(S.fitMode==="peaks"){ renderPeakFit(box,p,top); wire(); return; }
@@ -14599,17 +14670,18 @@ function renderFit(){
   h+=`<div class="mrow"><button type="button" class="mbtn" id="model" aria-haspopup="listbox" aria-expanded="false" aria-label="Model: ${esc(m.name)}" title="Choose the model from the list, by kind or by searching"${ro}>${modelSketch(m)}<span class="mb-n">${esc(m.listAs||m.name)}${fromFit?" (from the fit)":""}</span>${ICON("chev","sm")}</button>`+
     (ord?`<label class="mord" title="The polynomial's order: its highest power of x"><span>Order</span><select id="polyOrder"${ro}>${[1,2,3,4,5,6,7,8,9].map(k=>`<option value="${k}"${k===ord?" selected":""}>${k}</option>`).join("")}</select></label>`:"")+
     `<button class="btn sm" id="ufNew"${ro} title="Write your own fit function">${ICON("plus","sm")}Function</button></div>`;
-  { const sg=suggestModel(); if(MODELS[sg.id]&&!S.readOnly) h+=d.model===sg.id?`<div class="lab msugg" title="From the shape of the data in the fit's range">Suggested for this data: it ${esc(sg.why)}.</div>`:`<div class="lab msugg">Suggested for this data, which ${esc(sg.why)}: <button type="button" class="btn sm" id="useSugg">${esc(MODELS[sg.id].name)}</button></div>`; }
+  // The suggestion in one word, its reason the button's tooltip; nothing while it is the model chosen.
+  { const sg=suggestModel(); if(MODELS[sg.id]&&!S.readOnly&&d.model!==sg.id) h+=`<div class="lab msugg">Suggested:<button type="button" class="btn sm" id="useSugg" title="${esc(capFirst("the data "+sg.why))}">${esc(MODELS[sg.id].name)}</button></div>`; }
   h+=`<div class="formula${m.user?" user":""}">${m.formula}</div>`;
   if(m.user) h+=`<div class="actions ufacts">${inProj?`<button class="btn sm" id="ufEdit"${ro}>${ICON("edit","sm")}Edit…</button><button class="btn sm ghost" id="ufDup"${ro}>${ICON("copy","sm")}Duplicate</button><button class="btn sm ghost" id="ufDel"${ro}>${ICON("trash","sm")}Delete</button>`:`<button class="btn sm" id="ufDup"${ro}>${ICON("edit","sm")}Edit a copy…</button><span class="lab">${lib.some(q=>"u:"+q.id===d.model)?"From this browser's library: fitting adds it to the project.":"No longer in this project: the fit keeps its own copy."}</span>`}</div>`;
   h+=`<div class="gh">Parameters</div>`;
   h+=paramGridHtml(d,m,f,sameModel,ro);
   h+=`<div class="gh">Options</div>`;
-  h+=`<label class="chk"><input type="checkbox" id="wt"${d.weighted&&hasErr()?" checked":""}${hasErr()&&!S.readOnly?"":" disabled"}> Weight by the Y error column (1/σ²)</label>`;
+  h+=weightChk("wt",d);
   if(hasXErr()) h+=`<label class="chk"><input type="checkbox" id="wtx"${d.xerr?" checked":""}${S.readOnly?" disabled":""}> <span class="tipd" title="Orthogonal distance regression: each point's true X is fitted too, within its X error, so the curve is not pulled flat by errors in X, and the parameters' errors include them. Without Y errors, the scatter in Y is found from the fit.">Include the X errors</span></label>`;
-  if(!hasErr()) h+=`<div class="lab" style="margin:3px 0 0 22px">No Y-error column, so every point counts equally.</div>`;
   h+=fitResidHtml();
   h+=confHtml(d);
+  h+=rShowHtml(false);
   h+=`<div class="range" id="fitRange"></div>`;
   h+=fitCtlHtml(d);
   if(S.fitError) h+=noteHtml("bad",S.fitError);
@@ -14617,7 +14689,7 @@ function renderFit(){
   if(f) h+=fitSummary(f,`<button class="btn sm ghost" id="clrFit"${rb}>Remove fit</button>`);
   h+=fitLogHtml(d);
   const odr=d.xerr&&hasXErr();
-  h+=`<div class="sticky">${weightHtml(d)}${run?`<button class="btn primary" id="fitStop" title="Stop the fit: its last values become the starting values, and Fit carries on from them"${run.stop?" disabled":""}>${ICON("stop")}${run.stop?"Stopping…":"Stop"}</button>`:`<button class="btn primary" id="doFit"${ro} title="Fit (Ctrl+Enter)">${ICON("play")}Fit</button>`}<button class="btn" id="doStep"${rb||(odr?" disabled":"")} title="${odr?"One step is for the Levenberg–Marquardt fit: untick Include the X errors to take one":"One step of the fit from the starting values; the result becomes the new starting values"}">1 iteration</button><button class="btn" id="doGuess"${rb} title="Measure the starting values from the data in view">Guess</button>${f&&yCols().length>1?`<button class="btn" id="fitAll"${rb} title="Fit every column with this model, starting from this fit">Fit every column…</button>`:""}<button class="btn ghost fdone" id="fitDone" title="Close the Fit window; the fit stays on the graph and in Results">Done</button></div>`;
+  h+=`<div class="sticky">${run?`<button class="btn primary" id="fitStop" title="Stop the fit: its last values become the starting values, and Fit carries on from them"${run.stop?" disabled":""}>${ICON("stop")}${run.stop?"Stopping…":"Stop"}</button>`:`<button class="btn primary" id="doFit"${ro} title="Fit (Ctrl+Enter)">${ICON("play")}Fit</button>`}<button class="btn" id="doStep"${rb||(odr?" disabled":"")} title="${odr?"One step is for the Levenberg–Marquardt fit: untick Include the X errors to take one":"One step of the fit from the starting values; the result becomes the new starting values"}">1 iteration</button><button class="btn" id="doGuess"${rb} title="Measure the starting values from the data in view">Guess</button><button class="btn ghost fdone" id="fitDone" title="Close the Fit window; the fit stays on the graph and in Results">Done</button></div>`;
   box.innerHTML=h; renderFitRangeOnly(); wire();
   { const mb=$("#model"); mb.onclick=()=>{ if(fpOpen&&fpOpen.btn===mb){ closeFontPicker(); return; }
       openModelPicker(mb,d.model,v=>chooseModel(v),{fromFit:fromFit?{id:d.model,m}:null}); };
@@ -14635,7 +14707,7 @@ function renderFit(){
   const wt=$("#wt"); if(wt) wt.onchange=()=>d.weighted=wt.checked;
   const wx=$("#wtx"); if(wx) wx.onchange=()=>d.xerr=wx.checked;
   $("#doGuess").onclick=()=>{ pushUndo("guessing initial values"); S.fitError=""; guessDraft(); renderFit(); toast("Initial values measured from the data in view."); };
-  { const df=$("#doFit"); if(df) df.onclick=runFit; const fa=$("#fitAll"); if(fa) fa.onclick=openBatchDialog; }
+  { const df=$("#doFit"); if(df) df.onclick=runFit; }
   const cf=$("#clrFit"); if(cf) cf.onclick=removeFit;
   { const ds=$("#doStep"); if(ds) ds.onclick=stepFit; const fs=$("#fitStop"); if(fs) fs.onclick=()=>{ if(S.fitRun){ S.fitRun.stop=true; fs.disabled=true; fs.lastChild.textContent="Stopping…"; } }; }
   wireFitCtl(box,d); wirePGrid(box,d,m,f,sameModel); wireConf(box,d);
@@ -14677,17 +14749,17 @@ function paramGridHtml(d,m,f,same,ro){
     return `<input type="text" inputmode="decimal" data-plim="${k}:${i}" value="${esc(val)}" placeholder="${o!=null?esc(fmt(o,6)):"none"}" aria-label="${k==="lo"?"Lowest":"Highest"} value of ${esc(m.params[i])}" title="${o!=null?`Empty: the function's own limit, ${esc(fmt(o,6))}; none: no limit`:"A number, or empty for no limit"}"${ro}>`; };
   const rel=(k,i)=>{ const s=!!L[k==="lo"?"slo":"shi"][i]; return `<button type="button" class="prel" data-prel="${k}:${i}" title="${esc(pgRelTip(s))}" aria-label="${esc(pgRelLabel(k,m.params[i],s))}"${ro}>${s?"&lt;":"≤"}</button>`; };
   let h=`<div class="pgw" data-pgv="${v}"><div class="seg pgseg" role="group" aria-label="Columns shown">${PG_VIEWS.map(([k,t])=>`<button type="button" data-pgview="${k}" aria-pressed="${v===k}">${t}</button>`).join("")}</div>
-  <table class="ptab pg"><thead><tr><th>Parameter</th><th class="r" data-v="start">Start</th><th data-v="start" title="Hold this parameter at its starting value">Fix</th><th class="r" data-v="lim" title="The lowest value the fit may give it">Lowest</th><th data-v="lim" title="The highest value the fit may give it">Highest</th><th class="r" data-v="start res">Fitted ± error</th><th class="r pgci" data-v="res" title="The confidence interval at the fit's level">${confPct(confOf(same?f:d))}% interval</th><th class="r" data-v="res" title="Near 1: this parameter is doing the same job as others and is not independently determined">Dependency</th><th data-v="res" title="Significant digits the fitted value is shown with, here, in Results and in the report">Digits</th></tr></thead><tbody>`;
+  <table class="ptab pg"><thead><tr><th>Parameter</th><th class="r" data-v="start">Start</th><th data-v="start" title="Hold this parameter at its starting value">Fix</th><th class="r" data-v="lim" title="The lowest value the fit may give it">Lowest</th><th data-v="lim" title="The highest value the fit may give it">Highest</th><th class="r" data-v="start res">Fitted</th><th class="r" data-v="start res">Error</th><th class="r pgci" data-v="res" title="The confidence interval at the fit's level">${confPct(confOf(same?f:d))}% interval</th><th class="r" data-v="res" title="Near 1: this parameter is doing the same job as others and is not independently determined">Dependency</th><th data-v="res" title="Significant digits the fitted value is shown with, here, in Results and in the report">Digits</th></tr></thead><tbody>`;
   m.params.forEach((nm,i)=>{
     const fx=same&&f.fixed&&f.fixed[i], bd=same&&!fx&&f.atBound&&f.atBound[i], dg=dig[i]||null;
-    const res=same?(fx?`${fmtPMd(f.params[i],0,dg)} <span class="lab">fixed</span>`:bd?`${fmtPMd(f.params[i],0,dg)} <span class="lab">at its limit</span>`:fmtPMd(f.params[i],f.errors[i],dg)):"";
+    const ve=same?(fx||bd?[fmtPMd(f.params[i],0,dg),`<span class="lab">${fx?"fixed":"at its limit"}</span>`]:fmtVE(f.params[i],f.errors[i],dg)):["",""];
     const cv=same&&!fx&&!bd?ciOf(f,i):null, ci=cv?`${esc(fmt(cv[0],5))} to ${esc(fmt(cv[1],5))}`:"";
     const dv=same&&!fx&&!bd&&f.dep?f.dep[i]:null, mean=(m.mean||[])[i];
     h+=`<tr><td class="pn">${m.ph[i]}${uC(unitFor((m.dim||[])[i],xuC,yuC))}${mean?`<div class="pmean">${esc(mean)}</div>`:""}</td>`+
       `<td data-v="start"><input type="text" inputmode="decimal" data-pi="${i}" value="${esc(fmt(d.init[i],6))}" aria-label="Starting value of ${nm}"${ro}></td>`+
       `<td class="fx" data-v="start"><input type="checkbox" data-fx="${i}"${d.fixed[i]?" checked":""} aria-label="Fix ${nm}" title="Hold ${nm} at its starting value"${ro}></td>`+
       `<td data-v="lim"><span class="plim">${limIn("lo",i)}${rel("lo",i)}</span></td><td data-v="lim"><span class="plim">${rel("hi",i)}${limIn("hi",i)}</span></td>`+
-      `<td class="res" data-v="start res">${res}</td><td class="res pgci" data-v="res">${ci}</td><td class="res${Number.isFinite(dv)&&dv>0.99?" pgdep":""}" data-v="res">${Number.isFinite(dv)?esc(fmt(dv,3)):""}</td>`+
+      `<td class="res" data-v="start res">${ve[0]?`<strong>${ve[0]}</strong>`:""}</td><td class="res pgerr" data-v="start res">${ve[1]}</td><td class="res pgci" data-v="res">${ci}</td><td class="res${Number.isFinite(dv)&&dv>0.99?" pgdep":""}" data-v="res">${Number.isFinite(dv)?esc(fmt(dv,3)):""}</td>`+
       `<td data-v="res"><select data-pdig="${i}" aria-label="Digits of ${nm}"${ro}>${[0,1,2,3,4,5,6,7,8,9,10].map(k=>`<option value="${k}"${(dg||0)===k?" selected":""}>${k?k:"Auto"}</option>`).join("")}</select></td></tr>`; });
   return h+`</tbody></table><div class="pgnote" role="status"></div></div>`;
 }
@@ -15342,19 +15414,19 @@ function renderPeakFit(box,p,top){
   }
   h+=`</section>`;
   // 3 Fit
-  h+=`<section class="stepsec"><h3 class="gh"><span class="sn">3</span>Fit</h3><label class="chk"><input type="checkbox" id="pwt"${d.weighted&&hasErr()?" checked":""}${hasErr()&&!S.readOnly?"":" disabled"}> Weight by the Y error column (1/σ²)</label>`;
+  h+=`<section class="stepsec"><h3 class="gh"><span class="sn">3</span>Fit</h3>${weightChk("pwt",d)}`;
   if(hasXErr()) h+=`<label class="chk"><input type="checkbox" id="pwtx"${d.xerr?" checked":""}${S.readOnly?" disabled":""}> <span class="tipd" title="Orthogonal distance regression: each point's true X is fitted too, within its X error, so the curve is not pulled flat by errors in X, and the parameters' errors include them. Without Y errors, the scatter in Y is found from the fit.">Include the X errors</span></label>`;
   h+=fitResidHtml(true);
   h+=confHtml(d);
+  h+=rShowHtml(true);
   h+=`<div class="range" id="fitRange"></div>`;
   if(S.fitError) h+=noteHtml("bad",S.fitError);
-  if(f) h+=fitSummary(f);
+  if(f) h+=fitSummary(f,`<button class="btn sm ghost" id="clrFit"${ro}>Remove fit</button>`);
   if(f){ const c2=plotCfg(), fs2=fplFields(c2), tp2=fplTpl(c2);
     h+=`<div class="fplrow" role="group" aria-label="What the fitted peaks' labels show"><span class="lab">Labels show</span>${tp2?`<span class="lab"><em>your own text</em></span>`:FPL_FIELDS.map(([v,l])=>`<button type="button" class="fplc" data-fplf="${v}" aria-pressed="${fs2.includes(v)}"${ro}>${l}</button>`).join("")}<button type="button" class="btn sm ghost" id="fplMore">More…</button></div>`; }
-  h+=`</section><div class="sticky">${weightHtml(d)}<button class="btn primary" id="doPeakFit"${ro}${d.peaks.length?"":" disabled"} title="Fit (Ctrl+Enter)">${ICON("play")}${d.peaks.length?`Fit ${d.peaks.length} peak${d.peaks.length===1?"":"s"}`:"Fit"}</button>
+  h+=`</section><div class="sticky"><button class="btn primary" id="doPeakFit"${ro}${d.peaks.length?"":" disabled"} title="Fit (Ctrl+Enter)">${ICON("play")}${d.peaks.length?`Fit ${d.peaks.length} peak${d.peaks.length===1?"":"s"}`:"Fit"}</button>
     <button class="btn" id="reseed"${ro}${d.peaks.length?"":" disabled"} title="Measure every peak and the baseline again from the data">Reset to estimates</button>
-    ${f&&yCols().length>1?`<button class="btn" id="fitAll"${ro} title="Fit every spectrum with these peaks, starting from this fit">Fit every spectrum…</button>`:""}
-    ${f?`<button class="btn ghost" id="clrFit"${ro}>Remove fit</button>`:""}<button class="btn ghost fdone" id="fitDone" title="Close the Fit window; the fit stays on the graph and in Results">Done</button></div>`;
+    <button class="btn ghost fdone" id="fitDone" title="Close the Fit window; the fit stays on the graph and in Results">Done</button></div>`;
   box.innerHTML=h; renderFitRangeOnly();
   const pp=$("#pfPanel"); if(pp){ pp.addEventListener("toggle",()=>{ if(!pp.isConnected) return; S.pfOpen=pp.open; if(pp.open&&!pp.querySelector(".pfform")) renderFit(); else if(!pp.open){ S.pfPreview=null; renderPlot(); } }); if(findOpen) wirePf(pp); }
   if(findOpen) renderPlot();
@@ -15423,7 +15495,7 @@ function renderPeakFit(box,p,top){
   const pw=$("#pwt"); if(pw) pw.onchange=()=>d.weighted=pw.checked;
   const pwx=$("#pwtx"); if(pwx) pwx.onchange=()=>d.xerr=pwx.checked;
   wireConf(box,d);
-  $("#doPeakFit").onclick=runPeakFit; { const fa=$("#fitAll"); if(fa) fa.onclick=openBatchDialog; }
+  $("#doPeakFit").onclick=runPeakFit;
   const cf=$("#clrFit"); if(cf) cf.onclick=removeFit;
 }
 
@@ -15601,12 +15673,17 @@ function statsList(f){
   if(f.range) out.push(["Fitted over",`x ${fmt(f.range[0],6)} to ${fmt(f.range[1],6)}`]);
   return out.map(([k,v])=>[k,v==null||v===""?"—":String(v)]);
 }
-function paramTableHtml(f){
-  const rows=paramRows(f), der=derivedRows(f);
+// The parameters as journals print them: the value and its standard error in
+// columns of their own, the derived quantities under a group row. The report
+// (all) has every column, whatever Results was set to show.
+function paramTableHtml(f,all){
+  const rows=paramRows(f), der=derivedRows(f), ci=all||rShow().ci, n=ci?7:6;
   const u=t=>t?` <span class="unit">(${esc(t)})</span>`:"";
-  return `<table class="rtab"><thead><tr><th class="l">Parameter</th><th>Value ± standard error</th><th>t</th><th>Prob &gt; |t|</th><th>${confPct(confOf(f))}% confidence interval</th><th title="Near 1: this parameter is doing the same job as others and is not independently determined">Dependency</th></tr></thead><tbody>${
-    rows.map(r=>`<tr${Number.isFinite(r.dep)&&r.dep>0.99&&!r.hold?' class="badrow"':""}><td class="l">${r.html?`<span style="font-style:italic;font-family:'Source Serif 4',Georgia,serif;font-size:1.08em">${r.html}</span>`:esc(r.label)}${u(r.unit)}${r.meaning?` <span class="lab">${esc(r.meaning)}</span>`:""}</td><td>${r.tied?`${fmtPM(r.v,r.e)} <span class="lab">${esc(r.tied)}</span>`:r.hold?`${fmtPMd(r.v,0,r.dig)} <span class="lab">${r.fixed?"fixed":"at its limit"}</span>`:fmtPMd(r.v,r.e,r.dig)}${r.shared&&!r.tied?` <span class="lab shd" title="One value for every column of the global fit">shared</span>`:""}</td><td>${r.hold?"":esc(fmtOr(r.t,4))}</td><td>${r.hold?"":esc(fmtP(r.pv))}</td><td>${r.hold||!r.ci||!Number.isFinite(r.ci[0])||!Number.isFinite(r.ci[1])?"":`${esc(fmt(r.ci[0],6))} to ${esc(fmt(r.ci[1],6))}`}</td><td>${r.hold?"":esc(fmtOr(r.dep,4))}</td></tr>`).join("")
-  }${der.map(x=>`<tr><td class="l">${esc(x.name)}${u(x.unit)} <span class="lab">derived</span></td><td>${fmtPM(x.v,x.e)}</td><td></td><td></td><td></td><td></td></tr>`).join("")}</tbody></table>`;
+  return `<table class="rtab"><thead><tr><th class="l">Parameter</th><th>Value</th><th class="se">Standard error</th><th>t</th><th>Prob &gt; |t|</th>${ci?`<th>${confPct(confOf(f))}% confidence interval</th>`:""}<th title="Near 1: this parameter is doing the same job as others and is not independently determined">Dependency</th></tr></thead><tbody>${
+    rows.map(r=>{ const [v,e]=r.tied?fmtVE(r.v,r.e):r.hold?[fmtPMd(r.v,0,r.dig),""]:fmtVE(r.v,r.e,r.dig);
+      const why=r.tied?`<span class="lab">${esc(r.tied)}</span>`:r.hold?`<span class="lab">${r.fixed?"fixed":"at its limit"}</span>`:"";
+      return `<tr${Number.isFinite(r.dep)&&r.dep>0.99&&!r.hold?' class="badrow"':""}><td class="l">${r.html?`<span style="font-style:italic;font-family:'Source Serif 4',Georgia,serif;font-size:1.08em">${r.html}</span>`:esc(r.label)}${u(r.unit)}${r.meaning?` <span class="lab">${esc(r.meaning)}</span>`:""}</td><td class="val">${v}${r.shared&&!r.tied?` <span class="lab shd" title="One value for every column of the global fit">shared</span>`:""}</td><td class="se">${e}${e&&why?" ":""}${why}</td><td>${r.hold?"":esc(fmtOr(r.t,4))}</td><td>${r.hold?"":esc(fmtP(r.pv))}</td>${ci?`<td>${r.hold||!r.ci||!Number.isFinite(r.ci[0])||!Number.isFinite(r.ci[1])?"":`${esc(fmt(r.ci[0],6))} to ${esc(fmt(r.ci[1],6))}`}</td>`:""}<td>${r.hold?"":esc(fmtOr(r.dep,4))}</td></tr>`; }).join("")
+  }${der.length?`<tr class="rgrp"><td colspan="${n}">Derived</td></tr>`+der.map(x=>{ const [v,e]=fmtVE(x.v,x.e); return `<tr><td class="l">${esc(x.name)}${u(x.unit)}</td><td class="val">${v}</td><td class="se">${e}</td>${"<td></td>".repeat(n-3)}</tr>`; }).join(""):""}</tbody></table>`;
 }
 function renderResults(){
   const box=$("#pane-res"); if(!box) return;
@@ -15622,10 +15699,9 @@ function renderResults(){
   const [xu,yu]=fitUnits(f), u=t=>t?`<span class="unit">(${esc(t)})</span>`:"";
   let h=`<div class="rhead"><div class="rt"><div class="rtitle">${FM.composite?"Peak fit":"Curve fit"}: ${esc(FM.name)}${f.onColName?` <span class="lab">on ${esc(f.onColName)}</span>`:""}${f.global&&f.gstats?` <span class="lab">· together with ${f.gstats.K-1} other columns</span>`:""}</div>${FM.model.user?`<div class="rfx"><code>${esc(FM.model.expr)}</code></div>`:""}<div class="lab" id="fitBy"></div></div>
     <div class="ract"><button class="btn sm" id="rCopy">${ICON("copy","sm")}Copy table</button><button class="btn sm" id="rReport">${ICON("file","sm")}Save report</button><button class="btn sm" id="rCsv">${ICON("download","sm")}Export data</button><button class="btn sm ghost" id="discussFit">${ICON("comment","sm")}Discuss</button></div></div>`;
-  // What makes a number wrong goes above the table; advice on doing better
-  // goes under it, so the table is not pushed out of a short panel.
+  // Each note one line, with its fix; the whole of what it says is its tooltip, and the report's.
   const warns=fitWarnings(f);
-  warns.filter(w=>w.level!=="info").forEach(w=>{ h+=noteHtml(w.level,w.text); });
+  warns.forEach(w=>{ h+=noteHtml(w.level,w.brief,false,w.acts,w.text); });
   h+=`<div class="rgrid"><div class="rmain">`;
   if(FM.composite){
     const rows=peakMetrics(f), hasN=rows.some(r=>r.name), au=unitFor("yx",xu,yu), shd=(k,nms)=>{ if(!f.shared) return ""; const pd=PEAKS[(f.spec.peaks[k]||{}).type]||PEAKS.gauss, o=FM.model.offsets[k], ix=pd.params.map((nm,i)=>nms.test(nm)?o+i:-1).filter(i=>i>=0);
@@ -15637,17 +15713,14 @@ function renderResults(){
       <td${(r.wparts||[]).length>1?` title="${esc(r.wparts.map(w=>w.nm+" "+fmt(Math.abs(w.v),4)).join(", "))}"`:""}>${r.fwhmErr?fmtPM(r.fwhm,r.fwhmErr):esc(fmt(r.fwhm,5))}${(r.wparts||[]).length>1?` <span class="lab">(${esc(r.wparts.map(w=>w.nm+" "+fmt(Math.abs(w.v),3)).join(", "))})</span>`:""}${shd(r.k,/^w/)}</td>
       <td>${fmtPM(r.area,r.areaErr)}${shd(r.k,/^A$/)}</td><td>${r.areaPct==null?'<span class="noerr">excluded</span>':esc(fmt(r.areaPct,3))}</td></tr>`; });
     h+=`</tbody></table>`;
-    h+=`<details class="more" id="rParams"${S.showParams?" open":""}><summary>All ${f.params.length} fitted parameters, with t, p, confidence intervals and dependency</summary>${paramTableHtml(f)}</details>`;
+    if(rShow().par) h+=`<section class="rsec" data-rd="par"><h4>Every parameter</h4>${paramTableHtml(f)}</section>`;
   } else h+=paramTableHtml(f);
-  warns.filter(w=>w.level==="info").forEach(w=>{ h+=noteHtml(w.level,w.text); });
   h+=diagHtml(f);
-  h+=`</div><div class="rside"><dl class="kv">${statsList(f).map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></div></div>`;
-  h+=`<p class="rfoot">${f.xerr?"Errors come from the X and Y errors, through the orthogonal distance fit.":f.weighted?"Errors come from the instrumental weights.":"Errors are scaled by the square root of reduced χ², as Origin does when there are no weights."} ${GP().bandConf!==false?`Shaded band on the graph: the ${confPct(confOf(f))}% confidence band of the fit.`:""}${GP().bandPred?` Dashed lines: the ${confPct(confOf(f))}% prediction band, where a new measurement would fall.`:""}${FM.composite?" Dashed grey line: the fitted baseline. Coloured lines: each peak on top of it, numbered as in this table.":""}</p>`;
+  h+=`</div><div class="rside"><dl class="kv">${statsList(f).concat(diagStats(f)).map(([k,v])=>{ const t=k==="Fit control"?ctlShort(f):String(v); return `<dt>${esc(k)}</dt><dd${t.length>18?' class="w"':""}>${t.split(" · ").map(x=>`<span class="nw">${esc(x)}</span>`).join(" · ")}</dd>`; }).join("")}</dl></div></div>`;
   box.innerHTML=h;
   const by=$("#fitBy"); if(by) by.textContent=f.by?`Fitted by ${nameOf(f.by)}, ${ago(f.at)}`:`Fitted ${ago(f.at)}`;
   $("#rCopy").onclick=copyResults; $("#rReport").onclick=exportReport; $("#rCsv").onclick=exportCsv; wireDiag(box,f);
   $("#discussFit").onclick=()=>{ S.anchor={type:"fit",model:FM.composite?"peaks":f.model}; showDrawer("disc"); renderAnchor(); $("#cText").focus(); };
-  const rp=$("#rParams"); if(rp) rp.addEventListener("toggle",()=>{ if(rp.isConnected) S.showParams=rp.open; });
   box.querySelectorAll("[data-prow]").forEach(tr=>tr.onclick=()=>{ const k=+tr.dataset.prow;
     S.selPeak=S.selPeak===k?null:k; if(S.fitMode!=="peaks") S.fitMode="peaks"; renderFit(); renderPlot();
     const card=document.querySelector(`#pane-fit .pcard[data-peak="${k}"]`); if(card&&S.selPeak===k) card.scrollIntoView({block:"nearest"}); });
@@ -16249,7 +16322,7 @@ async function exportReport(){
     "table{border-collapse:collapse;font-size:.88em;font-variant-numeric:tabular-nums;margin:.3em 0}",
     "th,td{border-bottom:1px solid #D5DCE5;padding:.35em .7em;text-align:right;vertical-align:top}th.l,td.l{text-align:left}",
     "th{font-weight:600;color:#5B6778}.bad,.badrow td{color:#B42318}dl{display:grid;grid-template-columns:auto 1fr;gap:.2em 1.2em;font-size:.92em}",
-    "dt{color:#5B6778}dd{margin:0}figure{margin:1em 0}svg{max-width:100%;height:auto}.lab,.unit{color:#5B6778;font-size:.9em}.noerr{color:#5B6778;font-style:italic}",
+    "dt{color:#5B6778}dd{margin:0}figure{margin:1em 0}svg{max-width:100%;height:auto}.lab,.unit{color:#5B6778;font-size:.9em}td.se{color:#5B6778}tr.rgrp td{text-align:left;font-weight:600;color:#5B6778;border-bottom:0;padding-top:.8em}.noerr{color:#5B6778;font-style:italic}",
     ".meta{font-size:.85em;color:#5B6778}ul{padding-left:1.2em}li.bad{color:#B42318}li.warn{color:#8A5200}",
     "h3{font-size:1em;margin:1.2em 0 .3em}.film{display:flex;flex-wrap:wrap;gap:10px;margin:.6em 0}.film figure{margin:0}.film figcaption{font:.78em/1.3 system-ui,sans-serif;color:#5B6778;max-width:170px}",
     "li.off{color:#8491A3;text-decoration:line-through}.warn{color:#8A5200}code{font-size:.85em;overflow-wrap:anywhere}",
@@ -16277,7 +16350,7 @@ async function exportReport(){
     html.push("</tbody></table>");
   }
   if(f){
-    html.push("<h2>"+(FM.composite?"All fitted parameters":"Fitted parameters")+"</h2>"+paramTableHtml(f));
+    html.push("<h2>"+(FM.composite?"All fitted parameters":"Fitted parameters")+"</h2>"+paramTableHtml(f,true));
     html.push("<h2>Fit statistics</h2><dl>"+statsList(f).map(([k,v])=>"<dt>"+esc2(k)+"</dt><dd>"+esc2(v)+"</dd>").join("")+"</dl>");
     html.push(reportDiagHtml(f));
   }
@@ -17569,7 +17642,7 @@ function renderPeaks(){
   </div>
   ${regs.length?`<div class="twrap"><table class="rtab pkregs"><thead><tr><th>Region</th><th>From${xu?` <span class="unit">(${esc(xu)})</span>`:""}</th><th>To</th><th class="l">Peak finder</th><th class="opt" title="Peaks found in it">Peaks</th><th></th></tr></thead><tbody>${regs.map((g,k)=>`<tr data-reg="${esc(g.id)}"${g===sr?' class="sel" aria-selected="true"':""}><td><span class="rgn">${k+1}</span></td><td><input type="text" inputmode="decimal" data-rx="x0" data-rid="${esc(g.id)}" value="${esc(fmt(g.x0,7))}" aria-label="Region ${k+1} from"${ro}></td><td><input type="text" inputmode="decimal" data-rx="x1" data-rid="${esc(g.id)}" value="${esc(fmt(g.x1,7))}" aria-label="Region ${k+1} to"${ro}></td><td class="l"><button class="lnk" data-regsel="${esc(g.id)}" title="Show this region's settings">${esc(pfSummary(g.o))}</button></td><td class="opt">${f?pkIn(g):"—"}</td><td class="fx"><button class="tb sm icon" data-regdel="${esc(g.id)}" aria-label="Remove region ${k+1}" title="Remove this region"${ro}>${ICON("x","sm")}</button></td></tr>`).join("")}</tbody></table></div>`:""}
   </section>`;
-  if(stale&&f.follow===false) h+=noteHtml("warn","The processing has changed since these peaks were found. Find again to follow it; your labels stay with the peaks that are still there.");
+  if(stale&&f.follow===false) h+=noteHtml("warn","The processing has changed since these peaks were found.",false,[["Search again","pkfind"]],"Search again to follow it; your labels stay with the peaks that are still there.");
   else if(f&&f.re) h+=`<p class="hint">Found again ${esc(ago(f.re))}, after the processing changed.</p>`;
   // 1 How to find
   const fo=sr?sr.o:pfOpts();
@@ -18436,7 +18509,7 @@ function flowInspectorBody(n){
     const f=n.f, rows=peakRows(c), st=Object.assign({},PK_STYLE,f.style), o=f.opts||{}, mode=PF_MODES.find(q=>q[0]===o.mode)||PF_MODES[0], d=finalOf(c);
     const stale=f.sig&&f.sig!==pipeSig(c), lab=(arr,k)=>esc((arr.find(q=>q[0]===k)||[,""])[1]);
     h+=`<div class="fi-h">${ICON("tag")}<div class="grow"><div class="fi-t">Peaks of ${esc(specName(c))}</div><div class="lab">${rows.length} marked${f.at?` · found ${f.by?`by ${esc(nameOf(f.by))} `:""}${esc(ago(f.at))}`:""}</div></div>${discChip(n.key)}</div>`;
-    if(stale) h+=noteHtml("warn","The processing has changed since these peaks were found. Find them again in the Peaks window to follow it.");
+    if(stale) h+=noteHtml("warn","The processing has changed since these peaks were found.",false,[["Peaks window","peaks",{col:c.id}]],"Find them again in the Peaks window to follow it.");
     h+=kvHtml([["Found with",`${esc(((PF_METHODS.find(q=>q[0]===o.method)||[,""])[1]).toLowerCase())}, ${esc(mode[1].toLowerCase())} ${esc(String(o.v))} ${esc(mode[2])}${o.log?", on a log scale":""}`],["Marked with",lab(PK_MARKS,st.mk)],["Labelled with",lab(PK_SHOW,st.show)],
       (f.ex||[]).length?["Removed by hand",esc(f.ex.map(e=>fmt(typeof e==="number"?e:e.x,6)).join(", "))]:null,
       ["Follows the processing",f.follow===false?"no: find them again by hand":`yes${f.re?`, found again ${esc(ago(f.re))}`:""}`]]);
@@ -19449,27 +19522,27 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <p>Pearson r between columns on the same X axis, interpolated onto the active column's X where they overlap. Near 1, the same shape; near 0, unrelated.</p>
 <p><em>Copy</em> gives every table as tab-separated text.</p>`},
 /* ---------------------------------------------------------------- Fitting */
-{id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge range from to use the view zoom all spectrum done close residuals weighting",
+{id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge range from to use the view from view points zoom all spectrum done close residuals weighting in the results report sections",
  lead:"Two kinds of fit, in the Fit window: a curve fit puts one model through the data; a peak fit describes a column as a sum of peaks on a baseline.",
  body:`${DL([[DA("curvefit","Curve fit"),"A line, polynomial, exponential decay, sigmoid, single peak or your own function."],[DA("peakfit","Peak fit"),"Any number of Gaussian, Lorentzian, Voigt, Pearson VII, Fano and other peaks on a baseline, found automatically or placed by hand, with handles on the graph."]])}
 <h2>What is fitted</h2>
-<p>The unmasked points of one column's processed data, over a range. The top of the Fit window says which: <em>Column</em> (with several) and <em>Range</em>, from … to …, in X units. The range is all the data until you type one, or take the graph's zoom with <em>Use the view</em>; zooming the graph alone never changes it, and what the fit leaves out is shaded while the window is open. <em>All</em> is all the data again. Mask points to leave them out. Under the options, a line says how the fit is weighted. Press <em>Fit</em> or ${K("Ctrl","Enter")}; <em>Done</em> closes the window and keeps the fit.</p>
+<p>The unmasked points of one column's processed data, over a range. The top of the Fit window says which: <em>Column</em> (with several) and <em>Range</em>, from … to …, in X units. The range is all the data until you type one, or take the graph's zoom with <em>From view</em>; zooming the graph alone never changes it, and what the fit leaves out is shaded while the window is open. <em>All</em> is all the data again, and the readout beside it counts the points in the range. Mask points to leave them out. Press <em>Fit</em> or ${K("Ctrl","Enter")}; <em>Done</em> closes the window and keeps the fit.</p>
 <h2>After fitting</h2>
-<p>The curve is drawn over the data, and the residuals under the graph after a peak fit. The Fit window's <em>On the graph</em> switches choose what else is drawn: the residuals under the graph, the confidence band (shaded), the prediction band (dashed) and, for a peak fit, each fitted peak shaded; the Graph menu has them too. The ${DA("results","Results")} window gives every parameter with its uncertainty and anything that makes it less certain. Each fit is kept in the fit history; a fit whose data or processing changed since is marked out of date.</p>
+<p>The curve is drawn over the data, and the residuals under the graph after a peak fit. The Fit window's <em>On the graph</em> switches choose what else is drawn: the residuals under the graph, the confidence band (shaded), the prediction band (dashed) and, for a peak fit, each fitted peak shaded; the Graph menu has them too. The <em>In the results</em> switches below them choose, before the fit, what the Results window reports: the confidence intervals, the analysis of variance, the correlation and the covariance matrices, the residual analysis and, for a peak fit, every parameter. The report and the copied table carry all of it whatever is chosen. The ${DA("results","Results")} window gives every parameter with its uncertainty and anything that makes it less certain. Each fit is kept in the fit history; a fit whose data or processing changed since is marked out of date.</p>
 ${TIP("A fit belongs to its column. It is drawn only over the column it was fitted to.")}`},
 {id:"curvefit", g:"Fitting", t:"Curve fit", kw:"curve fit confidence level 90 95 99 percent model models list picker search sketch suggested suggestion linear straight line polynomial order quadratic cubic exponential decay biexponential growth plateau association sigmoid boltzmann logistic dose response ec50 hill gompertz michaelis menten enzyme gaussian lorentzian voigt pseudo-voigt pearson log-normal lognormal extreme gumbel power law allometric logarithm arrhenius activation energy sine damped wave period frequency derived guess initial fixed weights control iteration iterations tolerance step stop lambda damping estimate starting values limits bounds lowest highest strict digits significant meaning confidence interval dependency",
  lead:"One model, fitted to the points in the fit's range.",
  body:`<h2>Fitting</h2>
-<ol class="dsteps"><li>Choose a model. The model's button opens the list of every model by kind, each with a sketch of its shape and its formula; type to find one by its name, by a word of what it is for or of what its parameters mean, or by its name in Origin (${K("↑")} ${K("↓")} and ${K("Enter")} choose). A polynomial's order, 1 to 9, is chosen beside the button. The Fit window starts from the model that suits the shape of the points (a straight line for a steady rise or fall, an exponential for a quick change that levels off, a sigmoid for a rise from one level to another, a Gaussian for one clear peak) and names it under the button; when another is chosen, its button chooses it again. Its formula is shown under the button.</li>
+<ol class="dsteps"><li>Choose a model. The model's button opens the list of every model by kind, each with a sketch of its shape and its formula; type to find one by its name, by a word of what it is for or of what its parameters mean, or by its name in Origin (${K("↑")} ${K("↓")} and ${K("Enter")} choose). A polynomial's order, 1 to 9, is chosen beside the button. The Fit window starts from the model that suits the shape of the points (a straight line for a steady rise or fall, an exponential for a quick change that levels off, a sigmoid for a rise from one level to another, a Gaussian for one clear peak) and, while another is chosen, names it under the button (<em>Suggested:</em>), its button choosing it; the reason is the button's tooltip. Its formula is shown under the button.</li>
 <li>Starting values are measured from the data. <em>Guess</em> measures them again from the points in the fit's range.</li>
 <li>Tick a parameter's <em>Fix</em> to hold it at its starting value.</li>
-<li>With a Y error column, <em>Weight by the Y error column</em> fits with weights 1/σ²; otherwise the errors are scaled by the scatter of the residuals.</li>
+<li>With a Y error column, <em>Weight by Y error</em> fits with weights 1/σ² (its tooltip names the column); otherwise the errors are scaled by the scatter of the residuals.</li>
 <li>With X error bars, <em>Include the X errors</em> fits by orthogonal distance regression: each point's true X is fitted too, within its error. Without Y errors, the scatter in Y is taken to be the same for every point and found from the fit (the Results give it as <em>s</em>). Peak fits and fits of every column have the same choice. ${DA("errbars#use","Error bars")}</li>
 <li id="conf"><em>Confidence level</em> (95% unless set: 90, 99, 99.9 or any level typed under <em>Other…</em>) is the level of the parameters' intervals, of the bands drawn round the fit, and of the outlier limit. It is how the fit is read, so changing it changes the fit on screen at once, and its intervals in Results, the report and the CSV.</li>
 <li><em>Fit</em>, or ${K("Ctrl","Enter")}.</li></ol>
 <h2 id="params">Parameters</h2>
 <p>Each parameter is listed with its unit and what it means. In the dock the grid shows one set of columns at a time (<em>Starting values</em>, <em>Limits</em>, <em>Results</em>); in a wider Fit window, all of them.</p>
-${DL([["Start, Fix","Where the fit starts, and whether the parameter is held there."],["Lowest, Highest","The values the fit may not go past. Empty is no limit (for a function of yours, its own limit, shown greyed; type <em>none</em> to have none). The button beside each says whether the fit may reach the limit (≤) or must stay strictly inside it (&lt;). A parameter that ends at a limit is marked <em>at its limit</em> and has no standard error. Equal limits hold the parameter there, as Fix does; limits that cross are refused, in words."],["Fitted ± error, interval, Dependency","The result: the value with its standard error, the confidence interval at the fit's level, and how much the parameter depends on the others (near 1: not determined on its own)."],["Digits","How many significant digits the value is shown with, here, in Results and in the report; Auto takes them from the error. The CSV and the copied table keep every digit."]])}
+${DL([["Start, Fix","Where the fit starts, and whether the parameter is held there."],["Lowest, Highest","The values the fit may not go past. Empty is no limit (for a function of yours, its own limit, shown greyed; type <em>none</em> to have none). The button beside each says whether the fit may reach the limit (≤) or must stay strictly inside it (&lt;). A parameter that ends at a limit is marked <em>at its limit</em> and has no standard error. Equal limits hold the parameter there, as Fix does; limits that cross are refused, in words."],["Fitted, Error, interval, Dependency","The result: the value and its standard error, the confidence interval at the fit's level, and how much the parameter depends on the others (near 1: not determined on its own)."],["Digits","How many significant digits the value is shown with, here, in Results and in the report; Auto takes them from the error. The CSV and the copied table keep every digit."]])}
 <p>A fit keeps its limits and digits: Results, the report's Method and the CSV state the limits, and ${DA("batch","fitting every column")} uses them.</p>
 <h2 id="ctl">Fit control and iterations</h2>
 <p>The fit is Levenberg–Marquardt: from the starting values it takes steps that lower χ², and it has settled when a step lowers χ² by less than the <em>Tolerance</em> (a fraction of it; 1e-12 unless set) or moves no parameter by more than one part in 10¹⁰. <em>Iterations, at most</em> (400 unless set) is where a fit that has not settled stops, with a note in Results; <em>Fit</em> again carries on from there. Both are under <em>Fit control</em> in the Fit window, and Results, the report and the CSV say what each fit ran with. With the X errors included the method is orthogonal distance regression.</p>
@@ -19536,11 +19609,12 @@ ${DL([["Equal","The same value."],["A multiple","For areas: the 2 to 1 of a spin
 <p>Each has a start (empty: guessed from its name, such as <code>y0</code> a baseline, <code>A</code> a height, <code>xc</code> the position of the largest point, <code>w</code> a tenth of the range), optional lower and upper limits, and a unit. A preview draws the function at its starts over the data as you type, and a mistake is named with its line.</p>
 <h2>Keeping them</h2>
 <p>A function belongs to the project and, if you choose, to this browser's library for later projects. A fit keeps a copy of the function it used, so editing the function never changes a result already made; the report and the CSV state the formula and its limits.</p>`},
-{id:"results", g:"Fitting", t:"Reading the results", win:"res", kw:"results parameters standard error t p value confidence interval level dependency chi square r2 aic bic residuals warnings notes history anova analysis of variance f test sum of squares mean square covariance correlation matrix standardised studentised standardized studentized deleted leverage hat outlier outliers mask probability paper normal histogram lag",
+{id:"results", g:"Fitting", t:"Reading the results", win:"res", kw:"results parameters value standard error derived in the results sections t p value confidence interval level dependency chi square r2 aic bic residuals warnings notes history anova analysis of variance f test sum of squares mean square covariance correlation matrix standardised studentised standardized studentized deleted leverage hat outlier outliers mask probability paper normal histogram lag",
  lead:"Every parameter with its uncertainty, the fit statistics, and plain notes on anything that makes the numbers less trustworthy.",
  body:`<h2>Parameters</h2>
-${DL([["Value ± standard error","From the covariance matrix. Without weights, scaled by √(reduced χ²), as Origin does."],["t, Prob > |t|","The value over its error, and the chance of a t that large if the parameter were really zero."],["Confidence interval","Value ± t × error, t for the fit's confidence level (95% unless set in the Fit window) and its degrees of freedom."],["Dependency","Near 1, the parameter is doing the same job as others and is not independently determined. Such rows are highlighted."],["At its limit","A parameter that stopped at a bound has no meaningful standard error, and is left out of derived quantities' errors."]])}
-<p>A peak fit adds each peak's height and FWHM, derived with their errors.</p>
+${DL([["Value, Standard error","In columns of their own, as journals print them. The error is from the covariance matrix: Without weights, scaled by √(reduced χ²), as Origin does."],["t, Prob > |t|","The value over its error, and the chance of a t that large if the parameter were really zero."],["Confidence interval","Value ± t × error, t for the fit's confidence level (95% unless set in the Fit window) and its degrees of freedom."],["Dependency","Near 1, the parameter is doing the same job as others and is not independently determined. Such rows are highlighted."],["At its limit","A parameter that stopped at a bound has no meaningful standard error, and is left out of derived quantities' errors."]])}
+<p>Quantities derived from the parameters (a half-life, an area) follow under <em>Derived</em>, with their errors. A peak fit gives each peak's centre, height, FWHM and area in a table of its own; <em>Every parameter</em> under <em>In the results</em> adds the table of all its parameters.</p>
+<p>What follows the table is what the Fit window's <em>In the results</em> chose, each part open: the confidence intervals, the analysis of variance, the correlation and covariance matrices and the residual analysis. The statistics are beside the table.</p>
 <h2>Statistics</h2>
 ${DL([["Reduced χ²","The residual sum of squares over the degrees of freedom (weighted: near 1 for a good fit)."],["R², adjusted R²","The share of the variance explained; adjusted for the number of parameters."],["AIC, BIC","For comparing models on the same data: lower is better, and more parameters must earn their place."]])}
 <h2 id="anova">Analysis of variance</h2>
@@ -19550,9 +19624,9 @@ ${DL([["Reduced χ²","The residual sum of squares over the degrees of freedom (
 <h2 id="resid">Residuals and outliers</h2>
 ${DL([["Regular","y − f(x)."],["Standardised","The residual over s, the scatter left by the fit (√ of reduced χ²; for a weighted fit each residual is first multiplied by 1/σ)."],["Studentised","The same over s√(1 − h), h the point's leverage: how much the point alone sets the curve where it is (the leverages add up to the number of free parameters)."],["Studentised deleted","The same with s from the fit without that point. Past the outlier limit, a point is an outlier."]])}
 <p>Results shows any of them against X, against the fitted value, in the order recorded, as a histogram with the normal curve they should follow, on probability paper with the line they should lie on, or against the residual before (a pattern there means the points are not independent). The panel under the graph shows the kind chosen against X (${MP("Figure › Format graph…")}, the layout page, has it too).</p>
-<p>The <strong>outlier limit</strong> is the t limit, at the fit's confidence level, for the largest studentised deleted residual of all the points (a Bonferroni limit): so with no outlier at all, some point is flagged about one data set in twenty at 95%, not every twentieth point. Outliers are listed with their x, y, residual and leverage, ringed on the graph and in the chart, and named in the notes; <em>Mask them</em> masks them in their column, so the next fit leaves them out (Undo brings them back). For a fit with the X errors there is no residual analysis: its residuals are not distances in Y. For a large fit the three parts are worked out when opened.</p>
+<p>The <strong>outlier limit</strong> is the t limit, at the fit's confidence level, for the largest studentised deleted residual of all the points (a Bonferroni limit): so with no outlier at all, some point is flagged about one data set in twenty at 95%, not every twentieth point. Outliers are listed with their x, y, residual and leverage, ringed on the graph and in the chart, and named in the notes; <em>Mask</em> masks them in their column, so the next fit leaves them out (Undo brings them back). For a fit with the X errors there is no residual analysis: its residuals are not distances in Y. For a large fit they are worked out when asked for (<em>Work it out</em>). Beside the table, the statistics give the residuals' scatter <em>s</em> and the outlier limit.</p>
 <h2>Notes</h2>
-<p>The fit did not converge; a peak is unusable; the covariance is singular; parameters depend on each other; a parameter is at a limit; points are past the outlier limit; the residuals run in long stretches of one sign (a runs test: the model misses a feature); the fit is out of date; warnings from the processing. The same notes are in the report.</p>
+<p>The fit did not converge; a peak is unusable; the covariance is singular; parameters depend on each other; a parameter is at a limit; points are past the outlier limit; the residuals run in long stretches of one sign (a runs test: the model misses a feature); the fit is out of date; warnings from the processing. Each note is one line, the number first, with its fix as a button at its end (<em>Fit again</em>, <em>Mask</em>, <em>Show residuals</em>, <em>Limits</em>…); what it says in full is its tooltip. The report and the copied table give every note in full.</p>
 <h2>History</h2>
 <p>Every fit is kept with its numbers, the processing it was made on and a thumbnail, to compare or bring back. <em>Copy</em> gives the tables as tab-separated text.</p>
 <p>With a batch fit, Results shows the active column's own fit. ${DA("batch","Fitting every column")}</p>`},
@@ -20805,7 +20879,7 @@ function renderBatch(){
   h+=`<tr><th class="bst"></th><th class="l">Column</th><th>${esc(seriesLabel(s))}</th>${qs.map(z=>{ const u=c0?qUnit(z,c0):""; return `<th title="${esc(z.label+(z.shared?": shared by every column":""))}">${esc(z.short||z.label)}${u?` <span class="unit">(${esc(u)})</span>`:""}${z.shared?` <span class="lab">shared</span>`:""}</th>`; }).join("")}</tr></thead><tbody>`;
   seriesCols().forEach(({c,v})=>{ const r=b?batchRowOf(c.id):null, f=r&&r.fit, st=f?batchStale(f):null, w=f?fitWarnings(f).filter(x=>x.kind!=="stale"&&x.kind!=="global"):[];
     const cls=!r?"":!f?"bad":st||w.some(x=>x.level==="bad")?"warn":"ok", ic=!r?"":!f?"alert":st||w.length?"alert":"check";
-    const tip=!r?"":!f?`Not fitted: ${r.fail}`:st?st:w.length?w.map(x=>x.text).join(" "):"Fitted";
+    const tip=!r?"":!f?`Not fitted: ${r.fail}`:st?st:w.length?w.map(x=>x.brief).join(" "):"Fitted";
     h+=`<tr class="${c===act?"sel":""}"><td class="bst ${cls}" title="${esc(tip)}">${ic?ICON(ic,"sm"):""}</td><td class="l"><button class="bgo" data-bgo="${c.id}" title="Work on ${esc(specName(c))}">${esc(specName(c))}</button></td>`;
     h+=s.mode==="typed"?`<td class="bx"><input type="text" inputmode="decimal" id="bx-${c.id}" data-bx="${c.id}" value="${v==null?"":esc(String(v))}" aria-label="${esc(seriesLabel(s))} of ${esc(specName(c))}"${ro}></td>`:`<td>${v==null?"—":esc(fmt(v,6))}</td>`;
     qs.forEach(z=>{ const bv=batchValue(c,z); h+=`<td${bv&&bv.bad?` class="lab" title="Not a usable peak"`:""}>${!bv||!Number.isFinite(bv.v)?"—":bv.bound?`${esc(fmt(bv.v,6))} <span class="lab" title="It stopped at its limit, so it has no meaningful standard error">limit</span>`:bv.e===undefined?esc(fmt(bv.v,6)):fmtPM(bv.v,bv.e)}</td>`; });
@@ -22351,7 +22425,7 @@ async function loadExample(kind){
    Boot
    ============================================================ */
 function wireStatic(){
-  setupRanges(); setupSupify(); setupCmdk(); setupCtx(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); wireXpl(); setupPlotDetails(); setupRichTools(); setupCombos(); setupMotionKeep(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
+  setupRanges(); setupSupify(); setupCmdk(); setupNotes(); setupCtx(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); wireXpl(); setupPlotDetails(); setupRichTools(); setupCombos(); setupMotionKeep(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
   document.querySelectorAll(".rb[data-rmenu]").forEach(b=>b.addEventListener("click",()=>toggleMenu(b,()=>menuItems(b.dataset.rmenu),{label:b.textContent.trim()})));
   // With a menu open, the pointer passing over another menu's name opens it only after
   // resting there 150 ms, so a pointer crossing the bar on its way to a submenu changes nothing.

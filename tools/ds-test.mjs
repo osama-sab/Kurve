@@ -373,6 +373,64 @@ await page(async p => {
   check("nothing selected, the readout is empty", (await ro()).t === "");
 }, { name: "status bar" });
 
+console.log("Slice 7: the Fit window and Results as designed");
+await page(async p => {
+  await raman(p);
+  await p.evaluate(() => { S.fitMode = "curve"; showTab("fit"); chooseModel("linear"); }); await p.waitForTimeout(300);
+  // The range a readout, the suggestion one word with its reason as the tooltip.
+  let r = await p.evaluate(() => { const b = $("#pane-fit"), sg = b.querySelector(".msugg"), us = b.querySelector("#useSugg");
+    return { n: (b.querySelector("#fwN") || {}).textContent, want: fitPoints().length + " points", view: (b.querySelector("#fwView") || {}).textContent,
+      sugg: sg && sg.textContent, tip: us && us.title, name: us && MODELS[suggestModel().id].name }; });
+  check("the range says how many points it holds, in a readout", r.n === r.want && r.view === "From view", JSON.stringify(r));
+  check("the suggestion is one word, its reason the tooltip", !!r.sugg && r.sugg === "Suggested:" + r.name && /^The data /.test(r.tip || ""), JSON.stringify(r));
+  await p.click("#useSugg"); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ model: ensureDraft().model, sugg: suggestModel().id, shown: !!$("#pane-fit .msugg") }));
+  check("its button chooses it, and then it says nothing", r.model === r.sugg && !r.shown, JSON.stringify(r));
+  // In the results: switches chosen before the fit; the footer only its buttons.
+  r = await p.evaluate(() => { const g = document.querySelector('#pane-fit .fitshow[aria-label="In the results"]'), st = document.querySelector("#pane-fit .sticky");
+    return { sw: g ? [...g.querySelectorAll("input[data-rshow]")].map(i => i.dataset.rshow + (i.checked ? "+" : "-")) : null,
+      foot: [...st.children].map(e => e.tagName === "BUTTON" ? e.textContent.trim() : e.tagName) }; });
+  check("In the results: intervals, ANOVA, the matrices and residuals, as switches", JSON.stringify(r.sw) === JSON.stringify(["ci+", "anova-", "corr+", "cov-", "resid+"]), JSON.stringify(r.sw));
+  check("the footer is its buttons: Fit, 1 iteration, Guess, Done", JSON.stringify(r.foot) === JSON.stringify(["Fit", "1 iteration", "Guess", "Done"]), JSON.stringify(r.foot));
+  await p.evaluate(() => runFit()); await p.waitForTimeout(500);
+  // The grid: the fitted value and its error apart.
+  r = await p.evaluate(() => { const th = [...document.querySelectorAll("#pane-fit .ptab.pg thead th")].map(t => t.textContent), tr = document.querySelector("#pane-fit .ptab.pg tbody tr"), f = P().fit;
+    const cells = [...tr.querySelectorAll("td.res")].map(t => t.textContent); return { th, cells, want: fmtVE(f.params[0], f.errors[0]) }; });
+  check("the grid has Fitted and Error in columns of their own", r.th.includes("Fitted") && r.th.includes("Error") && r.cells[0] === r.want[0] && r.cells[1] === r.want[1], JSON.stringify(r));
+  // Results: value and standard error apart, derived under a group row, the sections open as chosen.
+  await p.evaluate(() => { showDrawer("res"); renderResults(); }); await p.waitForTimeout(300);
+  const res = () => p.evaluate(() => { const b = $("#pane-res"), t = b.querySelector(".rtab");
+    return { th: [...t.querySelectorAll("thead th")].map(x => x.textContent), val: !!t.querySelector("td.val"), se: !!t.querySelector("td.se"), grp: [...t.querySelectorAll("tr.rgrp")].map(x => x.textContent),
+      secs: [...b.querySelectorAll("section.rsec")].map(x => x.dataset.rd), details: b.querySelectorAll("details").length, side: [...b.querySelectorAll(".rside dt")].map(x => x.textContent), foot: !!b.querySelector(".rfoot") }; });
+  r = await res();
+  check("Results: Value and Standard error in columns of their own", r.th[1] === "Value" && r.th[2] === "Standard error" && r.val && r.se, JSON.stringify(r.th));
+  check("derived quantities under a Derived row", r.grp.join() === "Derived", JSON.stringify(r.grp));
+  check("the sections chosen are open, none behind a disclosure arrow", JSON.stringify(r.secs) === JSON.stringify(["corr", "resid"]) && r.details === 0, JSON.stringify(r));
+  check("the residuals' scatter and the outlier limit sit with the statistics, no loose text at the foot", r.side.includes("Residual scatter, s") && r.side.includes("Outlier limit") && !r.foot, JSON.stringify(r.side));
+  await p.evaluate(() => { showTab("fit"); }); await p.waitForTimeout(200);
+  await p.click('#pane-fit input[data-rshow="anova"]'); await p.click('#pane-fit input[data-rshow="ci"]'); await p.click('#pane-fit input[data-rshow="cov"]'); await p.waitForTimeout(200);
+  await p.evaluate(() => showDrawer("res")); await p.waitForTimeout(200); r = await res();
+  const rep = await p.evaluate(() => /confidence interval/.test(paramTableHtml(P().fit, true)));
+  check("switching them in the Fit window changes Results at once", JSON.stringify(r.secs) === JSON.stringify(["anova", "corr", "cov", "resid"]) && !r.th.some(t => /confidence interval/.test(t)), JSON.stringify(r));
+  check("the report keeps every column whatever Results shows", rep);
+  check("kept for this browser", await p.evaluate(() => JSON.parse(localStorage.getItem("kurve.rshow")).anova === true));
+  // Notes: one line, the number first, the fix at its end.
+  await p.evaluate(() => { const c = activeYCol(), d = c.data.slice(), k = d.length >> 2; d[k] += 6000; c.data = d; save({ cols: P().cols }); showTab("fit"); runFit(); showDrawer("res"); renderResults(); }); await p.waitForTimeout(500);
+  r = await p.evaluate(() => { const n = [...document.querySelectorAll("#pane-res .note")].find(x => /outlier/.test(x.textContent)); if (!n) return null;
+    const pp = n.querySelector("p"); return { t: pp.textContent, tip: pp.title, acts: [...n.querySelectorAll(".acts button")].map(b => b.textContent), mask: maskOf(activeYCol()).length }; });
+  check("an outlier's note is one line, number first, with Mask at its end", !!r && /^1 outlier at x = /.test(r.t) && r.t.length < 110 && r.tip.length > r.t.length && JSON.stringify(r.acts) === '["Mask"]', JSON.stringify(r));
+  await p.click('#pane-res .note button[data-nact="mask"]'); await p.waitForTimeout(300);
+  r = await p.evaluate(() => { const n = [...document.querySelectorAll("#pane-res .note")].find(x => /masked/.test(x.textContent)); return { mask: maskOf(activeYCol()).length, stale: n ? [...n.querySelectorAll(".acts button")].map(b => b.textContent) : null }; });
+  check("Mask masks it, and the fit out of date offers Fit again", r.mask === 1 && JSON.stringify(r.stale) === '["Fit again"]', JSON.stringify(r));
+  await p.click('#pane-res .note button[data-nact="fitagain"]'); await p.waitForTimeout(500);
+  r = await p.evaluate(() => ({ stale: !!fitStale(P().fit), notes: [...document.querySelectorAll("#pane-res .note p")].map(x => x.textContent) }));
+  check("Fit again fits again, and the note goes", !r.stale && !r.notes.some(t => /masked/.test(t)), JSON.stringify(r));
+  // A peak fit: Every parameter among its switches, Remove fit with the fit's line.
+  await p.evaluate(() => { S.fitMode = "peaks"; showTab("fit"); renderFit(); }); await p.waitForTimeout(300);
+  r = await p.evaluate(() => { const g = document.querySelector('#pane-fit .fitshow[aria-label="In the results"]'); return { sw: g ? [...g.querySelectorAll("input[data-rshow]")].map(i => i.dataset.rshow) : null, wt: !!document.querySelector("#pane-fit .fitwt") }; });
+  check("a peak fit's switches start with Every parameter, and no weighting text in its footer", !!r.sw && r.sw[0] === "par" && r.sw.length === 6 && !r.wt, JSON.stringify(r));
+}, { name: "fit and results" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

@@ -349,8 +349,32 @@ never code.
 - **A long fit can be stopped.** It runs in slices of about 80 ms, listing its steps between
   them, with *Stop* in Fit's place. A stopped fit is not a result: nothing is saved, its last
   values become the starting values, and Fit carries on from them.
-- **The footer keeps to one row** in the dock: Fit, 1 iteration, Guess, Done. *Remove fit* is
-  in the fit's summary, beside Results, with the fit it removes.
+- **The footer keeps to one row** in the dock: Fit, 1 iteration, Guess, Done (a peak fit: Fit n
+  peaks, Reset to estimates, Done). *Remove fit* is in the fit's summary, beside Results, with the
+  fit it removes. The footer holds buttons only (the design system's rule: no loose text in a
+  footer): how the fit is weighted is said by its switch, *Weight by Y error*, whose tooltip
+  names the column, and *Fit every column…* is in Analyze › Fit and the Batch window.
+- **Readouts, not sentences** (slice 7). The range is its two fields, *From view*, *All* and a
+  readout of the points it holds ("81 points"); the suggestion is one word, *Suggested:* and the
+  model as a button, its reason the tooltip, and nothing while it is the model chosen.
+- **What Results reports is chosen before the fit**, as the design system's FitPanel has it:
+  *In the results* switches (confidence intervals, analysis of variance, correlation matrix,
+  covariance matrix, residual analysis; a peak fit adds every parameter), kept per browser.
+  Intervals, correlation and residuals start on (what most readers look at); the analysis of
+  variance and the covariance start off (what a statistician asks for). They choose what Results
+  shows, not what is recorded: the report, the copied table and the CSV carry all of it.
+- **Results reads as a journal prints it**: the value and its standard error in columns of their
+  own, figures on tabular numerals, derived quantities under a *Derived* row, the statistics in
+  a list beside the table (the residuals' scatter and the outlier limit with them; a long value,
+  the fit control, takes the list's width under its name), the sections chosen open, never
+  behind a disclosure arrow, and no paragraph at the foot. In a narrow Results (the dock, a
+  phone) a parameter's meaning goes under its name, so its value and error stay in view.
+- **A note is one line with its fix** (the system's Note): the number first ("1 outlier at
+  x = 503.5 (studentised residual beyond ±3.57)."), the fix a small button at its end (*Mask*,
+  *Fit again*, *Guess*, *Fit control*, *Limits*, *Show residuals*, *History*, *Go to its column*).
+  What it says in full (the test, the limit, the advice) is its tooltip and the report's. Notes
+  elsewhere follow: out-of-date peaks offer *Search again* (the Peaks window) or *Peaks window*
+  (the History), the Fit window with no data *Import…*.
 
 ## Menus and the toolbar
 
@@ -786,9 +810,10 @@ that is where a reader looks for where the model misses; it shows the kind of re
 The other views (against the fitted value, in the order recorded, as a histogram, on
 probability paper, against the residual before) are a chart in Results, beside the numbers
 they explain, as Origin puts its residual plots in the report sheet. Results' new parts (the
-analysis of variance, the correlation and covariance, the residuals) fold, so the parameters
-stay at the top of a short dock; Residuals opens by itself when there are outliers, and the
-notes above the table say so, so the report does too.
+analysis of variance, the correlation and covariance, the residuals) first folded, so the
+parameters stayed at the top of a short dock; since the design system's slice 7 they are chosen
+before the fit and shown open (see Fitting), and the notes above the table name the outliers,
+so the report does too.
 
 An outlier is a point whose studentised deleted residual is past the t limit for the largest
 of all the points (Bonferroni), not past a per-point 95% limit, which would flag one point in
@@ -828,6 +853,17 @@ The F(x)= row is always shown (the user's choice between it and formulas only in
 setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md`: ranges,
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
+
+### 2026-10-29: the design system into the app, slice 7 (the Fit window and Results)
+
+The system's FitPanel, Results and Note: the range a readout, the suggestion one word, *In the
+results* switches before the fit, Results with the value and its error apart and its sections
+open, notes of one line with their fixes. Two things found on the way. Results' parameter table
+is also the report's, so the switch for the intervals would have taken them out of the report;
+the report now asks for the whole table. And a screenshot of the dock showed the standard error
+off its right edge, the parameter's name, unit and meaning on one line taking the width; in a
+narrow Results the meaning goes under the name. The table's *Derived* row is the system's own
+(small capitals, like the dock's *Tools* label), taken as its stylesheet has it.
 
 ### 2026-10-28: the design system into the app, slice 6 (the status bar answers questions)
 
