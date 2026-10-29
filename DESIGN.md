@@ -854,6 +854,26 @@ setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
 
+### 2026-10-29: how points count (FIT_SPEC slice 7, the weights)
+
+The switch *Weight by Y error* became a list, *Weights*, as Origin's Data Selection has: None,
+Y error (1/σ²), Counting (1/y) and the sheet's columns by name. Decisions:
+
+- **One list, its consequence in the tooltip.** The choice is between kinds of knowledge (no
+  errors, measured errors, counts, a weighting of one's own), not a yes or no, and each option's
+  tooltip says what it does to the errors.
+- **Absolute and relative weights are treated as what they are.** Y errors and counting say how
+  large each point's scatter is, so the errors are taken as they are and the reduced χ² is a test
+  (near 1); a column of weights says only how the points compare, so, as with none, the errors are
+  scaled by √(reduced χ²). Weights from a column of 1/σ² give the Y error fit's values exactly.
+- **Refused in words, never quietly dropped.** A count of 0 cannot be weighted by 1/y, nor a
+  point without an error or a weight: the fit says how many points, and what to do (mask them, fill
+  them in, choose other weights), rather than leaving them out on its own.
+- **Said everywhere the fit is**: Results' Weighting, the report, the copied table, the CSV,
+  each kind in words; a column of weights deleted puts the fit out of date.
+- A column's weights belong to the column they were made for, so fits of every column use Y
+  errors or counting, and otherwise none, each row saying which.
+
 ### 2026-10-29: the fit in the worksheet (FIT_SPEC slice 6)
 
 Origin writes a fit's fitted values and residuals into a sheet of their own; Kurve puts them

@@ -22,7 +22,7 @@ Origin's help pages it was compared with: the NLFit dialog's
 |---|---|---|
 | Function selection | 25 built-in models in 6 kinds (`MODELS`, `MODEL_GROUPS`), each with a sketch, searched by name, purpose, parameter or Origin's name; your functions and a library; a suggestion (slice 3) | none |
 | Data selection | one column, its range, its mask; every column, alone or together | none worth the work (no concatenated fit) |
-| Weights | none, or 1/σ² from the Y error column; X errors by orthogonal distance | counting (1/y), a column's values as weights, apparent fit |
+| Weights | none, 1/σ² from the Y error column, counting (1/y), a column's values (slice 7); X errors by orthogonal distance | apparent fit |
 | Fitted curves | drawn with a confidence band and a prediction band at the fit's level (slice 4) | the points, the curve past the data |
 | Find X/Y | in Results: Y at an X with its interval, every X at a Y with each one's error; a column filled either way (slice 5) | none |
 | Fit control | Levenberg–Marquardt, 400 iterations and a tolerance of 10⁻¹² fixed in `lmFit` | shown and set: method, iterations, tolerance |
@@ -107,7 +107,9 @@ CLAUDE.md, the menu spec when a menu changes.
    and the residuals beside the column fitted, computed, not recorded (out of `rawCols` and
    the fingerprint, as formula columns are), written again by a new fit and marked out of date
    with it.
-7. **How points count.** Weights: none, the Y error column (1/σ²), counting (1/y, for counts;
+7. **How points count** (the weights done 2026-10-29: a list in the Fit window's options; a
+   column's weights relative, scaled by √(reduced χ²), and not with the X errors nor in fits of
+   every column; the apparent fit next). Weights: none, the Y error column (1/σ²), counting (1/y, for counts;
    refused where y ≤ 0), or a column's values as the weights. An apparent fit fits in the
    graph's log space when an axis is logarithmic. `weightText` names every case.
 8. **Starting values and constraints as formulas.** A parameter's start may be a formula of

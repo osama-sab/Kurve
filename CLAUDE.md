@@ -445,9 +445,25 @@ graph first, with the taskbar kept at the bottom of the screen.
   `fitWarnings` says when a fit stopped at its limit; `batchTemplate` carries `ctl` and
   `fitOne` runs with it. *Remove fit* is in the fit's summary (`fitSummary(f, more)`), so the
   footer (Fit, 1 iteration, Guess, Done; a peak fit's Fit n peaks, Reset to estimates, Done)
-  keeps to one row in the dock and holds buttons only: the weighting is said by its switch
-  (`weightChk(id, d)`, *Weight by Y error*, the column its tooltip), and *Fit every column…* is
-  Analyze › Fit's and the Batch window's.
+  keeps to one row in the dock and holds buttons only, and *Fit every column…* is Analyze › Fit's
+  and the Batch window's.
+  **How points count** (`FIT_SPEC.md` slice 7): `fitWeights(kind, Y, E, Wc)` (in MODELS: each
+  point's factor 1/σ, `none` 1, `yerr` 1/e, `counts` 1/√y, `col` √w; `{fail:"noerr"|"nocount"|
+  "noweight", bad}`; `scale` true for none and a column, relative weights) and `lmFit`'s
+  `opt.scale` (the covariance scaled by the reduced χ², said rather than read from W). A draft,
+  fit or template has `weight` (`none`, `yerr`, `counts`, `col` with `wcol`) beside the older
+  `weighted` (`weightOf(o)` reads either; `weightRec(WT)` is what a fit stores, `weighted` kept
+  true for any weights); `weightsOf(o, pts)` gives `{W, scale, kind, key}` or `fail` in words
+  (a `yerr` draft with no error column is `none`). The Fit window's *Weights* list (`weightSel(id,
+  d)`, `#wt`, `#pwt`, `setWeight`: None, Y error disabled without an error column, Counting, the
+  sheet's columns with numbers, not the one fitted nor an X; each option's tooltip says what it
+  does). `runFit`, `stepFit`, `runPeakFit` refuse a `fail`, and a column's weights with the X
+  errors (`WCOL_ODR`); the orthogonal distance fit takes σ = 1/W. `fitDiag`, the prediction band
+  (σ² of the nearest point, the curve's value for counts, reduced χ²/w for a column), the ANOVA's
+  note, `fitStale` (a column of weights gone), `weightText` (each kind, in words and ASCII), the
+  global statistics and the batch CSV read the kind. `batchTemplate` turns a column's weights to
+  none (they belong to one column); `fitOne` and `fitTogether` use `yerr` or `counts` where every
+  point allows it, and each row stores what it used.
   **The parameter grid** (`FIT_SPEC.md` slice 2; `paramGridHtml`, `wirePGrid`, `pgMarks`):
   each parameter with its unit and meaning (`MODELS[k].mean`, also in Results), Start and
   Fix, Lowest and Highest (each with a ≤ or < button, `data-prel`; typed, empty for the
@@ -2167,7 +2183,9 @@ identifiers, the real superscripts, the fields' widths; run it after touching th
 curve fit (`ux/spec/FIT_SPEC.md`) from slice 5 on added (Find X/Y: the readouts against the
 functions, a redraw while typing, Fill a column… both ways, undo); run it after touching the Fit
 window or Results. Slice 6: the fit's columns (values, the check code untouched, a new fit
-written, out of date, `resid(B)` typed, `fit(B)*2` refused, the fit removed and undone, a reload).
+written, out of date, `resid(B)` typed, `fit(B)*2` refused, the fit removed and undone, a reload). Slice 7: the Weights list, counting weights said everywhere,
+a column of 1/σ² equal to the Y error fit with scaled errors, refusals, a column of weights deleted,
+the prediction band for each kind.
 `node tools/fit-test.mjs`, `node tools/pipe-test.mjs`, `node tools/parser-test.mjs` and
 `node tools/tex-test.mjs` cover the numerics, the processing steps with their checks and the
 fingerprint, the parser, and the LaTeX typesetter (nesting, italics, spacing, fractions, roots,
@@ -3048,7 +3066,10 @@ value never reached with what the curve takes there; and a column of the sheet r
 into new columns beside it, recorded as a fill is. Slice 6 done: the fit in the worksheet, the
 fitted values and residuals beside the column fitted as computed columns (`fit(B)`, `resid(B)`,
 formulas that can be typed too), out of the original data, written again by each new fit and
-marked out of date with it.
+marked out of date with it. Slice 7, its first half: how points count, a *Weights* list (none,
+the Y error, counting statistics 1/y, a column's values), absolute weights taken as they are and
+relative ones scaled by √(reduced χ²), a point that cannot be weighted refused in words, the kind
+said in Results, the report and the CSV; the apparent fit next.
 
 Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
 graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
@@ -3536,6 +3557,9 @@ Next, in order:
   guesses are measured heuristics (two or three decays from a grid of 16 decay times, a wave's
   period from at most 600 points), and a sketch shows typical values, not the data's; your
   functions have no kind of their own in the list yet
+- Weights: counting is Neyman's χ² (σ² = y from the data, not the model), so it is biased a little
+  low on counts of a few; a column's weights are not used with the X errors, nor by fits of every
+  column; a global fit takes the Y error or counting only
 - The fit in the worksheet: one pair per column, its own fit (or its batch row); the values are
   at the fit's points in range (no curve past them, no curve on a finer grid); `fit(B)` is a
   whole formula, never part of one; a derived column's fit has no rows to go in

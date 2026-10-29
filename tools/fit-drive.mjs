@@ -180,6 +180,45 @@ await page(async p => {
   check("after a reload they are there, computed, and the check code holds", r.every(x => x && x[0] && x[1] > 10 && x[2]), JSON.stringify(r));
 }, { name: "fit in the worksheet" });
 
+console.log("Slice 7: how points count");
+await page(async p => {
+  await decayFit(p);
+  let r = await p.evaluate(() => { const s = $("#wt"); return { tag: s && s.tagName, opts: s ? [...s.options].map(o => o.value + (o.disabled ? "-" : "")) : [], v: s && s.value, f: weightOf(activeFit()) }; });
+  check("Weights is one list: none, Y error, counting, the sheet's columns; the fit's own chosen", r.tag === "SELECT" && r.opts.slice(0, 3).join() === "none,yerr,counts" && r.v === "yerr" && r.f === "yerr", JSON.stringify(r));
+  const yerr = await p.evaluate(() => { const f = activeFit(); return { p: f.params.slice(), e: f.errors.slice(), red: f.stats.redChi2 }; });
+  // Counting weights.
+  await p.evaluate(() => showTab("fit")); await p.waitForTimeout(150);
+  await p.selectOption("#wt", "counts"); await p.evaluate(() => runFit()); await p.waitForTimeout(500);
+  r = await p.evaluate(() => { const f = activeFit(); openWin("res", { render: true }); const row = [...document.querySelectorAll("#pane-res .rside dt")].find(d => d.textContent === "Weighting");
+    return { k: f.weight, w: f.weighted, text: row && row.nextElementSibling.textContent, diag: !!fitDiag(f), draft: ensureDraft().weight, csv: weightText(f, true) }; });
+  check("Counting, 1/y: the fit says so in Results and the CSV, its analysis is weighted the same", r.k === "counts" && r.w && /counting statistics/.test(r.text || "") && r.csv === "counting statistics (1/y)" && r.diag && r.draft === "counts", JSON.stringify(r));
+  // A column of weights, 1/σ²: the values of the Y error fit, the errors scaled by the reduced χ².
+  await p.evaluate(() => { const p = P(), e = errColFor(activeYCol().id), w = e.data.map(v => v > 0 ? 1 / (v * v) : null); pushUndo("w"); const nc = Object.assign(makeCol("ignore", "Weight", "", w), { sheet: curSheet() }); p.cols.push(nc); save({ cols: p.cols }); S.wtest = nc.id; showTab("fit"); renderFit(); });
+  await p.waitForTimeout(200);
+  r = await p.evaluate(() => [...$("#wt").options].map(o => o.value));
+  const wid = await p.evaluate(() => S.wtest);
+  check("the new column is offered by name", r.includes("col:" + wid), JSON.stringify(r));
+  await p.evaluate(() => showTab("fit")); await p.waitForTimeout(150);
+  await p.selectOption("#wt", "col:" + wid); await p.evaluate(() => runFit()); await p.waitForTimeout(500);
+  r = await p.evaluate(() => { const f = activeFit(); return { k: f.weight, wcol: f.wcol, p: f.params.slice(), e: f.errors.slice(), red: f.stats.redChi2, text: weightText(f) }; });
+  const same = r.p.every((v, i) => Math.abs(v - yerr.p[i]) <= Math.abs(yerr.p[i]) * 1e-6), scaled = r.e.every((v, i) => Math.abs(v - yerr.e[i] * Math.sqrt(yerr.red)) <= yerr.e[i] * 1e-4);
+  check("weights of 1/σ² from a column: the Y error fit's values, its errors scaled by √(reduced χ²)", r.k === "col" && r.wcol === wid && same && scaled && /values of column D/.test(r.text), JSON.stringify({ r, yerr }));
+  // A weight of 0 in range is refused in words.
+  await p.evaluate(id => { const c = colById(id), d = c.data.slice(); d[2] = 0; pushUndo("w0"); c.data = d; save({ cols: P().cols }); }, wid);
+  await p.evaluate(() => runFit()); await p.waitForTimeout(300);
+  r = await p.evaluate(() => S.fitError);
+  check("a weight of 0 in range is refused, the column named", /1 point in range has no weight above 0 in column D/.test(r || ""), r);
+  check("counting weights refuse counts of 0 or below, in words", await p.evaluate(() => /Counting weights are 1\/y, and 2 points in range are 0 or below/.test(weightsOf({ weight: "counts" }, [{ y: 0 }, { y: -1 }, { y: 3 }]).fail)));
+  await p.evaluate(() => undo()); await p.waitForTimeout(200);
+  // The column of weights deleted: the fit says so.
+  await p.evaluate(id => deleteCol(id), wid); await p.waitForTimeout(300);
+  r = await p.evaluate(() => fitStale(activeFit()));
+  check("the column of weights deleted: the fit is out of date and says why", /column of weights this fit used is gone/.test(r || ""), r);
+  // The prediction band draws with every kind.
+  r = await p.evaluate(() => { setPlotKey("bandPred", true, ""); const out = []; for (const k of ["none", "yerr", "counts"]) { const d = ensureDraft(); setWeight(d, k); runFit(); renderPlot(); out.push(k + ":" + !!document.querySelector("#plot path[data-pband]")); } return out; });
+  check("the prediction band is drawn for no weights, Y errors and counting", r.every(x => /:true$/.test(x)), JSON.stringify(r));
+}, { name: "weights" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

@@ -2566,7 +2566,8 @@ function lmFit(f, X, Y, W, p0, fixed, opt){
   const inv=inverse(A);
   const dof=n-m, red=chi/dof;
   const weighted=W.some(w=>w!==1);
-  const scale=weighted?1:red; // Origin default: scale errors by sqrt(reduced chi^2) when unweighted
+  // Origin's default: errors scaled by sqrt(reduced chi^2) when unweighted; opt.scale says it for relative weights.
+  const scale=(opt.scale!=null?!!opt.scale:!weighted)?red:1;
   const cov=p.map(()=>p.map(()=>0));
   if(inv) free.forEach((pi,a)=>free.forEach((pj,b)=>cov[pi][pj]=inv[a][b]*scale));
   // A singular covariance means the errors are unknown, not zero. Saying so is
@@ -4794,7 +4795,8 @@ function fitStale(f){
   if(f.onCol&&act&&f.onCol!==act.id) return `This fit was made on ${f.onColName||"another column"}, not ${act.name||"the current column"}.`;
   if(f.maskSig!=null&&act&&f.maskSig!==maskSig(act)) return "Points have been masked or restored since this fit.";
   if(f.pipeSig!=null&&act&&f.pipeSig!==pipeSig(act)) return "The processing steps, or the original data, have changed since this fit.";
-  if(f.weighted&&f.hadErrCol&&!hasErr()) return "The Y-error column this fit was weighted by is gone.";
+  if(weightOf(f)==="yerr"&&f.hadErrCol&&!hasErr()) return "The Y-error column this fit was weighted by is gone.";
+  if(weightOf(f)==="col"&&!colById(f.wcol)) return "The column of weights this fit used is gone.";
   if(f.xerr&&!hasXErr(act)) return "The X-error column this fit used is gone.";
   if(f.range){
     const r=usedRange(fitPoints());
@@ -5208,6 +5210,18 @@ function derivedWithErr(model,p,cov){
   return (model.derived||[]).map(d=>{ const h=p.map(v=>Math.max(Math.abs(v)*1e-6,1e-10));
     const g=p.map((v,i)=>{ const a=p.slice(), b=p.slice(); a[i]+=h[i]; b[i]-=h[i]; return (d.fn(a)-d.fn(b))/(2*h[i]); });
     return {name:d.name, v:(d.exact||d.fn)(p), e:Math.sqrt(deltaVar(g,cov))}; });
+}
+/* How points count (FIT_SPEC slice 7): what each point's residual is multiplied by, 1/σ. None
+   (1); the Y error (1/e, instrumental); counting (1/√y: σ² = y, as counts have); or a column's
+   values w as the weights (√w: relative, only their ratios mattering). A point with no error,
+   no count above 0 or no weight above 0 is refused, counted in bad. scale: whether the
+   covariance is scaled by the reduced χ² (no weights, or relative ones). */
+function fitWeights(kind,Y,E,Wc){
+  const n=Y.length, W=new Array(n); let bad=0;
+  if(kind==="yerr"){ for(let i=0;i<n;i++){ const e=E?E[i]:null; if(e>0&&Number.isFinite(e)) W[i]=1/e; else { bad++; W[i]=NaN; } } return bad?{fail:"noerr",bad}:{W,scale:false}; }
+  if(kind==="counts"){ for(let i=0;i<n;i++){ const y=Y[i]; if(y>0&&Number.isFinite(y)) W[i]=1/Math.sqrt(y); else { bad++; W[i]=NaN; } } return bad?{fail:"nocount",bad}:{W,scale:false}; }
+  if(kind==="col"){ for(let i=0;i<n;i++){ const w=Wc?Wc[i]:null; if(w>0&&Number.isFinite(w)) W[i]=Math.sqrt(w); else { bad++; W[i]=NaN; } } return bad?{fail:"noweight",bad}:{W,scale:true}; }
+  W.fill(1); return {W,scale:true};
 }
 /* Find X/Y (FIT_SPEC slice 5). The curve's Y at an X, with its standard error by the delta
    method (the confidence band's at that X) and its interval at t; null where the curve has no
@@ -6512,11 +6526,28 @@ function ctlText(f,ascii){ const odr=!!(f&&(f.xerr||(f.ctl&&f.ctl.method==="odr"
 // The same, short, for Results' statistics: its pieces kept whole where the column wraps.
 function ctlShort(f){ const t=ctlText(f).split(", "); return [capFirst(t[0])].concat(t.slice(1).map(s=>s.replace(/^at most /,"≤ "))).join(" · "); }
 function odrNote(res){ const o=res&&res.odr; return o?{s:o.s!=null&&Number.isFinite(o.s)?o.s:null,iter:o.iter,conv:!!o.conv}:null; }
+// How points count: a draft's, a fit's or a template's kind (weight, or the older weighted), and its points' factors.
+const weightOf=o=>{ const w=o&&o.weight; return w==="yerr"||w==="counts"||w==="none"?w:w==="col"&&o.wcol?"col":o&&o.weighted?"yerr":"none"; };
+function weightsOf(o,pts){
+  let k=weightOf(o); if(k==="yerr"&&!pts.some(q=>q.e>0)&&!hasErr()) k="none";
+  const wc=k==="col"?colById(o.wcol):null; if(k==="col"&&!wc) return {kind:k,key:"col",fail:"The column of weights is gone: choose other weights."};
+  const r=fitWeights(k,pts.map(q=>q.y),pts.map(q=>q.e),wc?pts.map(q=>wc.data[q.i]):null), key=k==="col"?"col:"+wc.id:k;
+  if(r.fail){ const n=r.bad, s=n===1;
+    return {kind:k,key,fail:r.fail==="noerr"?`${n} point${s?"":"s"} in range ${s?"has":"have"} no Y error, so ${s?"it":"they"} can't be weighted by it. Fill in the errors, or choose other weights.`
+      :r.fail==="nocount"?`Counting weights are 1/y, and ${n} point${s?"":"s"} in range ${s?"is":"are"} 0 or below. Mask ${s?"it":"them"}, or choose other weights.`
+      :`${n} point${s?"":"s"} in range ${s?"has":"have"} no weight above 0 in column ${colLetter(wc)}. Fill ${s?"it":"them"} in, or choose other weights.`}; }
+  return Object.assign(r,{kind:k,key});
+}
+// What a fit stores of how its points counted.
+const weightRec=WT=>Object.assign({weighted:WT.kind!=="none",weight:WT.kind},WT.kind==="col"?{wcol:WT.key.slice(4)}:{});
 // How a fit was weighted, in words (the Results, the copied table, the report, the CSV).
 function weightText(f,ascii){
-  if(f.xerr) return ascii?(f.weighted?"orthogonal distance regression on the X and Y errors":"orthogonal distance regression on the X errors, the Y scatter s found from the fit")
-    :(f.weighted?"orthogonal distance regression on the X and Y errors":"orthogonal distance regression on the X errors, the Y scatter s found from the fit");
-  return ascii?(f.weighted?"instrumental (1/sigma^2)":"none; errors scaled by sqrt(reduced chi2)"):(f.weighted?"instrumental, 1/σ²":"none; errors scaled by √(reduced χ²)"); }
+  const k=weightOf(f), wc=k==="col"?colById(f.wcol):null, sq=ascii?"sqrt(reduced chi2)":"√(reduced χ²)";
+  if(f.xerr) return k==="yerr"?"orthogonal distance regression on the X and Y errors":k==="counts"?`orthogonal distance regression on the X errors and counting errors, ${ascii?"sqrt(y)":"√y"}`:"orthogonal distance regression on the X errors, the Y scatter s found from the fit";
+  if(k==="yerr") return ascii?"instrumental (1/sigma^2)":"instrumental, 1/σ²";
+  if(k==="counts") return ascii?"counting statistics (1/y)":"counting statistics, 1/y";
+  if(k==="col") return `the values of ${wc?`column ${colLetter(wc)}${wc.name?` (${wc.name})`:""}`:"a column"}; errors scaled by ${sq}`;
+  return `none; errors scaled by ${sq}`; }
 function autoView(){ return autoViewOf(pointsAll(),GP().logY,hasErr()); }
 function autoViewOf(pts,logY,he){
   if(!pts.length) return {x0:0,x1:10,y0:logY?1:0,y1:logY?1000:10};
@@ -8578,8 +8609,11 @@ function buildPlot(W,H,pal,colEx,opt){
          for an unweighted fit, the nearest point's sigma squared for a
          weighted one. */
       let s2=()=>0;
-      if(showP){ if(fit.weighted){ const fp=fitPts(fit).filter(q=>q.e>0).sort((p1,p2)=>p1.x-p2.x);
-          s2=x=>{ if(!fp.length) return 0; let lo2=0, hi2=fp.length-1; while(hi2-lo2>1){ const m=(lo2+hi2)>>1; if(fp[m].x<x) lo2=m; else hi2=m; } const q=Math.abs(fp[lo2].x-x)<=Math.abs(fp[hi2].x-x)?fp[lo2]:fp[hi2]; return q.e*q.e; }; }
+      const wk=weightOf(fit);
+      if(showP){ if(wk==="yerr"||wk==="col"){ const wc=wk==="col"?colById(fit.wcol):null, rc=fit.stats&&fit.stats.redChi2;
+          const fp=fitPts(fit).map(q=>({x:q.x,v:wk==="yerr"?(q.e>0?q.e*q.e:NaN):(wc&&wc.data[q.i]>0&&Number.isFinite(rc)?rc/wc.data[q.i]:NaN)})).filter(q=>Number.isFinite(q.v)).sort((p1,p2)=>p1.x-p2.x);
+          s2=x=>{ if(!fp.length) return 0; let lo2=0, hi2=fp.length-1; while(hi2-lo2>1){ const m=(lo2+hi2)>>1; if(fp[m].x<x) lo2=m; else hi2=m; } const q=Math.abs(fp[lo2].x-x)<=Math.abs(fp[hi2].x-x)?fp[lo2]:fp[hi2]; return q.v; }; }
+        else if(wk==="counts") s2=x=>{ const v=FM.f(x,fit.params); return Number.isFinite(v)&&v>0?v:0; };
         else if(fit.odr&&fit.odr.s!=null){ const v=fit.odr.s*fit.odr.s; s2=()=>v; }
         else { const r=fit.stats&&fit.stats.redChi2; s2=()=>Number.isFinite(r)?r:0; } }
       for(let k=0;k<=N;k++){ const x=a+(b-a)*k/N, yv=FM.f(x,fit.params); if(!Number.isFinite(yv)) continue;
@@ -14698,7 +14732,7 @@ function ensureDraft(){
   if(S.draft&&S.draft.pid===S.pid) return S.draft;
   const f=(activeFit()&&activeFit().kind!=="composite"?activeFit():null); // the curve panel only carries single-model fits
   const model=f?f.model:(p.prefModel&&getModel(p.prefModel)?p.prefModel:suggestModel().id);
-  S.draft={pid:S.pid, model, fn:f&&f.fn?f.fn:null, init:f?f.params.slice():null, fixed:f?(f.fixed||f.params.map(()=>false)).slice():null, weighted:f?!!f.weighted:hasErr(), xerr:f?!!f.xerr:hasXErr(), ctl:fitCtl(f&&f.ctl), lim:f&&f.lim?clone(f.lim):null, dig:f&&Array.isArray(f.dig)?f.dig.slice():null, conf:f?confKeep(confOf(f)):null};
+  S.draft={pid:S.pid, model, fn:f&&f.fn?f.fn:null, init:f?f.params.slice():null, fixed:f?(f.fixed||f.params.map(()=>false)).slice():null, weighted:f?!!f.weighted:hasErr(), weight:f?weightOf(f):hasErr()?"yerr":"none", wcol:f&&f.wcol||null, xerr:f?!!f.xerr:hasXErr(), ctl:fitCtl(f&&f.ctl), lim:f&&f.lim?clone(f.lim):null, dig:f&&Array.isArray(f.dig)?f.dig.slice():null, conf:f?confKeep(confOf(f)):null};
   if(!S.draft.init) guessDraft();
   return S.draft;
 }
@@ -14797,14 +14831,15 @@ const DIAG=new Map(), DSKIP=new Set();
 function fitDiag(f,opt){
   opt=opt||{}; if(!f||f.xerr) return null; const FM=fitModel(f); if(!FM||!Array.isArray(f.params)) return null;
   const c=colById(f.onCol)||activeYCol(); if(!c) return null;
-  const key=[f.at,f.onCol,pipeSig(c),maskSig(c),GP().logY?1:0,confOf(f),f.weighted?1:0,f.params.join(",")].join("|");
+  const key=[f.at,f.onCol,pipeSig(c),maskSig(c),GP().logY?1:0,confOf(f),weightOf(f)+(f.wcol||""),f.params.join(",")].join("|");
   if(DIAG.has(key)) return DIAG.get(key); if(opt.auto&&DSKIP.has(key)) return null;
   const rg=f.range||[-Infinity,Infinity];
-  const pts=fitPts(f).filter(q=>q.x>=rg[0]&&q.x<=rg[1]&&Number.isFinite(q.x)&&Number.isFinite(q.y)&&(!f.weighted||q.e>0)).sort((a,b)=>a.x-b.x);
+  const pts0=fitPts(f).filter(q=>q.x>=rg[0]&&q.x<=rg[1]&&Number.isFinite(q.x)&&Number.isFinite(q.y)).sort((a,b)=>a.x-b.x), wk=weightOf(f), wc=wk==="col"?colById(f.wcol):null;
+  const pts=wk==="none"?pts0:pts0.filter(q=>wk==="yerr"?q.e>0:wk==="counts"?q.y>0:!!wc&&wc.data[q.i]>0);
   const free=f.params.map((_,i)=>!(f.fixed&&f.fixed[i])&&!(f.atBound&&f.atBound[i]));
   let fT=FM.f;
   if(FM.composite){ const L=peakLinks(f.spec.peaks,FM.model); L.forEach(l=>{ free[l.gi]=false; }); if(L.length) fT=(x,p)=>FM.f(x,applyPeakLinks(p.slice(),L)); }
-  const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), W=f.weighted?pts.map(q=>1/q.e):null;
+  const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), WT=wk==="none"?null:fitWeights(wk,Y,pts.map(q=>q.e),wc?pts.map(q=>wc.data[q.i]):null), W=WT&&!WT.fail?WT.W:null; if(WT&&WT.fail) return null;
   // Unasked, the analysis may cost what a glance should: the Jacobian is 2m sweeps of the model, timed on one.
   if(opt.auto){ const m=free.filter(Boolean).length, t0=performance.now(), pp=f.params.slice(); for(let i=0;i<X.length;i++) fT(X[i],pp); if((performance.now()-t0)*2*m>120){ if(DSKIP.size>32) DSKIP.clear(); DSKIP.add(key); return null; } }
   const rs=residualStats(fT,X,Y,W,f.params.slice(),free);
@@ -14891,7 +14926,7 @@ function diagHtml(f){
   const nOut=D.out.idx.length, A=D.anova, ro=S.readOnly?" disabled":"";
   let h="";
   if(o.anova) h+=`<section class="rsec" data-rd="anova"><h4>Analysis of variance</h4><div class="rscroll"><table class="rtab"><thead><tr><th class="l">Source</th><th>DF</th><th>Sum of squares</th><th>Mean square</th><th>F</th><th>Prob &gt; F</th></tr></thead><tbody>${
-    anovaRows(A).map(([nm,r],k)=>`<tr><td class="l">${nm}</td><td>${r.df}</td><td>${esc(fmtOr(r.ss,6))}</td><td>${r.ms!=null?esc(fmtOr(r.ms,6)):""}</td><td>${k?"":esc(fmtOr(r.F,5))}</td><td>${k?"":esc(fmtP(r.p))}</td></tr>`).join("")}</tbody></table></div>${f.weighted?`<p class="lab">Weighted: each sum is of w·y², w = 1/σ².</p>`:""}</section>`;
+    anovaRows(A).map(([nm,r],k)=>`<tr><td class="l">${nm}</td><td>${r.df}</td><td>${esc(fmtOr(r.ss,6))}</td><td>${r.ms!=null?esc(fmtOr(r.ms,6)):""}</td><td>${k?"":esc(fmtOr(r.F,5))}</td><td>${k?"":esc(fmtP(r.p))}</td></tr>`).join("")}</tbody></table></div>${f.weighted?`<p class="lab">Weighted: each sum is of w·y², w ${{yerr:"= 1/σ²",counts:"= 1/y",col:"from the column of weights"}[weightOf(f)]||"= 1/σ²"}.</p>`:""}</section>`;
   h+=mats;
   if(o.resid){ const kind=resKind(), view=resView(), vals=resVals(D,kind);
     h+=`<section class="rsec" data-rd="resid"><h4>Residuals${nOut?` <span class="rbad">· ${nOut} outlier${nOut===1?"":"s"}</span>`:""}</h4>
@@ -15051,9 +15086,19 @@ function diagText(f,sep,pre){
     if(D.out.idx.length){ out.push(pre+["Outlier x","y","Residual","Studentised deleted","Leverage"].join(sep)); D.out.idx.forEach(i=>out.push(pre+[D.X[i],D.Y[i],fmtOr(D.r[i],8,""),fmtOr(D.del[i],6,""),fmtOr(D.h[i],6,"")].join(sep))); } }
   return out;
 }
-// The weighting switch: the error column it weights by is its tooltip.
-function weightChk(id,d){ const c=activeYCol(), e=c&&errColFor(c.id), he=hasErr();
-  return `<label class="chk" title="${he?`Each point counts as 1/σ², σ from ${e?`column ${esc(colLetter(e))}${e.name?` (${esc(e.name)})`:""}`:"its error bar"}`:"There is no Y error column: every point counts the same"}"><input type="checkbox" id="${id}"${d.weighted&&he?" checked":""}${he&&!S.readOnly?"":" disabled"}> Weight by Y error (1/σ²)</label>`; }
+/* How points count, chosen in the Fit window's options: none, the Y error, counting, or a column
+   of the sheet (each named, numbers in it, not the column fitted nor an X). */
+function weightSel(id,d){ const c=activeYCol(), e=c&&errColFor(c.id), he=hasErr(); let k=weightOf(d); if(k==="yerr"&&!he) k="none";
+  const cur=k==="col"?"col:"+d.wcol:k, cols=c?sheetCols(sheetOf(c)).filter(o=>o.id!==c.id&&o.role!=="x"&&(o.data||[]).some(v=>v!=null&&Number.isFinite(v))):[];
+  const op=(v,l,t,dis)=>`<option value="${esc(v)}"${v===cur?" selected":""}${dis?" disabled":""}${t?` title="${esc(t)}"`:""}>${l}</option>`;
+  return `<div class="frow fwts"><label for="${id}" class="tipd" title="How much each point counts in the fit">Weights</label><select id="${id}"${S.readOnly?" disabled":""}>`
+    +op("none","None","Every point counts the same; the errors are scaled by √(reduced χ²)")
+    +op("yerr","Y error, 1/σ²",he?`σ from ${e?`column ${colLetter(e)}${e.name?` (${e.name})`:""}`:"each point's error bar"}`:"There is no Y error column",!he)
+    +op("counts","Counting, 1/y","For counts: σ² = y, as counting statistics have; every point must be above 0")
+    +(cols.length?`<optgroup label="A column's values">${cols.map(o=>op("col:"+o.id,`Column ${esc(colLetter(o))}${o.name?`: ${esc(o.name)}`:""}`,"Each point counts as its value in this column, in its row; only their ratios matter, so the errors are scaled by √(reduced χ²)")).join("")}</optgroup>`:"")
+    +(k==="col"&&!cols.some(o=>o.id===d.wcol)?op(cur,"A column that is gone","",true):"")
+    +`</select></div>`; }
+function setWeight(d,v){ if(String(v).startsWith("col:")){ d.weight="col"; d.wcol=String(v).slice(4); } else { d.weight=v==="yerr"||v==="counts"?v:"none"; d.wcol=null; } d.weighted=d.weight!=="none"; }
 // What the fit puts on the graph, set where it is made (the user had found no way to turn the shading off).
 function fitResidHtml(peaks){ const p=P(), on=!!p&&residOn(GP(),activeFit()||residHint()), cfg=p?plotCfg():{}, dis=S.readOnly||!p?" disabled":"", lv=confPct(confOf(activeFit()||{}));
   return `<div class="fitshow" role="group" aria-label="On the graph"><span class="lab">On the graph</span>`
@@ -15154,7 +15199,7 @@ function renderFit(){
   h+=`<div class="gh">Parameters</div>`;
   h+=paramGridHtml(d,m,f,sameModel,ro);
   h+=`<div class="gh">Options</div>`;
-  h+=weightChk("wt",d);
+  h+=weightSel("wt",d);
   if(hasXErr()) h+=`<label class="chk"><input type="checkbox" id="wtx"${d.xerr?" checked":""}${S.readOnly?" disabled":""}> <span class="tipd" title="Orthogonal distance regression: each point's true X is fitted too, within its X error, so the curve is not pulled flat by errors in X, and the parameters' errors include them. Without Y errors, the scatter in Y is found from the fit.">Include the X errors</span></label>`;
   h+=fitResidHtml();
   h+=confHtml(d);
@@ -15181,7 +15226,7 @@ function renderFit(){
     inp.onchange=()=>{ const v=parseNum(inp.value); if(v===null){ inp.value=fmt(d.init[+inp.dataset.pi],6); toast("Starting values must be numbers."); return; } pushUndo("that starting value"); d.init[+inp.dataset.pi]=v; pgMarks(box,d,m); };
   });
   box.querySelectorAll("input[data-fx]").forEach(inp=>inp.onchange=()=>{ d.fixed[+inp.dataset.fx]=inp.checked; pgMarks(box,d,m); });
-  const wt=$("#wt"); if(wt) wt.onchange=()=>d.weighted=wt.checked;
+  const wt=$("#wt"); if(wt) wt.onchange=()=>setWeight(d,wt.value);
   const wx=$("#wtx"); if(wx) wx.onchange=()=>d.xerr=wx.checked;
   $("#doGuess").onclick=()=>{ pushUndo("guessing initial values"); S.fitError=""; guessDraft(); renderFit(); toast("Initial values measured from the data in view."); };
   { const df=$("#doFit"); if(df) df.onclick=runFit; }
@@ -15296,10 +15341,10 @@ function wireFitCtl(box,d){
 const FITLOG_MAX=200;
 function fitLogFor(d,m,c,X,Y,W,useW){
   const L=S.fitLog, fx=JSON.stringify(d.fixed);
-  if(L&&L.pid===S.pid&&L.col===c.id&&L.model===d.model&&L.fx===fx&&L.n===X.length&&L.wt===!!useW&&L.last&&L.last.length===d.init.length&&L.last.every((v,i)=>v===d.init[i])) return L;
+  if(L&&L.pid===S.pid&&L.col===c.id&&L.model===d.model&&L.fx===fx&&L.n===X.length&&L.wt===String(useW)&&L.last&&L.last.length===d.init.length&&L.last.every((v,i)=>v===d.init[i])) return L;
   const dof=Math.max(1,X.length-d.fixed.filter(v=>!v).length);
   let chi=0; for(let i=0;i<X.length;i++){ const r=(Y[i]-m.f(X[i],d.init))*W[i]; chi+=r*r; }
-  S.fitLog={pid:S.pid,col:c.id,model:d.model,fx,n:X.length,wt:!!useW,dof,pscale:d.init.map(v=>Math.abs(v)||1),lam:undefined,last:d.init.slice(),
+  S.fitLog={pid:S.pid,col:c.id,model:d.model,fx,n:X.length,wt:String(useW),dof,pscale:d.init.map(v=>Math.abs(v)||1),lam:undefined,last:d.init.slice(),
     rows:[{k:0,red:chi/dof,lam:null,p:d.init.slice()}],hid:0,state:"",note:"",ph:(m.ph||m.params).slice()};
   return S.fitLog;
 }
@@ -15522,8 +15567,8 @@ function ensurePeakDraft(){
   if(S.pdraft&&S.pdraft.pid===S.pid) return S.pdraft;
   const f=activeFit()&&activeFit().kind==="composite"?activeFit():null;
   S.pdraft=f
-    ? {pid:S.pid, base:f.spec.base, peaks:f.spec.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{},k.lab?{lab:k.lab}:{})), init:f.params.slice(), fixed:(f.fixed||f.params.map(()=>false)).slice(), weighted:!!f.weighted, xerr:!!f.xerr, conf:confKeep(confOf(f)), x0:f.x0, fitAt:f.at}
-    : {pid:S.pid, base:"linear", peaks:[], init:[], fixed:[], weighted:hasErr(), xerr:hasXErr(), x0:null, fitAt:null};
+    ? {pid:S.pid, base:f.spec.base, peaks:f.spec.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{},k.lab?{lab:k.lab}:{})), init:f.params.slice(), fixed:(f.fixed||f.params.map(()=>false)).slice(), weighted:!!f.weighted, weight:weightOf(f), wcol:f.wcol||null, xerr:!!f.xerr, conf:confKeep(confOf(f)), x0:f.x0, fitAt:f.at}
+    : {pid:S.pid, base:"linear", peaks:[], init:[], fixed:[], weighted:hasErr(), weight:hasErr()?"yerr":"none", xerr:hasXErr(), x0:null, fitAt:null};
   return S.pdraft;
 }
 /* The baseline's coefficients are measured from the centre of the fitted range.
@@ -15892,7 +15937,7 @@ function renderPeakFit(box,p,top){
   }
   h+=`</section>`;
   // 3 Fit
-  h+=`<section class="stepsec"><h3 class="gh"><span class="sn">3</span>Fit</h3>${weightChk("pwt",d)}`;
+  h+=`<section class="stepsec"><h3 class="gh"><span class="sn">3</span>Fit</h3>${weightSel("pwt",d)}`;
   if(hasXErr()) h+=`<label class="chk"><input type="checkbox" id="pwtx"${d.xerr?" checked":""}${S.readOnly?" disabled":""}> <span class="tipd" title="Orthogonal distance regression: each point's true X is fitted too, within its X error, so the curve is not pulled flat by errors in X, and the parameters' errors include them. Without Y errors, the scatter in Y is found from the fit.">Include the X errors</span></label>`;
   h+=fitResidHtml(true);
   h+=confHtml(d);
@@ -15970,7 +16015,7 @@ function renderPeakFit(box,p,top){
     if(e.target.closest("button,select,input")) return;
     const k=+c.dataset.peak; S.selPeak=S.selPeak===k?null:k; renderFit(); renderPlot();
   });
-  const pw=$("#pwt"); if(pw) pw.onchange=()=>d.weighted=pw.checked;
+  const pw=$("#pwt"); if(pw) pw.onchange=()=>setWeight(d,pw.value);
   const pwx=$("#pwtx"); if(pwx) pwx.onchange=()=>d.xerr=pwx.checked;
   wireConf(box,d);
   $("#doPeakFit").onclick=runPeakFit;
@@ -15990,9 +16035,10 @@ function runPeakFit(){
   const d=ensurePeakDraft(), pts=fitPoints(); S.fitError="";
   if(!d.peaks.length){ S.fitError="Add at least one peak first."; renderFit(); return; }
   const m=pdraftModel();
-  const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), useW=d.weighted&&hasErr();
-  if(useW&&pts.some(q=>!(q.e>0))){ S.fitError="Some points in range have no Y error, so they can't be weighted."; renderFit(); return; }
-  const W=pts.map(q=>useW?1/q.e:1);
+  const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), WT=weightsOf(d,pts);
+  if(WT.fail){ S.fitError=WT.fail; renderFit(); return; }
+  const W=WT.W, useW=WT.kind!=="none";
+  if(d.xerr&&WT.kind==="col"){ S.fitError=WCOL_ODR; renderFit(); return; }
   const spec={base:d.base,peaks:d.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{},k.lab?{lab:k.lab}:{}))};
   const {lo,hi}=modelBounds(spec,m,d.init);
   const L=peakLinks(spec.peaks,m), fixedT=d.fixed.slice(); L.forEach(l=>{ fixedT[l.gi]=true; });
@@ -16003,7 +16049,7 @@ function runPeakFit(){
   m.slots.forEach((s,i)=>{ if(s.kind==="peak"){ if(s.name==="xc") pscale[i]=span; else if(s.name==="A") pscale[i]=yspan*span; else if(/^w/.test(s.name)) pscale[i]=span/20; } });
   const fT=L.length?(x,p)=>m.f(x,applyPeakLinks(p,L)):m.f;
   const SX=d.xerr?xErrsOf(activeYCol(),pts):null;
-  const res0=SX?odrFit(fT,X,Y,useW?pts.map(q=>q.e):null,SX,applyPeakLinks(d.init.slice(),L),fixedT,{lo,hi,pscale}):lmFit(fT,X,Y,W,applyPeakLinks(d.init.slice(),L),fixedT,{lo,hi,pscale});
+  const res0=SX?odrFit(fT,X,Y,useW?W.map(w=>1/w):null,SX,applyPeakLinks(d.init.slice(),L),fixedT,{lo,hi,pscale}):lmFit(fT,X,Y,W,applyPeakLinks(d.init.slice(),L),fixedT,{lo,hi,pscale,scale:WT.scale});
   if(res0.error){ S.fitError=res0.error; logError("Peak fit: "+res0.error,"fit"); renderFit(); return; }
   const res=linkResult(res0,L);
   if(!res.params.every(Number.isFinite)){ S.fitError="The fit diverged. Try Reset to estimates, or fix a parameter."; logError("Peak fit diverged","fit"); renderFit(); return; }
@@ -16014,7 +16060,7 @@ function runPeakFit(){
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(),
     hadErrCol:hasErr(),
     fixed:d.fixed.slice(), dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound, stats:res.stats,
-    range:[Math.max(a,amin(X)),Math.min(b,amax(X))], weighted:useW, ...(SX?{xerr:true,odr:odrNote(res)}:{}), ...(confKeep(confOf(d))?{conf:confOf(d)}:{}), by:who(), at:Date.now()};
+    range:[Math.max(a,amin(X)),Math.min(b,amax(X))], ...weightRec(WT), ...(SX?{xerr:true,odr:odrNote(res)}:{}), ...(confKeep(confOf(d))?{conf:confOf(d)}:{}), by:who(), at:Date.now()};
   d.init=res.params.slice(); d.x0=m.x0; d.fitAt=fit.at;
   save(Object.assign({fit,fits:fitHistory(fit)},batchWith(fit)),`fitted ${describeSpec(spec)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
   renderFit(); renderPlot(); afterFit(fit);
@@ -16029,15 +16075,16 @@ function runFit(){
   if(S.fitRun||S.readOnly) return;
   const d=ensureDraft(), m=draftModel(d), pts=fitPoints(), c=activeYCol(); S.fitError="";
   if(!d.ctl) d.ctl=fitCtl();
-  const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), useW=d.weighted&&hasErr();
-  if(useW&&pts.some(q=>!(q.e>0))){ S.fitError="Some points in range have no Y error, so they can't be weighted. Fill in the errors or turn weighting off."; renderFit(); return; }
+  const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), WT=weightsOf(d,pts);
+  if(WT.fail){ S.fitError=WT.fail; renderFit(); return; }
   { const xb=modelXBad(m,X); if(xb){ S.fitError=xbText(m,xb); renderFit(); return; } }
-  const W=pts.map(q=>useW?1/q.e:1);
+  const W=WT.W, useW=WT.kind!=="none";
   const B=boundsOf(draftLims(d,m),m,d.init,d.fixed); if(B.fail){ S.fitError=B.fail; renderFit(); return; }
-  const SX=d.xerr?xErrsOf(c,pts):null, ctl=fitCtl(d.ctl), opt={lo:B.lo,hi:B.hi,maxIter:ctl.maxIter,tol:ctl.tol};
+  const SX=d.xerr?xErrsOf(c,pts):null, ctl=fitCtl(d.ctl), opt={lo:B.lo,hi:B.hi,maxIter:ctl.maxIter,tol:ctl.tol,scale:WT.scale};
+  if(SX&&WT.kind==="col"){ S.fitError=WCOL_ODR; renderFit(); return; }
   if(SX){ if(S.fitLog&&S.fitLog.pid===S.pid&&S.fitLog.col===(c||{}).id) S.fitLog=null; // the list is of Levenberg–Marquardt steps
-    saveCurveFit(odrFit(m.f,X,Y,useW?pts.map(q=>q.e):null,SX,B.p0.slice(),B.fixed.slice(),opt),{d,m,X,SX,useW,ctl,fixed:B.fixed}); return; }
-  const L=fitLogFor(d,m,c,X,Y,W,useW), k0=L.rows[L.rows.length-1].k;
+    saveCurveFit(odrFit(m.f,X,Y,useW?W.map(w=>1/w):null,SX,B.p0.slice(),B.fixed.slice(),opt),{d,m,X,SX,WT,ctl,fixed:B.fixed}); return; }
+  const L=fitLogFor(d,m,c,X,Y,W,WT.key), k0=L.rows[L.rows.length-1].k;
   const run={stop:false,d,pid:S.pid,col:c.id,model:d.model,done:0,p:B.p0.slice(),lam:L.lam,shown:false};
   L.state="run"; L.note=""; L.byStep=false; S.fitRun=run;
   const tick=()=>{
@@ -16052,7 +16099,7 @@ function runFit(){
     if(res.stats.paused&&run.done<ctl.maxIter){ if(run.shown) renderFitLog(); else { run.shown=true; renderFit(); } setTimeout(tick,0); return; }
     S.fitRun=null; delete res.stats.paused; res.stats.iter=run.done; L.state="";
     L.note=res.stats.converged?`Converged after ${run.done} iteration${run.done===1?"":"s"}.`:`Stopped at the limit of ${ctl.maxIter} iterations without converging. Fit again to carry on from here, or raise the limit in Fit control.`;
-    saveCurveFit(res,{d,m,X,SX:null,useW,ctl,fixed:B.fixed});
+    saveCurveFit(res,{d,m,X,SX:null,WT,ctl,fixed:B.fixed});
   };
   tick();
 }
@@ -16065,12 +16112,12 @@ function stepFit(){
   const d=ensureDraft(), m=draftModel(d), pts=fitPoints(), c=activeYCol(); S.fitError="";
   if(!d.ctl) d.ctl=fitCtl();
   if(d.xerr&&hasXErr()){ toast("One step is for the Levenberg–Marquardt fit: untick Include the X errors to take one."); return; }
-  const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), useW=d.weighted&&hasErr();
-  if(useW&&pts.some(q=>!(q.e>0))){ S.fitError="Some points in range have no Y error, so they can't be weighted. Fill in the errors or turn weighting off."; renderFit(); return; }
+  const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), WT=weightsOf(d,pts);
+  if(WT.fail){ S.fitError=WT.fail; renderFit(); return; }
   { const xb=modelXBad(m,X); if(xb){ S.fitError=xbText(m,xb); renderFit(); return; } }
-  const W=pts.map(q=>useW?1/q.e:1), ctl=fitCtl(d.ctl), L=fitLogFor(d,m,c,X,Y,W,useW), k0=L.rows[L.rows.length-1].k, red0=L.rows[L.rows.length-1].red;
+  const W=WT.W, ctl=fitCtl(d.ctl), L=fitLogFor(d,m,c,X,Y,W,WT.key), k0=L.rows[L.rows.length-1].k, red0=L.rows[L.rows.length-1].red;
   const B=boundsOf(draftLims(d,m),m,d.init,d.fixed); if(B.fail){ S.fitError=B.fail; renderFit(); return; }
-  const res=lmFit(m.f,X,Y,W,B.p0.slice(),B.fixed.slice(),{lo:B.lo,hi:B.hi,maxIter:1,tol:ctl.tol,lambda0:L.lam,pscale:L.pscale,onIter:q=>fitLogRow(L,k0+q.iter,q)});
+  const res=lmFit(m.f,X,Y,W,B.p0.slice(),B.fixed.slice(),{lo:B.lo,hi:B.hi,maxIter:1,tol:ctl.tol,scale:WT.scale,lambda0:L.lam,pscale:L.pscale,onIter:q=>fitLogRow(L,k0+q.iter,q)});
   if(res.error){ S.fitError=res.error; renderFit(); return; }
   if(!res.params.every(Number.isFinite)){ S.fitError="That step diverged. Try Guess, or fix one of the parameters."; renderFit(); return; }
   pushUndo("one iteration of the fit"); d.init=res.params.slice(); L.last=d.init.slice(); L.lam=res.lambda; L.state=""; L.byStep=true;
@@ -16080,9 +16127,10 @@ function stepFit(){
     :`One iteration: reduced χ² ${fmt(red0,6)} → ${fmt(red1,6)}.`;
   renderFit(); renderPlot();
 }
+const WCOL_ODR="Weights from a column only say how the points compare, and the X errors need Y errors in the data's own units: choose Y error or counting weights, or untick the X errors.";
 const xbText=(m,b)=>`${m.name} needs X ${b.strict?"above 0":"of 0 or more"}, and the fit's range reaches x = ${fmt(b.x,6)}. Fit a range of X ${b.strict?"above 0":"from 0 up"}.`;
 function saveCurveFit(res,o){
-  const {d,m,X,SX,useW,ctl}=o;
+  const {d,m,X,SX,WT,ctl}=o;
   if(res.error){ S.fitError=res.error; logError("Curve fit: "+res.error,"fit"); renderFit(); return; }
   if(!res.params.every(Number.isFinite)){ S.fitError="The fit diverged. Try Guess, or fix one of the parameters."; logError("Curve fit diverged","fit"); renderFit(); return; }
   const [a,b]=fitRange();
@@ -16092,7 +16140,7 @@ function saveCurveFit(res,o){
     dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound,
     onCol:(activeYCol()||{}).id, onColName:(activeYCol()||{}).name||"",
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(), hadErrCol:hasErr(),
-    range:[Math.max(a,amin(X)),Math.min(b,amax(X))], weighted:useW, ...(SX?{xerr:true,odr:odrNote(res)}:{}),
+    range:[Math.max(a,amin(X)),Math.min(b,amax(X))], ...weightRec(WT), ...(SX?{xerr:true,odr:odrNote(res)}:{}),
     ctl:{maxIter:ctl.maxIter,tol:ctl.tol,method:SX?"odr":"lm"}, by:who(), at:Date.now()};
   d.init=res.params.slice(); if(S.fitLog&&S.fitLog.pid===S.pid&&!SX) S.fitLog.last=d.init.slice();
   const P0=P(), carry=m.user&&!(P0.userFns||[]).some(q=>q.id===m.fnId)?{userFns:(P0.userFns||[]).concat([JSON.parse(JSON.stringify(m.def))])}:{};
@@ -16140,7 +16188,7 @@ function statsList(f){
   if(f.global&&f.gstats){ const g=f.gstats;
     const out=[["Points",st.n],["Parameters",`${g.own} of its own, ${g.sh} shared`],["Reduced χ²",fmtOr(st.redChi2,5)],["R² (COD)",fmtOr(st.R2,6)],["Residual sum of squares",fmtOr(st.rss,6)],
       ["Fitted together with",`${g.K-1} other columns`],["Points in all",g.n],["Parameters in all",g.m],["Degrees of freedom",g.dof],["Reduced χ² of them all",fmtOr(g.redChi2,5)],
-      ["Iterations",g.iter==null?"—":`${g.iter}${g.converged===false?" (not converged)":""}`],["Weighting",f.weighted?"instrumental, 1/σ²":"none; errors scaled by √(reduced χ² of them all)"],["Confidence level",confPct(confOf(f))+"%"]];
+      ["Iterations",g.iter==null?"—":`${g.iter}${g.converged===false?" (not converged)":""}`],["Weighting",weightOf(f)==="counts"?"counting statistics, 1/y":f.weighted?"instrumental, 1/σ²":"none; errors scaled by √(reduced χ² of them all)"],["Confidence level",confPct(confOf(f))+"%"]];
     if(f.range) out.push(["Fitted over",`x ${fmt(f.range[0],6)} to ${fmt(f.range[1],6)}`]);
     return out.map(([k,v])=>[k,v==null||v===""?"—":String(v)]); }
   const out=[["Points",st.n],["Free parameters",st.n!=null&&st.dof!=null?st.n-st.dof:null],["Degrees of freedom",st.dof],
@@ -20026,7 +20074,7 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <p>Pearson r between columns on the same X axis, interpolated onto the active column's X where they overlap. Near 1, the same shape; near 0, unrelated.</p>
 <p><em>Copy</em> gives every table as tab-separated text.</p>`},
 /* ---------------------------------------------------------------- Fitting */
-{id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge range from to use the view from view points zoom all spectrum done close residuals weighting in the results report sections",
+{id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge range from to use the view from view points zoom all spectrum done close residuals weighting weights weight counting statistics poisson 1/y instrumental arbitrary column of weights in the results report sections",
  lead:"Two kinds of fit, in the Fit window: a curve fit puts one model through the data; a peak fit describes a column as a sum of peaks on a baseline.",
  body:`${DL([[DA("curvefit","Curve fit"),"A line, polynomial, exponential decay, sigmoid, single peak or your own function."],[DA("peakfit","Peak fit"),"Any number of Gaussian, Lorentzian, Voigt, Pearson VII, Fano and other peaks on a baseline, found automatically or placed by hand, with handles on the graph."]])}
 <h2>What is fitted</h2>
@@ -20040,7 +20088,7 @@ ${TIP("A fit belongs to its column. It is drawn only over the column it was fitt
 <ol class="dsteps"><li>Choose a model. The model's button opens the list of every model by kind, each with a sketch of its shape and its formula; type to find one by its name, by a word of what it is for or of what its parameters mean, or by its name in Origin (${K("↑")} ${K("↓")} and ${K("Enter")} choose). A polynomial's order, 1 to 9, is chosen beside the button. The Fit window starts from the model that suits the shape of the points (a straight line for a steady rise or fall, an exponential for a quick change that levels off, a sigmoid for a rise from one level to another, a Gaussian for one clear peak) and, while another is chosen, names it under the button (<em>Suggested:</em>), its button choosing it; the reason is the button's tooltip. Its formula is shown under the button.</li>
 <li>Starting values are measured from the data. <em>Guess</em> measures them again from the points in the fit's range.</li>
 <li>Tick a parameter's <em>Fix</em> to hold it at its starting value.</li>
-<li>With a Y error column, <em>Weight by Y error</em> fits with weights 1/σ² (its tooltip names the column); otherwise the errors are scaled by the scatter of the residuals.</li>
+<li id="weights"><em>Weights</em> says how much each point counts. ${DL([["None","Every point the same; the errors are scaled by √(reduced χ²), the scatter the residuals show."],["Y error, 1/σ²","σ from the Y error column (its tooltip names it): the errors are taken as they are, and the reduced χ² should be near 1."],["Counting, 1/y","For counts, whose variance is the count itself (σ² = y). Every point in range must be above 0. The errors are taken as they are."],["A column","The values of a column of the sheet, in each point's row, as the weights w. Only their ratios matter, so the errors are scaled by √(reduced χ²), as with none. Not with the X errors, which need errors in the data's units."]])} A point with no error, no count above 0 or no weight above 0 is refused, in words. Fits of every column use the Y error or counting when every point allows it; a column's weights belong to the column they were made for.</li>
 <li>With X error bars, <em>Include the X errors</em> fits by orthogonal distance regression: each point's true X is fitted too, within its error. Without Y errors, the scatter in Y is taken to be the same for every point and found from the fit (the Results give it as <em>s</em>). Peak fits and fits of every column have the same choice. ${DA("errbars#use","Error bars")}</li>
 <li id="conf"><em>Confidence level</em> (95% unless set: 90, 99, 99.9 or any level typed under <em>Other…</em>) is the level of the parameters' intervals, of the bands drawn round the fit, and of the outlier limit. It is how the fit is read, so changing it changes the fit on screen at once, and its intervals in Results, the report and the CSV.</li>
 <li><em>Fit</em>, or ${K("Ctrl","Enter")}.</li></ol>
@@ -20958,7 +21006,7 @@ function batchWith(fit){ const p=P(), b=p&&p.batch; if(!b||b.glob) return {}; co
     :fit.kind!=="composite"&&fit.model===t.model;
   if(!same) return {};
   return {batch:Object.assign({},b,{rows:b.rows.map(q=>q===r?{col:q.col,fit:Object.assign({},fit,{batch:true,byHand:true}),fail:null}:q)})}; }
-function batchTemplate(f){ if(!f) return null; const c=colById(f.onCol)||activeYCol(), xu=finalOf(c).xu||"", common={params:f.params.slice(),fixed:(f.fixed||f.params.map(()=>false)).slice(),weighted:!!f.weighted,xerr:!!f.xerr,range:f.range?f.range.slice():null,logY:!!GP().logY,xu,from:c?c.id:null,ctl:f.ctl?fitCtl(f.ctl):null,lim:f.lim?clone(f.lim):null,dig:Array.isArray(f.dig)?f.dig.slice():null,conf:confKeep(confOf(f))};
+function batchTemplate(f){ if(!f) return null; const c=colById(f.onCol)||activeYCol(), xu=finalOf(c).xu||"", common={params:f.params.slice(),fixed:(f.fixed||f.params.map(()=>false)).slice(),weighted:!!f.weighted,weight:weightOf(f)==="col"?"none":weightOf(f),xerr:!!f.xerr,range:f.range?f.range.slice():null,logY:!!GP().logY,xu,from:c?c.id:null,ctl:f.ctl?fitCtl(f.ctl):null,lim:f.lim?clone(f.lim):null,dig:Array.isArray(f.dig)?f.dig.slice():null,conf:confKeep(confOf(f))};
   if(f.kind==="composite") return Object.assign({kind:"composite",spec:clone(f.spec),x0:f.x0,name:describeSpec(f.spec)},common);
   return Object.assign({kind:"model",model:f.model,fn:f.fn?clone(f.fn):null,name:(fitModel(f)||{}).name||"the model"},common); }
 function batchPts(c,t){ const d=finalOf(c), mk=new Set(maskOf(c)), r=t.range, lo=r?Math.min(r[0],r[1]):-Infinity, hi=r?Math.max(r[0],r[1]):Infinity;
@@ -20967,10 +21015,11 @@ function batchPts(c,t){ const d=finalOf(c), mk=new Set(maskOf(c)), r=t.range, lo
 function fitOne(c,t,seed,spec){
   const d=finalOf(c); if((d.xu||"")!==(t.xu||"")) return {fail:`its X is in ${d.xu||"other units"}, not ${t.xu||"the template's units"}`};
   const pts=batchPts(c,t); if(pts.length<4) return {fail:"fewer than four points in the range"};
-  const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), he=!!(d.e&&d.e.some(v=>v!=null&&v>0)), useW=t.weighted&&he&&pts.every(q=>q.e>0), W=pts.map(q=>useW?1/q.e:1);
+  const X=pts.map(q=>q.x), Y=pts.map(q=>q.y), he=!!(d.e&&d.e.some(v=>v!=null&&v>0)), tk=weightOf(t);
+  const WT0=tk==="yerr"&&he?fitWeights("yerr",Y,pts.map(q=>q.e)):tk==="counts"?fitWeights("counts",Y):null, WT=WT0&&!WT0.fail?Object.assign(WT0,{kind:tk,key:tk}):{W:pts.map(()=>1),scale:true,kind:"none",key:"none"}, useW=WT.kind!=="none", W=WT.W;
   let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; X.forEach(v=>{ if(v<x0) x0=v; if(v>x1) x1=v; }); Y.forEach(v=>{ if(v<y0) y0=v; if(v>y1) y1=v; });
-  const SX=t.xerr?xErrsOf(c,pts):null, SY=useW?pts.map(q=>q.e):null;
-  const base={onCol:c.id,onColName:c.name||"",maskSig:maskSig(c),pipeSig:pipeSig(c),rawFp:rawFp(),hadErrCol:he,range:[x0,x1],weighted:useW,by:who(),at:Date.now(),batch:true,...(t.conf?{conf:t.conf}:{})};
+  const SX=t.xerr?xErrsOf(c,pts):null, SY=useW?W.map(w=>1/w):null;
+  const base={onCol:c.id,onColName:c.name||"",maskSig:maskSig(c),pipeSig:pipeSig(c),rawFp:rawFp(),hadErrCol:he,range:[x0,x1],...weightRec(WT),by:who(),at:Date.now(),batch:true,...(t.conf?{conf:t.conf}:{})};
   const out=(res,more)=>Object.assign(more,{params:res.params,errors:res.errors,cov:res.cov,dep:finOrNull(res.dep),pval:finOrNull(res.pval),tval:finOrNull(res.tval),ci:finOrNull(res.ci),atBound:res.atBound,stats:res.stats},base,SX?{xerr:true,odr:odrNote(res)}:{});
   if(t.kind==="composite"){
     const sp=spec||t.spec, m=compileModel(sp,t.x0); if(m.n!==seed.length) return {fail:"the model and its starting values do not match"};
@@ -21037,11 +21086,11 @@ function fitTogether(list,t,share){
   const sh=share.map((s,i)=>!!s&&!fixedT[i]), nSh=sh.filter(Boolean).length, nOwn=fixedT.filter((x,i)=>!x&&!sh[i]).length, total=nSh+K*nOwn;
   if(!nSh) return {fail:"no parameter is shared"};
   if(total>900) return {fail:`${total} parameters in all is more than one fit can carry; share more of them, or fit fewer columns`};
-  const info=list.map(({c})=>{ const d=finalOf(c), pts=batchPts(c,t), he=!!(d.e&&d.e.some(v=>v!=null&&v>0)); return {c,pts,he,canW:he&&pts.every(q=>q.e>0)}; });
+  const tk=weightOf(t), info=list.map(({c})=>{ const d=finalOf(c), pts=batchPts(c,t), he=!!(d.e&&d.e.some(v=>v!=null&&v>0)); return {c,pts,he,canW:tk==="counts"?pts.every(q=>q.y>0):he&&pts.every(q=>q.e>0)}; });
   // Weighted only if every spectrum can be: a mixture would weigh some spectra by their errors and others by nothing.
-  const useW=t.weighted&&info.every(z=>z.canW);
+  const useW=(tk==="yerr"||tk==="counts")&&info.every(z=>z.canW);
   const sets=[], p0s=[], lo=[], hi=[], pscale=[];
-  info.forEach((z,k)=>{ const X=z.pts.map(q=>q.x), Y=z.pts.map(q=>q.y); sets.push({X,Y,W:z.pts.map(q=>useW?1/q.e:1)});
+  info.forEach((z,k)=>{ const X=z.pts.map(q=>q.x), Y=z.pts.map(q=>q.y); sets.push({X,Y,W:z.pts.map(q=>useW?(tk==="counts"?1/Math.sqrt(q.y):1/q.e):1)});
     let seed=list[k].seed; if(!seed||seed.length!==t.params.length||!seed.every(Number.isFinite)) seed=t.params.slice();
     seed=seed.map((v,i)=>t.fixed[i]?t.params[i]:v);
     if(comp){ applyPeakLinks(seed,L); const b=modelBounds(t.spec,m,seed); lo.push(b.lo); hi.push(b.hi);
@@ -21061,7 +21110,7 @@ function fitTogether(list,t,share){
     const st=Object.assign({},res.stats); ["redChi2","R2","adjR2","rmse"].forEach(q=>{ if(!Number.isFinite(st[q])) st[q]=null; });
     const fit=Object.assign(comp?{kind:"composite",spec:clone(t.spec),x0:m.x0,fixed:t.fixed.slice()}:Object.assign({model:t.model,fixed:t.fixed.slice()},t.fn?{fn:clone(t.fn)}:{},t.lim?{lim:clone(t.lim)}:{},t.dig?{dig:t.dig.slice()}:{}),
       {params:res.params,errors:res.errors,cov:res.cov,dep:finOrNull(res.dep),pval:finOrNull(res.pval),tval:finOrNull(res.tval),ci:finOrNull(res.ci),atBound:res.atBound,stats:st,
-       onCol:z.c.id,onColName:z.c.name||"",maskSig:maskSig(z.c),pipeSig:pipeSig(z.c),rawFp:rawFp(),hadErrCol:z.he,range:[x0,x1],weighted:useW,by:who(),at,batch:true,
+       onCol:z.c.id,onColName:z.c.name||"",maskSig:maskSig(z.c),pipeSig:pipeSig(z.c),rawFp:rawFp(),hadErrCol:z.he,range:[x0,x1],weighted:useW,weight:useW?tk:"none",by:who(),at,batch:true,
        global:true,shared:sh.slice(),gstats,...(t.conf?{conf:t.conf}:{})});
     return {col:z.c.id,fit,fail:null}; });
   return {rows,glob:{share:sh.slice(),stats:gstats}};
@@ -21441,7 +21490,7 @@ function batchTableText(sep){
 async function exportBatchCsv(){ const p=P(); if(!p) return; const b=p.batch, s=seriesOf(), lines=[batchTableText(",")];
   if(b){ const t=b.tmpl; lines.push("",`# Batch fit,${t.name}`,`# started,${SEEDS[b.seed]||""}`); if(t.range) lines.push(`# fitted over x,${amin(t.range)},${amax(t.range)}`);
     if(b.glob){ const g=b.glob.stats; lines.push(`# fitted together sharing,${shareSummary(t,b.glob.share).replace(/,/g," ")}`,`# global fit,columns,${g.K},points,${g.n},parameters,${g.m},degrees of freedom,${g.dof},reduced chi2,${g.redChi2}`); }
-    lines.push(`# weighting,${t.weighted?"instrumental (1/sigma^2)":"none; errors scaled by sqrt(reduced chi2)"}`);
+    lines.push(`# weighting,${weightText(t,true)}`);
     b.rows.forEach(r=>{ const c=colById(r.col); if(!r.fit) lines.push(`# ${specName(c).replace(/,/g," ")},not fitted: ${String(r.fail).replace(/,/g," ")}`); else { const st=batchStale(r.fit); if(st) lines.push(`# ${specName(c).replace(/,/g," ")},${st.replace(/,/g," ")}`); } }); }
   const qs=batchQuantities(), q=qFind(qs,s.q);
   if(q&&s.line){ const tr=trendData(q); if(tr.fit) lines.push(`# straight line through ${q.label},slope,${tr.fit.b},${tr.fit.eb},intercept,${tr.fit.a},${tr.fit.ea},R2,${tr.fit.R2}`); }

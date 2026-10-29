@@ -16,7 +16,7 @@ const grab = (tag) => {
 // tools/pipe-test.mjs tests the rest of it. The curve fit's models are a block of
 // their own (MODELS), after the pipeline.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("MODELS")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -955,6 +955,33 @@ check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
   check("X at a Y: a sine over 20 periods takes 0.5 forty times, each where sin is 0.5", ss.xs.length === 40 && ss.xs.every(r => near(Math.sin(r.x), 0.5, 1e-9)));
   check("X at a Y: nothing typed, or no range, gives none", N.fitXAt(lin, p, C, null, NaN, 0, 1, 2).xs.length === 0 && N.fitXAt(lin, p, C, null, 2, 1, 1, 2).xs.length === 0);
   check("Y at an X where the curve has no value: none", N.fitYAt((x) => Math.log(x), [], null, null, -1, 2) === null);
+}
+
+/* ---------- How points count: none, the Y error, counting, a column's weights ---------- */
+{
+  const Y = [4, 9, 16, 0, 25], E = [0.5, 1, 2, null, 0], Wc = [1, 4, 0, 9, 16];
+  const n0 = N.fitWeights("none", Y), ye = N.fitWeights("yerr", Y, E), ct = N.fitWeights("counts", Y), cw = N.fitWeights("col", Y, null, Wc);
+  check("no weights: every point 1, the errors scaled by the reduced χ²", n0.W.every(w => w === 1) && n0.scale === true);
+  check("Y error weights refuse points with no error above 0, and say how many", ye.fail === "noerr" && ye.bad === 2);
+  check("counting weights refuse counts of 0 or below", ct.fail === "nocount" && ct.bad === 1);
+  check("a column's weights refuse weights of 0 or below", cw.fail === "noweight" && cw.bad === 1);
+  const ok = N.fitWeights("yerr", [1, 2], [0.5, 2]), oc = N.fitWeights("counts", [4, 100]), oc2 = N.fitWeights("col", [1, 2], null, [4, 0.25]);
+  check("the factors: 1/σ, 1/√y, √w; absolute ones not scaled, a column's scaled", ok.W[0] === 2 && ok.W[1] === 0.5 && !ok.scale && oc.W[0] === 0.5 && oc.W[1] === 0.1 && !oc.scale && oc2.W[0] === 2 && oc2.W[1] === 0.5 && oc2.scale);
+  // lmFit's scale: the same fit with the covariance scaled or not differs by √(reduced χ²).
+  const lin = (x, p) => p[0] + p[1] * x, X = [], Yl = [], rnd = N.mulberry32(5);
+  for (let i = 0; i < 40; i++) { X.push(i); Yl.push(3 + 0.5 * i + (rnd() - 0.5) * 2); }
+  const W = X.map((_, i) => 1 / (0.5 + 0.02 * i)), a = N.lmFit(lin, X, Yl, W, [0, 1], [false, false]), b = N.lmFit(lin, X, Yl, W, [0, 1], [false, false], { scale: true });
+  check("weighted, the covariance unscaled; asked to, scaled by the reduced χ²", rel(b.errors[1], a.errors[1] * Math.sqrt(a.stats.redChi2), 1e-9) && rel(a.params[1], b.params[1], 1e-12));
+  // Relative weights: a column's weights times 100 change nothing.
+  const w1 = X.map((_, i) => 1 + (i % 5)), f1 = N.lmFit(lin, X, Yl, N.fitWeights("col", Yl, null, w1).W, [0, 1], [false, false], { scale: true }), f2 = N.lmFit(lin, X, Yl, N.fitWeights("col", Yl, null, w1.map(v => v * 100)).W, [0, 1], [false, false], { scale: true });
+  check("a column's weights are relative: times 100, the same values and errors", rel(f1.params[1], f2.params[1], 1e-9) && rel(f1.errors[1], f2.errors[1], 1e-9) && rel(f1.errors[0], f2.errors[0], 1e-9));
+  // Counting statistics: Poisson counts on a line, fitted with 1/y; the slope's error against its spread, the reduced χ² near 1.
+  const rp = N.mulberry32(77), bs = [], es = [], reds = [];
+  for (let k = 0; k < 300; k++) { const Xc = [], Yc = []; for (let i = 0; i < 50; i++) { Xc.push(i); Yc.push(N.poissonRand(200 + 6 * i, rp)); }
+    const r = N.lmFit(lin, Xc, Yc, N.fitWeights("counts", Yc).W, [200, 6], [false, false]); bs.push(r.params[1]); es.push(r.errors[1]); reds.push(r.stats.redChi2); }
+  const mb = bs.reduce((s, v) => s + v, 0) / bs.length, sb = Math.sqrt(bs.reduce((s, v) => s + (v - mb) ** 2, 0) / (bs.length - 1)), me = es.reduce((s, v) => s + v, 0) / es.length, mr = reds.reduce((s, v) => s + v, 0) / reds.length;
+  check("counting weights on Poisson counts: the slope's error matches its spread over 300 sets", rel(me, sb, 0.12), `${me} against ${sb}`);
+  check("counting weights on Poisson counts: the reduced χ² is near 1", near(mr, 1, 0.05) && near(mb, 6, 4 * sb / Math.sqrt(300)), `${mr}, slope ${mb}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

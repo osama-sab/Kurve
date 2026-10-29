@@ -1024,6 +1024,22 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Curve fit, slice 7: how points count, the weights (2026-10-29)
+
+`ux/spec/FIT_SPEC.md` slice 7, its first half.
+- **Weights** in both Fit windows is a list: None, Y error (1/σ²), Counting (1/y, for counts) and the
+  sheet's columns by name (their values as the weights), each option's tooltip saying what it does.
+- Y errors and counting are taken as they are; a column's weights only say how the points compare,
+  so the errors are scaled by √(reduced χ²), as with none.
+- A point that cannot be weighted (no error, a count of 0, no weight) is refused, with how many and
+  what to do. The kind is said in Results, the report, the copied table and the CSV; the residual
+  analysis and the prediction band use it; a column of weights deleted puts the fit out of date.
+- Fits of every column, together or not, use the Y error or counting where every point allows it.
+
+Checked: fit-test (9 new, 330: each kind's factors and refusals, the covariance scaled or not, a
+column's weights relative, counting weights on Poisson counts against 300 repeats), fit-drive (8
+new, 43), screenshots, and every suite from the round before.
+
 ## Curve fit, slice 6: the fit in the worksheet (2026-10-29)
 
 `ux/spec/FIT_SPEC.md` slice 6.
