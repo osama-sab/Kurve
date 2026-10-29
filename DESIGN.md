@@ -854,6 +854,18 @@ setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
 
+### 2026-10-29: the design system into the app, slice 9 (galleries drawn with the data)
+
+The system's PlotGallery: choosing by the result, not by a name. Plot setup's kinds are cards
+drawn with the columns ticked (the picture of a kind only while nothing is ticked), and the
+sketch shows a card's kind while the pointer or the focus is on it. In the Format pane the
+curves' colour scheme is chosen from cards of the graph's own curves, and Saved styles opens a
+gallery of the graph drawn in each style; both show a card on the graph itself while it is
+hovered or focused, and a click applies it (one undo step, as any change in the pane). The
+preview is a copy of its own, never saved: a hover is a look, not a change. Figure › Saved styles
+stays a menu (menus are lists; the gallery is where the look is chosen), and More… in the
+gallery is that menu, for saving, renaming and deleting.
+
 ### 2026-10-29: the design system into the app, slice 8 (dialogs and windows)
 
 The system's ImportDialog, ExportFigure, Preferences, ToolWindow, PeakFinder and EmptyState.

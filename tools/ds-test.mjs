@@ -322,8 +322,8 @@ await page(async p => {
   check("and is kept when entered", await p.evaluate(id => ((GP().series || {})[id] || {}).lw === 2.5, fc.id));
   // A saved style is used at once, and undone.
   const fr0 = await p.evaluate(() => GP().frame || "box");
-  await p.click("#pdFormats"); await p.waitForTimeout(200);
-  await p.evaluate(() => { const it = [...document.querySelectorAll(".menu [role^=menuitem]")].find(e => /^Journal/.test(e.textContent.trim())); if (it) it.click(); }); await p.waitForTimeout(300);
+  await p.click("#pdFormats"); await p.waitForTimeout(300);
+  await p.click('.sgalpick [data-sf="b-journal"]'); await p.waitForTimeout(300);
   const st = await p.evaluate(() => ({ frame: GP().frame, pending: !!S.plotPreview }));
   check("a saved style is used at once", st.frame === "l" && !st.pending, JSON.stringify(st));
   await p.evaluate(() => { hideToast(); undo(); }); await p.waitForTimeout(200);
@@ -489,6 +489,44 @@ await page(async p => {
   check("its footer Done, Fit…, Integrate, Labels…, on one row", JSON.stringify(r.foot) === '["Done","Fit…","Integrate","Labels…"]' && r.rows === 1, JSON.stringify(r));
   check("the finder's settings are one or two words each", r.labs.every(l => l.split(/\s+/).length <= 2), JSON.stringify(r.labs));
 }, { name: "dialogs and windows" });
+
+console.log("Slice 9: galleries drawn with the data");
+await page(async p => {
+  await p.evaluate(async () => { await loadExample("ir"); }); await p.waitForTimeout(600);
+  // Plot setup: each kind a card drawn with the columns ticked; hovering one shows it in the sketch.
+  await p.evaluate(() => { openPlotDlg(yCols().map(c => c.id)); }); await p.waitForTimeout(400);
+  let r = await p.evaluate(() => { const cs = [...document.querySelectorAll("#formBody .pgal [data-pk]")];
+    return { n: cs.length, drawn: cs.every(b => b.querySelector(".pgt svg path, .pgt svg rect")), lab: cs.map(b => b.querySelector(".pgl").textContent), sel: cs.filter(b => b.getAttribute("aria-checked") === "true").map(b => b.dataset.pk) }; });
+  check("Plot setup's kinds are a gallery of cards drawn with the data", r.n === 14 && r.drawn && r.lab[0] === "Line" && r.sel.length === 1, JSON.stringify(r));
+  const sk0 = await p.evaluate(() => $("#pdlgSk").innerHTML);
+  await p.hover('#formBody [data-pk="hist"]'); await p.waitForTimeout(100); const sk1 = await p.evaluate(() => $("#pdlgSk").innerHTML);
+  await p.mouse.move(4, 4); await p.waitForTimeout(100); const sk2 = await p.evaluate(() => $("#pdlgSk").innerHTML);
+  check("hovering a card shows it in the sketch, leaving shows the chosen one again", sk1 !== sk0 && sk2 === sk0);
+  await p.evaluate(() => $("#formCancel").click()); await p.waitForTimeout(200);
+  // The colour schemes: a card each, drawn with the graph's curves; hovering previews on the graph, a click chooses.
+  await p.evaluate(() => openPlotDetails(null, "layout")); await p.waitForTimeout(400);
+  r = await p.evaluate(() => [...document.querySelectorAll("#pdBody [data-pdscheme]")].map(b => b.dataset.pdscheme + (b.getAttribute("aria-checked") === "true" ? "+" : "") + (b.querySelector("path") ? "" : "?")));
+  check("the colour schemes are a gallery drawn with the graph's curves", JSON.stringify(r) === JSON.stringify(["kurve+", "okabe", "viridis", "mono"]), JSON.stringify(r));
+  await p.hover('#pdBody [data-pdscheme="okabe"]'); await p.waitForTimeout(150);
+  const hv = await p.evaluate(() => ({ cfg: plotCfg().scheme, saved: GP().scheme || "kurve" }));
+  await p.mouse.move(4, 4); await p.waitForTimeout(150);
+  const lv = await p.evaluate(() => ({ cfg: plotCfg().scheme || "kurve", hv: !!S.hoverPv }));
+  check("hovering a scheme previews it on the graph without saving it; leaving puts it back", hv.cfg === "okabe" && hv.saved === "kurve" && lv.cfg === "kurve" && !lv.hv, JSON.stringify({ hv, lv }));
+  await p.click('#pdBody [data-pdscheme="okabe"]'); await p.waitForTimeout(600);
+  r = await p.evaluate(() => ({ saved: GP().scheme, on: document.querySelector('#pdBody [data-pdscheme="okabe"]').getAttribute("aria-checked") }));
+  check("a click chooses it, as one undo step", r.saved === "okabe" && r.on === "true" && await p.evaluate(() => { undo(); return (GP().scheme || "kurve") === "kurve"; }), JSON.stringify(r));
+  // The saved styles: the graph drawn in each; hovering previews, a click applies, Esc puts the graph back.
+  await p.click("#pdFormats"); await p.waitForTimeout(900);
+  r = await p.evaluate(() => [...document.querySelectorAll(".sgalpick [data-sf]")].map(b => b.dataset.sf + (b.querySelector("svg") ? "" : "?")));
+  check("Saved styles opens a gallery, the graph drawn in each style", r.length >= 5 && r.every(x => !x.endsWith("?")), JSON.stringify(r));
+  await p.hover('.sgalpick [data-sf="b-journal"]'); await p.waitForTimeout(200);
+  const sh = await p.evaluate(() => ({ cfg: plotCfg().frame, saved: GP().frame || "box" }));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(200);
+  const se = await p.evaluate(() => ({ cfg: plotCfg().frame || "box", pop: !!document.querySelector(".sgalpick") }));
+  check("hovering a style previews it; Escape closes and puts the graph back", sh.cfg === "l" && sh.saved === "box" && se.cfg === "box" && !se.pop, JSON.stringify({ sh, se }));
+  await p.click("#pdFormats"); await p.waitForTimeout(500); await p.click('.sgalpick [data-sf="b-journal"]'); await p.waitForTimeout(600);
+  check("a click gives the graph the style", await p.evaluate(() => GP().frame === "l" && !S.hoverPv && !document.querySelector(".sgalpick")));
+}, { name: "galleries" });
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();

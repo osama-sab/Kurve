@@ -906,10 +906,24 @@ details.more>table{margin-top:var(--sp-4)}
 @media (max-width:760px){ .pdlg{grid-template-columns:1fr} }
 .pdlg-kinds{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:var(--sp-3);align-content:start}
 .pdlg-sep{grid-column:1/-1;font-weight:600;color:var(--ink);margin:var(--sp-3) 0 0}
-.pdk{display:flex;flex-direction:column;align-items:center;gap:var(--sp-2);padding:var(--sp-4) var(--sp-2) var(--sp-3);border:1px solid var(--rule);border-radius:var(--r);background:var(--panel);color:var(--ink);cursor:pointer;font-size:var(--fs-tab);line-height:1.2;text-align:center}
-.pdk:hover{border-color:var(--ink-2)}
-.pdk[aria-checked="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--accent-soft);color:var(--ink);font-weight:600}
-.pdk .pkic{width:40px;height:36px;color:var(--data)}
+/* Galleries (the design system's PlotGallery): a card per choice, drawn with the user's own data; the chosen one filled. */
+.pgal{display:grid;grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:var(--sp-4);align-content:start}
+.pgal>button{display:flex;flex-direction:column;padding:0;border:1px solid var(--rule);border-radius:var(--r);background:var(--panel);overflow:hidden;cursor:pointer;color:var(--ink-2);font-size:var(--fs-tab);text-align:left;min-width:0}
+.pgal>button:hover{border-color:var(--ink-2);color:var(--ink)}
+.pgal svg{display:block;width:100%;height:64px;background:var(--well)}
+.pgal .pgt{display:block}
+.pgal .pgl{padding:var(--sp-2) var(--sp-4);border-top:1px solid var(--rule-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pgal>button[aria-pressed="true"],.pgal>button[aria-checked="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.pgal>button[aria-pressed="true"] .pgl,.pgal>button[aria-checked="true"] .pgl{background:var(--accent);border-top-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.pdlg-kinds.pgal{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:var(--sp-3)}
+.pdsch{grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:var(--sp-3);margin-bottom:var(--sp-3)}
+.pdsch svg{height:48px}
+.pdgh{font-weight:600;color:var(--ink-2);margin:0 0 var(--sp-3)}
+.fpick.sgalpick{width:min(520px,calc(100vw - 24px))}
+.sgalpick .fp-l{max-height:min(460px,60vh);padding:var(--sp-3) var(--sp-4)}
+.sgal{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--sp-4);margin-bottom:var(--sp-4)}
+.sgal .sgt{display:block;height:96px;background:var(--well)}
+.sgal .sgt svg{height:96px}
 .pdlg-data{display:flex;flex-direction:column;gap:var(--sp-5);min-width:0}
 .pdlg-ys{border:1px solid var(--rule);border-radius:var(--r);max-height:210px;overflow:auto;padding:var(--sp-2) var(--sp-4)}
 .pdlg-yh{display:flex;align-items:center;gap:var(--sp-2);position:sticky;top:-4px;background:var(--panel);padding:var(--sp-2) 0}
@@ -2192,7 +2206,7 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
 
     <section class="win" id="w-format" data-win="format" aria-label="Format">
       <header class="win-h"><svg class="ic sm"><use href="#i-edit"/></svg><h2 class="win-t">Format</h2><span class="win-sub" id="pdHead"></span><span class="sp"></span></header>
-      <div class="win-b fmtwin"><div id="pdBody"></div><div class="fmtfoot"><button class="btn sm ghost" id="pdReset">Defaults</button><button class="btn sm ghost" id="pdFormats" aria-haspopup="menu">Saved styles <svg class="ic sm" aria-hidden="true"><use href="#i-chev"/></svg></button><button class="btn sm ghost" id="pdAll" hidden>Use on every graph</button></div></div>
+      <div class="win-b fmtwin"><div id="pdBody"></div><div class="fmtfoot"><button class="btn sm ghost" id="pdReset">Defaults</button><button class="btn sm ghost" id="pdFormats" aria-haspopup="dialog" aria-expanded="false">Saved styles <svg class="ic sm" aria-hidden="true"><use href="#i-chev"/></svg></button><button class="btn sm ghost" id="pdAll" hidden>Use on every graph</button></div></div>
     </section>
 
     <section class="win tool" id="w-tool" data-win="tool" aria-label="Tool">
@@ -6594,13 +6608,14 @@ const PLOT_DEF={style:"auto",logY:false,logX:false,grid:false,gridMinor:false,re
 // The settings as drawn: the saved ones, or the Format dialog's while it
 // is open, with defaults filled in.
 function plotCfg(){
-  const p=P(), id=GID(), src=S.plotPreview||GP()||{};
+  // S.hoverPv: a gallery's card on the graph while it is hovered (hoverPreview); S.plotPreview: the Format pane's burst.
+  const p=P(), id=GID(), pv=S.hoverPv||S.plotPreview, src=pv||GP()||{};
   const o=Object.assign({},PLOT_DEF,src);
   o.ax={x:Object.assign({},(src.ax||{}).x),y:Object.assign({},(src.ax||{}).y),y2:Object.assign({},(src.ax||{}).y2),x2:Object.assign({},(src.ax||{}).x2),yo:Object.assign({},(src.ax||{}).yo)};
   o.series=src.series||{}; o.hidden=src.hidden||[];
   // On a graph of its own, a spectrum not on it counts as hidden.
-  const g=S.plotPreview?null:graphOf(id), on=g?g.cols:S.plotPreview?null:[]; if(on) o.hidden=o.hidden.concat(yCols().filter(c=>!on.includes(c.id)).map(c=>c.id));
-  o.annos=((S.plotPreview?src.annos:(p&&p.annos))||[]).filter(a=>annoInGraph(a,id));
+  const g=pv?null:graphOf(id), on=g?g.cols:pv?null:[]; if(on) o.hidden=o.hidden.concat(yCols().filter(c=>!on.includes(c.id)).map(c=>c.id));
+  o.annos=((pv?src.annos:(p&&p.annos))||[]).filter(a=>annoInGraph(a,id));
   // A panel of a figure: its shared axes' inner numbers and titles give way, the
   // panels sharing an axis show the same range of it, it carries its letter, and
   // its margins are those that line its plot area up with the others'.
@@ -6775,7 +6790,7 @@ const fontPrevStack=f=>f[4]?`'KP ${f[4]}', ${f[2]}`:f[2];
    fonts on this computer. pick(key, name) is called with the choice; key ""
    is the inherited font when opt.inherit names it. */
 let fpOpen=null;
-function closeFontPicker(){ if(!fpOpen) return; const o=fpOpen; fpOpen=null; o.el.remove(); document.removeEventListener("pointerdown",o.out,true); if(o.model&&o.btn) o.btn.setAttribute("aria-expanded","false"); if(o.btn&&o.btn.isConnected) o.btn.focus({preventScroll:true}); }
+function closeFontPicker(){ if(!fpOpen) return; const o=fpOpen; fpOpen=null; o.el.remove(); if(o.onClose) o.onClose(); document.removeEventListener("pointerdown",o.out,true); if(o.model&&o.btn) o.btn.setAttribute("aria-expanded","false"); if(o.btn&&o.btn.isConnected) o.btn.focus({preventScroll:true}); }
 function placePop(el,btn){ const r=btn.getBoundingClientRect(), w=el.offsetWidth, h=el.offsetHeight;
   let x=Math.min(r.left,innerWidth-w-8), y=r.bottom+4; if(y+h>innerHeight-8&&r.top-h-4>8) y=r.top-h-4; if(y+h>innerHeight-8) y=Math.max(8,innerHeight-h-8);
   el.style.left=Math.max(8,x)+"px"; el.style.top=y+"px"; }
@@ -9859,7 +9874,7 @@ function pdCommit(){
   if(reset) S.view=null;
   renderTop(); renderPlot(); return true;
 }
-function closePlotDetails(){ pdCommit(); closeFontPicker(); closeColorPicker(); if(fmtOpen()) closeWin("format"); }
+function closePlotDetails(){ S.hoverPv=null; pdCommit(); closeFontPicker(); closeColorPicker(); if(fmtOpen()) closeWin("format"); }
 // The log line names what changed: one annotation, or the parts of the figure.
 function pdLog(a,b){
   const keys=[...new Set(Object.keys(a).concat(Object.keys(b)))].filter(k=>JSON.stringify(a[k]??null)!==JSON.stringify(b[k]??null));
@@ -10184,7 +10199,8 @@ function renderPlotDetails(o){
         +((cfg.mapKind||"image")!=="image"?`<label for="pdMl">Levels</label>${cmb("pdMl",numOr(cfg.mapLevels,8),"mapLevels",3,30,CMB.lev)}`+chk("pdMlb","mapLab",cfg.mapLab!==false,"Number the contour lines"):""):"")
       +(isDistLayout(cfg.layout)?`<label for="pdDw">Whiskers</label>${sel("pdDw",DIST_WHISK,cfg.distWhisk==="range"?"range":"tukey","distWhisk")}`+chk("pdDp","distPts",!!cfg.distPts,"Show the values"):"")
       +chk("pdAxM","axisMatch",cfg.axisMatch!==false,"On two Y axes, colour each axis like its curve"));
-    h+=grp("Colours",`<label for="pdSch">Curves</label>${sel("pdSch",Object.entries(SCHEMES).filter(([k,v])=>!v.hide||k===cfg.scheme).map(([k,v])=>[k,v.name]),cfg.scheme||"kurve","scheme")}<label for="pdPsch">Fitted peaks</label>${sel("pdPsch",Object.entries(PEAK_SCHEMES).map(([k,v])=>[k,v.name]),cfg.peakScheme||"warm","peakScheme")}`);
+    { const cur=cfg.scheme||"kurve", schs=Object.entries(SCHEMES).filter(([k,v])=>!v.hide||k===cur);
+      h+=grp("Colours",wide(`<div class="pdgh" id="pdSchL">Curves</div><div class="pgal pdsch" role="radiogroup" aria-labelledby="pdSchL">${schs.map(([k,v])=>`<button type="button" role="radio" data-pdscheme="${k}" aria-checked="${k===cur}" title="${esc(v.name)}"${ro}>${schemeCard(k)}<span class="pgl">${esc(SCHEME_SHORT[k]||v.name)}</span></button>`).join("")}</div>`)+`<label for="pdPsch">Fitted peaks</label>${sel("pdPsch",Object.entries(PEAK_SCHEMES).map(([k,v])=>[k,v.name]),cfg.peakScheme||"warm","peakScheme")}`); }
     h+=grp("Fit",chk("pdRes","resid",residOn(cfg,shownFit()||residHint()),"Residual panel under a fit")+`<label for="pdRk">Residuals as</label>${sel("pdRk",RES_KINDS,resKindOf(cfg.residKind),"residKind")}`);
   } else if(page==="fpeaks"){
     const f=activeFit(), fs=fplFields(cfg), tpl=String(cfg.peakLabTpl||""), offN=Object.keys(cfg.peakLabOff||{}).length, off=(cfg.peakLab||"num")==="off";
@@ -10344,6 +10360,47 @@ function deleteFormat(f,where){
   const before=fmtLib(); fmtLibSave(before.filter(q=>q.id!==f.id)); toast(`Deleted the style "${f.name}".`,{action:"Undo",run:()=>{ fmtLibSave(before); toast(`The style "${f.name}" is back.`); }}); }
 // Every format there is to use: Kurve's, the project's, this browser's.
 function allFormats(){ return FMT_BUILTIN.concat(projFormats(),fmtLib()); }
+/* Galleries of looks (the design system's PlotGallery): a card per choice drawn
+   with the graph's own curves, previewed on the graph while the pointer or the
+   focus is on it (S.hoverPv, read by plotCfg before the Format pane's working
+   copy), applied by a click. hoverPreview(null) puts the graph back. */
+function hoverPreview(pv){ const had=!!S.hoverPv; S.hoverPv=pv||null; if(had||pv) renderPlot(); }
+const SCHEME_SHORT={kurve:"Kurve's",categorical:"Distinct hues",okabe:"Okabe–Ito",viridis:"Viridis",mono:"Greys, dashed"};
+// A colour scheme's card: the graph's curves (eight at most), each across its own height, in that scheme's colours.
+function schemeCard(k){ const cs=graphCols(GID()).slice(0,8), f1=v=>v.toFixed(1); let x0=Infinity, x1=-Infinity; const ser=[];
+  cs.forEach(c=>{ const d=finalOf(c), n=d.x.length; if(!n) return; const st=Math.max(1,Math.floor(n/80)), X=[], Y=[];
+    for(let i=0;i<n;i+=st){ const x=d.x[i], y=d.y[i]; if(Number.isFinite(x)&&Number.isFinite(y)){ X.push(x); Y.push(y); if(x<x0) x0=x; if(x>x1) x1=x; } }
+    if(X.length) ser.push({c,X,Y}); });
+  if(!ser.length||!(x1>x0)) return `<svg viewBox="0 0 160 64" aria-hidden="true"></svg>`;
+  const n=ser.length, out=ser.map((s,j)=>{ const lo=amin(s.Y), hi=amax(s.Y), sp=hi>lo?hi-lo:1, top=4+j*(40/Math.max(1,n)), h=56-j*(40/Math.max(1,n))-top+4;
+    return `<path d="M${s.X.map((x,i)=>f1(6+(x-x0)/(x1-x0)*148)+","+f1(top+h-(s.Y[i]-lo)/sp*h)).join("L")}" fill="none" stroke="${yTint(s.c.id,false,k)}" stroke-width="1.6"/>`; });
+  return `<svg viewBox="0 0 160 64" preserveAspectRatio="none" aria-hidden="true">${out.join("")}</svg>`; }
+// A saved style's card: the graph drawn in it, small.
+function styleCard(f,base){ const id=GID(); if(!id) return ""; let s="";
+  withGraph(id,()=>{ const c=activeYCol(); if(!c||!pointsAll().length) return; S.plotPreview=styleFrom(f.fmt,base); s=buildPlot(250,160,readPalette(),false); });
+  const pre="sg"+String(f.id||f.name).replace(/[^\w-]/g,"")+"-";
+  return s?s.replace(/\bid="([^"]+)"/g,`id="${pre}$1"`).replace(/url\(#([^)]+)\)/g,`url(#${pre}$1)`).replace(/^<svg([^>]*?) width="[^"]+" height="[^"]+"/,`<svg$1 width="100%" height="100%" preserveAspectRatio="xMidYMid meet" aria-hidden="true"`):""; }
+// The saved styles as a gallery: Kurve's, the project's, this browser's; More… is the menu (save, rename, delete).
+function openStyleGallery(btn,apply,src){
+  closeFontPicker(); closeColorPicker(); if(!GID()) return;
+  const all=allFormats(), pf=projFormats(), lib=fmtLib(), base=JSON.parse(JSON.stringify(src()));
+  const grp=(t,fs)=>fs.length?`<div class="fp-g">${esc(t)}</div><div class="pgal sgal" role="group" aria-label="${esc(t)}">${fs.map(f=>`<button type="button" data-sf="${esc(f.id)}" title="${esc(f.name)}"${S.readOnly?" disabled":""}><span class="pgt sgt"></span><span class="pgl">${esc(f.name)}</span></button>`).join("")}</div>`:"";
+  const el=document.createElement("div"); el.className="fpick sgalpick"; el.setAttribute("role","dialog"); el.setAttribute("aria-label","Saved styles");
+  el.innerHTML=`<div class="fp-l">${grp("Kurve's styles",FMT_BUILTIN)}${grp("In this project",pf)}${grp("Saved in this browser",lib)}</div><div class="fp-f"><button type="button" class="btn sm" data-sfmore aria-haspopup="menu">More…</button><span class="lab">Hover to preview</span></div>`;
+  document.body.appendChild(el); placePop(el,btn); btn.setAttribute("aria-expanded","true");
+  const byId=id=>all.find(f=>f.id===id), cards=[...el.querySelectorAll("[data-sf]")];
+  // Drawn one a frame, so the gallery opens at once.
+  let i=0; const next=()=>{ if(!el.isConnected||i>=cards.length) return; const b=cards[i++], f=byId(b.dataset.sf); if(f) b.querySelector(".sgt").innerHTML=styleCard(f,base); requestAnimationFrame(next); }; requestAnimationFrame(next);
+  const pv=b=>{ const f=byId(b.dataset.sf); if(f) hoverPreview(styleFrom(f.fmt,base)); };
+  cards.forEach(b=>{ b.addEventListener("pointerenter",()=>pv(b)); b.addEventListener("focus",()=>pv(b)); b.addEventListener("pointerleave",()=>hoverPreview(null)); b.addEventListener("blur",()=>hoverPreview(null)); });
+  el.addEventListener("click",e=>{ const b=e.target.closest("[data-sf]"); if(b){ const f=byId(b.dataset.sf); closeFontPicker(); if(f) apply(f); return; }
+    const m=e.target.closest("[data-sfmore]"); if(m){ closeFontPicker(); toggleMenu(btn,()=>formatMenuItems(apply,src),{label:"Saved styles"}); } });
+  el.addEventListener("keydown",e=>{ if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); closeFontPicker(); return; }
+    const k=cards.indexOf(document.activeElement); if(k<0) return; const d=e.key==="ArrowRight"||e.key==="ArrowDown"?1:e.key==="ArrowLeft"||e.key==="ArrowUp"?-1:0;
+    if(d){ e.preventDefault(); const n=cards[Math.max(0,Math.min(cards.length-1,k+d))]; n.focus({preventScroll:true}); const L=el.querySelector(".fp-l"), t=n.offsetTop; if(t<L.scrollTop||t+n.offsetHeight>L.scrollTop+L.clientHeight) L.scrollTop=t-L.clientHeight/2; } });
+  const out=e=>{ if(!el.contains(e.target)&&e.target!==btn&&!btn.contains(e.target)) closeFontPicker(); };
+  document.addEventListener("pointerdown",out,true);
+  fpOpen={el,btn,out,model:true,onClose:()=>hoverPreview(null)}; if(cards[0]) cards[0].focus({preventScroll:true}); }
 function useFormat(f,every){
   const p=P(); if(!p||S.readOnly) return; pushUndo("formatting the graph");
   if(every&&multiGraph()) save({graphs:(p.graphs||[]).map(g=>Object.assign({},g,{plot:styleFrom(f.fmt,g.plot||{})}))},`gave every graph the saved style "${f.name}"`);
@@ -10372,8 +10429,18 @@ function setupPlotDetails(){
   const body=$("#pdBody"); if(!body) return;
   body.addEventListener("change",e=>{ const el=e.target; if(!el||el.id!=="fmtSel") return; const v=el.value;
     pdCommit(); if(v.startsWith("s:")){ S.pdSel=v.slice(2); S.pdTab="series"; } else S.pdTab=v.slice(2); S.pdAnno=null; renderPlotDetails(); });
+  // The colour scheme's gallery: hover or focus previews, a click chooses.
+  const schOf=n=>n&&n.closest&&n.closest("[data-pdscheme]");
+  const schPv=b=>hoverPreview(Object.assign(JSON.parse(JSON.stringify(S.plotPreview||pdBase())),{scheme:b.dataset.pdscheme}));
+  body.addEventListener("pointerover",e=>{ const b=schOf(e.target); if(b&&!b.disabled) schPv(b); });
+  body.addEventListener("pointerout",e=>{ if(schOf(e.target)&&!schOf(e.relatedTarget)) hoverPreview(null); });
+  body.addEventListener("focusin",e=>{ const b=schOf(e.target); if(b&&!b.disabled) schPv(b); });
+  body.addEventListener("focusout",e=>{ if(schOf(e.target)&&!schOf(e.relatedTarget)) hoverPreview(null); });
+  body.addEventListener("keydown",e=>{ const b=schOf(e.target); if(!b) return; const d=e.key==="ArrowRight"||e.key==="ArrowDown"?1:e.key==="ArrowLeft"||e.key==="ArrowUp"?-1:0; if(!d) return;
+    e.preventDefault(); const bs=[...body.querySelectorAll("[data-pdscheme]")], n=bs[(bs.indexOf(b)+d+bs.length)%bs.length]; n.focus({preventScroll:true}); });
   body.addEventListener("click",e=>{
     const t=e.target; if(!P()) return;
+    const sc=schOf(t); if(sc){ if(S.readOnly) return; const k=sc.dataset.pdscheme; hoverPreview(null); pdSet("scheme",k); renderPlotDetails(); const nb=body.querySelector(`[data-pdscheme="${k}"]`); if(nb) nb.focus({preventScroll:true}); return; }
     const s=t.closest("[data-pdsel]"); if(s){ S.pdSel=s.dataset.pdsel; S.pdTab="series"; renderPlotDetails(); return; }
     const pg=t.closest("[data-pdpage]"); if(pg){ S.pdTab=pg.dataset.pdpage; renderPlotDetails(); return; }
     const an=t.closest("[data-pdanno]"); if(an){ S.pdAnno=S.pdAnno===an.dataset.pdanno?null:an.dataset.pdanno; S.annoSel=S.pdAnno; renderPlot(); renderPlotDetails(); return; }
@@ -10431,8 +10498,8 @@ function setupPlotDetails(){
     const arr=[...body.querySelectorAll("[data-pdfpl]")].filter(x=>x.checked).map(x=>x.dataset.pdfpl); pdSet("peakLabShow",arr); pdSet("peakLab",arr.length?"custom":"off"); renderPlotDetails(); });
   // Which kinds of text are open, kept across redraws (a stale toggle of one redrawn away is ignored).
   body.addEventListener("toggle",e=>{ const d=e.target; if(!d||!d.isConnected||!d.dataset||d.dataset.pdcard==null) return; const s=S.pdOpen||(S.pdOpen=new Set()); if(d.open) s.add(d.dataset.pdcard); else s.delete(d.dataset.pdcard); },true);
-  $("#pdFormats").onclick=e=>{ if(!P()) return;
-    toggleMenu(e.currentTarget,()=>formatMenuItems(f=>{ const w=pdWk(); if(!w) return; Object.assign(w,styleFrom(f.fmt,w)); pdCommit(); renderPlotDetails(); toast(`The graph has the style "${f.name}".`,{action:"Undo",run:undo}); },()=>S.plotPreview||pdBase()),{label:"Saved styles"}); };
+  $("#pdFormats").onclick=e=>{ if(!P()) return; const btn=e.currentTarget; if(fpOpen&&fpOpen.btn===btn){ closeFontPicker(); return; }
+    openStyleGallery(btn,(f=>{ const w=pdWk(); if(!w) return; Object.assign(w,styleFrom(f.fmt,w)); pdCommit(); renderPlotDetails(); toast(`The graph has the style "${f.name}".`,{action:"Undo",run:undo}); }),()=>S.plotPreview||pdBase()); };
   $("#pdAll").onclick=()=>{ if(S.readOnly) return; pdCommit(); formatEveryGraph(); };
   $("#pdReset").onclick=()=>{ const wk=pdWk(); if(!wk) return; const pg=S.pdTab, nul=ks=>ks.forEach(k=>{ wk[k]=null; });
     if(pg==="series"){ const series=Object.assign({},wk.series||{}); delete series[S.pdSel]; if(S.pdSel==="__fit") delete series.__peaks; wk.series=series; }
@@ -19318,7 +19385,7 @@ ${DL([["Bars","A line from the lower end to the upper end, with caps."],["Band",
 ${DL([["Line, Symbols, Line + symbols, Sticks, Area, Steps, Columns","How the curves are drawn. Until you choose, a curve is drawn by the <em>Automatic</em> type: a line for many evenly spaced points (500 or more, or 40 or more in order and evenly spaced), symbols for a few or unevenly spaced ones. The curve's right-click <em>Plot type</em> has <em>Automatic</em> first, with what it picked."],["Histogram, Box chart, Violin plot","The distribution of each column's values. "+DA("dists","Distributions")],["Stacked panels, Offset, Heat map","With several curves, how they share the graph."],["Add to a graph","Onto a graph you already have (a closed one opens again)."]])}
 <p>A project has no graph until you plot: each Plot makes a new graph, as in Origin, unless you add to one. A graph shows one column at least: taking off its last is deleting the graph, which its ⋯ menu does, the first graph like any other.</p>
 <h2 id="setup">Plot setup</h2>
-<p>${MP("Plot › Plot setup…")} (first in the worksheet's <em>Plot</em> list too, and what <em>Plot</em> opens when no column is selected) sets the whole plot in one dialog, as Origin's Plot Setup does: the kind of plot, each shown as a small picture (line, symbols, line and symbols, columns, area, steps, sticks; stacked panels, offset, double Y, heat map; box chart, violin plot, histogram), the X column, the Y columns to plot (ticked, with All and None, a column's error bars named beside it), and the graph they go on, a new one or one you have. A sketch shows what it will look like. It starts from what is selected in the worksheet. The arrow keys move between the kinds.</p>
+<p>${MP("Plot › Plot setup…")} (first in the worksheet's <em>Plot</em> list too, and what <em>Plot</em> opens when no column is selected) sets the whole plot in one dialog, as Origin's Plot Setup does: the kind of plot, each a card drawn with the columns ticked, so you choose by what you see (line, symbols, line and symbols, columns, area, steps, sticks; stacked panels, offset, double Y, heat map; box chart, violin plot, histogram), the X column, the Y columns to plot (ticked, with All and None, a column's error bars named beside it), and the graph they go on, a new one or one you have. A sketch shows what it will look like, and shows a kind while the pointer or the focus is on its card. It starts from what is selected in the worksheet. The arrow keys move between the kinds.</p>
 <h2>What is plotted</h2>
 ${DL([["A Y column","As it is: a column, with its processing."],["Other data","Plotting it makes it a Y column. "+DA("import#columns","Other data")],["An X column","Selected with Y columns, it is what they are plotted against: each against the selected X nearest to its left."],["Error bars","Come with their column."]])}
 <p>Every graph keeps its own list of columns: a column you make later is not added to one until you plot it there, or tick it in its ⋯ menu's <em>Columns on it</em>.</p>
@@ -19410,7 +19477,7 @@ ${DL([["Frame","A box, the axis lines only, or none; its width and colour."],["Q
 <h2 id="legend">Legend</h2>
 ${DL([["Place","The emptiest corner, a chosen corner, outside on the right, below the graph, none, or wherever it is dragged."],["Columns, title","One to four columns, or as many as fit below the graph; a title."],["Text and entries","Its font and size, each entry in its curve's colour, the length of the line samples and the spacing of the rows."],["Box","Frame and background, their colours, the background's opacity, the border's width, rounded corners."],["What it lists","Each curve and the fit, with a label of its own."]])}
 <h2>Layout and colours</h2>
-${DL([["Layout","<em>Overlay</em>; <em>Offset</em> (a waterfall, each trace labelled); <em>Stacked</em> (a panel per curve, shared X); <em>Double Y</em> (the others on a right axis); <em>Heat map</em> (one row per curve, with a colour scale)."],["Colours","A scheme for the curves (Kurve's, distinct hues, Okabe–Ito for colour-blind readers, viridis, black and greys for print) and one for peaks. Schemes other than Kurve's colour by table order, so a curve keeps its colour."]])}
+${DL([["Layout","<em>Overlay</em>; <em>Offset</em> (a waterfall, each trace labelled); <em>Stacked</em> (a panel per curve, shared X); <em>Double Y</em> (the others on a right axis); <em>Heat map</em> (one row per curve, with a colour scale)."],["Colours","A scheme for the curves, chosen from cards drawn with the graph's own curves, each shown on the graph while the pointer or the focus is on it (Kurve's, distinct hues, Okabe–Ito for colour-blind readers, viridis, black and greys for print) and one for peaks. Schemes other than Kurve's colour by table order, so a curve keeps its colour."]])}
 <h2>On the graph itself</h2>
 <ul><li>Drag the <strong>legend</strong>, a <strong>title</strong> or an <strong>axis's numbers</strong> to move them. An axis dragged into the plot sits at that value (it snaps to zero); dragged out, it is set off from the plot. A title dragged back within 5 px of its place snaps home.</li>
 <li>Double-click a title, a legend entry, a label, a text or a line's text to type over it, in a box with the buttons for superscripts, subscripts and symbols, formatted as in a word processor or in LaTeX (${DA("latex","Text: formatted or LaTeX")}); double-click an axis's numbers for its page.</li>
@@ -19418,7 +19485,7 @@ ${DL([["Layout","<em>Overlay</em>; <em>Offset</em> (a waterfall, each trace labe
 <li>Right-click an axis's numbers, a title, the legend or an empty spot for their menus. Everything with text has the same menu in the same order: <em>Edit text</em>; <em>Size</em>, <em>Bold</em>, <em>Italic</em> and <em>Colour</em>; what is its own (an axis title's place along the axis, a line's style and width, a label's mark, the legend's place and columns); <em>Format…</em> for its page of the Format pane; <em>Delete</em>.</li>
 <li>An axis title can have a font, size, weight, slant and colour of its own: its axis's page (or the title's right-click menu). The style of every axis title is on the <em>Text and fonts</em> page.</li></ul>
 <h2 id="formats">Saved styles</h2>
-<p>A saved style is a graph's frame, axes, text, legend and colours, without its data, ranges, titles or labels. ${MP("Figure › Saved styles")} gives the graph one of Kurve's (its own; a journal's, sans serif at 8 pt with the axes alone and ticks out; classic serif in a box; slides, with large text and heavy axes; minimal, open axes on a light grid) or one you saved. <em>Save this style…</em> keeps the graph's <strong>in this project</strong>, where it is saved, undone and shared with the project, so a colleague who opens it has it, or <strong>in this browser</strong>, for any graph in any project opened here. <em>Rename or delete a style</em> renames, deletes, or copies one from the project to the browser and back. In the Format pane, <em>Saved styles</em> gives the graph one at once (one undo step). With several graphs, <em>Give every graph a style</em>.</p>
+<p>A saved style is a graph's frame, axes, text, legend and colours, without its data, ranges, titles or labels. ${MP("Figure › Saved styles")} gives the graph one of Kurve's (its own; a journal's, sans serif at 8 pt with the axes alone and ticks out; classic serif in a box; slides, with large text and heavy axes; minimal, open axes on a light grid) or one you saved. <em>Save this style…</em> keeps the graph's <strong>in this project</strong>, where it is saved, undone and shared with the project, so a colleague who opens it has it, or <strong>in this browser</strong>, for any graph in any project opened here. <em>Rename or delete a style</em> renames, deletes, or copies one from the project to the browser and back. In the Format pane, <em>Saved styles</em> shows them as cards, the graph drawn in each; the graph shows one while the pointer or the focus is on its card, and a click gives it the graph at once (one undo step); <em>More…</em> is the menu, with saving, renaming and deleting. With several graphs, <em>Give every graph a style</em>.</p>
 <h2>Every graph alike</h2>
 <p>With several graphs, <em>Use on every graph</em> gives all of them this graph's frame, axes, text, legend and colours; their data, ranges, titles and labels stay their own. ${DA("graphs","Several graphs")}</p>
 <h2>Labels and lines</h2>
@@ -21525,10 +21592,10 @@ function setLinkX(on){ S.linkX=!!on; try{ localStorage.setItem("kurve.linkX",on?
    in place and everything that belongs to the graph in front set aside. */
 function withGraph(id,fn){
   const p=P(); if(!p) return;
-  const keys=["gctx","view","geo","ps","shownPts","stage","cmp","selStep","sel","selPeak","pfPreview","flash","pdraft","draft","annoSel","bandSel","bdrag","andrag","plotPreview","pick"];
+  const keys=["gctx","view","geo","ps","shownPts","stage","cmp","selStep","sel","selPeak","pfPreview","flash","pdraft","draft","annoSel","bandSel","bdrag","andrag","plotPreview","hoverPv","pick"];
   const keep={}; keys.forEach(k=>{ keep[k]=S[k]; }); const act=p.activeY;
   try{
-    Object.assign(S,{gctx:id,stage:null,cmp:false,selStep:null,sel:null,selPeak:null,pfPreview:null,flash:null,pdraft:null,draft:null,annoSel:null,bandSel:null,bdrag:null,andrag:null,plotPreview:null,pick:null});
+    Object.assign(S,{gctx:id,stage:null,cmp:false,selStep:null,sel:null,selPeak:null,pfPreview:null,flash:null,pdraft:null,draft:null,annoSel:null,bandSel:null,bdrag:null,andrag:null,plotPreview:null,hoverPv:null,pick:null});
     p.activeY=leadOf(id); S.view=resolveYAuto(viewFor(id));
     return fn();
   } finally { p.activeY=act; keys.forEach(k=>{ S[k]=keep[k]; }); }
@@ -21811,33 +21878,60 @@ function plotKindIcon(k){
     violin:`<path d="M10 4 C14 10 15 14 12 18 C16 22 14 28 10 32 C6 28 4 22 8 18 C5 14 6 10 10 4Z" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.4"/><path d="M27 6 C29 12 33 15 30 20 C33 25 30 29 27 31 C24 29 21 25 24 20 C21 15 25 12 27 6Z" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.4"/>`,
     hist:[[4,6],[10,14],[16,22],[22,18],[28,9],[34,4]].map(([x,h])=>`<rect x="${x}" y="${32-h}" width="6" height="${h}" fill="currentColor" fill-opacity=".55" stroke="currentColor" stroke-width="1"/>`).join("")}[k]||"";
   return `<svg viewBox="0 0 40 36" class="pkic" aria-hidden="true">${body}</svg>`; }
-// A sketch of what would be plotted: the Y columns against X, as the kind chosen.
-function plotDlgSketch(st){
-  const W=380, H=190, L=8, R=8, T=8, B=8, pw=W-L-R, ph=H-T-B, x=colById(st.x), ys=st.ys.map(colById).filter(Boolean);
-  const pal=readPalette(), ink=pal.ink, frame=`<rect x="${L}" y="${T}" width="${pw}" height="${ph}" fill="none" stroke="${pal.grid}"/>`;
-  if(!ys.length) return `<svg viewBox="0 0 ${W} ${H}" class="pdsk">${frame}<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="${pal.muted||ink}" font-size="13">Tick the Y columns to plot</text></svg>`;
-  if(["box","violin","hist","heat"].includes(st.kind)) return `<svg viewBox="0 0 ${W} ${H}" class="pdsk">${frame}<g transform="translate(${W/2-60},${H/2-54}) scale(3)" style="color:${pal.data}">${plotKindIcon(st.kind).replace(/<\/?svg[^>]*>/g,"")}</g></svg>`;
-  const ser=ys.map((c,k)=>{ const X=[], Y=[]; const n=Math.max(c.data.length,x?x.data.length:0);
+// The columns Plot setup would plot, as numbers: each Y against the X chosen.
+function plotDlgSer(st){ const x=colById(st.x), pal=readPalette();
+  return st.ys.map(colById).filter(Boolean).map((c,k)=>{ const X=[], Y=[], n=Math.max(c.data.length,x?x.data.length:0);
     for(let i=0;i<n;i++){ const xv=x?x.data[i]:i, yv=c.data[i]; if(xv==null||yv==null||!Number.isFinite(+xv)||!Number.isFinite(+yv)) continue; X.push(+xv); Y.push(+yv); }
-    return {X,Y,col:k===0?pal.data:yTint(c.id)}; }).filter(s=>s.X.length);
-  if(!ser.length) return `<svg viewBox="0 0 ${W} ${H}" class="pdsk">${frame}<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="${ink}" font-size="13">These columns have no values against this X yet</text></svg>`;
+    return {X,Y,col:k===0?pal.data:yTint(c.id)}; }).filter(s=>s.X.length); }
+/* A kind of plot drawn with the data, in a box of W × H (L, T its corner): the
+   large sketch and each card of the gallery (the design system's PlotGallery,
+   where people choose by what they see, not by a type's name). max is the most
+   points drawn per series. */
+function plotDraw(ser,kind,L,T,pw,ph,max){
+  const pal=readPalette(), out=[], f1=v=>v.toFixed(1);
+  if(!ser.length) return "";
+  const vals=s=>s.Y, allY=[].concat(...ser.map(vals)), lo=amin(allY), hi=amax(allY), span=hi>lo?hi-lo:1;
+  if(kind==="hist"){ const b=histBins(ser[0].Y,{rule:"fd"}); if(b.fail) return "";
+    const K=b.counts.length, top=Math.max(...b.counts)||1, w=pw/K;
+    out.push(`<path d="${b.counts.map((n,i)=>`M${f1(L+i*w+w*0.08)},${f1(T+ph)}V${f1(T+ph-n/top*ph*0.92)}`).join("")}" stroke="${ser[0].col}" stroke-width="${f1(Math.max(1,w*0.84))}"/>`); return out.join(""); }
+  if(kind==="box"||kind==="violin"){ const n=Math.min(ser.length,8), cw=pw/n, Y=v=>T+ph-((v-lo)/span)*ph*0.9-ph*0.05;
+    ser.slice(0,n).forEach((s,k)=>{ const cx=L+cw*(k+0.5), b=boxStats(s.Y); if(!b) return; const hw=Math.min(cw*0.3,24);
+      if(kind==="violin"){ const ys=Array.from({length:32},(_,i)=>b.min+(b.max-b.min)*i/31), d=kdeAt(s.Y,ys,kdeBandwidth(s.Y)), m=Math.max(...d)||1;
+        const side=ys.map((v,i)=>[cx+d[i]/m*hw*1.3,Y(v)]), back=ys.map((v,i)=>[cx-d[i]/m*hw*1.3,Y(v)]).reverse();
+        out.push(`<path d="M${side.concat(back).map(q=>f1(q[0])+","+f1(q[1])).join("L")}Z" fill="${s.col}" fill-opacity=".3" stroke="${s.col}" stroke-width="1.2"/>`);
+        out.push(`<path d="M${f1(cx)},${f1(Y(b.q1))}V${f1(Y(b.q3))}" stroke="${s.col}" stroke-width="3"/>`); }
+      else out.push(`<path d="M${f1(cx)},${f1(Y(b.lo))}V${f1(Y(b.q1))}M${f1(cx)},${f1(Y(b.q3))}V${f1(Y(b.hi))}" stroke="${s.col}" stroke-width="1.2"/><rect x="${f1(cx-hw)}" y="${f1(Y(b.q3))}" width="${f1(2*hw)}" height="${f1(Math.max(1,Y(b.q1)-Y(b.q3)))}" fill="${s.col}" fill-opacity=".18" stroke="${s.col}" stroke-width="1.2"/><path d="M${f1(cx-hw)},${f1(Y(b.med))}H${f1(cx+hw)}" stroke="${s.col}" stroke-width="2.2"/>`); });
+    return out.join(""); }
   let x0=Infinity,x1=-Infinity; ser.forEach(s=>s.X.forEach(v=>{ if(v<x0) x0=v; if(v>x1) x1=v; })); if(!(x1>x0)){ x0-=1; x1+=1; }
-  const band=st.kind==="stack"?ph/ser.length:ph, out=[];
-  const yr=s=>{ let a=Infinity,b=-Infinity; s.Y.forEach(v=>{ if(v<a) a=v; if(v>b) b=v; }); if(!(b>a)){ a-=1; b+=1; } return [a,b]; };
-  let g0=Infinity,g1=-Infinity; ser.forEach(s=>{ const [a,b]=yr(s); if(a<g0) g0=a; if(b>g1) g1=b; });
-  ser.forEach((s,k)=>{ let [a,b]=st.kind==="stack"||st.kind==="dy"&&k>0?yr(s):[g0,g1]; if(st.kind==="column"||st.kind==="area"||st.kind==="stick"){ a=Math.min(a,0); b=Math.max(b,0); }
-    const off=st.kind==="offset"?k*(g1-g0)*0.35:0, top=st.kind==="stack"?T+band*k:T, hh=st.kind==="stack"?band:ph, span=st.kind==="offset"?(b-a)*(1+0.35*(ser.length-1)):(b-a);
-    const X=v=>L+(st.rev?(x1-v):(v-x0))/(x1-x0)*pw, Y=v=>top+hh-((v+off-a)/span)*hh*0.92-hh*0.04;
-    const step=Math.max(1,Math.floor(s.X.length/300)), pts=s.X.map((v,i)=>[X(v),Y(s.Y[i])]).filter((q,i)=>i%step===0);
-    const d="M"+pts.map(q=>q[0].toFixed(1)+","+q[1].toFixed(1)).join("L");
-    if(st.kind==="scatter"||st.kind==="linesym") out.push((st.kind==="linesym"?`<path d="${d}" fill="none" stroke="${s.col}" stroke-width="1.3"/>`:"")+`<path d="${pts.map(q=>`M${q[0].toFixed(1)},${q[1].toFixed(1)}h0`).join("")}" stroke="${s.col}" stroke-width="4" stroke-linecap="round"/>`);
-    else if(st.kind==="column"){ const w=Math.max(1,pw/pts.length*0.7/ser.length); out.push(`<path d="${pts.map(q=>`M${(q[0]-w*ser.length/2+w*k).toFixed(1)},${Y(0).toFixed(1)}V${q[1].toFixed(1)}`).join("")}" stroke="${s.col}" stroke-width="${w.toFixed(1)}"/>`); }
-    else if(st.kind==="stick") out.push(`<path d="${pts.map(q=>`M${q[0].toFixed(1)},${Y(0).toFixed(1)}V${q[1].toFixed(1)}`).join("")}" stroke="${s.col}" stroke-width="1.2"/>`);
-    else if(st.kind==="area") out.push(`<path d="${d}L${pts[pts.length-1][0].toFixed(1)},${Y(0).toFixed(1)}L${pts[0][0].toFixed(1)},${Y(0).toFixed(1)}Z" fill="${s.col}" fill-opacity=".3" stroke="${s.col}" stroke-width="1.4"/>`);
-    else if(st.kind==="step"){ let dd="M"+pts[0][0].toFixed(1)+","+pts[0][1].toFixed(1); for(let i=1;i<pts.length;i++){ const mx=(pts[i-1][0]+pts[i][0])/2; dd+=`H${mx.toFixed(1)}V${pts[i][1].toFixed(1)}`; } out.push(`<path d="${dd}" fill="none" stroke="${s.col}" stroke-width="1.5"/>`); }
-    else out.push(`<path d="${d}" fill="none" stroke="${s.col}" stroke-width="1.6"${st.kind==="dy"&&k>0?` stroke-dasharray="5 3"`:""}/>`);
-    if(st.kind==="stack"&&k) out.push(`<path d="M${L},${top}H${L+pw}" stroke="${pal.grid}"/>`); });
-  return `<svg viewBox="0 0 ${W} ${H}" class="pdsk" role="img" aria-label="A sketch of the plot">${frame}${out.join("")}</svg>`; }
+  if(kind==="heat"){ const C=Math.min(48,Math.max(8,Math.round(pw/4))), R=ser.length, rh=ph/R;
+    ser.forEach((s,r)=>{ const sum=new Array(C).fill(0), cnt=new Array(C).fill(0); s.X.forEach((v,i)=>{ const c=Math.min(C-1,Math.floor((v-x0)/(x1-x0)*C)); sum[c]+=s.Y[i]; cnt[c]++; });
+      for(let c=0;c<C;c++) if(cnt[c]) out.push(`<rect x="${f1(L+c*pw/C)}" y="${f1(T+r*rh)}" width="${f1(pw/C+0.4)}" height="${f1(rh+0.4)}" fill="${pal.data}" fill-opacity="${(0.08+0.92*(sum[c]/cnt[c]-lo)/span).toFixed(2)}"/>`); });
+    return out.join(""); }
+  const band=kind==="stack"?ph/ser.length:ph;
+  const yr=s=>{ const a=amin(s.Y), b=amax(s.Y); return b>a?[a,b]:[a-1,b+1]; };
+  ser.forEach((s,k)=>{ let [a,b]=kind==="stack"||kind==="dy"&&k>0?yr(s):[lo,hi>lo?hi:lo+1]; if(kind==="column"||kind==="area"||kind==="stick"){ a=Math.min(a,0); b=Math.max(b,0); }
+    const off=kind==="offset"?k*span*0.35:0, top=kind==="stack"?T+band*k:T, hh=kind==="stack"?band:ph, sp=kind==="offset"?(b-a)*(1+0.35*(ser.length-1)):(b-a);
+    const X=v=>L+(v-x0)/(x1-x0)*pw, Y=v=>top+hh-((v+off-a)/(sp||1))*hh*0.92-hh*0.04;
+    const step=Math.max(1,Math.floor(s.X.length/max)), pts=s.X.map((v,i)=>[X(v),Y(s.Y[i])]).filter((q,i)=>i%step===0);
+    const d="M"+pts.map(q=>f1(q[0])+","+f1(q[1])).join("L"), dot=max<200?3:4;
+    if(kind==="scatter"||kind==="linesym") out.push((kind==="linesym"?`<path d="${d}" fill="none" stroke="${s.col}" stroke-width="1.2"/>`:"")+`<path d="${pts.map(q=>`M${f1(q[0])},${f1(q[1])}h0`).join("")}" stroke="${s.col}" stroke-width="${dot}" stroke-linecap="round"/>`);
+    else if(kind==="column"){ const w=Math.max(1,pw/pts.length*0.7/ser.length); out.push(`<path d="${pts.map(q=>`M${f1(q[0]-w*ser.length/2+w*k)},${f1(Y(0))}V${f1(q[1])}`).join("")}" stroke="${s.col}" stroke-width="${f1(w)}"/>`); }
+    else if(kind==="stick") out.push(`<path d="${pts.map(q=>`M${f1(q[0])},${f1(Y(0))}V${f1(q[1])}`).join("")}" stroke="${s.col}" stroke-width="1.1"/>`);
+    else if(kind==="area") out.push(`<path d="${d}L${f1(pts[pts.length-1][0])},${f1(Y(0))}L${f1(pts[0][0])},${f1(Y(0))}Z" fill="${s.col}" fill-opacity=".3" stroke="${s.col}" stroke-width="1.3"/>`);
+    else if(kind==="step"){ let dd="M"+f1(pts[0][0])+","+f1(pts[0][1]); for(let i=1;i<pts.length;i++){ const mx=(pts[i-1][0]+pts[i][0])/2; dd+=`H${f1(mx)}V${f1(pts[i][1])}`; } out.push(`<path d="${dd}" fill="none" stroke="${s.col}" stroke-width="1.4"/>`); }
+    else out.push(`<path d="${d}" fill="none" stroke="${s.col}" stroke-width="1.5"${kind==="dy"&&k>0?` stroke-dasharray="5 3"`:""}/>`);
+    if(kind==="stack"&&k) out.push(`<path d="M${L},${f1(top)}H${L+pw}" stroke="${pal.grid}"/>`); });
+  return out.join(""); }
+// A sketch of what would be plotted: the Y columns against X, as the kind chosen.
+function plotDlgSketch(st,kind,ser){
+  const W=380, H=190, L=8, R=8, T=8, B=8, pw=W-L-R, ph=H-T-B, pal=readPalette(), ink=pal.ink, frame=`<rect x="${L}" y="${T}" width="${pw}" height="${ph}" fill="none" stroke="${pal.grid}"/>`;
+  if(!st.ys.length) return `<svg viewBox="0 0 ${W} ${H}" class="pdsk">${frame}<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="${pal.muted||ink}" font-size="13">Tick the Y columns to plot</text></svg>`;
+  ser=ser||plotDlgSer(st);
+  if(!ser.length) return `<svg viewBox="0 0 ${W} ${H}" class="pdsk">${frame}<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="${ink}" font-size="13">These columns have no values against this X yet</text></svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" class="pdsk" role="img" aria-label="A sketch of the plot">${frame}${plotDraw(ser,kind||st.kind,L+4,T+4,pw-8,ph-8,300)}</svg>`; }
+// Each kind's card: the selected columns drawn that way (PLOT_DLG_KINDS's own picture while none is ticked).
+function plotDlgCard(k,ser){ const inner=ser&&ser.length?plotDraw(ser,k,6,5,148,54,90):"";
+  return inner?`<svg viewBox="0 0 160 64" preserveAspectRatio="none" aria-hidden="true">${inner}</svg>`:`<svg viewBox="0 0 160 64" aria-hidden="true"><g transform="translate(60,10) scale(1.2)" style="color:var(--data)">${plotKindIcon(k).replace(/<\/?svg[^>]*>/g,"")}</g></svg>`; }
 async function openPlotDlg(cids){
   const p=P(); if(!p||S.readOnly) return; if(S.ws&&S.ws.edit) wsCommit(0,0,true);
   const raw=sheetCols(), xs=raw.filter(c=>c.role==="x"), cand=raw.filter(c=>c.role==="y"||c.role==="ignore");
@@ -21850,7 +21944,7 @@ async function openPlotDlg(cids){
   const nm=c=>`<b>${esc(colLetter(c))}</b> ${esc(c.name||"")}${c.unit?` <span class="unit">(${esc(c.unit)})</span>`:""}`;
   const errNote=c=>{ const e=errColsOf(c.id), k=Object.keys(e); return k.length?`<span class="lab" title="Its error bars come with it">± ${k.map(q=>colLetter(e[q])).join(", ")}</span>`:""; };
   const html=`<div class="pdlg">
-    <div class="pdlg-kinds" role="radiogroup" aria-label="Kind of plot">${PLOT_DLG_KINDS.map(([k,l],i)=>`${i===7?`<div class="pdlg-sep" role="presentation">With several columns</div>`:""}<button type="button" class="pdk" role="radio" data-pk="${k}" aria-checked="${k===st.kind}" title="${esc(l)}">${plotKindIcon(k)}<span>${esc(l)}</span></button>`).join("")}</div>
+    <div class="pdlg-kinds pgal" role="radiogroup" aria-label="Kind of plot">${PLOT_DLG_KINDS.map(([k,l],i)=>`${i===7?`<div class="pdlg-sep" role="presentation">With several columns</div>`:""}<button type="button" role="radio" data-pk="${k}" aria-checked="${k===st.kind}" title="${esc(l)}"><span class="pgt"></span><span class="pgl">${esc(l)}</span></button>`).join("")}</div>
     <div class="pdlg-data">
       <div class="grid2"><label for="pdlgX">X column</label><select id="pdlgX">${xs.map(c=>`<option value="${c.id}"${st.x===c.id?" selected":""}>${esc(colLetter(c))} ${esc(colLabel(c,""))}</option>`).join("")||`<option value="">Row number (no X column)</option>`}</select></div>
       <div class="pdlg-ys" role="group" aria-label="Y columns to plot"><div class="pdlg-yh"><span class="gh">Y columns</span><span class="sp"></span><button type="button" class="btn sm ghost" id="pdlgAll">All</button><button type="button" class="btn sm ghost" id="pdlgNone">None</button></div>
@@ -21860,8 +21954,11 @@ async function openPlotDlg(cids){
     </div></div>`;
   const sh=$("#formModal .sheet"); sh.classList.remove("small"); sh.classList.add("plotdlg");
   const pr=formDlg({title:"Plot",html,ok:"Plot",valid:()=>st.ys.length>0});
-  const box=$("#formBody"), sk=()=>{ const el=box.querySelector("#pdlgSk"); if(el) el.innerHTML=plotDlgSketch(st); }, okb=$("#formOk");
-  const refresh=()=>{ okb.disabled=!st.ys.length; okb.textContent=st.kind==="hist"?(st.ys.length>1?"Make the histograms":"Make the histogram"):"Plot"; sk(); };
+  // The cards are drawn with the columns ticked; hovering or focusing one shows it in the sketch, leaving shows the chosen one again.
+  let ser=[]; const box=$("#formBody"), sk=k=>{ const el=box.querySelector("#pdlgSk"); if(el) el.innerHTML=plotDlgSketch(st,k,ser); }, okb=$("#formOk");
+  const cards=()=>box.querySelectorAll("[data-pk]").forEach(b=>{ b.querySelector(".pgt").innerHTML=plotDlgCard(b.dataset.pk,ser); });
+  const refresh=()=>{ ser=st.ys.length?plotDlgSer(st):[]; okb.disabled=!st.ys.length; okb.textContent=st.kind==="hist"?(st.ys.length>1?"Make the histograms":"Make the histogram"):"Plot"; sk(); cards(); };
+  box.querySelectorAll("[data-pk]").forEach(b=>{ const on=()=>sk(b.dataset.pk), off=()=>sk(); b.addEventListener("pointerenter",on); b.addEventListener("pointerleave",off); b.addEventListener("focus",on); b.addEventListener("blur",off); });
   box.querySelectorAll("[data-pk]").forEach(b=>b.onclick=()=>{ st.kind=b.dataset.pk; box.querySelectorAll("[data-pk]").forEach(q=>q.setAttribute("aria-checked",String(q===b))); refresh(); });
   box.querySelector(".pdlg-kinds").addEventListener("keydown",e=>{ const bs=[...box.querySelectorAll("[data-pk]")], i=bs.findIndex(b=>b.dataset.pk===st.kind), d=e.key==="ArrowRight"||e.key==="ArrowDown"?1:e.key==="ArrowLeft"||e.key==="ArrowUp"?-1:0; if(!d) return; e.preventDefault(); const nb=bs[(i+d+bs.length)%bs.length]; nb.click(); nb.focus(); });
   box.querySelectorAll("[data-pdy]").forEach(cb=>cb.onchange=()=>{ st.ys=[...box.querySelectorAll("[data-pdy]")].filter(q=>q.checked).map(q=>q.dataset.pdy); refresh(); });

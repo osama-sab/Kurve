@@ -1009,3 +1009,17 @@ people type (`CMDK_SYN`).
   worksheet until the grid is pressed or typed in; the empty graph says the same.
 
 `tools/ds-test.mjs` has 16 new checks (136).
+
+## The design system into the app, slice 9: galleries drawn with the data (2026-10-29)
+
+- **Plot setup**: each kind of plot is a card drawn with the columns ticked (line, symbols,
+  columns, areas, steps, sticks, panels, offsets, two axes, a heat map's rows, boxes, violins, a
+  histogram), and the sketch shows a card's kind while the pointer or the focus is on it.
+- **Colour schemes** (the Format pane's Layout and colours page): a card per scheme drawn with
+  the graph's own curves; the graph shows a scheme while its card is hovered or focused, and a
+  click chooses it.
+- **Saved styles** (the Format pane's button): a gallery of the graph drawn in each style, by
+  group (Kurve's, the project's, this browser's); hovering one shows it on the graph, a click
+  applies it, Escape puts the graph back, More… is the menu with save, rename and delete.
+
+`tools/ds-test.mjs` has 9 new checks (145).

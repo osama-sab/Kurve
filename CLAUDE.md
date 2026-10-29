@@ -1010,10 +1010,16 @@ graph first, with the taskbar kept at the bottom of the screen.
   the worksheet's `#wsPlotBtn`, Plot › Plot the selected columns, the cell menu and the
   column menu (`wsSelColIds`, `plotTargets(cid)`); its first item is **Plot setup…**:
   `openPlotDlg(cids)` (also first in Plot, and what `#wsPlotBtn` opens when nothing plottable
-  is selected), as Origin's Plot Setup: `PLOT_DLG_KINDS` as tiles drawn by `plotKindIcon` (a
-  radiogroup the arrow keys move through; `S.plotDlgKind` remembered), the X column, the Y
-  columns ticked with All and None and each one's error bars named, Into (a new graph or one
-  of the project's), and `plotDlgSketch(st)`; OK is `plotCols` (or `histogramCols`). A
+  is selected), as Origin's Plot Setup: `PLOT_DLG_KINDS` as a gallery (`.pgal`, the design
+  system's PlotGallery: a card per kind drawn with the columns ticked, `plotDlgCard(k, ser)`,
+  `plotKindIcon`'s picture only while none is; a radiogroup the arrow keys move through;
+  `S.plotDlgKind` remembered), the X column, the Y columns ticked with All and None and each
+  one's error bars named, Into (a new graph or one of the project's), and
+  `plotDlgSketch(st, kind, ser)`, which shows a card's kind while it is hovered or focused;
+  both draw `plotDlgSer(st)` (each Y against the X) through `plotDraw(ser, kind, L, T, w, h,
+  max)` (every kind from the values: lines, symbols, columns, areas, steps, sticks, panels,
+  offsets, two axes, a heat map's rows, boxes, violins, a histogram); OK is `plotCols` (or
+  `histogramCols`). A
   `type` given to `plotCols` goes to every spectrum it plots, not only the analysed one. `ensureGraph()` (Peaks, Fit, Integrate)
   brings forward a graph showing the analysed column (`graphForCol`), opening it if closed, or
   plots the column on a new graph when none shows it. `GID()` is the graph in hand (`S.gctx` while drawing
@@ -1563,8 +1569,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   zones or side effects on `S`), which is also what `opt.inset` asks for, drawn in the
   screen's colours. `opt.k` scales every text (for an export at a size in points), and ticks
   space out with larger text (`tkDen`).
-  It reads the plot settings through `plotCfg()`, which is the Format pane's working copy
-  while that dialog is open. Each spectrum has a style from `serStyle(id, active, …)`: `type`
+  It reads the plot settings through `plotCfg()`, which is a gallery card's preview while one
+  is hovered (`S.hoverPv`, `hoverPreview(pv)`), else the Format pane's working copy while it
+  is open. Each spectrum has a style from `serStyle(id, active, …)`: `type`
   (`PLOT_TYPES`: line, scatter, linesym, stick, area, step; with the graph's `style` "auto",
   the default of every new graph, `autoType(id)`: a line for 500 points or more, or 40 or more
   sorted with even spacing, symbols otherwise; a curve's own `series[id].type` wins, and
@@ -1864,8 +1871,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   per-browser library (`fmtLib`, `fmtLibSave`, under `kurve.formats`); `saveFormatAs` asks
   which (the project by default when the store is shared), `renameFormat`, `copyFormat`,
   `deleteFormat`, `allFormats()`; `useFormat(f, every)` gives one to the graph or every
-  graph, `formatMenuItems` lists them by group (Figure › Saved styles, and the Format dialog's Saved styles
-  button, which applies to the working copy; "saved style" is the interface's word for a format). `txtAuto(cfg, el)` is a kind of text's automatic style.
+  graph, `formatMenuItems` lists them by group (Figure › Saved styles, and the Format pane's
+  More…), and the Format pane's Saved styles button opens them as a gallery
+  (`openStyleGallery(btn, apply, src)`, `.fpick.sgalpick`: the graph drawn in each,
+  `styleCard(f, base)` through `withGraph`, one a frame; hovered or focused, the graph shows it;
+  a click applies it to the working copy and commits; Escape or a press outside puts the graph
+  back, `fpOpen.onClose`); "saved style" is the interface's word for a format. The Layout and
+  colours page chooses the curves' scheme from a gallery too (`schemeCard(k)`: the graph's
+  curves, eight at most, in the scheme's colours; `SCHEME_SHORT` the cards' names, the scheme's
+  `name` the tooltip; `[data-pdscheme]`, hovered or focused it previews, a click is `pdSet`). `txtAuto(cfg, el)` is a kind of text's automatic style.
   `renderTop`, `renderWs`, `renderPlot` (+ `renderStatusBar`), `renderStages` (now the graph
   window's stage chip and its Original/Processed/Both, `renderViewSeg`), `renderFit` (it also refreshes
   `renderResults`, `renderTabMarks` and the status bar), `renderFlow`, `renderTool`,
@@ -2859,6 +2873,11 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **Where a menu is shown must be visible when it is shown.** The Column menu in the graph's bar
   first appeared while the worksheet was in front, and in front the worksheet can cover the graph:
   the button was there and could not be pressed. It follows the last place pressed or typed in.
+- **A preview is a third copy of the settings.** The galleries show a card on the graph while it
+  is hovered; written into the Format pane's working copy, a hover would have started a burst and
+  saved itself 400 ms later. It is a copy of its own (`S.hoverPv`), read before the working copy
+  and never saved, put back on leaving, on Escape and when the pane closes; `withGraph` sets it
+  aside as it does the working copy.
 - **A word in the glossary and a word on a button are two jobs.** The glossary's "not counted
   as a peak" replaced "turned down" in prose; the design system's heading for the same list is
   *Rejected*. A heading of one word keeps the glossary's phrase in its tooltip and in Help, so
@@ -2912,7 +2931,10 @@ in read-only fields, each format's use its tooltip, Cancel and Export alone; Pre
 as the system's, with a System theme and Done alone; a tool window's Input (the data the step
 reads); the Peaks window in one- or two-word labels (Search, Settings, Find, Add peak, Rejected,
 Identify; Done, Fit…, Integrate, Labels… on one row); and the empty desk's headline, Import data,
-over an empty worksheet. Next: galleries drawn with the data, two displays.
+over an empty worksheet. Slice 9 done: galleries drawn with the data: Plot setup's kinds as cards
+of the columns ticked (hovering one shows it in the sketch), the colour schemes as cards of the
+graph's own curves and the saved styles as the graph drawn in each, both shown on the graph while
+hovered or focused and applied by a click. Next: two displays.
 
 Then: the curve fit as complete as Origin's fitting dialogs (`ux/spec/FIT_SPEC.md`, the
 roadmap's first item). Slice 1 done: Fit control in the Fit window (the method named, the
