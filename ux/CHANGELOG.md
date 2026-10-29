@@ -1024,6 +1024,20 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plot setup, slice 5: kinds that need another column (2026-10-29)
+
+`ux/spec/PLOT_SPEC.md` slice 5.
+- Four kinds in a row of their own, drawn with the data: **Bubbles** (sized by a column marked
+  Size), **Colour by value** (a column marked Colour, with its colour bar), **Labelled points** (a
+  column marked Labels), **Error boxes** (a box round each point spanning its X and Y errors).
+- Until each curve has what its kind needs, a note says what to mark (and which curves lack it),
+  and Plot waits.
+- Error boxes are also a way to draw any curve's error bars: *Boxes (X and Y)* in its Error bars
+  menu and the Format pane.
+
+Checked: `tools/plot-drive.mjs` (10 new, 70), ds-test's gallery (18 cards), screenshots, and every
+suite from the round before.
+
 ## Plot setup, slice 4: groups (2026-10-29)
 
 `ux/spec/PLOT_SPEC.md` slice 4.

@@ -874,6 +874,20 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-10-29: kinds that need another column (PLOT_SPEC slice 5)
+
+- **Chosen by what they look like, as every kind is**: bubbles, colour by value, labelled points
+  and error boxes are cards in a row of their own, *With another column*, drawn with the data.
+  They were settings inside the Format pane (size by a column, colour by a column, labels from a
+  column), where nobody looking for "a bubble chart" would find them.
+- **The kind says what it still needs.** A note under *Curves on the graph* says which column to
+  mark beside each curve, and names the curves that have none; Plot waits until it is there. A
+  kind that silently drew plain symbols would look broken.
+- **Error boxes** draw a point's X and Y errors as one box: two errors read as one region. They
+  are also a third way to draw any curve's error bars (the curve's menu, the Format pane), and a
+  point with only one error keeps its bar.
+- The Format pane keeps the look of each (sizes, the colour map, the labels' text).
+
 ### 2026-10-29: groups of curves (PLOT_SPEC slice 4)
 
 - **A group is a way to say "these go together"**, as in Origin: a series measured at several

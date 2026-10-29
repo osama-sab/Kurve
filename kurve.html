@@ -985,6 +985,7 @@ details.more>table{margin-top:var(--sp-4)}
 .sheet.plotdlg.psuw{width:min(1120px,100%)}
 .psu{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);grid-template-areas:"tabs tabs" "kinds kinds" "cols pv" "cur pv";gap:var(--sp-5) var(--sp-6);align-items:start}
 .psu-tabs{grid-area:tabs;display:none}
+.psu .pgal .pgt svg{display:block;width:100%;height:46px}
 .psu-tabs>button[aria-selected="true"]{background:var(--seg-on);color:var(--seg-on-ink);box-shadow:var(--seg-sh);font-weight:600}
 .psu .pdlg-kinds.pgal{grid-area:kinds;grid-template-columns:repeat(7,minmax(0,1fr))}
 .psu-colsp{grid-area:cols;display:flex;flex-direction:column;gap:var(--sp-3);min-width:0}
@@ -6109,12 +6110,14 @@ function errSvg(g,pts,st,X,Y,pal,masked,o){
   const out={under:"",over:""}; if(!g||st.eb==="none"||!pts.length) return out;
   const f1=v=>v.toFixed(1), col=st.ebColor||st.color, lw=Math.max(0.3,+st.ebLw||1), cap=Math.max(0,+st.ebCap||0), hc=cap/2, band=st.eb==="band"&&g.hasY;
   const lo=v=>o&&o.logY?Math.max(v,o.yMin):v;
-  let eb="", em=""; const runs=[]; let run=[];
+  let eb="", em="", bx=""; const runs=[]; let run=[]; const boxes=st.eb==="box"&&g.hasX&&g.hasY;
   // Past DEC_MIN points on screen, the Y bars of one column of half a pixel are merged where
   // they overlap, caps are kept one per spot of a quarter, X bars one per spot of a pixel.
   const dense=decOn(pts.length,o&&o.full), dw=dense?decW()/2:1, colY=dense?new Map():null, seenX=dense?new Set():null, seenC=dense?new Set():null;
   const capAt=(x,y)=>{ const k=Math.floor(x/dw)+","+Math.round(2*y/dw); if(seenC.has(k)) return ""; seenC.add(k); return `M${f1(x-hc)},${f1(y)}h${cap}`; };
   pts.forEach(q=>{ const w=g.at(q), x=X(q.x), y=Y(q.y); if(!Number.isFinite(x)||!Number.isFinite(y)) return; let seg="";
+    if(boxes&&(w.up>0||w.dn>0)&&(w.l>0||w.r>0)){ const y1=Y(q.y+w.up), y0=Y(lo(q.y-w.dn)), x0=X(q.x-w.l), x1=X(q.x+w.r);
+      if([x0,x1,y0,y1].every(Number.isFinite)){ const d=`M${f1(x0)},${f1(y1)}H${f1(x1)}V${f1(y0)}H${f1(x0)}Z`; if(masked&&masked(q.i)) em+=d; else { eb+=d; bx+=d; } return; } }
     if(g.hasY&&(w.up>0||w.dn>0)){ const y1=Y(q.y+w.up), y0=Y(lo(q.y-w.dn));
       if(band) run.push([x,y1,y0]);
       else if(Number.isFinite(y0)&&Number.isFinite(y1)){
@@ -6137,6 +6140,7 @@ function errSvg(g,pts,st,X,Y,pal,masked,o){
         z.push([r[i][0],t,b]); if(j>i) z.push([r[j][0],t,b]); i=j+1; } r=z; }
     const up=r.filter(z=>Number.isFinite(z[1])), dn=r.filter(z=>Number.isFinite(z[2])).reverse(); if(up.length<2||dn.length<2) return;
     out.under+=`<path d="M${up.map(z=>f1(z[0])+","+f1(z[1])).join("L")}L${dn.map(z=>f1(z[0])+","+f1(z[2])).join("L")}Z" fill="${col}" fill-opacity="${(+st.ebOp>0?+st.ebOp:0.22).toFixed(2)}" stroke="none"${op}/>`; });
+  if(bx) out.under+=`<path d="${bx}" fill="${col}" fill-opacity="${(+st.ebOp>0?+st.ebOp:0.22).toFixed(2)}" stroke="none"${op} data-ebox="1"/>`;
   if(eb) out.over+=`<path d="${eb}" stroke="${col}" stroke-width="${lw}" fill="none"${op}/>`;
   if(em) out.over+=`<path d="${em}" stroke="${pal.masked}" stroke-width="${lw}" fill="none"/>`;
   return out; }
@@ -10093,7 +10097,7 @@ function graphMenuItems(id,at){
       {label:"Plot type",sub:()=>plotTypeItems(c,ro)},
       {label:"Connect",sub:()=>CONN_KINDS.map(([k,l])=>({label:l,radio:true,checked:st.conn===k,enabled:!ro,run:()=>setSeriesStyle(c.id,{conn:k},`joined the points of ${specName(c)} by ${l.toLowerCase()}`)}))},
       {label:"Fill between it and",sub:()=>[{label:"Nothing",radio:true,checked:!st.fillTo,enabled:!ro,run:()=>setSeriesStyle(c.id,{fillTo:""},`left the area by ${specName(c)} unfilled`)}].concat(yCols().filter(o=>o!==c&&graphShows(o)).map(o=>({label:specName(o),radio:true,checked:st.fillTo===o.id,enabled:!ro,run:()=>setSeriesStyle(c.id,{fillTo:o.id},`filled between ${specName(c)} and ${specName(o)}`)})))},
-      hasErrCols(c.id)||(finalOf(c).e||[]).some(v=>v>0)?{label:"Error bars",sub:()=>[{group:errSourceText(c)}].concat([["bars","Bars"],["band","A shaded band"],["none","None"]].map(([k,l])=>({label:l,radio:true,checked:st.eb===k,enabled:!ro,run:()=>setSeriesStyle(c.id,{eb:k},`drew the error bars of ${specName(c)} as ${l.toLowerCase()}`)})))}:null);
+      hasErrCols(c.id)||(finalOf(c).e||[]).some(v=>v>0)?{label:"Error bars",sub:()=>[{group:errSourceText(c)}].concat([["bars","Bars"],["band","A shaded band"],["box","Boxes (X and Y)"],["none","None"]].map(([k,l])=>({label:l,radio:true,checked:st.eb===k,enabled:!ro,run:()=>setSeriesStyle(c.id,{eb:k},`drew the error bars of ${specName(c)} as ${l.toLowerCase()}`)})))}:null);
     { const u=curveUse(c.id), ov=cfg.layout==="overlay", sib=sheetCols(sheetOf(c)).filter(o=>o.id!==c.id&&(o.data||[]).some(v=>v!=null));
       items.push("-",{label:"Range…",note:u.rng?rngText(u.rng,c):"",title:"What this graph draws of it: all, some rows, or an X range",enabled:!ro,run:()=>curveRangeDlg(c.id)},
         {label:"Right axis",checked:u.ax==="r"||(cfg.layout==="dy"&&!isAct),enabled:!ro&&ov&&!isAct,title:isAct?"The active curve stays on the left axis":!ov?"For overlaid curves (two Y axes puts every other curve on the right)":"On a Y axis of its own at the right",
@@ -10531,7 +10535,7 @@ function renderPlotDetails(o){
         +`<label for="pdHatch">Hatching</label>${sel("pdHatch",HATCHES,st.hatch,b+".hatch")}<label for="pdOp">Opacity</label>${rng("pdOp",st.op,b+".op",0.1,1,0.05)}`
         +(st.fillTo&&cfg.layout!=="overlay"?note("The fill between two curves is drawn when they are overlaid."):""));
       const eks=allCols().filter(o=>o.role==="e"&&o.of===c.id);
-      if(eks.length||(finalOf(c).e||[]).some(v=>v>0)) h+=grp("Error bars",`<label>Show as</label>${seg(b+".eb",[["bars","Bars"],["band","Band"],["none","None"]],st.eb,"How the error bars are drawn: bars with caps, or a shaded band between their ends")}<label>Colour</label>${cb(b+".ebColor",own.ebColor,"The spectrum's",st.color)}<label for="pdEbLw">Width</label>${cmb("pdEbLw",st.ebLw,b+".ebLw",0.5,4,CMB.lw)}<label for="pdEbCap">Caps</label>${cmb("pdEbCap",st.ebCap,b+".ebCap",0,14,CMB.cap)}<label for="pdEbOp">Band opacity</label>${rng("pdEbOp",st.ebOp,b+".ebOp",0.05,0.8,0.05)}`
+      if(eks.length||(finalOf(c).e||[]).some(v=>v>0)) h+=grp("Error bars",`<label>Show as</label>${seg(b+".eb",[["bars","Bars"],["band","Band"],["box","Boxes"],["none","None"]],st.eb,"How the error bars are drawn: bars with caps, a shaded band between their ends, or a box round each point spanning its X and Y errors")}<label>Colour</label>${cb(b+".ebColor",own.ebColor,"The spectrum's",st.color)}<label for="pdEbLw">Width</label>${cmb("pdEbLw",st.ebLw,b+".ebLw",0.5,4,CMB.lw)}<label for="pdEbCap">Caps</label>${cmb("pdEbCap",st.ebCap,b+".ebCap",0,14,CMB.cap)}<label for="pdEbOp">Band opacity</label>${rng("pdEbOp",st.ebOp,b+".ebOp",0.05,0.8,0.05)}`
         +note(eks.length?`From ${eks.map(o=>`${esc(colLetter(o))} (${errTag(o)})`).join(", ")}. A column's menu in the worksheet sets which kind it is.`:"Carried from the curve this one is made from.")); }
   } else if(page.startsWith("ax:")){
     const k=page.slice(3), a=cfg.ax[k]||{}, A=axisCfg(cfg,k), b="ax."+k, isX=k==="x"||k==="x2", heat=cfg.layout==="heat", cs=k==="y2"&&heat, dP=plotState().d, k2=k==="x2";
@@ -20373,7 +20377,7 @@ ${DL([["Line, Symbols, Line + symbols, Sticks, Area, Steps, Columns","How the cu
 <p>A project has no graph until you plot: each Plot makes a new graph, as in Origin, unless you add to one. A graph shows one column at least: taking off its last is deleting the graph, which its ⋯ menu does, the first graph like any other.</p>
 <h2 id="setup">Plot setup</h2>
 <p>${MP("Plot › Plot setup…")} (first in the worksheet's <em>Plot</em> list too, and what <em>Plot</em> opens when no column is selected) sets the whole plot in one dialog, as Origin's Plot Setup does, in three parts, with the graph itself beside them drawn as it will be (its processing, error bars, ranges and axes included). It starts from what is selected in the worksheet: a curve for each column, against its X, with its error bars.</p>
-${DL([["Kind","Each kind of plot a card drawn with the curves, so you choose by what you see: line, symbols, line and symbols, columns, area, steps, drop lines; stacked panels, offset, two Y axes, heat map, box chart, violin plot, histogram. The graph shows a kind while the pointer or the focus is on its card; the arrow keys move between them."],
+${DL([["Kind","Each kind of plot a card drawn with the curves, so you choose by what you see: line, symbols, line and symbols, columns, area, steps, drop lines; stacked panels, offset, two Y axes, heat map, box chart, violin plot, histogram; and those that need another column beside each curve: bubbles (sized by a column marked Size), colour by value (coloured by a column marked Colour, with a colour bar), labelled points (a column marked Labels) and error boxes (a box round each point spanning its X and Y errors). Until each curve has what its kind needs, a note says what to mark and Plot waits. The graph shows a kind while the pointer or the focus is on its card; the arrow keys move between them."],
 ["Columns","The columns of a sheet, or of every sheet, with their rows and a sparkline, and a filter. <em>Use</em> says what each is in this plot: X, Y, Y error (±, + or −), X error (±, + or −), labels, colour or size. It starts from the worksheet's roles. Tick several to mark them at once. A column's role changes only where nothing is lost: a Y column cannot become an X or error bars here (the worksheet's header menu does that), but other data can be anything."],
 ["Curves on the graph","The list the graph will have. <em>Add</em> puts the columns marked Y on it (the ticked ones, when some are ticked), each against its own X when that is marked, else the nearest X marked to its left, with the error bars marked for it (else the nearest Y to their left), and the labels, colour and size beside it. <em>Replace</em> puts them in place of the selected curve, <em>Remove</em> takes it off, <em>Up</em> and <em>Down</em> (Alt+↑, Alt+↓) set the order. Each curve has what it is plotted against (any X of its sheet, or the row number), its range (all, rows, or X when X rises or falls steadily) and its axis (the left or the right, but the first)."],
 ["Into","A new graph, or one you have: then the graph shows its curves with the new ones."]])}
@@ -22895,7 +22899,19 @@ function plotItems(cids){
    plotCols (or histogramCols). */
 const PLOT_DLG_KINDS=[
   ["line","Line","type"],["scatter","Symbols","type"],["linesym","Line + symbols","type"],["column","Columns","type"],["area","Area","type"],["step","Steps","type"],["stick","Drop lines","type"],
-  ["stack","Stacked panels","layout"],["offset","Offset (waterfall)","layout"],["dy","Two Y axes","layout"],["heat","Heat map","layout"],["box","Box chart","layout"],["violin","Violin plot","layout"],["hist","Histogram","hist"]];
+  ["stack","Stacked panels","layout"],["offset","Offset (waterfall)","layout"],["dy","Two Y axes","layout"],["heat","Heat map","layout"],["box","Box chart","layout"],["violin","Violin plot","layout"],["hist","Histogram","hist"],
+  ["bubble","Bubbles","more","Symbols sized by a column"],["cmap","Colour by value","more","Symbols coloured by a column, with a colour bar"],["labels","Labelled points","more","Each point labelled with a column's value in its row"],["errbox","Error boxes","more","X and Y errors drawn as a box round each point"]];
+// What each kind that needs another column draws, and what it needs beside every curve.
+const MORE_KINDS={bubble:{need:"scol",words:"bubbles",say:"Bubbles take their size from a column: mark one as Size beside each curve, and Add."},
+  cmap:{need:"zcol",words:"symbols coloured by a column",say:"The colour comes from a column: mark one as Colour beside each curve, and Add."},
+  labels:{need:"lab",words:"labelled points",say:"The labels come from a column: mark one as Labels beside each curve, and Add."},
+  errbox:{need:"xy",eb:"box",words:"error boxes",say:"A box needs errors in X and in Y: mark an X error and a Y error beside each curve, and Add."}};
+// The plot type a kind gives each curve: its own for a type, symbols for one that needs more columns, none for a layout.
+const psuType=k=>{ const K=PLOT_DLG_KINDS.find(q=>q[0]===k); return !K?null:K[2]==="type"?k:K[2]==="more"?"scatter":null; };
+// What the kind chosen still needs, in words, or "".
+function psuNeed(st){ const M=MORE_KINDS[st.kind]; if(!M||!st.curves.length) return "";
+  const lack=st.curves.filter(q=>M.need==="xy"?!(q.e.some(e=>e.k[0]==="x")&&q.e.some(e=>e.k[0]==="y")):!q[M.need]);
+  return lack.length?`${M.say} ${lack.length===st.curves.length?"":`(${andList(lack.map(q=>specName(q.y)))} ${lack.length===1?"has":"have"} none.)`}`.trim():""; }
 // A small picture of each kind of plot, drawn in the text colour.
 function plotKindIcon(k){
   const P0="M4 30 L10 22 L16 25 L22 12 L28 17 L36 8";
@@ -22912,7 +22928,11 @@ function plotKindIcon(k){
     heat:[0,1,2,3].map(r=>[0,1,2,3,4].map(c=>`<rect x="${4+c*6.4}" y="${4+r*7}" width="6.4" height="7" fill="currentColor" opacity="${(0.15+0.85*Math.abs(Math.sin((r+1)*(c+2)*0.7))).toFixed(2)}"/>`).join("")).join(""),
     box:`<path d="M10 6V12M10 26V31M7 6H13M7 31H13M27 4V10M27 22V28M24 4H30M24 28H30" stroke="currentColor" stroke-width="1.5"/><rect x="6" y="12" width="8" height="14" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 19H14" stroke="currentColor" stroke-width="2.4"/><rect x="23" y="10" width="8" height="12" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M23 15H31" stroke="currentColor" stroke-width="2.4"/>`,
     violin:`<path d="M10 4 C14 10 15 14 12 18 C16 22 14 28 10 32 C6 28 4 22 8 18 C5 14 6 10 10 4Z" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.4"/><path d="M27 6 C29 12 33 15 30 20 C33 25 30 29 27 31 C24 29 21 25 24 20 C21 15 25 12 27 6Z" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.4"/>`,
-    hist:[[4,6],[10,14],[16,22],[22,18],[28,9],[34,4]].map(([x,h])=>`<rect x="${x}" y="${32-h}" width="6" height="${h}" fill="currentColor" fill-opacity=".55" stroke="currentColor" stroke-width="1"/>`).join("")}[k]||"";
+    hist:[[4,6],[10,14],[16,22],[22,18],[28,9],[34,4]].map(([x,h])=>`<rect x="${x}" y="${32-h}" width="6" height="${h}" fill="currentColor" fill-opacity=".55" stroke="currentColor" stroke-width="1"/>`).join(""),
+    bubble:[[7,26,2],[14,18,4],[22,22,3],[29,10,5.5],[35,20,2.5]].map(([x,y,r])=>`<circle cx="${x}" cy="${y}" r="${r}" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.2"/>`).join(""),
+    cmap:[[5,29],[10,22],[16,25],[22,13],[28,17],[35,9]].map(([x,y],i)=>`<circle cx="${x}" cy="${y}" r="2.6" fill="currentColor" opacity="${(0.25+0.15*i).toFixed(2)}"/>`).join(""),
+    labels:[[6,28],[16,20],[26,12],[35,18]].map(([x,y],i)=>`<circle cx="${x}" cy="${y}" r="2.2" fill="currentColor"/><path d="M${x+1},${y-3}h4" stroke="currentColor" stroke-width="1.4"/>`).join(""),
+    errbox:[[8,26],[19,16],[30,20]].map(([x,y])=>`<rect x="${x-4}" y="${y-4}" width="8" height="8" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.2"/><circle cx="${x}" cy="${y}" r="1.8" fill="currentColor"/>`).join("")}[k]||"";
   return `<svg viewBox="0 0 40 36" class="pkic" aria-hidden="true">${body}</svg>`; }
 // The columns Plot setup would plot, as numbers: each Y against the X chosen.
 function plotDlgSer(st){ const x=colById(st.x), pal=readPalette();
@@ -22942,6 +22962,13 @@ function plotDraw(ser,kind,L,T,pw,ph,max){
   if(kind==="heat"){ const C=Math.min(48,Math.max(8,Math.round(pw/4))), R=ser.length, rh=ph/R;
     ser.forEach((s,r)=>{ const sum=new Array(C).fill(0), cnt=new Array(C).fill(0); s.X.forEach((v,i)=>{ const c=Math.min(C-1,Math.floor((v-x0)/(x1-x0)*C)); sum[c]+=s.Y[i]; cnt[c]++; });
       for(let c=0;c<C;c++) if(cnt[c]) out.push(`<rect x="${f1(L+c*pw/C)}" y="${f1(T+r*rh)}" width="${f1(pw/C+0.4)}" height="${f1(rh+0.4)}" fill="${pal.data}" fill-opacity="${(0.08+0.92*(sum[c]/cnt[c]-lo)/span).toFixed(2)}"/>`); });
+    return out.join(""); }
+  if(MORE_KINDS[kind]){ ser.forEach(s=>{ const X=v=>L+(v-x0)/(x1-x0)*pw, Y=v=>T+ph-((v-lo)/span)*ph*0.92-ph*0.04, n=s.X.length, step=Math.max(1,Math.floor(n/(kind==="bubble"?24:kind==="errbox"?14:40)));
+      for(let i=0;i<n;i+=step){ const x=X(s.X[i]), y=Y(s.Y[i]), t=(s.Y[i]-lo)/span;
+        if(kind==="bubble") out.push(`<circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(1.2+4.5*t)}" fill="${s.col}" fill-opacity=".3" stroke="${s.col}" stroke-width="1"/>`);
+        else if(kind==="cmap") out.push(`<circle cx="${f1(x)}" cy="${f1(y)}" r="2.2" fill="#${cmapAt("viridis",t).map(v=>v.toString(16).padStart(2,"0")).join("")}"/>`);
+        else if(kind==="labels") out.push(`<circle cx="${f1(x)}" cy="${f1(y)}" r="1.6" fill="${s.col}"/>`+(i%(3*step)===0?`<path d="M${f1(x+2)},${f1(y-4)}h5" stroke="${s.col}" stroke-width="1.3"/>`:""));
+        else { const bw=Math.max(2,pw/30), bh=Math.max(2,ph/10); out.push(`<rect x="${f1(x-bw)}" y="${f1(y-bh)}" width="${f1(2*bw)}" height="${f1(2*bh)}" fill="${s.col}" fill-opacity=".18" stroke="${s.col}" stroke-width="1"/><circle cx="${f1(x)}" cy="${f1(y)}" r="1.5" fill="${s.col}"/>`); } } });
     return out.join(""); }
   const band=kind==="stack"?ph/ser.length:ph;
   const yr=s=>{ const a=amin(s.Y), b=amax(s.Y); return b>a?[a,b]:[a-1,b+1]; };
@@ -23035,7 +23062,7 @@ function plotSetupPv(st,kind,W,H){
   const keep=[], put=(o,k,v)=>{ keep.push([o,k,Object.prototype.hasOwnProperty.call(o,k),o[k]]); if(v===undefined) delete o[k]; else o[k]=v; };
   const g0=st.gid?graphOf(st.gid):null, into=!g0&&st.into&&graphOf(st.into)&&!graphOf(st.into).fig?graphOf(st.into):null, base=g0||into, tp=base?clone(base.plot||{}):plotBase(GP()), ids=cur.map(q=>q.y.id);
   tp.use=Object.assign({},tp.use); tp.series=Object.assign({},tp.series); delete tp.shut;
-  if(K){ if(K[2]==="type"){ if(!base) tp.style=kind; } else tp.layout=kind; if(kind==="heat") Object.assign(tp,{mapKind:"both",mapY:"series"}); }
+  if(K){ if(psuType(kind)){ if(!base) tp.style=psuType(kind); } else tp.layout=kind; if(kind==="heat") Object.assign(tp,{mapKind:"both",mapY:"series"}); }
   const id="__psu"; let svg="";
   try{
     // Roles first (a data column made a Y, an X or error bars), then each curve's X.
@@ -23045,9 +23072,9 @@ function plotSetupPv(st,kind,W,H){
     cur.forEach(q=>{ const y=q.y; if(y.src) return; if(!q.x){ if(xColFor(y)) put(y,"xcol","row"); } else if(xColFor(y)!==q.x) put(y,"xcol",q.x.id);
       const u=Object.assign({},tp.use[y.id]); if(st.rng[y.id]&&rngOk(st.rng[y.id])) u.rng=st.rng[y.id]; else delete u.rng;
       if(st.ax[y.id]==="r") u.ax="r"; else delete u.ax; if(q.lab) u.lab=q.lab.id; if(st.grp[y.id]) u.grp=st.grp[y.id]; else delete u.grp; if(Object.keys(u).length) tp.use[y.id]=u; else delete tp.use[y.id];
-      const s=Object.assign({},tp.series[y.id]); if(K&&K[2]==="type") s.type=kind;
+      const s=Object.assign({},tp.series[y.id]); if(K&&psuType(kind)) s.type=psuType(kind); if(K&&MORE_KINDS[kind]&&MORE_KINDS[kind].eb) s.eb=MORE_KINDS[kind].eb;
       if(q.zcol) s.zcol=q.zcol.id; else if(g0) delete s.zcol; if(q.scol) s.scol=q.scol.id; else if(g0) delete s.scol; tp.series[y.id]=s; });
-    cur.filter(q=>q.y.src).forEach(q=>{ const s=Object.assign({},tp.series[q.y.id]); if(K&&K[2]==="type") s.type=kind; tp.series[q.y.id]=s; });
+    cur.filter(q=>q.y.src).forEach(q=>{ const s=Object.assign({},tp.series[q.y.id]); if(K&&psuType(kind)) s.type=psuType(kind); tp.series[q.y.id]=s; });
     const pcols=g0?ids:(into?into.cols.filter(k=>!ids.includes(k)):[]).concat(ids);
     if(g0) Object.keys(tp.use).forEach(k=>{ if(!ids.includes(k)) delete tp.use[k]; });
     tp.grps=g0?clone(st.grps||{}):Object.assign({},tp.grps,clone(st.grps||{})); grpClean(tp); grpShareTypes(tp,pcols);
@@ -23071,7 +23098,7 @@ async function openPlotDlg(cids,o){
   const tabs=[["kind","Kind"],["cols","Columns"],["cur","Curves"]];
   const html=`<div class="psu" data-tab="${st.tab}">
     <div class="psu-tabs seg" role="tablist" aria-label="Parts of Plot setup">${tabs.map(([k,l])=>`<button type="button" role="tab" data-ptab="${k}" aria-selected="${st.tab===k}">${l}</button>`).join("")}</div>
-    <div class="pdlg-kinds pgal" role="radiogroup" aria-label="Kind of plot${g0?" (as it is, until one is chosen)":""}">${PLOT_DLG_KINDS.map(([k,l],i)=>{ const off=g0&&k==="hist"; return `${i===7?`<div class="pdlg-sep" role="presentation">With several columns</div>`:""}<button type="button" role="radio" data-pk="${k}" aria-checked="${k===st.kind}" title="${esc(off?"A histogram is a column of its own: Plot setup… makes one":l)}"${off?" disabled":""}><span class="pgt"></span><span class="pgl">${esc(l)}</span></button>`; }).join("")}</div>
+    <div class="pdlg-kinds pgal" role="radiogroup" aria-label="Kind of plot${g0?" (as it is, until one is chosen)":""}">${PLOT_DLG_KINDS.map(([k,l],i)=>{ const off=g0&&k==="hist"; const K=PLOT_DLG_KINDS[i]; return `${i===7?`<div class="pdlg-sep" role="presentation">With several columns</div>`:i===14?`<div class="pdlg-sep" role="presentation">With another column</div>`:""}<button type="button" role="radio" data-pk="${k}" aria-checked="${k===st.kind}" title="${esc(off?"A histogram is a column of its own: Plot setup… makes one":K[3]||l)}"${off?" disabled":""}><span class="pgt"></span><span class="pgl">${esc(l)}</span></button>`; }).join("")}</div>
     <div class="psu-colsp">
       <div class="psu-h"><span class="gh">Columns</span>${many?`<select id="psuSheet" aria-label="Which sheet">${ss.map(s=>{ const f=fileOf(s.id); return `<option value="${esc(s.id)}"${st.sheet===s.id?" selected":""}>${esc(s.name)}${f?` · ${esc(f)}`:""}</option>`; }).join("")}<option value="all"${st.sheet==="all"?" selected":""}>Every sheet</option></select>`:""}<input type="search" id="psuQ" placeholder="Filter" aria-label="Filter the columns" autocomplete="off"></div>
       <div class="psu-mark" id="psuMark" hidden><span id="psuMarkN"></span><select id="psuMarkAs" aria-label="Mark the ticked columns as"><option value="-">Mark them as…</option>${PSU_USES.map(([v,l])=>`<option value="${v}">${v?l:"Nothing"}</option>`).join("")}</select></div>
@@ -23079,6 +23106,7 @@ async function openPlotDlg(cids,o){
     </div>
     <div class="psu-curp">
       <div class="psu-h"><span class="gh">Curves on the graph</span><span class="lab" id="psuN"></span></div>
+      <div id="psuNeed"></div>
       <div class="psu-acts"><button type="button" class="btn sm" id="psuAdd" title="Put the columns marked Y on the graph (the ticked ones, when some are ticked), each with what is marked beside it; a curve already there takes its marks again">Add</button><button type="button" class="btn sm" id="psuRep" title="The selected curve gives way to the ticked columns marked Y (or to every column marked Y)">Replace</button><span class="sp"></span><button type="button" class="btn sm ghost" id="psuDel" title="Take the selected curve off (Delete)">Remove</button><button type="button" class="btn sm ghost" id="psuUp" title="Earlier in the list (Alt+↑): drawn before, and named first in the legend">Up</button><button type="button" class="btn sm ghost" id="psuDn" title="Later in the list (Alt+↓)">Down</button></div>
       <div class="psu-cur" id="psuCur"></div>
     </div>
@@ -23087,7 +23115,7 @@ async function openPlotDlg(cids,o){
       <div class="pdlg-sk psu-sk" id="pdlgSk" role="img" aria-label="The graph as it will be"></div>
     </div></div>`;
   const sh=$("#formModal .sheet"); sh.classList.remove("small"); sh.classList.add("plotdlg","psuw");
-  const pr=formDlg({title:g0?`What ${graphTitle(g0.id)} plots`:"Plot setup",html,ok:g0?"OK":"Plot",valid:()=>st.curves.length>0});
+  const pr=formDlg({title:g0?`What ${graphTitle(g0.id)} plots`:"Plot setup",html,ok:g0?"OK":"Plot",valid:()=>st.curves.length>0&&!psuNeed(st)});
   const box=$("#formBody"), okb=$("#formOk"), root=box.querySelector(".psu");
   // A redraw keeps the field that had the keys, and its caret.
   const refocus=fn=>{ const a=document.activeElement, key=a&&box.contains(a)&&a!==box?[...a.attributes].filter(t=>t.name.startsWith("data-")||t.name==="id").map(t=>`[${t.name}="${CSS.escape(t.value)}"]`).join(""):""; let ss0=null; try{ ss0=a.selectionStart; }catch(e){} fn();
@@ -23102,7 +23130,7 @@ async function openPlotDlg(cids,o){
     st.vis=vis;
     const all=vis.length&&vis.every(id=>st.tick.has(id));
     return vis.length?`<table class="ptab psu-t"><thead><tr><th><input type="checkbox" id="psuAll"${all?" checked":""} aria-label="Tick every column shown"></th><th class="l">Column</th><th class="r">Rows</th><th></th><th class="l">Use</th></tr></thead><tbody>${h}</tbody></table>`:`<p class="lab">${q?"No column matches.":"No column with values here."}</p>`; };
-  const curHtml=()=>{ const cur=st.curves, K=(PLOT_DLG_KINDS.find(q=>q[0]===st.kind)||[])[2], lay=g0&&(g0.plot||{}).layout, ov=st.kind?K==="type"||st.kind==="overlay":!lay||lay==="overlay";
+  const curHtml=()=>{ const cur=st.curves, K=(PLOT_DLG_KINDS.find(q=>q[0]===st.kind)||[])[2], lay=g0&&(g0.plot||{}).layout, ov=st.kind?K==="type"||K==="more"||st.kind==="overlay":!lay||lay==="overlay";
     $("#psuN").textContent=cur.length?`${cur.length}`:"";
     if(!cur.length) return `<p class="lab">Mark a column as Y and press Add.</p>`;
     const gl=psuGroups(st);
@@ -23128,7 +23156,7 @@ async function openPlotDlg(cids,o){
     $("#psuAdd").disabled=!b.some(n=>{ const q=st.curves.find(q=>q.y===n.y); return !q||psuSig(q)!==psuSig(n); });
     $("#psuRep").disabled=!replaced();
     $("#psuDel").disabled=i<0; $("#psuUp").disabled=i<1; $("#psuDn").disabled=i<0||i>=st.curves.length-1;
-    const n=st.curves.length; okb.disabled=!n; okb.textContent=g0?"OK":st.kind==="hist"?(n>1?"Make the histograms":"Make the histogram"):"Plot"; };
+    const n=st.curves.length, need=psuNeed(st), nb=$("#psuNeed"); okb.disabled=!n||!!need; if(nb&&nb.dataset.t!==need){ nb.dataset.t=need; nb.innerHTML=need?noteHtml("warn",need):""; } okb.textContent=g0?"OK":st.kind==="hist"?(n>1?"Make the histograms":"Make the histogram"):"Plot"; };
   const marks=()=>{ const m=$("#psuMark"), k=st.tick.size; m.hidden=!k; $("#psuMarkN").textContent=k?`${k} ticked`:""; };
   const refresh=all=>{ refocus(()=>{ if(all) $("#psuCols").innerHTML=colsHtml(); $("#psuCur").innerHTML=curHtml(); }); acts(); marks(); cards(); sk(); };
   box.querySelectorAll("[data-pk]").forEach(b=>{ const on=()=>sk(b.dataset.pk), off=()=>sk(); b.addEventListener("pointerenter",on); b.addEventListener("pointerleave",off); b.addEventListener("focus",on); b.addEventListener("blur",off); });
@@ -23175,13 +23203,13 @@ async function openPlotDlg(cids,o){
   if(kind&&kind[2]==="hist"){ histogramCols(ids); return; }
   pushUndo(g0?`changing what ${graphName(g0.id)} plots`:`plotting ${andList(curves.map(q=>specName(q.y)))}`);
   const said=psuColChanges(curves);
-  const ov=kind?kind[2]==="type"||st.kind==="overlay":(g0.plot||{}).layout==null||(g0.plot||{}).layout==="overlay";
+  const ov=kind?kind[2]==="type"||kind[2]==="more"||st.kind==="overlay":(g0.plot||{}).layout==null||(g0.plot||{}).layout==="overlay", M=kind&&MORE_KINDS[st.kind];
   if(g0){ psuSetGraph(g0.id,curves,st,kind,ov,said); return; }
   const use={}, series={};
   curves.forEach(q=>{ const y=q.y, u={}; if(st.rng[y.id]&&rngOk(st.rng[y.id])) u.rng=st.rng[y.id]; if(st.ax[y.id]==="r"&&q!==curves[0]&&ov) u.ax="r"; if(q.lab) u.lab=q.lab.id; if(st.grp[y.id]) u.grp=st.grp[y.id]; if(Object.keys(u).length) use[y.id]=u;
-    if(q.zcol||q.scol) series[y.id]=Object.assign({},q.zcol?{zcol:q.zcol.id}:{},q.scol?{scol:q.scol.id}:{}); });
+    if(q.zcol||q.scol||(M&&M.eb)) series[y.id]=Object.assign({},q.zcol?{zcol:q.zcol.id}:{},q.scol?{scol:q.scol.id}:{},M&&M.eb?{eb:M.eb}:{}); });
   const say=said.length?`${capFirst(andList(said))}, on every graph.`:"";
-  plotCols(ids,Object.assign({into,noUndo:true,use,series,grps:st.grps,say,note:said.length?andList(said):""},kind[2]==="type"?{type:st.kind}:{layout:st.kind},st.kind==="heat"?{plot:{mapKind:"both",mapY:"series"}}:{}));
+  plotCols(ids,Object.assign({into,noUndo:true,use,series,grps:st.grps,say,note:said.length?andList(said):""},psuType(st.kind)?{type:psuType(st.kind)}:{layout:st.kind},st.kind==="heat"?{plot:{mapKind:"both",mapY:"series"}}:{}));
 }
 /* What Plot setup changes of the columns themselves, which every graph sees: a data column made
    an X or error bars, an error column given to another column or made another kind, a column's
@@ -23214,13 +23242,13 @@ function psuSetGraph(gid,curves,st,kind,ov,said){
     if(st.grp[y.id]) u.grp=st.grp[y.id]; else delete u.grp;
     if(Object.keys(u).length) use[y.id]=u; else delete use[y.id];
     const s=Object.assign({},ser[y.id]); if(q.zcol) s.zcol=q.zcol.id; else delete s.zcol; if(q.scol) s.scol=q.scol.id; else delete s.scol;
-    if(kind&&kind[2]==="type") s.type=st.kind; if(Object.keys(s).length) ser[y.id]=s; else delete ser[y.id]; });
+    if(kind&&psuType(st.kind)) s.type=psuType(st.kind); if(kind&&MORE_KINDS[st.kind]&&MORE_KINDS[st.kind].eb) s.eb=MORE_KINDS[st.kind].eb; if(Object.keys(s).length) ser[y.id]=s; else delete ser[y.id]; });
   tp.use=use; tp.series=ser; g.cols=ids; tp.grps=clone(st.grps||{}); grpClean(tp); grpShareTypes(tp,ids);
-  if(kind&&kind[2]!=="type"){ tp.layout=st.kind; if(st.kind==="heat") Object.assign(tp,{mapKind:"both",mapY:"series"}); }
+  if(kind&&!psuType(st.kind)){ tp.layout=st.kind; if(st.kind==="heat") Object.assign(tp,{mapKind:"both",mapY:"series"}); }
   const added=ids.filter(k=>!was.includes(k)), gone=was.filter(k=>!ids.includes(k)), same=was.filter(k=>ids.includes(k)), moved=same.join()!==ids.filter(k=>was.includes(k)).join();
   const nm=k=>specName(colById(k)), parts=[];
   if(added.length) parts.push(`added ${andList(added.map(nm))}`); if(gone.length) parts.push(`took off ${andList(gone.map(nm))}`); if(moved) parts.push("put the curves in a new order");
-  if(JSON.stringify([tp.use||{},tp.series||{},tp.grps||null])!==before&&!kind) parts.push("changed what the curves draw"); if(kind) parts.push(`drew them as ${(PLOT_DLG_KINDS.find(q=>q[0]===st.kind)||[,"before"])[1].toLowerCase()}`);
+  if(JSON.stringify([tp.use||{},tp.series||{},tp.grps||null])!==before&&!kind) parts.push("changed what the curves draw"); if(kind) parts.push(`drew them as ${MORE_KINDS[st.kind]?MORE_KINDS[st.kind].words:(PLOT_DLG_KINDS.find(q=>q[0]===st.kind)||[,"before"])[1].toLowerCase()}`);
   if(!parts.length&&!said.length){ undoStack.pop(); renderUndo(); return; }
   // The graph in front keeps a curve it shows as the active one.
   let act=p.activeY; const front=GID()===gid; if(front&&!ids.includes(act)) act=ids[0];

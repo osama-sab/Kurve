@@ -1172,7 +1172,16 @@ graph first, with the taskbar kept at the bottom of the screen.
   graph itself, a graph `__psu` and the columns' changes (`put`) made for one drawing through
   `withGraph` and `buildPlot` and taken back, ids prefixed `psu-` (a histogram still
   `plotDlgSketch` through `plotDlgSer` and `plotDraw`). Below 860 px the parts are tabs
-  (`.psu-tabs`, `data-ptab`, `.psu[data-tab]`). OK: one undo entry; data columns made X or
+  (`.psu-tabs`, `data-ptab`, `.psu[data-tab]`). **Kinds that need another column** (slice 5):
+  `PLOT_DLG_KINDS`' third row (`more`: `bubble`, `cmap`, `labels`, `errbox`, each with its
+  tooltip as a fourth entry), `MORE_KINDS` (what each needs beside every curve, `scol`, `zcol`,
+  `lab` or X and Y errors, its words for the log, its note, and `eb:"box"` for error boxes),
+  `psuType(k)` (a kind's plot type: its own, symbols for these, none for a layout), `psuNeed(st)`
+  (the note in `#psuNeed`, naming the curves without; Plot waits, `valid` too), cards drawn by
+  `plotDraw` and `plotKindIcon`; error boxes are the series' `eb:"box"`, drawn by `errSvg` (a
+  rectangle spanning each point's X and Y errors, filled under the data, `path[data-ebox]`, bars
+  where a point has only one), also in the curve's Error bars menu and the Format pane.
+  OK: one undo entry; data columns made X or
   error bars, a Y's X (`xcol`, `"row"` for the row number, read by `xColFor`; the other Ys of
   the sheet pinned to the X they had), an error column's owner and kind, said in the toast and
   the log (`plotCols`' `say` and `note`, through `psuColChanges(curves)`); then `plotCols(ids,
@@ -2314,8 +2323,10 @@ with its axes, labels and no kind, a curve taken off, reordered and given a rang
 said in the log, the active curve taken off, a kind for every curve, no step when nothing changed,
 Add with error bars, a figure's panel; slice 4: every curve in one group and how each step looks,
 a curve's own colour winning, one type for the group, a group of one dropped, undo, Plot setup's
-Group column on a graph and on a new one, junk from storage); run it after touching the graph's
-drawing or Plot setup.
+Group column on a graph and on a new one, junk from storage; slice 5: the four cards drawn with the
+data, Bubbles waiting for a size and naming the curve without one, error boxes in the preview, the
+graph and an export, labelled points, colour by value, a kind on a graph said in the log); run it
+after touching the graph's drawing or Plot setup.
 `node tools/fit-drive.mjs [path]` (Playwright) clicks and types into what each slice of the
 curve fit (`ux/spec/FIT_SPEC.md`) from slice 5 on added (Find X/Y: the readouts against the
 functions, a redraw while typing, Fill a column… both ways, undo); run it after touching the Fit
@@ -3249,7 +3260,10 @@ add, replace, take off, reorder, re-range or move between axes, each keeping how
 kind is chosen; a figure's panel the same. Slice 4 done: groups, as Origin's: curves that share their
 plot type and step their colour, symbol or line style together (all three, or one with the others
 alike) from the first curve's, each curve's own style still winning; from the curve's right-click
-and Plot setup's Group column; the legend lists every curve.
+and Plot setup's Group column; the legend lists every curve. Slice 5 done: the kinds that need
+another column beside each curve, as cards of their own (bubbles, colour by value, labelled points,
+error boxes), Plot waiting with a note until each curve has it; error boxes also a way to draw any
+curve's error bars.
 
 Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
 graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
@@ -3748,6 +3762,9 @@ Next, in order:
   Kurve's lists of symbols and line styles (not lists of your own, as Origin's increment lists);
   the legend lists every curve of a group, not one entry for the group; groups are a graph's, not
   across the panels of a figure
+- Kinds with another column: a bubble's size and a colour come from one column per curve (no
+  second size column for another curve on one Add: each curve's own is marked beside it); an
+  error box needs both errors of a point, and a point with one is drawn with a bar
 - Your functions: a derived value has no unit of its own (it is shown without one); a category is
   one word or phrase, not a tree; the organizer works on one function at a time
 - Saved fit settings are a curve fit's (a peak fit's peaks are its own); a column's weights and a

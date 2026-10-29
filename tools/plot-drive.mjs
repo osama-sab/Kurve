@@ -325,6 +325,49 @@ await page(async p => {
   check("…and a step that does not read becomes all three", JSON.stringify(r) === JSON.stringify({ k1: { step: "all" } }), JSON.stringify(r));
 }, { name: "groups" });
 
+console.log("Slice 5: kinds that need another column");
+await page(async p => {
+  const id = await six(p);
+  await p.evaluate(id => { openPlotDlg([id.B, id.D]); }, id); await p.waitForTimeout(400);
+  let r = await p.evaluate(() => { const cs = [...document.querySelectorAll("#formBody .pgal [data-pk]")]; return { n: cs.length, more: cs.slice(14).map(b => b.dataset.pk), sep: [...document.querySelectorAll("#formBody .pdlg-sep")].map(e => e.textContent), drawn: cs.slice(14).every(b => b.querySelector(".pgt svg circle, .pgt svg rect")) }; });
+  check("four kinds that need another column, after the others, drawn with the data", r.n === 18 && r.more.join() === "bubble,cmap,labels,errbox" && r.sep.includes("With another column") && r.drawn, JSON.stringify(r));
+  await p.click('#formBody [data-pk="bubble"]'); await p.waitForTimeout(150);
+  r = await p.evaluate(() => ({ ok: !$("#formOk").disabled, need: $("#psuNeed").textContent }));
+  check("Bubbles with no size: Plot off, and the note says what to mark", !r.ok && /mark one as Size beside each curve/.test(r.need), JSON.stringify(r));
+  await use(p, id.F, "size"); await p.click("#psuAdd"); await p.waitForTimeout(150);
+  r = await p.evaluate(() => ({ ok: !$("#formOk").disabled, need: $("#psuNeed").textContent }));
+  check("…a size for D alone: the note names the curve that has none", !r.ok && /\(Small has none\.\)/.test(r.need), JSON.stringify(r));
+  await p.click(`#psuCur [data-pcur="${id.B}"] td`); await p.click("#psuDel"); await p.waitForTimeout(150);
+  r = await p.evaluate(() => ({ ok: !$("#formOk").disabled, need: $("#psuNeed").textContent }));
+  await p.click("#formOk"); await p.waitForTimeout(400);
+  const r2 = await p.evaluate(id => { const g = P().graphs[P().graphs.length - 1], s = g.plot.series[id.D] || {}; return { cols: g.cols, scol: s.scol, type: s.type }; }, id);
+  check("…B taken off: Plot on; the graph draws D as symbols sized by F", r.ok && !r.need && r2.cols.join() === id.D && r2.scol === id.F && r2.type === "scatter", JSON.stringify([r, r2]));
+  // Error boxes: an X error and a Y error.
+  await p.evaluate(id => { openPlotDlg([id.B]); }, id); await p.waitForTimeout(400);
+  await p.click('#formBody [data-pk="errbox"]'); await use(p, id.C, "e:x"); await use(p, id.F, "e:y"); await p.click("#psuAdd"); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ ok: !$("#formOk").disabled, pv: /data-ebox/.test($("#pdlgSk").innerHTML) }));
+  await p.click("#formOk"); await p.waitForTimeout(400);
+  const r3 = await p.evaluate(id => { const g = P().graphs[P().graphs.length - 1]; return { eb: (g.plot.series[id.B] || {}).eb, box: /data-ebox/.test($("#plot").innerHTML), exp: /data-ebox/.test(buildPlot(800, 500, EXPORT_PAL, true)), c: errKind(colById(id.C)), f: errKind(colById(id.F)) }; }, id);
+  check("Error boxes: B with X errors from C and Y errors from F, a box round each point, in the preview, the graph and an export", r.ok && r.pv && r3.eb === "box" && r3.box && r3.exp && r3.c === "x" && r3.f === "y", JSON.stringify([r, r3]));
+  r = await p.evaluate(id => { const e = graphMenuItems(id.B).find(i => i && i.label === "Error bars"); return e ? e.sub().map(i => i.label) : null; }, id);
+  check("the curve's Error bars menu has Boxes (X and Y)", r && r.includes("Boxes (X and Y)"), JSON.stringify(r));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(300);
+  // Labelled points and colour by value.
+  await p.evaluate(id => { openPlotDlg([id.B]); }, id); await p.waitForTimeout(400);
+  await p.click('#formBody [data-pk="labels"]'); await use(p, id.F, "lab"); await p.click("#psuAdd"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(id => { const g = P().graphs[P().graphs.length - 1]; return { lab: curveUse(id.B, g.plot).lab, drawn: !!document.querySelector(`#plot g[data-plab="${id.B}"]`) }; }, id);
+  check("Labelled points: labels from F beside each point", r.lab === id.F && r.drawn, JSON.stringify(r));
+  await p.evaluate(id => { openPlotDlg([id.B]); }, id); await p.waitForTimeout(400);
+  await p.click('#formBody [data-pk="cmap"]'); await use(p, id.F, "col"); await p.click("#psuAdd"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(id => { const g = P().graphs[P().graphs.length - 1], s = g.plot.series[id.B] || {}; return { z: s.zcol, t: s.type }; }, id);
+  check("Colour by value: symbols coloured by F", r.z === id.F && r.t === "scatter", JSON.stringify(r));
+  // On a graph: a kind that needs another column, said in the log.
+  await p.evaluate(() => { plotsOf(); }); await p.waitForTimeout(400);
+  await p.click('#formBody [data-pk="bubble"]'); await use(p, id.F, "size"); await p.click("#psuAdd"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(id => { const g = P().graphs.find(g => g.id === GID()); return { s: (g.plot.series[id.B] || {}).scol, log: (P().log || []).slice(-1)[0].text }; }, id);
+  check("on a graph: Bubbles, said in the log", r.s === id.F && /drew them as bubbles/.test(r.log), JSON.stringify(r));
+}, { name: "kinds that need another column" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

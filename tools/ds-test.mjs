@@ -496,8 +496,8 @@ await page(async p => {
   // Plot setup: each kind a card drawn with the columns ticked; hovering one shows it in the sketch.
   await p.evaluate(() => { openPlotDlg(yCols().map(c => c.id)); }); await p.waitForTimeout(400);
   let r = await p.evaluate(() => { const cs = [...document.querySelectorAll("#formBody .pgal [data-pk]")];
-    return { n: cs.length, drawn: cs.every(b => b.querySelector(".pgt svg path, .pgt svg rect")), lab: cs.map(b => b.querySelector(".pgl").textContent), sel: cs.filter(b => b.getAttribute("aria-checked") === "true").map(b => b.dataset.pk) }; });
-  check("Plot setup's kinds are a gallery of cards drawn with the data", r.n === 14 && r.drawn && r.lab[0] === "Line" && r.sel.length === 1, JSON.stringify(r));
+    return { n: cs.length, drawn: cs.every(b => b.querySelector(".pgt svg path, .pgt svg rect, .pgt svg circle")), lab: cs.map(b => b.querySelector(".pgl").textContent), sel: cs.filter(b => b.getAttribute("aria-checked") === "true").map(b => b.dataset.pk) }; });
+  check("Plot setup's kinds are a gallery of cards drawn with the data", r.n === 18 && r.drawn && r.lab[0] === "Line" && r.sel.length === 1, JSON.stringify(r));
   const sk0 = await p.evaluate(() => $("#pdlgSk").innerHTML);
   await p.hover('#formBody [data-pk="hist"]'); await p.waitForTimeout(100); const sk1 = await p.evaluate(() => $("#pdlgSk").innerHTML);
   await p.mouse.move(4, 4); await p.waitForTimeout(100); const sk2 = await p.evaluate(() => $("#pdlgSk").innerHTML);

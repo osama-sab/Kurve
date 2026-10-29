@@ -152,7 +152,9 @@ reason, CLAUDE.md, the menu spec when a menu changes.
    the graph's scheme, each curve's own style still winning; the legend can show a group as one
    entry *(to confirm what Origin's legend does)*. Group and ungroup in the list and the curve's
    right-click.
-5. **Kinds that need more columns.** Bubbles (size from a column), colour-mapped symbols
+5. **Kinds that need more columns** (done 2026-10-29; error boxes for X and Y errors, the
+   crosses being the bars Kurve already draws; the cards a row of their own, *With another
+   column*; Plot waits with a note naming what to mark). Bubbles (size from a column), colour-mapped symbols
    (colour from a column, with its colour bar), labelled points (labels from a column), a plot
    of X and Y errors as boxes or crosses; each a picture in the kinds, with the boxes it needs.
    What exists (`zcol`, `scol`) moves under these, the Format dialog keeping the look.
