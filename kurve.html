@@ -389,8 +389,12 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 #rdLayer .rdtag rect{fill:var(--accent)}
 #rdLayer .rdtag text{fill:var(--accent-ink);font:600 11px var(--mono)}
 #plot.mode-reader,#plot.mode-cross{cursor:crosshair}
-.rdcard{position:absolute;z-index:6;width:256px;max-height:calc(100% - 8px);overflow:auto;background:var(--panel);border:1px solid var(--win-bd);border-radius:var(--r-l);box-shadow:var(--win-sh);font-size:var(--fs-tab);color:var(--ink)}
-.rdcard .rdh{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-4);border-bottom:1px solid var(--rule-2);cursor:move;background:var(--panel-2);border-radius:var(--r-l) var(--r-l) 0 0;user-select:none}
+.rdcard{position:fixed;z-index:38;width:256px;max-height:calc(100vh - 8px);display:flex;flex-direction:column;overflow:hidden;background:var(--panel);border:1px solid var(--win-bd);border-radius:var(--r-l);box-shadow:var(--win-sh);font-size:var(--fs-tab);color:var(--ink)}
+.rdcard[hidden]{display:none}
+.rdcard.rdmoving{box-shadow:var(--win-sh-act);user-select:none}
+.rdcard .rdb{flex:1 1 auto;min-height:0;overflow:auto}
+.rdcard .rdgrip{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 0 55%,var(--faint) 55% 62%,transparent 62% 72%,var(--faint) 72% 79%,transparent 79%)}
+.rdcard .rdh{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-4);border-bottom:1px solid var(--rule-2);cursor:move;background:var(--panel-2);border-radius:var(--r-l) var(--r-l) 0 0;user-select:none;touch-action:none;flex:none}
 .rdcard .rdh .t{flex:1;display:flex;align-items:center;gap:var(--sp-3);font-weight:600}
 .rdcard .rdb{padding:var(--sp-4);display:flex;flex-direction:column;gap:var(--sp-3)}
 .rdcard .rdr{display:grid;grid-template-columns:48px minmax(0,1fr);align-items:center;gap:var(--sp-3)}
@@ -408,7 +412,7 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .rdcard table{width:100%;border-collapse:collapse;font-size:var(--fs-cap)}
 .rdcard th,.rdcard td{text-align:left;padding:var(--sp-1) var(--sp-2);border-bottom:1px solid var(--rule-2);vertical-align:top}
 .rdcard tbody th{font-weight:500}
-.rdcard td{font-family:var(--mono);overflow-wrap:anywhere}
+.rdcard td{font-family:var(--mono);overflow-wrap:break-word}
 .rdcard thead th{color:var(--muted);font-weight:600}
 .rdcard .sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:var(--sp-2)}
 /* A combo box: a number typed, or picked from the list its button drops (Excel's widths and sizes). */
@@ -6604,7 +6608,7 @@ const S={
   // each graph's zoom and spectrum while another is in front, drafts kept per
   // spectrum, the pictures' signatures, and whether zooms are linked.
   gid:null, gctx:null, gv:{}, glead:{}, dstash:{}, snap:{},
-  linkX:(()=>{ try{ return localStorage.getItem("kurve.linkX")!=="0"; }catch(e){ return true; } })()
+  linkX:(()=>{ try{ return localStorage.getItem("kurve.linkX")==="1"; }catch(e){ return false; } })()
 };
 const $=s=>document.querySelector(s);
 let toastT;
@@ -11526,17 +11530,18 @@ function drawReaders(){
 }
 // The card: what the reader holds, or what the lines cross, and the ways to move them.
 function renderRdCard(full){
-  const fig=$("#figure"); if(!fig) return; let card=$("#rdCard");
+  const host=$("#app"); if(!host) return; let card=$("#rdCard");
   const tool=S.mode==="reader"?"reader":S.mode==="cross"?"cross":null, g=S.geo;
-  if(!tool||!g||!P()||g.heat){ if(card) card.hidden=true; return; }
-  if(!card){ card=document.createElement("div"); card.id="rdCard"; card.className="rdcard"; card.setAttribute("role","dialog"); fig.appendChild(card); wireRdCard(card); }
-  if(card.parentElement!==fig) fig.appendChild(card);
+  if(!tool||!g||!P()||g.heat||!graphOnDesk()){ if(card) card.hidden=true; return; }
+  // In the app, not the graph: it goes anywhere on the screen (#app, so a dialog makes it inert too).
+  if(!card){ card=document.createElement("div"); card.id="rdCard"; card.className="rdcard"; card.setAttribute("role","dialog"); host.appendChild(card); wireRdCard(card); }
+  if(card.parentElement!==host) host.appendChild(card);
   card.hidden=false; const [xu,yu]=rdUnits(), list=readerCurves(), ro=S.readOnly;
   // Built again only when its tool or curves change: a field being typed in keeps its
   // text, a button its focus, and only the values around them change.
   const sig=tool+"|"+list.map(q=>q.c.id).join(",")+"|"+(tool==="cross"?(S.xh&&S.xh.mode):"");
   if(full||card.dataset.sig!==sig){
-    const head=`<div class="rdh" data-rdmove><span class="t">${tool==="reader"?ICON("reader","sm")+"Data reader":ICON("xylines","sm")+"X–Y lines"}</span><button type="button" class="tb sm icon" data-rdx aria-label="Close" title="Close (Esc)">${ICON("x","sm")}</button></div>`;
+    const head=`<div class="rdh" data-rdmove title="Drag to move it anywhere; double-click to put it back by the graph"><span class="t">${tool==="reader"?ICON("reader","sm")+"Data reader":ICON("xylines","sm")+"X–Y lines"}</span><button type="button" class="tb sm icon" data-rdx aria-label="Close" title="Close (Esc)">${ICON("x","sm")}</button></div>`;
     let b="";
     if(tool==="reader"){ const cur=rdPoint();
       b+=(list.length>1?`<div class="rdr"><label for="rdCv">Curve</label><select id="rdCv">${list.map(rc=>`<option value="${rc.c.id}"${cur&&cur.rc.c.id===rc.c.id?" selected":""}>${esc(specName(rc.c))}</option>`).join("")}</select></div>`:"")
@@ -11551,7 +11556,7 @@ function renderRdCard(full){
         +(xh.mode!=="v"?`<div class="rdr"><label for="rdYv">Y</label><div class="pair"><input type="text" id="rdYv" inputmode="decimal" autocomplete="off" spellcheck="false"><span class="lab">${esc(yu)}</span></div></div>`:"")
         +`<div class="rdtab" data-rdv="tab"></div><div class="rdacts"><button type="button" class="btn sm" data-rdcopy>Copy</button></div>`;
     }
-    card.innerHTML=head+`<div class="rdb">`+b+`</div>`; card.dataset.sig=sig; card.setAttribute("aria-label",tool==="reader"?"Data reader":"X–Y lines");
+    card.innerHTML=head+`<div class="rdb">`+b+`</div><div class="rdgrip" data-rdgrip title="Drag to resize" aria-hidden="true"></div>`; card.dataset.sig=sig; card.setAttribute("aria-label",tool==="reader"?"Data reader":"X–Y lines");
   }
   // The values.
   const put=(k,t)=>{ const el=card.querySelector(`[data-rdv="${k}"]`); if(el) el.textContent=t; };
@@ -11571,9 +11576,19 @@ function renderRdCard(full){
       tb.innerHTML=list.length?`<table><thead><tr><th></th>${xh.mode!=="h"?`<th>Y at the X</th>`:""}${xh.mode!=="v"?`<th>X at the Y</th>`:""}</tr></thead><tbody>${rows}</tbody></table>`:`<p class="rdhint">No curve on these axes.</p>`; } }
   placeRdCard(card);
 }
-// The card sits in the figure's top right, or where it was dragged, and stays inside it.
-function placeRdCard(card){ const fig=$("#figure"); if(!fig||!card) return; const W=fig.clientWidth, H=fig.clientHeight, w=card.offsetWidth, h=card.offsetHeight, o=S.rdPos||{dx:0,dy:0};
-  const x=Math.max(4,Math.min(W-w-4,W-w-10+o.dx)), y=Math.max(4,Math.min(Math.max(4,H-h-4),10+o.dy)); card.style.left=x+"px"; card.style.top=y+"px"; }
+/* Where the card is and how big (kurve.rdcard, per browser: x and y in the window's pixels once
+   it has been moved, w and h once resized). Until it is moved it sits at the top right of the
+   graph in front; it always stays whole inside the window. */
+const RD_MIN=[220,120];
+function rdMem(){ let o=null; try{ o=JSON.parse(localStorage.getItem("kurve.rdcard")||"null"); }catch(e){} const n=v=>typeof v==="number"&&Number.isFinite(v)&&Math.abs(v)<1e5?v:null;
+  return o&&typeof o==="object"?{x:n(o.x),y:n(o.y),w:n(o.w),h:n(o.h)}:{x:null,y:null,w:null,h:null}; }
+function rdMemSet(patch){ const m=Object.assign(rdMem(),patch); try{ localStorage.setItem("kurve.rdcard",JSON.stringify(m)); }catch(e){} }
+function placeRdCard(card){ if(!card) return; const vw=innerWidth, vh=innerHeight, m=rdMem(), fig=$("#figure");
+  card.style.width=m.w!=null?Math.round(Math.max(RD_MIN[0],Math.min(vw-8,m.w)))+"px":"";
+  card.style.height=m.h!=null?Math.round(Math.max(RD_MIN[1],Math.min(vh-8,m.h)))+"px":"";
+  const w=card.offsetWidth, h=card.offsetHeight; let x=m.x, y=m.y;
+  if(x==null||y==null){ const fr=fig&&fig.getBoundingClientRect(); if(fr&&fr.width>0){ x=fr.right-w-10; y=fr.top+10; } else { x=vw-w-16; y=80; } }
+  card.style.left=Math.round(Math.max(4,Math.min(vw-w-4,x)))+"px"; card.style.top=Math.round(Math.max(4,Math.min(vh-h-4,y)))+"px"; }
 function wireRdCard(card){
   card.addEventListener("click",e=>{ const t=e.target;
     if(t.closest("[data-rdx]")){ setMode("zoom"); return; }
@@ -11590,13 +11605,17 @@ function wireRdCard(card){
     if(e.key!=="Enter") return; e.preventDefault();
     if(t.id==="rdFv") rdFind(S.rdAx||"x",t.value);
     else if(t.id==="rdXv"||t.id==="rdYv"){ const v=parseNum(t.value), xh=xhState(); if(v==null||!xh){ toast("Type a number, as on the axis."); return; } if(t.id==="rdXv") xh.x=v; else xh.y=v; t.blur(); drawReaders(); renderRdCard(); } });
-  card.addEventListener("pointerdown",e=>{ const hd=e.target.closest("[data-rdmove]"); if(!hd||e.target.closest("button")||e.button!==0) return; e.preventDefault(); hd.setPointerCapture(e.pointerId);
-    const o=S.rdPos||{dx:0,dy:0}, x0=e.clientX, y0=e.clientY;
-    const mv=ev=>{ S.rdPos={dx:o.dx+ev.clientX-x0,dy:o.dy+ev.clientY-y0}; placeRdCard(card); };
-    const up=()=>{ hd.removeEventListener("pointermove",mv); hd.removeEventListener("pointerup",up); const fig=$("#figure"), r=card.getBoundingClientRect(), fr=fig.getBoundingClientRect();
-      // What it was dragged to, kept as an offset from its home, inside the figure.
-      S.rdPos={dx:r.left-fr.left-(fr.width-r.width-10),dy:r.top-fr.top-10}; };
-    hd.addEventListener("pointermove",mv); hd.addEventListener("pointerup",up); });
+  // Moved by its head anywhere in the window; resized by the grip at its corner; both kept.
+  card.addEventListener("pointerdown",e=>{ if(e.button!==0) return; const grip=e.target.closest("[data-rdgrip]"), hd=!grip&&e.target.closest("[data-rdmove]");
+    if(!grip&&(!hd||e.target.closest("button"))) return; e.preventDefault(); const el=grip||hd; el.setPointerCapture(e.pointerId);
+    const r=card.getBoundingClientRect(), x0=e.clientX, y0=e.clientY; card.classList.add("rdmoving");
+    const mv=ev=>{ const dx=ev.clientX-x0, dy=ev.clientY-y0;
+      if(grip){ card.style.width=Math.round(Math.max(RD_MIN[0],Math.min(innerWidth-r.left-4,r.width+dx)))+"px"; card.style.height=Math.round(Math.max(RD_MIN[1],Math.min(innerHeight-r.top-4,r.height+dy)))+"px"; }
+      else { card.style.left=Math.round(Math.max(4,Math.min(innerWidth-r.width-4,r.left+dx)))+"px"; card.style.top=Math.round(Math.max(4,Math.min(innerHeight-r.height-4,r.top+dy)))+"px"; } };
+    const up=()=>{ el.removeEventListener("pointermove",mv); el.removeEventListener("pointerup",up); el.removeEventListener("pointercancel",up); card.classList.remove("rdmoving");
+      const q=card.getBoundingClientRect(); rdMemSet(grip?{w:Math.round(q.width),h:Math.round(q.height)}:{x:Math.round(q.left),y:Math.round(q.top)}); };
+    el.addEventListener("pointermove",mv); el.addEventListener("pointerup",up); el.addEventListener("pointercancel",up); });
+  card.addEventListener("dblclick",e=>{ if(!e.target.closest("[data-rdmove]")||e.target.closest("button")) return; try{ localStorage.removeItem("kurve.rdcard"); }catch(er){} placeRdCard(card); });
 }
 // What the card says, as text to paste.
 function rdText(){
@@ -11622,6 +11641,8 @@ function xhMove(x,y){ const xh=S.xh, dr=S.xhdrag, g=S.geo; if(!xh||!dr||!g) retu
    are there only while a graph is open on the desk (UX: "they shouldn't be
    there when I am using the worksheet and no graph is open"). */
 function graphOnDesk(){ return !!P()&&graphWinIds().some(id=>winOpen(id)); }
+// The readers' card stays whole inside the window when the window changes size.
+addEventListener("resize",()=>{ const c=document.getElementById("rdCard"); if(c&&!c.hidden) placeRdCard(c); });
 function syncGraphTools(){
   const on=graphOnDesk(), was=!document.body.classList.contains("nograph");
   document.body.classList.toggle("nograph",!on);
@@ -13505,6 +13526,14 @@ function showSheet(sid,o){ const p=P(); if(!p||!sheetList().some(s=>s.id===sid))
     const box=$("#ws"); if(box){ box.scrollTop=0; box.scrollLeft=0; } }
   if(!(o&&o.quiet)){ if(!winOpen("sheet")) openWin("sheet"); else focusWin("sheet"); }
   renderWs(); renderXpl(); }
+/* A sheet's placeholders: the empty X and Y a new sheet (or a new project) starts with, a column
+   with no values, formula, name, unit or comment, no steps or mask, on no graph and named by no
+   other column. A file brought into a sheet that holds nothing else takes their place, so they
+   do not stay between its columns. */
+function blankCol(c,p){ p=p||P(); return !!c&&!c.src&&!(c.data||[]).some(v=>v!=null)&&!c.fx&&!c.name&&!c.unit&&!c.comm&&!(c.pipe||[]).length&&!(c.mask||[]).length
+  &&!((p&&p.graphs)||[]).some(g=>(g.cols||[]).includes(c.id))&&!((p&&p.cols)||[]).some(o=>o!==c&&(o.of===c.id||o.src===c.id||o.xcol===c.id)); }
+// The columns of a list with sheet sid's placeholders taken out, when that sheet holds nothing but them.
+function dropBlanks(list,sid,p){ p=p||P(); const on=list.filter(c=>!c.src&&sheetOf(c,p)===sid); if(!on.length||!on.every(c=>blankCol(c,p))) return list; const b=new Set(on); return list.filter(c=>!b.has(c)); }
 function newSheet(o){ o=o||{}; const p=P(); if(!p||S.readOnly) return null;
   if(S.ws&&S.ws.edit) wsCommit(0,0,true);
   if(!o.noUndo) pushUndo("adding a sheet");
@@ -14498,6 +14527,7 @@ async function doImport(){
     let sid=curSheet();
     if(mode==="sheet"){ stampSheets(p); sid=newSheetId(); p.sheets=sheetList(p).concat([{id:sid,name:sheetNameFor(base)}]); }
     cols.forEach(c=>{ c.sheet=sid; });
+    if(mode==="add"){ const was=p.cols.length; p.cols=dropBlanks(p.cols,sid,p); if(p.cols.length<was&&!p.cols.some(c=>c.id===p.activeY)) p.activeY=ids[0]||null; }
     if(ys.length===1&&!ys[0].name) ys[0].name=base.slice(0,60);
     const here=mode==="sheet"?[]:sheetCols(sid), lastX=here.slice().reverse().find(c=>c.role==="x"&&c.data.some(v=>v!=null)), emptyX=here.find(c=>c.role==="x"&&!c.data.some(v=>v!=null));
     let own=false;
@@ -14642,10 +14672,10 @@ async function batchImport(items,o){
 }
 async function doBatchImport(good,skip,o){
   const p0=P(), intoNew=o.into==="new"||!S.pid, keep=!intoNew&&allCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null));
-  const cols=keep?p0.cols.slice():[], newY=[];
+  let cols=keep?p0.cols.slice():[]; const newY=[];
   // Into a project with data on the sheet shown, the files go on a sheet of their own.
   const own=keep&&sheetCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null)), sid=own?newSheetId():keep?curSheet():SHEET0.id;
-  if(own) stampSheets(p0);
+  if(own) stampSheets(p0); else if(keep) cols=dropBlanks(cols,sid,p0);
   const onS=c=>c.sheet===sid||(!own&&keep&&sheetOf(c)===sid);
   good.forEach(it=>{ const lastX=cols.slice().reverse().find(c=>c.role==="x"&&c.data.some(v=>v!=null)&&onS(c)), at=cols.length;
     const yc=Object.assign(makeCol("y",it.name,it.yu,it.y),{pipe:[],mask:[],sheet:sid},colMetaOf(it.meta,it.fname));
@@ -14718,6 +14748,7 @@ async function autoImport(files,o){
   // Beside data on the sheet shown, the files go on a sheet of their own, named after them.
   const own=!fresh&&sheetCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null)), sid=own?newSheetId():fresh?SHEET0.id:curSheet();
   if(own) stampSheets(p);
+  if(!own&&!fresh) cols=dropBlanks(cols,sid,p);
   built.forEach(b=>b.cols.forEach(c=>{ c.sheet=sid; }));
   const onS=c=>c.sheet===sid||(!own&&!fresh&&sheetOf(c)===sid);
   built.forEach(b=>{ const lastX=cols.slice().reverse().find(c=>c.role==="x"&&c.data.some(v=>v!=null)&&onS(c));
@@ -20342,7 +20373,7 @@ ${DL([["Range…","All of it, rows from and to (counted as the worksheet shows t
 <p>The graph window's own bar repeats the menu bar's <em>Data</em>, <em>Plot</em>, <em>Analyze</em> and <em>Figure</em>. ${MP("Plot › View")} has the ways of looking (Zoom, Pan, the Reader, the X–Y lines, show all), ${MP("Figure")} the look (format, Reverse X, Log Y, scales, grid lines, fonts, legend, annotations), and ${MP("Analyze › Fit")} what of the fit is drawn. While a graph is on the desk the toolbar has its pointer tools and switches; with only the worksheet on the desk they are not there, so nothing offers to act on a graph that is not shown.</p>
 <h2 id="reader">Reading values</h2>
 <p>The status bar shows the value under the pointer. A selected point can be moved with ${K("←")} ${K("→")}. ${DA("keys#k-graph","All the graph's keys")}</p>
-${DL([["Data reader","The <em>Reader</em> tool: hovering rings the plotted point nearest the pointer, a click pins it, and a card on the graph gives its curve, its row and its X and Y (with its error, if it has one). "+K("←")+" "+K("→")+" step along the curve, "+K("↑")+" "+K("↓")+" go to the next curve, "+K("Home")+" "+K("End")+" the first and last points. The card's <em>Find</em> takes an X or a Y and goes to the nearest point with it, bringing it into view; <em>Copy</em> copies what it reads."],["X–Y lines","The <em>X–Y lines</em> tool: a vertical and a horizontal line through the graph, dragged by either (or where they cross). Where the vertical line is, the card gives every curve's Y; where the horizontal line is, the X at which each curve crosses it. Its list chooses both lines, the vertical alone (each curve's Y at one X) or the horizontal alone (where the curves cross one Y). The arrows move the lines a pixel at a time, ten with "+K("Shift")+"; X and Y can also be typed in the card."]])}`},
+${DL([["Data reader","The <em>Reader</em> tool: hovering rings the plotted point nearest the pointer, a click pins it, and a card on the graph gives its curve, its row and its X and Y (with its error, if it has one). "+K("←")+" "+K("→")+" step along the curve, "+K("↑")+" "+K("↓")+" go to the next curve, "+K("Home")+" "+K("End")+" the first and last points. The card's <em>Find</em> takes an X or a Y and goes to the nearest point with it, bringing it into view; <em>Copy</em> copies what it reads. The card goes anywhere on the screen, over any window: drag it by its head, resize it by its corner, double-click its head to put it back by the graph. Its place and size are kept for next time."],["X–Y lines","The <em>X–Y lines</em> tool: a vertical and a horizontal line through the graph, dragged by either (or where they cross). Where the vertical line is, the card gives every curve's Y; where the horizontal line is, the X at which each curve crosses it. Its list chooses both lines, the vertical alone (each curve's Y at one X) or the horizontal alone (where the curves cross one Y). The arrows move the lines a pixel at a time, ten with "+K("Shift")+"; X and Y can also be typed in the card."]])}`},
 {id:"scales", g:"Graph", t:"Axis scales, dates and a second Y axis", kw:"scale log logarithmic ln natural log2 reciprocal 1/x arrhenius offset reciprocal celsius kelvin square root sqrt probability normal percent quantile date time clock hours timestamp second y axis right transmittance absorbance other units",
  lead:"Besides linear and logarithmic, an axis can be on a natural log, log₂, reciprocal, offset reciprocal, square-root or probability scale; its numbers can read as dates and times; and a second Y axis can show the heights in other units.",
  body:`<h2 id="kinds">Scales</h2>
@@ -20405,7 +20436,7 @@ ${DL([["A whole graph","Hold the grip "+ICON("grip","sm")+" in its title bar and
 <h2>Each graph's settings</h2>
 <p>Plot type, layout, axes, legend, fonts, titles, lines and text belong to the graph they were made on; peaks found with the Peaks window belong to the column and show on every graph that draws it. The <strong>⋯</strong> on a graph's title bar renames it, chooses the columns on it, duplicates, exports, closes or deletes it. Closing keeps the graph in the project, off the desk; deleting removes it, never its data. Any graph can be deleted, the first one too, and Undo brings it back. ${DA("plotting#close","Closing a graph")}</p>
 <h2>Zoom together</h2>
-<p><em>Link the X zoom of the graphs</em> (in ${MP("Window › Graphs")}, on by default): zooming one graph shows the same X range on every graph in the same units, each with its own Y range. Off, each keeps its own zoom.</p>
+<p><em>Link the X zoom of the graphs</em> (in ${MP("Window › Graphs")} and a graph's ⋯ menu, off until it is ticked): zooming one graph shows the same X range on every graph in the same units, each with its own Y range. Off, each keeps its own zoom.</p>
 <h2>Arranging them</h2>
 <p><em>Tile</em> (the taskbar's button, or ${MP("Window › Tile")}) puts the graphs in a grid on the left of the desk and the other windows in a column on the right; when that would make the graphs too small to read, the graphs take the whole desk and the other windows wait in the taskbar. With more than four graphs the taskbar gathers them under one <em>Graphs</em> button that lists them all. Each project remembers where its graph windows were.</p>
 <h2>Fast with many</h2>
@@ -23315,6 +23346,7 @@ function graphWinItems(id){
       return {label:specName(c), checked:shown, enabled:!ro&&!(shown&&on.length<2), run:()=>toggleGraphCol(id,c.id)}; })},
     {label:"What it plots…", enabled:!ro, title:"Its curves: add, replace, take off and order them, and what each draws", run:()=>plotsOf(id)},
     {label:"Duplicate", enabled:!ro, run:()=>duplicateGraph(id)},
+    drawGraphIds().length>1?{label:"Link the X zoom of the graphs", checked:S.linkX, title:"Zooming one graph shows the same X range on the others", run:()=>setLinkX(!S.linkX)}:null,
     {label:"Combine", sub:()=>combineMenuItems(id).slice(1)},
     {label:"Put in a figure", enabled:!ro, title:"As a panel of a figure, its plot area lined up with the others'", sub:()=>{ const figs=deskGraphIds().filter(k=>isFigId(k));
       return [{label:"A new figure, with other graphs…", run:()=>newFigureDlg([id])}].concat(figs.length?["-",{group:"A panel of"}].concat(figs.map(f=>({label:graphName(f), run:()=>figAddPanel(f,{gid:id})}))):[]); }},
@@ -23486,8 +23518,9 @@ function bringIn(groups,onto,gid){
   const p=P(); if(!p||S.readOnly) return;
   const empty=!allCols().some(c=>c.role!=="x"&&(c.data||[]).some(v=>v!=null));
   let cols=empty?[]:p.cols.slice(); const shown=[], brought=[], names=[], from=[], styles={};
-  const own=!empty&&sheetCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null)), sid=own?newSheetId():empty?SHEET0.id:curSheet(), n0=cols.length;
-  if(own) stampSheets(p);
+  const own=!empty&&sheetCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null)), sid=own?newSheetId():empty?SHEET0.id:curSheet();
+  if(own) stampSheets(p); else if(!empty) cols=dropBlanks(cols,sid,p);
+  const n0=cols.length;
   const found=Object.assign({},p.found||{}), annos=(p.annos||[]).slice();
   groups.forEach(({q,cids})=>{ const r=copySpectra(q,cids); if(!r.cols.length) return; from.push(`“${projName(q)}”`);
     // An X column the same as the last one here is shared, not repeated.
@@ -23511,7 +23544,7 @@ function bringIn(groups,onto,gid){
   pushUndo("bringing in spectra");
   const fromW=winOfGraph(S.gid), wasOpen=graphWinIds().some(winOpen);
   p.cols=cols; const raw=recordRaw(`brought in ${andList(names)} from ${andList(from)}`);
-  const patch=Object.assign({cols,graphs,found,annos},raw?{raw}:{},empty?{activeY:shown[0],sheets:null,wsHide:null}:{});
+  const patch=Object.assign({cols,graphs,found,annos},raw?{raw}:{},empty?{activeY:shown[0],sheets:null,wsHide:null}:!cols.some(c=>c.id===p.activeY)?{activeY:shown[0]}:{});
   if(own){ patch.sheets=sheetList(p).concat([{id:sid,name:sheetNameFor(from.length===1?projName(groups[0].q):"Copied")}]); S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=sid; S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; S.wsSort=null; }
   const list=names.length>4?names.slice(0,4).join(", ")+` and ${names.length-4} more`:names.join(", ");
   save(patch,`brought in ${names.length} column${names.length===1?"":"s"} (${list}) from ${andList(from)}${brought.length>shown.length?`, with ${brought.length-shown.length} they are made from`:""}`);

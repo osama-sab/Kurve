@@ -74,7 +74,8 @@ have **several graphs**, each in its own window (Plot › New graph: with the an
 spectrum, with every spectrum, or one for each spectrum, tiled): the one clicked is worked on
 (it is drawn live, its spectrum is analysed and every window follows), the others show a
 picture and chips naming their spectra; each has a ⋯ menu (rename, spectra on it, duplicate,
-export, delete), the X zoom is linked between them unless switched off, and with more than
+export, delete), the X zoom can be linked between them (off until ticked in a graph's ⋯ menu or
+Window › Graphs), and with more than
 four the taskbar gathers them under one Graphs button. Graphs plotted one by one are put
 together by holding and dropping: a graph by the grip in its title bar onto another graph
 (or its taskbar button) merges into it, a spectrum's chip adds that spectrum (or, dropped on
@@ -869,7 +870,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   beside data on the sheet shown, named after the file by `sheetNameFor`) beside `add` (the
   sheet shown), `replace` (one sheet again) and `new`; batch imports, dropped files and columns
   copied from another project go on a sheet of their own beside data, and into the sheet shown
-  when it is empty. The Explorer has a row per sheet (`ws:<id>`; the older `ws` key is the first
+  when it is empty. A sheet that holds only placeholders (a new sheet's empty X and Y: `blankCol`,
+  no values, formula, name, unit, comment, steps or mask, on no graph, named by no column) gives
+  them up to what comes in (`dropBlanks(list, sid, p)`, in `doImport`'s Add, `autoImport`,
+  `doBatchImport` and `bringIn`), so they never sit between a file's columns. The Explorer has a row per sheet (`ws:<id>`; the older `ws` key is the first
   sheet's, `treeOf`).
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
@@ -1242,8 +1246,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   then restored. `runSnaps` redraws only pictures whose `snapSig` changed (size, palette,
   settings, annotations, each spectrum's `pipeSig`, name and mask, zoom, fit, bands, a
   pending step on it), 24 ms at a time; `scheduleSnaps(delay)` coalesces. Ids in a picture
-  are prefixed so its clip paths are its own. **Linked zoom** (`S.linkX`, `kurve.linkX`,
-  `setLinkX`): another graph takes the front one's X range as `{x0, x1, xu, yAuto}` and
+  are prefixed so its clip paths are its own. **Linked zoom** (`S.linkX`, `kurve.linkX`, off
+  unless it reads `"1"`; `setLinkX`, from Window › Graphs and a graph's ⋯ menu): another graph takes the front one's X range as `{x0, x1, xu, yAuto}` and
   `resolveYAuto` fits Y to what is in range (offset and heat layouts are left whole).
   Making and changing: `newGraphs(groups, opt)`, `newGraphFrom(ids)` (it takes half of the
   front graph's window, `splitInto`), `onePerSpectrum`, `allInOneGraph`, `duplicateGraph`,
@@ -1568,9 +1572,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   `XH_MODES` (both, vertical, horizontal; `xhMode`/`setXhMode`, `kurve.xh`), `xhCrossings(rc, axis,
   at)` (by interpolation on screen), dragged by `xhDown`/`xhMove` (`S.xhdrag`). `drawReaders()`
   draws `#rdLayer` over the plot (rings, guides, the lines with hit strips `data-xh="v|h|c"`, tags
-  `.rdtag`) after every `renderPlot`; `renderRdCard(full)` the card `#rdCard` in `#figure`
-  (rebuilt only when its `data-sig` changes, the values written in place; `placeRdCard`,
-  `wireRdCard`, `rdText` for Copy). The keys are in `graphKey`. Neither writes to the project.
+  `.rdtag`) after every `renderPlot`; `renderRdCard(full)` the card `#rdCard`, fixed in `#app`
+  (so it goes anywhere on the screen, over any window, and a dialog makes it inert; z 38, under
+  the Explorer's drawer, dialogs, menus and toasts; hidden with no graph on the desk), rebuilt
+  only when its `data-sig` changes, the values written in place; `placeRdCard` (where it was put,
+  else the top right of `#figure`, always whole in the window, again on the window's `resize`),
+  `rdMem`/`rdMemSet` (`kurve.rdcard`: `x`, `y` once moved, `w`, `h` once resized; what does not
+  read is nothing), `RD_MIN`, its head `[data-rdmove]` dragged and double-clicked (back by the
+  graph) and its grip `[data-rdgrip]` dragged (`.rdmoving` while either), `wireRdCard`, `rdText`
+  for Copy. The keys are in `graphKey`. Neither writes to the project.
   `graphOnDesk()`/`syncGraphTools()` (end of `renderTop` and `applyWins`) hide the toolbar's
   `.tg` group with no graph on the desk (`body.nograph`); the menus keep their shape, and Plot ›
   View and Figure's items are greyed without `GID()`.
@@ -2321,6 +2331,12 @@ so either finds the article.
 `node tools/ds-test.mjs [path]` (Playwright) checks what each slice of the design system
 (`ux/spec/DS_SPEC.md`) changed: the taskbar, the dock's strip, the tooltips, the absent
 identifiers, the real superscripts, the fields' widths; run it after touching the frame.
+`node tools/review-drive.mjs [path]` (Playwright) checks the user's reports, each as it was made
+(29.10: a file into a sheet made with + by the dialog, a drop, several files and a copy from
+another project, a named placeholder kept, undo; the X zoom each graph's own until linked from the
+⋯ menu; the readers' card dragged onto the worksheet, resized, its least size, kept across the X–Y
+lines and a reload, whole in a smaller window, put back by a double-click, inert under a dialog,
+junk from storage); add a section to it for each report fixed.
 `node tools/plot-drive.mjs [path]` (Playwright) checks what each slice of `ux/spec/PLOT_SPEC.md`
 added (slice 1: a curve on the right axis and undone, ranges by rows and by X for one curve or
 every one, labels from a column, an export, junk from storage; slice 2: Plot setup opened on a
@@ -3155,6 +3171,18 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A search judged by its tests alone finds what the tests ask.** The palette passed its checks
   and still answered *export* with "Save this style…" and *power spectrum* with nothing: twenty
   queries read by eye found four wrong answers. Read a ranking's results, not only its first.
+- **A placeholder is not a column.** A new sheet starts with an empty X and Y, as a new project
+  does; a file added to it kept them, one between its X and its Y, which the user saw as a
+  column made at random. Every way in (the dialog, a drop, several files, a copy from another
+  project) adds after what a sheet holds, so each needed the same rule: what holds nothing and
+  was given nothing gives way (`blankCol`). A placeholder someone has named is theirs and stays.
+- **What changes other windows is chosen, not given.** Linked zoom was on unless switched off,
+  so zooming one graph zoomed them all, which looked like a bug to someone who never asked for
+  it. A setting that reaches beyond the window it is used in starts off, and is offered where the
+  person is (the graph's ⋯ menu), not only in a menu elsewhere.
+- **A tool's card belongs to the screen.** The readers' card was a child of the graph and kept
+  inside it, so on a small graph it covered the curves it was reading. A floating card is fixed in
+  the app, kept whole in the window, moved and resized, and remembers where it was put.
 
 ## Roadmap
 
@@ -3278,6 +3306,13 @@ error boxes), Plot waiting with a note until each curve has it; error boxes also
 curve's error bars. Slice 6 done: Plot setup remembers, per sheet in this browser, the kind it last
 plotted and each column's use, starts from them, and *Plot like the last time* plots a selection
 that way at once; what it remembers never changes a column. Plot setup's six slices are done.
+
+Then, from the user's reports of 29.10: a file added to a new sheet no longer leaves the sheet's
+empty columns between its own (the dialog, a drop, several files and a copy from another project
+alike); the X zoom is each graph's own until linked (in a graph's ⋯ menu or Window › Graphs); the
+Reader's and X–Y lines' card goes anywhere on the screen, resized by its corner, its place and size
+kept, a double-click on its head putting it back by the graph. `tools/review-drive.mjs` checks
+each report as it was made.
 
 Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
 graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a

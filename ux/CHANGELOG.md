@@ -1024,6 +1024,21 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## The user's reports: sheets, linked zoom, the readers' card (2026-10-29)
+
+- **Importing into a sheet made with +** (the dialog's Add to the sheet shown, a dropped file,
+  several files at once, Copy from another project) put the file beside the sheet's empty X and
+  Y, one of them between the file's columns. The empty columns now give way; one undo brings
+  them back; a column someone named is kept.
+- **Linked zoom is off** until ticked, in a graph's ⋯ menu (new) or Window › Graphs.
+- **The Reader's and X–Y lines' card** goes anywhere on the screen, dragged by its head, and is
+  resized by the grip at its corner; its place and size are kept per browser, always whole on the
+  screen; a double-click on its head puts it back by the graph. Numbers in its table no longer
+  break across lines.
+
+Checked: a new drive, `tools/review-drive.mjs` (23), screenshots at 1440 dark and 390 light, and
+every suite.
+
 ## Plot setup, slice 6: remembered setups (2026-10-29)
 
 `ux/spec/PLOT_SPEC.md` slice 6, the last.

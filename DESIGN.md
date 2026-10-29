@@ -874,6 +874,21 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-10-29: the user's reports: sheets, linked zoom, the readers' card
+
+- **A new sheet's empty columns give way.** They are there so a sheet can be typed into at once;
+  a file brought in is the answer to them, not something to put beside them. Only what holds
+  nothing and was given nothing (no name, formula, steps, place on a graph) goes: a column
+  someone named stays, the file beside it.
+- **Linked zoom starts off.** Zooming one graph zoomed every graph, which reads as a bug when it
+  was never asked for. It is offered in the graph's ⋯ menu (where the person is when they want
+  it) as well as Window › Graphs, and the choice is kept per browser.
+- **The readers' card floats over the whole app**, not inside the graph: on a small graph it
+  covered what it read. Dragged by its head anywhere (over the worksheet, the dock), resized by
+  a grip at its corner, never smaller than it can show, always whole on the screen, and kept
+  where it was put and at its size for next time; a double-click on its head puts it back at the
+  graph's top right. It stays under dialogs, menus and toasts, and a dialog makes it inert.
+
 ### 2026-10-29: remembered setups (PLOT_SPEC slice 6)
 
 - **The second plot of a series is like the first.** Plot setup remembers, per sheet, the kind it
