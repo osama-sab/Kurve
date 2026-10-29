@@ -669,6 +669,22 @@ graph first, with the taskbar kept at the bottom of the screen.
   `reportTrendsHtml`. `trendPlotSvg(ser, {W, H, pal, forExport, idp, single})` draws any number
   of quantities on a left and a right axis (margins measured, a legend row, symbols per
   quantity, an axis of one kind titled by the kind); `trendSvg` is it with one series.
+- **What each curve of a graph uses** (`ux/spec/PLOT_SPEC.md` slice 1): `g.plot.use = {colId:
+  {rng, ax, lab}}`, read through `curveUse(id, pl)` (`USE0` when nothing; `rngOk`) and written by
+  `setCurveUse(ids, patch, log)` (one undo entry); `useClean` in `normalize` keeps only curves on
+  the graph, ranges of two numbers, `ax:"r"` and columns that exist; `plotBase` leaves it out (and
+  `FMT_KEYS` never had it). `rng {by:"row"|"x", a, b}` (rows counted from 1): `useRange(id, pts,
+  pl)` in `buildPlot` filters the active curve's `pts` and each other curve's before anything is
+  drawn or scaled, so the automatic view is over what is drawn; the data, `pointsAll`, the fit and
+  the readers' data are not. `ax:"r"`: `buildPlot`'s `onR`, `oR` and `oL` (every other curve with
+  the `dy` layout, those set so in an overlay; not the active one): `dy` is now "a right axis is
+  drawn", the right axis's range and title from `oR`, the legend's (left) and (right), the fill
+  between curves and the legend's corner search over the left ones; `hasRight(cfg)` for the axis
+  menu, the axis drag, the Format pane's pages. `lab`: `labSvg` writes each drawn point's value of
+  that column in its row (`g[data-plab]`, `TS.labels`, at most 1500 a curve on screen, every one in
+  an export). The curve's right-click: *Range…* (`curveRangeDlg`: all, rows, X when it rises or
+  falls steadily, *Fit the axes to it*, *Every curve of this graph*; `rngText`), *Right axis*,
+  *Labels from*. `tools/plot-drive.mjs` drives it.
 - **Caveats** have one source: `fitWarnings(fit)` returns `{level, kind, text, brief, acts}` for staleness
   (`fitStale`), non-convergence, unusable components (`peakProblems`), a singular covariance,
   dependency, parameters at a bound, and residuals that run in long same-sign stretches
@@ -2246,6 +2262,10 @@ so either finds the article.
 `node tools/ds-test.mjs [path]` (Playwright) checks what each slice of the design system
 (`ux/spec/DS_SPEC.md`) changed: the taskbar, the dock's strip, the tooltips, the absent
 identifiers, the real superscripts, the fields' widths; run it after touching the frame.
+`node tools/plot-drive.mjs [path]` (Playwright) checks what each slice of `ux/spec/PLOT_SPEC.md`
+added (slice 1: a curve on the right axis and undone, ranges by rows and by X for one curve or
+every one, labels from a column, an export, junk from storage); run it after touching the graph's
+drawing or Plot setup.
 `node tools/fit-drive.mjs [path]` (Playwright) clicks and types into what each slice of the
 curve fit (`ux/spec/FIT_SPEC.md`) from slice 5 on added (Find X/Y: the readouts against the
 functions, a redraw while typing, Fill a column… both ways, undo); run it after touching the Fit
@@ -3164,6 +3184,12 @@ the Fit window starts with, derived values with their errors) and an organizer f
 (by category, renamed and filed in place, edited, deleted, copied between the project and the
 browser). The curve fit's ten slices are done.
 
+Then Plot setup as Origin's (`ux/spec/PLOT_SPEC.md`, the roadmap's next item). Slice 1 done: what
+each curve of a graph uses, kept on the graph and not the data: a range of rows or of X it draws
+(the axes fitted to it), the right Y axis for any overlaid curve but the active one, labels from a
+column beside each point; on the curve's right-click (Range…, Right axis, Labels from), in every
+export, undone with the graph, dropped when it no longer reads.
+
 Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
 graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
 click, stepped along and between curves, found by a typed X or Y, in a card on the graph) and
@@ -3650,6 +3676,9 @@ Next, in order:
   guesses are measured heuristics (two or three decays from a grid of 16 decay times, a wave's
   period from at most 600 points), and a sketch shows typical values, not the data's; your
   functions have no kind of their own in the list yet
+- What a curve uses: the right axis for overlaid curves only (the active one stays left), one right
+  axis for all of them; the readers (Reader, X–Y lines) read the left axis's curves only; a range is
+  by rows or by X, not both, and labels are a column's numbers (the worksheet has no text cells)
 - Your functions: a derived value has no unit of its own (it is shown without one); a category is
   one word or phrase, not a tree; the organizer works on one function at a time
 - Saved fit settings are a curve fit's (a peak fit's peaks are its own); a column's weights and a

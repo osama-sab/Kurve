@@ -1024,6 +1024,21 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plot setup, slice 1: what each curve of a graph uses (2026-10-29)
+
+`ux/spec/PLOT_SPEC.md` slice 1, the user's question of 23.10 about ranges and axes.
+- **Range…** on a curve's right-click: all of it, rows from and to, or X from and to; the axes
+  fitted to it or not; this curve or every curve of the graph. The graph's alone: the data, the
+  processing, the fit and the other graphs are untouched.
+- **Right axis** for any overlaid curve but the active one, with its own range and title, the
+  legend saying left and right, and the Format pane's Right Y axis page.
+- **Labels from** a column: each point drawn labelled with that column's value in its row.
+- Kept on the graph, undone with it, in every export; a new graph's look leaves them out; junk from
+  storage is dropped.
+
+Checked: a new drive, `tools/plot-drive.mjs` (11), a screenshot, and every suite from the round
+before.
+
 ## Curve fit, slice 10: the function editor grown, and your functions (2026-10-29)
 
 `ux/spec/FIT_SPEC.md` slice 10, the last of the curve fit.

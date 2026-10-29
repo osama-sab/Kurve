@@ -117,7 +117,9 @@ Each slice ships on its own: unit tests where there are numbers, a drive clickin
 control, odd-test for what can come back broken from storage, its help article, DESIGN.md's
 reason, CLAUDE.md, the menu spec when a menu changes.
 
-1. **What a graph's curves use** (the model and the drawing). `g.plot.use` and `curveUse`;
+1. **What a graph's curves use** (done 2026-10-29; the *Two Y axes* layout kept as it was rather
+   than written as `ax` on each, so an old project draws as before with nothing rewritten; the
+   active curve stays on the left; the readers read the left axis's curves only) (the model and the drawing). `g.plot.use` and `curveUse`;
    `normalize` and the upgrade (`dy` written as `ax`); `buildPlot` draws a curve's range (by
    row, by X; the autoscale over what is drawn) and each curve on its axis (the right axis's
    title and numbers from its curves, as `dy` does now); labels from a column beside each

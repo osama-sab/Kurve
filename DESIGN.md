@@ -854,6 +854,26 @@ setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
 
+### 2026-10-29: what each curve of a graph uses (PLOT_SPEC slice 1)
+
+The user asked why the range a curve draws and its axis could not be chosen, as in Origin's
+Plot Setup. This slice gives each curve on a graph three things of its own; the dialog that sets
+them all at once is slice 2.
+
+- **A curve's range is the graph's, not the data's.** Rows from and to, or X from and to, chosen
+  in *Range…* on the curve's right-click: the graph draws only that and fits its axes to it if
+  asked, while the data, the processing, the fit and the other graphs are untouched (a crop step
+  is still how the data change). By X is offered only where X rises or falls steadily, as in
+  Origin; rows are counted as the worksheet shows them.
+- **Any overlaid curve can take the right axis**, not only "every curve but the active one" (the
+  *Two Y axes* layout, which stays as it was: an old project draws as before). The active curve
+  stays on the left, so the left axis always has the curve the tools work on. The legend says
+  left and right as soon as there are two axes.
+- **Labels from a column** beside each point, in the labels' text style: a sample number or a
+  temperature where the point is, the thing Origin's L designation does.
+- All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
+  graph's look, and dropped on opening when they no longer read.
+
 ### 2026-10-29: the function editor grown, and your functions (FIT_SPEC slice 10)
 
 - **A function of yours is a model like the built-in ones**: a category (the model list files it
