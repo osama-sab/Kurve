@@ -93,6 +93,137 @@ await page(async p => {
   check("a range, an axis or a label column that does not read is dropped by normalize", r === JSON.stringify({ [id.C]: { rng: { by: "x", a: 1, b: 2 } } }), r);
 }, { name: "curves' ranges, axes and labels" });
 
+// Six columns on Sheet 1 (A Time, B Small, C Spread as data, D Large, E Third, F Sample as data) and two on a sheet called Run 2.
+const six = async p => {
+  await p.evaluate(async () => {
+    const n = 60, x = [], b = [], sp = [], c = [], d = [], lab = [], x2 = [], y2 = [];
+    for (let i = 0; i < n; i++) { x.push(i * 0.5); b.push(Math.sin(i / 6)); sp.push(0.05 + 0.001 * i); c.push(500 + 200 * Math.cos(i / 9)); d.push(0.5 * Math.sin(i / 4)); lab.push(100 + i); }
+    for (let i = 0; i < 20; i++) { x2.push(i); y2.push(i * i); }
+    const Y = (nm, v) => Object.assign(makeCol("y", nm, "", v), { pipe: [], mask: [] });
+    const A = makeCol("x", "Time", "s", x), B = Y("Small", b), C = makeCol("ignore", "Spread", "", sp), D = Y("Large", c), E = Y("Third", d), F = makeCol("ignore", "Sample", "", lab);
+    const G = Object.assign(makeCol("x", "Step", "", x2), { sheet: "run2" }), H = Object.assign(Y("Squares", y2), { sheet: "run2" });
+    const pr = Object.assign(blankProject("Six columns"), { cols: [A, B, C, D, E, F, G, H], activeY: B.id, sheets: [{ id: "s1", name: "Sheet 1" }, { id: "run2", name: "Run 2" }] });
+    [A, B, C, D, E, F].forEach(q => { q.sheet = "s1"; });
+    await createProject(pr, "test"); await new Promise(r => setTimeout(r, 80)); renderAll();
+  });
+  await p.waitForTimeout(400);
+  return p.evaluate(() => { const by = nm => P().cols.find(c => c.name === nm).id; return { A: by("Time"), B: by("Small"), C: by("Spread"), D: by("Large"), E: by("Third"), F: by("Sample"), G: by("Step"), H: by("Squares") }; });
+};
+// What the dialog shows: its curves (name, against, with), what is enabled, and the preview.
+const psu = p => p.evaluate(() => ({
+  curves: [...document.querySelectorAll("#psuCur [data-pcur]")].map(t => ({ id: t.dataset.pcur, against: (t.querySelector("[data-cx]") || {}).value, with: t.children[2].textContent, sel: t.getAttribute("aria-selected") === "true" })),
+  add: !$("#psuAdd").disabled, rep: !$("#psuRep").disabled, del: !$("#psuDel").disabled, up: !$("#psuUp").disabled, dn: !$("#psuDn").disabled, ok: !$("#formOk").disabled,
+  pv: $("#pdlgSk").innerHTML, ids: [...$("#pdlgSk").querySelectorAll("[id]")].map(e => e.id) }));
+const use = (p, id, v) => p.selectOption(`#psuCols [data-puse="${id}"]`, v);
+
+console.log("Slice 2: Plot setup, rebuilt");
+await page(async p => {
+  const id = await six(p);
+  // Opened on two columns: a curve each, against their X, with nothing waiting to be added.
+  await p.evaluate(id => { openPlotDlg([id.B, id.D]); }, id); await p.waitForTimeout(400);
+  let r = await psu(p);
+  check("opened on B and D: two curves against A, nothing to add or replace, Up off for the first", r.curves.map(q => q.id).join() === [id.B, id.D].join() && r.curves.every(q => q.against === id.A) && !r.add && !r.rep && r.del && !r.up && r.dn && r.ok, JSON.stringify(Object.assign({}, r, { pv: r.pv.length })));
+  check("the preview is the graph drawn as it will be, its ids its own", /<svg/.test(r.pv) && /data-ser/.test(r.pv) && r.ids.length && r.ids.every(i => i.startsWith("psu-")), r.ids.slice(0, 4).join());
+  r = await p.evaluate(id => { const opts = s => [...document.querySelector(`#psuCols [data-puse="${s}"]`).options].filter(o => o.disabled).map(o => o.value); return { b: opts(id.B), c: opts(id.C), a: opts(id.A) }; }, id);
+  check("a Y column cannot be made error bars or an X here, an X not a Y; a data column can be anything", r.b.includes("e:y") && r.b.includes("x") && r.a.includes("y") && !r.c.length, JSON.stringify(r));
+  // Error bars and labels from columns: Add lights up, and the curves take them.
+  await use(p, id.C, "e:y"); await p.waitForTimeout(120);
+  r = await psu(p);
+  check("C marked as Y error ±: Add offered", r.add && !r.curves[0].with.includes("yEr"), JSON.stringify(r.curves));
+  await p.click("#psuAdd"); await p.waitForTimeout(200);
+  await use(p, id.F, "lab"); await p.click("#psuAdd"); await p.waitForTimeout(200);
+  r = await psu(p);
+  check("Add: B with its error bars from C, D with labels from F (the nearest Y to its left)", /yEr± C/.test(r.curves[0].with) && /labels F/.test(r.curves[1].with) && !r.add && /data-plab/.test(r.pv), JSON.stringify(r.curves));
+  // Order, range and axis of a curve.
+  await p.click(`#psuCur [data-pcur="${id.D}"] td`); await p.click("#psuUp"); await p.waitForTimeout(150);
+  r = await psu(p);
+  check("Up: D first, still selected", r.curves[0].id === id.D && r.curves[0].sel && !r.up && r.dn, JSON.stringify(r.curves));
+  await p.click("#psuDn"); await p.waitForTimeout(150);
+  await p.selectOption(`#psuCur [data-crng="${id.D}"]`, "row"); await p.waitForTimeout(150);
+  r = await p.evaluate(id => ({ a: $(`#psuCur [data-cra="${id.D}"]`).value, b: $(`#psuCur [data-crb="${id.D}"]`).value }), id);
+  check("Range by rows starts at every row", r.a === "1" && r.b === "60", JSON.stringify(r));
+  await p.fill(`#psuCur [data-cra="${id.D}"]`, "11"); await p.press(`#psuCur [data-cra="${id.D}"]`, "Enter");
+  await p.fill(`#psuCur [data-crb="${id.D}"]`, "20"); await p.press(`#psuCur [data-crb="${id.D}"]`, "Enter"); await p.waitForTimeout(150);
+  await p.selectOption(`#psuCur [data-cax="${id.D}"]`, "r"); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ open: !$("#formModal").hidden, ax: (document.querySelector("#psuCur [data-cax]") || {}).disabled }));
+  check("Enter in a range field enters it and keeps the dialog open; the first curve's axis stays left", r.open && r.ax, JSON.stringify(r));
+  // Remove, and Add puts it back; Replace with a ticked column.
+  await p.click(`#psuCur [data-pcur="${id.B}"] td`); await p.click("#psuDel"); await p.waitForTimeout(150);
+  r = await psu(p);
+  check("Remove takes B off; Add offers it again, its marks kept", r.curves.length === 1 && r.curves[0].id === id.D && r.add, JSON.stringify(r.curves));
+  await p.click("#psuAdd"); await p.waitForTimeout(150);
+  await p.check(`#psuCols [data-ptick="${id.E}"]`); await p.waitForTimeout(100);
+  r = await p.evaluate(() => ({ mark: !$("#psuMark").hidden, n: $("#psuMarkN").textContent }));
+  await p.selectOption("#psuMarkAs", "y"); await p.waitForTimeout(150);
+  await p.click(`#psuCur [data-pcur="${id.B}"] td`); await p.waitForTimeout(100);
+  const r2 = await psu(p);
+  check("a ticked column marked from the bar; Replace offered for the selected curve", r.mark && r.n === "1 ticked" && r2.rep && r2.add, JSON.stringify([r, r2.rep, r2.add]));
+  await p.click("#psuRep"); await p.waitForTimeout(150);
+  r = await psu(p);
+  check("Replace: B gives way to E, in its place", r.curves.map(q => q.id).join() === [id.D, id.E].join() && r.curves[1].sel, JSON.stringify(r.curves));
+  // Every sheet, and the filter.
+  await p.selectOption("#psuSheet", "all"); await p.waitForTimeout(150);
+  r = await p.evaluate(() => ({ sh: [...document.querySelectorAll("#psuCols .psu-sh th")].map(t => t.textContent), n: document.querySelectorAll("#psuCols [data-pc]").length }));
+  await p.fill("#psuQ", "squ"); await p.waitForTimeout(150);
+  const r3 = await p.evaluate(() => [...document.querySelectorAll("#psuCols [data-pc]")].map(t => t.querySelector(".psu-nm").textContent));
+  check("Every sheet lists both sheets' columns; the filter narrows them", JSON.stringify(r.sh) === JSON.stringify(["Sheet 1", "Run 2"]) && r.n === 8 && r3.length === 1 && /Squares/.test(r3[0]), JSON.stringify([r, r3]));
+  await p.fill("#psuQ", ""); await p.waitForTimeout(100);
+  // Cancel changes nothing.
+  const before = await p.evaluate(() => JSON.stringify([P().cols.map(c => [c.role, c.of || "", c.xcol || ""]), P().graphs.length, undoStack.length]));
+  await p.click("#formCancel"); await p.waitForTimeout(200);
+  check("Cancel leaves the columns, the graphs and the undo list as they were", await p.evaluate(b => JSON.stringify([P().cols.map(c => [c.role, c.of || "", c.xcol || ""]), P().graphs.length, undoStack.length]) === b, before));
+  check("…though the columns were as they started: C still data", await p.evaluate(id => colById(id.C).role === "ignore" && !document.querySelector("#formModal .sheet").classList.contains("psuw"), id));
+  // OK: the graph, what each curve uses, and the columns' own changes, in one undo entry.
+  await p.evaluate(id => { openPlotDlg([id.B, id.D]); }, id); await p.waitForTimeout(400);
+  await use(p, id.C, "e:y+"); await use(p, id.F, "lab"); await p.click("#psuAdd"); await p.waitForTimeout(150);
+  await p.selectOption(`#psuCur [data-crng="${id.D}"]`, "row"); await p.fill(`#psuCur [data-cra="${id.D}"]`, "11"); await p.press(`#psuCur [data-cra="${id.D}"]`, "Enter");
+  await p.fill(`#psuCur [data-crb="${id.D}"]`, "20"); await p.press(`#psuCur [data-crb="${id.D}"]`, "Enter");
+  await p.selectOption(`#psuCur [data-cax="${id.D}"]`, "r"); await p.click('#formBody [data-pk="scatter"]'); await p.waitForTimeout(150);
+  const u0 = await p.evaluate(() => undoStack.length);
+  await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await p.evaluate(id => { const g = P().graphs[P().graphs.length - 1], c = colById(id.C), t = [...document.querySelectorAll("#toast, .toast")].map(e => e.textContent).join(" ");
+    return { n: P().graphs.length, cols: g.cols, use: g.plot.use, type: (g.plot.series[id.B] || {}).type, c: [c.role, c.of === id.B, errKind(c)], undo: undoStack.length, toast: t, log: (P().log || []).slice(-1)[0].text, shown: S.shownPts.length }; }, id);
+  check("Plot: a new graph of B and D, as symbols, D on the right drawing rows 11 to 20 with labels from F", r.n === 1 && r.cols.join() === [id.B, id.D].join() && r.type === "scatter" && r.use[id.D] && r.use[id.D].ax === "r" && r.use[id.D].lab === id.F && r.use[id.D].rng.a === 11 && r.use[id.D].rng.b === 20, JSON.stringify(r));
+  check("C is B's upward Y error bars now, said in the toast and the log, in one undo entry", r.c[0] === "e" && r.c[1] && r.c[2] === "y+" && /Column Sheet 1!C is the upward Y error bars of Sheet 1!B, on every graph/.test(r.toast) && /upward Y error bars of Sheet 1!B/.test(r.log) && r.undo === u0 + 1, JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  check("one undo takes the graph and the columns' changes back", await p.evaluate(id => P().graphs.length === 0 && colById(id.C).role === "ignore", id));
+  // The row number as X, and a data column made X keeping the others' X.
+  await p.evaluate(id => { openPlotDlg([id.B]); }, id); await p.waitForTimeout(400);
+  await p.selectOption(`#psuCur [data-cx="${id.B}"]`, ""); await p.click("#formOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(id => { const b = colById(id.B), d = finalOf(b); return { xcol: b.xcol, xn: d.xn, x0: d.x[0], x1: d.x[d.x.length - 1], menu: (colMenuItems(id.B).find(i => i && i.label === "Plot against") || { sub: () => [] }).sub().map(i => i.label + (i.checked ? "*" : "")) }; }, id);
+  check("Against the row number: B is drawn at rows 1 to 60, and its column menu says so", r.xcol === "row" && r.xn === "Row" && r.x0 === 1 && r.x1 === 60 && r.menu.includes("Its row number*"), JSON.stringify(r));
+  await p.evaluate(id => { colMenuItems(id.B).find(i => i && i.label === "Plot against").sub()[0].run(); }, id); await p.waitForTimeout(200);
+  check("…and Plot against A puts it back", await p.evaluate(id => !colById(id.B).xcol && xColFor(colById(id.B)).id === id.A, id));
+  await p.evaluate(id => { openPlotDlg([id.D]); }, id); await p.waitForTimeout(400);
+  await use(p, id.C, "x"); await p.waitForTimeout(150);
+  r = await p.evaluate(id => ({ opts: [...$(`#psuCur [data-cx="${id.D}"]`).options].map(o => o.value), add: !$("#psuAdd").disabled }), id);
+  check("C marked X is offered as D's X; D keeps its own X A, which is marked, so nothing waits to be added", r.opts.includes(id.C) && !r.add, JSON.stringify(r));
+  await p.selectOption(`#psuCur [data-cx="${id.D}"]`, id.C); await p.waitForTimeout(150);
+  await p.click("#formOk"); await p.waitForTimeout(400);
+  const r4 = await p.evaluate(id => ({ c: colById(id.C).role, b: xColFor(colById(id.B)).id === id.A, d: xColFor(colById(id.D)).id === id.C, e: xColFor(colById(id.E)).id === id.A, toast: [...document.querySelectorAll("#toast, .toast")].map(e => e.textContent).join(" ") }), id);
+  check("D against C: C an X column, D on it; B before it and E, which C now precedes, kept on A; said", r4.c === "x" && r4.b && r4.d && r4.e && /Column Sheet 1!C is an X column and Sheet 1!D is plotted against Sheet 1!C/.test(r4.toast), JSON.stringify(r4));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  // Into a graph that has curves: the preview draws them with the new ones.
+  const g0 = await p.evaluate(() => P().graphs.map(g => g.id));
+  await p.evaluate(id => { openPlotDlg([id.E]); }, id); await p.waitForTimeout(400);
+  const pvNew = await p.evaluate(() => $("#pdlgSk").querySelectorAll("g[data-ser]").length);
+  await p.selectOption("#pdlgInto", await p.evaluate(() => P().graphs[0].id)); await p.waitForTimeout(200);
+  const pvInto = await p.evaluate(() => $("#pdlgSk").querySelectorAll("g[data-ser]").length);
+  await p.click("#formOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(id => ({ ids: P().graphs.map(g => g.id), cols: P().graphs[0].cols }), id);
+  check("Into a graph: the preview draws its curves with the new one, and OK adds it there", pvInto === pvNew + 1 && r.ids.join() === g0.join() && r.cols.join() === [id.B, id.E].join(), JSON.stringify([pvNew, pvInto, g0, r]));
+}, { name: "Plot setup, wide" });
+await page(async p => {
+  const id = await six(p);
+  await p.evaluate(id => { openPlotDlg([id.B, id.D]); }, id); await p.waitForTimeout(400);
+  const vis = () => p.evaluate(() => ["#formBody .pdlg-kinds", "#formBody .psu-colsp", "#formBody .psu-curp", "#pdlgSk"].map(s => { const r = $(s).getBoundingClientRect(); return r.width > 0 && r.height > 0; }));
+  const a = await vis(); await p.click('[data-ptab="cols"]'); await p.waitForTimeout(100); const b = await vis(); await p.click('[data-ptab="cur"]'); await p.waitForTimeout(100); const c = await vis();
+  const w = await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
+  check("at phone width the parts are tabs, the preview under each, no page scroll sideways", JSON.stringify([a, b, c]) === JSON.stringify([[true, false, false, true], [false, true, false, true], [false, false, true, true]]) && w, JSON.stringify([a, b, c, w]));
+  await p.click("#formOk"); await p.waitForTimeout(400);
+  check("…and Plot works from there", await p.evaluate(() => P().graphs.length === 1));
+}, { name: "Plot setup, phone", vw: { width: 390, height: 844 } });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

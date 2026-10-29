@@ -126,7 +126,11 @@ reason, CLAUDE.md, the menu spec when a menu changes.
    point, in the labels' text style. The curve's right-click gains *Range…* (a small dialog:
    all, rows from and to, X from and to, *Fit the axes to it*, *Every curve of this graph*)
    and *Right axis*. Exports, pictures, figures and the report draw the same.
-2. **Plot setup, rebuilt.** The three parts and the preview. Columns from every sheet (a list
+2. **Plot setup, rebuilt** (done 2026-10-29; the kind of plot kept as a gallery above the
+   parts, the columns' boxes one *Use* list per column, ticks to mark several at once and to
+   say what Add and Replace take; a column's role changes only where nothing is lost, so a Y is
+   never made an X or error bars there; the row number as X is a column's own, `xcol:"row"`).
+   The three parts and the preview. Columns from every sheet (a list
    of sheets with their files, a filter, several ticked); a row per column with its letter,
    long name, units, rows and a sparkline, and the boxes the kind needs; one X for the Ys
    below it or each Y its own (X,Y pairs, as the worksheet's nearest X reads them), the row

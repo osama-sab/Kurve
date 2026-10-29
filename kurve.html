@@ -982,6 +982,47 @@ details.more>table{margin-top:var(--sp-4)}
 .pdlg-ys .cbrow>span:nth-child(2){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pdlg-sk{border:1px solid var(--rule);border-radius:var(--r);background:var(--panel)}
 .pdlg-sk svg{display:block;width:100%;height:auto}
+.sheet.plotdlg.psuw{width:min(1120px,100%)}
+.psu{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);grid-template-areas:"tabs tabs" "kinds kinds" "cols pv" "cur pv";gap:var(--sp-5) var(--sp-6);align-items:start}
+.psu-tabs{grid-area:tabs;display:none}
+.psu-tabs>button[aria-selected="true"]{background:var(--seg-on);color:var(--seg-on-ink);box-shadow:var(--seg-sh);font-weight:600}
+.psu .pdlg-kinds.pgal{grid-area:kinds;grid-template-columns:repeat(7,minmax(0,1fr))}
+.psu-colsp{grid-area:cols;display:flex;flex-direction:column;gap:var(--sp-3);min-width:0}
+.psu-curp{grid-area:cur;display:flex;flex-direction:column;gap:var(--sp-3);min-width:0}
+.psu-pvp{grid-area:pv;display:flex;flex-direction:column;gap:var(--sp-4);min-width:0;position:sticky;top:0}
+.psu-h{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
+.psu-h .gh{margin:0}
+.psu-h input[type=search]{margin-left:auto;width:10em}
+.psu-mark{display:flex;align-items:center;gap:var(--sp-3)}
+.psu-cols{border:1px solid var(--rule);border-radius:var(--r);max-height:232px;overflow:auto}
+.psu-cur{border:1px solid var(--rule);border-radius:var(--r);max-height:196px;overflow:auto}
+.psu-cols>.lab,.psu-cur>.lab{margin:var(--sp-4)}
+.psu-t,.psu-c{width:100%}
+.psu-t th,.psu-c th{position:sticky;top:0;background:var(--panel-2);z-index:1}
+.psu-t td,.psu-c td{padding-top:var(--sp-1);padding-bottom:var(--sp-1);vertical-align:middle}
+.psu-t tr.on .psu-nm b{color:var(--accent)}
+.psu-t .spark{width:64px;height:18px}
+.psu-t .psu-sh th{position:static;background:none;font-weight:600;padding-top:var(--sp-3)}
+.psu-t select,.psu-c select{font-size:var(--fs-tab)}
+.psu-c tr[data-pcur]{cursor:default}
+.psu-c tr.sel td{background:var(--ws-sel)}
+.psu-c tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+.psu-c tr[data-pcur]:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.psu-acts{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
+.psu-acts .sp{flex:1}
+.psu-rg{white-space:nowrap}
+.psu-rg input{width:5em;margin-left:var(--sp-2)}
+.psu-rg span{margin-left:var(--sp-2);color:var(--muted)}
+.psu-sk{min-height:150px;display:flex;align-items:center;justify-content:center}
+.psu-sk svg{width:100%;height:auto}
+.psu-none{margin:var(--sp-6)}
+@media (max-width:860px){
+  .psu{grid-template-columns:minmax(0,1fr);grid-template-areas:"tabs" "kinds" "cols" "cur" "pv"}
+  .psu-tabs{display:flex}
+  .psu-pvp{position:static}
+  .psu .pdlg-kinds.pgal{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
+  .psu:not([data-tab="kind"]) .pdlg-kinds,.psu:not([data-tab="cols"]) .psu-colsp,.psu:not([data-tab="cur"]) .psu-curp{display:none}
+}
 .sheet-h{display:flex;align-items:center;gap:var(--sp-5);padding:var(--sp-5) var(--sp-5) var(--sp-5) var(--sp-6);border-bottom:1px solid var(--rule)}
 .sheet-h h2{font:600 var(--fs-head)/1.2 var(--sans);margin:0;margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sheet-b{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);min-height:0;flex:1;overflow:hidden}
@@ -6122,7 +6163,7 @@ function rootOf(c){ let cur=c; const seen=new Set(); while(cur&&cur.src&&!seen.h
 function xColFor(c){
   const r=rootOf(c); if(!r) return sheetCols().find(o=>o.role==="x")||null;
   // Plotted against a chosen X column (xcol), or, as in Origin, the nearest to its left on its sheet.
-  if(r.xcol){ const o=colById(r.xcol); if(o&&o.role==="x") return o; }
+  if(r.xcol){ if(r.xcol==="row") return null; const o=colById(r.xcol); if(o&&o.role==="x") return o; }
   const cols=sheetCols(sheetOf(r)), i=cols.indexOf(r);
   for(let j=i-1;j>=0;j--) if(cols[j].role==="x") return cols[j];
   return cols.find(o=>o.role==="x")||null;
@@ -13156,8 +13197,8 @@ function colMenuItems(id){
     yCols().forEach(y=>items.push({label:colLabel(y,colLetter(y)), radio:true, checked:c.of===y.id, enabled:!ro, run:()=>setErrOf(id,y.id)}));
   }
   const xs=sheetCols(sheetOf(c)).filter(o=>o.role==="x");
-  if(c.role==="y"&&!c.src&&xs.length>1){ const cur=xColFor(c);
-    items.push({label:"Plot against", sub:()=>xs.map(o=>({label:`${colLetter(o)}${o.name?": "+colLabel(o,""):""}`, radio:true, checked:o===cur, enabled:!ro, run:()=>setXOf(id,o.id)}))}); }
+  if(c.role==="y"&&!c.src&&(xs.length>1||xs.length&&c.xcol==="row")){ const cur=xColFor(c);
+    items.push({label:"Plot against", sub:()=>xs.map(o=>({label:`${colLetter(o)}${o.name?": "+colLabel(o,""):""}`, radio:true, checked:o===cur, enabled:!ro, run:()=>setXOf(id,o.id)})).concat([{label:"Its row number", radio:true, checked:!cur, enabled:!ro, run:()=>setXOf(id,"row")}])}); }
   if(c.role==="x"&&xs.length>1){ const ys=yCols().filter(y=>!y.src);
     if(ys.length) items.push({label:"X of", sub:()=>ys.map(y=>({label:`${colLetter(y)}${y.name?": "+y.name:""}`, checked:xColFor(y)===c, enabled:!ro&&xColFor(y)!==c, run:()=>setXOf(y.id,id)}))}); }
   if(c.role==="y") items.push(
@@ -13219,13 +13260,16 @@ function useAsXFor(xid){
 // A spectrum plotted against another X column: a calibrated axis computed in
 // the worksheet, say. The nearest X to the left needs no record.
 function setXOf(yid,xid,o){
-  if(S.readOnly) return; const p=P(), y=colById(yid), x=colById(xid); if(!p||!y||!x||x.role!=="x"||xColFor(y)===x) return;
+  if(S.readOnly) return; const p=P(), y=colById(yid), row=xid==="row", x=row?null:colById(xid); if(!p||!y||y.src) return;
+  if(row?xColFor(y)===null:!x||x.role!=="x"||xColFor(y)===x) return;
   if(!(o&&o.noUndo)) pushUndo("the X of a spectrum");
-  y.xcol=xid; const cols=allCols(), i=cols.indexOf(y); let near=null; for(let j=i-1;j>=0;j--) if(cols[j].role==="x"){ near=cols[j]; break; }
-  if(near===x) delete y.xcol;
+  if(row) y.xcol="row";
+  else { y.xcol=xid; const cols=allCols(), i=cols.indexOf(y); let near=null; for(let j=i-1;j>=0;j--) if(cols[j].role==="x"){ near=cols[j]; break; }
+    if(near===x) delete y.xcol; }
   if(S.view) S.view=null;
-  save({cols:p.cols},`plotted ${specName(y)} against column ${colLetter(x)}${x.name?` (${colLabel(x,"")})`:""}`); renderAll();
-  if(!(o&&o.quiet)) toast(`${specName(y)} is plotted against ${colLetter(x)}${x.name?`, ${colLabel(x,"")}`:""} now.`,{action:"Undo",run:undo});
+  const what=row?"its row number":`column ${colLetter(x)}${x.name?` (${colLabel(x,"")})`:""}`;
+  save({cols:p.cols},`plotted ${specName(y)} against ${what}`); renderAll();
+  if(!(o&&o.quiet)) toast(`${specName(y)} is plotted against ${row?"its row number":`${colLetter(x)}${x.name?`, ${colLabel(x,"")}`:""}`} now.`,{action:"Undo",run:undo});
 }
 function setErrOf(id,yid){
   if(S.readOnly) return; const p=P(), c=colById(id), y=colById(yid); if(!c||!y||c.of===yid) return;
@@ -20257,7 +20301,12 @@ ${DL([["Bars","A line from the lower end to the upper end, with caps."],["Band",
 ${DL([["Line, Symbols, Line + symbols, Sticks, Area, Steps, Columns","How the curves are drawn. Until you choose, a curve is drawn by the <em>Automatic</em> type: a line for many evenly spaced points (500 or more, or 40 or more in order and evenly spaced), symbols for a few or unevenly spaced ones. The curve's right-click <em>Plot type</em> has <em>Automatic</em> first, with what it picked."],["Histogram, Box chart, Violin plot","The distribution of each column's values. "+DA("dists","Distributions")],["Stacked panels, Offset, Heat map","With several curves, how they share the graph."],["Add to a graph","Onto a graph you already have (a closed one opens again)."]])}
 <p>A project has no graph until you plot: each Plot makes a new graph, as in Origin, unless you add to one. A graph shows one column at least: taking off its last is deleting the graph, which its ⋯ menu does, the first graph like any other.</p>
 <h2 id="setup">Plot setup</h2>
-<p>${MP("Plot › Plot setup…")} (first in the worksheet's <em>Plot</em> list too, and what <em>Plot</em> opens when no column is selected) sets the whole plot in one dialog, as Origin's Plot Setup does: the kind of plot, each a card drawn with the columns ticked, so you choose by what you see (line, symbols, line and symbols, columns, area, steps, sticks; stacked panels, offset, double Y, heat map; box chart, violin plot, histogram), the X column, the Y columns to plot (ticked, with All and None, a column's error bars named beside it), and the graph they go on, a new one or one you have. A sketch shows what it will look like, and shows a kind while the pointer or the focus is on its card. It starts from what is selected in the worksheet. The arrow keys move between the kinds.</p>
+<p>${MP("Plot › Plot setup…")} (first in the worksheet's <em>Plot</em> list too, and what <em>Plot</em> opens when no column is selected) sets the whole plot in one dialog, as Origin's Plot Setup does, in three parts, with the graph itself beside them drawn as it will be (its processing, error bars, ranges and axes included). It starts from what is selected in the worksheet: a curve for each column, against its X, with its error bars.</p>
+${DL([["Kind","Each kind of plot a card drawn with the curves, so you choose by what you see: line, symbols, line and symbols, columns, area, steps, drop lines; stacked panels, offset, two Y axes, heat map, box chart, violin plot, histogram. The graph shows a kind while the pointer or the focus is on its card; the arrow keys move between them."],
+["Columns","The columns of a sheet, or of every sheet, with their rows and a sparkline, and a filter. <em>Use</em> says what each is in this plot: X, Y, Y error (±, + or −), X error (±, + or −), labels, colour or size. It starts from the worksheet's roles. Tick several to mark them at once. A column's role changes only where nothing is lost: a Y column cannot become an X or error bars here (the worksheet's header menu does that), but other data can be anything."],
+["Curves on the graph","The list the graph will have. <em>Add</em> puts the columns marked Y on it (the ticked ones, when some are ticked), each against its own X when that is marked, else the nearest X marked to its left, with the error bars marked for it (else the nearest Y to their left), and the labels, colour and size beside it. <em>Replace</em> puts them in place of the selected curve, <em>Remove</em> takes it off, <em>Up</em> and <em>Down</em> (Alt+↑, Alt+↓) set the order. Each curve has what it is plotted against (any X of its sheet, or the row number), its range (all, rows, or X when X rises or falls steadily) and its axis (the left or the right, but the first)."],
+["Into","A new graph, or one you have: then the graph shows its curves with the new ones."]])}
+<p>OK is one step to undo. What it changes of the columns themselves (other data made an X or error bars, a column's X, error bars given to another column) is the columns', so it is said: those are the same on every graph. What each curve draws (its range, its axis, its labels, its order) is the graph's alone. Cancel changes nothing. Below 860 px the three parts are tabs, with the graph under each.</p>
 <h2>What is plotted</h2>
 ${DL([["A Y column","As it is: a column, with its processing."],["Other data","Plotting it makes it a Y column. "+DA("import#columns","Other data")],["An X column","Selected with Y columns, it is what they are plotted against: each against the selected X nearest to its left."],["Error bars","Come with their column."]])}
 <p>Every graph keeps its own list of columns: a column you make later is not added to one until you plot it there, or tick it in its ⋯ menu's <em>Columns on it</em>.</p>
@@ -22724,9 +22773,11 @@ function plotCols(cids,o){
   else { gid=newGid(); tp=plotBase(GP()); if(o.type){ tp.style=o.type; typed(tp); } if(o.layout) tp.layout=o.layout;
     graphs.push({id:gid,name:nextGraphName({graphs}),cols:ids.slice(),plot:tp}); isNewG=true; }
   if(o.plot) Object.assign(tp,o.plot);
+  if(o.use&&Object.keys(o.use).length) tp.use=Object.assign({},tp.use,o.use);
+  if(o.series&&Object.keys(o.series).length){ tp.series=Object.assign({},tp.series); Object.keys(o.series).forEach(k=>{ tp.series[k]=Object.assign({},tp.series[k],o.series[k]); }); }
   const nm=graphs.find(g=>g.id===gid).name, wasOpen=graphWinIds().some(winOpen), from=winOfGraph(S.gid), gWas=!isNewG&&winOpen(winOfGraph(gid));
   const xNote=xs.length?` against ${andList(xs.map(c=>colLetter(c)+(c.name?` (${c.name})`:"")))}`:"";
-  save({cols:p.cols,graphs},`plotted ${andList(ys.map(specName))}${xNote} in ${nm}${made.length?`, making ${andList(made.map(specName))} ${made.length===1?"a Y column":"Y columns"}`:""}`);
+  save({cols:p.cols,graphs},`plotted ${andList(ys.map(specName))}${xNote} in ${nm}${made.length?`, making ${andList(made.map(specName))} ${made.length===1?"a Y column":"Y columns"}`:""}${o.note?`; ${o.note}`:""}`);
   renderAll();
   const w=winOfGraph(gid);
   // A graph coming onto the desk shares a window's place: on a desk with no
@@ -22737,7 +22788,7 @@ function plotCols(cids,o){
   if(isNewG) xNew(["g:"+gid]);
   // Preferences › Displays may send a new graph to another display.
   if(isNewG&&!o.quiet&&screensApi()&&S.screens&&prefGet("newGraphsOn")!=="here"){ const s=S.screens.find(q=>String(q.n)===String(prefGet("newGraphsOn"))); if(s){ detachWin(winOfGraph(gid),s); return; } }
-  if(!o.quiet) toast(`Plotted ${andList(ys.map(specName))} in ${nm}.${made.length?` ${andList(made.map(specName))} ${made.length===1?"is a Y column":"are Y columns"} now.`:""}`,{action:"Undo",run:undo});
+  if(!o.quiet) toast(`Plotted ${andList(ys.map(specName))} in ${nm}.${made.length?` ${andList(made.map(specName))} ${made.length===1?"is a Y column":"are Y columns"} now.`:""}${o.say?" "+o.say:""}`,{action:"Undo",run:undo});
 }
 // The tools that work on the graph (peaks, fits, bands) open it when it is
 // closed; with the analysed column on no graph, it is plotted.
@@ -22751,7 +22802,7 @@ function ensureGraph(){ const p=P(), act=activeYCol(); if(!p||!act||S.readOnly) 
 function plotItems(cids){
   const p=P(), {ys}=plotWhat(cids), ro=S.readOnly||!p||!ys.length, many=ys.length>1, nm=ys.length?andList(ys.slice(0,3).map(specName))+(ys.length>3?` and ${ys.length-3} more`:""):"";
   const where="a new graph";
-  const out=[{label:"Plot setup…", title:"Choose the kind of plot, the X and Y columns and the graph, with a sketch", enabled:!!p&&!S.readOnly, run:()=>openPlotDlg(cids)},"-",{group:ys.length?`Plot ${nm} in ${where} as`:"Or select the columns to plot first",plain:true}]
+  const out=[{label:"Plot setup…", title:"Choose the kind of plot, what each column is and the curves on the graph, drawn as it will be", enabled:!!p&&!S.readOnly, run:()=>openPlotDlg(cids)},"-",{group:ys.length?`Plot ${nm} in ${where} as`:"Or select the columns to plot first",plain:true}]
     .concat(PLOT_TYPES.map(([k,l])=>({label:l, enabled:!ro, run:()=>plotCols(cids,{type:k})})));
   out.push("-",{label:many?"Histogram of each":"Histogram", enabled:!ro, title:"The distribution of the values, as a column of its own on a graph of its own", run:()=>histogramCols(ys.map(c=>c.id))},
     {label:"Box chart", enabled:!ro, title:"Each column's values as a box: median, quartiles, whiskers and outliers", run:()=>plotCols(cids,{layout:"box"})},
@@ -22761,10 +22812,10 @@ function plotItems(cids){
   if(gs.length) out.push("-",{label:"Add to a graph", enabled:!ro, sub:()=>gs.map(id=>({label:graphTitle(id), note:shut(id)?"closed":"", run:()=>plotCols(cids,{into:id})}))});
   return out;
 }
-/* ---- The Plot dialog (as Origin's Plot Setup and Excel's Insert Chart) ----------
-   The other way to plot, besides selecting columns and pressing Plot: choose
-   the kind of plot from pictures, the X column, the Y columns (ticked), and the
-   graph it goes on, with a sketch of the result. OK is one undo entry through
+/* ---- Plot setup (as Origin's Plot Setup and Excel's Insert Chart) ----------
+   The other way to plot, besides selecting columns and pressing Plot: the kind
+   of plot from pictures, what each column is, the curves on the graph, and
+   the graph it goes on, drawn as it will be. OK is one undo entry through
    plotCols (or histogramCols). */
 const PLOT_DLG_KINDS=[
   ["line","Line","type"],["scatter","Symbols","type"],["linesym","Line + symbols","type"],["column","Columns","type"],["area","Area","type"],["step","Steps","type"],["stick","Drop lines","type"],
@@ -22841,48 +22892,205 @@ function plotDlgSketch(st,kind,ser){
 // Each kind's card: the selected columns drawn that way (PLOT_DLG_KINDS's own picture while none is ticked).
 function plotDlgCard(k,ser){ const inner=ser&&ser.length?plotDraw(ser,k,6,5,148,54,90):"";
   return inner?`<svg viewBox="0 0 160 64" preserveAspectRatio="none" aria-hidden="true">${inner}</svg>`:`<svg viewBox="0 0 160 64" aria-hidden="true"><g transform="translate(60,10) scale(1.2)" style="color:var(--data)">${plotKindIcon(k).replace(/<\/?svg[^>]*>/g,"")}</g></svg>`; }
+/* Plot setup (PLOT_SPEC slice 2), as Origin's in Kurve's words. Three parts: the kind of plot
+   (a gallery of cards drawn with the curves); the columns of a sheet or of every sheet, each with
+   what it is in this plot (X, Y, a Y or X error of any kind, labels, colour, size), started from
+   the worksheet's roles; and the curves on the graph, a list of its own (st.curves: each a Y with
+   its X, or null for the row number, its error columns, labels, colour and size), filled from
+   what is marked by Add or Replace, emptied by Remove, ordered by Up and Down, each with its range
+   and its axis. A Y takes its own X when that is marked, else the nearest X marked to its left;
+   an error column goes to the Y it belongs to when that is marked, else the nearest Y marked to
+   its left. The preview is the graph itself, drawn from the dialog's working copy
+   (plotSetupPv). OK makes the graph in one undo entry, writing what changed of a column (a data
+   column made X or error bars, a Y's X, an error column's owner and kind) and saying which. */
+const PSU_USES=[["","—"],["x","X"],["y","Y"],["e:y","Y error ±"],["e:y+","Y error +"],["e:y-","Y error −"],["e:x","X error ±"],["e:x+","X error +"],["e:x-","X error −"],["lab","Labels"],["col","Colour"],["size","Size"]];
+// Why a column cannot be used so here, or "": its role changes only where nothing is lost.
+function psuWhyNot(c,u){
+  if(!u||u==="lab"||u==="col"||u==="size") return "";
+  if(u==="x") return c.role==="x"||c.role==="ignore"?"":c.role==="y"?"A Y column: make it an X column in the worksheet first":"Error bars: make it an X column in the worksheet first";
+  if(u==="y") return c.role==="y"||c.role==="ignore"?"":c.role==="x"?"An X column: make it a Y column in the worksheet first":"Error bars: make it a Y column in the worksheet first";
+  return c.role==="e"||c.role==="ignore"?"":c.role==="x"?"An X column: make it other data in the worksheet first":"A Y column: make it other data in the worksheet first"; }
+// What a curve is made of, to tell two apart.
+const psuSig=q=>[q.y.id,q.x?q.x.id:"row",q.e.map(e=>e.c.id+e.k).sort().join(","),q.lab?q.lab.id:"",q.zcol?q.zcol.id:"",q.scol?q.scol.id:""].join("|");
+// The curves to start with (the columns selected, or the active one) and the marks they make.
+function psuStart(cids){
+  const sel=(cids||[]).map(colById).filter(Boolean), xs=sel.filter(c=>c.role==="x"), ys=sel.filter(c=>c.role==="y"||c.role==="ignore"), act=activeYCol(), all=allCols();
+  const Y=ys.length?ys:act?[act]:yCols().slice(0,1), use={};
+  // As plotCols reads a selection: each Y against the selected X nearest to its left, else its own.
+  const curves=Y.map(y=>{ let x=null; if(xs.length){ const i=all.indexOf(y); for(let j=i-1;j>=0&&!x;j--) if(xs.includes(all[j])) x=all[j]; x=x||xs[0]; } else x=xColFor(y);
+    const eo=errColsOf(y.id); return {y,x,e:Object.keys(eo).map(k=>({c:eo[k],k})),lab:null,zcol:null,scol:null}; });
+  curves.forEach(q=>{ if(!q.y.src) use[q.y.id]="y"; if(q.x) use[q.x.id]="x"; q.e.forEach(({c,k})=>{ use[c.id]="e:"+k; }); });
+  return {use,curves}; }
+// The curves what is marked makes, sheet by sheet in the table's order.
+function psuBuild(st){
+  const out=[];
+  sheetList().forEach(s=>{ const cols=sheetCols(s.id), here=[]; let X=null;
+    cols.forEach(c=>{ const u=st.use[c.id]||""; if(u==="x") X=c; else if(u==="y"){ const own=xColFor(c); here.push({y:c,x:own&&st.use[own.id]==="x"?own:(X||own),e:[],lab:null,zcol:null,scol:null}); } });
+    cols.forEach((c,i)=>{ const u=st.use[c.id]||""; if(!u||u==="x"||u==="y") return; let t=c.role==="e"&&c.of?here.find(q=>q.y.id===c.of)||null:null;
+      for(let j=i-1;j>=0&&!t;j--) if(st.use[cols[j].id]==="y") t=here.find(q=>q.y===cols[j])||null;
+      if(!t) t=here.find(q=>cols.indexOf(q.y)>i)||null; if(!t) return;
+      if(u.startsWith("e:")) t.e.push({c,k:u.slice(2)}); else if(u==="lab") t.lab=c; else if(u==="col") t.zcol=c; else if(u==="size") t.scol=c; });
+    out.push(...here); });
+  return out; }
+// Whether a curve's X rises or falls steadily (needed to draw part of it by X), and its rows and X extent.
+function psuSpan(q){ const yd=q.y.src?null:q.y.data||[], d=q.y.src||q.x===xColFor(q.y)?finalOf(q.y):null;
+  let xs=[], rows=0;
+  if(d){ xs=d.x; rows=d.idx?d.idx.reduce((m,i)=>Math.max(m,i+1),0):d.x.length; }
+  else { for(let i=0;i<yd.length;i++){ const b=yd[i], a=q.x?q.x.data[i]:i+1; if(b==null||a==null||!Number.isFinite(+a)||!Number.isFinite(+b)) continue; xs.push(+a); rows=i+1; } }
+  let up=xs.length>1, dn=xs.length>1; for(let i=1;i<xs.length;i++){ if(!(xs[i]>xs[i-1])) up=false; if(!(xs[i]<xs[i-1])) dn=false; }
+  const [x0,x1]=xs.length?xExtent(xs):[0,0]; return {mono:up||dn,rows,x0,x1}; }
+// The graph the dialog would make (or change), drawn as it will be: the columns' changes and the graph put in place for one drawing, then taken back.
+function plotSetupPv(st,kind,W,H){
+  const p=P(), cur=st.curves; if(!p||!cur.length) return "";
+  const K=PLOT_DLG_KINDS.find(q=>q[0]===kind)||PLOT_DLG_KINDS[0];
+  if(K[2]==="hist") return plotDlgSketch({ys:cur.map(q=>q.y.id)},kind,plotDlgSer({x:cur[0].x?cur[0].x.id:"",ys:cur.map(q=>q.y.id)}));
+  const keep=[], put=(o,k,v)=>{ keep.push([o,k,Object.prototype.hasOwnProperty.call(o,k),o[k]]); if(v===undefined) delete o[k]; else o[k]=v; };
+  const into=st.into&&graphOf(st.into)&&!graphOf(st.into).fig?graphOf(st.into):null, tp=into?clone(into.plot||{}):plotBase(GP()), ids=cur.map(q=>q.y.id);
+  tp.use=Object.assign({},tp.use); tp.series=Object.assign({},tp.series); delete tp.shut;
+  if(K[2]==="type"){ if(!into) tp.style=kind; } else tp.layout=kind;
+  if(kind==="heat") Object.assign(tp,{mapKind:"both",mapY:"series"});
+  const id="__psu"; let svg="";
+  try{
+    // Roles first (a data column made a Y, an X or error bars), then each curve's X.
+    cur.forEach(q=>{ const y=q.y; if(y.role!=="y"){ put(y,"role","y"); put(y,"pipe",y.pipe||[]); put(y,"mask",y.mask||[]); }
+      if(q.x&&q.x.role!=="x") put(q.x,"role","x");
+      q.e.forEach(({c,k})=>{ put(c,"role","e"); put(c,"of",y.id); put(c,"ax",k[0]==="x"?"x":undefined); put(c,"side",k[1]==="+"?"+":k[1]==="-"?"-":undefined); }); });
+    cur.forEach(q=>{ const y=q.y; if(y.src) return; if(!q.x){ if(xColFor(y)) put(y,"xcol","row"); } else if(xColFor(y)!==q.x) put(y,"xcol",q.x.id);
+      const u=Object.assign({},tp.use[y.id]); if(st.rng[y.id]&&rngOk(st.rng[y.id])) u.rng=st.rng[y.id]; else delete u.rng;
+      if(st.ax[y.id]==="r") u.ax="r"; else delete u.ax; if(q.lab) u.lab=q.lab.id; if(Object.keys(u).length) tp.use[y.id]=u; else delete tp.use[y.id];
+      const s=Object.assign({},tp.series[y.id]); if(K[2]==="type") s.type=kind; if(q.zcol) s.zcol=q.zcol.id; if(q.scol) s.scol=q.scol.id; tp.series[y.id]=s; });
+    cur.filter(q=>q.y.src).forEach(q=>{ const s=Object.assign({},tp.series[q.y.id]); if(K[2]==="type") s.type=kind; tp.series[q.y.id]=s; });
+    p.graphs.push({id,name:"Preview",cols:(into?into.cols.filter(k=>!ids.includes(k)):[]).concat(ids),plot:tp});
+    if(into) S.glead[id]=ids[0];
+    withGraph(id,()=>{ if(!activeYCol()) return; svg=buildPlot(W,H,readPalette(),false); });
+  } catch(e){ svg=""; }
+  finally{ p.graphs=p.graphs.filter(g=>g.id!==id); delete S.glead[id]; for(let i=keep.length-1;i>=0;i--){ const [o,k,had,v]=keep[i]; if(had) o[k]=v; else delete o[k]; } }
+  return svg?svg.replace(/\bid="([^"]+)"/g,'id="psu-$1"').replace(/url\(#([^)]+)\)/g,"url(#psu-$1)"):""; }
 async function openPlotDlg(cids){
   const p=P(); if(!p||S.readOnly) return; if(S.ws&&S.ws.edit) wsCommit(0,0,true);
-  const raw=sheetCols(), xs=raw.filter(c=>c.role==="x"), cand=raw.filter(c=>c.role==="y"||c.role==="ignore");
-  if(!cand.length){ toast("There is no column to plot yet: type or paste values into the worksheet, or import a file."); return; }
-  const sel=(cids||[]).map(colById).filter(Boolean), selY=sel.filter(c=>c.role==="y"||c.role==="ignore"), selX=sel.find(c=>c.role==="x");
-  const ys=(selY.length?selY:[activeYCol()&&!activeYCol().src?activeYCol():cand[0]]).filter(Boolean).map(c=>c.id);
-  const x0=selX||(ys.length?xColFor(colById(ys[0])):null)||xs[0]||null;
-  const st={kind:S.plotDlgKind||"line",x:x0?x0.id:"",ys:ys.slice()};
-  const targets=drawGraphIds();
-  const nm=c=>`<b>${esc(colLetter(c))}</b> ${esc(c.name||"")}${c.unit?` <span class="unit">(${esc(c.unit)})</span>`:""}`;
-  const errNote=c=>{ const e=errColsOf(c.id), k=Object.keys(e); return k.length?`<span class="lab" title="Its error bars come with it">± ${k.map(q=>colLetter(e[q])).join(", ")}</span>`:""; };
-  const html=`<div class="pdlg">
+  const any=allCols().some(c=>!c.src&&(c.role==="y"||c.role==="ignore")&&(c.data||[]).some(v=>v!=null))||yCols().some(c=>c.src);
+  if(!any){ toast("There is no column to plot yet: type or paste values into the worksheet, or import a file."); return; }
+  const s0=psuStart(cids), st={kind:S.plotDlgKind||"line",use:s0.use,curves:s0.curves,sel:s0.curves.length?s0.curves[0].y.id:null,rng:{},ax:{},sheet:curSheet(),q:"",tick:new Set(),into:"",tab:"kind"};
+  // A column chosen from another sheet shows every sheet.
+  if(Object.keys(st.use).some(id=>{ const c=colById(id); return c&&sheetOf(c)!==st.sheet; })) st.sheet="all";
+  const targets=drawGraphIds(), ss=sheetList(), many=ss.length>1, ro=v=>esc(v);
+  const fileOf=sid=>{ const fs=[...new Set(sheetCols(sid).map(c=>c.file).filter(Boolean))]; return fs.length===1&&fs[0]!==sheetName(sid)?fs[0]:""; };
+  const html=`<div class="psu" data-tab="kind">
+    <div class="psu-tabs seg" role="tablist" aria-label="Parts of Plot setup"><button type="button" role="tab" data-ptab="kind" aria-selected="true">Kind</button><button type="button" role="tab" data-ptab="cols" aria-selected="false">Columns</button><button type="button" role="tab" data-ptab="cur" aria-selected="false">Curves</button></div>
     <div class="pdlg-kinds pgal" role="radiogroup" aria-label="Kind of plot">${PLOT_DLG_KINDS.map(([k,l],i)=>`${i===7?`<div class="pdlg-sep" role="presentation">With several columns</div>`:""}<button type="button" role="radio" data-pk="${k}" aria-checked="${k===st.kind}" title="${esc(l)}"><span class="pgt"></span><span class="pgl">${esc(l)}</span></button>`).join("")}</div>
-    <div class="pdlg-data">
-      <div class="grid2"><label for="pdlgX">X column</label><select id="pdlgX">${xs.map(c=>`<option value="${c.id}"${st.x===c.id?" selected":""}>${esc(colLetter(c))} ${esc(colLabel(c,""))}</option>`).join("")||`<option value="">Row number (no X column)</option>`}</select></div>
-      <div class="pdlg-ys" role="group" aria-label="Y columns to plot"><div class="pdlg-yh"><span class="gh">Y columns</span><span class="sp"></span><button type="button" class="btn sm ghost" id="pdlgAll">All</button><button type="button" class="btn sm ghost" id="pdlgNone">None</button></div>
-        ${cand.map(c=>`<label class="cbrow"><input type="checkbox" data-pdy="${c.id}"${st.ys.includes(c.id)?" checked":""}><span>${nm(c)}</span>${c.role==="ignore"?`<span class="lab" title="Other data: plotting it makes it a Y column">data</span>`:""}${errNote(c)}</label>`).join("")}</div>
+    <div class="psu-colsp">
+      <div class="psu-h"><span class="gh">Columns</span>${many?`<select id="psuSheet" aria-label="Which sheet">${ss.map(s=>{ const f=fileOf(s.id); return `<option value="${esc(s.id)}"${st.sheet===s.id?" selected":""}>${esc(s.name)}${f?` · ${esc(f)}`:""}</option>`; }).join("")}<option value="all"${st.sheet==="all"?" selected":""}>Every sheet</option></select>`:""}<input type="search" id="psuQ" placeholder="Filter" aria-label="Filter the columns" autocomplete="off"></div>
+      <div class="psu-mark" id="psuMark" hidden><span id="psuMarkN"></span><select id="psuMarkAs" aria-label="Mark the ticked columns as"><option value="-">Mark them as…</option>${PSU_USES.map(([v,l])=>`<option value="${v}">${v?l:"Nothing"}</option>`).join("")}</select></div>
+      <div class="psu-cols" id="psuCols"></div>
+    </div>
+    <div class="psu-curp">
+      <div class="psu-h"><span class="gh">Curves on the graph</span><span class="lab" id="psuN"></span></div>
+      <div class="psu-acts"><button type="button" class="btn sm" id="psuAdd" title="Put the columns marked Y on the graph (the ticked ones, when some are ticked), each with what is marked beside it; a curve already there takes its marks again">Add</button><button type="button" class="btn sm" id="psuRep" title="The selected curve gives way to the ticked columns marked Y (or to every column marked Y)">Replace</button><span class="sp"></span><button type="button" class="btn sm ghost" id="psuDel" title="Take the selected curve off (Delete)">Remove</button><button type="button" class="btn sm ghost" id="psuUp" title="Earlier in the list (Alt+↑): drawn before, and named first in the legend">Up</button><button type="button" class="btn sm ghost" id="psuDn" title="Later in the list (Alt+↓)">Down</button></div>
+      <div class="psu-cur" id="psuCur"></div>
+    </div>
+    <div class="psu-pvp">
       <div class="grid2"><label for="pdlgInto">Into</label><select id="pdlgInto"><option value="">A new graph</option>${targets.map(id=>`<option value="${id}">${esc(graphTitle(id))}</option>`).join("")}</select></div>
-      <div class="pdlg-sk" id="pdlgSk"></div>
+      <div class="pdlg-sk psu-sk" id="pdlgSk" role="img" aria-label="The graph as it will be"></div>
     </div></div>`;
-  const sh=$("#formModal .sheet"); sh.classList.remove("small"); sh.classList.add("plotdlg");
-  const pr=formDlg({title:"Plot",html,ok:"Plot",valid:()=>st.ys.length>0});
-  // The cards are drawn with the columns ticked; hovering or focusing one shows it in the sketch, leaving shows the chosen one again.
-  let ser=[]; const box=$("#formBody"), sk=k=>{ const el=box.querySelector("#pdlgSk"); if(el) el.innerHTML=plotDlgSketch(st,k,ser); }, okb=$("#formOk");
-  const cards=()=>box.querySelectorAll("[data-pk]").forEach(b=>{ b.querySelector(".pgt").innerHTML=plotDlgCard(b.dataset.pk,ser); });
-  const refresh=()=>{ ser=st.ys.length?plotDlgSer(st):[]; okb.disabled=!st.ys.length; okb.textContent=st.kind==="hist"?(st.ys.length>1?"Make the histograms":"Make the histogram"):"Plot"; sk(); cards(); };
+  const sh=$("#formModal .sheet"); sh.classList.remove("small"); sh.classList.add("plotdlg","psuw");
+  const pr=formDlg({title:"Plot setup",html,ok:"Plot",valid:()=>st.curves.length>0});
+  const box=$("#formBody"), okb=$("#formOk"), root=box.querySelector(".psu");
+  // A redraw keeps the field that had the keys, and its caret.
+  const refocus=fn=>{ const a=document.activeElement, key=a&&box.contains(a)&&a!==box?[...a.attributes].filter(t=>t.name.startsWith("data-")||t.name==="id").map(t=>`[${t.name}="${CSS.escape(t.value)}"]`).join(""):""; let ss0=null; try{ ss0=a.selectionStart; }catch(e){} fn();
+    if(key){ const n=box.querySelector(key); if(n&&n!==a){ n.focus(); try{ if(ss0!=null) n.setSelectionRange(ss0,ss0); }catch(e){} } } };
+  const colsHtml=()=>{ const ids=st.sheet==="all"?ss.map(s=>s.id):[st.sheet], q=st.q.trim().toLowerCase(), vis=[];
+    let h="";
+    ids.forEach(sid=>{ const cols=sheetCols(sid).filter(c=>(c.data||[]).some(v=>v!=null)).filter(c=>!q||(colLetter(c)+" "+(c.name||"")+" "+(c.unit||"")+" "+(c.comm||"")).toLowerCase().includes(q)); if(!cols.length) return;
+      if(ids.length>1) h+=`<tr class="psu-sh"><th colspan="5" class="l">${esc(sheetName(sid))}</th></tr>`;
+      cols.forEach(c=>{ vis.push(c.id); const n=c.data.reduce((m,v)=>m+(v!=null?1:0),0), xc=c.role==="x"?null:xColFor(c), sp=sparkSvg({x:xc?xc.data:c.data.map((_,i)=>i),y:c.data},64,18,"spark"), u=st.use[c.id]||"";
+        h+=`<tr data-pc="${c.id}"${u?` class="on"`:""}><td><input type="checkbox" data-ptick="${c.id}"${st.tick.has(c.id)?" checked":""} aria-label="Tick column ${ro(colLetter(c))}"></td><td class="l psu-nm"><b>${ro(colLetter(c))}</b> ${ro(c.name||"")}${c.unit?` <span class="unit">(${ro(c.unit)})</span>`:""}</td><td class="r">${n}</td><td>${sp}</td>`
+          +`<td class="l"><select data-puse="${c.id}" aria-label="What column ${ro(colLetter(c))} is in this plot">${PSU_USES.map(([v,l])=>{ const why=psuWhyNot(c,v); return `<option value="${v}"${u===v?" selected":""}${why&&u!==v?` disabled title="${esc(why)}"`:""}>${l}</option>`; }).join("")}</select></td></tr>`; }); });
+    st.vis=vis;
+    const all=vis.length&&vis.every(id=>st.tick.has(id));
+    return vis.length?`<table class="ptab psu-t"><thead><tr><th><input type="checkbox" id="psuAll"${all?" checked":""} aria-label="Tick every column shown"></th><th class="l">Column</th><th class="r">Rows</th><th></th><th class="l">Use</th></tr></thead><tbody>${h}</tbody></table>`:`<p class="lab">${q?"No column matches.":"No column with values here."}</p>`; };
+  const curHtml=()=>{ const cur=st.curves, K=(PLOT_DLG_KINDS.find(q=>q[0]===st.kind)||[])[2], ov=K==="type"||st.kind==="overlay";
+    $("#psuN").textContent=cur.length?`${cur.length}`:"";
+    if(!cur.length) return `<p class="lab">Mark a column as Y and press Add.</p>`;
+    return `<table class="ptab psu-c"><thead><tr><th class="l">Curve</th><th class="l">Against</th><th class="l">With</th><th class="l">Range</th>${ov?`<th class="l">Axis</th>`:""}</tr></thead><tbody>${cur.map((q,i)=>{ const y=q.y, r=st.rng[y.id], by=r?r.by:"", sp=psuSpan(q);
+      const xs=y.src?[]:[...new Set(sheetCols(sheetOf(y)).filter(c=>c.role==="x"||st.use[c.id]==="x").concat(q.x&&sheetOf(q.x)===sheetOf(y)?[q.x]:[]))];
+      const against=y.src?`<span title="A column made from another takes its X">${q.x?`<b>${ro(colRef(q.x))}</b> ${ro(q.x.name||"")}`:"the row number"}</span>`
+        :`<select data-cx="${y.id}" aria-label="What ${ro(colRef(y))} is plotted against">${xs.map(c=>`<option value="${c.id}"${q.x===c?" selected":""}>${ro(colLetter(c))}${c.name?" "+ro(c.name):""}</option>`).join("")}<option value=""${q.x?"":" selected"}>Row number</option></select>`;
+      const w=[...q.e.map(e=>`${(ERR_KINDS.find(z=>z[0]===e.k)||ERR_KINDS[0])[2]} ${colLetter(e.c)}`),q.lab?`labels ${colLetter(q.lab)}`:"",q.zcol?`colour ${colLetter(q.zcol)}`:"",q.scol?`size ${colLetter(q.scol)}`:""].filter(Boolean).join(", ");
+      return `<tr data-pcur="${y.id}" tabindex="0" aria-selected="${st.sel===y.id}"${st.sel===y.id?` class="sel"`:""}><td class="l"><b>${ro(colRef(y)||"")}</b> ${ro(y.name||specName(y))}</td><td class="l">${against}</td><td class="l">${w?ro(w):`<span class="lab">—</span>`}</td>`
+        +`<td class="l psu-rg"><select data-crng="${y.id}" aria-label="What of ${ro(specName(y))} the graph draws"><option value=""${!by?" selected":""}>All</option><option value="row"${by==="row"?" selected":""}>Rows</option><option value="x"${by==="x"?" selected":""}${sp.mono?"":` disabled title="X must rise or fall steadily to draw part of it by X"`}>X</option></select>${by?`<input type="text" inputmode="decimal" data-cra="${y.id}" value="${r?ro(String(r.a)):""}" aria-label="From"><span>to</span><input type="text" inputmode="decimal" data-crb="${y.id}" value="${r?ro(String(r.b)):""}" aria-label="To">`:""}</td>`
+        +(ov?`<td class="l"><select data-cax="${y.id}" aria-label="Axis of ${ro(specName(y))}"${i===0?` disabled title="The first curve, the active one, stays on the left"`:""}><option value="">Left</option><option value="r"${st.ax[y.id]==="r"&&i>0?" selected":""}>Right</option></select></td>`:"")+`</tr>`; }).join("")}</tbody></table>`; };
+  let pvT=0; const sk=k=>{ const el=box.querySelector("#pdlgSk"); if(!el) return; clearTimeout(pvT); const draw=()=>{ if(!el.isConnected) return; const w=Math.max(260,Math.round(el.clientWidth||520)), h=Math.max(150,Math.round(w*0.56)); el.innerHTML=plotSetupPv(st,k||st.kind,w,h)||`<p class="lab psu-none">Nothing to draw yet</p>`; }; if(k) draw(); else pvT=setTimeout(draw,40); };
+  const cards=()=>{ const cur=st.curves, ser=cur.length?plotDlgSer({x:cur[0].x?cur[0].x.id:"",ys:cur.map(q=>q.y.id)}):[]; box.querySelectorAll("[data-pk]").forEach(b=>{ b.querySelector(".pgt").innerHTML=plotDlgCard(b.dataset.pk,ser); }); };
+  // What Add and Replace put on: the curves of the ticked columns when some are ticked (a Y ticked, or its X, error bars, labels, colour or size), else every column marked Y.
+  const built=()=>{ const b=psuBuild(st), t=st.tick; return t.size?b.filter(q=>[q.y,q.x,q.lab,q.zcol,q.scol].concat(q.e.map(e=>e.c)).some(c=>c&&t.has(c.id))):b; };
+  // The list Replace would make: the selected curve gives way to what is marked; null when it would change nothing.
+  const replaced=()=>{ const b=built(), i=st.curves.findIndex(q=>q.y.id===st.sel); if(!b.length||i<0) return null; const ys=new Set(b.map(n=>n.y));
+    const n=st.curves.slice(0,i).filter(q=>!ys.has(q.y)).concat(b,st.curves.slice(i+1).filter(q=>!ys.has(q.y)));
+    return n.map(psuSig).join("\n")===st.curves.map(psuSig).join("\n")?null:n; };
+  const acts=()=>{ const b=built(), i=st.curves.findIndex(q=>q.y.id===st.sel);
+    $("#psuAdd").disabled=!b.some(n=>{ const q=st.curves.find(q=>q.y===n.y); return !q||psuSig(q)!==psuSig(n); });
+    $("#psuRep").disabled=!replaced();
+    $("#psuDel").disabled=i<0; $("#psuUp").disabled=i<1; $("#psuDn").disabled=i<0||i>=st.curves.length-1;
+    const n=st.curves.length; okb.disabled=!n; okb.textContent=st.kind==="hist"?(n>1?"Make the histograms":"Make the histogram"):"Plot"; };
+  const marks=()=>{ const m=$("#psuMark"), k=st.tick.size; m.hidden=!k; $("#psuMarkN").textContent=k?`${k} ticked`:""; };
+  const refresh=all=>{ refocus(()=>{ if(all) $("#psuCols").innerHTML=colsHtml(); $("#psuCur").innerHTML=curHtml(); }); acts(); marks(); cards(); sk(); };
   box.querySelectorAll("[data-pk]").forEach(b=>{ const on=()=>sk(b.dataset.pk), off=()=>sk(); b.addEventListener("pointerenter",on); b.addEventListener("pointerleave",off); b.addEventListener("focus",on); b.addEventListener("blur",off); });
   box.querySelectorAll("[data-pk]").forEach(b=>b.onclick=()=>{ st.kind=b.dataset.pk; box.querySelectorAll("[data-pk]").forEach(q=>q.setAttribute("aria-checked",String(q===b))); refresh(); });
   box.querySelector(".pdlg-kinds").addEventListener("keydown",e=>{ const bs=[...box.querySelectorAll("[data-pk]")], i=bs.findIndex(b=>b.dataset.pk===st.kind), d=e.key==="ArrowRight"||e.key==="ArrowDown"?1:e.key==="ArrowLeft"||e.key==="ArrowUp"?-1:0; if(!d) return; e.preventDefault(); const nb=bs[(i+d+bs.length)%bs.length]; nb.click(); nb.focus(); });
-  box.querySelectorAll("[data-pdy]").forEach(cb=>cb.onchange=()=>{ st.ys=[...box.querySelectorAll("[data-pdy]")].filter(q=>q.checked).map(q=>q.dataset.pdy); refresh(); });
-  box.querySelector("#pdlgX").onchange=e=>{ st.x=e.target.value; refresh(); };
-  box.querySelector("#pdlgAll").onclick=()=>{ box.querySelectorAll("[data-pdy]").forEach(q=>{ q.checked=true; }); st.ys=cand.map(c=>c.id); refresh(); };
-  box.querySelector("#pdlgNone").onclick=()=>{ box.querySelectorAll("[data-pdy]").forEach(q=>{ q.checked=false; }); st.ys=[]; refresh(); };
-  refresh(); setTimeout(()=>{ const b=box.querySelector(`[data-pk="${st.kind}"]`); if(b) b.focus(); },0);
-  let r; try{ r=await pr; } finally{ sh.classList.remove("plotdlg"); sh.classList.add("small"); }
-  if(!r||!st.ys.length) return;
+  // Below 860 px the three parts are tabs.
+  box.querySelector(".psu-tabs").addEventListener("click",e=>{ const b=e.target.closest("[data-ptab]"); if(!b) return; st.tab=b.dataset.ptab; root.dataset.tab=st.tab; box.querySelectorAll("[data-ptab]").forEach(q=>q.setAttribute("aria-selected",String(q===b))); });
+  const cbox=box.querySelector("#psuCols"), cur=box.querySelector("#psuCur");
+  const setUse=(id,v)=>{ const c=colById(id); if(!c) return; if(v&&psuWhyNot(c,v)) return; if(v) st.use[id]=v; else delete st.use[id]; };
+  cbox.addEventListener("change",e=>{ const t=e.target;
+    if(t.matches("[data-puse]")){ setUse(t.dataset.puse,t.value); refresh(true); return; }
+    if(t.matches("[data-ptick]")){ if(t.checked) st.tick.add(t.dataset.ptick); else st.tick.delete(t.dataset.ptick); refresh(true); return; }
+    if(t.id==="psuAll"){ (st.vis||[]).forEach(id=>{ if(t.checked) st.tick.add(id); else st.tick.delete(id); }); refresh(true); } });
+  box.querySelector("#psuMarkAs").onchange=e=>{ const v=e.target.value; if(v==="-") return; [...st.tick].forEach(id=>setUse(id,v)); e.target.value="-"; refresh(true); };
+  const pick=id=>{ st.sel=id; refresh(); const tr=cur.querySelector(`[data-pcur="${CSS.escape(id)}"]`); if(tr&&!cur.contains(document.activeElement)) tr.focus(); };
+  cur.addEventListener("pointerdown",e=>{ const tr=e.target.closest("[data-pcur]"); if(tr&&st.sel!==tr.dataset.pcur){ st.sel=tr.dataset.pcur; cur.querySelectorAll("[data-pcur]").forEach(q=>{ const on=q===tr; q.classList.toggle("sel",on); q.setAttribute("aria-selected",String(on)); }); acts(); } });
+  const move=d=>{ const i=st.curves.findIndex(q=>q.y.id===st.sel), j=i+d; if(i<0||j<0||j>=st.curves.length) return; [st.curves[i],st.curves[j]]=[st.curves[j],st.curves[i]]; refresh(); const tr=cur.querySelector(`[data-pcur="${CSS.escape(st.sel)}"]`); if(tr) tr.focus(); };
+  const remove=()=>{ const i=st.curves.findIndex(q=>q.y.id===st.sel); if(i<0) return; st.curves.splice(i,1); const n=st.curves[i]||st.curves[i-1]; st.sel=n?n.y.id:null; refresh(); const tr=n&&cur.querySelector(`[data-pcur="${CSS.escape(n.y.id)}"]`); if(tr) tr.focus(); else $("#psuAdd").focus(); };
+  cur.addEventListener("keydown",e=>{ const tr=e.target.closest("[data-pcur]"); if(!tr||e.target!==tr) return; const i=st.curves.findIndex(q=>q.y.id===tr.dataset.pcur);
+    if((e.key==="ArrowUp"||e.key==="ArrowDown")&&e.altKey){ e.preventDefault(); move(e.key==="ArrowUp"?-1:1); }
+    else if(e.key==="ArrowUp"||e.key==="ArrowDown"){ e.preventDefault(); const n=st.curves[i+(e.key==="ArrowUp"?-1:1)]; if(n) pick(n.y.id); }
+    else if(e.key==="Delete"||e.key==="Backspace"){ e.preventDefault(); remove(); } });
+  cur.addEventListener("change",e=>{ const t=e.target;
+    if(t.matches("[data-cx]")){ const q=st.curves.find(q=>q.y.id===t.dataset.cx); if(q){ q.x=t.value?colById(t.value):null; if(!t.value||psuSpan(q).mono===false) { if(st.rng[q.y.id]&&st.rng[q.y.id].by==="x") delete st.rng[q.y.id]; } } refresh(); return; }
+    if(t.matches("[data-crng]")){ const id=t.dataset.crng, q=st.curves.find(q=>q.y.id===id); if(!t.value) delete st.rng[id]; else { const s=psuSpan(q); st.rng[id]=t.value==="row"?{by:"row",a:1,b:Math.max(1,s.rows)}:{by:"x",a:+fmt(s.x0,8),b:+fmt(s.x1,8)}; } refresh(); return; }
+    if(t.matches("[data-cra],[data-crb]")){ const id=t.dataset.cra||t.dataset.crb, r=st.rng[id], v=parseNum(t.value); if(r&&v!=null&&Number.isFinite(v)){ if(t.dataset.cra) r.a=v; else r.b=v; } else if(r) t.value=String(t.dataset.cra?r.a:r.b); sk(); return; }
+    if(t.matches("[data-cax]")){ if(t.value) st.ax[t.dataset.cax]="r"; else delete st.ax[t.dataset.cax]; sk(); } });
+  // Enter in a range field enters it, not the dialog.
+  cur.addEventListener("keydown",e=>{ if(e.key==="Enter"&&e.target.matches("[data-cra],[data-crb]")){ e.preventDefault(); e.stopPropagation(); e.target.dispatchEvent(new Event("change",{bubbles:true})); } });
+  $("#psuAdd").onclick=()=>{ const b=built(); if(!b.length) return; b.forEach(n=>{ const i=st.curves.findIndex(q=>q.y===n.y); if(i>=0) st.curves[i]=n; else st.curves.push(n); }); st.sel=b[b.length-1].y.id; refresh(); };
+  $("#psuRep").onclick=()=>{ const n=replaced(); if(!n) return; st.curves=n; st.sel=built()[0].y.id; refresh(); };
+  $("#psuDel").onclick=remove; $("#psuUp").onclick=()=>move(-1); $("#psuDn").onclick=()=>move(1);
+  { const shs=box.querySelector("#psuSheet"); if(shs) shs.onchange=()=>{ st.sheet=shs.value; refresh(true); };
+    const q=box.querySelector("#psuQ"); q.oninput=()=>{ st.q=q.value; refocus(()=>{ $("#psuCols").innerHTML=colsHtml(); }); }; q.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); e.stopPropagation(); } });
+    const it=box.querySelector("#pdlgInto"); it.onchange=()=>{ st.into=it.value; sk(); }; }
+  refresh(true); setTimeout(()=>{ const b=box.querySelector(`[data-pk="${st.kind}"]`); if(b) b.focus(); },0);
+  let r; try{ r=await pr; } finally{ sh.classList.remove("plotdlg","psuw"); sh.classList.add("small"); clearTimeout(pvT); }
+  const curves=st.curves.filter(q=>colById(q.y.id)); if(!r||!curves.length) return;
   S.plotDlgKind=st.kind;
-  const into=r.pdlgInto||undefined, kind=PLOT_DLG_KINDS.find(q=>q[0]===st.kind)||PLOT_DLG_KINDS[0];
-  if(kind[2]==="hist"){ histogramCols(st.ys); return; }
-  const ids=(st.x?[st.x]:[]).concat(st.ys);
-  if(kind[2]==="type") plotCols(ids,{type:st.kind,into});
-  else plotCols(ids,Object.assign({layout:st.kind,into},st.kind==="heat"?{plot:{mapKind:"both",mapY:"series"}}:{}));
+  const into=r.pdlgInto||undefined, kind=PLOT_DLG_KINDS.find(q=>q[0]===st.kind)||PLOT_DLG_KINDS[0], ids=curves.map(q=>q.y.id);
+  if(kind[2]==="hist"){ histogramCols(ids); return; }
+  pushUndo(`plotting ${andList(curves.map(q=>specName(q.y)))}`);
+  // What changes of the columns themselves: written with the plot, and said.
+  const said=[], ys0=allCols().filter(c=>!c.src&&c.role==="y"), xOf=new Map(ys0.map(c=>[c.id,xColFor(c)]));
+  curves.forEach(q=>{ const y=q.y;
+    if(q.x&&q.x.role!=="x"){ q.x.role="x"; delete q.x.of; said.push(`column ${colRef(q.x)} is an X column`); }
+    q.e.forEach(({c,k})=>{ if(c.role==="e"&&c.of===y.id&&errKind(c)===k) return; c.role="e"; c.of=y.id; if(k[0]==="x") c.ax="x"; else delete c.ax; if(k[1]==="+") c.side="+"; else if(k[1]==="-") c.side="-"; else delete c.side;
+      said.push(`column ${colRef(c)} is the ${errKindName(c).replace(/^[A-Z](?=[a-z])/,m=>m.toLowerCase())} of ${colRef(y)||specName(y)}`); }); });
+  curves.forEach(q=>{ const y=q.y, was=xOf.has(y.id)?xOf.get(y.id):xColFor(y); if(y.src) return;
+    if(!q.x){ if(xColFor(y)) y.xcol="row"; }
+    else if(xColFor(y)!==q.x){ y.xcol=q.x.id; const all=allCols(), i=all.indexOf(y); let near=null; for(let j=i-1;j>=0;j--) if(all[j].role==="x"&&sheetOf(all[j])===sheetOf(y)){ near=all[j]; break; } if(near===q.x) delete y.xcol; }
+    if((was||null)!==q.x) said.push(q.x?`${colRef(y)} is plotted against ${colRef(q.x)}`:`${colRef(y)} is plotted against its row number`); });
+  // A data column made an X keeps the other columns plotted against what they were.
+  ys0.forEach(y=>{ if(curves.some(q=>q.y===y)) return; const was=xOf.get(y.id); if(was&&xColFor(y)!==was) y.xcol=was.id; });
+  const use={}, series={};
+  curves.forEach(q=>{ const y=q.y, u={}; if(st.rng[y.id]&&rngOk(st.rng[y.id])) u.rng=st.rng[y.id]; if(st.ax[y.id]==="r"&&q!==curves[0]&&(kind[2]==="type"||st.kind==="overlay")) u.ax="r"; if(q.lab) u.lab=q.lab.id; if(Object.keys(u).length) use[y.id]=u;
+    if(q.zcol||q.scol) series[y.id]=Object.assign({},q.zcol?{zcol:q.zcol.id}:{},q.scol?{scol:q.scol.id}:{}); });
+  const say=said.length?`${capFirst(andList(said))}, on every graph.`:"";
+  plotCols(ids,Object.assign({into,noUndo:true,use,series,say,note:said.length?andList(said):""},kind[2]==="type"?{type:st.kind}:{layout:st.kind},st.kind==="heat"?{plot:{mapKind:"both",mapY:"series"}}:{}));
 }
 // The list of graphs (the taskbar's Graphs button and Window › Graphs).
 function graphsMenuItems(){ const cur=S.gid;
@@ -23176,7 +23384,7 @@ const WIN_MENU=()=>{ const th=themeSetting(); return windowItems().concat(["-",
 function plotMenu(){
   const p=P(), has=!!(p&&pointsAll().length), cfg=plotCfg(), edit=!!p&&!S.readOnly, act=activeYCol(), m=S.mode, g=!!(p&&GID());
   const tool=(k,l)=>({label:l, radio:true, checked:m===k, enabled:has&&g, run:()=>setMode(k)});
-  return [{label:"Plot setup…", run:()=>openPlotDlg(wsSelColIds()), enabled:!!p&&!S.readOnly, title:"Choose the kind of plot, the X and Y columns and the graph"},
+  return [{label:"Plot setup…", run:()=>openPlotDlg(wsSelColIds()), enabled:!!p&&!S.readOnly, title:"Choose the kind of plot, what each column is and the curves on the graph, drawn as it will be"},
     {label:"Plot the selected columns", sub:()=>plotItems(wsSelColIds()), enabled:!!p&&!S.readOnly},
     {label:"New graph", sub:()=>newGraphItems(), enabled:edit},
     "-",

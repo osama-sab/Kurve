@@ -1024,6 +1024,23 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plot setup, slice 2: rebuilt, in three parts beside the graph (2026-10-29)
+
+`ux/spec/PLOT_SPEC.md` slice 2.
+- **Kind**: the gallery of cards, drawn with the curves.
+- **Columns**: a sheet's or every sheet's, filtered, each with its rows, a sparkline and its
+  *Use* (X, Y, Y error ±/+/−, X error ±/+/−, labels, colour, size), started from the worksheet's
+  roles; tick several to mark them at once. A Y column is never made an X or error bars here.
+- **Curves on the graph**: Add, Replace, Remove, Up, Down; each curve's X (any X of its sheet,
+  or the row number), range (all, rows, X) and axis.
+- **The preview is the graph itself**, drawn as it will be, into a new graph or one you have.
+- **OK is one undo step**; what it changes of the columns (an X, error bars) is said in the toast
+  and the log. The column menu's *Plot against* has *Its row number*.
+- Below 860 px the three parts are tabs.
+
+Checked: `tools/plot-drive.mjs` (26 new, 37), ds-test's gallery checks, screenshots at 1440 and
+1024 (light and dark) and 390 px, and every suite from the round before.
+
 ## Plot setup, slice 1: what each curve of a graph uses (2026-10-29)
 
 `ux/spec/PLOT_SPEC.md` slice 1, the user's question of 23.10 about ranges and axes.

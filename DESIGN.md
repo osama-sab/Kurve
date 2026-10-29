@@ -874,6 +874,33 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-10-29: Plot setup rebuilt (PLOT_SPEC slice 2)
+
+The old dialog chose one X and ticked Ys: nothing could say which column was the error, against
+which X each curve went, or what a curve drew. It is now Origin's Plot Setup in Kurve's words.
+
+- **Three parts beside the graph itself.** Kind, Columns, Curves on the graph; the preview is
+  the graph drawn as OK will make it (processing, error bars, ranges, axes), from the dialog's
+  working copy, taken back after each drawing, so Cancel changes nothing. A sketch could not
+  show what a range or a right axis would do; the graph can.
+- **What a column is, then what is on the graph.** Origin keeps the two apart (designations,
+  then a plot list filled by Add), and so does Kurve: marking a column changes nothing until Add
+  or Replace. A list that followed the marks live was tried first and gave a curve the wrong X
+  whenever a Y's X was not the nearest to its left; an explicit list keeps each curve's X,
+  shown and changed in its row.
+- **Rules a person can predict.** A Y takes its own X when that is marked, else the nearest X
+  marked to its left (X,Y pairs read as the worksheet reads them); an error column goes to its
+  own Y, else the nearest Y to its left. Ticks say what Add and Replace take, and mark several
+  columns at once.
+- **A column's role changes only where nothing is lost.** Other data can become an X or error
+  bars here; a Y column, with its processing and its place on other graphs, cannot (its header
+  menu does it, on purpose). The options are there, disabled, with the reason as their tooltip.
+- **What changes for every graph is said.** A column's X, or error bars given to a column, are
+  the column's (the processing and the fits read them), so the toast and the log name them
+  ("Column C is the upward Y error bars of B, on every graph"); a range, an axis and labels are
+  this graph's alone.
+- Below 860 px the parts are tabs, with the graph under each.
+
 ### 2026-10-29: the function editor grown, and your functions (FIT_SPEC slice 10)
 
 - **A function of yours is a model like the built-in ones**: a category (the model list files it

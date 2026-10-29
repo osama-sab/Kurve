@@ -1139,16 +1139,33 @@ graph first, with the taskbar kept at the bottom of the screen.
   the worksheet's `#wsPlotBtn`, Plot › Plot the selected columns, the cell menu and the
   column menu (`wsSelColIds`, `plotTargets(cid)`); its first item is **Plot setup…**:
   `openPlotDlg(cids)` (also first in Plot, and what `#wsPlotBtn` opens when nothing plottable
-  is selected), as Origin's Plot Setup: `PLOT_DLG_KINDS` as a gallery (`.pgal`, the design
-  system's PlotGallery: a card per kind drawn with the columns ticked, `plotDlgCard(k, ser)`,
-  `plotKindIcon`'s picture only while none is; a radiogroup the arrow keys move through;
-  `S.plotDlgKind` remembered), the X column, the Y columns ticked with All and None and each
-  one's error bars named, Into (a new graph or one of the project's), and
-  `plotDlgSketch(st, kind, ser)`, which shows a card's kind while it is hovered or focused;
-  both draw `plotDlgSer(st)` (each Y against the X) through `plotDraw(ser, kind, L, T, w, h,
-  max)` (every kind from the values: lines, symbols, columns, areas, steps, sticks, panels,
-  offsets, two axes, a heat map's rows, boxes, violins, a histogram); OK is `plotCols` (or
-  `histogramCols`). A
+  is selected), as Origin's Plot Setup (`ux/spec/PLOT_SPEC.md` slice 2; `.psu`, the sheet
+  `.plotdlg.psuw`): **Kind**, `PLOT_DLG_KINDS` as a gallery (`.pgal`, the design system's
+  PlotGallery: a card per kind drawn with the curves, `plotDlgCard(k, ser)`, `plotKindIcon`'s
+  picture only while there is none; a radiogroup the arrow keys move through; `S.plotDlgKind`
+  remembered); **Columns** (`#psuSheet` a sheet or every sheet with its file, `#psuQ` a filter,
+  a row per column with a tick `data-ptick`, its rows and a sparkline, and its Use
+  `select[data-puse]` from `PSU_USES`: X, Y, Y and X errors ±/+/−, labels, colour, size; an
+  option `psuWhyNot(c, u)` refuses is disabled with the reason: a Y column is never made an X
+  or error bars here, an X never a Y; `#psuMark`/`#psuMarkAs` mark the ticked ones); **Curves on
+  the graph** (`st.curves`, `[{y, x (null for the row number), e:[{c, k}], lab, zcol, scol}]`,
+  started by `psuStart(cids)` from the selection as `plotCols` reads it, with the marks they
+  make; `psuBuild(st)` the curves the marks make: a Y against its own X when marked, else the
+  nearest X marked to its left; an error column to its own Y when marked, else the nearest Y to
+  its left; Add and Replace take the ticked ones' curves when some are ticked, `psuSig` tells two
+  apart; `#psuAdd`, `#psuRep`, `#psuDel`, `#psuUp`, `#psuDn`, rows `tr[data-pcur]` selected by a
+  press or ↑/↓, Alt+↑/↓ and Delete; each row's Against `data-cx`, Range `data-crng` with
+  `data-cra`/`data-crb` (by X only when `psuSpan(q)` finds X steady), Axis `data-cax`, not the
+  first); Into (`#pdlgInto`); and the preview `#pdlgSk`, `plotSetupPv(st, kind, W, H)`: the
+  graph itself, a graph `__psu` and the columns' changes (`put`) made for one drawing through
+  `withGraph` and `buildPlot` and taken back, ids prefixed `psu-` (a histogram still
+  `plotDlgSketch` through `plotDlgSer` and `plotDraw`). Below 860 px the parts are tabs
+  (`.psu-tabs`, `data-ptab`, `.psu[data-tab]`). OK: one undo entry; data columns made X or
+  error bars, a Y's X (`xcol`, `"row"` for the row number, read by `xColFor`; the other Ys of
+  the sheet pinned to the X they had), an error column's owner and kind, said in the toast and
+  the log (`plotCols`' `say` and `note`); then `plotCols(ids, {into, use, series, type|layout})`
+  (`use` and `series` merged into the graph's) or `histogramCols`. The column menu's *Plot
+  against* has *Its row number* (`setXOf(id, "row")`). A
   `type` given to `plotCols` goes to every spectrum it plots, not only the analysed one. `ensureGraph()` (Peaks, Fit, Integrate)
   brings forward a graph showing the analysed column (`graphForCol`), opening it if closed, or
   plots the column on a new graph when none shows it. `GID()` is the graph in hand (`S.gctx` while drawing
@@ -2264,8 +2281,12 @@ so either finds the article.
 identifiers, the real superscripts, the fields' widths; run it after touching the frame.
 `node tools/plot-drive.mjs [path]` (Playwright) checks what each slice of `ux/spec/PLOT_SPEC.md`
 added (slice 1: a curve on the right axis and undone, ranges by rows and by X for one curve or
-every one, labels from a column, an export, junk from storage); run it after touching the graph's
-drawing or Plot setup.
+every one, labels from a column, an export, junk from storage; slice 2: Plot setup opened on a
+selection, the options a column refuses, error bars and labels marked and added, Up, Down,
+Remove, Replace with a ticked column, every sheet and the filter, Cancel changing nothing, OK
+with a range, an axis, labels and error bars in one undo entry said in the toast and the log, the
+row number as X, a data column made X with the other columns kept on theirs, into a graph with
+curves, and the tabs at phone width); run it after touching the graph's drawing or Plot setup.
 `node tools/fit-drive.mjs [path]` (Playwright) clicks and types into what each slice of the
 curve fit (`ux/spec/FIT_SPEC.md`) from slice 5 on added (Find X/Y: the readouts against the
 functions, a redraw while typing, Fill a column… both ways, undo); run it after touching the Fit
@@ -3188,7 +3209,12 @@ Then Plot setup as Origin's (`ux/spec/PLOT_SPEC.md`, the roadmap's next item). S
 each curve of a graph uses, kept on the graph and not the data: a range of rows or of X it draws
 (the axes fitted to it), the right Y axis for any overlaid curve but the active one, labels from a
 column beside each point; on the curve's right-click (Range…, Right axis, Labels from), in every
-export, undone with the graph, dropped when it no longer reads.
+export, undone with the graph, dropped when it no longer reads. Slice 2 done: Plot setup rebuilt,
+in three parts beside the graph drawn as it will be: the kind (cards drawn with the curves); the
+columns of a sheet or every sheet, each with what it is (X, Y, Y or X error, labels, colour,
+size), started from the worksheet's roles and marked several at a time; the curves on the graph,
+a list of their own (Add, Replace, Remove, Up, Down), each with its X (any X of its sheet, or the
+row number), range and axis. OK is one undo step, and what it changes of the columns is said.
 
 Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
 graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
@@ -3679,6 +3705,10 @@ Next, in order:
 - What a curve uses: the right axis for overlaid curves only (the active one stays left), one right
   axis for all of them; the readers (Reader, X–Y lines) read the left axis's curves only; a range is
   by rows or by X, not both, and labels are a column's numbers (the worksheet has no text cells)
+- Plot setup: a Y column cannot be made an X or error bars there (nor an X a Y): the worksheet's
+  header menu changes those roles; a curve is a column (a graph cannot draw one column twice, as
+  against two X columns); it makes a new graph or adds to one (changing a graph's own curves is
+  slice 3); colour and size from a column are set here but styled in the Format pane
 - Your functions: a derived value has no unit of its own (it is shown without one); a category is
   one word or phrase, not a tree; the organizer works on one function at a time
 - Saved fit settings are a curve fit's (a peak fit's peaks are its own); a column's weights and a
