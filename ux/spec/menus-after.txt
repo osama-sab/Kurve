@@ -18,6 +18,7 @@ File
   New project
   Import data…  [Ctrl+O]
   Copy from another project…  ## ~ "Bring in from another project…"; + Window's copy (R: six routes become File and the Explorer)
+  Replace the data…  ## new (DS8): the import dialog's "Replace everything in this project", behind a confirmation; ↓ until the project holds data
   Examples
     Infrared: overlapping bands
     Raman: raw polystyrene (background, spikes)

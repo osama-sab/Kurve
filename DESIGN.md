@@ -854,6 +854,41 @@ setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
 
+### 2026-10-29: the design system into the app, slice 8 (dialogs and windows)
+
+The system's ImportDialog, ExportFigure, Preferences, ToolWindow, PeakFinder and EmptyState.
+Decisions:
+
+- **Detected is a tint, not a sentence.** The import's delimiter, decimal mark and first line
+  of data are tinted when Kurve chose them, with one *Detected* key under them; a choice made by
+  hand loses the tint and gets *Auto* beside it to go back. "detected Semicolon" beside each
+  field said the same thing three times.
+- **Replacing a project is not a peer of adding to it.** *Replace everything in this project*
+  was a radio beside three safe choices; one slip lost the project's columns (undo aside). It
+  is File › Replace the data…, which asks first, and the dialog it opens says it replaces in a
+  note instead of offering choices. The three left are short: New sheet, Add to Sheet 1, New
+  project, with the project's name beside *Put it in*, as the round on projects asked.
+- **Facts are read-only fields, footers are buttons.** The export's pixel size and tick size
+  are `.ro` fields where the settings that make them are; what each format is for is its
+  button's tooltip; the import's and Preferences' footers lost their summary and "Kept in this
+  browser" (Help says it, and Done's tooltip).
+- **A tool window names its input**, the data the step reads (Original data, After smooth),
+  not its position in a list (First, before…): a scientist thinks of what a step works on.
+- **One or two words in the Peaks window**, the sense in the tooltip: Search, Settings, Find,
+  Add peak, Rejected, Identify, Mark, Label; the footer Done, Fit…, Integrate, Labels… on one
+  row in the dock. The finder's lists keep their long names for the log and the History, where
+  they are read in a sentence ("found with local maxima, signal to noise at least 4").
+  *Rejected* is the system's heading; the glossary's "not counted as a peak" stays the prose
+  and the tooltip.
+- **The empty desk has a headline.** A first visit is an empty worksheet; over it, as the
+  system's EmptyState, *Import data*, one line, Import… and the examples, in a card the grid
+  stays usable around, put away by the first press or key in the grid. The empty graph says
+  the same.
+- **Kept as Kurve has them**: the export's *Tick numbers* and *Lines and symbols* (the Format
+  pane's words; the system's preview says "Tick labels" and "Line width", and symbols scale
+  too), and *Formatted* for the text input (the word used everywhere else; the system's
+  preview says "Rich text").
+
 ### 2026-10-29: the design system into the app, slice 7 (the Fit window and Results)
 
 The system's FitPanel, Results and Note: the range a readout, the suggestion one word, *In the

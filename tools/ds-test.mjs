@@ -431,6 +431,65 @@ await page(async p => {
   check("a peak fit's switches start with Every parameter, and no weighting text in its footer", !!r.sw && r.sw[0] === "par" && r.sw.length === 6 && !r.wt, JSON.stringify(r));
 }, { name: "fit and results" });
 
+console.log("Slice 8: dialogs and windows as designed");
+await page(async p => {
+  // The empty desk: a headline over the empty worksheet, gone at the first press in the grid.
+  let r = await p.evaluate(() => ({ shown: !$("#wsEmpty").hidden, h: $("#wsEmpty h3").textContent, imp: !!$("#wsEmptyImport"), ex: document.querySelectorAll("#wsEmpty [data-example]").length }));
+  check("an empty worksheet has the headline Import data, Import… and the examples", r.shown && r.h === "Import data" && r.imp && r.ex === 4, JSON.stringify(r));
+  const g = await p.evaluate(() => { const c = document.querySelector('#ws td[data-r="2"][data-ci="0"]').getBoundingClientRect(); return { x: c.x + 10, y: c.y + 8 }; });
+  await p.mouse.click(g.x, g.y); await p.waitForTimeout(150);
+  check("a press in the grid puts it away", await p.evaluate(() => $("#wsEmpty").hidden));
+  await raman(p);
+  // The import dialog: detected settings tinted, three short places, a footer of buttons.
+  await p.evaluate(() => openImport("x;y\n1,5;2\n2,5;3\n3,5;4\n4,5;5\n", "a.txt")); await p.waitForTimeout(250);
+  r = await p.evaluate(() => ({ det: [...document.querySelectorAll("#impSide .det")].map(e => e.id), key: !!document.querySelector("#impSide .detkey"), spelt: /detected /i.test($("#impSide").textContent),
+    modes: [...document.querySelectorAll('#impSide input[name="impmode"]')].map(x => x.parentElement.textContent.trim()), foot: [...document.querySelectorAll("#impModal .sheet-f > *")].filter(e => e.tagName !== "SPAN" || e.textContent.trim()).map(e => e.textContent.trim()) }));
+  check("detected settings are tinted with a Detected key, not spelt out", r.det.join() === "impDelim,impDec,impStart" && r.key && !r.spelt, JSON.stringify(r));
+  check("Put it in: New sheet, Add to Sheet 1, New project; no replace among them", JSON.stringify(r.modes) === JSON.stringify(["New sheet", "Add to Sheet 1", "New project"]), JSON.stringify(r.modes));
+  check("the import's footer is its buttons", JSON.stringify(r.foot) === JSON.stringify(["Cancel", "Import 2 columns"]), JSON.stringify(r.foot));
+  await p.evaluate(() => { $("#impDelim").value = ","; $("#impDelim").dispatchEvent(new Event("change")); }); await p.waitForTimeout(150);
+  r = await p.evaluate(() => ({ det: !!document.querySelector("#impDelim.det"), auto: !!$("#impDelimAuto") }));
+  check("a setting chosen by hand loses its tint and offers Auto", !r.det && r.auto, JSON.stringify(r));
+  await p.evaluate(() => closeImport());
+  // Replacing the data is File's, behind a confirmation.
+  r = await p.evaluate(() => { const it = menuItems("file").find(x => x && x.label === "Replace the data…"); return { has: !!it, on: it && it.enabled !== false }; });
+  check("File has Replace the data…", r.has && r.on, JSON.stringify(r));
+  await p.evaluate(() => { replaceData(); }); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ open: !$("#dlgModal").hidden, t: $("#dlgTitle").textContent, ok: $("#dlgOk").textContent }));
+  await p.evaluate(() => $("#dlgCancel").click()); await p.waitForTimeout(150);
+  check("it asks first", r.open && r.t === "Replace the data?" && r.ok === "Choose a file…", JSON.stringify(r));
+  await p.evaluate(() => { S.impReplace = true; openImport("x;y\n1;2\n2;3\n3;4\n", "b.txt"); }); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ note: (document.querySelector("#impSide .impmode .note p") || {}).textContent, radios: document.querySelectorAll('#impSide input[name="impmode"]').length, mode: S.imp.mode, after: S.impReplace }));
+  await p.evaluate(() => closeImport());
+  check("then the dialog says it replaces everything, with no choices", r.note === "Replaces everything in this project." && !r.radios && r.mode === "replace" && !r.after, JSON.stringify(r));
+  // The export: facts in read-only fields, explanations in tooltips, Cancel and Export alone.
+  await p.evaluate(() => openExportFigure()); await p.waitForTimeout(150); await p.click('[data-expfmt="png"]'); await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ px: ($("#expPx") || {}).textContent, ro: !!document.querySelector("#expPx.ro"), notes: document.querySelectorAll("#expForm .pd-note, #expForm p").length, tip: document.querySelector('[data-expfmt="pdf"]').title,
+    foot: [...document.querySelectorAll("#expModal .sheet-f > *")].filter(e => e.tagName !== "SPAN" || e.textContent.trim()).map(e => e.textContent.trim()) }));
+  await p.evaluate(() => closeModal($("#expModal")));
+  check("export: the pixels in a read-only field, no paragraphs, Cancel and Export alone", /^\d+ × \d+$/.test(r.px || "") && r.ro && !r.notes && /Vector/.test(r.tip) && JSON.stringify(r.foot) === '["Cancel","Export"]', JSON.stringify(r));
+  // Preferences: grouped, System among the themes, explanations as tooltips, Done alone.
+  await p.evaluate(() => openPrefs()); await p.waitForTimeout(150);
+  r = await p.evaluate(() => ({ th: [...document.querySelectorAll("[data-pref-theme]")].map(b => b.textContent), h: [...document.querySelectorAll("#prefBody h3")].map(x => x.textContent), paras: document.querySelectorAll("#prefBody p.ind").length,
+    foot: [...document.querySelectorAll("#prefModal .sheet-f > *")].filter(e => e.tagName !== "SPAN" || e.textContent.trim()).map(e => e.textContent.trim()) }));
+  await p.evaluate(() => $("#prefDone").click());
+  check("Preferences: History, Appearance (Light, Dark, System)…, Done alone", JSON.stringify(r.th) === '["Light","Dark","System"]' && r.h[0] === "History" && r.h[1] === "Appearance" && !r.paras && JSON.stringify(r.foot) === '["Done"]', JSON.stringify(r));
+  // A tool window names its input: the data the step reads.
+  await p.evaluate(() => openTool("smooth")); await p.waitForTimeout(250); await p.evaluate(() => applyTool()); await p.waitForTimeout(200);
+  await p.evaluate(() => openTool("deriv")); await p.waitForTimeout(250);
+  r = await p.evaluate(() => ({ lab: document.querySelector('label[for="tlAt"]').textContent, opts: [...document.querySelectorAll("#tlAt option")].map(o => o.textContent) }));
+  await p.evaluate(() => cancelTool());
+  check("a tool window's Input: Original data, or after a step", r.lab === "Input" && JSON.stringify(r.opts) === '["Original data","After smooth"]', JSON.stringify(r));
+  // The Peaks window's labels: one or two words.
+  await p.evaluate(() => openPeakFinder()); await p.waitForTimeout(500);
+  r = await p.evaluate(() => { const b = $("#pane-peaks"); return { h: b.querySelector("h3.gh").textContent, sums: [...b.querySelectorAll("details>summary")].map(s => s.firstChild.textContent.trim()), find: $("#pkFind").textContent.trim(), add: $("#pkAddMode").textContent.trim(),
+    foot: [...b.querySelectorAll(".pkfoot button")].map(x => x.textContent.trim()), rows: new Set([...b.querySelectorAll(".pkfoot button")].map(x => Math.round(x.getBoundingClientRect().top))).size,
+    labs: [...b.querySelectorAll(".pfform label")].map(l => l.textContent.trim()) }; });
+  check("Peaks: Search, Settings, Find, Add peak, Rejected, Identify", r.h === "Search" && r.sums.slice(0, 1).join() === "Settings" && r.sums.includes("Rejected") && r.sums.includes("Identify") && r.find === "Find" && r.add === "Add peak", JSON.stringify(r));
+  check("its footer Done, Fit…, Integrate, Labels…, on one row", JSON.stringify(r.foot) === '["Done","Fit…","Integrate","Labels…"]' && r.rows === 1, JSON.stringify(r));
+  check("the finder's settings are one or two words each", r.labs.every(l => l.split(/\s+/).length <= 2), JSON.stringify(r.labs));
+}, { name: "dialogs and windows" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

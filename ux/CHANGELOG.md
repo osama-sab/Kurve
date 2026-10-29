@@ -986,3 +986,26 @@ people type (`CMDK_SYN`).
   data *Import…*.
 
 `tools/ds-test.mjs` has 18 new checks (120).
+
+## The design system into the app, slice 8: dialogs and windows (2026-10-29)
+
+- **Import**: the settings Kurve detected are tinted, with a *Detected* key, instead of
+  "detected Semicolon" beside each; a setting chosen by hand offers *Auto*. *Put it in* offers
+  New sheet, Add to Sheet 1, New project, the project's name beside it and both X ranges as a
+  readout when they do not overlap. *Replace everything in this project* left the dialog for
+  File › Replace the data…, which asks first. The rows are counted beside *Columns*; the footer
+  is Cancel and Import.
+- **Export figure**: the pixel size (and the tick numbers' size when they are as on the graph)
+  in read-only fields, what each format is for in its tooltip, no paragraphs; Cancel and Export
+  alone in the footer.
+- **Preferences**: History, Appearance (Light, Dark, System; Bench, Graphite; Animations),
+  Typing text, After an import, Errors; each switch's explanation its tooltip; Done alone.
+- **Tool windows**: *Input* (Original data, After smooth…) where *Position* was.
+- **Peaks**: Search, Range (All, + View, + Select on graph), Settings (Method, Keep if,
+  Threshold, Noise, Log scale, Direction, Smoothing, Min width, Min spacing, Max peaks,
+  Auto-update, Defaults), Find, Add peak, Rejected, Identify, Mark, Label; the footer Done,
+  Fit…, Integrate, Labels… on one row in the dock. *Rejected* in the Fit window's finder too.
+- **The empty desk**: *Import data*, one line, Import… and the examples, over an empty
+  worksheet until the grid is pressed or typed in; the empty graph says the same.
+
+`tools/ds-test.mjs` has 16 new checks (136).

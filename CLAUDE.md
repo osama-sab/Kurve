@@ -64,7 +64,9 @@ documents share what is left, and get it back when it empties. Its left edge set
 dragged out floats (as does the title bar), and the title bar's dock button docks it again.
 Below 1100 px, or when a 480 px graph and a 300 px worksheet would not fit beside it, it is a
 drawer over the documents, with a pin and a button that puts it away. A first visit opens the
-Worksheet alone, across the desk: nothing is plotted until the user plots it (select columns
+Worksheet alone, across the desk, with the empty desk's headline over it (*Import data*, one
+line, Import… and the examples, the design system's EmptyState; `#wsEmpty`, `wsEmptyShow`, put
+away by the first press or key in the grid, `S.wsEmptyGone`): nothing is plotted until the user plots it (select columns
 and press Plot; an import's message offers to; a file dropped on the window is plotted), and a
 graph then shares the desk with it. History opens in the dock with a column's first
 processing step (unless the history is off). A project can
@@ -629,6 +631,14 @@ graph first, with the taskbar kept at the bottom of the screen.
   (`impIsErr`; `impUseDefault` reads the kind from the name: `x err`, `dx`, a `+` or `−` at
   the end). `impGraphs(p, ids, how, fresh)` decides the graphs before the save (`how` is
   `none` from the dialog, which makes no graph; fresh, the project's graphs go).
+  The settings it detected are tinted (`.det`, title Detected, a `.detkey` under them; a setting
+  chosen by hand loses its tint and has Auto beside it; `im.opt[k]==null` is detected), the
+  Columns heading counts the rows, and **Put it in** (the project's name beside it, a readout
+  of both X ranges when they do not overlap) offers New sheet, Add to the sheet shown and New
+  project; the footer holds Cancel and Import alone. Replacing the project is File › Replace
+  the data… (`replaceData`: `confirmDlg` first, then `pickFile(true)`, which sets
+  `S.impReplace`; `openImport` takes it as `im.mode` "replace" and clears it, and any other
+  `pickFile` clears it too), and the dialog then says so in a note instead of the choices.
   `impBuild` makes the columns in the file's order (an X of row numbers when none is X; the
   fixes as steps on every spectrum; √N columns), `doImport` puts them in a new project, beside
   the project's (the first X shared with the last X column when `sameAxis`), or in place of
@@ -1139,8 +1149,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   a press on the backdrop closes). `tools/ux/terms.py` leaves `CMDK_SYN` out: it is what people
   type, not what Kurve says.
   `openTool(op, {col, at, p})` opens the Tool window with a pending step (ops without settings
-  are added at once by `addPipeStep`); `renderTool` shows the target spectrum, the position,
-  a before-and-after chart (`beforeAfter`) and the step's form.
+  are added at once by `addPipeStep`); `renderTool` shows the target spectrum, its **Input** (the
+  data the step reads, which is where it goes: Original data, or After <a step's short name>,
+  the step's number when two have one name; the design system's ToolWindow), a before-and-after
+  chart (`beforeAfter`) and the step's form.
 - **Step forms** (`stepForm(s)`, `wireStepForms(box)`): one form per step, generated from its
   op's `params` schema (types `num`, `int`, `odd`, `log`, `sel`, `bool`, `col`, `cols`,
   `anchors`, `refs`, `code`), the same in the Tool window and the History inspector. Sliders
@@ -1177,7 +1189,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   A project made with it keeps each Python step as a stored result (see the pipeline's
   `python` op); nothing can run code.
 - **Preferences** (`openPrefs`, `#prefModal`, the gear `#prefBtn`, File and Edit ›
-  Preferences…, Ctrl+,): `PREF_DEF` (`history`, `anim`, `flowAuto`), `prefGet(k)`/`prefSet(k, v)`
+  Preferences…, Ctrl+,; as the design system's: History, Appearance with Theme Light, Dark,
+  System and Style, Animations, Typing text, After an import, Errors; each switch's explanation
+  its tooltip, Done alone in the footer): `PREF_DEF` (`history`, `anim`, `flowAuto`), `prefGet(k)`/`prefSet(k, v)`
   under `kurve.pref.<k>`, per browser. **History off** (`histOn()` false) keeps nothing from then
   on: `save` writes no log line (a deferred error line aside), `makeStep` no `t`/`by`,
   `fitHistory` no new entry, `recordRaw` keeps the fingerprint but no record entry (so
@@ -1270,15 +1284,19 @@ graph first, with the taskbar kept at the bottom of the screen.
   label, `removeFoundPeak` (also what Delete on a set's label does), `clearFoundPeaks`,
   `addToPeakSet` (the Label tool on a spectrum with a set), `peakRows`/`foundTableText` (the
   table; `said` has `{x}` written out), `fitFoundPeaks` (seeds `S.pdraft` from the set and
-  opens the Fit window: fitting is optional). The window's parts: **Find peaks in** (which
-  spectrum, always shown, with In every spectrum; From … to … in X units; Whole spectrum,
-  What's in view, Pick on the graph), how to recognise a peak (`pfFormHtml`, the finder's form
-  under `pk-pf…` ids so the Fit window's can be open too), the peaks (a table with a label field
-  each, Search again, remove, Copy, Clear, add by clicking the graph, the turned-down candidates
-  with Add), Across the spectra (with several sets on one axis: each matched peak once, its
-  spread, in how many, one label for every one, a chart button for its trend), how they look on
-  the graph, and a pinned footer: **Done** (closes the window; the peaks stay), then the
-  optional Fit them…, Integrate them and Labels and legend…. **Regions**: parts of the spectrum
+  opens the Fit window: fitting is optional). The window's parts, labelled in one or two words
+  as the design system's PeakFinder is (the longer sense in each tooltip): **Search** (which
+  spectrum, always shown, with In every spectrum; Range: All, + View, + Select on graph),
+  **Settings** (`pfFormHtml`, the finder's form under `pk-pf…` ids so the Fit window's can be
+  open too; Method, Keep if, Threshold, Noise, Log scale, Direction, Smoothing, Min width, Min
+  spacing, Max peaks, each list's short names the last entry of `PF_METHODS`, `PF_MODES`,
+  `PF_NOISE`, their long ones for the log and the History; Auto-update, Defaults), **Peaks** (a
+  table with a label field each, Find, remove, Copy, Clear, Add peak, **Rejected**: the
+  candidates not counted as peaks, with Add), **Identify** (naming from known lines), Across the
+  spectra (with several sets on one axis: each matched peak once, its spread, in how many, one
+  label for every one, a chart button for its trend), On the graph (Mark, Label: `PK_MARKS`,
+  `PK_SHOW`), and a pinned footer on one row: **Done** (closes the window; the peaks stay),
+  then the optional Fit…, Integrate and Labels…. **Regions**: parts of the spectrum
   searched each with its own finder settings. A set keeps them (`found[c].regs`, `[{id, x0, x1,
   o}]` in its units; `rng` too when there is one, for older readers); before a set,
   `S.pkRegs[c.id]`. `normRegs`, `regsOfSet(f)` (an older set's `rng` is one region with its
@@ -1288,7 +1306,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   why)` (one undo entry, searches again), `addPkRegion` (the view, or a drag: `pickPkRange`,
   `S.pick.pkr`, read in `setPickedRange`), `removePkRegion`, `setPkRange(rng)` (one region). The
   table (`.pkregs`: edges typed, `pfSummary` of its settings, the peaks in it, ×); the
-  **Peak finder settings** (`#pkHow`, once "How to recognise a peak") edit the selected
+  **Settings** (`#pkHow`, once "Peak finder settings" and before that "How to recognise a peak") edit the selected
   region's, with Use in every region, or with no regions `S.pf`. `findPeaksInto({regs|rng})`,
   `findPeaksEvery` (the analysed spectrum's regions on every spectrum on its axis) and
   `followPeakSets` (the set's own) all go through `searchRegions`. While the window is open
@@ -1331,7 +1349,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   baseline, and `bandsSvg("top")` draws its edges (`data-bh`, drag one) and a strip along the
   top with its name (`data-bb`, drag it to move the window): `S.bdrag`, `dragBand`,
   `commitBandDrag` (one undo entry per drag). Only the analysed spectrum's, on the final data,
-  overlaid or on its own axis. The Peaks window's "Integrate them" is `bandsFromPeaksUI` too.
+  overlaid or on its own axis. The Peaks window's *Integrate* is `bandsFromPeaksUI` too.
 - **Overview** (`openOverview`, `renderOverview`, `overviewOf(d)`, `overviewSteps(o, c)`):
   what a spectrum is like before anything is done to it, from the data as recorded or after
   processing (`S.ovStage`). `overviewOf` (memoised per series) measures the points (missing,
@@ -2009,8 +2027,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   so everything keeps its screen proportions) or as drawn (`opt.k` scales only the text),
   SVG at a physical size (`expDress`), PNG at 150–1200 dpi with a pHYs chunk (`pngWithDpi`,
   `crc32`) or TIFF (`tiffEncode`, PackBits, with its resolution), white or transparent, this
-  graph or all; `expBuild` makes the SVG, `expInfo` says its size, the preview is the SVG
-  itself with prefixed ids, and the settings are kept in `kurve.export`. **PDF and EPS**
+  graph or all; `expBuild` makes the SVG, `expInfo` its size (`pxW`, `pxH`, `pt`), written in
+  read-only fields of the form (`#expPx` for a raster, `#expPtV` the tick numbers' size when
+  they are as on the graph; the design system's ExportFigure), each format's use its button's
+  tooltip (`EXP_FMTS`), a raster too large for the browser a note in the form; the footer is
+  Cancel and Export alone. The preview is the SVG itself with prefixed ids, and the settings
+  are kept in `kurve.export`. **PDF and EPS**
   (`svgToVector(svg, {kind, wPt, hPt, title})` → `{blob, miss}`, `exportVec(kind, all)`, the
   dialog's PDF and EPS): the figure's SVG parsed and walked (`g`, nested `svg` with its
   viewBox and clip, `clip-path`, `transform`, `rect`, `circle`, `ellipse`, `line`, `path` with
@@ -2837,6 +2859,10 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **Where a menu is shown must be visible when it is shown.** The Column menu in the graph's bar
   first appeared while the worksheet was in front, and in front the worksheet can cover the graph:
   the button was there and could not be pressed. It follows the last place pressed or typed in.
+- **A word in the glossary and a word on a button are two jobs.** The glossary's "not counted
+  as a peak" replaced "turned down" in prose; the design system's heading for the same list is
+  *Rejected*. A heading of one word keeps the glossary's phrase in its tooltip and in Help, so
+  either finds it.
 - **A view's setting must not reach what leaves the building.** Results' parameter table is the
   report's too (`paramTableHtml`); switching the intervals off in Results would have taken them
   out of every report saved after. The report asks for the whole table (`paramTableHtml(f,
@@ -2878,8 +2904,15 @@ covariance matrices, residual analysis, a peak fit's every parameter), footers o
 Results with Value and Standard error in columns of their own, derived quantities under a group
 row, the statistics beside the table, the sections chosen open; notes one line, the number first,
 with their fixes as buttons (Fit again, Mask, Show residuals, Limits…), in Results, the Peaks
-window, the History and the Fit window. Next: the dialogs, galleries drawn with the data, two
-displays.
+window, the History and the Fit window. Slice 8 done: dialogs and windows as designed: the
+import dialog's detected settings tinted with a Detected key, Put it in as New sheet, Add to
+Sheet 1 or New project (replacing the project is File › Replace the data…, behind a
+confirmation), the rows a readout, a footer of buttons; the figure export's pixels and tick size
+in read-only fields, each format's use its tooltip, Cancel and Export alone; Preferences grouped
+as the system's, with a System theme and Done alone; a tool window's Input (the data the step
+reads); the Peaks window in one- or two-word labels (Search, Settings, Find, Add peak, Rejected,
+Identify; Done, Fit…, Integrate, Labels… on one row); and the empty desk's headline, Import data,
+over an empty worksheet. Next: galleries drawn with the data, two displays.
 
 Then: the curve fit as complete as Origin's fitting dialogs (`ux/spec/FIT_SPEC.md`, the
 roadmap's first item). Slice 1 done: Fit control in the Fit window (the method named, the
