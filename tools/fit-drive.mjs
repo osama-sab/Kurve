@@ -219,6 +219,39 @@ await page(async p => {
   check("the prediction band is drawn for no weights, Y errors and counting", r.every(x => /:true$/.test(x)), JSON.stringify(r));
 }, { name: "weights" });
 
+console.log("Slice 7: the apparent fit");
+await page(async p => {
+  await p.evaluate(async () => { await loadExample("decay"); }); await p.waitForTimeout(600);
+  await p.evaluate(() => { S.fitMode = "curve"; showTab("fit"); chooseModel("linear"); }); await p.waitForTimeout(200);
+  let r = await p.evaluate(() => !!$("#fitApp"));
+  check("with linear axes there is no Apparent fit", !r);
+  await p.evaluate(() => { setPlotKey("logY", true, ""); showTab("fit"); renderFit(); }); await p.waitForTimeout(250);
+  r = await p.evaluate(() => { const a = $("#fitApp"); return a && { dis: a.disabled, on: a.checked, tip: a.parentElement.querySelector(".tipd").title }; });
+  check("Log Y on the graph: Apparent fit offered, saying log₁₀ y against x", r && !r.dis && !r.on && /log₁₀ y against x/.test(r.tip), JSON.stringify(r));
+  await p.click("#fitApp"); await p.waitForTimeout(200);
+  await p.evaluate(() => { const d = ensureDraft(); d.weight = "none"; d.weighted = false; runFit(); }); await p.waitForTimeout(500);
+  r = await p.evaluate(() => { const f = activeFit(), pts = fitPoints(), X = pts.map(q => q.x), Y = pts.map(q => Math.log10(q.y)), ref = lmFit((x, p) => p[0] + p[1] * x, X, Y, X.map(() => 1), [3, -0.1], [false, false]);
+    const FM = fitModel(f), x = 5, rows = paramRows(f);
+    return { app: f.app, p: f.params, ref: ref.params, curve: FM.f(x, f.params), want: 10 ** (f.params[0] + f.params[1] * x), units: rows.map(r => r.unit), red: f.stats.redChi2, refRed: ref.stats.redChi2 }; });
+  check("fitted as log₁₀ y against x: the straight line through the logarithms", r.app && r.app.y === "log10" && !r.app.x && r.p.every((v, i) => Math.abs(v - r.ref[i]) <= Math.abs(r.ref[i]) * 1e-6 + 1e-9) && Math.abs(r.red - r.refRed) <= r.refRed * 1e-6, JSON.stringify(r));
+  check("drawn in the data's terms, 10^(a + b x), its parameters without units", Math.abs(r.curve - r.want) <= r.want * 1e-12 && r.units.every(u => !u), JSON.stringify(r));
+  await p.evaluate(() => { openWin("res", { render: true }); focusWin("res"); }); await p.waitForTimeout(250);
+  r = await p.evaluate(() => { const dt = [...document.querySelectorAll("#pane-res .rside dt")].find(d => d.textContent === "Fitted as"), f = activeFit(), D = fitDiag(f), pts = D && D.pts;
+    return { row: dt && dt.nextElementSibling.textContent, note: [...document.querySelectorAll("#pane-res .note")].map(n => n.textContent).join(" | "), diag: !!D,
+      r0: D && D.r[0], want: pts && Math.log10(pts[0].y) - (f.params[0] + f.params[1] * pts[0].x), band: !!document.querySelector("#plot path[data-fitc]") }; });
+  check("Results says it: Fitted as, and a note", /^Log(₁₀|10) y against x, an apparent fit$/.test(r.row || "") && /Apparent fit: log(₁₀|10) y against x/.test(r.note), JSON.stringify(r));
+  check("its residuals are in the logarithms, where it was fitted", r.diag && Math.abs(r.r0 - r.want) <= 1e-9, JSON.stringify(r));
+  // Find X/Y reads the curve as drawn.
+  r = await p.evaluate(() => { const el = $("#fyX"); el.value = "5"; el.dispatchEvent(new Event("input")); const f = activeFit(); return { o: $("#fyXo").textContent, want: fmtPM(10 ** (f.params[0] + f.params[1] * 5), fitYAt(fitModel(f).f, f.params, f.cov, f.fixed, 5, 2).se).replace(/<[^>]+>/g, "") }; });
+  check("Find X/Y reads the curve as it is drawn", r.o.includes("y = " + r.want), JSON.stringify(r));
+  // A value a logarithm cannot take is refused in words.
+  check("a count of 0 on a logarithmic axis is refused in words", await p.evaluate(() => /An apparent fit takes the logarithm of Y, and 2 values in range are 0 or below/.test(appBad({ y: "log10" }, appPoints({ y: "log10" }, [1, 2, 3], [0, -1, 2], [1, 1, 1], false)))));
+  // Log Y off: the switch stays, unticked and disabled; the fit is still drawn as fitted.
+  await p.evaluate(() => { setPlotKey("logY", false, ""); showTab("fit"); renderFit(); }); await p.waitForTimeout(250);
+  r = await p.evaluate(() => { const a = $("#fitApp"); return { a: a && [a.disabled, a.checked], curve: !!document.querySelector("#plot path[data-fitc]"), app: activeFit().app }; });
+  check("with Log Y off again the switch is there but cannot be ticked, and the fit is still drawn", r.a && r.a[0] && !r.a[1] && r.curve && r.app, JSON.stringify(r));
+}, { name: "apparent fit" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

@@ -1024,6 +1024,21 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Curve fit, slice 7: the apparent fit (2026-10-29)
+
+`ux/spec/FIT_SPEC.md` slice 7, its second half.
+- **Apparent fit** in the curve fit's options, while the graph has a logarithmic axis: the points
+  fitted as they look there (log₁₀ y against x, say), so a straight line fits a straight line on
+  the graph. Ticking it measures the starting values again.
+- The curve is drawn and read (Find X/Y, the worksheet) in the data's terms; the parameters, R²,
+  χ², residuals and bands are in the logarithms, and Results, the report and the CSV say so.
+- Errors go with the logarithm; zeros on a logarithmic axis and the X errors are refused in words.
+  Fits of every column carry it.
+
+Checked: fit-test (6 new, 336: a power law as a line on log–log axes, the model in the data's
+terms, the weights through ln and log₁₀, what a logarithm cannot take), fit-drive (10 new, 53),
+a screenshot, and every suite from the round before.
+
 ## Curve fit, slice 7: how points count, the weights (2026-10-29)
 
 `ux/spec/FIT_SPEC.md` slice 7, its first half.

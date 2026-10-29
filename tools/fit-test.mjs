@@ -16,7 +16,7 @@ const grab = (tag) => {
 // tools/pipe-test.mjs tests the rest of it. The curve fit's models are a block of
 // their own (MODELS), after the pipeline.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("MODELS")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -982,6 +982,25 @@ check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
   const mb = bs.reduce((s, v) => s + v, 0) / bs.length, sb = Math.sqrt(bs.reduce((s, v) => s + (v - mb) ** 2, 0) / (bs.length - 1)), me = es.reduce((s, v) => s + v, 0) / es.length, mr = reds.reduce((s, v) => s + v, 0) / reds.length;
   check("counting weights on Poisson counts: the slope's error matches its spread over 300 sets", rel(me, sb, 0.12), `${me} against ${sb}`);
   check("counting weights on Poisson counts: the reduced χ² is near 1", near(mr, 1, 0.05) && near(mb, 6, 4 * sb / Math.sqrt(300)), `${mr}, slope ${mb}`);
+}
+
+/* ---------- The apparent fit: a curve fitted as its points look on logarithmic axes ---------- */
+{
+  const lin = (x, p) => p[0] + p[1] * x, X = [], Y = [], rnd = N.mulberry32(9);
+  for (let i = 1; i <= 40; i++) { const x = i * 0.5; X.push(x); Y.push(3 * x ** 1.5 * Math.exp(0.01 * (rnd() - 0.5))); }
+  const app = { x: "log10", y: "log10" }, t = N.appPoints(app, X, Y, X.map(() => 1), false);
+  const f = N.lmFit(lin, t.X, t.Y, t.W, [0, 1], [false, false]);
+  check("a straight line on log–log axes: the slope is the power, the intercept log₁₀ of the factor", near(f.params[1], 1.5, 0.002) && near(f.params[0], Math.log10(3), 0.002), JSON.stringify(f.params));
+  const g = N.appModel(lin, app);
+  check("the model in the data's terms is 10^(a + b log₁₀ x), the power law", rel(g(4, f.params), 10 ** (f.params[0] + f.params[1] * Math.log10(4)), 1e-12) && rel(g(4, f.params), 3 * 4 ** 1.5, 0.01) && Number.isNaN(g(-1, f.params)));
+  const w = N.appPoints({ x: null, y: "ln" }, [1, 2], [2, 5], [0.5, 0.25], true);
+  check("weights go with the logarithm: σ' = σ/y for ln, X untouched", w.X[0] === 1 && rel(w.Y[1], Math.log(5), 1e-15) && rel(w.W[0], 0.5 * 2, 1e-12) && rel(w.W[1], 0.25 * 5, 1e-12));
+  const w10 = N.appPoints({ x: null, y: "log10" }, [1], [100], [1], true), w0 = N.appPoints({ x: null, y: "log10" }, [1], [100], [1], false);
+  check("for log₁₀, σ' = σ/(y ln 10); with no weights, none", rel(w10.W[0], 100 * Math.LN10, 1e-12) && w0.W[0] === 1);
+  const bad = N.appPoints({ x: "log10", y: "log2" }, [0, 1, -2], [1, 0, 3], [1, 1, 1], false);
+  check("what a logarithm cannot take is counted, in X and Y", bad.badX === 2 && bad.badY === 1 && !bad.X);
+  const sx = N.appModel((x, p) => p[0] * x, { x: "log2", y: null });
+  check("only X on a logarithm: f(log₂ x)", sx(8, [2]) === 6 && N.appModel(lin, null) === lin);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

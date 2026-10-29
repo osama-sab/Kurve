@@ -854,6 +854,25 @@ setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
 
+### 2026-10-29: the apparent fit (FIT_SPEC slice 7, its second half)
+
+Origin's *Apparent fit*: a fit made as the points look on the graph's logarithmic axes, so a
+straight line on log–log axes is a power law and one on Log Y an exponential. Decisions:
+
+- **Offered only where it means something**: the switch is there while the graph has a
+  logarithmic axis (log₁₀, ln or log₂) and says what it will fit ("log₁₀ y against x"); with
+  the axis made linear again it stays, unticked and disabled, beside the fit it made.
+- **Drawn and read in the data's terms, analysed in the axes'.** The curve, Find X/Y and the
+  worksheet's columns read y = 10^f(x), because that is what is on the graph and in the sheet;
+  the parameters, R², χ², the residuals and the bands are in the logarithms, because that is
+  what was fitted, so the parameters have no units and the residual analysis tests the fit it
+  belongs to. Results says *Fitted as* and a note; the report and the CSV say it too.
+- **Ticking it measures the starting values again**: a slope in the logarithms is not a slope
+  in the data, and the old starting values would only mislead the first iteration.
+- **Errors go with the logarithm** (σ' = σ/(y ln 10)); no weights stay none, which is the point
+  of fitting as it looks. Zeros and negatives on a logarithmic axis, and the X errors, are refused
+  in words rather than dropped.
+
 ### 2026-10-29: how points count (FIT_SPEC slice 7, the weights)
 
 The switch *Weight by Y error* became a list, *Weights*, as Origin's Data Selection has: None,

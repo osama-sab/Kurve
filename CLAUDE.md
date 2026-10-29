@@ -464,6 +464,19 @@ graph first, with the taskbar kept at the bottom of the screen.
   global statistics and the batch CSV read the kind. `batchTemplate` turns a column's weights to
   none (they belong to one column); `fitOne` and `fitTogether` use `yerr` or `counts` where every
   point allows it, and each row stores what it used.
+  **The apparent fit** (the second half of slice 7): `APP_TF` (log10, ln, log2: `tf`, `ti`, the
+  slope `dv`), `appModel(f, app)` (y = ti(f(tf(x)))) and `appPoints(app, X, Y, W, weighted)`
+  (into the axes' space, W over the slope, or `badX`/`badY`) in MODELS; `appOf(cfg)` (the graph's
+  logarithmic axes, `{x, y}` or null), `appText(a, ascii)` ("log₁₀ y against x"), `appBad`,
+  `APP_ODR`, `parUnits(f)` (no units for a logarithmic axis's dimension: `paramRows`,
+  `derivedRows`). The draft's `app` (the switch `#fitApp`, shown while `appOf()` or the draft has
+  it; ticking re-guesses, one undo entry; `guessDraft` and `curveOverlay` work in the axes'
+  terms); `runFit` and `stepFit` fit `appPoints`' X and Y with the raw model; the fit stores
+  `app`. `fitModel` gives `f` in the data's terms (drawing, Find X/Y, the worksheet's columns)
+  and `raw` with `app`; `fitResiduals`, `residsOf`, `fitDiag` and the bands (worked out in the
+  axes' terms, carried back by `ti`) read `raw`. `fitWarnings` adds an `app` note; `statsList`
+  *Fitted as*; the report's Method and the CSV a line. `batchTemplate` carries it, `fitOne` and
+  `fitTogether` fit in the axes' terms (a range in the data's X).
   **The parameter grid** (`FIT_SPEC.md` slice 2; `paramGridHtml`, `wirePGrid`, `pgMarks`):
   each parameter with its unit and meaning (`MODELS[k].mean`, also in Results), Start and
   Fix, Lowest and Highest (each with a ≤ or < button, `data-prel`; typed, empty for the
@@ -2185,7 +2198,9 @@ functions, a redraw while typing, Fill a column… both ways, undo); run it afte
 window or Results. Slice 6: the fit's columns (values, the check code untouched, a new fit
 written, out of date, `resid(B)` typed, `fit(B)*2` refused, the fit removed and undone, a reload). Slice 7: the Weights list, counting weights said everywhere,
 a column of 1/σ² equal to the Y error fit with scaled errors, refusals, a column of weights deleted,
-the prediction band for each kind.
+the prediction band for each kind; the apparent fit (offered only on a logarithmic axis, the
+line through the logarithms, drawn in the data's terms without units, Results' row and note, its
+residuals, Find X/Y, a refusal, the axis made linear again).
 `node tools/fit-test.mjs`, `node tools/pipe-test.mjs`, `node tools/parser-test.mjs` and
 `node tools/tex-test.mjs` cover the numerics, the processing steps with their checks and the
 fingerprint, the parser, and the LaTeX typesetter (nesting, italics, spacing, fractions, roots,
@@ -3069,7 +3084,9 @@ formulas that can be typed too), out of the original data, written again by each
 marked out of date with it. Slice 7, its first half: how points count, a *Weights* list (none,
 the Y error, counting statistics 1/y, a column's values), absolute weights taken as they are and
 relative ones scaled by √(reduced χ²), a point that cannot be weighted refused in words, the kind
-said in Results, the report and the CSV; the apparent fit next.
+said in Results, the report and the CSV; and the apparent fit, as the points look on the
+graph's logarithmic axes (a straight line on Log Y an exponential, on log–log a power law), drawn
+in the data's terms and analysed in the axes'.
 
 Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
 graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
@@ -3384,7 +3401,7 @@ Next, in order:
    model; about 25 more models, searchable, each with a sketch; a confidence level, ANOVA,
    the covariance and correlation matrices, studentised residuals, residual plots and
    outliers; Find X/Y (done); the fitted values and residuals in the worksheet (done); counting and
-   column weights, an apparent fit; starting values and constraints as formulas; fit
+   column weights, an apparent fit (done); starting values and constraints as formulas; fit
    settings saved by name, and fits that follow their data; the function editor grown, and
    an organizer. In the docked Fit window, in Kurve's words, running no code
 2. Plot setup as Origin's, the user's question ("why can I not choose how I want to plot the
@@ -3557,6 +3574,8 @@ Next, in order:
   guesses are measured heuristics (two or three decays from a grid of 16 decay times, a wave's
   period from at most 600 points), and a sketch shows typical values, not the data's; your
   functions have no kind of their own in the list yet
+- The apparent fit: curve fits only (not a peak fit); log axes only (not a reciprocal or square
+  root axis); not with the X errors; its axes are the graph's when it is fitted, kept with it
 - Weights: counting is Neyman's χ² (σ² = y from the data, not the model), so it is biased a little
   low on counts of a few; a column's weights are not used with the X errors, nor by fits of every
   column; a global fit takes the Y error or counting only
