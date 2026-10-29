@@ -949,3 +949,15 @@ people type (`CMDK_SYN`).
 - A number being typed stays in its field through a redraw from a save.
 
 `tools/ds-test.mjs` has 14 new checks (95); the UX scripts that closed the dialog close the pane.
+
+## The design system into the app, slice 6: the status bar answers questions (2026-10-28)
+
+- **The status bar's readout gives the numbers of what is selected** while the pointer is off the
+  graph, as Excel's does: cells selected in the worksheet (*B1:B9 · N 9 · Mean · SD · Min · Max*),
+  a curve selected on the graph (the same, of its processed data), a band or a shaded range
+  (*Area* with its error, *Peak at*, *FWHM*, *Span*). On the graph it still reads the pointer.
+- **The same numbers as the windows that have them**: the Statistics window's for cells and
+  curves (it now lists the cells selected as a row of its own and marks the selected curve), the
+  Integrate window's for a band, each to the same digits.
+
+`tools/ds-test.mjs` has 7 new checks (102).

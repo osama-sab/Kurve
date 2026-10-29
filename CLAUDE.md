@@ -23,7 +23,7 @@ imported with its spectra and data columns, every graph, closed ones marked hidd
 graphs; Alt+1 or the toolbar's first button shows it, its edge drags; 220 px wide, and below 1600 px a
 drawer over the desk);
 the **desk**; and a **status bar**
-(tool hint, live cursor readout, point counts, fit state, save state). A gear at the title bar's right
+(tool hint, live cursor readout, or off the graph the numbers of what is selected, point counts, fit state, save state). A gear at the title bar's right
 opens **Preferences** (File › Preferences…, Edit › Preferences…, Ctrl+,): whether a history of
 changes is kept (off, nothing but errors is logged), the theme, the style, animations, how text
 is typed (formatted or LaTeX), what opens after an import, and the errors met, all kept per browser. Window › Theme picks
@@ -1783,7 +1783,17 @@ graph first, with the taskbar kept at the bottom of the screen.
   shows `#ctxBtn` (`.rb.ctx`, `data-rmenu="ctx"`, `menuItems("ctx")`) after `#ctxSep` in the
   graph's bar, and outlines the thing by a rule in `#gselCss` (a drop-shadow on `g[data-ser]`'s
   paths or `path[data-fitc]`, a dashed box on `rect[data-axis]`), so the drawing is untouched;
-  Shift+F10 on the graph opens that menu. **The Format pane** (DS_SPEC slice 5; once the Format
+  Shift+F10 on the graph opens that menu. **The status bar's readout** (DS_SPEC slice 6) is the
+  pointer's place while it is on the graph (`S.sbHover`, set by the plot's pointermove, cleared
+  by its pointerleave), else `renderSbStats()` (from `renderCtx`, so on every selection change;
+  `#readout`'s `_sig` keeps it from redrawing the same; it redraws an open Statistics window when
+  it changes): `sbStatsOf()` is `{lab, cells:[[name, value]]}` for the worksheet's cells while
+  `S.wsTouch` (`wsSelStats()`: n, mean, SD, median, min, max, memoised per model and rectangle
+  by `sbMemo`; `wsSelLabel()` the range), else `ctxOf()`'s curve (`statRow(c, "final")`,
+  memoised per series) or region (a shaded range by `integrateBand` with a line baseline, a band
+  by `bandCalc`), written as their windows write them (`fmt(v, 5)`; `fmtPM`, 6 and 4 digits for a
+  band); `.sb-stats` spans. The Statistics window adds a row *Cells B1:B9* and marks the selected
+  curve's row. **The Format pane** (DS_SPEC slice 5; once the Format
   dialog, and still called so in code comments): `openPlotDetails(id, page)` opens the tool
   window `format` (`#w-format`, docked, `#pdBody` and the foot `.fmtfoot`; pages `series`
   with `S.pdSel`, `ax:x|y|y2`, `frame`, `text`, `legend`, `layout`, `labels`, or
@@ -2795,6 +2805,9 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   the Fit window's switch label into three flex items, the label's gap between them: "(1/σ 2 )".
   A test of the markup passed; a screenshot of another slice showed it. Text changed in place
   keeps its pieces in one span where its parent lays children out.
+- **The same number twice must read the same.** The status bar first wrote a curve's mean to six
+  digits beside the Statistics window's five; a test comparing them found it. A number shown in
+  two places is written by the same rule.
 - **A window not redrawn shows the past.** The Format pane was left out of `renderAll`'s list of
   windows; after an undo it still showed the undone value, and a click on that switch set the
   graph to what it already had, so the burst saved nothing and the undo after it took back the
@@ -2826,8 +2839,10 @@ done: what is selected has its menu in the graph's bar (a curve, the fit's curve
 or shaded range, an annotation, the legend, a column selected in the worksheet), the same as its
 right-click menu, the thing outlined on the graph. Slice 5 done: the Format pane, the Format
 dialog docked as a tool window, live (no OK; a burst of changes one undo step), Selected at its
-top, turning to what is selected on the graph. Next:
-the status bar's statistics of a selection, the Fit window and Results as designed, the
+top, turning to what is selected on the graph. Slice 6 done: the status bar answers questions
+(cells selected: their range, N, mean, SD, minimum and maximum; a curve: the same; a band or a
+shaded range: area, peak, FWHM, span), each number as the Statistics or Integrate window writes
+it, the Statistics window listing the cells selected. Next: the Fit window and Results as designed, the
 dialogs, galleries drawn with the data, two displays.
 
 Then: the curve fit as complete as Origin's fitting dialogs (`ux/spec/FIT_SPEC.md`, the

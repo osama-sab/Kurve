@@ -145,6 +145,14 @@ show without competing with the data; the graph's grid (`--grid`) is part of the
   (before, a minimised worksheet had lost the focus to the page, and typing after restoring it
   went nowhere). A window brought forward by the app itself (History opening on a first step)
   leaves the keys where they are, so it never takes them from a field being typed in.
+- **The status bar answers questions** (the design system's slice 6), as Excel's does. While the
+  pointer is on the graph its readout is the pointer's X and Y; off it, the numbers of what is
+  selected: cells in the worksheet (their range, N, mean, SD, minimum and maximum), a curve (the
+  same of its processed data), a band or a shaded range (its area with its error, where its peak
+  is, its FWHM, its span). Each number is the one the window that has it shows, to its digits:
+  the Statistics window's (which lists the cells selected and marks the curve selected), the
+  Integrate window's for a band. Nothing selected, nothing said. The worksheet's own foot keeps
+  its Count, Sum and Average, as a spreadsheet's does.
 - **What to do next is said where the user looks.** Before data, the worksheet's foot and the
   status bar: type, paste or Import. With columns and nothing plotted: the status bar, the
   worksheet's *Plot* button, and the import's message. A graph closed, or one in a project made
@@ -820,6 +828,15 @@ The F(x)= row is always shown (the user's choice between it and formulas only in
 setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md`: ranges,
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
+
+### 2026-10-28: the design system into the app, slice 6 (the status bar answers questions)
+
+The system's status bar has a readout of the selection's statistics; the app's readout was only
+the pointer's place. It now measures what is selected when the pointer is off the graph. The
+first version wrote its numbers to six digits and the Statistics window to five, and a test
+comparing the two caught it: the same number twice must read the same, so each is written as its
+window writes it. The worksheet's address above the grid is drawn after the selection is
+painted, so the range is named from the selection itself.
 
 ### 2026-10-28: the design system into the app, slice 5 (the Format pane)
 

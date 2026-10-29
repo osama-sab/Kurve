@@ -289,7 +289,11 @@ input[type=range]:disabled{opacity:.45;cursor:not-allowed}
 .sb-cell .ic{width:13px;height:13px}
 .sb-cell.good{color:var(--ok)}
 .sb-cell.stale{color:var(--warn)}
-#readout{min-width:0;font-variant-numeric:tabular-nums}
+#readout{min-width:0;font-variant-numeric:tabular-nums;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+/* The status bar answering a question about the selection (ux/spec/DS_SPEC.md, slice 6). */
+.sb-stats{display:inline-flex;gap:var(--sp-5);color:var(--ink)}
+.sb-stats b{font-weight:500;color:var(--muted);margin-right:var(--sp-2)}
+.sb-stats>span:first-child b{color:var(--ink-2);margin-right:0}
 .status.warn{color:var(--bad)}
 
 /* ---- Worksheet: a spreadsheet grid ---------------------------------------- */
@@ -9631,6 +9635,59 @@ function ctxOf(){
   else if(s.kind==="axis"&&AX_WORD[s.k]) return {kind:"axis",lab:"Axis",k:s.k,name:AX_WORD[s.k],items:()=>axisMenuItems(s.k)};
   return null;
 }
+// ---- The status bar answers questions (ux/spec/DS_SPEC.md, slice 6), as Excel's does: while the
+// pointer is off the graph, the readout gives the numbers of what is selected. Cells in the
+// worksheet (when it was the last place pressed or typed in, S.wsTouch): their range, N, mean,
+// SD, minimum and maximum. A curve: the same of its processed data, statRow's numbers, as the
+// Statistics window's row for it. A region (a band, a shaded range), over the active curve: its
+// area above a line between its edges, where its peak is, its FWHM and its span in X; a band's
+// are bandCalc's, the Integrate window's own.
+const SB_MEMO=new WeakMap();
+function sbMemo(obj,key,fn){ let m=SB_MEMO.get(obj); if(!m){ m=new Map(); SB_MEMO.set(obj,m); } if(!m.has(key)){ if(m.size>40) m.clear(); m.set(key,fn()); } return m.get(key); }
+function wsSelStats(){
+  const m=S.wsm; if(!m) return null;
+  const {r0,r1,c0,c1}=wsSelRect(); if(r0===r1&&c0===c1) return null;
+  return sbMemo(m,[r0,r1,c0,c1].join(","),()=>{
+    const ra=Math.max(0,r0), rb=Math.min(r1,m.n-1); if((rb-ra+1)*(c1-c0+1)>400000) return null;
+    let n=0, sum=0, sq=0, lo=Infinity, hi=-Infinity;
+    for(let c=c0;c<=c1;c++){ const q=m.cols[c]; if(!q||q.phantom||q.hidden) continue;
+      for(let r=ra;r<=rb;r++){ const k=wsDR(m,r), v=m.kind==="final"?q.get(k):q.col.data[k]; if(v==null||!Number.isFinite(v)) continue; n++; sum+=v; if(v<lo) lo=v; if(v>hi) hi=v; } }
+    if(n<2) return null;
+    const mu=sum/n, all=new Float64Array(n); let j=0;
+    for(let c=c0;c<=c1;c++){ const q=m.cols[c]; if(!q||q.phantom||q.hidden) continue;
+      for(let r=ra;r<=rb;r++){ const k=wsDR(m,r), v=m.kind==="final"?q.get(k):q.col.data[k]; if(v==null||!Number.isFinite(v)) continue; sq+=(v-mu)*(v-mu); all[j++]=v; } }
+    all.sort(); const med=n%2?all[n>>1]:(all[n/2-1]+all[n/2])/2;
+    return {n,mu,sd:Math.sqrt(sq/(n-1)),lo,hi,med}; });
+}
+function wsSelLabel(){ const m=S.wsm; if(!m) return ""; const {r0,r1,c0,c1}=wsSelRect(), L=c=>(m.cols[c]||{}).letter||"?", R=r=>wsDR(m,r)+1;
+  return `${L(c0)}${R(Math.max(0,r0))}:${L(c1)}${R(Math.min(r1,m.n-1))}`; }
+function sbStatsOf(){
+  const p=P(); if(!p) return null;
+  // Each number as the window that has it writes it: the Statistics window's five digits, the Integrate window's own.
+  const f=v=>Number.isFinite(v)?fmt(v,5):"—";
+  if(S.wsTouch){ const w=wsSelStats(); if(!w) return null;
+    return {lab:wsSelLabel(), cells:[["N",w.n],["Mean",f(w.mu)],["SD",f(w.sd)],["Min",f(w.lo)],["Max",f(w.hi)]]}; }
+  const c=ctxOf(); if(!c) return null;
+  if(c.kind==="curve"||c.kind==="column"){ const col=colById(c.id); if(!col) return null; const d=finalOf(col);
+    const r=sbMemo(d,"stat",()=>statRow(col,"final",null)); if(!r||!r.n) return null;
+    return {lab:specName(col), cells:[["N",r.n],["Mean",f(r.mu)],["SD",f(r.sd)],["Min",f(r.mn)],["Max",f(r.mx)]]}; }
+  if(c.kind==="region"){ const act=activeYCol(); if(!act) return null; const d=finalOf(act), xu=d.xu||"", yu=d.yu||"";
+    let lo, hi, r=null;
+    if(S.annoSel&&annoById(S.annoSel)){ const a=annoById(S.annoSel); if(a.t!=="band"||a.x2==null||(a.xu||"")!==xu) return null; lo=Math.min(a.x,a.x2); hi=Math.max(a.x,a.x2);
+      r=sbMemo(d,`anno:${lo}:${hi}:${maskOf(act).length}`,()=>{ const skip=new Set(maskOf(act)), X=[], Y=[];
+        for(let i=0;i<Math.min(d.x.length,d.y.length);i++){ if(skip.has(d.idx[i])) continue; X.push(d.x[i]); Y.push(d.y[i]); }
+        return integrateBand(X,Y,null,lo,hi,{base:"line",avg:integOf().avg,sigma:noiseSigma(Y.filter(Number.isFinite))}); }); }
+    else if(S.bandSel){ const q=bandCalc(act).find(z=>z.b.id===S.bandSel); if(!q) return null; lo=Math.min(q.b.x1,q.b.x2); hi=Math.max(q.b.x1,q.b.x2); r=q.r; }
+    if(!r) return null; const u=v=>v?" "+v:"", au=unitFor("yx",xu,yu);
+    if(r.fail) return {lab:`${fmt(lo,6)} – ${fmt(hi,6)}${u(xu)}`, cells:[["",r.fail]]};
+    return {lab:`${fmt(lo,6)} – ${fmt(hi,6)}${u(xu)}`, cells:[["Area",fmtPM(r.area,r.err)+u(au)],["Peak at",fmt(r.pos,6)+u(xu)],["FWHM",r.fwhm!=null?fmt(r.fwhm,4)+u(xu):"—"],["Span",fmt(hi-lo,6)+u(xu)]]}; }
+  return null;
+}
+function renderSbStats(){
+  const ro=$("#readout"); if(!ro||S.sbHover) return;
+  let h=""; try{ const s=sbStatsOf(); if(s) h=`<span class="sb-stats"><span><b>${esc(s.lab)}</b></span>${s.cells.map(([k,v])=>`<span>${k?`<b>${esc(k)}</b>`:""}${esc(String(v))}</span>`).join("")}</span>`; }catch(e){ h=""; }
+  if(ro._sig!==h){ ro.innerHTML=h; ro._sig=h; if(winOpen("stats")) renderStats(); }
+}
 // The Format pane turns to what is selected, when the selection changes (not on every redraw).
 const ctxKey=c=>c?c.kind+":"+(c.id||c.k||c.name||""):"";
 function fmtFollow(c){
@@ -9657,6 +9714,7 @@ function renderCtx(){
   else if(c&&c.kind==="axis") css=`#plot rect[data-axis="${c.k}"]{fill:var(--focus-soft);stroke:var(--focus);stroke-width:1;stroke-dasharray:3 2}`;
   let st=$("#gselCss"); if(!st){ st=document.createElement("style"); st.id="gselCss"; document.head.appendChild(st); }
   if(st.textContent!==css) st.textContent=css;
+  renderSbStats();
 }
 function setupCtx(){
   window.addEventListener("pointerdown",e=>{ const t=e.target, inWs=!!(t&&t.closest&&t.closest("#ws")); S.wsTouch=inWs; if(!inWs&&t&&t.closest&&t.closest("#plot")) S.ctxFromWs=false; },true);
@@ -10501,7 +10559,7 @@ function setupGraph(){
   svg.addEventListener("pointermove",ev=>{
     if(!S.geo||!P()) return; const [x,y]=localXY(ev); S.altKey=ev.altKey;
     const d=toData(x,y);
-    const ro=$("#readout"); if(ro){ const [xu,yu]=dataUnits(), g=S.geo;
+    const ro=$("#readout"); if(ro){ const [xu,yu]=dataUnits(), g=S.geo; S.sbHover=true; ro._sig=null;
       // On a map: X, where up the side (the series value, or the spectrum), and the value there.
       if(g.dist&&d&&d.inside){ const c=(g.distC||[])[Math.round(d.x)-1]; ro.textContent=c?`${specName(c)}   y ${fmt(d.y,5)}${yu?" "+yu:""}`:""; }
       else if(g.heat&&d&&d.inside){ const z=g.mapZ?g.mapZ(d.x,d.y):null, near=mapNearest(d.y);
@@ -10546,7 +10604,7 @@ function setupGraph(){
       else hideTip(); }
     if(S.room&&d&&Date.now()-lastPres>90){ lastPres=Date.now(); S.room.presence(d.inside?{uid:S.uid,pid:S.pid,cx:d.x,cy:d.y}:{uid:S.uid,pid:S.pid,cx:null,cy:null}).catch(()=>{}); }
   });
-  svg.addEventListener("pointerleave",()=>{ if(S.hdrag||drag||S.xhdrag) return; hideTip(); if(S.rdHover){ S.rdHover=null; drawReaders(); } const ro=$("#readout"); if(ro) ro.textContent=""; if(S.room) S.room.presence({cx:null,cy:null}).catch(()=>{}); });
+  svg.addEventListener("pointerleave",()=>{ if(S.hdrag||drag||S.xhdrag) return; hideTip(); if(S.rdHover){ S.rdHover=null; drawReaders(); } const ro=$("#readout"); if(ro){ ro.textContent=""; ro._sig=null; } S.sbHover=false; renderSbStats(); if(S.room) S.room.presence({cx:null,cy:null}).catch(()=>{}); });
   svg.addEventListener("pointercancel",()=>{ drag=null; S.hdrag=null; S.xhdrag=null; S.andrag=null; if(S.fldrag){ S.fldrag=null; renderPlot(); } S.lgdrag=null; S.bdrag=null; S.ttdrag=null; S.axdrag=null; S.arrowDraft=null; S.shapeDraft=null; S.guides=null; S.snapRing=null; zr.style.display="none"; svg.classList.remove("panning"); });
   svg.addEventListener("pointerup",ev=>{
     if(S.xhdrag){ S.xhdrag=null; return; }
@@ -18052,7 +18110,10 @@ function renderStats(){
     <button class="btn sm" id="stCopy">${ICON("copy","sm")}Copy</button></div>`;
   h+=`<h3 class="gh" id="st-desc">Descriptive statistics <span class="cnt">${rng?`x ${esc(fmt(rng[0],6))} to ${esc(fmt(rng[1],6))}`:"all points"}</span></h3>
     <div class="twrap"><table class="rtab stt"><thead><tr><th class="l">Column</th><th title="Points counted">n</th><th>Mean</th><th title="Standard deviation (n − 1)">SD</th><th title="Standard error of the mean: SD / √n">SE</th><th>Median</th><th>Min</th><th>Max</th>${spec?`<th>X at max</th><th title="Noise estimated from second differences, robust to the bands">Noise σ</th><th title="(max − median) / noise σ">S/N</th><th title="Trapezoidal, over X in ascending order">Area</th><th title="Area-weighted mean X">Centroid</th>`:""}</tr></thead><tbody>`;
-  rows.forEach(r=>{ h+=`<tr class="${r.c===act?"sel":""}"><td class="l">${esc(specName(r.c))}</td><td>${r.n}</td><td>${f(r.mu)}</td><td>${f(r.sd)}</td><td>${f(r.se)}</td><td>${f(r.med)}</td><td>${f(r.mn)}</td><td>${f(r.mx)}</td>${spec?`<td>${f(r.xmax,6)}</td><td>${f(r.sig,3)}</td><td>${f(r.snr,3)}</td><td>${f(r.area)}</td><td>${f(r.centroid,6)}</td>`:""}</tr>`; });
+  // The cells selected in the worksheet, and the curve selected on the graph: the status bar's numbers.
+  { const w=S.wsTouch?wsSelStats():null; if(w) h+=`<tr class="sel"><td class="l">Cells ${esc(wsSelLabel())}</td><td>${w.n}</td><td>${f(w.mu)}</td><td>${f(w.sd)}</td><td>${f(w.sd/Math.sqrt(w.n))}</td><td>${f(w.med)}</td><td>${f(w.lo)}</td><td>${f(w.hi)}</td>${spec?`<td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>`:""}</tr>`; }
+  const cx=ctxOf(), selId=cx&&(cx.kind==="curve"||cx.kind==="column")?cx.id:null;
+  rows.forEach(r=>{ h+=`<tr class="${r.c===act||r.c.id===selId?"sel":""}"><td class="l">${esc(specName(r.c))}</td><td>${r.n}</td><td>${f(r.mu)}</td><td>${f(r.sd)}</td><td>${f(r.se)}</td><td>${f(r.med)}</td><td>${f(r.mn)}</td><td>${f(r.mx)}</td>${spec?`<td>${f(r.xmax,6)}</td><td>${f(r.sig,3)}</td><td>${f(r.snr,3)}</td><td>${f(r.area)}</td><td>${f(r.centroid,6)}</td>`:""}</tr>`; });
   h+=`</tbody></table></div>`;
   h+=`<h3 class="gh" id="st-int">Integrate the visible range <span class="cnt">${esc(specName(act))}</span></h3>${act?measureHtml():""}`;
   const same=yCols().filter(c=>(finalOf(c).xu||"")===((act&&finalOf(act).xu)||""));

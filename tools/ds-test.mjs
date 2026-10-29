@@ -340,6 +340,39 @@ await page(async p => {
   check("closing the pane keeps the change still in its burst", await p.evaluate(() => !!GP().grid && !S.plotPreview));
 }, { name: "format pane" });
 
+console.log("Slice 6: the status bar answers questions");
+await page(async p => {
+  await raman(p);
+  const ro = () => p.evaluate(() => ({ t: $("#readout").textContent, cells: [...document.querySelectorAll("#readout .sb-stats > span")].map(s => s.textContent) }));
+  await p.evaluate(() => focusWin("sheet")); await p.waitForTimeout(200);
+  await p.click('#ws td[data-r="0"][data-ci="1"]'); await p.click('#ws td[data-r="8"][data-ci="1"]', { modifiers: ["Shift"] }); await p.waitForTimeout(200);
+  const want = await p.evaluate(() => { const v = activeYCol().data.slice(0, 9), n = v.length, mu = v.reduce((s, x) => s + x, 0) / n, sd = Math.sqrt(v.reduce((s, x) => s + (x - mu) ** 2, 0) / (n - 1)); return ["N9", "Mean" + fmt(mu, 5), "SD" + fmt(sd, 5), "Min" + fmt(Math.min(...v), 5), "Max" + fmt(Math.max(...v), 5)]; });
+  let r = await ro();
+  check("cells selected in the worksheet: their range, N, mean, SD, minimum and maximum", r.cells[0] === "B1:B9" && JSON.stringify(r.cells.slice(1)) === JSON.stringify(want), JSON.stringify({ r, want }));
+  await p.evaluate(() => openWin("stats", { render: true })); await p.waitForTimeout(300);
+  const st = await p.evaluate(() => { const tr = [...document.querySelectorAll("#pane-stats table.stt tbody tr")].find(x => /^Cells B1:B9/.test(x.textContent)); return tr ? [...tr.children].slice(1, 3).map(td => td.textContent) : null; });
+  check("the Statistics window has the same numbers for the cells", !!st && st[0] === "9" && want[1] === "Mean" + st[1], JSON.stringify({ st, want }));
+  await p.evaluate(() => { closeWin("stats"); focusWin(winOfGraph(GID())); }); await p.waitForTimeout(200);
+  const pt = await p.evaluate(() => { const r = $("#plot").getBoundingClientRect(), q = S.shownPts[Math.floor(S.shownPts.length * 0.3)]; return { x: r.x + S.geo.X(q.x), y: r.y + S.geo.Y(q.y) }; });
+  await p.mouse.click(pt.x, pt.y); await p.mouse.move(3, 3); await p.waitForTimeout(200);
+  r = await ro(); const row = await p.evaluate(() => { const q = statRow(activeYCol(), "final", null); return ["N" + q.n, "Mean" + fmt(q.mu, 5), "SD" + fmt(q.sd, 5), "Min" + fmt(q.mn, 5), "Max" + fmt(q.mx, 5)]; });
+  check("a curve selected: the Statistics window's numbers for it", r.cells[0] === "Intensity" && JSON.stringify(r.cells.slice(1)) === JSON.stringify(row), JSON.stringify({ r, row }));
+  // Over the graph the readout follows the pointer; off it, the selection again.
+  await p.mouse.move(pt.x + 30, pt.y - 40); await p.waitForTimeout(120); const hov = await ro();
+  await p.mouse.move(3, 3); await p.waitForTimeout(120); const back = await ro();
+  check("on the graph it reads the pointer, off it the selection", /^x /.test(hov.t) && back.cells[0] === "Intensity", JSON.stringify({ hov, back }));
+  // A band: its area, peak, FWHM and span, as the Integrate window measures them.
+  await p.evaluate(() => { addBand(510, 530); focusWin(winOfGraph(GID())); }); await p.waitForTimeout(300);
+  const bb = await p.evaluate(() => { const e = document.querySelector("#plot [data-bb]"); const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await p.mouse.click(bb.x, bb.y); await p.mouse.move(3, 3); await p.waitForTimeout(300);
+  r = await ro(); const bc = await p.evaluate(() => { const q = bandCalc(activeYCol())[0].r; return { a: fmtPM(q.area, q.err), pos: fmt(q.pos, 6), w: fmt(q.fwhm, 4) }; });
+  check("a band selected: area, peak, FWHM and span, the Integrate window's", /^510 – 530/.test(r.cells[0]) && r.cells.some(c => c.startsWith("Area" + bc.a)) && r.cells.some(c => c.startsWith("Peak at" + bc.pos)) && r.cells.some(c => c.startsWith("FWHM" + bc.w)) && r.cells.some(c => c.startsWith("Span20")), JSON.stringify({ r, bc }));
+  // Nothing selected, nothing said.
+  const empty = await p.evaluate(() => { const r = $("#plot").getBoundingClientRect(), g = S.geo; return { x: r.x + g.L + g.pw * 0.12, y: r.y + g.T + 12 }; });
+  await p.mouse.click(empty.x, empty.y); await p.mouse.move(3, 3); await p.waitForTimeout(200);
+  check("nothing selected, the readout is empty", (await ro()).t === "");
+}, { name: "status bar" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);
