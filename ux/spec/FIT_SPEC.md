@@ -29,7 +29,7 @@ Origin's help pages it was compared with: the NLFit dialog's
 | Quantities | every parameter's value, error, t, p, CI at any level, dependency; derived values; n, dof, χ²ᵣ, R², adjusted R², RSS, AIC, BIC, iterations; ANOVA, covariance and correlation matrices (slice 4) | none |
 | Residual analysis | regular, standardised, studentised and studentised deleted residuals, under the graph and in six views in Results; outliers with Mask them; a runs test (slice 4) | none |
 | Output | Results, copied table, report, CSV, fit history; the fitted values and residuals as computed worksheet columns (slice 6) | none |
-| Code tab | none (Kurve runs no code) | starting values and constraints as formulas |
+| Code tab | none (Kurve runs no code); starting values and constraints as formulas of `compileExpr`'s arithmetic (slice 8) | none |
 | Parameters tab | one grid: name, unit, meaning, start, Fix, limits, fitted ± error, 95 % interval, dependency, digits (slice 2) | share in the grid |
 | Bounds tab | limits for every model, < or ≤, over a function's own (slice 2) | none |
 | Buttons | Fit, Guess, Fit every column…, Remove fit, Done | 1 Iteration |
@@ -113,7 +113,9 @@ CLAUDE.md, the menu spec when a menu changes.
    terms and analysed in the axes', not with the X errors). Weights: none, the Y error column (1/σ²), counting (1/y, for counts;
    refused where y ≤ 0), or a column's values as the weights. An apparent fit fits in the
    graph's log space when an axis is logarithmic. `weightText` names every case.
-8. **Starting values and constraints as formulas.** A parameter's start may be a formula of
+8. **Starting values and constraints as formulas** (done 2026-10-29; a start shown as typed in
+   its own field, measured again by Guess and each fit; constraints one a line in one box, read
+   as typed; not with the X errors or a fit of every column together). A parameter's start may be a formula of
    the data in range (`max(y) - min(y)`, `xmax`, `fwhm`); equalities between parameters
    (`xc2 = xc1 + 5`) work as ties do in the peak fit (the tied one fixed, the model applying
    it, `linkResult` carrying the errors); inequalities between two parameters (`w1 < w2`) by

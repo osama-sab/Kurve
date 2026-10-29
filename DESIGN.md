@@ -854,6 +854,29 @@ setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
 
+### 2026-10-29: starting values and constraints as formulas (FIT_SPEC slice 8)
+
+Origin has a Code tab for both (LabTalk run before a fit); Kurve runs no code (FIT_SPEC's
+decision 2), so both are formulas of `compileExpr`'s arithmetic, typed where they belong.
+Decisions:
+
+- **A start is typed in its own field**, a number or a formula of the data (`max(y) - min(y)`,
+  `xat`, `fwhm`), and shown as typed, in italics, its value the tooltip: the grid stays one grid,
+  and a formula is visibly not a number. It is measured again by Guess and by every fit, so a
+  setting made on one column starts well on the next; 1 iteration and Stop, which say "carry
+  on from here", replace it by their numbers.
+- **Constraints are rules, one a line, in one box** under the grid, read as typed (what each
+  does, or the line and what is wrong): an equality is a parameter that follows the others
+  (fitted through them, its error carried, shown in the grid as its formula with Fix off, as a
+  tie is in the peak fit); an inequality keeps two parameters in order by fitting the larger as
+  the smaller plus a difference that cannot go below 0, so the order holds at every iteration
+  rather than being checked after. Free text over a form of pickers: two decays in order is
+  `t1 < t2`, and a person who needs it can type it faster than choose it.
+- **Refused in words** where it cannot mean anything: a name that is no parameter, two rules for
+  one parameter, a circle, a fixed parameter kept above another, the X errors, a fit of every
+  column together.
+- A new model clears them, as it clears the limits: they name the old model's parameters.
+
 ### 2026-10-29: the apparent fit (FIT_SPEC slice 7, its second half)
 
 Origin's *Apparent fit*: a fit made as the points look on the graph's logarithmic axes, so a

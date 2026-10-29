@@ -16,7 +16,7 @@ const grab = (tag) => {
 // tools/pipe-test.mjs tests the rest of it. The curve fit's models are a block of
 // their own (MODELS), after the pipeline.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("MODELS")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -1001,6 +1001,39 @@ check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
   check("what a logarithm cannot take is counted, in X and Y", bad.badX === 2 && bad.badY === 1 && !bad.X);
   const sx = N.appModel((x, p) => p[0] * x, { x: "log2", y: null });
   check("only X on a logarithm: f(log₂ x)", sx(8, [2]) === 6 && N.appModel(lin, null) === lin);
+}
+
+/* ---------- Starting values and constraints as formulas ---------- */
+{
+  const G = (x, p) => p[0] + p[1] * Math.exp(-0.5 * ((x - p[2]) / p[3]) ** 2), X = [], Y = [];
+  for (let i = 0; i <= 400; i++) { const x = i * 0.05; X.push(x); Y.push(G(x, [1, 8, 9.3, 1.2])); }
+  const M = N.dataMeasures(X, Y);
+  check("the data's measures: xat at the top, ymax, yspan, the width at half height, the area", near(M.xat, 9.3, 0.026) && near(M.ymax, 9, 1e-3) && near(M.yspan, M.ymax - M.ymin, 1e-12) && rel(M.fwhm, 2 * Math.sqrt(2 * Math.log(2)) * 1.2, 0.01) && rel(M.area, 20 * 1 + 8 * 1.2 * Math.sqrt(2 * Math.PI), 0.002), JSON.stringify(M));
+  const s1 = N.evalStart("max(y) - min(y)", M), s2 = N.evalStart("xat", M), s3 = N.evalStart("fwhm/2.3548", M);
+  check("a start formula: max(y) − min(y), xat, fwhm/2.3548", rel(s1.v, M.yspan, 1e-12) && s2.v === M.xat && rel(s3.v, 1.2, 0.01), JSON.stringify([s1, s2, s3]));
+  check("a start formula refused in words: a name that is no measure, x alone, nothing", /“height” is not a measure/.test(N.evalStart("height*2", M).err) && /x alone/.test(N.evalStart("x+1", M).err) && /empty/.test(N.evalStart(" ", M).err));
+  const nm = ["a", "b", "c"], E = t => (N.parseCons(t, nm).err || {}).msg || "";
+  check("constraints refused in words: an unknown name, itself, set twice, a circle, x, nonsense", /“z” is not a parameter/.test(E("a = z + 1")) && /cannot follow itself/.test(E("a = a*2")) && /set by line 1 already/.test(E("b = a\na < b"))
+    && /circle/.test(E("a = b\nb = a")) && /circle/.test(E("a < b\nb < a")) && /x has no place/.test(E("a = x")) && /write a = /.test(E("a +")), [E("a = z + 1"), E("b = a\na < b")].join(" | "));
+  const C0 = N.parseCons("# a note\nc = b + 1\nb = 2*a", nm);
+  check("constraints apply in the order they read each other: b before c", C0.order.map(o => nm[o.t]).join() === "b,c" && N.consBack(C0, [1, 0, 0]).join() === "1,2,3", JSON.stringify(N.consBack(C0, [1, 0, 0])));
+  check("an inequality: the larger is the smaller plus its difference", (C => N.consBack(C, [2, 0.5, 0]).join() === "2,2.5,0" && N.consFwd(C, [2, 3, 0])[1] === 1 && N.consFwd(C, [2, 1, 0])[1] > 0)(N.parseCons("a <= b", nm)));
+  // An equality fitted: a line whose slope is twice its intercept, against the one-parameter fit y = a(1 + 2x).
+  const lin = (x, p) => p[0] + p[1] * x, Xl = [], Yl = [], rnd = N.mulberry32(3);
+  for (let i = 0; i < 30; i++) { const x = i * 0.2; Xl.push(x); Yl.push(1.5 + 3 * x + 0.1 * (rnd() - 0.5)); }
+  const Ce = N.parseCons("b = 2*a", ["a", "b"]), fe = N.consFit(lin, Xl, Yl, Xl.map(() => 1), [1, 1], [false, false], {}, Ce), f1 = N.lmFit((x, p) => p[0] * (1 + 2 * x), Xl, Yl, Xl.map(() => 1), [1], [false]);
+  check("b = 2a: the fit is the one-parameter fit, b follows with twice the error", rel(fe.params[0], f1.params[0], 1e-7) && rel(fe.params[1], 2 * fe.params[0], 1e-12) && rel(fe.errors[0], f1.errors[0], 1e-5) && rel(fe.errors[1], 2 * f1.errors[0], 1e-5) && rel(fe.cov[1][1], 4 * fe.cov[0][0], 1e-6) && fe.stats.dof === 29, JSON.stringify([fe.params, fe.errors, f1.params, f1.errors]));
+  check("the follower has no t, p or interval of its own, as a tie", Number.isNaN(fe.tval[1]) && Number.isNaN(fe.pval[1]) && Number.isNaN(fe.ci[1][0]) && Number.isFinite(fe.tval[0]));
+  // An inequality that binds (intercept below the slope, the data's the other way) ends on its edge; one that does not changes nothing.
+  const Xi = [], Yi = []; for (let i = 0; i < 30; i++) { const x = i * 0.2; Xi.push(x); Yi.push(2 + 0.5 * x + 0.05 * (rnd() - 0.5)); }
+  const Cb = N.parseCons("a <= b", ["a", "b"]), fb = N.consFit(lin, Xi, Yi, Xi.map(() => 1), [1, 1], [false, false], {}, Cb), fr = N.lmFit((x, p) => p[0] * (1 + x), Xi, Yi, Xi.map(() => 1), [1], [false]);
+  check("a ≤ b binding: b ends equal to a, at its limit, the fit that of y = a(1 + x)", Math.abs(fb.params[1] - fb.params[0]) <= 1e-6 * Math.abs(fb.params[0]) && fb.atBound[1] && rel(fb.params[0], fr.params[0], 1e-5), JSON.stringify([fb.params, fr.params, fb.atBound]));
+  const Cn = N.parseCons("b < a", ["a", "b"]), fn = N.consFit(lin, Xi, Yi, Xi.map(() => 1), [1, 0.2], [false, false], {}, Cn), ff = N.lmFit(lin, Xi, Yi, Xi.map(() => 1), [1, 0.2], [false, false]);
+  check("b < a not binding: the free fit's values and errors", rel(fn.params[0], ff.params[0], 1e-7) && rel(fn.params[1], ff.params[1], 1e-6) && rel(fn.errors[1], ff.errors[1], 1e-4) && rel(fn.errors[0], ff.errors[0], 1e-4) && !fn.atBound[0], JSON.stringify([fn.params, ff.params, fn.errors, ff.errors]));
+  // Two decays kept in order: τ1 < τ2 whatever the starts.
+  const D2 = N.MODELS.expdec2, Xd = [], Yd = []; for (let i = 0; i < 200; i++) { const x = i * 0.1; Xd.push(x); Yd.push(D2.f(x, [0.2, 5, 0.8, 2, 6]) + 0.002 * (rnd() - 0.5)); }
+  const nmd = D2.params, Cd = N.parseCons(`${nmd[2]} < ${nmd[4]}`, nmd), fd = N.consFit(D2.f, Xd, Yd, Xd.map(() => 1), [0.2, 2, 6, 5, 0.8], [false, false, false, false, false], {}, Cd);
+  check("two decays with τ1 < τ2, started the wrong way round, come out in order", fd.params[2] < fd.params[4] && rel(fd.params[2], 0.8, 0.02) && rel(fd.params[4], 6, 0.02), JSON.stringify({ names: nmd, p: fd.params }));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

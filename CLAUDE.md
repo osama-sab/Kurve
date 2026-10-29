@@ -477,6 +477,30 @@ graph first, with the taskbar kept at the bottom of the screen.
   axes' terms, carried back by `ti`) read `raw`. `fitWarnings` adds an `app` note; `statsList`
   *Fitted as*; the report's Method and the CSV a line. `batchTemplate` carries it, `fitOne` and
   `fitTogether` fit in the axes' terms (a range in the data's X).
+  **Starting values and constraints as formulas** (`FIT_SPEC.md` slice 8): in MODELS,
+  `dataMeasures(X, Y)` (`START_NAMES`: xmin, xmax, xmean, xspan, ymin, ymax, ymean, yspan,
+  yfirst, ylast, xat, xatmin, fwhm, area, n), `startPrep` (max(y) and the like to their names),
+  `evalStart(src, M)` (`{v}` or `{err}` in words); `parseCons(text, names)` (`a = formula`, `a < b`,
+  `<=`, `>`, `>=`, ≤, ≥, `#` notes; `{eqs, ineqs, order, any}` or `{err:{line, msg}}`: unknown
+  names, itself, set twice, a circle, x), `consApply` (the formulas alone), `consBack`/`consFwd`
+  (the parameters from the fitted ones, each inequality's larger as the smaller plus a
+  difference, and back), `consProblem` (the fit in the fitted ones' terms: followers fixed, each
+  difference's limit 0, strictly above it for `<`), `consResult` (the covariance through the
+  map's Jacobian; a follower's t, p, interval and dependency left out, as a tie's), `consFit`.
+  The draft's `initFx` (per parameter, the formula or null) and `cons` (the text); a model
+  change clears both. `startsFx(d, m, X, Y)` measures them on `fitXY(d)` (the points as fitted)
+  in `runFit`, `stepFit` and `guessDraft`; the grid's Start shows a formula as typed
+  (`input.pgsfx`, its value the tooltip, kept by `pgMarks`) and a follower's start as `= formula`
+  (`input.pgfol`, Fix and limits off; an inequality's larger says `≥ a` in the limits); the
+  *Constraints* box (`#fitCons`, `#fitConsHint`: `consHint` as typed, `consErr`; a change redraws
+  after the event). `consOf(o, m)` parses a draft's, fit's or template's; `runFit` and
+  `stepFit` run `consProblem`'s problem (rows of Iterations through `consBack`; Stop and 1
+  iteration put `consBack`'s values in the starts and clear the formulas) and `consResult` before
+  `saveCurveFit`, which stores `cons` and `initFx`; refused with the X errors (`CONS_ODR`) and for
+  a fixed larger (`consFixed`). `paramRows` marks a follower `tied` ("follows: b = …"); `fitDiag`
+  takes followers as not free through `consApply`; `statsList`'s Constraints (`consSummary`), the
+  report's Method (and the formula starts, `fxStartsText`) and the CSV state them;
+  `batchTemplate` carries `cons`, `fitOne` uses `consFit`, `fitTogether` refuses them.
   **The parameter grid** (`FIT_SPEC.md` slice 2; `paramGridHtml`, `wirePGrid`, `pgMarks`):
   each parameter with its unit and meaning (`MODELS[k].mean`, also in Results), Start and
   Fix, Lowest and Highest (each with a ≤ or < button, `data-prel`; typed, empty for the
@@ -2200,7 +2224,10 @@ written, out of date, `resid(B)` typed, `fit(B)*2` refused, the fit removed and 
 a column of 1/σ² equal to the Y error fit with scaled errors, refusals, a column of weights deleted,
 the prediction band for each kind; the apparent fit (offered only on a logarithmic axis, the
 line through the logarithms, drawn in the data's terms without units, Results' row and note, its
-residuals, Find X/Y, a refusal, the axis made linear again).
+residuals, Find X/Y, a refusal, the axis made linear again). Slice 8: a formula start typed,
+measured, refused and measured again by Guess; a constraint read as typed, the follower in the
+grid and fitted with its error carried, Results' row, a refusal by the box and by Fit, a model
+change clearing them, two decays kept in order, 1 iteration, a reload.
 `node tools/fit-test.mjs`, `node tools/pipe-test.mjs`, `node tools/parser-test.mjs` and
 `node tools/tex-test.mjs` cover the numerics, the processing steps with their checks and the
 fingerprint, the parser, and the LaTeX typesetter (nesting, italics, spacing, fractions, roots,
@@ -3086,7 +3113,12 @@ the Y error, counting statistics 1/y, a column's values), absolute weights taken
 relative ones scaled by √(reduced χ²), a point that cannot be weighted refused in words, the kind
 said in Results, the report and the CSV; and the apparent fit, as the points look on the
 graph's logarithmic axes (a straight line on Log Y an exponential, on log–log a power law), drawn
-in the data's terms and analysed in the axes'.
+in the data's terms and analysed in the axes'. Slice 8 done: starting values as formulas of the
+data in range (`max(y) - min(y)`, `xat`, `fwhm`), shown as typed and measured again by Guess and
+each fit; constraints, one a line: a parameter that follows a formula of the others (its error
+carried, as a tie's), and an inequality that keeps two in order at every iteration
+(reparametrised as a difference that cannot go below 0); refused in words where they mean
+nothing; kept with the fit and stated by Results, the report and the CSV.
 
 Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
 graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
@@ -3401,7 +3433,7 @@ Next, in order:
    model; about 25 more models, searchable, each with a sketch; a confidence level, ANOVA,
    the covariance and correlation matrices, studentised residuals, residual plots and
    outliers; Find X/Y (done); the fitted values and residuals in the worksheet (done); counting and
-   column weights, an apparent fit (done); starting values and constraints as formulas; fit
+   column weights, an apparent fit (done); starting values and constraints as formulas (done); fit
    settings saved by name, and fits that follow their data; the function editor grown, and
    an organizer. In the docked Fit window, in Kurve's words, running no code
 2. Plot setup as Origin's, the user's question ("why can I not choose how I want to plot the
@@ -3574,6 +3606,10 @@ Next, in order:
   guesses are measured heuristics (two or three decays from a grid of 16 decay times, a wave's
   period from at most 600 points), and a sketch shows typical values, not the data's; your
   functions have no kind of their own in the list yet
+- Constraints: curve fits only (a peak fit has its ties); an equality's formula reads parameters,
+  not the data; an inequality is between two parameters (not `a < 2*b`, not three at once); not
+  with the X errors or a fit of every column together; a formula start reads the data's measures,
+  not other parameters' starts
 - The apparent fit: curve fits only (not a peak fit); log axes only (not a reciprocal or square
   root axis); not with the X errors; its axes are the graph's when it is fitted, kept with it
 - Weights: counting is Neyman's χ² (σ² = y from the data, not the model), so it is biased a little

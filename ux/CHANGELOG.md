@@ -1024,6 +1024,25 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Curve fit, slice 8: starting values and constraints as formulas (2026-10-29)
+
+`ux/spec/FIT_SPEC.md` slice 8.
+- **A start can be a formula of the data** in the fit's range (`max(y) - min(y)`, `xat`, `fwhm/2.3548`,
+  fifteen measures), typed in its own field, shown as typed in italics with its value as the
+  tooltip, measured again by Guess and each fit, refused in words when it names nothing.
+- **Constraints**, one a line under the parameters, read as they are typed: `b = 2*a + 1` makes b
+  follow (not fitted on its own, its error carried, shown in the grid as its formula, said in
+  Results); `t1 < t2` keeps two parameters in order at every iteration.
+- Unknown names, two rules for one parameter, a circle and a fixed parameter kept above another are
+  refused in words; the constraints and formula starts are kept with the fit, in Results, the
+  report and the CSV, and used by fits of every column one by one.
+
+Checked: fit-test (11 new, 347: the data's measures, start formulas and their refusals, every
+refusal of a constraint, the order rules apply in, an equality against the one-parameter fit it
+amounts to with the carried error, an inequality binding and not, two decays started the wrong way
+round coming out in order), fit-drive (13 new, 66), screenshots, and every suite from the round
+before.
+
 ## Curve fit, slice 7: the apparent fit (2026-10-29)
 
 `ux/spec/FIT_SPEC.md` slice 7, its second half.

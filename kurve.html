@@ -353,6 +353,11 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .ws .fxm{font:italic 700 var(--fs-cap) var(--mono);color:var(--accent);padding:0 var(--sp-1)}
 .ws .fxm.bad{color:var(--bad)}
 .ws .fxm.old{color:var(--warn)}
+.ptab.pg input.pgsfx{font-style:italic;color:var(--accent)}
+.ptab.pg input.pgfol{font-style:italic}
+.fcons{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--sp-2) var(--sp-4);align-items:start;margin:var(--sp-4) 0}
+.fcons textarea{font-family:var(--mono);font-size:var(--fs-body);min-height:3.2em;resize:vertical;width:100%}
+.fcons .lab{grid-column:2}
 .ws .srt{font-weight:700;color:var(--accent)}
 .ws thead td.lc.fxc{font-family:var(--mono);font-size:var(--fs-tab)}
 .ws thead td.lc.bad{color:var(--bad);box-shadow:inset 0 -2px 0 var(--bad)}
@@ -5238,6 +5243,95 @@ function appPoints(app,X,Y,W,weighted){
   if(badX||badY) return {badX,badY};
   return {X:tx?X.map(v=>tx.tf(v)):X.slice(), Y:ty?Y.map(v=>ty.tf(v)):Y.slice(), W:ty&&weighted?W.map((w,i)=>w/ty.dv(Y[i])):W.slice()};
 }
+/* Starting values and constraints as formulas (FIT_SPEC slice 8). A start is a number, or a
+   formula of the data in the fit's range, through compileExpr: the names are the measures of
+   dataMeasures (START_NAMES), and max(y), min(y), mean(y) and the same of x read as ymax and the
+   rest (startPrep). evalStart gives its value, or what is wrong, in words. */
+const START_NAMES=[["xmin","the lowest x"],["xmax","the highest x"],["xmean","the mean of x"],["xspan","xmax − xmin"],
+  ["ymin","the lowest y"],["ymax","the highest y"],["ymean","the mean of y"],["yspan","ymax − ymin"],["yfirst","y at the lowest x"],["ylast","y at the highest x"],
+  ["xat","x where y is highest"],["xatmin","x where y is lowest"],["fwhm","the width of the highest peak at half its height above ymin"],["area","the area under the points"],["n","the number of points"]];
+function dataMeasures(X,Y){
+  const n=Math.min(X.length,Y.length), M=Object.create(null); if(!n) return M;
+  const o=[]; for(let i=0;i<n;i++) if(Number.isFinite(X[i])&&Number.isFinite(Y[i])) o.push(i); if(!o.length) return M;
+  o.sort((a,b)=>X[a]-X[b]); let ya=o[0], yi=o[0], sx=0, sy=0, ar=0;
+  o.forEach((i,k)=>{ if(Y[i]>Y[ya]) ya=i; if(Y[i]<Y[yi]) yi=i; sx+=X[i]; sy+=Y[i]; if(k) ar+=(X[i]-X[o[k-1]])*(Y[i]+Y[o[k-1]])/2; });
+  const a=o[0], b=o[o.length-1];
+  Object.assign(M,{xmin:X[a],xmax:X[b],xmean:sx/o.length,xspan:X[b]-X[a],ymin:Y[yi],ymax:Y[ya],ymean:sy/o.length,yspan:Y[ya]-Y[yi],yfirst:Y[a],ylast:Y[b],xat:X[ya],xatmin:X[yi],area:ar,n:o.length});
+  // The highest peak's width at half its height above the lowest point, interpolated at each side.
+  const half=(Y[ya]+Y[yi])/2, k0=o.indexOf(ya); let L=X[a], R=X[b];
+  for(let k=k0;k>0;k--){ const i=o[k], j=o[k-1]; if(Y[j]<half){ L=X[j]+(X[i]-X[j])*(half-Y[j])/(Y[i]-Y[j]); break; } }
+  for(let k=k0;k<o.length-1;k++){ const i=o[k], j=o[k+1]; if(Y[j]<half){ R=X[i]+(X[j]-X[i])*(Y[i]-half)/(Y[i]-Y[j]); break; } }
+  M.fwhm=R-L; return M;
+}
+const startPrep=src=>String(src==null?"":src).replace(/\b(max|min|mean)\s*\(\s*([xy])\s*\)/gi,(m,f,v)=>v.toLowerCase()+f.toLowerCase());
+function evalStart(src,M){
+  const s=startPrep(src).trim(); if(!s) return {err:"it is empty"};
+  let cm; try{ cm=compileExpr(s,{allowNone:true}); }catch(e){ return {err:e.message}; }
+  if(cm.usesX) return {err:"x alone is no one number: write xmin, xmax, xmean or xat"};
+  for(const nm of cm.params) if(!Object.prototype.hasOwnProperty.call(M,nm)) return {err:`“${nm}” is not a measure of the data: ymax, ymin, yspan, xat, xmin, xmax, fwhm, area and the like are`};
+  const v=cm.f(0,cm.params.map(nm=>M[nm])); return Number.isFinite(v)?{v}:{err:"it gives no number for these data"};
+}
+/* Constraints between a model's parameters, one a line (# begins a note): "a = formula" (a
+   follows the others: fixed, the model applying it, its error carried) and "a < b", "a <= b",
+   "a > b", "a >= b" (≤, ≥ too: the larger fitted as the smaller plus a difference that cannot
+   go below 0, strictly above it with <). parseCons gives the rules in the order they apply
+   (order), or the line and what is wrong; a parameter set by two rules, or rules that read each
+   other in a circle, are refused. consBack makes the parameters from the fitted ones, consFwd
+   the fitted ones from starting parameters, consResult the result in the parameters' terms
+   (the covariance through the map's Jacobian; a follower's t, p and interval left out, as a
+   tie's), consFit fits with them through lmFit. */
+function parseCons(text,names){
+  const lines=String(text==null?"":text).split(/\r?\n/), idx=Object.create(null); names.forEach((n,i)=>{ idx[n]=i; });
+  const has=nm=>Object.prototype.hasOwnProperty.call(idx,nm), bad=(line,msg)=>({err:{line,msg}}), eqs=[], ineqs=[], ID="[\\p{L}_][\\p{L}\\p{N}_]*";
+  const reI=new RegExp(`^(${ID})\\s*(<=|>=|≤|≥|<|>)\\s*(${ID})$`,"u"), reE=new RegExp(`^(${ID})\\s*=\\s*(.+)$`,"u");
+  for(let k=0;k<lines.length;k++){ const s=lines[k].replace(/#.*$/,"").trim(); if(!s) continue; let m;
+    if((m=reI.exec(s))){ const a=m[1], b=m[3], op=m[2]==="≤"?"<=":m[2]==="≥"?">=":m[2];
+      if(!has(a)) return bad(k+1,`“${a}” is not a parameter`); if(!has(b)) return bad(k+1,`“${b}” is not a parameter`);
+      if(a===b) return bad(k+1,`${a} cannot be compared with itself`);
+      const lt=op[0]==="<"; ineqs.push({lo:idx[lt?a:b],hi:idx[lt?b:a],strict:op.length===1,line:k+1,src:s}); continue; }
+    if((m=reE.exec(s))){ const a=m[1]; if(!has(a)) return bad(k+1,`“${a}” is not a parameter`); let cm;
+      try{ cm=compileExpr(m[2],{allowNone:true}); }catch(e){ return bad(k+1,e.message); }
+      if(cm.usesX) return bad(k+1,"a constraint is between parameters: x has no place in it");
+      for(const nm of cm.params){ if(!has(nm)) return bad(k+1,`“${nm}” is not a parameter`); if(nm===a) return bad(k+1,`${a} cannot follow itself`); }
+      eqs.push({i:idx[a],deps:cm.params.map(nm=>idx[nm]),f:cm.f,rhs:m[2].trim(),line:k+1,src:s}); continue; }
+    return bad(k+1,"write a = a formula of the other parameters, or a < b"); }
+  const owner=new Map();
+  for(const q of eqs.map(e=>({t:e.i,line:e.line})).concat(ineqs.map(r=>({t:r.hi,line:r.line})))){ if(owner.has(q.t)) return bad(q.line,`${names[q.t]} is set by line ${owner.get(q.t)} already`); owner.set(q.t,q.line); }
+  const rules=ineqs.map(r=>({kind:"ineq",t:r.hi,deps:[r.lo],r})).concat(eqs.map(e=>({kind:"eq",t:e.i,deps:e.deps,r:e}))), order=[], set=new Set();
+  for(let prog=true;prog&&order.length<rules.length;){ prog=false;
+    for(const q of rules){ if(order.includes(q)) continue; if(q.deps.every(j=>!owner.has(j)||set.has(j))){ order.push(q); set.add(q.t); prog=true; } } }
+  if(order.length<rules.length){ const q=rules.find(r=>!order.includes(r)); return bad(q.r.line,"these constraints read each other in a circle"); }
+  return {eqs,ineqs,order,n:names.length,any:rules.length>0};
+}
+// Only the formulas applied, to parameters as they are (the residual analysis): a follower set from what it follows.
+function consApply(C,p){ const r=p.slice(); for(const o of C.order) if(o.kind==="eq") r[o.t]=o.r.f(0,o.r.deps.map(j=>r[j])); return r; }
+function consBack(C,q){ const p=q.slice(); for(const o of C.order){ if(o.kind==="ineq") p[o.t]=p[o.r.lo]+q[o.t]; else p[o.t]=o.r.f(0,o.r.deps.map(j=>p[j])); } return p; }
+function consFwd(C,p0){ const q=p0.slice(); for(const r of C.ineqs){ const d=p0[r.hi]-p0[r.lo], s=Math.max(Math.abs(p0[r.hi]),Math.abs(p0[r.lo]))||1; q[r.hi]=d>0&&Number.isFinite(d)?d:s*1e-3; } return q; }
+function consResult(res,C){
+  if(!C||!C.any||!Array.isArray(res.params)) return res;
+  const q=res.params, p=consBack(C,q), n=p.length, cq=res.cov, J=p.map(()=>new Array(n).fill(0));
+  for(let b=0;b<n;b++){ const h=Math.max(Math.abs(q[b])*1e-6,1e-10), qa=q.slice(), qb=q.slice(); qa[b]+=h; qb[b]-=h; const pa=consBack(C,qa), pb=consBack(C,qb); for(let a=0;a<n;a++) J[a][b]=(pa[a]-pb[a])/(2*h); }
+  let cov=null;
+  if(cq){ cov=p.map(()=>new Array(n).fill(0)); for(let a=0;a<n;a++) for(let c=0;c<n;c++){ let s=0; for(let u=0;u<n;u++){ const ja=J[a][u]; if(!ja) continue; for(let v=0;v<n;v++){ const jc=J[c][v]; if(jc&&cq[u]&&Number.isFinite(cq[u][v])) s+=ja*cq[u][v]*jc; } } cov[a][c]=s; } }
+  const errs=p.map((_,a)=>cov&&cov[a][a]>=0?Math.sqrt(cov[a][a]):res.errors?res.errors[a]:null), dof=res.stats&&res.stats.dof, tc=Number.isFinite(dof)&&dof>0?tQuantile975(dof):NaN;
+  const out=Object.assign({},res,{params:p,cov,errors:errs.map(e=>Number.isFinite(e)?e:null),tval:(res.tval||[]).slice(),pval:(res.pval||[]).slice(),ci:(res.ci||[]).map(x=>Array.isArray(x)?x.slice():x),dep:(res.dep||[]).slice(),atBound:(res.atBound||[]).slice()});
+  C.order.forEach(o=>{ const i=o.t, e=out.errors[i];
+    if(o.kind==="eq"){ out.tval[i]=NaN; out.pval[i]=NaN; out.ci[i]=[NaN,NaN]; out.dep[i]=NaN; out.atBound[i]=false; }
+    else if(e>0&&!out.atBound[i]){ const t=p[i]/e; out.tval[i]=t; out.pval[i]=tPvalue(t,dof); out.ci[i]=[p[i]-tc*e,p[i]+tc*e]; out.dep[i]=NaN; } });
+  return out;
+}
+// The fit with constraints: the problem in the fitted parameters' terms, each difference kept at 0 or above.
+function consProblem(C,f,p0,fixed,lo,hi){
+  const n=p0.length, fx=fixed.slice(), L=(lo||new Array(n).fill(-Infinity)).slice(), H=(hi||new Array(n).fill(Infinity)).slice();
+  C.eqs.forEach(e=>{ fx[e.i]=true; });
+  C.ineqs.forEach(r=>{ const s=Math.max(Math.abs(p0[r.hi]),Math.abs(p0[r.lo])); L[r.hi]=r.strict?(s>0?s*1e-9:1e-12):0; H[r.hi]=Infinity; });
+  return {f:(x,q)=>f(x,consBack(C,q)),q0:consFwd(C,p0),fixed:fx,lo:L,hi:H};
+}
+function consFit(f,X,Y,W,p0,fixed,opt,C){
+  if(!C||!C.any) return lmFit(f,X,Y,W,p0,fixed,opt);
+  const pr=consProblem(C,f,p0,fixed,opt&&opt.lo,opt&&opt.hi), res=lmFit(pr.f,X,Y,W,pr.q0,pr.fixed,Object.assign({},opt||{},{lo:pr.lo,hi:pr.hi}));
+  return res.error?res:consResult(res,C);
+}
 /* Find X/Y (FIT_SPEC slice 5). The curve's Y at an X, with its standard error by the delta
    method (the confidence band's at that X) and its interval at t; null where the curve has no
    value. The error is null when a parameter the curve moves with has no known covariance. */
@@ -6551,6 +6645,18 @@ const appBad=(a,t)=>`An apparent fit takes the logarithm of ${t.badX&&t.badY?"X 
 const APP_ODR="An apparent fit does not take the X errors yet: untick one of them.";
 // Units for a fit's parameters: none for an axis it was fitted on in logarithms.
 const parUnits=f=>{ const u=fitUnits(f); return f&&f.app?[f.app.x?"":u[0],f.app.y?"":u[1]]:u; };
+// Constraints and formula starts of a draft or a fit, against its model's parameters (null with none; err in words).
+function consOf(o,m){ const t=String(o&&o.cons||"").trim(); if(!t||!m) return null; const C=parseCons(t,m.params); return C.err||C.any?C:null; }
+const consErr=C=>`Constraints, line ${C.err.line}: ${C.err.msg}.`;
+const consSummary=(C,nm)=>C.order.map(o=>o.kind==="eq"?`${nm[o.t]} = ${o.r.rhs}`:`${nm[o.r.lo]} ${o.r.strict?"<":"≤"} ${nm[o.t]}`).join("; ");
+const consHint=(C,nm)=>C.order.map(o=>o.kind==="eq"?`${nm[o.t]} follows: ${nm[o.t]} = ${o.r.rhs}`:`${nm[o.t]} stays ${o.r.strict?"above":"at or above"} ${nm[o.r.lo]}`).join(" · ");
+// Formula starts evaluated on the points as fitted, into d.init; what is wrong, in words.
+function startsFx(d,m,X,Y){ if(!Array.isArray(d.initFx)||!d.initFx.some(Boolean)) return null; const M=dataMeasures(X,Y);
+  for(let i=0;i<m.params.length;i++){ const s=d.initFx[i]; if(!s) continue; const r=evalStart(s,M); if(r.err) return `The start of ${m.params[i]}, ${s}: ${r.err}.`; d.init[i]=r.v; } return null; }
+const fxStartsText=(f,m)=>Array.isArray(f.initFx)?f.initFx.map((s,i)=>s?`${m.params[i]} = ${s}`:null).filter(Boolean).join("; "):"";
+// The points as the fit takes them (the axes' terms for an apparent fit), for measuring starts.
+function fitXY(d){ const pts=fitPoints(), A=d&&d.app?appOf():null, tx=A&&APP_TF[A.x], ty=A&&APP_TF[A.y], q=pts.filter(z=>(!tx||z.x>0)&&(!ty||z.y>0));
+  return [q.map(z=>tx?tx.tf(z.x):z.x),q.map(z=>ty?ty.tf(z.y):z.y)]; }
 // How points count: a draft's, a fit's or a template's kind (weight, or the older weighted), and its points' factors.
 const weightOf=o=>{ const w=o&&o.weight; return w==="yerr"||w==="counts"||w==="none"?w:w==="col"&&o.wcol?"col":o&&o.weighted?"yerr":"none"; };
 function weightsOf(o,pts){
@@ -14762,7 +14868,7 @@ function ensureDraft(){
   if(S.draft&&S.draft.pid===S.pid) return S.draft;
   const f=(activeFit()&&activeFit().kind!=="composite"?activeFit():null); // the curve panel only carries single-model fits
   const model=f?f.model:(p.prefModel&&getModel(p.prefModel)?p.prefModel:suggestModel().id);
-  S.draft={pid:S.pid, model, fn:f&&f.fn?f.fn:null, init:f?f.params.slice():null, fixed:f?(f.fixed||f.params.map(()=>false)).slice():null, weighted:f?!!f.weighted:hasErr(), weight:f?weightOf(f):hasErr()?"yerr":"none", wcol:f&&f.wcol||null, app:!!(f&&f.app), xerr:f?!!f.xerr:hasXErr(), ctl:fitCtl(f&&f.ctl), lim:f&&f.lim?clone(f.lim):null, dig:f&&Array.isArray(f.dig)?f.dig.slice():null, conf:f?confKeep(confOf(f)):null};
+  S.draft={pid:S.pid, model, fn:f&&f.fn?f.fn:null, init:f?f.params.slice():null, fixed:f?(f.fixed||f.params.map(()=>false)).slice():null, weighted:f?!!f.weighted:hasErr(), weight:f?weightOf(f):hasErr()?"yerr":"none", wcol:f&&f.wcol||null, app:!!(f&&f.app), xerr:f?!!f.xerr:hasXErr(), ctl:fitCtl(f&&f.ctl), lim:f&&f.lim?clone(f.lim):null, dig:f&&Array.isArray(f.dig)?f.dig.slice():null, conf:f?confKeep(confOf(f)):null, cons:f&&f.cons||"", initFx:f&&Array.isArray(f.initFx)?f.initFx.slice():null};
   if(!S.draft.init) guessDraft();
   return S.draft;
 }
@@ -14771,6 +14877,8 @@ function guessDraft(){
   if(pts.length>=2){ const g=m.guess(pts.map(q=>tx?tx.tf(q.x):q.x),pts.map(q=>ty?ty.tf(q.y):q.y)); d.init=g.map((v,i)=>d.fixed&&d.fixed[i]&&d.init?d.init[i]:(Number.isFinite(v)?v:1)); }
   else d.init=m.params.map(()=>1);
   if(!d.fixed||d.fixed.length!==m.params.length) d.fixed=m.params.map(()=>false);
+  // A start typed as a formula is measured again, and kept.
+  if(Array.isArray(d.initFx)&&d.initFx.length===m.params.length&&pts.length){ const [Xs,Ys]=fitXY(d); startsFx(d,m,Xs,Ys); }
 }
 function usedRange(pts){ if(!pts.length) return null; const xs=pts.map(q=>q.x); return [amin(xs),amax(xs)]; }
 function renderFitRangeOnly(){
@@ -14868,6 +14976,7 @@ function fitDiag(f,opt){
   const tx=FM.app&&APP_TF[FM.app.x], ty=FM.app&&APP_TF[FM.app.y], pts=(wk==="none"?pts0:pts0.filter(q=>wk==="yerr"?q.e>0:wk==="counts"?q.y>0:!!wc&&wc.data[q.i]>0)).filter(q=>(!tx||q.x>0)&&(!ty||q.y>0));
   const free=f.params.map((_,i)=>!(f.fixed&&f.fixed[i])&&!(f.atBound&&f.atBound[i]));
   let fT=tx||ty?FM.raw:FM.f;
+  { const C=!FM.composite&&consOf(f,FM.model); if(C&&!C.err&&C.eqs.length){ const f0=fT; C.eqs.forEach(e=>{ free[e.i]=false; }); fT=(x,p)=>f0(x,consApply(C,p)); } }
   if(FM.composite){ const L=peakLinks(f.spec.peaks,FM.model); L.forEach(l=>{ free[l.gi]=false; }); if(L.length) fT=(x,p)=>FM.f(x,applyPeakLinks(p.slice(),L)); }
   const Yd=pts.map(q=>q.y), WT=wk==="none"?null:fitWeights(wk,Yd,pts.map(q=>q.e),wc?pts.map(q=>wc.data[q.i]):null); if(WT&&WT.fail) return null;
   const X=pts.map(q=>tx?tx.tf(q.x):q.x), Y=ty?Yd.map(v=>ty.tf(v)):Yd, W=WT?(ty?WT.W.map((w,i)=>w/ty.dv(Yd[i])):WT.W):null;
@@ -15229,6 +15338,7 @@ function renderFit(){
   if(m.user) h+=`<div class="actions ufacts">${inProj?`<button class="btn sm" id="ufEdit"${ro}>${ICON("edit","sm")}Edit…</button><button class="btn sm ghost" id="ufDup"${ro}>${ICON("copy","sm")}Duplicate</button><button class="btn sm ghost" id="ufDel"${ro}>${ICON("trash","sm")}Delete</button>`:`<button class="btn sm" id="ufDup"${ro}>${ICON("edit","sm")}Edit a copy…</button><span class="lab">${lib.some(q=>"u:"+q.id===d.model)?"From this browser's library: fitting adds it to the project.":"No longer in this project: the fit keeps its own copy."}</span>`}</div>`;
   h+=`<div class="gh">Parameters</div>`;
   h+=paramGridHtml(d,m,f,sameModel,ro);
+  { const C=consOf(d,m); h+=`<div class="fcons"><label for="fitCons" class="tipd" title="One a line: a = a formula of the other parameters (a follows them), or a < b, a ≤ b (b stays above a). # begins a note.">Constraints</label><textarea id="fitCons" rows="2" spellcheck="false" autocomplete="off" placeholder="b = 2*a + 1&#10;w1 &lt; w2"${ro}>${esc(d.cons||"")}</textarea><div class="lab" id="fitConsHint" role="status">${C?C.err?`<span class="rbad">${esc(consErr(C))}</span>`:esc(consHint(C,m.params)):""}</div></div>`; }
   h+=`<div class="gh">Options</div>`;
   h+=weightSel("wt",d);
   { const A=appOf(); if(A||d.app) h+=`<label class="chk"><input type="checkbox" id="fitApp"${d.app&&A?" checked":""}${S.readOnly||!A?" disabled":""}> <span class="tipd" title="${esc(A?`Fit ${appText(A)}, as the points look on this graph's logarithmic ${A.x&&A.y?"axes":"axis"}: a straight line then fits a straight line on the graph. The parameters, R² and χ² are in those terms.`:"The graph has no logarithmic axis now")}">Apparent fit</span></label>`; }
@@ -15255,10 +15365,18 @@ function renderFit(){
   const ux=$("#ufDel"); if(ux) ux.onclick=()=>deleteUserFn(d.model.slice(2));
   box.querySelectorAll("input[data-pi]").forEach(inp=>{
     inp.onkeydown=ev=>{ if(ev.key==="Enter"){ ev.preventDefault(); inp.blur(); } };
-    inp.onchange=()=>{ const v=parseNum(inp.value); if(v===null){ inp.value=fmt(d.init[+inp.dataset.pi],6); toast("Starting values must be numbers."); return; } pushUndo("that starting value"); d.init[+inp.dataset.pi]=v; pgMarks(box,d,m); };
+    inp.onchange=()=>{ const i=+inp.dataset.pi, v=parseNum(inp.value), was=Array.isArray(d.initFx)?d.initFx[i]:null, put=()=>{ inp.value=was||fmt(d.init[i],6); };
+      if(v!==null){ pushUndo("that starting value"); d.init[i]=v; if(was){ d.initFx[i]=null; inp.classList.remove("pgsfx"); inp.removeAttribute("title"); } pgMarks(box,d,m); return; }
+      // Not a number: a formula of the data in range (max(y) - min(y), xat, fwhm…), measured now and again by Guess and each fit.
+      const src=inp.value.trim(); if(!src){ put(); return; } const [Xs,Ys]=fitXY(d), r=evalStart(src,dataMeasures(Xs,Ys));
+      if(r.err){ put(); toast(`Not a starting value: ${r.err}.`); return; }
+      pushUndo("that starting value"); if(!Array.isArray(d.initFx)||d.initFx.length!==m.params.length) d.initFx=m.params.map(()=>null); d.initFx[i]=src; d.init[i]=r.v;
+      inp.classList.add("pgsfx"); inp.title=`A formula of the data: ${fmt(r.v,6)} now`; pgMarks(box,d,m); };
   });
   box.querySelectorAll("input[data-fx]").forEach(inp=>inp.onchange=()=>{ d.fixed[+inp.dataset.fx]=inp.checked; pgMarks(box,d,m); });
   const wt=$("#wt"); if(wt) wt.onchange=()=>setWeight(d,wt.value);
+  { const ct=$("#fitCons"), hn=$("#fitConsHint"); if(ct){ const say=()=>{ const C=consOf({cons:ct.value},m); hn.innerHTML=C?C.err?`<span class="rbad">${esc(consErr(C))}</span>`:esc(consHint(C,m.params)):""; };
+    ct.oninput=say; ct.onchange=()=>{ if((d.cons||"")===ct.value) return; pushUndo("the constraints"); d.cons=ct.value; S.fitError=""; setTimeout(()=>renderFit(),0); }; } }
   // The parameters mean other things in the axes' terms: switched, the starting values are measured again.
   const ap=$("#fitApp"); if(ap) ap.onchange=()=>{ pushUndo(ap.checked?"an apparent fit":"a fit in the data's terms"); d.app=ap.checked; guessDraft(); renderFit(); renderPlot(); };
   const wx=$("#wtx"); if(wx) wx.onchange=()=>d.xerr=wx.checked;
@@ -15300,7 +15418,8 @@ const boundsOf=(L,m,p0,fixed)=>fitBounds(m.params.length,Object.assign({},L||{},
 const limRec=L=>L&&["lo","hi"].some(k=>(L[k]||[]).some(v=>v!=null))?clone({lo:L.lo,hi:L.hi,slo:L.slo,shi:L.shi}):null;
 function paramGridHtml(d,m,f,same,ro){
   const [xuC,yuC]=dataUnits(), uC=t=>t?` <span class="unit">(${esc(t)})</span>`:"", L=draftLims(d,m), dig=d.dig, n=m.params.length;
-  const v=S.pgView||"start", own=(a,i)=>a&&Number.isFinite(a[i])?a[i]:null;
+  const v=S.pgView||"start", own=(a,i)=>a&&Number.isFinite(a[i])?a[i]:null, C=consOf(d,m), eqOf=[], hiOf=[], sfx=Array.isArray(d.initFx)&&d.initFx.length===n?d.initFx:[];
+  if(C&&!C.err) C.order.forEach(o=>{ if(o.kind==="eq") eqOf[o.t]=o; else hiOf[o.t]=o; });
   const limIn=(k,i)=>{ const t=L[k][i], o=own(k==="lo"?m.lo:m.hi,i), val=t===false?"none":t==null?"":fmt(t,8);
     return `<input type="text" inputmode="decimal" data-plim="${k}:${i}" value="${esc(val)}" placeholder="${o!=null?esc(fmt(o,6)):"none"}" aria-label="${k==="lo"?"Lowest":"Highest"} value of ${esc(m.params[i])}" title="${o!=null?`Empty: the function's own limit, ${esc(fmt(o,6))}; none: no limit`:"A number, or empty for no limit"}"${ro}>`; };
   const rel=(k,i)=>{ const s=!!L[k==="lo"?"slo":"shi"][i]; return `<button type="button" class="prel" data-prel="${k}:${i}" title="${esc(pgRelTip(s))}" aria-label="${esc(pgRelLabel(k,m.params[i],s))}"${ro}>${s?"&lt;":"≤"}</button>`; };
@@ -15312,9 +15431,11 @@ function paramGridHtml(d,m,f,same,ro){
     const cv=same&&!fx&&!bd?ciOf(f,i):null, ci=cv?`${esc(fmt(cv[0],5))} to ${esc(fmt(cv[1],5))}`:"";
     const dv=same&&!fx&&!bd&&f.dep?f.dep[i]:null, mean=(m.mean||[])[i];
     h+=`<tr><td class="pn">${m.ph[i]}${uC(unitFor((m.dim||[])[i],xuC,yuC))}${mean?`<div class="pmean">${esc(mean)}</div>`:""}</td>`+
-      `<td data-v="start"><input type="text" inputmode="decimal" data-pi="${i}" value="${esc(fmt(d.init[i],6))}" aria-label="Starting value of ${nm}"${ro}></td>`+
-      `<td class="fx" data-v="start"><input type="checkbox" data-fx="${i}"${d.fixed[i]?" checked":""} aria-label="Fix ${nm}" title="Hold ${nm} at its starting value"${ro}></td>`+
-      `<td data-v="lim"><span class="plim">${limIn("lo",i)}${rel("lo",i)}</span></td><td data-v="lim"><span class="plim">${rel("hi",i)}${limIn("hi",i)}</span></td>`+
+      (eqOf[i]?`<td data-v="start"><input type="text" class="pgfol" value="= ${esc(eqOf[i].r.rhs)}" aria-label="${nm} follows a constraint" title="${esc(nm)} follows: ${esc(nm)} = ${esc(eqOf[i].r.rhs)}" disabled></td>`
+        :`<td data-v="start"><input type="text" inputmode="decimal" data-pi="${i}" value="${esc(sfx[i]?sfx[i]:fmt(d.init[i],6))}"${sfx[i]?` class="pgsfx" title="${esc(`A formula of the data: ${fmt(d.init[i],6)} now`)}"`:""} aria-label="Starting value of ${nm}"${ro}></td>`)+
+      `<td class="fx" data-v="start"><input type="checkbox" data-fx="${i}"${d.fixed[i]&&!eqOf[i]?" checked":""} aria-label="Fix ${nm}" title="${eqOf[i]?"It follows a constraint":`Hold ${nm} at its starting value`}"${ro||(eqOf[i]?" disabled":"")}></td>`+
+      (eqOf[i]||hiOf[i]?`<td data-v="lim" colspan="2"><span class="lab" title="${eqOf[i]?"It follows a constraint, so its limits do not apply":`Fitted as ${esc(m.params[hiOf[i].r.lo])} plus a difference that cannot go below 0, so its own limits do not apply`}">${eqOf[i]?"follows":`≥ ${esc(m.params[hiOf[i].r.lo])}`}</span></td>`
+        :`<td data-v="lim"><span class="plim">${limIn("lo",i)}${rel("lo",i)}</span></td><td data-v="lim"><span class="plim">${rel("hi",i)}${limIn("hi",i)}</span></td>`)+
       `<td class="res" data-v="start res">${ve[0]?`<strong>${ve[0]}</strong>`:""}</td><td class="res pgerr" data-v="start res">${ve[1]}</td><td class="res pgci" data-v="res">${ci}</td><td class="res${Number.isFinite(dv)&&dv>0.99?" pgdep":""}" data-v="res">${Number.isFinite(dv)?esc(fmt(dv,3)):""}</td>`+
       `<td data-v="res"><select data-pdig="${i}" aria-label="Digits of ${nm}"${ro}>${[0,1,2,3,4,5,6,7,8,9,10].map(k=>`<option value="${k}"${(dg||0)===k?" selected":""}>${k?k:"Auto"}</option>`).join("")}</select></td></tr>`; });
   return h+`</tbody></table><div class="pgnote" role="status"></div></div>`;
@@ -15324,7 +15445,7 @@ const pgRelLabel=(k,nm,s)=>`${k==="lo"?"Lowest":"Highest"} value of ${nm}: ${s?"
 // Marks a start outside its limits, and says what is wrong with the limits, without redrawing the form.
 function pgMarks(box,d,m){ const B=boundsOf(d.lim,m,d.init,d.fixed), note=box.querySelector(".pgnote");
   box.querySelectorAll("input[data-pi]").forEach(inp=>{ const i=+inp.dataset.pi, out=!B.fail&&!B.fixed[i]&&(d.init[i]<B.lo[i]||d.init[i]>B.hi[i]);
-    inp.classList.toggle("oob",out); if(out) inp.title="Outside its limits: the fit starts from the nearest one"; else inp.removeAttribute("title"); });
+    inp.classList.toggle("oob",out); if(out) inp.title="Outside its limits: the fit starts from the nearest one"; else if(inp.classList.contains("pgsfx")) inp.title=`A formula of the data: ${fmt(d.init[i],6)} now`; else inp.removeAttribute("title"); });
   if(note) note.textContent=B.fail||(B.held.length?B.held.map(i=>`${m.params[i]} is held at ${fmt(B.p0[i],6)}: its lowest and highest values are equal.`).join(" "):""); }
 function wirePGrid(box,d,m,f,same){
   const g=box.querySelector(".pgw"); if(!g) return;
@@ -15449,7 +15570,7 @@ function draftModel(d){
    library joins the project. */
 function chooseModel(v,focus){
   const d=ensureDraft(); if(!d||S.readOnly||!v||v===d.model||!getModel(v)) return;
-  pushUndo("changing the model"); d.model=v; d.fn=null; d.fixed=null; d.lim=null; d.dig=null; S.fitError="";
+  pushUndo("changing the model"); d.model=v; d.fn=null; d.fixed=null; d.lim=null; d.dig=null; d.cons=""; d.initFx=null; S.fitError="";
   const p=P(); if(v.startsWith("u:")&&!((p&&p.userFns)||[]).some(q=>"u:"+q.id===v)){ const lf=libFns().find(q=>"u:"+q.id===v); if(lf) adoptLibFn(lf); }
   guessDraft(); renderFit(); const el=$(focus||"#model"); if(el) el.focus({preventScroll:true});
 }
@@ -16114,28 +16235,34 @@ function runFit(){
   let Xf=X, Yf=Y, W=WT.W; const useW=WT.kind!=="none";
   if(A){ const t=appPoints(A,X,Y,W,useW); if(t.badX||t.badY){ S.fitError=appBad(A,t); renderFit(); return; } Xf=t.X; Yf=t.Y; W=t.W; }
   { const xb=modelXBad(m,Xf); if(xb){ S.fitError=xbText(m,xb); renderFit(); return; } }
+  { const e=startsFx(d,m,Xf,Yf); if(e){ S.fitError=e; renderFit(); return; } }
+  const C=consOf(d,m); if(C&&C.err){ S.fitError=consErr(C); renderFit(); return; }
+  if(C) d.init=consApply(C,d.init);   // a follower starts where its formula puts it
   const B=boundsOf(draftLims(d,m),m,d.init,d.fixed); if(B.fail){ S.fitError=B.fail; renderFit(); return; }
   const SX=d.xerr?xErrsOf(c,pts):null, ctl=fitCtl(d.ctl), opt={lo:B.lo,hi:B.hi,maxIter:ctl.maxIter,tol:ctl.tol,scale:WT.scale};
   if(SX&&WT.kind==="col"){ S.fitError=WCOL_ODR; renderFit(); return; }
   if(SX&&A){ S.fitError=APP_ODR; renderFit(); return; }
+  if(C){ if(SX){ S.fitError=CONS_ODR; renderFit(); return; } const hf=C.ineqs.find(r=>B.fixed[r.hi]); if(hf){ S.fitError=consFixed(m,hf); renderFit(); return; } }
+  const pr=C?consProblem(C,m.f,B.p0,B.fixed,B.lo,B.hi):null, back=pr?(q=>consBack(C,q)):(q=>q);
+  if(pr){ opt.lo=pr.lo; opt.hi=pr.hi; }
   if(SX){ if(S.fitLog&&S.fitLog.pid===S.pid&&S.fitLog.col===(c||{}).id) S.fitLog=null; // the list is of Levenberg–Marquardt steps
     saveCurveFit(odrFit(m.f,X,Y,useW?W.map(w=>1/w):null,SX,B.p0.slice(),B.fixed.slice(),opt),{d,m,X,SX,WT,ctl,fixed:B.fixed}); return; }
   const L=fitLogFor(d,m,c,Xf,Yf,W,WT.key+(A?"|"+appText(A,true):"")), k0=L.rows[L.rows.length-1].k;
-  const run={stop:false,d,pid:S.pid,col:c.id,model:d.model,done:0,p:B.p0.slice(),lam:L.lam,shown:false};
+  const run={stop:false,d,pid:S.pid,col:c.id,model:d.model,done:0,p:pr?pr.q0.slice():B.p0.slice(),lam:L.lam,shown:false}, PS=pr?pr.q0.map(v=>Math.abs(v)||1):L.pscale;
   L.state="run"; L.note=""; L.byStep=false; S.fitRun=run;
   const tick=()=>{
     if(S.fitRun!==run) return;
     const cur=P()&&S.pid===run.pid?activeYCol():null;
     if(!cur||cur.id!==run.col||S.draft!==d||d.model!==run.model){ S.fitRun=null; L.state=""; L.note="The fit stopped: the column, the model or the project changed while it ran."; renderFit(); return; }
-    if(run.stop){ S.fitRun=null; pushUndo("stopping the fit"); d.init=run.p.slice(); L.last=d.init.slice(); L.state="";
+    if(run.stop){ S.fitRun=null; pushUndo("stopping the fit"); d.init=back(run.p); d.initFx=null; L.last=d.init.slice(); L.state="";
       L.note=`Stopped after ${run.done} iteration${run.done===1?"":"s"}. The last values are the starting values now: Fit carries on from them.`; renderFit(); renderPlot(); return; }
-    const res=lmFit(m.f,Xf,Yf,W,run.p,B.fixed.slice(),Object.assign({},opt,{maxIter:ctl.maxIter-run.done,lambda0:run.lam,pscale:L.pscale,deadline:performance.now()+80,onIter:q=>fitLogRow(L,k0+run.done+q.iter,q)}));
+    const res=lmFit(pr?pr.f:m.f,Xf,Yf,W,run.p,(pr?pr.fixed:B.fixed).slice(),Object.assign({},opt,{maxIter:ctl.maxIter-run.done,lambda0:run.lam,pscale:PS,deadline:performance.now()+80,onIter:q=>fitLogRow(L,k0+run.done+q.iter,pr?Object.assign({},q,{p:back(q.p)}):q)}));
     if(res.error){ S.fitRun=null; L.state=""; S.fitError=res.error; logError("Curve fit: "+res.error,"fit"); renderFit(); return; }
-    run.done+=res.stats.iter; run.p=res.params.slice(); run.lam=res.lambda; L.lam=res.lambda; L.last=res.params.slice();
+    run.done+=res.stats.iter; run.p=res.params.slice(); run.lam=res.lambda; L.lam=res.lambda; L.last=back(res.params);
     if(res.stats.paused&&run.done<ctl.maxIter){ if(run.shown) renderFitLog(); else { run.shown=true; renderFit(); } setTimeout(tick,0); return; }
     S.fitRun=null; delete res.stats.paused; res.stats.iter=run.done; L.state="";
     L.note=res.stats.converged?`Converged after ${run.done} iteration${run.done===1?"":"s"}.`:`Stopped at the limit of ${ctl.maxIter} iterations without converging. Fit again to carry on from here, or raise the limit in Fit control.`;
-    saveCurveFit(res,{d,m,X,SX:null,WT,ctl,fixed:B.fixed,A});
+    saveCurveFit(pr?consResult(res,C):res,{d,m,X,SX:null,WT,ctl,fixed:B.fixed,A,C});
   };
   tick();
 }
@@ -16152,18 +16279,25 @@ function stepFit(){
   if(WT.fail){ S.fitError=WT.fail; renderFit(); return; }
   W=WT.W; if(A){ const t=appPoints(A,X,Y,W,WT.kind!=="none"); if(t.badX||t.badY){ S.fitError=appBad(A,t); renderFit(); return; } X=t.X; Y=t.Y; W=t.W; }
   { const xb=modelXBad(m,X); if(xb){ S.fitError=xbText(m,xb); renderFit(); return; } }
+  { const e=startsFx(d,m,X,Y); if(e){ S.fitError=e; renderFit(); return; } }
+  const C=consOf(d,m); if(C&&C.err){ S.fitError=consErr(C); renderFit(); return; }
+  if(C) d.init=consApply(C,d.init);
   const ctl=fitCtl(d.ctl), L=fitLogFor(d,m,c,X,Y,W,WT.key+(A?"|"+appText(A,true):"")), k0=L.rows[L.rows.length-1].k, red0=L.rows[L.rows.length-1].red;
   const B=boundsOf(draftLims(d,m),m,d.init,d.fixed); if(B.fail){ S.fitError=B.fail; renderFit(); return; }
-  const res=lmFit(m.f,X,Y,W,B.p0.slice(),B.fixed.slice(),{lo:B.lo,hi:B.hi,maxIter:1,tol:ctl.tol,scale:WT.scale,lambda0:L.lam,pscale:L.pscale,onIter:q=>fitLogRow(L,k0+q.iter,q)});
+  if(C){ const hf=C.ineqs.find(r=>B.fixed[r.hi]); if(hf){ S.fitError=consFixed(m,hf); renderFit(); return; } }
+  const pr=C?consProblem(C,m.f,B.p0,B.fixed,B.lo,B.hi):null, back=pr?(q=>consBack(C,q)):(q=>q);
+  const res=lmFit(pr?pr.f:m.f,X,Y,W,pr?pr.q0:B.p0.slice(),(pr?pr.fixed:B.fixed).slice(),{lo:pr?pr.lo:B.lo,hi:pr?pr.hi:B.hi,maxIter:1,tol:ctl.tol,scale:WT.scale,lambda0:L.lam,pscale:pr?pr.q0.map(v=>Math.abs(v)||1):L.pscale,onIter:q=>fitLogRow(L,k0+q.iter,pr?Object.assign({},q,{p:back(q.p)}):q)});
   if(res.error){ S.fitError=res.error; renderFit(); return; }
   if(!res.params.every(Number.isFinite)){ S.fitError="That step diverged. Try Guess, or fix one of the parameters."; renderFit(); return; }
-  pushUndo("one iteration of the fit"); d.init=res.params.slice(); L.last=d.init.slice(); L.lam=res.lambda; L.state=""; L.byStep=true;
+  pushUndo("one iteration of the fit"); d.init=back(res.params); d.initFx=null; L.last=d.init.slice(); L.lam=res.lambda; L.state=""; L.byStep=true;
   const red1=L.rows[L.rows.length-1].red;
   L.note=!res.stats.iter?"No step from here lowers χ²: these values are at a minimum. Fit saves them as the fit."
     :res.stats.converged?`Settled: reduced χ² ${fmt(red0,6)} → ${fmt(red1,6)}, a change below the tolerance. Fit saves the result.`
     :`One iteration: reduced χ² ${fmt(red0,6)} → ${fmt(red1,6)}.`;
   renderFit(); renderPlot();
 }
+const CONS_ODR="Constraints between parameters are not taken by the orthogonal distance fit yet: untick Include the X errors, or take the constraints away.";
+const consFixed=(m,r)=>`${m.params[r.hi]} is fixed, and kept above ${m.params[r.lo]} by a constraint: unfix it, or take the constraint away.`;
 const WCOL_ODR="Weights from a column only say how the points compare, and the X errors need Y errors in the data's own units: choose Y error or counting weights, or untick the X errors.";
 const xbText=(m,b)=>`${m.name} needs X ${b.strict?"above 0":"of 0 or more"}, and the fit's range reaches x = ${fmt(b.x,6)}. Fit a range of X ${b.strict?"above 0":"from 0 up"}.`;
 function saveCurveFit(res,o){
@@ -16177,7 +16311,7 @@ function saveCurveFit(res,o){
     dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound,
     onCol:(activeYCol()||{}).id, onColName:(activeYCol()||{}).name||"",
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(), hadErrCol:hasErr(),
-    range:[Math.max(a,amin(X)),Math.min(b,amax(X))], ...weightRec(WT), ...(SX?{xerr:true,odr:odrNote(res)}:{}), ...(o.A?{app:{x:o.A.x,y:o.A.y}}:{}),
+    range:[Math.max(a,amin(X)),Math.min(b,amax(X))], ...weightRec(WT), ...(SX?{xerr:true,odr:odrNote(res)}:{}), ...(o.A?{app:{x:o.A.x,y:o.A.y}}:{}), ...(o.C?{cons:String(d.cons).trim()}:{}), ...(Array.isArray(d.initFx)&&d.initFx.some(Boolean)?{initFx:d.initFx.slice()}:{}),
     ctl:{maxIter:ctl.maxIter,tol:ctl.tol,method:SX?"odr":"lm"}, by:who(), at:Date.now()};
   d.init=res.params.slice(); if(S.fitLog&&S.fitLog.pid===S.pid&&!SX) S.fitLog.last=d.init.slice();
   const P0=P(), carry=m.user&&!(P0.userFns||[]).some(q=>q.id===m.fnId)?{userFns:(P0.userFns||[]).concat([JSON.parse(JSON.stringify(m.def))])}:{};
@@ -16211,8 +16345,9 @@ function paramRows(f){
     if(s.kind==="base"){ const bl=BASE_LABEL[s.name]||[s.name,""]; push(i,`baseline ${s.name}`,bl[0].toLowerCase(),bl[1]); }
     else push(i,`peak ${s.peak+1} ${s.name}`,s.meaning,PARAM_DIM[s.name]); });
     peakLinks(f.spec.peaks,FM.model).forEach(l=>{ const r=rows.find(q=>q.i===l.gi); if(r){ r.tied="tied: "+tieFormula(l,""); r.hold=true; r.bound=false; } }); }
-  else FM.model.params.forEach((nm,i)=>{ const ph=(FM.model.ph||[])[i];
+  else { FM.model.params.forEach((nm,i)=>{ const ph=(FM.model.ph||[])[i];
     push(i,ph?phPlain(ph):nm,(FM.model.mean||[])[i]||"",(FM.model.dim||[])[i]); const r=rows[rows.length-1]; if(ph) r.html=ph; r.dig=(f.dig||[])[i]||null; });
+    const C=consOf(f,FM.model); if(C&&!C.err) C.eqs.forEach(e=>{ const r=rows.find(q=>q.i===e.i); if(r){ r.tied="follows: "+FM.model.params[e.i]+" = "+e.rhs; r.hold=true; r.bound=false; } }); }
   return rows;
 }
 function derivedRows(f){
@@ -16228,11 +16363,12 @@ function statsList(f){
       ["Iterations",g.iter==null?"—":`${g.iter}${g.converged===false?" (not converged)":""}`],["Weighting",weightOf(f)==="counts"?"counting statistics, 1/y":f.weighted?"instrumental, 1/σ²":"none; errors scaled by √(reduced χ² of them all)"],["Confidence level",confPct(confOf(f))+"%"]];
     if(f.range) out.push(["Fitted over",`x ${fmt(f.range[0],6)} to ${fmt(f.range[1],6)}`]);
     return out.map(([k,v])=>[k,v==null||v===""?"—":String(v)]); }
+  const FM0=f.cons?fitModel(f):null;
   const out=[["Points",st.n],["Free parameters",st.n!=null&&st.dof!=null?st.n-st.dof:null],["Degrees of freedom",st.dof],
     ["Reduced χ²",fmtOr(st.redChi2,5)],["R² (COD)",fmtOr(st.R2,6)],["Adjusted R²",fmtOr(st.adjR2,6)],
     ["Residual sum of squares",fmtOr(st.rss,6)],["AIC",fmtOr(st.aic,6)],["BIC",fmtOr(st.bic,6)],
     ["Iterations",st.iter==null?"—":`${st.iter}${st.converged?"":" (not converged)"}`],["Fit control",capFirst(ctlText(f))],
-    ["Weighting",weightText(f)]].concat(f.app?[["Fitted as",capFirst(appText(f.app))+", an apparent fit"]]:[],[["Confidence level",confPct(confOf(f))+"%"]],f.odr&&f.odr.s!=null?[["Scatter in Y, s",fmt(f.odr.s,4)]]:[],limText(f)?[["Limits",limText(f)]]:[]);
+    ["Weighting",weightText(f)]].concat((C=>C&&!C.err?[["Constraints",consSummary(C,FM0.model.params)]]:[])(FM0&&consOf(f,FM0.model)),f.app?[["Fitted as",capFirst(appText(f.app))+", an apparent fit"]]:[],[["Confidence level",confPct(confOf(f))+"%"]],f.odr&&f.odr.s!=null?[["Scatter in Y, s",fmt(f.odr.s,4)]]:[],limText(f)?[["Limits",limText(f)]]:[]);
   if(f.range) out.push(["Fitted over",`x ${fmt(f.range[0],6)} to ${fmt(f.range[1],6)}`]);
   return out.map(([k,v])=>[k,v==null||v===""?"—":String(v)]);
 }
@@ -16862,6 +16998,8 @@ function methodLines(){
     { const lt=limText(f); if(lt) out.push("Limits: "+lt); }
     if(f.range) out.push("Fitted over x = "+fmt(f.range[0],8)+" to "+fmt(f.range[1],8));
     out.push("Weighting: "+weightText(f));
+    { const C=!FM.composite&&consOf(f,FM.model); if(C&&!C.err) out.push("Constraints: "+consSummary(C,FM.model.params)+" (a follower fitted through what it follows; an inequality as a difference that cannot go below 0)"); }
+    { const t=!FM.composite&&fxStartsText(f,FM.model); if(t) out.push("Starting values as formulas of the data in range: "+t); }
     if(f.app) out.push("Apparent fit: fitted as "+appText(f.app)+", as the points look on the graph's logarithmic axes; the parameters and statistics are in those terms");
     out.push("Algorithm: "+capFirst(ctlText(f))+(f.stats&&f.stats.converged?"; converged in "+f.stats.iter+" iterations":"; DID NOT CONVERGE"+(f.stats&&f.stats.iter!=null?" (stopped after "+f.stats.iter+" iterations)":"")));
   }
@@ -17498,6 +17636,8 @@ async function exportCsv(){
     if(f.range) lines.push(`# fitted over x,${f.range[0]},${f.range[1]}`);
     lines.push(`# weighting,${weightText(f,true)}`);
     if(f.app) lines.push(`# apparent fit,${appText(f.app,true)}`);
+    if(f.cons){ const FMc=fitModel(f), C=FMc&&!FMc.composite&&consOf(f,FMc.model); if(C&&!C.err) lines.push(`# constraints,${consSummary(C,FMc.model.params).replace(/≤/g,"<=")}`); }
+    if(f.initFx){ const FMc=fitModel(f), t=FMc&&!FMc.composite?fxStartsText(f,FMc.model):""; if(t) lines.push(`# formula starts,${t}`); }
     lines.push(`# fit control,${q(ctlText(f,true))}`); if(limText(f)) lines.push(`# limits,${q(limText(f,true))}`); if(f.stats) lines.push(`# iterations,${f.stats.iter},${f.stats.converged?"converged":"not converged"}`);
     if(comp){
       lines.push("# peak,shape,centre,centre error,height,FWHM,area,area error,area %,name");
@@ -20113,7 +20253,7 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <p>Pearson r between columns on the same X axis, interpolated onto the active column's X where they overlap. Near 1, the same shape; near 0, unrelated.</p>
 <p><em>Copy</em> gives every table as tab-separated text.</p>`},
 /* ---------------------------------------------------------------- Fitting */
-{id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge range from to use the view from view points zoom all spectrum done close residuals weighting weights weight counting statistics poisson 1/y instrumental arbitrary column of weights apparent fit log scale logarithmic axis straight line on log axes in the results report sections",
+{id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge range from to use the view from view points zoom all spectrum done close residuals weighting weights weight counting statistics poisson 1/y instrumental arbitrary column of weights apparent fit log scale logarithmic axis straight line on log axes constraint constraints tie equal follows inequality order starting value formula start max(y) xat fwhm in the results report sections",
  lead:"Two kinds of fit, in the Fit window: a curve fit puts one model through the data; a peak fit describes a column as a sum of peaks on a baseline.",
  body:`${DL([[DA("curvefit","Curve fit"),"A line, polynomial, exponential decay, sigmoid, single peak or your own function."],[DA("peakfit","Peak fit"),"Any number of Gaussian, Lorentzian, Voigt, Pearson VII, Fano and other peaks on a baseline, found automatically or placed by hand, with handles on the graph."]])}
 <h2>What is fitted</h2>
@@ -20136,6 +20276,13 @@ ${TIP("A fit belongs to its column. It is drawn only over the column it was fitt
 <p>Each parameter is listed with its unit and what it means. In the dock the grid shows one set of columns at a time (<em>Starting values</em>, <em>Limits</em>, <em>Results</em>); in a wider Fit window, all of them.</p>
 ${DL([["Start, Fix","Where the fit starts, and whether the parameter is held there."],["Lowest, Highest","The values the fit may not go past. Empty is no limit (for a function of yours, its own limit, shown greyed; type <em>none</em> to have none). The button beside each says whether the fit may reach the limit (≤) or must stay strictly inside it (&lt;). A parameter that ends at a limit is marked <em>at its limit</em> and has no standard error. Equal limits hold the parameter there, as Fix does; limits that cross are refused, in words."],["Fitted, Error, interval, Dependency","The result: the value and its standard error, the confidence interval at the fit's level, and how much the parameter depends on the others (near 1: not determined on its own)."],["Digits","How many significant digits the value is shown with, here, in Results and in the report; Auto takes them from the error. The CSV and the copied table keep every digit."]])}
 <p>A fit keeps its limits and digits: Results, the report's Method and the CSV state the limits, and ${DA("batch","fitting every column")} uses them.</p>
+<h2 id="fxstart">Starting values as formulas</h2>
+<p>A start can be typed as a formula of the data in the fit's range instead of a number: <code>max(y) - min(y)</code> for an amplitude, <code>xat</code> for a peak's position, <code>fwhm/2.3548</code> for a Gaussian's width. It is shown as typed (in italics; its value now is its tooltip), measured again by <em>Guess</em> and by every fit, and kept with the fit. A number typed over it takes its place; <em>1 iteration</em> and <em>Stop</em> replace it by the value they reach. For an apparent fit the data are as fitted, in the logarithms.</p>
+${DL([["<code>xmin</code>, <code>xmax</code>, <code>xmean</code>, <code>xspan</code>","The lowest, the highest and the mean x, and their difference; <code>min(x)</code>, <code>max(x)</code>, <code>mean(x)</code> too."],["<code>ymin</code>, <code>ymax</code>, <code>ymean</code>, <code>yspan</code>","The same of y; <code>min(y)</code>, <code>max(y)</code>, <code>mean(y)</code> too."],["<code>yfirst</code>, <code>ylast</code>","y at the lowest and the highest x."],["<code>xat</code>, <code>xatmin</code>","x where y is highest, and lowest."],["<code>fwhm</code>","The width of the highest peak at half its height above the lowest point."],["<code>area</code>, <code>n</code>","The area under the points, and how many there are."]],"code")}
+<h2 id="cons">Constraints</h2>
+<p>The <em>Constraints</em> box under the parameters takes one rule a line (<code>#</code> begins a note), read as it is typed:</p>
+${DL([["<code>b = 2*a + 1</code>","b follows the others: it is not fitted on its own, the model applies the formula, and its error is carried from theirs. Its start is the formula, its Fix is off, and Results says what it follows."],["<code>t1 &lt; t2</code>, <code>t1 &lt;= t2</code>","t2 stays above t1 (≤ and ≥ work too, and &gt;): it is fitted as t1 plus a difference that cannot go below 0, strictly above it with &lt;, so two decays or two peaks keep their order. Its own limits do not apply; one that ends on t1 is marked at its limit."]],"code")}
+<p>A name that is no parameter, a parameter set by two rules, rules that read each other in a circle, or a fixed parameter kept above another are refused in words. The constraints are kept with the fit, stated in Results, the report and the CSV, and used when ${DA("batch","fitting every column")} one by one; they are not taken with the X errors or by a fit of every column together. A new model clears them.</p>
 <h2 id="ctl">Fit control and iterations</h2>
 <p>The fit is Levenberg–Marquardt: from the starting values it takes steps that lower χ², and it has settled when a step lowers χ² by less than the <em>Tolerance</em> (a fraction of it; 1e-12 unless set) or moves no parameter by more than one part in 10¹⁰. <em>Iterations, at most</em> (400 unless set) is where a fit that has not settled stops, with a note in Results; <em>Fit</em> again carries on from there. Both are under <em>Fit control</em> in the Fit window, and Results, the report and the CSV say what each fit ran with. With the X errors included the method is orthogonal distance regression.</p>
 <p>While the Fit window is open, the curve at the starting values is drawn dashed over the data (<em>estimate</em> in the legend). <em>1 iteration</em> takes one step from them and makes the result the new starting values, so the dashed curve moves towards the data a step at a time; <em>Iterations</em> lists every step (reduced χ², the damping λ and the parameters), the starting values as row 0. Steps taken one at a time follow the same path as <em>Fit</em>, which carries on the list. A long fit lists its steps as they come, and <em>Stop</em> stops it: its last values become the starting values.</p>
@@ -21046,7 +21193,7 @@ function batchWith(fit){ const p=P(), b=p&&p.batch; if(!b||b.glob) return {}; co
     :fit.kind!=="composite"&&fit.model===t.model;
   if(!same) return {};
   return {batch:Object.assign({},b,{rows:b.rows.map(q=>q===r?{col:q.col,fit:Object.assign({},fit,{batch:true,byHand:true}),fail:null}:q)})}; }
-function batchTemplate(f){ if(!f) return null; const c=colById(f.onCol)||activeYCol(), xu=finalOf(c).xu||"", common={params:f.params.slice(),fixed:(f.fixed||f.params.map(()=>false)).slice(),weighted:!!f.weighted,weight:weightOf(f)==="col"?"none":weightOf(f),app:f.app?{x:f.app.x,y:f.app.y}:null,xerr:!!f.xerr,range:f.range?f.range.slice():null,logY:!!GP().logY,xu,from:c?c.id:null,ctl:f.ctl?fitCtl(f.ctl):null,lim:f.lim?clone(f.lim):null,dig:Array.isArray(f.dig)?f.dig.slice():null,conf:confKeep(confOf(f))};
+function batchTemplate(f){ if(!f) return null; const c=colById(f.onCol)||activeYCol(), xu=finalOf(c).xu||"", common={params:f.params.slice(),fixed:(f.fixed||f.params.map(()=>false)).slice(),weighted:!!f.weighted,weight:weightOf(f)==="col"?"none":weightOf(f),app:f.app?{x:f.app.x,y:f.app.y}:null,cons:f.cons||"",xerr:!!f.xerr,range:f.range?f.range.slice():null,logY:!!GP().logY,xu,from:c?c.id:null,ctl:f.ctl?fitCtl(f.ctl):null,lim:f.lim?clone(f.lim):null,dig:Array.isArray(f.dig)?f.dig.slice():null,conf:confKeep(confOf(f))};
   if(f.kind==="composite") return Object.assign({kind:"composite",spec:clone(f.spec),x0:f.x0,name:describeSpec(f.spec)},common);
   return Object.assign({kind:"model",model:f.model,fn:f.fn?clone(f.fn):null,name:(fitModel(f)||{}).name||"the model"},common); }
 function batchPts(c,t){ const d=finalOf(c), mk=new Set(maskOf(c)), r=t.range, lo=r?Math.min(r[0],r[1]):-Infinity, hi=r?Math.max(r[0],r[1]):Infinity;
@@ -21076,10 +21223,12 @@ function fitOne(c,t,seed,spec){
   if(t.app){ if(SX) return {fail:"an apparent fit does not take the X errors"}; const ap=appPoints(t.app,X,Y,W,useW); if(ap.badX||ap.badY) return {fail:`an apparent fit takes logarithms, and ${ap.badX+ap.badY} value${ap.badX+ap.badY===1?" is":"s are"} 0 or below`}; Xm=ap.X; Ym=ap.Y; Wm=ap.W; }
   { const xb=modelXBad(m,Xm); if(xb) return {fail:`its X reaches ${fmt(xb.x,6)}, and ${lcFirst(m.name)} needs X ${xb.strict?"above 0":"of 0 or more"}`}; }
   const Bt=boundsOf(t.lim,m,seed,t.fixed); if(Bt.fail) return {fail:Bt.fail};
+  const Ct=consOf(t,m); if(Ct&&Ct.err) return {fail:"its constraints: "+lcFirst(consErr(Ct))}; if(Ct&&SX) return {fail:"constraints are not taken with the X errors"};
+  if(Ct&&Ct.ineqs.some(r=>Bt.fixed[r.hi])) return {fail:"a fixed parameter is kept above another by a constraint"};
   const fo=Object.assign({lo:Bt.lo,hi:Bt.hi},t.ctl?{maxIter:t.ctl.maxIter,tol:t.ctl.tol}:{});
-  const res=SX?odrFit(m.f,X,Y,SY,SX,Bt.p0.slice(),Bt.fixed.slice(),fo):lmFit(m.f,Xm,Ym,Wm,Bt.p0.slice(),Bt.fixed.slice(),fo); if(res.error) return {fail:res.error};
+  const res=SX?odrFit(m.f,X,Y,SY,SX,Bt.p0.slice(),Bt.fixed.slice(),fo):consFit(m.f,Xm,Ym,Wm,Bt.p0.slice(),Bt.fixed.slice(),fo,Ct); if(res.error) return {fail:res.error};
   if(!res.params.every(Number.isFinite)) return {fail:"the fit diverged"};
-  return {fit:out(res,Object.assign({model:t.model,fixed:Bt.fixed.slice()},t.app?{app:clone(t.app)}:{},t.fn?{fn:clone(t.fn)}:{},t.ctl?{ctl:Object.assign({},t.ctl,{method:SX?"odr":"lm"})}:{},t.lim?{lim:clone(t.lim)}:{},t.dig?{dig:t.dig.slice()}:{}))};
+  return {fit:out(res,Object.assign({model:t.model,fixed:Bt.fixed.slice()},t.app?{app:clone(t.app)}:{},Ct?{cons:t.cons}:{},t.fn?{fn:clone(t.fn)}:{},t.ctl?{ctl:Object.assign({},t.ctl,{method:SX?"odr":"lm"})}:{},t.lim?{lim:clone(t.lim)}:{},t.dig?{dig:t.dig.slice()}:{}))};
 }
 // Peaks from the peak finder in this spectrum, each of the template's first shape, on its baseline.
 function batchFoundSeed(c,t){
@@ -21124,7 +21273,7 @@ function fitTogether(list,t,share){
   const comp=t.kind==="composite", K=list.length; let m=null, mdl=null, L=[];
   const fixedT=t.fixed.slice();
   if(comp){ m=compileModel(t.spec,t.x0); if(m.n!==t.params.length) return {fail:"the model and its values do not match"}; L=peakLinks(t.spec.peaks,m); L.forEach(l=>{ fixedT[l.gi]=true; }); }
-  else { try{ mdl=t.fn?userModel(t.fn):getModel(t.model); }catch(e){ mdl=null; } if(!mdl) return {fail:"its model is no longer available"}; }
+  else { try{ mdl=t.fn?userModel(t.fn):getModel(t.model); }catch(e){ mdl=null; } if(!mdl) return {fail:"its model is no longer available"}; if(consOf(t,mdl)) return {fail:"constraints between parameters are not taken by a fit of every column together yet: fit them one by one, or take the constraints away"}; }
   const sh=share.map((s,i)=>!!s&&!fixedT[i]), nSh=sh.filter(Boolean).length, nOwn=fixedT.filter((x,i)=>!x&&!sh[i]).length, total=nSh+K*nOwn;
   if(!nSh) return {fail:"no parameter is shared"};
   if(total>900) return {fail:`${total} parameters in all is more than one fit can carry; share more of them, or fit fewer columns`};

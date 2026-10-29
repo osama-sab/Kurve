@@ -252,6 +252,56 @@ await page(async p => {
   check("with Log Y off again the switch is there but cannot be ticked, and the fit is still drawn", r.a && r.a[0] && !r.a[1] && r.curve && r.app, JSON.stringify(r));
 }, { name: "apparent fit" });
 
+console.log("Slice 8: starting values and constraints as formulas");
+await page(async p => {
+  await decayFit(p);
+  await p.evaluate(() => { showTab("fit"); S.pgView = "start"; renderFit(); }); await p.waitForTimeout(200);
+  // A start typed as a formula of the data.
+  await p.fill('#pane-fit input[data-pi="1"]', "max(y) - min(y)"); await p.press('#pane-fit input[data-pi="1"]', "Enter"); await p.waitForTimeout(150);
+  let r = await p.evaluate(() => { const d = ensureDraft(), [X, Y] = fitXY(d), M = dataMeasures(X, Y), inp = document.querySelector('#pane-fit input[data-pi="1"]'); return { fx: d.initFx && d.initFx[1], v: d.init[1], want: M.yspan, val: inp.value, cls: inp.className, tip: inp.title }; });
+  check("a start typed as a formula of the data: kept as typed, its value measured", r.fx === "max(y) - min(y)" && Math.abs(r.v - r.want) < 1e-9 && r.val === "max(y) - min(y)" && /pgsfx/.test(r.cls) && /now/.test(r.tip), JSON.stringify(r));
+  await p.fill('#pane-fit input[data-pi="2"]', "height/3"); await p.press('#pane-fit input[data-pi="2"]', "Enter"); await p.waitForTimeout(150);
+  r = await p.evaluate(() => ({ val: document.querySelector('#pane-fit input[data-pi="2"]').value, fx: (ensureDraft().initFx || [])[2], toast: $("#toastMsg").textContent }));
+  check("a start that is no formula of the data is refused in words, the field put back", !r.fx && r.val !== "height/3" && /Not a starting value: “height” is not a measure of the data/.test(r.toast), JSON.stringify(r));
+  // Guess and each fit measure it again; a number typed over it takes its place.
+  await p.evaluate(() => { const d = ensureDraft(); d.init[1] = 1; guessDraft(); renderFit(); });
+  r = await p.evaluate(() => { const d = ensureDraft(), [X, Y] = fitXY(d); return Math.abs(d.init[1] - dataMeasures(X, Y).yspan) < 1e-9 && d.initFx[1] === "max(y) - min(y)"; });
+  check("Guess measures the formula again and keeps it", r);
+  // A constraint: y0 follows A.
+  await p.fill("#fitCons", "y0 = A/50"); await p.dispatchEvent("#fitCons", "input"); await p.waitForTimeout(80);
+  r = await p.evaluate(() => $("#fitConsHint").textContent);
+  check("the constraint is read as it is typed", /y0 follows: y0 = A\/50/.test(r), r);
+  await p.evaluate(() => { const c = $("#fitCons"); c.dispatchEvent(new Event("change")); }); await p.waitForTimeout(150);
+  r = await p.evaluate(() => { const g = document.querySelector('#pane-fit .ptab.pg tbody tr'), fol = g.querySelector("input.pgfol"), fx = g.querySelector('input[data-fx="0"]'); return { fol: fol && fol.value, dis: fx && fx.disabled, cons: ensureDraft().cons }; });
+  check("in the grid the follower's start is its formula, its Fix off", r.fol === "= A/50" && r.dis && r.cons === "y0 = A/50", JSON.stringify(r));
+  await p.evaluate(() => runFit()); await p.waitForTimeout(600);
+  r = await p.evaluate(() => { const f = activeFit(); openWin("res", { render: true }); const rows = paramRows(f), dt = [...document.querySelectorAll("#pane-res .rside dt")].find(d => d.textContent === "Constraints");
+    return { cons: f.cons, fx: f.initFx, p: f.params, e: f.errors, tied: rows[0].tied, row: dt && dt.nextElementSibling.textContent, dof: f.stats.dof, n: f.stats.n }; });
+  check("fitted: y0 is A/50, its error carried, one parameter fewer", Math.abs(r.p[0] - r.p[1] / 50) <= Math.abs(r.p[0]) * 1e-9 && r.e[0] > 0 && Math.abs(r.e[0] - r.e[1] / 50) <= r.e[0] * 1e-4 && r.dof === r.n - 2, JSON.stringify(r));
+  check("the fit keeps its constraints and formula starts, and Results says so", r.cons === "y0 = A/50" && r.fx && r.fx[1] === "max(y) - min(y)" && /^follows: y0 = A\/50$/.test(r.tied) && r.row === "y0 = A/50", JSON.stringify(r));
+  // A constraint that does not read is refused, in the box and by Fit.
+  await p.evaluate(() => { showTab("fit"); const c = $("#fitCons"); c.value = "q = 1"; c.dispatchEvent(new Event("input")); c.dispatchEvent(new Event("change")); }); await p.waitForTimeout(150);
+  r = await p.evaluate(() => { runFit(); return { hint: $("#fitConsHint").textContent, err: S.fitError }; });
+  check("a constraint naming no parameter: said under the box, and Fit refuses it", /line 1: “q” is not a parameter/.test(r.hint) && /Constraints, line 1: “q” is not a parameter/.test(r.err), JSON.stringify(r));
+  // Two decays kept in order, from starts the wrong way round.
+  await p.evaluate(() => { chooseModel("expdec2"); }); await p.waitForTimeout(150);
+  r = await p.evaluate(() => { const d = ensureDraft(); return { cons: d.cons, fx: d.initFx }; });
+  check("a new model clears the constraints and formula starts", r.cons === "" && !r.fx, JSON.stringify(r));
+  await p.evaluate(() => { const d = ensureDraft(), t1 = d.init[2], t2 = d.init[4]; d.init[2] = Math.max(t1, t2) * 3; d.init[4] = Math.min(t1, t2); const c = $("#fitCons"); c.value = "t1 < t2"; c.dispatchEvent(new Event("change")); }); await p.waitForTimeout(150);
+  await p.evaluate(() => runFit()); await p.waitForTimeout(800);
+  r = await p.evaluate(() => { const f = activeFit(); return { p: f.params, cons: f.cons, err: S.fitError, at: f.atBound }; });
+  check("t1 < t2: fitted with the first decay time below the second", r.cons === "t1 < t2" && r.p[2] < r.p[4], JSON.stringify(r));
+  // One iteration keeps a follower where it belongs.
+  await p.evaluate(() => { const c = $("#fitCons"); c.value = "A2 = A1/2"; c.dispatchEvent(new Event("change")); }); await p.waitForTimeout(150);
+  r = await p.evaluate(() => { stepFit(); const d = ensureDraft(); return { a1: d.init[1], a2: d.init[3], err: S.fitError }; });
+  check("1 iteration with a constraint: the follower where its formula puts it", !r.err && Math.abs(r.a2 - r.a1 / 2) <= Math.abs(r.a2) * 1e-9, JSON.stringify(r));
+  // After a reload the Fit window starts from the fit, constraints and all.
+  await p.evaluate(() => runFit()); await p.waitForTimeout(600);
+  await p.reload(); await ready(p);
+  r = await p.evaluate(() => { S.fitMode = "curve"; const d = ensureDraft(); return { cons: d.cons, model: d.model }; });
+  check("after a reload the Fit window has the fit's constraints", r.cons === "A2 = A1/2" && r.model === "expdec2", JSON.stringify(r));
+}, { name: "formulas and constraints" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);
