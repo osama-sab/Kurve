@@ -390,7 +390,7 @@ await page(async p => {
   r = await p.evaluate(() => { const g = document.querySelector('#pane-fit .fitshow[aria-label="In the results"]'), st = document.querySelector("#pane-fit .sticky");
     return { sw: g ? [...g.querySelectorAll("input[data-rshow]")].map(i => i.dataset.rshow + (i.checked ? "+" : "-")) : null,
       foot: [...st.children].map(e => e.tagName === "BUTTON" ? e.textContent.trim() : e.tagName) }; });
-  check("In the results: intervals, ANOVA, the matrices and residuals, as switches", JSON.stringify(r.sw) === JSON.stringify(["ci+", "anova-", "corr+", "cov-", "resid+"]), JSON.stringify(r.sw));
+  check("In the results: intervals, ANOVA, the matrices, residuals and Find X/Y, as switches", JSON.stringify(r.sw) === JSON.stringify(["ci+", "anova-", "corr+", "cov-", "resid+", "find+"]), JSON.stringify(r.sw));
   check("the footer is its buttons: Fit, 1 iteration, Guess, Done", JSON.stringify(r.foot) === JSON.stringify(["Fit", "1 iteration", "Guess", "Done"]), JSON.stringify(r.foot));
   await p.evaluate(() => runFit()); await p.waitForTimeout(500);
   // The grid: the fitted value and its error apart.
@@ -405,13 +405,13 @@ await page(async p => {
   r = await res();
   check("Results: Value and Standard error in columns of their own", r.th[1] === "Value" && r.th[2] === "Standard error" && r.val && r.se, JSON.stringify(r.th));
   check("derived quantities under a Derived row", r.grp.join() === "Derived", JSON.stringify(r.grp));
-  check("the sections chosen are open, none behind a disclosure arrow", JSON.stringify(r.secs) === JSON.stringify(["corr", "resid"]) && r.details === 0, JSON.stringify(r));
+  check("the sections chosen are open, none behind a disclosure arrow", JSON.stringify(r.secs) === JSON.stringify(["find", "corr", "resid"]) && r.details === 0, JSON.stringify(r));
   check("the residuals' scatter and the outlier limit sit with the statistics, no loose text at the foot", r.side.includes("Residual scatter, s") && r.side.includes("Outlier limit") && !r.foot, JSON.stringify(r.side));
   await p.evaluate(() => { showTab("fit"); }); await p.waitForTimeout(200);
   await p.click('#pane-fit input[data-rshow="anova"]'); await p.click('#pane-fit input[data-rshow="ci"]'); await p.click('#pane-fit input[data-rshow="cov"]'); await p.waitForTimeout(200);
   await p.evaluate(() => showDrawer("res")); await p.waitForTimeout(200); r = await res();
   const rep = await p.evaluate(() => /confidence interval/.test(paramTableHtml(P().fit, true)));
-  check("switching them in the Fit window changes Results at once", JSON.stringify(r.secs) === JSON.stringify(["anova", "corr", "cov", "resid"]) && !r.th.some(t => /confidence interval/.test(t)), JSON.stringify(r));
+  check("switching them in the Fit window changes Results at once", JSON.stringify(r.secs) === JSON.stringify(["find", "anova", "corr", "cov", "resid"]) && !r.th.some(t => /confidence interval/.test(t)), JSON.stringify(r));
   check("the report keeps every column whatever Results shows", rep);
   check("kept for this browser", await p.evaluate(() => JSON.parse(localStorage.getItem("kurve.rshow")).anova === true));
   // Notes: one line, the number first, the fix at its end.
@@ -428,7 +428,7 @@ await page(async p => {
   // A peak fit: Every parameter among its switches, Remove fit with the fit's line.
   await p.evaluate(() => { S.fitMode = "peaks"; showTab("fit"); renderFit(); }); await p.waitForTimeout(300);
   r = await p.evaluate(() => { const g = document.querySelector('#pane-fit .fitshow[aria-label="In the results"]'); return { sw: g ? [...g.querySelectorAll("input[data-rshow]")].map(i => i.dataset.rshow) : null, wt: !!document.querySelector("#pane-fit .fitwt") }; });
-  check("a peak fit's switches start with Every parameter, and no weighting text in its footer", !!r.sw && r.sw[0] === "par" && r.sw.length === 6 && !r.wt, JSON.stringify(r));
+  check("a peak fit's switches start with Every parameter, and no weighting text in its footer", !!r.sw && r.sw[0] === "par" && r.sw.length === 7 && !r.wt, JSON.stringify(r));
 }, { name: "fit and results" });
 
 console.log("Slice 8: dialogs and windows as designed");

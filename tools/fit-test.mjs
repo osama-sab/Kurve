@@ -16,7 +16,7 @@ const grab = (tag) => {
 // tools/pipe-test.mjs tests the rest of it. The curve fit's models are a block of
 // their own (MODELS), after the pipeline.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("MODELS")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -913,6 +913,48 @@ check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
   check("ANOVA weighted: sums of w·y² about zero and about the weighted mean", rel(aw.utot.ss, Y.reduce((a, y, i) => a + W[i] * W[i] * y * y, 0), 1e-12) && aw.ctot.ss < aw.utot.ss);
   const C = N.corrMat(fit.cov, [0, 1]);
   check("the correlation matrix: ones on the diagonal, symmetric, the intercept and slope anticorrelated over positive x", near(C[0][0], 1, 1e-12) && near(C[1][1], 1, 1e-12) && C[0][1] === C[1][0] && C[0][1] < 0);
+}
+
+/* ---------- Find X/Y: Y at an X with its interval, every X where the curve takes a Y ---------- */
+{
+  const lin = (x, p) => p[0] + p[1] * x, p = [1.5, 0.8], C = [[0.04, -0.006], [-0.006, 0.0016]], t = 2.1;
+  const at = N.fitYAt(lin, p, C, [false, false], 3, t), v = 0.04 + 2 * 3 * -0.006 + 9 * 0.0016;
+  check("Y at an X: a straight line's value, and its error a + 2x·cov(a, b) + x²·var(b)", rel(at.y, 3.9, 1e-12) && rel(at.se, Math.sqrt(v), 1e-6), JSON.stringify(at));
+  check("Y at an X: the interval is the value ± t errors", rel(at.lo, at.y - t * at.se, 1e-12) && rel(at.hi, at.y + t * at.se, 1e-12));
+  const fx = N.fitXAt(lin, p, C, [false, false], 4.7, 0, 10, t);
+  check("X at a Y: a straight line crosses it once, at (y − a)/b", fx.xs.length === 1 && rel(fx.xs[0].x, 4, 1e-12) && !fx.xs[0].touch, JSON.stringify(fx.xs));
+  const sy = N.fitYAt(lin, p, C, [false, false], 4, t).se;
+  check("X at a Y: its error is the curve's there over the slope", rel(fx.xs[0].se, sy / 0.8, 1e-5) && rel(fx.xs[0].hi - fx.xs[0].lo, 2 * t * sy / 0.8, 1e-5));
+  // The delta method for the inverse against the spread of (y − a)/b over parameters drawn from the covariance.
+  const L11 = Math.sqrt(C[0][0]), L21 = C[1][0] / L11, L22 = Math.sqrt(C[1][1] - L21 * L21), rnd = N.mulberry32(17), gs = () => Math.sqrt(-2 * Math.log(rnd() || 1e-12)) * Math.cos(2 * Math.PI * rnd());
+  const pC = [[0.0004, -0.00006], [-0.00006, 0.000016]], l11 = Math.sqrt(pC[0][0]), l21 = pC[1][0] / l11, l22 = Math.sqrt(pC[1][1] - l21 * l21), xs = [];
+  for (let k = 0; k < 6000; k++) { const z1 = gs(), z2 = gs(), a = p[0] + l11 * z1, b = p[1] + l21 * z1 + l22 * z2; xs.push((4.7 - a) / b); }
+  const mx = xs.reduce((s, x) => s + x, 0) / xs.length, sdx = Math.sqrt(xs.reduce((s, x) => s + (x - mx) ** 2, 0) / (xs.length - 1)), fs = N.fitXAt(lin, p, pC, [false, false], 4.7, 0, 10, t).xs[0].se;
+  check("X at a Y: the error by the delta method matches the spread of the inverse over 6000 draws", rel(fs, sdx, 0.04), `${fs} against ${sdx}`);
+  void L22;
+  // A quadratic takes a value twice; a fixed parameter's covariance is not read; an unknown one gives no error.
+  const q = (x, p) => p[0] + p[1] * x + p[2] * x * x, pq = [1, -4, 1], Cq = [[0.01, 0, 0], [0, 0.01, 0], [0, 0, 0.001]];
+  const r2 = N.fitXAt(q, pq, Cq, null, -1, -0.3, 5.3, 2);
+  check("X at a Y: a parabola crosses it twice, at 2 ∓ √2, falling then rising", r2.xs.length === 2 && rel(r2.xs[0].x, 2 - Math.SQRT2, 1e-10) && rel(r2.xs[1].x, 2 + Math.SQRT2, 1e-10) && r2.xs[0].slope < 0 && r2.xs[1].slope > 0, JSON.stringify(r2.xs));
+  const top = N.fitXAt(q, pq, Cq, null, -3, -0.3, 5.3, 2);
+  check("X at a Y: the parabola's lowest point typed exactly is found once, as a touch with no error", top.xs.length === 1 && near(top.xs[0].x, 2, 1e-6) && top.xs[0].touch && top.xs[0].se == null, JSON.stringify(top.xs));
+  const no = N.fitXAt(q, pq, Cq, null, -3.5, -0.3, 5.3, 2);
+  check("X at a Y: below the curve's lowest value, none, with the range the curve takes", no.xs.length === 0 && rel(no.ymin, -3, 1e-6) && rel(no.ymax, q(5.3, pq), 1e-9), JSON.stringify(no));
+  const Cfx = [[0.01, 0, null], [0, 0.01, null], [null, null, null]];
+  check("Y at an X: a fixed parameter's unknown covariance is not read", N.fitYAt(q, pq, Cfx, [false, false, true], 1, 2).se > 0);
+  check("Y at an X: a free parameter's unknown covariance gives no error, and no interval", (r => r.se === null && r.lo === null && r.hi === null && r.y === -2)(N.fitYAt(q, pq, Cfx, null, 1, 2)));
+  // A decay never reaches its level; a Gaussian's top typed exactly; a sine many times.
+  const M = N.MODELS.expdec, pd = [0.5, 3, 1.2], nd = N.fitXAt(M.f, pd, null, null, 0.4, 0, 8, 2);
+  check("X at a Y: a decay to 0.5 never takes 0.4 on 0 to 8, and says what it takes", nd.xs.length === 0 && nd.ymin > 0.5 && rel(nd.ymax, 3.5, 1e-9), JSON.stringify(nd));
+  const d1 = N.fitXAt(M.f, pd, null, null, 2, 0, 8, 2);
+  check("X at a Y: a decay takes 2 once, at τ ln(A/(y − y0)), with no error when there is no covariance", d1.xs.length === 1 && rel(d1.xs[0].x, 1.2 * Math.log(3 / 1.5), 1e-10) && d1.xs[0].se === null, JSON.stringify(d1.xs));
+  const G = N.MODELS.gauss, pg = G.guess([0, 1, 2, 3, 4, 5, 6], [0, 0.1, 1, 3, 1, 0.1, 0]);
+  const hTop = G.f(pg[2], pg), gt = N.fitXAt(G.f, pg, null, null, hTop, 0.13, 6.07, 2);
+  check("X at a Y: a Gaussian's top typed exactly is found at its centre", gt.xs.length === 1 && near(gt.xs[0].x, pg[2], 1e-5 * 6) && gt.xs[0].touch, JSON.stringify({pg, xs: gt.xs}));
+  const sn = (x, p) => Math.sin(x), ss = N.fitXAt(sn, [], null, null, 0.5, 0, 40 * Math.PI, 2, 4000);
+  check("X at a Y: a sine over 20 periods takes 0.5 forty times, each where sin is 0.5", ss.xs.length === 40 && ss.xs.every(r => near(Math.sin(r.x), 0.5, 1e-9)));
+  check("X at a Y: nothing typed, or no range, gives none", N.fitXAt(lin, p, C, null, NaN, 0, 1, 2).xs.length === 0 && N.fitXAt(lin, p, C, null, 2, 1, 1, 2).xs.length === 0);
+  check("Y at an X where the curve has no value: none", N.fitYAt((x) => Math.log(x), [], null, null, -1, 2) === null);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

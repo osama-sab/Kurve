@@ -1856,6 +1856,14 @@ table.rtab{font-variant-numeric:tabular-nums}
 .rtab td.l .pmean{color:var(--muted);margin-left:var(--sp-2)}
 .rtab tr.rgrp td{padding-top:var(--sp-4);color:var(--muted);font-size:var(--fs-cap);font-weight:600;text-transform:uppercase;letter-spacing:.04em;border-bottom:0;text-align:left}
 .rsec{margin-top:var(--sp-6)}
+.fxy{display:grid;grid-template-columns:max-content 9em minmax(0,1fr);gap:var(--sp-3) var(--sp-4);align-items:baseline;margin-bottom:var(--sp-4)}
+.fxy>label{font-size:var(--fs-body);color:var(--ink-2)}
+.fxy>input{width:100%;font-family:var(--mono)}
+.fxy>output{font-size:var(--fs-body);min-width:0;overflow-wrap:anywhere}
+.fxy .fxv{font-family:var(--mono);white-space:nowrap}
+.fxy .fxv~.lab,.fxy .fxv~.rbad{margin-left:var(--sp-3)}
+.fxl{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-1)}
+@container (max-width: 420px){ .fxy{grid-template-columns:max-content minmax(0,1fr)} .fxy>output{grid-column:1/-1;margin-top:calc(var(--sp-2) * -1)} }
 .rsec>h4{font:600 var(--fs-body)/1.3 var(--sans);color:var(--ink);margin:0 0 var(--sp-3)}
 /* Detected import settings: the value is tinted instead of spelled out. */
 .grid2 select.det,.grid2 input.det{border-color:var(--ok);background-color:var(--ok-bg)}
@@ -5199,6 +5207,60 @@ function derivedWithErr(model,p,cov){
   return (model.derived||[]).map(d=>{ const h=p.map(v=>Math.max(Math.abs(v)*1e-6,1e-10));
     const g=p.map((v,i)=>{ const a=p.slice(), b=p.slice(); a[i]+=h[i]; b[i]-=h[i]; return (d.fn(a)-d.fn(b))/(2*h[i]); });
     return {name:d.name, v:(d.exact||d.fn)(p), e:Math.sqrt(deltaVar(g,cov))}; });
+}
+/* Find X/Y (FIT_SPEC slice 5). The curve's Y at an X, with its standard error by the delta
+   method (the confidence band's at that X) and its interval at t; null where the curve has no
+   value. The error is null when a parameter the curve moves with has no known covariance. */
+function fitYAt(f,p,cov,fixed,x,t){
+  const y=f(x,p); if(!Number.isFinite(y)) return null;
+  let se=null;
+  if(Array.isArray(cov)&&cov.length===p.length){ const g=gradient(f,x,p,fixed); let s=0, ok=true;
+    for(let i=0;i<g.length&&ok;i++){ if(g[i]===0) continue; if(!Number.isFinite(g[i])){ ok=false; break; }
+      for(let j=0;j<g.length;j++){ if(g[j]===0) continue; const c=cov[i]&&cov[i][j]; if(!Number.isFinite(c)||!Number.isFinite(g[j])){ ok=false; break; } s+=g[i]*c*g[j]; } }
+    if(ok&&Number.isFinite(s)) se=Math.sqrt(Math.max(s,0)); }
+  const ci=se!=null&&t>0;
+  return {x,y,se,lo:ci?y-t*se:null,hi:ci?y+t*se:null};
+}
+/* Every X between a and b where the curve takes the value y: a grid of n steps finds where it
+   crosses, bisection refines each crossing, and a touch without a crossing (the top of a peak
+   typed exactly) is found by narrowing on the nearest approach. A crossing's standard error is
+   the curve's there over its slope (the delta method for the inverse) and its interval is at t;
+   a touch has none (the inverse has no slope there). Also the lowest and highest values the
+   curve takes in the range, for saying why a value is not reached. At most 100 are kept. */
+function fitXAt(f,p,cov,fixed,y,a,b,t,n){
+  const res={xs:[],ymin:NaN,ymax:NaN,more:false};
+  if(!(b>a)||!Number.isFinite(y)||!Number.isFinite(a)||!Number.isFinite(b)) return res;
+  n=Math.max(16,Math.min(20000,n||800));
+  const g=x=>{ const v=f(x,p); return Number.isFinite(v)?v-y:NaN; };
+  const X=[], G=[]; let lo=Infinity, hi=-Infinity;
+  for(let k=0;k<=n;k++){ const x=k===n?b:a+(b-a)*k/n, v=g(x); X.push(x); G.push(v); if(Number.isFinite(v)){ if(v+y<lo) lo=v+y; if(v+y>hi) hi=v+y; } }
+  if(lo>hi) return res;
+  // The lowest and highest values, narrowed from the grid's (a top between two samples).
+  const ext=s=>{ let k=-1, best=-s*Infinity; G.forEach((v,i)=>{ if(Number.isFinite(v)&&s*v>s*best){ best=v; k=i; } });
+    if(k<=0||k>=n) return best+y; let l=X[k-1], h=X[k+1];
+    for(let it=0;it<150;it++){ const m1=l+(h-l)*0.381966, m2=l+(h-l)*0.618034, g1=s*g(m1), g2=s*g(m2); if(!(g1<=g2)) h=m2; else l=m1; }
+    const v=g((l+h)/2); return (Number.isFinite(v)&&s*v>s*best?v:best)+y; };
+  res.ymin=Math.min(lo,ext(-1)); res.ymax=Math.max(hi,ext(1)); lo=res.ymin; hi=res.ymax;
+  const tolY=Math.max(Math.abs(lo),Math.abs(hi),Math.abs(y))*1e-9, sameSign=(u,v)=>(u<0)===(v<0), roots=[];
+  for(let k=0;k<=n;k++){ const v=G[k]; if(!Number.isFinite(v)) continue;
+    if(v===0){ roots.push({x:X[k],touch:false}); continue; }
+    if(k<n){ const w=G[k+1];
+      if(Number.isFinite(w)&&w!==0&&!sameSign(v,w)){ let l=X[k], h=X[k+1], gl=v;
+        for(let it=0;it<200&&h-l>Math.max(Math.abs(l),Math.abs(h))*4e-16;it++){ const m=(l+h)/2, gm=g(m); if(!Number.isFinite(gm)) break; if(gm===0){ l=h=m; break; } if(sameSign(gm,gl)){ l=m; gl=gm; } else h=m; }
+        roots.push({x:(l+h)/2,touch:false}); } }
+    if(k>0&&k<n){ const u=G[k-1], w=G[k+1];
+      if(Number.isFinite(u)&&Number.isFinite(w)&&u!==0&&w!==0&&sameSign(u,v)&&sameSign(w,v)&&Math.abs(v)<=Math.abs(u)&&Math.abs(v)<=Math.abs(w)){
+        let l=X[k-1], h=X[k+1];
+        for(let it=0;it<150;it++){ const m1=l+(h-l)*0.381966, m2=l+(h-l)*0.618034, g1=Math.abs(g(m1)), g2=Math.abs(g(m2)); if(!(g1>=g2)) h=m2; else l=m1; }
+        const xm=(l+h)/2, gm=g(xm); if(Number.isFinite(gm)&&Math.abs(gm)<=tolY) roots.push({x:xm,touch:true}); } } }
+  roots.sort((r,s)=>r.x-s.x);
+  const near=(b-a)*1e-9, list=[];
+  roots.forEach(r=>{ const q=list[list.length-1]; if(q&&r.x-q.x<=near){ q.touch=q.touch&&r.touch; return; } list.push(r); });
+  res.more=list.length>100;
+  res.xs=list.slice(0,100).map(r=>{ const x=r.x, yv=fitYAt(f,p,cov,fixed,x,t), h=Math.max((b-a)*1e-7,Math.abs(x)*1e-9);
+    const s=(g(x+h)-g(x-h))/(2*h), ok=!r.touch&&Number.isFinite(s)&&s!==0&&yv&&yv.se!=null, se=ok?yv.se/Math.abs(s):null, ci=se!=null&&t>0;
+    return {x,se,lo:ci?x-t*se:null,hi:ci?x+t*se:null,slope:Number.isFinite(s)?s:null,touch:r.touch}; });
+  return res;
 }
 /* ==MODELS:END== */
 
@@ -14813,6 +14875,93 @@ function diagHtml(f){
     h+=`</section>`; }
   return h;
 }
+/* Find X/Y (FIT_SPEC slice 5), a section of Results: the fit's curve read at an X typed (Y with
+   its interval, the confidence band's there) or at a Y typed (every X in the fit's range where
+   the curve takes it), answered as it is typed; and a column of the sheet read the same way
+   into new columns (findFill). What is typed is kept while Results is redrawn (S.findXY). */
+function findSpan(f){ const r=f&&Array.isArray(f.range)&&f.range.length===2&&f.range.every(Number.isFinite)?f.range:usedRange(fitPts(f)); return r?[Math.min(r[0],r[1]),Math.max(r[0],r[1])]:null; }
+function findCtx(f){ const FM=fitModel(f); if(!FM||!Array.isArray(f.params)) return null;
+  return {f:FM.f, p:f.params, cov:Array.isArray(f.cov)?f.cov:null, fixed:f.fixed||null, t:tCrit(confOf(f),f.stats?ciDof(f):30), span:findSpan(f), name:FM.name}; }
+const findState=()=>S.findXY||(S.findXY={x:"",y:""});
+// An interval's ends to the decimals fmtPM gives the value beside them.
+const fmtAt=(v,e)=>{ const a=Math.max(Math.abs(v),e||0); if(!(e>0)||!Number.isFinite(e)||a>=1e6||a<1e-4) return fmt(v,5); const d=Math.max(0,1-Math.floor(Math.log10(e))); return d>12?fmt(v,6):v.toFixed(d); };
+function findYOut(f,txt){
+  if(!String(txt).trim()) return `<span class="lab">Type an X</span>`;
+  const x=parseNum(txt); if(x==null) return `<span class="rbad">Not a number</span>`;
+  const c=findCtx(f), r=c&&fitYAt(c.f,c.p,c.cov,c.fixed,x,c.t), yu=fitUnits(f)[1];
+  if(!r) return `<span class="rbad">The curve has no value at x = ${esc(fmt(x,6))}</span>`;
+  const out=c.span&&(x<c.span[0]||x>c.span[1]);
+  return `<span class="fxv">y = ${fmtPM(r.y,r.se)}${yu?` ${esc(yu)}`:""}</span>${r.lo!=null?` <span class="lab nw">${confPct(confOf(f))}%: ${esc(fmtAt(r.lo,r.se))} to ${esc(fmtAt(r.hi,r.se))}</span>`:""}${out?` <span class="rbad nw" title="The fit's points run from ${esc(fmt(c.span[0],6))} to ${esc(fmt(c.span[1],6))}: past them the curve is extrapolated">outside the fitted range</span>`:""}`;
+}
+function findXOut(f,txt){
+  if(!String(txt).trim()) return `<span class="lab">Type a Y</span>`;
+  const y=parseNum(txt); if(y==null) return `<span class="rbad">Not a number</span>`;
+  const c=findCtx(f); if(!c||!c.span) return `<span class="rbad">The fit has no range of X</span>`;
+  const r=fitXAt(c.f,c.p,c.cov,c.fixed,y,c.span[0],c.span[1],c.t,1200), xu=fitUnits(f)[0], a=fmt(c.span[0],5), b=fmt(c.span[1],5);
+  if(!r.xs.length) return `<span class="lab">Not reached between ${esc(a)} and ${esc(b)}${Number.isFinite(r.ymin)?`: the curve runs from ${esc(fmt(r.ymin,5))} to ${esc(fmt(r.ymax,5))} there`:""}</span>`;
+  const one=q=>`<li><span class="fxv">x = ${q.touch?esc(fmt(q.x,6)):fmtPM(q.x,q.se)}${xu?` ${esc(xu)}`:""}</span>${q.touch?` <span class="lab nw" title="The curve reaches this value without crossing it, so the X has no error of its own">where it only touches it</span>`:q.lo!=null?` <span class="lab nw">${confPct(confOf(f))}%: ${esc(fmtAt(q.lo,q.se))} to ${esc(fmtAt(q.hi,q.se))}</span>`:""}</li>`;
+  const k=8, xs=r.xs.slice(0,k), rest=r.xs.length-k+(r.more?1:0);
+  return `<ul class="fxl">${xs.map(one).join("")}</ul>${rest>0?`<span class="lab">and ${r.more?"more than ":""}${r.xs.length-k} more</span>`:""}`;
+}
+function findHtml(f){
+  const st=findState(), ro=S.readOnly?" disabled":"", sp=findSpan(f);
+  return `<section class="rsec" data-rd="find"><h4>Find X/Y</h4>
+  <div class="fxy">
+    <label for="fyX" title="The curve's value at this X, with its interval: the confidence band's there">Y at X</label><input type="text" id="fyX" class="num" inputmode="decimal" autocomplete="off" spellcheck="false" value="${esc(st.x)}" placeholder="${sp?esc(fmt((sp[0]+sp[1])/2,4)):"x"}"><output id="fyXo" for="fyX" aria-live="polite">${findYOut(f,st.x)}</output>
+    <label for="fxY" title="Every X in the fit's range where the curve takes this value">X at Y</label><input type="text" id="fxY" class="num" inputmode="decimal" autocomplete="off" spellcheck="false" value="${esc(st.y)}" placeholder="y"><output id="fxYo" for="fxY" aria-live="polite">${findXOut(f,st.y)}</output>
+  </div>
+  <button type="button" class="btn sm" id="rFindFill"${ro} title="Read every value of a column the same way, into new columns beside it">Fill a column…</button></section>`;
+}
+function wireFind(box,f){
+  const st=findState();
+  [["fyX","x",findYOut],["fxY","y",findXOut]].forEach(([id,k,fn])=>{ const inp=box.querySelector("#"+id), out=box.querySelector("#"+id+"o"); if(!inp||!out) return;
+    inp.oninput=()=>{ st[k]=inp.value; out.innerHTML=fn(f,inp.value); };
+    inp.onkeydown=e=>{ if(e.key==="Escape"&&inp.value){ e.preventDefault(); e.stopPropagation(); inp.value=""; inp.oninput(); } }; });
+  const b=box.querySelector("#rFindFill"); if(b) b.onclick=()=>findFillDlg(f);
+}
+// A column of the sheet read through the fit: Y at each X, or X at each Y, into new columns beside it.
+async function findFillDlg(f){
+  const p=P(); if(!p||S.readOnly||!f) return; const c0=findCtx(f); if(!c0){ toast("This fit's model cannot be read."); return; }
+  const cols=sheetCols().filter(c=>Array.isArray(c.data)&&c.data.some(v=>v!=null&&Number.isFinite(v)));
+  if(!cols.length){ toast("The sheet shown has no column of values to read."); return; }
+  const fc=colById(f.onCol), fx=fc&&xColFor(fc), sel=wsSelColIds().find(id=>cols.some(c=>c.id===id));
+  const def=sel||(fx&&cols.some(c=>c.id===fx.id)?fx.id:cols[0].id), pct=confPct(confOf(f));
+  const r=await formDlg({title:"Find X/Y in a column", ok:"Fill", focus:"#ffFrom", html:`
+    <div class="frow"><label for="ffWhat">Find</label><select id="ffWhat"><option value="y">Y at each X</option><option value="x">X at each Y</option></select></div>
+    <div class="frow"><label for="ffFrom">From</label><select id="ffFrom">${cols.map(c=>`<option value="${esc(c.id)}"${c.id===def?" selected":""}>Column ${esc(colLetter(c))}${c.name?` · ${esc(c.name)}`:""}</option>`).join("")}</select></div>
+    <div class="frow" id="ffManyR" hidden><label for="ffMany" class="tipd" title="Where the curve takes a value more than once in the fit's range">More than one X</label><select id="ffMany"><option value="lo">The lowest</option><option value="hi">The highest</option></select></div>
+    <label class="chk"><input type="checkbox" id="ffErr" checked> Standard error</label>
+    <label class="chk"><input type="checkbox" id="ffCi"> ${pct}% interval</label>`,
+    valid:v=>{ const rw=$("#ffManyR"); if(rw) rw.hidden=v.ffWhat!=="x"; return !!v.ffFrom; }});
+  if(!r) return; findFill(f,{what:r.ffWhat==="x"?"x":"y", from:r.ffFrom, many:r.ffMany==="hi"?"hi":"lo", err:!!r.ffErr, ci:!!r.ffCi});
+}
+function findFill(f,o){
+  const p=P(), src=colById(o.from), c=findCtx(f); if(!p||S.readOnly||!src||!c) return;
+  if(o.what==="x"&&!c.span){ toast("The fit has no range of X to search."); return; }
+  const n=src.data.length, V=[], E=[], LO=[], HI=[]; let none=0, many=0, nv=0;
+  for(let i=0;i<n;i++){ const v=src.data[i]; let q=null;
+    if(v!=null&&Number.isFinite(v)){ nv++;
+      if(o.what==="y") q=fitYAt(c.f,c.p,c.cov,c.fixed,v,c.t);
+      else { const rr=fitXAt(c.f,c.p,c.cov,c.fixed,v,c.span[0],c.span[1],c.t,400); if(rr.xs.length>1) many++; q=rr.xs.length?rr.xs[o.many==="hi"?rr.xs.length-1:0]:null; }
+      if(!q) none++; }
+    V.push(q?(o.what==="y"?q.y:q.x):null); E.push(q&&q.se!=null?q.se:null); LO.push(q&&q.lo!=null?q.lo:null); HI.push(q&&q.hi!=null?q.hi:null); }
+  if(!nv) return;
+  const [xu,yu]=fitUnits(f), fd=finalOf(colById(f.onCol)||src), unit=o.what==="y"?yu:xu, nm=o.what==="y"?(fd.yn||"Y"):(fd.xn||"X"), L=colLetter(src), pct=confPct(confOf(f));
+  const what=`${o.what==="y"?"Y":"X"} from the ${lcFirst(c.name)} fit at the values of column ${L}`;
+  pushUndo("finding X/Y in a column");
+  const mk=(name,u,data)=>Object.assign(makeCol("ignore",name,u,data),{sheet:sheetOf(src),comm:what});
+  const news=[mk(`${nm} from the fit`,unit,V)];
+  if(o.err) news.push(mk("Standard error",unit,E));
+  if(o.ci){ news.push(mk(`Lower ${pct}%`,unit,LO)); news.push(mk(`Upper ${pct}%`,unit,HI)); }
+  news.forEach(nc=>trimTail(nc.data));
+  p.cols.splice(p.cols.indexOf(src)+1,0,...news); migrate(p);
+  const Ls=news.map(nc=>colLetter(colById(nc.id)||nc)), rng=Ls.length>1?`${Ls[0]} to ${Ls[Ls.length-1]}`:Ls[0];
+  const raw=recordRaw(`filled column${news.length>1?"s":""} ${rng} with ${what}`);
+  save(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),`filled column${news.length>1?"s":""} ${rng} with ${what}`); S.sheet="raw";
+  sheetForward(); renderAll();
+  const ci=sheetCols().findIndex(x=>x.id===news[0].id); if(S.ws&&ci>=0){ Object.assign(S.ws,{r:0,c:ci+news.length-1,ar:0,ac:ci,want:null,win:null}); wsEnsureVisible(0,ci); wsPaintSel(); }
+  toast(`Filled column${news.length>1?"s":""} ${rng} with ${o.what==="y"?"Y":"X"} from the fit${none?`; ${none} value${none===1?"":"s"} ${o.what==="y"?"where the curve has no value":"not reached"}, left empty`:""}${many?`; ${many} reached more than once, the ${o.many==="hi"?"highest":"lowest"} X kept`:""}.`,{action:"Undo",run:undo});
+}
 // The residuals' own figures, for the statistics beside the table.
 function diagStats(f){ if(f.xerr||!rShow().resid||!winOpen("res")) return []; const D=resDiag(f); if(!D) return [];
   return [["Residual scatter, s",fmtOr(D.s,4)],["Outlier limit",Number.isFinite(D.out.lim)?"±"+fmt(D.out.lim,4):"too few points"]]; }
@@ -14862,8 +15011,8 @@ function fitResidHtml(peaks){ const p=P(), on=!!p&&residOn(GP(),activeFit()||res
    two matrices and the residual analysis, and for a peak fit every parameter.
    Results shows what is chosen open; the report and the copied table carry all
    of it. Kept per browser (kurve.rshow). */
-const RSHOW_DEF={ci:true,anova:false,corr:true,cov:false,resid:true,par:false};
-const RSHOW=[["ci","Confidence intervals"],["anova","Analysis of variance"],["corr","Correlation matrix"],["cov","Covariance matrix"],["resid","Residual analysis"]];
+const RSHOW_DEF={ci:true,anova:false,corr:true,cov:false,resid:true,find:true,par:false};
+const RSHOW=[["ci","Confidence intervals"],["anova","Analysis of variance"],["corr","Correlation matrix"],["cov","Covariance matrix"],["resid","Residual analysis"],["find","Find X/Y"]];
 function rShow(){ if(!S.rShow){ let o=null; try{ o=JSON.parse(localStorage.getItem("kurve.rshow")||"null"); }catch(e){}
     S.rShow={}; for(const k in RSHOW_DEF) S.rShow[k]=o&&typeof o==="object"&&typeof o[k]==="boolean"?o[k]:RSHOW_DEF[k]; }
   return S.rShow; }
@@ -15989,11 +16138,14 @@ function renderResults(){
     h+=`</tbody></table>`;
     if(rShow().par) h+=`<section class="rsec" data-rd="par"><h4>Every parameter</h4>${paramTableHtml(f)}</section>`;
   } else h+=paramTableHtml(f);
+  if(rShow().find) h+=findHtml(f);
   h+=diagHtml(f);
   h+=`</div><div class="rside"><dl class="kv">${statsList(f).concat(diagStats(f)).map(([k,v])=>{ const t=k==="Fit control"?ctlShort(f):String(v); return `<dt>${esc(k)}</dt><dd${t.length>18?' class="w"':""}>${t.split(" · ").map(x=>`<span class="nw">${esc(x)}</span>`).join(" · ")}</dd>`; }).join("")}</dl></div></div>`;
+  const fa=document.activeElement, keep=fa&&fa.id&&box.contains(fa)&&fa.tagName==="INPUT"?{id:fa.id,s:fa.selectionStart,e:fa.selectionEnd}:null;
   box.innerHTML=h;
+  if(keep){ const el=document.getElementById(keep.id); if(el){ el.focus({preventScroll:true}); try{ el.setSelectionRange(keep.s,keep.e); }catch(e){} } }
   const by=$("#fitBy"); if(by) by.textContent=f.by?`Fitted by ${nameOf(f.by)}, ${ago(f.at)}`:`Fitted ${ago(f.at)}`;
-  $("#rCopy").onclick=copyResults; $("#rReport").onclick=exportReport; $("#rCsv").onclick=exportCsv; wireDiag(box,f);
+  $("#rCopy").onclick=copyResults; $("#rReport").onclick=exportReport; $("#rCsv").onclick=exportCsv; wireDiag(box,f); wireFind(box,f);
   $("#discussFit").onclick=()=>{ S.anchor={type:"fit",model:FM.composite?"peaks":f.model}; showDrawer("disc"); renderAnchor(); $("#cText").focus(); };
   box.querySelectorAll("[data-prow]").forEach(tr=>tr.onclick=()=>{ const k=+tr.dataset.prow;
     S.selPeak=S.selPeak===k?null:k; if(S.fitMode!=="peaks") S.fitMode="peaks"; renderFit(); renderPlot();
@@ -19903,14 +20055,18 @@ ${DL([["Equal","The same value."],["A multiple","For areas: the 2 to 1 of a spin
 <p>Each has a start (empty: guessed from its name, such as <code>y0</code> a baseline, <code>A</code> a height, <code>xc</code> the position of the largest point, <code>w</code> a tenth of the range), optional lower and upper limits, and a unit. A preview draws the function at its starts over the data as you type, and a mistake is named with its line.</p>
 <h2>Keeping them</h2>
 <p>A function belongs to the project and, if you choose, to this browser's library for later projects. A fit keeps a copy of the function it used, so editing the function never changes a result already made; the report and the CSV state the formula and its limits.</p>`},
-{id:"results", g:"Fitting", t:"Reading the results", win:"res", kw:"results parameters value standard error derived in the results sections t p value confidence interval level dependency chi square r2 aic bic residuals warnings notes history anova analysis of variance f test sum of squares mean square covariance correlation matrix standardised studentised standardized studentized deleted leverage hat outlier outliers mask probability paper normal histogram lag",
+{id:"results", g:"Fitting", t:"Reading the results", win:"res", kw:"results parameters value standard error derived in the results sections t p value confidence interval level dependency chi square r2 aic bic residuals warnings notes history anova analysis of variance f test sum of squares mean square covariance correlation matrix standardised studentised standardized studentized deleted leverage hat outlier outliers mask probability paper normal histogram lag find x find y inverse prediction calibration curve read off value at",
  lead:"Every parameter with its uncertainty, the fit statistics, and plain notes on anything that makes the numbers less trustworthy.",
  body:`<h2>Parameters</h2>
 ${DL([["Value, Standard error","In columns of their own, as journals print them. The error is from the covariance matrix: Without weights, scaled by √(reduced χ²), as Origin does."],["t, Prob > |t|","The value over its error, and the chance of a t that large if the parameter were really zero."],["Confidence interval","Value ± t × error, t for the fit's confidence level (95% unless set in the Fit window) and its degrees of freedom."],["Dependency","Near 1, the parameter is doing the same job as others and is not independently determined. Such rows are highlighted."],["At its limit","A parameter that stopped at a bound has no meaningful standard error, and is left out of derived quantities' errors."]])}
 <p>Quantities derived from the parameters (a half-life, an area) follow under <em>Derived</em>, with their errors. A peak fit gives each peak's centre, height, FWHM and area in a table of its own; <em>Every parameter</em> under <em>In the results</em> adds the table of all its parameters.</p>
-<p>What follows the table is what the Fit window's <em>In the results</em> chose, each part open: the confidence intervals, the analysis of variance, the correlation and covariance matrices and the residual analysis. The statistics are beside the table.</p>
+<p>What follows the table is what the Fit window's <em>In the results</em> chose, each part open: the confidence intervals, Find X/Y, the analysis of variance, the correlation and covariance matrices and the residual analysis. The statistics are beside the table.</p>
 <h2>Statistics</h2>
 ${DL([["Reduced χ²","The residual sum of squares over the degrees of freedom (weighted: near 1 for a good fit)."],["R², adjusted R²","The share of the variance explained; adjusted for the number of parameters."],["AIC, BIC","For comparing models on the same data: lower is better, and more parameters must earn their place."]])}
+<h2 id="findxy">Find X/Y</h2>
+<p>The fitted curve read off at a value you type, answered as you type it.</p>
+${DL([["Y at X","The curve's value at that X, with its standard error and its interval at the fit's confidence level: the confidence band at that X, so the number and the shading agree. An X past the fit's points is answered too, and marked as outside the fitted range: the curve is extrapolated there."],["X at Y","Every X in the fit's range where the curve takes that value (a peak or a wave takes it more than once), each with its standard error, the curve's error there over its slope, and its interval. Where the curve only touches the value without crossing it (the top of a peak typed exactly) the X has no error of its own. A value the curve never takes says what it takes there instead."],["Fill a column…","Reads every value of a column of the sheet shown the same way, Y at each X or X at each Y (the lowest or the highest X where there are several), into new columns beside it: the values, and if asked their standard errors and their intervals' ends. They are data columns, recorded in the original-data record as any fill is, one undo step; a later fit does not change them. A value the curve has no answer for leaves its cell empty."]])}
+<p>${K("Esc")} in a field clears it. <em>Find X/Y</em> under <em>In the results</em> hides the section.</p>
 <h2 id="anova">Analysis of variance</h2>
 <p>As Origin's: what the model explains (the total about zero less the residual, as many degrees of freedom as free parameters), the residual, and the totals about zero and about the mean; F, the model's mean square over the residual's, with the chance of an F that large. A weighted fit's sums are of w·y², w = 1/σ².</p>
 <h2 id="cov">Correlation and covariance</h2>

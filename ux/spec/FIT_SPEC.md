@@ -24,7 +24,7 @@ Origin's help pages it was compared with: the NLFit dialog's
 | Data selection | one column, its range, its mask; every column, alone or together | none worth the work (no concatenated fit) |
 | Weights | none, or 1/σ² from the Y error column; X errors by orthogonal distance | counting (1/y), a column's values as weights, apparent fit |
 | Fitted curves | drawn with a confidence band and a prediction band at the fit's level (slice 4) | the points, the curve past the data |
-| Find X/Y | none | X for a Y and Y for an X, from the fit |
+| Find X/Y | in Results: Y at an X with its interval, every X at a Y with each one's error; a column filled either way (slice 5) | none |
 | Fit control | Levenberg–Marquardt, 400 iterations and a tolerance of 10⁻¹² fixed in `lmFit` | shown and set: method, iterations, tolerance |
 | Quantities | every parameter's value, error, t, p, CI at any level, dependency; derived values; n, dof, χ²ᵣ, R², adjusted R², RSS, AIC, BIC, iterations; ANOVA, covariance and correlation matrices (slice 4) | none |
 | Residual analysis | regular, standardised, studentised and studentised deleted residuals, under the graph and in six views in Results; outliers with Mask them; a runs test (slice 4) | none |
@@ -97,7 +97,9 @@ CLAUDE.md, the menu spec when a menu changes.
    can also show them against the fitted value, in order, as a histogram, on probability
    paper and against the one before. Outliers: points whose studentised deleted residual is
    past the t limit, listed, with "Mask them" (one undo entry).
-5. **Find X/Y.** In Results: type a Y, get every X within the fit's range where the curve
+5. **Find X/Y** (done 2026-10-29; answered as it is typed, a section of Results chosen under
+   *In the results*; a touch without a crossing found and said, with no error; a column filled
+   is data, recorded as a fill is, not following a later fit). In Results: type a Y, get every X within the fit's range where the curve
    takes it (bisection), and type an X, get Y with its confidence interval (the delta
    method); or fill a worksheet column with either, from a column of values.
 6. **The fit in the worksheet.** "Put the fit in the worksheet": columns of the fitted values

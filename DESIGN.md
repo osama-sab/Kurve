@@ -854,6 +854,29 @@ setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
 
+### 2026-10-29: Find X/Y (FIT_SPEC slice 5)
+
+Reading a fit at a value is reading it, not making it, so Find X/Y is a part of Results, beside
+the numbers it uses, rather than of the Fit window. It answers as the value is typed, as the
+Reader does on the graph, rather than behind a button: two fields, *Y at X* and *X at Y*, each
+with its answer beside it (under it in the dock). Decisions:
+
+- **Y at X is the band at that X.** The value comes with its standard error and its interval at
+  the fit's level, worked out as the confidence band is, so the number read and the shading seen
+  never disagree. An X past the fit's points is answered and said to be extrapolated, since
+  calibration curves are read just past their last standard.
+- **X at Y is every X, not the first.** A peak, a wave or a polynomial takes a value more than
+  once, and one answer would be a guess about which was meant. Each X has its error (the curve's
+  there over its slope) and its interval; where the curve only touches the value (a peak's top
+  typed exactly) the X has no error, and says so rather than showing an infinite one. A value never
+  reached says what the curve does take there, which tells the reader what to type instead.
+- **A column filled is values, recorded.** *Fill a column…* reads a column of the sheet the same
+  way into new data columns beside it, as the Fill dialog writes a series: one undo step, an
+  entry in the original-data record naming the fit and the column read. They do not follow a later
+  fit; the fitted values and residuals that do are slice 6's.
+- **In the results** has a *Find X/Y* switch, on, like the other parts: a person who never reads
+  a fit at a value can put it away.
+
 ### 2026-10-29: the design system into the app, slice 10 (two displays)
 
 The system's DetachedWindow and DisplayMenu, as DS_SPEC's decision 5 planned: the detached window

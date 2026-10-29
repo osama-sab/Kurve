@@ -1024,6 +1024,28 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Curve fit, slice 5: Find X/Y (2026-10-29)
+
+`ux/spec/FIT_SPEC.md` slice 5, the first after the design system's ten.
+- **Find X/Y** in Results, answered as it is typed: *Y at X*, the curve's value with its standard
+  error and its interval at the fit's level (the confidence band's at that X), an X past the fit's
+  points marked as outside the fitted range; *X at Y*, every X in the fit's range where the curve
+  takes the value, each with its error and interval, a touch without a crossing said (with no
+  error), a value never reached with the range the curve takes there.
+- **Fill a column…**: a column of the sheet read either way (the lowest or highest X where there
+  are several) into new data columns beside it, with their errors and intervals if asked; one undo
+  step and an entry in the original-data record.
+- *In the results* has a Find X/Y switch, on.
+
+Checked: fit-test (16 new, 321: a straight line's Y error against its closed form, X's error over
+the slope and against 6000 draws, a parabola's two crossings, its vertex as a touch, a value below
+it, a fixed parameter's unknown covariance not read, a free one's giving no error, a decay that
+never reaches a value and one it reaches once, a Gaussian's top, a sine's forty crossings), a new
+drive `tools/fit-drive.mjs` (18: the readouts against the functions, a redraw while typing,
+Escape, extrapolation, Fill a column… both ways with undo and the record, the switch, a peak fit),
+ds-test's In the results list, screenshots in the dock, dark at 1024 and at 390 px, and every
+suite from the round before.
+
 ## The design system into the app, slice 10: two displays (2026-10-29)
 
 - **Move to new window** (a window's title-bar button, Window › Move to new window, Ctrl+Shift+D)

@@ -498,6 +498,22 @@ graph first, with the taskbar kept at the bottom of the screen.
   `fitWarnings` adds `outliers`; `reportDiagHtml` and `diagText` (the copied table, the CSV
   under `# `) carry everything whatever Results shows, as does the report's parameter table
   (`paramTableHtml(f, true)`).
+  **Find X/Y** (`FIT_SPEC.md` slice 5): `fitYAt(f, p, cov, fixed, x, t)` (in MODELS: the
+  curve's Y, its standard error by the delta method as the confidence band's, `null` when a
+  parameter it moves with has no covariance, and the interval at t) and `fitXAt(f, p, cov,
+  fixed, y, a, b, t, n)` (every X in [a, b] where it takes y: a grid of n steps, bisection for
+  each crossing, a golden-section narrowing for a touch, `touch:true` and no error; each
+  crossing's error the curve's over its slope; `ymin`/`ymax` the curve's range there, narrowed
+  from the grid; at most 100, `more`). Results' section (`rShow().find`, on; `findHtml`,
+  `wireFind`): `#fyX` and `#fxY` with their `output`s written in place on input (`findYOut`,
+  `findXOut`; `fmtAt` gives an interval's ends fmtPM's decimals), what is typed kept in
+  `S.findXY`, Escape clears; `renderResults` keeps the focused field and its caret across a
+  redraw. `findCtx(f)` (the model's function, the parameters, `f.cov`, `f.fixed`, t as the band's,
+  `findSpan(f)`: the fit's `range` or its points' extent). *Fill a column…* (`#rFindFill`,
+  `findFillDlg`, `findFill(f, {what, from, many, err, ci})`): a column of the sheet shown (the
+  selected one, else the fitted column's X) read into new `ignore` columns after it on its sheet
+  (the value, its standard error, the interval's ends, each with a comment naming the fit), one
+  undo entry, a raw-data record entry, a log line, a toast saying what was left empty.
 - **Batch fits and series** (`p.batch`, `p.series`, both in `UNDO_KEYS`): the analysed
   spectrum's fit is the template (`batchTemplate`: model, peaks with shapes, ties and fixed
   parameters, baseline or curve model, X range, weighting, X units). `runBatch({tmpl, seed,
@@ -2133,6 +2149,10 @@ so either finds the article.
 `node tools/ds-test.mjs [path]` (Playwright) checks what each slice of the design system
 (`ux/spec/DS_SPEC.md`) changed: the taskbar, the dock's strip, the tooltips, the absent
 identifiers, the real superscripts, the fields' widths; run it after touching the frame.
+`node tools/fit-drive.mjs [path]` (Playwright) clicks and types into what each slice of the
+curve fit (`ux/spec/FIT_SPEC.md`) from slice 5 on added (Find X/Y: the readouts against the
+functions, a redraw while typing, Fill a column… both ways, undo); run it after touching the Fit
+window or Results.
 `node tools/fit-test.mjs`, `node tools/pipe-test.mjs`, `node tools/parser-test.mjs` and
 `node tools/tex-test.mjs` cover the numerics, the processing steps with their checks and the
 fingerprint, the parser, and the LaTeX typesetter (nesting, italics, spacing, fractions, roots,
@@ -3006,7 +3026,11 @@ model cannot take refused in words. Slice 4 done: a confidence level for every f
 correlation and covariance of the parameters; residuals regular, standardised, studentised and
 studentised deleted, under the graph and in six views in Results; outliers past a Bonferroni
 limit, ringed, listed and masked in one step; all of it in the report, the copied table and the
-CSV.
+CSV. Slice 5 done (after the design system's ten slices): Find X/Y in Results, answered as it is
+typed: the curve's Y at an X with its error and interval (the confidence band's there), every X
+in the fit's range where it takes a Y with each one's error, a touch without a crossing said, a
+value never reached with what the curve takes there; and a column of the sheet read either way
+into new columns beside it, recorded as a fill is.
 
 Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
 graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
@@ -3320,7 +3344,7 @@ Next, in order:
    1 Iteration button and the iterations listed; one parameter grid with limits for every
    model; about 25 more models, searchable, each with a sketch; a confidence level, ANOVA,
    the covariance and correlation matrices, studentised residuals, residual plots and
-   outliers; Find X/Y; the fitted values and residuals in the worksheet; counting and
+   outliers; Find X/Y (done); the fitted values and residuals in the worksheet; counting and
    column weights, an apparent fit; starting values and constraints as formulas; fit
    settings saved by name, and fits that follow their data; the function editor grown, and
    an organizer. In the docked Fit window, in Kurve's words, running no code
@@ -3494,6 +3518,11 @@ Next, in order:
   guesses are measured heuristics (two or three decays from a grid of 16 decay times, a wave's
   period from at most 600 points), and a sketch shows typical values, not the data's; your
   functions have no kind of their own in the list yet
+- Find X/Y: the curve is searched on a grid of 1200 steps over the fit's range (400 for a column
+  filled), so two crossings closer than a step are found only if the curve dips across; a touch
+  counts only when typed to nine digits of the curve; X is searched within the fit's range only
+  (Y is read anywhere); the errors are the delta method's, first order, and a touch has none; a
+  column filled keeps its values when the fit changes; the values typed are not in the report
 - Residual analysis: the leverage is from the Jacobian, so a curve's studentised deleted
   residuals are the first-order answer (exact for a model linear in its parameters); a fit
   with the X errors has none; the panel under the graph shows residuals against X only (the
