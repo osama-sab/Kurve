@@ -28,7 +28,7 @@ Origin's help pages it was compared with: the NLFit dialog's
 | Fit control | Levenberg–Marquardt, 400 iterations and a tolerance of 10⁻¹² fixed in `lmFit` | shown and set: method, iterations, tolerance |
 | Quantities | every parameter's value, error, t, p, CI at any level, dependency; derived values; n, dof, χ²ᵣ, R², adjusted R², RSS, AIC, BIC, iterations; ANOVA, covariance and correlation matrices (slice 4) | none |
 | Residual analysis | regular, standardised, studentised and studentised deleted residuals, under the graph and in six views in Results; outliers with Mask them; a runs test (slice 4) | none |
-| Output | Results, copied table, report, CSV, fit history | fitted values and residuals as worksheet columns |
+| Output | Results, copied table, report, CSV, fit history; the fitted values and residuals as computed worksheet columns (slice 6) | none |
 | Code tab | none (Kurve runs no code) | starting values and constraints as formulas |
 | Parameters tab | one grid: name, unit, meaning, start, Fix, limits, fitted ± error, 95 % interval, dependency, digits (slice 2) | share in the grid |
 | Bounds tab | limits for every model, < or ≤, over a function's own (slice 2) | none |
@@ -102,7 +102,8 @@ CLAUDE.md, the menu spec when a menu changes.
    is data, recorded as a fill is, not following a later fit). In Results: type a Y, get every X within the fit's range where the curve
    takes it (bisection), and type an X, get Y with its confidence interval (the delta
    method); or fill a worksheet column with either, from a column of values.
-6. **The fit in the worksheet.** "Put the fit in the worksheet": columns of the fitted values
+6. **The fit in the worksheet** (done 2026-10-29; the columns are formulas of their own,
+   `fit(B)` and `resid(B)`, typed like any; once per column; a masked point's residual kept). "Put the fit in the worksheet": columns of the fitted values
    and the residuals beside the column fitted, computed, not recorded (out of `rawCols` and
    the fingerprint, as formula columns are), written again by a new fit and marked out of date
    with it.

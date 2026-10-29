@@ -854,6 +854,27 @@ setup compared with Origin's, and a plan to close the gap (`ux/spec/PLOT_SPEC.md
 which axis, which columns are the errors, curves on the graph, groups). Large data drawn as the
 screen can show it, and what every frame asked again worked out once.
 
+### 2026-10-29: the fit in the worksheet (FIT_SPEC slice 6)
+
+Origin writes a fit's fitted values and residuals into a sheet of their own; Kurve puts them
+beside the column fitted, where the data they describe are, as two columns the worksheet
+computes. Decisions:
+
+- **Computed, not recorded.** They are formula columns with a formula of their own,
+  `fit(B)` and `resid(B)`, shown in their F(x)= rows: out of the original data and its check
+  code, never typed over, and a person reading the sheet sees where they come from. The formula
+  can be typed into any column too; it is a whole formula (`fit(B)*2` is refused in words),
+  because a fit is not a function of a row's value and pretending otherwise would mislead.
+- **They follow the fit.** A new fit of the column writes them again (a save that carries a
+  fit or a batch fit recalculates them); a fit removed empties them, with the reason in the
+  header; while the fit is out of date (the data, the processing or the mask changed since)
+  their *fx* mark turns to the warning colour and says so, as the notes say it of the fit.
+- **Once per column.** Asked again, the worksheet shows the two it has rather than making
+  another pair: two copies of one fit's values would only drift apart.
+- **In each point's row**, at the points in the fit's range: a residual beside the value it
+  belongs to, a masked point's included (its residual is what shows why it was masked). A
+  column made from another has no rows of its own, and the CSV export gives its fit instead.
+
 ### 2026-10-29: Find X/Y (FIT_SPEC slice 5)
 
 Reading a fit at a value is reading it, not making it, so Find X/Y is a part of Results, beside

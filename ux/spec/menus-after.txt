@@ -159,6 +159,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
     New function…  ## ~ "New fit function…"
     Fit  [Ctrl+Enter]  ## ~ "Run the fit"
     Fit every column…  ## ~ "Fit every spectrum…"; ↓ until there are two columns or more
+    Put the fit in the worksheet  ## new (FIT_SPEC slice 6)
     Show residuals  ## ~ "Residuals under the graph"; + the Graph menu's
     Confidence band  ## ~ "Confidence band, shaded"; ← the Graph menu
     Prediction band  ## ~ "Prediction band, dashed"; ← the Graph menu

@@ -127,6 +127,59 @@ await page(async p => {
   check("a peak fit's curve is read too", r.kind === "composite" && /^y = /.test(r.o || ""), JSON.stringify(r));
 }, { name: "find X/Y" });
 
+console.log("Slice 6: the fit in the worksheet");
+await page(async p => {
+  await decayFit(p);
+  const before = await p.evaluate(() => ({ fp: rawFp(), rec: (P().raw.hist || []).length, n: P().cols.length, y: activeFit().onCol }));
+  await p.click("#rToWs"); await p.waitForTimeout(400);
+  let r = await p.evaluate(y => { const p = P(), i = p.cols.findIndex(c => c.id === y), nc = p.cols.filter(c => c.fx && c.fx.fit), yc = colById(y), f = activeFit(), FM = fitModel(f), d = finalOf(yc);
+    const row = k => d.idx[k], fv = nc[0].data, rv = nc[1].data;
+    let ok = true; for (let k = 0; k < d.x.length; k++) { const v = FM.f(d.x[k], f.params); if (Math.abs(fv[row(k)] - v) > Math.abs(v) * 1e-12 || Math.abs(rv[row(k)] - (d.y[k] - v)) > 1e-9 * Math.abs(v)) ok = false; }
+    return { names: nc.map(c => c.name), kinds: nc.map(c => c.fx.fit), shown: nc.map(c => fxShow(c)), after: p.cols.slice(i + 1, i + 4).map(c => c.role + (c.fx ? ":" + c.fx.fit : "")), ok, fp: rawFp(), rec: (p.raw.hist || []).length, n: p.cols.length,
+      raw: rawCols().some(c => c.fx), ws: winOpen("sheet"), sel: S.ws && [S.ws.ac, S.ws.c], idx: [sheetCols().indexOf(colById(nc[0].id)), sheetCols().indexOf(colById(nc[1].id))], toast: $("#toastMsg").textContent }; }, before.y);
+  check("To worksheet: Fitted values and Residuals beside the column fitted, after its error bars", JSON.stringify(r.names) === JSON.stringify(["Fitted values", "Residuals"]) && JSON.stringify(r.after) === JSON.stringify(["e", "ignore:fit", "ignore:resid"]), JSON.stringify(r));
+  check("their F(x)= rows say fit(B) and resid(B)", JSON.stringify(r.shown) === JSON.stringify(["fit(B)", "resid(B)"]), JSON.stringify(r.shown));
+  check("their values are the fit's at each point, and y less it", r.ok);
+  check("computed, not recorded: the check code and the record are as they were", r.fp === before.fp && r.rec === before.rec && !r.raw, JSON.stringify(r));
+  check("the worksheet comes forward with the two selected, a toast says what they are", r.ws && r.sel && r.sel[0] === r.idx[0] && r.sel[1] === r.idx[1] && /written again by each new fit/.test(r.toast), JSON.stringify(r));
+  // Asked again: no second pair.
+  await p.evaluate(() => fitToSheet(activeFit())); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ n: P().cols.filter(c => c.fx && c.fx.fit).length, toast: $("#toastMsg").textContent }));
+  check("asked again, the worksheet shows the two it has", r.n === 2 && /already/.test(r.toast), JSON.stringify(r));
+  // A new fit writes them again; stored, they are the new fit's.
+  await p.evaluate(() => { const d = ensureDraft(); d.init = d.init.slice(); d.init[0] = 0; d.fixed = d.fixed.slice(); d.fixed[0] = true; runFit(); }); await p.waitForTimeout(600);
+  r = await p.evaluate(() => { const f = activeFit(), FM = fitModel(f), c = P().cols.find(c => c.fx && c.fx.fit === "fit"), d = finalOf(colById(f.onCol)), k = 5;
+    const st = JSON.parse(localStorage.getItem("kurve.p." + S.pid) || "null"), sc = st && st.cols.find(o => o.id === c.id);
+    return { fixed0: f.fixed[0], v: c.data[d.idx[k]], want: FM.f(d.x[k], f.params), stored: sc && sc.data[d.idx[k]] }; });
+  check("a new fit writes them again, and that is what is stored", r.fixed0 && Math.abs(r.v - r.want) <= Math.abs(r.want) * 1e-12 && r.stored === r.v, JSON.stringify(r));
+  // Masking a point puts the fit out of date, and the columns with it.
+  await p.evaluate(() => { const c = activeYCol(), m = (c.mask || []).concat([3]); pushUndo("mask"); c.mask = m; save({ cols: P().cols }); renderAll(); }); await p.waitForTimeout(300);
+  r = await p.evaluate(() => { const ths = [...document.querySelectorAll("#ws th.ch .fxm")]; return ths.map(e => e.className + "|" + e.title); });
+  check("a point masked since: the fx marks say Out of date", r.filter(t => /fxm old/.test(t) && /Out of date/.test(t)).length === 2, JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(200);
+  // A formula typed: resid(B) is the residuals; fit(B)*2 is refused in words.
+  r = await p.evaluate(() => { const n = sheetCols().length; setColFormula(n, "resid(B)"); const c = sheetCols()[n]; return { kind: c && c.fx && c.fx.fit, vals: c ? c.data.filter(v => v != null).length : 0, same: c && JSON.stringify(c.data) === JSON.stringify(P().cols.find(o => o.fx && o.fx.fit === "resid" && o.id !== c.id).data) }; });
+  check("resid(B) typed into an F(x)= row gives the residuals", r.kind === "resid" && r.vals > 10 && r.same, JSON.stringify(r));
+  r = await p.evaluate(() => { const n = sheetCols().length; setColFormula(n, "fit(B)*2"); return { n2: sheetCols().length - n, toast: $("#toastMsg").textContent }; });
+  check("fit(B)*2 is refused: fit(B) is a whole formula", r.n2 === 0 && /whole formula/.test(r.toast), JSON.stringify(r));
+  r = await p.evaluate(() => { const n = sheetCols().length; setColFormula(n, "fit(A)"); return { n2: sheetCols().length - n, toast: $("#toastMsg").textContent }; });
+  check("fit(A) of an X column is refused in words", r.n2 === 0 && /not a Y column/.test(r.toast), JSON.stringify(r));
+  // The menus have it.
+  r = await p.evaluate(() => { const fit = (menuItems("analyze").find(i => i && i.label === "Fit") || {}).sub, items = typeof fit === "function" ? fit() : fit || []; return items.filter(Boolean).map(i => i.label).filter(Boolean); });
+  check("Analyze › Fit has Put the fit in the worksheet", r.includes("Put the fit in the worksheet"), JSON.stringify(r));
+  // Removing the fit empties them, and says why.
+  await p.evaluate(() => removeFit()); await p.waitForTimeout(300);
+  r = await p.evaluate(() => P().cols.filter(c => c.fx && c.fx.fit).map(c => [c.data.length, FX_ERR.get(c.id) || ""]));
+  check("with the fit removed they are empty, and say the column has no fit", r.length === 3 && r.every(([n, e]) => n === 0 && /has no fit yet/.test(e)), JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  check("undo brings the fit and the values back", await p.evaluate(() => P().cols.filter(c => c.fx && c.fx.fit).every(c => c.data.length > 10)));
+  // A reload keeps them, as computed columns.
+  const ids = await p.evaluate(() => P().cols.filter(c => c.fx && c.fx.fit).map(c => c.id));
+  await p.reload(); await ready(p);
+  r = await p.evaluate(ids => ids.map(id => { const c = colById(id); return c ? [c.fx && c.fx.fit, c.data.filter(v => v != null).length, rawVerified()] : null; }), ids);
+  check("after a reload they are there, computed, and the check code holds", r.every(x => x && x[0] && x[1] > 10 && x[2]), JSON.stringify(r));
+}, { name: "fit in the worksheet" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

@@ -352,6 +352,7 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .ws td.calc{color:var(--ink-2);background:color-mix(in srgb,var(--accent) 4%,var(--panel))}
 .ws .fxm{font:italic 700 var(--fs-cap) var(--mono);color:var(--accent);padding:0 var(--sp-1)}
 .ws .fxm.bad{color:var(--bad)}
+.ws .fxm.old{color:var(--warn)}
 .ws .srt{font-weight:700;color:var(--accent)}
 .ws thead td.lc.fxc{font-family:var(--mono);font-size:var(--fs-tab)}
 .ws thead td.lc.bad{color:var(--bad);box-shadow:inset 0 -2px 0 var(--bad)}
@@ -6438,6 +6439,7 @@ async function save(patch, logText){
   if(Object.keys(wsPatch).length&&wsPid===S.pid){ clearTimeout(wsTimer); pendLog=patch&&"log" in patch?null:wsLog; patch=Object.assign({},wsPatch,patch); wsPatch={}; wsLog=null; }
   const p=S.proj; Object.assign(p,patch); p.updated=Date.now(); patch.updated=p.updated;
   if(patch.cols) recalcFx(p);         // formula columns follow the columns they use
+  else if(("fit" in patch||"batch" in patch)&&p.cols.some(c=>c.fx&&c.fx.fit)&&recalcFx(p)) patch.cols=p.cols;   // and the fit's, a new fit
   if((logText||pendLog)&&histOn()){ const add=[pendLog,logText].filter(Boolean).map(text=>({t:Date.now(),uid:S.uid||"",text}));
     const log=(p.log||[]).concat(add).slice(-80); p.log=log; patch.log=log; }
   setStatus("Saving…");
@@ -9721,7 +9723,7 @@ function graphMenuItems(id,at){
     const sf=shownFit(), pk=(cfg.series||{}).__peaks||{};
     items.push({label:"Show residuals",checked:residOn(cfg,sf),enabled:!ro,run:()=>togglePlot("resid")},
       sf&&sf.kind==="composite"?{label:"Shade each fitted peak",checked:pk.fill!==false,enabled:!ro,run:()=>setSeriesStyle("__peaks",{fill:pk.fill===false},pk.fill===false?"shaded the fitted peaks":"took the shading off the fitted peaks")}:null,
-      "-",{label:"Results",run:()=>openWin("res",{render:true})},{label:"Copy the results table",run:copyResults},
+      "-",{label:"Results",run:()=>openWin("res",{render:true})},{label:"Copy the results table",run:copyResults},{label:"Put the fit in the worksheet",enabled:!ro&&!!sf,run:()=>fitToSheet(sf)},
       {label:"Fit window",run:()=>{ if(sf) S.fitMode=sf.kind==="composite"?"peaks":"curve"; showTab("fit"); }},
       {label:"Remove fit",enabled:!ro&&!!sf,run:removeFit}); }
   if(c){
@@ -11327,12 +11329,20 @@ function fixedCells(){
    computed again whenever the columns they use change (recalcFx, from save
    and normalize). They are not raw data: the fingerprint leaves them out, and
    they cannot be typed or pasted over. */
-const FX_ERR=new Map();
+const FX_ERR=new Map(), FX_NOTE=new Map();
 const fxLetterIndex=L=>{ let n=0; for(const ch of L) n=n*26+(ch.charCodeAt(0)-64); return n-1; };
 // "=col(B)*2" and "= b*2" are "B*2": a leading = as in a spreadsheet, and Origin's col().
 function fxPrep(t){ return String(t==null?"":t).trim().replace(/^=\s*/,"").replace(/\bcol\s*\(\s*([A-Za-z]{1,3})\s*\)/gi,(m,L)=>L.toUpperCase()); }
 function fxParse(text,self){
   const src=fxPrep(text); if(!src) return null;
+  // fit(B) and resid(B), the fit put in the worksheet (FIT_SPEC slice 6): a formula of their own.
+  const fm=/^(fit|resid)\s*\(\s*([A-Za-z]{1,3})\s*\)$/i.exec(src);
+  if(fm){ const L=fm[2].toUpperCase(), kind=fm[1].toLowerCase(), c=sheetCols(self?sheetOf(self):curSheet())[fxLetterIndex(L)];
+    if(!c) throw exprErr(`There is no column ${L}`);
+    if(self&&c.id===self.id) throw exprErr(`Column ${L} cannot hold its own ${kind==="fit"?"fitted values":"residuals"}`);
+    if(c.role!=="y") throw exprErr(`Column ${L} is not a Y column, and only a Y column is fitted`);
+    return {src:`${kind}(${L})`,refs:{[L]:c.id},fit:kind}; }
+  if(/\b(fit|resid)\s*\(/i.test(src)) throw exprErr("fit(B) and resid(B) are a whole formula: the fitted values, or the residuals, of column B");
   const cm=compileExpr(src,{allowNone:true}), raw=sheetCols(self?sheetOf(self):curSheet()), refs={};
   cm.params.forEach(nm=>{ if(nm==="i") return;
     if(/^[A-Z]{1,3}\d+$/.test(nm)) throw exprErr(`“${nm}” is one cell: a formula here works on whole columns, row by row, so write ${nm.replace(/\d+$/,"")}`);
@@ -11354,8 +11364,23 @@ function fxShow(c){
     out=out.slice(0,t.i)+(k>=0?wsLetter(k):o&&!o.src?`${sheetName(sheetOf(o))}!${colLetter(o)}`:t.v+"?")+out.slice(t.i+t.len); });
   return out;
 }
+/* The fitted values or residuals of a Y column, from its fit (laneFit: its own, or its row of
+   the batch fit), at each point of its processed data in the fit's range, in that point's
+   recorded row; with a note when the fit is out of date. */
+function fxFitEval(c,f,cols){
+  const id=Object.values(f.refs||{})[0], y=cols.find(o=>o.id===id);
+  if(!y) return {err:"the column it reads has been deleted"};
+  if(y.role!=="y") return {err:`column ${colLetter(y)} is not a Y column`};
+  const fit=laneFit(y); if(!fit) return {err:`column ${colLetter(y)} has no fit yet`};
+  const FM=fitModel(fit); if(!FM||!Array.isArray(fit.params)) return {err:"its fit's model cannot be read"};
+  const d=finalOf(y), r=Array.isArray(fit.range)&&fit.range.length===2&&fit.range.every(Number.isFinite)?[Math.min(fit.range[0],fit.range[1]),Math.max(fit.range[0],fit.range[1])]:null, out=[], n=Math.min(d.x.length,d.y.length);
+  for(let k=0;k<n;k++){ const i=d.idx?d.idx[k]:k, x=d.x[k]; if(!(Number.isInteger(i)&&i>=0)||x==null||!Number.isFinite(x)||(r&&(x<r[0]||x>r[1]))) continue;
+    const v=FM.f(x,fit.params); if(!Number.isFinite(v)) continue; const yv=d.y[k], w=f.fit==="fit"?v:yv!=null&&Number.isFinite(yv)?yv-v:null; if(w==null) continue;
+    while(out.length<i) out.push(null); out[i]=w; }
+  trimTail(out); const st=fitStaleFor(fit,y); return {data:out,note:st?"Out of date: "+st:""};
+}
 function fxEval(c,cols){
-  const f=c.fx; let cm; try{ cm=compileExpr(f.src,{allowNone:true}); }catch(e){ return {err:e.message}; }
+  const f=c.fx; if(f&&f.fit) return fxFitEval(c,f,cols); let cm; try{ cm=compileExpr(f.src,{allowNone:true}); }catch(e){ return {err:e.message}; }
   const refs=f.refs||{}, ins=cm.params.map(nm=>nm==="i"?"i":Object.prototype.hasOwnProperty.call(refs,nm)?(cols.find(o=>o.id===refs[nm])||null):undefined);
   for(let k=0;k<ins.length;k++){ if(ins[k]===undefined) return {err:`“${cm.params[k]}” is not a column`}; if(ins[k]===null) return {err:`the column it called ${cm.params[k]} has been deleted`}; }
   let xc=null;
@@ -11373,12 +11398,12 @@ const sameArr=(a,b)=>{ if(a===b) return true; if(!a||!b||a.length!==b.length) re
 // Computes every formula column, each after the formula columns it uses. True if any changed.
 function recalcFx(p){
   p=p||P(); if(!p||!Array.isArray(p.cols)) return false;
-  const fx=p.cols.filter(c=>c.fx&&!c.src); if(!fx.length){ FX_ERR.clear(); return false; }
+  const fx=p.cols.filter(c=>c.fx&&!c.src); if(!fx.length){ FX_ERR.clear(); FX_NOTE.clear(); return false; }
   const ids=new Set(fx.map(c=>c.id)), done=new Set(); let changed=false;
   for(let pass=0;pass<=fx.length;pass++){ let prog=false;
     fx.forEach(c=>{ if(done.has(c.id)) return; const deps=Object.values(c.fx.refs||{}).filter(id=>ids.has(id));
       if(!deps.every(id=>done.has(id))) return; done.add(c.id); prog=true;
-      const r=fxEval(c,p.cols); if(r.err) FX_ERR.set(c.id,r.err); else FX_ERR.delete(c.id);
+      const r=fxEval(c,p.cols); if(r.err) FX_ERR.set(c.id,r.err); else FX_ERR.delete(c.id); if(r.note) FX_NOTE.set(c.id,r.note); else FX_NOTE.delete(c.id);
       const nd=r.err?[]:r.data; if(!sameArr(c.data,nd)){ c.data=nd; changed=true; } });
     if(!prog) break; }
   fx.forEach(c=>{ if(done.has(c.id)) return; FX_ERR.set(c.id,"these formulas use each other in a circle"); if(c.data.length){ c.data=[]; changed=true; } });
@@ -11455,6 +11480,7 @@ function fxsSheetItems(self){
     out.push({kind:"col",name:L,ins:L,alias:nm,desc:(nm||"no name")+(c.unit?` (${c.unit})`:"")+(c.role==="x"?", X":c.role==="e"?", error bars":"")}); });
   if(!(self&&self.role==="x")) out.push({kind:"var",name:"x",ins:"x",desc:"this row's X value"});
   out.push({kind:"var",name:"i",ins:"i",desc:"the row number: 1, 2, 3…"});
+  out.push({kind:"fn",name:"fit",ins:"fit(",args:["Y column"],desc:"the fitted values of a Y column, from its fit: the whole formula"},{kind:"fn",name:"resid",ins:"resid(",args:["Y column"],desc:"the residuals of a Y column, y less its fit: the whole formula"});
   return out.concat(fxsBase()); }
 // The column a worksheet field is computing, if any.
 function fxsSheetSelf(c){ const m=S.wsm, q=m&&m.cols[c]; return q&&!q.phantom?q.col:null; }
@@ -11955,8 +11981,8 @@ function wsModel(){
     if(c.data.some(v=>v!=null)){ const xc=isY||c.role==="e"?xColFor(c.role==="e"?colById(c.of)||c:c):null, sw=Math.max(20,w-12), t=sparkPts(c.data,xc?xc.data:null,2*sw);
       if(t.y.length>1) spark=sparkSvg(t,sw,16,"wspark"); }
     return {id:c.id, col:c, letter:L, role:c.role==="x"&&xs.length>1?"X"+(xs.indexOf(c)+1):c.role==="e"?errTag(c):ROLE_LABEL[c.role]||c.role, w, sw:isY?yTint(c.id):null, off, act:isAct, menu:true, spark,
-      lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx, fxErr:c.fx?FX_ERR.get(c.id)||"":"",
-      title:`Column ${L}${c.name?": "+c.name:""}. ${roleText(c)}${c.fx?`, computed: = ${fxShow(c)}${FX_ERR.get(c.id)?` (${FX_ERR.get(c.id)})`:""}`:""}${isAct?", active":""}${off?", on no graph yet":""}. Click to select it; right-click, or the arrow, for its options; drag its right edge to resize it.`}; });
+      lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx, fxErr:c.fx?FX_ERR.get(c.id)||"":"", fxNote:c.fx?FX_NOTE.get(c.id)||"":"",
+      title:`Column ${L}${c.name?": "+c.name:""}. ${roleText(c)}${c.fx?`, computed: = ${fxShow(c)}${FX_ERR.get(c.id)?` (${FX_ERR.get(c.id)})`:FX_NOTE.get(c.id)?` (${FX_NOTE.get(c.id).toLowerCase()})`:""}`:""}${isAct?", active":""}${off?", on no graph yet":""}. Click to select it; right-click, or the arrow, for its options; drag its right edge to resize it.`}; });
   // Empty columns to the edge of the window and a little beyond, as a grid has.
   const used=WS_IDX+mc.reduce((s,q)=>s+q.w,0), cw=box&&box.clientWidth?box.clientWidth:900, K=Math.max(3,Math.ceil((cw-used)/WS_W)+2);
   for(let j=0;j<K;j++){ const i=cols.length+j, L=wsLetter(i);
@@ -12005,7 +12031,7 @@ function renderWs(){
   S.wsMask=new Set(m.kind==="raw"?maskOf(activeYCol()):maskOf(m.c)); S.wsFixed=m.kind==="raw"?fixedCells():new Map();
   const tw=WS_IDX+m.cols.reduce((a,q)=>a+q.w,0), sx=box.scrollLeft, sy=box.scrollTop;
   let h=`<table class="grid" style="width:${tw}px"><colgroup><col style="width:${WS_IDX}px">${m.cols.map(q=>`<col data-cw="${esc(q.id)}" style="width:${q.w}px">`).join("")}</colgroup><thead>`;
-  h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"><button type="button" class="wsrows" data-wsrows aria-haspopup="menu" aria-expanded="false" title="Rows under the letters: Comments, F(x)=, Sparklines" aria-label="Rows to show under the letters">⋯</button></th>${m.cols.map((q,i)=>q.hidden?`<th class="ch hidc" data-ch="${i}" title="${esc(q.title)}" aria-label="${esc(q.title)}"></th>`:`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.calc?`<span class="fxm${q.fxErr?" bad":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx)}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.off?`<span class="lab hoff" title="On no graph yet: select it and press Plot">not plotted</span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`).join("")}</tr>`;
+  h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"><button type="button" class="wsrows" data-wsrows aria-haspopup="menu" aria-expanded="false" title="Rows under the letters: Comments, F(x)=, Sparklines" aria-label="Rows to show under the letters">⋯</button></th>${m.cols.map((q,i)=>q.hidden?`<th class="ch hidc" data-ch="${i}" title="${esc(q.title)}" aria-label="${esc(q.title)}"></th>`:`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.calc?`<span class="fxm${q.fxErr?" bad":q.fxNote?" old":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx+(q.fxNote?". "+q.fxNote:""))}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.off?`<span class="lab hoff" title="On no graph yet: select it and press Plot">not plotted</span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`).join("")}</tr>`;
   const AL=p.wsAlign||{};
   wsLabRows().forEach(L=>{ h+=`<tr class="lab"><th class="rl" scope="row" data-lr="${L.r}"${L.k==="fx"?` title="A column's formula: letters are columns (B*2, (B-C)/A, log10(B)), x the row's X value, i the row number. Click a cell here to type one."`:""}>${L.label}</th>${m.cols.map((q,i)=>{ const bd=L.k==="fx"&&q.fxErr, al=L.k!=="fx"&&AL[q.id]?" al-"+AL[q.id]:""; if(q.hidden) return `<td class="lc hid" data-r="${L.r}" data-ci="${i}"></td>`; return `<td class="lc${L.k==="fx"?" fxc":""}${bd?" bad":""}${al}" data-r="${L.r}" data-ci="${i}"${bd?` title="${esc(q.fxErr)}"`:L.k==="fx"&&m.kind==="raw"&&!q.lab.fx?` title="Click to type a formula for column ${q.letter}"`:""}>${esc(q.lab[L.k]||"")}</td>`; }).join("")}</tr>`; });
   if(wsRowsPref().spk) h+=`<tr class="spk"><th class="rl" scope="row">Sparklines</th>${m.cols.map(q=>q.hidden?`<td class="hid"></td>`:`<td>${q.spark||""}</td>`).join("")}</tr>`;
@@ -12111,6 +12137,7 @@ function wsBar(){
     if(hint){ hint.className="wshint"; hint.textContent=""; } }
   if(ic) ic.innerHTML=s.r===-1&&q&&q.fxErr?ICON("alert","sm"):locked?ICON("lock","sm"):calc?`<span class="fxm">fx</span>`:"";
   if(s.r===-1&&q&&q.fxErr&&hint&&document.activeElement!==inp){ hint.className="wshint badt"; hint.textContent=q.fxErr; }
+  else if(s.r===-1&&q&&q.fxNote&&hint&&document.activeElement!==inp){ hint.className="wshint"; hint.textContent=q.fxNote; }
   v.title=calc?"Computed by the column's formula: type a new formula here, or in its F(x)= row.":locked?"An original value, and the original data is locked: type over it to record a correction instead.":m.kind==="final"?"The Processed view is read only.":"Click to edit the active cell here; Enter keeps it.";
 }
 // The alignment buttons show the active column's alignment.
@@ -12884,6 +12911,7 @@ function colMenuItems(id){
       {label:"Descending", radio:true, checked:!!(on&&m.sortDir<0), run:()=>{ if(S.sheet!=="raw") setSheet("raw"); wsSortBy(id,-1); }},
       "-",{label:"Original order", title:"The rows as they were recorded", enabled:!!(m&&m.sorted), run:()=>wsSortBy(null,0)}]; }});
   if(c.fx&&FX_ERR.get(c.id)) items.push({group:"Formula: "+FX_ERR.get(c.id),plain:true});
+  else if(c.fx&&FX_NOTE.get(c.id)) items.push({group:FX_NOTE.get(c.id),plain:true});
   { const n=colMenuTargets(id).length; items.push("-",{label:n>1?`Move the ${n} columns`:"Move", title:"Or drag the selected columns by their letters", sub:()=>colMoveItems(id)},{label:"Align", sub:()=>colAlignItems(id)}); }
   { const ids=colMenuTargets(id), h=wsHideOf(p), raw=sheetCols(), i=raw.indexOf(c), near=[];
     for(let j=i-1;j>=0&&h.cols.includes(raw[j].id);j--) near.push(raw[j].id); for(let j=i+1;j<raw.length&&h.cols.includes(raw[j].id);j++) near.push(raw[j].id);
@@ -14962,6 +14990,33 @@ function findFill(f,o){
   const ci=sheetCols().findIndex(x=>x.id===news[0].id); if(S.ws&&ci>=0){ Object.assign(S.ws,{r:0,c:ci+news.length-1,ar:0,ac:ci,want:null,win:null}); wsEnsureVisible(0,ci); wsPaintSel(); }
   toast(`Filled column${news.length>1?"s":""} ${rng} with ${o.what==="y"?"Y":"X"} from the fit${none?`; ${none} value${none===1?"":"s"} ${o.what==="y"?"where the curve has no value":"not reached"}, left empty`:""}${many?`; ${many} reached more than once, the ${o.many==="hi"?"highest":"lowest"} X kept`:""}.`,{action:"Undo",run:undo});
 }
+/* The fit in the worksheet (FIT_SPEC slice 6): the fitted values and the residuals of the column
+   fitted, as two computed columns beside it (fit(B) and resid(B) in their F(x)= rows): out of the
+   original data and its check code, as formula columns are, written again by every new fit of
+   that column (save recalculates them when a fit or a batch is saved), and marked out of date
+   with it (FX_NOTE). Once per column: asked again, the worksheet shows the two it has. */
+const fitColsOf=y=>{ const p=P(); return p&&y?p.cols.filter(c=>c.fx&&c.fx.fit&&Object.values(c.fx.refs||{})[0]===y.id):[]; };
+function fitToSheet(f){
+  const p=P(); f=f||activeFit(); if(!p||S.readOnly||!f) return;
+  const y=colById(f.onCol)||null;
+  if(!y){ toast("The column this fit was made on is gone."); return; }
+  if(y.src){ toast(`${specName(y)} is made from another column and has no rows of its own in the worksheet: Publish › Processed data and fit as CSV gives its fit and residuals.`); return; }
+  const sid=sheetOf(y), show=cols=>{ S.sheet="raw"; if(curSheet()!==sid) showSheet(sid,{quiet:true}); sheetForward(); renderAll();
+    const sc=sheetCols(), a=sc.indexOf(cols[0]), b=sc.indexOf(cols[cols.length-1]); if(S.ws&&a>=0){ Object.assign(S.ws,{r:0,c:b,ar:0,ac:a,want:null,win:null}); wsEnsureVisible(0,a); wsPaintSel(); } };
+  const have=fitColsOf(y);
+  if(have.length){ show(have.map(c=>colById(c.id))); toast(`The fit of ${specName(y)} is in the worksheet already: column${have.length>1?"s":""} ${have.map(c=>colLetter(colById(c.id))).join(" and ")}, written again by each new fit.`); return; }
+  pushUndo("putting the fit in the worksheet");
+  const L=colLetter(y), unit=finalOf(y).yu||y.unit||"", nm=specName(y);
+  const mk=(kind,name)=>Object.assign(makeCol("ignore",name,unit,[]),{sheet:sid,comm:`${kind==="fit"?"The fitted values":"The residuals, y less the fit,"} of ${nm}, written again by each new fit`,fx:{src:`${kind}(${L})`,refs:{[L]:y.id},fit:kind}});
+  const news=[mk("fit","Fitted values"),mk("resid","Residuals")];
+  let at=p.cols.indexOf(y)+1; while(at<p.cols.length&&p.cols[at].role==="e"&&p.cols[at].of===y.id) at++;
+  p.cols.splice(at,0,...news); migrate(p); recalcFx(p);
+  const Ls=news.map(c=>colLetter(colById(c.id)||c)).join(" and ");
+  save({cols:p.cols,activeY:p.activeY},`put the fit of column ${L} in the worksheet (columns ${Ls})`);
+  show(news.map(c=>colById(c.id)).filter(Boolean));
+  const n=(colById(news[0].id)||news[0]).data.filter(v=>v!=null).length;
+  toast(`Columns ${Ls}: the fitted values and residuals of ${nm}, ${n} row${n===1?"":"s"}, computed from the fit and written again by each new fit.`,{action:"Undo",run:undo});
+}
 // The residuals' own figures, for the statistics beside the table.
 function diagStats(f){ if(f.xerr||!rShow().resid||!winOpen("res")) return []; const D=resDiag(f); if(!D) return [];
   return [["Residual scatter, s",fmtOr(D.s,4)],["Outlier limit",Number.isFinite(D.out.lim)?"±"+fmt(D.out.lim,4):"too few points"]]; }
@@ -16121,7 +16176,7 @@ function renderResults(){
   const FM=fitModel(f);
   const [xu,yu]=fitUnits(f), u=t=>t?`<span class="unit">(${esc(t)})</span>`:"";
   let h=`<div class="rhead"><div class="rt"><div class="rtitle">${FM.composite?"Peak fit":"Curve fit"}: ${esc(FM.name)}${f.onColName?` <span class="lab">on ${esc(f.onColName)}</span>`:""}${f.global&&f.gstats?` <span class="lab">· together with ${f.gstats.K-1} other columns</span>`:""}</div>${FM.model.user?`<div class="rfx"><code>${esc(FM.model.expr)}</code></div>`:""}<div class="lab" id="fitBy"></div></div>
-    <div class="ract"><button class="btn sm" id="rCopy">${ICON("copy","sm")}Copy table</button><button class="btn sm" id="rReport">${ICON("file","sm")}Save report</button><button class="btn sm" id="rCsv">${ICON("download","sm")}Export data</button><button class="btn sm ghost" id="discussFit">${ICON("comment","sm")}Discuss</button></div></div>`;
+    <div class="ract"><button class="btn sm" id="rCopy">${ICON("copy","sm")}Copy table</button><button class="btn sm" id="rReport">${ICON("file","sm")}Save report</button><button class="btn sm" id="rCsv">${ICON("download","sm")}Export data</button><button class="btn sm" id="rToWs"${S.readOnly?" disabled":""} title="The fitted values and the residuals as columns beside the column fitted, written again by each new fit">${ICON("table","sm")}To worksheet</button><button class="btn sm ghost" id="discussFit">${ICON("comment","sm")}Discuss</button></div></div>`;
   // Each note one line, with its fix; the whole of what it says is its tooltip, and the report's.
   const warns=fitWarnings(f);
   warns.forEach(w=>{ h+=noteHtml(w.level,w.brief,false,w.acts,w.text); });
@@ -16145,7 +16200,7 @@ function renderResults(){
   box.innerHTML=h;
   if(keep){ const el=document.getElementById(keep.id); if(el){ el.focus({preventScroll:true}); try{ el.setSelectionRange(keep.s,keep.e); }catch(e){} } }
   const by=$("#fitBy"); if(by) by.textContent=f.by?`Fitted by ${nameOf(f.by)}, ${ago(f.at)}`:`Fitted ${ago(f.at)}`;
-  $("#rCopy").onclick=copyResults; $("#rReport").onclick=exportReport; $("#rCsv").onclick=exportCsv; wireDiag(box,f); wireFind(box,f);
+  $("#rCopy").onclick=copyResults; $("#rReport").onclick=exportReport; $("#rCsv").onclick=exportCsv; wireDiag(box,f); wireFind(box,f); { const tw=$("#rToWs"); if(tw) tw.onclick=()=>fitToSheet(f); }
   $("#discussFit").onclick=()=>{ S.anchor={type:"fit",model:FM.composite?"peaks":f.model}; showDrawer("disc"); renderAnchor(); $("#cText").focus(); };
   box.querySelectorAll("[data-prow]").forEach(tr=>tr.onclick=()=>{ const k=+tr.dataset.prow;
     S.selPeak=S.selPeak===k?null:k; if(S.fitMode!=="peaks") S.fitMode="peaks"; renderFit(); renderPlot();
@@ -17559,6 +17614,7 @@ function analyzeMenu(){
       "-",
       {label:"Fit", kbd:"Ctrl+Enter", run:fitNow, enabled:edit&&has},
       yCols().length>1?{label:"Fit every column…", run:openBatchDialog, enabled:edit&&!!f, title:f?"":"Fit the active column first: its fit is the template"}:null,
+      {label:"Put the fit in the worksheet", run:()=>fitToSheet(), enabled:edit&&!!f, title:f?"The fitted values and the residuals as columns beside the column fitted":"Fit the active column first"},
       "-",
       {label:"Show residuals", checked:!!p&&residOn(cfg,sf||residHint()), title:"A panel of the residuals under the graph, when there is a fit", run:()=>togglePlot("resid"), enabled:edit},
       {label:"Confidence band", checked:cfg.bandConf!==false, enabled:edit&&!!sf, run:()=>setPlotKey("bandConf",cfg.bandConf===false,cfg.bandConf===false?"showed the fit's confidence band":"hid the fit's confidence band")},
@@ -19588,7 +19644,7 @@ ${DL([["Long Name","The column's name, used on the axes and in the legend."],["U
 <p>Type over a value to change it, ${K("Delete")} to clear the selection, and paste or fill over values. To insert or delete, right-click a cell: <em>Insert</em> › Row above, Row below, Column to the left, Column to the right, A column at the end or A sheet, and <em>Delete</em> › Rows or Columns; as many rows or columns are inserted as are selected. The same are in a column's menu, in Edit › Insert and Delete, on the <strong>Insert</strong> button above the grid, and on the keys: ${K("Ctrl","Shift","=")} inserts and ${K("Ctrl","−")} deletes (columns when whole columns are selected, rows otherwise). Masked points and corrections move with their rows. Each change is one undo step and goes into the original-data record with the check code, so what was changed, when and by whom is kept.</p>
 <h2 id="lock">Locking the original data</h2>
 <p>The lock button above the grid, or ${MP("Data › Lock the original data")}, keeps the original values as they are, for the whole project. Empty cells can still be filled. Typing over a value then asks for a reason and adds a <em>Correct values</em> step, so the original stays in the original data and the correction shows in the History, the report and the CSV; pasting over values offers new columns; rows cannot be inserted or deleted. ${DA("rawdata","Original data and its check code")}</p>`},
-{id:"formulas", g:"Data", t:"Column formulas", kw:"formula f(x) set column values compute calculate expression function log sqrt",
+{id:"formulas", g:"Data", t:"Column formulas", kw:"formula f(x) set column values compute calculate expression function log sqrt fit resid residuals fitted values",
  lead:"A column can be computed, row by row, from other columns: Origin's F(x)= row.",
  body:`<h2>Writing one</h2>
 <p>Type into a column's <strong>F(x)=</strong> cell, type <code>=</code> and the formula into any cell of the column, or choose <em>Set column values…</em> from its header or cell menu. The bar above the grid checks the formula as you type: a formula not finished yet (a bracket still open, a name half typed) is said quietly, and a mistake is marked in red.</p>
@@ -19597,6 +19653,8 @@ ${DL([["<code>A</code>, <code>B</code>, …","The value of that column in the sa
 <p>A list under the cell offers what can come next, as a spreadsheet's does: the columns, by letter or by the start of their name (typing <code>abs</code> offers the function and a column called Absorbance), <code>x</code> and <code>i</code>, every function with its arguments and what it does, and the constants. It opens with the first letter of a name, and on an empty formula to show what there is. ${K("↑")} ${K("↓")} choose, ${K("Tab")} puts the choice in (${K("Enter")} too, once an arrow has chosen; otherwise Enter keeps the formula as it is), a click does the same, ${K("Esc")} closes the list and ${K("Ctrl","Space")} opens it anywhere. Inside a function's brackets a line shows its arguments, the one being typed in bold. The same list helps in the formula bar and in a ${DA("userfn","fit function")}'s formula.</p>
 <h2>Examples</h2>
 ${DL([["<code>B*2</code>","Double column B."],["<code>(B-C)/A</code>","A difference over a reference."],["<code>log10(B)</code>","Logarithm."],["<code>1e7/x</code>","Wavelength in nm to wavenumber in cm⁻¹."],["<code>B/max(B, 1e-9)</code>","Guarded division."]],"code")}
+<h2 id="fit">The fit of a column</h2>
+<p><code>fit(B)</code> is the fitted values of column B, and <code>resid(B)</code> its residuals (y less the fit), at each of B's points in the fit's range, from B's fit (its own, or its row of a fit of every column). Each is a whole formula. ${MP("Analyze › Fit › Put the fit in the worksheet")} (or Results' <em>To worksheet</em>) adds both beside the column fitted. A new fit of B writes them again; while B's fit is out of date (its data, processing or mask changed since), so are they, and their <em>fx</em> mark says so. ${DA("results#tows","The fit in the worksheet")}</p>
 <h2 id="axis">A computed X axis</h2>
 <p>A formula that reads only X values is an axis: <code>0.3258*A+0.6937</code> turns channel numbers in A into energies. Kurve offers <em>Use as X</em> as soon as it is typed: the column becomes an X column and the columns plotted against A are plotted against it. Name it in the Long Name and Units rows (Energy, keV). A column's header menu has <em>Plot against</em> for any X column, and an X column's has <em>X of</em>; otherwise, as in Origin, a Y column is plotted against the nearest X column to its left.</p>
 <h2>How it behaves</h2>
@@ -20055,7 +20113,7 @@ ${DL([["Equal","The same value."],["A multiple","For areas: the 2 to 1 of a spin
 <p>Each has a start (empty: guessed from its name, such as <code>y0</code> a baseline, <code>A</code> a height, <code>xc</code> the position of the largest point, <code>w</code> a tenth of the range), optional lower and upper limits, and a unit. A preview draws the function at its starts over the data as you type, and a mistake is named with its line.</p>
 <h2>Keeping them</h2>
 <p>A function belongs to the project and, if you choose, to this browser's library for later projects. A fit keeps a copy of the function it used, so editing the function never changes a result already made; the report and the CSV state the formula and its limits.</p>`},
-{id:"results", g:"Fitting", t:"Reading the results", win:"res", kw:"results parameters value standard error derived in the results sections t p value confidence interval level dependency chi square r2 aic bic residuals warnings notes history anova analysis of variance f test sum of squares mean square covariance correlation matrix standardised studentised standardized studentized deleted leverage hat outlier outliers mask probability paper normal histogram lag find x find y inverse prediction calibration curve read off value at",
+{id:"results", g:"Fitting", t:"Reading the results", win:"res", kw:"results parameters value standard error derived in the results sections t p value confidence interval level dependency chi square r2 aic bic residuals warnings notes history anova analysis of variance f test sum of squares mean square covariance correlation matrix standardised studentised standardized studentized deleted leverage hat outlier outliers mask probability paper normal histogram lag find x find y inverse prediction calibration curve read off value at to worksheet fitted values residual columns put the fit in the worksheet",
  lead:"Every parameter with its uncertainty, the fit statistics, and plain notes on anything that makes the numbers less trustworthy.",
  body:`<h2>Parameters</h2>
 ${DL([["Value, Standard error","In columns of their own, as journals print them. The error is from the covariance matrix: Without weights, scaled by √(reduced χ²), as Origin does."],["t, Prob > |t|","The value over its error, and the chance of a t that large if the parameter were really zero."],["Confidence interval","Value ± t × error, t for the fit's confidence level (95% unless set in the Fit window) and its degrees of freedom."],["Dependency","Near 1, the parameter is doing the same job as others and is not independently determined. Such rows are highlighted."],["At its limit","A parameter that stopped at a bound has no meaningful standard error, and is left out of derived quantities' errors."]])}
@@ -20067,6 +20125,8 @@ ${DL([["Reduced χ²","The residual sum of squares over the degrees of freedom (
 <p>The fitted curve read off at a value you type, answered as you type it.</p>
 ${DL([["Y at X","The curve's value at that X, with its standard error and its interval at the fit's confidence level: the confidence band at that X, so the number and the shading agree. An X past the fit's points is answered too, and marked as outside the fitted range: the curve is extrapolated there."],["X at Y","Every X in the fit's range where the curve takes that value (a peak or a wave takes it more than once), each with its standard error, the curve's error there over its slope, and its interval. Where the curve only touches the value without crossing it (the top of a peak typed exactly) the X has no error of its own. A value the curve never takes says what it takes there instead."],["Fill a column…","Reads every value of a column of the sheet shown the same way, Y at each X or X at each Y (the lowest or the highest X where there are several), into new columns beside it: the values, and if asked their standard errors and their intervals' ends. They are data columns, recorded in the original-data record as any fill is, one undo step; a later fit does not change them. A value the curve has no answer for leaves its cell empty."]])}
 <p>${K("Esc")} in a field clears it. <em>Find X/Y</em> under <em>In the results</em> hides the section.</p>
+<h2 id="tows">The fit in the worksheet</h2>
+<p><em>To worksheet</em> (also ${MP("Analyze › Fit › Put the fit in the worksheet")} and the fit curve's right-click menu) adds two columns beside the column fitted: <em>Fitted values</em> and <em>Residuals</em>, at each point in the fit's range, in that point's row. They are computed, as ${DA("formulas#fit","formula columns")} are (<code>fit(B)</code> and <code>resid(B)</code> in their F(x)= rows): not original data, out of its check code, never typed over. A new fit of the column writes them again, and while the fit is out of date so are they. Asked for again, the worksheet shows the two it has.</p>
 <h2 id="anova">Analysis of variance</h2>
 <p>As Origin's: what the model explains (the total about zero less the residual, as many degrees of freedom as free parameters), the residual, and the totals about zero and about the mean; F, the model's mean square over the residual's, with the chance of an F that large. A weighted fit's sums are of w·y², w = 1/σ².</p>
 <h2 id="cov">Correlation and covariance</h2>

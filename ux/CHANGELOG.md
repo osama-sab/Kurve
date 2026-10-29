@@ -1024,6 +1024,22 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Curve fit, slice 6: the fit in the worksheet (2026-10-29)
+
+`ux/spec/FIT_SPEC.md` slice 6.
+- **To worksheet** in Results (also Analyze › Fit › Put the fit in the worksheet, and the fit
+  curve's right-click menu) puts the fitted values and the residuals beside the column fitted,
+  in each point's row.
+- They are **computed columns**, `fit(B)` and `resid(B)` in their F(x)= rows: out of the original
+  data and its check code, never typed over; the formulas can be typed into any column too.
+- **A new fit writes them again**; while the fit is out of date their *fx* mark says so; with the
+  fit removed they are empty and say why. Asked again, the worksheet shows the pair it has.
+
+Checked: `tools/fit-drive.mjs` (16 new, 34: the values against the model, the check code and the
+record untouched, the selection and the toast, no second pair, a new fit written and stored, out
+of date after a mask, `resid(B)` typed, `fit(B)*2` and `fit(A)` refused, the menu, the fit removed
+and undone, a reload), screenshots, and every suite from the round before.
+
 ## Curve fit, slice 5: Find X/Y (2026-10-29)
 
 `ux/spec/FIT_SPEC.md` slice 5, the first after the design system's ten.

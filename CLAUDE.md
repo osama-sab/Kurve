@@ -514,6 +514,20 @@ graph first, with the taskbar kept at the bottom of the screen.
   selected one, else the fitted column's X) read into new `ignore` columns after it on its sheet
   (the value, its standard error, the interval's ends, each with a comment naming the fit), one
   undo entry, a raw-data record entry, a log line, a toast saying what was left empty.
+  **The fit in the worksheet** (`FIT_SPEC.md` slice 6): `fit(B)` and `resid(B)` are formulas of
+  their own (`fxParse` takes either as a whole formula of a Y column on the sheet, `c.fx = {src,
+  refs, fit:"fit"|"resid"}`; anything else naming them is refused in words; the suggestions list
+  them), computed by `fxFitEval` (through `fxEval`, so `recalcFx`, `rawCols`, the check code and
+  every refusal to type over a computed column treat them as formulas): the column's fit
+  (`laneFit`) at each point of its processed data in the fit's range, in the point's recorded
+  row (`idx`), masked points included; an error when the column has no fit; a note when it is
+  out of date (`fitStaleFor`), in `FX_NOTE` (the header's `.fxm.old`, its title, the bar's
+  hint on F(x)=, the column menu). `save` recalculates them when a patch carries `fit` or
+  `batch` (and adds `cols` to it when they changed). `fitToSheet(f)` (Results' `#rToWs`,
+  Analyze › Fit › Put the fit in the worksheet, the fit curve's menu): Fitted values and
+  Residuals after the column and its error columns, `ignore`, one undo entry, a log line, no
+  record entry; once per column (`fitColsOf`), asked again it shows them; a derived spectrum is
+  refused in words.
 - **Batch fits and series** (`p.batch`, `p.series`, both in `UNDO_KEYS`): the analysed
   spectrum's fit is the template (`batchTemplate`: model, peaks with shapes, ties and fixed
   parameters, baseline or curve model, X range, weighting, X units). `runBatch({tmpl, seed,
@@ -2152,7 +2166,8 @@ identifiers, the real superscripts, the fields' widths; run it after touching th
 `node tools/fit-drive.mjs [path]` (Playwright) clicks and types into what each slice of the
 curve fit (`ux/spec/FIT_SPEC.md`) from slice 5 on added (Find X/Y: the readouts against the
 functions, a redraw while typing, Fill a column… both ways, undo); run it after touching the Fit
-window or Results.
+window or Results. Slice 6: the fit's columns (values, the check code untouched, a new fit
+written, out of date, `resid(B)` typed, `fit(B)*2` refused, the fit removed and undone, a reload).
 `node tools/fit-test.mjs`, `node tools/pipe-test.mjs`, `node tools/parser-test.mjs` and
 `node tools/tex-test.mjs` cover the numerics, the processing steps with their checks and the
 fingerprint, the parser, and the LaTeX typesetter (nesting, italics, spacing, fractions, roots,
@@ -3030,7 +3045,10 @@ CSV. Slice 5 done (after the design system's ten slices): Find X/Y in Results, a
 typed: the curve's Y at an X with its error and interval (the confidence band's there), every X
 in the fit's range where it takes a Y with each one's error, a touch without a crossing said, a
 value never reached with what the curve takes there; and a column of the sheet read either way
-into new columns beside it, recorded as a fill is.
+into new columns beside it, recorded as a fill is. Slice 6 done: the fit in the worksheet, the
+fitted values and residuals beside the column fitted as computed columns (`fit(B)`, `resid(B)`,
+formulas that can be typed too), out of the original data, written again by each new fit and
+marked out of date with it.
 
 Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
 graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
@@ -3344,7 +3362,7 @@ Next, in order:
    1 Iteration button and the iterations listed; one parameter grid with limits for every
    model; about 25 more models, searchable, each with a sketch; a confidence level, ANOVA,
    the covariance and correlation matrices, studentised residuals, residual plots and
-   outliers; Find X/Y (done); the fitted values and residuals in the worksheet; counting and
+   outliers; Find X/Y (done); the fitted values and residuals in the worksheet (done); counting and
    column weights, an apparent fit; starting values and constraints as formulas; fit
    settings saved by name, and fits that follow their data; the function editor grown, and
    an organizer. In the docked Fit window, in Kurve's words, running no code
@@ -3518,6 +3536,9 @@ Next, in order:
   guesses are measured heuristics (two or three decays from a grid of 16 decay times, a wave's
   period from at most 600 points), and a sketch shows typical values, not the data's; your
   functions have no kind of their own in the list yet
+- The fit in the worksheet: one pair per column, its own fit (or its batch row); the values are
+  at the fit's points in range (no curve past them, no curve on a finer grid); `fit(B)` is a
+  whole formula, never part of one; a derived column's fit has no rows to go in
 - Find X/Y: the curve is searched on a grid of 1200 steps over the fit's range (400 for a column
   filled), so two crossings closer than a step are found only if the curve dips across; a touch
   counts only when typed to nine digits of the curve; X is searched within the fit's range only
