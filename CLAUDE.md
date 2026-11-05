@@ -389,7 +389,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   The peaks use `PEAKS` (`vgp` reorders `[y0, A, xc, w…]`); `EXT_FW` is the extreme-value FWHM
   in units of w; `R_GAS`, `F_EV`. An id never changes once shipped: a stored fit names its
   model by it (`poly2` is the polynomial of order 2). `gradient`, `deltaVar` and
-  `derivedWithErr` live here too.
+  `derivedWithErr` live here too. **The detector's curves** (roadmap 3, slice 3): `effCurve(pts, deg)`
+  (ln ε a polynomial of degree 1 to 4 in ln E about the points' mean, fitted to `{E, eff, err}` in %,
+  weighted by the relative errors when every point has one, else equally with the covariance scaled
+  by the scatter; `{co, x0, deg, n, cov, rel, E0, E1, wtd, redChi2}` or `{fail}` in words), `effAt(cv,
+  E)` (`{v, err, out}`), `fwhmCurve(pts, deg)` (FWHM² = a + b·E (+ c·E²) fitted to `{E, w}`, `rel`),
+  `fwhmAt(cv, E)` (null where the square is not above zero); `lsqPoly`, `polyAt`.
   **The picker**: the Fit window's model is a button (`#model.mbtn`: the sketch, the name,
   `aria-expanded`) opening `openModelPicker(btn, cur, pick, {fromFit})`, in the font picker's
   popover and slot (`fpOpen`, `.fpick.mpick`): a search box, every model by kind with its
@@ -1601,8 +1606,19 @@ graph first, with the taskbar kept at the bottom of the screen.
   (`details#igCnt`, `S.igCnt`; `table.igcnt`: net counts ± σ, the rate, detected or not against the
   critical level, a band's `ig` (emission probability, %) and `eff` (full-energy efficiency, %)
   typed (`data-igk`, one undo entry, refused in words outside 0–100), the activity or, not detected,
-  the detection limit as one, `activityOf`; narrow, the rate, detection and activity on a second
-  line). The report's band integrals add a counted table per spectrum. On the graph
+  the detection limit as one, `activityOf(cn, t, eff, ig, effErr)`, the efficiency's error carried;
+  narrow, the rate, detection and activity on a second line). The report's band integrals add a
+  counted table per spectrum. **The detector's curves** (slice 3): `p.detcal = {eff:{pts:[{E, eff,
+  err}], deg, xu}, fwhm:{pts:[{E, w}], deg, xu}}` (in `UNDO_KEYS`; `detCalOf(p)` cleaned,
+  `detCurve(kind, xu)` the fitted curve for that X unit, memoised in `DCMEMO`); `bandEff(q, ec)` a
+  window's efficiency, typed or the curve's at its centre (`from`, the field's greyed placeholder and
+  its tooltip); a window wider than 1.3 times the resolution curve there is marked (`.warnc`, "two
+  lines?"). `detCalDlg(kind)` (Analyze › Spectroscopy › Detector › Efficiency against energy…,
+  Resolution against energy…): `formDlg` with a table of points (`#dcRows`, `data-dci`/`data-dck`,
+  `data-dcdel`), `#dcAdd`, `#dcFrom` (efficiency: the counted windows with their emission and the
+  source's activity `#dcAct`, ε = N ÷ (A·t·I); resolution: the windows' FWHM and the fitted peaks'),
+  `#dcDeg`, the drawing `dcPlotSvg(rows, cv, eff, xu)` (log–log for the efficiency) and `#dcMsg`;
+  Save is one undo entry and a log line; listeners on the dialog's own elements. On the graph
   `bandsSvg("under")` shades each band between the curve and its baseline and dashes the
   baseline, and `bandsSvg("top")` draws its edges (`data-bh`, drag one) and a strip along the
   top with its name (`data-bb`, drag it to move the window): `S.bdrag`, `dragBand`,
@@ -3841,8 +3857,8 @@ Next, in order:
    graph as its preview, the same dialog on an existing graph (Origin's Layer Contents), groups,
    kinds that need more columns, and setups remembered (all six slices done 29.10)
 3. Counting spectra, further: other analysers' files (Maestro .Spe with its calibration, N42: done
-   05.11; CHN and CNF are binary), FWHM and efficiency against energy, net peak areas over a local
-   continuum with their counting errors and activities (done 05.11, the efficiency typed), a nuclide named by the set of its lines
+   05.11; CHN and CNF are binary), FWHM and efficiency against energy (done 05.11), net peak areas
+   over a local continuum with their counting errors and activities (done 05.11), a nuclide named by the set of its lines
    (their intensity ratios, interferences), region edges dragged on the graph
 4. Plots Origin has and Kurve lacks, further: a distribution fitted over a histogram (normal,
    log-normal) with its parameters; box charts of one column grouped by another, notched
@@ -3925,9 +3941,10 @@ Next, in order:
   MeV
 - Counting (the Integrate window's): the continuum under a line is a straight line through the
   channels at the window's edges (no step continuum, no fitted background); the emission
-  probability and the efficiency are typed per band (no efficiency curve yet), and the activity's
-  error is the counting error only; no decay correction, no coincidence summing, no
-  self-absorption
+  probability is typed per window (or taken from nothing: a named line's intensity is not used yet);
+  the efficiency typed or from the project's one curve (one detector and geometry a project), its
+  error carried but not the emission's; no decay correction, no coincidence summing, no
+  self-absorption. The resolution curve marks wide windows; the peak finder does not use it
 - The worksheet and trend graphs minimise but never close (graphs close, and stay in the
   project); a closed panel
   shows no news in the taskbar (open threads show in Window › Tool windows and on the History's

@@ -866,6 +866,13 @@ table.rtab{border-collapse:collapse;font-size:var(--fs-tab);width:100%}
 /* And the parameters' t, p, interval and dependency, and a peak's shape, height, FWHM and share, go on a line under it. */
 .rtab tr.rmore{display:none}
 .rtab input.ignum{width:4.5em;text-align:right;font-family:var(--mono)}
+.rtab input.ignum.fromcv::placeholder{color:var(--ink-2);font-style:italic}
+.rtab .warnc{color:var(--warn)}
+.dcwrap{display:flex;gap:var(--sp-6);align-items:flex-start;flex-wrap:wrap}
+.dcwrap .dcl{flex:1 1 260px;min-width:0}
+.dcwrap .dcl .twrap{max-height:240px;overflow:auto}
+.dcpv{flex:0 0 auto}
+.dcsvg{display:block;background:var(--panel-2);border-radius:var(--r)}
 @container (max-width: 520px){
   .rtab.rpar .x,.rtab.rpk .x,.rtab.igcnt .x{display:none}
   .rtab tr.rmore{display:table-row}
@@ -3849,7 +3856,9 @@ function countBand(X,Y,x1,x2,o){
 }
 // A line's activity from its net counts: N ÷ (live time × efficiency × emission), both in %, counting error
 // only; the detection limit as an activity (the minimum detectable activity) beside it.
-function activityOf(cn,t,eff,ig){ if(!cn||cn.fail||!(t>0&&eff>0&&ig>0)) return null; const q=t*(eff/100)*(ig/100); return {A:cn.N/q,sA:cn.sigN/q,mda:cn.ld/q,det:cn.det}; }
+// The efficiency's own error (`effErr`, in %, from its curve) is carried too.
+function activityOf(cn,t,eff,ig,effErr){ if(!cn||cn.fail||!(t>0&&eff>0&&ig>0)) return null; const q=t*(eff/100)*(ig/100), A=cn.N/q, re=effErr>0?effErr/eff:0;
+  return {A,sA:Math.sqrt((cn.sigN/q)**2+(A*re)**2),mda:cn.ld/q,det:cn.det}; }
 /* Windows around peaks, for integrating them: two neighbours are split at the
    lowest point between them, and each outer edge is two widths from its peak
    (or where the data end). pk is [{x, w}], w the FWHM when known. */
@@ -6689,7 +6698,7 @@ function migrateGraphs(p){
 }
 /* Undo is per-session and local: it rewinds your own edits, not other
    people's. Cross-user undo in a shared document is a different problem. */
-const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","fitSets","lines","rawLock","tree","wsAlign","wsHide","sheets"];
+const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","fitSets","lines","rawLock","tree","wsAlign","wsHide","sheets","detcal"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
 /* Raw values are replaced, never changed in place, so a snapshot keeps each
    column's data array as it is and copies the rest: with 20 spectra of 50 000
@@ -18847,7 +18856,9 @@ function spectroscopyItems(){
     {label:"Name the peaks from known lines…", title:"Each peak found takes the name of the nearest known line within a tolerance", run:()=>{ S.pkIdOpen=true; openPeakFinder(); setTimeout(()=>pkScrollTo("#pkId"),60); }, enabled:!!p&&has},
     "-",
     {label:"X axis", sub:()=>[t("ecal"), t("shift"), t("xunit"), t("calib")]},
-    {label:"Corrections", sub:()=>[t("absorb"), t("km"), t("bose")]}];
+    {label:"Corrections", sub:()=>[t("absorb"), t("km"), t("bose")]},
+    {label:"Detector", sub:()=>[{label:"Efficiency against energy…", title:"The detector's efficiency at each energy, as a curve: activities where none is typed", run:()=>detCalDlg("eff"), enabled:!!p&&!S.readOnly},
+      {label:"Resolution against energy…", title:"The width of a single line at each energy, as a curve: a counted window much wider is marked", run:()=>detCalDlg("fwhm"), enabled:!!p&&!S.readOnly}]}];
 }
 // Analyze: fitting, peaks and bands first, then the kinds of tool, then the results.
 function analyzeMenu(){
@@ -19649,8 +19660,9 @@ const bandPM=(v,e)=>!Number.isFinite(v)?"":e?`${fmt(v,8)}\t${fmt(e,3)}`:`${fmt(v
 function integTableText(c){
   const res=bandCalc(c), d=finalOf(c), au=unitFor("yx",d.xu||"",d.yu||"");
   if(res.cs&&res.cs.kc){ const t=res.cs.t, base=integTableText0(c,res).split("\n");
-    return [base[0]+"\tNet counts\t±\tRate (counts/s)\t±\tCritical level\tDetected\tEmission (%)\tEfficiency (%)\tActivity (Bq)\t±\tDetection limit (Bq)"].concat(res.map((q,i)=>{ const cn=q.cnt, a=cn&&!cn.fail?activityOf(cn,t,q.b.eff,q.b.ig):null;
-      return base[i+1]+"\t"+(cn&&!cn.fail?[fmt(cn.N,8),fmt(cn.sigN,3),t>0?fmt(cn.N/t,6):"",t>0?fmt(cn.sigN/t,3):"",fmt(cn.lc,4),cn.det?"yes":"no",q.b.ig??"",q.b.eff??"",a&&a.det?fmt(a.A,6):"",a&&a.det?fmt(a.sA,3):"",a?fmt(a.mda,4):""]:["","","","","","","","","","",""]).join("\t"); })).join("\n"); }
+    const ec=detCurve("eff",d.xu||"");
+    return [base[0]+"\tNet counts\t±\tRate (counts/s)\t±\tCritical level\tDetected\tEmission (%)\tEfficiency (%)\tActivity (Bq)\t±\tDetection limit (Bq)"].concat(res.map((q,i)=>{ const cn=q.cnt, ef=bandEff(q,ec), a=cn&&!cn.fail?activityOf(cn,t,ef.v,q.b.ig,ef.err):null;
+      return base[i+1]+"\t"+(cn&&!cn.fail?[fmt(cn.N,8),fmt(cn.sigN,3),t>0?fmt(cn.N/t,6):"",t>0?fmt(cn.sigN/t,3):"",fmt(cn.lc,4),cn.det?"yes":"no",q.b.ig??"",ef.v!=null?fmt(ef.v,5)+(ef.from==="curve"?" (curve)":""):"",a&&a.det?fmt(a.A,6):"",a&&a.det?fmt(a.sA,3):"",a?fmt(a.mda,4):""]:["","","","","","","","","","",""]).join("\t"); })).join("\n"); }
   return integTableText0(c,res); }
 function integTableText0(c,res){
   const d=finalOf(c), au=unitFor("yx",d.xu||"",d.yu||"");
@@ -19698,7 +19710,7 @@ function renderInteg(){
     h+=`<div class="twrap"><table class="rtab igtab"><thead><tr><th class="l">Spectrum</th>${bands.map(q=>`<th><span class="igsw" style="background:${peakColor(q.k)}"></span> ${esc(bandName(q.b,q.k))}</th>`).join("")}${refQ?bands.filter(q=>q!==refQ).map(q=>`<th>${esc(bandName(q.b,q.k))} ÷ ${esc(bandName(refQ.b,refQ.k))}</th>`).join(""):""}</tr></thead><tbody>`+
       rows.map(({c:y,res:rr})=>`<tr${y===c?' class="sel"':""}><td class="l">${esc(specName(y))}</td>${rr.map(q=>`<td>${q.r.fail?"—":fmtPM(q.r.area,q.r.err)}</td>`).join("")}${refQ?rr.filter(q=>q.b.id!==g.ref).map(q=>`<td>${q.ratio!=null?fmtPM(q.ratio,q.ratioErr):"—"}</td>`).join(""):""}</tr>`).join("")+`</tbody></table></div>`;
   }
-  if(res.length&&!every&&(res.cs.kc||res.cs.why)) h+=integCountHtml(res,ro);
+  if(res.length&&!every&&(res.cs.kc||res.cs.why)) h+=integCountHtml(res,ro,c);
   if(res.length) h+=`<div class="actions"><button class="btn sm ghost" id="igCopy">${ICON("copy","sm")}Copy</button><button class="btn sm ghost" id="igClear"${ro}>Clear</button><span class="sp"></span>
     <label class="chk"><input type="checkbox" id="igShow"${g.show?" checked":""}${ro}> Shade them on the graph</label></div>`;
   if(res.length) h+=`<details class="grp" id="igHow"${S.igHow?" open":""}><summary>Baselines</summary><div class="gb">
@@ -19707,20 +19719,36 @@ function renderInteg(){
   if(focusId){ const el=document.getElementById(focusId); if(el){ if(keepV&&el.matches("input[type=text]")){ el.value=keepV[0]; try{ el.setSelectionRange(keepV[1],keepV[2]); }catch(e){} } el.focus({preventScroll:true}); } }
   wireInteg(box);
 }
+/* The detector's curves (roadmap 3, slice 3): `p.detcal = {eff:{pts:[{E, eff, err}], deg, xu}, fwhm:{pts:[{E, w}],
+   deg, xu}}`, in UNDO_KEYS. `detCalOf(p)` reads it cleaned; `detCurve(kind, xu)` is the fitted curve for that X
+   unit (null for another unit, none, or a curve that cannot be made), memoised per points. */
+function detCalOf(p){ p=p||P(); const d=p&&p.detcal&&typeof p.detcal==="object"?p.detcal:{};
+  const one=(o,ks,def)=>{ o=o&&typeof o==="object"?o:{}; return {pts:Array.isArray(o.pts)?o.pts.filter(q=>q&&typeof q==="object"&&ks.every(k=>q[k]==null||Number.isFinite(q[k]))).map(q=>Object.assign({},q)):[],deg:[1,2,3,4].includes(+o.deg)?+o.deg:def,xu:typeof o.xu==="string"?o.xu:"keV"}; };
+  return {eff:one(d.eff,["E","eff","err"],2),fwhm:one(d.fwhm,["E","w"],1)}; }
+const DCMEMO=new Map();
+function detCurve(kind,xu){ const c=detCalOf()[kind]; if(!c.pts.length||(xu!=null&&(c.xu||"")!==(xu||""))) return null;
+  const key=kind+JSON.stringify(c); let v=DCMEMO.get(key); if(!v){ v=kind==="eff"?effCurve(c.pts,c.deg):fwhmCurve(c.pts,c.deg); if(DCMEMO.size>20) DCMEMO.clear(); DCMEMO.set(key,v); } return v.fail?null:v; }
+// A counted window's efficiency: as typed, else the curve's at its centre (with the curve's error).
+function bandEff(q,ec){ const b=q.b, cn=q.cnt; if(b.eff!=null) return {v:b.eff,err:0,from:"typed"};
+  const E=cn&&!cn.fail&&cn.centroid!=null?cn.centroid:(b.x1+b.x2)/2, r=ec?effAt(ec,E):null; return r?{v:r.v,err:r.err||0,from:"curve",out:r.out,E}:{v:null,err:0,from:null}; }
 // The bands counted: net counts, the rate, detected or not, and from an emission probability and an
 // efficiency typed, the activity (or, not detected, the detection limit as one).
-function integCountHtml(res,ro){
-  const cs=res.cs; let h=`<details class="grp" id="igCnt"${S.igCnt===false?"":" open"}><summary>Counting</summary><div class="gb">`;
+function integCountHtml(res,ro,c){
+  const cs=res.cs, xu=c?finalOf(c).xu||"":"", ec=detCurve("eff",xu), fc=detCurve("fwhm",xu); let h=`<details class="grp" id="igCnt"${S.igCnt===false?"":" open"}><summary>Counting</summary><div class="gb">`;
   if(cs.why) return h+`<p class="lab">${esc(cs.why)}</p></div></details>`;
-  const t=cs.t, num=(k,b,v,lab)=>`<input type="text" inputmode="decimal" class="ignum" id="ig-${k}-${esc(b.id)}" data-igk="${k}" data-igb="${esc(b.id)}" value="${v!=null?esc(String(v)):""}" placeholder="—" aria-label="${esc(lab)}"${ro}>`;
+  const t=cs.t, num=(k,b,v,lab,ph,tip)=>`<input type="text" inputmode="decimal" class="ignum${ph?" fromcv":""}" id="ig-${k}-${esc(b.id)}" data-igk="${k}" data-igb="${esc(b.id)}" value="${v!=null?esc(String(v)):""}" placeholder="${esc(ph||"—")}" aria-label="${esc(lab)}"${tip?` title="${esc(tip)}"`:""}${ro}>`;
   h+=`<div class="twrap"><table class="rtab igcnt"><thead><tr><th class="l">Band</th><th title="The counts in the window less the continuum under them, a line through the channels at each edge; ± one standard deviation from counting">Net counts</th><th class="x" title="Net counts per second of live time">Rate <span class="unit">(counts/s)</span></th><th class="x" title="Currie's critical level, 95 %: a net count above it is a line">Detected</th><th class="edt" title="The share of decays that give this line">Emission <span class="unit">(%)</span></th><th class="edt" title="The detector's full-energy peak efficiency at this energy">Efficiency <span class="unit">(%)</span></th><th class="x" title="Net counts ÷ (live time × efficiency × emission), counting error only; not detected, the detection limit as an activity">Activity <span class="unit">(Bq)</span></th></tr></thead><tbody>`;
   res.forEach(q=>{ const b=q.b, cn=q.cnt, nm=bandName(b,q.k);
     if(!cn||cn.fail){ h+=`<tr class="rmain"><td class="l">${esc(nm)}</td><td colspan="6" class="l lab">${esc(cn?cn.fail:"")}</td></tr>`; return; }
-    const a=activityOf(cn,t,b.eff,b.ig), rate=t>0?fmtPM(cn.N/t,cn.sigN/t):"—", det=cn.det?"Yes":`No <span class="lab">(&lt; ${esc(fmt(cn.lc,4))})</span>`;
+    const ef=bandEff(q,ec), a=activityOf(cn,t,ef.v,b.ig,ef.err), rate=t>0?fmtPM(cn.N/t,cn.sigN/t):"—";
+    // Wider than the detector's resolution there: two lines in one window, perhaps.
+    const wexp=fc&&q.r&&!q.r.fail&&q.r.fwhm!=null?fwhmAt(fc,q.r.pos):null, wide=wexp&&q.r.fwhm>1.3*wexp?`wider than the resolution (${fmt(wexp,3)}${xu?" "+xu:""} here): two lines?`:"";
+    const det=(cn.det?"Yes":`No <span class="lab">(&lt; ${esc(fmt(cn.lc,4))})</span>`)+(wide?` <span class="warnc" title="${esc(wide)}">${ICON("alert","sm")}</span>`:"");
+    const effPh=ef.from==="curve"?fmt(ef.v,3):null, effTip=ef.from==="curve"?`From the efficiency curve: ${fmt(ef.v,4)}${ef.err?` ± ${fmt(ef.err,2)}`:""} %${ef.out?", beyond its points":""}. Type a value to use instead.`:null;
     const act=!t?`<span class="lab" title="No live time is known for this column">—</span>`:!a?"—":a.det?fmtPM(a.A,a.sA):`&lt; ${esc(fmt(a.mda,3))}`;
-    h+=`<tr class="rmain"><td class="l">${esc(nm)}</td><td>${fmtPM(cn.N,cn.sigN)}</td><td class="x">${rate}</td><td class="x">${det}</td><td class="num edt">${num("ig",b,b.ig,"Emission probability of "+nm+", %")}</td><td class="num edt">${num("eff",b,b.eff,"Efficiency at "+nm+", %")}</td><td class="x">${act}</td></tr>`
-      +`<tr class="rmore"><td colspan="7">rate <span class="v">${rate}</span> counts/s · ${cn.det?"detected":`not detected <span class="v">(&lt; ${esc(fmt(cn.lc,4))})</span>`}${a?` · activity <span class="v">${act}</span> Bq`:""}</td></tr>`; });
-  return h+`</tbody></table></div><p class="lab">${t?`Live time ${esc(fmt(t,6))} s. `:""}Continuum from ${res[0]&&res[0].cnt&&res[0].cnt.k?res[0].cnt.k:integOf().avg} channel${(res[0]&&res[0].cnt&&res[0].cnt.k)===1?"":"s"} at each edge of each window.</p></div></details>`; }
+    h+=`<tr class="rmain"><td class="l">${esc(nm)}</td><td>${fmtPM(cn.N,cn.sigN)}</td><td class="x">${rate}</td><td class="x">${det}</td><td class="num edt">${num("ig",b,b.ig,"Emission probability of "+nm+", %")}</td><td class="num edt">${num("eff",b,b.eff,"Efficiency at "+nm+", %",effPh,effTip)}</td><td class="x">${act}</td></tr>`
+      +`<tr class="rmore"><td colspan="7">rate <span class="v">${rate}</span> counts/s · ${cn.det?"detected":`not detected <span class="v">(&lt; ${esc(fmt(cn.lc,4))})</span>`}${a?` · activity <span class="v">${act}</span> Bq`:""}${wide?` · <span class="warnc">${esc(wide)}</span>`:""}</td></tr>`; });
+  return h+`</tbody></table></div><p class="lab">${t?`Live time ${esc(fmt(t,6))} s. `:""}${ec?`Efficiency from the detector's curve where none is typed (${ec.n} points). `:""}Continuum from ${res[0]&&res[0].cnt&&res[0].cnt.k?res[0].cnt.k:integOf().avg} channel${(res[0]&&res[0].cnt&&res[0].cnt.k)===1?"":"s"} at each edge of each window.</p></div></details>`; }
 function wireInteg(box){
   const on=(sel,fn)=>{ const el=box.querySelector(sel); if(el) el.onclick=fn; };
   on("#igPick",()=>pickBands()); on("#igPeaks",bandsFromPeaksUI);
@@ -19800,10 +19828,10 @@ function reportBandsHtml(){
     out+="<h3>"+e2(specName(c))+"</h3><table><thead><tr><th class=\"l\">Band</th><th>From</th><th>To</th><th class=\"l\">Baseline</th><th>Area"+(au?" ("+e2(au)+")":"")+"</th><th>Height</th><th>Position</th><th>FWHM</th><th>%</th><th>"+(res.ref?"÷ "+e2(bandName(res.ref.b,res.ref.k)):"Ratio")+"</th></tr></thead><tbody>"+
       res.map(q=>{ const r=q.r; return "<tr><td class=\"l\">"+e2(bandName(q.b,q.k))+"</td><td>"+e2(fmt(Math.min(q.b.x1,q.b.x2),7))+"</td><td>"+e2(fmt(Math.max(q.b.x1,q.b.x2),7))+"</td><td class=\"l\">"+e2((BAND_BASES.find(z=>z[0]===(q.b.base||"line"))||[,""])[1])+"</td>"+
         (r.fail?"<td colspan=\"6\" class=\"l\">"+e2(r.fail)+"</td>":"<td>"+fmtPM(r.area,r.err)+"</td><td>"+e2(fmt(r.height,5))+"</td><td>"+e2(fmt(r.pos,7))+"</td><td>"+(r.fwhm!=null?e2(fmt(r.fwhm,5)):"")+"</td><td>"+(q.pct!=null?e2(fmt(q.pct,4)):"")+"</td><td>"+(q.ratio!=null?(q===res.ref?"1":fmtPM(q.ratio,q.ratioErr)):"")+"</td>")+"</tr>"; }).join("")+"</tbody></table>"; });
-  yCols().forEach(c=>{ const res=bandCalc(c); if(!res.length||!res.cs||!res.cs.kc) return; const t=res.cs.t;
+  yCols().forEach(c=>{ const res=bandCalc(c); if(!res.length||!res.cs||!res.cs.kc) return; const t=res.cs.t, ec=detCurve("eff",finalOf(c).xu||"");
     out+="<h3>"+e2(specName(c))+": counted</h3><table><thead><tr><th class=\"l\">Band</th><th>Net counts</th><th>Rate (counts/s)</th><th>Critical level</th><th>Emission (%)</th><th>Efficiency (%)</th><th>Activity (Bq)</th></tr></thead><tbody>"+
-      res.map(q=>{ const cn=q.cnt; if(!cn||cn.fail) return "<tr><td class=\"l\">"+e2(bandName(q.b,q.k))+"</td><td colspan=\"6\" class=\"l\">"+e2(cn?cn.fail:"")+"</td></tr>"; const a=activityOf(cn,t,q.b.eff,q.b.ig);
-        return "<tr><td class=\"l\">"+e2(bandName(q.b,q.k))+"</td><td>"+fmtPM(cn.N,cn.sigN)+"</td><td>"+(t>0?fmtPM(cn.N/t,cn.sigN/t):"")+"</td><td>"+e2(fmt(cn.lc,4))+(cn.det?"":" (not detected)")+"</td><td>"+e2(q.b.ig??"")+"</td><td>"+e2(q.b.eff??"")+"</td><td>"+(a?(a.det?fmtPM(a.A,a.sA):"&lt; "+e2(fmt(a.mda,3))):"")+"</td></tr>"; }).join("")+"</tbody></table><p class=\"meta\">Net counts: the counts in each window less a straight continuum through the mean of the channels at each edge; ± one standard deviation from counting. Critical level and detection limit after Currie (5 % false detections and misses). Activity: net counts ÷ (live time"+(t?" "+e2(fmt(t,6))+" s":"")+" × efficiency × emission), counting error only.</p>"; });
+      res.map(q=>{ const cn=q.cnt; if(!cn||cn.fail) return "<tr><td class=\"l\">"+e2(bandName(q.b,q.k))+"</td><td colspan=\"6\" class=\"l\">"+e2(cn?cn.fail:"")+"</td></tr>"; const ef=bandEff(q,ec), a=activityOf(cn,t,ef.v,q.b.ig,ef.err);
+        return "<tr><td class=\"l\">"+e2(bandName(q.b,q.k))+"</td><td>"+fmtPM(cn.N,cn.sigN)+"</td><td>"+(t>0?fmtPM(cn.N/t,cn.sigN/t):"")+"</td><td>"+e2(fmt(cn.lc,4))+(cn.det?"":" (not detected)")+"</td><td>"+e2(q.b.ig??"")+"</td><td>"+(ef.v!=null?e2(fmt(ef.v,4))+(ef.from==="curve"?" (curve)":""):"")+"</td><td>"+(a?(a.det?fmtPM(a.A,a.sA):"&lt; "+e2(fmt(a.mda,3))):"")+"</td></tr>"; }).join("")+"</tbody></table><p class=\"meta\">Net counts: the counts in each window less a straight continuum through the mean of the channels at each edge; ± one standard deviation from counting. Critical level and detection limit after Currie (5 % false detections and misses). Activity: net counts ÷ (live time"+(t?" "+e2(fmt(t,6))+" s":"")+" × efficiency × emission), with the counting error"+(ec?" and the efficiency curve's (ln ε of degree "+ec.deg+" in ln E, "+ec.n+" points)":"")+".</p>"; });
   return out?"<h2>Band integrals</h2><p class=\"meta\">Trapezoidal sums over the points in each window, less a local baseline ("+(g.avg===1?"a line through the edge points":"a line through the mean of "+g.avg+" points at each edge")+", unless another is named), on the processed data with masked points left out. Each ± carries the spectrum's noise (from its second differences), or its error bars, through the sum and the baseline.</p>"+out:"";
 }
 
@@ -20761,6 +20789,64 @@ function formDlg(o){
     openModal(m,o.focus?m.querySelector(o.focus):null);
   });
 }
+/* The detector's efficiency or resolution against energy: a table of points (typed, or from the
+   counted windows of a calibration source, or from the windows and fitted peaks), the curve's degree,
+   and the points with the curve drawn beside them; Save is one undo entry and a log line. */
+function dcPlotSvg(rows,cv,eff,xu){
+  const W=330, H=210, L=48, R=12, T=10, B=34, pts=rows.filter(q=>q.E>0&&(eff?q.eff>0:q.w>0));
+  if(!pts.length) return `<p class="lab">The points and the curve are drawn here.</p>`;
+  const Es=pts.map(q=>q.E), E0=Math.min(...Es)/1.3, E1=Math.max(...Es)*1.3, lg=v=>eff?Math.log10(v):v;
+  const cs=[]; if(cv) for(let i=0;i<=80;i++){ const E=eff?10**(lg(E0)+(lg(E1)-lg(E0))*i/80):E0+(E1-E0)*i/80, y=eff?(effAt(cv,E)||{}).v:fwhmAt(cv,E); if(y>0) cs.push([E,y]); }
+  const ys=pts.map(q=>eff?q.eff:q.w).concat(cs.map(q=>q[1])), y0=eff?Math.min(...ys)/1.3:0, y1=Math.max(...ys)*(eff?1.3:1.15);
+  const fx=v=>L+(lg(v)-lg(E0))/(lg(E1)-lg(E0))*(W-L-R), fy=v=>T+(1-(lg(v)-lg(y0))/(lg(y1)-lg(y0)))*(H-T-B);
+  const tk=(a,b,log)=>log?[1,2,5].flatMap(m=>{ const o=[]; for(let e=Math.floor(Math.log10(a));e<=Math.ceil(Math.log10(b));e++){ const v=m*10**e; if(v>=a&&v<=b) o.push(v); } return o; }).sort((p,q)=>p-q):niceTicks(a,b,4).ticks.filter(v=>v>=a&&v<=b);
+  const xt=tk(E0,E1,eff), yt=tk(y0||1e-9,y1,eff), f=v=>esc(fmt(v,3));
+  let s=`<svg class="dcsvg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${eff?"Efficiency":"FWHM"} against energy"><rect x="${L}" y="${T}" width="${W-L-R}" height="${H-T-B}" fill="none" stroke="var(--rule)"/>`;
+  xt.forEach(v=>{ const x=fx(v); s+=`<line x1="${x}" x2="${x}" y1="${H-B}" y2="${H-B+4}" stroke="var(--muted)"/><text x="${x}" y="${H-B+15}" text-anchor="middle" font-size="10" fill="var(--muted)">${f(v)}</text>`; });
+  yt.forEach(v=>{ const y=fy(v); s+=`<line x1="${L-4}" x2="${L}" y1="${y}" y2="${y}" stroke="var(--muted)"/><text x="${L-6}" y="${y+3}" text-anchor="end" font-size="10" fill="var(--muted)">${f(v)}</text>`; });
+  s+=`<text x="${(L+W-R)/2}" y="${H-4}" text-anchor="middle" font-size="10.5" fill="var(--ink-2)">Energy${xu?` (${esc(xu)})`:""}</text><text transform="translate(11 ${(T+H-B)/2}) rotate(-90)" text-anchor="middle" font-size="10.5" fill="var(--ink-2)">${eff?"Efficiency (%)":`FWHM${xu?` (${esc(xu)})`:""}`}</text>`;
+  if(cs.length>1) s+=`<path d="M${cs.map(q=>fx(q[0]).toFixed(1)+","+fy(q[1]).toFixed(1)).join("L")}" fill="none" stroke="var(--fit)" stroke-width="1.6"/>`;
+  pts.forEach(q=>{ const x=fx(q.E), y=fy(eff?q.eff:q.w); if(eff&&q.err>0){ const a=fy(Math.max(q.eff-q.err,y0)), b=fy(q.eff+q.err); s+=`<line x1="${x}" x2="${x}" y1="${a}" y2="${b}" stroke="var(--data)"/>`; } s+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.2" fill="var(--data)"/>`; });
+  return s+`</svg>`; }
+function detCalDlg(kind){
+  const p=P(); if(!p||S.readOnly) return; const eff=kind==="eff", c=activeYCol(), d=c?finalOf(c):null, cal=detCalOf()[kind], xu=cal.pts.length?cal.xu:(d&&d.xu)||cal.xu||"keV";
+  const rows=cal.pts.map(q=>Object.assign({},q)); let deg=cal.deg;
+  const cols=eff?[["E","Energy",xu],["eff","Efficiency","%"],["err","±","%"]]:[["E","Energy",xu],["w","FWHM",xu]];
+  const html=`<p class="lab">${eff?"The detector's full-energy peak efficiency at each energy, from a calibration source or its certificate. The curve is ln ε, a polynomial in ln E; the Counting part of the Integrate window uses it where no efficiency is typed.":"The width (FWHM) of a single line at each energy. The curve is FWHM² = a + b·E (+ c·E²); a counted window much wider than it is marked."}</p>
+    <div class="dcwrap"><div class="dcl"><div class="twrap"><table class="rtab dctab"><thead><tr>${cols.map(([k,l,u])=>`<th>${l}${u?` <span class="unit">(${esc(u)})</span>`:""}</th>`).join("")}<th></th></tr></thead><tbody id="dcRows"></tbody></table></div>
+    <div class="actions"><button type="button" class="btn sm" id="dcAdd">${ICON("plus","sm")}Point</button>${eff?`<input type="text" id="dcAct" inputmode="decimal" placeholder="Activity, Bq" aria-label="The calibration source's activity, in Bq" style="width:9.5em"><button type="button" class="btn sm" id="dcFrom" title="Each counted window of the active column with its emission typed: efficiency = net counts ÷ (activity × live time × emission)">From the counted windows</button>`:`<button type="button" class="btn sm" id="dcFrom" title="The FWHM of each window of the active column, and of each fitted peak">From the windows and peaks</button>`}</div>
+    <div class="frow"><label for="dcDeg">Curve</label><select id="dcDeg">${(eff?[1,2,3,4]:[1,2]).map(k=>`<option value="${k}"${k===deg?" selected":""}>${eff?["","A straight line in log–log","Degree 2 in ln E","Degree 3 in ln E","Degree 4 in ln E"][k]:["","a + b·E","a + b·E + c·E²"][k]}</option>`).join("")}</select></div></div>
+    <div id="dcPv" class="dcpv"></div></div><p class="lab" id="dcMsg" role="status"></p>`;
+  const done=formDlg({title:eff?"Detector efficiency against energy":"Detector resolution against energy",html,wide:true,ok:"Save"});
+  const cvOf=()=>eff?effCurve(rows,deg):fwhmCurve(rows,deg);
+  const draw=()=>{ const cv=cvOf(), ok=cv&&!cv.fail; $("#dcPv").innerHTML=dcPlotSvg(rows,ok?cv:null,eff,xu);
+    const n=rows.filter(q=>q.E>0&&(eff?q.eff>0:q.w>0)).length;
+    $("#dcMsg").textContent=!n?"Add points: type them, or take them from the windows.":cv.fail?cv.fail:eff?`${cv.n} points; the curve is within ${fmt(Math.max(...cv.rel.map(Math.abs))*100,2)} % of each.${cv.redChi2!=null?` Reduced χ² ${fmt(cv.redChi2,3)}.`:""}`:`${cv.n} points; the curve is within ${fmt(Math.max(...cv.rel.filter(v=>v!=null).map(Math.abs))*100,2)} % of each.`; };
+  const drawRows=()=>{ const tb=$("#dcRows"); if(!tb) return;
+    tb.innerHTML=rows.map((q,i)=>`<tr>${cols.map(([k,l])=>`<td><input type="text" inputmode="decimal" class="ignum" data-dci="${i}" data-dck="${k}" value="${q[k]!=null?esc(String(+(+q[k]).toPrecision(6))):""}" aria-label="${esc(l)}, point ${i+1}"></td>`).join("")}<td><button type="button" class="tb sm icon" data-dcdel="${i}" aria-label="Remove point ${i+1}" title="Remove this point">${ICON("x","sm")}</button></td></tr>`).join("")||`<tr><td colspan="${cols.length+1}" class="l lab">No points yet.</td></tr>`;
+    tb.querySelectorAll("input").forEach(el=>el.addEventListener("input",()=>{ const s=el.value.trim(), v=s===""?null:parseNum(s); rows[+el.dataset.dci][el.dataset.dck]=v; el.classList.toggle("bad",s!==""&&v==null); draw(); }));
+    tb.querySelectorAll("[data-dcdel]").forEach(b=>b.onclick=()=>{ rows.splice(+b.dataset.dcdel,1); drawRows(); draw(); }); };
+  drawRows(); draw();
+  $("#dcAdd").onclick=()=>{ rows.push(eff?{E:null,eff:null,err:null}:{E:null,w:null}); drawRows(); const last=$("#dcRows").querySelector("tr:last-child input"); if(last) last.focus(); };
+  $("#dcDeg").onchange=e=>{ deg=+e.target.value; draw(); };
+  $("#dcFrom").onclick=()=>{ if(!c){ $("#dcMsg").textContent="No column is active."; return; }
+    const res=bandCalc(c), added=[], skip=[];
+    if(eff){ const A=parseNum(($("#dcAct").value||"").trim()), t=res.cs?res.cs.t:0;
+      if(!(A>0)){ $("#dcMsg").textContent="Type the source's activity in Bq first."; $("#dcAct").focus(); return; }
+      if(!res.cs||!res.cs.kc){ $("#dcMsg").textContent=(res.cs&&res.cs.why)||"The active column is not counts."; return; }
+      res.forEach(q=>{ const cn=q.cnt, nm=bandName(q.b,q.k); if(!cn||cn.fail||!cn.det){ skip.push(nm+" (not counted)"); return; } if(!(q.b.ig>0)){ skip.push(nm+" (no emission typed)"); return; }
+        const e=100*cn.N/(A*t*q.b.ig/100); added.push({E:cn.centroid!=null?cn.centroid:(q.b.x1+q.b.x2)/2,eff:e,err:e*cn.sigN/cn.N}); }); }
+    else { res.forEach(q=>{ if(q.r&&!q.r.fail&&q.r.fwhm>0) added.push({E:q.r.pos,w:q.r.fwhm}); else skip.push(bandName(q.b,q.k)); });
+      const f=activeFit(); if(f&&f.spec) peakMetrics(f).forEach(r=>{ if(r.ok&&r.fwhm>0&&r.xc>0) added.push({E:r.xc,w:r.fwhm}); }); }
+    added.forEach(q=>rows.push(q)); drawRows(); draw();
+    $("#dcMsg").textContent=`${added.length} point${added.length===1?"":"s"} added${skip.length?`; left out: ${skip.join(", ")}`:""}.`; };
+  done.then(r=>{ if(!r) return; const keep=rows.filter(q=>q.E>0&&(eff?q.eff>0:q.w>0)).map(q=>eff?{E:q.E,eff:q.eff,err:q.err>0?q.err:null}:{E:q.E,w:q.w});
+    const was=detCalOf()[kind]; if(JSON.stringify(was.pts)===JSON.stringify(keep)&&was.deg===deg) return;
+    pushUndo(eff?"the detector's efficiency":"the detector's resolution");
+    const all=Object.assign({},P().detcal||{},{[kind]:{pts:keep,deg,xu}});
+    save({detcal:all},`${keep.length?"set":"cleared"} the detector's ${eff?"efficiency":"resolution"} against energy${keep.length?` from ${keep.length} point${keep.length===1?"":"s"}`:""}`);
+    if(winOpen("integ")) renderInteg(); toast(`The detector's ${eff?"efficiency":"resolution"} curve is saved with the project.`); });
+}
 /* ============================================================
    Help. The documentation is a window of its own, so it can stay open beside
    what it describes: a contents list grouped by kind, a search over every
@@ -21307,6 +21393,17 @@ ${DL([["Method","<em>Local maxima</em>; <em>Window maximum</em>, the highest poi
 <h2>Rejected: why a candidate is not counted as a peak</h2>
 ${DL([["Below the threshold","It did not pass <em>Keep if</em>."],["Within the noise","Less than three times the noise. Their number is shown, not each one."],["A spike","Narrower than <em>Min width</em>."],["Too wide","Wider than a band can be in this window."],["Too close","Within <em>Min spacing</em> of a stronger one."],["Over the limit","Past <em>Max peaks</em>."]])}
 ${TIP("A shoulder has no valley of its own: the second-derivative method measures it against the lowest point within its own width.")}`},
+{id:"detcal", g:"Analysis", t:"The detector's efficiency and resolution", kw:"detector efficiency curve calibration source fwhm resolution energy hpge nai full-energy peak absolute efficiency log-log polynomial doublet",
+ lead:"Two curves against energy, kept with the project: the efficiency that turns net counts into an activity, and the width of a single line, which marks a window holding two.",
+ body:`<p>${MP("Analyze › Spectroscopy › Detector › Efficiency against energy…")} and ${MP("Resolution against energy…")} open a table of points beside a drawing of them and the curve.</p>
+<h2>Efficiency</h2>
+<ul><li>Type points (energy, efficiency in %, and its error if known), or count a calibration source: put a window around each of its lines (${DA("integ#counting","Counting")}), type each line's emission, then in the dialog the source's activity and <em>From the counted windows</em>: efficiency = net counts ÷ (activity × live time × emission).</li>
+<li>The curve is ln ε, a polynomial in ln E of degree 1 to 4, weighted by the points' errors when every point has one. Its error at an energy comes from the fit.</li>
+<li>Where a window has no efficiency typed, the Counting part uses the curve's at the window's centre (shown greyed in the field), and the activity carries the curve's error. A typed value wins.</li></ul>
+<h2>Resolution</h2>
+<ul><li>Points are a line's FWHM at its energy: typed, or <em>From the windows and peaks</em> (each window's FWHM, and each fitted peak's).</li>
+<li>The curve is FWHM² = a + b·E (or + c·E²). A counted window more than 1.3 times as wide as the curve says there is marked: two lines, perhaps.</li></ul>
+${TIP("The curves belong to the project and to the X unit they were made in (keV, say): a column in other units does not use them.")}`},
 {id:"integ", g:"Analysis", t:"Integrating bands", win:"integ", kw:"integrate integral area band window baseline ratio percent share reference fwhm height net counts roi region of interest gross continuum activity becquerel bq efficiency emission probability intensity currie critical level detection limit mda",
  lead:"Measure bands without a fit: drag a window across each band, and Kurve gives its area with an error, its height, position and FWHM, its share of the total, and its ratio to a band you choose.",
  body:`<h2>Adding bands</h2>

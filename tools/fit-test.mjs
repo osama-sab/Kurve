@@ -16,7 +16,7 @@ const grab = (tag) => {
 // tools/pipe-test.mjs tests the rest of it. The curve fit's models are a block of
 // their own (MODELS), after the pipeline.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("MODELS")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,countBand,activityOf,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,countBand,activityOf,effCurve,effAt,fwhmCurve,fwhmAt,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -540,6 +540,27 @@ function fitSpec(X, Y, spec, init, opts) {
   const mean = nets.reduce((p, v) => p + v, 0) / R, sd = Math.sqrt(nets.reduce((p, v) => p + (v - mean) ** 2, 0) / (R - 1)), me = errs.reduce((p, v) => p + v, 0) / R;
   check("counting: unbiased, its error the scatter of 1500 repeats within 6 %", Math.abs(mean - 2000) < 3 * sd / Math.sqrt(R) + 1 && Math.abs(me / sd - 1) < 0.06, JSON.stringify([mean, sd, me]));
   check("counting: on a continuum alone, about 5 % called detected (3 % to 7.5 %)", fp / R > 0.03 && fp / R < 0.075, fp / R);
+}
+/* ---------- a detector's efficiency and resolution against energy ---------- */
+{
+  const Es = [59.5, 122.1, 244.7, 344.3, 661.7, 778.9, 964.1, 1112.1, 1408.0], truth = E => Math.exp(1.2 - 0.85 * Math.log(E / 300) - 0.12 * Math.log(E / 300) ** 2);
+  const cv = N.effCurve(Es.map(E => ({ E, eff: truth(E) })), 2);
+  check("efficiency: a curve of degree 2 in ln E recovered exactly", !cv.fail && Es.every(E => Math.abs(N.effAt(cv, E).v / truth(E) - 1) < 1e-9) && Math.abs(N.effAt(cv, 500).v / truth(500) - 1) < 1e-9, JSON.stringify(cv.fail || cv.co));
+  check("efficiency: beyond the points it says so", N.effAt(cv, 2000).out && !N.effAt(cv, 500).out);
+  check("efficiency: refused in words, too few points or one energy", /3 points at least/.test(N.effCurve([{ E: 100, eff: 5 }, { E: 200, eff: 4 }], 2).fail) && /different energies/.test(N.effCurve([{ E: 100, eff: 5 }, { E: 100, eff: 4 }, { E: 100, eff: 4.5 }], 2).fail));
+  // Points with 3 % errors: the error at an energy against the spread of 400 curves.
+  let s = 41; const u = () => { s = (s * 16807) % 2147483647; return s / 2147483647; }, z = () => Math.sqrt(-2 * Math.log(u() || 1e-12)) * Math.cos(2 * Math.PI * u());
+  const at = [], er = [];
+  for (let k = 0; k < 400; k++) { const c = N.effCurve(Es.map(E => { const v = truth(E) * (1 + 0.03 * z()); return { E, eff: v, err: 0.03 * truth(E) }; }), 2), r = N.effAt(c, 500); at.push(r.v); er.push(r.err); }
+  const m = at.reduce((a, b) => a + b, 0) / at.length, sd = Math.sqrt(at.reduce((a, b) => a + (b - m) ** 2, 0) / (at.length - 1)), me = er.reduce((a, b) => a + b, 0) / er.length;
+  check("efficiency: with errors, unbiased and its error the spread of 400 curves within 12 %", Math.abs(m / truth(500) - 1) < 0.005 && Math.abs(me / sd - 1) < 0.12, JSON.stringify([m / truth(500), me, sd]));
+  const un = N.effCurve(Es.map((E, i) => ({ E, eff: truth(E) * (1 + 0.02 * Math.sin(i * 2.3)) })), 2);
+  check("efficiency: unweighted, the error scaled by the scatter", !un.wtd && N.effAt(un, 500).err > 0);
+  const fw = N.fwhmCurve(Es.map(E => ({ E, w: Math.sqrt(1.1 + 0.0021 * E) })), 1);
+  check("resolution: FWHM² = a + b·E recovered", Math.abs(N.fwhmAt(fw, 1000) - Math.sqrt(1.1 + 2.1)) < 1e-9 && fw.rel.every(r => Math.abs(r) < 1e-9), JSON.stringify(fw.co));
+  check("resolution: none where a + b·E is not above zero", N.fwhmAt({ co: [-5, 0.001], deg: 1 }, 10) === null);
+  const ac = N.activityOf({ N: 1000, sigN: 50, ld: 30, det: true }, 100, 2, 50, 0.1);
+  check("activity: the efficiency's error carried", Math.abs(ac.sA / ac.A - Math.sqrt(0.05 ** 2 + 0.05 ** 2)) < 1e-12, JSON.stringify(ac));
 }
 /* ---------- integrating a band without a fit ---------- */
 {

@@ -1024,6 +1024,26 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Counting spectra, slice 3: the detector's efficiency and resolution (2026-11-05)
+
+- **Analyze › Spectroscopy › Detector** has *Efficiency against energy…* and *Resolution against
+  energy…*: a table of points beside a drawing of them and the curve, kept with the project.
+- **Efficiency** points are typed, or come from a calibration source: windows around its lines with
+  their emission typed, the source's activity typed, *From the counted windows*. The curve is ln ε, a
+  polynomial in ln E of degree 1 to 4, weighted by the points' errors.
+- **Activities without an efficiency typed**: the Counting part uses the curve's at each window's
+  centre, shown greyed in its field, and carries the curve's error into the activity.
+- **Resolution** points come from the windows' and the fitted peaks' FWHM; the curve is FWHM² = a +
+  b·E. A counted window much wider than a line there is marked: two lines, perhaps.
+- Help has an article on both; Copy and the report say where each efficiency came from.
+
+Checked: `tools/fit-test.mjs` (8 new: a curve of degree 2 recovered, beyond its points, refusals, its
+error against 400 curves from noisy points, unweighted, the resolution curve, the efficiency's error
+carried into the activity), `tools/count-drive.mjs` (11 new: a source counted into efficiency points,
+saved with a log line, the source's 1000 Bq back from the curve, the greyed field, the resolution and
+a doublet's window marked, undo, too few points said, points typed, Cancel, the report), a
+screenshot of the dialog.
+
 ## Counting spectra, slice 2: net counts, detection and activity (2026-11-05)
 
 - **The Integrate window counts** a spectrum of counts (or counts per second with its live time):

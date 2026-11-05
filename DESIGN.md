@@ -889,6 +889,23 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-05: counting spectra, slice 3 (the detector's efficiency and resolution)
+
+- **A curve, not a number per window.** An efficiency typed into each window does not carry from one
+  sample to the next and says nothing between the calibration lines. The project keeps one curve
+  of each against energy (the efficiency as ln ε, a polynomial in ln E, as gamma spectroscopy
+  writes it; the resolution as FWHM² = a + b·E), made in a dialog from typed points or from a
+  calibration source counted in the Integrate window. A window with no efficiency typed uses the
+  curve's, shown greyed in its field with where it came from; typing a value still wins.
+- **The curve's error goes into the activity**, from the fit's covariance, so an activity from a
+  curve made of three uncertain points says so.
+- **A window wider than a line is marked.** With a resolution curve, a counted window more than 1.3
+  times as wide as a single line there is marked: two lines in one window, which the net counts
+  cannot tell apart.
+- **A dialog, not a window.** The curves are set once per detector and geometry, not worked beside:
+  a dialog with the points, the curve drawn beside them, and Save (one undo step). Its listeners are
+  its own elements' (a dialog body outlives the dialog).
+
 ### 2026-11-05: counting spectra, slice 2 (net counts, detection, activity)
 
 - **Counted where the counts are counts.** A window on a spectrum of counts is an analyser's

@@ -194,6 +194,9 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
       Transmittance to absorbance…  ## ← Analysis › Spectroscopy; + Math › Transforms' copy
       Kubelka–Munk…  ## ← Analysis › Spectroscopy; + Math › Transforms' copy
       Bose–Einstein correction…  ## ← Analysis › Spectroscopy
+    Detector  ## + roadmap 3, slice 3: the detector's curves against energy
+      Efficiency against energy…
+      Resolution against energy…
   Results
   Batch results  ## ← Analysis › Fit (DS2); ↓ until there is a batch
 

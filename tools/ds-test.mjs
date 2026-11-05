@@ -129,7 +129,7 @@ await page(async p => {
   check("the menu bar is in the order of the work", m.bar === "File,Edit,Data,Plot,Analyze,Figure,Publish,Window,Help", m.bar);
   check("the graph window's bar repeats Data, Plot, Analyze and Figure", m.ribbon === "Data,Plot,Analyze,Figure", m.ribbon);
   check("Analyze measures: Fit, Peaks, Integrate, then kinds", m.an.join("|") === ["Fit", "Peaks…", "Integrate…", "Signal processing", "Calculus", "Statistics", "Spectroscopy", "Results"].join("|"), m.an);
-  check("Spectroscopy is a submenu of Analyze", m.sp.join("|") === ["Overview of the spectrum…", "Remove cosmic-ray spikes…", "Name the peaks from known lines…", "X axis", "Corrections"].join("|"), m.sp);
+  check("Spectroscopy is a submenu of Analyze", m.sp.join("|") === ["Overview of the spectrum…", "Remove cosmic-ray spikes…", "Name the peaks from known lines…", "X axis", "Corrections", "Detector"].join("|"), m.sp);
   check("Data has Baseline: Subtract baseline… and Linear detrend…", m.base.join("|") === "Subtract baseline…|Linear detrend…", m.base);
   check("Data's Transform holds what changes values or units", m.tr.length === 6 && m.tr[0] === "Scale and offset Y…", m.tr);
   check("Plot's View has the graph's pointer tools", ["Zoom", "Pan", "Reader", "X–Y lines", "Show all the data"].every(l => m.view.includes(l)), m.view);

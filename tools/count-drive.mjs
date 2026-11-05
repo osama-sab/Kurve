@@ -116,6 +116,50 @@ await page(async p => {
   check("in the dock the counting table fits", fit[0] && fit[0] <= fit[1], JSON.stringify(fit));
 }, { name: "counting", timeout: 120000 });
 
+console.log("Slice 3: the detector's efficiency and resolution against energy");
+await page(async p => {
+  // A calibration source: three single lines and a doublet, noiseless so the numbers are exact.
+  const counts = Array.from({ length: 1024 }, (_, i) => Math.round(200 * Math.exp(-i / 300) + 20 + peak(i, 300, 900, 3) + peak(i, 600, 400, 4) + peak(i, 800, 150, 4.5) + peak(i, 450, 300, 3.6) + peak(i, 458, 300, 3.6)));
+  await p.evaluate(t => autoImport([{ name: "source.spe", text: t }]), spe(counts)); await p.waitForTimeout(1200);
+  const E = ch => 0.12 + 0.452 * ch + 1.1e-7 * ch * ch;
+  await p.evaluate(([w]) => { w.forEach(([a, b, nm]) => addBand(a, b, { lab: nm })); openIntegrate(); }, [[[E(282), E(318), "A"], [E(576), E(624), "B"], [E(773), E(827), "C"], [E(430), E(478), "Two"]]]); await p.waitForTimeout(600);
+  const ids = await p.evaluate(() => integOf().bands.map(b => b.id));
+  for (const [k, v] of [[0, "85.1"], [1, "50"], [2, "30"], [3, "10"]]) { const f = p.locator(`#ig-ig-${ids[k]}`); await f.fill(v); await f.press("Enter"); await p.waitForTimeout(200); }
+  // The efficiency dialog, from Analyze › Spectroscopy › Detector.
+  await p.evaluate(() => { const it = analyzeMenu ? null : null; detCalDlg("eff"); }); await p.waitForTimeout(400);
+  await p.fill("#dcAct", "1000"); await p.click("#dcFrom"); await p.waitForTimeout(300);
+  const d = await p.evaluate(() => ({ rows: [...document.querySelectorAll("#dcRows tr")].map(tr => [...tr.querySelectorAll("input")].map(i => +i.value)), msg: $("#dcMsg").textContent, svg: !!document.querySelector("#dcPv svg path") }));
+  const want = await p.evaluate(() => { const res = bandCalc(activeYCol()); return res.filter(q => q.b.lab !== "Two").map(q => 100 * q.cnt.N / (1000 * 3600 * q.b.ig / 100)); });
+  check("from the counted windows: an efficiency per line, N ÷ (A t I), the curve drawn", d.rows.length === 4 && want.every((w, i) => Math.abs(d.rows[i][1] / w - 1) < 1e-5) && d.svg && /4 points added/.test(d.msg), JSON.stringify([d.rows, want, d.msg]));
+  // The doublet's point is not one line's: remove it, and save.
+  await p.locator('#dcRows [data-dcdel="3"]').click(); await p.waitForTimeout(150);
+  await p.click("#formOk"); await p.waitForTimeout(500);
+  const sv = await p.evaluate(() => ({ cal: detCalOf().eff, log: P().log.slice(-1)[0].text }));
+  check("saved with the project, one log line", sv.cal.pts.length === 3 && sv.cal.deg === 2 && sv.cal.xu === "keV" && /efficiency against energy from 3 points/.test(sv.log), JSON.stringify(sv));
+  // With no efficiency typed, the counting uses the curve: the source's activity comes back.
+  const a = await p.evaluate(() => { const c = activeYCol(), res = bandCalc(c), ec = detCurve("eff", finalOf(c).xu); return res.map(q => { const ef = bandEff(q, ec); return [q.b.lab, ef.from, activityOf(q.cnt, res.cs.t, ef.v, q.b.ig, ef.err)]; }); });
+  check("no efficiency typed: the curve's, and the activity of each line is the source's 1000 Bq", a.slice(0, 3).every(r => r[1] === "curve" && Math.abs(r[2].A - 1000) < 1e-3), JSON.stringify(a.slice(0, 3).map(r => [r[0], r[1], r[2] && r[2].A])));
+  const ph = await p.evaluate(id => { const f = document.getElementById("ig-eff-" + id); return [f.value, f.placeholder, f.title]; }, ids[0]);
+  check("…its value shown in the field, greyed, with where it comes from", ph[0] === "" && +ph[1] > 0 && /efficiency curve/.test(ph[2]), JSON.stringify(ph));
+  // The resolution, from the windows; the doublet's window is marked.
+  await p.evaluate(() => detCalDlg("fwhm")); await p.waitForTimeout(300); await p.click("#dcFrom"); await p.waitForTimeout(200);
+  await p.locator('#dcRows [data-dcdel="3"]').click(); await p.waitForTimeout(100); await p.click("#formOk"); await p.waitForTimeout(500);
+  const w = await p.evaluate(() => [detCalOf().fwhm.pts.length, document.querySelector("#igCnt").innerText]);
+  check("the resolution saved; the doublet's window is marked wider than a line there", w[0] === 3 && /wider than the resolution .* two lines\?/.test(w[1]) && (w[1].match(/two lines/g) || []).length === 1, JSON.stringify(w));
+  // Points typed by hand, refused when too few, and one undo.
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  check("one undo takes the resolution back", await p.evaluate(() => detCalOf().fwhm.pts.length === 0 && detCalOf().eff.pts.length === 3));
+  await p.evaluate(() => detCalDlg("eff")); await p.waitForTimeout(300);
+  await p.locator("#dcRows [data-dcdel='0']").click(); await p.locator("#dcRows [data-dcdel='0']").click(); await p.waitForTimeout(100);
+  check("too few points for the curve: said in words", /needs 3 points at least/.test(await p.textContent("#dcMsg")), await p.textContent("#dcMsg"));
+  await p.click("#dcAdd"); const ins = p.locator("#dcRows tr:last-child input"); await ins.nth(0).fill("1408"); await ins.nth(1).fill("0.9"); await p.waitForTimeout(150);
+  await p.click("#dcAdd"); const in2 = p.locator("#dcRows tr:last-child input"); await in2.nth(0).fill("80"); await in2.nth(1).fill("9.5"); await p.waitForTimeout(150);
+  check("points typed by hand: the curve again", /^3 points; the curve is within/.test(await p.textContent("#dcMsg")) && await p.evaluate(() => !!document.querySelector("#dcPv svg path")), await p.textContent("#dcMsg"));
+  await p.click("#formCancel"); await p.waitForTimeout(200);
+  check("Cancel changes nothing", await p.evaluate(() => detCalOf().eff.pts.length === 3));
+  check("the report names the curve", await p.evaluate(() => /efficiency curve's \(ln ε of degree 2 in ln E, 3 points\)/.test(reportBandsHtml())));
+}, { name: "the detector's curves", timeout: 120000 });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);
