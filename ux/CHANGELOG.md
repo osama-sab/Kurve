@@ -1024,6 +1024,24 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Known gaps closed: drags past the edge, undo beside another tab, Results in the dock (2026-11-05)
+
+- **A drag past the grid's edge goes on**: the fill handle held below the grid kept filling only
+  while the pointer moved, and a range dragged out of view stopped at the last row shown. Held past
+  any edge, the grid scrolls, faster the further out, and the fill or the selection follows.
+- **An undo beside another tab**: undoing an annotation took back the other tab's newer graph name
+  (only the columns were merged with what came in). Every part of a step now goes back beside what
+  came in since: graphs, annotations, sheets and the other lists thing by thing, the log and the
+  record keeping what was added elsewhere, any other part another window changed keeping that change.
+- **Results in the dock**: the parameter table ran 270 px off the dock's side. Narrow, t, p, the
+  interval and the dependency go on a line under each parameter, and a peak's shape, height, FWHM
+  and share under its centre and area.
+
+Checked: `tools/review-drive.mjs` (5 new: the fill handle held still past the bottom, a range
+dragged past it, an undo keeping the other tab's newer graph name, its newer annotation, its newer
+change to the same graph; they failed before), Results measured in the dock after a curve and a
+peak fit, and every suite.
+
 ## Known gaps closed: a million rows typed into, drawn and scrolled (2026-11-05)
 
 - **A value typed into a million rows** took 1.5 s; it takes about 70 ms. The check code is the

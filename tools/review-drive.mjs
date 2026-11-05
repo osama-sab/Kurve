@@ -236,6 +236,45 @@ await page(async p => {
   check("a width kept from before that would cover the desk is held to the same limit", (await st()).docsW === 780, JSON.stringify(await st()));
 }, { name: "the dock's edge" });
 
+console.log("05.11: known gaps closed: drags past the grid's edge, an undo beside another tab");
+await page(async p => {
+  await p.evaluate(() => { const n = 12, x = [], y = []; for (let i = 0; i < n; i++) { x.push(i); y.push(i * 2); } save({ cols: [makeCol("x", "X", "", x), Object.assign(makeCol("y", "Y", "", y), { pipe: [], mask: [] })], activeY: null }, "typed"); prefSet("anim", false); applyAnim(); }); await p.waitForTimeout(500);
+  await p.evaluate(() => focusWin("sheet")); await p.waitForTimeout(300);
+  // The fill handle held past the grid's bottom: it went no further than the last row in view unless the pointer moved.
+  await p.locator('#ws td[data-r="0"][data-ci="2"]').click(); await p.keyboard.type("1"); await p.keyboard.press("Enter"); await p.keyboard.type("2"); await p.keyboard.press("Enter"); await p.waitForTimeout(900);
+  await p.locator('#ws td[data-r="0"][data-ci="2"]').click(); await p.keyboard.press("Shift+ArrowDown"); await p.waitForTimeout(200);
+  const fh = await p.evaluate(() => { const r = document.querySelector("#ws td.fh").getBoundingClientRect(); return [r.right - 3, r.bottom - 3]; }), wb = await p.locator("#ws").boundingBox();
+  await p.mouse.move(fh[0], fh[1]); await p.mouse.down(); await p.mouse.move(fh[0], wb.y + wb.height + 30, { steps: 8 }); await p.waitForTimeout(1500); await p.mouse.up(); await p.waitForTimeout(700);
+  const f = await p.evaluate(() => { const d = sheetCols(curSheet())[2].data; let n = 0; while (d[n] != null) n++; return [n, d.slice(0, n).every((v, i) => v === i + 1), Math.floor($("#ws").clientHeight / (S.ws.rowH || 22))]; });
+  check("the fill handle held past the grid's bottom goes on filling, the grid scrolling, while the pointer is still", f[0] > f[2] + 5 && f[1], JSON.stringify(f));
+  // A range dragged past the bottom grows as the grid scrolls.
+  await p.evaluate(() => { $("#ws").scrollTop = 0; }); await p.waitForTimeout(300);
+  const c0 = await p.locator('#ws td[data-r="1"][data-ci="0"]').boundingBox();
+  await p.mouse.move(c0.x + 10, c0.y + 6); await p.mouse.down(); await p.mouse.move(c0.x + 10, wb.y + wb.height + 40, { steps: 8 }); await p.waitForTimeout(1000); await p.mouse.up(); await p.waitForTimeout(200);
+  const sr = await p.evaluate(() => { const r = wsSelRect(); return [r.r0, r.r1, r.c0, r.c1]; });
+  check("a range dragged past the grid's bottom grows as the grid scrolls", sr[0] === 1 && sr[1] > f[2] + 5 && sr[2] === 0 && sr[3] === 0, JSON.stringify(sr));
+}, { name: "drags past the edge" });
+await page(async (p, ctx) => {
+  await p.evaluate(() => loadExample("decay")); await p.waitForTimeout(1200);
+  const q = await ctx.newPage(); await q.goto(URL); await ready(q); await q.evaluate(id => switchProject(id), await p.evaluate(() => S.pid)); await q.waitForTimeout(500);
+  const rename = (t, nm) => t.evaluate(nm => { pushUndo("rename"); save({ graphs: P().graphs.map((g, i) => i ? g : Object.assign({}, g, { name: nm })) }, "renamed"); }, nm);
+  const note = (t, id) => t.evaluate(id => { pushUndo("a note"); save({ annos: (P().annos || []).concat([{ id, t: "text", g: P().graphs[0].id, x: 1, y: 1, text: id }]) }, "a note"); }, id);
+  const st = t => t.evaluate(() => [P().graphs[0].name, (P().annos || []).map(a => a.id).filter(i => /^n/.test(i)).sort().join(",")]);
+  // An undo put back every part of the project as this tab had it, taking back another tab's newer graph name.
+  await note(p, "nA"); await p.waitForTimeout(800); await rename(q, "Renamed in B"); await q.waitForTimeout(800);
+  await p.evaluate(() => undo()); await p.waitForTimeout(1000);
+  const a = await st(p);
+  check("an undo takes back this tab's annotation and keeps the other tab's newer graph name", a[0] === "Renamed in B" && a[1] === "", JSON.stringify(a));
+  await rename(p, "Named in A"); await p.waitForTimeout(800); await note(q, "nB"); await q.waitForTimeout(800);
+  await p.evaluate(() => undo()); await p.waitForTimeout(1000);
+  const b = await st(p), b2 = await st(q);
+  check("…and this tab's graph name, keeping the other tab's newer annotation, in both tabs", b[0] === "Renamed in B" && b[1] === "nB" && JSON.stringify(b) === JSON.stringify(b2), JSON.stringify([b, b2]));
+  // Both tabs on the same graph's name: the undo leaves the other tab's newer one.
+  await rename(p, "A again"); await p.waitForTimeout(800); await rename(q, "B again"); await q.waitForTimeout(800);
+  await p.evaluate(() => undo()); await p.waitForTimeout(1000);
+  check("…and leaves the other tab's newer change to the same graph", (await st(p))[0] === "B again", JSON.stringify(await st(p)));
+}, { name: "an undo beside another tab" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

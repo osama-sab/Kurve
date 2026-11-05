@@ -952,6 +952,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   delayed save landing while the next value is typed loses nothing. A value that is not a
   number stays in the box, marked `.bad`, on Enter, Tab or an arrow (Esc gives the cell back);
   left by a click elsewhere, the cell keeps its value and a toast names what was not taken.
+  A drag held past the grid's edge (a range, the letters, the row numbers, the fill handle) scrolls
+  it, faster the further out and on while the pointer is still, the selection or the fill
+  following the edge cell (`wsAutoScroll(step, axes)`: `move`, `clamp`, `stop`).
   `renderWs` puts a spacer as tall as the rows into the body before restoring the scroll, so a
   redraw never jumps to the top; `wsRows(false)` redraws only when the view leaves the rows
   drawn (at either end of the sheet the margin does not apply). A sheet taller than `WS_PMAX`
@@ -1718,7 +1721,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   colleague (`onProjects` with `S.selfEmit` false: `save` sets it while the store tells this
   window of its own save), and `applySnapshot` then puts the step's columns together with what is
   there now (`mergeCols(after, step, now)`): this window's change goes, what came in since stays,
-  cell by cell, and the original-data record goes on from what is there. Destructive actions confirm themselves with a toast that
+  cell by cell, and the original-data record goes on from what is there. `after` has the step's
+  other parts too (`afterK`), and each is put back by `undoMergeKey(k, after, step, now)`: as it was
+  when nobody else changed it; thing by thing for the lists of things with ids (`UNDO_BYID`: graphs,
+  annotations, sheets, trend graphs, functions, fit settings, line lists, formats; `mergeById`:
+  this window's changes undone, another's kept, a thing changed since elsewhere theirs); the log
+  and the record keeping the lines and entries added elsewhere; any other part another window
+  changed since keeping that change (`jsonEq`). Destructive actions confirm themselves with a toast that
   carries an Undo button (`toast(msg,{action,run})`).
 - **Storage**: `IdbStore` (IndexedDB, this browser: a share of the disk, not localStorage's few
   megabytes, so a scan of a million rows is a project like any other), `LocalStore` (localStorage,
@@ -3256,7 +3265,9 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   true)`), and the copied table and the CSV never read the switches.
 - **A table in the dock is as wide as its widest row.** Results' parameter column kept its name,
   unit and meaning on one line, so in the dock the standard error was off the right edge: a
-  screenshot found it, no test did. In a narrow Results the meaning goes under the name.
+  screenshot found it, no test did. In a narrow Results the meaning goes under the name, and (05.11)
+  t, p, the interval and the dependency go on a line under each parameter (`tr.rmore`), as a peak's
+  shape, height, FWHM and share do under its centre and area: the table fits the dock.
 - **A search judged by its tests alone finds what the tests ask.** The palette passed its checks
   and still answered *export* with "Save this style…" and *power spectrum* with nothing: twenty
   queries read by eye found four wrong answers. Read a ranking's results, not only its first.
@@ -3320,6 +3331,10 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A store has more than one door.** Column values went into IndexedDB as one block of numbers;
   the load read them back, but `stored()` (the tests' way in) did not, and the random user saw
   columns stored as objects. Every read of the arrays goes through `idbUnpack`.
+- **An undo that merges one part puts the others back whole.** Columns were merged with what came
+  in from another tab, but graphs, annotations and the rest were put back as the snapshot had them:
+  undoing an annotation took back the other tab's newer graph name. Every part of a step now goes
+  back beside what came in since.
 - **A browser lays out only so tall.** At 22 px a row, a sheet of 1.6 million rows was taller than
   Chrome's 2²⁵ px; the box stopped there and the last 75 000 rows could not be scrolled to. Past
   15 000 000 px the scroll bar stands for the rows in proportion.
@@ -4033,8 +4048,6 @@ Next, in order:
   rich text is scripts and symbols only (no
   bold or italic inside a text, no nested scripts); snapping is text to text and to the plot's
   centre, and an arrow's head to data points; nothing can be nudged with the keys
-- The fill handle and a range dragged past the grid's edge do not scroll it, as Excel's do: drag
-  within the view, or select with Shift+click or Ctrl+Shift+arrows, or use the Fill dialog
 - Large data on screen: at a million points the whole curve draws in about 35 ms and a zoom into
   a part of it in a few (only the points in view are read when X runs one way; when it does not,
   every point is). The worksheet draws a screen of rows in about 14 ms however many there are;
@@ -4052,9 +4065,10 @@ Next, in order:
   a few megabytes in all. A value typed into a column of a million rows is entered in about 70 ms;
   its check code follows a second or so later, and the record shows *working it out…* until it
   does; a processing step on that column runs again in full
-- Undo merges only the columns with what came in since from another tab or a colleague; the
-  other parts a step puts back (graphs, annotations, fits, peak sets) are put back whole, so an
-  undo there can take back another window's newer change to the same part
+- Undo puts back each part beside what came in since from another tab or a colleague: the columns
+  cell by cell, lists of things with ids thing by thing, and any other part (the fit, the peak
+  sets, the bands, a graph's settings inside one graph) whole, so an undo of a part another window
+  changed since leaves that part as the other window made it, this window's change in it kept
 - Rows of a sheet are sized together (every data row one height), not one by one; the label rows
   keep 22 px
 - The worksheet draws only the rows in view, but every column; with hundreds of columns it

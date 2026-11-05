@@ -863,6 +863,16 @@ table.rtab{border-collapse:collapse;font-size:var(--fs-tab);width:100%}
 .rside .kv dd.w{grid-column:1/-1}
 /* In a narrow Results (the dock, a phone) a parameter's meaning goes under its name, so its value and error show without scrolling. */
 @container (max-width: 520px){ .rtab td.l{white-space:normal;min-width:9em} .rtab td.l>.lab{display:block} }
+/* And the parameters' t, p, interval and dependency, and a peak's shape, height, FWHM and share, go on a line under it. */
+.rtab tr.rmore{display:none}
+@container (max-width: 520px){
+  .rtab.rpar .x,.rtab.rpk .x{display:none}
+  .rtab tr.rmore{display:table-row}
+  .rtab tr.rmain:has(+tr.rmore) td{border-bottom:0;padding-bottom:var(--sp-1)}
+  .rtab tr.rmore td{text-align:left;white-space:normal;color:var(--muted);font-size:var(--fs-cap);padding-top:0}
+  .rtab tr.rmore .v{color:var(--ink-2);font-variant-numeric:tabular-nums}
+  .rtab.rpk td.l{min-width:0}
+}
 .msugg{display:flex;align-items:center;gap:var(--sp-3);margin-top:var(--sp-2)}
 .rempty{display:flex;gap:var(--sp-6);align-items:center;color:var(--muted);padding:var(--sp-4) var(--sp-2);max-width:720px}
 .rempty>.ic{width:34px;height:34px;stroke-width:1.4;color:var(--faint);flex:0 0 auto}
@@ -6591,14 +6601,41 @@ function pushUndo(label){
    keeps the columns as its change left them (after, taken when something comes in from elsewhere,
    or the next step begins), and undoing puts the step's columns together with what is there now
    (mergeCols): what this change did goes, what came in after it stays, cell by cell. */
-function undoAfter(stack){ const t=stack[stack.length-1], p=P(); if(t&&t.after===undefined&&p&&t.pid===S.pid) t.after=cloneCols(p.cols); }
+function undoAfter(stack){ const t=stack[stack.length-1], p=P(); if(!(t&&t.after===undefined&&p&&t.pid===S.pid)) return;
+  t.after=cloneCols(p.cols); t.afterK={}; UNDO_KEYS.forEach(k=>{ if(k!=="cols") t.afterK[k]=clone(p[k]); }); }
+/* The other parts of a step put back beside what came in since (DESIGN.md, Undo): a part nobody
+   else changed is put back as it was; a list of things with ids (graphs, annotations, sheets,
+   trend graphs, functions, saved settings, line lists, formats) is put back thing by thing, this
+   window's changes undone and another's kept; the log keeps the lines added elsewhere; any other
+   part another window changed since keeps that change (an undo never takes back theirs). */
+const UNDO_BYID=new Set(["graphs","annos","sheets","trends","userFns","fitSets","lines","formats"]);
+const jsonEq=(a,b)=>a===b||JSON.stringify(a)===JSON.stringify(b);
+function mergeById(after,step,now){
+  const ok=l=>Array.isArray(l)&&l.every(o=>o&&typeof o==="object"&&o.id!=null);
+  if(!ok(after)||!ok(step)||!ok(now)) return clone(now);
+  const A=new Map(after.map(o=>[o.id,o])), N=new Map(now.map(o=>[o.id,o])), inStep=new Set(step.map(o=>o.id)), out=[];
+  step.forEach(o=>{ const a=A.get(o.id), n=N.get(o.id);
+    if(a&&n) out.push(jsonEq(n,a)?o:n);   // changed since elsewhere: theirs
+    else if(!a&&!n) out.push(o);           // this change took it away: back
+    else if(!a&&n) out.push(n); });        // (a: taken away elsewhere since, it stays away)
+  now.forEach(o=>{ if(inStep.has(o.id)) return; const a=A.get(o.id); if(!a||!jsonEq(o,a)) out.push(o); });   // made elsewhere, or this change's and changed since
+  return clone(out); }
+function undoMergeKey(k,after,step,now){
+  if(jsonEq(now,after)) return clone(step);
+  if(UNDO_BYID.has(k)) return mergeById(after,step,now);
+  if(k==="log"&&Array.isArray(step)&&Array.isArray(now)){ const key=l=>l&&(l.t+"|"+l.text), had=new Set((after||[]).map(key));
+    return clone(step.concat(now.filter(l=>!had.has(key(l))))).slice(-80); }
+  // The record of the original data: the entries made elsewhere since stay (the columns' merge adds its own).
+  if(k==="raw"&&step&&now){ const key=e=>e&&(e.t+"|"+(e.uid||"")+"|"+e.text), had=new Set(((after&&after.hist)||[]).map(key));
+    return Object.assign(clone(step),{hist:clone((step.hist||[]).concat((now.hist||[]).filter(e=>!had.has(key(e))))).slice(-60)}); }
+  return clone(now); }
 function applySnapshot(s){
-  const p=P(), patch={}, cur=p.cols;
-  UNDO_KEYS.forEach(k=>{ patch[k]=k==="cols"?cloneCols(s[k]):clone(s[k]); p[k]=patch[k]; });
+  const p=P(), patch={}, cur=p.cols, curK={}; UNDO_KEYS.forEach(k=>{ curK[k]=p[k]; });
+  UNDO_KEYS.forEach(k=>{ patch[k]=k==="cols"?cloneCols(s[k]):s.afterK?undoMergeKey(k,s.afterK[k],s[k],curK[k]):clone(s[k]); p[k]=patch[k]; });
   if(s.after&&Array.isArray(cur)){ p.cols=patch.cols=cloneCols(mergeCols(s.after,s.cols,cur));
     // The record of the original data goes on from what is there, with this step's undoing in it.
     const own=c=>!c.src&&!c.fx, a=p.cols.filter(own), b=(s.cols||[]).filter(own);
-    if(a.length!==b.length||a.some((c,i)=>b[i].id!==c.id||b[i].data!==c.data)){ const was=p.raw; p.raw={fp:(was&&was.fp)||"",hist:((was&&was.hist)||[]).slice()}; recordRaw("put back a change, keeping what another window changed since"); } patch.raw=p.raw; }
+    if(a.length!==b.length||a.some((c,i)=>b[i].id!==c.id||b[i].data!==c.data)){ const was=p.raw; p.raw=Object.assign({},was,{fp:(was&&was.fp)||"",hist:((was&&was.hist)||[]).slice()}); recordRaw("put back a change, keeping what another window changed since"); } patch.raw=p.raw; }
   S.draft=(s.draft&&s.draft.pid===S.pid)?clone(s.draft):null;
   S.pdraft=(s.pdraft&&s.pdraft.pid===S.pid)?clone(s.pdraft):null;
   S.selPeak=null; S.view=null; clampStage();
@@ -12531,16 +12568,38 @@ function wsFill(src,dir,to,alt){
   save(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),`filled ${nv?`${nv} cell${nv===1?"":"s"}`:`${writes.length} label${writes.length===1?"":"s"}`} ${dir==="down"?"down":"to the right"} in the worksheet`); renderAll();
   toast(`Filled ${writes.length} cell${writes.length===1?"":"s"}${nv?`; ${nv===1?"it is an original value":"they are original values"} now`:""}.`,{action:"Undo",run:undo});
 }
+/* A drag held past the grid's edge scrolls it, faster the further out, and goes on while the
+   pointer is still, as a spreadsheet's does; `step(x, y)` is called with the pointer held to the
+   edge after each scroll, so the selection or the fill follows the cell there. `axes` is which
+   way it scrolls ("xy", "x" along the letters, "y" down the row numbers). */
+function wsAutoScroll(step,axes){
+  const box=$("#ws"); let raf=0, last=null, on=true;
+  const edges=()=>{ const rb=box.getBoundingClientRect(); return {top:rb.top+(S.ws.head||0), bot:rb.top+box.clientHeight, L:rb.left+WS_IDX, R:rb.left+box.clientWidth}; };
+  const clamp=(x,y)=>{ const e=edges(); return [axes.includes("x")?Math.max(e.L+2,Math.min(e.R-3,x)):x, axes.includes("y")?Math.max(e.top+2,Math.min(e.bot-3,y)):y]; };
+  const speed=d=>Math.min(90,Math.max(4,d*0.5));
+  const tick=()=>{ raf=0; if(!on||!last) return; const e=edges(); let dx=0, dy=0;
+    if(axes.includes("y")){ if(last.y>e.bot-4) dy=speed(last.y-e.bot+4); else if(last.y<e.top+2) dy=-speed(e.top+2-last.y); }
+    if(axes.includes("x")){ if(last.x>e.R-4) dx=speed(last.x-e.R+4); else if(last.x<e.L+2) dx=-speed(e.L+2-last.x); }
+    if(!dx&&!dy) return;
+    const t0=box.scrollTop, l0=box.scrollLeft; box.scrollTop+=dy; box.scrollLeft+=dx;
+    if(box.scrollTop!==t0||box.scrollLeft!==l0){ S.ws.want=null;
+      // Near the end of the sheet more rows appear, as when scrolling.
+      if(S.wsm&&S.wsm.kind==="raw"&&box.scrollTop+box.clientHeight>box.scrollHeight-(S.ws.rowH||25)*20){ S.ws.extra=(S.ws.extra||0)+200; S.ws.win=null; renderWs(); }
+      wsRows(false); const c=clamp(last.x,last.y); step(c[0],c[1]); }
+    raf=requestAnimationFrame(tick); };
+  return {move(x,y){ last={x,y}; if(!raf&&on) raf=requestAnimationFrame(tick); }, clamp, stop(){ on=false; if(raf) cancelAnimationFrame(raf); raf=0; }};
+}
 function wsFillDrag(){
   const box=$("#ws"), src=wsSelRect(); let plan=null;
   const paint=()=>{ box.querySelectorAll("td.fillp").forEach(td=>td.classList.remove("fillp")); if(!plan) return;
     box.querySelectorAll("td[data-ci]").forEach(td=>{ const r=+td.dataset.r, c=+td.dataset.ci;
       if(plan.dir==="down"?(r>src.r1&&r<=plan.to&&c>=src.c0&&c<=src.c1):(c>src.c1&&c<=plan.to&&r>=src.r0&&r<=src.r1)) td.classList.add("fillp"); }); };
-  const mv=ev=>{ const el=document.elementFromPoint(ev.clientX,ev.clientY), td=el&&el.closest?el.closest("#ws td[data-ci]"):null;
-    const rb=box.getBoundingClientRect(); if(ev.clientY>rb.bottom-24) box.scrollTop+=24; if(ev.clientX>rb.right-24) box.scrollLeft+=24;
+  const at=(x,y)=>{ const el=document.elementFromPoint(x,y), td=el&&el.closest?el.closest("#ws td[data-ci]"):null;
     if(!td) return; const dr=+td.dataset.r-src.r1, dc=+td.dataset.ci-src.c1;
     plan=dr>0&&dr>=dc?{dir:"down",to:+td.dataset.r}:dc>0?{dir:"right",to:+td.dataset.ci}:null; paint(); };
-  const up=ev=>{ document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up); document.body.classList.remove("filling");
+  const as=wsAutoScroll(at,"xy");
+  const mv=ev=>{ as.move(ev.clientX,ev.clientY); const c=as.clamp(ev.clientX,ev.clientY); at(c[0],c[1]); };
+  const up=ev=>{ as.stop(); document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up); document.body.classList.remove("filling");
     const pl=plan; plan=null; paint(); if(pl) wsFill(src,pl.dir,pl.to,ev.ctrlKey||ev.metaKey||ev.altKey); };
   document.body.classList.add("filling");
   document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up);
@@ -13512,13 +13571,16 @@ function setupWs(){
       else if(td&&+td.dataset.r===-1&&m.kind==="raw"&&!S.readOnly&&!e.shiftKey){ e.preventDefault(); wsEditFormula(+td.dataset.ci); return; }
       else if(td){ e.preventDefault(); box.focus({preventScroll:true}); if(!e.shiftKey) press(td,false); wsSelect(+td.dataset.r,+td.dataset.ci,e.shiftKey); drag={kind:"cell"}; }
       else return; }
-    const mv=ev=>{ if(!drag) return;
-      if(drag.kind==="colmove"){ if(!drag.moving&&Math.abs(ev.clientX-drag.x0)<6) return; drag.moving=true; document.body.classList.add("colmoving"); drag.to=wsMoveMark(ev.clientX); return; }
-      const el=cellAt(ev.clientX,ev.clientY); if(!el) return;
-      if(drag.kind==="cell"&&el.dataset.ci!=null&&el.dataset.r!=null){ S.ws.r=+el.dataset.r; S.ws.c=+el.dataset.ci; wsPaintSel(); }
+    const at=(x,y)=>{ if(!drag) return; const el=cellAt(x,y); if(!el) return;
+      if(drag.kind==="cell"&&el.dataset.ci!=null&&el.dataset.r!=null){ if(S.ws.r===+el.dataset.r&&S.ws.c===+el.dataset.ci) return; S.ws.r=+el.dataset.r; S.ws.c=+el.dataset.ci; wsPaintSel(); }
       else if(drag.kind==="col"&&el.dataset.ch!=null){ S.ws.c=+el.dataset.ch; wsPaintSel(); }
       else if(drag.kind==="row"&&el.dataset.rh!=null){ S.ws.r=+el.dataset.rh; wsPaintSel(); } };
-    const up=()=>{ const d=drag; drag=null; document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
+    // Held past the edge, the grid scrolls and the selection follows (the letters along, the row numbers down).
+    const as=drag&&drag.kind!=="colmove"?wsAutoScroll(at,drag.kind==="col"?"x":drag.kind==="row"?"y":"xy"):null;
+    const mv=ev=>{ if(!drag) return;
+      if(drag.kind==="colmove"){ if(!drag.moving&&Math.abs(ev.clientX-drag.x0)<6) return; drag.moving=true; document.body.classList.add("colmoving"); drag.to=wsMoveMark(ev.clientX); return; }
+      if(as){ as.move(ev.clientX,ev.clientY); const c=as.clamp(ev.clientX,ev.clientY); at(c[0],c[1]); } };
+    const up=()=>{ if(as) as.stop(); const d=drag; drag=null; document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
       if(d&&d.kind==="colmove"){ document.body.classList.remove("colmoving"); wsMoveMark(null);
         if(!d.moving){ const m2=S.wsm; S.ws.r=0; S.ws.c=d.c; S.ws.ar=Math.max(0,m2.n-1); S.ws.ac=d.c; wsPaintSel(); return; }
         const m2=S.wsm, ids=m2.cols.slice(d.c0,d.c1+1).map(q=>q.id), to=d.to;
@@ -17203,11 +17265,14 @@ function statsList(f){
 function paramTableHtml(f,all){
   const rows=paramRows(f), der=derivedRows(f), ci=all||rShow().ci, n=ci?7:6;
   const u=t=>t?` <span class="unit">(${esc(t)})</span>`:"";
-  return `<table class="rtab"><thead><tr><th class="l">Parameter</th><th>Value</th><th class="se">Standard error</th><th>t</th><th>Prob &gt; |t|</th>${ci?`<th>${confPct(confOf(f))}% confidence interval</th>`:""}<th title="Near 1: this parameter is doing the same job as others and is not independently determined">Dependency</th></tr></thead><tbody>${
-    rows.map(r=>{ const [v,e]=r.tied?fmtVE(r.v,r.e):r.hold?[fmtPMd(r.v,0,r.dig),""]:fmtVE(r.v,r.e,r.dig);
+  // In a narrow Results (the dock) t, p, the interval and the dependency go on a line of their own
+  // under each parameter (`tr.rmore`, by container query), so nothing runs off the side. Not in the report.
+  const more=(r,ciT)=>all||r.hold?"":`<tr class="rmore"><td colspan="${n}">${[["t",fmtOr(r.t,4)],["Prob > |t|",fmtP(r.pv)],ci&&ciT?[confPct(confOf(f))+"%",ciT]:null,["dependency",fmtOr(r.dep,4)]].filter(x=>x&&x[1]&&x[1]!=="—").map(([k,v])=>`${esc(k)} <span class="v">${esc(v)}</span>`).join(" · ")}</td></tr>`;
+  return `<table class="rtab rpar"><thead><tr><th class="l">Parameter</th><th>Value</th><th class="se">Standard error</th><th class="x">t</th><th class="x">Prob &gt; |t|</th>${ci?`<th class="x">${confPct(confOf(f))}% confidence interval</th>`:""}<th class="x" title="Near 1: this parameter is doing the same job as others and is not independently determined">Dependency</th></tr></thead><tbody>${
+    rows.map(r=>{ const [v,e]=r.tied?fmtVE(r.v,r.e):r.hold?[fmtPMd(r.v,0,r.dig),""]:fmtVE(r.v,r.e,r.dig), ciT=r.hold||!r.ci||!Number.isFinite(r.ci[0])||!Number.isFinite(r.ci[1])?"":`${esc(fmt(r.ci[0],6))} to ${esc(fmt(r.ci[1],6))}`;
       const why=r.tied?`<span class="lab">${esc(r.tied)}</span>`:r.hold?`<span class="lab">${r.fixed?"fixed":"at its limit"}</span>`:"";
-      return `<tr${Number.isFinite(r.dep)&&r.dep>0.99&&!r.hold?' class="badrow"':""}><td class="l">${r.html?`<span style="font-style:italic;font-family:'Source Serif 4',Georgia,serif;font-size:1.08em">${r.html}</span>`:esc(r.label)}${u(r.unit)}${r.meaning?` <span class="lab">${esc(r.meaning)}</span>`:""}</td><td class="val">${v}${r.shared&&!r.tied?` <span class="lab shd" title="One value for every column of the global fit">shared</span>`:""}</td><td class="se">${e}${e&&why?" ":""}${why}</td><td>${r.hold?"":esc(fmtOr(r.t,4))}</td><td>${r.hold?"":esc(fmtP(r.pv))}</td>${ci?`<td>${r.hold||!r.ci||!Number.isFinite(r.ci[0])||!Number.isFinite(r.ci[1])?"":`${esc(fmt(r.ci[0],6))} to ${esc(fmt(r.ci[1],6))}`}</td>`:""}<td>${r.hold?"":esc(fmtOr(r.dep,4))}</td></tr>`; }).join("")
-  }${der.length?`<tr class="rgrp"><td colspan="${n}">Derived</td></tr>`+der.map(x=>{ const [v,e]=fmtVE(x.v,x.e); return `<tr><td class="l">${esc(x.name)}${u(x.unit)}</td><td class="val">${v}</td><td class="se">${e}</td>${"<td></td>".repeat(n-3)}</tr>`; }).join(""):""}</tbody></table>`;
+      return `<tr class="rmain${Number.isFinite(r.dep)&&r.dep>0.99&&!r.hold?" badrow":""}"><td class="l">${r.html?`<span style="font-style:italic;font-family:'Source Serif 4',Georgia,serif;font-size:1.08em">${r.html}</span>`:esc(r.label)}${u(r.unit)}${r.meaning?` <span class="lab">${esc(r.meaning)}</span>`:""}</td><td class="val">${v}${r.shared&&!r.tied?` <span class="lab shd" title="One value for every column of the global fit">shared</span>`:""}</td><td class="se">${e}${e&&why?" ":""}${why}</td><td class="x">${r.hold?"":esc(fmtOr(r.t,4))}</td><td class="x">${r.hold?"":esc(fmtP(r.pv))}</td>${ci?`<td class="x">${ciT}</td>`:""}<td class="x">${r.hold?"":esc(fmtOr(r.dep,4))}</td></tr>`+more(r,ciT); }).join("")
+  }${der.length?`<tr class="rgrp"><td colspan="${n}">Derived</td></tr>`+der.map(x=>{ const [v,e]=fmtVE(x.v,x.e); return `<tr><td class="l">${esc(x.name)}${u(x.unit)}</td><td class="val">${v}</td><td class="se">${e}</td>${'<td class="x"></td>'.repeat(n-3)}</tr>`; }).join(""):""}</tbody></table>`;
 }
 function renderResults(){
   const box=$("#pane-res"); if(!box) return;
@@ -17230,12 +17295,13 @@ function renderResults(){
   if(FM.composite){
     const rows=peakMetrics(f), hasN=rows.some(r=>r.name), au=unitFor("yx",xu,yu), shd=(k,nms)=>{ if(!f.shared) return ""; const pd=PEAKS[(f.spec.peaks[k]||{}).type]||PEAKS.gauss, o=FM.model.offsets[k], ix=pd.params.map((nm,i)=>nms.test(nm)?o+i:-1).filter(i=>i>=0);
       return ix.length&&ix.every(i=>f.shared[i])?` <span class="lab shd" title="One value for every column of the global fit">shared</span>`:""; };
-    h+=`<table class="rtab"><thead><tr><th class="l">Peak</th>${hasN?`<th class="l">Name</th>`:""}<th class="l">Shape</th><th>Centre ${u(xu)}</th><th>Height ${u(yu)}</th><th>FWHM ${u(xu)}</th><th>Area ${u(au)}</th><th>Area %</th></tr></thead><tbody>`;
-    rows.forEach(r=>{ h+=`<tr data-prow="${r.k}" class="${r.ok?"":"badrow"}${S.selPeak===r.k?" sel":""}" title="${r.ok?"Click to select this peak":esc("Not a usable peak: "+r.problems.join("; "))}">
-      <td class="l"><span class="dot" style="background:${r.color};margin-right:6px"></span>${r.k+1}${r.ok?"":' <span class="flag" aria-label="not a usable peak">!</span>'}</td>${hasN?`<td class="l">${texHtml(r.name)}</td>`:""}<td class="l">${esc(r.type)}</td>
-      <td>${fmtPM(r.xc,r.xcErr)}${shd(r.k,/^xc$/)}</td><td>${r.heightErr?fmtPM(r.height,r.heightErr):esc(fmt(r.height,5))}</td>
-      <td${(r.wparts||[]).length>1?` title="${esc(r.wparts.map(w=>w.nm+" "+fmt(Math.abs(w.v),4)).join(", "))}"`:""}>${r.fwhmErr?fmtPM(r.fwhm,r.fwhmErr):esc(fmt(r.fwhm,5))}${(r.wparts||[]).length>1?` <span class="lab">(${esc(r.wparts.map(w=>w.nm+" "+fmt(Math.abs(w.v),3)).join(", "))})</span>`:""}${shd(r.k,/^w/)}</td>
-      <td>${fmtPM(r.area,r.areaErr)}${shd(r.k,/^A$/)}</td><td>${r.areaPct==null?'<span class="noerr">excluded</span>':esc(fmt(r.areaPct,3))}</td></tr>`; });
+    h+=`<table class="rtab rpk"><thead><tr><th class="l">Peak</th>${hasN?`<th class="l x">Name</th>`:""}<th class="l x">Shape</th><th>Centre ${u(xu)}</th><th class="x">Height ${u(yu)}</th><th class="x">FWHM ${u(xu)}</th><th>Area ${u(au)}</th><th class="x">Area %</th></tr></thead><tbody>`;
+    rows.forEach(r=>{ h+=`<tr data-prow="${r.k}" class="rmain${r.ok?"":" badrow"}${S.selPeak===r.k?" sel":""}" title="${r.ok?"Click to select this peak":esc("Not a usable peak: "+r.problems.join("; "))}">
+      <td class="l"><span class="dot" style="background:${r.color};margin-right:6px"></span>${r.k+1}${r.ok?"":' <span class="flag" aria-label="not a usable peak">!</span>'}</td>${hasN?`<td class="l x">${texHtml(r.name)}</td>`:""}<td class="l x">${esc(r.type)}</td>
+      <td>${fmtPM(r.xc,r.xcErr)}${shd(r.k,/^xc$/)}</td><td class="x">${r.heightErr?fmtPM(r.height,r.heightErr):esc(fmt(r.height,5))}</td>
+      <td class="x"${(r.wparts||[]).length>1?` title="${esc(r.wparts.map(w=>w.nm+" "+fmt(Math.abs(w.v),4)).join(", "))}"`:""}>${r.fwhmErr?fmtPM(r.fwhm,r.fwhmErr):esc(fmt(r.fwhm,5))}${(r.wparts||[]).length>1?` <span class="lab">(${esc(r.wparts.map(w=>w.nm+" "+fmt(Math.abs(w.v),3)).join(", "))})</span>`:""}${shd(r.k,/^w/)}</td>
+      <td>${fmtPM(r.area,r.areaErr)}${shd(r.k,/^A$/)}</td><td class="x">${r.areaPct==null?'<span class="noerr">excluded</span>':esc(fmt(r.areaPct,3))}</td></tr>
+      <tr class="rmore" data-prow="${r.k}"><td colspan="${hasN?8:7}">${hasN&&r.name?texHtml(r.name)+" · ":""}${esc(r.type)} · height <span class="v">${r.heightErr?fmtPM(r.height,r.heightErr):esc(fmt(r.height,5))}</span> · FWHM <span class="v">${r.fwhmErr?fmtPM(r.fwhm,r.fwhmErr):esc(fmt(r.fwhm,5))}</span> · ${r.areaPct==null?"excluded from the area":`<span class="v">${esc(fmt(r.areaPct,3))}</span> % of the area`}</td></tr>`; });
     h+=`</tbody></table>`;
     if(rShow().par) h+=`<section class="rsec" data-rd="par"><h4>Every parameter</h4>${paramTableHtml(f)}</section>`;
   } else h+=paramTableHtml(f);

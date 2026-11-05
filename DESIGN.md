@@ -902,7 +902,17 @@ them all at once is slice 2.
 - **Two windows of one project are one project.** Two tabs typing in two columns at once keep
   both, column by column and cell by cell; the same cell keeps the later value, as a shared
   spreadsheet does. An undo takes back this window's change and nothing another window did
-  since (Kurve's rule, "your own edits, not other people's", which a snapshot did not keep).
+  since (Kurve's rule, "your own edits, not other people's", which a snapshot did not keep). And
+  not only in the columns (05.11): graphs, annotations, sheets and the other lists of things are
+  put back thing by thing, and a part another window changed since keeps that change; an undo
+  never takes back what someone else did after it.
+- **A drag past the grid's edge goes on** (05.11), as a spreadsheet's does: the fill handle, a range,
+  the letters or the row numbers held beyond the grid scroll it, faster the further out, while the
+  pointer is still, and the selection or the fill follows. It used to stop at the last row in view.
+- **Results fits the dock** (05.11). Its parameter table had seven columns and ran 270 px off the
+  dock's side. Narrower than 520 px, t, p, the interval and the dependency go on a line under each
+  parameter, and a peak's shape, height, FWHM and share under its centre and area: nothing is
+  hidden, nothing scrolls sideways. The report keeps one wide table.
 - **The keys follow the pointer into a window**, as on a desktop: a press on a graph's numbers or a
   title bar gives that window the keys, so Delete or Ctrl+V pressed while looking at the graph
   does not change cells behind it. What the press focused itself (a field, a button) keeps it.
