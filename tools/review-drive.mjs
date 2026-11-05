@@ -174,6 +174,16 @@ await page(async (p, ctx) => {
   const cols = t => t.evaluate(() => sheetCols(curSheet()).map(c => (c.data || []).filter(v => v != null).join(",")).join(" | "));
   const ca = await cols(p), cb = await cols(q), st = await p.evaluate(async () => (await S.store.stored(S.pid)).cols.filter(c => !c.src).map(c => (c.data || []).filter(v => v != null).join(",")).join(" | "));
   check("two tabs typing in two columns of one project keep both columns, on screen and stored", /1,2,3,4/.test(ca) && /9,8,7,6/.test(ca) && ca === cb && ca === st, JSON.stringify([ca, cb, st]));
+  // An undo in one tab took back what the other tab had changed since: a column and a cell.
+  await p.locator('#ws td[data-r="1"][data-ci="1"]').click(); await p.keyboard.type("100"); await p.keyboard.press("Enter"); await p.waitForTimeout(1200);
+  await q.locator('#ws td[data-r="3"][data-ci="1"]').click(); await q.keyboard.type("300"); await q.keyboard.press("Enter"); await q.waitForTimeout(1200);
+  await p.evaluate(() => undo()); await p.waitForTimeout(1200);
+  const y = t => t.evaluate(() => sheetCols(curSheet())[1].data.slice(0, 5).join(","));
+  const u = [await y(p), await y(q), await cols(p)];
+  check("an undo takes back this tab's change and keeps the other tab's, cell by cell and column by column", u[0] === "0,2,4,300,8" && u[1] === u[0] && /9,8,7,6/.test(u[2]), JSON.stringify(u));
+  // A tab closed with a value still in its box: the value is stored, and the other tab shows it.
+  await q.locator('#ws td[data-r="8"][data-ci="0"]').click(); await q.keyboard.type("777"); await q.close({ runBeforeUnload: true }); await p.waitForTimeout(1500);
+  check("a tab closed mid-edit: what it was typing reaches the other tab", (await p.evaluate(() => sheetCols(curSheet())[0].data[8])) === 777, await p.evaluate(() => sheetCols(curSheet())[0].data[8]));
 }, { name: "two tabs typing" });
 await page(async p => {
   await p.evaluate(() => loadExample("decay")); await p.waitForTimeout(1200); await p.evaluate(() => { tileWins(); }); await p.waitForTimeout(500);

@@ -6468,13 +6468,21 @@ function snapshot(){ const p=P(); if(!p) return null; const o={pid:S.pid}; UNDO_
 function pushUndo(label){
   if(S.plotPreview&&!S.pdCommitting) pdCommit();
   const s=snapshot(); if(!s) return;
-  s.label=label||"that change";
+  s.label=label||"that change"; undoAfter(undoStack);
   undoStack.push(s); if(undoStack.length>UNDO_MAX) undoStack.shift();
   redoStack.length=0; renderUndo();
 }
+/* Undo takes back this window's change, not what another tab or a colleague changed since: a step
+   keeps the columns as its change left them (after, taken when something comes in from elsewhere,
+   or the next step begins), and undoing puts the step's columns together with what is there now
+   (mergeCols): what this change did goes, what came in after it stays, cell by cell. */
+function undoAfter(stack){ const t=stack[stack.length-1], p=P(); if(t&&t.after===undefined&&p&&t.pid===S.pid) t.after=cloneCols(p.cols); }
 function applySnapshot(s){
-  const p=P(), patch={};
+  const p=P(), patch={}, cur=p.cols;
   UNDO_KEYS.forEach(k=>{ patch[k]=k==="cols"?cloneCols(s[k]):clone(s[k]); p[k]=patch[k]; });
+  if(s.after&&Array.isArray(cur)){ p.cols=patch.cols=cloneCols(mergeCols(s.after,s.cols,cur));
+    // The record of the original data goes on from what is there, with this step's undoing in it.
+    const fp=rawFp(); if(fp!==(p.raw&&p.raw.fp)){ const was=p.raw; p.raw={fp:(was&&was.fp)||"",hist:((was&&was.hist)||[]).slice()}; recordRaw("put back a change, keeping what another window changed since"); } patch.raw=p.raw; }
   S.draft=(s.draft&&s.draft.pid===S.pid)?clone(s.draft):null;
   S.pdraft=(s.pdraft&&s.pdraft.pid===S.pid)?clone(s.pdraft):null;
   S.selPeak=null; S.view=null; clampStage();
@@ -6718,7 +6726,9 @@ const IdbStore={
       ids.forEach(id=>{ const out=new Map(), rec=this.toRec(id,this.data.projects[id],out), rv=(this.rev[id]||0)+1; rec._rev=rv; out.forEach((a,k)=>as.put(a,k)); ps.put(rec,id); outs.push(out);
         this.rev[id]=rv; this.base[id]=Object.assign({},this.data.projects[id]); delete this.pend[id]; });
       tx.oncomplete=()=>outs.forEach(o=>o.forEach((a,k)=>this.have.add(k))); tx.onabort=()=>ids.forEach(id=>{ this.dirty[id]=true; });
-      if(tx.commit) tx.commit(); }catch(e){} },
+      if(tx.commit) tx.commit();
+      // The other tabs hear of it as of any write (their read waits for this transaction).
+      if(this.chan) ids.forEach(id=>{ try{ this.chan.postMessage({k:"p",id,rev:this.rev[id]}); }catch(e){} }); }catch(e){} },
   async remove(pid){ delete this.data.projects[pid]; delete this.data.comments[pid]; delete this.dirty[pid]; delete this.pend[pid];
     this.emitProjects();
     await this.queue(pid,async()=>{ const tx=this.db.transaction(["projects","arrays","comments"],"readwrite"), ps=tx.objectStore("projects"), as=tx.objectStore("arrays");
@@ -6880,7 +6890,9 @@ async function save(patch, logText){
   if((logText||pendLog)&&histOn()){ const add=[pendLog,logText].filter(Boolean).map(text=>({t:Date.now(),uid:S.uid||"",text}));
     const log=(p.log||[]).concat(add).slice(-80); p.log=log; patch.log=log; }
   setStatus("Saving…");
-  try{ await S.store.save(S.pid,patch); setStatus(S.store.mode==="db"?"Shared":"Saved",false); }
+  // This window's own save is told back at once (S.selfEmit); anything else that arrives came from elsewhere.
+  let pr; S.selfEmit=true; try{ pr=S.store.save(S.pid,patch); }catch(e){ pr=Promise.reject(e); } finally{ S.selfEmit=false; }
+  try{ await pr; setStatus(S.store.mode==="db"?"Shared":"Saved",false); }
   catch(e){ setStatus("Not saved",true); writeErr(e); }
 }
 let wsTimer=null, wsPatch={}, wsLog=null, wsPid=null, wsBase=null;
@@ -17476,7 +17488,10 @@ function onProjects(list){
   S.projects=list.sort((a,b)=>(b.updated||0)-(a.updated||0));
   let lost=null;
   if(S.pid){ const cur=list.find(p=>p.id===S.pid);
-    if(cur){ const local=S.proj; S.proj=cloneProj(cur);
+    if(cur){ const local=S.proj;
+      // From another tab or a colleague: the undo steps keep the columns as this window's changes left them.
+      if(!S.selfEmit&&local){ undoAfter(undoStack); undoAfter(redoStack); }
+      S.proj=cloneProj(cur);
       // Worksheet edits waiting for their delayed save stay on screen, put together with what came
       // in (another tab may have changed other columns meanwhile; mergeCols keeps both).
       if(local&&Object.keys(wsPatch).length){ if(wsPatch.cols&&wsBase&&cur.cols&&wsBase!==cur.cols){ wsPatch.cols=cloneProj({cols:mergeCols(wsBase,wsPatch.cols,cur.cols)}).cols; wsBase=cur.cols; } Object.assign(S.proj,wsPatch); }
@@ -20421,7 +20436,7 @@ ${DL([["Import, Export","Bring a file in; save the graph, data or a report."],["
 <p>Every change is saved at once; the status bar says so. Used on its own, Kurve keeps projects in this browser and uploads nothing: to keep a copy elsewhere, ${DA("export","export it")}. In a shared workspace, everyone sees each change as it is made, and each person's name goes with their comments.</p>
 <p>Kurve open in two tabs of the same browser is one set of projects: a change in one tab shows in the other, and two tabs working on one project keep each other's changes. Projects are kept in the browser's own database, which can hold files of millions of rows (a share of the disk). If the browser ever refuses to store a change (the disk is full), the status bar says <em>Not saved</em> whenever that project is shown, a message says why, and leaving the page asks first; delete an old project or export this one, and the next change that is stored saves everything since. A browser without that database keeps projects in a few megabytes of its storage, as earlier versions did.</p>
 <h2>Undo</h2>
-<p>${K("Ctrl","Z")} undoes and ${K("Ctrl","Shift","Z")} (or ${K("Ctrl","Y")}) redoes: steps, masks, peaks, bands, fits, labels, styles, worksheet edits. The Edit menu names what will be undone. Undo rewinds your own changes in this session; it never takes back a colleague's work or a comment.</p>
+<p>${K("Ctrl","Z")} undoes and ${K("Ctrl","Shift","Z")} (or ${K("Ctrl","Y")}) redoes: steps, masks, peaks, bands, fits, labels, styles, worksheet edits. The Edit menu names what will be undone. Undo rewinds your own changes in this session; it never takes back a colleague's work or a comment. In the worksheet this holds cell by cell: what a colleague, or this project open in another tab, changed after your change stays when yours is undone.</p>
 <h2>The log</h2>
 <p>The History window's <em>Log</em> tab lists every change with who made it and when. The report ends with it.</p>`},
 {id:"explorer", g:"Basics", t:"The Project Explorer", kw:"project explorer tree folder subfolder files graphs hidden closed organise organize move drag rename delete filter origin alt+1 sidebar",

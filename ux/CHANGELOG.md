@@ -1040,6 +1040,9 @@ graph in a window of its own, six screen sizes, and a 40-minute day of 1 300 ran
   took 1 s; it takes 35 ms. Typing a value into it no longer builds an array per row for the
   check code.
 - **Two tabs typing in two columns of one project** kept only one tab's column; both stay now.
+  An undo in one tab took back what the other had changed since (a column, a cell); it takes back
+  only its own change. A tab closed mid-edit stored its value but the other tab did not show it;
+  it does.
 - **Keys after a press on a graph's numbers or a title bar** went to the worksheet behind; the
   window pressed takes them.
 - **A window's corner dragged past the browser's edge** selected every word on the page; nothing

@@ -1695,7 +1695,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   arrays, which it shares (`cloneCols`): raw values are only ever replaced. Undo and redo wait
   while a pointer button is held anywhere (`S.ptrDown`, `heldBlocks`), so a drag cannot write
   back what was undone under it. It is per-session and local on purpose — rewinding your
-  own edits, not other people's. Destructive actions confirm themselves with a toast that
+  own edits, not other people's: a step keeps `after`, the columns as its change left them, taken
+  (`undoAfter`) when the next step begins or when something arrives from another tab or a
+  colleague (`onProjects` with `S.selfEmit` false: `save` sets it while the store tells this
+  window of its own save), and `applySnapshot` then puts the step's columns together with what is
+  there now (`mergeCols(after, step, now)`): this window's change goes, what came in since stays,
+  cell by cell, and the original-data record goes on from what is there. Destructive actions confirm themselves with a toast that
   carries an Undo button (`toast(msg,{action,run})`).
 - **Storage**: `IdbStore` (IndexedDB, this browser: a share of the disk, not localStorage's few
   megabytes, so a scan of a million rows is a project like any other), `LocalStore` (localStorage,
@@ -2378,7 +2383,8 @@ another project, a named placeholder kept, undo; the X zoom each graph's own unt
 lines and a reload, whole in a smaller window, put back by a double-click, inert under a dialog,
 junk from storage; 05.11, a day of lab work: a million-row file saved quickly, counted as
 1 000 000 and back after a reload, two tabs typing in two columns, the keys after a press on a
-graph, a window's corner dragged past the browser's edge, rows sized, kept and reset, error
+graph, an undo in one tab keeping the other's newer column and cell, a tab closed mid-edit reaching
+the other tab, a window's corner dragged past the browser's edge, rows sized, kept and reset, error
 columns in other languages, a narrow window of its own, the dock's edge dragged to the far left
 and back); add a section to it for each report fixed.
 `node tools/lab-day.mjs [path] [minutes] [seed]` (Playwright) is a working day of erratic use through
@@ -3260,6 +3266,11 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   project from storage at every save; the new one compares a write with what it last read, and
   typing changed that too, so a merge with another tab took this tab's new columns for old ones
   and dropped them, one run in two. `openProject` copies (`cloneProj`), as `onProjects` does.
+- **An undo is a snapshot of everything.** Undo put back the columns as they were before this
+  window's change, and with them took back what another tab or a colleague had changed since: a
+  column they added, a cell they typed. The rule was written down ("your own edits, not other
+  people's") and never held with two writers. A step now keeps the columns as its change left
+  them, and undoing merges.
 - **A press that takes no focus leaves the keys where they were.** A graph's numbers and the title
   bars call `preventDefault` on the press, so the focus stayed in the worksheet, and Delete or
   Ctrl+V pressed while looking at the graph cleared or pasted cells behind it. A press in a window
@@ -3408,7 +3419,8 @@ Then, 05.11, the user's request to use Kurve as a lab technician would, typicall
 by hand, sizing columns and rows, very heavy files, many projects and tabs, many windows, a long
 day. Found and fixed: projects are kept in IndexedDB (a file of a million rows had been lost on a
 reload, silently), every save no longer copies every value (a second a save at a million rows; now
-35 ms), two tabs typing in two columns of one project keep both, leaving the page writes what
+35 ms), two tabs typing in two columns of one project keep both, an undo takes back this
+window's change and keeps what another tab changed since, leaving the page writes what
 waits and asks first when the browser refused it, the status bar says Not saved for that project
 whenever it is opened; a press in a window gives it the keys; moving a window selects nothing;
 rows are sized by the line under a row number; a narrow window of its own is laid out as itself;
@@ -3977,7 +3989,11 @@ Next, in order:
   rich text is scripts and symbols only (no
   bold or italic inside a text, no nested scripts); snapping is text to text and to the plot's
   centre, and an arrow's head to data points; nothing can be nudged with the keys
-- Large data on screen: past 3000 points a curve is drawn per column of pixels, so two points
+- The fill handle and a range dragged past the grid's edge do not scroll it, as Excel's do: drag
+  within the view, or select with Shift+click or Ctrl+Shift+arrows, or use the Fill dialog
+- Large data on screen: at a million points each zoom or pan draws in about a tenth of a second
+  (every point is read, not only those in view) and the worksheet scrolls at about 20 frames a
+  second. Past 3000 points a curve is drawn per column of pixels, so two points
   within half a pixel are one symbol and a dashed line's dashes fall a little differently; the
   exports draw every point. A fit, the peak finder and the processing use every point, so a fit
   of 200 000 points takes seconds, run on the page
@@ -3989,6 +4005,9 @@ Next, in order:
   moment still keep the later list. A browser with no IndexedDB keeps projects in localStorage,
   a few megabytes in all. Typing into a column of a million rows takes most of a second (the
   check code is the whole table's)
+- Undo merges only the columns with what came in since from another tab or a colleague; the
+  other parts a step puts back (graphs, annotations, fits, peak sets) are put back whole, so an
+  undo there can take back another window's newer change to the same part
 - Rows of a sheet are sized together (every data row one height), not one by one; the label rows
   keep 22 px
 - The worksheet draws only the rows in view, but every column; with hundreds of columns it

@@ -886,7 +886,8 @@ them all at once is slice 2.
   store's, so renaming a project of a million rows takes a moment, not a second.
 - **Two windows of one project are one project.** Two tabs typing in two columns at once keep
   both, column by column and cell by cell; the same cell keeps the later value, as a shared
-  spreadsheet does.
+  spreadsheet does. An undo takes back this window's change and nothing another window did
+  since (Kurve's rule, "your own edits, not other people's", which a snapshot did not keep).
 - **The keys follow the pointer into a window**, as on a desktop: a press on a graph's numbers or a
   title bar gives that window the keys, so Delete or Ctrl+V pressed while looking at the graph
   does not change cells behind it. What the press focused itself (a field, a button) keeps it.
