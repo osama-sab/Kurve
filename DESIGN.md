@@ -889,6 +889,21 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-05: counting spectra, slice 1 (an analyser's own files)
+
+- **A file that states its calibration is calibrated.** Maestro's and the IAEA's .Spe and N42
+  carry the energy calibration the analyser was set to; the import makes it an Energy calibration
+  step on the counts, on by default, so the spectrum is against energy at once while the counts
+  stay as recorded (the step can be switched off, changed or deleted like any other). The dialog
+  says it in one line with *Will apply*, which turns it off.
+- **The file as written.** The dialog's left side shows the file's own lines with the counts
+  marked, not the column Kurve made of them, and the delimiter and line controls are not shown:
+  the format is the file's own, and nothing a user could choose there would apply.
+- **Dates kept year first.** Maestro writes month first (03/14/2024); Kurve reads only year-first
+  dates elsewhere, since 03/01 is March in one country and January in another. Here the format
+  says which it is, so the date is turned year first on reading, and a series of spectra can be
+  plotted against it.
+
 ### 2026-11-05: a day of lab work (heavy files, tabs, windows, rows)
 
 - **Nothing a person imports is lost to the browser's storage.** Projects are kept in IndexedDB,

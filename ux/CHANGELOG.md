@@ -1024,6 +1024,30 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Counting spectra, slice 1: an analyser's own files (2026-11-05)
+
+The roadmap's item 3. Kurve read a multichannel analyser's counts from a .TKA file or a column of
+numbers; the calibration, times and date an analyser writes in its own formats were lost.
+
+- **Maestro's and the IAEA's .Spe files** and **ANSI N42.42** (2006 and 2011) are read: the counts,
+  numbered from the file's first channel, the live and real time (and the dead time), the date
+  (Maestro writes it month first; Kurve keeps it year first), the title, and the energy calibration
+  with its unit. N42's zeros written as counts of zeros are unfolded, and of several spectra the
+  longest is read.
+- **The calibration is a step**, an Energy calibration on the counts with the file's
+  coefficients, on by default (the dialog's *Will apply*, which turns it off), so the spectrum is
+  against energy at once and the counts stay as recorded. A dropped file and several files at once
+  are read the same way, each with its own date, which a series can then be plotted against.
+- **The dialog shows the file as written**, its counts marked, and says what it read; the
+  delimiter and line controls, meaningless for such a file, are not shown.
+- The Import button's file list offers .tka, .spe, .n42 and .xml.
+
+Checked: `tools/parser-test.mjs` (9 new: a Maestro file with $MCA_CAL over $ENER_FIT, an IAEA file
+from channel 10 with several counts a line, a .spe that is not one, N42 2011 with CountedZeroes and
+durations, N42 2006), a new drive `tools/count-drive.mjs` (10: the dialog's findings, the step and
+the axis in keV, the metadata, the calibration left off, a drop, an N42 file, two files at once with
+their dates), screenshots of the dialog and the plot.
+
 ## Known gaps closed: drags past the edge, undo beside another tab, Results in the dock (2026-11-05)
 
 - **A drag past the grid's edge goes on**: the fill handle held below the grid kept filling only

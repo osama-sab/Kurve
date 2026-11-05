@@ -230,6 +230,32 @@ check("negative kept", close(P.toNumber("-999", "."), -999));
   check("tka: 8190 channels", big.rows.length === 8190 && big.cols[0][8189] === 8189 % 97, big.rows.length);
 }
 
+/* ---------- 15b2. analysers' own formats: Maestro and IAEA .Spe, N42 ---------- */
+{
+  const counts = Array.from({ length: 1024 }, (_, i) => Math.round(30 + 900 * Math.exp(-0.5 * ((i - 400) / 3) ** 2)));
+  const spe = ["$SPEC_ID:", "Soil sample 7, HPGe", "$SPEC_REM:", "DET# 1", "$DATE_MEA:", "03/14/2024 09:05:07", "$MEAS_TIM:", "3600 3712", "$DATA:", "0 1023",
+    ...counts.map(v => "       " + v), "$ROI:", "0", "$PRESETS:", "Live Time", "3600", "0", "$ENER_FIT:", "0.155 0.4521", "$MCA_CAL:", "3", "1.2E-01 4.52E-01 1.1E-07 keV", "$SHAPE_CAL:", "3", "1 0 0"].join("\r\n") + "\r\n";
+  const f = P.analyzeFile(spe, { fname: "soil7.Spe" });
+  check("spe: the counts are one column of 1024 channels", f.single && f.rows.length === 1024 && f.cols[0][400] === counts[400], f.rows.length);
+  check("spe: live and real time, the date year first, the title", f.tka && f.tka.live === 3600 && f.tka.real === 3712 && f.meta.Measured === "2024-03-14 09:05:07" && f.meta.Title === "Soil sample 7, HPGe", JSON.stringify([f.tka, f.meta]));
+  check("spe: the calibration from $MCA_CAL, with its unit (over $ENER_FIT)", f.mca && f.mca.cal && f.mca.cal.co.join() === "0.12,0.452,1.1e-7" && f.mca.cal.unit === "keV", JSON.stringify(f.mca && f.mca.cal));
+  check("spe: channels from the first written", f.mca.ch0 === 0);
+  const iaea = ["$SPEC_ID:", "", "$MEAS_TIM:", "100 120", "$DATA:", "10 13", "5 6", "7 8", "$ENER_FIT:", "1.5 0.25"].join("\n");
+  const g = P.analyzeFile(iaea, { fname: "x.spe" });
+  check("spe: counts several on a line, from channel 10, the calibration from $ENER_FIT", g.rows.length === 4 && g.mca.ch0 === 10 && g.cols[0].join() === "5,6,7,8" && g.mca.cal.co.join() === "1.5,0.25,0", JSON.stringify([g.cols[0], g.mca]));
+  check("spe: a file named .spe without the tags is read as text", !P.analyzeFile("1\n2\n3\n", { fname: "y.spe" }).mca);
+  const n42 = `<?xml version="1.0"?><RadInstrumentData xmlns="http://physics.nist.gov/N42/2011/N42"><EnergyCalibration id="ec"><CoefficientValues>-0.5 1.465 0</CoefficientValues></EnergyCalibration>
+<RadMeasurement id="m"><StartDateTime>2023-11-02T14:30:00Z</StartDateTime><RealTimeDuration>PT310.5S</RealTimeDuration>
+<Spectrum id="s1"><LiveTimeDuration>PT5M</LiveTimeDuration><ChannelData compressionCode="CountedZeroes">0 3 7 9 0 2 4</ChannelData></Spectrum>
+<Spectrum id="s2"><LiveTimeDuration>PT1S</LiveTimeDuration><ChannelData>1 2</ChannelData></Spectrum></RadMeasurement></RadInstrumentData>`;
+  const h = P.analyzeFile(n42, { fname: "survey.n42" });
+  check("n42: CountedZeroes unfolded, the longest spectrum", h.mca && h.cols[0].join() === "0,0,0,7,9,0,0,4", h.cols[0] && h.cols[0].join());
+  check("n42: durations read (PT5M, PT310.5S), the start, the coefficients", h.tka && h.tka.live === 300 && h.tka.real === 310.5 && h.meta.Measured === "2023-11-02T14:30:00Z" && h.mca.cal.co.join() === "-0.5,1.465,0", JSON.stringify([h.tka, h.mca.cal, h.meta.Measured]));
+  const old = `<N42InstrumentData><Measurement><Spectrum><LiveTime>PT60S</LiveTime><RealTime>PT61S</RealTime><Calibration Type="Energy"><Equation><Coefficients>0 3 0</Coefficients></Equation></Calibration><ChannelData>4 5 6</ChannelData></Spectrum></Measurement></N42InstrumentData>`;
+  const k = P.analyzeFile(old, { fname: "old.xml" });
+  check("n42 (2006): LiveTime, Coefficients", k.mca && k.tka.live === 60 && k.mca.cal.co.join() === "0,3,0" && k.cols[0].join() === "4,5,6", JSON.stringify(k.mca));
+}
+
 /* ---------- 15c. a list of known lines, as people write them ---------- */
 {
   const L = P.parseLineList(["# my literature values", "Nuclide, E (keV), I (%)", "Bi-214, 609.312, 45.49", "609.32  Pb-214?", "²¹⁴Bi;1120,29;14,9", "K 40 1460.82", "Ra 226 186.21 3.64", "1764.5\tBi-214", "2614.511", "", "Tl-208 583.187 85"].join("\n"));

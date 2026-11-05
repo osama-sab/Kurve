@@ -809,7 +809,19 @@ graph first, with the taskbar kept at the bottom of the screen.
   (`impCounts`), with no error column, `impSqrtable`: an error column computed
   by the formula `SQRT_FX`, `sqrt(max(B,1))`), and the TKA line a `rate` fix (a `scale` step by 1/live, Count rate in
   counts/s). X is named Channel, Y Counts (counts) for TKA, the file's name otherwise (and
-  beside other spectra); thousands of points are drawn as a line. `batchFile` reads one-column
+  beside other spectra); thousands of points are drawn as a line. **An analyser's own format**
+  (roadmap 3, slice 1): `mcaFile(text, fname)` (in the PARSER block) recognises Maestro's and the
+  IAEA's `.Spe` (`speFile`: `$DATA:` with its first and last channel, `$MEAS_TIM:`, `$DATE_MEA:`
+  month first, turned year first, `$MCA_CAL:` with its unit over `$ENER_FIT:`, `$SPEC_ID:`) and ANSI
+  N42.42 (`n42File`, by regular expressions so the block stays DOM-free: the longest `ChannelData`,
+  `CountedZeroes` unfolded, durations `PT…S`, `CoefficientValues` or the 2006 `Coefficients`,
+  `StartDateTime`), giving `{kind, counts, ch0, live, real, date, cal:{co:[c0, c1, c2], unit}, title,
+  at}` (`at`, the file's lines that hold the counts); `analyzeFile` then reads the counts as one
+  column (`res.mca`, `res.tka` from its times, `meta` Title, Measured, Live time, Real time, Dead time,
+  Energy calibration). The dialog shows the file as written with its counts marked and no format
+  controls; `impStart(res)` numbers the channels from the file's first and turns on the `ecal` fix,
+  an Energy calibration step (`mcaCalParams(cal)`) put before any other; `autoImport` and
+  `batchFile` (`steps`, made per column by `doBatchImport`) do the same. `batchFile` reads one-column
   files the same way. A Y column whose X column holds no values is drawn against its row
   number (`rawSeries`, `anyVal`, xn "Row").
 - **Columns and spectra**: a project is a table. `p.cols` is `[{id, role, name, unit, data, of?,
@@ -3811,8 +3823,8 @@ Next, in order:
    size; the curves on the graph with Add, Replace, Remove, order, range and axis) with the real
    graph as its preview, the same dialog on an existing graph (Origin's Layer Contents), groups,
    kinds that need more columns, and setups remembered (all six slices done 29.10)
-3. Counting spectra, further: other analysers' files (Maestro .Spe with its calibration, N42;
-   CHN and CNF are binary), FWHM and efficiency against energy, net peak areas over a local
+3. Counting spectra, further: other analysers' files (Maestro .Spe with its calibration, N42: done
+   05.11; CHN and CNF are binary), FWHM and efficiency against energy, net peak areas over a local
    continuum with their counting errors and activities, a nuclide named by the set of its lines
    (their intensity ratios, interferences), region edges dragged on the graph
 4. Plots Origin has and Kurve lacks, further: a distribution fitted over a histogram (normal,
@@ -3878,9 +3890,11 @@ Next, in order:
   as h:mm(:ss); the second Y axis needs a conversion one-to-one over the view, and is not drawn
   with double Y, a heat map or stacked panels
 
-- One-column files: a .TKA file's two-line header is the only analyser header known; other text
-  formats are read where their numbers make the longest block (their own calibration is not
-  read), and binary ones (CHN, CNF) not at all
+- Analysers' files: .TKA, Maestro's and the IAEA's .Spe and N42 (2006 and 2011) are read with
+  their times and energy calibration; of an N42 file with several spectra the longest is read,
+  and its FWHM and efficiency calibrations, regions and nuclide results are not; other text
+  formats are read where their numbers make the longest block, and binary ones (CHN, CNF) not at
+  all
 - Energy calibration is a line or a parabola; there is no FWHM or efficiency calibration, and
   from peaks each one's channel must be given (a source's lines are not matched on their own)
 - Counting statistics: the noise comes from the counts as recorded in the same row, so after
