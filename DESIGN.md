@@ -889,6 +889,14 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-05: counting spectra, slice 5 (region edges dragged on the graph)
+
+- **Where a region is, it moves.** The Peaks window's regions were typed or dragged out new; to move
+  an edge a user had to read its number off the graph and type it. An edge now drags on the graph as
+  a band's does, in the same tools (Zoom, Pan, Label), with a tip saying where it is; letting go
+  searches again with it, as one undo step. A press without moving selects the region, so its
+  settings show. The roadmap's counting spectra (item 3) are done with this slice.
+
 ### 2026-11-05: counting spectra, slice 4 (a nuclide by the set of its lines)
 
 - **A nuclide is its lines, not one peak.** Naming each peak after the nearest line made a single

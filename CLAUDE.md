@@ -1563,7 +1563,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   settings the form shows, `S.pkReg`), `searchRegions(c, regs, xu, base)` (each region
   searched alone, results laid end to end, a peak found twice counted once), `setPkRegs(regs,
   why)` (one undo entry, searches again), `addPkRegion` (the view, or a drag: `pickPkRange`,
-  `S.pick.pkr`, read in `setPickedRange`), `removePkRegion`, `setPkRange(rng)` (one region). The
+  `S.pick.pkr`, read in `setPickedRange`), `removePkRegion`, `setPkRange(rng)` (one region). Each
+  region's edges drag on the graph (roadmap 3, slice 5): `buildPlot` draws a transparent strip on
+  each (`data-prh="<id>:x0|x1"`, a `<title>`), the plot's pointerdown takes it in the Zoom, Pan
+  and Label tools (`S.prdrag {col, id, edge, x0, regs, moved}`, a copy of the regions the drawing
+  reads while it lasts), `dragRegion` follows with a tip, `commitRegionDrag` is `setPkRegs` (one
+  undo step, a new search); a press without moving selects the region. The
   table (`.pkregs`: edges typed, `pfSummary` of its settings, the peaks in it, ×); the
   **Settings** (`#pkHow`, once "Peak finder settings" and before that "How to recognise a peak") edit the selected
   region's, with Use in every region, or with no regions `S.pf`. `findPeaksInto({regs|rng})`,
@@ -3871,7 +3876,7 @@ Next, in order:
    05.11; CHN and CNF are binary), FWHM and efficiency against energy (done 05.11), net peak areas
    over a local continuum with their counting errors and activities (done 05.11), a nuclide named by
    the set of its lines (their intensity ratios, interferences: done 05.11), region edges dragged on
-   the graph
+   the graph (done 05.11): the roadmap's item 3 is done
 4. Plots Origin has and Kurve lacks, further: a distribution fitted over a histogram (normal,
    log-normal) with its parameters; box charts of one column grouped by another, notched
    boxes; stacked and grouped bars with category names; per-row or per-column shared axes in a
@@ -3946,8 +3951,8 @@ Next, in order:
   smoothing it is overstated (peaks look a little weaker than they are), and after a step that
   changes the unit (normalizing) the finder falls back to measuring the noise; it is the
   background's √N at a peak's base, not a net-area significance
-- Regions are typed or added from the view or a drag; their edges cannot be dragged on the
-  graph, and the Fit window's finder has none
+- Regions are typed, added from the view or a drag, and their edges dragged on the graph; the
+  Fit window's finder has none
 - Known lines name peaks by position, nearest first; a nuclide is then judged by the set of its
   lines (found, missing, their strengths when counted windows give areas), but a shared peak's
   counts are not divided between its nuclides, and a sum or escape peak is not recognised.

@@ -1024,6 +1024,15 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Counting spectra, slice 5: region edges dragged on the graph (2026-11-05)
+
+- The Peaks window's regions have edges that drag on the graph, as bands' do (Zoom, Pan or Label):
+  the region follows with a tip, and letting go searches again with it, one undo step. A click on an
+  edge selects its region. The roadmap's item 3, counting spectra, is done.
+
+Checked: `tools/count-drive.mjs` (6 new: the edges there to hold, a drag followed with its tip, one
+undo step and a new search with the new edge, undo, a press selecting the region).
+
 ## Counting spectra, slice 4: a nuclide named by the set of its lines (2026-11-05)
 
 - **Nuclides** under the Peaks window's *Identify*: each nuclide whose lines name peaks is judged by

@@ -188,6 +188,28 @@ await page(async p => {
   check("in the dock the table fits", w[0] <= w[1], JSON.stringify(w));
 }, { name: "nuclides", timeout: 120000 });
 
+console.log("Slice 5: the Peaks window's region edges dragged on the graph");
+await page(async p => {
+  await p.evaluate(t => autoImport([{ name: "soil.spe", text: t }]), spe(gamma(4))); await p.waitForTimeout(1200);
+  await p.evaluate(() => { openPeakFinder(); }); await p.waitForTimeout(600);
+  await p.evaluate(() => { setPkRegs([{ id: "a", x0: 50, x1: 200 }, { id: "b", x0: 220, x1: 420 }], "two regions"); }); await p.waitForTimeout(800);
+  const edge = id => p.evaluate(id => { const el = document.querySelector(`#plot [data-prh="${id}"]`); if (!el) return null; const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, id);
+  const e0 = await edge("a:x1");
+  check("each region's edges can be taken hold of on the graph", !!e0 && !!(await edge("b:x0")), JSON.stringify(e0));
+  const n0 = await p.evaluate(() => undoStack.length), per = await p.evaluate(() => { const g = S.geo; return Math.abs(g.pw / (g.v.x1 - g.v.x0)); });
+  await p.mouse.move(e0[0], e0[1]); await p.mouse.down(); for (let i = 1; i <= 10; i++) await p.mouse.move(e0[0] - i * 2 * per, e0[1]); await p.waitForTimeout(100);
+  const live = await p.evaluate(() => [!!S.prdrag, document.getElementById("tip") && document.getElementById("tip").textContent]);
+  await p.mouse.up(); await p.waitForTimeout(800);
+  const r = await p.evaluate(() => ({ regs: pkRegsOf(activeYCol()).map(g => [g.id, +g.x0.toFixed(1), +g.x1.toFixed(1)]), set: (foundOf(activeYCol()) || {}).regs, same: Math.abs(((foundOf(activeYCol()) || {}).regs || [{}])[0].x1 - pkRegsOf(activeYCol())[0].x1) < 1e-9, undo: undoStack.length, last: undoStack[undoStack.length - 1].label }));
+  check("dragged 20 keV left: the region follows, said by the tip as it moves", live[0] && /Region 1: .* to .* keV/.test(live[1] || ""), JSON.stringify(live));
+  check("…let go: one undo step, the region's new edge, and a new search with it", r.undo === n0 + 1 && r.regs[0][0] === "a" && Math.abs(r.regs[0][2] - 180) < 1.5 && r.regs[1][1] === 220 && Array.isArray(r.set) && r.same, JSON.stringify([n0, r.undo, r.last, r.regs]));
+  await p.evaluate(() => undo()); await p.waitForTimeout(500);
+  check("…and one undo puts it back", await p.evaluate(() => Math.abs(pkRegsOf(activeYCol())[0].x1 - 200) < 1e-6), JSON.stringify(await p.evaluate(() => pkRegsOf(activeYCol()).map(g => [g.x0, g.x1]))));
+  // A press without moving selects the region.
+  const eb = await edge("b:x0"); await p.mouse.click(eb[0], eb[1]); await p.waitForTimeout(300);
+  check("a press on an edge without moving selects its region", await p.evaluate(() => S.pkReg === "b"));
+}, { name: "region edges" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

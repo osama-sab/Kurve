@@ -9951,10 +9951,12 @@ function buildPlot(W,H,pal,colEx,opt){
       s+=`<g pointer-events="none" class="fitrange">${a>L?`<rect x="${L.toFixed(1)}" y="${T}" width="${(a-L).toFixed(1)}" height="${mh}" fill="${pal.muted}" fill-opacity="0.1"/>`:""}${b<R?`<rect x="${b.toFixed(1)}" y="${T}" width="${(R-b).toFixed(1)}" height="${mh}" fill="${pal.muted}" fill-opacity="0.1"/>`:""}${[a,b].filter(v=>v>L&&v<R).map(v=>`<path d="M${v.toFixed(1)},${T}v${mh}" stroke="${pal.muted}" stroke-dasharray="4 3" stroke-width="1"/>`).join("")}</g>`; } }
   // While the Peaks window is open, what lies outside the range it searches is shaded.
   // Several regions are numbered, the one whose settings are shown in the accent colour.
-  if(!forExport&&!ins&&act&&ps.final&&!heat&&!dist&&winOpen("peaks")){ const regs=pkRegsOf(act);
+  if(!forExport&&!ins&&act&&ps.final&&!heat&&!dist&&winOpen("peaks")){ const regs=S.prdrag&&S.prdrag.col===act.id?normRegs(S.prdrag.regs):pkRegsOf(act);
     if(regs.length){ const cl=v=>Math.max(L,Math.min(L+pw,v)), sel=pkSelReg(regs), spans=regs.map((g,k)=>{ const a=X(g.x0), b=X(g.x1); return {lo:Math.min(a,b),hi:Math.max(a,b),k,g}; });
       const iv=spans.map(q=>[cl(q.lo),cl(q.hi)]).sort((a,b)=>a[0]-b[0]), gaps=[]; let at=L; iv.forEach(([a,b])=>{ if(a>at) gaps.push([at,a]); at=Math.max(at,b); }); if(at<L+pw) gaps.push([at,L+pw]);
-      s+=`<g pointer-events="none" class="pkrange">${gaps.map(([a,b])=>`<rect x="${a.toFixed(1)}" y="${T}" width="${(b-a).toFixed(1)}" height="${mh}" fill="${pal.muted}" fill-opacity="0.1"/>`).join("")}${spans.map(q=>[q.lo,q.hi].filter(v=>v>=L&&v<=L+pw).map(v=>`<path d="M${v.toFixed(1)},${T}v${mh}" stroke="${q.g===sel&&regs.length>1?pal.sel||pal.data:pal.muted}" stroke-dasharray="4 3" stroke-width="1"/>`).join("")).join("")}${regs.length>1?spans.filter(q=>q.hi>L&&q.lo<L+pw).map(q=>`<text x="${(cl(q.lo)+4).toFixed(1)}" y="${T+13}" font-size="11" font-weight="600" fill="${q.g===sel?pal.sel||pal.data:pal.muted}">${q.k+1}</text>`).join(""):""}</g>`; } }
+      s+=`<g pointer-events="none" class="pkrange">${gaps.map(([a,b])=>`<rect x="${a.toFixed(1)}" y="${T}" width="${(b-a).toFixed(1)}" height="${mh}" fill="${pal.muted}" fill-opacity="0.1"/>`).join("")}${spans.map(q=>[q.lo,q.hi].filter(v=>v>=L&&v<=L+pw).map(v=>`<path d="M${v.toFixed(1)},${T}v${mh}" stroke="${q.g===sel&&regs.length>1?pal.sel||pal.data:pal.muted}" stroke-dasharray="4 3" stroke-width="1"/>`).join("")).join("")}${regs.length>1?spans.filter(q=>q.hi>L&&q.lo<L+pw).map(q=>`<text x="${(cl(q.lo)+4).toFixed(1)}" y="${T+13}" font-size="11" font-weight="600" fill="${q.g===sel?pal.sel||pal.data:pal.muted}">${q.k+1}</text>`).join(""):""}</g>`;
+      // Each edge drags (roadmap 3, slice 5): a strip as wide as a finger along it.
+      if(!S.readOnly) spans.forEach(q=>[["x0",X(q.g.x0)],["x1",X(q.g.x1)]].forEach(([e,v])=>{ if(v>=L-1&&v<=L+pw+1) s+=`<line x1="${v.toFixed(1)}" x2="${v.toFixed(1)}" y1="${T}" y2="${T+mh}" stroke="transparent" stroke-width="11" data-prh="${esc(q.g.id)}:${e}" style="cursor:ew-resize"><title>Region ${q.k+1}: drag to move this edge</title></line>`; })); } }
   // Peak finder preview: what would be found (filled) and what was turned down (hollow).
   if(!forExport&&S.pfPreview&&ps.final&&!heat&&!dist&&S.fitMode==="peaks"&&winOpen("fit")){
     const pv=S.pfPreview; let d1="", d2="";
@@ -11730,6 +11732,10 @@ function setupGraph(){
     const bhe=ev.target&&ev.target.closest?ev.target.closest("[data-bh],[data-bb]"):null;
     if(bhe&&!S.readOnly&&ev.button===0&&["zoom","pan","label"].includes(S.mode)){ const [bid,edge]=(bhe.dataset.bh||(bhe.dataset.bb+":body")).split(":"), b=integOf().bands.find(q=>q.id===bid);
       if(b){ ev.preventDefault(); svg.setPointerCapture(ev.pointerId); S.bdrag={id:bid,edge,x0:x,orig:{x1:b.x1,x2:b.x2},moved:false}; return; } }
+    // A region's edge (the Peaks window's), the same.
+    const prh=ev.target&&ev.target.closest?ev.target.closest("[data-prh]"):null;
+    if(prh&&!S.readOnly&&ev.button===0&&["zoom","pan","label"].includes(S.mode)){ const [rid,edge]=prh.dataset.prh.split(":"), c=activeYCol(), regs=pkRegsOf(c);
+      if(c&&regs.some(g=>g.id===rid)){ ev.preventDefault(); svg.setPointerCapture(ev.pointerId); S.prdrag={col:c.id,id:rid,edge,x0:x,regs:regs.map(g=>Object.assign({},g)),moved:false}; return; } }
     // Annotations and the legend move with the pointer in the Zoom, Pan and Label tools.
     const canMove=!S.readOnly&&ev.button===0&&["zoom","pan","label"].includes(S.mode);
     const fpe=ev.target&&ev.target.closest?ev.target.closest("[data-fpl]"):null;
@@ -11767,6 +11773,7 @@ function setupGraph(){
     if(S.ttdrag){ dragTitle(x,y); return; }
     if(S.axdrag){ dragAxis(x,y); return; }
     if(S.bdrag){ dragBand(x,y); return; }
+    if(S.prdrag){ dragRegion(x,y); return; }
     if(S.adrag){ if(d){ moveAnchor(S.adrag.k,{x:d.x,y:d.y},false); S.adrag.moved=true; const [xu2,yu2]=[S.ps&&S.ps.d.xu||"",S.ps&&S.ps.d.yu||""]; showTip(`Anchor at ${fmt(d.x,6)}${xu2?" "+xu2:""}, ${fmt(d.y,5)}${yu2?" "+yu2:""}`,x,y); } return; }
     if(S.hdrag){ const hd=S.hdrag;
       if(!hd.pushed){ pushUndo("adjusting peak "+(hd.k+1)); hd.pushed=true; }
@@ -11800,9 +11807,11 @@ function setupGraph(){
     if(S.room&&d&&Date.now()-lastPres>90){ lastPres=Date.now(); S.room.presence(d.inside?{uid:S.uid,pid:S.pid,cx:d.x,cy:d.y}:{uid:S.uid,pid:S.pid,cx:null,cy:null}).catch(()=>{}); }
   });
   svg.addEventListener("pointerleave",()=>{ if(S.hdrag||drag||S.xhdrag) return; hideTip(); if(S.rdHover){ S.rdHover=null; drawReaders(); } const ro=$("#readout"); if(ro){ ro.textContent=""; ro._sig=null; } S.sbHover=false; renderSbStats(); if(S.room) S.room.presence({cx:null,cy:null}).catch(()=>{}); });
-  svg.addEventListener("pointercancel",()=>{ drag=null; S.hdrag=null; S.xhdrag=null; S.andrag=null; if(S.fldrag){ S.fldrag=null; renderPlot(); } S.lgdrag=null; S.bdrag=null; S.ttdrag=null; S.axdrag=null; S.arrowDraft=null; S.shapeDraft=null; S.guides=null; S.snapRing=null; zr.style.display="none"; svg.classList.remove("panning"); });
+  svg.addEventListener("pointercancel",()=>{ drag=null; S.hdrag=null; S.xhdrag=null; S.andrag=null; if(S.fldrag){ S.fldrag=null; renderPlot(); } S.lgdrag=null; S.bdrag=null; if(S.prdrag){ S.prdrag=null; renderPlot(); } S.ttdrag=null; S.axdrag=null; S.arrowDraft=null; S.shapeDraft=null; S.guides=null; S.snapRing=null; zr.style.display="none"; svg.classList.remove("panning"); });
   svg.addEventListener("pointerup",ev=>{
     if(S.xhdrag){ S.xhdrag=null; return; }
+    if(S.prdrag){ const pd=S.prdrag; S.prdrag=null; hideTip(); S.noDbl=Date.now(); if(pd.moved){ commitRegionDrag(pd); return; }
+      S.pkReg=pd.id; renderPlot(); if(winOpen("peaks")) renderPeaks(); return; }
     if(S.bdrag){ const bd=S.bdrag; S.bdrag=null; hideTip(); S.noDbl=Date.now(); if(bd.moved){ commitBandDrag(bd); return; }
       S.bandSel=bd.id; S.gsel=null; S.annoSel=null; S.legSel=null; renderPlot(); openWin("integ",{render:true}); return; }
     // A click selects; a second click on the same one soon after edits it. (The
@@ -19870,6 +19879,14 @@ function dragBand(x,y){
   renderPlot(); if(winOpen("integ")) renderInteg();
   const xu=(S.ps&&S.ps.d.xu)||""; showTip(`${fmt(Math.min(b.x1,b.x2),6)} to ${fmt(Math.max(b.x1,b.x2),6)}${xu?" "+xu:""}`,x,y);
 }
+/* A region's edge dragged on the graph: followed live from a copy of the regions, then one undo step
+   and a new search with them (setPkRegs) when let go; a press without moving selects the region. */
+function dragRegion(x,y){ const pd=S.prdrag, r=pd.regs.find(g=>g.id===pd.id); if(!r) return;
+  if(!pd.moved&&Math.abs(x-pd.x0)<3) return; pd.moved=true;
+  const d=toData(x,y); if(!d) return; r[pd.edge]=d.x; renderPlot();
+  const xu=(S.ps&&S.ps.d.xu)||"", k=pd.regs.indexOf(r); showTip(`Region ${k+1}: ${fmt(Math.min(r.x0,r.x1),6)} to ${fmt(Math.max(r.x0,r.x1),6)}${xu?" "+xu:""}`,x,y); }
+function commitRegionDrag(pd){ const k=pd.regs.findIndex(g=>g.id===pd.id), r=pd.regs[k]; if(!r) return;
+  r.x0=+(+r.x0).toPrecision(8); r.x1=+(+r.x1).toPrecision(8); S.pkReg=pd.id; setPkRegs(pd.regs,`moving region ${k+1}`); }
 function commitBandDrag(bd){
   const g=integOf(), k=g.bands.findIndex(q=>q.id===bd.id), b=g.bands[k]; if(!b) return;
   const lo=+Math.min(b.x1,b.x2).toPrecision(8), hi=+Math.max(b.x1,b.x2).toPrecision(8);
@@ -21414,7 +21431,7 @@ ${DL([["Points","How many, any missing, repeated X values, gaps."],["X","The ran
  body:`<h2 id="where">Where to look</h2>
 <p>${MP("Analyze › Peaks…")} opens the Peaks window. Its first part, <em>Search</em>, says what is searched:</p>
 ${DL([["Spectrum","Which spectrum's processed data. With several, choose any; <em>In every spectrum</em> finds the peaks of all of them with the same settings (in the same regions, for those on the same X axis), in one undo step."],["Range: All","All of it, with the finder's settings."],["+ View","Adds the range the graph is zoomed to as a region. The first search, when the window opens, takes the view."],["+ Select on graph","Adds a region by dragging across the graph."]])}
-<p id="regions"><strong>Regions</strong> are parts of the spectrum searched each with <em>its own settings</em>: a strict threshold where the counts are high and the noise wiggles, a gentle one where a weak line stands alone. The table lists them: their edges (type to change them), their settings in a few words (click to show them below), how many peaks each found, and × to remove one. The settings below are the selected region's (<em>Settings of</em>, with <em>Use in every region</em>); with no regions they are the finder's own. While the window is open the graph shades what no region covers, and numbers the regions. Each change is its own undo step, and the log says where and how the peaks were looked for.</p>
+<p id="regions"><strong>Regions</strong> are parts of the spectrum searched each with <em>its own settings</em>: a strict threshold where the counts are high and the noise wiggles, a gentle one where a weak line stands alone. The table lists them: their edges (type to change them), their settings in a few words (click to show them below), how many peaks each found, and × to remove one. The settings below are the selected region's (<em>Settings of</em>, with <em>Use in every region</em>); with no regions they are the finder's own. While the window is open the graph shades what no region covers, and numbers the regions; drag a region's edge there to move it (it searches again when you let go), or click an edge to show that region's settings. Each change is its own undo step, and the log says where and how the peaks were looked for.</p>
 <h2>Finding them</h2>
 <p>A straight baseline through the lowest points is taken off first, and every peak that passes the <em>Settings</em> is marked. Change a setting or the range and it searches again at once; <em>Find</em> does it by hand. ${DA("finder","The finder's settings")}</p>
 <h2>The table</h2>
