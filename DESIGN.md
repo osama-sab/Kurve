@@ -889,6 +889,24 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-05: counting spectra, slice 2 (net counts, detection, activity)
+
+- **Counted where the counts are counts.** A window on a spectrum of counts is an analyser's
+  region of interest: net counts over a straight continuum through the channels at its edges,
+  with the counting error, and Currie's critical level and detection limit. The Integrate
+  window's area (a trapezoid in counts·keV) stays for the other uses; the counting is a part of
+  its own under it, shown only for counts. A smoothed or background-subtracted spectrum is not
+  counted: the numbers would look right and be wrong, so the part says why instead.
+- **Detected or not, said.** A net count below the critical level is shown as not detected,
+  with the level, and its activity as the detection limit (‹ MDA), as a gamma report would; a
+  number that is noise is not shown as a result.
+- **The efficiency typed, for now.** Each window takes an emission probability and an efficiency
+  in %, the two numbers an activity needs beyond the counts and the live time; the next slice
+  makes the efficiency a curve against energy. The activity's error is the counting error only,
+  and says so in its tooltip and the report.
+- **In the dock**, the rate, detection and activity go on a line under each window, as Results'
+  secondary numbers do.
+
 ### 2026-11-05: counting spectra, slice 1 (an analyser's own files)
 
 - **A file that states its calibration is calibrated.** Maestro's and the IAEA's .Spe and N42

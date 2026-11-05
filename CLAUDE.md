@@ -280,6 +280,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   null, `centroid`, `snr`, and the points and baseline for drawing. Fewer than three points
   gives `fail`, in words, never a number. `bandsFromPeaks(X, Y, [{x, w}])` puts a window around
   each peak: neighbours split at the lowest point between them, outer edges two widths out.
+  `countBand(X, Y, x1, x2, {avg, kc})` counts a band as an analyser's region of interest: the
+  window's first and last k channels (k as the line baseline's, at most a quarter of the window
+  each) the continuum, a line through their means, the channels between the peak; counts Y·kc;
+  gross G, continuum B and σ_B from the edge counts, net N = G − B, σ_N² = G + σ_B², Currie's
+  critical level 1.645·σ₀ and detection limit 2.71 + 3.29·σ₀ (σ₀² = B + σ_B²), `det`, `centroid`;
+  `fail` in words (too few channels, values below zero). `activityOf(cnt, t, eff, ig)` is
+  N ÷ (t·ε·I) with its counting error and the detection limit as an activity.
   `tools/fit-test.mjs` checks both (area over a sloping background, height, position, FWHM,
   centroid, a descending axis, a dip, the error against 400 noisy repeats, error bars, the
   split at the valley).
@@ -1585,7 +1592,17 @@ graph first, with the taskbar kept at the bottom of the screen.
   on that axis. The table (name, edges, baseline, area ± error, height, position, FWHM, %,
   ratio, the reference radio; narrower windows drop columns by container query, and on a phone
   the edges are dragged on the graph instead) or, for several spectra, a row per spectrum
-  (`integEveryRows`, `integAllText`); Copy is TSV (`integTableText`). On the graph
+  (`integEveryRows`, `integAllText`); Copy is TSV (`integTableText`, the counting columns appended
+  by it to `integTableText0`'s). **Counting** (roadmap 3, slice 2): `countSetup(c)` says whether a
+  spectrum's bands can be counted (`{kc, t, why, unit}`: its unit counts, or counts/s with a live
+  time, `countsPerY`; no step but those in `COUNT_SAFE`, which move X, scale Y or leave points out;
+  not a derived spectrum; `why` in words otherwise), `bandCalc` adds each band's `cnt`
+  (`countBand`) and `res.cs`, and `integCountHtml(res, ro)` is the *Counting* part under the table
+  (`details#igCnt`, `S.igCnt`; `table.igcnt`: net counts ± σ, the rate, detected or not against the
+  critical level, a band's `ig` (emission probability, %) and `eff` (full-energy efficiency, %)
+  typed (`data-igk`, one undo entry, refused in words outside 0–100), the activity or, not detected,
+  the detection limit as one, `activityOf`; narrow, the rate, detection and activity on a second
+  line). The report's band integrals add a counted table per spectrum. On the graph
   `bandsSvg("under")` shades each band between the curve and its baseline and dashes the
   baseline, and `bandsSvg("top")` draws its edges (`data-bh`, drag one) and a strip along the
   top with its name (`data-bb`, drag it to move the window): `S.bdrag`, `dragBand`,
@@ -3825,7 +3842,7 @@ Next, in order:
    kinds that need more columns, and setups remembered (all six slices done 29.10)
 3. Counting spectra, further: other analysers' files (Maestro .Spe with its calibration, N42: done
    05.11; CHN and CNF are binary), FWHM and efficiency against energy, net peak areas over a local
-   continuum with their counting errors and activities, a nuclide named by the set of its lines
+   continuum with their counting errors and activities (done 05.11, the efficiency typed), a nuclide named by the set of its lines
    (their intensity ratios, interferences), region edges dragged on the graph
 4. Plots Origin has and Kurve lacks, further: a distribution fitted over a histogram (normal,
    log-normal) with its parameters; box charts of one column grouped by another, notched
@@ -3904,8 +3921,13 @@ Next, in order:
 - Regions are typed or added from the view or a drag; their edges cannot be dragged on the
   graph, and the Fit window's finder has none
 - Known lines are matched by position alone, nearest first: a nuclide's other lines and their
-  intensity ratios are not checked, nor interferences; no activities. Positions convert only
-  among eV, keV and MeV
+  intensity ratios are not checked, nor interferences. Positions convert only among eV, keV and
+  MeV
+- Counting (the Integrate window's): the continuum under a line is a straight line through the
+  channels at the window's edges (no step continuum, no fitted background); the emission
+  probability and the efficiency are typed per band (no efficiency curve yet), and the activity's
+  error is the counting error only; no decay correction, no coincidence summing, no
+  self-absorption
 - The worksheet and trend graphs minimise but never close (graphs close, and stay in the
   project); a closed panel
   shows no news in the taskbar (open threads show in Window › Tool windows and on the History's

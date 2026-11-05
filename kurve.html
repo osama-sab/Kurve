@@ -865,13 +865,14 @@ table.rtab{border-collapse:collapse;font-size:var(--fs-tab);width:100%}
 @container (max-width: 520px){ .rtab td.l{white-space:normal;min-width:9em} .rtab td.l>.lab{display:block} }
 /* And the parameters' t, p, interval and dependency, and a peak's shape, height, FWHM and share, go on a line under it. */
 .rtab tr.rmore{display:none}
+.rtab input.ignum{width:4.5em;text-align:right;font-family:var(--mono)}
 @container (max-width: 520px){
-  .rtab.rpar .x,.rtab.rpk .x{display:none}
+  .rtab.rpar .x,.rtab.rpk .x,.rtab.igcnt .x{display:none}
   .rtab tr.rmore{display:table-row}
   .rtab tr.rmain:has(+tr.rmore) td{border-bottom:0;padding-bottom:var(--sp-1)}
   .rtab tr.rmore td{text-align:left;white-space:normal;color:var(--muted);font-size:var(--fs-cap);padding-top:0}
   .rtab tr.rmore .v{color:var(--ink-2);font-variant-numeric:tabular-nums}
-  .rtab.rpk td.l{min-width:0}
+  .rtab.rpk td.l,.rtab.igcnt td.l{min-width:0}
 }
 .msugg{display:flex;align-items:center;gap:var(--sp-3);margin-top:var(--sp-2)}
 .rempty{display:flex;gap:var(--sp-6);align-items:center;color:var(--muted);padding:var(--sp-4) var(--sp-2);max-width:720px}
@@ -3825,6 +3826,30 @@ function integrateBand(X,Y,E,x1,x2,o){
   const centroid=Math.abs(area)>0?m1/area:null;
   return {n,lo,hi,base,avg:k,area,err,height,pos,fwhm,centroid,snr:sig>0?Math.abs(height)/sig:null,x,y,b,edges};
 }
+/* Counting a band, as an analyser's region of interest (roadmap 3, slice 2): the window's first and
+   last k channels are the continuum, a straight line through their means, and the channels between
+   are the peak. Counts are Y·kc (kc counts per Y unit: 1 for counts, the live time for counts/s).
+   Gross G, the continuum B under the peak with its variance from the edge counts, net N = G − B with
+   σ² = G + σ_B²; Currie's critical level L_C = 1.645·σ₀ and detection limit L_D = 2.71 + 3.29·σ₀,
+   σ₀² = B + σ_B² (5 % false detections, 5 % missed). Too few channels, or values below zero, `fail`. */
+function countBand(X,Y,x1,x2,o){
+  o=o||{}; const kc=o.kc>0?o.kc:1, lo=Math.min(x1,x2), hi=Math.max(x1,x2), idx=[];
+  for(let i=0;i<Math.min(X.length,Y.length);i++){ const x=X[i], y=Y[i]; if(x==null||y==null||!Number.isFinite(x)||!Number.isFinite(y)||x<lo||x>hi) continue; idx.push(i); }
+  idx.sort((a,b)=>X[a]-X[b]);
+  const n=idx.length; if(n<3) return {n,fail:"fewer than three channels in the window"};
+  const k=Math.max(1,Math.min(Math.round(o.avg||3),Math.floor(n/4)||1)), np=n-2*k;
+  if(np<1) return {n,k,fail:"no channels between the continuum's at the edges"};
+  const x=idx.map(i=>X[i]), c=idx.map(i=>Y[i]*kc);
+  if(c.some(v=>v<0)) return {n,k,fail:"values below zero are not counts"};
+  let sL=0, sR=0, xL=0, xR=0; for(let i=0;i<k;i++){ sL+=c[i]; xL+=x[i]; sR+=c[n-1-i]; xR+=x[n-1-i]; } xL/=k; xR/=k;
+  const mL=sL/k, mR=sR/k; let G=0, B=0, cl=0, cr=0, m1=0;
+  for(let i=k;i<n-k;i++){ const t=xR===xL?0.5:(x[i]-xL)/(xR-xL), bi=mL*(1-t)+mR*t; G+=c[i]; B+=bi; cl+=1-t; cr+=t; m1+=x[i]*(c[i]-bi); }
+  const vB=(cl*cl*sL+cr*cr*sR)/(k*k), N=G-B, s0=Math.sqrt(Math.max(0,B)+vB), lc=1.645*s0;
+  return {n,k,np,G,B,sigB:Math.sqrt(vB),N,sigN:Math.sqrt(G+vB),lc,ld:2.71+3.29*s0,det:N>lc,centroid:N>0?m1/N:null,kc};
+}
+// A line's activity from its net counts: N ÷ (live time × efficiency × emission), both in %, counting error
+// only; the detection limit as an activity (the minimum detectable activity) beside it.
+function activityOf(cn,t,eff,ig){ if(!cn||cn.fail||!(t>0&&eff>0&&ig>0)) return null; const q=t*(eff/100)*(ig/100); return {A:cn.N/q,sA:cn.sigN/q,mda:cn.ld/q,det:cn.det}; }
 /* Windows around peaks, for integrating them: two neighbours are split at the
    lowest point between them, and each outer edge is two widths from its peak
    (or where the data end). pk is [{x, w}], w the FWHM when known. */
@@ -5517,6 +5542,38 @@ function fitXAt(f,p,cov,fixed,y,a,b,t,n){
     return {x,se,lo:ci?x-t*se:null,hi:ci?x+t*se:null,slope:Number.isFinite(s)?s:null,touch:r.touch}; });
   return res;
 }
+/* A detector's efficiency and resolution against energy (roadmap 3, slice 3).
+   `effCurve(pts, deg)`: ln ε a polynomial of degree 1 to 4 in ln E (about the points' mean), fitted to
+   {E, eff (%), err (%)}, weighted by the relative errors when every point has one (the covariance as
+   it is), else equally (the covariance scaled by the scatter); {co, x0, deg, n, cov, rel (each point's
+   residual, relative), E0, E1, wtd} or {fail} in words. `effAt(cv, E)`: {v, err, out} in %, the error
+   by the covariance, `out` beyond the points' energies. `fwhmCurve(pts, deg)`: FWHM² = a + b·E (+ c·E²)
+   fitted to {E, w}; `fwhmAt(cv, E)` the FWHM there, null where a + b·E + c·E² is not above zero. */
+function lsqPoly(x,y,w,deg){ const m=deg+1, A=Array.from({length:m},()=>new Array(m).fill(0)), b=new Array(m).fill(0);
+  x.forEach((xi,i)=>{ const pw=[1]; for(let k=1;k<m;k++) pw.push(pw[k-1]*xi); for(let r=0;r<m;r++){ b[r]+=w[i]*pw[r]*y[i]; for(let c=0;c<m;c++) A[r][c]+=w[i]*pw[r]*pw[c]; } });
+  const co=solve(A,b); if(!co||!co.every(Number.isFinite)) return null; const cov=inverse(A); return {co,cov:cov&&cov.every(r=>r.every(Number.isFinite))?cov:null}; }
+const polyAt=(co,t)=>co.reduce((s,c,k)=>s+c*t**k,0);
+function effCurve(pts,deg){
+  const P=(pts||[]).filter(q=>q&&q.E>0&&q.eff>0); deg=Math.max(1,Math.min(4,Math.round(+deg||2)));
+  if(P.length<deg+1) return {fail:`A curve of degree ${deg} needs ${deg+1} points at least.`,n:P.length,deg};
+  const X=P.map(q=>Math.log(q.E)), x0=X.reduce((s,v)=>s+v,0)/X.length, x=X.map(v=>v-x0), y=P.map(q=>Math.log(q.eff));
+  if(new Set(X.map(v=>v.toPrecision(12))).size<deg+1) return {fail:`A curve of degree ${deg} needs ${deg+1} different energies.`,n:P.length,deg};
+  const wtd=P.every(q=>q.err>0), w=P.map(q=>wtd?(q.eff/q.err)**2:1), f=lsqPoly(x,y,w,deg);
+  if(!f) return {fail:"The points do not make a curve: give points at different energies.",n:P.length,deg};
+  const dof=P.length-deg-1, chi=x.reduce((s,t,i)=>s+w[i]*(y[i]-polyAt(f.co,t))**2,0), s2=dof>0?chi/dof:null;
+  const cov=f.cov&&(wtd?f.cov:s2!=null?f.cov.map(r=>r.map(v=>v*s2)):null);
+  return {co:f.co,x0,deg,n:P.length,cov,wtd,redChi2:wtd&&dof>0?chi/dof:null,rel:x.map((t,i)=>P[i].eff/Math.exp(polyAt(f.co,t))-1),E0:Math.min(...P.map(q=>q.E)),E1:Math.max(...P.map(q=>q.E))}; }
+function effAt(cv,E){ if(!cv||cv.fail||!(E>0)) return null; const t=Math.log(E)-cv.x0, pw=cv.co.map((_,k)=>t**k), v=Math.exp(polyAt(cv.co,t));
+  let err=null; if(cv.cov){ let s=0; pw.forEach((a,i)=>pw.forEach((b,j)=>{ s+=a*b*cv.cov[i][j]; })); err=s>=0?v*Math.sqrt(s):null; }
+  return {v,err,out:E<cv.E0*0.999||E>cv.E1*1.001}; }
+function fwhmCurve(pts,deg){
+  const P=(pts||[]).filter(q=>q&&q.E>0&&q.w>0); deg=Math.max(1,Math.min(2,Math.round(+deg||1)));
+  if(P.length<deg+1) return {fail:`A curve of degree ${deg} needs ${deg+1} points at least.`,n:P.length,deg};
+  const f=lsqPoly(P.map(q=>q.E),P.map(q=>q.w*q.w),P.map(()=>1),deg);
+  if(!f) return {fail:"The points do not make a curve: give points at different energies.",n:P.length,deg};
+  const cv={co:f.co,deg,n:P.length,E0:Math.min(...P.map(q=>q.E)),E1:Math.max(...P.map(q=>q.E))};
+  cv.rel=P.map(q=>{ const m=fwhmAt(cv,q.E); return m?q.w/m-1:null; }); return cv; }
+function fwhmAt(cv,E){ if(!cv||cv.fail) return null; const s=polyAt(cv.co,E); return s>0?Math.sqrt(s):null; }
 /* ==MODELS:END== */
 
 /* ============================================================
@@ -19501,7 +19558,8 @@ function bandCalc(c){
   const skip=new Set(mk), X=[], Y=[], E=[]; let hasE=false;
   for(let i=0;i<Math.min(d.x.length,d.y.length);i++){ if(skip.has(d.idx[i])) continue; X.push(d.x[i]); Y.push(d.y[i]); const e=d.e?d.e[i]:null; E.push(e); if(e!=null) hasE=true; }
   const o=X.map((_,i)=>i).sort((a,b)=>X[a]-X[b]), sigma=noiseSigma(o.map(i=>Y[i]).filter(v=>v!=null&&Number.isFinite(v)));
-  const res=list.map(({b,k})=>({b,k,r:integrateBand(X,Y,hasE?E:null,b.x1,b.x2,{base:b.base||"line",avg:g.avg,sigma})}));
+  const cs=countSetup(c), res=list.map(({b,k})=>({b,k,r:integrateBand(X,Y,hasE?E:null,b.x1,b.x2,{base:b.base||"line",avg:g.avg,sigma}),cnt:cs.kc?countBand(X,Y,b.x1,b.x2,{avg:g.avg,kc:cs.kc}):null}));
+  res.cs=cs;
   const ok=res.filter(q=>!q.r.fail), total=ok.reduce((s,q)=>s+q.r.area,0), ref=res.find(q=>q.b.id===g.ref&&!q.r.fail);
   res.forEach(q=>{ if(q.r.fail) return;
     q.pct=total?100*q.r.area/total:null;
@@ -19509,6 +19567,20 @@ function bandCalc(c){
   res.total=total; res.sigma=sigma; res.ref=ref||null;
   BAND_MEMO.set(d,{key,res}); return res;
 }
+/* Whether a spectrum's bands can be counted: its values counts (or counts per second with a live time),
+   and nothing done to them but steps that move X, scale Y by a constant or leave points out (an
+   energy calibration, a count rate, a crop). Smoothing or a background subtracted makes them not
+   counts any more. {kc, t, why, unit}: kc counts per Y unit, t the live time. */
+const COUNT_SAFE=new Set(["ecal","xlin","shift","xunit","calib","scale","crop","exclude","sort"]);
+function countSetup(c){
+  const d=finalOf(c), u=String(d.yu||"").trim(), t=liveTimeOf(c), kc=countsPerY(u,c);
+  const looks=/^(counts?|cts|events|(counts?|cts)\/s|cps|(counts?|cts)\s?s⁻¹)$/i.test(u.replace(/\s+/g," "));
+  if(!looks) return {kc:0,t,why:null,unit:u};
+  if(!kc) return {kc:0,t,why:"Counts per second need the live time to be counted: this column has none.",unit:u};
+  if(c.src) return {kc:0,t,why:"A column made from another is not counted: count the one it comes from.",unit:u};
+  const bad=(c.pipe||[]).filter(s=>s.on!==false&&!COUNT_SAFE.has(s.op));
+  if(bad.length) return {kc:0,t,why:`Net counts need the counts as recorded: ${bad.map(s=>stepShort(s)).join(", ")} ${bad.length===1?"changes":"change"} them.`,unit:u};
+  return {kc,t,why:null,unit:u}; }
 function saveInteg(patch,log){ const p=P(); if(!p) return; const g=Object.assign({},integOf(p),patch);
   save({integ:{bands:g.bands,ref:g.ref,avg:g.avg,show:g.show}},log||null);
   renderPlot(); if(winOpen("integ")) renderInteg(); if(winOpen("flow")) renderFlow(); }
@@ -19576,6 +19648,12 @@ function openIntegrate(){
 const bandPM=(v,e)=>!Number.isFinite(v)?"":e?`${fmt(v,8)}\t${fmt(e,3)}`:`${fmt(v,8)}\t`;
 function integTableText(c){
   const res=bandCalc(c), d=finalOf(c), au=unitFor("yx",d.xu||"",d.yu||"");
+  if(res.cs&&res.cs.kc){ const t=res.cs.t, base=integTableText0(c,res).split("\n");
+    return [base[0]+"\tNet counts\t±\tRate (counts/s)\t±\tCritical level\tDetected\tEmission (%)\tEfficiency (%)\tActivity (Bq)\t±\tDetection limit (Bq)"].concat(res.map((q,i)=>{ const cn=q.cnt, a=cn&&!cn.fail?activityOf(cn,t,q.b.eff,q.b.ig):null;
+      return base[i+1]+"\t"+(cn&&!cn.fail?[fmt(cn.N,8),fmt(cn.sigN,3),t>0?fmt(cn.N/t,6):"",t>0?fmt(cn.sigN/t,3):"",fmt(cn.lc,4),cn.det?"yes":"no",q.b.ig??"",q.b.eff??"",a&&a.det?fmt(a.A,6):"",a&&a.det?fmt(a.sA,3):"",a?fmt(a.mda,4):""]:["","","","","","","","","","",""]).join("\t"); })).join("\n"); }
+  return integTableText0(c,res); }
+function integTableText0(c,res){
+  const d=finalOf(c), au=unitFor("yx",d.xu||"",d.yu||"");
   const head=["Band","From","To","Baseline",`Area${au?" ("+au+")":""}`,"±","Height","Position","FWHM","Centroid","% of total",res.ref?`÷ ${bandName(res.ref.b,res.ref.k)}`:"Ratio","±"];
   return [head.join("\t")].concat(res.map(q=>{ const r=q.r; return [bandName(q.b,q.k),fmt(Math.min(q.b.x1,q.b.x2),8),fmt(Math.max(q.b.x1,q.b.x2),8),q.b.base||"line"].concat(r.fail?["","","","","","","","",""]:
     [fmt(r.area,8),fmt(r.err,3),fmt(r.height,6),fmt(r.pos,8),r.fwhm!=null?fmt(r.fwhm,6):"",r.centroid!=null?fmt(r.centroid,8):"",q.pct!=null?fmt(q.pct,4):"",q.ratio!=null?fmt(q.ratio,6):"",q.ratioErr!=null?fmt(q.ratioErr,3):""]).join("\t"); })).join("\n");
@@ -19620,6 +19698,7 @@ function renderInteg(){
     h+=`<div class="twrap"><table class="rtab igtab"><thead><tr><th class="l">Spectrum</th>${bands.map(q=>`<th><span class="igsw" style="background:${peakColor(q.k)}"></span> ${esc(bandName(q.b,q.k))}</th>`).join("")}${refQ?bands.filter(q=>q!==refQ).map(q=>`<th>${esc(bandName(q.b,q.k))} ÷ ${esc(bandName(refQ.b,refQ.k))}</th>`).join(""):""}</tr></thead><tbody>`+
       rows.map(({c:y,res:rr})=>`<tr${y===c?' class="sel"':""}><td class="l">${esc(specName(y))}</td>${rr.map(q=>`<td>${q.r.fail?"—":fmtPM(q.r.area,q.r.err)}</td>`).join("")}${refQ?rr.filter(q=>q.b.id!==g.ref).map(q=>`<td>${q.ratio!=null?fmtPM(q.ratio,q.ratioErr):"—"}</td>`).join(""):""}</tr>`).join("")+`</tbody></table></div>`;
   }
+  if(res.length&&!every&&(res.cs.kc||res.cs.why)) h+=integCountHtml(res,ro);
   if(res.length) h+=`<div class="actions"><button class="btn sm ghost" id="igCopy">${ICON("copy","sm")}Copy</button><button class="btn sm ghost" id="igClear"${ro}>Clear</button><span class="sp"></span>
     <label class="chk"><input type="checkbox" id="igShow"${g.show?" checked":""}${ro}> Shade them on the graph</label></div>`;
   if(res.length) h+=`<details class="grp" id="igHow"${S.igHow?" open":""}><summary>Baselines</summary><div class="gb">
@@ -19628,6 +19707,20 @@ function renderInteg(){
   if(focusId){ const el=document.getElementById(focusId); if(el){ if(keepV&&el.matches("input[type=text]")){ el.value=keepV[0]; try{ el.setSelectionRange(keepV[1],keepV[2]); }catch(e){} } el.focus({preventScroll:true}); } }
   wireInteg(box);
 }
+// The bands counted: net counts, the rate, detected or not, and from an emission probability and an
+// efficiency typed, the activity (or, not detected, the detection limit as one).
+function integCountHtml(res,ro){
+  const cs=res.cs; let h=`<details class="grp" id="igCnt"${S.igCnt===false?"":" open"}><summary>Counting</summary><div class="gb">`;
+  if(cs.why) return h+`<p class="lab">${esc(cs.why)}</p></div></details>`;
+  const t=cs.t, num=(k,b,v,lab)=>`<input type="text" inputmode="decimal" class="ignum" id="ig-${k}-${esc(b.id)}" data-igk="${k}" data-igb="${esc(b.id)}" value="${v!=null?esc(String(v)):""}" placeholder="—" aria-label="${esc(lab)}"${ro}>`;
+  h+=`<div class="twrap"><table class="rtab igcnt"><thead><tr><th class="l">Band</th><th title="The counts in the window less the continuum under them, a line through the channels at each edge; ± one standard deviation from counting">Net counts</th><th class="x" title="Net counts per second of live time">Rate <span class="unit">(counts/s)</span></th><th class="x" title="Currie's critical level, 95 %: a net count above it is a line">Detected</th><th class="edt" title="The share of decays that give this line">Emission <span class="unit">(%)</span></th><th class="edt" title="The detector's full-energy peak efficiency at this energy">Efficiency <span class="unit">(%)</span></th><th class="x" title="Net counts ÷ (live time × efficiency × emission), counting error only; not detected, the detection limit as an activity">Activity <span class="unit">(Bq)</span></th></tr></thead><tbody>`;
+  res.forEach(q=>{ const b=q.b, cn=q.cnt, nm=bandName(b,q.k);
+    if(!cn||cn.fail){ h+=`<tr class="rmain"><td class="l">${esc(nm)}</td><td colspan="6" class="l lab">${esc(cn?cn.fail:"")}</td></tr>`; return; }
+    const a=activityOf(cn,t,b.eff,b.ig), rate=t>0?fmtPM(cn.N/t,cn.sigN/t):"—", det=cn.det?"Yes":`No <span class="lab">(&lt; ${esc(fmt(cn.lc,4))})</span>`;
+    const act=!t?`<span class="lab" title="No live time is known for this column">—</span>`:!a?"—":a.det?fmtPM(a.A,a.sA):`&lt; ${esc(fmt(a.mda,3))}`;
+    h+=`<tr class="rmain"><td class="l">${esc(nm)}</td><td>${fmtPM(cn.N,cn.sigN)}</td><td class="x">${rate}</td><td class="x">${det}</td><td class="num edt">${num("ig",b,b.ig,"Emission probability of "+nm+", %")}</td><td class="num edt">${num("eff",b,b.eff,"Efficiency at "+nm+", %")}</td><td class="x">${act}</td></tr>`
+      +`<tr class="rmore"><td colspan="7">rate <span class="v">${rate}</span> counts/s · ${cn.det?"detected":`not detected <span class="v">(&lt; ${esc(fmt(cn.lc,4))})</span>`}${a?` · activity <span class="v">${act}</span> Bq`:""}</td></tr>`; });
+  return h+`</tbody></table></div><p class="lab">${t?`Live time ${esc(fmt(t,6))} s. `:""}Continuum from ${res[0]&&res[0].cnt&&res[0].cnt.k?res[0].cnt.k:integOf().avg} channel${(res[0]&&res[0].cnt&&res[0].cnt.k)===1?"":"s"} at each edge of each window.</p></div></details>`; }
 function wireInteg(box){
   const on=(sel,fn)=>{ const el=box.querySelector(sel); if(el) el.onclick=fn; };
   on("#igPick",()=>pickBands()); on("#igPeaks",bandsFromPeaksUI);
@@ -19636,6 +19729,7 @@ function wireInteg(box){
   const cs=box.querySelector("#igCol"); if(cs) cs.onchange=()=>{ setActiveCol(cs.value,true); renderInteg(); };
   box.querySelectorAll("[data-igv]").forEach(b=>b.onclick=()=>{ S.igEvery=b.dataset.igv==="all"; renderInteg(); });
   const how=box.querySelector("#igHow"); if(how) how.addEventListener("toggle",()=>{ if(how.isConnected) S.igHow=how.open; });
+  const cnt=box.querySelector("#igCnt"); if(cnt) cnt.addEventListener("toggle",()=>{ if(cnt.isConnected) S.igCnt=cnt.open; });
   const sh=box.querySelector("#igShow"); if(sh) sh.onchange=()=>{ pushUndo("showing the bands"); saveInteg({show:sh.checked},sh.checked?"shaded the integrated bands on the graph":"stopped shading the integrated bands on the graph"); };
   const av=box.querySelector("#igAvg"); if(av) av.onchange=()=>{ pushUndo("the band baselines"); saveInteg({avg:+av.value},`line baselines of the bands now through ${+av.value===1?"the edge points":`the mean of ${av.value} points at each edge`}`); };
   box.querySelectorAll("[data-igref]").forEach(r=>r.onchange=()=>{ const g=integOf(), k=g.bands.findIndex(b=>b.id===r.dataset.igref); pushUndo("the reference band"); saveInteg({ref:r.dataset.igref},`divided the bands by ${bandName(g.bands[k],k)}`); });
@@ -19643,6 +19737,8 @@ function wireInteg(box){
   box.querySelectorAll("[data-igk]").forEach(el=>{
     const commit=()=>{ const id=el.dataset.igb, k=el.dataset.igk, g=integOf(), i=g.bands.findIndex(b=>b.id===id), b=g.bands[i]; if(!b) return;
       if(k==="lab"){ const v=el.value.trim().slice(0,40); if(v===(b.lab||"")) return; updateBand(id,{lab:v},v?`named band ${i+1} "${v}"`:`cleared the name of band ${i+1}`); return; }
+      if(k==="ig"||k==="eff"){ const s=el.value.trim(), v=s===""?null:parseNum(s); if(s!==""&&!(v>0&&v<=100)){ toast("Enter a percentage above 0 and up to 100, or leave it empty."); el.value=b[k]!=null?String(b[k]):""; return; }
+        if((b[k]??null)===v) return; updateBand(id,{[k]:v},`${v==null?"cleared":"set"} the ${k==="ig"?"emission probability":"efficiency"} of ${bandName(b,i)}${v==null?"":` to ${v} %`}`); return; }
       if(k==="base"){ updateBand(id,{base:el.value},`gave ${bandName(b,i)} ${(BAND_BASES.find(q=>q[0]===el.value)||[,""])[1].toLowerCase()} as its baseline`); return; }
       const v=parseNum(el.value); if(v==null){ toast("Enter a number."); el.value=fmt(k==="x1"?Math.min(b.x1,b.x2):Math.max(b.x1,b.x2),7); return; }
       const lo=Math.min(b.x1,b.x2), hi=Math.max(b.x1,b.x2), nlo=k==="x1"?v:lo, nhi=k==="x2"?v:hi;
@@ -19704,6 +19800,10 @@ function reportBandsHtml(){
     out+="<h3>"+e2(specName(c))+"</h3><table><thead><tr><th class=\"l\">Band</th><th>From</th><th>To</th><th class=\"l\">Baseline</th><th>Area"+(au?" ("+e2(au)+")":"")+"</th><th>Height</th><th>Position</th><th>FWHM</th><th>%</th><th>"+(res.ref?"÷ "+e2(bandName(res.ref.b,res.ref.k)):"Ratio")+"</th></tr></thead><tbody>"+
       res.map(q=>{ const r=q.r; return "<tr><td class=\"l\">"+e2(bandName(q.b,q.k))+"</td><td>"+e2(fmt(Math.min(q.b.x1,q.b.x2),7))+"</td><td>"+e2(fmt(Math.max(q.b.x1,q.b.x2),7))+"</td><td class=\"l\">"+e2((BAND_BASES.find(z=>z[0]===(q.b.base||"line"))||[,""])[1])+"</td>"+
         (r.fail?"<td colspan=\"6\" class=\"l\">"+e2(r.fail)+"</td>":"<td>"+fmtPM(r.area,r.err)+"</td><td>"+e2(fmt(r.height,5))+"</td><td>"+e2(fmt(r.pos,7))+"</td><td>"+(r.fwhm!=null?e2(fmt(r.fwhm,5)):"")+"</td><td>"+(q.pct!=null?e2(fmt(q.pct,4)):"")+"</td><td>"+(q.ratio!=null?(q===res.ref?"1":fmtPM(q.ratio,q.ratioErr)):"")+"</td>")+"</tr>"; }).join("")+"</tbody></table>"; });
+  yCols().forEach(c=>{ const res=bandCalc(c); if(!res.length||!res.cs||!res.cs.kc) return; const t=res.cs.t;
+    out+="<h3>"+e2(specName(c))+": counted</h3><table><thead><tr><th class=\"l\">Band</th><th>Net counts</th><th>Rate (counts/s)</th><th>Critical level</th><th>Emission (%)</th><th>Efficiency (%)</th><th>Activity (Bq)</th></tr></thead><tbody>"+
+      res.map(q=>{ const cn=q.cnt; if(!cn||cn.fail) return "<tr><td class=\"l\">"+e2(bandName(q.b,q.k))+"</td><td colspan=\"6\" class=\"l\">"+e2(cn?cn.fail:"")+"</td></tr>"; const a=activityOf(cn,t,q.b.eff,q.b.ig);
+        return "<tr><td class=\"l\">"+e2(bandName(q.b,q.k))+"</td><td>"+fmtPM(cn.N,cn.sigN)+"</td><td>"+(t>0?fmtPM(cn.N/t,cn.sigN/t):"")+"</td><td>"+e2(fmt(cn.lc,4))+(cn.det?"":" (not detected)")+"</td><td>"+e2(q.b.ig??"")+"</td><td>"+e2(q.b.eff??"")+"</td><td>"+(a?(a.det?fmtPM(a.A,a.sA):"&lt; "+e2(fmt(a.mda,3))):"")+"</td></tr>"; }).join("")+"</tbody></table><p class=\"meta\">Net counts: the counts in each window less a straight continuum through the mean of the channels at each edge; ± one standard deviation from counting. Critical level and detection limit after Currie (5 % false detections and misses). Activity: net counts ÷ (live time"+(t?" "+e2(fmt(t,6))+" s":"")+" × efficiency × emission), counting error only.</p>"; });
   return out?"<h2>Band integrals</h2><p class=\"meta\">Trapezoidal sums over the points in each window, less a local baseline ("+(g.avg===1?"a line through the edge points":"a line through the mean of "+g.avg+" points at each edge")+", unless another is named), on the processed data with masked points left out. Each ± carries the spectrum's noise (from its second differences), or its error bars, through the sum and the baseline.</p>"+out:"";
 }
 
@@ -21207,7 +21307,7 @@ ${DL([["Method","<em>Local maxima</em>; <em>Window maximum</em>, the highest poi
 <h2>Rejected: why a candidate is not counted as a peak</h2>
 ${DL([["Below the threshold","It did not pass <em>Keep if</em>."],["Within the noise","Less than three times the noise. Their number is shown, not each one."],["A spike","Narrower than <em>Min width</em>."],["Too wide","Wider than a band can be in this window."],["Too close","Within <em>Min spacing</em> of a stronger one."],["Over the limit","Past <em>Max peaks</em>."]])}
 ${TIP("A shoulder has no valley of its own: the second-derivative method measures it against the lowest point within its own width.")}`},
-{id:"integ", g:"Analysis", t:"Integrating bands", win:"integ", kw:"integrate integral area band window baseline ratio percent share reference fwhm height",
+{id:"integ", g:"Analysis", t:"Integrating bands", win:"integ", kw:"integrate integral area band window baseline ratio percent share reference fwhm height net counts roi region of interest gross continuum activity becquerel bq efficiency emission probability intensity currie critical level detection limit mda",
  lead:"Measure bands without a fit: drag a window across each band, and Kurve gives its area with an error, its height, position and FWHM, its share of the total, and its ratio to a band you choose.",
  body:`<h2>Adding bands</h2>
 <ul><li><em>Add by dragging</em>, then drag across a band on the graph. It stays on for the next band until ${K("Esc")}.</li>
@@ -21219,6 +21319,10 @@ ${DL([["Line","A straight line between the window's edges (through the mean of a
 ${DL([["Area ± error","The trapezoidal sum over the points in the window, less the baseline. The error carries the spectrum's noise (or each point's error bar) through the sum and the baseline's ends."],["Height, position","The top above the baseline, from a parabola through the three highest points (the lowest, for a dip)."],["FWHM","Where the band crosses half its height inside the window; blank if it does not."],["%","The share of the total of all bands."],["Ratio","Area over the reference band's (the radio button), with its error."]])}
 <h2>Every spectrum</h2>
 <p>The same windows apply to every spectrum on the same X axis. <em>Every spectrum</em> shows a row per spectrum, the numbers follow each one's processing, and <em>Copy</em> gives the whole table.</p>
+<h2 id="counting">Counting</h2>
+<p>A spectrum of counts (or counts per second, with its live time) has a <em>Counting</em> part under the table: each window as an analyser's region of interest.</p>
+${DL([["Net counts","The counts in the window less the continuum under them: a straight line through the mean of the channels at each edge (as many as the line baselines use). ± one standard deviation from counting: the counts' own and the continuum's."],["Detected","Above Currie's critical level, 95 %: on a continuum alone, one window in twenty is called detected. Below it, the level is shown."],["Emission, efficiency","Type the share of decays that give the line and the detector's efficiency at its energy, both in %."],["Activity","Net counts ÷ (live time × efficiency × emission), in becquerel, with the counting error. Not detected: the detection limit as an activity, the smallest that would be."]])}
+<p>Counting needs the counts as recorded: an energy calibration, a count rate or a crop keep them; smoothing or a subtracted background do not, and the part says so.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
 {id:"stats", g:"Analysis", t:"Statistics", win:"stats", kw:"statistics descriptive n count mean median sd se standard error spectral measures noise signal to noise area centroid correlation pearson integrate visible range",
  lead:"Descriptive statistics of every column, the integral of the visible range, and how alike the columns are.",

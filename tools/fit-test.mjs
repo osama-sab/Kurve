@@ -16,7 +16,7 @@ const grab = (tag) => {
 // tools/pipe-test.mjs tests the rest of it. The curve fit's models are a block of
 // their own (MODELS), after the pipeline.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("MODELS")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,countBand,activityOf,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -513,6 +513,33 @@ function fitSpec(X, Y, spec, init, opts) {
   const p0 = N.guessUserParams(fn.params, X, Y).map((v, i) => fn.params[i] === "b" ? 1 : v);
   const r = N.lmFit(fn.f, X, Y, X.map(() => 1), p0, p0.map(() => false), { lo: [-Infinity, 0, 0.01, 0.1], hi: [Infinity, Infinity, Infinity, 3] });
   check("a user's function fits: stretched exponential recovered", r.params && truth.every((v, i) => rel(r.params[i], v, 0.05)) && r.stats.converged, r.params);
+}
+/* ---------- counting a band: net counts over a local continuum ---------- */
+{
+  // A flat continuum of 100 counts a channel and a line of exactly 2000 counts, no noise.
+  const X = Array.from({ length: 41 }, (_, i) => 500 + i), line = i => (i >= 15 && i <= 25 ? [20, 60, 140, 260, 370, 300, 370, 260, 140, 60, 20][i - 15] : 0);
+  const Y = X.map((_, i) => 100 + line(i)), r = N.countBand(X, Y, 500, 540, { avg: 5 });
+  check("counting: a line of 2000 counts on a flat continuum is 2000 net", r.N === 2000 && r.G === 2000 + 100 * 31 && r.np === 31 && r.k === 5, JSON.stringify(r));
+  const vB = (15.5 * 15.5 * 500 + 15.5 * 15.5 * 500) / 25;
+  check("counting: σ² = G + σ_B², σ_B² from the edge channels' counts", Math.abs(r.sigN - Math.sqrt(r.G + vB)) < 1e-9 && Math.abs(r.sigB - Math.sqrt(vB)) < 1e-9, [r.sigN, Math.sqrt(r.G + vB)]);
+  check("counting: Currie's critical level and detection limit", Math.abs(r.lc - 1.645 * Math.sqrt(3100 + vB)) < 1e-9 && Math.abs(r.ld - (2.71 + 3.29 * Math.sqrt(3100 + vB))) < 1e-9 && r.det);
+  check("counting: centroid at the line's centre", Math.abs(r.centroid - 520) < 1e-9, r.centroid);
+  const sl = N.countBand(X, X.map((x, i) => 50 + 3 * i + line(i)), 500, 540, { avg: 5 });
+  check("counting: on a sloping continuum, still 2000", Math.abs(sl.N - 2000) < 1e-9, sl.N);
+  const rate = N.countBand(X, Y.map(v => v / 300), 500, 540, { avg: 5, kc: 300 });
+  check("counting: counts per second times the live time are the counts", Math.abs(rate.N - 2000) < 1e-9 && Math.abs(rate.sigN - r.sigN) < 1e-9);
+  check("counting: refusals in words", /fewer than three/.test(N.countBand([1, 2], [1, 2], 0, 3).fail) && /below zero/.test(N.countBand(X, Y.map(v => v - 300), 500, 540).fail));
+  const a = N.activityOf(r, 3600, 2.5, 85.1);
+  check("activity: N ÷ (t ε I), its counting error, its detection limit", Math.abs(a.A - 2000 / (3600 * 0.025 * 0.851)) < 1e-9 && Math.abs(a.sA - r.sigN / (3600 * 0.025 * 0.851)) < 1e-12 && Math.abs(a.mda - r.ld / (3600 * 0.025 * 0.851)) < 1e-12 && N.activityOf(r, 0, 2.5, 85) === null);
+  // Poisson repeats: the error against the scatter, and false detections on a continuum alone.
+  let s = 29; const u = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const pois = m => { if (m > 60) { const z = Math.sqrt(-2 * Math.log(u() || 1e-12)) * Math.cos(2 * Math.PI * u()); return Math.max(0, Math.round(m + Math.sqrt(m) * z)); } let k = 0, t = Math.exp(-m), p = 1; do { k++; p *= u(); } while (p > t); return k - 1; };
+  const nets = [], errs = []; let fp = 0; const R = 1500;
+  for (let k = 0; k < R; k++) { const q = N.countBand(X, X.map((_, i) => pois(100 + line(i))), 500, 540, { avg: 5 }); nets.push(q.N); errs.push(q.sigN);
+    const z = N.countBand(X, X.map(() => pois(40)), 500, 540, { avg: 5 }); if (z.det) fp++; }
+  const mean = nets.reduce((p, v) => p + v, 0) / R, sd = Math.sqrt(nets.reduce((p, v) => p + (v - mean) ** 2, 0) / (R - 1)), me = errs.reduce((p, v) => p + v, 0) / R;
+  check("counting: unbiased, its error the scatter of 1500 repeats within 6 %", Math.abs(mean - 2000) < 3 * sd / Math.sqrt(R) + 1 && Math.abs(me / sd - 1) < 0.06, JSON.stringify([mean, sd, me]));
+  check("counting: on a continuum alone, about 5 % called detected (3 % to 7.5 %)", fp / R > 0.03 && fp / R < 0.075, fp / R);
 }
 /* ---------- integrating a band without a fit ---------- */
 {

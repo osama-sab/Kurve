@@ -82,6 +82,40 @@ await page(async p => {
   check("several .Spe files at once: each calibrated, each with its own date", b.length === 2 && b.every(r => r[1] === "ecal" && r[2] === "keV") && b[0][3] === "2024-03-15 10:00:00" && b[1][3] === "2024-03-16 10:00:00", JSON.stringify(b));
 }, { name: "an analyser's files" });
 
+console.log("Slice 2: net counts over a local continuum, detection and activity, in the Integrate window");
+await page(async p => {
+  const counts = gamma(7); await p.evaluate(t => autoImport([{ name: "soil.spe", text: t }]), spe(counts)); await p.waitForTimeout(1200);
+  const E = ch => 0.12 + 0.452 * ch + 1.1e-7 * ch * ch;
+  await p.evaluate(([a, b, c, d]) => { addBand(a, b, { lab: "Line" }); addBand(c, d, { lab: "Nothing" }); openIntegrate(); }, [E(282), E(318), E(440), E(470)]); await p.waitForTimeout(800);
+  const want = Array.from({ length: 1024 }, (_, i) => i).filter(i => E(i) >= E(282) - 1e-9 && E(i) <= E(318) + 1e-9).slice(3, -3).reduce((s, i) => s + peak(i, 300, 900, 3), 0);
+  const r = await p.evaluate(() => { const res = bandCalc(activeYCol()); return { why: res.cs.why, kc: res.cs.kc, t: res.cs.t, rows: res.map(q => q.cnt && [q.cnt.N, q.cnt.sigN, q.cnt.det, q.cnt.lc]), html: (document.querySelector("#igCnt") || {}).innerText || "" }; });
+  check("a counted spectrum's bands: the line's net counts within 4 σ of the counts it holds, detected", r.kc === 1 && r.t === 3600 && Math.abs(r.rows[0][0] - want) < 4 * r.rows[0][1] && r.rows[0][2], JSON.stringify([r.rows[0], want]));
+  check("…a window with no line is not detected", r.rows[1][2] === false && /not detected/.test(r.html), JSON.stringify(r.rows[1]));
+  // Emission and efficiency typed: the activity, and for the band with nothing, the detection limit.
+  for (const [k, v] of [["ig", "85.1"], ["eff", "2.5"]]) for (const b of await p.evaluate(() => integOf().bands.map(b => b.id))) { const f = p.locator(`#ig-${k}-${b}`); await f.fill(v); await f.press("Enter"); await p.waitForTimeout(250); }
+  const a = await p.evaluate(() => { const res = bandCalc(activeYCol()); return [activityOf(res[0].cnt, res.cs.t, res[0].b.eff, res[0].b.ig), activityOf(res[1].cnt, res.cs.t, res[1].b.eff, res[1].b.ig), document.querySelector("#igCnt").innerText]; });
+  check("emission and efficiency typed: the activity, N ÷ (t ε I)", a[0] && Math.abs(a[0].A - r.rows[0][0] / (3600 * 0.025 * 0.851)) < 1e-6 * a[0].A && new RegExp(String(Math.round(a[0].A)).slice(0, 2)).test(a[2]), JSON.stringify(a.slice(0, 2)));
+  check("…not detected, the detection limit as an activity (‹ MDA)", a[1] && !a[1].det && /< /.test(a[2]), a[2].slice(0, 300));
+  check("one undo step a field", (await p.evaluate(() => { undo(); return [integOf().bands[1].eff, integOf().bands[0].eff]; })).join() === ",2.5");
+  await p.evaluate(() => redo()); await p.waitForTimeout(200);
+  check("a percentage out of range is refused in words", await p.evaluate(() => { const b = integOf().bands[0], f = document.getElementById("ig-ig-" + b.id); f.value = "140"; f.dispatchEvent(new Event("change")); return integOf().bands[0].ig === 85.1 && /percentage/.test(document.querySelector(".toast") ? document.querySelector(".toast").textContent : ""); }));
+  // Copied and in the report.
+  const tsv = await p.evaluate(() => integTableText(activeYCol()));
+  check("Copy has the net counts, the critical level, the activity and the detection limit", /Net counts\t±\tRate \(counts\/s\)/.test(tsv) && /Activity \(Bq\)/.test(tsv) && tsv.split("\n").length === 3, tsv.split("\n")[0]);
+  check("the report has the counted bands", await p.evaluate(() => /counted<\/h3>/.test(reportBandsHtml()) && /Currie/.test(reportBandsHtml())));
+  // A count rate counts the same; smoothing makes them not counts.
+  await p.evaluate(() => { const c = activeYCol(); pushUndo("rate"); save({ cols: P().cols.map(q => q.id === c.id ? Object.assign({}, q, { pipe: q.pipe.concat([makeStep("scale", { a: 1 / 3600, b: 0, yn: "Count rate", yu: "counts/s" })]) }) : q) }, "rate"); }); await p.waitForTimeout(500);
+  const rr = await p.evaluate(() => { const res = bandCalc(activeYCol()); return [res.cs.kc, res[0].cnt.N]; });
+  check("as a count rate (counts/s), the same net counts through the live time", rr[0] === 3600 && Math.abs(rr[1] - r.rows[0][0]) < 1e-6, JSON.stringify(rr));
+  await p.evaluate(() => { const c = activeYCol(); save({ cols: P().cols.map(q => q.id === c.id ? Object.assign({}, q, { pipe: q.pipe.concat([makeStep("smooth", { method: "sg", win: 7, order: 2 })]) }) : q) }, "smooth"); }); await p.waitForTimeout(500);
+  const w = await p.evaluate(() => [bandCalc(activeYCol()).cs.why, document.querySelector("#igCnt").innerText]);
+  check("smoothed, they are not counts: the window says why", /counts as recorded: .*Smooth.* changes them/i.test(w[0]) && /counts as recorded/.test(w[1]), JSON.stringify(w));
+  // In the dock, the counting table fits.
+  await p.evaluate(() => undo()); await p.waitForTimeout(400);
+  const fit = await p.evaluate(() => { const t = document.querySelector("#igCnt table"), b = document.querySelector("#w-integ .win-b"); return [t && Math.round(t.getBoundingClientRect().width), b && b.clientWidth]; });
+  check("in the dock the counting table fits", fit[0] && fit[0] <= fit[1], JSON.stringify(fit));
+}, { name: "counting", timeout: 120000 });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

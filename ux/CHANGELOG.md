@@ -1024,6 +1024,26 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Counting spectra, slice 2: net counts, detection and activity (2026-11-05)
+
+- **The Integrate window counts** a spectrum of counts (or counts per second with its live time):
+  each window's net counts over a straight continuum through the channels at its edges, with the
+  counting error; the rate; detected or not against Currie's critical level (95 %).
+- **Activity**: type a window's emission probability and the detector's efficiency (%), and it
+  gives the activity in becquerel with its counting error, or, not detected, the detection limit
+  as an activity.
+- **Only counts are counted**: after smoothing or a subtracted background the part says why it
+  cannot; an energy calibration, a count rate or a crop keep the counts.
+- Copy, the report and Help have the counting too; in the dock its secondary numbers go on a line
+  under each window.
+
+Checked: `tools/fit-test.mjs` (10 new: a line of 2000 counts on flat and sloping continua, σ
+against its formula and against 1500 Poisson repeats, Currie's levels, about 5 % false detections on
+a continuum alone, counts per second, refusals, the activity), `tools/count-drive.mjs` (12 new: the
+net counts of an imported .Spe line within 4 σ, a window with nothing not detected, emission and
+efficiency typed and undone, a percentage refused, Copy, the report, a count rate, a smoothed
+spectrum refused in words, the table in the dock).
+
 ## Counting spectra, slice 1: an analyser's own files (2026-11-05)
 
 The roadmap's item 3. Kurve read a multichannel analyser's counts from a .TKA file or a column of
