@@ -112,7 +112,35 @@ await page(async p => {
   // Leaving at once after a change keeps it.
   await p.evaluate(() => { save({ name: "Renamed just before leaving" }, "renamed"); }); await p.reload(); await ready(p);
   check("a change saved just before a reload is kept", await p.evaluate(() => S.projects.some(q => q.name === "Renamed just before leaving")));
-}, { name: "a large project", timeout: 120000 });
+  // Typing into a million rows: the value at once, its check code worked out in the background, exactly.
+  await p.evaluate(() => { prefSet("anim", false); applyAnim(); switchProject(S.projects.find(q => q.name === "Renamed just before leaving").id); }); await p.waitForTimeout(600);
+  await p.evaluate(() => focusWin("sheet")); await p.waitForTimeout(400);
+  const exact = () => p.evaluate(() => { const r = P().raw, l = r.hist[r.hist.length - 1]; return [sha256(rawText(rawCols().map(c => c.data))) === r.fp, l.fp === r.fp, !r.fpq, !l.fpq]; });
+  const fp0 = await p.evaluate(() => P().raw.fp);
+  await p.locator('#ws td[data-r="2"][data-ci="1"]').click();
+  const k0 = Date.now(); await p.keyboard.type("7.25"); await p.keyboard.press("Enter"); const kt = Date.now() - k0;
+  const w = await p.evaluate(() => [P().cols.find(c => c.role === "y").data[2], !!P().raw.fpq, P().raw.fp]);
+  check("a value typed into a million rows is entered at once (under 600 ms), its check code still to come", w[0] === 7.25 && w[1] && w[2] === "" && kt < 600, JSON.stringify([w, kt]));
+  await p.waitForFunction(() => !P().raw.fpq, null, { timeout: 20000 }).catch(() => {});
+  const e1 = await exact(), pv = await p.evaluate(() => P().raw.hist.slice(-1)[0].prev);
+  check("…and worked out in the background: the SHA-256 of the data, in the record, after the one before", e1.every(Boolean) && pv === fp0, JSON.stringify([e1, pv === fp0]));
+  await p.locator('#ws td[data-r="3"][data-ci="1"]').click(); await p.keyboard.type("8.5"); await p.keyboard.press("Enter");
+  const e2 = await p.evaluate(() => { const was = !!P().raw.fpq; fpSettle(); return was; });
+  check("an export works out a check code still to come first", e2 && (await exact()).every(Boolean), JSON.stringify(await exact()));
+  await p.locator('#ws td[data-r="4"][data-ci="1"]').click(); await p.keyboard.type("9.75"); await p.keyboard.press("Enter");
+  check("(still to come when the page goes)", await p.evaluate(() => !!P().raw.fpq));
+  await p.reload(); await ready(p);
+  await p.evaluate(() => switchProject(S.projects.find(q => q.name === "Renamed just before leaving").id));
+  await p.waitForFunction(() => P() && P().raw && !P().raw.fpq, null, { timeout: 25000 }).catch(() => {});
+  const e3 = await exact(), v3 = await p.evaluate(() => P().cols.find(c => c.role === "y").data.slice(2, 5));
+  check("a check code still to come when the page went is worked out after the reload", e3.every(Boolean) && v3.join() === "7.25,8.5,9.75", JSON.stringify([e3, v3]));
+  const st = await p.evaluate(async () => { const q = await S.store.stored(S.pid), y = q.cols.find(c => c.role === "y").data; return [Array.isArray(y), y.length, y[4], y.some(v => v === null || Number.isNaN(v)) ? "gaps" : "full"]; });
+  check("the values come back from the store as numbers (stored as one block)", st[0] && st[1] === 1000000 && st[2] === 9.75, JSON.stringify(st));
+  const gap = await p.evaluate(async () => { const y = P().cols.find(c => c.role === "y"), d = y.data.slice(); d[10] = null; await save({ cols: P().cols.map(c => c === y ? Object.assign({}, c, { data: d }) : c) }); const q = await S.store.storedAll(); return 1; });
+  await p.reload(); await ready(p);
+  const g2 = await p.evaluate(() => { const q = S.projects.find(q => q.name === "Renamed just before leaving"), y = q.cols.find(c => c.role === "y").data; return [y[10], y[11] === Math.sin(11 / 300)]; });
+  check("a missing value stays missing through the store", g2[0] === null && g2[1], JSON.stringify(g2));
+}, { name: "a large project", timeout: 240000 });
 await page(async p => {
   // The disk is full: Not saved, said again when the project is opened again, and the next write stores it all.
   const r = await p.evaluate(async () => { S.store.failNext = "quota"; await save({ cols: P().cols.map(c => c.role === "y" ? Object.assign({}, c, { data: Array.from({ length: 5000 }, (_, i) => Math.sin(i)) }) : c) }, "big"); return [document.querySelector("#status").textContent, Object.keys(S.store.dirty).length]; });

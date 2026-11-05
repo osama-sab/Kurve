@@ -4779,29 +4779,39 @@ const SHA_K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0
   0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
   0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
   0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
-function sha256(str){
-  const bytes=new TextEncoder().encode(str), n=bytes.length;
-  const words=((n+9+63)>>6)<<4, w=new Uint32Array(words);
-  for(let i=0;i<n;i++) w[i>>2]|=bytes[i]<<(24-(i&3)*8);
-  w[n>>2]|=0x80<<(24-(n&3)*8);
-  w[words-1]=(n*8)>>>0; w[words-2]=Math.floor(n*8/0x100000000);
-  let h0=0x6a09e667,h1=0xbb67ae85,h2=0x3c6ef372,h3=0xa54ff53a,h4=0x510e527f,h5=0x9b05688c,h6=0x1f83d9ab,h7=0x5be0cd19;
-  const m=new Uint32Array(64);
-  for(let o=0;o<words;o+=16){
-    for(let t=0;t<16;t++) m[t]=w[o+t];
-    for(let t=16;t<64;t++){ const a=m[t-15], b=m[t-2];
-      const s0=((a>>>7)|(a<<25))^((a>>>18)|(a<<14))^(a>>>3), s1=((b>>>17)|(b<<15))^((b>>>19)|(b<<13))^(b>>>10);
-      m[t]=(m[t-16]+s0+m[t-7]+s1)|0; }
-    let a=h0,b=h1,c=h2,d=h3,e=h4,f=h5,g=h6,h=h7;
-    for(let t=0;t<64;t++){
-      const S1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7)), ch=(e&f)^(~e&g), t1=(h+S1+ch+SHA_K[t]+m[t])|0;
-      const S0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10)), mj=(a&b)^(a&c)^(b&c), t2=(S0+mj)|0;
-      h=g; g=f; f=e; e=(d+t1)|0; d=c; c=b; b=a; a=(t1+t2)|0;
-    }
-    h0=(h0+a)|0; h1=(h1+b)|0; h2=(h2+c)|0; h3=(h3+d)|0; h4=(h4+e)|0; h5=(h5+f)|0; h6=(h6+g)|0; h7=(h7+h)|0;
+/* SHA-256 fed in pieces: a state (`shaNew`), bytes added as they come (`shaUpdate`), the hex digest
+   at the end (`shaDigest`). The check code of a million rows is hashed a stretch of rows at a time,
+   with no text of the whole table and no pause long enough to feel (DESIGN.md, Large data). */
+function shaNew(){ return {h:new Int32Array([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]), b:new Uint8Array(64), bl:0, n:0, m:new Int32Array(64)}; }
+function shaBlock(s,b,o){
+  const m=s.m, H=s.h;
+  for(let t=0;t<16;t++,o+=4) m[t]=(b[o]<<24)|(b[o+1]<<16)|(b[o+2]<<8)|b[o+3];
+  for(let t=16;t<64;t++){ const a=m[t-15], c=m[t-2];
+    const s0=((a>>>7)|(a<<25))^((a>>>18)|(a<<14))^(a>>>3), s1=((c>>>17)|(c<<15))^((c>>>19)|(c<<13))^(c>>>10);
+    m[t]=(m[t-16]+s0+m[t-7]+s1)|0; }
+  let a=H[0],bb=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+  for(let t=0;t<64;t++){
+    const S1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7)), ch=(e&f)^(~e&g), t1=(h+S1+ch+SHA_K[t]+m[t])|0;
+    const S0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10)), mj=(a&bb)^(a&c)^(bb&c), t2=(S0+mj)|0;
+    h=g; g=f; f=e; e=(d+t1)|0; d=c; c=bb; bb=a; a=(t1+t2)|0;
   }
-  return [h0,h1,h2,h3,h4,h5,h6,h7].map(v=>(v>>>0).toString(16).padStart(8,"0")).join("");
+  H[0]=(H[0]+a)|0; H[1]=(H[1]+bb)|0; H[2]=(H[2]+c)|0; H[3]=(H[3]+d)|0; H[4]=(H[4]+e)|0; H[5]=(H[5]+f)|0; H[6]=(H[6]+g)|0; H[7]=(H[7]+h)|0;
 }
+function shaUpdate(s,bytes,len){
+  let i=0; s.n+=len;
+  if(s.bl){ const k=Math.min(64-s.bl,len); s.b.set(bytes.subarray(0,k),s.bl); s.bl+=k; i=k; if(s.bl<64) return; shaBlock(s,s.b,0); s.bl=0; }
+  for(;i+64<=len;i+=64) shaBlock(s,bytes,i);
+  if(i<len){ s.b.set(bytes.subarray(i,len),0); s.bl=len-i; }
+}
+function shaDigest(s){
+  const n=s.n, L=((s.bl+9+63)>>6)<<6, pad=new Uint8Array(L), bits=n*8, hi=Math.floor(bits/0x100000000), lo=bits>>>0;
+  pad.set(s.b.subarray(0,s.bl)); pad[s.bl]=0x80;
+  pad[L-8]=hi>>>24; pad[L-7]=(hi>>>16)&255; pad[L-6]=(hi>>>8)&255; pad[L-5]=hi&255;
+  pad[L-4]=lo>>>24; pad[L-3]=(lo>>>16)&255; pad[L-2]=(lo>>>8)&255; pad[L-1]=lo&255;
+  for(let o=0;o<L;o+=64) shaBlock(s,pad,o);
+  return Array.from(s.h,v=>(v>>>0).toString(16).padStart(8,"0")).join("");
+}
+function sha256(str){ const s=shaNew(), b=new TextEncoder().encode(str); shaUpdate(s,b,b.length); return shaDigest(s); }
 // The canonical text of a table of columns (arrays with nulls), as hashed. No row makes an array of
 // its own (a million rows made a million arrays, most of the time a typed cell took); nothing is
 // kept (a text of every value would be several times the values' memory).
@@ -4810,6 +4820,25 @@ function rawText(cols){
   for(let i=0;i<n;i++){ let l=s(cols[0][i]); for(let j=1;j<k;j++) l+=","+s(cols[j][i]); lines[i]=l; }
   return n?lines.join("\n")+"\n":"";
 }
+/* The check code of a table worked out in stretches of rows: `rawHashJob(arrs)` the work,
+   `rawHashRun(j, until)` carries it on until a `performance.now()` time (Infinity: to the end)
+   and returns the check code once done, else null. The same text as rawText, so the same code. */
+function rawHashJob(arrs){ return {arrs, n:arrs.reduce((m,a)=>Math.max(m,a.length),0), i:0, s:shaNew(), enc:new TextEncoder(), buf:new Uint8Array(1<<17), val:null}; }
+function rawHashRun(j,until){
+  if(j.val!=null) return j.val;
+  const A=j.arrs, n=j.n, k=A.length, sv=v=>v==null?"":String(v), now=typeof performance!=="undefined"?()=>performance.now():()=>Date.now();
+  while(j.i<n){
+    const e=Math.min(n,j.i+2048); let str="";
+    for(let i=j.i;i<e;i++){ let l=sv(A[0][i]); for(let c=1;c<k;c++) l+=","+sv(A[c][i]); str+=l+"\n"; }
+    j.i=e;
+    if(j.buf.length<str.length*3) j.buf=new Uint8Array(str.length*3);
+    shaUpdate(j.s,j.buf,j.enc.encodeInto(str,j.buf).written);
+    if(until!==Infinity&&j.i<n&&now()>until) return null;
+  }
+  j.val=k?shaDigest(j.s):""; j.arrs=null; return j.val;
+}
+// The number of cells of a table, for choosing whether its check code waits.
+function rawCells(arrs){ let s=0; for(const a of arrs) s+=a.length; return s; }
 // A quick 32-bit hash for signatures that only need to notice a change.
 function hash32(s){ let h=0x811c9dc5; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,0x01000193); } return (h>>>0).toString(36); }
 /* ==PIPE:END== */
@@ -6227,6 +6256,8 @@ function tintAt(i,light,scheme){
 const ARRKEY=new WeakMap();
 function arrKey(a){ if(!a) return "-"; let k=ARRKEY.get(a); if(k==null){ k=a.length+":"+hash32(a.join(",")); ARRKEY.set(a,k); } return k; }
 const RAWSER=new Map(), ROWX=[];
+// Two arrays of values alike (either may be missing: alike when both are).
+function sameVals(a,b){ if(a===b) return true; if(!a||!b||a.length!==b.length) return false; for(let i=0;i<a.length;i++) if(a[i]!==b[i]) return false; return true; }
 const ANYVAL=new WeakMap();
 function anyVal(a){ if(!a) return false; let v=ANYVAL.get(a); if(v==null){ v=a.some(q=>q!=null); ANYVAL.set(a,v); } return v; }
 function rawSeries(c){
@@ -6237,8 +6268,19 @@ function rawSeries(c){
   const names=[xc?xc.name:"Row",xc?xc.unit:"",c.name||"",c.unit||""].join("\u0001");
   const hit=RAWSER.get(c.id);
   if(hit&&hit.xd===xd&&hit.yd===yd&&hit.ed===ed&&hit.names===names) return hit.val;
-  const key=arrKey(xd)+"|"+arrKey(yd)+"|"+arrKey(ed)+"|"+names;
-  if(hit&&hit.key===key){ Object.assign(hit,{xd,yd,ed}); return hit.val; }
+  // The same values in new arrays (a copy) are the same series. Compared value by value, which
+  // stops at the first difference: a key of every value took 100 ms for a million.
+  if(hit&&hit.names===names&&sameVals(hit.xd,xd)&&sameVals(hit.ed,ed)){
+    if(sameVals(hit.yd,yd)){ Object.assign(hit,{xd,yd,ed}); return hit.val; }
+    // A few values typed over: the series of before with those values changed, its X and rows
+    // shared (DESIGN.md, Large data). Only where each changed row stays in or out of the series.
+    const a=hit.yd, ok=v=>v!=null&&Number.isFinite(v);
+    if(a&&a.length===yd.length){ const ch=[]; for(let i=0;i<yd.length;i++) if(a[i]!==yd[i]&&ch.push(i)>64) break;
+      if(ch.length<=64&&ch.every(i=>ok(a[i])===ok(yd[i]))){ const v0=hit.val, y=v0.y.slice(), ix=v0.idx; let good=true;
+        for(const i of ch){ if(!ok(yd[i])) continue; let lo=0, hi=ix.length-1, k=-1; while(lo<=hi){ const m=(lo+hi)>>1; if(ix[m]===i){ k=m; break; } if(ix[m]<i) lo=m+1; else hi=m-1; }
+          if(k>=0) y[k]=yd[i]; else if(ok(xc?xd[i]:1)){ good=false; break; } }
+        if(good){ const val=Object.assign({},v0,{y}); RAWSER.set(c.id,{xd,yd,ed,names,val}); return val; } } }
+  }
   const x=[],y=[],idx=[]; let e=ed?[]:null, anyE=false;
   const n=xc?Math.min(xd.length,yd.length):yd.length;
   for(let i=0;i<n;i++){ const a=xc?xd[i]:i+1, b=yd[i];
@@ -6247,39 +6289,112 @@ function rawSeries(c){
     if(e){ const v=ed[i]; const ok=v!=null&&Number.isFinite(v); e.push(ok?v:null); if(ok) anyE=true; } }
   if(!anyE) e=null;
   const val={x,y,e,idx,xn:xc?xc.name:"Row",xu:xc?xc.unit:"",yn:c.name||"",yu:c.unit||""};
-  RAWSER.set(c.id,{xd,yd,ed,names,key,val});
+  RAWSER.set(c.id,{xd,yd,ed,names,val});
   return val;
 }
 // Columns with at least one value, in table order: what the fingerprint covers.
 function rawCols(){ return allCols().filter(c=>!c.src&&!c.fx&&(c.data||[]).some(v=>v!=null)); }
 let fpMemo={arrs:[],key:"",val:""};
+// The check code of these arrays if it is known without hashing them.
+function fpNow(arrs){ return fpMemo.arrs.length===arrs.length&&fpMemo.arrs.every((a,i)=>a===arrs[i])?fpMemo.val:null; }
 function rawFp(cols){
-  const arrs=(cols||rawCols()).map(c=>c.data);
-  if(fpMemo.arrs.length===arrs.length&&fpMemo.arrs.every((a,i)=>a===arrs[i])) return fpMemo.val;
+  const arrs=(cols||rawCols()).map(c=>c.data), k=fpNow(arrs); if(k!=null) return k;
   const key=arrs.map(arrKey).join("|");
   if(key===fpMemo.key){ fpMemo.arrs=arrs; return fpMemo.val; }
-  const val=arrs.length?sha256(rawText(arrs)):"";
+  const val=rawHashRun(rawHashJob(arrs),Infinity);
   fpMemo={arrs,key,val}; return val;
 }
 const fpShort=fp=>fp?fp.slice(0,12):"—";
+/* The check code of a big table is worked out in the background (DESIGN.md, Large data): a cell
+   typed into a million rows waited a second for it. Below FP_SYNC cells it is worked out at once,
+   as always. Above, recordRaw writes its entry with an empty check code and `fpq`, the id of a job
+   for that state of the data (the next entry's `prevq` naming it too, the record's own `fpq` while
+   it is the latest); the jobs run in slices between whatever the page is doing, and each result is
+   put into the record (`fpResolve`) of the project, the undo steps and the store, with no undo step
+   or log line of its own. An export settles them first (`fpSettle`). A record still waiting after a
+   reload is worked out again for the data as they are, the state its latest entry names
+   (`fpEnsure`). The same text and the same SHA-256, so `sha256sum` still reproduces it. */
+const FP_SYNC=150000;
+const FPJ={q:[], done:new Map(), timer:0};
+const fpId=()=>"q"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+function fpLater(arrs,pid,replaces){
+  if(replaces) FPJ.q=FPJ.q.filter(j=>j.id!==replaces);
+  const id=fpId(); FPJ.q.push({id,pid,arrs,at:0,job:null}); fpTick(); return id;
+}
+function fpTick(ms){ if(FPJ.timer) return; FPJ.timer=setTimeout(()=>{ FPJ.timer=0; fpWork(performance.now()+12); },ms==null?8:ms); }
+function fpWork(until){
+  const now=Date.now(), j=FPJ.q.find(x=>x.at<=now);
+  if(!j){ if(FPJ.q.length) fpTick(600); return; }
+  // A record waiting after a reload: only while it still waits, on the project on the desk.
+  if(j.ensure&&!j.job){ const p=P(); if(!p||p.id!==j.pid||!p.raw||p.raw.fpq!==j.id){ FPJ.q=FPJ.q.filter(x=>x!==j); if(FPJ.q.length) fpTick(); return; } }
+  if(!j.job) j.job=rawHashJob(j.arrs);
+  if(rawHashRun(j.job,until)!=null) fpDone(j);
+  if(FPJ.q.length) fpTick();
+}
+function fpDone(j,quiet){
+  FPJ.q=FPJ.q.filter(x=>x!==j); FPJ.done.set(j.id,j.job.val);
+  const p=P(); if(p&&p.id===j.pid){ const cur=rawCols().map(c=>c.data); if(cur.length===j.arrs.length&&cur.every((a,i)=>a===j.arrs[i])) fpMemo={arrs:cur,key:"",val:j.job.val}; }
+  j.arrs=null; if(!quiet) fpApplyAll();
+}
+// Every job now, at once: before an export, whose record must be whole.
+function fpSettle(){ if(!FPJ.q.length) return; FPJ.q.slice().forEach(j=>{ if(!j.job) j.job=rawHashJob(j.arrs); rawHashRun(j.job,Infinity); fpDone(j,true); }); fpApplyAll(); }
+// A record with the check codes worked out since put in, or null when nothing it waits for is known.
+function fpResolve(raw){
+  if(!raw||!(raw.fpq||(raw.hist||[]).some(e=>e&&(e.fpq||e.prevq)))) return null;
+  const D=FPJ.done; let ch=false;
+  const fix=e=>{ if(!e) return e; let o=e;
+    if(e.fpq&&D.has(e.fpq)){ o=Object.assign({},e,{fp:D.get(e.fpq)}); delete o.fpq; ch=true; }
+    if(e.prevq&&D.has(e.prevq)){ if(o===e) o=Object.assign({},e); o.prev=D.get(e.prevq); delete o.prevq; ch=true; }
+    return o; };
+  const top=fix(raw), was=raw.hist||[];
+  // An entry that turned out to change nothing (a value typed over with itself) records nothing.
+  const hist=was.map(fix).filter((e,i)=>!(e!==was[i]&&e.fp&&e.fp===e.prev));
+  return ch?Object.assign({},top,{hist}):null;
+}
+function fpApplyAll(){
+  [undoStack,redoStack].forEach(st=>st.forEach(s=>{ if(s&&s.raw){ const x=fpResolve(s.raw); if(x) s.raw=x; } }));
+  const p=P();
+  if(p){ const nr=fpResolve(p.raw); if(nr){ p.raw=nr; if(!S.readOnly) save({raw:nr}); } }
+  if(S.readOnly||!S.store) return;
+  (S.projects||[]).forEach(q=>{ if(q.id===S.pid||!q.raw) return; const x=fpResolve(q.raw); if(!x) return;
+    S.selfEmit=true; try{ const r=S.store.save(q.id,{raw:x}); if(r&&r.catch) r.catch(()=>{}); }catch(e){} finally{ S.selfEmit=false; } });
+}
+// The project on the desk: what its record waits for, put in, or worked out.
+function fpEnsure(){
+  const p=P(); if(!p||!p.raw) return;
+  if(fpResolve(p.raw)){ setTimeout(fpApplyAll,0); return; }
+  const q=p.raw.fpq; if(!q||FPJ.done.has(q)||FPJ.q.some(j=>j.id===q)) return;
+  // Another tab may be working it out already: wait a little before doing it twice.
+  FPJ.q.push({id:q,pid:p.id,arrs:rawCols().map(c=>c.data),at:Date.now()+3000,job:null,ensure:true}); fpTick(3100);
+}
+// The check code shown for a record: "" while a big table's is still being worked out.
+const fpOf=raw=>(raw&&raw.fp)||(raw&&raw.fpq?"":rawFp());
+const fpLab=(fp,q)=>!fp&&q?"working it out…":fpShort(fp);
 /* Any change to the raw values (an import, a new column, cells filled in for
    the first time, a column deleted) is recorded with the fingerprint before
    and after. The record travels with the project into the report. */
 function recordRaw(text,merge){
   const p=P(); if(!p) return null;
-  const fp=rawFp(), r=p.raw||{fp:"",hist:[]}, hist=(r.hist||[]).slice(), last=hist[hist.length-1];
+  const r=p.raw||{fp:"",hist:[]}, hist=(r.hist||[]).slice(), last=hist[hist.length-1], cols=rawCols(), arrs=cols.map(c=>c.data);
+  let fp=fpNow(arrs);
+  if(fp==null) fp=rawCells(arrs)<FP_SYNC||S.readOnly?rawFp(cols):"";
+  const big=!fp&&arrs.length>0;
   // History off: the check code follows the data, and nothing is added to the record.
-  if(!histOn()){ if(r.fp===fp) return null; p.raw={fp,hist}; return p.raw; }
-  if(r.fp===fp&&hist.length) return null;
+  if(!histOn()){ if(!big&&r.fp===fp&&!r.fpq) return null; p.raw={fp,hist}; if(big) p.raw.fpq=fpLater(arrs,S.pid,r.fpq); return p.raw; }
+  if(!big&&r.fp===fp&&!r.fpq&&hist.length) return null;
   // Cells typed one after another are one entry, not one per cell.
-  if(merge&&last&&last.mk===merge&&last.uid===(S.uid||"")&&Date.now()-last.t<120000) hist[hist.length-1]=Object.assign({},last,{t:Date.now(),fp,n:(last.n||1)+1,text});
-  else hist.push({t:Date.now(),uid:S.uid||"",fp,prev:r.fp||"",text,mk:merge||undefined});
-  p.raw={fp,hist:hist.slice(-60)};
+  const merging=!!(merge&&last&&last.mk===merge&&last.uid===(S.uid||"")&&Date.now()-last.t<120000);
+  const q=big?fpLater(arrs,S.pid,merging?last.fpq:null):null;
+  let e;
+  if(merging){ e=Object.assign({},last,{t:Date.now(),fp,n:(last.n||1)+1,text}); delete e.fpq; hist[hist.length-1]=e; }
+  else { e={t:Date.now(),uid:S.uid||"",fp,prev:r.fp||"",text}; if(merge) e.mk=merge; if(!r.fp&&r.fpq) e.prevq=r.fpq; hist.push(e); }
+  if(q) e.fpq=q;
+  p.raw={fp,hist:hist.slice(-60)}; if(q) p.raw.fpq=q;
   return p.raw;
 }
 function rawRecordFor(cols,text){
   const withData=cols.filter(c=>!c.src&&!c.fx&&(c.data||[]).some(v=>v!=null));
-  const fp=withData.length?sha256(rawText(withData.map(c=>c.data))):"";
+  const fp=withData.length?rawHashRun(rawHashJob(withData.map(c=>c.data)),Infinity):"";
   return {fp,hist:fp&&histOn()?[{t:Date.now(),uid:S.uid||"",fp,prev:"",text}]:[]};
 }
 // Whether the raw data still matches the fingerprint last recorded for it.
@@ -6482,7 +6597,8 @@ function applySnapshot(s){
   UNDO_KEYS.forEach(k=>{ patch[k]=k==="cols"?cloneCols(s[k]):clone(s[k]); p[k]=patch[k]; });
   if(s.after&&Array.isArray(cur)){ p.cols=patch.cols=cloneCols(mergeCols(s.after,s.cols,cur));
     // The record of the original data goes on from what is there, with this step's undoing in it.
-    const fp=rawFp(); if(fp!==(p.raw&&p.raw.fp)){ const was=p.raw; p.raw={fp:(was&&was.fp)||"",hist:((was&&was.hist)||[]).slice()}; recordRaw("put back a change, keeping what another window changed since"); } patch.raw=p.raw; }
+    const own=c=>!c.src&&!c.fx, a=p.cols.filter(own), b=(s.cols||[]).filter(own);
+    if(a.length!==b.length||a.some((c,i)=>b[i].id!==c.id||b[i].data!==c.data)){ const was=p.raw; p.raw={fp:(was&&was.fp)||"",hist:((was&&was.hist)||[]).slice()}; recordRaw("put back a change, keeping what another window changed since"); } patch.raw=p.raw; }
   S.draft=(s.draft&&s.draft.pid===S.pid)?clone(s.draft):null;
   S.pdraft=(s.pdraft&&s.pdraft.pid===S.pid)?clone(s.pdraft):null;
   S.selPeak=null; S.view=null; clampStage();
@@ -6614,6 +6730,11 @@ const idbReq=r=>new Promise((res,rej)=>{ r.onsuccess=()=>res(r.result); r.onerro
 const idbDone=tx=>new Promise((res,rej)=>{ tx.oncomplete=()=>res(); tx.onabort=tx.onerror=()=>rej(tx.error||new Error("The write was abandoned.")); });
 // The page's copy of a project shares the columns' values with the store's (see cloneProj).
 const IDB_INLINE=256;
+/* A column's values go to the store as 8-byte numbers, a missing one as NaN: copied there and back
+   as one block, where an array of a million numbers and nulls took a quarter of a second to write.
+   Only an array of finite numbers and nulls is packed, so it comes back exactly; any other stays. */
+function idbPack(a){ const n=a.length, f=new Float64Array(n); for(let i=0;i<n;i++){ const v=a[i]; if(v===null) f[i]=NaN; else if(typeof v==="number"&&Number.isFinite(v)) f[i]=v; else return a; } return f; }
+function idbUnpack(a){ if(Array.isArray(a)) return a; if(!(a instanceof Float64Array)) return []; const n=a.length, o=new Array(n); for(let i=0;i<n;i++){ const v=a[i]; o[i]=v===v?v:null; } return o; }
 const IdbStore={
   mode:"local", db:null, data:null, dirty:{}, rev:{}, base:{}, have:new Set(), q:{}, busy:{}, pend:{}, subs:{projects:[],comments:{}}, chan:null, failNext:null,
   tab:Date.now().toString(36)+Math.random().toString(36).slice(2,8),
@@ -6631,7 +6752,7 @@ const IdbStore={
   // A column's values under a key of its own, per project (an array two projects share is stored for each).
   akey(pid,arr){ let m=AKEY.get(arr); if(!m){ m={}; AKEY.set(arr,m); } return m[pid]||(m[pid]=pid+":"+Date.now().toString(36)+(++akeySeq).toString(36)+Math.random().toString(36).slice(2,5)); },
   toRec(pid,p,out){ const rec=Object.assign({},p); delete rec.id;
-    rec.cols=(p.cols||[]).map(c=>{ if(!c||!Array.isArray(c.data)||c.data.length<IDB_INLINE) return c; const k=this.akey(pid,c.data); if(!this.have.has(k)) out.set(k,c.data); return Object.assign({},c,{data:{$a:k}}); });
+    rec.cols=(p.cols||[]).map(c=>{ if(!c||!Array.isArray(c.data)||c.data.length<IDB_INLINE) return c; const k=this.akey(pid,c.data); if(!this.have.has(k)) out.set(k,idbPack(c.data)); return Object.assign({},c,{data:{$a:k}}); });
     return rec; },
   recKeys(rec){ const s=new Set(); ((rec&&rec.cols)||[]).forEach(c=>{ if(c&&c.data&&c.data.$a) s.add(c.data.$a); }); return s; },
   fromRec(pid,rec,arrs){ const p=Object.assign({},rec); const rv=p._rev||0; delete p._rev;
@@ -6639,7 +6760,7 @@ const IdbStore={
     return [p,rv]; },
   // The arrays a record needs, from memory when this tab has them, else from the store.
   known(pid){ const m=new Map(); [this.data.projects[pid],this.base[pid]].forEach(x=>((x&&x.cols)||[]).forEach(c=>{ const a=c&&c.data, k=Array.isArray(a)&&AKEY.get(a); if(k&&k[pid]) m.set(k[pid],a); })); return m; },
-  async fetchArrs(store,keys,m){ await Promise.all([...keys].filter(k=>!m.has(k)).map(k=>idbReq(store.get(k)).then(a=>{ m.set(k,Array.isArray(a)?a:[]); }))); return m; },
+  async fetchArrs(store,keys,m){ await Promise.all([...keys].filter(k=>!m.has(k)).map(k=>idbReq(store.get(k)).then(a=>{ m.set(k,idbUnpack(a)); }))); return m; },
   async load(){
     const tx=this.db.transaction(["projects","arrays","comments"],"readonly"), ps=tx.objectStore("projects"), as=tx.objectStore("arrays"), cs=tx.objectStore("comments");
     const [pk,pv,ck,cv]=await Promise.all([idbReq(ps.getAllKeys()),idbReq(ps.getAll()),idbReq(cs.getAllKeys()),idbReq(cs.getAll())]);
@@ -6753,7 +6874,7 @@ const IdbStore={
   deleteComment(pid,id){ return this.editComments(pid,m=>{ delete m[id]; }).catch(e=>{ throw this.fail(e); }); },
   // What is stored, as the page would read it (for the tests, and for a look from the console).
   async stored(pid){ const tx=this.db.transaction(["projects","arrays"],"readonly"), r=await idbReq(tx.objectStore("projects").get(pid)); if(!r) return null;
-    const arrs=new Map(); await Promise.all([...this.recKeys(r)].map(k=>idbReq(tx.objectStore("arrays").get(k)).then(a=>arrs.set(k,a))));
+    const arrs=new Map(); await Promise.all([...this.recKeys(r)].map(k=>idbReq(tx.objectStore("arrays").get(k)).then(a=>arrs.set(k,idbUnpack(a)))));
     const o=Object.assign({},r); o.cols=(r.cols||[]).map(c=>c&&c.data&&c.data.$a?Object.assign({},c,{data:arrs.get(c.data.$a)||null}):c); return o; },
   async storedAll(){ const ks=await idbReq(this.db.transaction("projects","readonly").objectStore("projects").getAllKeys()); return Promise.all(ks.map(k=>this.stored(k).then(o=>Object.assign({id:k},o)))); }
 };
@@ -6783,8 +6904,8 @@ function mergeProj(base,mine,theirs){ const out=Object.assign({},theirs), same=(
   // The log: both tabs' lines, in order.
   if(Array.isArray(mine.log)&&Array.isArray(theirs.log)&&!same(mine.log,base.log)&&!same(theirs.log,base.log)){ const seen=new Set(); out.log=[].concat(theirs.log,mine.log).filter(l=>{ const k=l&&(l.t+"|"+l.text); if(seen.has(k)) return false; seen.add(k); return true; }).sort((a,b)=>(a.t||0)-(b.t||0)).slice(-80); }
   // The record of the original data: both tabs' entries, and a check code for what is now there.
-  if(base.raw&&mine.raw&&theirs.raw&&!same(mine.raw,base.raw)&&!same(theirs.raw,base.raw)){ const seen=new Set(), hist=[].concat(theirs.raw.hist||[],mine.raw.hist||[]).filter(h=>{ const k=h.t+"|"+h.fp+"|"+h.text; if(seen.has(k)) return false; seen.add(k); return true; }).sort((a,b)=>a.t-b.t);
-    out.raw={fp:rawFp(out.cols.filter(c=>!c.src&&!c.fx&&Array.isArray(c.data)&&c.data.some(v=>v!=null))),hist}; const l=hist[hist.length-1]; if(l&&l.fp!==out.raw.fp) hist.push({t:Date.now(),uid:S.uid||"",fp:out.raw.fp,prev:l.fp,text:"Changes made in two windows at once, put together"}); }
+  if(base.raw&&mine.raw&&theirs.raw&&!same(mine.raw,base.raw)&&!same(theirs.raw,base.raw)){ const by=new Map(); [].concat(theirs.raw.hist||[],mine.raw.hist||[]).forEach(h=>{ const k=h.t+"|"+(h.uid||"")+"|"+h.text, o=by.get(k); if(!o||(!o.fp&&h.fp)) by.set(k,h); }); const hist=[...by.values()].sort((a,b)=>a.t-b.t);
+    out.raw={fp:rawFp(out.cols.filter(c=>!c.src&&!c.fx&&Array.isArray(c.data)&&c.data.some(v=>v!=null))),hist}; const l=hist[hist.length-1]; if(l&&l.fp&&l.fp!==out.raw.fp) hist.push({t:Date.now(),uid:S.uid||"",fp:out.raw.fp,prev:l.fp,text:"Changes made in two windows at once, put together"}); }
   return out; }
 function mergeCols(base,mine,theirs){ const B=new Map(base.map(c=>[c.id,c])), T=new Map(theirs.map(c=>[c.id,c])), M=new Map(mine.map(c=>[c.id,c]));
   const meta=c=>JSON.stringify(Object.assign({},c,{data:0})), same=(a,b)=>a===b||(meta(a)===meta(b)&&(a.data===b.data||JSON.stringify(a.data)===JSON.stringify(b.data)));
@@ -7008,7 +7129,11 @@ function weightText(f,ascii){
   if(k==="col") return `the values of ${wc?`column ${colLetter(wc)}${wc.name?` (${wc.name})`:""}`:"a column"}; errors scaled by ${sq}`;
   return `none; errors scaled by ${sq}`; }
 function autoView(){ return autoViewOf(pointsAll(),GP().logY,hasErr()); }
-function autoViewOf(pts,logY,he){
+// Worked out once per list of points (a million were read on every redraw); a copy each time.
+const AUTOV=new WeakMap();
+function autoViewOf(pts,logY,he){ const k=(logY?1:0)+(he?2:0); let m=AUTOV.get(pts); if(!m){ m={}; AUTOV.set(pts,m); }
+  if(!m[k]) m[k]=autoViewCalc(pts,logY,he); return Object.assign({},m[k]); }
+function autoViewCalc(pts,logY,he){
   if(!pts.length) return {x0:0,x1:10,y0:logY?1:0,y1:logY?1000:10};
   let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
   pts.forEach(q=>{ x0=Math.min(x0,q.x); x1=Math.max(x1,q.x); const e=q.e&&he?q.e:0; y0=Math.min(y0,logY?q.y:q.y-e); y1=Math.max(y1,q.y+e); });
@@ -7744,6 +7869,34 @@ function m4(xy,w){
     if(a!==i&&a!==j) out.push(xy[a]); if(b!==i&&b!==j&&b!==a) out.push(xy[b]); if(j!==i) out.push(xy[j]);
     i=j+1; }
   return out; }
+/* M4 from the points themselves: the same choice as m4 over their places on the screen, made as
+   they are read, so a million points make no million pairs. */
+function m4pts(pts,X,Y,w){
+  const out=[]; let c=NaN, i=-1, j=-1, lo=-1, hi=-1, ia=0, ib=0, ja=0, jb=0, la=0, lb=0, ha=0, hb=0;
+  const flush=()=>{ if(i<0) return; out.push([ia,ib]); const a=Math.min(lo,hi), b=Math.max(lo,hi), A=a===lo?[la,lb]:[ha,hb], B=b===lo?[la,lb]:[ha,hb];
+    if(a!==i&&a!==j) out.push(A); if(b!==i&&b!==j&&b!==a) out.push(B); if(j!==i) out.push([ja,jb]); };
+  let k=0;
+  for(let n=0;n<pts.length;n++){ const q=pts[n], a=X(q.x), b=Y(q.y); if(!Number.isFinite(a)||!Number.isFinite(b)) continue;
+    const cc=Math.floor(a/w);
+    if(cc!==c){ flush(); c=cc; i=j=lo=hi=k; ia=ja=la=ha=a; ib=jb=lb=hb=b; }
+    else { j=k; ja=a; jb=b; if(b<lb){ lo=k; la=a; lb=b; } if(b>hb){ hi=k; ha=a; hb=b; } }
+    k++; }
+  flush(); return out; }
+/* The points of a curve in view on screen, and two beyond each side so a line leaves the frame
+   as it would: [from, to), or null for all of them (X not running one way, few points, or an
+   export, which keeps every point). Zoomed into a million points, every one was read. */
+const XORD=new WeakMap();
+function xOrder(pts){ let d=XORD.get(pts); if(d!=null) return d; let up=true, dn=true;
+  for(let k=1;k<pts.length&&(up||dn);k++){ const a=pts[k-1].x, b=pts[k].x; if(b<a) up=false; if(b>a) dn=false; }
+  d=up?1:dn?-1:0; XORD.set(pts,d); return d; }
+function viewSlice(pts,geo){
+  const n=pts.length, v=geo&&geo.v; if(n<=DEC_MIN||!v||geo.full) return null;
+  const lo=Math.min(v.x0,v.x1), hi=Math.max(v.x0,v.x1); if(!(hi>lo)) return null;
+  const d=xOrder(pts); if(!d) return null;
+  // The first point past a value, by halves, either way round.
+  const first=(t,strict)=>{ let a=0, b=n; while(a<b){ const m=(a+b)>>1, x=pts[m].x, past=d>0?(strict?x>t:x>=t):(strict?x<t:x<=t); if(past) b=m; else a=m+1; } return a; };
+  const i0=d>0?first(lo,false):first(hi,false), i1=d>0?first(hi,true):first(lo,true);
+  const a=Math.max(0,i0-2), b=Math.min(n,i1+2); return a===0&&b===n?null:[a,b]; }
 function spotsOf(xy,w,key){ const seen=new Set(), out=[];
   for(let i=0;i<xy.length;i++){ const q=xy[i], s0=Math.round(q[0]/w)*1048576+Math.round(q[1]/w), k=key?s0+"|"+key(i):s0;
     if(seen.has(k)) continue; seen.add(k); out.push(q); }
@@ -7751,7 +7904,14 @@ function spotsOf(xy,w,key){ const seen=new Set(), out=[];
 function seriesSvg(pts,st,X,Y,geo,pal,masked){
   const n=pts.length; if(!n) return "";
   let s=""; const col=st.color, f1=v=>v.toFixed(1);
-  const keep=masked?pts.filter(q=>!masked(q.i)):pts;
+  // On screen, only the points in view (DESIGN.md, Large data), when X runs one way.
+  const vs=st.type==="column"?null:viewSlice(pts,geo), pv=vs?pts.slice(vs[0],vs[1]):pts;
+  const keep=masked?pv.filter(q=>!masked(q.i)):pv;
+  // A line of many points: its M4 straight from the points, with no pair made for each.
+  const crosses=()=>{ if(!masked) return ""; const r=3.4; let d=""; pv.forEach(q=>{ if(!masked(q.i)) return; const x=X(q.x), y=Y(q.y); d+=`M${f1(x-r)},${f1(y-r)}L${f1(x+r)},${f1(y+r)}M${f1(x+r)},${f1(y-r)}L${f1(x-r)},${f1(y+r)}`; });
+    return d?`<path d="${d}" stroke="${pal.masked}" stroke-width="1.4" fill="none"/>`:""; };
+  if(st.type==="line"&&!geo.full&&keep.length>DEC_MIN&&!(st.conn==="spline"||st.conn==="bspline")){ const dash=DASHES[st.dash], xy=dash===null?[]:m4pts(keep,X,Y,decW());
+    return (xy.length>1?`<path d="M${xy.map(q=>f1(q[0])+","+f1(q[1])).join("L")}" fill="none" stroke="${col}" stroke-width="${st.lw}"${dash?` stroke-dasharray="${dash}"`:""} stroke-linejoin="round"${st.op<1?` opacity="${st.op}"`:""}/>`:"")+crosses(); }
   const lo=geo.T+geo.mh, zero=geo.logY?lo:Math.max(geo.T,Math.min(lo,Y(0)));
   const ln=st.type==="line"||st.type==="linesym"||st.type==="area"||st.type==="step", sym=st.type==="scatter"||st.type==="linesym";
   const dash=DASHES[st.dash]; const op=st.op<1?` opacity="${st.op}"`:"";
@@ -7792,9 +7952,7 @@ function seriesSvg(pts,st,X,Y,geo,pal,masked){
       s+=symOpen(st.sym)?`<path d="${d}" fill="${symOpen(st.sym)&&/^o/.test(st.sym)?pal.bg:"none"}" stroke="${col}" stroke-width="${Math.max(1,st.lw*0.9).toFixed(1)}"${op}/>`
         :`<path d="${d}" fill="${col}" fill-opacity="${(0.88*st.op).toFixed(2)}" stroke="${pal.bg}" stroke-width="${xy0.length>600?0.4:0.8}"/>`; }
   }
-  if(masked){ const r=3.4; let d=""; pts.forEach(q=>{ if(!masked(q.i)) return; const x=X(q.x), y=Y(q.y); d+=`M${f1(x-r)},${f1(y-r)}L${f1(x+r)},${f1(y+r)}M${f1(x+r)},${f1(y-r)}L${f1(x-r)},${f1(y+r)}`; });
-    if(d) s+=`<path d="${d}" stroke="${pal.masked}" stroke-width="1.4" fill="none"/>`; }
-  return s;
+  return s+crosses();
 }
 /* Ticks: automatic, or every "step" the user set; minor ticks between. */
 function axisTicks(a,b,target,ax,log){
@@ -9254,7 +9412,7 @@ function buildPlot(W,H,pal,colEx,opt){
   if(!heat&&!dist&&act){
     // Its error bars, at any stage: what the processing made of them by then.
     const ee=errSvg(errGeom(act,ps.d),pts,actSt,X,Y,pal,isMasked,{logY,yMin:v.y0*1e-3,full:!!colEx});
-    s+=`<g data-ser="${act.id}">${ee.under}${seriesSvg(pts,zSt(actSt,pts,act.id),X,Y,geo,pal,isMasked)}${ee.over}</g>`+labSvg(act.id,pts,Y,actSt.color);
+    s+=`<g data-ser="${act.id}">${ee.under}${seriesSvg(pts,zSt(actSt,pts,act.id),X,Y,geo,pal,maskOf(act).length?isMasked:null)}${ee.over}</g>`+labSvg(act.id,pts,Y,actSt.color);
     if(layout==="offset"&&oser.length&&pts.length){ const last=pts.reduce((m,z)=>(revX?z.x<m.x:z.x>m.x)?z:m,pts[0]), lyp=Y(last.y);
       if(Number.isFinite(lyp)&&lyp>T&&lyp<T+mh) s+=richText((actSt.label||act.name||"").slice(0,40),{x:L+pw-4,y:lyp-4,anchor:"end",st:Object.assign({},LSc,{b:true}),fill:actSt.color}); }
   }
@@ -11230,13 +11388,23 @@ function setupPlotDetails(){
 }
 
 /* Status bar: what the data and the fit are, at a glance. */
+/* The status bar's counts, worked out from the series without making a point of each (a million
+   point objects were most of a typed cell's time, with no graph on the desk to draw them on). The
+   points pointsAll would keep: X and Y finite, Y above zero on a log axis; in view, not masked. */
+const SBN=new WeakMap();
+function sbCount(d,logY,vr,mask){
+  const k=(logY?1:0)+"|"+(vr?vr[0]+","+vr[1]:"")+"|"+objId(mask); let m=SBN.get(d); if(m&&m.k===k) return m;
+  const N=Math.min(d.x.length,d.y.length), ms=vr&&mask.length?new Set(mask):null; let n=0, inV=0;
+  for(let j=0;j<N;j++){ const x=d.x[j], y=d.y[j]; if(x==null||y==null||!Number.isFinite(x)||!Number.isFinite(y)||(logY&&y<=0)) continue; n++;
+    if(vr&&x>=vr[0]&&x<=vr[1]&&!(ms&&ms.has(d.idx?d.idx[j]:j))) inV++; }
+  m={k,n,inV}; SBN.set(d,m); return m;
+}
 function renderStatusBar(){
   const el=$("#sbPts"), ef=$("#sbFit"); if(!el) return;
-  const p=P(), pts=p?pointsAll():[];
-  if(!p||!pts.length){ el.textContent=""; ef.innerHTML=""; ef.className="sb-cell"; ef.title=""; return; }
-  const nm=maskOf(activeYCol()).length;
-  const vr=viewRng(); let inV=0; if(vr) for(let k=0;k<pts.length;k++){ const q=pts[k]; if(q.x>=vr[0]&&q.x<=vr[1]&&!isMasked(q.i)) inV++; }
-  el.textContent=`${fmtCount(pts.length)} point${pts.length===1?"":"s"}${nm?` · ${fmtCount(nm)} masked`:""}${vr?` · ${fmtCount(inV)} in view`:""}`;
+  const p=P(), ac=p&&activeYCol(), vr=ac?viewRng():null, cn=ac?sbCount(finalOf(ac),!!GP().logY,vr,maskOf(ac)):null;
+  if(!cn||!cn.n){ el.textContent=""; ef.innerHTML=""; ef.className="sb-cell"; ef.title=""; return; }
+  const nm=maskOf(ac).length;
+  el.textContent=`${fmtCount(cn.n)} point${cn.n===1?"":"s"}${nm?` · ${fmtCount(nm)} masked`:""}${vr?` · ${fmtCount(cn.inV)} in view`:""}`;
   const f=activeFit();
   if(!f){ ef.className="sb-cell"; ef.innerHTML="<span>No fit yet</span>"; ef.title=""; return; }
   const st=f.stats||{}, stale=fitStale(f), bad=st.converged===false;
@@ -12578,9 +12746,9 @@ function wsFindCount(){ const el=$("#wsFindN"), f=S.wsFind; if(!el) return;
 const WS_IDX=82, WS_W=100, WS_MINW=36, WS_HIDW=6, WS_RH=22, WS_RHMIN=18, WS_RHMAX=160;
 // The data rows' height on the sheet shown (p.wsrh[sheet], px; 22 unless dragged).
 function wsRowH(){ const p=P(), v=p&&p.wsrh&&p.wsrh[curSheet()]; return typeof v==="number"&&v>=WS_RHMIN&&v<=WS_RHMAX?Math.round(v):WS_RH; }
-function wsSetRowH(h){ const p=P(), box=$("#ws"); if(!p||!box) return; const sid=curSheet(), old=S.ws.rowH||WS_RH, first=box.scrollTop/old;
+function wsSetRowH(h){ const p=P(), box=$("#ws"); if(!p||!box) return; const sid=curSheet(), old=S.ws.rowH||WS_RH, first=wsVT(box,wsScroll())/old;
   const R=Object.assign({},p.wsrh||{}); if(h==null||Math.round(h)===WS_RH) delete R[sid]; else R[sid]=Math.max(WS_RHMIN,Math.min(WS_RHMAX,Math.round(h)));
-  p.wsrh=R; if(!S.readOnly) saveSoon({wsrh:R}); S.ws.rowH=wsRowH(); renderWs(); box.scrollTop=Math.round(first*S.ws.rowH); wsRows(true); }
+  p.wsrh=R; if(!S.readOnly) saveSoon({wsrh:R}); S.ws.rowH=wsRowH(); renderWs(); box.scrollTop=Math.round(wsPhys(first*S.ws.rowH,wsScroll())); wsRows(true); }
 const WS_LABS=[{r:-4,k:"name",label:"Long Name",max:60},{r:-3,k:"unit",label:"Units",max:30},{r:-2,k:"comm",label:"Comments",max:200},{r:-1,k:"fx",label:"F(x)=",max:400}];
 const WS_TOP=-4;
 /* Under the letters the worksheet shows Long Name, Units and F(x)= (a column's
@@ -12652,6 +12820,15 @@ function tfmtText(v,k){ if(!Number.isFinite(v)) return String(v);
   const d=new Date(v*1000); if(!Number.isFinite(d.getTime())) return String(v); const iso=d.toISOString();
   return v%86400===0?iso.slice(0,10):iso.slice(0,19).replace("T"," ")+(v%1?iso.slice(19,23):""); }
 const wsRowCount=m=>m.kind==="final"?Math.max(m.n+20,40):Math.max(m.n+60,60)+((S.ws&&S.ws.extra)||0);
+/* Browsers stop laying out a box taller than about 2²⁵ px (Firefox sooner): at 22 px a row, the rows of
+   a sheet past 1.5 million could not be scrolled to. Past WS_PMAX the scroll bar's length stands for
+   the rows in proportion (k rows' height a pixel of scrolling), and the rows drawn are placed where the
+   view is; below it a pixel is a pixel, as before. `wsVT` is the view's top in rows' height, `wsPhys`
+   the scroll position that puts a height in rows at the top. */
+const WS_PMAX=15000000;
+function wsScroll(m){ const box=$("#ws"); m=m||S.wsm; const rowH=S.ws.rowH||25, R=m?wsRowCount(m):0, H=Math.max(1,(box?box.clientHeight:0)-(S.ws.head||0)), V=R*rowH, P=Math.min(V,WS_PMAX);
+  return {rowH,R,H,V,P,k:V>WS_PMAX&&P>H?(V-H)/(P-H):1}; }
+const wsVT=(box,g)=>box.scrollTop*g.k, wsPhys=(y,g)=>Math.max(0,y/g.k);
 function wsSelRect(){ const s=S.ws; return {r0:Math.min(s.r,s.ar),r1:Math.max(s.r,s.ar),c0:Math.min(s.c,s.ac),c1:Math.max(s.c,s.ac)}; }
 function renderWs(){
   if(S.editing){ S.pendingWs=true; return; }      // never pull a cell from under the person typing in it
@@ -12682,7 +12859,7 @@ function renderWs(){
   wsLabRows().forEach(L=>{ h+=`<tr class="lab"><th class="rl" scope="row" data-lr="${L.r}"${L.k==="fx"?` title="A column's formula: letters are columns (B*2, (B-C)/A, log10(B)), x the row's X value, i the row number. Click a cell here to type one."`:""}>${L.label}</th>${m.cols.map((q,i)=>{ const bd=L.k==="fx"&&q.fxErr, al=L.k!=="fx"&&AL[q.id]?" al-"+AL[q.id]:""; if(q.hidden) return `<td class="lc hid" data-r="${L.r}" data-ci="${i}"></td>`; return `<td class="lc${L.k==="fx"?" fxc":""}${bd?" bad":""}${al}" data-r="${L.r}" data-ci="${i}"${bd?` title="${esc(q.fxErr)}"`:L.k==="fx"&&m.kind==="raw"&&!q.lab.fx?` title="Click to type a formula for column ${q.letter}"`:""}>${esc(q.lab[L.k]||"")}</td>`; }).join("")}</tr>`; });
   if(wsRowsPref().spk) h+=`<tr class="spk"><th class="rl" scope="row">Sparklines</th>${m.cols.map(q=>q.hidden?`<td class="hid"></td>`:`<td>${q.spark||""}</td>`).join("")}</tr>`;
   // A spacer as tall as the rows, so the scroll can be put back before they are drawn.
-  h+=`</thead><tbody><tr class="gap" aria-hidden="true"><td colspan="${m.cols.length+1}" style="height:${wsRowCount(m)*(S.ws.rowH||25)}px"></td></tr></tbody></table>`;
+  h+=`</thead><tbody><tr class="gap" aria-hidden="true"><td colspan="${m.cols.length+1}" style="height:${wsScroll(m).P}px"></td></tr></tbody></table>`;
   box.innerHTML=h; box.scrollLeft=sx; box.scrollTop=sy;
   // Sticky offsets follow the real header heights.
   let top=0; box.querySelectorAll("thead tr").forEach(tr=>{ tr.querySelectorAll("th,td").forEach(el=>{ el.style.top=top+"px"; }); top+=tr.getBoundingClientRect().height||0; });
@@ -12704,20 +12881,22 @@ function wsRowHtml(m,r){
 // Draws the rows in view (and some either side) between two spacers.
 function wsRows(force){
   const box=$("#ws"), m=S.wsm, tb=box&&box.querySelector("tbody"); if(!tb||!m) return;
-  const rowH=S.ws.rowH||25, head=S.ws.head||0, R=wsRowCount(m);
-  const first=Math.max(0,Math.floor(box.scrollTop/rowH)), vis=Math.ceil(Math.max(0,box.clientHeight-head)/rowH)+1;
+  const g=wsScroll(m), rowH=g.rowH, head=S.ws.head||0, R=g.R, vt=wsVT(box,g);
+  const first=Math.max(0,Math.min(R-1,Math.floor(vt/rowH))), vis=Math.ceil(Math.max(0,box.clientHeight-head)/rowH)+1;
   // Rows are drawn around the view; with hundreds of columns fewer of them,
   // so a sheet of 600 columns does not lay out 50 000 cells on every save.
   const span=m.cols.length+1, buf=Math.max(4,Math.min(40,Math.floor((12000/span-vis)/2))), mg=Math.min(5,buf-1);
   // Drawn already: the view sits inside the rows drawn, with a margin, or at an end of the sheet.
-  const w=S.ws.win; if(!force&&w&&(first>=w[0]+mg||w[0]===0)&&(first+vis<=w[1]-mg||w[1]>=R)) return;
+  const w=S.ws.win; if(!force&&g.k===1&&w&&(first>=w[0]+mg||w[0]===0)&&(first+vis<=w[1]-mg||w[1]>=R)) return;
   // An edit outlives the rows drawn, as in a spreadsheet: scrolled away, its
   // text waits in S.ws.edit and the grid takes the keys (Esc still cancels).
   { const ae=document.activeElement; if(S.ws.edit&&ae&&ae.matches&&ae.matches("#ws input.wsed")) box.focus({preventScroll:true}); }
-  const a=Math.max(0,first-buf), b=Math.min(R,first+vis+buf);
-  let h=`<tr class="gap" aria-hidden="true"><td colspan="${span}" style="height:${a*rowH}px"></td></tr>`;
+  let a=Math.max(0,first-buf); const b=Math.min(R,first+vis+buf);
+  // Where the first row drawn goes: in proportion past WS_PMAX, so the row at the view's top is there.
+  let top=g.k===1?a*rowH:box.scrollTop-(vt-a*rowH); while(top<0&&a<first){ a++; top+=rowH; } top=Math.max(0,top);
+  let h=`<tr class="gap" aria-hidden="true"><td colspan="${span}" style="height:${top}px"></td></tr>`;
   for(let r=a;r<b;r++) h+=wsRowHtml(m,r);
-  h+=`<tr class="gap" aria-hidden="true"><td colspan="${span}" style="height:${Math.max(0,R-b)*rowH}px"></td></tr>`;
+  h+=`<tr class="gap" aria-hidden="true"><td colspan="${span}" style="height:${g.k===1?Math.max(0,R-b)*rowH:Math.max(0,g.P-top-(b-a)*rowH)}px"></td></tr>`;
   tb.innerHTML=h; S.ws.win=[a,b];
   const tr=tb.querySelector("tr.dr"); if(tr){ const hh=tr.getBoundingClientRect().height; if(hh>4&&Math.abs(hh-rowH)>0.25){ S.ws.rowH=hh; wsRows(true); return; } }
   wsPaintSel();
@@ -12993,12 +13172,12 @@ function renderWsSel(){
 // The worksheet row of a raw row number (the Final sheet lists processed points).
 function wsRowOf(i){ const m=S.wsm; if(!m) return i; const k=m.kind==="final"?m.d.idx.indexOf(i):i; if(k<0) return null; if(!m.inv) return k; return k<m.nd?m.inv[k]:k-m.nd+m.n; }
 function scrollRow(i){ const box=$("#ws"); if(!box||!S.wsm) return; const r=wsRowOf(i); if(r==null) return;
-  const rowH=S.ws.rowH||25, vis=box.clientHeight-(S.ws.head||0), y=r*rowH;
-  if(y<box.scrollTop||y+rowH>box.scrollTop+vis) box.scrollTop=Math.max(0,y-vis/2); wsRows(false); renderWsSel(); }
+  const g=wsScroll(), rowH=g.rowH, vis=box.clientHeight-(S.ws.head||0), y=r*rowH, vt=wsVT(box,g);
+  if(y<vt||y+rowH>vt+vis) box.scrollTop=wsPhys(y-vis/2,g); wsRows(false); renderWsSel(); }
 function wsEnsureVisible(r,c){
   const box=$("#ws"), m=S.wsm; if(!box||!m) return;
-  if(r>=0){ const rowH=S.ws.rowH||25, vis=box.clientHeight-(S.ws.head||0), y=r*rowH;
-    if(y<box.scrollTop) box.scrollTop=y; else if(y+rowH>box.scrollTop+vis) box.scrollTop=y+rowH-vis; }
+  if(r>=0){ const g=wsScroll(m), rowH=g.rowH, vis=box.clientHeight-(S.ws.head||0), y=r*rowH, vt=wsVT(box,g);
+    if(y<vt) box.scrollTop=wsPhys(y,g); else if(y+rowH>vt+vis) box.scrollTop=wsPhys(y+rowH-vis,g)+(g.k>1?1:0); }
   let x=WS_IDX; for(let i=0;i<c;i++) x+=m.cols[i].w; const w=(m.cols[c]||{w:WS_W}).w;
   if(x-WS_IDX<box.scrollLeft) box.scrollLeft=x-WS_IDX; else if(x+w>box.scrollLeft+box.clientWidth) box.scrollLeft=x+w-box.clientWidth;
   // Near the end of the grid, more rows appear, as a spreadsheet never ends.
@@ -13265,8 +13444,8 @@ function setupWs(){
   box.addEventListener("scroll",()=>{ if(raf) return; raf=requestAnimationFrame(()=>{ raf=0; const m=S.wsm; if(!m) return;
     if(m.kind==="raw"&&box.scrollTop+box.clientHeight>box.scrollHeight-(S.ws.rowH||25)*20){ S.ws.extra=(S.ws.extra||0)+200; S.ws.win=null; }
     wsRows(false);
-    const w=S.ws.want; if(w&&performance.now()-w.t<600){ const rowH=S.ws.rowH||25, y=w.r*rowH, vis=box.clientHeight-(S.ws.head||0);
-      if(w.r>=0&&(y<box.scrollTop||y+rowH>box.scrollTop+vis)) wsEnsureVisible(w.r,w.c); } }); });
+    const w=S.ws.want; if(w&&performance.now()-w.t<600){ const g=wsScroll(m), rowH=g.rowH, y=w.r*rowH, vis=box.clientHeight-(S.ws.head||0), vt=wsVT(box,g);
+      if(w.r>=0&&(y<vt||y+rowH>vt+vis)) wsEnsureVisible(w.r,w.c); } }); });
   box.addEventListener("wheel",()=>{ S.ws.want=null; },{passive:true});
   new ResizeObserver(()=>{ const m=S.wsm; if(!m||m.kind!=="raw"||S.editing) return;
     const used=WS_IDX+m.cols.filter(q=>!q.phantom).reduce((s,q)=>s+q.w,0), K=Math.max(3,Math.ceil((box.clientWidth-used)/WS_W)+2);
@@ -14492,7 +14671,7 @@ function reportFitsHtml(pal){
 }
 /* The raw data exactly as recorded, with the lines the fingerprint covers. */
 async function exportRawCsv(){
-  const p=P(), cols=rawCols(); if(!cols.length){ toast("There is no original data to export."); return; }
+  fpSettle(); const p=P(), cols=rawCols(); if(!cols.length){ toast("There is no original data to export."); return; }
   const body=rawText(cols.map(c=>c.data)), fp=sha256(body), NL=String.fromCharCode(10), clean=s=>String(s).replace(/[\r\n]+/g," ");
   const head=["# Original data of \""+clean(p.name||"Kurve project")+"\", exported "+new Date().toISOString(),
     "# Columns: "+cols.map(c=>`${colRef(c)} = ${clean(colLabel(c,colRef(c)))} [${c.role}]`).join("; "),
@@ -17480,7 +17659,7 @@ function openProject(id){
   if(id) S.unsubC=S.store.watchComments(id,list=>{ S.comments=list; refreshComments(); renderPlot(); refreshProfiles(); }, e=>{ if(e.code==="revoked") setStatus("Access changed. Reload to continue.",true); });
   try{ localStorage.setItem("kurve.last",id||""); }catch(e){}
   if(S.room) S.room.presence({pid:id,cx:null,cy:null}).catch(()=>{});
-  renderAll();
+  renderAll(); fpEnsure();
 }
 function onProjects(list){
   // A project deleted here is gone, even from a list sent before the store caught up.
@@ -17496,7 +17675,7 @@ function onProjects(list){
       // in (another tab may have changed other columns meanwhile; mergeCols keeps both).
       if(local&&Object.keys(wsPatch).length){ if(wsPatch.cols&&wsBase&&cur.cols&&wsBase!==cur.cols){ wsPatch.cols=cloneProj({cols:mergeCols(wsBase,wsPatch.cols,cur.cols)}).cols; wsBase=cur.cols; } Object.assign(S.proj,wsPatch); }
       if(S.draft&&S.proj.fit&&local&&(!local.fit||local.fit.at!==S.proj.fit.at)&&S.proj.fit.by!==S.uid){ S.draft=null; }
-      S.projSrc=cur;
+      S.projSrc=cur; if(!S.selfEmit) setTimeout(fpEnsure,0);
     }
     // The project on the desk has gone (deleted here, by a colleague or in
     // another tab): its windows go with it, and nothing more is saved into it.
@@ -17675,6 +17854,7 @@ function figNotes(){ const cfg=plotCfg(), d=plotState().d, out=[], v=curView(), 
   ["x","y"].forEach(k=>{ const s=scaleKind(cfg,k); if(s!=="lin"&&s!=="log10"&&!(k==="y"&&cfg.layout==="heat")) out.push(`The ${k.toUpperCase()} axis is on a ${scaleName(s).toLowerCase()} scale${s==="orecip"?` with c = ${fmt(scaleFn(s,cfg.ax[k]).c,6)}`:""}.`); });
   return out; }
 async function exportReport(){
+  fpSettle();
   const p=P(), f=activeFit();
   if(!p||(!pointsAll().length&&!rawCols().length)){ toast("There is nothing to report yet."); return; }
   const FM=f?fitModel(f):null;
@@ -18245,6 +18425,7 @@ async function exportAllPng(){ const r=allGraphsSvg(560,380); if(!r){ toast("The
   finally{ URL.revokeObjectURL(url); } }
 // Every spectrum's final data side by side, each with its own X, and how each was processed.
 async function exportAllCsv(){
+  fpSettle();
   const p=P(), ys=yCols(); if(!p||!ys.length) return;
   const q=s=>/[",\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s, clean=v=>String(v).replace(RegExp("["+String.fromCharCode(13,10)+",]+","g")," ");
   const ds=ys.map(c=>finalOf(c)), n=ds.reduce((m,d)=>Math.max(m,d.x.length),0);
@@ -18258,6 +18439,7 @@ async function exportAllCsv(){
   if(ok) toast(ok==="dialog"?"Data saved.":`Sent ${nm}, ${ys.length} columns, to your downloads.`);
 }
 async function exportCsv(){
+  fpSettle();
   const p=P(), f=shownFit(), FM=fitModel(f), c=activeYCol(), d=finalOf(c);
   const comp=FM&&FM.composite?FM.model:null;
   if(!d.x.length){ toast("There is no data to export."); return; }
@@ -19659,7 +19841,7 @@ function annoCountText(annos){ const k={}; annos.forEach(a=>{ k[a.t]=(k[a.t]||0)
 function flowNodeHtml(n,cur){
   const sel=S.flowSel===n.key, act=n.c&&n.c===activeYCol();
   let icon="", title="", sub="", cls="", spark="", warn=[], num="";
-  if(n.kind==="table"){ const ok=rawVerified(); icon=ok===false?"alert":"lock"; title="Original data"; sub=`${rawCols().length} column${rawCols().length===1?"":"s"} · ${fpShort((P().raw&&P().raw.fp)||rawFp())}`; if(ok===false){ cls+=" warn"; warn=["The original values no longer match their recorded check code."]; } }
+  if(n.kind==="table"){ const ok=rawVerified(); icon=ok===false?"alert":"lock"; title="Original data"; sub=`${rawCols().length} column${rawCols().length===1?"":"s"} · ${fpLab(fpOf(P().raw),P().raw&&P().raw.fpq)}`; if(ok===false){ cls+=" warn"; warn=["The original values no longer match their recorded check code."]; } }
   else if(n.kind==="raw"){ icon="table"; title=specName(n.c); sub=`${n.c.fx?"= "+fxShow(n.c):"Original"} · ${n.st?n.st.d.x.length:0} points`; spark=n.st?sparkSvg(n.st.d,40,20):""; }
   else if(n.kind==="src"){ const s=srcOf(n.c); icon="reverse"; title=specName(n.c); sub=`From ${n.c.from==="raw"?"original":"processed"} ${specName(s)}`; spark=n.st?sparkSvg(n.st.d,40,20):""; }
   else if(n.kind==="step"){ const s=n.s, st=n.st; warn=stageWarnings(st); num=`<span class="fn-n">${n.k}</span>`;
@@ -19849,10 +20031,10 @@ function flowInspectorBody(n){
   if(n.kind==="table"){
     const raw=p.raw||{}, ok=rawVerified();
     h+=`<div class="fi-h">${ICON(ok===false?"alert":"lock")}<div class="grow"><div class="fi-t">Original data</div><div class="lab">${ok===false?"The original values no longer match their check code":"Locked: no analysis ever changes these values"}</div></div>${discChip(n.key)}</div>`;
-    h+=kvHtml([["SHA-256",`<code class="fp">${esc(raw.fp||rawFp())}</code>`],ok===false?["Now",`<code class="fp">${esc(rawFp())}</code>`]:null,
+    h+=kvHtml([["SHA-256",`<code class="fp">${esc(raw.fp||(raw.fpq?"working it out…":rawFp()))}</code>`],ok===false?["Now",`<code class="fp">${esc(rawFp())}</code>`]:null,
       ["Columns",rawCols().map(q=>esc(colLabel(q,colRef(q)))+` <span class="lab">(${esc({x:"X",y:"Y",e:"Y error",ignore:"not used"}[q.role]||q.role)})</span>`).join("<br>")]]);
     h+=`<div class="actions">${ok===false?btn("rawrecord","Record the current data","lock",{primary:true}):""}${btn("rawcsv","Export the original data","download",{view:true})}${btn("sheet","Open the worksheet","table",{view:true})}</div>`;
-    h+=`<div class="gh">Record <span class="cnt">${(raw.hist||[]).length}</span></div><ul class="log rawlog">${(raw.hist||[]).slice().reverse().map(e=>`<li><span class="when" title="${esc(logWhen(e.t))}">${esc(ago(e.t))}</span><span>${esc(e.text)} <code>${esc(fpShort(e.fp))}</code></span></li>`).join("")||`<li class="nothing">Nothing recorded yet.</li>`}</ul>`;
+    h+=`<div class="gh">Record <span class="cnt">${(raw.hist||[]).length}</span></div><ul class="log rawlog">${(raw.hist||[]).slice().reverse().map(e=>`<li><span class="when" title="${esc(logWhen(e.t))}">${esc(ago(e.t))}</span><span>${esc(e.text)} <code>${esc(fpLab(e.fp,e.fpq))}</code></span></li>`).join("")||`<li class="nothing">Nothing recorded yet.</li>`}</ul>`;
     const mk=Object.keys(p.meta||{});
     if(mk.length) h+=`<details class="grp" data-fopen="meta"${S.fOpen&&S.fOpen.meta?" open":""}><summary>From the source file <span class="sum">${mk.length} field${mk.length===1?"":"s"}</span></summary><div class="gb"><table class="metatbl">${mk.slice(0,60).map(k=>`<tr><td>${esc(k)}</td><td>${esc(p.meta[k])}</td></tr>`).join("")}</table></div></details>`;
     return h;

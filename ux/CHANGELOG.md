@@ -1024,6 +1024,34 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Known gaps closed: a million rows typed into, drawn and scrolled (2026-11-05)
+
+- **A value typed into a million rows** took 1.5 s; it takes about 70 ms. The check code is the
+  same (`sha256sum` of the exported lines still reproduces it) but is worked out in the background
+  past 150 000 cells, a stretch of rows at a time; the History's record says *working it out…*
+  until it is there, a second or so later, and every export works it out first. A record still
+  waiting when the page went is worked out again when the project is opened.
+- **The status bar** counted the points by making a million of them; it counts them. A copy of a
+  column is noticed by comparing values instead of a key of every value, and a few values typed
+  over change the series of before instead of building it again.
+- **Column values are stored as one block of numbers** in IndexedDB, quicker to write; older
+  projects read as before.
+- **A graph of a million points** draws the whole curve in about 35 ms (118 before) and a zoom
+  into part of it in a few: only the points in view are read when X runs one way, the per-pixel
+  decimation is made as they are read, and the automatic view is worked out once.
+- **A sheet of 1.6 million rows**: the browser lays out nothing taller than about 2²⁵ px, and the
+  last 75 000 rows could not be scrolled to. Past 15 000 000 px the scroll bar stands for the rows
+  in proportion; the bar, the wheel, Ctrl+End and the arrows reach every row.
+- Measured: the worksheet draws a screen of rows in about 14 ms at 10 000 rows and at 1.6 million,
+  so the gap that said it scrolled at 20 frames a second is closed too.
+
+Checked: `tools/pipe-test.mjs` (4 new: the check code in one run and in paused stretches equal to
+`sha256sum`, SHA-256 fed seven bytes at a time), `tools/odd-test.mjs` (6 new: a value typed into a
+million rows at once, its check code worked out exactly, an export settling one still to come, one
+still to come when the page went, the values back as numbers, a missing value kept missing), the
+decimation made as points are read against `m4` on 40 random series, a 1.6-million-row sheet driven
+to its end and back, and every suite.
+
 ## A day of lab work: heavy files, tabs, windows, rows (2026-11-05)
 
 Kurve driven as a lab technician would, through the pointer and keys: typing a calibration table

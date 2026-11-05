@@ -291,9 +291,24 @@ take seconds: the user asked for it to be made usable. Decided:
   window per point; the peak finder compared each candidate with every earlier one to drop
   duplicates (fourteen seconds to open the Peaks window; now 1.3). And Statistics no longer fits
   the Overview's background to decide whether to show spectral measures (1.9 s; now 0.6). The tests now time 200 000 points (`tools/odd-test.mjs`).
-- **The store is the next limit.** This browser keeps projects in localStorage, a few megabytes
-  for all of them: three columns of 200 000 rows do not fit, and the status bar says Not saved.
-  Moving projects to IndexedDB is on the roadmap.
+- **The store was the next limit**, and is IndexedDB now (05.11, *Storage* below).
+- **A typed value does not wait for the check code** (05.11). Typing into a million rows took
+  1.5 s a value: the check code hashed the whole table, the status bar made a million points to
+  count them, and the series was built again for one value. Decided: the check code keeps its
+  definition (`sha256sum` of the exported lines) and, past 150 000 cells, is worked out in slices
+  in the background; the record says *working it out…* meanwhile, and an export waits for it,
+  since what leaves the building must be whole. The status bar counts without making points, and
+  a few values typed over change the series of before. 70 ms a value now.
+- **Only what is in view is drawn** (05.11). When X runs one way (as a scan's does), a curve
+  reads the points in view and two beyond each side, so a line leaves the frame as it would; its
+  per-pixel decimation is made as the points are read, with no pair made for each; the automatic
+  view is worked out once per list of points. A million points: about 35 ms for the whole curve
+  (118 before), a few for a zoom into it. Exports still draw every point.
+- **Every row can be reached** (05.11). Browsers lay out nothing taller than about 2²⁵ px; a
+  sheet of 1.6 million rows at 22 px is taller, and its last rows could not be scrolled to. Past
+  15 000 000 px the scroll bar stands for the rows in proportion, as large spreadsheets do: a
+  pixel of scrolling is more than a row, and every row is reachable by the bar, the wheel and the
+  keys.
 
 ### The Format pane
 

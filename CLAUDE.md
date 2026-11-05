@@ -844,7 +844,20 @@ graph first, with the taskbar kept at the bottom of the screen.
   `recordRaw(text)` appends to `p.raw.hist` whenever raw data changes (import, paste, a first
   value in a cell, a column deleted), and `rawVerified()` compares the data with the last
   recorded fingerprint. The raw-data CSV export writes exactly the hashed lines under `#`
-  comments, so `grep -v '^#' file.csv | sha256sum` reproduces the fingerprint.
+  comments, so `grep -v '^#' file.csv | sha256sum` reproduces the fingerprint. It is hashed a
+  stretch of rows at a time (`rawHashJob`, `rawHashRun(j, until)`, SHA-256 fed in pieces by
+  `shaNew`/`shaUpdate`/`shaDigest`), with no text of the whole table. **A big table's check code
+  waits** (more than `FP_SYNC`, 150 000 cells, `rawCells`): `recordRaw` writes its entry with `fp`
+  empty and `fpq`, the id of a job for that state of the data (`fpLater(arrs, pid, replaces)`; a
+  merged entry's old job dropped; the next entry's `prevq`, the record's own `fpq` while it is the
+  latest); the jobs (`FPJ`) run in slices of 12 ms between whatever the page does (`fpTick`,
+  `fpWork`, `fpDone`), and each result goes into the record of the project on the desk (a save of
+  `raw`, no undo step, no log line), the undo steps and the other projects in the store
+  (`fpApplyAll`, `fpResolve`: an entry that turned out to change nothing is dropped). An export
+  works them out first (`fpSettle`: the CSVs and the report); a record still waiting when the
+  project is opened or arrives is worked out again for the data as they are (`fpEnsure`, after
+  3 s, in case another tab is at it). `rawVerified()` is null while it waits, and the History says
+  *working it out…* (`fpOf`, `fpLab`). `fpNow(arrs)` is a check code known without hashing.
 - **Sheets** (`p.sheets`, `[{id, name}]` in tab order, in `UNDO_KEYS`): the worksheet's sheets,
   as a workbook's. A column's sheet is `c.sheet`, a derived column's its source's, and a column
   naming none (or a sheet that has gone) is on the first; `sheetList(p)` (a project from before
@@ -941,7 +954,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   left by a click elsewhere, the cell keeps its value and a toast names what was not taken.
   `renderWs` puts a spacer as tall as the rows into the body before restoring the scroll, so a
   redraw never jumps to the top; `wsRows(false)` redraws only when the view leaves the rows
-  drawn (at either end of the sheet the margin does not apply). A double click is read from
+  drawn (at either end of the sheet the margin does not apply). A sheet taller than `WS_PMAX`
+  (15 000 000 px; browsers lay out nothing taller than about 2²⁵ px) scrolls in proportion:
+  `wsScroll(m)` gives `{rowH, R, H, V, P, k}`, `wsVT(box, g)` the view's top in rows' height,
+  `wsPhys(y, g)` the scroll position for one, and `wsRows` places the rows drawn where the view
+  is (and redraws on every scroll); every row-to-scroll conversion (`scrollRow`,
+  `wsEnsureVisible`, the scroll handler, `wsSetRowH`) goes through them. A double click is read from
   the press itself (`e.detail === 2` in the mousedown: a cell opens, a resize edge fits, the
   fill handle fills down), the `dblclick` listener kept as a fallback (`S.ws.dblAt`); a cell's
   first press is remembered (`S.ws.press`: its cell, whether on the fill handle, where and
@@ -1708,7 +1726,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   `makeDbStore(db)` (claude.ai artifact runtime, shared realtime). **IdbStore**: the database
   `kurve` with `projects` (a record per project, `_rev` its version), `arrays` (a column's values
   of 256 or more, under a key of their own, `akey(pid, arr)` through the `AKEY` WeakMap; the
-  record holds `{$a: key}`, `toRec`/`fromRec`, `recKeys`) and `comments`. Memory has every project
+  record holds `{$a: key}`, `toRec`/`fromRec`, `recKeys`; stored as a `Float64Array` with NaN for a
+  missing value by `idbPack` when every value is a finite number or null, read back by `idbUnpack`
+  on every path) and `comments`. Memory has every project
   and is what the page reads: `save(pid, patch)` puts `cloneProj(patch)` into memory and emits at
   once (synchronously, as before), then queues a write (`queue`, per project, coalescing): one
   transaction reads the record and writes it, only the arrays not yet stored (`have`), and drops
@@ -1833,7 +1853,16 @@ graph first, with the taskbar kept at the bottom of the screen.
   column, dots per spot) and the outlier rings one. `geo.full` (`!!colEx`: every export, the
   clipboard, the report) draws every point; pictures on screen are decimated like the live
   graph. A drive compares the two drawings by what is inked: no pixel inked in one is blank in
-  the other for lines, areas, steps and bands; under 0.2 % for symbols and error bars. `axisTicks` honours
+  the other for lines, areas, steps and bands; under 0.2 % for symbols and error bars. On screen a
+  curve whose X runs one way (`xOrder`, memoised per list) reads only the points in view and two
+  beyond each side (`viewSlice(pts, geo)`, by halves; null in an export, for columns, or under
+  `DEC_MIN` points), a plain line of many points is decimated as it is read (`m4pts(pts, X, Y, w)`:
+  `m4`'s choice exactly, no pair per point), masked points are looked at only when there are some,
+  and the automatic view is worked out once per list (`autoViewOf`, `AUTOV`; a copy each time).
+  The status bar counts with `sbCount(d, logY, vr, mask)` (memoised per series), making no points.
+  `rawSeries` notices a copy by comparing values (`sameVals`, which stops at the first difference)
+  and, for a few values typed over (64 at most, each staying in or out of the series), changes the
+  series of before (its X and rows shared). `axisTicks` honours
   each axis's `min`, `max`, `step`, `minor`, `fmt` (auto, decimal, scientific) and `dec`. Ticks
   (`niceTicks`, `axisTicks`) are counted by index with a cap, never added up step by step, and
   `tickLabel` gives as many digits as the step needs (ticks 10⁹ apart on 1.7×10¹⁸ all differ).
@@ -3280,6 +3309,20 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   page overrides the rules that size a window's body.
 - **Past the edge of the browser a drag selects.** A window's corner dragged beyond the browser's
   window selected every word on the page. Moving and resizing set `user-select:none` on the page.
+- **A hash of everything on every key is a second at a million rows.** A typed value waited for
+  the SHA-256 of the whole table (its text built, encoded, hashed), then for a million point
+  objects made only to count them in the status bar, and for a key of every value made only to
+  notice a copy. The check code keeps its definition (`sha256sum` still reproduces it) and is
+  worked out in the background past 150 000 cells, settled before an export; the status bar
+  counts; a copy is noticed by comparing values, which stops at the first difference; and a few
+  values typed over change the series of before instead of building it again. A typed value: 1.5 s
+  before, 70 ms now.
+- **A store has more than one door.** Column values went into IndexedDB as one block of numbers;
+  the load read them back, but `stored()` (the tests' way in) did not, and the random user saw
+  columns stored as objects. Every read of the arrays goes through `idbUnpack`.
+- **A browser lays out only so tall.** At 22 px a row, a sheet of 1.6 million rows was taller than
+  Chrome's 2²⁵ px; the box stopped there and the last 75 000 rows could not be scrolled to. Past
+  15 000 000 px the scroll bar stands for the rows in proportion.
 - **A width with no limit becomes another layout.** The dock's edge dragged far left made the dock
   wider than the documents could stand beside, so it turned into a drawer over the whole desk,
   whose edge could not be dragged back. A size a person drags stops at the limit of the layout it
@@ -3770,9 +3813,10 @@ Next, in order:
    linear in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the
    files' header fields as rows of the worksheet, global fits in a worker
 8. More files: JCAMP-DX, then SPC; OPUS and SPE last
-9. Under the hood (projects in IndexedDB: done 05.11): `tools/odd-test.mjs` grown to run every
-   example end to end; the check code kept per column so a cell typed into a million rows is quick; the worksheet
-   drawing only the columns in view; speed with thousands of spectra
+9. Under the hood (projects in IndexedDB: done 05.11; a cell typed into a million rows quick, the
+   graph drawing what is in view, every row of a sheet reachable: done 05.11): `tools/odd-test.mjs`
+   grown to run every example end to end; the worksheet drawing only the columns in view; speed
+   with thousands of spectra
 10. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
    applied in one click, unread markers
 
@@ -3991,9 +4035,11 @@ Next, in order:
   centre, and an arrow's head to data points; nothing can be nudged with the keys
 - The fill handle and a range dragged past the grid's edge do not scroll it, as Excel's do: drag
   within the view, or select with Shift+click or Ctrl+Shift+arrows, or use the Fill dialog
-- Large data on screen: at a million points each zoom or pan draws in about a tenth of a second
-  (every point is read, not only those in view) and the worksheet scrolls at about 20 frames a
-  second. Past 3000 points a curve is drawn per column of pixels, so two points
+- Large data on screen: at a million points the whole curve draws in about 35 ms and a zoom into
+  a part of it in a few (only the points in view are read when X runs one way; when it does not,
+  every point is). The worksheet draws a screen of rows in about 14 ms however many there are;
+  past 680 000 rows (15 000 000 px) its scroll bar stands for the rows in proportion, so one pixel
+  of it is more than a row. Past 3000 points a curve is drawn per column of pixels, so two points
   within half a pixel are one symbol and a dashed line's dashes fall a little differently; the
   exports draw every point. A fit, the peak finder and the processing use every point, so a fit
   of 200 000 points takes seconds, run on the page
@@ -4003,8 +4049,9 @@ Next, in order:
   of a project (a graph's settings, the annotations) are put together whole, the later tab's
   winning; in a shared workspace (claude.ai) two colleagues' changes to the columns at the same
   moment still keep the later list. A browser with no IndexedDB keeps projects in localStorage,
-  a few megabytes in all. Typing into a column of a million rows takes most of a second (the
-  check code is the whole table's)
+  a few megabytes in all. A value typed into a column of a million rows is entered in about 70 ms;
+  its check code follows a second or so later, and the record shows *working it out…* until it
+  does; a processing step on that column runs again in full
 - Undo merges only the columns with what came in since from another tab or a colleague; the
   other parts a step puts back (graphs, annotations, fits, peak sets) are put back whole, so an
   undo there can take back another window's newer change to the same part

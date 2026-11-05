@@ -16,7 +16,7 @@ const grab = (tag) => {
 };
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n` +
   `return {PIPE_OPS,runPipe,orderWarnings,stepParams,whittaker,alsBaseline,arplsBaseline,airplsBaseline,modpolyBaseline,imodpolyBaseline,
-    snipBaseline,rollingBaseline,splineThrough,autoAnchors,despikeY,detectBands,bandWidthPts,suggestLam,sha256,rawText,hash32,decimate,
+    snipBaseline,rollingBaseline,splineThrough,autoAnchors,despikeY,detectBands,bandWidthPts,suggestLam,sha256,rawText,rawHashJob,rawHashRun,shaNew,shaUpdate,shaDigest,hash32,decimate,
     interpOnto,trapz,spacing,noiseSigma,fftFilter,serSig,stepPKey};`;
 const N = new Function(src)();
 
@@ -41,6 +41,15 @@ for (const s of ["", "abc", "a".repeat(1000), "x,y\n1,2\n3,\n", "Raman shift (cm
 check("raw text: rows of comma-separated values, blank for missing, trailing newline",
   N.rawText([[1, 2, 3], [0.1, null, 2e-7]]) === "1,0.1\n2,\n3,2e-7\n", JSON.stringify(N.rawText([[1, 2, 3], [0.1, null, 2e-7]])));
 check("raw text of nothing is empty", N.rawText([]) === "");
+{ // The check code worked out a stretch at a time is the hash of the whole text.
+  const a = Array.from({ length: 9000 }, (_, i) => i % 7 ? i * 0.37 : null), b = Array.from({ length: 8500 }, (_, i) => Math.sin(i) * 1e-9), c = [1, 2];
+  const want = createHash("sha256").update(N.rawText([a, b, c]), "utf8").digest("hex");
+  check("the check code in one run equals sha256sum of the text", N.rawHashRun(N.rawHashJob([a, b, c]), Infinity) === want);
+  const j = N.rawHashJob([a, b, c]); let runs = 0; while (N.rawHashRun(j, 0) == null) runs++;
+  check("the check code in stretches, paused after each, is the same", j.val === want && runs > 2, runs);
+  check("a table of no columns has no check code", N.rawHashRun(N.rawHashJob([]), Infinity) === "");
+  const s = N.shaNew(), t = new TextEncoder().encode("abc".repeat(100)); for (let i = 0; i < t.length; i += 7) N.shaUpdate(s, t.subarray(i, Math.min(t.length, i + 7)), Math.min(7, t.length - i));
+  check("SHA-256 fed seven bytes at a time", N.shaDigest(s) === createHash("sha256").update("abc".repeat(100)).digest("hex")); }
 
 /* ---------- penalised least squares ---------- */
 console.log("Whittaker");
