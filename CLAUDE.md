@@ -368,6 +368,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   i}`): a line within `tol` or `tolW` of the peak's FWHM, the nearest pairs first (equal ones to
   the stronger line), each line one peak at most; per peak `{line, j, d, alts}` (or `line:null`
   with alternatives taken by nearer peaks, or null), `n`, and `shift`, the median offset.
+  `nuclideSets(peaks, lines, {tol, tolW, lo, hi, eff, minRel})` (roadmap 3, slice 4) judges each
+  nuclide (lines sharing a name, with intensities) by its lines in the range at `minRel` (0.1) of its
+  strongest there or more: `present` (its strongest found and half of them), `unlikely` (some found,
+  not its strongest), `possible`; with peaks' areas (`a`, `sa`) the areas over efficiency
+  (`eff(E)`, %) × intensity, their χ² and spread (`ratio`); a peak another nuclide's line could also
+  be is `shared`. `{sets, m, shift}`, present first.
 - **Models** (`==MODELS:START/END==`, pure, after PIPE; `tools/fit-test.mjs` loads it with
   NUMERICS and PEAKS): the curve fit's 25 models (`ux/spec/FIT_SPEC.md` slice 3) in
   `MODEL_GROUPS`, six kinds (lines and polynomials, growth and decay, steps and saturation,
@@ -1579,6 +1585,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   each peak's FWHM with half the median as a floor), `identifyPeaks(c)` (`matchLines`, then each
   peak's annotation gets `line {x, name, lib, d}` and its label by `lineLabel`; a label typed
   by hand, `typed`, stays; one undo entry; `S.idLast` for the summary and the offset),
+  `nuclidesFor(c)` (the set's peaks, `idPeaksOf(c, rows)` each with the net counts of a counted
+  window around it, the spectrum's range, the efficiency curve) and `nuclideTableHtml(c)` (under
+  *Identify* once peaks are named: nuclide, verdict `NUC_V`, lines found of expected, the strongest,
+  whether the strengths agree; the lines and shared peaks on a line under each, `tr.rmore.show`);
+  `identifyPeaks` names a peak after a present nuclide's line in reach rather than an unlikely one's.
   `setPeakLine`/`peakLineMenu` (the table's Line column: the lines near a peak), and the copied
   table and the report carry the line and the peak's offset from it.
   `pkUndo` makes one undo entry per burst of the same kind of change.
@@ -3858,8 +3869,9 @@ Next, in order:
    kinds that need more columns, and setups remembered (all six slices done 29.10)
 3. Counting spectra, further: other analysers' files (Maestro .Spe with its calibration, N42: done
    05.11; CHN and CNF are binary), FWHM and efficiency against energy (done 05.11), net peak areas
-   over a local continuum with their counting errors and activities (done 05.11), a nuclide named by the set of its lines
-   (their intensity ratios, interferences), region edges dragged on the graph
+   over a local continuum with their counting errors and activities (done 05.11), a nuclide named by
+   the set of its lines (their intensity ratios, interferences: done 05.11), region edges dragged on
+   the graph
 4. Plots Origin has and Kurve lacks, further: a distribution fitted over a histogram (normal,
    log-normal) with its parameters; box charts of one column grouped by another, notched
    boxes; stacked and grouped bars with category names; per-row or per-column shared axes in a
@@ -3936,9 +3948,10 @@ Next, in order:
   background's √N at a peak's base, not a net-area significance
 - Regions are typed or added from the view or a drag; their edges cannot be dragged on the
   graph, and the Fit window's finder has none
-- Known lines are matched by position alone, nearest first: a nuclide's other lines and their
-  intensity ratios are not checked, nor interferences. Positions convert only among eV, keV and
-  MeV
+- Known lines name peaks by position, nearest first; a nuclide is then judged by the set of its
+  lines (found, missing, their strengths when counted windows give areas), but a shared peak's
+  counts are not divided between its nuclides, and a sum or escape peak is not recognised.
+  Positions convert only among eV, keV and MeV
 - Counting (the Integrate window's): the continuum under a line is a straight line through the
   channels at the window's edges (no step continuum, no fitted background); the emission
   probability is typed per window (or taken from nothing: a named line's intensity is not used yet);

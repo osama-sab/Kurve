@@ -16,7 +16,7 @@ const grab = (tag) => {
 // tools/pipe-test.mjs tests the rest of it. The curve fit's models are a block of
 // their own (MODELS), after the pipeline.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("MODELS")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,countBand,activityOf,effCurve,effAt,fwhmCurve,fwhmAt,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,countBand,activityOf,effCurve,effAt,fwhmCurve,fwhmAt,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,nuclideSets,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -540,6 +540,22 @@ function fitSpec(X, Y, spec, init, opts) {
   const mean = nets.reduce((p, v) => p + v, 0) / R, sd = Math.sqrt(nets.reduce((p, v) => p + (v - mean) ** 2, 0) / (R - 1)), me = errs.reduce((p, v) => p + v, 0) / R;
   check("counting: unbiased, its error the scatter of 1500 repeats within 6 %", Math.abs(mean - 2000) < 3 * sd / Math.sqrt(R) + 1 && Math.abs(me / sd - 1) < 0.06, JSON.stringify([mean, sd, me]));
   check("counting: on a continuum alone, about 5 % called detected (3 % to 7.5 %)", fp / R > 0.03 && fp / R < 0.075, fp / R);
+}
+/* ---------- a nuclide named by the set of its lines ---------- */
+{
+  const L = [["Bi", 609.3, 45], ["Bi", 1120.3, 15], ["Bi", 1764.5, 15], ["Bi", 2204.1, 5], ["Bi", 3053.9, 0.02], ["Cs", 661.7, 85], ["Tl", 583.2, 85], ["Tl", 2614.5, 99.8], ["Tl", 860.6, 12.5], ["X", 1120.0, 10], ["X", 2000, 90], ["Ann", 511, null]].map(([name, x, i]) => ({ name, x, i }));
+  const eff = E => 10 * (E / 100) ** -0.8, area = (E, i) => 1e5 * eff(E) * i / 100;
+  const pk = [[609.4, 45], [1120.2, 15], [1764.6, 15], [661.8, 85], [860.5, 12.5]].map(([x, i]) => ({ x, w: 1.5, a: area(x, i), sa: 0.02 * area(x, i) }));
+  const r = N.nuclideSets(pk, L, { tol: 1, lo: 50, hi: 3000, eff });
+  const by = Object.fromEntries(r.sets.map(q => [q.name, q]));
+  check("nuclides: Bi present (its strongest and 3 of 4 lines), Cs present, Tl unlikely (its strongest missing)", by.Bi.verdict === "present" && by.Bi.found === 3 && by.Bi.of === 4 && by.Cs.verdict === "present" && by.Tl.verdict === "unlikely", JSON.stringify(r.sets.map(q => [q.name, q.verdict, q.found, q.of])));
+  check("nuclides: present first, the most lines first; one without a peak not listed; a line below a tenth not expected", r.sets.map(q => q.name).join() === "Bi,Cs,Tl" && !by.X && by.Bi.lines.every(q => q.x !== 3053.9));
+  check("nuclides: a peak another nuclide's line could also be is shared", by.Bi.shared.length === 1 && by.Bi.shared[0].x === 1120.3 && by.Bi.shared[0].with.join() === "X", JSON.stringify(by.Bi.shared));
+  check("nuclides: strengths from one nuclide agree (χ² per degree of freedom near 0)", by.Bi.ratio && by.Bi.ratio.n === 3 && by.Bi.ratio.chi2 / by.Bi.ratio.dof < 0.5 && Math.abs(by.Bi.ratio.spread - 1) < 0.01, JSON.stringify(by.Bi.ratio));
+  const bad = pk.map((q, k) => k === 2 ? Object.assign({}, q, { a: q.a * 3, sa: q.sa * 3 }) : q), r2 = N.nuclideSets(bad, L, { tol: 1, lo: 50, hi: 3000, eff }), b2 = r2.sets.find(q => q.name === "Bi");
+  check("nuclides: a line three times too strong makes them disagree", b2.ratio.chi2 / b2.ratio.dof > 10 && b2.ratio.spread > 2.9, JSON.stringify(b2.ratio));
+  const nr = N.nuclideSets(pk.map(q => ({ x: q.x, w: q.w })), L, { tol: 1, lo: 50, hi: 1000 });
+  check("nuclides: in a narrower range, the lines beyond it not expected; no areas, no strengths", nr.sets.find(q => q.name === "Bi").of === 1 && nr.sets.find(q => q.name === "Tl").verdict === "unlikely" && nr.sets.every(q => !q.ratio), JSON.stringify(nr.sets.map(q => [q.name, q.verdict, q.of])));
 }
 /* ---------- a detector's efficiency and resolution against energy ---------- */
 {

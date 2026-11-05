@@ -865,6 +865,10 @@ table.rtab{border-collapse:collapse;font-size:var(--fs-tab);width:100%}
 @container (max-width: 520px){ .rtab td.l{white-space:normal;min-width:9em} .rtab td.l>.lab{display:block} }
 /* And the parameters' t, p, interval and dependency, and a peak's shape, height, FWHM and share, go on a line under it. */
 .rtab tr.rmore{display:none}
+.rtab tr.rmore.show{display:table-row}
+.rtab.nuctab td.good{color:var(--ok);font-weight:600}
+.rtab.nuctab td.bad,.rtab.nuctab .bad{color:var(--bad)}
+.gh.nuch{margin-top:var(--sp-5)}
 .rtab input.ignum{width:4.5em;text-align:right;font-family:var(--mono)}
 .rtab input.ignum.fromcv::placeholder{color:var(--ink-2);font-style:italic}
 .rtab .warnc{color:var(--warn)}
@@ -874,7 +878,7 @@ table.rtab{border-collapse:collapse;font-size:var(--fs-tab);width:100%}
 .dcpv{flex:0 0 auto}
 .dcsvg{display:block;background:var(--panel-2);border-radius:var(--r)}
 @container (max-width: 520px){
-  .rtab.rpar .x,.rtab.rpk .x,.rtab.igcnt .x{display:none}
+  .rtab.rpar .x,.rtab.rpk .x,.rtab.igcnt .x,.rtab.nuctab .x{display:none}
   .rtab tr.rmore{display:table-row}
   .rtab tr.rmain:has(+tr.rmore) td{border-bottom:0;padding-bottom:var(--sp-1)}
   .rtab tr.rmore td{text-align:left;white-space:normal;color:var(--muted);font-size:var(--fs-cap);padding-top:0}
@@ -3719,6 +3723,34 @@ function matchLines(peaks,lines,o){
   const ds=m.filter(v=>v&&v.line).map(v=>v.d).sort((a,b)=>a-b), h=ds.length>>1;
   return {m, n:ds.length, shift:ds.length?(ds.length%2?ds[h]:(ds[h-1]+ds[h])/2):null};
 }
+/* A nuclide named by the set of its lines (roadmap 3, slice 4). matchLines names each peak; each
+   nuclide (the lines sharing a name and with intensities) is then judged by the lines it should show
+   in the spectrum's range (o.lo to o.hi), those at o.minRel (a tenth) of its strongest there or more:
+   present when its strongest is found and at least half of them; unlikely when some are found but
+   not its strongest; possible otherwise. With each peak's area (`a`, its error `sa`) the areas over
+   efficiency × intensity should agree (`o.eff(E)` in %, else 1): their χ² per degree of freedom when
+   every area has an error, and their spread (largest over smallest). A peak in reach of another
+   nuclide's line is shared, said for both. {sets:[{name, verdict, lines:[{x, i, k, d, shared}],
+   found, of, ratio, shared}], m, shift}, present first. */
+function nuclideSets(peaks,lines,o){
+  o=o||{}; const mr=matchLines(peaks,lines,o), lo=o.lo!=null?o.lo:-Infinity, hi=o.hi!=null?o.hi:Infinity, minRel=o.minRel!=null?o.minRel:0.1, eff=o.eff||null;
+  const byLine=new Map(); mr.m.forEach((v,k)=>{ if(v&&v.line) byLine.set(v.j,k); });
+  const could=mr.m.map(v=>v?[v.line].concat((v.alts||[]).map(a=>a.line)).filter(Boolean).map(l=>l.name):[]);
+  const groups=new Map(); (lines||[]).forEach((l,j)=>{ if(!l||!(+l.i>0)||!l.name) return; if(!groups.has(l.name)) groups.set(l.name,[]); groups.get(l.name).push(j); });
+  const sets=[];
+  groups.forEach((js,name)=>{
+    const inR=js.filter(j=>+lines[j].x>=lo&&+lines[j].x<=hi); if(!inR.length) return;
+    const top=Math.max(...inR.map(j=>+lines[j].i)), exp=inR.filter(j=>+lines[j].i>=minRel*top).sort((a,b)=>lines[b].i-lines[a].i);
+    const L=exp.map(j=>{ const k=byLine.has(j)?byLine.get(j):null; return {x:+lines[j].x,i:+lines[j].i,k,d:k!=null?mr.m[k].d:null,shared:k!=null?[...new Set(could[k])].filter(n=>n!==name):[]}; });
+    const found=L.filter(q=>q.k!=null); if(!found.length) return;
+    const verdict=L[0].k!=null&&found.length>=Math.ceil(L.length/2)?"present":L[0].k==null?"unlikely":"possible";
+    let ratio=null; const qs=found.map(q=>{ const pk=peaks[q.k], e=eff?eff(q.x):1; return pk&&pk.a>0&&e>0?{v:pk.a/(e*q.i),s:pk.sa>0?pk.sa/(e*q.i):null}:null; }).filter(Boolean);
+    if(qs.length>=2){ const vs=qs.map(q=>q.v); ratio={n:qs.length,spread:Math.max(...vs)/Math.min(...vs),eff:!!eff,chi2:null,dof:qs.length-1};
+      if(qs.every(q=>q.s>0)){ const W=qs.map(q=>1/q.s**2), sw=W.reduce((a,b)=>a+b,0), m=qs.reduce((s,q,i)=>s+W[i]*q.v,0)/sw; ratio.chi2=qs.reduce((s,q,i)=>s+W[i]*(q.v-m)**2,0); ratio.mean=m; } }
+    sets.push({name,verdict,lines:L,found:found.length,of:L.length,ratio,shared:found.filter(q=>q.shared.length).map(q=>({x:q.x,with:q.shared}))}); });
+  const rank={present:0,possible:1,unlikely:2};
+  sets.sort((a,b)=>rank[a.verdict]-rank[b.verdict]||b.found-a.found||(a.name<b.name?-1:a.name>b.name?1:0));
+  return {sets,m:mr.m,shift:mr.shift}; }
 /* ==PEAKS:END== */
 
 /* ============================================================
@@ -18963,11 +18995,33 @@ function lineLabel(l,how,xu){ const e=fmt(+l.x.toPrecision(6),6); return how==="
    the nearest line within the tolerance, in the label form chosen. A label
    typed by hand stays unless asked otherwise; a name that came from a line
    and no longer matches goes. One undo entry. */
+// The nuclides in a table: each with how many of its lines are found, its strongest, whether the lines'
+// strengths agree, and what it shares; the lines themselves and the shared peaks on a line under it.
+const NUC_V={present:["Present","good"],possible:["Possible",""],unlikely:["Unlikely","bad"]};
+function nuclideTableHtml(c){ const ns=nuclidesFor(c); if(!ns||!ns.sets.length) return "";
+  const xu=ns.xu, u=xu?" "+xu:"", f=v=>esc(fmt(v,6));
+  const str=r=>!r?"—":r.chi2!=null?(r.chi2/r.dof<=3?`agree <span class="lab">(χ²/dof ${esc(fmt(r.chi2/r.dof,2))})</span>`:`<span class="bad">disagree</span> <span class="lab">(χ²/dof ${esc(fmt(r.chi2/r.dof,2))})</span>`):`within ×${esc(fmt(r.spread,3))}`;
+  return `<h4 class="gh nuch">Nuclides <span class="lab">by the sets of their lines</span></h4><div class="twrap"><table class="rtab nuctab"><thead><tr><th class="l">Nuclide</th><th class="l">Verdict</th><th title="Its lines in this range at a tenth of its strongest or more, and how many have a peak">Lines</th><th class="x" title="The strongest of its lines in this range">Strongest${xu?` <span class="unit">(${esc(xu)})</span>`:""}</th><th class="x l" title="Each line's area over efficiency × intensity: from one nuclide they agree (areas from counted windows${detCurve("eff",xu)?"; the efficiency from the detector's curve":""})">Strengths</th></tr></thead><tbody>`+
+    ns.sets.map(s=>{ const v=NUC_V[s.verdict], st=s.lines[0];
+      const lines=s.lines.map(q=>`${f(q.x)}${q.k!=null?" ✓":" —"}`).join(" · "), sh=s.shared.length?` · shared: ${s.shared.map(q=>`${f(q.x)}${u} also ${q.with.map(esc).join(", ")}`).join("; ")}`:"";
+      return `<tr class="rmain"><td class="l">${esc(s.name)}</td><td class="l${v[1]?" "+v[1]:""}">${v[0]}</td><td>${s.found} of ${s.of}</td><td class="x">${f(st.x)}${st.k!=null?" ✓":" missing"}</td><td class="x l">${str(s.ratio)}</td></tr>`
+        +`<tr class="rmore show"><td colspan="5">${lines}${s.ratio?` · strengths ${str(s.ratio)}`:""}${sh}</td></tr>`; }).join("")+`</tbody></table></div>`; }
+// The peaks of a spectrum's set, with the net counts of a counted window around each when there is one.
+function idPeaksOf(c,rows){ const res=bandCalc(c);
+  return rows.map(r=>{ const q=res.find(z=>z.cnt&&!z.cnt.fail&&r.x>=Math.min(z.b.x1,z.b.x2)&&r.x<=Math.max(z.b.x1,z.b.x2)); return {x:r.x,w:r.w,a:q?q.cnt.N:null,sa:q?q.cnt.sigN:null}; }); }
+// The nuclides a spectrum's peaks name, by the sets of their lines (roadmap 3, slice 4).
+function nuclidesFor(c){ const f=foundOf(c), rows=f?peakRows(c):[], io=idfOpts(), lib=lineLib(io.lib), d=finalOf(c), xu=d.xu||"";
+  if(!rows.length) return null; const L=linesFor(lib,xu); if(L.err) return null;
+  const xs=d.x.filter(Number.isFinite), lo=amin(xs), hi=amax(xs), ec=detCurve("eff",xu);
+  return Object.assign(nuclideSets(idPeaksOf(c,rows),L.lines,Object.assign({},idMatchOpts(io,rows,d),{lo,hi,eff:ec?(E=>{ const r=effAt(ec,E); return r?r.v:null; }):null})),{lib,xu,rows}); }
 function identifyPeaks(c){
   c=c||activeYCol(); const p=P(), f=foundOf(c), rows=f?peakRows(c):[], io=idfOpts(), lib=lineLib(io.lib), d=finalOf(c), xu=d.xu||"";
   if(!p||!c||!rows.length||S.readOnly) return null;
   const L=linesFor(lib,xu); if(L.err){ toast(L.err); return null; }
   const mo=idMatchOpts(io,rows,d), tol=mo.tol, r=matchLines(rows.map(q=>({x:q.x,w:q.w})),L.lines,mo);
+  // A peak named after a nuclide judged unlikely, with a present one's line in reach, takes that line.
+  { const ns=nuclidesFor(c), vd=new Map(ns?ns.sets.map(s=>[s.name,s.verdict]):[]);
+    r.m.forEach((v,k)=>{ if(!v||!v.line||vd.get(v.line.name)!=="unlikely") return; const alt=(v.alts||[]).find(a=>a.line&&vd.get(a.line.name)==="present"&&!r.m.some(w=>w&&w.line===a.line)); if(alt) r.m[k]=Object.assign({},v,{line:alt.line,j:alt.j,d:alt.d}); }); }
   const st=Object.assign({},PK_STYLE,f.style), at=new Map(rows.map((q,i)=>[q.a.id,i])); let n=0, kept=0;
   const annos=(p.annos||[]).map(a=>{ const i=at.get(a.id); if(i==null) return a; const m=r.m[i];
     if(io.keep!==false&&a.lab&&(a.typed||!a.line)){ kept++; return a; }
@@ -19428,6 +19482,7 @@ function renderPeaks(){
       ${L.err?noteHtml("warn",L.err,true):""}
       <div class="actions"><button class="btn sm primary" id="idGo"${ro||L.err?" disabled":""}>${ICON("tag","sm")}Identify</button>${named?`<button class="btn sm ghost" id="idClear"${ro}>Remove names</button>`:""}</div>
       ${last?`<p class="hint">${last.n} of ${last.of} named ${last.byW?"within each peak's FWHM":`within ±${esc(fmt(last.tol,3))}${xu?" "+esc(xu):""}`}${last.kept?`, ${last.kept} typed by hand kept`:""}${last.un?`; ${last.un} had only lines already taken by nearer peaks`:""}.${last.shift!=null&&Math.abs(last.shift)>0.25*last.tol?` The peaks sit ${esc(fmt(Math.abs(last.shift),2))}${xu?" "+esc(xu):""} ${last.shift>0?"above":"below"} their lines (median): the calibration may be off by that much.`:""}</p>`:""}
+      ${named?nuclideTableHtml(c):""}
     </div></details>`; }
   const MT=f?markedTracks(d.xu||""):null;
   if(MT&&MT.cols.length>1&&MT.tracks.length){ const mine=new Set(rows.map(r=>r.a.id));
@@ -21371,6 +21426,9 @@ ${DL([["Mark","A symbol, a drop line, a vertical line, a leader, or nothing."],[
 <p><em>Identify</em> gives each peak the name of the nearest line in a list, if the line is within reach: positions are never exact (a calibration is off by a little), so a peak may sit some way from its line and still take its name.</p>
 ${DL([["Lines","Kurve's lists: the natural background (the gamma lines of the uranium and thorium series, ⁴⁰K, ¹³⁷Cs, annihilation, lead X-rays) and calibration sources, with energies in keV; or <em>Custom list…</em>: paste or read from a file one line per entry, a name and a position in either order, with an intensity if you have it (<code>Bi-214, 609.31, 45.5</code> or <code>609.31 ²¹⁴Bi</code>). Your lists are kept with the project."],["Tolerance ±","How far a peak may be from a line. Empty: each peak's own FWHM, which grows with energy."],["Label","The line's name, its name and position, or its position."],["Keep manual labels","A label you typed stays; a name that came from a line is replaced."]])}
 <p>The nearest pairs are matched first, and a line names one peak at most, so the two peaks of a doublet do not take one line. A <em>Line</em> column in the table shows each peak's line and how far it sits from it; click it for the other lines nearby, or none. After naming, the window says how far the peaks sit from their lines on average: an offset larger than a quarter of the tolerance suggests the calibration is off.</p>
+<h2 id="nuclides">Nuclides by the sets of their lines</h2>
+<p>Once peaks are named, <em>Nuclides</em> under <em>Identify</em> judges each nuclide by all of its lines in the spectrum's range that are at least a tenth as strong as its strongest there, not by one peak:</p>
+${DL([["Present","Its strongest line has a peak, and at least half of those lines do."],["Possible","Some lines have peaks, its strongest too, but fewer than half."],["Unlikely","Some lines have peaks but not its strongest: a weaker line alone is more likely another nuclide's. A peak that a present nuclide's line could also be is named after that one."],["Strengths","With counted windows around the peaks ("+DA("integ#counting","Counting")+"), each line's net counts over efficiency × intensity: lines of one nuclide agree (χ² per degree of freedom near 1; the efficiency from the "+DA("detcal","detector's curve")+", else only their spread is shown)."],["Shared","A peak another nuclide's line could also be: its counts may be both nuclides'."]])}
 <h2>Following the processing</h2>
 <p>When the spectrum's processing changes, the set is found again with its own settings, and your labels stay with the peaks that are still there, even through a change of X units. A label whose peak is no longer found is kept, and comes back when it is. Untick <em>Auto-update</em> (in <em>Settings</em>) to freeze the set.</p>
 <h2 id="across">Across the spectra</h2>

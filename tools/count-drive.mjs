@@ -160,6 +160,34 @@ await page(async p => {
   check("the report names the curve", await p.evaluate(() => /efficiency curve's \(ln ε of degree 2 in ln E, 3 points\)/.test(reportBandsHtml())));
 }, { name: "the detector's curves", timeout: 120000 });
 
+console.log("Slice 4: a nuclide named by the set of its lines");
+await page(async p => {
+  // A background spectrum, 0.75 keV a channel: ²¹⁴Bi's six strong lines, ¹³⁷Cs, and ²⁰⁸Tl's 860 keV line alone.
+  const eff = E => 6 * (E / 200) ** -0.9, fw = E => Math.sqrt(1 + 0.002 * E);
+  const L = [[609.31, 45.49], [768.36, 4.89], [1120.29, 14.91], [1238.11, 5.83], [1764.49, 15.31], [2204.21, 4.91], [661.66, 85.1], [860.56, 12.5]];
+  let sd = 9; const u = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+  const counts = Array.from({ length: 4096 }, (_, ch) => { const E = 0.75 * ch; let m = 300 * Math.exp(-E / 400) + 15; L.forEach(([x, i]) => { m += 45 * i * eff(x) / fw(x) * Math.exp(-0.5 * ((E - x) / (fw(x) / 2.3548)) ** 2); }); return Math.max(0, Math.round(m + Math.sqrt(m) * Math.sqrt(-2 * Math.log(u() || 1e-12)) * Math.cos(2 * Math.PI * u()))); });
+  const text = ["$SPEC_ID:", "Background", "$MEAS_TIM:", "80000 80400", "$DATA:", "0 4095", ...counts.map(String), "$MCA_CAL:", "2", "0 0.75 keV"].join("\n");
+  await p.evaluate(t => autoImport([{ name: "bg.spe", text: t }]), text); await p.waitForTimeout(1200);
+  await p.evaluate(() => { S.pkIdOpen = true; openPeakFinder(); }); await p.waitForTimeout(800);
+  await p.evaluate(() => findPeaksInto()); await p.waitForTimeout(800);
+  await p.evaluate(() => { S.idf = Object.assign(idfOpts(), { lib: "gbg" }); identifyPeaks(activeYCol()); }); await p.waitForTimeout(800);
+  const r = await p.evaluate(() => { const ns = nuclidesFor(activeYCol()); return { sets: ns.sets.map(s => [s.name, s.verdict, s.found, s.of]), html: (document.querySelector("#pkId .nuctab") || {}).innerText || "" }; });
+  const v = n => (r.sets.find(s => s[0] === n) || [])[1];
+  check("²¹⁴Bi present (6 of its 6 strong lines), ¹³⁷Cs present, ²⁰⁸Tl unlikely: its strongest lines are missing", v("²¹⁴Bi") === "present" && (r.sets.find(s => s[0] === "²¹⁴Bi") || [])[2] === 6 && v("¹³⁷Cs") === "present" && v("²⁰⁸Tl") === "unlikely", JSON.stringify(r.sets));
+  check("the Peaks window's Identify part lists them, present first", /^Nuclide/.test(r.html) && /214Bi\s+Present[\s\S]*137Cs\s+Present[\s\S]*208Tl\s+Unlikely/.test(r.html), r.html.slice(0, 300));
+  // With counted windows and the detector's efficiency, the strengths of one nuclide's lines agree.
+  await p.evaluate(() => bandsFromPeaksUI()); await p.waitForTimeout(800);
+  const noEff = await p.evaluate(() => nuclidesFor(activeYCol()).sets.find(s => s.name === "²¹⁴Bi").ratio);
+  await p.evaluate(() => { const f = E => 6 * (E / 200) ** -0.9; save({ detcal: { eff: { pts: [100, 300, 600, 1200, 2400].map(E => ({ E, eff: f(E) })), deg: 1, xu: "keV" } } }, "efficiency"); }); await p.waitForTimeout(300);
+  const withEff = await p.evaluate(() => nuclidesFor(activeYCol()).sets.find(s => s.name === "²¹⁴Bi").ratio);
+  check("with no efficiency the strengths spread with energy; with the detector's curve they agree", noEff && noEff.spread > 2 && withEff && withEff.chi2 != null && withEff.chi2 / withEff.dof < 3 && withEff.spread < 1.4, JSON.stringify([noEff, withEff]));
+  await p.evaluate(() => renderPeaks()); await p.waitForTimeout(200);
+  check("…said in the table", /agree/.test(await p.evaluate(() => document.querySelector("#pkId .nuctab").innerText)));
+  const w = await p.evaluate(() => { const t = document.querySelector("#pkId .nuctab"), b = document.querySelector("#w-peaks .win-b"); return [Math.round(t.getBoundingClientRect().width), b.clientWidth]; });
+  check("in the dock the table fits", w[0] <= w[1], JSON.stringify(w));
+}, { name: "nuclides", timeout: 120000 });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

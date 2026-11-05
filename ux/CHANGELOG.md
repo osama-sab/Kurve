@@ -1024,6 +1024,23 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Counting spectra, slice 4: a nuclide named by the set of its lines (2026-11-05)
+
+- **Nuclides** under the Peaks window's *Identify*: each nuclide whose lines name peaks is judged by
+  all its lines in the spectrum's range at a tenth of its strongest or more: *Present* (its strongest
+  and half of them found), *Possible*, or *Unlikely* (its strongest missing), with the lines found
+  and missing listed.
+- **Strengths**: with counted windows around the peaks, each line's net counts over efficiency ×
+  intensity; from one nuclide they agree (χ² per degree of freedom, with the detector's efficiency
+  curve; else their spread).
+- **Interferences**: a peak another nuclide's line could also be is marked shared, and naming takes a
+  present nuclide's line over an unlikely one's.
+
+Checked: `tools/fit-test.mjs` (6 new: present, possible and unlikely sets, the order, a shared peak,
+strengths that agree and a line three times too strong, a narrower range), `tools/count-drive.mjs`
+(6 new: a background spectrum's ²¹⁴Bi and ¹³⁷Cs present and a lone ²⁰⁸Tl line unlikely, the table,
+the strengths with and without the efficiency curve, the dock), a screenshot.
+
 ## Counting spectra, slice 3: the detector's efficiency and resolution (2026-11-05)
 
 - **Analyze › Spectroscopy › Detector** has *Efficiency against energy…* and *Resolution against

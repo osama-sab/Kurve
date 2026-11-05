@@ -889,6 +889,21 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-05: counting spectra, slice 4 (a nuclide by the set of its lines)
+
+- **A nuclide is its lines, not one peak.** Naming each peak after the nearest line made a single
+  weak line enough to "find" a nuclide whose strong lines were nowhere. Under *Identify*, each
+  nuclide is now judged by its lines in the spectrum's range at a tenth of its strongest or more:
+  present, possible, or unlikely when its strongest line is missing; the lines found and missing
+  are listed under it. The verdict words are plain and coloured (present green, unlikely red), the
+  reason in the line beneath.
+- **Strengths agree or not.** With counted windows (and the detector's efficiency curve), the lines
+  of one nuclide must give the same activity: χ² per degree of freedom, or only their spread when
+  no efficiency is known (it changes with energy, so a spread then is not a verdict).
+- **A shared peak is said**, for both nuclides, and naming prefers a present nuclide's line to an
+  unlikely one's when both are in reach. Its counts are not divided between them; that is a fit's
+  job.
+
 ### 2026-11-05: counting spectra, slice 3 (the detector's efficiency and resolution)
 
 - **A curve, not a number per window.** An efficiency typed into each window does not carry from one
