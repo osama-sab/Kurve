@@ -874,6 +874,35 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-05: a day of lab work (heavy files, tabs, windows, rows)
+
+- **Nothing a person imports is lost to the browser's storage.** Projects are kept in IndexedDB,
+  as large as the browser lets a page be, not in localStorage's few megabytes; a million-row scan
+  had been "Not saved" and gone after a reload. When the browser does refuse a write, the status
+  bar says Not saved for that project whenever it is shown (not Saved because another project
+  was), and leaving the page asks first: a quiet status word is not enough warning for a loss.
+- **Size costs nothing where it need not.** A change to a large project is written as that change
+  (a column's values only when they are new), and the page's copy shares the values with the
+  store's, so renaming a project of a million rows takes a moment, not a second.
+- **Two windows of one project are one project.** Two tabs typing in two columns at once keep
+  both, column by column and cell by cell; the same cell keeps the later value, as a shared
+  spreadsheet does.
+- **The keys follow the pointer into a window**, as on a desktop: a press on a graph's numbers or a
+  title bar gives that window the keys, so Delete or Ctrl+V pressed while looking at the graph
+  does not change cells behind it. What the press focused itself (a field, a button) keeps it.
+- **Rows are sized as columns are**, by the line under a row number, all the data rows of the
+  sheet at once (a person sizes rows to read them, and one row taller than its neighbours is
+  rarely the point); the line follows the pointer, a double click gives 22 px back, and the
+  height is the sheet's, kept with the project.
+- **Moving a window selects nothing**, even when the pointer leaves the browser's window.
+- **The dock's edge stops where the documents would lose their room** (780 px, a graph and a
+  worksheet side by side) instead of turning the dock into a drawer over the whole desk.
+- **A window of its own is laid out as itself** at any width, not as the main window's phone
+  layout.
+- **Counts read as counts**: 1 000 000 rows, grouped by narrow spaces past ten thousand.
+- **Error columns are found in the languages lab files come in** (Fehler, Std.Abw., erreur,
+  incertitude, errore, incertidumbre), not only English.
+
 ### 2026-10-29: the user's reports: sheets, linked zoom, the readers' card
 
 - **A new sheet's empty columns give way.** They are there so a sheet can be typed into at once;

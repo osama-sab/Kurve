@@ -301,6 +301,8 @@ input[type=range]:disabled{opacity:.45;cursor:not-allowed}
 .ws table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:var(--fs-body);font-variant-numeric:tabular-nums}
 .ws th,.ws td{border-right:1px solid var(--ws-grid);border-bottom:1px solid var(--ws-grid);padding:0 var(--sp-3);height:22px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ws thead th,.ws thead td{position:sticky;z-index:2;background:var(--panel-2)}
+.ws tbody tr.dr>th,.ws tbody tr.dr>td{height:var(--ws-rh,22px)}
+.ws th.rh .rzr{position:absolute;left:0;right:0;bottom:-3px;height:7px;cursor:row-resize;z-index:3}
 .ws thead tr.hr1 th{height:22px;border-bottom-color:var(--rule)}
 .ws th.corner{left:0;z-index:5;background:var(--panel-3);cursor:pointer;padding:0;text-align:right}
 .ws .wsrows{height:20px;min-width:22px;padding:0 var(--sp-2);border:1px solid transparent;border-radius:var(--r-s);background:transparent;color:var(--ink-2);font:600 var(--fs-tab)/1 var(--sans);cursor:pointer;margin-right:var(--sp-1)}
@@ -309,7 +311,7 @@ input[type=range]:disabled{opacity:.45;cursor:not-allowed}
 .ws .hc{display:flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-1) 0 var(--sp-3);height:21px;cursor:pointer}
 .ws .hc .cl{font-weight:700}
 .ws .hc .cd{color:var(--muted);font-weight:500;font-size:var(--fs-tab)}
-.ws .hc .hoff{font-size:var(--fs-cap);font-style:italic}
+.ws .hc .hoff{font-size:var(--fs-cap);font-style:italic;min-width:0;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ws .hc .cm{margin-left:auto;color:var(--muted)}
 .ws th.ch.act .hc{box-shadow:inset 0 -2px 0 var(--accent)}
 .ws th.ch.act .cl{color:var(--accent)}
@@ -348,6 +350,8 @@ body.colmoving,body.colmoving *{cursor:grabbing!important;user-select:none}
 .ws td.fixed{box-shadow:inset 3px 0 0 var(--warn);text-decoration:line-through;color:var(--muted)}
 .ws td.fixed.cur{box-shadow:inset 0 0 0 2px var(--accent),inset 5px 0 0 var(--warn)}
 body.colresize,body.colresize *{cursor:col-resize!important;user-select:none}
+body.rowresize,body.rowresize *{cursor:row-resize!important;user-select:none}
+body.winmoving,body.winmoving *{user-select:none!important}
 body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .ws td.calc{color:var(--ink-2);background:color-mix(in srgb,var(--accent) 4%,var(--panel))}
 .ws .fxm{font:italic 700 var(--fs-cap) var(--mono);color:var(--accent);padding:0 var(--sp-1)}
@@ -473,6 +477,10 @@ body.dwin-page{margin:0;height:100vh;overflow:hidden;background:var(--panel);col
 .dwin .dwin-w>.win-b{flex:1 1 auto;min-height:0}
 .dwin .dwin-w>.win-b.dgraph{background:var(--well);overflow:hidden;cursor:crosshair;touch-action:none}
 .dwin .dgraph>svg{display:block}
+@media (max-width: 860px){
+  body.dwin-page .dwin .dwin-w>.win-b{height:auto!important;min-height:0!important;max-height:none!important;flex:1 1 auto!important;overflow:auto!important}
+  body.dwin-page .dwin .dwin-w>.win-b.dgraph{overflow:hidden!important}
+}
 /* The taskbar's button of a window on another display: a dashed edge, no pill, the display's tag. */
 .tk.away{border:1px dashed var(--rule);background:transparent}
 .tk.away::after{display:none}
@@ -4794,11 +4802,13 @@ function sha256(str){
   }
   return [h0,h1,h2,h3,h4,h5,h6,h7].map(v=>(v>>>0).toString(16).padStart(8,"0")).join("");
 }
-// The canonical text of a table of columns (arrays with nulls), as hashed.
+// The canonical text of a table of columns (arrays with nulls), as hashed. No row makes an array of
+// its own (a million rows made a million arrays, most of the time a typed cell took); nothing is
+// kept (a text of every value would be several times the values' memory).
 function rawText(cols){
-  const n=cols.reduce((m,c)=>Math.max(m,c.length),0), lines=[];
-  for(let i=0;i<n;i++) lines.push(cols.map(c=>c[i]==null?"":String(c[i])).join(","));
-  return lines.length?lines.join("\n")+"\n":"";
+  const n=cols.reduce((m,c)=>Math.max(m,c.length),0), k=cols.length, lines=new Array(n), s=v=>v==null?"":String(v);
+  for(let i=0;i<n;i++){ let l=s(cols[0][i]); for(let j=1;j<k;j++) l+=","+s(cols[j][i]); lines[i]=l; }
+  return n?lines.join("\n")+"\n":"";
 }
 // A quick 32-bit hash for signatures that only need to notice a change.
 function hash32(s){ let h=0x811c9dc5; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,0x01000193); } return (h>>>0).toString(36); }
@@ -5847,6 +5857,9 @@ function detectPaired(cols){
 /* A column named as an axis is named after what was set, not measured: a time, a
    wavelength, a concentration. Read as X when no column rises or falls steadily. */
 const X_NAME=/^\s*(x|t|time|elapsed|wavelength|wave\s*number|wavenumber|raman\s*shift|shift|energy|binding\s*energy|channel|frequency|freq|temperature|temp|position|distance|depth|angle|2\s*theta|2θ|potential|voltage|field|concentration|conc|dose|date|day|hour|minute|second|cycle|scan|index|row|n)\b/i;
+// An error column's name, in the languages lab files come in (err, sd, sigma, σ, uncertainty;
+// Fehler, Std.Abw., Unsicherheit; erreur, incertitude; errore, incertezza; incertidumbre).
+const ERR_NAME=/(^|[\s_.(-])(err|error|errors|sd|std|stdev|sigma|σ|dev|unc|uncertainty|fehler|messfehler|stabw|stdabw|std\.?\s?abw|unsicherheit|erreur|incertitude|errore|incertezza|incertidumbre)([\s_.)-]|$)/i;
 function detectRoles(header,cols){
   const n=cols.length, roles=new Array(n).fill("y");
   // One column has nothing to be plotted against but its row number (xi -1).
@@ -5856,9 +5869,9 @@ function detectRoles(header,cols){
   // groups of measurements side by side have no X, and making the first one X lost it.
   let xi=cols.findIndex(c=>isMonotonic(c)!==0);
   if(xi<0&&header) xi=header.findIndex((h,i)=>X_NAME.test(String(h||""))&&!/err|error|unc|sigma|σ|\bsd\b/i.test(String(h||""))&&cols[i]&&cols[i].some(v=>v!=null));
-  if(xi<0){ if(header) header.forEach((h,i)=>{ if(/(^|[\s_-])(err|error|sd|std|stdev|sigma|σ|dev|unc|uncertainty)([\s_-]|$)/i.test(String(h))) roles[i]="e"; }); return {roles,xi:-1}; }
+  if(xi<0){ if(header) header.forEach((h,i)=>{ if(ERR_NAME.test(String(h))) roles[i]="e"; }); return {roles,xi:-1}; }
   roles[xi]="x";
-  if(header) header.forEach((h,i)=>{ if(i!==xi&&/(^|[\s_-])(err|error|sd|std|stdev|sigma|σ|dev|unc|uncertainty)([\s_-]|$)/i.test(String(h))) roles[i]="e"; });
+  if(header) header.forEach((h,i)=>{ if(i!==xi&&ERR_NAME.test(String(h))) roles[i]="e"; });
   return {roles,xi};
 }
 
@@ -6502,7 +6515,8 @@ function blankProject(name){
   return {v:DOC_V, name:name||"Untitled project", cols:[xc,yc], activeY:yc.id,
     meta:{}, graphs:[], annos:[], fit:null, fits:[], raw:{fp:"",hist:[]}, log:[], created:Date.now(), updated:Date.now()};
 }
-/* This browser's store. Each project has a key of its own (kurve.p.<id>, and
+/* This browser's store when it has no IndexedDB (IdbStore, below, is the one used). Each
+   project has a key of its own (kurve.p.<id>, and
    kurve.c.<id> for its comments), so a save writes only its own project: a
    second tab saving cannot wipe what the first wrote, and the other tab hears
    of it through the storage event. A save starts from the project as stored,
@@ -6573,6 +6587,215 @@ const LocalStore={
   async updateComment(pid,id,patch){ const m=this.fresh(pid); if(!m[id]) return; Object.assign(m[id],patch); try{ this.persistC(pid); } finally { this.emitComments(pid); } },
   async deleteComment(pid,id){ const m=this.fresh(pid); delete m[id]; try{ this.persistC(pid); } finally { this.emitComments(pid); } }
 };
+/* This browser's store in IndexedDB, which a page may fill with a share of the disk rather than
+   localStorage's few megabytes: a scan of a million rows is a project like any other. Memory has
+   every project, as before, and is what the page reads; a save changes memory and tells the page
+   at once, then writes. A column's values are kept apart from the project (in "arrays", under a
+   key of their own), and since values are replaced, never changed in place, a save writes only
+   the columns whose values are new: typing a name into a project of a million rows writes the
+   name. Each write reads the project as stored in the same transaction: when another tab has
+   written since this one last read it, the two are put together (mergeProj: the parts each
+   changed, and column by column, cell by cell), so two tabs typing in two columns keep both.
+   Tabs tell each other of a write by a BroadcastChannel. A write the browser refuses (the disk is
+   full) leaves the project marked unsaved (dirty): the status bar says so, leaving the page asks
+   first, and the next write that succeeds stores all of it. Projects and comments kept in
+   localStorage by earlier versions are moved in on load. LocalStore remains for a browser that
+   has no IndexedDB. */
+const AKEY=new WeakMap(); let akeySeq=0;
+const idbReq=r=>new Promise((res,rej)=>{ r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); });
+const idbDone=tx=>new Promise((res,rej)=>{ tx.oncomplete=()=>res(); tx.onabort=tx.onerror=()=>rej(tx.error||new Error("The write was abandoned.")); });
+// The page's copy of a project shares the columns' values with the store's (see cloneProj).
+const IDB_INLINE=256;
+const IdbStore={
+  mode:"local", db:null, data:null, dirty:{}, rev:{}, base:{}, have:new Set(), q:{}, busy:{}, pend:{}, subs:{projects:[],comments:{}}, chan:null, failNext:null,
+  tab:Date.now().toString(36)+Math.random().toString(36).slice(2,8),
+  async open(){
+    if(typeof indexedDB==="undefined"||!indexedDB) throw new Error("No IndexedDB in this browser.");
+    this.db=await new Promise((res,rej)=>{ let r; try{ r=indexedDB.open("kurve",1); }catch(e){ rej(e); return; }
+      const t=setTimeout(()=>rej(new Error("IndexedDB did not open.")),8000);
+      r.onupgradeneeded=()=>{ const d=r.result; ["projects","arrays","comments"].forEach(n=>{ if(!d.objectStoreNames.contains(n)) d.createObjectStore(n); }); };
+      r.onsuccess=()=>{ clearTimeout(t); res(r.result); }; r.onerror=()=>{ clearTimeout(t); rej(r.error); }; r.onblocked=()=>{ clearTimeout(t); rej(new Error("IndexedDB is blocked.")); }; });
+    this.db.onversionchange=()=>{ try{ this.db.close(); }catch(e){} setStatus("Reload to go on",true); };
+    await this.load();
+    try{ this.chan=new BroadcastChannel("kurve.store"); this.chan.onmessage=e=>this.heard(e.data||{}); }catch(e){}
+    return this;
+  },
+  // A column's values under a key of its own, per project (an array two projects share is stored for each).
+  akey(pid,arr){ let m=AKEY.get(arr); if(!m){ m={}; AKEY.set(arr,m); } return m[pid]||(m[pid]=pid+":"+Date.now().toString(36)+(++akeySeq).toString(36)+Math.random().toString(36).slice(2,5)); },
+  toRec(pid,p,out){ const rec=Object.assign({},p); delete rec.id;
+    rec.cols=(p.cols||[]).map(c=>{ if(!c||!Array.isArray(c.data)||c.data.length<IDB_INLINE) return c; const k=this.akey(pid,c.data); if(!this.have.has(k)) out.set(k,c.data); return Object.assign({},c,{data:{$a:k}}); });
+    return rec; },
+  recKeys(rec){ const s=new Set(); ((rec&&rec.cols)||[]).forEach(c=>{ if(c&&c.data&&c.data.$a) s.add(c.data.$a); }); return s; },
+  fromRec(pid,rec,arrs){ const p=Object.assign({},rec); const rv=p._rev||0; delete p._rev;
+    p.cols=(rec.cols||[]).map(c=>{ if(!c||!c.data||!c.data.$a) return c; const a=arrs.get(c.data.$a)||[]; let m=AKEY.get(a); if(!m){ m={}; AKEY.set(a,m); } m[pid]=c.data.$a; this.have.add(c.data.$a); return Object.assign({},c,{data:a}); });
+    return [p,rv]; },
+  // The arrays a record needs, from memory when this tab has them, else from the store.
+  known(pid){ const m=new Map(); [this.data.projects[pid],this.base[pid]].forEach(x=>((x&&x.cols)||[]).forEach(c=>{ const a=c&&c.data, k=Array.isArray(a)&&AKEY.get(a); if(k&&k[pid]) m.set(k[pid],a); })); return m; },
+  async fetchArrs(store,keys,m){ await Promise.all([...keys].filter(k=>!m.has(k)).map(k=>idbReq(store.get(k)).then(a=>{ m.set(k,Array.isArray(a)?a:[]); }))); return m; },
+  async load(){
+    const tx=this.db.transaction(["projects","arrays","comments"],"readonly"), ps=tx.objectStore("projects"), as=tx.objectStore("arrays"), cs=tx.objectStore("comments");
+    const [pk,pv,ck,cv]=await Promise.all([idbReq(ps.getAllKeys()),idbReq(ps.getAll()),idbReq(cs.getAllKeys()),idbReq(cs.getAll())]);
+    const need=new Set(); pv.forEach(r=>this.recKeys(r).forEach(k=>need.add(k)));
+    const arrs=await this.fetchArrs(as,need,new Map());
+    const d={projects:{},comments:{}};
+    pk.forEach((id,i)=>{ const r=pv[i]; if(!r||typeof r!=="object") return; const [p,rv]=this.fromRec(id,r,arrs); d.projects[id]=p; this.rev[id]=rv; this.base[id]=Object.assign({},p); });
+    ck.forEach((id,i)=>{ if(cv[i]&&typeof cv[i]==="object") d.comments[id]=cv[i]; });
+    this.data=d;
+    await this.adopt();
+    try{ const ak=await idbReq(this.db.transaction("arrays","readonly").objectStore("arrays").getAllKeys()), used=new Set(); pv.forEach(r=>this.recKeys(r).forEach(k=>used.add(k))); Object.keys(this.data.projects).forEach(id=>this.data.projects[id].cols.forEach(c=>{ const m=c&&Array.isArray(c.data)&&AKEY.get(c.data); if(m&&m[id]) used.add(m[id]); }));
+      const old=ak.filter(k=>!used.has(k)); if(old.length){ const tx=this.db.transaction("arrays","readwrite"), as=tx.objectStore("arrays"); old.forEach(k=>as.delete(k)); await idbDone(tx); } }catch(e){}
+  },
+  // What earlier versions kept in localStorage comes in, and leaves localStorage once it is stored here.
+  async adopt(){ const ls={projects:{},comments:{}}, keys=[];
+    try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(!k) continue;
+      if(k.startsWith(LocalStore.pre)||k.startsWith(LocalStore.cpre)||k===LocalStore.key) keys.push(k); } }catch(e){ return; }
+    if(!keys.length) return;
+    keys.forEach(k=>{ const v=LocalStore.read(k); if(!v||typeof v!=="object") return;
+      if(k===LocalStore.key){ Object.entries(v.projects||{}).forEach(([id,p])=>{ if(!ls.projects[id]) ls.projects[id]=p; }); Object.entries(v.comments||{}).forEach(([id,c])=>{ if(!ls.comments[id]) ls.comments[id]=c; }); }
+      else if(k.startsWith(LocalStore.pre)) ls.projects[k.slice(LocalStore.pre.length)]=v; else ls.comments[k.slice(LocalStore.cpre.length)]=v; });
+    const ids=Object.keys(ls.projects).filter(id=>ls.projects[id]&&typeof ls.projects[id]==="object"&&!this.data.projects[id]), cids=Object.keys(ls.comments).filter(id=>!this.data.comments[id]);
+    try{ const tx=this.db.transaction(["projects","arrays","comments"],"readwrite"), ps=tx.objectStore("projects"), as=tx.objectStore("arrays"), cs=tx.objectStore("comments");
+      ids.forEach(id=>{ const out=new Map(), rec=this.toRec(id,ls.projects[id],out); rec._rev=1; out.forEach((a,k)=>as.put(a,k)); ps.put(rec,id); });
+      cids.forEach(id=>cs.put(ls.comments[id],id));
+      await idbDone(tx); }
+    catch(e){ noteError("Projects from localStorage were not moved: "+(e&&e.message||e),"storage"); return; }
+    ids.forEach(id=>{ const p=ls.projects[id]; this.data.projects[id]=p; this.rev[id]=1; this.base[id]=Object.assign({},p); this.recKeys(this.toRec(id,p,new Map())).forEach(k=>this.have.add(k)); });
+    cids.forEach(id=>{ this.data.comments[id]=ls.comments[id]; });
+    keys.forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} }); },
+  fail(e){ return LocalStore.fail(e); },
+  emitProjects(){ const list=Object.entries(this.data.projects).map(([id,p])=>({id,...p})); this.subs.projects.forEach(f=>f(list)); },
+  emitComments(pid){ const list=Object.entries(this.data.comments[pid]||{}).map(([id,c])=>({id,...c})); (this.subs.comments[pid]||[]).forEach(f=>f(list)); },
+  watchProjects(cb){ this.subs.projects.push(cb); setTimeout(()=>this.emitProjects()); return ()=>{}; },
+  watchComments(pid,cb){ (this.subs.comments[pid]=this.subs.comments[pid]||[]).push(cb); setTimeout(()=>this.emitComments(pid)); return ()=>{ this.subs.comments[pid]=this.subs.comments[pid].filter(f=>f!==cb); }; },
+  // Writes to one project go one after another; each writes memory as it is then, so a burst coalesces.
+  queue(pid,fn){ const q=(this.q[pid]||Promise.resolve()).catch(()=>{}).then(fn); this.q[pid]=q; this.busy[pid]=(this.busy[pid]||0)+1; const done=()=>{ if(!--this.busy[pid]) delete this.busy[pid]; }; q.then(done,done); return q; },
+  async create(p){ const id="p"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); const mine=cloneProj(p);
+    this.data.projects[id]=mine;
+    try{ await this.queue(id,()=>this.write(id,true)); }
+    catch(e){ delete this.data.projects[id]; delete this.dirty[id]; throw e; }
+    setTimeout(()=>this.emitProjects()); return id; },
+  save(pid,patch){ const p=this.data.projects[pid];
+    if(!p) return Promise.reject(Object.assign(new Error("The project was deleted."),{code:"gone"}));
+    // A part saved as undefined is taken away (an undo of the first saved fit settings does that); a copy would drop it.
+    Object.keys(patch).forEach(k=>{ if(patch[k]===undefined) delete p[k]; });
+    Object.assign(p,cloneProj(patch)); this.pend[pid]=(this.pend[pid]||0)+1; this.emitProjects();
+    return this.queue(pid,()=>this.write(pid,false)); },
+  // One write: the project as stored read in the same transaction as the write, so another tab's
+  // write in between is put together with this one rather than lost.
+  async write(pid,fresh){
+    const p=this.data.projects[pid]; if(!p) return;
+    if(this.failNext){ const k=this.failNext; this.failNext=null; this.dirty[pid]=true; throw Object.assign(new Error(k==="quota"?"This browser's storage is full.":"This browser would not store the change."),{code:k==="quota"?"quota_exceeded":"storage"}); }
+    let merged=null, gone=false, rv=0, seq;
+    try{
+      const tx=this.db.transaction(["projects","arrays"],"readwrite"), ps=tx.objectStore("projects"), as=tx.objectStore("arrays");
+      const stored=await idbReq(ps.get(pid));
+      if(!stored&&!fresh){ gone=true; tx.abort(); }
+      else {
+        let mine=p;
+        if(stored&&(stored._rev||0)!==(this.rev[pid]||0)){
+          // Another tab wrote since this one last read: theirs and ours together.
+          const arrs=await this.fetchArrs(as,this.recKeys(stored),this.known(pid));
+          const [theirs]=this.fromRec(pid,stored,arrs); mine=merged=mergeProj(this.base[pid]||{},p,theirs);
+        }
+        rv=Math.max(stored?stored._rev||0:0,this.rev[pid]||0)+1; seq=this.pend[pid];
+        const out=new Map(), rec=this.toRec(pid,mine,out); rec._rev=rv;
+        out.forEach((a,k)=>as.put(a,k)); ps.put(rec,pid);
+        // Values no longer in the project go.
+        if(stored){ const now=this.recKeys(rec); this.recKeys(stored).forEach(k=>{ if(!now.has(k)){ as.delete(k); this.have.delete(k); } }); }
+        await idbDone(tx); out.forEach((a,k)=>this.have.add(k));
+      }
+    }catch(e){ if(gone) throw Object.assign(new Error("The project was deleted."),{code:"gone"}); this.dirty[pid]=true; throw this.fail(e); }
+    if(gone){ delete this.data.projects[pid]; this.emitProjects(); throw Object.assign(new Error("The project was deleted."),{code:"gone"}); }
+    delete this.dirty[pid]; this.rev[pid]=rv; if(this.pend[pid]===seq) delete this.pend[pid];
+    if(merged){ const cur=this.data.projects[pid]; if(cur){ Object.keys(cur).forEach(k=>{ if(!(k in merged)) delete cur[k]; }); Object.assign(cur,merged); } }
+    this.base[pid]=Object.assign({},this.data.projects[pid]);
+    if(this.chan) try{ this.chan.postMessage({k:"p",id:pid,rev:rv}); }catch(e){}
+    if(merged) this.emitProjects(); },
+  // Leaving the page: what has not been written yet is, in one transaction committed at once. A
+  // write that first reads the project would be cut off by the page going.
+  flushSync(){ const ids=Object.keys(this.pend).filter(id=>this.data.projects[id]); if(!ids.length||!this.db) return;
+    try{ const tx=this.db.transaction(["projects","arrays"],"readwrite"), ps=tx.objectStore("projects"), as=tx.objectStore("arrays"), outs=[];
+      ids.forEach(id=>{ const out=new Map(), rec=this.toRec(id,this.data.projects[id],out), rv=(this.rev[id]||0)+1; rec._rev=rv; out.forEach((a,k)=>as.put(a,k)); ps.put(rec,id); outs.push(out);
+        this.rev[id]=rv; this.base[id]=Object.assign({},this.data.projects[id]); delete this.pend[id]; });
+      tx.oncomplete=()=>outs.forEach(o=>o.forEach((a,k)=>this.have.add(k))); tx.onabort=()=>ids.forEach(id=>{ this.dirty[id]=true; });
+      if(tx.commit) tx.commit(); }catch(e){} },
+  async remove(pid){ delete this.data.projects[pid]; delete this.data.comments[pid]; delete this.dirty[pid]; delete this.pend[pid];
+    this.emitProjects();
+    await this.queue(pid,async()=>{ const tx=this.db.transaction(["projects","arrays","comments"],"readwrite"), ps=tx.objectStore("projects"), as=tx.objectStore("arrays");
+      const stored=await idbReq(ps.get(pid)); this.recKeys(stored).forEach(k=>{ as.delete(k); this.have.delete(k); }); ps.delete(pid); tx.objectStore("comments").delete(pid);
+      await idbDone(tx); delete this.rev[pid]; delete this.base[pid]; }).catch(e=>{ throw this.fail(e); });
+    if(this.chan) try{ this.chan.postMessage({k:"del",id:pid}); }catch(e){} },
+  // Another tab wrote: its version is read in, unless this tab is writing the same project, whose write puts the two together.
+  async heard(m){ const id=m.id; if(!id||!this.data) return;
+    if(m.k==="del"){ if(this.data.projects[id]){ delete this.data.projects[id]; delete this.dirty[id]; delete this.rev[id]; this.emitProjects(); } return; }
+    if(m.k==="c"){ try{ const v=await idbReq(this.db.transaction("comments","readonly").objectStore("comments").get(id)); if(v&&typeof v==="object") this.data.comments[id]=v; else delete this.data.comments[id]; this.emitComments(id); }catch(e){} return; }
+    if(m.k!=="p"||(this.rev[id]||0)>=m.rev||this.busy[id]) return;
+    try{ const tx=this.db.transaction(["projects","arrays"],"readonly"), stored=await idbReq(tx.objectStore("projects").get(id)); if(!stored||this.busy[id]) return;
+      const arrs=await this.fetchArrs(tx.objectStore("arrays"),this.recKeys(stored),this.data.projects[id]?this.known(id):new Map());
+      if(this.busy[id]||(this.rev[id]||0)>=(stored._rev||0)) return;
+      const [p,rv]=this.fromRec(id,stored,arrs); this.data.projects[id]=p; this.rev[id]=rv; this.base[id]=Object.assign({},p); delete this.dirty[id]; this.emitProjects(); }catch(e){} },
+  // Comments: read, changed and written in one transaction, so two tabs' comments both stay.
+  async editComments(pid,fn){ const tx=this.db.transaction("comments","readwrite"), cs=tx.objectStore("comments");
+    const cur=(await idbReq(cs.get(pid)))||{}; fn(cur); if(Object.keys(cur).length) cs.put(cur,pid); else cs.delete(pid);
+    await idbDone(tx); this.data.comments[pid]=cur; this.emitComments(pid); if(this.chan) try{ this.chan.postMessage({k:"c",id:pid}); }catch(e){} },
+  addComment(pid,c){ const id="c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); return this.editComments(pid,m=>{ m[id]=c; }).catch(e=>{ throw this.fail(e); }); },
+  updateComment(pid,id,patch){ return this.editComments(pid,m=>{ if(m[id]) Object.assign(m[id],patch); }).catch(e=>{ throw this.fail(e); }); },
+  deleteComment(pid,id){ return this.editComments(pid,m=>{ delete m[id]; }).catch(e=>{ throw this.fail(e); }); },
+  // What is stored, as the page would read it (for the tests, and for a look from the console).
+  async stored(pid){ const tx=this.db.transaction(["projects","arrays"],"readonly"), r=await idbReq(tx.objectStore("projects").get(pid)); if(!r) return null;
+    const arrs=new Map(); await Promise.all([...this.recKeys(r)].map(k=>idbReq(tx.objectStore("arrays").get(k)).then(a=>arrs.set(k,a))));
+    const o=Object.assign({},r); o.cols=(r.cols||[]).map(c=>c&&c.data&&c.data.$a?Object.assign({},c,{data:arrs.get(c.data.$a)||null}):c); return o; },
+  async storedAll(){ const ks=await idbReq(this.db.transaction("projects","readonly").objectStore("projects").getAllKeys()); return Promise.all(ks.map(k=>this.stored(k).then(o=>Object.assign({id:k},o)))); }
+};
+// The localStorage store answers the same questions.
+LocalStore.stored=async function(pid){ return this.read(this.pre+pid); };
+LocalStore.storedAll=async function(){ return Object.keys(localStorage).filter(k=>k.startsWith(this.pre)).map(k=>Object.assign({id:k.slice(this.pre.length)},this.read(k))); };
+/* A copy of a project, or of a patch, that shares the columns' values: values are replaced, never
+   changed in place (see Raw data), and copying a million of them on every save is what made a
+   large project slow. As a JSON copy did, a value that is not a finite number becomes null (an
+   array holding one is copied once, cleaned). */
+const CLEANARR=new WeakSet();
+function cleanArr(a){ if(!Array.isArray(a)||CLEANARR.has(a)) return a; let bad=false;
+  for(let i=0;i<a.length;i++){ const v=a[i]; if(v===undefined||(typeof v==="number"&&!Number.isFinite(v))||(v!==null&&typeof v==="object")){ bad=true; break; } }
+  const out=bad?Array.from(a,v=>v===undefined||(typeof v==="number"&&!Number.isFinite(v))?null:v!==null&&typeof v==="object"?JSON.parse(JSON.stringify(v)):v):a;
+  CLEANARR.add(out); return out; }
+function cloneProj(o){ if(!o||typeof o!=="object"||!Array.isArray(o.cols)) return clone(o);
+  const datas=o.cols.map(c=>c&&typeof c==="object"&&Array.isArray(c.data)?cleanArr(c.data):undefined);
+  const out=clone(Object.assign({},o,{cols:o.cols.map((c,i)=>datas[i]!==undefined?Object.assign({},c,{data:null}):c)}));
+  out.cols.forEach((c,i)=>{ if(datas[i]!==undefined&&c) c.data=datas[i]; }); return out; }
+/* Two versions of a project made from one (base): another tab's (theirs) and this one's (mine).
+   A part only one of them changed takes that change; a part both changed takes mine, but for the
+   columns, which are put together one by one (mergeCols). */
+function mergeProj(base,mine,theirs){ const out=Object.assign({},theirs), same=(a,b)=>a===b||JSON.stringify(a)===JSON.stringify(b);
+  new Set(Object.keys(mine).concat(Object.keys(base))).forEach(k=>{ if(k==="cols"||k==="id") return;
+    if(!same(mine[k],base[k])){ if(k in mine) out[k]=mine[k]; else delete out[k]; } });
+  out.cols=mergeCols(base.cols||[],mine.cols||[],theirs.cols||[]);
+  // The log: both tabs' lines, in order.
+  if(Array.isArray(mine.log)&&Array.isArray(theirs.log)&&!same(mine.log,base.log)&&!same(theirs.log,base.log)){ const seen=new Set(); out.log=[].concat(theirs.log,mine.log).filter(l=>{ const k=l&&(l.t+"|"+l.text); if(seen.has(k)) return false; seen.add(k); return true; }).sort((a,b)=>(a.t||0)-(b.t||0)).slice(-80); }
+  // The record of the original data: both tabs' entries, and a check code for what is now there.
+  if(base.raw&&mine.raw&&theirs.raw&&!same(mine.raw,base.raw)&&!same(theirs.raw,base.raw)){ const seen=new Set(), hist=[].concat(theirs.raw.hist||[],mine.raw.hist||[]).filter(h=>{ const k=h.t+"|"+h.fp+"|"+h.text; if(seen.has(k)) return false; seen.add(k); return true; }).sort((a,b)=>a.t-b.t);
+    out.raw={fp:rawFp(out.cols.filter(c=>!c.src&&!c.fx&&Array.isArray(c.data)&&c.data.some(v=>v!=null))),hist}; const l=hist[hist.length-1]; if(l&&l.fp!==out.raw.fp) hist.push({t:Date.now(),uid:S.uid||"",fp:out.raw.fp,prev:l.fp,text:"Changes made in two windows at once, put together"}); }
+  return out; }
+function mergeCols(base,mine,theirs){ const B=new Map(base.map(c=>[c.id,c])), T=new Map(theirs.map(c=>[c.id,c])), M=new Map(mine.map(c=>[c.id,c]));
+  const meta=c=>JSON.stringify(Object.assign({},c,{data:0})), same=(a,b)=>a===b||(meta(a)===meta(b)&&(a.data===b.data||JSON.stringify(a.data)===JSON.stringify(b.data)));
+  const out=[];
+  mine.forEach(c=>{ const b=B.get(c.id), t=T.get(c.id);
+    if(!b){ out.push(c); return; }                       // added here
+    if(!t){ if(!same(c,b)) out.push(c); return; }        // deleted there: kept only if changed here
+    if(same(c,b)){ out.push(t); return; }                // changed there, or nowhere
+    if(same(t,b)){ out.push(c); return; }                // changed here
+    // Changed in both: this tab's settings, and the values cell by cell, each from where it changed.
+    const v=Object.assign({},c);
+    if(Array.isArray(c.data)&&Array.isArray(t.data)&&Array.isArray(b.data)&&c.data!==b.data&&t.data!==b.data){ const n=Math.max(c.data.length,t.data.length), d=new Array(n);
+      for(let i=0;i<n;i++){ const ci=i<c.data.length?c.data[i]:null, bi=i<b.data.length?b.data[i]:null, ti=i<t.data.length?t.data[i]:null; d[i]=ci!==bi?ci:ti; }
+      while(d.length&&d[d.length-1]==null&&d.length>Math.min(c.data.length,t.data.length)) d.pop(); v.data=d; }
+    else if(c.data===b.data) v.data=t.data;
+    out.push(v); });
+  // Added there: after the column before it there.
+  theirs.forEach((t,i)=>{ if(M.has(t.id)||B.has(t.id)) return; let at=out.length;
+    for(let j=i-1;j>=0;j--){ const k=out.findIndex(c=>c.id===theirs[j].id); if(k>=0){ at=k+1; break; } }
+    out.splice(at,0,t); });
+  return out; }
 function makeDbStore(db){
   const queues={};
   const serial=(key,fn)=>{ const q=(queues[key]||Promise.resolve()).catch(()=>{}).then(fn); queues[key]=q; return q; };
@@ -6630,6 +6853,8 @@ function hideToast(){ const t=$("#toast"); clearTimeout(toastT); if(!t||t.hidden
   if(!animOn()||t._out){ if(!t._out) t.hidden=true; return; }
   t.style.pointerEvents="none"; const a=t._out=t.animate([{opacity:1},{opacity:0,translate:"0 6px"}],{duration:140,easing:"ease-in"});
   a.onfinish=()=>{ if(t._out!==a) return; t._out=null; t.hidden=true; t.style.pointerEvents=""; }; }
+// A count as people read it: 1 000 000 rows (a narrow space between the thousands), small ones as they are.
+const fmtCount=n=>Number.isFinite(n)&&Math.abs(n)>=10000?Math.round(n).toLocaleString("en-US").replace(/,/g,"\u202f"):String(n);
 function setStatus(txt,warn){ const s=$("#status"); s.textContent=txt; s.classList.toggle("warn",!!warn); }
 
 function writeErr(e){
@@ -6658,20 +6883,24 @@ async function save(patch, logText){
   try{ await S.store.save(S.pid,patch); setStatus(S.store.mode==="db"?"Shared":"Saved",false); }
   catch(e){ setStatus("Not saved",true); writeErr(e); }
 }
-let wsTimer=null, wsPatch={}, wsLog=null, wsPid=null;
+let wsTimer=null, wsPatch={}, wsLog=null, wsPid=null, wsBase=null;
 /* Leaving the page (closing the tab, reloading, switching away on a phone)
    must not leave a typed value behind: a value still in its cell's box is
    entered, and an edit waiting for its delayed save is saved now. The local
-   store writes synchronously, so this lands before the page goes. */
+   store writes what waits in a transaction committed there and then (flushSync),
+   so it lands before the page goes. */
 function flushEdits(){
   try{ pdCommit(); }catch(e){}
   try{ const e=S.ws&&S.ws.edit; if(e&&P()){ const inp=document.querySelector("#ws input.wsed"), v=inp?inp.value:e.val; if(v!==e.orig&&(e.r<0||String(v).trim()===""||parseNum(v)!=null)) wsCommit(0,0,true); } }catch(err){}
   if(Object.keys(wsPatch).length&&wsPid===S.pid){ clearTimeout(wsTimer); const pp=wsPatch, l=wsLog; wsPatch={}; wsLog=null; save(pp,l); }
+  if(S.store&&S.store.flushSync) S.store.flushSync();
 }
 addEventListener("pagehide",flushEdits);
-addEventListener("beforeunload",flushEdits);
+addEventListener("beforeunload",e=>{ flushEdits(); if(S.store&&S.store.dirty&&Object.keys(S.store.dirty).length){ e.preventDefault(); e.returnValue=""; } });
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") flushEdits(); });
 function saveSoon(patch,logText){ if(wsPid!==S.pid&&Object.keys(wsPatch).length){ clearTimeout(wsTimer); wsPatch={}; wsLog=null; }
+  // The columns as stored when the first waiting edit began: what a merge compares both sides with.
+  if(!Object.keys(wsPatch).length) wsBase=S.projSrc&&S.projSrc.cols||null;
   wsPid=S.pid; Object.assign(wsPatch,patch); if(logText) wsLog=logText; clearTimeout(wsTimer); setStatus("Editing…");
   wsTimer=setTimeout(()=>{ const pp=wsPatch, l=wsLog; wsPatch={}; wsLog=null; if(wsPid===S.pid) save(pp,l); },700); }
 
@@ -10995,7 +11224,7 @@ function renderStatusBar(){
   if(!p||!pts.length){ el.textContent=""; ef.innerHTML=""; ef.className="sb-cell"; ef.title=""; return; }
   const nm=maskOf(activeYCol()).length;
   const vr=viewRng(); let inV=0; if(vr) for(let k=0;k<pts.length;k++){ const q=pts[k]; if(q.x>=vr[0]&&q.x<=vr[1]&&!isMasked(q.i)) inV++; }
-  el.textContent=`${pts.length} point${pts.length===1?"":"s"}${nm?` · ${nm} masked`:""}${vr?` · ${inV} in view`:""}`;
+  el.textContent=`${fmtCount(pts.length)} point${pts.length===1?"":"s"}${nm?` · ${fmtCount(nm)} masked`:""}${vr?` · ${fmtCount(inV)} in view`:""}`;
   const f=activeFit();
   if(!f){ ef.className="sb-cell"; ef.innerHTML="<span>No fit yet</span>"; ef.title=""; return; }
   const st=f.stats||{}, stale=fitStale(f), bad=st.converged===false;
@@ -12334,7 +12563,12 @@ function wsFindCount(){ const el=$("#wsFindN"), f=S.wsFind; if(!el) return;
    as quickly as a short one. S.ws is the selection ({r, c} active, {ar, ac}
    the other corner; label rows are r = -4 … -1) and S.wsm the model
    drawn: columns, the number of data rows and how to read a cell. */
-const WS_IDX=82, WS_W=100, WS_MINW=36, WS_HIDW=6;
+const WS_IDX=82, WS_W=100, WS_MINW=36, WS_HIDW=6, WS_RH=22, WS_RHMIN=18, WS_RHMAX=160;
+// The data rows' height on the sheet shown (p.wsrh[sheet], px; 22 unless dragged).
+function wsRowH(){ const p=P(), v=p&&p.wsrh&&p.wsrh[curSheet()]; return typeof v==="number"&&v>=WS_RHMIN&&v<=WS_RHMAX?Math.round(v):WS_RH; }
+function wsSetRowH(h){ const p=P(), box=$("#ws"); if(!p||!box) return; const sid=curSheet(), old=S.ws.rowH||WS_RH, first=box.scrollTop/old;
+  const R=Object.assign({},p.wsrh||{}); if(h==null||Math.round(h)===WS_RH) delete R[sid]; else R[sid]=Math.max(WS_RHMIN,Math.min(WS_RHMAX,Math.round(h)));
+  p.wsrh=R; if(!S.readOnly) saveSoon({wsrh:R}); S.ws.rowH=wsRowH(); renderWs(); box.scrollTop=Math.round(first*S.ws.rowH); wsRows(true); }
 const WS_LABS=[{r:-4,k:"name",label:"Long Name",max:60},{r:-3,k:"unit",label:"Units",max:30},{r:-2,k:"comm",label:"Comments",max:200},{r:-1,k:"fx",label:"F(x)=",max:400}];
 const WS_TOP=-4;
 /* Under the letters the worksheet shows Long Name, Units and F(x)= (a column's
@@ -12429,6 +12663,7 @@ function renderWs(){
   s.r=lim(s.r,WS_TOP,R); s.ar=lim(s.ar,WS_TOP,R); s.c=lim(s.c,0,C); s.ac=lim(s.ac,0,C);
   S.wsMask=new Set(m.kind==="raw"?maskOf(activeYCol()):maskOf(m.c)); S.wsFixed=m.kind==="raw"?fixedCells():new Map();
   const tw=WS_IDX+m.cols.reduce((a,q)=>a+q.w,0), sx=box.scrollLeft, sy=box.scrollTop;
+  box.style.setProperty("--ws-rh",wsRowH()+"px");
   let h=`<table class="grid" style="width:${tw}px"><colgroup><col style="width:${WS_IDX}px">${m.cols.map(q=>`<col data-cw="${esc(q.id)}" style="width:${q.w}px">`).join("")}</colgroup><thead>`;
   h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"><button type="button" class="wsrows" data-wsrows aria-haspopup="menu" aria-expanded="false" title="Rows under the letters: Comments, F(x)=, Sparklines" aria-label="Rows to show under the letters">⋯</button></th>${m.cols.map((q,i)=>q.hidden?`<th class="ch hidc" data-ch="${i}" title="${esc(q.title)}" aria-label="${esc(q.title)}"></th>`:`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.calc?`<span class="fxm${q.fxErr?" bad":q.fxNote?" old":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx+(q.fxNote?". "+q.fxNote:""))}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.off?`<span class="lab hoff" title="On no graph yet: select it and press Plot">not plotted</span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`).join("")}</tr>`;
   const AL=p.wsAlign||{};
@@ -12447,7 +12682,7 @@ function renderWs(){
 function wsRowHtml(m,r){
   const fin=m.kind==="final", k=wsDR(m,r), idx=fin?(r<m.n?m.d.idx[k]:null):k, masked=idx!=null&&(fin||r<m.n)&&S.wsMask.has(idx), pt=idx!=null&&S.sel===idx&&r<m.n;
   const ha=wsHiddenAbove(m,r), hat=ha?` · rows ${ha[0]+1}${ha.length>1?"–"+(ha[ha.length-1]+1):""} above are hidden: double-click to show them`:"";
-  let h=`<tr class="dr${masked?" masked":""}${pt?" pt":""}" data-r="${r}"><th class="rh${ha?" hidab":""}" data-rh="${r}" scope="row"${r<m.n||ha?` title="${r<m.n?`Select row ${k+1}${masked?" (masked)":""}; its point is marked on the graph`:`Row ${k+1}`}${hat}"`:""}>${k+1}</th>`;
+  let h=`<tr class="dr${masked?" masked":""}${pt?" pt":""}" data-r="${r}"><th class="rh${ha?" hidab":""}" data-rh="${r}" scope="row"${r<m.n||ha?` title="${r<m.n?`Select row ${k+1}${masked?" (masked)":""}; its point is marked on the graph`:`Row ${k+1}`}${hat}"`:""}>${k+1}<span class="rzr" data-rzr title="Drag to size the rows; double-click for the usual height"></span></th>`;
   const AL=m.p&&m.p.wsAlign||{};
   m.cols.forEach((q,i)=>{ if(q.hidden){ h+=`<td class="hid" data-r="${r}" data-ci="${i}"></td>`; return; }
     const fx=!fin&&!q.phantom?S.wsFixed.get(q.id+":"+k):null, al=AL[q.id], cls=[fx?"fixed":"",q.calc?"calc":"",al?"al-"+al:""].filter(Boolean).join(" ");
@@ -12729,7 +12964,7 @@ function wsFoot(){ wsEmptyShow();
     left=`${m.n} point${m.n===1?"":"s"} of ${esc(specName(m.c))} after ${steps?`${steps} processing step${steps===1?"":"s"}`:"no processing (the original data)"} · read only`; }
   else { const n=m.nd!=null?m.nd:m.n, nm=S.wsMask.size, ok=rawVerified(), fp=(p.raw&&p.raw.fp)||"";
     const lk=rawLocked();
-    left=n?`<span${lk?` title="The original data is locked: empty cells can be filled or pasted into; typing over a value asks for a reason and records a correction step instead."`:""}>${lk?ICON("lock","sm")+" ":""}${n} row${n===1?"":"s"}${lk?", locked":""}${(()=>{ const nc=sheetCols(curSheet()).filter(c=>c.data.some(v=>v!=null)).length; return nc?` · ${nc} column${nc===1?"":"s"}`:""; })()}${fp&&ok===false?` · <a href="#" id="wsFp">Original data changed</a>`:""}${nm?` · ${nm} masked`:""}${S.wsFixed.size?` · ${S.wsFixed.size} corrected`:""}</span>`
+    left=n?`<span${lk?` title="The original data is locked: empty cells can be filled or pasted into; typing over a value asks for a reason and records a correction step instead."`:""}>${lk?ICON("lock","sm")+" ":""}${fmtCount(n)} row${n===1?"":"s"}${lk?", locked":""}${(()=>{ const nc=sheetCols(curSheet()).filter(c=>c.data.some(v=>v!=null)).length; return nc?` · ${nc} column${nc===1?"":"s"}`:""; })()}${fp&&ok===false?` · <a href="#" id="wsFp">Original data changed</a>`:""}${nm?` · ${nm} masked`:""}${S.wsFixed.size?` · ${S.wsFixed.size} corrected`:""}</span>`
       :"Empty · type into any cell, or paste a block from a spreadsheet"; }
   if(m.sorted) left+=` · <span title="Only the view is sorted: the data keep the order they were recorded in">sorted by ${esc(m.cols[m.sortCi].letter)} ${m.sortDir>0?"↑":"↓"}</span> <a href="#" id="wsUnsort">Unsort</a>`;
   if(m.kind==="raw"){ const h=wsHideOf(p), nc=h.cols.length, nr=m.hidR?m.hidR.size:0;
@@ -12941,7 +13176,7 @@ function wsPasteText(text){
   const raw=rows.length?recordRaw(`pasted ${rows.length} rows into the worksheet`):null;
   S.view=null; S.ws.ar=S.ws.r; S.ws.ac=S.ws.c; S.ws.r=Math.max(S.ws.r,rs+rows.length-1); S.ws.c=c0+width-1; S.ws.ar=r0; S.ws.ac=c0;
   save(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),rows.length?`pasted ${rows.length} rows into ${width} column${width===1?"":"s"}`:`pasted labels into ${width} column${width===1?"":"s"}`); renderAll();
-  toast(rows.length?`Pasted ${rows.length} row${rows.length===1?"":"s"} into ${width} column${width===1?"":"s"}${over?`, replacing ${over} value${over===1?"":"s"}`:""}.`:`Pasted the labels of ${width} column${width===1?"":"s"}.`,{action:"Undo",run:undo});
+  toast(rows.length?`Pasted ${fmtCount(rows.length)} row${rows.length===1?"":"s"} into ${width} column${width===1?"":"s"}${over?`, replacing ${fmtCount(over)} value${over===1?"":"s"}`:""}.`:`Pasted the labels of ${width} column${width===1?"":"s"}.`,{action:"Undo",run:undo});
 }
 // Delete: labels and values are cleared; with the raw data locked, values are
 // corrected instead (one) or kept (several).
@@ -12972,7 +13207,7 @@ function wsAutofit(ci){
   const m=S.wsm, q=m&&m.cols[ci]; if(!q||q.phantom) return;
   const cv=wsAutofit.cv||(wsAutofit.cv=document.createElement("canvas")), g=cv.getContext("2d");
   g.font=`13px ${getComputedStyle(document.body).fontFamily}`;
-  let w=g.measureText(q.letter+" ("+q.role+")").width+44;
+  let w=g.measureText(q.letter+" ("+q.role+")").width+44+(q.off?g.measureText("not plotted").width*0.85+6:0);
   WS_LABS.forEach(L=>{ w=Math.max(w,g.measureText(q.lab[L.k]||"").width+18); });
   const n=Math.min(m.n,20000); for(let r=0;r<n;r++){ const t=wsText(m,r,ci); if(t) w=Math.max(w,g.measureText(t).width+18); }
   wsSetWidth(q.id,Math.min(420,Math.max(WS_MINW,Math.ceil(w))));
@@ -13031,6 +13266,14 @@ function setupWs(){
     if(t.closest("input.wsed")) return;
     if(t.closest("[data-cmenu]")) return;
     if(t.closest("[data-wsrows]")) return;
+    // The line under a row number sizes every data row of the sheet; the line follows the pointer.
+    const rzr=t.closest("[data-rzr]");
+    if(rzr&&e.detail===2){ e.preventDefault(); wsSetRowH(null); return; }
+    if(rzr){ e.preventDefault(); const h0=wsRowH(), y0=e.clientY, top=box.getBoundingClientRect().top+(S.ws.head||0), n=Math.max(1,(rzr.getBoundingClientRect().bottom-top)/h0); let h=h0;
+      document.body.classList.add("rowresize");
+      const mv=ev=>{ h=Math.max(WS_RHMIN,Math.min(WS_RHMAX,Math.round(h0+(ev.clientY-y0)/n))); box.style.setProperty("--ws-rh",h+"px"); };
+      const up=()=>{ document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up); document.body.classList.remove("rowresize"); if(h!==h0) wsSetRowH(h); else box.style.setProperty("--ws-rh",h0+"px"); };
+      document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up); return; }
     const rz=t.closest(".rz");
     if(rz&&e.detail===2){ e.preventDefault(); wsAutofit(+rz.dataset.rz); return; }
     if(rz){ e.preventDefault(); const i=+rz.dataset.rz, q=S.wsm.cols[i], x0=e.clientX, w0=q.w, colEl=box.querySelector(`col[data-cw="${CSS.escape(q.id)}"]`), tb=box.querySelector("table.grid"), tw0=parseFloat(tb.style.width);
@@ -14365,7 +14608,7 @@ function impRecalc(patch){
 function impWhat(cols,ys,rows){
   const n=cols.filter(c=>!c.fx).length, nd=cols.filter(c=>c.role==="ignore").length;
   const parts=[ys.length?`${ys.length} Y column${ys.length===1?"":"s"}`:"",nd?`${nd} data column${nd===1?"":"s"}`:""].filter(Boolean);
-  return `${n} column${n===1?"":"s"}${rows?` of ${rows} row${rows===1?"":"s"}`:""}${parts.length?` (${parts.join(" and ")})`:""}`;
+  return `${n} column${n===1?"":"s"}${rows?` of ${fmtCount(rows)} row${rows===1?"":"s"}`:""}${parts.length?` (${parts.join(" and ")})`:""}`;
 }
 function renderImport(){
   const im=S.imp; if(!im) return;
@@ -15047,9 +15290,9 @@ function wireXpl(){
   $("#xplBtn").onclick=()=>toggleXpl(null,{focus:true});
   // The splitter: drag to make it wider or narrower.
   const sp=$("#xplSplit");
-  sp.addEventListener("pointerdown",e=>{ if(e.button!==0) return; e.preventDefault(); sp.setPointerCapture(e.pointerId); const x0=e.clientX, w0=XPL.w;
+  sp.addEventListener("pointerdown",e=>{ if(e.button!==0) return; e.preventDefault(); sp.setPointerCapture(e.pointerId); winMoving(true); const x0=e.clientX, w0=XPL.w;
     const mv=ev=>{ XPL.w=Math.max(180,Math.min(520,Math.round(w0+ev.clientX-x0))); document.documentElement.style.setProperty("--xplw",XPL.w+"px"); };
-    const up=()=>{ sp.removeEventListener("pointermove",mv); sp.removeEventListener("pointerup",up); sp.removeEventListener("pointercancel",up); xplSave(); };
+    const up=()=>{ sp.removeEventListener("pointermove",mv); sp.removeEventListener("pointerup",up); sp.removeEventListener("pointercancel",up); winMoving(false); xplSave(); };
     sp.addEventListener("pointermove",mv); sp.addEventListener("pointerup",up); sp.addEventListener("pointercancel",up); });
   sp.addEventListener("keydown",e=>{ if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight") return; e.preventDefault(); XPL.w=Math.max(180,Math.min(520,XPL.w+(e.key==="ArrowRight"?16:-16))); applyXpl(); xplSave(); });
   // Alt+1, as in Origin.
@@ -17204,7 +17447,8 @@ function openProject(id){
   if(S.ws&&S.ws.edit) wsCommit(0,0,true);
   if(Object.keys(wsPatch).length&&wsPid===S.pid&&S.pid){ clearTimeout(wsTimer); const pp=wsPatch, l=wsLog; wsPatch={}; wsLog=null; save(pp,l); }
   pdCommit(); saveGraphLayout(); awayLeave();
-  S.pid=id; setTimeout(()=>{ if(S.pid===id) awayOffer(); },900); S.view=null; S.sel=null; S.anchor=null; S.draft=null; S.fitError=""; S.comments=[]; S.cReply=null; S.cEdit=null;
+  S.pid=id; setTimeout(()=>{ if(S.pid===id) awayOffer(); },900);
+  if(S.store&&S.store.mode==="local"){ const nd=!!(S.store.dirty&&S.store.dirty[id]); setStatus(nd?"Not saved":"Saved",nd); } S.view=null; S.sel=null; S.anchor=null; S.draft=null; S.fitError=""; S.comments=[]; S.cReply=null; S.cEdit=null;
   S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.editing=false; S.wsSort=null; S.wsFind=null; { const fb=document.getElementById("wsFind"); if(fb) fb.hidden=true; }
   // Panel state belongs to the spectrum being looked at, not to the session:
   // arriving at an exponential decay with "Pearson VII" pre-selected is noise.
@@ -17217,7 +17461,9 @@ function openProject(id){
   { const ed=document.querySelector(".inled"); if(ed) ed.remove(); }
   const tipEl=document.getElementById("tip"); if(tipEl) tipEl.style.display="none";
   const roEl=document.getElementById("readout"); if(roEl) roEl.textContent="";
-  S.proj=S.projects.find(p=>p.id===id)||null;
+  // A copy, as every later one is: the store's own object, typed into, changed what the store
+  // remembered as last read, and a merge with another tab then took this tab's new columns for old.
+  { const src=S.projects.find(p=>p.id===id)||null; S.proj=src?cloneProj(src):null; S.projSrc=src; }
   if(S.unsubC){ S.unsubC(); S.unsubC=null; }
   if(id) S.unsubC=S.store.watchComments(id,list=>{ S.comments=list; refreshComments(); renderPlot(); refreshProfiles(); }, e=>{ if(e.code==="revoked") setStatus("Access changed. Reload to continue.",true); });
   try{ localStorage.setItem("kurve.last",id||""); }catch(e){}
@@ -17230,17 +17476,19 @@ function onProjects(list){
   S.projects=list.sort((a,b)=>(b.updated||0)-(a.updated||0));
   let lost=null;
   if(S.pid){ const cur=list.find(p=>p.id===S.pid);
-    if(cur){ const local=S.proj; S.proj=clone(cur);
-      // keep locally-pending worksheet edits visible until they are flushed
-      if(local&&Object.keys(wsPatch).length) Object.assign(S.proj,wsPatch);
+    if(cur){ const local=S.proj; S.proj=cloneProj(cur);
+      // Worksheet edits waiting for their delayed save stay on screen, put together with what came
+      // in (another tab may have changed other columns meanwhile; mergeCols keeps both).
+      if(local&&Object.keys(wsPatch).length){ if(wsPatch.cols&&wsBase&&cur.cols&&wsBase!==cur.cols){ wsPatch.cols=cloneProj({cols:mergeCols(wsBase,wsPatch.cols,cur.cols)}).cols; wsBase=cur.cols; } Object.assign(S.proj,wsPatch); }
       if(S.draft&&S.proj.fit&&local&&(!local.fit||local.fit.at!==S.proj.fit.at)&&S.proj.fit.by!==S.uid){ S.draft=null; }
+      S.projSrc=cur;
     }
     // The project on the desk has gone (deleted here, by a colleague or in
     // another tab): its windows go with it, and nothing more is saved into it.
     // Only a project just created and not listed yet is waited for.
     else if(S.pendingOpen!==S.pid){ lost=S.proj&&!S.gone.has(S.pid)?projName(S.proj):null; leaveProject(S.pid); }
   }
-  if(S.pendingOpen&&list.find(p=>p.id===S.pendingOpen)){ S.pendingOpen=null; const q=list.find(p=>p.id===S.pid); if(q) S.proj=clone(q); }
+  if(S.pendingOpen&&list.find(p=>p.id===S.pendingOpen)){ S.pendingOpen=null; const q=list.find(p=>p.id===S.pid); if(q){ S.proj=cloneProj(q); S.projSrc=q; } }
   if(!S.pid&&list.length){ let last=null; try{ last=localStorage.getItem("kurve.last"); }catch(e){} openProject(list.find(p=>p.id===last)?last:list[0].id);
     if(lost) toast(`“${lost}” was deleted elsewhere. This is “${projName(P())}”.`); return; }
   // With no project at all there is no worksheet to paste into, and the empty
@@ -20171,7 +20419,7 @@ ${DL([["Import, Export","Bring a file in; save the graph, data or a report."],["
 <p>${MP("File › Copy from another project…")} lists your other projects and their columns. Tick the ones you want (ticking a project ticks all of its columns) and choose where they go: the graph you are on, a new graph, or a graph each. They are copied with their original values, X and error columns, processing, mask, file header, marked peaks and colours; a derived column brings its source, and a step that reads another column brings that one too. The project they came from is unchanged. The original-data record, the log and each column's Original data box in the History say where they came from. One Undo takes them out again. To put graphs of the same project together, see ${DA("graphs#combine","combining graphs")}.</p>
 <h2>Saving</h2>
 <p>Every change is saved at once; the status bar says so. Used on its own, Kurve keeps projects in this browser and uploads nothing: to keep a copy elsewhere, ${DA("export","export it")}. In a shared workspace, everyone sees each change as it is made, and each person's name goes with their comments.</p>
-<p>Kurve open in two tabs of the same browser is one set of projects: a change in one tab shows in the other, and two tabs working on one project keep each other's changes. A browser keeps only a few megabytes for a page (a few hundred thousand points in all): when it is full, the status bar says <em>Not saved</em> and a message says why. Delete an old project, or export this one; the next change that fits saves everything since.</p>
+<p>Kurve open in two tabs of the same browser is one set of projects: a change in one tab shows in the other, and two tabs working on one project keep each other's changes. Projects are kept in the browser's own database, which can hold files of millions of rows (a share of the disk). If the browser ever refuses to store a change (the disk is full), the status bar says <em>Not saved</em> whenever that project is shown, a message says why, and leaving the page asks first; delete an old project or export this one, and the next change that is stored saves everything since. A browser without that database keeps projects in a few megabytes of its storage, as earlier versions did.</p>
 <h2>Undo</h2>
 <p>${K("Ctrl","Z")} undoes and ${K("Ctrl","Shift","Z")} (or ${K("Ctrl","Y")}) redoes: steps, masks, peaks, bands, fits, labels, styles, worksheet edits. The Edit menu names what will be undone. Undo rewinds your own changes in this session; it never takes back a colleague's work or a comment.</p>
 <h2>The log</h2>
@@ -20242,7 +20490,7 @@ ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move; with "+K("Shift")+
 <h2 id="k-flow">In the History</h2>
 ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move between boxes"],[K("Alt","↑")+" "+K("Alt","↓"),"Move the selected step earlier or later"],[K("Delete"),"Delete the selected step"],[K("C"),"Comment on the selected box"],["Right-click","The box's menu"]],"keys")}`},
 /* ---------------------------------------------------------------- Data */
-{id:"sheet", g:"Data", t:"The worksheet", win:"sheet", kw:"worksheet spreadsheet grid cell column row long name units comments sparkline raw final width select edit type enter tab insert delete rows lock unlock plot data role sheet sheets tab tabs workbook book new sheet rename move columns to another sheet",
+{id:"sheet", g:"Data", t:"The worksheet", win:"sheet", kw:"worksheet spreadsheet grid cell column row long name units comments sparkline raw final width height row height resize select edit type enter tab insert delete rows lock unlock plot data role sheet sheets tab tabs workbook book new sheet rename move columns to another sheet",
  lead:"A spreadsheet grid, as in Excel, with Origin's label rows, and sheets as a workbook has. The Original view holds the original data; the Processed view shows the active column after processing.",
  body:`<h2 id="sheets">Sheets</h2>
 <p>The worksheet has sheets; their tabs are under the grid. Click a tab to show its sheet, double-click it (or ${K("F2")}) to rename it, right-click it to move or delete it, and <strong>+</strong> for a new one; ${MP("Data › Sheets")} and the Project Explorer do the same. A sheet has its own columns, lettered from A, its own rows, sort and hidden rows. A Y column is plotted against the nearest X to its left on its own sheet, and a formula's letters are its own sheet's columns. A file imported beside data goes on a sheet of its own, named after the file, unless you choose the sheet shown in the import dialog; files dropped on the window and columns copied from another project do the same. ${MP("Move › To another sheet")} in a column's menu moves it with its error bars, keeping the X it is plotted against. Graphs show columns from any sheet, and deleting a sheet takes its columns off them (Undo brings them back).</p>
@@ -20254,7 +20502,7 @@ ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move between boxes"],[K(
 ${DL([["Long Name","The column's name, used on the axes and in the legend."],["Units","Written after the name: <code>cm⁻¹</code>, <code>counts</code>."],["Comments","A note that travels with the column."],["F(x)=","A formula that computes the column: click the cell and type. "+DA("formulas","Column formulas")],["Sparklines","A thumbnail of each column."]])}
 <h2>Selecting and editing</h2>
 <p>Click a cell, Shift+click or drag for a range, click a header or row number for a whole column or row, or the corner for everything. The bar above shows the active cell's address and its value, which can be typed over there, as in Excel's formula bar (a computed cell shows its formula); the bar below shows Count, Sum, Average, Min and Max of the selection. What is selected is filled in blue with a dark edge, and the letters and row numbers of the selection are filled too, so you can see what <em>Plot</em> will take. Typing starts an edit; ${K("F2")} or a double-click edits in place. ${DA("keys#k-sheet","All the keys")}</p>
-<p>Columns keep a fixed width. Drag the edge of a header to resize one, or double-click the edge to fit its contents. Empty columns and rows fill the rest of the window; typing into one makes a new column.</p>
+<p>Columns keep a fixed width. Drag the edge of a header to resize one, or double-click the edge to fit its contents. Rows are sized the same way, all the data rows of a sheet together: drag the line under any row number, or double-click it for the usual height. Empty columns and rows fill the rest of the window; typing into one makes a new column.</p>
 <p>Enter moves down, Tab to the right; after a run of Tabs, Enter goes to the next row in the column where you started, as in a spreadsheet. A value that is not a number (<code>1.2.3</code>) stays in the cell, marked, for you to put right; ${K("Esc")} gives the cell back. Numbers are read as written: <code>2,5</code>, <code>−3</code>, <code>1e-3</code>, <code>6.02E23</code>.</p>
 <h2 id="move">Moving columns</h2>
 <p>Select a whole column by its letter (Shift+click or drag across the letters for several) and drag the letters left or right: a line shows where they will land. Or right-click a letter and choose <em>Move</em> › Left, Right, To the start or To the end. A column keeps the X it was plotted against wherever it goes, error bars stay with their column, and formulas keep reading the columns they read. A move is one undo step and an entry in the original-data record, since the order of the columns is part of what the check code hashes.</p>
@@ -21166,6 +21414,9 @@ const dockDefW=()=>{ const v=window.innerWidth; return v<1320?360:v<1700?380:420
 function dockGeo(){
   const d=$("#desk"), tb=$("#taskbar"), W=d?d.clientWidth:0, H=d?Math.max(120,d.clientHeight-(tb?tb.offsetHeight:0)):0, ids=dockIds(), on=ids.length>0;
   let dw=on?Math.round(Math.max(300,Math.min(W-200,+LAYOUT.dockW||dockDefW()))):0;
+  // Its width alone never pushes the documents under it: on a wide screen it stops where they would
+  // lose their 780 px (dragged wider, it once became a drawer over the whole desk with no edge to drag back).
+  if(on&&!LAYOUT.dockPin&&window.innerWidth>1100) dw=Math.min(dw,Math.max(300,W-780));
   // Beside the documents while they keep a graph of 480 px and a worksheet of 300;
   // otherwise over them, unless pinned (and then they keep 300 px at least).
   const drawer=on&&!LAYOUT.dockPin&&(window.innerWidth<=1100||W-dw<780);
@@ -21229,11 +21480,13 @@ function wireDock(){
     const up=()=>{ removeEventListener("pointermove",mv); removeEventListener("pointerup",up); removeEventListener("pointercancel",up); if(out) saveLayout(); };
     addEventListener("pointermove",mv); addEventListener("pointerup",up); addEventListener("pointercancel",up); });
   // Its left edge sets the dock's width.
-  if(edge){ edge.addEventListener("pointerdown",e=>{ if(e.button!==0) return; e.preventDefault(); edge.setPointerCapture(e.pointerId); const x0=e.clientX, w0=dockGeo().dw;
-      const mv=ev=>{ LAYOUT.dockW=Math.round(Math.max(300,w0-(ev.clientX-x0))); applyWins(); };
-      const up=()=>{ edge.removeEventListener("pointermove",mv); edge.removeEventListener("pointerup",up); edge.removeEventListener("pointercancel",up); saveLayout(); };
-      edge.addEventListener("pointermove",mv); edge.addEventListener("pointerup",up); edge.addEventListener("pointercancel",up); });
-    edge.addEventListener("keydown",e=>{ if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight") return; e.preventDefault(); LAYOUT.dockW=Math.max(300,dockGeo().dw+(e.key==="ArrowLeft"?16:-16)); applyWins(); saveLayout(); }); }
+  // The widest it may be: the documents keep 780 px beside it (300 when pinned); as a drawer, 200 px.
+  const dockMax=()=>{ const W=dockGeo().W; return Math.max(300,window.innerWidth<=1100?W-200:LAYOUT.dockPin?W-300:W-780); };
+  if(edge){ edge.addEventListener("pointerdown",e=>{ if(e.button!==0) return; e.preventDefault(); edge.setPointerCapture(e.pointerId); winMoving(true); const x0=e.clientX, w0=dockGeo().dw, mx=dockMax();
+      const mv=ev=>{ LAYOUT.dockW=Math.round(Math.max(300,Math.min(mx,w0-(ev.clientX-x0)))); applyWins(); };
+      const up=()=>{ edge.removeEventListener("pointermove",mv); edge.removeEventListener("pointerup",up); edge.removeEventListener("pointercancel",up); edge.removeEventListener("lostpointercapture",up); winMoving(false); saveLayout(); };
+      edge.addEventListener("pointermove",mv); edge.addEventListener("pointerup",up); edge.addEventListener("pointercancel",up); edge.addEventListener("lostpointercapture",up); });
+    edge.addEventListener("keydown",e=>{ if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight") return; e.preventDefault(); LAYOUT.dockW=Math.max(300,Math.min(dockMax(),dockGeo().dw+(e.key==="ArrowLeft"?16:-16))); applyWins(); saveLayout(); }); }
 }
 function applyWins(){
   const desk=$("#desk"); if(!desk) return;
@@ -21374,7 +21627,7 @@ function toggleWin(id){ const st=winState(id); if(!st.open) openWin(id); else if
    restored, typing went nowhere. */
 function winTakeFocus(id){ const el=$("#w-"+id); if(!el||el.hidden||!winOpen(id)) return;
   const a=document.activeElement; if(a&&a!==document.body&&el.contains(a)) return;
-  const t=id==="sheet"?($("#ws input.wsed")||$("#ws")):el; if(!t) return;
+  const t=id==="sheet"?($("#ws input.wsed")||$("#ws")):el.contains($("#plot"))?$("#plot"):el; if(!t) return;
   if(t===el&&!el.hasAttribute("tabindex")) el.tabIndex=-1;
   t.focus({preventScroll:true}); }
 function toggleMax(id){ const st=winState(id); st.max=!st.max; st.z=++LAYOUT.z; applyWins(); saveLayout(); }
@@ -21507,7 +21760,11 @@ function wireWin(el){
     ["e","s","se","w"].forEach(k=>el.insertAdjacentHTML("beforeend",`<div class="win-rz ${k}" data-rz="${k}" aria-hidden="true"></div>`));
     el.addEventListener("pointerdown",e=>{ focusWin(id); const g=graphOfWin(id)?graphIn(e.target,el):null;
       // A chip or the grip may be the start of a drag: they bring the graph forward on a click of their own.
-      if(g&&P()&&g!==S.gid&&!(e.target.closest&&e.target.closest("[data-gchip],[data-gdrag]"))) activateGraph(g); },true);
+      if(g&&P()&&g!==S.gid&&!(e.target.closest&&e.target.closest("[data-gchip],[data-gdrag]"))) activateGraph(g);
+      // The keys follow the pointer into the window, as on a desktop: a press on a graph's numbers or
+      // a title bar, which take no focus of their own, left them in the worksheet, where Delete and
+      // Ctrl+V then acted on cells nobody was looking at. Whatever the press focused itself stays.
+      const before=document.activeElement; setTimeout(()=>{ const a=document.activeElement; if(!el.isConnected||(a&&a!==document.body&&(el.contains(a)||a!==before))) return; winTakeFocus(id); },0); },true);
     const wmn=h.querySelector("[data-wmin]"); if(wmn) wmn.onclick=()=>minimiseWin(id);
     const wcl=h.querySelector("[data-wclose]"); if(wcl) wcl.onclick=()=>{ const g=graphOfWin(id); if(g&&P()) closeGraph(g); else closeWin(id); };
     const hb=h.querySelector("[data-whelp]"); if(hb) hb.onclick=()=>openHelp(helpFor(id));
@@ -21519,30 +21776,33 @@ function wireWin(el){
     h.addEventListener("pointerdown",e=>{
       if(e.button!==0||e.target.closest("button,select,input")||isNarrow()) return;
       const st=winState(id); if(st.max) return;
-      e.preventDefault(); h.setPointerCapture(e.pointerId);
+      e.preventDefault(); h.setPointerCapture(e.pointerId); winMoving(true);
       let {W,H}=deskSize(), g0=st.g.slice(), x0=e.clientX, y0=e.clientY, docked=isDocked(id);
       const mv=ev=>{
         // A docked window held by its title bar comes out of the dock once it is pulled.
         if(docked){ if(Math.hypot(ev.clientX-x0,ev.clientY-y0)<16) return; docked=false; undockAt(id,ev.clientX,ev.clientY); ({W,H}=deskSize()); g0=st.g.slice(); x0=ev.clientX; y0=ev.clientY; return; }
         const nx=g0[0]+(ev.clientX-x0)/W, ny=g0[1]+(ev.clientY-y0)/H;
         st.g[0]=Math.min(1-80/W,Math.max(-g0[2]+80/W,nx)); st.g[1]=Math.min(1-32/H,Math.max(0,ny)); applyWins(); };
-      const up=()=>{ h.removeEventListener("pointermove",mv); h.removeEventListener("pointerup",up); h.removeEventListener("pointercancel",up); saveLayout(); };
-      h.addEventListener("pointermove",mv); h.addEventListener("pointerup",up); h.addEventListener("pointercancel",up);
+      const up=()=>{ h.removeEventListener("pointermove",mv); h.removeEventListener("pointerup",up); h.removeEventListener("pointercancel",up); h.removeEventListener("lostpointercapture",up); winMoving(false); saveLayout(); };
+      h.addEventListener("pointermove",mv); h.addEventListener("pointerup",up); h.addEventListener("pointercancel",up); h.addEventListener("lostpointercapture",up);
     });
     // Resize from the right, bottom, left edges and the corner.
     el.querySelectorAll("[data-rz]").forEach(rz=>rz.addEventListener("pointerdown",e=>{
       if(e.button!==0||isNarrow()) return; const st=winState(id); if(st.max) return;
-      e.preventDefault(); e.stopPropagation(); rz.setPointerCapture(e.pointerId);
+      e.preventDefault(); e.stopPropagation(); rz.setPointerCapture(e.pointerId); winMoving(true);
       const {W,H}=deskSize(), g0=st.g.slice(), x0=e.clientX, y0=e.clientY, k=rz.dataset.rz, mw=240/W, mh=150/H;
       const mv=ev=>{ const dx=(ev.clientX-x0)/W, dy=(ev.clientY-y0)/H;
         if(k.includes("e")) st.g[2]=Math.max(mw,Math.min(1-g0[0],g0[2]+dx));
         if(k.includes("s")) st.g[3]=Math.max(mh,Math.min(1-g0[1],g0[3]+dy));
         if(k==="w"){ const nx=Math.max(0,Math.min(g0[0]+g0[2]-mw,g0[0]+dx)); st.g[2]=g0[2]+(g0[0]-nx); st.g[0]=nx; }
         applyWins(); };
-      const up=()=>{ rz.removeEventListener("pointermove",mv); rz.removeEventListener("pointerup",up); rz.removeEventListener("pointercancel",up); saveLayout(); };
-      rz.addEventListener("pointermove",mv); rz.addEventListener("pointerup",up); rz.addEventListener("pointercancel",up);
+      const up=()=>{ rz.removeEventListener("pointermove",mv); rz.removeEventListener("pointerup",up); rz.removeEventListener("pointercancel",up); rz.removeEventListener("lostpointercapture",up); winMoving(false); saveLayout(); };
+      rz.addEventListener("pointermove",mv); rz.addEventListener("pointerup",up); rz.addEventListener("pointercancel",up); rz.addEventListener("lostpointercapture",up);
     }));
 }
+/* While a window is moved or resized nothing on the page is selected: dragged past the edge of the
+   browser's window, a corner used to select every word on the page. */
+function winMoving(on){ document.body.classList.toggle("winmoving",!!on); if(on) try{ getSelection().removeAllRanges(); }catch(e){} }
 // A window in a menu, as Excel's Switch Windows lists them: the one in front
 // ticked, a minimised one says so; a click brings it to the front.
 function winItem(id){ const g=graphOfWin(id), cs=g?graphCols(g):[];
@@ -24029,7 +24289,9 @@ async function boot(){
     S.store=makeDbStore(db); setStatus(S.readOnly?"View only":"All changes shared");
     S.store.watchProjects(onProjects,e=>{ if(e.code==="revoked") setStatus("Access changed. Reload to continue.",true); else if(e.code==="resource_exhausted") toast("Too many updates at once. Slow down for a moment."); });
   } else {
-    LocalStore.load(); S.store=LocalStore; setStatus("Saved",false);
+    let st=null; try{ st=await IdbStore.open(); }catch(e){ noteError("Projects are kept in localStorage: "+(e&&e.message||e),"storage"); }
+    if(!st){ LocalStore.load(); st=LocalStore; }
+    S.store=st; setStatus("Saved",false);
     $("#status").title="Projects are kept in this browser's storage as you work. Nothing is uploaded.";
     S.store.watchProjects(onProjects);
   }

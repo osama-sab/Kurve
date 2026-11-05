@@ -152,6 +152,80 @@ await page(async p => {
   check("with another tool the card goes", await p.evaluate(() => $("#rdCard").hidden));
 }, { name: "the readers' card" });
 
+console.log("05.11: a day of lab work: heavy files, two tabs, the keys, windows and rows");
+await page(async p => {
+  // A file of a million rows: kept, quick to work with, back after a reload (it was "Not saved", and gone after one).
+  const n = 1000000, text = "Time (s),Signal (mV)\n" + Array.from({ length: n }, (_, i) => `${(i * 1e-4).toFixed(4)},${(Math.sin(i / 300) * 100).toFixed(3)}`).join("\n");
+  await p.evaluate(t => { importText(t, "scan.csv"); }, text); await p.waitForTimeout(1500); await p.evaluate(() => doImport()); await p.waitForTimeout(3000);
+  const a = await p.evaluate(async () => { const t = performance.now(); await save({ name: "Big scan" }, "renamed"); return [nRows(), performance.now() - t, $("#status").textContent, $("#ws").closest(".win").querySelector(".ws-foot").textContent]; });
+  check("a million-row file is saved, and a change to it saves in a moment", a[0] === n && a[1] < 400 && a[2] === "Saved", JSON.stringify(a.slice(0, 3)));
+  check("…its count reads 1 000 000", /1\u202f000\u202f000 rows/.test(a[3]), a[3]);
+  await p.reload(); await ready(p);
+  const b = await p.evaluate(() => { const q = S.projects.find(q => q.name === "Big scan"), y = q && q.cols.find(c => c.role === "y"); return y ? [y.data.length, y.data[777777]] : null; });
+  check("…and is there after a reload", b && b[0] === n && Math.abs(b[1] - +(Math.sin(777777 / 300) * 100).toFixed(3)) < 1e-9, JSON.stringify(b));
+}, { name: "a heavy file", timeout: 180000 });
+await page(async (p, ctx) => {
+  // Two tabs on one project, typing in two columns at once: both columns stay (one was lost).
+  await p.evaluate(() => { const n = 12, x = [], y = []; for (let i = 0; i < n; i++) { x.push(i); y.push(i * 2); } save({ cols: [makeCol("x", "X", "", x), Object.assign(makeCol("y", "Y", "", y), { pipe: [], mask: [] })], activeY: null }, "typed"); }); await p.waitForTimeout(400);
+  const q = await ctx.newPage(); await q.goto(URL); await ready(q); await q.evaluate(id => switchProject(id), await p.evaluate(() => S.pid)); await q.waitForTimeout(400);
+  const typeCol = async (t, col, vals) => { await t.locator(`#ws td[data-r="0"][data-ci="${col}"]`).click(); for (const v of vals) { await t.keyboard.type(v, { delay: 15 }); await t.keyboard.press("Enter"); } };
+  await Promise.all([typeCol(p, 2, ["1", "2", "3", "4"]), typeCol(q, 3, ["9", "8", "7", "6"])]);
+  await p.waitForTimeout(1600);
+  const cols = t => t.evaluate(() => sheetCols(curSheet()).map(c => (c.data || []).filter(v => v != null).join(",")).join(" | "));
+  const ca = await cols(p), cb = await cols(q), st = await p.evaluate(async () => (await S.store.stored(S.pid)).cols.filter(c => !c.src).map(c => (c.data || []).filter(v => v != null).join(",")).join(" | "));
+  check("two tabs typing in two columns of one project keep both columns, on screen and stored", /1,2,3,4/.test(ca) && /9,8,7,6/.test(ca) && ca === cb && ca === st, JSON.stringify([ca, cb, st]));
+}, { name: "two tabs typing" });
+await page(async p => {
+  await p.evaluate(() => loadExample("decay")); await p.waitForTimeout(1200); await p.evaluate(() => { tileWins(); }); await p.waitForTimeout(500);
+  // A press on a graph's numbers, title bar or bar takes the keys: Delete and typing acted on the worksheet behind.
+  const v = () => p.evaluate(() => sheetCols(curSheet()).map(c => c.data.slice(0, 8).join(",")).join(" | ")), v0 = await v();
+  for (const sel of ["#plot rect[data-axis='y']", "section.gwin.haslive .win-h .win-t", "#gRibbon"]) {
+    await p.locator('#ws td[data-r="5"][data-ci="1"]').click(); const b = await p.locator(sel).first().boundingBox();
+    await p.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await p.waitForTimeout(120); await p.keyboard.press("Delete"); await p.keyboard.type("9"); await p.waitForTimeout(150); await p.keyboard.press("Escape"); }
+  check("a press on a graph's numbers, title bar or bar takes the keys from the worksheet", (await v()) === v0 && (await p.evaluate(() => document.activeElement.id)) === "plot", await v());
+  // A window's corner dragged past the browser's edge selected every word on the page.
+  await p.evaluate(() => openWin("batch")); await p.waitForTimeout(300);
+  const c = await p.locator("section.win:not(.docked):not([hidden]) .win-rz.se").first().boundingBox();
+  await p.mouse.move(c.x + 3, c.y + 3); await p.mouse.down(); for (let i = 1; i <= 15; i++) await p.mouse.move(c.x - i * 120, c.y - i * 120); await p.mouse.up();
+  check("a window's corner dragged past the browser's edge selects nothing", (await p.evaluate(() => getSelection().toString().length)) === 0);
+  // Rows sized by the line under a row number, as columns are by their edges.
+  await p.evaluate(() => focusWin("sheet")); await p.waitForTimeout(200);
+  const r = await p.locator('#ws th.rh[data-rh="1"] .rzr').boundingBox();
+  await p.mouse.move(r.x + 20, r.y + 3); await p.mouse.down(); for (let i = 1; i <= 8; i++) await p.mouse.move(r.x + 20, r.y + 3 + i * 2.5); await p.mouse.up(); await p.waitForTimeout(1000);
+  const h = await p.evaluate(() => [...document.querySelectorAll("#ws tr.dr")].slice(0, 3).map(t => Math.round(t.getBoundingClientRect().height)));
+  check("the line under a row number makes the rows taller", h[0] >= 30 && h.every(x => x === h[0]), JSON.stringify(h));
+  await p.reload(); await ready(p); await p.evaluate(() => focusWin("sheet")); await p.waitForTimeout(300);
+  check("…and they keep that height", (await p.evaluate(() => Math.round(document.querySelector("#ws tr.dr").getBoundingClientRect().height))) === h[0]);
+  const r2 = await p.locator('#ws th.rh[data-rh="0"] .rzr').boundingBox(); await p.mouse.dblclick(r2.x + 20, r2.y + 3); await p.waitForTimeout(400);
+  check("…until a double click on the line", (await p.evaluate(() => Math.round(document.querySelector("#ws tr.dr").getBoundingClientRect().height))) === 22);
+  // An error column in German is error bars; "not plotted" fits its column after a fit to contents.
+  check("error columns named Fehler, Std.Abw., erreur or incertitude are error bars", await p.evaluate(() => ["Fehler", "Std.Abw.", "erreur", "incertitude (mg/L)", "errore"].every(h => ERR_NAME.test(h)) && !ERR_NAME.test("Device")));
+}, { name: "keys, windows and rows" });
+await page(async (p, ctx) => {
+  // A graph in a window of its own narrower than 860 px took the phone layout and filled half of it.
+  await p.evaluate(() => loadExample("decay")); await p.waitForTimeout(1200);
+  const [pop] = await Promise.all([ctx.waitForEvent("page"), p.evaluate(() => detachWin(graphWinIds()[0]))]); await pop.waitForTimeout(1200);
+  await pop.setViewportSize({ width: 600, height: 700 }); await pop.waitForTimeout(1500);
+  const r = await pop.evaluate(() => { const b = document.querySelector(".dwin-w>.win-b"); return [innerHeight, b.clientHeight]; });
+  check("a graph in a window of its own 600 px wide fills its height", r[1] > r[0] - 60, JSON.stringify(r));
+}, { name: "a narrow window of its own" });
+await page(async p => {
+  // The dock's edge dragged to the far left made the dock a drawer over the whole desk, with no edge to drag back.
+  await p.evaluate(() => loadExample("decay")); await p.waitForTimeout(1000); await p.evaluate(() => { openWin("stats", { render: true }); }); await p.waitForTimeout(500);
+  const st = () => p.evaluate(() => { const g = dockGeo(); return { dw: g.dw, drawer: g.drawer, docsW: g.docsW, sheet: Math.round(document.getElementById("w-sheet").getBoundingClientRect().width) }; });
+  const edge = () => p.evaluate(() => { const r = document.getElementById("dockEdge").getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  const a = await st(); let e = await edge(); const x0 = e[0];
+  await p.mouse.move(...e); await p.mouse.down(); for (let i = 1; i <= 15; i++) await p.mouse.move(e[0] + (10 - e[0]) * i / 15, e[1]); await p.mouse.up(); await p.waitForTimeout(300);
+  const b = await st();
+  check("the dock's edge dragged to the far left stops where the documents keep 780 px, beside them", !b.drawer && b.docsW === 780, JSON.stringify(b));
+  check("…and selects nothing", (await p.evaluate(() => getSelection().toString().length)) === 0);
+  e = await edge(); await p.mouse.move(...e); await p.mouse.down(); for (let i = 1; i <= 15; i++) await p.mouse.move(e[0] + (x0 - e[0]) * i / 15, e[1]); await p.mouse.up(); await p.waitForTimeout(300);
+  const c = await st();
+  check("…and dragged back, the desk is as it was", c.dw === a.dw && c.sheet === a.sheet && !c.drawer, JSON.stringify([a, c]));
+  await p.evaluate(() => { LAYOUT.dockW = 5000; applyWins(); }); await p.waitForTimeout(200);
+  check("a width kept from before that would cover the desk is held to the same limit", (await st()).docsW === 780, JSON.stringify(await st()));
+}, { name: "the dock's edge" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

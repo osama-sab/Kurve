@@ -44,6 +44,8 @@ async function page(fn, opt = {}) {
   p.on("console", m => { if (m.type() === "error" && !/Failed to load resource|net::ERR/.test(m.text())) errors.push(m.text()); });
   await p.route(/fonts\.(googleapis|gstatic)\.com|jsdelivr/, r => r.abort());
   await p.addInitScript(() => { try { localStorage.setItem("kurve.ovAuto", "0"); } catch (e) {} });
+  // A browser with no IndexedDB: projects go to localStorage, as they did before.
+  if (opt.noIdb) await p.addInitScript(() => { Object.defineProperty(window, "indexedDB", { get() { return undefined; } }); });
   await p.goto(URL); await ready(p); await p.evaluate(HELP);
   const T = opt.timeout || 30000;
   try { await Promise.race([fn(p, ctx), new Promise((_, rej) => setTimeout(() => rej(new Error("timed out: the page hung")), T))]); }
@@ -80,31 +82,64 @@ await page(async (p, ctx) => {
   await p.evaluate(async () => { const g = gauss(100, 50, 5, 10, 0, 1, 0); await mkSpec("A", g.x, g.y, { proj: "Tab A" }); }); await p.waitForTimeout(400);
   await b.waitForFunction(() => S.projects.some(q => q.name === "Tab A"), null, { timeout: 5000 }).catch(() => {});
   await b.evaluate(() => { save({ name: "Renamed in B" }, "renamed"); }); await b.waitForTimeout(400);
-  const stored = await p.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith("kurve.p.")).map(k => JSON.parse(localStorage.getItem(k)).name).sort().join(","));
+  const stored = await p.evaluate(async () => (await S.store.storedAll()).map(q => q.name).sort().join(","));
   check("a second tab saving keeps the first tab's projects", stored === "Renamed in B,Tab A", stored);
   check("the second tab sees the first tab's new project", (await b.evaluate(() => S.projects.map(q => q.name))).includes("Tab A"));
   await b.evaluate(() => { switchProject(S.projects.find(q => q.name === "Tab A").id); }); await b.waitForTimeout(300);
   await p.evaluate(() => { savePlot({ grid: true }, "grid"); }); await p.waitForTimeout(300);
   await b.evaluate(() => { save({ name: "Tab A, renamed in B" }, "rename"); }); await b.waitForTimeout(300);
-  const q = await p.evaluate(() => JSON.parse(localStorage.getItem("kurve.p." + S.pid)));
+  const q = await p.evaluate(() => S.store.stored(S.pid));
   check("two tabs changing different parts of one project keep both", q.name === "Tab A, renamed in B" && q.graphs[0].plot.grid === true, q.name + " " + q.graphs[0].plot.grid);
+  // Both tabs change columns of one project at the same moment: a new column each, and a cell each in a third.
+  await b.evaluate(() => { switchProject(S.projects.find(q => q.name === "Tab A, renamed in B").id); }); await b.waitForTimeout(300);
+  const col = (nm, n) => `(()=>{ const p=P(), y=p.cols.find(c=>c.role==="y"), d=y.data.slice(); d[${n}]=${n}*1000; return { cols: p.cols.map(c=>c===y?Object.assign({},c,{data:d}):c).concat([Object.assign(makeCol("y","${nm}","",[1,2,3]),{pipe:[],mask:[]})]) }; })()`;
+  await Promise.all([p.evaluate(c => { save(eval(c), "A's column"); }, col("From A", 1)), b.evaluate(c => { save(eval(c), "B's column"); }, col("From B", 2))]);
+  await p.waitForTimeout(800);
+  const both = async t => t.evaluate(async () => { const q = await S.store.stored(S.pid), y = q.cols.find(c => c.role === "y"); return [q.cols.map(c => c.name).filter(n => /From/.test(n)).sort().join("+"), y.data[1], y.data[2], P().cols.map(c => c.name).filter(n => /From/.test(n)).sort().join("+")]; });
+  const ra = await both(p), rb = await both(b);
+  check("two tabs adding a column each at once keep both columns", ra[0] === "From A+From B", JSON.stringify(ra));
+  check("…and the cells each changed in one column", ra[1] === 1000 && ra[2] === 2000, JSON.stringify(ra));
+  check("…and both tabs show both", ra[3] === "From A+From B" && rb[3] === "From A+From B", JSON.stringify([ra, rb]));
 }, { name: "two tabs" });
+await page(async p => {
+  // A project of a million rows: kept, quick to save, and back after a reload.
+  const t = await p.evaluate(async () => { const n = 1000000, x = new Array(n), y = new Array(n); for (let i = 0; i < n; i++) { x[i] = i * 1e-4; y[i] = Math.sin(i / 300); }
+    await mkSpec("Scan", x, y, { proj: "Million" }); const a = performance.now(); await save({ name: "Million rows" }, "renamed"); return [performance.now() - a, document.querySelector("#status").textContent]; });
+  check("a project of a million rows is saved, and quickly (a name: under 300 ms)", t[0] < 300 && t[1] === "Saved", JSON.stringify(t));
+  await p.reload(); await ready(p);
+  const r = await p.evaluate(() => { const q = S.projects.find(q => q.name === "Million rows"); const y = q && q.cols.find(c => c.role === "y"); return y ? [y.data.length, y.data[123456]] : null; });
+  check("…and comes back after a reload", r && r[0] === 1000000 && Math.abs(r[1] - Math.sin(123456 / 300)) < 1e-12, JSON.stringify(r));
+  // Leaving at once after a change keeps it.
+  await p.evaluate(() => { save({ name: "Renamed just before leaving" }, "renamed"); }); await p.reload(); await ready(p);
+  check("a change saved just before a reload is kept", await p.evaluate(() => S.projects.some(q => q.name === "Renamed just before leaving")));
+}, { name: "a large project", timeout: 120000 });
+await page(async p => {
+  // The disk is full: Not saved, said again when the project is opened again, and the next write stores it all.
+  const r = await p.evaluate(async () => { S.store.failNext = "quota"; await save({ cols: P().cols.map(c => c.role === "y" ? Object.assign({}, c, { data: Array.from({ length: 5000 }, (_, i) => Math.sin(i)) }) : c) }, "big"); return [document.querySelector("#status").textContent, Object.keys(S.store.dirty).length]; });
+  check("a refused write says Not saved and keeps the project marked", r[0] === "Not saved" && r[1] === 1, JSON.stringify(r));
+  const r1 = await p.evaluate(async () => { const keep = S.pid; await createProject(blankProject("Other"), "made"); await new Promise(r => setTimeout(r, 300)); const a = document.querySelector("#status").textContent; switchProject(keep); await new Promise(r => setTimeout(r, 300)); return [a, document.querySelector("#status").textContent]; });
+  check("…the status bar says Saved on another project and Not saved on that one again", r1[0] === "Saved" && r1[1] === "Not saved", JSON.stringify(r1));
+  const r2 = await p.evaluate(async () => { await save({ name: "room now" }, "rename"); const q = await S.store.stored(S.pid); return [document.querySelector("#status").textContent, q.cols.find(c => c.role === "y").data.length, Object.keys(S.store.dirty).length]; });
+  check("…and the next write stores what was refused", r2[0] === "Saved" && r2[1] === 5000 && r2[2] === 0, JSON.stringify(r2));
+}, { name: "a refused write" });
 await page(async p => {
   await p.evaluate(() => { const blk = "x".repeat(1 << 18); try { for (let n = 0; n < 200; n++) localStorage.setItem("junk" + n, blk); } catch (e) {} });
   const r = await p.evaluate(async () => { await save({ cols: P().cols.map(c => c.role === "y" ? Object.assign({}, c, { data: Array.from({ length: 80000 }, (_, i) => Math.sin(i)) }) : c) }, "big"); return document.querySelector("#status").textContent; });
-  check("a full store says Not saved", r === "Not saved", r);
+  check("a full store says Not saved (no IndexedDB: localStorage)", r === "Not saved", r);
   const r2 = await p.evaluate(async () => { for (let n = 0; n < 200; n++) localStorage.removeItem("junk" + n); await save({ name: "room now" }, "rename"); return [document.querySelector("#status").textContent, JSON.parse(localStorage.getItem("kurve.p." + S.pid)).cols.find(c => c.role === "y").data.length]; });
   check("the next save that fits writes the change that did not", r2[0] !== "Not saved" && r2[1] === 80000, r2.join(" "));
   const ids = await p.evaluate(async () => { const [a, b] = await Promise.all([LocalStore.create(blankProject("one")), LocalStore.create(blankProject("two"))]); return a === b; });
   check("two projects made in one millisecond get two ids", !ids);
-}, { name: "full store" });
+  check("no IndexedDB: the store is localStorage", await p.evaluate(() => S.store === LocalStore));
+}, { name: "full store", noIdb: true });
 await page(async p => {
   await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith("kurve.")) localStorage.removeItem(k);
     localStorage.setItem("kurve.v1", JSON.stringify({ projects: { pa: { name: "Old A", v: 4, cols: [] } }, comments: { pa: { c1: { text: "old", t: 1 } } } }));
     localStorage.setItem("kurve.layout", JSON.stringify({ v: 3, z: 5, wins: { sheet: { g: [null, "a", -5, 1e9], open: true, z: 3 } } })); });
   await p.reload(); await ready(p);
-  const r = await p.evaluate(() => ({ keys: Object.keys(localStorage).filter(k => /^kurve\.(p|c)\.|^kurve\.v1$/.test(k)).sort().join(","), h: document.querySelector("#w-sheet").getBoundingClientRect().height }));
-  check("the single store of earlier versions is split into one key a project", r.keys === "kurve.c.pa,kurve.p.pa", r.keys);
+  const r = await p.evaluate(async () => ({ keys: Object.keys(localStorage).filter(k => /^kurve\.(p|c)\.|^kurve\.v1$/.test(k)).sort().join(","), h: document.querySelector("#w-sheet").getBoundingClientRect().height,
+    name: S.projects.map(q => q.name).join(","), c: ((await new Promise(r => { const tx = IdbStore.db.transaction("comments"); const q = tx.objectStore("comments").get("pa"); q.onsuccess = () => r(q.result); })) || {}).c1 }));
+  check("the single store of earlier versions moves into IndexedDB, and leaves localStorage", r.keys === "" && /Old A/.test(r.name) && r.c && r.c.text === "old", JSON.stringify(r));
   check("a corrupt saved layout is put back where a window starts", r.h > 100 && r.h < 2000, r.h);
 }, { name: "earlier versions" });
 

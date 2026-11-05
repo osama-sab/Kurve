@@ -75,7 +75,7 @@ const state=()=>page.evaluate(()=>{ const m=S.wsm, s=S.ws; const q=m&&m.cols[s.c
 const cellVal=(r,c,k)=>page.evaluate(([r,c,k])=>{ const cols=allCols().filter(o=>!o.src), col=cols[c]; if(!col) return {none:true,v:null}; const m=wsLive(); if(k==null) k=m&&m.kind==="raw"?wsDR(m,r):r; const v=col.data[k]; return {v:v===undefined?null:v, fx:!!col.fx, id:col.id, k}; },[r,c,k]);
 // Invariants after every action.
 async function check(tag){
-  const bad=await page.evaluate(()=>{ const out=[]; const p=P(); if(!p) return out;
+  const bad=await page.evaluate(async ()=>{ const out=[]; const p=P(); if(!p) return out;
     allCols().forEach(c=>{ (c.data||[]).forEach((v,i)=>{ if(v!==null&&!(typeof v==="number"&&Number.isFinite(v))) out.push(`col ${colLetter(c)||c.id} row ${i+1} holds ${JSON.stringify(v)}`); }); if(c.data&&c.data.length&&c.data[c.data.length-1]==null&&!c.fx) out.push(`col ${colLetter(c)} ends in empty cells`); });
     if(!S.editing&&!S.ws.edit){ const ok=rawVerified(); if(ok===false) out.push("fingerprint does not match the data"); }
     if(!!S.ws.edit!==!!S.editing) out.push(`edit ${!!S.ws.edit} but editing ${!!S.editing}`);
@@ -84,7 +84,7 @@ async function check(tag){
     const m=wsLive(); if(m&&!S.ws.edit&&winOpen("sheet")){ let n=0; document.querySelectorAll("#ws td[data-ci][data-r]").forEach(td=>{ if(n>4) return; const r=+td.dataset.r, c=+td.dataset.ci; if(td.classList.contains("editing")) return; const want=wsText(m,r,c); if(td.textContent!==want){ n++; out.push(`cell ${(m.cols[c]||{}).letter}${r+1} shows "${td.textContent}" but holds "${want}"`); } }); }
     const s=S.ws; if(m&&(s.c<0||s.c>=m.cols.length)) out.push("selection off the sheet");
     // What is stored is what is on screen, once nothing waits to be saved.
-    if(!Object.keys(wsPatch).length&&!S.ws.edit){ try{ const st=JSON.parse(localStorage.getItem("kurve.p."+S.pid)||"null"); if(st){ const f=cs=>JSON.stringify((cs||[]).filter(c=>!c.src).map(c=>[c.id,c.role,c.name||"",c.unit||"",c.fx?c.fx.src:null,c.fx?null:(c.data||[])]));
+    if(!Object.keys(wsPatch).length&&!S.ws.edit&&!(S.store.busy&&S.store.busy[S.pid])){ try{ const st=await S.store.stored(S.pid); if(st){ const f=cs=>JSON.stringify((cs||[]).filter(c=>!c.src).map(c=>[c.id,c.role,c.name||"",c.unit||"",c.fx?c.fx.src:null,c.fx?null:(c.data||[])]));
       const a=f(st.cols), b=f(p.cols); if(a!==b){ const A=JSON.parse(a), B=JSON.parse(b); out.push(`stored ${A.length} columns, on screen ${B.length}: `+B.map((c,i)=>JSON.stringify(c)!==JSON.stringify(A[i])?`#${i} screen ${JSON.stringify(c).slice(0,90)} stored ${String(JSON.stringify(A[i])).slice(0,90)}`:"").filter(Boolean).slice(0,2).join(" | ")); } } }catch(e){ out.push("store read: "+e.message); } }
     return out; });
   bad.forEach(b=>fail(`${tag}: ${b}`));

@@ -60,7 +60,8 @@ Help, Discussion, the processing tools; Batch floats), one shown at a time, its 
 design system's Dock (a *Tools* label, icon tabs, the shown one raised with its name and ×,
 Help, Undock and Hide at the right; a docked window has no title bar of its own); the
 documents share what is left, and get it back when it empties. Its left edge sets its width
-(360 px below 1320, 380 below 1700, 420 above); a tab double-clicked takes the whole desk,
+(360 px below 1320, 380 below 1700, 420 above; dragged no wider than leaves the documents 780 px,
+`dockMax`, and a width kept from before held to that in `dockGeo`); a tab double-clicked takes the whole desk,
 dragged out floats (as does the title bar), and the title bar's dock button docks it again.
 Below 1100 px, or when a 480 px graph and a 300 px worksheet would not fit beside it, it is a
 drawer over the documents, with a pin and a button that puts it away. A first visit opens the
@@ -723,7 +724,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   of consistent numeric lines, so an instrument preamble and a trailing footer are found rather
   than fought), `parseMeta`, `detectRoles` (X is the first column that rises or falls steadily,
   else the first whose name matches `X_NAME`, an axis's name; with neither, `xi` is -1 and every
-  column is a Y against its row number, error columns still found by name), `detectPaired`,
+  column is a Y against its row number, error columns still found by name: `ERR_NAME`, err, sd,
+  sigma, σ, uncertainty and their German, French, Italian and Spanish names), `detectPaired`,
   `analyzeFile` (a last header line of units under a line of names, `isUnitsRow`/`isUnitWord`/
   `UNIT_RE`, fills the Units row: the names become "Sample A (OD600)" and `unitsAt` is the units
   line), and `checkColumns`
@@ -885,7 +887,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   corner's ⋯ lists F(x)= ticked and fixed), Comments and Sparklines when the corner's ⋯
   (`[data-wsrows]`, `wsRowsMenu`) shows them, per project and browser (`wsRowsPref`/
   `wsRowsSet`, `kurve.wsrows`); `wsLabShown`, `wsLabRows`, `wsLabSnap` keep the selection off
-  the hidden ones. Rows are 22 px. A value typed into a cell that starts with `=` (`=log10(B1)`,
+  the hidden ones. Data rows are 22 px unless sized: the line under any row number (`.rzr` in
+  `th.rh`, `data-rzr`) drags every data row of the sheet to one height (18 to 160 px, the line
+  following the pointer), a double click on it gives 22 again; `p.wsrh` (`{sheet: px}`, saved
+  as `wsw` is, `wsRowH`, `wsSetRowH`, the CSS variable `--ws-rh` on `#ws`), the label rows keeping
+  theirs. A value typed into a cell that starts with `=` (`=log10(B1)`,
   as in a spreadsheet) moves to the column's F(x)= row, still being typed (`wsCommit` →
   `wsEditFormula(ci, init)`), with a toast that a letter is the whole column.
   **Formulas** (the F(x)= row, or "Set column values…" in the column and cell menus): a
@@ -1094,7 +1100,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   that opens `helpFor(id)`). `renderAll` renders only open
   windows; a window renders when it opens. `showTab("fit"|"clean")` and `showDrawer(...)`
   remain as names for opening the Fit, History, Results and Discussion windows. `wireWin(el)`
-  wires one window (the static ones at boot, a graph or trend window when it is made). Graph windows
+  wires one window (the static ones at boot, a graph or trend window when it is made): a press
+  anywhere in it brings it forward and, unless what was pressed took the focus itself, gives it the
+  keys (`winTakeFocus`: the worksheet's grid, a live graph's `#plot`, else the window), so Delete or
+  Ctrl+V after a press on a graph's numbers or a title bar no longer reach the worksheet behind;
+  moving or resizing it selects no text (`winMoving`, `body.winmoving`). Graph windows
   are placed per project (`saveGraphLayout`, `restoreGraphLayout`: `LAYOUT.proj[pid]` for a
   project with several graphs, `LAYOUT.single` for one graph), so twelve tiled graphs do not
   leave the next project's graph tiny.
@@ -1687,8 +1697,38 @@ graph first, with the taskbar kept at the bottom of the screen.
   back what was undone under it. It is per-session and local on purpose — rewinding your
   own edits, not other people's. Destructive actions confirm themselves with a toast that
   carries an Undo button (`toast(msg,{action,run})`).
-- **Storage**: `LocalStore` (localStorage, single user) and `makeDbStore(db)` (claude.ai artifact
-  runtime, shared realtime). `LocalStore` keeps one key per project (`kurve.p.<id>`) and per
+- **Storage**: `IdbStore` (IndexedDB, this browser: a share of the disk, not localStorage's few
+  megabytes, so a scan of a million rows is a project like any other), `LocalStore` (localStorage,
+  for a browser with no IndexedDB: `boot` falls back to it when `IdbStore.open()` fails) and
+  `makeDbStore(db)` (claude.ai artifact runtime, shared realtime). **IdbStore**: the database
+  `kurve` with `projects` (a record per project, `_rev` its version), `arrays` (a column's values
+  of 256 or more, under a key of their own, `akey(pid, arr)` through the `AKEY` WeakMap; the
+  record holds `{$a: key}`, `toRec`/`fromRec`, `recKeys`) and `comments`. Memory has every project
+  and is what the page reads: `save(pid, patch)` puts `cloneProj(patch)` into memory and emits at
+  once (synchronously, as before), then queues a write (`queue`, per project, coalescing): one
+  transaction reads the record and writes it, only the arrays not yet stored (`have`), and drops
+  the arrays the project no longer names. When the stored `_rev` is not the one this tab last read
+  or wrote, another tab wrote in between: `mergeProj(base, mine, theirs)` puts the two together
+  (each part from where it changed; `mergeCols` column by column and, a column changed in both,
+  cell by cell; both tabs' log lines and raw-data record entries, the check code recomputed) and
+  memory takes the result. Tabs tell each other by a `BroadcastChannel` (`kurve.store`: `p`, `del`,
+  `c`), and `heard` reads the record in unless this tab is writing that project (its write merges).
+  `pend` counts saves not yet written; `flushSync()` (from `flushEdits`, on `pagehide`,
+  `beforeunload` and the page hidden) writes them in one transaction committed at once, since a
+  write that first reads is cut off by the page going. A refused write (`fail`: `quota_exceeded`
+  or `storage`; `failNext` simulates one for the tests) marks the project `dirty`: the status bar
+  says Not saved (again whenever that project is opened, `openProject`), leaving the page asks
+  first (`beforeunload`), and the next write that succeeds stores all of it. `load` moves the
+  localStorage keys of earlier versions (`kurve.p.*`, `kurve.c.*`, `kurve.v1`) in (`adopt`) and
+  removes them once stored, and deletes arrays no record names. `stored(pid)`/`storedAll()` read
+  what is stored, as the page would (the tests use them; `LocalStore` has them too). **The page's
+  copy** (`S.proj = cloneProj(cur)` in `onProjects`, `S.projSrc` the store's version it came from)
+  shares the columns' values with the store's (values are replaced, never changed in place;
+  `cleanArr` turns what is not a finite number into null once per array, as the JSON copy did):
+  a JSON copy of a million values on every save made each one take a second. A worksheet edit
+  waiting for its delayed save (`wsPatch`) is merged with what comes in (`mergeCols(wsBase, ...)`,
+  `wsBase` the stored columns when the first waiting edit began), so another tab's new column is
+  not overwritten. **LocalStore** keeps one key per project (`kurve.p.<id>`) and per
   project's comments (`kurve.c.<id>`), so a save writes only its own project; another tab's
   writes arrive through the `storage` event (`onStorage`) and are emitted like any change. A
   save starts from the project as stored (`read`), so two tabs changing different parts of one
@@ -1697,7 +1737,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   `storage`): the status bar says Not saved and `writeErr` says why; a project deleted elsewhere
   throws `gone`. Ids carry a random part (two made in one millisecond). The single key of
   earlier versions (`kurve.v1`) is split up on `load`, or kept and used as before
-  (`legacy`) if there is no room to. Both expose the same interface: `watchProjects`, `create`, `save`,
+  (`legacy`) if there is no room to. All three expose the same interface: `watchProjects`, `create`, `save`,
   `remove`, `watchComments`, `addComment`, `updateComment`, `deleteComment`. To add a real
   backend (Firebase, Supabase, a custom server with WebSockets), implement this interface.
   With LocalStore and no projects at all, `onProjects` creates an empty one, so a first visit
@@ -2336,7 +2376,18 @@ identifiers, the real superscripts, the fields' widths; run it after touching th
 another project, a named placeholder kept, undo; the X zoom each graph's own until linked from the
 ⋯ menu; the readers' card dragged onto the worksheet, resized, its least size, kept across the X–Y
 lines and a reload, whole in a smaller window, put back by a double-click, inert under a dialog,
-junk from storage); add a section to it for each report fixed.
+junk from storage; 05.11, a day of lab work: a million-row file saved quickly, counted as
+1 000 000 and back after a reload, two tabs typing in two columns, the keys after a press on a
+graph, a window's corner dragged past the browser's edge, rows sized, kept and reset, error
+columns in other languages, a narrow window of its own, the dock's edge dragged to the far left
+and back); add a section to it for each report fixed.
+`node tools/lab-day.mjs [path] [minutes] [seed]` (Playwright) is a working day of erratic use through
+the pointer and keys (typing junk into cells and fields, sizing columns and rows, zooming, every
+pointer tool, wandering the menus and right-click menus, dialogs answered at random, windows
+dragged, resized, maximised and minimised, the dock, undo bursts, Find a command, examples, files
+imported, screen sizes, the theme, coffee breaks), sampling memory, page elements, listeners,
+lag, long tasks and storage every 30 s into a CSV, and at the end reloading and comparing every
+project; run it for a long while (40 minutes) after touching windows, storage or rendering.
 `node tools/plot-drive.mjs [path]` (Playwright) checks what each slice of `ux/spec/PLOT_SPEC.md`
 added (slice 1: a curve on the right axis and undone, ranges by rows and by X for one curve or
 every one, labels from a column, an export, junk from storage; slice 2: Plot setup opened on a
@@ -2382,7 +2433,10 @@ colours as the browser resolves them, in both themes and both styles, against DE
 rules; run it after touching a token or a state's look.
 `node tools/odd-test.mjs [path]` (Playwright with Chromium) drives the app in unusual ways that
 once hung it, lost data or drew nonsense: 300 turns of the wheel, a nanosecond time axis, equal
-and crossed axis limits, two tabs saving, a full store, the old single-key store and a corrupt
+and crossed axis limits, two tabs saving (and adding a column each at once), a project of a
+million rows kept and quick to save, a change saved just before a reload, a refused write (Not
+saved, said again on opening the project, stored by the next write), a full localStorage (no
+IndexedDB), the old single-key store moved into IndexedDB and a corrupt
 layout, typographic minus signs, file names in any script, times across midnight, undo while
 holding a label, 300 spectra, a long graph name, a straight line through one X, a formula 300
 deep, breaks read from storage in every broken form, a second axis that cannot be numbered, a
@@ -3183,6 +3237,42 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A tool's card belongs to the screen.** The readers' card was a child of the graph and kept
   inside it, so on a small graph it covered the curves it was reading. A floating card is fixed in
   the app, kept whole in the window, moved and resized, and remembers where it was put.
+- **A store that cannot hold a file loses it in silence.** A scan of a million rows was larger than
+  localStorage's few megabytes: the status bar said Not saved, switching projects said Saved (the
+  other project's), and a reload brought back the empty project it had been imported into. Nothing
+  asked before leaving. Projects are in IndexedDB; a refused write keeps the project marked, says
+  so whenever it is opened, and leaving the page asks first. Import heavy files in tests, not only
+  ones that fit.
+- **A deep copy per save is a copy of every value.** Every save handed back a JSON copy of the
+  whole project: a second for a million rows, on every typed value and every switch. The page's
+  copy shares the columns' values (they are replaced, never changed in place) and the store writes
+  only the columns whose values are new; a save of that project went from 1 s to 35 ms.
+- **A write that first reads is cut off by the page going.** The new store reads the project and
+  writes it in one transaction, so two tabs merge; a row height dragged and the page reloaded
+  within the delayed save's 0.7 s was lost, since the page went before the read came back.
+  Leaving writes what waits in a transaction committed there and then (`flushSync`).
+- **What waits to be saved holds a whole list.** A worksheet edit waiting for its delayed save
+  held the whole list of columns; another tab's new column arrived meanwhile and was written over
+  when the edit was saved: two tabs typing in two columns kept one. Waiting edits and concurrent
+  writes are put together column by column (`mergeCols`).
+- **A page's copy must be a copy from the start.** Opening a project handed the page the store's
+  own object (only later saves handed back copies). The old store never noticed, as it read the
+  project from storage at every save; the new one compares a write with what it last read, and
+  typing changed that too, so a merge with another tab took this tab's new columns for old ones
+  and dropped them, one run in two. `openProject` copies (`cloneProj`), as `onProjects` does.
+- **A press that takes no focus leaves the keys where they were.** A graph's numbers and the title
+  bars call `preventDefault` on the press, so the focus stayed in the worksheet, and Delete or
+  Ctrl+V pressed while looking at the graph cleared or pasted cells behind it. A press in a window
+  gives it the keys unless it focused something itself.
+- **A phone layout reaches a window of its own.** The detached window copies the app's stylesheet,
+  so below 860 px its graph took the phone layout's 52vh and filled half the window. The detached
+  page overrides the rules that size a window's body.
+- **Past the edge of the browser a drag selects.** A window's corner dragged beyond the browser's
+  window selected every word on the page. Moving and resizing set `user-select:none` on the page.
+- **A width with no limit becomes another layout.** The dock's edge dragged far left made the dock
+  wider than the documents could stand beside, so it turned into a drawer over the whole desk,
+  whose edge could not be dragged back. A size a person drags stops at the limit of the layout it
+  belongs to.
 
 ## Roadmap
 
@@ -3313,6 +3403,19 @@ alike); the X zoom is each graph's own until linked (in a graph's ⋯ menu or Wi
 Reader's and X–Y lines' card goes anywhere on the screen, resized by its corner, its place and size
 kept, a double-click on its head putting it back by the graph. `tools/review-drive.mjs` checks
 each report as it was made.
+
+Then, 05.11, the user's request to use Kurve as a lab technician would, typically and not: typing
+by hand, sizing columns and rows, very heavy files, many projects and tabs, many windows, a long
+day. Found and fixed: projects are kept in IndexedDB (a file of a million rows had been lost on a
+reload, silently), every save no longer copies every value (a second a save at a million rows; now
+35 ms), two tabs typing in two columns of one project keep both, leaving the page writes what
+waits and asks first when the browser refused it, the status bar says Not saved for that project
+whenever it is opened; a press in a window gives it the keys; moving a window selects nothing;
+rows are sized by the line under a row number; a narrow window of its own is laid out as itself;
+error columns in German, French, Italian and Spanish; counts of thousands grouped; the dock's edge
+stops where the documents keep their room. Measured and
+fine: a 40-minute day of 1 300 erratic actions with memory, page elements and listeners flat, and
+three tabs on one set of projects. `tools/lab-day.mjs` is that day.
 
 Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
 graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
@@ -3655,8 +3758,8 @@ Next, in order:
    linear in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the
    files' header fields as rows of the worksheet, global fits in a worker
 8. More files: JCAMP-DX, then SPC; OPUS and SPE last
-9. Under the hood: projects in IndexedDB rather than localStorage (no 5 MB limit, BroadcastChannel
-   between tabs); `tools/odd-test.mjs` grown to run every example end to end; the worksheet
+9. Under the hood (projects in IndexedDB: done 05.11): `tools/odd-test.mjs` grown to run every
+   example end to end; the check code kept per column so a cell typed into a million rows is quick; the worksheet
    drawing only the columns in view; speed with thousands of spectra
 10. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
    applied in one click, unread markers
@@ -3878,9 +3981,16 @@ Next, in order:
   within half a pixel are one symbol and a dashed line's dashes fall a little differently; the
   exports draw every point. A fit, the peak finder and the processing use every point, so a fit
   of 200 000 points takes seconds, run on the page
-- Storage in this browser is localStorage: a few megabytes for every project together (a few
-  hundred thousand points). A project larger than that says Not saved and must be exported;
-  two tabs editing the same part of one project keep the later change
+- Storage in this browser is IndexedDB, as large as the browser lets a page be (a share of the
+  disk); every project is in memory while the page is open, so many projects of millions of rows
+  need that much memory. Two tabs changing the same cell keep the later value, and other parts
+  of a project (a graph's settings, the annotations) are put together whole, the later tab's
+  winning; in a shared workspace (claude.ai) two colleagues' changes to the columns at the same
+  moment still keep the later list. A browser with no IndexedDB keeps projects in localStorage,
+  a few megabytes in all. Typing into a column of a million rows takes most of a second (the
+  check code is the whole table's)
+- Rows of a sheet are sized together (every data row one height), not one by one; the label rows
+  keep 22 px
 - The worksheet draws only the rows in view, but every column; with hundreds of columns it
   draws fewer rows around the view instead. An axis title longer than its axis is cut off at
   the plot's edge

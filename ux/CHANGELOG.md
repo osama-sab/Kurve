@@ -1024,6 +1024,42 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## A day of lab work: heavy files, tabs, windows, rows (2026-11-05)
+
+Kurve driven as a lab technician would, through the pointer and keys: typing a calibration table
+by hand, sizing columns and rows, a million-row scan, a 200 000-row logger file with a preamble,
+300 columns, 80 spectra at once, a European file dropped on the window, six projects in three
+tabs, every tool window dragged, stacked, resized, maximised, minimised, docked and floated, the
+graph in a window of its own, six screen sizes, and a 40-minute day of 1 300 random actions.
+
+- **Heavy files were lost.** A project larger than localStorage's few megabytes said Not saved,
+  said Saved once another project was opened, and was empty after a reload. Projects are now in
+  IndexedDB (moved there from localStorage on the first load); a refused write says Not saved
+  whenever that project is shown, and leaving the page asks first.
+- **Large projects were slow**: every save copied every value. A save of a million-row project
+  took 1 s; it takes 35 ms. Typing a value into it no longer builds an array per row for the
+  check code.
+- **Two tabs typing in two columns of one project** kept only one tab's column; both stay now.
+- **Keys after a press on a graph's numbers or a title bar** went to the worksheet behind; the
+  window pressed takes them.
+- **A window's corner dragged past the browser's edge** selected every word on the page; nothing
+  is selected now.
+- **Rows can be sized**: the line under a row number sets the height of the sheet's data rows,
+  kept with the project; a double click gives 22 px back.
+- **A graph in a window of its own narrower than 860 px** filled half of it; it fills it.
+- **The dock's edge dragged far left** turned the dock into a drawer over the whole desk, with no
+  edge to drag back; it stops where the documents keep 780 px, and selects no text.
+- **Small things**: "not plotted" ends in an ellipsis when its column is narrow, and fitting a
+  column to its contents makes room for it; counts of ten thousand and more are grouped
+  (1 000 000); error columns named in German, French, Italian or Spanish are error bars.
+
+Measured and fine: memory, page elements and listeners flat over the 40-minute day; three tabs on
+one set of projects, deleting a project another tab shows, closing a tab mid-edit (the value
+kept); rapid switching between six projects.
+
+Checked: `tools/review-drive.mjs` (a new section), `tools/odd-test.mjs` (storage, 117),
+`tools/lab-day.mjs` (new: the 40-minute day), and every suite.
+
 ## The user's reports: sheets, linked zoom, the readers' card (2026-10-29)
 
 - **Importing into a sheet made with +** (the dialog's Add to the sheet shown, a dropped file,

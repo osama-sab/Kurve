@@ -148,8 +148,8 @@ await page(async p => {
   check("asked again, the worksheet shows the two it has", r.n === 2 && /already/.test(r.toast), JSON.stringify(r));
   // A new fit writes them again; stored, they are the new fit's.
   await p.evaluate(() => { const d = ensureDraft(); d.init = d.init.slice(); d.init[0] = 0; d.fixed = d.fixed.slice(); d.fixed[0] = true; runFit(); }); await p.waitForTimeout(600);
-  r = await p.evaluate(() => { const f = activeFit(), FM = fitModel(f), c = P().cols.find(c => c.fx && c.fx.fit === "fit"), d = finalOf(colById(f.onCol)), k = 5;
-    const st = JSON.parse(localStorage.getItem("kurve.p." + S.pid) || "null"), sc = st && st.cols.find(o => o.id === c.id);
+  r = await p.evaluate(async () => { const f = activeFit(), FM = fitModel(f), c = P().cols.find(c => c.fx && c.fx.fit === "fit"), d = finalOf(colById(f.onCol)), k = 5;
+    const st = await S.store.stored(S.pid), sc = st && st.cols.find(o => o.id === c.id);
     return { fixed0: f.fixed[0], v: c.data[d.idx[k]], want: FM.f(d.x[k], f.params), stored: sc && sc.data[d.idx[k]] }; });
   check("a new fit writes them again, and that is what is stored", r.fixed0 && Math.abs(r.v - r.want) <= Math.abs(r.want) * 1e-12 && r.stored === r.v, JSON.stringify(r));
   // Masking a point puts the fit out of date, and the columns with it.
