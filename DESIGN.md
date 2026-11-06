@@ -889,6 +889,18 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: Thousands of columns (roadmap 9, slice 3)
+
+- **Asked once, not once per column.** Two thousand columns made every save take a second or more,
+  though no part looked slow: each column's colour, X and error bars walked the whole list. A render
+  works out the answers about the columns once; a map keeps its picture until what it shows changes.
+- **What cannot be read is not drawn.** The History draws the boxes about the view (a thousand
+  lanes are four thousand boxes), and Statistics lists 200 columns with *Show them all*, Copy giving
+  every one: a table of 2000 rows is a thing to copy, not to read.
+- **A line that only stripes is a short line.** With the lanes wrapped into bands, the lines from the
+  original data's box ran down behind every band above, hundreds of them a grey stripe; a lane of a
+  lower band now shows a short line over its box.
+
 ### 2026-11-06: The worksheet draws the columns in view (roadmap 9, slice 2)
 
 - **A wide sheet behaves as a long one.** Rows were drawn about the view and columns all of them:

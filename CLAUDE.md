@@ -929,7 +929,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   raw input or final output (`src`, `from`), for a derivative beside the spectrum or a second
   route to compare. `p.activeY` is the one being analysed. Helpers: `xCol`, `yCols`,
   `activeYCol`, `errColFor`, `colById`, `makeCol`, `colLabel`, `colLetter` (letters count raw
-  columns only), `specName`. A raw column's role, error-bar owner, visibility and deletion live
+  columns only), `specName`. **Inside a render** (`inRender(fn)`: `renderAll`, after its
+  `normalize`; `renderPlot`, `renderWs`, `renderWin`, `runSnaps`) the answers about the columns
+  are worked out once (`colMemo()`, `CM`, valid while `S.proj`, its `cols` and their length are
+  the memo's; `save` and `onProjects` drop it): `colById` (a map), `yCols`/`yCount`/`yIndex(id)`
+  (`yTint`'s place), `sheetCols(sid)`, `xColFor` (each column's nearest X to its left in one pass of
+  its sheet), `errListOf(id)` (`errColsOf`, `hasErrCols`, `errColFor`). Outside a render each walks
+  the list, as before. A raw column's role, error-bar owner, visibility and deletion live
   in its header menu (`openColMenu`) and go through `setColRole`, `setErrOf`, `setActiveCol`,
   `toggleColVis`, `deleteCol`. A spectrum may name its X column (`xcol`, honoured first by
   `xColFor`; `setXOf(yid, xid)`, the menu's Plot against and an X column's X of); a formula
@@ -962,7 +968,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   works them out first (`fpSettle`: the CSVs and the report); a record still waiting when the
   project is opened or arrives is worked out again for the data as they are (`fpEnsure`, after
   3 s, in case another tab is at it). `rawVerified()` is null while it waits, and the History says
-  *working it out…* (`fpOf`, `fpLab`). `fpNow(arrs)` is a check code known without hashing.
+  *working it out…* (`fpOf`, `fpLab`). `fpNow(arrs)` is a check code known without hashing; the last six states' are kept (`FPM`,
+  `fpKeep`), so an undo or redo back to one is not hashed again.
 - **Sheets** (`p.sheets`, `[{id, name}]` in tab order, in `UNDO_KEYS`): the worksheet's sheets,
   as a workbook's. A column's sheet is `c.sheet`, a derived column's its source's, and a column
   naming none (or a sheet that has gone) is on the first; `sheetList(p)` (a project from before
@@ -1523,7 +1530,14 @@ graph first, with the taskbar kept at the bottom of the screen.
   it in bands below (`n.band`, a row between), the original data's box over the first band, the
   graphs' boxes under the last; `S.flowPack` (`#fPack`, *Wrap lanes*, on); a step dragged within
   its lane's own steps (`m.c===n.c`) by the pointer's travel over the zoom, and moved by id (the
-  boxes hold the cache's copies of the steps; `stepMenuItems` finds the live step by id too)):
+  boxes hold the cache's copies of the steps; `stepMenuItems` finds the live step by id too);
+  roadmap 9, slice 3: past `FLOW_VMAX` (300) boxes only those about the view are drawn, a screen
+  beyond it each way (`flowDraw(force, keep)`, `S.flowL {L, cur, win, keys}`, again on a scroll
+  that comes within half a screen of what is drawn; the selected box and the one with the keys
+  always drawn; `flowEdgesSvg(L, win)` the lines that cross the window; the keys' `go` and
+  `scrollFlowTo` draw a box before going to it; `renderFlowNodes` redraws the canvas alone); a
+  lane of a lower band is fed by a short line over its box (`e.stub`), not a line from the
+  original data's box behind the bands above):
   lanes of boxes, one per spectrum, placed depth
   first so a derived spectrum branches off its source's original or processed box; an
   "Original data" box above the columns (their check codes); step boxes in order (dashed while
@@ -1587,7 +1601,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   returns `spec`, and `statsTsv` copies the same columns), the visible-range integral
   (`measureHtml`, over `viewRng()`, never the fit's range), and Pearson r between spectra on the
   analysed one's X (`corrMatrix(cols, rng, only)`: each pair once; past 12 spectra a column of
-  each against the analysed one, not a square table); Copy gives it as TSV.
+  each against the analysed one, not a square table); Copy gives it as TSV. Past `STAT_MAX` (200)
+  columns the tables list the first 200 and the active and selected ones, with a *Show them all*
+  button (`data-stall`, `S.stAll`); Copy (`statsTsv`) gives every column. `statRow` is kept per
+  series and range (`STATM`, `statRow0` the work; the row given back with today's column).
 - **Peak fit panel** (`renderPeakFit`): three numbered parts: 1 Find peaks (`pfPanelHtml`,
   the finder's settings in `S.pf`, a live preview on the graph from `pfRun`, the peaks it would
   find in a table and the ones not counted as peaks with their reasons, each with an Add button;
@@ -2182,7 +2199,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   the unit for a normal's, a mean for an exponential's) and `tip`; `buildPlot` draws it
   (`path[data-hdist]` with a `<title>`, the fit's colour, overlaid layouts) after the curve's legend
   entry (`distOn`), and the automatic view rises to its top.
-  **Maps** (the heat layout):
+  **Maps** (the heat layout; its grid and picture kept for the curves' points, view, size and
+  colours they were made from, `heatMemo` over `HEATM`, a few at once, so a save that changes none
+  of them draws them as they were; `heatImage` reads the colour map from `cmapLut(name)`, 1024
+  places, and a curve's points are `seriesPoints`', kept per series in `SPM`, shared and never
+  changed by a caller):
   `cfg.mapY` (`index`, or `series`: `mapRows` puts each spectrum at its `seriesVals`, sorted,
   falling back to the order with `why`), `cfg.mapKind` (`MAP_KINDS`: image, filled, lines,
   both), `cfg.mapLevels` (about n, `mapLevels`: round numbers inside the range, in log10 with
@@ -2770,7 +2791,10 @@ kind of residual that is junk from storage, a fit from before, every parameter f
 points), 200 000 points (drawn, zoomed, hovered, smoothed and shown in the worksheet within
 a time, an export keeping every point), and a sheet of 600 columns (only those about the view
 drawn, each cell and letter its own column wherever it is scrolled, End, a name typed while its
-column is scrolled away, a range across 300 columns, a column sized out there). Run it after touching storage, the axes, the
+column is scrolled away, a range across 300 columns, a column sized out there), and two thousand
+files imported at once (a map of them saved quickly, the History drawing the boxes about the view
+with the keys going past them and a far box gone to, Statistics' 200 rows and Show them all, a
+value typed and undone). Run it after touching storage, the axes, the
 parser, undo or the PDF and EPS writer. It serves the file over HTTP (a server of its own, on a
 free port) and waits for each page to be ready (a project on the desk), never a fixed time.
 `node tools/sheet-fuzz.mjs [path] [seed or a-b] [steps]` drives the worksheet as an erratic
@@ -3625,6 +3649,11 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A row nobody shows is still made.** Every save made a sparkline for each of a sheet's 600
   columns, with the row of them hidden, and laid out 20 000 cells for the 40 on screen: a second
   a save. What is drawn is what is in view, and what is in a hidden row is made when it is shown.
+- **A walk of the list for each item is a square.** `colById`, `yCols().findIndex`, `xColFor` and
+  `errColsOf` each walked every column, and each was asked once a column or more: with two thousand
+  columns a save took a second and a half, though no single function looked slow. A render now asks
+  the columns once (`inRender`); a heat map coloured each pixel by parsing its colour map's hex,
+  and made 600 000 points again on every save. Profile with thousands, not tens.
 
 ## Roadmap
 
@@ -4117,8 +4146,8 @@ Next, in order:
 8. More files: JCAMP-DX, then SPC; OPUS and SPE last: all done 06.11, the roadmap's item 8 is done
 9. Under the hood (projects in IndexedDB: done 05.11; a cell typed into a million rows quick, the
    graph drawing what is in view, every row of a sheet reachable: done 05.11; `tools/odd-test.mjs`
-   grown to run every example end to end, the worksheet drawing only the columns in view: done
-   06.11): speed with thousands of spectra
+   grown to run every example end to end, the worksheet drawing only the columns in view, speed
+   with thousands of columns: done 06.11): the roadmap's item 9 is done
 10. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
    applied in one click, unread markers
 
@@ -4345,9 +4374,10 @@ Next, in order:
 - With the history off, nothing is recorded from then on, so a report or the original data's
   record has nothing for that time; the switch is per browser, so in a shared project each
   person's choice covers only their own changes
-- The History wraps its lanes into bands across the view (the lines from the original data's box
-  to a lower band run behind the boxes of the bands above), and zooms as a whole (no zoom to a
-  part of it)
+- The History wraps its lanes into bands across the view (a lane of a lower band shows a short
+  line over its box for the original data), and zooms as a whole (no zoom to a part of it); past
+  300 boxes a fast scroll can show a frame without the next boxes. Statistics lists 200 columns
+  until asked for the rest
 - Band integration uses the same windows for every spectrum on an axis (no per-spectrum
   shift of a window to follow a moving band), straight or level local baselines only (no
   curved local baseline, no Shirley), and the points inside the window (no interpolation to

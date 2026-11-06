@@ -587,6 +587,45 @@ await page(async p => {
   r = await look(); check("a column sized out there: the columns after it still line up", !r.bad.length, JSON.stringify(r.bad.slice(0, 4)));
 }, { name: "a wide sheet", timeout: 90000 });
 
+console.log("Two thousand files at once (roadmap 9, slice 3): what is drawn is what is in view, and asked once");
+await page(async p => {
+  const frame = () => p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const t = await p.evaluate(async () => { prefSet("anim", false); applyAnim(); const N=2000, M=300, items=[];
+    for(let k=0;k<N;k++){ const t=["# Temperature: "+(280+k%120)+" K","Wavenumber (cm-1)\tIntensity"]; for(let i=0;i<M;i++) t.push((400+i*3)+"\t"+(Math.exp(-(((i-M/2-(k%60))/9)**2))*100+Math.sin(i*7+k)*2).toFixed(3)); items.push(...[].concat(batchFile("run_"+String(k).padStart(4,"0")+".txt",t.join("\n")))); }
+    const t0=performance.now(); await doBatchImport(items.filter(x=>!x.fail),[],{into:"new",graphs:"none",src:"2000 files"}); await new Promise(r=>setTimeout(r,300));
+    const imp=performance.now()-t0; plotCols(yCols().map(c=>c.id),{layout:"heat"});
+    const ms=[]; for(let i=0;i<3;i++){ const a=performance.now(); save({wsw:Object.assign({},P().wsw,{x:i+1})}); ms.push(performance.now()-a); }
+    return {n:yCols().length, imp, save:Math.min(...ms), img:!!document.querySelector("#plot image")}; });
+  check("2000 files come in as 2000 columns, drawn as a map", t.n === 2000 && t.img, JSON.stringify(t));
+  check("…a save with the map on the desk is quick (it took 560 ms)", t.save < 300, Math.round(t.save) + " ms");
+  // The History: a box a lane, the boxes drawn only about the view, and the keys go past them.
+  let r = await p.evaluate(() => { openWin("flow",{render:true}); focusWin("flow"); return { all: flowLayout().nodes.length, drawn: document.querySelectorAll("#flowWin .fnode").length }; });
+  check("the History draws only the boxes about the view", r.all > 4000 && r.drawn > 4 && r.drawn < 400, JSON.stringify(r));
+  const first = await p.evaluate(() => { const b=document.querySelector('#flowWin .fnode.k-raw'); b.focus(); return b.dataset.node; });
+  for (let i = 0; i < 40; i++) await p.keyboard.press("ArrowDown");
+  await frame();
+  r = await p.evaluate(first => { const a=document.activeElement, sc=document.querySelector("#flowWin .flow-scroll"), L=flowLayout(), n0=L.by[first], n=a&&a.dataset&&L.by[a.dataset.node];
+    const b=a&&a.getBoundingClientRect(), s=sc.getBoundingClientRect(); return { key: a&&a.dataset&&a.dataset.node, down: n&&n0?n.row-n0.row:null, seen: !!b&&b.top>=s.top-1&&b.bottom<=s.bottom+1 }; }, first);
+  check("forty presses of ↓ go down past the boxes first drawn, the box in view with the keys", r.down >= 40 && r.seen, JSON.stringify(r));
+  r = await p.evaluate(async () => { const c=yCols()[1500]; goNode("final:"+c.id); await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+    const el=document.querySelector(`#flowWin [data-node="final:${c.id}"]`), sc=document.querySelector("#flowWin .flow-scroll"); if(!el) return {el:false};
+    const b=el.getBoundingClientRect(), s=sc.getBoundingClientRect(); return { el:true, sel:S.flowSel===("final:"+c.id), seen:b.top>=s.top-1&&b.bottom<=s.bottom+1&&b.left>=s.left-1&&b.right<=s.right+1, drawn:document.querySelectorAll("#flowWin .fnode").length }; });
+  check("a box of the 1500th column, gone to from elsewhere, is drawn, selected and in view", r.el && r.sel && r.seen && r.drawn < 400, JSON.stringify(r));
+  r = await p.evaluate(() => { const a=performance.now(); save({wsw:Object.assign({},P().wsw,{x:9})}); return performance.now()-a; });
+  check("…and a save with the History open stays quick (it took 1.5 s)", r < 600, Math.round(r) + " ms");
+  // Statistics: the first 200 rows and the active column, the rest a button away, Copy every one.
+  r = await p.evaluate(() => { closeWin("flow"); openWin("stats",{render:true}); focusWin("stats"); const rows=[...document.querySelectorAll("#pane-stats table.stt tbody tr:not(.more)")];
+    return { rows: rows.length, more: !!document.querySelector("#pane-stats [data-stall]"), tsv: statsTsv().split("\n").length - 1, act: rows.some(tr=>tr.classList.contains("sel")) }; });
+  check("Statistics lists 200 columns and the active one, with a button for the rest; Copy has all 2000", r.rows <= 202 && r.rows >= 200 && r.more && r.tsv === 2000 && r.act, JSON.stringify(r));
+  await p.click("#pane-stats [data-stall]"); await frame();
+  r = await p.evaluate(() => document.querySelectorAll("#pane-stats table.stt tbody tr:not(.more)").length);
+  check("…Show them all lists every one", r === 2000, r);
+  // A value typed, and undone: neither waits for the map or the check code of every value.
+  r = await p.evaluate(() => { closeWin("stats"); S.sheet="raw"; renderWs(); wsSelect(3,5,false); const a=performance.now(); wsBeginEdit("12.5","enter"); wsCommit(1,0); flushEdits(); const typed=performance.now()-a;
+    const b=performance.now(); undo(); const un=performance.now()-b; return { typed, un, v: sheetCols()[5].data[3] }; });
+  check("a value typed into the 2000 columns, and undone, each well under a second", r.typed < 900 && r.un < 900 && r.v !== 12.5, JSON.stringify({ typed: Math.round(r.typed), undo: Math.round(r.un), v: r.v }));
+}, { name: "two thousand files", timeout: 180000 });
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

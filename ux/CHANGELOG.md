@@ -1024,6 +1024,22 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Under the hood, slice 3: thousands of columns (2026-11-06)
+
+- A render asks about the columns once (by id, the Y columns' order, a sheet's columns, each
+  column's X and error bars); a curve's points are kept per series; a heat map keeps its grid and
+  picture and colours through a table; the check code keeps the last few states, so an undo is not
+  hashed again.
+- The History draws only the boxes about the view past 300, and a lane of a lower band is fed by a
+  short line over its box; Statistics lists 200 columns with *Show them all*.
+- 2000 files of 400 points: a save with their map 563 → 71 ms, a value typed 1266 → 400 ms, an undo
+  2180 → 390 ms, the History opened 770 → 80 ms (a save with it open 1580 → 160), Statistics opened
+  808 → 60 ms; 1000 columns overlaid on one graph: a save 1160 → 280 ms.
+
+Checked: `tools/odd-test.mjs` (10 new: 2000 files imported and mapped, a save's time, the History's
+boxes, forty presses of ↓ past them, a far box gone to, Statistics' rows and Show them all, a value
+typed and undone).
+
 ## Under the hood, slice 2: the worksheet draws the columns in view (2026-11-06)
 
 - Past 40 columns the worksheet draws only the columns about the view, with a spacer either side for

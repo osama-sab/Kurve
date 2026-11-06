@@ -5017,7 +5017,8 @@ const COL_TINTS_DARK   =["#3987e5","#d95926","#199e70","#c98500","#d55181","#008
 function darkMode(){
   const t=document.documentElement.getAttribute("data-theme");
   if(t) return t==="dark";
-  try{ return window.matchMedia("(prefers-color-scheme: dark)").matches; }catch(e){ return false; }
+  // One query kept (it follows the system's setting): a new one each call cost as much as a curve.
+  try{ return (darkMode.mq||(darkMode.mq=window.matchMedia("(prefers-color-scheme: dark)"))).matches; }catch(e){ return false; }
 }
 /* Colour schemes. Every place a spectrum or a peak is coloured (the graph and
    its legend, the worksheet header, the fit panel, the results table, labels)
@@ -6562,8 +6563,25 @@ const mean=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:null;
 let colSeq=0;
 const newColId=()=>"c"+(Date.now().toString(36))+(colSeq++).toString(36);
 const allCols=()=>(P()&&P().cols)||[];
-const colById=id=>allCols().find(c=>c.id===id)||null;
-const yCols=()=>allCols().filter(c=>c.role==="y");
+/* Inside a render (renderAll, renderPlot, renderWs, the pictures) nothing changes the columns, so
+   what is asked of them again and again (a column by its id, the Y columns and a Y's place among
+   them, a sheet's columns, a column's X) is worked out once. Each was a walk of the whole list,
+   asked once a column or more: with a thousand columns, a second a save. Outside a render, or once
+   the project, its list of columns or its length is not the memo's (a save in between), every
+   answer is worked out afresh, as before; a save and a project arriving drop the memo. */
+let CM=null, CMD=0;
+function colMemo(){ if(!CMD) return null; const p=S.proj; if(!p) return null; const cols=p.cols||[];
+  if(CM&&CM.p===p&&CM.cols===cols&&CM.n===cols.length) return CM;
+  return CM={p,cols,n:cols.length,by:null,ys:null,yi:null,err:null,sh:new Map(),xl:new Map()}; }
+function inRender(fn){ CMD++; try{ return fn(); } finally{ if(!--CMD) CM=null; } }
+const colById=id=>{ const m=colMemo(); if(!m) return allCols().find(c=>c.id===id)||null;
+  if(!m.by){ m.by=new Map(); for(const c of m.cols) if(!m.by.has(c.id)) m.by.set(c.id,c); } return m.by.get(id)||null; };
+const yList=m=>m.ys||(m.ys=m.cols.filter(c=>c.role==="y"));
+const yCols=()=>{ const m=colMemo(); return m?yList(m).slice():allCols().filter(c=>c.role==="y"); };
+const yCount=()=>{ const m=colMemo(); return m?yList(m).length:yCols().length; };
+// A Y column's place among the Y columns (its colour's), -1 for none.
+function yIndex(id){ const m=colMemo(); if(!m) return yCols().findIndex(c=>c.id===id);
+  if(!m.yi){ m.yi=new Map(); yList(m).forEach((c,k)=>{ if(!m.yi.has(c.id)) m.yi.set(c.id,k); }); } const i=m.yi.get(id); return i==null?-1:i; }
 /* ---- Sheets ---------------------------------------------------------------------
    The worksheet has sheets, as a workbook has: p.sheets, each {id, name}, in the
    order of their tabs. A column is on one (c.sheet; a derived column on its
@@ -6581,9 +6599,10 @@ function sheetOf(c,p){ p=p||P(); const ss=sheetList(p); let r=c, k=0; while(r&&r
 function curSheet(){ const ss=sheetList(), id=(S.sheetAt||{})[S.pid]; return ss.some(s=>s.id===id)?id:ss[0].id; }
 const sheetName=id=>{ const s=sheetList().find(q=>q.id===id); return s?s.name:""; };
 // A sheet's columns (the sheet shown when none is named): recorded and computed ones, in the table's order.
-function sheetCols(sid){ sid=sid||curSheet(); return allCols().filter(c=>!c.src&&sheetOf(c)===sid); }
+function sheetCols(sid){ sid=sid||curSheet(); const m=colMemo(); if(!m) return allCols().filter(c=>!c.src&&sheetOf(c)===sid);
+  let l=m.sh.get(sid); if(!l){ l=m.cols.filter(c=>!c.src&&sheetOf(c)===sid); m.sh.set(sid,l); } return l.slice(); }
 // The spectrum's error bars both ways in Y (see Error bars for the other kinds).
-const errColFor=id=>allCols().find(c=>c.role==="e"&&c.of===id&&c.ax!=="x"&&!c.side)||null;
+const errColFor=id=>errListOf(id).find(c=>c.ax!=="x"&&!c.side)||null;
 /* ---- Error bars ----------------------------------------------------------------
    An error column (role "e") names its spectrum in `of`. As in Origin it is
    one of six kinds: Y both ways (±, the default), Y upward (side "+"), Y
@@ -6600,8 +6619,11 @@ const errKind=c=>c&&c.role==="e"?(c.ax==="x"?"x":"y")+(c.side==="+"?"+":c.side==
 const errTag=c=>(ERR_KINDS.find(k=>k[0]===errKind(c))||ERR_KINDS[0])[2];
 const errKindName=c=>({"y":"Y error bars","y+":"Upward Y error bars","y-":"Downward Y error bars","x":"X error bars","x+":"Rightward X error bars","x-":"Leftward X error bars"})[errKind(c)]||"Error bars";
 // Every error column of a spectrum, by kind (the first of each kind counts).
-function errColsOf(id){ const o={}; allCols().forEach(c=>{ if(c.role!=="e"||c.of!==id) return; const k=errKind(c); if(!o[k]) o[k]=c; }); return o; }
-const hasErrCols=id=>allCols().some(c=>c.role==="e"&&c.of===id);
+// A column's error columns in the table's order (in a render, every column's found in one pass).
+function errListOf(id){ const m=colMemo(); if(!m) return allCols().filter(c=>c.role==="e"&&c.of===id);
+  if(!m.err){ m.err=new Map(); for(const c of m.cols) if(c.role==="e"){ let l=m.err.get(c.of); if(!l) m.err.set(c.of,l=[]); l.push(c); } } return m.err.get(id)||[]; }
+function errColsOf(id){ const o={}; errListOf(id).forEach(c=>{ const k=errKind(c); if(!o[k]) o[k]=c; }); return o; }
+const hasErrCols=id=>errListOf(id).length>0;
 // The spectrum's error as recorded: the ± column, or the mean of the + and − ones.
 const ERRMEAN=new WeakMap();
 function yErrData(id){ const s=errColsOf(id); if(s.y) return s.y.data; const P=s["y+"]&&s["y+"].data, M=s["y-"]&&s["y-"].data; if(!P&&!M) return null;
@@ -6705,7 +6727,11 @@ function xColFor(c){
   const r=rootOf(c); if(!r) return sheetCols().find(o=>o.role==="x")||null;
   // Plotted against a chosen X column (xcol), or, as in Origin, the nearest to its left on its sheet.
   if(r.xcol){ if(r.xcol==="row") return null; const o=colById(r.xcol); if(o&&o.role==="x") return o; }
-  const cols=sheetCols(sheetOf(r)), i=cols.indexOf(r);
+  const sid=sheetOf(r), m=colMemo();
+  // In a render, each column's nearest X to its left on a sheet is found in one pass of the sheet.
+  if(m){ let L=m.xl.get(sid); if(!L){ L=new Map(); let last=null, first=null; for(const o of sheetCols(sid)){ L.set(o.id,last); if(o.role==="x"){ last=o; if(!first) first=o; } } L.first=first; m.xl.set(sid,L); }
+    return L.get(r.id)||L.first||null; }
+  const cols=sheetCols(sid), i=cols.indexOf(r);
   for(let j=i-1;j>=0;j--) if(cols[j].role==="x") return cols[j];
   return cols.find(o=>o.role==="x")||null;
 }
@@ -6719,13 +6745,13 @@ function specName(c){ if(!c) return "a spectrum"; return c.name||(c.src?"derived
 // rest of the palette in order, so an overlay never shares the analysed
 // one's colour. Exports are printed on white and ask for the light set.
 // A caller that has the graph's settings passes its scheme: plotCfg() is not cheap with hundreds of spectra.
-function yTint(id,light,scheme){ return tintAt(Math.max(0,yCols().findIndex(c=>c.id===id)),light,scheme); }
+function yTint(id,light,scheme){ return tintAt(Math.max(0,yIndex(id)),light,scheme); }
 // The colour at a position in the scheme (a column's place in the table, or a group's curve's step from its first).
 function tintAt(i,light,scheme){
   const pal=(light||!darkMode())?COL_TINTS_LIGHT:COL_TINTS_DARK, sch=SCHEMES[scheme!==undefined?scheme:plotCfg().scheme]||SCHEMES.kurve, dk=!(light||!darkMode());
   // Every scheme but Kurve's colours by the order of the table, so a colour
   // stays with its spectrum whichever one is being analysed.
-  if(sch!==SCHEMES.kurve){ const n=yCols().length;
+  if(sch!==SCHEMES.kurve){ const n=yCount();
     if(sch.seq){ const t=n>1?Math.min(1,i/(n-1)):0, a=dk?0.25:0, b=dk?1:0.82; return "#"+cmapAt("viridis",a+(b-a)*t).map(v=>v.toString(16).padStart(2,"0")).join(""); }
     if(sch.mono){ const g=dk?["#E3E8EF","#AEB8C5","#C5CEDA","#8C98A8"]:["#111820","#4A5361","#2B323C","#6B7482"]; return g[i%g.length]; }
     const arr=dk?sch.dark:sch.light; return arr[i%arr.length]; }
@@ -6781,14 +6807,18 @@ function rawSeries(c){
 // Columns with at least one value, in table order: what the fingerprint covers.
 function rawCols(){ return allCols().filter(c=>!c.src&&!c.fx&&(c.data||[]).some(v=>v!=null)); }
 let fpMemo={arrs:[],key:"",val:""};
+// The states before (an undo goes back to one): the last few check codes with their arrays and key.
+const FPM=[]; const fpKeep=m=>{ if(m.val){ const i=FPM.findIndex(q=>q.val===m.val&&q.key===m.key); if(i>=0) FPM.splice(i,1); FPM.unshift(m); if(FPM.length>6) FPM.pop(); } };
 // The check code of these arrays if it is known without hashing them.
-function fpNow(arrs){ return fpMemo.arrs.length===arrs.length&&fpMemo.arrs.every((a,i)=>a===arrs[i])?fpMemo.val:null; }
+function fpNow(arrs){ const same=m=>m.arrs.length===arrs.length&&m.arrs.every((a,i)=>a===arrs[i]); if(same(fpMemo)) return fpMemo.val;
+  const m=FPM.find(same); if(m){ fpMemo=m; return m.val; } return null; }
 function rawFp(cols){
   const arrs=(cols||rawCols()).map(c=>c.data), k=fpNow(arrs); if(k!=null) return k;
   const key=arrs.map(arrKey).join("|");
   if(key===fpMemo.key){ fpMemo.arrs=arrs; return fpMemo.val; }
+  const old=FPM.find(m=>m.key===key); if(old){ old.arrs=arrs; fpMemo=old; return old.val; }
   const val=rawHashRun(rawHashJob(arrs),Infinity);
-  fpMemo={arrs,key,val}; return val;
+  fpMemo={arrs,key,val}; fpKeep(fpMemo); return val;
 }
 const fpShort=fp=>fp?fp.slice(0,12):"—";
 /* The check code of a big table is worked out in the background (DESIGN.md, Large data): a cell
@@ -6819,7 +6849,7 @@ function fpWork(until){
 }
 function fpDone(j,quiet){
   FPJ.q=FPJ.q.filter(x=>x!==j); FPJ.done.set(j.id,j.job.val);
-  const p=P(); if(p&&p.id===j.pid){ const cur=rawCols().map(c=>c.data); if(cur.length===j.arrs.length&&cur.every((a,i)=>a===j.arrs[i])) fpMemo={arrs:cur,key:"",val:j.job.val}; }
+  const p=P(); if(p&&p.id===j.pid){ const cur=rawCols().map(c=>c.data); if(cur.length===j.arrs.length&&cur.every((a,i)=>a===j.arrs[i])) { fpMemo={arrs:cur,key:"",val:j.job.val}; fpKeep(fpMemo); } }
   j.arrs=null; if(!quiet) fpApplyAll();
 }
 // Every job now, at once: before an export, whose record must be whole.
@@ -7528,7 +7558,7 @@ function writeErr(e){
   if(e&&e.code==="revoked"){ setStatus("Access changed. Reload to continue.",true); return; }
   toast(S.store&&S.store.mode==="local"?"This browser would not store that change.":"Couldn't save that change. Check your connection and try again.");
 }
-async function save(patch, logText){
+async function save(patch, logText){ CM=null;
   if(!S.pid||S.readOnly||S.gone.has(S.pid)) return;
   // An edit still waiting to be saved (saveSoon) goes with this save, first:
   // saved later on its own, it would write back values older than these.
@@ -8551,6 +8581,12 @@ const CMAPS={
   coolwarm:["#3B4CC0","#6F92F3","#AAC7FD","#DDDDDD","#F7B89C","#E7745B","#B40426"]};
 function cmapAt(name,t){ const c=CMAPS[name]||CMAPS.viridis, u=Math.max(0,Math.min(1,t))*(c.length-1), i=Math.min(c.length-2,Math.floor(u)), f=u-i;
   const h=s=>[1,3,5].map(k=>parseInt(s.slice(k,k+2),16)), a=h(c[i]), b=h(c[i+1]); return a.map((v,k)=>Math.round(v+(b[k]-v)*f)); }
+// The colour map at 1024 places: a heat map asked it once a pixel, parsing its colours each time.
+const CMLUT={};
+function cmapLut(name){ const k=CMAPS[name]?name:"viridis"; let L=CMLUT[k]; if(!L){ L=new Uint8Array(3*1024); for(let i=0;i<1024;i++){ const c=cmapAt(k,i/1023); L[3*i]=c[0]; L[3*i+1]=c[1]; L[3*i+2]=c[2]; } CMLUT[k]=L; } return L; }
+// A heat map's grid and picture, kept for the curves, view and size they were made for (a few of them:
+// the graph in front and its pictures), so a save that changes none of them does not make them again.
+const HEATM=new Map(); const heatMemo=(k,make)=>{ let v=HEATM.get(k); if(v){ HEATM.delete(k); HEATM.set(k,v); return v; } v=make(); HEATM.set(k,v); if(HEATM.size>8) HEATM.delete(HEATM.keys().next().value); return v; };
 // A heat map is a small image, so a hundred spectra of ten thousand points
 // stay one element.
 /* A map from scattered X, Y, Z (roadmap 4, slice 5): a curve of type "tmap" with a colour column
@@ -8583,9 +8619,9 @@ function triImage(m,X,Y,geo,cmap,lo,hi,full){
   return {url,zb,w,h,s}; }
 function heatImage(rows,cols,val,lo,hi,cmap,logZ){
   try{ const cv=document.createElement("canvas"); cv.width=cols; cv.height=rows; const g=cv.getContext("2d"), im=g.createImageData(cols,rows);
-    const tr=v=>logZ?Math.log10(Math.max(v,1e-300)):v, a=tr(lo), b=tr(hi);
+    const tr=v=>logZ?Math.log10(Math.max(v,1e-300)):v, a=tr(lo), b=tr(hi), sp=(b-a)||1, L=cmapLut(cmap), D=im.data;
     for(let r=0;r<rows;r++) for(let k=0;k<cols;k++){ const v=val(r,k), o=4*(r*cols+k);
-      if(v==null||!Number.isFinite(v)){ im.data[o+3]=0; continue; } const c=cmapAt(cmap,(tr(v)-a)/((b-a)||1)); im.data[o]=c[0]; im.data[o+1]=c[1]; im.data[o+2]=c[2]; im.data[o+3]=255; }
+      if(v==null||!Number.isFinite(v)){ D[o+3]=0; continue; } let t=(tr(v)-a)/sp; t=t<0?0:t>1?1:t; const j=3*Math.round(t*1023); D[o]=L[j]; D[o+1]=L[j+1]; D[o+2]=L[j+2]; D[o+3]=255; }
     g.putImageData(im,0,0); return cv.toDataURL("image/png"); }catch(e){ return ""; }
 }
 /* ---- Maps of a series -------------------------------------------------------------
@@ -9934,18 +9970,23 @@ function buildPlot(W,H,pal,colEx,opt){
   if(heat){
     const rows=MR.rows, cols=Math.max(16,Math.min(900,Math.round(pw))), vx0=Math.min(v.x0,v.x1), vx1=Math.max(v.x0,v.x1), kind=cfg.mapKind||"image";
     const along=n=>Array.from({length:n},(_,k)=>{ const t=(k+0.5)/n; return revX?vx1-(vx1-vx0)*t:vx0+(vx1-vx0)*t; });
-    const xs=along(cols), sorted=rows.map(r=>r.pts.slice().sort((a,b)=>a.x-b.x)), onto=xt=>sorted.map(q=>interpOnto(q.map(z=>z.x),q.map(z=>z.y),xt));
-    const grid=onto(xs), ys=rows.map(r=>r.v);
-    let lo=Infinity, hi=-Infinity; grid.forEach(g=>g.forEach(z=>{ if(z!=null&&(!logY||z>0)){ if(z<lo) lo=z; if(z>hi) hi=z; } }));
+    const hk=rows.map(r=>objId(r.pts)+"@"+r.v).join(",")+"|"+cols+"|"+vx0+"|"+vx1+"|"+revX+"|"+(logY?1:0);
+    const HM=heatMemo(hk,()=>{ const xs=along(cols), XY=rows.map(r=>{ const q=r.pts.slice().sort((a,b)=>a.x-b.x); return [q.map(z=>z.x),q.map(z=>z.y)]; }), onto=xt=>XY.map(([qx,qy])=>interpOnto(qx,qy,xt)), grid=onto(xs);
+      let lo=Infinity, hi=-Infinity; grid.forEach(g=>g.forEach(z=>{ if(z!=null&&(!logY||z>0)){ if(z<lo) lo=z; if(z>hi) hi=z; } })); return {onto,grid,lo,hi,url:new Map()}; });
+    const onto=HM.onto, grid=HM.grid, ys=rows.map(r=>r.v);
+    let lo=HM.lo, hi=HM.hi;
     if(cfg.ax.y2&&cfg.ax.y2.min!=null&&cfg.ax.y2.min!=="") lo=+cfg.ax.y2.min; if(cfg.ax.y2&&cfg.ax.y2.max!=null&&cfg.ax.y2.max!=="") hi=+cfg.ax.y2.max;
     const tr=z=>logY?Math.log10(Math.max(z,1e-300)):z, back=t=>logY?10**t:t, levs=kind==="image"?[]:mapLevels(lo,hi,numOr(cfg.mapLevels,8),logY);
     // Up the side, a pixel row's height in the side's units; between rows, linear (in order, each row a band to its edges).
     const yOf=(r,n)=>v.y1-(r+0.5)/n*(v.y1-v.y0), at=(y,k,g)=>mapAt(ys,g.map(q=>q[k]),y,!mapS);
     const edges=[tr(lo)].concat(levs,[tr(hi)]), band=z=>{ if(z==null) return null; const t=tr(z); let i=0; while(i<edges.length-2&&t>=edges[i+1]) i++; return back((edges[i]+edges[i+1])/2); };
     if(kind!=="lines"){ let url="";
-      if(!mapS&&kind==="image") url=heatImage(rows.length,cols,(r,k)=>grid[rows.length-1-r][k],lo,hi,cfg.cmap,logY);
-      else { const nr=Math.max(2,Math.min(400,Math.round(mh))), Gy=Array.from({length:nr},(_,r)=>yOf(r,nr));
-        url=heatImage(nr,cols,(r,k)=>{ const z=at(Gy[r],k,grid); return kind==="filled"?band(z):z; },lo,hi,cfg.cmap,logY); }
+      const nr=Math.max(2,Math.min(400,Math.round(mh))), uk=[lo,hi,cfg.cmap,kind,mapS?[nr,v.y0,v.y1,levs.join(" ")].join(" "):""].join("|");
+      url=HM.url.get(uk);
+      if(url==null){ if(!mapS&&kind==="image") url=heatImage(rows.length,cols,(r,k)=>grid[rows.length-1-r][k],lo,hi,cfg.cmap,logY);
+        else { const Gy=Array.from({length:nr},(_,r)=>yOf(r,nr));
+          url=heatImage(nr,cols,(r,k)=>{ const z=at(Gy[r],k,grid); return kind==="filled"?band(z):z; },lo,hi,cfg.cmap,logY); }
+        if(HM.url.size>6) HM.url.clear(); HM.url.set(uk,url); }
       if(url) s+=`<image href="${url}" x="${L}" y="${T}" width="${pw}" height="${mh}" preserveAspectRatio="none" style="image-rendering:${!mapS&&kind==="image"?"pixelated":"auto"}"/>`; }
     // Contour lines on a coarser grid, each level its colour (or dark over an image), its value written on its longest line.
     if(kind!=="image"&&levs.length&&rows.length>1){ const nc=Math.max(8,Math.min(220,Math.round(pw/4))), nr=Math.max(8,Math.min(180,Math.round(mh/4))), x2=along(nc), g2=onto(x2);
@@ -10469,7 +10510,8 @@ function buildPlot(W,H,pal,colEx,opt){
   s+=`</svg>`;
   return s;
 }
-function renderPlot(){ scheduleAway();
+function renderPlot(){ return inRender(renderPlot0); }
+function renderPlot0(){ scheduleAway();
   const svg=$("#plot"), fig=$("#figure");
   // Something to draw: a column on this graph, with points.
   const p=P(); const has=p&&allCols().some(c=>c.role==="y"&&inGraph(c))&&(pointsAll().length>0||plotState().d.x.length>0);
@@ -13684,7 +13726,7 @@ function wsModel(){
   if(S.sheet==="final"){
     const c=activeYCol(), d=finalOf(c), he=!!(d.e&&d.e.some(v=>v!=null)), steps=(c&&c.pipe||[]).filter(s=>s.on!==false).length;
     const cols=[{id:"f:x",role:"X",lab:{name:d.xn||"",unit:d.xu||"",comm:""},get:k=>d.x[k]},
-      {id:"f:y",role:"Y",act:true,sw:c?yTint(c.id):null,lab:{name:d.yn||specName(c),unit:d.yu||"",comm:steps?`after ${steps} step${steps===1?"":"s"}`:"as recorded"},get:k=>d.y[k]}];
+      {id:"f:y",role:"Y",act:true,lab:{name:d.yn||specName(c),unit:d.yu||"",comm:steps?`after ${steps} step${steps===1?"":"s"}`:"as recorded"},get:k=>d.y[k]}];
     if(he) cols.push({id:"f:e",role:"yEr",lab:{name:"Error",unit:d.yu||"",comm:"σ"},get:k=>d.e[k]});
     cols.push({id:"f:i",role:"row",lab:{name:"Original row",unit:"",comm:"where each point came from"},get:k=>d.idx[k]+1,int:true});
     cols.forEach((q,i)=>{ q.letter=wsLetter(i); q.w=W[q.id]||WS_W; q.title=`Column ${q.letter}: ${q.lab.name||q.role}. The Processed view is read only.`;
@@ -13699,7 +13741,7 @@ function wsModel(){
       title:`Column ${L}${c.name?" ("+c.name+")":""} is hidden. Double-click to show it.`};
     const mkSpark=()=>{ if(!c.data.some(v=>v!=null)) return ""; const xc=isY||c.role==="e"?xColFor(c.role==="e"?colById(c.of)||c:c):null, sw=Math.max(20,w-12), t=sparkPts(c.data,xc?xc.data:null,2*sw);
       return t.y.length>1?sparkSvg(t,sw,16,"wspark"):""; };
-    return {id:c.id, col:c, letter:L, role:c.role==="x"&&xs.length>1?"X"+(xs.indexOf(c)+1):c.role==="e"?errTag(c):ROLE_LABEL[c.role]||c.role, w, sw:isY?yTint(c.id):null, off, act:isAct, menu:true, mkSpark,
+    return {id:c.id, col:c, letter:L, role:c.role==="x"&&xs.length>1?"X"+(xs.indexOf(c)+1):c.role==="e"?errTag(c):ROLE_LABEL[c.role]||c.role, w, off, act:isAct, menu:true, mkSpark,
       lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx, fxErr:c.fx?FX_ERR.get(c.id)||"":"", fxNote:c.fx?FX_NOTE.get(c.id)||"":"",
       title:`Column ${L}${c.name?": "+c.name:""}. ${roleText(c)}${c.fx?`, computed: = ${fxShow(c)}${FX_ERR.get(c.id)?` (${FX_ERR.get(c.id)})`:FX_NOTE.get(c.id)?` (${FX_NOTE.get(c.id).toLowerCase()})`:""}`:""}${isAct?", active":""}${off?", on no graph yet":""}. Click to select it; right-click, or the arrow, for its options; drag its right edge to resize it.`}; });
   // Empty columns to the edge of the window and a little beyond, as a grid has.
@@ -13736,7 +13778,8 @@ function wsScroll(m){ const box=$("#ws"); m=m||S.wsm; const rowH=S.ws.rowH||25, 
   return {rowH,R,H,V,P,k:V>WS_PMAX&&P>H?(V-H)/(P-H):1}; }
 const wsVT=(box,g)=>box.scrollTop*g.k, wsPhys=(y,g)=>Math.max(0,y/g.k);
 function wsSelRect(){ const s=S.ws; return {r0:Math.min(s.r,s.ar),r1:Math.max(s.r,s.ar),c0:Math.min(s.c,s.ac),c1:Math.max(s.c,s.ac)}; }
-function renderWs(){
+function renderWs(){ return inRender(renderWs0); }
+function renderWs0(){
   if(S.editing){ S.pendingWs=true; return; }      // never pull a cell from under the person typing in it
   const box=$("#ws"), p=P(), sub=$("#wsSub");
   renderWsTabs();
@@ -15415,9 +15458,15 @@ function plotState(){
   return {final:k===n,k,n,d:st.d,ghost,ghostLabel,st,marks,r,c};
 }
 function stageName(ps){ if(!ps||ps.final) return "processed"; if(ps.k===0) return isDerived(ps.c)?"input":"original"; return `after step ${ps.k}, ${stepShort(ps.st.step).toLowerCase()}`; }
-function seriesPoints(d,logY){ const out=[], n=Math.min(d.x.length,d.y.length);
+/* A series' points, kept per series (a series is replaced when it changes, never changed in place):
+   a graph of two thousand curves made 800 000 of them again on every save. The list is shared, so
+   nothing changes it or its points; a caller that needs another filters or maps it. */
+const SPM=new WeakMap();
+function seriesPoints(d,logY){ let m=SPM.get(d); const k=logY?1:0; if(m&&m[k]) return m[k];
+  const out=[], n=Math.min(d.x.length,d.y.length);
   for(let k=0;k<n;k++){ const x=d.x[k], y=d.y[k]; if(x==null||y==null||!Number.isFinite(x)||!Number.isFinite(y)) continue; if(logY&&y<=0) continue;
     out.push({i:d.idx?d.idx[k]:k, x, y, e:d.e?d.e[k]:undefined}); }
+  if(d&&typeof d==="object"){ if(!m) SPM.set(d,m=[]); m[k]=out; }
   return out; }
 function yRangeOf(pts){ const logY=GP().logY; let a=Infinity,b=-Infinity; pts.forEach(q=>{ a=Math.min(a,q.y); b=Math.max(b,q.y); });
   if(!(b>=a)) return [0,1]; if(a===b){ const d=Math.abs(a)*0.1||1; a-=d; b+=d; }
@@ -18424,7 +18473,9 @@ function goNode(key,opt){
   requestAnimationFrame(()=>{ scrollFlowTo(key); if(opt.disc) scrollInspToDisc(opt.tid,opt.focus); });
 }
 function scrollFlowTo(key){
-  const sc=document.querySelector("#flowWin .flow-scroll"), el=sc&&sc.querySelector(`[data-node="${CSS.escape(key)}"]`); if(!el) return;
+  const sc=document.querySelector("#flowWin .flow-scroll"); if(!sc) return; let el=sc.querySelector(`[data-node="${CSS.escape(key)}"]`);
+  // A box not drawn (many boxes, out of view) is drawn first, then brought into view.
+  if(!el){ flowDraw(true,key); el=sc.querySelector(`[data-node="${CSS.escape(key)}"]`); } if(!el) return;
   const x=el.offsetLeft, y=el.offsetTop;
   if(x<sc.scrollLeft||x+FLOW_NW>sc.scrollLeft+sc.clientWidth) sc.scrollLeft=Math.max(0,x-24);
   if(y<sc.scrollTop||y+FLOW_NH>sc.scrollTop+sc.clientHeight) sc.scrollTop=Math.max(0,y-24);
@@ -18642,7 +18693,7 @@ function openProject(id){
   if(S.room) S.room.presence({pid:id,cx:null,cy:null}).catch(()=>{});
   renderAll(); fpEnsure();
 }
-function onProjects(list){
+function onProjects(list){ CM=null;
   // A project deleted here is gone, even from a list sent before the store caught up.
   list=list.filter(p=>!S.gone.has(p.id));
   S.projects=list.sort((a,b)=>(b.updated||0)-(a.updated||0));
@@ -20841,8 +20892,13 @@ function deleteAnnoQuiet(id){ const p=P(); if(!p) return; saveAnnos((p.annos||[]
 
 
 /* ---- Statistics window ---------------------------------------------------- */
+// A column's numbers, kept per series and range (a series is replaced when it changes).
+const STATM=new WeakMap();
 function statRow(c,of,rng){
-  const d=of==="raw"?(pipeOf(c)||{input:EMPTY_SER}).input:finalOf(c), keep=[];
+  const d=of==="raw"?(pipeOf(c)||{input:EMPTY_SER}).input:finalOf(c), k=rng?rng.join(" "):"";
+  let m=STATM.get(d); if(!m) STATM.set(d,m=new Map()); const hit=m.get(k); if(hit) return Object.assign({},hit,{c});
+  const r=statRow0(c,d,rng); if(m.size>4) m.clear(); m.set(k,r); return r; }
+function statRow0(c,d,rng){ const keep=[];
   for(let i=0;i<Math.min(d.x.length,d.y.length);i++){ const x=d.x[i], y=d.y[i]; if(!Number.isFinite(x)||!Number.isFinite(y)) continue; if(rng&&(x<rng[0]||x>rng[1])) continue; keep.push(i); }
   const xs=keep.map(i=>d.x[i]), ys=keep.map(i=>d.y[i]), n=ys.length;
   if(!n) return {c,d,n:0};
@@ -20865,22 +20921,30 @@ function corrMatrix(cols,rng,only){
     if(u.length<3) return null; const mu=u.reduce((s,q)=>s+q,0)/u.length, mv=v.reduce((s,q)=>s+q,0)/v.length;
     let sab=0,saa=0,sbb=0; u.forEach((q,k)=>{ sab+=(q-mu)*(v[k]-mv); saa+=(q-mu)**2; sbb+=(v[k]-mv)**2; }); return saa&&sbb?sab/Math.sqrt(saa*sbb):null; }
 }
-function statsData(){
+// The rows of the columns given (every Y column when none are).
+function statsData(only){
   const o=S.stOpt||(S.stOpt={of:"final",range:"all"}), rng=o.range==="view"&&S.view?[Math.min(S.view.x0,S.view.x1),Math.max(S.view.x0,S.view.x1)]:null;
   // The spectral measures sit behind a switch, on when the active column looks like a spectrum.
   const spec=o.spec!=null?o.spec==="on":looksLikeSpectrum(activeYCol());
-  return {o,rng,spec,rows:yCols().map(c=>statRow(c,o.of,rng))};
+  return {o,rng,spec,rows:(only||yCols()).map(c=>statRow(c,o.of,rng))};
 }
 function statsTsv(){
   const {rows,spec}=statsData(), f=v=>v==null||!Number.isFinite(v)?"":String(+v.toPrecision(8));
   const head=["Column","n","Mean","SD","SE","Median","Min","Max","X from","X to"].concat(spec?["X at max","Noise σ","S/N","Area","Centroid"]:[]);
   return [head.join("\t")].concat(rows.map(r=>[specName(r.c),r.n,f(r.mu),f(r.sd),f(r.se),f(r.med),f(r.mn),f(r.mx),f(r.x0),f(r.x1)].concat(spec?[f(r.xmax),f(r.sig),f(r.snr),f(r.area),f(r.centroid)]:[]).join("\t"))).join("\n");
 }
+const STAT_MAX=200;
 function renderStats(){
   const box=$("#pane-stats"); if(!box) return; const p=P();
   if(!p||!yCols().length){ box.innerHTML=`<p class="nothing">No columns yet.</p>`; return; }
-  const {o,rng,rows,spec}=statsData(), f=(v,k)=>v==null||!Number.isFinite(v)?"—":esc(fmt(v,k||5));
-  const act=activeYCol(), [xu,yu]=dataUnits(), au=unitFor("yx",xu,yu);
+  /* Past STAT_MAX columns the first of them are listed (and the active and selected ones), with a
+     button for the rest: two thousand rows took half a second to lay out on every save. Copy gives
+     every column whatever is shown. */
+  const act=activeYCol(), cx=ctxOf(), selId=cx&&(cx.kind==="curve"||cx.kind==="column")?cx.id:null, ys=yCols(), lim=S.stAll?ys.length:STAT_MAX;
+  const showN=c=>c===act||c.id===selId, shown=ys.filter((c,k)=>k<lim||showN(c)), more=ys.length-shown.length;
+  const moreBtn=`<button class="btn sm" data-stall title="Copy gives every column, shown or not">Show them all</button>`;
+  const {o,rng,rows,spec}=statsData(shown), f=(v,k)=>v==null||!Number.isFinite(v)?"—":esc(fmt(v,k||5));
+  const [xu,yu]=dataUnits(), au=unitFor("yx",xu,yu);
   let h=`<div class="fbar">${anyProcessing()?`<div class="seg mini" role="group" aria-label="Which data"><button data-sto="of:final" aria-pressed="${o.of==="final"}">Processed data</button><button data-sto="of:raw" aria-pressed="${o.of==="raw"}">Original data</button></div>`:""}
     <div class="seg mini" role="group" aria-label="Which range"><button data-sto="range:all" aria-pressed="${o.range!=="view"}">All X</button><button data-sto="range:view" aria-pressed="${o.range==="view"}"${S.view?"":" disabled title=\"Zoom the graph first\""}>Visible range</button></div><label class="chk" title="Noise σ, signal to noise, area, centroid and the X of the maximum. On by itself for many evenly spaced points with a clear peak"><input type="checkbox" id="stSpec"${spec?" checked":""}> Noise, S/N and area</label><span class="sp"></span>
     <button class="btn sm" id="stCopy">${ICON("copy","sm")}Copy</button></div>`;
@@ -20888,8 +20952,8 @@ function renderStats(){
     <div class="twrap"><table class="rtab stt"><thead><tr><th class="l">Column</th><th title="Points counted">n</th><th>Mean</th><th title="Standard deviation (n − 1)">SD</th><th title="Standard error of the mean: SD / √n">SE</th><th>Median</th><th>Min</th><th>Max</th>${spec?`<th>X at max</th><th title="Noise estimated from second differences, robust to the bands">Noise σ</th><th title="(max − median) / noise σ">S/N</th><th title="Trapezoidal, over X in ascending order">Area</th><th title="Area-weighted mean X">Centroid</th>`:""}</tr></thead><tbody>`;
   // The cells selected in the worksheet, and the curve selected on the graph: the status bar's numbers.
   { const w=S.wsTouch?wsSelStats():null; if(w) h+=`<tr class="sel"><td class="l">Cells ${esc(wsSelLabel())}</td><td>${w.n}</td><td>${f(w.mu)}</td><td>${f(w.sd)}</td><td>${f(w.sd/Math.sqrt(w.n))}</td><td>${f(w.med)}</td><td>${f(w.lo)}</td><td>${f(w.hi)}</td>${spec?`<td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>`:""}</tr>`; }
-  const cx=ctxOf(), selId=cx&&(cx.kind==="curve"||cx.kind==="column")?cx.id:null;
   rows.forEach(r=>{ h+=`<tr class="${r.c===act||r.c.id===selId?"sel":""}"><td class="l">${esc(specName(r.c))}</td><td>${r.n}</td><td>${f(r.mu)}</td><td>${f(r.sd)}</td><td>${f(r.se)}</td><td>${f(r.med)}</td><td>${f(r.mn)}</td><td>${f(r.mx)}</td>${spec?`<td>${f(r.xmax,6)}</td><td>${f(r.sig,3)}</td><td>${f(r.snr,3)}</td><td>${f(r.area)}</td><td>${f(r.centroid,6)}</td>`:""}</tr>`; });
+  if(more) h+=`<tr class="more"><td class="l" colspan="${spec?13:8}">${fmtCount(more)} more column${more===1?"":"s"} ${moreBtn}</td></tr>`;
   h+=`</tbody></table></div>`;
   h+=`<h3 class="gh" id="st-int">Integrate the visible range <span class="cnt">${esc(specName(act))}</span></h3>${act?measureHtml():""}`;
   const same=yCols().filter(c=>(finalOf(c).xu||"")===((act&&finalOf(act).xu)||""));
@@ -20897,13 +20961,14 @@ function renderStats(){
   if(same.length<2) h+=`<p class="nothing">Needs two columns on the same X axis.</p>`;
   // With many spectra, each against the analysed one: a square table of them
   // all is too large to read, and to draw.
-  else if(same.length>12){ const ai=Math.max(0,same.indexOf(act)), M=corrMatrix(same,rng,ai);
-    h+=`<p class="lab" style="margin:0 0 6px">${same.length} columns: each against ${esc(specName(act))}.</p><div class="twrap"><table class="rtab corr"><thead><tr><th class="l">Column</th><th>r</th></tr></thead><tbody>${same.map((b,j)=>{ const v=M[ai][j]; return `<tr${j===ai?' class="sel"':""}><td class="l">${esc(specName(b))}</td><td style="${v!=null?`background:color-mix(in srgb, var(--accent) ${Math.round(Math.abs(v)*38)}%, transparent)`:""}">${v==null?"—":esc(v.toFixed(4))}</td></tr>`; }).join("")}</tbody></table></div>`; }
+  else if(same.length>12){ const sh=same.filter((c,k)=>k<lim||showN(c)), cm=same.length-sh.length, ai=Math.max(0,sh.indexOf(act)), M=corrMatrix(sh,rng,ai);
+    h+=`<p class="lab" style="margin:0 0 6px">${same.length} columns: each against ${esc(specName(act))}.</p><div class="twrap"><table class="rtab corr"><thead><tr><th class="l">Column</th><th>r</th></tr></thead><tbody>${sh.map((b,j)=>{ const v=M[ai][j]; return `<tr${j===ai?' class="sel"':""}><td class="l">${esc(specName(b))}</td><td style="${v!=null?`background:color-mix(in srgb, var(--accent) ${Math.round(Math.abs(v)*38)}%, transparent)`:""}">${v==null?"—":esc(v.toFixed(4))}</td></tr>`; }).join("")}${cm?`<tr class="more"><td class="l" colspan="2">${fmtCount(cm)} more column${cm===1?"":"s"} ${moreBtn}</td></tr>`:""}</tbody></table></div>`; }
   else { const M=corrMatrix(same,rng);
     h+=`<div class="twrap"><table class="rtab corr"><thead><tr><th></th>${same.map(c=>`<th title="${esc(specName(c))}">${esc(specName(c).slice(0,14))}</th>`).join("")}</tr></thead><tbody>${same.map((a,i)=>`<tr><td class="l">${esc(specName(a))}</td>${same.map((b,j)=>{ const v=M[i][j]; return `<td style="${v!=null?`background:color-mix(in srgb, var(--accent) ${Math.round(Math.abs(v)*38)}%, transparent)`:""}">${v==null?"—":esc(v.toFixed(4))}</td>`; }).join("")}</tr>`).join("")}</tbody></table></div>`; }
   box.innerHTML=h;
   box.querySelectorAll("[data-sto]").forEach(b=>b.onclick=()=>{ const [k,v]=b.dataset.sto.split(":"); S.stOpt=Object.assign({},o,{[k]:v}); renderStats(); });
   $("#stCopy").onclick=()=>copyText(statsTsv(),"Statistics copied as a tab-separated table.");
+  box.querySelectorAll("[data-stall]").forEach(b=>b.onclick=()=>{ S.stAll=true; renderStats(); });
   $("#stSpec").onchange=e=>{ S.stOpt=Object.assign({},o,{spec:e.target.checked?"on":"off"}); renderStats(); };
   if(S.statSec){ const el=document.getElementById("st-"+S.statSec); S.statSec=null; if(el) box.scrollTop=el.offsetTop-box.offsetTop-44; }
 }
@@ -20978,6 +21043,9 @@ function flowLayout(per){ per=per!=null?per:S.flowPer;
     laneN.forEach(n=>{ const b=Math.floor(n.col/per); lo[b]=Math.min(lo[b],n.row); hi[b]=Math.max(hi[b],n.row); });
     const shift=[]; let bottom=-1; for(let b=0;b<bands;b++){ if(!Number.isFinite(lo[b])){ shift.push(0); continue; } const top=b===0?lo[b]:bottom+2; shift.push(top-lo[b]); bottom=hi[b]+top-lo[b]; }
     laneN.forEach(n=>{ const b=Math.floor(n.col/per); n.row+=shift[b]; n.col=n.col%per; n.band=b; });
+    // A lane of a lower band is fed by a short line over its box: the lines from the original data's box
+    // down to every band ran behind the boxes above, a stripe of hundreds of them with many lanes.
+    edges.forEach(e=>{ if(e.a==="table"&&by[e.b]&&by[e.b].band>0) e.stub=true; });
     const tb=by.table; if(tb){ const c0=laneN.filter(n=>n.band===0&&n.kind==="raw").map(n=>n.col); tb.col=c0.length?(amin(c0)+amax(c0))/2:0; }
     const placed=[]; nodes.filter(n=>n.kind==="graph"||n.kind==="figure").forEach(n=>{ const feed=edges.filter(e=>e.b===n.key&&by[e.a]).map(e=>by[e.a].col), cols=feed.length?feed:laneN.map(q=>q.col);
       const want=cols.length?cols.reduce((a,b)=>a+b,0)/cols.length:0; let row=bottom+1; while(placed.some(q=>q.row===row&&Math.abs(q.col-want)<1)) row++; n.col=want; n.row=row; placed.push({row,col:want}); });
@@ -21022,9 +21090,11 @@ function flowNodeHtml(n,cur){
   const tip=[title,sub].concat(warn).concat(talk?[talk]:[]).filter(Boolean).join("\n");
   return `<button class="fnode k-${n.kind}${cls}${sel?" sel":""}${cur===n.key?" cur":""}${act?" act":""}" data-node="${esc(n.key)}" style="left:${n.x}px;top:${n.y}px" title="${esc(tip)}" aria-pressed="${sel}">${num}${icon?ICON(icon,"sm"):""}<span class="fn-t"><span class="fn-a">${esc(title)}</span><span class="fn-b">${esc(sub)}</span></span>${spark}${warn.length?`<span class="fn-w" aria-label="${warn.length} warning${warn.length===1?"":"s"}">!</span>`:""}${th.length?`<span class="fn-c${tOpen?"":" done"}" aria-label="${esc(talk)}">${ICON("comment","sm")}${tOpen||th.length}</span>`:""}</button>`;
 }
-function flowEdgesSvg(L){
+function flowEdgesSvg(L,win){
   let s=`<svg class="flow-edges" width="${L.W}" height="${L.H}" aria-hidden="true"><defs><marker id="fArr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0.5L7.5,4L0,7.5z" class="fe-arr"/></marker></defs>`, plus="";
   L.edges.forEach(e=>{ const a=L.by[e.a], b=L.by[e.b]; if(!a||!b) return;
+    if(e.stub){ if(!win||(b.x+FLOW_NW>=win.x0&&b.x<=win.x1&&b.y+FLOW_NH>=win.y0&&b.y-24<=win.y1)) s+=`<path class="fe stub" d="M${b.x+FLOW_NW/2},${b.y-22}V${b.y}"/>`; return; }
+    if(win&&(Math.max(a.x,b.x)+FLOW_NW<win.x0||Math.min(a.x,b.x)>win.x1||Math.max(a.y,b.y)+FLOW_NH<win.y0||Math.min(a.y,b.y)>win.y1)) return;
     const ax=a.x+FLOW_NW/2, ay=a.y+FLOW_NH, bx=b.x+FLOW_NW/2, by=b.y;
     if(e.ref){ const right=b.x>a.x, sx=right?a.x+FLOW_NW:a.x, sy=a.y+FLOW_NH/2, tx=right?b.x-3:b.x+FLOW_NW+3, ty=b.y+FLOW_NH/2, mx=(sx+tx)/2;
       s+=`<path class="fe ref" marker-end="url(#fArr)" d="M${sx},${sy}C${mx},${sy} ${mx},${ty} ${tx},${ty}"/>`; return; }
@@ -21062,10 +21132,11 @@ function renderFlow(){
   if(!L.nodes.length){ h+=noteHtml("info","No data yet. Import a file, drop one on the window, or paste columns into the worksheet. Each column then gets a column here: its original data, every step you apply from the Data, Math and Analysis menus, and the processed data the fit uses."); box.innerHTML=h; wireFlowBar(box); return; }
   if(!S.flowSel||!L.by[S.flowSel]) S.flowSel=flowCurKey()||L.nodes[0].key;
   const cur=flowCurKey();
-  h+=`<div class="flow-body"><div class="flow-scroll" tabindex="-1"><div class="flow-canvas" style="width:${L.W}px;height:${L.H}px;zoom:${z}">${flowEdgesSvg(L)}${L.nodes.map(n=>flowNodeHtml(n,cur)).join("")}</div></div>`;
+  h+=`<div class="flow-body"><div class="flow-scroll" tabindex="-1"><div class="flow-canvas" style="width:${L.W}px;height:${L.H}px;zoom:${z}"></div></div>`;
   h+=S.flowInsp===false?`</div>`:`<aside class="finsp" aria-label="Inspector">${flowInspector(L.by[S.flowSel])}</aside></div>`;
   box.innerHTML=h;
   const sc=box.querySelector(".flow-scroll"); sc.scrollLeft=sx; sc.scrollTop=sy;
+  S.flowL={L,cur,win:null,keys:L.nodes.map(n=>n.key).join("\u0001")}; flowDraw(true,focusKey);
   const ni=box.querySelector(".finsp"); if(ni) ni.scrollTop=iScroll;
   wireFlowBar(box); wireFlow(box,L);
   if(focusKey){ const el=box.querySelector(`[data-node="${CSS.escape(focusKey)}"]`); if(el) el.focus({preventScroll:true}); }
@@ -21076,10 +21147,30 @@ function renderFlow(){
    without rebuilding the inspector the slider is in. */
 function renderFlowNodes(){
   const box=$("#flowWin"); if(!box||!box.querySelector(".flow-canvas")) return;
-  const L=flowLayout(), cur=flowCurKey(), cv=box.querySelector(".flow-canvas");
+  const L=flowLayout(), cur=flowCurKey(), cv=box.querySelector(".flow-canvas"), F=S.flowL;
+  // Many boxes: only those about the view are drawn, and drawn again (other boxes: the whole History).
+  if(L.nodes.length>FLOW_VMAX){ if(!F||F.keys!==L.nodes.map(n=>n.key).join("\u0001")){ renderFlow(); return; } F.L=L; F.cur=cur; flowDraw(true); return; }
   if(L.nodes.some(n=>!cv.querySelector(`[data-node="${CSS.escape(n.key)}"]`))){ renderFlow(); return; }
   L.nodes.forEach(n=>{ const el=cv.querySelector(`[data-node="${CSS.escape(n.key)}"]`); if(!el) return;
     const t=document.createElement("div"); t.innerHTML=flowNodeHtml(n,cur); const nw=t.firstChild; if(nw.outerHTML!==el.outerHTML) el.replaceWith(nw); });
+}
+/* The boxes and lines on the canvas. With more than FLOW_VMAX boxes (a thousand columns make two
+   thousand) only those about the view are drawn, a screen beyond it each way, and they are drawn
+   again when a scroll comes within half a screen of what is drawn: four thousand boxes and their
+   sparklines took most of a second to draw and lay out on every save. The selected box and the one
+   with the keys are always drawn. `S.flowL` is the layout drawn {L, cur, win, keys}. */
+const FLOW_VMAX=300;
+function flowDraw(force,keep){
+  const box=$("#flowWin"), sc=box&&box.querySelector(".flow-scroll"), cv=sc&&sc.querySelector(".flow-canvas"), F=S.flowL; if(!cv||!F) return;
+  const L=F.L, z=flowZoom(), ae=document.activeElement, fk=ae&&cv.contains(ae)&&ae.dataset?ae.dataset.node:null;
+  let win=null;
+  if(L.nodes.length>FLOW_VMAX){ const vw=Math.max(200,sc.clientWidth)/z, vh=Math.max(150,sc.clientHeight)/z, x0=sc.scrollLeft/z, y0=sc.scrollTop/z;
+    const w=F.win; if(!force&&w&&x0>=w.x0+vw/2&&x0+vw<=w.x1-vw/2&&y0>=w.y0+vh/2&&y0+vh<=w.y1-vh/2) return;
+    win={x0:x0-vw,x1:x0+2*vw,y0:y0-vh,y1:y0+2*vh}; }
+  F.win=win;
+  const inW=n=>!win||n.key===S.flowSel||n.key===keep||n.key===fk||(n.x+FLOW_NW>=win.x0&&n.x<=win.x1&&n.y+FLOW_NH>=win.y0&&n.y<=win.y1);
+  cv.innerHTML=flowEdgesSvg(L,win)+L.nodes.filter(inW).map(n=>flowNodeHtml(n,F.cur)).join("");
+  if(fk){ const el=cv.querySelector(`[data-node="${CSS.escape(fk)}"]`); if(el&&document.activeElement!==el) el.focus({preventScroll:true}); }
 }
 function wireFlowBar(box){
   box.querySelectorAll("[data-ftab]").forEach(b=>b.onclick=()=>{ S.flowTab=b.dataset.ftab; renderFlow(); });
@@ -21088,7 +21179,8 @@ function wireFlowBar(box){
   zb("#fZoomOut",()=>setFlowZoom(flowZoom()/1.25)); zb("#fZoomIn",()=>setFlowZoom(flowZoom()*1.25)); zb("#fZoom",()=>setFlowZoom(1));
   zb("#fZoomFit",()=>{ const sc=box.querySelector(".flow-scroll"), cv=box.querySelector(".flow-canvas"); if(!sc||!cv) return; const W=parseFloat(cv.style.width)||1, H=parseFloat(cv.style.height)||1; setFlowZoom(Math.min(1,(sc.clientWidth-8)/W,(sc.clientHeight-8)/H)); });
   zb("#fPack",()=>{ S.flowPack=S.flowPack===false; renderFlow(); });
-  const sc=box.querySelector(".flow-scroll"); if(sc&&!sc._zw){ sc._zw=1; sc.addEventListener("wheel",e=>{ if(!(e.ctrlKey||e.metaKey)) return; e.preventDefault(); setFlowZoom(flowZoom()*(e.deltaY<0?1.1:1/1.1)); },{passive:false}); }
+  const sc=box.querySelector(".flow-scroll"); if(sc&&!sc._fs){ sc._fs=1; let raf=0; sc.addEventListener("scroll",()=>{ if(!raf) raf=requestAnimationFrame(()=>{ raf=0; flowDraw(false); }); },{passive:true}); }
+  if(sc&&!sc._zw){ sc._zw=1; sc.addEventListener("wheel",e=>{ if(!(e.ctrlKey||e.metaKey)) return; e.preventDefault(); setFlowZoom(flowZoom()*(e.deltaY<0?1.1:1/1.1)); },{passive:false}); }
   const add=box.querySelector("#fAdd"); if(add) add.onclick=()=>{ const c=activeYCol(); if(c) toggleMenu(add,()=>toolMenuItems({col:c.id}),{label:"Add a step",search:"Find a tool: background, smooth, derivative…"}); };
 }
 function flowSelect(key,L){
@@ -21118,7 +21210,7 @@ function wireFlow(box,L){
     const items=n.kind==="step"?stepMenuItems(n.s):n.c?specItems(n.c,n.key):null; if(items) openMenu(el,items,{label:"Options"}); });
   cv.addEventListener("keydown",e=>{
     const b=e.target.closest("[data-node]"); if(!b) return; const n=L.by[b.dataset.node]; if(!n) return;
-    const go=m=>{ if(!m) return; const el=cv.querySelector(`[data-node="${CSS.escape(m.key)}"]`); if(el){ el.focus(); el.scrollIntoView({block:"nearest",inline:"nearest"}); } };
+    const go=m=>{ if(!m) return; let el=cv.querySelector(`[data-node="${CSS.escape(m.key)}"]`); if(!el){ flowDraw(true,m.key); el=cv.querySelector(`[data-node="${CSS.escape(m.key)}"]`); } if(el){ el.focus(); el.scrollIntoView({block:"nearest",inline:"nearest"}); } };
     if(e.altKey&&n.kind==="step"&&(e.key==="ArrowUp"||e.key==="ArrowDown")){ e.preventDefault(); moveStep(n.s.id,n.k-1+(e.key==="ArrowUp"?-1:1)); return; }
     if(e.key==="ArrowDown"||e.key==="ArrowUp"){ e.preventDefault(); const dy=e.key==="ArrowDown"?1:-1;
       go(L.nodes.filter(m=>m.col===n.col&&Math.sign(m.row-n.row)===dy).sort((a,b)=>Math.abs(a.row-n.row)-Math.abs(b.row-n.row))[0]); return; }
@@ -22357,7 +22449,7 @@ ${TIP("Overlapping bands are integrated separately, each within its own window. 
 {id:"stats", g:"Analysis", t:"Statistics", win:"stats", kw:"statistics descriptive n count mean median sd se standard error spectral measures noise signal to noise area centroid correlation pearson integrate visible range",
  lead:"Descriptive statistics of every column, the integral of the visible range, and how alike the columns are.",
  body:`<h2>Descriptive statistics</h2>
-<p>For each column, processed or original data, over all X or the visible range: the number of points <em>n</em>, mean, standard deviation (n − 1), standard error of the mean (SD / √n), median, minimum and maximum. Masked points are left out.</p>
+<p>For each column, processed or original data, over all X or the visible range: the number of points <em>n</em>, mean, standard deviation (n − 1), standard error of the mean (SD / √n), median, minimum and maximum. Masked points are left out. With more than 200 columns the first 200 are listed, and the active one; <em>Show them all</em> lists the rest, and Copy always gives every column.</p>
 <p><em>Noise, S/N and area</em> adds the X of the maximum, noise σ, signal to noise, area and centroid. It is on by itself when the active column has many evenly spaced points with a clear peak, and off for other data.</p>
 ${DL([["Noise σ","From second differences, so a band's slope does not count as noise."],["S/N","The largest point's height above the median, over σ."],["Area","Trapezoidal, over X in ascending order."],["Centroid","The area-weighted mean X."]])}
 <h2>Integrate the visible range</h2>
@@ -23094,7 +23186,8 @@ function winTakeFocus(id){ const el=$("#w-"+id); if(!el||el.hidden||!winOpen(id)
   if(t===el&&!el.hasAttribute("tabindex")) el.tabIndex=-1;
   t.focus({preventScroll:true}); }
 function toggleMax(id){ const st=winState(id); st.max=!st.max; st.z=++LAYOUT.z; applyWins(); saveLayout(); }
-function renderWin(id){
+function renderWin(id){ return inRender(()=>renderWin0(id)); }
+function renderWin0(id){
   if(id==="help"){ renderHelp(); return; }
   if(!P()) return;
   const gw=graphOfWin(id);
@@ -24521,7 +24614,8 @@ function snapSig(id,W,H){ const p=P(), cols=graphCols(id), lead=leadOf(id), lc=c
     S.pending&&cols.some(c=>c.id===S.pending.col)?JSON.stringify(S.pending.step):"",S.comments.length].join("\n"); }
 let snapT=0;
 function scheduleSnaps(delay){ if(snapT) return; snapT=setTimeout(()=>{ snapT=0; runSnaps(); },delay==null?40:delay); }
-function runSnaps(){ const p=P(); if(!p||!multiGraph()) return;
+function runSnaps(){ return inRender(runSnaps0); }
+function runSnaps0(){ const p=P(); if(!p||!multiGraph()) return;
   const pk=JSON.stringify(readPalette()), t0=performance.now();
   for(const id of drawGraphIds()){ if(id===S.gid) continue; const w=winOfGraph(id); if(!WINS[w]||!winOpen(w)) continue;
     // A panel's picture fills its cell exactly, with the margins of its row and column.
@@ -24556,7 +24650,7 @@ function renderGraphHeads(){
     const cols=graphCols(id), lead=leadOf(id), pl=plotOf(id), sub=el.querySelector(".win-sub"), bar=el.querySelector(".gbar");
     if(sub) sub.textContent=cols.length===1?specName(cols[0]):cols.length?`${cols.length} curves`:"";
     if(bar){ const keep=S.gctx; S.gctx=id;
-      try{ bar.innerHTML=cols.map(c=>{ const col=((pl.series||{})[c.id]||{}).color||(c.id===lead?"var(--data)":yTint(c.id));
+      try{ const sch=plotCfg().scheme; bar.innerHTML=cols.map(c=>{ const col=((pl.series||{})[c.id]||{}).color||(c.id===lead?"var(--data)":yTint(c.id,undefined,sch));
         return `<button class="gchip${c.id===lead?" on":""}" data-gchip="${c.id}" title="Work on ${esc(specName(c))} in this graph, or hold and drag it onto another graph"><span class="sw" style="background:${esc(col)}"></span>${esc(specName(c))}</button>`; }).join(""); }
       finally{ S.gctx=keep; } } });
 }
@@ -25591,7 +25685,9 @@ function menuItems(which){
 function onThemeChange(){ renderTop(); renderPlot(); Object.keys(WINS).forEach(id=>{ if(id!==winOfGraph(S.gid)&&winOpen(id)) renderWin(id); }); }
 let renderCount=0;
 function renderAll(){ scheduleAway();
-  normalize(S.proj); clampStage();
+  normalize(S.proj); clampStage(); CM=null;
+  inRender(renderAll0); }
+function renderAll0(){
   // A set that follows its spectrum is found again first; with this browser's
   // store the save has already drawn everything by the time it returns.
   const rc=++renderCount; if(followPeakSets()&&renderCount!==rc) return;
