@@ -1372,7 +1372,14 @@ graph first, with the taskbar kept at the bottom of the screen.
   `exportGraphIds`/`allGraphsSvg` (a figure is one item, lettered inside). Commands:
   `makeFigure(gids, o)`, `figPerSpectrum`, `figAddPanel(fid, {gid|cids})`, `figRemovePanel(gid,
   {del})`, `figMovePanel`, `figSave`, `deleteFigure(fid, withPanels)`, `duplicateFigure`,
-  `figDlg` (Panels…), `newFigureDlg` (its Share X shows ticked and fixed while the panels will
+  `figDlg` (Panels…: Share X and Share Y as lists, `FIG_SHX`/`FIG_SHY`), **shared per column or
+  row** (roadmap 4, slice 4): `fig.shareX` is `true` (every panel), `"col"` (the panels of one
+  column) or false, `fig.shareY` `true`, `"row"` or false (`figShareOf`, in `normalize`);
+  `figRange(fg, key)` over `"all"`, `"c:<n>"` or `"r:<n>"` (cells by their first column or row,
+  memoised per key in `FIGRNG`), `figShareKey(F, c, k)`, `figShareRng(fg, c)` (`{x, y}` the ranges a
+  panel shows, in `plotCfg` and the pictures' signature), `figSharedWith(F, a, b, k)` (`viewFor`'s
+  link: a zoom followed only where the axis is shared); touching, pruned numbers and margins are as
+  for every panel. `newFigureDlg` (its Share X shows ticked and fixed while the panels will
   be in one column, from its `valid`), `figMenuItems` (the figure's ⋯), `figPanelItems`;
   **spans**: a cell's `rs`/`cs` (`figLayout` and `figNb` already honour them) are set by
   `figSpan(gid, dr, dc, whole)` (into empty cells only, `figFits`; refused in words) from the
@@ -3924,7 +3931,7 @@ Next, in order:
 4. Plots Origin has and Kurve lacks, further: a distribution fitted over a histogram (normal,
    log-normal, exponential) with its parameters (done 06.11); box charts of one column grouped by another, notched
    boxes (done 06.11); stacked and grouped bars with category names (done 06.11); per-row or per-column shared axes in a
-   figure; a map from scattered X, Y, Z (triangulated) rather than from spectra
+   figure (done 06.11); a map from scattered X, Y, Z (triangulated) rather than from spectra
 5. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
    with its own scale on each side, polygons and curved arrows
 6. Getting around: a visible undo list, flow chart zoom and packed
@@ -4048,8 +4055,9 @@ Next, in order:
   the other project does not follow), and leaves behind fits, band windows, comments and
   trends; a computed column arrives as its values
 - Figures: a panel spans only empty cells (it never pushes another aside), and spans are set
-  from the panel's menu, not by dragging its edges; a figure cannot be a panel of another; sharing X or Y is for the whole figure, not a row or
-  a column; a shared range is the panels' data in the first panel's X units, and a panel in
+  from the panel's menu, not by dragging its edges; a figure cannot be a panel of another; X is
+  shared by every panel or by the panels of a column (a panel spanning columns by its first), Y by
+  every panel or by those of a row (by its first), not both ways at once; a shared range is the panels' data in the first panel's X units, and a panel in
   other units keeps its own; the text is small in every panel when the figure's columns are
   narrower than 400 px; a picture panel shows no readout until clicked
 - Maps: the rows between two spectra are a straight-line interpolation; the side always spans

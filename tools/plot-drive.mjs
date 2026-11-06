@@ -580,6 +580,49 @@ await page(async p => {
   check("…and a graph of 200 X values is not given names, said in words", !r.open && /200 different X values/.test(r.toast), JSON.stringify(r));
 }, { name: "stacked columns and names along X" });
 
+console.log("Roadmap 4, slice 4: axes shared per column or per row in a figure");
+await page(async p => {
+  // Four panels, 2 × 2: the left column on X 0–10, the right on X 100–200; the top row small, the bottom row large.
+  const id = await p.evaluate(async () => {
+    const n = 40, x1 = Array.from({ length: n }, (_, i) => i * 10 / (n - 1)), x2 = x1.map(v => 100 + 10 * v);
+    const X1 = makeCol("x", "Time", "s", x1), A = Object.assign(makeCol("y", "A", "", x1.map(v => Math.sin(v) * 0.5 + 0.5)), { pipe: [], mask: [] }), B = Object.assign(makeCol("y", "B", "", x1.map(v => 50 + 40 * Math.cos(v))), { pipe: [], mask: [] });
+    const X2 = makeCol("x", "Time", "s", x2), C = Object.assign(makeCol("y", "C", "", x1.map(v => Math.cos(v) * 0.5 + 0.5)), { pipe: [], mask: [] }), D = Object.assign(makeCol("y", "D", "", x1.map(v => 50 + 40 * Math.sin(v))), { pipe: [], mask: [] });
+    await createProject(Object.assign(blankProject("Panels"), { cols: [X1, A, B, X2, C, D], activeY: A.id }), "test"); await new Promise(r => setTimeout(r, 80)); renderAll();
+    const g = [A, C, B, D].map(c => { plotCols([c.id], { quiet: true }); return P().graphs[P().graphs.length - 1].id; });
+    const fid = makeFigure(g, { cols: 2, shareX: false }); return { A: g[0], C: g[1], B: g[2], D: g[3], fid };
+  });
+  await p.waitForTimeout(600);
+  const ranges = () => p.evaluate(id => Object.fromEntries(["A", "B", "C", "D"].map(k => [k, withGraph(id[k], () => { const c = plotCfg(); return { x: [c.ax.x.min, c.ax.x.max], y: [c.ax.y.min, c.ax.y.max], xl: c.ax.x.labs, yl: c.ax.y.labs }; })])), id);
+  // Through the dialog: Share X in each column, Share Y in each row.
+  await p.evaluate(id => { figDlg(id.fid); }, id); await p.waitForTimeout(400);
+  let r = await p.evaluate(() => ({ x: [...document.querySelectorAll("#fgSx option")].map(o => o.textContent), y: [...document.querySelectorAll("#fgSy option")].map(o => o.textContent) }));
+  check("the figure's Panels… dialog shares X: no, every panel, panels in one column; Y: no, every panel, panels in one row", r.x.join() === "No,Every panel,Panels in one column" && r.y.join() === "No,Every panel,Panels in one row", JSON.stringify(r));
+  await p.selectOption("#fgSx", "col"); await p.selectOption("#fgSy", "row"); await p.click("#formOk"); await p.waitForTimeout(600);
+  let g = await ranges();
+  const log = await p.evaluate(() => JSON.stringify(P().log.slice(-1)[0]));
+  check("…saved, said in the log", /sharing X in each column/.test(log) && /sharing Y in each row/.test(log), log);
+  check("X shared in each column: the left column's panels on 0–10, the right's on 100–200", Math.abs(g.A.x[0] - g.B.x[0]) < 1e-9 && Math.abs(g.A.x[1] - g.B.x[1]) < 1e-9 && g.A.x[1] < 15 && Math.abs(g.C.x[0] - g.D.x[0]) < 1e-9 && g.C.x[0] > 90, JSON.stringify(g));
+  check("Y shared in each row: the top row small, the bottom row large", Math.abs(g.A.y[1] - g.C.y[1]) < 1e-9 && g.A.y[1] < 2 && Math.abs(g.B.y[1] - g.D.y[1]) < 1e-9 && g.B.y[1] > 80, JSON.stringify(g));
+  check("…numbers on the outer edges only: X on the bottom row, Y on the left column", g.A.xl === false && g.C.xl === false && g.B.xl !== false && g.D.xl !== false && g.C.yl === false && g.D.yl === false && g.A.yl !== false && g.B.yl !== false, JSON.stringify(g));
+  // The zoom: followed by the panel in the same column only.
+  r = await p.evaluate(id => { activateGraph(id.A); S.view = { x0: 2, x1: 4, y0: 0, y1: 1, xu: "s" }; return { b: viewFor(id.B), c: viewFor(id.C) }; }, id);
+  check("a zoom is followed in X by the panel below it, not by the other column", r.b && r.b.x0 === 2 && r.b.x1 === 4 && !(r.c && r.c.x0 === 2), JSON.stringify(r));
+  await p.evaluate(() => { S.view = null; renderAll(); }); await p.waitForTimeout(300);
+  // Every panel, as before.
+  await p.evaluate(id => { const G = clone(graphOf(id.fid).fig); G.shareX = true; figSave(id.fid, G, "shared X"); }, id); await p.waitForTimeout(500);
+  g = await ranges();
+  check("Share X every panel: one X range across both columns", Math.abs(g.A.x[0] - g.D.x[0]) < 1e-9 && Math.abs(g.A.x[1] - g.D.x[1]) < 1e-9 && g.A.x[0] < 1 && g.A.x[1] > 190, JSON.stringify([g.A.x, g.D.x]));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(400);
+  r = await p.evaluate(id => graphOf(id.fid).fig.shareX, id);
+  check("…one undo goes back to each column's own", r === "col", JSON.stringify(r));
+  // From storage: a sharing that does not read is none, and a reload keeps what was set.
+  r = await p.evaluate(() => [figShareOf("col"), figShareOf("row"), figShareOf(true), figShareOf("all"), figShareOf("weird"), figShareOf(null)]);
+  check("what a sharing can be: every panel, a column's or a row's, or none for anything else", JSON.stringify(r) === '["col","row",true,true,false,false]', JSON.stringify(r));
+  await p.waitForTimeout(300); await p.reload(); await ready(p); await p.waitForTimeout(500);
+  r = await p.evaluate(id => { const F = graphOf(id.fid).fig; return [F.shareX, F.shareY]; }, id);
+  check("…and a reload keeps Share X in each column and Share Y in each row", r[0] === "col" && r[1] === "row", JSON.stringify(r));
+}, { name: "figure axes shared per column or row" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

@@ -7557,9 +7557,9 @@ function plotCfg(){
   // its margins are those that line its plot area up with the others'.
   const fg=figOf(id,p);
   if(fg){ const F=fg.fig, c=(F.cells||[]).find(q=>q.gid===id);
-    if(c){ const nb=figNb(F,c), rg=(F.shareX||F.shareY)?figRange(fg):null, lead=activeYCol(), su=rg&&lead&&(finalOf(lead).xu||"")===rg.xu, unset=a=>(a.min==null||a.min==="")&&(a.max==null||a.max==="");
-      if(F.shareX){ if(nb.below) Object.assign(o.ax.x,{labs:false,tshow:false}); if(su&&!o.logX&&!o.ax.x.scale&&unset(o.ax.x)) Object.assign(o.ax.x,{min:rg.x0,max:rg.x1}); }
-      if(F.shareY){ if(nb.left) Object.assign(o.ax.y,{labs:false,tshow:false}); if(su&&!o.logY&&!o.ax.y.scale&&unset(o.ax.y)&&o.layout!=="heat"&&o.layout!=="stack") Object.assign(o.ax.y,{min:rg.y0,max:rg.y1}); }
+    if(c){ const nb=figNb(F,c), rr=figShareRng(fg,c), lead=activeYCol(), lxu=lead?(finalOf(lead).xu||""):null, sux=rr.x&&lxu===rr.x.xu, suy=rr.y&&lxu===rr.y.xu, unset=a=>(a.min==null||a.min==="")&&(a.max==null||a.max==="");
+      if(F.shareX){ if(nb.below) Object.assign(o.ax.x,{labs:false,tshow:false}); if(sux&&!o.logX&&!o.ax.x.scale&&unset(o.ax.x)) Object.assign(o.ax.x,{min:rr.x.x0,max:rr.x.x1}); }
+      if(F.shareY){ if(nb.left) Object.assign(o.ax.y,{labs:false,tshow:false}); if(suy&&!o.logY&&!o.ax.y.scale&&unset(o.ax.y)&&o.layout!=="heat"&&o.layout!=="stack") Object.assign(o.ax.y,{min:rr.y.y0,max:rr.y.y1}); }
       // Where panels touch, a number at the shared edge would run into the neighbour's.
       o.figPrune={t:F.shareX&&nb.above,b:F.shareX&&nb.below,l:F.shareY&&nb.left,r:F.shareY&&nb.right};
       o.figLetter=figLetterOf(F,figOrder(F).indexOf(c)); const sm=(S.figSmall||{})[fg.id]; if(sm!=null) o.figSmall=sm;
@@ -18093,7 +18093,8 @@ function normalize(p){ if(!p) return; const was=p.v||1;
       F.cells=(Array.isArray(F.cells)?F.cells:[]).filter(c=>c&&have.has(c.gid)&&!used.has(c.gid)&&!!used.add(c.gid))
         .map(c=>({gid:c.gid,r:Math.max(0,Math.round(+c.r)||0),c:Math.max(0,Math.round(+c.c)||0),rs:Math.max(1,Math.round(+c.rs)||1),cs:Math.max(1,Math.round(+c.cs)||1)}));
       if(figClash(F)){ F.cells=figPackSpans(figOrder(F),F.cols); F.rows=Math.max(F.rows,figRowsOf(F.cells)); }
-      if(!Array.isArray(F.w)) F.w=[]; if(!Array.isArray(F.h)) F.h=[]; if(!FIG_LETTERS.some(q=>q[0]===F.letters)) F.letters="a"; }); }
+      if(!Array.isArray(F.w)) F.w=[]; if(!Array.isArray(F.h)) F.h=[]; if(!FIG_LETTERS.some(q=>q[0]===F.letters)) F.letters="a";
+      F.shareX=figShareOf(F.shareX); F.shareY=figShareOf(F.shareY); if(F.shareX==="row") F.shareX=false; if(F.shareY==="col") F.shareY=false; }); }
   if(p===S.proj) recalcFx(p);
   // An upgraded project is saved at once in its new form, so a later partial
   // save cannot leave half of it in the old one.
@@ -21451,7 +21452,7 @@ ${DL([["One panel per column",MP("Plot › New graph › A figure, a panel for e
 <p>Click a panel to work on it: it is drawn live in its place, with the tools, its zoom and its column, and every window follows, as with any graph. The others are pictures until clicked. The chips along the top of a figure not in front name its panels.</p>
 <h2>Layout</h2>
 <p><em>Panels…</em> in the figure's ⋯ menu sets:</p>
-${DL([["Rows and columns","The panels fill them in reading order."],["Share X","The rows touch, only the bottom row has numbers and a title, every panel shows the same X range, and zooming one zooms them all."],["Share Y","The columns touch, only the left column has numbers, and every panel shows the same Y range."],["Gap","The space between panels that do not touch."],["Letters","(a), (b)… at the top left of each plot, in reading order, or A, B…, or none."],["Widths and heights","Relative: <code>2, 1</code> makes the first column (or row) twice the second."]])}
+${DL([["Rows and columns","The panels fill them in reading order."],["Share X","The rows touch, only the bottom row has numbers and a title. <em>Every panel</em>: every panel shows the same X range, and zooming one zooms them all. <em>Panels in one column</em>: each column has an X range and a zoom of its own, shared by the panels above one another in it (two columns on different X: a whole curve beside a detail of it, two instruments)."],["Share Y","The columns touch, only the left column has numbers. <em>Every panel</em>: every panel shows the same Y range. <em>Panels in one row</em>: each row has a Y range of its own, shared by the panels side by side in it."],["Gap","The space between panels that do not touch."],["Letters","(a), (b)… at the top left of each plot, in reading order, or A, B…, or none."],["Widths and heights","Relative: <code>2, 1</code> makes the first column (or row) twice the second."]])}
 <p>Each plot area is lined up with its row's and column's: every panel takes the widest left margin of its column and the tallest bottom margin of its row, so axes line up even when one panel's numbers are longer. The panel's own ⋯ items (in the figure's ⋯ menu) choose its columns, rename it, move it up, down, left or right, take it out (a graph of its own again) or delete it. <em>Span</em> makes a panel wider or taller, over empty cells next to it, or across its whole row: a wide panel under two small ones. <em>Panels…</em> adds the rows or columns to make room.</p>
 <h2>Exporting</h2>
 <p>Any export of a panel (SVG, PDF, EPS, PNG, or ${MP("Publish › Graph for a paper or slides…")}) writes the whole figure, at its proportions on screen or at the size asked for, each panel with its own ids. A figure is one item in <em>All graphs as one SVG</em> (or PNG), with its panels lettered inside it.</p>
@@ -23271,14 +23272,23 @@ function figNb(F,c){ const cs=F.cells||[], ov=(a0,a1,b0,b1)=>a0<b1&&b0<a1, rs=c.
 /* What panels sharing an axis show with no zoom: every panel's data on that
    axis together (in the X units of the first panel), padded as one graph pads. */
 const FIGRNG=new WeakMap();
-function figRange(fg){
-  const ser=[]; (fg.fig.cells||[]).forEach(c=>graphCols(c.gid).forEach(q=>ser.push(finalOf(q))));
-  const hit=FIGRNG.get(fg); if(hit&&hit.ser.length===ser.length&&hit.ser.every((d,i)=>d===ser[i])) return hit.r;
+function figRange(fg,key){ key=key||"all";
+  const sel=key==="all"?()=>true:key[0]==="c"?c=>c.c===+key.slice(2):c=>c.r===+key.slice(2), ser=[]; (fg.fig.cells||[]).filter(sel).forEach(c=>graphCols(c.gid).forEach(q=>ser.push(finalOf(q))));
+  let mm=FIGRNG.get(fg); if(!mm){ mm={}; FIGRNG.set(fg,mm); } const hit=mm[key]; if(hit&&hit.ser.length===ser.length&&hit.ser.every((d,i)=>d===ser[i])) return hit.r;
   const xu=ser.length?(ser[0].xu||""):"", lx=[Infinity,-Infinity], ly=[Infinity,-Infinity];
   ser.forEach(d=>{ if((d.xu||"")!==xu) return; for(let i=0;i<d.x.length;i++){ const x=d.x[i], y=d.y[i]; if(x==null||y==null||!Number.isFinite(x)||!Number.isFinite(y)) continue;
     if(x<lx[0]) lx[0]=x; if(x>lx[1]) lx[1]=x; if(y<ly[0]) ly[0]=y; if(y>ly[1]) ly[1]=y; } });
   let r=null; if(lx[1]>lx[0]){ const dx=(lx[1]/2-lx[0]/2)*0.08, dy=ly[1]>ly[0]?(ly[1]/2-ly[0]/2)*0.14:1; r={xu,x0:lx[0]-dx,x1:lx[1]+dx,y0:ly[0]-dy,y1:ly[1]+dy}; }
-  FIGRNG.set(fg,{ser,r}); return r; }
+  mm[key]={ser,r}; return r; }
+/* An axis a figure shares: every panel's (true), or per column for X ("col") and per row for Y
+   ("row"), each column or row with a range and a zoom of its own. `figShareRng(fg, c)` the ranges the
+   cell c shows with no zoom ({x, y}, null where not shared); `figShareKey(F, c, k)` the part of the
+   figure it shares axis k with; `figSharedWith(F, a, b, k)` whether two panels share it. */
+const figShareKey=(F,c,k)=>{ const s=k==="x"?F.shareX:F.shareY; return !s||!c?null:s==="col"?"c:"+c.c:s==="row"?"r:"+c.r:"all"; };
+function figShareRng(fg,c){ const F=fg.fig, kx=figShareKey(F,c,"x"), ky=figShareKey(F,c,"y"); return {x:kx?figRange(fg,kx):null,y:ky?figRange(fg,ky):null}; }
+function figSharedWith(F,a,b,k){ const ca=(F.cells||[]).find(q=>q.gid===a), cb=(F.cells||[]).find(q=>q.gid===b); const ka=figShareKey(F,ca,k); return !!ka&&ka===figShareKey(F,cb,k); }
+const FIG_SHX=[["no","No"],["all","Every panel"],["col","Panels in one column"]], FIG_SHY=[["no","No"],["all","Every panel"],["row","Panels in one row"]];
+const figShareOf=v=>v===true||v==="all"?true:v==="col"||v==="row"?v:false;
 // The graph under a point of a graph window: in a figure, the panel there.
 function graphIn(el,w){ const g=graphOfWin(w.dataset.win); if(g&&isFigId(g)){ const c=el.closest&&el.closest(".fcell"); return c&&w.contains(c)?c.dataset.fcell:null; } return g; }
 // A panel named with its figure: "Figure 1 › (b) Graph 3".
@@ -23467,8 +23477,8 @@ async function figDlg(fid){
   const r=await formDlg({title:`Panels of ${f.name}`,ok:"Apply",focus:"#fgCols",
     html:`<div class="grid2"><label for="fgCols">Columns</label><input id="fgCols" type="number" min="1" max="12" step="1" value="${F.cols}">
       <label for="fgRows">Rows</label><input id="fgRows" type="number" min="1" max="24" step="1" value="${F.rows}">
-      <span></span><label class="chk"><input type="checkbox" id="fgSx"${F.shareX?" checked":""}> Share X: one zoom, the rows touch, numbers on the bottom row</label>
-      <span></span><label class="chk"><input type="checkbox" id="fgSy"${F.shareY?" checked":""}> Share Y: the columns touch, numbers on the left column</label>
+      <label for="fgSx" title="Shared, the panels above one another touch, only the bottom one has numbers, and they show one X range and zoom: every panel's, or each column its own">Share X</label><select id="fgSx">${FIG_SHX.map(([v,l])=>`<option value="${v}"${(F.shareX==="col"?"col":F.shareX?"all":"no")===v?" selected":""}>${l}</option>`).join("")}</select>
+      <label for="fgSy" title="Shared, the panels side by side touch, only the left one has numbers, and they show one Y range and zoom: every panel's, or each row its own">Share Y</label><select id="fgSy">${FIG_SHY.map(([v,l])=>`<option value="${v}"${(F.shareY==="row"?"row":F.shareY?"all":"no")===v?" selected":""}>${l}</option>`).join("")}</select>
       <label for="fgGap">Gap</label><div class="pair"><input id="fgGap" type="number" min="0" max="80" step="1" value="${numOr(F.gap,14)}"><span class="lab">px between panels that do not touch</span></div>
       <label for="fgLet">Letters</label><select id="fgLet">${FIG_LETTERS.map(([v,l])=>`<option value="${v}"${(F.letters||"a")===v?" selected":""}>${l}</option>`).join("")}</select>
       <label for="fgW">Column widths</label><input id="fgW" type="text" value="${esc((F.w||[]).join(", "))}" placeholder="1, 1 (relative)">
@@ -23479,9 +23489,10 @@ async function figDlg(fid){
   const G=clone(q.fig), cols=Math.max(1,Math.min(12,Math.round(+r.fgCols))), rows=Math.max(Math.ceil(G.cells.length/cols),Math.min(24,Math.round(+r.fgRows)));
   const nums=s=>String(s||"").split(/[,;\s]+/).map(Number).filter(x=>x>0&&Number.isFinite(x)).slice(0,24);
   const repack=cols!==G.cols||G.cells.some(c=>c.c+(c.cs||1)>cols||c.r+(c.rs||1)>rows);
-  Object.assign(G,{cols,rows,shareX:!!r.fgSx,shareY:!!r.fgSy,gap:Math.max(0,Math.min(80,numOr(+r.fgGap,14))),letters:r.fgLet,w:nums(r.fgW),h:nums(r.fgH)});
+  const shOf=v=>v==="all"||v===true?true:v==="col"||v==="row"?v:false;
+  Object.assign(G,{cols,rows,shareX:shOf(r.fgSx),shareY:shOf(r.fgSy),gap:Math.max(0,Math.min(80,numOr(+r.fgGap,14))),letters:r.fgLet,w:nums(r.fgW),h:nums(r.fgH)});
   if(repack){ G.cells=figPackSpans(figOrder(G),cols); G.rows=Math.max(G.rows,figRowsOf(G.cells)); }
-  figSave(fid,G,`laid out ${q.name}: ${rows} × ${cols}${G.shareX?", sharing X":""}${G.shareY?", sharing Y":""}`,{undo:"the figure's layout"}); }
+  figSave(fid,G,`laid out ${q.name}: ${rows} × ${cols}${G.shareX?G.shareX==="col"?", sharing X in each column":", sharing X":""}${G.shareY?G.shareY==="row"?", sharing Y in each row":", sharing Y":""}`,{undo:"the figure's layout"}); }
 // A figure from graphs chosen in a list, or one panel per spectrum.
 async function newFigureDlg(pre){
   const p=P(); if(!p||S.readOnly) return; const ids=deskGraphIds().filter(id=>!isFigId(id)&&graphCols(id).length);
@@ -23652,7 +23663,7 @@ function resolveYAuto(v){ if(v&&v.xAuto){ const av=autoView(); return {x0:av.x0,
    zoom is linked, or between panels of a figure that share X; its Y too
    between panels that share Y. */
 function viewFor(id){ if(id===S.gid) return S.view;
-  const f=figOf(S.gid), same=!!f&&f===figOf(id), lx=S.linkX||same&&f.fig.shareX, ly=same&&f.fig.shareY, v=S.view;
+  const f=figOf(S.gid), same=!!f&&f===figOf(id), lx=S.linkX||same&&figSharedWith(f.fig,S.gid,id,"x"), ly=same&&figSharedWith(f.fig,S.gid,id,"y"), v=S.view;
   if(!lx&&!ly) return S.gv[id]||null;
   if(!v) return lx?null:S.gv[id]||null;
   if(lx) return ly?{x0:v.x0,x1:v.x1,y0:v.y0,y1:v.y1,xu:v.xu}:{x0:v.x0,x1:v.x1,xu:v.xu,yAuto:true};
@@ -23684,7 +23695,7 @@ function runSnaps(){ const p=P(); if(!p||!multiGraph()) return;
     // A panel's picture fills its cell exactly, with the margins of its row and column.
     const f=figOf(id), box=document.querySelector(f?`#w-${w} .fcell[data-fcell="${id}"] .gsnap`:`#w-${w} .gsnap`); if(!box||box.hidden) continue;
     const pad=f?0:12, W=box.clientWidth-pad, H=box.clientHeight-pad; if(W<10||H<10) continue;
-    const sig=pk+"\n"+snapSig(id,W,H)+(f?"\n"+JSON.stringify([f.fig,((S.figLay||{})[f.id]||{m:{}}).m[id]||null,(S.figSmall||{})[f.id],f.fig.shareX||f.fig.shareY?figRange(f):null]):""); if(S.snap[id]===sig) continue;
+    const sig=pk+"\n"+snapSig(id,W,H)+(f?"\n"+JSON.stringify([f.fig,((S.figLay||{})[f.id]||{m:{}}).m[id]||null,(S.figSmall||{})[f.id],f.fig.shareX||f.fig.shareY?figShareRng(f,(f.fig.cells||[]).find(q=>q.gid===id)):null]):""); if(S.snap[id]===sig) continue;
     renderSnap(id,box,W,H,!!f); S.snap[id]=sig;
     // A few per frame, so a desk of graphs never holds the page up.
     if(performance.now()-t0>24){ scheduleSnaps(16); return; } }

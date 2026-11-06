@@ -1024,6 +1024,17 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plots, slice 4: axes shared per column or per row in a figure (2026-11-06)
+
+- A figure's Panels… dialog shares X with every panel or with the panels of each column, and Y with
+  every panel or with the panels of each row: each column (row) then has a range and a zoom of its
+  own, the panels in it still touching with numbers on the outer edge. Kept with the figure, one
+  undo step, said in the log.
+
+Checked: `tools/plot-drive.mjs` (10 new: the dialog's lists, the log, each column's X and each row's Y
+range, the numbers on the outer edges, a zoom followed in its column only, every panel again, undo,
+what storage gives back, a reload).
+
 ## Plots, slice 3: stacked columns and names along X (2026-11-06)
 
 - A column curve's right-click has *Columns*: Side by side, Stacked, Stacked to 100 % (also on the

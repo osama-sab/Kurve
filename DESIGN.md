@@ -889,6 +889,15 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: axes shared per column or per row in a figure (roadmap 4, slice 4)
+
+- **Sharing has a scope.** A figure of a spectrum beside its detail, or two instruments side by
+  side, has columns on different X; sharing X across the whole figure squeezed both into one range.
+  Share X is now a list (No, Every panel, Panels in one column), and Share Y the same with rows, in
+  the figure's Panels… dialog where the sharing already was.
+- **The scope changes the range and the zoom, not the look**: panels sharing an axis touch and
+  number only the outer edge either way, so switching between the two never moves the panels.
+
 ### 2026-11-06: stacked columns and names along X (roadmap 4, slice 3)
 
 - **Stacking is how the columns stand, not a kind of plot.** Columns already stood side by side
