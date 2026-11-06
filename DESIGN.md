@@ -889,6 +889,17 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: JCAMP-DX (roadmap 8, slice 1)
+
+- **Decoded before it is shown.** A JCAMP-DX file is mostly a compressed code no one reads; the
+  import dialog shows the decoded table (X and Y under their names) with a line saying the file was
+  JCAMP-DX and in which form, so its settings mean what they mean for any table.
+- **Its words, not its codes**: `1/CM` is Wavenumber in cm⁻¹ (Raman shift for a Raman spectrum),
+  `ABSORBANCE` Absorbance; the rest of its labels are the column's header fields, as an
+  instrument's header is, and the worksheet shows them as rows.
+- **Refused in words** where it is not read (data in pages, as NMR writes): a file read wrongly
+  would be worse than one refused.
+
 ### 2026-11-06: a trend graph as a graph like any other (roadmap 7, slice 4)
 
 - **Origin's way: the results are a worksheet, and a graph is plotted from it.** Rather than a

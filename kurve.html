@@ -2186,7 +2186,7 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
     <button class="tb icon" id="xplBtn" aria-pressed="true" aria-controls="xpl" aria-label="Project Explorer" title="Project Explorer (Alt+1)"><svg class="ic"><use href="#i-tree"/></svg></button>
     <div class="tsep"></div>
     <button class="tb lbl" id="importBtn" title="Import (Ctrl+O)"><svg class="ic"><use href="#i-upload"/></svg><span>Import</span></button>
-    <input type="file" id="fileIn" accept=".csv,.txt,.tsv,.dat,.asc,.xy,.prn,.dpt,.text,.tka,.spe,.n42,.xml" class="sr" tabindex="-1" aria-hidden="true" multiple>
+    <input type="file" id="fileIn" accept=".csv,.txt,.tsv,.dat,.asc,.xy,.prn,.dpt,.text,.tka,.spe,.n42,.xml,.jdx,.dx,.jcm" class="sr" tabindex="-1" aria-hidden="true" multiple>
     <button class="tb lbl" id="exportBtn" aria-haspopup="menu" aria-expanded="false" title="Export"><svg class="ic"><use href="#i-download"/></svg><span>Export</span><svg class="ic sm"><use href="#i-chev"/></svg></button>
     <div class="tsep"></div>
     <button class="tb icon" id="undoBtn" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
@@ -6174,8 +6174,95 @@ function n42File(t){
   const cs=first("CoefficientValues")||first("Coefficients"), co=cs?mcaCo(cs.split(/\s+/).map(Number)):null;
   const st=first("StartDateTime")||first("StartTime");
   return {kind:"N42", counts:best, ch0:0, live, real, date:st&&/^\d{4}-\d{2}-\d{2}/.test(st)?st:null, cal:co?{co,unit:"keV"}:null, at:bestAt, title:(first("Remark")||first("RadDetectorDescription")||"").replace(/<[^>]*>/g,"").slice(0,120)}; }
+/* JCAMP-DX (roadmap 8, slice 1): the IUPAC exchange format for spectra, text in ##LABEL= lines.
+   jcampFile(text) gives {kind, form, x, y, xn, xu, yn, yu, title, meta} or {fail} in words, or null
+   when the text is not one (it must have ##TITLE= and ##JCAMP-DX=). Read: ##XYDATA=(X++(Y..Y)) in
+   plain numbers (AFFN) or compressed (ASDF: SQZ, DIF and DUP; a DIF line's last value, repeated at
+   the next line's start as its check, counted once), X from ##FIRSTX, ##LASTX and ##NPOINTS (else
+   from the lines' own X), ##XFACTOR and ##YFACTOR; ##XYPOINTS= and ##PEAK TABLE=(XY..XY); the
+   first block with data of a linked file, its outer labels kept too. Labels are read as the
+   standard says: case, spaces, dashes, slashes and underscores do not count; $$ starts a comment.
+   ##NTUPLES (NMR in pages) is refused in words. */
+const JDX_SQZ={"@":0,A:1,B:2,C:3,D:4,E:5,F:6,G:7,H:8,I:9,a:-1,b:-2,c:-3,d:-4,e:-5,f:-6,g:-7,h:-8,i:-9};
+const JDX_DIF={"%":0,J:1,K:2,L:3,M:4,N:5,O:6,P:7,Q:8,R:9,j:-1,k:-2,l:-3,m:-4,n:-5,o:-6,p:-7,q:-8,r:-9};
+const JDX_DUP={S:1,T:2,U:3,V:4,W:5,X:6,Y:7,Z:8,s:9};
+const JDX_XU=[[/^1\/CM$/i,"Wavenumber","cm⁻¹"],[/^NANOMETERS?$|^NM$/i,"Wavelength","nm"],[/^MICROMETERS?$|^MICRONS?$/i,"Wavelength","µm"],[/^HZ$/i,"Frequency","Hz"],[/^PPM$/i,"Chemical shift","ppm"],[/^SECONDS?$/i,"Time","s"],[/^MINUTES?$/i,"Time","min"],[/^(DEGREES|2THETA|2-THETA)$/i,"2θ","°"],[/^M\/Z$/i,"m/z",""],[/^(KEV|EV)$/i,"Energy",""]];
+const JDX_YU=[[/^ABSORBANCE$/i,"Absorbance",""],[/^TRANSMITTANCE$/i,"Transmittance",""],[/^REFLECTANCE$/i,"Reflectance",""],[/^KUBELKA[- ]?MUNK$/i,"Kubelka–Munk",""],[/^COUNTS$/i,"Counts","counts"],[/^ARBITRARY ?UNITS$/i,"Intensity",""],[/^RELATIVE ABUNDANCE$/i,"Relative abundance",""]];
+const jdxKey=s=>String(s).toUpperCase().replace(/[\s\-\/_]/g,"");
+function jdxTokens(line,asdf){
+  const out=[], s=line; let i=0;
+  while(i<s.length){ const c=s[i];
+    if(c===" "||c===","||c===";"||c==="\t"){ i++; continue; }
+    if(asdf&&(c in JDX_SQZ||c in JDX_DIF||c in JDX_DUP)){ let j=i+1; while(j<s.length&&/[0-9.]/.test(s[j])) j++; const dg=s.slice(i+1,j);
+      if(c in JDX_DUP) out.push({k:"dup",v:parseInt(String(JDX_DUP[c])+dg,10)});
+      else { const b=c in JDX_SQZ?JDX_SQZ[c]:JDX_DIF[c], v=parseFloat(String(Math.abs(b))+dg); out.push({k:c in JDX_SQZ?"abs":"dif",v:b<0?-v:v}); }
+      i=j; continue; }
+    if(/[+\-0-9.]/.test(c)){ const m=(asdf?/^[+-]?(\d+\.?\d*|\.\d+)/:/^[+-]?(\d+\.?\d*|\.\d+)([Ee][+-]?\d+)?/).exec(s.slice(i)); if(!m){ i++; continue; } out.push({k:"abs",v:parseFloat(m[0])}); i+=m[0].length; continue; }
+    if(c==="?"){ out.push({k:"abs",v:NaN}); i++; continue; }
+    i++; }
+  return out; }
+function jcampFile(text){
+  const t=String(text||"").replace(/^\uFEFF/,"");
+  if(!/^\s*##TITLE\s*=/m.test(t)||!/^\s*##JCAMP-?DX\s*=/mi.test(t)) return null;
+  // The blocks: each from ##TITLE= to ##END=, nested in a linked file; labels and their lines.
+  const blocks=[], stack=[]; let cur=null, rec=null;
+  t.replace(/\r\n?/g,"\n").split("\n").forEach(raw=>{ const l=raw.replace(/\$\$.*$/,"").trimEnd(); const m=/^\s*##([^=]*)=(.*)$/.exec(l);
+    if(m){ const k=jdxKey(m[1]), v=m[2].trim();
+      if(k==="TITLE"){ cur={labels:[],data:{},outer:stack.length?stack[stack.length-1]:null}; stack.push(cur); blocks.push(cur); }
+      if(!cur) return;
+      if(k==="END"){ stack.pop(); cur=stack.length?stack[stack.length-1]:null; rec=null; return; }
+      rec={k,name:m[1].trim(),v,lines:[]}; cur.labels.push(rec); return; }
+    if(rec&&l.trim()) rec.lines.push(l); });
+  const has=b=>b.labels.some(r=>r.k==="XYDATA"||r.k==="XYPOINTS"||r.k==="PEAKTABLE"||r.k==="NTUPLES");
+  const b=blocks.find(has); if(!b) return {fail:"a JCAMP-DX file with no ##XYDATA=, ##XYPOINTS= or ##PEAK TABLE= in it"};
+  const lab=k=>{ for(let q=b;q;q=q.outer){ const r=q.labels.find(z=>z.k===k); if(r) return r.v; } return null; };
+  if(b.labels.some(r=>r.k==="NTUPLES")) return {fail:"a JCAMP-DX file in pages (##NTUPLES, as NMR data are written): export it as ##XYDATA, or as CSV or text, from the instrument software"};
+  const num=k=>{ const v=lab(k); if(v==null) return null; const x=parseFloat(String(v).replace(",",".")); return Number.isFinite(x)?x:null; };
+  const xf=num("XFACTOR")||1, yf=num("YFACTOR")||1, X=[], Y=[]; let form="";
+  const dat=b.labels.find(r=>r.k==="XYDATA")||b.labels.find(r=>r.k==="XYPOINTS")||b.labels.find(r=>r.k==="PEAKTABLE");
+  if(dat.k==="XYDATA"){
+    if(!/\(\s*X\s*\+\+\s*\(\s*[YR]\s*\.\.\s*[YR]\s*\)\s*\)/i.test(dat.v)) return {fail:`a JCAMP-DX ##XYDATA= of the form ${dat.v||"(none)"}, which is not read: only (X++(Y..Y))`};
+    const asdf=dat.lines.some(l=>/[@A-DF-Ia-df-i%J-Rj-rS-Zs]/.test(l));
+    form=asdf?"compressed (ASDF)":"plain numbers (AFFN)";
+    const lx=[], ly=[]; let prevEndDif=false;
+    for(const l of dat.lines){ const tk=jdxTokens(l,asdf); if(!tk.length||tk[0].k!=="abs") continue;
+      const vals=[]; let last=null, lastDif=0;
+      for(let i=1;i<tk.length;i++){ const q=tk[i];
+        if(q.k==="abs"){ vals.push(q.v); last="abs"; }
+        else if(q.k==="dif"){ const pv=vals.length?vals[vals.length-1]:(ly.length?ly[ly.length-1]:0); vals.push(pv+q.v); last="dif"; lastDif=q.v; }
+        else if(q.k==="dup"&&vals.length){ for(let r=1;r<q.v;r++) vals.push(last==="dif"?vals[vals.length-1]+lastDif:vals[vals.length-1]); } }
+      // A line after one that ended in a difference starts with the same value again, as a check.
+      if(prevEndDif&&vals.length) vals.shift();
+      prevEndDif=last==="dif";
+      vals.forEach(v=>{ lx.push(tk[0].v); ly.push(v); }); }
+    if(ly.length<2) return {fail:"a JCAMP-DX file with fewer than two values in its ##XYDATA="};
+    const n=ly.length, fx=num("FIRSTX"), lx2=num("LASTX"), np=num("NPOINTS");
+    if(fx!=null&&lx2!=null){ const N=np&&np>1?np:n, dx=(lx2-fx)/(N-1); for(let i=0;i<n;i++) X.push(fx+i*dx); }
+    else { // From the lines' own X: each line's first X and the step to the next line's.
+      let i=0; while(i<n){ let j=i; while(j<n&&lx[j]===lx[i]) j++; const nx=j<n?lx[j]:null, dx=nx!=null?(nx-lx[i])/(j-i):(i>0?X[i-1]-X[i-2]||0:0)/xf;
+        for(let k=i;k<j;k++) X.push((lx[i]+(k-i)*dx)*xf); i=j; } }
+    ly.forEach(v=>Y.push(Number.isFinite(v)?v*yf:null)); }
+  else { form=dat.k==="XYPOINTS"?"points (XY..XY)":"a table of peaks";
+    const nums=[]; dat.lines.forEach(l=>{ (l.match(/[+-]?(\d+\.?\d*|\.\d+)([Ee][+-]?\d+)?|\?/g)||[]).forEach(s=>nums.push(s==="?"?NaN:parseFloat(s))); });
+    for(let i=0;i+1<nums.length;i+=2){ X.push(nums[i]*xf); Y.push(Number.isFinite(nums[i+1])?nums[i+1]*yf:null); }
+    if(X.length<2) return {fail:"a JCAMP-DX file with fewer than two points"}; }
+  const xu0=String(lab("XUNITS")||"").trim(), yu0=String(lab("YUNITS")||"").trim(), raman=/RAMAN/i.test(lab("DATATYPE")||"");
+  const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1).toLowerCase():"";
+  const xm=JDX_XU.find(([re])=>re.test(xu0)), ym=JDX_YU.find(([re])=>re.test(yu0));
+  let xn=xm?xm[1]:(cap(xu0)||"X"), xu=xm?xm[2]:""; if(xm&&/^(KEV|EV)$/i.test(xu0)) xu=/^KEV$/i.test(xu0)?"keV":"eV"; if(raman&&xu==="cm⁻¹") xn="Raman shift";
+  const yn=ym?ym[1]:(cap(yu0)||"Y"), yu=ym?ym[2]:"";
+  // Every other label is the file's header, kept as its fields.
+  const skip=new Set(["XYDATA","XYPOINTS","PEAKTABLE","END","FIRSTX","LASTX","NPOINTS","XFACTOR","YFACTOR","FIRSTY","MINX","MAXX","MINY","MAXY","DELTAX","BLOCKS","BLOCKID"]), meta={};
+  for(let q=b;q;q=q.outer) q.labels.forEach(r=>{ if(skip.has(r.k)||meta[r.name]!=null||Object.keys(meta).length>=40) return; const v=[r.v].concat(r.lines).join(" ").trim(); if(v) meta[r.name]=v.slice(0,400); });
+  return {kind:"JCAMP-DX",form,x:X,y:Y,xn,xu,yn,yu,title:String(lab("TITLE")||"").slice(0,120),meta}; }
 function analyzeFile(raw,opt){
   opt=opt||{};
+  // JCAMP-DX: decoded into a table of X and Y under their names, its labels kept as the file's header.
+  if(!opt._jdx&&opt.jdx!==false&&/##JCAMP/i.test(String(raw).slice(0,4000))){ const j=jcampFile(raw);
+    if(j&&j.fail) return {jdxFail:j.fail,rows:[],cols:[],lines:[],meta:{},headerRow:null,roles:[],skipped:[],ncol:0};
+    if(j){ const fn=v=>v==null||!Number.isFinite(v)?"":String(v), hx=j.xn+(j.xu?" ("+j.xu+")":""), hy=j.yn+(j.yu?" ("+j.yu+")":"");
+      const r=analyzeFile([hx+"\t"+hy].concat(j.x.map((v,i)=>fn(v)+"\t"+fn(j.y[i]))).join("\n"),Object.assign({},opt,{_jdx:true,delim:"\t",dec:".",start:undefined,end:undefined,headerAt:undefined}));
+      r.jdx={kind:j.kind,form:j.form,n:j.x.length,title:j.title}; r.meta=Object.assign({},j.meta); r.metaLineCount=0; return r; } }
   // A multichannel analyser's own format: its counts read as one column, the rest kept beside them.
   if(!opt._mca&&opt.mca!==false){ const mca=mcaFile(raw,opt.fname);
     if(mca){ const r=analyzeFile(mca.counts.map(v=>v==null?"":String(v)).join("\n"),Object.assign({},opt,{_mca:mca,tka:false,start:undefined,end:undefined,delim:undefined,dec:undefined}));
@@ -15458,6 +15545,7 @@ function impCounts(i){ const r=S.imp.res, ys=(r.cols[i]||[]).filter(v=>v!=null);
 const impSqrtable=()=>impYs().filter(i=>impErrFor(i)<0&&impCounts(i));
 function impFindings(){
   const {x,y}=impCols(), out=[], r=S.imp.res, ny=impYs().length;
+  if(r.jdx) out.push({id:"jdx",level:"good",text:`A JCAMP-DX file in ${r.jdx.form}: ${fmtCount(r.jdx.n)} points${r.jdx.title?`, “${r.jdx.title}”`:""}, shown here decoded. Its ${Object.keys(r.meta).length} labels are kept as the file's header fields.`});
   if(r.mca) out.push({id:"mca",level:"good",text:`A multichannel analyser's ${r.mca.kind==="N42"?"N42":".Spe"} file: ${fmtCount(r.rows.length)} channels from ${r.mca.ch0}${r.tka?`, live time ${r.tka.live} s and real time ${r.tka.real} s`:""}${r.mca.date?`, measured ${r.mca.date}`:""}. The counts are kept as recorded.`,fix:r.tka?"rate":undefined,fixLabel:"Counts per second"});
   if(r.mca&&r.mca.cal){ const c=r.mca.cal.co, nf6=v=>String(+(+v).toPrecision(6)); out.push({id:"ecal",level:"good",text:`Its energy calibration: E = ${nf6(c[0])} + ${nf6(c[1])}·ch${c[2]?` + ${nf6(c[2])}·ch²`:""} ${r.mca.cal.unit}, as an Energy calibration step on the counts.`,fix:"ecal",fixLabel:"Calibrate to energy"}); }
   else if(r.tka) out.push({id:"tka",level:"good",text:`Live time ${r.tka.live} s and real time ${r.tka.real} s, read from the first two lines. The counts are kept as recorded.`,fix:"rate",fixLabel:"Counts per second"});
@@ -15475,6 +15563,7 @@ function impFindings(){
 const impStart=res=>({ch0:res&&res.mca?res.mca.ch0:0, fixes:res&&res.mca&&res.mca.cal?{ecal:true}:{}});
 function openImport(text,fname){
   const res=analyzeFile(text,{fname:fname||""});
+  if(res.jdxFail){ toast(`${fname||"That file"} is ${res.jdxFail}.`); logError(`Import of ${fname||"a file"}: ${res.jdxFail}`,"import"); return; }
   if(!res.rows.length){ toast("No rows of numbers were found in that file."); logError(`Import of ${fname||"pasted data"}: no rows of numbers`,"import"); return; }
   const m=$("#impModal"), wasOpen=!m.hidden;
   S.imp=Object.assign({raw:text,fname:fname||"pasted data",opt:{fname:fname||""},res,use:impUseDefault(res),pv:-1,sqrt:false,mode:S.impReplace?"replace":null},impStart(res));
@@ -15778,7 +15867,7 @@ function colMetaOf(meta,fname){ const o={}; if(fname) o.file=String(fname).slice
 function batchFile(fname,text,opt){
   opt=opt||{};
   if(looksBinary(text)) return batchFail(fname,"a binary instrument file: export it as text");
-  const res=opt.res||analyzeFile(text,{fname}); if(!res.rows.length) return batchFail(fname,"no rows of numbers");
+  const res=opt.res||analyzeFile(text,{fname}); if(res.jdxFail) return batchFail(fname,res.jdxFail); if(!res.rows.length) return batchFail(fname,"no rows of numbers");
   const det=detectRoles(res.headerRow,res.cols), xi=opt.xi!=null?opt.xi:det.xi, ei=opt.ei!=null?opt.ei:res.roles.indexOf("e");
   let ys=opt.ys||res.roles.map((r,i)=>r==="y"&&i!==xi&&i!==ei?i:-1).filter(i=>i>=0);
   if(!ys.length) ys=[xi===0?1:0];
@@ -15867,7 +15956,7 @@ async function autoImport(files,o){
   const built=[], bad=[];
   files.forEach(f=>{ if(f.fail){ bad.push(`${f.name}, ${f.fail}`); return; }
     if(looksBinary(f.text)){ bad.push(`${f.name}, a binary instrument file: export it as text`); return; }
-    const res=analyzeFile(f.text,{fname:f.name}); if(!res.rows.length){ bad.push(`${f.name}, no rows of numbers`); return; }
+    const res=analyzeFile(f.text,{fname:f.name}); if(res.jdxFail){ bad.push(`${f.name}, ${res.jdxFail}`); return; } if(!res.rows.length){ bad.push(`${f.name}, no rows of numbers`); return; }
     // The dialog's own reading, with its automatic choices.
     const keep=S.imp; S.imp=Object.assign({raw:f.text,fname:f.name,opt:{fname:f.name},res,use:impUseDefault(res),pv:-1,sqrt:false},impStart(res));
     try{ const b=impBuild(); if(b.cols.some(c=>c.data.some(v=>v!=null))) built.push(Object.assign(b,{fname:f.name,text:f.text,res})); else bad.push(`${f.name}, no numbers`); }
@@ -21608,8 +21697,10 @@ ${DL([["Into","The project on the desk (named in the list, with how many columns
 ${DL([["X column","<em>Channel number</em>: each line's position, counted from <em>First channel</em> (0 or 1). The channel numbers are kept as the spectrum's X column, so the record shows what the file said."],["The first two lines (TKA)","A <code>.TKA</code> file starts with the live time and the real time in seconds. With <em>The first two lines are the live and real time</em> ticked (the default for .TKA) they are not counts: they go into the metadata, with the dead time, and the counts start on line 3."],["Y error","<em>√N error bars for the counts</em> adds error bars of √N (1 for an empty channel), as a column computed from the counts: weights for a fit, and errors for a band's area. It is offered for whole numbers named as counts (<em>counts</em>, <em>cts</em>, <em>cps</em>, <em>events</em>) or read from a TKA file; whole numbers alone (ages, scores) are not counts."],["Counts per second","The line saying what was read from the TKA header has a button that adds a step dividing by the live time: the counts stay as recorded, the processed data are a count rate."]])}
 <p>The spectrum is drawn as a line, not thousands of dots. Then calibrate it to energy: with the step ${DA("step-ecal","Energy calibration")} (${MP("Analyze › Spectroscopy › X axis")}), or a ${DA("formulas","worksheet formula")}. The Overview suggests it. ${DA("gamma","A gamma spectrum, start to finish")}</p>
 <p>A column of numbers pasted or typed with no X column is drawn against its row number, as in Origin.</p>
+<h2 id="jcamp">JCAMP-DX</h2>
+<p>A JCAMP-DX file (<code>.jdx</code>, <code>.dx</code>), the exchange format of IR, Raman, UV–visible and mass spectrometry, is decoded before the dialog shows it: its data in plain numbers or compressed (the ASDF forms), or as pairs of points or a table of peaks, scaled by its factors, X from its first and last values. Its units name the columns (<code>1/CM</code> becomes Wavenumber in cm⁻¹, or Raman shift when its data type says Raman; <code>NANOMETERS</code> Wavelength in nm; <code>ABSORBANCE</code> Absorbance), and its other labels (title, origin, owner, date, instrument) are kept as the column's header fields, which the worksheet can show as rows. Of a linked file the first block with data is read. A file written in pages (<code>##NTUPLES</code>, as NMR data are) is refused with the reason.</p>
 <h2>What is refused</h2>
-<p>Binary instrument files (SPC, OPUS, SPE) are refused with a reason. Export them as text from the instrument software first. JCAMP-DX is not read yet.</p>
+<p>Binary instrument files (SPC, OPUS, SPE) are refused with a reason. Export them as text from the instrument software first.</p>
 <p>After an import that plots one column the ${DA("overview","Overview")} opens. Its <em>Show the overview after every import</em> box turns that off.</p>`},
 {id:"prefs", g:"Basics", t:"Preferences", kw:"preferences settings options history log track tracking privacy record off animation animations motion theme dark light style errors overview",
  lead:"Whether Kurve keeps a history of your changes, how it looks and moves, and the errors it has met. Kept in this browser.",

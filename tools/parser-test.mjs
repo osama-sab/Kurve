@@ -230,6 +230,35 @@ check("negative kept", close(P.toNumber("-999", "."), -999));
   check("tka: 8190 channels", big.rows.length === 8190 && big.cols[0][8189] === 8189 % 97, big.rows.length);
 }
 
+/* ---------- 15b3. JCAMP-DX ---------- */
+{
+  const eq = (a, b) => a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) < 1e-9);
+  const affn = ["##TITLE= Polystyrene film", "##JCAMP-DX= 4.24", "##DATA TYPE= INFRARED SPECTRUM", "##ORIGIN= Lab 3", "##OWNER= public", "##XUNITS= 1/CM", "##YUNITS= ABSORBANCE",
+    "##XFACTOR= 1", "##YFACTOR= 1", "##FIRSTX= 400", "##LASTX= 404", "##NPOINTS= 5", "##XYDATA= (X++(Y..Y))", "400 1.0E-01 2.0E-01 3.0E-01  $$ a comment", "403 4.0E-01 5.0E-01", "##END="].join("\r\n");
+  const a = P.analyzeFile(affn, { fname: "ps.jdx" });
+  check("jcamp: plain numbers with exponents, X from FIRSTX to LASTX", a.jdx && /AFFN/.test(a.jdx.form) && eq(a.cols[0], [400, 401, 402, 403, 404]) && eq(a.cols[1], [0.1, 0.2, 0.3, 0.4, 0.5]), JSON.stringify([a.jdx, a.cols]));
+  check("jcamp: the units named, its labels kept as the header's fields", a.headerRow && a.headerRow[0] === "Wavenumber (cm⁻¹)" && a.headerRow[1] === "Absorbance" && a.meta["ORIGIN"] === "Lab 3" && a.meta["DATA TYPE"] === "INFRARED SPECTRUM" && !("XYDATA" in a.meta) && !("FIRSTX" in a.meta), JSON.stringify([a.headerRow, a.meta]));
+  // Compressed: SQZ, DIF and DUP, the next line's check value counted once.
+  const asdf = ["##TITLE= compressed", "##JCAMP-DX= 5.01", "##XUNITS= NANOMETERS", "##YUNITS= TRANSMITTANCE", "##XFACTOR= 1", "##YFACTOR= 0.01", "##FIRSTX= 1000", "##LASTX= 1006", "##NPOINTS= 7",
+    "##XYDATA=(X++(Y..Y))", "1000A00NT%Tk", "1006A08q", "##END="].join("\n");
+  const b = P.analyzeFile(asdf, { fname: "c.dx" });
+  check("jcamp: ASDF decoded (SQZ, DIF, DUP, the check value)", b.jdx && /ASDF/.test(b.jdx.form) && eq(b.cols[1], [1, 1.05, 1.1, 1.1, 1.1, 1.08, 1]) && eq(b.cols[0], [1000, 1001, 1002, 1003, 1004, 1005, 1006]) && b.headerRow[0] === "Wavelength (nm)", JSON.stringify([b.cols, b.headerRow]));
+  const sq = ["##TITLE= squeezed", "##JCAMP-DX= 5.01", "##XUNITS= HZ", "##YUNITS= ARBITRARY UNITS", "##XYDATA=(X++(Y..Y))", "10@a5E5", "13j2", "##END="].join("\n");
+  const s = P.analyzeFile(sq, { fname: "s.jdx" });
+  check("jcamp: SQZ signs, E read as +5 not an exponent, a difference on the next line, X from the lines when FIRSTX is missing", s.jdx && eq(s.cols[1], [0, -15, 55, 43]) && eq(s.cols[0], [10, 11, 12, 13]) && s.headerRow[1] === "Intensity", JSON.stringify(s.cols));
+  const pts = ["##TITLE= peaks", "##JCAMP-DX= 4.24", "##DATA TYPE= RAMAN SPECTRUM", "##XUNITS= 1/CM", "##YUNITS= COUNTS", "##XFACTOR= 1", "##YFACTOR= 2", "##XYPOINTS=(XY..XY)", "100, 1.5; 200, 2.5", "300,3.5 400,?", "##END="].join("\n");
+  const c = P.analyzeFile(pts, { fname: "p.jdx" });
+  check("jcamp: XYPOINTS pairs, YFACTOR applied, a missing value left empty, Raman shift named", c.jdx && eq(c.cols[0], [100, 200, 300, 400]) && c.cols[1][2] === 7 && c.cols[1][3] == null && c.headerRow[0] === "Raman shift (cm⁻¹)" && c.headerRow[1] === "Counts (counts)", JSON.stringify([c.cols, c.headerRow]));
+  const link = ["##TITLE= a linked file", "##JCAMP-DX= 5.01", "##BLOCKS= 2", "##OWNER= A. Chemist", "##TITLE= the structure", "##JCAMP-CS= 3.7", "##END=",
+    "##TITLE= the spectrum", "##JCAMP-DX= 5.01", "##XUNITS= MICROMETERS", "##YUNITS= REFLECTANCE", "##FIRSTX= 2", "##LASTX= 3", "##NPOINTS= 3", "##XYDATA=(X++(Y..Y))", "2 10 20 30", "##END=", "##END="].join("\n");
+  const d = P.analyzeFile(link, { fname: "l.jdx" });
+  check("jcamp: a linked file's first block with data, the outer block's labels kept", d.jdx && eq(d.cols[1], [10, 20, 30]) && eq(d.cols[0], [2, 2.5, 3]) && d.meta["OWNER"] === "A. Chemist" && d.headerRow[0] === "Wavelength (µm)", JSON.stringify([d.cols, d.meta]));
+  const nt = P.analyzeFile(["##TITLE= nmr", "##JCAMP-DX= 5.01", "##NTUPLES= NMR SPECTRUM", "##VAR_NAME= FREQUENCY, SPECTRUM/REAL", "##END NTUPLES=", "##END="].join("\n"), { fname: "n.jdx" });
+  check("jcamp: NTUPLES refused in words", /in pages \(##NTUPLES/.test(nt.jdxFail || "") && !nt.rows.length, nt.jdxFail);
+  const none = P.analyzeFile(["##TITLE= empty", "##JCAMP-DX= 4.24", "##END="].join("\n"), { fname: "e.jdx" });
+  check("jcamp: no data refused in words", /no ##XYDATA=/.test(none.jdxFail || ""), none.jdxFail);
+  check("jcamp: a text that merely mentions JCAMP is read as text", !P.analyzeFile("note: ##JCAMP is a format\n1 2\n3 4\n5 6", {}).jdx);
+}
 /* ---------- 15b2. analysers' own formats: Maestro and IAEA .Spe, N42 ---------- */
 {
   const counts = Array.from({ length: 1024 }, (_, i) => Math.round(30 + 900 * Math.exp(-0.5 * ((i - 400) / 3) ** 2)));

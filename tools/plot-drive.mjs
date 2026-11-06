@@ -1190,6 +1190,25 @@ await page(async p => {
   check("one undo takes the sheet and the graph back", r.sheets === before.sheets && r.graphs === before.graphs && r.cols === before.cols, JSON.stringify([before, r]));
 }, { name: "a trend graph as a graph like any other" });
 
+console.log("Roadmap 8, slice 1: JCAMP-DX files");
+await page(async p => {
+  const jdx = ["##TITLE= Polystyrene film", "##JCAMP-DX= 4.24", "##DATA TYPE= INFRARED SPECTRUM", "##ORIGIN= Lab 3", "##XUNITS= 1/CM", "##YUNITS= ABSORBANCE", "##XFACTOR= 1", "##YFACTOR= 0.001",
+    "##FIRSTX= 4000", "##LASTX= 3990", "##NPOINTS= 11", "##XYDATA=(X++(Y..Y))", "4000A00JKLMN", "3994A15jklmn", "##END="].join("\n");
+  await p.evaluate(async () => { await createProject(blankProject("Imports"), "test"); await new Promise(r => setTimeout(r, 80)); renderAll(); prefSet("anim", false); applyAnim(); });
+  await p.waitForTimeout(300);
+  await p.evaluate(t => importText(t, "polystyrene.jdx"), jdx); await p.waitForTimeout(400);
+  let r = await p.evaluate(() => ({ open: !document.querySelector("#impModal").hidden, notes: [...document.querySelectorAll("#impModal ul.find li")].map(e => e.textContent).join(" | "), jdx: S.imp && S.imp.res.jdx }));
+  check("a JCAMP-DX file opens the import dialog, decoded, and says so", r.open && r.jdx && r.jdx.n === 11 && /JCAMP-DX file in compressed \(ASDF\): 11 points, “Polystyrene film”/.test(r.notes), JSON.stringify(r));
+  await p.evaluate(() => doImport()); await p.waitForTimeout(700);
+  r = await p.evaluate(() => { const ys = yCols(), y = ys[ys.length - 1], x = xColFor(y); return { yn: y.name, yu: y.unit, xn: x.name, xu: x.unit, x: x.data.slice(0, 3), y: y.data.slice(0, 7).map(v => +v.toFixed(4)), meta: y.meta && y.meta.ORIGIN }; });
+  check("…into the worksheet: Wavenumber (cm⁻¹) falling, Absorbance, its labels as the column's header fields", r.xn === "Wavenumber" && r.xu === "cm⁻¹" && r.yn === "Absorbance" && r.x.join() === "4000,3999,3998" && r.y.join() === "0.1,0.101,0.103,0.106,0.11,0.115,0.114" && r.yn && r.meta === "Lab 3", JSON.stringify(r));
+  // A dropped one is read with the automatic choices; one that cannot be read says why.
+  r = await p.evaluate(async t => { const n0 = yCols().length; await autoImport([{ name: "again.jdx", text: t }], {}); return { n: yCols().length - n0, graphs: P().graphs.length }; }, jdx);
+  check("a dropped JCAMP-DX file is read into the worksheet", r.n === 1, JSON.stringify(r));
+  r = await p.evaluate(() => { importText("##TITLE= nmr\n##JCAMP-DX= 5.01\n##NTUPLES= NMR SPECTRUM\n##END NTUPLES=\n##END=", "fid.jdx"); return { toast: document.querySelector("#toast").textContent, open: !document.querySelector("#impModal").hidden }; });
+  check("a JCAMP-DX file in pages is refused, saying why", /fid\.jdx is a JCAMP-DX file in pages/.test(r.toast) && !r.open, JSON.stringify(r));
+}, { name: "JCAMP-DX files" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

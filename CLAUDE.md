@@ -138,8 +138,8 @@ LaTeX either way, typeset by Kurve in the graph's own font (and so in every expo
 place in one box; values are read off the graph with the **Reader** (a point pinned, found by its
 X or Y) or the **X–Y lines** (every curve's Y at one X, where the curves cross one Y); the legend is selected by a click and its entries
 typed over; everything with text has one right-click menu order. Files **dropped** on the window are read with the automatic
-choices and plotted at once (on the graph they are dropped on, a new graph, or a folder of
-the Explorer), with "Read it differently" to undo and open the dialog. Error bars are Y or X,
+choices: plotted at once when dropped on a graph, else into the worksheet (or a folder of the
+Explorer) with Plot in the message, and "Read it differently" to undo and open the dialog. Error bars are Y or X,
 both ways or one side, drawn as bars or a band; an axis can be linear, log, ln, log₂, 1/x,
 1/(x + c), √x or a probability scale, numbered as dates and times, and have a second Y axis in
 other units. A series of spectra can be drawn as a **map** (the heat map layout) against its
@@ -877,7 +877,18 @@ graph first, with the taskbar kept at the bottom of the screen.
   Energy calibration). The dialog shows the file as written with its counts marked and no format
   controls; `impStart(res)` numbers the channels from the file's first and turns on the `ecal` fix,
   an Energy calibration step (`mcaCalParams(cal)`) put before any other; `autoImport` and
-  `batchFile` (`steps`, made per column by `doBatchImport`) do the same. `batchFile` reads one-column
+  `batchFile` (`steps`, made per column by `doBatchImport`) do the same. **JCAMP-DX** (roadmap 8,
+  slice 1; in the PARSER block): `jcampFile(text)` (`{kind, form, x, y, xn, xu, yn, yu, title, meta}`,
+  `{fail}` in words, or null without `##TITLE=` and `##JCAMP-DX=`): blocks from `##TITLE=` to `##END=`
+  (a linked file's first with data, its outer labels kept), labels compared by `jdxKey` (case,
+  spaces, dashes, slashes, underscores ignored), `$$` comments; `##XYDATA=(X++(Y..Y))` in AFFN or
+  ASDF (`jdxTokens`: `JDX_SQZ`, `JDX_DIF`, `JDX_DUP`; E read as SQZ in a compressed file, a DIF
+  line's check value dropped), X from `##FIRSTX`/`##LASTX`/`##NPOINTS` or the lines' own, the
+  factors; `##XYPOINTS=` and `##PEAK TABLE=` pairs; units named by `JDX_XU`/`JDX_YU` (Raman shift
+  for a Raman spectrum); `##NTUPLES` refused. `analyzeFile` decodes it into a tab-separated table
+  under `Name (unit)` headers and reads that (`res.jdx {kind, form, n, title}`, `res.meta` the
+  labels; a failure `res.jdxFail`, said by `openImport`, `batchFile` and `autoImport`), and
+  `impFindings` says so (`jdx`). `batchFile` reads one-column
   files the same way. A Y column whose X column holds no values is drawn against its row
   number (`rawSeries`, `anyVal`, xn "Row").
 - **Columns and spectra**: a project is a table. `p.cols` is `[{id, role, name, unit, data, of?,
@@ -4057,7 +4068,7 @@ Next, in order:
    in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the files'
    header fields as rows of the worksheet, global fits in a worker: all done 06.11, the roadmap's
    item 7 is done
-8. More files: JCAMP-DX, then SPC; OPUS and SPE last
+8. More files: JCAMP-DX (done 06.11), then SPC; OPUS and SPE last
 9. Under the hood (projects in IndexedDB: done 05.11; a cell typed into a million rows quick, the
    graph drawing what is in view, every row of a sheet reachable: done 05.11): `tools/odd-test.mjs`
    grown to run every example end to end; the worksheet drawing only the columns in view; speed
@@ -4357,6 +4368,8 @@ Next, in order:
 - Worksheet formulas are whole-column (row by row); there are no cell formulas, no references
   to other rows (`B[i-1]`), no relative formulas when filling right, no replace in find, and
   sorting never reorders the recorded data (by design)
-- Binary instrument formats (SPC, OPUS, SPE) and JCAMP-DX are not read; text exports only
+- Binary instrument formats (SPC, OPUS, SPE) are not read; text exports only. JCAMP-DX is read but
+  for files in pages (`##NTUPLES`, NMR), the forms of `##XYDATA` other than (X++(Y..Y)), and more
+  than the first block with data of a linked file
 - The preview pane serves a snapshot of the file, so `location.reload()` re-runs stale code —
   navigate to the file again after editing, or you will test the previous version

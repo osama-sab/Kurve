@@ -1024,6 +1024,19 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## More files, slice 1: JCAMP-DX (2026-11-06)
+
+- JCAMP-DX files (`.jdx`, `.dx`) are read: `##XYDATA` in plain numbers or compressed (ASDF), point
+  pairs and peak tables, the factors and X range, the first block with data of a linked file; units
+  become names (Wavenumber in cm⁻¹, Raman shift, Wavelength, Absorbance…), the other labels the
+  column's header fields. The import dialog says it was JCAMP-DX and in which form; files in pages
+  (`##NTUPLES`) are refused with the reason. Import, drop and several files at once all read them.
+
+Checked: `tools/parser-test.mjs` (9 new: plain numbers with exponents, the units and labels, the
+compressed forms with the check value, SQZ signs and an E, point pairs with a missing value and a
+factor, a linked file, the refusals, a text that only mentions it) and `tools/plot-drive.mjs` (4 new:
+the dialog and its line, the worksheet's columns and header fields, a dropped file, a refusal).
+
 ## Many spectra, slice 4: a trend graph as a graph like any other (2026-11-06)
 
 - A trend graph's ⋯ menu has *As a graph like any other*: its numbers on a sheet of their own (the
