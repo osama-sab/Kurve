@@ -1610,7 +1610,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   `mentions` on an edit; `cmtTextHtml(c)` marks the names (`.ment`, `.ment.me`); `mentionsMe`, a new
   comment naming you says *Mentions you*; `mentionToast(list, before)` (in the comments' watch, by
   `S.cKnown`) says the latest that arrived, with Go; `threadForMe` and the Discussion's *For you*
-  (`S.discFilter` "me").
+  (`S.discFilter` "me"). **Proposals** (slice 3): a comment's `propose {step, op, col, from, to,
+  applied?}` (only the settings changed); `PROP_TYPES`/`propParams(s)` (sel, text, bool, col, log,
+  int, odd, num, as shown), `proposeDlg(key)` (*Propose settings…* in a step's composer,
+  `data-cact="propose"`: `formDlg` with `paramControl`'s fields, ids `pp-…` so none is twice in the
+  page, a range and its number kept together, Post waiting for a change, a reason `#ppWhy`; a new
+  thread on the step), `propState(pr)` (`gone`, `has`, `moved`, `propSame`), `propHtml(c)` (the
+  changes by `paramText`, where it stands, *Apply* `data-cact="papply"` unless the step has them or
+  is gone), `applyProposal(cid)` (one undo step, `s.p` merged, a log line naming whose, a toast with
+  Undo, `applied {by, t}` on the comment); the report lists each proposal.
 - **Statistics window** (`renderStats`): descriptive statistics of every spectrum (final or
   raw, all X or the visible range: n, mean, SD, SE, median, min, max; the spectral measures,
   X at max, noise σ, S/N, area and centroid, behind *Noise, S/N and area*, `#stSpec`,
@@ -4167,7 +4175,7 @@ Next, in order:
    grown to run every example end to end, the worksheet drawing only the columns in view, speed
    with thousands of columns: done 06.11): the roadmap's item 9 is done
 10. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
-   applied in one click, unread markers (unread markers and mentions: done 06.11)
+   applied in one click, unread markers: all done 06.11, the roadmap's item 10 is done
 
 ## Known gaps
 
@@ -4328,7 +4336,9 @@ Next, in order:
 - Ties are between the same parameter of two peaks; there are no free-form constraints between
   different parameters, and a user's function cannot be a peak shape in a peak fit
 - Comments are plain text; a mention is said by a message while the project is open (no e-mail or
-  notification outside the page), and only people the project knows by name can be mentioned. What was read is kept per
+  notification outside the page), and only people the project knows by name can be mentioned. A
+  proposal is a step's plain settings (lists, switches, numbers), not its anchors, reference peaks,
+  pairs or code, nor a new step or another order of steps What was read is kept per
   browser (a comment read on another computer is new here), and judged by the comments' times
 - No Shirley or Tougaard background (XPS); no Fourier self-deconvolution
 - Models: 25 built in (Origin has about 200); a polynomial is fitted in powers of x as written,

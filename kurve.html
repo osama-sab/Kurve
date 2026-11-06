@@ -924,7 +924,12 @@ details.more>table{margin-top:var(--sp-4)}
 .dbar .dnew{margin-left:auto;font-size:var(--fs-tab);font-weight:600;color:var(--talk)}
 .cmt .ment{font-weight:600;color:var(--talk)}
 .cmt .ment.me{background:var(--talk-soft);border-radius:var(--r-s);padding:0 var(--sp-1)}
-.msug{min-width:200px}.msug .fxs-i img{width:18px;height:18px;border-radius:50%}
+.msug{min-width:200px}
+.cmt .prop{margin:var(--sp-2) 0 var(--sp-3);padding:var(--sp-3) var(--sp-4);border:1px solid var(--rule);border-left:3px solid var(--talk);border-radius:var(--r);background:var(--panel-2)}
+.cmt .prop-h{display:flex;align-items:center;gap:var(--sp-2);font-size:var(--fs-tab);font-weight:600;color:var(--ink)}
+.cmt .prop ul{margin:var(--sp-2) 0;padding:0;list-style:none}.cmt .prop li{padding:1px 0;font-variant-numeric:tabular-nums}
+.cmt .prop .pk{color:var(--muted);margin-right:var(--sp-2)}
+.cmt .prop-f{display:flex;align-items:center;gap:var(--sp-3);justify-content:space-between}.msug .fxs-i img{width:18px;height:18px;border-radius:50%}
 .thr.flash{animation:thrflash 1.8s ease-out}
 @keyframes thrflash{0%,30%{background:var(--talk-soft)}100%{background:transparent}}
 .replies{margin:var(--sp-1) 0 0 37px;border-left:2px solid var(--rule);padding-left:var(--sp-4)}
@@ -18372,6 +18377,56 @@ function setupMentions(){
   document.addEventListener("focusout",e=>{ if(st&&e.target===st.t) setTimeout(()=>{ if(st&&document.activeElement!==st.t) close(); },0); },true);
   document.addEventListener("pointerdown",e=>{ if(box&&!box.contains(e.target)&&(!st||e.target!==st.t)) close(); },true);
 }
+/* Proposals (roadmap 10, slice 3): a comment on a step that proposes other settings for it, applied
+   in one click. *Propose settings…* (a step's discussion, `proposeDlg`) opens a copy of the step's plain
+   settings (lists, switches, numbers: not anchors, references, pairs or code), and posts a thread on
+   the step with `propose {step, op, from, to}` (only the settings changed). The comment lists them
+   (`propHtml`), says whether the step has them now or has changed since, and offers *Apply*
+   (`applyProposal`: one undo step, a log line naming whose proposal, `applied {by, t}` on the comment). */
+const PROP_TYPES=["sel","text","bool","col","log","int","odd","num"];
+const propParams=s=>{ const def=PIPE_OPS[s.op], p=Object.assign({},def&&def.defaults||{},s.p||{}); return ((def&&def.params)||[]).filter(q=>PROP_TYPES.includes(q.type)&&(!q.show||q.show(p))); };
+const propSame=(a,b)=>a===b||(a!=null&&b!=null&&typeof a==="number"&&typeof b==="number"&&Math.abs(a-b)<=1e-12*Math.max(1,Math.abs(a),Math.abs(b)))||JSON.stringify(a)===JSON.stringify(b);
+// Where a proposal stands against the step now: gone, has it, changed since, or as it was.
+function propState(pr){ const s=pr&&stepById(pr.step); if(!s||isPending(s)) return {gone:true};
+  const p=Object.assign({},(PIPE_OPS[s.op]||{}).defaults||{},s.p||{}), ks=Object.keys(pr.to||{});
+  return {s,has:ks.every(k=>propSame(p[k],pr.to[k])),moved:ks.some(k=>!propSame(p[k],(pr.from||{})[k]))}; }
+function propHtml(c){ const pr=c.propose; if(!pr||!pr.to) return ""; const st=propState(pr), sx={op:pr.op}, ks=Object.keys(pr.to);
+  const row=k=>{ const q=paramDef(sx,k); return `<li><span class="pk">${esc(q?q.label:k)}</span> ${esc(paramText(sx,k,(pr.from||{})[k]))} → <strong>${esc(paramText(sx,k,pr.to[k]))}</strong></li>`; };
+  const ap=pr.applied?`Applied by ${esc(personName(pr.applied.by))}, ${esc(ago(pr.applied.t))}`:"";
+  const say=st.gone?"The step has since been removed.":st.has?(ap||"The step has these settings now."):(ap?ap+"; changed since.":st.moved?"The step has changed since this was proposed.":"");
+  return `<div class="prop"><div class="prop-h">${ICON("wand","sm")}Proposes</div><ul>${ks.map(row).join("")}</ul><div class="prop-f"><span class="lab">${say}</span>${!st.gone&&!st.has&&!S.readOnly?`<button class="btn sm primary" data-cact="papply" data-cid="${esc(c.id)}">Apply</button>`:""}</div></div>`; }
+async function applyProposal(cid){
+  const c=(S.comments||[]).find(x=>x.id===cid), pr=c&&c.propose; if(!pr||S.readOnly) return;
+  const st=propState(pr); if(st.gone){ toast("That step has since been removed."); return; } if(st.has){ toast("The step has these settings already."); return; }
+  const s=st.s, col=colOfStep(s), who=c.uid===S.uid||cmtMine(c)?"your":`${nameOf(c.uid)}'s`, sx={op:pr.op};
+  const what=Object.keys(pr.to).map(k=>{ const q=paramDef(sx,k); return `${(q?q.label:k).toLowerCase()} ${paramText(sx,k,pr.to[k])}`; }).join(", ");
+  pushUndo(`applying ${who} proposal`); s.p=Object.assign({},s.p,pr.to);
+  save({cols:P().cols},`applied ${who} proposal to step ${col?col.pipe.indexOf(s)+1:"?"} of ${col?specName(col):"a column"}: ${what}`); renderAll();
+  toast(`Applied: ${what}.`,{action:"Undo",run:undo});
+  try{ await S.store.updateComment(S.pid,cid,{propose:Object.assign({},pr,{applied:{by:S.uid||"",t:Date.now()}})}); }catch(e){ writeErr(e); } }
+// The step's plain settings in a dialog, changed and posted as a proposal with a reason.
+async function proposeDlg(key){
+  const s=stepById(splitKey(key)[1]); if(!s||isPending(s)||!S.pid) return; if(S.readOnly){ toast("You can view this workspace but not comment."); return; }
+  const qs=propParams(s); if(!qs.length){ toast("This step has no settings to propose here: say what you would change in a comment."); return; }
+  const p0=Object.assign({},(PIPE_OPS[s.op]||{}).defaults||{},s.p||{}), st=stageOfStep(s);
+  const ctl=q=>paramControl(s,q,p0,st).replace(/(id|for)="sp-/g,'$1="pp-');
+  const html=`<p class="lab">${esc(nodeLabel(nodeAnchor(key)))}. Change what you would change: nothing is changed until someone applies it.</p><div class="frow">${qs.map(q=>q.type==="bool"?`<span></span>${ctl(q)}`:`<label for="pp-${s.id}-${q.k}">${esc(q.label)}</label>${ctl(q)}`).join("")}</div>
+    <label class="lab" for="ppWhy" style="display:block;margin-top:var(--sp-4)">Why (optional)</label><textarea id="ppWhy" class="ctext" rows="2" placeholder="What these settings would change, and why"></textarea>`;
+  const read=r=>{ const to={}; qs.forEach(q=>{ const id=`pp-${s.id}-${q.k}`; if(!(id in r)) return; let v=r[id];
+      if(q.type==="bool") v=!!v; else if(q.type==="sel"||q.type==="col") v=v||null; else if(q.type==="text") v=String(v).trim().slice(0,40); else if(q.type==="log") v=+v;
+      else { v=parseNum(String(v)); if(v==null) return; if(q.type==="odd"){ v=Math.max(3,Math.round(v)); if(v%2===0) v++; } if(q.type==="int") v=Math.round(v); if(q.min!=null&&v<q.min) v=q.min; if(q.max!=null&&q.type!=="int"&&v>q.max) v=q.max; }
+      if(q.type==="sel"&&s.op==="deriv") v=String(v);
+      if(!propSame(v,p0[q.k])) to[q.k]=v; }); return to; };
+  const pr=formDlg({title:`Propose settings: ${stepShort(s)}`,html,ok:"Post the proposal",valid:r=>Object.keys(read(r)).length>0});
+  // A range and its number beside it follow each other, as in the step's own form.
+  const fb=$("#formBody"); fb.querySelectorAll('input[type="range"]').forEach(rg=>rg.addEventListener("input",()=>{ const pair=rg.closest(".pair"), t=pair&&pair.querySelector('input[type="text"]'), o=pair&&pair.querySelector("output");
+    if(t) t.value=rg.value; if(o&&rg.dataset.kind==="log") o.textContent=logText(+rg.value); }));
+  fb.querySelectorAll('.pair input[type="text"]').forEach(t=>t.addEventListener("input",()=>{ const rg=t.closest(".pair").querySelector('input[type="range"]'), v=parseNum(t.value); if(rg&&v!=null) rg.value=v; }));
+  const r=await pr; if(!r) return; const to=read(r); if(!Object.keys(to).length) return;
+  const from={}; Object.keys(to).forEach(k=>{ from[k]=p0[k]===undefined?null:p0[k]; });
+  const why=String(r.ppWhy||"").trim().slice(0,4000);
+  try{ await S.store.addComment(S.pid,withMentions({uid:S.uid||"",text:why||"Proposes other settings for this step.",anchor:nodeAnchor(key),t:Date.now(),resolved:false,propose:{step:s.id,op:s.op,col:(colOfStep(s)||{}).id||null,from,to}})); }
+  catch(e){ writeErr(e); } }
 // Read up to now: the threads given, or every one.
 function seenMark(list){ const r=seenOf(S.pid); if(!r) return false; let ch=false;
   (list||threadIndex().list).forEach(t=>{ const top=[t.root].concat(t.replies).reduce((m,c)=>Math.max(m,+c.t||0),0); if(top>(+r.th[t.root.id]||0)){ r.th[t.root.id]=top; ch=true; } });
@@ -18434,7 +18489,7 @@ function cmtHtml(c,ctx){
   let body;
   if(c.deleted) body=`<div class="txt gone">This comment was deleted.</div>`;
   else if(ed) body=`<div class="cedit"><textarea class="ctext" id="ce-${ctx}-${id}" data-cdraft="edit:${id}" rows="2" aria-label="Edit the comment">${esc(draftOf("edit:"+c.id,c.text))}</textarea><div class="crow"><span class="lab">Ctrl+Enter to save</span><span class="sp"></span><button class="btn sm ghost" data-cact="editx" data-cid="${id}">Cancel</button><button class="btn sm primary" data-cact="edits" data-cid="${id}">Save</button></div></div>`;
-  else body=`<div class="txt">${cmtTextHtml(c)}</div>`;
+  else body=`<div class="txt">${cmtTextHtml(c)}</div>${propHtml(c)}`;
   const nw=cmtNew(c,c.parent||c.id);
   return `<div class="cmt${c.parent?" reply":""}${nw?" new":""}" data-cid="${id}"><img alt="" src="${esc(avatarOf(c.uid))}"><div class="cb"><div class="who"><span class="nm">${esc(personName(c.uid))}</span><span class="when" title="${esc(logWhen(c.t))}">${esc(ago(c.t))}${c.edited?" · edited":""}</span>${nw?`<span class="newc" title="Written since you last read this thread">${mentionsMe(c)?"Mentions you":"New"}</span>`:""}${own&&!ed?`<span class="cops"><button class="tb sm icon" data-cact="edit" data-cid="${id}" aria-label="Edit this comment" title="Edit">${ICON("edit","sm")}</button><button class="tb sm icon" data-cact="del" data-cid="${id}" aria-label="Delete this comment" title="Delete">${ICON("trash","sm")}</button></span>`:""}</div>${body}</div></div>`;
 }
@@ -18484,6 +18539,8 @@ async function threadAct(act,id){
       if(c&&c.resolved) await S.store.updateComment(pid,id,{resolved:false,resolvedBy:null});
       return; }
     if(act==="npost"){ await postNodeComment(id); return; }
+    if(act==="papply"){ await applyProposal(id); return; }
+    if(act==="propose"){ await proposeDlg(id); return; }
     if(act==="del"&&c){
       const kids=all.filter(x=>x.parent===id);
       if(kids.length){ const old=c.text; await S.store.updateComment(pid,id,{deleted:true,text:""});
@@ -18591,7 +18648,7 @@ function flowDiscHtml(key,kind){
   const dk="node:"+key, ph=NODE_PROMPT[kind]||"Comment…";
   return `<section class="fdisc" data-key="${esc(key)}" aria-label="Discussion of this box"><div class="fdisc-in">${flowDiscInner(key)}</div>`+
     (S.readOnly?`<p class="lab">You can read the discussion but not comment in this workspace.</p>`:
-    `<div class="fcomp"><textarea class="ctext" id="fc-${esc(key.replace(/[^\w-]/g,"_"))}" data-cdraft="${esc(dk)}" rows="2" placeholder="${esc(ph)}" aria-label="${esc(ph)}">${esc(draftOf(dk,""))}</textarea><div class="crow"><span class="lab">Ctrl+Enter to post${S.store&&S.store.mode==="db"?" · everyone in this workspace sees it":""}</span><span class="sp"></span><button class="btn sm primary" data-cact="npost" data-cid="${esc(key)}">${ICON("comment","sm")}Comment</button></div></div>`)+`</section>`;
+    `<div class="fcomp"><textarea class="ctext" id="fc-${esc(key.replace(/[^\w-]/g,"_"))}" data-cdraft="${esc(dk)}" rows="2" placeholder="${esc(ph)}" aria-label="${esc(ph)}">${esc(draftOf(dk,""))}</textarea><div class="crow"><span class="lab">Ctrl+Enter to post${S.store&&S.store.mode==="db"?" · everyone in this workspace sees it":""}</span><span class="sp"></span>${kind==="step"?`<button class="btn sm ghost" data-cact="propose" data-cid="${esc(key)}" title="Suggest other settings for this step, for someone to apply in one click">${ICON("wand","sm")}Propose settings…</button>`:""}<button class="btn sm primary" data-cact="npost" data-cid="${esc(key)}">${ICON("comment","sm")}Comment</button></div></div>`)+`</section>`;
 }
 function flowDiscInner(key){
   const list=nodeThreads(key), open=list.filter(t=>!t.root.resolved), done=list.filter(t=>t.root.resolved);
@@ -18632,7 +18689,7 @@ function reportDiscussionHtml(){
   const T=threadIndex(); if(!T.list.length) return "";
   const esc2=t=>esc(String(t)), open=T.list.filter(t=>!t.root.resolved).length;
   const who=uid=>(S.profiles[uid]&&S.profiles[uid].name)||(S.store&&S.store.mode==="local"?"Author":"A colleague");
-  const one=c=>"<p><strong>"+esc2(who(c.uid))+"</strong> <span class=\"lab\">"+esc2(new Date(c.t).toLocaleString())+(c.edited?", edited":"")+"</span><br>"+(c.deleted?"<em class=\"lab\">deleted</em>":esc2(c.text).split(String.fromCharCode(10)).join("<br>"))+"</p>";
+  const one=c=>"<p><strong>"+esc2(who(c.uid))+"</strong> <span class=\"lab\">"+esc2(new Date(c.t).toLocaleString())+(c.edited?", edited":"")+"</span><br>"+(c.deleted?"<em class=\"lab\">deleted</em>":esc2(c.text).split(String.fromCharCode(10)).join("<br>"))+(c.propose&&c.propose.to&&!c.deleted?"<br><em>Proposes</em> "+Object.keys(c.propose.to).map(k=>{ const q=paramDef({op:c.propose.op},k); return esc2((q?q.label:k)+": "+paramText({op:c.propose.op},k,(c.propose.from||{})[k])+" → "+paramText({op:c.propose.op},k,c.propose.to[k])); }).join("; ")+(c.propose.applied?" (applied by "+esc2(who(c.propose.applied.by))+")":""):"")+"</p>";
   return "<h2>Discussion</h2><p class=\"meta\">"+T.list.length+" thread"+(T.list.length===1?"":"s")+", "+open+" open.</p>"+
     T.list.map(t=>"<div class=\"thr"+(t.root.resolved?" done":"")+"\"><p class=\"lab\">"+esc2(t.root.anchor?anchorLabel(t.root.anchor):"General")+" · "+(t.root.resolved?"resolved":"open")+"</p>"+one(t.root)+(t.replies.length?"<div class=\"rep\">"+t.replies.map(one).join("")+"</div>":"")+"</div>").join("");
 }
@@ -22694,7 +22751,7 @@ ${DL([["+ Quantity","Add any column of the table; a quantity in other units goes
 <p><em>As a graph like any other</em> (in its ⋯ menu) puts the trend's numbers on a sheet of their own (the series as X, each quantity a column with its errors as error bars) and plots them on an ordinary graph, each quantity on its axis: the ${DA("style","Format pane")}, saved styles, figures and every export then work on it. The numbers are a copy, dated in each column's comment: a fit made again later changes the trend graph, not the sheet.</p>
 <p>Click a point to work on that column. The report has every trend graph. A quantity that is no longer there (the fit it came from was cleared) is shown greyed until it comes back or is taken off.</p>`},
 /* ---------------------------------------------------------------- Working together */
-{id:"disc", g:"Working together", t:"Comments and discussion", win:"disc", kw:"comment discussion thread reply resolve reopen badge point anchor note unread new read mark all read mention mentions at sign name for you",
+{id:"disc", g:"Working together", t:"Comments and discussion", win:"disc", kw:"comment discussion thread reply resolve reopen badge point anchor note unread new read mark all read mention mentions at sign name for you propose proposal suggest settings apply",
  lead:"Talk about the analysis where it happens: on a step, the original data, a fit, or a point on the graph.",
  body:`<h2>Starting a thread</h2>
 ${DL([["On a History box","Select it and write at the foot of its inspector, or press "+K("C")+"."],["On a point","The <em>Comment</em> tool, then click the point or spot."],["General","In the Discussion window's box, optionally attached to the processed data."]])}
@@ -22705,6 +22762,8 @@ ${DL([["On a History box","Select it and write at the foot of its inspector, or 
 <p>What someone else has written since this browser last showed its thread is new: it says <em>New</em>, its box's badge in the History is ringed, and the Discussion window's button counts it. A thread shown in the Discussion window or a box's inspector is read a moment later; <em>Mark all read</em> reads every one. What was read is kept in this browser, per project; your own comments are never new.</p>
 <h2 id="mention">Mentioning someone</h2>
 <p>Type ${K("@")} and the start of a name in any comment box: the people the project knows (who have commented on it, changed it or are here) are listed; ${K("↑")} ${K("↓")} and ${K("Enter")} or a click put the name in, ${K("Esc")} closes the list. The comment keeps whom it names and marks their names. A comment naming you says <em>Mentions you</em> until it is read, a message says so when it arrives while the project is open, and the Discussion window's <em>For you</em> lists those threads.</p>
+<h2 id="propose">Proposing settings for a step</h2>
+<p>In a step's discussion, <em>Propose settings…</em> opens a copy of its settings: change what you would change, say why, and post it. Nothing changes until someone applies it. The comment lists each change (<em>Window 9 → 15</em>) and says whether the step has those settings now or has changed since; <em>Apply</em> sets them, as one step of undo, with a line in the log naming whose proposal it was. Settings that are lists, switches or numbers can be proposed; anchors, reference peaks and pairs are described in words.</p>
 ${TIP("Comments are shared only in a shared workspace. Used on its own, Kurve keeps them in this browser with the project.")}`},
 /* ---------------------------------------------------------------- Reference */
 {id:"method", g:"Reference", t:"How Kurve computes", kw:"method algorithm levenberg marquardt covariance noise sigma second differences trapezoid savitzky golay whittaker arpls reference",

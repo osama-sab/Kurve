@@ -889,6 +889,16 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: Proposed settings (roadmap 10, slice 3)
+
+- **A suggestion that can be taken in one click.** A colleague who would set a step differently can
+  say so as settings, not prose: *Propose settings…* in the step's discussion opens a copy of its
+  form, and the comment lists each change as *Window 9 → 15*. Nothing changes until someone presses
+  *Apply*, which is one undo step and a log line naming whose proposal it was.
+- **Where it stands is said, not guessed.** The comment says when the step has those settings, when
+  it has changed since the proposal, or that the step has gone (and offers nothing then). Only the
+  settings a form shows as a list, a switch or a number can be proposed; the rest is said in words.
+
 ### 2026-11-06: Mentions (roadmap 10, slice 2)
 
 - **@ and a name, as everywhere.** Any comment box offers the people the project knows as a name is

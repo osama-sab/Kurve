@@ -1338,6 +1338,42 @@ await page(async p => {
   check("…an edit naming another records both", JSON.stringify((r || []).slice().sort()) === '["u_ana","u_bo"]', JSON.stringify(r));
 }, { name: "mentions" });
 
+console.log("Proposed settings (roadmap 10, slice 3)");
+await page(async p => {
+  await p.evaluate(async () => { await loadExample("ir"); });
+  await p.waitForTimeout(300);
+  const key = await p.evaluate(async () => { addPipeStep("smooth"); await new Promise(r => setTimeout(r, 200)); const s = activeYCol().pipe[0]; s.p = Object.assign({}, s.p, { win: 9, order: 2 }); save({ cols: P().cols });
+    const k = "step:" + s.id; goNode(k, { disc: true }); await new Promise(r => setTimeout(r, 300)); return k; });
+  // The step's discussion offers to propose; the dialog is a copy of its settings, Post waiting for a change.
+  await p.click('#flowWin [data-cact="propose"]'); await p.waitForTimeout(200);
+  let r = await p.evaluate(() => ({ open: !document.querySelector("#formModal").hidden, fields: [...document.querySelectorAll("#formBody label[for^='pp-']")].map(l => l.textContent), ok: document.querySelector("#formOk").disabled, dup: [...document.querySelectorAll("#formBody [id]")].filter(e => document.querySelectorAll("#" + CSS.escape(e.id)).length > 1).length }));
+  check("Propose settings… opens a copy of the step's settings, Post waiting for a change, no id twice in the page", r.open && r.fields.join("|") === "Method|Window|Polynomial order" && r.ok && r.dup === 0, JSON.stringify(r));
+  const win = await p.evaluate(() => document.querySelector('#formBody .pair input[type="text"][id^="pp-"]').id);
+  await p.fill("#" + win, "15"); await p.dispatchEvent("#" + win, "input"); await p.fill("#ppWhy", "A wider window would take the noise off the shoulder.");
+  r = await p.evaluate(() => document.querySelector("#formOk").disabled);
+  check("…a change lets it post", r === false);
+  await p.click("#formOk"); await p.waitForTimeout(300);
+  r = await p.evaluate(k => { const c = S.comments.find(c => c.propose); const el = c && document.querySelector(`#flowWin .cmt[data-cid="${c.id}"] .prop`); const s = activeYCol().pipe[0];
+    return { to: c && c.propose.to, from: c && c.propose.from, anchor: c && c.anchor && c.anchor.key === k, text: c && c.text, li: el && el.querySelector("li").textContent, apply: !!(el && el.querySelector('[data-cact="papply"]')), win: s.p.win }; }, key);
+  check("…posted as a thread on the step, keeping only what changed; nothing changed yet", JSON.stringify(r.to) === '{"win":15}' && JSON.stringify(r.from) === '{"win":9}' && r.anchor && /wider window/.test(r.text) && r.win === 9, JSON.stringify(r));
+  check("…the comment lists the change and offers Apply", /Window\s*9 → 15/.test(r.li || "") && r.apply, JSON.stringify(r));
+  // Apply: one undo step, a log line naming whose proposal, the comment saying the step has it.
+  await p.click('#flowWin [data-cact="papply"]'); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const c = S.comments.find(c => c.propose), el = document.querySelector(`#flowWin .cmt[data-cid="${c.id}"] .prop`); return { win: activeYCol().pipe[0].p.win, log: (P().log || []).slice(-1)[0], say: el && el.querySelector(".prop-f .lab").textContent, apply: !!(el && el.querySelector('[data-cact="papply"]')), applied: !!c.propose.applied }; });
+  check("Apply sets the step, with a log line, and the comment says it was applied", r.win === 15 && /applied your proposal to step 1 of .*window 15/.test(JSON.stringify(r.log)) && /Applied by You/.test(r.say || "") && !r.apply && r.applied, JSON.stringify(r));
+  r = await p.evaluate(() => { undo(); const c = S.comments.find(c => c.propose), el = document.querySelector(`#flowWin .cmt[data-cid="${c.id}"] .prop`); return { win: activeYCol().pipe[0].p.win, say: el && el.querySelector(".prop-f .lab").textContent, apply: !!(el && el.querySelector('[data-cact="papply"]')) }; });
+  check("…one undo puts the step back, and the comment offers Apply again", r.win === 9 && /changed since/.test(r.say || "") && r.apply, JSON.stringify(r));
+  // A colleague's proposal: applied in their name; once the step has gone, it says so and offers nothing.
+  r = await p.evaluate(async () => { S.profiles = Object.assign({}, S.profiles, { u_ana: { name: "Ana" } }); const s = activeYCol().pipe[0];
+    await S.store.addComment(S.pid, { uid: "u_ana", text: "Order 3?", anchor: nodeAnchor("step:" + s.id), t: Date.now() + 3, resolved: false, propose: { step: s.id, op: "smooth", from: { order: 2 }, to: { order: 3 } } });
+    await new Promise(r => setTimeout(r, 200)); const c = S.comments.find(c => c.uid === "u_ana"); await applyProposal(c.id); await new Promise(r => setTimeout(r, 200));
+    return { order: activeYCol().pipe[0].p.order, log: (P().log || []).slice(-1)[0] }; });
+  check("a colleague's proposal is applied in their name", r.order === 3 && /applied Ana's proposal/.test(JSON.stringify(r.log)), JSON.stringify(r));
+  r = await p.evaluate(async () => { const s = activeYCol().pipe[0]; removePipeStep(s.id); await new Promise(r => setTimeout(r, 200)); openWin("disc", { render: true }); focusWin("disc"); renderThread();
+    const c = S.comments.find(c => c.uid === "u_ana"), el = document.querySelector(`#thread .cmt[data-cid="${c.id}"] .prop`); return { say: el && el.querySelector(".prop-f .lab").textContent, apply: !!(el && el.querySelector('[data-cact="papply"]')), report: /Proposes<\/em> Polynomial order: 2 → 3 \(applied by /.test(reportDiscussionHtml()) }; });
+  check("…the step removed, it says so and offers nothing; the report lists the proposal", /since been removed/.test(r.say || "") && !r.apply && r.report, JSON.stringify(r));
+}, { name: "proposed settings" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

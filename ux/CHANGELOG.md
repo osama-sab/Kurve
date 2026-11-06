@@ -1024,6 +1024,17 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Working together, slice 3: proposed settings (2026-11-06)
+
+- *Propose settings…* in a step's discussion: a copy of its settings, changed and posted with a reason
+  as a thread on the step; the comment lists each change and where it stands, and *Apply* sets them
+  (one undo step, a log line naming whose proposal). The report lists the proposals. Roadmap item 10
+  is done, and with it the roadmap.
+
+Checked: `tools/plot-drive.mjs` (9 new: the dialog and its waiting Post, ids not doubled, the thread
+posted with only what changed, the comment's list and Apply, the log line, undo offering Apply again, a
+colleague's proposal in their name, a step removed, the report).
+
 ## Working together, slice 2: mentions (2026-11-06)
 
 - @ and the start of a name in any comment box lists the people the project knows; the comment keeps
