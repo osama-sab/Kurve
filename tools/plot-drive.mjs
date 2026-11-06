@@ -1264,6 +1264,44 @@ await page(async p => {
   check("Maestro's text .Spe still reads as an analyser's counts", r.mca && r.n === 3000, JSON.stringify(r));
 }, { name: "Princeton SPE files" });
 
+console.log("Unread comments (roadmap 10, slice 1)");
+await page(async p => {
+  await p.evaluate(async () => { await loadExample("ir"); });
+  await p.waitForTimeout(400);
+  // Someone else comments on a step and on the processed data, after this browser has the project's comments.
+  const key = await p.evaluate(async () => { const c = activeYCol(); addPipeStep("smooth"); await new Promise(r => setTimeout(r, 200));
+    const s = activeYCol().pipe[0], k = "step:" + s.id, t = Date.now() + 5;
+    await S.store.addComment(S.pid, { uid: "u_ana", text: "Why a window of this size?", anchor: nodeAnchor(k), t, resolved: false });
+    await S.store.addComment(S.pid, { uid: "u_ana", text: "The baseline looks low here.", anchor: nodeAnchor("final:" + c.id), t: t + 1, resolved: false });
+    S.profiles = Object.assign({}, S.profiles, { u_ana: { name: "Ana" } }); return k; });
+  await p.waitForTimeout(300);
+  let r = await p.evaluate(k => { closeWin("disc"); openWin("flow", { render: true }); renderFlow(); const b = document.querySelector(`#flowWin [data-node="${CSS.escape(k)}"] .fn-c`);
+    return { boxNew: !!b && b.classList.contains("new"), label: b && b.getAttribute("aria-label"), badge: winBadge("disc"), unread: unreadCount() }; }, key);
+  check("a colleague's comments are new: the History box's badge is ringed, the Discussion's button counts them", r.boxNew && /1 new/.test(r.label) && /badge new/.test(r.badge) && r.unread === 2, JSON.stringify(r));
+  // Shown in the Discussion window they say New, and a moment later they are read.
+  r = await p.evaluate(() => { openWin("disc", { render: true }); focusWin("disc"); renderThread(); return { n: document.querySelectorAll("#thread .cmt.new .newc").length, bar: (document.querySelector("#thread .dnew") || {}).textContent }; });
+  check("…in the Discussion window each says New, and the bar says how many", r.n === 2 && r.bar === "2 new", JSON.stringify(r));
+  await p.waitForTimeout(1900);
+  r = await p.evaluate(() => ({ n: document.querySelectorAll("#thread .cmt.new").length, unread: unreadCount(), badge: winBadge("disc") }));
+  check("…read a moment after they are shown", r.n === 0 && r.unread === 0 && !/badge new/.test(r.badge), JSON.stringify(r));
+  // A reply from her later, with the Discussion window closed: new again, on that thread only; Mark all read.
+  await p.evaluate(async () => { closeWin("disc"); const t = threadIndex().list[0]; await S.store.addComment(S.pid, { uid: "u_ana", text: "Any news?", anchor: null, parent: t.root.id, t: Date.now() + 5, resolved: false }); });
+  await p.waitForTimeout(300);
+  r = await p.evaluate(() => ({ unread: unreadCount() }));
+  check("a reply later is new again", r.unread === 1, JSON.stringify(r));
+  await p.evaluate(async () => { await S.store.addComment(S.pid, { uid: "", text: "My own note.", anchor: null, t: Date.now() + 9, resolved: false }); });
+  await p.waitForTimeout(200);
+  check("…one's own comment is never new", (await p.evaluate(() => unreadCount())) === 1);
+  r = await p.evaluate(() => { openWin("disc", { render: true }); focusWin("disc"); renderThread(); const b = document.querySelector("#thread [data-dread]"); if (b) b.click(); return { unread: unreadCount(), btn: !!b }; });
+  check("…Mark all read reads it at once", r.btn && r.unread === 0, JSON.stringify(r));
+  // Kept in this browser: a reload does not make them new.
+  await p.reload(); await p.waitForFunction(() => typeof S !== "undefined" && S.pid && S.comments && S.comments.length >= 4, null, { timeout: 15000 }).catch(() => {});
+  check("…and stay read after a reload", (await p.evaluate(() => unreadCount())) === 0);
+  // A project's comments from before this browser first had them are not new; junk from storage reads as nothing.
+  r = await p.evaluate(() => { localStorage.setItem("kurve.seen", "[1,2]"); S._seen = null; const a = seenOf(S.pid); localStorage.setItem("kurve.seen", JSON.stringify({ [S.pid]: { base: "x", th: 5 } })); S._seen = null; const b = seenOf(S.pid); return { a, b, n: unreadCount() }; });
+  check("junk in the store of what was read reads as nothing", r.a === null && r.b === null && r.n === 0, JSON.stringify(r));
+}, { name: "unread comments" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

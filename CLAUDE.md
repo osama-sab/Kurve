@@ -1593,7 +1593,16 @@ graph first, with the taskbar kept at the bottom of the screen.
   keyed `node:<key>`, `reply:<id>` or `edit:<id>`, so a redraw never loses what is typed, and
   the caret is kept (`keepCaret`/`putCaret`). Comments live beside the project, not in it:
   undo never takes a colleague's words back. The report ends with every thread, and each step
-  in its Processing list says how many threads it has.
+  in its Processing list says how many threads it has. **Unread** (roadmap 10, slice 1): per
+  browser and project (`kurve.seen` `{pid: {base, th: {thread id: time}}}`, `seenAll`, `seenOf`,
+  `seenSave`; `seenBase(pid)` on a project's first comments here, so an old project is not all
+  new); `cmtMine`, `cmtNew(c, tid)` (someone else's, after `max(base, th[tid])`), `threadNew(t)`,
+  `unreadCount(list)`; a comment new says New (`.cmt.new`, `.newc`), its thread `.thr.unread`, a
+  History box's badge `.fn-c.new` (and *n new* in its label), the Discussion's title badge and
+  `winBadge("disc")` count them (`.badge.new`), the Discussion bar *n new* and *Mark all read*
+  (`data-dread`, `seenMark()`); `seenSoon()` (after `renderThread`, `renderFlow`, `renderFlowDisc`)
+  reads the threads with something new on screen `SEEN_MS` (1.5 s) later (`seenMark(list)`: each
+  read up to its newest comment).
 - **Statistics window** (`renderStats`): descriptive statistics of every spectrum (final or
   raw, all X or the visible range: n, mean, SD, SE, median, min, max; the spectral measures,
   X at max, noise σ, S/N, area and centroid, behind *Noise, S/N and area*, `#stSpec`,
@@ -2740,7 +2749,8 @@ data, Bubbles waiting for a size and naming the curve without one, error boxes i
 graph and an export, labelled points, colour by value, a kind on a graph said in the log; slice 6:
 the kind and uses remembered per sheet, the dialog starting from them, Plot like the last time
 with no dialog, not on another sheet, the dialog when the size column has gone, error bars undone
-not given back, junk from storage); run it after touching the graph's drawing or Plot setup.
+not given back, junk from storage); since, the roadmap's later slices, each in a section of its
+own (comments unread and read, for one); run it after touching the graph's drawing or Plot setup.
 `node tools/fit-drive.mjs [path]` (Playwright) clicks and types into what each slice of the
 curve fit (`ux/spec/FIT_SPEC.md`) from slice 5 on added (Find X/Y: the readouts against the
 functions, a redraw while typing, Fill a column… both ways, undo); run it after touching the Fit
@@ -4149,7 +4159,7 @@ Next, in order:
    grown to run every example end to end, the worksheet drawing only the columns in view, speed
    with thousands of columns: done 06.11): the roadmap's item 9 is done
 10. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
-   applied in one click, unread markers
+   applied in one click, unread markers (done 06.11)
 
 ## Known gaps
 
@@ -4309,7 +4319,8 @@ Next, in order:
   ratio when its width is dragged, and their share is typed
 - Ties are between the same parameter of two peaks; there are no free-form constraints between
   different parameters, and a user's function cannot be a peak shape in a peak fit
-- Comments have no mentions, unread markers or notifications; they are plain text
+- Comments have no mentions or notifications; they are plain text. What was read is kept per
+  browser (a comment read on another computer is new here), and judged by the comments' times
 - No Shirley or Tougaard background (XPS); no Fourier self-deconvolution
 - Models: 25 built in (Origin has about 200); a polynomial is fitted in powers of x as written,
   so a high order far from x = 0 is badly conditioned (its guess is exact, about the mean); the

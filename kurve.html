@@ -917,6 +917,11 @@ details.more>table{margin-top:var(--sp-4)}
 .thr>.anchor{margin:0 0 var(--sp-2) 37px;max-width:calc(100% - 37px)}
 .thr>.anchor>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .thr.resolved .cmt{opacity:.8}
+.cmt.new{box-shadow:inset 3px 0 0 var(--talk);padding-left:var(--sp-3);margin-left:calc(var(--sp-3) * -1)}
+.cmt .newc{font-size:var(--fs-cap);font-weight:600;line-height:16px;padding:0 var(--sp-2);border-radius:8px;background:var(--talk);color:var(--talk-ink)}
+.badge.new{background:var(--talk);color:var(--talk-ink)}
+.fn-c.new{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--talk)}
+.dbar .dnew{margin-left:auto;font-size:var(--fs-tab);font-weight:600;color:var(--talk)}
 .thr.flash{animation:thrflash 1.8s ease-out}
 @keyframes thrflash{0%,30%{background:var(--talk-soft)}100%{background:transparent}}
 .replies{margin:var(--sp-1) 0 0 37px;border-left:2px solid var(--rule);padding-left:var(--sp-4)}
@@ -18307,6 +18312,31 @@ function threadIndex(){
   THR_MEMO={src:all,list,byNode}; return THR_MEMO;
 }
 const nodeThreads=key=>threadIndex().byNode[key]||[];
+/* Unread (roadmap 10, slice 1): what someone else has written since this browser last showed its
+   thread. Kept per browser and project (`kurve.seen`: {pid: {base, th: {thread id: time}}}); `base` is
+   when this browser first had the project's comments, so a project opened here for the first time is
+   not all new. A thread with something new, shown where a person reads it (the Discussion window, a
+   box's inspector) for SEEN_MS, is read up to its newest comment; until then those comments say New,
+   and the History's box and the Discussion's button count them. */
+const SEEN_MS=1500;
+function seenAll(){ if(!S._seen){ let o={}; try{ o=JSON.parse(localStorage.getItem("kurve.seen")||"{}")||{}; }catch(e){} S._seen=o&&typeof o==="object"&&!Array.isArray(o)?o:{}; } return S._seen; }
+function seenOf(pid){ const r=pid&&seenAll()[pid]; return r&&typeof r==="object"&&r.th&&typeof r.th==="object"&&!Array.isArray(r.th)?r:null; }
+function seenSave(){ try{ const a=seenAll(), ks=Object.keys(a); if(ks.length>60) ks.slice(0,ks.length-60).forEach(k=>{ delete a[k]; }); localStorage.setItem("kurve.seen",JSON.stringify(a)); }catch(e){} }
+function seenBase(pid){ if(!pid||seenOf(pid)) return; seenAll()[pid]={base:Date.now(),th:{}}; seenSave(); }
+const cmtMine=c=>!!c&&(S.uid?c.uid===S.uid:!c.uid);
+function cmtNew(c,tid){ if(!c||c.deleted||cmtMine(c)) return false; const r=seenOf(S.pid); if(!r) return false; return (+c.t||0)>Math.max(+r.base||0,+r.th[tid]||0); }
+const threadNew=t=>[t.root].concat(t.replies).filter(c=>cmtNew(c,t.root.id)).length;
+const unreadCount=list=>(list||threadIndex().list).reduce((n,t)=>n+threadNew(t),0);
+// Read up to now: the threads given, or every one.
+function seenMark(list){ const r=seenOf(S.pid); if(!r) return false; let ch=false;
+  (list||threadIndex().list).forEach(t=>{ const top=[t.root].concat(t.replies).reduce((m,c)=>Math.max(m,+c.t||0),0); if(top>(+r.th[t.root.id]||0)){ r.th[t.root.id]=top; ch=true; } });
+  if(ch) seenSave(); return ch; }
+// The threads with something new on screen (not in a window hidden or put away) are read a moment later.
+let SEEN_T=0;
+function seenSoon(){ if(!S.pid||!document.querySelector(".thr.unread")) return; clearTimeout(SEEN_T); const pid=S.pid;
+  SEEN_T=setTimeout(()=>{ if(S.pid!==pid||document.hidden) return;
+    const ids=new Set([...document.querySelectorAll(".thr.unread")].filter(el=>el.getClientRects().length&&!el.closest(".wout,[inert]")).map(el=>el.dataset.tid));
+    if(ids.size&&seenMark(threadIndex().list.filter(t=>ids.has(t.root.id)))) refreshComments(); },SEEN_MS); }
 const NODE_KIND={raw:"Original data",src:"Input",final:"Processed data",fit:"Fits",peaks:"Peaks",integ:"Band integrals"};
 function splitKey(key){ const i=String(key).indexOf(":"); return i<0?[key,""]:[key.slice(0,i),key.slice(i+1)]; }
 /* A comment made before version 5 on the first graph's box has the key "figure"
@@ -18360,11 +18390,12 @@ function cmtHtml(c,ctx){
   if(c.deleted) body=`<div class="txt gone">This comment was deleted.</div>`;
   else if(ed) body=`<div class="cedit"><textarea class="ctext" id="ce-${ctx}-${id}" data-cdraft="edit:${id}" rows="2" aria-label="Edit the comment">${esc(draftOf("edit:"+c.id,c.text))}</textarea><div class="crow"><span class="lab">Ctrl+Enter to save</span><span class="sp"></span><button class="btn sm ghost" data-cact="editx" data-cid="${id}">Cancel</button><button class="btn sm primary" data-cact="edits" data-cid="${id}">Save</button></div></div>`;
   else body=`<div class="txt">${esc(c.text)}</div>`;
-  return `<div class="cmt${c.parent?" reply":""}" data-cid="${id}"><img alt="" src="${esc(avatarOf(c.uid))}"><div class="cb"><div class="who"><span class="nm">${esc(personName(c.uid))}</span><span class="when" title="${esc(logWhen(c.t))}">${esc(ago(c.t))}${c.edited?" · edited":""}</span>${own&&!ed?`<span class="cops"><button class="tb sm icon" data-cact="edit" data-cid="${id}" aria-label="Edit this comment" title="Edit">${ICON("edit","sm")}</button><button class="tb sm icon" data-cact="del" data-cid="${id}" aria-label="Delete this comment" title="Delete">${ICON("trash","sm")}</button></span>`:""}</div>${body}</div></div>`;
+  const nw=cmtNew(c,c.parent||c.id);
+  return `<div class="cmt${c.parent?" reply":""}${nw?" new":""}" data-cid="${id}"><img alt="" src="${esc(avatarOf(c.uid))}"><div class="cb"><div class="who"><span class="nm">${esc(personName(c.uid))}</span><span class="when" title="${esc(logWhen(c.t))}">${esc(ago(c.t))}${c.edited?" · edited":""}</span>${nw?`<span class="newc" title="Written since you last read this thread">New</span>`:""}${own&&!ed?`<span class="cops"><button class="tb sm icon" data-cact="edit" data-cid="${id}" aria-label="Edit this comment" title="Edit">${ICON("edit","sm")}</button><button class="tb sm icon" data-cact="del" data-cid="${id}" aria-label="Delete this comment" title="Delete">${ICON("trash","sm")}</button></span>`:""}</div>${body}</div></div>`;
 }
 function threadHtml(t,ctx,opt){
   opt=opt||{}; const r=t.root, id=esc(r.id), ro=S.readOnly;
-  let h=`<article class="thr${r.resolved?" resolved":""}" data-tid="${id}">`;
+  let h=`<article class="thr${r.resolved?" resolved":""}${threadNew(t)?" unread":""}" data-tid="${id}">`;
   if(opt.chip&&r.anchor) h+=`<button class="anchor" data-cact="go" data-cid="${id}" title="Show where this is">${anchorIcon(r)}<span>${esc(anchorLabel(r.anchor))}</span></button>`;
   h+=cmtHtml(r,ctx);
   if(t.replies.length) h+=`<div class="replies">${t.replies.map(c=>cmtHtml(c,ctx)).join("")}</div>`;
@@ -18378,6 +18409,7 @@ function wireThreads(box){
   if(!box||box._thr) return; box._thr=true;
   box.addEventListener("click",e=>{
     const f=e.target.closest("[data-dflt]"); if(f&&box.contains(f)){ S.discFilter=f.dataset.dflt; renderThread(); return; }
+    if(e.target.closest("[data-dread]")){ if(seenMark()) refreshComments(); return; }
     const b=e.target.closest("[data-cact]"); if(!b||!box.contains(b)||b.disabled) return; e.preventDefault(); threadAct(b.dataset.cact,b.dataset.cid); });
   box.addEventListener("input",e=>{ const t=e.target.closest("textarea[data-cdraft]"); if(t){ S.cDrafts=S.cDrafts||{}; S.cDrafts[t.dataset.cdraft]=t.value; } });
   box.addEventListener("keydown",e=>{ const t=e.target.closest("textarea[data-cdraft]"); if(!t) return;
@@ -18454,13 +18486,13 @@ function renderThread(){
   const T=threadIndex();
   // Pins on the graph are numbered in the order their threads began.
   let num=0; T.list.forEach(t=>{ const a=t.root.anchor; t.root._num=a&&(a.type==="point"||a.type==="xy")?++num:null; });
-  const open=T.list.filter(t=>!t.root.resolved).length, bd=$("#cBadge"); if(bd){ bd.hidden=!open; bd.textContent=open; }
+  const open=T.list.filter(t=>!t.root.resolved).length, unread=unreadCount(T.list), bd=$("#cBadge"); if(bd){ bd.hidden=!open&&!unread; bd.textContent=unread||open; bd.classList.toggle("new",!!unread); bd.title=unread?`${unread} new`:`${open} open`; }
   const keep=keepCaret(box);
   if(!T.list.length){ box.innerHTML=`<p class="nothing">No comments yet. Comment on a History box, on a point with the <strong>Comment</strong> tool, or below.</p>`; return; }
   const f=S.discFilter==="open"?"open":"all", list=f==="open"?T.list.filter(t=>!t.root.resolved):T.list;
-  let h=`<div class="dbar"><div class="seg mini" role="group" aria-label="Which threads"><button data-dflt="open" aria-pressed="${f==="open"}">Open <span class="cnt">${open}</span></button><button data-dflt="all" aria-pressed="${f==="all"}">All <span class="cnt">${T.list.length}</span></button></div></div>`;
+  let h=`<div class="dbar"><div class="seg mini" role="group" aria-label="Which threads"><button data-dflt="open" aria-pressed="${f==="open"}">Open <span class="cnt">${open}</span></button><button data-dflt="all" aria-pressed="${f==="all"}">All <span class="cnt">${T.list.length}</span></button></div>${unread?`<span class="dnew">${unread} new</span><button class="btn sm ghost" data-dread title="Count every comment as read">Mark all read</button>`:""}</div>`;
   h+=list.map(t=>threadHtml(t,"d",{chip:true})).join("")||`<p class="nothing">Nothing open. ${T.list.length} resolved thread${T.list.length===1?"":"s"}: choose <em>All</em> to read ${T.list.length===1?"it":"them"}.</p>`;
-  box.innerHTML=h; putCaret(keep);
+  box.innerHTML=h; putCaret(keep); seenSoon();
 }
 function pointByRow(i){ return pointsAll().find(q=>q.i===i)||null; }
 /* Opens the History on a box, with its discussion in view. */
@@ -18537,7 +18569,7 @@ function renderFlowDisc(){
   const chip=document.querySelector("#flowWin .fi-h .fi-disc"), nc=discChip(key);
   if(chip){ if(nc) chip.outerHTML=nc; else chip.remove(); }
   else if(nc){ const h=document.querySelector("#flowWin .finsp .fi-h"); if(h){ const g=h.querySelector(".grow"); if(g) g.insertAdjacentHTML("afterend",nc); } }
-  putCaret(keep);
+  putCaret(keep); seenSoon();
 }
 /* The discussion, for the report: every thread with where it was left. */
 // The peaks marked on each spectrum, found or placed by hand, with their labels.
@@ -18688,7 +18720,7 @@ function openProject(id){
   // remembered as last read, and a merge with another tab then took this tab's new columns for old.
   { const src=S.projects.find(p=>p.id===id)||null; S.proj=src?cloneProj(src):null; S.projSrc=src; }
   if(S.unsubC){ S.unsubC(); S.unsubC=null; }
-  if(id) S.unsubC=S.store.watchComments(id,list=>{ S.comments=list; refreshComments(); renderPlot(); refreshProfiles(); }, e=>{ if(e.code==="revoked") setStatus("Access changed. Reload to continue.",true); });
+  if(id) S.unsubC=S.store.watchComments(id,list=>{ seenBase(id); S.comments=list; refreshComments(); renderPlot(); refreshProfiles(); }, e=>{ if(e.code==="revoked") setStatus("Access changed. Reload to continue.",true); });
   try{ localStorage.setItem("kurve.last",id||""); }catch(e){}
   if(S.room) S.room.presence({pid:id,cx:null,cy:null}).catch(()=>{});
   renderAll(); fpEnsure();
@@ -21085,10 +21117,10 @@ function flowNodeHtml(n,cur){
   else if(n.kind==="figure"){ icon="chart"; title="Figure"; sub=annoCountText(n.annos); }
   else if(n.kind==="graph"){ icon="chart"; title=graphTitle(n.gid); if(n.gid===S.gid) cls+=" live";
     sub=[n.cs.length===1?specName(n.cs[0]):`${n.cs.length} curves`,annoCountText(n.annos)].filter(Boolean).join(" · "); }
-  const th=n.pending?[]:nodeThreads(n.key), tOpen=th.filter(t=>!t.root.resolved).length;
+  const th=n.pending?[]:nodeThreads(n.key), tOpen=th.filter(t=>!t.root.resolved).length, tNew=unreadCount(th);
   const talk=th.length?(tOpen?`${tOpen} open comment thread${tOpen===1?"":"s"}`:`${th.length} resolved comment thread${th.length===1?"":"s"}`):"";
   const tip=[title,sub].concat(warn).concat(talk?[talk]:[]).filter(Boolean).join("\n");
-  return `<button class="fnode k-${n.kind}${cls}${sel?" sel":""}${cur===n.key?" cur":""}${act?" act":""}" data-node="${esc(n.key)}" style="left:${n.x}px;top:${n.y}px" title="${esc(tip)}" aria-pressed="${sel}">${num}${icon?ICON(icon,"sm"):""}<span class="fn-t"><span class="fn-a">${esc(title)}</span><span class="fn-b">${esc(sub)}</span></span>${spark}${warn.length?`<span class="fn-w" aria-label="${warn.length} warning${warn.length===1?"":"s"}">!</span>`:""}${th.length?`<span class="fn-c${tOpen?"":" done"}" aria-label="${esc(talk)}">${ICON("comment","sm")}${tOpen||th.length}</span>`:""}</button>`;
+  return `<button class="fnode k-${n.kind}${cls}${sel?" sel":""}${cur===n.key?" cur":""}${act?" act":""}" data-node="${esc(n.key)}" style="left:${n.x}px;top:${n.y}px" title="${esc(tip)}" aria-pressed="${sel}">${num}${icon?ICON(icon,"sm"):""}<span class="fn-t"><span class="fn-a">${esc(title)}</span><span class="fn-b">${esc(sub)}</span></span>${spark}${warn.length?`<span class="fn-w" aria-label="${warn.length} warning${warn.length===1?"":"s"}">!</span>`:""}${th.length?`<span class="fn-c${tOpen?"":" done"}${tNew?" new":""}" aria-label="${esc(talk+(tNew?`, ${tNew} new`:""))}">${ICON("comment","sm")}${tOpen||th.length}</span>`:""}</button>`;
 }
 function flowEdgesSvg(L,win){
   let s=`<svg class="flow-edges" width="${L.W}" height="${L.H}" aria-hidden="true"><defs><marker id="fArr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0.5L7.5,4L0,7.5z" class="fe-arr"/></marker></defs>`, plus="";
@@ -21142,6 +21174,7 @@ function renderFlow(){
   if(focusKey){ const el=box.querySelector(`[data-node="${CSS.escape(focusKey)}"]`); if(el) el.focus({preventScroll:true}); }
   else if(keepFocusId){ const el=document.getElementById(keepFocusId); if(el) el.focus({preventScroll:true}); }
   const sub=$("#flowSub"); if(sub){ const c=activeYCol(); sub.textContent=c?`${yCols().length} column${yCols().length===1?"":"s"}`:""; }
+  seenSoon();
 }
 /* The boxes only, after a slider moved: their summaries and warnings follow
    without rebuilding the inspector the slider is in. */
@@ -22615,13 +22648,15 @@ ${DL([["+ Quantity","Add any column of the table; a quantity in other units goes
 <p><em>As a graph like any other</em> (in its ⋯ menu) puts the trend's numbers on a sheet of their own (the series as X, each quantity a column with its errors as error bars) and plots them on an ordinary graph, each quantity on its axis: the ${DA("style","Format pane")}, saved styles, figures and every export then work on it. The numbers are a copy, dated in each column's comment: a fit made again later changes the trend graph, not the sheet.</p>
 <p>Click a point to work on that column. The report has every trend graph. A quantity that is no longer there (the fit it came from was cleared) is shown greyed until it comes back or is taken off.</p>`},
 /* ---------------------------------------------------------------- Working together */
-{id:"disc", g:"Working together", t:"Comments and discussion", win:"disc", kw:"comment discussion thread reply resolve reopen badge point anchor note",
+{id:"disc", g:"Working together", t:"Comments and discussion", win:"disc", kw:"comment discussion thread reply resolve reopen badge point anchor note unread new read mark all read",
  lead:"Talk about the analysis where it happens: on a step, the original data, a fit, or a point on the graph.",
  body:`<h2>Starting a thread</h2>
 ${DL([["On a History box","Select it and write at the foot of its inspector, or press "+K("C")+"."],["On a point","The <em>Comment</em> tool, then click the point or spot."],["General","In the Discussion window's box, optionally attached to the processed data."]])}
 <h2>Threads</h2>
 <p>Reply, resolve and reopen; a reply to a resolved thread reopens it. Edit or delete your own comments; deleting the first comment of a thread with replies leaves a note that it was deleted. A badge on a box counts its open threads; the Discussion window lists every thread with a link back to what it is about, open ones or all.</p>
 <p>A thread on a step outlives the step, and says it was removed. Comments are not part of undo: they are the record of what was said. The report ends with every thread.</p>
+<h2 id="unread">New comments</h2>
+<p>What someone else has written since this browser last showed its thread is new: it says <em>New</em>, its box's badge in the History is ringed, and the Discussion window's button counts it. A thread shown in the Discussion window or a box's inspector is read a moment later; <em>Mark all read</em> reads every one. What was read is kept in this browser, per project; your own comments are never new.</p>
 ${TIP("Comments are shared only in a shared workspace. Used on its own, Kurve keeps them in this browser with the project.")}`},
 /* ---------------------------------------------------------------- Reference */
 {id:"method", g:"Reference", t:"How Kurve computes", kw:"method algorithm levenberg marquardt covariance noise sigma second differences trapezoid savitzky golay whittaker arpls reference",
@@ -23271,7 +23306,7 @@ function fitTaskbar(tb,front){
 // News on a window's button: open threads, the fit's state, warnings.
 function winBadge(id){
   const p=P(); if(!p) return "";
-  if(id==="disc"){ const n=threadIndex().list.filter(t=>!t.root.resolved).length; return n?`<span class="badge" aria-label="${n} open">${n}</span>`:""; }
+  if(id==="disc"){ const T=threadIndex().list, n=T.filter(t=>!t.root.resolved).length, u=unreadCount(T); return u?`<span class="badge new" aria-label="${u} new">${u}</span>`:n?`<span class="badge" aria-label="${n} open">${n}</span>`:""; }
   if(id==="fit"){ const f=activeFit(); if(!f) return ""; return `<span class="tdot ${fitStale(f)?"stale":"ok"}" aria-label="${fitStale(f)?"out of date":"fitted"}"></span>`; }
   if(id==="flow"){ const c=activeYCol(), n=c?procWarnings(c).length:0; return n?`<span class="tdot stale" aria-label="${n} warnings"></span>`:""; }
   return "";

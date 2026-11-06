@@ -1024,6 +1024,17 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Working together, slice 1: new comments (2026-11-06)
+
+- A colleague's comment written since this browser last showed its thread says *New*; its History
+  box's badge is ringed, and the Discussion's button and title count the new ones. Shown in the
+  Discussion window or a box's inspector, a thread is read a moment later; *Mark all read* reads
+  every one. Kept per browser and project.
+
+Checked: `tools/plot-drive.mjs` (9 new: two comments by someone else new on the box and the button,
+New in the window and read after it, a reply new again, one's own never new, Mark all read, a
+reload, junk from storage).
+
 ## Under the hood, slice 3: thousands of columns (2026-11-06)
 
 - A render asks about the columns once (by id, the Y columns' order, a sheet's columns, each

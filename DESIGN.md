@@ -889,6 +889,17 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: New comments (roadmap 10, slice 1)
+
+- **New is someone else's, since you last looked.** A comment a colleague wrote after this browser
+  last showed its thread says *New*, in the talk colour the badges already use; its History box's
+  badge is ringed and the Discussion's button counts it, so a person returning to a project sees
+  where to look without opening anything. One's own comments are never new.
+- **Shown is read, a moment later.** A thread on screen in the Discussion window or a box's
+  inspector is read 1.5 s after it is drawn there, long enough to see what was new; *Mark all read*
+  does all of them. A project opened here for the first time is not all new: what was there before
+  this browser had it is read.
+
 ### 2026-11-06: Thousands of columns (roadmap 9, slice 3)
 
 - **Asked once, not once per column.** Two thousand columns made every save take a second or more,
