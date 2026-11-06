@@ -401,6 +401,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   by the scatter; `{co, x0, deg, n, cov, rel, E0, E1, wtd, redChi2}` or `{fail}` in words), `effAt(cv,
   E)` (`{v, err, out}`), `fwhmCurve(pts, deg)` (FWHM² = a + b·E (+ c·E²) fitted to `{E, w}`, `rel`),
   `fwhmAt(cv, E)` (null where the square is not above zero); `lsqPoly`, `polyAt`.
+  **Distributions of values** (roadmap 4, slice 1): `DIST_KINDS` and `distFit(vals, kind)` (normal,
+  log-normal, exponential, by maximum likelihood: μ and σ (n − 1) with σ/√n and σ/√(2(n − 1)), of
+  ln x for a log-normal; λ = 1/mean with λ/√n; `pdf`, `cdf`, `mean`, `median`, the Kolmogorov–Smirnov
+  distance `ks` and its p `pks` by Kolmogorov's series; `{fail}` in words: fewer than three values,
+  all the same, a value a kind cannot take). `tools/fit-test.mjs` checks each against its sample.
   **The picker**: the Fit window's model is a button (`#model.mbtn`: the sketch, the name,
   `aria-expanded`) opening `openModelPicker(btn, cur, pick, {fromFit})`, in the font picker's
   popover and slot (`fpOpen`, `.fpick.mpick`): a search box, every model by kind with its
@@ -2012,6 +2017,16 @@ graph first, with the taskbar kept at the bottom of the screen.
   columns, or the active one), a spectrum's right-click; one undo entry) makes `Histogram of …`, a spectrum derived
   from each column's final data with a `hist` step, each on a graph of its own, several in a
   figure; `editHistStep(cid)` opens the step in the History (right-click Histogram bins…).
+  **A distribution over it** (roadmap 4, slice 1): a histogram curve's `series[id].dist` (one of
+  `DIST_KINDS`: `normal`, `lognormal`, `exp`), set by `setHistDist(id, kind)` (the right-click's
+  *Distribution over it*, radio items, one disabled with `distFit`'s reason; one undo step, a log
+  line, a toast with Kolmogorov–Smirnov's D and p); `histCurve(c, kind)` (memoised per the step's
+  input in `DISTM`) fits `distFit` to the values the step counts (its input's Y or X) and gives
+  `y(x)` as the histogram is shown (counts n·w·f, probability w·f, percent 100·w·f, density f,
+  cumulative k·F at the bin's right edge), `text` (the legend's: the parameters with their errors,
+  the unit for a normal's, a mean for an exponential's) and `tip`; `buildPlot` draws it
+  (`path[data-hdist]` with a `<title>`, the fit's colour, overlaid layouts) after the curve's legend
+  entry (`distOn`), and the automatic view rises to its top.
   **Maps** (the heat layout):
   `cfg.mapY` (`index`, or `series`: `mapRows` puts each spectrum at its `seriesVals`, sorted,
   falling back to the order with `why`), `cfg.mapKind` (`MAP_KINDS`: image, filled, lines,
@@ -3878,7 +3893,7 @@ Next, in order:
    the set of its lines (their intensity ratios, interferences: done 05.11), region edges dragged on
    the graph (done 05.11): the roadmap's item 3 is done
 4. Plots Origin has and Kurve lacks, further: a distribution fitted over a histogram (normal,
-   log-normal) with its parameters; box charts of one column grouped by another, notched
+   log-normal, exponential) with its parameters (done 06.11); box charts of one column grouped by another, notched
    boxes; stacked and grouped bars with category names; per-row or per-column shared axes in a
    figure; a map from scattered X, Y, Z (triangulated) rather than from spectra
 5. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
@@ -4020,8 +4035,11 @@ Next, in order:
   colour at one spacing; copying a picture needs a browser that allows images on the
   clipboard
 - Histograms: bins of one width (no variable bins, no bins by quantile); a histogram is of one
-  spectrum's Y or X, all its points (no range of rows), and no distribution is drawn over it
-  unless fitted (a Gaussian fit works). Columns stand on zero (no other baseline, no stacking)
+  spectrum's Y or X, all its points (no range of rows). A distribution drawn over it is a normal,
+  log-normal or exponential one, fitted to every value by maximum likelihood (no fit to the bins,
+  no Weibull, gamma or mixture; its Kolmogorov–Smirnov p value is generous, as the parameters come
+  from the same values; a Gaussian curve fit of the bins still works). Columns stand on zero (no
+  other baseline, no stacking)
 - Box and violin charts: one box per spectrum on the graph, in the table's order (no grouping
   by another column, no reordering but the table's, no notches); the names along X cannot be
   turned or styled apart from the tick numbers; a violin's bandwidth is Silverman's, not set;

@@ -1024,6 +1024,20 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plots, slice 1: a distribution over a histogram (2026-11-06)
+
+- A histogram's right-click has *Distribution over it*: None, Normal, Log-normal, Exponential. The
+  distribution is fitted to the values by maximum likelihood and drawn over the columns as they are
+  shown (counts, probability, percent, a density, cumulative); its parameters with their errors are
+  in the legend, and Kolmogorov–Smirnov's D and p in the message and the curve's tooltip. A kind the
+  values cannot have is greyed with the reason. One undo step; kept with the graph; in every export;
+  fitted again when the bins or the data change.
+
+Checked: `tools/fit-test.mjs` (5 new: each kind's parameters and errors, the K–S distance against
+its own sample and a wrong one, the refusals), `tools/plot-drive.mjs` (15 new: the menu, the curve,
+μ and σ, its height against the bins, the view, the export, undo and redo, density and cumulative,
+log-normal, the refusals, a reload).
+
 ## Counting spectra, slice 5: region edges dragged on the graph (2026-11-05)
 
 - The Peaks window's regions have edges that drag on the graph, as bands' do (Zoom, Pan or Label):

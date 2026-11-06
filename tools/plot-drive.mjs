@@ -409,6 +409,66 @@ await page(async p => {
   check("what storage gives back that does not read is not remembered", !!r && r3 === false, JSON.stringify([r, r3]));
 }, { name: "remembered setups" });
 
+console.log("Roadmap 4, slice 1: a distribution over a histogram");
+await page(async p => {
+  // 2000 values from a normal distribution (mean 10, SD 2) and 600 around zero, as data columns.
+  const id = await p.evaluate(async () => {
+    const r = mulberry32(7), g = () => { let u = 0; while (!u) u = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r()); };
+    const a = [], b = [], x = []; for (let i = 0; i < 2000; i++) { x.push(i + 1); a.push(10 + 2 * g()); b.push(i < 600 ? g() : null); }
+    const X = makeCol("x", "Row", "", x), A = Object.assign(makeCol("y", "Length", "mm", a), { pipe: [], mask: [] }), B = Object.assign(makeCol("y", "Offset", "", b), { pipe: [], mask: [] });
+    const pr = Object.assign(blankProject("Histograms"), { cols: [X, A, B], activeY: A.id });
+    await createProject(pr, "test"); await new Promise(r => setTimeout(r, 80)); renderAll();
+    return { A: A.id, B: B.id };
+  });
+  await p.waitForTimeout(300);
+  const legOf = () => [...document.querySelectorAll("#plot text, #plot [data-rt]")].map(e => e.textContent).join(" | ");
+  await p.evaluate(id => { histogramCols([id.A]); }, id); await p.waitForTimeout(400);
+  const H = await p.evaluate(id => yCols().find(c => c.src === id.A && histOf(c.id)).id, id);
+  let r = await p.evaluate(H => { const it = graphMenuItems(H).find(i => i && i.label === "Distribution over it"), sub = it ? it.sub() : [];
+    return { has: !!it, labs: sub.map(i => i.label + (i.enabled === false ? "-" : "")), none: (sub[0] || {}).checked }; }, H);
+  check("the histogram's right-click has Distribution over it: None (ticked), Normal, Log-normal, Exponential", r.has && r.labs.join() === "None,Normal,Log-normal,Exponential" && r.none, JSON.stringify(r));
+  await p.evaluate(H => { graphMenuItems(H).find(i => i && i.label === "Distribution over it").sub().find(i => i.label === "Normal").run(); }, H); await p.waitForTimeout(400);
+  r = await p.evaluate(H => { const c = colById(H), h = histCurve(c, "normal"), d = finalOf(c), path = document.querySelector("#plot path[data-hdist]"), leg = [...document.querySelectorAll("#plot text, #plot [data-rt]")].map(e => e.textContent).join(" | ");
+    const top = Math.max(...d.y), ctop = Math.max(...d.x.map(h.y));
+    return { path: !!path, tip: path && path.querySelector("title").textContent, mu: h.fit.p[0], sd: h.fit.p[1], top, ctop, leg: /Normal: μ = (9\.9|10\.0)/.test(leg) && /mm/.test(leg), legT: leg.slice(0, 300), dist: (GP().series[H] || {}).dist, toast: document.querySelector("#toast") ? document.querySelector("#toast").textContent : "" }; }, H);
+  check("Normal: the curve is drawn over the histogram, its parameters in the legend (with the unit)", r.path && r.leg && r.dist === "normal", JSON.stringify(r));
+  check("…μ and σ found near the values' 10 and 2", Math.abs(r.mu - 10) < 0.15 && Math.abs(r.sd - 2) < 0.12, JSON.stringify([r.mu, r.sd]));
+  check("…as counts: the curve's top within 15 % of the tallest bin", Math.abs(r.ctop / r.top - 1) < 0.15, JSON.stringify([r.top, r.ctop]));
+  check("…its tooltip and the message give Kolmogorov–Smirnov's D and p", /Kolmogorov–Smirnov D = 0\.0/.test(r.tip) && /p ≈/.test(r.tip) && /Kolmogorov–Smirnov/.test(r.toast), JSON.stringify([r.tip, r.toast]));
+  r = await p.evaluate(H => { const v = S.geo && S.geo.v, h = histCurve(colById(H), "normal"); let top = 0; for (let i = 0; i <= 400; i++) { const x = v.x0 + (v.x1 - v.x0) * i / 400; top = Math.max(top, h.y(x)); } return { y1: v.y1, top }; }, H);
+  check("…the view rises to take the curve's top in", r.y1 >= r.top, JSON.stringify(r));
+  r = await p.evaluate(() => { const pic = handPic(600, 400, 1).svg; return { path: /data-hdist/.test(pic), leg: /Normal: /.test(pic) }; });
+  check("…in an export too", r.path && r.leg, JSON.stringify(r));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(400);
+  r = await p.evaluate(H => ({ dist: ((GP().series || {})[H] || {}).dist || null, path: !!document.querySelector("#plot path[data-hdist]"), hist: !!colById(H) }), H);
+  await p.evaluate(() => { redo(); }); await p.waitForTimeout(400);
+  const r2 = await p.evaluate(H => ((GP().series || {})[H] || {}).dist || null, H);
+  check("one undo takes the distribution off again, the histogram kept; redo puts it back", r.dist === null && !r.path && r.hist && r2 === "normal", JSON.stringify([r, r2]));
+  // As a density the curve has area 1; cumulative, it ends at the number of values.
+  await p.evaluate(H => { const s = colById(H).pipe.find(q => q.op === "hist"); setParam(s, "norm", "density", true); }, H); await p.waitForTimeout(400);
+  r = await p.evaluate(H => { const c = colById(H), h = histCurve(c, "normal"), d = finalOf(c), w = d.bins.w; return { area: d.x.reduce((s, x) => s + h.y(x) * w, 0), hist: d.y.reduce((s, y) => s + y * w, 0) }; }, H);
+  check("…as a density the curve's area is 1, as the histogram's", Math.abs(r.area - 1) < 0.01 && Math.abs(r.hist - 1) < 1e-6, JSON.stringify(r));
+  await p.evaluate(H => { setParam(colById(H).pipe.find(q => q.op === "hist"), "norm", "count", true); }, H); await p.waitForTimeout(300);
+  await p.evaluate(H => { setParam(colById(H).pipe.find(q => q.op === "hist"), "cum", true, true); }, H); await p.waitForTimeout(400);
+  r = await p.evaluate(H => { const c = colById(H), h = histCurve(c, "normal"), d = finalOf(c), last = d.x[d.x.length - 1]; return { end: h.y(last), n: d.y[d.y.length - 1], mid: h.y(10 - d.bins.w / 2) }; }, H);
+  check("…cumulative it rises to the number of values, half of them at the mean", Math.abs(r.end - 2000) < 5 && r.n === 2000 && Math.abs(r.mid - 1000) < 60, JSON.stringify(r));
+  await p.evaluate(H => { const s = colById(H).pipe.find(q => q.op === "hist"); setParam(s, "cum", false, true); }, H); await p.waitForTimeout(300);
+  await p.evaluate(H => { setHistDist(H, "lognormal"); }, H); await p.waitForTimeout(400);
+  r = await p.evaluate(H => { const l = P().log.slice(-1)[0]; return { leg: [...document.querySelectorAll("#plot text, #plot [data-rt]")].some(e => /Log-normal: μ = 2\.2/.test(e.textContent)), log: JSON.stringify(l) }; }, H);
+  check("Log-normal: μ of ln x (about ln 10) in the legend, and a log line", r.leg && /log-normal distribution over/.test(r.log), JSON.stringify(r));
+  // Values at or below zero: Log-normal and Exponential are refused, in words.
+  await p.evaluate(id => { histogramCols([id.B]); }, id); await p.waitForTimeout(400);
+  const H2 = await p.evaluate(id => yCols().find(c => c.src === id.B && histOf(c.id)).id, id);
+  r = await p.evaluate(H2 => graphMenuItems(H2).find(i => i && i.label === "Distribution over it").sub().map(i => [i.label, i.enabled !== false, i.title || ""]), H2);
+  check("values at or below zero: Log-normal and Exponential disabled, each saying why", r[1][1] && !r[2][1] && /above zero/.test(r[2][2]) && !r[3][1] && /zero or more/.test(r[3][2]), JSON.stringify(r));
+  r = await p.evaluate(H2 => { setHistDist(H2, "exp"); return { dist: (GP().series[H2] || {}).dist || null, toast: document.querySelector("#toast").textContent }; }, H2);
+  check("…and refused if asked for anyway", r.dist === null && /zero or more/.test(r.toast), JSON.stringify(r));
+  // Kept with the graph across a reload.
+  await p.waitForTimeout(300); await p.reload(); await ready(p); await p.waitForTimeout(400);
+  r = await p.evaluate(H => { const g = P().graphs.find(g => g.cols.includes(H)); return g && (g.plot.series[H] || {}).dist; }, H);
+  check("…and the distribution is kept with the graph across a reload", r === "lognormal", JSON.stringify(r));
+}, { name: "distribution over a histogram" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

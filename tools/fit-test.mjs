@@ -16,7 +16,7 @@ const grab = (tag) => {
 // tools/pipe-test.mjs tests the rest of it. The curve fit's models are a block of
 // their own (MODELS), after the pipeline.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("MODELS")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,countBand,activityOf,effCurve,effAt,fwhmCurve,fwhmAt,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,nuclideSets,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,countBand,activityOf,effCurve,effAt,fwhmCurve,fwhmAt,distFit,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,nuclideSets,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -540,6 +540,18 @@ function fitSpec(X, Y, spec, init, opts) {
   const mean = nets.reduce((p, v) => p + v, 0) / R, sd = Math.sqrt(nets.reduce((p, v) => p + (v - mean) ** 2, 0) / (R - 1)), me = errs.reduce((p, v) => p + v, 0) / R;
   check("counting: unbiased, its error the scatter of 1500 repeats within 6 %", Math.abs(mean - 2000) < 3 * sd / Math.sqrt(R) + 1 && Math.abs(me / sd - 1) < 0.06, JSON.stringify([mean, sd, me]));
   check("counting: on a continuum alone, about 5 % called detected (3 % to 7.5 %)", fp / R > 0.03 && fp / R < 0.075, fp / R);
+}
+/* ---------- a distribution fitted to values ---------- */
+{
+  let s = 53; const u = () => { s = (s * 16807) % 2147483647; return s / 2147483647; }, z = () => Math.sqrt(-2 * Math.log(u() || 1e-12)) * Math.cos(2 * Math.PI * u());
+  const nv = Array.from({ length: 4000 }, () => 5 + 2 * z()), f = N.distFit(nv, "normal");
+  check("distribution: a normal sample's μ and σ within three errors, ∫ f = 1", Math.abs(f.p[0] - 5) < 3 * f.e[0] && Math.abs(f.p[1] - 2) < 3 * f.e[1] && Math.abs(N.trapz ? 1 : 1) === 1 && Math.abs(Array.from({ length: 2001 }, (_, i) => f.pdf(-5 + i * 0.01)).reduce((a, b) => a + b, 0) * 0.01 - 1) < 1e-3, JSON.stringify([f.p, f.e]));
+  check("distribution: the normal fits its own sample (p > 0.01), not an exponential's", f.pks > 0.01 && N.distFit(Array.from({ length: 4000 }, () => -Math.log(u() || 1e-12)), "normal").pks < 1e-6, [f.ks, f.pks]);
+  const lv = nv.map(x => Math.exp(x / 4)), lf = N.distFit(lv, "lognormal");
+  check("distribution: log-normal μ and σ of ln x, its median e^μ", Math.abs(lf.p[0] - 1.25) < 3 * lf.e[0] && Math.abs(lf.p[1] - 0.5) < 3 * lf.e[1] && Math.abs(lf.median - Math.exp(lf.p[0])) < 1e-12, JSON.stringify(lf.p));
+  const ev = Array.from({ length: 4000 }, () => -Math.log(u() || 1e-12) / 0.5), ef = N.distFit(ev, "exp");
+  check("distribution: exponential rate 0.5 within three errors; its CDF", Math.abs(ef.p[0] - 0.5) < 3 * ef.e[0] && Math.abs(ef.cdf(Math.LN2 / ef.p[0]) - 0.5) < 1e-12, JSON.stringify([ef.p, ef.e]));
+  check("distribution: refused in words", /above zero/.test(N.distFit([1, -1, 2], "lognormal").fail) && /zero or more/.test(N.distFit([1, -1, 2], "exp").fail) && /all the same/.test(N.distFit([3, 3, 3], "normal").fail) && /Three values/.test(N.distFit([1, 2], "normal").fail));
 }
 /* ---------- a nuclide named by the set of its lines ---------- */
 {

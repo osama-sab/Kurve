@@ -5583,6 +5583,29 @@ function fitXAt(f,p,cov,fixed,y,a,b,t,n){
     return {x,se,lo:ci?x-t*se:null,hi:ci?x+t*se:null,slope:Number.isFinite(s)?s:null,touch:r.touch}; });
   return res;
 }
+/* A distribution fitted to values by maximum likelihood (roadmap 4, slice 1), to draw over their
+   histogram: normal (μ, σ), log-normal (μ and σ of ln x; x above 0), exponential (rate λ; x 0 and
+   above). σ is the sample's (n − 1), its error σ/√(2(n − 1)); μ's σ/√n; λ's λ/√n. With the
+   Kolmogorov–Smirnov distance D between the values and the fitted distribution, and its p value by
+   Kolmogorov's series (approximate: the parameters come from the same values, so it is generous).
+   {kind, p, e, names, n, pdf, cdf, ks, pks, mean, median} or {fail} in words. */
+const DIST_KINDS=[["normal","Normal"],["lognormal","Log-normal"],["exp","Exponential"]];
+function distFit(vals,kind){
+  const v=(vals||[]).filter(x=>x!=null&&Number.isFinite(x)), n=v.length; if(n<3) return {fail:"Three values at least are needed."};
+  const mean=a=>a.reduce((s,x)=>s+x,0)/a.length, sd=(a,m)=>Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/(a.length-1)), r2=Math.sqrt(2*Math.PI);
+  let r;
+  if(kind==="normal"){ const m=mean(v), s=sd(v,m); if(!(s>0)) return {fail:"The values are all the same."};
+    r={p:[m,s],e:[s/Math.sqrt(n),s/Math.sqrt(2*(n-1))],names:["μ","σ"],pdf:x=>Math.exp(-0.5*((x-m)/s)**2)/(s*r2),cdf:x=>0.5*erfcFn(-(x-m)/(s*Math.SQRT2)),mean:m,median:m}; }
+  else if(kind==="lognormal"){ if(v.some(x=>x<=0)) return {fail:"A log-normal distribution needs values above zero."};
+    const L=v.map(Math.log), m=mean(L), s=sd(L,m); if(!(s>0)) return {fail:"The values are all the same."};
+    r={p:[m,s],e:[s/Math.sqrt(n),s/Math.sqrt(2*(n-1))],names:["μ","σ"],pdf:x=>x>0?Math.exp(-0.5*((Math.log(x)-m)/s)**2)/(x*s*r2):0,cdf:x=>x>0?0.5*erfcFn(-(Math.log(x)-m)/(s*Math.SQRT2)):0,mean:Math.exp(m+s*s/2),median:Math.exp(m)}; }
+  else if(kind==="exp"){ if(v.some(x=>x<0)) return {fail:"An exponential distribution needs values of zero or more."};
+    const m=mean(v); if(!(m>0)) return {fail:"The values are all zero."}; const l=1/m;
+    r={p:[l],e:[l/Math.sqrt(n)],names:["λ"],pdf:x=>x>=0?l*Math.exp(-l*x):0,cdf:x=>x>=0?1-Math.exp(-l*x):0,mean:m,median:Math.LN2*m}; }
+  else return {fail:"No such distribution."};
+  const s=v.slice().sort((a,b)=>a-b); let D=0; s.forEach((x,i)=>{ const F=r.cdf(x); D=Math.max(D,Math.abs(F-i/n),Math.abs((i+1)/n-F)); });
+  const lam=(Math.sqrt(n)+0.12+0.11/Math.sqrt(n))*D; let q=0; if(lam<0.2) q=1; else for(let k=1;k<=100;k++){ const t=2*(k%2?1:-1)*Math.exp(-2*k*k*lam*lam); q+=t; if(Math.abs(t)<1e-14) break; }
+  return Object.assign(r,{kind,n,ks:D,pks:Math.max(0,Math.min(1,q))}); }
 /* A detector's efficiency and resolution against energy (roadmap 3, slice 3).
    `effCurve(pts, deg)`: ln ε a polynomial of degree 1 to 4 in ln E (about the points' mean), fitted to
    {E, eff (%), err (%)}, weighted by the relative errors when every point has one (the covariance as
@@ -7927,6 +7950,22 @@ function fontMenuItems(){
 const PLOT_TYPES=[["line","Line"],["scatter","Symbols"],["linesym","Line + symbols"],["stick","Drop lines"],["column","Columns"],["area","Area"],["step","Steps"]];
 // A histogram's spectrum is drawn as columns unless told otherwise, each a bin wide.
 const histOf=id=>{ const c=colById(id); return !!(c&&(c.pipe||[]).some(s=>s.op==="hist"&&s.on!==false)); };
+/* A histogram's distribution (roadmap 4, slice 1): a curve's `series[id].dist` (`DIST_KINDS`) fitted to
+   the values the histogram counts (the input of its step) by `distFit`, and drawn as the histogram is
+   shown: counts n·w·f(x), probability w·f, percent 100·w·f, density f; cumulative n·F (or F, 100·F)
+   at each bin's right edge. {fit, y(x), text, kind} or {fail}; memoised per input and settings. */
+const DISTM=new WeakMap();
+function histCurve(c,kind){
+  const st=(c&&c.pipe||[]).filter(s=>s.op==="hist"&&s.on!==false).pop(); if(!st) return null;
+  const sg=inputOfStep(st), d=sg&&sg.d, out=finalOf(c), b=out.bins; if(!d||!b) return null;
+  const p=Object.assign({},PIPE_OPS.hist.defaults,st.p), key=kind+"|"+JSON.stringify([p.of,p.norm,p.cum,b.w,b.n]); let m=DISTM.get(d); if(!m){ m={}; DISTM.set(d,m); }
+  if(m[key]) return m[key];
+  const fit=distFit(p.of==="x"?d.x:d.y,kind); if(fit.fail) return m[key]={fail:fit.fail};
+  const norm=p.cum&&p.norm==="density"?"prob":p.norm||"count", k=norm==="count"?b.n:norm==="pct"?100:1, w=b.w;
+  const y=p.cum?(x=>k*fit.cdf(x+w/2)):norm==="density"?(x=>fit.pdf(x)):(x=>k*w*fit.pdf(x));
+  const u=out.xu?" "+out.xu:"", f=(v,e)=>fmtPM(v,e).replace(/<[^>]+>/g,"");
+  const nm=(DIST_KINDS.find(q=>q[0]===kind)||[,kind])[1], ps=fit.names.map((n,i)=>`${n} = ${f(fit.p[i],fit.e[i])}${kind==="normal"?u:""}`).join(", ")+(kind==="exp"?` (mean ${fmt(fit.mean,4)}${u})`:"");
+  return m[key]={fit,y,kind,text:`${nm}: ${ps}`,tip:`${nm} fitted to the ${fit.n} values by maximum likelihood: ${ps}. Kolmogorov–Smirnov D = ${fmt(fit.ks,3)}, p ≈ ${fmt(fit.pks,2)}.`}; }
 const LAYOUTS=[["overlay","Overlay"],["offset","Offset (waterfall)"],["stack","Stacked panels"],["dy","Two Y axes"],["heat","Heat map"],["box","Box chart"],["violin","Violin plot"]];
 const isDistLayout=l=>l==="box"||l==="violin";
 const LEGENDS=[["auto","Emptiest corner"],["tr","Top right"],["tl","Top left"],["br","Bottom right"],["bl","Bottom left"],["out","Outside, right"],["below","Below the graph"],["off","No legend"]];
@@ -9254,7 +9293,11 @@ function buildPlot(W,H,pal,colEx,opt){
         cp.forEach(z=>{ const st=serStyle(z.c.id,z.c===act,pal,colEx,cfg), xs=z.pts.map(q=>q.x).filter(Number.isFinite).sort((p,q)=>p-q); if(!xs.length) return;
           let w=st.bw>0?st.bw:0; if(!w){ const g=[]; for(let i=1;i<xs.length;i++) if(xs[i]>xs[i-1]) g.push(xs[i]-xs[i-1]); g.sort((p,q)=>p-q); w=g.length?g[g.length>>1]:0; }
           a=Math.min(a,xs[0]-w/2); b=Math.max(b,xs[xs.length-1]+w/2); });
-        if(b>a){ const pad=(b-a)*0.02; v=Object.assign({},v,{x0:Math.min(v.x0,v.x1,a-pad),x1:Math.max(v.x0,v.x1,b+pad)}); } } } }
+        if(b>a){ const pad=(b-a)*0.02; v=Object.assign({},v,{x0:Math.min(v.x0,v.x1,a-pad),x1:Math.max(v.x0,v.x1,b+pad)}); } }
+      // A distribution drawn over a histogram is seen whole: the view rises to its top.
+      if(!(cfg.ax.y.max!=null&&cfg.ax.y.max!=="")) cp.forEach(z=>{ const k=((cfg.series||{})[z.c.id]||{}).dist, h=k&&histCurve(z.c,k); if(!h||h.fail) return;
+        let top=-Infinity; for(let i=0;i<=200;i++){ const y=h.y(v.x0+(v.x1-v.x0)*i/200); if(Number.isFinite(y)&&y>top) top=y; }
+        if(top>v.y1) v=Object.assign({},v,{y1:top+(top-v.y0)*0.04}); }); } }
   v=saneView(v,logX,logY);
   // On a curved scale "all the data" is padded in the scale's own coordinates, and any range is kept where it can draw.
   if(fX||fY){ const typed=a=>!!a&&((a.min!=null&&a.min!=="")||(a.max!=null&&a.max!=="")), auto=!ins&&!S.view;
@@ -9288,6 +9331,9 @@ function buildPlot(W,H,pal,colEx,opt){
   if(act&&!heat&&!dist) entries.push(Object.assign({},actSt,{id:act.id,label:(actSt.label||act.name||"Y")+(ps.final?"":` (${stageName(ps)})`)+(dy?" (left)":"")}));
   if(!heat&&!dist) oser.forEach(o=>{ const st=serStyle(o.c.id,false,pal,colEx,cfg); entries.push(Object.assign({},st,{id:o.c.id,label:(st.label||o.c.name||"column")+(dy?onR(o)?" (right)":" (left)":"")})); });
   if(!forExport&&!heat&&!dist) stageLegend(ps,pal).forEach(e=>{ if(showGhost||e.color!==pal.muted) entries.push({type:"line",color:e.color,lw:e.thin?1.3:2.2,dash:e.dash?"dash":"solid",label:e.label}); });
+  // Distributions over histograms: each curve's, in the legend after its histogram.
+  const distOn=(!heat&&!dist&&(!layout||layout==="overlay"))?[act].concat(oser.map(o=>o.c)).filter(c=>c&&((cfg.series||{})[c.id]||{}).dist).map(c=>({c,h:histCurve(c,cfg.series[c.id].dist)})).filter(q=>q.h&&!q.h.fail):[];
+  distOn.forEach(q=>entries.push({type:"line",color:pal.fit,lw:1.8,dash:"solid",label:q.h.text}));
   const fitSt=Object.assign({color:pal.fit,lw:2},(cfg.series||{}).__fit||{});
   if(fit) entries.push({type:"line",color:fitSt.color,lw:fitSt.lw,dash:"solid",label:fitSt.label||(FM&&FM.composite?"fit (sum)":"fit"),id:"__fit",leg:fitSt.leg});
   const pcol=j=>peakColor(j,colEx);
@@ -9594,6 +9640,8 @@ function buildPlot(W,H,pal,colEx,opt){
   if(showGhost){ let gx=[]; for(const q of gpts){ const a=X(q.x), b=Y(q.y); if(Number.isFinite(a)&&Number.isFinite(b)) gx.push([a,b]); } if(decOn(gx.length,forExport)) gx=m4(gx,decW());
     if(gx.length) s+=`<path d="M${gx.map(q=>q[0].toFixed(1)+","+q[1].toFixed(1)).join("L")}" fill="none" stroke="${pal.muted}" stroke-width="1.3" opacity="0.7"/>`; }
   if(!forExport&&!heat&&!dist) s+=stageMarks(ps,X,Y,pal,v,geo,true);
+  distOn.forEach(q=>{ const a=v.x0, b=v.x1, pts=[]; for(let i=0;i<=300;i++){ const x=a+(b-a)*i/300, px=X(x), py=Y(q.h.y(x)); if(Number.isFinite(px)&&Number.isFinite(py)) pts.push(px.toFixed(1)+","+Math.max(-1e4,Math.min(1e4,py)).toFixed(1)); }
+    if(pts.length>1) s+=`<path d="M${pts.join("L")}" fill="none" stroke="${pal.fit}" stroke-width="1.8" data-hdist="${esc(q.c.id)}"${forExport?"":` style="pointer-events:stroke"`}><title>${esc(q.h.tip)}</title></path>`; });
   if(!heat&&!dist&&act){
     // Its error bars, at any stage: what the processing made of them by then.
     const ee=errSvg(errGeom(act,ps.d),pts,actSt,X,Y,pal,isMasked,{logY,yMin:v.y0*1e-3,full:!!colEx});
@@ -10658,6 +10706,10 @@ function seriesAt(ev){
   // Nothing within reach: the plot's own menu, not the active curve's.
   return best;
 }
+// A distribution over a histogram, or none: one undo step, a log line, and its parameters said.
+function setHistDist(id,kind){ const c=colById(id); if(!c) return; const h=kind?histCurve(c,kind):null; if(h&&h.fail){ toast(h.fail); return; }
+  setSeriesStyle(id,{dist:kind||undefined},kind?`fitted a ${(DIST_KINDS.find(q=>q[0]===kind)||[,kind])[1].toLowerCase()} distribution over ${specName(c)}`:`took the distribution off ${specName(c)}`);
+  if(h) toast(`${h.text}. Kolmogorov–Smirnov D = ${fmt(h.fit.ks,3)}, p ≈ ${fmt(h.fit.pks,2)}.`); }
 function setSeriesStyle(id,patch,log){
   const p=P(); if(!p||S.readOnly) return;
   pushUndo("changing the plot style");
@@ -10698,6 +10750,9 @@ function graphMenuItems(id,at){
     if(!isAct) items.push({label:"Make it the active curve",title:"The one the Fit, Results and the tools work on",run:()=>setActiveCol(c.id)},{label:"Take it off this graph",run:()=>toggleColVis(c.id),enabled:!ro});
     items.push({label:"Open in a new graph",run:()=>newGraphFrom([c.id]),enabled:!ro});
     items.push(histOf(c.id)?{label:"Histogram bins…",run:()=>editHistStep(c.id)}:{label:"Histogram of its values",run:()=>histogramCols([c.id]),enabled:!ro});
+    if(histOf(c.id)){ const cur=((GP().series||{})[c.id]||{}).dist||null;
+      items.push({label:"Distribution over it",note:cur?(DIST_KINDS.find(q=>q[0]===cur)||[,""])[1]:"",title:"A distribution fitted to the values by maximum likelihood, drawn over the histogram with its parameters in the legend",
+        sub:()=>[{label:"None",radio:true,checked:!cur,enabled:!ro,run:()=>setHistDist(c.id,null)}].concat(DIST_KINDS.map(([k,l])=>{ const h=histCurve(c,k); return {label:l,radio:true,checked:cur===k,enabled:!ro&&!(h&&h.fail),title:h&&h.fail?h.fail:"",run:()=>setHistDist(c.id,k)}; }))}); }
   }
   // A map is cut where it was clicked: the profile at that X, or the spectrum at that value of the series.
   if(at&&at.pt&&at.pt.inside&&S.geo&&S.geo.heat&&!S.geo.dist){ const x=+(+at.pt.x).toPrecision(6), near=mapNearest(at.pt.y), xu=finalOf(act).xu||"";
@@ -21287,12 +21342,14 @@ ${DL([["An image","The colours, smooth."],["Filled contours","One colour for eac
 <p>Right-click the map where you want to cut it:</p>
 ${DL([["The profile at one X","A trend graph of every column's value at that X against the series variable, and a dashed line on the map where it is. Its quantity, <em>Value at …</em>, can be added to any trend graph."],["The column at one value","The column measured nearest it, on a graph of its own."]])}
 <p>The status bar reads X, the series value and the value under the pointer.</p>`},
-{id:"dists", g:"Graph", t:"Distributions: histograms, boxes and violins", kw:"histogram bins bin width frequency count probability density percent cumulative distribution box chart box plot boxplot whisker whiskers quartile quartiles median interquartile iqr outlier outliers tukey violin kernel density kde bandwidth silverman column chart bar chart columns bars categories",
+{id:"dists", g:"Graph", t:"Distributions: histograms, boxes and violins", kw:"histogram bins bin width frequency count probability density percent cumulative distribution normal gaussian log-normal lognormal exponential maximum likelihood kolmogorov smirnov goodness distfit box chart box plot boxplot whisker whiskers quartile quartiles median interquartile iqr outlier outliers tukey violin kernel density kde bandwidth silverman column chart bar chart columns bars categories",
  lead:"How a column's values are spread: counted into bins as a histogram, or summed up per column as boxes or violins side by side.",
  body:`<h2>Histograms</h2>
 <p>Select columns in the worksheet and press ${MP("Plot › Histogram")} on the worksheet's bar, or use ${MP("Analyze › Statistics › Histogram")} (the selected columns, or the active one). Each histogram is a column of its own, <em>Histogram of …</em>, made from the column's processed data by a <em>Histogram</em> step, on a graph of its own (several go in one figure, a panel each). As it is a step, it follows the processing: change a value, mask a point, and the counts change with it.</p>
 ${DL([["Bins","Chosen for the data (Freedman–Diaconis: twice the interquartile range over the cube root of the count, rounded to 1, 2, 2.5 or 5 times a power of ten), Sturges' or the square-root rule, a number of bins, or a width you type. A start you type puts the first edge there; left empty, it is a whole number of widths below the smallest value."],["Shown as","Counts, the probability or percent of the values in each bin, or a density (the probability over the bin's width, so the columns' area is 1 and a fitted distribution can be compared with it)."],["Cumulative","Each bin with all those before it: the cumulative probability rises to 1."],["Values left out","Values below the start you typed are not counted, and the step says how many."]])}
 <p>Change the bins in the History (the step's box) or with the histogram's right-click <em>Histogram bins…</em>. A histogram is fitted like any column: a Gaussian through it gives the mean and width of the values.</p>
+<h3 id="dist">A distribution over it</h3>
+<p>Right-click the histogram › <em>Distribution over it</em> › Normal, Log-normal or Exponential: the distribution is fitted to the values themselves (not to the bins), by maximum likelihood, and drawn over the columns as they are shown: counts, probability, percent, a density or cumulative. Its parameters and their standard errors are in the legend (μ and σ; for a log-normal, μ and σ of the logarithm of the values; for an exponential, the rate λ and the mean), and the message and the curve's tooltip add the Kolmogorov–Smirnov distance D between the values and the distribution with its p value (generous, since the parameters come from the same values). A log-normal needs values above zero, an exponential values of zero or more; otherwise they are greyed, with the reason. The distribution follows the histogram: change its bins or the data and it is fitted again. <em>None</em> takes it off; each change is one undo step.</p>
 <h2>Columns</h2>
 <p><em>Columns</em> is a plot type for any curve: a bar from zero to each value, as wide as the histogram's bins or, for other data, most of the space between two points. Several columns as columns on one graph stand side by side within each X.</p>
 <h2 id="box">Box charts and violins</h2>

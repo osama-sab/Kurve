@@ -889,6 +889,22 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: a distribution over a histogram (roadmap 4, slice 1)
+
+- **Fitted to the values, not the bins.** A Gaussian curve fit through a histogram's columns
+  depends on the bins chosen; the distribution is fitted to the values themselves by maximum
+  likelihood, so it is the same whatever the bins, and is drawn in whatever the histogram shows
+  (counts, probability, percent, a density, cumulative).
+- **Where the histogram is.** It is the histogram's right-click, *Distribution over it*, with
+  None first: a choice of one among few, ticked, with a kind the values cannot have greyed and its
+  reason as the tooltip, rather than a dialog.
+- **Its numbers are in the legend**, with their errors (the unit beside a normal's μ and σ; a
+  log-normal's are of the logarithm, so they have none), as the graph will be printed; how well it
+  fits (Kolmogorov–Smirnov's D and p) is in the message and the curve's tooltip, where it is read
+  once and not printed.
+- **In the fit's colour**, as a fitted curve, and the automatic view rises to its top so it is
+  never cut.
+
 ### 2026-11-05: counting spectra, slice 5 (region edges dragged on the graph)
 
 - **Where a region is, it moves.** The Peaks window's regions were typed or dragged out new; to move
