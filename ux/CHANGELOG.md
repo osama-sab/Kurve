@@ -1024,6 +1024,21 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plots, slice 3: stacked columns and names along X (2026-11-06)
+
+- A column curve's right-click has *Columns*: Side by side, Stacked, Stacked to 100 % (also on the
+  Format pane's layout page). Stacked, each column curve stands on the ones before it at the same
+  X, values below zero downward, the view taking in the stacks; to 100 %, each column is its share,
+  Y is titled Share (%) and the legend goes below. The legend's corner keeps clear of the stacks.
+- *Names along X…* (the X axis's right-click, and under *Columns*): a name for each X value of the
+  graph's curves, written under it in place of the number, in every export; one undo step; more
+  than 60 X values is refused in words.
+
+Checked: `tools/plot-drive.mjs` (12 new: the menu, a stacked column from where the one before it
+ends, the whole width, the view, to 100 % with its title and the legend below, undo, an export and
+saved styles, the names typed in the dialog and drawn, undo, names from storage that do not read,
+the refusal).
+
 ## Plots, slice 2: boxes grouped by another column, notched boxes (2026-11-06)
 
 - A box or violin chart can be *Grouped by* a column of the sheet (its right-click's Box chart menu,

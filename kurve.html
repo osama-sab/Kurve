@@ -8162,8 +8162,10 @@ function seriesSvg(pts,st,X,Y,geo,pal,masked){
   if(st.type==="column"&&keep.length){ const ord=keep.filter(q=>Number.isFinite(q.x)&&Number.isFinite(q.y)).sort((a,b)=>a.x-b.x);
     let w=st.bw>0?st.bw:0; if(!w){ const g=[]; for(let i=1;i<ord.length;i++){ const dx=ord[i].x-ord[i-1].x; if(dx>0) g.push(dx); } g.sort((a,b)=>a-b); w=(g.length?g[g.length>>1]:1)*0.8; }
     const n=Math.max(1,st.cgn||1), k=Math.min(n-1,Math.max(0,st.cgk||0)), sub=w/n; let d="";
-    ord.forEach(q=>{ const a=X(q.x-w/2+k*sub), b=X(q.x-w/2+(k+1)*sub), y=Y(q.y); if(!Number.isFinite(a)||!Number.isFinite(b)||!Number.isFinite(y)) return;
-      d+=`M${f1(Math.min(a,b))},${f1(zero)}V${f1(y)}H${f1(Math.max(a,b))}V${f1(zero)}Z`; });
+    ord.forEach(q=>{ const a=X(q.x-w/2+k*sub), b=X(q.x-w/2+(k+1)*sub); let y=Y(q.y), z=zero;
+      if(st.stk){ const r=st.stk.get(+(+q.x).toPrecision(12)); if(!r) return; z=Math.max(geo.T,Math.min(geo.T+geo.mh,Y(r[0]))); y=Y(r[1]); }
+      if(!Number.isFinite(a)||!Number.isFinite(b)||!Number.isFinite(y)) return;
+      d+=`M${f1(Math.min(a,b))},${f1(z)}V${f1(y)}H${f1(Math.max(a,b))}V${f1(z)}Z`; });
     if(d) s+=`<path d="${d}" fill="${col}" fill-opacity="${(Math.max(0.15,Math.min(1,0.85*st.op))).toFixed(2)}" stroke="${pal.bg}" stroke-width="${st.bw>0||n>1?0.7:0.9}"/>`+hatchSvg(d,st.hatch,col,"hc-"+(st.hid||"s"),{L:geo.L!=null?geo.L:0,T:geo.T,W:geo.pw!=null?geo.pw:2000,H:geo.mh}); }
   if(st.type==="stick"){ let d=""; (dec?m4(xy0,dw/2):xy).forEach(q=>{ d+=`M${f1(q[0])},${f1(zero)}V${f1(q[1])}`; }); if(d) s+=`<path d="${d}" stroke="${col}" stroke-width="${st.lw}" fill="none"${op}/>`; }
   if(ln&&dash!==null&&xy.length>1){
@@ -9304,10 +9306,25 @@ function buildPlot(W,H,pal,colEx,opt){
     if(ax.y.min!=null&&ax.y.min!=="") v.y0=+ax.y.min; if(ax.y.max!=null&&ax.y.max!=="") v.y1=+ax.y.max;
     if(logY&&!(v.y0>0)) v.y0=Math.max(1e-300,v.y1/1e6); if(logX&&!(v.x0>0)) v.x0=Math.max(1e-300,v.x1/1e6);
   }
+  /* Stacked columns (cfg.colStack "stack", or "pct" to 100 %): the column curves of an overlaid graph
+     (left axis), in the table's order, each on the ones before it at the same X (to twelve digits),
+     values above zero upward and below it downward; in percent, each of the sum of the sizes there.
+     {m: {id: Map(x → [from, to])}, lo, hi, mode, ids}, or null. */
+  const colStk=(()=>{ const mode=cfg.colStack; if((mode!=="stack"&&mode!=="pct")||layout!=="overlay"||ins||!ps.final||logY) return null;
+    const by=yCols().map(c=>c===act?{c,pts}:oser.find(o=>o.c===c&&!onR(o))).filter(z=>z&&z.c&&serStyle(z.c.id,z.c===act,pal,colEx,cfg).type==="column");
+    if(by.length<2) return null;
+    const key=x=>+(+x).toPrecision(12), ok=(z,q)=>Number.isFinite(q.x)&&Number.isFinite(q.y)&&!(z.c===act&&isMasked(q.i)), tot=new Map();
+    if(mode==="pct") by.forEach(z=>z.pts.forEach(q=>{ if(ok(z,q)){ const k=key(q.x); tot.set(k,(tot.get(k)||0)+Math.abs(q.y)); } }));
+    const up=new Map(), dn=new Map(), m={}; let lo=0, hi=0;
+    by.forEach(z=>{ const mm=new Map(); z.pts.forEach(q=>{ if(!ok(z,q)) return; const k=key(q.x), t=tot.get(k), y=mode==="pct"?(t>0?q.y/t*100:0):q.y, M=y>=0?up:dn, b=M.get(k)||0;
+      M.set(k,b+y); mm.set(k,[b,b+y]); if(b+y<lo) lo=b+y; if(b+y>hi) hi=b+y; }); m[z.c.id]=mm; });
+    return {m,lo,hi,mode,ids:by.map(z=>z.c.id)}; })();
   // Columns stand on zero: with no zoom and no typed limit, the view takes it in.
   if(!ins&&!S.view&&layout!=="heat"&&!logY&&!(cfg.ax.y.min!=null&&cfg.ax.y.min!=="")){
     const cp=[{c:act,pts}].concat(layout==="overlay"?oser:[]).filter(z=>z.c&&serStyle(z.c.id,z.c===act,pal,colEx,cfg).type==="column");
     if(cp.length){ let lo=Infinity, hi=-Infinity; cp.forEach(z=>z.pts.forEach(q=>{ if(Number.isFinite(q.y)){ if(q.y<lo) lo=q.y; if(q.y>hi) hi=q.y; } }));
+      // Stacked, the view takes in the stacks' ends.
+      if(colStk){ lo=colStk.lo; hi=colStk.hi; const pad=(hi-lo)*0.04||1; if(!(cfg.ax.y.max!=null&&cfg.ax.y.max!=="")&&hi>0) v=Object.assign({},v,{y1:hi+pad}); if(lo<0) v=Object.assign({},v,{y0:lo-pad}); }
       if(lo>=0) v=Object.assign({},v,{y0:0}); else if(hi<=0) v=Object.assign({},v,{y1:0});
       // and whole columns at both ends: each half a bin (or half a step) beyond its centre.
       if(!logX&&!(cfg.ax.x.min!=null&&cfg.ax.x.min!=="")&&!(cfg.ax.x.max!=null&&cfg.ax.x.max!=="")){ let a=Infinity, b=-Infinity;
@@ -9381,7 +9398,8 @@ function buildPlot(W,H,pal,colEx,opt){
   const LS=TS.legend, lh=lfs*numOr(cfg.legendSp,1)+5, lpad=6, legLine=Math.max(6,Math.min(80,numOr(cfg.legendLine,18)));
   const labOf=e=>e.label.length>60?e.label.slice(0,59)+"…":e.label;
   const colW=entries.reduce((m,e)=>Math.max(m,richW(labOf(e),LS)),20)+legLine+6;
-  const legOn=cfg.legend!=="off"&&entries.length>(cfg.legend==="auto"?1:0), below=cfg.legend==="below";
+  // Stacked to 100 %, every stack reaches the top: the legend goes below unless placed.
+  const legOn=cfg.legend!=="off"&&entries.length>(cfg.legend==="auto"?1:0), below=cfg.legend==="below"||((cfg.legend||"auto")==="auto"&&!!colStk&&colStk.mode==="pct");
   let legNc=Math.max(1,Math.min(entries.length||1,Math.round(numOr(cfg.legendCols,1))));
   if(below&&(cfg.legendCols==null||cfg.legendCols==="")) legNc=Math.max(1,Math.min(entries.length||1,Math.floor((W-40)/(colW+10+lpad))));
   const legRows=Math.ceil(entries.length/legNc), ltw=legTitle?richW(legTitle,Object.assign({},LS,{b:true}))+lpad*2:0;
@@ -9436,7 +9454,9 @@ function buildPlot(W,H,pal,colEx,opt){
   let xlh=0, xEnd=0;
   // X ticks as many as their numbers fit side by side: on a time axis in
   // nanoseconds each reads 1.70000002×10^18, and 85 px apart they overlapped.
-  const xTicks=(lo,hi,avail)=>{ if(dist) return {ticks:distG?distG.keys.map((g,j)=>({v:j+1,lab:fmt(g,6)})):distC.map((c,k)=>({v:k+1,lab:specName(c).slice(0,28)})),minor:[],step:1};
+  const xCatsAll=!dist&&!heat&&!fX&&!logX?catsOf(cfg.ax.x):[];
+  const xTicks=(lo,hi,avail)=>{ const xc=xCatsAll.filter(q=>q[0]>=Math.min(lo,hi)&&q[0]<=Math.max(lo,hi)); if(xc.length) return {ticks:xc.map(q=>({v:q[0],lab:q[1]})),minor:[],step:xc.length>1?Math.abs(xc[1][0]-xc[0][0]):1};
+    if(dist) return {ticks:distG?distG.keys.map((g,j)=>({v:j+1,lab:fmt(g,6)})):distC.map((c,k)=>({v:k+1,lab:specName(c).slice(0,28)})),minor:[],step:1};
     if(fX) return scaleTicks(lo,hi,avail,fX,cfg.ax.x,{lw:l=>XA.rot===90?TK.size*1.3:labW(l,TK)*(XA.rot===45?0.75:1),rot:XA.rot===90?90:0,size:TK.size});
     let tg=avail/(85*tkDen), r=axisTicks(lo,hi,tg,cfg.ax.x,logX);
     if(logX||+cfg.ax.x.step>0) return r;
@@ -9490,7 +9510,7 @@ function buildPlot(W,H,pal,colEx,opt){
   let SY=axScale(v.y0,v.y1,fY||logY,brY,brY.length?10/mh:0), Y=brY.length||fY?(y=>T+mh-SY.f(y)*mh):mkY(v.y0,v.y1,T,mh,logY);
   if(yR) yR.Y=mkY(yR.y0,yR.y1,T,mh,logY);
   if(heat){ v=Object.assign({},v,mapS?{y0:mapS.lo,y1:mapS.hi}:{y0:-0.5,y1:oser.length+0.5}); Y=mkY(v.y0,v.y1,T,mh,false); SY=axScale(v.y0,v.y1,false,[],0); }
-  const geo={L,pw,T,mh,v,full:!!colEx,logY:heat?false:logY,logX:dist?false:logX,W,H,X,Y,revX,handles:[],heat:heat||dist,dist,distC,distK:distK?distK.map(q=>({x:q.x,w:q.w,c:q.c,g:q.g})):null,distBy,axes:null,sx:SX,sy:SY,rx:SX.rate/pw,ry:SY.rate/mh,brk:SX.gaps.length+SY.gaps.length,fx:fX,fy:fY};
+  const geo={L,pw,T,mh,v,full:!!colEx,logY:heat?false:logY,logX:dist?false:logX,W,H,X,Y,revX,handles:[],heat:heat||dist,colStk:colStk?{mode:colStk.mode,ids:colStk.ids}:null,dist,distC,distK:distK?distK.map(q=>({x:q.x,w:q.w,c:q.c,g:q.g})):null,distBy,axes:null,sx:SX,sy:SY,rx:SX.rate/pw,ry:SY.rate/mh,brk:SX.gaps.length+SY.gaps.length,fx:fX,fy:fY};
   // The second X axis's numbers, now that the plot's width is known.
   let x2L=null; if(x2c&&!x2c.err){ x2L=x2Layout(x2c.f,SX,pw,{ax:cfg.ax.x2,lw:l=>labW(l,TK),rot:X2.rot,size:TK.size}); if(x2L.err){ geo.x2err=x2L.err; x2L=null; } } else if(x2c&&x2c.err) geo.x2err=x2c.err;
   let yoL=null; if(yoc&&!yoc.err){ yoL=x2Layout(yoc.f,SY,mh,{ax:cfg.ax.yo,lw:()=>TK.size,rot:90,size:TK.size}); if(yoL.err){ geo.yoerr=yoL.err.replace(/X range/g,"Y range").replace(/a negative wavelength…/,"a logarithm of zero or less…"); yoL=null; } } else if(yoc&&yoc.err) geo.yoerr=yoc.err;
@@ -9657,7 +9677,8 @@ function buildPlot(W,H,pal,colEx,opt){
   // A series' symbols coloured or sized by a column, and its hatching's own ids.
   // Several spectra as columns on one graph stand side by side, in the table's order.
   const colGrp=layout==="overlay"?yCols().filter(c=>(c===act||oser.some(o=>o.c===c))&&serStyle(c.id,c===act,pal,colEx,cfg).type==="column").map(c=>c.id):[];
-  const zSt=(st,q,id)=>{ const cg=colGrp.indexOf(id); st=cg>=0&&colGrp.length>1?Object.assign({},st,{cgk:cg,cgn:colGrp.length}):st; const z=st.zcol&&(st.type==="scatter"||st.type==="linesym")?zMapOf(st.zcol,q,cfg.cmap,"color"):null, sz=st.scol&&(st.type==="scatter"||st.type==="linesym")?zMapOf(st.scol,q,cfg.cmap,"size"):null;
+  const zSt=(st,q,id)=>{ const cg=colStk?-1:colGrp.indexOf(id); st=cg>=0&&colGrp.length>1?Object.assign({},st,{cgk:cg,cgn:colGrp.length}):st;
+    if(colStk&&colStk.m[id]) st=Object.assign({},st,{stk:colStk.m[id],eb:"none"}); const z=st.zcol&&(st.type==="scatter"||st.type==="linesym")?zMapOf(st.zcol,q,cfg.cmap,"color"):null, sz=st.scol&&(st.type==="scatter"||st.type==="linesym")?zMapOf(st.scol,q,cfg.cmap,"size"):null;
     return Object.assign({},st,{zf:z?z.at:null,sf:sz?sz.at:null,hid:id}); };
   // The area between two spectra, filled, under them all (overlaid only).
   if(layout==="overlay"&&!heat){ const all=[{c:act,pts}].concat(oL).filter(z=>z.c&&(z.c===act||!cfg.hidden.includes(z.c.id)));
@@ -9680,7 +9701,7 @@ function buildPlot(W,H,pal,colEx,opt){
     if(pts.length>1) s+=`<path d="M${pts.join("L")}" fill="none" stroke="${pal.fit}" stroke-width="1.8" data-hdist="${esc(q.c.id)}"${forExport?"":` style="pointer-events:stroke"`}><title>${esc(q.h.tip)}</title></path>`; });
   if(!heat&&!dist&&act){
     // Its error bars, at any stage: what the processing made of them by then.
-    const ee=errSvg(errGeom(act,ps.d),pts,actSt,X,Y,pal,isMasked,{logY,yMin:v.y0*1e-3,full:!!colEx});
+    const ee=errSvg(errGeom(act,ps.d),pts,colStk&&colStk.m[act.id]?Object.assign({},actSt,{eb:"none"}):actSt,X,Y,pal,isMasked,{logY,yMin:v.y0*1e-3,full:!!colEx});
     s+=`<g data-ser="${act.id}">${ee.under}${seriesSvg(pts,zSt(actSt,pts,act.id),X,Y,geo,pal,maskOf(act).length?isMasked:null)}${ee.over}</g>`+labSvg(act.id,pts,Y,actSt.color);
     if(layout==="offset"&&oser.length&&pts.length){ const last=pts.reduce((m,z)=>(revX?z.x<m.x:z.x>m.x)?z:m,pts[0]), lyp=Y(last.y);
       if(Number.isFinite(lyp)&&lyp>T&&lyp<T+mh) s+=richText((actSt.label||act.name||"").slice(0,40),{x:L+pw-4,y:lyp-4,anchor:"end",st:Object.assign({},LSc,{b:true}),fill:actSt.color}); }
@@ -9900,7 +9921,7 @@ function buildPlot(W,H,pal,colEx,opt){
   // The axis titles, beside their numbers, wherever the axes went.
   // A box or violin chart is titled by what its values are: one name and unit, or one unit, or "Value".
   const distYl=dist?(()=>{ const ds=distC.map(finalOf), nm=new Set(ds.map(d=>d.yn0||d.yn||"")), un=new Set(ds.map(d=>d.yu||"")); return axisLabel(nm.size===1&&distC.length===1?[...nm][0]:"Value",un.size===1?[...un][0]:"","Value"); })():"";
-  const yl=cfg.ax.y.title||(heat?(mapS?seriesLabel():"Column"):dist?distYl:autoYTitle(ps.d,others,layout)), xl=cfg.ax.x.title||(dist?(distG?axisLabel(distBy.name||colLetter(distBy),distBy.unit,colLetter(distBy)):""):axisLabel(ps.d.xn,ps.d.xu,"X"));
+  const yl=cfg.ax.y.title||(heat?(mapS?seriesLabel():"Column"):dist?distYl:colStk&&colStk.mode==="pct"?"Share (%)":autoYTitle(ps.d,others,layout)), xl=cfg.ax.x.title||(dist?(distG?axisLabel(distBy.name||colLetter(distBy),distBy.unit,colLetter(distBy)):""):axisLabel(ps.d.xn,ps.d.xu,"X"));
   if(YA.tshow){ const ys0=drawn.ySide, wy=ypM==="left"&&!YA.off?Math.max(drawn.yW,drawn.pW):drawn.yW, band=tkOut(YA.dir,YA.len)+5+(wy?wy+6:1);
     const tx=(ys0<0?drawn.yAx-band-AT("y").size*0.22:drawn.yAx+band+AT("y").size*0.22)+YA.tdx, al=axAlign(YA,AT("y"));
     const ty=(al==="start"?T+mhAll:al==="end"?T:T+mhAll/2)+YA.tdy, anc=ys0<0?(al==="start"?"start":al==="end"?"end":"middle"):(al==="start"?"end":al==="end"?"start":"middle");
@@ -9932,6 +9953,8 @@ function buildPlot(W,H,pal,colEx,opt){
     else if(corners[cfg.legend]) [bx,by]=corners[cfg.legend];
     else { const step=Math.max(1,Math.floor(pts.length/1500)); let fewest=Infinity;
       const all=dist?[].concat(...distK.map(q=>{ const b=boxStats(q.vals); return b?[b.min,b.q1,b.med,b.q3,b.max].flatMap(y=>[-0.34,0,0.34].map(d=>({x:q.x+d*q.w,y}))):[]; }))
+        :colStk?(()=>{ const xs=[...new Set([].concat(...Object.values(colStk.m).map(mm=>[...mm.keys()])))].sort((a,b)=>a-b), gs=xs.slice(1).map((x,i)=>x-xs[i]).sort((a,b)=>a-b), hw=(gs.length?gs[gs.length>>1]:1)*0.4;
+          return [].concat(...Object.values(colStk.m).map(mm=>[...mm].flatMap(([x,r])=>[-hw,0,hw].flatMap(d=>Array.from({length:9},(_,i)=>({x:x+d,y:r[0]+(r[1]-r[0])*i/8})))))); })()
         :pts.concat(...oser.map((o,k)=>layout==="offset"?shiftPts(o.pts,k+1):layout==="overlay"&&!onR(o)?o.pts:[]));
       Object.values(corners).forEach(([cx,cy])=>{ if(cy<T) return; let k=0;
         for(let ii=0;ii<all.length;ii+=step){ const px=X(all[ii].x), py=Y(all[ii].y); if(px>=cx-4&&px<=cx+boxW+4&&py>=cy-4&&py<=cy+boxH+4) k++; }
@@ -10675,6 +10698,7 @@ function axisMenuItems(k){
   if(k==="x"||k==="y"){ const nb=((((cfg.ax||{})[k]||{}).brk)||[]).length;
     items.push("-",{label:"Break the axis…",enabled:!ro,run:()=>breakDlg(k)});
     if(nb) items.push({label:nb===1?"Remove the break":`Remove the ${nb} breaks`,enabled:!ro,run:()=>clearBreaks(k)}); }
+  if(k==="x") items.push({label:"Names along X…",checked:catsOf((cfg.ax||{}).x).length>0,enabled:!ro,title:"A name for each X value, written under it in place of the number",run:()=>catNamesDlg()});
   if(k==="x") items.push({label:"A second X axis in other units…",checked:!!((cfg.ax||{}).x2||{}).on,enabled:!ro,run:showX2});
   if(k==="y"&&!["dy","heat","stack"].includes(cfg.layout)&&!hasRight(cfg)) items.push({label:"A second Y axis in other units…",checked:!!((cfg.ax||{}).yo||{}).on,enabled:!ro,run:showYo});
   if(k==="yo") items.push("-",{label:"Hide the second Y axis",enabled:!ro,run:()=>setAxisKeys("yo",{on:false},"hid the second Y axis")});
@@ -10753,6 +10777,26 @@ function setSeriesStyle(id,patch,log){
   const series=Object.assign({},GP().series||{}); series[id]=Object.assign({},series[id]||{},patch);
   savePlot({series},log||null); renderTop(); renderPlot();
 }
+/* Columns of several curves: side by side, stacked, or stacked to 100 % (`cfg.colStack`, a format);
+   `colStackItems()` the curve's right-click *Columns*. Names along X (`ax.x.cats`, [[x, name]], data
+   not format): `catsOf(ax)` cleaned (finite X, a name of 60 characters at most, 200 at most, sorted),
+   drawn on the axis in place of its numbers where they are; `catNamesDlg()` a name for each X value of
+   the graph's curves (60 at most), one undo step. */
+const COL_STACK=[["side","Side by side"],["stack","Stacked"],["pct","Stacked to 100 %"]];
+function colStackItems(){ const cfg=plotCfg(), ro=S.readOnly||!P(), cur=cfg.colStack==="stack"||cfg.colStack==="pct"?cfg.colStack:"side";
+  return COL_STACK.map(([k,l])=>({label:l,radio:true,checked:cur===k,enabled:!ro,run:()=>setPlotKey("colStack",k==="side"?null:k,k==="side"?"put the columns side by side":k==="stack"?"stacked the columns":"stacked the columns to 100 %")}))
+    .concat(["-",{label:"Names along X…",enabled:!ro,title:"A name for each X value, written under it in place of the number",run:()=>catNamesDlg()}]); }
+function catsOf(ax){ const a=ax&&Array.isArray(ax.cats)?ax.cats:[]; const out=[];
+  for(const q of a){ if(!Array.isArray(q)||q.length<2) continue; const x=q[0]==null||q[0]===""||typeof q[0]==="boolean"?NaN:+q[0], n=typeof q[1]==="string"?q[1].trim().slice(0,60):""; if(Number.isFinite(x)&&n&&!out.some(o=>o[0]===x)) out.push([x,n]); if(out.length>=200) break; }
+  return out.sort((a,b)=>a[0]-b[0]); }
+function catXs(){ const s=new Set(); graphCols().forEach(c=>{ (finalOf(c).x||[]).forEach(x=>{ if(x!=null&&Number.isFinite(x)) s.add(+(+x).toPrecision(12)); }); }); return [...s].sort((a,b)=>a-b); }
+async function catNamesDlg(){ const p=P(); if(!p||S.readOnly||!GID()) return; const xs=catXs();
+  if(!xs.length){ toast("The graph has no X values to name."); return; }
+  if(xs.length>60){ toast(`The graph's curves have ${xs.length} different X values: names are for a few, such as the X of columns.`); return; }
+  const cur=new Map(catsOf((GP().ax||{}).x).map(q=>[q[0],q[1]])), xu=finalOf(activeYCol()).xu||"";
+  const r=await formDlg({title:"Names along X",html:`<p class="lab">Each name is written under its X value in place of the number. Leave one empty for its number.</p><div class="grid2">${xs.map((x,i)=>`<label for="catN${i}">${esc(fmt(x,6))}${xu?" "+esc(xu):""}</label><input id="catN${i}" type="text" maxlength="60" value="${esc(cur.get(x)||"")}">`).join("")}</div>`,focus:"#catN0"});
+  if(!r) return; const cats=xs.map((x,i)=>[x,(r["catN"+i]||"").trim().slice(0,60)]).filter(q=>q[1]);
+  setAxisKeys("x",{cats:cats.length?cats:null},cats.length?`named ${cats.length===1?"an X value":cats.length+" X values"} (${cats.slice(0,3).map(q=>q[1]).join(", ")}${cats.length>3?"…":""})`:"took the names off the X values"); }
 function setPlotKey(k,val,log){ const p=P(); if(!p||S.readOnly) return; pushUndo("changing the plot"); savePlot({[k]:val},log||null); if(k==="layout"||k==="logX") S.view=null; renderTop(); renderPlot(); }
 function graphMenuItems(id,at){
   const p=P(), cfg=plotCfg(), ro=S.readOnly||!p, c=id&&id!=="__fit"?colById(id):null, act=activeYCol(), isAct=c&&c===act;
@@ -10774,6 +10818,7 @@ function graphMenuItems(id,at){
       {swatches:SER_COLORS,current:st.color,pick:col=>setSeriesStyle(c.id,{color:col},`changed the colour of ${specName(c)}`),enabled:!ro},
       {label:"Line, symbols and colour…",run:()=>openPlotDetails(c.id,"series")},
       {label:"Plot type",sub:()=>plotTypeItems(c,ro)},
+      ...(st.type==="column"?[{label:"Columns",note:(COL_STACK.find(q=>q[0]===(cfg.colStack||"side"))||COL_STACK[0])[1],sub:()=>colStackItems()}]:[]),
       {label:"Connect",sub:()=>CONN_KINDS.map(([k,l])=>({label:l,radio:true,checked:st.conn===k,enabled:!ro,run:()=>setSeriesStyle(c.id,{conn:k},`joined the points of ${specName(c)} by ${l.toLowerCase()}`)}))},
       {label:"Fill between it and",sub:()=>[{label:"Nothing",radio:true,checked:!st.fillTo,enabled:!ro,run:()=>setSeriesStyle(c.id,{fillTo:""},`left the area by ${specName(c)} unfilled`)}].concat(yCols().filter(o=>o!==c&&graphShows(o)).map(o=>({label:specName(o),radio:true,checked:st.fillTo===o.id,enabled:!ro,run:()=>setSeriesStyle(c.id,{fillTo:o.id},`filled between ${specName(c)} and ${specName(o)}`)})))},
       hasErrCols(c.id)||(finalOf(c).e||[]).some(v=>v>0)?{label:"Error bars",sub:()=>[{group:errSourceText(c)}].concat([["bars","Bars"],["band","A shaded band"],["box","Boxes (X and Y)"],["none","None"]].map(([k,l])=>({label:l,radio:true,checked:st.eb===k,enabled:!ro,run:()=>setSeriesStyle(c.id,{eb:k},`drew the error bars of ${specName(c)} as ${l.toLowerCase()}`)})))}:null);
@@ -11351,6 +11396,7 @@ function renderPlotDetails(o){
         +((cfg.mapKind||"image")!=="image"?`<label for="pdMl">Levels</label>${cmb("pdMl",numOr(cfg.mapLevels,8),"mapLevels",3,30,CMB.lev)}`+chk("pdMlb","mapLab",cfg.mapLab!==false,"Number the contour lines"):""):"")
       +(isDistLayout(cfg.layout)?`<label for="pdDw">Whiskers</label>${sel("pdDw",DIST_WHISK,cfg.distWhisk==="range"?"range":"tukey","distWhisk")}`+chk("pdDp","distPts",!!cfg.distPts,"Show the values")+(cfg.layout==="box"?chk("pdDn","distNotch",!!cfg.distNotch,"Notches"):"")
         +`<label for="pdDb">Grouped by</label>${sel("pdDb",[["","Nothing"]].concat(distByOpts().filter(o=>!o.why).map(o=>[o.c.id,`${colLetter(o.c)} ${o.c.name||""}`.trim()])),colById(cfg.distBy||"")?cfg.distBy:"","distBy")}`:"")
+      +(cfg.layout==="overlay"||!cfg.layout?`<label for="pdCs">Columns</label>${sel("pdCs",COL_STACK,cfg.colStack==="stack"||cfg.colStack==="pct"?cfg.colStack:"side","colStack")}`:"")
       +chk("pdAxM","axisMatch",cfg.axisMatch!==false,"On two Y axes, colour each axis like its curve"));
     { const cur=cfg.scheme||"kurve", schs=Object.entries(SCHEMES).filter(([k,v])=>!v.hide||k===cur);
       h+=grp("Colours",wide(`<div class="pdgh" id="pdSchL">Curves</div><div class="pgal pdsch" role="radiogroup" aria-labelledby="pdSchL">${schs.map(([k,v])=>`<button type="button" role="radio" data-pdscheme="${k}" aria-checked="${k===cur}" title="${esc(v.name)}"${ro}>${schemeCard(k)}<span class="pgl">${esc(SCHEME_SHORT[k]||v.name)}</span></button>`).join("")}</div>`)+`<label for="pdPsch">Fitted peaks</label>${sel("pdPsch",Object.entries(PEAK_SCHEMES).map(([k,v])=>[k,v.name]),cfg.peakScheme||"warm","peakScheme")}`); }
@@ -11463,7 +11509,7 @@ function pdAnnoEditor(a,o){
 }
 // Every graph takes this one's frame, axes, text, legend and colours; data,
 // ranges, titles and annotations stay their own.
-const FMT_KEYS=["frame","frameLw","frameColor","grid","gridMinor","gridColor","gridLw","gridDash","gridX","gridY","plotBg","mL","mR","mT","mB","txt","font","fontFam","fontName","titleItalic","legend","legendPos","legendText","legendFrame","legendCols","legendLine","legendSp","legendFill","legendOp","legendBd","legendLw","legendR","scheme","peakScheme","peakLab","peakLabRot","peakLabDec","peakLabShow","peakLabTpl","peakLabErr","peakLabUnit","peakLabSep","peakLabPos","peakLabMk","peakLabCol","peakLabBox","axisMatch","resid","bandConf","bandPred","sizeLeg","distWhisk","distPts","distNotch"];
+const FMT_KEYS=["frame","frameLw","frameColor","grid","gridMinor","gridColor","gridLw","gridDash","gridX","gridY","plotBg","mL","mR","mT","mB","txt","font","fontFam","fontName","titleItalic","legend","legendPos","legendText","legendFrame","legendCols","legendLine","legendSp","legendFill","legendOp","legendBd","legendLw","legendR","scheme","peakScheme","peakLab","peakLabRot","peakLabDec","peakLabShow","peakLabTpl","peakLabErr","peakLabUnit","peakLabSep","peakLabPos","peakLabMk","peakLabCol","peakLabBox","axisMatch","resid","bandConf","bandPred","sizeLeg","distWhisk","distPts","distNotch","colStack"];
 const FMT_AX=["tst","ticks","tlen","mlen","tw","mirror","mticks","mlabs","labs","lrot","color","lw","pos","at","off","talign","line","fmt","dec","minor","tshow"];
 /* A graph's settings with another's format laid over them: frame, grid, text,
    legend, colours and each axis's style; a key the format lacks goes back to
@@ -21381,7 +21427,7 @@ ${DL([["An image","The colours, smooth."],["Filled contours","One colour for eac
 <p>Right-click the map where you want to cut it:</p>
 ${DL([["The profile at one X","A trend graph of every column's value at that X against the series variable, and a dashed line on the map where it is. Its quantity, <em>Value at …</em>, can be added to any trend graph."],["The column at one value","The column measured nearest it, on a graph of its own."]])}
 <p>The status bar reads X, the series value and the value under the pointer.</p>`},
-{id:"dists", g:"Graph", t:"Distributions: histograms, boxes and violins", kw:"histogram bins bin width frequency count probability density percent cumulative distribution grouped group groups notch notched normal gaussian log-normal lognormal exponential maximum likelihood kolmogorov smirnov goodness distfit box chart box plot boxplot whisker whiskers quartile quartiles median interquartile iqr outlier outliers tukey violin kernel density kde bandwidth silverman column chart bar chart columns bars categories",
+{id:"dists", g:"Graph", t:"Distributions: histograms, boxes and violins", kw:"histogram bins bin width frequency count probability density percent cumulative distribution stacked stack bar bars category categories names labels grouped group groups notch notched normal gaussian log-normal lognormal exponential maximum likelihood kolmogorov smirnov goodness distfit box chart box plot boxplot whisker whiskers quartile quartiles median interquartile iqr outlier outliers tukey violin kernel density kde bandwidth silverman column chart bar chart columns bars categories",
  lead:"How a column's values are spread: counted into bins as a histogram, or summed up per column as boxes or violins side by side.",
  body:`<h2>Histograms</h2>
 <p>Select columns in the worksheet and press ${MP("Plot › Histogram")} on the worksheet's bar, or use ${MP("Analyze › Statistics › Histogram")} (the selected columns, or the active one). Each histogram is a column of its own, <em>Histogram of …</em>, made from the column's processed data by a <em>Histogram</em> step, on a graph of its own (several go in one figure, a panel each). As it is a step, it follows the processing: change a value, mask a point, and the counts change with it.</p>
@@ -21390,7 +21436,9 @@ ${DL([["Bins","Chosen for the data (Freedman–Diaconis: twice the interquartile
 <h3 id="dist">A distribution over it</h3>
 <p>Right-click the histogram › <em>Distribution over it</em> › Normal, Log-normal or Exponential: the distribution is fitted to the values themselves (not to the bins), by maximum likelihood, and drawn over the columns as they are shown: counts, probability, percent, a density or cumulative. Its parameters and their standard errors are in the legend (μ and σ; for a log-normal, μ and σ of the logarithm of the values; for an exponential, the rate λ and the mean), and the message and the curve's tooltip add the Kolmogorov–Smirnov distance D between the values and the distribution with its p value (generous, since the parameters come from the same values). A log-normal needs values above zero, an exponential values of zero or more; otherwise they are greyed, with the reason. The distribution follows the histogram: change its bins or the data and it is fitted again. <em>None</em> takes it off; each change is one undo step.</p>
 <h2>Columns</h2>
-<p><em>Columns</em> is a plot type for any curve: a bar from zero to each value, as wide as the histogram's bins or, for other data, most of the space between two points. Several columns as columns on one graph stand side by side within each X.</p>
+<p><em>Columns</em> is a plot type for any curve: a bar from zero to each value, as wide as the histogram's bins or, for other data, most of the space between two points. Several columns as columns on one graph stand side by side within each X, or, from a column curve's right-click › <em>Columns</em> (or the Format pane's Layout page), <em>Stacked</em>, each curve on the ones before it in the table's order (values below zero stacked downward), or <em>Stacked to 100 %</em>, each column its share of the sum at that X, the axis titled Share (%) and the legend below the graph. A stacked column's error bars are not drawn.</p>
+<h3 id="cats">Names along X</h3>
+<p>Columns of a few X values (doses, samples, conditions numbered 1, 2, 3) can be named: <em>Names along X…</em> in the X axis's right-click menu, or under <em>Columns</em>, gives a field for each X value of the graph's curves, and each name is written under its value in place of the number, in every export. Leave a field empty to keep its number. A graph of more than 60 different X values is not offered names. The names belong to the graph, not to the data.</p>
 <h2 id="box">Box charts and violins</h2>
 <p>Choose <em>Box chart</em> or <em>Violin plot</em> in ${MP("Plot")} on the worksheet's bar, or ${MP("Plot › Plot the selected columns")}. Each curve on the graph becomes one box at a place of its own along X, named under it; its values are its processed data with the masked points left out (and those at or below zero on a log axis).</p>
 ${DL([["The box","From the first to the third quartile (as R's and Excel's QUARTILE.INC), the median as a heavy line across, the mean as a diamond."],["Whiskers","To the furthest values within 1.5 times the interquartile range of the box, with any value beyond drawn as an open circle (Tukey's rule); or to the smallest and largest values, with none beyond."],["A violin","The values' density (Gaussian kernels, Silverman's bandwidth) mirrored about the middle, each violin as wide as the others at its widest; inside, the box as a thin bar and the median as a dot."],["Show the values","Every value as a dot, scattered across the box's width (the same way every time)."],["Notches","Each box narrowed round its median over the median ± 1.58 times the interquartile range over the square root of the count (McGill, Tukey and Larsen): two boxes whose notches do not overlap have medians that differ at about 95% confidence. A notch is drawn within the quartiles; its full reach is in the tooltip."],["Grouped by","A column of the same sheet whose values say which group each row is in (a batch, a dose, a temperature): each curve's values are split by it, a cluster per group along X, numbered by the group's value and titled by the column, with a box per curve side by side in its colour and a legend saying which is which. A column of more than 60 different values is not offered as groups."]])}

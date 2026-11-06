@@ -527,6 +527,59 @@ await page(async p => {
   check("a new graph's look from this one leaves the grouping out", !r.base && r.kept, JSON.stringify(r));
 }, { name: "grouped and notched boxes" });
 
+console.log("Roadmap 4, slice 3: stacked columns and names along X");
+await page(async p => {
+  const id = await p.evaluate(async () => {
+    const X = makeCol("x", "Dose", "mg", [1, 2, 3, 4]), A = Object.assign(makeCol("y", "Cells", "", [1, 2, 3, 4]), { pipe: [], mask: [] }),
+      B = Object.assign(makeCol("y", "Debris", "", [2, 2, 2, 2]), { pipe: [], mask: [] }), C = Object.assign(makeCol("y", "Other", "", [1, 1, 1, 1]), { pipe: [], mask: [] });
+    await createProject(Object.assign(blankProject("Doses"), { cols: [X, A, B, C], activeY: A.id }), "test"); await new Promise(r => setTimeout(r, 80)); renderAll();
+    return { A: A.id, B: B.id, C: C.id };
+  });
+  await p.waitForTimeout(300);
+  await p.evaluate(id => { plotCols([id.A, id.B, id.C], { type: "column" }); }, id); await p.waitForTimeout(500);
+  const bar = (cid, i) => p.evaluate(([cid, i]) => { const d = (document.querySelector(`#plot g[data-ser="${cid}"] path`) || {}).getAttribute?.("d") || "", m = [...d.matchAll(/M([-\d.]+),([-\d.]+)V([-\d.]+)H([-\d.]+)/g)][i]; return m ? { x0: +m[1], z: +m[2], y: +m[3], x1: +m[4] } : null; }, [cid, i]);
+  let r = await p.evaluate(id => { const it = graphMenuItems(id.B).find(i => i && i.label === "Columns"); return { has: !!it, sub: it ? it.sub().map(i => typeof i === "string" ? i : i.label + (i.checked ? "*" : "")) : [], stk: S.geo.colStk }; }, id);
+  check("a column curve's right-click has Columns: Side by side (ticked), Stacked, Stacked to 100 %, Names along X…", r.has && r.sub.join() === "Side by side*,Stacked,Stacked to 100 %,-,Names along X…" && !r.stk, JSON.stringify(r));
+  const side = await bar(id.B, 0);
+  await p.evaluate(id => { graphMenuItems(id.B).find(i => i && i.label === "Columns").sub().find(i => i.label === "Stacked").run(); }, id); await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ stk: S.geo.colStk, y1: S.geo.v.y1, Y: [1, 3, 4, 7].map(v => S.geo.Y(v)) }));
+  const b0 = await bar(id.B, 0), c3 = await bar(id.C, 3);
+  check("Stacked: each curve's column starts where the one before it ends, the whole width", r.stk && r.stk.mode === "stack" && r.stk.ids.join() === [id.A, id.B, id.C].join() && b0 && Math.abs(b0.z - r.Y[0]) < 1 && Math.abs(b0.y - r.Y[1]) < 1 && (b0.x1 - b0.x0) > 2 * (side.x1 - side.x0), JSON.stringify([r, b0, side]));
+  check("…the view takes in the tallest stack", r.y1 >= 7 && c3 && Math.abs(c3.y - r.Y[3]) < 1, JSON.stringify([r.y1, c3]));
+  await p.evaluate(() => { setPlotKey("colStack", "pct"); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ Y100: S.geo.Y(100), Y25: S.geo.Y(25), texts: [...document.querySelectorAll("#plot text, #plot [data-rt]")].map(e => e.textContent) }));
+  const c0 = await bar(id.C, 0), a0 = await bar(id.A, 0);
+  const lgb = await p.evaluate(() => { const g = document.querySelector("#plot g[data-leg]"); return g ? { top: g.getBBox().y, bottom: S.geo.T + S.geo.mh } : null; });
+  check("…its legend below the graph, since every stack reaches the top", lgb && lgb.top > lgb.bottom, JSON.stringify(lgb));
+  check("Stacked to 100 %: every stack reaches 100, each column its share, and Y says Share (%)", c0 && Math.abs(c0.y - r.Y100) < 1 && a0 && Math.abs(a0.y - r.Y25) < 1 && r.texts.includes("Share (%)"), JSON.stringify([c0, a0, r.Y100, r.Y25]));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(300);
+  r = await p.evaluate(() => S.geo.colStk && S.geo.colStk.mode);
+  check("undo goes back to stacked", r === "stack", JSON.stringify(r));
+  r = await p.evaluate(() => ({ pic: handPic(600, 400, 1).svg, fmt: FMT_KEYS.includes("colStack") }));
+  check("…in an export too, and a format saved styles carry", r.fmt && /M[-\d.]+,[-\d.]+V[-\d.]+H/.test(r.pic), JSON.stringify(r.fmt));
+  // Names along X.
+  await p.evaluate(() => { catNamesDlg(); }); await p.waitForTimeout(400);
+  const names = ["Control", "Low", "Mid", "High"];
+  for (let i = 0; i < 4; i++) await p.fill(`#catN${i}`, names[i]);
+  await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await p.evaluate(() => ({ texts: [...document.querySelectorAll("#plot text, #plot [data-rt]")].map(e => e.textContent), log: JSON.stringify(P().log.slice(-1)[0]), menu: (axisMenuItems("x").find(i => i && i.label === "Names along X…") || {}).checked, pic: /Control/.test(handPic(600, 400, 1).svg) }));
+  check("Names along X: each X value named under it in place of its number, said in the log, in an export", names.every(n => r.texts.includes(n)) && !r.texts.includes("1") && /named 4 X values/.test(r.log) && r.menu && r.pic, JSON.stringify(r).slice(0, 400));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(300);
+  r = await p.evaluate(() => [...document.querySelectorAll("#plot text, #plot [data-rt]")].map(e => e.textContent).includes("Control"));
+  check("…one undo takes the names off", r === false, JSON.stringify(r));
+  // What storage gives back that does not read is left out.
+  await p.evaluate(() => { setAxisKeys("x", { cats: [[NaN, "a"], ["2", "Two"], [3, 5], "x", [4, "  "]] }); }); await p.waitForTimeout(300);
+  r = await p.evaluate(() => ({ c: catsOf(GP().ax.x), texts: [...document.querySelectorAll("#plot text, #plot [data-rt]")].map(e => e.textContent) }));
+  check("names that do not read are left out (only X 2 is named)", JSON.stringify(r.c) === '[[2,"Two"]]' && r.texts.includes("Two"), JSON.stringify(r.c));
+  // A graph of many X values: refused in words.
+  await p.evaluate(async () => { const n = 200, x = Array.from({ length: n }, (_, i) => i), y = x.map(v => Math.sin(v / 9));
+    const X = makeCol("x", "t", "s", x), Y = Object.assign(makeCol("y", "Signal", "", y), { pipe: [], mask: [] });
+    await createProject(Object.assign(blankProject("Many"), { cols: [X, Y], activeY: Y.id }), "test"); await new Promise(r => setTimeout(r, 80)); renderAll(); plotCols([Y.id], {}); });
+  await p.waitForTimeout(500);
+  r = await p.evaluate(() => { catNamesDlg(); return { open: !document.querySelector("#formModal").hidden, toast: document.querySelector("#toast").textContent }; });
+  check("…and a graph of 200 X values is not given names, said in words", !r.open && /200 different X values/.test(r.toast), JSON.stringify(r));
+}, { name: "stacked columns and names along X" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

@@ -889,6 +889,20 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: stacked columns and names along X (roadmap 4, slice 3)
+
+- **Stacking is how the columns stand, not a kind of plot.** Columns already stood side by side
+  when several curves were columns; *Columns* (side by side, stacked, stacked to 100 %) is a choice
+  on any column curve's right-click and the Format pane, so a graph changes how its columns stand
+  without being made again. It is a format, carried by saved styles.
+- **To 100 %, the axis says Share (%)** and the legend goes below the graph, since every stack
+  reaches the top and no corner is free; a legend placed by hand stays where it was put.
+- **A stack's error bars are not drawn**: a bar's error is its own value's, and drawn at the top of
+  a stack it would read as the stack's.
+- **Names along X are typed, per graph.** The worksheet holds numbers, so categories are X values
+  (1, 2, 3) named on the graph, the names written in place of the numbers; a graph of more than 60 X
+  values is a measurement, not categories, and is told so rather than given 200 fields.
+
 ### 2026-11-06: boxes grouped by another column, notched boxes (roadmap 4, slice 2)
 
 - **Groups are a column, as the data are kept.** A lab writes a batch, a dose or a temperature in a

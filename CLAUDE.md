@@ -2027,7 +2027,21 @@ graph first, with the taskbar kept at the bottom of the screen.
   gives the notch. The Format pane's layout page has Notches (`#pdDn`) and Grouped by (`#pdDb`). **Columns** (`PLOT_TYPES` `column`): bars from zero, as wide as
   a histogram's bins (`histOf(id)`, the step's `bins.w`) or 0.8 of the median spacing, several
   spectra as columns side by side (`colGrp`, `cgk`/`cgn` through `zSt`); a graph of columns
-  stands on zero and is widened to whole columns when nothing is typed or zoomed.
+  stands on zero and is widened to whole columns when nothing is typed or zoomed. **Stacked**
+  (roadmap 4, slice 3): `cfg.colStack` (`COL_STACK`: side, `stack`, `pct`; in `FMT_KEYS`) on an
+  overlaid graph of two column curves or more (left axis, not log Y): `colStk` in `buildPlot`
+  (`{m: {id: Map(x to twelve digits → [from, to])}, lo, hi, mode, ids}`, the table's order, values
+  below zero downward, `pct` each of the sum of sizes at that X; masked points out), the view taking
+  in the stacks, `zSt` giving each curve `stk` (and no error bars), `seriesSvg` drawing a column
+  from `from` to `to` the whole width, Y titled Share (%) for `pct`, the legend's corner search over
+  the stacks and, for `pct` with the legend automatic, the legend below; `S.geo.colStk {mode, ids}`.
+  `colStackItems()` (a column curve's right-click *Columns*), the Format pane's layout page
+  (`#pdCs`). **Names along X**: `ax.x.cats` (`[[x, name]]`, data, not in `FMT_AX`), `catsOf(ax)`
+  (cleaned: a finite X that is not empty, a name trimmed to 60 characters, 200 at most, sorted),
+  drawn by `xTicks` in place of the numbers (not on a log, curved, heat or box axis);
+  `catXs()` the graph's X values, `catNamesDlg()` (a field each, 60 values at most, else a toast;
+  one undo step through `setAxisKeys`, a log line), from the X axis's menu (ticked while set) and
+  *Columns*.
   **Histograms**: `histogramCols(cids)` (Plot › Plot the selected columns › Histogram, Analyze › Statistics › Histogram (the selected
   columns, or the active one), a spectrum's right-click; one undo entry) makes `Histogram of …`, a spectrum derived
   from each column's final data with a `hist` step, each on a graph of its own, several in a
@@ -3909,7 +3923,7 @@ Next, in order:
    the graph (done 05.11): the roadmap's item 3 is done
 4. Plots Origin has and Kurve lacks, further: a distribution fitted over a histogram (normal,
    log-normal, exponential) with its parameters (done 06.11); box charts of one column grouped by another, notched
-   boxes (done 06.11); stacked and grouped bars with category names; per-row or per-column shared axes in a
+   boxes (done 06.11); stacked and grouped bars with category names (done 06.11); per-row or per-column shared axes in a
    figure; a map from scattered X, Y, Z (triangulated) rather than from spectra
 5. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
    with its own scale on each side, polygons and curved arrows
@@ -4054,7 +4068,11 @@ Next, in order:
   log-normal or exponential one, fitted to every value by maximum likelihood (no fit to the bins,
   no Weibull, gamma or mixture; its Kolmogorov–Smirnov p value is generous, as the parameters come
   from the same values; a Gaussian curve fit of the bins still works). Columns stand on zero (no
-  other baseline, no stacking)
+  other baseline); stacked columns are the overlaid column curves on the left axis, in the table's
+  order, matched by X to twelve digits; their error bars, labels from a column and the readers'
+  values are of each curve's own values, not of the stack. Names along X are typed per graph
+  (the worksheet has no text cells), 60 X values at most, and are not drawn on a log or curved
+  axis
 - Box and violin charts: one box per spectrum on the graph, in the table's order, or each split
   by a column of groups on the active curve's sheet (60 groups at most, numbers only, in
   ascending order: the worksheet has no text cells to name them; the grouping is set on the
