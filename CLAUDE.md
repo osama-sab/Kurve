@@ -1775,11 +1775,31 @@ graph first, with the taskbar kept at the bottom of the screen.
   (Figure › Annotate › Vertical line…, Horizontal line…) is one dialog: direction and text as
   segmented radiogroups (`data-lns`), the position in the axis's units, your own text in an
   `.rfield`, colour, style and width.
+- **By the keys** (roadmap 6, slice 3; in `graphKey`, before the points' keys): `kbTargets()` (the
+  graph's annotations as drawn, `#plot [data-anno]` in document order, then the draft's peaks whose
+  dots are drawn, `S.geo.handles` of kind `c`), `kbTab(back)` (Tab and Shift+Tab select the next or
+  previous, said in `#plotSay`; past either end the selection goes and the browser moves the focus
+  on, so the graph never keeps it), `kbNudgeKey(ev)` (the arrows, a pixel or with Shift ten:
+  `nudgeAnno(id, dx, dy)` moves an annotation as a drag of its body would, through `dragAnno` with
+  `S.andrag` set for one call and no snapping, saved each time, logged once; `nudgePeak(k, dx, dy,
+  wd)` moves the selected peak's dot through `applyHandle` (centre and height) or its side handle
+  outward for `[`/`]` (`{`/`}` ten), `renderFit` after 250 ms), `kbPeakOn()` (a peak selected with
+  its dot drawn), `kbBurst(key, label)` (one undo entry for presses on one thing within 1.5 s while
+  that entry is still the newest, `S.kbBurst`). Esc lets go of a peak too; a press on a peak's dot
+  lets go of the annotation, so the arrows act on what was pressed last.
 - **Peak draft**: the peak set being built is `S.pdraft` (`{base, peaks, init, fixed, x0,
   fitAt}`), outside the document. `draftOverlay()` draws it on the graph before it is fitted:
   dashed curves per peak plus their sum, a numbered dot per peak (drag: centre and height) and,
-  for the selected peak, side handles (drag: FWHM). `applyHandle` keeps area/width consistent
-  and respects fixed parameters. `fitAt` equals the fit's `at` while the draft is exactly that
+  for the selected peak, side handles (drag: FWHM) and, when its shape has a parameter of its own
+  (roadmap 6, slice 4; `SHAPE_PAR`: a pseudo-Voigt's `mu`, a Pearson VII's `m` on a log scale, a
+  Fano's `iq` with zero marked), a diamond on a 72 px track over its number (under its top when
+  that is off the plot), at its centre parameter so a Fano's moving top does not move it
+  (`shapeParOf(type)` with the shape's own `bounds`, `shapeT`/`shapeV` between the track and the
+  value, `shapeHandleOf(d, m, k)`, none for a fixed one; `data-h="k:s"`, a `geo.handles` entry
+  with the track's `x0`/`x1`, kept on the drag as `S.hdrag.tr`, `shapeAtPx` catching zero within
+  3 px; `,` and `.` step a fiftieth, `<` and `>` ten, `nudgeShape`). `applyHandle` keeps area/width
+  consistent (kind `s` keeps the height, so the top stays and the tails change) and respects
+  fixed parameters; `handleTip` adds the shape's value. `fitAt` equals the fit's `at` while the draft is exactly that
   fit, which is how the overlay knows not to draw a duplicate; every edit to the draft clears
   it. `recenterBase` re-expresses the baseline coefficients when the view (and so `x0`) moves.
   `setPeakShape` changes a shape keeping centre, width and height. Every peak has a stable `id`
@@ -3996,8 +4016,8 @@ Next, in order:
    with its own scale on each side (done 06.11), polygons and curved arrows (done 06.11): the
    roadmap's item 5 is done
 6. Getting around: a visible undo list (done 06.11), flow chart zoom and packed lanes (done
-   06.11), keyboard access to annotations and peak handles, handles for shape parameters
-   (Lorentz fraction, Pearson m, Fano 1/q)
+   06.11), keyboard access to annotations and peak handles (done 06.11), handles for shape
+   parameters (Lorentz fraction, Pearson m, Fano 1/q; done 06.11): the roadmap's item 6 is done
 7. Many spectra, further: a parameter that follows the series in a global fit (a centre
    linear in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the
    files' header fields as rows of the worksheet, global fits in a worker
@@ -4159,8 +4179,9 @@ Next, in order:
   overrides of delimiter, decimal mark and start line apply to one file). Each spectrum keeps
   its own header's fields, but they are not rows of the worksheet, and the project's own
   metadata is the first file's
-- Peak handles move centre, height and width; there is no handle for a shape parameter
-  (Lorentz fraction, Pearson m, Fano 1/q), and no keyboard nudging of a selected peak
+- Peak handles move centre, height, width and the shape (a pseudo-Voigt's Lorentzian fraction, a
+  Pearson VII's m, a Fano's 1/q), by the pointer or the keys; a Voigt's two widths keep their
+  ratio when its width is dragged, and their share is typed
 - Ties are between the same parameter of two peaks; there are no free-form constraints between
   different parameters, and a user's function cannot be a peak shape in a peak fit
 - Comments have no mentions, unread markers or notifications; they are plain text
@@ -4245,7 +4266,8 @@ Next, in order:
   curved arrow is one quadratic bend (no S-curves), and a box, ellipse or polygon cannot be turned;
   rich text is scripts and symbols only (no
   bold or italic inside a text, no nested scripts); snapping is text to text and to the plot's
-  centre, and an arrow's head to data points; nothing can be nudged with the keys
+  centre, and an arrow's head to data points; the keys move an annotation's body (not a corner,
+  an end or a bend), and step through the graph's annotations in the order they are drawn
 - Large data on screen: at a million points the whole curve draws in about 35 ms and a zoom into
   a part of it in a few (only the points in view are read when X runs one way; when it does not,
   every point is). The worksheet draws a screen of rows in about 14 ms however many there are;

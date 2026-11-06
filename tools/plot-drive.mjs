@@ -914,6 +914,134 @@ await page(async p => {
   check("the zoom is remembered across a reload", r === 0.8, JSON.stringify(r));
 }, { name: "the flow chart's zoom and wrapped lanes" });
 
+console.log("Roadmap 6, slice 3: annotations and peaks by the keys");
+await page(async p => {
+  await p.evaluate(async () => {
+    const x = Array.from({ length: 201 }, (_, i) => i * 0.5), y = x.map(v => 100 * Math.exp(-((v - 30) ** 2) / 8) + 60 * Math.exp(-((v - 70) ** 2) / 12) + 2);
+    const X = makeCol("x", "Shift", "cm-1", x), Y = Object.assign(makeCol("y", "Signal", "", y), { pipe: [], mask: [] });
+    const pr = Object.assign(blankProject("Keys"), { cols: [X, Y], activeY: Y.id });
+    pr.graphs = [{ id: newGid(), name: "Graph 1", cols: [Y.id], plot: { style: "auto" } }];
+    await createProject(pr, "test"); await new Promise(r => setTimeout(r, 80)); renderAll();
+  });
+  await p.waitForTimeout(400);
+  await p.evaluate(() => { prefSet("anim", false); applyAnim(); addAnno({ t: "text", x: 50, y: 80, text: "Note" }); addAnno({ t: "v", x: 85 }); });
+  await p.waitForTimeout(300);
+  // In the order they are drawn: lines under text.
+  const ids = await p.evaluate(() => { S.annoSel = null; renderPlot(); return kbTargets().map(t => t.anno); });
+  await p.focus("#plot"); await p.keyboard.press("Tab"); await p.waitForTimeout(150);
+  let r = await p.evaluate(() => ({ sel: S.annoSel, say: document.querySelector("#plotSay").textContent, focus: document.activeElement && document.activeElement.id }));
+  check("Tab on the graph selects its first annotation (the line, drawn under the text), said with its place among them", r.sel === ids[0] && /^A vertical line at x = 85, 1 of 2\./.test(r.say) && r.focus === "plot", JSON.stringify(r));
+  const posOf = id => p.evaluate(id => { const a = annoById(id), g = S.geo; return a.t === "v" ? g.X(a.x) : g.X(a.x) + "," + g.Y(a.y); }, id);
+  await p.keyboard.press("Tab"); await p.waitForTimeout(150);
+  check("Tab again: the text", (await p.evaluate(() => S.annoSel)) === ids[1], "");
+  const at0 = await posOf(ids[1]), u0 = await p.evaluate(() => undoStack.length);
+  for (let i = 0; i < 3; i++) await p.keyboard.press("ArrowRight");
+  await p.keyboard.press("Shift+ArrowRight"); await p.keyboard.press("ArrowUp"); await p.waitForTimeout(200);
+  const at1 = await posOf(ids[1]), u1 = await p.evaluate(() => undoStack.length);
+  const [ax0, ay0] = at0.split(",").map(Number), [ax1, ay1] = at1.split(",").map(Number);
+  check("the arrows move the text a pixel at a time, Shift ten: 13 right and 1 up, as one undo step", Math.abs(ax1 - ax0 - 13) < 0.6 && Math.abs(ay1 - ay0 + 1) < 0.6 && u1 === u0 + 1, JSON.stringify([at0, at1, u0, u1]));
+  r = await p.evaluate(() => P().log.slice(-1)[0].text);
+  check("…and the log says it once", /moved the text "Note" with the keys/.test(r), JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  check("one undo puts it back", (await posOf(ids[1])) === at0, JSON.stringify([at0, await posOf(ids[1])]));
+  await p.evaluate(() => { S.annoSel = null; renderPlot(); }); await p.focus("#plot"); await p.keyboard.press("Tab"); await p.waitForTimeout(150);
+  r = await p.evaluate(() => S.annoSel);
+  const v0 = await posOf(ids[0]);
+  await p.keyboard.press("Shift+ArrowLeft"); await p.waitForTimeout(200);
+  const v1 = await posOf(ids[0]);
+  check("the line again, and Shift+← moves it ten pixels left", r === ids[0] && Math.abs(+v1 - +v0 + 10) < 0.6, JSON.stringify([r, v0, v1]));
+  // Peaks being set up come after the annotations.
+  await p.evaluate(() => { S.annoSel = null; S.fitMode = "peaks"; showTab("fit"); addPeakAt(30); addPeakAt(70); S.selPeak = null; renderPlot(); });
+  await p.waitForTimeout(400);
+  await p.focus("#plot"); for (let i = 0; i < 3; i++) await p.keyboard.press("Tab"); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ pk: S.selPeak, an: S.annoSel, say: document.querySelector("#plotSay").textContent }));
+  check("after the annotations, Tab selects the first peak being set up", r.pk === 0 && !r.an && /^Peak 1/.test(r.say), JSON.stringify(r));
+  const pkOf = () => p.evaluate(() => { const d = S.pdraft, m = pdraftModel(), o = m.offsets[0], def = PEAKS[d.peaks[0].type], pv = d.init.slice(o, o + def.params.length); return { xc: pv[0], h: def.height(pv), w: Math.abs(peakFWHM(def, pv)), px: S.geo.X(pv[0]) }; });
+  const k0 = await pkOf(), uk0 = await p.evaluate(() => undoStack.length);
+  for (let i = 0; i < 4; i++) await p.keyboard.press("ArrowRight");
+  await p.keyboard.press("Shift+ArrowUp"); await p.waitForTimeout(150);
+  const k1 = await pkOf();
+  for (let i = 0; i < 3; i++) await p.keyboard.press("]");
+  await p.waitForTimeout(150);
+  const k2 = await pkOf(), uk2 = await p.evaluate(() => undoStack.length);
+  check("→ moves the peak's centre four pixels, Shift+↑ raises it, ] widens it", Math.abs(k1.px - k0.px - 4) < 0.8 && k1.h > k0.h && k2.w > k1.w && Math.abs(k2.xc - k1.xc) < 1e-9 && uk2 === uk0 + 1, JSON.stringify([k0, k1, k2, uk0, uk2]));
+  await p.keyboard.press("["); await p.keyboard.press("["); await p.waitForTimeout(150);
+  const k3 = await pkOf();
+  check("[ narrows it again", k3.w < k2.w, JSON.stringify([k2.w, k3.w]));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  const k4 = await pkOf();
+  check("one undo takes the whole burst back", Math.abs(k4.xc - k0.xc) < 1e-9 && Math.abs(k4.h - k0.h) < 1e-9 * Math.abs(k0.h) + 1e-12 && Math.abs(k4.w - k0.w) < 1e-9, JSON.stringify([k0, k4]));
+  // Past the last, the focus moves on and nothing stays selected.
+  await p.evaluate(() => { S.selPeak = 1; renderPlot(); }); await p.focus("#plot");
+  await p.keyboard.press("Tab"); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ pk: S.selPeak, an: S.annoSel, focus: document.activeElement && document.activeElement.id }));
+  check("Tab past the last peak lets the focus go on, and lets go of the peak", r.pk == null && !r.an && r.focus !== "plot", JSON.stringify(r));
+  await p.focus("#plot"); await p.keyboard.press("Shift+Tab"); await p.waitForTimeout(150);
+  r = await p.evaluate(() => ({ pk: S.selPeak, an: S.annoSel }));
+  check("Shift+Tab with nothing selected leaves the graph too", r.pk == null && !r.an, JSON.stringify(r));
+  await p.focus("#plot"); await p.keyboard.press("Tab"); await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+  r = await p.evaluate(() => ({ an: S.annoSel, say: document.querySelector("#plotSay").textContent }));
+  check("Esc lets go of what Tab selected", !r.an && /Nothing selected/.test(r.say), JSON.stringify(r));
+  // Read-only: nothing moves.
+  r = await p.evaluate(id => { S.readOnly = true; S.annoSel = id; const a = annoById(id), x = a.x; const ev = new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }); document.querySelector("#plot").dispatchEvent(ev); const same = annoById(id).x === x; S.readOnly = false; S.annoSel = null; return same; }, ids[0]);
+  check("a viewer's arrows move nothing", r === true, JSON.stringify(r));
+}, { name: "annotations and peaks by the keys" });
+
+console.log("Roadmap 6, slice 4: a peak's shape by its own handle");
+await page(async p => {
+  await p.evaluate(async () => {
+    const x = Array.from({ length: 201 }, (_, i) => i * 0.5), y = x.map(v => 100 * Math.exp(-((v - 30) ** 2) / 8) + 60 / (1 + ((v - 70) / 3) ** 2) + 2);
+    const X = makeCol("x", "Shift", "cm-1", x), Y = Object.assign(makeCol("y", "Signal", "", y), { pipe: [], mask: [] });
+    const pr = Object.assign(blankProject("Shapes"), { cols: [X, Y], activeY: Y.id });
+    pr.graphs = [{ id: newGid(), name: "Graph 1", cols: [Y.id], plot: { style: "auto" } }];
+    await createProject(pr, "test"); await new Promise(r => setTimeout(r, 80)); renderAll();
+    prefSet("anim", false); applyAnim(); S.fitMode = "peaks"; showTab("fit"); addPeakAt(30); addPeakAt(70); setPeakShape(0, "psdvoigt"); setPeakShape(1, "fano"); S.selPeak = 0; renderPlot();
+  });
+  await p.waitForTimeout(500);
+  const st = () => p.evaluate(k => { const d = S.pdraft, m = pdraftModel(), o = m.offsets[k], def = PEAKS[d.peaks[k].type], pv = d.init.slice(o, o + def.params.length), sp = shapeParOf(d.peaks[k].type);
+    const h = (S.geo.handles || []).find(q => q.k === k && q.kind === "s"); return { v: pv[sp.i], h: def.height(pv), w: Math.abs(peakFWHM(def, pv)), hd: h ? { x: h.x, y: h.y, x0: h.x0, x1: h.x1 } : null }; }, 0);
+  let a = await st();
+  check("the selected pseudo-Voigt has a diamond on a track, at its Lorentzian fraction", !!a.hd && Math.abs((a.hd.x - a.hd.x0) / (a.hd.x1 - a.hd.x0) - a.v) < 0.01, JSON.stringify(a));
+  let r = await p.evaluate(() => document.querySelector('#plot [data-h="0:s"] title').textContent);
+  check("…named in its tooltip", /^Lorentzian fraction 0\.5: drag sideways/.test(r), JSON.stringify(r));
+  // Drag it to the right end: all Lorentzian, the height kept.
+  const box = await p.evaluate(() => { const b = document.querySelector("#plot").getBoundingClientRect(), v = document.querySelector("#plot").viewBox.baseVal; return { l: b.left, t: b.top, k: b.width / (v && v.width || b.width) }; });
+  const sx = q => box.l + q * box.k, sy = q => box.t + q * box.k;
+  const u0 = await p.evaluate(() => undoStack.length);
+  await p.mouse.move(sx(a.hd.x), sy(a.hd.y)); await p.mouse.down(); await p.mouse.move(sx(a.hd.x + 10), sy(a.hd.y), { steps: 3 }); await p.mouse.move(sx(a.hd.x1 + 20), sy(a.hd.y), { steps: 5 }); await p.mouse.up(); await p.waitForTimeout(300);
+  let b = await st(); const u1 = await p.evaluate(() => undoStack.length);
+  check("dragged past the right end: a Lorentzian (fraction 1), the height and FWHM kept, one undo step", b.v === 1 && Math.abs(b.h - a.h) < 1e-6 * Math.abs(a.h) && Math.abs(b.w - a.w) < 1e-6 * a.w && u1 === u0 + 1, JSON.stringify([a, b, u0, u1]));
+  // The keys: , and . a fiftieth of the track; < and > ten.
+  await p.focus("#plot"); await p.keyboard.press(","); await p.keyboard.press(","); await p.waitForTimeout(150);
+  b = await st();
+  check(", , takes it back two fiftieths (0.96)", Math.abs(b.v - 0.96) < 1e-9, JSON.stringify(b));
+  await p.keyboard.press("<"); await p.waitForTimeout(150); b = await st();
+  check("< takes ten more (0.76)", Math.abs(b.v - 0.76) < 1e-9, JSON.stringify(b));
+  r = await p.evaluate(() => document.querySelector("#plotSay").textContent);
+  check("…and says it", /Lorentzian fraction 0\.76/.test(r), JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(250); b = await st();
+  check("one undo takes the keys' burst back (to 1)", b.v === 1, JSON.stringify(b));
+  // A Fano: 1/q from −0.9 to 0.9, zero marked and caught.
+  await p.evaluate(() => { S.selPeak = 1; renderPlot(); }); await p.waitForTimeout(200);
+  const fq = await p.evaluate(() => { const d = S.pdraft, m = pdraftModel(), o = m.offsets[1], sp = shapeParOf("fano"), h = S.geo.handles.find(q => q.k === 1 && q.kind === "s"); return { v: d.init[o + sp.i], h, zero: !!document.querySelector('#plot [data-h="1:s"] path:nth-of-type(2)') }; });
+  check("a Fano's diamond, its zero marked", !!fq.h && fq.zero && Math.abs((fq.h.x - fq.h.x0) / (fq.h.x1 - fq.h.x0) - (fq.v + 0.9) / 1.8) < 0.01, JSON.stringify(fq));
+  const mid = (fq.h.x0 + fq.h.x1) / 2;
+  await p.mouse.move(sx(fq.h.x), sy(fq.h.y)); await p.mouse.down(); await p.mouse.move(sx(fq.h.x - 8), sy(fq.h.y), { steps: 3 }); await p.mouse.move(sx(mid + 1.5), sy(fq.h.y), { steps: 4 }); await p.mouse.up(); await p.waitForTimeout(300);
+  r = await p.evaluate(() => { const d = S.pdraft, o = pdraftModel().offsets[1]; return d.init[o + 3]; });
+  check("dragged within 3 px of the middle, 1/q is caught at 0 (a Lorentzian)", r === 0, JSON.stringify(r));
+  // A Gaussian has none; a fixed shape has none.
+  await p.evaluate(() => { setPeakShape(1, "gauss"); S.selPeak = 1; renderPlot(); }); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ h: !!document.querySelector('#plot [data-h="1:s"]') }));
+  await p.focus("#plot"); await p.keyboard.press("."); await p.waitForTimeout(100);
+  const say = await p.evaluate(() => document.querySelector("#plotSay").textContent);
+  check("a Gaussian has no diamond, and . says it has no shape of its own", !r.h && /no shape parameter/.test(say), JSON.stringify([r, say]));
+  r = await p.evaluate(() => { const d = S.pdraft, o = pdraftModel().offsets[0]; d.fixed[o + 3] = true; S.selPeak = 0; renderPlot(); return !!document.querySelector('#plot [data-h="0:s"]'); });
+  check("a fixed Lorentzian fraction has no diamond", r === false, JSON.stringify(r));
+  await p.evaluate(() => { const d = S.pdraft, o = pdraftModel().offsets[0]; d.fixed[o + 3] = false; setPeakShape(0, "pearson7"); S.selPeak = 0; renderPlot(); }); await p.waitForTimeout(200);
+  r = await p.evaluate(() => { const d = S.pdraft, o = pdraftModel().offsets[0], h = S.geo.handles.find(q => q.k === 0 && q.kind === "s"), sp = shapeParOf("pearson7"); return { v: d.init[o + 3], t: (h.x - h.x0) / (h.x1 - h.x0), want: Math.log(d.init[o + 3] / sp.lo) / Math.log(sp.hi / sp.lo) }; });
+  check("a Pearson VII's m on a log scale", Math.abs(r.t - r.want) < 0.01, JSON.stringify(r));
+}, { name: "a peak's shape by its own handle" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

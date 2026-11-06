@@ -10174,6 +10174,12 @@ function buildPlot(W,H,pal,colEx,opt){
           s+=`<g data-h="${t.k}:${kd}" style="cursor:ew-resize"><rect x="${(hx-9).toFixed(1)}" y="${(hy-9).toFixed(1)}" width="18" height="18" fill="transparent"/><rect x="${(hx-4.5).toFixed(1)}" y="${(hy-4.5).toFixed(1)}" width="9" height="9" rx="1.5" fill="${pal.bg}" stroke="${col}" stroke-width="1.8"/></g>`;
           geo.handles.push({k:t.k,kind:kd,x:hx,y:hy}); });
       }
+      // The shape's diamond on its track, over the peak's number (under its top when that is off the plot).
+      const sh=handlesOn&&sel?shapeHandleOf(ov.d,ov.m,t.k):null;
+      if(sh){ const tx=X(sh.xc); let ty=cy-38; if(!inPlot(tx,ty-6)) ty=cy+28;
+        if(Number.isFinite(tx)&&inPlot(tx-38,ty)&&inPlot(tx+38,ty)){ const x0=tx-36, x1=tx+36, hx=x0+sh.t*(x1-x0);
+          s+=`<g data-h="${t.k}:s" style="cursor:ew-resize"><title>${esc(`${sh.name[0].toUpperCase()+sh.name.slice(1)} ${fmt(sh.v,3)}: drag sideways, or press , and .`)}</title><rect x="${(x0-8).toFixed(1)}" y="${(ty-9).toFixed(1)}" width="${(x1-x0+16).toFixed(1)}" height="18" fill="transparent"/><path d="M${x0.toFixed(1)} ${(ty-3).toFixed(1)}v6M${x1.toFixed(1)} ${(ty-3).toFixed(1)}v6M${x0.toFixed(1)} ${ty.toFixed(1)}H${x1.toFixed(1)}" stroke="${col}" stroke-width="1" stroke-dasharray="${sh.zero?"":"2 2"}" fill="none"/>${sh.zero?`<path d="M${tx.toFixed(1)} ${(ty-3).toFixed(1)}v6" stroke="${col}" stroke-width="1"/>`:""}<path d="M${hx.toFixed(1)} ${(ty-5.5).toFixed(1)}l5.5 5.5l-5.5 5.5l-5.5-5.5z" fill="${pal.bg}" stroke="${col}" stroke-width="1.8"/></g>`;
+          geo.handles.push({k:t.k,kind:"s",x:hx,y:ty,x0,x1}); } }
       if(!inPlot(cx,cy)) return;
       if(handlesOn){
         s+=`<g data-h="${t.k}:c" style="cursor:move"><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="11" fill="transparent"/>${sel?`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="9" fill="none" stroke="${col}" stroke-width="1.5"/>`:""}<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="5.5" fill="${col}" stroke="${pal.bg}" stroke-width="2"/></g>`;
@@ -11963,6 +11969,11 @@ function applyHandle(hd,pt){
     if(hOld<0&&!(hNew<0)) hNew=-Math.abs(hOld)*0.02;
     d.init[o]=xc;
     if(!fx(ai)&&Number.isFinite(hOld)&&Math.abs(hOld)>0) d.init[o+ai]=pv[ai]*hNew/hOld;
+  } else if(hd.kind==="s"){
+    const sp=shapeParOf(d.peaks[k].type); if(!sp||fx(sp.i)||!Number.isFinite(pt.v)) return;
+    const hOld=def.height(pv); d.init[o+sp.i]=pt.v;
+    const nv=d.init.slice(o,o+def.params.length), hNew=def.height(nv);
+    if(ai>=0&&!fx(ai)&&Number.isFinite(hOld)&&Number.isFinite(hNew)&&Math.abs(hNew)>0) d.init[o+ai]=nv[ai]*hOld/hNew;
   } else {
     const wi=def.params.map((nm,i)=>/^w/.test(nm)?i:-1).filter(i=>i>=0);
     if(wi.some(fx)) return;
@@ -11979,9 +11990,27 @@ function applyHandle(hd,pt){
 function handleTip(k){
   const d=S.pdraft; if(!d||!d.peaks[k]) return "";
   const m=pdraftModel(), def=PEAKS[d.peaks[k].type]||PEAKS.gauss, o=m.offsets[k], pv=d.init.slice(o,o+def.params.length);
-  const [xu,yu]=dataUnits();
-  return `Peak ${k+1}   centre ${fmt(pv[0],6)}${xu?" "+xu:""}   height ${fmt(def.height(pv),4)}${yu?" "+yu:""}   FWHM ${fmt(Math.abs(peakFWHM(def,pv)),4)}${xu?" "+xu:""}`;
+  const [xu,yu]=dataUnits(), sp=shapeParOf(d.peaks[k].type);
+  return `Peak ${k+1}   centre ${fmt(pv[0],6)}${xu?" "+xu:""}   height ${fmt(def.height(pv),4)}${yu?" "+yu:""}   FWHM ${fmt(Math.abs(peakFWHM(def,pv)),4)}${xu?" "+xu:""}${sp?`   ${sp.name} ${fmt(pv[sp.i],3)}`:""}`;
 }
+/* A peak's shape (roadmap 6, slice 4): a pseudo-Voigt's Lorentzian fraction, a Pearson VII's m (on a
+   log scale) and a Fano's 1/q, each between its shape's own limits, set by a diamond on a short track
+   over the selected peak's number (at its centre parameter, so a Fano's moving top does not move the
+   track under the pointer), dragged sideways, or by , and . with the peak selected (Shift: ten
+   steps of a fiftieth of the track). The height and the area's other share stay: the top stays where
+   it was put, the tails change. A fixed shape has no diamond. */
+const SHAPE_PAR={mu:{name:"Lorentzian fraction",lo:0,hi:1},m:{name:"shape m",lo:0.51,hi:50,log:true},iq:{name:"asymmetry 1/q",lo:-0.9,hi:0.9,zero:true}};
+function shapeParOf(type){
+  const def=PEAKS[type]; if(!def||!def.params) return null; const i=def.params.findIndex(n=>SHAPE_PAR[n]); if(i<0) return null;
+  const key=def.params[i], b=(def.bounds||{})[key]; return Object.assign({i,key},SHAPE_PAR[key],b?{lo:b[0],hi:b[1]}:{}); }
+function shapeT(sp,v){ const t=sp.log?(Math.log(v)-Math.log(sp.lo))/(Math.log(sp.hi)-Math.log(sp.lo)):(v-sp.lo)/(sp.hi-sp.lo); return Number.isFinite(t)?Math.max(0,Math.min(1,t)):0; }
+function shapeV(sp,t){ t=Math.max(0,Math.min(1,t));
+  let v=sp.log?Math.exp(Math.log(sp.lo)+t*(Math.log(sp.hi)-Math.log(sp.lo))):sp.lo+t*(sp.hi-sp.lo);
+  if(sp.zero&&Math.abs(v)<0.012*(sp.hi-sp.lo)) v=0; return Math.max(sp.lo,Math.min(sp.hi,+v.toPrecision(4))); }
+function shapeHandleOf(d,m,k){
+  const pk=d&&d.peaks[k]; if(!pk) return null; const sp=shapeParOf(pk.type); if(!sp) return null;
+  const o=m.offsets[k]; if(d.fixed[o+sp.i]) return null; const v=d.init[o+sp.i]; if(!Number.isFinite(v)) return null;
+  return Object.assign({v,t:shapeT(sp,v),xc:d.init[o]},sp); }
 // After the view changes (a zoom settled, a pan let go): the Fit window follows when it is
 // open; otherwise only the status bar's counts, not a fresh guess for a window nobody sees.
 function afterView(){ if(winOpen("fit")) renderFit(); else renderStatusBar(); }
@@ -12026,8 +12055,8 @@ function setupGraph(){
     const h=hitHandle(ev);
     if(h&&ev.button===0&&!S.readOnly&&S.pdraft&&S.pdraft.peaks[h.k]){
       ev.preventDefault(); svg.setPointerCapture(ev.pointerId);
-      S.hdrag={k:h.k,kind:h.kind,moved:false,pushed:false};
-      if(S.selPeak!==h.k){ S.selPeak=h.k; renderPlot(); renderFit(); }
+      S.hdrag={k:h.k,kind:h.kind,moved:false,pushed:false,tr:h.kind==="s"?((S.geo&&S.geo.handles)||[]).find(q=>q.k===h.k&&q.kind==="s")||null:null};
+      if(S.selPeak!==h.k||S.annoSel){ S.selPeak=h.k; S.annoSel=null; renderPlot(); renderFit(); }
       return;
     }
     // A band's edge, or its strip along the top, drags in the Zoom, Pan and Label tools.
@@ -12081,7 +12110,7 @@ function setupGraph(){
     if(S.adrag){ if(d){ moveAnchor(S.adrag.k,{x:d.x,y:d.y},false); S.adrag.moved=true; const [xu2,yu2]=[S.ps&&S.ps.d.xu||"",S.ps&&S.ps.d.yu||""]; showTip(`Anchor at ${fmt(d.x,6)}${xu2?" "+xu2:""}, ${fmt(d.y,5)}${yu2?" "+yu2:""}`,x,y); } return; }
     if(S.hdrag){ const hd=S.hdrag;
       if(!hd.pushed){ pushUndo("adjusting peak "+(hd.k+1)); hd.pushed=true; }
-      applyHandle(hd,d); hd.moved=true; renderPlot(); showTip(handleTip(hd.k),x,y); return; }
+      applyHandle(hd,hd.kind==="s"?shapeAtPx(hd,x):d); hd.moved=true; renderPlot(); showTip(handleTip(hd.k),x,y); return; }
     if(drag){ drag.x1=x; drag.y1=y; if(Math.abs(x-drag.x0)+Math.abs(y-drag.y0)>5) drag.moved=true;
       if(drag.pan){ if(drag.moved) panTo(drag,x,y); hideTip(); return; }
       if(drag.moved&&S.mode==="shape"&&shapeKind()!=="poly"){ let x1=x, y1=y;
@@ -12274,6 +12303,9 @@ function graphKey(ev){
   if(S.mode==="cross"&&/^Arrow/.test(ev.key)){ const xh=xhState(), g=S.geo; if(!xh) return; ev.preventDefault(); const st=ev.shiftKey?10:1; let px=g.X(xh.x), py=g.Y(xh.y);
     if(ev.key==="ArrowLeft") px-=st; else if(ev.key==="ArrowRight") px+=st; else if(ev.key==="ArrowUp") py-=st; else py+=st;
     const d=toData(px,py); if(d){ if(xh.mode!=="h") xh.x=d.x; if(xh.mode!=="v") xh.y=d.y; } drawReaders(); renderRdCard(); return; }
+  // Tab through what can be moved, and the arrows move it (roadmap 6, slice 3).
+  if(ev.key==="Tab"&&kbTab(ev.shiftKey)){ ev.preventDefault(); return; }
+  if(kbNudgeKey(ev)) return;
   const all=S.shownPts||pointsAll(); if(!all.length) return;
   const k=ev.key, at=()=>all.findIndex(q=>q.i===S.sel);
   const pick=j=>{ j=Math.min(all.length-1,Math.max(0,j)); S.sel=all[j].i;
@@ -12292,7 +12324,7 @@ function graphKey(ev){
     if((k==="Enter"||k==="F2")&&(h==="title"||h.startsWith("leg:"))&&!S.readOnly){ ev.preventDefault(); inlineEditLegend(h); return; }
     if((k==="ArrowDown"||k==="ArrowUp")&&ord.length){ ev.preventDefault(); const i=ord.indexOf(h), j=i<0?0:Math.max(0,Math.min(ord.length-1,i+(k==="ArrowDown"?1:-1))); S.legSel={g:GID(),hit:ord[j]}; renderPlot(); return; }
     if(k==="Escape"){ ev.preventDefault(); S.legSel=null; renderPlot(); return; } }
-  if(k==="Escape"&&(S.gsel||S.annoSel||S.bandSel)){ ev.preventDefault(); S.gsel=null; S.annoSel=null; S.bandSel=null; renderPlot(); $("#plotSay").textContent="Nothing selected."; return; }
+  if(k==="Escape"&&(S.gsel||S.annoSel||S.bandSel||kbPeakOn())){ ev.preventDefault(); const pk=kbPeakOn(); S.gsel=null; S.annoSel=null; S.bandSel=null; if(pk) S.selPeak=null; renderPlot(); if(pk) renderFit(); $("#plotSay").textContent="Nothing selected."; return; }
   if((k==="Enter"||k==="F2")&&S.annoSel&&annoById(S.annoSel)&&!S.readOnly){ ev.preventDefault(); annoDouble(S.annoSel); return; }
   if((k==="Delete"||k==="Backspace")&&S.annoSel&&annoById(S.annoSel)&&!S.readOnly){ ev.preventDefault(); deleteAnno(S.annoSel); $("#plotSay").textContent="Annotation deleted."; return; }
   if((k==="Delete"||k==="Backspace")&&S.bandSel&&integOf().bands.some(b=>b.id===S.bandSel)&&!S.readOnly){ ev.preventDefault(); removeBand(S.bandSel); $("#plotSay").textContent="Band removed."; return; }
@@ -12313,6 +12345,72 @@ function graphKey(ev){
     S.view={x0,x1,y0:v.y0,y1:v.y1}; renderPlot(); renderFit();
     $("#plotSay").textContent=`Range now x ${fmt(x0,6)} to ${fmt(x1,6)}.`; return; }
 }
+/* Keyboard on the graph (roadmap 6, slice 3). Tab and Shift+Tab step through what can be moved on
+   the graph in front: its annotations as drawn (in the order they are drawn), then the peaks being
+   set up while their handles show; past the last (or before the first) the focus moves on, so the
+   graph never keeps it. The arrows move what is selected a pixel at a time (Shift: ten): an
+   annotation as a drag of its body would (a label's text, a line, a range, a box, a polygon, an
+   arrow, an inset); a peak's centre (left and right) and height (up and down), and [ and ] its
+   width ({ and }: ten pixels). A burst of presses on one thing is one undo step (kbBurst). */
+function kbTargets(){
+  const out=[], seen=new Set();
+  document.querySelectorAll("#plot [data-anno]").forEach(el=>{ const id=el.dataset.anno; if(!id||seen.has(id)||!annoById(id)) return; seen.add(id); out.push({anno:id}); });
+  ((S.geo&&S.geo.handles)||[]).forEach(h=>{ if(h.kind==="c") out.push({peak:h.k}); });
+  return out; }
+function kbPeakOn(){ const k=S.selPeak; return k!=null&&!!(S.pdraft&&S.pdraft.peaks[k]&&S.geo&&(S.geo.handles||[]).some(h=>h.k===k&&h.kind==="c")); }
+function kbTab(back){
+  const T=kbTargets(); if(!T.length) return false;
+  const cur=T.findIndex(t=>t.anno?t.anno===S.annoSel:(!S.annoSel&&t.peak===S.selPeak&&kbPeakOn()));
+  const j=cur<0?(back?-1:0):cur+(back?-1:1);
+  if(j<0||j>=T.length){ if(cur>=0){ const pk=T[cur].peak!=null; S.annoSel=null; if(pk) S.selPeak=null; renderPlot(); if(pk) renderFit(); } return false; }
+  const t=T[j]; S.gsel=null; S.legSel=null; S.bandSel=null;
+  if(t.anno){ S.annoSel=t.anno; renderPlot(); const a=annoById(t.anno); const ds=annoDesc(a); $("#plotSay").textContent=`${ds.charAt(0).toUpperCase()+ds.slice(1)}, ${j+1} of ${T.length}. Arrows move it.`; }
+  else { S.annoSel=null; S.selPeak=t.peak; renderPlot(); renderFit(); $("#plotSay").textContent=`${handleTip(t.peak)}. Arrows move it, [ and ] change its width.`; }
+  return true; }
+function kbBurst(key,label){
+  const now=Date.now(), b=S.kbBurst, top=undoStack[undoStack.length-1];
+  if(b&&b.key===key&&now-b.t<1500&&top&&top===b.u){ b.t=now; return false; }
+  pushUndo(label); S.kbBurst={key,t:now,u:undoStack[undoStack.length-1]}; return true; }
+function nudgeAnno(id,dx,dy){
+  const a=annoById(id), g=S.geo; if(!a||!g||S.readOnly||!ANNO_KINDS[a.t]) return;
+  const first=kbBurst("a:"+id,"moving "+ANNO_KINDS[a.t].toLowerCase());
+  const x0=a.t==="v"?g.X(a.x):0, y0=a.t==="h"?g.Y(a.y):0, alt=S.altKey;
+  S.andrag={id,x0,y0,orig:JSON.parse(JSON.stringify(a)),moved:true,end:null,txt:false}; S.altKey=true;
+  try{ dragAnno(x0+dx,y0+dy); } finally{ S.andrag=null; S.altKey=alt; S.guides=null; S.snapRing=null; hideTip(); }
+  const b=annoById(id); if(!b) return;
+  save({annos:(P().annos||[]).slice()},first?`moved ${annoDesc(b)} with the keys`:undefined); renderPlot();
+  const c=annoById(id); if(c) $("#plotSay").textContent=annoTip(c); }
+function nudgePeak(k,dx,dy,wd){
+  const d=S.pdraft, g=S.geo; if(!d||!d.peaks[k]||!g||S.readOnly) return;
+  const H=g.handles||[], c=H.find(h=>h.k===k&&h.kind==="c"); if(!c) return;
+  let hd, px, py;
+  if(wd){ const e=H.find(h=>h.k===k&&h.kind==="r")||H.find(h=>h.k===k&&h.kind==="l");
+    if(!e){ $("#plotSay").textContent=`The sides of peak ${k+1} are out of view: zoom out to change its width.`; return; }
+    hd={k,kind:e.kind}; px=e.x+(Math.sign(e.x-c.x)||1)*wd; py=e.y; }
+  else { hd={k,kind:"c"}; px=c.x+dx; py=c.y+dy; }
+  const pt=toData(px,py); if(!pt) return;
+  kbBurst("p:"+k,"adjusting peak "+(k+1));
+  applyHandle(hd,pt); renderPlot(); clearTimeout(S.kbFitT); S.kbFitT=setTimeout(()=>renderFit(),250);
+  $("#plotSay").textContent=handleTip(k); }
+function shapeAtPx(hd,x){ const tr=hd.tr, d=S.pdraft, sp=d&&d.peaks[hd.k]&&shapeParOf(d.peaks[hd.k].type); if(!tr||!sp||!(tr.x1>tr.x0)) return null;
+  // Zero (a Fano's symmetric line) is caught within 3 px, as a ruler's mark is.
+  if(sp.zero&&sp.lo<0&&sp.hi>0&&Math.abs(x-(tr.x0+shapeT(sp,0)*(tr.x1-tr.x0)))<=3) return {v:0};
+  return {v:shapeV(sp,(x-tr.x0)/(tr.x1-tr.x0))}; }
+function nudgeShape(k,steps){
+  const d=S.pdraft; if(!d||!d.peaks[k]||S.readOnly) return; const sh=shapeHandleOf(d,pdraftModel(),k);
+  if(!sh){ const sp=shapeParOf(d.peaks[k].type); $("#plotSay").textContent=sp?`The ${sp.name} of peak ${k+1} is fixed.`:`Peak ${k+1} has no shape parameter of its own.`; return; }
+  let v=shapeV(sh,sh.t+steps/50); if(v===sh.v&&steps) v=shapeV(sh,sh.t+(steps>0?1.5:-1.5)/50);
+  kbBurst("p:"+k,"adjusting peak "+(k+1)); applyHandle({k,kind:"s"},{v}); renderPlot();
+  clearTimeout(S.kbFitT); S.kbFitT=setTimeout(()=>renderFit(),250); $("#plotSay").textContent=handleTip(k); }
+function kbNudgeKey(ev){
+  const k=ev.key, st=ev.shiftKey?10:1, arrow=/^Arrow(Left|Right|Up|Down)$/.test(k);
+  const dx=k==="ArrowLeft"?-st:k==="ArrowRight"?st:0, dy=k==="ArrowUp"?-st:k==="ArrowDown"?st:0;
+  if(arrow&&S.annoSel&&annoById(S.annoSel)&&!S.readOnly){ ev.preventDefault(); nudgeAnno(S.annoSel,dx,dy); return true; }
+  if(!S.annoSel&&kbPeakOn()&&!S.readOnly){
+    if(arrow){ ev.preventDefault(); nudgePeak(S.selPeak,dx,dy); return true; }
+    if(k.length===1&&"[]{}".includes(k)){ ev.preventDefault(); nudgePeak(S.selPeak,0,0,(k==="]"||k==="}"?1:-1)*(k==="{"||k==="}"?10:1)); return true; }
+    if(k.length===1&&",.<>".includes(k)){ ev.preventDefault(); nudgeShape(S.selPeak,(k==="."||k===">"?1:-1)*(k==="<"||k===">"?10:1)); return true; } }
+  return false; }
 const MODE_HINT={
   zoom:"Drag to zoom · Scroll to zoom at the pointer · Double-click to show all",
   pan:"Drag to pan · Scroll to zoom · The middle button pans with any tool",
@@ -21479,7 +21577,7 @@ ${DL([["Theme","Light, Dark, or System: as the system is."],["Style","Bench (blu
  body:`<h2 id="k-all">Everywhere</h2>
 ${DL([[K("Ctrl","Z"),"Undo"],[K("Ctrl","Shift","Z")+" · "+K("Ctrl","Y"),"Redo"],[K("Ctrl","O"),"Import a file"],[K("Ctrl","K"),"Find a command, by its name or a word for it"],[K("Ctrl","Enter"),"Run the fit · post a comment"],[K("Esc"),"Close a menu or dialog; back to the Zoom tool"],[K("F1"),"Help on the window in front"],[K("Ctrl",","),"Preferences"],[K("Ctrl","Shift","D"),"The window in front into a window of its own, for another display; there, back to the desk"],[K("?"),"This page"]],"keys")}
 <h2 id="k-graph">On the graph</h2>
-${DL([[K("←")+" "+K("→"),"Previous or next point (click the graph first)"],[K("Home")+" "+K("End"),"First or last point"],[K("+")+" "+K("−")+" "+K("0"),"Zoom in, zoom out, show all"],[K("[")+" "+K("]"),"Start or end the view at the selected point"],[K("M"),"Mask or restore the selected point"],[K("P"),"Put a peak at the selected point"],[K("Delete"),"Remove the selected peak, label, line or band"],[K("Enter")+" · "+K("F2"),"Type over the selected label, text or legend entry; "+K("Shift","Enter")+" starts a new line"],[K("←")+" "+K("→")+" · "+K("↑")+" "+K("↓"),"With the Reader: the previous or next point, the next curve; with the X–Y lines: move them ("+K("Shift")+" ten pixels)"],[K("↑")+" "+K("↓"),"With the legend selected: the entry above or below"],[K("Ctrl","Shift","=")+" · "+K("Ctrl","="),"While typing: superscript · subscript"],[K("Alt")+" while dragging","No snapping: text off its guides, an arrow's head off the data"],[K("Ctrl")+" while dropping a graph","Keep it: its columns are put on the other graph, and it stays"],[K("Esc")+" while holding a graph","Cancel the drop"],["Middle-drag","Pan, in any tool"],["Scroll","Zoom at the pointer"],["Double-click","Show all the data"],[K("Shift","F10"),"The graph's menu"]],"keys")}
+${DL([[K("←")+" "+K("→"),"Previous or next point (click the graph first)"],[K("Home")+" "+K("End"),"First or last point"],[K("+")+" "+K("−")+" "+K("0"),"Zoom in, zoom out, show all"],[K("[")+" "+K("]"),"Start or end the view at the selected point"],[K("M"),"Mask or restore the selected point"],[K("P"),"Put a peak at the selected point"],[K("Tab")+" · "+K("Shift","Tab"),"Select the next or previous label, line, shape or other annotation, then the peaks being set up; past the last, on to the next control"],[K("←")+" "+K("→")+" "+K("↑")+" "+K("↓"),"Move the selected annotation a pixel ("+K("Shift")+": ten); a selected peak's centre (← →) and height (↑ ↓)"],[K("[")+" "+K("]"),"With a peak selected: narrower or wider ("+K("{")+" "+K("}")+": ten pixels)"],[K(",")+" "+K("."),"With a peak selected: its shape, a pseudo-Voigt's Lorentzian fraction, a Pearson VII's m or a Fano's 1/q ("+K("<")+" "+K(">")+": ten steps)"],[K("Delete"),"Remove the selected peak, label, line or band"],[K("Enter")+" · "+K("F2"),"Type over the selected label, text or legend entry; "+K("Shift","Enter")+" starts a new line"],[K("←")+" "+K("→")+" · "+K("↑")+" "+K("↓"),"With the Reader: the previous or next point, the next curve; with the X–Y lines: move them ("+K("Shift")+" ten pixels)"],[K("↑")+" "+K("↓"),"With the legend selected: the entry above or below"],[K("Ctrl","Shift","=")+" · "+K("Ctrl","="),"While typing: superscript · subscript"],[K("Alt")+" while dragging","No snapping: text off its guides, an arrow's head off the data"],[K("Ctrl")+" while dropping a graph","Keep it: its columns are put on the other graph, and it stays"],[K("Esc")+" while holding a graph","Cancel the drop"],["Middle-drag","Pan, in any tool"],["Scroll","Zoom at the pointer"],["Double-click","Show all the data"],[K("Shift","F10"),"The graph's menu"]],"keys")}
 <h2 id="k-sheet">In the worksheet</h2>
 ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move; with "+K("Shift")+", select; with "+K("Ctrl")+", jump to the end of the data"],[K("Enter")+" · "+K("Tab"),"Next row · next column"],[K("F2")+" · double-click","Edit the cell; typing replaces it; "+K("Esc")+" cancels"],[K("Delete"),"Clear the selection (labels, and values unless the original data is locked)"],[K("Ctrl","C")+" "+K("Ctrl","V"),"Copy and paste, as tab-separated text"],[K("Ctrl","D")+" · "+K("Ctrl","R"),"Fill down · fill right"],[K("Ctrl","Shift","=")+" · "+K("Ctrl","−"),"Insert · delete rows, or columns when whole columns are selected"],[K("Ctrl","Space"),"In a formula: the suggestions; "+K("↑")+" "+K("↓")+" choose, "+K("Tab")+" puts one in, "+K("Esc")+" closes them"],[K("Ctrl","F"),"Find; "+K("Enter")+", "+K("Shift","Enter")+" or "+K("F3")+" for the next or previous match"],[K("Ctrl","Home")+" "+K("Ctrl","End"),"First or last cell"],[K("PgUp")+" "+K("PgDn"),"A screen up or down"]],"keys")}
 <h2 id="k-flow">In the History</h2>
@@ -21808,7 +21906,7 @@ ${DL([["Greek","<code>\\alpha</code> … <code>\\omega</code>, <code>\\Gamma</co
  body:`<h2>Adding</h2>
 ${DL([["Peak label","The <em>Label</em> tool: click a peak and type. Or right-click near a peak."],["Text","The Label tool on an empty spot, or right-click › Text here."],["Lines","Right-click › Vertical or Horizontal line, at the spot clicked; or "+MP("Figure › Annotate › Vertical line…")+": a dialog asks which way, where (in the axis's units), what its text says (its position, your own words, or nothing) and how it looks."],["Anything, from the Format pane","<em>Add</em> on its <em>Labels and lines</em> page."],["Shaded range",MP("Figure › Annotate › Shade an X range")+", then drag across the graph."],["A whole set",DA("peaks","The Peaks window")+" marks and labels every peak it finds."]])}
 <h2>Editing</h2>
-<ul><li><strong>Move</strong>: drag it. A moved label keeps a leader line to its peak.</li>
+<ul><li><strong>Move</strong>: drag it. A moved label keeps a leader line to its peak. With the keys: click the graph, ${K("Tab")} to select each annotation in turn (${K("Shift","Tab")} back; past the last the focus moves on), and the arrows move it a pixel at a time, ${K("Shift")} ten; a burst of presses is one undo step.</li>
 <li><strong>Type</strong>: double-click a label or text (or select it and press ${K("Enter")}), or the text of a line, range, arrow or shape. ${K("Enter")} keeps, ${K("Shift","Enter")} starts a new line, ${K("Esc")} leaves it. A line's text left empty shows its position; <em>Text shows</em> in its menu chooses the position, your own text or nothing.</li>
 <li><strong>Everything else</strong>: double-click a line, a range or a shape (not its text), or <em>Format…</em> in anything's right-click menu (or the ⋯ in the typing box): the ${DA("style","Format pane")}'s <em>Labels and lines</em> page, open at it. The right-click menu has the text's size, bold, italic and colour first, as every text on the graph does.</li>
 <li><strong>Delete</strong>: select it and press ${K("Delete")}.</li></ul>
@@ -21978,7 +22076,7 @@ ${DL([["<code>b = 2*a + 1</code>","b follows the others: it is not fitted on its
 <p>It looks over the Fit window's <em>Range</em> (${DA("fit","what is fitted")}). The ${DA("finder","finder")} previews what it would find on the graph (filled: found; hollow: not counted as peaks). <em>Use these peaks</em> starts the draft from them; <em>Add to my peaks</em> adds them to what is there. Or press <em>Add a peak</em> in part 2 and click the graph.</p>
 <h2>2 · Peaks and baseline</h2>
 <p>Each peak's shape and starting values, and the baseline (none, constant, straight line, quadratic or cubic, measured from the centre of the fitted range). On the graph, the draft is drawn dashed with its sum:</p>
-${DL([["Numbered dot","Drag to move the peak's centre and height."],["Side handles","Of the selected peak: drag to change its width."],["Type","Any value in the table; the lock holds it fixed; the chain link "+DA("ties","ties it")+" to another peak's."]])}
+${DL([["Numbered dot","Drag to move the peak's centre and height."],["Side handles","Of the selected peak: drag to change its width."],["Diamond","Of the selected peak, on a short track over its number, when its shape has a parameter of its own (a pseudo-Voigt's Lorentzian fraction, from Gaussian at the left to Lorentzian at the right; a Pearson VII's m; a Fano's asymmetry 1/q, zero marked in the middle): drag it sideways. The top stays where it is; the tails change."],["The keys","Click the graph and press "+K("Tab")+" until the peak is selected (after the annotations): "+K("←")+" "+K("→")+" move its centre, "+K("↑")+" "+K("↓")+" its height, "+K("[")+" "+K("]")+" its width, a pixel at a time ("+K("Shift")+", or "+K("{")+" "+K("}")+", ten); "+K(",")+" "+K(".")+" its shape, as the diamond does."],["Type","Any value in the table; the lock holds it fixed; the chain link "+DA("ties","ties it")+" to another peak's."]])}
 <p><em>One width</em> gives every peak the same width, for an instrument's resolution. Changing a peak's shape keeps its centre, width and height.</p>
 <p>The box beside <em>Peak 1</em> is its name (<em>C=O stretch</em>, <code>\\nu_{1}</code>): it goes into the peak's label, Results, the report and the exports, and into every spectrum of a batch fitted with these peaks.</p>
 <h2>3 · Fit</h2>

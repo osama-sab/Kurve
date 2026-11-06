@@ -1024,6 +1024,31 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Getting around, slice 4: a peak's shape by its own handle (2026-11-06)
+
+- The selected peak, when its shape has a parameter of its own, has a diamond on a short track over
+  its number: a pseudo-Voigt's Lorentzian fraction (Gaussian at the left, Lorentzian at the right),
+  a Pearson VII's m (on a log scale), a Fano's 1/q (zero marked and caught). Dragging it keeps the
+  peak's height; `,` and `.` step it (`<` `>` ten steps). A fixed shape has none; its tooltip and
+  the hover readout give the value.
+
+Checked: `tools/plot-drive.mjs` (13 new: the diamond where its value is, its tooltip, a drag past
+the end to 1 with the height and FWHM kept as one undo step, the keys and what they say, undo, a
+Fano's zero marked and caught, none on a Gaussian or a fixed shape, Pearson's m on a log scale).
+
+## Getting around, slice 3: annotations and peaks by the keys (2026-11-06)
+
+- On the graph, Tab and Shift+Tab select each annotation in turn (in the order they are drawn), then
+  each peak being set up; past the last the focus moves on. The arrows move what is selected a
+  pixel (Shift: ten); a peak's arrows move its centre and height, and [ ] change its width ({ }:
+  ten). A burst of presses is one undo step and one log line; Esc lets go.
+- A press on a peak's dot lets go of a selected annotation, so the arrows move what was pressed.
+
+Checked: `tools/plot-drive.mjs` (14 new: Tab's order and what it says, a text moved 13 right and 1
+up as one undo step and one log line, undone, a line moved ten left, the first peak after the
+annotations, its centre, height and width, one undo for the burst, Tab and Shift+Tab leaving, Esc,
+a viewer's arrows).
+
 ## Getting around, slice 2: the History's zoom and wrapped lanes (2026-11-06)
 
 - The History's bar has −, the zoom as a percentage (back to 100 %), + and Fit; Ctrl and the wheel

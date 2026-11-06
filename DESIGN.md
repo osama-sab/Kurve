@@ -889,6 +889,35 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: a peak's shape by its own handle (roadmap 6, slice 4)
+
+- **A shape is a slider, not a place.** The dot is where a peak is and the side handles how wide;
+  a pseudo-Voigt's Lorentzian fraction, a Pearson VII's m and a Fano's 1/q are neither, so they get
+  a short track of their own with a diamond, as a range slider has, over the peak's number (the
+  space above a top is the emptiest there is), below the top when that is off the plot.
+- **The top stays where it was put.** Changing the shape keeps the height (and a pseudo-Voigt's or
+  Pearson VII's FWHM, which their width is): only the tails change, which is what the parameter
+  means; a handle that also moved the top would undo what the dot just set.
+- **Each on its own scale**: the fraction from Gaussian at the left to Lorentzian at the right; m
+  on a log scale, as 0.5 to 50 is; 1/q with its zero marked and caught within 3 px, a symmetric
+  line being the one value people look for. The track sits at the peak's centre parameter, not its
+  top, since a Fano's top moves with 1/q and would carry the track from under the pointer.
+- **The keys too**: `,` and `.` a fiftieth of the track, `<` and `>` ten, next to `[` `]` for the
+  width.
+
+### 2026-11-06: annotations and peaks by the keys (roadmap 6, slice 3)
+
+- **Tab, as a drawing program has it.** On the graph, Tab selects each thing that can be moved in
+  turn (the annotations in the order they are drawn, then the peaks being set up), and the arrows
+  move it a pixel, Shift ten, as PowerPoint and Illustrator nudge. A peak's arrows are its centre
+  and height, the dot's drag; `[` and `]` its width, as an image editor sizes a brush.
+- **No trap.** Past the last (or before the first) Tab lets go and the focus moves on, so a
+  keyboard user is never held by the graph (WCAG 2.1.2); Esc lets go without leaving.
+- **A burst is one step**, as a held slider's: presses on one thing within a second and a half are
+  one undo entry and one log line, so undo is not forty presses long.
+- **Said, not shown**: the screen reader hears what is selected and where it is among the others
+  ("A vertical line at x = 85, 1 of 2"), and each move's new place.
+
 ### 2026-11-06: the History's zoom and wrapped lanes (roadmap 6, slice 2)
 
 - **Twenty columns are twenty lanes**, and the History scrolled sideways past the third. Lanes now
