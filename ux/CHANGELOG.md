@@ -1024,6 +1024,16 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Many spectra, slice 4: a trend graph as a graph like any other (2026-11-06)
+
+- A trend graph's ⋯ menu has *As a graph like any other*: its numbers on a sheet of their own (the
+  series as X, each quantity a column with its errors as error bars, each comment dated) plotted on
+  an ordinary graph, a quantity on the right axis kept there; one undo step. The Format pane, saved
+  styles, figures and every export then work on it. Roadmap item 7 is done.
+
+Checked: `tools/plot-drive.mjs` (5 new: the menu, the sheet's columns and values against the
+trend's, the graph and its right axis, the Format pane on it, undo).
+
 ## Many spectra, slice 3: global fits in a worker (2026-11-06)
 
 - Fit every column… together solves in a worker made from the page's own numerics: the page stays

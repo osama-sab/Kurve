@@ -22236,7 +22236,8 @@ ${DL([["Plot","Any column of the table."],["Against: their order","1, 2, 3… in
 <p>Error bars are the standard errors of the fit. Click a point to work on that column. ⋯ saves the trend as SVG, and the report includes the table and the trend.</p>
 <h2 id="desk">Trend graphs on the desk</h2>
 <p><em>On the desk</em>, beside the trend, or ${MP("Plot › New graph › A trend of the series")} opens the trend as a graph of its own, which stays on the desk and follows the data as they change.</p>
-${DL([["+ Quantity","Add any column of the table; a quantity in other units goes to the right axis."],["L and R","Move a quantity between the left and the right axis. With two axes, an axis holding one quantity takes its colour."],["×","Take a quantity off the graph."],["Against","What every trend is plotted against, as in the Batch window."],["Lines","A straight line through each quantity, with its slope and intercept underneath."],["⋯","Rename, copy the numbers, save as SVG or PNG, delete."]])}
+${DL([["+ Quantity","Add any column of the table; a quantity in other units goes to the right axis."],["L and R","Move a quantity between the left and the right axis. With two axes, an axis holding one quantity takes its colour."],["×","Take a quantity off the graph."],["Against","What every trend is plotted against, as in the Batch window."],["Lines","A straight line through each quantity, with its slope and intercept underneath."],["⋯","Rename, copy the numbers, save as SVG or PNG, make it a graph like any other, delete."]])}
+<p><em>As a graph like any other</em> (in its ⋯ menu) puts the trend's numbers on a sheet of their own (the series as X, each quantity a column with its errors as error bars) and plots them on an ordinary graph, each quantity on its axis: the ${DA("style","Format pane")}, saved styles, figures and every export then work on it. The numbers are a copy, dated in each column's comment: a fit made again later changes the trend graph, not the sheet.</p>
 <p>Click a point to work on that column. The report has every trend graph. A quantity that is no longer there (the fit it came from was cleared) is shown greyed until it comes back or is taken off.</p>`},
 /* ---------------------------------------------------------------- Working together */
 {id:"disc", g:"Working together", t:"Comments and discussion", win:"disc", kw:"comment discussion thread reply resolve reopen badge point anchor note",
@@ -23720,8 +23721,31 @@ function trendAddItems(id){ const tp=trendOf(id), qs=batchQuantities(), have=new
   return groups.length===1?groups[0].qs.map(item):groups.map(g=>g.qs.length===1?Object.assign(item(g.qs[0]),{label:g.qs[0].label}):{label:g.g,sub:g.qs.map(item)}); }
 function trendWinItems(id){ const tp=trendOf(id), ro=S.readOnly;
   return [{label:"Rename…",enabled:!ro,run:()=>renameTrend(id)},{label:"Copy the numbers",run:()=>copyText(trendTableText(id),"Copied the trend's numbers.")},
-    {label:"Save as SVG",run:()=>exportTrendWin(id,"svg")},{label:"Save as PNG",run:()=>exportTrendWin(id,"png")},"-",
+    {label:"Save as SVG",run:()=>exportTrendWin(id,"svg")},{label:"Save as PNG",run:()=>exportTrendWin(id,"png")},
+    {label:"As a graph like any other",enabled:!ro,title:"Its numbers on a sheet of their own, plotted on an ordinary graph: the Format pane, saved styles, figures and every export then work on it",run:()=>trendToGraph(id)},"-",
     {label:"Delete this trend graph",danger:true,enabled:!ro,run:()=>deleteTrend(id)}]; }
+/* A trend as a graph like any other (roadmap 7, slice 4): its numbers on a sheet of their own (the
+   series as X, each quantity a Y with its errors as an error column, each column's comment saying
+   where it came from and when), then plotted, each quantity on its axis, so the Format pane, saved
+   styles, figures, panels and every export work on it, as they do on any graph. The numbers are a
+   copy: a fit made again later changes the trend graph, not the sheet. One undo step. */
+function trendToGraph(id){
+  const p=P(), tp=trendOf(id); if(!p||!tp||S.readOnly) return;
+  const ser=trendSeries(tp).filter(z=>z.q&&z.tr&&z.tr.pts.length); if(!ser.length){ toast("This trend graph has nothing to plot yet."); return; }
+  const s=seriesOf(), rows=seriesCols().filter(r=>r.v!=null), c0=(rows[0]||{}).c, when=new Date().toISOString().slice(0,16).replace("T"," ");
+  if(S.ws&&S.ws.edit) wsCommit(0,0,true);
+  pushUndo("putting a trend graph on a sheet"); stampSheets(p);
+  const sid=newSheetId(), name=sheetNameFor(tp.name), comm=`from ${tp.name}, ${when}`, mk=(role,nm,u,data,of)=>Object.assign(makeCol(role,nm,u,data,of),{sheet:sid,comm});
+  const X=mk("x",s.mode==="order"?"Order":(s.label||(s.mode==="meta"?s.key||"Value":"Value")),seriesUnit(s),rows.map(r=>r.v)), cols=[X], ys=[], use={};
+  ser.forEach(z=>{ const vs=rows.map(r=>batchValue(r.c,z.q)), u=c0?qUnit(z.q,c0):"";
+    const Y=Object.assign(mk("y",z.q.label,u,vs.map(b=>b&&Number.isFinite(b.v)?b.v:null)),{pipe:[],mask:[]}); cols.push(Y); ys.push(Y.id); if(z.ax==="r") use[Y.id]={ax:"r"};
+    if(vs.some(b=>b&&Number.isFinite(b.e)&&b.e>0)) cols.push(mk("e","Error",u,vs.map(b=>b&&Number.isFinite(b.e)?b.e:null),Y.id)); });
+  p.cols=p.cols.concat(cols); p.sheets=sheetList(p).concat([{id:sid,name}]);
+  const raw=recordRaw(`added the sheet ${name}, the numbers of ${tp.name}`);
+  save(Object.assign({cols:p.cols,sheets:p.sheets},raw?{raw}:{}),`put the numbers of ${tp.name} on the sheet ${name}`);
+  S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=sid;
+  plotCols(ys,{noUndo:true,use});
+  toast(`${tp.name} is now a graph like any other, its numbers on the sheet ${name}.${tp.line?" Its straight line is a fit: Analyze › Fit.":""}`,{action:"Undo",run:undo}); }
 function nextTrendName(){ const used=new Set(trendList().map(t=>t.name)); let n=trendList().length+1; while(used.has(`Trend ${n}`)) n++; return `Trend ${n}`; }
 function newTrend(qid){
   const p=P(); if(!p||S.readOnly) return; const qs=batchQuantities();

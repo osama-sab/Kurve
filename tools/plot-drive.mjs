@@ -1160,6 +1160,36 @@ await page(async p => {
   check("Stop ends it: each column keeps its own fit, and it says so", !r.run && !r.glob && r.rows === 80 && /Stopped before they were fitted together/.test(r.toast) && r.w === null, JSON.stringify(r));
 }, { name: "global fits in a worker" });
 
+console.log("Roadmap 7, slice 4: a trend graph as a graph like any other");
+await page(async p => {
+  await p.evaluate(async () => {
+    let s = 5; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; }, gn = () => Math.sqrt(-2 * Math.log(rnd() + 1e-12)) * Math.cos(2 * Math.PI * rnd());
+    const x = Array.from({ length: 161 }, (_, i) => 60 + i * 0.5), X = makeCol("x", "Shift", "cm-1", x), cols = [X];
+    [280, 290, 300, 310, 320].forEach((T, k) => cols.push(Object.assign(makeCol("y", "T" + T, "", x.map(v => 3 + (40 + 5 * k) * Math.exp(-0.5 * ((v - (100 + 0.4 * (T - 300))) / 3) ** 2) + 0.4 * gn())), { pipe: [], mask: [] })));
+    const pr = Object.assign(blankProject("Trends"), { cols, activeY: cols[1].id, series: { mode: "name", label: "Temperature", unit: "K", vals: {}, q: null, line: false } });
+    pr.graphs = [{ id: newGid(), name: "Graph 1", cols: [cols[1].id], plot: { style: "auto" } }];
+    await createProject(pr, "test"); await new Promise(r => setTimeout(r, 80)); renderAll();
+    prefSet("anim", false); applyAnim(); S.fitMode = "curve"; showTab("fit"); chooseModel("gauss"); runFit();
+    runBatch({ tmpl: batchTemplate(activeFit()), seed: "tmpl", cols: yCols().map(c => c.id) });
+    for (let i = 0; i < 100 && S.batchRun; i++) await new Promise(r => setTimeout(r, 100));
+    newTrend("par2"); const t = trendList()[0]; saveTrend(t.id, { ys: t.ys.concat([{ q: "par1", ax: "r" }]) });
+  });
+  await p.waitForTimeout(500);
+  const before = await p.evaluate(() => ({ sheets: sheetList().length, graphs: P().graphs.length, cols: P().cols.length, id: trendList()[0].id, items: trendWinItems(trendList()[0].id).filter(i => i && i.label).map(i => i.label) }));
+  check("a trend graph's menu offers it as a graph like any other", before.items.includes("As a graph like any other"), JSON.stringify(before.items));
+  await p.evaluate(id => trendToGraph(id), before.id); await p.waitForTimeout(600);
+  let r = await p.evaluate(() => { const sh = sheetList().slice(-1)[0], cs = sheetCols(sh.id), g = P().graphs.slice(-1)[0], tr = trendData(qFind(batchQuantities(), "par2"));
+    return { name: sh.name, kinds: cs.map(c => c.role + ":" + c.name).join("|"), x: cs[0].data.join(","), unit: cs[0].unit, y: cs[1].data.map(v => v.toFixed(6)).join(","), want: tr.pts.map(q => q.y.toFixed(6)).join(","), e: cs[2].role === "e" && cs[2].of === cs[1].id && cs[2].data.every(v => v > 0),
+      comm: cs[1].comm, gcols: g.cols.length, right: (g.plot.use || {})[cs[3].id], log: P().log.slice(-1)[0].text }; });
+  check("its numbers on a sheet of their own: the series as X, each quantity a Y with its errors", r.name === "Trend 1" && /^x:Temperature\|y:xc\|e:Error\|y:A\|e:Error$/.test(r.kinds) && r.x === "280,290,300,310,320" && r.unit === "K" && r.y === r.want && r.e && /^from Trend 1, /.test(r.comm), JSON.stringify(r));
+  check("…plotted on an ordinary graph, the right-axis quantity on the right", r.gcols === 2 && r.right && r.right.ax === "r", JSON.stringify(r));
+  r = await p.evaluate(() => { const g = P().graphs.slice(-1)[0]; activateGraph(g.id); openPlotDetails(null, "ax:y"); return { front: GID() === g.id, fmt: winOpen("format") }; });
+  check("…which the Format pane formats like any graph", r.front && r.fmt, JSON.stringify(r));
+  await p.evaluate(() => { closeWin("format"); undo(); }); await p.waitForTimeout(500);
+  r = await p.evaluate(() => ({ sheets: sheetList().length, graphs: P().graphs.length, cols: P().cols.length }));
+  check("one undo takes the sheet and the graph back", r.sheets === before.sheets && r.graphs === before.graphs && r.cols === before.cols, JSON.stringify([before, r]));
+}, { name: "a trend graph as a graph like any other" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

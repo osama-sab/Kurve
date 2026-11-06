@@ -889,6 +889,15 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: a trend graph as a graph like any other (roadmap 7, slice 4)
+
+- **Origin's way: the results are a worksheet, and a graph is plotted from it.** Rather than a
+  second set of formatting controls for trend graphs, *As a graph like any other* puts a trend's
+  numbers on a sheet of their own and plots them: the graph then has everything any graph has
+  (the Format pane, saved styles, figures, panels, every export), and nothing new to learn.
+- **A copy, and said to be one**: each column's comment says which trend and when, since a fit
+  made again changes the trend graph and not the sheet; the trend graph stays, following the data.
+
 ### 2026-11-06: global fits in a worker (roadmap 7, slice 3)
 
 - **A long fit must not take the page.** Eighty spectra fitted together held the page for seconds:

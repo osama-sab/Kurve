@@ -721,7 +721,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   in the taskbar, help `batch#desk`), `renderTrendWin` (chips with L/R and ×, + Quantity
   `trendAddItems`, against, Lines), `drawTrendPlot` (sized to its box, redrawn by a
   ResizeObserver), `saveTrend`, `newTrend` (the Batch window's On the desk, Window › New
-  graph), `trendWinItems` (rename, copy, SVG, PNG, delete), `trendTableText`, `exportTrendWin`,
+  graph), `trendWinItems` (rename, copy, SVG, PNG, *As a graph like any other*, delete;
+  `trendToGraph(id)`, roadmap 7, slice 4: a sheet named after it, the series as X and each
+  quantity a Y with an error column, comments dated, `recordRaw`, then `plotCols` with `use` for
+  the right axis; one undo step; a copy, not following later fits), `trendTableText`, `exportTrendWin`,
   `reportTrendsHtml`. `trendPlotSvg(ser, {W, H, pal, forExport, idp, single})` draws any number
   of quantities on a left and a right axis (margins measured, a legend row, symbols per
   quantity, an axis of one kind titled by the kind); `trendSvg` is it with one series.
@@ -4050,9 +4053,10 @@ Next, in order:
 6. Getting around: a visible undo list (done 06.11), flow chart zoom and packed lanes (done
    06.11), keyboard access to annotations and peak handles (done 06.11), handles for shape
    parameters (Lorentz fraction, Pearson m, Fano 1/q; done 06.11): the roadmap's item 6 is done
-7. Many spectra, further: a parameter that follows the series in a global fit (done 06.11; a centre
-   linear in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the
-   files' header fields as rows of the worksheet (done 06.11), global fits in a worker (done 06.11)
+7. Many spectra, further: a parameter that follows the series in a global fit (a centre linear
+   in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the files'
+   header fields as rows of the worksheet, global fits in a worker: all done 06.11, the roadmap's
+   item 7 is done
 8. More files: JCAMP-DX, then SPC; OPUS and SPE last
 9. Under the hood (projects in IndexedDB: done 05.11; a cell typed into a million rows quick, the
    graph drawing what is in view, every row of a sheet reachable: done 05.11): `tools/odd-test.mjs`
@@ -4162,8 +4166,9 @@ Next, in order:
 - Peaks are matched across spectra by position alone, nearest first: two bands that cross
   along the series swap tracks. A marked peak's trend gives its position and the Y at its top,
   not an area (integrate it, or fit)
-- Trend graphs have their own fixed style (not the Format dialog), linear axes only, and
-  plot every quantity against the one series variable of the project
+- Trend graphs have their own fixed style (not the Format pane), linear axes only, and plot
+  every quantity against the one series variable of the project; *As a graph like any other*
+  makes an ordinary graph of their numbers, a copy that later fits do not change
 - Combining: a spectrum is held by its chip on a graph that is not in front, not from the live
   graph's legend or a worksheet column; a graph merged into another brings its spectra, their
   styles and its labels, not its axes, titles or format. Bringing in copies (a later change in
