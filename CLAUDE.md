@@ -906,7 +906,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   LXV, CSF, DXU `OPUS_XU`, DPF), the sample's, instrument's, acquisition's, optics' and Fourier
   parameters a person reads (`OPUS_FIELDS`) as `meta` with `Block`; the same shape as `spcFile`, for
   `spcTable`. `readAny` reads a name ending in a number (`binName`: `.0`, `.1`…, `.opus`) as bytes and
-  tries it; `impFindings` (`opus`). `batchFile` reads one-column
+  tries it; `impFindings` (`opus`). **Princeton SPE** (roadmap 8, slice 4; PARSER block):
+  `speBinFile(bytes)` (null for text, a file without a NUL in its first 64 bytes, so Maestro's `.Spe`
+  goes on to `mcaFile`; null too without version 2's end mark 5555h at 4098 or a version 3 header):
+  frames × rows of xdim values (float32, int32, int16, uint16, uint32 by the data type at 108), X from
+  version 3's XML footer `<Wavelength>`, else version 2's polynomial in the pixel from 1 (order at
+  3101, coefficients at 3263), else the pixel; the exposure, date and time, detector temperature,
+  laser line (3311) and comments as `meta`; `{fail}` in words; the shape of `spcFile`. `readAny` reads
+  every `.spe` as bytes and decodes text when `speBinFile` says it is not one; `impFindings` (`spe`).
+  `batchFile` reads one-column
   files the same way. A Y column whose X column holds no values is drawn against its row
   number (`rawSeries`, `anyVal`, xn "Row").
 - **Columns and spectra**: a project is a table. `p.cols` is `[{id, role, name, unit, data, of?,
@@ -4086,7 +4094,7 @@ Next, in order:
    in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the files'
    header fields as rows of the worksheet, global fits in a worker: all done 06.11, the roadmap's
    item 7 is done
-8. More files: JCAMP-DX, then SPC, OPUS (done 06.11); SPE last
+8. More files: JCAMP-DX, then SPC; OPUS and SPE last: all done 06.11, the roadmap's item 8 is done
 9. Under the hood (projects in IndexedDB: done 05.11; a cell typed into a million rows quick, the
    graph drawing what is in view, every row of a sheet reachable: done 05.11): `tools/odd-test.mjs`
    grown to run every example end to end; the worksheet drawing only the columns in view; speed
@@ -4386,9 +4394,10 @@ Next, in order:
 - Worksheet formulas are whole-column (row by row); there are no cell formulas, no references
   to other rows (`B[i-1]`), no relative formulas when filling right, no replace in find, and
   sorting never reorders the recorded data (by design)
-- Binary instrument formats other than SPC and OPUS (Princeton's SPE) are not read, nor SPC's old
+- Binary instrument formats other than SPC, OPUS and Princeton's SPE are not read, nor SPC's old
   format (before 1996) or its log block, nor an OPUS file's other blocks (one spectrum is read, the
-  first of absorbance, single channel, interferogram); text exports only. JCAMP-DX is read but
+  first of absorbance, single channel, interferogram), nor an SPE file's regions of interest or
+  binning (its rows are read as they are) or a calibration unit other than nm; text exports only. JCAMP-DX is read but
   for files in pages (`##NTUPLES`, NMR), the forms of `##XYDATA` other than (X++(Y..Y)), and more
   than the first block with data of a linked file
 - The preview pane serves a snapshot of the file, so `location.reload()` re-runs stale code —

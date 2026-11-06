@@ -1248,6 +1248,22 @@ await page(async p => {
   check("a text file with such a name (run.1) is read as text", r && r.text && /^x y/.test(r.text), JSON.stringify(r));
 }, { name: "OPUS files" });
 
+console.log("Roadmap 8, slice 4: Princeton Instruments SPE files");
+await page(async p => {
+  // A WinSpec file of 4 points with a calibration, and a Maestro text .Spe of 3000 channels.
+  const b = new Uint8Array(4100 + 16), dv = new DataView(b.buffer); dv.setInt16(0, 6, true); dv.setUint16(42, 4, true); dv.setUint16(656, 1, true); dv.setInt32(1446, 1, true); dv.setFloat32(1992, 2.5, true); dv.setUint16(4098, 0x5555, true);
+  b[3101] = 1; dv.setFloat64(3263, 500, true); dv.setFloat64(3271, 0.5, true); dv.setFloat64(3311, 532, true); [10, 20, 40, 30].forEach((v, i) => dv.setFloat32(4100 + 4 * i, v, true));
+  const maestro = "$SPEC_ID:\nSoil 7\n$DATA:\n0 2999\n" + Array.from({ length: 3000 }, (_, i) => String(100 + (i % 7))).join("\n") + "\n";
+  await p.evaluate(async bytes => { await createProject(blankProject("SPE"), "test"); await new Promise(r => setTimeout(r, 80)); renderAll(); prefSet("anim", false); applyAnim(); window.__pspe = new Uint8Array(bytes); }, Array.from(b));
+  await p.evaluate(() => readFileIn(new File([window.__pspe], "si.spe"))); await p.waitForTimeout(600);
+  let r = await p.evaluate(() => ({ open: !document.querySelector("#impModal").hidden, h: S.imp && S.imp.res.headerRow, laser: S.imp && S.imp.res.meta.Laser, note: [...document.querySelectorAll("#impModal ul.find li")].map(e => e.textContent).join(" | ") }));
+  check("a Princeton SPE file is read from its bytes: wavelength from its calibration, its laser line kept, said in the dialog", r.open && r.h && r.h.join("|") === "Wavelength (nm)|Counts (counts)" && r.laser === "532 nm" && /Princeton Instruments SPE file, decoded from its bytes: 4 points, X in wavelength from its calibration/.test(r.note), JSON.stringify(r));
+  await p.evaluate(() => { closeModal(document.querySelector("#impModal")); });
+  await p.evaluate(t => readFileIn(new File([t], "soil7.Spe")), maestro); await p.waitForTimeout(600);
+  r = await p.evaluate(() => ({ mca: !!(S.imp && S.imp.res.mca), n: S.imp && S.imp.res.rows.length }));
+  check("Maestro's text .Spe still reads as an analyser's counts", r.mca && r.n === 3000, JSON.stringify(r));
+}, { name: "Princeton SPE files" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

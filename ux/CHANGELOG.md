@@ -1024,6 +1024,18 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## More files, slice 4: Princeton Instruments SPE (2026-11-06)
+
+- WinSpec's and LightField's binary SPE files are read: each row and frame a column of counts (float,
+  32- or 16-bit integers), X in nm from the file's wavelengths or its calibration polynomial, else by
+  pixel; the exposure, date, detector temperature, laser line and comments as header fields. Maestro's
+  text `.Spe` still reads as an analyser's counts. Roadmap item 8 is done.
+
+Checked: `tools/parser-test.mjs` (8 new, files built byte by byte: version 2 with its polynomial and
+fields, 16-bit rows by pixel, frames, version 3's XML wavelengths, through the import's table,
+Maestro's text not taken for one, the refusals) and `tools/plot-drive.mjs` (2 new: a WinSpec file
+chosen into the dialog, a Maestro file still an analyser's).
+
 ## More files, slice 3: OPUS (2026-11-06)
 
 - Bruker OPUS files (`sample.0`, `sample.1`…) are read from their bytes: the absorbance block (else

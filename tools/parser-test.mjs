@@ -12,7 +12,7 @@ const m = html.match(/==PARSER:START==[\s\S]*?\*\/([\s\S]*?)\/\* ==PARSER:END==/
 if (!m) { console.error("Could not find the parser block in kurve.html"); process.exit(1); }
 
 // checkColumns formats numbers with the app's fmt(); a plain stub is enough here.
-const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,parseLineList,parseFillList,timeOf,spcFile,spcTable,opusFile};`;
+const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,parseLineList,parseFillList,timeOf,spcFile,spcTable,opusFile,speBinFile};`;
 const P = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -327,6 +327,35 @@ check("negative kept", close(P.toNumber("-999", "."), -999));
   check("opus: not one is null, so it is read as text", P.opusFile(new Uint8Array(40)) === null);
   check("opus: no spectrum, or a broken directory, refused in words", /no data Kurve can read/.test((P.opusFile(mkOpus([{ dt: 160, bytes: pblock([["SNM", 2, "x"]]) }])) || {}).fail || "")
     && /directory cannot be read/.test((P.opusFile((() => { const b = mkOpus([{ dt: 15, bytes: f32([1, 2]) }]); new DataView(b.buffer).setInt32(12, 9999, true); return b; })()) || {}).fail || ""));
+}
+/* ---------- 15b6. Princeton Instruments SPE (binary) ---------- */
+{
+  const eq = (a, b) => a.length === b.length && a.every((v, i) => (v == null && b[i] == null) || Math.abs(v - b[i]) < 1e-6);
+  // A WinSpec (version 2) or LightField (version 3) file: o.rows (each xdim values), o.dtype, o.frames, o.coef (polynomial), o.xml.
+  const mkSpe = o => { const rows = o.rows, xd = rows[0].length, nf = o.frames || 1, yd = rows.length / nf, W = { 0: 4, 1: 4, 2: 2, 3: 2, 8: 4 }[o.dtype || 0];
+    const dataEnd = 4100 + W * xd * rows.length, xmlB = o.xml ? Uint8Array.from(o.xml, c => c.charCodeAt(0)) : null, b = new Uint8Array(dataEnd + (xmlB ? xmlB.length : 0)), dv = new DataView(b.buffer);
+    dv.setInt16(0, 6, true); dv.setUint16(42, xd, true); dv.setInt16(108, o.dtype || 0, true); dv.setUint16(656, yd, true); dv.setInt32(1446, nf, true); dv.setFloat32(1992, o.ver || 2.5, true);
+    if (!o.ver || o.ver < 3) dv.setUint16(4098, 0x5555, true);
+    dv.setFloat32(10, o.exp || 0, true); "15Mar2024".split("").forEach((c, i) => { b[20 + i] = c.charCodeAt(0); }); "103045".split("").forEach((c, i) => { b[172 + i] = c.charCodeAt(0); });
+    dv.setFloat32(36, -70, true); if (o.laser) dv.setFloat64(3311, o.laser, true); (o.comment || "").split("").forEach((c, i) => { b[200 + i] = c.charCodeAt(0); });
+    if (o.coef) { b[3101] = o.coef.length - 1; o.coef.forEach((v, k) => dv.setFloat64(3263 + 8 * k, v, true)); }
+    rows.forEach((Y, r) => Y.forEach((v, i) => { const at = 4100 + W * (r * xd + i); [dv.setFloat32, dv.setInt32, dv.setInt16, dv.setUint16, null, null, null, null, dv.setUint32][o.dtype || 0].call(dv, at, v, true); }));
+    if (xmlB) { b.set(xmlB, dataEnd); dv.setUint32(678, dataEnd, true); }
+    return b; };
+  let s = P.speBinFile(mkSpe({ rows: [[10, 20, 30, 40]], coef: [500, 0.5, 0.001], exp: 2, laser: 532.1, comment: "Si wafer" }));
+  check("spe: version 2, float counts, X from its calibration polynomial in the pixel number from 1", s && s.kind === "SPE" && eq(s.xs[0], [500.501, 501.004, 501.509, 502.016]) && eq(s.ys[0], [10, 20, 30, 40]) && s.xn === "Wavelength" && s.xu === "nm" && s.yn === "Counts", JSON.stringify(s));
+  check("spe: its exposure, date and time, detector temperature, laser line and comment as fields", s && s.meta.Exposure === "2 s" && s.meta.Measured === "2024-03-15 10:30:45" && s.meta["Detector temperature"] === "-70 °C" && s.meta.Laser === "532.1 nm" && s.meta.Comment === "Si wafer", JSON.stringify(s && s.meta));
+  s = P.speBinFile(mkSpe({ rows: [[1, 2, 3], [4, 5, 6]], dtype: 3 }));
+  check("spe: 16-bit unsigned, two rows as two columns, X by pixel without a calibration", s && s.ys.length === 2 && eq(s.ys[1], [4, 5, 6]) && eq(s.xs[0], [1, 2, 3]) && s.xn === "Pixel" && s.meta.Rows === "2 rows, 1 frame", JSON.stringify(s));
+  s = P.speBinFile(mkSpe({ rows: [[7, 8, 9], [1, 1, 1]], frames: 2, dtype: 1 }));
+  check("spe: 32-bit integers, two frames of one row", s && s.ys.length === 2 && eq(s.ys[0], [7, 8, 9]), JSON.stringify(s));
+  s = P.speBinFile(mkSpe({ rows: [[5, 6, 7]], ver: 3, dtype: 8, xml: '<SpeFormat><Calibrations><WavelengthMapping><Wavelength xml:space="preserve">785.5,786,786.5</Wavelength></WavelengthMapping></Calibrations></SpeFormat>' }));
+  check("spe: version 3, 32-bit unsigned, X from its XML footer's wavelengths", s && eq(s.xs[0], [785.5, 786, 786.5]) && eq(s.ys[0], [5, 6, 7]) && s.xu === "nm", JSON.stringify(s));
+  const t = P.analyzeFile(P.spcTable(P.speBinFile(mkSpe({ rows: [[10, 20, 30, 40]], coef: [500, 0.5] }))), { fname: "si.spe" });
+  check("spe: through the import's table", eq(t.cols[1], [10, 20, 30, 40]) && t.headerRow.join("|") === "Wavelength (nm)|Counts (counts)", JSON.stringify([t.cols, t.headerRow]));
+  check("spe: Maestro's text .Spe is not taken for one", P.speBinFile(Uint8Array.from(("$SPEC_ID:\nSoil\n$DATA:\n0 3\n" + "1\n".repeat(3000)).split(""), c => c.charCodeAt(0))) === null);
+  check("spe: a data type it does not read, and a file that ends early, refused in words", /data type \(5\)/.test((P.speBinFile((() => { const b = mkSpe({ rows: [[1, 2]] }); new DataView(b.buffer).setInt16(108, 5, true); return b; })()) || {}).fail || "")
+    && /ends before its data/.test((P.speBinFile(mkSpe({ rows: [[1, 2, 3, 4]] }).slice(0, 4104)) || {}).fail || ""));
 }
 /* ---------- 15b2. analysers' own formats: Maestro and IAEA .Spe, N42 ---------- */
 {

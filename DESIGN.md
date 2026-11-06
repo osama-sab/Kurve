@@ -889,6 +889,15 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: Princeton Instruments SPE (roadmap 8, slice 4)
+
+- **One name, two formats.** `.spe` is Maestro's text and Princeton's binary; every `.spe` is read as
+  bytes and decoded as text unless its header is Princeton's (a NUL in its first bytes, the end mark
+  or a version 3 header), so the analyser files that read before still read.
+- **X as the camera's software gave it**: LightField's list of wavelengths, else WinSpec's
+  calibration polynomial, else the pixel, said in the dialog; the laser line kept as a field, since
+  Raman shift needs it.
+
 ### 2026-11-06: OPUS (roadmap 8, slice 3)
 
 - **Told by its bytes, not its name.** OPUS files are named `sample.0`, `sample.1`, a name many text

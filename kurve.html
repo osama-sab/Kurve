@@ -6343,6 +6343,48 @@ function opusFile(bytes){
   let yn=OPUS_YN[kind]; if(kind==="AB"&&/^TR/i.test(String(pr.DYU||""))) yn="Transmittance";
   const meta={Block:kind}; other.forEach(o=>Object.keys(o).forEach(k=>{ if(OPUS_FIELDS[k]&&meta[OPUS_FIELDS[k]]==null&&o[k]!=="") meta[OPUS_FIELDS[k]]=String(o[k]).slice(0,200); }));
   return {kind:"OPUS",xs:[X],ys:[Y],xn,xu,yn,yu:"",shared:true,meta}; }
+/* Princeton Instruments' SPE (roadmap 8, slice 4): WinSpec's and LightField's binary format, which
+   shares its name with Maestro's text .Spe. A 4100-byte header (xdim at 42, the data type at 108, ydim
+   at 656, frames at 1446, the header's version at 1992, the end mark 5555h at 4098 in version 2), then
+   frames of ydim rows of xdim values (32-bit float, 32-bit integer, 16-bit integer or unsigned, 32-bit
+   unsigned). X: version 3's XML footer (its offset at 678) gives every wavelength; version 2's X
+   calibration (at 3000) a polynomial in the pixel number from 1 (its order at 3101, coefficients at
+   3263), its laser line at 3311; else the pixel. The exposure, date and time, detector temperature
+   and comments are the header's fields. speBinFile(bytes): {kind, xs, ys, xn, xu, yn, yu, shared,
+   meta} as spcFile gives, {fail} in words, or null when it is not one (Maestro's text is). */
+function speBinFile(bytes){
+  const b=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes||[]); if(b.length<4100) return null;
+  // A text file (Maestro's starts "$SPEC_ID:") has no NUL in its first bytes; Princeton's header has.
+  if(!b.subarray(0,64).some(c=>c===0)) return null;
+  const dv=new DataView(b.buffer,b.byteOffset,b.byteLength), ver=dv.getFloat32(1992,true), mark=dv.getUint16(4098,true);
+  if(mark!==0x5555&&!(ver>=3&&ver<10)) return null;
+  const xd=dv.getUint16(42,true), yd=Math.max(1,dv.getUint16(656,true)), nf=Math.max(1,dv.getInt32(1446,true)), dtp=dv.getInt16(108,true);
+  const W={0:4,1:4,2:2,3:2,8:4}[dtp]; if(!W) return {fail:`an SPE file whose data type (${dtp}) is not one Kurve reads`};
+  if(!(xd>=1&&xd<=1e7)) return {fail:"an SPE file whose number of points cannot be right"};
+  if(yd*nf>SPC_MAXSUB) return {fail:`an SPE file of ${yd*nf} rows and frames, more than the ${SPC_MAXSUB} Kurve reads at once`};
+  if(4100+W*xd*yd*nf>b.length) return {fail:"an SPE file that ends before its data do"};
+  const rd=o=>dtp===0?dv.getFloat32(o,true):dtp===1?dv.getInt32(o,true):dtp===2?dv.getInt16(o,true):dtp===3?dv.getUint16(o,true):dv.getUint32(o,true);
+  const ys=[]; for(let f=0;f<nf;f++) for(let r=0;r<yd;r++){ const o0=4100+W*xd*(f*yd+r), Y=new Array(xd); for(let i=0;i<xd;i++){ const v=rd(o0+W*i); Y[i]=Number.isFinite(v)?v:null; } ys.push(Y); }
+  const str=(o,n)=>{ let s=""; for(let i=o;i<o+n&&b[i];i++) s+=String.fromCharCode(b[i]); return s.replace(/[\x00-\x1f]+/g," ").trim(); };
+  let X=null, xn="Pixel", xu="";
+  // Version 3: every wavelength in the XML footer.
+  if(ver>=3){ const off=dv.getUint32(678,true)+dv.getUint32(682,true)*4294967296;
+    if(off>0&&off<b.length){ let xml=""; for(let i=off;i<b.length;i++) xml+=String.fromCharCode(b[i]);
+      const m=/<Wavelength\b[^>]*>([^<]+)<\/Wavelength>/.exec(xml), w=m?m[1].split(/[,\s]+/).map(Number).filter(Number.isFinite):[];
+      if(w.length>=xd){ X=w.slice(0,xd); xn="Wavelength"; xu="nm"; } } }
+  // Version 2: a polynomial in the pixel number, from 1.
+  if(!X){ const ord=b[3101], co=[0,1,2,3,4,5].map(k=>dv.getFloat64(3263+8*k,true));
+    if(ord>=1&&ord<=5&&co.slice(0,ord+1).every(Number.isFinite)&&co.slice(1,ord+1).some(v=>v!==0)){ X=new Array(xd); for(let i=0;i<xd;i++){ let v=0, pw=1; for(let k=0;k<=ord;k++){ v+=co[k]*pw; pw*=i+1; } X[i]=v; } xn="Wavelength"; xu="nm"; } }
+  if(!X){ X=new Array(xd); for(let i=0;i<xd;i++) X[i]=i+1; }
+  const meta={}, put=(k,v)=>{ if(v!=null&&v!=="") meta[k]=String(v).slice(0,400); };
+  const ex=dv.getFloat32(10,true); if(Number.isFinite(ex)&&ex>0) put("Exposure",+ex.toPrecision(6)+" s");
+  const dt=str(20,10), tm=str(172,7), MO={JAN:1,FEB:2,MAR:3,APR:4,MAY:5,JUN:6,JUL:7,AUG:8,SEP:9,OCT:10,NOV:11,DEC:12}, dm=/^(\d{1,2})([A-Za-z]{3})(\d{4})$/.exec(dt);
+  if(dm&&MO[dm[2].toUpperCase()]) put("Measured",`${dm[3]}-${String(MO[dm[2].toUpperCase()]).padStart(2,"0")}-${dm[1].padStart(2,"0")}${/^\d{6}$/.test(tm)?` ${tm.slice(0,2)}:${tm.slice(2,4)}:${tm.slice(4,6)}`:""}`);
+  const tp=dv.getFloat32(36,true); if(Number.isFinite(tp)&&tp!==0&&Math.abs(tp)<400) put("Detector temperature",+tp.toPrecision(4)+" °C");
+  const las=dv.getFloat64(3311,true); if(Number.isFinite(las)&&las>100&&las<5000) put("Laser",+las.toPrecision(7)+" nm");
+  const cm=[0,1,2,3,4].map(k=>str(200+80*k,80)).filter(Boolean).join(" "); put("Comment",cm);
+  if(yd*nf>1) put("Rows",`${yd} row${yd===1?"":"s"}, ${nf} frame${nf===1?"":"s"}`);
+  return {kind:"SPE",xs:[X],ys,xn,xu,yn:"Counts",yu:"counts",shared:true,meta}; }
 function spcTable(sp){
   const lines=Object.keys(sp.meta).map(k=>`${k}: ${sp.meta[k]}`), hx=sp.xn+(sp.xu?" ("+sp.xu+")":""), K=sp.ys.length;
   const yh=k=>(K>1?`${sp.yn} ${k+1}`:sp.yn)+(sp.yu?" ("+sp.yu+")":""), fn=v=>v==null||!Number.isFinite(v)?"":String(v);
@@ -15639,6 +15681,7 @@ function impCounts(i){ const r=S.imp.res, ys=(r.cols[i]||[]).filter(v=>v!=null);
 const impSqrtable=()=>impYs().filter(i=>impErrFor(i)<0&&impCounts(i));
 function impFindings(){
   const {x,y}=impCols(), out=[], r=S.imp.res, ny=impYs().length;
+  if(/\.spe$/i.test(S.imp.fname||"")&&!r.mca) out.push({id:"spe",level:"good",text:`A Princeton Instruments SPE file, decoded from its bytes: ${fmtCount(r.rows.length)} points${r.ncol>2?` in ${r.ncol-1} rows`:""}, X ${/Wavelength/.test((r.headerRow||[])[0]||"")?"in wavelength from its calibration":"by pixel (it has no calibration)"}.`});
   if(binName(S.imp.fname)&&r.meta.Block) out.push({id:"opus",level:"good",text:`A Bruker OPUS file, decoded from its bytes: ${fmtCount(r.rows.length)} points of its ${r.meta.Block} block. Its ${Object.keys(r.meta).length} fields are kept with the column.`});
   else if(/\.spc$/i.test(S.imp.fname||"")) out.push({id:"spc",level:"good",text:`An SPC file, decoded from its bytes: ${fmtCount(r.rows.length)} points in ${r.ncol-1} column${r.ncol===2?"":"s"} besides X. Its header's ${Object.keys(r.meta).length} fields are kept with the columns.`});
   if(r.jdx) out.push({id:"jdx",level:"good",text:`A JCAMP-DX file in ${r.jdx.form}: ${fmtCount(r.jdx.n)} points${r.jdx.title?`, “${r.jdx.title}”`:""}, shown here decoded. Its ${Object.keys(r.meta).length} labels are kept as the file's header fields.`});
@@ -16382,9 +16425,10 @@ function wireXpl(){
 function readAny(f){ return new Promise(res=>{
   if(f.size>60e6){ res({name:f.name,fail:`${Math.round(f.size/1e6)} MB, too large for a text column`}); return; }
   // SPC by its name; OPUS (named sample.0, sample.1…) by its first bytes, a file so named that is not one read as text.
-  const rd=new FileReader(), spc=/\.spc$/i.test(f.name||""), bin=spc||binName(f.name);
+  // SPE: Princeton's binary one by its header, Maestro's text one read as text.
+  const rd=new FileReader(), spc=/\.spc$/i.test(f.name||""), spe=/\.spe$/i.test(f.name||""), bin=spc||spe||binName(f.name);
   rd.onload=()=>{ if(!bin){ res({name:f.name,text:String(rd.result)}); return; }
-    const u=new Uint8Array(rd.result), op=spc?null:opusFile(u), sp=spc?spcFile(u):op;
+    const u=new Uint8Array(rd.result), sp=spc?spcFile(u):spe?speBinFile(u):opusFile(u);
     if(!sp){ res({name:f.name,text:new TextDecoder().decode(u)}); return; }
     res(sp.fail?{name:f.name,fail:sp.fail}:{name:f.name,text:spcTable(sp),bin:sp.kind}); };
   rd.onerror=()=>res({name:f.name,fail:"could not be read"});
@@ -16392,7 +16436,7 @@ function readAny(f){ return new Promise(res=>{
 const binName=n=>/\.(\d{1,4}|opus)$/i.test(String(n||""));
 function readFileIn(f){
   if(!f) return;
-  if(/\.spc$/i.test(f.name||"")||binName(f.name)){ readAny(f).then(r=>{ if(r.fail){ toast(`${f.name} is ${r.fail}.`); logError(`Import of ${f.name}: ${r.fail}`,"import"); } else importText(r.text,f.name); }); return; }
+  if(/\.(spc|spe)$/i.test(f.name||"")||binName(f.name)){ readAny(f).then(r=>{ if(r.fail){ toast(`${f.name} is ${r.fail}.`); logError(`Import of ${f.name}: ${r.fail}`,"import"); } else importText(r.text,f.name); }); return; }
   if(f.size>60e6){ toast(`${f.name} is ${Math.round(f.size/1e6)} MB, more than a text export of a column should be.`); return; }
   const rd=new FileReader();
   rd.onload=()=>importText(String(rd.result),f.name);
@@ -21809,8 +21853,10 @@ ${DL([["X column","<em>Channel number</em>: each line's position, counted from <
 <p>An SPC file (<code>.spc</code>, Thermo Galactic's format, written by many IR, Raman and UV–visible instruments) is read from its bytes and shown in the dialog as a table: its points as floating-point numbers or scaled integers, X evenly spaced or as written, several subfiles as several columns (on one X, or each with its own as pairs), its X and Y types as names (Wavenumber in cm⁻¹, Raman shift, Absorbance, Transmittance…) or its own axis labels, and its memo, source, resolution, method and date as the columns' header fields. The old format, from before 1996, is refused with the reason.</p>
 <h2 id="opus">OPUS</h2>
 <p>A Bruker OPUS file (named <code>sample.0</code>, <code>sample.1</code>…) is read from its bytes: its absorbance (or transmittance) block, else its single-channel or interferogram block, with the points, X range, scale and X unit its parameters give, and the sample's name, the operator, instrument, resolution, scans, apodization, beamsplitter, source and detector as the column's header fields. A file with such a name that is not an OPUS file is read as text.</p>
+<h2 id="pspe">Princeton Instruments SPE</h2>
+<p>An SPE file from WinSpec or LightField (binary, unlike Maestro's text <code>.Spe</code>, which is read as before) is read from its bytes: each row and frame of the camera a column of counts, X in nm from the file's wavelengths (LightField's) or its calibration polynomial (WinSpec's), else by pixel; the exposure, date, detector temperature, laser line and comments as the columns' header fields. Raman shift is then one step away, with the laser line it gives.</p>
 <h2>What is refused</h2>
-<p>Other binary instrument files (Princeton's SPE, for one) are refused with a reason. Export them as text from the instrument software first.</p>
+<p>Binary files of other kinds are refused with a reason. Export them as text from the instrument software first.</p>
 <p>After an import that plots one column the ${DA("overview","Overview")} opens. Its <em>Show the overview after every import</em> box turns that off.</p>`},
 {id:"prefs", g:"Basics", t:"Preferences", kw:"preferences settings options history log track tracking privacy record off animation animations motion theme dark light style errors overview",
  lead:"Whether Kurve keeps a history of your changes, how it looks and moves, and the errors it has met. Kept in this browser.",
