@@ -671,6 +671,82 @@ await page(async p => {
   check("points on one line: no map, and the Map menu says why", !r.img && /one line/.test(r.why || ""), JSON.stringify(r));
 }, { name: "a map from scattered X, Y, Z" });
 
+console.log("Roadmap 5, slice 1: polygons and curved arrows");
+await page(async p => {
+  await three(p);
+  const box = () => p.evaluate(() => { const b = document.querySelector("#plot").getBoundingClientRect(), g = S.geo; return { x: b.left + g.L, y: b.top + g.T, w: g.pw, h: g.mh }; });
+  const at = async (fx, fy) => { const b = await box(); return [b.x + b.w * fx, b.y + b.h * fy]; };
+  const polys = () => p.evaluate(() => (P().annos || []).filter(a => a.t === "poly"));
+  // Drawn with the Shape tool: four corners, then the first again.
+  let r = await p.evaluate(() => { const b = document.querySelector('[data-mode="shape"]') || document.querySelector("#shapeBtn"); return null; });
+  await p.evaluate(() => { pickShape("poly"); }); await p.waitForTimeout(150);
+  for (const [fx, fy] of [[0.2, 0.2], [0.5, 0.15], [0.6, 0.5], [0.25, 0.6]]) { const [x, y] = await at(fx, fy); await p.mouse.click(x, y); await p.waitForTimeout(650); }
+  r = await p.evaluate(() => ({ draft: !!document.querySelector("#plot [data-polydraft]"), n: S.polyDraft && S.polyDraft.pts.length }));
+  check("the Shape tool's Polygon: each click a corner, the outline drawn as it goes", r.draft && r.n === 4, JSON.stringify(r));
+  { const [x, y] = await at(0.2, 0.2); await p.mouse.click(x + 2, y + 1); await p.waitForTimeout(400); }
+  let ps = await polys();
+  r = await p.evaluate(() => ({ mode: S.mode, log: JSON.stringify(P().log.slice(-1)[0]), path: (document.querySelector("#plot g[data-anno] path") || {}).getAttribute?.("d") || "" }));
+  check("…a click on the first corner finishes it: a closed polygon of four corners, said in the log, the tool put away", ps.length === 1 && ps[0].pts.length === 4 && ps[0].closed !== false && /drew a polygon of 4 corners/.test(r.log) && r.mode === "zoom" && /Z$/.test(r.path), JSON.stringify([ps, r]));
+  const id = ps[0].id;
+  // A corner dragged alone, then the whole.
+  await p.evaluate(id => { S.annoSel = id; renderPlot(); }, id); await p.waitForTimeout(150);
+  r = await p.evaluate(() => [...document.querySelectorAll('#plot circle[data-ah^="v"]')].map(c => [+c.getAttribute("cx"), +c.getAttribute("cy")]));
+  check("selected, each corner is a handle", r.length === 4, JSON.stringify(r));
+  const before = ps[0].pts.map(q => q.slice()), b0 = await box(), sv = await p.evaluate(() => { const b = document.querySelector("#plot").getBoundingClientRect(); return [b.left, b.top]; });
+  await p.mouse.move(sv[0] + r[1][0], sv[1] + r[1][1]); await p.mouse.down(); await p.mouse.move(sv[0] + r[1][0] + 30, sv[1] + r[1][1] + 20, { steps: 5 }); await p.mouse.up(); await p.waitForTimeout(300);
+  ps = await polys();
+  check("…a corner drags alone, the others staying", ps[0].pts[1][0] > before[1][0] && JSON.stringify([ps[0].pts[0], ps[0].pts[2], ps[0].pts[3]]) === JSON.stringify([before[0], before[2], before[3]]), JSON.stringify([before, ps[0].pts]));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(300);
+  ps = await polys();
+  check("…one undo puts it back", JSON.stringify(ps[0].pts) === JSON.stringify(before), JSON.stringify(ps[0].pts));
+  // Closed or open, filled, pinned.
+  await p.evaluate(id => { annoMenuItems(id).find(i => i && i.label === "Closed").run(); }, id); await p.waitForTimeout(300);
+  r = await p.evaluate(id => ({ closed: annoById(id).closed, d: document.querySelector(`#plot g[data-anno="${id}"] path`).getAttribute("d") }), id);
+  check("its menu's Closed opens it: a line through its points", r.closed === false && !/Z$/.test(r.d), JSON.stringify(r));
+  await p.evaluate(id => { updateAnno(id, { closed: true, fill: "#cc3311" }); pinAnno(id, true); }, id); await p.waitForTimeout(300);
+  r = await p.evaluate(id => { const a = annoById(id), g = S.geo, s0 = polyPts(a, g); S.view = { x0: g.v.x0, x1: (g.v.x0 + g.v.x1) / 2, y0: g.v.y0, y1: g.v.y1, xu: g.v.xu }; renderPlot(); const s1 = polyPts(annoById(id), S.geo); S.view = null; renderPlot();
+    return { pin: a.pin, n: (a.fpts || []).length, same: JSON.stringify(s0) === JSON.stringify(s1), fill: !!document.querySelector(`#plot g[data-anno="${id}"] path[fill="#cc3311"]`) }; }, id);
+  check("filled, and pinned to the plot it stays put when the graph is zoomed", r.pin === "plot" && r.n === 4 && r.same && r.fill, JSON.stringify(r));
+  r = await p.evaluate(() => /<path d="M[^"]+Z" fill="#cc3311"/.test(handPic(600, 400, 1).svg));
+  check("…in an export too", r, JSON.stringify(r));
+  // Enter finishes, Escape stops, two corners are not a polygon.
+  await p.evaluate(() => { pickShape("poly"); }); await p.waitForTimeout(100);
+  for (const [fx, fy] of [[0.7, 0.7], [0.9, 0.75], [0.8, 0.9]]) { const [x, y] = await at(fx, fy); await p.mouse.click(x, y); await p.waitForTimeout(600); }
+  await p.keyboard.press("Enter"); await p.waitForTimeout(300);
+  ps = await polys();
+  check("Enter finishes a polygon of three corners", ps.length === 2 && ps[1].pts.length === 3, JSON.stringify(ps.map(q => q.pts.length)));
+  await p.evaluate(() => { pickShape("poly"); }); await p.waitForTimeout(100);
+  for (const [fx, fy] of [[0.1, 0.8], [0.3, 0.85]]) { const [x, y] = await at(fx, fy); await p.mouse.click(x, y); await p.waitForTimeout(600); }
+  await p.keyboard.press("Backspace"); await p.waitForTimeout(100);
+  r = await p.evaluate(() => S.polyDraft && S.polyDraft.pts.length);
+  await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+  const r2 = await p.evaluate(() => ({ draft: S.polyDraft, mode: S.mode, n: (P().annos || []).filter(a => a.t === "poly").length }));
+  check("Backspace takes the last corner off, Escape stops with nothing made (and puts the tool away)", r === 1 && !r2.draft && r2.n === 2 && r2.mode === "zoom", JSON.stringify([r, r2]));
+  await p.evaluate(() => { pickShape("poly"); }); await p.waitForTimeout(100);
+  for (const [fx, fy] of [[0.1, 0.8], [0.3, 0.85]]) { const [x, y] = await at(fx, fy); await p.mouse.click(x, y); await p.waitForTimeout(600); }
+  await p.keyboard.press("Enter"); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ toast: document.querySelector("#toast").textContent, n: (P().annos || []).filter(a => a.t === "poly").length }));
+  check("…and two corners are not a polygon, said in words", /three corners/.test(r.toast) && r.n === 2, JSON.stringify(r));
+  await p.evaluate(() => setMode("zoom"));
+  // A curved arrow.
+  const aid = await p.evaluate(() => { const v = S.geo.v, n = q => +q.toPrecision(6); return addAnno({ t: "arrow", x: n(v.x0 + (v.x1 - v.x0) * 0.3), y: n(v.y0 + (v.y1 - v.y0) * 0.3), x2: n(v.x0 + (v.x1 - v.x0) * 0.7), y2: n(v.y0 + (v.y1 - v.y0) * 0.3) }); });
+  await p.waitForTimeout(200);
+  r = await p.evaluate(aid => { const it = annoMenuItems(aid).find(i => i && i.label === "Curve"); it.sub().find(i => i.label === "Curved to the left").run(); return null; }, aid); await p.waitForTimeout(300);
+  r = await p.evaluate(aid => ({ bend: annoById(aid).bend, q: /Q/.test(document.querySelector(`#plot g[data-anno="${aid}"] path`).getAttribute("d")) }), aid);
+  check("an arrow's Curve menu bends it: a quadratic curve, the head along it", r.bend === -0.3 && r.q, JSON.stringify(r));
+  await p.evaluate(aid => { S.annoSel = aid; renderPlot(); }, aid); await p.waitForTimeout(150);
+  r = await p.evaluate(aid => { const h = document.querySelector(`#plot g[data-anno="${aid}"] [data-ah="b"]`); if (!h) return null; const b = document.querySelector("#plot").getBoundingClientRect(), x = +h.getAttribute("x") + 4, y = +h.getAttribute("y") + 4; return { x: b.left + x, y: b.top + y }; }, aid);
+  check("…selected, a diamond at its middle to curve it by hand", !!r, JSON.stringify(r));
+  await p.mouse.move(r.x, r.y); await p.mouse.down(); await p.mouse.move(r.x, r.y + 60, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(300);
+  r = await p.evaluate(aid => annoById(aid).bend, aid);
+  check("…dragged downward across the chord, it bends the other way (to the right)", typeof r === "number" && r > 0, JSON.stringify(r));
+  await p.evaluate(aid => { annoMenuItems(aid).find(i => i && i.label === "Swap its ends").run(); }, aid); await p.waitForTimeout(200);
+  const r3 = await p.evaluate(aid => annoById(aid).bend, aid);
+  check("…swapping its ends keeps the same curve (the bend turned round)", Math.abs(r3 + r) < 1e-9, JSON.stringify([r, r3]));
+  r = await p.evaluate(async () => { const pic = handPic(600, 400, 1).svg, v = await svgToVector(pic, { kind: "pdf", wPt: 400, hPt: 280, title: "t" }); return { q: /Q/.test(pic), size: v && v.blob ? v.blob.size : 0 }; });
+  check("…in an export, and a PDF of it", r.q && r.size > 500, JSON.stringify(r));
+}, { name: "polygons and curved arrows" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

@@ -1024,6 +1024,21 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Figures, slice 1: polygons and curved arrows (2026-11-06)
+
+- The Shape tool's *Polygon*: a click a corner; the first corner again, a double click or Enter
+  finishes; Backspace takes a corner off, Escape stops. Corners drag one at a time, the body moves
+  it; outline, fill, text, behind the data, pinned, and *Closed* (open, a line through its points);
+  in the Format pane's Add menu.
+- Arrows curve: *Curve* in the menu (left, right, straight), a diamond at the middle to drag, a
+  number from −1 to 1 in the Format pane; the heads follow the curve; swapping the ends keeps it;
+  PDF and EPS draw it.
+
+Checked: `tools/plot-drive.mjs` (17 new: the tool's clicks and outline, finishing on the first
+corner, the handles, a corner dragged and undone, open and closed, fill, pinned through a zoom, an
+export, Enter, Backspace, Escape, two corners refused; the curve menu, the diamond, a drag bending it
+the other way, swapping the ends, an export and a PDF).
+
 ## Plots, slice 5: a map from scattered X, Y, Z (2026-11-06)
 
 - Plot setup's kind *Map from X, Y, Z* (and *Map from X, Y and its colour column* in a curve's Plot

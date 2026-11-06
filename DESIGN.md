@@ -889,6 +889,17 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: polygons and curved arrows (roadmap 5, slice 1)
+
+- **A polygon is a shape.** It is the Shape tool's third choice beside the box and the ellipse,
+  and has what they have (outline, fill, text inside, behind the data, pinned), so nothing about it
+  needs learning twice. It is drawn as polygons are everywhere: a click a corner, the first corner
+  again (or a double click, or Enter) to finish, Backspace to take a corner back, Escape to stop.
+- **A curve is a handle, not a setting.** The arrow's bend is dragged by a diamond at its middle,
+  the one place on the curve that moves when it bends; its menu offers the two usual curves and the
+  Format pane takes a number. Left and right are as seen going from the tail to the head, and
+  swapping the ends keeps the curve.
+
 ### 2026-11-06: a map from scattered X, Y, Z (roadmap 4, slice 5)
 
 - **A map is a curve drawn another way**, not a layout: the Y column against its X, with the colour

@@ -9003,14 +9003,23 @@ function setupRichTools(){
 }
 /* An arrow from (ax, ay) to (bx, by): its line and its head (end, open, both
    ends or none), the head sized from the line width. */
+/* An arrow's curve: its bend (−1 to 1) puts the control point of a quadratic that far off the middle
+   of the chord, as a share of its length, square to it (positive to the right going from tail to head, as it is seen).
+   `arrowGeo` gives the control point, the curve's middle (the bend's handle) and its path. */
+function arrowGeo(ax,ay,bx,by,bend){ const dx=bx-ax, dy=by-ay, L=Math.hypot(dx,dy)||1, b=Math.max(-1,Math.min(1,+bend||0)), cx=(ax+bx)/2-dy*b, cy=(ay+by)/2+dx*b;
+  const f1=v=>(+v).toFixed(1); return {b,cx,cy,mx:(ax+bx)/4+cx/2,my:(ay+by)/4+cy/2,L,d:Math.abs(b)>0.005?`M${f1(ax)},${f1(ay)}Q${f1(cx)},${f1(cy)} ${f1(bx)},${f1(by)}`:`M${f1(ax)},${f1(ay)}L${f1(bx)},${f1(by)}`}; }
 function arrowSvg(ax,ay,bx,by,o){
-  const f1=v=>(+v).toFixed(1), dx=bx-ax, dy=by-ay, L=Math.hypot(dx,dy)||1, ux=dx/L, uy=dy/L, lw=+o.lw||1.2, hl=Math.min(L*0.6,Math.max(7,lw*3.4)*(+o.hs||1)), hw=hl*0.42, head=o.head||"end";
+  const f1=v=>(+v).toFixed(1), dx=bx-ax, dy=by-ay, L=Math.hypot(dx,dy)||1, lw=+o.lw||1.2, hl=Math.min(L*0.6,Math.max(7,lw*3.4)*(+o.hs||1)), hw=hl*0.42, head=o.head||"end";
+  const G=arrowGeo(ax,ay,bx,by,o.bend), cv=Math.abs(G.b)>0.005, un=(x,y)=>{ const n=Math.hypot(x,y)||1; return [x/n,y/n]; };
+  // The heads point along the curve where it ends: from the control point to the end.
+  const [ux,uy]=cv?un(bx-G.cx,by-G.cy):[dx/L,dy/L], [vx,vy]=cv?un(ax-G.cx,ay-G.cy):[-dx/L,-dy/L];
   const tri=(tx,ty,sx,sy)=>{ const qx=tx-sx*hl, qy=ty-sy*hl; return `M${f1(tx)},${f1(ty)}L${f1(qx-sy*hw)},${f1(qy+sx*hw)}L${f1(qx+sy*hw)},${f1(qy-sx*hw)}Z`; };
   const fe=head==="end"||head==="both", fs=head==="both";
-  const x1=fs?ax+ux*hl*0.85:ax, y1=fs?ay+uy*hl*0.85:ay, x2=fe?bx-ux*hl*0.85:bx, y2=fe?by-uy*hl*0.85:by;
-  let s=`<path d="M${f1(x1)},${f1(y1)}L${f1(x2)},${f1(y2)}" stroke="${o.col}" stroke-width="${lw}" fill="none"${o.dash?` stroke-dasharray="${o.dash}"`:""} stroke-linecap="${fe||fs?"butt":"round"}"/>`;
+  const x1=fs?ax-vx*hl*0.85:ax, y1=fs?ay-vy*hl*0.85:ay, x2=fe?bx-ux*hl*0.85:bx, y2=fe?by-uy*hl*0.85:by;
+  const d=cv?`M${f1(x1)},${f1(y1)}Q${f1(G.cx)},${f1(G.cy)} ${f1(x2)},${f1(y2)}`:`M${f1(x1)},${f1(y1)}L${f1(x2)},${f1(y2)}`;
+  let s=`<path d="${d}" stroke="${o.col}" stroke-width="${lw}" fill="none"${o.dash?` stroke-dasharray="${o.dash}"`:""} stroke-linecap="${fe||fs?"butt":"round"}"/>`;
   if(fe) s+=`<path d="${tri(bx,by,ux,uy)}" fill="${o.col}"/>`;
-  if(fs) s+=`<path d="${tri(ax,ay,-ux,-uy)}" fill="${o.col}"/>`;
+  if(fs) s+=`<path d="${tri(ax,ay,vx,vy)}" fill="${o.col}"/>`;
   if(head==="open"){ const qx=bx-ux*hl, qy=by-uy*hl, w2=hw*1.2; s+=`<path d="M${f1(qx-uy*w2)},${f1(qy+ux*w2)}L${f1(bx)},${f1(by)}L${f1(qx+uy*w2)},${f1(qy-ux*w2)}" stroke="${o.col}" stroke-width="${lw}" fill="none" stroke-linejoin="round" stroke-linecap="round"/>`; }
   return s;
 }
@@ -9081,6 +9090,23 @@ function shapeSvg(kind,ax,ay,bx,by,o){
   return `<rect x="${f1(x0)}" y="${f1(y0)}" width="${f1(x1-x0)}" height="${f1(y1-y0)}"${r?` rx="${f1(r)}"`:""} ${fill} ${st}/>`;
 }
 const SHAPE_T={rect:1,ellipse:1};
+/* A polygon (t "poly"): its corners `pts` [[x, y], …] in data values, or pinned to the plot `fpts`
+   [[fx, fy], …]; `closed` (true unless false: an open one is a line through its points). Drawn with
+   the Shape tool's Polygon (a click a corner, the first again, a double click or Enter to finish,
+   Backspace takes the last off, Escape stops), each corner a handle, the body moving the whole. */
+const polyPts=(a,g)=>a.pin==="plot"?(a.fpts||[]).map(q=>[g.L+q[0]*g.pw,g.T+q[1]*g.mh]):(a.pts||[]).map(q=>[g.X(q[0]),g.Y(q[1])]);
+function polyPin(a,g,on){ const P=polyPts(a,g), d=plotState().d;
+  return on?{pin:"plot",fpts:P.map(q=>[+((q[0]-g.L)/g.pw).toFixed(4),+((q[1]-g.T)/g.mh).toFixed(4)])}:{pin:null,pts:P.map(q=>{ const r=toData(q[0],q[1]); return [+r.x.toPrecision(7),+r.y.toPrecision(7)]; }),xu:d.xu||"",yu:d.yu||""}; }
+function polyClick(x,y){ const pd=S.polyDraft||(S.polyDraft={pts:[],t:0}), now=Date.now(), last=pd.pts[pd.pts.length-1];
+  if(pd.pts.length>=3&&Math.hypot(x-pd.pts[0][0],y-pd.pts[0][1])<9){ finishPoly(); return; }
+  if(last&&Math.hypot(x-last[0],y-last[1])<6&&now-pd.t<500){ finishPoly(); return; }
+  pd.pts.push([x,y]); pd.t=now; pd.cur=[x,y]; renderPlot();
+  if(pd.pts.length===1) toast("Click each corner; click the first again, double-click or press Enter to finish."); }
+function finishPoly(){ const pd=S.polyDraft; S.polyDraft=null; if(!pd) return;
+  if(pd.pts.length<3){ renderPlot(); toast("A polygon needs three corners at least."); return; }
+  const n7=v=>+v.toPrecision(7), pts=pd.pts.map(q=>{ const r=toData(q[0],q[1]); return r?[n7(r.x),n7(r.y)]:null; }).filter(Boolean); if(pts.length<3){ renderPlot(); return; }
+  setMode("zoom",true); const id=addAnno({t:"poly",pts,closed:true},`drew a polygon of ${pts.length} corners`);
+  if(id) toast("Drag it to move it, its corners to move them; double-click for its settings."); }
 // Annotations with two ends: an arrow's tail and head, a shape's opposite corners.
 const twoEnds=a=>a.t==="arrow"||!!SHAPE_T[a.t];
 function makeShape(sd){
@@ -10012,6 +10038,8 @@ function buildPlot(W,H,pal,colEx,opt){
       :`<line x1="${L}" x2="${L+pw}" y1="${f1(gd.y)}" y2="${f1(gd.y)}" stroke="${pal.sel}" stroke-width="1" stroke-dasharray="4 3" pointer-events="none"/>`; });
     const ad=S.arrowDraft; if(ad) s+=`<g pointer-events="none" opacity="0.85">${arrowSvg(ad.x0,ad.y0,ad.x1,ad.y1,{col:pal.sel,lw:1.4})}</g>`;
     const sd=S.shapeDraft; if(sd) s+=`<g pointer-events="none">${shapeSvg(sd.kind,sd.x0,sd.y0,sd.x1,sd.y1,{col:pal.sel,lw:1.4,dash:"5 3"})}</g>`;
+    const pd=S.polyDraft; if(pd&&pd.pts.length&&S.mode==="shape"){ const q=pd.pts.concat(pd.cur?[pd.cur]:[]), f1=v=>(+v).toFixed(1);
+      s+=`<g pointer-events="none" data-polydraft="1"><path d="M${q.map(r=>f1(r[0])+","+f1(r[1])).join("L")}" fill="${pal.sel}" fill-opacity="0.08" stroke="${pal.sel}" stroke-width="1.4" stroke-dasharray="5 3"/>${pd.pts.map((r,i)=>`<circle cx="${f1(r[0])}" cy="${f1(r[1])}" r="${i===0&&pd.pts.length>=3?5:3}" fill="${i===0&&pd.pts.length>=3?pal.bg:pal.sel}" stroke="${pal.sel}" stroke-width="1.4"/>`).join("")}</g>`; }
     const ring=S.snapRing||(ad&&ad.pt?{px:ad.x1,py:ad.y1}:null); if(ring) s+=`<circle cx="${f1(ring.px)}" cy="${f1(ring.py)}" r="7" fill="none" stroke="${pal.sel}" stroke-width="1.6" pointer-events="none"/>`;
   }
   // Legend: in the emptiest corner, a chosen one, outside on the right, or
@@ -10181,7 +10209,7 @@ function renderPlot(){ scheduleAway();
    was placed in and is drawn only on data in those units: a line at 532 nm
    means nothing on a Raman-shift axis. A peak label keeps its offset in pixels
    from the point it labels, so it stays beside that point at any zoom. */
-const ANNO_KINDS={v:"Vertical line",h:"Horizontal line",band:"Shaded range",text:"Text",label:"Peak label",arrow:"Arrow",inset:"Inset",rect:"Box",ellipse:"Ellipse"};
+const ANNO_KINDS={v:"Vertical line",h:"Horizontal line",band:"Shaded range",text:"Text",label:"Peak label",arrow:"Arrow",inset:"Inset",rect:"Box",ellipse:"Ellipse",poly:"Polygon"};
 const ANNO_COLORS=[["","Automatic"],["#111820","Black"],["#5B6778","Grey"],["#1D5FA8","Blue"],["#C23B22","Red"],["#2E7D4F","Green"],["#B26B00","Amber"],["#6A3FB5","Violet"],["custom","Custom…"]];
 const annoId=()=>"a"+Date.now().toString(36)+(colSeq++).toString(36);
 function annoById(id){ return ((P()&&P().annos)||[]).find(a=>a.id===id)||null; }
@@ -10227,7 +10255,7 @@ function annoSvg(layer,c){
   (cfg.annos||[]).forEach(a=>{
     // Another spectrum's labels, only where it is drawn on these axes: overlaid and shown.
     if(a.t==="label"&&a.ser&&a.ser!==actId&&(lay!=="overlay"||(cfg.hidden||[]).includes(a.ser)||!colById(a.ser))) return;
-    const pinned=(a.t==="text"||twoEnds(a))&&a.pin==="plot";
+    const pinned=(a.t==="text"||twoEnds(a)||a.t==="poly")&&a.pin==="plot";
     const okX=pinned||(!c.dist&&(a.xu==null||a.xu===xu)), okY=pinned||(!heat&&(a.yu==null||a.yu===yu));
     const col=annoColor(a,pal,forExport,cfg), lw=a.lw!=null?+a.lw:1.2, dash=DASHES[a.dash||(a.t==="v"||a.t==="h"?"dash":"solid")];
     const st=annoTextStyle(a,base,c.tk), tcol=a.color||base.color||col, tsz=st.size, ang=annoAng(a);
@@ -10278,14 +10306,26 @@ function annoSvg(layer,c){
           inner+=`<rect data-ah="${k}" x="${f1(hx-5)}" y="${f1(hy-5)}" width="10" height="10" rx="2" fill="${pal.bg}" stroke="${pal.sel}" stroke-width="1.6" style="cursor:${nw?"nwse":"nesw"}-resize"/>`; }); }
       s+=wrap(inner,"move"); return;
     }
+    // A polygon: over the data or behind it, its text at its middle, each corner a handle when selected.
+    if(a.t==="poly"&&layer===(a.behind?"under":"lines")&&okX&&okY){
+      const Pp=polyPts(a,c); if(Pp.length<2||!Pp.every(q=>Number.isFinite(q[0])&&Number.isFinite(q[1]))) return;
+      const cl=a.closed!==false, d="M"+Pp.map(q=>f1(q[0])+","+f1(q[1])).join("L")+(cl?"Z":""), olw=a.lw!=null?+a.lw:1.2;
+      let inner=`<path d="${d}" ${a.fill&&cl?`fill="${esc(a.fill)}" fill-opacity="${numOr(a.op,0.18)}"`:`fill="none"`} stroke="${olw>0?col:"none"}" stroke-width="${olw>0?(sel?olw+0.6:olw):0}"${dash?` stroke-dasharray="${dash}"`:""} stroke-linejoin="round"/>`;
+      if(!forExport) inner+=`<path d="${d}" fill="none" stroke="transparent" stroke-width="10"/>`;
+      if(txt){ const mx=Pp.reduce((s,q)=>s+q[0],0)/Pp.length, my=Pp.reduce((s,q)=>s+q[1],0)/Pp.length, nl=String(txt).split("\n").length;
+        const b=tb(txt,mx,my-(nl-1)*tsz*0.6+tsz*0.35,"middle",{ang:0,box:null,halo:a.fill?"":` stroke="${pal.bg}" stroke-width="3" paint-order="stroke" stroke-linejoin="round"`}); inner+=b.svg; }
+      if(sel&&!forExport) inner+=Pp.map((q,i)=>`<circle data-ah="v${i}" cx="${f1(q[0])}" cy="${f1(q[1])}" r="5" fill="${pal.bg}" stroke="${pal.sel}" stroke-width="1.6" style="cursor:move"/>`).join("");
+      s+=wrap(inner,"move"); return; }
     if(layer==="top"&&a.t==="arrow"&&okX&&okY){
       const e=annoEnds(a,c), ax=e.t.x, ay=e.t.y, bx=e.h.x, by=e.h.y; if(![ax,ay,bx,by].every(Number.isFinite)) return;
-      let inner=arrowSvg(ax,ay,bx,by,{col,lw:sel?lw+0.6:lw,dash,head:a.head,hs:a.hs});
-      if(!forExport) inner+=`<path d="M${f1(ax)},${f1(ay)}L${f1(bx)},${f1(by)}" stroke="transparent" stroke-width="11"/>`;
+      const AG=arrowGeo(ax,ay,bx,by,a.bend);
+      let inner=arrowSvg(ax,ay,bx,by,{col,lw:sel?lw+0.6:lw,dash,head:a.head,hs:a.hs,bend:a.bend});
+      if(!forExport) inner+=`<path d="${AG.d}" stroke="transparent" stroke-width="11" fill="none"/>`;
       // Its text sits beyond the tail, away from where it points.
       if(txt){ const D=Math.hypot(bx-ax,by-ay)||1, ux=(bx-ax)/D, uy=(by-ay)/D;
         const b=tb(txt,ax-ux*5,ay-uy*5+(uy>0.35?-3:uy<-0.35?tsz*0.85:tsz*0.35),ux>0.35?"end":ux<-0.35?"start":"middle",{up:uy>0.35}); inner+=b.svg+hit(b); }
-      if(sel&&!forExport) inner+=[["t",ax,ay],["h",bx,by]].map(([k,hx,hy])=>`<circle data-ah="${k}" cx="${f1(hx)}" cy="${f1(hy)}" r="5" fill="${pal.bg}" stroke="${pal.sel}" stroke-width="1.6"/>`).join("");
+      if(sel&&!forExport) inner+=[["t",ax,ay],["h",bx,by]].map(([k,hx,hy])=>`<circle data-ah="${k}" cx="${f1(hx)}" cy="${f1(hy)}" r="5" fill="${pal.bg}" stroke="${pal.sel}" stroke-width="1.6"/>`).join("")
+        +`<rect data-ah="b" x="${f1(AG.mx-4)}" y="${f1(AG.my-4)}" width="8" height="8" transform="rotate(45 ${f1(AG.mx)} ${f1(AG.my)})" fill="${pal.bg}" stroke="${pal.sel}" stroke-width="1.6" style="cursor:crosshair"><title>Drag to curve it</title></rect>`;
       s+=wrap(inner,"move");
     }
     if(layer==="top"&&(a.t==="text"||a.t==="label")&&okX&&okY){
@@ -10326,7 +10366,7 @@ function saveAnnos(annos,log){ save({annos},log&&multiGraph()?`${graphName(GID()
 function addAnno(a,log){
   const p=P(); if(!p||S.readOnly) return null;
   const d=plotState().d;
-  a=Object.assign({id:annoId()},a); if(GID()&&!a.grp) a.g=GID(); if(a.t!=="h") a.xu=d.xu||""; if(a.t==="h"||a.t==="text"||a.t==="label"||twoEnds(a)||a.t==="inset") a.yu=d.yu||"";
+  a=Object.assign({id:annoId()},a); if(GID()&&!a.grp) a.g=GID(); if(a.t!=="h") a.xu=d.xu||""; if(a.t==="h"||a.t==="text"||a.t==="label"||twoEnds(a)||a.t==="inset"||a.t==="poly") a.yu=d.yu||"";
   pushUndo("adding "+ANNO_KINDS[a.t].toLowerCase());
   S.annoSel=a.id;
   saveAnnos((p.annos||[]).concat([a]),log||`added ${annoDesc(a)}`);
@@ -10350,12 +10390,14 @@ function annoDesc(a){ const t=a.text?` "${a.text}"`:"";
   if(a.t==="label") return `a peak label at ${fmt(a.x,6)}${a.lab?` "${a.lab}"`:t}`;
   if(a.t==="arrow") return a.pin==="plot"?`an arrow${t}`:`an arrow to x = ${fmt(a.x2,6)}${t}`;
   if(SHAPE_T[a.t]){ const nm=a.t==="ellipse"?"an ellipse":"a box"; return a.pin==="plot"?`${nm}${t}`:`${nm} from x = ${fmt(Math.min(a.x,a.x2),6)} to ${fmt(Math.max(a.x,a.x2),6)}${t}`; }
-  if(a.t==="inset") return `an inset of ${fmt(Math.min(a.x0,a.x1),6)} to ${fmt(Math.max(a.x0,a.x1),6)}`; return `the text${t||" \"Text\""}`; }
+  if(a.t==="inset") return `an inset of ${fmt(Math.min(a.x0,a.x1),6)} to ${fmt(Math.max(a.x0,a.x1),6)}`;
+  if(a.t==="poly"){ const n=(a.pin==="plot"?a.fpts:a.pts||[]).length; return a.closed===false?`a line through ${n} points${t}`:`a polygon of ${n} corners${t}`; } return `the text${t||" \"Text\""}`; }
 function annoTip(a){ const d=plotState().d;
   if(a.t==="v") return `x = ${fmt(a.x,6)}${d.xu?" "+d.xu:""}`; if(a.t==="h") return `y = ${fmt(a.y,6)}${d.yu?" "+d.yu:""}`;
   if(a.t==="band") return `${fmt(Math.min(a.x,a.x2),6)} to ${fmt(Math.max(a.x,a.x2),6)}${d.xu?" "+d.xu:""}`;
   if(a.t==="arrow") return "Arrow · drag an end to move it, double-click for its settings";
   if(SHAPE_T[a.t]) return ANNO_KINDS[a.t]+" · drag to move it, its corners to resize it, double-click for its settings";
+  if(a.t==="poly") return "Polygon · drag to move it, a corner to move that corner, double-click for its settings";
   if(a.t==="inset") return "Inset · drag to move it, its corner to resize it, double-click for its settings";
   return ANNO_KINDS[a.t]+" · double-click to edit"; }
 /* Dragging: a line moves to the pointer, a range and text move with it, and a
@@ -10394,10 +10436,18 @@ function dragAnno(x,y){
     const put=(k,sx,sy,snap)=>{ if(pin){ a["fx"+k]=+((sx-g.L)/g.pw).toFixed(4); a["fy"+k]=+((sy-g.T)/g.mh).toFixed(4); return; }
       const q=snap&&!S.altKey?snapNear(sx,sy,10):null, d=q||toData(sx,sy); if(snap) S.snapRing=q?{px:q.px,py:q.py}:null;
       a[k?"x2":"x"]=+d.x.toPrecision(7); a[k?"y2":"y"]=+d.y.toPrecision(7); };
-    if(ad.end==="t") put("",e.t.x+px,e.t.y+py,true);
+    if(ad.end==="b"){ const L=Math.hypot(e.h.x-e.t.x,e.h.y-e.t.y)||1, nx=-(e.h.y-e.t.y)/L, ny=(e.h.x-e.t.x)/L, mx=(e.t.x+e.h.x)/2, my=(e.t.y+e.h.y)/2;
+      let b=2*((x-mx)*nx+(y-my)*ny)/L; b=Math.max(-1,Math.min(1,b)); a.bend=Math.abs(b)<0.02?null:+b.toFixed(3); }
+    else if(ad.end==="t") put("",e.t.x+px,e.t.y+py,true);
     else if(ad.end==="h") put("2",e.h.x+px,e.h.y+py,true);
     else { put("",e.t.x+px,e.t.y+py,false); put("2",e.h.x+px,e.h.y+py,false); } }
   else if(a.t==="label"){ a.dx=Math.round((o.dx||0)+px); a.dy=Math.round((o.dy==null?labDy(o):o.dy)+py); }
+  else if(a.t==="poly"){
+    // A corner moves alone; the body moves them all.
+    const Pp=polyPts(o,g), pin=a.pin==="plot", put=(i,sx,sy)=>{ if(pin) a.fpts[i]=[+((sx-g.L)/g.pw).toFixed(4),+((sy-g.T)/g.mh).toFixed(4)]; else { const q=toData(sx,sy); a.pts[i]=[+q.x.toPrecision(7),+q.y.toPrecision(7)]; } };
+    if(pin) a.fpts=(o.fpts||[]).map(q=>q.slice()); else a.pts=(o.pts||[]).map(q=>q.slice());
+    if(ad.end&&/^v\d+$/.test(ad.end)){ const i=+ad.end.slice(1); if(Pp[i]) put(i,Pp[i][0]+px,Pp[i][1]+py); }
+    else Pp.forEach((q,i)=>put(i,q[0]+px,q[1]+py)); }
   renderPlot(); showTip(annoTip(a),x,y);
 }
 function commitAnnoDrag(ad){
@@ -10592,7 +10642,7 @@ function legendMenuItems(hit){
 }
 function annoMenuItems(id){
   const a=annoById(id); if(!a) return [];
-  const ro=S.readOnly, isLine=a.t==="v"||a.t==="h", shp=!!SHAPE_T[a.t], isTxt=a.t==="label"||a.t==="text";
+  const ro=S.readOnly, isLine=a.t==="v"||a.t==="h", shp=!!SHAPE_T[a.t]||a.t==="poly", isTxt=a.t==="label"||a.t==="text";
   const cfg=plotCfg(), base=txtStyle(cfg,"labels",txtAuto(cfg,"labels"),KSANS), desc=annoDesc(a);
   const st={pt:a.pt>0?+a.pt:PT(base.size*(+a.size||1)),b:a.bold!=null?!!a.bold:!!base.b,i:a.i!=null?!!a.i:!!base.i,color:a.color||null};
   const set=(patch,log)=>{ const o={}; Object.entries(patch).forEach(([k,v])=>{ if(ANNO_TX[k]) o[ANNO_TX[k]]=v; }); updateAnno(id,o,log); };
@@ -10618,11 +10668,13 @@ function annoMenuItems(id){
   if(a.t==="label") own.push({label:"Show the unit",checked:!!a.unit,enabled:!ro,run:()=>updateAnno(id,{unit:!a.unit})});
   if(a.t==="arrow") own.push({label:"Head",sub:()=>[["end","Filled"],["open","Open"],["both","At both ends"],["none","None, a plain line"]].map(([v,l])=>({label:l,radio:true,checked:(a.head||"end")===v,enabled:!ro,run:()=>updateAnno(id,{head:v})}))},
     {label:"Line style",sub:dashes},{label:"Width",sub:widths([0.75,1,1.2,1.5,2,3])},
-    {label:"Swap its ends",enabled:!ro,run:()=>updateAnno(id,a.pin==="plot"?{fx:a.fx2,fy:a.fy2,fx2:a.fx,fy2:a.fy}:{x:a.x2,y:a.y2,x2:a.x,y2:a.y})},pinned);
+    {label:"Curve",note:a.bend?"curved":"",sub:()=>[[null,"Straight"],[-0.3,"Curved to the left"],[0.3,"Curved to the right"]].map(([v,l])=>({label:l,radio:true,checked:v==null?!a.bend:!!a.bend&&Math.sign(a.bend)===Math.sign(v),enabled:!ro,run:()=>updateAnno(id,{bend:v},v==null?`straightened ${desc}`:`curved ${desc}`)})).concat(["-",{label:"Drag the diamond at its middle to curve it as you like",enabled:false}])},
+    {label:"Swap its ends",enabled:!ro,run:()=>updateAnno(id,Object.assign(a.pin==="plot"?{fx:a.fx2,fy:a.fy2,fx2:a.fx,fy2:a.fy}:{x:a.x2,y:a.y2,x2:a.x,y2:a.y},a.bend?{bend:-a.bend}:{}))},pinned);
   if(shp) own.push({label:"Fill",sub:()=>[{label:"None",radio:true,checked:!a.fill,enabled:!ro,run:()=>updateAnno(id,{fill:null})},{swatches:SER_COLORS,current:a.fill||"",pick:c=>updateAnno(id,{fill:c,op:a.op!=null?a.op:0.18}),enabled:!ro}]},
     {label:"Outline",sub:()=>dashes().concat(["-"],widths([0,0.75,1,1.2,1.5,2,3],"No outline")())},
     {label:"Behind the data",checked:!!a.behind,enabled:!ro,run:()=>updateAnno(id,{behind:!a.behind},a.behind?`brought ${desc} in front of the data`:`put ${desc} behind the data`)},
-    pinned,{label:a.t==="rect"?"Make it an ellipse":"Make it a box",enabled:!ro,run:()=>updateAnno(id,{t:a.t==="rect"?"ellipse":"rect"})});
+    pinned,a.t==="poly"?{label:"Closed",checked:a.closed!==false,enabled:!ro,title:"Open, it is a line through its points",run:()=>updateAnno(id,{closed:a.closed===false},a.closed===false?`closed ${desc}`:`opened ${desc}`)}
+      :{label:a.t==="rect"?"Make it an ellipse":"Make it a box",enabled:!ro,run:()=>updateAnno(id,{t:a.t==="rect"?"ellipse":"rect"})});
   if(a.t==="inset") own.push({label:"Outline the region",checked:a.box!==false,enabled:!ro,run:()=>updateAnno(id,{box:a.box===false})},
     {label:"Lines to the region",checked:a.conn!==false,enabled:!ro,run:()=>updateAnno(id,{conn:a.conn===false})},
     {label:"Axis titles",checked:!!a.titles,enabled:!ro,run:()=>updateAnno(id,{titles:!a.titles})},
@@ -10640,7 +10692,7 @@ function annoDouble(id,onText){ const a=annoById(id); if(!a||S.readOnly) return;
 
 /* Adding an annotation from the Format dialog's Labels and lines page: one Add
    menu, each kind placed in the middle of the view, selected, with its page open. */
-const ANNO_ADD=[["v","Vertical line","vline"],["h","Horizontal line","hline"],["band","Shaded X range","band"],["text","Text","text"],["arrow","Arrow","arrow"],["rect","Box","rect"],["ellipse","Ellipse","ellipse"],["inset","Inset of the view","inset"]];
+const ANNO_ADD=[["v","Vertical line","vline"],["h","Horizontal line","hline"],["band","Shaded X range","band"],["text","Text","text"],["arrow","Arrow","arrow"],["rect","Box","rect"],["ellipse","Ellipse","ellipse"],["poly","Polygon","shape"],["inset","Inset of the view","inset"]];
 function pdAddAnno(k){
   const wk=pdWk(); if(!wk) return;
   const g=S.geo, v=g?g.v:curView(), d=plotState().d;
@@ -10650,6 +10702,7 @@ function pdAddAnno(k){
   if(k==="v") a.x=cx; else if(k==="h"){ a.y=cy; delete a.xu; } else if(k==="band"){ a.x=n6(cx-w*0.05); a.x2=n6(cx+w*0.05); }
   else if(k==="inset"){ Object.assign(a,{x0:n6(cx-w*0.08),x1:n6(cx+w*0.08),y0:null,y1:null,fx:0.6,fy:0.05,fw:0.36,fh:0.4}); }
   else if(SHAPE_T[k]){ if(g){ const p=at(0.35,0.3), q=at(0.6,0.6); a.x=n6(p.x); a.y=n6(p.y); a.x2=n6(q.x); a.y2=n6(q.y); } else { a.x=cx-w*0.1; a.y=cy; a.x2=cx+w*0.1; a.y2=cy; } }
+  else if(k==="poly"){ a.closed=true; a.pts=(g?[[0.4,0.62],[0.5,0.36],[0.6,0.62]]:[]).map(([fx,fy])=>{ const r=at(fx,fy); return [n6(r.x),n6(r.y)]; }); if(!a.pts.length) a.pts=[[cx-w*0.05,cy],[cx,cy],[cx+w*0.05,cy]]; }
   else if(k==="arrow"){ if(g){ const p=at(0.35,0.25), q=at(0.5,0.45); a.x=n6(p.x); a.y=n6(p.y); a.x2=n6(q.x); a.y2=n6(q.y); } else { a.x=cx; a.y=cy; a.x2=cx; a.y2=cy; } }
   else { a.x=cx; a.y=cy; a.text="Text"; }
   wk.annos=(wk.annos||[]).concat([a]); S.pdAnno=a.id; S.annoSel=a.id; renderPlot(); renderPlotDetails();
@@ -10784,6 +10837,7 @@ async function askAxisAt(k){ const isX=k==="x", cur=((GP().ax||{})[k]||{}).at;
   if(!r) return; const v=parseNum(r.fdAx); setAxisKeys(k,{pos:"at",at:v,off:null},`put the ${AXN(k)} at ${isX?"y":"x"} = ${fmt(v,6)}`); }
 // Text pinned to the plot stays where it is in the frame whatever the zoom.
 function pinAnno(id,on){ const a=annoById(id), g=S.geo; if(!a||!g||S.readOnly) return;
+  if(a.t==="poly"){ updateAnno(id,polyPin(a,g,on),on?`pinned ${annoDesc(a)} to the plot`:`tied ${annoDesc(a)} to data values`); return; }
   if(twoEnds(a)){ const e=annoEnds(a,g), d=plotState().d;
     if(on) updateAnno(id,{pin:"plot",fx:+((e.t.x-g.L)/g.pw).toFixed(4),fy:+((e.t.y-g.T)/g.mh).toFixed(4),fx2:+((e.h.x-g.L)/g.pw).toFixed(4),fy2:+((e.h.y-g.T)/g.mh).toFixed(4)},`pinned ${annoDesc(a)} to the plot`);
     else { const p=toData(e.t.x,e.t.y), q=toData(e.h.x,e.h.y); updateAnno(id,{pin:null,x:+p.x.toPrecision(7),y:+p.y.toPrecision(7),x2:+q.x.toPrecision(7),y2:+q.y.toPrecision(7),xu:d.xu||"",yu:d.yu||""},`tied ${annoDesc(a)} to data values`); }
@@ -11262,14 +11316,15 @@ function pdAct(s){ const wk=pdWk(); if(!wk) return; const i=s.indexOf(":"), k=s.
   if(k==="centrex"||k==="centre"){ const patch={x:+(g&&g.logX?Math.sqrt(v.x0*v.x1):(v.x0+v.x1)/2).toPrecision(7),align:"center"};
     if(k==="centre") patch.y=+(g&&g.logY?Math.sqrt(v.y0*v.y1):(v.y0+v.y1)/2).toPrecision(7); pdSet("annos."+id,patch); }
   if(k==="labreset") pdSet("annos."+id,{dx:0,dy:null});
-  if(k==="swap") pdSet("annos."+id,a.pin==="plot"?{fx:a.fx2,fy:a.fy2,fx2:a.fx,fy2:a.fy}:{x:a.x2,y:a.y2,x2:a.x,y2:a.y});
+  if(k==="swap") pdSet("annos."+id,Object.assign(a.pin==="plot"?{fx:a.fx2,fy:a.fy2,fx2:a.fx,fy2:a.fy}:{x:a.x2,y:a.y2,x2:a.x,y2:a.y},a.bend?{bend:-a.bend}:{}));
 }
 // Where an annotation is, in a few words: its value, its range, or pinned to the plot.
 function annoWhere(a,dg){ dg=dg||5;
   if(a.pin==="plot") return "pinned to the plot"; if(a.t==="h") return `y = ${fmt(a.y,dg)}`;
   if(a.t==="inset") return `${fmt(Math.min(a.x0,a.x1),dg)} – ${fmt(Math.max(a.x0,a.x1),dg)}`;
   if(a.t==="band"||SHAPE_T[a.t]) return `${fmt(Math.min(a.x,a.x2),dg)} – ${fmt(Math.max(a.x,a.x2),dg)}`;
-  if(a.t==="arrow") return `to x = ${fmt(a.x2,dg)}`; return `x = ${fmt(a.x,dg)}`; }
+  if(a.t==="arrow") return `to x = ${fmt(a.x2,dg)}`;
+  if(a.t==="poly"){ const xs=(a.pts||[]).map(q=>q[0]).filter(Number.isFinite); return xs.length?`${fmt(Math.min(...xs),dg)} – ${fmt(Math.max(...xs),dg)}`:""; } return `x = ${fmt(a.x,dg)}`; }
 const annoBrief=(a,d)=>{ const t=annoLabelText(a,d.xu||"",d.yu||""), w=annoWhere(a);
   return (a.t==="inset"?"":(t?texPlain(String(t).split("\n")[0]).slice(0,40):"no text")+" · ")+w; };
 function renderPlotDetails(o){
@@ -11531,7 +11586,7 @@ function pdAnnoEditor(a,o){
   const base=auto("labels"), aut=Object.assign({},base,{size:base.size*(+a.size||1),color:annoColor(a,pal,false,cfg)});
   const tv=g?(a.lab||""):(a.text==null?"":a.text);
   let e=`<label for="pdAnT">${g?"Label":"Text"}</label><div class="rfield"><div class="pair top"><textarea data-rich id="pdAnT" rows="${Math.min(5,Math.max(1,tv.split("\n").length))}" data-pd="${b}.${g?"lab":"text"}"${g?"":" data-null"} placeholder="${esc(a.t==="text"?"Text":a.t==="band"||twoEnds(a)?"none":"the position")}"${ro}>${esc(tv)}</textarea>${rtool("pdAnT")}</div>${texPv("pdAnT",tv)}</div>`;
-  const shp=!!SHAPE_T[a.t];
+  const shp=!!SHAPE_T[a.t]||a.t==="poly";
   if(!g&&a.t!=="text"&&!shp) e+=chk("pdAnNo",b+".text",a.text==="","No text",` data-notext`);
   e+=note((a.t==="text"||shp?(shp?"Inside it. ":"")+"Enter starts a new line.":"Empty shows the value; {x} stands for the position. Enter starts a new line.")+(texLatexOn()?" LaTeX: x^{2}, H_{2}O, \\alpha, $\\frac{a}{b}$.":""));
   e+=wide(txtBarHtml("anno:"+a.id,tst,aut,{align:a.t==="text"||a.t==="label"?"center":false,inheritLabel:"The labels' font"}));
@@ -11542,7 +11597,11 @@ function pdAnnoEditor(a,o){
       +`<label for="pdAnFy">Down</label><div class="pair">${num("pdAnFy",+(numOr(a.fy,0.1)*100).toFixed(1),b+".fy","10",80,` data-pct`)}<span class="lab">% of its height</span></div>`; }
     else pos+=`<label for="pdAnX">X</label>${num("pdAnX",fmt(a.x,7),b+".x","",130)}<label for="pdAnY">Y</label>${num("pdAnY",fmt(a.y,7),b+".y","",130)}`
       +`<span></span><div class="actions" style="margin:0"><button type="button" class="btn sm" data-pdact="centrex:${a.id}"${ro}>Centre across the plot</button><button type="button" class="btn sm" data-pdact="centre:${a.id}"${ro}>Centre in the plot</button></div>`; }
-  if(shp){ const pin=a.pin==="plot";
+  if(a.t==="poly"){ const n=(a.pin==="plot"?a.fpts:a.pts||[]).length;
+    pos+=`<span></span><label class="chk"><input type="checkbox" id="pdAnPin" data-pdpin="${a.id}"${a.pin==="plot"?" checked":""}${ro}> Pinned to the plot, not to data values</label>`
+      +`<label>Corners</label><input class="ro" type="text" readonly value="${n} (drag them on the graph)">`+chk("pdAnCl",b+".closed",a.closed!==false,"Closed")
+      +`<label>Align</label>${seg(b+".align",[["left","Left"],["center","Centre"],["right","Right"]],a.align||"center","Align its text")}`; }
+  else if(shp){ const pin=a.pin==="plot";
     pos+=`<span></span><label class="chk"><input type="checkbox" id="pdAnPin" data-pdpin="${a.id}"${pin?" checked":""}${ro}> Pinned to the plot, not to data values</label>`;
     pos+=pin?`<label for="pdAnFx">Corner</label><div class="pair">${num("pdAnFx",+(numOr(a.fx,0.3)*100).toFixed(1),b+".fx","30",64,` data-pct`)}${num("pdAnFy",+(numOr(a.fy,0.3)*100).toFixed(1),b+".fy","30",64,` data-pct`)}<span class="lab">% across, down</span></div>`
       +`<label for="pdAnFx2">Opposite</label><div class="pair">${num("pdAnFx2",+(numOr(a.fx2,0.6)*100).toFixed(1),b+".fx2","60",64,` data-pct`)}${num("pdAnFy2",+(numOr(a.fy2,0.6)*100).toFixed(1),b+".fy2","60",64,` data-pct`)}<span class="lab">% across, down</span></div>`
@@ -11575,7 +11634,8 @@ function pdAnnoEditor(a,o){
   if(!g&&a.t!=="band"&&a.t!=="text") look+=chk("pdAnU",b+".unit",!!a.unit,"Show the unit with the value");
   let ln="";
   if(a.t==="arrow") ln+=`<label>Colour</label>${cb(b+".color",a.color,"Automatic",annoColor(a,pal,false,cfg))}<label>Style</label>${seg(b+".dash",DASH_OPTS,a.dash||"solid","Line style")}<label for="pdAnLw">Width</label>${cmb("pdAnLw",a.lw!=null?a.lw:1.2,b+".lw",0.3,6,CMB.lw)}`
-    +`<label>Head</label>${seg(b+".head",[["none","None"],["open","Open"],["end","Filled"],["both","Both ends"]],a.head||"end","Its head")}<label for="pdAnHs">Head size</label>${cmb("pdAnHs",numOr(a.hs,1),b+".hs",0.5,3,CMB.hs,"×")}`;
+    +`<label>Head</label>${seg(b+".head",[["none","None"],["open","Open"],["end","Filled"],["both","Both ends"]],a.head||"end","Its head")}<label for="pdAnHs">Head size</label>${cmb("pdAnHs",numOr(a.hs,1),b+".hs",0.5,3,CMB.hs,"×")}`
+    +`<label for="pdAnBend" title="0 is straight; positive curves it to the right going from the tail to the head, negative to the left; 1 bows it out by its whole length">Curve</label><div class="pair">${num("pdAnBend",numOr(a.bend,0),b+".bend","0",64)}<span class="lab">−1 to 1</span></div>`;
   if(isLine||a.t==="band"){ ln+=`<label>Colour</label>${cb(b+".color",a.color,"Automatic",annoColor(a,pal,false,cfg))}<label>Style</label>${seg(b+".dash",DASH_OPTS,a.dash||(isLine?"dash":"solid"),"Line style")}<label for="pdAnLw">Width</label>${cmb("pdAnLw",a.lw!=null?a.lw:1.2,b+".lw",0.3,6,CMB.lw)}`;
     if(a.t==="band") ln+=`<label for="pdAnOp">Shading</label>${rng("pdAnOp",a.op!=null?a.op:0.13,b+".op",0,1,0.01)}`+chk("pdAnEd",b+".edge",!!a.edge,"Lines at its edges"); }
   const head=`${esc(ANNO_KINDS[a.t])}${g?` <span class="lab">in a peak set</span>`:""}`+(g?"":`<button type="button" class="pd-rst" data-pdandel="${a.id}"${ro}>Delete</button>`);
@@ -11740,6 +11800,7 @@ function setupPlotDetails(){
   const onVal=(e,final)=>{
     const el=e.target; if(S.readOnly||!P()) return;
     if(el.dataset.pdpin!=null){ if(!final) return; const id=el.dataset.pdpin, a=((S.plotPreview||pdBase()).annos||[]).find(q=>q.id===id), g=S.geo; if(!a||!g) return;
+      if(a.t==="poly"){ pdSet("annos."+id,polyPin(a,g,el.checked)); renderPlotDetails(); return; }
       if(twoEnds(a)){ const e=annoEnds(a,g), d=plotState().d;
         if(el.checked) pdSet("annos."+id,{pin:"plot",fx:+((e.t.x-g.L)/g.pw).toFixed(4),fy:+((e.t.y-g.T)/g.mh).toFixed(4),fx2:+((e.h.x-g.L)/g.pw).toFixed(4),fy2:+((e.h.y-g.T)/g.mh).toFixed(4)});
         else { const p=toData(e.t.x,e.t.y), q=toData(e.h.x,e.h.y); pdSet("annos."+id,{pin:null,x:+p.x.toPrecision(7),y:+p.y.toPrecision(7),x2:+q.x.toPrecision(7),y2:+q.y.toPrecision(7),xu:d.xu||"",yu:d.yu||""}); }
@@ -11981,6 +12042,7 @@ function setupGraph(){
         ro.textContent=`x ${fmt(d.x,6)}${xu?" "+xu:""}   ${g.mapSeries?`${seriesLabel()} ${fmt(d.y,5)}`:near?specName(near.c):""}   ${z!=null?`value ${fmt(z,5)}${yu?" "+yu:""}`:""}`; }
       else { const tz=d&&d.inside&&g.tmapZ?g.tmapZ(x,y):null; ro.textContent=d&&d.inside?`x ${fmt(d.x,6)}${xu?" "+xu:""}   y ${fmt(d.y,5)}${yu?" "+yu:""}${tz!=null?`   value ${fmt(tz,5)}`:""}`:""; } }
     if(S.xhdrag){ xhMove(x,y); return; }
+    if(S.polyDraft&&S.mode==="shape"&&!drag){ S.polyDraft.cur=[x,y]; renderPlot(); return; }
     if(S.andrag){ dragAnno(x,y); return; }
     if(S.fldrag){ const fd=S.fldrag; fd.cur=[fd.d0[0]+x-fd.x0,fd.d0[1]+y-fd.y0]; if(Math.abs(x-fd.x0)+Math.abs(y-fd.y0)>3) fd.moved=true; if(fd.moved) renderPlot(); return; }
     if(S.lgdrag){ dragLegend(x,y); return; }
@@ -11994,7 +12056,7 @@ function setupGraph(){
       applyHandle(hd,d); hd.moved=true; renderPlot(); showTip(handleTip(hd.k),x,y); return; }
     if(drag){ drag.x1=x; drag.y1=y; if(Math.abs(x-drag.x0)+Math.abs(y-drag.y0)>5) drag.moved=true;
       if(drag.pan){ if(drag.moved) panTo(drag,x,y); hideTip(); return; }
-      if(drag.moved&&S.mode==="shape"){ let x1=x, y1=y;
+      if(drag.moved&&S.mode==="shape"&&shapeKind()!=="poly"){ let x1=x, y1=y;
         if(ev.shiftKey){ const q=Math.max(Math.abs(x-drag.x0),Math.abs(y-drag.y0)); x1=drag.x0+(x<drag.x0?-q:q); y1=drag.y0+(y<drag.y0?-q:q); }
         S.shapeDraft={x0:drag.x0,y0:drag.y0,x1,y1,kind:shapeKind()}; renderPlot(); return; }
       if(drag.moved&&S.mode==="arrow"){ const q=ev.altKey?null:snapNear(x,y,10); S.arrowDraft={x0:drag.x0,y0:drag.y0,x1:q?q.px:x,y1:q?q.py:y,pt:q?{x:q.x,y:q.y}:null}; renderPlot(); return; }
@@ -12062,6 +12124,7 @@ function setupGraph(){
       if(hd.moved) $("#plotSay").textContent=handleTip(hd.k); return; }
     if(!drag) return; const d=drag; drag=null; zr.style.display="none"; svg.classList.remove("panning");
     if(d.pan){ if(d.moved) afterView(); return; }
+    if(S.mode==="shape"&&shapeKind()==="poly"){ if(!S.readOnly) polyClick(d.x0,d.y0); return; }
     if(S.mode==="shape"){ const sd=S.shapeDraft; S.shapeDraft=null; if(d.moved&&sd&&Math.abs(sd.x1-sd.x0)>5&&Math.abs(sd.y1-sd.y0)>5&&!S.readOnly) makeShape(sd); else renderPlot(); return; }
     if(S.mode==="arrow"){ const ad=S.arrowDraft; S.arrowDraft=null; if(d.moved&&ad&&Math.hypot(ad.x1-ad.x0,ad.y1-ad.y0)>8&&!S.readOnly) makeArrow(ad); else renderPlot(); return; }
     if(S.mode==="range"){ if(d.moved){ const a=toData(Math.min(d.x0,d.x1),0), b=toData(Math.max(d.x0,d.x1),0); setPickedRange(Math.min(a.x,b.x),Math.max(a.x,b.x)); } return; }
@@ -12171,6 +12234,10 @@ function graphKey(ev){
     { const cx=ctxOf(), cb=$("#ctxBtn"); if(cx&&cx.kind!=="column"&&cb&&!cb.hidden&&cb.offsetParent){ toggleMenu(cb,()=>cx.items(),{label:cx.lab}); return; } } const r=$("#figure").getBoundingClientRect(); openGraphMenu({preventDefault(){},target:$("#plot"),clientX:r.left+r.width/2,clientY:r.top+r.height/3}); return; }
   if(ev.ctrlKey||ev.metaKey||ev.altKey) return;
   if(!S.geo||!P()) return;
+  // A polygon being drawn: Enter finishes it, Backspace takes the last corner off, Escape stops.
+  if(S.polyDraft&&S.mode==="shape"){ if(ev.key==="Enter"){ ev.preventDefault(); finishPoly(); return; }
+    if(ev.key==="Backspace"){ ev.preventDefault(); S.polyDraft.pts.pop(); if(!S.polyDraft.pts.length) S.polyDraft=null; renderPlot(); return; }
+    if(ev.key==="Escape"){ ev.preventDefault(); S.polyDraft=null; renderPlot(); return; } }
   if(S.mode==="reader"&&["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Home","End"].includes(ev.key)){ ev.preventDefault();
     if(ev.key==="ArrowLeft"||ev.key==="ArrowRight") rdStep(ev.key==="ArrowRight"?1:-1,0);
     else if(ev.key==="ArrowUp"||ev.key==="ArrowDown") rdStep(0,ev.key==="ArrowDown"?1:-1);
@@ -12475,10 +12542,11 @@ function syncGraphTools(){
   if(on!==was) fitToolbar();
 }
 // The Shape tool draws a box or an ellipse, whichever was chosen last in this browser.
-function shapeKind(){ if(!S.shapeKind){ try{ S.shapeKind=localStorage.getItem("kurve.shape")==="ellipse"?"ellipse":"rect"; }catch(e){ S.shapeKind="rect"; } } return S.shapeKind; }
-function pickShape(k){ S.shapeKind=k==="ellipse"?"ellipse":"rect"; try{ localStorage.setItem("kurve.shape",S.shapeKind); }catch(e){} setMode("shape"); }
+const SHAPE_KINDS=["rect","ellipse","poly"];
+function shapeKind(){ if(!S.shapeKind){ try{ const v=localStorage.getItem("kurve.shape"); S.shapeKind=SHAPE_KINDS.includes(v)?v:"rect"; }catch(e){ S.shapeKind="rect"; } } return S.shapeKind; }
+function pickShape(k){ S.shapeKind=SHAPE_KINDS.includes(k)?k:"rect"; S.polyDraft=null; try{ localStorage.setItem("kurve.shape",S.shapeKind); }catch(e){} setMode("shape"); }
 function shapeMenu(btn){ const k=S.mode==="shape"?shapeKind():null;
-  openMenu(btn,[{group:"Shape"},{label:"Box",radio:true,checked:k==="rect",run:()=>pickShape("rect")},{label:"Ellipse",radio:true,checked:k==="ellipse",run:()=>pickShape("ellipse")}]); }
+  openMenu(btn,[{group:"Shape"},{label:"Box",radio:true,checked:k==="rect",run:()=>pickShape("rect")},{label:"Ellipse",radio:true,checked:k==="ellipse",run:()=>pickShape("ellipse")},{label:"Polygon",radio:true,checked:k==="poly",title:"Click each corner; click the first again, double-click or press Enter to finish",run:()=>pickShape("poly")}]); }
 // The toolbar keeps to one row: labels go, a stage at a time, while it would wrap.
 let fitTbT=0;
 function fitToolbar(){
@@ -12491,6 +12559,7 @@ function fitToolbar(){
 }
 addEventListener("resize",()=>{ cancelAnimationFrame(fitTbT); fitTbT=requestAnimationFrame(fitToolbar); });
 function setMode(m,quiet){
+  if(S.polyDraft&&(m!=="shape"||shapeKind()!=="poly")) S.polyDraft=null;
   S.mode=m;
   document.querySelectorAll("#modeSeg button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===m)));
   $("#plot").setAttribute("class","mode-"+m);
@@ -21612,7 +21681,7 @@ ${DL([["Greek","<code>\\alpha</code> … <code>\\omega</code>, <code>\\Gamma</co
 <p>SVG and PNG draw it as on screen. PDF and EPS draw it in the standard fonts (Helvetica, Times or Courier, with Symbol for Greek and signs), the bars of fractions, roots and accents as lines. ${DA("export","Exporting")}</p>
 <h2>What it does not do</h2>
 <p>Matrices and arrays, aligned equations, <code>\\newcommand</code>, colours and sizes inside a text (<code>\\color</code>, <code>\\large</code>): the text's colour and size are set as a whole, in its menu or the Format pane. Kurve reads a small language and draws it; nothing in it is ever run. A label or a text runs over several lines with ${K("Shift","Enter")}.</p>`},
-{id:"annos", g:"Graph", t:"Labels, text, lines, arrows, shapes and insets", kw:"annotation label text line vertical horizontal range shade arrow inset zoom magnify peak label move drag type edit delete x snap guide align box rectangle ellipse circle square shape fill outline region highlight",
+{id:"annos", g:"Graph", t:"Labels, text, lines, arrows, shapes and insets", kw:"annotation polygon polyline curved bend label text line vertical horizontal range shade arrow inset zoom magnify peak label move drag type edit delete x snap guide align box rectangle ellipse circle square shape fill outline region highlight",
  lead:"Annotations belong to the figure: peak labels, free text, vertical and horizontal lines, and shaded X ranges.",
  body:`<h2>Adding</h2>
 ${DL([["Peak label","The <em>Label</em> tool: click a peak and type. Or right-click near a peak."],["Text","The Label tool on an empty spot, or right-click › Text here."],["Lines","Right-click › Vertical or Horizontal line, at the spot clicked; or "+MP("Figure › Annotate › Vertical line…")+": a dialog asks which way, where (in the axis's units), what its text says (its position, your own words, or nothing) and how it looks."],["Anything, from the Format pane","<em>Add</em> on its <em>Labels and lines</em> page."],["Shaded range",MP("Figure › Annotate › Shade an X range")+", then drag across the graph."],["A whole set",DA("peaks","The Peaks window")+" marks and labels every peak it finds."]])}
@@ -21625,9 +21694,11 @@ ${DL([["Peak label","The <em>Label</em> tool: click a peak and type. Or right-cl
 <p>An empty label shows the value; <code>{x}</code> anywhere in a label or line's text stands for its position. Text can run over several lines.</p>
 ${DL([["Style","Its own font, size in points, bold, italic, underline, colour and alignment, over the graph's style for labels. "+DA("fonts","Fonts")],["Turn","Upright, 45°, 90°, −90°, or any angle typed. A vertical line's text runs beside the line or along it."],["Box","None, an outline, a fill, or both, each in a colour of its own."],["Where","Text sits at data values, so it moves with the data when you zoom, or is <em>pinned to the plot</em>: placed by fractions of the plot's width and height, so it stays put. Nine buttons place pinned text in a corner, at an edge or in the centre; <em>Centre across the plot</em> centres any text."],["Lines and ranges","Their text at the top, middle or bottom (left, middle or right on a horizontal line); colour, dash and width; a range's shading and lines at its edges."]])}
 <h2 id="arrows">Arrows</h2>
-<p>The <em>Arrow</em> tool on the toolbar (or ${MP("Figure › Annotate › Arrow")}, or the graph's right-click menu): drag from where the arrow starts to what it points at. Its head snaps to the nearest data point; hold ${K("Alt")} to place it freely. Select it and drag either end, or the arrow itself. Its head can be filled, open, at both ends or none (a plain line), with its size, the line's colour, dash and width; text written for it sits beyond its tail. Like text, it can be pinned to the plot.</p>
+<p>The <em>Arrow</em> tool on the toolbar (or ${MP("Figure › Annotate › Arrow")}, or the graph's right-click menu): drag from where the arrow starts to what it points at. Its head snaps to the nearest data point; hold ${K("Alt")} to place it freely. Select it and drag either end, or the arrow itself. Its head can be filled, open, at both ends or none (a plain line), with its size, the line's colour, dash and width; text written for it sits beyond its tail. Like text, it can be pinned to the plot. <em>Curve</em> in its menu bends it to the left or right (as seen from its tail), and the diamond at its middle, when it is selected, bends it as you drag; the Format pane's <em>Curve</em> takes a number from −1 to 1 (0 straight). Swapping its ends keeps its curve.</p>
 <h2 id="shapes">Boxes and ellipses</h2>
 <p>The <em>Shape</em> tool on the toolbar opens a choice of a box or an ellipse; then drag across the graph from one corner to the other (${K("Shift")} makes a square or a circle). ${MP("Figure › Annotate")} and the graph's right-click menu have both. Select one and drag a corner to resize it, or the shape to move it. Its outline has a colour, dash and width (or none), its fill a colour and opacity (or none); a box can have rounded corners; it can sit <em>behind the data</em>, and hold text inside at its top, middle or bottom. Like text and arrows, it stays at data values or is pinned to the plot; <em>Make it an ellipse</em> (or a box) changes its kind.</p>
+<h2 id="polygons">Polygons</h2>
+<p>The <em>Shape</em> tool's <em>Polygon</em>: click each corner in turn; click the first corner again, double-click, or press ${K("Enter")} to finish (three corners at least). ${K("Backspace")} takes the last corner off and ${K("Esc")} stops. Select it and drag a corner to move that corner, or the polygon to move it all. It has the outline, fill, text in its middle and <em>behind the data</em> of a box, can be pinned to the plot, and <em>Closed</em> in its menu opens it into a line through its points (and closes it again). The Format pane's Labels and lines page adds one with its <em>Add</em> menu.</p>
 <h2 id="insets">Insets</h2>
 <p>Zoom into a region, then <em>Make this zoom an inset</em> from the graph's right-click menu (or ${MP("Figure › Annotate › Inset of the zoomed region")}): the graph returns to all the data with the region drawn small inside it, in the emptiest corner that does not cover the region, outlined on the graph with lines to the inset. Drag the inset to move it and its corner to resize it; its page sets the X and Y range (empty Y fits the data there), its place and size, the outline and lines, axis titles and the size of its text.</p>
 <h2>Lining things up</h2>

@@ -2151,6 +2151,21 @@ graph first, with the taskbar kept at the bottom of the screen.
   `shapeKind()`/`pickShape(k)` remembered in `kurve.shape`, the toolbar button opens
   `shapeMenu`; Shift makes a square or circle; `S.shapeDraft`, `makeShape`); corner handles
   `data-ah="00"…"11"` resize, the body moves. `annoWhere(a)` says where any annotation is.
+  **Curved arrows and polygons** (roadmap 5, slice 1): an arrow's `bend` (−1 to 1, null straight;
+  `arrowGeo(ax, ay, bx, by, bend)`: the control point off the chord's middle by bend × its length,
+  square to it, positive to the right going from tail to head as seen; the curve's middle and its
+  path), drawn by `arrowSvg` as a quadratic with the heads along the curve; selected, a diamond
+  `data-ah="b"` at the curve's middle bends it (`dragAnno`: twice the pointer's offset from the
+  chord's middle, square to it, over the length); the menu's *Curve*, the Format pane's `#pdAnBend`;
+  *Swap its ends* turns the bend round. A polygon (`t:"poly"`, `ANNO_KINDS.poly`): `pts` [[x, y]] or
+  pinned `fpts` [[fx, fy]] (`polyPts(a, g)` on screen, `polyPin(a, g, on)` the patch to pin or tie
+  it, in `pinAnno` and the Format pane), `closed` (unless false), and a box's `color`, `lw`, `dash`,
+  `fill`, `op`, `behind`, `text` at its middle; corner handles `data-ah="v<i>"`; drawn with the Shape
+  tool's Polygon (`SHAPE_KINDS`, `kurve.shape`): `polyClick` on each pointer-up (the first corner
+  again, or a second click within 500 ms and 6 px, finishes), `S.polyDraft {pts, cur, t}` drawn as
+  `[data-polydraft]`, the rubber band on pointer moves, `graphKey`'s Enter (`finishPoly`, three
+  corners at least, else a toast), Backspace and Escape; `setMode` drops it. The menu's *Closed*;
+  `ANNO_ADD`'s Polygon (a triangle in the view).
   **Text with LaTeX** (the `==TEX:START==`/`==TEX:END==` block, pure, tested by
   `tools/tex-test.mjs`): titles, axis titles, legend entries and title, annotation text,
   colour-bar and size-legend titles and fitted peak labels are drawn by `richText(str, {x, y |
@@ -3946,7 +3961,7 @@ Next, in order:
    figure (done 06.11); a map from scattered X, Y, Z (triangulated) rather than from spectra
    (done 06.11): the roadmap's item 4 is done
 5. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
-   with its own scale on each side, polygons and curved arrows
+   with its own scale on each side, polygons and curved arrows (done 06.11)
 6. Getting around: a visible undo list, flow chart zoom and packed
    lanes, keyboard access to annotations and peak handles, handles for shape parameters
    (Lorentz fraction, Pearson m, Fano 1/q)
@@ -4192,7 +4207,8 @@ Next, in order:
 - Double Y puts every other spectrum on one right axis; there are no free graph layers or
   per-panel settings in the stacked layout. An inset shows the graph's own spectra over a
   range, overlaid or offset, never in a heat map, and not another graph
-- Annotations: no polygons, freehand or curved arrows, and a box or ellipse cannot be turned;
+- Annotations: no freehand lines; a polygon's corners are dragged one at a time (not typed), a
+  curved arrow is one quadratic bend (no S-curves), and a box, ellipse or polygon cannot be turned;
   rich text is scripts and symbols only (no
   bold or italic inside a text, no nested scripts); snapping is text to text and to the plot's
   centre, and an arrow's head to data points; nothing can be nudged with the keys
