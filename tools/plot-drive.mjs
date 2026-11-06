@@ -1302,6 +1302,42 @@ await page(async p => {
   check("junk in the store of what was read reads as nothing", r.a === null && r.b === null && r.n === 0, JSON.stringify(r));
 }, { name: "unread comments" });
 
+console.log("Mentions (roadmap 10, slice 2)");
+await page(async p => {
+  await p.evaluate(async () => { await loadExample("ir"); });
+  await p.waitForTimeout(300);
+  const key = await p.evaluate(async () => { S.uid = "u_me"; S.profiles = { u_me: { name: "Me" }, u_ana: { name: "Ana Silva" }, u_bo: { name: "Bo" } };
+    addPipeStep("smooth"); await new Promise(r => setTimeout(r, 200)); const k = "step:" + activeYCol().pipe[0].id;
+    goNode(k, { disc: true, focus: true }); await new Promise(r => setTimeout(r, 300)); return k; });
+  const ta = `#flowWin .fcomp textarea`;
+  await p.click(ta); await p.keyboard.type("Could @an", { delay: 10 }); await p.waitForTimeout(100);
+  let r = await p.evaluate(() => [...document.querySelectorAll(".msug [data-mk]")].map(e => e.textContent));
+  check("@ and the start of a name offers the people the project knows (not oneself)", JSON.stringify(r) === JSON.stringify(["Ana Silva"]), JSON.stringify(r));
+  await p.keyboard.press("Enter"); await p.keyboard.type("check this?", { delay: 5 });
+  r = await p.evaluate(sel => ({ v: document.querySelector(sel).value, open: !!document.querySelector(".msug") }), ta);
+  check("…Enter puts the whole name in and closes the list, the comment not posted", r.v === "Could @Ana Silva check this?" && !r.open, JSON.stringify(r));
+  await p.keyboard.press("Control+Enter"); await p.waitForTimeout(300);
+  r = await p.evaluate(() => { const c = S.comments.find(c => /Could @Ana/.test(c.text)); const el = c && document.querySelector(`#flowWin .cmt[data-cid="${c.id}"] .ment`); return { m: c && c.mentions, mark: el && el.textContent }; });
+  check("…posted, the comment keeps whom it names, and the name is marked", JSON.stringify(r.m) === '["u_ana"]' && r.mark === "@Ana Silva", JSON.stringify(r));
+  // Ana answers, naming me: a toast says so, the comment says it mentions you, For you lists the thread.
+  await p.evaluate(async () => { const t = threadIndex().list[0]; await S.store.addComment(S.pid, { uid: "u_ana", text: "@Me the second band is a shoulder", mentions: ["u_me"], anchor: null, parent: t.root.id, t: Date.now() + 5, resolved: false }); });
+  await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ toast: (document.querySelector("#toast") || {}).textContent || "", chip: [...document.querySelectorAll("#flowWin .cmt.new .newc")].map(e => e.textContent), me: !!document.querySelector("#flowWin .cmt .ment.me") }));
+  check("a reply naming you: a toast says who, the comment says Mentions you and your name is marked", /Ana Silva mentioned you: “@Me the second band is a shoulder”/.test(r.toast) && r.chip.includes("Mentions you") && r.me, JSON.stringify(r));
+  r = await p.evaluate(() => { openWin("disc", { render: true }); focusWin("disc"); renderThread(); const b = document.querySelector('#thread [data-dflt="me"]'); if (b) b.click(); return { btn: b && b.textContent, n: document.querySelectorAll("#thread .thr").length }; });
+  check("…the Discussion window's For you lists that thread", /For you\s*1/.test(r.btn || "") && r.n === 1, JSON.stringify(r));
+  // Escape closes the list and leaves the reply being typed; an edit that names someone records it.
+  await p.evaluate(() => { const t = threadIndex().list[0]; threadAct("reply", t.root.id); });
+  await p.waitForTimeout(200); await p.click("#thread .rbox textarea");
+  await p.keyboard.type("Thanks @B", { delay: 10 }); await p.waitForTimeout(80);
+  r = await p.evaluate(() => [...document.querySelectorAll(".msug [data-mk]")].map(e => e.textContent));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(80);
+  const r2 = await p.evaluate(() => ({ open: !!document.querySelector(".msug"), reply: !!S.cReply, v: (document.querySelector("#thread .rbox textarea") || {}).value }));
+  check("Escape closes the list, and the reply stays open with what was typed", JSON.stringify(r) === '["Bo"]' && !r2.open && r2.reply && r2.v === "Thanks @B", JSON.stringify([r, r2]));
+  r = await p.evaluate(async () => { const c = S.comments.find(c => /Could @Ana/.test(c.text)); S.cDrafts["edit:" + c.id] = "Could @Ana Silva or @Bo check this?"; await threadAct("edits", c.id); await new Promise(r => setTimeout(r, 200)); return S.comments.find(x => x.id === c.id).mentions; });
+  check("…an edit naming another records both", JSON.stringify((r || []).slice().sort()) === '["u_ana","u_bo"]', JSON.stringify(r));
+}, { name: "mentions" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

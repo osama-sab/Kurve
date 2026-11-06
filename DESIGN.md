@@ -889,6 +889,16 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: Mentions (roadmap 10, slice 2)
+
+- **@ and a name, as everywhere.** Any comment box offers the people the project knows as a name is
+  typed after @, in the list the formula suggestions already use, its keys taken before the box's
+  own (Escape closes the list, not the reply). Only people known by name: a mention is for someone
+  who can read it.
+- **Named is marked, naming you is said.** A comment keeps whom it names, marks their names in the
+  talk colour, and one naming you says *Mentions you* and is announced by a message with Go when it
+  arrives; *For you* gathers those threads.
+
 ### 2026-11-06: New comments (roadmap 10, slice 1)
 
 - **New is someone else's, since you last looked.** A comment a colleague wrote after this browser

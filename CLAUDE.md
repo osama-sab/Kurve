@@ -1602,7 +1602,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   `winBadge("disc")` count them (`.badge.new`), the Discussion bar *n new* and *Mark all read*
   (`data-dread`, `seenMark()`); `seenSoon()` (after `renderThread`, `renderFlow`, `renderFlowDisc`)
   reads the threads with something new on screen `SEEN_MS` (1.5 s) later (`seenMark(list)`: each
-  read up to its newest comment).
+  read up to its newest comment). **Mentions** (slice 2): `mentionPeople()` (`S.profiles` with a
+  name, not oneself; `refreshProfiles` asks for the mentioned too), `setupMentions()` (one list,
+  `.fxs.msug`, under any comment box, `textarea.ctext` or `#cText`, on `@` and the start of a name;
+  ↑/↓, Enter or Tab, a click, Esc; its keys taken before the box's own), `mentionsIn(text)` (the
+  ids whose `@Name` the text holds, a longer name first), `withMentions(o)` on every post and
+  `mentions` on an edit; `cmtTextHtml(c)` marks the names (`.ment`, `.ment.me`); `mentionsMe`, a new
+  comment naming you says *Mentions you*; `mentionToast(list, before)` (in the comments' watch, by
+  `S.cKnown`) says the latest that arrived, with Go; `threadForMe` and the Discussion's *For you*
+  (`S.discFilter` "me").
 - **Statistics window** (`renderStats`): descriptive statistics of every spectrum (final or
   raw, all X or the visible range: n, mean, SD, SE, median, min, max; the spectral measures,
   X at max, noise σ, S/N, area and centroid, behind *Noise, S/N and area*, `#stSpec`,
@@ -4159,7 +4167,7 @@ Next, in order:
    grown to run every example end to end, the worksheet drawing only the columns in view, speed
    with thousands of columns: done 06.11): the roadmap's item 9 is done
 10. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
-   applied in one click, unread markers (done 06.11)
+   applied in one click, unread markers (unread markers and mentions: done 06.11)
 
 ## Known gaps
 
@@ -4319,7 +4327,8 @@ Next, in order:
   ratio when its width is dragged, and their share is typed
 - Ties are between the same parameter of two peaks; there are no free-form constraints between
   different parameters, and a user's function cannot be a peak shape in a peak fit
-- Comments have no mentions or notifications; they are plain text. What was read is kept per
+- Comments are plain text; a mention is said by a message while the project is open (no e-mail or
+  notification outside the page), and only people the project knows by name can be mentioned. What was read is kept per
   browser (a comment read on another computer is new here), and judged by the comments' times
 - No Shirley or Tougaard background (XPS); no Fourier self-deconvolution
 - Models: 25 built in (Origin has about 200); a polynomial is fitted in powers of x as written,

@@ -922,6 +922,9 @@ details.more>table{margin-top:var(--sp-4)}
 .badge.new{background:var(--talk);color:var(--talk-ink)}
 .fn-c.new{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--talk)}
 .dbar .dnew{margin-left:auto;font-size:var(--fs-tab);font-weight:600;color:var(--talk)}
+.cmt .ment{font-weight:600;color:var(--talk)}
+.cmt .ment.me{background:var(--talk-soft);border-radius:var(--r-s);padding:0 var(--sp-1)}
+.msug{min-width:200px}.msug .fxs-i img{width:18px;height:18px;border-radius:50%}
 .thr.flash{animation:thrflash 1.8s ease-out}
 @keyframes thrflash{0%,30%{background:var(--talk-soft)}100%{background:transparent}}
 .replies{margin:var(--sp-1) 0 0 37px;border-left:2px solid var(--rule);padding-left:var(--sp-4)}
@@ -18327,6 +18330,48 @@ const cmtMine=c=>!!c&&(S.uid?c.uid===S.uid:!c.uid);
 function cmtNew(c,tid){ if(!c||c.deleted||cmtMine(c)) return false; const r=seenOf(S.pid); if(!r) return false; return (+c.t||0)>Math.max(+r.base||0,+r.th[tid]||0); }
 const threadNew=t=>[t.root].concat(t.replies).filter(c=>cmtNew(c,t.root.id)).length;
 const unreadCount=list=>(list||threadIndex().list).reduce((n,t)=>n+threadNew(t),0);
+/* Mentions (roadmap 10, slice 2): @ and a name in a comment. The people are those the project knows
+   by name (`S.profiles`: who commented, changed it or is here; not oneself), offered as the name is
+   typed after @ in any comment box (`setupMentions`). A comment keeps whom it names (`mentions`, their
+   ids, read from its text when it is posted or edited, `mentionsIn`); the names are marked in it, a
+   new one naming you says so, a toast says it when it arrives, and the Discussion window has *For
+   you*. */
+function mentionPeople(){ const P0=S.profiles||{}; return Object.keys(P0).filter(u=>u&&u!==S.uid&&P0[u]&&P0[u].name).map(uid=>({uid,name:String(P0[uid].name).trim()})).filter(p=>p.name).sort((a,b)=>a.name.localeCompare(b.name)); }
+const reEsc=s=>String(s).replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+function mentionsIn(text){ const t=String(text||""), out=[];
+  mentionPeople().sort((a,b)=>b.name.length-a.name.length).forEach(p=>{ if(!out.includes(p.uid)&&new RegExp("(^|[^\\w@])@"+reEsc(p.name)+"(?![\\w])","i").test(t)) out.push(p.uid); }); return out; }
+const withMentions=o=>{ const m=mentionsIn(o.text); if(m.length) o.mentions=m; return o; };
+const mentionsMe=c=>!!S.uid&&!!c&&!c.deleted&&Array.isArray(c.mentions)&&c.mentions.includes(S.uid);
+const threadForMe=t=>[t.root].concat(t.replies).some(mentionsMe);
+// A comment's text with the people it names marked, in one pass (a longer name first).
+function cmtTextHtml(c){ const P0=S.profiles||{}, ms=(Array.isArray(c.mentions)?c.mentions:[]).map(u=>({u,n:P0[u]&&P0[u].name?String(P0[u].name):(u===S.uid?"":null)})).filter(q=>q.n).sort((a,b)=>b.n.length-a.n.length);
+  const h=esc(c.text); if(!ms.length) return h; const by=new Map(ms.map(q=>[esc(q.n).toLowerCase(),q.u]));
+  return h.replace(new RegExp("@("+ms.map(q=>reEsc(esc(q.n))).join("|")+")(?![\\w])","gi"),(m,n)=>{ const u=by.get(n.toLowerCase()); return `<span class="ment${u===S.uid?" me":""}">${m}</span>`; }); }
+// A comment naming you that has just arrived, and is new: said once.
+function mentionToast(list,before){ if(!S.uid) return; const got=list.filter(c=>(!before||!before.has(c.id))&&mentionsMe(c)&&cmtNew(c,c.parent||c.id)).sort((a,b)=>(+b.t||0)-(+a.t||0));
+  if(!got.length) return; const c=got[0], root=list.find(x=>x.id===(c.parent||c.id))||c, snip=String(c.text).replace(/\s+/g," ").slice(0,80);
+  toast(`${personName(c.uid)} mentioned you${got.length>1?` (and ${got.length-1} more)`:""}: “${snip}${c.text.length>80?"…":""}”`,{action:"Go",run:()=>{ if(root.anchor) goAnchor(root); else showDrawer("disc"); }}); }
+function setupMentions(){
+  let box=null, st=null;
+  const field=t=>t&&t.tagName==="TEXTAREA"&&(t.classList.contains("ctext")||t.id==="cText");
+  const close=()=>{ if(box){ box.remove(); box=null; } st=null; };
+  const show=t=>{ const at=t.selectionStart, m=/(^|[\s(])@([^\s@]{0,30})$/.exec(t.value.slice(0,at)); if(!m||at!==t.selectionEnd){ close(); return; }
+    const q=m[2].toLowerCase(), list=mentionPeople().filter(p=>{ const n=p.name.toLowerCase(); return n.startsWith(q)||n.split(/\s+/).some(w=>w.startsWith(q)); }).slice(0,8);
+    if(!list.length){ close(); return; }
+    const k=st&&st.t===t?Math.min(st.k,list.length-1):0; st={t,from:at-m[2].length-1,to:at,list,k};
+    if(!box){ box=document.createElement("div"); box.className="fxs msug"; box.setAttribute("role","listbox"); box.setAttribute("aria-label","People to mention"); document.body.appendChild(box);
+      box.addEventListener("mousedown",e=>{ e.preventDefault(); const it=e.target.closest("[data-mk]"); if(it&&st){ st.k=+it.dataset.mk; pick(); } }); }
+    box.innerHTML=`<div class="fxs-list">${list.map((p,i)=>`<div class="fxs-i${i===st.k?" on":""}" role="option" data-mk="${i}" aria-selected="${i===st.k}"><img alt="" src="${esc(avatarOf(p.uid))}"><span>${esc(p.name)}</span></div>`).join("")}</div>`;
+    const r=t.getBoundingClientRect(); box.style.left=Math.round(Math.max(8,Math.min(r.left,innerWidth-290)))+"px"; box.style.top=Math.round(r.bottom+2>innerHeight-120?r.top-box.offsetHeight-2:r.bottom+2)+"px"; };
+  const pick=()=>{ if(!st) return; const {t,from,to,list,k}=st; close(); t.setRangeText("@"+list[k].name+" ",from,to,"end"); t.dispatchEvent(new Event("input",{bubbles:true})); t.focus(); };
+  document.addEventListener("input",e=>{ if(field(e.target)) show(e.target); else if(st) close(); },true);
+  document.addEventListener("keydown",e=>{ if(!box||!st||e.target!==st.t) return; const k=e.key;
+    if(k==="ArrowDown"||k==="ArrowUp"){ e.preventDefault(); e.stopImmediatePropagation(); st.k=(st.k+(k==="ArrowDown"?1:-1)+st.list.length)%st.list.length; show(st.t); }
+    else if((k==="Enter"&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey)||k==="Tab"){ e.preventDefault(); e.stopImmediatePropagation(); pick(); }
+    else if(k==="Escape"){ e.preventDefault(); e.stopImmediatePropagation(); close(); } },true);
+  document.addEventListener("focusout",e=>{ if(st&&e.target===st.t) setTimeout(()=>{ if(st&&document.activeElement!==st.t) close(); },0); },true);
+  document.addEventListener("pointerdown",e=>{ if(box&&!box.contains(e.target)&&(!st||e.target!==st.t)) close(); },true);
+}
 // Read up to now: the threads given, or every one.
 function seenMark(list){ const r=seenOf(S.pid); if(!r) return false; let ch=false;
   (list||threadIndex().list).forEach(t=>{ const top=[t.root].concat(t.replies).reduce((m,c)=>Math.max(m,+c.t||0),0); if(top>(+r.th[t.root.id]||0)){ r.th[t.root.id]=top; ch=true; } });
@@ -18389,9 +18434,9 @@ function cmtHtml(c,ctx){
   let body;
   if(c.deleted) body=`<div class="txt gone">This comment was deleted.</div>`;
   else if(ed) body=`<div class="cedit"><textarea class="ctext" id="ce-${ctx}-${id}" data-cdraft="edit:${id}" rows="2" aria-label="Edit the comment">${esc(draftOf("edit:"+c.id,c.text))}</textarea><div class="crow"><span class="lab">Ctrl+Enter to save</span><span class="sp"></span><button class="btn sm ghost" data-cact="editx" data-cid="${id}">Cancel</button><button class="btn sm primary" data-cact="edits" data-cid="${id}">Save</button></div></div>`;
-  else body=`<div class="txt">${esc(c.text)}</div>`;
+  else body=`<div class="txt">${cmtTextHtml(c)}</div>`;
   const nw=cmtNew(c,c.parent||c.id);
-  return `<div class="cmt${c.parent?" reply":""}${nw?" new":""}" data-cid="${id}"><img alt="" src="${esc(avatarOf(c.uid))}"><div class="cb"><div class="who"><span class="nm">${esc(personName(c.uid))}</span><span class="when" title="${esc(logWhen(c.t))}">${esc(ago(c.t))}${c.edited?" · edited":""}</span>${nw?`<span class="newc" title="Written since you last read this thread">New</span>`:""}${own&&!ed?`<span class="cops"><button class="tb sm icon" data-cact="edit" data-cid="${id}" aria-label="Edit this comment" title="Edit">${ICON("edit","sm")}</button><button class="tb sm icon" data-cact="del" data-cid="${id}" aria-label="Delete this comment" title="Delete">${ICON("trash","sm")}</button></span>`:""}</div>${body}</div></div>`;
+  return `<div class="cmt${c.parent?" reply":""}${nw?" new":""}" data-cid="${id}"><img alt="" src="${esc(avatarOf(c.uid))}"><div class="cb"><div class="who"><span class="nm">${esc(personName(c.uid))}</span><span class="when" title="${esc(logWhen(c.t))}">${esc(ago(c.t))}${c.edited?" · edited":""}</span>${nw?`<span class="newc" title="Written since you last read this thread">${mentionsMe(c)?"Mentions you":"New"}</span>`:""}${own&&!ed?`<span class="cops"><button class="tb sm icon" data-cact="edit" data-cid="${id}" aria-label="Edit this comment" title="Edit">${ICON("edit","sm")}</button><button class="tb sm icon" data-cact="del" data-cid="${id}" aria-label="Delete this comment" title="Delete">${ICON("trash","sm")}</button></span>`:""}</div>${body}</div></div>`;
 }
 function threadHtml(t,ctx,opt){
   opt=opt||{}; const r=t.root, id=esc(r.id), ro=S.readOnly;
@@ -18432,9 +18477,9 @@ async function threadAct(act,id){
     if(act==="res"&&c){ await S.store.updateComment(pid,id,{resolved:!c.resolved,resolvedBy:c.resolved?null:(S.uid||"")}); return; }
     if(act==="edits"&&c){ const text=String(draftOf("edit:"+id,c.text)).trim(); if(!text) return; S.cEdit=null; delete S.cDrafts["edit:"+id];
       if(text===c.text){ refreshComments(); return; }
-      await S.store.updateComment(pid,id,{text:text.slice(0,4000),edited:Date.now()}); return; }
+      await S.store.updateComment(pid,id,{text:text.slice(0,4000),edited:Date.now(),mentions:mentionsIn(text.slice(0,4000))}); return; }
     if(act==="rpost"){ const text=String(draftOf("reply:"+id,"")).trim(); if(!text){ focusDraft("reply:"+id); return; } S.cReply=null; delete S.cDrafts["reply:"+id];
-      await S.store.addComment(pid,{uid:S.uid||"",text:text.slice(0,4000),anchor:null,parent:id,t:Date.now(),resolved:false});
+      await S.store.addComment(pid,withMentions({uid:S.uid||"",text:text.slice(0,4000),anchor:null,parent:id,t:Date.now(),resolved:false}));
       // A reply to a resolved thread reopens it: someone still has something to say.
       if(c&&c.resolved) await S.store.updateComment(pid,id,{resolved:false,resolvedBy:null});
       return; }
@@ -18457,7 +18502,7 @@ async function postNodeComment(key){
   if(S.readOnly){ toast("You can view this workspace but not comment."); return; }
   const anchor=nodeAnchor(key); delete S.cDrafts[dk];
   document.querySelectorAll(`textarea[data-cdraft="${CSS.escape(dk)}"]`).forEach(t=>{ t.value=""; });
-  try{ await S.store.addComment(S.pid,{uid:S.uid||"",text:text.slice(0,4000),anchor,t:Date.now(),resolved:false}); }
+  try{ await S.store.addComment(S.pid,withMentions({uid:S.uid||"",text:text.slice(0,4000),anchor,t:Date.now(),resolved:false})); }
   catch(e){ S.cDrafts[dk]=text; writeErr(e); }
 }
 // Keeps the caret where it was while a list of threads is redrawn.
@@ -18489,8 +18534,8 @@ function renderThread(){
   const open=T.list.filter(t=>!t.root.resolved).length, unread=unreadCount(T.list), bd=$("#cBadge"); if(bd){ bd.hidden=!open&&!unread; bd.textContent=unread||open; bd.classList.toggle("new",!!unread); bd.title=unread?`${unread} new`:`${open} open`; }
   const keep=keepCaret(box);
   if(!T.list.length){ box.innerHTML=`<p class="nothing">No comments yet. Comment on a History box, on a point with the <strong>Comment</strong> tool, or below.</p>`; return; }
-  const f=S.discFilter==="open"?"open":"all", list=f==="open"?T.list.filter(t=>!t.root.resolved):T.list;
-  let h=`<div class="dbar"><div class="seg mini" role="group" aria-label="Which threads"><button data-dflt="open" aria-pressed="${f==="open"}">Open <span class="cnt">${open}</span></button><button data-dflt="all" aria-pressed="${f==="all"}">All <span class="cnt">${T.list.length}</span></button></div>${unread?`<span class="dnew">${unread} new</span><button class="btn sm ghost" data-dread title="Count every comment as read">Mark all read</button>`:""}</div>`;
+  const mine=T.list.filter(threadForMe), f=S.discFilter==="open"?"open":S.discFilter==="me"&&mine.length?"me":"all", list=f==="open"?T.list.filter(t=>!t.root.resolved):f==="me"?mine:T.list;
+  let h=`<div class="dbar"><div class="seg mini" role="group" aria-label="Which threads"><button data-dflt="open" aria-pressed="${f==="open"}">Open <span class="cnt">${open}</span></button><button data-dflt="all" aria-pressed="${f==="all"}">All <span class="cnt">${T.list.length}</span></button>${mine.length?`<button data-dflt="me" aria-pressed="${f==="me"}" title="Threads where someone mentions you">For you <span class="cnt">${mine.length}</span></button>`:""}</div>${unread?`<span class="dnew">${unread} new</span><button class="btn sm ghost" data-dread title="Count every comment as read">Mark all read</button>`:""}</div>`;
   h+=list.map(t=>threadHtml(t,"d",{chip:true})).join("")||`<p class="nothing">Nothing open. ${T.list.length} resolved thread${T.list.length===1?"":"s"}: choose <em>All</em> to read ${T.list.length===1?"it":"them"}.</p>`;
   box.innerHTML=h; putCaret(keep); seenSoon();
 }
@@ -18535,7 +18580,7 @@ function goAnchor(c){
 }
 async function postComment(){
   const t=$("#cText"), text=t.value.trim(); if(!text||!S.pid) return; if(S.readOnly){ toast("You can view this workspace but not comment."); return; }
-  const c={uid:S.uid||"", text:text.slice(0,4000), anchor:S.anchor||null, t:Date.now(), resolved:false};
+  const c=withMentions({uid:S.uid||"", text:text.slice(0,4000), anchor:S.anchor||null, t:Date.now(), resolved:false});
   $("#cPost").disabled=true;
   try{ await S.store.addComment(S.pid,c); t.value=""; S.anchor=null; renderAnchor(); }catch(e){ writeErr(e); }
   $("#cPost").disabled=false;
@@ -18669,7 +18714,7 @@ function renderLog(){
    ============================================================ */
 async function refreshProfiles(){
   if(!S.user) return; const ids=new Set();
-  S.comments.forEach(c=>c.uid&&ids.add(c.uid)); (P()?.log||[]).forEach(l=>l.uid&&ids.add(l.uid)); if(P()?.fit?.by) ids.add(P().fit.by);
+  S.comments.forEach(c=>{ if(c.uid) ids.add(c.uid); (Array.isArray(c.mentions)?c.mentions:[]).forEach(u=>u&&ids.add(u)); }); (P()?.log||[]).forEach(l=>l.uid&&ids.add(l.uid)); if(P()?.fit?.by) ids.add(P().fit.by);
   S.peers.forEach(pr=>pr.presence&&pr.presence.uid&&ids.add(pr.presence.uid)); if(S.uid) ids.add(S.uid);
   const need=[...ids]; if(!need.length) return;
   const ps=await S.user.profiles(need); let changed=false;
@@ -18720,7 +18765,8 @@ function openProject(id){
   // remembered as last read, and a merge with another tab then took this tab's new columns for old.
   { const src=S.projects.find(p=>p.id===id)||null; S.proj=src?cloneProj(src):null; S.projSrc=src; }
   if(S.unsubC){ S.unsubC(); S.unsubC=null; }
-  if(id) S.unsubC=S.store.watchComments(id,list=>{ seenBase(id); S.comments=list; refreshComments(); renderPlot(); refreshProfiles(); }, e=>{ if(e.code==="revoked") setStatus("Access changed. Reload to continue.",true); });
+  S.cKnown=null;
+  if(id) S.unsubC=S.store.watchComments(id,list=>{ seenBase(id); const before=S.cKnown; S.comments=list; S.cKnown=new Set(list.map(c=>c.id)); refreshComments(); renderPlot(); refreshProfiles(); mentionToast(list,before); }, e=>{ if(e.code==="revoked") setStatus("Access changed. Reload to continue.",true); });
   try{ localStorage.setItem("kurve.last",id||""); }catch(e){}
   if(S.room) S.room.presence({pid:id,cx:null,cy:null}).catch(()=>{});
   renderAll(); fpEnsure();
@@ -22648,7 +22694,7 @@ ${DL([["+ Quantity","Add any column of the table; a quantity in other units goes
 <p><em>As a graph like any other</em> (in its ⋯ menu) puts the trend's numbers on a sheet of their own (the series as X, each quantity a column with its errors as error bars) and plots them on an ordinary graph, each quantity on its axis: the ${DA("style","Format pane")}, saved styles, figures and every export then work on it. The numbers are a copy, dated in each column's comment: a fit made again later changes the trend graph, not the sheet.</p>
 <p>Click a point to work on that column. The report has every trend graph. A quantity that is no longer there (the fit it came from was cleared) is shown greyed until it comes back or is taken off.</p>`},
 /* ---------------------------------------------------------------- Working together */
-{id:"disc", g:"Working together", t:"Comments and discussion", win:"disc", kw:"comment discussion thread reply resolve reopen badge point anchor note unread new read mark all read",
+{id:"disc", g:"Working together", t:"Comments and discussion", win:"disc", kw:"comment discussion thread reply resolve reopen badge point anchor note unread new read mark all read mention mentions at sign name for you",
  lead:"Talk about the analysis where it happens: on a step, the original data, a fit, or a point on the graph.",
  body:`<h2>Starting a thread</h2>
 ${DL([["On a History box","Select it and write at the foot of its inspector, or press "+K("C")+"."],["On a point","The <em>Comment</em> tool, then click the point or spot."],["General","In the Discussion window's box, optionally attached to the processed data."]])}
@@ -22657,6 +22703,8 @@ ${DL([["On a History box","Select it and write at the foot of its inspector, or 
 <p>A thread on a step outlives the step, and says it was removed. Comments are not part of undo: they are the record of what was said. The report ends with every thread.</p>
 <h2 id="unread">New comments</h2>
 <p>What someone else has written since this browser last showed its thread is new: it says <em>New</em>, its box's badge in the History is ringed, and the Discussion window's button counts it. A thread shown in the Discussion window or a box's inspector is read a moment later; <em>Mark all read</em> reads every one. What was read is kept in this browser, per project; your own comments are never new.</p>
+<h2 id="mention">Mentioning someone</h2>
+<p>Type ${K("@")} and the start of a name in any comment box: the people the project knows (who have commented on it, changed it or are here) are listed; ${K("↑")} ${K("↓")} and ${K("Enter")} or a click put the name in, ${K("Esc")} closes the list. The comment keeps whom it names and marks their names. A comment naming you says <em>Mentions you</em> until it is read, a message says so when it arrives while the project is open, and the Discussion window's <em>For you</em> lists those threads.</p>
 ${TIP("Comments are shared only in a shared workspace. Used on its own, Kurve keeps them in this browser with the project.")}`},
 /* ---------------------------------------------------------------- Reference */
 {id:"method", g:"Reference", t:"How Kurve computes", kw:"method algorithm levenberg marquardt covariance noise sigma second differences trapezoid savitzky golay whittaker arpls reference",
@@ -25912,7 +25960,7 @@ async function loadExample(kind){
    Boot
    ============================================================ */
 function wireStatic(){
-  setupRanges(); setupSupify(); setupCmdk(); setupNotes(); setupAway(); setupCtx(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); wireXpl(); setupPlotDetails(); setupRichTools(); setupCombos(); setupMotionKeep(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
+  setupRanges(); setupSupify(); setupCmdk(); setupNotes(); setupMentions(); setupAway(); setupCtx(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); wireXpl(); setupPlotDetails(); setupRichTools(); setupCombos(); setupMotionKeep(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
   document.querySelectorAll(".rb[data-rmenu]").forEach(b=>b.addEventListener("click",()=>toggleMenu(b,()=>menuItems(b.dataset.rmenu),{label:b.textContent.trim()})));
   // With a menu open, the pointer passing over another menu's name opens it only after
   // resting there 150 ms, so a pointer crossing the bar on its way to a submenu changes nothing.

@@ -1024,6 +1024,15 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Working together, slice 2: mentions (2026-11-06)
+
+- @ and the start of a name in any comment box lists the people the project knows; the comment keeps
+  whom it names and marks their names; one naming you says *Mentions you*, a message says so when it
+  arrives, and the Discussion window's *For you* lists those threads.
+
+Checked: `tools/plot-drive.mjs` (8 new: the list, Enter, the comment posted with whom it names and the
+name marked, a reply naming you with its message and mark, For you, Escape keeping the reply, an edit).
+
 ## Working together, slice 1: new comments (2026-11-06)
 
 - A colleague's comment written since this browser last showed its thread says *New*; its History
