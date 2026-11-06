@@ -1024,6 +1024,16 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Figures, slice 2: a break at a chosen place, each side its own scale (2026-11-06)
+
+- A break can be given a place (*Gap at*, 5 to 95 % along the axis from its low end) in Break the
+  axis… and on the axis page: the gap sits there and each side has a scale of its own. Empty, it is
+  a break in proportion as before.
+
+Checked: `tools/plot-drive.mjs` (12 new: the field and its refusal, the log, the gap's middle in
+proportion and placed, the two scales, numbers both sides and an export, a reversed axis, the axis
+page's field typed and emptied, crossing places, junk from storage).
+
 ## Figures, slice 1: polygons and curved arrows (2026-11-06)
 
 - The Shape tool's *Polygon*: a click a corner; the first corner again, a double click or Enter

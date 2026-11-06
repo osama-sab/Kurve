@@ -889,6 +889,14 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: a break at a chosen place (roadmap 5, slice 2)
+
+- **A break's place is a third number**, beside the two ends it already had, in the same dialog
+  and the same row of the axis page; left empty it is the break it always was (one scale). A place
+  is a percentage of the axis from its low end, so it means the same whether the axis is reversed.
+- **What cannot be drawn is not drawn wrongly**: two places that would cross, or crowd an end, are
+  set aside and the gaps fall back to proportion, rather than a scale that runs backwards.
+
 ### 2026-11-06: polygons and curved arrows (roadmap 5, slice 1)
 
 - **A polygon is a shape.** It is the Shape tool's third choice beside the box and the ellipse,

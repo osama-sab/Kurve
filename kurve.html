@@ -9145,12 +9145,14 @@ const annoAng=a=>a.ang!=null&&a.ang!==""&&Number.isFinite(+a.ang)?+a.ang:(a.rot?
    two sides of a break keep one scale. */
 function brkList(raw,a,b,log){
   const lo=Math.min(a,b), hi=Math.max(a,b), tf=log?(v=>Math.log10(Math.max(v,1e-300))):(v=>v), span=tf(hi)-tf(lo);
-  let r=(Array.isArray(raw)?raw:[]).filter(q=>Array.isArray(q)&&q.length>=2).map(q=>[+q[0],+q[1]]).filter(q=>Number.isFinite(q[0])&&Number.isFinite(q[1])&&q[0]!==q[1]).map(q=>[Math.min(q[0],q[1]),Math.max(q[0],q[1])]);
+  // A third value, where the gap sits along the axis (a fraction from its low end), gives each side its own scale.
+  const atOf=q=>{ const t=q.length>2&&q[2]!=null&&q[2]!==""?+q[2]:NaN; return Number.isFinite(t)&&t>0&&t<1?t:null; };
+  let r=(Array.isArray(raw)?raw:[]).filter(q=>Array.isArray(q)&&q.length>=2).map(q=>[+q[0],+q[1],atOf(q)]).filter(q=>Number.isFinite(q[0])&&Number.isFinite(q[1])&&q[0]!==q[1]).map(q=>[Math.min(q[0],q[1]),Math.max(q[0],q[1]),q[2]]);
   if(log) r=r.filter(q=>q[0]>0);
-  r=r.map(q=>[Math.max(q[0],lo),Math.min(q[1],hi)]).filter(q=>q[0]>lo&&q[1]<hi&&tf(q[1])-tf(q[0])>span*1e-6).sort((p,q)=>p[0]-q[0]);
-  const m=[]; r.forEach(q=>{ const l=m[m.length-1]; if(l&&q[0]<=l[1]) l[1]=Math.max(l[1],q[1]); else m.push(q.slice()); });
+  r=r.map(q=>[Math.max(q[0],lo),Math.min(q[1],hi),q[2]]).filter(q=>q[0]>lo&&q[1]<hi&&tf(q[1])-tf(q[0])>span*1e-6).sort((p,q)=>p[0]-q[0]);
+  const m=[]; r.forEach(q=>{ const l=m[m.length-1]; if(l&&q[0]<=l[1]){ l[1]=Math.max(l[1],q[1]); if(l[2]==null) l[2]=q[2]; } else m.push(q.slice()); });
   // What is left must be a fair share of the axis: with nine tenths gone, the breaks are ignored.
-  const gone=m.reduce((s,q)=>s+tf(q[1])-tf(q[0]),0); return span>0&&gone<span*0.9?m.slice(0,8):[];
+  const gone=m.reduce((s,q)=>s+tf(q[1])-tf(q[0]),0); return span>0&&gone<span*0.9?m.slice(0,8).map(q=>q[2]!=null?q:[q[0],q[1]]):[];
 }
 function axScale(a,b,log,brks,gf){
   // log: true for log10, or a curved scale (scaleFn), whose values out of reach go off the low or high end.
@@ -9161,6 +9163,12 @@ function axScale(a,b,log,brks,gf){
   // Knots [value, fraction] from the low end: a visible stretch, a gap, a visible stretch…
   const kn=[[lo,0]]; let f=0, u=lo;
   bs.forEach(q=>{ f+=(q[0]-u)*k; kn.push([q[0],f]); f+=g; kn.push([q[1],f]); u=q[1]; }); kn.push([hi,1]);
+  // A gap placed by hand: its middle there, each stretch on either side with a scale of its own. The
+  // others stay where the proportional layout puts them; places that would cross or crowd are not used.
+  const ats=(brks||[]).map(q=>q.length>2&&q[2]!=null&&Number.isFinite(+q[2])?Math.max(0.03,Math.min(0.97,+q[2])):null);
+  if(n&&ats.some(t=>t!=null)){ const mid=bs.map((q,i)=>ats[i]!=null?ats[i]:kn[2*i+1][1]+g/2);
+    let ok=mid[0]-g/2>=0.02&&mid[n-1]+g/2<=0.98; for(let i=1;i<n;i++) if(mid[i]-mid[i-1]<g+0.04) ok=false;
+    if(ok) bs.forEach((q,i)=>{ kn[2*i+1][1]=mid[i]-g/2; kn[2*i+2][1]=mid[i]+g/2; }); }
   const fr=v=>{ if(sc&&!sc.ok(v)) return v>=sc.hi?11:-10; const w=tf(v); let i=1; while(i<kn.length-1&&w>kn[i][0]) i++; const p=kn[i-1], q=kn[i], t=q[0]>p[0]?p[1]+(w-p[0])*(q[1]-p[1])/(q[0]-p[0]):p[1]; return asc?t:1-t; };
   const inv=t=>{ const tt=asc?t:1-t; let i=1; while(i<kn.length-1&&tt>kn[i][1]) i++; const p=kn[i-1], q=kn[i], w=q[1]>p[1]?p[0]+(tt-p[1])*(q[0]-p[0])/(q[1]-p[1]):p[0]; return ti(w); };
   const fl=t=>asc?t:1-t, segs=[], gaps=[];
@@ -10803,10 +10811,10 @@ function suggestBreak(k){
 }
 async function breakDlg(k){
   const p=P(); if(!p||S.readOnly||!S.geo) return; const s=suggestBreak(k); if(!s) return; const d=plotState().d, u=k==="x"?d.xu:d.yu, lay=plotCfg().layout;
-  const r=await formDlg({title:`Break the ${k==="x"?"X":"Y"} axis`,html:`<div class="grid2"><label for="fdBa">Leave out from</label><div class="pair"><input id="fdBa" type="text" inputmode="decimal" value="${esc(fmt(s.r[0],7))}">${u?`<span class="lab">${esc(u)}</span>`:""}</div><label for="fdBb">to</label><div class="pair"><input id="fdBb" type="text" inputmode="decimal" value="${esc(fmt(s.r[1],7))}">${u?`<span class="lab">${esc(u)}</span>`:""}</div></div><p class="hint">${s.empty?"Suggested: the widest stretch in view with nothing on it.":"There is no empty stretch in view, so the middle fifth is suggested."} The rest keeps one scale on both sides of the gap.${k==="y"&&!["overlay","offset"].includes(lay)?" Y breaks show with overlaid or offset curves.":""}${k==="x"&&lay==="heat"?" A heat map is drawn without breaks.":""}</p>`,
-    ok:"Break it",focus:"#fdBa",valid:q=>{ const a=parseNum(q.fdBa), b=parseNum(q.fdBb); return a!=null&&b!=null&&a!==b; }});
-  if(!r) return; const a=parseNum(r.fdBa), b=parseNum(r.fdBb), cur=(((GP().ax||{})[k]||{}).brk||[]).slice();
-  setAxisKeys(k,{brk:cur.concat([[Math.min(a,b),Math.max(a,b)]])},`broke the ${AXN(k)} from ${fmt(Math.min(a,b),6)} to ${fmt(Math.max(a,b),6)}`);
+  const r=await formDlg({title:`Break the ${k==="x"?"X":"Y"} axis`,html:`<div class="grid2"><label for="fdBa">Leave out from</label><div class="pair"><input id="fdBa" type="text" inputmode="decimal" value="${esc(fmt(s.r[0],7))}">${u?`<span class="lab">${esc(u)}</span>`:""}</div><label for="fdBb">to</label><div class="pair"><input id="fdBb" type="text" inputmode="decimal" value="${esc(fmt(s.r[1],7))}">${u?`<span class="lab">${esc(u)}</span>`:""}</div><label for="fdBt" title="Empty: the axis keeps one scale on both sides of the gap. A place from 5 to 95 % along the axis (from its low end) puts the gap there, and each side gets a scale of its own">Gap at</label><div class="pair"><input id="fdBt" type="text" inputmode="decimal" value="" placeholder="in proportion" style="width:9em"><span class="lab">% along the axis</span></div></div><p class="hint">${s.empty?"Suggested: the widest stretch in view with nothing on it.":"There is no empty stretch in view, so the middle fifth is suggested."} Left in proportion, the rest keeps one scale on both sides of the gap; placed, each side has its own.${k==="y"&&!["overlay","offset"].includes(lay)?" Y breaks show with overlaid or offset curves.":""}${k==="x"&&lay==="heat"?" A heat map is drawn without breaks.":""}</p>`,
+    ok:"Break it",focus:"#fdBa",valid:q=>{ const a=parseNum(q.fdBa), b=parseNum(q.fdBb), t=String(q.fdBt||"").trim(), at=t===""?0:parseNum(t); return a!=null&&b!=null&&a!==b&&(t===""||(at!=null&&at>=5&&at<=95)); }});
+  if(!r) return; const a=parseNum(r.fdBa), b=parseNum(r.fdBb), t=String(r.fdBt||"").trim(), at=t===""?null:parseNum(t)/100, cur=(((GP().ax||{})[k]||{}).brk||[]).slice();
+  setAxisKeys(k,{brk:cur.concat([at!=null?[Math.min(a,b),Math.max(a,b),+at.toFixed(4)]:[Math.min(a,b),Math.max(a,b)]])},`broke the ${AXN(k)} from ${fmt(Math.min(a,b),6)} to ${fmt(Math.max(a,b),6)}${at!=null?`, the gap ${fmt(at*100,3)} % along it`:""}`);
 }
 function clearBreaks(k){ setAxisKeys(k,{brk:null},`removed the breaks of the ${AXN(k)}`); }
 function axisMenuItems(k){
@@ -11426,7 +11434,7 @@ function renderPlotDetails(o){
       +(isX?chk("pdRev","revX",!!cfg.revX,"Reversed (high to low)"):"")
       +note("Empty fits the data."));
     if(k==="x"||k==="y"){ const bl=Array.isArray(a.brk)?a.brk:[];
-      let bh=bl.map((q,i)=>`<label for="pd${k}bk${i}">Leave out</label><div class="pair">${num(`pd${k}bk${i}`,fmt(q[0],7),`${b}.brk.${i}.0`,"",96)}<span class="lab">to</span>${num(`pd${k}bk${i}b`,fmt(q[1],7),`${b}.brk.${i}.1`,"",96)}<button type="button" class="tb sm icon" data-pdbrkdel="${k}:${i}" aria-label="Remove this break" title="Remove this break"${ro}>${ICON("x","sm")}</button></div>`).join("");
+      let bh=bl.map((q,i)=>`<label for="pd${k}bk${i}">Leave out</label><div class="pair">${num(`pd${k}bk${i}`,fmt(q[0],7),`${b}.brk.${i}.0`,"",96)}<span class="lab">to</span>${num(`pd${k}bk${i}b`,fmt(q[1],7),`${b}.brk.${i}.1`,"",96)}<span class="lab" title="Where the gap sits along the axis, from its low end: each side then has a scale of its own. Empty keeps one scale">at</span>${num(`pd${k}bk${i}c`,q[2]!=null&&Number.isFinite(+q[2])?+(q[2]*100).toFixed(1):"",`${b}.brk.${i}.2`,"%",52,` data-pct`)}<button type="button" class="tb sm icon" data-pdbrkdel="${k}:${i}" aria-label="Remove this break" title="Remove this break"${ro}>${ICON("x","sm")}</button></div>`).join("");
       bh+=`<span></span><div><button type="button" class="btn sm" data-pdbrkadd="${k}"${ro}>${ICON("plus","sm")}Add a break</button></div>`;
       if(k==="y"&&bl.length&&!["overlay","offset"].includes(cfg.layout)) bh+=note("Y breaks show with overlaid or offset curves.");
       if(k==="x"&&bl.length&&heat) bh+=note("A heat map is drawn without breaks.");
@@ -21621,7 +21629,7 @@ ${DL([["Connect","Straight lines between the points, a spline through them, or a
 <h2 id="axes">Axes</h2>
 ${DL([["Title","Its text (empty: made from the data's name and unit), shown or hidden, and where it sits along the axis: left, centre or right (bottom, middle or top on a Y axis). Its font is the axis titles' font."],["Scale","From, to (empty fits the data), the major step, reversed, and its type: linear, log₁₀, ln, log₂, reciprocal, offset reciprocal, square root or probability. "+DA("scales","Axis scales")],["Position","On its edge (bottom or top, left or right), at zero, or at any value of the other axis; pushed outward from the plot by an offset."],["Line and ticks","The axis line and its colour and width; ticks inside, outside, both or none; major and minor lengths, minor ticks between majors, tick width; the edge across from the axis with ticks of its own direction (or none) and, if asked, numbers too."],["Numbers","Shown or not, their format and decimals, turned 0°, 45° or 90°, and their font."],["Breaks","Ranges left out of the X or Y axis (below)."]])}
 <h2 id="breaks">Breaks</h2>
-<p>A break leaves a range out of an axis: an empty stretch between two groups of bands, or the top of one tall peak above small ones. The axis is cut there with two strokes, whatever runs through the gap is hidden, and both sides keep one scale. <em>Break the axis…</em>, in the right-click menu of an axis's numbers, suggests the widest stretch in view with nothing on it, and the axis's page lists every break with its two ends to type, <em>Add a break</em> and a remove button each. X breaks work in every layout but the heat map; Y breaks with overlaid or offset curves. Zooming, the wheel and panning go on working across them, and the report says which ranges the figure leaves out.</p>
+<p>A break leaves a range out of an axis: an empty stretch between two groups of bands, or the top of one tall peak above small ones. The axis is cut there with two strokes and whatever runs through the gap is hidden. Left in proportion, both sides keep one scale; given a place (<em>Gap at</em>, from 5 to 95 % along the axis from its low end), the gap sits there and each side has a scale of its own, so a short stretch of small bands can have most of the axis and the one tall peak the rest. <em>Break the axis…</em>, in the right-click menu of an axis's numbers, suggests the widest stretch in view with nothing on it, and the axis's page lists every break with its two ends and its place to type, <em>Add a break</em> and a remove button each. X breaks work in every layout but the heat map; Y breaks with overlaid or offset curves. Zooming, the wheel and panning go on working across them, and the report says which ranges the figure leaves out.</p>
 <h2 id="x2">A second X axis</h2>
 <p>The same positions in other units, across from the X axis: the wavelength over a Raman shift, micrometres over wavenumbers, photon energy over a wavelength. Right-click the X axis's numbers › <em>A second X axis in other units…</em> turns it on with the conversion that suits the X units, and its page sets what it shows:</p>
 ${DL([["Units","Wavelength (nm or µm), wavenumber (cm⁻¹), photon energy (eV), frequency (THz) or Raman shift (cm⁻¹), from what the X axis is in: read from its name and unit, or chosen. A Raman shift needs the laser wavelength, taken from the curve's Raman shift step when it has one."],["a × x + b","Any straight conversion, with a name and a unit."],["A formula","Any formula in x (the same arithmetic as fit functions: <code>1e7/x</code>, <code>1239.84/x</code>), with a name and a unit."],["Numbers","Placed where the X axis has that value, so they space unevenly on a curved conversion: evenly stepped where they fit, else the roundest numbers that fit (30, 20, 15, 10…). A conversion that is not one-to-one over the view is refused, and says so."]])}

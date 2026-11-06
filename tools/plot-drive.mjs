@@ -747,6 +747,56 @@ await page(async p => {
   check("…in an export, and a PDF of it", r.q && r.size > 500, JSON.stringify(r));
 }, { name: "polygons and curved arrows" });
 
+console.log("Roadmap 5, slice 2: a break at a chosen place, each side its own scale");
+await page(async p => {
+  await three(p);
+  // X runs from 0 to 29.5; leave out 10 to 20.
+  const gapMid = () => p.evaluate(() => { const g = S.geo, sx = g.sx; return { mid: (g.X(15) - g.L) / g.pw, segs: sx.segs.map(s => [s.a, s.b, +s.t0.toFixed(4), +s.t1.toFixed(4)]), gaps: sx.gaps.length }; });
+  await p.evaluate(() => { setAxisKeys("x", { brk: [[10, 20]] }); }); await p.waitForTimeout(300);
+  const prop = await gapMid();
+  await p.evaluate(() => { breakDlg("x"); }); await p.waitForTimeout(400);
+  let r = await p.evaluate(() => ({ field: !!document.querySelector("#fdBt"), ph: (document.querySelector("#fdBt") || {}).placeholder }));
+  check("Break the axis… has Gap at, empty meaning in proportion", r.field && /proportion/.test(r.ph), JSON.stringify(r));
+  await p.fill("#fdBa", "10"); await p.fill("#fdBb", "20"); await p.fill("#fdBt", "120");
+  r = await p.evaluate(() => document.querySelector("#formOk").disabled);
+  check("…a place outside 5 to 95 % is refused", r === true, JSON.stringify(r));
+  await p.fill("#fdBt", "75"); await p.click("#formOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ brk: GP().ax.x.brk, log: JSON.stringify(P().log.slice(-1)[0]) }));
+  check("…a place of 75 % kept with the break, said in the log", r.brk.some(q => q[0] === 10 && q[1] === 20 && q[2] === 0.75) && /75 % along it/.test(r.log), JSON.stringify(r));
+  // The dialog added a second, equal break; keep one, placed.
+  await p.evaluate(() => { setAxisKeys("x", { brk: [[10, 20, 0.75]] }); }); await p.waitForTimeout(300);
+  const placed = await gapMid();
+  check("in proportion the gap sits where the values put it; placed, its middle is 75 % along the axis", Math.abs(prop.mid - 0.75) > 0.1 && Math.abs(placed.mid - 0.75) < 0.01, JSON.stringify([prop.mid, placed.mid]));
+  r = await p.evaluate(() => { const g = S.geo, s = g.sx.segs, r0 = (s[0].t1 - s[0].t0) / (s[0].b - s[0].a), r1 = (s[1].t1 - s[1].t0) / (s[1].b - s[1].a); return { r0, r1 }; });
+  check("…each side with a scale of its own: the left stretch (0–10) wider per unit than the right (20–29.5)", r.r0 > 1.5 * r.r1, JSON.stringify(r));
+  r = await p.evaluate(() => { const t = [...document.querySelectorAll("#plot text")].map(e => +e.textContent).filter(Number.isFinite); return { left: t.filter(v => v <= 10).length, right: t.filter(v => v >= 20 && v <= 30).length, pic: /class="brk"/.test(handPic(600, 400, 1).svg) }; });
+  check("…numbered on both sides, and the break in an export", r.left >= 2 && r.right >= 2 && r.pic, JSON.stringify(r));
+  // Reversed, the place still counts from the low end.
+  await p.evaluate(() => { setPlotKey("revX", true); }); await p.waitForTimeout(300);
+  r = await gapMid();
+  check("…on a reversed axis, still 75 % from the low end (25 % from the left)", Math.abs(r.mid - 0.25) < 0.01, JSON.stringify(r.mid));
+  await p.evaluate(() => { setPlotKey("revX", false); }); await p.waitForTimeout(200);
+  // The Format pane's axis page.
+  await p.evaluate(() => { openPlotDetails(null, "ax:x"); }); await p.waitForTimeout(500);
+  r = await p.evaluate(() => (document.querySelector("#pdxbk0c") || {}).value);
+  check("the Format pane lists the break with its place, 75 %", r === "75", JSON.stringify(r));
+  await p.fill("#pdxbk0c", "30"); await p.press("#pdxbk0c", "Enter"); await p.waitForTimeout(800);
+  r = await p.evaluate(() => ({ at: ((GP().ax.x.brk || [])[0] || [])[2] }));
+  const m30 = await gapMid();
+  check("…typed 30 %, the gap moves there", r.at === 0.3 && Math.abs(m30.mid - 0.3) < 0.01, JSON.stringify([r, m30.mid]));
+  await p.fill("#pdxbk0c", ""); await p.press("#pdxbk0c", "Enter"); await p.waitForTimeout(800);
+  const back = await gapMid();
+  check("…emptied, back in proportion", Math.abs(back.mid - prop.mid) < 0.005, JSON.stringify([back.mid, prop.mid]));
+  await p.evaluate(() => closeWin("format")); await p.waitForTimeout(200);
+  // Places that would cross are not used; junk from storage reads as in proportion.
+  await p.evaluate(() => { setAxisKeys("x", { brk: [[5, 8, 0.8], [20, 22, 0.2]] }); }); await p.waitForTimeout(300);
+  r = await p.evaluate(() => { const g = S.geo; return [(g.X(6.5) - g.L) / g.pw, (g.X(21) - g.L) / g.pw]; });
+  check("two places that would cross are not used: the gaps keep their order", r[0] < r[1], JSON.stringify(r));
+  await p.evaluate(() => { setAxisKeys("x", { brk: [[10, 20, "x"], [24, 26, 7]] }); }); await p.waitForTimeout(300);
+  r = await p.evaluate(() => brkList(GP().ax.x.brk, 0, 29.5, false));
+  check("…and a place that does not read is none", JSON.stringify(r) === "[[10,20],[24,26]]", JSON.stringify(r));
+}, { name: "a break at a chosen place" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

@@ -1959,7 +1959,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   the breaks, and `S.geo.rx`/`ry` (value per pixel within a stretch) make panning follow the
   pointer. **Breaks** are `ax.x.brk`/`ax.y.brk` (`[[a, b], …]`, data, not format), cleaned by
   `brkList` (sorted, merged, inside the view, at most 8, ignored past nine tenths of the
-  axis): each a 10 px gap, the rest in proportion, so both sides keep one scale. X breaks in
+  axis): each a 10 px gap, the rest in proportion, so both sides keep one scale; or, with a third
+  value (roadmap 5, slice 2: `[a, b, at]`, `at` the gap's middle as a fraction along the axis from
+  its low end, 0.03 to 0.97, a reversed axis counting from the low values too), the gap there and
+  each side with a scale of its own (`axScale` moves the knots; places that would cross or crowd,
+  or leave less than 2 % at an end, are not used; `brkList` keeps a place only when it reads). The
+  break dialog's *Gap at* (`#fdBt`, 5 to 95 %) and the axis page's `pd<k>bk<i>c` (`.brk.i.2`,
+  `data-pct`) set it. X breaks in
   every layout but the heat map, Y breaks with overlaid or offset spectra, never in an inset.
   Ticks per stretch, merged so no numbers collide (`mergeTicks`); each gap is covered (`g.brk`)
   after the frames and cut with two strokes. `suggestBreak(k)` offers the widest empty stretch
@@ -3961,7 +3967,7 @@ Next, in order:
    figure (done 06.11); a map from scattered X, Y, Z (triangulated) rather than from spectra
    (done 06.11): the roadmap's item 4 is done
 5. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
-   with its own scale on each side, polygons and curved arrows (done 06.11)
+   with its own scale on each side (done 06.11), polygons and curved arrows (done 06.11)
 6. Getting around: a visible undo list, flow chart zoom and packed
    lanes, keyboard access to annotations and peak handles, handles for shape parameters
    (Lorentz fraction, Pearson m, Fano 1/q)
@@ -4250,7 +4256,7 @@ Next, in order:
 - Axes: an axis at zero or at a value stays at the bottom in stacked panels, and Y stays on
   the left with two Y axes; numbers turn 0°, 45° or 90° (Y: 0° or 90°); titles are dragged in
   pixels, so a resized graph keeps the offset, not the proportion. Breaks are a gap in
-  proportion (one scale on both sides; no break at a chosen place with two scales), Y breaks
+  proportion or at a place with a scale each side (a break's place is typed, not dragged), Y breaks
   only with overlaid or offset spectra, at most eight shown; the second axis is X only, sits
   across from the first and cannot be dragged, and a conversion must be one-to-one over the
   whole view
