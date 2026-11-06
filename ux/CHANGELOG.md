@@ -1024,6 +1024,17 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Figures, slice 3: the graph's own fonts in a PDF (2026-11-06)
+
+- A PDF embeds the faces its text is drawn in (TrueType from Fontsource's copy of Google Fonts, as
+  CIDFontType2 with widths and a ToUnicode map), so it looks as on screen and its text can be
+  searched and copied; the message says which fonts went in, or which could not be fetched and had
+  the standard fonts stand in. EPS keeps the standard fonts. The roadmap's item 5 is done.
+
+Checked: `tools/plot-drive.mjs` (8 new, with this machine's TrueType fonts served in Fontsource's
+place: the files asked for, embedded and said, `pdffonts` showing CID TrueType embedded, `pdftotext`
+reading the text back, `pdfinfo` reading the file, a CFF face falling back, offline, EPS).
+
 ## Figures, slice 2: a break at a chosen place, each side its own scale (2026-11-06)
 
 - A break can be given a place (*Gap at*, 5 to 95 % along the axis from its low end) in Break the

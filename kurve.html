@@ -18525,18 +18525,64 @@ function vecFont(fam,b,i){ const f=String(fam||"").toLowerCase(), last=f.split("
   if(k==="C") return "Courier"+(b&&i?"-BoldOblique":b?"-Bold":i?"-Oblique":"");
   return b&&i?"Times-BoldItalic":b?"Times-Bold":i?"Times-Italic":"Times-Roman"; }
 function vecWidths(ps){ if(/^Courier/.test(ps)) return null; return afmW(ps.replace("-Oblique","").replace("-BoldOblique","-Bold")); }
+/* The graph's own fonts in a PDF (roadmap 5, slice 3). Each web font face the figure draws (its
+   family, bold or not, italic or not) is fetched as TrueType, the Latin subset, from Fontsource's
+   copy of Google Fonts on jsDelivr (`ttfFetch`, memoised per face, 8 s at most), read by `ttfParse`
+   (units per em, the character map (format 4 or 12), advance widths, bounds, ascent, descent, cap
+   height, italic angle, PostScript name; null for what is not TrueType outlines) and embedded whole
+   as a CIDFontType2 with Identity-H, its widths and a ToUnicode map, so the text is drawn in the
+   graph's face and can be searched and copied. A character the face lacks, a face that does not
+   arrive, or one with CFF outlines falls back to the standard fonts, as before; EPS keeps them. */
+const TTF_MEMO=new Map();
+function ttfParse(buf){
+  try{ const u=new Uint8Array(buf), dv=new DataView(u.buffer,u.byteOffset,u.byteLength); if(u.length<12) return null;
+    const ver=dv.getUint32(0); if(ver!==0x00010000&&ver!==0x74727565) return null;
+    const nt=dv.getUint16(4), T={};
+    for(let i=0;i<nt;i++){ const o=12+16*i; if(o+16>u.length) return null; const tag=String.fromCharCode(u[o],u[o+1],u[o+2],u[o+3]); T[tag]={off:dv.getUint32(o+8),len:dv.getUint32(o+12)}; }
+    if(!T.head||!T.hhea||!T.hmtx||!T.maxp||!T.cmap||!T.glyf||!T.loca) return null;
+    const h=T.head.off, upm=dv.getUint16(h+18)||1000, bbox=[dv.getInt16(h+36),dv.getInt16(h+38),dv.getInt16(h+40),dv.getInt16(h+42)];
+    const hh=T.hhea.off, asc=dv.getInt16(hh+4), desc=dv.getInt16(hh+6), nhm=dv.getUint16(hh+34), ng=dv.getUint16(T.maxp.off+4);
+    const adv=new Uint16Array(ng); let last=0; for(let g=0;g<ng;g++){ if(g<nhm) last=dv.getUint16(T.hmtx.off+4*g); adv[g]=last; }
+    const cm=T.cmap.off, nsub=dv.getUint16(cm+2); let best=null;
+    for(let i=0;i<nsub;i++){ const pl=dv.getUint16(cm+4+8*i), off=cm+dv.getUint32(cm+8+8*i), fmt=dv.getUint16(off), sc=(fmt===12?2:fmt===4?1:0)+(pl===3?0.5:pl===0?0.4:0);
+      if((fmt===4||fmt===12)&&(!best||sc>best.sc)) best={off,fmt,sc}; }
+    if(!best) return null; const map=new Map();
+    if(best.fmt===4){ const o=best.off, sx2=dv.getUint16(o+6), seg=sx2/2, ends=o+14, starts=ends+sx2+2, deltas=starts+sx2, ros=deltas+sx2;
+      for(let s=0;s<seg;s++){ const e=dv.getUint16(ends+2*s), st=dv.getUint16(starts+2*s), d=dv.getInt16(deltas+2*s), ro=dv.getUint16(ros+2*s); if(st===0xFFFF) continue;
+        for(let c=st;c<=e&&c<0xFFFF;c++){ let g; if(ro===0) g=(c+d)&0xFFFF; else { const ga=ros+2*s+ro+2*(c-st); if(ga+2>u.length) continue; g=dv.getUint16(ga); if(g) g=(g+d)&0xFFFF; } if(g&&g<ng) map.set(c,g); } } }
+    else { const o=best.off, nG=dv.getUint32(o+12); for(let k=0;k<nG;k++){ const b=o+16+12*k, s=dv.getUint32(b), e=dv.getUint32(b+4), g0=dv.getUint32(b+8); for(let c=s;c<=e&&c-s<70000;c++){ const g=g0+(c-s); if(g>0&&g<ng) map.set(c,g); } } }
+    const ia=T.post?dv.getInt32(T.post.off+4)/65536:0; let cap=Math.round(asc*0.7);
+    if(T["OS/2"]&&T["OS/2"].len>=90&&dv.getUint16(T["OS/2"].off)>=2) cap=dv.getInt16(T["OS/2"].off+88);
+    let ps=""; if(T.name){ const n0=T.name.off, cnt=dv.getUint16(n0+2), so=n0+dv.getUint16(n0+4);
+      for(let i=0;i<cnt;i++){ const r=n0+6+12*i, pid=dv.getUint16(r), nid=dv.getUint16(r+6), ln=dv.getUint16(r+8), of=dv.getUint16(r+10); if(nid!==6) continue; let s="";
+        if(pid===3||pid===0){ for(let k=0;k+1<ln;k+=2) s+=String.fromCharCode(dv.getUint16(so+of+k)); } else { for(let k=0;k<ln;k++) s+=String.fromCharCode(u[so+of+k]); }
+        if(s){ ps=s; if(pid===3) break; } } }
+    ps=ps.replace(/[^A-Za-z0-9+_-]/g,"").slice(0,60)||"Embedded";
+    return {u,upm,bbox,asc,desc,cap,ia,adv,map,ps,ng}; }catch(e){ return null; } }
+const fsId=fam=>String(fam).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+function ttfFetch(fam,b,i){ const key=`${fam}|${b?1:0}|${i?1:0}`; if(TTF_MEMO.has(key)) return TTF_MEMO.get(key);
+  const url=`https://cdn.jsdelivr.net/fontsource/fonts/${fsId(fam)}@latest/latin-${b?700:400}-${i?"italic":"normal"}.ttf`;
+  const pr=(async()=>{ try{ const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),8000), r=await fetch(url,{signal:ctl.signal}); if(!r.ok){ clearTimeout(t); return null; } const buf=await r.arrayBuffer(); clearTimeout(t); return ttfParse(buf); }catch(e){ return null; } })();
+  TTF_MEMO.set(key,pr); pr.then(v=>{ if(!v) TTF_MEMO.delete(key); }); return pr; }
+// The web font faces a figure's text asks for: the first family of each text, bold or not, italic or not.
+function vecFaces(doc){ const web=new Set(FONT_LIB.filter(f=>f[4]).map(f=>f[4]).concat(["Source Sans 3","Source Serif 4"],[...WEB_OK])), out=new Map();
+  doc.querySelectorAll("text,tspan").forEach(el=>{ const a=k=>{ const q=el.closest(`[${k}]`); return q?q.getAttribute(k):""; }, fam=fontFams(a("font-family"))[0];
+    if(!fam||!web.has(fam)) return; const b=/bold|[6-9]00/.test(a("font-weight")), i=/italic|oblique/.test(a("font-style")); out.set(`${fam}|${b?1:0}|${i?1:0}`,{fam,b,i}); });
+  return out; }
 /* A run of text in pieces of one font each: codes, font, size and rise.
-   Superscript and subscript digits (cm⁻¹) are drawn raised and smaller. */
-function vecPieces(str,ps,size,miss){
+   Superscript and subscript digits (cm⁻¹) are drawn raised and smaller. With an embedded face `ef`,
+   what it has is drawn in it (codes its glyph numbers, `uni` the characters), the rest as before. */
+function vecPieces(str,ps,size,miss,ef){
   const out=[], W=vecWidths(ps); let cur=null;
-  const push=(font,code,w,sz,rise)=>{ if(!cur||cur.font!==font||cur.size!==sz||cur.rise!==rise){ cur={font,size:sz,rise,codes:[],w:0}; out.push(cur); } cur.codes.push(code); cur.w+=w*sz/1000; };
+  const push=(font,code,w,sz,rise,un)=>{ if(!cur||cur.font!==font||cur.size!==sz||cur.rise!==rise){ cur={font,size:sz,rise,codes:[],w:0,uni:[],emb:font.startsWith("E:")}; out.push(cur); } cur.codes.push(code); cur.uni.push(un); cur.w+=w*sz/1000; };
   for(const ch0 of String(str)){
     let ch=VEC_SAME[ch0]||ch0, sz=size, rise=0;
     if(VEC_SUP[ch]){ ch=VEC_SUP[ch]; sz=size*0.7; rise=size*0.36; } else if(VEC_SUB[ch]){ ch=VEC_SUB[ch]; sz=size*0.7; rise=-size*0.2; }
+    if(ef){ const raised=sz!==size, g=(!raised&&ef.map.get(ch0.codePointAt(0)))||ef.map.get(ch.codePointAt(0)); if(g){ push("E:"+ef.key,g,ef.adv[g]*1000/ef.upm,sz,rise,raised?ch:ch0); continue; } }
     const cp=ch.codePointAt(0), wc=winCode(cp);
-    if(wc!=null&&ch!=="−"){ push(ps,wc,W?W[wc-32]:600,sz,rise); continue; }
-    const sy=AFM_SYM[ch]; if(sy){ push("Symbol",sy[0],sy[1],sz,rise); continue; }
-    miss.add(ch); push(ps,63,W?W[63-32]:600,sz,rise); }
+    if(wc!=null&&ch!=="−"){ push(ps,wc,W?W[wc-32]:600,sz,rise,ch); continue; }
+    const sy=AFM_SYM[ch]; if(sy){ push("Symbol",sy[0],sy[1],sz,rise,ch); continue; }
+    miss.add(ch); push(ps,63,W?W[63-32]:600,sz,rise,"?"); }
   return out;
 }
 function vecColor(s){ if(s==null) return null; s=String(s).trim().toLowerCase(); if(!s||s==="none"||s==="transparent") return null;
@@ -18609,6 +18655,10 @@ async function svgToVector(svg,o){
   const Wpt=o.wPt||VW*0.75, Hpt=o.hPt||VH*0.75, sx=Wpt/VW, sy=Hpt/VH;
   const imgs=await vecImages(doc), byId=Object.create(null); doc.querySelectorAll("[id]").forEach(el=>{ byId[el.getAttribute("id")]=el; });
   const miss=new Set(), fonts=new Map(), gstates=new Map(), xobj=[];
+  // The graph's own faces, for a PDF: fetched together, whatever has come after 9 s is used.
+  const faces=kind==="pdf"&&o.embed!==false?vecFaces(doc):new Map(), embBy=new Map(), embUse=new Map(), fell=[];
+  if(faces.size){ await Promise.race([Promise.all([...faces].map(([k,f])=>ttfFetch(f.fam,f.b,f.i).then(ef=>{ if(ef) embBy.set(k,Object.assign({},ef,{key:k,fam:f.fam})); }))),new Promise(r=>setTimeout(r,9000))]);
+    faces.forEach((f,k)=>{ if(!embBy.has(k)) fell.push(f.fam+(f.b?" bold":"")+(f.i?" italic":"")); }); }
   const n=v=>{ let r=Math.round(v*1000)/1000; if(!Number.isFinite(r)) r=0; r=Math.max(-1e8,Math.min(1e8,r)); return Object.is(r,-0)?"0":String(r); };
   const out=[]; const w=s=>out.push(s);
   const pdf=kind==="pdf";
@@ -18668,10 +18718,11 @@ async function svgToVector(svg,o){
         if(ch.hasAttribute("x")) start(parseFloat(ch.getAttribute("x"))||0,py+dy); else py+=dy; walk(ch,s2); } }); };
     walk(el,st0);
     chunks.forEach(c=>{ if(!c.runs.length) return; c.runs[0].s=c.runs[0].s.replace(/^ +/,""); const l=c.runs[c.runs.length-1]; l.s=l.s.replace(/ +$/,"");
-      const pcs=[]; c.runs.forEach(r=>{ const fs=parseFloat(r.st["font-size"])||16, ps=vecFont(r.st["font-family"],/bold|[6-9]00/.test(String(r.st["font-weight"]||"")),/italic|oblique/.test(String(r.st["font-style"]||"")));
-        vecPieces(r.s,ps,fs,miss).forEach(p=>pcs.push(Object.assign(p,{y:r.y,st:r.st}))); });
+      const pcs=[]; c.runs.forEach(r=>{ const fs=parseFloat(r.st["font-size"])||16, bo=/bold|[6-9]00/.test(String(r.st["font-weight"]||"")), it=/italic|oblique/.test(String(r.st["font-style"]||"")), ps=vecFont(r.st["font-family"],bo,it);
+        const ef=embBy.size?embBy.get(`${fontFams(r.st["font-family"])[0]}|${bo?1:0}|${it?1:0}`):null;
+        vecPieces(r.s,ps,fs,miss,ef).forEach(p=>{ if(p.emb){ const m=embUse.get(p.font)||new Map(); p.codes.forEach((g,j)=>m.set(g,p.uni[j])); embUse.set(p.font,m); } pcs.push(Object.assign(p,{y:r.y,st:r.st})); }); });
       const wd=pcs.reduce((s,p)=>s+p.w,0), an=st0["text-anchor"]||"start"; let x=c.x-(an==="middle"?wd/2:an==="end"?wd:0);
-      pcs.forEach(p=>{ const st=p.st, fc=vecColor(st.fill==null?"black":st.fill), sc=vecColor(st.stroke), op=st.op==null?1:st.op, sw=parseFloat(st["stroke-width"])||0, y=p.y-p.rise, s=vecStr(p.codes);
+      pcs.forEach(p=>{ const st=p.st, fc=vecColor(st.fill==null?"black":st.fill), sc=vecColor(st.stroke), op=st.op==null?1:st.op, sw=parseFloat(st["stroke-width"])||0, y=p.y-p.rise, s=p.emb?"<"+p.codes.map(g=>g.toString(16).padStart(4,"0")).join("")+">":vecStr(p.codes);
         const fname=fontRef(p.font), halo=sc&&sw>0&&String(st["paint-order"]||"").startsWith("stroke");
         const draw=(mode)=>{ if(pdf){ w(`BT /${fname} ${n(p.size)} Tf ${mode} Tr 1 0 0 -1 ${n(x)} ${n(y)} Tm ${s} Tj ET`); }
           else { w(`/${p.font==="Symbol"?"Symbol":p.font+"-K"} ${n(p.size)} selectfont gsave ${n(x)} ${n(y)} translate 1 -1 scale 0 0 moveto ${s} ${mode===1?"false charpath stroke":"show"} grestore`); } };
@@ -18722,7 +18773,19 @@ async function svgToVector(svg,o){
   const content=vecAsc(body), cz=await vecDeflate(content);
   const enc=s=>vecAsc(s), streamObj=(dict,data,filt)=>[enc(`<< ${dict}${filt?" /Filter /FlateDecode":""} /Length ${data.length} >>\nstream\n`),data,enc("\nendstream")];
   const catalog=add(null), pages=add(null), page=add(null), cont=add(streamObj("",cz||content,!!cz));
-  const fontObjs=[...fonts.entries()].map(([ps,nm])=>[nm,add([enc(ps==="Symbol"?`<< /Type /Font /Subtype /Type1 /BaseFont /Symbol >>`:`<< /Type /Font /Subtype /Type1 /BaseFont /${ps} /Encoding /WinAnsiEncoding >>`)])]);
+  // An embedded face: the font file, its descriptor, a CIDFontType2 with the widths of the glyphs
+  // drawn, a ToUnicode map, and the Type0 font the page names.
+  const embObj=async ps=>{ const ef=embBy.get(ps.slice(2)), use=embUse.get(ps)||new Map(), k=1000/ef.upm, r=v=>Math.round(v*k), fz=await vecDeflate(ef.u);
+    const ff=add(streamObj(`/Length1 ${ef.u.length}`,fz||ef.u,!!fz));
+    const fd=add([enc(`<< /Type /FontDescriptor /FontName /${ef.ps} /Flags ${32+(ef.ia?64:0)} /FontBBox [${ef.bbox.map(r).join(" ")}] /ItalicAngle ${n(ef.ia)} /Ascent ${r(ef.asc)} /Descent ${r(ef.desc)} /CapHeight ${r(ef.cap)} /StemV 80 /FontFile2 ${ff} 0 R >>`)]);
+    const gs=[...use.keys()].sort((a,b)=>a-b), W=gs.map(g=>`${g} [${r(ef.adv[g])}]`).join(" ");
+    const cid=add([enc(`<< /Type /Font /Subtype /CIDFontType2 /BaseFont /${ef.ps} /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor ${fd} 0 R /CIDToGIDMap /Identity /DW 1000 /W [${W}] >>`)]);
+    const hx=s=>{ let h=""; for(let i=0;i<s.length;i++) h+=s.charCodeAt(i).toString(16).padStart(4,"0"); return h.toUpperCase(); }, bf=[];
+    for(let i=0;i<gs.length;i+=100){ const part=gs.slice(i,i+100); bf.push(`${part.length} beginbfchar\n`+part.map(g=>`<${g.toString(16).padStart(4,"0").toUpperCase()}> <${hx(use.get(g)||"?")}>`).join("\n")+"\nendbfchar"); }
+    const cmap=`/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n${bf.join("\n")}\nendcmap\nCMapName currentdict /CMap defineresource pop\nend\nend`;
+    const tu=add(streamObj("",enc(cmap),false));
+    return add([enc(`<< /Type /Font /Subtype /Type0 /BaseFont /${ef.ps} /Encoding /Identity-H /DescendantFonts [${cid} 0 R] /ToUnicode ${tu} 0 R >>`)]); };
+  const fontObjs=[]; for(const [ps,nm] of fonts.entries()) fontObjs.push([nm,ps.startsWith("E:")?await embObj(ps):add([enc(ps==="Symbol"?`<< /Type /Font /Subtype /Type1 /BaseFont /Symbol >>`:`<< /Type /Font /Subtype /Type1 /BaseFont /${ps} /Encoding /WinAnsiEncoding >>`)])]);
   const gsObjs=[...gstates.values()].map(g=>[g.n,add([enc(`<< /Type /ExtGState /ca ${n(g.ca)} /CA ${n(g.CA)} >>`)])]);
   const imObjs=[]; for(const im of xobj){ let sm=null; if(im.a){ const az=await vecDeflate(im.a); sm=add(streamObj(`/Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceGray /BitsPerComponent 8`,az||im.a,!!az)); }
     const rz=await vecDeflate(im.rgb); imObjs.push([im.name,add(streamObj(`/Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8${sm?` /SMask ${sm} 0 R`:""}`,rz||im.rgb,!!rz))]); }
@@ -18736,7 +18799,7 @@ async function svgToVector(svg,o){
   objs.forEach((o2,i)=>{ offs.push(pos); const h=enc(`${i+1} 0 obj\n`); parts.push(h); pos+=h.length; o2.forEach(u=>{ parts.push(u); pos+=u.length; }); const e=enc("\nendobj\n"); parts.push(e); pos+=e.length; });
   const xref=pos; let x=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`+offs.map(v=>String(v).padStart(10,"0")+" 00000 n \n").join("");
   x+=`trailer\n<< /Size ${objs.length+1} /Root ${catalog} 0 R /Info ${info} 0 R >>\nstartxref\n${xref}\n%%EOF\n`; parts.push(enc(x));
-  return {blob:new Blob(parts,{type:"application/pdf"}),miss:[...miss]};
+  return {blob:new Blob(parts,{type:"application/pdf"}),miss:[...miss],emb:[...new Set([...embUse.keys()].map(k=>{ const ef=embBy.get(k.slice(2)); return ef?ef.fam:""; }).filter(Boolean))],fell};
 }
 // The figure as on screen, or every graph as one figure, as a PDF or an EPS.
 async function exportVec(kind,all){
@@ -18744,8 +18807,10 @@ async function exportVec(kind,all){
   if(all){ const r=allGraphsSvg(560,380); if(!r){ toast("There is no data to export."); return; } svg=r.svg; nm=safeName(p.name,"_graphs."+kind); }
   else { if(!pointsAll().length){ toast("There is no data to export."); return; } svg=handPic(820,residOn(GP(),activeFit())?640:540).svg; nm=safeName(figName(),"."+kind); }
   try{ const res=await svgToVector(svg,{kind,title:p.name}), ok=await saveFile(nm,res.blob,kind==="pdf"?"application/pdf":"application/postscript");
-    if(ok) toast((ok==="dialog"?"Figure saved.":`Sent ${nm} to your downloads.`)+vecMissNote(res.miss)); }
+    if(ok) toast((ok==="dialog"?"Figure saved.":`Sent ${nm} to your downloads.`)+vecFontNote(res)+vecMissNote(res.miss)); }
   catch(e){ toast(`The figure could not be written as ${kind.toUpperCase()}: ${e.message}`); } }
+// What the fonts of a PDF are: the graph's own embedded, or the standard ones standing in.
+const vecFontNote=res=>res&&res.fell&&res.fell.length?` ${andList([...new Set(res.fell.map(f=>f.replace(/ (bold|italic)/g,"")))])} could not be fetched, so the standard fonts stand in for ${res.fell.length===1?"it":"them"}.`:res&&res.emb&&res.emb.length?` ${andList(res.emb)} embedded.`:"";
 const vecMissNote=m=>m.length?` ${m.length===1?"One character":m.length+" characters"} (${m.slice(0,6).join(" ")}) had no match in the standard fonts and read ?; SVG keeps ${m.length===1?"it":"them"}.`:"";
 function expBuild(o){
   const p=P(); if(!p) return null; const all=o.which==="all"&&multiGraph();
@@ -18804,7 +18869,7 @@ function tiffEncode(rgba,w,h,dpi,alpha){
   return new Blob([buf],{type:"image/tiff"});
 }
 const EXP_FMTS=[["svg","SVG","Vector: sharp at any size, and editable in Illustrator or Inkscape. Its web fonts go with it"],
-  ["pdf","PDF","Vector, for journals and LaTeX. Its text is in the standard PDF fonts (Helvetica, Times or Courier), the nearest to the graph's own; SVG keeps the graph's font"],
+  ["pdf","PDF","Vector, for journals and LaTeX. Its text is in the graph's own font, embedded, where it can be fetched; else in the standard PDF fonts (Helvetica, Times or Courier), the nearest to it"],
   ["eps","EPS","Vector, for journals that ask for EPS. Text as in the PDF; EPS has no transparency, so shading is mixed with white"],
   ["png","PNG","An image at the resolution chosen, which it records, so Word and LaTeX place it at its size"],
   ["tiff","TIFF","An image for journals that ask for TIFF: lossless, with its resolution"]];
@@ -18849,7 +18914,7 @@ async function doExportFigure(){
   const tag=o.size==="custom"||o.size==="screen"?"":`_${o.size}`, base=safeName((o.which==="all"&&multiGraph()?p.name+"_graphs":figName())+tag,"");
   if(o.fmt==="pdf"||o.fmt==="eps"){ const toPt=v=>o.unit==="mm"?v/25.4*72:o.unit==="in"?v*72:v*0.75;
     try{ const res=await svgToVector(expDress(r.svg,o,r.W,r.H),{kind:o.fmt,wPt:toPt(+o.w),hPt:toPt(+o.h),title:p.name||"Figure"}), nm=base+"."+o.fmt, okk=await saveFile(nm,res.blob,o.fmt==="pdf"?"application/pdf":"application/postscript");
-      if(okk) toast((okk==="dialog"?"Figure saved.":`Sent ${nm} to your downloads.`)+vecMissNote(res.miss)); }
+      if(okk) toast((okk==="dialog"?"Figure saved.":`Sent ${nm} to your downloads.`)+vecFontNote(res)+vecMissNote(res.miss)); }
     catch(e){ toast(`The figure could not be written as ${o.fmt.toUpperCase()}: ${e.message}`); }
     return; }
   let svg=expDress(await embedFonts(r.svg),o,r.W,r.H);
@@ -20938,7 +21003,7 @@ function exportItems(){
   return [
     {label:"Graph for a paper or slides…", title:"At a size in mm or inches with the text in points: SVG, PNG, TIFF, PDF or EPS", run:openExportFigure, enabled:has},
     {label:"Graph as SVG", title:"Vector, for papers", run:exportSvg, enabled:has},
-    {label:"Graph as PDF", title:"Vector, in the standard fonts", run:()=>exportVec("pdf"), enabled:has},
+    {label:"Graph as PDF", title:"Vector, in the graph's own font, embedded", run:()=>exportVec("pdf"), enabled:has},
     {label:"Graph as EPS", title:"Vector, in the standard fonts", run:()=>exportVec("eps"), enabled:has},
     {label:"Graph as PNG", title:"An image, for slides", run:exportPng, enabled:has},
     multiGraph()?{label:"All graphs as one figure", sub:()=>[{label:"As SVG (vector, for papers)",run:exportAllSvg},{label:"As PDF",run:()=>exportVec("pdf",true)},{label:"As EPS",run:()=>exportVec("eps",true)},{label:"As PNG (image, for slides)",run:exportAllPng}]}:null,
@@ -21686,7 +21751,7 @@ ${DL([["Greek","<code>\\alpha</code> … <code>\\omega</code>, <code>\\Gamma</co
 <h2>Where it works</h2>
 <p>The graph title, the axis titles and a second axis's unit, legend entries and the legend's title, peak labels, text on the plot, the text of lines, ranges, arrows and shapes, fitted peaks' names and their labels' template. Lists and menus (the Format pane's pages, the right-click menus, Results and the report) show it typeset or as plain text.</p>
 <h2>In exports</h2>
-<p>SVG and PNG draw it as on screen. PDF and EPS draw it in the standard fonts (Helvetica, Times or Courier, with Symbol for Greek and signs), the bars of fractions, roots and accents as lines. ${DA("export","Exporting")}</p>
+<p>SVG and PNG draw it as on screen. PDF draws it in the graph's own font where it can be fetched and embedded, else (and EPS always) in the standard fonts (Helvetica, Times or Courier, with Symbol for Greek and signs); the bars of fractions, roots and accents as lines. ${DA("export","Exporting")}</p>
 <h2>What it does not do</h2>
 <p>Matrices and arrays, aligned equations, <code>\\newcommand</code>, colours and sizes inside a text (<code>\\color</code>, <code>\\large</code>): the text's colour and size are set as a whole, in its menu or the Format pane. Kurve reads a small language and draws it; nothing in it is ever run. A label or a text runs over several lines with ${K("Shift","Enter")}.</p>`},
 {id:"annos", g:"Graph", t:"Labels, text, lines, arrows, shapes and insets", kw:"annotation polygon polyline curved bend label text line vertical horizontal range shade arrow inset zoom magnify peak label move drag type edit delete x snap guide align box rectangle ellipse circle square shape fill outline region highlight",
@@ -21723,7 +21788,7 @@ ${DL([["Size","One column (85 mm), one and a half (114 mm) or two (174 mm); Natu
 <h2>Everything else</h2>
 ${DL([["Copy the graph as a picture","A PNG on the clipboard (Edit, and the graph's right-click menu), to paste straight into a document or slides; a panel copies its whole figure. A browser that will not put a picture there says so, and the PNG export does the same job."],["Graph as SVG","Vector, for papers: exactly what is on screen, at any size."],["Graph as PDF, Graph as EPS","Vector, at the size the graph has on screen (the dialog above for any other size)."],["Graph as PNG","An image at 2.5 times the screen's resolution, for slides."],["All graphs as one figure","With several graphs: every graph in one SVG or PNG, lettered (a), (b)… as they are on the desk."],["Processed data and fit as CSV","Every column with units, the mask, the fit, residuals, baseline and each peak's curve, followed by commented blocks: metadata, check code, processing steps with their warnings, marked peaks with labels, band integrals and fit statistics."],["Every column's processed data as CSV","With several columns: each one's processed X and Y side by side, and how each was processed."],["Batch results as CSV","After a batch fit: the Batch window's table with each value's error, how the fit was made, and the straight line through the trend. "+DA("batch","Fitting every column")],["Original data as CSV","The original data under a header that says how to verify its check code. "+DA("rawdata","Original data")],["Processing steps as JSON","The recipe: every step with its settings."],["Report","One self-contained HTML file: the figure, the notes on anything that makes the numbers less certain, the parameter table with t, p, confidence intervals and dependency, statistics, peaks, bands, the original-data record, every processing step with a filmstrip, the fit history, the method, every discussion thread and the log."],["Copy the results table","In Edit: tab-separated, to paste into a spreadsheet."]])}
 <h2 id="pdf">PDF and EPS</h2>
-<p>Everything on the graph is drawn again as vectors: lines, symbols, shading, clipping, an inset, a heat map's image and colour bar. The text is set in the standard fonts every PDF reader and printer has (Helvetica, Times or Courier, whichever is nearest the graph's font, with Symbol for Greek letters and signs) and placed by those fonts' own widths, so centred and right-aligned text stays where it belongs; superscripts and subscripts keep their places. The graph's own font is not embedded: an SVG keeps it. A character none of those fonts has (Chinese, an emoji) is written as ? and the export says which. EPS has no transparency, so shading and translucent fills are mixed with white and cover what lies beneath.</p>
+<p>Everything on the graph is drawn again as vectors: lines, symbols, shading, clipping, an inset, a heat map's image and colour bar. In a PDF the text is set in the graph's own font, embedded in the file (each face drawn, fetched as TrueType from Fontsource's copy of Google Fonts), so it looks as on screen and can be searched and copied; the export says which fonts it embedded. A character the font lacks, a font that cannot be fetched (offline, or after 9 s), and every EPS use the standard fonts every PDF reader and printer has instead (Helvetica, Times or Courier, whichever is nearest the graph's font, with Symbol for Greek letters and signs), placed by those fonts' own widths, so centred and right-aligned text stays where it belongs; superscripts and subscripts keep their places either way, and the export says when the standard fonts stood in. A character none of the fonts has (Chinese, an emoji) is written as ? and the export says which. EPS has no transparency, so shading and translucent fills are mixed with white and cover what lies beneath.</p>
 <p>Tables in the Peaks, Integrate and Statistics windows have Copy buttons of their own.</p>
 ${TIP("The report can never say less than the screen: its notes come from the same checks as the Results window's.")}`},
 /* ---------------------------------------------------------------- Analysis */

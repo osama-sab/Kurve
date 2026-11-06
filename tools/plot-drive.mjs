@@ -797,6 +797,45 @@ await page(async p => {
   check("…and a place that does not read is none", JSON.stringify(r) === "[[10,20],[24,26]]", JSON.stringify(r));
 }, { name: "a break at a chosen place" });
 
+console.log("Roadmap 5, slice 3: the graph's own fonts in a PDF");
+await page(async p => {
+  const { existsSync, writeFileSync, readFileSync: rd } = await import("node:fs"), { execFileSync } = await import("node:child_process"), { tmpdir } = await import("node:os");
+  const F = "/usr/share/fonts/truetype/", ttf = { "400-normal": "dejavu/DejaVuSans.ttf", "700-normal": "dejavu/DejaVuSans-Bold.ttf", "400-italic": "dejavu/DejaVuSans-Oblique.ttf", "700-italic": "dejavu/DejaVuSans-BoldOblique.ttf" };
+  const serif = { "400-normal": "liberation/LiberationSerif-Regular.ttf", "700-normal": "liberation/LiberationSerif-Bold.ttf", "400-italic": "liberation/LiberationSerif-Italic.ttf", "700-italic": "liberation/LiberationSerif-BoldItalic.ttf" };
+  if (!existsSync(F + ttf["400-normal"]) || !existsSync(F + serif["400-normal"])) { check("TrueType fonts on this machine to stand in for the web's (skipped)", true); return; }
+  const asked = [];
+  // Fontsource's TrueType files, served from this machine; Lato as a CFF font (which cannot be embedded this way).
+  await p.route(/cdn\.jsdelivr\.net\/fontsource\//, r => { const u = r.request().url(); asked.push(u); const m = /fonts\/([a-z0-9-]+)@[^/]+\/latin-(\d+-(?:normal|italic))\.ttf/.exec(u);
+    if (!m) return r.abort(); if (m[1] === "lato") return r.fulfill({ status: 200, contentType: "font/otf", body: rd("/usr/share/fonts/opentype/inter/Inter-Thin.otf") });
+    const set = /serif/.test(m[1]) ? serif : ttf; return r.fulfill({ status: 200, contentType: "font/ttf", body: rd(F + set[m[2]]) }); });
+  await three(p);
+  const pdfOf = () => p.evaluate(async () => { const r = await svgToVector(handPic(600, 400, 1).svg, { kind: "pdf", wPt: 400, hPt: 280, title: "Fonts" }), b = new Uint8Array(await r.blob.arrayBuffer());
+    let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return { b64: btoa(s), emb: r.emb, fell: r.fell, miss: r.miss, note: vecFontNote(r) }; });
+  const save = (b64, nm) => { const f = tmpdir() + "/kurve-" + nm + ".pdf"; writeFileSync(f, Buffer.from(b64, "base64")); return f; };
+  let r = await pdfOf(); const f1 = save(r.b64, "fonts");
+  check("the graph's web fonts asked for as TrueType from Fontsource, the Latin subset", asked.some(u => /source-sans-3@latest\/latin-400-normal\.ttf$/.test(u)), JSON.stringify(asked.slice(0, 4)));
+  check("…embedded, and said so", r.emb.includes("Source Sans 3") && !r.fell.length && /Source Sans 3/.test(r.note) && /embedded/.test(r.note), JSON.stringify([r.emb, r.fell, r.note]));
+  let pf = ""; try { pf = execFileSync("pdffonts", [f1]).toString(); } catch (e) { pf = "ERR " + e.message; }
+  check("pdffonts: CID TrueType fonts, embedded, under their own names", /DejaVuSans\s+CID TrueType\s+Identity-H\s+yes/.test(pf), pf);
+  let tx = ""; try { tx = execFileSync("pdftotext", [f1, "-"]).toString(); } catch (e) { tx = "ERR"; }
+  check("…and the text reads back (searchable, copyable): numbers and the axis titles", /\b10\b/.test(tx) && /Time/.test(tx) && /Small/.test(tx), JSON.stringify(tx.slice(0, 200)));
+  let info = ""; try { info = execFileSync("pdfinfo", [f1]).toString(); } catch (e) { info = "ERR " + e.message; }
+  check("…a PDF pdfinfo reads, with no errors", /Pages:\s+1/.test(info) && !/Error/.test(info), info.slice(0, 200));
+  // A face that is not TrueType: the standard fonts stand in for it, and the message says so.
+  await p.evaluate(() => { setPlotKey("fontFam", "lato"); }); await p.waitForTimeout(400);
+  r = await pdfOf(); const f2 = save(r.b64, "fonts2");
+  try { pf = execFileSync("pdffonts", [f2]).toString(); } catch (e) { pf = "ERR"; }
+  check("a CFF face (Lato here) is not embedded: the standard fonts stand in, said in the message", r.fell.some(f => /^Lato/.test(f)) && /Lato could not be fetched/.test(r.note) && /Helvetica/.test(pf), JSON.stringify([r.fell, r.note, pf.slice(0, 300)]));
+  // Offline: every face falls back, and the PDF is still whole.
+  await p.unroute(/cdn\.jsdelivr\.net\/fontsource\//); await p.route(/cdn\.jsdelivr\.net\/fontsource\//, rr => rr.abort());
+  await p.evaluate(() => { setPlotKey("fontFam", "inter"); }); await p.waitForTimeout(400);
+  r = await pdfOf(); const f3 = save(r.b64, "fonts3");
+  try { info = execFileSync("pdfinfo", [f3]).toString(); } catch (e) { info = "ERR"; }
+  check("offline, the fonts stand in and the PDF is whole", r.fell.length > 0 && !r.emb.includes("Inter") && /Pages:\s+1/.test(info), JSON.stringify([r.fell, r.emb]));
+  r = await p.evaluate(async () => { const v = await svgToVector(handPic(600, 400, 1).svg, { kind: "eps", wPt: 400, hPt: 280 }); return { size: v.blob.size, emb: v.emb }; });
+  check("an EPS keeps the standard fonts, asking for nothing", r.size > 500 && !(r.emb || []).length, JSON.stringify(r));
+}, { name: "the graph's own fonts in a PDF" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

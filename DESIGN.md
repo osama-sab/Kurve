@@ -889,6 +889,16 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: the graph's own fonts in a PDF (roadmap 5, slice 3)
+
+- **A PDF looks like the graph.** It was set in the standard fonts, the nearest to the graph's; a
+  journal figure in Source Sans came out in Helvetica. The faces drawn are now embedded, fetched as
+  TrueType from the same Google fonts the page uses (Fontsource's copy, which serves TrueType where
+  Google serves only WOFF2), so the text is the graph's and stays searchable and copyable.
+- **It falls back quietly but says so.** Offline, or for a face that is not TrueType, the standard
+  fonts stand in as before and the export's message names the fonts it could not fetch; when it
+  embedded them, the message says that too.
+
 ### 2026-11-06: a break at a chosen place (roadmap 5, slice 2)
 
 - **A break's place is a third number**, beside the two ends it already had, in the same dialog

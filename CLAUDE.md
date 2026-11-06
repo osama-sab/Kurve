@@ -1,7 +1,8 @@
 # Kurve: collaborative Origin-style data analysis
 
 Single-file web app (`kurve.html`): HTML, CSS and vanilla JS, no build step, no dependencies
-besides Google Fonts. Open the
+besides Google Fonts (and their TrueType copies on jsDelivr, from Fontsource, for the fonts a PDF
+embeds; offline the standard fonts stand in). Open the
 file in a browser to run it. The file uses CRLF line endings;
 keep them (see the rules at the end). **DESIGN.md** records why the interface looks and
 behaves as it does (contrast, menus, typing, the worksheet's conventions); every round that
@@ -2517,7 +2518,19 @@ graph first, with the taskbar kept at the bottom of the screen.
   their AFM widths (`AFM_W`, WinAnsi codes, from Adobe's metrics) so anchors land right;
   Unicode super- and subscript digits are drawn raised and small (`vecPieces`), a halo is a
   stroked pass under the fill, an underline a rule; a character none of the fonts has is
-  written as ? and listed in `miss` (`vecMissNote`). `exportCsv` (every column with units, the mask
+  written as ? and listed in `miss` (`vecMissNote`). **The graph's own fonts in a PDF** (roadmap 5,
+  slice 3): `vecFaces(doc)` (the web faces the text asks for, as `embedFonts` judges web), fetched
+  together before the walk (`ttfFetch(fam, b, i)`: Fontsource's TrueType Latin subset on jsDelivr,
+  `https://cdn.jsdelivr.net/fontsource/fonts/<id>@latest/latin-<400|700>-<normal|italic>.ttf`,
+  `fsId`, memoised per face in `TTF_MEMO`, a failure forgotten so it is asked again; 9 s for all),
+  read by `ttfParse(buf)` (`{u, upm, bbox, asc, desc, cap, ia, adv, map, ps, ng}`, null for CFF
+  outlines or what does not read); `vecPieces(str, ps, size, miss, ef)` puts what the face has in it
+  (codes its glyph numbers, `uni` the characters, the font `"E:<face>"`), the rest in the standard
+  fonts; the page writes the glyphs as hex; `embObj` writes the face as Type0 / CIDFontType2 with
+  Identity-H, `/CIDToGIDMap /Identity`, the widths of the glyphs drawn (`/W`), a FontDescriptor
+  with `/FontFile2` (the whole file, deflated) and a ToUnicode map. `svgToVector` returns `emb`
+  (the families embedded) and `fell` (the faces that did not arrive), said by `vecFontNote` in
+  `exportVec` and the export dialog; `o.embed:false` asks for none; EPS embeds nothing. `exportCsv` (every column with units, the mask
   flag, the fit, residual, baseline and each peak curve, plus commented blocks for metadata,
   the fingerprint, the processing steps with their warnings, the marked peaks with their
   labels, the band integrals, and fit statistics),
@@ -3966,8 +3979,9 @@ Next, in order:
    boxes (done 06.11); stacked and grouped bars with category names (done 06.11); per-row or per-column shared axes in a
    figure (done 06.11); a map from scattered X, Y, Z (triangulated) rather than from spectra
    (done 06.11): the roadmap's item 4 is done
-5. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
-   with its own scale on each side (done 06.11), polygons and curved arrows (done 06.11)
+5. Figures, further still: the graph's own fonts embedded in a PDF (done 06.11), a break at a chosen place
+   with its own scale on each side (done 06.11), polygons and curved arrows (done 06.11): the
+   roadmap's item 5 is done
 6. Getting around: a visible undo list, flow chart zoom and packed
    lanes, keyboard access to annotations and peak handles, handles for shape parameters
    (Lorentz fraction, Pearson m, Fano 1/q)
@@ -4244,8 +4258,10 @@ Next, in order:
 - The worksheet draws only the rows in view, but every column; with hundreds of columns it
   draws fewer rows around the view instead. An axis title longer than its axis is cut off at
   the plot's edge
-- Export: a PDF or EPS sets its text in the standard fonts (Helvetica, Times, Courier,
-  Symbol), not the graph's own, which only SVG keeps; a character outside Latin-1, Greek and
+- Export: a PDF embeds the graph's own font from Fontsource (online: a font that cannot be
+  fetched, a CFF one, a character outside its Latin subset and every EPS use the standard fonts,
+  Helvetica, Times, Courier, Symbol); the font is embedded whole, not cut to the letters drawn
+  (tens of kilobytes a face); a character outside Latin-1, Greek and
   common signs (Chinese, an emoji) is written as ? (the export says which); EPS has no
   transparency, so shading is mixed with white and hides what is under it, and its image of
   a heat map is hex, so large. A raster larger than the browser's canvas (about 16 000 px a
