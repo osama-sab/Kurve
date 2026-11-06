@@ -956,7 +956,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   corner's ⋯ lists F(x)= ticked and fixed), Comments and Sparklines when the corner's ⋯
   (`[data-wsrows]`, `wsRowsMenu`) shows them, per project and browser (`wsRowsPref`/
   `wsRowsSet`, `kurve.wsrows`); `wsLabShown`, `wsLabRows`, `wsLabSnap` keep the selection off
-  the hidden ones. Data rows are 22 px unless sized: the line under any row number (`.rzr` in
+  the hidden ones. **Header fields** (roadmap 7, slice 2; the ⋯'s *Header fields*, `meta` in
+  `wsRowsPref`, offered while a column of the sheet has `meta`): `tr.meta` rows after the label rows,
+  one per field (`wsMetaAll(m)`: the Original view's columns' `c.meta` keys, the most common first;
+  `WS_META_MAX` 8 shown), each column's value as written (`wsMetaVal`), read only and outside the
+  selection (a press on them is ignored); the field's name `th[data-mkey]` opens `wsMetaItems(k)`:
+  *Use as the series* (`setSeries({mode:"meta", key})`, one undo step; disabled unless `metaKeys`
+  lists it), *Copy the row*, *Hide the header fields*. Data rows are 22 px unless sized: the line under any row number (`.rzr` in
   `th.rh`, `data-rzr`) drags every data row of the sheet to one height (18 to 160 px, the line
   following the pointer), a double click on it gives 22 again; `p.wsrh` (`{sheet: px}`, saved
   as `wsw` is, `wsRowH`, `wsSetRowH`, the CSS variable `--ws-rh` on `#ws`), the label rows keeping
@@ -4037,7 +4043,7 @@ Next, in order:
    parameters (Lorentz fraction, Pearson m, Fano 1/q; done 06.11): the roadmap's item 6 is done
 7. Many spectra, further: a parameter that follows the series in a global fit (done 06.11; a centre
    linear in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the
-   files' header fields as rows of the worksheet, global fits in a worker
+   files' header fields as rows of the worksheet (done 06.11), global fits in a worker
 8. More files: JCAMP-DX, then SPC; OPUS and SPE last
 9. Under the hood (projects in IndexedDB: done 05.11; a cell typed into a million rows quick, the
    graph drawing what is in view, every row of a sheet reachable: done 05.11): `tools/odd-test.mjs`
@@ -4195,8 +4201,8 @@ Next, in order:
   graph's annotations stay on it if one of its spectra moves to another graph
 - A batch import reads each file with the automatic choices (the single-file dialog's
   overrides of delimiter, decimal mark and start line apply to one file). Each spectrum keeps
-  its own header's fields, but they are not rows of the worksheet, and the project's own
-  metadata is the first file's
+  its own header's fields, shown as rows of the worksheet (eight at most, read only), and the
+  project's own metadata is the first file's
 - Peak handles move centre, height, width and the shape (a pseudo-Voigt's Lorentzian fraction, a
   Pearson VII's m, a Fano's 1/q), by the pointer or the keys; a Voigt's two widths keep their
   ratio when its width is dragged, and their share is typed

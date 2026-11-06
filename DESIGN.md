@@ -889,6 +889,20 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: the files' header fields as rows (roadmap 7, slice 2)
+
+- **Where Origin keeps them.** A file's header (the temperature, when it was taken, the exposure)
+  was kept with each column and shown only in the History's Original data box; Origin shows such
+  fields as rows under a column's Long Name and Units. They are rows here too, from the corner's ⋯
+  beside Comments and Sparklines, so the sheet stays short until someone asks.
+- **Read only, and outside the selection**: the header is what the file said, as the original data
+  are; typing over it would be a second record of the measurement. A press on a value does nothing.
+- **A field's name is where its use is**: *Use as the series* (what the Batch window, the trend
+  graphs, maps and a parameter that follows the series run over), offered only for a field with
+  numbers or dates that differ, the reason said when it is not.
+- **Eight at most**, the most common first: header rows are sticky as the label rows are, and a
+  file with forty fields would push the data off the screen.
+
 ### 2026-11-06: a parameter that follows the series (roadmap 7, slice 1)
 
 - **The line through the results, fitted with them.** People fit each spectrum and then draw a line

@@ -1024,6 +1024,17 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Many spectra, slice 2: the files' header fields as rows (2026-11-06)
+
+- The worksheet's ⋯ corner has *Header fields* when its columns came from files with a header: a row
+  per field under Long Name, Units and F(x)=, the most common first (eight at most), each column's
+  value as written, read only. A field's name gives its menu: *Use as the series* (one undo step;
+  not offered for text, with the reason), *Copy the row*, *Hide the header fields*.
+
+Checked: `tools/plot-drive.mjs` (9 new: the ⋯'s count, the rows in order with an empty value, the
+field's menu, the series set from it in its unit and undone, a text field refused, a press on a
+value leaving the selection, none in the Processed view, hidden).
+
 ## Many spectra, slice 1: a parameter that follows the series (2026-11-06)
 
 - Fit every column…, Together: each parameter is its own, shared, a straight line in the series, or

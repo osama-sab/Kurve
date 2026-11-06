@@ -1086,6 +1086,48 @@ await page(async p => {
   check("a line in the order of the columns, when the series is their order", r === "the order of the columns", JSON.stringify(r));
 }, { name: "a parameter that follows the series" });
 
+console.log("Roadmap 7, slice 2: the files' header fields as rows of the worksheet");
+await page(async p => {
+  await p.evaluate(async () => {
+    const x = Array.from({ length: 20 }, (_, i) => i), X = makeCol("x", "Shift", "cm-1", x), cols = [X];
+    [[280, "2024-03-01 10:00"], [300, "2024-03-01 10:20"], [320, "2024-03-01 10:40"]].forEach(([T, at], k) => cols.push(Object.assign(makeCol("y", "Run " + (k + 1), "", x.map(v => v * (k + 1))), { pipe: k ? [] : [makeStep("scale", { f: 2 })], mask: [], file: "run" + (k + 1) + ".txt", meta: { Temperature: T + " K", Acquired: at, Operator: "AB", Exposure: k === 1 ? "" : "10 s" } })));
+    await createProject(Object.assign(blankProject("Headers"), { cols, activeY: cols[1].id }), "test"); await new Promise(r => setTimeout(r, 80)); renderAll();
+    prefSet("anim", false); applyAnim(); openWin("sheet", { render: true }); focusWin("sheet");
+  });
+  await p.waitForTimeout(400);
+  await p.click("#ws [data-wsrows]"); await p.waitForTimeout(250);
+  let r = await p.evaluate(() => [...document.querySelectorAll(".menu [role^=menuitem]")].map(e => e.textContent.trim()));
+  check("the worksheet's ⋯ offers Header fields, with how many", r.some(t => /^Header fields\s*4$/.test(t)), JSON.stringify(r));
+  await p.evaluate(() => { [...document.querySelectorAll(".menu [role^=menuitem]")].find(e => /^Header fields/.test(e.textContent.trim())).click(); }); await p.waitForTimeout(300);
+  r = await p.evaluate(() => [...document.querySelectorAll("#ws tr.meta")].map(tr => [...tr.children].map(c => c.textContent)));
+  check("a row per field, the most common first, each column's value as written", r.length === 4 && r[0][0] === "Acquired" && r.map(q => q[0]).join() === "Acquired,Operator,Temperature,Exposure" && r[2].slice(1, 5).join("|") === "|280 K|300 K|320 K" && r[3][3] === "", JSON.stringify(r));
+  r = await p.evaluate(() => { const c = S.ws; return { r: c.r, c: c.c }; });
+  await p.evaluate(() => { const th = [...document.querySelectorAll("#ws th[data-mkey]")].find(e => e.dataset.mkey === "Temperature"); th.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 })); }); await p.waitForTimeout(250);
+  const items = await p.evaluate(() => [...document.querySelectorAll(".menu [role^=menuitem]")].map(e => ({ t: e.textContent.trim(), dis: e.getAttribute("aria-disabled") === "true" })));
+  check("a field's name gives its menu: use as the series, copy the row, hide", items.some(i => /^Use as the series/.test(i.t) && !i.dis) && items.some(i => i.t === "Copy the row") && items.some(i => i.t === "Hide the header fields"), JSON.stringify(items));
+  await p.evaluate(() => { [...document.querySelectorAll(".menu [role^=menuitem]")].find(e => /^Use as the series/.test(e.textContent.trim())).click(); }); await p.waitForTimeout(300);
+  r = await p.evaluate(() => { const s = seriesOf(); return { mode: s.mode, key: s.key, vals: seriesVals(yCols()), unit: seriesUnit(s), log: P().log.slice(-1)[0].text }; });
+  check("Use as the series: the Batch window's series is now that field, in its unit, as one undo step", r.mode === "meta" && r.key === "Temperature" && r.vals.join() === "280,300,320" && r.unit === "K" && /using Temperature as the series/.test(r.log), JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(200);
+  r = await p.evaluate(() => seriesOf().mode);
+  check("…undone", r === "order", JSON.stringify(r));
+  r = await p.evaluate(() => { const th = [...document.querySelectorAll("#ws th[data-mkey]")].find(e => e.dataset.mkey === "Operator"); th.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }));
+    const it = [...document.querySelectorAll(".menu [role^=menuitem]")].find(e => /series/.test(e.textContent)); const out = { dis: it.disabled || it.getAttribute("aria-disabled") === "true", t: it.textContent.trim() }; document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); return out; });
+  check("a field that is not a number that differs cannot be the series, and says why", r.dis === true && /not numbers that differ/.test(r.t), JSON.stringify(r));
+  // The rows are read only and do not move the selection.
+  await p.keyboard.press("Escape");
+  const sel0 = await p.evaluate(() => JSON.stringify([S.ws.r, S.ws.c]));
+  await p.evaluate(() => { const td = document.querySelector("#ws tr.meta td:nth-child(3)"); td.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 })); }); await p.waitForTimeout(150);
+  r = await p.evaluate(() => JSON.stringify([S.ws.r, S.ws.c]));
+  check("a press on a header value leaves the selection where it was", r === sel0, JSON.stringify([sel0, r]));
+  // The Processed view has none; Hide takes them away.
+  r = await p.evaluate(() => { setSheet("final"); const n = document.querySelectorAll("#ws tr.meta").length, k = S.wsm.kind; setSheet("raw"); return k === "final" ? n : "not the Processed view"; });
+  check("the Processed view has no header rows", r === 0, JSON.stringify(r));
+  await p.evaluate(() => wsRowsSet("meta", false)); await p.waitForTimeout(150);
+  r = await p.evaluate(() => document.querySelectorAll("#ws tr.meta").length);
+  check("Hide the header fields: gone", r === 0, JSON.stringify(r));
+}, { name: "the files' header fields as rows" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

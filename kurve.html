@@ -331,6 +331,9 @@ body.colmoving,body.colmoving *{cursor:grabbing!important;user-select:none}
 .ws th.rl{left:0;z-index:4;color:var(--muted);font-weight:500;font-size:var(--fs-cap);text-align:right;padding:0 var(--sp-3);user-select:none}
 .ws thead td.lc{font-size:var(--fs-tab);color:var(--ink-2);text-align:left;cursor:cell;background:var(--panel-2)}
 .ws tr.spk td,.ws tr.spk th{height:22px;border-bottom-color:var(--rule)}
+.ws tr.meta td{font-size:var(--fs-tab);color:var(--ink-2);cursor:default}
+.ws tr.meta th.rl.mk{cursor:pointer;max-width:var(--ws-idx,64px)}
+.ws tr.meta th.rl.mk:hover{color:var(--ink);text-decoration:underline}
 .ws tr.spk td{padding:var(--sp-1) var(--sp-3);color:var(--data)}
 .ws .wspark{width:100%;height:16px;display:block}
 .ws tbody th.rh{position:sticky;left:0;z-index:1;background:var(--panel-2);color:var(--muted);font-size:var(--fs-cap);font-weight:400;text-align:right;padding:0 var(--sp-3);user-select:none;cursor:pointer}
@@ -13432,7 +13435,25 @@ function wsRowsMenu(btn){ const pr=wsRowsPref();
   toggleMenu(btn,()=>[{group:"Rows under the letters",plain:true},{label:"Long Name",checked:true,enabled:false},{label:"Units",checked:true,enabled:false},
     {label:"F(x)= (formulas)",checked:true,enabled:false},
     {label:"Comments",checked:!!pr.comm,run:()=>wsRowsSet("comm",!pr.comm)},
-    {label:"Sparklines",checked:!!pr.spk,run:()=>wsRowsSet("spk",!pr.spk)}],{label:"Rows"}); }
+    {label:"Sparklines",checked:!!pr.spk,run:()=>wsRowsSet("spk",!pr.spk)},
+    ...(wsMetaAll().length?[{label:"Header fields",checked:!!pr.meta,note:String(wsMetaAll().length),title:"A row for each field of the files' headers: a temperature, a time, an exposure. Click a field's name to use it as the series",run:()=>wsRowsSet("meta",!pr.meta)}]:[])],{label:"Rows"}); }
+/* The files' header fields as rows (roadmap 7, slice 2): under the label rows, a row for each field
+   the sheet's columns carry (c.meta, from the file each came from), the most common first, eight at
+   most, each column's value as written (read only: the header is what the file said). A field's
+   name gives its menu: use it as the series (the Batch window, trend graphs, maps and a parameter
+   that follows the series run over it), copy the row, hide the rows. */
+const WS_META_MAX=8;
+function wsMetaAll(m){ m=m||S.wsm; if(!m||m.kind!=="raw") return []; const n=new Map();
+  m.cols.forEach(q=>{ const mt=q.col&&q.col.meta; if(mt) Object.keys(mt).forEach(k=>{ if(String(mt[k]).trim()) n.set(k,(n.get(k)||0)+1); }); });
+  return [...n.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([k])=>k); }
+function wsMetaVal(q,k){ const mt=q&&q.col&&q.col.meta; return mt&&mt[k]!=null?String(mt[k]):""; }
+function wsMetaItems(k){
+  const s=seriesOf(), can=metaKeys(yCols()).some(z=>z.k===k), on=s.mode==="meta"&&s.key===k, ro=S.readOnly;
+  return [{group:k,plain:true},
+    {label:on?"The series already":"Use as the series",checked:on,enabled:can&&!ro&&!on,note:can?"":"not numbers that differ",title:can?`The Batch window, trend graphs, maps and a parameter that follows the series run over ${k}`:"Only a field with a number, a date or a time in most columns, not the same in all, can be the series",
+      run:()=>{ setSeries({mode:"meta",key:k,label:"",unit:""},`using ${k} as the series`); toast(`The series is now ${k}, from the files' headers.`,{action:"Undo",run:undo}); }},
+    {label:"Copy the row",run:()=>{ const m=S.wsm; copyText(m.cols.filter(q=>!q.phantom&&!q.hidden).map(q=>wsMetaVal(q,k)).join("\t"),"The row"); }},
+    "-",{label:"Hide the header fields",run:()=>wsRowsSet("meta",false)}]; }
 function wsLetter(i){ let s=""; i++; while(i>0){ const m=(i-1)%26; s=String.fromCharCode(65+m)+s; i=Math.floor((i-1)/26); } return s; }
 function wsModel(){
   const p=P(), box=$("#ws"), W=p.wsw||{};
@@ -13519,6 +13540,7 @@ function renderWs(){
   h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"><button type="button" class="wsrows" data-wsrows aria-haspopup="menu" aria-expanded="false" title="Rows under the letters: Comments, F(x)=, Sparklines" aria-label="Rows to show under the letters">⋯</button></th>${m.cols.map((q,i)=>q.hidden?`<th class="ch hidc" data-ch="${i}" title="${esc(q.title)}" aria-label="${esc(q.title)}"></th>`:`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.calc?`<span class="fxm${q.fxErr?" bad":q.fxNote?" old":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx+(q.fxNote?". "+q.fxNote:""))}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.off?`<span class="lab hoff" title="On no graph yet: select it and press Plot">not plotted</span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`).join("")}</tr>`;
   const AL=p.wsAlign||{};
   wsLabRows().forEach(L=>{ h+=`<tr class="lab"><th class="rl" scope="row" data-lr="${L.r}"${L.k==="fx"?` title="A column's formula: letters are columns (B*2, (B-C)/A, log10(B)), x the row's X value, i the row number. Click a cell here to type one."`:""}>${L.label}</th>${m.cols.map((q,i)=>{ const bd=L.k==="fx"&&q.fxErr, al=L.k!=="fx"&&AL[q.id]?" al-"+AL[q.id]:""; if(q.hidden) return `<td class="lc hid" data-r="${L.r}" data-ci="${i}"></td>`; return `<td class="lc${L.k==="fx"?" fxc":""}${bd?" bad":""}${al}" data-r="${L.r}" data-ci="${i}"${bd?` title="${esc(q.fxErr)}"`:L.k==="fx"&&m.kind==="raw"&&!q.lab.fx?` title="Click to type a formula for column ${q.letter}"`:""}>${esc(q.lab[L.k]||"")}</td>`; }).join("")}</tr>`; });
+  if(wsRowsPref().meta) wsMetaAll(m).slice(0,WS_META_MAX).forEach(k=>{ h+=`<tr class="meta"><th class="rl mk" scope="row" data-mkey="${esc(k)}" title="${esc(k)}, from the files' headers: click for its menu" aria-haspopup="menu">${esc(k)}</th>${m.cols.map(q=>{ if(q.hidden) return `<td class="hid"></td>`; const v=wsMetaVal(q,k); return `<td${v?` title="${esc(k+": "+v)}"`:""}>${esc(v)}</td>`; }).join("")}</tr>`; });
   if(wsRowsPref().spk) h+=`<tr class="spk"><th class="rl" scope="row">Sparklines</th>${m.cols.map(q=>q.hidden?`<td class="hid"></td>`:`<td>${q.spark||""}</td>`).join("")}</tr>`;
   // A spacer as tall as the rows, so the scroll can be put back before they are drawn.
   h+=`</thead><tbody><tr class="gap" aria-hidden="true"><td colspan="${m.cols.length+1}" style="height:${wsScroll(m).P}px"></td></tr></tbody></table>`;
@@ -14119,6 +14141,8 @@ function setupWs(){
     if(t.closest("input.wsed")) return;
     if(t.closest("[data-cmenu]")) return;
     if(t.closest("[data-wsrows]")) return;
+    { const mh=t.closest("th[data-mkey]"); if(mh){ e.preventDefault(); toggleMenu(mh,()=>wsMetaItems(mh.dataset.mkey),{label:mh.dataset.mkey}); return; } }
+    if(t.closest("tr.meta")){ e.preventDefault(); return; }
     // The line under a row number sizes every data row of the sheet; the line follows the pointer.
     const rzr=t.closest("[data-rzr]");
     if(rzr&&e.detail===2){ e.preventDefault(); wsSetRowH(null); return; }
@@ -21622,7 +21646,7 @@ ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move between boxes"],[K(
 <p>Columns are lettered A, B, C… and each has a role, shown after its letter: <strong>(X)</strong>, <strong>(Y)</strong>, <strong>(yEr±)</strong> for error bars (or <strong>(yEr+)</strong>, <strong>(yEr−)</strong>, <strong>(xEr±)</strong>…: ${DA("errbars","Error bars")}), or <strong>(—)</strong> for other data, kept for formulas. A Y column is plotted against the nearest X column to its left, so columns measured on different axes each keep their own X. Every Y column has its own ${DA("spectra","processing")}.</p>
 <p>Click a column's header arrow, or right-click its letter, for its menu: its role, whose error bars it holds, analyse it, plot it, move it, align its values, fill it, show or hide it on the graph, hide it in the sheet, set its values by a formula, sort by it, delete it. <em>Plot</em> on the bar above the grid plots the selected columns, or opens <em>Plot setup</em> when none is selected. ${DA("plotting","Plotting columns")}</p>
 <h2>Label rows</h2>
-<p>Under the letters are <em>Long Name</em>, <em>Units</em> and <em>F(x)=</em>, where a column's formula is typed (a value typed into a cell starting with ${K("=")} goes there too). The <strong>⋯</strong> in the top-left corner shows or hides Comments and Sparklines, for this project, and the formula bar above the grid always shows a computed column's formula.</p>
+<p>Under the letters are <em>Long Name</em>, <em>Units</em> and <em>F(x)=</em>, where a column's formula is typed (a value typed into a cell starting with ${K("=")} goes there too). The <strong>⋯</strong> in the top-left corner shows or hides Comments and Sparklines, for this project, and the formula bar above the grid always shows a computed column's formula. When the columns came from files with a header (a temperature, the time it was taken, an exposure), it shows <em>Header fields</em> too: a row for each field, the most common first (eight at most), each column's value as its file wrote it. They are read only. Click a field's name to use it as the series, which the ${DA("batch#trend","Batch window")}, trend graphs, maps and a parameter that ${DA("batch#follow","follows the series")} run over, or to copy the row.</p>
 ${DL([["Long Name","The column's name, used on the axes and in the legend."],["Units","Written after the name: <code>cm⁻¹</code>, <code>counts</code>."],["Comments","A note that travels with the column."],["F(x)=","A formula that computes the column: click the cell and type. "+DA("formulas","Column formulas")],["Sparklines","A thumbnail of each column."]])}
 <h2>Selecting and editing</h2>
 <p>Click a cell, Shift+click or drag for a range, click a header or row number for a whole column or row, or the corner for everything. The bar above shows the active cell's address and its value, which can be typed over there, as in Excel's formula bar (a computed cell shows its formula); the bar below shows Count, Sum, Average, Min and Max of the selection. What is selected is filled in blue with a dark edge, and the letters and row numbers of the selection are filled too, so you can see what <em>Plot</em> will take. Typing starts an edit; ${K("F2")} or a double-click edits in place. ${DA("keys#k-sheet","All the keys")}</p>
