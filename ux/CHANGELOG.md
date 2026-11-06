@@ -1024,6 +1024,23 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plots, slice 2: boxes grouped by another column, notched boxes (2026-11-06)
+
+- A box or violin chart can be *Grouped by* a column of the sheet (its right-click's Box chart menu,
+  the Format pane's layout page): each curve's values are split by that column's value in their row,
+  a cluster per group along X with a box per curve in its colour, X numbered by the groups and titled
+  by the column, a legend for several curves, the readout naming the group under the pointer. A
+  column of more than 60 values is greyed with the reason. Deleting the column puts the chart back
+  to a box per curve.
+- *Notches* (boxes): narrowed round the median over ± 1.58 IQR/√n, the span in the tooltip; a format,
+  so saved styles carry it.
+
+Checked: `tools/fit-test.mjs` (4 new: the notch's formula, its coverage of the true median over 600
+samples, groups split and refused), `tools/plot-drive.mjs` (12 new: the menu and its refusal, six
+boxes in three groups with their ticks, title, legend and log, the medians of each group, the
+readout, notches in the graph, the tooltip and an export, undo, violins, the Format pane, the column
+deleted and undone, a new graph's look).
+
 ## Plots, slice 1: a distribution over a histogram (2026-11-06)
 
 - A histogram's right-click has *Distribution over it*: None, Normal, Log-normal, Exponential. The

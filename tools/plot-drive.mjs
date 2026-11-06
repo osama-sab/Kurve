@@ -469,6 +469,64 @@ await page(async p => {
   check("…and the distribution is kept with the graph across a reload", r === "lognormal", JSON.stringify(r));
 }, { name: "distribution over a histogram" });
 
+console.log("Roadmap 4, slice 2: boxes grouped by another column, notched boxes");
+await page(async p => {
+  // Two curves of 300 values, a column of three groups (the mean rising with the group), and one of 200 different values.
+  const id = await p.evaluate(async () => {
+    const r = mulberry32(5), g = () => { let s = 0; for (let i = 0; i < 12; i++) s += r(); return s - 6; };
+    const x = [], a = [], b = [], gr = [], h = []; for (let i = 0; i < 300; i++) { const k = 1 + (i % 3); x.push(i + 1); gr.push(k); a.push(10 + 2 * k + g()); b.push(30 - 3 * k + g()); h.push(i % 200); }
+    const X = makeCol("x", "Row", "", x), A = Object.assign(makeCol("y", "Yield", "%", a), { pipe: [], mask: [] }), B = Object.assign(makeCol("y", "Purity", "%", b), { pipe: [], mask: [] }),
+      G = makeCol("ignore", "Batch", "", gr), H = makeCol("ignore", "Sample", "", h);
+    const pr = Object.assign(blankProject("Batches"), { cols: [X, A, B, G, H], activeY: A.id });
+    await createProject(pr, "test"); await new Promise(r => setTimeout(r, 80)); renderAll();
+    return { A: A.id, B: B.id, G: G.id, H: H.id };
+  });
+  await p.waitForTimeout(300);
+  await p.evaluate(id => { plotCols([id.A, id.B], { layout: "box" }); }, id); await p.waitForTimeout(500);
+  let r = await p.evaluate(() => { const it = distMenuItems().find(i => i && i.label === "Grouped by"), sub = it ? it.sub() : [];
+    return { has: !!it, sub: sub.map(i => [i.label, i.enabled !== false, i.title || ""]), notch: (distMenuItems().find(i => i && i.label === "Notches") || {}).enabled }; });
+  check("Box chart › Grouped by: Nothing, the column of three groups, and the one of 200 values greyed with the reason", r.has && r.sub[0][0] === "Nothing" && r.sub.some(s => /Batch/.test(s[0]) && s[1]) && r.sub.some(s => /Sample/.test(s[0]) && !s[1] && /more than 60/.test(s[2])) && !r.sub.some(s => /Yield|Purity/.test(s[0])) && r.notch === true, JSON.stringify(r));
+  await p.evaluate(() => { distMenuItems().find(i => i && i.label === "Grouped by").sub().find(i => /Batch/.test(i.label)).run(); }); await p.waitForTimeout(500);
+  r = await p.evaluate(() => { const gs = [...document.querySelectorAll("#plot g[data-dist]")], texts = [...document.querySelectorAll("#plot text, #plot [data-rt]")].map(e => e.textContent);
+    return { n: gs.length, keys: [...new Set(gs.map(g => g.dataset.distg))].join(), tips: gs.map(g => (g.querySelector("title") || {}).textContent || ""), ticks: ["1", "2", "3"].every(t => texts.includes(t)), title: texts.includes("Batch"), leg: texts.includes("Yield") && texts.includes("Purity"), log: JSON.stringify(P().log.slice(-1)[0]) }; });
+  check("grouped: a box per curve in each of the three groups, X numbered by the groups and titled by the column", r.n === 6 && r.keys === "1,2,3" && r.ticks && r.title, JSON.stringify([r.n, r.keys, r.ticks, r.title]));
+  check("…the legend says which colour is which curve, and the log says what was done", r.leg && /grouped the boxes by Batch/.test(r.log), JSON.stringify([r.leg, r.log]));
+  const med = t => +((t.match(/median ([-\d.]+)/) || [])[1]);
+  const yk = [1, 2, 3].map(k => med(r.tips.find(t => t.startsWith("Yield") && new RegExp(`Batch is ${k}:`).test(t)) || "")), pk = [1, 2, 3].map(k => med(r.tips.find(t => t.startsWith("Purity") && new RegExp(`Batch is ${k}:`).test(t)) || ""));
+  check("…each box holds its group's values: the medians rise and fall with the group as made", yk.every((m, i) => Math.abs(m - (12 + 2 * i)) < 0.5) && pk.every((m, i) => Math.abs(m - (27 - 3 * i)) < 0.5), JSON.stringify([yk, pk]));
+  // The readout names the curve and the group under the pointer.
+  r = await p.evaluate(() => { const q = S.geo.distK.find(q => q.g === 2 && q.c.name === "Purity"), svg = document.querySelector("#plot"), bb = svg.getBoundingClientRect(); return { x: bb.left + S.geo.X(q.x), y: bb.top + S.geo.Y(24) }; });
+  await p.mouse.move(r.x, r.y); await p.waitForTimeout(200);
+  r = await p.evaluate(() => document.querySelector("#readout").textContent);
+  check("…the readout under the pointer names the curve and its group", /Purity/.test(r) && /Batch 2/.test(r), r);
+  // Notches.
+  await p.evaluate(() => { distMenuItems().find(i => i && i.label === "Notches").run(); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ n: document.querySelectorAll("#plot path[data-notch]").length, tip: (document.querySelector("#plot g[data-dist] title") || {}).textContent, pic: /data-notch/.test(handPic(600, 400, 1).svg), fmt: FMT_KEYS.includes("distNotch") }));
+  check("Notches: every box notched round its median, said in its tooltip, in an export, and a format kept by saved styles", r.n === 6 && /its notch/.test(r.tip) && r.pic && r.fmt, JSON.stringify(r));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(300);
+  r = await p.evaluate(() => ({ notch: document.querySelectorAll("#plot path[data-notch]").length, groups: document.querySelectorAll("#plot g[data-distg]").length }));
+  check("…one undo takes the notches off, the grouping kept", r.notch === 0 && r.groups === 6, JSON.stringify(r));
+  // Violins grouped the same way.
+  await p.evaluate(() => { setPlotKey("layout", "violin"); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ n: document.querySelectorAll("#plot g[data-distg]").length, notchOn: (distMenuItems().find(i => i && i.label === "Notches") || {}).enabled }));
+  check("violins are grouped the same way (notches are a box's only)", r.n === 6 && r.notchOn === false, JSON.stringify(r));
+  // The Format pane offers the same.
+  await p.evaluate(() => { setPlotKey("layout", "box"); openPlotDetails(null, "layout"); }); await p.waitForTimeout(500);
+  r = await p.evaluate(id => { const s = document.querySelector("#pdDb"); return s ? { v: s.value, opts: [...s.options].map(o => o.value), notch: !!document.querySelector("#pdDn") } : null; }, id);
+  check("the Format pane's layout page has Grouped by (the groups' column, not the one of 200 values) and Notches", r && r.v === id.G && r.opts.includes(id.G) && !r.opts.includes(id.H) && r.notch, JSON.stringify(r));
+  await p.evaluate(() => closeWin("format")); await p.waitForTimeout(200);
+  // The column of groups deleted: the chart goes back to a box per curve.
+  await p.evaluate(id => { deleteCols([id.G]); }, id); await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ n: document.querySelectorAll("#plot g[data-dist]").length, g: document.querySelectorAll("#plot g[data-distg]").length }));
+  check("with the column of groups deleted, a box per curve again", r.n === 2 && r.g === 0, JSON.stringify(r));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => document.querySelectorAll("#plot g[data-distg]").length);
+  check("…and undo brings the column and the groups back", r === 6, JSON.stringify(r));
+  // A new graph's look from this one does not carry the grouping.
+  r = await p.evaluate(() => ({ base: "distBy" in plotBase(GP()), kept: !!GP().distBy }));
+  check("a new graph's look from this one leaves the grouping out", !r.base && r.kept, JSON.stringify(r));
+}, { name: "grouped and notched boxes" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

@@ -16,7 +16,7 @@ const grab = (tag) => {
 // tools/pipe-test.mjs tests the rest of it. The curve fit's models are a block of
 // their own (MODELS), after the pipeline.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("MODELS")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,countBand,activityOf,effCurve,effAt,fwhmCurve,fwhmAt,distFit,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,nuclideSets,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,countBand,activityOf,effCurve,effAt,fwhmCurve,fwhmAt,distFit,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,nuclideSets,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,distGroups,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -762,6 +762,17 @@ check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
   const b = N.boxStats([1,2,3,4,5,6,7,8,9,100]);
   check("a box: median, quartiles, whiskers within 1.5 IQR, the outlier outside", b.med===5.5 && b.q1===3.25 && b.q3===7.75 && b.hi===9 && b.lo===1 && b.out.length===1 && b.out[0]===100 && b.n===10, JSON.stringify(b));
   check("a box of one value, and of none", (()=>{ const o=N.boxStats([4]); return o.med===4&&o.q1===4&&o.hi===4&&o.sd===0; })() && N.boxStats([NaN,null])===null);
+  {
+    const nb = N.boxStats([1,2,3,4,5,6,7,8,9,100]), nh = 1.58 * nb.iqr / Math.sqrt(10);
+    check("a box's notch: the median ± 1.58 IQR/√n", Math.abs(nb.notch[0] - (5.5 - nh)) < 1e-12 && Math.abs(nb.notch[1] - (5.5 + nh)) < 1e-12, JSON.stringify(nb.notch));
+    const r2 = N.mulberry32(11), z2 = () => { let s = 0; for (let i = 0; i < 12; i++) s += r2(); return s - 6; };
+    let cover = 0; for (let t = 0; t < 600; t++) { const b2 = N.boxStats(Array.from({ length: 50 }, () => 3 + z2())); if (b2.notch[0] < 3 && b2.notch[1] > 3) cover++; }
+    check("…which holds the true median about nine times in ten (two notches apart: about 95%)", cover / 600 > 0.85 && cover / 600 < 0.96, cover / 600);
+    const g1 = N.distGroups([1, 2, 3, 4, 5, NaN, 7], [20, 10, 20, 10.0000000000001, null, 30, "x"]);
+    check("values split by a column of groups: keys ascending, compared to twelve digits, what is not a number left out", JSON.stringify(g1.keys) === "[10,20]" && JSON.stringify(g1.by) === "[[2,4],[1,3]]" && g1.n === 2, JSON.stringify(g1));
+    const g2 = N.distGroups(Array.from({ length: 200 }, (_, i) => i), Array.from({ length: 200 }, (_, i) => i));
+    check("…past 60 groups refused in words", /more than 60 different values/.test(g2.fail || ""), JSON.stringify(g2).slice(0, 120));
+  }
   const rnd = N.mulberry32(7), g = Array.from({length:4000}, () => { let u=0; for (let i=0;i<12;i++) u+=rnd(); return u-6; });
   const bw = N.kdeBandwidth(g), xs = Array.from({length:801}, (_,i)=>-8+i*0.02), d = N.kdeAt(g, xs, bw);
   let area = 0; for (let i=1;i<xs.length;i++) area += (d[i]+d[i-1])/2*0.02;

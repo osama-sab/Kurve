@@ -225,6 +225,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   nearest of 1, 2, 2.5, 5 times a power of ten, by ratio), `histBins(vals, {rule, n, w,
   start})` (`fd` Freedman–Diaconis, `sturges`, `sqrt`, `n` bins, `w` a width; at most
   `HIST_MAX` bins; `{edges, counts, w, start, k, n, out}` or `{fail}` in words), `fmtW`.
+  `boxStats`' `notch` is the median ± 1.58·IQR/√n (McGill, Tukey and Larsen); `distGroups(vals,
+  keys, max)` splits values by a column of groups (keys compared to twelve digits, ascending; `{keys,
+  by, n}` or `{fail}` in words past `DIST_GMAX`, 60).
   **Errors in X**: `odrFit(f, X, Y, SY, SX, p0, fixed, opt)` is orthogonal distance regression
   (as ODRPACK): it minimises the sum of ((y − f(x + d))/sy)² + (d/sx)² over the parameters and
   every point's shift d at once, by Levenberg–Marquardt with the shifts eliminated point by
@@ -2009,7 +2012,19 @@ graph first, with the taskbar kept at the bottom of the screen.
   with a `<title>`; no legend, fit, annotations by data X, breaks, second axes or inset;
   `S.geo.dist`, the readout names the category; `distMenuItems` is the graph menu's Box chart /
   Violin plot, the Format dialog's layout page has both settings, and Plot (the worksheet's)
-  has Box chart and Violin plot). **Columns** (`PLOT_TYPES` `column`): bars from zero, as wide as
+  has Box chart and Violin plot). **Grouped and notched** (roadmap 4, slice 2): `cfg.distBy` (a
+  column id, data, not format: `plotBase` leaves it out, a column gone reads as none) splits each
+  curve's values by that column's value in their recorded row (`distGroups`); `buildPlot`'s
+  `distK` are the categories (`{c, k, j, g, x, w, vals}`: a cluster per group at j + 1, a curve's
+  box offset within 0.8 of it, `w` its share), `distG` the groups (none past `DIST_GMAX`, or when a
+  curve fails), X numbered by the groups and titled by the column, a `column` legend entry per
+  curve when there are several, the legend's corner search over the boxes; `g[data-distg]`;
+  `S.geo.distK`/`distBy` for the readout (the category whose slot holds the pointer).
+  `distByOpts()` (the active curve's sheet's columns with numbers, not a curve drawn, each with
+  `distGroups`' refusal as `why`), `distByItems()` (*Grouped by*, Nothing first), `distByName()`.
+  `cfg.distNotch` (in `FMT_KEYS`; boxes only): `path[data-notch]`, narrowed to 0.55 of the box at
+  the median over the notch kept within the quartiles, the median line as narrow; the tooltip
+  gives the notch. The Format pane's layout page has Notches (`#pdDn`) and Grouped by (`#pdDb`). **Columns** (`PLOT_TYPES` `column`): bars from zero, as wide as
   a histogram's bins (`histOf(id)`, the step's `bins.w`) or 0.8 of the median spacing, several
   spectra as columns side by side (`colGrp`, `cgk`/`cgn` through `zSt`); a graph of columns
   stands on zero and is widened to whole columns when nothing is typed or zoomed.
@@ -3894,7 +3909,7 @@ Next, in order:
    the graph (done 05.11): the roadmap's item 3 is done
 4. Plots Origin has and Kurve lacks, further: a distribution fitted over a histogram (normal,
    log-normal, exponential) with its parameters (done 06.11); box charts of one column grouped by another, notched
-   boxes; stacked and grouped bars with category names; per-row or per-column shared axes in a
+   boxes (done 06.11); stacked and grouped bars with category names; per-row or per-column shared axes in a
    figure; a map from scattered X, Y, Z (triangulated) rather than from spectra
 5. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
    with its own scale on each side, polygons and curved arrows
@@ -4040,8 +4055,10 @@ Next, in order:
   no Weibull, gamma or mixture; its Kolmogorov–Smirnov p value is generous, as the parameters come
   from the same values; a Gaussian curve fit of the bins still works). Columns stand on zero (no
   other baseline, no stacking)
-- Box and violin charts: one box per spectrum on the graph, in the table's order (no grouping
-  by another column, no reordering but the table's, no notches); the names along X cannot be
+- Box and violin charts: one box per spectrum on the graph, in the table's order, or each split
+  by a column of groups on the active curve's sheet (60 groups at most, numbers only, in
+  ascending order: the worksheet has no text cells to name them; the grouping is set on the
+  graph, not in Plot setup); no reordering but the table's; the names along X cannot be
   turned or styled apart from the tick numbers; a violin's bandwidth is Silverman's, not set;
   at most 5000 values scattered per box; no fit, annotations at data X or inset on them
 - Several graphs: the X zoom is linked, not Y or the pointer (panels of a figure link Y when

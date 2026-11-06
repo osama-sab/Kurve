@@ -889,6 +889,20 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: boxes grouped by another column, notched boxes (roadmap 4, slice 2)
+
+- **Groups are a column, as the data are kept.** A lab writes a batch, a dose or a temperature in a
+  column beside the measurements, not a column per group; the chart now splits each curve by such a
+  column (*Grouped by*, in the box chart's menu and the Format pane), rather than asking for the data
+  to be rearranged into a column per group first.
+- **A cluster per group, a box per curve in it**, in the curve's colour as everywhere else, with a
+  legend only then (one curve needs none: the axis names its groups). X is numbered by the groups'
+  values and titled by the column, as an axis is by its column.
+- **What cannot be groups is offered greyed, with the reason** (a column of more than 60 values is
+  measurements, not groups), so the list stays the sheet's columns and the reason teaches.
+- **Notches** follow McGill, Tukey and Larsen, the convention every statistics package shares, and
+  the tooltip says what the notch spans, since a notch past a quartile is drawn within it.
+
 ### 2026-11-06: a distribution over a histogram (roadmap 4, slice 1)
 
 - **Fitted to the values, not the bins.** A Gaussian curve fit through a histogram's columns
