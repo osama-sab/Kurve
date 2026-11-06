@@ -889,6 +889,15 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: OPUS (roadmap 8, slice 3)
+
+- **Told by its bytes, not its name.** OPUS files are named `sample.0`, `sample.1`, a name many text
+  files share; such a file is tried as OPUS by its first four bytes, and read as text when they are
+  not OPUS's, so nothing that read before stops reading.
+- **One spectrum, the one people mean**: the absorbance (or transmittance) block when there is one,
+  else the single channel, else the interferogram, with the sample's name and the measurement's
+  settings as the column's header fields.
+
 ### 2026-11-06: SPC (roadmap 8, slice 2)
 
 - **The first binary format, read the way text is.** An SPC file is decoded from its bytes into the

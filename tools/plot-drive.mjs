@@ -1228,6 +1228,26 @@ await page(async p => {
   check("an SPC file in the old format is refused, saying why", /old\.spc is an SPC file in the old format/.test(r), JSON.stringify(r));
 }, { name: "SPC files" });
 
+console.log("Roadmap 8, slice 3: OPUS files");
+await page(async p => {
+  // A small OPUS file: an absorbance block of 5 points with its parameters, and the sample's name.
+  const pblock = ps => { const parts = []; ps.forEach(([nm, ty, v]) => { const sz = ty === 0 ? 2 : ty === 1 ? 4 : 4; const a = new Uint8Array(8 + 2 * sz), d = new DataView(a.buffer);
+      for (let i = 0; i < 3; i++) a[i] = nm.charCodeAt(i); d.setUint16(4, ty, true); d.setUint16(6, sz, true); if (ty === 0) d.setInt32(8, v, true); else if (ty === 1) d.setFloat64(8, v, true); else for (let i = 0; i < v.length; i++) a[8 + i] = v.charCodeAt(i); parts.push(a); });
+    const end = new Uint8Array(8); end.set([69, 78, 68]); parts.push(end); const n = parts.reduce((s, a) => s + a.length, 0), out = new Uint8Array(n); let o = 0; parts.forEach(a => { out.set(a, o); o += a.length; }); return out; };
+  const f32 = a => { const u = new Uint8Array(4 * a.length), d = new DataView(u.buffer); a.forEach((v, i) => d.setFloat32(4 * i, v, true)); return u; };
+  const blocks = [{ dt: 160, bytes: pblock([["SNM", 2, "PMMA"]]) }, { dt: 15, bytes: f32([0.1, 0.3, 0.2, 0.4, 0.1]) }, { dt: 31, bytes: pblock([["NPT", 0, 5], ["FXV", 1, 1800], ["LXV", 1, 1796], ["DXU", 2, "WN"]]) }];
+  let size = 24 + 12 * blocks.length; blocks.forEach(q => { q.off = size; size += q.bytes.length; });
+  const b = new Uint8Array(size), dv = new DataView(b.buffer); b.set([0x0A, 0x0A, 0xFE, 0xFE]); dv.setInt32(12, 24, true); dv.setInt32(20, blocks.length, true);
+  blocks.forEach((q, i) => { const at = 24 + 12 * i; b[at] = q.dt; dv.setInt32(at + 4, q.bytes.length / 4, true); dv.setInt32(at + 8, q.off, true); b.set(q.bytes, q.off); });
+  await p.evaluate(async bytes => { await createProject(blankProject("OPUS"), "test"); await new Promise(r => setTimeout(r, 80)); renderAll(); prefSet("anim", false); applyAnim(); window.__op = new Uint8Array(bytes); }, Array.from(b));
+  await p.evaluate(() => readFileIn(new File([window.__op], "pmma.0"))); await p.waitForTimeout(600);
+  let r = await p.evaluate(() => ({ open: !document.querySelector("#impModal").hidden, h: S.imp && S.imp.res.headerRow, s: S.imp && S.imp.res.meta.Sample, note: [...document.querySelectorAll("#impModal ul.find li")].map(e => e.textContent).join(" | ") }));
+  check("an OPUS file (sample.0) is read from its bytes into the import dialog, and said to be one", r.open && r.h && r.h.join("|") === "Wavenumber (cm⁻¹)|Absorbance" && r.s === "PMMA" && /A Bruker OPUS file, decoded from its bytes: 5 points of its AB block/.test(r.note), JSON.stringify(r));
+  await p.evaluate(() => { closeModal(document.querySelector("#impModal")); });
+  r = await p.evaluate(async () => { const got = await readDropped([new File(["x y\n1 2\n3 4\n5 6\n"], "run.1")]); return got[0]; });
+  check("a text file with such a name (run.1) is read as text", r && r.text && /^x y/.test(r.text), JSON.stringify(r));
+}, { name: "OPUS files" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

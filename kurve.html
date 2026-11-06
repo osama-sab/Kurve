@@ -2186,7 +2186,7 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
     <button class="tb icon" id="xplBtn" aria-pressed="true" aria-controls="xpl" aria-label="Project Explorer" title="Project Explorer (Alt+1)"><svg class="ic"><use href="#i-tree"/></svg></button>
     <div class="tsep"></div>
     <button class="tb lbl" id="importBtn" title="Import (Ctrl+O)"><svg class="ic"><use href="#i-upload"/></svg><span>Import</span></button>
-    <input type="file" id="fileIn" accept=".csv,.txt,.tsv,.dat,.asc,.xy,.prn,.dpt,.text,.tka,.spe,.n42,.xml,.jdx,.dx,.jcm,.spc" class="sr" tabindex="-1" aria-hidden="true" multiple>
+    <input type="file" id="fileIn" accept=".csv,.txt,.tsv,.dat,.asc,.xy,.prn,.dpt,.text,.tka,.spe,.n42,.xml,.jdx,.dx,.jcm,.spc,.0,.1,.2,.3,.4,.5,.6,.7,.8,.9" class="sr" tabindex="-1" aria-hidden="true" multiple>
     <button class="tb lbl" id="exportBtn" aria-haspopup="menu" aria-expanded="false" title="Export"><svg class="ic"><use href="#i-download"/></svg><span>Export</span><svg class="ic sm"><use href="#i-chev"/></svg></button>
     <div class="tsep"></div>
     <button class="tb icon" id="undoBtn" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
@@ -6302,6 +6302,47 @@ function spcFile(bytes){
     if(fnsub>1) put("Subfiles",String(fnsub));
     return {kind:"SPC",xs,ys,xn,xu,yn,yu,shared:!TXYXYS,meta}; }
   catch(err){ return {fail:"an SPC file that ends before its data do"}; } }
+/* OPUS (roadmap 8, slice 3): Bruker's binary format. A 24-byte header (0A 0A FE FE, the version, where
+   the directory is and how many entries it has), a directory of 12-byte entries (the block's data
+   type, channel and text type, its length in 4-byte words, where it is), data blocks of 32-bit floats
+   and parameter blocks of three-letter names (a 32-bit integer, a double or a string, each with its
+   size in 2-byte words, ending at END). opusFile(bytes) reads one data block, the first of AB
+   (absorbance or transmittance), ScSm, ScRf, IgSm, IgRf, with its parameters (NPT points from FXV
+   to LXV, scaled by CSF, X in DXU), and the sample's, instrument's, acquisition's and optics'
+   parameters a person reads as the header's fields: {kind, xs, ys, xn, xu, yn, yu, shared, meta} as
+   spcFile gives, for spcTable; {fail} in words, or null when it is not one. */
+const OPUS_DATA={15:"AB",7:{4:"ScSm",8:"IgSm",12:"PhSm"},11:{4:"ScRf",8:"IgRf",12:"PhRf"}};
+const OPUS_PARAM={31:"AB",23:{4:"ScSm",8:"IgSm",12:"PhSm"},27:{4:"ScRf",8:"IgRf",12:"PhRf"}};
+const OPUS_ORDER=["AB","ScSm","ScRf","IgSm","IgRf"];
+const OPUS_YN={AB:"Absorbance",ScSm:"Single channel",ScRf:"Reference",IgSm:"Interferogram",IgRf:"Reference interferogram"};
+const OPUS_XU={WN:["Wavenumber","cm⁻¹"],MI:["Wavelength","µm"],NM:["Wavelength","nm"],LGW:["ln(wavenumber)",""],MIN:["Time","min"],SEC:["Time","s"],PNT:["Point",""]};
+const OPUS_FIELDS={SNM:"Sample",SFM:"Sample form",CNM:"Operator",INS:"Instrument",DAT:"Date",TIM:"Time",RES:"Resolution",NSS:"Sample scans",NSR:"Reference scans",APF:"Apodization",ZFF:"Zero filling",PHZ:"Phase correction",BMS:"Beamsplitter",SRC:"Source",DTC:"Detector",LWN:"Laser wavenumber",VEL:"Scanner velocity",AQM:"Acquisition mode",EXP:"Experiment"};
+function opusFile(bytes){
+  const b=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes||[]); if(b.length<24||b[0]!==0x0A||b[1]!==0x0A||b[2]!==0xFE||b[3]!==0xFE) return null;
+  const dv=new DataView(b.buffer,b.byteOffset,b.byteLength), dir=dv.getInt32(12,true), cnt=Math.min(dv.getInt32(20,true),1000);
+  if(!(dir>=24&&cnt>0&&dir+12*cnt<=b.length)) return {fail:"an OPUS file whose directory cannot be read"};
+  const blocks=[];
+  for(let i=0;i<cnt;i++){ const at=dir+12*i, dt=b[at], ch=b[at+1], tt=b[at+2], len=dv.getInt32(at+4,true), off=dv.getInt32(at+8,true);
+    if(!(off>0&&len>0&&off+4*len<=b.length)) continue; blocks.push({dt,ch,tt,len,off}); }
+  const nameOf=(map,q)=>{ const m=map[q.dt]; return typeof m==="string"?m:m&&m[q.ch]||null; };
+  const params=q=>{ const o={}; let at=q.off; const end=q.off+4*q.len;
+    while(at+8<=end){ const nm=String.fromCharCode(b[at],b[at+1],b[at+2]); if(nm==="END") break; const ty=dv.getUint16(at+4,true), sz=dv.getUint16(at+6,true), p=at+8;
+      if(p+2*sz>b.length) break;
+      if(ty===0&&sz>=2) o[nm]=dv.getInt32(p,true); else if(ty===1&&sz>=4) o[nm]=dv.getFloat64(p,true);
+      else if(ty>=2&&ty<=4){ let s=""; for(let k=p;k<p+2*sz&&b[k];k++) s+=String.fromCharCode(b[k]); o[nm]=s.trim(); }
+      at=p+2*sz; }
+    return o; };
+  const data={}, pars={}, other=[];
+  blocks.forEach(q=>{ const dn=nameOf(OPUS_DATA,q), pn=nameOf(OPUS_PARAM,q); if(dn&&!data[dn]) data[dn]=q; else if(pn&&!pars[pn]) pars[pn]=params(q); else if([32,48,64,96,160].includes(q.dt)) other.push(params(q)); });
+  const kind=OPUS_ORDER.find(k=>data[k]&&pars[k]); if(!kind) return {fail:"an OPUS file with no data Kurve can read (no absorbance, single-channel or interferogram block with its parameters)"};
+  const q=data[kind], pr=pars[kind], n=pr.NPT|0, fx=pr.FXV, lx=pr.LXV, csf=Number.isFinite(pr.CSF)&&pr.CSF!==0?pr.CSF:1;
+  if(!(n>=2&&n<=q.len)||!Number.isFinite(fx)||!Number.isFinite(lx)) return {fail:"an OPUS file whose data block has no number of points or X range that can be right"};
+  const X=new Array(n), Y=new Array(n), dpf=pr.DPF===2?"i32":"f32";
+  for(let i=0;i<n;i++){ X[i]=fx+i*(lx-fx)/(n-1); const v=dpf==="i32"?dv.getInt32(q.off+4*i,true):dv.getFloat32(q.off+4*i,true); Y[i]=Number.isFinite(v)?v*csf:null; }
+  const [xn,xu]=OPUS_XU[String(pr.DXU||"").toUpperCase()]||["X",""];
+  let yn=OPUS_YN[kind]; if(kind==="AB"&&/^TR/i.test(String(pr.DYU||""))) yn="Transmittance";
+  const meta={Block:kind}; other.forEach(o=>Object.keys(o).forEach(k=>{ if(OPUS_FIELDS[k]&&meta[OPUS_FIELDS[k]]==null&&o[k]!=="") meta[OPUS_FIELDS[k]]=String(o[k]).slice(0,200); }));
+  return {kind:"OPUS",xs:[X],ys:[Y],xn,xu,yn,yu:"",shared:true,meta}; }
 function spcTable(sp){
   const lines=Object.keys(sp.meta).map(k=>`${k}: ${sp.meta[k]}`), hx=sp.xn+(sp.xu?" ("+sp.xu+")":""), K=sp.ys.length;
   const yh=k=>(K>1?`${sp.yn} ${k+1}`:sp.yn)+(sp.yu?" ("+sp.yu+")":""), fn=v=>v==null||!Number.isFinite(v)?"":String(v);
@@ -15598,7 +15639,8 @@ function impCounts(i){ const r=S.imp.res, ys=(r.cols[i]||[]).filter(v=>v!=null);
 const impSqrtable=()=>impYs().filter(i=>impErrFor(i)<0&&impCounts(i));
 function impFindings(){
   const {x,y}=impCols(), out=[], r=S.imp.res, ny=impYs().length;
-  if(/\.spc$/i.test(S.imp.fname||"")) out.push({id:"spc",level:"good",text:`An SPC file, decoded from its bytes: ${fmtCount(r.rows.length)} points in ${r.ncol-1} column${r.ncol===2?"":"s"} besides X. Its header's ${Object.keys(r.meta).length} fields are kept with the columns.`});
+  if(binName(S.imp.fname)&&r.meta.Block) out.push({id:"opus",level:"good",text:`A Bruker OPUS file, decoded from its bytes: ${fmtCount(r.rows.length)} points of its ${r.meta.Block} block. Its ${Object.keys(r.meta).length} fields are kept with the column.`});
+  else if(/\.spc$/i.test(S.imp.fname||"")) out.push({id:"spc",level:"good",text:`An SPC file, decoded from its bytes: ${fmtCount(r.rows.length)} points in ${r.ncol-1} column${r.ncol===2?"":"s"} besides X. Its header's ${Object.keys(r.meta).length} fields are kept with the columns.`});
   if(r.jdx) out.push({id:"jdx",level:"good",text:`A JCAMP-DX file in ${r.jdx.form}: ${fmtCount(r.jdx.n)} points${r.jdx.title?`, “${r.jdx.title}”`:""}, shown here decoded. Its ${Object.keys(r.meta).length} labels are kept as the file's header fields.`});
   if(r.mca) out.push({id:"mca",level:"good",text:`A multichannel analyser's ${r.mca.kind==="N42"?"N42":".Spe"} file: ${fmtCount(r.rows.length)} channels from ${r.mca.ch0}${r.tka?`, live time ${r.tka.live} s and real time ${r.tka.real} s`:""}${r.mca.date?`, measured ${r.mca.date}`:""}. The counts are kept as recorded.`,fix:r.tka?"rate":undefined,fixLabel:"Counts per second"});
   if(r.mca&&r.mca.cal){ const c=r.mca.cal.co, nf6=v=>String(+(+v).toPrecision(6)); out.push({id:"ecal",level:"good",text:`Its energy calibration: E = ${nf6(c[0])} + ${nf6(c[1])}·ch${c[2]?` + ${nf6(c[2])}·ch²`:""} ${r.mca.cal.unit}, as an Energy calibration step on the counts.`,fix:"ecal",fixLabel:"Calibrate to energy"}); }
@@ -16339,13 +16381,18 @@ function wireXpl(){
 // A file as the import reads it: text, or an SPC file's bytes decoded into a table (roadmap 8, slice 2).
 function readAny(f){ return new Promise(res=>{
   if(f.size>60e6){ res({name:f.name,fail:`${Math.round(f.size/1e6)} MB, too large for a text column`}); return; }
-  const rd=new FileReader(), spc=/\.spc$/i.test(f.name||"");
-  rd.onload=()=>{ if(!spc){ res({name:f.name,text:String(rd.result)}); return; } const sp=spcFile(new Uint8Array(rd.result)); res(sp.fail?{name:f.name,fail:sp.fail}:{name:f.name,text:spcTable(sp),spc:true}); };
+  // SPC by its name; OPUS (named sample.0, sample.1…) by its first bytes, a file so named that is not one read as text.
+  const rd=new FileReader(), spc=/\.spc$/i.test(f.name||""), bin=spc||binName(f.name);
+  rd.onload=()=>{ if(!bin){ res({name:f.name,text:String(rd.result)}); return; }
+    const u=new Uint8Array(rd.result), op=spc?null:opusFile(u), sp=spc?spcFile(u):op;
+    if(!sp){ res({name:f.name,text:new TextDecoder().decode(u)}); return; }
+    res(sp.fail?{name:f.name,fail:sp.fail}:{name:f.name,text:spcTable(sp),bin:sp.kind}); };
   rd.onerror=()=>res({name:f.name,fail:"could not be read"});
-  if(spc) rd.readAsArrayBuffer(f); else rd.readAsText(f); }); }
+  if(bin) rd.readAsArrayBuffer(f); else rd.readAsText(f); }); }
+const binName=n=>/\.(\d{1,4}|opus)$/i.test(String(n||""));
 function readFileIn(f){
   if(!f) return;
-  if(/\.spc$/i.test(f.name||"")){ readAny(f).then(r=>{ if(r.fail){ toast(`${f.name} is ${r.fail}.`); logError(`Import of ${f.name}: ${r.fail}`,"import"); } else importText(r.text,f.name); }); return; }
+  if(/\.spc$/i.test(f.name||"")||binName(f.name)){ readAny(f).then(r=>{ if(r.fail){ toast(`${f.name} is ${r.fail}.`); logError(`Import of ${f.name}: ${r.fail}`,"import"); } else importText(r.text,f.name); }); return; }
   if(f.size>60e6){ toast(`${f.name} is ${Math.round(f.size/1e6)} MB, more than a text export of a column should be.`); return; }
   const rd=new FileReader();
   rd.onload=()=>importText(String(rd.result),f.name);
@@ -21760,8 +21807,10 @@ ${DL([["X column","<em>Channel number</em>: each line's position, counted from <
 <p>A JCAMP-DX file (<code>.jdx</code>, <code>.dx</code>), the exchange format of IR, Raman, UV–visible and mass spectrometry, is decoded before the dialog shows it: its data in plain numbers or compressed (the ASDF forms), or as pairs of points or a table of peaks, scaled by its factors, X from its first and last values. Its units name the columns (<code>1/CM</code> becomes Wavenumber in cm⁻¹, or Raman shift when its data type says Raman; <code>NANOMETERS</code> Wavelength in nm; <code>ABSORBANCE</code> Absorbance), and its other labels (title, origin, owner, date, instrument) are kept as the column's header fields, which the worksheet can show as rows. Of a linked file the first block with data is read. A file written in pages (<code>##NTUPLES</code>, as NMR data are) is refused with the reason.</p>
 <h2 id="spc">SPC</h2>
 <p>An SPC file (<code>.spc</code>, Thermo Galactic's format, written by many IR, Raman and UV–visible instruments) is read from its bytes and shown in the dialog as a table: its points as floating-point numbers or scaled integers, X evenly spaced or as written, several subfiles as several columns (on one X, or each with its own as pairs), its X and Y types as names (Wavenumber in cm⁻¹, Raman shift, Absorbance, Transmittance…) or its own axis labels, and its memo, source, resolution, method and date as the columns' header fields. The old format, from before 1996, is refused with the reason.</p>
+<h2 id="opus">OPUS</h2>
+<p>A Bruker OPUS file (named <code>sample.0</code>, <code>sample.1</code>…) is read from its bytes: its absorbance (or transmittance) block, else its single-channel or interferogram block, with the points, X range, scale and X unit its parameters give, and the sample's name, the operator, instrument, resolution, scans, apodization, beamsplitter, source and detector as the column's header fields. A file with such a name that is not an OPUS file is read as text.</p>
 <h2>What is refused</h2>
-<p>Other binary instrument files (OPUS, Princeton's SPE) are refused with a reason. Export them as text from the instrument software first.</p>
+<p>Other binary instrument files (Princeton's SPE, for one) are refused with a reason. Export them as text from the instrument software first.</p>
 <p>After an import that plots one column the ${DA("overview","Overview")} opens. Its <em>Show the overview after every import</em> box turns that off.</p>`},
 {id:"prefs", g:"Basics", t:"Preferences", kw:"preferences settings options history log track tracking privacy record off animation animations motion theme dark light style errors overview",
  lead:"Whether Kurve keeps a history of your changes, how it looks and moves, and the errors it has met. Kept in this browser.",

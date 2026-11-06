@@ -12,7 +12,7 @@ const m = html.match(/==PARSER:START==[\s\S]*?\*\/([\s\S]*?)\/\* ==PARSER:END==/
 if (!m) { console.error("Could not find the parser block in kurve.html"); process.exit(1); }
 
 // checkColumns formats numbers with the app's fmt(); a plain stub is enough here.
-const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,parseLineList,parseFillList,timeOf,spcFile,spcTable};`;
+const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,parseLineList,parseFillList,timeOf,spcFile,spcTable,opusFile};`;
 const P = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -299,6 +299,34 @@ check("negative kept", close(P.toNumber("-999", "."), -999));
   check("spc: the old format refused in words", /old format \(before 1996\)/.test(P.spcFile(mkSpc({ ys: [[1]], ver: 0x4D })).fail || ""));
   check("spc: a file that ends before its data refused in words", /ends before its data/.test(P.spcFile(mkSpc({ ys: [[1, 2, 3, 4, 5]] }).slice(0, 540)).fail || ""));
   check("spc: too short, and not one, refused in words", /too short/.test(P.spcFile(new Uint8Array(100)).fail) && /not an SPC file/.test(P.spcFile(new Uint8Array(600)).fail));
+}
+/* ---------- 15b5. OPUS (Bruker, binary) ---------- */
+{
+  const eq = (a, b) => a.length === b.length && a.every((v, i) => (v == null && b[i] == null) || Math.abs(v - b[i]) < 1e-6);
+  // A parameter block: [name, type (0 int, 1 double, 2 string), value], then END.
+  const pblock = ps => { const parts = []; ps.forEach(([nm, ty, v]) => { const sz = ty === 0 ? 2 : ty === 1 ? 4 : Math.ceil((String(v).length + 1) / 2) + ((Math.ceil((String(v).length + 1) / 2)) % 2);
+      const a = new Uint8Array(8 + 2 * sz), d = new DataView(a.buffer); for (let i = 0; i < 3; i++) a[i] = nm.charCodeAt(i); d.setUint16(4, ty, true); d.setUint16(6, sz, true);
+      if (ty === 0) d.setInt32(8, v, true); else if (ty === 1) d.setFloat64(8, v, true); else for (let i = 0; i < String(v).length; i++) a[8 + i] = String(v).charCodeAt(i); parts.push(a); });
+    const end = new Uint8Array(8); end.set([69, 78, 68]); parts.push(end); const n = parts.reduce((s, a) => s + a.length, 0), out = new Uint8Array(Math.ceil(n / 4) * 4); let o = 0; parts.forEach(a => { out.set(a, o); o += a.length; }); return out; };
+  // A file: blocks [{dt, ch, tt, bytes}] laid after the header and a directory of them.
+  const mkOpus = blocks => { const dir = 24, data0 = dir + 12 * blocks.length; let size = data0; blocks.forEach(q => { q.off = size; size += q.bytes.length; });
+    const b = new Uint8Array(size), dv = new DataView(b.buffer); b.set([0x0A, 0x0A, 0xFE, 0xFE]); dv.setFloat64(4, 920622, true); dv.setInt32(12, dir, true); dv.setInt32(16, 40, true); dv.setInt32(20, blocks.length, true);
+    blocks.forEach((q, i) => { const at = dir + 12 * i; b[at] = q.dt; b[at + 1] = q.ch || 0; b[at + 2] = q.tt || 0; dv.setInt32(at + 4, q.bytes.length / 4, true); dv.setInt32(at + 8, q.off, true); b.set(q.bytes, q.off); });
+    return b; };
+  const f32 = a => { const u = new Uint8Array(4 * a.length), d = new DataView(u.buffer); a.forEach((v, i) => d.setFloat32(4 * i, v, true)); return u; };
+  const file = mkOpus([{ dt: 160, bytes: pblock([["SNM", 2, "PMMA film"], ["CNM", 2, "AB"]]) }, { dt: 48, bytes: pblock([["RES", 1, 4], ["NSS", 0, 32]]) },
+    { dt: 7, ch: 4, bytes: f32([9, 9, 9, 9]) }, { dt: 23, ch: 4, bytes: pblock([["NPT", 0, 4], ["FXV", 1, 4000], ["LXV", 1, 3997], ["CSF", 1, 1], ["DXU", 2, "WN"]]) },
+    { dt: 15, bytes: f32([0.5, 1, 1.5, 2, 2.5, 0, 0]) }, { dt: 31, bytes: pblock([["NPT", 0, 5], ["FXV", 1, 4000], ["LXV", 1, 3996], ["CSF", 1, 2], ["DXU", 2, "WN"], ["DPF", 0, 1]]) }]);
+  const op = P.opusFile(file);
+  check("opus: the absorbance block before the single channel, its points scaled, X from FXV to LXV", op && op.kind === "OPUS" && eq(op.xs[0], [4000, 3999, 3998, 3997, 3996]) && eq(op.ys[0], [1, 2, 3, 4, 5]) && op.yn === "Absorbance" && op.xn === "Wavenumber" && op.xu === "cm⁻¹", JSON.stringify(op));
+  check("opus: the sample's and acquisition's parameters as the header's fields", op && op.meta.Sample === "PMMA film" && op.meta.Operator === "AB" && op.meta.Resolution === "4" && op.meta["Sample scans"] === "32" && op.meta.Block === "AB", JSON.stringify(op && op.meta));
+  const t = P.analyzeFile(P.spcTable(op), { fname: "pmma.0" });
+  check("opus: through the import's table, the columns and fields", eq(t.cols[1], [1, 2, 3, 4, 5]) && t.headerRow.join("|") === "Wavenumber (cm⁻¹)|Absorbance" && t.meta.Sample === "PMMA film", JSON.stringify([t.cols, t.headerRow, t.meta]));
+  const sc = P.opusFile(mkOpus([{ dt: 7, ch: 4, bytes: f32([9, 8, 7]) }, { dt: 23, ch: 4, bytes: pblock([["NPT", 0, 3], ["FXV", 1, 1], ["LXV", 1, 3], ["DXU", 2, "MI"]]) }]));
+  check("opus: a single channel alone, in micrometres", sc && sc.yn === "Single channel" && sc.xu === "µm" && eq(sc.ys[0], [9, 8, 7]), JSON.stringify(sc));
+  check("opus: not one is null, so it is read as text", P.opusFile(new Uint8Array(40)) === null);
+  check("opus: no spectrum, or a broken directory, refused in words", /no data Kurve can read/.test((P.opusFile(mkOpus([{ dt: 160, bytes: pblock([["SNM", 2, "x"]]) }])) || {}).fail || "")
+    && /directory cannot be read/.test((P.opusFile((() => { const b = mkOpus([{ dt: 15, bytes: f32([1, 2]) }]); new DataView(b.buffer).setInt32(12, 9999, true); return b; })()) || {}).fail || ""));
 }
 /* ---------- 15b2. analysers' own formats: Maestro and IAEA .Spe, N42 ---------- */
 {

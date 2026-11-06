@@ -1024,6 +1024,17 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## More files, slice 3: OPUS (2026-11-06)
+
+- Bruker OPUS files (`sample.0`, `sample.1`…) are read from their bytes: the absorbance block (else
+  the single channel or interferogram) with its points, X range, scale and unit, and the sample's
+  name, operator, instrument, resolution, scans, apodization, beamsplitter, source and detector as
+  the column's header fields. A file so named that is not OPUS is read as text, as before.
+
+Checked: `tools/parser-test.mjs` (6 new, files built byte by byte: the block chosen and scaled, the
+fields, through the import's table, a single channel in micrometres, a text file, the refusals) and
+`tools/plot-drive.mjs` (2 new: a file chosen into the dialog with its line, a text file named `.1`).
+
 ## More files, slice 2: SPC (2026-11-06)
 
 - SPC files (`.spc`, Thermo Galactic's binary format) are read: floats or scaled 32- or 16-bit
