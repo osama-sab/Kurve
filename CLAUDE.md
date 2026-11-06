@@ -1672,7 +1672,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `followPeakSets` (the set's own) all go through `searchRegions`. While the window is open
   `buildPlot` shades what no region covers (`.pkrange`) and numbers the regions, the selected
   one in the accent colour. **Noise** (`PF_NOISE`, `o.noise`): `pkSearchOpts(c, o, pts)`
-  turns the settings into `peakSearch`'s, and for `auto` or `counts` gives counting statistics
+  turns the settings into `peakSearch`'s: for `auto` the error bars (`sigma`, each point's `e`)
+  when every point has one, else, and for `counts`, counting statistics
   when it can (`countNoise`: √N from the counts as recorded in each point's row, averaged over
   five channels, through `countsPerY` (counts 1, counts per second the live time from
   `specMeta`/`liveTimeOf`) for the raw and the final units; null when the final unit is not
@@ -2738,7 +2739,10 @@ accents, escapes, limits). Each takes an optional path to test a working copy in
 `kurve.html`. `node tools/contrast-test.mjs [path]` (Playwright) measures the interface's
 colours as the browser resolves them, in both themes and both styles, against DESIGN.md's
 rules; run it after touching a token or a state's look.
-`node tools/odd-test.mjs [path]` (Playwright with Chromium) drives the app in unusual ways that
+`node tools/odd-test.mjs [path]` (Playwright with Chromium) runs every example end to end (the
+Raman band fitted and its peaks found without the spike, the decay fitted, the infrared bands
+found and fitted, the raw polystyrene's Overview steps applied and its bands found; each report
+and CSV written, no page errors), and drives the app in unusual ways that
 once hung it, lost data or drew nonsense: 300 turns of the wheel, a nanosecond time axis, equal
 and crossed axis limits, two tabs saving (and adding a column each at once), a project of a
 million rows kept and quick to save, a change saved just before a reload, a refused write (Not
@@ -3605,6 +3609,11 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   wider than the documents could stand beside, so it turned into a drawer over the whole desk,
   whose edge could not be dragged back. A size a person drags stops at the limit of the layout it
   belongs to.
+- **The noise the data state comes first.** The Raman example's counts carry error bars about
+  1.6 times √N (a camera's read noise and gain); the finder's Automatic noise took √N from the
+  counts and called a wiggle at 541.75 cm⁻¹ a second peak. Running every example end to end found
+  it, where each part's own test had passed. Error bars on every point are the noise now, before a
+  figure the finder works out.
 
 ## Roadmap
 
@@ -4096,8 +4105,8 @@ Next, in order:
    item 7 is done
 8. More files: JCAMP-DX, then SPC; OPUS and SPE last: all done 06.11, the roadmap's item 8 is done
 9. Under the hood (projects in IndexedDB: done 05.11; a cell typed into a million rows quick, the
-   graph drawing what is in view, every row of a sheet reachable: done 05.11): `tools/odd-test.mjs`
-   grown to run every example end to end; the worksheet drawing only the columns in view; speed
+   graph drawing what is in view, every row of a sheet reachable: done 05.11; `tools/odd-test.mjs`
+   grown to run every example end to end: done 06.11): the worksheet drawing only the columns in view; speed
    with thousands of spectra
 10. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
    applied in one click, unread markers

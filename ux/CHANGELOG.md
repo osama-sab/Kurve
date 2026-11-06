@@ -1024,6 +1024,18 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Under the hood, slice 1: every example, end to end (2026-11-06)
+
+- `tools/odd-test.mjs` runs each example as a newcomer would: the Raman band fitted (a Lorentzian at
+  520.7) and its peaks found, the cosmic-ray spike not among them; the decay fitted; the infrared
+  bands found (one a shoulder) and fitted; the raw polystyrene's Overview steps applied (spikes,
+  background) and its bands found, the 1001 cm⁻¹ ring band among them; every report and CSV written;
+  no page error.
+- The finder's Automatic noise takes the error bars when every point has one (before √N): the Raman
+  example's error bars are about 1.6 times √N, and √N had made a wiggle at 541.75 cm⁻¹ a peak.
+
+Checked: `tools/odd-test.mjs` (15 new), `tools/count-drive.mjs` (45, all still passing).
+
 ## More files, slice 4: Princeton Instruments SPE (2026-11-06)
 
 - WinSpec's and LightField's binary SPE files are read: each row and frame a column of counts (float,

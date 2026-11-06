@@ -54,6 +54,58 @@ async function page(fn, opt = {}) {
   await ctx.close().catch(() => {});
 }
 
+console.log("Every example, end to end (roadmap 9, slice 1): the first demo is the product");
+{
+  // Each example as a first user meets it: opened, its fit or its peaks, the report and the CSV.
+  const capture = () => { window.__saved = []; window.saveFile = async (n, d) => { window.__saved.push({ n, d: typeof d === "string" ? d : "" }); return true; }; };
+  const reportOf = async p => { await p.evaluate(async () => { window.__saved = []; await exportReport(); await exportCsv(); }); await p.waitForTimeout(200);
+    return p.evaluate(() => ({ html: (window.__saved.find(q => /\.html$/.test(q.n)) || {}).d || "", csv: (window.__saved.find(q => /\.csv$/.test(q.n)) || {}).d || "" })); };
+  const pkSet = p => p.evaluate(() => { const c = activeYCol(); return (P().annos || []).filter(a => a.grp === "pk:" + c.id).map(a => a.x).sort((a, b) => a - b); });
+  await page(async p => {
+    await p.evaluate(capture); await p.evaluate(async () => { await loadExample("raman"); }); await p.waitForTimeout(400);
+    await p.evaluate(() => { S.fitMode = "curve"; showTab("fit"); runFit(); }); await p.waitForTimeout(600);
+    let r = await p.evaluate(() => { const f = activeFit(), i = f ? getModel(f.model).params.indexOf("xc") : -1; return f && { model: f.model, xc: f.params[i], R2: f.stats.R2, conv: f.stats.converged, bad: fitWarnings(f).filter(w => w.level === "bad").map(w => w.brief) }; });
+    check("Raman, one band: the Lorentzian fitted at 520.7, converged, nothing marked bad", r && r.model === "lorentz" && Math.abs(r.xc - 520.7) < 0.5 && r.conv !== false && r.R2 > 0.9 && !r.bad.length, JSON.stringify(r));
+    await p.evaluate(() => { openPeakFinder(); findPeaksInto({}); }); await p.waitForTimeout(500);
+    const pk = await pkSet(p);
+    check("…its peaks: the band alone, the cosmic-ray spike not counted", pk.length === 1 && Math.abs(pk[0] - 520.7) < 2, JSON.stringify(pk));
+    const rep = await reportOf(p);
+    check("…its report and CSV are written, with the fit", /Si Raman band/.test(rep.html) && /Lorentz/i.test(rep.html) && rep.csv.split("\n").length > 80, [rep.html.length, rep.csv.length]);
+  }, { name: "the Raman example", timeout: 60000 });
+  await page(async p => {
+    await p.evaluate(capture); await p.evaluate(async () => { await loadExample("decay"); }); await p.waitForTimeout(400);
+    await p.evaluate(() => { S.fitMode = "curve"; showTab("fit"); runFit(); }); await p.waitForTimeout(800);
+    const r = await p.evaluate(() => { const f = activeFit(); return f && { model: f.model, R2: f.stats.R2, conv: f.stats.converged, bad: fitWarnings(f).filter(w => w.level === "bad").map(w => w.brief) }; });
+    check("Decay: the exponential decay fitted, converged, R² above 0.99, nothing marked bad", r && r.model === "expdec" && r.conv !== false && r.R2 > 0.99 && !r.bad.length, JSON.stringify(r));
+    const rep = await reportOf(p);
+    check("…its report and CSV are written", /Fluorescence lifetime/.test(rep.html) && rep.csv.length > 500, [rep.html.length, rep.csv.length]);
+  }, { name: "the decay example", timeout: 60000 });
+  await page(async p => {
+    await p.evaluate(capture); await p.evaluate(async () => { await loadExample("ir"); }); await p.waitForTimeout(400);
+    await p.evaluate(() => { openPeakFinder(); findPeaksInto({}); }); await p.waitForTimeout(500);
+    const pk = await pkSet(p);
+    check("Infrared: its bands found, three or four (one a shoulder), no noise bump among them", pk.length >= 3 && pk.length <= 4, JSON.stringify(pk));
+    await p.evaluate(() => { fitFoundPeaks(); runPeakFit(); }); await p.waitForTimeout(1500);
+    const r = await p.evaluate(() => { const f = activeFit(); return f && { kind: f.kind, n: f.spec && f.spec.peaks.length, conv: f.stats.converged, R2: f.stats.R2, bad: fitWarnings(f).filter(w => w.level === "bad").map(w => w.brief) }; });
+    check("…the peaks fitted from them: converged, R² above 0.99, no peak unusable", r && r.kind === "composite" && r.n === pk.length && r.conv !== false && r.R2 > 0.99 && !r.bad.length, JSON.stringify(r));
+    const rep = await reportOf(p);
+    check("…its report lists the peaks", /Polyester film/.test(rep.html) && /FWHM/.test(rep.html), rep.html.length);
+  }, { name: "the infrared example", timeout: 60000 });
+  await page(async p => {
+    await p.evaluate(capture); await p.evaluate(async () => { await loadExample("ps"); }); await p.waitForTimeout(500);
+    // The Overview's first steps, as a user takes them: each opened with the settings it measured, applied.
+    const steps = await p.evaluate(() => { const c = activeYCol(), st = overviewSteps(overviewOf(finalOf(c)), c).filter(s => !s.done).map(s => s.op); st.forEach(op => addPipeStep(op)); return st; });
+    await p.waitForTimeout(800);
+    const r = await p.evaluate(() => { const c = activeYCol(); return { ops: (c.pipe || []).map(s => s.op), warn: procWarnings ? procWarnings(c).length : 0 }; });
+    check("Raw polystyrene: the Overview's first steps (spikes, background) applied", steps.includes("despike") && steps.includes("bg") && r.ops.includes("despike") && r.ops.includes("bg"), JSON.stringify([steps, r]));
+    await p.evaluate(() => { openPeakFinder(); findPeaksInto({}); }); await p.waitForTimeout(600);
+    const pk = await pkSet(p);
+    check("…then its bands found, the 1001 cm⁻¹ ring band among them, no spike", pk.length >= 6 && pk.some(x => Math.abs(x - 1001.4) < 3), JSON.stringify(pk.map(x => +x.toFixed(1))));
+    const rep = await reportOf(p);
+    check("…its report gives the processing and the peaks", /Polystyrene/.test(rep.html) && /spike/i.test(rep.html) && /background/i.test(rep.html), rep.html.length);
+  }, { name: "the raw polystyrene example", timeout: 60000 });
+}
+
 console.log("Axes at the limits of floating point");
 await page(async p => {
   await p.evaluate(async () => { await loadExample("raman"); }); await p.waitForTimeout(300);

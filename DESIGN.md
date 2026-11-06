@@ -889,6 +889,17 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: Every example, end to end (roadmap 9, slice 1)
+
+- **The first demo is the product, so each example is run as a newcomer would**: its fit, its peaks,
+  its Overview's first steps, its report and CSV, in one pass, with no page error. Each part had its
+  own test; run together, the Raman example's peak finder called a wiggle beside the band a second
+  peak.
+- **The noise the data state comes first.** The finder's Automatic noise takes the error bars when
+  every point has one, before √N from the counts or a figure it works out: a camera's counts carry
+  read noise and gain that √N leaves out, and the error bars a file brings are the person's own
+  statement of their noise.
+
 ### 2026-11-06: Princeton Instruments SPE (roadmap 8, slice 4)
 
 - **One name, two formats.** `.spe` is Maestro's text and Princeton's binary; every `.spe` is read as
