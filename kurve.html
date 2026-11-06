@@ -8597,9 +8597,10 @@ function cmapAt(name,t){ const c=CMAPS[name]||CMAPS.viridis, u=Math.max(0,Math.m
 // The colour map at 1024 places: a heat map asked it once a pixel, parsing its colours each time.
 const CMLUT={};
 function cmapLut(name){ const k=CMAPS[name]?name:"viridis"; let L=CMLUT[k]; if(!L){ L=new Uint8Array(3*1024); for(let i=0;i<1024;i++){ const c=cmapAt(k,i/1023); L[3*i]=c[0]; L[3*i+1]=c[1]; L[3*i+2]=c[2]; } CMLUT[k]=L; } return L; }
-// A heat map's grid and picture, kept for the curves, view and size they were made for (a few of them:
-// the graph in front and its pictures), so a save that changes none of them does not make them again.
-const HEATM=new Map(); const heatMemo=(k,make)=>{ let v=HEATM.get(k); if(v){ HEATM.delete(k); HEATM.set(k,v); return v; } v=make(); HEATM.set(k,v); if(HEATM.size>8) HEATM.delete(HEATM.keys().next().value); return v; };
+// A heat map's grid and picture, kept for the curves, view and size they were made for (three of them:
+// the graph in front and a picture or two; a grid of 2000 rows across a screen is tens of megabytes),
+// so a save that changes none of them does not make them again.
+const HEATM=new Map(); const heatMemo=(k,make)=>{ let v=HEATM.get(k); if(v){ HEATM.delete(k); HEATM.set(k,v); return v; } v=make(); HEATM.set(k,v); if(HEATM.size>3) HEATM.delete(HEATM.keys().next().value); return v; };
 // A heat map is a small image, so a hundred spectra of ten thousand points
 // stay one element.
 /* A map from scattered X, Y, Z (roadmap 4, slice 5): a curve of type "tmap" with a colour column
