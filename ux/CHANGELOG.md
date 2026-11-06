@@ -1024,6 +1024,17 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Getting around, slice 2: the History's zoom and wrapped lanes (2026-11-06)
+
+- The History's bar has −, the zoom as a percentage (back to 100 %), + and Fit; Ctrl and the wheel
+  zoom too; kept in this browser. *Wrap lanes* (on) puts lanes that do not fit across the view in
+  bands below.
+- Fixed: dragging a step's box to reorder it did nothing after anything had been saved, and a
+  step's right-click menu said "Step 0" with Move earlier and later off.
+
+Checked: `tools/plot-drive.mjs` (10 new: twelve lanes wrapping and not, zoom out, back, Fit,
+Ctrl+wheel, a step dragged at 80 %, the step's menu after a save, a reload).
+
 ## Getting around, slice 1: the undo list (2026-11-06)
 
 - Edit › Undo list…, and a right-click on the Undo or Redo button: every change that can be undone,

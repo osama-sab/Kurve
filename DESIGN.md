@@ -889,6 +889,17 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: the History's zoom and wrapped lanes (roadmap 6, slice 2)
+
+- **Twenty columns are twenty lanes**, and the History scrolled sideways past the third. Lanes now
+  wrap into bands that fit across the view, as text wraps, on unless switched off (*Wrap lanes*);
+  each lane keeps its boxes in order, so reading a column's processing is unchanged.
+- **Zoom as a map does**: −, the percentage (back to 100 %), +, and Fit, the same four a viewer has;
+  Ctrl and the wheel too. Kept in this browser, as the dock's width is.
+- Found on the way: dragging a step's box did nothing once anything had been saved (the boxes
+  hold the processing cache's copies of the steps, and the drag looked them up by identity); the
+  step's menu said "Step 0". Both find the step by its id now.
+
 ### 2026-11-06: the undo list (roadmap 6, slice 1)
 
 - **Where the undo button is, and where Office keeps it.** A right-click on Undo or Redo lists every

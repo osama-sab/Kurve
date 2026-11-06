@@ -1438,7 +1438,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   menu item's tooltip. A setting's `hint` is its label's tooltip (`.tipd`, a dotted
   underline). In the History the form ends with "About this step" (`data-act="help"`); the
   Tool window has its title bar's "?" instead, so it calls `stepForm(s, {tool:true})`.
-- **History** (`renderFlow`, `flowLayout`): lanes of boxes, one per spectrum, placed depth
+- **History** (`renderFlow`, `flowLayout(per)`; roadmap 6, slice 2: **zoom**, `flowZoom()`/
+  `setFlowZoom(z)`, 30 to 200 %, `kurve.flowzoom`, the canvas's CSS `zoom`, the bar's `.fzoom`
+  (`#fZoomOut`, `#fZoom` back to 100 %, `#fZoomIn`, `#fZoomFit`) and Ctrl+wheel; **wrapped lanes**,
+  `S.flowPer` lanes across (from the view's width at that zoom), `flowLayout` putting the lanes past
+  it in bands below (`n.band`, a row between), the original data's box over the first band, the
+  graphs' boxes under the last; `S.flowPack` (`#fPack`, *Wrap lanes*, on); a step dragged within
+  its lane's own steps (`m.c===n.c`) by the pointer's travel over the zoom, and moved by id (the
+  boxes hold the cache's copies of the steps; `stepMenuItems` finds the live step by id too)):
+  lanes of boxes, one per spectrum, placed depth
   first so a derived spectrum branches off its source's original or processed box; an
   "Original data" box above the columns (their check codes); step boxes in order (dashed while
   pending); the processed box; a
@@ -3987,8 +3995,8 @@ Next, in order:
 5. Figures, further still: the graph's own fonts embedded in a PDF (done 06.11), a break at a chosen place
    with its own scale on each side (done 06.11), polygons and curved arrows (done 06.11): the
    roadmap's item 5 is done
-6. Getting around: a visible undo list (done 06.11), flow chart zoom and packed
-   lanes, keyboard access to annotations and peak handles, handles for shape parameters
+6. Getting around: a visible undo list (done 06.11), flow chart zoom and packed lanes (done
+   06.11), keyboard access to annotations and peak handles, handles for shape parameters
    (Lorentz fraction, Pearson m, Fano 1/q)
 7. Many spectra, further: a parameter that follows the series in a global fit (a centre
    linear in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the
@@ -4220,8 +4228,9 @@ Next, in order:
 - With the history off, nothing is recorded from then on, so a report or the original data's
   record has nothing for that time; the switch is per browser, so in a shared project each
   person's choice covers only their own changes
-- The History lays lanes out in a grid; with many spectra it scrolls rather than packs, and
-  there is no zoom on the flow chart
+- The History wraps its lanes into bands across the view (the lines from the original data's box
+  to a lower band run behind the boxes of the bands above), and zooms as a whole (no zoom to a
+  part of it)
 - Band integration uses the same windows for every spectrum on an axis (no per-spectrum
   shift of a window to follow a moving band), straight or level local baselines only (no
   curved local baseline, no Shirley), and the points inside the window (no interpolation to

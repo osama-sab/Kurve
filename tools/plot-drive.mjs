@@ -864,6 +864,56 @@ await page(async p => {
   await p.keyboard.press("Escape");
 }, { name: "the undo list" });
 
+console.log("Roadmap 6, slice 2: the flow chart's zoom and wrapped lanes");
+await page(async p => {
+  // Twelve columns, each with two steps; the first with three.
+  const ids = await p.evaluate(async () => {
+    const x = Array.from({ length: 50 }, (_, i) => i), X = makeCol("x", "t", "s", x), cols = [X];
+    for (let k = 0; k < 12; k++) cols.push(Object.assign(makeCol("y", "S" + (k + 1), "", x.map(v => Math.sin(v / 5 + k))), { pipe: [makeStep("scale", { f: 2 }), makeStep("smooth", Object.assign({}, PIPE_OPS.smooth.defaults))], mask: [] }));
+    cols[1].pipe.push(makeStep("norm", Object.assign({}, PIPE_OPS.norm.defaults)));
+    await createProject(Object.assign(blankProject("Many lanes"), { cols, activeY: cols[1].id }), "test"); await new Promise(r => setTimeout(r, 80)); renderAll();
+    plotCols([cols[1].id], {}); return cols.slice(1).map(c => c.id); });
+  await p.waitForTimeout(300);
+  await p.evaluate(() => { prefSet("anim", false); applyAnim(); openWin("flow", { render: true }); S.flowTab = "flow"; renderFlow(); }); await p.waitForTimeout(500);
+  await p.evaluate(() => { renderFlow(); }); await p.waitForTimeout(300);
+  let r = await p.evaluate(() => { const L = flowLayout(), sc = document.querySelector("#flowWin .flow-scroll"), cv = document.querySelector("#flowWin .flow-canvas");
+    return { per: S.flowPer, maxCol: Math.max(...L.nodes.map(n => n.col)), bands: Math.max(...L.nodes.map(n => n.band || 0)), W: parseFloat(cv.style.width), sw: sc.clientWidth, lanes: L.lanes }; });
+  check("twelve lanes wrap into bands that fit across the view", r.per >= 2 && r.per < 12 && r.maxCol < r.per && r.bands >= 1 && r.W <= r.sw + 220, JSON.stringify(r));
+  await p.click("#fPack"); await p.waitForTimeout(300);
+  r = await p.evaluate(() => ({ maxCol: Math.max(...flowLayout().nodes.map(n => n.col)), pressed: document.querySelector("#fPack").getAttribute("aria-pressed") }));
+  check("Wrap lanes off: one lane after another, twelve across", r.maxCol === 11 && r.pressed === "false", JSON.stringify(r));
+  await p.click("#fPack"); await p.waitForTimeout(300);
+  // Zoom.
+  await p.click("#fZoomOut"); await p.waitForTimeout(250);
+  r = await p.evaluate(() => ({ z: S.flowZ, css: document.querySelector("#flowWin .flow-canvas").style.zoom, lab: document.querySelector("#fZoom").textContent }));
+  check("zoom out: the chart at 80 %, said on the button", r.z === 0.8 && r.css === "0.8" && /80 %/.test(r.lab), JSON.stringify(r));
+  await p.click("#fZoom"); await p.waitForTimeout(250);
+  r = await p.evaluate(() => S.flowZ);
+  check("…the size button back to 100 %", r === 1, JSON.stringify(r));
+  await p.click("#fZoomFit"); await p.waitForTimeout(250);
+  r = await p.evaluate(() => { const sc = document.querySelector("#flowWin .flow-scroll"); return { z: S.flowZ, fits: sc.scrollHeight <= sc.clientHeight + 2 && sc.scrollWidth <= sc.clientWidth + 2 }; });
+  check("Fit: the whole chart in view", r.z < 1 && r.fits, JSON.stringify(r));
+  const zFit = r.z;
+  r = await p.evaluate(() => { const b = document.querySelector("#flowWin .flow-scroll").getBoundingClientRect(); return { x: b.left + 40, y: b.top + 40 }; });
+  await p.mouse.move(r.x, r.y); await p.keyboard.down("Control"); await p.mouse.wheel(0, -200); await p.keyboard.up("Control"); await p.waitForTimeout(300);
+  r = await p.evaluate(() => S.flowZ);
+  check("Ctrl and the wheel zoom in", r > zFit, JSON.stringify([zFit, r]));
+  // A step dragged while zoomed lands where it is dropped.
+  await p.evaluate(() => setFlowZoom(0.8)); await p.waitForTimeout(300);
+  const before = await p.evaluate(id => colById(id).pipe.map(s => s.op).join(), ids[0]);
+  const pos = await p.evaluate(id => { const c = colById(id), a = document.querySelector(`#flowWin [data-node="step:${c.pipe[0].id}"]`), b = document.querySelector(`#flowWin [data-node="step:${c.pipe[1].id}"]`); a.scrollIntoView({ block: "center" });
+    const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(); return { x: ra.left + ra.width / 2, y: ra.top + ra.height / 2, y2: rb.top + rb.height * 0.85 }; }, ids[0]);
+  await p.mouse.move(pos.x, pos.y); await p.mouse.down(); await p.mouse.move(pos.x, pos.y + 10, { steps: 3 }); await p.mouse.move(pos.x, pos.y2, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(500);
+  const after = await p.evaluate(id => colById(id).pipe.map(s => s.op).join(), ids[0]);
+  check("a step dragged below the next one at 80 % moves one place down", before === "scale,smooth,norm" && after === "smooth,scale,norm", JSON.stringify([before, after]));
+  r = await p.evaluate(id => { const L = flowLayout(), n = L.nodes.find(q => q.kind === "step" && q.s.id === colById(id).pipe[0].id), it = stepMenuItems(n.s); return { head: it[0].group, later: (it.find(i => i && i.label === "Move later") || {}).enabled }; }, ids[0]);
+  check("…and a step's right-click menu after a save knows where the step is (step 1 of S1, Move later on)", /^Step 1 of S1/.test(r.head) && r.later === true, JSON.stringify(r));
+  // Remembered in this browser.
+  await p.waitForTimeout(200); await p.reload(); await ready(p); await p.waitForTimeout(400);
+  r = await p.evaluate(() => flowZoom());
+  check("the zoom is remembered across a reload", r === 0.8, JSON.stringify(r));
+}, { name: "the flow chart's zoom and wrapped lanes" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

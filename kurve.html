@@ -1319,6 +1319,8 @@ body.gdragging{user-select:none}
 .flow-body{flex:1;min-height:0;display:flex}
 .flow-scroll{flex:1 1 56%;min-width:0;overflow:auto;background:var(--panel-2);background-image:radial-gradient(var(--rule) 1px,transparent 1.2px);background-size:18px 18px;outline:none}
 .flow-canvas{position:relative;margin:0}
+.fzoom{display:inline-flex;align-items:center;gap:2px;margin-left:auto}
+.fzoom #fZoom{min-width:4.2em;font-variant-numeric:tabular-nums}
 .flow-edges{position:absolute;left:0;top:0;pointer-events:none;overflow:visible}
 .fe{fill:none;stroke:var(--faint);stroke-width:1.5}
 .fe.br{stroke:var(--accent);stroke-width:1.7}
@@ -14782,6 +14784,7 @@ async function renameSpectrum(id){
   save({cols:P().cols},`renamed the column "${was||specName(c)}" to "${v}"`); renderAll();
 }
 function stepMenuItems(s){
+  s=(s&&stepById(s.id))||s;   // the step as the project has it now: the History's boxes hold the cache's copies
   const c=colOfStep(s), i=c?c.pipe.indexOf(s):-1, ro=S.readOnly||isPending(s);
   return [{group:`Step ${i+1} of ${specName(c)}: ${stepTitle(s)}`,plain:true},
     {label:s.on===false?"Switch on":"Switch off", run:()=>toggleStep(s.id,s.on===false), enabled:!ro},
@@ -20488,8 +20491,11 @@ function renderStats(){
    a line inserts a step there. The Log tab is the plain record of every
    change, by whom and when.
    ============================================================ */
-const FLOW_NW=172, FLOW_NH=50, FLOW_CW=206, FLOW_RH=74, FLOW_PAD=14;
-function flowLayout(){
+const FLOW_NW=172, FLOW_NH=50, FLOW_CW=206, FLOW_RH=74, FLOW_PAD=14, FLOW_ZMIN=0.3, FLOW_ZMAX=2;
+// The flow chart's zoom, kept in this browser (kurve.flowzoom), 30 to 200 %.
+function flowZoom(){ if(S.flowZ==null){ let v=1; try{ v=+localStorage.getItem("kurve.flowzoom")||1; }catch(e){} S.flowZ=Number.isFinite(v)&&v>=FLOW_ZMIN&&v<=FLOW_ZMAX?v:1; } return S.flowZ; }
+function setFlowZoom(z){ z=Math.max(FLOW_ZMIN,Math.min(FLOW_ZMAX,+z||1)); if(Math.abs(z-1)<0.04) z=1; S.flowZ=+z.toFixed(3); try{ localStorage.setItem("kurve.flowzoom",String(S.flowZ)); }catch(e){} renderFlow(); }
+function flowLayout(per){ per=per!=null?per:S.flowPer;
   const p=P(), ys=yCols(), nodes=[], edges=[], by={};
   const add=n=>{ nodes.push(n); by[n.key]=n; return n; };
   const firstKey=c=>(c.src?"src:":"raw:")+c.id;
@@ -20536,6 +20542,18 @@ function flowLayout(){
   nodes.filter(n=>n.kind==="step"&&!n.st.off).forEach(n=>{ const def=PIPE_OPS[n.s.op]; if(!def||!def.deps) return;
     def.deps(Object.assign({},def.defaults||{},n.s.p||{})).forEach(([id,use])=>{ const o=colById(id); if(!o) return;
       const k=use==="final"?"final:"+id:firstKey(o); if(by[k]) edges.push({a:k,b:n.key,ref:true}); }); });
+  /* Packed lanes (roadmap 6, slice 2): with more lanes than fit across the view (`per`), they wrap
+     into bands, one under the other with a row between; the original data's box stays over the
+     first band, and each graph's box goes under the last, beneath the lanes that feed it. */
+  if(per>=2&&lane>per&&S.flowPack!==false){ const bands=Math.ceil(lane/per), lo=new Array(bands).fill(Infinity), hi=new Array(bands).fill(-Infinity);
+    const laneN=nodes.filter(n=>n.c&&Number.isInteger(n.col)&&n.kind!=="graph"&&n.kind!=="figure");
+    laneN.forEach(n=>{ const b=Math.floor(n.col/per); lo[b]=Math.min(lo[b],n.row); hi[b]=Math.max(hi[b],n.row); });
+    const shift=[]; let bottom=-1; for(let b=0;b<bands;b++){ if(!Number.isFinite(lo[b])){ shift.push(0); continue; } const top=b===0?lo[b]:bottom+2; shift.push(top-lo[b]); bottom=hi[b]+top-lo[b]; }
+    laneN.forEach(n=>{ const b=Math.floor(n.col/per); n.row+=shift[b]; n.col=n.col%per; n.band=b; });
+    const tb=by.table; if(tb){ const c0=laneN.filter(n=>n.band===0&&n.kind==="raw").map(n=>n.col); tb.col=c0.length?(amin(c0)+amax(c0))/2:0; }
+    const placed=[]; nodes.filter(n=>n.kind==="graph"||n.kind==="figure").forEach(n=>{ const feed=edges.filter(e=>e.b===n.key&&by[e.a]).map(e=>by[e.a].col), cols=feed.length?feed:laneN.map(q=>q.col);
+      const want=cols.length?cols.reduce((a,b)=>a+b,0)/cols.length:0; let row=bottom+1; while(placed.some(q=>q.row===row&&Math.abs(q.col-want)<1)) row++; n.col=want; n.row=row; placed.push({row,col:want}); });
+    lane=Math.min(lane,per); }
   nodes.forEach(n=>{ n.x=FLOW_PAD+n.col*FLOW_CW; n.y=FLOW_PAD+n.row*FLOW_RH; });
   const W=FLOW_PAD*2+Math.max(lane,Math.ceil(nodes.reduce((m,n)=>Math.max(m,n.col+1),0)))*FLOW_CW-(FLOW_CW-FLOW_NW), H=FLOW_PAD*2+(nodes.reduce((m,n)=>Math.max(m,n.row),0)+1)*FLOW_RH-(FLOW_RH-FLOW_NH);
   return {nodes,edges,by,W,H,lanes:lane};
@@ -20605,13 +20623,18 @@ function renderFlow(){
   let h=`<div class="fbar"><div class="seg mini" role="tablist" aria-label="History view"><button role="tab" data-ftab="flow" aria-selected="${tab==="flow"}">Flow chart</button><button role="tab" data-ftab="log" aria-selected="${tab==="log"}">Log</button></div><span class="sp"></span>`;
   if(tab==="flow") h+=`<button class="tb sm lbl" id="fInsp" aria-pressed="${S.flowInsp!==false}" title="Show or hide the settings of the selected box beside the chart">${ICON("panel","sm")}<span>Details</span></button>`;
   if(tab==="flow") h+=`<button class="tb sm lbl" id="fAdd" aria-haspopup="menu" aria-expanded="false"${S.readOnly||!activeYCol()?" disabled":""} title="Add a step to the end of the active column">${ICON("plus","sm")}<span>Step</span></button>`;
+  // Zoom (roadmap 6, slice 2): out, the size as a button back to 100 %, in, and the whole chart in view.
+  if(tab==="flow"){ const z=flowZoom(); h+=`<span class="fzoom" role="group" aria-label="Zoom"><button class="tb sm icon" id="fZoomOut" title="Zoom out (Ctrl+wheel)" aria-label="Zoom out"${z<=FLOW_ZMIN+1e-9?" disabled":""}>−</button><button class="tb sm" id="fZoom" title="Actual size">${Math.round(z*100)} %</button><button class="tb sm icon" id="fZoomIn" title="Zoom in (Ctrl+wheel)" aria-label="Zoom in"${z>=FLOW_ZMAX-1e-9?" disabled":""}>+</button><button class="tb sm" id="fZoomFit" title="The whole chart in view">Fit</button></span>`
+    +`<button class="tb sm lbl" id="fPack" aria-pressed="${S.flowPack!==false}" title="Wrap the lanes into bands that fit across the view">Wrap lanes</button>`; }
   h+=`</div>`;
   if(tab==="log"){ h+=`<div class="flog"><ul class="log" id="log"></ul></div>`; box.innerHTML=h; wireFlowBar(box); renderLog(); return; }
+  const z=flowZoom(), sw0=(keepScroll&&keepScroll.clientWidth)||Math.round(box.clientWidth*(S.flowInsp===false?1:0.56));
+  S.flowPer=Math.max(2,Math.floor((sw0/z-2*FLOW_PAD+(FLOW_CW-FLOW_NW))/FLOW_CW));
   const L=flowLayout();
   if(!L.nodes.length){ h+=noteHtml("info","No data yet. Import a file, drop one on the window, or paste columns into the worksheet. Each column then gets a column here: its original data, every step you apply from the Data, Math and Analysis menus, and the processed data the fit uses."); box.innerHTML=h; wireFlowBar(box); return; }
   if(!S.flowSel||!L.by[S.flowSel]) S.flowSel=flowCurKey()||L.nodes[0].key;
   const cur=flowCurKey();
-  h+=`<div class="flow-body"><div class="flow-scroll" tabindex="-1"><div class="flow-canvas" style="width:${L.W}px;height:${L.H}px">${flowEdgesSvg(L)}${L.nodes.map(n=>flowNodeHtml(n,cur)).join("")}</div></div>`;
+  h+=`<div class="flow-body"><div class="flow-scroll" tabindex="-1"><div class="flow-canvas" style="width:${L.W}px;height:${L.H}px;zoom:${z}">${flowEdgesSvg(L)}${L.nodes.map(n=>flowNodeHtml(n,cur)).join("")}</div></div>`;
   h+=S.flowInsp===false?`</div>`:`<aside class="finsp" aria-label="Inspector">${flowInspector(L.by[S.flowSel])}</aside></div>`;
   box.innerHTML=h;
   const sc=box.querySelector(".flow-scroll"); sc.scrollLeft=sx; sc.scrollTop=sy;
@@ -20633,6 +20656,11 @@ function renderFlowNodes(){
 function wireFlowBar(box){
   box.querySelectorAll("[data-ftab]").forEach(b=>b.onclick=()=>{ S.flowTab=b.dataset.ftab; renderFlow(); });
   const fi=box.querySelector("#fInsp"); if(fi) fi.onclick=()=>{ S.flowInsp=S.flowInsp===false; renderFlow(); };
+  const zb=(id,f)=>{ const b=box.querySelector(id); if(b) b.onclick=f; };
+  zb("#fZoomOut",()=>setFlowZoom(flowZoom()/1.25)); zb("#fZoomIn",()=>setFlowZoom(flowZoom()*1.25)); zb("#fZoom",()=>setFlowZoom(1));
+  zb("#fZoomFit",()=>{ const sc=box.querySelector(".flow-scroll"), cv=box.querySelector(".flow-canvas"); if(!sc||!cv) return; const W=parseFloat(cv.style.width)||1, H=parseFloat(cv.style.height)||1; setFlowZoom(Math.min(1,(sc.clientWidth-8)/W,(sc.clientHeight-8)/H)); });
+  zb("#fPack",()=>{ S.flowPack=S.flowPack===false; renderFlow(); });
+  const sc=box.querySelector(".flow-scroll"); if(sc&&!sc._zw){ sc._zw=1; sc.addEventListener("wheel",e=>{ if(!(e.ctrlKey||e.metaKey)) return; e.preventDefault(); setFlowZoom(flowZoom()*(e.deltaY<0?1.1:1/1.1)); },{passive:false}); }
   const add=box.querySelector("#fAdd"); if(add) add.onclick=()=>{ const c=activeYCol(); if(c) toggleMenu(add,()=>toolMenuItems({col:c.id}),{label:"Add a step",search:"Find a tool: background, smooth, derivative…"}); };
 }
 function flowSelect(key,L){
@@ -20676,9 +20704,9 @@ function wireFlow(box,L){
   // Drag a step's box up or down its own column to move it.
   cv.addEventListener("pointerdown",e=>{
     const b=e.target.closest("[data-node]"); if(!b||e.button!==0||S.readOnly) return; const n=L.by[b.dataset.node]; if(!n||n.kind!=="step"||n.pending) return;
-    const lane=L.nodes.filter(m=>m.kind==="step"&&m.col===n.col&&!m.pending).sort((a,b)=>a.row-b.row), y0=e.clientY; let moved=false, to=n.k-1;
+    const lane=L.nodes.filter(m=>m.kind==="step"&&m.c===n.c&&!m.pending).sort((a,b)=>a.row-b.row), y0=e.clientY, zf=flowZoom(); let moved=false, to=n.k-1;
     const line=document.createElement("div"); line.className="fdrop";
-    const mv=ev=>{ const dy=ev.clientY-y0; if(!moved&&Math.abs(dy)<6) return;
+    const mv=ev=>{ const dy=(ev.clientY-y0)/zf; if(!moved&&Math.abs(dy*zf)<6) return;
       if(!moved){ moved=true; b.setPointerCapture(e.pointerId); b.classList.add("dragging"); cv.appendChild(line); }
       b.style.transform=`translateY(${dy}px)`;
       const yy=n.y+FLOW_NH/2+dy; to=lane.length-1; for(let j=0;j<lane.length;j++){ if(yy<lane[j].y+FLOW_NH/2){ to=j; break; } }
@@ -20686,7 +20714,8 @@ function wireFlow(box,L){
       const tgt=lane[to]; Object.assign(line.style,{left:tgt.x+"px",top:(to>n.k-1?tgt.y+FLOW_NH+6:tgt.y-8)+"px",width:FLOW_NW+"px"}); };
     const up=()=>{ b.removeEventListener("pointermove",mv); b.removeEventListener("pointerup",up); b.removeEventListener("pointercancel",up);
       if(!moved) return; b._dragged=true; setTimeout(()=>{ b._dragged=false; },0); line.remove(); b.style.transform=""; b.classList.remove("dragging");
-      const s=n.s, c=colOfStep(s); if(!c) return; const tgt=lane[to]; const idx=c.pipe.indexOf(tgt.s); if(idx>=0&&idx!==c.pipe.indexOf(s)) moveStep(s.id,idx); };
+      // By id: the boxes hold the steps as the processing cache had them, copies once anything is saved.
+      const s=n.s, c=n.c&&colById(n.c.id); if(!c) return; const tgt=lane[to], idx=c.pipe.findIndex(q=>q.id===tgt.s.id); if(idx>=0&&idx!==c.pipe.findIndex(q=>q.id===s.id)) moveStep(s.id,idx); };
     b.addEventListener("pointermove",mv); b.addEventListener("pointerup",up); b.addEventListener("pointercancel",up);
   });
   const insp=box.querySelector(".finsp"); if(!insp) return;
@@ -21539,13 +21568,15 @@ ${DL([["Series","From a start, adding a step each row (below zero counts down). 
 ${DL([["From this processed data","A new column that starts where this one ends: for a derivative beside the column, or a second route to compare."],["A copy with the same steps","The same processing, to change one setting and compare."]])}
 <p>${MP("Analyze › Calculus › Derivative, as a new column…")} makes the derivative as a column of its own, keeping the original.</p>`},
 /* ---------------------------------------------------------------- Processing */
-{id:"history", g:"Processing", t:"The History", win:"flow", kw:"history flow chart steps boxes lanes inspector stage log reorder",
+{id:"history", g:"Processing", t:"The History", win:"flow", kw:"history flow chart steps boxes lanes inspector stage log reorder zoom fit wrap bands",
  lead:"A flow chart of the data: what was recorded, every step applied to each column, and what came out. Click any box to see the data at that point.",
  body:`<h2>The boxes</h2>
 ${DL([["Original data","The original columns and the record of their check codes."],["A column's original box","The column's original data, with an Overview button."],["Steps","In order, each with its settings summarised; a warning mark when its check found something."],["Processed","The data the fit, peak finder and exports use."],["Peaks, Bands, Fits","What was measured on the processed data."],["Figure","The graph's own lines, ranges, text and labels."],["Graphs","With several graphs, one box for each, fed by the columns it shows. Click it to bring the graph to the front. "+DA("graphs","Several graphs")]])}
 <p>A derived column branches off the box it starts from. A step that reads another column (a reference, an average) gets a dashed line from it.</p>
 <h2>Selecting a box</h2>
 <p>The graph shows the data at that point, with the stage before it in grey and the step's marks (a background curve, replaced spikes, anchors). The inspector beside the chart holds the box's settings, actions and discussion. <em>Details</em> hides the inspector; below a certain width it moves under the chart.</p>
+<h2>Seeing the whole chart</h2>
+<p>The bar's − and + zoom the chart out and in (30 to 200 %, or ${K("Ctrl")} and the wheel over it), the percentage between them puts it back to 100 %, and <em>Fit</em> shows it all; the zoom is kept in this browser. With more columns than fit across, <em>Wrap lanes</em> (on unless switched off) puts them in bands, one under another, the original data's box over the first and the graphs' boxes under the last.</p>
 <h2>Changing the steps</h2>
 ${DL([["Insert","The + on a line, or the <em>Step</em> button, opens the tool list."],["Edit","Change settings in the inspector; the graph follows."],["Reorder","Drag a step, or "+K("Alt","↑")+" / "+K("Alt","↓")+"."],["Switch off","The step's switch keeps it but passes the data through."],["Delete","The inspector's Delete, the box's menu, or "+K("Delete")+"."]])}
 <p>Order matters. Steps that are fine alone can be wrong together (normalising before subtracting a background, smoothing before removing spikes); the History says so on the later step.</p>
