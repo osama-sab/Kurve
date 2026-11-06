@@ -692,7 +692,16 @@ graph first, with the taskbar kept at the bottom of the screen.
   and `gstats.fol`, and `glob.follow` (each line with its parameter's `name`, `unit`, the series'
   `sname` and `sunit`); `followText(q, ascii)` says it (the Batch window's `.bfol` under the
   summary, Results' statistics *Follows the series*, the report, the CSV with the two numbers,
-  their errors and covariance); Results marks the parameter *follows*. `activeFit` and `laneFit`
+  their errors and covariance); Results marks the parameter *follows*. **In a worker** (roadmap 7,
+  slice 3): `fitTogether` is `fitTogetherPrep` (the sets, starts, limits, `follow`, and `desc`, what
+  a worker needs to make the model again: a peak fit's spec and whether it has ties, a model's id,
+  or a function's formula), `globalFit`, and `fitTogetherFinish` (the rows and `glob`); runBatch
+  calls `fitTogetherAsync(list, t, share, stopped)`, which sends the solving to `gfitWorker()` (the
+  page's NUMERICS, PEAKS, PIPE and MODELS blocks, cut from its own script as fit-test does, and
+  `GFIT_TAIL`, a handler, as a Blob; one worker, `GFW`, false when one cannot be made) through
+  `gfitRun(job, stopped)` (a promise; `{stopped}` when Stop is pressed, the worker ended and made
+  again next time; null to fit on the page), and fits on the page when it gets null. The progress
+  line has Stop while they are fitted together; stopped, each column keeps its own fit. `activeFit` and `laneFit`
   prefer a global row to a fit by hand made before it; `batchWith` never replaces a global row;
   `batchStale` puts every global row out of date when any of its spectra changes;
   `fitWarnings` adds a `global` note; `statsList` gives the row's and the whole fit's numbers;
@@ -4043,7 +4052,7 @@ Next, in order:
    parameters (Lorentz fraction, Pearson m, Fano 1/q; done 06.11): the roadmap's item 6 is done
 7. Many spectra, further: a parameter that follows the series in a global fit (done 06.11; a centre
    linear in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the
-   files' header fields as rows of the worksheet (done 06.11), global fits in a worker
+   files' header fields as rows of the worksheet (done 06.11), global fits in a worker (done 06.11)
 8. More files: JCAMP-DX, then SPC; OPUS and SPE last
 9. Under the hood (projects in IndexedDB: done 05.11; a cell typed into a million rows quick, the
    graph drawing what is in view, every row of a sheet reachable: done 05.11): `tools/odd-test.mjs`
@@ -4142,8 +4151,9 @@ Next, in order:
   no pictures, and search matches words, not meanings
 - A global fit shares a parameter's value, or makes it follow the series as a straight line or
   Arrhenius (no other law, no quadratic, not two series at once); a parameter cannot be tied to
-  another parameter across spectra; it runs on the
-  page, so a large one holds the page for a few seconds, and stops at 900 parameters. It needs
+  another parameter across spectra; it runs in a worker where the page can make one (a content
+  policy that refuses blob: workers leaves it on the page, holding it for a large one), and stops
+  at 900 parameters. It needs
   the template's peaks in every spectrum (not with the peaks found in each)
 - Fitted peak labels are styled as a set (one font, colour rule and box for all); a label can
   be moved on its own but not restyled on its own. In a row along the top they can sit under

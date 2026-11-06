@@ -1024,6 +1024,16 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Many spectra, slice 3: global fits in a worker (2026-11-06)
+
+- Fit every column… together solves in a worker made from the page's own numerics: the page stays
+  live while it runs, and the progress line's Stop now works then too (each column keeps its own
+  fit, and the message says so). Where no worker can be made, the fit runs on the page as before.
+
+Checked: `tools/plot-drive.mjs` (4 new: the worker used and its result equal to the page's, the
+page answering within 300 ms while 80 columns of 3000 points are fitted together, Stop heard, the
+page's own fit where no worker can be made).
+
 ## Many spectra, slice 2: the files' header fields as rows (2026-11-06)
 
 - The worksheet's ⋯ corner has *Header fields* when its columns came from files with a header: a row

@@ -889,6 +889,14 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: global fits in a worker (roadmap 7, slice 3)
+
+- **A long fit must not take the page.** Eighty spectra fitted together held the page for seconds:
+  no scrolling, no Stop. The solving now runs in a worker made from the page's own numerics (the
+  blocks the tests already run under node), so nothing is duplicated and the result is the same to
+  the last digit; the windows stay live and the progress line's Stop is heard (the worker is ended).
+- **Where a worker cannot be made, nothing is lost**: the fit runs on the page as before.
+
 ### 2026-11-06: the files' header fields as rows (roadmap 7, slice 2)
 
 - **Where Origin keeps them.** A file's header (the temperature, when it was taken, the exposure)

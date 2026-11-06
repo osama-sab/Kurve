@@ -22222,7 +22222,7 @@ ${DL([["Regular","y − f(x)."],["Standardised","The residual over s, the scatte
 ${DL([["This fit's result","Every column starts from the template's numbers. For samples that differ little."],["The one before it in the series","For a series that drifts, such as a band moving with temperature: the fit starts at the template's column and runs out both ways, each column starting from its neighbour's result."],["The peaks found in each column","For different samples: the peak finder, with its current settings, finds each column's peaks, which are then fitted with the template's first shape and its baseline."]])}
 <h2 id="global">Fitting them together</h2>
 <p><em>Fit them: Together, sharing parameters</em> makes one fit of every column at once, a global fit: the parameters ticked take one value for all the columns, and the rest are each column's own. Share what the physics says is common (a band's position and width in a reaction, a lifetime in a set of decays) and let the rest vary (the areas). A shared value is measured from every column's points, so its error is smaller than any one fit's, and the other parameters no longer trade off against it.</p>
-${DL([["Centres, Widths, Areas, Shapes, Baseline","Tick a kind to share it for every peak; <em>Parameter by parameter</em> picks each one's choice: its own, shared, or following the series (below). A curve model lists its parameters."],["Fixed and tied parameters","Stay as they are in the template: fixed for every column, or following their peak in each."],["How it starts","Each column is first fitted with the shared parameters held at the template's values, so its own parameters start where they belong; then all are fitted together. A band absent from one column gets an area near zero there."]])}
+${DL([["Centres, Widths, Areas, Shapes, Baseline","Tick a kind to share it for every peak; <em>Parameter by parameter</em> picks each one's choice: its own, shared, or following the series (below). A curve model lists its parameters."],["Fixed and tied parameters","Stay as they are in the template: fixed for every column, or following their peak in each."],["How it starts","Each column is first fitted with the shared parameters held at the template's values, so its own parameters start where they belong; then all are fitted together. A band absent from one column gets an area near zero there."],["While it runs","The fit of them all together runs beside the page: the windows stay live, and Stop ends it, each column keeping its own fit."]])}
 <p>The dialog counts the parameters fitted at once: the shared ones, plus each column's own times the number of columns. Each column's row is then a fit like any other, marked <em>together with</em> the others; its errors come from the covariance of the whole fit, scaled by the reduced χ² of them all when there are no weights, and Results lists the parameters it shares. Every row depends on every column, so a change to any of them puts the whole fit out of date. A fit made by hand afterwards is shown for its column, but does not replace its row.</p>
 <h2 id="follow">A parameter that follows the series</h2>
 <p>When the columns have a value of the ${DA("batch#trend","series")} each (a temperature, a time, a concentration), a parameter can follow it instead of being shared: <em>A line in the series</em> makes it a straight line in the series variable, the same line for every column (a band that shifts with temperature), and <em>Arrhenius in the series</em> makes it k = A·exp(−E<sub>a</sub>/(R·T)) with T the series in kelvin (a rate against temperature; the series in K, °C or °F, the parameter above zero in every column). Either is two numbers fitted with everything else, so the slope or the activation energy comes with its error from the whole fit, which is what fitting each column and then a line through the results cannot give: there the points' errors and the trade-offs between parameters are lost.</p>
@@ -23142,7 +23142,20 @@ function seriesKelvin(vals,unit){ const u=String(unit||"").trim(); let f;
 function followText(q,ascii){ const nm=/^(peak|baseline) /.test(q.name)?capFirst(q.name):q.name, pm=(v,e)=>{ const s=fmtPM(v,e); return ascii?s.replace(/±/g,"+/-").replace(/−/g,"-"):s; }, pu=q.unit?" "+q.unit:"", su=q.sunit?" "+q.sunit:"";
   if(q.kind==="lin") return `${nm} = ${pm(q.a,q.sa)}${pu} at ${fmt(q.u0,6)}${su}, changing by ${pm(q.b,q.sb)}${pu} per${su||" unit of "+(q.sname||"the series")}`;
   const R=8.314462618; return `${nm} by Arrhenius in ${q.sname||"the temperature"}: activation energy ${pm(q.b*R/1000,q.sb*R/1000)} kJ/mol (Ea/R ${pm(q.b,q.sb)} K), ${pm(q.a,q.sa)}${pu} at ${fmt(1/q.u0,6)} K`; }
-function fitTogether(list,t,share){
+/* Prepared, solved and finished apart (roadmap 7, slice 3), so the solving can go to a worker:
+   fitTogether does all three at once; fitTogetherAsync (the Batch window's) sends the solving to
+   gfitWorker() when the page can make one, and does it here when it cannot. */
+function fitTogether(list,t,share){ const c=fitTogetherPrep(list,t,share); if(c.fail) return c;
+  let r; try{ r=globalFit(c.sets,c.f,c.p0s,c.sh,c.fixedT,c.opt); }catch(e){ return {fail:"the fit stopped with an error: "+(e&&e.message||e)}; }
+  return fitTogetherFinish(c,r); }
+async function fitTogetherAsync(list,t,share,stopped){ const c=fitTogetherPrep(list,t,share); if(c.fail) return c;
+  if(c.desc){ const {prep,...opt}=c.opt, r=await gfitRun({sets:c.sets,p0s:c.p0s,sh:c.sh,fixed:c.fixedT,opt,desc:c.desc},stopped);
+    if(r&&r.stopped) return {stopped:true};
+    if(r&&r.crash) return {fail:"the fit stopped with an error: "+r.error};
+    if(r) return fitTogetherFinish(c,r); }
+  let r; try{ r=globalFit(c.sets,c.f,c.p0s,c.sh,c.fixedT,c.opt); }catch(e){ return {fail:"the fit stopped with an error: "+(e&&e.message||e)}; }
+  return fitTogetherFinish(c,r); }
+function fitTogetherPrep(list,t,share){
   const comp=t.kind==="composite", K=list.length; let m=null, mdl=null, L=[];
   const fixedT=t.fixed.slice();
   if(comp){ m=compileModel(t.spec,t.x0); if(m.n!==t.params.length) return {fail:"the model and its values do not match"}; L=peakLinks(t.spec.peaks,m); L.forEach(l=>{ fixedT[l.gi]=true; }); }
@@ -23173,8 +23186,12 @@ function fitTogether(list,t,share){
     p0s.push(seed); });
   const ref=Math.max(0,list.findIndex(q=>q.c.id===t.from)), f=comp?(x,v)=>m.f(x,v):(x,v)=>mdl.f(x,v);
   const follow=nF?fl.map(k=>k?{kind:k,s:k==="arr"?Tk:sv}:null):null;
-  let r; try{ r=globalFit(sets,f,p0s,sh,fixedT,{lo,hi,pscale:comp?pscale:null,ref,start:t.params,follow,prep:L.length?(v=>applyPeakLinks(v,L)):null}); }
-  catch(e){ return {fail:"the fit stopped with an error: "+(e&&e.message||e)}; }
+  // What a worker needs to make the same model: the peaks' spec, a model's id, or a function's formula.
+  const desc=comp?{kind:"composite",spec:t.spec,x0:t.x0,links:L.length>0}:mdl.user?{expr:mdl.def&&mdl.def.expr}:MODELS[t.model]===mdl?{model:t.model}:null;
+  return {list,t,comp,K,m,mdl,L,fixedT,sh,fl,nSh,nF,nOwn,info,useW,tk,app,sets,p0s,f,sname,sunit,
+    opt:{lo,hi,pscale:comp?pscale:null,ref,start:t.params,follow,prep:L.length?(v=>applyPeakLinks(v,L)):null},desc:desc&&(desc.kind||desc.model||desc.expr)?desc:null}; }
+function fitTogetherFinish(c,r){
+  const {list,t,comp,K,m,mdl,L,sh,fl,nSh,nF,nOwn,info,useW,tk,app,sets,sname,sunit}=c;
   if(r.error) return {fail:r.error};
   const g=r.stats, at=Date.now(), gstats={K, n:g.n, dof:g.dof, chi2:g.chi2, redChi2:Number.isFinite(g.redChi2)?g.redChi2:null, R2:Number.isFinite(g.R2)?g.R2:null, m:r.m, sh:nSh, own:nOwn, fol:nF, iter:g.iter, converged:g.converged};
   const rows=info.map((z,k)=>{ let res=r.sets[k]; if(comp) res=linkResult(res,L);
@@ -23189,8 +23206,40 @@ function fitTogether(list,t,share){
   // Each line, with what it is of and in, for the Batch window, Results, the report and the CSV.
   const d0=finalOf(list[0].c), dimOf=i=>{ if(comp){ const s=m.slots[i]; return s.kind==="base"?(BASE_LABEL[s.name]||["",""])[1]:PARAM_DIM[s.name]; } return (mdl.dim||[])[i]||""; };
   const folOut=(r.follow||[]).map(q=>Object.assign({},q,{name:tmplParamName(t,q.i),unit:app?"":unitFor(dimOf(q.i),d0.xu||"",d0.yu||""),sname,sunit:q.kind==="arr"?"K":sunit,cab:Number.isFinite(q.cab)?q.cab:null}));
-  return {rows,glob:Object.assign({share:share.map((s,i)=>sh[i]?true:fl[i]||false),stats:gstats},folOut.length?{follow:folOut}:{})};
+  return {rows,glob:Object.assign({share:sh.map((s,i)=>s?true:fl[i]||false),stats:gstats},folOut.length?{follow:folOut}:{})};
 }
+/* The global fit's worker (roadmap 7, slice 3): the page's own numerics, peaks, processing and
+   models blocks (the ones tools/fit-test.mjs runs under node) and a handler, as a script of its own
+   from a Blob. It makes the model again from its description, fits, and posts the result back; the
+   page stays live and Stop is heard (the worker is ended, and made again for the next fit). Where
+   the page cannot make one (a content policy without blob: workers), or it fails, the fit runs
+   here as it always did. */
+const GFIT_TAIL=`self.onmessage=e=>{ const q=e.data; let r;
+  try{ const d=q.desc; let f;
+    if(d.kind==="composite"){ const m=compileModel(d.spec,d.x0); f=(x,v)=>m.f(x,v); if(d.links){ const L=peakLinks(d.spec.peaks,m); q.opt.prep=v=>applyPeakLinks(v,L); } }
+    else if(d.expr!=null){ f=compileExpr(d.expr).f; }
+    else { const mdl=MODELS[d.model]; if(!mdl) throw new Error("the model is not known to the worker"); f=(x,v)=>mdl.f(x,v); }
+    r=globalFit(q.sets,f,q.p0s,q.sh,q.fixed,q.opt); }
+  catch(err){ r={error:String(err&&err.message||err),crash:true}; }
+  self.postMessage({id:q.id,r}); };`;
+let GFW=null;
+function gfitWorker(){
+  if(GFW!==null) return GFW||null;
+  try{ if(typeof Worker==="undefined"||typeof Blob==="undefined") throw new Error("no workers");
+    const sc=[...document.scripts].find(s=>!s.src&&s.textContent.indexOf("==NUMERICS"+":START==")>=0), txt=sc?sc.textContent:"";
+    const grab=tag=>{ const m=txt.match(new RegExp("=="+tag+":START==[\\s\\S]*?\\*\\/([\\s\\S]*?)\\/\\* =="+tag+":END==")); if(!m) throw new Error("no "+tag+" block"); return m[1]; };
+    const url=URL.createObjectURL(new Blob([["NUMERICS","PEAKS","PIPE","MODELS"].map(grab).join("\n")+"\n"+GFIT_TAIL],{type:"text/javascript"}));
+    const w=new Worker(url), me={w,n:0,wait:new Map(),url};
+    w.onmessage=e=>{ const h=me.wait.get(e.data&&e.data.id); if(h){ me.wait.delete(e.data.id); h.ok(e.data.r); } };
+    w.onerror=e=>{ if(e&&e.preventDefault) e.preventDefault(); const hs=[...me.wait.values()]; me.wait.clear(); try{ w.terminate(); }catch(_){} if(GFW===me) GFW=false; hs.forEach(h=>h.ok(null)); };
+    GFW=me; return me; }
+  catch(e){ GFW=false; return null; } }
+// One fit in the worker: its result, {stopped} when stopped() turned true first, or null to fit here.
+function gfitRun(job,stopped){ const W=gfitWorker(); if(!W) return Promise.resolve(null);
+  return new Promise(res=>{ const id=++W.n; let iv=null; const done=v=>{ clearInterval(iv); res(v); };
+    W.wait.set(id,{ok:done});
+    iv=setInterval(()=>{ if(stopped&&stopped()){ W.wait.delete(id); try{ W.w.terminate(); URL.revokeObjectURL(W.url); }catch(e){} if(GFW===W) GFW=null; done({stopped:true}); } },100);
+    try{ W.w.postMessage(Object.assign({id},job)); }catch(e){ W.wait.delete(id); done(null); } }); }
 /* A header field as a number: a date and time (in ms), a time of day, or the
    first number in it with what follows as its unit ("300 K", "Exposure = 10 s",
    "785nm"). The keys worth plotting against are those that most spectra have,
@@ -23327,8 +23376,10 @@ async function runBatch(o){
     else { S.batchRun.i=seq.length-1; S.batchRun.name=`all ${elig.length} together`; S.batchRun.together=true; renderBatchProgress();
       await new Promise(res=>requestAnimationFrame(()=>setTimeout(res,0)));
       if(S.pid!==pid){ left(); return; }
-      const g=fitTogether(elig.map(c=>({c,seed:rows[c.id].fit?rows[c.id].fit.params:null})),t,o.share);
-      if(g.fail) gfail=g.fail; else { g.rows.forEach(r=>{ rows[r.col]=r; }); glob=g.glob; } } }
+      const g=await fitTogetherAsync(elig.map(c=>({c,seed:rows[c.id].fit?rows[c.id].fit.params:null})),t,o.share,()=>!S.batchRun||S.batchRun.stop||S.pid!==pid);
+      if(S.pid!==pid){ left(); return; }
+      if(g.stopped){ stopped=true; gfail="it was stopped"; }
+      else if(g.fail) gfail=g.fail; else { g.rows.forEach(r=>{ rows[r.col]=r; }); glob=g.glob; } } }
   S.batchRun=null;
   const list=ord.filter(c=>rows[c.id]&&(o.share||colById(c.id))).map(c=>rows[c.id]);
   if(!list.length){ renderBatch(); return; }
@@ -23337,9 +23388,9 @@ async function runBatch(o){
   const how=glob?`together, sharing ${shareSummary(t,glob.share)} (reduced χ² ${fmt(glob.stats.redChi2,4)}, ${glob.stats.m} parameters)`:SEEDS[o.seed];
   save({batch:{at:Date.now(),by:who(),tmpl:t,seed:o.seed,rows:list,glob}},`fitted ${lcFirst(t.name)} to ${list.length} columns${glob?" ":", "}${how}: ${done} fitted${nc?`, ${nc} without converging`:""}${failed?`, ${failed} failed`:""}${stopped?"; stopped before the end":""}${gfail?`; the fit of them together failed (${gfail}), so each has its own, with the shared parameters held at the template's values`:""}`);
   renderAll(); openWin("batch",{render:true});
-  toast(gfail?`Fitting them together failed: ${gfail}. Each column keeps its own fit, with the shared parameters held at the template's values.`:`Fitted ${done} of ${list.length} columns${glob?" together":""} in ${((performance.now()-t0)/1000).toFixed(1)} s.${failed?` ${failed} failed; the table says why.`:""}`,{action:"Undo",run:undo});
+  toast(gfail==="it was stopped"?"Stopped before they were fitted together: each column keeps its own fit, with the shared parameters held at the template's values.":gfail?`Fitting them together failed: ${gfail}. Each column keeps its own fit, with the shared parameters held at the template's values.`:`Fitted ${done} of ${list.length} columns${glob?" together":""} in ${((performance.now()-t0)/1000).toFixed(1)} s.${failed?` ${failed} failed; the table says why.`:""}`,{action:"Undo",run:undo});
 }
-function batchProgHtml(){ const r=S.batchRun; if(!r) return ""; if(r.together) return `<span>Fitting ${esc(r.name)}…</span><span class="bar"><i style="width:100%"></i></span>`; return `<span>Fitting ${r.i+1} of ${r.n}: ${esc(r.name)}…</span><span class="bar"><i style="width:${Math.round(100*r.i/Math.max(1,r.n))}%"></i></span><button class="btn sm" id="bStop">Stop</button>`; }
+function batchProgHtml(){ const r=S.batchRun; if(!r) return ""; if(r.together) return `<span>Fitting ${esc(r.name)}…</span><span class="bar"><i style="width:100%"></i></span><button class="btn sm" id="bStop">Stop</button>`; return `<span>Fitting ${r.i+1} of ${r.n}: ${esc(r.name)}…</span><span class="bar"><i style="width:${Math.round(100*r.i/Math.max(1,r.n))}%"></i></span><button class="btn sm" id="bStop">Stop</button>`; }
 function renderBatchProgress(){ const el=$("#bProg"); if(el){ el.innerHTML=batchProgHtml(); const s=$("#bStop"); if(s) s.onclick=()=>{ if(S.batchRun) S.batchRun.stop=true; }; } else if(winOpen("batch")) renderBatch(); }
 function clearBatch(){ const p=P(); if(!p||!p.batch||S.readOnly) return; pushUndo("clearing the batch fit"); save({batch:null},"cleared the batch fit"); renderAll(); toast("Batch fit cleared.",{action:"Undo",run:undo}); }
 /* The same peak across the spectra. With the peaks found in each spectrum, the

@@ -1128,6 +1128,38 @@ await page(async p => {
   check("Hide the header fields: gone", r === 0, JSON.stringify(r));
 }, { name: "the files' header fields as rows" });
 
+console.log("Roadmap 7, slice 3: global fits in a worker");
+await page(async p => {
+  const mk = (n, len) => p.evaluate(async ([n, len]) => {
+    let s = 11; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; }, gn = () => Math.sqrt(-2 * Math.log(rnd() + 1e-12)) * Math.cos(2 * Math.PI * rnd());
+    const x = Array.from({ length: len }, (_, i) => 60 + i * 80 / len), X = makeCol("x", "Shift", "cm-1", x), cols = [X];
+    for (let k = 0; k < n; k++) { const T = 280 + 40 * k / Math.max(1, n - 1); cols.push(Object.assign(makeCol("y", "T" + T.toFixed(1), "", x.map(v => 3 + (40 + k) * Math.exp(-0.5 * ((v - (100 + 0.4 * (T - 300))) / 3) ** 2) + 0.4 * gn())), { pipe: [], mask: [] })); }
+    const pr = Object.assign(blankProject("Worker " + n), { cols, activeY: cols[1].id, series: { mode: "name", label: "Temperature", unit: "K", vals: {}, q: null, line: false } });
+    pr.graphs = [{ id: newGid(), name: "Graph 1", cols: [cols[1].id], plot: { style: "auto" } }];
+    await createProject(pr, "test"); await new Promise(r => setTimeout(r, 80)); renderAll();
+    prefSet("anim", false); applyAnim(); S.fitMode = "curve"; showTab("fit"); chooseModel("gauss"); runFit(); }, [n, len]);
+  await mk(5, 161); await p.waitForTimeout(700);
+  let r = await p.evaluate(async () => { const t = batchTemplate(activeFit()), share = [true, false, "lin", true];
+    runBatch({ tmpl: t, seed: "tmpl", cols: yCols().map(c => c.id), share }); for (let i = 0; i < 100 && S.batchRun; i++) await new Promise(r => setTimeout(r, 100));
+    const g = P().batch.glob, sync = fitTogether(seriesCols().map(q => ({ c: q.c, seed: P().batch.rows.find(z => z.col === q.c.id).fit.params })), t, share);
+    return { worker: !!(GFW && GFW.w), b: g.follow[0].b, sb: g.follow[0].sb, sync: sync.glob && sync.glob.follow[0].b, rows: P().batch.rows.filter(z => z.fit && z.fit.global).length }; });
+  check("the fit of them all together runs in a worker, and gives what the page would", r.worker && r.rows === 5 && Math.abs(r.b - 0.4) < 4 * r.sb && Math.abs(r.b - r.sync) < 0.05 * r.sb, JSON.stringify(r));
+  r = await p.evaluate(async () => { GFW = false; const t = batchTemplate(activeFit()); runBatch({ tmpl: t, seed: "tmpl", cols: yCols().map(c => c.id), share: [true, false, "lin", true] });
+    for (let i = 0; i < 100 && S.batchRun; i++) await new Promise(r => setTimeout(r, 100)); const g = P().batch.glob; GFW = null; return { b: g && g.follow[0].b, sb: g && g.follow[0].sb }; });
+  check("where no worker can be made, the page fits them itself, to the same result", r.b != null && Math.abs(r.b - 0.4) < 4 * r.sb, JSON.stringify(r));
+  // A large one: the page answers while it runs, and Stop is heard.
+  await mk(80, 3000); await p.waitForTimeout(1500);
+  await p.evaluate(() => { runBatch({ tmpl: batchTemplate(activeFit()), seed: "tmpl", cols: yCols().map(c => c.id), share: [true, false, "lin", true] }); });
+  for (let i = 0; i < 200 && !(await p.evaluate(() => !!(S.batchRun && S.batchRun.together))); i++) await p.waitForTimeout(100);
+  await p.waitForTimeout(150);
+  const t0 = Date.now(); r = await p.evaluate(() => ({ on: !!(S.batchRun && S.batchRun.together), stop: !!document.querySelector("#bStop") })); const lag = Date.now() - t0;
+  check("while 80 columns are fitted together the page answers at once, with Stop", r.on && r.stop && lag < 300, JSON.stringify([r, lag]));
+  await p.evaluate(() => { const b = document.querySelector("#bStop"); if (b) b.click(); });
+  for (let i = 0; i < 50 && await p.evaluate(() => !!S.batchRun); i++) await p.waitForTimeout(100);
+  r = await p.evaluate(() => ({ run: !!S.batchRun, glob: !!(P().batch && P().batch.glob), rows: P().batch ? P().batch.rows.filter(z => z.fit).length : 0, toast: document.querySelector("#toast").textContent, w: GFW }));
+  check("Stop ends it: each column keeps its own fit, and it says so", !r.run && !r.glob && r.rows === 80 && /Stopped before they were fitted together/.test(r.toast) && r.w === null, JSON.stringify(r));
+}, { name: "global fits in a worker" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);
