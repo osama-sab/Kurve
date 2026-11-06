@@ -1209,6 +1209,25 @@ await page(async p => {
   check("a JCAMP-DX file in pages is refused, saying why", /fid\.jdx is a JCAMP-DX file in pages/.test(r.toast) && !r.open, JSON.stringify(r));
 }, { name: "JCAMP-DX files" });
 
+console.log("Roadmap 8, slice 2: SPC files");
+await page(async p => {
+  await p.evaluate(async () => { await createProject(blankProject("SPC"), "test"); await new Promise(r => setTimeout(r, 80)); renderAll(); prefSet("anim", false); applyAnim();
+    // A one-subfile SPC: 5 points from 400 to 404 cm⁻¹, absorbance as floats, a memo.
+    const b = new Uint8Array(512 + 32 + 20), dv = new DataView(b.buffer); b[1] = 0x4B; b[2] = 4; dv.setInt8(3, -128); dv.setUint32(4, 5, true); dv.setFloat64(8, 400, true); dv.setFloat64(16, 404, true); dv.setUint32(24, 1, true); b[28] = 1; b[29] = 2;
+    "Polystyrene film".split("").forEach((c, i) => { b[88 + i] = c.charCodeAt(0); }); dv.setInt8(513, -128); dv.setUint32(512 + 16, 5, true); [0.1, 0.2, 0.4, 0.3, 0.1].forEach((v, i) => dv.setFloat32(544 + 4 * i, v, true));
+    window.__spc = b; });
+  await p.evaluate(() => readFileIn(new File([window.__spc], "film.spc"))); await p.waitForTimeout(600);
+  let r = await p.evaluate(() => ({ open: !document.querySelector("#impModal").hidden, h: S.imp && S.imp.res.headerRow, memo: S.imp && S.imp.res.meta.Memo }));
+  check("an SPC file chosen is read as bytes and opens the import dialog, decoded, its memo kept", r.open && r.h && r.h.join("|") === "Wavenumber (cm⁻¹)|Absorbance" && r.memo === "Polystyrene film", JSON.stringify(r));
+  await p.evaluate(() => doImport()); await p.waitForTimeout(600);
+  r = await p.evaluate(() => { const y = yCols().slice(-1)[0]; return { y: y.data.map(v => +v.toFixed(4)).join(), memo: y.meta && y.meta.Memo, x: xColFor(y).data.join() }; });
+  check("…into the worksheet with its header's fields", r.y === "0.1,0.2,0.4,0.3,0.1" && r.x === "400,401,402,403,404" && r.memo === "Polystyrene film", JSON.stringify(r));
+  r = await p.evaluate(async () => { const got = await readDropped([new File([window.__spc], "drop.spc"), new File([new Uint8Array(600)], "junk.spc")]); return got.map(g => g.fail || (g.text.split("\n").length + " lines")); });
+  check("dropped SPC files: one read, one refused in words", r[0] === "8 lines" && /not an SPC file/.test(r[1]), JSON.stringify(r));
+  r = await p.evaluate(async () => { const b = window.__spc.slice(); b[1] = 0x4D; readFileIn(new File([b], "old.spc")); await new Promise(res => setTimeout(res, 300)); return document.querySelector("#toast").textContent; });
+  check("an SPC file in the old format is refused, saying why", /old\.spc is an SPC file in the old format/.test(r), JSON.stringify(r));
+}, { name: "SPC files" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

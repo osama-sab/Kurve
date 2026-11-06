@@ -889,6 +889,17 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: SPC (roadmap 8, slice 2)
+
+- **The first binary format, read the way text is.** An SPC file is decoded from its bytes into the
+  same table a text export would give (its header's fields as `Key: value` lines, then the columns
+  under their names), and the import goes on from there: the dialog, a drop and several files at
+  once read it as they read text, with nothing of their own to learn.
+- **Subfiles are columns**: several on one X are one X and a column each; each with its own X are
+  X, Y pairs, as two exported tables would be.
+- **The old format is refused** with the reason and what to do: it is rare now, and read wrongly a
+  spectrum is worse than none.
+
 ### 2026-11-06: JCAMP-DX (roadmap 8, slice 1)
 
 - **Decoded before it is shown.** A JCAMP-DX file is mostly a compressed code no one reads; the

@@ -2186,7 +2186,7 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
     <button class="tb icon" id="xplBtn" aria-pressed="true" aria-controls="xpl" aria-label="Project Explorer" title="Project Explorer (Alt+1)"><svg class="ic"><use href="#i-tree"/></svg></button>
     <div class="tsep"></div>
     <button class="tb lbl" id="importBtn" title="Import (Ctrl+O)"><svg class="ic"><use href="#i-upload"/></svg><span>Import</span></button>
-    <input type="file" id="fileIn" accept=".csv,.txt,.tsv,.dat,.asc,.xy,.prn,.dpt,.text,.tka,.spe,.n42,.xml,.jdx,.dx,.jcm" class="sr" tabindex="-1" aria-hidden="true" multiple>
+    <input type="file" id="fileIn" accept=".csv,.txt,.tsv,.dat,.asc,.xy,.prn,.dpt,.text,.tka,.spe,.n42,.xml,.jdx,.dx,.jcm,.spc" class="sr" tabindex="-1" aria-hidden="true" multiple>
     <button class="tb lbl" id="exportBtn" aria-haspopup="menu" aria-expanded="false" title="Export"><svg class="ic"><use href="#i-download"/></svg><span>Export</span><svg class="ic sm"><use href="#i-chev"/></svg></button>
     <div class="tsep"></div>
     <button class="tb icon" id="undoBtn" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
@@ -6255,6 +6255,59 @@ function jcampFile(text){
   const skip=new Set(["XYDATA","XYPOINTS","PEAKTABLE","END","FIRSTX","LASTX","NPOINTS","XFACTOR","YFACTOR","FIRSTY","MINX","MAXX","MINY","MAXY","DELTAX","BLOCKS","BLOCKID"]), meta={};
   for(let q=b;q;q=q.outer) q.labels.forEach(r=>{ if(skip.has(r.k)||meta[r.name]!=null||Object.keys(meta).length>=40) return; const v=[r.v].concat(r.lines).join(" ").trim(); if(v) meta[r.name]=v.slice(0,400); });
   return {kind:"JCAMP-DX",form,x:X,y:Y,xn,xu,yn,yu,title:String(lab("TITLE")||"").slice(0,120),meta}; }
+/* SPC (roadmap 8, slice 2): Thermo Galactic's binary format, written by many IR, Raman and UV–visible
+   instruments. spcFile(bytes) reads the new format (version 4Bh, little-endian, or 4Ch, big-endian):
+   the 512-byte header (flags, Y's exponent, points, first and last X, subfiles, X and Y types, date,
+   resolution, source, memo, method, axis labels), an X array shared by every subfile (TXVALS) or
+   each subfile's own (TXYXYS), else X evenly from first to last; each subfile's 32-byte header and its
+   Y as 32-bit floats (exponent 80h) or integers scaled by 2^(exp − 32), or 16-bit ones (TSPREC) by
+   2^(exp − 16). {kind, xs, ys, xn, xu, yn, yu, shared, meta} or {fail} in words; the old format (4Dh)
+   is refused. spcTable(sp) writes it as the text the import reads: the header's fields as Key: value
+   lines, then the columns under Name (unit) headers. */
+const SPC_X={0:["X",""],1:["Wavenumber","cm⁻¹"],2:["Wavelength","µm"],3:["Wavelength","nm"],4:["Time","s"],5:["Time","min"],6:["Frequency","Hz"],7:["Frequency","kHz"],8:["Frequency","MHz"],9:["m/z",""],10:["Chemical shift","ppm"],11:["Time","d"],12:["Time","a"],13:["Raman shift","cm⁻¹"],14:["Energy","eV"],16:["Diode",""],17:["Channel",""],18:["Angle","°"],19:["Temperature","°F"],20:["Temperature","°C"],21:["Temperature","K"],22:["Point",""],23:["Time","ms"],24:["Time","µs"],25:["Time","ns"],26:["Frequency","GHz"],27:["Length","cm"],28:["Length","m"],29:["Length","mm"],30:["Time","h"]};
+const SPC_Y={0:["Intensity",""],1:["Interferogram",""],2:["Absorbance",""],3:["Kubelka–Munk",""],4:["Counts","counts"],5:["Voltage","V"],6:["Angle","°"],7:["Current","mA"],8:["Length","mm"],9:["Voltage","mV"],10:["log(1/R)",""],11:["Percent","%"],12:["Intensity",""],13:["Relative intensity",""],14:["Energy",""],16:["Level","dB"],19:["Temperature","°F"],20:["Temperature","°C"],21:["Temperature","K"],22:["Refractive index",""],23:["Extinction coefficient",""],24:["Real",""],25:["Imaginary",""],26:["Complex",""],128:["Transmittance",""],129:["Reflectance",""],130:["Single beam",""],131:["Emission",""]};
+const SPC_EXP=["General","Gas chromatogram","Chromatogram","HPLC chromatogram","FT-IR, FT-NIR or FT-Raman","NIR","","UV–visible","X-ray diffraction","Mass","NMR","Raman","Fluorescence","Atomic","Diode array chromatogram"];
+const SPC_MAXSUB=300;
+function spcFile(bytes){
+  const b=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes||[]); if(b.length<512) return {fail:"too short for an SPC file"};
+  const ver=b[1]; if(ver===0x4D) return {fail:"an SPC file in the old format (before 1996), which is not read: save it again as a new SPC file, or as text, from the instrument software"};
+  if(ver!==0x4B&&ver!==0x4C) return {fail:"not an SPC file Kurve can read (its version byte is "+ver+")"};
+  const le=ver===0x4B, dv=new DataView(b.buffer,b.byteOffset,b.byteLength), fl=b[0];
+  const TSPREC=!!(fl&1), TMULTI=!!(fl&4), TALABS=!!(fl&32), TXYXYS=!!(fl&64), TXVALS=!!(fl&128);
+  const str=(o,n)=>{ let s=""; for(let i=o;i<o+n&&i<b.length&&b[i];i++) s+=String.fromCharCode(b[i]); return s.replace(/[\x00-\x1f]+/g," ").trim(); };
+  const fexp=dv.getInt8(3), fnpts=dv.getUint32(4,le), ffirst=dv.getFloat64(8,le), flast=dv.getFloat64(16,le), fnsub=Math.max(1,dv.getUint32(24,le));
+  const xt=b[28], yt=b[29], dt=dv.getUint32(32,le);
+  if(fnsub>SPC_MAXSUB) return {fail:`an SPC file of ${fnsub} subfiles, more than the ${SPC_MAXSUB} Kurve reads at once`};
+  if(!TXYXYS&&!(fnpts>=1&&fnpts<=1e7)) return {fail:"an SPC file whose number of points cannot be right"};
+  let at=512, X0=null;
+  const need=n=>{ if(at+n>b.length) throw new Error("short"); };
+  try{
+    if(TXVALS&&!TXYXYS){ need(4*fnpts); X0=new Array(fnpts); for(let i=0;i<fnpts;i++) X0[i]=dv.getFloat32(at+4*i,le); at+=4*fnpts; }
+    else if(!TXYXYS){ X0=new Array(fnpts); for(let i=0;i<fnpts;i++) X0[i]=fnpts>1?ffirst+i*(flast-ffirst)/(fnpts-1):ffirst; }
+    const xs=[], ys=[];
+    for(let k=0;k<fnsub;k++){ need(32); const sexp=dv.getInt8(at+1), snp=dv.getUint32(at+16,le); at+=32;
+      let X=X0; const n=TXYXYS?snp:fnpts; if(!(n>=1&&n<=1e7)) return {fail:`subfile ${k+1} of the SPC file has a number of points that cannot be right`};
+      if(TXYXYS){ need(4*n); X=new Array(n); for(let i=0;i<n;i++) X[i]=dv.getFloat32(at+4*i,le); at+=4*n; }
+      const flt=fexp===-128||sexp===-128, e=(!TMULTI&&sexp===0&&fexp!==0)?fexp:sexp, Y=new Array(n);
+      if(flt){ need(4*n); for(let i=0;i<n;i++) Y[i]=dv.getFloat32(at+4*i,le); at+=4*n; }
+      else if(TSPREC){ need(2*n); const s=Math.pow(2,e-16); for(let i=0;i<n;i++) Y[i]=dv.getInt16(at+2*i,le)*s; at+=2*n; }
+      else { need(4*n); const s=Math.pow(2,e-32); for(let i=0;i<n;i++) Y[i]=dv.getInt32(at+4*i,le)*s; at+=4*n; }
+      xs.push(X); ys.push(Y.map(v=>Number.isFinite(v)?v:null)); }
+    let [xn,xu]=SPC_X[xt]||["X",""], [yn,yu]=SPC_Y[yt]||["Intensity",""];
+    // Its own axis labels, separated by NUL characters.
+    if(TALABS){ const lb=Array.from(b.subarray(218,248)).map(c=>c?String.fromCharCode(c):"\u0000").join("").split("\u0000").map(q=>q.trim()); if(lb[0]) [xn,xu]=[lb[0],""]; if(lb[1]) [yn,yu]=[lb[1],""]; }
+    const meta={}, put=(k,v)=>{ if(v) meta[k]=String(v).slice(0,400); };
+    put("Experiment",SPC_EXP[b[2]]||""); put("Memo",str(88,130)); put("Source",str(45,9)); put("Resolution",str(36,9)); put("Method",str(264,48));
+    if(dt){ const mi=dt&63, h=(dt>>6)&31, d=(dt>>11)&31, mo=(dt>>16)&15, y=dt>>>20; if(y&&mo&&d) put("Measured",`${y}-${String(mo).padStart(2,"0")}-${String(d).padStart(2,"0")} ${String(h).padStart(2,"0")}:${String(mi).padStart(2,"0")}`); }
+    if(fnsub>1) put("Subfiles",String(fnsub));
+    return {kind:"SPC",xs,ys,xn,xu,yn,yu,shared:!TXYXYS,meta}; }
+  catch(err){ return {fail:"an SPC file that ends before its data do"}; } }
+function spcTable(sp){
+  const lines=Object.keys(sp.meta).map(k=>`${k}: ${sp.meta[k]}`), hx=sp.xn+(sp.xu?" ("+sp.xu+")":""), K=sp.ys.length;
+  const yh=k=>(K>1?`${sp.yn} ${k+1}`:sp.yn)+(sp.yu?" ("+sp.yu+")":""), fn=v=>v==null||!Number.isFinite(v)?"":String(v);
+  if(sp.shared){ lines.push([hx].concat(sp.ys.map((_,k)=>yh(k))).join("\t")); const n=sp.xs[0].length; for(let i=0;i<n;i++) lines.push([fn(sp.xs[0][i])].concat(sp.ys.map(Y=>fn(Y[i]))).join("\t")); }
+  else { lines.push(sp.ys.map((_,k)=>hx+"\t"+yh(k)).join("\t")); const n=Math.max(...sp.ys.map(Y=>Y.length)); for(let i=0;i<n;i++) lines.push(sp.ys.map((Y,k)=>fn(sp.xs[k][i])+"\t"+fn(Y[i])).join("\t")); }
+  return lines.join("\n"); }
 function analyzeFile(raw,opt){
   opt=opt||{};
   // JCAMP-DX: decoded into a table of X and Y under their names, its labels kept as the file's header.
@@ -15545,6 +15598,7 @@ function impCounts(i){ const r=S.imp.res, ys=(r.cols[i]||[]).filter(v=>v!=null);
 const impSqrtable=()=>impYs().filter(i=>impErrFor(i)<0&&impCounts(i));
 function impFindings(){
   const {x,y}=impCols(), out=[], r=S.imp.res, ny=impYs().length;
+  if(/\.spc$/i.test(S.imp.fname||"")) out.push({id:"spc",level:"good",text:`An SPC file, decoded from its bytes: ${fmtCount(r.rows.length)} points in ${r.ncol-1} column${r.ncol===2?"":"s"} besides X. Its header's ${Object.keys(r.meta).length} fields are kept with the columns.`});
   if(r.jdx) out.push({id:"jdx",level:"good",text:`A JCAMP-DX file in ${r.jdx.form}: ${fmtCount(r.jdx.n)} points${r.jdx.title?`, “${r.jdx.title}”`:""}, shown here decoded. Its ${Object.keys(r.meta).length} labels are kept as the file's header fields.`});
   if(r.mca) out.push({id:"mca",level:"good",text:`A multichannel analyser's ${r.mca.kind==="N42"?"N42":".Spe"} file: ${fmtCount(r.rows.length)} channels from ${r.mca.ch0}${r.tka?`, live time ${r.tka.live} s and real time ${r.tka.real} s`:""}${r.mca.date?`, measured ${r.mca.date}`:""}. The counts are kept as recorded.`,fix:r.tka?"rate":undefined,fixLabel:"Counts per second"});
   if(r.mca&&r.mca.cal){ const c=r.mca.cal.co, nf6=v=>String(+(+v).toPrecision(6)); out.push({id:"ecal",level:"good",text:`Its energy calibration: E = ${nf6(c[0])} + ${nf6(c[1])}·ch${c[2]?` + ${nf6(c[2])}·ch²`:""} ${r.mca.cal.unit}, as an Energy calibration step on the counts.`,fix:"ecal",fixLabel:"Calibrate to energy"}); }
@@ -15855,8 +15909,7 @@ function readFilesIn(files){
   if(files.length===1){ readFileIn(files[0]); return; }
   if(files.length>80){ toast(`Importing the first 80 of ${files.length} files.`); files=files.slice(0,80); }
   Promise.all(files.map(f=>new Promise(res=>{
-    if(f.size>60e6){ res(batchFail(f.name,`${Math.round(f.size/1e6)} MB, too large for a text column`)); return; }
-    const rd=new FileReader(); rd.onload=()=>res(batchFile(f.name,String(rd.result))); rd.onerror=()=>res(batchFail(f.name,"could not be read")); rd.readAsText(f); })))
+    readAny(f).then(r=>res(r.fail?batchFail(f.name,r.fail):batchFile(f.name,r.text))); })))
     .then(list=>batchImport([].concat(...list),{files:files.length}));
 }
 const baseName=f=>String(f||"").replace(/\.\w+$/,"");
@@ -15947,9 +16000,7 @@ function fileDropAt(x,y){
     const tk=el.closest(".tk[data-tk]"); if(tk&&P()){ const g=graphOfWin(tk.dataset.tk); if(g&&!isFigId(g)) return {gid:g, el:tk, text:`Drop to plot in ${graphName(g)}`}; } }
   return {text:"Drop to bring into the worksheet"};
 }
-function readDropped(files){ return Promise.all(files.map(f=>new Promise(res=>{
-  if(f.size>60e6){ res({name:f.name,fail:`${Math.round(f.size/1e6)} MB, too large for a text column`}); return; }
-  const rd=new FileReader(); rd.onload=()=>res({name:f.name,text:String(rd.result)}); rd.onerror=()=>res({name:f.name,fail:"could not be read"}); rd.readAsText(f); }))); }
+function readDropped(files){ return Promise.all(files.map(readAny)); }
 async function autoImport(files,o){
   o=o||{}; if(S.readOnly||!S.store){ toast("You can view this workspace but not import into it."); return null; }
   if(files.length>80){ toast(`Importing the first 80 of ${files.length} files.`); files=files.slice(0,80); }
@@ -16285,8 +16336,16 @@ function wireXpl(){
   addEventListener("resize",()=>applyXpl());
   applyXpl();
 }
+// A file as the import reads it: text, or an SPC file's bytes decoded into a table (roadmap 8, slice 2).
+function readAny(f){ return new Promise(res=>{
+  if(f.size>60e6){ res({name:f.name,fail:`${Math.round(f.size/1e6)} MB, too large for a text column`}); return; }
+  const rd=new FileReader(), spc=/\.spc$/i.test(f.name||"");
+  rd.onload=()=>{ if(!spc){ res({name:f.name,text:String(rd.result)}); return; } const sp=spcFile(new Uint8Array(rd.result)); res(sp.fail?{name:f.name,fail:sp.fail}:{name:f.name,text:spcTable(sp),spc:true}); };
+  rd.onerror=()=>res({name:f.name,fail:"could not be read"});
+  if(spc) rd.readAsArrayBuffer(f); else rd.readAsText(f); }); }
 function readFileIn(f){
   if(!f) return;
+  if(/\.spc$/i.test(f.name||"")){ readAny(f).then(r=>{ if(r.fail){ toast(`${f.name} is ${r.fail}.`); logError(`Import of ${f.name}: ${r.fail}`,"import"); } else importText(r.text,f.name); }); return; }
   if(f.size>60e6){ toast(`${f.name} is ${Math.round(f.size/1e6)} MB, more than a text export of a column should be.`); return; }
   const rd=new FileReader();
   rd.onload=()=>importText(String(rd.result),f.name);
@@ -21699,8 +21758,10 @@ ${DL([["X column","<em>Channel number</em>: each line's position, counted from <
 <p>A column of numbers pasted or typed with no X column is drawn against its row number, as in Origin.</p>
 <h2 id="jcamp">JCAMP-DX</h2>
 <p>A JCAMP-DX file (<code>.jdx</code>, <code>.dx</code>), the exchange format of IR, Raman, UV–visible and mass spectrometry, is decoded before the dialog shows it: its data in plain numbers or compressed (the ASDF forms), or as pairs of points or a table of peaks, scaled by its factors, X from its first and last values. Its units name the columns (<code>1/CM</code> becomes Wavenumber in cm⁻¹, or Raman shift when its data type says Raman; <code>NANOMETERS</code> Wavelength in nm; <code>ABSORBANCE</code> Absorbance), and its other labels (title, origin, owner, date, instrument) are kept as the column's header fields, which the worksheet can show as rows. Of a linked file the first block with data is read. A file written in pages (<code>##NTUPLES</code>, as NMR data are) is refused with the reason.</p>
+<h2 id="spc">SPC</h2>
+<p>An SPC file (<code>.spc</code>, Thermo Galactic's format, written by many IR, Raman and UV–visible instruments) is read from its bytes and shown in the dialog as a table: its points as floating-point numbers or scaled integers, X evenly spaced or as written, several subfiles as several columns (on one X, or each with its own as pairs), its X and Y types as names (Wavenumber in cm⁻¹, Raman shift, Absorbance, Transmittance…) or its own axis labels, and its memo, source, resolution, method and date as the columns' header fields. The old format, from before 1996, is refused with the reason.</p>
 <h2>What is refused</h2>
-<p>Binary instrument files (SPC, OPUS, SPE) are refused with a reason. Export them as text from the instrument software first.</p>
+<p>Other binary instrument files (OPUS, Princeton's SPE) are refused with a reason. Export them as text from the instrument software first.</p>
 <p>After an import that plots one column the ${DA("overview","Overview")} opens. Its <em>Show the overview after every import</em> box turns that off.</p>`},
 {id:"prefs", g:"Basics", t:"Preferences", kw:"preferences settings options history log track tracking privacy record off animation animations motion theme dark light style errors overview",
  lead:"Whether Kurve keeps a history of your changes, how it looks and moves, and the errors it has met. Kept in this browser.",

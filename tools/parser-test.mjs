@@ -12,7 +12,7 @@ const m = html.match(/==PARSER:START==[\s\S]*?\*\/([\s\S]*?)\/\* ==PARSER:END==/
 if (!m) { console.error("Could not find the parser block in kurve.html"); process.exit(1); }
 
 // checkColumns formats numbers with the app's fmt(); a plain stub is enough here.
-const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,parseLineList,parseFillList,timeOf};`;
+const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,parseLineList,parseFillList,timeOf,spcFile,spcTable};`;
 const P = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -258,6 +258,47 @@ check("negative kept", close(P.toNumber("-999", "."), -999));
   const none = P.analyzeFile(["##TITLE= empty", "##JCAMP-DX= 4.24", "##END="].join("\n"), { fname: "e.jdx" });
   check("jcamp: no data refused in words", /no ##XYDATA=/.test(none.jdxFail || ""), none.jdxFail);
   check("jcamp: a text that merely mentions JCAMP is read as text", !P.analyzeFile("note: ##JCAMP is a format\n1 2\n3 4\n5 6", {}).jdx);
+}
+/* ---------- 15b4. SPC (Thermo Galactic, binary) ---------- */
+{
+  const eq = (a, b) => a.length === b.length && a.every((v, i) => (v == null && b[i] == null) || Math.abs(v - b[i]) < 1e-6);
+  // An SPC file built byte by byte: o.flags, o.fexp, o.ys (per subfile), o.xs (per subfile, with TXYXYS),
+  // o.xvals (shared X with TXVALS), o.kind ("f32" | "i32" | "i16"), o.sexp, o.ver.
+  const mkSpc = o => {
+    const ver = o.ver || 0x4B, le = ver !== 0x4C, ys = o.ys, K = ys.length, w = o.kind === "i16" ? 2 : 4;
+    let size = 512 + (o.xvals ? 4 * o.xvals.length : 0); ys.forEach((Y, k) => { size += 32 + (o.xs ? 4 * o.xs[k].length : 0) + w * Y.length; });
+    const b = new Uint8Array(size), dv = new DataView(b.buffer);
+    b[0] = o.flags || 0; b[1] = ver; b[2] = o.exper || 0; dv.setInt8(3, o.fexp == null ? -128 : o.fexp);
+    dv.setUint32(4, o.xs ? 0 : ys[0].length, le); dv.setFloat64(8, o.x0 == null ? 400 : o.x0, le); dv.setFloat64(16, o.x1 == null ? 404 : o.x1, le); dv.setUint32(24, K, le);
+    b[28] = o.xt == null ? 1 : o.xt; b[29] = o.yt == null ? 2 : o.yt; dv.setUint32(32, o.date || 0, le);
+    const put = (at, s, n) => { for (let i = 0; i < Math.min(n, s.length); i++) b[at + i] = s.charCodeAt(i); };
+    put(45, o.source || "", 9); put(88, o.memo || "", 130); if (o.cat) put(218, o.cat, 30);
+    let at = 512; if (o.xvals) { o.xvals.forEach((v, i) => dv.setFloat32(at + 4 * i, v, le)); at += 4 * o.xvals.length; }
+    ys.forEach((Y, k) => { dv.setInt8(at + 1, o.sexp == null ? (o.fexp == null ? -128 : 0) : o.sexp); dv.setUint32(at + 16, Y.length, le); at += 32;
+      if (o.xs) { o.xs[k].forEach((v, i) => dv.setFloat32(at + 4 * i, v, le)); at += 4 * o.xs[k].length; }
+      Y.forEach((v, i) => { if (o.kind === "i16") dv.setInt16(at + 2 * i, v, le); else if (o.kind === "i32") dv.setInt32(at + 4 * i, v, le); else dv.setFloat32(at + 4 * i, v, le); }); at += w * Y.length; });
+    return b; };
+  const viaTable = b => { const sp = P.spcFile(b); return sp.fail ? sp : Object.assign(P.analyzeFile(P.spcTable(sp), { fname: "t.spc" }), { sp }); };
+  // date: 2024-03-01 10:05 packed as minutes | hour<<6 | day<<11 | month<<16 | year<<20
+  const date = 5 | (10 << 6) | (1 << 11) | (3 << 16) | (2024 << 20);
+  let r = viaTable(mkSpc({ ys: [[1, 2, 3, 4, 5]], exper: 4, memo: "Polystyrene, 4 scans", source: "Bench3", date }));
+  check("spc: float Y, X evenly from first to last, its types named", r.sp && eq(r.cols[0], [400, 401, 402, 403, 404]) && eq(r.cols[1], [1, 2, 3, 4, 5]) && r.headerRow[0] === "Wavenumber (cm⁻¹)" && r.headerRow[1] === "Absorbance", JSON.stringify([r.cols, r.headerRow]));
+  check("spc: its header's fields kept: memo, source, the measured date, the experiment", r.meta.Memo === "Polystyrene, 4 scans" && r.meta.Source === "Bench3" && r.meta.Measured === "2024-03-01 10:05" && r.meta.Experiment === "FT-IR, FT-NIR or FT-Raman", JSON.stringify(r.meta));
+  r = viaTable(mkSpc({ ys: [[65536, 131072, -32768]], kind: "i32", fexp: 16, sexp: 0, x0: 1, x1: 3, xt: 13, yt: 4 }));
+  check("spc: 32-bit integers scaled by 2^(exp − 32), the file's exponent when the subfile has none; Raman shift and counts", r.sp && eq(r.cols[1], [1, 2, -0.5]) && r.headerRow[0] === "Raman shift (cm⁻¹)" && r.headerRow[1] === "Counts (counts)", JSON.stringify([r.cols, r.headerRow]));
+  r = viaTable(mkSpc({ ys: [[-3, 7, 12]], kind: "i16", flags: 1, fexp: 18, sexp: 18 }));
+  check("spc: 16-bit integers (TSPREC) scaled by 2^(exp − 16)", r.sp && eq(r.cols[1], [-12, 28, 48]), JSON.stringify(r.cols));
+  r = viaTable(mkSpc({ ys: [[1, 2, 3], [4, 5, 6], [7, 8, 9]], flags: 4 | 128, xvals: [1, 2, 4], xt: 3, yt: 128 }));
+  check("spc: several subfiles on one uneven X (TMULTI, TXVALS) are one X and a column each", r.sp && r.ncol === 4 && eq(r.cols[0], [1, 2, 4]) && eq(r.cols[3], [7, 8, 9]) && r.headerRow.join("|") === "Wavelength (nm)|Transmittance 1|Transmittance 2|Transmittance 3" && r.meta.Subfiles === "3", JSON.stringify([r.cols, r.headerRow]));
+  r = viaTable(mkSpc({ ys: [[1, 2, 3], [5, 6]], xs: [[10, 20, 30], [15, 25]], flags: 4 | 64 | 128 }));
+  check("spc: each subfile with its own X (TXYXYS) as X, Y pairs, the shorter one left empty", r.sp && r.ncol === 4 && eq(r.cols[2], [15, 25, null]) && eq(r.cols[3], [5, 6, null]), JSON.stringify(r.cols));
+  r = viaTable(mkSpc({ ys: [[1, 2]], flags: 32, cat: "Shift\u0000Signal\u0000" }));
+  check("spc: its own axis labels (TALABS)", r.headerRow && r.headerRow.join("|") === "Shift|Signal", JSON.stringify(r.headerRow));
+  r = viaTable(mkSpc({ ys: [[1, 2, 3]], ver: 0x4C }));
+  check("spc: the big-endian new format", r.sp && eq(r.cols[1], [1, 2, 3]), JSON.stringify(r.cols));
+  check("spc: the old format refused in words", /old format \(before 1996\)/.test(P.spcFile(mkSpc({ ys: [[1]], ver: 0x4D })).fail || ""));
+  check("spc: a file that ends before its data refused in words", /ends before its data/.test(P.spcFile(mkSpc({ ys: [[1, 2, 3, 4, 5]] }).slice(0, 540)).fail || ""));
+  check("spc: too short, and not one, refused in words", /too short/.test(P.spcFile(new Uint8Array(100)).fail) && /not an SPC file/.test(P.spcFile(new Uint8Array(600)).fail));
 }
 /* ---------- 15b2. analysers' own formats: Maestro and IAEA .Spe, N42 ---------- */
 {

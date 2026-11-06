@@ -888,7 +888,17 @@ graph first, with the taskbar kept at the bottom of the screen.
   for a Raman spectrum); `##NTUPLES` refused. `analyzeFile` decodes it into a tab-separated table
   under `Name (unit)` headers and reads that (`res.jdx {kind, form, n, title}`, `res.meta` the
   labels; a failure `res.jdxFail`, said by `openImport`, `batchFile` and `autoImport`), and
-  `impFindings` says so (`jdx`). `batchFile` reads one-column
+  `impFindings` says so (`jdx`). **SPC** (roadmap 8, slice 2; in the PARSER block): `spcFile(bytes)`
+  reads the new format (4Bh little-endian, 4Ch big-endian; the old 4Dh refused): the 512-byte
+  header, X shared (TXVALS) or each subfile's own (TXYXYS) or even from first to last, each
+  subfile's Y as floats (exponent 80h) or 32- or 16-bit (TSPREC) integers scaled by 2^(exp − 32) or
+  2^(exp − 16) (the file's exponent when a lone subfile has none), the types named by `SPC_X`/
+  `SPC_Y` or its own labels (TALABS, NUL-separated), memo, source, resolution, method, date and
+  experiment (`SPC_EXP`) as `meta`; at most `SPC_MAXSUB` (300) subfiles; `{fail}` in words, a file
+  that ends early too. `spcTable(sp)` writes it as text: `Key: value` lines, then columns under
+  `Name (unit)` headers (one X and a column per subfile, or X, Y pairs). `readAny(f)` is every
+  reader's (`readFileIn`, `readFilesIn`, `readDropped`): an `.spc` read as bytes and decoded, any
+  other file as text; `impFindings` says so (`spc`). `batchFile` reads one-column
   files the same way. A Y column whose X column holds no values is drawn against its row
   number (`rawSeries`, `anyVal`, xn "Row").
 - **Columns and spectra**: a project is a table. `p.cols` is `[{id, role, name, unit, data, of?,
@@ -4068,7 +4078,7 @@ Next, in order:
    in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the files'
    header fields as rows of the worksheet, global fits in a worker: all done 06.11, the roadmap's
    item 7 is done
-8. More files: JCAMP-DX (done 06.11), then SPC; OPUS and SPE last
+8. More files: JCAMP-DX, then SPC (both done 06.11); OPUS and SPE last
 9. Under the hood (projects in IndexedDB: done 05.11; a cell typed into a million rows quick, the
    graph drawing what is in view, every row of a sheet reachable: done 05.11): `tools/odd-test.mjs`
    grown to run every example end to end; the worksheet drawing only the columns in view; speed
@@ -4368,7 +4378,8 @@ Next, in order:
 - Worksheet formulas are whole-column (row by row); there are no cell formulas, no references
   to other rows (`B[i-1]`), no relative formulas when filling right, no replace in find, and
   sorting never reorders the recorded data (by design)
-- Binary instrument formats (SPC, OPUS, SPE) are not read; text exports only. JCAMP-DX is read but
+- Binary instrument formats other than SPC (OPUS, Princeton's SPE) are not read, nor SPC's old
+  format (before 1996) or its log block; text exports only. JCAMP-DX is read but
   for files in pages (`##NTUPLES`, NMR), the forms of `##XYDATA` other than (X++(Y..Y)), and more
   than the first block with data of a linked file
 - The preview pane serves a snapshot of the file, so `location.reload()` re-runs stale code —

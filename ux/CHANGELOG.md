@@ -1024,6 +1024,19 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## More files, slice 2: SPC (2026-11-06)
+
+- SPC files (`.spc`, Thermo Galactic's binary format) are read: floats or scaled 32- or 16-bit
+  integers, X even or as written, several subfiles as columns (one X, or X, Y pairs), the X and Y
+  types as names or the file's own labels, the memo, source, resolution, method, date and experiment
+  as the columns' header fields. Choosing, dropping and importing several at once all read them; the
+  old format (before 1996) and a file that ends early are refused in words.
+
+Checked: `tools/parser-test.mjs` (11 new, files built byte by byte: floats, the header's fields,
+32-bit and 16-bit integers with their exponents, several subfiles on one X and each with its own,
+axis labels, big-endian, the refusals) and `tools/plot-drive.mjs` (4 new: a file chosen into the
+dialog and the worksheet, two dropped, one refused, the old format).
+
 ## More files, slice 1: JCAMP-DX (2026-11-06)
 
 - JCAMP-DX files (`.jdx`, `.dx`) are read: `##XYDATA` in plain numbers or compressed (ASDF), point
