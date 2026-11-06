@@ -330,7 +330,7 @@ await page(async p => {
   const id = await six(p);
   await p.evaluate(id => { openPlotDlg([id.B, id.D]); }, id); await p.waitForTimeout(400);
   let r = await p.evaluate(() => { const cs = [...document.querySelectorAll("#formBody .pgal [data-pk]")]; return { n: cs.length, more: cs.slice(14).map(b => b.dataset.pk), sep: [...document.querySelectorAll("#formBody .pdlg-sep")].map(e => e.textContent), drawn: cs.slice(14).every(b => b.querySelector(".pgt svg circle, .pgt svg rect")) }; });
-  check("four kinds that need another column, after the others, drawn with the data", r.n === 18 && r.more.join() === "bubble,cmap,labels,errbox" && r.sep.includes("With another column") && r.drawn, JSON.stringify(r));
+  check("five kinds that need another column, after the others, drawn with the data", r.n === 19 && r.more.join() === "bubble,cmap,labels,errbox,tmap" && r.sep.includes("With another column") && r.drawn, JSON.stringify(r));
   await p.click('#formBody [data-pk="bubble"]'); await p.waitForTimeout(150);
   r = await p.evaluate(() => ({ ok: !$("#formOk").disabled, need: $("#psuNeed").textContent }));
   check("Bubbles with no size: Plot off, and the note says what to mark", !r.ok && /mark one as Size beside each curve/.test(r.need), JSON.stringify(r));
@@ -622,6 +622,54 @@ await page(async p => {
   r = await p.evaluate(id => { const F = graphOf(id.fid).fig; return [F.shareX, F.shareY]; }, id);
   check("…and a reload keeps Share X in each column and Share Y in each row", r[0] === "col" && r[1] === "row", JSON.stringify(r));
 }, { name: "figure axes shared per column or row" });
+
+console.log("Roadmap 4, slice 5: a map from scattered X, Y, Z");
+await page(async p => {
+  // 300 points scattered over X 0–10 and Y 0–5 (other units), with a value at each.
+  const id = await p.evaluate(async () => {
+    const r = mulberry32(9), x = [], y = [], z = []; for (let i = 0; i < 300; i++) { const a = 10 * r(), b = 5 * r(); x.push(a); y.push(b); z.push(Math.sin(a) + b / 5); }
+    const X = makeCol("x", "Position", "mm", x), Y = Object.assign(makeCol("y", "Depth", "µm", y), { pipe: [], mask: [] }), Z = makeCol("ignore", "Hardness", "GPa", z);
+    await createProject(Object.assign(blankProject("Hardness map"), { cols: [X, Y, Z], activeY: Y.id }), "test"); await new Promise(r => setTimeout(r, 80)); renderAll();
+    return { Y: Y.id, Z: Z.id };
+  });
+  await p.waitForTimeout(300);
+  // Through Plot setup: the card, the note until a colour column is marked, then OK.
+  await p.evaluate(id => { openPlotDlg([id.Y]); }, id); await p.waitForTimeout(500);
+  let r = await p.evaluate(() => ({ card: !!document.querySelector('#formBody [data-pk="tmap"]'), title: (document.querySelector('#formBody [data-pk="tmap"]') || {}).title || "" }));
+  check("Plot setup has the kind Map from X, Y, Z, with what it draws as its tooltip", r.card && /colour map between the points/.test(r.title), JSON.stringify(r));
+  await p.click('#formBody [data-pk="tmap"]'); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ need: (document.querySelector("#psuNeed") || {}).textContent || "", ok: document.querySelector("#formOk").disabled }));
+  check("…waiting, with a note, until a column is marked as the colour", /mark one as Colour/.test(r.need) && r.ok, JSON.stringify(r));
+  await use(p, id.Z, "col"); await p.click("#psuRep"); await p.waitForTimeout(250);
+  await p.click("#formOk"); await p.waitForTimeout(800);
+  r = await p.evaluate(id => { const s = (GP().series || {})[id.Y] || {}; return { type: s.type, zcol: s.zcol === id.Z, img: !!document.querySelector("#plot image[data-tmap]"), bar: !!document.querySelector("#plot rect[fill='url(#zbar)']"), leg: !!document.querySelector("#plot g[data-leg]"), texts: [...document.querySelectorAll("#plot text, #plot [data-rt]")].map(e => e.textContent) }; }, id);
+  check("OK: the map drawn as an image, a colour bar titled by the column, no legend entry for it", r.type === "tmap" && r.zcol && r.img && r.bar && !r.leg && r.texts.some(t => /Hardness/.test(t)), JSON.stringify(r).slice(0, 300));
+  // The readout says the value under the pointer, interpolated.
+  r = await p.evaluate(() => { const svg = document.querySelector("#plot"), bb = svg.getBoundingClientRect(), g = S.geo; return { x: bb.left + g.X(5), y: bb.top + g.Y(2.5) }; });
+  await p.mouse.move(r.x, r.y); await p.waitForTimeout(200);
+  r = await p.evaluate(() => document.querySelector("#readout").textContent);
+  const zv = +((r.match(/value ([-\d.]+)/) || [])[1]), want = Math.sin(5) + 0.5;
+  check("…the readout gives the value under the pointer, near the surface's there", Number.isFinite(zv) && Math.abs(zv - want) < 0.15, JSON.stringify([r, want]));
+  // Contour lines.
+  await p.evaluate(id => { graphMenuItems(id.Y).find(i => i && i.label === "Map").sub().find(i => i.label === "An image and contour lines").run(); }, id); await p.waitForTimeout(500);
+  r = await p.evaluate(() => ({ img: !!document.querySelector("#plot image[data-tmap]"), lines: (document.querySelector("#plot path[data-tlines]") || {}).getAttribute?.("d")?.length || 0 }));
+  check("the curve's Map menu: an image and contour lines", r.img && r.lines > 100, JSON.stringify(r));
+  await p.evaluate(id => { graphMenuItems(id.Y).find(i => i && i.label === "Map").sub().find(i => i.label === "Contour lines").run(); }, id); await p.waitForTimeout(500);
+  r = await p.evaluate(() => ({ img: !!document.querySelector("#plot image[data-tmap]"), lines: !!document.querySelector("#plot path[data-tlines]"), pic: handPic(600, 400, 1).svg }));
+  check("…contour lines alone, and in an export", !r.img && r.lines && /data-tlines/.test(r.pic), JSON.stringify([r.img, r.lines]));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ img: !!document.querySelector("#plot image[data-tmap]"), pic: /data-tmap/.test(handPic(600, 400, 1).svg) }));
+  check("…undo gives the image back, an export drawing it too", r.img && r.pic, JSON.stringify(r));
+  // A masked point leaves the map; the plot type list has the map, and no colour column greys it.
+  r = await p.evaluate(id => { const it = plotTypeItems(colById(id.Y), false).find(i => i && /^Map from X, Y/.test(i.label || "")); return it ? { checked: it.checked, enabled: it.enabled !== false } : null; }, id);
+  check("the curve's Plot type list has Map from X, Y and its colour column, ticked", r && r.checked && r.enabled, JSON.stringify(r));
+  // Points on one line make no map, and draw nothing rather than fail.
+  await p.evaluate(async () => { const x = [1, 2, 3, 4, 5], X = makeCol("x", "a", "", x), Y = Object.assign(makeCol("y", "b", "", x.map(v => 2 * v)), { pipe: [], mask: [] }), Z = makeCol("ignore", "c", "", x);
+    await createProject(Object.assign(blankProject("Line"), { cols: [X, Y, Z], activeY: Y.id }), "test"); await new Promise(r => setTimeout(r, 80)); renderAll(); plotCols([Y.id], { type: "tmap", series: { [Y.id]: { zcol: Z.id } } }); });
+  await p.waitForTimeout(600);
+  r = await p.evaluate(() => { const c = yCols()[0], m = graphMenuItems(c.id).find(i => i && i.label === "Map"); return { img: !!document.querySelector("#plot image[data-tmap]"), why: m ? (m.sub()[0] || {}).group : null }; });
+  check("points on one line: no map, and the Map menu says why", !r.img && /one line/.test(r.why || ""), JSON.stringify(r));
+}, { name: "a map from scattered X, Y, Z" });
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();

@@ -16,7 +16,7 @@ const grab = (tag) => {
 // tools/pipe-test.mjs tests the rest of it. The curve fit's models are a block of
 // their own (MODELS), after the pipeline.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("MODELS")}\n` +
-  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,countBand,activityOf,effCurve,effAt,fwhmCurve,fwhmAt,distFit,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,nuclideSets,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,distGroups,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,countBand,activityOf,effCurve,effAt,fwhmCurve,fwhmAt,distFit,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,nuclideSets,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,distGroups,delaunay,triContours,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -752,6 +752,30 @@ function fitSpec(X, Y, spec, init, opts) {
   check("fill: a trend from one value is refused", !!F({ kind: "trend", xs: [0], ys: [1], r0: 1 }, 3).err);
 }
 
+  {
+    // A map from scattered X, Y, Z: the triangulation and its contour lines.
+    const gx = [], gy = []; for (let i = 0; i < 6; i++) for (let j = 0; j < 5; j++) { gx.push(i * 100); gy.push(j * 0.01); }
+    const tg = N.delaunay(gx, gy);
+    check("a grid of 6 × 5 points (X and Y in different units) makes 2 × 5 × 4 triangles", tg.tri && tg.tri.length / 3 === 40 && tg.n === 30, JSON.stringify(tg.fail || tg.tri.length / 3));
+    const r3 = N.mulberry32(3), rx = Array.from({ length: 400 }, () => r3()), ry = Array.from({ length: 400 }, () => r3()), tr = N.delaunay(rx, ry);
+    let empty = true, area = 0;
+    for (let k = 0; k < tr.tri.length && empty; k += 3) { const [a, b, c] = [tr.tri[k], tr.tri[k + 1], tr.tri[k + 2]];
+      const ax = rx[a], ay = ry[a], bx = rx[b], by = ry[b], cx = rx[c], cy = ry[c], d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by)), a2 = ax * ax + ay * ay, b2 = bx * bx + by * by, c2 = cx * cx + cy * cy;
+      const ux = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / d, uy = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / d, r2 = (ax - ux) ** 2 + (ay - uy) ** 2;
+      for (let i = 0; i < 400; i++) if (i !== a && i !== b && i !== c && (rx[i] - ux) ** 2 + (ry[i] - uy) ** 2 < r2 * (1 - 1e-9)) { empty = false; break; }
+      area += Math.abs((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) / 2; }
+    // The hull's area, by the gift wrap.
+    const hull = (() => { const P = rx.map((x, i) => [x, ry[i]]).sort((a, b) => a[0] - b[0] || a[1] - b[1]), cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], up = [];
+      for (const p of P) { while (lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+      for (const p of P.slice().reverse()) { while (up.length > 1 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+      const h = lo.slice(0, -1).concat(up.slice(0, -1)); let s = 0; for (let i = 0; i < h.length; i++) { const p = h[i], q = h[(i + 1) % h.length]; s += p[0] * q[1] - q[0] * p[1]; } return Math.abs(s) / 2; })();
+    check("400 random points: no point inside any triangle's circle (Delaunay), the triangles covering the hull exactly", empty && Math.abs(area - hull) < 1e-9, JSON.stringify([empty, area, hull]));
+    const zs = rx.map((x, i) => 2 * x + 3 * ry[i]), cl = N.triContours(tr.tri, rx, ry, zs, [1.5, 4]);
+    check("the contour lines of a plane lie on it: 2x + 3y = 1.5 and = 4", cl[0].length > 10 && cl[0].every(s => Math.abs(2 * s[0] + 3 * s[1] - 1.5) < 1e-9 && Math.abs(2 * s[2] + 3 * s[3] - 1.5) < 1e-9) && cl[1].every(s => Math.abs(2 * s[0] + 3 * s[1] - 4) < 1e-9), JSON.stringify([cl[0].length, cl[1].length]));
+    check("refused in words: two points, points on a line, too many; repeats and non-numbers left out", /Three points/.test(N.delaunay([1, 2], [1, 2]).fail) && /one line/.test(N.delaunay([1, 2, 3, 4], [2, 4, 6, 8]).fail) && /More than 20000/.test(N.delaunay(Array.from({ length: 20001 }, (_, i) => i), Array.from({ length: 20001 }, (_, i) => (i * 7919) % 20001)).fail || "") && N.delaunay([0, 1, 0, 0, NaN, 1], [0, 0, 1, 0, 5, null]).n === 3);
+    const t0 = Date.now(), big = N.delaunay(Array.from({ length: 5000 }, () => r3()), Array.from({ length: 5000 }, () => r3()));
+    check("5000 points triangulated within two seconds", big.tri && Date.now() - t0 < 2000, Date.now() - t0);
+  }
 /* ---------- p-values against known values ---------- */
 check("tPvalue: t=2.228, dof=10 is ~0.05", near(N.tPvalue(2.228, 10), 0.05, 5e-4), N.tPvalue(2.228, 10));
 check("tPvalue: t=0 is 1", near(N.tPvalue(0, 10), 1, 1e-12), N.tPvalue(0, 10));

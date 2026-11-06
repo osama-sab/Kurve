@@ -2074,7 +2074,19 @@ graph first, with the taskbar kept at the bottom of the screen.
   `mapWhy`, `mapZ(x, y)` (the readout's value). Cuts: `mapCutX(x)` (the series' `cuts` `[{x,
   xu}]`, a dashed line and a trend graph of `cut@x`, `valueAtX`, one undo entry), `mapCutY(row)`
   (the nearest spectrum, `mapNearest`, on a graph of its own); `mapMenuItems` (the graph
-  menu's Map). **Styling**: `serStyle`'s `conn` (`CONN_KINDS`: `smoothD`, Catmull–Rom or a
+  menu's Map). **A map from scattered X, Y, Z** (roadmap 4, slice 5): a curve of type `tmap` (not in
+  `PLOT_TYPES`: Plot setup's kind `tmap` in `PLOT_DLG_KINDS`/`MORE_KINDS`, needing a Colour column,
+  `psuType` giving `tmap`; `plotTypeItems`' *Map from X, Y and its colour column*, enabled with a
+  `zcol`; a new graph's `style` stays `scatter`) and its `zcol`: `seriesSvg` (no `viewSlice`) asks
+  `triMapOf(pts, zc)` (the points with a value, `delaunay` in NUMERICS, memoised per Z column in
+  `TRIM`; `{tri, X, Y, Z}` or `{fail}`) and draws `triImage` (each pixel's value by barycentric
+  interpolation in screen space, at most 700 × 500 on screen and 1400 × 1000 in an export, through
+  the colour map at the colour bar's range, `zSt`'s `zlo`/`zhi`/`tcm`/`tlev`) as `image[data-tmap]`,
+  and `triContours` at `mapLevels` as `path[data-tlines]`, by the series' `tkind` (`TMAP_KINDS`:
+  image, both, lines; in `serStyle`); `geo.tmapZ(px, py)` the value under the pointer (the readout);
+  the colour bar as for symbols coloured by a column; no legend entry. `tmapItems(c)` (a `tmap`
+  curve's right-click *Map*: drawn as, levels, colour map, a failure as its heading), `pointsOfCol(c)`.
+  **Styling**: `serStyle`'s `conn` (`CONN_KINDS`: `smoothD`, Catmull–Rom or a
   clamped uniform B-spline, up to 4000 points), `zcol`/`scol` (`zMapOf`: a third column's
   value at each point's recorded row, as a colour from the map or a size; the first series
   coloured gets a colour bar, `zbar`, room made in the margin; the first series sized gets a
@@ -3932,6 +3944,7 @@ Next, in order:
    log-normal, exponential) with its parameters (done 06.11); box charts of one column grouped by another, notched
    boxes (done 06.11); stacked and grouped bars with category names (done 06.11); per-row or per-column shared axes in a
    figure (done 06.11); a map from scattered X, Y, Z (triangulated) rather than from spectra
+   (done 06.11): the roadmap's item 4 is done
 5. Figures, further still: the graph's own fonts embedded in a PDF, a break at a chosen place
    with its own scale on each side, polygons and curved arrows
 6. Getting around: a visible undo list, flow chart zoom and packed
@@ -4063,7 +4076,10 @@ Next, in order:
 - Maps: the rows between two spectra are a straight-line interpolation; the side always spans
   the series (a Y zoom is not followed); contour levels are round numbers (about n), not
   values chosen one by one; a level whose lines have no stretch 60 px long goes unlabelled; a
-  cut at one value of the series shows the nearest measured spectrum, not one interpolated
+  cut at one value of the series shows the nearest measured spectrum, not one interpolated. A
+  map from scattered X, Y, Z is linear within Delaunay triangles (no smoothing, no kriging, no
+  extrapolation past the points' outline), up to 20 000 points, its contour lines unlabelled, one
+  map a curve, coloured on a linear scale
 - Styling: the size legend is for the first spectrum sized by a column, in round values within
   its range; colour and size are read by
   recorded row, so a derived spectrum's points take its source's rows; a fill between two

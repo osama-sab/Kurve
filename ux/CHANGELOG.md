@@ -1024,6 +1024,20 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plots, slice 5: a map from scattered X, Y, Z (2026-11-06)
+
+- Plot setup's kind *Map from X, Y, Z* (and *Map from X, Y and its colour column* in a curve's Plot
+  type): the points joined by Delaunay triangles, the value interpolated across each, drawn as an
+  image in the colour map with its colour bar; the curve's *Map* menu adds contour lines or draws
+  them alone, with the levels and colour map; the status bar reads the value under the pointer. Up
+  to 20 000 points (6000 in about 35 ms). The roadmap's item 4 is done.
+
+Checked: `tools/fit-test.mjs` (5 new: a grid's triangles, the empty-circle property and the hull
+covered on 400 random points, contour lines lying on a plane, refusals, 5000 points within two
+seconds), `tools/plot-drive.mjs` (9 new: the kind and its note, OK, the image, colour bar and legend,
+the value under the pointer, contour lines with and without the image, an export, undo, the plot type
+list, points on one line).
+
 ## Plots, slice 4: axes shared per column or per row in a figure (2026-11-06)
 
 - A figure's Panels… dialog shares X with every panel or with the panels of each column, and Y with

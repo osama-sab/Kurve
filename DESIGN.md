@@ -889,6 +889,19 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: a map from scattered X, Y, Z (roadmap 4, slice 5)
+
+- **A map is a curve drawn another way**, not a layout: the Y column against its X, with the colour
+  column it already had for symbols coloured by value. So it is a kind in Plot setup beside Colour
+  by value (needing the same Colour column, with the same note until it has one), and a plot type of
+  any curve that has a colour column; its colour bar is the one those symbols have.
+- **Triangles, in proportion.** The points are joined by Delaunay triangles worked out with X and Y
+  each scaled to their range, so a map in millimetres against micrometres is not made of slivers;
+  the value is interpolated linearly in each triangle, which never invents a value beyond the
+  measured ones, and nothing is drawn outside the points' outline.
+- **What it cannot draw it says**, in the curve's Map menu (points on one line, too many points),
+  rather than drawing nothing silently.
+
 ### 2026-11-06: axes shared per column or per row in a figure (roadmap 4, slice 4)
 
 - **Sharing has a scope.** A figure of a spectrum beside its detail, or two instruments side by
