@@ -81,7 +81,7 @@ async function check(tag){
     if(!!S.ws.edit!==!!S.editing) out.push(`edit ${!!S.ws.edit} but editing ${!!S.editing}`);
     if(S.ws.edit&&!document.querySelector("#ws input.wsed")&&winOpen("sheet")){ const e=S.ws.edit, w=S.ws.win; if(w&&e.r>=w[0]&&e.r<w[1]) out.push("editing a drawn cell with no text box in it"); }
     // what is drawn is what is there
-    const m=wsLive(); if(m&&!S.ws.edit&&winOpen("sheet")){ let n=0; document.querySelectorAll("#ws td[data-ci][data-r]").forEach(td=>{ if(n>4) return; const r=+td.dataset.r, c=+td.dataset.ci; if(td.classList.contains("editing")) return; const want=wsText(m,r,c); if(td.textContent!==want){ n++; out.push(`cell ${(m.cols[c]||{}).letter}${r+1} shows "${td.textContent}" but holds "${want}"`); } }); }
+    const m=wsLive(); if(m&&!S.ws.edit&&winOpen("sheet")){ let n=0; document.querySelectorAll("#ws td[data-ci][data-r]").forEach(td=>{ if(n>4) return; const r=+td.dataset.r, c=+td.dataset.ci; if(td.classList.contains("editing")) return; const want=wsText(m,r,c), shown=uniRuns(want).map(q=>q.s).join(""); /* cm⁻¹ is set as a real superscript, its text cm−1 */ if(td.textContent!==want&&td.textContent!==shown){ n++; out.push(`cell ${(m.cols[c]||{}).letter}${r+1} shows "${td.textContent}" but holds "${want}"`); } }); }
     const s=S.ws; if(m&&(s.c<0||s.c>=m.cols.length)) out.push("selection off the sheet");
     // What is stored is what is on screen, once nothing waits to be saved.
     if(!Object.keys(wsPatch).length&&!S.ws.edit&&!(S.store.busy&&S.store.busy[S.pid])){ try{ const st=await S.store.stored(S.pid); if(st){ const f=cs=>JSON.stringify((cs||[]).filter(c=>!c.src).map(c=>[c.id,c.role,c.name||"",c.unit||"",c.fx?c.fx.src:null,c.fx?null:(c.data||[])]));

@@ -541,6 +541,52 @@ await page(async p => {
   check("restored from the taskbar, typing at once goes into the active cell", (await p.evaluate(() => sheetCols()[1].data[2])) === 4242, await p.evaluate(() => [sheetCols()[1].data[2], document.activeElement && (document.activeElement.id || document.activeElement.tagName)]));
 }, { name: "worksheet clicks" });
 
+console.log("A sheet of 600 columns (roadmap 9, slice 2): only the columns in view are drawn");
+await page(async p => {
+  const t = await p.evaluate(() => { prefSet("anim", false); applyAnim(); Object.keys(WINS).forEach(id=>{ if(id!=="sheet"&&!isDoc(id)) closeWin(id); }); openWin("sheet",{render:true}); focusWin("sheet");
+    const N=600, M=2000, sid=curSheet(), cols=[makeCol("x","X","",Array.from({length:M},(_,i)=>i))];
+    for(let k=1;k<N;k++) cols.push(makeCol("y","C"+k,"",Array.from({length:M},(_,i)=>Math.round(Math.sin(i/30+k)*1000)/10)));
+    cols.forEach(c=>c.sheet=sid); const wsw={}; cols.forEach((c,k)=>{ if(k%7===3) wsw[c.id]=160; else if(k%11===5) wsw[c.id]=60; });
+    save({cols,wsw}); const t0=performance.now(); for(let i=0;i<3;i++) renderWs(); return {ms:(performance.now()-t0)/3};});
+  const n0 = await p.evaluate(() => ({ row: document.querySelectorAll('#ws tr.dr')[0].querySelectorAll("td[data-ci]").length, all: document.querySelectorAll("#ws td").length }));
+  check("a row draws only the columns about the view (not 600)", n0.row > 10 && n0.row < 60, JSON.stringify(n0));
+  check("…and the sheet is drawn in well under the 670 ms it took whole", t.ms < 300, Math.round(t.ms) + " ms");
+  // Wherever it is scrolled, each cell and each letter is the column that belongs at its place.
+  const frame = () => p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const at = f => p.evaluate(f => { const box=$("#ws"), m=S.wsm, total=WS_IDX+m.cols.reduce((a,q)=>a+q.w,0); box.scrollLeft=f*(total-box.clientWidth); box.dispatchEvent(new Event("scroll")); }, f);
+  const look = () => p.evaluate(() => { const box=$("#ws"), m=S.wsm, b=box.getBoundingClientRect(), tr=[...box.querySelectorAll("tr.dr")].find(r=>r.getBoundingClientRect().top>b.top+(S.ws.head||0)+2), hr=box.querySelector("tr.hr1");
+    const want=xt=>{ let x=WS_IDX; for(let i=0;i<m.cols.length;i++){ if(xt<x+m.cols[i].w) return i; x+=m.cols[i].w; } return -1; };
+    const bad=[]; for(let k=0;k<24;k++){ const x=Math.round(b.left+WS_IDX+4+k*(box.clientWidth-WS_IDX-40)/23)+0.5, w=want(x-b.left+box.scrollLeft), w2=want(x-b.left+box.scrollLeft-2), w3=want(x-b.left+box.scrollLeft+2); if(w2!==w||w3!==w) continue;
+      const td=document.elementFromPoint(x,tr.getBoundingClientRect().top+5), th=document.elementFromPoint(x,hr.getBoundingClientRect().top+5);
+      const c=td&&td.closest("td[data-ci]"), h=th&&th.closest("th[data-ch]"); if(!c||+c.dataset.ci!==w||!h||+h.dataset.ch!==w) bad.push([Math.round(x),w,c&&c.dataset.ci,h&&h.dataset.ch]); }
+    return {bad, sl:box.scrollLeft}; });
+  for (const f of [0.31, 0.5, 0.77, 1, 0]) { await at(f); await frame(); const r = await look(); check(`scrolled to ${Math.round(f * 100)} % across: every cell and letter in view is its own column`, !r.bad.length, JSON.stringify(r.bad.slice(0, 4))); }
+  // The keys: End goes to the last column, drawn there, and what is typed goes into it.
+  await p.locator('#ws td[data-r="3"][data-ci="1"]').click(); await p.keyboard.press("End"); await frame();
+  let r = await p.evaluate(() => { const box=$("#ws"), td=wsTd(S.ws.r,S.ws.c), b=box.getBoundingClientRect(), q=td&&td.getBoundingClientRect(); return { c: S.ws.c, shown: !!q && q.left>=b.left+WS_IDX-1 && q.right<=b.left+box.clientWidth+1 }; });
+  check("End: the last column, drawn and in view", r.c === 599 && r.shown, JSON.stringify(r));
+  await p.keyboard.type("77.5"); await p.keyboard.press("Enter"); await p.waitForTimeout(100);
+  check("…typed into", (await p.evaluate(() => sheetCols()[599].data[3])) === 77.5);
+  // A label typed far out, the sheet scrolled away while it is typed and back: the text waits, and is kept.
+  await p.keyboard.press("Home"); await frame();
+  await p.evaluate(() => { wsSelect(-4, 300, false); wsBeginEdit("Far", "edit"); }); await frame();
+  await at(0); await frame();
+  r = await p.evaluate(() => ({ edit: S.ws.edit && S.ws.edit.val, drawn: !!wsTd(-4, 300), keys: document.activeElement === $("#ws") }));
+  check("a long name being typed waits while its column is scrolled away, the grid keeping the keys", r.edit === "Far" && !r.drawn && r.keys, JSON.stringify(r));
+  await p.keyboard.type(" out"); await frame();
+  r = await p.evaluate(() => ({ edit: S.ws.edit && S.ws.edit.val, drawn: !!wsTd(-4, 300) }));
+  check("…typing brings it back and goes on in it", r.edit === "Far out" && r.drawn, JSON.stringify(r));
+  await p.keyboard.press("Enter"); await p.waitForTimeout(100);
+  check("…and is kept when it comes back", (await p.evaluate(() => sheetCols()[300].name)) === "Far out", await p.evaluate(() => sheetCols()[300].name));
+  // A range from the first column to one 300 columns on: the cells drawn in it are marked.
+  await p.evaluate(() => { wsSelect(5, 0, false); wsSelect(9, 300, true); }); await frame();
+  r = await p.evaluate(() => { const tds=[...document.querySelectorAll('#ws td[data-ci]')].filter(td=>+td.dataset.r>=5&&+td.dataset.r<=9); return { n: tds.length, all: tds.filter(td=>+td.dataset.ci<=300).every(td=>td.classList.contains("in")), rect: wsSelRect() }; });
+  check("a range across 300 columns: its cells in view are marked", r.n > 0 && r.all && r.rect.c0 === 0 && r.rect.c1 === 300, JSON.stringify(r));
+  // A column sized where it is drawn moves the ones after it, and they still line up.
+  await p.evaluate(() => wsSetWidth(S.wsm.cols[302].id, 240)); await frame();
+  r = await look(); check("a column sized out there: the columns after it still line up", !r.bad.length, JSON.stringify(r.bad.slice(0, 4)));
+}, { name: "a wide sheet", timeout: 90000 });
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

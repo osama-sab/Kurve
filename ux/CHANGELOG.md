@@ -1024,6 +1024,16 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Under the hood, slice 2: the worksheet draws the columns in view (2026-11-06)
+
+- Past 40 columns the worksheet draws only the columns about the view, with a spacer either side for
+  the rest, and makes a column's sparkline only when the row of them is shown. A sheet of 600 columns
+  and 2000 rows: drawn in about 50 ms (670 before), saved in about 80 ms (1080); scrolled across, each
+  cell and letter is its own column.
+
+Checked: `tools/odd-test.mjs` (15 new: the cells drawn, the time, five places across, End and a value
+typed, a name typed while its column is scrolled away, a range across 300 columns, a column sized).
+
 ## Under the hood, slice 1: every example, end to end (2026-11-06)
 
 - `tools/odd-test.mjs` runs each example as a newcomer would: the Raman band fitted (a Lorentzian at

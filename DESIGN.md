@@ -889,6 +889,15 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: The worksheet draws the columns in view (roadmap 9, slice 2)
+
+- **A wide sheet behaves as a long one.** Rows were drawn about the view and columns all of them:
+  600 columns laid out 20 000 cells for the 40 on screen, a second a save. Past 40 columns only those
+  about the view are drawn (half a screen either side), a spacer standing for the rest, so the scroll
+  bar, every column's place and the keys are as before; a narrower sheet is drawn whole, as it was.
+- **What waits stays put.** A name being typed in a column scrolled away waits, the grid keeping the
+  keys, and comes back with its text when typed into, as an edit in a row scrolled away does.
+
 ### 2026-11-06: Every example, end to end (roadmap 9, slice 1)
 
 - **The first demo is the product, so each example is run as a newcomer would**: its fit, its peaks,

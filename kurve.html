@@ -347,6 +347,7 @@ body.colmoving,body.colmoving *{cursor:grabbing!important;user-select:none}
 .ws input.wsed.num{text-align:right}
 .ws input.wsed.bad{box-shadow:inset 0 0 0 2px var(--bad);background:var(--bad-bg)}
 .ws tr.gap td{border:0;padding:0;height:auto;background:none}
+.ws .gapc{padding:0;border-right:0}.ws tbody td.gapc{border:0;background:none}
 .ws tr.masked td{background:var(--mask-bg);color:var(--bad);text-decoration:line-through}
 .ws tr.pt th.rh{background:var(--accent);color:var(--accent-ink)}
 .ws tr.pt td:not(.in){background:var(--sel)}
@@ -13414,7 +13415,7 @@ function wsAutoScroll(step,axes){
     if(box.scrollTop!==t0||box.scrollLeft!==l0){ S.ws.want=null;
       // Near the end of the sheet more rows appear, as when scrolling.
       if(S.wsm&&S.wsm.kind==="raw"&&box.scrollTop+box.clientHeight>box.scrollHeight-(S.ws.rowH||25)*20){ S.ws.extra=(S.ws.extra||0)+200; S.ws.win=null; renderWs(); }
-      wsRows(false); const c=clamp(last.x,last.y); step(c[0],c[1]); }
+      wsView(); const c=clamp(last.x,last.y); step(c[0],c[1]); }
     raf=requestAnimationFrame(tick); };
   return {move(x,y){ last={x,y}; if(!raf&&on) raf=requestAnimationFrame(tick); }, clamp, stop(){ on=false; if(raf) cancelAnimationFrame(raf); raf=0; }};
 }
@@ -13687,7 +13688,7 @@ function wsModel(){
     if(he) cols.push({id:"f:e",role:"yEr",lab:{name:"Error",unit:d.yu||"",comm:"σ"},get:k=>d.e[k]});
     cols.push({id:"f:i",role:"row",lab:{name:"Original row",unit:"",comm:"where each point came from"},get:k=>d.idx[k]+1,int:true});
     cols.forEach((q,i)=>{ q.letter=wsLetter(i); q.w=W[q.id]||WS_W; q.title=`Column ${q.letter}: ${q.lab.name||q.role}. The Processed view is read only.`;
-      q.spark=q.id==="f:y"?sparkSvg(d,Math.max(20,q.w-12),16,"wspark"):""; });
+      q.mkSpark=()=>q.id==="f:y"?sparkSvg(d,Math.max(20,q.w-12),16,"wspark"):""; });
     return wsOrder({kind:"final", cols, n:d.x.length, d, c, p});
   }
   const cols=sheetCols(), n=nRows(), actRoot=rootOf(activeYCol()), xs=cols.filter(c=>c.role==="x"), hid=new Set(wsHideOf(p).cols);
@@ -13696,10 +13697,9 @@ function wsModel(){
   const mc=cols.map((c,i)=>{ const isY=c.role==="y", isAct=c===actRoot, off=isY&&!onG.has(c.id)&&c.data.some(v=>v!=null), L=wsLetter(i), w=hid.has(c.id)?WS_HIDW:W[c.id]||WS_W;
     if(hid.has(c.id)) return {id:c.id, col:c, letter:L, role:ROLE_LABEL[c.role]||c.role, w, hidden:true, lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx,
       title:`Column ${L}${c.name?" ("+c.name+")":""} is hidden. Double-click to show it.`};
-    let spark="";
-    if(c.data.some(v=>v!=null)){ const xc=isY||c.role==="e"?xColFor(c.role==="e"?colById(c.of)||c:c):null, sw=Math.max(20,w-12), t=sparkPts(c.data,xc?xc.data:null,2*sw);
-      if(t.y.length>1) spark=sparkSvg(t,sw,16,"wspark"); }
-    return {id:c.id, col:c, letter:L, role:c.role==="x"&&xs.length>1?"X"+(xs.indexOf(c)+1):c.role==="e"?errTag(c):ROLE_LABEL[c.role]||c.role, w, sw:isY?yTint(c.id):null, off, act:isAct, menu:true, spark,
+    const mkSpark=()=>{ if(!c.data.some(v=>v!=null)) return ""; const xc=isY||c.role==="e"?xColFor(c.role==="e"?colById(c.of)||c:c):null, sw=Math.max(20,w-12), t=sparkPts(c.data,xc?xc.data:null,2*sw);
+      return t.y.length>1?sparkSvg(t,sw,16,"wspark"):""; };
+    return {id:c.id, col:c, letter:L, role:c.role==="x"&&xs.length>1?"X"+(xs.indexOf(c)+1):c.role==="e"?errTag(c):ROLE_LABEL[c.role]||c.role, w, sw:isY?yTint(c.id):null, off, act:isAct, menu:true, mkSpark,
       lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx, fxErr:c.fx?FX_ERR.get(c.id)||"":"", fxNote:c.fx?FX_NOTE.get(c.id)||"":"",
       title:`Column ${L}${c.name?": "+c.name:""}. ${roleText(c)}${c.fx?`, computed: = ${fxShow(c)}${FX_ERR.get(c.id)?` (${FX_ERR.get(c.id)})`:FX_NOTE.get(c.id)?` (${FX_NOTE.get(c.id).toLowerCase()})`:""}`:""}${isAct?", active":""}${off?", on no graph yet":""}. Click to select it; right-click, or the arrow, for its options; drag its right edge to resize it.`}; });
   // Empty columns to the edge of the window and a little beyond, as a grid has.
@@ -13757,32 +13757,66 @@ function renderWs(){
   const lim=(v,a,b)=>Math.max(a,Math.min(b,v)), R=wsRowCount(m)-1, C=m.cols.length-1;
   s.r=lim(s.r,WS_TOP,R); s.ar=lim(s.ar,WS_TOP,R); s.c=lim(s.c,0,C); s.ac=lim(s.ac,0,C);
   S.wsMask=new Set(m.kind==="raw"?maskOf(activeYCol()):maskOf(m.c)); S.wsFixed=m.kind==="raw"?fixedCells():new Map();
-  const tw=WS_IDX+m.cols.reduce((a,q)=>a+q.w,0), sx=box.scrollLeft, sy=box.scrollTop;
+  wsTable(m);
+  if(sub) sub.textContent=m.kind==="final"?specName(m.c):(p.srcName||"");
+  wsFoot(); wsBar();
+  const fb=$("#wsFind"); if(S.wsFind&&fb&&!fb.hidden) wsFindRun(true);
+}
+/* With many columns only those in view and some either side are drawn, as the rows are, and spacers
+   stand for the rest, so the scroll bar and every column's place are as before: a sheet of 600
+   columns laid out 20 000 cells on every save. `S.ws.cwin` is the window: columns [a, b), the
+   spacers' widths `lw` and `rw`, where the columns drawn start and end (`x0`, `x1`, from the first
+   column's left edge) and the cells a row has (`span`). A sheet of WS_CWIN columns or fewer is drawn
+   whole. `wsTable` draws the table for a model; `wsView` is what a scroll needs drawn. */
+const WS_CWIN=40;
+function wsColWin(m){ const n=m.cols.length, box=$("#ws");
+  if(n<=WS_CWIN||!box) return {a:0,b:n,lw:0,rw:0,x0:0,x1:Infinity,span:n+1,all:true};
+  const sl=box.scrollLeft, vw=Math.max(400,box.clientWidth), pad=Math.max(400,vw/2), lo=sl-pad, hi=sl+vw+pad;
+  let x=0, a=-1, b=n, lw=0;
+  for(let i=0;i<n;i++){ const w=m.cols[i].w; if(a<0&&x+w>lo){ a=i; lw=x; } else if(a>=0&&x>=hi){ b=i; break; } x+=w; }
+  if(a<0){ a=n-1; lw=x-m.cols[n-1].w; }
+  let x1=lw; for(let i=a;i<b;i++) x1+=m.cols[i].w;
+  let tot=x1; for(let i=b;i<n;i++) tot+=m.cols[i].w;
+  return {a,b,lw,rw:tot-x1,x0:lw,x1,span:1+(b-a)+(lw>0?1:0)+(tot>x1?1:0)}; }
+// The view has come near the edge of the columns drawn (where more are to be drawn).
+function wsColsOut(){ const box=$("#ws"), w=S.ws&&S.ws.cwin, m=S.wsm; if(!box||!w||!m||w.all) return false;
+  const sl=box.scrollLeft, mg=160; return (w.a>0&&sl<w.x0+mg)||(w.b<m.cols.length&&sl+box.clientWidth>w.x1-mg); }
+function wsView(){ if(wsColsOut()) wsTable(S.wsm); else wsRows(false); }
+// A column's sparkline, made when the row of them is drawn (it was made for every column on every save).
+function wsSpark(q){ if(q._spk===undefined) q._spk=q.mkSpark?q.mkSpark():""; return q._spk; }
+function wsTable(m){
+  const box=$("#ws"), p=m.p||P(); if(!box||!p) return;
+  // An edit in a label row is drawn again below; the keys wait in the grid meanwhile.
+  { const ae=document.activeElement; if(S.ws.edit&&ae&&ae.matches&&ae.matches("#ws input.wsed")) box.focus({preventScroll:true}); }
+  const sx=box.scrollLeft, sy=box.scrollTop, W=S.ws.cwin=wsColWin(m), C=[]; for(let i=W.a;i<W.b;i++) C.push(i);
+  // A row's cells: the columns drawn, with a spacer either side for the rest.
+  const cells=(tag,f)=>(W.lw?`<${tag} class="gapc" aria-hidden="true"></${tag}>`:"")+C.map(i=>f(m.cols[i],i)).join("")+(W.rw?`<${tag} class="gapc" aria-hidden="true"></${tag}>`:"");
+  const tw=WS_IDX+m.cols.reduce((a,q)=>a+q.w,0);
   box.style.setProperty("--ws-rh",wsRowH()+"px");
-  let h=`<table class="grid" style="width:${tw}px"><colgroup><col style="width:${WS_IDX}px">${m.cols.map(q=>`<col data-cw="${esc(q.id)}" style="width:${q.w}px">`).join("")}</colgroup><thead>`;
-  h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"><button type="button" class="wsrows" data-wsrows aria-haspopup="menu" aria-expanded="false" title="Rows under the letters: Comments, F(x)=, Sparklines" aria-label="Rows to show under the letters">⋯</button></th>${m.cols.map((q,i)=>q.hidden?`<th class="ch hidc" data-ch="${i}" title="${esc(q.title)}" aria-label="${esc(q.title)}"></th>`:`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.calc?`<span class="fxm${q.fxErr?" bad":q.fxNote?" old":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx+(q.fxNote?". "+q.fxNote:""))}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.off?`<span class="lab hoff" title="On no graph yet: select it and press Plot">not plotted</span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`).join("")}</tr>`;
+  let h=`<table class="grid" style="width:${tw}px"><colgroup><col style="width:${WS_IDX}px">${W.lw?`<col style="width:${W.lw}px">`:""}${C.map(i=>`<col data-cw="${esc(m.cols[i].id)}" style="width:${m.cols[i].w}px">`).join("")}${W.rw?`<col style="width:${W.rw}px">`:""}</colgroup><thead>`;
+  h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"><button type="button" class="wsrows" data-wsrows aria-haspopup="menu" aria-expanded="false" title="Rows under the letters: Comments, F(x)=, Sparklines" aria-label="Rows to show under the letters">⋯</button></th>${cells("th",(q,i)=>q.hidden?`<th class="ch hidc" data-ch="${i}" title="${esc(q.title)}" aria-label="${esc(q.title)}"></th>`:`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.calc?`<span class="fxm${q.fxErr?" bad":q.fxNote?" old":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx+(q.fxNote?". "+q.fxNote:""))}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.off?`<span class="lab hoff" title="On no graph yet: select it and press Plot">not plotted</span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`)}</tr>`;
   const AL=p.wsAlign||{};
-  wsLabRows().forEach(L=>{ h+=`<tr class="lab"><th class="rl" scope="row" data-lr="${L.r}"${L.k==="fx"?` title="A column's formula: letters are columns (B*2, (B-C)/A, log10(B)), x the row's X value, i the row number. Click a cell here to type one."`:""}>${L.label}</th>${m.cols.map((q,i)=>{ const bd=L.k==="fx"&&q.fxErr, al=L.k!=="fx"&&AL[q.id]?" al-"+AL[q.id]:""; if(q.hidden) return `<td class="lc hid" data-r="${L.r}" data-ci="${i}"></td>`; return `<td class="lc${L.k==="fx"?" fxc":""}${bd?" bad":""}${al}" data-r="${L.r}" data-ci="${i}"${bd?` title="${esc(q.fxErr)}"`:L.k==="fx"&&m.kind==="raw"&&!q.lab.fx?` title="Click to type a formula for column ${q.letter}"`:""}>${esc(q.lab[L.k]||"")}</td>`; }).join("")}</tr>`; });
-  if(wsRowsPref().meta) wsMetaAll(m).slice(0,WS_META_MAX).forEach(k=>{ h+=`<tr class="meta"><th class="rl mk" scope="row" data-mkey="${esc(k)}" title="${esc(k)}, from the files' headers: click for its menu" aria-haspopup="menu">${esc(k)}</th>${m.cols.map(q=>{ if(q.hidden) return `<td class="hid"></td>`; const v=wsMetaVal(q,k); return `<td${v?` title="${esc(k+": "+v)}"`:""}>${esc(v)}</td>`; }).join("")}</tr>`; });
-  if(wsRowsPref().spk) h+=`<tr class="spk"><th class="rl" scope="row">Sparklines</th>${m.cols.map(q=>q.hidden?`<td class="hid"></td>`:`<td>${q.spark||""}</td>`).join("")}</tr>`;
+  wsLabRows().forEach(L=>{ h+=`<tr class="lab"><th class="rl" scope="row" data-lr="${L.r}"${L.k==="fx"?` title="A column's formula: letters are columns (B*2, (B-C)/A, log10(B)), x the row's X value, i the row number. Click a cell here to type one."`:""}>${L.label}</th>${cells("td",(q,i)=>{ const bd=L.k==="fx"&&q.fxErr, al=L.k!=="fx"&&AL[q.id]?" al-"+AL[q.id]:""; if(q.hidden) return `<td class="lc hid" data-r="${L.r}" data-ci="${i}"></td>`; return `<td class="lc${L.k==="fx"?" fxc":""}${bd?" bad":""}${al}" data-r="${L.r}" data-ci="${i}"${bd?` title="${esc(q.fxErr)}"`:L.k==="fx"&&m.kind==="raw"&&!q.lab.fx?` title="Click to type a formula for column ${q.letter}"`:""}>${esc(q.lab[L.k]||"")}</td>`; })}</tr>`; });
+  if(wsRowsPref().meta) wsMetaAll(m).slice(0,WS_META_MAX).forEach(k=>{ h+=`<tr class="meta"><th class="rl mk" scope="row" data-mkey="${esc(k)}" title="${esc(k)}, from the files' headers: click for its menu" aria-haspopup="menu">${esc(k)}</th>${cells("td",q=>{ if(q.hidden) return `<td class="hid"></td>`; const v=wsMetaVal(q,k); return `<td${v?` title="${esc(k+": "+v)}"`:""}>${esc(v)}</td>`; })}</tr>`; });
+  if(wsRowsPref().spk) h+=`<tr class="spk"><th class="rl" scope="row">Sparklines</th>${cells("td",q=>q.hidden?`<td class="hid"></td>`:`<td>${wsSpark(q)}</td>`)}</tr>`;
   // A spacer as tall as the rows, so the scroll can be put back before they are drawn.
-  h+=`</thead><tbody><tr class="gap" aria-hidden="true"><td colspan="${m.cols.length+1}" style="height:${wsScroll(m).P}px"></td></tr></tbody></table>`;
+  h+=`</thead><tbody><tr class="gap" aria-hidden="true"><td colspan="${W.span}" style="height:${wsScroll(m).P}px"></td></tr></tbody></table>`;
   box.innerHTML=h; box.scrollLeft=sx; box.scrollTop=sy;
   // Sticky offsets follow the real header heights.
   let top=0; box.querySelectorAll("thead tr").forEach(tr=>{ tr.querySelectorAll("th,td").forEach(el=>{ el.style.top=top+"px"; }); top+=tr.getBoundingClientRect().height||0; });
   S.ws.head=top; S.ws.win=null; wsRows(true);
-  if(sub) sub.textContent=m.kind==="final"?specName(m.c):(p.srcName||"");
-  wsFoot(); wsBar();
-  const fb=$("#wsFind"); if(S.wsFind&&fb&&!fb.hidden) wsFindRun(true);
+  if(S.ws.edit&&S.ws.edit.r<0) wsRestoreEditor();
 }
 function wsRowHtml(m,r){
   const fin=m.kind==="final", k=wsDR(m,r), idx=fin?(r<m.n?m.d.idx[k]:null):k, masked=idx!=null&&(fin||r<m.n)&&S.wsMask.has(idx), pt=idx!=null&&S.sel===idx&&r<m.n;
   const ha=wsHiddenAbove(m,r), hat=ha?` · rows ${ha[0]+1}${ha.length>1?"–"+(ha[ha.length-1]+1):""} above are hidden: double-click to show them`:"";
   let h=`<tr class="dr${masked?" masked":""}${pt?" pt":""}" data-r="${r}"><th class="rh${ha?" hidab":""}" data-rh="${r}" scope="row"${r<m.n||ha?` title="${r<m.n?`Select row ${k+1}${masked?" (masked)":""}; its point is marked on the graph`:`Row ${k+1}`}${hat}"`:""}>${k+1}<span class="rzr" data-rzr title="Drag to size the rows; double-click for the usual height"></span></th>`;
-  const AL=m.p&&m.p.wsAlign||{};
-  m.cols.forEach((q,i)=>{ if(q.hidden){ h+=`<td class="hid" data-r="${r}" data-ci="${i}"></td>`; return; }
+  const AL=m.p&&m.p.wsAlign||{}, W=S.ws.cwin||{a:0,b:m.cols.length}, b=Math.min(W.b,m.cols.length), gap=`<td class="gapc" aria-hidden="true"></td>`;
+  if(W.lw) h+=gap;
+  for(let i=W.a;i<b;i++){ const q=m.cols[i]; if(q.hidden){ h+=`<td class="hid" data-r="${r}" data-ci="${i}"></td>`; continue; }
     const fx=!fin&&!q.phantom?S.wsFixed.get(q.id+":"+k):null, al=AL[q.id], cls=[fx?"fixed":"",q.calc?"calc":"",al?"al-"+al:""].filter(Boolean).join(" ");
-    h+=`<td data-r="${r}" data-ci="${i}"${cls?` class="${cls}"`:""}${fx?` title="${esc(fx)}"`:""}>${esc(wsText(m,r,i))}</td>`; });
+    h+=`<td data-r="${r}" data-ci="${i}"${cls?` class="${cls}"`:""}${fx?` title="${esc(fx)}"`:""}>${esc(wsText(m,r,i))}</td>`; }
+  if(W.rw) h+=gap;
   return h+`</tr>`;
 }
 // Draws the rows in view (and some either side) between two spacers.
@@ -13792,7 +13826,7 @@ function wsRows(force){
   const first=Math.max(0,Math.min(R-1,Math.floor(vt/rowH))), vis=Math.ceil(Math.max(0,box.clientHeight-head)/rowH)+1;
   // Rows are drawn around the view; with hundreds of columns fewer of them,
   // so a sheet of 600 columns does not lay out 50 000 cells on every save.
-  const span=m.cols.length+1, buf=Math.max(4,Math.min(40,Math.floor((12000/span-vis)/2))), mg=Math.min(5,buf-1);
+  const span=S.ws.cwin?S.ws.cwin.span:m.cols.length+1, buf=Math.max(4,Math.min(40,Math.floor((12000/span-vis)/2))), mg=Math.min(5,buf-1);
   // Drawn already: the view sits inside the rows drawn, with a margin, or at an end of the sheet.
   const w=S.ws.win; if(!force&&g.k===1&&w&&(first>=w[0]+mg||w[0]===0)&&(first+vis<=w[1]-mg||w[1]>=R)) return;
   // An edit outlives the rows drawn, as in a spreadsheet: scrolled away, its
@@ -14089,7 +14123,7 @@ function wsEnsureVisible(r,c){
   if(x-WS_IDX<box.scrollLeft) box.scrollLeft=x-WS_IDX; else if(x+w>box.scrollLeft+box.clientWidth) box.scrollLeft=x+w-box.clientWidth;
   // Near the end of the grid, more rows appear, as a spreadsheet never ends.
   if(r>=wsRowCount(m)-5&&m.kind==="raw"){ S.ws.extra=(S.ws.extra||0)+200; }
-  wsRows(false);
+  wsView();
 }
 function wsSelect(r,c,extend){
   const s=S.ws, m=S.wsm; if(!m) return;
@@ -14350,13 +14384,13 @@ function setupWs(){
   let drag=null, raf=0;
   box.addEventListener("scroll",()=>{ if(raf) return; raf=requestAnimationFrame(()=>{ raf=0; const m=S.wsm; if(!m) return;
     if(m.kind==="raw"&&box.scrollTop+box.clientHeight>box.scrollHeight-(S.ws.rowH||25)*20){ S.ws.extra=(S.ws.extra||0)+200; S.ws.win=null; }
-    wsRows(false);
+    wsView();
     const w=S.ws.want; if(w&&performance.now()-w.t<600){ const g=wsScroll(m), rowH=g.rowH, y=w.r*rowH, vis=box.clientHeight-(S.ws.head||0), vt=wsVT(box,g);
       if(w.r>=0&&(y<vt||y+rowH>vt+vis)) wsEnsureVisible(w.r,w.c); } }); });
   box.addEventListener("wheel",()=>{ S.ws.want=null; },{passive:true});
   new ResizeObserver(()=>{ const m=S.wsm; if(!m||m.kind!=="raw"||S.editing) return;
     const used=WS_IDX+m.cols.filter(q=>!q.phantom).reduce((s,q)=>s+q.w,0), K=Math.max(3,Math.ceil((box.clientWidth-used)/WS_W)+2);
-    if(K!==m.cols.filter(q=>q.phantom).length) renderWs(); else wsRows(true); }).observe(box);
+    if(K!==m.cols.filter(q=>q.phantom).length) renderWs(); else if(wsColsOut()) wsTable(m); else wsRows(true); }).observe(box);
   const cellAt=(x,y)=>{ const el=document.elementFromPoint(x,y); const td=el&&el.closest?el.closest("#ws td[data-ci],#ws th[data-rh],#ws th[data-ch]"):null; return td; };
   box.addEventListener("mousedown",e=>{
     if(e.button!==0||!S.wsm) return;
@@ -14792,7 +14826,7 @@ function colAlignItems(id){ const ids=colMenuTargets(id), al=(P().wsAlign||{})[i
 function wsMoveMark(x){
   const box=$("#ws"); let bar=box&&box.querySelector(".wsmovebar"); if(x==null){ if(bar) bar.remove(); return null; }
   const ths=[...box.querySelectorAll("th[data-ch]")], br=box.getBoundingClientRect(); if(!ths.length) return null;
-  let to=ths.length, at=null;
+  let to=+ths[ths.length-1].dataset.ch+1, at=null;
   for(const th of ths){ const r=th.getBoundingClientRect(); if(x<r.left+r.width/2){ to=+th.dataset.ch; at=r.left; break; } at=r.right; }
   const m=S.wsm, nreal=m.cols.filter(q=>!q.phantom).length; if(to>nreal){ to=nreal; const th=ths.find(t=>+t.dataset.ch===nreal); at=th?th.getBoundingClientRect().left:at; }
   if(!bar){ bar=document.createElement("div"); bar.className="wsmovebar"; box.appendChild(bar); }

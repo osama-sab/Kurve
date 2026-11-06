@@ -1049,7 +1049,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   unsort first. **Find** (Ctrl+F, the search button; `wsFindOpen`, `wsFindRun`, `wsFindGo`,
   `S.wsFind`): every cell containing the text, labels included, marked `td.hit`; Enter,
   Shift+Enter and F3 step through them. `wsModel()` is the sheet (`S.wsm`: columns, row count, phantoms);
-  rows are virtualised (`wsRows`, drawn around the scroll position). `S.ws` is the selection
+  rows are virtualised (`wsRows`, drawn around the scroll position), and past `WS_CWIN` (40)
+  columns the columns too (`wsColWin`, `S.ws.cwin` `{a, b, lw, rw, x0, x1, span}`: the columns
+  about the view, a spacer cell and `<col>` either side for the rest, so every column keeps its
+  place; `wsTable(m)` draws the table, `wsView()` is what a scroll needs: the columns again when
+  the view comes within 160 px of their edge, `wsColsOut`, else the rows; `wsRowHtml` draws a
+  row's cells for the window); a column's sparkline is made only when its row is drawn
+  (`wsSpark`, the model's `mkSpark`). `S.ws` is the selection
   (`{r, c, ar, ac}`: the active cell and the anchor of a range, plus `extra`, `win`, `edit`).
   Click, Shift+click, drag, a header or row number, the corner; arrows, Shift+arrows,
   Ctrl+arrows, Home/End, Ctrl+Home/End, PageUp/Down, Tab and Enter move as in Excel (after a run
@@ -2761,8 +2767,10 @@ ones, crossed ones from storage, ones of the wrong shape), the curve fit's model
 as `poly2` before, a model that is gone, every guess on X through 0, X a model cannot take,
 a function that does not compile in the list), the confidence level and residuals (a level or a
 kind of residual that is junk from storage, a fit from before, every parameter fixed, two
-points), and 200 000 points (drawn, zoomed, hovered, smoothed and shown in the worksheet within
-a time, an export keeping every point). Run it after touching storage, the axes, the
+points), 200 000 points (drawn, zoomed, hovered, smoothed and shown in the worksheet within
+a time, an export keeping every point), and a sheet of 600 columns (only those about the view
+drawn, each cell and letter its own column wherever it is scrolled, End, a name typed while its
+column is scrolled away, a range across 300 columns, a column sized out there). Run it after touching storage, the axes, the
 parser, undo or the PDF and EPS writer. It serves the file over HTTP (a server of its own, on a
 free port) and waits for each page to be ready (a project on the desk), never a fixed time.
 `node tools/sheet-fuzz.mjs [path] [seed or a-b] [steps]` drives the worksheet as an erratic
@@ -3614,6 +3622,9 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   counts and called a wiggle at 541.75 cm⁻¹ a second peak. Running every example end to end found
   it, where each part's own test had passed. Error bars on every point are the noise now, before a
   figure the finder works out.
+- **A row nobody shows is still made.** Every save made a sparkline for each of a sheet's 600
+  columns, with the row of them hidden, and laid out 20 000 cells for the 40 on screen: a second
+  a save. What is drawn is what is in view, and what is in a hidden row is made when it is shown.
 
 ## Roadmap
 
@@ -4106,8 +4117,8 @@ Next, in order:
 8. More files: JCAMP-DX, then SPC; OPUS and SPE last: all done 06.11, the roadmap's item 8 is done
 9. Under the hood (projects in IndexedDB: done 05.11; a cell typed into a million rows quick, the
    graph drawing what is in view, every row of a sheet reachable: done 05.11; `tools/odd-test.mjs`
-   grown to run every example end to end: done 06.11): the worksheet drawing only the columns in view; speed
-   with thousands of spectra
+   grown to run every example end to end, the worksheet drawing only the columns in view: done
+   06.11): speed with thousands of spectra
 10. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
    applied in one click, unread markers
 
@@ -4376,8 +4387,8 @@ Next, in order:
   changed since leaves that part as the other window made it, this window's change in it kept
 - Rows of a sheet are sized together (every data row one height), not one by one; the label rows
   keep 22 px
-- The worksheet draws only the rows in view, but every column; with hundreds of columns it
-  draws fewer rows around the view instead. An axis title longer than its axis is cut off at
+- The worksheet draws only the rows and (past 40) the columns about the view; a fast scroll can
+  show a frame of empty cells before the next are drawn. An axis title longer than its axis is cut off at
   the plot's edge
 - Export: a PDF embeds the graph's own font from Fontsource (online: a font that cannot be
   fetched, a CFF one, a character outside its Latin subset and every EPS use the standard fonts,
