@@ -3825,6 +3825,18 @@ stops where the documents keep their room. Measured and
 fine: a 40-minute day of 1 300 erratic actions with memory, page elements and listeners flat, and
 three tabs on one set of projects. `tools/lab-day.mjs` is that day.
 
+Then, 05.11 to 06.11, the rest of the roadmap, items 3 to 10 (each in the list below with its date):
+counting spectra (analysers' files, counted windows with their activities, the detector's curves,
+nuclides by their lines, region edges dragged); plots (a distribution over a histogram, grouped and
+notched boxes, stacked columns with names along X, shared axes per row or column, a map from
+scattered X, Y, Z); figures (the graph's fonts in a PDF, a break with its own scale each side,
+polygons and curved arrows); getting around (the undo list, the History zoomed and wrapped, the keys
+on annotations and peak handles, shape handles); many spectra (a parameter following the series,
+trend graphs as graphs, header fields in the worksheet, global fits in a worker); more files
+(JCAMP-DX, SPC, OPUS, Princeton SPE); under the hood (every example run end to end, the worksheet's
+columns drawn about the view, thousands of columns); working together (new comments, mentions,
+proposed settings applied in one click).
+
 Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
 graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
 click, stepped along and between curves, found by a typed X or Y, in a card on the graph) and
