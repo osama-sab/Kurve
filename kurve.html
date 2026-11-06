@@ -1419,8 +1419,10 @@ table.corr td{text-align:center}
 .pkx tr.dim td{color:var(--muted)}
 #bfShare{margin-top:var(--sp-5)}
 #bfShare .bfk{display:flex;flex-wrap:wrap;gap:var(--sp-3) var(--sp-6);margin:var(--sp-3) 0 var(--sp-2)}
-#bfShare .bfps{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:var(--sp-2) var(--sp-6);max-height:220px;overflow:auto;margin-top:var(--sp-3);padding:var(--sp-1)}
+#bfShare .bfps{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:var(--sp-2) var(--sp-6);max-height:240px;overflow:auto;margin-top:var(--sp-3);padding:var(--sp-1)}
 #bfShare label.bfp{display:flex;align-items:center;gap:var(--sp-4);font-size:var(--fs-tab);cursor:pointer}
+#bfShare .bfps label.bfp{justify-content:space-between}
+#bfShare .bfps label.bfp select{flex:none;font-size:var(--fs-tab)}
 #bfShare details summary{cursor:pointer;font-size:var(--fs-tab);color:var(--ink-2);margin-top:var(--sp-2)}
 #bfCount{margin:var(--sp-4) 0 0;min-height:1.2em}
 input[type=checkbox]:indeterminate:not(.chk>input){background-color:var(--ctl-on);border-color:var(--ctl-on);box-shadow:inset 0 0 0 3.5px var(--panel)}
@@ -2711,31 +2713,58 @@ function globalFit(sets,f,p0s,shared,fixed,opt){
   const per=(a,k,i)=>{ if(!a) return undefined; const v=Array.isArray(a[k])?a[k][i]:a[i]; return Number.isFinite(v)?v:undefined; };
   const X=[], Y=[], W=[], seg=[], segOf=[];
   sets.forEach((s,k)=>{ const i0=X.length; for(let i=0;i<s.X.length;i++){ X.push(s.X[i]); Y.push(s.Y[i]); W.push(s.W?s.W[i]:1); segOf.push(k); } seg.push([i0,X.length]); });
-  // The vector fitted: the shared parameters first, then each set's own.
+  // The vector fitted: the shared parameters first, then the pairs of those that follow
+  // the series, then each set's own.
   const gi=p0s.map(()=>new Array(np).fill(-1)), g0=[], of=[], lo=[], hi=[], ps=[];
   const put=(v,k,i)=>{ g0.push(v); lo.push(per(opt.lo,k,i)??-Infinity); hi.push(per(opt.hi,k,i)??Infinity); ps.push(per(opt.pscale,k,i)??(Math.abs(v)||1)); };
+  /* A parameter that follows the series (opt.follow[i] = {kind, s: a value per set}): two numbers
+     for every set. "lin" is a + b·(s − s̄), a the value at the mean of s; "arr" is Arrhenius,
+     a·exp(−b·(1/s − ū)), s a temperature in kelvin, ū the mean of 1/s, b = Ea/R in kelvin, a the
+     value at ū. Started from a line through each set's own start (for "arr", through their
+     logarithms against 1/s). */
+  const fol=new Array(np).fill(null), FL=[];
+  for(let i=0;i<np;i++){ const q=opt.follow&&opt.follow[i]; if(!q||fixed[i]||shared[i]) continue;
+    const s=q.s||[]; if(s.length!==K||!s.every(Number.isFinite)) return {error:"a value of the series is missing for some sets"};
+    const arr=q.kind==="arr"; if(arr&&!s.every(v=>v>0)) return {error:"Arrhenius needs every temperature above zero kelvin"};
+    const u=arr?s.map(v=>1/v):s, y=p0s.map(p=>p[i]); if(arr&&!y.every(v=>v>0)) return {error:"Arrhenius needs the parameter above zero in every set"};
+    const yy=arr?y.map(Math.log):y, u0=u.reduce((a,b)=>a+b,0)/K, sxx=u.reduce((a,v)=>a+(v-u0)**2,0);
+    if(!(sxx>0)) return {error:"the series has one value only, so nothing can follow it"};
+    const ym=yy.reduce((a,b)=>a+b,0)/K, slope=u.reduce((a,v,k)=>a+(v-u0)*(yy[k]-ym),0)/sxx;
+    const a0=arr?Math.exp(ym):ym, b0=arr?-slope:slope, ja=g0.length;
+    g0.push(a0); lo.push(arr?0:-Infinity); hi.push(Infinity); ps.push(Math.abs(a0)||1);
+    g0.push(b0); lo.push(-Infinity); hi.push(Infinity); ps.push(Math.abs(b0)||(arr?1000:(Math.abs(ym)||1)/(Math.sqrt(sxx/K)||1)));
+    of.push(-1,-1); fol[i]={kind:arr?"arr":"lin",u,u0,ja,jb:ja+1}; FL.push(i); }
   for(let i=0;i<np;i++) if(shared[i]&&!fixed[i]){ const j=g0.length; put(opt.start&&Number.isFinite(opt.start[i])?opt.start[i]:p0s[ref][i],ref,i); of.push(-1); for(let k=0;k<K;k++) gi[k][i]=j; }
-  for(let k=0;k<K;k++) for(let i=0;i<np;i++) if(!shared[i]&&!fixed[i]){ gi[k][i]=g0.length; put(p0s[k][i],k,i); of.push(k); }
+  for(let k=0;k<K;k++) for(let i=0;i<np;i++) if(!shared[i]&&!fixed[i]&&!fol[i]){ gi[k][i]=g0.length; put(p0s[k][i],k,i); of.push(k); }
+  // A following parameter's value in set k, and its derivatives by its two numbers.
+  const folV=(F,g,k)=>F.kind==="lin"?g[F.ja]+g[F.jb]*(F.u[k]-F.u0):g[F.ja]*Math.exp(-g[F.jb]*(F.u[k]-F.u0));
+  const folD=(F,g,k)=>{ if(F.kind==="lin") return [1,F.u[k]-F.u0]; const e=Math.exp(-g[F.jb]*(F.u[k]-F.u0)); return [e,-g[F.ja]*e*(F.u[k]-F.u0)]; };
   // A set's vector for a given global vector, built once per vector and set.
   // lmFit alternates two trial vectors when it differentiates, so two are kept.
   let c0={g:null,v:[]}, c1={g:null,v:[]};
   const vecOf=(g,k)=>{ let c; if(c0.g===g) c=c0; else if(c1.g===g) c=c1; else { c=c1; c1=c0; c0=c; c.g=g; c.v=new Array(K); }
-    let v=c.v[k]; if(!v){ v=p0s[k].slice(); const ix=gi[k]; for(let i=0;i<np;i++) if(ix[i]>=0) v[i]=g[ix[i]]; if(prep) prep(v,k); c.v[k]=v; } return v; };
+    let v=c.v[k]; if(!v){ v=p0s[k].slice(); const ix=gi[k]; for(let i=0;i<np;i++) if(ix[i]>=0) v[i]=g[ix[i]]; FL.forEach(i=>{ v[i]=folV(fol[i],g,k); }); if(prep) prep(v,k); c.v[k]=v; } return v; };
   const idx=X.map((_,i)=>i), fg=(i,g)=>f(X[i],vecOf(g,segOf[i]),segOf[i]);
   const res=lmFit(fg,idx,Y,W,g0,g0.map(()=>false),{lo,hi,pscale:ps,blocks:{seg,of}});
   if(res.error) return {error:res.error};
   const p=res.params, nShared=of.filter(o=>o<0).length, N=X.length;
+  // A following parameter's error, covariance and interval by the delta method through its two numbers.
+  const tq=(()=>{ for(let j=0;j<p.length;j++){ const e=res.errors[j]; if(e>0&&res.ci[j]&&Number.isFinite(res.ci[j][1])) return (res.ci[j][1]-p[j])/e; } return NaN; })();
+  const gradOf=(k,i)=>{ const F=fol[i]; if(F){ const d=folD(F,p,k); return [[F.ja,d[0]],[F.jb,d[1]]]; } const j=gi[k][i]; return j>=0?[[j,1]]:[]; };
+  const covAt=(k,a,b)=>{ let s=0; gradOf(k,a).forEach(([ja,ca])=>gradOf(k,b).forEach(([jb,cb])=>{ s+=ca*cb*res.cov[ja][jb]; })); return s; };
   const out=sets.map((s,k)=>{ const ix=gi[k], v=vecOf(p,k).slice(), [i0,i1]=seg[k], nk=i1-i0, own=ix.filter((j,i)=>j>=0&&of[j]===k).length;
     let chi=0, rss=0, my=0; for(let i=i0;i<i1;i++) my+=Y[i]; my/=nk||1; let tss=0;
     for(let i=i0;i<i1;i++){ const d=Y[i]-f(X[i],vecOf(p,k),k); chi+=(d*W[i])**2; rss+=d*d; tss+=(Y[i]-my)**2; }
     // A set's degrees of freedom: its points less its own parameters and its share of the shared ones.
     const dof=nk-own-nShared*nk/N, R2=tss>0?1-rss/tss:NaN;
-    return {params:v, errors:ix.map(j=>j>=0?res.errors[j]:0), cov:ix.map(a=>ix.map(b=>a>=0&&b>=0?res.cov[a][b]:0)),
-      dep:ix.map(j=>j>=0?res.dep[j]:0), tval:ix.map(j=>j>=0?res.tval[j]:NaN), pval:ix.map(j=>j>=0?res.pval[j]:NaN),
-      ci:ix.map(j=>j>=0?res.ci[j].slice():[NaN,NaN]), atBound:ix.map(j=>j>=0?res.atBound[j]:false),
+    const fe=i=>Math.sqrt(Math.max(0,covAt(k,i,i)));
+    return {params:v, errors:ix.map((j,i)=>fol[i]?fe(i):j>=0?res.errors[j]:0), cov:ix.map((a,ia)=>ix.map((b,ib)=>fol[ia]||fol[ib]?covAt(k,ia,ib):a>=0&&b>=0?res.cov[a][b]:0)),
+      dep:ix.map((j,i)=>fol[i]?NaN:j>=0?res.dep[j]:0), tval:ix.map((j,i)=>fol[i]?v[i]/fe(i):j>=0?res.tval[j]:NaN), pval:ix.map((j,i)=>fol[i]?tPvalue(v[i]/fe(i),res.stats.dof):j>=0?res.pval[j]:NaN),
+      ci:ix.map((j,i)=>fol[i]?[v[i]-tq*fe(i),v[i]+tq*fe(i)]:j>=0?res.ci[j].slice():[NaN,NaN]), atBound:ix.map((j,i)=>fol[i]?false:j>=0?res.atBound[j]:false),
       stats:{n:nk, dof:Math.round(dof*10)/10, chi2:chi, redChi2:dof>0?chi/dof:NaN, R2, adjR2:dof>0?1-(1-R2)*(nk-1)/dof:NaN, rss, rmse:dof>0?Math.sqrt(chi/dof):NaN,
         aic:null, bic:null, iter:res.stats.iter, converged:res.stats.converged, singular:res.stats.singular} }; });
-  return {sets:out, stats:Object.assign({},res.stats,{K, shared:nShared}), m:g0.length};
+  const follow=FL.map(i=>{ const F=fol[i]; return {i,kind:F.kind,u0:F.u0,a:p[F.ja],b:p[F.jb],sa:res.errors[F.ja],sb:res.errors[F.jb],cab:res.cov[F.ja][F.jb]}; });
+  return {sets:out, stats:Object.assign({},res.stats,{K, shared:nShared}), m:g0.length, follow};
 }
 // Fitted about the mean of X and then shifted back, because the raw power
 // basis is hopeless once x is in the thousands, as a wavenumber axis is.
@@ -5810,7 +5839,7 @@ function fitWarnings(f){
     add("warn","bound",`Stopped at a bound: ${names.join(", ")}. ${names.length===1?"Its error understates":"Their errors understate"} the real uncertainty.`,
       `${names.length} at a limit: ${names.join(", ")}. No standard error for ${pl(names.length,"it","them")}.`,[pk?["Fit window","fitwin"]:["Limits","limits"]]);
   }
-  if(f.global&&f.gstats){ const b=P()&&P().batch, t=b&&b.tmpl, sh=f.shared||[], names=t&&t.params.length===sh.length?shareSummary(t,sh):`${sh.filter(Boolean).length} parameters`;
+  if(f.global&&f.gstats){ const b=P()&&P().batch, t=b&&b.tmpl, sh0=f.shared||[], sh=f.follows?sh0.map((v,i)=>v||f.follows[i]||false):sh0, names=t&&t.params.length===sh.length?shareSummary(t,sh):`${sh.filter(Boolean).length} parameters`;
     add("info","global",`Fitted together with ${f.gstats.K-1} other columns, sharing ${names}: ${sh.filter(Boolean).length===1?"that value is":"those values are"} the same in all of them, and every error comes from all their points (${f.gstats.n} points, ${f.gstats.m} parameters, reduced χ² ${fmtOr(f.gstats.redChi2,4)}).`,
       `Fitted with ${f.gstats.K-1} other columns, sharing ${names}.`); }
   { const D=fitDiag(f,{auto:true}); if(D&&D.out.idx.length){ const k=D.out.idx.length, xs=D.out.idx.slice(0,6).map(i=>fmt(D.pts[i].x,5)).join(", ")+(k>6?", …":"");
@@ -17813,7 +17842,7 @@ function paramRows(f){
   const push=(i,label,meaning,dim)=>rows.push({i,label,meaning,unit:unitFor(dim,xu,yu),v:f.params[i],e:(f.errors||[])[i],
     t:(f.tval||[])[i],pv:(f.pval||[])[i],ci:ciOf(f,i),dep:(f.dep||[])[i],fixed:!!(f.fixed&&f.fixed[i]),
     // At a limit, the curvature says nothing about the uncertainty: no ±.
-    bound:!(f.fixed&&f.fixed[i])&&!!(f.atBound&&f.atBound[i]),hold:!!(f.fixed&&f.fixed[i])||!!(f.atBound&&f.atBound[i]),shared:!!(f.shared&&f.shared[i])});
+    bound:!(f.fixed&&f.fixed[i])&&!!(f.atBound&&f.atBound[i]),hold:!!(f.fixed&&f.fixed[i])||!!(f.atBound&&f.atBound[i]),shared:!!(f.shared&&f.shared[i]),follows:(f.follows||[])[i]||null});
   if(FM.composite){ FM.model.slots.forEach((s,i)=>{
     if(s.kind==="base"){ const bl=BASE_LABEL[s.name]||[s.name,""]; push(i,`baseline ${s.name}`,bl[0].toLowerCase(),bl[1]); }
     else push(i,`peak ${s.peak+1} ${s.name}`,s.meaning,PARAM_DIM[s.name]); });
@@ -17831,10 +17860,12 @@ function derivedRows(f){
 function statsList(f){
   const st=f.stats||{};
   if(f.global&&f.gstats){ const g=f.gstats;
-    const out=[["Points",st.n],["Parameters",`${g.own} of its own, ${g.sh} shared`],["Reduced χ²",fmtOr(st.redChi2,5)],["R² (COD)",fmtOr(st.R2,6)],["Residual sum of squares",fmtOr(st.rss,6)],
+    const out=[["Points",st.n],["Parameters",`${g.own} of its own, ${g.sh} shared${g.fol?`, ${g.fol} following the series`:""}`],["Reduced χ²",fmtOr(st.redChi2,5)],["R² (COD)",fmtOr(st.R2,6)],["Residual sum of squares",fmtOr(st.rss,6)],
       ["Fitted together with",`${g.K-1} other columns`],["Points in all",g.n],["Parameters in all",g.m],["Degrees of freedom",g.dof],["Reduced χ² of them all",fmtOr(g.redChi2,5)],
       ["Iterations",g.iter==null?"—":`${g.iter}${g.converged===false?" (not converged)":""}`],["Weighting",weightOf(f)==="counts"?"counting statistics, 1/y":f.weighted?"instrumental, 1/σ²":"none; errors scaled by √(reduced χ² of them all)"],["Confidence level",confPct(confOf(f))+"%"]];
     if(f.range) out.push(["Fitted over",`x ${fmt(f.range[0],6)} to ${fmt(f.range[1],6)}`]);
+    // The lines a parameter follows, when this row is of the batch on the desk.
+    const gl=P()&&P().batch&&P().batch.glob; if(gl&&gl.follow&&f.follows) gl.follow.forEach(q=>out.push(["Follows the series",followText(q)]));
     return out.map(([k,v])=>[k,v==null||v===""?"—":String(v)]); }
   const FM0=f.cons?fitModel(f):null;
   const out=[["Points",st.n],["Free parameters",st.n!=null&&st.dof!=null?st.n-st.dof:null],["Degrees of freedom",st.dof],
@@ -17858,7 +17889,7 @@ function paramTableHtml(f,all){
   return `<table class="rtab rpar"><thead><tr><th class="l">Parameter</th><th>Value</th><th class="se">Standard error</th><th class="x">t</th><th class="x">Prob &gt; |t|</th>${ci?`<th class="x">${confPct(confOf(f))}% confidence interval</th>`:""}<th class="x" title="Near 1: this parameter is doing the same job as others and is not independently determined">Dependency</th></tr></thead><tbody>${
     rows.map(r=>{ const [v,e]=r.tied?fmtVE(r.v,r.e):r.hold?[fmtPMd(r.v,0,r.dig),""]:fmtVE(r.v,r.e,r.dig), ciT=r.hold||!r.ci||!Number.isFinite(r.ci[0])||!Number.isFinite(r.ci[1])?"":`${esc(fmt(r.ci[0],6))} to ${esc(fmt(r.ci[1],6))}`;
       const why=r.tied?`<span class="lab">${esc(r.tied)}</span>`:r.hold?`<span class="lab">${r.fixed?"fixed":"at its limit"}</span>`:"";
-      return `<tr class="rmain${Number.isFinite(r.dep)&&r.dep>0.99&&!r.hold?" badrow":""}"><td class="l">${r.html?`<span style="font-style:italic;font-family:'Source Serif 4',Georgia,serif;font-size:1.08em">${r.html}</span>`:esc(r.label)}${u(r.unit)}${r.meaning?` <span class="lab">${esc(r.meaning)}</span>`:""}</td><td class="val">${v}${r.shared&&!r.tied?` <span class="lab shd" title="One value for every column of the global fit">shared</span>`:""}</td><td class="se">${e}${e&&why?" ":""}${why}</td><td class="x">${r.hold?"":esc(fmtOr(r.t,4))}</td><td class="x">${r.hold?"":esc(fmtP(r.pv))}</td>${ci?`<td class="x">${ciT}</td>`:""}<td class="x">${r.hold?"":esc(fmtOr(r.dep,4))}</td></tr>`+more(r,ciT); }).join("")
+      return `<tr class="rmain${Number.isFinite(r.dep)&&r.dep>0.99&&!r.hold?" badrow":""}"><td class="l">${r.html?`<span style="font-style:italic;font-family:'Source Serif 4',Georgia,serif;font-size:1.08em">${r.html}</span>`:esc(r.label)}${u(r.unit)}${r.meaning?` <span class="lab">${esc(r.meaning)}</span>`:""}</td><td class="val">${v}${r.shared&&!r.tied?` <span class="lab shd" title="One value for every column of the global fit">shared</span>`:r.follows?` <span class="lab shd" title="${esc(`${capFirst(FOLLOW_KINDS[r.follows])} ${seriesName()}: one line for every column of the global fit, its value here read off it`)}">follows</span>`:""}</td><td class="se">${e}${e&&why?" ":""}${why}</td><td class="x">${r.hold?"":esc(fmtOr(r.t,4))}</td><td class="x">${r.hold?"":esc(fmtP(r.pv))}</td>${ci?`<td class="x">${ciT}</td>`:""}<td class="x">${r.hold?"":esc(fmtOr(r.dep,4))}</td></tr>`+more(r,ciT); }).join("")
   }${der.length?`<tr class="rgrp"><td colspan="${n}">Derived</td></tr>`+der.map(x=>{ const [v,e]=fmtVE(x.v,x.e); return `<tr><td class="l">${esc(x.name)}${u(x.unit)}</td><td class="val">${v}</td><td class="se">${e}</td>${'<td class="x"></td>'.repeat(n-3)}</tr>`; }).join(""):""}</tbody></table>`;
 }
 function renderResults(){
@@ -22167,13 +22198,16 @@ ${DL([["Regular","y − f(x)."],["Standardised","The residual over s, the scatte
 ${DL([["This fit's result","Every column starts from the template's numbers. For samples that differ little."],["The one before it in the series","For a series that drifts, such as a band moving with temperature: the fit starts at the template's column and runs out both ways, each column starting from its neighbour's result."],["The peaks found in each column","For different samples: the peak finder, with its current settings, finds each column's peaks, which are then fitted with the template's first shape and its baseline."]])}
 <h2 id="global">Fitting them together</h2>
 <p><em>Fit them: Together, sharing parameters</em> makes one fit of every column at once, a global fit: the parameters ticked take one value for all the columns, and the rest are each column's own. Share what the physics says is common (a band's position and width in a reaction, a lifetime in a set of decays) and let the rest vary (the areas). A shared value is measured from every column's points, so its error is smaller than any one fit's, and the other parameters no longer trade off against it.</p>
-${DL([["Centres, Widths, Areas, Shapes, Baseline","Tick a kind to share it for every peak; <em>Parameter by parameter</em> picks them one at a time. A curve model lists its parameters."],["Fixed and tied parameters","Stay as they are in the template: fixed for every column, or following their peak in each."],["How it starts","Each column is first fitted with the shared parameters held at the template's values, so its own parameters start where they belong; then all are fitted together. A band absent from one column gets an area near zero there."]])}
+${DL([["Centres, Widths, Areas, Shapes, Baseline","Tick a kind to share it for every peak; <em>Parameter by parameter</em> picks each one's choice: its own, shared, or following the series (below). A curve model lists its parameters."],["Fixed and tied parameters","Stay as they are in the template: fixed for every column, or following their peak in each."],["How it starts","Each column is first fitted with the shared parameters held at the template's values, so its own parameters start where they belong; then all are fitted together. A band absent from one column gets an area near zero there."]])}
 <p>The dialog counts the parameters fitted at once: the shared ones, plus each column's own times the number of columns. Each column's row is then a fit like any other, marked <em>together with</em> the others; its errors come from the covariance of the whole fit, scaled by the reduced χ² of them all when there are no weights, and Results lists the parameters it shares. Every row depends on every column, so a change to any of them puts the whole fit out of date. A fit made by hand afterwards is shown for its column, but does not replace its row.</p>
+<h2 id="follow">A parameter that follows the series</h2>
+<p>When the columns have a value of the ${DA("batch#trend","series")} each (a temperature, a time, a concentration), a parameter can follow it instead of being shared: <em>A line in the series</em> makes it a straight line in the series variable, the same line for every column (a band that shifts with temperature), and <em>Arrhenius in the series</em> makes it k = A·exp(−E<sub>a</sub>/(R·T)) with T the series in kelvin (a rate against temperature; the series in K, °C or °F, the parameter above zero in every column). Either is two numbers fitted with everything else, so the slope or the activation energy comes with its error from the whole fit, which is what fitting each column and then a line through the results cannot give: there the points' errors and the trade-offs between parameters are lost.</p>
+${DL([["What it gives","The line's value at the middle of the series and its slope per unit of it, or the activation energy in kJ/mol (and E<sub>a</sub>/R in kelvin) with the value at the middle temperature: in the Batch window under its summary, in Results' statistics, the report and the CSV (with the two numbers, their errors and their covariance)."],["Each column","Its value is read off the line, its error carried from the line's two numbers; Results marks it <em>follows</em>."],["How it starts","Each column is first fitted with it free, and a line through those values (for Arrhenius, through their logarithms against 1/T) starts the two numbers."]])}
 <h2>The results</h2>
 <p>Each column's fit is a fit like any other. The graph draws it, on every graph that shows the column; Results shows it, with every note, when that column is active; the History has a Fits box for it. Fitting one column again by hand, with the same model, replaces its row. A row whose column's processing or masked points have changed is marked out of date; <em>Fit again</em> fits them all with the same template.</p>
 <h2>The table</h2>
 <p>One row per column, in the order of the series, with a mark for fitted, fitted with notes (hover to read them), or not fitted and why. The columns are each peak's centre, height, FWHM, area and share of the area, or each parameter of a curve model and what is derived from it; R² and reduced χ²; and each band's integral and ratio, which need no fit (${DA("integ","Integrating bands")}). After a global fit a shared quantity says so in its heading. With the peaks found in each column, the fits do not number their peaks alike: their peaks are matched by position across the series (a band can drift), and each column is a <em>peak near</em> a position, with how many columns have it. Peaks marked in the Peaks window are matched the same way and give their positions with no fit at all (${DA("peaks#across","Across the columns")}). Click a column's name to work on it. <em>Copy</em> gives the table as tab-separated text; ⋯ exports it as CSV.</p>
-<h2>The trend</h2>
+<h2 id="trend">The trend</h2>
 ${DL([["Plot","Any column of the table."],["Against: their order","1, 2, 3… in the order of the columns."],["Against: a number in their names","The number that varies most between the names, counted from the end: <em>Si 300 K</em> gives 300, <em>run 2, 45 min</em> gives 45. Give it a name and a unit."],["Against: values you type","Type each column's value in the table."],["Against: a field of their files","Any field of the files' headers that most columns have as a number and that differs between them: a temperature, a pressure, an exposure. A date and time becomes the time elapsed since the first column, in seconds, minutes, hours or days as the span asks."],["Straight line","A least-squares line through the points, weighted by their errors when every point has one: its slope and intercept with their errors, and R²."]])}
 <p>Error bars are the standard errors of the fit. Click a point to work on that column. ⋯ saves the trend as SVG, and the report includes the table and the trend.</p>
 <h2 id="desk">Trend graphs on the desk</h2>
@@ -23056,20 +23090,48 @@ function tmplParamName(t,i){
 const andList=a=>a.length<2?a.join(""):a.slice(0,-1).join(", ")+" and "+a[a.length-1];
 // "the centres and widths", or the parameters one by one.
 function shareSummary(t,share){
-  const tied=tmplTied(t), can=i=>!t.fixed[i]&&!tied.has(i), idx=share.map((s,i)=>s&&can(i)?i:-1).filter(i=>i>=0); if(!idx.length) return "nothing";
-  if(t.kind!=="composite") return andList(idx.map(i=>tmplParamName(t,i)));
+  const tied=tmplTied(t), can=i=>!t.fixed[i]&&!tied.has(i), idx=share.map((s,i)=>s===true&&can(i)?i:-1).filter(i=>i>=0);
+  // A parameter that follows the series is shared too, as a line: said after the rest.
+  const fol=share.map((s,i)=>FOLLOW_KINDS[s]&&can(i)?`${tmplParamName(t,i)} (${FOLLOW_KINDS[s]} ${seriesName()})`:null).filter(Boolean);
+  if(!idx.length&&!fol.length) return "nothing";
+  if(t.kind!=="composite") return andList(idx.map(i=>tmplParamName(t,i)).concat(fol));
   const left=new Set(idx), parts=[];
   SHARE_KINDS.forEach(([k,,one,many])=>{ const all=t.params.map((_,i)=>i).filter(i=>can(i)&&shareKindOf(t,i)===k);
-    if(all.length&&all.every(i=>share[i])){ parts.push(all.length>1&&k!=="base"?`every ${one}`:`the ${one}`); all.forEach(i=>left.delete(i)); } });
-  return andList(parts.concat([...left].map(i=>tmplParamName(t,i))));
+    if(all.length&&all.every(i=>share[i]===true)){ parts.push(all.length>1&&k!=="base"?`every ${one}`:`the ${one}`); all.forEach(i=>left.delete(i)); } });
+  return andList(parts.concat([...left].map(i=>tmplParamName(t,i))).concat(fol));
 }
+/* A parameter that follows the series (roadmap 7, slice 1): in a fit of every column together, one
+   of the template's parameters can be a straight line in the series variable (a centre that moves
+   with temperature) or Arrhenius in it (a rate, the series a temperature): two numbers for all the
+   columns, fitted with everything else (globalFit's opt.follow). A share is false (each column its
+   own), true (one value) or the kind. */
+const FOLLOW_KINDS={lin:"a straight line in",arr:"Arrhenius in"};
+const shareVal=v=>v===true||v==="lin"||v==="arr"?v:false;
+function seriesName(s){ s=s||seriesOf(); return s.mode==="order"?"the order of the columns":lcFirst(s.label||(s.mode==="meta"?s.key||"the series":s.mode==="name"?"the number in the names":"the series")); }
+// The series' values as temperatures in kelvin: in K (or no unit), °C or °F; a refusal in words otherwise.
+function seriesKelvin(vals,unit){ const u=String(unit||"").trim(); let f;
+  if(!u||/^K$|^kelvin$/i.test(u)) f=v=>v; else if(/^(°\s?C|C|degC|celsius)$/i.test(u)) f=v=>v+273.15; else if(/^(°\s?F|F|degF|fahrenheit)$/i.test(u)) f=v=>(v-32)*5/9+273.15;
+  else return {fail:`Arrhenius needs the series to be a temperature, in K, °C or °F: it is in ${u}`};
+  const T=vals.map(v=>v==null?null:f(v)); if(T.some(v=>v==null||!(v>0))) return {fail:"Arrhenius needs every temperature above zero kelvin"};
+  return {T,unit:u&&!/^K$|^kelvin$/i.test(u)?u:"K"}; }
+// What the line says: its value at the middle of the series and how it changes, or the activation energy.
+function followText(q,ascii){ const nm=/^(peak|baseline) /.test(q.name)?capFirst(q.name):q.name, pm=(v,e)=>{ const s=fmtPM(v,e); return ascii?s.replace(/±/g,"+/-").replace(/−/g,"-"):s; }, pu=q.unit?" "+q.unit:"", su=q.sunit?" "+q.sunit:"";
+  if(q.kind==="lin") return `${nm} = ${pm(q.a,q.sa)}${pu} at ${fmt(q.u0,6)}${su}, changing by ${pm(q.b,q.sb)}${pu} per${su||" unit of "+(q.sname||"the series")}`;
+  const R=8.314462618; return `${nm} by Arrhenius in ${q.sname||"the temperature"}: activation energy ${pm(q.b*R/1000,q.sb*R/1000)} kJ/mol (Ea/R ${pm(q.b,q.sb)} K), ${pm(q.a,q.sa)}${pu} at ${fmt(1/q.u0,6)} K`; }
 function fitTogether(list,t,share){
   const comp=t.kind==="composite", K=list.length; let m=null, mdl=null, L=[];
   const fixedT=t.fixed.slice();
   if(comp){ m=compileModel(t.spec,t.x0); if(m.n!==t.params.length) return {fail:"the model and its values do not match"}; L=peakLinks(t.spec.peaks,m); L.forEach(l=>{ fixedT[l.gi]=true; }); }
   else { try{ mdl=t.fn?userModel(t.fn):getModel(t.model); }catch(e){ mdl=null; } if(!mdl) return {fail:"its model is no longer available"}; if(consOf(t,mdl)) return {fail:"constraints between parameters are not taken by a fit of every column together yet: fit them one by one, or take the constraints away"}; }
-  const sh=share.map((s,i)=>!!s&&!fixedT[i]), nSh=sh.filter(Boolean).length, nOwn=fixedT.filter((x,i)=>!x&&!sh[i]).length, total=nSh+K*nOwn;
-  if(!nSh) return {fail:"no parameter is shared"};
+  const sh=share.map((s,i)=>s===true&&!fixedT[i]), fl=share.map((s,i)=>FOLLOW_KINDS[s]&&!fixedT[i]?s:null);
+  const nSh=sh.filter(Boolean).length, nF=fl.filter(Boolean).length, nOwn=fixedT.filter((x,i)=>!x&&!sh[i]&&!fl[i]).length, total=nSh+2*nF+K*nOwn;
+  if(!nSh&&!nF) return {fail:"no parameter is shared"};
+  // The series for the parameters that follow it: a value for every column, and kelvin for Arrhenius.
+  let sv=null, Tk=null, sname="", sunit="";
+  if(nF){ const ss=seriesOf(); sname=seriesName(ss); sunit=seriesUnit(ss); sv=seriesVals(list.map(q=>q.c),ss);
+    const miss=list.filter((q,k)=>!Number.isFinite(sv[k])); if(miss.length) return {fail:`the series has no value for ${andList(miss.slice(0,3).map(q=>specName(q.c)))}${miss.length>3?" and others":""}, so nothing can follow it`};
+    if(new Set(sv).size<2) return {fail:"every column has the same value of the series, so nothing can follow it"};
+    if(fl.includes("arr")){ const kv=seriesKelvin(sv,sunit); if(kv.fail) return {fail:kv.fail}; Tk=kv.T; } }
   if(total>900) return {fail:`${total} parameters in all is more than one fit can carry; share more of them, or fit fewer columns`};
   const tk=weightOf(t), info=list.map(({c})=>{ const d=finalOf(c), pts=batchPts(c,t), he=!!(d.e&&d.e.some(v=>v!=null&&v>0)); return {c,pts,he,canW:tk==="counts"?pts.every(q=>q.y>0):he&&pts.every(q=>q.e>0)}; });
   // Weighted only if every spectrum can be: a mixture would weigh some spectra by their errors and others by nothing.
@@ -23086,10 +23148,11 @@ function fitTogether(list,t,share){
     else { const Bt=boundsOf(t.lim,mdl,seed,t.fixed); lo.push(Bt.fail?(mdl.lo||null):Bt.lo); hi.push(Bt.fail?(mdl.hi||null):Bt.hi); }
     p0s.push(seed); });
   const ref=Math.max(0,list.findIndex(q=>q.c.id===t.from)), f=comp?(x,v)=>m.f(x,v):(x,v)=>mdl.f(x,v);
-  let r; try{ r=globalFit(sets,f,p0s,sh,fixedT,{lo,hi,pscale:comp?pscale:null,ref,start:t.params,prep:L.length?(v=>applyPeakLinks(v,L)):null}); }
+  const follow=nF?fl.map(k=>k?{kind:k,s:k==="arr"?Tk:sv}:null):null;
+  let r; try{ r=globalFit(sets,f,p0s,sh,fixedT,{lo,hi,pscale:comp?pscale:null,ref,start:t.params,follow,prep:L.length?(v=>applyPeakLinks(v,L)):null}); }
   catch(e){ return {fail:"the fit stopped with an error: "+(e&&e.message||e)}; }
   if(r.error) return {fail:r.error};
-  const g=r.stats, at=Date.now(), gstats={K, n:g.n, dof:g.dof, chi2:g.chi2, redChi2:Number.isFinite(g.redChi2)?g.redChi2:null, R2:Number.isFinite(g.R2)?g.R2:null, m:r.m, sh:nSh, own:nOwn, iter:g.iter, converged:g.converged};
+  const g=r.stats, at=Date.now(), gstats={K, n:g.n, dof:g.dof, chi2:g.chi2, redChi2:Number.isFinite(g.redChi2)?g.redChi2:null, R2:Number.isFinite(g.R2)?g.R2:null, m:r.m, sh:nSh, own:nOwn, fol:nF, iter:g.iter, converged:g.converged};
   const rows=info.map((z,k)=>{ let res=r.sets[k]; if(comp) res=linkResult(res,L);
     if(!res.params.every(Number.isFinite)) return {col:z.c.id,fit:null,fail:"the fit diverged"};
     const X=sets[k].X0||sets[k].X; let x0=Infinity,x1=-Infinity; X.forEach(v=>{ if(v<x0) x0=v; if(v>x1) x1=v; });
@@ -23097,9 +23160,12 @@ function fitTogether(list,t,share){
     const fit=Object.assign(comp?{kind:"composite",spec:clone(t.spec),x0:m.x0,fixed:t.fixed.slice()}:Object.assign({model:t.model,fixed:t.fixed.slice()},app?{app:clone(app)}:{},t.fn?{fn:clone(t.fn)}:{},t.lim?{lim:clone(t.lim)}:{},t.dig?{dig:t.dig.slice()}:{}),
       {params:res.params,errors:res.errors,cov:res.cov,dep:finOrNull(res.dep),pval:finOrNull(res.pval),tval:finOrNull(res.tval),ci:finOrNull(res.ci),atBound:res.atBound,stats:st,
        onCol:z.c.id,onColName:z.c.name||"",maskSig:maskSig(z.c),pipeSig:pipeSig(z.c),rawFp:rawFp(),hadErrCol:z.he,range:[x0,x1],weighted:useW,weight:useW?tk:"none",by:who(),at,batch:true,
-       global:true,shared:sh.slice(),gstats,...(t.conf?{conf:t.conf}:{})});
+       global:true,shared:sh.slice(),gstats,...(nF?{follows:fl.slice()}:{}),...(t.conf?{conf:t.conf}:{})});
     return {col:z.c.id,fit,fail:null}; });
-  return {rows,glob:{share:sh.slice(),stats:gstats}};
+  // Each line, with what it is of and in, for the Batch window, Results, the report and the CSV.
+  const d0=finalOf(list[0].c), dimOf=i=>{ if(comp){ const s=m.slots[i]; return s.kind==="base"?(BASE_LABEL[s.name]||["",""])[1]:PARAM_DIM[s.name]; } return (mdl.dim||[])[i]||""; };
+  const folOut=(r.follow||[]).map(q=>Object.assign({},q,{name:tmplParamName(t,q.i),unit:app?"":unitFor(dimOf(q.i),d0.xu||"",d0.yu||""),sname,sunit:q.kind==="arr"?"K":sunit,cab:Number.isFinite(q.cab)?q.cab:null}));
+  return {rows,glob:Object.assign({share:share.map((s,i)=>sh[i]?true:fl[i]||false),stats:gstats},folOut.length?{follow:folOut}:{})};
 }
 /* A header field as a number: a date and time (in ms), a time of day, or the
    first number in it with what follows as its unit ("300 K", "Exposure = 10 s",
@@ -23169,27 +23235,30 @@ async function openBatchDialog(){
   if(ys.length<2){ toast("There is no other column on the same X axis to fit."); return; }
   const comp=t.kind==="composite", K=ys.length, tied=tmplTied(t), can=i=>!t.fixed[i]&&!tied.has(i), kind=i=>shareKindOf(t,i);
   const prev=P().batch&&P().batch.glob&&P().batch.glob.share&&P().batch.glob.share.length===t.params.length?P().batch.glob.share:null;
-  const def=i=>can(i)&&(prev?!!prev[i]:comp&&(kind(i)==="xc"||kind(i)==="w"));
+  // What the series offers: a straight line when it has a value for every column, Arrhenius when those are temperatures.
+  const sv=seriesVals(ys), sOk=sv.every(Number.isFinite)&&new Set(sv).size>1, kv=sOk?seriesKelvin(sv,seriesUnit()):null, aOk=!!(kv&&!kv.fail), sn=seriesName();
+  const def=i=>{ if(!can(i)) return "own"; if(prev){ const v=shareVal(prev[i]); return v===true?"same":v==="lin"&&sOk?"lin":v==="arr"&&aOk?"arr":"own"; } return comp&&(kind(i)==="xc"||kind(i)==="w")?"same":"own"; };
   const kinds=comp?SHARE_KINDS.filter(([k])=>t.params.some((_,i)=>can(i)&&kind(i)===k)):[];
-  const prow=i=>`<label class="bfp"><input type="checkbox" id="bfP${i}" data-k="${kind(i)}"${def(i)?" checked":""}${can(i)?"":" disabled"}> ${esc(tmplParamName(t,i))}${t.fixed[i]?' <span class="lab">fixed</span>':tied.has(i)?' <span class="lab">tied</span>':""}</label>`;
+  const opt=(i,v,l,t2)=>`<option value="${v}"${def(i)===v?" selected":""}${t2?` title="${esc(t2)}"`:""}>${esc(l)}</option>`;
+  const prow=i=>`<label class="bfp" for="bfP${i}"><span>${esc(tmplParamName(t,i))}${t.fixed[i]?' <span class="lab">fixed</span>':tied.has(i)?' <span class="lab">tied</span>':""}</span><select id="bfP${i}" data-k="${kind(i)}"${can(i)?"":" disabled"}>${opt(i,"own","Its own")}${opt(i,"same","Shared")}${sOk?opt(i,"lin","A line in the series",`A straight line in ${sn}, the same line for every column`):""}${aOk?opt(i,"arr","Arrhenius in the series",`Arrhenius in ${sn}, as a rate against temperature: its activation energy fitted`):""}</select></label>`;
   const plist=`<div class="bfps">${t.params.map((_,i)=>prow(i)).join("")}</div>`;
-  const shared=r=>t.params.map((_,i)=>can(i)&&!!r["bfP"+i]);
-  const count=r=>{ const sh=shared(r).filter(Boolean).length, own=t.params.filter((_,i)=>can(i)).length-sh; return {sh,own,tot:sh+K*own}; };
+  const shared=r=>t.params.map((_,i)=>{ if(!can(i)) return false; const v=r["bfP"+i]; return v==="same"?true:v==="lin"||v==="arr"?v:false; });
+  const count=r=>{ const s=shared(r), sh=s.filter(v=>v===true).length, fo=s.filter(v=>v==="lin"||v==="arr").length, own=t.params.filter((_,i)=>can(i)).length-sh-fo; return {sh,fo,own,tot:sh+2*fo+K*own}; };
   const pr=formDlg({title:`Fit ${K} columns`,ok:`Fit ${K} columns`,
     html:`<p class="lab" style="margin:0 0 12px">With ${esc(lcFirst(t.name))}, as fitted to ${esc(specName(src))}${t.range?`, over x ${esc(fmt(amin(t.range),6))} to ${esc(fmt(amax(t.range),6))}`:""}${t.weighted?", weighted by the Y errors":""}.</p>
     <div class="grid2"><label for="bfSeed">Start each from</label><select id="bfSeed"><option value="tmpl">This fit's result</option><option value="chain">The one before it in the series</option>${comp?`<option value="found">The peaks found in each column</option>`:""}</select>
     <label for="bfHow" class="tipd" title="Together: one fit of every column at once, the parameters ticked below taking one value for all of them (a global fit)">Fit them</label><select id="bfHow"><option value="each">Each on its own</option><option value="global"${prev?" selected":""}>Together, sharing parameters</option></select></div>
-    <div id="bfShare" hidden><div class="lab">Shared by every column</div>
+    <div id="bfShare" hidden><div class="lab">Shared by every column${sOk?`, or following ${esc(sn)}`:""}</div>
     ${comp?`<div class="bfk">${kinds.map(([k,l])=>`<label class="bfp"><input type="checkbox" id="bfK_${k}" data-kind="${k}"> ${l}</label>`).join("")}</div><details><summary>Parameter by parameter</summary>${plist}</details>`:plist}
     <p class="lab" id="bfCount" aria-live="polite"></p></div>`,
-    valid:r=>{ if(r.bfHow!=="global"||r.bfSeed==="found") return true; const n=count(r); return n.sh>0&&n.tot<=900; }});
+    valid:r=>{ if(r.bfHow!=="global"||r.bfSeed==="found") return true; const n=count(r); return n.sh+n.fo>0&&n.tot<=900; }});
   const body=$("#formBody"), how=$("#bfHow"), seed=$("#bfSeed"), box=$("#bfShare"), modal=$("#formModal");
   const sync=()=>{ const found=seed.value==="found"; how.disabled=found; const g=how.value==="global"&&!found; box.hidden=!g;
-    kinds.forEach(([k])=>{ const cb=$("#bfK_"+k), ps=[...body.querySelectorAll(`[data-k="${k}"]:not(:disabled)`)], n=ps.filter(x=>x.checked).length; if(cb){ cb.checked=n>0&&n===ps.length; cb.indeterminate=n>0&&n<ps.length; } });
-    const r={}; t.params.forEach((_,i)=>{ const el=$("#bfP"+i); r["bfP"+i]=!!(el&&el.checked); }); const n=count(r);
-    $("#bfCount").textContent=!g?"":!n.sh?"Tick what every column shares.":`${n.sh} shared, ${n.own} for each column: ${n.tot} parameters fitted at once.${n.tot>900?" That is too many: share more, or fit fewer columns.":""}`; };
+    kinds.forEach(([k])=>{ const cb=$("#bfK_"+k), ps=[...body.querySelectorAll(`select[data-k="${k}"]:not(:disabled)`)], n=ps.filter(x=>x.value==="same").length; if(cb){ cb.checked=n>0&&n===ps.length; cb.indeterminate=n>0&&n<ps.length; } });
+    const r={}; t.params.forEach((_,i)=>{ const el=$("#bfP"+i); r["bfP"+i]=el?el.value:"own"; }); const n=count(r);
+    $("#bfCount").textContent=!g?"":!(n.sh+n.fo)?"Choose what every column shares.":`${n.sh} shared${n.fo?`, ${n.fo} following the series (two numbers each)`:""}, ${n.own} for each column: ${n.tot} parameters fitted at once.${n.tot>900?" That is too many: share more, or fit fewer columns.":""}`; };
   // On this dialog's own elements: #formBody outlives it, and serves the next dialog.
-  const onCh=e=>{ const k=e.target.dataset&&e.target.dataset.kind; if(k) body.querySelectorAll(`[data-k="${k}"]:not(:disabled)`).forEach(x=>{ x.checked=e.target.checked; }); sync(); if(modal.oninput) modal.oninput(); };
+  const onCh=e=>{ const k=e.target.dataset&&e.target.dataset.kind; if(k) body.querySelectorAll(`select[data-k="${k}"]:not(:disabled)`).forEach(x=>{ x.value=e.target.checked?"same":"own"; }); sync(); if(modal.oninput) modal.oninput(); };
   [seed,how,box].forEach(el=>el.addEventListener("change",onCh));
   sync(); if(modal.oninput) modal.oninput();
   const r=await pr;
@@ -23210,7 +23279,8 @@ async function runBatch(o){
   // at the template's values: its own parameters then start where they belong
   // with those values (a band absent from one spectrum gets an area near zero,
   // not a width of 1e48).
-  const tf=o.share?Object.assign({},t,{fixed:t.fixed.map((x,i)=>x||!!o.share[i])}):t;
+  // A parameter that follows the series is each column's own in that pass: a line through them starts it.
+  const tf=o.share?Object.assign({},t,{fixed:t.fixed.map((x,i)=>x||o.share[i]===true)}):t;
   const rows={}, t0=performance.now();
   for(let j=0;j<seq.length;j++){
     if(S.batchRun.stop||S.pid!==pid) break;
@@ -23280,7 +23350,7 @@ function batchQuantities(){
     const sh=b.glob&&b.glob.share;
     if(t.kind==="composite"&&b.seed!=="found"){ const m=compileModel(t.spec,t.x0);
       // Shared: a centre or area that is one parameter shared; a FWHM whose widths all are; a height whose area and widths all are.
-      const pkSh=(k,f)=>{ if(!sh) return false; const pd=PEAKS[t.spec.peaks[k].type]||PEAKS.gauss, o=m.offsets[k], is=nm=>!!sh[o+pd.params.indexOf(nm)];
+      const pkSh=(k,f)=>{ if(!sh) return false; const pd=PEAKS[t.spec.peaks[k].type]||PEAKS.gauss, o=m.offsets[k], is=nm=>sh[o+pd.params.indexOf(nm)]===true;
         return f==="xc"?is("xc"):f==="area"?is("A"):f==="fwhm"?pd.params.filter(nm=>/^w/.test(nm)).every(is):f==="height"?pd.params.filter(nm=>nm!=="xc").every(is):false; };
       t.spec.peaks.forEach((pk,k)=>{ const ctr=t.params[m.offsets[k]], g=`Peak ${k+1}`+(Number.isFinite(ctr)?` (${fmt(ctr,4)})`:"");
         [["xc","centre","x"],["height","height","y"],["fwhm","FWHM","x"],["area","area","yx"],["areaPct","area %",""]].forEach(([f,l,dim])=>out.push({id:`pk${k}.${f}`,label:`${g} ${l}`,group:g,short:l,dim,peak:k,f,shared:pkSh(k,f)})); }); }
@@ -23289,7 +23359,7 @@ function batchQuantities(){
         [["xc","centre","x"],["height","height","y"],["fwhm","FWHM","x"],["area","area","yx"],["areaPct","area %",""]].forEach(([f,l,dim])=>out.push({id:`fk@${fmt(k.x,6)}.${f}`,label:`${g} ${l}`,group:g,short:l,dim,trk:k,f,tx:k.x,tw:k.w})); });
       out.push({id:"npk",label:"Peaks found",short:"Peaks found",dim:"",group:"Fit"}); }
     else { let m=null; try{ m=t.fn?userModel(t.fn):getModel(t.model); }catch(e){}
-      if(m){ m.params.forEach((nm,i)=>{ const l=phPlain((m.ph||[])[i]||nm); out.push({id:`par${i}`,label:l,short:l,dim:(m.dim||[])[i]||"",pi:i,group:"Parameters",shared:!!(sh&&sh[i])}); });
+      if(m){ m.params.forEach((nm,i)=>{ const l=phPlain((m.ph||[])[i]||nm); out.push({id:`par${i}`,label:l,short:l,dim:(m.dim||[])[i]||"",pi:i,group:"Parameters",shared:!!(sh&&sh[i]===true)}); });
         (m.derived||[]).forEach((dv,j)=>out.push({id:`der${j}`,label:dv.name,short:dv.name,dim:dv.dim||"",dj:j,group:"Derived"})); } }
     out.push({id:"R2",label:"R²",short:"R²",dim:"",group:"Fit"},{id:"chi2",label:"Reduced χ²",short:"χ²ᵣ",dim:"",group:"Fit"}); }
   const xu=b?b.tmpl.xu||"":(finalOf(activeYCol()).xu||""), ig=integOf();
@@ -23414,7 +23484,8 @@ function renderBatch(){
   if(run) h+=`<div class="bprog" id="bProg">${batchProgHtml()}</div>`;
   if(b){ const t=b.tmpl, stale=b.rows.filter(r=>r.fit&&batchStale(r.fit)).length, failed=b.rows.filter(r=>!r.fit).length;
     const gl=b.glob, gs=gl&&gl.stats;
-    h+=`<p class="bsum">${esc(capFirst(lcFirst(t.name)))}${t.range?` · x ${esc(fmt(amin(t.range),5))} to ${esc(fmt(amax(t.range),5))}`:""} · ${gl?`<span title="${esc(`${gs.K} columns, ${gs.n} points and ${gs.m} parameters fitted at once (${gs.sh} shared, ${gs.own} for each column); ${gs.dof} degrees of freedom`)}">fitted together, sharing ${esc(shareSummary(t,gl.share))} · reduced χ² ${esc(fmtOr(gs.redChi2,4))}${gs.converged===false?" (not converged)":""}</span>`:esc(SEEDS[b.seed]||"")} · ${esc(ago(b.at))}${failed?` · ${failed} failed`:""}${stale?` · <span class="chip">${stale} out of date</span>`:""}</p>`; }
+    h+=`<p class="bsum">${esc(capFirst(lcFirst(t.name)))}${t.range?` · x ${esc(fmt(amin(t.range),5))} to ${esc(fmt(amax(t.range),5))}`:""} · ${gl?`<span title="${esc(`${gs.K} columns, ${gs.n} points and ${gs.m} parameters fitted at once (${gs.sh} shared, ${gs.fol?`${gs.fol} following the series, `:""}${gs.own} for each column); ${gs.dof} degrees of freedom`)}">fitted together, sharing ${esc(shareSummary(t,gl.share))} · reduced χ² ${esc(fmtOr(gs.redChi2,4))}${gs.converged===false?" (not converged)":""}</span>`:esc(SEEDS[b.seed]||"")} · ${esc(ago(b.at))}${failed?` · ${failed} failed`:""}${stale?` · <span class="chip">${stale} out of date</span>`:""}</p>`;
+    if(gl&&gl.follow&&gl.follow.length) h+=`<p class="bsum bfol">${gl.follow.map(q=>esc(followText(q))).join("<br>")}</p>`; }
   else if(!qs.length){ box.innerHTML=h+`<p class="nothing">${af?"Fit every column with the active column's fit, then compare them here.":"Fit one column (its fit is the template for the others), or mark peaks or bands in every column, to compare them here."}</p>`; wireBatch(box); return; }
   const q=qFind(qs,s.q), tr=trendData(q), W=Math.max(320,Math.min(900,box.clientWidth-30)), pal=readPalette();
   h+=`<div class="trendbar"><label for="bQ">Plot</label><select id="bQ">${qs.map(z=>`<option value="${esc(z.id)}"${z===q?" selected":""}>${esc(z.label)}</option>`).join("")}</select>
@@ -23475,7 +23546,9 @@ function batchTableText(sep){
 }
 async function exportBatchCsv(){ const p=P(); if(!p) return; const b=p.batch, s=seriesOf(), lines=[batchTableText(",")];
   if(b){ const t=b.tmpl; lines.push("",`# Batch fit,${t.name}`,`# started,${SEEDS[b.seed]||""}`); if(t.range) lines.push(`# fitted over x,${amin(t.range)},${amax(t.range)}`);
-    if(b.glob){ const g=b.glob.stats; lines.push(`# fitted together sharing,${shareSummary(t,b.glob.share).replace(/,/g," ")}`,`# global fit,columns,${g.K},points,${g.n},parameters,${g.m},degrees of freedom,${g.dof},reduced chi2,${g.redChi2}`); }
+    if(b.glob){ const g=b.glob.stats; lines.push(`# fitted together sharing,${shareSummary(t,b.glob.share).replace(/,/g," ")}`,`# global fit,columns,${g.K},points,${g.n},parameters,${g.m},degrees of freedom,${g.dof},reduced chi2,${g.redChi2}`);
+      // A line a parameter follows: its two numbers with their errors and covariance, in words too.
+      (b.glob.follow||[]).forEach(q=>lines.push(`# follows the series,${q.name.replace(/,/g," ")},${q.kind==="arr"?"Arrhenius":"straight line"},${q.kind==="arr"?"value at 1/T mean":"value at"},${q.kind==="arr"?1/q.u0:q.u0},a,${q.a},${q.sa},${q.kind==="arr"?"Ea/R (K)":"slope"},${q.b},${q.sb},cov(a b),${q.cab}`,`# ,${followText(q,true).replace(/,/g," ")}`)); }
     lines.push(`# weighting,${weightText(t,true)}`);
     b.rows.forEach(r=>{ const c=colById(r.col); if(!r.fit) lines.push(`# ${specName(c).replace(/,/g," ")},not fitted: ${String(r.fail).replace(/,/g," ")}`); else { const st=batchStale(r.fit); if(st) lines.push(`# ${specName(c).replace(/,/g," ")},${st.replace(/,/g," ")}`); } }); }
   const qs=batchQuantities(), q=qFind(qs,s.q);
@@ -23488,7 +23561,9 @@ async function exportTrendSvg(){ const qs=batchQuantities(), s=seriesOf(), q=qFi
 function reportBatchHtml(){ const p=P(), b=p&&p.batch; if(!b) return "";
   const qs=batchQuantities(), s=seriesOf(), q=qFind(qs,s.q), tr=q?trendData(q):null, e2=t=>esc(String(t)), rows=seriesCols(), c0=(rows[0]||{}).c;
   const gs=b.glob&&b.glob.stats;
+  const fol=b.glob&&b.glob.follow&&b.glob.follow.length?"<p>"+b.glob.follow.map(q=>e2(followText(q))+".").join(" ")+"</p>":"";
   let out="<h2>Batch fit</h2><p>"+e2(capFirst(lcFirst(b.tmpl.name)))+" fitted to "+b.rows.length+" columns, "+(b.glob?"all at once, sharing "+e2(shareSummary(b.tmpl,b.glob.share))+": "+gs.n+" points, "+gs.m+" parameters ("+gs.sh+" shared, "+gs.own+" for each column), reduced χ² "+e2(fmtOr(gs.redChi2,5))+", "+gs.dof+" degrees of freedom; each column was first fitted on its own, "+e2(SEEDS[b.seed]||""):e2(SEEDS[b.seed]||""))+(b.tmpl.range?", over x "+e2(fmt(amin(b.tmpl.range),6))+" to "+e2(fmt(amax(b.tmpl.range),6)):"")+".</p>";
+  out+=fol;
   if(tr&&tr.pts.length) out+="<figure>"+trendSvg(tr,q,640,380,EXPORT_PAL,true)+"</figure>"+(tr.fit?"<p>"+trendFitText(tr,q)+"</p>":"");
   out+="<table><thead><tr><th class=\"l\">Column</th><th>"+e2(seriesLabel(s))+"</th>"+qs.map(z=>{ const u=c0?qUnit(z,c0):""; return "<th>"+e2(z.label)+(u?" ("+e2(u)+")":"")+"</th>"; }).join("")+"<th class=\"l\">Notes</th></tr></thead><tbody>";
   rows.forEach(({c,v})=>{ const r=batchRowOf(c.id), f=r&&r.fit, st=f?batchStale(f):null, w=f?fitWarnings(f).filter(x=>x.kind!=="stale").map(x=>x.text):[];

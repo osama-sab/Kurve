@@ -889,6 +889,22 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: a parameter that follows the series (roadmap 7, slice 1)
+
+- **The line through the results, fitted with them.** People fit each spectrum and then draw a line
+  through the centres against temperature; the slope's error then ignores each centre's own error
+  and its trade-off with the width. A parameter can follow the series inside the global fit
+  instead: two numbers for all the columns, their errors from the whole covariance, as Origin's
+  global fit with a parameter defined by a function of a dataset's variable.
+- **A choice per parameter, in the same list.** Its own, Shared, A line in the series, Arrhenius in
+  the series: one list beside each parameter, as the dialog already listed them, the kinds' ticks
+  still setting Shared for a whole kind. The line is offered only when every column has a value of
+  the series, Arrhenius only when those are temperatures (K, °C or °F), so nothing offered fails.
+- **Said where the shared values are said**: the Batch window's summary names it after the shared
+  ones, with the line under it in words (the value at the middle of the series and the change per
+  unit, or the activation energy in kJ/mol); Results marks the parameter *follows*, as it marks
+  *shared*.
+
 ### 2026-11-06: a peak's shape by its own handle (roadmap 6, slice 4)
 
 - **A shape is a slider, not a place.** The dot is where a peak is and the side handles how wide;

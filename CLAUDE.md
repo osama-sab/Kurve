@@ -193,7 +193,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   to finish a set's vector, e.g. ties); a set's vector is built once per trial vector (two kept,
   since the Jacobian alternates them). It returns each set's params, errors, covariance block,
   dep, t, p, CI and atBound, its own statistics (its degrees of freedom less its share of the
-  shared parameters), and the whole fit's (`K`, `shared`). `inverse` eliminates once and replays
+  shared parameters), and the whole fit's (`K`, `shared`). `opt.follow[i] = {kind, s}` (roadmap 7,
+  slice 1) makes parameter i follow the series, two global numbers for every set: `lin` a + b·(s −
+  s̄), `arr` Arrhenius a·exp(−b·(1/s − ū)) (s in kelvin, b = Ea/R), started from a line through the
+  sets' own starts (their logarithms against 1/s); each set's value, error, covariance, t, p and
+  interval through the delta method (dependency NaN), `follow [{i, kind, u0, a, b, sa, sb, cab}]`
+  returned; refused in words for a missing value, one value only, a temperature or a start not
+  above zero. `inverse` eliminates once and replays
   it on each column: solve()'s arithmetic exactly, at n³ instead of n⁴.
   `fillSeries(o, n)` makes the worksheet's fills (linear and growth series with a stop
   value, evenly spaced on a linear or log scale, row numbers, a list repeated, uniform, whole,
@@ -342,7 +348,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   identity, each column exactly solve()'s), global fits (shared values recovered and equal in
   every set, each set's own, the degrees of freedom, a smaller shared error than one fit's,
   the block-sparse fit equal to the same problem dense, the shared error against 150 noisy
-  repeats, ties through `prep`, one set as an ordinary fit), `matchPeakTracks`, counting
+  repeats, ties through `prep`, one set as an ordinary fit, a centre following the series as a
+  line and a rate by Arrhenius, each with its errors and refusals), `matchPeakTracks`, counting
   statistics (a Poisson continuum whose wiggles one noise figure takes for peaks and √N does
   not, with a weak line found), `matchLines`, and the fills (a series by 0.1 with no dust, a
   tiny step on a large start, stop values either way, growth, even and log spacing, lists, the
@@ -674,8 +681,18 @@ graph first, with the taskbar kept at the bottom of the screen.
   flag per parameter) and `gstats`, its errors from the whole covariance. Weighted only if
   every spectrum can be; at most 900 parameters. A failure keeps the first fits and says so.
   `SHARE_KINDS`/`shareKindOf` (centres, widths, areas, shapes, baseline), `tmplTied`,
-  `tmplParamName`, `shareSummary` ("every centre and every width"); the dialog's sharing list
-  (`#bfShare`, `bfK_<kind>`, `bfP<i>`, listeners on its own elements). `activeFit` and `laneFit`
+  `tmplParamName`, `shareSummary` ("every centre and every width", a following one after the rest:
+  "xc (a straight line in temperature)"); the dialog's sharing list (`#bfShare`, `bfK_<kind>`
+  setting a kind's lists, `bfP<i>` a list per parameter: Its own, Shared, and while the series has
+  a value for every column A line in the series, and while those are temperatures (`seriesKelvin`:
+  K, °C or °F) Arrhenius in the series; listeners on its own elements). **Following the series**
+  (roadmap 7, slice 1): a share is false, true or `"lin"`/`"arr"` (`FOLLOW_KINDS`, `shareVal`);
+  `runBatch` holds only a shared value in its first pass; `fitTogether` takes the series values
+  (`seriesVals`, `seriesName`, kelvin for Arrhenius), passes `follow`, stores each row's `follows`
+  and `gstats.fol`, and `glob.follow` (each line with its parameter's `name`, `unit`, the series'
+  `sname` and `sunit`); `followText(q, ascii)` says it (the Batch window's `.bfol` under the
+  summary, Results' statistics *Follows the series*, the report, the CSV with the two numbers,
+  their errors and covariance); Results marks the parameter *follows*. `activeFit` and `laneFit`
   prefer a global row to a fit by hand made before it; `batchWith` never replaces a global row;
   `batchStale` puts every global row out of date when any of its spectra changes;
   `fitWarnings` adds a `global` note; `statsList` gives the row's and the whole fit's numbers;
@@ -4018,7 +4035,7 @@ Next, in order:
 6. Getting around: a visible undo list (done 06.11), flow chart zoom and packed lanes (done
    06.11), keyboard access to annotations and peak handles (done 06.11), handles for shape
    parameters (Lorentz fraction, Pearson m, Fano 1/q; done 06.11): the roadmap's item 6 is done
-7. Many spectra, further: a parameter that follows the series in a global fit (a centre
+7. Many spectra, further: a parameter that follows the series in a global fit (done 06.11; a centre
    linear in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the
    files' header fields as rows of the worksheet, global fits in a worker
 8. More files: JCAMP-DX, then SPC; OPUS and SPE last
@@ -4117,8 +4134,9 @@ Next, in order:
 - Help cannot be opened over a dialog (a dialog makes the desk inert), so the import wizard
   has no "?" of its own; their articles are in the contents. Articles have
   no pictures, and search matches words, not meanings
-- A global fit shares a parameter's value exactly: a parameter cannot follow the series (a
-  centre linear in temperature) or be tied to another parameter across spectra; it runs on the
+- A global fit shares a parameter's value, or makes it follow the series as a straight line or
+  Arrhenius (no other law, no quadratic, not two series at once); a parameter cannot be tied to
+  another parameter across spectra; it runs on the
   page, so a large one holds the page for a few seconds, and stops at 900 parameters. It needs
   the template's peaks in every spectrum (not with the peaks found in each)
 - Fitted peak labels are styled as a set (one font, colour rule and box for all); a label can

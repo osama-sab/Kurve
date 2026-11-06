@@ -679,6 +679,40 @@ function fitSpec(X, Y, spec, init, opts) {
   check("global: one set is an ordinary fit", (() => { const a = N.globalFit([sets[0]], f, [[0, 97, 1500, 10]], shared, fixed, {}), b = N.lmFit(f, sets[0].X, sets[0].Y, sets[0].X.map(() => 1), [0, 97, 1500, 10], fixed);
     return rel(a.sets[0].params[2], b.params[2], 1e-6) && rel(a.sets[0].errors[2], b.errors[2], 1e-4); })());
 }
+/* ---------- global fits: a parameter that follows the series ---------- */
+{
+  let s = 41; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const gauss = () => Math.sqrt(-2 * Math.log(rnd() + 1e-12)) * Math.cos(2 * Math.PI * rnd());
+  const G = N.PEAKS.gauss, T = [280, 290, 300, 310, 320, 330], slope = 0.5, w = 6, sig = 2;
+  const f = (x, p) => G.f(x, [p[0], p[1], p[2]]);                      // centre, area, FWHM
+  const mk = () => T.map((t, k) => { const X = [], Y = []; for (let x = 60; x <= 160; x += 0.5) { X.push(x); Y.push(G.f(x, [100 + slope * (t - 300), 800 + 100 * k, w]) + sig * gauss()); } return { X, Y }; });
+  const sets = mk(), p0s = T.map((t, k) => [100 + slope * (t - 300) + (k % 2 ? 1.5 : -1.2), 700, 8]);
+  const r = N.globalFit(sets, f, p0s, [false, false, true], [false, false, false], { follow: [{ kind: "lin", s: T }, null, null], lo: [-Infinity, -Infinity, 1e-9] });
+  const fl = r.follow && r.follow[0];
+  check("follow: a centre linear in temperature converges, its line returned", !r.error && r.stats.converged && fl && fl.kind === "lin" && fl.i === 0, r.error || JSON.stringify(fl));
+  check("follow: the slope is recovered within its error", fl && fl.sb > 0 && near(fl.b, slope, 4 * fl.sb), fl && [fl.b, fl.sb]);
+  check("follow: the value at the mean temperature is recovered", fl && near(fl.a, 100 + slope * (305 - 300), 4 * fl.sa) && near(fl.u0, 305, 1e-12), fl && [fl.a, fl.sa, fl.u0]);
+  check("follow: each set's centre lies on the line", r.sets.every((q, k) => near(q.params[0], fl.a + fl.b * (T[k] - fl.u0), 1e-9)));
+  check("follow: each set's centre error is the line's, by the delta method", r.sets.every((q, k) => { const d = T[k] - fl.u0; return rel(q.errors[0], Math.sqrt(fl.sa ** 2 + d * d * fl.sb ** 2 + 2 * d * fl.cab), 1e-9) && rel(q.cov[0][0], q.errors[0] ** 2, 1e-9); }), r.sets.map(q => q.errors[0].toExponential(3)).join(","));
+  check("follow: degrees of freedom count the line as two parameters", r.m === 2 + 1 + 6 && r.stats.dof === 6 * 201 - 9, [r.m, r.stats.dof]);
+  check("follow: its interval and t value are given, its dependency is not", r.sets.every(q => q.ci[0][0] < q.params[0] && q.ci[0][1] > q.params[0] && Number.isFinite(q.tval[0]) && Number.isNaN(q.dep[0])));
+  // The slope's error means what it says: 60 repeats.
+  const bs = []; let rep = 0;
+  for (let t = 0; t < 60; t++) { const q = N.globalFit(mk(), f, p0s, [false, false, true], [false, false, false], { follow: [{ kind: "lin", s: T }, null, null], lo: [-Infinity, -Infinity, 1e-9] }); bs.push(q.follow[0].b); rep += q.follow[0].sb / 60; }
+  const m = bs.reduce((a, b) => a + b, 0) / bs.length, sd = Math.sqrt(bs.reduce((a, b) => a + (b - m) ** 2, 0) / (bs.length - 1));
+  check("follow: the slope's error matches the scatter of noisy repeats", near(m, slope, 0.01) && rep / sd > 0.75 && rep / sd < 1.33, [m, sd, rep]);
+  // Arrhenius: a decay rate k = A·exp(−Ea/(R·T)) over six temperatures.
+  const R = 8.314462618, Ea = 50000, Tk = [300, 310, 320, 330, 340, 350], kOf = t => 1e7 * Math.exp(-Ea / (R * t));
+  const fd = (x, p) => p[0] * Math.exp(-p[1] * x);
+  const setsA = Tk.map(t => { const X = [], Y = []; for (let x = 0; x <= 5 / kOf(Tk[0]); x += 0.05 / kOf(Tk[0])) { X.push(x); Y.push(100 * Math.exp(-kOf(t) * x) + 0.3 * gauss()); } return { X, Y }; });
+  const ra = N.globalFit(setsA, fd, Tk.map(t => [95, kOf(t) * 1.2]), [false, false], [false, false], { follow: [null, { kind: "arr", s: Tk }] });
+  const fa = ra.follow && ra.follow[0];
+  check("follow: Arrhenius recovers the activation energy within its error", !ra.error && fa && fa.kind === "arr" && near(fa.b * R, Ea, 4 * fa.sb * R) && fa.sb * R < 2000, ra.error || (fa && [fa.b * R, fa.sb * R]));
+  check("follow: each rate is the law's at its temperature", ra.sets.every((q, k) => rel(q.params[1], fa.a * Math.exp(-fa.b * (1 / Tk[k] - fa.u0)), 1e-12) && rel(q.params[1], kOf(Tk[k]), 0.03)), ra.sets.map(q => q.params[1].toExponential(3)).join(","));
+  check("follow: Arrhenius refuses a temperature at or below zero, or a rate that is not above zero", N.globalFit(setsA, fd, Tk.map(t => [95, kOf(t)]), [false, false], [false, false], { follow: [null, { kind: "arr", s: Tk.map(t => t - 300) }] }).error === "Arrhenius needs every temperature above zero kelvin"
+    && /above zero in every set/.test(N.globalFit(setsA, fd, Tk.map((t, k) => [95, k ? kOf(t) : -1]), [false, false], [false, false], { follow: [null, { kind: "arr", s: Tk }] }).error || ""));
+  check("follow: a series of one value has nothing to follow", /one value only/.test(N.globalFit(sets, f, p0s, [false, false, true], [false, false, false], { follow: [{ kind: "lin", s: T.map(() => 300) }, null, null] }).error || ""));
+}
 /* ---------- the same peak across a series ---------- */
 {
   const L = [[{ x: 100, w: 5 }, { x: 200, w: 6 }], [{ x: 101, w: 5 }, { x: 199, w: 6 }, { x: 300, w: 8 }], [{ x: 102.5, w: 5 }, { x: 300.4, w: 8 }], [{ x: 104, w: 5 }, { x: 110, w: 5 }]];

@@ -1042,6 +1042,50 @@ await page(async p => {
   check("a Pearson VII's m on a log scale", Math.abs(r.t - r.want) < 0.01, JSON.stringify(r));
 }, { name: "a peak's shape by its own handle" });
 
+console.log("Roadmap 7, slice 1: a parameter that follows the series in a global fit");
+await page(async p => {
+  await p.evaluate(async () => {
+    let s = 7; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; }, gn = () => Math.sqrt(-2 * Math.log(rnd() + 1e-12)) * Math.cos(2 * Math.PI * rnd());
+    const x = Array.from({ length: 161 }, (_, i) => 60 + i * 0.5), X = makeCol("x", "Shift", "cm-1", x), cols = [X];
+    [280, 290, 300, 310, 320].forEach((T, k) => cols.push(Object.assign(makeCol("y", "T" + T, "", x.map(v => 3 + (40 + 5 * k) * Math.exp(-0.5 * ((v - (100 + 0.4 * (T - 300))) / 3) ** 2) + 0.4 * gn())), { pipe: [], mask: [] })));
+    const pr = Object.assign(blankProject("Series"), { cols, activeY: cols[3].id, series: { mode: "name", label: "Temperature", unit: "K", vals: {}, q: null, line: false } });
+    pr.graphs = [{ id: newGid(), name: "Graph 1", cols: cols.slice(1).map(c => c.id), plot: { style: "auto" } }];
+    await createProject(pr, "test"); await new Promise(r => setTimeout(r, 80)); renderAll();
+    prefSet("anim", false); applyAnim(); S.fitMode = "curve"; showTab("fit"); chooseModel("gauss"); runFit();
+  });
+  await p.waitForTimeout(800);
+  // The dialog offers a line and Arrhenius for each parameter, the series being a temperature.
+  await p.evaluate(() => { openBatchDialog(); }); await p.waitForTimeout(400);
+  let r = await p.evaluate(() => { const how = document.querySelector("#bfHow"); how.value = "global"; how.dispatchEvent(new Event("change", { bubbles: true }));
+    const sel = document.querySelector("#bfP2"); return { opts: [...sel.options].map(o => o.value), lab: document.querySelector("#bfShare .lab").textContent }; });
+  check("Fit every column, together: each parameter its own, shared, a line in the series or Arrhenius in it", JSON.stringify(r.opts) === '["own","same","lin","arr"]' && /or following temperature/.test(r.lab), JSON.stringify(r));
+  r = await p.evaluate(() => { const set = (i, v) => { const el = document.querySelector("#bfP" + i); el.value = v; el.dispatchEvent(new Event("change", { bubbles: true })); };
+    set(0, "same"); set(1, "own"); set(2, "lin"); set(3, "same"); return document.querySelector("#bfCount").textContent; });
+  check("…counted: the line is two numbers", /2 shared, 1 following the series \(two numbers each\), 1 for each column: 9 parameters fitted at once/.test(r), JSON.stringify(r));
+  await p.evaluate(() => document.querySelector("#formOk").click());
+  for (let i = 0; i < 40 && await p.evaluate(() => !!S.batchRun); i++) await p.waitForTimeout(250);
+  await p.waitForTimeout(300);
+  r = await p.evaluate(() => { const b = P().batch, g = b.glob, q = (g.follow || [])[0]; return { share: g.share, q, n: b.rows.filter(z => z.fit && z.fit.global && z.fit.follows && z.fit.follows[2] === "lin").length,
+    xs: b.rows.map(z => z.fit && z.fit.params[2]), es: b.rows.map(z => z.fit && z.fit.errors[2]), fol: g.stats.fol }; });
+  check("the centre follows a line: its slope recovered, every column's centre on it", r.q && r.q.kind === "lin" && Math.abs(r.q.b - 0.4) < 4 * r.q.sb && r.q.sb > 0 && r.n === 5 && r.fol === 1
+    && r.xs.every((v, k) => Math.abs(v - (r.q.a + r.q.b * ([280, 290, 300, 310, 320][k] - r.q.u0))) < 1e-9) && JSON.stringify(r.share) === '[true,false,"lin",true]', JSON.stringify(r));
+  r = await p.evaluate(() => ({ sum: document.querySelector("#w-batch .bsum").textContent, fol: (document.querySelector("#w-batch .bfol") || {}).textContent || "" }));
+  check("the Batch window says what is shared and gives the line", /sharing .* and xc \(a straight line in temperature\)/.test(r.sum) && /^xc = .* cm.1 at 300 K, changing by .* cm.1 per K$/.test(r.fol), JSON.stringify(r));
+  r = await p.evaluate(() => { const f = activeFit(); showDrawer("res"); renderResults(); const box = document.querySelector("#pane-res");
+    return { follows: !!(f.follows && f.follows[2] === "lin"), mark: [...box.querySelectorAll(".shd")].map(e => e.textContent), stat: statsList(f).find(([k]) => k === "Follows the series") }; });
+  check("Results marks the centre as following, and gives the line", r.follows && r.mark.includes("follows") && r.mark.filter(x => x === "shared").length === 2 && r.stat && /changing by/.test(r.stat[1]), JSON.stringify(r));
+  // The CSV carries the line's numbers; the report says it.
+  r = await p.evaluate(async () => { let txt = ""; const sf = saveFile; window.saveFile = async (n, d) => { txt = d; return true; }; try { await exportBatchCsv(); } finally { window.saveFile = sf; } return { csv: txt.split("\n").filter(l => /follows the series/.test(l)), rep: reportBatchHtml() }; });
+  check("the CSV gives the line's numbers, and the report says it", r.csv.length === 1 && /straight line,value at,300,a,/.test(r.csv[0]) && /changing by/.test(r.rep), JSON.stringify(r.csv));
+  // Fit again keeps the choice; Arrhenius refuses a series that is not a temperature.
+  r = await p.evaluate(() => { setSeries({ unit: "min" }); const g = fitTogether(seriesCols().map(q => ({ c: q.c, seed: null })), P().batch.tmpl, [false, true, "arr", false]); setSeries({ unit: "K" }); return g.fail; });
+  check("Arrhenius in a series that is not a temperature is refused in words", /needs the series to be a temperature, in K, °C or °F: it is in min/.test(r || ""), JSON.stringify(r));
+  r = await p.evaluate(() => { setSeries({ unit: "°C" }); const t = P().batch.tmpl; const g = fitTogether(seriesCols().map(q => ({ c: q.c, seed: null })), t, [true, "arr", false, true]); setSeries({ unit: "K" }); return g.fail || (g.glob.follow[0].kind + " " + g.glob.follow[0].sunit + " " + (1 / g.glob.follow[0].u0).toFixed(1)); });
+  check("…in °C it is turned into kelvin", /^arr K 5\d\d\.\d$/.test(r || ""), JSON.stringify(r));
+  r = await p.evaluate(() => { setSeries({ mode: "order" }); const g = fitTogether(seriesCols().map(q => ({ c: q.c, seed: null })), P().batch.tmpl, [true, false, "lin", true]); setSeries({ mode: "name" }); return g.fail || g.glob.follow[0].sname; });
+  check("a line in the order of the columns, when the series is their order", r === "the order of the columns", JSON.stringify(r));
+}, { name: "a parameter that follows the series" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

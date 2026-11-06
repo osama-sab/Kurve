@@ -1024,6 +1024,23 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Many spectra, slice 1: a parameter that follows the series (2026-11-06)
+
+- Fit every column…, Together: each parameter is its own, shared, a straight line in the series, or
+  Arrhenius in it (a rate against temperature, the series in K, °C or °F). The line is two numbers
+  fitted with everything else, so its slope or activation energy comes with its error from the
+  whole fit; each column's value is read off it.
+- The Batch window gives the line under its summary, Results marks the parameter *follows* and
+  gives the line in its statistics, the report says it and the CSV gives its numbers, errors and
+  covariance. Refusals in words: a column without a value of the series, one value for all, a
+  series that is not a temperature, a start not above zero.
+
+Checked: `tools/fit-test.mjs` (12 new: a centre linear in temperature recovered, each set on the
+line, its error by the delta method, the degrees of freedom, the slope's error against 60 noisy
+repeats, an activation energy recovered by Arrhenius, the refusals) and `tools/plot-drive.mjs` (9
+new: the dialog's choices and count, the fit, the Batch window, Results, the CSV and the report,
+the refusals, °C turned into kelvin, the order of the columns as the series).
+
 ## Getting around, slice 4: a peak's shape by its own handle (2026-11-06)
 
 - The selected peak, when its shape has a parameter of its own, has a diamond on a short track over
