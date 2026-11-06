@@ -1024,6 +1024,15 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Getting around, slice 1: the undo list (2026-11-06)
+
+- Edit › Undo list…, and a right-click on the Undo or Redo button: every change that can be undone,
+  the newest first with how long ago, and what can be redone; choosing one undoes it and every
+  change after it (or redoes it and every change before it), with one message and *Redo them*.
+
+Checked: `tools/plot-drive.mjs` (6 new: the list in order with its times, opened under the Undo
+button, three changes undone in one choice, the redo part, two redone, the right-click).
+
 ## Figures, slice 3: the graph's own fonts in a PDF (2026-11-06)
 
 - A PDF embeds the faces its text is drawn in (TrueType from Fontsource's copy of Google Fonts, as

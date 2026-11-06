@@ -6811,7 +6811,7 @@ function snapshot(){ const p=P(); if(!p) return null; const o={pid:S.pid}; UNDO_
 function pushUndo(label){
   if(S.plotPreview&&!S.pdCommitting) pdCommit();
   const s=snapshot(); if(!s) return;
-  s.label=label||"that change"; undoAfter(undoStack);
+  s.label=label||"that change"; s.t=Date.now(); undoAfter(undoStack);
   undoStack.push(s); if(undoStack.length>UNDO_MAX) undoStack.shift();
   redoStack.length=0; renderUndo();
 }
@@ -6866,16 +6866,34 @@ function undo(){
   if(S.plotPreview) pdCommit();
   if(!undoStack.length||S.readOnly||heldBlocks()) return;
   const s=undoStack.pop(); if(s.pid!==S.pid){ renderUndo(); return; }
-  redoStack.push(Object.assign(snapshot(),{label:s.label}));
+  redoStack.push(Object.assign(snapshot(),{label:s.label,t:s.t}));
   applySnapshot(s); toast(`Undid ${s.label}.`); renderUndo();
 }
 function redo(){
   if(S.plotPreview) pdCommit();
   if(!redoStack.length||S.readOnly||heldBlocks()) return;
   const s=redoStack.pop(); if(s.pid!==S.pid){ renderUndo(); return; }
-  undoStack.push(Object.assign(snapshot(),{label:s.label}));
+  undoStack.push(Object.assign(snapshot(),{label:s.label,t:s.t}));
   applySnapshot(s); toast(`Redid ${s.label}.`); renderUndo();
 }
+/* The undo list (roadmap 6, slice 1): every change this window can take back, the newest first, with
+   when it was made, and below them what can be redone. Choosing one undoes (or redoes) it and every
+   change after it (before it, for redo), a step at a time, as Ctrl+Z would; one message says how many.
+   From a right-click on the Undo or Redo button, and Edit › Undo list…. */
+function undoRun(stack,k){ let n=0; for(let i=stack.length-1;i>=0&&stack[i].pid===S.pid;i--) n++; return Math.min(k==null?n:k,n); }
+function undoMany(k,re){
+  if(S.plotPreview) pdCommit();
+  const from=re?redoStack:undoStack, to=re?undoStack:redoStack; k=undoRun(from,k); if(!k||S.readOnly||heldBlocks()) return;
+  let last=""; for(let i=0;i<k;i++){ const s=from.pop(); to.push(Object.assign(snapshot(),{label:s.label,t:s.t})); applySnapshot(s); last=s.label; }
+  toast(k===1?`${re?"Redid":"Undid"} ${last}.`:re?`Redid ${k} changes, up to ${last}.`:`Undid ${k} changes, back to before ${last}.`,re?null:{action:"Redo them",run:()=>undoMany(k,true)}); renderUndo(); }
+function undoListItems(){
+  const now=Date.now(), ago=t=>{ if(!t) return ""; const s=Math.max(0,Math.round((now-t)/1000)); return s<45?"just now":s<3600?`${Math.max(1,Math.round(s/60))} min ago`:`${Math.round(s/3600)} h ago`; };
+  const up=l=>{ l=String(l||"that change"); return l.charAt(0).toUpperCase()+l.slice(1); }, ro=S.readOnly, nu=undoRun(undoStack), nr=undoRun(redoStack);
+  const items=[{group:nu?"Undo":"Nothing to undo"}];
+  undoStack.slice(undoStack.length-nu).reverse().forEach((s,i)=>items.push({label:up(s.label),note:ago(s.t),enabled:!ro,title:i?`Undoes this and the ${i===1?"change":i+" changes"} after it`:"Undoes it (Ctrl+Z)",run:()=>undoMany(i+1)}));
+  if(nr){ items.push("-",{group:"Redo"}); redoStack.slice(redoStack.length-nr).reverse().forEach((s,i)=>items.push({label:up(s.label),note:ago(s.t),enabled:!ro,title:i?`Redoes this and the ${i===1?"change":i+" changes"} before it`:"Redoes it (Ctrl+Y)",run:()=>undoMany(i+1,true)})); }
+  return items; }
+function openUndoList(btn){ openMenu(btn||$("#undoBtn"),undoListItems(),{label:"Undo list"}); }
 const canUndo=()=>!!undoStack.length&&!S.readOnly&&undoStack[undoStack.length-1].pid===S.pid;
 const canRedo=()=>!!redoStack.length&&!S.readOnly&&redoStack[redoStack.length-1].pid===S.pid;
 function renderUndo(){
@@ -21369,7 +21387,7 @@ ${DL([["Import, Export","Bring a file in; save the graph, data or a report."],["
 <p>Every change is saved at once; the status bar says so. Used on its own, Kurve keeps projects in this browser and uploads nothing: to keep a copy elsewhere, ${DA("export","export it")}. In a shared workspace, everyone sees each change as it is made, and each person's name goes with their comments.</p>
 <p>Kurve open in two tabs of the same browser is one set of projects: a change in one tab shows in the other, and two tabs working on one project keep each other's changes. Projects are kept in the browser's own database, which can hold files of millions of rows (a share of the disk). If the browser ever refuses to store a change (the disk is full), the status bar says <em>Not saved</em> whenever that project is shown, a message says why, and leaving the page asks first; delete an old project or export this one, and the next change that is stored saves everything since. A browser without that database keeps projects in a few megabytes of its storage, as earlier versions did.</p>
 <h2>Undo</h2>
-<p>${K("Ctrl","Z")} undoes and ${K("Ctrl","Shift","Z")} (or ${K("Ctrl","Y")}) redoes: steps, masks, peaks, bands, fits, labels, styles, worksheet edits. The Edit menu names what will be undone. Undo rewinds your own changes in this session; it never takes back a colleague's work or a comment. In the worksheet this holds cell by cell: what a colleague, or this project open in another tab, changed after your change stays when yours is undone.</p>
+<p>${K("Ctrl","Z")} undoes and ${K("Ctrl","Shift","Z")} (or ${K("Ctrl","Y")}) redoes: steps, masks, peaks, bands, fits, labels, styles, worksheet edits. The Edit menu names what will be undone. <em>Edit › Undo list…</em>, or a right-click on the Undo or Redo button, lists every change that can be undone, the newest first with when it was made, and below them what can be redone: choose one to undo it and every change after it (or redo it and every change before it). Undo rewinds your own changes in this session; it never takes back a colleague's work or a comment. In the worksheet this holds cell by cell: what a colleague, or this project open in another tab, changed after your change stays when yours is undone.</p>
 <h2>The log</h2>
 <p>The History window's <em>Log</em> tab lists every change with who made it and when. The report ends with it.</p>`},
 {id:"explorer", g:"Basics", t:"The Project Explorer", kw:"project explorer tree folder subfolder files graphs hidden closed organise organize move drag rename delete filter origin alt+1 sidebar",
@@ -24956,6 +24974,7 @@ function menuItems(which){
     return [
     {label:canUndo()?`Undo ${undoStack[undoStack.length-1].label}`:"Undo", kbd:"Ctrl+Z", run:undo, enabled:canUndo()},
     {label:canRedo()?`Redo ${redoStack[redoStack.length-1].label}`:"Redo", kbd:"Ctrl+Y", run:redo, enabled:canRedo()},
+    {label:"Undo list…", run:()=>openUndoList(), enabled:canUndo()||canRedo(), title:"Every change that can be undone or redone: choose one to undo it and the changes after it"},
     "-",
     {label:"Copy", kbd:"Ctrl+C", title:"The selected cells of the worksheet", run:()=>copyText(wsCopyText(),"Copied the selected cells."), enabled:ws},
     {label:"Paste", kbd:"Ctrl+V", title:"Into the worksheet, at the selected cell", run:wsPasteMenu, enabled:wsRaw},
@@ -25210,6 +25229,7 @@ function wireStatic(){
   $("#cPost").onclick=postComment; wireThreads($("#thread"));
   $("#cText").addEventListener("keydown",e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); postComment(); } });
   $("#undoBtn").onclick=undo; $("#redoBtn").onclick=redo;
+  ["#undoBtn","#redoBtn"].forEach(q=>$(q).addEventListener("contextmenu",e=>{ e.preventDefault(); if(canUndo()||canRedo()) openUndoList(e.currentTarget); }));
   document.querySelectorAll("#viewSeg button").forEach(b=>b.onclick=()=>setViewMode(b.dataset.view));
   const th=themeSetting(); if(th!=="auto") document.documentElement.setAttribute("data-theme",th);
   $("#themeBtn").onclick=()=>applyTheme(darkMode()?"light":"dark");

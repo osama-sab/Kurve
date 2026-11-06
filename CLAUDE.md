@@ -1785,7 +1785,12 @@ graph first, with the taskbar kept at the bottom of the screen.
 - **Saving**: `save(patch, log)` writes at once; `saveSoon` (typing in the worksheet, column
   widths) waits 0.7 s, and any `save` before then carries the waiting patch with it, first
   (`wsPatch`, `wsPid`), as does a project switch.
-- **Undo**: `pushUndo(label)` before any mutation, `undo`/`redo`, snapshots of `UNDO_KEYS`
+- **Undo**: `pushUndo(label)` before any mutation (the step keeps its `label` and time `t`, kept
+  when it moves to the redo stack and back), `undo`/`redo`; **the undo list** (roadmap 6, slice 1):
+  `undoListItems()` (this project's run at the top of each stack, `undoRun`, newest first with
+  how long ago, then Redo), `undoMany(k, re)` (k steps, each as Ctrl+Z, one message with *Redo
+  them*), `openUndoList(btn)` from Edit › Undo list… and a right-click on `#undoBtn`/`#redoBtn`;
+  snapshots of `UNDO_KEYS`
   (`cols` carries the pipelines and masks, `raw` the fingerprint record, `fits` the fit history,
   `userFns` the project's fit functions, `found` the peak sets, `integ` the bands, `graphs`
   the extra graphs, `batch` and `series`, `trends` the trend graphs, `tree` the Explorer's
@@ -3982,7 +3987,7 @@ Next, in order:
 5. Figures, further still: the graph's own fonts embedded in a PDF (done 06.11), a break at a chosen place
    with its own scale on each side (done 06.11), polygons and curved arrows (done 06.11): the
    roadmap's item 5 is done
-6. Getting around: a visible undo list, flow chart zoom and packed
+6. Getting around: a visible undo list (done 06.11), flow chart zoom and packed
    lanes, keyboard access to annotations and peak handles, handles for shape parameters
    (Lorentz fraction, Pearson m, Fano 1/q)
 7. Many spectra, further: a parameter that follows the series in a global fit (a centre

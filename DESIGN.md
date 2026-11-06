@@ -889,6 +889,15 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-06: the undo list (roadmap 6, slice 1)
+
+- **Where the undo button is, and where Office keeps it.** A right-click on Undo or Redo lists every
+  change that can be undone, newest first, then those that can be redone; Edit › Undo list… opens
+  the same list under the Undo button. Choosing one takes back it and everything after it, as the
+  same number of Ctrl+Z would, so nothing about undo changes but how far it goes in one step.
+- **The tooltip stays a name**: "Undo adding text (Ctrl+Z)", as every tooltip names its thing and
+  its shortcut; the list is found by the right-click every list in Kurve is, and in the menu.
+
 ### 2026-11-06: the graph's own fonts in a PDF (roadmap 5, slice 3)
 
 - **A PDF looks like the graph.** It was set in the standard fonts, the nearest to the graph's; a

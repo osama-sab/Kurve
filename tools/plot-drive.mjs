@@ -836,6 +836,34 @@ await page(async p => {
   check("an EPS keeps the standard fonts, asking for nothing", r.size > 500 && !(r.emb || []).length, JSON.stringify(r));
 }, { name: "the graph's own fonts in a PDF" });
 
+console.log("Roadmap 6, slice 1: the undo list");
+await page(async p => {
+  const id = await three(p);
+  // Four changes: two colours, a text, the grid.
+  await p.evaluate(id => { setSeriesStyle(id.B, { color: "#aa0000" }, "made B red"); setSeriesStyle(id.C, { color: "#00aa00" }, "made C green");
+    addAnno({ t: "text", x: 5, y: 0.5, text: "Note" }); setPlotKey("grid", true, "showed the grid"); }, id); await p.waitForTimeout(400);
+  let r = await p.evaluate(() => { const it = menuItems("edit").find(i => i && i.label === "Undo list…"); return { has: !!it, en: it && it.enabled !== false, list: undoListItems().map(i => typeof i === "string" ? i : (i.group ? "#" + i.group : i.label + "|" + (i.note || ""))) }; });
+  check("Edit › Undo list…: every change, the newest first, with when it was made", r.has && r.en && r.list[0] === "#Undo" && /^Changing the plot\|just now$/.test(r.list[1]) && /^Adding text/.test(r.list[2]) && r.list.filter(q => /^Changing the plot style/.test(q)).length === 2, JSON.stringify(r));
+  await p.evaluate(() => { menuItems("edit").find(i => i && i.label === "Undo list…").run(); }); await p.waitForTimeout(300);
+  r = await p.evaluate(() => { const m = document.querySelector(".menu"); return m ? [...m.querySelectorAll("[role=menuitem]")].map(e => e.textContent.trim()).slice(0, 6) : null; });
+  check("…opened as a list by the Undo button", r && r.length >= 4 && /Changing the plot/.test(r[0]), JSON.stringify(r));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+  // The third: undoes it and the two after it.
+  await p.evaluate(() => { undoListItems().filter(i => i && i.run)[2].run(); }); await p.waitForTimeout(500);
+  r = await p.evaluate(id => ({ grid: !!GP().grid, anno: (P().annos || []).some(a => a.text === "Note"), b: ((GP().series || {})[id.B] || {}).color || null, c: ((GP().series || {})[id.C] || {}).color || null, toast: document.querySelector("#toast").textContent }), id);
+  check("choosing the third undoes it and the two after it: the grid, the text and C's colour go, B's stays", !r.grid && !r.anno && r.c !== "#00aa00" && r.b === "#aa0000" && /Undid 3 changes, back to before changing the plot style/.test(r.toast), JSON.stringify(r));
+  r = await p.evaluate(() => undoListItems().map(i => typeof i === "string" ? i : (i.group ? "#" + i.group : i.label)));
+  check("…the three are listed to redo, the oldest of them last", r.includes("#Redo") && r[r.length - 1] === "Changing the plot", JSON.stringify(r));
+  await p.evaluate(() => { const its = undoListItems(), k = its.findIndex(i => i && i.group === "Redo"); its.slice(k + 1)[1].run(); }); await p.waitForTimeout(500);
+  r = await p.evaluate(id => ({ grid: !!GP().grid, anno: (P().annos || []).some(a => a.text === "Note"), c: ((GP().series || {})[id.C] || {}).color || null }), id);
+  check("redoing the second redoes it and the one before it: C's colour and the text, not the grid", !r.grid && r.anno && r.c === "#00aa00", JSON.stringify(r));
+  // A right-click on the Undo button opens it too.
+  await p.click("#undoBtn", { button: "right" }); await p.waitForTimeout(300);
+  r = await p.evaluate(() => !!document.querySelector(".menu") && [...document.querySelectorAll(".menu [role=menuitem]")].length);
+  check("a right-click on the Undo button opens the list", r >= 3, JSON.stringify(r));
+  await p.keyboard.press("Escape");
+}, { name: "the undo list" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

@@ -30,6 +30,7 @@ File
 Edit
   Undo (what it undoes)  [Ctrl+Z]
   Redo (what it redoes)  [Ctrl+Y]
+  Undo list…  ## new (roadmap 6, slice 1): every change that can be undone or redone; one undoes it and the changes after it
   Copy  [Ctrl+C]  ## new route: the worksheet's Copy
   Paste  [Ctrl+V]  ## new route: the worksheet's Paste
   Clear  [Delete]  ## new route: the worksheet's Clear
