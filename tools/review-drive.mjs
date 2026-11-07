@@ -182,8 +182,13 @@ await page(async (p, ctx) => {
   const u = [await y(p), await y(q), await cols(p)];
   check("an undo takes back this tab's change and keeps the other tab's, cell by cell and column by column", u[0] === "0,2,4,300,8" && u[1] === u[0] && /9,8,7,6/.test(u[2]), JSON.stringify(u));
   // A tab closed with a value still in its box: the value is stored, and the other tab shows it.
-  await q.locator('#ws td[data-r="8"][data-ci="0"]').click(); await q.keyboard.type("777"); await q.close({ runBeforeUnload: true }); await p.waitForTimeout(1500);
-  check("a tab closed mid-edit: what it was typing reaches the other tab", (await p.evaluate(() => sheetCols(curSheet())[0].data[8])) === 777, await p.evaluate(() => sheetCols(curSheet())[0].data[8]));
+  // Both pages slowed six times (Chrome's CPU throttling): the last flush told the other tab the
+  // version from before its write, which the other tab already had, and so read nothing; at full
+  // speed a later message hid it, under a loaded machine it did not (07.11).
+  for (const t of [p, q]) { const c = await ctx.newCDPSession(t); await c.send("Emulation.setCPUThrottlingRate", { rate: 6 }); }
+  await q.locator('#ws td[data-r="8"][data-ci="0"]').click(); await q.keyboard.type("777"); await q.close({ runBeforeUnload: true });
+  const got = await p.waitForFunction(() => sheetCols(curSheet())[0].data[8] === 777, null, { timeout: 8000 }).then(() => 777).catch(() => p.evaluate(() => sheetCols(curSheet())[0].data[8]));
+  check("a tab closed mid-edit: what it was typing reaches the other tab (both slowed six times)", got === 777, got);
 }, { name: "two tabs typing" });
 await page(async p => {
   await p.evaluate(() => loadExample("decay")); await p.waitForTimeout(1200); await p.evaluate(() => { tileWins(); }); await p.waitForTimeout(500);

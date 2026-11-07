@@ -2200,7 +2200,8 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
     <button class="tb icon" id="xplBtn" aria-pressed="true" aria-controls="xpl" aria-label="Project Explorer" title="Project Explorer (Alt+1)"><svg class="ic"><use href="#i-tree"/></svg></button>
     <div class="tsep"></div>
     <button class="tb lbl" id="importBtn" title="Import (Ctrl+O)"><svg class="ic"><use href="#i-upload"/></svg><span>Import</span></button>
-    <input type="file" id="fileIn" accept=".csv,.txt,.tsv,.dat,.asc,.xy,.prn,.dpt,.text,.tka,.spe,.n42,.xml,.jdx,.dx,.jcm,.spc,.0,.1,.2,.3,.4,.5,.6,.7,.8,.9" class="sr" tabindex="-1" aria-hidden="true" multiple>
+    <input type="file" id="fileIn" accept=".csv,.txt,.tsv,.dat,.asc,.xy,.prn,.dpt,.text,.tka,.spe,.n42,.xml,.jdx,.dx,.jcm,.spc,.0,.1,.2,.3,.4,.5,.6,.7,.8,.9,.kurve" class="sr" tabindex="-1" aria-hidden="true" multiple>
+    <input type="file" id="projFileIn" accept=".kurve" class="sr" tabindex="-1" aria-hidden="true">
     <button class="tb lbl" id="exportBtn" aria-haspopup="menu" aria-expanded="false" title="Export"><svg class="ic"><use href="#i-download"/></svg><span>Export</span><svg class="ic sm"><use href="#i-chev"/></svg></button>
     <div class="tsep"></div>
     <button class="tb icon" id="undoBtn" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
@@ -7304,6 +7305,7 @@ const LocalStore={
   // Comments too start from what is stored, so two tabs' comments both stay.
   fresh(pid){ if(!this.legacy){ const c=this.read(this.cpre+pid); if(c&&typeof c==="object") this.data.comments[pid]=c; } return this.data.comments[pid]=this.data.comments[pid]||{}; },
   async addComment(pid,c){ const m=this.fresh(pid); m["c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)]=c; try{ this.persistC(pid); } finally { this.emitComments(pid); } },
+  async importComments(pid,list){ const m=this.fresh(pid); list.forEach(c=>{ const {id,...rest}=c; if(id) m[id]=rest; }); try{ this.persistC(pid); } finally { this.emitComments(pid); } },
   async updateComment(pid,id,patch){ const m=this.fresh(pid); if(!m[id]) return; Object.assign(m[id],patch); try{ this.persistC(pid); } finally { this.emitComments(pid); } },
   async deleteComment(pid,id){ const m=this.fresh(pid); delete m[id]; try{ this.persistC(pid); } finally { this.emitComments(pid); } }
 };
@@ -7456,8 +7458,10 @@ const IdbStore={
       tx.oncomplete=()=>{ outs.forEach(o=>o.forEach((a,k)=>this.have.add(k))); done.forEach(([id,rv,b])=>{ if((this.rev[id]||0)<rv){ this.rev[id]=rv; this.base[id]=b; } }); };
       tx.onabort=()=>ids.forEach(id=>{ this.dirty[id]=true; });
       if(tx.commit) tx.commit();
-      // The other tabs hear of it as of any write (their read waits for this transaction).
-      if(this.chan) ids.forEach(id=>{ try{ this.chan.postMessage({k:"p",id,rev:this.rev[id]}); }catch(e){} }); }catch(e){} },
+      // The other tabs hear of it as of any write (their read waits for this transaction), with the
+      // version written: this tab's own books take it only once the write has completed, and a tab
+      // told the version it already has reads nothing.
+      if(this.chan) done.forEach(([id,rv])=>{ try{ this.chan.postMessage({k:"p",id,rev:rv}); }catch(e){} }); }catch(e){} },
   async remove(pid){ delete this.data.projects[pid]; delete this.data.comments[pid]; delete this.dirty[pid]; delete this.pend[pid];
     this.emitProjects();
     await this.queue(pid,async()=>{ const tx=this.db.transaction(["projects","arrays","comments"],"readwrite"), ps=tx.objectStore("projects"), as=tx.objectStore("arrays");
@@ -7478,6 +7482,8 @@ const IdbStore={
     const cur=(await idbReq(cs.get(pid)))||{}; fn(cur); if(Object.keys(cur).length) cs.put(cur,pid); else cs.delete(pid);
     await idbDone(tx); this.data.comments[pid]=cur; this.emitComments(pid); if(this.chan) try{ this.chan.postMessage({k:"c",id:pid}); }catch(e){} },
   addComment(pid,c){ const id="c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); return this.editComments(pid,m=>{ m[id]=c; }).catch(e=>{ throw this.fail(e); }); },
+  // A project's threads as they were, each under its own id (a project file's, so replies keep their thread).
+  importComments(pid,list){ return this.editComments(pid,m=>{ list.forEach(c=>{ const {id,...rest}=c; if(id) m[id]=rest; }); }).catch(e=>{ throw this.fail(e); }); },
   updateComment(pid,id,patch){ return this.editComments(pid,m=>{ if(m[id]) Object.assign(m[id],patch); }).catch(e=>{ throw this.fail(e); }); },
   deleteComment(pid,id){ return this.editComments(pid,m=>{ delete m[id]; }).catch(e=>{ throw this.fail(e); }); },
   // What is stored, as the page would read it (for the tests, and for a look from the console).
@@ -7547,6 +7553,10 @@ function makeDbStore(db){
     remove(pid){ return retry(()=>db.doc("projects/"+pid).delete()); },
     watchComments(pid,cb,onErr){ return db.collection("projects/"+pid+"/comments").onSnapshot(s=>cb(s.docs.map(d=>({id:d.id,...d.data()}))), onErr); },
     addComment(pid,c){ return retry(()=>db.collection("projects/"+pid+"/comments").add(c)); },
+    // The shared store names its own comments: threads first, then replies with their thread's new id.
+    async importComments(pid,list){ const map=new Map(), firsts=list.filter(c=>!c.parent), rest=list.filter(c=>c.parent);
+      for(const c of firsts){ const {id,...o}=c; const ref=await retry(()=>db.collection("projects/"+pid+"/comments").add(o)); if(ref&&ref.id) map.set(id,ref.id); }
+      for(const c of rest){ const {id,...o}=c; if(!map.has(o.parent)) continue; o.parent=map.get(o.parent); await retry(()=>db.collection("projects/"+pid+"/comments").add(o)); } },
     updateComment(pid,id,patch){ return serial(pid+"/"+id,()=>retry(()=>db.doc("projects/"+pid+"/comments/"+id).update(patch))); },
     deleteComment(pid,id){ return retry(()=>db.doc("projects/"+pid+"/comments/"+id).delete()); }
   };
@@ -16567,6 +16577,7 @@ function readAny(f){ return new Promise(res=>{
 const binName=n=>/\.(\d{1,4}|opus)$/i.test(String(n||""));
 function readFileIn(f){
   if(!f) return;
+  if(isProjFile(f)){ openProjectFile(f); return; }
   if(/\.(spc|spe)$/i.test(f.name||"")||binName(f.name)){ readAny(f).then(r=>{ if(r.fail){ toast(`${f.name} is ${r.fail}.`); logError(`Import of ${f.name}: ${r.fail}`,"import"); } else importText(r.text,f.name); }); return; }
   if(f.size>60e6){ toast(`${f.name} is ${Math.round(f.size/1e6)} MB, more than a text export of a column should be.`); return; }
   const rd=new FileReader();
@@ -18941,7 +18952,7 @@ function renderTop(){
   const p=P(), ni=$("#projName");
   if(document.activeElement!==ni||ni.dataset.pid!==(p?p.id:"")) ni.value=p?p.name||"":"";
   ni.dataset.pid=p?p.id:""; ni.disabled=!p||S.readOnly;
-  ni.title=p?(S.readOnly?"Project name":"Project name. Click to rename it."):"";
+  ni.title=p?(S.readOnly?"Project name":"Project name. Click to rename it.")+(p.file&&p.file.name?` Last saved to a file as ${p.file.name}, ${new Date(p.file.at).toLocaleString()} (Ctrl+S).`:""):"";
   const pl=p?GP():{}, off=!p||S.readOnly, data=!!(p&&pointsAll().length), has=data&&graphWinIds().some(winOpen);
   // Before there is a graph on the desk its tools and switches are drawn off: there is
   // nothing for them to change yet. The status bar says how to make one.
@@ -18980,6 +18991,126 @@ async function saveFile(filename,data,mime){
     return "browser";
   }catch(e){ toast("This browser wouldn't let the file download."); return false; }
 }
+/* ---- Project files (ux/spec/FOUNDATION_SPEC.md, 1.1) ------------------------------------------
+   A project as a file, `<name>.kurve`: gzip of UTF-8 JSON, {format:"kurve-project", fv (this
+   file's version), v (the document's), saved, by, fp (the check code at saving), project (as
+   stored, without its id), comments (its threads, each with its id, so replies keep their
+   thread), extra}. A column's values of 256 or more, all numbers or empty, are {$f64: base64 of a
+   little-endian Float64Array, NaN for empty; n: how many}; the rest is JSON. A backup is
+   {format:"kurve-backup", fv, saved, projects: [the same, each]}. Saved by Ctrl+S, to the same
+   file again for the rest of the session where the browser lets a page write a file it was given
+   (the File System Access API), a download each time elsewhere; opened always as a new project,
+   checked before anything is made, its check code worked out again and compared. */
+const PF_FV=1;
+let PF_MAXIN=512e6; // what is inflated at most: about what one string of JSON can hold (a let: the drive lowers it)
+const PF_HANDLES=new Map(); // project id -> the file it was saved to this session
+function pfB64(u8){ let s=""; for(let i=0;i<u8.length;i+=0x8000) s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000)); return btoa(s); }
+function pfUnB64(b){ const s=atob(b), u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; }
+// A column with its long numeric values packed, or as it is.
+function pfPackCol(c){ const a=c&&c.data; if(!Array.isArray(a)||a.length<256) return c;
+  const f=idbPack(a); if(!(f instanceof Float64Array)) return c;
+  return Object.assign({},c,{data:{$f64:pfB64(new Uint8Array(f.buffer,f.byteOffset,f.byteLength)),n:a.length}}); }
+// Back: the values, or a reason in words.
+function pfUnpackCol(c,k){ if(!c||typeof c!=="object"||Array.isArray(c)) return {fail:`column ${k+1} is not a column`};
+  if(typeof c.id!=="string"||!c.id) return {fail:`column ${k+1} has no id`};
+  const d=c.data; if(d==null||Array.isArray(d)) return {c};
+  if(typeof d!=="object"||typeof d.$f64!=="string"||!(d.n>=0)) return {fail:`the values of column ${k+1} are not readable`};
+  let u; try{ u=pfUnB64(d.$f64); }catch(e){ return {fail:`the values of column ${k+1} are damaged`}; }
+  if(u.length!==d.n*8) return {fail:`column ${k+1} holds ${Math.floor(u.length/8)} values where it says ${d.n}`};
+  return {c:Object.assign({},c,{data:idbUnpack(new Float64Array(u.buffer))})}; }
+// A project's threads, each with its id: the open project's from the page, another's from the store when it keeps them.
+function pfComments(pid){ if(pid===S.pid) return (S.comments||[]).map(c=>clone(c));
+  const m=S.store&&S.store.data&&S.store.data.comments&&S.store.data.comments[pid]; return m?Object.entries(m).map(([id,c])=>Object.assign({id},clone(c))):[]; }
+function pfDoc(pid){ const q=pid===S.pid?P():(S.projects||[]).find(x=>x.id===pid); if(!q) return null;
+  const pr=Object.assign({},q); delete pr.id; pr.cols=(q.cols||[]).map(pfPackCol);
+  return {format:"kurve-project",fv:PF_FV,v:q.v||null,saved:new Date().toISOString(),by:who(),fp:(q.raw&&q.raw.fp)||"",project:pr,comments:pfComments(pid),extra:{}}; }
+async function pfGzip(text){ const s=new Blob([text]).stream().pipeThrough(new CompressionStream("gzip")); return new Response(s).blob(); }
+function pfCanWrite(){ return typeof CompressionStream!=="undefined"; }
+// File › Save to a file… (Ctrl+S) and Save a copy to a file… (Ctrl+Shift+S).
+async function saveProjectFile(copy){ const p=P(); if(!p) return false;
+  if(!pfCanWrite()){ toast("This browser cannot write a project file (it has no CompressionStream)."); return false; }
+  flushEdits(); fpSettle();
+  const doc=pfDoc(S.pid); if(!doc) return false;
+  const blob=await pfGzip(JSON.stringify(doc)), name=safeName(projName(p),".kurve"), pid=S.pid;
+  if(typeof window.showSaveFilePicker==="function"&&!S.downloads){
+    for(let tries=0;tries<2;tries++){ let h=copy?null:PF_HANDLES.get(pid);
+      try{ if(!h) h=await window.showSaveFilePicker({suggestedName:name,types:[{description:"Kurve project",accept:{"application/x-kurve-project":[".kurve"]}}]});
+        const w=await h.createWritable(); await w.write(blob); await w.close();
+        if(!copy) PF_HANDLES.set(pid,h); pfMark(pid,h.name); toast(`Saved to ${h.name}.`); return true; }
+      catch(e){ if(e&&e.name==="AbortError") return false; PF_HANDLES.delete(pid); if(tries) break; } } }
+  const ok=await saveFile(name,blob,"application/gzip");
+  if(ok){ pfMark(pid,name); toast(ok==="dialog"?`Saved ${name}.`:`Saved ${name} to your downloads.`); }
+  return !!ok; }
+// The project remembers the file it was last saved to (its name and when), for its field's tooltip.
+function pfMark(pid,name){ if(pid!==S.pid||S.readOnly) return; save({file:{name:String(name).slice(0,200),at:Date.now()}}); }
+// File › Back up every project…: one file with every project of this browser.
+async function backupProjects(){ if(!pfCanWrite()){ toast("This browser cannot write a project file (it has no CompressionStream)."); return; }
+  flushEdits(); fpSettle();
+  const docs=(S.projects||[]).filter(q=>!S.gone.has(q.id)).map(q=>pfDoc(q.id)).filter(Boolean);
+  if(!docs.length){ toast("There is no project to back up."); return; }
+  const blob=await pfGzip(JSON.stringify({format:"kurve-backup",fv:PF_FV,saved:new Date().toISOString(),projects:docs}));
+  const d=new Date(), name=`Kurve backup ${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}.kurve`;
+  if(await saveFile(name,blob,"application/gzip")) toast(`${docs.length} project${docs.length===1?"":"s"} backed up in ${name}.`); }
+// A file read and checked, nothing made: {doc} or {docs} (a backup), or {fail} in words.
+async function pfRead(f){
+  if(typeof DecompressionStream==="undefined") return {fail:"cannot be read by this browser (it has no DecompressionStream)"};
+  let head; try{ head=new Uint8Array(await f.slice(0,2).arrayBuffer()); }catch(e){ return {fail:"could not be read"}; }
+  if(head.length<2||head[0]!==0x1f||head[1]!==0x8b) return {fail:"is not a Kurve project file"};
+  let txt;
+  try{ const rd=f.stream().pipeThrough(new DecompressionStream("gzip")).getReader(), parts=[]; let n=0;
+    for(;;){ const {done,value}=await rd.read(); if(done) break; n+=value.length;
+      if(n>PF_MAXIN){ try{ rd.cancel(); }catch(e){} return {fail:`holds more than ${Math.round(PF_MAXIN/1e6)} MB, more than this browser can read at once`}; }
+      parts.push(value); }
+    const all=new Uint8Array(n); let o=0; parts.forEach(u=>{ all.set(u,o); o+=u.length; }); txt=new TextDecoder().decode(all); }
+  catch(e){ return {fail:"is cut short or damaged (it does not decompress)"}; }
+  let doc; try{ doc=JSON.parse(txt); }catch(e){ return {fail:"is damaged (what it holds does not read)"}; }
+  return pfCheck(doc); }
+function pfCheck(doc){
+  if(!doc||typeof doc!=="object"||Array.isArray(doc)) return {fail:"is not a Kurve project file"};
+  if(!(doc.fv>=1)) return {fail:"is not a Kurve project file"};
+  if(doc.fv>PF_FV) return {fail:"was made by a newer Kurve: open it there, or with this one once it is updated"};
+  if(doc.format==="kurve-backup"){ if(!Array.isArray(doc.projects)||!doc.projects.length) return {fail:"is a backup with no project in it"};
+    const docs=[]; for(let i=0;i<doc.projects.length;i++){ const r=pfCheck(doc.projects[i]); if(r.fail) return {fail:`is a backup whose project ${i+1} ${r.fail}`}; docs.push(r.doc); }
+    return {docs,saved:doc.saved}; }
+  if(doc.format!=="kurve-project") return {fail:"is not a Kurve project file"};
+  const pr=doc.project; if(!pr||typeof pr!=="object"||Array.isArray(pr)||!Array.isArray(pr.cols)) return {fail:"holds no project"};
+  const cols=[]; for(let k=0;k<pr.cols.length;k++){ const r=pfUnpackCol(pr.cols[k],k); if(r.fail) return {fail:"is damaged: "+r.fail}; cols.push(r.c); }
+  if(new Set(cols.map(c=>c.id)).size!==cols.length) return {fail:"is damaged: two columns have one id"};
+  const comments=Array.isArray(doc.comments)?doc.comments.filter(c=>c&&typeof c==="object"&&!Array.isArray(c)&&typeof c.id==="string"&&c.id):[];
+  return {doc:Object.assign({},doc,{project:Object.assign({},pr,{cols}),comments})}; }
+// File › Open a project file…, a .kurve chosen to import or dropped on the window.
+function pickProjectFile(){ if(S.readOnly||!S.store) return; $("#projFileIn").click(); }
+const isProjFile=f=>!!f&&/\.kurve$/i.test(f.name||"");
+async function openProjectFile(f){ if(!f) return; if(S.readOnly||!S.store){ toast("You can view this workspace but not open projects into it."); return; }
+  const r=await pfRead(f);
+  if(r.fail){ toast(`${f.name} ${r.fail}.`); logError(`Opening ${f.name}: ${r.fail}`,"import"); return; }
+  if(r.docs){ const html=`<p class="muted">Each project is opened as a new one; none already here is changed.</p><div class="pfback">${r.docs.map((d,i)=>{ const n=(d.project.cols||[]).filter(c=>c&&c.role==="y").length;
+      return `<label class="chk"><input type="checkbox" id="pfb${i}" checked> ${esc(projName(d.project))} <span class="muted">${n} column${n===1?"":"s"} of data</span></label>`; }).join("")}</div>`;
+    const v=await formDlg({title:`Restore from ${f.name}`,html,ok:"Restore",valid:q=>r.docs.some((d,i)=>q["pfb"+i])});
+    if(!v) return; const pick=r.docs.filter((d,i)=>v["pfb"+i]); for(const d of pick) await pfOpenDoc(d,f.name);
+    if(pick.length) toast(`${pick.length} project${pick.length===1?"":"s"} restored from ${f.name}.`); return; }
+  await pfOpenDoc(r.doc,f.name); }
+async function pfOpenDoc(doc,fname){
+  const pr=clone(Object.assign({},doc.project,{cols:[]})); pr.cols=doc.project.cols; delete pr.id; delete pr.file;
+  if(!pr.name) pr.name=String(fname||"").replace(/\.kurve$/i,"")||"Opened project";
+  const before=new Set((S.projects||[]).map(q=>q.id));
+  await createProject(pr,null);
+  const pid=await new Promise(res=>{ let n=0; const look=()=>{ if(S.pid&&!before.has(S.pid)&&P()) res(S.pid); else if(++n>200) res(null); else setTimeout(look,25); }; look(); });
+  if(!pid){ toast(`${fname} was read, but its project did not open.`); return; }
+  if(doc.comments&&doc.comments.length&&S.store.importComments) try{ await S.store.importComments(pid,doc.comments); }catch(e){ writeErr(e); }
+  const p=P(), n=(p.cols||[]).filter(c=>c.role==="y").length, g=(p.graphs||[]).length;
+  toast(`Opened ${fname}: ${n} column${n===1?"":"s"} of data, ${g} graph${g===1?"":"s"}${doc.comments&&doc.comments.length?`, ${doc.comments.length} comment${doc.comments.length===1?"":"s"}`:""}. Checking its values…`);
+  pfVerify(pid,doc.fp,fname); }
+// The values' check code worked out again, a stretch at a time, and compared with the file's and the record's.
+function pfVerify(pid,fp,fname){ const p=P(); if(!p||S.pid!==pid) return;
+  const job=rawHashJob(rawCols().map(c=>c.data)), last=p.raw&&p.raw.hist&&p.raw.hist.length?p.raw.hist[p.raw.hist.length-1].fp:"";
+  const step=()=>{ if(S.pid!==pid) return; const code=rawHashRun(job,performance.now()+12); if(code==null){ setTimeout(step,0); return; }
+    // Compared with the code the file names and with the record's last entry: each says what the values were.
+    const bad=[fp&&fp!==code?["the file",fp]:null,last&&last!==code&&last!==fp?["its record",last]:null].filter(Boolean);
+    if(!fp&&!last) toast(`${fname}: its values' check code is ${code.slice(0,12)}… (the file names none).`);
+    else if(!bad.length) toast(`${fname}: its values are as they were saved (check code ${code.slice(0,12)}…).`);
+    else { toast(`${fname}: its values are not those it was saved with. ${bad.map(([w,c])=>`${w[0].toUpperCase()+w.slice(1)} says ${c.slice(0,12)}…`).join(", ")}, the values give ${code.slice(0,12)}…`); logError(`Opened ${fname}: check code ${code}; ${bad.map(([w,c])=>`${w} says ${c}`).join("; ")}`,"import"); } };
+  step(); }
 // A figure's file is named after its project and, with several graphs, the graph.
 function figName(){ const p=P(); return projName(p)+(multiGraph()?" "+graphName(GID()):""); }
 /* A file name from a project's name, in any script: only what a file system
@@ -22094,7 +22225,7 @@ ${DL([["Import, Export","Bring a file in; save the graph, data or a report."],["
 <p>${MP("Window › Theme")}: light, dark, or the system's. The moon and sun button in the title bar switches between them.</p>
 <p>${MP("Window › Style")}: <strong>Bench</strong> marks everything you can change in blue; <strong>Graphite</strong> is black and white, with blue only for the keyboard focus. Both are remembered in this browser. They change the interface only: the graph's colours are set in the Format pane and stay as they are.</p>
 <p>Both are made to be read on a screen with little contrast. The desk is darker than the windows on it and every window has a dark edge; the window in front has its title bar filled (blue in Bench, black in Graphite, light in their dark themes); whatever is on, chosen or in front is filled rather than tinted (a toolbar switch, the choice in a row of buttons, the front window's taskbar button, the item under the pointer in a menu); edges of buttons, fields and boxes are 3:1 or more against what they sit on, and words 7:1 or more.</p>`},
-{id:"projects", g:"Basics", t:"Projects, saving and undo", kw:"project rename new delete switch save local browser shared workspace undo redo log taskbar which bring in another copy spectra combine merge tabs storage full quota not saved",
+{id:"projects", g:"Basics", t:"Projects, saving and undo", kw:"project rename new delete switch save local browser shared workspace undo redo log taskbar which bring in another copy spectra combine merge tabs storage full quota not saved file kurve save to a file ctrl+s save as copy open a project file backup back up restore another computer send colleague email",
  lead:"A project is one table of data with its processing, peaks, bands, fits, figure and discussion. It saves itself as you work.",
  body:`<h2>Projects</h2>
 <p>The project's name is in the middle of the title bar: click it to rename. The arrow beside it lists your projects, each with how many columns and graphs it holds, and creates or deletes one. ${MP("File › New project")} starts an empty one with a worksheet to paste into.</p>
@@ -22104,8 +22235,12 @@ ${DL([["Import, Export","Bring a file in; save the graph, data or a report."],["
 <h2 id="bring">Columns from another project</h2>
 <p>${MP("File › Copy from another project…")} lists your other projects and their columns. Tick the ones you want (ticking a project ticks all of its columns) and choose where they go: the graph you are on, a new graph, or a graph each. They are copied with their original values, X and error columns, processing, mask, file header, marked peaks and colours; a derived column brings its source, and a step that reads another column brings that one too. The project they came from is unchanged. The original-data record, the log and each column's Original data box in the History say where they came from. One Undo takes them out again. To put graphs of the same project together, see ${DA("graphs#combine","combining graphs")}.</p>
 <h2>Saving</h2>
-<p>Every change is saved at once; the status bar says so. Used on its own, Kurve keeps projects in this browser and uploads nothing: to keep a copy elsewhere, ${DA("export","export it")}. In a shared workspace, everyone sees each change as it is made, and each person's name goes with their comments.</p>
+<p>Every change is saved at once; the status bar says so. Used on its own, Kurve keeps projects in this browser and uploads nothing: to keep a copy elsewhere, or take it to another computer, ${DA("projects#files","save it to a file")}. In a shared workspace, everyone sees each change as it is made, and each person's name goes with their comments.</p>
 <p>Kurve open in two tabs of the same browser is one set of projects: a change in one tab shows in the other, and two tabs working on one project keep each other's changes. Projects are kept in the browser's own database, which can hold files of millions of rows (a share of the disk). If the browser ever refuses to store a change (the disk is full), the status bar says <em>Not saved</em> whenever that project is shown, a message says why, and leaving the page asks first; delete an old project or export this one, and the next change that is stored saves everything since. A browser without that database keeps projects in a few megabytes of its storage, as earlier versions did.</p>
+<h2 id="files">Project files</h2>
+<p>${MP("File › Save to a file…")} (${K("Ctrl","S")}) writes the whole project as one <em>.kurve</em> file: its columns and their values, every step, peak set, band, fit, graph, label and style, the record of its original data with their check code, and its discussion. The first save asks where; for the rest of the session ${K("Ctrl","S")} writes the same file again, and the project's name in the title bar says (on hovering) which file and when. ${MP("File › Save a copy to a file…")} (${K("Ctrl","Shift","S")}) always asks. A browser that cannot ask where (Firefox, Safari) puts the file in your downloads each time.</p>
+<p>${MP("File › Open a project file…")} opens one, always as a new project beside those you have, under a name of its own: nothing already here is changed, and there is nothing to undo. A <em>.kurve</em> file chosen in the import dialog or dropped on the window opens the same way. The file is checked before anything is made: one that is not a Kurve project, is cut short or damaged, or was made by a newer Kurve is refused in words. Once it is open, its values' check code is worked out again and compared with the one the file names: the message says whether the values are as they were saved.</p>
+<p>${MP("File › Back up every project…")} writes every project of this browser into one file. Opened, it lists them; the ones ticked are restored, each as a new project.</p>
 <h2>Undo</h2>
 <p>${K("Ctrl","Z")} undoes and ${K("Ctrl","Shift","Z")} (or ${K("Ctrl","Y")}) redoes: steps, masks, peaks, bands, fits, labels, styles, worksheet edits. The Edit menu names what will be undone. <em>Edit › Undo list…</em>, or a right-click on the Undo or Redo button, lists every change that can be undone, the newest first with when it was made, and below them what can be redone: choose one to undo it and every change after it (or redo it and every change before it). Undo rewinds your own changes in this session; it never takes back a colleague's work or a comment. In the worksheet this holds cell by cell: what a colleague, or this project open in another tab, changed after your change stays when yours is undone.</p>
 <h2>The log</h2>
@@ -22122,7 +22257,7 @@ ${DL([["Open","Double-click or "+K("Enter")+": a graph comes onto the desk (a hi
 {id:"import", g:"Basics", t:"Importing data", kw:"import open file csv tsv txt delimiter decimal comma header metadata paste drop wizard add replace many several files batch columns role use as data not a spectrum leave out plot not yet worksheet only pairs",
  lead:"Text exports from almost any instrument work. Drop a file on the window and it is read and plotted at once; use Import to see how it is read and choose what each column becomes, and nothing is plotted until you ask.",
  body:`<h2>Three ways in</h2>
-${DL([["Drop files","Drop one file or many anywhere on the window. Each is read with the automatic choices and plotted: on the graph you drop it on, or else on a new graph. Dropped on a folder of the "+DA("explorer","Project Explorer")+", it is filed there. The message that follows has <em>Read it differently</em>, which undoes it and opens the dialog."],["Import","<em>Import</em> on the toolbar, "+MP("File › Import data…")+", or "+K("Ctrl","O")+": the dialog shows how the file is read, every choice can be changed, and the columns go into the worksheet. Nothing is plotted: select columns and press Plot when you are ready."],["Paste","Copy columns from a spreadsheet and paste them into a worksheet cell. Pasted into an empty sheet, they are read as an import reads them: with no X-like column every one is a Y, and the sheet's empty X column moves after them."]])}
+${DL([["Drop files","Drop one file or many anywhere on the window. A project file (<em>.kurve</em>) opens as a new project ("+DA("projects#files","project files")+"); any other file is read with the automatic choices and plotted: on the graph you drop it on, or else on a new graph. Dropped on a folder of the "+DA("explorer","Project Explorer")+", it is filed there. The message that follows has <em>Read it differently</em>, which undoes it and opens the dialog."],["Import","<em>Import</em> on the toolbar, "+MP("File › Import data…")+", or "+K("Ctrl","O")+": the dialog shows how the file is read, every choice can be changed, and the columns go into the worksheet. Nothing is plotted: select columns and press Plot when you are ready."],["Paste","Copy columns from a spreadsheet and paste them into a worksheet cell. Pasted into an empty sheet, they are read as an import reads them: with no X-like column every one is a Y, and the sheet's empty X column moves after them."]])}
 <h2 id="drop">Dropping files</h2>
 <p>While a file is dragged over the window, the outline shows where it would go and a message says what would happen: <em>Drop to plot in Graph 2</em>, or <em>Drop to import into “2024” and plot</em> over a folder. A project with no data takes the file's name and header; beside other data, each file's columns are named after the file, and columns measured on the same X share a column. One Undo takes the whole drop back. A binary instrument file is refused with the reason.</p>
 <h2>What is detected</h2>
@@ -22176,7 +22311,7 @@ ${DL([["Theme","Light, Dark, or System: as the system is."],["Style","Bench (blu
 {id:"keys", g:"Basics", t:"Keyboard shortcuts", kw:"keys keyboard shortcuts hotkeys ctrl",
  lead:"Everything has a pointer route; these are the quicker ones.",
  body:`<h2 id="k-all">Everywhere</h2>
-${DL([[K("Ctrl","Z"),"Undo"],[K("Ctrl","Shift","Z")+" · "+K("Ctrl","Y"),"Redo"],[K("Ctrl","O"),"Import a file"],[K("Ctrl","K"),"Find a command, by its name or a word for it"],[K("Ctrl","Enter"),"Run the fit · post a comment"],[K("Esc"),"Close a menu or dialog; back to the Zoom tool"],[K("F1"),"Help on the window in front"],[K("Ctrl",","),"Preferences"],[K("Ctrl","Shift","D"),"The window in front into a window of its own, for another display; there, back to the desk"],[K("?"),"This page"]],"keys")}
+${DL([[K("Ctrl","Z"),"Undo"],[K("Ctrl","Shift","Z")+" · "+K("Ctrl","Y"),"Redo"],[K("Ctrl","O"),"Import a file"],[K("Ctrl","S"),"Save the project to a file (the same file again for the rest of the session)"],[K("Ctrl","Shift","S"),"Save a copy of the project to another file"],[K("Ctrl","K"),"Find a command, by its name or a word for it"],[K("Ctrl","Enter"),"Run the fit · post a comment"],[K("Esc"),"Close a menu or dialog; back to the Zoom tool"],[K("F1"),"Help on the window in front"],[K("Ctrl",","),"Preferences"],[K("Ctrl","Shift","D"),"The window in front into a window of its own, for another display; there, back to the desk"],[K("?"),"This page"]],"keys")}
 <h2 id="k-graph">On the graph</h2>
 ${DL([[K("←")+" "+K("→"),"Previous or next point (click the graph first)"],[K("Home")+" "+K("End"),"First or last point"],[K("+")+" "+K("−")+" "+K("0"),"Zoom in, zoom out, show all"],[K("[")+" "+K("]"),"Start or end the view at the selected point"],[K("M"),"Mask or restore the selected point"],[K("P"),"Put a peak at the selected point"],[K("Tab")+" · "+K("Shift","Tab"),"Select the next or previous label, line, shape or other annotation, then the peaks being set up; past the last, on to the next control"],[K("←")+" "+K("→")+" "+K("↑")+" "+K("↓"),"Move the selected annotation a pixel ("+K("Shift")+": ten); a selected peak's centre (← →) and height (↑ ↓)"],[K("[")+" "+K("]"),"With a peak selected: narrower or wider ("+K("{")+" "+K("}")+": ten pixels)"],[K(",")+" "+K("."),"With a peak selected: its shape, a pseudo-Voigt's Lorentzian fraction, a Pearson VII's m or a Fano's 1/q ("+K("<")+" "+K(">")+": ten steps)"],[K("Delete"),"Remove the selected peak, label, line or band"],[K("Enter")+" · "+K("F2"),"Type over the selected label, text or legend entry; "+K("Shift","Enter")+" starts a new line"],[K("←")+" "+K("→")+" · "+K("↑")+" "+K("↓"),"With the Reader: the previous or next point, the next curve; with the X–Y lines: move them ("+K("Shift")+" ten pixels)"],[K("↑")+" "+K("↓"),"With the legend selected: the entry above or below"],[K("Ctrl","Shift","=")+" · "+K("Ctrl","="),"While typing: superscript · subscript"],[K("Alt")+" while dragging","No snapping: text off its guides, an arrow's head off the data"],[K("Ctrl")+" while dropping a graph","Keep it: its columns are put on the other graph, and it stays"],[K("Esc")+" while holding a graph","Cancel the drop"],["Middle-drag","Pan, in any tool"],["Scroll","Zoom at the pointer"],["Double-click","Show all the data"],[K("Shift","F10"),"The graph's menu"]],"keys")}
 <h2 id="k-sheet">In the worksheet</h2>
@@ -25827,6 +25962,10 @@ function menuItems(which){
   if(which==="file") return [
     {label:"New project", run:newProject, enabled:can},
     {label:"Import data…", kbd:"Ctrl+O", run:pickFile, enabled:can},
+    {label:"Open a project file…", title:"A project saved as a .kurve file, opened as a new project", run:pickProjectFile, enabled:can},
+    {label:"Save to a file…", kbd:"Ctrl+S", title:p&&p.file?`The project as a .kurve file (last saved as ${p.file.name})`:"The project as a .kurve file, to keep, send or open on another computer", run:()=>saveProjectFile(false), enabled:!!p},
+    {label:"Save a copy to a file…", kbd:"Ctrl+Shift+S", title:"The project as another .kurve file", run:()=>saveProjectFile(true), enabled:!!p},
+    {label:"Back up every project…", title:"Every project of this browser in one .kurve file", run:backupProjects, enabled:(S.projects||[]).length>0},
     {label:"Copy from another project…", title:"Columns from another project, with their processing, peaks and colours", run:()=>bringInDlg(), enabled:edit&&otherProjects().length>0},
     {label:"Replace the data…", title:"Everything in this project replaced by a file, after asking", run:replaceData, enabled:edit&&!!S.store&&allCols().some(c=>c.role!=="x"&&(c.data||[]).some(v=>v!=null))},
     "-",
@@ -25907,8 +26046,10 @@ function setupDrop(){
     const t=fileDropAt(e.clientX,e.clientY); mark(null);
     if(S.readOnly||!S.store){ toast("You can view this workspace but not import into it."); return; }
     if(document.querySelector(".modal:not([hidden])")){ toast("Close the dialog first, then drop the file again."); return; }
-    const fs=[...e.dataTransfer.files]; if(!fs.length) return;
-    readDropped(fs).then(list=>autoImport(list,{gid:t.gid,folder:t.folder})); });
+    const all=[...e.dataTransfer.files], fs=all.filter(f=>!isProjFile(f)); if(!all.length) return;
+    // A project file is opened as a project, wherever it is dropped; the rest are read as data.
+    all.filter(isProjFile).reduce((q,f)=>q.then(()=>openProjectFile(f)),Promise.resolve());
+    if(fs.length) readDropped(fs).then(list=>autoImport(list,{gid:t.gid,folder:t.folder})); });
 }
 /* Preferences, kept in this browser (Preferences…, the gear in the title bar, Ctrl+,).
    history: keep a history of changes, the log of every change (who, what, when),
@@ -26092,7 +26233,9 @@ function wireStatic(){
   $("#importBtn").onclick=pickFile; $("#emptyImport").onclick=pickFile; $("#wsEmptyImport").onclick=pickFile;
   { const ws=$("#ws"), gone=()=>{ if(!S.wsEmptyGone){ S.wsEmptyGone=true; wsEmptyShow(); } }; ws.addEventListener("pointerdown",gone,true); ws.addEventListener("keydown",gone,true); }
   $("#emptyPlot").onclick=()=>openPlotDlg(wsSelColIds());
-  $("#fileIn").addEventListener("change",e=>{ const fs=[...e.target.files]; if(fs.length>1) readFilesIn(fs); else if(fs[0]) readFileIn(fs[0]); e.target.value=""; });
+  $("#fileIn").addEventListener("change",e=>{ const fs=[...e.target.files]; e.target.value=""; const pf=fs.filter(isProjFile), rest=fs.filter(f=>!isProjFile(f));
+    pf.reduce((q,f)=>q.then(()=>openProjectFile(f)),Promise.resolve()); if(rest.length>1) readFilesIn(rest); else if(rest[0]) readFileIn(rest[0]); });
+  $("#projFileIn").addEventListener("change",e=>{ const f=e.target.files[0]; e.target.value=""; if(f) openProjectFile(f); });
   $("#addColBtn").onclick=e=>toggleMenu(e.currentTarget,wsInsertItems,{label:"Insert"});
   // With columns to plot selected, the quick list (and Plot setup… at its top); with none, the dialog.
   { const pb=$("#wsPlotBtn"); pb.onclick=()=>{ const sel=wsSelColIds(); if(!plotWhat(sel).ys.length&&!(menuOpen&&menuOpen.trigger===pb)){ openPlotDlg(sel); return; } toggleMenu(pb,()=>plotItems(sel),{label:"Plot"}); }; }
@@ -26141,7 +26284,8 @@ function wireStatic(){
       if(k===","){ e.preventDefault(); openPrefs(); return; }
       if(k==="k"){ e.preventDefault(); openCmdk(); return; }
       if(k==="d"&&e.shiftKey){ e.preventDefault(); const f=frontWinId(); if(f) detachWin(f); return; }
-      if(k==="s"){ e.preventDefault(); toast(S.store&&S.store.mode==="db"?"Kurve saves every change as you make it, for everyone in this workspace.":"Kurve saves every change as you make it. To keep a copy elsewhere, use Publish."); return; }
+      // Ctrl+S: the project to a file (the browser would save the page); every change is saved here already.
+      if(k==="s"){ e.preventDefault(); if(P()) saveProjectFile(e.shiftKey); return; }
       // A cell has no undo of its own, so the app's undo must still work there.
       if(t&&t.tagName==="INPUT"&&t.dataset.r!=null){ if(k==="z"||k==="y"){ e.preventDefault(); t.blur(); (k==="z"&&!e.shiftKey)?undo():redo(); } return; }
       // Sliders, boxes and lists have no undo of their own; the app's applies.

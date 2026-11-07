@@ -94,13 +94,17 @@ the wave ends with the plan's end of a wave (the suite, a lab day, screenshots, 
 
 ## 1.1 Project files
 
+Done 07.11 (as below; where it differs from what was planned, the text says so).
+
 **The file.** `<name>.kurve`: gzip (`CompressionStream("gzip")`) of UTF-8 JSON,
 `{format: "kurve-project", fv: 1, v (the document version), saved (ISO time), by, fp (the check
 code at saving), project, comments, extra}`: `project` the document as stored, its columns' values
 of 256 or more that are all numbers or empty as `{$f64: base64}` (little-endian Float64Array, NaN
 for empty), the rest as JSON (text cells after 1.2 among them); `comments` the project's threads;
-`extra` the browser-only things the project uses (its saved fit settings and functions from the
-library that its fits name, so they open with it). Unknown keys are kept on open and ignored.
+`extra` the browser-only things the project uses. As built it is empty: a fit keeps a copy of its
+function (`fit.fn`), a library function used in a fit is adopted into the project, and fit settings
+saved in the project are in it, so nothing a project's results need lives in the browser alone; the
+key stays for what a later version adds. Unknown keys are kept on open and ignored.
 
 **Saving.** File › Save to a file… (Ctrl+S; File › Save a copy to a file…, Ctrl+Shift+S, always
 asks): with the File System Access API the first save asks where and keeps the handle for the rest
@@ -108,14 +112,15 @@ of the session (after a reload the browser would ask for its permission again an
 Ctrl+S asks where), and Ctrl+S writes there again silently with a toast; a refusal (permission gone,
 file moved) asks again. Elsewhere it downloads
 `<name>.kurve` each time (`saveFile`). Pending check codes are settled first (`fpSettle`). The title
-bar's project field shows the file's name after a save (`p.file {name, at}`, not in `UNDO_KEYS`).
+bar's project field shows the file's name and time in its tooltip after a save (`p.file {name, at}`, not in `UNDO_KEYS`).
 File › Back up every project… writes one file (`format: "kurve-backup"`, every project of this
 browser with its comments).
 
 **Opening.** File › Open a project file… (Ctrl+O stays Import; the import dialog's picker and a
 file dropped on the window take a `.kurve` too): the file is checked before anything is made: the
-gzip read through `DecompressionStream`, counted as it streams and refused past 2 GB inflated (a
-bomb), the JSON parsed, `format` and `fv` known (a newer `fv` refused in words: "made by a newer
+gzip read through `DecompressionStream`, counted as it streams and refused past 512 MB inflated (a
+bomb; built at 512 MB rather than the 2 GB first planned, as one JSON string cannot be much longer in
+a browser: `PF_MAXIN`), the JSON parsed, `format` and `fv` known (a newer `fv` refused in words: "made by a newer
 Kurve"), the project's shape checked (`cols` an array of columns with ids, the rest through
 `migrate` and `normalize` as storage is), every `$f64` decoded and its length checked. Then a new
 project: a new id, the name made unique (`uniqueProjName`), the comments copied under it, the
@@ -126,12 +131,13 @@ A backup offers its projects in a list, each opened as above. A file of another 
 
 **Checked** (a new drive, `tools/file-drive.mjs`): every example saved and opened again equal
 (columns, steps, peaks, bands, fits, graphs, annotations, comments, the check code); a project of a
-million rows saved and opened (budget: under 3 s each way in tools/perf.mjs); the same file opened
+million rows saved and opened (budget: 2 s each way in tools/perf.mjs; 570 and 655 ms measured); the same file opened
 twice (two projects, names unique); a file from an older document version upgraded; a newer `fv`
 refused; truncated, not gzip, not JSON, wrong shape, a `$f64` of the wrong length, a gzip bomb (a
 200 MB stream of zeros inflating past the limit) refused with nothing made; Ctrl+S twice with a
 mocked handle writing the same file; a backup of three projects restoring two; undo after opening
-(nothing to undo: opening is not a change of a project). `odd-test` gains junk files.
+(nothing to undo: opening is not a change of a project). The junk files are file-drive's eleven
+refusals, not odd-test's, so the slice's checks are in one place.
 
 **Not in 1.1:** merging a file into an open project (Copy from another project does that once both
 are open); keeping a file in step with the project (the browser cannot watch a file; a save is a

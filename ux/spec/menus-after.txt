@@ -17,6 +17,10 @@
 File
   New project
   Import data…  [Ctrl+O]
+  Open a project file…  ## new (PARITY 1.1): a .kurve file opened as a new project; a backup offers its projects
+  Save to a file…  [Ctrl+S]  ## new (PARITY 1.1): the project as a .kurve file, written again to the same file for the rest of the session
+  Save a copy to a file…  [Ctrl+Shift+S]  ## new (PARITY 1.1): always asks where
+  Back up every project…  ## new (PARITY 1.1): every project of this browser in one file
   Copy from another project…  ## ~ "Bring in from another project…"; + Window's copy (R: six routes become File and the Explorer)
   Replace the data…  ## new (DS8): the import dialog's "Replace everything in this project", behind a confirmation; ↓ until the project holds data
   Examples

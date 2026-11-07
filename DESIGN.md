@@ -889,6 +889,32 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-07: project files (PARITY_SPEC wave 1, slice 1.1)
+
+- **A project leaves the browser as one file.** Until now a project lived only in this browser:
+  exports carried its data or its picture, never the project, so it could not be taken to another
+  computer, sent to a colleague outside a shared workspace or kept safe from a cleared browser. A
+  `.kurve` file is the whole project (values, steps, peaks, bands, fits, graphs, styles, the
+  original data's record, the discussion), compressed.
+- **Ctrl+S saves to a file, as every desktop program's does.** The project still saves itself into
+  the browser at every change (nothing is lost by not pressing it); Ctrl+S is the copy outside. The
+  first press asks where, and for the rest of the session the same file is written again silently,
+  as Origin's and Excel's Save does; *Save a copy* always asks. The browser forgets the file's
+  permission at a reload, so the next session asks once again rather than pretending to remember.
+  Where the browser cannot ask (Firefox, Safari), each save is a download.
+- **Opening never changes what is here.** A file opens as a new project beside the others, under a
+  name of its own, with nothing to undo: merging a file into an open project would make "which
+  values are these" a question, and Copy from another project already does it on purpose.
+- **Checked before anything is made, said in words.** A file that is not a project, is cut short,
+  was made by a newer Kurve or holds a column whose values do not add up is refused with what is
+  wrong, and nothing appears half-opened. Once open, its values' check code is worked out again and
+  the message says whether they are as they were saved: the file is evidence, as the record is.
+- **The menu names the outcome** (*Save to a file…*, *Open a project file…*), not the format, beside
+  *Import data…*, which reads someone else's file into this project; a `.kurve` dropped or chosen to
+  import opens as a project rather than being refused, since what was meant is clear.
+- **A backup is every project at once**, for a person changing computers or clearing a browser;
+  restoring lists them, each ticked, so a backup is never an all-or-nothing replacement.
+
 ### 2026-11-06: Proposed settings (roadmap 10, slice 3)
 
 - **A suggestion that can be taken in one click.** A colleague who would set a step differently can

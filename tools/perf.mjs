@@ -7,7 +7,7 @@
    Each measure is the best of n runs (3 by default; the best, as the noise of a shared machine only
    ever adds). The budgets are about three times what this container measured when they were
    written (07.11: boot 376 ms; a million rows: save 64, a value typed 316 with the keys' own time,
-   draw 39, zoomed 16, the worksheet 49; 2000 columns: save 50, worksheet 27, History 39, Statistics
+   draw 39, zoomed 16, the worksheet 49, saved to a file 570, opened from one 655; 2000 columns: save 50, worksheet 27, History 39, Statistics
    35), so they catch a slowing down, not a busy machine; one past its budget fails. Run it alone:
    tools/suite.sh runs it after the drives that share the processor have finished. --csv
    appends a line a measure (date, commit, name, ms, budget) to the file, for a history. */
@@ -38,6 +38,8 @@ const BUDGET = {
   "1M: draw": [150, "the graph of a million points drawn"],
   "1M: zoomed draw": [60, "the graph drawn zoomed into a thousandth of it"],
   "1M: worksheet": [150, "the worksheet drawn at the middle of a million rows"],
+  "1M: save to a file": [2000, "the project of a million rows written as a .kurve file (packed and compressed)"],
+  "1M: open a file": [2000, "that file read, checked and opened as a new project"],
   "2000 columns: save": [150, "a change saved to a project of 2000 columns of 300 values"],
   "2000 columns: worksheet": [100, "the worksheet of 2000 columns drawn"],
   "2000 columns: History": [150, "the History opened on 2000 columns"],
@@ -77,6 +79,10 @@ await withPage(async (p) => {
     const t0 = Date.now(); await p.keyboard.type(String(1 + Math.random()).slice(0, 6)); await p.keyboard.press("Enter"); const ms = Date.now() - t0;
     await p.waitForTimeout(200); return ms;
   });
+  // A project file, written and read again (FOUNDATION_SPEC 1.1): what Ctrl+S and Open a project file do, without the picker.
+  got["1M: save to a file"] = await best(() => p.evaluate(async () => { fpSettle(); const a = performance.now(); window.__pfb = await pfGzip(JSON.stringify(pfDoc(S.pid))); return performance.now() - a; }));
+  got["1M: open a file"] = await best(async () => { const ms = await p.evaluate(async () => { const pid0 = S.pid, a = performance.now(); await openProjectFile(new File([window.__pfb], "Million.kurve")); return S.pid !== pid0 ? performance.now() - a : Infinity; });
+    await p.waitForFunction(() => /as they were saved|not those/.test((document.querySelector("#toast") || {}).textContent || ""), null, { timeout: 30000 }).catch(() => {}); return ms; });
 });
 
 // Two thousand columns.

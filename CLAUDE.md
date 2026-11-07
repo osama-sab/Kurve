@@ -2013,7 +2013,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   throws `gone`. Ids carry a random part (two made in one millisecond). The single key of
   earlier versions (`kurve.v1`) is split up on `load`, or kept and used as before
   (`legacy`) if there is no room to. All three expose the same interface: `watchProjects`, `create`, `save`,
-  `remove`, `watchComments`, `addComment`, `updateComment`, `deleteComment`. To add a real
+  `remove`, `watchComments`, `addComment`, `updateComment`, `deleteComment`, `importComments(pid,
+  list)` (a project file's threads under a project just made: each store keeps a reply under its
+  thread, `makeDbStore` mapping the parent ids it gives). To add a real
   backend (Firebase, Supabase, a custom server with WebSockets), implement this interface.
   With LocalStore and no projects at all, `onProjects` creates an empty one, so a first visit
   has a worksheet to paste into. **Projects coming and going**: `S.pendingOpen` is set by
@@ -2036,6 +2038,29 @@ graph first, with the taskbar kept at the bottom of the screen.
   an X column equal to the last one here is shared. Peak sets (`found`, `pk:` annotations) and
   series styles come too; one undo entry, a raw-data record entry and a log line naming the
   project. Onto the graph in hand, a new graph, or one each (an empty project gets a new graph). `projSpectra(q)`, `otherProjects()`.
+- **Project files** (FOUNDATION_SPEC 1.1; the module after the report, before `figName`): a
+  `.kurve` file is gzip (`CompressionStream`) of JSON `{format:"kurve-project", fv (PF_FV, 1), v,
+  saved, by, fp, project, comments, extra}` (`pfDoc(pid)`: the project as stored without its id, each
+  column of 256 values or more that `idbPack` packs written `{$f64: base64 of the Float64Array, n}`
+  by `pfPackCol`, `pfB64`; the threads with their ids, `pfComments`; `extra` `{}`, kept for later);
+  `pfGzip`, `pfCanWrite`. `saveProjectFile(copy)` (File › Save to a file…, Ctrl+S; Save a copy to a
+  file…, Ctrl+Shift+S): `flushEdits`, `fpSettle`, then with `showSaveFilePicker` (and not the
+  claude.ai runtime) the picker the first time and the handle again after (`PF_HANDLES`, per
+  project for the session; a write refused forgets it and asks again, once; a cancel is nothing),
+  else `saveFile` (a download); `pfMark(pid, name)` saves `p.file {name, at}` (not in `UNDO_KEYS`;
+  the project field's tooltip). `backupProjects()` (File › Back up every project…): `{format:
+  "kurve-backup", fv, saved, projects:[docs]}`. Opening: `pickProjectFile` (`#projFileIn`),
+  `isProjFile` (a name ending `.kurve`: `#fileIn`, `readFileIn` and the drop send it here),
+  `openProjectFile(f)`: `pfRead` (the gzip's magic, inflated by `DecompressionStream` and counted,
+  refused past `PF_MAXIN`, 512 MB, a `let` the drive lowers; parsed), `pfCheck` (`format`, `fv` (a
+  newer one "made by a newer Kurve"), a backup's projects each, `cols` an array of columns with ids
+  and no id twice, every `$f64` decoded by `pfUnpackCol` and its length checked; comments with ids;
+  `{doc}`, `{docs}` or `{fail}` in words, toasted and logged, nothing made); a backup's projects in
+  a `formDlg` of ticks (`pfb<i>`); `pfOpenDoc(doc, fname)`: `createProject` with no log line (the
+  name made unique there, `migrate` and `normalize` as for any stored project), waits for the new
+  id, `importComments`, a toast of what it holds, then `pfVerify(pid, fp, fname)` (`rawHashJob`
+  in 12 ms slices, compared with the file's `fp` and the record's last entry; a difference names
+  both and is logged). Opening is no change of a project: nothing to undo.
 - **State**: global `S`; the current project is `S.proj` with `cols` (see Columns above),
   `activeY`, `raw` (`{fp, hist}`), `meta` (captured from the imported file's header), `plot`
   settings (`style`, `logY`, `grid`, `resid`, `revX`, `hidden`, and from the Format dialog
@@ -2804,12 +2829,19 @@ names the slice that brings it there (`until`) and must not pass where it stood 
 [n]` throws random cases at the same functions (both need Python 3.13 and the packages in `$PYREF`,
 see the README; `tools/ref/run.mjs` is the pure blocks under node, any function by name).
 `node tools/perf.mjs [path]` measures what a person waits for (boot; a million rows: save, a value
-typed, draw, zoomed draw, worksheet; 2000 columns: save, worksheet, History, Statistics) against
+typed, draw, zoomed draw, worksheet, saved to a project file and opened from one; 2000 columns:
+save, worksheet, History, Statistics) against
 budgets of about three times what was measured. `tools/suite.sh [--snap] [path]` runs everything
 (the node tests, the bench, the drives in parallel, a fuzzer seed, the menu crawl, then the budgets
 alone) and prints one line a test; with `--snap` on a copy of the files git knows (stage new ones
 first), so editing goes on while it runs. A new numeric function gets its fixture, target and
 fuzz generator before it is used.
+`node tools/file-drive.mjs [path]` (Playwright) checks project files (FOUNDATION_SPEC 1.1): every
+example saved and opened again equal, comments and replies with it, the check code compared; a
+million rows; the same file twice; an older document version upgraded; eleven kinds of bad file
+refused with nothing made (a gzip bomb among them, `PF_MAXIN` lowered); Ctrl+S writing one file
+again, a copy, a file that can no longer be written; the menu, a drop, the import picker; a backup
+made and two of three restored. Run it after touching storage, `migrate`/`normalize` or the comments.
 `node tools/fit-test.mjs`, `node tools/pipe-test.mjs`, `node tools/parser-test.mjs` and
 `node tools/tex-test.mjs` cover the numerics, the processing steps with their checks and the
 fingerprint, the parser, and the LaTeX typesetter (nesting, italics, spacing, fractions, roots,
@@ -3720,6 +3752,16 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   four even at full speed: the page's last flush waited behind a write still reading, which then
   took the flush's books for another tab's write and put the old name back. The check now runs
   eight times on a machine slowed six times. Make the conditions a failure needs, and count.
+- **A version announced before it is kept is the version before.** Wave 0's fix made the last
+  flush keep its books (the version written) only once its transaction completed, and the message
+  to the other tabs still read the books: it named the version they already had, so they read
+  nothing, and what a closed tab was typing never reached the tab left open. At full speed a later
+  message hid it; the suite's drives side by side showed it, and slowed six times it was lost eight
+  times in eight. A message says what was written, not what is known yet.
+- **A test that waits for a new project must know when none is made.** An example opened on an
+  empty desk goes into the project there, so a drive that waited for one more project in the list
+  waited fifteen seconds and failed, though the example was open. Wait for what the action changes
+  (the active column), not for what it sometimes changes.
 - **Random cases find what a grid misses.** The fixed grid of 568 cases showed the incomplete beta
   at 3e-10; a thousand random ones found 4e-10, and t's quantile at a million degrees of freedom
   10⁻⁸ off. Fixtures pin the behaviour; the fuzzer looks for where it breaks.
@@ -4242,7 +4284,9 @@ Next, in order:
    column formulas grown; an analysis keeps its own rows; numbers keep their check code; no free
    layers; 3D last, our own renderer; survival, MANOVA and DOE only if asked). Wave 0, the bench,
    done 07.11 (references, the fuzzer, the compute worker, budgets, `tools/suite.sh`; erf, erfc and
-   the normal quantile brought to double precision on the way)
+   the normal quantile brought to double precision on the way). Wave 1's plan is
+   `ux/spec/FOUNDATION_SPEC.md` (1.1, 1.4, 1.2a–d, 1.3a–c); slice 1.1, project files (Ctrl+S, Open a
+   project file…, backups), done 07.11
 
 ## Known gaps
 
@@ -4472,6 +4516,11 @@ Next, in order:
   iterations, 1e-12); *1 iteration* is a Levenberg–Marquardt step (not with the X errors); the
   list of iterations keeps the last 200 rows, is this browser's alone and is not in the
   project; *Stop* is heard between slices, so an iteration slower than a slice ends first
+- Project files: a file is the project at the moment it was saved (the browser cannot keep a file
+  in step with a project, nor watch one); opening one always makes a new project (Copy from another
+  project merges); the file written again by Ctrl+S is remembered for the session only (after a
+  reload the browser asks where once more); Firefox and Safari download each save; a file inflating
+  past 512 MB is refused; Origin's `.opju` is not read
 - Python is gone: a project made with it keeps each Python step's stored result, which cannot
   be run again or changed (it does not follow a change to its input)
 - With the history off, nothing is recorded from then on, so a report or the original data's

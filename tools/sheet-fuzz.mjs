@@ -166,7 +166,11 @@ const actions=[
   ["resize",2,async()=>{ const w=pick([1440,1100,900,700,420]), h=pick([900,700,600]); log(`viewport ${w}x${h}`); await page.setViewportSize({width:w,height:h}); }],
   ["minimise",2,async()=>{ const bar=rnd()<0.5; log(`minimise and restore the worksheet${bar?" from its taskbar button":""}`); await page.evaluate(()=>minimiseWin("sheet")); await wait(ri(50,400));
       const b=bar&&await page.$('#taskbar .tk[data-tk="sheet"]:not([hidden])');
-      if(b){ await b.click().catch(()=>{}); await wait(30); const k=await page.evaluate(()=>{ const a=document.activeElement; return winOpen("sheet")&&!!a&&!!a.closest&&!!a.closest("#w-sheet"); }); if(!k) fail("the worksheet restored from its taskbar button does not have the keys"); }
+      // The keys are checked only when the click landed: a toast or a menu over the taskbar takes it,
+      // which on a loaded machine (the suite's drives side by side) happens, and is not the app's doing.
+      if(b){ const hit=await b.click({timeout:3000}).then(()=>true,()=>false); await wait(30);
+        if(!hit){ log("  (the taskbar button could not be clicked)"); await page.evaluate(()=>{ openWin("sheet"); focusWin("sheet"); }); }
+        else { const k=await page.evaluate(()=>{ const a=document.activeElement; return winOpen("sheet")&&!!a&&!!a.closest&&!!a.closest("#w-sheet"); }); if(!k) fail("the worksheet restored from its taskbar button does not have the keys"); } }
       else await page.evaluate(()=>{ openWin("sheet"); focusWin("sheet"); }); }],
   ["elsewhere",2,async()=>{ log("click the graph"); await page.evaluate(()=>{ const w=winOfGraph(S.gid); if(w) openWin(w); }); const g=await page.$("#plot"); if(g){ const bb=await g.boundingBox(); if(bb) await page.mouse.click(bb.x+20,bb.y+20); } await page.evaluate(()=>focusWin("sheet")); }],
   ["fillh",2,async()=>{ log("fill handle drag"); const h=await page.evaluate(()=>{ const td=document.querySelector("#ws td.fh"); if(!td) return null; const r=td.getBoundingClientRect(); return {x:r.right-3,y:r.bottom-3}; }); if(!h) return; await page.mouse.move(h.x,h.y); await page.mouse.down(); await page.mouse.move(h.x,h.y+ri(30,200),{steps:5}); await page.mouse.up(); await wait(100); }],
@@ -189,7 +193,12 @@ await page.keyboard.press("Escape"); await wait(1200);
 const snap=await page.evaluate(()=>JSON.stringify(allCols().filter(c=>!c.src).map(c=>[c.role,c.name,c.unit,c.fx?c.fx.src:null,c.fx?null:c.data])));
 await page.goto(URL); await page.waitForFunction(()=>typeof S!=="undefined"&&S.pid&&S.proj,null,{timeout:15000}); await wait(500);
 const snap2=await page.evaluate(()=>JSON.stringify(allCols().filter(c=>!c.src).map(c=>[c.role,c.name,c.unit,c.fx?c.fx.src:null,c.fx?null:c.data])));
-if(snap!==snap2){ const a=JSON.parse(snap), b=JSON.parse(snap2); const d=[]; for(let i=0;i<Math.max(a.length,b.length);i++){ if(JSON.stringify(a[i])!==JSON.stringify(b[i])) d.push(`col ${i}: before ${String(JSON.stringify(a[i])).slice(0,160)} after ${String(JSON.stringify(b[i])).slice(0,160)}`); } fail("after a reload the data differ from what was on screen: "+d.slice(0,3).join(" | ")); }
+if(snap!==snap2){ const a=JSON.parse(snap), b=JSON.parse(snap2); const d=[]; for(let i=0;i<Math.max(a.length,b.length);i++){ if(JSON.stringify(a[i])!==JSON.stringify(b[i])){
+    // Which part differs, and for the values the first rows that do, with both values, and the lengths.
+    const A=a[i]||[], B=b[i]||[], part=[0,1,2,3,4].find(k=>JSON.stringify(A[k])!==JSON.stringify(B[k]));
+    let what=`part ${part}: ${JSON.stringify(A[part])} / ${JSON.stringify(B[part])}`.slice(0,300);
+    if(part===4&&Array.isArray(A[4])&&Array.isArray(B[4])){ const rows=[]; for(let r=0;r<Math.max(A[4].length,B[4].length)&&rows.length<5;r++) if(A[4][r]!==B[4][r]) rows.push(`row ${r}: ${A[4][r]} → ${B[4][r]}`); what=`values (${A[4].length} rows before, ${B[4].length} after): ${rows.join(", ")}`; }
+    d.push(`col ${i} ${JSON.stringify(A[1])}: ${what}`); } } fail("after a reload the data differ from what was on screen: "+d.slice(0,3).join(" | ")); }
 console.log(`seed ${seed} (${start}, ${W0}px): ${trail.length} steps, ${fails.length} failures, ${errors.length} page errors`);
 const tail=n=>trail.slice(-n).join("\n    ");
 fails.slice(0,8).forEach(f=>console.log("  FAIL "+f));

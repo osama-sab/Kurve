@@ -1065,6 +1065,32 @@ Checked: `tools/ref-test.mjs` (17 at their targets, 5 short with their slice nam
 fail on the old code), `tools/perf.mjs` (10 within budget), the menu crawl (three items of earlier
 rounds written into `ux/spec/menus-after.txt`).
 
+## Closing the gap with Origin, wave 1, slice 1.1: project files (2026-11-07)
+
+`ux/spec/FOUNDATION_SPEC.md` 1.1. A project can now leave the browser as one file.
+- **File › Save to a file…** (Ctrl+S) writes the project as a `.kurve` file (compressed JSON, long
+  numeric columns packed as binary): every column, step, peak set, band, fit, graph, annotation and
+  style, the original data's record with its check code, the discussion. The first save asks
+  where; for the rest of the session Ctrl+S writes the same file again. **Save a copy to a file…**
+  (Ctrl+Shift+S) always asks. Without the browser's file picker each save is a download. The
+  project's name in the title bar says which file it was last saved to.
+- **File › Open a project file…**, a `.kurve` chosen in the import dialog or dropped on the window:
+  checked first (not a project, cut short, damaged, made by a newer Kurve, a column whose values do
+  not add up, more than 512 MB inflated: refused in words, nothing made), then opened as a new
+  project under a name of its own with its comments and replies, nothing to undo, its check code
+  worked out again and compared with the file's and the record's.
+- **File › Back up every project…**: one file of every project; opened, it lists them to restore.
+- Ctrl+S used to show only a message that every change is saved as it is made; it now saves to
+  a file (the project still saves itself into the browser at every change).
+
+Measured: a project of a million rows is 11.4 MB, saved in 570 ms and opened in 655 ms (budgets of
+2 s each in `tools/perf.mjs`). `tools/file-drive.mjs` (39 checks, in `tools/suite.sh`): every
+example saved and opened equal (columns, steps, peaks, bands, annotations, comments with a reply,
+the check code), a million rows, the same file twice, a file of an older document version upgraded,
+eleven kinds of bad file refused with nothing made (a gzip bomb among them), Ctrl+S twice writing
+one file, a copy, a file that can no longer be written asking again, the menu, a drop, the import
+picker, a backup made and two of its three projects restored.
+
 ## Working together, slice 3: proposed settings (2026-11-06)
 
 - *Propose settings…* in a step's discussion: a copy of its settings, changed and posted with a reason
