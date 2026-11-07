@@ -1,0 +1,281 @@
+File
+  New project
+  Import data…
+  Copy from another project…
+  Examples
+    Infrared: overlapping bands
+    Raman: raw polystyrene (background, spikes)
+    Raman: one band
+    Exponential decay (fluorescence)
+  Export
+    Graph for a paper or slides…
+    Graph as SVG
+    Graph as PDF
+    Graph as EPS
+    Graph as PNG
+    All graphs as one figure
+      As SVG (vector, for papers)
+      As PDF
+      As EPS
+      As PNG (image, for slides)
+    Processed data and fit as CSV
+    Original data as CSV
+    Processing steps as JSON
+    Report
+  Rename the project…
+  Delete the project…
+Edit
+  Undo making a figure
+  Redo
+  Copy
+  Paste
+  Clear
+  Find…
+  Copy the graph as a picture
+  Copy the results table
+Data
+  Worksheet
+  Add a column
+  Fill
+    Down
+    Right
+    Series…
+    Growth series…
+    Evenly between two values…
+    Row numbers…
+    Repeat a list…
+    Random numbers…
+    Continue the trend…
+  Sort the view
+    Ascending
+    Descending
+    Original order
+  Clean
+    Crop…
+    Remove a region…
+    Sort by X
+    Average duplicate X
+    Resample to even spacing…
+  Masks
+    Mask points on the graph
+    Restore every masked point
+  Columns
+    New column from the processed data
+    Copy with the same processing
+    Apply this processing to every column
+    Rename the column…
+  Show on the graph
+    Original
+    Processed
+    Both
+  Lock the original data
+Plot
+  Plot setup…
+  Plot the selected columns
+    Plot setup…
+    Line
+    Symbols
+    Line + symbols
+    Drop lines
+    Columns
+    Area
+    Steps
+    Histogram
+    Box chart
+    Violin plot
+    Add to a graph
+      Figure 1 › (a) Graph 1
+      Figure 1 › (b) Graph 2
+  New graph
+    With Absorbance
+    With every column
+    One for each column
+    A figure, a panel for each column
+    A figure of panels…
+  Format graph…
+  Format a part
+    X axis…
+    Y axis…
+    Frame and grid…
+    Text and fonts…
+    Legend…
+    Lines and symbols…
+  Saved styles
+    Kurve's own
+    Journal: sans serif, axes, ticks out
+    Classic: serif, box, ticks in
+    Slides: large text, heavy axes
+    Minimal: open axes, light grid
+    Save this style…
+    Give every graph a style
+      Kurve's own
+      Journal: sans serif, axes, ticks out
+      Classic: serif, box, ticks in
+      Slides: large text, heavy axes
+      Minimal: open axes, light grid
+  Plot type
+    Line
+    Symbols
+    Line + symbols
+    Drop lines
+    Columns
+    Area
+    Steps
+  Several curves
+    Overlay
+    Offset (waterfall)
+    Stacked panels
+    Two Y axes
+    Heat map
+  Axes
+    Reverse X
+    X scale
+      Linear
+      Logarithmic (log₁₀)
+      Natural log (ln)
+      Log₂
+      Reciprocal (1/x)
+      Offset reciprocal, 1/(x + c)
+      Square root
+      Probability (%)
+    Y scale
+      Linear
+      Logarithmic (log₁₀)
+      Natural log (ln)
+      Log₂
+      Reciprocal (1/x)
+      Offset reciprocal, 1/(x + c)
+      Square root
+      Probability (%)
+    Grid lines
+  Font
+    Kurve's (Source Sans, axis titles in Source Serif)
+    Source Sans 3
+    Source Serif 4
+    Inter
+    STIX Two Text
+    Arial
+    Helvetica
+    Times New Roman
+    Courier New
+    Text and fonts…
+    Small
+    Normal
+    Large
+    Larger
+    Largest
+  Legend
+    Place
+      Emptiest corner
+      Top right
+      Top left
+      Bottom right
+      Bottom left
+      Outside, right
+      Below the graph
+      No legend
+    Text in each curve's colour
+    Add a legend title…
+  Annotate
+    Vertical line…
+    Horizontal line…
+    Text (click the graph)
+    Arrow (drag on the graph)
+    Box (drag on the graph)
+    Ellipse (drag on the graph)
+    Shade an X range (drag on the graph)
+    Labels and lines…
+    Remove every annotation
+  Layout and colours…
+  Show all the data
+Analysis
+  Fit
+    Curve fit…
+    Peak fit…
+    New fit function…
+    Run the fit
+    Residuals under the graph
+    Remove the fit
+  Results
+  Mathematics
+    Scale and offset Y…
+    Scale and offset X…
+    Normalize…
+    Subtract or divide by another spectrum…
+    Average with other spectra…
+    Derivative…
+    Derivative, as a new column…
+    Cumulative integral…
+    Logarithm…
+  Smooth and filter
+    Smooth…
+    FFT filter…
+  Integrate…
+  More
+    Python
+      Python on the active column…
+      A new column with Python…
+      Python window
+Statistics
+  Descriptive statistics…
+  Correlation between columns…
+  Histogram
+Spectroscopy
+  Overview of the spectrum…
+  Remove cosmic-ray spikes…
+  Subtract background…
+  Find peaks…
+  Name the peaks from known lines…
+  X axis
+    Energy calibration…
+    Wavelength to Raman shift…
+    Convert X units…
+    Calibrate X on reference peaks…
+  Corrections
+    Transmittance to absorbance…
+    Kubelka–Munk…
+    Bose–Einstein correction…
+Window
+  Figure 1
+  Worksheet
+  History
+  Fit
+  Results
+  Tool windows
+    History
+    Overview
+    Peaks
+    Integrate
+    Fit
+    Results
+    Batch
+    Statistics
+    Python
+    Discussion
+    Help
+  Project Explorer
+  Tile
+  Cascade
+  Minimise the others
+  Close the tool windows
+  Restore the default arrangement
+  Graphs
+    Figure 1 · 2 panels
+    Combine graphs…
+    A figure of panels…
+    Link the X zoom of the graphs
+  Theme
+    Light
+    Dark
+    Match the system
+  Style
+    Bench: blue for what you can change
+    Graphite: black and white
+Help
+  Kurve help
+  Search help…
+  Getting started
+  Keyboard shortcuts
+  About processing
+  How Kurve computes
+  About Kurve

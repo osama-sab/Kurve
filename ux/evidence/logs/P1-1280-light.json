@@ -1,0 +1,634 @@
+{
+ "meta": {
+  "run": "P1-1280-light",
+  "app": "/home/user/kurve-coldtest/kurve.html",
+  "viewport": [
+   1280,
+   720
+  ],
+  "theme": "light"
+ },
+ "events": [
+  {
+   "t": 1.07,
+   "wall": "2026-10-15T18:06:04+00:00",
+   "task": null,
+   "kind": "open",
+   "target": "http://127.0.0.1:32995/kurve.html",
+   "viewport": "1280x720",
+   "theme": "light"
+  },
+  {
+   "t": 3.246,
+   "wall": "2026-10-15T18:06:07+00:00",
+   "task": "T1",
+   "kind": "task_start",
+   "target": "A: type 6 x,y pairs, scatter plot, axis titles with units, export PNG"
+  },
+  {
+   "t": 3.5,
+   "wall": "2026-10-15T18:06:07+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "first-screen",
+   "path": "shots/P1-1280-light/01-first-screen.png"
+  },
+  {
+   "t": 14.89,
+   "wall": "2026-10-15T18:06:18+00:00",
+   "task": "T1",
+   "kind": "say",
+   "text": "Where are the cells? The worksheet is all header rows; not one row to type in."
+  },
+  {
+   "t": 14.891,
+   "wall": "2026-10-15T18:06:18+00:00",
+   "task": "T1",
+   "kind": "finding",
+   "text": "At 1280×720 the first-screen worksheet shows the five label rows and no data row at all: there is nowhere visible to type."
+  },
+  {
+   "t": 15.089,
+   "wall": "2026-10-15T18:06:18+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "worksheet maximise",
+   "x": 1262,
+   "y": 434,
+   "presses": 1
+  },
+  {
+   "t": 16.002,
+   "wall": "2026-10-15T18:06:19+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "cell A1",
+   "x": 382,
+   "y": 310,
+   "presses": 1
+  },
+  {
+   "t": 16.181,
+   "wall": "2026-10-15T18:06:19+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "0",
+   "keys": 1
+  },
+  {
+   "t": 16.274,
+   "wall": "2026-10-15T18:06:20+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 16.508,
+   "wall": "2026-10-15T18:06:20+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "0.1",
+   "keys": 3
+  },
+  {
+   "t": 16.667,
+   "wall": "2026-10-15T18:06:20+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 16.817,
+   "wall": "2026-10-15T18:06:20+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "1",
+   "keys": 1
+  },
+  {
+   "t": 16.946,
+   "wall": "2026-10-15T18:06:20+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 17.181,
+   "wall": "2026-10-15T18:06:20+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "2.1",
+   "keys": 3
+  },
+  {
+   "t": 17.285,
+   "wall": "2026-10-15T18:06:21+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 17.438,
+   "wall": "2026-10-15T18:06:21+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "2",
+   "keys": 1
+  },
+  {
+   "t": 17.561,
+   "wall": "2026-10-15T18:06:21+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 17.795,
+   "wall": "2026-10-15T18:06:21+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "3.9",
+   "keys": 3
+  },
+  {
+   "t": 17.917,
+   "wall": "2026-10-15T18:06:21+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 18.067,
+   "wall": "2026-10-15T18:06:21+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "3",
+   "keys": 1
+  },
+  {
+   "t": 18.202,
+   "wall": "2026-10-15T18:06:22+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 18.441,
+   "wall": "2026-10-15T18:06:22+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "6.2",
+   "keys": 3
+  },
+  {
+   "t": 18.557,
+   "wall": "2026-10-15T18:06:22+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 18.707,
+   "wall": "2026-10-15T18:06:22+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "4",
+   "keys": 1
+  },
+  {
+   "t": 18.822,
+   "wall": "2026-10-15T18:06:22+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 19.064,
+   "wall": "2026-10-15T18:06:22+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "7.8",
+   "keys": 3
+  },
+  {
+   "t": 19.172,
+   "wall": "2026-10-15T18:06:22+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 19.324,
+   "wall": "2026-10-15T18:06:23+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "5",
+   "keys": 1
+  },
+  {
+   "t": 19.425,
+   "wall": "2026-10-15T18:06:23+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 19.703,
+   "wall": "2026-10-15T18:06:23+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "10.1",
+   "keys": 4
+  },
+  {
+   "t": 19.81,
+   "wall": "2026-10-15T18:06:23+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 20.768,
+   "wall": "2026-10-15T18:06:24+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "typed-max",
+   "path": "shots/P1-1280-light/02-typed-max.png"
+  },
+  {
+   "t": 20.973,
+   "wall": "2026-10-15T18:06:24+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "worksheet restore",
+   "x": 1262,
+   "y": 99,
+   "presses": 1
+  },
+  {
+   "t": 22.137,
+   "wall": "2026-10-15T18:06:25+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "after-restore",
+   "path": "shots/P1-1280-light/03-after-restore.png"
+  },
+  {
+   "t": 28.83,
+   "wall": "2026-10-15T18:06:32+00:00",
+   "task": "T1",
+   "kind": "say",
+   "text": "Plotted already. Titles: double-click X, type, Enter; same for Y."
+  },
+  {
+   "t": 29.125,
+   "wall": "2026-10-15T18:06:32+00:00",
+   "task": "T1",
+   "kind": "dblclick",
+   "target": "X axis title",
+   "x": 591,
+   "y": 628,
+   "presses": 2
+  },
+  {
+   "t": 29.554,
+   "wall": "2026-10-15T18:06:33+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Control+a",
+   "presses": 1
+  },
+  {
+   "t": 29.989,
+   "wall": "2026-10-15T18:06:33+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "Time (s)",
+   "keys": 8
+  },
+  {
+   "t": 30.088,
+   "wall": "2026-10-15T18:06:33+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 30.457,
+   "wall": "2026-10-15T18:06:34+00:00",
+   "task": "T1",
+   "kind": "dblclick",
+   "target": "Y axis title",
+   "x": 282,
+   "y": 378,
+   "presses": 2
+  },
+  {
+   "t": 30.886,
+   "wall": "2026-10-15T18:06:34+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Control+a",
+   "presses": 1
+  },
+  {
+   "t": 31.474,
+   "wall": "2026-10-15T18:06:35+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "Distance (m)",
+   "keys": 12
+  },
+  {
+   "t": 31.56,
+   "wall": "2026-10-15T18:06:35+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 32.242,
+   "wall": "2026-10-15T18:06:36+00:00",
+   "task": "T1",
+   "kind": "rightclick",
+   "target": "empty part of the plot",
+   "x": 560,
+   "y": 400,
+   "presses": 1
+  },
+  {
+   "t": 33.027,
+   "wall": "2026-10-15T18:06:36+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "menu-1280",
+   "path": "shots/P1-1280-light/04-menu-1280.png"
+  },
+  {
+   "t": 42.925,
+   "wall": "2026-10-15T18:06:46+00:00",
+   "task": "T1",
+   "kind": "finding",
+   "text": "At 1280×720 the graph's right-click menu, opened at mid-height, is 390 px tall and shows 13 items; 'Export the figure' is two scrolls down."
+  },
+  {
+   "t": 43.073,
+   "wall": "2026-10-15T18:06:46+00:00",
+   "task": "T1",
+   "kind": "wheel",
+   "target": "scroll the menu",
+   "x": 705,
+   "y": 300,
+   "dx": 0,
+   "dy": 300
+  },
+  {
+   "t": 43.723,
+   "wall": "2026-10-15T18:06:47+00:00",
+   "task": "T1",
+   "kind": "wheel",
+   "target": "scroll the menu",
+   "x": 705,
+   "y": 300,
+   "dx": 0,
+   "dy": 300
+  },
+  {
+   "t": 44.487,
+   "wall": "2026-10-15T18:06:48+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "menu-1280-scrolled",
+   "path": "shots/P1-1280-light/05-menu-1280-scrolled.png"
+  },
+  {
+   "t": 50.223,
+   "wall": "2026-10-15T18:06:54+00:00",
+   "task": "T1",
+   "kind": "hover",
+   "target": "Export the figure",
+   "x": 705,
+   "y": 378
+  },
+  {
+   "t": 51.682,
+   "wall": "2026-10-15T18:06:55+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "export-sub-1280",
+   "path": "shots/P1-1280-light/06-export-sub-1280.png"
+  },
+  {
+   "t": 57.745,
+   "wall": "2026-10-15T18:07:01+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "menuitem 'As PNG (image, for slides)'",
+   "x": 964,
+   "y": 490,
+   "presses": 1
+  },
+  {
+   "t": 58.203,
+   "wall": "2026-10-15T18:07:02+00:00",
+   "task": "T1",
+   "kind": "download",
+   "target": "As PNG",
+   "file": "downloads/P1-1280-light/Untitled_analysis.png",
+   "suggested": "Untitled_analysis.png"
+  },
+  {
+   "t": 58.205,
+   "wall": "2026-10-15T18:07:02+00:00",
+   "task": "T1",
+   "kind": "task_end",
+   "success": "yes",
+   "note": "same path as at 1366; the worksheet showed no data row until maximised; the graph menu needed two scrolls to reach Export"
+  },
+  {
+   "t": 62.506,
+   "wall": "2026-10-15T18:07:06+00:00",
+   "task": "T2",
+   "kind": "task_start",
+   "target": "A: fit a straight line to calibration.csv, read slope ± error and R², show line and equation on the graph"
+  },
+  {
+   "t": 62.743,
+   "wall": "2026-10-15T18:07:06+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "text 'File'",
+   "x": 120,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 63.336,
+   "wall": "2026-10-15T18:07:07+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "menuitem 'Import data…'",
+   "x": 215,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 63.48,
+   "wall": "2026-10-15T18:07:07+00:00",
+   "task": "T2",
+   "kind": "choose_file",
+   "target": "calibration.csv",
+   "files": [
+    "calibration.csv"
+   ]
+  },
+  {
+   "t": 64.652,
+   "wall": "2026-10-15T18:07:08+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "t2-import-1280",
+   "path": "shots/P1-1280-light/07-t2-import-1280.png"
+  },
+  {
+   "t": 70.942,
+   "wall": "2026-10-15T18:07:14+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "button 'Import 3 columns'",
+   "x": 1087,
+   "y": 675,
+   "presses": 1
+  },
+  {
+   "t": 72.286,
+   "wall": "2026-10-15T18:07:16+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "text 'Analysis'",
+   "x": 350,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 72.822,
+   "wall": "2026-10-15T18:07:16+00:00",
+   "task": "T2",
+   "kind": "hover",
+   "target": "Fit",
+   "x": 447,
+   "y": 168
+  },
+  {
+   "t": 73.976,
+   "wall": "2026-10-15T18:07:17+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "menuitem 'Curve fit'",
+   "x": 688,
+   "y": 168,
+   "presses": 1
+  },
+  {
+   "t": 75.367,
+   "wall": "2026-10-15T18:07:19+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "t2-fitwin-1280",
+   "path": "shots/P1-1280-light/08-t2-fitwin-1280.png"
+  },
+  {
+   "t": 82.864,
+   "wall": "2026-10-15T18:07:26+00:00",
+   "task": "T2",
+   "kind": "finding",
+   "text": "At 1280×720 the Fit window covers the graph from x≈850 px: the last calibration point (40 mg/L) sits under its edge; the import toast lies over the Fit button for several seconds."
+  },
+  {
+   "t": 83.056,
+   "wall": "2026-10-15T18:07:26+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "Model list",
+   "x": 1018,
+   "y": 288,
+   "presses": 1
+  },
+  {
+   "t": 83.319,
+   "wall": "2026-10-15T18:07:27+00:00",
+   "task": "T2",
+   "kind": "key",
+   "keys": "ArrowUp",
+   "presses": 3
+  },
+  {
+   "t": 83.484,
+   "wall": "2026-10-15T18:07:27+00:00",
+   "task": "T2",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 88.32,
+   "wall": "2026-10-15T18:07:32+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "button 'Fit'",
+   "x": 999,
+   "y": 625,
+   "presses": 1
+  },
+  {
+   "t": 89.903,
+   "wall": "2026-10-15T18:07:33+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "t2-fitted-1280",
+   "path": "shots/P1-1280-light/09-t2-fitted-1280.png"
+  }
+ ],
+ "summary": {
+  "T1": {
+   "title": "A: type 6 x,y pairs, scatter plot, axis titles with units, export PNG",
+   "success": "yes",
+   "clicks": 9,
+   "keys": 61,
+   "drags": 0,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 6,
+   "seconds": 55.0,
+   "klm_seconds": 40.9
+  },
+  "T2": {
+   "title": "A: fit a straight line to calibration.csv, read slope ± error and R², show line and equation on the graph",
+   "success": null,
+   "clicks": 7,
+   "keys": 4,
+   "drags": 0,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 3,
+   "seconds": null,
+   "klm_seconds": 19.7
+  }
+ }
+}

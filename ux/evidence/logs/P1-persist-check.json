@@ -1,0 +1,48 @@
+{
+ "meta": {
+  "run": "P1-persist-check",
+  "app": "/home/user/kurve-coldtest/kurve.html",
+  "viewport": [
+   1280,
+   720
+  ],
+  "theme": "light"
+ },
+ "events": [
+  {
+   "t": 0.705,
+   "wall": "2026-10-15T22:35:37+00:00",
+   "task": null,
+   "kind": "open",
+   "target": "http://127.0.0.1:50593/kurve.html",
+   "viewport": "1280x720",
+   "theme": "light"
+  },
+  {
+   "t": 3.611,
+   "wall": "2026-10-15T22:35:39+00:00",
+   "task": null,
+   "kind": "click",
+   "target": "arrow beside the project name",
+   "x": 1087,
+   "y": 19,
+   "presses": 1
+  },
+  {
+   "t": 4.353,
+   "wall": "2026-10-15T22:35:40+00:00",
+   "task": null,
+   "kind": "shot",
+   "target": "project-list-after-normal-close",
+   "path": "shots/P1-persist-check/01-project-list-after-normal-close.png"
+  },
+  {
+   "t": 4.353,
+   "wall": "2026-10-15T22:35:40+00:00",
+   "task": null,
+   "kind": "close",
+   "errors": []
+  }
+ ],
+ "summary": {}
+}

@@ -1,0 +1,1126 @@
+{
+ "events": [
+  {
+   "t": 0.843,
+   "wall": "2026-10-17T08:16:19+00:00",
+   "task": null,
+   "kind": "open",
+   "target": "http://127.0.0.1:47449/kurve.html",
+   "viewport": "1366x768",
+   "theme": "light"
+  },
+  {
+   "t": 3.551,
+   "wall": "2026-10-17T08:16:22+00:00",
+   "task": "T1",
+   "kind": "task_start",
+   "target": "Type 6 x,y pairs, scatter plot, axis titles with units, export PNG"
+  },
+  {
+   "t": 3.847,
+   "wall": "2026-10-17T08:16:22+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "worksheet cell A1",
+   "x": 133,
+   "y": 226,
+   "presses": 1
+  },
+  {
+   "t": 4.025,
+   "wall": "2026-10-17T08:16:22+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "1",
+   "keys": 1
+  },
+  {
+   "t": 4.145,
+   "wall": "2026-10-17T08:16:23+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 4.382,
+   "wall": "2026-10-17T08:16:23+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "2.1",
+   "keys": 3
+  },
+  {
+   "t": 4.52,
+   "wall": "2026-10-17T08:16:23+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 4.671,
+   "wall": "2026-10-17T08:16:23+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "2",
+   "keys": 1
+  },
+  {
+   "t": 4.81,
+   "wall": "2026-10-17T08:16:23+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 5.055,
+   "wall": "2026-10-17T08:16:24+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "3.9",
+   "keys": 3
+  },
+  {
+   "t": 5.164,
+   "wall": "2026-10-17T08:16:24+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 5.318,
+   "wall": "2026-10-17T08:16:24+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "3",
+   "keys": 1
+  },
+  {
+   "t": 5.45,
+   "wall": "2026-10-17T08:16:24+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 5.691,
+   "wall": "2026-10-17T08:16:24+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "6.2",
+   "keys": 3
+  },
+  {
+   "t": 5.814,
+   "wall": "2026-10-17T08:16:24+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 5.965,
+   "wall": "2026-10-17T08:16:24+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "4",
+   "keys": 1
+  },
+  {
+   "t": 6.067,
+   "wall": "2026-10-17T08:16:25+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 6.345,
+   "wall": "2026-10-17T08:16:25+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "8.1",
+   "keys": 3
+  },
+  {
+   "t": 6.45,
+   "wall": "2026-10-17T08:16:25+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 6.604,
+   "wall": "2026-10-17T08:16:25+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "5",
+   "keys": 1
+  },
+  {
+   "t": 6.719,
+   "wall": "2026-10-17T08:16:25+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 6.956,
+   "wall": "2026-10-17T08:16:25+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "9.8",
+   "keys": 3
+  },
+  {
+   "t": 7.089,
+   "wall": "2026-10-17T08:16:26+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 7.249,
+   "wall": "2026-10-17T08:16:26+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "6",
+   "keys": 1
+  },
+  {
+   "t": 7.399,
+   "wall": "2026-10-17T08:16:26+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 7.679,
+   "wall": "2026-10-17T08:16:26+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "12.2",
+   "keys": 4
+  },
+  {
+   "t": 7.812,
+   "wall": "2026-10-17T08:16:26+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 8.524,
+   "wall": "2026-10-17T08:16:27+00:00",
+   "task": "T1",
+   "kind": "say",
+   "text": "No graph yet; the status bar says: select columns in the worksheet and press Plot"
+  },
+  {
+   "t": 8.759,
+   "wall": "2026-10-17T08:16:27+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "column A letter",
+   "x": 133,
+   "y": 160,
+   "presses": 1
+  },
+  {
+   "t": 9.078,
+   "wall": "2026-10-17T08:16:28+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "column B letter (Shift)",
+   "x": 233,
+   "y": 160,
+   "mods": [
+    "Shift"
+   ],
+   "presses": 1
+  },
+  {
+   "t": 9.424,
+   "wall": "2026-10-17T08:16:28+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "the worksheet's Plot button",
+   "x": 1220,
+   "y": 131,
+   "presses": 1
+  },
+  {
+   "t": 10.171,
+   "wall": "2026-10-17T08:16:29+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "Symbols",
+   "x": 1245,
+   "y": 257,
+   "presses": 1
+  },
+  {
+   "t": 11.46,
+   "wall": "2026-10-17T08:16:30+00:00",
+   "task": "T1",
+   "kind": "dblclick",
+   "target": "x-axis title",
+   "x": 1005,
+   "y": 681,
+   "presses": 2
+  },
+  {
+   "t": 11.908,
+   "wall": "2026-10-17T08:16:30+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "Time (s)",
+   "keys": 8
+  },
+  {
+   "t": 12.007,
+   "wall": "2026-10-17T08:16:30+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 12.707,
+   "wall": "2026-10-17T08:16:31+00:00",
+   "task": "T1",
+   "kind": "dblclick",
+   "target": "y-axis title",
+   "x": 634,
+   "y": 406,
+   "presses": 2
+  },
+  {
+   "t": 13.317,
+   "wall": "2026-10-17T08:16:32+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "Distance (m)",
+   "keys": 12
+  },
+  {
+   "t": 13.421,
+   "wall": "2026-10-17T08:16:32+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 14.057,
+   "wall": "2026-10-17T08:16:33+00:00",
+   "task": "T1",
+   "kind": "rightclick",
+   "target": "graph area (right-click)",
+   "x": 984,
+   "y": 346,
+   "presses": 1
+  },
+  {
+   "t": 14.655,
+   "wall": "2026-10-17T08:16:33+00:00",
+   "task": "T1",
+   "kind": "hover",
+   "target": "Export",
+   "x": 1102,
+   "y": 749
+  },
+  {
+   "t": 15.274,
+   "wall": "2026-10-17T08:16:34+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "Graph as PNG",
+   "x": 871,
+   "y": 613,
+   "presses": 1
+  },
+  {
+   "t": 15.628,
+   "wall": "2026-10-17T08:16:34+00:00",
+   "task": "T1",
+   "kind": "download",
+   "target": "export PNG",
+   "file": "downloads/round6-A/t1.png",
+   "suggested": "Untitled_project.png"
+  },
+  {
+   "t": 15.629,
+   "wall": "2026-10-17T08:16:34+00:00",
+   "task": "T1",
+   "kind": "task_end",
+   "success": "yes",
+   "note": ""
+  },
+  {
+   "t": 15.631,
+   "wall": "2026-10-17T08:16:34+00:00",
+   "task": "T2",
+   "kind": "task_start",
+   "target": "Fit a straight line to calibration.csv, read slope ± error and R², show line and equation on the graph"
+  },
+  {
+   "t": 15.856,
+   "wall": "2026-10-17T08:16:34+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "button 'File'",
+   "x": 116,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 16.433,
+   "wall": "2026-10-17T08:16:35+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "Import data…",
+   "x": 212,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 16.58,
+   "wall": "2026-10-17T08:16:35+00:00",
+   "task": "T2",
+   "kind": "choose_file",
+   "target": "calibration.csv",
+   "files": [
+    "calibration.csv"
+   ]
+  },
+  {
+   "t": 17.686,
+   "wall": "2026-10-17T08:16:36+00:00",
+   "task": "T2",
+   "kind": "guess",
+   "text": "Accepted the default 'Add these columns, keeping what is here' without knowing what it does to the first graph"
+  },
+  {
+   "t": 18.037,
+   "wall": "2026-10-17T08:16:36+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "the dialog's Import button",
+   "x": 1129,
+   "y": 725,
+   "presses": 1
+  },
+  {
+   "t": 19.456,
+   "wall": "2026-10-17T08:16:38+00:00",
+   "task": "T2",
+   "kind": "rightclick",
+   "target": "a data point (right-click)",
+   "x": 851,
+   "y": 509,
+   "presses": 1
+  },
+  {
+   "t": 19.884,
+   "wall": "2026-10-17T08:16:38+00:00",
+   "task": "T2",
+   "kind": "wrong_turn",
+   "text": "Right-clicked the data for 'Add trendline' (Excel habit); the menu has no fit"
+  },
+  {
+   "t": 19.938,
+   "wall": "2026-10-17T08:16:38+00:00",
+   "task": "T2",
+   "kind": "key",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 20.256,
+   "wall": "2026-10-17T08:16:39+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "button 'Analysis'",
+   "x": 291,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 20.771,
+   "wall": "2026-10-17T08:16:39+00:00",
+   "task": "T2",
+   "kind": "hover",
+   "target": "Fit submenu",
+   "x": 373,
+   "y": 56
+  },
+  {
+   "t": 21.124,
+   "wall": "2026-10-17T08:16:40+00:00",
+   "task": "T2",
+   "kind": "guess",
+   "text": "Picked 'Curve fit' hoping a straight line is in it"
+  },
+  {
+   "t": 21.392,
+   "wall": "2026-10-17T08:16:40+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "Curve fit",
+   "x": 600,
+   "y": 56,
+   "presses": 1
+  },
+  {
+   "t": 22.024,
+   "wall": "2026-10-17T08:16:40+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "The model already reads Straight line, suggested for data that rises in a straight line"
+  },
+  {
+   "t": 22.328,
+   "wall": "2026-10-17T08:16:41+00:00",
+   "task": "T2",
+   "kind": "guess",
+   "text": "Left 'Weight by the Y error column (1/σ²)' on without knowing what it changes"
+  },
+  {
+   "t": 22.646,
+   "wall": "2026-10-17T08:16:41+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "Fit",
+   "x": 1110,
+   "y": 691,
+   "presses": 1
+  },
+  {
+   "t": 24.036,
+   "wall": "2026-10-17T08:16:42+00:00",
+   "task": "T2",
+   "kind": "rightclick",
+   "target": "the red fit line (right-click)",
+   "x": 778,
+   "y": 358,
+   "presses": 1
+  },
+  {
+   "t": 24.604,
+   "wall": "2026-10-17T08:16:43+00:00",
+   "task": "T2",
+   "kind": "wheel",
+   "target": "scroll the menu",
+   "x": 818,
+   "y": 418,
+   "dx": 0,
+   "dy": 400
+  },
+  {
+   "t": 24.81,
+   "wall": "2026-10-17T08:16:43+00:00",
+   "task": "T2",
+   "kind": "wrong_turn",
+   "text": "Right-clicked the fit line looking for 'Display equation on chart': no fit equation option"
+  },
+  {
+   "t": 24.867,
+   "wall": "2026-10-17T08:16:43+00:00",
+   "task": "T2",
+   "kind": "key",
+   "target": "close menu",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 25.019,
+   "wall": "2026-10-17T08:16:43+00:00",
+   "task": "T2",
+   "kind": "key",
+   "target": "close menu",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 25.339,
+   "wall": "2026-10-17T08:16:44+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "Plot on the graph's bar",
+   "x": 504,
+   "y": 129,
+   "presses": 1
+  },
+  {
+   "t": 25.854,
+   "wall": "2026-10-17T08:16:44+00:00",
+   "task": "T2",
+   "kind": "hover",
+   "target": "Annotate",
+   "x": 604,
+   "y": 489
+  },
+  {
+   "t": 26.21,
+   "wall": "2026-10-17T08:16:45+00:00",
+   "task": "T2",
+   "kind": "wrong_turn",
+   "text": "Plot › Annotate: no fit equation item"
+  },
+  {
+   "t": 26.267,
+   "wall": "2026-10-17T08:16:45+00:00",
+   "task": "T2",
+   "kind": "key",
+   "target": "close menu",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 26.418,
+   "wall": "2026-10-17T08:16:45+00:00",
+   "task": "T2",
+   "kind": "key",
+   "target": "close menu",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 26.721,
+   "wall": "2026-10-17T08:16:45+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "Results",
+   "x": 441,
+   "y": 730,
+   "presses": 1
+  },
+  {
+   "t": 27.148,
+   "wall": "2026-10-17T08:16:46+00:00",
+   "task": "T2",
+   "kind": "wrong_turn",
+   "text": "Results window: no way to show the equation on the graph"
+  },
+  {
+   "t": 27.523,
+   "wall": "2026-10-17T08:16:46+00:00",
+   "task": "T2",
+   "kind": "rightclick",
+   "target": "graph, upper left (right-click)",
+   "x": 538,
+   "y": 252,
+   "presses": 1
+  },
+  {
+   "t": 28.173,
+   "wall": "2026-10-17T08:16:47+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "Text here…",
+   "x": 657,
+   "y": 366,
+   "presses": 1
+  },
+  {
+   "t": 30.017,
+   "wall": "2026-10-17T08:16:48+00:00",
+   "task": "T2",
+   "kind": "type",
+   "text": "y = 0.02420x + 0.0139, R^2 = 0.9994",
+   "keys": 35
+  },
+  {
+   "t": 30.152,
+   "wall": "2026-10-17T08:16:49+00:00",
+   "task": "T2",
+   "kind": "key",
+   "target": "keep text",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 30.259,
+   "wall": "2026-10-17T08:16:49+00:00",
+   "task": "T2",
+   "kind": "task_end",
+   "success": "partial",
+   "note": "equation only by retyping it as free text"
+  },
+  {
+   "t": 30.469,
+   "wall": "2026-10-17T08:16:49+00:00",
+   "task": null,
+   "kind": "click",
+   "target": "toolbar Import",
+   "x": 97,
+   "y": 60,
+   "presses": 1
+  },
+  {
+   "t": 30.607,
+   "wall": "2026-10-17T08:16:49+00:00",
+   "task": null,
+   "kind": "choose_file",
+   "target": "growth_eu.csv",
+   "files": [
+    "growth_eu.csv"
+   ]
+  },
+  {
+   "t": 33.135,
+   "wall": "2026-10-17T08:16:52+00:00",
+   "task": "T5",
+   "kind": "task_start",
+   "target": "Make a new column = log10 of a sample column, plot it"
+  },
+  {
+   "t": 33.321,
+   "wall": "2026-10-17T08:16:52+00:00",
+   "task": "T5",
+   "kind": "hover",
+   "target": "the + button on the worksheet bar",
+   "x": 412,
+   "y": 131
+  },
+  {
+   "t": 34.046,
+   "wall": "2026-10-17T08:16:52+00:00",
+   "task": "T5",
+   "kind": "click",
+   "target": "worksheet maximise button",
+   "x": 417,
+   "y": 98,
+   "presses": 1
+  },
+  {
+   "t": 34.621,
+   "wall": "2026-10-17T08:16:53+00:00",
+   "task": "T5",
+   "kind": "wheel",
+   "target": "scroll the sheet up",
+   "x": 683,
+   "y": 400,
+   "dx": 0,
+   "dy": -600
+  },
+  {
+   "t": 35.051,
+   "wall": "2026-10-17T08:16:54+00:00",
+   "task": "T5",
+   "kind": "click",
+   "target": "cell E1",
+   "x": 1033,
+   "y": 226,
+   "presses": 1
+  },
+  {
+   "t": 35.56,
+   "wall": "2026-10-17T08:16:54+00:00",
+   "task": "T5",
+   "kind": "type",
+   "text": "=LOG10(B1)",
+   "keys": 10
+  },
+  {
+   "t": 35.607,
+   "wall": "2026-10-17T08:16:54+00:00",
+   "task": "T5",
+   "kind": "key",
+   "target": "enter formula",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 35.721,
+   "wall": "2026-10-17T08:16:54+00:00",
+   "task": "T5",
+   "kind": "say",
+   "text": "The formula moved to the F(x)= row; the message says a letter is the whole column"
+  },
+  {
+   "t": 35.79,
+   "wall": "2026-10-17T08:16:54+00:00",
+   "task": "T5",
+   "kind": "key",
+   "target": "select all",
+   "keys": "Control+a",
+   "presses": 1
+  },
+  {
+   "t": 36.277,
+   "wall": "2026-10-17T08:16:55+00:00",
+   "task": "T5",
+   "kind": "type",
+   "text": "=log10(B1)",
+   "keys": 10
+  },
+  {
+   "t": 36.327,
+   "wall": "2026-10-17T08:16:55+00:00",
+   "task": "T5",
+   "kind": "key",
+   "target": "select all",
+   "keys": "Control+a",
+   "presses": 1
+  },
+  {
+   "t": 36.779,
+   "wall": "2026-10-17T08:16:55+00:00",
+   "task": "T5",
+   "kind": "type",
+   "text": "=log10(B)",
+   "keys": 9
+  },
+  {
+   "t": 36.826,
+   "wall": "2026-10-17T08:16:55+00:00",
+   "task": "T5",
+   "kind": "key",
+   "target": "set formula",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 37.733,
+   "wall": "2026-10-17T08:16:56+00:00",
+   "task": "T5",
+   "kind": "click",
+   "target": "column E letter",
+   "x": 1033,
+   "y": 160,
+   "presses": 1
+  },
+  {
+   "t": 38.077,
+   "wall": "2026-10-17T08:16:57+00:00",
+   "task": "T5",
+   "kind": "click",
+   "target": "button 'Plot'",
+   "x": 238,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 38.603,
+   "wall": "2026-10-17T08:16:57+00:00",
+   "task": "T5",
+   "kind": "hover",
+   "target": "Plot the selected columns",
+   "x": 338,
+   "y": 84
+  },
+  {
+   "t": 39.558,
+   "wall": "2026-10-17T08:16:58+00:00",
+   "task": "T5",
+   "kind": "click",
+   "target": "Symbols",
+   "x": 570,
+   "y": 175,
+   "presses": 1
+  },
+  {
+   "t": 40.285,
+   "wall": "2026-10-17T08:16:59+00:00",
+   "task": "T5",
+   "kind": "task_end",
+   "success": "yes",
+   "note": ""
+  },
+  {
+   "t": 40.288,
+   "wall": "2026-10-17T08:16:59+00:00",
+   "task": "T6",
+   "kind": "task_start",
+   "target": "Descriptive statistics and a histogram per group for survey.csv; compare the groups"
+  },
+  {
+   "t": 40.488,
+   "wall": "2026-10-17T08:16:59+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "button 'File'",
+   "x": 116,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 41.065,
+   "wall": "2026-10-17T08:17:00+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "Import data…",
+   "x": 212,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 41.203,
+   "wall": "2026-10-17T08:17:00+00:00",
+   "task": "T6",
+   "kind": "choose_file",
+   "target": "survey.csv",
+   "files": [
+    "survey.csv"
+   ]
+  },
+  {
+   "t": 42.764,
+   "wall": "2026-10-17T08:17:01+00:00",
+   "task": "T6",
+   "kind": "key",
+   "keys": "Escape",
+   "presses": 1
+  },
+  {
+   "t": 42.869,
+   "wall": "2026-10-17T08:17:01+00:00",
+   "task": "T6",
+   "kind": "wrong_turn",
+   "text": "Imported survey.csv: refused ('No rows of numbers'); reshaped it elsewhere"
+  },
+  {
+   "t": 43.109,
+   "wall": "2026-10-17T08:17:02+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "arrow beside the project name",
+   "x": 1127,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 43.696,
+   "wall": "2026-10-17T08:17:02+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "New project",
+   "x": 1001,
+   "y": 120,
+   "presses": 1
+  },
+  {
+   "t": 45.3,
+   "wall": "2026-10-17T08:17:04+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "cell A1",
+   "x": 133,
+   "y": 226,
+   "presses": 1
+  },
+  {
+   "t": 45.477,
+   "wall": "2026-10-17T08:17:04+00:00",
+   "task": "T6",
+   "kind": "key",
+   "target": "paste",
+   "keys": "Control+v",
+   "presses": 1
+  },
+  {
+   "t": 46.835,
+   "wall": "2026-10-17T08:17:05+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "button 'Statistics'",
+   "x": 358,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 47.504,
+   "wall": "2026-10-17T08:17:06+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "Descriptive statistics",
+   "x": 439,
+   "y": 56,
+   "presses": 1
+  },
+  {
+   "t": 48.137,
+   "wall": "2026-10-17T08:17:07+00:00",
+   "task": "T6",
+   "kind": "say",
+   "text": "Control is a Y like the other groups: the statistics list all three"
+  },
+  {
+   "t": 48.377,
+   "wall": "2026-10-17T08:17:07+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "close Statistics",
+   "x": 1349,
+   "y": 126,
+   "presses": 1
+  },
+  {
+   "t": 48.826,
+   "wall": "2026-10-17T08:17:07+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "the first group's letter",
+   "x": 133,
+   "y": 160,
+   "presses": 1
+  },
+  {
+   "t": 49.183,
+   "wall": "2026-10-17T08:17:08+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "the last group's letter",
+   "x": 333,
+   "y": 160,
+   "mods": [
+    "Shift"
+   ],
+   "presses": 1
+  },
+  {
+   "t": 49.538,
+   "wall": "2026-10-17T08:17:08+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "button 'Statistics'",
+   "x": 358,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 50.426,
+   "wall": "2026-10-17T08:17:09+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "Histogram",
+   "x": 439,
+   "y": 112,
+   "presses": 1
+  },
+  {
+   "t": 51.774,
+   "wall": "2026-10-17T08:17:10+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "the first group's letter",
+   "x": 133,
+   "y": 160,
+   "presses": 1
+  },
+  {
+   "t": 52.147,
+   "wall": "2026-10-17T08:17:11+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "the last group's letter",
+   "x": 333,
+   "y": 160,
+   "mods": [
+    "Shift"
+   ],
+   "presses": 1
+  },
+  {
+   "t": 52.488,
+   "wall": "2026-10-17T08:17:11+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "worksheet Plot button",
+   "x": 840,
+   "y": 131,
+   "presses": 1
+  },
+  {
+   "t": 53.376,
+   "wall": "2026-10-17T08:17:12+00:00",
+   "task": "T6",
+   "kind": "click",
+   "target": "Box chart",
+   "x": 978,
+   "y": 462,
+   "presses": 1
+  },
+  {
+   "t": 54.403,
+   "wall": "2026-10-17T08:17:13+00:00",
+   "task": "T6",
+   "kind": "task_end",
+   "success": "partial",
+   "note": "survey.csv still cannot be imported; reshaped and pasted"
+  }
+ ],
+ "summary": {
+  "T1": {
+   "title": "Type 6 x,y pairs, scatter plot, axis titles with units, export PNG",
+   "success": "yes",
+   "clicks": 11,
+   "keys": 59,
+   "drags": 0,
+   "hovers": 1,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 0,
+   "seconds": 12.1,
+   "klm_seconds": 45.7,
+   "klm_hover_seconds": 46.8
+  },
+  "T2": {
+   "title": "Fit a straight line to calibration.csv, read slope ± error and R², show line and equation on the graph",
+   "success": "partial",
+   "clicks": 12,
+   "keys": 41,
+   "drags": 0,
+   "hovers": 2,
+   "wrong_turns": 4,
+   "guesses": 3,
+   "help": 0,
+   "shots": 0,
+   "seconds": 14.6,
+   "klm_seconds": 43.3,
+   "klm_hover_seconds": 45.5
+  },
+  "T5": {
+   "title": "Make a new column = log10 of a sample column, plot it",
+   "success": "yes",
+   "clicks": 5,
+   "keys": 33,
+   "drags": 0,
+   "hovers": 2,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 0,
+   "seconds": 7.1,
+   "klm_seconds": 22.5,
+   "klm_hover_seconds": 24.7
+  },
+  "T6": {
+   "title": "Descriptive statistics and a histogram per group for survey.csv; compare the groups",
+   "success": "partial",
+   "clicks": 16,
+   "keys": 2,
+   "drags": 0,
+   "hovers": 0,
+   "wrong_turns": 1,
+   "guesses": 0,
+   "help": 0,
+   "shots": 0,
+   "seconds": 14.1,
+   "klm_seconds": 43.0,
+   "klm_hover_seconds": 43.0
+  }
+ }
+}

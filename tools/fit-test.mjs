@@ -1,0 +1,1197 @@
+/* Tests for the peak shapes, composite models and the fitter in kurve.html.
+   Pulls the marked numerics and peak blocks out of the HTML and runs them.
+   Usage: node tools/fit-test.mjs                                          */
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const html = readFileSync(process.argv[2] || join(here, "..", "kurve.html"), "utf8");
+const grab = (tag) => {
+  const m = html.match(new RegExp(`==${tag}:START==[\\s\\S]*?\\*\\/([\\s\\S]*?)\\/\\* ==${tag}:END==`));
+  if (!m) { console.error(`Could not find the ${tag} block`); process.exit(1); }
+  return m[1];
+};
+// Interpolation, integration and normalizing live in the pipeline block now;
+// tools/pipe-test.mjs tests the rest of it. The curve fit's models are a block of
+// their own (MODELS), after the pipeline.
+const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("MODELS")}\n` +
+  `return {solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,countBand,activityOf,effCurve,effAt,fwhmCurve,fwhmAt,distFit,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,nuclideSets,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,distGroups,delaunay,triContours,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
+const N = new Function(src)();
+
+let pass = 0, fail = 0;
+function check(name, cond, detail) {
+  if (cond) { pass++; console.log(`  ok   ${name}`); }
+  else { fail++; console.log(`  FAIL ${name}${detail == null ? "" : `  (${detail})`}`); }
+}
+const near = (a, b, tol) => Number.isFinite(a) && Math.abs(a - b) <= Math.abs(tol);
+const rel = (a, b, frac) => Number.isFinite(a) && Math.abs(a - b) <= Math.abs(b * frac) + 1e-12;
+
+/* ---------- peak shapes: area, height and FWHM must mean what they say ---------- */
+function numericArea(f, p, x0, x1, n = 200000) {
+  const h = (x1 - x0) / n; let s = 0;
+  for (let i = 0; i <= n; i++) s += (i === 0 || i === n ? 0.5 : 1) * f(x0 + i * h, p);
+  return s * h;
+}
+function numericFWHM(f, p, xc, span) {
+  const top = f(xc, p), half = top / 2;
+  const find = (dir) => {
+    let a = xc, b = xc + dir * span;
+    for (let k = 0; k < 200; k++) { const m = (a + b) / 2; if (f(m, p) > half) a = m; else b = m; }
+    return (a + b) / 2;
+  };
+  return Math.abs(find(1) - find(-1));
+}
+for (const [key, p, span] of [
+  ["gauss", [100, 5, 8], 400],
+  ["lorentz", [100, 5, 8], 6000],
+  ["psdvoigt", [100, 5, 8, 0.5], 6000],
+  ["pearson7", [100, 5, 8, 1.5], 8000],
+]) {
+  const d = N.PEAKS[key];
+  check(`${key}: area integrates to A`, rel(numericArea(d.f, p, 100 - span, 100 + span), 5, 0.01),
+    numericArea(d.f, p, 100 - span, 100 + span));
+  check(`${key}: height matches`, rel(d.height(p), d.f(p[0], p), 1e-9), `${d.height(p)} vs ${d.f(p[0], p)}`);
+  check(`${key}: FWHM is w`, rel(numericFWHM(d.f, p, 100, span), 8, 1e-4), numericFWHM(d.f, p, 100, span));
+}
+// psdvoigt2 has two widths; with both equal it must equal psdvoigt
+{
+  const a = N.PEAKS.psdvoigt2.f(103, [100, 5, 8, 8, 0.3]);
+  const b = N.PEAKS.psdvoigt.f(103, [100, 5, 8, 0.3]);
+  check("psdvoigt2: equals psdvoigt when widths match", rel(a, b, 1e-12), `${a} vs ${b}`);
+}
+// mixing 0 and 1 must reduce to the pure shapes
+check("psdvoigt: mu=0 is Gaussian", rel(N.PEAKS.psdvoigt.f(104, [100, 5, 8, 0]), N.PEAKS.gauss.f(104, [100, 5, 8]), 1e-12));
+check("psdvoigt: mu=1 is Lorentzian", rel(N.PEAKS.psdvoigt.f(104, [100, 5, 8, 1]), N.PEAKS.lorentz.f(104, [100, 5, 8]), 1e-12));
+// Pearson VII with m=1 is a Lorentzian
+check("pearson7: m=1 is Lorentzian", rel(N.PEAKS.pearson7.f(104, [100, 5, 8, 1]), N.PEAKS.lorentz.f(104, [100, 5, 8]), 1e-9),
+  `${N.PEAKS.pearson7.f(104, [100, 5, 8, 1])} vs ${N.PEAKS.lorentz.f(104, [100, 5, 8])}`);
+
+/* ---------- polyfit conditioning (the gap noted in CLAUDE.md) ---------- */
+{
+  // A quadratic on a wavenumber axis: the raw power basis loses this badly.
+  const X = [], Y = [];
+  for (let x = 1500; x <= 1800; x += 2) { X.push(x); Y.push(3 - 0.004 * (x - 1650) + 2e-5 * Math.pow(x - 1650, 2)); }
+  const c = N.polyfit(X, Y, 2);
+  const at = (x) => c[0] + x * (c[1] + x * c[2]);
+  const worst = Math.max(...X.map((x, i) => Math.abs(at(x) - Y[i])));
+  check("polyfit: quadratic on a wavenumber axis", worst < 1e-6, `worst residual ${worst}`);
+}
+
+/* ---------- Savitzky-Golay ---------- */
+{
+  const c = N.sgCoeffs(5, 2, 0);
+  check("sg: smoothing coefficients sum to 1", near(c.reduce((a, b) => a + b, 0), 1, 1e-12), c.join());
+  check("sg: known 5-point quadratic kernel", near(c[0], -3 / 35, 1e-12) && near(c[2], 17 / 35, 1e-12), c.join());
+  // second derivative of a known parabola
+  const X = [], Y = [];
+  for (let i = 0; i < 41; i++) { const x = i * 0.5; X.push(x); Y.push(2 + 3 * x + 4 * x * x); }
+  const d2 = N.sgApply(Y, 7, 2, 2, 0.5);
+  check("sg: second derivative of 4x^2 is 8", near(d2[20], 8, 1e-9), d2[20]);
+}
+
+/* ---------- peak finding ---------- */
+function synth(peaks, base, x0, x1, n, noise = 0, seed = 1) {
+  let s = seed;
+  const rnd = () => { s = (s * 1103515245 + 12345) % 2147483648; return s / 2147483648 - 0.5; };
+  const X = [], Y = [];
+  for (let i = 0; i < n; i++) {
+    const x = x0 + (x1 - x0) * i / (n - 1);
+    let y = base(x);
+    peaks.forEach(([type, p]) => { y += N.PEAKS[type].f(x, p); });
+    X.push(x); Y.push(y + rnd() * noise);
+  }
+  return { X, Y };
+}
+{
+  const { X, Y } = synth([["gauss", [300, 500, 20]], ["gauss", [500, 800, 25]], ["gauss", [700, 300, 15]]],
+    () => 10, 100, 900, 400, 0.4, 3);
+  const found = N.findPeaks(X, Y, { method: "max" });
+  check("findPeaks: three separated peaks", found.length === 3, `${found.length}: ${found.map(f => f.x.toFixed(0))}`);
+  if (found.length === 3) check("findPeaks: centres close", found.every((f, i) => near(f.x, [300, 500, 700][i], 12)),
+    found.map(f => f.x.toFixed(1)).join());
+}
+{
+  // A shoulder that never becomes a local maximum: the sum falls monotonically
+  // away from the main peak, so only the 2nd derivative can see the second one.
+  const { X, Y } = synth([["gauss", [500, 1000, 40]], ["gauss", [525, 300, 30]]], () => 5, 350, 700, 400, 0.05, 7);
+  const ymax = Math.max(...Y);
+  const iTop = Y.indexOf(ymax);
+  let monotonic = true;
+  for (let i = iTop + 1; i < Y.length - 1; i++) if (Y[i] > Y[i - 1] + 0.3) { monotonic = false; break; }
+  check("findPeaks: test data really is a shoulder", monotonic, "second peak forms its own maximum");
+  const byMax = N.findPeaks(X, Y, { method: "max" });
+  const byD2 = N.findPeaks(X, Y, { method: "deriv2" });
+  check("findPeaks: local max misses the shoulder", byMax.length === 1, byMax.length);
+  check("findPeaks: 2nd derivative finds both", byD2.length === 2, `${byD2.length}: ${byD2.map(f => f.x.toFixed(0))}`);
+}
+{
+  const { X, Y } = synth([["gauss", [500, -800, 25]]], () => 100, 300, 700, 300, 0.2, 11);
+  const neg = N.findPeaks(X, Y, { method: "max", direction: "negative" });
+  check("findPeaks: negative peak", neg.length === 1 && near(neg[0].x, 500, 8), JSON.stringify(neg.map(f => f.x)));
+}
+
+/* ---------- the real test: recover known parameters from a multi-peak fit ---------- */
+function fitSpec(X, Y, spec, init, opts) {
+  const x0 = (Math.min(...X) + Math.max(...X)) / 2;
+  const model = N.compileModel(spec, x0);
+  const { lo, hi } = N.modelBounds(spec, model, init);
+  const W = X.map(() => 1);
+  return N.lmFit(model.f, X, Y, W, init, init.map(() => false), { lo, hi, ...(opts || {}) });
+}
+{
+  // Three Gaussians on a sloping background, sitting at wavenumbers around 1700.
+  const truth = [["gauss", [1620, 900, 30]], ["gauss", [1700, 1500, 22]], ["gauss", [1745, 600, 18]]];
+  const base = (x) => 40 - 0.01 * (x - 1650);
+  const { X, Y } = synth(truth, base, 1500, 1850, 350, 1.5, 5);
+  const spec = { base: "linear", peaks: [{ type: "gauss" }, { type: "gauss" }, { type: "gauss" }] };
+  const init = [40, 0, 1618, 800, 35, 1702, 1400, 25, 1748, 500, 20];
+  const r = fitSpec(X, Y, spec, init);
+  check("multi-peak: converged", !r.error && r.stats.converged, r.error || `iter ${r.stats && r.stats.iter}`);
+  if (!r.error) {
+    const got = [[r.params[2], r.params[3], r.params[4]], [r.params[5], r.params[6], r.params[7]], [r.params[8], r.params[9], r.params[10]]];
+    truth.forEach(([, p], k) => {
+      check(`multi-peak: peak ${k + 1} centre`, near(got[k][0], p[0], 0.5), `${got[k][0].toFixed(2)} vs ${p[0]}`);
+      check(`multi-peak: peak ${k + 1} area`, rel(got[k][1], p[1], 0.05), `${got[k][1].toFixed(1)} vs ${p[1]}`);
+      check(`multi-peak: peak ${k + 1} FWHM`, rel(got[k][2], p[2], 0.05), `${got[k][2].toFixed(2)} vs ${p[2]}`);
+    });
+    check("multi-peak: R2 high", r.stats.R2 > 0.999, r.stats.R2);
+    check("multi-peak: errors finite", r.errors.every(Number.isFinite) && r.errors.slice(2).every(e => e > 0), r.errors.join());
+    check("multi-peak: p-values small", r.pval.slice(2).every(v => v < 1e-6), r.pval.map(v => v.toExponential(1)).join());
+    check("multi-peak: dependency sane", r.dep.every(d => d >= 0 && d <= 1), r.dep.join());
+  }
+}
+{
+  // Heavily overlapped: this is where conditioning matters.
+  const truth = [["gauss", [1000.0, 500, 12]], ["gauss", [1012.0, 400, 14]]];
+  const { X, Y } = synth(truth, () => 5, 940, 1080, 280, 0.3, 17);
+  const spec = { base: "const", peaks: [{ type: "gauss" }, { type: "gauss" }] };
+  const r = fitSpec(X, Y, spec, [5, 998, 450, 15, 1014, 450, 15]);
+  check("overlapped: converged", !r.error && r.stats.converged, r.error);
+  if (!r.error) {
+    check("overlapped: centres", near(r.params[1], 1000, 0.6) && near(r.params[4], 1012, 0.6),
+      `${r.params[1].toFixed(2)}, ${r.params[4].toFixed(2)}`);
+    check("overlapped: dependency flags the overlap", Math.max(r.dep[2], r.dep[5]) > 0.5,
+      r.dep.map(d => d.toFixed(3)).join());
+  }
+}
+{
+  // Lorentzians with a quadratic background, to exercise the baseline centring.
+  const truth = [["lorentz", [520.7, 2400, 4.1]]];
+  const base = (x) => 100 + 0.05 * (x - 500) + 0.002 * Math.pow(x - 500, 2);
+  const { X, Y } = synth(truth, base, 480, 560, 200, 1.0, 23);
+  const spec = { base: "quad", peaks: [{ type: "lorentz" }] };
+  const r = fitSpec(X, Y, spec, [100, 0, 0, 521, 2000, 5]);
+  check("lorentz+quad: converged", !r.error && r.stats.converged, r.error);
+  if (!r.error) {
+    check("lorentz+quad: centre", near(r.params[3], 520.7, 0.1), r.params[3]);
+    check("lorentz+quad: FWHM", rel(r.params[5], 4.1, 0.05), r.params[5]);
+  }
+}
+{
+  // Bounds must actually hold: mu of a pseudo-Voigt cannot leave [0,1].
+  const { X, Y } = synth([["gauss", [500, 900, 20]]], () => 3, 400, 600, 200, 0.5, 31);
+  const spec = { base: "const", peaks: [{ type: "psdvoigt" }] };
+  const r = fitSpec(X, Y, spec, [3, 500, 900, 20, 0.5]);
+  check("bounds: mu stays in range", !r.error && r.params[4] >= 0 && r.params[4] <= 1, r.params && r.params[4]);
+  check("bounds: width stays positive", !r.error && r.params[3] > 0, r.params && r.params[3]);
+}
+{
+  // Seeding from findPeaks should be good enough to converge unaided.
+  const truth = [["gauss", [300, 500, 20]], ["gauss", [500, 800, 25]], ["gauss", [700, 300, 15]]];
+  const { X, Y } = synth(truth, () => 10, 100, 900, 400, 0.4, 3);
+  const found = N.findPeaks(X, Y, { method: "max" });
+  const baseY = Math.min(...Y);
+  const init = [baseY];
+  found.forEach(f => { const s = N.seedPeak(X, Y, f.i, baseY); init.push(s.xc, s.A, s.w); });
+  const spec = { base: "const", peaks: found.map(() => ({ type: "gauss" })) };
+  const r = fitSpec(X, Y, spec, init);
+  check("auto-seed: converged from findPeaks", !r.error && r.stats.converged, r.error);
+  if (!r.error) check("auto-seed: centres recovered",
+    truth.every(([, p], k) => near(r.params[1 + k * 3], p[0], 1)),
+    [r.params[1], r.params[4], r.params[7]].map(v => v.toFixed(2)).join());
+}
+
+/* ---------- column maths ---------- */
+{
+  // trapezoid area of a known Gaussian, and of a triangle
+  const X = [], Y = [];
+  for (let i = 0; i <= 4000; i++) { const x = -40 + i * 0.02; X.push(x); Y.push(N.PEAKS.gauss.f(x, [0, 7, 5])); }
+  check("trapz: Gaussian area", rel(N.trapz(X, Y), 7, 1e-4), N.trapz(X, Y));
+  check("trapz: triangle", near(N.trapz([0, 1, 2], [0, 1, 0]), 1, 1e-12), N.trapz([0, 1, 2], [0, 1, 0]));
+  // a descending axis, as an infrared file has, gives the negative of the same magnitude
+  const xr = X.slice().reverse(), yr = Y.slice().reverse();
+  check("trapz: descending axis flips sign", rel(N.trapz(xr, yr), -7, 1e-4), N.trapz(xr, yr));
+}
+{
+  const xs = [0, 1, 2, 3, 4], ys = [0, 10, 20, 30, 40];
+  const out = N.interpOnto(xs, ys, [0.5, 1.5, 3.25]);
+  check("interp: midpoints", out.every((v, i) => near(v, [5, 15, 32.5][i], 1e-12)), out.join());
+  check("interp: outside range is null", N.interpOnto(xs, ys, [-1, 9]).every(v => v === null));
+  check("interp: unsorted source still works",
+    near(N.interpOnto([4, 0, 2, 1, 3], [40, 0, 20, 10, 30], [1.5])[0], 15, 1e-12));
+  check("interp: gaps ignored", near(N.interpOnto([0, 1, null, 3], [0, 10, 99, 30], [2])[0], 20, 1e-12));
+}
+{
+  const v = [1, 2, 3, 4, 5], ser = y => ({ x: y.map((_, i) => i), y, e: null, idx: y.map((_, i) => i) });
+  const norm = (y, mode) => N.PIPE_OPS.norm.run(ser(y), { mode, how: "height" }).d.y;
+  check("norm: divide by max", norm(v, "max").every((q, i) => near(q, v[i] / 5, 1e-12)));
+  check("norm: scale to 0..1", (() => { const o = norm(v, "minmax"); return near(o[0], 0, 1e-12) && near(o[4], 1, 1e-12); })());
+  check("norm: SNV has zero mean", (() => { const o = norm(v, "snv"); return near(o.reduce((a, b) => a + b, 0), 0, 1e-12); })());
+  check("norm: divide by area", (() => { const o = norm([0, 2, 0], "area"); return near(N.trapz([0, 1, 2], o), 1, 1e-12); })());
+  // A constant cannot be scaled to 0..1: the step says so and passes the data on.
+  check("norm: a constant spectrum is refused, not divided by zero", (() => { const r = N.runPipe(ser([3, 3, 3]), [{ op: "norm", on: true, p: { mode: "minmax" } }], {}); return !!r.stages[1].err && r.out.y.every(q => q === 3); })());
+}
+
+/* ---------- a singular fit must say so, and survive being saved ---------- */
+{
+  // Two identical Gaussians describe the same feature, so the covariance
+  // collapses. The failure has to be reported, not rendered as "no errors".
+  const { X, Y } = synth([["gauss", [500, 900, 25]]], () => 3, 400, 600, 200, 0.2, 41);
+  const spec = { base: "const", peaks: [{ type: "gauss" }, { type: "gauss" }] };
+  const x0 = (Math.min(...X) + Math.max(...X)) / 2;
+  const model = N.compileModel(spec, x0);
+  const init = [3, 500, 450, 25, 500, 450, 25];
+  // fix every peak parameter so the free set is rank-deficient by construction
+  const r = N.lmFit(model.f, X, Y, X.map(() => 1), init, [false, false, false, false, false, false, false],
+    { lo: init.map(() => -Infinity), hi: init.map(() => Infinity) });
+  check("singular: reported, not silently zeroed",
+    r.error || r.stats.singular === false || r.errors.every(e => e === null || Number.isFinite(e)),
+    JSON.stringify(r.errors));
+  if (!r.error && r.stats.singular) {
+    check("singular: errors are null not 0", r.errors.some(e => e === null), JSON.stringify(r.errors));
+  }
+  // whatever the fit, the errors must round-trip through JSON unchanged
+  if (!r.error) {
+    const round = JSON.parse(JSON.stringify({ e: r.errors })).e;
+    check("singular: errors survive JSON",
+      round.every((v, i) => (v === null) === (r.errors[i] === null)),
+      `${JSON.stringify(r.errors)} -> ${JSON.stringify(round)}`);
+    check("singular: no NaN reaches storage", !r.errors.some(e => Number.isNaN(e)), JSON.stringify(r.errors));
+  }
+}
+
+/* ---------- derivatives on a descending axis ---------- */
+{
+  // A wavenumber axis runs high to low. Taking the derivative with a positive
+  // step there returns the wrong sign — silently, on the app's own default axis.
+  const f = (x) => 3 * x + 5;              // dy/dx = 3 everywhere
+  const up = [], upY = [], down = [], downY = [];
+  for (let i = 0; i < 41; i++) { const x = 100 + i * 2; up.push(x); upY.push(f(x)); }
+  for (let i = 0; i < 41; i++) { const x = 180 - i * 2; down.push(x); downY.push(f(x)); }
+
+  const step = (xs) => {          // mirrors medianStep in the app
+    const d = []; let dn = 0, u = 0;
+    for (let i = 1; i < xs.length; i++) { const dx = xs[i] - xs[i - 1]; if (!dx) continue; dx < 0 ? dn++ : u++; d.push(Math.abs(dx)); }
+    d.sort((a, b) => a - b);
+    const mag = d[d.length >> 1];
+    return dn > u ? -mag : mag;
+  };
+  check("deriv: ascending axis gives +3", near(N.sgApply(upY, 7, 2, 1, step(up))[20], 3, 1e-9),
+    N.sgApply(upY, 7, 2, 1, step(up))[20]);
+  check("deriv: descending axis also gives +3", near(N.sgApply(downY, 7, 2, 1, step(down))[20], 3, 1e-9),
+    N.sgApply(downY, 7, 2, 1, step(down))[20]);
+  // second derivative of a parabola is sign-independent, and must stay so
+  const p2 = [], p2x = [];
+  for (let i = 0; i < 41; i++) { const x = 180 - i * 2; p2x.push(x); p2.push(4 * x * x); }
+  check("deriv: 2nd derivative unaffected by direction", near(N.sgApply(p2, 9, 2, 2, step(p2x))[20], 8, 1e-8),
+    N.sgApply(p2, 9, 2, 2, step(p2x))[20]);
+}
+
+/* ---------- peak picking: spikes, prominence, seeding on overlaps ---------- */
+{
+  // A cosmic-ray spike is one point tall: nothing constrains its width, so the
+  // picker sets it aside, and says which one, rather than handing it to the fitter.
+  const { X, Y } = synth([["lorentz", [520, 2400 * Math.PI * 4.1 / 2, 4.1]]], () => 120, 490, 550, 81, 20, 5);
+  Y[18] += 420;
+  const plain = N.findPeaks(X, Y, { method: "max", minHeightPct: 5 });
+  const guarded = N.findPeaks(X, Y, { method: "max", minHeightPct: 5, minPts: 2 });
+  check("spike: without the guard it is taken for a peak", plain.some(p => Math.abs(p.x - X[18]) < 1e-9), plain.map(p => p.x));
+  check("spike: with minPts 2 only the real band remains", guarded.length === 1 && near(guarded[0].x, 520, 1), guarded.map(p => p.x));
+  check("spike: and it is reported", guarded.rejected.length === 1 && Math.abs(guarded.rejected[0].x - X[18]) < 1e-9, guarded.rejected);
+}
+{
+  // Noise wiggles on the flank of a strong band are local maxima well above the
+  // floor. Prominence against the noise drops them and keeps a small real band.
+  const { X, Y } = synth([["lorentz", [1741, 12, 15]], ["gauss", [1603, 2, 11]], ["gauss", [1578, 0.8, 9]]], () => 0.04, 1550, 1800, 201, 0.03, 9);
+  const all = N.findPeaks(X, Y, { method: "max", minHeightPct: 2 });
+  const prom = N.findPeaks(X, Y, { method: "max", minHeightPct: 2, prominence: "auto" });
+  check("prominence: height alone lets noise through", all.length > 3, all.map(p => p.x));
+  check("prominence: finds exactly the three bands", prom.length === 3 && [1578, 1603, 1741].every((c, i) => near(prom[i].x, c, 3)), prom.map(p => p.x));
+  check("prominence: never applied to the 2nd-derivative search",
+    N.findPeaks(X, Y, { method: "deriv2", prominence: "auto" }).length === N.findPeaks(X, Y, { method: "deriv2" }).length);
+}
+{
+  // Width seeds on overlapping bands: the side facing the neighbour never
+  // falls to half height, so the width must come from the other side.
+  const { X, Y } = synth([["gauss", [1741, 8, 15]], ["gauss", [1718, 5, 19]]], () => 0, 1650, 1800, 241, 0, 1);
+  const i = Y.indexOf(Math.max(...Y));
+  const s = N.seedPeak(X, Y, i, 0);
+  check("seed: overlapped band's width within 20% of the truth", near(s.w, 15, 3), s.w);
+  check("seed: reports the height it measured", near(s.h, Y[i], 1e-12), s.h);
+  const iso = synth([["gauss", [500, 900, 20]]], () => 10, 300, 700, 401, 0, 1);
+  const k = iso.Y.indexOf(Math.max(...iso.Y));
+  check("seed: an isolated band's width is exact to a point spacing", near(N.seedPeak(iso.X, iso.Y, k, 10).w, 20, 1), N.seedPeak(iso.X, iso.Y, k, 10).w);
+}
+{
+  // A seeded height is kept exactly for every shape, whatever its area/height ratio.
+  for (const [type, pv] of [["gauss", [0, 1, 10]], ["lorentz", [0, 1, 10]], ["psdvoigt", [0, 1, 10, 0.3]], ["psdvoigt2", [0, 1, 8, 6, 0.4]], ["pearson7", [0, 1, 10, 2]]]) {
+    const def = N.PEAKS[type], q = pv.slice(); q[1] = N.peakAreaForHeight(def, pv, 3.7);
+    check(`area for height: ${type}`, rel(def.height(q), 3.7, 1e-12), def.height(q));
+  }
+}
+{
+  // Noise from second differences, with a strong peak in the data.
+  let s = 17; const rnd = () => { s = (s * 1103515245 + 12345) % 2147483648; return s / 2147483648; };
+  const Y = []; for (let i = 0; i < 2000; i++) { let u = 0; while (!u) u = rnd(); const v = rnd();
+    Y.push(50 * Math.exp(-(((i - 1000) / 80) ** 2)) + 0.3 * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)); }
+  check("noise: sigma estimated within 15%", near(N.noiseSigma(Y), 0.3, 0.045), N.noiseSigma(Y));
+}
+
+/* ---------- counting statistics: noise that grows with the counts ---------- */
+{
+  // A gamma-like spectrum: a continuum of hundreds of counts falling to a few,
+  // a strong line on the continuum and a weak one where the counts are few.
+  // One noise figure for everything is set by the quiet channels, so the
+  // continuum's own √N wiggles pass for peaks; √N per channel does not.
+  let s = 7; const u = () => { s = (s * 1103515245 + 12345) % 2147483648; return (s + 0.5) / 2147483648; };
+  const pois = (lam) => { if (lam > 30) { const g = Math.sqrt(-2 * Math.log(u())) * Math.cos(2 * Math.PI * u()); return Math.max(0, Math.round(lam + Math.sqrt(lam) * g)); } let L = Math.exp(-lam), k = 0, p = 1; do { k++; p *= u(); } while (p > L); return k - 1; };
+  const X = [], mean = [], Y = [];
+  for (let i = 0; i < 2000; i++) { const m = 400 * Math.exp(-i / 250) + 2 + 300 * Math.exp(-0.5 * ((i - 200) / 3) ** 2) + 14 * Math.exp(-0.5 * ((i - 1500) / 3) ** 2); X.push(i); mean.push(m); Y.push(pois(m)); }
+  const sig = Y.map((v, i) => { let a = 0, m = 0; for (let j = Math.max(0, i - 2); j <= Math.min(1999, i + 2); j++) { a += Y[j]; m++; } return Math.sqrt(Math.max(a / m, 1)); });
+  const at = (r, c) => r.found.some(p => near(p.x, c, 4));
+  const glob = N.peakSearch(X, Y, { max: 0 });
+  const cnt = N.peakSearch(X, Y, { sigma: sig, max: 0 });
+  check("counts: one noise figure takes the continuum's wiggles for peaks", glob.found.filter(p => p.x < 900 && !near(p.x, 200, 4)).length >= 5, glob.found.length);
+  check("counts: with √N per channel, the strong and the weak line, and at most one fluctuation", cnt.found.length <= 3 && at(cnt, 200) && at(cnt, 1500), cnt.found.map(p => p.x).join(", "));
+  check("counts: the result says its noise came from the counts", cnt.noiseMode === "given" && cnt.found.every(p => p.sig > 0), cnt.noiseMode);
+  const loc = N.peakSearch(X, Y, { noise: "local", max: 0 });
+  check("counts: noise measured along the spectrum also keeps the continuum quiet", loc.found.filter(p => p.x < 900 && !near(p.x, 200, 4)).length <= 1 && at(loc, 200), loc.found.map(p => p.x).join(", "));
+}
+
+/* ---------- naming peaks from known lines, within a tolerance ---------- */
+{
+  const lines = [{ x: 609.312, name: "²¹⁴Bi", i: 45.5 }, { x: 1460.82, name: "⁴⁰K", i: 10.7 }, { x: 2614.51, name: "²⁰⁸Tl", i: 99.8 },
+    { x: 964.77, name: "²²⁸Ac a", i: 5 }, { x: 968.97, name: "²²⁸Ac b", i: 15.8 }, { x: 1120.29, name: "²¹⁴Bi c", i: 14.9 }, { x: 1120.5, name: "weak", i: 0.1 }];
+  const peaks = [{ x: 609.0, w: 2 }, { x: 1460.6, w: 2.4 }, { x: 2616.2, w: 3 }, { x: 964.1, w: 2.2 }, { x: 968.6, w: 2.2 }, { x: 1120.3, w: 2.3 }, { x: 1000, w: 2.3 }];
+  const r = N.matchLines(peaks, lines, { tol: 2 });
+  const nm = k => r.m[k] && r.m[k].line ? r.m[k].line.name : null;
+  check("lines: each peak takes the nearest line within ±2", nm(0) === "²¹⁴Bi" && nm(1) === "⁴⁰K" && nm(2) === "²⁰⁸Tl", [nm(0), nm(1), nm(2)].join());
+  check("lines: a doublet takes one line each", nm(3) === "²²⁸Ac a" && nm(4) === "²²⁸Ac b", [nm(3), nm(4)].join());
+  check("lines: nothing in reach, no name", r.m[6] === null && r.n === 6, JSON.stringify(r.m[6]));
+  check("lines: the nearer line wins, the other is an alternative", nm(5) === "²¹⁴Bi c" && r.m[5].alts.some(a => a.line.name === "weak"), JSON.stringify(r.m[5]));
+  check("lines: the offset of each and their median", near(r.m[2].d, 1.69, 1e-9) && near(r.shift, peaks.slice(0, 6).map((p, k) => p.x - r.m[k].line.x).sort((a, b) => a - b).slice(2, 4).reduce((a, b) => a + b) / 2, 1e-9), r.shift);
+  const tight = N.matchLines(peaks, lines, { tol: 0.5 });
+  check("lines: a tighter tolerance names fewer", tight.n === 4 && tight.m[2] === null, tight.n);
+  const wide = N.matchLines([{ x: 2616.2, w: 4 }], lines, { tol: 0.5, tolW: 0.5 });
+  check("lines: half the peak's FWHM reaches further than ±0.5", wide.n === 1, wide.n);
+  const one = N.matchLines([{ x: 1460.0, w: 2 }, { x: 1461.5, w: 2 }], lines, { tol: 2 });
+  check("lines: one line between two peaks goes to the nearer", one.n === 1 && one.m[1] && one.m[1].line.name === "⁴⁰K" && one.m[0] && one.m[0].line === null, JSON.stringify(one.m));
+}
+
+/* ---------- the peak finder: thresholds, log scale, reasons ---------- */
+{
+  // A band three decades below the main one, standing ten times the noise.
+  // A threshold as a percentage of the largest peak can never see it; one
+  // against the noise, one in decades, or a search on a log scale can.
+  const { X, Y } = synth([["gauss", [300, 1000 * 20 * 1.0645, 20]], ["gauss", [700, 1 * 15 * 1.0645, 15]]], () => 2, 0, 999, 1000, 0.35, 11);
+  const at = (r, c) => r.found.some(p => near(p.x, c, 3));
+  const old = N.findPeaks(X, Y, { method: "max", minPts: 2, prominence: "auto" });
+  check("small band: the old 5% floor misses it", old.length === 1 && near(old[0].x, 300, 3), old.map(p => p.x));
+  const snr = N.peakSearch(X, Y, {});
+  check("small band: found by signal to noise, with the main one", snr.found.length === 2 && at(snr, 300) && at(snr, 700), snr.found.map(p => p.x));
+  const pct = N.peakSearch(X, Y, { thr: { mode: "pct", v: 5 } });
+  const why = pct.rejected.find(p => near(p.x, 700, 3));
+  check("small band: 5% of the largest turns it down, and says why", !at(pct, 700) && why && /% of the largest/.test(why.why), why && why.why);
+  check("small band: 2 decades turn it down, 4 keep it", !at(N.peakSearch(X, Y, { thr: { mode: "decades", v: 2 } }), 700) && at(N.peakSearch(X, Y, { thr: { mode: "decades", v: 4 } }), 700));
+  const lg = N.peakSearch(X, Y, { log: true });
+  check("small band: found on a log scale too", at(lg, 300) && at(lg, 700), lg.found.map(p => p.x));
+  const sm = snr.found.find(p => near(p.x, 700, 3));
+  check("small band: its FWHM and height are measured", sm && near(sm.w, 15, 3) && near(sm.h, 1, 0.3), sm && [sm.w, sm.h]);
+  const noise = synth([], () => 0, 0, 999, 1000, 1, 5);
+  check("pure noise: nothing found", N.peakSearch(noise.X, noise.Y, {}).found.length === 0, N.peakSearch(noise.X, noise.Y, {}).found.map(p => p.x));
+  const Ys = Y.slice(); Ys[500] += 40;
+  const sp = N.peakSearch(X, Ys, {});
+  check("spike: set aside with its reason", !at(sp, 500) && sp.rejected.some(p => p.code === "spike" && near(p.x, 500, 1)), sp.rejected.filter(p => p.code === "spike").map(p => p.x));
+  check("every candidate turned down has a reason", [snr, pct, sp].every(r => r.rejected.every(p => typeof p.why === "string" && p.why.length > 5)));
+  const mx = N.peakSearch(X, Y, { max: 1 });
+  check("at most one: the weaker is turned down as beyond the count", mx.found.length === 1 && at(mx, 300) && mx.rejected.some(p => p.code === "max" && near(p.x, 700, 3)));
+}
+{
+  const { X, Y } = synth([["gauss", [300, 100 * 40 * 1.0645, 40]], ["gauss", [345, 40 * 30 * 1.0645, 30]]], () => 0, 0, 599, 600, 0.4, 3);
+  const d2 = N.peakSearch(X, Y, { method: "deriv2" });
+  check("second derivative: both bands of a shoulder, once each", d2.found.length === 2 && near(d2.found[0].x, 300, 8) && near(d2.found[1].x, 345, 8), d2.found.map(p => p.x));
+  const w = N.peakSearch(X, Y, { method: "window" }), d1 = N.peakSearch(X, Y, { method: "deriv1" });
+  check("window and first-derivative searches find the main band", w.found.some(p => near(p.x, 300, 5)) && d1.found.some(p => near(p.x, 300, 5)));
+  const dip = synth([["gauss", [500, -40 * 30 * 1.0645, 30]]], () => 100, 0, 999, 1000, 0.3, 4);
+  const neg = N.peakSearch(dip.X, dip.Y, { direction: "negative" });
+  check("dips found when peaks point down", neg.found.length === 1 && near(neg.found[0].x, 500, 3), neg.found.map(p => p.x));
+}
+/* ---------- Voigt (through the Faddeeva function) and Fano ---------- */
+{
+  const V = N.PEAKS.voigt, F = N.PEAKS.fano;
+  const w11 = N.faddeeva(1, 1);
+  check("Faddeeva: w(1+i) to 1e-13", near(w11[0], 0.30474420525691259, 1e-13) && near(w11[1], 0.20821893820283163, 1e-13), w11);
+  let worst = 0; for (let x = 0; x <= 10; x += 0.05) worst = Math.max(worst, Math.abs(N.faddeeva(x, 0)[0] - Math.exp(-x * x)));
+  check("Faddeeva: on the real axis its real part is exp(-x^2)", worst < 1e-12, worst);
+  for (const p of [[100, 5, 8, 3], [100, 5, 2, 9], [100, 5, 8, 0.01]]) {
+    check(`voigt ${p.slice(2)}: area integrates to A`, rel(numericArea(V.f, p, 100 - 8000, 100 + 8000, 400000), 5, 0.01), numericArea(V.f, p, 100 - 8000, 100 + 8000, 400000));
+    check(`voigt ${p.slice(2)}: height matches`, rel(V.height(p), V.f(100, p), 1e-12));
+    check(`voigt ${p.slice(2)}: FWHM is the profile's own`, rel(numericFWHM(V.f, p, 100, 400), V.fwhm(p), 1e-6), [numericFWHM(V.f, p, 100, 400), V.fwhm(p)]);
+  }
+  check("voigt: no Lorentzian width is a Gaussian", rel(V.f(104, [100, 5, 8, 1e-9]), N.PEAKS.gauss.f(104, [100, 5, 8]), 1e-6));
+  check("voigt: no Gaussian width is a Lorentzian", rel(V.f(104, [100, 5, 1e-7, 8]), N.PEAKS.lorentz.f(104, [100, 5, 8]), 1e-6), [V.f(104, [100, 5, 1e-7, 8]), N.PEAKS.lorentz.f(104, [100, 5, 8])]);
+  check("fano: 1/q = 0 is a Lorentzian", rel(F.f(104, [100, 5, 8, 0]), N.PEAKS.lorentz.f(104, [100, 5, 8]), 1e-12));
+  const fp = [100, 5, 8, -0.25], top = F.top(fp);
+  let best = -Infinity, bx = 0; for (let x = 80; x <= 120; x += 0.0005) { const v = F.f(x, fp); if (v > best) { best = v; bx = x; } }
+  check("fano: height and top are the line's maximum", rel(F.height(fp), best, 1e-6) && near(top, bx, 1e-3), [F.height(fp), best, top, bx]);
+  const half = best / 2, side = (dir) => { let a = top, b = top + dir * 400; for (let k = 0; k < 200; k++) { const m = (a + b) / 2; if (F.f(m, fp) > half) a = m; else b = m; } return (a + b) / 2; };
+  check("fano: FWHM of the asymmetric line", rel(side(1) - side(-1), F.fwhm(fp), 1e-6), [side(1) - side(-1), F.fwhm(fp)]);
+  // Both shapes are recovered by a fit of a synthetic spectrum.
+  for (const [type, truth, init] of [["voigt", [50, 400, 6, 4], [49, 300, 5, 5]], ["fano", [50, 400, 6, -0.2], [49, 300, 5, -0.05]]]) {
+    const spec = { base: "const", peaks: [{ type }] }, model = N.compileModel(spec, 50), X = [], Y = [];
+    let s = 3; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+    for (let i = 0; i < 400; i++) { const x = i * 0.25; X.push(x); Y.push(model.f(x, [2].concat(truth)) + rnd() * 0.3); }
+    const p0 = [1].concat(init), b = N.modelBounds(spec, model, p0);
+    const r = N.lmFit(model.f, X, Y, X.map(() => 1), p0, p0.map(() => false), b);
+    check(`${type}: a fit recovers its parameters`, r.params && truth.every((v, i) => rel(r.params[i + 1], v, 0.03)) && r.stats.converged, r.params);
+  }
+}
+/* ---------- tied parameters: a doublet with a fixed area ratio and one width ---------- */
+{
+  const peaks = [{ type: "gauss", id: "a" }, { type: "gauss", id: "b", tie: { A: { to: "a", mul: 0.5 }, w: { to: "a", mul: 1 }, xc: { to: "a", mul: 1, add: 20 } } }];
+  const spec = { base: "const", peaks }, m = N.compileModel(spec, 60), L = N.peakLinks(peaks, m);
+  check("ties: resolved to parameter indices", L.length === 3 && L.every(l => l.k === 1 && l.j === 0), L.map(l => [l.nm, l.gi, l.gj]));
+  const chain = N.peakLinks([{ type: "gauss", id: "a", tie: { w: { to: "b" } } }, { type: "gauss", id: "b", tie: { w: { to: "a" } } }], N.compileModel({ base: "none", peaks: [{ type: "gauss" }, { type: "gauss" }] }, 0));
+  check("ties: a loop is not followed", chain.length === 0, chain.length);
+  const truth = [3, 50, 800, 6, 70, 400, 6], X = [], Y = [];
+  let s = 11; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+  for (let i = 0; i < 480; i++) { const x = i * 0.25; X.push(x); Y.push(m.f(x, truth) + rnd() * 0.5); }
+  const p0 = N.applyPeakLinks([1, 48, 600, 8, 0, 0, 0], L), fixed = p0.map(() => false); L.forEach(l => { fixed[l.gi] = true; });
+  const fT = (x, p) => m.f(x, N.applyPeakLinks(p, L));
+  const r = N.linkResult(N.lmFit(fT, X, Y, X.map(() => 1), p0, fixed, N.modelBounds(spec, m, p0)), L);
+  check("ties: the doublet is recovered, the tied peak following", r.params && [0, 1, 2, 3].every(i => rel(r.params[i], truth[i], 0.03)) && near(r.params[4], r.params[1] + 20, 1e-9) && near(r.params[5], 0.5 * r.params[2], 1e-9) && r.params[6] === r.params[3], r.params);
+  check("ties: only free parameters count", r.stats.dof === 480 - 4, r.stats.dof);
+  check("ties: a tied error is its leader's times |ratio|", near(r.errors[5], 0.5 * r.errors[2], 1e-12) && r.errors[6] === r.errors[3] && Number.isNaN(r.tval[5]), [r.errors[5], r.errors[2]]);
+}
+/* ---------- user-defined functions: parsed, never run as JavaScript ---------- */
+{
+  const C = (src) => { try { return N.compileExpr(src); } catch (e) { return { err: e.message, line: e.line, col: e.col }; } };
+  const lin = C("y = a + b*x");
+  check("formula: parameters in order of appearance", lin.params && lin.params.join() === "a,b", lin.params);
+  check("formula: evaluates", lin.f && lin.f(2, [1, 3]) === 7);
+  check("formula: ^ binds tighter than a leading minus, and to the right", C("-x^2 + a").f(3, [0]) === -9 && C("a*2^3^2").f(0, [1]) === 512);
+  check("formula: ** is ^, and Unicode minus and times are read", C("a*x**2").f(3, [1]) === 9 && C("a×x − 1").f(2, [3]) === 5);
+  const loc = C("u = (x - xc)/w\ny = A*exp(-u^2/2) + c");
+  check("formula: named intermediate values are not parameters", loc.params && loc.params.join() === "xc,w,A,c", loc.params);
+  check("formula: intermediate values are used", loc.f && near(loc.f(1, [0, 1, 2, 0.5]), 2 * Math.exp(-0.5) + 0.5, 1e-14));
+  check("formula: constants and functions", near(C("a*sin(pi*x/2) + sqrt(abs(x))*b + log10(100)*0").f(1, [1, 2]), 3, 1e-14));
+  check("formula: comments and blank lines are ignored", C("# a line\n\ny = a*x  # slope\n").f(2, [4]) === 8);
+  const e1 = C("y = 2x"), e2 = C("y = expp(x)*a"), e3 = C("y = a*(x + 1"), e4 = C("y = a*x +"), e5 = C("u = u + 1\ny = u*a"), e6 = C("y = 3*x");
+  check("formula: a missing * is named, with its place", /operator before “x”/.test(e1.err) && e1.col === 6, e1.err);
+  check("formula: an unknown function is named", /no function called “expp”/.test(e2.err), e2.err);
+  check("formula: an unclosed bracket and a dangling operator are named", /closing \)/.test(e3.err) && /ends too soon/.test(e4.err), [e3.err, e4.err]);
+  check("formula: a value used before its line is caught", /before its line/.test(e5.err), e5.err);
+  check("formula: no parameter, nothing to fit", /nothing to fit/.test(e6.err), e6.err);
+  // A worksheet column's formula (F(x)=) may have no parameter at all.
+  const ws1 = N.compileExpr("1e7/x", { allowNone: true }), ws2 = N.compileExpr("log10(B)*2 + i", { allowNone: true });
+  check("formula: allowNone takes one without parameters, and column letters as names", ws1.params.length === 0 && ws1.f(500, []) === 2e4 &&
+    ws2.params.join() === "B,i" && near(ws2.f(0, [100, 3]), 7, 1e-14), [ws1.params, ws2.params]);
+  { const deep = C("y = " + "(".repeat(300) + "a*x" + ")".repeat(300)), long = C("y = " + Array(5000).fill("a").join("+")), fine = C("y = " + "(".repeat(150) + "a*x" + ")".repeat(150));
+    check("formula: depth and length end in words, not a stack overflow", /nested more than 200 deep/.test(deep.err) && deep.col != null && /too long to read/.test(long.err) && !fine.err, [deep.err, long.err, fine.err]); }
+  check("formula: nothing but arithmetic can run", /no function called “alert”/.test(C("y = alert(1)*a").err) && /cannot contain/.test(C("y = a`x`").err) &&
+    /no function called “constructor”/.test(C("y = constructor(x)*a").err) && !!C("y = a.b*x").err && !!C("y = a[0]()*x").err, [C("y = constructor(x)*a").err, C("y = a[0]()*x").err]);
+  check("probit, the normal quantile, to double precision", N.probit(0.5) === 0 && near(N.probit(0.975), 1.959963984540054, 1e-13) && near(N.probit(1e-10), -6.361340902404056, 1e-11) && near(N.probit(0.9999), 3.719016485455709, 1e-12) && N.probit(0) === -Infinity && N.probit(1) === Infinity && Number.isNaN(N.probit(NaN)));
+  check("probit inverts the normal distribution across its range", [1e-300, 1e-12, 0.001, 0.02, 0.3, 0.7, 0.98, 0.999, 1 - 1e-12].every(p => { const x = N.probit(p), q = 0.5 * N.erfcFn(-x / Math.SQRT2); return Math.abs(q - p) <= 1e-13 * Math.max(p, 1e-300) + 1e-15; }));
+  check("erf and erfc to double precision", near(N.erfFn(0.5), 0.5204998778130465, 1e-15) && rel(N.erfcFn(5), 1.5374597944280349e-12, 1e-12) && rel(N.erfcFn(2.4), 0.0006885138966450786, 1e-12));
+  const g = N.guessUserParams(["y0", "A", "xc", "w", "t", "q"], [0, 1, 2, 3, 4], [1, 2, 5, 2, 1]);
+  check("starting values from the names", g[0] === 1 && g[1] === 4 && g[2] === 2 && near(g[3], 0.4, 1e-12) && g[5] === 1, g);
+  // A stretched exponential, fitted from its guessed start, bounded.
+  const fn = N.compileExpr("y = y0 + A*exp(-(x/t)^b)"), X = [], Y = [], truth = [5, 100, 12, 0.6];
+  let s = 7; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+  for (let i = 0; i < 200; i++) { const x = 0.25 + i * 0.25; X.push(x); Y.push(fn.f(x, truth) + rnd() * 0.4); }
+  const p0 = N.guessUserParams(fn.params, X, Y).map((v, i) => fn.params[i] === "b" ? 1 : v);
+  const r = N.lmFit(fn.f, X, Y, X.map(() => 1), p0, p0.map(() => false), { lo: [-Infinity, 0, 0.01, 0.1], hi: [Infinity, Infinity, Infinity, 3] });
+  check("a user's function fits: stretched exponential recovered", r.params && truth.every((v, i) => rel(r.params[i], v, 0.05)) && r.stats.converged, r.params);
+}
+/* ---------- counting a band: net counts over a local continuum ---------- */
+{
+  // A flat continuum of 100 counts a channel and a line of exactly 2000 counts, no noise.
+  const X = Array.from({ length: 41 }, (_, i) => 500 + i), line = i => (i >= 15 && i <= 25 ? [20, 60, 140, 260, 370, 300, 370, 260, 140, 60, 20][i - 15] : 0);
+  const Y = X.map((_, i) => 100 + line(i)), r = N.countBand(X, Y, 500, 540, { avg: 5 });
+  check("counting: a line of 2000 counts on a flat continuum is 2000 net", r.N === 2000 && r.G === 2000 + 100 * 31 && r.np === 31 && r.k === 5, JSON.stringify(r));
+  const vB = (15.5 * 15.5 * 500 + 15.5 * 15.5 * 500) / 25;
+  check("counting: σ² = G + σ_B², σ_B² from the edge channels' counts", Math.abs(r.sigN - Math.sqrt(r.G + vB)) < 1e-9 && Math.abs(r.sigB - Math.sqrt(vB)) < 1e-9, [r.sigN, Math.sqrt(r.G + vB)]);
+  check("counting: Currie's critical level and detection limit", Math.abs(r.lc - 1.645 * Math.sqrt(3100 + vB)) < 1e-9 && Math.abs(r.ld - (2.71 + 3.29 * Math.sqrt(3100 + vB))) < 1e-9 && r.det);
+  check("counting: centroid at the line's centre", Math.abs(r.centroid - 520) < 1e-9, r.centroid);
+  const sl = N.countBand(X, X.map((x, i) => 50 + 3 * i + line(i)), 500, 540, { avg: 5 });
+  check("counting: on a sloping continuum, still 2000", Math.abs(sl.N - 2000) < 1e-9, sl.N);
+  const rate = N.countBand(X, Y.map(v => v / 300), 500, 540, { avg: 5, kc: 300 });
+  check("counting: counts per second times the live time are the counts", Math.abs(rate.N - 2000) < 1e-9 && Math.abs(rate.sigN - r.sigN) < 1e-9);
+  check("counting: refusals in words", /fewer than three/.test(N.countBand([1, 2], [1, 2], 0, 3).fail) && /below zero/.test(N.countBand(X, Y.map(v => v - 300), 500, 540).fail));
+  const a = N.activityOf(r, 3600, 2.5, 85.1);
+  check("activity: N ÷ (t ε I), its counting error, its detection limit", Math.abs(a.A - 2000 / (3600 * 0.025 * 0.851)) < 1e-9 && Math.abs(a.sA - r.sigN / (3600 * 0.025 * 0.851)) < 1e-12 && Math.abs(a.mda - r.ld / (3600 * 0.025 * 0.851)) < 1e-12 && N.activityOf(r, 0, 2.5, 85) === null);
+  // Poisson repeats: the error against the scatter, and false detections on a continuum alone.
+  let s = 29; const u = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const pois = m => { if (m > 60) { const z = Math.sqrt(-2 * Math.log(u() || 1e-12)) * Math.cos(2 * Math.PI * u()); return Math.max(0, Math.round(m + Math.sqrt(m) * z)); } let k = 0, t = Math.exp(-m), p = 1; do { k++; p *= u(); } while (p > t); return k - 1; };
+  const nets = [], errs = []; let fp = 0; const R = 1500;
+  for (let k = 0; k < R; k++) { const q = N.countBand(X, X.map((_, i) => pois(100 + line(i))), 500, 540, { avg: 5 }); nets.push(q.N); errs.push(q.sigN);
+    const z = N.countBand(X, X.map(() => pois(40)), 500, 540, { avg: 5 }); if (z.det) fp++; }
+  const mean = nets.reduce((p, v) => p + v, 0) / R, sd = Math.sqrt(nets.reduce((p, v) => p + (v - mean) ** 2, 0) / (R - 1)), me = errs.reduce((p, v) => p + v, 0) / R;
+  check("counting: unbiased, its error the scatter of 1500 repeats within 6 %", Math.abs(mean - 2000) < 3 * sd / Math.sqrt(R) + 1 && Math.abs(me / sd - 1) < 0.06, JSON.stringify([mean, sd, me]));
+  check("counting: on a continuum alone, about 5 % called detected (3 % to 7.5 %)", fp / R > 0.03 && fp / R < 0.075, fp / R);
+}
+/* ---------- a distribution fitted to values ---------- */
+{
+  let s = 53; const u = () => { s = (s * 16807) % 2147483647; return s / 2147483647; }, z = () => Math.sqrt(-2 * Math.log(u() || 1e-12)) * Math.cos(2 * Math.PI * u());
+  const nv = Array.from({ length: 4000 }, () => 5 + 2 * z()), f = N.distFit(nv, "normal");
+  check("distribution: a normal sample's μ and σ within three errors, ∫ f = 1", Math.abs(f.p[0] - 5) < 3 * f.e[0] && Math.abs(f.p[1] - 2) < 3 * f.e[1] && Math.abs(N.trapz ? 1 : 1) === 1 && Math.abs(Array.from({ length: 2001 }, (_, i) => f.pdf(-5 + i * 0.01)).reduce((a, b) => a + b, 0) * 0.01 - 1) < 1e-3, JSON.stringify([f.p, f.e]));
+  check("distribution: the normal fits its own sample (p > 0.01), not an exponential's", f.pks > 0.01 && N.distFit(Array.from({ length: 4000 }, () => -Math.log(u() || 1e-12)), "normal").pks < 1e-6, [f.ks, f.pks]);
+  const lv = nv.map(x => Math.exp(x / 4)), lf = N.distFit(lv, "lognormal");
+  check("distribution: log-normal μ and σ of ln x, its median e^μ", Math.abs(lf.p[0] - 1.25) < 3 * lf.e[0] && Math.abs(lf.p[1] - 0.5) < 3 * lf.e[1] && Math.abs(lf.median - Math.exp(lf.p[0])) < 1e-12, JSON.stringify(lf.p));
+  const ev = Array.from({ length: 4000 }, () => -Math.log(u() || 1e-12) / 0.5), ef = N.distFit(ev, "exp");
+  check("distribution: exponential rate 0.5 within three errors; its CDF", Math.abs(ef.p[0] - 0.5) < 3 * ef.e[0] && Math.abs(ef.cdf(Math.LN2 / ef.p[0]) - 0.5) < 1e-12, JSON.stringify([ef.p, ef.e]));
+  check("distribution: refused in words", /above zero/.test(N.distFit([1, -1, 2], "lognormal").fail) && /zero or more/.test(N.distFit([1, -1, 2], "exp").fail) && /all the same/.test(N.distFit([3, 3, 3], "normal").fail) && /Three values/.test(N.distFit([1, 2], "normal").fail));
+}
+/* ---------- a nuclide named by the set of its lines ---------- */
+{
+  const L = [["Bi", 609.3, 45], ["Bi", 1120.3, 15], ["Bi", 1764.5, 15], ["Bi", 2204.1, 5], ["Bi", 3053.9, 0.02], ["Cs", 661.7, 85], ["Tl", 583.2, 85], ["Tl", 2614.5, 99.8], ["Tl", 860.6, 12.5], ["X", 1120.0, 10], ["X", 2000, 90], ["Ann", 511, null]].map(([name, x, i]) => ({ name, x, i }));
+  const eff = E => 10 * (E / 100) ** -0.8, area = (E, i) => 1e5 * eff(E) * i / 100;
+  const pk = [[609.4, 45], [1120.2, 15], [1764.6, 15], [661.8, 85], [860.5, 12.5]].map(([x, i]) => ({ x, w: 1.5, a: area(x, i), sa: 0.02 * area(x, i) }));
+  const r = N.nuclideSets(pk, L, { tol: 1, lo: 50, hi: 3000, eff });
+  const by = Object.fromEntries(r.sets.map(q => [q.name, q]));
+  check("nuclides: Bi present (its strongest and 3 of 4 lines), Cs present, Tl unlikely (its strongest missing)", by.Bi.verdict === "present" && by.Bi.found === 3 && by.Bi.of === 4 && by.Cs.verdict === "present" && by.Tl.verdict === "unlikely", JSON.stringify(r.sets.map(q => [q.name, q.verdict, q.found, q.of])));
+  check("nuclides: present first, the most lines first; one without a peak not listed; a line below a tenth not expected", r.sets.map(q => q.name).join() === "Bi,Cs,Tl" && !by.X && by.Bi.lines.every(q => q.x !== 3053.9));
+  check("nuclides: a peak another nuclide's line could also be is shared", by.Bi.shared.length === 1 && by.Bi.shared[0].x === 1120.3 && by.Bi.shared[0].with.join() === "X", JSON.stringify(by.Bi.shared));
+  check("nuclides: strengths from one nuclide agree (χ² per degree of freedom near 0)", by.Bi.ratio && by.Bi.ratio.n === 3 && by.Bi.ratio.chi2 / by.Bi.ratio.dof < 0.5 && Math.abs(by.Bi.ratio.spread - 1) < 0.01, JSON.stringify(by.Bi.ratio));
+  const bad = pk.map((q, k) => k === 2 ? Object.assign({}, q, { a: q.a * 3, sa: q.sa * 3 }) : q), r2 = N.nuclideSets(bad, L, { tol: 1, lo: 50, hi: 3000, eff }), b2 = r2.sets.find(q => q.name === "Bi");
+  check("nuclides: a line three times too strong makes them disagree", b2.ratio.chi2 / b2.ratio.dof > 10 && b2.ratio.spread > 2.9, JSON.stringify(b2.ratio));
+  const nr = N.nuclideSets(pk.map(q => ({ x: q.x, w: q.w })), L, { tol: 1, lo: 50, hi: 1000 });
+  check("nuclides: in a narrower range, the lines beyond it not expected; no areas, no strengths", nr.sets.find(q => q.name === "Bi").of === 1 && nr.sets.find(q => q.name === "Tl").verdict === "unlikely" && nr.sets.every(q => !q.ratio), JSON.stringify(nr.sets.map(q => [q.name, q.verdict, q.of])));
+}
+/* ---------- a detector's efficiency and resolution against energy ---------- */
+{
+  const Es = [59.5, 122.1, 244.7, 344.3, 661.7, 778.9, 964.1, 1112.1, 1408.0], truth = E => Math.exp(1.2 - 0.85 * Math.log(E / 300) - 0.12 * Math.log(E / 300) ** 2);
+  const cv = N.effCurve(Es.map(E => ({ E, eff: truth(E) })), 2);
+  check("efficiency: a curve of degree 2 in ln E recovered exactly", !cv.fail && Es.every(E => Math.abs(N.effAt(cv, E).v / truth(E) - 1) < 1e-9) && Math.abs(N.effAt(cv, 500).v / truth(500) - 1) < 1e-9, JSON.stringify(cv.fail || cv.co));
+  check("efficiency: beyond the points it says so", N.effAt(cv, 2000).out && !N.effAt(cv, 500).out);
+  check("efficiency: refused in words, too few points or one energy", /3 points at least/.test(N.effCurve([{ E: 100, eff: 5 }, { E: 200, eff: 4 }], 2).fail) && /different energies/.test(N.effCurve([{ E: 100, eff: 5 }, { E: 100, eff: 4 }, { E: 100, eff: 4.5 }], 2).fail));
+  // Points with 3 % errors: the error at an energy against the spread of 400 curves.
+  let s = 41; const u = () => { s = (s * 16807) % 2147483647; return s / 2147483647; }, z = () => Math.sqrt(-2 * Math.log(u() || 1e-12)) * Math.cos(2 * Math.PI * u());
+  const at = [], er = [];
+  for (let k = 0; k < 400; k++) { const c = N.effCurve(Es.map(E => { const v = truth(E) * (1 + 0.03 * z()); return { E, eff: v, err: 0.03 * truth(E) }; }), 2), r = N.effAt(c, 500); at.push(r.v); er.push(r.err); }
+  const m = at.reduce((a, b) => a + b, 0) / at.length, sd = Math.sqrt(at.reduce((a, b) => a + (b - m) ** 2, 0) / (at.length - 1)), me = er.reduce((a, b) => a + b, 0) / er.length;
+  check("efficiency: with errors, unbiased and its error the spread of 400 curves within 12 %", Math.abs(m / truth(500) - 1) < 0.005 && Math.abs(me / sd - 1) < 0.12, JSON.stringify([m / truth(500), me, sd]));
+  const un = N.effCurve(Es.map((E, i) => ({ E, eff: truth(E) * (1 + 0.02 * Math.sin(i * 2.3)) })), 2);
+  check("efficiency: unweighted, the error scaled by the scatter", !un.wtd && N.effAt(un, 500).err > 0);
+  const fw = N.fwhmCurve(Es.map(E => ({ E, w: Math.sqrt(1.1 + 0.0021 * E) })), 1);
+  check("resolution: FWHM² = a + b·E recovered", Math.abs(N.fwhmAt(fw, 1000) - Math.sqrt(1.1 + 2.1)) < 1e-9 && fw.rel.every(r => Math.abs(r) < 1e-9), JSON.stringify(fw.co));
+  check("resolution: none where a + b·E is not above zero", N.fwhmAt({ co: [-5, 0.001], deg: 1 }, 10) === null);
+  const ac = N.activityOf({ N: 1000, sigN: 50, ld: 30, det: true }, 100, 2, 50, 0.1);
+  check("activity: the efficiency's error carried", Math.abs(ac.sA / ac.A - Math.sqrt(0.05 ** 2 + 0.05 ** 2)) < 1e-12, JSON.stringify(ac));
+}
+/* ---------- integrating a band without a fit ---------- */
+{
+  // A Gaussian of area 50, sigma 4, at 120, on a sloping background, sampled every 0.5.
+  const A = 50, sg = 4, xc = 120, g = x => A / (sg * Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * ((x - xc) / sg) ** 2);
+  const bg = x => 3 + 0.02 * x, X = [], Y = [];
+  for (let x = 60; x <= 180; x += 0.5) { X.push(x); Y.push(g(x) + bg(x)); }
+  const r = N.integrateBand(X, Y, null, xc - 6 * sg, xc + 6 * sg, { base: "line", avg: 1, sigma: 0 });
+  check("band: area over a straight local baseline", rel(r.area, A, 1e-3), r.area);
+  check("band: height, position, FWHM and centroid", rel(r.height, A / (sg * Math.sqrt(2 * Math.PI)), 2e-3) && near(r.pos, xc, 1e-3) &&
+    rel(r.fwhm, 2 * Math.sqrt(2 * Math.LN2) * sg, 3e-3) && near(r.centroid, xc, 1e-3), [r.height, r.pos, r.fwhm, r.centroid]);
+  const z = N.integrateBand(X, Y, null, xc - 6 * sg, xc + 6 * sg, { base: "zero" });
+  check("band: no baseline includes the background under it", rel(z.area, A + 48 * (3 + 0.02 * xc), 1e-3), z.area);
+  // The same spectrum on an axis running the other way, windows given either way round.
+  const rv = N.integrateBand(X.slice().reverse(), Y.slice().reverse(), null, xc + 6 * sg, xc - 6 * sg, { base: "line", avg: 1 });
+  check("band: a descending axis and a reversed window give the same area", rel(rv.area, r.area, 1e-12) && rv.area > 0, rv.area);
+  // A dip integrates negative, and is measured at its lowest point.
+  const d = N.integrateBand(X, Y.map(v => -v), null, xc - 6 * sg, xc + 6 * sg, { base: "line", avg: 1 });
+  check("band: an absorption dip has a negative area, and its own depth", rel(d.area, -A, 1e-3) && rel(d.height, -r.height, 1e-9) && near(d.pos, xc, 1e-3), [d.area, d.height]);
+  check("band: too few points is said, not guessed", !!N.integrateBand(X, Y, null, 100, 100.6, {}).fail);
+  // The error bar means what it says: noise of sigma 0.2, 400 times over.
+  let s = 11; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const gauss = () => Math.sqrt(-2 * Math.log(rnd() + 1e-12)) * Math.cos(2 * Math.PI * rnd());
+  const areas = []; let reported = 0;
+  for (let t = 0; t < 400; t++) { const Yn = Y.map(v => v + 0.2 * gauss());
+    const q = N.integrateBand(X, Yn, null, xc - 6 * sg, xc + 6 * sg, { base: "line", avg: 3, sigma: 0.2 }); areas.push(q.area); reported += q.err / 400; }
+  const m = areas.reduce((a, b) => a + b, 0) / areas.length, sd = Math.sqrt(areas.reduce((a, b) => a + (b - m) ** 2, 0) / (areas.length - 1));
+  check("band: the area's error matches the scatter of noisy repeats", rel(m, A, 0.01) && reported / sd > 0.8 && reported / sd < 1.35, [m, sd, reported]);
+  // Error bars, when there are some, are used point by point.
+  const eb = N.integrateBand(X, Y, X.map(() => 0.4), xc - 6 * sg, xc + 6 * sg, { base: "zero", sigma: 0.2 });
+  const w = []; for (let x = xc - 6 * sg; x <= xc + 6 * sg + 1e-9; x += 0.5) w.push(0.5);
+  w[0] = w[w.length - 1] = 0.25;
+  check("band: error bars are propagated point by point", rel(eb.err, 0.4 * Math.sqrt(w.reduce((a, b) => a + b * b, 0)), 1e-9), eb.err);
+  // Windows around two neighbouring peaks meet at the valley between them.
+  const X2 = [], Y2 = []; for (let x = 0; x <= 100; x += 0.5) { X2.push(x); Y2.push(10 * Math.exp(-0.5 * ((x - 40) / 3) ** 2) + 6 * Math.exp(-0.5 * ((x - 55) / 3) ** 2)); }
+  const bw = N.bandsFromPeaks(X2, Y2, [{ x: 55, w: 7 }, { x: 40, w: 7 }]);
+  check("bands from peaks: split at the valley, outer edges two widths out", bw.length === 2 && bw[0].x2 === bw[1].x1 && bw[0].x2 > 45 && bw[0].x2 < 51 &&
+    near(bw[0].x1, 26, 1e-9) && near(bw[1].x2, 69, 1e-9), JSON.stringify(bw));
+}
+/* ---------- the inverse: n^3, and the same answers ---------- */
+{
+  let s = 5; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+  const n = 40, R = Array.from({ length: n }, () => Array.from({ length: n }, rnd));
+  const A = R.map((_, i) => R.map((_, j) => R[i].reduce((t, v, k) => t + v * R[j][k], 0) + (i === j ? 0.5 : 0)));
+  const inv = N.inverse(A); let worst = 0;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { let t = 0; for (let k = 0; k < n; k++) t += A[i][k] * inv[k][j]; worst = Math.max(worst, Math.abs(t - (i === j ? 1 : 0))); }
+  check("inverse: A times its inverse is the identity", worst < 1e-9, worst);
+  // Column by column it is solve(): the same pivots, the same arithmetic.
+  const e3 = new Array(n).fill(0); e3[3] = 1; const c3 = N.solve(A, e3);
+  check("inverse: each column is exactly what solve() gives", c3.every((v, i) => v === inv[i][3]));
+  check("inverse: a singular matrix has none", N.inverse([[1, 2], [2, 4]]) === null);
+}
+/* ---------- global fits: parameters shared across spectra ---------- */
+{
+  let s = 29; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const gauss = () => Math.sqrt(-2 * Math.log(rnd() + 1e-12)) * Math.cos(2 * Math.PI * rnd());
+  const G = N.PEAKS.gauss, xc = 100, w = 8, areas = [1000, 2000, 3000, 4000, 5000], sig = 4;
+  const f = (x, p) => p[0] + G.f(x, [p[1], p[2], p[3]]);       // baseline, centre, area, FWHM
+  const mk = () => areas.map((A, k) => { const X = [], Y = []; for (let x = 60; x <= 140; x += 0.5) { X.push(x); Y.push(5 + k + G.f(x, [xc, A, w]) + sig * gauss()); } return { X, Y }; });
+  const sets = mk(), p0s = sets.map(() => [0, 97, 1500, 10]);
+  const shared = [false, true, false, true], fixed = [false, false, false, false];
+  const r = N.globalFit(sets, f, p0s, shared, fixed, { lo: [-Infinity, -Infinity, -Infinity, 1e-9] });
+  check("global: it converges", !r.error && r.stats.converged, r.error);
+  const ps = r.sets.map(q => q.params);
+  check("global: the shared centre and width are one value in every spectrum", ps.every(p => p[1] === ps[0][1] && p[3] === ps[0][3]));
+  check("global: the shared centre and width are recovered", near(ps[0][1], xc, 4 * r.sets[0].errors[1]) && near(ps[0][3], w, 4 * r.sets[0].errors[3]), [ps[0][1], ps[0][3], r.sets[0].errors[1]]);
+  check("global: each spectrum's own area and baseline are its own", ps.every((p, k) => near(p[2], areas[k], 4 * r.sets[k].errors[2]) && near(p[0], 5 + k, 4 * r.sets[k].errors[0])), ps.map(p => p[2].toFixed(0)).join(","));
+  check("global: degrees of freedom are every point less every parameter", r.stats.dof === 5 * 161 - (2 + 5 * 2) && r.m === 12, [r.stats.dof, r.m]);
+  check("global: the shared error is smaller than any one spectrum's own fit's", (() => {
+    const one = N.lmFit(f, sets[0].X, sets[0].Y, sets[0].X.map(() => 1), [0, 97, 1500, 10], [false, false, false, false]); return r.sets[0].errors[1] < one.errors[1]; })());
+  // The same problem without blocks, by hand: the block-sparse path must agree.
+  const X = [], Y = [], seg = []; sets.forEach((q, k) => { q.X.forEach((x, i) => { X.push(k * 1000 + x); Y.push(q.Y[i]); }); });
+  const fd = (x, g) => { const k = Math.floor(x / 1000), xx = x - k * 1000; return g[2 + 2 * k] + G.f(xx, [g[0], g[3 + 2 * k], g[1]]); };
+  const g0 = [97, 10]; p0s.forEach(p => g0.push(p[0], p[2]));
+  const d = N.lmFit(fd, X, Y, X.map(() => 1), g0, g0.map(() => false), { lo: g0.map((_, i) => i === 1 ? 1e-9 : -Infinity) });
+  check("global: the block-sparse fit is the dense fit", rel(d.params[0], ps[0][1], 1e-7) && rel(d.params[1], ps[0][3], 1e-7) && rel(d.errors[0], r.sets[0].errors[1], 1e-4) && rel(d.params[3 + 2 * 4], ps[4][2], 1e-7), [d.params[0], ps[0][1], d.errors[0], r.sets[0].errors[1]]);
+  // The shared centre's error means what it says: 150 repeats.
+  const cs = []; let rep = 0;
+  for (let t = 0; t < 150; t++) { const q = N.globalFit(mk(), f, p0s, shared, fixed, { lo: [-Infinity, -Infinity, -Infinity, 1e-9] }); cs.push(q.sets[0].params[1]); rep += q.sets[0].errors[1] / 150; }
+  const m = cs.reduce((a, b) => a + b, 0) / cs.length, sd = Math.sqrt(cs.reduce((a, b) => a + (b - m) ** 2, 0) / (cs.length - 1));
+  check("global: the shared centre's error matches the scatter of noisy repeats", near(m, xc, 0.05) && rep / sd > 0.8 && rep / sd < 1.25, [m, sd, rep]);
+  // A fixed parameter keeps each spectrum's own value; a tie applied by prep follows its peak in each.
+  const f2 = (x, p) => G.f(x, [p[0], p[1], p[2]]) + G.f(x, [p[3], p[4], p[5]]);
+  const sets2 = [1, 2, 3].map(k => { const X = [], Y = []; for (let x = 0; x <= 200; x += 1) { X.push(x); Y.push(G.f(x, [80, 1000 * k, 10]) + G.f(x, [120, 500 * k, 10]) + 2 * gauss()); } return { X, Y }; });
+  const prep = p => { p[4] = 0.5 * p[1]; p[5] = p[2]; return p; };
+  const r2 = N.globalFit(sets2, f2, sets2.map(() => [78, 900, 12, 121, 450, 12]), [true, false, true, true, false, false], [false, false, false, false, true, true], { prep });
+  check("global: ties applied by prep hold in every spectrum", !r2.error && r2.sets.every((q, k) => near(q.params[4], 0.5 * q.params[1], 1e-9) && near(q.params[5], q.params[2], 1e-12) && rel(q.params[1], 1000 * (k + 1), 0.05)) && near(r2.sets[0].params[3], 120, 0.5), r2.error || r2.sets.map(q => q.params.map(v => v.toFixed(2)).join(" ")).join(" | "));
+  check("global: one set is an ordinary fit", (() => { const a = N.globalFit([sets[0]], f, [[0, 97, 1500, 10]], shared, fixed, {}), b = N.lmFit(f, sets[0].X, sets[0].Y, sets[0].X.map(() => 1), [0, 97, 1500, 10], fixed);
+    return rel(a.sets[0].params[2], b.params[2], 1e-6) && rel(a.sets[0].errors[2], b.errors[2], 1e-4); })());
+}
+/* ---------- global fits: a parameter that follows the series ---------- */
+{
+  let s = 41; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const gauss = () => Math.sqrt(-2 * Math.log(rnd() + 1e-12)) * Math.cos(2 * Math.PI * rnd());
+  const G = N.PEAKS.gauss, T = [280, 290, 300, 310, 320, 330], slope = 0.5, w = 6, sig = 2;
+  const f = (x, p) => G.f(x, [p[0], p[1], p[2]]);                      // centre, area, FWHM
+  const mk = () => T.map((t, k) => { const X = [], Y = []; for (let x = 60; x <= 160; x += 0.5) { X.push(x); Y.push(G.f(x, [100 + slope * (t - 300), 800 + 100 * k, w]) + sig * gauss()); } return { X, Y }; });
+  const sets = mk(), p0s = T.map((t, k) => [100 + slope * (t - 300) + (k % 2 ? 1.5 : -1.2), 700, 8]);
+  const r = N.globalFit(sets, f, p0s, [false, false, true], [false, false, false], { follow: [{ kind: "lin", s: T }, null, null], lo: [-Infinity, -Infinity, 1e-9] });
+  const fl = r.follow && r.follow[0];
+  check("follow: a centre linear in temperature converges, its line returned", !r.error && r.stats.converged && fl && fl.kind === "lin" && fl.i === 0, r.error || JSON.stringify(fl));
+  check("follow: the slope is recovered within its error", fl && fl.sb > 0 && near(fl.b, slope, 4 * fl.sb), fl && [fl.b, fl.sb]);
+  check("follow: the value at the mean temperature is recovered", fl && near(fl.a, 100 + slope * (305 - 300), 4 * fl.sa) && near(fl.u0, 305, 1e-12), fl && [fl.a, fl.sa, fl.u0]);
+  check("follow: each set's centre lies on the line", r.sets.every((q, k) => near(q.params[0], fl.a + fl.b * (T[k] - fl.u0), 1e-9)));
+  check("follow: each set's centre error is the line's, by the delta method", r.sets.every((q, k) => { const d = T[k] - fl.u0; return rel(q.errors[0], Math.sqrt(fl.sa ** 2 + d * d * fl.sb ** 2 + 2 * d * fl.cab), 1e-9) && rel(q.cov[0][0], q.errors[0] ** 2, 1e-9); }), r.sets.map(q => q.errors[0].toExponential(3)).join(","));
+  check("follow: degrees of freedom count the line as two parameters", r.m === 2 + 1 + 6 && r.stats.dof === 6 * 201 - 9, [r.m, r.stats.dof]);
+  check("follow: its interval and t value are given, its dependency is not", r.sets.every(q => q.ci[0][0] < q.params[0] && q.ci[0][1] > q.params[0] && Number.isFinite(q.tval[0]) && Number.isNaN(q.dep[0])));
+  // The slope's error means what it says: 60 repeats.
+  const bs = []; let rep = 0;
+  for (let t = 0; t < 60; t++) { const q = N.globalFit(mk(), f, p0s, [false, false, true], [false, false, false], { follow: [{ kind: "lin", s: T }, null, null], lo: [-Infinity, -Infinity, 1e-9] }); bs.push(q.follow[0].b); rep += q.follow[0].sb / 60; }
+  const m = bs.reduce((a, b) => a + b, 0) / bs.length, sd = Math.sqrt(bs.reduce((a, b) => a + (b - m) ** 2, 0) / (bs.length - 1));
+  check("follow: the slope's error matches the scatter of noisy repeats", near(m, slope, 0.01) && rep / sd > 0.75 && rep / sd < 1.33, [m, sd, rep]);
+  // Arrhenius: a decay rate k = A·exp(−Ea/(R·T)) over six temperatures.
+  const R = 8.314462618, Ea = 50000, Tk = [300, 310, 320, 330, 340, 350], kOf = t => 1e7 * Math.exp(-Ea / (R * t));
+  const fd = (x, p) => p[0] * Math.exp(-p[1] * x);
+  const setsA = Tk.map(t => { const X = [], Y = []; for (let x = 0; x <= 5 / kOf(Tk[0]); x += 0.05 / kOf(Tk[0])) { X.push(x); Y.push(100 * Math.exp(-kOf(t) * x) + 0.3 * gauss()); } return { X, Y }; });
+  const ra = N.globalFit(setsA, fd, Tk.map(t => [95, kOf(t) * 1.2]), [false, false], [false, false], { follow: [null, { kind: "arr", s: Tk }] });
+  const fa = ra.follow && ra.follow[0];
+  check("follow: Arrhenius recovers the activation energy within its error", !ra.error && fa && fa.kind === "arr" && near(fa.b * R, Ea, 4 * fa.sb * R) && fa.sb * R < 2000, ra.error || (fa && [fa.b * R, fa.sb * R]));
+  check("follow: each rate is the law's at its temperature", ra.sets.every((q, k) => rel(q.params[1], fa.a * Math.exp(-fa.b * (1 / Tk[k] - fa.u0)), 1e-12) && rel(q.params[1], kOf(Tk[k]), 0.03)), ra.sets.map(q => q.params[1].toExponential(3)).join(","));
+  check("follow: Arrhenius refuses a temperature at or below zero, or a rate that is not above zero", N.globalFit(setsA, fd, Tk.map(t => [95, kOf(t)]), [false, false], [false, false], { follow: [null, { kind: "arr", s: Tk.map(t => t - 300) }] }).error === "Arrhenius needs every temperature above zero kelvin"
+    && /above zero in every set/.test(N.globalFit(setsA, fd, Tk.map((t, k) => [95, k ? kOf(t) : -1]), [false, false], [false, false], { follow: [null, { kind: "arr", s: Tk }] }).error || ""));
+  check("follow: a series of one value has nothing to follow", /one value only/.test(N.globalFit(sets, f, p0s, [false, false, true], [false, false, false], { follow: [{ kind: "lin", s: T.map(() => 300) }, null, null] }).error || ""));
+}
+/* ---------- the same peak across a series ---------- */
+{
+  const L = [[{ x: 100, w: 5 }, { x: 200, w: 6 }], [{ x: 101, w: 5 }, { x: 199, w: 6 }, { x: 300, w: 8 }], [{ x: 102.5, w: 5 }, { x: 300.4, w: 8 }], [{ x: 104, w: 5 }, { x: 110, w: 5 }]];
+  const t = N.matchPeakTracks(L);
+  check("tracks: a drifting band is one track", t.length === 4 && t[0].n === 4 && t[0].members.map(m => m.s).join() === "0,1,2,3" && t[0].x0 === 100 && t[0].x1 === 104, JSON.stringify(t.map(q => [q.x, q.n])));
+  check("tracks: a peak that comes and goes keeps its track", t.find(q => Math.abs(q.x - 300) < 1).n === 2 && t.find(q => Math.abs(q.x - 200) < 2).n === 2);
+  check("tracks: a new neighbour starts its own", t.some(q => q.x === 110 && q.n === 1));
+  check("tracks: two peaks of one spectrum never share a track", N.matchPeakTracks([[{ x: 10, w: 4 }], [{ x: 9, w: 4 }, { x: 11, w: 4 }]]).length === 2);
+  check("tracks: with no widths, the spacing given decides", N.matchPeakTracks([[{ x: 10 }], [{ x: 11 }]], { dx: 4 }).length === 1 && N.matchPeakTracks([[{ x: 10 }], [{ x: 11 }]]).length === 2);
+}
+/* ---------- fill: series, lists, random numbers, trends ---------- */
+{
+  const F = (o, n) => N.fillSeries(o, n);
+  const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+  let r = F({ kind: "linear", start: 0, step: 0.1 }, 11);
+  check("fill: a series by 0.1 has no floating-point dust", r.v[3] === 0.3 && r.v[7] === 0.7 && r.v[10] === 1, JSON.stringify(r.v));
+  r = F({ kind: "linear", start: 1e6, step: 1e-9 }, 3);
+  check("fill: a tiny step on a large start is kept", r.v[1] === 1000000.000000001 && r.v[2] === 1000000.000000002, JSON.stringify(r.v));
+  r = F({ kind: "linear", start: 1, step: 2, stop: 9 }, 100);
+  check("fill: a stop value ends the series, and says so", same(r.v, [1, 3, 5, 7, 9]) && /5 values/.test(r.note), JSON.stringify(r));
+  r = F({ kind: "linear", start: 10, step: -2.5, stop: 0 }, 100);
+  check("fill: a descending series to its stop", same(r.v, [10, 7.5, 5, 2.5, 0]), JSON.stringify(r.v));
+  check("fill: a series moving away from its stop is refused in words", !!F({ kind: "linear", start: 10, step: 1, stop: 0 }, 5).err && F({ kind: "linear", start: 10, step: 1, stop: 0 }, 5).v.length === 0);
+  check("fill: a step of zero cannot reach a stop", /never change/.test(F({ kind: "linear", start: 1, step: 0, stop: 5 }, 5).err || ""));
+  check("fill: a step of zero without a stop copies", same(F({ kind: "linear", start: 4, step: 0 }, 3).v, [4, 4, 4]));
+  check("fill: no first value", /first value/.test(F({ kind: "linear", start: "", step: 1 }, 3).err || ""));
+  r = F({ kind: "growth", start: 1, factor: 2 }, 11);
+  check("fill: growth doubles", r.v[10] === 1024 && r.v.length === 11);
+  check("fill: growth by 1.1 is clean", F({ kind: "growth", start: 1, factor: 1.1 }, 3).v[2] === 1.21);
+  check("fill: growth to a stop", same(F({ kind: "growth", start: 1, factor: 3, stop: 100 }, 50).v, [1, 3, 9, 27, 81]));
+  check("fill: growth past 10^308 is refused", /10³⁰⁸/.test(F({ kind: "growth", start: 1, factor: 1e10 }, 40).err || ""));
+  check("fill: a negative factor with a stop is refused", !!F({ kind: "growth", start: 1, factor: -2, stop: 100 }, 10).err);
+  r = F({ kind: "even", from: 0, to: 1 }, 5);
+  check("fill: evenly from 0 to 1", same(r.v, [0, 0.25, 0.5, 0.75, 1]), JSON.stringify(r.v));
+  r = F({ kind: "even", from: 0, to: 0.7 }, 8);
+  check("fill: evenly, the last value is exactly the end", r.v[7] === 0.7 && r.v[3] === 0.3, JSON.stringify(r.v));
+  check("fill: evenly on a log scale", same(F({ kind: "even", from: 1, to: 1000, log: true }, 4).v, [1, 10, 100, 1000]));
+  check("fill: a log scale through zero is refused", !!F({ kind: "even", from: 0, to: 10, log: true }, 4).err);
+  check("fill: one row of an even fill is its start", same(F({ kind: "even", from: 3, to: 9 }, 1).v, [3]));
+  check("fill: row numbers", same(F({ kind: "rows", first: 5 }, 3).v, [5, 6, 7]));
+  r = F({ kind: "list", vals: [1, 2, 3], each: 2, times: 0 }, 8);
+  check("fill: a list, each value twice, until full", same(r.v, [1, 1, 2, 2, 3, 3, 1, 1]), JSON.stringify(r.v));
+  r = F({ kind: "list", vals: [7, 8], each: 1, times: 2 }, 10);
+  check("fill: a list twice, then the rows stay empty", same(r.v, [7, 8, 7, 8]) && !!r.note, JSON.stringify(r));
+  check("fill: an empty list is refused", !!F({ kind: "list", vals: [] }, 3).err);
+  check("fill: nothing past the limit", !!F({ kind: "rows" }, 200001).err && !!F({ kind: "rows" }, 0).err);
+  const u1 = F({ kind: "uniform", a: 2, b: 5, seed: 42 }, 20000), u2 = F({ kind: "uniform", a: 2, b: 5, seed: 42 }, 20000), u3 = F({ kind: "uniform", a: 2, b: 5, seed: 43 }, 20000);
+  const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length, vari = (a) => { const m = mean(a); return a.reduce((s, v) => s + (v - m) * (v - m), 0) / (a.length - 1); };
+  check("fill: uniform numbers stay in their range, mean in the middle", u1.v.every((v) => v >= 2 && v < 5) && near(mean(u1.v), 3.5, 0.03), mean(u1.v));
+  check("fill: the same seed gives the same numbers, another seed others", same(u1.v, u2.v) && !same(u1.v, u3.v));
+  const iv = F({ kind: "int", a: 1, b: 6, seed: 7 }, 60000).v, cnt = [0, 0, 0, 0, 0, 0, 0];
+  iv.forEach((v) => cnt[v]++);
+  check("fill: whole numbers 1 to 6, each as likely", iv.every((v) => Number.isInteger(v) && v >= 1 && v <= 6) && cnt.slice(1).every((c) => Math.abs(c - 10000) < 400), cnt.join(" "));
+  check("fill: no whole number between 1.2 and 1.8", !!F({ kind: "int", a: 1.2, b: 1.8 }, 3).err);
+  const nv = F({ kind: "normal", mean: 5, sd: 2, seed: 3 }, 40000).v;
+  check("fill: normal numbers have their mean and SD", near(mean(nv), 5, 0.04) && near(Math.sqrt(vari(nv)), 2, 0.04), `${mean(nv)} ${Math.sqrt(vari(nv))}`);
+  check("fill: decimals round random numbers", F({ kind: "normal", mean: 0, sd: 1, seed: 1, dec: 2 }, 50).v.every((v) => Math.round(v * 100) / 100 === v));
+  check("fill: a negative SD is refused", !!F({ kind: "normal", mean: 0, sd: -1 }, 3).err);
+  for (const lam of [0.5, 4, 29, 31, 400, 1e5]) {
+    const pv = F({ kind: "poisson", lam, seed: 11 }, 40000).v, m = mean(pv), s2 = vari(pv), se = Math.sqrt(lam / 40000);
+    check(`fill: Poisson counts of mean ${lam} have mean and variance ${lam}`, pv.every((v) => Number.isInteger(v) && v >= 0) && Math.abs(m - lam) < 5 * se && Math.abs(s2 - lam) < 5 * lam * Math.sqrt(2 / 40000) + 0.02, `${m} ${s2}`);
+  }
+  check("fill: Poisson of mean 0 is all zeros", F({ kind: "poisson", lam: 0, seed: 1 }, 5).v.every((v) => v === 0));
+  check("lgamma: 1, 5, 1/2 and 101", near(N.lgammaFn(1), 0, 1e-13) && near(N.lgammaFn(5), Math.log(24), 1e-13) && near(N.lgammaFn(0.5), Math.log(Math.sqrt(Math.PI)), 1e-13) && near(N.lgammaFn(101), 363.73937555556347, 1e-10), N.lgammaFn(101));
+  r = F({ kind: "trend", xs: [0, 1, 2], ys: [1, 3, 5], r0: 3 }, 3);
+  check("fill: a straight trend continued", same(r.v, [7, 9, 11]) && /\+2/.test(r.note), JSON.stringify(r));
+  r = F({ kind: "trend", xs: [0, 1, 2], ys: [2, 4, 8], r0: 3, growth: true }, 3);
+  check("fill: a growth trend continued", same(r.v, [16, 32, 64]), JSON.stringify(r.v));
+  r = F({ kind: "trend", xs: [0, 1, 3], ys: [1, 2, 4], r0: 4 }, 1);
+  check("fill: a trend over a gap uses the rows' places", r.v[0] === 5, JSON.stringify(r.v));
+  check("fill: a trend from one value is refused", !!F({ kind: "trend", xs: [0], ys: [1], r0: 1 }, 3).err);
+}
+
+  {
+    // A map from scattered X, Y, Z: the triangulation and its contour lines.
+    const gx = [], gy = []; for (let i = 0; i < 6; i++) for (let j = 0; j < 5; j++) { gx.push(i * 100); gy.push(j * 0.01); }
+    const tg = N.delaunay(gx, gy);
+    check("a grid of 6 × 5 points (X and Y in different units) makes 2 × 5 × 4 triangles", tg.tri && tg.tri.length / 3 === 40 && tg.n === 30, JSON.stringify(tg.fail || tg.tri.length / 3));
+    const r3 = N.mulberry32(3), rx = Array.from({ length: 400 }, () => r3()), ry = Array.from({ length: 400 }, () => r3()), tr = N.delaunay(rx, ry);
+    let empty = true, area = 0;
+    for (let k = 0; k < tr.tri.length && empty; k += 3) { const [a, b, c] = [tr.tri[k], tr.tri[k + 1], tr.tri[k + 2]];
+      const ax = rx[a], ay = ry[a], bx = rx[b], by = ry[b], cx = rx[c], cy = ry[c], d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by)), a2 = ax * ax + ay * ay, b2 = bx * bx + by * by, c2 = cx * cx + cy * cy;
+      const ux = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / d, uy = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / d, r2 = (ax - ux) ** 2 + (ay - uy) ** 2;
+      for (let i = 0; i < 400; i++) if (i !== a && i !== b && i !== c && (rx[i] - ux) ** 2 + (ry[i] - uy) ** 2 < r2 * (1 - 1e-9)) { empty = false; break; }
+      area += Math.abs((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) / 2; }
+    // The hull's area, by the gift wrap.
+    const hull = (() => { const P = rx.map((x, i) => [x, ry[i]]).sort((a, b) => a[0] - b[0] || a[1] - b[1]), cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], up = [];
+      for (const p of P) { while (lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+      for (const p of P.slice().reverse()) { while (up.length > 1 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+      const h = lo.slice(0, -1).concat(up.slice(0, -1)); let s = 0; for (let i = 0; i < h.length; i++) { const p = h[i], q = h[(i + 1) % h.length]; s += p[0] * q[1] - q[0] * p[1]; } return Math.abs(s) / 2; })();
+    check("400 random points: no point inside any triangle's circle (Delaunay), the triangles covering the hull exactly", empty && Math.abs(area - hull) < 1e-9, JSON.stringify([empty, area, hull]));
+    const zs = rx.map((x, i) => 2 * x + 3 * ry[i]), cl = N.triContours(tr.tri, rx, ry, zs, [1.5, 4]);
+    check("the contour lines of a plane lie on it: 2x + 3y = 1.5 and = 4", cl[0].length > 10 && cl[0].every(s => Math.abs(2 * s[0] + 3 * s[1] - 1.5) < 1e-9 && Math.abs(2 * s[2] + 3 * s[3] - 1.5) < 1e-9) && cl[1].every(s => Math.abs(2 * s[0] + 3 * s[1] - 4) < 1e-9), JSON.stringify([cl[0].length, cl[1].length]));
+    check("refused in words: two points, points on a line, too many; repeats and non-numbers left out", /Three points/.test(N.delaunay([1, 2], [1, 2]).fail) && /one line/.test(N.delaunay([1, 2, 3, 4], [2, 4, 6, 8]).fail) && /More than 20000/.test(N.delaunay(Array.from({ length: 20001 }, (_, i) => i), Array.from({ length: 20001 }, (_, i) => (i * 7919) % 20001)).fail || "") && N.delaunay([0, 1, 0, 0, NaN, 1], [0, 0, 1, 0, 5, null]).n === 3);
+    const t0 = Date.now(), big = N.delaunay(Array.from({ length: 5000 }, () => r3()), Array.from({ length: 5000 }, () => r3()));
+    check("5000 points triangulated within two seconds", big.tri && Date.now() - t0 < 2000, Date.now() - t0);
+  }
+/* ---------- p-values against known values ---------- */
+check("tPvalue: t=2.228, dof=10 is ~0.05", near(N.tPvalue(2.228, 10), 0.05, 5e-4), N.tPvalue(2.228, 10));
+check("tPvalue: t=0 is 1", near(N.tPvalue(0, 10), 1, 1e-12), N.tPvalue(0, 10));
+check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
+/* ---------- distributions: quantiles, boxes, densities, histogram bins ---------- */
+{
+  check("quantiles by linear interpolation (type 7)", N.quantileSorted([1,2,3,4],0.25)===1.75 && N.quantileSorted([1,2,3,4],0.5)===2.5 && N.quantileSorted([7],0.9)===7 && Number.isNaN(N.quantileSorted([],0.5)));
+  const b = N.boxStats([1,2,3,4,5,6,7,8,9,100]);
+  check("a box: median, quartiles, whiskers within 1.5 IQR, the outlier outside", b.med===5.5 && b.q1===3.25 && b.q3===7.75 && b.hi===9 && b.lo===1 && b.out.length===1 && b.out[0]===100 && b.n===10, JSON.stringify(b));
+  check("a box of one value, and of none", (()=>{ const o=N.boxStats([4]); return o.med===4&&o.q1===4&&o.hi===4&&o.sd===0; })() && N.boxStats([NaN,null])===null);
+  {
+    const nb = N.boxStats([1,2,3,4,5,6,7,8,9,100]), nh = 1.58 * nb.iqr / Math.sqrt(10);
+    check("a box's notch: the median ± 1.58 IQR/√n", Math.abs(nb.notch[0] - (5.5 - nh)) < 1e-12 && Math.abs(nb.notch[1] - (5.5 + nh)) < 1e-12, JSON.stringify(nb.notch));
+    const r2 = N.mulberry32(11), z2 = () => { let s = 0; for (let i = 0; i < 12; i++) s += r2(); return s - 6; };
+    let cover = 0; for (let t = 0; t < 600; t++) { const b2 = N.boxStats(Array.from({ length: 50 }, () => 3 + z2())); if (b2.notch[0] < 3 && b2.notch[1] > 3) cover++; }
+    check("…which holds the true median about nine times in ten (two notches apart: about 95%)", cover / 600 > 0.85 && cover / 600 < 0.96, cover / 600);
+    const g1 = N.distGroups([1, 2, 3, 4, 5, NaN, 7], [20, 10, 20, 10.0000000000001, null, 30, "x"]);
+    check("values split by a column of groups: keys ascending, compared to twelve digits, what is not a number left out", JSON.stringify(g1.keys) === "[10,20]" && JSON.stringify(g1.by) === "[[2,4],[1,3]]" && g1.n === 2, JSON.stringify(g1));
+    const g2 = N.distGroups(Array.from({ length: 200 }, (_, i) => i), Array.from({ length: 200 }, (_, i) => i));
+    check("…past 60 groups refused in words", /more than 60 different values/.test(g2.fail || ""), JSON.stringify(g2).slice(0, 120));
+  }
+  const rnd = N.mulberry32(7), g = Array.from({length:4000}, () => { let u=0; for (let i=0;i<12;i++) u+=rnd(); return u-6; });
+  const bw = N.kdeBandwidth(g), xs = Array.from({length:801}, (_,i)=>-8+i*0.02), d = N.kdeAt(g, xs, bw);
+  let area = 0; for (let i=1;i<xs.length;i++) area += (d[i]+d[i-1])/2*0.02;
+  check("a kernel density has area 1 and peaks near the mean", Math.abs(area-1)<2e-3 && Math.abs(xs[d.indexOf(Math.max(...d))])<0.2, `area ${area}, bw ${bw}`);
+  check("Silverman's bandwidth for a unit normal sample of 4000 is about 0.17", bw>0.14 && bw<0.2, bw);
+  check("round widths, the nearest by ratio", N.niceWidth(0.37)===0.5 && N.niceWidth(3)===2.5 && N.niceWidth(2.3)===2.5 && N.niceWidth(1)===1 && N.niceWidth(0.0012)===0.001 && N.niceWidth(1.09)===1 && N.niceWidth(8)===10);
+  const h = N.histBins(Array.from({length:100},(_,i)=>i), {rule:"w", w:10, start:0});
+  check("bins of a given width: ten of ten, the largest value inside", h.k===10 && h.counts.every(c=>c===10) && h.out===0 && h.edges[10]===100, JSON.stringify(h.counts));
+  const h2 = N.histBins([0,1,2,3,4,5,6,7,8], {rule:"n", n:4});
+  check("a number of bins: from the smallest to the largest, every value counted", h2.k===4 && h2.counts.reduce((a,b)=>a+b,0)===9 && h2.edges[0]===0 && h2.edges[4]===8 && h2.counts[3]===3, JSON.stringify(h2));
+  const h3 = N.histBins(g, {rule:"fd"});
+  check("Freedman–Diaconis on a normal sample: a round width, every value counted", h3.counts.reduce((a,b)=>a+b,0)===4000 && h3.out===0 && N.niceWidth(h3.w)===h3.w && h3.k>15 && h3.k<60, `w ${h3.w}, k ${h3.k}`);
+  const h4 = N.histBins([1,2,3,4,5], {rule:"w", w:1, start:2.5});
+  check("values below a given start are counted as outside", h4.out===2 && h4.counts.reduce((a,b)=>a+b,0)===3);
+  check("no values, too many bins, a width of zero: refused in words", /no values/.test(N.histBins([NaN],{}).fail) && /more than/.test(N.histBins([0,1e9],{rule:"w",w:1}).fail) && /width/.test(N.histBins([1,2],{rule:"w",w:0}).fail));
+  check("one value repeated: one bin", (()=>{ const o=N.histBins([5,5,5],{rule:"fd"}); return o.k>=1 && o.counts.reduce((a,b)=>a+b,0)===3 && o.out===0; })());
+}
+
+/* ---------- errors in X as well as Y: orthogonal distance regression ---------- */
+{
+  const line=(x,p)=>p[0]+p[1]*x, rnd=N.mulberry32(11), gs=()=>{ let u=0; for(let i=0;i<12;i++) u+=rnd(); return u-6; };
+  const mean=a=>a.reduce((s,v)=>s+v,0)/a.length, sd=a=>{ const m=mean(a); return Math.sqrt(a.reduce((s,v)=>s+(v-m)*(v-m),0)/(a.length-1)); };
+  // A line of slope 2 with large errors in X (1.5) and small ones in Y (0.3): an ordinary fit is pulled flat
+  // (by 36.8/(36.8 + 2.25), to about 1.88); the orthogonal distance fit is not.
+  const sx=1.5, sy=0.3, slopes=[], errs=[], chis=[], ols=[], conv=[];
+  for(let k=0;k<300;k++){ const X=[], Y=[]; for(let i=0;i<30;i++){ const xt=i*0.7; X.push(xt+sx*gs()); Y.push(1+2*xt+sy*gs()); }
+    const r=N.odrFit(line,X,Y,X.map(()=>sy),X.map(()=>sx),[0,1],[false,false]);
+    slopes.push(r.params[1]); errs.push(r.errors[1]); chis.push(r.stats.redChi2); conv.push(r.stats.converged);
+    ols.push(N.lmFit(line,X,Y,X.map(()=>1/sy),[0,1],[false,false]).params[1]); }
+  check("errors in X: the slope is not pulled flat (an ordinary fit's is)", Math.abs(mean(slopes)-2)<0.02 && mean(ols)<1.92, `ODR ${mean(slopes)}, ordinary ${mean(ols)}`);
+  check("errors in X: the slope's error matches its spread over 300 repeats", Math.abs(sd(slopes)/mean(errs)-1)<0.15, `spread ${sd(slopes)}, error ${mean(errs)}`);
+  check("errors in X: reduced chi-squared about 1, every fit converged", Math.abs(mean(chis)-1)<0.12 && conv.every(Boolean), mean(chis));
+  // For a straight line with the same errors everywhere it is Deming regression, which has a closed form.
+  { const X=[], Y=[]; for(let i=0;i<25;i++){ const xt=i; X.push(xt+0.8*gs()); Y.push(3-1.5*xt+0.5*gs()); }
+    const n=X.length, mx=mean(X), my=mean(Y); let sxx=0, syy=0, sxy=0; for(let i=0;i<n;i++){ sxx+=(X[i]-mx)**2; syy+=(Y[i]-my)**2; sxy+=(X[i]-mx)*(Y[i]-my); }
+    // The two roots of Deming's quadratic: the one with the smaller sum of squared distances.
+    const dl=0.25/0.64, q0=syy-dl*sxx, rt=Math.sqrt(q0*q0+4*dl*sxy*sxy), S2=b=>X.reduce((t,x,i)=>t+(Y[i]-(my-b*mx)-b*x)**2/(0.25+0.64*b*b),0);
+    const bb=[(q0+rt)/(2*sxy),(q0-rt)/(2*sxy)].sort((u,v)=>S2(u)-S2(v))[0], aa=my-bb*mx;
+    const r=N.odrFit(line,X,Y,X.map(()=>0.5),X.map(()=>0.8),[0,0],[false,false]);
+    check("a straight line: Deming regression's slope and intercept", Math.abs(r.params[1]-bb)<1e-7*Math.abs(bb) && Math.abs(r.params[0]-aa)<1e-6*Math.abs(aa)+1e-9, `${r.params} vs ${aa}, ${bb}`);
+    const z=N.odrFit(line,X,Y,X.map(()=>0.5),X.map(()=>0),[0,0],[false,false]), q=N.lmFit(line,X,Y,X.map(()=>2),[0,0],[false,false]);
+    check("no X errors: the weighted fit itself", Math.abs(z.params[1]-q.params[1])<1e-8*Math.abs(q.params[1]) && Math.abs(z.errors[1]-q.errors[1])<1e-6*q.errors[1]); }
+  // No Y errors: the scatter in Y is found so that the reduced chi-squared is 1.
+  { const ss=[]; for(let k=0;k<40;k++){ const X=[], Y=[]; for(let i=0;i<300;i++){ const xt=i*0.1; X.push(xt+0.25*gs()); Y.push(2*xt+1*gs()); }
+      const r=N.odrFit(line,X,Y,null,X.map(()=>0.25),[0,1],[false,false]); ss.push(r.odr.s); }
+    check("X errors and no Y errors: the scatter in Y found is the true one (1)", Math.abs(mean(ss)-1)<0.05, mean(ss)); }
+  // A curve: a decay with errors in time.
+  { const f=(x,p)=>p[0]*Math.exp(-x/p[1]), X=[], Y=[]; for(let i=0;i<60;i++){ const xt=i*0.1; X.push(xt+0.05*gs()); Y.push(f(xt,[10,1.5])+0.05*gs()); }
+    const r=N.odrFit(f,X,Y,X.map(()=>0.05),X.map(()=>0.05),[8,1],[false,false]);
+    check("a decay with errors in time: converges, and finds its time constant", r.stats.converged && Math.abs(r.params[1]-1.5)<3*r.errors[1] && Math.abs(r.stats.redChi2-1)<0.5 && r.odr.dx.length===60, JSON.stringify({p:r.params,e:r.errors,c:r.stats.redChi2,it:r.odr.iter})); }
+}
+
+/* ---------- fit control: the iteration limit, the tolerance, one step at a time, slices ---------- */
+{
+  // A decay seen from poor starts takes a number of steps.
+  const f=(x,p)=>p[0]+p[1]*Math.exp(-x/p[2]), rnd=N.mulberry32(5), X=[], Y=[];
+  for(let i=0;i<80;i++){ const x=i*0.1; X.push(x); Y.push(1+4*Math.exp(-x/1.7)+0.02*(rnd()-0.5)); }
+  const W=X.map(()=>1), p0=[0,1,0.5], fx=[false,false,false], ps=p0.map(v=>Math.abs(v)||1);
+  const full=N.lmFit(f,X,Y,W,p0,fx), steps=[];
+  N.lmFit(f,X,Y,W,p0,fx,{onIter:q=>steps.push(q)});
+  check("fit control: a fit counts its steps, and each is heard", full.stats.converged && full.stats.iter===steps.length && steps.length>3, `${full.stats.iter} vs ${steps.length}`);
+  const one=N.lmFit(f,X,Y,W,p0,fx,{maxIter:1});
+  check("one iteration stops after one step, not settled, the parameters moved", one.stats.iter===1 && !one.stats.converged && one.params.some((v,i)=>v!==p0[i]));
+  check("one iteration is exactly the first step of the whole fit", one.params.every((v,i)=>v===steps[0].p[i]) && one.lambda===steps[0].lambda);
+  // One step at a time, carrying lambda and the finite-difference scale, is the whole fit's path.
+  let p=p0.slice(), lam, k=0, last=null;
+  while(k<500){ last=N.lmFit(f,X,Y,W,p,fx,{maxIter:1,lambda0:lam,pscale:ps}); k++; p=last.params; lam=last.lambda; if(last.stats.converged) break; }
+  check("steps taken one at a time follow the whole fit's path to the same result", p.every((v,i)=>v===full.params[i]), JSON.stringify([p,full.params]));
+  // Slices by a deadline already past: a pause after every step, carried on.
+  let q=p0.slice(), lq, done=0, slices=0, r=null;
+  do { r=N.lmFit(f,X,Y,W,q,fx,{maxIter:400-done,lambda0:lq,pscale:ps,deadline:-1}); slices++; done+=r.stats.iter; q=r.params; lq=r.lambda; } while(r.stats.paused && slices<500);
+  check("a fit run in slices pauses after each and ends where the whole fit does", slices>3 && q.every((v,i)=>v===full.params[i]) && done===full.stats.iter, `${slices} slices, ${done} steps`);
+  const loose=N.lmFit(f,X,Y,W,p0,fx,{tol:1e-3});
+  check("a looser tolerance settles in fewer steps", loose.stats.converged && loose.stats.iter<full.stats.iter, `${loose.stats.iter} vs ${full.stats.iter}`);
+  const lim=N.lmFit(f,X,Y,W,p0,fx,{maxIter:3});
+  check("an iteration limit stops a fit that has not settled", lim.stats.iter===3 && !lim.stats.converged && !lim.stats.paused);
+  const atMin=N.lmFit(f,X,Y,W,full.params,fx,{maxIter:1});
+  check("from the minimum, one iteration settles at once", atMin.stats.converged && atMin.stats.iter<=1, atMin.stats.iter);
+  const SX=X.map(()=>0.02), o=N.odrFit(f,X,Y,null,SX,p0,fx,{maxIter:2});
+  check("orthogonal distance honours the iteration limit", !o.error && o.odr.iter<=2, o.error||o.odr.iter);
+}
+
+/* ---------- limits: typed over the model's own, strict or not, equal, crossed ---------- */
+{
+  const B0=N.fitBounds(3,{p0:[1,2,3],fixed:[false,false,false]});
+  check("limits: none gives an open box and says there are none", B0.lo.every(v=>v===-Infinity)&&B0.hi.every(v=>v===Infinity)&&!B0.any&&!B0.fail);
+  const own=N.fitBounds(2,{mlo:[0,-Infinity],mhi:[5,Infinity],p0:[1,1],fixed:[false,false]});
+  check("limits: the model's own are used when none is typed", own.lo[0]===0&&own.hi[0]===5&&own.lo[1]===-Infinity&&own.any);
+  const typed=N.fitBounds(2,{lo:[1,null],hi:[false,null],mlo:[0,0],mhi:[5,5],p0:[2,2],fixed:[false,false]});
+  check("limits: a typed one wins over the model's, and none removes it", typed.lo[0]===1&&typed.hi[0]===Infinity&&typed.lo[1]===0&&typed.hi[1]===5);
+  const st=N.fitBounds(1,{lo:[0],slo:[true],p0:[2],fixed:[false]});
+  check("limits: a strict one stops just inside", st.lo[0]>0&&st.lo[0]<1e-8&&st.L[0]===0&&st.sl[0]===true, st.lo[0]);
+  const eq=N.fitBounds(2,{lo:[3,null],hi:[3,null],p0:[1,1],fixed:[false,false]});
+  check("limits: equal ones hold the parameter there, as Fix does", eq.fixed[0]===true&&eq.p0[0]===3&&eq.held.join()==="0"&&eq.lo[0]===-Infinity);
+  check("limits: crossed ones are refused in words", /above its highest/.test(N.fitBounds(1,{lo:[5],hi:[1],p0:[2],fixed:[false],names:["xc"]}).fail||""));
+  check("limits: equal and strict leave nothing between, and say so", /strictly between/.test(N.fitBounds(1,{lo:[2],hi:[2],shi:[true],p0:[2],fixed:[false]}).fail||""));
+  const fx=N.fitBounds(1,{lo:[0],hi:[1],p0:[7],fixed:[true]});
+  check("limits: a fixed parameter keeps its start whatever its limits", fx.lo[0]===-Infinity&&fx.hi[0]===Infinity&&fx.p0[0]===7&&!fx.any);
+  // y = a + b x through points falling with slope -1: a slope held at 0 or more ends at 0, at its limit.
+  const X=[], Y=[]; for(let i=0;i<30;i++){ X.push(i); Y.push(10-i+0.01*Math.sin(i)); }
+  const W=X.map(()=>1), f=(x,p)=>p[0]+p[1]*x, free=N.lmFit(f,X,Y,W,[1,1],[false,false]);
+  const Bi=N.fitBounds(2,{lo:[null,0],p0:[1,1],fixed:[false,false]}), inc=N.lmFit(f,X,Y,W,Bi.p0,Bi.fixed,{lo:Bi.lo,hi:Bi.hi});
+  check("limits: a slope held at 0 or more ends at 0, at its limit", inc.params[1]===0&&inc.atBound[1]&&!inc.atBound[0], JSON.stringify(inc.params));
+  const Bs=N.fitBounds(2,{lo:[null,0],slo:[false,true],p0:[1,1],fixed:[false,false]}), str=N.lmFit(f,X,Y,W,Bs.p0,Bs.fixed,{lo:Bs.lo,hi:Bs.hi});
+  check("limits: held strictly above 0, it stops just above, at its limit", str.params[1]>0&&str.params[1]<1e-6&&str.atBound[1], str.params[1]);
+  const Bn=N.fitBounds(2,{lo:[-100,-50],hi:[100,50],p0:[1,1],fixed:[false,false]}), non=N.lmFit(f,X,Y,W,Bn.p0,Bn.fixed,{lo:Bn.lo,hi:Bn.hi});
+  check("limits: limits that do not bind give the free fit exactly", non.params.every((v,i)=>v===free.params[i])&&non.errors.every((v,i)=>v===free.errors[i])&&!non.atBound.some(Boolean));
+  const Bo=N.fitBounds(2,{lo:[null,-5],hi:[null,-0.5],p0:[0,3],fixed:[false,false]}), oob=N.lmFit(f,X,Y,W,Bo.p0,Bo.fixed,{lo:Bo.lo,hi:Bo.hi});
+  check("limits: a start outside them begins at the nearest and still finds the fit", Math.abs(oob.params[1]+1)<1e-3&&oob.stats.converged, JSON.stringify(oob.params));
+  const He=N.fitBounds(2,{lo:[10,null],hi:[10,null],p0:[1,1],fixed:[false,false]}), held=N.lmFit(f,X,Y,W,He.p0,He.fixed,{lo:He.lo,hi:He.hi});
+  check("limits: a parameter held by equal limits is not fitted, the other is", held.params[0]===10&&held.stats.dof===29&&Math.abs(held.params[1]+1)<1e-3);
+  // A limit that binds: the parameter sits the step out (an active set) and the
+  // others settle as they would with it fixed there, in a few iterations, not 400.
+  const rd=N.mulberry32(3), Xd=[], Yd=[]; for(let i=0;i<80;i++){ const x=i*0.1; Xd.push(x); Yd.push(1+4*Math.exp(-x/1.7)+0.03*(rd()-0.5)); }
+  const fd=(x,p)=>p[0]+p[1]*Math.exp(-x/p[2]), Wd=Xd.map(()=>1);
+  const Bd=N.fitBounds(3,{lo:[null,null,2],p0:[0.9,3.5,1.5],fixed:[false,false,false]}), bd=N.lmFit(fd,Xd,Yd,Wd,Bd.p0,Bd.fixed,{lo:Bd.lo,hi:Bd.hi});
+  const fxd=N.lmFit(fd,Xd,Yd,Wd,[0.9,3.5,2],[false,false,true]);
+  check("limits: one that binds settles in a few iterations", bd.stats.converged&&bd.stats.iter<20&&bd.params[2]===2&&bd.atBound[2], `${bd.stats.iter} iterations`);
+  const SXd=Xd.map(()=>0.01), od=N.odrFit(fd,Xd,Yd,null,SXd,Bd.p0,Bd.fixed,{lo:Bd.lo,hi:Bd.hi});
+  check("limits: orthogonal distance with one that binds settles too, on the limit", !od.error&&od.odr.conv&&od.odr.iter<40&&od.params[2]===2&&od.atBound[2], od.error||`${od.odr.iter} iterations, ${od.params}`);
+  check("limits: …where the fit with that parameter fixed at the limit settles", rel(bd.params[0],fxd.params[0],1e-6)&&rel(bd.params[1],fxd.params[1],1e-6)&&rel(bd.stats.chi2,fxd.stats.chi2,1e-9), JSON.stringify([bd.params,fxd.params]));
+}
+
+/* ---------- the curve fit's models: each recovered from its own curve, from its own guess ---------- */
+{
+  const M = N.MODELS, ids = Object.keys(M);
+  // A model's id never changes: stored fits name theirs by it, with these many parameters.
+  const shipped = { linear: 2, poly2: 3, poly3: 4, gauss: 4, lorentz: 4, expdec: 3, boltz: 4 };
+  check("models: the ids shipped before are there with their parameters", Object.entries(shipped).every(([k, n]) => M[k] && M[k].params.length === n));
+  const listed = N.MODEL_GROUPS.flatMap(g => g[1]);
+  check("models: 25 in the list, each once, each a model", listed.length === 25 && new Set(listed).size === 25 && listed.every(k => M[k]), listed.length);
+  check("models: every model not hidden is in the list", ids.filter(k => !M[k].hide).every(k => listed.includes(k)), ids.filter(k => !M[k].hide && !listed.includes(k)).join(","));
+  check("models: polynomials of order 1 to 9, the order and the id going both ways", [1, 2, 3, 4, 5, 6, 7, 8, 9].every(k => M[N.polyIdOf(k)] && N.polyOrderOf(N.polyIdOf(k)) === k && M[N.polyIdOf(k)].params.length === k + 1) && N.polyOrderOf("gauss") === 0);
+  const shape = ids.filter(k => { const m = M[k], n = m.params.length;
+    return !(m.ph.length === n && m.mean.length === n && m.dim.length === n && typeof m.formula === "string" && m.formula.length && (!m.lo || m.lo.length === n) && (!m.hi || m.hi.length === n) && (m.derived || []).every(d => typeof d.fn === "function")); });
+  check("models: every model has a label, a meaning and a unit for each parameter, and a formula", !shape.length, shape.join(","));
+  const flat = ids.filter(k => { const m = M[k], [a, b] = m.sketch.x, ys = []; for (let i = 0; i < 48; i++) { const y = m.f(a + (b - a) * i / 47, m.sketch.p); if (Number.isFinite(y)) ys.push(y); }
+    return ys.length < 40 || Math.max(...ys) - Math.min(...ys) <= 1e-9 * Math.max(1, Math.abs(Math.max(...ys))); });
+  check("models: every sketch is drawn from finite values and is not flat", !flat.length, flat.join(","));
+  // Synthetic data from typical values, the model's own guess, and a fit within its own limits.
+  const cases = { linear: [[0, 10], [2, 0.5]], poly2: [[-2, 3], [1, -0.5, 0.3]], poly3: [[-2, 3], [1, -0.5, 0.3, 0.1]], poly4: [[-2, 2], [1, -0.5, 0.3, 0.1, -0.05]],
+    poly5: [[-2, 2], [1, -0.5, 0.3, 0.1, -0.05, 0.02]], poly6: [[-1.5, 1.5], [1, -0.5, 0.3, 0.1, -0.05, 0.02, 0.01]], poly7: [[-1.5, 1.5], [1, -0.5, 0.3, 0.1, -0.05, 0.02, 0.01, -0.01]],
+    poly8: [[-1.5, 1.5], [1, -0.5, 0.3, 0.1, -0.05, 0.02, 0.01, -0.01, 0.005]], poly9: [[-1.5, 1.5], [1, -0.5, 0.3, 0.1, -0.05, 0.02, 0.01, -0.01, 0.005, 0.003]],
+    expdec: [[0, 10], [1, 5, 2]], expdec2: [[0, 20], [0.5, 4, 0.8, 2, 6]], expdec3: [[0, 40], [0.2, 3, 0.5, 2, 3, 1.5, 15]], expgrow: [[0, 5], [1, 0.5, 1.5]], riseplat: [[0, 10], [0.5, 3, 2]],
+    boltz: [[-10, 10], [1, 5, 0.5, 1.2]], logistic: [[0.05, 20], [0.2, 4, 2, 2.5]], doseresp: [[-4, 4], [10, 90, 0.3, 1.2]], hill: [[0, 10], [3, 2, 2.5]], gompertz: [[-2, 8], [5, 0.8, 1.5]], mm: [[0, 20], [4, 3]],
+    gauss: [[-10, 10], [0.5, 3, 1, 1.5]], lorentz: [[-10, 10], [0.5, 3, 1, 2]], voigt: [[-10, 10], [0.2, 10, 0.5, 1.5, 1.0]], pvoigt: [[-10, 10], [0.2, 10, 0.5, 2, 0.4]], pearson7: [[-10, 10], [0.2, 10, 0.5, 2, 1.8]],
+    lognormal: [[0.05, 10], [0.1, 5, 2, 0.4]], extreme: [[-5, 10], [0.3, 4, 1, 1.2]], power: [[0.1, 10], [2, 1.5]], logarithm: [[0.1, 10], [1, 2]], arrhenius: [[250, 400], [1e7, 5e4]],
+    sine: [[0, 10], [0.5, 2, 0.3, 2.5]], dsine: [[0, 10], [0.5, 3, 0.3, 1.7, 4]] };
+  check("models: every model has a recovery case", ids.every(k => cases[k]), ids.filter(k => !cases[k]).join(","));
+  const run = (k, r, pt, noise, seed) => { const m = M[k], rnd = N.mulberry32(seed), n = k.startsWith("expdec") ? 300 : 200, X = [];
+    for (let i = 0; i < n; i++) X.push(r[0] + (r[1] - r[0]) * i / (n - 1));
+    const top = Math.max(...X.map(x => Math.abs(m.f(x, pt)))), Y = X.map(x => m.f(x, pt) + top * noise * (2 * rnd() - 1));
+    const g = m.guess(X, Y), B = N.fitBounds(pt.length, { mlo: m.lo, mhi: m.hi, p0: g, fixed: g.map(() => false), names: m.params });
+    return { m, g, X, res: N.lmFit(m.f, X, Y, X.map(() => 1), B.p0, B.fixed, { lo: B.lo, hi: B.hi }) }; };
+  for (const [noise, tag] of [[1e-4, "a little noise"], [0.02, "2% noise"]]) {
+    const bad = [];
+    for (const [k, [r, pt]] of Object.entries(cases)) { const { m, g, res } = run(k, r, pt, noise, 7);
+      const ok = g.length === pt.length && !res.error && res.stats.converged && res.params.every((v, i) => Math.abs(v - pt[i]) <= 5 * res.errors[i] + 1e-9 * Math.abs(pt[i]))
+        && N.derivedWithErr(m, res.params, res.cov).every(d => Number.isFinite(d.v) && Number.isFinite(d.e));
+      if (!ok) bad.push(`${k} ${res.error || JSON.stringify(res.params.map(v => +v.toPrecision(4)))}`); }
+    check(`models: each one's guess leads its fit to the true values, within 5 errors (${tag})`, !bad.length, bad.join("; "));
+  }
+  // The guesses on their own: a wave of 1.3 cycles, an extreme-value peak leaning left.
+  { const { res } = run("sine", [0, 13], [1, 2, 0.7, 10], 0.01, 3); check("models: a sine wave of 1.3 cycles is found from its own guess", !res.error && rel(Math.abs(res.params[1]), 2, 0.02) && rel(res.params[3], 10, 0.02), JSON.stringify(res.params)); }
+  { const { g, res } = run("extreme", [-10, 5], [0.3, 4, -1, -1.2], 1e-3, 5); check("models: an extreme-value peak leaning left is guessed with a negative width and found", g[3] < 0 && !res.error && rel(res.params[3], -1.2, 0.01), JSON.stringify(g)); }
+  // Derived values mean what they say.
+  { const p = [0.2, 10, 0.5, 1.5, 1.0], d = N.derivedWithErr(M.voigt, p, p.map(() => p.map(() => 0)));
+    check("models: a Voigt's FWHM is the profile's own, its height the top's", rel(d[1].v, N.PEAKS.voigt.fwhm([0.5, 10, 1.5, 1.0]), 1e-9) && rel(d[0].v, M.voigt.f(0.5, p) - 0.2, 1e-9)); }
+  { const p = [0.1, 5, 2, 0.4], z = p.map(() => p.map(() => 0)), d = N.derivedWithErr(M.lognormal, p, z), area = numericArea((x, q) => M.lognormal.f(x, q) - q[0], p, 1e-6, 60);
+    const mode = d[0].v; check("models: a log-normal peak's area is A, its top at the mode with the height said", rel(area, 5, 1e-4) && rel(M.lognormal.f(mode, p) - 0.1, d[2].v, 1e-9) && M.lognormal.f(mode * 1.001, p) < M.lognormal.f(mode, p) && M.lognormal.f(mode * 0.999, p) < M.lognormal.f(mode, p), JSON.stringify([area, d])); }
+  { const p = [0, 4, 1, 1.2], d = N.derivedWithErr(M.extreme, p, p.map(() => p.map(() => 0))), f = (x, q) => M.extreme.f(x, q);
+    check("models: an extreme-value peak's FWHM and area are what it says", rel(d[0].v, numericFWHM(f, p, 1, 30), 1e-6) && rel(d[1].v, numericArea(f, p, -20, 80), 1e-5) && near(N.EXT_FW, 2.4464, 1e-4), JSON.stringify(d)); }
+  { const p = [5, 0.8, 1.5], d = N.derivedWithErr(M.gompertz, p, p.map(() => p.map(() => 0))), h = 1e-5, sl = (M.gompertz.f(1.5 + h, p) - M.gompertz.f(1.5 - h, p)) / (2 * h);
+    check("models: Gompertz rises fastest at xc, at the slope said", rel(d[0].v, sl, 1e-6), `${d[0].v} vs ${sl}`); }
+  { const d = N.derivedWithErr(M.doseresp, [10, 90, 0.3, 1.2], [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0.01, 0], [0, 0, 0, 0]]);
+    check("models: the dose halfway is 10 to the power of log x0, with its error carried", rel(d[0].v, Math.pow(10, 0.3), 1e-12) && rel(d[0].e, Math.pow(10, 0.3) * Math.LN10 * 0.1, 1e-4), JSON.stringify(d)); }
+  { const d = N.derivedWithErr(M.arrhenius, [1e7, 5e4], [[0, 0], [0, 0]]); check("models: an activation energy in kJ/mol and in eV", rel(d[0].v, 50, 1e-12) && rel(d[1].v, 0.5182, 1e-3), JSON.stringify(d)); }
+  // X a model cannot take is said, not fitted.
+  const xb = N.modelXBad(M.power, [0, 1, 2]), xh = N.modelXBad(M.hill, [0, 1, 2]), xh2 = N.modelXBad(M.hill, [-1, 1]);
+  check("models: X a model cannot take is found (a power of x at 0; Hill below 0), and every X of the others will do", xb && xb.x === 0 && xb.strict && xh === null && xh2 && xh2.x === -1 && !xh2.strict && N.modelXBad(M.gauss, [-5, 0, 5]) === null);
+}
+
+/* ---------- confidence levels, the F test, residuals and leverage, outliers, ANOVA ---------- */
+{
+  const tab = [[0.95, 1, 12.7062047], [0.95, 2, 4.3026527], [0.95, 10, 2.2281389], [0.99, 1, 63.6567412], [0.99, 30, 2.7499957], [0.9, 5, 2.0150484], [0.999, 3, 12.9239786]];
+  check("t for any confidence level, against the tables", tab.every(([l, d, t]) => near(N.tCrit(l, d), t, 2e-6)), tab.map(([l, d]) => N.tCrit(l, d)).join(","));
+  check("t at 95% for a great many degrees of freedom is the normal 1.96", near(N.tCrit(0.95, 1e6), 1.959966, 1e-5) && near(N.tCrit(0.6827, 1e6), 1.0, 2e-4));
+  check("the 97.5% t is t at 95%, exact now", N.tQuantile975(7) === N.tCrit(0.95, 7) && near(N.tQuantile975(7), 2.3646243, 1e-6));
+  check("t refuses a level outside (0, 1) or no degrees of freedom", [N.tCrit(1, 5), N.tCrit(0, 5), N.tCrit(0.95, 0), N.tCrit(NaN, 5)].every(Number.isNaN));
+  check("F's probability: (1 + d1 F/d2)^(-d2/2) when d1 = 2", rel(N.fPvalue(4, 2, 10), Math.pow(1.8, -5), 1e-9) && N.fPvalue(0, 3, 9) === 1 && Number.isNaN(N.fPvalue(2, 0, 9)));
+  // A straight line, where leverage and the deleted residuals have closed forms.
+  const rnd = N.mulberry32(11), n = 25, X = [], Y = [];
+  for (let i = 0; i < n; i++) { const x = i * 0.4 + (i % 3) * 0.13; X.push(x); Y.push(2 + 0.7 * x + 0.3 * (rnd() - 0.5) * 2); }
+  const lin = (x, p) => p[0] + p[1] * x, fit = N.lmFit(lin, X, Y, X.map(() => 1), [0, 1], [false, false]);
+  const rs = N.residualStats(lin, X, Y, null, fit.params, [true, true]);
+  const mx = X.reduce((a, b) => a + b) / n, sxx = X.reduce((a, x) => a + (x - mx) ** 2, 0);
+  check("leverage of a straight line is 1/n + (x − x̄)²/Sxx, and adds up to 2", rs.h.every((h, i) => near(h, 1 / n + (X[i] - mx) ** 2 / sxx, 1e-7)) && near(rs.h.reduce((a, b) => a + b), 2, 1e-7));
+  check("s² is the residual sum of squares over the degrees of freedom", rel(rs.s * rs.s, fit.stats.rss / (n - 2), 1e-9) && rs.dof === n - 2);
+  check("standardised and studentised residuals", rs.std.every((v, i) => rel(v, rs.e[i] / rs.s, 1e-12)) && rs.stud.every((v, i) => rel(v, rs.e[i] / (rs.s * Math.sqrt(1 - rs.h[i])), 1e-12)));
+  // The deleted residual against refitting without the point, every point.
+  const brute = X.map((_, k) => { const Xk = X.filter((_, i) => i !== k), Yk = Y.filter((_, i) => i !== k), fk = N.lmFit(lin, Xk, Yk, Xk.map(() => 1), fit.params.slice(), [false, false]);
+    return rs.e[k] / (Math.sqrt(fk.stats.rss / (n - 3)) * Math.sqrt(1 - rs.h[k])); });
+  check("a studentised deleted residual is the point's residual against s refitted without it", rs.del.every((v, i) => rel(v, brute[i], 1e-5)), JSON.stringify([rs.del[3], brute[3]]));
+  const rf = N.residualStats(lin, X, Y, null, fit.params, [true, false]);
+  check("a fixed parameter is not free: the leverages add up to 1", near(rf.h.reduce((a, b) => a + b), 1, 1e-7) && rf.dof === n - 1);
+  const W = X.map((_, i) => 1 / (0.2 + 0.05 * i)), fw = N.lmFit(lin, X, Y, W, [0, 1], [false, false]), rw = N.residualStats(lin, X, Y, W, fw.params, [true, true]);
+  check("weighted: the residuals are W·(y − f), s² is reduced χ², the leverages add up to 2", rw.e.every((v, i) => rel(v, (Y[i] - lin(X[i], fw.params)) * W[i], 1e-12)) && rel(rw.s * rw.s, fw.stats.redChi2, 1e-9) && near(rw.h.reduce((a, b) => a + b), 2, 1e-7));
+  // A curve: the leverages add up to the free parameters there too.
+  const M = N.MODELS.expdec, Xd = [], Yd = [], rd = N.mulberry32(4); for (let i = 0; i < 60; i++) { const x = i * 0.15; Xd.push(x); Yd.push(M.f(x, [1, 4, 1.7]) + 0.02 * (rd() - 0.5)); }
+  const fd = N.lmFit(M.f, Xd, Yd, Xd.map(() => 1), M.guess(Xd, Yd), [false, false, false]), rdd = N.residualStats(M.f, Xd, Yd, null, fd.params, [true, true, true]);
+  check("a curve's leverages add up to its free parameters, each between 0 and 1", near(rdd.h.reduce((a, b) => a + b), 3, 1e-5) && rdd.h.every(h => h >= 0 && h <= 1));
+  // Outliers: one planted is found and only it; clean data rarely flag anything.
+  const Yo = Y.slice(); Yo[12] += 2.5; const fo = N.lmFit(lin, X, Yo, X.map(() => 1), [0, 1], [false, false]), ro = N.residualStats(lin, X, Yo, null, fo.params, [true, true]), oo = N.outliersOf(ro, 0.95);
+  check("a planted outlier is the one point past the limit", oo.idx.length === 1 && oo.idx[0] === 12 && oo.lim > N.tCrit(0.95, n - 3), JSON.stringify(oo));
+  let any = 0; const rr = N.mulberry32(21);
+  for (let k = 0; k < 200; k++) { const Yc = X.map(x => 2 + 0.7 * x + 0.3 * Math.sqrt(-2 * Math.log(rr() || 1e-12)) * Math.cos(2 * Math.PI * rr())), fc = N.lmFit(lin, X, Yc, X.map(() => 1), [0, 1], [false, false]);
+    if (N.outliersOf(N.residualStats(lin, X, Yc, null, fc.params, [true, true]), 0.95).idx.length) any++; }
+  check("with no outlier, some point is flagged in about one data set in twenty, not in every one", any <= 22, `${any} of 200`);
+  check("too few points for a deleted residual: no outliers, no limit", Number.isNaN(N.outliersOf(N.residualStats(lin, [0, 1, 2], [1, 2, 4], null, [1, 1], [true, true]), 0.95).lim));
+  // ANOVA.
+  const an = N.fitAnova(Y, null, rs.rss, 2), my = Y.reduce((a, b) => a + b) / n;
+  check("ANOVA: what the fit explains and the residual make the uncorrected total", rel(an.reg.ss + an.res.ss, Y.reduce((a, y) => a + y * y, 0), 1e-12) && an.reg.df === 2 && an.res.df === n - 2 && an.utot.df === n && an.ctot.df === n - 1);
+  check("ANOVA: the corrected total, mean squares, F and its probability", rel(an.ctot.ss, Y.reduce((a, y) => a + (y - my) ** 2, 0), 1e-12) && rel(an.reg.F, (an.reg.ss / 2) / (an.res.ss / (n - 2)), 1e-12) && an.reg.p === N.fPvalue(an.reg.F, 2, n - 2));
+  const aw = N.fitAnova(Y, W, rw.rss, 2);
+  check("ANOVA weighted: sums of w·y² about zero and about the weighted mean", rel(aw.utot.ss, Y.reduce((a, y, i) => a + W[i] * W[i] * y * y, 0), 1e-12) && aw.ctot.ss < aw.utot.ss);
+  const C = N.corrMat(fit.cov, [0, 1]);
+  check("the correlation matrix: ones on the diagonal, symmetric, the intercept and slope anticorrelated over positive x", near(C[0][0], 1, 1e-12) && near(C[1][1], 1, 1e-12) && C[0][1] === C[1][0] && C[0][1] < 0);
+}
+
+/* ---------- Find X/Y: Y at an X with its interval, every X where the curve takes a Y ---------- */
+{
+  const lin = (x, p) => p[0] + p[1] * x, p = [1.5, 0.8], C = [[0.04, -0.006], [-0.006, 0.0016]], t = 2.1;
+  const at = N.fitYAt(lin, p, C, [false, false], 3, t), v = 0.04 + 2 * 3 * -0.006 + 9 * 0.0016;
+  check("Y at an X: a straight line's value, and its error a + 2x·cov(a, b) + x²·var(b)", rel(at.y, 3.9, 1e-12) && rel(at.se, Math.sqrt(v), 1e-6), JSON.stringify(at));
+  check("Y at an X: the interval is the value ± t errors", rel(at.lo, at.y - t * at.se, 1e-12) && rel(at.hi, at.y + t * at.se, 1e-12));
+  const fx = N.fitXAt(lin, p, C, [false, false], 4.7, 0, 10, t);
+  check("X at a Y: a straight line crosses it once, at (y − a)/b", fx.xs.length === 1 && rel(fx.xs[0].x, 4, 1e-12) && !fx.xs[0].touch, JSON.stringify(fx.xs));
+  const sy = N.fitYAt(lin, p, C, [false, false], 4, t).se;
+  check("X at a Y: its error is the curve's there over the slope", rel(fx.xs[0].se, sy / 0.8, 1e-5) && rel(fx.xs[0].hi - fx.xs[0].lo, 2 * t * sy / 0.8, 1e-5));
+  // The delta method for the inverse against the spread of (y − a)/b over parameters drawn from the covariance.
+  const L11 = Math.sqrt(C[0][0]), L21 = C[1][0] / L11, L22 = Math.sqrt(C[1][1] - L21 * L21), rnd = N.mulberry32(17), gs = () => Math.sqrt(-2 * Math.log(rnd() || 1e-12)) * Math.cos(2 * Math.PI * rnd());
+  const pC = [[0.0004, -0.00006], [-0.00006, 0.000016]], l11 = Math.sqrt(pC[0][0]), l21 = pC[1][0] / l11, l22 = Math.sqrt(pC[1][1] - l21 * l21), xs = [];
+  for (let k = 0; k < 6000; k++) { const z1 = gs(), z2 = gs(), a = p[0] + l11 * z1, b = p[1] + l21 * z1 + l22 * z2; xs.push((4.7 - a) / b); }
+  const mx = xs.reduce((s, x) => s + x, 0) / xs.length, sdx = Math.sqrt(xs.reduce((s, x) => s + (x - mx) ** 2, 0) / (xs.length - 1)), fs = N.fitXAt(lin, p, pC, [false, false], 4.7, 0, 10, t).xs[0].se;
+  check("X at a Y: the error by the delta method matches the spread of the inverse over 6000 draws", rel(fs, sdx, 0.04), `${fs} against ${sdx}`);
+  void L22;
+  // A quadratic takes a value twice; a fixed parameter's covariance is not read; an unknown one gives no error.
+  const q = (x, p) => p[0] + p[1] * x + p[2] * x * x, pq = [1, -4, 1], Cq = [[0.01, 0, 0], [0, 0.01, 0], [0, 0, 0.001]];
+  const r2 = N.fitXAt(q, pq, Cq, null, -1, -0.3, 5.3, 2);
+  check("X at a Y: a parabola crosses it twice, at 2 ∓ √2, falling then rising", r2.xs.length === 2 && rel(r2.xs[0].x, 2 - Math.SQRT2, 1e-10) && rel(r2.xs[1].x, 2 + Math.SQRT2, 1e-10) && r2.xs[0].slope < 0 && r2.xs[1].slope > 0, JSON.stringify(r2.xs));
+  const top = N.fitXAt(q, pq, Cq, null, -3, -0.3, 5.3, 2);
+  check("X at a Y: the parabola's lowest point typed exactly is found once, as a touch with no error", top.xs.length === 1 && near(top.xs[0].x, 2, 1e-6) && top.xs[0].touch && top.xs[0].se == null, JSON.stringify(top.xs));
+  const no = N.fitXAt(q, pq, Cq, null, -3.5, -0.3, 5.3, 2);
+  check("X at a Y: below the curve's lowest value, none, with the range the curve takes", no.xs.length === 0 && rel(no.ymin, -3, 1e-6) && rel(no.ymax, q(5.3, pq), 1e-9), JSON.stringify(no));
+  const Cfx = [[0.01, 0, null], [0, 0.01, null], [null, null, null]];
+  check("Y at an X: a fixed parameter's unknown covariance is not read", N.fitYAt(q, pq, Cfx, [false, false, true], 1, 2).se > 0);
+  check("Y at an X: a free parameter's unknown covariance gives no error, and no interval", (r => r.se === null && r.lo === null && r.hi === null && r.y === -2)(N.fitYAt(q, pq, Cfx, null, 1, 2)));
+  // A decay never reaches its level; a Gaussian's top typed exactly; a sine many times.
+  const M = N.MODELS.expdec, pd = [0.5, 3, 1.2], nd = N.fitXAt(M.f, pd, null, null, 0.4, 0, 8, 2);
+  check("X at a Y: a decay to 0.5 never takes 0.4 on 0 to 8, and says what it takes", nd.xs.length === 0 && nd.ymin > 0.5 && rel(nd.ymax, 3.5, 1e-9), JSON.stringify(nd));
+  const d1 = N.fitXAt(M.f, pd, null, null, 2, 0, 8, 2);
+  check("X at a Y: a decay takes 2 once, at τ ln(A/(y − y0)), with no error when there is no covariance", d1.xs.length === 1 && rel(d1.xs[0].x, 1.2 * Math.log(3 / 1.5), 1e-10) && d1.xs[0].se === null, JSON.stringify(d1.xs));
+  const G = N.MODELS.gauss, pg = G.guess([0, 1, 2, 3, 4, 5, 6], [0, 0.1, 1, 3, 1, 0.1, 0]);
+  const hTop = G.f(pg[2], pg), gt = N.fitXAt(G.f, pg, null, null, hTop, 0.13, 6.07, 2);
+  check("X at a Y: a Gaussian's top typed exactly is found at its centre", gt.xs.length === 1 && near(gt.xs[0].x, pg[2], 1e-5 * 6) && gt.xs[0].touch, JSON.stringify({pg, xs: gt.xs}));
+  const sn = (x, p) => Math.sin(x), ss = N.fitXAt(sn, [], null, null, 0.5, 0, 40 * Math.PI, 2, 4000);
+  check("X at a Y: a sine over 20 periods takes 0.5 forty times, each where sin is 0.5", ss.xs.length === 40 && ss.xs.every(r => near(Math.sin(r.x), 0.5, 1e-9)));
+  check("X at a Y: nothing typed, or no range, gives none", N.fitXAt(lin, p, C, null, NaN, 0, 1, 2).xs.length === 0 && N.fitXAt(lin, p, C, null, 2, 1, 1, 2).xs.length === 0);
+  check("Y at an X where the curve has no value: none", N.fitYAt((x) => Math.log(x), [], null, null, -1, 2) === null);
+}
+
+/* ---------- How points count: none, the Y error, counting, a column's weights ---------- */
+{
+  const Y = [4, 9, 16, 0, 25], E = [0.5, 1, 2, null, 0], Wc = [1, 4, 0, 9, 16];
+  const n0 = N.fitWeights("none", Y), ye = N.fitWeights("yerr", Y, E), ct = N.fitWeights("counts", Y), cw = N.fitWeights("col", Y, null, Wc);
+  check("no weights: every point 1, the errors scaled by the reduced χ²", n0.W.every(w => w === 1) && n0.scale === true);
+  check("Y error weights refuse points with no error above 0, and say how many", ye.fail === "noerr" && ye.bad === 2);
+  check("counting weights refuse counts of 0 or below", ct.fail === "nocount" && ct.bad === 1);
+  check("a column's weights refuse weights of 0 or below", cw.fail === "noweight" && cw.bad === 1);
+  const ok = N.fitWeights("yerr", [1, 2], [0.5, 2]), oc = N.fitWeights("counts", [4, 100]), oc2 = N.fitWeights("col", [1, 2], null, [4, 0.25]);
+  check("the factors: 1/σ, 1/√y, √w; absolute ones not scaled, a column's scaled", ok.W[0] === 2 && ok.W[1] === 0.5 && !ok.scale && oc.W[0] === 0.5 && oc.W[1] === 0.1 && !oc.scale && oc2.W[0] === 2 && oc2.W[1] === 0.5 && oc2.scale);
+  // lmFit's scale: the same fit with the covariance scaled or not differs by √(reduced χ²).
+  const lin = (x, p) => p[0] + p[1] * x, X = [], Yl = [], rnd = N.mulberry32(5);
+  for (let i = 0; i < 40; i++) { X.push(i); Yl.push(3 + 0.5 * i + (rnd() - 0.5) * 2); }
+  const W = X.map((_, i) => 1 / (0.5 + 0.02 * i)), a = N.lmFit(lin, X, Yl, W, [0, 1], [false, false]), b = N.lmFit(lin, X, Yl, W, [0, 1], [false, false], { scale: true });
+  check("weighted, the covariance unscaled; asked to, scaled by the reduced χ²", rel(b.errors[1], a.errors[1] * Math.sqrt(a.stats.redChi2), 1e-9) && rel(a.params[1], b.params[1], 1e-12));
+  // Relative weights: a column's weights times 100 change nothing.
+  const w1 = X.map((_, i) => 1 + (i % 5)), f1 = N.lmFit(lin, X, Yl, N.fitWeights("col", Yl, null, w1).W, [0, 1], [false, false], { scale: true }), f2 = N.lmFit(lin, X, Yl, N.fitWeights("col", Yl, null, w1.map(v => v * 100)).W, [0, 1], [false, false], { scale: true });
+  check("a column's weights are relative: times 100, the same values and errors", rel(f1.params[1], f2.params[1], 1e-9) && rel(f1.errors[1], f2.errors[1], 1e-9) && rel(f1.errors[0], f2.errors[0], 1e-9));
+  // Counting statistics: Poisson counts on a line, fitted with 1/y; the slope's error against its spread, the reduced χ² near 1.
+  const rp = N.mulberry32(77), bs = [], es = [], reds = [];
+  for (let k = 0; k < 300; k++) { const Xc = [], Yc = []; for (let i = 0; i < 50; i++) { Xc.push(i); Yc.push(N.poissonRand(200 + 6 * i, rp)); }
+    const r = N.lmFit(lin, Xc, Yc, N.fitWeights("counts", Yc).W, [200, 6], [false, false]); bs.push(r.params[1]); es.push(r.errors[1]); reds.push(r.stats.redChi2); }
+  const mb = bs.reduce((s, v) => s + v, 0) / bs.length, sb = Math.sqrt(bs.reduce((s, v) => s + (v - mb) ** 2, 0) / (bs.length - 1)), me = es.reduce((s, v) => s + v, 0) / es.length, mr = reds.reduce((s, v) => s + v, 0) / reds.length;
+  check("counting weights on Poisson counts: the slope's error matches its spread over 300 sets", rel(me, sb, 0.12), `${me} against ${sb}`);
+  check("counting weights on Poisson counts: the reduced χ² is near 1", near(mr, 1, 0.05) && near(mb, 6, 4 * sb / Math.sqrt(300)), `${mr}, slope ${mb}`);
+}
+
+/* ---------- The apparent fit: a curve fitted as its points look on logarithmic axes ---------- */
+{
+  const lin = (x, p) => p[0] + p[1] * x, X = [], Y = [], rnd = N.mulberry32(9);
+  for (let i = 1; i <= 40; i++) { const x = i * 0.5; X.push(x); Y.push(3 * x ** 1.5 * Math.exp(0.01 * (rnd() - 0.5))); }
+  const app = { x: "log10", y: "log10" }, t = N.appPoints(app, X, Y, X.map(() => 1), false);
+  const f = N.lmFit(lin, t.X, t.Y, t.W, [0, 1], [false, false]);
+  check("a straight line on log–log axes: the slope is the power, the intercept log₁₀ of the factor", near(f.params[1], 1.5, 0.002) && near(f.params[0], Math.log10(3), 0.002), JSON.stringify(f.params));
+  const g = N.appModel(lin, app);
+  check("the model in the data's terms is 10^(a + b log₁₀ x), the power law", rel(g(4, f.params), 10 ** (f.params[0] + f.params[1] * Math.log10(4)), 1e-12) && rel(g(4, f.params), 3 * 4 ** 1.5, 0.01) && Number.isNaN(g(-1, f.params)));
+  const w = N.appPoints({ x: null, y: "ln" }, [1, 2], [2, 5], [0.5, 0.25], true);
+  check("weights go with the logarithm: σ' = σ/y for ln, X untouched", w.X[0] === 1 && rel(w.Y[1], Math.log(5), 1e-15) && rel(w.W[0], 0.5 * 2, 1e-12) && rel(w.W[1], 0.25 * 5, 1e-12));
+  const w10 = N.appPoints({ x: null, y: "log10" }, [1], [100], [1], true), w0 = N.appPoints({ x: null, y: "log10" }, [1], [100], [1], false);
+  check("for log₁₀, σ' = σ/(y ln 10); with no weights, none", rel(w10.W[0], 100 * Math.LN10, 1e-12) && w0.W[0] === 1);
+  const bad = N.appPoints({ x: "log10", y: "log2" }, [0, 1, -2], [1, 0, 3], [1, 1, 1], false);
+  check("what a logarithm cannot take is counted, in X and Y", bad.badX === 2 && bad.badY === 1 && !bad.X);
+  const sx = N.appModel((x, p) => p[0] * x, { x: "log2", y: null });
+  check("only X on a logarithm: f(log₂ x)", sx(8, [2]) === 6 && N.appModel(lin, null) === lin);
+}
+
+/* ---------- Starting values and constraints as formulas ---------- */
+{
+  const G = (x, p) => p[0] + p[1] * Math.exp(-0.5 * ((x - p[2]) / p[3]) ** 2), X = [], Y = [];
+  for (let i = 0; i <= 400; i++) { const x = i * 0.05; X.push(x); Y.push(G(x, [1, 8, 9.3, 1.2])); }
+  const M = N.dataMeasures(X, Y);
+  check("the data's measures: xat at the top, ymax, yspan, the width at half height, the area", near(M.xat, 9.3, 0.026) && near(M.ymax, 9, 1e-3) && near(M.yspan, M.ymax - M.ymin, 1e-12) && rel(M.fwhm, 2 * Math.sqrt(2 * Math.log(2)) * 1.2, 0.01) && rel(M.area, 20 * 1 + 8 * 1.2 * Math.sqrt(2 * Math.PI), 0.002), JSON.stringify(M));
+  const s1 = N.evalStart("max(y) - min(y)", M), s2 = N.evalStart("xat", M), s3 = N.evalStart("fwhm/2.3548", M);
+  check("a start formula: max(y) − min(y), xat, fwhm/2.3548", rel(s1.v, M.yspan, 1e-12) && s2.v === M.xat && rel(s3.v, 1.2, 0.01), JSON.stringify([s1, s2, s3]));
+  check("a start formula refused in words: a name that is no measure, x alone, nothing", /“height” is not a measure/.test(N.evalStart("height*2", M).err) && /x alone/.test(N.evalStart("x+1", M).err) && /empty/.test(N.evalStart(" ", M).err));
+  const nm = ["a", "b", "c"], E = t => (N.parseCons(t, nm).err || {}).msg || "";
+  check("constraints refused in words: an unknown name, itself, set twice, a circle, x, nonsense", /“z” is not a parameter/.test(E("a = z + 1")) && /cannot follow itself/.test(E("a = a*2")) && /set by line 1 already/.test(E("b = a\na < b"))
+    && /circle/.test(E("a = b\nb = a")) && /circle/.test(E("a < b\nb < a")) && /x has no place/.test(E("a = x")) && /write a = /.test(E("a +")), [E("a = z + 1"), E("b = a\na < b")].join(" | "));
+  check("a limit typed as a constraint is sent to Lowest or Highest", /goes in the parameter's Lowest or Highest/.test(E("a <= 1")) && /goes in the parameter's Lowest or Highest/.test(E("b > -0.5")));
+  const C0 = N.parseCons("# a note\nc = b + 1\nb = 2*a", nm);
+  check("constraints apply in the order they read each other: b before c", C0.order.map(o => nm[o.t]).join() === "b,c" && N.consBack(C0, [1, 0, 0]).join() === "1,2,3", JSON.stringify(N.consBack(C0, [1, 0, 0])));
+  check("an inequality: the larger is the smaller plus its difference", (C => N.consBack(C, [2, 0.5, 0]).join() === "2,2.5,0" && N.consFwd(C, [2, 3, 0])[1] === 1 && N.consFwd(C, [2, 1, 0])[1] > 0)(N.parseCons("a <= b", nm)));
+  // An equality fitted: a line whose slope is twice its intercept, against the one-parameter fit y = a(1 + 2x).
+  const lin = (x, p) => p[0] + p[1] * x, Xl = [], Yl = [], rnd = N.mulberry32(3);
+  for (let i = 0; i < 30; i++) { const x = i * 0.2; Xl.push(x); Yl.push(1.5 + 3 * x + 0.1 * (rnd() - 0.5)); }
+  const Ce = N.parseCons("b = 2*a", ["a", "b"]), fe = N.consFit(lin, Xl, Yl, Xl.map(() => 1), [1, 1], [false, false], {}, Ce), f1 = N.lmFit((x, p) => p[0] * (1 + 2 * x), Xl, Yl, Xl.map(() => 1), [1], [false]);
+  check("b = 2a: the fit is the one-parameter fit, b follows with twice the error", rel(fe.params[0], f1.params[0], 1e-7) && rel(fe.params[1], 2 * fe.params[0], 1e-12) && rel(fe.errors[0], f1.errors[0], 1e-5) && rel(fe.errors[1], 2 * f1.errors[0], 1e-5) && rel(fe.cov[1][1], 4 * fe.cov[0][0], 1e-6) && fe.stats.dof === 29, JSON.stringify([fe.params, fe.errors, f1.params, f1.errors]));
+  check("the follower has no t, p or interval of its own, as a tie", Number.isNaN(fe.tval[1]) && Number.isNaN(fe.pval[1]) && Number.isNaN(fe.ci[1][0]) && Number.isFinite(fe.tval[0]));
+  // An inequality that binds (intercept below the slope, the data's the other way) ends on its edge; one that does not changes nothing.
+  const Xi = [], Yi = []; for (let i = 0; i < 30; i++) { const x = i * 0.2; Xi.push(x); Yi.push(2 + 0.5 * x + 0.05 * (rnd() - 0.5)); }
+  const Cb = N.parseCons("a <= b", ["a", "b"]), fb = N.consFit(lin, Xi, Yi, Xi.map(() => 1), [1, 1], [false, false], {}, Cb), fr = N.lmFit((x, p) => p[0] * (1 + x), Xi, Yi, Xi.map(() => 1), [1], [false]);
+  check("a ≤ b binding: b ends equal to a, at its limit, the fit that of y = a(1 + x)", Math.abs(fb.params[1] - fb.params[0]) <= 1e-6 * Math.abs(fb.params[0]) && fb.atBound[1] && rel(fb.params[0], fr.params[0], 1e-5), JSON.stringify([fb.params, fr.params, fb.atBound]));
+  const Cn = N.parseCons("b < a", ["a", "b"]), fn = N.consFit(lin, Xi, Yi, Xi.map(() => 1), [1, 0.2], [false, false], {}, Cn), ff = N.lmFit(lin, Xi, Yi, Xi.map(() => 1), [1, 0.2], [false, false]);
+  check("b < a not binding: the free fit's values and errors", rel(fn.params[0], ff.params[0], 1e-7) && rel(fn.params[1], ff.params[1], 1e-6) && rel(fn.errors[1], ff.errors[1], 1e-4) && rel(fn.errors[0], ff.errors[0], 1e-4) && !fn.atBound[0], JSON.stringify([fn.params, ff.params, fn.errors, ff.errors]));
+  // Two decays kept in order: τ1 < τ2 whatever the starts.
+  const D2 = N.MODELS.expdec2, Xd = [], Yd = []; for (let i = 0; i < 200; i++) { const x = i * 0.1; Xd.push(x); Yd.push(D2.f(x, [0.2, 5, 0.8, 2, 6]) + 0.002 * (rnd() - 0.5)); }
+  const nmd = D2.params, Cd = N.parseCons(`${nmd[2]} < ${nmd[4]}`, nmd), fd = N.consFit(D2.f, Xd, Yd, Xd.map(() => 1), [0.2, 2, 6, 5, 0.8], [false, false, false, false, false], {}, Cd);
+  check("two decays with τ1 < τ2, started the wrong way round, come out in order", fd.params[2] < fd.params[4] && rel(fd.params[2], 0.8, 0.02) && rel(fd.params[4], 6, 0.02), JSON.stringify({ names: nmd, p: fd.params }));
+}
+
+/* ---------- A function's derived values ---------- */
+{
+  const r = N.parseDerived("# a note\nHalf-life = t*ln(2)\nRate = 1/t", ["y0", "A", "t"]);
+  check("derived values: one a line, each a function of the parameters", !r.err && r.list.length === 2 && r.list[0].name === "Half-life" && rel(r.list[0].fn([0, 1, 2]), 2 * Math.LN2, 1e-15) && r.list[1].fn([0, 1, 4]) === 0.25);
+  const E = t => (N.parseDerived(t, ["a", "b"]).err || {});
+  check("derived values refused with their line: a name that is no parameter, x, a name twice, no formula", /“q” is not a parameter/.test(E("v = q").msg) && E("\nv = q").line === 2 && /x has no place/.test(E("v = a*x").msg) && /named twice/.test(E("v = a\nv = b").msg) && /write a name =/.test(E("v").msg));
+  const M = N.MODELS.expdec, d = N.derivedWithErr({ derived: r.list.map(q => ({ name: q.name, fn: q.fn })) }, [0, 1, 2], [[0, 0, 0], [0, 0, 0], [0, 0, 0.04]]);
+  check("their errors by the delta method: ln 2 times the error of t", rel(d[0].e, 0.2 * Math.LN2, 1e-6) && rel(d[1].e, 0.2 / 4, 1e-6));
+  void M;
+}
+
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);

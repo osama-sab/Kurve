@@ -1,0 +1,906 @@
+{
+ "meta": {
+  "run": "P1-1920-light",
+  "app": "/home/user/kurve-coldtest/kurve.html",
+  "viewport": [
+   1920,
+   1080
+  ],
+  "theme": "light"
+ },
+ "events": [
+  {
+   "t": 0.742,
+   "wall": "2026-10-15T22:35:56+00:00",
+   "task": null,
+   "kind": "open",
+   "target": "http://127.0.0.1:39865/kurve.html",
+   "viewport": "1920x1080",
+   "theme": "light"
+  },
+  {
+   "t": 3.107,
+   "wall": "2026-10-15T22:35:58+00:00",
+   "task": "T1",
+   "kind": "task_start",
+   "target": "A: type 6 x,y pairs, scatter plot, axis titles with units, export PNG"
+  },
+  {
+   "t": 3.35,
+   "wall": "2026-10-15T22:35:58+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "first-screen-1920",
+   "path": "shots/P1-1920-light/01-first-screen-1920.png"
+  },
+  {
+   "t": 11.799,
+   "wall": "2026-10-15T22:36:07+00:00",
+   "task": "T1",
+   "kind": "say",
+   "text": "Big screen: the toolbar has words now (Import, Export, Zoom, Pan...). Six empty rows in the worksheet. Type."
+  },
+  {
+   "t": 11.984,
+   "wall": "2026-10-15T22:36:07+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "cell A1",
+   "x": 1417,
+   "y": 853,
+   "presses": 1
+  },
+  {
+   "t": 12.153,
+   "wall": "2026-10-15T22:36:07+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "0",
+   "keys": 1
+  },
+  {
+   "t": 12.223,
+   "wall": "2026-10-15T22:36:07+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 12.45,
+   "wall": "2026-10-15T22:36:07+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "0.1",
+   "keys": 3
+  },
+  {
+   "t": 12.578,
+   "wall": "2026-10-15T22:36:08+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 12.724,
+   "wall": "2026-10-15T22:36:08+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "1",
+   "keys": 1
+  },
+  {
+   "t": 12.798,
+   "wall": "2026-10-15T22:36:08+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 13.02,
+   "wall": "2026-10-15T22:36:08+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "2.1",
+   "keys": 3
+  },
+  {
+   "t": 13.105,
+   "wall": "2026-10-15T22:36:08+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 13.251,
+   "wall": "2026-10-15T22:36:08+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "2",
+   "keys": 1
+  },
+  {
+   "t": 13.338,
+   "wall": "2026-10-15T22:36:08+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 13.564,
+   "wall": "2026-10-15T22:36:09+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "3.9",
+   "keys": 3
+  },
+  {
+   "t": 13.645,
+   "wall": "2026-10-15T22:36:09+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 13.792,
+   "wall": "2026-10-15T22:36:09+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "3",
+   "keys": 1
+  },
+  {
+   "t": 13.874,
+   "wall": "2026-10-15T22:36:09+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 14.1,
+   "wall": "2026-10-15T22:36:09+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "6.2",
+   "keys": 3
+  },
+  {
+   "t": 14.194,
+   "wall": "2026-10-15T22:36:09+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 14.339,
+   "wall": "2026-10-15T22:36:09+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "4",
+   "keys": 1
+  },
+  {
+   "t": 14.423,
+   "wall": "2026-10-15T22:36:09+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 14.649,
+   "wall": "2026-10-15T22:36:10+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "7.8",
+   "keys": 3
+  },
+  {
+   "t": 14.726,
+   "wall": "2026-10-15T22:36:10+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 14.872,
+   "wall": "2026-10-15T22:36:10+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "5",
+   "keys": 1
+  },
+  {
+   "t": 14.951,
+   "wall": "2026-10-15T22:36:10+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Tab",
+   "presses": 1
+  },
+  {
+   "t": 15.216,
+   "wall": "2026-10-15T22:36:10+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "10.1",
+   "keys": 4
+  },
+  {
+   "t": 15.312,
+   "wall": "2026-10-15T22:36:10+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 16.479,
+   "wall": "2026-10-15T22:36:11+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "t1-typed-1920",
+   "path": "shots/P1-1920-light/02-t1-typed-1920.png"
+  },
+  {
+   "t": 24.091,
+   "wall": "2026-10-15T22:36:19+00:00",
+   "task": "T1",
+   "kind": "finding",
+   "text": "At 1920×1080 the worksheet shows six data rows; typing the sixth scrolls row 1 out of view, as at 1366."
+  },
+  {
+   "t": 24.379,
+   "wall": "2026-10-15T22:36:19+00:00",
+   "task": "T1",
+   "kind": "dblclick",
+   "target": "X axis title",
+   "x": 789,
+   "y": 988,
+   "presses": 2
+  },
+  {
+   "t": 24.801,
+   "wall": "2026-10-15T22:36:20+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Control+a",
+   "presses": 1
+  },
+  {
+   "t": 25.221,
+   "wall": "2026-10-15T22:36:20+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "Time (s)",
+   "keys": 8
+  },
+  {
+   "t": 25.292,
+   "wall": "2026-10-15T22:36:20+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 25.663,
+   "wall": "2026-10-15T22:36:21+00:00",
+   "task": "T1",
+   "kind": "dblclick",
+   "target": "Y axis title",
+   "x": 283,
+   "y": 560,
+   "presses": 2
+  },
+  {
+   "t": 26.084,
+   "wall": "2026-10-15T22:36:21+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Control+a",
+   "presses": 1
+  },
+  {
+   "t": 26.659,
+   "wall": "2026-10-15T22:36:22+00:00",
+   "task": "T1",
+   "kind": "type",
+   "text": "Distance (m)",
+   "keys": 12
+  },
+  {
+   "t": 26.753,
+   "wall": "2026-10-15T22:36:22+00:00",
+   "task": "T1",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 27.259,
+   "wall": "2026-10-15T22:36:22+00:00",
+   "task": "T1",
+   "kind": "say",
+   "text": "There's an Export button on the toolbar at this size."
+  },
+  {
+   "t": 27.448,
+   "wall": "2026-10-15T22:36:22+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "toolbar Export",
+   "x": 187,
+   "y": 61,
+   "presses": 1
+  },
+  {
+   "t": 28.231,
+   "wall": "2026-10-15T22:36:23+00:00",
+   "task": "T1",
+   "kind": "shot",
+   "target": "t1-export-menu-1920",
+   "path": "shots/P1-1920-light/03-t1-export-menu-1920.png"
+  },
+  {
+   "t": 34.969,
+   "wall": "2026-10-15T22:36:30+00:00",
+   "task": "T1",
+   "kind": "click",
+   "target": "menuitem 'Figure as PNG (image, for slides)'",
+   "x": 269,
+   "y": 182,
+   "presses": 1
+  },
+  {
+   "t": 35.298,
+   "wall": "2026-10-15T22:36:30+00:00",
+   "task": "T1",
+   "kind": "download",
+   "target": "Figure as PNG",
+   "file": "downloads/P1-1920-light/Untitled_analysis.png",
+   "suggested": "Untitled_analysis.png"
+  },
+  {
+   "t": 35.3,
+   "wall": "2026-10-15T22:36:30+00:00",
+   "task": "T1",
+   "kind": "task_end",
+   "success": "yes",
+   "note": "fastest of the three sizes: labelled toolbar Export button in view; the worksheet still scrolled row 1 away"
+  },
+  {
+   "t": 35.301,
+   "wall": "2026-10-15T22:36:30+00:00",
+   "task": "T2",
+   "kind": "task_start",
+   "target": "A: fit a straight line to calibration.csv, read slope ± error and R², show line and equation on the graph"
+  },
+  {
+   "t": 35.478,
+   "wall": "2026-10-15T22:36:30+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "toolbar Import",
+   "x": 98,
+   "y": 61,
+   "presses": 1
+  },
+  {
+   "t": 40.083,
+   "wall": "2026-10-15T22:36:35+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "(rig: the first click on Import opened the system file dialog without a file; choosing the file now)"
+  },
+  {
+   "t": 40.259,
+   "wall": "2026-10-15T22:36:35+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "toolbar Import",
+   "x": 98,
+   "y": 61,
+   "presses": 1
+  },
+  {
+   "t": 40.394,
+   "wall": "2026-10-15T22:36:35+00:00",
+   "task": "T2",
+   "kind": "choose_file",
+   "target": "calibration.csv",
+   "files": [
+    "calibration.csv"
+   ]
+  },
+  {
+   "t": 41.592,
+   "wall": "2026-10-15T22:36:37+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "t2-import-1920",
+   "path": "shots/P1-1920-light/04-t2-import-1920.png"
+  },
+  {
+   "t": 48.813,
+   "wall": "2026-10-15T22:36:44+00:00",
+   "task": "T2",
+   "kind": "say",
+   "text": "'Point spacing is uneven. Savitzky–Golay smoothing and derivatives need even spacing.' What? These are calibration standards. Ignore. Import."
+  },
+  {
+   "t": 48.815,
+   "wall": "2026-10-15T22:36:44+00:00",
+   "task": "T2",
+   "kind": "finding",
+   "text": "At 1920×1080 the import dialog shows a note hidden below the fold at smaller sizes: 'Point spacing is uneven. Savitzky–Golay smoothing and derivatives need even spacing.' — spectroscopy jargon on eight calibration standards."
+  },
+  {
+   "t": 49.134,
+   "wall": "2026-10-15T22:36:44+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "button 'Import 3 columns'",
+   "x": 1407,
+   "y": 929,
+   "presses": 1
+  },
+  {
+   "t": 50.534,
+   "wall": "2026-10-15T22:36:45+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "t2-imported-1920",
+   "path": "shots/P1-1920-light/05-t2-imported-1920.png"
+  },
+  {
+   "t": 57.699,
+   "wall": "2026-10-15T22:36:53+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "text 'Analysis'",
+   "x": 350,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 58.23,
+   "wall": "2026-10-15T22:36:53+00:00",
+   "task": "T2",
+   "kind": "hover",
+   "target": "Fit",
+   "x": 447,
+   "y": 168
+  },
+  {
+   "t": 59.387,
+   "wall": "2026-10-15T22:36:54+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "menuitem 'Curve fit'",
+   "x": 688,
+   "y": 168,
+   "presses": 1
+  },
+  {
+   "t": 60.765,
+   "wall": "2026-10-15T22:36:56+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "t2-fitwin-1920",
+   "path": "shots/P1-1920-light/06-t2-fitwin-1920.png"
+  },
+  {
+   "t": 67.838,
+   "wall": "2026-10-15T22:37:03+00:00",
+   "task": "T2",
+   "kind": "finding",
+   "text": "At 1920×1080 the Fit window is 700 px wide and still opens over the graph's right edge, hiding the 40 mg/L point; its fields stretch to 400 px and half the window below is empty."
+  },
+  {
+   "t": 68.019,
+   "wall": "2026-10-15T22:37:03+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "Model list",
+   "x": 1520,
+   "y": 288,
+   "presses": 1
+  },
+  {
+   "t": 68.285,
+   "wall": "2026-10-15T22:37:03+00:00",
+   "task": "T2",
+   "kind": "key",
+   "keys": "ArrowUp",
+   "presses": 3
+  },
+  {
+   "t": 68.439,
+   "wall": "2026-10-15T22:37:03+00:00",
+   "task": "T2",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 69.232,
+   "wall": "2026-10-15T22:37:04+00:00",
+   "task": "T2",
+   "kind": "click",
+   "target": "button 'Fit'",
+   "x": 1414,
+   "y": 608,
+   "presses": 1
+  },
+  {
+   "t": 70.813,
+   "wall": "2026-10-15T22:37:06+00:00",
+   "task": "T2",
+   "kind": "shot",
+   "target": "t2-fitted-1920",
+   "path": "shots/P1-1920-light/07-t2-fitted-1920.png"
+  },
+  {
+   "t": 79.131,
+   "wall": "2026-10-15T22:37:14+00:00",
+   "task": "T2",
+   "kind": "finding",
+   "text": "At 1920×1080 Results lays the parameters and the statistics side by side (Weighting now in view), but opens over the lower 40% of the graph."
+  },
+  {
+   "t": 79.133,
+   "wall": "2026-10-15T22:37:14+00:00",
+   "task": "T2",
+   "kind": "task_end",
+   "success": "partial",
+   "note": "as at 1366 (equation only as typed text, not repeated); more of each window fits, windows still overlap the graph"
+  },
+  {
+   "t": 79.134,
+   "wall": "2026-10-15T22:37:14+00:00",
+   "task": "T8",
+   "kind": "task_start",
+   "target": "raman_raw.txt: remove spikes, subtract baseline, find and fit the peaks, table with errors"
+  },
+  {
+   "t": 79.342,
+   "wall": "2026-10-15T22:37:14+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "text 'File'",
+   "x": 120,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 79.924,
+   "wall": "2026-10-15T22:37:15+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "menuitem 'Import data…'",
+   "x": 215,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 80.059,
+   "wall": "2026-10-15T22:37:15+00:00",
+   "task": "T8",
+   "kind": "choose_file",
+   "target": "raman_raw.txt",
+   "files": [
+    "raman_raw.txt"
+   ]
+  },
+  {
+   "t": 81.227,
+   "wall": "2026-10-15T22:37:16+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Import 2 columns'",
+   "x": 1407,
+   "y": 1035,
+   "presses": 1
+  },
+  {
+   "t": 82.715,
+   "wall": "2026-10-15T22:37:18+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Plot it now'",
+   "x": 1222,
+   "y": 1010,
+   "presses": 1
+  },
+  {
+   "t": 84.101,
+   "wall": "2026-10-15T22:37:19+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "t8-plotted-1920",
+   "path": "shots/P1-1920-light/08-t8-plotted-1920.png"
+  },
+  {
+   "t": 94.57,
+   "wall": "2026-10-15T22:37:30+00:00",
+   "task": "T8",
+   "kind": "finding",
+   "text": "At 1920×1080 the spectrum opens in a 510×900 px graph between the worksheet and the previous project's Fit window (still 'Gaussian peak'), drawn as dots: the big screen does not give the graph the room."
+  },
+  {
+   "t": 94.828,
+   "wall": "2026-10-15T22:37:30+00:00",
+   "task": "T8",
+   "kind": "dblclick",
+   "target": "graph title bar",
+   "x": 1000,
+   "y": 99,
+   "presses": 2
+  },
+  {
+   "t": 95.737,
+   "wall": "2026-10-15T22:37:31+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "plot type list",
+   "x": 1307,
+   "y": 61,
+   "presses": 1
+  },
+  {
+   "t": 95.914,
+   "wall": "2026-10-15T22:37:31+00:00",
+   "task": "T8",
+   "kind": "key",
+   "keys": "ArrowUp",
+   "presses": 1
+  },
+  {
+   "t": 96.161,
+   "wall": "2026-10-15T22:37:31+00:00",
+   "task": "T8",
+   "kind": "key",
+   "keys": "Enter",
+   "presses": 1
+  },
+  {
+   "t": 96.893,
+   "wall": "2026-10-15T22:37:32+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "text 'Data'",
+   "x": 246,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 97.428,
+   "wall": "2026-10-15T22:37:32+00:00",
+   "task": "T8",
+   "kind": "hover",
+   "target": "Clean",
+   "x": 338,
+   "y": 204
+  },
+  {
+   "t": 98.627,
+   "wall": "2026-10-15T22:37:34+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "menuitem 'Remove cosmic-ray spikes…'",
+   "x": 565,
+   "y": 288,
+   "presses": 1
+  },
+  {
+   "t": 100.021,
+   "wall": "2026-10-15T22:37:35+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "t8-despike-1920",
+   "path": "shots/P1-1920-light/09-t8-despike-1920.png"
+  },
+  {
+   "t": 100.388,
+   "wall": "2026-10-15T22:37:35+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'OK'",
+   "x": 1346,
+   "y": 637,
+   "presses": 1
+  },
+  {
+   "t": 101.525,
+   "wall": "2026-10-15T22:37:36+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "text 'Analysis'",
+   "x": 350,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 102.204,
+   "wall": "2026-10-15T22:37:37+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "menuitem 'Subtract background…'",
+   "x": 447,
+   "y": 232,
+   "presses": 1
+  },
+  {
+   "t": 103.618,
+   "wall": "2026-10-15T22:37:39+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "t8-bg-1920",
+   "path": "shots/P1-1920-light/10-t8-bg-1920.png"
+  },
+  {
+   "t": 103.923,
+   "wall": "2026-10-15T22:37:39+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'OK'",
+   "x": 1346,
+   "y": 601,
+   "presses": 1
+  },
+  {
+   "t": 105.078,
+   "wall": "2026-10-15T22:37:40+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "text 'Analysis'",
+   "x": 350,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 105.611,
+   "wall": "2026-10-15T22:37:41+00:00",
+   "task": "T8",
+   "kind": "hover",
+   "target": "Fit",
+   "x": 447,
+   "y": 168
+  },
+  {
+   "t": 106.777,
+   "wall": "2026-10-15T22:37:42+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "menuitem 'Peak fit'",
+   "x": 688,
+   "y": 196,
+   "presses": 1
+  },
+  {
+   "t": 108.375,
+   "wall": "2026-10-15T22:37:43+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "t8-peakfit-1920",
+   "path": "shots/P1-1920-light/11-t8-peakfit-1920.png"
+  },
+  {
+   "t": 115.855,
+   "wall": "2026-10-15T22:37:51+00:00",
+   "task": "T8",
+   "kind": "finding",
+   "text": "At 1920×1080 'Use these 9 peaks' is in view without scrolling, but the Fit window (700 px) still covers 1100–1800 cm⁻¹ of the maximised graph."
+  },
+  {
+   "t": 116.246,
+   "wall": "2026-10-15T22:37:51+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Use these 9 peaks'",
+   "x": 1322,
+   "y": 946,
+   "presses": 1
+  },
+  {
+   "t": 118.108,
+   "wall": "2026-10-15T22:37:53+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Fit 9 peaks'",
+   "x": 1414,
+   "y": 995,
+   "presses": 1
+  },
+  {
+   "t": 121.04,
+   "wall": "2026-10-15T22:37:56+00:00",
+   "task": "T8",
+   "kind": "shot",
+   "target": "t8-fitted-1920",
+   "path": "shots/P1-1920-light/12-t8-fitted-1920.png"
+  },
+  {
+   "t": 121.314,
+   "wall": "2026-10-15T22:37:56+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Copy table'",
+   "x": 927,
+   "y": 700,
+   "presses": 1
+  },
+  {
+   "t": 121.741,
+   "wall": "2026-10-15T22:37:57+00:00",
+   "task": "T8",
+   "kind": "task_end",
+   "success": "success",
+   "note": "same path; fewer scrolls; windows still cover the bands being fitted"
+  },
+  {
+   "t": 129.363,
+   "wall": "2026-10-15T22:38:04+00:00",
+   "task": null,
+   "kind": "finding",
+   "text": "At 1920×1080 after the peak fit, Results lists all nine peaks with statistics, but Results and the Fit window together leave the graph a 960×480 px corner showing peaks 1–4."
+  },
+  {
+   "t": 129.376,
+   "wall": "2026-10-15T22:38:04+00:00",
+   "task": null,
+   "kind": "close",
+   "errors": []
+  }
+ ],
+ "summary": {
+  "T1": {
+   "title": "A: type 6 x,y pairs, scatter plot, axis titles with units, export PNG",
+   "success": "yes",
+   "clicks": 7,
+   "keys": 61,
+   "drags": 0,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 3,
+   "seconds": 32.2,
+   "klm_seconds": 35.6
+  },
+  "T2": {
+   "title": "A: fit a straight line to calibration.csv, read slope ± error and R², show line and equation on the graph",
+   "success": "partial",
+   "clicks": 7,
+   "keys": 4,
+   "drags": 0,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 4,
+   "seconds": 43.8,
+   "klm_seconds": 19.7
+  },
+  "T8": {
+   "title": "raman_raw.txt: remove spikes, subtract baseline, find and fit the peaks, table with errors",
+   "success": "success",
+   "clicks": 18,
+   "keys": 2,
+   "drags": 0,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 5,
+   "seconds": 42.6,
+   "klm_seconds": 48.3
+  }
+ }
+}

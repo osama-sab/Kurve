@@ -1,0 +1,2026 @@
+{
+ "layout": {
+  "1280x720": {
+   "first launch": {
+    "vw": 1280,
+    "vh": 720,
+    "menubar": [
+     100,
+     6,
+     466,
+     28
+    ],
+    "toolbar": [
+     0,
+     40,
+     1280,
+     43
+    ],
+    "desk": [
+     250,
+     83,
+     1030,
+     611
+    ],
+    "taskbar": [
+     250,
+     660,
+     1030,
+     34
+    ],
+    "status": [
+     0,
+     694,
+     1280,
+     26
+    ],
+    "explorer": [
+     0,
+     83,
+     250,
+     611
+    ],
+    "wins": [
+     {
+      "id": "graph",
+      "title": "Graph",
+      "rect": [
+       250,
+       83,
+       639,
+       577
+      ],
+      "z": 11
+     },
+     {
+      "id": "sheet",
+      "title": "Worksheet",
+      "rect": [
+       889,
+       418,
+       391,
+       242
+      ],
+      "z": 13
+     },
+     {
+      "id": "flow",
+      "title": "History",
+      "rect": [
+       889,
+       83,
+       391,
+       335
+      ],
+      "z": 12
+     }
+    ],
+    "wsRowsVisible": 0,
+    "wsHead": 148,
+    "plot": [
+     258,
+     154,
+     623,
+     498
+    ]
+   },
+   "after import": {
+    "vw": 1280,
+    "vh": 720,
+    "menubar": [
+     100,
+     6,
+     466,
+     28
+    ],
+    "toolbar": [
+     0,
+     40,
+     1280,
+     43
+    ],
+    "desk": [
+     250,
+     83,
+     1030,
+     611
+    ],
+    "taskbar": [
+     250,
+     660,
+     1030,
+     34
+    ],
+    "status": [
+     0,
+     694,
+     1280,
+     26
+    ],
+    "explorer": [
+     0,
+     83,
+     250,
+     611
+    ],
+    "wins": [
+     {
+      "id": "sheet",
+      "title": "Worksheet",
+      "rect": [
+       250,
+       83,
+       639,
+       577
+      ],
+      "z": 25
+     },
+     {
+      "id": "flow",
+      "title": "History",
+      "rect": [
+       889,
+       83,
+       391,
+       335
+      ],
+      "z": 12
+     }
+    ],
+    "wsRowsVisible": 13,
+    "wsHead": 148,
+    "plot": null
+   },
+   "after import and Plot": {
+    "vw": 1280,
+    "vh": 720,
+    "menubar": [
+     100,
+     6,
+     466,
+     28
+    ],
+    "toolbar": [
+     0,
+     40,
+     1280,
+     43
+    ],
+    "desk": [
+     250,
+     83,
+     1030,
+     611
+    ],
+    "taskbar": [
+     250,
+     660,
+     1030,
+     34
+    ],
+    "status": [
+     0,
+     694,
+     1280,
+     26
+    ],
+    "explorer": [
+     0,
+     83,
+     250,
+     611
+    ],
+    "wins": [
+     {
+      "id": "graph",
+      "title": "Graph",
+      "rect": [
+       569,
+       83,
+       319,
+       577
+      ],
+      "z": 27
+     },
+     {
+      "id": "sheet",
+      "title": "Worksheet",
+      "rect": [
+       250,
+       83,
+       319,
+       577
+      ],
+      "z": 25
+     },
+     {
+      "id": "flow",
+      "title": "History",
+      "rect": [
+       889,
+       83,
+       391,
+       335
+      ],
+      "z": 12
+     }
+    ],
+    "wsRowsVisible": 13,
+    "wsHead": 148,
+    "plot": [
+     577,
+     154,
+     303,
+     498
+    ]
+   },
+   "IR example": {
+    "vw": 1280,
+    "vh": 720,
+    "menubar": [
+     100,
+     6,
+     466,
+     28
+    ],
+    "toolbar": [
+     0,
+     40,
+     1280,
+     43
+    ],
+    "desk": [
+     250,
+     83,
+     1030,
+     611
+    ],
+    "taskbar": [
+     250,
+     660,
+     1030,
+     34
+    ],
+    "status": [
+     0,
+     694,
+     1280,
+     26
+    ],
+    "explorer": [
+     0,
+     83,
+     250,
+     611
+    ],
+    "wins": [
+     {
+      "id": "graph",
+      "title": "Graph",
+      "rect": [
+       569,
+       83,
+       319,
+       577
+      ],
+      "z": 27
+     },
+     {
+      "id": "sheet",
+      "title": "Worksheet",
+      "rect": [
+       250,
+       83,
+       319,
+       577
+      ],
+      "z": 25
+     },
+     {
+      "id": "flow",
+      "title": "History",
+      "rect": [
+       889,
+       83,
+       391,
+       335
+      ],
+      "z": 12
+     },
+     {
+      "id": "fit",
+      "title": "Fit",
+      "rect": [
+       847,
+       83,
+       433,
+       577
+      ],
+      "z": 28
+     }
+    ],
+    "wsRowsVisible": 13,
+    "wsHead": 148,
+    "plot": [
+     577,
+     154,
+     303,
+     498
+    ]
+   },
+   "errors": []
+  },
+  "1366x768": {
+   "first launch": {
+    "vw": 1366,
+    "vh": 768,
+    "menubar": [
+     100,
+     6,
+     466,
+     28
+    ],
+    "toolbar": [
+     0,
+     40,
+     1366,
+     43
+    ],
+    "desk": [
+     250,
+     83,
+     1116,
+     659
+    ],
+    "taskbar": [
+     250,
+     708,
+     1116,
+     34
+    ],
+    "status": [
+     0,
+     742,
+     1366,
+     26
+    ],
+    "explorer": [
+     0,
+     83,
+     250,
+     659
+    ],
+    "wins": [
+     {
+      "id": "graph",
+      "title": "Graph",
+      "rect": [
+       250,
+       83,
+       692,
+       625
+      ],
+      "z": 11
+     },
+     {
+      "id": "sheet",
+      "title": "Worksheet",
+      "rect": [
+       942,
+       446,
+       424,
+       263
+      ],
+      "z": 13
+     },
+     {
+      "id": "flow",
+      "title": "History",
+      "rect": [
+       942,
+       83,
+       424,
+       363
+      ],
+      "z": 12
+     }
+    ],
+    "wsRowsVisible": 0,
+    "wsHead": 148,
+    "plot": [
+     258,
+     154,
+     676,
+     546
+    ]
+   },
+   "after import": {
+    "vw": 1366,
+    "vh": 768,
+    "menubar": [
+     100,
+     6,
+     466,
+     28
+    ],
+    "toolbar": [
+     0,
+     40,
+     1366,
+     43
+    ],
+    "desk": [
+     250,
+     83,
+     1116,
+     659
+    ],
+    "taskbar": [
+     250,
+     708,
+     1116,
+     34
+    ],
+    "status": [
+     0,
+     742,
+     1366,
+     26
+    ],
+    "explorer": [
+     0,
+     83,
+     250,
+     659
+    ],
+    "wins": [
+     {
+      "id": "sheet",
+      "title": "Worksheet",
+      "rect": [
+       250,
+       83,
+       692,
+       625
+      ],
+      "z": 25
+     },
+     {
+      "id": "flow",
+      "title": "History",
+      "rect": [
+       942,
+       83,
+       424,
+       363
+      ],
+      "z": 12
+     }
+    ],
+    "wsRowsVisible": 15,
+    "wsHead": 148,
+    "plot": null
+   },
+   "after import and Plot": {
+    "vw": 1366,
+    "vh": 768,
+    "menubar": [
+     100,
+     6,
+     466,
+     28
+    ],
+    "toolbar": [
+     0,
+     40,
+     1366,
+     43
+    ],
+    "desk": [
+     250,
+     83,
+     1116,
+     659
+    ],
+    "taskbar": [
+     250,
+     708,
+     1116,
+     34
+    ],
+    "status": [
+     0,
+     742,
+     1366,
+     26
+    ],
+    "explorer": [
+     0,
+     83,
+     250,
+     659
+    ],
+    "wins": [
+     {
+      "id": "graph",
+      "title": "Graph",
+      "rect": [
+       596,
+       83,
+       346,
+       625
+      ],
+      "z": 27
+     },
+     {
+      "id": "sheet",
+      "title": "Worksheet",
+      "rect": [
+       250,
+       83,
+       346,
+       625
+      ],
+      "z": 25
+     },
+     {
+      "id": "flow",
+      "title": "History",
+      "rect": [
+       942,
+       83,
+       424,
+       363
+      ],
+      "z": 12
+     }
+    ],
+    "wsRowsVisible": 15,
+    "wsHead": 148,
+    "plot": [
+     604,
+     154,
+     330,
+     546
+    ]
+   },
+   "IR example": {
+    "vw": 1366,
+    "vh": 768,
+    "menubar": [
+     100,
+     6,
+     466,
+     28
+    ],
+    "toolbar": [
+     0,
+     40,
+     1366,
+     43
+    ],
+    "desk": [
+     250,
+     83,
+     1116,
+     659
+    ],
+    "taskbar": [
+     250,
+     708,
+     1116,
+     34
+    ],
+    "status": [
+     0,
+     742,
+     1366,
+     26
+    ],
+    "explorer": [
+     0,
+     83,
+     250,
+     659
+    ],
+    "wins": [
+     {
+      "id": "graph",
+      "title": "Graph",
+      "rect": [
+       596,
+       83,
+       346,
+       625
+      ],
+      "z": 27
+     },
+     {
+      "id": "sheet",
+      "title": "Worksheet",
+      "rect": [
+       250,
+       83,
+       346,
+       625
+      ],
+      "z": 25
+     },
+     {
+      "id": "flow",
+      "title": "History",
+      "rect": [
+       942,
+       83,
+       424,
+       363
+      ],
+      "z": 12
+     },
+     {
+      "id": "fit",
+      "title": "Fit",
+      "rect": [
+       897,
+       83,
+       469,
+       625
+      ],
+      "z": 28
+     }
+    ],
+    "wsRowsVisible": 15,
+    "wsHead": 148,
+    "plot": [
+     604,
+     154,
+     330,
+     546
+    ]
+   },
+   "errors": []
+  },
+  "1920x1080": {
+   "first launch": {
+    "vw": 1920,
+    "vh": 1080,
+    "menubar": [
+     100,
+     6,
+     466,
+     28
+    ],
+    "toolbar": [
+     0,
+     40,
+     1920,
+     43
+    ],
+    "desk": [
+     250,
+     83,
+     1670,
+     971
+    ],
+    "taskbar": [
+     250,
+     1020,
+     1670,
+     34
+    ],
+    "status": [
+     0,
+     1054,
+     1920,
+     26
+    ],
+    "explorer": [
+     0,
+     83,
+     250,
+     971
+    ],
+    "wins": [
+     {
+      "id": "graph",
+      "title": "Graph",
+      "rect": [
+       250,
+       83,
+       1035,
+       937
+      ],
+      "z": 11
+     },
+     {
+      "id": "sheet",
+      "title": "Worksheet",
+      "rect": [
+       1285,
+       626,
+       635,
+       394
+      ],
+      "z": 13
+     },
+     {
+      "id": "flow",
+      "title": "History",
+      "rect": [
+       1285,
+       83,
+       635,
+       543
+      ],
+      "z": 12
+     }
+    ],
+    "wsRowsVisible": 6,
+    "wsHead": 148,
+    "plot": [
+     258,
+     154,
+     1019,
+     858
+    ]
+   },
+   "after import": {
+    "vw": 1920,
+    "vh": 1080,
+    "menubar": [
+     100,
+     6,
+     466,
+     28
+    ],
+    "toolbar": [
+     0,
+     40,
+     1920,
+     43
+    ],
+    "desk": [
+     250,
+     83,
+     1670,
+     971
+    ],
+    "taskbar": [
+     250,
+     1020,
+     1670,
+     34
+    ],
+    "status": [
+     0,
+     1054,
+     1920,
+     26
+    ],
+    "explorer": [
+     0,
+     83,
+     250,
+     971
+    ],
+    "wins": [
+     {
+      "id": "sheet",
+      "title": "Worksheet",
+      "rect": [
+       250,
+       83,
+       1035,
+       937
+      ],
+      "z": 25
+     },
+     {
+      "id": "flow",
+      "title": "History",
+      "rect": [
+       1285,
+       83,
+       635,
+       543
+      ],
+      "z": 12
+     }
+    ],
+    "wsRowsVisible": 28,
+    "wsHead": 148,
+    "plot": null
+   },
+   "after import and Plot": {
+    "vw": 1920,
+    "vh": 1080,
+    "menubar": [
+     100,
+     6,
+     466,
+     28
+    ],
+    "toolbar": [
+     0,
+     40,
+     1920,
+     43
+    ],
+    "desk": [
+     250,
+     83,
+     1670,
+     971
+    ],
+    "taskbar": [
+     250,
+     1020,
+     1670,
+     34
+    ],
+    "status": [
+     0,
+     1054,
+     1920,
+     26
+    ],
+    "explorer": [
+     0,
+     83,
+     250,
+     971
+    ],
+    "wins": [
+     {
+      "id": "graph",
+      "title": "Graph",
+      "rect": [
+       768,
+       83,
+       518,
+       937
+      ],
+      "z": 27
+     },
+     {
+      "id": "sheet",
+      "title": "Worksheet",
+      "rect": [
+       250,
+       83,
+       518,
+       937
+      ],
+      "z": 25
+     },
+     {
+      "id": "flow",
+      "title": "History",
+      "rect": [
+       1285,
+       83,
+       635,
+       543
+      ],
+      "z": 12
+     }
+    ],
+    "wsRowsVisible": 28,
+    "wsHead": 148,
+    "plot": [
+     776,
+     154,
+     502,
+     858
+    ]
+   },
+   "IR example": {
+    "vw": 1920,
+    "vh": 1080,
+    "menubar": [
+     100,
+     6,
+     466,
+     28
+    ],
+    "toolbar": [
+     0,
+     40,
+     1920,
+     43
+    ],
+    "desk": [
+     250,
+     83,
+     1670,
+     971
+    ],
+    "taskbar": [
+     250,
+     1020,
+     1670,
+     34
+    ],
+    "status": [
+     0,
+     1054,
+     1920,
+     26
+    ],
+    "explorer": [
+     0,
+     83,
+     250,
+     971
+    ],
+    "wins": [
+     {
+      "id": "graph",
+      "title": "Graph",
+      "rect": [
+       768,
+       83,
+       518,
+       937
+      ],
+      "z": 27
+     },
+     {
+      "id": "sheet",
+      "title": "Worksheet",
+      "rect": [
+       250,
+       83,
+       518,
+       937
+      ],
+      "z": 25
+     },
+     {
+      "id": "flow",
+      "title": "History",
+      "rect": [
+       1285,
+       83,
+       635,
+       543
+      ],
+      "z": 12
+     },
+     {
+      "id": "fit",
+      "title": "Fit",
+      "rect": [
+       1219,
+       83,
+       701,
+       937
+      ],
+      "z": 28
+     }
+    ],
+    "wsRowsVisible": 28,
+    "wsHead": 148,
+    "plot": [
+     776,
+     154,
+     502,
+     858
+    ]
+   },
+   "errors": []
+  }
+ },
+ "dialogs": [
+  {
+   "open": true,
+   "kind": "modal",
+   "title": "Import calibration.csv",
+   "rect": [
+    153,
+    18,
+    1060,
+    732
+   ],
+   "controls": 15,
+   "controlsInView": 15,
+   "scrolls": true,
+   "scrollBy": 142,
+   "coverPlot": 100,
+   "buttons": [
+    "Cancel",
+    "Import 3 columns [primary]"
+   ],
+   "buttonsAlign": "right",
+   "label": "Import (calibration.csv)"
+  },
+  {
+   "open": true,
+   "kind": "modal",
+   "title": "Import raman_raw.txt",
+   "rect": [
+    153,
+    18,
+    1060,
+    732
+   ],
+   "controls": 14,
+   "controlsInView": 14,
+   "scrolls": true,
+   "scrollBy": 6834,
+   "coverPlot": 100,
+   "buttons": [
+    "Cancel",
+    "Import 2 columns [primary]"
+   ],
+   "buttonsAlign": "right",
+   "label": "Import (raman_raw.txt)"
+  },
+  {
+   "open": true,
+   "kind": "modal",
+   "title": "Plot",
+   "rect": [
+    233,
+    79,
+    900,
+    610
+   ],
+   "controls": 21,
+   "controlsInView": 21,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 98,
+   "buttons": [
+    "Cancel",
+    "Plot [primary]"
+   ],
+   "buttonsAlign": "right",
+   "label": "Plot setup"
+  },
+  {
+   "open": true,
+   "kind": "modal",
+   "title": "Format graph",
+   "rect": [
+    634,
+    12,
+    720,
+    744
+   ],
+   "controls": 37,
+   "controlsInView": 37,
+   "scrolls": true,
+   "scrollBy": 58,
+   "coverPlot": 44,
+   "buttons": [
+    "Defaults",
+    "Formats",
+    "Cancel",
+    "OK [primary]"
+   ],
+   "buttonsAlign": "right",
+   "label": "Format dialog: curve"
+  },
+  {
+   "open": true,
+   "kind": "modal",
+   "title": "Format graph",
+   "rect": [
+    634,
+    12,
+    720,
+    744
+   ],
+   "controls": 71,
+   "controlsInView": 41,
+   "scrolls": true,
+   "scrollBy": 582,
+   "coverPlot": 44,
+   "buttons": [
+    "Defaults",
+    "Formats",
+    "Cancel",
+    "OK [primary]"
+   ],
+   "buttonsAlign": "right",
+   "label": "Format dialog: X axis"
+  },
+  {
+   "open": true,
+   "kind": "modal",
+   "title": "Format graph",
+   "rect": [
+    634,
+    12,
+    720,
+    744
+   ],
+   "controls": 61,
+   "controlsInView": 55,
+   "scrolls": true,
+   "scrollBy": 149,
+   "coverPlot": 44,
+   "buttons": [
+    "Defaults",
+    "Formats",
+    "Cancel",
+    "OK [primary]"
+   ],
+   "buttonsAlign": "right",
+   "label": "Format dialog: text"
+  },
+  {
+   "open": true,
+   "kind": "modal",
+   "title": "Format graph",
+   "rect": [
+    634,
+    12,
+    720,
+    744
+   ],
+   "controls": 42,
+   "controlsInView": 41,
+   "scrolls": true,
+   "scrollBy": 97,
+   "coverPlot": 44,
+   "buttons": [
+    "Defaults",
+    "Formats",
+    "Cancel",
+    "OK [primary]"
+   ],
+   "buttonsAlign": "right",
+   "label": "Format dialog: legend"
+  },
+  {
+   "open": true,
+   "kind": "modal",
+   "title": "Format graph",
+   "rect": [
+    634,
+    12,
+    720,
+    744
+   ],
+   "controls": 17,
+   "controlsInView": 17,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 44,
+   "buttons": [
+    "Defaults",
+    "Formats",
+    "Cancel",
+    "OK [primary]"
+   ],
+   "buttonsAlign": "right",
+   "label": "Format dialog: labels"
+  },
+  {
+   "open": true,
+   "kind": "modal",
+   "title": "Export the figure",
+   "rect": [
+    193,
+    140,
+    980,
+    488
+   ],
+   "controls": 18,
+   "controlsInView": 18,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 87,
+   "buttons": [
+    "Cancel",
+    "Export [primary]"
+   ],
+   "buttonsAlign": "right",
+   "label": "Export for a paper"
+  },
+  {
+   "open": true,
+   "kind": "modal",
+   "title": "Fill",
+   "rect": [
+    343,
+    107,
+    680,
+    555
+   ],
+   "controls": 16,
+   "controlsInView": 16,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 81,
+   "buttons": [
+    "Cancel",
+    "Fill [primary]"
+   ],
+   "buttonsAlign": "right",
+   "label": "Fill: series"
+  },
+  {
+   "open": true,
+   "kind": "modal",
+   "title": "Add a line",
+   "rect": [
+    453,
+    240,
+    460,
+    287
+   ],
+   "controls": 13,
+   "controlsInView": 13,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 36,
+   "buttons": [
+    "Cancel",
+    "Add [primary]"
+   ],
+   "buttonsAlign": "right",
+   "label": "Add a line"
+  },
+  {
+   "open": true,
+   "kind": "modal",
+   "title": "Break the X axis",
+   "rect": [
+    453,
+    260,
+    460,
+    248
+   ],
+   "controls": 4,
+   "controlsInView": 4,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 31,
+   "buttons": [
+    "Cancel",
+    "Break it [primary]"
+   ],
+   "buttonsAlign": "right",
+   "label": "Break the X axis"
+  },
+  {
+   "open": true,
+   "kind": "modal",
+   "title": "A figure of panels",
+   "rect": [
+    453,
+    227,
+    460,
+    314
+   ],
+   "controls": 7,
+   "controlsInView": 7,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 39,
+   "buttons": [
+    "Cancel",
+    "Make it [primary]"
+   ],
+   "buttonsAlign": "right",
+   "label": "A figure of panels"
+  },
+  {
+   "open": false,
+   "label": "Combine graphs"
+  },
+  {
+   "open": true,
+   "kind": "modal",
+   "title": "New fit function",
+   "rect": [
+    323,
+    25,
+    720,
+    718
+   ],
+   "controls": 21,
+   "controlsInView": 21,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 90,
+   "buttons": [
+    "Cancel",
+    "Add the function [primary]"
+   ],
+   "buttonsAlign": "right",
+   "label": "New fit function"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Fit",
+   "rect": [
+    897,
+    83,
+    469,
+    625
+   ],
+   "controls": 19,
+   "controlsInView": 19,
+   "scrolls": true,
+   "scrollBy": 12,
+   "coverPlot": 5,
+   "buttons": [
+    "Fit [primary]",
+    "Guess",
+    "Done"
+   ],
+   "buttonsAlign": "right",
+   "label": "Fit window: curve"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Fit",
+   "rect": [
+    897,
+    83,
+    469,
+    625
+   ],
+   "controls": 31,
+   "controlsInView": 18,
+   "scrolls": true,
+   "scrollBy": 646,
+   "coverPlot": 5,
+   "buttons": [
+    "Fit [primary]",
+    "Reset to estimates",
+    "Done"
+   ],
+   "buttonsAlign": "right",
+   "label": "Fit window: peaks"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Peaks",
+   "rect": [
+    920,
+    102,
+    446,
+    588
+   ],
+   "controls": 46,
+   "controlsInView": 36,
+   "scrolls": true,
+   "scrollBy": 344,
+   "coverPlot": 2,
+   "buttons": [
+    "Done [primary]",
+    "Fit them…",
+    "Integrate them",
+    "Labels and legend…"
+   ],
+   "buttonsAlign": "right",
+   "label": "Peaks window"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Integrate",
+   "rect": [
+    830,
+    102,
+    536,
+    588
+   ],
+   "controls": 2,
+   "controlsInView": 2,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 15,
+   "buttons": [],
+   "buttonsAlign": null,
+   "label": "Integrate window"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Overview",
+   "rect": [
+    808,
+    108,
+    558,
+    575
+   ],
+   "controls": 5,
+   "controlsInView": 5,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 18,
+   "buttons": [],
+   "buttonsAlign": null,
+   "label": "Overview"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Results",
+   "rect": [
+    250,
+    458,
+    692,
+    250
+   ],
+   "controls": 1,
+   "controlsInView": 1,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 44,
+   "buttons": [],
+   "buttonsAlign": null,
+   "label": "Results"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Statistics",
+   "rect": [
+    473,
+    171,
+    558,
+    388
+   ],
+   "controls": 5,
+   "controlsInView": 5,
+   "scrolls": true,
+   "scrollBy": 35,
+   "coverPlot": 48,
+   "buttons": [],
+   "buttonsAlign": null,
+   "label": "Statistics"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Batch",
+   "rect": [
+    451,
+    108,
+    714,
+    563
+   ],
+   "controls": 3,
+   "controlsInView": 3,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 68,
+   "buttons": [],
+   "buttonsAlign": null,
+   "label": "Batch"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Python",
+   "rect": [
+    473,
+    121,
+    625,
+    538
+   ],
+   "controls": 10,
+   "controlsInView": 10,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 63,
+   "buttons": [],
+   "buttonsAlign": null,
+   "label": "Python"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "History",
+   "rect": [
+    942,
+    83,
+    424,
+    363
+   ],
+   "controls": 18,
+   "controlsInView": 16,
+   "scrolls": true,
+   "scrollBy": 393,
+   "coverPlot": 0,
+   "buttons": [],
+   "buttonsAlign": null,
+   "label": "History"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Discussion",
+   "rect": [
+    964,
+    271,
+    402,
+    438
+   ],
+   "controls": 2,
+   "controlsInView": 2,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [],
+   "buttonsAlign": null,
+   "label": "Discussion"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Help",
+   "rect": [
+    853,
+    102,
+    513,
+    588
+   ],
+   "controls": 4,
+   "controlsInView": 2,
+   "scrolls": true,
+   "scrollBy": 475,
+   "coverPlot": 12,
+   "buttons": [],
+   "buttonsAlign": null,
+   "label": "Help"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Crop",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 7,
+   "controlsInView": 7,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: crop"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Remove a region",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 7,
+   "controlsInView": 7,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: exclude"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Remove cosmic-ray spikes",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 9,
+   "controlsInView": 9,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: despike"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Resample to even spacing",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 6,
+   "controlsInView": 6,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: resample"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Subtract background",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 7,
+   "controlsInView": 7,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: bg"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Smooth",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 10,
+   "controlsInView": 10,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: smooth"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "FFT filter",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 10,
+   "controlsInView": 10,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: fft"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Scale and offset Y",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 8,
+   "controlsInView": 8,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: scale"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Scale and offset X",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 8,
+   "controlsInView": 8,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: xlin"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Normalize",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 6,
+   "controlsInView": 6,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: norm"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Derivative",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 9,
+   "controlsInView": 9,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: deriv"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Cumulative integral",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 5,
+   "controlsInView": 5,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: cumint"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Histogram",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 9,
+   "controlsInView": 9,
+   "scrolls": true,
+   "scrollBy": 74,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: hist"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Logarithm",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 5,
+   "controlsInView": 5,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: log"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Transmittance to absorbance",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 6,
+   "controlsInView": 6,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: absorb"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Kubelka–Munk",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 6,
+   "controlsInView": 6,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: km"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Energy calibration",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 10,
+   "controlsInView": 10,
+   "scrolls": true,
+   "scrollBy": 92,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: ecal"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Wavelength to Raman shift",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 6,
+   "controlsInView": 6,
+   "scrolls": true,
+   "scrollBy": 23,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: shift"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Convert X units",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 7,
+   "controlsInView": 7,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: xunit"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Calibrate X on reference peaks",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 9,
+   "controlsInView": 9,
+   "scrolls": true,
+   "scrollBy": 64,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: calib"
+  },
+  {
+   "open": true,
+   "kind": "window",
+   "title": "Bose–Einstein correction",
+   "rect": [
+    942,
+    108,
+    402,
+    500
+   ],
+   "controls": 6,
+   "controlsInView": 6,
+   "scrolls": false,
+   "scrollBy": 0,
+   "coverPlot": 0,
+   "buttons": [
+    "OK [primary]",
+    "Cancel"
+   ],
+   "buttonsAlign": "left",
+   "label": "Tool: bose"
+  },
+  {
+   "open": false,
+   "label": "Tool: python"
+  }
+ ],
+ "errors": []
+}

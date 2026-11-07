@@ -1,0 +1,294 @@
+# Kurve's menu bar after the rework: every item.
+#
+# Two spaces per level. "  [Ctrl+O]" after a label is its shortcut. After " ## " a note:
+#   ~ "old"     renamed from "old"
+#   ← where     moved here from there
+#   + what      another entry merged into this one
+#   ↓ when      hidden by default: shown only when it can apply, or under More
+#   new route   an existing command reached from here too (it was in a context menu)
+# Lines starting "(…)" stand for a list the app fills in (graphs, fonts, sizes).
+# tools/ux/menudiff.py checks that every item of today's menu bar is here or has a fate.
+#
+# Since the design system's slice 2 (ux/spec/DS_SPEC.md) the menus follow the stage of work, as
+# the system's menu bar does: File, Edit, Data (the worksheet and preparing it), Plot (making and
+# looking at graphs), Analyze (measuring them), Figure (the graph's look), Publish (what leaves
+# Kurve), Window, Help. No menu is named after a kind of mathematics. "DS2" in a note is that slice.
+
+File
+  New project
+  Import data…  [Ctrl+O]
+  Copy from another project…  ## ~ "Bring in from another project…"; + Window's copy (R: six routes become File and the Explorer)
+  Replace the data…  ## new (DS8): the import dialog's "Replace everything in this project", behind a confirmation; ↓ until the project holds data
+  Examples
+    Infrared: overlapping bands
+    Raman: raw polystyrene (background, spikes)
+    Exponential decay (fluorescence)  ## ~ "Fluorescence decay"
+  Rename the project…  ## ~ "Rename project"
+  Delete the project…  ## ~ "Delete project…"
+  Preferences…  [Ctrl+,]  ## new (after slice 5): the history switch, theme, style, animations, errors
+
+Edit
+  Undo (what it undoes)  [Ctrl+Z]
+  Redo (what it redoes)  [Ctrl+Y]
+  Undo list…  ## new (roadmap 6, slice 1): every change that can be undone or redone; one undoes it and the changes after it
+  Copy  [Ctrl+C]  ## new route: the worksheet's Copy
+  Paste  [Ctrl+V]  ## new route: the worksheet's Paste
+  Clear  [Delete]  ## new route: the worksheet's Clear
+  Insert  ## new (the user: "where is insert new row and column?"): where the worksheet's selection is
+    Row above  [Ctrl+Shift+=]
+    Row below
+    Column to the left
+    Column to the right
+    A column at the end
+    A sheet
+  Delete
+    Row  [Ctrl+-]
+    Columns
+  Find…  [Ctrl+F]  ## new route: the worksheet's Find
+  Preferences…  [Ctrl+,]  ## new route: File's, where Office keeps its options
+
+Data
+  Worksheet
+  Sheets  ## new (after slice 1 of the curve fit): the worksheet's sheets, as a workbook's; their tabs are under the grid
+    (each sheet, the one shown ticked)
+    New sheet
+    Rename this sheet…
+    Delete this sheet…
+  Add a column  ## + Edit's "Add a Y column"
+  Fill
+    Down  [Ctrl+D]  ## new route: the cell menu's Fill › Down
+    Right  [Ctrl+R]  ## new route: the cell menu's Fill › Right
+    Series…
+    Growth series…
+    Evenly between two values…
+    Row numbers…
+    Repeat a list…
+    Random numbers…
+    Continue the trend…
+  Sort the view  ## new route: the cell and column menus' "Sort the sheet by …"
+    Ascending
+    Descending
+    Original order  ## ~ "As recorded (unsort)"
+  Hide and show  ## new (after slice 5): Excel's Hide and Unhide; also in the column and cell menus
+    Hide the selected column  ## "Hide the n selected columns" with several
+    Hide the selected row  ## "Hide the n selected rows" with several
+    Show every hidden column
+    Show every hidden row
+  Columns  ## ~ "Spectra"
+    New column from the processed data  ## ~ "New spectrum from the processed data"
+    Copy with the same processing  ## ~ "Copy with the same steps"
+    Apply this processing to every column  ## ~ "Give every spectrum these steps"
+    Rename the column…  ## ~ "Rename the spectrum…"
+  Masks
+    Mask points on the graph  ## + the Graph menu's "Mask points" (DS2)
+    Restore every masked point  ## ~ "Restore all masked points"
+  Lock the original data  ## ~ "Lock the raw data"
+  Clean
+    Crop…  ## + "Crop to the visible range": Crop… opens on the range in view
+    Leave out an X range…  ## ~ "Remove a region…"
+    Sort by X (as a step)  ## ~ "Sort by X"
+    Average duplicate X
+    Resample to even spacing…
+  Baseline  ## new (DS2): preparing the data, before it is analysed
+    Subtract baseline…  ## ~ "Subtract background…"; ← Spectroscopy (DS2): a baseline is any data's, not only a spectrum's
+    Linear detrend…  ## new route (DS2): Subtract baseline… with its straight line chosen
+  Transform  ## ← Analysis › Mathematics (DS2): what changes the data's values or units
+    Scale and offset Y…
+    Normalize…
+    Logarithm…
+    Scale and offset X…
+    Subtract or divide by another column…  ## ~ "Subtract or divide by another spectrum…"
+    Average with other columns…  ## ~ "Average with other spectra…"
+
+Plot
+  Plot setup…
+  What this graph plots…  ## new (PLOT_SPEC slice 3); off without a graph
+  Plot the selected columns
+    Plot setup…
+    Plot like the last time  ## new (PLOT_SPEC slice 6); off until Plot setup has plotted from the sheet
+    (heading: "Or select the columns to plot first" / "Plot <column> in a new graph as")
+    Line
+    Symbols
+    Line + symbols
+    Drop lines  ## ~ "Sticks"
+    Columns
+    Area
+    Steps
+    Histogram
+    Box chart
+    Violin plot
+    Add to a graph
+      (each graph)
+  New graph  ## ← Window
+    With (the active column)
+    With every column  ## ~ "With every spectrum"
+    One for each column  ## ~ "One for each spectrum"
+    A figure, a panel for each column  ## ~ "A figure, a panel for each spectrum"
+    A figure of panels…
+    A trend of the series  ## ↓ until there is a series (several columns)
+  Plot type  ## + the toolbar's plot-type list
+    Automatic  ## + slice 5: a line for many evenly spaced points, symbols otherwise (UX_SPEC 3.7)
+    Line
+    Symbols
+    Line + symbols
+    Drop lines  ## ~ "Sticks"
+    Columns
+    Area
+    Steps
+  Several curves  ## ~ "Several spectra"; + the toolbar's layout list
+    Overlay
+    Offset (waterfall)
+    Stacked panels
+    Two Y axes  ## ~ "Double Y"
+    Heat map
+  Show on the graph  ## ← Data (DS2); ↓ until a column has processing
+    Original  ## ~ "Raw data"
+    Processed  ## ~ "Final data"
+    Both  ## ~ "Final, with the raw data behind"
+  View  ## ← the Graph menu (DS2): looking at the graph, not changing it; greyed with no graph on the desk
+    Zoom
+    Pan
+    Reader  ## ~ "Data reader"
+    X–Y lines
+      Both lines
+      Vertical line
+      Horizontal line
+    Show all the data  [Double-click]  ## + the Graph menu's and Plot's own
+
+Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one menu
+  Fit
+    Curve fit…  ## ~ "Curve fit"
+    Peak fit…  ## ~ "Peak fit"
+    New function…  ## ~ "New fit function…"
+    Your functions…  ## new (FIT_SPEC slice 10)
+    Fit  [Ctrl+Enter]  ## ~ "Run the fit"
+    Fit every column…  ## ~ "Fit every spectrum…"; ↓ until there are two columns or more
+    Put the fit in the worksheet  ## new (FIT_SPEC slice 6)
+    Saved fit settings  ## new (FIT_SPEC slice 9)
+    Show residuals  ## ~ "Residuals under the graph"; + the Graph menu's
+    Confidence band  ## ~ "Confidence band, shaded"; ← the Graph menu
+    Prediction band  ## ~ "Prediction band, dashed"; ← the Graph menu
+    Shade each fitted peak  ## ~ "Each fitted peak shaded"; ← the Graph menu; ↓ with a peak fit
+    Remove fit  ## ~ "Remove the fit"
+  Peaks…  ## ~ "Find peaks…"; ← Spectroscopy (DS2): any data has peaks
+  Integrate…  ## ~ "Integrate bands…"; + Statistics' copy (R: three menus become one)
+  Signal processing  ## ~ "Smooth and filter"
+    Smooth…
+    FFT filter…
+  Calculus  ## ← Analysis › Mathematics (DS2)
+    Derivative…  ## + "Derivative, as a new spectrum…": a choice in the tool
+    Cumulative integral…
+  Statistics  ## ← the Statistics menu (DS2)
+    Descriptive statistics…  ## + "Integrate the visible range", "Noise and signal to noise": sections of the one window
+    Correlation between columns…  ## ~ "Correlation between spectra"
+    Histogram…  ## ~ "Histogram of the values"; now takes the selected columns
+  Spectroscopy  ## ← the Spectroscopy menu (DS2): the toolkit, gathered from Data, Math, Analysis, Statistics and Plot
+    Overview of the spectrum…  ## ← Analysis "Overview…" + Statistics "Overview of the spectrum"
+    Remove cosmic-ray spikes…  ## ← Data › Clean
+    Name the peaks from known lines…  ## ← Analysis
+    X axis
+      Energy calibration…  ## ← Analysis › Spectroscopy
+      Wavelength to Raman shift…  ## ← Analysis › Spectroscopy
+      Convert X units…  ## ← Analysis › Spectroscopy
+      Calibrate X on reference peaks…  ## ← Analysis › Spectroscopy
+    Corrections
+      Transmittance to absorbance…  ## ← Analysis › Spectroscopy; + Math › Transforms' copy
+      Kubelka–Munk…  ## ← Analysis › Spectroscopy; + Math › Transforms' copy
+      Bose–Einstein correction…  ## ← Analysis › Spectroscopy
+    Detector  ## + roadmap 3, slice 3: the detector's curves against energy
+      Efficiency against energy…
+      Resolution against energy…
+  Results
+  Batch results  ## ← Analysis › Fit (DS2); ↓ until there is a batch
+
+Figure  ## new (DS2): the graph's look, from Plot and the Graph menu; greyed with no graph on the desk
+  Format graph…  [Double-click]  ## ← Plot
+  Format a part  ## ~ "Format" (R4 kept: renamed so it does not read as "Formats"); ← Plot
+    X axis…
+    Y axis…
+    Second X axis…  ## ↓ while there is none
+    Second Y axis…  ## ↓ while there is none
+    Frame and grid…
+    Text and fonts…  ## + "More fonts, and each element's own…" (Plot › Font)
+    Legend…
+    Lines and symbols…
+  Saved styles  ## ~ "Formats"; ← Plot
+    (Kurve's own; Journal; Classic; Slides; Minimal; the project's; this browser's)
+    Save this style…  ## ~ "Save this format…"
+    Give every graph a style  ## ~ "Give every graph a format"
+      (each style)
+  Axes  ## ~ "Axis options"; ← Plot
+    Reverse X  ## ~ "Reverse X axis"; + the Graph menu's
+    Log Y  ## ← the Graph menu (DS2)
+    X scale  ## ~ "X axis scale"
+      (Linear; Logarithmic (log₁₀); Natural log (ln); Log₂; Reciprocal (1/x); Offset reciprocal, 1/(x + c); Square root; Probability (%))
+    Y scale  ## ~ "Y axis scale"; + "Logarithmic Y axis", which set the same thing
+      (the same eight)
+    Grid lines  ## + the Graph menu's
+  Font  ## ← Plot
+    (Kurve's; Source Sans 3; Source Serif 4; Inter; STIX Two Text; Arial; Helvetica; Times New Roman; Calibri; Courier New)
+    Text and fonts…  ## ~ "More fonts, and each element's own…"
+    (heading: "Size of all the text") Small; Normal; Large; Larger; Largest
+  Legend  ## ← Plot
+    Place
+      (Emptiest corner; Top right; Top left; Bottom right; Bottom left; Outside, right; Below the graph; No legend)
+    Text in each curve's colour  ## ~ "Text in each spectrum's colour"
+    Add a legend title…  ## ~ "Legend title…"
+  Annotate  ## ← Plot; + the Graph menu's Label, Arrow, Shape and Comment
+    Vertical line…
+    Horizontal line…
+    Text (click the graph)  ## ~ "Label peaks with the Label tool": it picks the Label tool, which writes text or a peak's label
+    Arrow (drag on the graph)
+    Box (drag on the graph)
+    Ellipse (drag on the graph)
+    Shade an X range (drag on the graph)
+    Inset of the zoomed region  ## ↓ until the graph is zoomed
+    Comment (click the graph)  ## ← the Graph menu; ↓ in a shared project
+    Labels and lines…  ## ~ "Lines, labels and legend…"
+    Remove every annotation
+  Layout and colours…  ## ← Plot
+
+Publish  ## new (DS2): what leaves Kurve, ← File › Export, + Edit's two copies
+  Graph for a paper or slides…  ## ~ "Figure for a paper or slides…"
+  Graph as SVG  ## ~ "Figure as SVG (vector, for papers)"
+  Graph as PDF  ## ~ "PDF (vector, standard fonts)"; ← out of the "Figure as PDF or EPS" submenu
+  Graph as EPS  ## ~ "EPS (vector, standard fonts)"; ← out of the "Figure as PDF or EPS" submenu
+  Graph as PNG  ## ~ "Figure as PNG (image, for slides)"
+  Processed data and fit as CSV  ## ~ "Final data and fit as CSV"
+  Original data as CSV  ## ~ "Raw data as CSV, with its fingerprint"
+  Report…  ## ~ "Report as HTML"
+  Copy the graph as a picture  ## ← Edit; + "Copy the figure as a picture" (File › Export), "Copy as a picture" (the graph's menus)
+  Copy the results table  ## ~ "Copy results table"; ← Edit
+
+Window
+  (heading: Windows in use) (each window in use, the front one ticked)
+  Tool windows  ## ~ "Panels"
+    (History; Overview; Peaks; Integrate; Fit; Results; Batch; Statistics; Discussion; Help)
+  Project Explorer  [Alt+1]
+  Tile  ## + "Tile the graphs", which ran the same tiling
+  Cascade
+  Move to new window  [Ctrl+Shift+D]  ## new (DS10): the window in front into a browser window of its own
+  Open on display  ## new (DS10); ↓ where the browser can list the screens
+  Return all to desk  ## new (DS10)
+  Minimise the others
+  Close the tool windows  ## ~ "Close the panels"
+  Restore the default arrangement
+  Graphs  ## ~ "Open a graph"; + Plot's copy
+    (each graph, the front one ticked)
+    Combine graphs…  ## + Window's own "Combine graphs…"
+    A figure of panels…  ## new route (slice 4): Plot › New graph's, beside Combine graphs…, where T9 looked first
+    Link the X zoom of the graphs  ## + "Link the X zoom"
+  Theme
+    Light
+    Dark
+    Match the system
+
+Help
+  Kurve help  [F1]
+  Search help…
+  Find a command…  [Ctrl+K]  ## new (DS3): every command of the menu bar, by its name, its menu or a word for it
+  Getting started
+  Keyboard shortcuts  [?]
+  About processing  ## ~ "Processing steps"
+  How Kurve computes
+  About Kurve
