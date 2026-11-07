@@ -16,7 +16,7 @@ import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const BLOCKS = ["NUMERICS", "PEAKS", "PIPE", "MODELS", "STATS", "PARSER"];
+export const BLOCKS = ["NUMERICS", "PEAKS", "PIPE", "MODELS", "STATS", "ANA", "PARSER"];
 
 export function loadKurve(path) {
   const html = readFileSync(path || join(here, "..", "..", "kurve.html"), "utf8");

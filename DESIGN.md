@@ -889,6 +889,24 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-07: analyses and result sheets (PARITY_SPEC wave 1, slice 1.3a)
+
+- **Results on a sheet of their own, locked.** Origin writes an analysis's numbers into a report
+  sheet; so does Kurve, so they can be plotted, read by a formula and copied like any column. The
+  lock on its tab says at a glance that the sheet is worked out, and typing into it says where to
+  change it instead (Change settings…), rather than failing in silence.
+- **The processed values, named.** An analysis reads what the graph shows, so a column's mean is
+  one number everywhere; the dialog names the steps it reads after, and Original is one switch away.
+  The report says what the steps did to the rows, because a mean of resampled points is not a mean
+  of measurements.
+- **Out of date is shown, not hidden.** Set to recalculate only when asked, a changed input turns
+  the tab's lock into the warning sign with the reason in its tooltip.
+- **One report, three readers.** Results, Copy and the exported report draw from the same report
+  object, so what is copied can never differ from what is shown (1.3b). Results gains a *Showing*
+  list only once there is an analysis: a first user sees the fit alone, as before.
+- **Long work does not hold the page** (1.3c): a million values are worked out beside it, with a
+  message carrying Stop, and the results come in when they are ready.
+
 ### 2026-11-07: graphs read text (PARITY_SPEC wave 1, slice 1.2d)
 
 - **Group by makes ordinary curves.** Origin's plot by group draws a curve per value of a column;

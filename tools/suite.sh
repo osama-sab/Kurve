@@ -43,6 +43,7 @@ run reviewdrive 900 node tools/review-drive.mjs "$html"
 run countdrive 900 node tools/count-drive.mjs "$html"
 run filedrive 900 node tools/file-drive.mjs "$html"
 run textdrive 900 node tools/text-drive.mjs "$html"
+run anadrive 900 node tools/ana-drive.mjs "$html"
 run sheetfuzz 900 node tools/sheet-fuzz.mjs "$html" 9 150
 if command -v python3.13 > /dev/null; then
   run menus 900 bash -c "PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers python3.13 tools/ux/crawl.py '$html' > '$logs/crawl.json' 2>/dev/null && python3.13 tools/ux/menucheck.py '$logs/crawl.json'"

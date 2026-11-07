@@ -1065,6 +1065,28 @@ Checked: `tools/ref-test.mjs` (17 at their targets, 5 short with their slice nam
 fail on the old code), `tools/perf.mjs` (10 within budget), the menu crawl (three items of earlier
 rounds written into `ux/spec/menus-after.txt`).
 
+## Closing the gap with Origin, wave 1, slices 1.3a to 1.3c: analyses and result sheets (2026-11-07)
+
+`ux/spec/FOUNDATION_SPEC.md` 1.3a.
+- **Statistics on columns** (Analyze › Statistics): the columns ticked, each a row of a sheet of its
+  own (N, missing, mean, SD, SE of the mean, minimum, quartiles, median, maximum, sum), by group if a
+  column of text or categories is chosen.
+- **What it reads**: each column's processed values (its original ones when it has no steps), the
+  steps named in the dialog with a switch to Original; masked points left out and counted; after a
+  step that makes, averages or drops points, or makes neighbours depend on each other, the report
+  says so.
+- **The result sheet**: its tab has a lock, it is read only (typing says why, with Change
+  settings…), its values are not original data. Worked out again by itself when what it reads
+  changes, or only when asked (its tab then says it is out of date); its tab's menu has Report,
+  Change settings…, Recalculate, Cut from its data and Delete the analysis….
+- **Its report** (1.3b) in Results (a *Showing* list at its top: the fit or an analysis), with Copy,
+  Show its sheet, Change settings… and Recalculate; a box in the History fed by its inputs, with its
+  discussion; a section in the exported report.
+- **Large ones beside the page** (1.3c): an analysis of 200 000 values or more is worked out by the
+  compute worker, with Stop, the page going on meanwhile.
+
+`tools/ana-drive.mjs` (32 checks) in the suite.
+
 ## Closing the gap with Origin, wave 1, slices 1.2a to 1.2d: text in the worksheet, kept by imports, categorical, read by graphs (2026-11-07)
 
 `ux/spec/FOUNDATION_SPEC.md` 1.2a. A cell holds a number, text or nothing, in any column.

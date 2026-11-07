@@ -504,6 +504,7 @@ body.dwin-page{margin:0;height:100vh;overflow:hidden;background:var(--panel);col
 /* A sheet's tab: the one shown is filled, as anything chosen is (DESIGN.md). */
 .wstabs{display:flex;align-items:stretch;gap:var(--sp-1);padding:0 var(--sp-3);min-height:28px;border-top:1px solid var(--rule);background:var(--panel-2);overflow-x:auto;flex:0 0 auto;scrollbar-width:thin}
 .wstabs[hidden]{display:none}
+.wstab.ana .ic{margin-right:var(--sp-1);vertical-align:-2px}.wstab.stale{color:var(--warn)}
 .wstab{font:inherit;font-size:var(--fs-tab);color:var(--ink);background:var(--btn-bg);border:1px solid var(--rule);border-top:0;border-radius:0 0 var(--r-s) var(--r-s);padding:var(--sp-1) var(--sp-5);white-space:nowrap;cursor:pointer;max-width:200px;overflow:hidden;text-overflow:ellipsis}
 .wstab:hover{background:var(--btn-bg-h)}
 .wstab[aria-selected="true"]{background:var(--seg-on);color:var(--seg-on-ink);border-color:var(--seg-on);font-weight:600}
@@ -5971,6 +5972,26 @@ function tQuantile975(dof){ return tCrit(0.95,dof); }
 // The chance of an F at least this large with d1 and d2 degrees of freedom.
 function fPvalue(F,d1,d2){ if(!(d1>0&&d2>0)||!Number.isFinite(F)||Number.isNaN(F)) return NaN; return F<=0?1:DIST.F.sf(F,d1,d2); }
 /* ==STATS:END== */
+/* ==ANA:START== The analyses' kinds (ux/spec/FOUNDATION_SPEC.md, 1.3), pure: what each works out
+   from its inputs' values. Loaded by the compute worker, which runs a large one (anaRunKind). */
+const anaNum=v=>v==null||!Number.isFinite(v)?null:v;
+const ANA_KINDS={
+  desc:{label:"Statistics on columns", base:"Statistics",
+    help:"Each column's count, mean, standard deviation, standard error, quartiles, extremes and sum, by group if asked, into a result sheet that is worked out again when the values change.",
+    // ins: [{name, ref, unit, vals, rows, groups: [[key, vals]] or null, nMasked, missing}]
+    run(ins,p){ const by=ins.some(q=>q.groups), cols=[{k:"col",name:"Column",vals:[]}].concat(by?[{k:"grp",name:"Group",vals:[]}]:[]),
+        K=[["n","N"],["miss","Missing"],["mean","Mean"],["sd","SD"],["se","SE of mean"],["min","Minimum"],["q1","Q1"],["med","Median"],["q3","Q3"],["max","Maximum"],["sum","Sum"]];
+      K.forEach(([k,name])=>cols.push({k,name,vals:[]}));
+      const row=(nm,g,v,miss)=>{ const s=v.slice().sort((a,b)=>a-b), n=s.length, mu=n?s.reduce((a,b)=>a+b,0)/n:NaN, sd=n>1?Math.sqrt(s.reduce((a,b)=>a+(b-mu)**2,0)/(n-1)):NaN;
+        const r={col:nm,grp:g,n,miss,mean:mu,sd,se:n>1?sd/Math.sqrt(n):NaN,min:n?s[0]:NaN,q1:n?quantileSorted(s,0.25):NaN,med:n?quantileSorted(s,0.5):NaN,q3:n?quantileSorted(s,0.75):NaN,max:n?s[n-1]:NaN,sum:n?s.reduce((a,b)=>a+b,0):NaN};
+        cols.forEach(o=>o.vals.push(typeof r[o.k]==="number"?anaNum(r[o.k]):r[o.k]==null?null:String(r[o.k]))); };
+      ins.forEach(q=>{ if(q.groups) q.groups.forEach(([g,v])=>row(q.name,String(g),v,null)); else row(q.name,null,q.vals,q.missing); });
+      const head=cols.map(o=>o.name), rows=cols[0].vals.map((_,i)=>cols.map(o=>o.vals[i]));
+      return {tables:[{cols}],report:{sections:[{title:"Statistics on columns",tables:[{head,rows}]}]},notes:[]}; }}
+};
+// A kind run by name: the page's call, and the worker's ("call" job).
+function anaRunKind(kind,ins,p){ const K=ANA_KINDS[kind]; if(!K) throw new Error("the analysis "+kind+" is not known here"); return K.run(ins,p||{}); }
+/* ==ANA:END== */
 
 /* ============================================================
    Formatting helpers
@@ -7154,7 +7175,7 @@ function cleanCat(c){ if(c.cat===undefined) return; const k=c.cat;
   if(k.order!=="custom"){ if(k.levels!==undefined) c.cat={order:k.order}; return; }
   const lv=Array.isArray(k.levels)?k.levels.filter(x=>(typeof x==="number"&&Number.isFinite(x))||(typeof x==="string"&&x)).slice(0,CAT_MAX):[];
   if(lv.length!==(k.levels||[]).length) c.cat={order:"custom",levels:lv}; }
-function rawCols(){ return allCols().filter(c=>!c.src&&!c.fx&&hasVals(c)); }
+function rawCols(){ return allCols().filter(c=>!c.src&&!c.fx&&!c.ana&&hasVals(c)); }
 let fpMemo={arrs:[],key:"",val:""};
 // The states before (an undo goes back to one): the last few check codes with their arrays and key.
 const FPM=[]; const fpKeep=m=>{ if(m.val){ const i=FPM.findIndex(q=>q.val===m.val&&q.key===m.key); if(i>=0) FPM.splice(i,1); FPM.unshift(m); if(FPM.length>6) FPM.pop(); } };
@@ -7393,6 +7414,7 @@ function migrate(p){
   // Keys of older versions can come back from storage after an upgrade.
   ["x","y","e","xLong","xUnit","yLong","yUnit","eLong","eUnit","steps","mask","plot"].forEach(k=>{ if(k in p) delete p[k]; });
   p.cols.forEach(c=>{ c.data=c.data||[]; if(c.role==="y"){ c.pipe=c.pipe||[]; c.mask=c.mask||[]; } cleanTxt(c); cleanCat(c); if(c.fmt!==undefined&&c.fmt!=="text"&&c.fmt!=="num") delete c.fmt; });
+  anaClean(p);
   if(!p.cols.some(c=>c.role==="x")) p.cols.unshift(makeCol("x","",""));
   if(!p.cols.some(c=>c.id===p.activeY)){ const y=p.cols.find(c=>c.role==="y"); p.activeY=y?y.id:null; }
   p.raw=p.raw||{fp:"",hist:[]}; p.fits=p.fits||[];
@@ -7438,7 +7460,7 @@ function migrateGraphs(p){
 }
 /* Undo is per-session and local: it rewinds your own edits, not other
    people's. Cross-user undo in a shared document is a different problem. */
-const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","fitSets","lines","rawLock","tree","wsAlign","wsHide","sheets","detcal"];
+const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","fitSets","lines","rawLock","tree","wsAlign","wsHide","sheets","detcal","ana"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
 /* Raw values are replaced, never changed in place, so a snapshot keeps each
    column's data array as it is and copies the rest: with 20 spectra of 50 000
@@ -7464,7 +7486,7 @@ function undoAfter(stack){ const t=stack[stack.length-1], p=P(); if(!(t&&t.after
    trend graphs, functions, saved settings, line lists, formats) is put back thing by thing, this
    window's changes undone and another's kept; the log keeps the lines added elsewhere; any other
    part another window changed since keeps that change (an undo never takes back theirs). */
-const UNDO_BYID=new Set(["graphs","annos","sheets","trends","userFns","fitSets","lines","formats"]);
+const UNDO_BYID=new Set(["graphs","annos","sheets","trends","userFns","fitSets","lines","formats","ana"]);
 const jsonEq=(a,b)=>a===b||JSON.stringify(a)===JSON.stringify(b);
 function mergeById(after,step,now){
   const ok=l=>Array.isArray(l)&&l.every(o=>o&&typeof o==="object"&&o.id!=null);
@@ -13803,7 +13825,7 @@ function wsFillPlan(src,dir,to,alt){
   }
   return {writes,bad};
 }
-function wsFill(src,dir,to,alt){
+function wsFill(src,dir,to,alt){ if(anaRO()) return;
   const p=P(), m=wsLive(); if(!p||!m) return;
   if(m.kind!=="raw"){ toast("The Processed view is read only."); return; }
   if(S.readOnly) return;
@@ -14002,7 +14024,7 @@ function fillSpark(vs){
   for(let i=0;i<n;i+=b){ let a=Infinity, z=-Infinity; for(let j=i;j<Math.min(n,i+b);j++){ if(vs[j]<a) a=vs[j]; if(vs[j]>z) z=vs[j]; } const x=(1+(n>1?i/(n-1):0.5)*(W-2)).toFixed(1); pts.push(x+","+sy(a)); if(z!==a) pts.push(x+","+sy(z)); }
   return `<svg class="fspark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="M${pts.join("L")}" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
 }
-function doFill(pl){
+function doFill(pl){ if(anaRO()) return;
   const p=P(); if(!p||S.readOnly) return;
   pushUndo("filling cells");
   let col=pl.col?colById(pl.col.id):null;
@@ -14348,7 +14370,7 @@ function wsSetAlign(ids,a,toggle){
   const m=S.wsm, L=ids.map(id=>{ const q=m&&m.cols.find(z=>z.id===id); return q?q.letter:"?"; });
   save({wsAlign:al},`${a?{l:"aligned to the left",c:"centred",r:"aligned to the right"}[a]:"set back to automatic alignment"} column${ids.length===1?"":"s"} ${L.join(", ")}`); renderWs(); }
 // Typing into the formula bar.
-function wsBarBegin(){ const inp=$("#wsValIn"), m=S.wsm, s=S.ws; if(!inp||!m) return;
+function wsBarBegin(){ const inp=$("#wsValIn"), m=S.wsm, s=S.ws; if(!inp||!m) return; if(anaOfSheet(curSheet())&&S.sheet==="raw"){ inp.blur(); anaRO(); return; }
   if(m.kind!=="raw"||S.readOnly){ inp.readOnly=true; return; } inp.readOnly=false;
   if(S.ws.edit) wsCommit(0,0,true);
   s.ar=s.r; s.ac=s.c; const q=m.cols[s.c];
@@ -14591,7 +14613,7 @@ function wsMove(dr,dc,extend,jump,how){
 /* Editing: one text box, in the active cell. Started by typing (arrows then
    commit and move, as in a spreadsheet's Enter mode), by F2 or by a double
    click (arrows move within the text). */
-function wsBeginEdit(initial,mode){
+function wsBeginEdit(initial,mode){ if(anaRO()) return;
   const m=S.wsm, s=S.ws; if(!m||!P()) return;
   if(m.kind!=="raw"){ toast("The Processed view is read only: it is the data after processing. Change the steps in the History, or edit the Original view."); return; }
   if(S.readOnly){ toast("You can view this workspace but not edit it."); return; }
@@ -14723,10 +14745,192 @@ async function catDlg(id){ const c=colById(id); if(!c||S.readOnly) return;
   if(next) col.cat=next; else delete col.cat;
   const L=colLetter(col), what=next?`made column ${L} categorical (${CAT_ORDERS.find(o=>o[0]===next.order)[1].toLowerCase()})`:`made column ${L} no longer categorical`;
   save({cols:p.cols},what); renderAll(); toast(capFirst(what)+".",{action:"Undo",run:undo}); }
+/* ---- Analyses and result sheets (FOUNDATION_SPEC 1.3) ------------------------------------------
+   An analysis (p.ana: [{id, kind, name, in {cols, by, read {colId: "orig"}, masked}, p, out {sheet},
+   recalc "auto"|"manual", sig, at, by, res {report, notes, err}}]) reads its input columns through
+   anaRead (each column's processed values, its original ones when it has no steps or the dialog's
+   switch says Original), runs its kind (ANA_KINDS), and writes its tables into a result sheet of
+   its own (sheet.ana = id): columns with c.ana (the analysis) and c.ak (which column of its
+   table), read only and not original data (rawCols leaves them out). With recalc "auto" it is
+   worked out again whenever what it reads changes (anaSig, followAnas, no undo step of its own);
+   "manual" marks it out of date. */
+// What a step does to the rows (PARITY_SPEC 1.3): keep them, keep them with neighbours depending on
+// each other, drop some, or merge or make points. Every step has one; ana-drive checks.
+const PIPE_ROWS={correct:"keep",bg:"keep",shift:"keep",xunit:"keep",calib:"keep",ecal:"keep",xlin:"keep",norm:"keep",scale:"keep",
+  smooth:"dep",fft:"dep",deriv:"dep",cumint:"dep",despike:"dep",
+  crop:"drop",exclude:"drop",sort:"drop",log:"drop",absorb:"drop",km:"drop",ref:"drop",combine:"drop",bose:"drop",where:"drop",
+  dedupe:"merge",resample:"merge",hist:"merge",python:"merge"};
+const ROWS_RANK={keep:0,dep:1,drop:2,merge:3};
+// The steps a column's processed values went through, its source's first (a derived column).
+function anaSteps(c,seen){ seen=seen||new Set(); if(!c||seen.has(c.id)) return []; seen.add(c.id); const own=(c.pipe||[]).filter(s=>s.on!==false);
+  const up=c.src&&c.from!=="raw"?anaSteps(colById(c.src),seen):c.src?[]:[]; return up.concat(own); }
+// One door for every analysis: the values of a column with their recorded rows, masked points out
+// unless asked, and what the steps did to the rows. o.read "orig" reads the original values.
+function anaRead(c,o){ o=o||{}; const steps=anaSteps(c), orig=!c.src&&(o.read==="orig"||!steps.length), mask=new Set(o.masked?[]:(c.mask||[]));
+  const vals=[], rows=[]; let nm=0;
+  if(orig){ const d=c.data||[]; for(let i=0;i<d.length;i++){ const v=d[i]; if(v==null||!Number.isFinite(v)) continue; if(mask.has(i)){ nm++; continue; } vals.push(v); rows.push(i); } }
+  else { const d=finalOf(c); for(let k=0;k<d.y.length;k++){ const v=d.y[k], i=d.idx?d.idx[k]:k; if(v==null||!Number.isFinite(v)) continue; if(i>=0&&mask.has(i)){ nm++; continue; } vals.push(v); rows.push(i); } }
+  let kind="keep"; if(!orig) steps.forEach(s=>{ const r=PIPE_ROWS[s.op]||"merge"; if(ROWS_RANK[r]>ROWS_RANK[kind]) kind=r; });
+  return {c,vals,rows,nMasked:nm,orig,steps:orig?[]:steps.map(s=>(PIPE_OPS[s.op]||{}).short||(PIPE_OPS[s.op]||{}).label||s.op),rowsKind:kind}; }
+// The line a dialog shows for an input: what it reads.
+function anaReadText(c,read){ const st=anaSteps(c); if(!st.length) return "its values";
+  return read==="orig"&&!c.src?"its original values":"processed: "+st.map(s=>((PIPE_OPS[s.op]||{}).short||s.op).toLowerCase()).join(", "); }
+const anaList=p=>{ p=p||P(); return p&&Array.isArray(p.ana)?p.ana:[]; };
+const anaOf=id=>anaList().find(a=>a.id===id)||null;
+const anaOfSheet=sid=>{ const s=sheetList().find(q=>q.id===sid); return s&&s.ana?anaOf(s.ana):null; };
+const newAnaId=()=>"a"+Math.random().toString(36).slice(2,9);
+// What an analysis reads, as one string: its kind, settings, inputs and each input's state.
+function anaSig(a){ const parts=[a.kind,JSON.stringify(a.p||{}),JSON.stringify(a.in||{})];
+  (a.in.cols||[]).forEach(id=>{ const c=colById(id); parts.push(c?pipeSig(c)+"|"+maskSig(c):"gone:"+id); });
+  if(a.in.by){ const g=colById(a.in.by); parts.push(g?arrKey(g.data)+txtKey(g.txt)+JSON.stringify(g.cat||null):"gone:"+a.in.by); }
+  return sha256(parts.join("\u0002")).slice(0,24); }
+// Out of date, and why (null when it is not).
+function anaStale(a){ if(!a) return null; if(a.res&&a.res.err) return a.res.err; const gone=(a.in.cols||[]).filter(id=>!colById(id));
+  if(gone.length) return `${gone.length===1?"An input column has":gone.length+" input columns have"} been deleted`;
+  return a.sig!==anaSig(a)?"What it reads has changed since it was worked out":null; }
+// Work it out: the inputs read, the kind run, the result sheet's columns written. Mutates p.cols and a.
+function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p) return false; const sig=anaSig(a);
+  const cs=(a.in.cols||[]).map(colById), gone=cs.filter(c=>!c).length, by=a.in.by?colById(a.in.by):null;
+  if(gone||(a.in.by&&!by)){ a.res=Object.assign({},a.res||{},{err:gone?`${gone===1?"An input column has":gone+" input columns have"} been deleted`:"Its column of groups has been deleted"}); a.sig=sig; return false; }
+  const notes=[], ins=cs.map(c=>{ const r=anaRead(c,{read:(a.in.read||{})[c.id],masked:a.in.masked}), q={name:specName(c),ref:colRef(c),unit:c.unit||"",vals:r.vals,rows:r.rows,nMasked:r.nMasked,groups:null};
+    const n=Math.max((c.data||[]).length,txtLen(c)); q.missing=r.orig?Math.max(0,n-r.vals.length-r.nMasked):null;
+    if(r.nMasked) notes.push(`${r.nMasked} masked point${r.nMasked===1?"":"s"} of ${q.name} left out.`);
+    if(r.rowsKind==="dep") notes.push(`${q.name} is read after ${r.steps.join(", ").toLowerCase()}: neighbouring values depend on each other.`);
+    if(r.rowsKind==="drop") notes.push(`${q.name} is read after ${r.steps.join(", ").toLowerCase()}, which left some rows out.`);
+    if(r.rowsKind==="merge") notes.push(`${q.name} is read after ${r.steps.join(", ").toLowerCase()}, which made or averaged points: these numbers describe them, not the measurements.`);
+    if(by){ const keys=r.rows.map(i=>catVal(by,i)), g=distGroups(r.vals,keys,DIST_GMAX,{text:true,order:catOrderKeys(by)});
+      if(g.fail) notes.push(`${by.name||colRef(by)}: ${g.fail}`); else q.groups=g.keys.map((k,j)=>[typeof k==="number"?fmt(k,8):k,g.by[j]]); }
+    return q; });
+  // A large one is worked out by the compute worker (1.3c), its result put in when it comes back
+  // (anaDone), if what it read has not changed meanwhile; the page goes on.
+  const nv=ins.reduce((t,q)=>t+q.vals.length,0);
+  if(nv>=ANA_BIG&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,groups:q.groups,missing:q.missing})),notes,sig); return "later"; }
+  let out; try{ out=anaRunKind(a.kind,ins,a.p||{}); }catch(e){ out={fail:String(e&&e.message||e)}; }
+  return anaApply(a,p,out,notes,sig); }
+function anaApply(a,p,out,notes,sig){
+  if(!out||out.fail||out.error){ a.res=Object.assign({},a.res||{},{err:(out&&(out.fail||out.error))||"It could not be worked out"}); a.sig=sig; return false; }
+  out.report.notes=notes.concat(out.notes||[]);
+  anaWrite(a,p,out.tables[0]); a.res={report:out.report,notes:out.report.notes,err:null}; a.sig=sig; a.at=Date.now(); return true; }
+// Analyses being worked out by the worker: id → {sig, pid, stop}. Not stored: a reload starts again.
+const ANA_BIG=200000, ANA_JOBS=new Map();
+function anaJob(a,ins,notes,sig){ const prev=ANA_JOBS.get(a.id); if(prev) prev.stop=true;
+  const j={sig,pid:S.pid,stop:false,name:a.name}; ANA_JOBS.set(a.id,j);
+  setTimeout(()=>{ if(ANA_JOBS.get(a.id)===j) toast(`Working out ${a.name}…`,{action:"Stop",run:()=>{ j.stop=true; }}); },0);
+  computeRun({kind:"call",fn:"anaRunKind",args:[a.kind,ins,a.p||{}]},()=>j.stop).then(r=>{ if(ANA_JOBS.get(a.id)===j) ANA_JOBS.delete(a.id); anaDone(a.id,j,r,notes); }); }
+function anaDone(id,j,r,notes){ const p=P(); if(!p||S.pid!==j.pid) return; const a0=anaOf(id); if(!a0||a0.sig!==j.sig) return;
+  if(r&&r.stopped&&ANA_JOBS.has(id)) return;
+  const ana=anaList(p).map(x=>Object.assign({},x)), a=ana.find(x=>x.id===id);
+  if(r&&r.stopped){ a.res=Object.assign({},a.res||{},{err:"Stopped before it was done"}); save({ana},`stopped working out ${a.name}`); renderAll(); toast(`${a.name} stopped: Recalculate works it out.`); return; }
+  // No worker after all (or one that failed to start): on the page.
+  if(r==null){ const ok=runAna(a,p,{sync:true}); save({ana,cols:p.cols},`worked out ${a.name}`); renderAll(); return ok; }
+  const ok=anaApply(a,p,r,notes,j.sig); save({ana,cols:p.cols},ok?`worked out ${a.name}`:`could not work out ${a.name}: ${a.res.err}`); renderAll();
+  if(ok) toast(`${a.name} worked out.`); else toast(`${a.name} could not be worked out: ${a.res.err}.`); }
+// The table into the result sheet: a column per key, kept by id across recalculations.
+function anaWrite(a,p,t){ const sid=a.out.sheet, have=new Map(p.cols.filter(c=>c.ana===a.id).map(c=>[c.ak,c])), keep=new Set();
+  t.cols.forEach(o=>{ let c=have.get(o.k); if(!c){ c=Object.assign(makeCol("ignore",o.name,o.unit||""),{sheet:sid,ana:a.id,ak:o.k}); p.cols.push(c); }
+    keep.add(c); c.name=o.name; c.comm=a.name; const text=o.vals.some(v=>typeof v==="string");
+    if(text){ const T={}; o.vals.forEach((v,i)=>{ if(v!=null&&v!=="") T[i]=String(v); }); c.data=o.vals.map(()=>null); c.fmt="text"; if(Object.keys(T).length){ c.txt=T; TXT_OK.add(T); } else delete c.txt; }
+    else { c.data=o.vals.map(v=>v==null?null:v); delete c.txt; delete c.fmt; } });
+  p.cols=p.cols.filter(c=>c.ana!==a.id||keep.has(c)); }
+// Every analysis set to recalculate by itself, worked out again when what it reads changed: in
+// renderAll after followFits, with a log line and no undo step (the undo of what changed it brings
+// the old result back with it).
+function followAnas(){ const p=P(); if(!p||S.readOnly||S.editing||!anaList(p).length) return false; let did=[];
+  const ana=anaList(p).map(a=>Object.assign({},a));
+  ana.forEach(a=>{ if(a.recalc!=="auto") return; const s=anaSig(a); if(s===a.sig) return; runAna(a,p); did.push(a.name); });
+  if(!did.length) return false; save({ana,cols:p.cols},`worked out ${andList(did)} again, following its data`); return true; }
+// The worksheet's result sheet is read only: anything that writes to it is refused, saying so.
+function anaRO(){ if(S.sheet!=="raw") return false; const a=anaOfSheet(curSheet()); if(!a) return false;
+  toast(`These are the results of ${a.name}: change its settings instead.`,{action:"Change settings…",run:()=>anaDlg(a.kind,{id:a.id})}); return true; }
+function anaColRO(c){ const a=c&&c.ana?anaOf(c.ana):null; if(!a) return false; toast(`Column ${colLetter(c)} holds results of ${a.name}: change its settings instead.`,{action:"Change settings…",run:()=>anaDlg(a.kind,{id:a.id})}); return true; }
+// The dialog: the input columns (each with what it reads and, with steps, a switch to the original
+// values), a column of groups, masked points, how it recalculates. o.id changes an analysis.
+async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], p=P(); if(!K||!p||S.readOnly) return; if(S.ws&&S.ws.edit) wsCommit(0,0,true);
+  const a0=o.id?anaOf(o.id):null, sid=a0?sheetOf(colById(a0.in.cols[0])||{})||curSheet():anaOfSheet(curSheet())?SHEET0.id:curSheet();
+  const cand=sheetCols(sid).filter(c=>!c.ana&&(c.role==="y"||c.role==="ignore")&&anyVal(c.data)).concat(yCols().filter(c=>c.src&&!sheetCols(sid).includes(c)));
+  if(!cand.length){ toast("There is no column of numbers on this sheet to work out."); return; }
+  const sel=new Set(a0?a0.in.cols:(wsSelColIds?wsSelColIds():[]).filter(id=>cand.some(c=>c.id===id)));
+  if(!sel.size){ const act=activeYCol(); if(act&&cand.includes(act)) sel.add(act.id); else sel.add(cand[0].id); }
+  const rd=a0?a0.in.read||{}:{}, bys=sheetCols(sid).filter(c=>!c.ana&&(isCatCol(c)||textCount(c)));
+  const rowsH=cand.map(c=>{ const st=anaSteps(c).length, i=c.id; return `<tr><td><label class="chk"><input type="checkbox" id="aI_${i}"${sel.has(i)?" checked":""}> ${esc(colRef(c))} ${esc(c.name||"")}</label></td><td class="muted">${esc(anaReadText(c,rd[i]))}</td><td>${st&&!c.src?`<select id="aR_${i}" aria-label="What ${esc(colRef(c))} gives"><option value="proc">Processed</option><option value="orig"${rd[i]==="orig"?" selected":""}>Original</option></select>`:""}</td></tr>`; }).join("");
+  const html=`<div class="anadlg"><p class="lab">Columns</p><div style="max-height:260px;overflow:auto"><table class="rtab"><tbody>${rowsH}</tbody></table></div>
+    <div class="grid2"><label for="aBy">Group by</label><select id="aBy"><option value="">Nothing</option>${bys.map(c=>`<option value="${c.id}"${a0&&a0.in.by===c.id?" selected":""}>${esc(colRef(c)+(c.name?" "+c.name:""))}</option>`).join("")}</select>
+    <label for="aRc">Recalculate</label><select id="aRc"><option value="auto">By itself, when its data change</option><option value="manual"${a0&&a0.recalc==="manual"?" selected":""}>Only when asked</option></select></div>
+    <label class="chk"><input type="checkbox" id="aMask"${a0&&a0.in.masked?" checked":""}> Include masked points</label></div>`;
+  const v=await formDlg({title:a0?`${a0.name}: settings`:K.label,html,ok:a0?"Work it out":"Work it out",valid:r=>cand.some(c=>r["aI_"+c.id])});
+  if(!v) return; const q=P(); if(!q) return;
+  const cols=cand.filter(c=>v["aI_"+c.id]).map(c=>c.id), read={}; cols.forEach(id=>{ if(v["aR_"+id]==="orig") read[id]="orig"; });
+  const inp={cols,by:v.aBy||null,read,masked:!!v.aMask}, ana=anaList(q).map(x=>Object.assign({},x));
+  if(a0){ const a=ana.find(x=>x.id===a0.id); if(!a) return; pushUndo(`the settings of ${a.name}`); Object.assign(a,{in:inp,recalc:v.aRc,by:who()}); runAna(a,q);
+    save({ana,cols:q.cols},`changed the settings of ${a.name}`); showSheet(a.out.sheet,{quiet:true}); toast(`${a.name} worked out again.`,{action:"Undo",run:undo}); return; }
+  pushUndo(K.label.toLowerCase()); stampSheets(q);
+  const used=new Set(ana.map(x=>x.name).concat(sheetList(q).map(s=>s.name))); let n=1; while(used.has(`${K.base} ${n}`)) n++;
+  const name=`${K.base} ${n}`, sh={id:newSheetId(),name}, a={id:newAnaId(),kind,name,in:inp,p:{},out:{sheet:sh.id},recalc:v.aRc==="manual"?"manual":"auto",at:Date.now(),by:who()};
+  sh.ana=a.id; const ss=sheetList(q).concat([sh]); q.sheets=ss; ana.push(a); runAna(a,q);
+  save({ana,sheets:ss,cols:q.cols},`worked out ${name} (${K.label.toLowerCase()}) of ${andList(cols.map(id=>colRef(colById(id))))}`);
+  showSheet(sh.id,{quiet:true}); toast(`${name}: the results of ${andList(cols.map(id=>specName(colById(id))))}, on a sheet of their own.`,{action:"Undo",run:undo}); }
+// The result sheet's menu (its tab's), before the sheet's own items.
+function anaMenuItems(a){ const ro=S.readOnly||!P(), st=anaStale(a);
+  return [{group:a.name,plain:true},
+    {label:"Report",title:"What it found, with its notes",run:()=>anaReport(a.id)},
+    {label:"Change settings…",enabled:!ro,run:()=>anaDlg(a.kind,{id:a.id})},
+    {label:"Recalculate",enabled:!ro&&!!st&&!(a.res&&a.res.err&&/deleted/.test(a.res.err)),title:st||"Up to date",run:()=>anaRecalc(a.id)},
+    {label:"Recalculate by itself",radio:true,checked:a.recalc==="auto",enabled:!ro,run:()=>anaSetRecalc(a.id,"auto")},
+    {label:"Only when asked",radio:true,checked:a.recalc==="manual",enabled:!ro,run:()=>anaSetRecalc(a.id,"manual")},
+    "-",{label:"Cut from its data",enabled:!ro,title:"Keep these values as an ordinary sheet; the analysis goes",run:()=>anaCut(a.id)},
+    {label:"Delete the analysis…",danger:true,enabled:!ro,title:"The analysis and its sheet",run:()=>anaDelete(a.id)},"-"]; }
+function anaEdit(id,label,fn,log){ const p=P(); if(!p||S.readOnly) return; const ana=anaList(p).map(x=>Object.assign({},x)), a=ana.find(x=>x.id===id); if(!a) return;
+  pushUndo(label); const patch=fn(a,ana,p)||{}; save(Object.assign({ana:patch.ana||ana},patch),log); renderAll(); }
+function anaRecalc(id){ const a0=anaOf(id); if(!a0) return; anaEdit(id,`recalculating ${a0.name}`,(a,ana,p)=>{ runAna(a,p); return {ana,cols:p.cols}; },`worked out ${a0.name} again`);
+  const a=anaOf(id); if(a&&a.res&&a.res.err) toast(`${a.name} could not be worked out: ${a.res.err}.`); }
+function anaSetRecalc(id,v){ const a0=anaOf(id); if(!a0||a0.recalc===v) return; anaEdit(id,"how it recalculates",a=>{ a.recalc=v; },v==="auto"?`set ${a0.name} to be worked out again whenever its data change`:`set ${a0.name} to be worked out only when asked`); }
+function anaCut(id){ const a0=anaOf(id); if(!a0) return;
+  anaEdit(id,`cutting ${a0.name} from its data`,(a,ana,p)=>{ p.cols.forEach(c=>{ if(c.ana===id){ delete c.ana; delete c.ak; } });
+    const ss=sheetList(p).map(s=>s.ana===id?Object.assign({},s,{ana:undefined}):s); ss.forEach(s=>{ if(s.ana===undefined) delete s.ana; }); p.sheets=ss;
+    return {ana:ana.filter(x=>x.id!==id),sheets:ss,cols:p.cols}; },`cut ${a0.name} from its data: its values are an ordinary sheet now`);
+  toast(`${a0.name}'s values are an ordinary sheet now.`,{action:"Undo",run:undo}); }
+async function anaDelete(id){ const a0=anaOf(id); if(!a0) return; const p=P(), mine=new Set(p.cols.filter(c=>c.ana===id).map(c=>c.id));
+  const readers=p.cols.filter(c=>!mine.has(c.id)&&(c.fx&&Object.values(c.fx.refs||{}).some(r=>mine.has(r))||c.src&&mine.has(c.src))).length+(p.graphs||[]).filter(g=>(g.cols||[]).some(i=>mine.has(i))).length;
+  if(readers&&!(await confirmDlg(`Delete ${a0.name}?`,`${readers} formula${readers===1?"":"s"} or graph${readers===1?"":"s"} read its columns, and will lose them.`,"Delete",true))) return;
+  const sid=a0.out.sheet; anaEdit(id,`deleting ${a0.name}`,(a,ana,q)=>{ const ss=sheetList(q).filter(s=>s.id!==sid); q.cols=q.cols.filter(c=>c.ana!==id&&sheetOf(c,q)!==sid); q.sheets=ss.length?ss:[SHEET0];
+    if(curSheet()===sid) S.sheetAt[S.pid]=q.sheets[0].id; return {ana:ana.filter(x=>x.id!==id),sheets:q.sheets,cols:q.cols}; },`deleted ${a0.name} and its sheet`);
+  toast(`${a0.name} deleted.`,{action:"Undo",run:undo}); }
+// The report as HTML, from the report object (the same object the copied table and the CSV read).
+function anaReportHtml(a){ const r=a.res||{}, rep=r.report, st=anaStale(a); let h=ANA_JOBS.has(a.id)?noteHtml("info",`Being worked out: ${a.name} has many values, so the work goes on beside the page.`):st?noteHtml("warn",`Out of date: ${st}.`):"";
+  if(!rep){ return h+`<p class="muted">${esc(r.err||"Not worked out yet.")}</p>`; }
+  const cell=v=>v==null?"":typeof v==="number"?esc(fmt(v,6)):esc(v);
+  rep.sections.forEach(s=>{ h+=`<h4>${esc(s.title)}</h4>`; (s.tables||[]).forEach(t=>{ h+=`<div style="overflow:auto"><table class="rtab"><thead><tr>${t.head.map(x=>`<th>${esc(x)}</th>`).join("")}</tr></thead><tbody>${t.rows.map(r=>`<tr>${r.map((v,j)=>`<td${typeof v==="number"?' class="num"':""}>${cell(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`; }); });
+  (rep.notes||[]).forEach(n=>{ h+=noteHtml("info",n); });
+  h+=`<p class="lab">${esc(andList((a.in.cols||[]).map(id=>{ const c=colById(id); return c?`${colRef(c)} (${anaReadText(c,(a.in.read||{})[id])})`:"a deleted column"; })))}${a.in.by&&colById(a.in.by)?`, grouped by ${esc(colById(a.in.by).name||colRef(colById(a.in.by)))}`:""}; ${a.recalc==="auto"?"worked out again by itself":"worked out only when asked"}.</p>`;
+  return h; }
+function anaReport(id){ const a=anaOf(id); if(!a) return; S.resAna=id; openWin("res",{render:true}); renderResults(); }
+// The report as text (Copy): every table as tab-separated rows, then the notes, from the report object.
+function anaText(a){ const rep=a.res&&a.res.report; if(!rep) return a.name+"\n"+((a.res&&a.res.err)||"Not worked out yet.");
+  const out=[a.name]; rep.sections.forEach(s=>{ out.push("",s.title); (s.tables||[]).forEach(t=>{ out.push(t.head.join("\t")); t.rows.forEach(r=>out.push(r.map(v=>v==null?"":typeof v==="number"?String(v):String(v).replace(/[\t\r\n]+/g," ")).join("\t"))); }); });
+  (rep.notes||[]).forEach(n=>out.push("# "+n)); const st=anaStale(a); if(st) out.splice(1,0,"# Out of date: "+st);
+  out.push("# Reads: "+(a.in.cols||[]).map(id=>{ const c=colById(id); return c?`${colRef(c)} ${c.name||""} (${anaReadText(c,(a.in.read||{})[id])})`.replace(/  +/g," "):"a deleted column"; }).join("; "));
+  return out.join("\n"); }
+// The exported report: a section per analysis, its tables, notes, what it read and how it recalculates.
+function reportAnaHtml(){ const as=anaList(); if(!as.length) return ""; const e2=t=>esc(String(t));
+  return "<h2>Analyses</h2>"+as.map(a=>{ const rep=a.res&&a.res.report, st=anaStale(a); let h="<h3>"+e2(a.name)+" ("+e2(ANA_KINDS[a.kind].label.toLowerCase())+")</h3>";
+    if(st) h+="<p class=\"warn\"><strong>Out of date:</strong> "+e2(st)+".</p>";
+    if(!rep) return h+"<p>"+e2((a.res&&a.res.err)||"Not worked out yet.")+"</p>";
+    rep.sections.forEach(s=>{ (s.tables||[]).forEach(t=>{ h+="<table><thead><tr>"+t.head.map(x=>"<th>"+e2(x)+"</th>").join("")+"</tr></thead><tbody>"+t.rows.map(r=>"<tr>"+r.map(v=>typeof v==="number"?"<td>"+e2(fmt(v,7))+"</td>":"<td class=\"l\">"+e2(v==null?"":v)+"</td>").join("")+"</tr>").join("")+"</tbody></table>"; }); });
+    (rep.notes||[]).forEach(n=>{ h+="<p>"+e2(n)+"</p>"; });
+    h+="<p>Reads "+e2(andList((a.in.cols||[]).map(id=>{ const c=colById(id); return c?`${colRef(c)} ${c.name||""}`.trim()+" ("+anaReadText(c,(a.in.read||{})[id])+")":"a deleted column"; })))+(a.in.by&&colById(a.in.by)?", grouped by "+e2(colById(a.in.by).name||colRef(colById(a.in.by))):"")+(a.in.masked?", masked points included":"")+"; "+(a.recalc==="auto"?"worked out again whenever its data change":"worked out only when asked")+(a.at?", last on "+e2(new Date(a.at).toISOString().slice(0,16).replace("T"," "))+" UTC":"")+".</p>";
+    return h; }).join(""); }
+// What storage gives back: analyses of a kind Kurve has, with ids, inputs and a sheet; columns and
+// sheets naming an analysis that is not there become ordinary ones.
+function anaClean(p){ if(p.ana!==undefined&&!Array.isArray(p.ana)) delete p.ana; const sids=new Set((Array.isArray(p.sheets)&&p.sheets.length?p.sheets:[SHEET0]).filter(s=>s&&typeof s.id==="string").map(s=>s.id)), seen=new Set();
+  if(Array.isArray(p.ana)) p.ana=p.ana.filter(a=>a&&typeof a==="object"&&typeof a.id==="string"&&!seen.has(a.id)&&seen.add(a.id)&&ANA_KINDS[a.kind]&&a.in&&Array.isArray(a.in.cols)&&a.out&&sids.has(a.out.sheet))
+    .map(a=>{ if(typeof a.name!=="string"||!a.name) a.name=ANA_KINDS[a.kind].base; if(a.recalc!=="manual") a.recalc="auto"; if(!a.in.read||typeof a.in.read!=="object") a.in.read={}; a.in.cols=a.in.cols.filter(x=>typeof x==="string"); return a; });
+  const ids=new Set((p.ana||[]).map(a=>a.id)), own=new Map((p.ana||[]).map(a=>[a.out.sheet,a.id]));
+  (p.cols||[]).forEach(c=>{ if(c.ana!==undefined&&!ids.has(c.ana)){ delete c.ana; delete c.ak; } });
+  if(Array.isArray(p.sheets)) p.sheets.forEach(s=>{ if(s&&s.ana!==undefined&&own.get(s.id)!==s.ana) delete s.ana; }); }
 // The column menu's Cells hold: numbers and text (no fmt), text only, numbers only. Making a
 // column text writes its numbers as they are shown, and back reads each text as typing it would:
 // both change the values, so both are recorded.
-function setCellsHold(id,fm){ const p=P(), c=colById(id); if(!p||!c||S.readOnly||c.src||c.fx) return;
+function setCellsHold(id,fm){ const p=P(), c=colById(id); if(!p||!c||S.readOnly||c.src||c.fx||anaColRO(c)) return;
   const cur=c.fmt||"", L=colLetter(c), nt=textCount(c); if(fm===cur) return;
   if(fm==="num"&&nt){ const rows=Object.keys(c.txt).filter(k=>c.data[k]==null).slice(0,3).map(k=>+k+1); toast(`Column ${L} holds ${nt} text cell${nt===1?"":"s"} (row${rows.length===1?"":"s"} ${rows.join(", ")}${nt>3?"…":""}): clear ${nt===1?"it":"them"} or type numbers first.`); return; }
   const vals=fm==="text"||cur==="text"; if(vals&&rawLocked()&&hasVals(c)){ toast("The original data is locked: this would change its values.",{action:"Unlock",run:()=>setRawLock(false)}); return; }
@@ -14755,7 +14959,7 @@ function wsCopyText(){
    numbers (decimal commas and the like are read as the import does). Pasting
    over recorded values would edit the raw data, so that is offered as new
    columns instead. */
-function wsPasteText(text){
+function wsPasteText(text){ if(anaRO()) return;
   const p=P(), m=wsLive(); if(!p||!m) return;
   if(m.kind!=="raw"){ toast("The Processed view is read only. Paste into the Original view."); return; }
   if(S.readOnly){ toast("You can view this workspace but not edit it."); return; }
@@ -14813,7 +15017,7 @@ function wsPasteText(text){
 }
 // Delete: labels and values are cleared; with the raw data locked, values are
 // corrected instead (one) or kept (several).
-function wsClear(){
+function wsClear(){ if(anaRO()) return;
   const p=P(), m=wsLive(); if(!p||!m) return;
   if(m.kind!=="raw"){ toast("The Processed view is read only."); return; }
   if(S.readOnly) return;
@@ -15083,7 +15287,7 @@ function remapRawRows(p,fn,sid){
   Object.keys(p.found||{}).forEach(cid=>{ const f=p.found[cid]; if(!on(colById(cid))) return; ["ex","mem"].forEach(k=>{ if(Array.isArray(f[k])) f[k]=f[k].map(o=>{ if(o.row==null) return o; const r=fn(o.row); const q=Object.assign({},o); if(r==null) delete q.row; else q.row=r; return q; }); }); });
   if(S.sel!=null&&on(activeYCol())) S.sel=fn(S.sel);
 }
-function wsRowsEdit(kind,below){
+function wsRowsEdit(kind,below){ if(anaRO()) return;
   const p=P(), m=wsLive(); if(!p||!m||S.readOnly) return;
   if(m.kind!=="raw"){ toast("The Processed view is read only."); return; }
   if(rawLocked()){ toast("The original data is locked, so rows cannot be inserted or deleted.",{action:"Unlock",run:()=>setRawLock(false)}); return; }
@@ -15354,7 +15558,7 @@ function addColumn(){
    right (Excel's Insert Sheet Columns, Origin's Insert): empty Y columns among
    the sheet's. A Y column takes nothing from the others: each keeps the X to its
    left, and formulas name their columns by id. One undo entry. */
-function wsInsertCols(side){
+function wsInsertCols(side){ if(anaRO()) return;
   const p=P(), m=wsLive(); if(!p||!m||S.readOnly) return;
   if(m.kind!=="raw"){ toast("Columns are inserted in the Original view."); return; }
   if(S.ws.edit) wsCommit(0,0,true);
@@ -15370,7 +15574,7 @@ function wsInsertCols(side){
   toast(`${capFirst(what)}.`,{action:"Undo",run:undo});
 }
 // The selected columns deleted (with the columns made from them and their error bars), one undo entry.
-function deleteCols(ids){
+function deleteCols(ids){ if((ids||[]).map(colById).some(c=>c&&c.ana&&anaColRO(c))) return;
   if(S.readOnly) return; const p=P(); ids=(ids||[]).filter(id=>colById(id)); if(!p||!ids.length) return;
   if(ids.length===1) return deleteCol(ids[0]);
   const gone=new Set(ids); let grew=true;
@@ -15450,7 +15654,8 @@ function moveSheet(sid,dir){ const p=P(), ss=sheetList(p).slice(), i=ss.findInde
 async function deleteSheet(sid){
   const p=P(), ss=sheetList(), s=ss.find(q=>q.id===sid); if(!p||!s||S.readOnly) return;
   if(ss.length<2){ toast("A project keeps one sheet at least: its columns can be cleared or deleted instead."); return; }
-  const cols=sheetCols(sid), nv=cols.filter(c=>!c.fx).reduce((a,c)=>a+c.data.filter(v=>v!=null).length,0);
+  const cols=sheetCols(sid), nv=cols.filter(c=>!c.fx&&!c.ana).reduce((a,c)=>a+c.data.filter(v=>v!=null).length,0), an=s.ana?anaOf(s.ana):null;
+  if(an&&!nv&&!await confirmDlg(`Delete ${s.name}?`,`It holds the results of ${an.name}, which goes with it. Undo brings them back.`,"Delete the sheet",true)) return;
   if(nv&&!await confirmDlg(`Delete ${s.name}?`,`Its ${cols.length} column${cols.length===1?"":"s"} and ${nv} value${nv===1?"":"s"} go with it, and so do the columns made from them, from every graph. Undo brings them back.`,"Delete the sheet",true)) return;
   const q=P(); if(!q) return;
   pushUndo("deleting "+s.name); stampSheets(q);
@@ -15460,7 +15665,7 @@ async function deleteSheet(sid){
   migrate(q); S.draft=null; S.pdraft=null; S.stage=null; S.selStep=null;
   if(curSheet()===sid||(S.sheetAt||{})[S.pid]===sid){ S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=nss[Math.max(0,ss.indexOf(s)-1)].id; S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; S.wsSort=null; }
   const raw=nv?recordRaw(`deleted the sheet ${s.name} (${nv} value${nv===1?"":"s"})`):null;
-  save(Object.assign({sheets:nss,cols:q.cols,activeY:q.activeY},raw?{raw}:{}),`deleted the sheet ${s.name}${gone.size?` and its ${gone.size} column${gone.size===1?"":"s"}`:""}`);
+  save(Object.assign({sheets:nss,cols:q.cols,activeY:q.activeY},raw?{raw}:{},Array.isArray(q.ana)?{ana:q.ana}:{}),`deleted the sheet ${s.name}${gone.size?` and its ${gone.size} column${gone.size===1?"":"s"}`:""}`);
   renderAll(); toast(`Deleted ${s.name}${gone.size?` and its ${gone.size} column${gone.size===1?"":"s"}`:""}.`,{action:"Undo",run:undo}); }
 /* Columns moved to another sheet (or a new one), with their error bars. A
    column whose X would change keeps the X it was plotted against (its chosen
@@ -15470,6 +15675,8 @@ async function deleteSheet(sid){
 function moveColsToSheet(ids,sid){
   const p=P(); if(!p||S.readOnly) return; if(S.ws&&S.ws.edit) wsCommit(0,0,true);
   const cols=ids.map(colById).filter(c=>c&&!c.src&&sheetOf(c)!==sid);
+  // A result column moved away is a copy of it, cut from its analysis (which makes it again).
+  const cut=cols.filter(c=>c.ana&&anaOf(c.ana)); if(cut.length){ const an=anaOf(cut[0].ana).name; cut.forEach(c=>{ delete c.ana; delete c.ak; }); setTimeout(()=>toast(`${cut.length===1?"That column is":"Those columns are"} a copy now, cut from ${an}.`),0); }
   cols.filter(c=>c.role==="y").forEach(y=>p.cols.forEach(e=>{ if(e.role==="e"&&e.of===y.id&&!e.src&&!cols.includes(e)&&sheetOf(e)!==sid) cols.push(e); }));
   if(!cols.length) return;
   const xOf=new Map(p.cols.filter(c=>c.role==="y"&&!c.src).map(c=>[c.id,xColFor(c)])), from=curSheet();
@@ -15485,13 +15692,13 @@ function moveColsToSheet(ids,sid){
   if(S.ws){ S.ws={r:0,c:0,ar:0,ac:0,extra:0}; } S.wsm=null;
   save(Object.assign({sheets:ss,cols:p.cols},raw?{raw}:{}),`moved ${what} from ${sheetName(from)} to ${nm}`); renderAll();
   toast(`Moved ${what} to ${nm}.${kept.length?` ${andList(kept.map(y=>specName(y)))} ${kept.length===1?"keeps its":"keep their"} X column.`:""}`,{action:`Show ${nm}`,run:()=>showSheet(sid)}); }
-function sheetMenuItems(sid){ const ro=S.readOnly||!P(), ss=sheetList(), i=ss.findIndex(s=>s.id===sid);
-  return [{group:sheetName(sid),plain:true},
+function sheetMenuItems(sid){ const ro=S.readOnly||!P(), ss=sheetList(), i=ss.findIndex(s=>s.id===sid), a=anaOfSheet(sid);
+  return (a?anaMenuItems(a):[]).concat([{group:sheetName(sid),plain:true},
     {label:"Show it",enabled:sid!==curSheet(),run:()=>showSheet(sid)},
     {label:"Rename…",kbd:"F2",enabled:!ro,run:()=>renameSheet(sid)},
     {label:"Move left",enabled:!ro&&i>0,run:()=>moveSheet(sid,-1)},{label:"Move right",enabled:!ro&&i<ss.length-1,run:()=>moveSheet(sid,1)},
     "-",{label:"A new sheet",enabled:!ro,run:()=>newSheet()},
-    "-",{label:"Delete the sheet…",danger:true,enabled:!ro&&ss.length>1,title:ss.length>1?"Its columns go with it; Undo brings them back":"A project keeps one sheet",run:()=>deleteSheet(sid)}]; }
+    "-",{label:"Delete the sheet…",danger:true,enabled:!ro&&ss.length>1,title:ss.length>1?"Its columns go with it; Undo brings them back":"A project keeps one sheet",run:()=>deleteSheet(sid)}]); }
 // Data › Sheets: every sheet (the one shown ticked), then what to do with it.
 function sheetsMenuItems(){ const p=P(), ro=S.readOnly||!p, cur=curSheet();
   return sheetList().map(s=>({label:s.name,radio:true,checked:s.id===cur,note:`${sheetCols(s.id).filter(c=>c.data.some(v=>v!=null)).length} col.`,run:()=>showSheet(s.id)}))
@@ -15499,7 +15706,8 @@ function sheetsMenuItems(){ const p=P(), ro=S.readOnly||!p, cur=curSheet();
 function renderWsTabs(){ const box=$("#wsTabs"), p=P(); if(!box) return;
   if(!p||S.sheet==="final"){ box.hidden=true; box.innerHTML=""; return; }
   box.hidden=false; const cur=curSheet(), ro=S.readOnly;
-  box.innerHTML=sheetList().map(s=>`<button type="button" class="wstab" role="tab" data-wst="${esc(s.id)}" aria-selected="${s.id===cur}" tabindex="${s.id===cur?0:-1}" title="${esc(s.name)}: double-click to rename it, right-click for its menu">${esc(s.name)}</button>`).join("")
+  box.innerHTML=sheetList().map(s=>{ const a=s.ana?anaOf(s.ana):null, st=a?anaStale(a):null;
+    return `<button type="button" class="wstab${a?" ana":""}${st?" stale":""}" role="tab" data-wst="${esc(s.id)}" aria-selected="${s.id===cur}" tabindex="${s.id===cur?0:-1}" title="${esc(a?`${s.name}: the results of ${a.name}, read only${st?". Out of date: "+st:""}. Right-click for its menu`:`${s.name}: double-click to rename it, right-click for its menu`)}">${a?ICON(st?"alert":"lock","sm"):""}${esc(s.name)}</button>`; }).join("")
     +(ro?"":`<button type="button" class="tb sm icon wstnew" data-wstnew title="A new sheet" aria-label="A new sheet">${ICON("plus","sm")}</button>`); }
 function wireWsTabs(){ const box=$("#wsTabs"); if(!box) return;
   // A double click is read from the press itself: the first click redraws the tabs.
@@ -18717,7 +18925,21 @@ function paramTableHtml(f,all){
       return `<tr class="rmain${Number.isFinite(r.dep)&&r.dep>0.99&&!r.hold?" badrow":""}"><td class="l">${r.html?`<span style="font-style:italic;font-family:'Source Serif 4',Georgia,serif;font-size:1.08em">${r.html}</span>`:esc(r.label)}${u(r.unit)}${r.meaning?` <span class="lab">${esc(r.meaning)}</span>`:""}</td><td class="val">${v}${r.shared&&!r.tied?` <span class="lab shd" title="One value for every column of the global fit">shared</span>`:r.follows?` <span class="lab shd" title="${esc(`${capFirst(FOLLOW_KINDS[r.follows])} ${seriesName()}: one line for every column of the global fit, its value here read off it`)}">follows</span>`:""}</td><td class="se">${e}${e&&why?" ":""}${why}</td><td class="x">${r.hold?"":esc(fmtOr(r.t,4))}</td><td class="x">${r.hold?"":esc(fmtP(r.pv))}</td>${ci?`<td class="x">${ciT}</td>`:""}<td class="x">${r.hold?"":esc(fmtOr(r.dep,4))}</td></tr>`+more(r,ciT); }).join("")
   }${der.length?`<tr class="rgrp"><td colspan="${n}">Derived</td></tr>`+der.map(x=>{ const [v,e]=fmtVE(x.v,x.e); return `<tr><td class="l">${esc(x.name)}${u(x.unit)}</td><td class="val">${v}</td><td class="se">${e}</td>${'<td class="x"></td>'.repeat(n-3)}</tr>`; }).join(""):""}</tbody></table>`;
 }
-function renderResults(){
+// Results shows the fit or an analysis (FOUNDATION_SPEC 1.3b): with analyses in the project, a list
+// at its top says which (S.resAna, the analysis' id, or none for the fit).
+function renderResults(){ const box=$("#pane-res"), p=P(); if(!box) return;
+  const anas=p?anaList(p):[], ra=S.resAna?anas.find(a=>a.id===S.resAna)||null:null;
+  if(S.resAna&&!ra) S.resAna=null;
+  const pick=anas.length?`<div class="grid2 rshowing"><label for="rShowing">Showing</label><select id="rShowing"><option value="">The fit</option>${anas.map(a=>`<option value="${esc(a.id)}"${ra===a?" selected":""}>${esc(a.name)}</option>`).join("")}</select></div>`:"";
+  if(ra){ const st=anaStale(ra);
+    box.innerHTML=pick+`<div class="rhead"><div class="rt"><div class="rtitle">${esc(ra.name)} <span class="lab">${esc(ANA_KINDS[ra.kind].label)}</span></div></div></div>`+anaReportHtml(ra)
+      +`<div class="actions"><button class="btn sm" id="rAnaCopy">${ICON("copy","sm")}Copy</button><button class="btn sm" id="rAnaSheet">Show its sheet</button>${S.readOnly?"":`<button class="btn sm" id="rAnaSet">Change settings…</button>${st?`<button class="btn sm primary" id="rAnaRe">Recalculate</button>`:""}`}</div>`;
+    const on=(id,fn)=>{ const b=box.querySelector("#"+id); if(b) b.onclick=fn; };
+    on("rAnaCopy",()=>copyText(anaText(ra),`${ra.name}`)); on("rAnaSheet",()=>{ openWin("sheet"); showSheet(ra.out.sheet); focusWin("sheet"); });
+    on("rAnaSet",()=>anaDlg(ra.kind,{id:ra.id})); on("rAnaRe",()=>anaRecalc(ra.id));
+  } else { renderResults0(); if(pick) box.insertAdjacentHTML("afterbegin",pick); }
+  const sel=box.querySelector("#rShowing"); if(sel) sel.onchange=()=>{ S.resAna=sel.value||null; renderResults(); }; }
+function renderResults0(){
   const box=$("#pane-res"); if(!box) return;
   const p=P(); if(!p){ box.innerHTML=""; return; }
   const f=activeFit();
@@ -18917,6 +19139,7 @@ function nodeAnchor(key){
   if(kind==="table") return {type:"node",key,col:null,label:"the original data"};
   if(kind==="figure"){ const g=legacyFigGraph(id); return {type:"node",key,col:null,label:g?graphName(g):"the figure"}; }
   if(kind==="graph") return {type:"node",key,col:null,label:graphName(id)};
+  if(kind==="ana"){ const a=anaOf(id); return {type:"node",key,col:null,label:a?a.name:"an analysis"}; }
   const c=colById(id); return {type:"node",key,col:id,label:`${(NODE_KIND[kind]||"box").toLowerCase()} of ${c?specName(c):"a column"}`};
 }
 const capFirst=s=>String(s).charAt(0).toUpperCase()+String(s).slice(1);
@@ -18928,6 +19151,7 @@ function nodeLabel(a){
   if(kind==="table") return "Original data";
   if(kind==="figure"){ const g=legacyFigGraph(id); return g?graphName(g):`${capFirst(a.label||"the first graph")} (since removed)`; }
   if(kind==="graph") return graphOf(id)?graphName(id):`${capFirst(a.label||"a graph")} (since removed)`;
+  if(kind==="ana") return anaOf(id)?anaOf(id).name:`${capFirst(a.label||"an analysis")} (since removed)`;
   const c=colById(id); if(!c) return `${capFirst(a.label||"a column")} (since removed)`;
   return `${NODE_KIND[kind]||"Box"} of ${specName(c)}`;
 }
@@ -19328,7 +19552,7 @@ function clone(o){ return o===undefined?undefined:JSON.parse(JSON.stringify(o));
 function normalize(p){ if(!p) return; const was=p.v||1;
   p.log=p.log||[]; migrate(p); if(!Array.isArray(p.annos)) p.annos=[];
   if(!p.found||typeof p.found!=="object") p.found={};
-  if(p.sheets!=null){ const seen=new Set(); p.sheets=Array.isArray(p.sheets)?p.sheets.filter(s=>s&&typeof s.id==="string"&&!seen.has(s.id)&&!!seen.add(s.id)).map(s=>({id:s.id,name:String(s.name||"Sheet").slice(0,40)})):null; if(p.sheets&&!p.sheets.length) p.sheets=null; }
+  if(p.sheets!=null){ const seen=new Set(); p.sheets=Array.isArray(p.sheets)?p.sheets.filter(s=>s&&typeof s.id==="string"&&!seen.has(s.id)&&!!seen.add(s.id)).map(s=>Object.assign({id:s.id,name:String(s.name||"Sheet").slice(0,40)},typeof s.ana==="string"?{ana:s.ana}:{})):null; if(p.sheets&&!p.sheets.length) p.sheets=null; }
   if(p.batch&&!(p.batch.tmpl&&Array.isArray(p.batch.rows))) p.batch=null;
   // A batch keeps only rows of spectra that still exist: one deleted during
   // the run, or since, was listed as out of date for ever. Not a global fit:
@@ -19655,6 +19879,7 @@ async function exportReport(){
   }
   html.push(reportPeaksHtml());
   html.push(reportBandsHtml());
+  html.push(reportAnaHtml());
   html.push(reportBatchHtml()); html.push(reportTrendsHtml());
   html.push(reportDataHtml(EXPORT_PAL));
   html.push(reportFitsHtml(EXPORT_PAL));
@@ -20518,6 +20743,7 @@ function analyzeMenu(){
       {label:"Derivative, as a new column…", title:"Keeps this column and adds its derivative beside it", run:()=>{ const id=newDerived("final",{quiet:true,name:`d/dx ${specName(activeYCol())}`}); if(id) openTool("deriv",{col:id}); }, enabled:edit&&has},
       t("cumint")]},
     {label:"Statistics", sub:()=>[{label:"Descriptive statistics…", title:"Each column's numbers, the integral of the range in view, the noise and the signal to noise", run:go("desc"), enabled:has},
+      {label:"Statistics on columns…", title:ANA_KINDS.desc.help, run:()=>anaDlg("desc"), enabled:!S.readOnly&&!!P()},
       {label:"Correlation between columns…", run:go("corr"), enabled:has&&yCols().length>1},
       {label:"Histogram", title:"The distribution of the selected columns' values (or the active column's), as a column of its own on a graph of its own", run:()=>histogramCols(hist()), enabled:has&&!S.readOnly}]},
     {label:"Spectroscopy", sub:spectroscopyItems},
@@ -21752,6 +21978,15 @@ function flowLayout(per){ per=per!=null?per:S.flowPer;
   else { const gid=drawGraphIds()[0], own=gid?annos.filter(a=>a.g===gid):[];
     if(own.length&&nodes.length){ const maxRow=nodes.reduce((m,n)=>Math.max(m,n.row),0), cols=nodes.map(n=>n.col);
       add({key:"graph:"+gid,kind:"figure",gid,col:(amin(cols)+amax(cols))/2,row:maxRow+1,annos:own}); } }
+  // A box per analysis (FOUNDATION_SPEC 1.3b), under everything, fed by dashed lines from its
+  // inputs' last boxes (a data column with no lane of its own from the original data's).
+  { const base=nodes.reduce((m,n)=>Math.max(m,n.row),-1)+1, placed=[];
+    anaList(p).forEach(a=>{ const ins=(a.in.cols||[]).map(colById).filter(Boolean), lanes=ins.filter(c=>endOf[c.id]).map(c=>endOf[c.id].col);
+      const want=lanes.length?lanes.reduce((x,y)=>x+y,0)/lanes.length:0, key="ana:"+a.id; let row=base;
+      while(placed.some(q=>q.row===row&&Math.abs(q.col-want)<1)) row++;
+      add({key,kind:"ana",aid:a.id,col:want,row}); placed.push({row,col:want});
+      ins.forEach(c=>{ if(endOf[c.id]) edges.push({a:endOf[c.id].key,b:key,ref:true}); });
+      if(ins.some(c=>!endOf[c.id])&&nodes.some(n=>n.key==="table")) edges.push({a:"table",b:key,ref:true}); }); }
   // Steps that read another spectrum: a dashed line from what they read.
   nodes.filter(n=>n.kind==="step"&&!n.st.off).forEach(n=>{ const def=PIPE_OPS[n.s.op]; if(!def||!def.deps) return;
     def.deps(Object.assign({},def.defaults||{},n.s.p||{})).forEach(([id,use])=>{ const o=colById(id); if(!o) return;
@@ -21768,7 +22003,7 @@ function flowLayout(per){ per=per!=null?per:S.flowPer;
     // down to every band ran behind the boxes above, a stripe of hundreds of them with many lanes.
     edges.forEach(e=>{ if(e.a==="table"&&by[e.b]&&by[e.b].band>0) e.stub=true; });
     const tb=by.table; if(tb){ const c0=laneN.filter(n=>n.band===0&&n.kind==="raw").map(n=>n.col); tb.col=c0.length?(amin(c0)+amax(c0))/2:0; }
-    const placed=[]; nodes.filter(n=>n.kind==="graph"||n.kind==="figure").forEach(n=>{ const feed=edges.filter(e=>e.b===n.key&&by[e.a]).map(e=>by[e.a].col), cols=feed.length?feed:laneN.map(q=>q.col);
+    const placed=[]; nodes.filter(n=>n.kind==="graph"||n.kind==="figure"||n.kind==="ana").forEach(n=>{ const feed=edges.filter(e=>e.b===n.key&&by[e.a]).map(e=>by[e.a].col), cols=feed.length?feed:laneN.map(q=>q.col);
       const want=cols.length?cols.reduce((a,b)=>a+b,0)/cols.length:0; let row=bottom+1; while(placed.some(q=>q.row===row&&Math.abs(q.col-want)<1)) row++; n.col=want; n.row=row; placed.push({row,col:want}); });
     lane=Math.min(lane,per); }
   nodes.forEach(n=>{ n.x=FLOW_PAD+n.col*FLOW_CW; n.y=FLOW_PAD+n.row*FLOW_RH; });
@@ -21804,6 +22039,8 @@ function flowNodeHtml(n,cur){
   else if(n.kind==="integ"){ icon="area"; const res=bandCalc(n.c), ok=res.filter(q=>!q.r.fail);
     title=`Bands: ${res.length}`; sub=ok.length?`total ${fmt(res.total,4)}${res.ref&&ok.length>1?` · ÷ ${bandName(res.ref.b,res.ref.k)}`:""}`:"too few points"; cls+=" fitn"; }
   else if(n.kind==="figure"){ icon="chart"; title="Figure"; sub=annoCountText(n.annos); }
+  else if(n.kind==="ana"){ const a=anaOf(n.aid), st=a?anaStale(a):null; icon="table"; title=a?a.name:"An analysis"; sub=(a?ANA_KINDS[a.kind].label:"")+(st?" · out of date":"");
+    if(st){ cls+=" warn"; warn=[st]; } cls+=" fitn"; }
   else if(n.kind==="graph"){ icon="chart"; title=graphTitle(n.gid); if(n.gid===S.gid) cls+=" live";
     sub=[n.cs.length===1?specName(n.cs[0]):`${n.cs.length} curves`,annoCountText(n.annos)].filter(Boolean).join(" · "); }
   const th=n.pending?[]:nodeThreads(n.key), tOpen=th.filter(t=>!t.root.resolved).length, tNew=unreadCount(th);
@@ -22032,6 +22269,10 @@ function flowInspectorBody(n){
     if(recent.length) h+=`<div class="gh">Recent changes</div><ul class="log rawlog">${recent.map(e=>`<li><span class="when" title="${esc(logWhen(e.t))}">${esc(ago(e.t))}</span><span>${esc(e.text)}</span></li>`).join("")}</ul>`;
     return h;
   }
+  if(n.kind==="ana"){ const a=anaOf(n.aid); if(!a) return h;
+    h+=`<div class="fi-h">${ICON("table")}<div class="grow"><div class="fi-t">${esc(a.name)}</div><div class="lab">${esc(ANA_KINDS[a.kind].label)}: results on ${esc(sheetName(a.out.sheet))}</div></div>${discChip(n.key)}</div>`;
+    h+=anaReportHtml(a)+`<div class="actions">${btn("anasheet","Show its sheet","table",{primary:true,view:true})}${btn("anares","In Results","table",{view:true})}${btn("anaset","Change settings…","tag")}${anaStale(a)?btn("anarecalc","Recalculate","play"):""}</div>`;
+    return h; }
   if(n.kind==="figure"){
     const list=n.annos, recent=(p.log||[]).filter(e=>/\b(labelled|label|line at|shaded range|the text|wrote|annotation|legend|font|title|marked the)\b/i.test(e.text)).slice(-8).reverse();
     h+=`<div class="fi-h">${ICON("chart")}<div class="grow"><div class="fi-t">Figure</div><div class="lab">Lines, ranges, text and labels drawn on the graph</div></div>${discChip(n.key)}</div>`;
@@ -22118,6 +22359,9 @@ function flowInspAction(act,el,L){
   if(act==="andel"){ deleteAnno(el.dataset.an); return; }
   if(act==="pdlabels"){ openPlotDetails((activeYCol()||{}).id,"labels"); return; }
   if(act==="batchwin"){ openWin("batch",{render:true}); return; }
+  if(n.kind==="ana"){ const a=anaOf(n.aid); if(!a) return;
+    if(act==="anasheet"){ openWin("sheet"); showSheet(a.out.sheet); focusWin("sheet"); return; }
+    if(act==="anares"){ anaReport(a.id); return; } if(act==="anaset"){ anaDlg(a.kind,{id:a.id}); return; } if(act==="anarecalc"){ anaRecalc(a.id); return; } }
   if(n.kind==="graph"){ if(n.gid!==S.gid) activateGraph(n.gid);
     if(act==="gfront"){ showGraph(n.gid); return; }
     if(act==="pdgraph"){ openPlotDetails(null,"frame"); return; }
@@ -23178,6 +23422,16 @@ ${DL([["Area ± error","The trapezoidal sum over the points in the window, less 
 ${DL([["Net counts","The counts in the window less the continuum under them: a straight line through the mean of the channels at each edge (as many as the line baselines use). ± one standard deviation from counting: the counts' own and the continuum's."],["Detected","Above Currie's critical level, 95 %: on a continuum alone, one window in twenty is called detected. Below it, the level is shown."],["Emission, efficiency","Type the share of decays that give the line and the detector's efficiency at its energy, both in %."],["Activity","Net counts ÷ (live time × efficiency × emission), in becquerel, with the counting error. Not detected: the detection limit as an activity, the smallest that would be."]])}
 <p>Counting needs the counts as recorded: an energy calibration, a count rate or a crop keep them; smoothing or a subtracted background do not, and the part says so.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
+{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns recalculate recalculation auto manual lock read only processed original masked group by cut delete report",
+ lead:"An analysis reads columns and writes what it finds into a result sheet of its own, worked out again when its data change.",
+ body:`<h2>Statistics on columns</h2>
+<p>${MP("Analyze › Statistics › Statistics on columns…")}: tick the columns, and each gets a row of a new sheet: N, the rows missing, mean, standard deviation (n − 1), standard error of the mean, minimum, quartiles (as R and Excel's QUARTILE.INC), median, maximum and sum. <em>Group by</em> a column of text or categories gives a row for each column and group.</p>
+<h2 id="read">What it reads</h2>
+<p>Each column's processed values: the values after its steps, its original values when it has none. The dialog names the steps each column is read after, and a column with steps has a switch to <em>Original</em>. Masked points are left out unless <em>Include masked points</em> is ticked, and the report says how many. After a step that leaves rows out, makes points or averages them (resampling, a histogram), or makes neighbours depend on each other (smoothing), the report says so: three hundred points resampled from a hundred are not three hundred measurements.</p>
+<h2 id="sheet">The result sheet</h2>
+<p>Its tab carries a lock: the sheet is read only, since its values are worked out. Its columns can be plotted, read by a formula and copied; one moved to another sheet becomes a copy, cut from the analysis. The results are not original data, so they leave the check code alone.</p>
+<h2 id="recalc">Recalculating</h2>
+<p>Right-click its tab: ${DL([["Report","What it found, with its notes."],["Change settings…","The dialog again."],["Recalculate","When it is out of date."],["Recalculate by itself","The default: worked out again whenever a value, a step or a mask of what it reads changes, with a line in the log."],["Only when asked","A change marks its tab out of date instead, with the reason in its tooltip."],["Cut from its data","The values stay as an ordinary sheet; the analysis goes."],["Delete the analysis…","With its sheet."]])} Each is one undo step.</p>`},
 {id:"stats", g:"Analysis", t:"Statistics", win:"stats", kw:"statistics descriptive n count mean median sd se standard error spectral measures noise signal to noise area centroid correlation pearson integrate visible range",
  lead:"Descriptive statistics of every column, the integral of the visible range, and how alike the columns are.",
  body:`<h2>Descriptive statistics</h2>
@@ -24354,7 +24608,7 @@ function computeWorker(){
   try{ if(typeof Worker==="undefined"||typeof Blob==="undefined") throw new Error("no workers");
     const sc=[...document.scripts].find(s=>!s.src&&s.textContent.indexOf("==NUMERICS"+":START==")>=0), txt=sc?sc.textContent:"";
     const grab=tag=>{ const m=txt.match(new RegExp("=="+tag+":START==[\\s\\S]*?\\*\\/([\\s\\S]*?)\\/\\* =="+tag+":END==")); if(!m) throw new Error("no "+tag+" block"); return m[1]; };
-    const url=URL.createObjectURL(new Blob([["NUMERICS","PEAKS","PIPE","MODELS","STATS"].map(grab).join("\n")+"\n"+COMPUTE_TAIL],{type:"text/javascript"}));
+    const url=URL.createObjectURL(new Blob([["NUMERICS","PEAKS","PIPE","MODELS","STATS","ANA"].map(grab).join("\n")+"\n"+COMPUTE_TAIL],{type:"text/javascript"}));
     const w=new Worker(url), me={w,n:0,wait:new Map(),url};
     w.onmessage=e=>{ const d=e.data, h=me.wait.get(d&&d.id); if(!h) return;
       if(d.progress!==undefined){ if(h.prog) try{ h.prog(d.progress); }catch(_){} return; }
@@ -26471,6 +26725,7 @@ function renderAll0(){
   const rc=++renderCount; if(followPeakSets()&&renderCount!==rc) return;
   // So does a fit set to follow its data.
   const rc2=++renderCount; if(followFits()&&renderCount!==rc2) return;
+  const rc3=++renderCount; if(followAnas()&&renderCount!==rc3) return;
   if(S.pending&&(!P()||!colById(S.pending.col))) S.pending=null;
   syncGraphWins(); syncTrendWins(); layoutFigs(null,{quiet:true});
   renderTop(); renderPlot(); renderStages(); renderTabMarks(); renderGraphHeads(); scheduleSnaps(0);

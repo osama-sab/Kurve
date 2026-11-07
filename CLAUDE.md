@@ -1011,6 +1011,34 @@ graph first, with the taskbar kept at the bottom of the screen.
   `psuByOpts`, `psuSplit`: a derived column per level with the `where` step, *Keep the rows of one
   category*, in no menu, `deps` `[col, "cells"]` read through `pipeCtx.cellAt`, its column a `catcol`
   param; the parts a group stepping the colour). Plot setup's columns list text columns (`hasVals`).
+- **Analyses and result sheets** (FOUNDATION_SPEC 1.3a): `p.ana` (in `UNDO_KEYS` and `UNDO_BYID`), each `{id,
+  kind, name, in {cols, by, read {colId: "orig"}, masked}, p, out {sheet}, recalc "auto"|"manual", sig, at, by,
+  res {report, notes, err}}`, cleaned by `anaClean` (in `migrate`; `normalize` keeps a sheet's `ana`). `ANA_KINDS`
+  (`desc`, Statistics on columns: `run(ins, p)` → `{tables:[{cols:[{k, name, vals}]}], report:{sections:[{title,
+  tables:[{head, rows}]}], notes}}`); `anaRead(c, {read, masked})` the one door (processed values, the original
+  ones with no steps or `read:"orig"`; masked rows out and counted; `rowsKind` from `PIPE_ROWS`, every step's
+  keep, dep, drop or merge, `anaSteps` its source's first); `anaSig` (each input's `pipeSig` and `maskSig`, the
+  groups' cells, the settings), `anaStale`, `runAna(a, p)` (notes for masked points and the steps' kinds, groups
+  through `distGroups`), `anaWrite` (the result sheet's columns, `c.ana` and `c.ak` their key, kept by id, text
+  for the names), `followAnas()` (in `renderAll` after `followFits`: `auto` ones worked out again, a log line, no
+  undo step); `anaRO()`/`anaColRO(c)` refuse writes to a result sheet (`wsBeginEdit`, `wsBarBegin`, `wsClear`,
+  `wsPasteText`, `wsFill`, `doFill`, `wsRowsEdit`, `wsInsertCols`, `deleteCols`, `setCellsHold`); `rawCols`
+  leaves `c.ana` out; `moveColsToSheet` cuts a result column from its analysis. `anaDlg(kind, {id})` (Analyze ›
+  Statistics › Statistics on columns…: `#aI_<id>` ticks, `#aR_<id>` Processed/Original for a column with steps,
+  `#aBy`, `#aRc`, `#aMask`), `anaMenuItems(a)` at the top of the result sheet's tab menu (Report, Change
+  settings…, Recalculate, Recalculate by itself, Only when asked, Cut from its data, Delete the analysis…:
+  `anaReport`, `anaRecalc`, `anaSetRecalc`, `anaCut`, `anaDelete`), the tab's lock (`.wstab.ana`, `.stale`
+  with the alert icon), `anaReportHtml(a)`. **1.3b**: a History box per analysis (`ana:<id>`, kind `ana`, under
+  everything, dashed lines from its inputs' last boxes, its inspector the report with Show its sheet, In Results,
+  Change settings…, Recalculate, and its discussion; `nodeAnchor`/`nodeLabel` know it); Results shows the fit or an
+  analysis (`renderResults` a wrapper over `renderResults0`: `#rShowing`, `S.resAna`; `anaReport(id)` opens it there;
+  Copy is `anaText(a)`, every table tab-separated, its notes and what it read under `# `); the exported report's
+  *Analyses* (`reportAnaHtml`). **1.3c**: the kinds are the pure `==ANA:START/END==` block (after STATS; `ANA_KINDS`,
+  `anaRunKind(kind, ins, p)`), loaded by the compute worker and `tools/ref/run.mjs`; `runAna` sends inputs of
+  `ANA_BIG` (200 000) values or more to the worker (`anaJob`: `ANA_JOBS` id → `{sig, pid, stop}`, a toast with Stop;
+  `anaDone` puts the result in with a save and no undo step only if the analysis's `sig` is still the job's;
+  stopped, `res.err` says so and Recalculate works it out; no worker, on the page), `anaApply` the rest of a run.
+  `tools/ana-drive.mjs` drives it.
 - **Raw data** is never changed by analysis, and its arrays are replaced, never edited in
   place. It is edited in the worksheet like any spreadsheet (typed over, cleared, pasted and
   filled over, rows inserted and deleted), each change one undo entry and an entry in the
@@ -2897,6 +2925,10 @@ budgets of about three times what was measured. `tools/suite.sh [--snap] [path]`
 alone) and prints one line a test; with `--snap` on a copy of the files git knows (stage new ones
 first), so editing goes on while it runs. A new numeric function gets its fixture, target and
 fuzz generator before it is used.
+`node tools/ana-drive.mjs [path]` (Playwright) checks analyses (FOUNDATION_SPEC 1.3): every step's row flag, a
+result sheet made, read only, worked out again by itself after a value and a step, Original, masked points,
+made points said, Only when asked and Recalculate, groups, an input deleted, a reload, junk from storage, Cut
+and Delete with undo.
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms); run it, ref-test and a fuzzer
@@ -4365,7 +4397,8 @@ Next, in order:
    project file…, backups), done 07.11; slice 1.4's distributions (the STATS block: ln Γ, the
    incomplete beta and gamma and nine distributions with both tails and quantiles, every p value
    now to 10⁻¹³), done 07.11, its noncentral, studentized-range, rank and normality distributions
-   moved to the wave-2 slices that first use them; slices 1.2a to 1.2d, text in the worksheet, kept by imports, categorical columns, and graphs reading them, done 07.11
+   moved to the wave-2 slices that first use them; slices 1.2a to 1.2d, text in the worksheet, kept by imports, categorical columns, and graphs reading them, done 07.11; slices 1.3a to 1.3c, analyses with result sheets (Statistics on columns), their History box, Results and report, and the
+   worker, done 07.11: wave 1 is done
 
 ## Known gaps
 
@@ -4446,6 +4479,9 @@ Next, in order:
 - Plotting from the worksheet plots whole columns (no range of rows, no plot of a selection
   of cells), against an X column; a closed graph is closed for everyone who opens the
   project, and a viewer who cannot edit cannot open it
+- Analyses: one kind yet (Statistics on columns); one table a kind (its report's other sections are text); an analysis
+  being worked out by the worker is started again after a reload (the job is not stored); a result column has no lock
+  of its own in its header (its tab has)
 - Text cells: a categorical column's order is by hand with ↑/↓ (no drag); Group by is for a new graph (What it
   plots… keeps a graph's curves) and splits into derived columns, one a level, that do not follow new levels typed
   later; a categorical X is the whole column's levels (a curve's own range does not narrow the names); several files

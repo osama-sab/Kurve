@@ -296,6 +296,14 @@ gains the sections.
 
 ## 1.3 Analyses and result sheets
 
+1.3a done 07.11: the framework, the reading (`PIPE_ROWS`, the step flags, under that name rather than a
+key of each op) and *Statistics on columns* (the menu's name for the first kind, Origin's; *Descriptive
+statistics…* stays the Statistics window). Changes of plan: the result sheet's columns carry no lock of their own (the tab's says it).
+1.3b and 1.3c done 07.11: the History box, Results' *Showing*, Copy and the exported report read the
+report object; the kinds are a pure block (`ANA`) the worker loads, and an analysis of 200 000 values
+or more goes there with Stop. The reading from every place a command starts is one function
+(`anaDlg`), so it is checked once. Wave 1 is done.
+
 The framework, as `PARITY_SPEC.md` 1.3 sets it out (`p.ana`, `ANA_KINDS`, `anaRead`, the reading
 of decision 4 there, its step flags), with what this spec adds:
 

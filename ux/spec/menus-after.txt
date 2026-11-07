@@ -187,6 +187,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
     Cumulative integral…
   Statistics  ## ← the Statistics menu (DS2)
     Descriptive statistics…  ## + "Integrate the visible range", "Noise and signal to noise": sections of the one window
+    Statistics on columns…  ## + (FOUNDATION_SPEC 1.3a): an analysis into a result sheet of its own, worked out again
     Correlation between columns…  ## ~ "Correlation between spectra"
     Histogram…  ## ~ "Histogram of the values"; now takes the selected columns
   Spectroscopy  ## ← the Spectroscopy menu (DS2): the toolkit, gathered from Data, Math, Analysis, Statistics and Plot
