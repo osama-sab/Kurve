@@ -2806,17 +2806,32 @@ function polyfit(X,Y,deg){
    constants pi and e. Several lines are allowed: "u = (x - xc)/w" names a
    value for the lines below, and the function is "y = …" or the last line.
    Every other name is a parameter, in the order it first appears. */
-function erfcFn(x){
-  if(x<0) return 2-erfcFn(-x);
-  if(x<2.5){ // the Taylor series of erf converges quickly here
-    let s=x, t=x, x2=x*x;
-    for(let n=1;n<80;n++){ t*=-x2/n; const d=t/(2*n+1); s+=d; if(Math.abs(d)<1e-17*Math.abs(s)) break; }
-    return 1-s*1.1283791670955126; }
-  // A continued fraction, evaluated from the far end.
-  let f=0; for(let n=60;n>=1;n--) f=(n/2)/(x+f);
-  return Math.exp(-x*x)/(x+f)*0.5641895835477563;
-}
-const erfFn=x=>1-erfcFn(x);
+/* erf and erfc by W. J. Cody's rational approximations (Math. Comp. 23, 1969; netlib's CALERF):
+   erf itself below 0.46875, erfc by a rational in x up to 4 and in 1/x² beyond, times exp(-x²)
+   split in two so that its rounding does not grow with x. Each is accurate to a few parts in 10¹⁶
+   relative wherever its value is a normal number (tools/ref-test.mjs checks them against SciPy);
+   erf is not 1 - erfc (which loses every digit for a small x), nor erfc 1 - erf. */
+const CODY={A:[3.16112374387056560e00,1.13864154151050156e02,3.77485237685302021e02,3.20937758913846947e03,1.85777706184603153e-1],
+  B:[2.36012909523441209e01,2.44024637934444173e02,1.28261652607737228e03,2.84423683343917062e03],
+  C:[5.64188496988670089e-1,8.88314979438837594e00,6.61191906371416295e01,2.98635138197400131e02,8.81952221241769090e02,1.71204761263407058e03,2.05107837782607147e03,1.23033935479799725e03,2.15311535474403846e-8],
+  D:[1.57449261107098347e01,1.17693950891312499e02,5.37181101862009858e02,1.62138957456669019e03,3.29079923573345963e03,4.36261909014324716e03,3.43936767414372164e03,1.23033935480374942e03],
+  P:[3.05326634961232344e-1,3.60344899949804439e-1,1.25781726111229246e-1,1.60837851487422766e-2,6.58749161529837803e-4,1.63153871373020978e-2],
+  Q:[2.56852019228982242e00,1.87295284992346725e00,5.27905102951428412e-1,6.05183413124413191e-2,2.33520497626869185e-3]};
+// erf(x) for |x| ≤ 0.46875.
+function codyErfSmall(x){ const {A,B}=CODY, y=Math.abs(x), z=y>1.11e-16?y*y:0; let n=A[4]*z, d=z;
+  for(let i=0;i<3;i++){ n=(n+A[i])*z; d=(d+B[i])*z; } return x*(n+A[3])/(d+B[3]); }
+// erfc(y) for y > 0.46875.
+function codyErfcBig(y){ if(y>=26.543) return 0; let r;
+  if(y<=4){ const {C,D}=CODY; let n=C[8]*y, d=y; for(let i=0;i<7;i++){ n=(n+C[i])*y; d=(d+D[i])*y; } r=(n+C[7])/(d+D[7]); }
+  else { const {P,Q}=CODY, z=1/(y*y); let n=P[5]*z, d=z; for(let i=0;i<4;i++){ n=(n+P[i])*z; d=(d+Q[i])*z; }
+    r=(0.56418958354775628695-z*(n+P[4])/(d+Q[4]))/y; }
+  const ys=Math.trunc(y*16)/16, del=(y-ys)*(y+ys); return Math.exp(-ys*ys)*Math.exp(-del)*r; }
+function erfcFn(x){ if(Number.isNaN(x)) return NaN; const y=Math.abs(x);
+  if(y<=0.46875) return 1-codyErfSmall(x);
+  const r=codyErfcBig(y); return x<0?2-r:r; }
+function erfFn(x){ if(Number.isNaN(x)) return NaN; const y=Math.abs(x);
+  if(y<=0.46875) return codyErfSmall(x);
+  const r=(0.5-codyErfcBig(y))+0.5; return x<0?-r:r; }
 const EXPR_FN={exp:[1,Math.exp],ln:[1,Math.log],log:[1,Math.log],log10:[1,Math.log10],log2:[1,Math.log2],sqrt:[1,Math.sqrt],abs:[1,Math.abs],
   sin:[1,Math.sin],cos:[1,Math.cos],tan:[1,Math.tan],asin:[1,Math.asin],acos:[1,Math.acos],atan:[1,Math.atan],atan2:[2,Math.atan2],
   sinh:[1,Math.sinh],cosh:[1,Math.cosh],tanh:[1,Math.tanh],pow:[2,Math.pow],min:[-2,Math.min],max:[-2,Math.max],
@@ -3086,6 +3101,13 @@ function fillSeries(o,n){
 // on the exact distribution function, which takes it to double precision.
 function probit(p){
   if(!(p>0&&p<1)) return p<=0?-Infinity:p>=1?Infinity:NaN;
+  // Above one half, from the other tail: 1 - p is exact there (Sterbenz), and the refinement below
+  // then compares Φ(x) with a small number, not two numbers near 1.
+  return p>0.5?-probitLow(1-p):probitLow(p);
+}
+// The quantile of the standard normal for p ≤ 0.5: Acklam's rational approximation, then one step
+// of Halley's method on Φ(x) − p, Φ from erfc of a positive argument, accurate to its last digits.
+function probitLow(p){
   const a=[-3.969683028665376e+01,2.209460984245205e+02,-2.759285104469687e+02,1.383577518672690e+02,-3.066479806614716e+01,2.506628277459239e+00],
     b=[-5.447609879822406e+01,1.615858368580409e+02,-1.556989798598866e+02,6.680131188771972e+01,-1.328068155288572e+01],
     c=[-7.784894002430293e-03,-3.223964580411365e-01,-2.400758277161838e+00,-2.549732539343734e+00,4.374664141464968e+00,2.938163982698783e+00],
@@ -7310,7 +7332,7 @@ const IDB_INLINE=256;
 function idbPack(a){ const n=a.length, f=new Float64Array(n); for(let i=0;i<n;i++){ const v=a[i]; if(v===null) f[i]=NaN; else if(typeof v==="number"&&Number.isFinite(v)) f[i]=v; else return a; } return f; }
 function idbUnpack(a){ if(Array.isArray(a)) return a; if(!(a instanceof Float64Array)) return []; const n=a.length, o=new Array(n); for(let i=0;i<n;i++){ const v=a[i]; o[i]=v===v?v:null; } return o; }
 const IdbStore={
-  mode:"local", db:null, data:null, dirty:{}, rev:{}, base:{}, have:new Set(), q:{}, busy:{}, pend:{}, subs:{projects:[],comments:{}}, chan:null, failNext:null,
+  mode:"local", db:null, data:null, dirty:{}, rev:{}, base:{}, have:new Set(), q:{}, busy:{}, pend:{}, txs:{}, subs:{projects:[],comments:{}}, chan:null, failNext:null,
   tab:Date.now().toString(36)+Math.random().toString(36).slice(2,8),
   async open(){
     if(typeof indexedDB==="undefined"||!indexedDB) throw new Error("No IndexedDB in this browser.");
@@ -7388,9 +7410,11 @@ const IdbStore={
   async write(pid,fresh){
     const p=this.data.projects[pid]; if(!p) return;
     if(this.failNext){ const k=this.failNext; this.failNext=null; this.dirty[pid]=true; throw Object.assign(new Error(k==="quota"?"This browser's storage is full.":"This browser would not store the change."),{code:k==="quota"?"quota_exceeded":"storage"}); }
-    let merged=null, gone=false, rv=0, seq;
+    let merged=null, gone=false, rv=0, seq, tx=null;
     try{
-      const tx=this.db.transaction(["projects","arrays"],"readwrite"), ps=tx.objectStore("projects"), as=tx.objectStore("arrays");
+      tx=this.db.transaction(["projects","arrays"],"readwrite"); const ps=tx.objectStore("projects"), as=tx.objectStore("arrays");
+      // Known while it runs, so that leaving the page can end it rather than wait behind it (flushSync).
+      (this.txs[pid]=this.txs[pid]||new Set()).add(tx);
       const stored=await idbReq(ps.get(pid));
       if(!stored&&!fresh){ gone=true; tx.abort(); }
       else {
@@ -7407,7 +7431,11 @@ const IdbStore={
         if(stored){ const now=this.recKeys(rec); this.recKeys(stored).forEach(k=>{ if(!now.has(k)){ as.delete(k); this.have.delete(k); } }); }
         await idbDone(tx); out.forEach((a,k)=>this.have.add(k));
       }
-    }catch(e){ if(gone) throw Object.assign(new Error("The project was deleted."),{code:"gone"}); this.dirty[pid]=true; throw this.fail(e); }
+    }catch(e){ if(tx&&this.txs[pid]) this.txs[pid].delete(tx);
+      // Ended by flushSync, whose own transaction writes all of it: nothing went wrong.
+      if(tx&&tx._byFlush) return;
+      if(gone) throw Object.assign(new Error("The project was deleted."),{code:"gone"}); this.dirty[pid]=true; throw this.fail(e); }
+    if(tx&&this.txs[pid]) this.txs[pid].delete(tx);
     if(gone){ delete this.data.projects[pid]; this.emitProjects(); throw Object.assign(new Error("The project was deleted."),{code:"gone"}); }
     delete this.dirty[pid]; this.rev[pid]=rv; if(this.pend[pid]===seq) delete this.pend[pid];
     if(merged){ const cur=this.data.projects[pid]; if(cur){ Object.keys(cur).forEach(k=>{ if(!(k in merged)) delete cur[k]; }); Object.assign(cur,merged); } }
@@ -7415,12 +7443,18 @@ const IdbStore={
     if(this.chan) try{ this.chan.postMessage({k:"p",id:pid,rev:rv}); }catch(e){}
     if(merged) this.emitProjects(); },
   // Leaving the page: what has not been written yet is, in one transaction committed at once. A
-  // write that first reads the project would be cut off by the page going.
+  // write that first reads the project would be cut off by the page going. A write still under way
+  // is ended first: left to run, it holds the stores, so this transaction would wait behind it
+  // until the page has gone; and it would take this one's bookkeeping for another tab's write and
+  // put the project as stored back over the change (a rename made just before a reload was lost
+  // one time in four). The books (rev, base) are kept when this transaction has completed.
   flushSync(){ const ids=Object.keys(this.pend).filter(id=>this.data.projects[id]); if(!ids.length||!this.db) return;
-    try{ const tx=this.db.transaction(["projects","arrays"],"readwrite"), ps=tx.objectStore("projects"), as=tx.objectStore("arrays"), outs=[];
+    ids.forEach(id=>{ (this.txs[id]||new Set()).forEach(t=>{ t._byFlush=true; try{ t.abort(); }catch(e){} }); delete this.txs[id]; });
+    try{ const tx=this.db.transaction(["projects","arrays"],"readwrite"), ps=tx.objectStore("projects"), as=tx.objectStore("arrays"), outs=[], done=[];
       ids.forEach(id=>{ const out=new Map(), rec=this.toRec(id,this.data.projects[id],out), rv=(this.rev[id]||0)+1; rec._rev=rv; out.forEach((a,k)=>as.put(a,k)); ps.put(rec,id); outs.push(out);
-        this.rev[id]=rv; this.base[id]=Object.assign({},this.data.projects[id]); delete this.pend[id]; });
-      tx.oncomplete=()=>outs.forEach(o=>o.forEach((a,k)=>this.have.add(k))); tx.onabort=()=>ids.forEach(id=>{ this.dirty[id]=true; });
+        done.push([id,rv,Object.assign({},this.data.projects[id])]); delete this.pend[id]; });
+      tx.oncomplete=()=>{ outs.forEach(o=>o.forEach((a,k)=>this.have.add(k))); done.forEach(([id,rv,b])=>{ if((this.rev[id]||0)<rv){ this.rev[id]=rv; this.base[id]=b; } }); };
+      tx.onabort=()=>ids.forEach(id=>{ this.dirty[id]=true; });
       if(tx.commit) tx.commit();
       // The other tabs hear of it as of any write (their read waits for this transaction).
       if(this.chan) ids.forEach(id=>{ try{ this.chan.postMessage({k:"p",id,rev:this.rev[id]}); }catch(e){} }); }catch(e){} },
@@ -23664,12 +23698,12 @@ function followText(q,ascii){ const nm=/^(peak|baseline) /.test(q.name)?capFirst
   const R=8.314462618; return `${nm} by Arrhenius in ${q.sname||"the temperature"}: activation energy ${pm(q.b*R/1000,q.sb*R/1000)} kJ/mol (Ea/R ${pm(q.b,q.sb)} K), ${pm(q.a,q.sa)}${pu} at ${fmt(1/q.u0,6)} K`; }
 /* Prepared, solved and finished apart (roadmap 7, slice 3), so the solving can go to a worker:
    fitTogether does all three at once; fitTogetherAsync (the Batch window's) sends the solving to
-   gfitWorker() when the page can make one, and does it here when it cannot. */
+   computeWorker() when the page can make one, and does it here when it cannot. */
 function fitTogether(list,t,share){ const c=fitTogetherPrep(list,t,share); if(c.fail) return c;
   let r; try{ r=globalFit(c.sets,c.f,c.p0s,c.sh,c.fixedT,c.opt); }catch(e){ return {fail:"the fit stopped with an error: "+(e&&e.message||e)}; }
   return fitTogetherFinish(c,r); }
 async function fitTogetherAsync(list,t,share,stopped){ const c=fitTogetherPrep(list,t,share); if(c.fail) return c;
-  if(c.desc){ const {prep,...opt}=c.opt, r=await gfitRun({sets:c.sets,p0s:c.p0s,sh:c.sh,fixed:c.fixedT,opt,desc:c.desc},stopped);
+  if(c.desc){ const {prep,...opt}=c.opt, r=await computeRun({kind:"gfit",sets:c.sets,p0s:c.p0s,sh:c.sh,fixed:c.fixedT,opt,desc:c.desc},stopped);
     if(r&&r.stopped) return {stopped:true};
     if(r&&r.crash) return {fail:"the fit stopped with an error: "+r.error};
     if(r) return fitTogetherFinish(c,r); }
@@ -23728,37 +23762,50 @@ function fitTogetherFinish(c,r){
   const folOut=(r.follow||[]).map(q=>Object.assign({},q,{name:tmplParamName(t,q.i),unit:app?"":unitFor(dimOf(q.i),d0.xu||"",d0.yu||""),sname,sunit:q.kind==="arr"?"K":sunit,cab:Number.isFinite(q.cab)?q.cab:null}));
   return {rows,glob:Object.assign({share:sh.map((s,i)=>s?true:fl[i]||false),stats:gstats},folOut.length?{follow:folOut}:{})};
 }
-/* The global fit's worker (roadmap 7, slice 3): the page's own numerics, peaks, processing and
-   models blocks (the ones tools/fit-test.mjs runs under node) and a handler, as a script of its own
-   from a Blob. It makes the model again from its description, fits, and posts the result back; the
-   page stays live and Stop is heard (the worker is ended, and made again for the next fit). Where
-   the page cannot make one (a content policy without blob: workers), or it fails, the fit runs
-   here as it always did. */
-const GFIT_TAIL=`self.onmessage=e=>{ const q=e.data; let r;
-  try{ const d=q.desc; let f;
+/* The compute worker (ux/spec/PARITY_SPEC.md, wave 0.3; the global fit's alone before, roadmap 7,
+   slice 3): the page's own numerics, peaks, processing and models blocks (the ones
+   tools/fit-test.mjs and tools/ref-test.mjs run under node) and a handler, as a script of its own
+   from a Blob. A job is {kind, …}: "gfit", a global fit, its model made again from its description;
+   "call", any function of the blocks by its name with its arguments (`fn`, `args`), which is what an
+   analysis's pure run is. Inside, a job may say how far it has got with self.progress(v), heard here
+   by computeRun's onProgress. The page stays live, and Stop is heard: the worker is ended, and made
+   again for the next job. Where the page cannot make one (a content policy without blob: workers),
+   or it fails, computeRun answers null and the caller does the work here, as it always could. */
+const COMPUTE_TAIL=`const JOBS={
+  gfit(q){ const d=q.desc; let f;
     if(d.kind==="composite"){ const m=compileModel(d.spec,d.x0); f=(x,v)=>m.f(x,v); if(d.links){ const L=peakLinks(d.spec.peaks,m); q.opt.prep=v=>applyPeakLinks(v,L); } }
     else if(d.expr!=null){ f=compileExpr(d.expr).f; }
     else { const mdl=MODELS[d.model]; if(!mdl) throw new Error("the model is not known to the worker"); f=(x,v)=>mdl.f(x,v); }
-    r=globalFit(q.sets,f,q.p0s,q.sh,q.fixed,q.opt); }
+    return globalFit(q.sets,f,q.p0s,q.sh,q.fixed,q.opt); },
+  call(q){ const f=/^[A-Za-z_$][\\w$]*$/.test(q.fn||"")?self[q.fn]:null;
+    if(typeof f!=="function") throw new Error("the worker has no function called "+q.fn);
+    return f(...(q.args||[])); } };
+let CUR=null; self.progress=v=>{ if(CUR!=null) self.postMessage({id:CUR,progress:v}); };
+self.onmessage=e=>{ const q=e.data; let r; CUR=q.id;
+  try{ const j=JOBS[q.kind||"gfit"]; if(!j) throw new Error("the worker has no job called "+q.kind); r=j(q); }
   catch(err){ r={error:String(err&&err.message||err),crash:true}; }
-  self.postMessage({id:q.id,r}); };`;
-let GFW=null;
-function gfitWorker(){
-  if(GFW!==null) return GFW||null;
+  CUR=null; self.postMessage({id:q.id,r}); };`;
+let CWK=null; // the worker; false when one cannot be made, null before the first job
+function computeWorker(){
+  if(CWK!==null) return CWK||null;
   try{ if(typeof Worker==="undefined"||typeof Blob==="undefined") throw new Error("no workers");
     const sc=[...document.scripts].find(s=>!s.src&&s.textContent.indexOf("==NUMERICS"+":START==")>=0), txt=sc?sc.textContent:"";
     const grab=tag=>{ const m=txt.match(new RegExp("=="+tag+":START==[\\s\\S]*?\\*\\/([\\s\\S]*?)\\/\\* =="+tag+":END==")); if(!m) throw new Error("no "+tag+" block"); return m[1]; };
-    const url=URL.createObjectURL(new Blob([["NUMERICS","PEAKS","PIPE","MODELS"].map(grab).join("\n")+"\n"+GFIT_TAIL],{type:"text/javascript"}));
+    const url=URL.createObjectURL(new Blob([["NUMERICS","PEAKS","PIPE","MODELS"].map(grab).join("\n")+"\n"+COMPUTE_TAIL],{type:"text/javascript"}));
     const w=new Worker(url), me={w,n:0,wait:new Map(),url};
-    w.onmessage=e=>{ const h=me.wait.get(e.data&&e.data.id); if(h){ me.wait.delete(e.data.id); h.ok(e.data.r); } };
-    w.onerror=e=>{ if(e&&e.preventDefault) e.preventDefault(); const hs=[...me.wait.values()]; me.wait.clear(); try{ w.terminate(); }catch(_){} if(GFW===me) GFW=false; hs.forEach(h=>h.ok(null)); };
-    GFW=me; return me; }
-  catch(e){ GFW=false; return null; } }
-// One fit in the worker: its result, {stopped} when stopped() turned true first, or null to fit here.
-function gfitRun(job,stopped){ const W=gfitWorker(); if(!W) return Promise.resolve(null);
+    w.onmessage=e=>{ const d=e.data, h=me.wait.get(d&&d.id); if(!h) return;
+      if(d.progress!==undefined){ if(h.prog) try{ h.prog(d.progress); }catch(_){} return; }
+      me.wait.delete(d.id); h.ok(d.r); };
+    w.onerror=e=>{ if(e&&e.preventDefault) e.preventDefault(); const hs=[...me.wait.values()]; me.wait.clear(); try{ w.terminate(); }catch(_){} if(CWK===me) CWK=false; hs.forEach(h=>h.ok(null)); };
+    CWK=me; return me; }
+  catch(e){ CWK=false; return null; } }
+/* One job in the worker: its result ({error, crash} when it threw), {stopped} when stopped() turned
+   true first, or null when there is no worker, so the caller does it here. onProgress(v) hears what
+   the job says of its progress. */
+function computeRun(job,stopped,onProgress){ const W=computeWorker(); if(!W) return Promise.resolve(null);
   return new Promise(res=>{ const id=++W.n; let iv=null; const done=v=>{ clearInterval(iv); res(v); };
-    W.wait.set(id,{ok:done});
-    iv=setInterval(()=>{ if(stopped&&stopped()){ W.wait.delete(id); try{ W.w.terminate(); URL.revokeObjectURL(W.url); }catch(e){} if(GFW===W) GFW=null; done({stopped:true}); } },100);
+    W.wait.set(id,{ok:done,prog:onProgress||null});
+    iv=setInterval(()=>{ if(stopped&&stopped()){ W.wait.delete(id); try{ W.w.terminate(); URL.revokeObjectURL(W.url); }catch(e){} if(CWK===W) CWK=null; done({stopped:true}); } },100);
     try{ W.w.postMessage(Object.assign({id},job)); }catch(e){ W.wait.delete(id); done(null); } }); }
 /* A header field as a number: a date and time (in ms), a time of day, or the
    first number in it with what follows as its unit ("300 K", "Exposure = 10 s",

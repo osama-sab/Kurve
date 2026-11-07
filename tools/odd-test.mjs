@@ -161,9 +161,15 @@ await page(async p => {
   await p.reload(); await ready(p);
   const r = await p.evaluate(() => { const q = S.projects.find(q => q.name === "Million rows"); const y = q && q.cols.find(c => c.role === "y"); return y ? [y.data.length, y.data[123456]] : null; });
   check("…and comes back after a reload", r && r[0] === 1000000 && Math.abs(r[1] - Math.sin(123456 / 300)) < 1e-12, JSON.stringify(r));
-  // Leaving at once after a change keeps it.
-  await p.evaluate(() => { save({ name: "Renamed just before leaving" }, "renamed"); }); await p.reload(); await ready(p);
-  check("a change saved just before a reload is kept", await p.evaluate(() => S.projects.some(q => q.name === "Renamed just before leaving")));
+  // Leaving at once after a change keeps it: eight times, on a machine slowed down six times. (The
+  // write already under way used to hold the stores and then put the old name back over the new one:
+  // a rename made just before a reload was lost one time in four, more often on a slow machine.)
+  { const cdp = await p.context().newCDPSession(p); await cdp.send("Emulation.setCPUThrottlingRate", { rate: 6 }); let lost = 0;
+    for (let k = 0; k < 8; k++) { const nm = k < 7 ? "Renamed " + k : "Renamed just before leaving";
+      await p.evaluate((nm) => { save({ name: nm }, "renamed"); }, nm); await p.reload(); await ready(p);
+      if (!(await p.evaluate((nm) => S.projects.some(q => q.name === nm), nm))) lost++; }
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+    check("a change saved just before a reload is kept (8 of 8, a million rows, the machine slowed six times)", lost === 0, lost + " lost"); }
   // Typing into a million rows: the value at once, its check code worked out in the background, exactly.
   await p.evaluate(() => { prefSet("anim", false); applyAnim(); switchProject(S.projects.find(q => q.name === "Renamed just before leaving").id); }); await p.waitForTimeout(600);
   await p.evaluate(() => focusWin("sheet")); await p.waitForTimeout(400);

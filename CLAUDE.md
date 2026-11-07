@@ -223,8 +223,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   unknown function, not `Object`. `compileExpr(src, {allowNone:true})` accepts a formula with
   no parameters (a worksheet column's). `guessUserParams(names, X, Y)` starts parameters from their
   names (y0/c baseline, A/H height, xc/x0 position of the largest point, w/sigma a tenth of the
-  range, t/tau a third, k a rate, m a slope, anything else 1). `erfFn`/`erfcFn` are accurate
-  to double precision (a series below 2.5, a continued fraction above).
+  range, t/tau a third, k a rate, m a slope, anything else 1). `erfFn`/`erfcFn` are W. J. Cody's
+  rational approximations (`CODY`, `codyErfSmall` below 0.46875, `codyErfcBig` above, exp(−x²) split
+  in two), each to a few parts in 10¹⁶ relative (`tools/ref-test.mjs`); erf is never 1 − erfc, which
+  loses every digit for a small x. `probit(p)` works from the lower tail (`probitLow`, Acklam's
+  approximation and one Halley step on Φ(x) − p), above one half from 1 − p, which is exact there.
   **Distributions**: `quantileSorted(s, p)` (type 7, as R and Excel's QUARTILE.INC),
   `boxStats(vals)` (`{n, min, max, q1, med, q3, iqr, lo, hi, out, mean, sd}`, whiskers at the
   furthest values within 1.5 IQR, Tukey), `kdeBandwidth` (Silverman: 0.9 min(SD, IQR/1.34)
@@ -696,11 +699,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   slice 3): `fitTogether` is `fitTogetherPrep` (the sets, starts, limits, `follow`, and `desc`, what
   a worker needs to make the model again: a peak fit's spec and whether it has ties, a model's id,
   or a function's formula), `globalFit`, and `fitTogetherFinish` (the rows and `glob`); runBatch
-  calls `fitTogetherAsync(list, t, share, stopped)`, which sends the solving to `gfitWorker()` (the
-  page's NUMERICS, PEAKS, PIPE and MODELS blocks, cut from its own script as fit-test does, and
-  `GFIT_TAIL`, a handler, as a Blob; one worker, `GFW`, false when one cannot be made) through
-  `gfitRun(job, stopped)` (a promise; `{stopped}` when Stop is pressed, the worker ended and made
-  again next time; null to fit on the page), and fits on the page when it gets null. The progress
+  calls `fitTogetherAsync(list, t, share, stopped)`, which sends the solving to the compute worker
+  as a `gfit` job, and fits on the page when it gets null. **The compute worker** (PARITY_SPEC wave
+  0.3): `computeWorker()` (the page's NUMERICS, PEAKS, PIPE and MODELS blocks, cut from its own
+  script as fit-test does, and `COMPUTE_TAIL`, a handler, as a Blob; one worker, `CWK`, false when
+  one cannot be made); `computeRun(job, stopped, onProgress)` (a promise of the result, `{error,
+  crash}` when the job threw, `{stopped}` when Stop is pressed, the worker ended and made again next
+  time, null to do the work on the page); jobs `gfit` (the model made again from its description)
+  and `call` (any function of the blocks by name, `{fn, args}`, through `self[fn]`, no eval); a job
+  says how far it has got with `self.progress(v)`. The progress
   line has Stop while they are fitted together; stopped, each column keeps its own fit. `activeFit` and `laneFit`
   prefer a global row to a fit by hand made before it; `batchWith` never replaces a global row;
   `batchStale` puts every global row out of date when any of its spectra changes;
@@ -1980,7 +1987,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   `c`), and `heard` reads the record in unless this tab is writing that project (its write merges).
   `pend` counts saves not yet written; `flushSync()` (from `flushEdits`, on `pagehide`,
   `beforeunload` and the page hidden) writes them in one transaction committed at once, since a
-  write that first reads is cut off by the page going. A refused write (`fail`: `quota_exceeded`
+  write that first reads is cut off by the page going; it first ends every write still under way
+  (`txs[pid]`, each marked `_byFlush`, whose `write` then returns quietly), which would hold the
+  stores and take the flush's bookkeeping for another tab's write, and keeps its books (`rev`,
+  `base`) only once its transaction has completed. A refused write (`fail`: `quota_exceeded`
   or `storage`; `failNext` simulates one for the tests) marks the project `dirty`: the status bar
   says Not saved (again whenever that project is opened, `openProject`), leaving the page asks
   first (`beforeunload`), and the next write that succeeds stores all of it. `load` moves the
@@ -2785,6 +2795,21 @@ both back, a refit that cannot be made said in the notes. Slice 10: the editor's
 a derived value), a function saved with its category, formula start, meaning, constraints and
 derived values, the Fit window starting with them, the derived value and its error in Results,
 the model list's category, the organizer (renamed and filed in place, undone, deleted).
+**The bench** (PARITY_SPEC wave 0; `tools/ref/README.md`): `node tools/ref-test.mjs [path]` checks
+Kurve's numerics against `tools/ref/fixtures/*.json` (40-digit mpmath for special functions and
+tails, SciPy, NumPy and statsmodels for procedures) and NIST's certified data (`tools/ref/nist/`),
+each function's worst error against its target in `tools/ref/targets.json`; one short of its target
+names the slice that brings it there (`until`) and must not pass where it stood (`now`).
+`tools/ref/make-fixtures.py [--check]` makes the fixtures again and `tools/ref/diff-fuzz.py [seed]
+[n]` throws random cases at the same functions (both need Python 3.13 and the packages in `$PYREF`,
+see the README; `tools/ref/run.mjs` is the pure blocks under node, any function by name).
+`node tools/perf.mjs [path]` measures what a person waits for (boot; a million rows: save, a value
+typed, draw, zoomed draw, worksheet; 2000 columns: save, worksheet, History, Statistics) against
+budgets of about three times what was measured. `tools/suite.sh [--snap] [path]` runs everything
+(the node tests, the bench, the drives in parallel, a fuzzer seed, the menu crawl, then the budgets
+alone) and prints one line a test; with `--snap` on a copy of the files git knows (stage new ones
+first), so editing goes on while it runs. A new numeric function gets its fixture, target and
+fuzz generator before it is used.
 `node tools/fit-test.mjs`, `node tools/pipe-test.mjs`, `node tools/parser-test.mjs` and
 `node tools/tex-test.mjs` cover the numerics, the processing steps with their checks and the
 fingerprint, the parser, and the LaTeX typesetter (nesting, italics, spacing, fractions, roots,
@@ -3680,6 +3705,24 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   columns a save took a second and a half, though no single function looked slow. A render now asks
   the columns once (`inRender`); a heat map coloured each pixel by parsing its colour map's hex,
   and made 600 000 points again on every save. Profile with thousands, not tens.
+- **A claim of precision is a claim until it is measured.** CLAUDE.md said erf and erfc were
+  accurate to double precision for as long as they existed; the first comparison with a reference
+  found erf computed as 1 − erfc (seven digits gone at x = 1e-8) and erfc five digits short near
+  its switch at 2.5. Write the accuracy down only from a test against an outside reference.
+- **A reference is checked too.** The bench first took SciPy's word: its incomplete beta was 7e-3
+  off at a = 883 (Kurve's was right to 3e-11, as 40-digit arithmetic showed), it gave 0 for values
+  near 1e-290 that Kurve had right, and a quantile asked of it as (1 + level)/2 lost the digits of
+  a tail Kurve had kept as 1 − level. Special functions are judged in 40 digits (mpmath); a case
+  where Kurve and the reference disagree is settled by a third, not by the reference.
+- **A flaky check is a bug until shown otherwise.** odd-test's "a change saved just before a
+  reload is kept" failed when the suite ran its drives side by side and passed alone, and was
+  taken for the load. Slowed down on purpose (Chrome's CPU throttling) it lost a rename one time in
+  four even at full speed: the page's last flush waited behind a write still reading, which then
+  took the flush's books for another tab's write and put the old name back. The check now runs
+  eight times on a machine slowed six times. Make the conditions a failure needs, and count.
+- **Random cases find what a grid misses.** The fixed grid of 568 cases showed the incomplete beta
+  at 3e-10; a thousand random ones found 4e-10, and t's quantile at a million degrees of freedom
+  10⁻⁸ off. Fixtures pin the behaviour; the fuzzer looks for where it breaks.
 
 ## Roadmap
 
@@ -4197,7 +4240,9 @@ Next, in order:
    many variables; plots; automation; files), and its nine decisions, all taken 07.11 (an analysis
    reads the processed values, switched per input; Ctrl+S saves a project file; no cell formulas,
    column formulas grown; an analysis keeps its own rows; numbers keep their check code; no free
-   layers; 3D last, our own renderer; survival, MANOVA and DOE only if asked); not started
+   layers; 3D last, our own renderer; survival, MANOVA and DOE only if asked). Wave 0, the bench,
+   done 07.11 (references, the fuzzer, the compute worker, budgets, `tools/suite.sh`; erf, erfc and
+   the normal quantile brought to double precision on the way)
 
 ## Known gaps
 
@@ -4363,6 +4408,12 @@ Next, in order:
   pairs or code, nor a new step or another order of steps. What was read is kept per
   browser (a comment read on another computer is new here), and judged by the comments' times
 - No Shirley or Tougaard background (XPS); no Fourier self-deconvolution
+- Accuracy short of the plan's targets, each measured by `tools/ref-test.mjs` and the fuzzer and
+  owned by a slice of `ux/spec/PARITY_SPEC.md`: the incomplete beta behind every p value is good to
+  about 1e-9 relative, not 1e-12 (Numerical Recipes' log-gamma inside it; slice 1.4), so t's
+  quantile at a million degrees of freedom is good to 1e-8; a straight line or polynomial fitted as
+  a curve fit (Levenberg–Marquardt with a numerical Jacobian) meets NIST's certified Norris values to
+  3e-8 where a linear least-squares solve gives 1e-12 (slice 4.1)
 - Models: 25 built in (Origin has about 200); a polynomial is fitted in powers of x as written,
   so a high order far from x = 0 is badly conditioned (its guess is exact, about the mean); the
   guesses are measured heuristics (two or three decays from a grid of 16 decay times, a wave's

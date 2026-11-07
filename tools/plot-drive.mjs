@@ -1142,10 +1142,10 @@ await page(async p => {
   let r = await p.evaluate(async () => { const t = batchTemplate(activeFit()), share = [true, false, "lin", true];
     runBatch({ tmpl: t, seed: "tmpl", cols: yCols().map(c => c.id), share }); for (let i = 0; i < 100 && S.batchRun; i++) await new Promise(r => setTimeout(r, 100));
     const g = P().batch.glob, sync = fitTogether(seriesCols().map(q => ({ c: q.c, seed: P().batch.rows.find(z => z.col === q.c.id).fit.params })), t, share);
-    return { worker: !!(GFW && GFW.w), b: g.follow[0].b, sb: g.follow[0].sb, sync: sync.glob && sync.glob.follow[0].b, rows: P().batch.rows.filter(z => z.fit && z.fit.global).length }; });
+    return { worker: !!(CWK && CWK.w), b: g.follow[0].b, sb: g.follow[0].sb, sync: sync.glob && sync.glob.follow[0].b, rows: P().batch.rows.filter(z => z.fit && z.fit.global).length }; });
   check("the fit of them all together runs in a worker, and gives what the page would", r.worker && r.rows === 5 && Math.abs(r.b - 0.4) < 4 * r.sb && Math.abs(r.b - r.sync) < 0.05 * r.sb, JSON.stringify(r));
-  r = await p.evaluate(async () => { GFW = false; const t = batchTemplate(activeFit()); runBatch({ tmpl: t, seed: "tmpl", cols: yCols().map(c => c.id), share: [true, false, "lin", true] });
-    for (let i = 0; i < 100 && S.batchRun; i++) await new Promise(r => setTimeout(r, 100)); const g = P().batch.glob; GFW = null; return { b: g && g.follow[0].b, sb: g && g.follow[0].sb }; });
+  r = await p.evaluate(async () => { CWK = false; const t = batchTemplate(activeFit()); runBatch({ tmpl: t, seed: "tmpl", cols: yCols().map(c => c.id), share: [true, false, "lin", true] });
+    for (let i = 0; i < 100 && S.batchRun; i++) await new Promise(r => setTimeout(r, 100)); const g = P().batch.glob; CWK = null; return { b: g && g.follow[0].b, sb: g && g.follow[0].sb }; });
   check("where no worker can be made, the page fits them itself, to the same result", r.b != null && Math.abs(r.b - 0.4) < 4 * r.sb, JSON.stringify(r));
   // A large one: the page answers while it runs, and Stop is heard.
   await mk(80, 3000); await p.waitForTimeout(1500);
@@ -1156,9 +1156,36 @@ await page(async p => {
   check("while 80 columns are fitted together the page answers at once, with Stop", r.on && r.stop && lag < 300, JSON.stringify([r, lag]));
   await p.evaluate(() => { const b = document.querySelector("#bStop"); if (b) b.click(); });
   for (let i = 0; i < 50 && await p.evaluate(() => !!S.batchRun); i++) await p.waitForTimeout(100);
-  r = await p.evaluate(() => ({ run: !!S.batchRun, glob: !!(P().batch && P().batch.glob), rows: P().batch ? P().batch.rows.filter(z => z.fit).length : 0, toast: document.querySelector("#toast").textContent, w: GFW }));
+  r = await p.evaluate(() => ({ run: !!S.batchRun, glob: !!(P().batch && P().batch.glob), rows: P().batch ? P().batch.rows.filter(z => z.fit).length : 0, toast: document.querySelector("#toast").textContent, w: CWK }));
   check("Stop ends it: each column keeps its own fit, and it says so", !r.run && !r.glob && r.rows === 80 && /Stopped before they were fitted together/.test(r.toast) && r.w === null, JSON.stringify(r));
 }, { name: "global fits in a worker" });
+
+console.log("Parity wave 0.3: the compute worker");
+await page(async p => {
+  let r = await p.evaluate(async () => {
+    const a = await computeRun({ kind: "call", fn: "betai", args: [2.5, 3, 0.4] });
+    const vals = Array.from({ length: 100000 }, (_, i) => Math.sin(i) * 10 + i / 1e4), hb = await computeRun({ kind: "call", fn: "histBins", args: [vals, { rule: "fd" }] }), hp = histBins(vals, { rule: "fd" });
+    return { a, page: betai(2.5, 3, 0.4), same: JSON.stringify(hb) === JSON.stringify(hp), worker: !!(CWK && CWK.w) };
+  });
+  check("a function of the blocks called in the worker by its name gives what the page gives", r.worker && r.a === r.page && r.same, JSON.stringify(r));
+  r = await p.evaluate(async () => ({
+    none: await computeRun({ kind: "call", fn: "noSuchThing", args: [] }),
+    bad: await computeRun({ kind: "call", fn: "self.close", args: [] }),
+    job: await computeRun({ kind: "dance" }),
+    threw: await computeRun({ kind: "call", fn: "compileExpr", args: ["1 +"] }),
+    alive: await computeRun({ kind: "call", fn: "erfFn", args: [0.5] }) === erfFn(0.5) }));
+  check("what it cannot do comes back in words, and the worker goes on", r.none.crash && /no function called noSuchThing/.test(r.none.error) && r.bad.crash && r.job.crash && /no job called dance/.test(r.job.error) && r.threw.crash && r.threw.error.length > 5 && r.alive, JSON.stringify(r));
+  r = await p.evaluate(async () => { const heard = []; const out = await computeRun({ kind: "call", fn: "progress", args: [0.25] }, null, v => heard.push(v)); return { heard, out: out === undefined ? "undefined" : out }; });
+  check("a job's progress is heard by the page", JSON.stringify(r.heard) === "[0.25]", JSON.stringify(r));
+  r = await p.evaluate(async () => { const t0 = performance.now(); let stop = false; setTimeout(() => { stop = true; }, 150);
+    const pts = Array.from({ length: 400000 }, (_, i) => [Math.cos(i * 1.3) * (1 + i % 97), Math.sin(i * 0.7) * (1 + i % 89)]);
+    const out = await computeRun({ kind: "call", fn: "delaunay", args: [pts.map(q => q[0]), pts.map(q => q[1])] }, () => stop);
+    const ms = performance.now() - t0, gone = CWK === null, again = await computeRun({ kind: "call", fn: "erfcFn", args: [1] });
+    return { out, ms: Math.round(ms), gone, again: again === erfcFn(1) }; });
+  check("Stop ends a long job at once; the next job makes the worker again", r.out && r.out.stopped && r.ms < 1200 && r.gone && r.again, JSON.stringify(r));
+  r = await p.evaluate(async () => { CWK = false; const v = await computeRun({ kind: "call", fn: "betai", args: [1, 1, 0.5] }); CWK = null; return v; });
+  check("where no worker can be made, it answers null, for the page to do the work", r === null, JSON.stringify(r));
+}, { name: "the compute worker" });
 
 console.log("Roadmap 7, slice 4: a trend graph as a graph like any other");
 await page(async p => {

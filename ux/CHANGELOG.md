@@ -1024,6 +1024,47 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 0: the bench (2026-11-07)
+
+The first wave of `ux/spec/PARITY_SPEC.md`, which ships nothing a user sees: what every later slice
+is checked with.
+- **Reference values** (`tools/ref/`): 850 cases made by 40-digit arithmetic (mpmath) for the special
+  functions and the distributions' tails, and by SciPy, NumPy and statsmodels for the procedures
+  (curve fits, orthogonal distance, distribution fits); NIST's certified data sets (Norris, and the
+  ANOVA sets for wave 2). `tools/ref-test.mjs` (node alone) prints each function's worst error
+  against its target; one short of it names the slice that brings it there and must not get worse.
+- **A fuzzer** (`tools/ref/diff-fuzz.py`): thousands of random cases a second against the
+  references, from a seed.
+- **The compute worker**: the global fit's worker grown into one for every heavy job, which can
+  also call any function of the pure blocks by its name, say how far it has got, and be stopped.
+- **Speed budgets** (`tools/perf.mjs`) and **one command for the suite** (`tools/suite.sh`).
+
+What the bench found at once, and what was fixed:
+- `erf` lost every digit for a small argument (it was 1 − erfc: 7e-10 relative at 1e-8) and `erfc`
+  lost five near 2.5; both are now Cody's rational approximations, to a few parts in 10¹⁶.
+- The normal quantile (the probability scale) lost six digits near p = 1; it now works from the
+  other tail, to 4e-16.
+- SciPy itself was wrong where the bench first trusted it: its incomplete beta was 7e-3 off at
+  a = 883 and gave 0 for values near 1e-290, and a quantile asked of it as (1 + level)/2 lost the
+  tail's digits. The references for special functions are now 40-digit ones.
+
+- **A change saved just before a reload could be lost** (found by the suite, reproduced with the
+  processor slowed: a rename on a project of a million rows lost one time in four, two in four
+  slowed): the page's last flush waited behind a write still reading, which then put the stored old
+  name back. The flush now ends writes under way and keeps its books once it has completed: none
+  lost in 24 tries at three speeds. odd-test's check repeats it eight times, slowed six times.
+
+What it found, and left for the slice that owns it (each recorded in `tools/ref/targets.json`):
+the incomplete beta behind every p value is good to 1e-9, not 1e-12 (slice 1.4), and t's quantile
+at a million degrees of freedom to 1e-8; a straight line fitted by Levenberg–Marquardt meets NIST's
+certified Norris values to 3e-8, not 1e-12 (slice 4.1, by QR); the Kolmogorov–Smirnov p beside a
+histogram's distribution is an approximation off by up to 3 % (slice 2.2).
+
+Checked: `tools/ref-test.mjs` (17 at their targets, 5 short with their slice named),
+`tools/plot-drive.mjs` (6 new: the compute worker), `tools/odd-test.mjs` (the reload check made to
+fail on the old code), `tools/perf.mjs` (10 within budget), the menu crawl (three items of earlier
+rounds written into `ux/spec/menus-after.txt`).
+
 ## Working together, slice 3: proposed settings (2026-11-06)
 
 - *Propose settings…* in a step's discussion: a copy of its settings, changed and posted with a reason

@@ -135,6 +135,7 @@ Plot
     Columns
     Area
     Steps
+    Map from X, Y and its colour column  ## new (roadmap 4, slice 5); off until the curve has a colour column
   Several curves  ## ~ "Several spectra"; + the toolbar's layout list
     Overlay
     Offset (waterfall)
@@ -165,6 +166,8 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
     Fit every column…  ## ~ "Fit every spectrum…"; ↓ until there are two columns or more
     Put the fit in the worksheet  ## new (FIT_SPEC slice 6)
     Saved fit settings  ## new (FIT_SPEC slice 9)
+      (each saved setting, the project's and this browser's; "None saved yet" while there is none)
+      Save these settings…
     Show residuals  ## ~ "Residuals under the graph"; + the Graph menu's
     Confidence band  ## ~ "Confidence band, shaded"; ← the Graph menu
     Prediction band  ## ~ "Prediction band, dashed"; ← the Graph menu

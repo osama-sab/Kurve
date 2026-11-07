@@ -125,6 +125,14 @@ are wave 7's).
 
 Nothing in this plan can be checked without it, so it comes first and ships nothing a user sees.
 
+**Done 07.11.** Built as below, with two changes found on the way: the references for special
+functions and the distributions' tails are 40-digit arithmetic (mpmath, `tools/ref/refs.py`), since
+SciPy's own answers were wrong in places (its incomplete beta 7e-3 off at a = 883, zero for values
+near 1e-290); and the targets are one file (`tools/ref/targets.json`) read by the test and the
+fuzzer. It found erf, erfc and the normal quantile short of double precision (fixed: Cody's
+approximations, the quantile from the lower tail) and recorded the rest for the slices that own
+them (the incomplete beta for 1.4, linear fits by QR for 4.1, the Kolmogorov–Smirnov p for 2.2).
+
 - **0.1 Reference values.** `tools/ref/`: a README (how to install SciPy, statsmodels and the rest
   for Python 3.13 in the scratchpad, and which versions), `make-fixtures.py` (data sets and the
   reference's answers, written to `fixtures/*.json` with the versions that made them), the NIST
