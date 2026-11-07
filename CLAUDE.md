@@ -4188,6 +4188,13 @@ Next, in order:
    with thousands of columns: done 06.11): the roadmap's item 9 is done
 10. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
    applied in one click, unread markers: all done 06.11, the roadmap's item 10 is done
+11. Closing the gap with Origin, the user's request of 07.11 ("not for show, but properly and
+   robustly"): the plan is `ux/spec/PARITY_SPEC.md`: the bar every slice clears (outside references:
+   NIST's certified values, SciPy and statsmodels fixtures committed in `tools/ref/`; simulation of
+   a test's size and an interval's coverage; a fuzzer against the reference; refusals in words),
+   ten waves (the bench; project files, text and categorical columns, analyses with result sheets,
+   distributions; statistics; the worksheet as a table; regression and fitting; signal processing;
+   many variables; plots; automation; files), and the decisions to take first; not started
 
 ## Known gaps
 
