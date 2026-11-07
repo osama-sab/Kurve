@@ -72,11 +72,13 @@ async function visibleCell(opts={}){
 const state=()=>page.evaluate(()=>{ const m=S.wsm, s=S.ws; const q=m&&m.cols[s.c];
   return {r:s.r,c:s.c,edit:!!s.edit,editing:!!S.editing,inp:!!document.querySelector("#ws input.wsed"),sheet:S.sheet,lock:rawLocked(),ord:!!(m&&m.ord),cid:q&&!q.phantom?q.id:null,phantom:!!(q&&q.phantom),calc:!!(q&&q.calc),top:$("#ws").scrollTop,modal:[...document.querySelectorAll(".modal")].some(x=>!x.hidden),winOpen:winOpen("sheet")}; });
 // The data behind cell (r,c) of the Raw sheet, read fresh.
-const cellVal=(r,c,k)=>page.evaluate(([r,c,k])=>{ const cols=allCols().filter(o=>!o.src), col=cols[c]; if(!col) return {none:true,v:null}; const m=wsLive(); if(k==null) k=m&&m.kind==="raw"?wsDR(m,r):r; const v=col.data[k]; return {v:v===undefined?null:v, fx:!!col.fx, id:col.id, k}; },[r,c,k]);
+const cellVal=(r,c,k)=>page.evaluate(([r,c,k])=>{ const cols=allCols().filter(o=>!o.src), col=cols[c]; if(!col) return {none:true,v:null}; const m=wsLive(); if(k==null) k=m&&m.kind==="raw"?wsDR(m,r):r; const v=col.data[k], t=cellTxt(col,k); return {v:v==null?(t==null?null:t):v, fx:!!col.fx, fmt:col.fmt||null, id:col.id, k}; },[r,c,k]);
 // Invariants after every action.
 async function check(tag){
   const bad=await page.evaluate(async ()=>{ const out=[]; const p=P(); if(!p) return out;
-    allCols().forEach(c=>{ (c.data||[]).forEach((v,i)=>{ if(v!==null&&!(typeof v==="number"&&Number.isFinite(v))) out.push(`col ${colLetter(c)||c.id} row ${i+1} holds ${JSON.stringify(v)}`); }); if(c.data&&c.data.length&&c.data[c.data.length-1]==null&&!c.fx) out.push(`col ${colLetter(c)} ends in empty cells`); });
+    allCols().forEach(c=>{ (c.data||[]).forEach((v,i)=>{ if(v!==null&&!(typeof v==="number"&&Number.isFinite(v))) out.push(`col ${colLetter(c)||c.id} row ${i+1} holds ${JSON.stringify(v)}`); }); if(c.data&&c.data.length&&c.data[c.data.length-1]==null&&!c.fx&&cellTxt(c,c.data.length-1)==null) out.push(`col ${colLetter(c)} ends in empty cells`);
+      // Text cells (FOUNDATION_SPEC 1.2a): strings, at rows the column has, where it holds no number.
+      if(c.txt!==undefined){ if(!c.txt||typeof c.txt!=="object") out.push(`col ${colLetter(c)} has text cells of the wrong shape`); else for(const k in c.txt){ const v=c.txt[k]; if(typeof v!=="string"||!v) out.push(`col ${colLetter(c)} row ${+k+1} holds text ${JSON.stringify(v)}`); else if(+k>=c.data.length) out.push(`col ${colLetter(c)} has text at row ${+k+1} past its ${c.data.length} rows`); } } });
     if(!S.editing&&!S.ws.edit){ const ok=rawVerified(); if(ok===false) out.push("fingerprint does not match the data"); }
     if(!!S.ws.edit!==!!S.editing) out.push(`edit ${!!S.ws.edit} but editing ${!!S.editing}`);
     if(S.ws.edit&&!document.querySelector("#ws input.wsed")&&winOpen("sheet")){ const e=S.ws.edit, w=S.ws.win; if(w&&e.r>=w[0]&&e.r<w[1]) out.push("editing a drawn cell with no text box in it"); }
@@ -84,7 +86,7 @@ async function check(tag){
     const m=wsLive(); if(m&&!S.ws.edit&&winOpen("sheet")){ let n=0; document.querySelectorAll("#ws td[data-ci][data-r]").forEach(td=>{ if(n>4) return; const r=+td.dataset.r, c=+td.dataset.ci; if(td.classList.contains("editing")) return; const want=wsText(m,r,c), shown=uniRuns(want).map(q=>q.s).join(""); /* cm⁻¹ is set as a real superscript, its text cm−1 */ if(td.textContent!==want&&td.textContent!==shown){ n++; out.push(`cell ${(m.cols[c]||{}).letter}${r+1} shows "${td.textContent}" but holds "${want}"`); } }); }
     const s=S.ws; if(m&&(s.c<0||s.c>=m.cols.length)) out.push("selection off the sheet");
     // What is stored is what is on screen, once nothing waits to be saved.
-    if(!Object.keys(wsPatch).length&&!S.ws.edit&&!(S.store.busy&&S.store.busy[S.pid])){ try{ const st=await S.store.stored(S.pid); if(st){ const f=cs=>JSON.stringify((cs||[]).filter(c=>!c.src).map(c=>[c.id,c.role,c.name||"",c.unit||"",c.fx?c.fx.src:null,c.fx?null:(c.data||[])]));
+    if(!Object.keys(wsPatch).length&&!S.ws.edit&&!(S.store.busy&&S.store.busy[S.pid])){ try{ const st=await S.store.stored(S.pid); if(st){ const f=cs=>JSON.stringify((cs||[]).filter(c=>!c.src).map(c=>[c.id,c.role,c.name||"",c.unit||"",c.fx?c.fx.src:null,c.fx?null:(c.data||[]),c.txt||null]));
       const a=f(st.cols), b=f(p.cols); if(a!==b){ const A=JSON.parse(a), B=JSON.parse(b); out.push(`stored ${A.length} columns, on screen ${B.length}: `+B.map((c,i)=>JSON.stringify(c)!==JSON.stringify(A[i])?`#${i} screen ${JSON.stringify(c).slice(0,90)} stored ${String(JSON.stringify(A[i])).slice(0,90)}`:"").filter(Boolean).slice(0,2).join(" | ")); } } }catch(e){ out.push("store read: "+e.message); } }
     return out; });
   bad.forEach(b=>fail(`${tag}: ${b}`));
@@ -131,9 +133,14 @@ async function typeValue(){
   else if(how!=="type"&&end.startsWith("Arrow")&&s2.edit){ /* arrows move the caret in edit mode */ await page.keyboard.press("Enter"); await wait(100); }
   else if(before.fx){ if(after.v!==before.v) fail(`a computed cell changed`); }
   else if(text.trim()===""&&!typedOver){ if(after.v!=null) fail(`empty text left ${after.v}`); }
-  else if(num==null&&text.trim()!==""){ // junk
-    if(after.v!==before.v) fail(`junk "${text}" changed the cell to ${after.v}`);
-    if(end!=="click"&&!s2.edit&&!s2.modal) fail(`junk "${text}" + ${end}: the text box closed and the text was dropped`);
+  else if(num==null&&text.trim()!==""&&(/^\s*=/.test(text)||before.fmt==="num")){ // a formula, or text where only numbers go: refused, kept in its box
+    if(after.v!==before.v) fail(`"${text}" changed the cell to ${after.v}`);
+    if(end!=="click"&&!s2.edit&&!s2.modal) fail(`"${text}" + ${end}: the text box closed and the text was dropped`);
+    if(s2.edit){ await page.keyboard.press("Escape"); await wait(60); }
+  }
+  else if(num==null&&text.trim()!==""&&s1.lock&&typedOver){ if(after.v!==before.v) fail(`text "${text}" over a locked value changed it to ${after.v}`); await closeDialogs(); }
+  else if(num==null&&text.trim()!==""){ // text: kept as typed
+    const want=text.trim().slice(0,10000); if(after.v!==want) fail(`text "${text}" + ${end} into ${s1.r+1}:${s1.c}: holds ${JSON.stringify(after.v)}, expected ${JSON.stringify(want)}`);
     if(s2.edit){ await page.keyboard.press("Escape"); await wait(60); }
   } else if(s1.lock&&typedOver){ if(after.v!==before.v) fail(`locked value changed`); await closeDialogs(); }
   else if(s1.ord&&false){}
@@ -190,12 +197,12 @@ for(let i=0;i<N;i++){
 }
 // Everything typed survives a reload.
 await page.keyboard.press("Escape"); await wait(1200);
-const snap=await page.evaluate(()=>JSON.stringify(allCols().filter(c=>!c.src).map(c=>[c.role,c.name,c.unit,c.fx?c.fx.src:null,c.fx?null:c.data])));
+const snap=await page.evaluate(()=>JSON.stringify(allCols().filter(c=>!c.src).map(c=>[c.role,c.name,c.unit,c.fx?c.fx.src:null,c.fx?null:c.data,c.txt||null])));
 await page.goto(URL); await page.waitForFunction(()=>typeof S!=="undefined"&&S.pid&&S.proj,null,{timeout:15000}); await wait(500);
-const snap2=await page.evaluate(()=>JSON.stringify(allCols().filter(c=>!c.src).map(c=>[c.role,c.name,c.unit,c.fx?c.fx.src:null,c.fx?null:c.data])));
+const snap2=await page.evaluate(()=>JSON.stringify(allCols().filter(c=>!c.src).map(c=>[c.role,c.name,c.unit,c.fx?c.fx.src:null,c.fx?null:c.data,c.txt||null])));
 if(snap!==snap2){ const a=JSON.parse(snap), b=JSON.parse(snap2); const d=[]; for(let i=0;i<Math.max(a.length,b.length);i++){ if(JSON.stringify(a[i])!==JSON.stringify(b[i])){
     // Which part differs, and for the values the first rows that do, with both values, and the lengths.
-    const A=a[i]||[], B=b[i]||[], part=[0,1,2,3,4].find(k=>JSON.stringify(A[k])!==JSON.stringify(B[k]));
+    const A=a[i]||[], B=b[i]||[], part=[0,1,2,3,4,5].find(k=>JSON.stringify(A[k])!==JSON.stringify(B[k]));
     let what=`part ${part}: ${JSON.stringify(A[part])} / ${JSON.stringify(B[part])}`.slice(0,300);
     if(part===4&&Array.isArray(A[4])&&Array.isArray(B[4])){ const rows=[]; for(let r=0;r<Math.max(A[4].length,B[4].length)&&rows.length<5;r++) if(A[4][r]!==B[4][r]) rows.push(`row ${r}: ${A[4][r]} → ${B[4][r]}`); what=`values (${A[4].length} rows before, ${B[4].length} after): ${rows.join(", ")}`; }
     d.push(`col ${i} ${JSON.stringify(A[1])}: ${what}`); } } fail("after a reload the data differ from what was on screen: "+d.slice(0,3).join(" | ")); }

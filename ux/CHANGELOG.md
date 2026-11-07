@@ -1065,6 +1065,39 @@ Checked: `tools/ref-test.mjs` (17 at their targets, 5 short with their slice nam
 fail on the old code), `tools/perf.mjs` (10 within budget), the menu crawl (three items of earlier
 rounds written into `ux/spec/menus-after.txt`).
 
+## Closing the gap with Origin, wave 1, slices 1.2a to 1.2d: text in the worksheet, kept by imports, categorical, read by graphs (2026-11-07)
+
+`ux/spec/FOUNDATION_SPEC.md` 1.2a. A cell holds a number, text or nothing, in any column.
+- **Typed**: what does not read as a number ("<LOD", "n/a", "1,2.3") is kept as text, said once a
+  column with Undo; it used to be refused. In a column of numbers it is drawn left-aligned with a
+  dotted underline and a tooltip.
+- **Left out** of the graph, fits, processing, formulas and statistics, as an empty cell is; the
+  status bar's numbers of selected cells say how many text cells they left out.
+- **Cells hold** in the column menu: Numbers and text, Text only ("007" stays 007; numbers become
+  their text), Numbers only (text refused; not while text is there, naming the rows).
+- Sorting the view (numbers, then text in natural order, then empty), find, copy, clear, paste (a
+  spreadsheet's block keeps its text cells), rows inserted and deleted, undo, two tabs, project
+  files and reloads carry text. Text is part of the original data: hashed as a quoted field
+  (RFC 4180), as the original-data CSV writes it; a project of numbers keeps its check code.
+- Text from storage is cleaned: what is not text at a row that holds no number goes, a cell past
+  10 000 characters is cut.
+
+- **Imports keep text** (1.2b): a column of names or notes comes in as a text column, the words
+  among numbers ("n/a", "<0.01") as text cells, a quoted name with a comma in it as one field; a
+  line with a stray word inside a block of data no longer ends the block. The dialog's *Use* list
+  has *Text (kept as written)*, for IDs like 007.
+- **Categorical columns** (1.2c): the column menu's *Categorical…* lists a column's different values
+  as its levels with their rows, in order as they first come, ascending, descending or by hand; the
+  header says *cat*; the view sorts *By its categories*. More than 200 values are refused in words.
+- **Graphs read text** (1.2d): labels from a column of names; box charts grouped by a text or
+  categorical column, in its order; a categorical or text column as X, each point at its level's
+  place and X named by them; Plot setup's *Group by*, a curve per value, named after it, the curves
+  of one column a group stepping the colour (each a derived column with a *Category* step, which
+  follows the column's cells).
+
+`tools/text-drive.mjs` (60 checks) in the suite; the worksheet fuzzer types text too; parser-test
+has six new cases (197).
+
 ## Closing the gap with Origin, wave 1, slice 1.4: the distributions (2026-11-07)
 
 `ux/spec/FOUNDATION_SPEC.md` 1.4. Nothing new on screen; every p value, interval and test reads

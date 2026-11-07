@@ -12,7 +12,7 @@ const m = html.match(/==PARSER:START==[\s\S]*?\*\/([\s\S]*?)\/\* ==PARSER:END==/
 if (!m) { console.error("Could not find the parser block in kurve.html"); process.exit(1); }
 
 // checkColumns formats numbers with the app's fmt(); a plain stub is enough here.
-const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,parseLineList,parseFillList,timeOf,spcFile,spcTable,opusFile,speBinFile};`;
+const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,colFields,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,parseLineList,parseFillList,timeOf,spcFile,spcTable,opusFile,speBinFile};`;
 const P = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -526,6 +526,21 @@ check("negative kept", close(P.toNumber("-999", "."), -999));
   check("large: under 2s", ms < 2000, `${ms}ms`);
   results.push(["note", `50k rows parsed in ${ms}ms`, ""]);
 }
+
+/* ---- Text kept (FOUNDATION_SPEC 1.2b) ---- */
+{ const r = P.analyzeFile("Sample,Time,Signal\nA1,0,1.2\nA2,1,1.5\nB1,2,1.9\nB2,3,2.4\nC1,4,3.1\nC2,5,3.9\n");
+  check("names beside values: one block of six rows, the names kept as text", r.rows.length === 6 && r.txt[0] && r.txt[0][0] === "A1" && r.txt[0][5] === "C2" && r.cols[2][5] === 3.9, JSON.stringify([r.rows.length, r.txt[0]])); }
+{ const r = P.analyzeFile("x,y\n1,0.52\n2,n/a\n3,<0.01\n4,0.61\n5,0.73\n6,0.81\n7,0.94\n");
+  check("\"n/a\" and \"<0.01\" among numbers stay in the block as text cells", r.rows.length === 7 && r.cols[1][1] === null && r.txt[1][1] === "n/a" && r.txt[1][2] === "<0.01" && r.cols[1][3] === 0.61, JSON.stringify([r.rows.length, r.txt[1]])); }
+{ const r = P.analyzeFile('Name,Value\n"Smith, J.",1.5\n"Lee, K.",2.5\n"Ng, A.",3.5\n"Ode, B.",4.5\n"Paz, C.",5.5\n');
+  check("a quoted field with a comma in it is one text field", r.ncol === 2 && r.txt[0] && r.txt[0][0] === "Smith, J." && r.cols[1][4] === 5.5, JSON.stringify([r.ncol, r.txt[0]])); }
+{ const r = P.analyzeFile("ID,Mass\n007,1.5\n008,1.7\n009,1.6\n010,1.9\n011,2.0\n012,2.2\n");
+  const f = P.colFields(r, 0);
+  check("a column of IDs like 007 keeps its fields as written, for a column kept as text", f.length === 6 && f[0] === "007" && f[5] === "012", JSON.stringify(f)); }
+{ const r = P.analyzeFile("t,c,Notes\n0,1.0,start\n1,1.4,\n2,1.9,bubble seen\n3,2.5,\n4,3.2,re-zeroed\n5,4.0,end\n");
+  check("a file whose last column is notes: one block, the notes as text, the empty ones empty", r.rows.length === 6 && r.txt[2][0] === "start" && !(1 in r.txt[2]) && r.txt[2][4] === "re-zeroed" && r.cols[1][5] === 4.0, JSON.stringify([r.rows.length, r.txt[2]])); }
+{ const r = P.analyzeFile("x,y\n1,2\n2,4\n3,6\n4,8\n5,10\n");
+  check("a file of numbers has no text cells", r.txt.every(t => !t), JSON.stringify(r.txt)); }
 
 for (const [state, name, detail] of results) {
   if (state === "ok") console.log(`  ok   ${name}`);

@@ -324,6 +324,7 @@ input[type=range]:disabled{opacity:.45;cursor:not-allowed}
 .ws th.ch.hsel .hc{cursor:grab}
 body.colmoving,body.colmoving *{cursor:grabbing!important;user-select:none}
 .ws .wsmovebar{position:absolute;top:0;width:3px;margin-left:-1px;background:var(--ws-sel-bd);z-index:6;pointer-events:none;box-shadow:0 0 0 1px var(--panel)}
+.ws td.tx{text-align:left}.ws td.txn{text-decoration:underline dotted var(--muted);text-underline-offset:3px}
 .ws td.al-l,.ws thead td.lc.al-l{text-align:left}.ws td.al-c,.ws thead td.lc.al-c{text-align:center}.ws td.al-r,.ws thead td.lc.al-r{text-align:right}
 .ws input.wsed.al-l{text-align:left}.ws input.wsed.al-c{text-align:center}.ws input.wsed.al-r{text-align:right}
 .ws .rz{position:absolute;top:0;right:-1px;width:7px;height:100%;cursor:col-resize;z-index:3}
@@ -3123,10 +3124,18 @@ function triContours(tri,xs,ys,zs,levels){
       const pts=[]; for(let e=0;e<3;e++){ const i=v[e], j=v[(e+1)%3], a=zs[i]-L, b=zs[j]-L; if((a<0)!==(b<0)&&a!==b){ const t=a/(a-b); pts.push(xs[i]+t*(xs[j]-xs[i]),ys[i]+t*(ys[j]-ys[i])); } }
       if(pts.length===4) seg.push(pts); }
     return seg; }); }
-function distGroups(vals,keys,max){ max=max||DIST_GMAX; const by=new Map();
-  for(let i=0;i<vals.length;i++){ const v=vals[i], k=keys[i]; if(v==null||!Number.isFinite(v)||k==null||k===""||!Number.isFinite(+k)) continue;
-    const kk=+(+k).toPrecision(12); let a=by.get(kk); if(!a){ if(by.size>=max) return {fail:`It has more than ${max} different values: a column of groups has a few.`,n:by.size+1}; a=[]; by.set(kk,a); } a.push(v); }
-  const ks=[...by.keys()].sort((a,b)=>a-b); return {keys:ks,by:ks.map(k=>by.get(k)),n:ks.length}; }
+function distGroups(vals,keys,max,o){ max=max||DIST_GMAX; const by=new Map(), tx=!!(o&&o.text);
+  for(let i=0;i<vals.length;i++){ const v=vals[i], k=keys[i]; if(v==null||!Number.isFinite(v)||k==null||k==="") continue;
+    // With o.text a key that is text is a group of its own (a column of names, 1.2d); a number is
+    // compared to twelve digits either way.
+    if(!(tx&&typeof k==="string")&&!Number.isFinite(+k)) continue;
+    const kk=tx&&typeof k==="string"?k:+(+k).toPrecision(12); let a=by.get(kk); if(!a){ if(by.size>=max) return {fail:`It has more than ${max} different values: a column of groups has a few.`,n:by.size+1}; a=[]; by.set(kk,a); } a.push(v); }
+  const ks=distKeySort([...by.keys()],o&&o.order); return {keys:ks,by:ks.map(k=>by.get(k)),n:ks.length}; }
+// Groups in order: a categorical column's levels as given (keys as distGroups makes them), else
+// numbers by value before text in natural order.
+function distKeySort(ks,order){ const nat=(a,b)=>typeof a==="number"&&typeof b==="number"?a-b:typeof a==="number"?-1:typeof b==="number"?1:String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:"base"});
+  if(!order) return ks.sort(nat); const r=new Map(order.map((x,j)=>[x,j])), at=x=>r.has(x)?r.get(x):Infinity;
+  return ks.sort((a,b)=>at(a)-at(b)||nat(a,b)); }
 // Silverman's rule of thumb: 0.9 · min(SD, IQR/1.34) · n^(−1/5), never zero.
 function kdeBandwidth(vals){ const b=boxStats(vals); if(!b) return 1; const sp=Math.min(b.sd,b.iqr/1.34)||b.sd||b.iqr||Math.abs(b.med)*0.1||1; return 0.9*sp*Math.pow(b.n,-0.2); }
 // The density at each point of xs, from a Gaussian kernel of width bw on every value.
@@ -4397,6 +4406,17 @@ const PIPE_OPS={
       for(let i=0;i<d.x.length;i++) if(d.x[i]>=a&&d.x[i]<=b) keep.push(i);
       return {d:pickPts(d,keep), extra:{region:[a,b],keep:true}, note:`${keep.length} of ${d.x.length} points kept`,
         warn:keep.length<5?["Fewer than five points are left after cropping."]:[]}; }},
+  // Plot setup's Group by (FOUNDATION_SPEC 1.2d): a curve per value of a column of categories, each
+  // a derived column with this step. In no menu; the value is compared as the cell reads (its text,
+  // else its number as JavaScript writes it).
+  where:{group:"clean", rank:1, label:"Keep the rows of one category", short:"Category",
+    help:"Keeps the points whose row holds one value in a column of categories. Plot setup's Group by makes a curve of each value with it.",
+    params:[{k:"col",label:"Categories in",type:"catcol"},{k:"lv",label:"Value",type:"text"}],
+    defaults:{col:null,lv:""}, deps:p=>p.col?[[p.col,"cells"]]:[],
+    summary:(p,d,x,c)=>`${(c&&c.name&&c.name(p.col))||"?"} is ${p.lv}`,
+    run(d,p,c){ const get=p.col&&c&&c.cellAt?c.cellAt(p.col):null; if(!get) throw new Error("Choose the column of categories.");
+      const keep=[], lv=String(p.lv==null?"":p.lv); for(let i=0;i<d.x.length;i++){ const v=get(d.idx[i]); if(v!=null&&v===lv) keep.push(i); }
+      return {d:pickPts(d,keep), note:`${keep.length} of ${d.x.length} points`, warn:keep.length?[]:[`No row holds ${lv}.`]}; }},
   exclude:{group:"clean", rank:1, label:"Leave out an X range", short:"Leave out X", pick:["x0","x1"],
     help:"Takes a stretch of X out of the data, for a laser line, a detector seam or a notch-filter edge. Unlike masking, later steps never see these points.",
     params:[{k:"x0",label:"From",type:"x"},{k:"x1",label:"To",type:"x"}],
@@ -6211,6 +6231,15 @@ function splitLine(line,delim){
 function modeOf(arr){ const m=new Map(); let best=null,bn=0; arr.forEach(v=>{ const n=(m.get(v)||0)+1; m.set(v,n); if(n>bn||(n===bn&&v>best)){bn=n;best=v;} }); return {value:best,count:bn}; }
 // A recognised placeholder ("NaN", "--") is a legitimate data cell, so it must
 // not count against a row the way a word like "Operator" does.
+// Which columns are text in nearly every line that holds a number (names, notes): such a column
+// does not count against a line being data, in choosing the delimiter or the block.
+function textColsOf(F,dec,ncol){ const tc=new Array(ncol).fill(0), nc=new Array(ncol).fill(0); let nl=0;
+  F.forEach(f=>{ if(!f||!f.some(c=>classify(c.trim(),dec)===1)) return; nl++; f.forEach((c,j)=>{ const t=c.trim(); if(t===""||j>=ncol) return; nc[j]++; if(classify(t,dec)===-1) tc[j]++; }); });
+  return tc.map((t,j)=>nl>=2&&nc[j]>0&&t>=0.8*nc[j]); }
+// A column's fields as written, one a row of the block (a column kept as text keeps "007" so).
+function colFields(res,j){ const out=[], skip=new Set(res.skipped||[]);
+  for(let i=res.start;i<res.end;i++){ if(skip.has(i)) continue; const f=splitLine(res.lines[i],res.delim); if(f.length!==res.ncol) continue; out.push(String(f[j]==null?"":f[j]).trim().replace(/^"|"$/g,"")); }
+  return out; }
 function classify(t,dec){ if(t===""||MISSING.test(t)) return 0; return toNumber(t,dec)!=null?1:-1; }
 function rowScore(fields,dec){
   let cells=0,nums=0,text=0;
@@ -6244,9 +6273,11 @@ function detectFormat(lines){
     // A comma delimiter rules out a comma decimal, so only try "." there.
     for(const dec of (d.id===","?["."]:[".",","])){
       let dataLines=0, cells=0, nums=0, leadZero=0, fieldsSeen=0;
-      const LEADZERO=/^0[0-9]/;
-      for(const l of rows){ const parts=splitLine(l,d.id); const s=rowScore(parts,dec);
-        if(s.nums>0&&s.ok>=0.6){ dataLines++; cells+=s.cells; nums+=s.nums;
+      const LEADZERO=/^0[0-9]/, txtCol=textColsOf(rows.map(l=>splitLine(l,d.id)),dec,ncol);
+      // Text columns decide which lines are data, and still count against purity, so a reading that
+      // turns a column of numbers into text (the wrong decimal mark) loses.
+      for(const l of rows){ const parts=splitLine(l,d.id), s=rowScore(parts.filter((_,j)=>!txtCol[j]),dec), all=rowScore(parts,dec);
+        if(s.nums>0&&s.ok>=0.6){ dataLines++; cells+=all.cells; nums+=all.nums;
           for(const c of parts){ const t=c.trim(); if(t===""){ continue; } fieldsSeen++; if(LEADZERO.test(t)) leadZero++; } } }
       if(!dataLines) continue;
       const explained=dataLines/sample.length, purity=nums/cells;
@@ -6262,12 +6293,20 @@ function detectFormat(lines){
 // The data block is the longest run of lines that agree on field count and
 // parse as numbers. Everything above it is metadata; everything below is junk.
 function findBlock(lines,delim,dec,ncol){
-  const isData=lines.map(l=>{
-    if(l.trim()==="") return false;
-    const f=splitLine(l,delim); if(f.length!==ncol) return false;
-    const s=rowScore(f,dec);
+  // A column that is text in nearly every line holding a number (names, notes: FOUNDATION_SPEC 1.2b)
+  // does not count against its lines being data, so "Sample A,Note,1.2" lines are one block.
+  const F=lines.map(l=>{ if(l.trim()==="") return null; const f=splitLine(l,delim); return f.length===ncol?f:null; });
+  const txtCol=textColsOf(F,dec,ncol);
+  const isData=F.map(f=>{
+    if(!f) return false;
+    const s=rowScore(f.filter((_,j)=>!txtCol[j]),dec);
     return s.nums>0&&s.ok>=0.6;
   });
+  // A line with a number and a stray text ("3,<0.01") inside a run of data lines is data too: up to
+  // three such lines between two data lines, never at a run's edge.
+  for(let i=1;i<F.length-1;i++){ if(isData[i]||!F[i]||!F[i].some(c=>classify(c.trim(),dec)===1)||!isData[i-1]) continue;
+    let j=i; while(j<F.length&&j-i<3&&!isData[j]&&F[j]&&F[j].some(c=>classify(c.trim(),dec)===1)) j++;
+    if(j<F.length&&isData[j]) for(let k=i;k<j;k++) isData[k]=true; }
   let bs=-1,be=-1,cs=-1;
   for(let i=0;i<=isData.length;i++){
     if(isData[i]){ if(cs<0) cs=i; }
@@ -6677,12 +6716,15 @@ function analyzeFile(raw,opt){
         headerRow=f.map((nm,j)=>{ const u=headerRow[j].replace(/^[\(\[]\s*|\s*[\)\]]$/g,""); return u&&!/[\(\[].*[\)\]]\s*$/.test(nm)?(nm?nm+" ("+u+")":u):nm; }); headerAt=i; }
       break; } }
 
-  const rows=[], skipped=[], tk=Array.from({length:ncol},()=>({n:0,date:0,time:0}));
+  const rows=[], skipped=[], tk=Array.from({length:ncol},()=>({n:0,date:0,time:0})), txt=[];
   for(let i=start;i<end;i++){
     const f=splitLine(lines[i],delim);
     if(f.length!==ncol){ skipped.push(i); continue; }
-    rows.push(f.map(c=>toNumber(c,dec)));
-    f.forEach((c,j)=>{ const t=String(c).trim().replace(/^"|"$/g,""); if(t===""||MISSING.test(t)||!tk[j]) return; tk[j].n++; const q=timeOf(t); if(q) tk[j][q.kind]++; });
+    const row=f.map(c=>toNumber(c,dec)), k=rows.length; rows.push(row);
+    f.forEach((c,j)=>{ const t=String(c).trim().replace(/^"|"$/g,"");
+      // What does not read as a number is kept as text, "n/a" and "<0.01" too (FOUNDATION_SPEC 1.2b).
+      if(t!==""&&row[j]==null&&j<ncol) (txt[j]||(txt[j]={}))[k]=t;
+      if(t===""||MISSING.test(t)||!tk[j]) return; tk[j].n++; const q=timeOf(t); if(q) tk[j][q.kind]++; });
   }
   const cols=[]; for(let c=0;c<ncol;c++) cols.push(rows.map(r=>r[c]??null));
   // A column of dates, or of times: what its numbers are, for the worksheet and the axes.
@@ -6695,7 +6737,7 @@ function analyzeFile(raw,opt){
   if(tka){ meta["Live time"]=tka.live+" s"; meta["Real time"]=tka.real+" s";
     if(tka.real>=tka.live) meta["Dead time"]=(+((1-tka.live/tka.real)*100).toFixed(2))+" %"; }
   return {
-    text,lines,delim,dec,ncol,start,end,headerRow,headerAt,unitsAt,rows,cols,roles,paired,tka,single:ncol===1,tkind,
+    text,lines,delim,dec,ncol,start,end,headerRow,headerAt,unitsAt,rows,cols,roles,paired,tka,single:ncol===1,tkind,txt,
     auto:{delim:auto.delim,dec:auto.dec},
     meta,
     metaLineCount:metaLines.filter(l=>l.trim()!=="").length,
@@ -7005,7 +7047,9 @@ function rawSeries(c){
   const xc0=xColFor(c), yd=c.data||[], ed=yErrData(c.id);
   // A Y column with no X values at all (one column typed or pasted) is
   // plotted against its row number, as Origin does.
-  const xc=xc0&&anyVal(xc0.data)?xc0:null, xd=xc?xc.data:ROWX;
+  // An X column of categories (FOUNDATION_SPEC 1.2d) gives each row its level's place, 1 to k.
+  const xcat=isCatCol(xc0)&&hasVals(xc0)?xCatPos(xc0):null;
+  const xc=xcat||xc0&&anyVal(xc0.data)?xc0:null, xd=xcat?xcat.pos:xc?xc.data:ROWX;
   const names=[xc?xc.name:"Row",xc?xc.unit:"",c.name||"",c.unit||""].join("\u0001");
   const hit=RAWSER.get(c.id);
   if(hit&&hit.xd===xd&&hit.yd===yd&&hit.ed===ed&&hit.names===names) return hit.val;
@@ -7033,8 +7077,84 @@ function rawSeries(c){
   RAWSER.set(c.id,{xd,yd,ed,names,val});
   return val;
 }
+// A categorical X's places: each row its level's (1 to k, in the column's order), and the names.
+// Kept per column's values, text and order, so a series made from it is the same series.
+const XCATM=new WeakMap();
+function xCatPos(xc){ const key=xc.data||xc, m=XCATM.get(key), sig=JSON.stringify(xc.cat||null);
+  if(m&&m.t===xc.txt&&m.sig===sig) return m.v;
+  const lv=catLevels(xc,xc.cat||{order:"first"}); if(!Array.isArray(lv)) return null;
+  const at=new Map(lv.map((o,j)=>[catKey(o.v),j+1])), n=Math.max((xc.data||[]).length,txtLen(xc)), pos=new Array(n).fill(null);
+  for(let i=0;i<n;i++){ const v=catVal(xc,i); if(v!=null) pos[i]=at.get(catKey(v))||null; }
+  const v={pos,names:lv.map((o,j)=>[j+1,typeof o.v==="number"?fmt(o.v,8):String(o.v).slice(0,60)])}; XCATM.set(key,{t:xc.txt,sig,v}); return v; }
 // Columns with at least one value, in table order: what the fingerprint covers.
-function rawCols(){ return allCols().filter(c=>!c.src&&!c.fx&&(c.data||[]).some(v=>v!=null)); }
+/* Text in the worksheet (FOUNDATION_SPEC 1.2a). A column's text cells are c.txt, {row: text}, its
+   number at that row null: everything that reads numbers (a curve, a fit, a formula, a step, the
+   statistics) leaves text out as it leaves out an empty cell, with nothing to change. A number at a
+   row wins over a text left there (a fill or a paste of numbers writes data alone). c.txt is never
+   changed in place, only replaced, as data is, so snapshots share it. c.fmt: "text" (whatever is
+   typed stays text, "007" too), "num" (text refused), or none (a number when it reads as one). */
+const TXT_MAX=10000, TXT_OK=new WeakSet(), RAWA=new WeakMap();
+function txtOf(c){ return c&&c.txt&&typeof c.txt==="object"?c.txt:null; }
+function cellTxt(c,i){ const t=txtOf(c); if(!t||!Object.prototype.hasOwnProperty.call(t,i)) return null; return (c.data||[])[i]==null?t[i]:null; }
+function textCount(c){ const t=txtOf(c); if(!t) return 0; let n=0; const d=c.data||[]; for(const k in t) if(d[k]==null) n++; return n; }
+function hasVals(c){ return !!c&&((c.data||[]).some(v=>v!=null)||textCount(c)>0); }
+function txtLen(c){ const t=txtOf(c); let n=0; if(t) for(const k in t) n=Math.max(n,+k+1); return n; }
+const csvQ=s=>'"'+String(s).replace(/"/g,'""')+'"';
+// The values as hashed and exported: a text cell an RFC 4180 quoted field, so "12" typed as text is
+// not the number 12; a column of numbers is its data, so a project of numbers keeps its check code.
+function rawArr(c){ const t=txtOf(c), d=c.data||[]; if(!t||!textCount(c)) return d;
+  const m=RAWA.get(d); if(m&&m.t===t) return m.a;
+  const a=d.slice(); for(const k in t){ const i=+k; if(d[i]!=null) continue; while(a.length<=i) a.push(null); a[i]=csvQ(t[k]); }
+  RAWA.set(d,{t,a}); return a; }
+// What comes from storage: text cells of the shape above, or none; a computed column holds none.
+function cleanTxt(c){ if(!c||c.txt===undefined||TXT_OK.has(c.txt)) return;
+  const t=c.txt, d=c.data||[]; if(!t||typeof t!=="object"||Array.isArray(t)||c.fx){ delete c.txt; return; }
+  const o={}; let n=0, m=0;
+  for(const k of Object.keys(t)){ const i=+k, v=t[k]; if(!(Number.isInteger(i)&&i>=0&&i<5e7)||typeof v!=="string"||!v||d[i]!=null) continue; o[i]=v.length>TXT_MAX?v.slice(0,TXT_MAX):v; n++; m=Math.max(m,i+1); }
+  if(!n){ delete c.txt; return; }
+  if(d.length<m){ const a=d.slice(); while(a.length<m) a.push(null); c.data=a; }
+  c.txt=o; TXT_OK.add(o); }
+// One cell written: its number or text (one of them null), the column's arrays replaced.
+function setCell(c,r,v,tx){ const arr=(c.data||[]).slice(); while(arr.length<=r) arr.push(null); arr[r]=tx!=null?null:v;
+  const T=Object.assign({},txtOf(c)||{}); if(tx!=null) T[r]=tx; else delete T[r];
+  if(Object.keys(T).length){ c.txt=T; TXT_OK.add(T); } else delete c.txt;
+  trimTail(arr); const L=txtLen(c); while(arr.length<L) arr.push(null); c.data=arr; }
+/* Categorical columns (FOUNDATION_SPEC 1.2c): c.cat = {order: "first" | "asc" | "desc" | "custom",
+   levels (custom only: the values in the order chosen; new values after them)}. A property, not a
+   type: the levels are the column's distinct values, numbers or text. catLevels(c) is the one door:
+   [{v, n}] in the column's order, null when it is not categorical, {fail} past CAT_MAX levels. */
+const CAT_MAX=200, CATM=new WeakMap(), CAT_ORDERS=[["first","As they first come"],["asc","Ascending"],["desc","Descending"],["custom","By hand"]];
+const catKey=v=>typeof v==="number"?"n:"+v:"t:"+v;
+const CAT_CMP=new Intl.Collator(undefined,{numeric:true,sensitivity:"base"}).compare;
+function catCmp(a,b){ const na=typeof a==="number", nb=typeof b==="number"; return na&&nb?a-b:na?-1:nb?1:CAT_CMP(a,b); }
+function catDistinct(c){ const d=c.data||[], L=Math.max(d.length,txtLen(c)), seen=new Map(), out=[];
+  for(let i=0;i<L;i++){ const t=cellTxt(c,i), v=t!=null?t:d[i]; if(v==null) continue; const k=catKey(v), e=seen.get(k);
+    if(e) e.n++; else { if(out.length>=CAT_MAX) return {fail:`it has more than ${CAT_MAX} different values, more than categories are`}; const o={v,n:1}; seen.set(k,o); out.push(o); } }
+  return out; }
+function catLevels(c,cat){ cat=cat||c&&c.cat; if(!c||!cat) return null;
+  const memo=CATM.get(c.data||c), sig=JSON.stringify(cat); if(memo&&memo.t===c.txt&&memo.sig===sig) return memo.v;
+  let v=catDistinct(c);
+  if(Array.isArray(v)){ v=v.slice(); const o=cat.order;
+    if(o==="asc"||o==="desc") v.sort((a,b)=>catCmp(a.v,b.v)*(o==="desc"?-1:1));
+    else if(o==="custom"&&Array.isArray(cat.levels)){ const rank=new Map(cat.levels.map((x,i)=>[catKey(x),i])), at=new Map(v.map((x,i)=>[x,i]));
+      v.sort((a,b)=>(rank.has(catKey(a.v))?rank.get(catKey(a.v)):1e9+at.get(a))-(rank.has(catKey(b.v))?rank.get(catKey(b.v)):1e9+at.get(b))); } }
+  CATM.set(c.data||c,{t:c.txt,sig,v}); return v; }
+// What comes from storage: an order Kurve has, levels only by hand, the levels numbers or text.
+// Text cells in a signature (pipeSig): their rows and words, kept per map (maps are replaced).
+const TXTK=new WeakMap();
+function txtKey(t){ if(!t||typeof t!=="object") return ""; let k=TXTK.get(t); if(k==null){ k=sha256(Object.keys(t).map(r=>r+"\u0001"+t[r]).join("\u0002")).slice(0,16); TXTK.set(t,k); } return k; }
+// A cell as a category reads it: its text, else its number (null for an empty cell).
+function catVal(c,i){ const t=cellTxt(c,i); if(t!=null) return t; const v=(c.data||[])[i]; return v==null||!Number.isFinite(v)?null:v; }
+// What groups by a column (box charts' Grouped by, a categorical X, Plot setup's Group by) reads:
+// whether it holds text, and its levels' order as distGroups keys them (null: natural order).
+function catOrderKeys(c){ const lv=c&&c.cat?catLevels(c):null; return Array.isArray(lv)?lv.map(o=>typeof o.v==="number"?+(+o.v).toPrecision(12):o.v):null; }
+const isCatCol=c=>!!(c&&(c.cat||c.fmt==="text"));
+function cleanCat(c){ if(c.cat===undefined) return; const k=c.cat;
+  if(!k||typeof k!=="object"||!CAT_ORDERS.some(o=>o[0]===k.order)){ delete c.cat; return; }
+  if(k.order!=="custom"){ if(k.levels!==undefined) c.cat={order:k.order}; return; }
+  const lv=Array.isArray(k.levels)?k.levels.filter(x=>(typeof x==="number"&&Number.isFinite(x))||(typeof x==="string"&&x)).slice(0,CAT_MAX):[];
+  if(lv.length!==(k.levels||[]).length) c.cat={order:"custom",levels:lv}; }
+function rawCols(){ return allCols().filter(c=>!c.src&&!c.fx&&hasVals(c)); }
 let fpMemo={arrs:[],key:"",val:""};
 // The states before (an undo goes back to one): the last few check codes with their arrays and key.
 const FPM=[]; const fpKeep=m=>{ if(m.val){ const i=FPM.findIndex(q=>q.val===m.val&&q.key===m.key); if(i>=0) FPM.splice(i,1); FPM.unshift(m); if(FPM.length>6) FPM.pop(); } };
@@ -7042,7 +7162,7 @@ const FPM=[]; const fpKeep=m=>{ if(m.val){ const i=FPM.findIndex(q=>q.val===m.va
 function fpNow(arrs){ const same=m=>m.arrs.length===arrs.length&&m.arrs.every((a,i)=>a===arrs[i]); if(same(fpMemo)) return fpMemo.val;
   const m=FPM.find(same); if(m){ fpMemo=m; return m.val; } return null; }
 function rawFp(cols){
-  const arrs=(cols||rawCols()).map(c=>c.data), k=fpNow(arrs); if(k!=null) return k;
+  const arrs=(cols||rawCols()).map(rawArr), k=fpNow(arrs); if(k!=null) return k;
   const key=arrs.map(arrKey).join("|");
   if(key===fpMemo.key){ fpMemo.arrs=arrs; return fpMemo.val; }
   const old=FPM.find(m=>m.key===key); if(old){ old.arrs=arrs; fpMemo=old; return old.val; }
@@ -7078,7 +7198,7 @@ function fpWork(until){
 }
 function fpDone(j,quiet){
   FPJ.q=FPJ.q.filter(x=>x!==j); FPJ.done.set(j.id,j.job.val);
-  const p=P(); if(p&&p.id===j.pid){ const cur=rawCols().map(c=>c.data); if(cur.length===j.arrs.length&&cur.every((a,i)=>a===j.arrs[i])) { fpMemo={arrs:cur,key:"",val:j.job.val}; fpKeep(fpMemo); } }
+  const p=P(); if(p&&p.id===j.pid){ const cur=rawCols().map(rawArr); if(cur.length===j.arrs.length&&cur.every((a,i)=>a===j.arrs[i])) { fpMemo={arrs:cur,key:"",val:j.job.val}; fpKeep(fpMemo); } }
   j.arrs=null; if(!quiet) fpApplyAll();
 }
 // Every job now, at once: before an export, whose record must be whole.
@@ -7110,7 +7230,7 @@ function fpEnsure(){
   if(fpResolve(p.raw)){ setTimeout(fpApplyAll,0); return; }
   const q=p.raw.fpq; if(!q||FPJ.done.has(q)||FPJ.q.some(j=>j.id===q)) return;
   // Another tab may be working it out already: wait a little before doing it twice.
-  FPJ.q.push({id:q,pid:p.id,arrs:rawCols().map(c=>c.data),at:Date.now()+3000,job:null,ensure:true}); fpTick(3100);
+  FPJ.q.push({id:q,pid:p.id,arrs:rawCols().map(rawArr),at:Date.now()+3000,job:null,ensure:true}); fpTick(3100);
 }
 // The check code shown for a record: "" while a big table's is still being worked out.
 const fpOf=raw=>(raw&&raw.fp)||(raw&&raw.fpq?"":rawFp());
@@ -7120,7 +7240,7 @@ const fpLab=(fp,q)=>!fp&&q?"working it out…":fpShort(fp);
    and after. The record travels with the project into the report. */
 function recordRaw(text,merge){
   const p=P(); if(!p) return null;
-  const r=p.raw||{fp:"",hist:[]}, hist=(r.hist||[]).slice(), last=hist[hist.length-1], cols=rawCols(), arrs=cols.map(c=>c.data);
+  const r=p.raw||{fp:"",hist:[]}, hist=(r.hist||[]).slice(), last=hist[hist.length-1], cols=rawCols(), arrs=cols.map(rawArr);
   let fp=fpNow(arrs);
   if(fp==null) fp=rawCells(arrs)<FP_SYNC||S.readOnly?rawFp(cols):"";
   const big=!fp&&arrs.length>0;
@@ -7138,8 +7258,8 @@ function recordRaw(text,merge){
   return p.raw;
 }
 function rawRecordFor(cols,text){
-  const withData=cols.filter(c=>!c.src&&!c.fx&&(c.data||[]).some(v=>v!=null));
-  const fp=withData.length?rawHashRun(rawHashJob(withData.map(c=>c.data)),Infinity):"";
+  const withData=cols.filter(c=>!c.src&&!c.fx&&hasVals(c));
+  const fp=withData.length?rawHashRun(rawHashJob(withData.map(rawArr)),Infinity):"";
   return {fp,hist:fp&&histOn()?[{t:Date.now(),uid:S.uid||"",fp,prev:"",text}]:[]};
 }
 // Whether the raw data still matches the fingerprint last recorded for it.
@@ -7151,7 +7271,8 @@ const objId=o=>{ if(!o||typeof o!=="object") return "0"; let v=OBJID.get(o); if(
 const PIPE_CACHE=new Map();
 const pipeCtx={
   refData:(id,use)=>{ const c=colById(id); if(!c) return null; const r=pipeOf(c); if(!r) return null; return use==="final"?r.out:r.input; },
-  depKey:(id,use)=>{ const c=colById(id); if(!c) return "none"; const r=pipeOf(c); return r?use+":"+objId(use==="final"?r.out:r.input):"none"; },
+  cellAt:id=>{ const c=colById(id); return c?i=>{ const v=i>=0?catVal(c,i):null; return v==null?null:typeof v==="number"?String(v):v; }:null; },
+  depKey:(id,use)=>{ const c=colById(id); if(!c) return "none"; if(use==="cells") return "cells:"+objId(c.data)+":"+objId(c.txt); const r=pipeOf(c); return r?use+":"+objId(use==="final"?r.out:r.input):"none"; },
   name:id=>{ const c=colById(id); return c?specName(c):"a missing column"; }
 };
 let pipeGuard=new Set();
@@ -7190,7 +7311,7 @@ function pipeSig(c,seen){
   (c.pipe||[]).filter(s=>s.on!==false).forEach(s=>{ parts.push(JSON.stringify([s.op,stepPKey(s)]));
     const def=PIPE_OPS[s.op]; if(def&&def.deps) def.deps(s.p||{}).forEach(([id,use])=>parts.push(use+":"+pipeSig(colById(id),seen))); });
   if(c.src) parts.push((c.from||"final")+"<"+pipeSig(colById(c.src),seen));
-  else { const xc=xColFor(c); parts.push(arrKey(c.data)+"/"+arrKey(xc&&xc.data)+"/"+arrKey(yErrData(c.id))); }
+  else { const xc=xColFor(c); parts.push(arrKey(c.data)+"/"+arrKey(xc&&xc.data)+"/"+arrKey(yErrData(c.id))+(c.txt?"/t"+txtKey(c.txt):"")+(isCatCol(xc)?"/x"+txtKey(xc.txt)+JSON.stringify(xc.cat||null):"")); }
   return hash32(parts.join("|"));
 }
 const newStepId=()=>"s"+Date.now().toString(36)+(colSeq++).toString(36);
@@ -7271,7 +7392,7 @@ function migrate(p){
   if(p.v<5){ migrateGraphs(p); p.v=5; }
   // Keys of older versions can come back from storage after an upgrade.
   ["x","y","e","xLong","xUnit","yLong","yUnit","eLong","eUnit","steps","mask","plot"].forEach(k=>{ if(k in p) delete p[k]; });
-  p.cols.forEach(c=>{ c.data=c.data||[]; if(c.role==="y"){ c.pipe=c.pipe||[]; c.mask=c.mask||[]; } });
+  p.cols.forEach(c=>{ c.data=c.data||[]; if(c.role==="y"){ c.pipe=c.pipe||[]; c.mask=c.mask||[]; } cleanTxt(c); cleanCat(c); if(c.fmt!==undefined&&c.fmt!=="text"&&c.fmt!=="num") delete c.fmt; });
   if(!p.cols.some(c=>c.role==="x")) p.cols.unshift(makeCol("x","",""));
   if(!p.cols.some(c=>c.id===p.activeY)){ const y=p.cols.find(c=>c.role==="y"); p.activeY=y?y.id:null; }
   p.raw=p.raw||{fp:"",hist:[]}; p.fits=p.fits||[];
@@ -7322,7 +7443,7 @@ const undoStack=[], redoStack=[], UNDO_MAX=40;
 /* Raw values are replaced, never changed in place, so a snapshot keeps each
    column's data array as it is and copies the rest: with 20 spectra of 50 000
    points every edit spent 200 ms copying data no edit could change. */
-function cloneCols(cols){ return Array.isArray(cols)?cols.map(c=>{ if(!c||typeof c!=="object") return c; const {data,...rest}=c, o=clone(rest); o.data=data; return o; }):clone(cols); }
+function cloneCols(cols){ return Array.isArray(cols)?cols.map(c=>{ if(!c||typeof c!=="object") return c; const {data,txt,...rest}=c, o=clone(rest); o.data=data; if(txt!==undefined) o.txt=txt; return o; }):clone(cols); }
 function snapshot(){ const p=P(); if(!p) return null; const o={pid:S.pid}; UNDO_KEYS.forEach(k=>{ o[k]=k==="cols"?cloneCols(p[k]):clone(p[k]); });
   o.pdraft=S.pdraft?clone(S.pdraft):null; o.draft=S.draft?clone(S.draft):null; return o; }
 function pushUndo(label){
@@ -7699,8 +7820,8 @@ function cleanArr(a){ if(!Array.isArray(a)||CLEANARR.has(a)) return a; let bad=f
   CLEANARR.add(out); return out; }
 function cloneProj(o){ if(!o||typeof o!=="object"||!Array.isArray(o.cols)) return clone(o);
   const datas=o.cols.map(c=>c&&typeof c==="object"&&Array.isArray(c.data)?cleanArr(c.data):undefined);
-  const out=clone(Object.assign({},o,{cols:o.cols.map((c,i)=>datas[i]!==undefined?Object.assign({},c,{data:null}):c)}));
-  out.cols.forEach((c,i)=>{ if(datas[i]!==undefined&&c) c.data=datas[i]; }); return out; }
+  const out=clone(Object.assign({},o,{cols:o.cols.map((c,i)=>datas[i]!==undefined?Object.assign({},c,{data:null,txt:undefined}):c)}));
+  out.cols.forEach((c,i)=>{ if(datas[i]!==undefined&&c){ c.data=datas[i]; if(o.cols[i].txt!==undefined) c.txt=o.cols[i].txt; else delete c.txt; } }); return out; }
 /* Two versions of a project made from one (base): another tab's (theirs) and this one's (mine).
    A part only one of them changed takes that change; a part both changed takes mine, but for the
    columns, which are put together one by one (mergeCols). */
@@ -7712,10 +7833,12 @@ function mergeProj(base,mine,theirs){ const out=Object.assign({},theirs), same=(
   if(Array.isArray(mine.log)&&Array.isArray(theirs.log)&&!same(mine.log,base.log)&&!same(theirs.log,base.log)){ const seen=new Set(); out.log=[].concat(theirs.log,mine.log).filter(l=>{ const k=l&&(l.t+"|"+l.text); if(seen.has(k)) return false; seen.add(k); return true; }).sort((a,b)=>(a.t||0)-(b.t||0)).slice(-80); }
   // The record of the original data: both tabs' entries, and a check code for what is now there.
   if(base.raw&&mine.raw&&theirs.raw&&!same(mine.raw,base.raw)&&!same(theirs.raw,base.raw)){ const by=new Map(); [].concat(theirs.raw.hist||[],mine.raw.hist||[]).forEach(h=>{ const k=h.t+"|"+(h.uid||"")+"|"+h.text, o=by.get(k); if(!o||(!o.fp&&h.fp)) by.set(k,h); }); const hist=[...by.values()].sort((a,b)=>a.t-b.t);
-    out.raw={fp:rawFp(out.cols.filter(c=>!c.src&&!c.fx&&Array.isArray(c.data)&&c.data.some(v=>v!=null))),hist}; const l=hist[hist.length-1]; if(l&&l.fp&&l.fp!==out.raw.fp) hist.push({t:Date.now(),uid:S.uid||"",fp:out.raw.fp,prev:l.fp,text:"Changes made in two windows at once, put together"}); }
+    out.raw={fp:rawFp(out.cols.filter(c=>!c.src&&!c.fx&&Array.isArray(c.data)&&hasVals(c))),hist}; const l=hist[hist.length-1]; if(l&&l.fp&&l.fp!==out.raw.fp) hist.push({t:Date.now(),uid:S.uid||"",fp:out.raw.fp,prev:l.fp,text:"Changes made in two windows at once, put together"}); }
   return out; }
 function mergeCols(base,mine,theirs){ const B=new Map(base.map(c=>[c.id,c])), T=new Map(theirs.map(c=>[c.id,c])), M=new Map(mine.map(c=>[c.id,c]));
-  const meta=c=>JSON.stringify(Object.assign({},c,{data:0})), same=(a,b)=>a===b||(meta(a)===meta(b)&&(a.data===b.data||JSON.stringify(a.data)===JSON.stringify(b.data)));
+  const meta=c=>JSON.stringify(Object.assign({},c,{data:0,txt:0})), vals=c=>(c.data===undefined?"":JSON.stringify(c.data))+JSON.stringify(c.txt||{});
+  const same=(a,b)=>a===b||(meta(a)===meta(b)&&((a.data===b.data&&a.txt===b.txt)||vals(a)===vals(b)));
+  const cv=(c,i)=>{ const t=cellTxt(c,i); return t!=null?t:i<c.data.length?c.data[i]:null; };
   const out=[];
   mine.forEach(c=>{ const b=B.get(c.id), t=T.get(c.id);
     if(!b){ out.push(c); return; }                       // added here
@@ -7724,10 +7847,12 @@ function mergeCols(base,mine,theirs){ const B=new Map(base.map(c=>[c.id,c])), T=
     if(same(t,b)){ out.push(c); return; }                // changed here
     // Changed in both: this tab's settings, and the values cell by cell, each from where it changed.
     const v=Object.assign({},c);
-    if(Array.isArray(c.data)&&Array.isArray(t.data)&&Array.isArray(b.data)&&c.data!==b.data&&t.data!==b.data){ const n=Math.max(c.data.length,t.data.length), d=new Array(n);
-      for(let i=0;i<n;i++){ const ci=i<c.data.length?c.data[i]:null, bi=i<b.data.length?b.data[i]:null, ti=i<t.data.length?t.data[i]:null; d[i]=ci!==bi?ci:ti; }
-      while(d.length&&d[d.length-1]==null&&d.length>Math.min(c.data.length,t.data.length)) d.pop(); v.data=d; }
-    else if(c.data===b.data) v.data=t.data;
+    const vc=(c.data!==b.data||c.txt!==b.txt), vt=(t.data!==b.data||t.txt!==b.txt);
+    if(Array.isArray(c.data)&&Array.isArray(t.data)&&Array.isArray(b.data)&&vc&&vt){ const n=Math.max(c.data.length,t.data.length,txtLen(c),txtLen(t)), d=new Array(n), T={};
+      for(let i=0;i<n;i++){ const ci=cv(c,i), bi=cv(b,i), ti=cv(t,i), r=ci!==bi?ci:ti; if(typeof r==="string"){ T[i]=r; d[i]=null; } else d[i]=r; }
+      while(d.length&&d[d.length-1]==null&&d.length>Math.min(c.data.length,t.data.length)&&!Object.prototype.hasOwnProperty.call(T,d.length-1)) d.pop(); v.data=d;
+      if(Object.keys(T).length) v.txt=T; else delete v.txt; }
+    else if(!vc){ v.data=t.data; if(t.txt) v.txt=t.txt; else delete v.txt; }
     out.push(v); });
   // Added there: after the column before it there.
   theirs.forEach((t,i)=>{ if(M.has(t.id)||B.has(t.id)) return; let at=out.length;
@@ -8993,7 +9118,7 @@ function distMenuItems(){
 // not a curve drawn; one with too many different values is offered greyed, with the reason.
 function distByName(){ const c=colById(plotCfg().distBy||""); return c?(c.name||colLetter(c)):""; }
 function distByOpts(){ const act=activeYCol(); if(!act) return []; const on=new Set(graphCols().map(c=>c.id));
-  return sheetCols(sheetOf(act)).filter(o=>!on.has(o.id)&&Array.isArray(o.data)&&anyVal(o.data)).map(o=>{ const g=distGroups(o.data.map(()=>0),o.data); return {c:o,why:g.fail||(!g.n?"It has no numbers.":"")}; }); }
+  return sheetCols(sheetOf(act)).filter(o=>!on.has(o.id)&&Array.isArray(o.data)&&hasVals(o)).map(o=>{ const n=Math.max(o.data.length,txtLen(o)), keys=Array.from({length:n},(_,i)=>catVal(o,i)), g=distGroups(keys.map(()=>0),keys,null,{text:true}); return {c:o,why:g.fail||(!g.n?"It holds no values.":"")}; }); }
 function distByItems(){ const cfg=plotCfg(), ro=S.readOnly||!P(), cur=cfg.distBy||null;
   return [{label:"Nothing",radio:true,checked:!colById(cur||""),enabled:!ro,run:()=>setPlotKey("distBy",null,"took the grouping off the boxes")}]
     .concat(distByOpts().map(({c,why})=>({label:`${colLetter(c)} ${c.name||""}`.trim(),radio:true,checked:cur===c.id,enabled:!ro&&!why,title:why||"",run:()=>setPlotKey("distBy",c.id,`grouped the boxes by ${c.name||colLetter(c)}`)}))); }
@@ -10021,7 +10146,7 @@ function buildPlot(W,H,pal,colEx,opt){
     // Grouped by another column (cfg.distBy): each curve's values split by that column's value in
     // their row, a cluster per group along X with a box per curve side by side, in its colour.
     distBy=cfg.distBy?colById(cfg.distBy):null; if(distBy&&!Array.isArray(distBy.data)) distBy=null;
-    if(distBy){ const gs=raw.map(a=>distGroups(a.map(q=>q.y),a.map(q=>distBy.data[q.i]))), ks=[...new Set([].concat(...gs.map(g=>g.keys||[])))].sort((a,b)=>a-b);
+    if(distBy){ const go={text:true,order:catOrderKeys(distBy)}, gs=raw.map(a=>distGroups(a.map(q=>q.y),a.map(q=>catVal(distBy,q.i)),null,go)), ks=distKeySort([...new Set([].concat(...gs.map(g=>g.keys||[])))],go.order);
       if(gs.some(g=>g.fail)||ks.length>DIST_GMAX||!ks.length) distBy=null; else distG={keys:ks,gs}; }
     const nC=distC.length, sl=distG&&nC>1?0.8/nC:1;
     distK=distG?[].concat(...distG.keys.map((g,j)=>distC.map((c,k)=>{ const gi=distG.gs[k].keys.indexOf(g); return {c,k,j,g,x:j+1+(k-(nC-1)/2)*sl,w:sl,vals:gi<0?[]:distG.gs[k].by[gi]}; })))
@@ -10124,9 +10249,11 @@ function buildPlot(W,H,pal,colEx,opt){
   let xlh=0, xEnd=0;
   // X ticks as many as their numbers fit side by side: on a time axis in
   // nanoseconds each reads 1.70000002×10^18, and 85 px apart they overlapped.
-  const xCatsAll=!dist&&!heat&&!fX&&!logX?catsOf(cfg.ax.x):[];
+  // Names along X: typed (ax.x.cats), else a categorical X column's levels.
+  const xCatCol=act?xColFor(act):null, xCatAuto=!dist&&!heat&&!fX&&!logX&&isCatCol(xCatCol)&&hasVals(xCatCol)?xCatPos(xCatCol):null;
+  const xCatsAll=!dist&&!heat&&!fX&&!logX?(catsOf(cfg.ax.x).length?catsOf(cfg.ax.x):xCatAuto?xCatAuto.names:[]):[];
   const xTicks=(lo,hi,avail)=>{ const xc=xCatsAll.filter(q=>q[0]>=Math.min(lo,hi)&&q[0]<=Math.max(lo,hi)); if(xc.length) return {ticks:xc.map(q=>({v:q[0],lab:q[1]})),minor:[],step:xc.length>1?Math.abs(xc[1][0]-xc[0][0]):1};
-    if(dist) return {ticks:distG?distG.keys.map((g,j)=>({v:j+1,lab:fmt(g,6)})):distC.map((c,k)=>({v:k+1,lab:specName(c).slice(0,28)})),minor:[],step:1};
+    if(dist) return {ticks:distG?distG.keys.map((g,j)=>({v:j+1,lab:typeof g==="number"?fmt(g,6):String(g).slice(0,28)})):distC.map((c,k)=>({v:k+1,lab:specName(c).slice(0,28)})),minor:[],step:1};
     if(fX) return scaleTicks(lo,hi,avail,fX,cfg.ax.x,{lw:l=>XA.rot===90?TK.size*1.3:labW(l,TK)*(XA.rot===45?0.75:1),rot:XA.rot===90?90:0,size:TK.size});
     let tg=avail/(85*tkDen), r=axisTicks(lo,hi,tg,cfg.ax.x,logX);
     if(logX||+cfg.ax.x.step>0) return r;
@@ -10188,8 +10315,8 @@ function buildPlot(W,H,pal,colEx,opt){
   const inPlot=(x,y)=>Number.isFinite(x)&&Number.isFinite(y)&&x>=L-0.5&&x<=L+pw+0.5&&y>=T-0.5&&y<=T+mh+0.5;
   // A curve's points labelled with a column's values, each in its recorded row, in the labels' text style (at most 1500 a curve on screen).
   const labSvg=(id,q,Yf,col)=>{ const lc=colById(curveUse(id,cfg).lab); if(!lc||!q.length) return ""; let t=""; const step=colEx?1:Math.max(1,Math.ceil(q.length/1500));
-    for(let k=0;k<q.length;k+=step){ const z=q[k], val=lc.data[z.i]; if(val==null) continue; const px=X(z.x), py=Yf(z.y); if(!inPlot(px,py)) continue;
-      t+=`<text x="${f1(px+4)}" y="${f1(py-4)}"${tAt(TS.labels,col)}>${esc(lc.tfmt?tfmtText(val,lc.tfmt):fmt(val,6))}</text>`; }
+    for(let k=0;k<q.length;k+=step){ const z=q[k], val=catVal(lc,z.i); if(val==null) continue; const px=X(z.x), py=Yf(z.y); if(!inPlot(px,py)) continue;
+      t+=`<text x="${f1(px+4)}" y="${f1(py-4)}"${tAt(TS.labels,col)}>${esc(typeof val==="string"?val.slice(0,60):lc.tfmt?tfmtText(val,lc.tfmt):fmt(val,6))}</text>`; }
     return t?`<g data-plab="${id}" pointer-events="none">${t}</g>`:""; };
   let s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
   s+=`<rect width="${W}" height="${H}" fill="${pal.bg}"/>`;
@@ -11632,15 +11759,15 @@ function wsSelStats(){
   const {r0,r1,c0,c1}=wsSelRect(); if(r0===r1&&c0===c1) return null;
   return sbMemo(m,[r0,r1,c0,c1].join(","),()=>{
     const ra=Math.max(0,r0), rb=Math.min(r1,m.n-1); if((rb-ra+1)*(c1-c0+1)>400000) return null;
-    let n=0, sum=0, sq=0, lo=Infinity, hi=-Infinity;
+    let n=0, sum=0, sq=0, lo=Infinity, hi=-Infinity, nt=0;
     for(let c=c0;c<=c1;c++){ const q=m.cols[c]; if(!q||q.phantom||q.hidden) continue;
-      for(let r=ra;r<=rb;r++){ const k=wsDR(m,r), v=m.kind==="final"?q.get(k):q.col.data[k]; if(v==null||!Number.isFinite(v)) continue; n++; sum+=v; if(v<lo) lo=v; if(v>hi) hi=v; } }
-    if(n<2) return null;
+      for(let r=ra;r<=rb;r++){ const k=wsDR(m,r), v=m.kind==="final"?q.get(k):q.col.data[k]; if(v==null||!Number.isFinite(v)){ if(m.kind!=="final"&&cellTxt(q.col,k)!=null) nt++; continue; } n++; sum+=v; if(v<lo) lo=v; if(v>hi) hi=v; } }
+    if(n<2) return nt?{n,nt}:null;
     const mu=sum/n, all=new Float64Array(n); let j=0;
     for(let c=c0;c<=c1;c++){ const q=m.cols[c]; if(!q||q.phantom||q.hidden) continue;
       for(let r=ra;r<=rb;r++){ const k=wsDR(m,r), v=m.kind==="final"?q.get(k):q.col.data[k]; if(v==null||!Number.isFinite(v)) continue; sq+=(v-mu)*(v-mu); all[j++]=v; } }
     all.sort(); const med=n%2?all[n>>1]:(all[n/2-1]+all[n/2])/2;
-    return {n,mu,sd:Math.sqrt(sq/(n-1)),lo,hi,med}; });
+    return {n,mu,sd:Math.sqrt(sq/(n-1)),lo,hi,med,nt}; });
 }
 function wsSelLabel(){ const m=S.wsm; if(!m) return ""; const {r0,r1,c0,c1}=wsSelRect(), L=c=>(m.cols[c]||{}).letter||"?", R=r=>wsDR(m,r)+1;
   return `${L(c0)}${R(Math.max(0,r0))}:${L(c1)}${R(Math.min(r1,m.n-1))}`; }
@@ -11649,7 +11776,9 @@ function sbStatsOf(){
   // Each number as the window that has it writes it: the Statistics window's five digits, the Integrate window's own.
   const f=v=>Number.isFinite(v)?fmt(v,5):"—";
   if(S.wsTouch){ const w=wsSelStats(); if(!w) return null;
-    return {lab:wsSelLabel(), cells:[["N",w.n],["Mean",f(w.mu)],["SD",f(w.sd)],["Min",f(w.lo)],["Max",f(w.hi)]]}; }
+    const tl=w.nt?[["Text",`${w.nt} left out`]]:[];
+    if(w.n<2) return {lab:wsSelLabel(), cells:[["N",w.n]].concat(tl)};
+    return {lab:wsSelLabel(), cells:[["N",w.n],["Mean",f(w.mu)],["SD",f(w.sd)],["Min",f(w.lo)],["Max",f(w.hi)]].concat(tl)}; }
   const c=ctxOf(); if(!c) return null;
   if(c.kind==="curve"||c.kind==="column"){ const col=colById(c.id); if(!col) return null; const d=finalOf(col);
     const r=sbMemo(d,"stat",()=>statRow(col,"final",null)); if(!r||!r.n) return null;
@@ -12643,7 +12772,7 @@ function setupGraph(){
     const ro=$("#readout"); if(ro){ const [xu,yu]=dataUnits(), g=S.geo; S.sbHover=true; ro._sig=null;
       // On a map: X, where up the side (the series value, or the spectrum), and the value there.
       if(g.dist&&d&&d.inside){ const q=(g.distK||[]).reduce((b,q)=>Math.abs(q.x-d.x)<=q.w/2&&(!b||Math.abs(q.x-d.x)<Math.abs(b.x-d.x))?q:b,null), c=q&&q.c;
-        ro.textContent=c?`${specName(c)}${q.g!=null&&g.distBy?`   ${g.distBy.name||colLetter(g.distBy)} ${fmt(q.g,6)}`:""}   y ${fmt(d.y,5)}${yu?" "+yu:""}`:""; }
+        ro.textContent=c?`${specName(c)}${q.g!=null&&g.distBy?`   ${g.distBy.name||colLetter(g.distBy)} ${typeof q.g==="number"?fmt(q.g,6):q.g}`:""}   y ${fmt(d.y,5)}${yu?" "+yu:""}`:""; }
       else if(g.heat&&d&&d.inside){ const z=g.mapZ?g.mapZ(d.x,d.y):null, near=mapNearest(d.y);
         ro.textContent=`x ${fmt(d.x,6)}${xu?" "+xu:""}   ${g.mapSeries?`${seriesLabel()} ${fmt(d.y,5)}`:near?specName(near.c):""}   ${z!=null?`value ${fmt(z,5)}${yu?" "+yu:""}`:""}`; }
       else { const tz=d&&d.inside&&g.tmapZ?g.tmapZ(x,y):null; ro.textContent=d&&d.inside?`x ${fmt(d.x,6)}${xu?" "+xu:""}   y ${fmt(d.y,5)}${yu?" "+yu:""}${tz!=null?`   value ${fmt(tz,5)}`:""}`:""; } }
@@ -13576,8 +13705,14 @@ function wsOrder(m){
   if(ci<0&&!(H&&H.size)) return m;
   let ord=Array.from({length:m.n},(_,k)=>k);
   if(ci>=0){ const q=m.cols[ci], get=k=>{ const v=m.kind==="final"?q.get(k):q.col.data[k]; return v==null||!Number.isFinite(v)?null:v; };
-    ord.sort((a,b)=>{ const va=get(a), vb=get(b);
-      if(va==null&&vb==null) return a-b; if(va==null) return 1; if(vb==null) return -1; return (va-vb)*s.dir||a-b; }); }
+    const gt=k=>m.kind==="final"||q.phantom?null:cellTxt(q.col,k), cmp=new Intl.Collator(undefined,{numeric:true,sensitivity:"base"}).compare;
+    // By its categories: each row at its level's place, in the column's order.
+    const lv=s.cat&&!q.phantom&&m.kind!=="final"?catLevels(q.col):null;
+    if(Array.isArray(lv)){ const rk=new Map(lv.map((o,i)=>[catKey(o.v),i])), R=k=>{ const t=gt(k), v=t!=null?t:q.col.data[k]; return v==null?Infinity:rk.get(catKey(v)); };
+      ord.sort((a,b)=>{ const ra=R(a), rb=R(b); return ra===rb?a-b:ra===Infinity?1:rb===Infinity?-1:(ra-rb)*s.dir; }); }
+    else ord.sort((a,b)=>{ const va=get(a), vb=get(b);
+      if(va!=null&&vb!=null) return (va-vb)*s.dir||a-b; if(va!=null) return -1; if(vb!=null) return 1;
+      const ta=gt(a), tb=gt(b); if(ta!=null&&tb!=null) return cmp(ta,tb)*s.dir||a-b; if(ta!=null) return -1; if(tb!=null) return 1; return a-b; }); }
   if(H&&H.size) ord=ord.filter(k=>!H.has(k));
   const inv=new Array(m.n).fill(null); ord.forEach((k,r)=>{ inv[k]=r; });
   return Object.assign(m,{ord,inv,nd:m.n,n:ord.length,sorted:ci>=0,sortCi:ci>=0?ci:null,sortDir:ci>=0?s.dir:0,hidR:H&&H.size?H:null});
@@ -13633,7 +13768,7 @@ function hideItems(){ const m=S.wsm, p=P(), raw=!!m&&m.kind==="raw", ro=S.readOn
     "-",
     {label:h.cols.length?`Show every hidden column (${h.cols.length})`:"Show every hidden column", enabled:!ro&&h.cols.length>0, run:()=>wsShowCols(null)},
     {label:h.rows.length?`Show every hidden row (${h.rows.length})`:"Show every hidden row", enabled:!ro&&h.rows.length>0, run:()=>wsShowRows(null)}]; }
-function wsSortBy(id,dir){ S.wsSort=id&&dir?{sheet:S.sheet,id,dir}:null; if(S.ws) S.ws.win=null; renderWs(); }
+function wsSortBy(id,dir,cat){ S.wsSort=id&&dir?{sheet:S.sheet,id,dir,cat:!!cat}:null; if(S.ws) S.ws.win=null; renderWs(); }
 
 /* ---- Filling -------------------------------------------------------------------
    The fill handle, as in a spreadsheet: drag the square at the corner of the
@@ -13992,7 +14127,7 @@ function wsModel(){
       title:`Column ${L}${c.name?" ("+c.name+")":""} is hidden. Double-click to show it.`};
     const mkSpark=()=>{ if(!c.data.some(v=>v!=null)) return ""; const xc=isY||c.role==="e"?xColFor(c.role==="e"?colById(c.of)||c:c):null, sw=Math.max(20,w-12), t=sparkPts(c.data,xc?xc.data:null,2*sw);
       return t.y.length>1?sparkSvg(t,sw,16,"wspark"):""; };
-    return {id:c.id, col:c, letter:L, role:c.role==="x"&&xs.length>1?"X"+(xs.indexOf(c)+1):c.role==="e"?errTag(c):ROLE_LABEL[c.role]||c.role, w, off, act:isAct, menu:true, mkSpark,
+    return {id:c.id, col:c, letter:L, role:c.role==="x"&&xs.length>1?"X"+(xs.indexOf(c)+1):c.role==="e"?errTag(c):ROLE_LABEL[c.role]||c.role, w, off, act:isAct, menu:true, mkSpark, cat:!!c.cat,
       lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx, fxErr:c.fx?FX_ERR.get(c.id)||"":"", fxNote:c.fx?FX_NOTE.get(c.id)||"":"",
       title:`Column ${L}${c.name?": "+c.name:""}. ${roleText(c)}${c.fx?`, computed: = ${fxShow(c)}${FX_ERR.get(c.id)?` (${FX_ERR.get(c.id)})`:FX_NOTE.get(c.id)?` (${FX_NOTE.get(c.id).toLowerCase()})`:""}`:""}${isAct?", active":""}${off?", on no graph yet":""}. Click to select it; right-click, or the arrow, for its options; drag its right edge to resize it.`}; });
   // Empty columns to the edge of the window and a little beyond, as a grid has.
@@ -14011,7 +14146,7 @@ function wsText(m,r,ci){
   if(r<0){ const L=WS_LABS.find(z=>z.r===r); return L?String(q.lab[L.k]||""):""; }
   r=wsDR(m,r);
   if(m.kind==="final"){ if(r>=m.n) return ""; const v=q.get(r); return v==null||!Number.isFinite(v)?"":q.int?String(v):fmt(v,8); }
-  if(q.phantom) return ""; const v=q.col.data[r]; return v==null?"":q.col.tfmt?tfmtText(v,q.col.tfmt):q.calc?String(+v.toPrecision(12)):String(v);
+  if(q.phantom) return ""; const v=q.col.data[r]; if(v==null){ const t=cellTxt(q.col,r); return t==null?"":t; } return q.col.tfmt?tfmtText(v,q.col.tfmt):q.calc?String(+v.toPrecision(12)):String(v);
 }
 // A date column's values as dates (UTC), a time column's as h:mm:ss.
 function tfmtText(v,k){ if(!Number.isFinite(v)) return String(v);
@@ -14088,7 +14223,7 @@ function wsTable(m){
   const tw=WS_IDX+m.cols.reduce((a,q)=>a+q.w,0);
   box.style.setProperty("--ws-rh",wsRowH()+"px");
   let h=`<table class="grid" style="width:${tw}px"><colgroup><col style="width:${WS_IDX}px">${W.lw?`<col style="width:${W.lw}px">`:""}${C.map(i=>`<col data-cw="${esc(m.cols[i].id)}" style="width:${m.cols[i].w}px">`).join("")}${W.rw?`<col style="width:${W.rw}px">`:""}</colgroup><thead>`;
-  h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"><button type="button" class="wsrows" data-wsrows aria-haspopup="menu" aria-expanded="false" title="Rows under the letters: Comments, F(x)=, Sparklines" aria-label="Rows to show under the letters">⋯</button></th>${cells("th",(q,i)=>q.hidden?`<th class="ch hidc" data-ch="${i}" title="${esc(q.title)}" aria-label="${esc(q.title)}"></th>`:`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.calc?`<span class="fxm${q.fxErr?" bad":q.fxNote?" old":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx+(q.fxNote?". "+q.fxNote:""))}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.off?`<span class="lab hoff" title="On no graph yet: select it and press Plot">not plotted</span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`)}</tr>`;
+  h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"><button type="button" class="wsrows" data-wsrows aria-haspopup="menu" aria-expanded="false" title="Rows under the letters: Comments, F(x)=, Sparklines" aria-label="Rows to show under the letters">⋯</button></th>${cells("th",(q,i)=>q.hidden?`<th class="ch hidc" data-ch="${i}" title="${esc(q.title)}" aria-label="${esc(q.title)}"></th>`:`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.cat?`<span class="lab cat" title="Categorical: its values are categories, in the order its menu's Categorical… sets">cat</span>`:""}${q.calc?`<span class="fxm${q.fxErr?" bad":q.fxNote?" old":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx+(q.fxNote?". "+q.fxNote:""))}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.off?`<span class="lab hoff" title="On no graph yet: select it and press Plot">not plotted</span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`)}</tr>`;
   const AL=p.wsAlign||{};
   wsLabRows().forEach(L=>{ h+=`<tr class="lab"><th class="rl" scope="row" data-lr="${L.r}"${L.k==="fx"?` title="A column's formula: letters are columns (B*2, (B-C)/A, log10(B)), x the row's X value, i the row number. Click a cell here to type one."`:""}>${L.label}</th>${cells("td",(q,i)=>{ const bd=L.k==="fx"&&q.fxErr, al=L.k!=="fx"&&AL[q.id]?" al-"+AL[q.id]:""; if(q.hidden) return `<td class="lc hid" data-r="${L.r}" data-ci="${i}"></td>`; return `<td class="lc${L.k==="fx"?" fxc":""}${bd?" bad":""}${al}" data-r="${L.r}" data-ci="${i}"${bd?` title="${esc(q.fxErr)}"`:L.k==="fx"&&m.kind==="raw"&&!q.lab.fx?` title="Click to type a formula for column ${q.letter}"`:""}>${esc(q.lab[L.k]||"")}</td>`; })}</tr>`; });
   if(wsRowsPref().meta) wsMetaAll(m).slice(0,WS_META_MAX).forEach(k=>{ h+=`<tr class="meta"><th class="rl mk" scope="row" data-mkey="${esc(k)}" title="${esc(k)}, from the files' headers: click for its menu" aria-haspopup="menu">${esc(k)}</th>${cells("td",q=>{ if(q.hidden) return `<td class="hid"></td>`; const v=wsMetaVal(q,k); return `<td${v?` title="${esc(k+": "+v)}"`:""}>${esc(v)}</td>`; })}</tr>`; });
@@ -14108,8 +14243,9 @@ function wsRowHtml(m,r){
   const AL=m.p&&m.p.wsAlign||{}, W=S.ws.cwin||{a:0,b:m.cols.length}, b=Math.min(W.b,m.cols.length), gap=`<td class="gapc" aria-hidden="true"></td>`;
   if(W.lw) h+=gap;
   for(let i=W.a;i<b;i++){ const q=m.cols[i]; if(q.hidden){ h+=`<td class="hid" data-r="${r}" data-ci="${i}"></td>`; continue; }
-    const fx=!fin&&!q.phantom?S.wsFixed.get(q.id+":"+k):null, al=AL[q.id], cls=[fx?"fixed":"",q.calc?"calc":"",al?"al-"+al:""].filter(Boolean).join(" ");
-    h+=`<td data-r="${r}" data-ci="${i}"${cls?` class="${cls}"`:""}${fx?` title="${esc(fx)}"`:""}>${esc(wsText(m,r,i))}</td>`; }
+    const fx=!fin&&!q.phantom?S.wsFixed.get(q.id+":"+k):null, al=AL[q.id], tx=!fin&&!q.phantom&&cellTxt(q.col,k)!=null, txn=tx&&q.col.fmt!=="text";
+    const cls=[fx?"fixed":"",q.calc?"calc":"",al?"al-"+al:"",tx?"tx":"",txn?"txn":""].filter(Boolean).join(" "), tt=fx||(txn?"Text, not counted as a number":"");
+    h+=`<td data-r="${r}" data-ci="${i}"${cls?` class="${cls}"`:""}${tt?` title="${esc(tt)}"`:""}>${esc(wsText(m,r,i))}</td>`; }
   if(W.rw) h+=gap;
   return h+`</tr>`;
 }
@@ -14381,7 +14517,7 @@ function awayOffer(){ const ids=((LAYOUT.awayOf||{})[S.pid]||[]).filter(id=>!AWA
   const id=ids[0]; toast(`${awayTitle(id)} was in a window of its own.`,{action:"Reopen",run:()=>{ detachWin(id); setTimeout(awayOffer,300); }}); }
 // The empty desk: shown over an empty worksheet until the first press or key in the grid.
 function wsEmptyShow(){ const el=$("#wsEmpty"); if(!el) return; const p=P();
-  const empty=!!p&&!S.readOnly&&!!S.store&&!S.wsEmptyGone&&S.sheet!=="final"&&!allCols().some(c=>(c.data||[]).some(v=>v!=null));
+  const empty=!!p&&!S.readOnly&&!!S.store&&!S.wsEmptyGone&&S.sheet!=="final"&&!allCols().some(c=>hasVals(c));
   if(el.hidden===empty) el.hidden=!empty; }
 function wsFoot(){ wsEmptyShow();
   const p=P(), m=S.wsm, foot=$("#wsFoot"); if(!foot||!p||!m) return;
@@ -14501,15 +14637,18 @@ function wsCommit(dr,dc,stay,how){
   // Not a number: Enter, Tab or an arrow leave it in the cell, marked, to be
   // put right (Esc gives the cell back); leaving it another way keeps the old
   // value and says what was not taken.
-  const bad=e.r>=0&&val!==e.orig&&String(val).trim()!==""&&parseNum(val)==null;
+  // A column of numbers and text keeps what does not read as a number as text; only a column of
+  // numbers alone (Cells hold › Numbers only) refuses it.
+  const ec=e.cid?colById(e.cid):null, ef=ec&&ec.fmt, nonum=e.r>=0&&val!==e.orig&&String(val).trim()!==""&&parseNum(val)==null;
+  const isFx=nonum&&ef!=="text"&&/^\s*=/.test(val), bad=nonum&&(ef==="num"||isFx);
   // "=…" in a cell, as in a spreadsheet: a formula fills a whole column here, so
   // it moves to the column's F(x)= row (shown for it), to be finished there.
-  if(bad&&!stay&&/^\s*=/.test(val)){ const ci=e.c; S.ws.edit=null; S.editing=false; S.pendingWs=false;
+  if(isFx&&!stay){ const ci=e.c; S.ws.edit=null; S.editing=false; S.pendingWs=false;
     if(td){ td.classList.remove("editing"); td.textContent=wsText(S.wsm,e.r,e.c); }
     toast("A formula fills the whole column, so it goes in the F(x)= row: there a letter stands for that column's value in each row (B, not B1).");
     wsEditFormula(ci,String(val).trim()); return; }
   if(bad&&!stay&&inp){ inp.classList.add("bad"); inp.setAttribute("aria-invalid","true"); inp.focus({preventScroll:true});
-    toast(`“${String(val).trim().slice(0,40)}” is not a number. Type one (3.14, 2,5 or 1e-3), or press Esc to leave the cell as it was.`); return; }
+    toast(`“${String(val).trim().slice(0,40)}” is not a number, and column ${colLetter(ec)} holds numbers only. Type one (3.14, 2,5 or 1e-3), or press Esc to leave the cell as it was.`); return; }
   S.ws.edit=null; S.editing=false; S.pendingWs=false;
   if(td){ td.classList.remove("editing"); td.textContent=wsText(S.wsm,e.r,e.c); }
   if(!stay) $("#ws").focus({preventScroll:true});
@@ -14534,18 +14673,73 @@ function wsSetCell(r,ci,text,ref){
     renderWs(); renderPlot(); if(winOpen("flow")) renderFlow(); return; }
   if(col&&col.fx){ toast(`Column ${q.letter} is computed by its formula (= ${fxShow(col)}). Change the formula in its F(x)= row.`); renderWs(); return; }
   r=ref&&ref.k>=0?ref.k:wsDR(m,r);
-  const t=String(text).trim(), v=t===""?null:parseNum(t);
-  if(t!==""&&v===null){ toast(`“${t.slice(0,40)}” is not a number. Type one, like 3.14, 2,5 or 2.5e-3.`); renderWs(); return; }
-  const old=col?(col.data[r]??null):null;
-  if(old===v||(old===null&&v===null)){ renderWs(); return; }
-  if(old!==null&&rawLocked()){ renderWs(); correctCell(col,r,v); return; }
+  const t=String(text).trim().slice(0,TXT_MAX), fm=col&&col.fmt;
+  let v=null, tx=null;
+  if(t!==""){ if(fm==="text") tx=t; else { v=parseNum(t); if(v===null){ if(fm==="num"){ toast(`“${t.slice(0,40)}” is not a number, and column ${colLetter(col)} holds numbers only.`); renderWs(); return; } tx=t; } } }
+  const oldV=col?(col.data[r]??null):null, oldT=col?cellTxt(col,r):null, old=oldT!=null?oldT:oldV;
+  if(oldV===v&&oldT===tx){ renderWs(); return; }
+  if(old!==null&&rawLocked()){
+    if(tx!=null||oldT!=null){ toast("The original data is locked: a text cell is not corrected by a step. Unlock the data to change it.",{action:"Unlock",run:()=>setRawLock(false)}); renderWs(); return; }
+    renderWs(); correctCell(col,r,v); return; }
   pushUndo("that cell edit");
   if(!col) col=wsMakeCols(ci);
-  const arr=col.data.slice(); while(arr.length<=r) arr.push(null); arr[r]=v; trimTail(arr); col.data=arr;
-  const L=colLetter(col), raw=recordRaw(old===null?"entered values in the worksheet":"changed original values in the worksheet",old===null?"ws":"wsc");
-  saveSoon(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),old===null?"entered original data in the worksheet":`changed ${L}${r+1} from ${old} to ${v==null?"empty":v}`);
+  setCell(col,r,v,tx);
+  if(tx!=null&&fm!=="text"&&!(S.txtSaid||(S.txtSaid=new Set())).has(col.id)){ S.txtSaid.add(col.id);
+    toast(`“${tx.slice(0,40)}” does not read as a number, so it is kept as text: it is left out of the graph, fits and statistics.`,{action:"Undo",run:undo}); }
+  const L=colLetter(col), qv=x=>x==null?"empty":typeof x==="string"?`“${x.slice(0,40)}”`:x, raw=recordRaw(old===null?"entered values in the worksheet":"changed original values in the worksheet",old===null?"ws":"wsc");
+  saveSoon(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),old===null?"entered original data in the worksheet":`changed ${L}${r+1} from ${qv(old)} to ${qv(tx!=null?tx:v)}`);
   renderWs(); renderPlot(); renderFitRangeOnly(); renderStages(); if(winOpen("flow")) renderFlow();
 }
+// One line of tab-separated fields, as a spreadsheet copies them: a field that opens with a quote
+// runs to its closing quote (a quote inside doubled), tabs and all. Each field trimmed.
+function splitTSV(l){ const out=[]; let i=0; const n=l.length;
+  while(i<=n){ if(l[i]==='"'){ let s="", j=i+1; for(;j<n;j++){ if(l[j]==='"'){ if(l[j+1]==='"'){ s+='"'; j++; } else break; } else s+=l[j]; }
+      out.push(s.trim()); i=j+1; while(i<n&&l[i]!=="\t") i++; i++; }
+    else { const k=l.indexOf("\t",i), e=k<0?n:k; out.push(l.slice(i,e).trim()); i=e+1; } }
+  return out; }
+// The column menu's Categorical…: whether the values are categories, and their order (as they first
+// come, ascending, descending, or by hand with ↑ and ↓), each level with how many rows have it. One
+// undo step; a column of more than CAT_MAX different values is refused in words.
+async function catDlg(id){ const c=colById(id); if(!c||S.readOnly) return;
+  const d0=catDistinct(c); if(d0.fail){ toast(`Column ${colLetter(c)} cannot be categorical: ${d0.fail}.`); return; }
+  if(!d0.length){ toast(`Column ${colLetter(c)} holds no values yet.`); return; }
+  const cur=c.cat||{order:"first"}; let order=cur.order, list=(catLevels(c,cur)||[]).map(o=>o.v);
+  const counts=new Map(d0.map(o=>[catKey(o.v),o.n])), show=v=>typeof v==="number"?fmt(v,8):v;
+  const rows=()=>list.map((v,i)=>`<tr><td>${esc(show(v))}</td><td class="num muted">${counts.get(catKey(v))}</td><td><button type="button" class="tb sm icon" data-catup="${i}" aria-label="Up"${i?"":" disabled"}>↑</button><button type="button" class="tb sm icon" data-catdn="${i}" aria-label="Down"${i<list.length-1?"":" disabled"}>↓</button></td></tr>`).join("");
+  const html=`<label class="chk"><input type="checkbox" id="catOn" checked> Its values are categories</label>
+    <div class="frow"><label for="catOrd">Order</label><select id="catOrd">${CAT_ORDERS.map(([k,l])=>`<option value="${k}"${k===order?" selected":""}>${l}</option>`).join("")}</select></div>
+    <p class="muted">${list.length} level${list.length===1?"":"s"}${order==="custom"?"":" (↑ and ↓ put them in an order by hand)"}</p>
+    <div class="catlist" style="max-height:320px;overflow:auto"><table class="rtab"><thead><tr><th>Level</th><th class="num">Rows</th><th></th></tr></thead><tbody id="catRows">${rows()}</tbody></table></div>`;
+  const pr=formDlg({title:`Categorical: column ${colLetter(c)}${c.name?" ("+c.name+")":""}`,html,ok:"Done"});
+  const body=$("#formBody"), ord=$("#catOrd");
+  const redraw=()=>{ $("#catRows").innerHTML=rows(); };
+  ord.addEventListener("change",()=>{ order=ord.value; if(order!=="custom") list=(catLevels(c,{order})||[]).map(o=>o.v); redraw(); });
+  $("#catRows").addEventListener("click",e=>{ const u=e.target.closest("[data-catup]"), d=e.target.closest("[data-catdn]"); if(!u&&!d) return;
+    const i=+(u||d).dataset[u?"catup":"catdn"], j=u?i-1:i+1; if(j<0||j>=list.length) return; [list[i],list[j]]=[list[j],list[i]]; order="custom"; ord.value="custom"; redraw(); });
+  const v=await pr; if(!v) return; const p=P(), col=colById(id); if(!p||!col) return;
+  const next=v.catOn?(order==="custom"?{order:"custom",levels:list.slice()}:{order}):undefined;
+  if(JSON.stringify(next||null)===JSON.stringify(col.cat||null)) return;
+  pushUndo(next?"the categories":"no longer categorical");
+  if(next) col.cat=next; else delete col.cat;
+  const L=colLetter(col), what=next?`made column ${L} categorical (${CAT_ORDERS.find(o=>o[0]===next.order)[1].toLowerCase()})`:`made column ${L} no longer categorical`;
+  save({cols:p.cols},what); renderAll(); toast(capFirst(what)+".",{action:"Undo",run:undo}); }
+// The column menu's Cells hold: numbers and text (no fmt), text only, numbers only. Making a
+// column text writes its numbers as they are shown, and back reads each text as typing it would:
+// both change the values, so both are recorded.
+function setCellsHold(id,fm){ const p=P(), c=colById(id); if(!p||!c||S.readOnly||c.src||c.fx) return;
+  const cur=c.fmt||"", L=colLetter(c), nt=textCount(c); if(fm===cur) return;
+  if(fm==="num"&&nt){ const rows=Object.keys(c.txt).filter(k=>c.data[k]==null).slice(0,3).map(k=>+k+1); toast(`Column ${L} holds ${nt} text cell${nt===1?"":"s"} (row${rows.length===1?"":"s"} ${rows.join(", ")}${nt>3?"…":""}): clear ${nt===1?"it":"them"} or type numbers first.`); return; }
+  const vals=fm==="text"||cur==="text"; if(vals&&rawLocked()&&hasVals(c)){ toast("The original data is locked: this would change its values.",{action:"Unlock",run:()=>setRawLock(false)}); return; }
+  pushUndo("what the cells hold");
+  if(fm==="text"){ const T=Object.assign({},txtOf(c)||{}); c.data.forEach((v,i)=>{ if(v!=null) T[i]=c.tfmt?tfmtText(v,c.tfmt):String(v); });
+    const d=c.data.map(()=>null); if(Object.keys(T).length){ c.txt=T; TXT_OK.add(T); } trimTail(d); const n=txtLen(c); while(d.length<n) d.push(null); c.data=d; }
+  else if(cur==="text"){ const T={}, d=c.data.slice(), t=txtOf(c)||{};
+    for(const k in t){ const v=fm==="num"?null:parseNum(t[k]); if(v!=null){ while(d.length<=+k) d.push(null); d[+k]=v; } else T[k]=t[k]; }
+    if(Object.keys(T).length){ c.txt=T; TXT_OK.add(T); } else delete c.txt; trimTail(d); const n=txtLen(c); while(d.length<n) d.push(null); c.data=d; }
+  if(fm) c.fmt=fm; else delete c.fmt;
+  const what=fm==="text"?"text only":fm==="num"?"numbers only":"numbers and text", raw=vals?recordRaw(`made column ${L} hold ${what}`):null;
+  save(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),`made column ${L} hold ${what}`); renderAll();
+  toast(`Column ${L} holds ${what}.`,{action:"Undo",run:undo}); }
 // New columns up to the one typed into: Y, or X for the first of an empty sheet.
 function wsMakeCols(ci){
   const p=P(), raw=sheetCols(), hasX=raw.some(c=>c.role==="x"); let last=null;
@@ -14554,7 +14748,7 @@ function wsMakeCols(ci){
 }
 function wsCopyText(){
   const m=S.wsm; if(!m) return ""; const {r0,r1,c0,c1}=wsSelRect(), out=[];
-  for(let r=r0;r<=r1;r++){ const row=[]; for(let c=c0;c<=c1;c++) row.push(wsText(m,r,c)); out.push(row.join("\t")); }
+  for(let r=r0;r<=r1;r++){ const row=[]; for(let c=c0;c<=c1;c++){ const s=wsText(m,r,c); row.push(/[\t\n\r"]/.test(s)?csvQ(s):s); } out.push(row.join("\t")); }
   return out.join("\n");
 }
 /* A block pasted at the active cell: label rows take text, data rows take
@@ -14571,8 +14765,17 @@ function wsPasteText(text){
   if(lines.length===1&&!lines[0].includes("\t")){ wsSetCell(r0,c0,lines[0]); return; }
   if(m.ord){ toast(m.sorted?"Unsort the sheet to paste a block: the rows are shown in another order than they were recorded in.":"Show the hidden rows to paste a block: it fills every row, hidden or not.",m.sorted?{}:{action:"Show them",run:()=>wsShowRows(null)}); return; }
   const labs=r0<0?lines.splice(0,Math.min(-r0,lines.length)).map(l=>l.split("\t")):[];
-  const g=lines.length?parseGrid(lines.join("\n")):{rows:[],header:null}, rows=g.rows, header=labs.length?null:g.header, rs=Math.max(0,r0);
+  // A spreadsheet's block (fields split by tabs, a field with a tab or a quote quoted) is read field
+  // by field: a number where it reads as one, else text; its first line names the columns only when
+  // it holds no number at all. Anything else is read as an import reads a file.
+  const rs=Math.max(0,r0); let rows, header=null, F=null;
+  if(lines.some(l=>l.includes("\t"))){ F=lines.map(splitTSV);
+    if(!labs.length&&rs===0&&F.length>=2&&F[0].some(s=>s)&&F[0].every(s=>!s||parseNum(s)==null)&&F.slice(1).some(r=>r.some(s=>s&&parseNum(s)!=null))) header=F.shift();
+    rows=F.map(r=>r.map(s=>s===""?null:parseNum(s))); }
+  else { const g=lines.length?parseGrid(lines.join("\n")):{rows:[],header:null}; rows=g.rows; header=labs.length?null:g.header; }
   const width=Math.max(rows.reduce((a,r)=>Math.max(a,r.length),0),labs.reduce((a,r)=>Math.max(a,r.length),0));
+  // The fields as written, for the cells that do not read as numbers: those are kept as text.
+  const rawF=(j,k)=>F&&F[j]?F[j][k]||"":"";
   if(!width) return;
   const rawc=sheetCols();
   let clash=0, calc=0, over=0; const lock=rawLocked();
@@ -14582,7 +14785,7 @@ function wsPasteText(text){
   pushUndo("that paste");
   // Pasted into an empty sheet from its first cell, the columns are read as an import
   // reads them: with no X-like column every one is a Y against its row number.
-  const fresh=rs===0&&c0===0&&rows.length>=2&&width>=2&&!rawc.some(o=>o.data.some(v=>v!=null));
+  const fresh=rs===0&&c0===0&&rows.length>=2&&width>=2&&!rawc.some(o=>hasVals(o));
   const noX=fresh&&detectRoles(header,Array.from({length:width},(_,k)=>rows.map(r=>r[k]??null))).xi<0;
   // A project keeps an X column: an empty one, after the pasted columns, so they stay
   // where they were pasted and are plotted against their row numbers.
@@ -14591,12 +14794,16 @@ function wsPasteText(text){
   const cols=sheetCols(), fxs=[]; let fxBad=0;
   for(let src=0;src<width;src++){ const col=cols[c0+src]; if(!col) continue;
     labs.forEach((l,j)=>{ const L=WS_LABS.find(z=>z.r===r0+j); if(!L||l[src]==null) return; if(L.k==="fx"){ fxs.push([col,l[src]]); return; } col[L.k]=String(l[src]).trim().slice(0,L.max); });
-    if(rows.length){ const arr=col.data.slice(); rows.forEach((row,j)=>{ while(arr.length<=rs+j) arr.push(null); arr[rs+j]=row[src]??null; }); trimTail(arr); col.data=arr; }
+    if(rows.length){ const arr=col.data.slice(), T=Object.assign({},txtOf(col)||{}), tc=col.fmt==="text";
+      rows.forEach((row,j)=>{ while(arr.length<=rs+j) arr.push(null); const v=row[src]??null, w=rawF(j,src).slice(0,TXT_MAX);
+        if(w&&(tc||(v==null&&col.fmt!=="num"))){ arr[rs+j]=null; T[rs+j]=w; } else { arr[rs+j]=tc?null:v; delete T[rs+j]; } });
+      if(Object.keys(T).length){ col.txt=T; TXT_OK.add(T); } else delete col.txt;
+      trimTail(arr); const L=txtLen(col); while(arr.length<L) arr.push(null); col.data=arr; }
     if(header&&rs===0&&header[src]){ const {long,unit}=splitColName(header[src]); col.name=long; col.unit=unit; } }
   migrate(p);
   // Formulas pasted into the F(x)= row, read after every column exists.
   fxs.forEach(([col,t])=>{ if(!String(t).trim()){ if(col.fx){ delete col.fx; col.data=[]; } return; }
-    if(!col.fx&&col.data.some(v=>v!=null)){ fxBad++; return; } try{ col.fx=fxParse(t,col); }catch(e){ fxBad++; } });
+    if(!col.fx&&hasVals(col)){ fxBad++; return; } try{ col.fx=fxParse(t,col); }catch(e){ fxBad++; } });
   if(fxs.length) recalcFx(p);
   if(fxBad) setTimeout(()=>toast(`${fxBad} pasted formula${fxBad===1?" was":"s were"} left out: not a formula, or over original values.`),1200);
   const raw=rows.length?recordRaw(`pasted ${rows.length} rows into the worksheet`):null;
@@ -14613,13 +14820,13 @@ function wsClear(){
   const {r0,r1,c0,c1}=wsSelRect(), labs=[], vals=[];
   for(let c=c0;c<=c1;c++){ const q=m.cols[c]; if(!q||q.phantom) continue;
     for(let r=Math.max(r0,WS_TOP);r<=Math.min(r1,-1);r++){ const L=WS_LABS.find(z=>z.r===r); if(L&&q.col[L.k]) labs.push([q.col,L]); }
-    if(!q.col.fx) for(let r=Math.max(r0,0);r<=Math.min(r1,m.n-1);r++){ const k=wsDR(m,r); if(q.col.data[k]!=null) vals.push([q.col,k]); } }
+    if(!q.col.fx) for(let r=Math.max(r0,0);r<=Math.min(r1,m.n-1);r++){ const k=wsDR(m,r); if(q.col.data[k]!=null||cellTxt(q.col,k)!=null) vals.push([q.col,k]); } }
   if(!rawLocked()){
     if(!labs.length&&!vals.length) return;
     pushUndo("clearing cells");
     labs.forEach(([col,L])=>{ if(L.k==="fx"){ delete col.fx; col.data=[]; } else col[L.k]=""; });
-    const by=new Map(); vals.forEach(([col,k])=>{ let a=by.get(col); if(!a){ a=col.data.slice(); by.set(col,a); } a[k]=null; });
-    by.forEach((a,col)=>{ trimTail(a); col.data=a; });
+    const by=new Map(); vals.forEach(([col,k])=>{ let a=by.get(col); if(!a){ a={d:col.data.slice(),t:Object.assign({},txtOf(col)||{})}; by.set(col,a); } a.d[k]=null; delete a.t[k]; });
+    by.forEach((a,col)=>{ if(Object.keys(a.t).length){ col.txt=a.t; TXT_OK.add(a.t); } else delete col.txt; trimTail(a.d); const L=txtLen(col); while(a.d.length<L) a.d.push(null); col.data=a.d; });
     const raw=vals.length?recordRaw(`cleared ${vals.length} value${vals.length===1?"":"s"} in the worksheet`):null;
     save(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),`cleared ${[vals.length?`${vals.length} value${vals.length===1?"":"s"}`:"",labs.length?`${labs.length} label${labs.length===1?"":"s"}`:""].filter(Boolean).join(" and ")} in the worksheet`); renderAll();
     if(vals.length>1) toast(`Cleared ${vals.length} values.`,{action:"Undo",run:undo});
@@ -14888,8 +15095,11 @@ function wsRowsEdit(kind,below){
   if(kind==="delete"&&a>=nRows()){ toast("Those rows are empty already."); return; }
   if(kind==="insert"&&a>=nRows()){ toast("The rows after the data are empty already: type into them."); return; }
   pushUndo(kind==="insert"?"inserting rows":"deleting rows");
-  raw.forEach(c=>{ if(c.data.length<=a) return; let d=c.data.slice(); if(kind==="insert") d=d.slice(0,a).concat(new Array(n).fill(null),d.slice(a)); else d.splice(a,n); trimTail(d); c.data=d; });
-  remapRawRows(p,kind==="insert"?(i=>i>=a?i+n:i):(i=>i<a?i:i<a+n?null:i-n),curSheet());
+  const rf=kind==="insert"?(i=>i>=a?i+n:i):(i=>i<a?i:i<a+n?null:i-n);
+  raw.forEach(c=>{ if(c.data.length<=a) return; let d=c.data.slice(); if(kind==="insert") d=d.slice(0,a).concat(new Array(n).fill(null),d.slice(a)); else d.splice(a,n);
+    const t=txtOf(c); if(t){ const T={}; for(const k in t){ const j=rf(+k); if(j!=null) T[j]=t[k]; } if(Object.keys(T).length){ c.txt=T; TXT_OK.add(T); } else delete c.txt; }
+    trimTail(d); const L=txtLen(c); while(d.length<L) d.push(null); c.data=d; });
+  remapRawRows(p,rf,curSheet());
   migrate(p);
   const what=kind==="insert"?(below?`inserted ${n} row${n===1?"":"s"} below row ${a}`:`inserted ${n} row${n===1?"":"s"} above row ${a+1}`):`deleted row${n===1?"":"s"} ${a+1}${n>1?`–${a+n}`:""}`;
   const rr=recordRaw(what+" in the worksheet");
@@ -14961,6 +15171,12 @@ function colMenuItems(id){
       {label:"Y", radio:true, checked:c.role==="y", enabled:!ro, run:()=>setColRole(id,"y")},
       {label:"Error bars", note:c.role==="e"?errTag(c):"", title:"Y or X, both ways or one side", sub:()=>errKindItems(c,ro)},
       {label:"Other data (not plotted)", title:"Kept for formulas; not drawn", radio:true, checked:c.role==="ignore", enabled:!ro, run:()=>setColRole(id,"ignore")}]}];
+  if(!c.src&&!c.fx) items.push({label:"Categorical…", checked:!!c.cat, title:"Its values as categories (a group, a sample, a treatment), in an order of your choosing", enabled:!ro, run:()=>catDlg(id)});
+  if(!c.src&&!c.fx){ const fm=c.fmt||"", nt=textCount(c);
+    items.push({label:"Cells hold", note:fm==="text"?"text":fm==="num"?"numbers":nt?`${nt} text`:"", sub:()=>[
+      {label:"Numbers and text", title:"What reads as a number is a number; anything else is kept as text, left out of the graph and fits", radio:true, checked:!fm, enabled:!ro, run:()=>setCellsHold(id,"")},
+      {label:"Text only", title:"Whatever is typed stays as typed (007, 1e3); the numbers there become text", radio:true, checked:fm==="text", enabled:!ro, run:()=>setCellsHold(id,"text")},
+      {label:"Numbers only", title:nt?`Not while it holds ${nt} text cell${nt===1?"":"s"}`:"Text is refused, as a column of measurements wants", radio:true, checked:fm==="num", enabled:!ro&&!nt, run:()=>setCellsHold(id,"num")}]}); }
   if(c.role==="e"&&yCols().length){
     items.push("-",{group:`${errKindName(c)} for`});
     yCols().forEach(y=>items.push({label:colLabel(y,colLetter(y)), radio:true, checked:c.of===y.id, enabled:!ro, run:()=>setErrOf(id,y.id)}));
@@ -14976,12 +15192,13 @@ function colMenuItems(id){
     {label:"Its history and processing…", run:()=>{ setActiveCol(id,true); S.flowSel="final:"+id; S.flowTab="flow"; openWin("flow",{render:true}); }});
   const plotIt=c.role==="y"?{label:"Plot", enabled:!ro, sub:()=>plotItems(plotTargets(id))}
     :c.role==="ignore"||(c.role==="x"&&plotWhat(plotTargets(id)).ys.length)?{label:c.role==="x"?"Plot the selected columns":"Plot (it becomes a spectrum)", enabled:!ro, sub:()=>plotItems(plotTargets(id))}:null;
-  const rawIdx=cols.filter(o=>!o.src).indexOf(c), recorded=!c.fx&&c.data.some(v=>v!=null);
+  const rawIdx=cols.filter(o=>!o.src).indexOf(c), recorded=!c.fx&&hasVals(c);
   items.push("-",plotIt,{label:c.fx?"Edit the formula…":"Set column values (formula)…", enabled:!ro&&!recorded, title:recorded?"This column holds original values; type a formula into an empty column":"", run:()=>{ openWin("sheet"); wsEditFormula(rawIdx); }},
     {label:"Fill column with", enabled:!ro&&!c.fx, title:c.fx?"A computed column is filled by its formula":"A series, row numbers, a list, random numbers or a trend", sub:()=>FILL_KINDS.map(([k,l,t])=>({label:l+"…", title:t, run:()=>openFillDlg(k,{col:id})}))},
     {label:"Sort the view by this column", title:"The data keep their recorded order", sub:()=>{ const m=S.wsm, on=m&&m.sorted&&m.cols[m.sortCi]&&m.cols[m.sortCi].id===id; return [
       {label:"Ascending", radio:true, checked:!!(on&&m.sortDir>0), run:()=>{ if(S.sheet!=="raw") setSheet("raw"); wsSortBy(id,1); }},
       {label:"Descending", radio:true, checked:!!(on&&m.sortDir<0), run:()=>{ if(S.sheet!=="raw") setSheet("raw"); wsSortBy(id,-1); }},
+      ...(c.cat?[{label:"By its categories", title:"In the order its Categorical… sets", radio:true, checked:!!(on&&S.wsSort&&S.wsSort.cat), run:()=>{ if(S.sheet!=="raw") setSheet("raw"); wsSortBy(id,1,true); }}]:[]),
       "-",{label:"Original order", title:"The rows as they were recorded", enabled:!!(m&&m.sorted), run:()=>wsSortBy(null,0)}]; }});
   if(c.fx&&FX_ERR.get(c.id)) items.push({group:"Formula: "+FX_ERR.get(c.id),plain:true});
   else if(c.fx&&FX_NOTE.get(c.id)) items.push({group:FX_NOTE.get(c.id),plain:true});
@@ -15204,7 +15421,7 @@ function showSheet(sid,o){ const p=P(); if(!p||!sheetList().some(s=>s.id===sid))
    with no values, formula, name, unit or comment, no steps or mask, on no graph and named by no
    other column. A file brought into a sheet that holds nothing else takes their place, so they
    do not stay between its columns. */
-function blankCol(c,p){ p=p||P(); return !!c&&!c.src&&!(c.data||[]).some(v=>v!=null)&&!c.fx&&!c.name&&!c.unit&&!c.comm&&!(c.pipe||[]).length&&!(c.mask||[]).length
+function blankCol(c,p){ p=p||P(); return !!c&&!c.src&&!hasVals(c)&&!c.fx&&!c.name&&!c.unit&&!c.comm&&!(c.pipe||[]).length&&!(c.mask||[]).length
   &&!((p&&p.graphs)||[]).some(g=>(g.cols||[]).includes(c.id))&&!((p&&p.cols)||[]).some(o=>o!==c&&(o.of===c.id||o.src===c.id||o.xcol===c.id)); }
 // The columns of a list with sheet sid's placeholders taken out, when that sheet holds nothing but them.
 function dropBlanks(list,sid,p){ p=p||P(); const on=list.filter(c=>!c.src&&sheetOf(c,p)===sid); if(!on.length||!on.every(c=>blankCol(c,p))) return list; const b=new Set(on); return list.filter(c=>!b.has(c)); }
@@ -15344,6 +15561,7 @@ function beginStepEdit(s,key){ if(isPending(s)) return; const tok=s.id+":"+key; 
 function paramDef(s,key){ const d=PIPE_OPS[s.op]; return d?(d.params||[]).find(q=>q.k===key):null; }
 function paramText(s,key,v){ const q=paramDef(s,key); if(!q) return String(v);
   if(q.type==="log") return `10^${fmt(v,3)}`; if(q.type==="sel") return ((q.opts||[]).find(o=>o[0]===v)||[,v])[1]; if(q.type==="bool") return v?"on":"off";
+  if(q.type==="catcol"){ const o=colById(v); return o?colRef(o)+(o.name?" "+o.name:""):"none"; }
   if(q.type==="col") return specName(colById(v)); if(q.type==="anchors") return `${(v||[]).length} anchors`;
   if(q.type==="refs") return (v||[]).map(r=>fmt(+r.ref,6)).join(", ")||"none"; if(q.type==="cols") return (v||[]).map(id=>specName(colById(id))).join(", ")||"none";
   if(q.type==="code") return `${String(v||"").split("\n").length} lines`; if(q.type==="text") return `“${v||""}”`;
@@ -15529,6 +15747,7 @@ function paramControl(s,q,p,st){
   if(q.type==="sel") return `<select id="${id}" data-pk="${q.k}"${ro}>${q.opts.map(([k,l])=>`<option value="${esc(k)}"${String(k)===String(v)?" selected":""}>${esc(l)}</option>`).join("")}</select>`;
   if(q.type==="text") return `<div class="pair"><input type="text" id="${id}" data-pk="${q.k}" data-kind="text" maxlength="40" value="${esc(v==null?"":String(v))}"${ro} style="width:110px"></div>`;
   if(q.type==="bool") return `<label class="chk"><input type="checkbox" id="${id}" data-pk="${q.k}"${v?" checked":""}${ro}> ${esc(q.label)}</label>`;
+  if(q.type==="catcol") return `<select id="${id}" data-pk="${q.k}"${ro}><option value="">Choose…</option>${allCols().filter(o=>o!==self&&!o.src&&hasVals(o)).map(o=>`<option value="${o.id}"${o.id===v?" selected":""}>${esc(colRef(o)+(o.name?" "+o.name:""))}</option>`).join("")}</select>`;
   if(q.type==="col") return `<select id="${id}" data-pk="${q.k}"${ro}><option value="">Choose…</option>${yCols().filter(y=>y!==self).map(y=>`<option value="${y.id}"${y.id===v?" selected":""}>${esc(specName(y))}</option>`).join("")}</select>`;
   if(q.type==="cols") return `<div class="colpick" id="${id}">${yCols().filter(y=>y!==self).map(y=>`<label class="chk"><input type="checkbox" data-pkc="${q.k}" value="${y.id}"${(v||[]).includes(y.id)?" checked":""}${ro}> ${esc(specName(y))}</label>`).join("")||`<span class="lab">No other column in this project.</span>`}</div>`;
   if(q.type==="log"){ const val=Number.isFinite(+v)?+v:q.min;
@@ -15919,11 +16138,12 @@ function reportFitsHtml(pal){
 /* The raw data exactly as recorded, with the lines the fingerprint covers. */
 async function exportRawCsv(){
   fpSettle(); const p=P(), cols=rawCols(); if(!cols.length){ toast("There is no original data to export."); return; }
-  const body=rawText(cols.map(c=>c.data)), fp=sha256(body), NL=String.fromCharCode(10), clean=s=>String(s).replace(/[\r\n]+/g," ");
+  const body=rawText(cols.map(rawArr)), fp=sha256(body), NL=String.fromCharCode(10), clean=s=>String(s).replace(/[\r\n]+/g," ");
   const head=["# Original data of \""+clean(p.name||"Kurve project")+"\", exported "+new Date().toISOString(),
     "# Columns: "+cols.map(c=>`${colRef(c)} = ${clean(colLabel(c,colRef(c)))} [${c.role}]`).join("; "),
     "# SHA-256 of the lines below (the data, without these # lines): "+fp,
     "# Check it: grep -v '^#' this_file.csv | sha256sum",
+    ...(cols.some(c=>textCount(c))?["# Text cells are written as quoted fields (RFC 4180: a quote inside doubled), numbers as they are"]:[]),
     "# Recorded check code: "+((p.raw&&p.raw.fp)||"none")+(p.raw&&p.raw.fp===fp?" (matches)":" (DOES NOT MATCH)")];
   const ok=await saveFile(safeName(p.name,"_raw.csv"),head.join(NL)+NL+body,"text/csv;charset=utf-8");
   if(ok) toast(ok==="dialog"?"Original data saved.":`Sent ${safeName(p.name,"_raw.csv")} to your downloads.`);
@@ -15967,7 +16187,7 @@ function miniPlot(x,y,w,h){
    worksheet plots them. Nothing is plotted: the person plots what they want
    from the worksheet. A file dropped on the window is read with the automatic
    choices and plotted at once (autoImport). */
-const IMP_USE=[["x","X"],["y","Y"],["e","Y error (±)"],["e+","Y error, upward (+)"],["e-","Y error, downward (−)"],["xe","X error (±)"],["data","Other data (not plotted)"],["skip","Leave out"]];
+const IMP_USE=[["x","X"],["y","Y"],["e","Y error (±)"],["e+","Y error, upward (+)"],["e-","Y error, downward (−)"],["xe","X error (±)"],["data","Other data (not plotted)"],["text","Text (kept as written)"],["skip","Leave out"]];
 const impIsErr=k=>k==="e"||k==="e+"||k==="e-"||k==="xe";
 // X,Y,X,Y pairs: every other column rises or falls steadily, as an axis does,
 // over much the same range as the first. A dark current that only drifts up
@@ -15982,7 +16202,9 @@ function impUseDefault(res){
   if(impPairsLikely(res)) return impPairs(res);
   // An error column says in its name whether it is X's, or one side only.
   const errOf=i=>{ const h=String((res.headerRow||[])[i]||""); return /(^|[\s_(-])(x|dx)[\s_-]*(err|error|sd|unc)|x[\s_-]*error|^\s*dx\s*$/i.test(h)?"xe":/(\+|plus|upper|high)\s*\)?\s*$|^\s*(\+|plus|upper|high)/i.test(h)?"e+":/(−|minus|lower|low|-)\s*\)?\s*$|^\s*(−|minus|lower|low)/i.test(h)?"e-":"e"; };
-  return res.cols.map((c,i)=>!c.some(v=>v!=null)?"skip":res.roles[i]==="x"?"x":res.roles[i]==="e"?errOf(i):"y");
+  // A column of text (a sample's name, notes) is kept as text; one with no value at all is left out.
+  const nt=i=>res.txt&&res.txt[i]?Object.keys(res.txt[i]).length:0;
+  return res.cols.map((c,i)=>{ const nn=c.reduce((s,v)=>s+(v!=null),0); return !nn?(nt(i)?"text":"skip"):nt(i)>nn?"text":res.roles[i]==="x"?"x":res.roles[i]==="e"?errOf(i):"y"; });
 }
 const impYs=()=>S.imp.use.map((u,i)=>u==="y"?i:-1).filter(i=>i>=0);
 // The X a Y is plotted against, as the worksheet will: the nearest X to its
@@ -16185,7 +16407,12 @@ function impBuild(){
     else if(k==="y"){ const n=name(i,r.tka?"Counts":ny===1&&r.single?base:""); if(r.tka&&!n.unit) n.unit="counts";
       const yc=Object.assign(makeCol("y",n.long,n.unit,d),{pipe:fixSteps(),mask:[]},colMetaOf(r.meta,im.fname)); cols.push(at[i]=yc); ys.push(yc); }
     else if(k==="data"){ const n=name(i,""); cols.push(at[i]=makeCol("ignore",n.long,n.unit,d)); if(r.tkind&&r.tkind[i]) at[i].tfmt=r.tkind[i]; }
+    else if(k==="text"){ const n=name(i,""), T={}; colFields(r,i).forEach((s,j)=>{ if(s) T[j]=s.slice(0,TXT_MAX); });
+      const c=Object.assign(makeCol("ignore",n.long,n.unit,[]),{fmt:"text"}); if(Object.keys(T).length){ c.txt=T; c.data=new Array(txtLen(c)).fill(null); } cols.push(at[i]=c); }
     else if(impIsErr(k)){ const n=name(i,"σ"), ec=makeCol("e",n.long||"σ",n.unit,d); if(k==="xe") ec.ax="x"; if(k==="e+") ec.side="+"; if(k==="e-") ec.side="-"; cols.push(at[i]=ec); } });
+  // A column's stray text ("n/a", "<0.01" among numbers) comes with it, as text cells.
+  u.forEach((k,i)=>{ const c=at[i], t=r.txt&&r.txt[i]; if(!c||k==="text"||!t) return; const T={};
+    for(const j in t) T[j]=String(t[j]).slice(0,TXT_MAX); c.txt=T; const a=c.data.slice(); while(a.length<txtLen(c)) a.push(null); c.data=a; });
   // Error bars go with the Y before them, or after when none is before.
   u.forEach((k,i)=>{ if(impIsErr(k)&&at[i]){ const o=impErrOf(i); at[i].of=o>=0&&at[o]?at[o].id:undefined; } });
   // √N error bars: a column computed by a formula, after each spectrum of counts.
@@ -16201,7 +16428,7 @@ async function doImport(){
   // The dialog plots nothing: the columns go into the worksheet, to be plotted when wanted.
   const r=im.res, how="none";
   const {cols,ys,base,rows,stepNote}=impBuild(), ids=ys.map(c=>c.id), what=impWhat(cols,ys,rows), nPts=Math.max(0,...cols.map(c=>c.data.length));
-  if(!cols.some(c=>c.data.some(v=>v!=null))){ toast("Every column is left out: there is nothing to import."); return; }
+  if(!cols.some(c=>hasVals(c))){ toast("Every column is left out: there is nothing to import."); return; }
   const hadData=S.pid&&allCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null));
   const mode=hadData?(im.mode||"add"):"replace";
   closeImport();
@@ -16429,7 +16656,7 @@ async function autoImport(files,o){
     const res=analyzeFile(f.text,{fname:f.name}); if(res.jdxFail){ bad.push(`${f.name}, ${res.jdxFail}`); return; } if(!res.rows.length){ bad.push(`${f.name}, no rows of numbers`); return; }
     // The dialog's own reading, with its automatic choices.
     const keep=S.imp; S.imp=Object.assign({raw:f.text,fname:f.name,opt:{fname:f.name},res,use:impUseDefault(res),pv:-1,sqrt:false},impStart(res));
-    try{ const b=impBuild(); if(b.cols.some(c=>c.data.some(v=>v!=null))) built.push(Object.assign(b,{fname:f.name,text:f.text,res})); else bad.push(`${f.name}, no numbers`); }
+    try{ const b=impBuild(); if(b.cols.some(c=>hasVals(c))) built.push(Object.assign(b,{fname:f.name,text:f.text,res})); else bad.push(`${f.name}, no numbers`); }
     finally{ S.imp=keep; } });
   if(!built.length){ toast(`Nothing imported: ${bad.join("; ")}.`); logError(`Nothing imported: ${bad.join("; ")}`,"import"); return null; }
   if(!S.pid){ await createProject(blankProject(built[0].base),null); await new Promise(r=>whenOpen(r)); }
@@ -19296,7 +19523,7 @@ async function pfOpenDoc(doc,fname){
   pfVerify(pid,doc.fp,fname); }
 // The values' check code worked out again, a stretch at a time, and compared with the file's and the record's.
 function pfVerify(pid,fp,fname){ const p=P(); if(!p||S.pid!==pid) return;
-  const job=rawHashJob(rawCols().map(c=>c.data)), last=p.raw&&p.raw.hist&&p.raw.hist.length?p.raw.hist[p.raw.hist.length-1].fp:"";
+  const job=rawHashJob(rawCols().map(rawArr)), last=p.raw&&p.raw.hist&&p.raw.hist.length?p.raw.hist[p.raw.hist.length-1].fp:"";
   const step=()=>{ if(S.pid!==pid) return; const code=rawHashRun(job,performance.now()+12); if(code==null){ setTimeout(step,0); return; }
     // Compared with the code the file names and with the record's last entry: each says what the values were.
     const bad=[fp&&fp!==code?["the file",fp]:null,last&&last!==code&&last!==fp?["its record",last]:null].filter(Boolean);
@@ -22450,7 +22677,7 @@ ${DL([["Open","Double-click or "+K("Enter")+": a graph comes onto the desk (a hi
 {id:"import", g:"Basics", t:"Importing data", kw:"import open file csv tsv txt delimiter decimal comma header metadata paste drop wizard add replace many several files batch columns role use as data not a spectrum leave out plot not yet worksheet only pairs",
  lead:"Text exports from almost any instrument work. Drop a file on the window and it is read and plotted at once; use Import to see how it is read and choose what each column becomes, and nothing is plotted until you ask.",
  body:`<h2>Three ways in</h2>
-${DL([["Drop files","Drop one file or many anywhere on the window. A project file (<em>.kurve</em>) opens as a new project ("+DA("projects#files","project files")+"); any other file is read with the automatic choices and plotted: on the graph you drop it on, or else on a new graph. Dropped on a folder of the "+DA("explorer","Project Explorer")+", it is filed there. The message that follows has <em>Read it differently</em>, which undoes it and opens the dialog."],["Import","<em>Import</em> on the toolbar, "+MP("File › Import data…")+", or "+K("Ctrl","O")+": the dialog shows how the file is read, every choice can be changed, and the columns go into the worksheet. Nothing is plotted: select columns and press Plot when you are ready."],["Paste","Copy columns from a spreadsheet and paste them into a worksheet cell. Pasted into an empty sheet, they are read as an import reads them: with no X-like column every one is a Y, and the sheet's empty X column moves after them."]])}
+${DL([["Drop files","Drop one file or many anywhere on the window. A project file (<em>.kurve</em>) opens as a new project ("+DA("projects#files","project files")+"); any other file is read with the automatic choices and plotted: on the graph you drop it on, or else on a new graph. Dropped on a folder of the "+DA("explorer","Project Explorer")+", it is filed there. The message that follows has <em>Read it differently</em>, which undoes it and opens the dialog."],["Import","<em>Import</em> on the toolbar, "+MP("File › Import data…")+", or "+K("Ctrl","O")+": the dialog shows how the file is read, every choice can be changed, and the columns go into the worksheet. Nothing is plotted: select columns and press Plot when you are ready."],["Text","A column of names or notes, and words among numbers (<code>n/a</code>, <code>&lt;0.01</code>), come in as text: see "+DA("sheet#text","text in the worksheet")+". The dialog's <em>Use</em> list has <em>Text (kept as written)</em> for a column whose numbers are names, as IDs like <code>007</code> are."],["Paste","Copy columns from a spreadsheet and paste them into a worksheet cell. Pasted into an empty sheet, they are read as an import reads them: with no X-like column every one is a Y, and the sheet's empty X column moves after them."]])}
 <h2 id="drop">Dropping files</h2>
 <p>While a file is dragged over the window, the outline shows where it would go and a message says what would happen: <em>Drop to plot in Graph 2</em>, or <em>Drop to import into “2024” and plot</em> over a folder. A project with no data takes the file's name and header; beside other data, each file's columns are named after the file, and columns measured on the same X share a column. One Undo takes the whole drop back. A binary instrument file is refused with the reason.</p>
 <h2>What is detected</h2>
@@ -22512,7 +22739,7 @@ ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move; with "+K("Shift")+
 <h2 id="k-flow">In the History</h2>
 ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move between boxes"],[K("Alt","↑")+" "+K("Alt","↓"),"Move the selected step earlier or later"],[K("Delete"),"Delete the selected step"],[K("C"),"Comment on the selected box"],["Right-click","The box's menu"]],"keys")}`},
 /* ---------------------------------------------------------------- Data */
-{id:"sheet", g:"Data", t:"The worksheet", win:"sheet", kw:"worksheet spreadsheet grid cell column row long name units comments sparkline raw final width height row height resize select edit type enter tab insert delete rows lock unlock plot data role sheet sheets tab tabs workbook book new sheet rename move columns to another sheet",
+{id:"sheet", g:"Data", t:"The worksheet", win:"sheet", kw:"worksheet spreadsheet grid cell column row long name units comments sparkline raw final width height row height resize select edit type enter tab insert delete rows lock unlock plot data role sheet sheets tab tabs workbook book new sheet rename move columns to another sheet text string label name lod n/a below detection limit cells hold numbers only text only 007 leading zeros categorical category categories levels factor group order by hand",
  lead:"A spreadsheet grid, as in Excel, with Origin's label rows, and sheets as a workbook has. The Original view holds the original data; the Processed view shows the active column after processing.",
  body:`<h2 id="sheets">Sheets</h2>
 <p>The worksheet has sheets; their tabs are under the grid. Click a tab to show its sheet, double-click it (or ${K("F2")}) to rename it, right-click it to move or delete it, and <strong>+</strong> for a new one; ${MP("Data › Sheets")} and the Project Explorer do the same. A sheet has its own columns, lettered from A, its own rows, sort and hidden rows. A Y column is plotted against the nearest X to its left on its own sheet, and a formula's letters are its own sheet's columns. A file imported beside data goes on a sheet of its own, named after the file, unless you choose the sheet shown in the import dialog; files dropped on the window and columns copied from another project do the same. ${MP("Move › To another sheet")} in a column's menu moves it with its error bars, keeping the X it is plotted against. Graphs show columns from any sheet, and deleting a sheet takes its columns off them (Undo brings them back).</p>
@@ -22525,7 +22752,13 @@ ${DL([["Long Name","The column's name, used on the axes and in the legend."],["U
 <h2>Selecting and editing</h2>
 <p>Click a cell, Shift+click or drag for a range, click a header or row number for a whole column or row, or the corner for everything. The bar above shows the active cell's address and its value, which can be typed over there, as in Excel's formula bar (a computed cell shows its formula); the bar below shows Count, Sum, Average, Min and Max of the selection. What is selected is filled in blue with a dark edge, and the letters and row numbers of the selection are filled too, so you can see what <em>Plot</em> will take. Typing starts an edit; ${K("F2")} or a double-click edits in place. ${DA("keys#k-sheet","All the keys")}</p>
 <p>Columns keep a fixed width. Drag the edge of a header to resize one, or double-click the edge to fit its contents. Rows are sized the same way, all the data rows of a sheet together: drag the line under any row number, or double-click it for the usual height. Empty columns and rows fill the rest of the window; typing into one makes a new column.</p>
-<p>Enter moves down, Tab to the right; after a run of Tabs, Enter goes to the next row in the column where you started, as in a spreadsheet. A value that is not a number (<code>1.2.3</code>) stays in the cell, marked, for you to put right; ${K("Esc")} gives the cell back. Numbers are read as written: <code>2,5</code>, <code>−3</code>, <code>1e-3</code>, <code>6.02E23</code>.</p>
+<p>Enter moves down, Tab to the right; after a run of Tabs, Enter goes to the next row in the column where you started, as in a spreadsheet. What does not read as a number (<code>&lt;LOD</code>, <code>n/a</code>, <code>1.2.3</code>) is kept as text: see ${DA("sheet#text","Text in the worksheet")}. Numbers are read as written: <code>2,5</code>, <code>−3</code>, <code>1e-3</code>, <code>6.02E23</code>.</p>
+<h2 id="text">Text in the worksheet</h2>
+<p>A cell holds a number, text or nothing, in any column. What reads as a number is a number; anything else (<code>&lt;LOD</code>, <code>n/a</code>, a sample's name) is kept as text, as typed or pasted, and the first time in a column a message says so, with Undo. Text is left out of whatever reads numbers (the graph, fits, processing, formulas, statistics), as an empty cell is; in a column of numbers it is drawn left-aligned with a dotted underline, so it is seen, and the status bar's numbers of selected cells say how many they left out.</p>
+<p>The column menu's <em>Cells hold</em> chooses: <strong>Numbers and text</strong> (the usual), <strong>Text only</strong> (whatever is typed stays as typed, <code>007</code> and <code>1e3</code> too; the numbers there become their text) or <strong>Numbers only</strong> (text is refused and stays in its box to be put right; not while the column holds text). Sorting the view puts numbers first, then text in natural order (<em>sample 9</em> before <em>sample 10</em>), then empty cells. Find, copy and paste carry text; a block pasted from a spreadsheet keeps its text cells. Text is part of the original data: it is in the check code, written as a quoted field, as the original-data CSV writes it.</p>
+<h2 id="cat">Categorical columns</h2>
+<p>A column whose values are categories (a dose of <em>low</em>, <em>mid</em> and <em>high</em>, a sample's batch) is made so from its menu's <em>Categorical…</em>: its different values, numbers or text, are its levels, listed with how many rows hold each, and put in order as they first come, ascending, descending (text in natural order, numbers by value) or by hand with ↑ and ↓. The header says <em>cat</em>. Sorting the view <em>By its categories</em> puts each row at its level's place. A column of more than 200 different values is not made categorical: those are values, not categories. The categories change nothing in the values or the check code, and are one undo step.</p>
+<p>Graphs read text and categories: a column of names gives each point its label (a curve's right-click <em>Labels from</em>, or Plot setup's Labels); box charts are grouped by a column of text (<em>Grouped by</em>), in its categories' order; a column of text or categories as X puts each point at its level's place, 1, 2, 3…, and names X by them; and Plot setup's <em>Group by</em> makes a curve of each value, named after it, the curves of one column a group (each is a derived column with a <em>Keep the rows of one category</em> step, so it follows the column's cells).</p>
 <h2 id="move">Moving columns</h2>
 <p>Select a whole column by its letter (Shift+click or drag across the letters for several) and drag the letters left or right: a line shows where they will land. Or right-click a letter and choose <em>Move</em> › Left, Right, To the start or To the end. A column keeps the X it was plotted against wherever it goes, error bars stay with their column, and formulas keep reading the columns they read. A move is one undo step and an entry in the original-data record, since the order of the columns is part of what the check code hashes.</p>
 <h2 id="hide">Hiding columns and rows</h2>
@@ -23241,7 +23474,7 @@ function stepDoc(op){
   const opt=q=>(q.opts||[]).length?`<span class="doc-opts">${q.opts.map(o=>esc(Array.isArray(o)?o[1]:o)).join(" · ")}</span>`:"";
   const set=(d.params||[]).filter(q=>q.type!=="code");
   const unit=q=>q.unit&&!["x","y"].includes(q.unit)?` <span class="doc-unit">(${esc(q.unit)})</span>`:"";
-  const where=op==="correct"?"Type over a value in the worksheet's Original view":op==="python"?"In no menu: it comes only from projects made with an earlier version":`${MP((DOC_MENU[op]||"Data")+" › "+d.label)}, or the + in the History`;
+  const where=op==="correct"?"Type over a value in the worksheet's Original view":op==="python"?"In no menu: it comes only from projects made with an earlier version":op==="where"?"In no menu: Plot setup's <em>Group by</em> makes one for each curve it splits":`${MP((DOC_MENU[op]||"Data")+" › "+d.label)}, or the + in the History`;
   return {id:"step-"+op, g:"Processing", t:d.label, sub:true, kw:[op,d.short||"",d.group||"",DOC_KW[op]||""].join(" "),
     lead:esc(d.help||""),
     body:`<p class="doc-where">${where}</p>`+(set.length?`<h2>Settings</h2>${DL(set.map(q=>[esc(q.label||q.k)+unit(q),[esc(q.hint||DOC_PARAM[op+"."+q.k]||""),opt(q)].filter(Boolean).join(" ")||"&nbsp;"]))}`:"")+(DOC_STEP[op]||"")};
@@ -25619,7 +25852,7 @@ async function openPlotDlg(cids,o){
   o=o||{}; const p=P(); if(!p||S.readOnly) return; if(S.ws&&S.ws.edit) wsCommit(0,0,true);
   // On a graph (What it plots…): its curves in the list, and OK changes that graph.
   const g0=o.gid&&graphOf(o.gid)&&!graphOf(o.gid).fig?graphOf(o.gid):null; if(o.gid&&!g0) return;
-  const any=allCols().some(c=>!c.src&&(c.role==="y"||c.role==="ignore")&&(c.data||[]).some(v=>v!=null))||yCols().some(c=>c.src);
+  const any=allCols().some(c=>!c.src&&(c.role==="y"||c.role==="ignore")&&hasVals(c))||yCols().some(c=>c.src);
   if(!g0&&!any){ toast("There is no column to plot yet: type or paste values into the worksheet, or import a file."); return; }
   const st=psuState(cids,g0); if(!g0) psuRecall(st);
   // A column chosen from another sheet shows every sheet.
@@ -25640,6 +25873,7 @@ async function openPlotDlg(cids,o){
       <div id="psuNeed"></div>
       <div class="psu-acts"><button type="button" class="btn sm" id="psuAdd" title="Put the columns marked Y on the graph (the ticked ones, when some are ticked), each with what is marked beside it; a curve already there takes its marks again">Add</button><button type="button" class="btn sm" id="psuRep" title="The selected curve gives way to the ticked columns marked Y (or to every column marked Y)">Replace</button><span class="sp"></span><button type="button" class="btn sm ghost" id="psuDel" title="Take the selected curve off (Delete)">Remove</button><button type="button" class="btn sm ghost" id="psuUp" title="Earlier in the list (Alt+↑): drawn before, and named first in the legend">Up</button><button type="button" class="btn sm ghost" id="psuDn" title="Later in the list (Alt+↓)">Down</button></div>
       <div class="psu-cur" id="psuCur"></div>
+      ${g0?"":(()=>{ const bys=psuByOpts(st); return bys.length?`<div class="grid2 psu-by"><label for="psuBy" title="A curve for each value of a column of categories, each named after its value, the curves of one column a group">Group by</label><select id="psuBy"><option value="">Nothing</option>${bys.map(o=>`<option value="${o.c.id}"${o.why?" disabled":""} title="${esc(o.why||o.n+" values")}">${esc(colRef(o.c)+(o.c.name?" "+o.c.name:""))}</option>`).join("")}</select></div>`:""; })()}
     </div>
     <div class="psu-pvp">
       ${g0?`<div class="psu-on"><span class="lab">On</span> <b>${esc(graphTitle(g0.id))}</b></div>`:`<div class="grid2"><label for="pdlgInto">Into</label><select id="pdlgInto"><option value="">A new graph</option>${targets.map(id=>`<option value="${id}">${esc(graphTitle(id))}</option>`).join("")}</select></div>`}
@@ -25653,7 +25887,7 @@ async function openPlotDlg(cids,o){
     if(key){ const n=box.querySelector(key); if(n&&n!==a){ n.focus(); try{ if(ss0!=null) n.setSelectionRange(ss0,ss0); }catch(e){} } } };
   const colsHtml=()=>{ const ids=st.sheet==="all"?ss.map(s=>s.id):[st.sheet], q=st.q.trim().toLowerCase(), vis=[];
     let h="";
-    ids.forEach(sid=>{ const cols=sheetCols(sid).filter(c=>(c.data||[]).some(v=>v!=null)).filter(c=>!q||(colLetter(c)+" "+(c.name||"")+" "+(c.unit||"")+" "+(c.comm||"")).toLowerCase().includes(q)); if(!cols.length) return;
+    ids.forEach(sid=>{ const cols=sheetCols(sid).filter(c=>hasVals(c)).filter(c=>!q||(colLetter(c)+" "+(c.name||"")+" "+(c.unit||"")+" "+(c.comm||"")).toLowerCase().includes(q)); if(!cols.length) return;
       if(ids.length>1) h+=`<tr class="psu-sh"><th colspan="5" class="l">${esc(sheetName(sid))}</th></tr>`;
       cols.forEach(c=>{ vis.push(c.id); const n=c.data.reduce((m,v)=>m+(v!=null?1:0),0), xc=c.role==="x"?null:xColFor(c), sp=sparkSvg({x:xc?xc.data:c.data.map((_,i)=>i),y:c.data},64,18,"spark"), u=st.use[c.id]||"";
         h+=`<tr data-pc="${c.id}"${u?` class="on"`:""}><td><input type="checkbox" data-ptick="${c.id}"${st.tick.has(c.id)?" checked":""} aria-label="Tick column ${ro(colLetter(c))}"></td><td class="l psu-nm"><b>${ro(colLetter(c))}</b> ${ro(c.name||"")}${c.unit?` <span class="unit">(${ro(c.unit)})</span>`:""}</td><td class="r">${n}</td><td>${sp}</td>`
@@ -25727,7 +25961,7 @@ async function openPlotDlg(cids,o){
     const it=box.querySelector("#pdlgInto"); if(it) it.onchange=()=>{ st.into=it.value; sk(); }; }
   refresh(true); setTimeout(()=>{ const b=g0?box.querySelector(`#psuCur [data-pcur]`):box.querySelector(`[data-pk="${st.kind}"]`); if(b) b.focus(); },0);
   let r; try{ r=await pr; } finally{ sh.classList.remove("plotdlg","psuw"); sh.classList.add("small"); clearTimeout(pvT); }
-  if(r) psuApply(st,{into:r.pdlgInto||undefined,g0});
+  if(r) psuApply(st,{into:r.pdlgInto||undefined,g0,by:r.psuBy||null});
 }
 /* What OK does, from the dialog or from Plot like the last time: the columns' own changes, then a
    new graph (or one added to) through plotCols, or the graph's own list through psuSetGraph. */
@@ -25745,9 +25979,29 @@ function psuApply(st,o){ const g0=o.g0||null, into=o.into;
   const use={}, series={};
   curves.forEach(q=>{ const y=q.y, u={}; if(st.rng[y.id]&&rngOk(st.rng[y.id])) u.rng=st.rng[y.id]; if(st.ax[y.id]==="r"&&q!==curves[0]&&ov) u.ax="r"; if(q.lab) u.lab=q.lab.id; if(st.grp[y.id]) u.grp=st.grp[y.id]; if(Object.keys(u).length) use[y.id]=u;
     if(q.zcol||q.scol||(M&&M.eb)) series[y.id]=Object.assign({},q.zcol?{zcol:q.zcol.id}:{},q.scol?{scol:q.scol.id}:{},M&&M.eb?{eb:M.eb}:{}); });
-  const say=said.length?`${capFirst(andList(said))}, on every graph.`:"";
-  plotCols(ids,Object.assign({into,noUndo:true,use,series,grps:st.grps,say,note:said.length?andList(said):""},psuType(st.kind)?{type:psuType(st.kind)}:{layout:st.kind},st.kind==="heat"?{plot:{mapKind:"both",mapY:"series"}}:{}));
+  // Group by: each curve's place taken by a curve per value, one group a column (1.2d).
+  const by=o.by?colById(o.by):null; let ids2=ids, grps=st.grps, split="";
+  if(by&&!g0){ const sp=psuSplit(curves,by,use,series); if(sp){ ids2=sp.ids; grps=Object.assign({},st.grps||{},sp.grps); split=`${andList(curves.map(q=>specName(q.y)))} split by ${by.name||colRef(by)} into ${sp.ids.length} curves`; } }
+  const say=(said.length?`${capFirst(andList(said))}, on every graph.`:"")+(split?(said.length?" ":"")+capFirst(split)+".":"");
+  if(split) said.push(split);
+  plotCols(ids2,Object.assign({into,noUndo:true,use,series,grps,say,note:said.length?andList(said):""},psuType(st.kind)?{type:psuType(st.kind)}:{layout:st.kind},st.kind==="heat"?{plot:{mapKind:"both",mapY:"series"}}:{}));
 }
+// The columns Group by can split by: text or categorical columns of the curves' sheets, each with
+// its number of values, or why not (more than a column of groups has).
+function psuByOpts(st){ const sids=new Set(st.curves.filter(q=>!q.y.src).map(q=>sheetOf(q.y))); if(!sids.size) sids.add(st.sheet==="all"?curSheet():st.sheet);
+  const out=[]; sids.forEach(sid=>sheetCols(sid).filter(c=>isCatCol(c)||textCount(c)).forEach(c=>{ const d=catDistinct(c); out.push({c,n:d.length||0,why:d.fail?`It has more than ${CAT_MAX} different values.`:d.length>DIST_GMAX?`It has ${d.length} different values: Group by takes ${DIST_GMAX} at most.`:!d.length?"It holds no values.":""}); }));
+  return out; }
+// Each curve becomes a derived column per value of the column (the Category step), in its order;
+// a curve's use (range, axis, labels) and series (colour, size) go to its parts, which form a group
+// stepping the colour. After pushUndo; null when there is nothing to split.
+function psuSplit(curves,by,use,series){ const p=P(), lv=catLevels(by,by.cat||{order:"first"}); if(!p||!Array.isArray(lv)||!lv.length||lv.length>DIST_GMAX) return null;
+  const ids=[], grps={};
+  curves.forEach(q=>{ const y=q.y, g=newGrpId(); grps[g]={step:"color"};
+    lv.forEach(o=>{ const t=typeof o.v==="number"?String(o.v):o.v, nm=`${specName(y)} (${typeof o.v==="number"?fmt(o.v,8):o.v})`;
+      const n=makeCol("y",nm,y.unit||"",[]); n.src=y.id; n.from="final"; n.mask=[]; n.pipe=[makeStep("where",{col:by.id,lv:t})]; p.cols.push(n); ids.push(n.id);
+      use[n.id]=Object.assign({},use[y.id]||{},{grp:g}); if(series[y.id]) series[n.id]=Object.assign({},series[y.id]); });
+    delete use[y.id]; delete series[y.id]; });
+  migrate(p); return {ids,grps}; }
 /* What Plot setup changes of the columns themselves, which every graph sees: a data column made
    an X or error bars, an error column given to another column or made another kind, a column's
    X (xcol; "row" for the row number), the other columns of the sheet kept on the X they had.

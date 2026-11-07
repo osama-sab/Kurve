@@ -889,6 +889,43 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-07: graphs read text (PARITY_SPEC wave 1, slice 1.2d)
+
+- **Group by makes ordinary curves.** Origin's plot by group draws a curve per value of a column;
+  here each is a derived column with a *Category* step, so it has a History lane, a colour, a fit
+  and a legend entry like any curve, and follows the column's cells. They form one group stepping
+  the colour, so they read as one family.
+- **A categorical X is placed, not measured.** Text has no position, so its levels go at 1, 2, 3…
+  in the column's order and the axis is numbered by their names: the order the person set in
+  *Categorical…* is the order on the graph.
+
+### 2026-11-07: categorical columns (PARITY_SPEC wave 1, slice 1.2c)
+
+- **A property of the column, not a new kind of cell.** Making a column categorical changes none of
+  its values: it says that its different values are levels with an order. So it lives in the
+  column's menu beside *Cells hold*, is one undo step, and leaves the check code alone.
+- **The order is shown with the counts.** The dialog lists every level with how many rows hold it,
+  so a typo ("hgih", one row) is seen before it becomes a group of its own on a graph.
+- **A limit in words.** Past 200 different values a column is values, not categories; it is
+  refused saying so rather than listing a thousand levels.
+
+### 2026-11-07: text in the worksheet (PARITY_SPEC wave 1, slice 1.2a)
+
+- **Kept, not refused.** Lab data carry "<LOD", "n/a", "sat." among their numbers; a cell that
+  refused them made the person throw the information away or keep it elsewhere. What does not read
+  as a number is kept as text, said once a column with Undo, so a mistyped number is not silently
+  accepted either.
+- **Seen where it is.** In a column of numbers a text cell sits left as text does in a spreadsheet,
+  with a dotted underline and a tooltip, *Text, not counted as a number*: the eye finds it among
+  right-aligned numbers, and the underline says why the graph has a gap there. A text column's
+  cells are plain.
+- **Left out, and said.** Everything that reads numbers leaves text out as it leaves out an empty
+  cell; the status bar's numbers of the selected cells say *Text n left out*, so a mean of nine
+  values is not taken for a mean of ten.
+- **One choice, in the column's menu.** *Cells hold* (Numbers and text, Text only, Numbers only)
+  is Origin's Format, in Kurve's words; Numbers only is refused while text is there, naming the
+  rows, rather than throwing the text away.
+
 ### 2026-11-07: project files (PARITY_SPEC wave 1, slice 1.1)
 
 - **A project leaves the browser as one file.** Until now a project lived only in this browser:

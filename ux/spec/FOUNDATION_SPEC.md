@@ -203,6 +203,14 @@ beyond Dunnett's own sub-slice in 2.4); random numbers beyond `fillSeries`' own.
 
 ### 1.2a The model and the worksheet
 
+Done 07.11, with one change of plan, decided for fewer bugs: text is not put into `c.data`. A
+column's text cells are a map of their own, `c.txt` (`{row: text}`, the number at that row null),
+so the 212 readers of `c.data` need no audit: each already leaves an empty cell out, and so leaves
+text out, and only what shows, writes, hashes, merges, copies, sorts or moves cells was changed
+(listed in CLAUDE.md, Text cells). The rest is as planned below, but for the toast's *Make it a
+number…* (the toast has Undo; typing a number replaces the text) and the fill handle, which copies
+numbers only.
+
 **The cells.** `c.data[i]` is a number, a string (never empty: an empty cell is null) or null.
 `c.fmt`: missing (numbers and text), `"text"`, `"num"`. One door each:
 - `cellRead(c, s)`: what typing `s` into a cell of `c` makes (a number by `parseNum` unless the
@@ -245,6 +253,11 @@ among numbers (its checks reading `cellText`), `odd-test` text from storage in e
 
 ### 1.2b Imports keep text
 
+Done 07.11: as below, the text cells in `c.txt` (1.2a), and `detectFormat` judging lines without
+the text columns too (a quoted name with a comma in it chose whitespace before). The preview marks
+nothing: it shows the file as written, so its text is seen there. A batch of files keeps its
+numbers alone, as before.
+
 `findBlock` takes a block whose lines have the same number of fields, each column numbers in most
 lines or text in all, so "Sample A,1.2,3.4" lines are one block; a numeric column's stray text
 ("n/a") is kept as text cells; a column of text is a data column (`ignore`) named by its header,
@@ -255,6 +268,9 @@ fields with commas, a column of IDs like "007", a file whose last column is note
 
 ### 1.2c Categorical columns
 
+Done 07.11: as below, but the order by hand is set with ↑ and ↓ only (no drag), and the sort is the
+column menu's sort submenu's *By its categories* (Data › Sort the view is the same list).
+
 The column menu's *Categorical…* (ticked when set): the levels listed with their counts, ordered
 first seen, ascending, descending (natural order for text, by value for numbers) or by hand (drag,
 or ↑/↓); one undo step; `c.cat = {order, levels}` (`levels` only for `custom`, cleaned of values
@@ -263,6 +279,12 @@ no longer there, new values after them). `catLevels(c)` is the one door. The hea
 refused in words.
 
 ### 1.2d Graphs read text
+
+Done 07.11: as below, with these changes of plan. A categorical X's names are worked out from the
+column as it is (not written into `ax.x.cats`, so they follow its cells); typed names still win.
+Group by is Plot setup's for a new graph, and its curves are derived columns with a step of their
+own (*Keep the rows of one category*), since a curve is a column. The checks are in
+`tools/text-drive.mjs` (its graphs section), beside the text they read.
 
 Labels from a text column (Plot setup's Labels and *Labels from* already take a column: text now
 too); a categorical X (Plot setup's X, a text or categorical column: positions 1…k in its order,

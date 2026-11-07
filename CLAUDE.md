@@ -814,6 +814,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   and the worksheet's `parseNum` both use it. `unwrapQuoted` turns line breaks inside a quoted
   field that opens at a field's start and closes within four lines into spaces (a spreadsheet
   header cell written on two lines), before `analyzeFile` and the worksheet's paste split lines.
+  **Text kept** (FOUNDATION_SPEC 1.2b): `analyzeFile` returns `txt`, per column `{row: text}` of
+  every field that does not read as a number ("n/a", "<0.01", a name), and `colFields(res, j)` a
+  column's fields as written (for one kept as text, "007"); `textColsOf(F, dec, ncol)` (a column
+  text in 80 % of the lines holding a number) is left out of `findBlock`'s and `detectFormat`'s
+  judging of a line (but counts against `detectFormat`'s purity, so a wrong decimal mark that makes
+  numbers text still loses), and `findBlock` fills a hole of up to three lines with a number and a
+  stray text inside a run of data lines. The wizard's *Use* has `text` (*Text (kept as written)*:
+  an `ignore` column with `fmt:"text"`); `impUseDefault` makes a column with more text than numbers
+  `text` and keeps one with only text; `impBuild` carries each column's stray text as its `txt`.
   `parseLineList(text)` reads a list of known lines as people write them (a name and a
   position in either order, an intensity, tabs, semicolons, decimal commas, `K 40 1460.8`, #
   notes; a line without a number skipped and counted). `parseFillList(text)` reads the Fill
@@ -965,6 +974,43 @@ graph first, with the taskbar kept at the bottom of the screen.
   column offers `useAsXFor(id)`, which makes it X and points the spectra plotted against what
   it reads at it (`xReaders`), one undo entry. Making the analysed spectrum's column not a Y
   moves `activeY` on.
+- **Text cells** (FOUNDATION_SPEC 1.2a): a column's text is `c.txt` (`{row: text}`, the number at
+  that row null in `c.data`), so every reader of numbers leaves text out as it leaves out an empty
+  cell; a number at a row wins over a text left there. `c.txt` is replaced, never changed in place
+  (snapshots, `cloneProj` and `cloneCols` share it as they share `data`). `c.fmt`: `"text"` (every
+  cell text, "007" kept), `"num"` (text refused), or none. Doors: `txtOf`, `cellTxt(c, i)`,
+  `textCount`, `hasVals` (numbers or text: `rawCols`, `blankCol`, the recorded and fresh-paste
+  tests), `txtLen`, `setCell(c, r, v, tx)`, `cleanTxt` (in `migrate`: what is not a string at a
+  row of the column's that holds no number goes, a cell past `TXT_MAX`, 10 000 characters, is cut;
+  `TXT_OK` the maps already clean), `rawArr(c)` (the values as hashed: a text cell an RFC 4180
+  quoted field, `csvQ`, so a project of numbers keeps its check code; memoised in `RAWA`; every
+  hash and the original-data CSV take it), `setCellsHold(id, fmt)` (the column menu's *Cells hold*:
+  Numbers and text, Text only (numbers written as shown), Numbers only (refused while text is
+  there); a recorded change), `splitTSV` (a pasted block field by field, quotes honoured).
+  `wsSetCell` keeps what does not read as a number as text (said once a column, `S.txtSaid`; a
+  `"num"` column refuses, and `wsCommit` keeps the box open; under the lock text is never a
+  correction step), `wsText` shows it, `wsRowHtml` marks it (`td.tx`, `td.txn` in a column of
+  numbers), `wsClear`, `wsRowsEdit` (the keys moved with the rows), `wsCopyText` (quoted when it
+  holds a tab, a line break or a quote), `wsPasteText` (a block with tabs read by `splitTSV`, its
+  first line a header only when it holds no number), `wsOrder` (numbers, then text by
+  `Intl.Collator` with numbers, then empty), `wsSelStats` (`nt`, the status bar's *Text n left
+  out*) and `mergeCols` (a cell its number or text) know it. `tools/text-drive.mjs` drives it.
+  **Categorical** (1.2c): `c.cat = {order}` (`CAT_ORDERS`: first, asc, desc, `custom` with `levels`),
+  the levels a column's distinct values, numbers or text (`catKey`, `catCmp`: numbers by value, text by
+  `Intl.Collator` with numbers), read through `catLevels(c)` (the one door: `[{v, n}]` in the column's
+  order, memoised in `CATM`; `{fail}` past `CAT_MAX`, 200, from `catDistinct`), `cleanCat` (in `migrate`),
+  `catDlg(id)` (the column menu's *Categorical…*: `#catOn`, `#catOrd`, `#catRows` with `data-catup`/
+  `data-catdn`; one undo step, a log line), the header's `.lab.cat`, and `wsSortBy(id, dir, true)` (the
+  sort's *By its categories*, `S.wsSort.cat`). Not in the check code.
+  **Graphs read text** (1.2d): `catVal(c, i)` (a cell as a category reads it), `isCatCol` (categorical or
+  `fmt:"text"`), `catOrderKeys`; labels from a text column (`labSvg`); `distGroups(vals, keys, max, {text,
+  order})` and `distKeySort` (numbers, then text in natural order, or a categorical column's levels) for
+  box charts grouped by text (`distByOpts` lists text columns); a categorical X (`xCatPos(xc)`, memoised in
+  `XCATM`: each row its level's place 1 to k, `rawSeries` reading it, `buildPlot`'s names along X from it
+  unless typed; `pipeSig` carries its text and order, `txtKey`); Plot setup's *Group by* (`#psuBy`,
+  `psuByOpts`, `psuSplit`: a derived column per level with the `where` step, *Keep the rows of one
+  category*, in no menu, `deps` `[col, "cells"]` read through `pipeCtx.cellAt`, its column a `catcol`
+  param; the parts a group stepping the colour). Plot setup's columns list text columns (`hasVals`).
 - **Raw data** is never changed by analysis, and its arrays are replaced, never edited in
   place. It is edited in the worksheet like any spreadsheet (typed over, cleared, pasted and
   filled over, rows inserted and deleted), each change one undo entry and an entry in the
@@ -2855,6 +2901,11 @@ fuzz generator before it is used.
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms); run it, ref-test and a fuzzer
 seed after touching the STATS block.
+`node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
+among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
+back, undo, the status bar's count, sorting, find, copy, clear, rows inserted and deleted, the
+check code against SHA-256 with text quoted, a reload, a pasted block with a quoted tab, a project
+of numbers keeping its check code, text from storage in every broken form, two tabs.
 `node tools/file-drive.mjs [path]` (Playwright) checks project files (FOUNDATION_SPEC 1.1): every
 example saved and opened again equal, comments and replies with it, the check code compared; a
 million rows; the same file twice; an older document version upgraded; eleven kinds of bad file
@@ -4314,7 +4365,7 @@ Next, in order:
    project file…, backups), done 07.11; slice 1.4's distributions (the STATS block: ln Γ, the
    incomplete beta and gamma and nine distributions with both tails and quantiles, every p value
    now to 10⁻¹³), done 07.11, its noncentral, studentized-range, rank and normality distributions
-   moved to the wave-2 slices that first use them
+   moved to the wave-2 slices that first use them; slices 1.2a to 1.2d, text in the worksheet, kept by imports, categorical columns, and graphs reading them, done 07.11
 
 ## Known gaps
 
@@ -4395,7 +4446,12 @@ Next, in order:
 - Plotting from the worksheet plots whole columns (no range of rows, no plot of a selection
   of cells), against an X column; a closed graph is closed for everyone who opens the
   project, and a viewer who cannot edit cannot open it
-- The worksheet holds numbers only (no text cells); rows are inserted and deleted whole, never
+- Text cells: a categorical column's order is by hand with ↑/↓ (no drag); Group by is for a new graph (What it
+  plots… keeps a graph's curves) and splits into derived columns, one a level, that do not follow new levels typed
+  later; a categorical X is the whole column's levels (a curve's own range does not narrow the names); several files
+  imported at once (a batch) keep their numbers alone; a formula reads a text cell as empty; the fill
+  handle copies numbers only; a pasted block keeps its text when its fields are split by tabs (a
+  spreadsheet's), else it is read as an import reads it. Rows are inserted and deleted whole, never
   cells shifted within a column; a comment attached to a point keeps its row number when rows
   above it are inserted or deleted; the sorted view is a view, so a value typed into it takes
   its sorted place
@@ -4480,6 +4536,9 @@ Next, in order:
   pairs or code, nor a new step or another order of steps. What was read is kept per
   browser (a comment read on another computer is new here), and judged by the comments' times
 - No Shirley or Tougaard background (XPS); no Fourier self-deconvolution
+- The worksheet fuzzer's seed 1 (`tools/sheet-fuzz.mjs kurve.html 1`, step 61, on the version before text
+  cells too): after an undo, a click and a value typed and held past the delayed save, the view scrolls
+  back towards the undone cell and Enter enters the value without moving; found 07.11, not yet fixed
 - Accuracy short of the plan's targets, each measured by `tools/ref-test.mjs` and the fuzzer and
   owned by a slice of `ux/spec/PARITY_SPEC.md`: the Kolmogorov–Smirnov p of a distribution over a
   histogram is Kolmogorov's series, 3e-2 off at 20 values (slice 2.2); a straight line or polynomial fitted as
