@@ -4,7 +4,7 @@ The user, on 2026-11-07, after the comparison of Kurve with OriginPro 2026 and 2
 day: "I want to implement them, not for show, but properly and robustly, which means we have to
 create a fool-proof plan to create quality first app features, even if it takes long time and
 tokens." This is that plan. It is the order of the work, the bar every piece of it has to clear,
-and the decisions to take first. Each wave below gets a spec of its own (as `FIT_SPEC.md` and
+and the decisions, all taken on 07.11. Each wave below gets a spec of its own (as `FIT_SPEC.md` and
 `PLOT_SPEC.md` were), written at the start of the wave, before its code: Origin's behaviour from
 its documentation, the decisions, the data model, the slices with their acceptance tests.
 
@@ -502,29 +502,32 @@ on files made by the reference tools (`scipy.io`, `netCDF4`, `h5py`).
   `.pptx` writer only if asked.
 - **Survival, MANOVA, design of experiments**: only if asked (6.6).
 
-## Decisions to take first
+## Decisions
 
-Each with the plan's recommendation; the specs follow whichever is chosen.
+All taken on 07.11: the fourth by the user's choice between three, the rest as this plan
+recommended them (the user: "go with your recommendation for the rest"). The waves' specs follow
+them; changing one later is a decision of its own, written here with its date.
 
-1. **Ctrl+S** saves the project to a file (the browser would save the page). Recommended.
+1. **Ctrl+S** saves the project to a file (the browser would save the page). Decided.
 2. **Cell formulas**: none; column formulas grow (rows by offset, aggregates, `if`, other sheets)
    and the project gets named constants. Every value keeps one dependency graph, column to
-   column, which recalculation, the check code and the History rely on. Recommended.
-3. **Filters and analyses**: an analysis keeps its own rows; a filter is a view. Recommended.
-4. **What statistics read**: decided on 07.11, always the processed values (the original ones when
+   column, which recalculation, the check code and the History rely on. Decided.
+3. **Filters and analyses**: an analysis keeps its own rows; a filter is a view. Decided.
+4. **What statistics read**: always the processed values (the original ones when
    a column has no steps), switched per input to Original, stored, and said in the report; the
    rules are in 1.3. Chosen over "what you were looking at" (a default that depends on where the
    command was started, the kind of state that has bitten Kurve most, and that a user cannot
    predict) and "always original" (silently wrong after processing, two numbers for one column,
    and a derived column needs the processed reading anyway).
 5. **Text in the check code**: projects of numbers keep their check code exactly; text is hashed
-   in one stated form. Recommended (anything else changes every project's code).
+   in one stated form (anything else changes every project's code). Decided.
 6. **Free graph layers**: not planned; several Y axes, linked axes, insets and figures instead.
-   Recommended.
-7. **3D**: a renderer of our own, last, SVG and PDF as polygons up to a budget. Recommended.
-8. **Survival, MANOVA, design of experiments**: out unless asked.
+   Decided.
+7. **3D**: a renderer of our own, last, SVG and PDF as polygons up to a budget. Decided.
+8. **Survival, MANOVA, design of experiments**: out unless asked. Decided.
 9. **The NIST host**: allow `www.itl.nist.gov` in the environment's network settings when wave 2
-   starts, for the certified values SciPy and statsmodels do not ship.
+   starts, for the certified values SciPy and statsmodels do not ship. Decided: asked for when
+   wave 2 needs it, through the environment's settings.
 
 ## Size, and how each wave ends
 

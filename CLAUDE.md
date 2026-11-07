@@ -4194,8 +4194,10 @@ Next, in order:
    a test's size and an interval's coverage; a fuzzer against the reference; refusals in words),
    ten waves (the bench; project files, text and categorical columns, analyses with result sheets,
    distributions; statistics; the worksheet as a table; regression and fitting; signal processing;
-   many variables; plots; automation; files), and the decisions to take first (the fourth, what an
-   analysis reads, taken 07.11: always the processed values, switched per input); not started
+   many variables; plots; automation; files), and its nine decisions, all taken 07.11 (an analysis
+   reads the processed values, switched per input; Ctrl+S saves a project file; no cell formulas,
+   column formulas grown; an analysis keeps its own rows; numbers keep their check code; no free
+   layers; 3D last, our own renderer; survival, MANOVA and DOE only if asked); not started
 
 ## Known gaps
 
