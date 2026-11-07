@@ -4194,7 +4194,8 @@ Next, in order:
    a test's size and an interval's coverage; a fuzzer against the reference; refusals in words),
    ten waves (the bench; project files, text and categorical columns, analyses with result sheets,
    distributions; statistics; the worksheet as a table; regression and fitting; signal processing;
-   many variables; plots; automation; files), and the decisions to take first; not started
+   many variables; plots; automation; files), and the decisions to take first (the fourth, what an
+   analysis reads, taken 07.11: always the processed values, switched per input); not started
 
 ## Known gaps
 

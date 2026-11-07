@@ -71,7 +71,8 @@ are the easy part.
    `fitWarnings` is for fits, so the result, the copied table, the CSV and the report say the same.
 5. **One door per concept.** Each new concept has one reader and one writer, as `GP()` and
    `savePlot` are for a graph's settings: a column's type through `colType(c)` and `numData(c)`,
-   an analysis through `anaOf(id)` and `saveAna`, a matrix through `matOf(id)`. A grep for the old
+   an analysis through `anaOf(id)` and `saveAna`, what it reads through `anaRead`, a matrix
+   through `matOf(id)`. A grep for the old
    way of reading it is part of the slice.
 6. **The document holds.** Every key stored is versioned (document version 6, then 7…), upgraded
    by `migrate` and cleaned by `normalize`; junk from storage is tested (odd-test); undo covers it
@@ -183,7 +184,7 @@ Its spec: `ux/spec/FOUNDATION_SPEC.md`.
     Plot setup's Group by a column (a curve per level, or a panel per level in a figure).
 - **1.3 Analyses and result sheets.** The framework every statistical test, reshaping, transform
   and multivariate method uses, as Origin's operations with their report sheets and Recalculate.
-  `p.ana` (in `UNDO_KEYS`, merged by id): `{id, kind, name, in {cols, groups, rows, sheet}, p,
+  `p.ana` (in `UNDO_KEYS`, merged by id): `{id, kind, name, in {cols, groups, rows, sheet, read}, p,
   out {sheet}, recalc: "auto"|"manual", sig, at, by, v}`. `ANA_KINDS` registers each kind as
   `PIPE_OPS` registers steps: `{group, label, inputs (what columns of what type), params (the
   form's schema), run(inputs, p) → {tables, report, notes} or {fail}, help}`, `run` pure and in
@@ -194,8 +195,47 @@ Its spec: `ux/spec/FOUNDATION_SPEC.md`.
   `auto` when an input's values, rows or the settings change (a signature as `pipeSig`), `manual`
   marked out of date with Recalculate. The History has a box per analysis, fed by its inputs, with
   its discussion; Change settings… reopens its dialog; deleting its sheet deletes it (confirmed).
-  Three slices: 1.3a the framework with one kind (descriptive statistics into a result sheet);
-  1.3b recalculation, the History box, the report; 1.3c in the worker.
+
+  **What an analysis reads** (decision 4, taken on 07.11: always the processed values). One rule,
+  whatever the command was started from (the worksheet in either view, a curve, the menu bar, the
+  graph's bar, Find a command, a detached window): an analysis reads each input column's
+  processed values, which are its original values when it has no steps, through one door,
+  `anaRead(input)`, the reading fits, peak finding, Integrate, the status bar and the Statistics
+  window already use. So a column's mean is one number in every window.
+  - **Named and switched per input.** The dialog's input line names the steps ("B, processed:
+    background (arPLS), normalise") and has a switch to Original for that input; the choice is
+    stored per input (`in.read[colId]`: `"proc"`, the default, or `"orig"`), never changed by
+    anything but that switch, and stated in the report with the original data's check code and
+    each step by name, so the result can be made again. A derived column has no original values:
+    its switch is not offered.
+  - **Recalculated with the steps.** With `recalc:"auto"`, a change to an input's steps, masks or
+    original values recalculates the analysis (its signature includes each input's `pipeSig`);
+    with `"manual"` it is marked out of date.
+  - **Masked points left out** of either reading, as fits leave them out (and as Origin does), with
+    *Include masked points* in the dialog and the number left out in the report.
+  - **Rows paired by the recorded row.** Analyses that pair values across columns row by row
+    (paired tests, signed ranks, correlation, regression, cross-tables) pair processed values by
+    each point's recorded row (`idx`); rows one column lacks are left out pairwise or listwise, as
+    chosen, and counted.
+  - **What a step does to the rows,** a flag on each op in `PIPE_OPS` (as `COUNT_SAFE` is for
+    counting), read by `anaRead`, which returns the values with what they may be used for:
+
+    | `rows` | Steps today | The processed values may be |
+    |---|---|---|
+    | `keep` | correct, bg, shift, xunit, calib, ecal, xlin, norm, scale | used by every analysis |
+    | `keep` and `dep` (neighbours depend on each other) | smooth, fft, deriv, cumint, despike (the points it replaced) | used; an analysis that assumes independent values says so in its notes |
+    | `drop` (rows left out or reordered) | crop, exclude, sort; log, absorb and km (values at or below 0); ref and combine (where another column has no value); bose (points it cannot correct) | used, on the rows that remain, the number dropped said |
+    | `merge` or `new` (rows averaged together, or points made) | dedupe, resample, hist, python | descriptive numbers only, said; an analysis that counts or pairs observations refuses them in words (300 points resampled from 100 measured are not 300 observations) and offers Original |
+
+    A new step must declare its flag; the drive fails on a step without one.
+  - **Tested** in 1.3a, before any statistic is built on it: a column with steps of each class read
+    both ways; the same reading from every place a command can start; pairing refused after
+    resampling and averaging duplicates; the note after smoothing; masked points left out and
+    counted; a step changed and the analysis recalculated; an undo of the step and the old result
+    back; the reading kept through a reload, a project file and another tab.
+
+  Three slices: 1.3a the framework with one kind (descriptive statistics into a result sheet) and
+  the reading above; 1.3b recalculation, the History box, the report; 1.3c in the worker.
 - **1.4 Distributions.** A block of its own (`==STATS:START/END==`, pure, tested by
   `tools/stats-test.mjs`): the regularised incomplete beta and gamma (the `betai` of today checked
   and, if needed, replaced), normal (Wichura's AS 241 quantile), t, F, χ², gamma, beta, binomial,
@@ -209,8 +249,8 @@ Its spec: `ux/spec/FOUNDATION_SPEC.md`.
 
 Its spec: `ux/spec/STATS_SPEC.md`. Every test is an analysis (1.3). One input panel for all of
 them, as Origin's: the data as columns (one column a group), or indexed (a column of values and a
-column of groups, text or numbers); which rows; missing values left out listwise or pairwise; the
-original values, or a column's processed ones when chosen for that column. One output for all: a
+column of groups, text or numbers); which rows; missing values left out listwise or pairwise; each
+column's processed values, or its original ones when switched (1.3's reading). One output for all: a
 result sheet, the report with the statistic, its degrees of freedom, p, the interval, the effect
 size, the assumptions checked, and a sentence in words of what it found, at the α chosen,
 one-sided or two.
@@ -471,8 +511,12 @@ Each with the plan's recommendation; the specs follow whichever is chosen.
    and the project gets named constants. Every value keeps one dependency graph, column to
    column, which recalculation, the check code and the History rely on. Recommended.
 3. **Filters and analyses**: an analysis keeps its own rows; a filter is a view. Recommended.
-4. **What statistics read**: the worksheet's values (the original data), or a column's processed
-   values when chosen for that column. Recommended.
+4. **What statistics read**: decided on 07.11, always the processed values (the original ones when
+   a column has no steps), switched per input to Original, stored, and said in the report; the
+   rules are in 1.3. Chosen over "what you were looking at" (a default that depends on where the
+   command was started, the kind of state that has bitten Kurve most, and that a user cannot
+   predict) and "always original" (silently wrong after processing, two numbers for one column,
+   and a derived column needs the processed reading anyway).
 5. **Text in the check code**: projects of numbers keep their check code exactly; text is hashed
    in one stated form. Recommended (anything else changes every project's code).
 6. **Free graph layers**: not planned; several Y axes, linked axes, insets and figures instead.
