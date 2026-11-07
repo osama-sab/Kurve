@@ -4350,7 +4350,7 @@ Next, in order:
 - Comments are plain text; a mention is said by a message while the project is open (no e-mail or
   notification outside the page), and only people the project knows by name can be mentioned. A
   proposal is a step's plain settings (lists, switches, numbers), not its anchors, reference peaks,
-  pairs or code, nor a new step or another order of steps What was read is kept per
+  pairs or code, nor a new step or another order of steps. What was read is kept per
   browser (a comment read on another computer is new here), and judged by the comments' times
 - No Shirley or Tougaard background (XPS); no Fourier self-deconvolution
 - Models: 25 built in (Origin has about 200); a polynomial is fitted in powers of x as written,
