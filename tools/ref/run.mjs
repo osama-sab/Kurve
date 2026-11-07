@@ -1,7 +1,7 @@
 /* The pure blocks of kurve.html, loaded under node for the reference bench.
 
    As a module: `import { loadKurve } from "./run.mjs"`; `loadKurve(path)` returns `get(name)`,
-   any function or constant of the blocks NUMERICS, PEAKS, PIPE, MODELS and PARSER by its name
+   any function or constant of the blocks NUMERICS, PEAKS, PIPE, MODELS, STATS and PARSER by its name
    (the blocks are cut out of the HTML as tools/fit-test.mjs does, and a name is looked up in their
    scope, so nothing needs to be listed). `toJSON(v)` writes a result as JSON: functions left out,
    NaN and ±Infinity as the strings "NaN", "Infinity" and "-Infinity", typed arrays as arrays.
@@ -16,7 +16,7 @@ import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const BLOCKS = ["NUMERICS", "PEAKS", "PIPE", "MODELS", "PARSER"];
+export const BLOCKS = ["NUMERICS", "PEAKS", "PIPE", "MODELS", "STATS", "PARSER"];
 
 export function loadKurve(path) {
   const html = readFileSync(path || join(here, "..", "..", "kurve.html"), "utf8");
@@ -29,9 +29,17 @@ export function loadKurve(path) {
   const src = BLOCKS.map(grab).join("\n") + "\nreturn (name) => eval(name);";
   const look = new Function(src)();
   const memo = new Map();
+  // A name, a path into it (`DIST.t.isf`), and `#i` for the i-th element of what a function returns
+  // (`igamPQ#1`, the upper part).
   return (name) => {
-    if (!/^[A-Za-z_$][\w$]*$/.test(name)) throw new Error(`Not a name: ${name}`);
-    if (!memo.has(name)) memo.set(name, look(name));
+    const m = /^([A-Za-z_$][\w$]*)((?:\.[A-Za-z_$][\w$]*)*)(?:#(\d+))?$/.exec(name);
+    if (!m) throw new Error(`Not a name: ${name}`);
+    if (!memo.has(name)) {
+      let v = look(m[1]);
+      for (const k of m[2].split(".").slice(1)) v = v[k];
+      if (m[3] != null) { const f = v, i = +m[3]; v = (...a) => f(...a)[i]; }
+      memo.set(name, v);
+    }
     return memo.get(name);
   };
 }

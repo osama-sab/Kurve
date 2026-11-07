@@ -162,9 +162,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   units of each parameter's own curvature, and finite-difference steps sized from an optional
   `pscale`. Those last two are what let a model mixing areas of 1e6 with widths of 10 converge.
   It returns standard errors, 95% CI, t and p values, `dep` (dependency), `atBound`, AIC and BIC.
-  `tCrit(level, dof)` is Student's t for a two-sided level, `tPvalue` turned round by bisection
-  (memoised, `TCRIT`); `tQuantile975` is its 95%, exact (it was an expansion good to 10⁻³).
-  `fPvalue(F, d1, d2)` is F's probability. `residualStats(f, X, Y, W, p, free)` gives a fit's
+  `tPvalue`, `tCrit(level, dof)` (memoised, `TCRIT`), `tQuantile975`, `fPvalue`, `betai`,
+  `gammaln` and `lgammaFn` keep their names and live in the STATS block (below). `residualStats(f, X, Y, W, p, free)` gives a fit's
   residuals in four kinds (`r`, weighted `e`, `std` e/s, `stud` e/(s√(1 − h)), `del` with s from
   the fit without the point, in closed form) and each point's leverage `h` from the weighted
   Jacobian over the free parameters (columns scaled before the inverse); `outliersOf(rs, level)`
@@ -205,7 +204,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   value, evenly spaced on a linear or log scale, row numbers, a list repeated, uniform, whole,
   normal and Poisson random numbers from `mulberry32(seed)`, a straight or growth trend through
   the values above), cleaning floating-point dust at the step's precision, refusing in words,
-  at most `FILL_MAX` values; `lgammaFn` (Lanczos) and `poissonRand` (multiplication below a
+  at most `FILL_MAX` values; `lgammaFn` (STATS) and `poissonRand` (multiplication below a
   mean of 30, Hörmann's PTRS above) serve it.
   `amin`/`amax` are the smallest and largest of an array in a loop (NaN if any is): `Math.min(
   ...a)` throws past about 120 000 values, so nothing spreads a column into arguments.
@@ -428,6 +427,22 @@ graph first, with the taskbar kept at the bottom of the screen.
   ↑/↓, Home/End, Enter, Escape; the chosen row scrolled to by hand. `chooseModel(id, focus)`
   (the picker, `#polyOrder` beside a polynomial, the suggestion): one undo entry, Fix, limits
   and digits cleared, starts guessed, a library function adopted.
+- **Distributions** (`==STATS:START/END==`, pure, after MODELS; FOUNDATION_SPEC 1.4; loaded by
+  fit-test, pipe-test, `tools/ref/run.mjs` and the compute worker): `lgam` (ln |Γ|: the series of
+  ln Γ(2 + w) in powers of w with ζ(k) − 1 as coefficients, `LG2`, for 0.5 to 2.5, the recurrence
+  below 10, Stirling's series and its correction `lgcor` above; reflection below 0), `lgam1p`,
+  `lbeta` (R's: the corrections of large arguments apart from their logarithms), `log1pmx` and
+  `aL1pmx` (a·(ln(1 + u) − u), from the ratio far below a peak); `ibetaPref(a, b, x, y)` and
+  `igamPref(a, x)` (x^a y^b/B, x^a e^−x/Γ, in logarithms about the peak for arguments of 10 or
+  more); `ibetaPQ(a, b, x, y)` (both tails, y = 1 − x given as such; below the mean the power series
+  `ibetaSeries` for a small b·x, BGRAT `ibetaBgrat` for a ≥ 15, b < 40 and x > 0.7 with b brought
+  into (0, 1] by the recurrence, else Lentz's `ibetaCF`; above it the same flipped), `ibeta`,
+  `ibetac`, `igamPQ(a, x)` (series below a + 1, continued fraction above); Loader's `stirlerr`, `bd0`,
+  `dbinomRaw`, `dpoisRaw`; `qSolve(tail, dens, t, up, lo, hi, x0)` (Newton on the logarithm of the
+  tail in a bracket), `qDisc` (the smallest count reaching a level). `DIST.norm`, `t`, `F`, `chi2`,
+  `gamma`, `beta` (`pdf`, `cdf`, `sf`, `ppf`, `isf`), `binom`, `pois`, `hyper` (`pmf`, `cdf`, `sf`,
+  `ppf`); sf is the upper tail as such. `tools/stats-test.mjs` checks their properties, the bench their
+  values (fixtures `stats.json`; the special functions to 10⁻¹⁵, tails to 10⁻¹³, quantiles to 10⁻¹⁵).
 - **Fits** come in two kinds. `MODELS` (each with `params`, `ph`, `formula`, `f(x,p)`,
   `guess`, optional `derived` with delta-method errors) drives "Curve fit".
   `{kind:"composite", spec, x0, …}` drives "Peak fit". `fitModel(fit)` hands either to
@@ -2836,6 +2851,10 @@ budgets of about three times what was measured. `tools/suite.sh [--snap] [path]`
 alone) and prints one line a test; with `--snap` on a copy of the files git knows (stage new ones
 first), so editing goes on while it runs. A new numeric function gets its fixture, target and
 fuzz generator before it is used.
+`node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
+1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
+up to 1 and their tails being their sums, Cauchy's t, closed forms); run it, ref-test and a fuzzer
+seed after touching the STATS block.
 `node tools/file-drive.mjs [path]` (Playwright) checks project files (FOUNDATION_SPEC 1.1): every
 example saved and opened again equal, comments and replies with it, the check code compared; a
 million rows; the same file twice; an older document version upgraded; eleven kinds of bad file
@@ -3758,6 +3777,12 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   nothing, and what a closed tab was typing never reached the tab left open. At full speed a later
   message hid it; the suite's drives side by side showed it, and slowed six times it was lost eight
   times in eight. A message says what was written, not what is known yet.
+- **An algorithm can hang on its input's last digit.** With the old log-gamma replaced, t's p value
+  at 10⁷ degrees of freedom was still 3e-10 off. The prefactor was right; the continued fraction,
+  near x = 1 with a = 5e6, depends on x a million times over, and x = ν/(ν + t²) as a double is
+  5e-17 off. Didonato and Morris's expansion works from ln x = ln(1 − y), which is exact there:
+  1e-15. Before tuning a formula, ask which input it is sensitive to and whether that input is
+  known that well.
 - **A test that waits for a new project must know when none is made.** An example opened on an
   empty desk goes into the project there, so a drive that waited for one more project in the list
   waited fifteen seconds and failed, though the example was open. Wait for what the action changes
@@ -4286,7 +4311,10 @@ Next, in order:
    done 07.11 (references, the fuzzer, the compute worker, budgets, `tools/suite.sh`; erf, erfc and
    the normal quantile brought to double precision on the way). Wave 1's plan is
    `ux/spec/FOUNDATION_SPEC.md` (1.1, 1.4, 1.2a–d, 1.3a–c); slice 1.1, project files (Ctrl+S, Open a
-   project file…, backups), done 07.11
+   project file…, backups), done 07.11; slice 1.4's distributions (the STATS block: ln Γ, the
+   incomplete beta and gamma and nine distributions with both tails and quantiles, every p value
+   now to 10⁻¹³), done 07.11, its noncentral, studentized-range, rank and normality distributions
+   moved to the wave-2 slices that first use them
 
 ## Known gaps
 
@@ -4453,9 +4481,8 @@ Next, in order:
   browser (a comment read on another computer is new here), and judged by the comments' times
 - No Shirley or Tougaard background (XPS); no Fourier self-deconvolution
 - Accuracy short of the plan's targets, each measured by `tools/ref-test.mjs` and the fuzzer and
-  owned by a slice of `ux/spec/PARITY_SPEC.md`: the incomplete beta behind every p value is good to
-  about 1e-9 relative, not 1e-12 (Numerical Recipes' log-gamma inside it; slice 1.4), so t's
-  quantile at a million degrees of freedom is good to 1e-8; a straight line or polynomial fitted as
+  owned by a slice of `ux/spec/PARITY_SPEC.md`: the Kolmogorov–Smirnov p of a distribution over a
+  histogram is Kolmogorov's series, 3e-2 off at 20 values (slice 2.2); a straight line or polynomial fitted as
   a curve fit (Levenberg–Marquardt with a numerical Jacobian) meets NIST's certified Norris values to
   3e-8 where a linear least-squares solve gives 1e-12 (slice 4.1)
 - Models: 25 built in (Origin has about 200); a polynomial is fitted in powers of x as written,

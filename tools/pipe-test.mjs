@@ -14,7 +14,7 @@ const grab = (tag) => {
   if (!m) { console.error(`Could not find the ${tag} block`); process.exit(1); }
   return m[1];
 };
-const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n` +
+const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("STATS")}\n` +
   `return {PIPE_OPS,runPipe,orderWarnings,stepParams,whittaker,alsBaseline,arplsBaseline,airplsBaseline,modpolyBaseline,imodpolyBaseline,
     snipBaseline,rollingBaseline,splineThrough,autoAnchors,despikeY,detectBands,bandWidthPts,suggestLam,sha256,rawText,rawHashJob,rawHashRun,shaNew,shaUpdate,shaDigest,hash32,decimate,
     interpOnto,trapz,spacing,noiseSigma,fftFilter,serSig,stepPKey};`;

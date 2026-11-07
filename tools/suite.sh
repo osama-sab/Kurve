@@ -29,7 +29,7 @@ run() { # name, timeout in seconds, command…
   pids+=($!); names+=("$n")
 }
 # The quick ones first, one after another (they take seconds).
-for t in fit pipe parser tex ref; do
+for t in fit pipe parser tex ref stats; do
   timeout 300 node "tools/$t-test.mjs" "$html" > "$logs/$t.log" 2>&1; echo $? > "$logs/$t.code"
   names+=("$t")
 done

@@ -83,6 +83,35 @@ for d1 in [1, 3, 10, 100]:
             cases.append({"fn": "fPvalue", "args": [F, d1, d2], "want": refs.f_sf(F, d1, d2), "kind": "rel"})
 out["dist"] = cases
 
+# ---------- the distributions of slice 1.4 (FOUNDATION_SPEC.md) ----------
+cases = []
+for a in [0.1, 0.5, 1, 3.5, 10, 30, 400, 5e4, 5e6]:
+    for b in [0.1, 0.5, 2, 10, 300, 5e6]:
+        cases.append({"fn": "lbeta", "args": [a, b], "want": refs.lbeta(a, b), "kind": "abs-rel"})
+for a in [0.5, 1, 2.5, 10, 100, 1e4, 1e6]:
+    for r in [1e-3, 0.3, 0.9, 1, 1.1, 2, 5]:
+        x = a * r
+        for k, up in [("igamPQ#0", False), ("igamPQ#1", True)]:
+            try: v = refs.igam(a, x, up)
+            except Exception: continue  # mpmath does not converge: a case left out, not a wrong one
+            if v > 1e-300: cases.append({"fn": k, "args": [a, x], "want": v, "kind": "rel"})
+for nu in [1, 2, 3, 7, 30, 1e3, 1e6]:
+    for q in [0.4, 0.1, 0.025, 1e-3, 1e-6, 1e-12]:
+        cases.append({"fn": "DIST.t.isf", "args": [q, nu], "want": refs.t_isf(q, nu, stats.t.isf(q, nu)), "kind": "rel"})
+        cases.append({"fn": "DIST.chi2.isf", "args": [q, nu], "want": refs.chi2_isf(q, nu, stats.chi2.isf(q, nu)), "kind": "rel"})
+    for t in [-3, -0.5, 0.5, 2, 6, 40]:
+        cases.append({"fn": "DIST.t.sf", "args": [t, nu], "want": refs.t_sf(t, nu), "kind": "rel"})
+for n, p in [(10, 0.5), (100, 0.01), (1000, 0.3), (5000, 0.999)]:
+    for k in sorted({0, 1, int(n * p) - 3, int(n * p), int(n * p) + 3, n - 1}):
+        if 0 <= k < n:
+            cases.append({"fn": "DIST.binom.cdf", "args": [k, n, p], "want": refs.binom_cdf(k, n, p), "kind": "rel"})
+for lam in [0.01, 1, 7.5, 100, 1e4, 1e6]:
+    for z in [-3, -1, 0, 1, 3, 6]:
+        k = max(0, int(lam + z * lam ** 0.5))
+        try: cases.append({"fn": "DIST.pois.cdf", "args": [k, lam], "want": refs.igam(k + 1, lam, True), "kind": "rel"})
+        except Exception: pass
+out["stats"] = cases
+
 # ---------- quantiles (R's type 7, NumPy's "linear") ----------
 cases = []
 rng = np.random.default_rng(7)

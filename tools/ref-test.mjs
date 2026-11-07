@@ -41,7 +41,7 @@ function note(name, err, at) {
 const fmtA = (a) => JSON.stringify(a).slice(0, 70);
 
 /* ---- special functions, distributions, quantiles ---- */
-for (const set of ["special", "dist", "quantile"]) {
+for (const set of ["special", "dist", "stats", "quantile"]) {
   for (const c of fixtures[set].cases) {
     const f = get(c.fn), got = f(...c.args), t = TARGET[c.fn] || {};
     if (c.kind === "vec-rel") {

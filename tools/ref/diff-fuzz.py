@@ -84,6 +84,46 @@ def _():
     F = lognum(-3, 4)
     return [F, d1, d2], refs.f_sf(F, d1, d2)
 
+@gen("lbeta", 1e-13)
+def _():
+    a, b = lognum(-1, 7), lognum(-1, 7)
+    return [a, b], refs.lbeta(a, b)
+
+@gen("igamPQ#0", 1e-12)
+def _():
+    a = lognum(-0.5, 4); x = a * float(rng.uniform(0.2, 2.5)) if rng.random() < 0.8 else lognum(-3, 4.5)
+    return [a, x], refs.igam(a, x, False)
+
+@gen("igamPQ#1", 1e-12)
+def _():
+    a = lognum(-0.5, 4); x = a * float(rng.uniform(0.2, 2.5)) if rng.random() < 0.8 else lognum(-3, 4.5)
+    return [a, x], refs.igam(a, x, True)
+
+@gen("DIST.t.sf", 1e-12)
+def _():
+    nu = float(rng.choice([rng.integers(1, 40), lognum(0, 7)])); t = float(rng.choice([-1, 1]) * lognum(-3, 2.5))
+    return [t, nu], refs.t_sf(t, nu)
+
+@gen("DIST.t.isf", 1e-11)
+def _():
+    nu = float(rng.choice([rng.integers(1, 40), lognum(0, 6)])); q = lognum(-12, -0.31)
+    return [q, nu], refs.t_isf(q, nu, stats.t.isf(q, nu))
+
+@gen("DIST.chi2.isf", 1e-11)
+def _():
+    nu = float(rng.choice([rng.integers(1, 60), lognum(0, 4)])); q = lognum(-12, -0.31)
+    return [q, nu], refs.chi2_isf(q, nu, stats.chi2.isf(q, nu))
+
+@gen("DIST.binom.cdf", 1e-12)
+def _():
+    n = int(rng.integers(1, 5000)); p = float(rng.random()); k = int(rng.integers(0, n + 1))
+    return [k, n, p], refs.binom_cdf(k, n, p)
+
+@gen("DIST.pois.cdf", 1e-12)
+def _():
+    lam = lognum(-2, 5); k = max(0, int(lam + rng.normal() * 3 * lam ** 0.5))
+    return [k, lam], refs.igam(k + 1, lam, True)
+
 @gen("quantileSorted", 1e-12)
 def _():
     n = int(rng.integers(1, 60))
@@ -99,7 +139,13 @@ def num(v):
 cases = []
 for name, (f, tol) in GEN.items():
     for k in range(per):
-        args, want = f()
+        for _ in range(20):
+            try:
+                args, want = f(); break
+            except Exception:
+                continue
+        else:
+            continue
         cases.append({"id": len(cases), "fn": name, "args": [a if isinstance(a, list) else num(a) for a in args], "want": num(want), "tol": tol, "k": k})
 
 node = subprocess.run(["node", os.path.join(here, "run.mjs")] + sys.argv[3:4], input="\n".join(json.dumps(c) for c in cases),
@@ -129,7 +175,7 @@ for c in cases:
     else:
         d = abs(g - w)
         e = 0.0 if d == 0 else d / max(abs(w), 1e-300)
-        if c["fn"] == "lgammaFn": e = d / max(1.0, abs(w))
+        if c["fn"] in ("lgammaFn", "lbeta"): e = d / max(1.0, abs(w))
         if c["fn"] == "quantileSorted": e = d / max(abs(w), max(abs(x) for x in c["args"][0]) * 1e-15, 1e-300)
     if e > worst.get(c["fn"], (0, None))[0]:
         worst[c["fn"]] = (e, c)

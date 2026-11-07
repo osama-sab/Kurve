@@ -1065,6 +1065,22 @@ Checked: `tools/ref-test.mjs` (17 at their targets, 5 short with their slice nam
 fail on the old code), `tools/perf.mjs` (10 within budget), the menu crawl (three items of earlier
 rounds written into `ux/spec/menus-after.txt`).
 
+## Closing the gap with Origin, wave 1, slice 1.4: the distributions (2026-11-07)
+
+`ux/spec/FOUNDATION_SPEC.md` 1.4. Nothing new on screen; every p value, interval and test reads
+its numbers from one new block, checked against 40-digit references.
+- **ln Γ** from a series about 2 (ζ(k) − 1 as coefficients), the recurrence and Stirling's series:
+  2e-16 (the old Numerical Recipes one was 4e-13). **ln B** keeps its digits for large arguments.
+- **The incomplete beta** (behind t and F): 1.5e-13, where it was 1e-9; its leading factor in
+  logarithms about the peak, and near x = 1 with a large first parameter Didonato and Morris's
+  BGRAT, as TOMS 708 does. **The incomplete gamma** (χ², gamma, Poisson): 7e-14.
+- **Nine distributions**, each with both tails (the upper computed as such) and quantiles: the
+  normal, t, F, χ², gamma, beta, binomial, Poisson, hypergeometric. t's p value at 10⁷ degrees of
+  freedom went from 3e-10 to 7e-14 off, its 97.5% from 1e-8 to 3e-15.
+- `tools/stats-test.mjs` (57 checks) in the suite; fixtures `tools/ref/fixtures/stats.json`;
+  eight new fuzzer generators. The noncentral, studentized-range, rank and normality distributions
+  of the plan move to the wave-2 slices that use them.
+
 ## Closing the gap with Origin, wave 1, slice 1.1: project files (2026-11-07)
 
 `ux/spec/FOUNDATION_SPEC.md` 1.1. A project can now leave the browser as one file.

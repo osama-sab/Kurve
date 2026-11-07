@@ -1,25 +1,102 @@
 {
  "//": "What each function of Kurve must reach against the reference (tools/ref/README.md): tol, a relative error (floor, an absolute one beside it for values near zero); until, the slice of ux/spec/PARITY_SPEC.md that brings a function short of its target there; now, the worst error it was measured at when that was written, which it must not pass; why, what keeps it short. Read by tools/ref-test.mjs and tools/ref/diff-fuzz.py.",
- "betai": { "tol": 1e-12, "until": "1.4", "now": 1e-9, "why": "Numerical Recipes' log-gamma inside it; large a" },
- "gammaln": { "tol": 1e-13, "until": "1.4", "now": 4e-13 },
- "lgammaFn": { "tol": 1e-13 },
- "erfFn": { "tol": 1e-13 },
- "erfcFn": { "tol": 1e-13 },
- "probit": { "tol": 1e-12 },
- "faddeeva": { "tol": 1e-12, "floor": 1e-13 },
- "tPvalue": { "tol": 0.000001 },
- "tCrit": { "tol": 1e-9, "until": "1.4", "now": 1e-8, "why": "turned round from tPvalue, which at a million degrees of freedom is good to 1e-7 (betai's log-gamma)" },
- "fPvalue": { "tol": 0.000001 },
- "quantileSorted": { "tol": 1e-14 },
- "distFit.p": { "tol": 1e-12 },
- "distFit.ks": { "tol": 1e-12 },
- "distFit.pks": { "tol": 0.01, "until": "2.2", "now": 0.03, "why": "Kolmogorov's series with Stephens' n correction, not the exact distribution" },
- "lmFit.params": { "tol": 0.000001 },
- "lmFit.errors": { "tol": 0.0001 },
- "odrFit.params": { "tol": 0.000001 },
- "odrFit.errors": { "tol": 0.00001 },
- "norris.polyfit": { "tol": 1e-12 },
- "norris.lmFit": { "tol": 1e-12, "until": "4.1", "now": 3e-8, "why": "a straight line fitted by Levenberg–Marquardt with a numerical Jacobian; 4.1 solves linear models by QR" },
- "norris.lmFit.errors": { "tol": 1e-9, "until": "4.1", "now": 3e-8 },
- "norris.R2": { "tol": 1e-12 }
+ "betai": {
+  "tol": 1e-12
+ },
+ "gammaln": {
+  "tol": 1e-13
+ },
+ "lgammaFn": {
+  "tol": 1e-13
+ },
+ "erfFn": {
+  "tol": 1e-13
+ },
+ "erfcFn": {
+  "tol": 1e-13
+ },
+ "probit": {
+  "tol": 1e-12
+ },
+ "faddeeva": {
+  "tol": 1e-12,
+  "floor": 1e-13
+ },
+ "tPvalue": {
+  "tol": 1e-12
+ },
+ "tCrit": {
+  "tol": 1e-11
+ },
+ "fPvalue": {
+  "tol": 1e-12
+ },
+ "quantileSorted": {
+  "tol": 1e-14
+ },
+ "distFit.p": {
+  "tol": 1e-12
+ },
+ "distFit.ks": {
+  "tol": 1e-12
+ },
+ "distFit.pks": {
+  "tol": 0.01,
+  "until": "2.2",
+  "now": 0.03,
+  "why": "Kolmogorov's series with Stephens' n correction, not the exact distribution"
+ },
+ "lmFit.params": {
+  "tol": 1e-06
+ },
+ "lmFit.errors": {
+  "tol": 0.0001
+ },
+ "odrFit.params": {
+  "tol": 1e-06
+ },
+ "odrFit.errors": {
+  "tol": 1e-05
+ },
+ "norris.polyfit": {
+  "tol": 1e-12
+ },
+ "norris.lmFit": {
+  "tol": 1e-12,
+  "until": "4.1",
+  "now": 3e-08,
+  "why": "a straight line fitted by Levenberg–Marquardt with a numerical Jacobian; 4.1 solves linear models by QR"
+ },
+ "norris.lmFit.errors": {
+  "tol": 1e-09,
+  "until": "4.1",
+  "now": 3e-08
+ },
+ "norris.R2": {
+  "tol": 1e-12
+ },
+ "lbeta": {
+  "tol": 1e-13
+ },
+ "igamPQ#0": {
+  "tol": 1e-12
+ },
+ "igamPQ#1": {
+  "tol": 1e-12
+ },
+ "DIST.t.sf": {
+  "tol": 1e-12
+ },
+ "DIST.t.isf": {
+  "tol": 1e-11
+ },
+ "DIST.chi2.isf": {
+  "tol": 1e-11
+ },
+ "DIST.binom.cdf": {
+  "tol": 1e-12
+ },
+ "DIST.pois.cdf": {
+  "tol": 1e-12
+ }
 }

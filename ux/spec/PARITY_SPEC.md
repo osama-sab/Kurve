@@ -255,6 +255,11 @@ Its spec: `ux/spec/FOUNDATION_SPEC.md`.
 
 ## Wave 2: statistics
 
+(07.11: slice 1.4 built the distributions this wave's tests read, and left to the slices that first
+use them, each with its fixtures, targets and fuzzer generators: the exact Kolmogorov distribution,
+Shapiro–Wilk and Anderson–Darling to 2.2, the Wilcoxon and Mann–Whitney exact distributions to
+2.3, the studentized range to 2.4, the noncentral t, F and χ² to 2.11. FOUNDATION_SPEC.md 1.4.)
+
 Its spec: `ux/spec/STATS_SPEC.md`. Every test is an analysis (1.3). One input panel for all of
 them, as Origin's: the data as columns (one column a group), or indexed (a column of values and a
 column of groups, text or numbers); which rows; missing values left out listwise or pairwise; each

@@ -145,6 +145,18 @@ copy at that moment); `.opju`.
 
 ## 1.4 The distributions
 
+Done 07.11 for the distributions Kurve uses now and the tests of wave 2 build on: the STATS block,
+ln Γ and ln B, the incomplete beta (with BGRAT for a large first parameter near 1, which the plan
+did not name: the continued fraction there hangs on x's last digit) and gamma, and the normal, t,
+F, χ², gamma, beta, binomial, Poisson and hypergeometric, each with both tails and quantiles;
+`betai`, `gammaln`, `lgammaFn`, `tPvalue`, `tCrit`, `tQuantile975` and `fPvalue` are theirs; fixtures
+(`stats.json`), targets, fuzzer generators and `tools/stats-test.mjs`. Every target met (the tails
+to 2e-13, the quantiles to 2e-15). Moved, each to the wave-2 slice that first uses it and with its
+fixtures there: the noncentral t, F and χ² (2.11, power), the studentized range (2.4, Tukey), the
+exact Kolmogorov distribution (2.2, which also owns `distFit.pks`), the Wilcoxon and Mann–Whitney
+exact distributions (2.3), Shapiro–Wilk and Anderson–Darling (2.2). Nothing of wave 1 needs them,
+and a distribution is best checked beside the test that reads it.
+
 A block of its own, `==STATS:START==`/`==STATS:END==`, pure, after MODELS; loaded by
 `tools/ref/run.mjs` (its BLOCKS list), the compute worker and a new `tools/stats-test.mjs`.
 
