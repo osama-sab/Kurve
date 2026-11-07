@@ -72,7 +72,7 @@ await page(async p => {
   check("a step added to an input, it reads the processed values", Math.abs(r.t.mean[0] - fin) < 1e-9 && fin !== r.t.mean[1], JSON.stringify([r.t.mean, fin]));
   // Original, from the settings.
   await p.evaluate(() => { const a = anaList()[0]; anaDlg("desc", { id: a.id }); }); await p.waitForSelector(`#aR_${ids[1]}`);
-  const line = await p.$eval(`#aI_${ids[1]}`, e => e.closest("tr").textContent);
+  const line = await p.$eval(`#aI_${ids[1]}`, e => e.closest(".anarow").textContent);
   await p.selectOption(`#aR_${ids[1]}`, "orig"); await p.click("#formOk"); await p.waitForTimeout(400);
   r = await RES(p);
   const orig = await p.evaluate(ids => { const d = colById(ids[1]).data; return d.reduce((a, b) => a + b, 0) / d.length; }, ids);

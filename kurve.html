@@ -504,7 +504,7 @@ body.dwin-page{margin:0;height:100vh;overflow:hidden;background:var(--panel);col
 /* A sheet's tab: the one shown is filled, as anything chosen is (DESIGN.md). */
 .wstabs{display:flex;align-items:stretch;gap:var(--sp-1);padding:0 var(--sp-3);min-height:28px;border-top:1px solid var(--rule);background:var(--panel-2);overflow-x:auto;flex:0 0 auto;scrollbar-width:thin}
 .wstabs[hidden]{display:none}
-.wstab.ana .ic{margin-right:var(--sp-1);vertical-align:-2px}.wstab.stale{color:var(--warn)}
+.wstab.ana{display:inline-flex;align-items:center;gap:var(--sp-1)}.anacols{max-height:260px;max-width:none}.anarow{display:flex;align-items:center;gap:var(--sp-3)}.anarow .grow{flex:1}.wstab.stale{color:var(--warn)}
 .wstab{font:inherit;font-size:var(--fs-tab);color:var(--ink);background:var(--btn-bg);border:1px solid var(--rule);border-top:0;border-radius:0 0 var(--r-s) var(--r-s);padding:var(--sp-1) var(--sp-5);white-space:nowrap;cursor:pointer;max-width:200px;overflow:hidden;text-overflow:ellipsis}
 .wstab:hover{background:var(--btn-bg-h)}
 .wstab[aria-selected="true"]{background:var(--seg-on);color:var(--seg-on-ink);border-color:var(--seg-on);font-weight:600}
@@ -14773,7 +14773,7 @@ function anaRead(c,o){ o=o||{}; const steps=anaSteps(c), orig=!c.src&&(o.read===
   let kind="keep"; if(!orig) steps.forEach(s=>{ const r=PIPE_ROWS[s.op]||"merge"; if(ROWS_RANK[r]>ROWS_RANK[kind]) kind=r; });
   return {c,vals,rows,nMasked:nm,orig,steps:orig?[]:steps.map(s=>(PIPE_OPS[s.op]||{}).short||(PIPE_OPS[s.op]||{}).label||s.op),rowsKind:kind}; }
 // The line a dialog shows for an input: what it reads.
-function anaReadText(c,read){ const st=anaSteps(c); if(!st.length) return "its values";
+function anaReadText(c,read){ const st=anaSteps(c); if(!st.length) return "";
   return read==="orig"&&!c.src?"its original values":"processed: "+st.map(s=>((PIPE_OPS[s.op]||{}).short||s.op).toLowerCase()).join(", "); }
 const anaList=p=>{ p=p||P(); return p&&Array.isArray(p.ana)?p.ana:[]; };
 const anaOf=id=>anaList().find(a=>a.id===id)||null;
@@ -14852,8 +14852,8 @@ async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], p=P(); if(!K||!
   const sel=new Set(a0?a0.in.cols:(wsSelColIds?wsSelColIds():[]).filter(id=>cand.some(c=>c.id===id)));
   if(!sel.size){ const act=activeYCol(); if(act&&cand.includes(act)) sel.add(act.id); else sel.add(cand[0].id); }
   const rd=a0?a0.in.read||{}:{}, bys=sheetCols(sid).filter(c=>!c.ana&&(isCatCol(c)||textCount(c)));
-  const rowsH=cand.map(c=>{ const st=anaSteps(c).length, i=c.id; return `<tr><td><label class="chk"><input type="checkbox" id="aI_${i}"${sel.has(i)?" checked":""}> ${esc(colRef(c))} ${esc(c.name||"")}</label></td><td class="muted">${esc(anaReadText(c,rd[i]))}</td><td>${st&&!c.src?`<select id="aR_${i}" aria-label="What ${esc(colRef(c))} gives"><option value="proc">Processed</option><option value="orig"${rd[i]==="orig"?" selected":""}>Original</option></select>`:""}</td></tr>`; }).join("");
-  const html=`<div class="anadlg"><p class="lab">Columns</p><div style="max-height:260px;overflow:auto"><table class="rtab"><tbody>${rowsH}</tbody></table></div>
+  const rowsH=cand.map(c=>{ const st=anaSteps(c).length, i=c.id; return `<div class="anarow"><label class="chk"><input type="checkbox" id="aI_${i}"${sel.has(i)?" checked":""}> ${esc(colLetter(c))} ${esc(c.name||"")}</label><span class="muted grow">${esc(anaReadText(c,rd[i])||"its values")}</span>${st&&!c.src?`<select id="aR_${i}" aria-label="What ${esc(colLetter(c))} gives"><option value="proc">Processed</option><option value="orig"${rd[i]==="orig"?" selected":""}>Original</option></select>`:""}</div>`; }).join("");
+  const html=`<div class="anadlg"><p class="lab">Columns</p><div class="colpick anacols">${rowsH}</div>
     <div class="grid2"><label for="aBy">Group by</label><select id="aBy"><option value="">Nothing</option>${bys.map(c=>`<option value="${c.id}"${a0&&a0.in.by===c.id?" selected":""}>${esc(colRef(c)+(c.name?" "+c.name:""))}</option>`).join("")}</select>
     <label for="aRc">Recalculate</label><select id="aRc"><option value="auto">By itself, when its data change</option><option value="manual"${a0&&a0.recalc==="manual"?" selected":""}>Only when asked</option></select></div>
     <label class="chk"><input type="checkbox" id="aMask"${a0&&a0.in.masked?" checked":""}> Include masked points</label></div>`;
@@ -14901,14 +14901,14 @@ function anaReportHtml(a){ const r=a.res||{}, rep=r.report, st=anaStale(a); let 
   const cell=v=>v==null?"":typeof v==="number"?esc(fmt(v,6)):esc(v);
   rep.sections.forEach(s=>{ h+=`<h4>${esc(s.title)}</h4>`; (s.tables||[]).forEach(t=>{ h+=`<div style="overflow:auto"><table class="rtab"><thead><tr>${t.head.map(x=>`<th>${esc(x)}</th>`).join("")}</tr></thead><tbody>${t.rows.map(r=>`<tr>${r.map((v,j)=>`<td${typeof v==="number"?' class="num"':""}>${cell(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`; }); });
   (rep.notes||[]).forEach(n=>{ h+=noteHtml("info",n); });
-  h+=`<p class="lab">${esc(andList((a.in.cols||[]).map(id=>{ const c=colById(id); return c?`${colRef(c)} (${anaReadText(c,(a.in.read||{})[id])})`:"a deleted column"; })))}${a.in.by&&colById(a.in.by)?`, grouped by ${esc(colById(a.in.by).name||colRef(colById(a.in.by)))}`:""}; ${a.recalc==="auto"?"worked out again by itself":"worked out only when asked"}.</p>`;
+  h+=`<p class="lab">${esc(andList((a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colLetter(c)} ${c.name||""}`.trim()+(t?` (${t})`:""); })))}${a.in.by&&colById(a.in.by)?`, grouped by ${esc(colById(a.in.by).name||colRef(colById(a.in.by)))}`:""}; ${a.recalc==="auto"?"worked out again by itself":"worked out only when asked"}.</p>`;
   return h; }
 function anaReport(id){ const a=anaOf(id); if(!a) return; S.resAna=id; openWin("res",{render:true}); renderResults(); }
 // The report as text (Copy): every table as tab-separated rows, then the notes, from the report object.
 function anaText(a){ const rep=a.res&&a.res.report; if(!rep) return a.name+"\n"+((a.res&&a.res.err)||"Not worked out yet.");
   const out=[a.name]; rep.sections.forEach(s=>{ out.push("",s.title); (s.tables||[]).forEach(t=>{ out.push(t.head.join("\t")); t.rows.forEach(r=>out.push(r.map(v=>v==null?"":typeof v==="number"?String(v):String(v).replace(/[\t\r\n]+/g," ")).join("\t"))); }); });
   (rep.notes||[]).forEach(n=>out.push("# "+n)); const st=anaStale(a); if(st) out.splice(1,0,"# Out of date: "+st);
-  out.push("# Reads: "+(a.in.cols||[]).map(id=>{ const c=colById(id); return c?`${colRef(c)} ${c.name||""} (${anaReadText(c,(a.in.read||{})[id])})`.replace(/  +/g," "):"a deleted column"; }).join("; "));
+  out.push("# Reads: "+(a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colRef(c)} ${c.name||""}`.trim()+(t?` (${t})`:""); }).join("; "));
   return out.join("\n"); }
 // The exported report: a section per analysis, its tables, notes, what it read and how it recalculates.
 function reportAnaHtml(){ const as=anaList(); if(!as.length) return ""; const e2=t=>esc(String(t));
@@ -14917,7 +14917,7 @@ function reportAnaHtml(){ const as=anaList(); if(!as.length) return ""; const e2
     if(!rep) return h+"<p>"+e2((a.res&&a.res.err)||"Not worked out yet.")+"</p>";
     rep.sections.forEach(s=>{ (s.tables||[]).forEach(t=>{ h+="<table><thead><tr>"+t.head.map(x=>"<th>"+e2(x)+"</th>").join("")+"</tr></thead><tbody>"+t.rows.map(r=>"<tr>"+r.map(v=>typeof v==="number"?"<td>"+e2(fmt(v,7))+"</td>":"<td class=\"l\">"+e2(v==null?"":v)+"</td>").join("")+"</tr>").join("")+"</tbody></table>"; }); });
     (rep.notes||[]).forEach(n=>{ h+="<p>"+e2(n)+"</p>"; });
-    h+="<p>Reads "+e2(andList((a.in.cols||[]).map(id=>{ const c=colById(id); return c?`${colRef(c)} ${c.name||""}`.trim()+" ("+anaReadText(c,(a.in.read||{})[id])+")":"a deleted column"; })))+(a.in.by&&colById(a.in.by)?", grouped by "+e2(colById(a.in.by).name||colRef(colById(a.in.by))):"")+(a.in.masked?", masked points included":"")+"; "+(a.recalc==="auto"?"worked out again whenever its data change":"worked out only when asked")+(a.at?", last on "+e2(new Date(a.at).toISOString().slice(0,16).replace("T"," "))+" UTC":"")+".</p>";
+    h+="<p>Reads "+e2(andList((a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colRef(c)} ${c.name||""}`.trim()+(t?" ("+t+")":""); })))+(a.in.by&&colById(a.in.by)?", grouped by "+e2(colById(a.in.by).name||colRef(colById(a.in.by))):"")+(a.in.masked?", masked points included":"")+"; "+(a.recalc==="auto"?"worked out again whenever its data change":"worked out only when asked")+(a.at?", last on "+e2(new Date(a.at).toISOString().slice(0,16).replace("T"," "))+" UTC":"")+".</p>";
     return h; }).join(""); }
 // What storage gives back: analyses of a kind Kurve has, with ids, inputs and a sheet; columns and
 // sheets naming an analysis that is not there become ordinary ones.
