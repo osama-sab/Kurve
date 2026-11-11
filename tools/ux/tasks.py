@@ -447,8 +447,6 @@ def t9(r):
     r.click(menuitem(r, "Duplicate", exact=True), "Duplicate")
     r.wait_quiet(900)
     front_graph(r)
-    r.click(pg.locator('#viewSeg button[data-view="raw"]'), "Original" if new else "Raw")
-    r.wait(400)
     figure_dialog(False)
     sel = pg.locator("#formModal select").first
     r.click(sel, "Panels list")

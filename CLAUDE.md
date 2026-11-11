@@ -19,9 +19,9 @@ the pointer tools Zoom / Pan / Mask / Label / Arrow / Shape (a box or an ellipse
 shared project only) / Reader / X–Y lines, show-all, and the Reverse X / Log Y / Grid toggles, off until there is data, the
 graph's group (`.tg`) only while a graph is on the desk; it keeps to one row, dropping labels
 in stages while it would wrap and last the Explorer's switch (not on a phone), `fitToolbar`); the **Project Explorer** docked at the desk's left
-(the project as a tree, as Origin's: folders and subfolders of your own, the worksheet, each file
-imported with its spectra and data columns, every graph, closed ones marked hidden, and the trend
-graphs; Alt+1 or the toolbar's first button shows it, its edge drags; 220 px wide, and below 1600 px a
+(the project as a tree, as Origin's: folders and subfolders of your own, the worksheet's sheets
+(not the files' columns again: the worksheet shows them), every graph, closed ones marked hidden,
+and the trend graphs; Alt+1 or the toolbar's first button shows it, its edge drags; 220 px wide, and below 1600 px a
 drawer over the desk);
 the **desk**; and a **status bar**
 (tool hint, live cursor readout, or off the graph the numbers of what is selected, point counts, fit state, save state). A gear at the title bar's right
@@ -86,11 +86,11 @@ File › Copy from another project… copies spectra between projects. Graphs ca
 the **panels of a figure** (Plot › New graph › A figure…, Window › Graphs › A figure of panels…, a graph's Put in a figure, or a
 graph dropped on a figure): one window with the graphs in rows and columns, their plot areas
 lined up, X or Y shared, lettered (a), (b)…; the panel clicked is worked on. The **graph window** has its own bar repeating the Data, Plot, Analyze
-and Figure menus, then **Original / Processed / Both** (what the graph shows; only once a
-column has processing, `anyProcessing()`, which also gates the worksheet's Original/Processed
-sheets, Plot › Show on the graph and the statistics' data switch: a first user has nothing to
-compare), and a chip saying which stage of the processing is shown when it is not the final
-data. Right-click on a curve (or Shift+F10) gives its
+and Figure menus, then **Curves** (each curve ticked while drawn, Show only…, Show every curve;
+`curveVisItems`), and a chip saying which stage of the processing is shown when it is not the
+final data (a box selected in the History; its ✕ goes back). A graph always shows the processed
+data: the Original / Processed / Both switch went on 11.11 (`anyProcessing()` still gates the
+worksheet's Original/Processed sheets and the statistics' data switch). Right-click on a curve (or Shift+F10) gives its
 colour, plot type and style, then Add here (a line, text, a peak label, a shape, a title or a
 comment where you clicked), Format graph…, Copy the graph as a picture and Export; on the empty
 plot, Add here's items themselves; right-click a line, a label, the legend, a title or an axis's numbers for
@@ -258,10 +258,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   SNIP, rolling ball, anchors with spline/PCHIP/lines, line, constant; all through one banded
   `whittaker` solve or `chebFit`); smooth (Savitzky–Golay, moving average, median, Gaussian,
   Whittaker); shift (wavelength to Raman shift), xunit, calib (reference peaks, `CAL_REFS`,
-  Raman standards and gamma lines), ecal (channels to energy: E = a·ch + b + c·ch² from typed
+  Raman standards and gamma lines; a shift, a line, or with `order` "2" and three found a
+  parabola, `extra.co`, flagged when it turns back), ecal (channels to energy: E = a·ch + b + c·ch² from typed
   coefficients, or fitted to `pairs` `[{ch, en}]`, each channel refined to its peak's top by
   `peakTopNear`; names X `xn`/`xu`, keV by default), xlin (with an optional new name and unit);
-  norm; scale (with an optional new Y name and unit, `yn`/`yu`: Count rate, counts/s), ref (another spectrum, interpolated), combine (mean, median or sum with
+  norm; scale (with an optional new Y name and unit, `yn`/`yu`: Count rate, counts/s), ref (another column, a spectrum or a data column (`refcol`), interpolated onto this X after a
+  shift `dx`; subtracted, divided, added or multiplied, scaled by `k` or, subtracting, by a scale
+  fitted by least squares (`fit` `"fit"`, or `"fitb"` with an offset) over `x0`–`x1` or wherever
+  both have values, `extra {k, b}`, the note naming them; refused in words when too few points or a
+  flat reference), combine (mean, median or sum with
   other spectra, the spread as error bars), deriv, cumint (running integral), fft
   (zero-phase Butterworth low- or high-pass, `fftFilter`, ends mirrored), log, absorb, km,
   bose; hist (Analyze › Statistics › Histogram: the values of Y, or of X, counted into `histBins`'
@@ -625,8 +630,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   of dots, the limit, rings, a histogram's normal curve, probability paper's line `data-rref`).
   Results' `diagHtml(f)`/`wireDiag`: the sections the Fit window's **In the results** chose
   (`rShow()`, `RSHOW_DEF`, `RSHOW`, `setRShow`, `rShowHtml(peaks)`, `input[data-rshow]`, per
-  browser under `kurve.rshow`: `ci` the intervals' column (on), `anova` (off), `corr` (on),
-  `cov` (off), `resid` (on), and for a peak fit `par`, every parameter (off)), each an open
+  browser under `kurve.rshow`; since 11.11, information hygiene, `ci` the intervals' column,
+  `tp` t and Prob > |t|, `dep` the dependency (columns of the parameter table, `paramTableHtml`,
+  in `.rtabw`; no second line under a parameter, no red row), `anova`, `corr`, `cov`, all off,
+  `resid` and `find` on, and for a peak fit `par`, every parameter (off)), each an open
   `section.rsec[data-rd]` with its `h4`, never folded: Analysis of variance (`anovaRows`),
   Correlation matrix and Covariance matrix (`covRows`: the free parameters; above 0.95 marked;
   no analysis needed), Residuals (kind and view lists, the chart, the outliers with Mask,
@@ -1277,7 +1284,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   `pipeSteps(c)` puts it into the spectrum's steps for `pipeOf`, so the graph, the History and
   every check see it, but it is not in the document: `applyTool` splices it into `c.pipe`
   (and onto every spectrum if `all`; a spectrum's first step opens History in the dock),
-  `cancelTool` drops it. `stepById`, `colOfStep`,
+  `cancelTool` drops it. **Show it on** (11.11): the Tool window's *This graph / A new graph*
+  (`data-tldest`, `toolDest(v)`, `S.toolDest`, `kurve.tooldest`, not with `all`); a new graph is
+  `applyToolNew()`: a derived column made from the column (`src`; `from:"final"` and the step
+  alone when it goes last, else `from:"raw"` with copies of the steps before it and the step),
+  named "<name>, <step>", on a graph of its own (`newGraphs` with `patch`, `splitInto`,
+  `activateGraph`), the column itself unchanged, one undo step; `applyTool({here:true})` skips it. `stepById`, `colOfStep`,
   `stageOfStep` and `inputOfStep` look steps up by id in any spectrum, pending included, and
   `procWarnings` and the report skip the pending one. A project switch drops it.
 - **Stages**: `S.stage` is the stage the graph shows (`null` = final, 0 = raw, k = after step k,
@@ -1353,28 +1365,26 @@ graph first, with the taskbar kept at the bottom of the screen.
   as a tree, as Origin's. `p.tree` (in `UNDO_KEYS`) is `{folders:[{id, name, parent}], at:{key:
   folderId}}`, read through `treeOf(p)` (folders whose parent is gone go to the top, `at`
   entries naming no folder dropped) and written by `saveTree(t, log, {noUndo, undo})`, which also
-  drops entries for items the project no longer has (`xKeys`). Items are keyed `ws:<sheet id>`, `f:<fid>`
-  (a file: `xFiles(p)` groups non-derived columns by `fid`, else by `file` name, `"f:@"` for
-  columns typed in the worksheet, listed only once something is typed), `g:<id>` (graphs, closed
-  ones marked hidden with `i-eyeoff`), `t:<id>` (trend graphs); a file's children
-  (`xFileKids`: its Y and data columns and the spectra derived from them) are `c:<colId>`.
-  `xRows()` flattens it (folders open unless closed, files closed unless opened, `S.xplExp` per
+  drops entries for items the project no longer has (`xKeys`). Items are keyed `ws:<sheet id>` (a
+  sheet, its tooltip the columns holding values, `hasVals`; the files and their columns are not
+  listed since 11.11: the worksheet shows them, and the file row's count disagreed with its list),
+  `g:<id>` (graphs, closed ones marked hidden with `i-eyeoff`), `t:<id>` (trend graphs).
+  `xRows()` flattens it (folders open unless closed, a figure's panels inside it, `S.xplExp` per
   project; a filter `S.xplQ` keeps matches and their ancestors), `renderXpl()` draws `.xr` rows
   (`role=treeitem`, `aria-level`, a roving tabindex, `--lv` indent, `data-xfold` on folders and
   the project), called from `renderAll` and `renderTaskbar`. `xSelect` changes the selection in
   place (redrawing on the first click would lose the double click); `xOpen` opens (a graph:
-  `showGraph`; a sheet: `showSheet`; a file or data column: `xRevealCols`, selected on its sheet in the Original view; a spectrum:
-  `goSpectrum`); `xMenu(r)` is each kind's menu with Move to; `xNewFolder`, `xRenameFolder`,
-  `xDeleteFolder` (what it held moves up), `xMove` (no folder into itself), `xRenameFile` (gives
-  an older file an id), `xDeleteFile` (confirmed; its columns and the spectra made from them,
-  a record entry). `xFile(keys, folder)` files without an undo entry of its own (after a change
+  `showGraph`; a sheet: `showSheet`); `xMenu(r)` is each kind's menu with Move to; `xNewFolder`,
+  `xRenameFolder`, `xDeleteFolder` (what it held moves up), `xMove` (no folder into itself);
+  F2 and Delete on a sheet are `renameSheet` and `deleteSheet`. `xFile(keys, folder)` files without an undo entry of its own (after a change
   that made one); `xNew(keys)` puts what is made while the Explorer is shown into the active
   folder (`xActiveFolder`: the folder selected, or the selected item's): new graphs
-  (`plotCols`, `newGraphs`; a duplicate goes beside its source), trend graphs and imports.
+  (`plotCols`, `newGraphs`; a duplicate goes beside its source), trend graphs and imports (the
+  sheet they went on, `ws:<id>`; `autoImport` returns `{sheets}`).
   `wireXpl()`: keys (arrows, Home/End, Enter, F2, Delete, the menu key), HTML5 drag within the
   tree (`text/x-kurve-node`, `S.xdrag`; a drag counts only when its `dataTransfer` carries that
   type, since the row dragged can be redrawn away before its `dragend`) onto folders, and a
-  spectrum, data column or file onto a graph window (plotted there); the splitter; Alt+1.
+  sheet onto a graph window (its Y columns with values plotted there); the splitter; Alt+1.
   `XPL` (`kurve.xpl`: shown, width 180–520, 220 by default) per browser; below 1600 px (`xplDrawer`) it is a
   drawer over the desk (`S.xplNarrow`, under the toolbar, or from the top on a phone), closed by
   opening an item or a press outside, so the windows keep a desk wide enough for them.
@@ -1864,7 +1874,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   critical level, a band's `ig` (emission probability, %) and `eff` (full-energy efficiency, %)
   typed (`data-igk`, one undo entry, refused in words outside 0–100), the activity or, not detected,
   the detection limit as one, `activityOf(cn, t, eff, ig, effErr)`, the efficiency's error carried;
-  narrow, the rate, detection and activity on a second line). The report's band integrals add a
+  *Detected* a column of its own (`td.igdet`, Yes or No, the critical level its tooltip), a window
+  wider than the resolution marked by its name and said in a note under the table; narrow, the rate
+  left out and the two settings' headings their symbols, `.hw`/`.hn`). The report's band integrals add a
   counted table per spectrum. **The detector's curves** (slice 3): `p.detcal = {eff:{pts:[{E, eff,
   err}], deg, xu}, fwhm:{pts:[{E, w}], deg, xu}}` (in `UNDO_KEYS`; `detCalOf(p)` cleaned,
   `detCurve(kind, xu)` the fitted curve for that X unit, memoised in `DCMEMO`); `bandEff(q, ec)` a
@@ -1982,7 +1994,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   anything with text: its name; Edit text; Size (`TXT_PTS`), Bold, Italic, Colour (swatches,
   Automatic); `o.own`; Format…; Delete. `titleMenuItems(k)` (with `titleTxt(k)`: the graph
   title's `txt.title`, an axis title's own `ax[k].tst`), `legendMenuItems(hit)` (an entry's
-  menu adds Hide this entry, Back to the name, its line…, and the legend's own items under
+  menu adds the curve's Hide, Show only and Show every (`curveShowItems`), Leave it out of the legend, Back to the name, its line…, and the legend's own items under
   Legend), `annoMenuItems(id)` (`ANNO_TX` maps the text keys onto the annotation's). An axis
   title's own style, `ax[k].tst` (`{fam, name, size, b, i, u, color}`, in `FMT_AX`), is drawn
   through `AT(k)` in `buildPlot` (every axis title's `TS.axis` under it) and edited on its axis
@@ -3873,6 +3885,17 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **Random cases find what a grid misses.** The fixed grid of 568 cases showed the incomplete beta
   at 3e-10; a thousand random ones found 4e-10, and t's quantile at a million degrees of freedom
   10⁻⁸ off. Fixtures pin the behaviour; the fuzzer looks for where it breaks.
+- **A count beside a list counts the list.** The Explorer's file row said 4 columns and listed 3
+  (it counted the X and error columns it did not show), and the user found the same kind of
+  mismatch "across the app". A count shown next to a list is worked out from what the list
+  shows, or left out; and one place lists one thing (the sheets, not the files' columns again).
+- **Red that says nothing is noise.** A parameter's row turned red past a dependency of 0.99,
+  and the user asked what it was. A colour means a state and says it in words where it is
+  shown (a note naming the parameter), or it is not used.
+- **A variable taken out is grepped for.** Removing the Explorer's files took `fids` out of
+  `autoImport`, and three `return {fids}` further down threw on every dropped file; the syntax
+  check passes a reference to a name that does not exist. `review-drive`'s drop caught it. After
+  deleting a declaration, grep its name.
 
 ## Roadmap
 
@@ -4017,6 +4040,19 @@ error columns in German, French, Italian and Spanish; counts of thousands groupe
 stops where the documents keep their room. Measured and
 fine: a 40-minute day of 1 300 erratic actions with memory, page elements and listeners flat, and
 three tabs on one set of projects. `tools/lab-day.mjs` is that day.
+
+Then, 11.11, the user's review: **information hygiene** as a principle (`ux/UX_SPEC.md` §3.8,
+DESIGN.md principle 7: a working window shows what was asked for and what judges it, the rest in
+the report, the History and tooltips), applied to Results (three columns; t, p, the interval and
+the dependency as switches, off; no packed second lines; no red rows; no time of the fit; settings
+listed only when not the usual ones, `statsBrief`). The Explorer lists sheets, not files (a file
+row said 4 and listed 3). The graph's Original / Processed / Both went (a graph shows the
+processed data; the History's boxes show a stage). Curves hidden, shown alone and all shown again
+from the graph's *Curves* button, a curve's right-click and its legend entry. A step goes on this
+graph or on a new graph (a new column made from this one, the original untouched). Data ›
+Calibrate (X on reference peaks with a parabola now, energy, scale X, Y by a reference's
+response); subtracting another column at a scale fitted so it cancels, with an offset, over a
+range, shifted in X, from a data column. A dropped file no longer throws (`fids`).
 
 Then, 05.11 to 06.11, the rest of the roadmap, items 3 to 10 (each in the list below with its date):
 counting spectra (analysers' files, counted windows with their activities, the detector's curves,
@@ -4426,8 +4462,9 @@ Next, in order:
 - Moving columns moves whole columns of the Original view (not cells within a column, not the Processed
   view's); the colours of the interface follow DESIGN.md's rules, but the graph's own colours
   (data, grid, a colour picked for a label) are the figure's and are not checked
-- Project Explorer: one item moves at a time (no multiple selection); a spectrum lives under its
-  file and cannot be filed apart from it; folders organise the tree only (they do not hide or
+- Project Explorer: one item moves at a time (no multiple selection); it lists sheets, graphs and
+  trend graphs, not columns (the worksheet does), so a column cannot be filed in a folder apart
+  from its sheet; folders organise the tree only (they do not hide or
   show windows as Origin's active folder can); dropping on a folder imports and plots with the
   automatic choices only
 - Error bars: X errors are fitted (orthogonal distance) in curve, peak and batch fits, not in a
@@ -4553,6 +4590,10 @@ Next, in order:
   graph, not in Plot setup); no reordering but the table's; the names along X cannot be
   turned or styled apart from the tick numbers; a violin's bandwidth is Silverman's, not set;
   at most 5000 values scattered per box; no fit, annotations at data X or inset on them
+- A step shown on a new graph makes a new column from the column (its source). Made from the
+  source's processed data (a step that goes last), it follows every later change to the source's
+  steps; made from its original data (a step that goes before others), it has copies of the steps
+  before it, which do not follow. Curves are hidden per graph (each panel of a figure its own)
 - Several graphs: the X zoom is linked, not Y or the pointer (panels of a figure link Y when
   they share it); there is no keyboard shortcut to step through
   the graphs (the browser keeps Ctrl+Tab); a picture shows no readout until it is clicked. A

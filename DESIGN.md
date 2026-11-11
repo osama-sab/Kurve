@@ -25,6 +25,12 @@ round at the end.
    this data, and one-line empty states.
 6. **Everything can be undone, and the report says everything the screen says.** Caveats
    come from one place (`fitWarnings`) so the exported report can never say less.
+7. **Information hygiene** (11.11, `ux/UX_SPEC.md` §3.8). A working window shows what was asked
+   for and what judges it, nothing more: a setting only when it is not the usual one, no times,
+   ids or counts of what is already listed, no line packing four half-labelled facts, no colour
+   that does not say in words what it means. Everything else is in the report, the History and
+   the tooltips. The user's words: the more useless text there is, the more cluttered the app
+   looks and the worse it is to use.
 
 ## Colour and contrast
 
@@ -253,8 +259,9 @@ Excel's and Origin's conventions, unless noted.
   gesture on the first one's cell, as the person meant.
 - **Original and Processed appear when there is something to tell apart.** A first user does
   not know what "raw" or "final" data are, and before any processing step the two are the same:
-  the sheets' switch, the graph's Original / Processed / Both, Data › Show on the graph and the
-  statistics' choice appear with the first step. The exports keep both names, where the
+  the sheets' switch and the statistics' choice appear with the first step. (The graph's
+  Original / Processed / Both and Data › Show on the graph went on 11.11: a graph shows the
+  processed data, a step can go on a new graph, and the History's boxes show any stage.) The exports keep both names, where the
   difference matters.
 
 ## Plotting
@@ -425,7 +432,7 @@ The menu tree is `ux/spec/menus-after.txt`; `tools/ux/menucheck.py` compares the
   too, where T9 looked first).
 - **Shown when it can apply**: Fit every column… with two columns or more, Batch results after
   a batch, a trend graph with several columns, the second axes' pages once they are on, the
-  inset when zoomed, the Original / Processed switches once there is processing.
+  inset when zoomed, the Original / Processed sheets once there is processing.
 - **An ellipsis means more to come**: a dialog or a window that asks before it acts. Report and
   Histogram act at once and have none. A shortcut beside an item is a real one (Format graph…
   has no "Double-click": a double click on the plot shows all the data).
@@ -452,8 +459,8 @@ The menu tree is `ux/spec/menus-after.txt`; `tools/ux/menucheck.py` compares the
   the zoom and the selection alone, and neither writes to the project.
 - **Toolbar**: Explorer │ Import, Export │ Undo, Redo │ Zoom, Pan, Mask, Label, Arrow, Shape,
   Reader, X–Y lines │ Show all │ Reverse X, Log Y, Grid. The switches are off until there is data. Comment shows
-  in a shared project only (alone, Add here › A comment here…). What the graph shows, Original,
-  Processed or Both, is on the graph window's own bar, beside the menus it repeats; the plot
+  in a shared project only (alone, Add here › A comment here…). Which curves the graph draws is
+  *Curves* on the graph window's own bar, beside the menus it repeats; the plot
   type and the layout are in Plot and a curve's right-click; the residual panel is switched in
   the Fit window and Analyze › Fit; Add a peak is a button in the peak fit's second part.
 - **Right-click menus** hold what belongs to the thing clicked, then Add here, then Format
@@ -888,6 +895,59 @@ them all at once is slice 2.
   temperature where the point is, the thing Origin's L designation does.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
+
+### 2026-11-11: the user's review: information hygiene, curves, a step on a new graph, calibration
+
+- **Information hygiene**, the user's rule, is a principle now (above, and UX_SPEC §3.8), and
+  this round applied it where they pointed. Results' parameter table is three columns (the
+  parameter with its meaning as a tooltip, value, standard error). t and p, the interval and the
+  dependency are switches under *In the results*, off until chosen, each a column with a
+  heading. The packed second line under each parameter (`t 1538 · Prob > |t| < 0.0001 · 95% … ·
+  dependency 0.9376`) is gone, and the peak table and the counting table lost theirs. The
+  statistics beside the table keep what judges the fit (`statsBrief`). A setting is listed only
+  when it is not the usual one, and the residual sum of squares, AIC, BIC, the free parameters
+  and the counts of a global fit are left to the report. *Fitted by … at …* left Results: when
+  and by whom is the History's, and the report's. In a narrow Results (the dock) those statistics
+  come straight after the table, before Find X/Y and the residuals, and *Fitted over* is said
+  only when the range leaves points out.
+- **The stage chip is short**: *Preview: Smooth*, *After step 2: Baseline*, *Original data*; the
+  sentence it was (which step, the processed data, its input in grey, not applied until OK) is
+  its tooltip.
+- **The counting table** (the Integrate window's) lost its packed second line too, which in the
+  dock had been the only place a window's verdict was shown. *Detected* is a column of its own,
+  *Yes* or *No*, the critical level its tooltip; a window wider than a line there is marked by its
+  name and said in a note under the table; docked, the emission and efficiency headings are the
+  field's symbols, I<sub>γ</sub> and ε, the words in their tooltips, so the table fits.
+- **No red rows.** A row of the parameter table was painted red when its dependency passed 0.99
+  and the user could not tell why. Red said nothing in words. The note under the table says
+  which parameter and what it means. A correlation above 0.95 is bold, its threshold in the
+  tooltip.
+- **The Project Explorer lists sheets, not files.** A file row counted every column (X and error
+  columns too) and listed only some of them, 4 against 3. A file's columns are on its sheet,
+  and the worksheet shows them, so the tree lists the sheet once, its count the columns with
+  values. Dragging a sheet onto a graph plots its Y columns.
+- **No Original / Processed / Both on the graph.** It was a third way to say which stage a graph
+  shows, beside the History's boxes and the stage chip, and could leave a graph showing raw data
+  with nothing on the graph saying why. A graph shows the processed data. A box selected in the
+  History shows its stage with the chip and its ✕. To compare, a step goes onto a new graph.
+- **A step on this graph or a new graph.** The tool window asks (*Show it on: This graph / A new
+  graph*, remembered in the browser). A new graph gets a new column made from this one with the
+  step (from its processed data, or, when the step goes earlier, from its original data with the
+  steps before it copied), and the column the step was set up on is not changed. One undo step.
+  A step for every column stays on each column.
+- **Hiding a curve is one click.** *Curves* on the graph's bar lists each curve, ticked while
+  drawn; a curve's right-click and its legend entry have Hide, Show only this curve and Show
+  every curve. Before, hiding meant the legend entry's menu or the worksheet's header, and
+  isolating one curve meant hiding the others one by one. A hidden curve stays on the graph;
+  hiding the active one makes a shown one active, and the last shown cannot be hidden. "Hide
+  this entry" of the legend is now *Leave it out of the legend*, as it never hid the curve.
+- **Data › Calibrate** gathers X on reference peaks (now a parabola with three references or
+  more, for a wavelength error that curves across a detector), channels to energy, scaling X,
+  and dividing Y by a reference's response (a lamp or a white standard).
+- **Subtracting another column cancels it.** The scale can be fitted by least squares, with or
+  without an offset, over a stretch where only the other column's features are (a solvent band)
+  or wherever both have values. The other column can be shifted along X, and can be a data
+  column that is not plotted. The scale found is said in the step.
 
 ### 2026-11-07: analyses and result sheets (PARITY_SPEC wave 1, slice 1.3a)
 

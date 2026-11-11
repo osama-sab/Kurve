@@ -702,7 +702,7 @@ body.dwin-page{margin:0;height:100vh;overflow:hidden;background:var(--panel);col
 .rsec>h4 .rbad{color:var(--bad);font-weight:600}
 .rscroll{overflow-x:auto;max-width:100%}
 .rtab.rmat td,.rtab.rmat th{white-space:nowrap}
-.rtab .rhi{color:var(--bad);font-weight:600}
+.rtab .rhi{color:var(--ink);font-weight:700}
 .rtab .pn{font-style:italic;font-family:var(--serif)}
 .rsub{margin:var(--sp-4) 0 var(--sp-2);font-size:var(--fs-body);font-weight:600}
 .rsel{display:flex;gap:var(--sp-3);flex-wrap:wrap;margin:var(--sp-3) 0}
@@ -847,8 +847,10 @@ table.ptab{width:100%;border-collapse:collapse;font-size:var(--fs-tab)}
 .rtitle .lab{font-weight:400}
 .ract{display:flex;gap:var(--sp-3);flex-wrap:wrap}
 .dbody{container-type:inline-size}
-.rgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(210px,260px);gap:var(--sp-5) var(--sp-6);align-items:start}
-@container (max-width: 860px){ .rgrid{grid-template-columns:minmax(0,1fr)} .rside .kv{grid-template-columns:auto 1fr auto 1fr} }
+.rgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(210px,260px);grid-template-rows:auto 1fr;grid-template-areas:"main side" "rest side";gap:var(--sp-5) var(--sp-6);align-items:start}
+.rgrid>.rmain{grid-area:main}.rgrid>.rside{grid-area:side}.rgrid>.rrest{grid-area:rest;min-width:0;overflow-x:auto}
+/* Narrow, the statistics that judge the fit come straight after the table, before the rest. */
+@container (max-width: 860px){ .rgrid{grid-template-columns:minmax(0,1fr);grid-template-rows:none;grid-template-areas:"main" "side" "rest"} .rside .kv{grid-template-columns:auto 1fr auto 1fr} }
 @container (max-width: 520px){ .rside .kv{grid-template-columns:auto 1fr} }
 .rmain{min-width:0;overflow-x:auto}
 table.rtab{border-collapse:collapse;font-size:var(--fs-tab);width:100%}
@@ -870,12 +872,13 @@ table.rtab{border-collapse:collapse;font-size:var(--fs-tab);width:100%}
 /* In a narrow Results (the dock, a phone) a parameter's meaning goes under its name, so its value and error show without scrolling. */
 @container (max-width: 520px){ .rtab td.l{white-space:normal;min-width:9em} .rtab td.l>.lab{display:block} }
 /* And the parameters' t, p, interval and dependency, and a peak's shape, height, FWHM and share, go on a line under it. */
+.rtabw{overflow-x:auto;max-width:100%}
 .rtab tr.rmore{display:none}
 .rtab tr.rmore.show{display:table-row}
 .rtab.nuctab td.good{color:var(--ok);font-weight:600}
 .rtab.nuctab td.bad,.rtab.nuctab .bad{color:var(--bad)}
 .gh.nuch{margin-top:var(--sp-5)}
-.rtab input.ignum{width:4.5em;text-align:right;font-family:var(--mono)}
+.rtab input.ignum{width:4.5em;text-align:right;font-family:var(--mono)} .rtab.igcnt th .hn{display:none}
 .rtab input.ignum.fromcv::placeholder{color:var(--ink-2);font-style:italic}
 .rtab .warnc{color:var(--warn)}
 .dcwrap{display:flex;gap:var(--sp-6);align-items:flex-start;flex-wrap:wrap}
@@ -885,11 +888,12 @@ table.rtab{border-collapse:collapse;font-size:var(--fs-tab);width:100%}
 .dcsvg{display:block;background:var(--panel-2);border-radius:var(--r)}
 @container (max-width: 520px){
   .rtab.rpar .x,.rtab.rpk .x,.rtab.igcnt .x,.rtab.nuctab .x{display:none}
-  .rtab tr.rmore{display:table-row}
-  .rtab tr.rmain:has(+tr.rmore) td{border-bottom:0;padding-bottom:var(--sp-1)}
-  .rtab tr.rmore td{text-align:left;white-space:normal;color:var(--muted);font-size:var(--fs-cap);padding-top:0}
-  .rtab tr.rmore .v{color:var(--ink-2);font-variant-numeric:tabular-nums}
+  .rtab tr.rmain:has(+tr.rmore.show) td{border-bottom:0;padding-bottom:var(--sp-1)}
+  .rtab tr.rmore.show td{text-align:left;white-space:normal;color:var(--muted);font-size:var(--fs-cap);padding-top:0}
   .rtab.rpk td.l,.rtab.igcnt td.l{min-width:0}
+  .rtab.igcnt th,.rtab.igcnt td{padding-left:var(--sp-1);padding-right:var(--sp-2)} .rtab.igcnt :is(th,td):first-child{padding-left:0} .rtab.igcnt th{white-space:normal;font-size:var(--fs-cap)} .rtab.igcnt input.ignum{width:3.3em;padding-left:var(--sp-1);padding-right:var(--sp-1)}
+  /* Docked, the two settings' headings are their symbols (the words in the tooltip). */
+  .rtab.igcnt th .hw{display:none} .rtab.igcnt th .hn{display:inline}
 }
 .msugg{display:flex;align-items:center;gap:var(--sp-3);margin-top:var(--sp-2)}
 .rempty{display:flex;gap:var(--sp-6);align-items:center;color:var(--muted);padding:var(--sp-4) var(--sp-2);max-width:720px}
@@ -2070,7 +2074,7 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
   .pyres{max-height:none}
   .ws{max-height:60vh}
   .sticky{position:static;margin:var(--sp-5) 0 0;padding:var(--sp-4) 0}
-  .rgrid{grid-template-columns:minmax(0,1fr)}
+  .rgrid{grid-template-columns:minmax(0,1fr);grid-template-rows:none;grid-template-areas:"main" "side" "rest"}
   .taskbar{position:sticky;bottom:24px;order:99;margin:0 calc(var(--sp-3) * -1)}
   .statusbar{position:sticky;bottom:0;z-index:9001}
   .sheet-b{grid-template-columns:minmax(0,1fr)}
@@ -2246,14 +2250,9 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
           <button class="rb" data-rmenu="plot" aria-haspopup="menu" aria-expanded="false">Plot<svg class="ic sm"><use href="#i-chev"/></svg></button>
           <button class="rb" data-rmenu="analyze" aria-haspopup="menu" aria-expanded="false">Analyze<svg class="ic sm"><use href="#i-chev"/></svg></button>
           <button class="rb" data-rmenu="figure" aria-haspopup="menu" aria-expanded="false">Figure<svg class="ic sm"><use href="#i-chev"/></svg></button>
+          <button class="rb" data-rmenu="curves" aria-haspopup="menu" aria-expanded="false" title="Show or hide each curve of this graph, or show only one">Curves<svg class="ic sm"><use href="#i-chev"/></svg></button>
           <span class="rsep" id="ctxSep" aria-hidden="true" hidden></span>
           <button class="rb ctx" id="ctxBtn" data-rmenu="ctx" aria-haspopup="menu" aria-expanded="false" hidden><span id="ctxLab">Curve</span><svg class="ic sm"><use href="#i-chev"/></svg></button>
-          <span class="rsep" aria-hidden="true"></span>
-          <div class="seg" role="group" aria-label="Data shown on the graph" id="viewSeg">
-            <button data-view="raw" aria-pressed="false">Original</button>
-            <button data-view="final" aria-pressed="true">Processed</button>
-            <button data-view="cmp" aria-pressed="false">Both</button>
-          </div>
           <span class="sp"></span>
           <span class="stagechip" id="stageChip" hidden></span>
         </div>
@@ -4609,9 +4608,10 @@ const PIPE_OPS={
       return {d:pser(d,x,y,e,d.idx,{xn:lab[0],xu:lab[1]})}; }},
   calib:{group:"axis", rank:4, label:"Calibrate X on reference peaks", short:"Calibrate X",
     help:"Finds each reference peak near where it should be, and shifts X (one reference) or rescales it (two or more) so the peaks land on their known positions.",
-    params:[{k:"refs",label:"References",type:"refs"},{k:"win",label:"Search within",type:"num",min:0.01,unit:"x",hint:"How far from the reference value to look for the measured peak."}],
-    defaults:{refs:[{ref:520.7}],win:10},
-    summary(p,d,x){ if(x&&x.shift!=null) return `X ${x.shift>=0?"+":"−"}${nf(Math.abs(x.shift),3)}${ux(d)}`; if(x&&x.a!=null) return `X × ${nf(x.a,6)} ${x.b>=0?"+":"−"} ${nf(Math.abs(x.b),4)}`; return `${(p.refs||[]).length} reference${(p.refs||[]).length===1?"":"s"}`; },
+    params:[{k:"refs",label:"References",type:"refs"},{k:"win",label:"Search within",type:"num",min:0.01,unit:"x",hint:"How far from the reference value to look for the measured peak."},
+      {k:"order",label:"Correction",type:"sel",opts:[["1","A shift, or a line with two references or more"],["2","A parabola, with three references or more"]],hint:"A spectrometer's wavelength error often curves across the detector: a parabola through three references or more follows it."}],
+    defaults:{refs:[{ref:520.7}],win:10,order:"1"},
+    summary(p,d,x){ if(x&&x.co) return `X a parabola through ${x.found.length} references`; if(x&&x.shift!=null) return `X ${x.shift>=0?"+":"−"}${nf(Math.abs(x.shift),3)}${ux(d)}`; if(x&&x.a!=null) return `X × ${nf(x.a,6)} ${x.b>=0?"+":"−"} ${nf(Math.abs(x.b),4)}`; return `${(p.refs||[]).length} reference${(p.refs||[]).length===1?"":"s"}`; },
     run(d,p){
       const found=[], warn=[], w=Math.abs(+p.win||10);
       (p.refs||[]).forEach(r=>{ const ref=+r.ref; if(!Number.isFinite(ref)) return;
@@ -4625,6 +4625,12 @@ const PIPE_OPS={
       if(!found.length) return {d, extra:{found}, warn:warn.length?warn:["Add a reference peak."]};
       let x, extra={found};
       if(found.length===1){ const s=found[0].ref-found[0].m; x=d.x.map(v=>v+s); extra.shift=s; }
+      else if(p.order==="2"&&found.length>=3){ const co=polyfit(found.map(f=>f.m),found.map(f=>f.ref),2), F=v=>co[0]+co[1]*v+co[2]*v*v;
+        x=d.x.map(F); extra.co=co; extra.resid=found.map(f=>f.ref-F(f.m));
+        const lo=pMin(d.x), hi=pMax(d.x), s0=co[1]+2*co[2]*lo, s1=co[1]+2*co[2]*hi; if(s0*s1<=0) warn.push("The parabola turns back inside the data: X would run both ways. Use a line, or check the references."); }
+      else if(p.order==="2"&&found.length<3){ warn.push(`A parabola needs three references found; ${found.length} were, so a line is used.`);
+        const mx=pMean(found.map(f=>f.m)), my=pMean(found.map(f=>f.ref)); let sxy=0, sxx=0; found.forEach(f=>{ sxy+=(f.m-mx)*(f.ref-my); sxx+=(f.m-mx)**2; });
+        const a=sxx?sxy/sxx:1, b=my-a*mx; x=d.x.map(v=>a*v+b); extra.a=a; extra.b=b; extra.resid=found.map(f=>f.ref-(a*f.m+b)); }
       else { const mx=pMean(found.map(f=>f.m)), my=pMean(found.map(f=>f.ref)); let sxy=0, sxx=0;
         found.forEach(f=>{ sxy+=(f.m-mx)*(f.ref-my); sxx+=(f.m-mx)**2; });
         const a=sxx?sxy/sxx:1, b=my-a*mx; x=d.x.map(v=>a*v+b); extra.a=a; extra.b=b;
@@ -4710,21 +4716,37 @@ const PIPE_OPS={
     run(d,p){ const a=Number.isFinite(+p.a)?+p.a:1, b=+p.b||0, more={}; if(p.yn) more.yn=String(p.yn); if(p.yu) more.yu=String(p.yu);
       return {d:pser(d,d.x,d.y.map(v=>a*v+b),d.e?d.e.map(v=>v==null?v:Math.abs(a)*v):null,d.idx,more)}; }},
   ref:{group:"math", rank:3, label:"Subtract or divide by another column", short:"Reference",
-    help:"Combines this column with another one in the project, interpolated onto this X: a dark column to subtract, a lamp or white reference to divide by.",
+    help:"Combines this column with another one in the project, interpolated onto this X: a dark or solvent column to subtract (scaled by hand, or fitted so it cancels), a lamp or white reference to divide by.",
     params:[{k:"op",label:"Operation",type:"sel",opts:[["sub","Subtract"],["div","Divide by"],["add","Add"],["mul","Multiply by"]]},
-      {k:"ref",label:"Spectrum",type:"col"},{k:"use",label:"Take its",type:"sel",opts:[["raw","Original data"],["final","Processed data"]]},
-      {k:"k",label:"Scaled by",type:"num"}],
-    defaults:{op:"sub",ref:null,use:"raw",k:1}, deps:p=>p.ref?[[p.ref,p.use]]:[],
-    summary:(p,d,x,c)=>`${{sub:"−",div:"÷",add:"+",mul:"×"}[p.op]||"?"} ${p.k!=null&&+p.k!==1?nf(+p.k,4)+" × ":""}${(c&&c.name&&c.name(p.ref))||"?"} (${p.use==="final"?"processed":"raw"})`,
+      {k:"ref",label:"Column",type:"refcol"},{k:"use",label:"Take its",type:"sel",opts:[["raw","Original data"],["final","Processed data"]]},
+      {k:"fit",label:"Scale",type:"sel",opts:[["typed","As typed"],["fit","Fitted, so it cancels"],["fitb","Fitted, with an offset"]],show:p=>p.op==="sub",
+        hint:"Fitted: the scale (and offset) that make the difference smallest by least squares, over the range below or wherever both columns have values. For a solvent or a background whose strength differs from this column's."},
+      {k:"k",label:"Scaled by",type:"num",show:p=>p.op!=="sub"||!p.fit||p.fit==="typed"},
+      {k:"x0",label:"Fitted over, from",type:"x",blank:true,show:p=>p.op==="sub"&&(p.fit==="fit"||p.fit==="fitb"),hint:"Empty: wherever both columns have values. Choose a stretch where only the other column's features are, a solvent band say."},
+      {k:"x1",label:"to",type:"x",blank:true,show:p=>p.op==="sub"&&(p.fit==="fit"||p.fit==="fitb")},
+      {k:"dx",label:"Its X shifted by",type:"num",hint:"Moves the other column along X before it is used: for a reference recorded a little off this one's calibration."}],
+    pick:["x0","x1"],
+    defaults:{op:"sub",ref:null,use:"raw",k:1,fit:"typed",x0:null,x1:null,dx:0}, deps:p=>p.ref?[[p.ref,p.use]]:[],
+    summary:(p,d,x,c)=>`${{sub:"−",div:"÷",add:"+",mul:"×"}[p.op]||"?"} ${p.op==="sub"&&(p.fit==="fit"||p.fit==="fitb")?"fitted × ":p.k!=null&&+p.k!==1?nf(+p.k,4)+" × ":""}${(c&&c.name&&c.name(p.ref))||"?"} (${p.use==="final"?"processed":"original"})${+p.dx?`, shifted ${nf(+p.dx,4)}`:""}`,
     run(d,p,c){ const r=c&&c.refData?c.refData(p.ref,p.use):null; if(!r) throw new Error("Choose the other column.");
-      const k=Number.isFinite(+p.k)?+p.k:1, R=interpOnto(r.x,r.y,d.x), keep=[], y=d.y.slice();
+      const dx=Number.isFinite(+p.dx)?+p.dx:0, R=interpOnto(dx?r.x.map(v=>v==null?v:v+dx):r.x,r.y,d.x), keep=[], y=d.y.slice();
+      let k=Number.isFinite(+p.k)?+p.k:1, b0=0, fitNote="";
+      // Fitted: least squares of y against k·R (+ b) over the range, or wherever both have values.
+      if(p.op==="sub"&&(p.fit==="fit"||p.fit==="fitb")){ const lo=p.x0==null||p.x0===""?-Infinity:Math.min(+p.x0,p.x1==null||p.x1===""?Infinity:+p.x1), hi=p.x1==null||p.x1===""?Infinity:Math.max(+p.x1,p.x0==null||p.x0===""?-Infinity:+p.x0);
+        let n=0,sr=0,sy=0,srr=0,sry=0; for(let i=0;i<y.length;i++){ const v=R[i], x=d.x[i]; if(v==null||!Number.isFinite(y[i])||!(x>=lo&&x<=hi)) continue; n++; sr+=v; sy+=y[i]; srr+=v*v; sry+=v*y[i]; }
+        const off=p.fit==="fitb", det=n*srr-sr*sr;
+        if(n<(off?3:2)) throw new Error("Too few points where both columns have values in the fitted range: widen it or clear it.");
+        if(off){ if(!(Math.abs(det)>1e-300*Math.max(1,n*srr))) throw new Error("The other column is flat over the fitted range: a scale cannot be fitted there."); k=(n*sry-sr*sy)/det; b0=(sy-k*sr)/n; }
+        else { if(!(srr>0)) throw new Error("The other column is zero over the fitted range: a scale cannot be fitted there."); k=sry/srr; }
+        fitNote=`scaled by ${nf(k,5)}${off?`, offset ${nf(b0,5)}`:""}, fitted over ${n} point${n===1?"":"s"}`; }
       for(let i=0;i<y.length;i++){ const v=R[i]; if(v==null) continue; const q=k*v;
-        if(p.op==="div"){ if(q===0) continue; y[i]=y[i]/q; } else if(p.op==="mul") y[i]=y[i]*q; else if(p.op==="add") y[i]=y[i]+q; else y[i]=y[i]-q;
+        if(p.op==="div"){ if(q===0) continue; y[i]=y[i]/q; } else if(p.op==="mul") y[i]=y[i]*q; else if(p.op==="add") y[i]=y[i]+q; else y[i]=y[i]-q-b0;
         keep.push(i); }
       const dropped=y.length-keep.length;
       let e=d.e; if(e&&(p.op==="div"||p.op==="mul")) e=e.map((v,i)=>v==null||R[i]==null?v:Math.abs(v*(p.op==="div"?1/(k*R[i]):k*R[i])));
       const out=pickPts(pser(d,d.x,y,e,d.idx,p.op==="div"||p.op==="mul"?{yu:""}:{}),keep);
-      return {d:out, note:dropped?`${dropped} point${dropped===1?"":"s"} outside the other column's range dropped`:"", warn:keep.length<d.x.length*0.5?[`Only ${keep.length} of ${d.x.length} points overlap the other column.`]:[]}; }},
+      const note=[fitNote,dropped?`${dropped} point${dropped===1?"":"s"} outside the other column's range left out`:""].filter(Boolean).join("; ");
+      return {d:out, note, extra:{k,b:b0}, warn:keep.length<d.x.length*0.5?[`Only ${keep.length} of ${d.x.length} points overlap the other column${dx?"":": if its X is a little off, shift it"}.`]:[]}; }},
   deriv:{group:"math", rank:8, label:"Derivative", short:"Derivative",
     help:"Savitzky–Golay derivative. The second derivative turns shoulders into clear minima; both amplify noise, so the window matters.",
     params:[{k:"order",label:"Derivative",type:"sel",opts:[["1","First"],["2","Second"]]},{k:"win",label:"Window",type:"odd",min:5,max:301,slider:true,unit:"points"},{k:"poly",label:"Polynomial order",type:"int",min:2,max:6}],
@@ -6107,8 +6129,6 @@ function fitWarnings(f){
   const worst=deps.length?deps.reduce((a,b)=>b.v>a.v?b:a):null;
   if(worst&&worst.v>0.99) add("warn","dep",`${whose(worst.i)} is strongly tied to the other parameters (dependency ${fmt(worst.v,4)}). Its own value is less certain than its error suggests, as ${pk?"these peaks may not be separable: consider fixing a width or removing a peak.":"these data may not separate every parameter of this model."}`,
     `Dependency ${fmt(worst.v,4)} for ${whose(worst.i)}: not determined on its own.`,[["Fit window","fitwin"]]);
-  else if(worst&&worst.v>0.9) add("info","dep",`Highest parameter dependency ${fmt(worst.v,4)} (${whose(worst.i)}). Above about 0.99 the parameters stop being independently determined.`,
-    `Highest dependency ${fmt(worst.v,4)}, ${whose(worst.i)}.`);
   if(f.atBound&&f.atBound.some(Boolean)){
     const names=f.atBound.map((b,i)=>b?whose(i):null).filter(Boolean);
     add("warn","bound",`Stopped at a bound: ${names.join(", ")}. ${names.length===1?"Its error understates":"Their errors understate"} the real uncertainty.`,
@@ -11365,7 +11385,7 @@ function legendMenuItems(hit){
     onT?null:{label:cfg.legendTitle?"Edit its title":"Add a title",enabled:!ro,run:()=>inlineEditLegend("title")},
     onT&&cfg.legendTitle?{label:"Remove the title",enabled:!ro,run:()=>setPlotKey("legendTitle","","removed the legend title")}:null,
     hid.length?{label:`Show the hidden entr${hid.length===1?"y":"ies"} (${hid.length})`,enabled:!ro,run:()=>{ pushUndo("changing the plot style"); const series=Object.assign({},GP().series||{}); hid.forEach(q=>{ series[q]=Object.assign({},series[q],{leg:null}); }); savePlot({series},"showed every entry in the legend"); renderTop(); renderPlot(); }}:null].filter(Boolean);
-  const own=ent?[{label:"Hide this entry",enabled:!ro,run:()=>setSeriesStyle(ent,{leg:false},`left ${nm} out of the legend`)},
+  const own=ent?[...(c?curveShowItems(GID(),c.id).filter(Boolean):[]),{label:"Leave it out of the legend",enabled:!ro,title:"The curve stays drawn",run:()=>setSeriesStyle(ent,{leg:false},`left ${nm} out of the legend`)},
       ((cfg.series||{})[ent]||{}).label?{label:c?"Back to the column's name":"Back to “fit”",enabled:!ro,run:()=>setSeriesStyle(ent,{label:""},`restored the legend label of ${nm}`)}:null,
       {label:c?"Its line, symbols and colour…":"The fit curve's line and colour…",run:()=>openPlotDetails(ent,"series")},
       {label:"Legend",sub:()=>legend}]:legend;
@@ -11689,7 +11709,8 @@ function graphMenuItems(id,at){
         {label:"Group",note:(()=>{ const g=graphOf(GID()), q=g&&graphGroups(g.plot,g.cols).find(o=>o.ids.includes(c.id)); return q?q.name:""; })(),title:"Curves that share their plot type, and step their colour, symbol or line style together",sub:()=>groupItems(c,ro)},
         {label:"Labels from",note:u.lab?`column ${colLetter(colById(u.lab))}`:"",title:"Each point labelled with the value of a column in its row",sub:()=>[{label:"Nothing",radio:true,checked:!u.lab,enabled:!ro,run:()=>setCurveUse([c.id],{lab:null},`took the labels off the points of ${specName(c)}`)}]
           .concat(sib.map(o=>({label:`Column ${colLetter(o)}${o.name?`: ${o.name}`:""}`,radio:true,checked:u.lab===o.id,enabled:!ro,run:()=>setCurveUse([c.id],{lab:o.id},`labelled the points of ${specName(c)} with column ${colLetter(o)}`)})))}); }
-    if(!isAct) items.push({label:"Make it the active curve",title:"The one the Fit, Results and the tools work on",run:()=>setActiveCol(c.id)},{label:"Take it off this graph",run:()=>toggleColVis(c.id),enabled:!ro});
+    if(!isAct) items.push({label:"Make it the active curve",title:"The one the Fit, Results and the tools work on",run:()=>setActiveCol(c.id)});
+    items.push(...curveShowItems(GID(),c.id).filter(Boolean),{label:"Take it off this graph",run:()=>toggleColVis(c.id),enabled:!ro&&!isAct});
     items.push({label:"Open in a new graph",run:()=>newGraphFrom([c.id]),enabled:!ro});
     items.push(histOf(c.id)?{label:"Histogram bins…",run:()=>editHistStep(c.id)}:{label:"Histogram of its values",run:()=>histogramCols([c.id]),enabled:!ro});
     if(histOf(c.id)){ const cur=((GP().series||{})[c.id]||{}).dist||null;
@@ -15701,7 +15722,7 @@ function sheetMenuItems(sid){ const ro=S.readOnly||!P(), ss=sheetList(), i=ss.fi
     "-",{label:"Delete the sheet…",danger:true,enabled:!ro&&ss.length>1,title:ss.length>1?"Its columns go with it; Undo brings them back":"A project keeps one sheet",run:()=>deleteSheet(sid)}]); }
 // Data › Sheets: every sheet (the one shown ticked), then what to do with it.
 function sheetsMenuItems(){ const p=P(), ro=S.readOnly||!p, cur=curSheet();
-  return sheetList().map(s=>({label:s.name,radio:true,checked:s.id===cur,note:`${sheetCols(s.id).filter(c=>c.data.some(v=>v!=null)).length} col.`,run:()=>showSheet(s.id)}))
+  return sheetList().map(s=>({label:s.name,radio:true,checked:s.id===cur,run:()=>showSheet(s.id)}))
     .concat(["-",{label:"New sheet",enabled:!ro,run:()=>newSheet()},{label:"Rename this sheet…",enabled:!ro,run:()=>renameSheet(cur)},{label:"Delete this sheet…",danger:true,enabled:!ro&&sheetList().length>1,run:()=>deleteSheet(cur)}]); }
 function renderWsTabs(){ const box=$("#wsTabs"), p=P(); if(!box) return;
   if(!p||S.sheet==="final"){ box.hidden=true; box.innerHTML=""; return; }
@@ -15769,6 +15790,7 @@ function beginStepEdit(s,key){ if(isPending(s)) return; const tok=s.id+":"+key; 
 function paramDef(s,key){ const d=PIPE_OPS[s.op]; return d?(d.params||[]).find(q=>q.k===key):null; }
 function paramText(s,key,v){ const q=paramDef(s,key); if(!q) return String(v);
   if(q.type==="log") return `10^${fmt(v,3)}`; if(q.type==="sel") return ((q.opts||[]).find(o=>o[0]===v)||[,v])[1]; if(q.type==="bool") return v?"on":"off";
+  if(q.type==="refcol") return v?specName(colById(v)):"none";
   if(q.type==="catcol"){ const o=colById(v); return o?colRef(o)+(o.name?" "+o.name:""):"none"; }
   if(q.type==="col") return specName(colById(v)); if(q.type==="anchors") return `${(v||[]).length} anchors`;
   if(q.type==="refs") return (v||[]).map(r=>fmt(+r.ref,6)).join(", ")||"none"; if(q.type==="cols") return (v||[]).map(id=>specName(colById(id))).join(", ")||"none";
@@ -15955,6 +15977,7 @@ function paramControl(s,q,p,st){
   if(q.type==="sel") return `<select id="${id}" data-pk="${q.k}"${ro}>${q.opts.map(([k,l])=>`<option value="${esc(k)}"${String(k)===String(v)?" selected":""}>${esc(l)}</option>`).join("")}</select>`;
   if(q.type==="text") return `<div class="pair"><input type="text" id="${id}" data-pk="${q.k}" data-kind="text" maxlength="40" value="${esc(v==null?"":String(v))}"${ro} style="width:110px"></div>`;
   if(q.type==="bool") return `<label class="chk"><input type="checkbox" id="${id}" data-pk="${q.k}"${v?" checked":""}${ro}> ${esc(q.label)}</label>`;
+  if(q.type==="refcol") return `<select id="${id}" data-pk="${q.k}"${ro}><option value="">Choose…</option>${allCols().filter(o=>o!==self&&(o.role==="y"||o.role==="ignore")&&(o.src||hasVals(o))).map(o=>`<option value="${o.id}"${o.id===v?" selected":""}>${esc((o.role==="ignore"?colRef(o)+" ":"")+specName(o))}</option>`).join("")}</select>`;
   if(q.type==="catcol") return `<select id="${id}" data-pk="${q.k}"${ro}><option value="">Choose…</option>${allCols().filter(o=>o!==self&&!o.src&&hasVals(o)).map(o=>`<option value="${o.id}"${o.id===v?" selected":""}>${esc(colRef(o)+(o.name?" "+o.name:""))}</option>`).join("")}</select>`;
   if(q.type==="col") return `<select id="${id}" data-pk="${q.k}"${ro}><option value="">Choose…</option>${yCols().filter(y=>y!==self).map(y=>`<option value="${y.id}"${y.id===v?" selected":""}>${esc(specName(y))}</option>`).join("")}</select>`;
   if(q.type==="cols") return `<div class="colpick" id="${id}">${yCols().filter(y=>y!==self).map(y=>`<label class="chk"><input type="checkbox" data-pkc="${q.k}" value="${y.id}"${(v||[]).includes(y.id)?" checked":""}${ro}> ${esc(specName(y))}</label>`).join("")||`<span class="lab">No other column in this project.</span>`}</div>`;
@@ -16049,7 +16072,7 @@ function wireStepForms(box){
     if(q&&q.type==="code"){ setParam(s,k,e.target.value,true); return; }
     if(q&&q.type==="text"){ setParam(s,k,e.target.value.trim().slice(0,40),true); return; }
     if(e.target.type==="checkbox") v=e.target.checked;
-    else if(q&&(q.type==="sel"||q.type==="col")) v=e.target.value||null;
+    else if(q&&(q.type==="sel"||q.type==="col"||q.type==="refcol"||q.type==="catcol")) v=e.target.value||null;
     else { v=parseNum(e.target.value);
       if(v==null&&q&&q.blank&&e.target.value.trim()===""){ setParam(s,k,null,true); return; }
       if(v==null&&q&&(q.type==="num"||q.type==="x")&&e.target.value.trim()===""&&k==="dx") v=0;
@@ -16203,19 +16226,9 @@ function stageLegend(ps,pal){
    not offer the choice, and a first user is not asked to tell them apart. The export
    always names both. */
 function anyProcessing(){ const p=P(); return !!p&&(!!S.pending||allCols().some(c=>c.role==="y"&&(!!c.src||(c.pipe||[]).some(s=>s.on!==false)))); }
-function renderViewSeg(){
-  const seg=$("#viewSeg"); if(!seg) return;
-  const show=anyProcessing(), sep=seg.previousElementSibling; seg.hidden=!show; if(sep&&sep.classList.contains("rsep")) sep.hidden=!show;
-  if(!show&&(S.stage!=null||S.cmp)){ S.stage=null; S.cmp=false; }
-  const p=P(), has=!!(p&&activeYCol()&&pipeOf(activeYCol())&&pipeOf(activeYCol()).input.x.length);
-  const cur=S.stage===0?"raw":S.stage==null?(S.cmp?"cmp":"final"):"";
-  seg.querySelectorAll("button").forEach(b=>{ b.setAttribute("aria-pressed",String(b.dataset.view===cur)); b.disabled=!has; });
-}
-function setViewMode(m){
-  if(m==="raw"){ S.selStep=null; setStage(0,{cmp:false}); }
-  else if(m==="cmp"){ S.selStep=null; setStage(null,{cmp:!(S.stage==null&&S.cmp)}); }
-  else { S.selStep=null; setStage(null,{cmp:false}); }
-}
+// The graph shows the processed data. An earlier stage is shown only while its box is selected in
+// the History (the stage chip says so, with the way back): the graph's bar has no switch of its
+// own for it (11.11, the user's request: one view, not three to keep track of).
 /* Dragging an anchor sets its X and its height; a right-click removes it,
    and in anchor mode a click on empty graph adds one on the data. */
 function anchorStep(){ const s=S.selStep&&stepById(S.selStep); return s&&s.op==="bg"&&(s.p||{}).method==="anchors"?s:null; }
@@ -16672,7 +16685,7 @@ async function doImport(){
     const raw=recordRaw(`added ${what} from ${im.fname}`);
     if(mode==="sheet"){ S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=sid; S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; S.wsSort=null; }
     await save(Object.assign({cols:p.cols,activeY:p.activeY,meta:p.meta,graphs:p.graphs},mode==="sheet"?{sheets:p.sheets}:{},raw?{raw}:{}),`added ${what} from ${im.fname}${mode==="sheet"?` on the sheet ${sheetName(sid)}`:""}${stepNote}${own?", with its own X column because it was measured on a different axis":""}${how==="none"?", not plotted yet":""}`);
-    if(cols[0]&&cols[0].fid) xNew(["f:"+cols[0].fid]);
+    if(cols[0]) xNew(["ws:"+sheetOf(cols[0])]);
     afterImport(how,ids,made,mode==="sheet"?`Added ${what} on the sheet ${sheetName(sid)}.`:own?`Added ${what}. ${ys.length===1?"It was":"They were"} measured on a different X axis, so ${ys.length===1?"it has":"they have"} an X column of ${ys.length===1?"its":"their"} own. Nothing was interpolated.`:`Added ${what}.`,true);
     return;
   }
@@ -16688,7 +16701,7 @@ async function doImport(){
   Object.assign(p,patch);
   const raw=recordRaw(`replaced all the original data with ${im.fname}`); if(raw) patch.raw=raw;
   await save(patch,`replaced the data with ${what} from ${im.fname}${stepNote}${how==="none"?", not plotted yet":""}`);
-  if(cols[0]&&cols[0].fid) xNew(["f:"+cols[0].fid]);
+  if(cols[0]) xNew(["ws:"+sheetOf(cols[0])]);
   afterImport(how,ids,made,hadData?`Imported ${what}. The previous original data is in the undo history and its check code in the record.`:`Imported ${what}.`,true);
 }
 // After an import: the worksheet comes forward when nothing was plotted, with
@@ -16833,7 +16846,7 @@ async function doBatchImport(good,skip,o){
     if(own){ patch.sheets=p.sheets=sheetList(p).concat([{id:sid,name:sheetNameFor(batchProjName(names))}]); S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=sid; S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; S.wsSort=null; }
     if(!keep&&isUntitled(p.name)) patch.name=uniqueProjName(batchProjName(names),S.pid);
     await save(patch,lg);
-    xNew([...new Set(cols.filter(c=>c.fid&&newY.some(y=>colById(y)&&colById(y).fid===c.fid)).map(c=>"f:"+c.fid))]);
+    xNew([...new Set(cols.filter(c=>!c.src).map(c=>"ws:"+sheetOf(c)))]);
     renderAll();
   }
   const mks=metaKeys(cols.filter(c=>newY.includes(c.id)));
@@ -16904,16 +16917,16 @@ async function autoImport(files,o){
   Object.assign(p,patch);
   const raw=recordRaw(fresh?`recorded from ${what}`:`added ${what}`); if(raw) patch.raw=raw;
   await save(patch,`${fresh?"imported":"added"} ${what}, dropped on the window${bad.length?`; skipped ${bad.map(s=>s.split(",")[0]).join(", ")}`:""}`);
-  const fids=[...new Set(cols.filter(c=>built.some(b=>b.cols.includes(c))).map(c=>c.fid).filter(Boolean))];
-  if(o.folder) xFile(fids.map(f=>"f:"+f),o.folder); else xNew(fids.map(f=>"f:"+f));
-  if(!ids.length){ renderAll(); sheetForward(); toast(`Imported ${what}: no column is a Y column, so nothing was plotted. The columns are in the worksheet.`,{action:"Undo",run:undo}); return {fids}; }
+  const sks=[...new Set(cols.filter(c=>built.some(b=>b.cols.includes(c))).map(c=>"ws:"+sheetOf(c)))];
+  if(o.folder) xFile(sks,o.folder); else xNew(sks);
+  if(!ids.length){ renderAll(); sheetForward(); toast(`Imported ${what}: no column is a Y column, so nothing was plotted. The columns are in the worksheet.`,{action:"Undo",run:undo}); return {sheets:sks}; }
   // Dropped anywhere but on a graph, the columns go into the worksheet and nothing is
   // plotted: a graph is made when it is asked for (Plot, or a drop on a graph).
   if(!o.gid||!(fresh||graphOf(o.gid))){ renderAll(); sheetForward();
     const nm=ids.length===1?specName(colById(ids[0])):`${ids.length} columns`;
     toast(`${nm} from ${what} ${ids.length===1?"is":"are"} in the worksheet${bad.length?`. Skipped: ${bad.join("; ")}`:""}.`,
       {action:"Plot",run:()=>plotCols(ids.filter(k=>colById(k)),{})});
-    return {fids}; }
+    return {sheets:sks}; }
   const into=fresh?null:o.gid;
   plotCols(ids,{into,noUndo:true,quiet:true});
   if(o.folder&&S.gid) xFile(["g:"+S.gid],o.folder);
@@ -16922,7 +16935,7 @@ async function autoImport(files,o){
   if(ids.length===1) setTimeout(autoOverview,250);
   toast(`${nm} from ${what} ${ids.length===1?"is":"are"} plotted in ${graphName(S.gid)}${bad.length?`. Skipped: ${bad.join("; ")}`:""}.`,
     built.length===1?{action:"Read it differently",run:()=>{ undo(); openImport(built[0].text,built[0].fname); }}:{action:"Undo",run:undo});
-  return {fids,gid:S.gid};
+  return {sheets:sks,gid:S.gid};
 }
 /* ---- The Project Explorer --------------------------------------------------------
    As Origin's: the project as a tree beside the desk. Folders and subfolders
@@ -16969,7 +16982,7 @@ function saveTree(t,log,o){ o=o||{}; if(!P()||S.readOnly) return false; if(!o.no
   const have=xKeys(P()), at={}; Object.keys(t.at).forEach(k=>{ if(have.has(k)) at[k]=t.at[k]; });
   save({tree:{folders:t.folders,at}},log||null); renderXpl(); return true; }
 // Every item the tree can hold, by its key.
-function xKeys(p){ const s=new Set(sheetList(p).map(q=>"ws:"+q.id)); xFiles(p).forEach(f=>s.add(f.key)); graphIds().forEach(id=>s.add("g:"+id)); trendList().forEach(t=>s.add("t:"+t.id)); return s; }
+function xKeys(p){ const s=new Set(sheetList(p).map(q=>"ws:"+q.id)); graphIds().forEach(id=>s.add("g:"+id)); trendList().forEach(t=>s.add("t:"+t.id)); return s; }
 // Puts items in a folder (null: the project's top level). No undo entry of its own:
 // it follows a change that made one.
 function xFile(keys,folder,o){ const t=treeOf(), v=folder&&xFolder(t,folder)?folder:null, at=Object.assign({},t.at); let ch=false;
@@ -16977,15 +16990,7 @@ function xFile(keys,folder,o){ const t=treeOf(), v=folder&&xFolder(t,folder)?fol
 // What is made while a folder is active goes into it.
 function xNew(keys){ if(!xplShown()) return; const f=xActiveFolder(); if(f) xFile(keys,f); }
 function xActiveFolder(){ const t=treeOf(), k=S.xplSel; if(!k) return null; if(k.startsWith("d:")) return xFolder(t,k.slice(2))?k.slice(2):null;
-  const r=(S.xplRows||[]).find(x=>x.key===k); const own=r&&r.kind==="col"||r&&r.kind==="spec"?r.parent:k; return t.at[own]||null; }
-// The files of the project: the columns that came in together, by their file id
-// (older projects: by file name), and the columns typed in the worksheet.
-function xFiles(p){ p=p||P(); const map=new Map();
-  (p.cols||[]).forEach((c,i)=>{ if(c.src) return; const key=c.fid?"f:"+c.fid:c.file?"f:@"+c.file:"f:@"; let f=map.get(key);
-    if(!f){ f={key,name:c.file||"Typed in the worksheet",cols:[],first:i}; map.set(key,f); } f.cols.push(c); });
-  // The empty columns a new project starts with are not a file yet.
-  return [...map.values()].filter(f=>f.key!=="f:@"||f.cols.some(c=>c.fx||(c.data||[]).some(v=>v!=null))).sort((a,b)=>a.first-b.first); }
-function xFileKids(f,p){ const out=[]; f.cols.filter(c=>c.role==="y"||c.role==="ignore").forEach(c=>{ out.push(c); (p.cols||[]).filter(d=>d.src&&rootOf(d)===c).forEach(d=>out.push(d)); }); return out; }
+  return t.at[k]||null; }
 function xExp(){ S.xplExp=S.xplExp||{}; return S.xplExp[S.pid]=S.xplExp[S.pid]||{}; }
 // The rows shown: the tree flattened, folders open unless closed, files closed
 // unless opened; a filter shows what matches and where it is.
@@ -16993,9 +16998,9 @@ function xRows(){
   const p=P(); if(!p) return [];
   const t=treeOf(p), q=(S.xplQ||"").trim().toLowerCase(), exp=xExp(), rows=[], items=[];
   const cur=curSheet(), many=sheetList(p).length>1;
-  sheetList(p).forEach(s=>items.push({key:"ws:"+s.id,kind:"ws",sid:s.id,name:many?s.name:"Worksheet",icon:"table",note:winMin("sheet")&&s.id===cur?"minimised":many&&s.id===cur?"shown":"",tip:`The sheet ${s.name}: ${sheetCols(s.id).filter(c=>c.data.some(v=>v!=null)).length} columns with values`}));
-  xFiles(p).forEach(f=>items.push({key:f.key,kind:"file",name:f.name,icon:"file",file:f,note:`${f.cols.length} column${f.cols.length===1?"":"s"}`}));
-  // A figure holds its panels, as a file its columns.
+  sheetList(p).forEach(s=>items.push({key:"ws:"+s.id,kind:"ws",sid:s.id,name:many?s.name:"Worksheet",icon:"table",note:winMin("sheet")&&s.id===cur?"minimised":"",tip:`${s.name}: ${(n=>`${n} column${n===1?"":"s"} with values`)(sheetCols(s.id).filter(hasVals).length)}`}));
+  // A figure holds its panels. The sheets hold the columns: the worksheet shows them, so the tree
+  // does not list them again (information hygiene: one place for one thing).
   deskGraphIds().forEach(id=>{ const w=winOfGraph(id), fg=graphOf(id)&&graphOf(id).fig, cs=fg?[]:graphCols(id), np=fg?fg.cells.length:0;
     items.push({key:"g:"+id,kind:"graph",gid:id,name:graphName(id),icon:fg?"tile":"chart",panels:fg?figOrder(fg).map(c=>c.gid):null,
     note:graphShut(id)?"hidden":winMin(w)?"minimised":fg?`${np} panel${np===1?"":"s"}`:"", tip:fg?`${graphName(id)}: a figure of ${np} panel${np===1?"":"s"}`:`${graphName(id)}: ${cs.length?andList(cs.slice(0,6).map(specName))+(cs.length>6?` and ${cs.length-6} more`:""):"nothing plotted"}`}); });
@@ -17004,12 +17009,11 @@ function xRows(){
   const walk=(fid,level,pk)=>{
     t.folders.filter(f=>(f.parent||null)===fid).forEach(f=>{ if(seen.has(f.id)) return; seen.add(f.id); const k="d:"+f.id, open=q?true:exp[k]!==false;
       rows.push({key:k,kind:"folder",fid:f.id,name:f.name,icon:"folder",level,parent:pk,exp:true,open}); if(open) walk(f.id,level+1,k); });
-    items.filter(it=>fold(it.key)===fid).forEach(it=>{ const kids=it.kind==="file"?xFileKids(it.file,p):it.panels||null, open=!!kids&&kids.length>0&&(q?true:it.panels?exp[it.key]!==false:exp[it.key]===true);
+    items.filter(it=>fold(it.key)===fid).forEach(it=>{ const kids=it.panels||null, open=!!kids&&kids.length>0&&(q?true:it.panels?exp[it.key]!==false:exp[it.key]===true);
       rows.push(Object.assign({},it,{level,parent:pk,exp:!!(kids&&kids.length),open}));
       if(open&&it.panels){ it.panels.forEach(g=>{ const cs=graphCols(g); rows.push({key:"g:"+g,kind:"graph",gid:g,panel:true,name:[figLetter(g),graphName(g)].filter(Boolean).join(" "),icon:"chart",level:level+1,parent:it.key,
         note:g===S.gid?"in front":"", tip:`${graphTitle(g)}: ${cs.length?andList(cs.slice(0,6).map(specName)):"nothing plotted"}`}); }); return; }
-      if(open) kids.forEach(c=>rows.push({key:"c:"+c.id,kind:c.role==="y"?"spec":"col",cid:c.id,name:specName(c),icon:c.role==="y"?"peak":"table",level:level+1,parent:it.key,
-        note:c.id===p.activeY?"analysed":c.src?"derived":c.role==="ignore"?"data":""})); });
+    });
   };
   rows.push({key:"root",kind:"root",name:projName(p),icon:"folder",level:0,parent:null,exp:true,open:true});
   walk(null,1,"root");
@@ -17025,7 +17029,7 @@ function renderXpl(){
   const rows=S.xplRows=xRows(), front=frontWinId();
   if(!rows.some(r=>r.key===S.xplSel)) S.xplSel=null;
   const sel=S.xplSel||"root";
-  box.innerHTML=rows.map((r,i)=>{ const live=r.kind==="graph"&&winOpen(winOfGraph(r.gid))&&front===winOfGraph(r.gid), drag=r.kind!=="root"&&!S.readOnly;
+  box.innerHTML=rows.map((r,i)=>{ const live=r.kind==="graph"&&winOpen(winOfGraph(r.gid))&&front===winOfGraph(r.gid)||r.kind==="ws"&&r.sid===curSheet()&&front==="sheet", drag=r.kind!=="root"&&!S.readOnly;
     return `<div class="xr${r.kind==="graph"&&graphShut(r.gid)?" shut":""}${live?" live":""}" role="treeitem" id="xr${i}" data-xk="${esc(r.key)}" aria-level="${r.level+1}"${r.exp?` aria-expanded="${r.open}"`:""} aria-selected="${r.key===sel}" tabindex="${r.key===sel?0:-1}"${drag?` draggable="true"`:""}${r.kind==="folder"||r.kind==="root"?` data-xfold="${r.kind==="folder"?esc(r.fid):""}"`:""} style="--lv:${r.level}" title="${esc(r.tip||r.name)}">`+
       `<span class="xtw"${r.exp?" data-xtw":""} aria-hidden="true">${r.exp?ICON(r.open?"chev":"chevr","sm"):""}</span>${ICON(r.kind==="graph"&&graphShut(r.gid)?"eyeoff":r.icon,"sm")}<span class="xn">${esc(r.name)}</span>${r.note?`<span class="xnote">${esc(r.note)}</span>`:""}</div>`; }).join("")
     +(S.xplQ&&rows.length<2?`<p class="xempty">Nothing called “${esc(S.xplQ)}”.</p>`:"");
@@ -17039,7 +17043,7 @@ function xSelect(key,focus){ S.xplSel=key; const box=$("#xplTree"); if(!box) ret
 const xRow=k=>(S.xplRows||[]).find(r=>r.key===k)||null;
 function xToggle(key,v){ const e=xExp(), r=xRow(key); if(!r||!r.exp||r.kind==="root") return; const open=v==null?!r.open:!!v;
   if(r.kind==="folder") e[key]=open; else e[key]=open||undefined; renderXpl(); }
-function xExpandAll(v){ const e=xExp(), t=treeOf(); t.folders.forEach(f=>{ e["d:"+f.id]=v; }); xFiles(P()).forEach(f=>{ e[f.key]=v||undefined; }); renderXpl(); }
+function xExpandAll(v){ const e=xExp(), t=treeOf(); t.folders.forEach(f=>{ e["d:"+f.id]=v; }); deskGraphIds().forEach(id=>{ if(graphOf(id).fig) e["g:"+id]=v; }); renderXpl(); }
 function xOpen(r){
   if(!r) return;
   // On a phone the drawer gives way to what was opened.
@@ -17047,18 +17051,8 @@ function xOpen(r){
   if(r.kind==="graph") showGraph(r.gid);
   else if(r.kind==="ws") showSheet(r.sid);
   else if(r.kind==="trend") openWin(r.tid,{render:true});
-  else if(r.kind==="file") xRevealCols(r.file.cols.map(c=>c.id));
-  else if(r.kind==="spec") goSpectrum(r.cid);
-  else if(r.kind==="col") xRevealCols([r.cid]);
   else if(r.kind==="folder") xToggle(r.key);
 }
-// A file's columns, selected in the Raw sheet.
-function xRevealCols(ids){ if(!P()) return; if(S.sheet!=="raw") setSheet("raw");
-  // On their sheet.
-  { const c=ids.map(colById).find(Boolean), sid=c?sheetOf(c):null; if(sid&&sid!==curSheet()) showSheet(sid,{quiet:true}); }
-  openWin("sheet",{render:true}); focusWin("sheet");
-  const m=wsLive(); const idx=m.cols.map((q,i)=>q.col&&ids.includes(q.col.id)?i:-1).filter(i=>i>=0); if(!idx.length) return;
-  const s=S.ws; s.c=amin(idx); s.ac=amax(idx); s.r=0; s.ar=Math.max(0,m.n-1); s.want=null; wsEnsureVisible(0,s.c); wsPaintSel(); }
 async function xNewFolder(parent,thenKey){ if(S.readOnly||!P()) return;
   const r=await formDlg({title:parent?`New folder in “${xFolderName(parent)}”`:"New folder",html:`<div class="grid2"><label for="fdXf">Name</label><input id="fdXf" type="text" maxlength="80" value="New folder"></div>`,ok:"Make it",focus:"#fdXf",valid:v=>v.fdXf.trim().length>0});
   if(!r||!P()) return; const t=treeOf(), id="d"+Math.random().toString(36).slice(2,9);
@@ -17076,25 +17070,6 @@ function xMove(key,folder){ if(S.readOnly||!P()) return false; const t=treeOf(),
   if(key.startsWith("d:")){ const id=key.slice(2), f=xFolder(t,id); if(!f||(to&&(to===id||xUnder(t,to,id)))) return false; if((f.parent||null)===to) return false; f.parent=to; }
   else { if((t.at[key]||null)===to) return false; if(to) t.at[key]=to; else delete t.at[key]; }
   if(to) xExp()["d:"+to]=true; saveTree(t,null,{undo:"moving something to a folder"}); return true; }
-async function xRenameFile(fkey){ const p=P(), f=xFiles(p).find(x=>x.key===fkey); if(!f||S.readOnly) return;
-  const r=await formDlg({title:"Rename the file",html:`<div class="grid2"><label for="fdXn">Name</label><input id="fdXn" type="text" maxlength="200" value="${esc(f.file===undefined&&fkey==="f:@"?"":f.name)}"></div>`,ok:"Rename",focus:"#fdXn",valid:v=>v.fdXn.trim().length>0});
-  if(!r||!P()) return; const q=P(), v=r.fdXn.trim().slice(0,200), cols=xFiles(q).find(x=>x.key===fkey); if(!cols) return;
-  pushUndo("renaming a file");
-  // An older file is known by its name: it gets an id of its own, so its place in the tree stays.
-  const fid=cols.cols[0].fid||"f"+Math.random().toString(36).slice(2,9), t=treeOf(q), at=Object.assign({},t.at), was=at[fkey];
-  cols.cols.forEach(c=>{ c.file=v; c.fid=fid; }); delete at[fkey]; if(was) at["f:"+fid]=was;
-  save({cols:q.cols,tree:{folders:t.folders,at}},`renamed the file ${cols.name} “${v}”`); S.xplSel="f:"+fid; renderAll(); }
-async function xDeleteFile(fkey){ const p=P(), f=xFiles(p).find(x=>x.key===fkey); if(!f||S.readOnly) return;
-  const ys=f.cols.filter(c=>c.role==="y");
-  if(!(await confirmDlg(`Delete ${f.name}?`,`Its ${f.cols.length} column${f.cols.length===1?"":"s"}${ys.length?`, ${ys.length} Y column${ys.length===1?"":"s"} with their processing, peaks and fits,`:""} and any column made from them leave the project. The original-data record notes it, and Undo brings them back.`,"Delete",true))) return;
-  const q=P(); if(!q) return; pushUndo("deleting a file");
-  const gone=new Set(f.cols.map(c=>c.id)); let grew=true;
-  while(grew){ grew=false; q.cols.forEach(o=>{ if(o.src&&gone.has(o.src)&&!gone.has(o.id)){ gone.add(o.id); grew=true; } }); }
-  q.cols=q.cols.filter(o=>!gone.has(o.id)&&!gone.has(o.of)); migrate(q); S.draft=null; S.pdraft=null; S.stage=null; S.selStep=null;
-  const t=treeOf(q), at=Object.assign({},t.at); delete at[fkey];
-  const raw=recordRaw(`deleted the file ${f.name} (${f.cols.length} column${f.cols.length===1?"":"s"})`);
-  save(Object.assign({cols:q.cols,activeY:q.activeY,tree:{folders:t.folders,at}},raw?{raw}:{}),`deleted the file ${f.name} and its ${f.cols.length} column${f.cols.length===1?"":"s"}`); renderAll();
-  toast(`Deleted ${f.name}.`,{action:"Undo",run:undo}); }
 function xMenu(r){
   const p=P(), ro=S.readOnly||!p, t=treeOf();
   const moveTo=()=>{ const own=r.kind==="folder"?r.fid:null, cur=r.kind==="folder"?(xFolder(t,r.fid)||{}).parent||null:t.at[r.key]||null;
@@ -17111,19 +17086,13 @@ function xMenu(r){
     return [{group:r.name,plain:true},{label:shut?"Open":"Bring to the front",kbd:"Enter",run:()=>showGraph(r.gid)},{label:"Close (hide it)",enabled:!ro&&!shut,run:()=>closeGraph(r.gid)},
       {label:"Rename…",kbd:"F2",enabled:!ro,run:()=>renameGraph(r.gid)},on||null,{label:"Duplicate",enabled:!ro,run:()=>duplicateGraph(r.gid)},move,
       "-",{label:"Delete the graph",kbd:"Delete",danger:true,enabled:!ro,run:()=>deleteGraph(r.gid)}]; }
-  if(r.kind==="file"){ const ids=r.file.cols.filter(c=>c.role==="y"||c.role==="ignore").map(c=>c.id);
-    return [{group:r.name,plain:true},{label:"Show in the worksheet",kbd:"Enter",run:()=>xOpen(r)},{label:"Plot its columns",enabled:!ro&&ids.length>0,sub:()=>plotItems(ids)},
-      {label:"Rename…",kbd:"F2",enabled:!ro,run:()=>xRenameFile(r.key)},move,"-",{label:"Delete it and its columns…",kbd:"Delete",danger:true,enabled:!ro,run:()=>xDeleteFile(r.key)}]; }
-  if(r.kind==="spec") return [{group:r.name,plain:true},{label:"Analyse it",kbd:"Enter",run:()=>goSpectrum(r.cid)},{label:"Plot",enabled:!ro,sub:()=>plotItems([r.cid])},
-    {label:"Show in the worksheet",run:()=>xRevealCols([rootOf(colById(r.cid)).id])},{label:"Its history and processing…",run:()=>{ setActiveCol(r.cid,true); S.flowSel="final:"+r.cid; S.flowTab="flow"; openWin("flow",{render:true}); }}];
-  if(r.kind==="col") return [{group:r.name,plain:true},{label:"Show in the worksheet",kbd:"Enter",run:()=>xRevealCols([r.cid])},{label:"Plot (it becomes a spectrum)",enabled:!ro,sub:()=>plotItems([r.cid])}];
   if(r.kind==="ws") return [{group:sheetName(r.sid)||"Worksheet",plain:true},{label:"Open",kbd:"Enter",run:()=>xOpen(r)},{label:"Rename…",kbd:"F2",enabled:!S.readOnly,run:()=>renameSheet(r.sid)},move,"-",{label:"New sheet",enabled:!S.readOnly,run:()=>newSheet()},{label:"Delete the sheet…",danger:true,enabled:!S.readOnly&&sheetList().length>1,run:()=>deleteSheet(r.sid)}];
   if(r.kind==="trend") return [{group:r.name,plain:true},{label:"Open",kbd:"Enter",run:()=>xOpen(r)},{label:"Rename…",kbd:"F2",enabled:!ro,run:()=>renameTrend(r.tid)},move,
     "-",{label:"Delete the trend graph",kbd:"Delete",danger:true,enabled:!ro,run:()=>deleteTrend(r.tid)}];
   return [];
 }
-function xRename(r){ if(!r||S.readOnly) return; if(r.kind==="ws") renameSheet(r.sid); else if(r.kind==="folder") xRenameFolder(r.fid); else if(r.kind==="graph") renameGraph(r.gid); else if(r.kind==="trend") renameTrend(r.tid); else if(r.kind==="file") xRenameFile(r.key); else if(r.kind==="root") renameProject(); }
-function xDelete(r){ if(!r||S.readOnly) return; if(r.kind==="ws") deleteSheet(r.sid); else if(r.kind==="folder") xDeleteFolder(r.fid); else if(r.kind==="graph") deleteGraph(r.gid); else if(r.kind==="trend") deleteTrend(r.tid); else if(r.kind==="file") xDeleteFile(r.key); }
+function xRename(r){ if(!r||S.readOnly) return; if(r.kind==="ws") renameSheet(r.sid); else if(r.kind==="folder") xRenameFolder(r.fid); else if(r.kind==="graph") renameGraph(r.gid); else if(r.kind==="trend") renameTrend(r.tid); else if(r.kind==="root") renameProject(); }
+function xDelete(r){ if(!r||S.readOnly) return; if(r.kind==="ws") deleteSheet(r.sid); else if(r.kind==="folder") xDeleteFolder(r.fid); else if(r.kind==="graph") deleteGraph(r.gid); else if(r.kind==="trend") deleteTrend(r.tid); }
 // What a drag from the tree carries, and where it may land.
 const xDragKind=k=>{ const r=xRow(k); return r?r.kind:null; };
 function wireXpl(){
@@ -17158,15 +17127,15 @@ function wireXpl(){
   const ours=e=>!!S.xdrag&&!!e.dataTransfer&&[...(e.dataTransfer.types||[])].includes("text/x-kurve-node");
   const target=e=>{ if(!ours(e)) return null; const el=e.target.closest&&e.target.closest(".xr[data-xfold]"); if(!el) return null;
     const to=el.dataset.xfold||null, k=S.xdrag, t=treeOf(); if(k.startsWith("d:")&&to&&(to===k.slice(2)||xUnder(t,to,k.slice(2)))) return null;
-    const kind=xDragKind(k); if(kind==="spec"||kind==="col"||kind==="root") return null; return el; };
+    const kind=xDragKind(k); if(kind==="root") return null; return el; };
   box.addEventListener("dragover",e=>{ const el=target(e); box.querySelectorAll(".xdrop").forEach(x=>{ if(x!==el) x.classList.remove("xdrop"); }); if(!el) return; e.preventDefault(); e.dataTransfer.dropEffect="move"; el.classList.add("xdrop"); });
   box.addEventListener("drop",e=>{ const el=target(e); if(!el) return; e.preventDefault(); e.stopPropagation(); const k=S.xdrag; el.classList.remove("xdrop"); S.xdrag=null; xMove(k,el.dataset.xfold||null); });
-  // A spectrum, a data column or a file dragged onto a graph window is plotted there.
-  const graphUnder=e=>{ if(!ours(e)) return null; const kind=xDragKind(S.xdrag); if(kind!=="spec"&&kind!=="col"&&kind!=="file") return null;
+  // A sheet dragged onto a graph window: its Y columns are plotted there.
+  const graphUnder=e=>{ if(!ours(e)) return null; const kind=xDragKind(S.xdrag); if(kind!=="ws") return null;
     for(const el of document.elementsFromPoint(e.clientX,e.clientY)){ const w=el.closest&&el.closest(".win.gwin"); if(w&&!w.hidden){ const g=graphIn(el,w); if(g) return {w,g}; } } return null; };
   window.addEventListener("dragover",e=>{ const t=graphUnder(e); document.querySelectorAll(".win.dropin").forEach(x=>{ if(!t||x!==t.w) x.classList.remove("dropin"); }); if(!t) return; e.preventDefault(); e.dataTransfer.dropEffect="copy"; t.w.classList.add("dropin"); });
   window.addEventListener("drop",e=>{ const t=graphUnder(e); if(!t) return; e.preventDefault(); const r=xRow(S.xdrag); t.w.classList.remove("dropin"); S.xdrag=null; if(!r) return;
-    const ids=r.kind==="file"?r.file.cols.filter(c=>c.role==="y"||c.role==="ignore").map(c=>c.id):[r.cid]; if(ids.length) plotCols(ids,{into:t.g}); });
+    const ids=sheetCols(r.sid).filter(c=>c.role==="y"&&hasVals(c)).map(c=>c.id); if(ids.length) plotCols(ids,{into:t.g}); else toast(`${sheetName(r.sid)} has no Y column to plot.`); });
   // The header: a new folder in the active one, collapse, help, close; the filter.
   $("#xplNew").onclick=()=>xNewFolder(xActiveFolder());
   $("#xplFold").onclick=()=>xExpandAll(false);
@@ -17729,8 +17698,8 @@ function fitResidHtml(peaks){ const p=P(), on=!!p&&residOn(GP(),activeFit()||res
    two matrices and the residual analysis, and for a peak fit every parameter.
    Results shows what is chosen open; the report and the copied table carry all
    of it. Kept per browser (kurve.rshow). */
-const RSHOW_DEF={ci:true,anova:false,corr:true,cov:false,resid:true,find:true,par:false};
-const RSHOW=[["ci","Confidence intervals"],["anova","Analysis of variance"],["corr","Correlation matrix"],["cov","Covariance matrix"],["resid","Residual analysis"],["find","Find X/Y"]];
+const RSHOW_DEF={ci:false,tp:false,dep:false,anova:false,corr:false,cov:false,resid:true,find:true,par:false};
+const RSHOW=[["ci","Confidence intervals"],["tp","t and p values"],["dep","Dependency"],["anova","Analysis of variance"],["corr","Correlation matrix"],["cov","Covariance matrix"],["resid","Residual analysis"],["find","Find X/Y"]];
 function rShow(){ if(!S.rShow){ let o=null; try{ o=JSON.parse(localStorage.getItem("kurve.rshow")||"null"); }catch(e){}
     S.rShow={}; for(const k in RSHOW_DEF) S.rShow[k]=o&&typeof o==="object"&&typeof o[k]==="boolean"?o[k]:RSHOW_DEF[k]; }
   return S.rShow; }
@@ -18890,6 +18859,18 @@ function derivedRows(f){
   const [xu,yu]=parUnits(f);
   return derivedWithErr(FM.model,f.params,f.cov).map((x,i)=>({name:x.name,v:x.v,e:x.e,unit:unitFor(((FM.model.derived||[])[i]||{}).dim,xu,yu)}));
 }
+// brief: Results' list beside the table (information hygiene): the numbers a fit is judged by, and a
+// setting only when it is not the default. The report and the copied table keep the whole list.
+function statsBrief(f){ const L=statsList(f), drop=new Set(["Free parameters","Residual sum of squares","AIC","BIC","Points in all","Parameters in all"]);
+  // A range that holds every point of the column is all the data: nothing to say.
+  const allIn=()=>{ if(!f.range) return true; const P=fitPts(f); return !!P.length&&P.every(q=>q.x>=f.range[0]&&q.x<=f.range[1]); };
+  return L.filter(([k,v])=>{ if(drop.has(k)) return false;
+    if(k==="Fitted over") return !allIn();
+    if(k==="Iterations") return /not converged/.test(v);
+    if(k==="Fit control") return f.ctl&&((f.ctl.maxIter!=null&&f.ctl.maxIter!==FIT_CTL.maxIter)||(f.ctl.tol!=null&&f.ctl.tol!==FIT_CTL.tol));
+    if(k==="Confidence level") return v!=="95%";
+    if(k==="Weighting") return weightOf(f)!=="none";
+    return true; }); }
 function statsList(f){
   const st=f.stats||{};
   if(f.global&&f.gstats){ const g=f.gstats;
@@ -18914,16 +18895,15 @@ function statsList(f){
 // columns of their own, the derived quantities under a group row. The report
 // (all) has every column, whatever Results was set to show.
 function paramTableHtml(f,all){
-  const rows=paramRows(f), der=derivedRows(f), ci=all||rShow().ci, n=ci?7:6;
+  // Information hygiene (DESIGN.md, 11.11): the parameter, its value and its error; t and p, the
+  // interval and the dependency only when In the results asks for them (the report has them all).
+  const rows=paramRows(f), der=derivedRows(f), o=rShow(), ci=all||o.ci, tp=all||o.tp, dp=all||o.dep, n=3+(tp?2:0)+(ci?1:0)+(dp?1:0);
   const u=t=>t?` <span class="unit">(${esc(t)})</span>`:"";
-  // In a narrow Results (the dock) t, p, the interval and the dependency go on a line of their own
-  // under each parameter (`tr.rmore`, by container query), so nothing runs off the side. Not in the report.
-  const more=(r,ciT)=>all||r.hold?"":`<tr class="rmore"><td colspan="${n}">${[["t",fmtOr(r.t,4)],["Prob > |t|",fmtP(r.pv)],ci&&ciT?[confPct(confOf(f))+"%",ciT]:null,["dependency",fmtOr(r.dep,4)]].filter(x=>x&&x[1]&&x[1]!=="—").map(([k,v])=>`${esc(k)} <span class="v">${esc(v)}</span>`).join(" · ")}</td></tr>`;
-  return `<table class="rtab rpar"><thead><tr><th class="l">Parameter</th><th>Value</th><th class="se">Standard error</th><th class="x">t</th><th class="x">Prob &gt; |t|</th>${ci?`<th class="x">${confPct(confOf(f))}% confidence interval</th>`:""}<th class="x" title="Near 1: this parameter is doing the same job as others and is not independently determined">Dependency</th></tr></thead><tbody>${
+  return `<div class="rtabw"><table class="rtab rpar"><thead><tr><th class="l">Parameter</th><th>Value</th><th class="se">Standard error</th>${tp?`<th>t</th><th>Prob &gt; |t|</th>`:""}${ci?`<th>${confPct(confOf(f))}% interval</th>`:""}${dp?`<th title="Near 1: this parameter is doing the same job as others and is not determined on its own">Dependency</th>`:""}</tr></thead><tbody>${
     rows.map(r=>{ const [v,e]=r.tied?fmtVE(r.v,r.e):r.hold?[fmtPMd(r.v,0,r.dig),""]:fmtVE(r.v,r.e,r.dig), ciT=r.hold||!r.ci||!Number.isFinite(r.ci[0])||!Number.isFinite(r.ci[1])?"":`${esc(fmt(r.ci[0],6))} to ${esc(fmt(r.ci[1],6))}`;
       const why=r.tied?`<span class="lab">${esc(r.tied)}</span>`:r.hold?`<span class="lab">${r.fixed?"fixed":"at its limit"}</span>`:"";
-      return `<tr class="rmain${Number.isFinite(r.dep)&&r.dep>0.99&&!r.hold?" badrow":""}"><td class="l">${r.html?`<span style="font-style:italic;font-family:'Source Serif 4',Georgia,serif;font-size:1.08em">${r.html}</span>`:esc(r.label)}${u(r.unit)}${r.meaning?` <span class="lab">${esc(r.meaning)}</span>`:""}</td><td class="val">${v}${r.shared&&!r.tied?` <span class="lab shd" title="One value for every column of the global fit">shared</span>`:r.follows?` <span class="lab shd" title="${esc(`${capFirst(FOLLOW_KINDS[r.follows])} ${seriesName()}: one line for every column of the global fit, its value here read off it`)}">follows</span>`:""}</td><td class="se">${e}${e&&why?" ":""}${why}</td><td class="x">${r.hold?"":esc(fmtOr(r.t,4))}</td><td class="x">${r.hold?"":esc(fmtP(r.pv))}</td>${ci?`<td class="x">${ciT}</td>`:""}<td class="x">${r.hold?"":esc(fmtOr(r.dep,4))}</td></tr>`+more(r,ciT); }).join("")
-  }${der.length?`<tr class="rgrp"><td colspan="${n}">Derived</td></tr>`+der.map(x=>{ const [v,e]=fmtVE(x.v,x.e); return `<tr><td class="l">${esc(x.name)}${u(x.unit)}</td><td class="val">${v}</td><td class="se">${e}</td>${'<td class="x"></td>'.repeat(n-3)}</tr>`; }).join(""):""}</tbody></table>`;
+      return `<tr class="rmain"><td class="l"${r.meaning?` title="${esc(r.meaning)}"`:""}>${r.html?`<span style="font-style:italic;font-family:'Source Serif 4',Georgia,serif;font-size:1.08em">${r.html}</span>`:esc(r.label)}${u(r.unit)}</td><td class="val">${v}${r.shared&&!r.tied?` <span class="lab shd" title="One value for every column of the global fit">shared</span>`:r.follows?` <span class="lab shd" title="${esc(`${capFirst(FOLLOW_KINDS[r.follows])} ${seriesName()}: one line for every column of the global fit, its value here read off it`)}">follows</span>`:""}</td><td class="se">${e}${e&&why?" ":""}${why}</td>${tp?`<td>${r.hold?"":esc(fmtOr(r.t,4))}</td><td>${r.hold?"":esc(fmtP(r.pv))}</td>`:""}${ci?`<td>${ciT}</td>`:""}${dp?`<td>${r.hold?"":esc(fmtOr(r.dep,4))}</td>`:""}</tr>`; }).join("")
+  }${der.length?`<tr class="rgrp"><td colspan="${n}">Derived</td></tr>`+der.map(x=>{ const [v,e]=fmtVE(x.v,x.e); return `<tr><td class="l">${esc(x.name)}${u(x.unit)}</td><td class="val">${v}</td><td class="se">${e}</td>${'<td></td>'.repeat(n-3)}</tr>`; }).join(""):""}</tbody></table></div>`;
 }
 // Results shows the fit or an analysis (FOUNDATION_SPEC 1.3b): with analyses in the project, a list
 // at its top says which (S.resAna, the analysis' id, or none for the fit).
@@ -18951,7 +18931,7 @@ function renderResults0(){
   }
   const FM=fitModel(f);
   const [xu,yu]=fitUnits(f), u=t=>t?`<span class="unit">(${esc(t)})</span>`:"";
-  let h=`<div class="rhead"><div class="rt"><div class="rtitle">${FM.composite?"Peak fit":"Curve fit"}: ${esc(FM.name)}${f.onColName?` <span class="lab">on ${esc(f.onColName)}</span>`:""}${f.global&&f.gstats?` <span class="lab">· together with ${f.gstats.K-1} other columns</span>`:""}</div>${FM.model.user?`<div class="rfx"><code>${esc(FM.model.expr)}</code></div>`:""}<div class="lab" id="fitBy"></div></div>
+  let h=`<div class="rhead"><div class="rt"><div class="rtitle">${FM.composite?"Peak fit":"Curve fit"}: ${esc(FM.name)}${f.onColName?` <span class="lab">on ${esc(f.onColName)}</span>`:""}${f.global&&f.gstats?` <span class="lab">· together with ${f.gstats.K-1} other columns</span>`:""}</div>${FM.model.user?`<div class="rfx"><code>${esc(FM.model.expr)}</code></div>`:""}</div>
     <div class="ract"><button class="btn sm" id="rCopy">${ICON("copy","sm")}Copy table</button><button class="btn sm" id="rReport">${ICON("file","sm")}Save report</button><button class="btn sm" id="rCsv">${ICON("download","sm")}Export data</button><button class="btn sm" id="rToWs"${S.readOnly?" disabled":""} title="The fitted values and the residuals as columns beside the column fitted, written again by each new fit">${ICON("table","sm")}To worksheet</button><button class="btn sm ghost" id="discussFit">${ICON("comment","sm")}Discuss</button></div></div>`;
   // Each note one line, with its fix; the whole of what it says is its tooltip, and the report's.
   const warns=fitWarnings(f);
@@ -18960,23 +18940,23 @@ function renderResults0(){
   if(FM.composite){
     const rows=peakMetrics(f), hasN=rows.some(r=>r.name), au=unitFor("yx",xu,yu), shd=(k,nms)=>{ if(!f.shared) return ""; const pd=PEAKS[(f.spec.peaks[k]||{}).type]||PEAKS.gauss, o=FM.model.offsets[k], ix=pd.params.map((nm,i)=>nms.test(nm)?o+i:-1).filter(i=>i>=0);
       return ix.length&&ix.every(i=>f.shared[i])?` <span class="lab shd" title="One value for every column of the global fit">shared</span>`:""; };
-    h+=`<table class="rtab rpk"><thead><tr><th class="l">Peak</th>${hasN?`<th class="l x">Name</th>`:""}<th class="l x">Shape</th><th>Centre ${u(xu)}</th><th class="x">Height ${u(yu)}</th><th class="x">FWHM ${u(xu)}</th><th>Area ${u(au)}</th><th class="x">Area %</th></tr></thead><tbody>`;
-    rows.forEach(r=>{ h+=`<tr data-prow="${r.k}" class="rmain${r.ok?"":" badrow"}${S.selPeak===r.k?" sel":""}" title="${r.ok?"Click to select this peak":esc("Not a usable peak: "+r.problems.join("; "))}">
+    h+=`<table class="rtab rpk"><thead><tr><th class="l">Peak</th>${hasN?`<th class="l x">Name</th>`:""}<th class="l x">Shape</th><th>Centre ${u(xu)}</th><th class="x">Height ${u(yu)}</th><th>FWHM ${u(xu)}</th><th>Area ${u(au)}</th><th class="x">Area %</th></tr></thead><tbody>`;
+    rows.forEach(r=>{ h+=`<tr data-prow="${r.k}" class="rmain${S.selPeak===r.k?" sel":""}" title="${r.ok?"Click to select this peak":esc("Not a usable peak: "+r.problems.join("; "))}">
       <td class="l"><span class="dot" style="background:${r.color};margin-right:6px"></span>${r.k+1}${r.ok?"":' <span class="flag" aria-label="not a usable peak">!</span>'}</td>${hasN?`<td class="l x">${texHtml(r.name)}</td>`:""}<td class="l x">${esc(r.type)}</td>
       <td>${fmtPM(r.xc,r.xcErr)}${shd(r.k,/^xc$/)}</td><td class="x">${r.heightErr?fmtPM(r.height,r.heightErr):esc(fmt(r.height,5))}</td>
-      <td class="x"${(r.wparts||[]).length>1?` title="${esc(r.wparts.map(w=>w.nm+" "+fmt(Math.abs(w.v),4)).join(", "))}"`:""}>${r.fwhmErr?fmtPM(r.fwhm,r.fwhmErr):esc(fmt(r.fwhm,5))}${(r.wparts||[]).length>1?` <span class="lab">(${esc(r.wparts.map(w=>w.nm+" "+fmt(Math.abs(w.v),3)).join(", "))})</span>`:""}${shd(r.k,/^w/)}</td>
-      <td>${fmtPM(r.area,r.areaErr)}${shd(r.k,/^A$/)}</td><td class="x">${r.areaPct==null?'<span class="noerr">excluded</span>':esc(fmt(r.areaPct,3))}</td></tr>
-      <tr class="rmore" data-prow="${r.k}"><td colspan="${hasN?8:7}">${hasN&&r.name?texHtml(r.name)+" · ":""}${esc(r.type)} · height <span class="v">${r.heightErr?fmtPM(r.height,r.heightErr):esc(fmt(r.height,5))}</span> · FWHM <span class="v">${r.fwhmErr?fmtPM(r.fwhm,r.fwhmErr):esc(fmt(r.fwhm,5))}</span> · ${r.areaPct==null?"excluded from the area":`<span class="v">${esc(fmt(r.areaPct,3))}</span> % of the area`}</td></tr>`; });
+      <td${(r.wparts||[]).length>1?` title="${esc(r.wparts.map(w=>w.nm+" "+fmt(Math.abs(w.v),4)).join(", "))}"`:""}>${r.fwhmErr?fmtPM(r.fwhm,r.fwhmErr):esc(fmt(r.fwhm,5))}${(r.wparts||[]).length>1?` <span class="lab">(${esc(r.wparts.map(w=>w.nm+" "+fmt(Math.abs(w.v),3)).join(", "))})</span>`:""}${shd(r.k,/^w/)}</td>
+      <td>${fmtPM(r.area,r.areaErr)}${shd(r.k,/^A$/)}</td><td class="x">${r.areaPct==null?'<span class="noerr">excluded</span>':esc(fmt(r.areaPct,3))}</td></tr>`; });
     h+=`</tbody></table>`;
     if(rShow().par) h+=`<section class="rsec" data-rd="par"><h4>Every parameter</h4>${paramTableHtml(f)}</section>`;
   } else h+=paramTableHtml(f);
+  h+=`</div><div class="rrest">`;
   if(rShow().find) h+=findHtml(f);
   h+=diagHtml(f);
-  h+=`</div><div class="rside"><dl class="kv">${statsList(f).concat(diagStats(f)).map(([k,v])=>{ const t=k==="Fit control"?ctlShort(f):String(v); return `<dt>${esc(k)}</dt><dd${t.length>18?' class="w"':""}>${t.split(" · ").map(x=>`<span class="nw">${esc(x)}</span>`).join(" · ")}</dd>`; }).join("")}</dl></div></div>`;
+  h+=`</div><div class="rside"><dl class="kv">${statsBrief(f).concat(diagStats(f)).map(([k,v])=>{ const t=k==="Fit control"?ctlShort(f):String(v); return `<dt>${esc(k)}</dt><dd${t.length>18?' class="w"':""}>${t.split(" · ").map(x=>`<span class="nw">${esc(x)}</span>`).join(" · ")}</dd>`; }).join("")}</dl></div></div>`;
   const fa=document.activeElement, keep=fa&&fa.id&&box.contains(fa)&&fa.tagName==="INPUT"?{id:fa.id,s:fa.selectionStart,e:fa.selectionEnd}:null;
   box.innerHTML=h;
   if(keep){ const el=document.getElementById(keep.id); if(el){ el.focus({preventScroll:true}); try{ el.setSelectionRange(keep.s,keep.e); }catch(e){} } }
-  const by=$("#fitBy"); if(by) by.textContent=f.by?`Fitted by ${nameOf(f.by)}, ${ago(f.at)}`:`Fitted ${ago(f.at)}`;
+
   $("#rCopy").onclick=copyResults; $("#rReport").onclick=exportReport; $("#rCsv").onclick=exportCsv; wireDiag(box,f); wireFind(box,f); { const tw=$("#rToWs"); if(tw) tw.onclick=()=>fitToSheet(f); }
   $("#discussFit").onclick=()=>{ S.anchor={type:"fit",model:FM.composite?"peaks":f.model}; showDrawer("disc"); renderAnchor(); $("#cText").focus(); };
   box.querySelectorAll("[data-prow]").forEach(tr=>tr.onclick=()=>{ const k=+tr.dataset.prow;
@@ -19071,7 +19051,7 @@ function setupMentions(){
    the step with `propose {step, op, from, to}` (only the settings changed). The comment lists them
    (`propHtml`), says whether the step has them now or has changed since, and offers *Apply*
    (`applyProposal`: one undo step, a log line naming whose proposal, `applied {by, t}` on the comment). */
-const PROP_TYPES=["sel","text","bool","col","log","int","odd","num"];
+const PROP_TYPES=["sel","text","bool","col","refcol","log","int","odd","num"];
 const propParams=s=>{ const def=PIPE_OPS[s.op], p=Object.assign({},def&&def.defaults||{},s.p||{}); return ((def&&def.params)||[]).filter(q=>PROP_TYPES.includes(q.type)&&(!q.show||q.show(p))); };
 const propSame=(a,b)=>a===b||(a!=null&&b!=null&&typeof a==="number"&&typeof b==="number"&&Math.abs(a-b)<=1e-12*Math.max(1,Math.abs(a),Math.abs(b)))||JSON.stringify(a)===JSON.stringify(b);
 // Where a proposal stands against the step now: gone, has it, changed since, or as it was.
@@ -19101,7 +19081,7 @@ async function proposeDlg(key){
   const html=`<p class="lab">${esc(nodeLabel(nodeAnchor(key)))}. Change what you would change: nothing is changed until someone applies it.</p><div class="frow">${qs.map(q=>q.type==="bool"?`<span></span>${ctl(q)}`:`<label for="pp-${s.id}-${q.k}">${esc(q.label)}</label>${ctl(q)}`).join("")}</div>
     <label class="lab" for="ppWhy" style="display:block;margin-top:var(--sp-4)">Why (optional)</label><textarea id="ppWhy" class="ctext" rows="2" placeholder="What these settings would change, and why"></textarea>`;
   const read=r=>{ const to={}; qs.forEach(q=>{ const id=`pp-${s.id}-${q.k}`; if(!(id in r)) return; let v=r[id];
-      if(q.type==="bool") v=!!v; else if(q.type==="sel"||q.type==="col") v=v||null; else if(q.type==="text") v=String(v).trim().slice(0,40); else if(q.type==="log") v=+v;
+      if(q.type==="bool") v=!!v; else if(q.type==="sel"||q.type==="col"||q.type==="refcol"||q.type==="catcol") v=v||null; else if(q.type==="text") v=String(v).trim().slice(0,40); else if(q.type==="log") v=+v;
       else { v=parseNum(String(v)); if(v==null) return; if(q.type==="odd"){ v=Math.max(3,Math.round(v)); if(v%2===0) v++; } if(q.type==="int") v=Math.round(v); if(q.min!=null&&v<q.min) v=q.min; if(q.max!=null&&q.type!=="int"&&v>q.max) v=q.max; }
       if(q.type==="sel"&&s.op==="deriv") v=String(v);
       if(!propSame(v,p0[q.k])) to[q.k]=v; }); return to; };
@@ -19466,7 +19446,7 @@ async function refreshProfiles(){
   const need=[...ids]; if(!need.length) return;
   const ps=await S.user.profiles(need); let changed=false;
   need.forEach(id=>{ const o=S.profiles[id], n=ps[id]; if(!o||o.name!==n.name||o.avatarUrl!==n.avatarUrl){ changed=true; } S.profiles[id]=n; });
-  if(changed){ renderThread(); renderLog(); renderPeople(); renderPlot(); const by=$("#fitBy"); if(by&&P().fit) by.textContent=`Fitted by ${nameOf(P().fit.by)}, ${ago(P().fit.at)}`; }
+  if(changed){ renderThread(); renderLog(); renderPeople(); renderPlot(); }
 }
 function renderPeople(){
   const box=$("#people"); const seen=new Set(), out=[];
@@ -19609,7 +19589,7 @@ function renderTop(){
   $("#exportBtn").disabled=!data;
   $("#importBtn").disabled=S.readOnly||!S.store; $("#fileIn").disabled=S.readOnly; $("#emptyImport").disabled=S.readOnly||!S.store; $("#wsEmptyImport").disabled=S.readOnly||!S.store;
   document.querySelectorAll("[data-example]").forEach(b=>b.disabled=S.readOnly||!S.store);
-  $("#addColBtn").disabled=off; $("#wsPlotBtn").disabled=off; $("#projMenu").disabled=!S.store; renderViewSeg();
+  $("#addColBtn").disabled=off; $("#wsPlotBtn").disabled=off; $("#projMenu").disabled=!S.store;
   const dark=darkMode(), tb=$("#themeBtn"), lab=dark?"Switch to the light theme":"Switch to the dark theme";
   tb.innerHTML=ICON(dark?"sun":"moon"); tb.title=dark?"Light theme":"Dark theme"; tb.setAttribute("aria-label",lab);
   document.title=(p&&p.name?p.name+" — ":"")+"Kurve";
@@ -20603,12 +20583,16 @@ function renderTool(){
   h+=stepForm(s,{tool:true});
   if(yCols().length>1){ h+=`<label class="chk"><input type="checkbox" id="tlAll"${pd.all?" checked":""}> Apply the same step to every other column</label>`;
     if(pd.all&&PIPE_OPS[pd.step.op]&&PIPE_OPS[pd.step.op].init) h+=`<div class="frow"><label for="tlMeas">Their settings</label><select id="tlMeas"><option value="same">These, for every column</option><option value="each"${pd.measure?" selected":""}>Measured on each column</option></select></div>`; }
+  // Where the result goes (11.11, the user's request): this graph (the step joins the column's
+  // processing) or a new graph (a new column made with the step; this one stays as it is).
+  if(!pd.all){ const d=toolDest(); h+=`<div class="frow"><span class="lab">Show it on</span><div class="seg" role="group" aria-label="Where the result is shown"><button type="button" data-tldest="here" aria-pressed="${d==="here"}" title="The step joins the processing of ${esc(specName(c))}, on the graphs that show it">This graph</button><button type="button" data-tldest="new" aria-pressed="${d==="new"}" title="A new column made with this step, on a graph of its own; ${esc(specName(c))} stays as it is">A new graph</button></div></div>`; }
   h+=`<div class="sticky tool-ok"><button class="btn primary" id="tlOk">${ICON("check","sm")}OK</button><button class="btn" id="tlCancel">Cancel</button></div>`;
   box.innerHTML=h; box.scrollTop=sc;
   $("#tlCol").onchange=e=>retargetTool(e.target.value);
   $("#tlAt").onchange=e=>{ pd.at=+e.target.value; setStage(pd.at+1,{keepSel:true}); renderTool(); };
   const all=$("#tlAll"); if(all) all.onchange=()=>{ pd.all=all.checked; renderTool(); };
   const meas=$("#tlMeas"); if(meas) meas.onchange=()=>{ pd.measure=meas.value==="each"; };
+  box.querySelectorAll("[data-tldest]").forEach(b=>b.onclick=()=>{ toolDest(b.dataset.tldest); renderTool(); });
   $("#tlOk").onclick=()=>applyTool();
   $("#tlCancel").onclick=()=>cancelTool();
   if(keep){ const el=document.getElementById(keep); if(el) el.focus({preventScroll:true}); }
@@ -20637,9 +20621,30 @@ function cancelTool(quiet){
 }
 /* OK: the previewed step goes into the pipeline, and onto every other
    spectrum if that was asked for. */
+// The Tool window's "Show it on": this graph or a new graph, remembered in this browser.
+function toolDest(v){ if(v==="here"||v==="new"){ S.toolDest=v; try{ localStorage.setItem("kurve.tooldest",v); }catch(e){} }
+  if(!S.toolDest){ let s=null; try{ s=localStorage.getItem("kurve.tooldest"); }catch(e){} S.toolDest=s==="new"?"new":"here"; } return S.toolDest; }
+// A new graph: a new column made from this one with the step (from its processed data when the step
+// reads them, else from its original data with the steps before it copied), plotted on a graph of its
+// own; the column the step was set up on is not changed. One undo step.
+function applyToolNew(){ const pd=S.pending, p=P(); if(!pd||!p||S.readOnly) return null; const c=colById(pd.col); if(!c){ cancelTool(); return null; }
+  const s=pd.step, pipe=c.pipe||[], at=Math.min(pd.at,pipe.length); S.pending=null;
+  if(s.op==="ecal") ecalKeep(s.p);
+  pushUndo(`${stepShort(s).toLowerCase()} on a new graph`);
+  const n=makeCol("y",`${specName(c)}, ${lcFirst(stepShort(s))}`,c.unit||"",[]); n.src=c.id; n.mask=[];
+  if(at===pipe.length){ n.from="final"; n.pipe=[s]; }
+  else { n.from="raw"; n.pipe=pipe.slice(0,at).map(q=>Object.assign(makeStep(q.op,clone(q.p||{})),{on:q.on!==false})).concat([s]); }
+  p.cols.push(n); migrate(p); p.activeY=n.id;
+  S.selStep=null; S.stage=null; S.flowSel="step:"+s.id;
+  if(winOpen("tool")){ winState("tool").open=false; dockForget("tool"); applyWins(); saveLayout(); }
+  const gids=newGraphs([[n.id]],{noUndo:true,from:GID(),patch:{cols:p.cols,activeY:n.id},log:`made ${specName(n)} from ${specName(c)} with the step "${stepTitle(s)}", on a new graph`});
+  renderAll(); if(gids.length){ const w=winOfGraph(S.gid); if(w) splitInto(w,gids[0]); activateGraph(gids[0],n.id); }
+  toast(`${specName(n)}, on a new graph. ${specName(c)} stays as it was.`,{action:"Undo",run:undo});
+  return s.id; }
 function applyTool(opt){
   const pd=S.pending; if(!pd||S.readOnly) return null;
   const c=colById(pd.col); if(!c){ cancelTool(); return null; }
+  if(!pd.all&&!(opt&&opt.here)&&toolDest()==="new") return applyToolNew();
   const s=pd.step; S.pending=null;
   if(s.op==="ecal") ecalKeep(s.p);
   pushUndo("adding "+stepShort(s).toLowerCase());
@@ -20696,7 +20701,9 @@ function dataMenu(){
     "-",
     {label:"Clean", sub:()=>[t("crop"), t("exclude"), t("sort"), t("dedupe"), t("resample")]},
     {label:"Baseline", sub:()=>[t("bg"), Object.assign(toolItem("bg",{p:{method:"line"}})||{},{label:"Linear detrend…", title:"A straight line between the ends of the data, subtracted"})]},
-    {label:"Transform", sub:()=>[t("scale"), t("norm"), t("log"), t("xlin"), t("ref"), t("combine")]}];
+    {label:"Transform", sub:()=>[t("scale"), t("norm"), t("log"), t("xlin"), t("ref"), t("combine")]},
+    // Calibrating (11.11, the user's request): X against known peaks or energies, Y against a response.
+    {label:"Calibrate", sub:()=>[t("calib"), t("ecal"), t("xlin"), Object.assign(toolItem("ref",{p:{op:"div",use:"raw"}})||{},{label:"Y by a reference's response…", title:"Divides by a lamp's or a white standard's spectrum, so intensities from different days or instruments compare"})]}];
 }
 // Analyze › Spectroscopy: spectroscopy's own tools, gathered in one place.
 function spectroscopyItems(){
@@ -21613,18 +21620,21 @@ function integCountHtml(res,ro,c){
   const cs=res.cs, xu=c?finalOf(c).xu||"":"", ec=detCurve("eff",xu), fc=detCurve("fwhm",xu); let h=`<details class="grp" id="igCnt"${S.igCnt===false?"":" open"}><summary>Counting</summary><div class="gb">`;
   if(cs.why) return h+`<p class="lab">${esc(cs.why)}</p></div></details>`;
   const t=cs.t, num=(k,b,v,lab,ph,tip)=>`<input type="text" inputmode="decimal" class="ignum${ph?" fromcv":""}" id="ig-${k}-${esc(b.id)}" data-igk="${k}" data-igb="${esc(b.id)}" value="${v!=null?esc(String(v)):""}" placeholder="${esc(ph||"—")}" aria-label="${esc(lab)}"${tip?` title="${esc(tip)}"`:""}${ro}>`;
-  h+=`<div class="twrap"><table class="rtab igcnt"><thead><tr><th class="l">Band</th><th title="The counts in the window less the continuum under them, a line through the channels at each edge; ± one standard deviation from counting">Net counts</th><th class="x" title="Net counts per second of live time">Rate <span class="unit">(counts/s)</span></th><th class="x" title="Currie's critical level, 95 %: a net count above it is a line">Detected</th><th class="edt" title="The share of decays that give this line">Emission <span class="unit">(%)</span></th><th class="edt" title="The detector's full-energy peak efficiency at this energy">Efficiency <span class="unit">(%)</span></th><th class="x" title="Net counts ÷ (live time × efficiency × emission), counting error only; not detected, the detection limit as an activity">Activity <span class="unit">(Bq)</span></th></tr></thead><tbody>`;
+  h+=`<div class="twrap"><table class="rtab igcnt"><thead><tr><th class="l">Band</th><th title="The counts in the window less the continuum under them, a line through the channels at each edge; ± one standard deviation from counting">Net counts</th><th class="x" title="Net counts per second of live time">Rate <span class="unit">(counts/s)</span></th><th title="Above Currie's critical level, 95 %: a line is there">Detected</th><th class="edt" title="Emission probability: the share of decays that give this line"><span class="hw">Emission</span><span class="hn">I<sub>γ</sub></span> <span class="unit">(%)</span></th><th class="edt" title="The detector's full-energy peak efficiency at this energy"><span class="hw">Efficiency</span><span class="hn">ε</span> <span class="unit">(%)</span></th><th title="Net counts ÷ (live time × efficiency × emission), counting error only; not detected, the detection limit as an activity">Activity <span class="unit">(Bq)</span></th></tr></thead><tbody>`;
+  const wides=[];
   res.forEach(q=>{ const b=q.b, cn=q.cnt, nm=bandName(b,q.k);
     if(!cn||cn.fail){ h+=`<tr class="rmain"><td class="l">${esc(nm)}</td><td colspan="6" class="l lab">${esc(cn?cn.fail:"")}</td></tr>`; return; }
     const ef=bandEff(q,ec), a=activityOf(cn,t,ef.v,b.ig,ef.err), rate=t>0?fmtPM(cn.N/t,cn.sigN/t):"—";
     // Wider than the detector's resolution there: two lines in one window, perhaps.
     const wexp=fc&&q.r&&!q.r.fail&&q.r.fwhm!=null?fwhmAt(fc,q.r.pos):null, wide=wexp&&q.r.fwhm>1.3*wexp?`wider than the resolution (${fmt(wexp,3)}${xu?" "+xu:""} here): two lines?`:"";
-    const det=(cn.det?"Yes":`No <span class="lab">(&lt; ${esc(fmt(cn.lc,4))})</span>`)+(wide?` <span class="warnc" title="${esc(wide)}">${ICON("alert","sm")}</span>`:"");
+    // Detected: yes or no, the critical level its tooltip; a window wider than a line there is
+    // marked by its name and said in a note under the table, in words.
+    const det=`<span title="${esc(`${cn.det?"Detected":"Not detected"}: the critical level is ${fmt(cn.lc,4)} counts (Currie, 95%)`)}">${cn.det?"Yes":"No"}</span>`;
+    if(wide) wides.push(`${nm}: ${wide}`);
     const effPh=ef.from==="curve"?fmt(ef.v,3):null, effTip=ef.from==="curve"?`From the efficiency curve: ${fmt(ef.v,4)}${ef.err?` ± ${fmt(ef.err,2)}`:""} %${ef.out?", beyond its points":""}. Type a value to use instead.`:null;
     const act=!t?`<span class="lab" title="No live time is known for this column">—</span>`:!a?"—":a.det?fmtPM(a.A,a.sA):`&lt; ${esc(fmt(a.mda,3))}`;
-    h+=`<tr class="rmain"><td class="l">${esc(nm)}</td><td>${fmtPM(cn.N,cn.sigN)}</td><td class="x">${rate}</td><td class="x">${det}</td><td class="num edt">${num("ig",b,b.ig,"Emission probability of "+nm+", %")}</td><td class="num edt">${num("eff",b,b.eff,"Efficiency at "+nm+", %",effPh,effTip)}</td><td class="x">${act}</td></tr>`
-      +`<tr class="rmore"><td colspan="7">rate <span class="v">${rate}</span> counts/s · ${cn.det?"detected":`not detected <span class="v">(&lt; ${esc(fmt(cn.lc,4))})</span>`}${a?` · activity <span class="v">${act}</span> Bq`:""}${wide?` · <span class="warnc">${esc(wide)}</span>`:""}</td></tr>`; });
-  return h+`</tbody></table></div><p class="lab">${t?`Live time ${esc(fmt(t,6))} s. `:""}${ec?`Efficiency from the detector's curve where none is typed (${ec.n} points). `:""}Continuum from ${res[0]&&res[0].cnt&&res[0].cnt.k?res[0].cnt.k:integOf().avg} channel${(res[0]&&res[0].cnt&&res[0].cnt.k)===1?"":"s"} at each edge of each window.</p></div></details>`; }
+    h+=`<tr class="rmain"><td class="l">${esc(nm)}${wide?` <span class="warnc" title="${esc(wide)}">${ICON("alert","sm")}</span>`:""}</td><td>${fmtPM(cn.N,cn.sigN)}</td><td class="x">${rate}</td><td class="igdet">${det}</td><td class="num edt">${num("ig",b,b.ig,"Emission probability of "+nm+", %")}</td><td class="num edt">${num("eff",b,b.eff,"Efficiency at "+nm+", %",effPh,effTip)}</td><td>${act}</td></tr>`; });
+  return h+`</tbody></table></div>${wides.map(w=>noteHtml("warn",w)).join("")}<p class="lab">${t?`Live time ${esc(fmt(t,6))} s. `:""}${ec?`Efficiency from the detector's curve where none is typed (${ec.n} points). `:""}Continuum from ${res[0]&&res[0].cnt&&res[0].cnt.k?res[0].cnt.k:integOf().avg} channel${(res[0]&&res[0].cnt&&res[0].cnt.k)===1?"":"s"} at each edge of each window.</p></div></details>`; }
 function wireInteg(box){
   const on=(sel,fn)=>{ const el=box.querySelector(sel); if(el) el.onclick=fn; };
   on("#igPick",()=>pickBands()); on("#igPeaks",bandsFromPeaksUI);
@@ -22909,14 +22919,14 @@ ${DL([["Import, Export","Bring a file in; save the graph, data or a report."],["
 <p>${K("Ctrl","Z")} undoes and ${K("Ctrl","Shift","Z")} (or ${K("Ctrl","Y")}) redoes: steps, masks, peaks, bands, fits, labels, styles, worksheet edits. The Edit menu names what will be undone. <em>Edit › Undo list…</em>, or a right-click on the Undo or Redo button, lists every change that can be undone, the newest first with when it was made, and below them what can be redone: choose one to undo it and every change after it (or redo it and every change before it). Undo rewinds your own changes in this session; it never takes back a colleague's work or a comment. In the worksheet this holds cell by cell: what a colleague, or this project open in another tab, changed after your change stays when yours is undone.</p>
 <h2>The log</h2>
 <p>The History window's <em>Log</em> tab lists every change with who made it and when. The report ends with it.</p>`},
-{id:"explorer", g:"Basics", t:"The Project Explorer", kw:"project explorer tree folder subfolder files graphs hidden closed organise organize move drag rename delete filter origin alt+1 sidebar",
- lead:"The project as a tree beside the desk, as in Origin: folders and subfolders holding the worksheet, the files you imported with their columns, the graphs (hidden ones too) and the trend graphs.",
+{id:"explorer", g:"Basics", t:"The Project Explorer", kw:"project explorer tree folder subfolder files sheets worksheet graphs hidden closed organise organize move drag rename delete filter origin alt+1 sidebar",
+ lead:"The project as a tree beside the desk, as in Origin: folders and subfolders holding the worksheet's sheets, the graphs (hidden ones too) and the trend graphs.",
  body:`<h2>Showing it</h2>
 <p>The tree button at the start of the toolbar, ${MP("Window › Project Explorer")} or ${K("Alt","1")} shows and hides it. Drag its right edge to make it wider. In a window narrower than 1600 pixels it slides over the desk instead, so the worksheet and the graph keep their width, and closes when you open something or press beside it.</p>
 <h2 id="items">What is in it</h2>
-${DL([["The project","The top of the tree, with the project's name. Right-click it for a new folder, to rename the project, or to switch to another."],["Folders","Yours, nested as deep as you like. They only organise: nothing is deleted with a folder, and what it held moves up a level."],["Worksheet","The project's worksheet."],["Files","Each file imported, with the columns that came in with it. Open it to see its columns and its data columns, and the columns made from them; columns typed into the worksheet are under <em>Typed in the worksheet</em>."],["Graphs","Every graph, closed ones too, marked <em>hidden</em> with a crossed-out eye; the one in front is in bold. A tooltip lists what each shows."],["Trend graphs","From the "+DA("batch","Batch window")+"."]])}
+${DL([["The project","The top of the tree, with the project's name. Right-click it for a new folder, to rename the project, or to switch to another."],["Folders","Yours, nested as deep as you like. They only organise: nothing is deleted with a folder, and what it held moves up a level."],["Worksheet, sheets","The worksheet, or with several sheets each sheet by its name; a file imported beside data has a sheet of its own, named after it. Its tooltip says how many columns hold values. The columns themselves are in the worksheet, which shows them; the tree does not list them again."],["Graphs","Every graph, closed ones too, marked <em>hidden</em> with a crossed-out eye; the one in front is in bold. A tooltip lists what each shows."],["Trend graphs","From the "+DA("batch","Batch window")+"."]])}
 <h2 id="use">Using it</h2>
-${DL([["Open","Double-click or "+K("Enter")+": a graph comes onto the desk (a hidden one too), a file's columns are selected in the worksheet, a column becomes the active one, a folder opens or closes."],["Menu","Right-click, "+K("Shift","F10")+" or the menu key: what can be done with that item, and <em>Move to</em> any folder."],["Move","Drag an item or a folder onto a folder, or onto the project at the top."],["Plot","Drag a column, a data column or a file onto a graph window: it is plotted there."],["Import","Drop files from your computer onto a folder: they are read, plotted and filed there. "+DA("import#drop","Dropping files")],["Rename, delete",K("F2")+" and "+K("Delete")+". Deleting a file takes its columns out of the project (the original-data record notes it); Undo brings everything back."],["Filter","Type in the box above the tree to show only what is called that, and where it is."]])}
+${DL([["Open","Double-click or "+K("Enter")+": a graph comes onto the desk (a hidden one too), a sheet is shown in the worksheet, a folder opens or closes."],["Menu","Right-click, "+K("Shift","F10")+" or the menu key: what can be done with that item, and <em>Move to</em> any folder."],["Move","Drag an item or a folder onto a folder, or onto the project at the top."],["Plot","Drag a sheet onto a graph window: its Y columns with values are plotted there."],["Import","Drop files from your computer onto a folder: they are read, plotted and filed there. "+DA("import#drop","Dropping files")],["Rename, delete",K("F2")+" and "+K("Delete")+". Deleting a sheet takes its columns out of the project, after asking when it holds values (the original-data record notes it); Undo brings everything back."],["Filter","Type in the box above the tree to show only what is called that, and where it is."]])}
 <p>The folder selected, or the folder of the item selected, is the <strong>active folder</strong>: graphs, trend graphs and files made while the Explorer is open go into it, as Origin puts new windows in the active folder. ${K("↑")} ${K("↓")} move, ${K("→")} opens and ${K("←")} closes or goes up a level. Folders are kept with the project, so a colleague who opens it sees them, and every change to them is one Undo.</p>`},
 {id:"import", g:"Basics", t:"Importing data", kw:"import open file csv tsv txt delimiter decimal comma header metadata paste drop wizard add replace many several files batch columns role use as data not a spectrum leave out plot not yet worksheet only pairs",
  lead:"Text exports from almost any instrument work. Drop a file on the window and it is read and plotted at once; use Import to see how it is read and choose what each column becomes, and nothing is plotted until you ask.",
@@ -23107,8 +23117,10 @@ ${DL([["Insert","The + on a line, or the <em>Step</em> button, opens the tool li
  body:`<h2>Pointer tools</h2>
 ${DL([["Zoom","Drag a box to zoom; a flat box zooms X only. Scroll to zoom at the pointer. Click a point to select it."],["Pan","Drag to move the view. The middle button pans in any tool."],["Mask","Click a point or drag a box to leave points out of the fit, the peak finder and the integrals; click again to bring them back."],["Add a peak","In the Fit window's peak fit: click where you see a peak to add it to the fit."],["Label","Click a peak to label it and type; click an empty spot to write text. "+DA("annos","Labels and text")],["Arrow","Drag from where the arrow starts to what it points at; its head snaps to a data point. "+DA("annos#arrows","Arrows")],["Comment","In a shared project: click a point or a spot to start a comment anchored there. Alone, right-click the graph › Add here › A comment here…"]])}
 <p>Double-click the graph, or <em>Show all</em>, to see all the data again. A zoom belongs to the X units it was made in.</p>
-<h2>Original, Processed, Both</h2>
-<p>The graph normally shows the processed data. On the graph window's own bar (or ${MP("Plot › Show on the graph")}), <em>Original</em> shows the data as typed or imported, <em>Both</em> the two together. Selecting a box in the History shows the data at that point, and a chip on the graph's bar says which stage it is, with the way back.</p>
+<h2 id="stages">Earlier stages</h2>
+<p>The graph shows the processed data. Selecting a box in the History shows the data at that point (the original data's box, the data as typed or imported), and a chip on the graph's bar says which stage it is, with ✕ to go back. To see a step's result beside the data it came from, choose <em>A new graph</em> in the step's window: the step goes on a new column made from this one, on a graph of its own.</p>
+<h2 id="curves">Showing and hiding curves</h2>
+<p><em>Curves</em> on the graph's bar lists every curve of the graph, ticked while it is drawn: a click hides or shows one, <em>Show only…</em> isolates one, <em>Show every curve</em> brings them back. A curve's right-click and a legend entry's have <em>Hide this curve</em>, <em>Show only this curve</em> and <em>Show every curve</em>. A hidden curve stays on the graph, with its style and labels, and every change is one Undo; hiding the active curve makes a shown one active. <em>Take it off this graph</em> removes it from the graph's list instead.</p>
 <h2>Switches</h2>
 ${DL([["Reverse X","High to low, as wavenumbers are usually drawn."],["Log Y","A logarithmic Y axis."],["Grid","Grid lines."],["Residuals","A panel under the graph with the fit's residuals."]])}
 <h2>Right-click</h2>
@@ -23266,7 +23278,7 @@ ${DL([["Layout","<em>Overlay</em>; <em>Offset</em> (a waterfall, each trace labe
 <h2>On the graph itself</h2>
 <ul><li>Drag the <strong>legend</strong>, a <strong>title</strong> or an <strong>axis's numbers</strong> to move them. An axis dragged into the plot sits at that value (it snaps to zero); dragged out, it is set off from the plot. A title dragged back within 5 px of its place snaps home.</li>
 <li>Double-click a title, a legend entry, a label, a text or a line's text to type over it, in a box with the buttons for superscripts, subscripts and symbols, formatted as in a word processor or in LaTeX (${DA("latex","Text: formatted or LaTeX")}); double-click an axis's numbers for its page.</li>
-<li id="legend-edit">Click the <strong>legend</strong> to select it, the entry clicked shaded; click that entry again, double-click it or press ${K("Enter")} to type over it. ${K("↑")} and ${K("↓")} move between the entries and the title, ${K("Esc")} lets go. An entry's text is its curve's legend label: the curve keeps its name, and clearing the text brings the name back. Right-click the legend for <em>Add a title</em>, <em>Hide this entry</em>, and its place, columns and frame.</li>
+<li id="legend-edit">Click the <strong>legend</strong> to select it, the entry clicked shaded; click that entry again, double-click it or press ${K("Enter")} to type over it. ${K("↑")} and ${K("↓")} move between the entries and the title, ${K("Esc")} lets go. An entry's text is its curve's legend label: the curve keeps its name, and clearing the text brings the name back. Right-click the legend for <em>Add a title</em>, an entry for <em>Hide this curve</em>, <em>Show only this curve</em> and <em>Leave it out of the legend</em>, and its place, columns and frame.</li>
 <li>Right-click an axis's numbers, a title, the legend or an empty spot for their menus. Everything with text has the same menu in the same order: <em>Edit text</em>; <em>Size</em>, <em>Bold</em>, <em>Italic</em> and <em>Colour</em>; what is its own (an axis title's place along the axis, a line's style and width, a label's mark, the legend's place and columns); <em>Format…</em> for its page of the Format pane; <em>Delete</em>.</li>
 <li>An axis title can have a font, size, weight, slant and colour of its own: its axis's page (or the title's right-click menu). The style of every axis title is on the <em>Text and fonts</em> page.</li></ul>
 <h2 id="formats">Saved styles</h2>
@@ -23547,13 +23559,15 @@ ${DL([["Category","Where the model list files it, among your functions: <em>Your
 <h2 id="org">Your functions</h2>
 <p>${MP("Analyze › Fit › Your functions…")}, or <em>Your functions…</em> at the foot of the model list, lists every function of the project and of this browser's library, by category. Type a name or a category in place to rename or file it (one undo step for the project's), <em>Edit…</em> opens the editor, <em>To project</em> and <em>To browser</em> copy it between the two, and <em>Delete</em> takes it out (Undo brings it back); fits made with it keep their own copy.</p>`},
 {id:"results", g:"Fitting", t:"Reading the results", win:"res", kw:"results parameters value standard error derived in the results sections t p value confidence interval level dependency chi square r2 aic bic residuals warnings notes history anova analysis of variance f test sum of squares mean square covariance correlation matrix standardised studentised standardized studentized deleted leverage hat outlier outliers mask probability paper normal histogram lag find x find y inverse prediction calibration curve read off value at to worksheet fitted values residual columns put the fit in the worksheet",
- lead:"Every parameter with its uncertainty, the fit statistics, and plain notes on anything that makes the numbers less trustworthy.",
+ lead:"Every parameter with its uncertainty, the few statistics that judge the fit, and plain notes on anything that makes the numbers less trustworthy. The rest is there when you ask for it, and always in the report.",
  body:`<h2>Parameters</h2>
-${DL([["Value, Standard error","In columns of their own, as journals print them. The error is from the covariance matrix: Without weights, scaled by √(reduced χ²), as Origin does."],["t, Prob > |t|","The value over its error, and the chance of a t that large if the parameter were really zero."],["Confidence interval","Value ± t × error, t for the fit's confidence level (95% unless set in the Fit window) and its degrees of freedom."],["Dependency","Near 1, the parameter is doing the same job as others and is not independently determined. Such rows are highlighted."],["At its limit","A parameter that stopped at a bound has no meaningful standard error, and is left out of derived quantities' errors."]])}
+<p>The table has three columns: the parameter (its meaning in its tooltip), its value and its standard error. The other columns are switches under the Fit window's <em>In the results</em>, off until chosen: <em>t and p values</em>, <em>Confidence intervals</em>, <em>Dependency</em>. The exported report and the copied table have every column whatever is shown.</p>
+${DL([["Value, Standard error","In columns of their own, as journals print them. The error is from the covariance matrix: Without weights, scaled by √(reduced χ²), as Origin does."],["t, Prob > |t|","The value over its error, and the chance of a t that large if the parameter were really zero."],["Confidence interval","Value ± t × error, t for the fit's confidence level (95% unless set in the Fit window) and its degrees of freedom."],["Dependency","Near 1, the parameter is doing the same job as others and is not independently determined; above 0.99 a note under the table says which, whether or not the column is shown."],["At its limit","A parameter that stopped at a bound has no meaningful standard error, and is left out of derived quantities' errors."]])}
 <p>Quantities derived from the parameters (a half-life, an area) follow under <em>Derived</em>, with their errors. A peak fit gives each peak's centre, height, FWHM and area in a table of its own; <em>Every parameter</em> under <em>In the results</em> adds the table of all its parameters.</p>
 <p>What follows the table is what the Fit window's <em>In the results</em> chose, each part open: the confidence intervals, Find X/Y, the analysis of variance, the correlation and covariance matrices and the residual analysis. The statistics are beside the table.</p>
 <h2>Statistics</h2>
-${DL([["Reduced χ²","The residual sum of squares over the degrees of freedom (weighted: near 1 for a good fit)."],["R², adjusted R²","The share of the variance explained; adjusted for the number of parameters."],["AIC, BIC","For comparing models on the same data: lower is better, and more parameters must earn their place."]])}
+${DL([["Reduced χ²","The residual sum of squares over the degrees of freedom (weighted: near 1 for a good fit)."],["R², adjusted R²","The share of the variance explained; adjusted for the number of parameters."],["Points, degrees of freedom","What the fit was made on."]])}
+<p>Beside the table only what judges this fit is listed; a setting is listed only when it is not the usual one (the iterations when the fit did not settle, the confidence level when it is not 95%, the weights when there are some). The residual sum of squares, AIC and BIC (for comparing models on the same data: lower is better), the iterations, the method and when and by whom the fit was made are in the report, the copied table and the CSV. The fit's history is in the History.</p>
 <h2 id="findxy">Find X/Y</h2>
 <p>The fitted curve read off at a value you type, answered as you type it.</p>
 ${DL([["Y at X","The curve's value at that X, with its standard error and its interval at the fit's confidence level: the confidence band at that X, so the number and the shading agree. An X past the fit's points is answered too, and marked as outside the fitted range: the curve is extrapolated there."],["X at Y","Every X in the fit's range where the curve takes that value (a peak or a wave takes it more than once), each with its standard error, the curve's error there over its slope, and its interval. Where the curve only touches the value without crossing it (the top of a peak typed exactly) the X has no error of its own. A value the curve never takes says what it takes there instead."],["Fill a column…","Reads every value of a column of the sheet shown the same way, Y at each X or X at each Y (the lowest or the highest X where there are several), into new columns beside it: the values, and if asked their standard errors and their intervals' ends. They are data columns, recorded in the original-data record as any fill is, one undo step; a later fit does not change them. A value the curve has no answer for leaves its cell empty."]])}
@@ -23664,7 +23678,7 @@ const DOC_STEP={
   xlin:`<p>For a known offset or a scale factor. With a = −1, anti-Stokes shifts become Stokes shifts.</p>`,
   norm:`${DL([["Maximum = 1","Divide by the largest value."],["Range 0 to 1","Minimum to 0, maximum to 1."],["Area = 1","Divide by the area."],["Vector length = 1","Divide by √(Σy²)."],["Standard normal variate","Subtract the mean, divide by the standard deviation."],["A band","Divide by a band's height or area: an internal standard."]])}${TIP("Normalise after subtracting the background, or the background's size sets the scale.")}`,
   scale:`<p>A dark level to subtract, a gain to correct, a sign to flip.</p>`,
-  ref:`<p>The other column is interpolated onto this one's X; points outside its range are dropped. A dashed line in the History shows which column the step reads, and the step is redone when that column changes.</p>`,
+  ref:`<p>The other column (a Y column or a data column) is interpolated onto this one's X, after shifting its X if asked; points outside its range are left out. To subtract a solvent or a background whose strength is not this column's, set <em>Scale</em> to <em>Fitted</em>: the scale, and with an offset the level too, are found by least squares so the difference is smallest, over the range given (a stretch where only the other column's features are) or wherever both have values. The scale found is in the step's note. A dashed line in the History shows which column the step reads, and the step is redone when that column changes.</p>`,
   deriv:`<p>A Savitzky–Golay derivative of the order chosen, over the window chosen. Needs even spacing (resample first). ${MP("Analyze › Calculus › Derivative, as a new column…")} keeps the column and adds its derivative beside it.</p>`,
   log:`<p>Points at or below zero have no logarithm and are left out.</p>`,
   absorb:`<div class="eq">A = −log₁₀ T</div><p>With transmittance in percent, T is divided by 100 first.</p>`,
@@ -23720,7 +23734,7 @@ const DOC_KW={ecal:"energy calibration channel kev gamma mca gain offset quadrat
 const DOC_MENU={crop:"Data › Clean",exclude:"Data › Clean",despike:"Analyze › Spectroscopy",sort:"Data › Clean",dedupe:"Data › Clean",resample:"Data › Clean",
   bg:"Data › Baseline",smooth:"Analyze › Signal processing",fft:"Analyze › Signal processing",scale:"Data › Transform",xlin:"Data › Transform",norm:"Data › Transform",
   ref:"Data › Transform",combine:"Data › Transform",deriv:"Analyze › Calculus",cumint:"Analyze › Calculus",hist:"Analyze › Statistics",log:"Data › Transform",absorb:"Analyze › Analyze › Spectroscopy › Corrections",
-  km:"Analyze › Analyze › Spectroscopy › Corrections",shift:"Analyze › Spectroscopy › X axis",xunit:"Analyze › Spectroscopy › X axis",calib:"Analyze › Spectroscopy › X axis",ecal:"Analyze › Spectroscopy › X axis",bose:"Analyze › Analyze › Spectroscopy › Corrections"};
+  km:"Analyze › Analyze › Spectroscopy › Corrections",shift:"Analyze › Spectroscopy › X axis",xunit:"Analyze › Spectroscopy › X axis",calib:"Data › Calibrate",ecal:"Data › Calibrate",bose:"Analyze › Analyze › Spectroscopy › Corrections"};
 // The article of each window, for its "?" and F1.
 const WIN_DOC={xpl:"explorer",graph:"graph",sheet:"sheet",flow:"history",over:"overview",peaks:"peaks",integ:"integ",fit:"fit",res:"results",batch:"batch",stats:"stats",disc:"disc",format:"style"};
 function stepDoc(op){
@@ -25770,6 +25784,30 @@ function toggleGraphCol(id,cid){
   save(patch,`${nm}: ${on?"took "+specName(c)+" off":"added "+specName(c)}`);
   renderAll();
 }
+/* Hiding curves (11.11, the user's report: hiding a curve, and showing one alone, was hard). A hidden
+   curve stays on its graph, its style, range and labels kept, and is not drawn (g.plot.hidden, which
+   plotCfg reads). The active curve is always drawn, so hiding it hands the active part to the next
+   curve shown; one curve stays shown. From the graph's Curves button, a curve's right-click and the
+   legend's. */
+function setHiddenCurves(gid,hidden,log){ const p=P(), g=graphOf(gid); if(!p||!g||S.readOnly) return false;
+  const keep=g.cols.filter(id=>!hidden.includes(id)&&colById(id)); if(!keep.length){ toast("One curve stays shown: show another first, or take this one off the graph."); return false; }
+  pushUndo(log); const patch={graphs:p.graphs.map(q=>q.id===gid?Object.assign({},q,{plot:Object.assign({},q.plot,{hidden:hidden.filter(id=>g.cols.includes(id))})}):q)};
+  if(gid===S.gid&&p.activeY&&hidden.includes(p.activeY)){ const next=keep.map(colById).find(c=>c&&c.role==="y")||colById(keep[0]); if(next){ stashDrafts(next.id); p.activeY=next.id; patch.activeY=next.id; S.glead[gid]=next.id; } }
+  save(patch,`${graphName(gid)}: ${log}`); renderAll(); return true; }
+const curveHidden=(gid,cid)=>{ const g=graphOf(gid); return !!(g&&((g.plot&&g.plot.hidden)||[]).includes(cid)); };
+const shownCount=gid=>{ const g=graphOf(gid); if(!g) return 0; const h=new Set((g.plot&&g.plot.hidden)||[]); return g.cols.filter(id=>!h.has(id)&&colById(id)).length; };
+function hideCurve(gid,cid,on){ const g=graphOf(gid); if(!g) return; const hid=((g.plot&&g.plot.hidden)||[]).filter(id=>id!==cid); if(on) hid.push(cid); setHiddenCurves(gid,hid,`${on?"hid":"showed"} ${specName(colById(cid))}`); }
+function onlyCurve(gid,cid){ const g=graphOf(gid); if(g) setHiddenCurves(gid,g.cols.filter(id=>id!==cid),`showed ${specName(colById(cid))} alone`); }
+function showAllCurves(gid){ setHiddenCurves(gid,[],"showed every curve"); }
+// The items a curve's menus share: hide it, show it alone, show them all.
+function curveShowItems(gid,cid){ const ro=S.readOnly, n=shownCount(gid), hid=curveHidden(gid,cid), any=!!(graphOf(gid)&&((graphOf(gid).plot||{}).hidden||[]).length);
+  return [hid?{label:"Show this curve",enabled:!ro,run:()=>hideCurve(gid,cid,false)}:{label:"Hide this curve",enabled:!ro&&n>1,title:n>1?"Kept on the graph, not drawn":"The only curve shown",run:()=>hideCurve(gid,cid,true)},
+    {label:"Show only this curve",enabled:!ro&&(n>1||hid),run:()=>onlyCurve(gid,cid)},any?{label:"Show every curve",enabled:!ro,run:()=>showAllCurves(gid)}:null]; }
+// The graph's Curves button: each curve ticked while shown, then Show only… and Show every curve.
+function curveVisItems(gid){ gid=gid||GID(); const g=graphOf(gid), ro=S.readOnly; if(!g||g.fig) return [{label:"No graph in hand",enabled:false}];
+  const hid=new Set((g.plot&&g.plot.hidden)||[]), cs=g.cols.map(colById).filter(Boolean), many=cs.length>1;
+  return [{group:"Shown on "+graphName(gid),plain:true}].concat(cs.map(c=>({label:specName(c),checked:!hid.has(c.id),enabled:!ro&&many,title:hid.has(c.id)?"Hidden: click to show it":"Click to hide it",run:()=>hideCurve(gid,c.id,!hid.has(c.id))})))
+    .concat(many?["-",{label:"Show only…",enabled:!ro,sub:()=>cs.map(c=>({label:specName(c),run:()=>onlyCurve(gid,c.id)}))},{label:"Show every curve",enabled:!ro&&hid.size>0,run:()=>showAllCurves(gid)}]:[]); }
 function showGraph(id){ const f=figOf(id), sid=f?f.id:id; if(graphShut(sid)) setGraphShut(sid,false); const w=winOfGraph(id); if(!winOpen(w)) openWin(w); else focusWin(w); activateGraph(id); }
 /* ---- Closing graphs, and plotting when ready ----------------------------------
    A graph can be closed (its ×): it leaves the desk and the taskbar but stays
@@ -26554,16 +26592,19 @@ function switchProject(id){ if(id===S.pid) return; openProject(id); const p=P();
 /* The chip on the graph window's ribbon: which stage of the processing the
    graph is showing, when it is not the final data, and the way back. */
 function renderStages(){
-  const chip=$("#stageChip"); if(!chip){ renderViewSeg(); return; }
+  const chip=$("#stageChip"); if(!chip) return;
   const p=P(), c=activeYCol(), r=c?pipeOf(c):null, ps=r?plotState():null;
-  if(!p||!r||!ps||(ps.final&&!ps.ghost)){ chip.hidden=true; chip.innerHTML=""; renderViewSeg(); return; }
+  if(!p||!r||!ps||(ps.final&&!ps.ghost)){ chip.hidden=true; chip.innerHTML=""; return; }
   chip.hidden=false;
-  const txt=S.stage!=null&&ps.k>0?`After step ${ps.k}, ${stepShort(ps.st.step).toLowerCase()}${ps.final?" (the processed data)":""}${ps.ghost?": its input in grey":""}`
+  // Short, as information hygiene asks: what the graph shows; the rest is the tooltip's.
+  const pend=!!(S.pending&&ps.st&&ps.st.step&&ps.st.step.id===S.pending.step.id);
+  const txt=S.stage!=null&&ps.k>0?(pend?`Preview: ${stepShort(ps.st.step)}`:`After step ${ps.k}: ${stepShort(ps.st.step)}`)
+    :S.stage===0?(isDerived(c)?"The input":"Original data"):`Processed, and ${ps.ghostLabel}`;
+  const full=S.stage!=null&&ps.k>0?`After step ${ps.k}, ${stepShort(ps.st.step).toLowerCase()}${ps.final?" (the processed data)":""}${ps.ghost?", its input in grey":""}${pend?". Not applied until OK":""}`
     :S.stage===0?`${isDerived(c)?"The input":"The original data"}, before any step`:`Processed, with ${ps.ghostLabel} in grey`;
-  chip.title=txt+(ps.final?"":". Fits always use the processed data.");
+  chip.title=full+(ps.final?"":". Fits always use the processed data.");
   chip.innerHTML=`<span>${esc(txt)}</span><button class="tb sm icon" id="stageBack" aria-label="Back to the processed data" title="Back to the processed data">${ICON("x","sm")}</button>`;
-  $("#stageBack").onclick=()=>{ S.selStep=null; setStage(null,{cmp:false}); };
-  renderViewSeg();
+  $("#stageBack").onclick=()=>{ S.selStep=null; S.flowSel=null; setStage(null,{cmp:false}); };
 }
 function renderTabMarks(){
   const sf=$("#stepFit"); if(!sf) return;
@@ -26606,10 +26647,6 @@ function plotMenu(){
     "-",
     {label:"Plot type", sub:()=>plotTypeItems(act,!edit), enabled:g},
     {label:"Several curves", sub:()=>LAYOUTS.filter(([k])=>!isDistLayout(k)).map(([k,l])=>({label:l, radio:true, checked:cfg.layout===k, enabled:edit, run:()=>setPlotKey("layout",k,`laid the curves out as ${l.toLowerCase()}`)})), enabled:g},
-    anyProcessing()?{label:"Show on the graph", sub:()=>[
-      {label:"Original", title:"The data as typed or imported", radio:true, checked:S.stage===0, run:()=>setViewMode("raw"), enabled:has},
-      {label:"Processed", title:"After every processing step: what the fit uses", radio:true, checked:S.stage==null&&!S.cmp, run:()=>setViewMode("final"), enabled:has},
-      {label:"Both", title:"The processed data, with the original in grey behind it", radio:true, checked:S.stage==null&&S.cmp, run:()=>setViewMode("cmp"), enabled:has}]}:null,
     "-",
     {label:"View", sub:()=>[tool("zoom","Zoom"), tool("pan","Pan"), tool("reader","Reader"),
       {label:"X–Y lines", sub:()=>XH_MODES.map(([k,l,t])=>({label:l, note:t, radio:true, checked:m==="cross"&&xhMode()===k, enabled:has&&g, run:()=>setXhMode(k)}))},
@@ -26661,6 +26698,7 @@ function publishMenu(){
 }
 function menuItems(which){
   if(which==="ctx"){ const c=ctxOf(); return c?c.items():[]; }
+  if(which==="curves") return curveVisItems();
   const p=P(), f=p?activeFit():null, ro=S.readOnly, edit=!!p&&!ro, can=!ro&&!!S.store, has=!!(p&&pointsAll().length);
   if(which==="file") return [
     {label:"New project", run:newProject, enabled:can},
@@ -26949,7 +26987,6 @@ function wireStatic(){
   $("#cText").addEventListener("keydown",e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); postComment(); } });
   $("#undoBtn").onclick=undo; $("#redoBtn").onclick=redo;
   ["#undoBtn","#redoBtn"].forEach(q=>$(q).addEventListener("contextmenu",e=>{ e.preventDefault(); if(canUndo()||canRedo()) openUndoList(e.currentTarget); }));
-  document.querySelectorAll("#viewSeg button").forEach(b=>b.onclick=()=>setViewMode(b.dataset.view));
   const th=themeSetting(); if(th!=="auto") document.documentElement.setAttribute("data-theme",th);
   $("#themeBtn").onclick=()=>applyTheme(darkMode()?"light":"dark");
   try{ const mq=matchMedia("(prefers-color-scheme: dark)"); mq.addEventListener&&mq.addEventListener("change",()=>{ if(themeSetting()==="auto") onThemeChange(); }); }catch(e){}

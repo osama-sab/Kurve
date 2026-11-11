@@ -1024,6 +1024,41 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## The user's review: information hygiene, curves, a step on a new graph, calibration (2026-11-11)
+
+- **Information hygiene** is a principle of the spec (`ux/UX_SPEC.md` §3.8, DESIGN.md principle 7):
+  a working window shows what was asked for and what judges it; the rest is in the report, the
+  History and the tooltips.
+- **Results** in three columns (parameter, value, standard error): t and p, the interval and the
+  dependency are switches under *In the results*, off until chosen, each a column. No second line
+  of `t · Prob > |t| · 95% · dependency` under each parameter, peak or counted window; no red rows
+  (the note says which parameter is tied to the others); no *Fitted by … at …*; beside the table
+  only what judges the fit, and a setting only when it is not the usual one. The report, the copied
+  table and the CSV keep everything. The counting table's verdict has a *Detected* column of its
+  own, and a window wider than a line there a note in words.
+- **The Project Explorer** lists the sheets, not the files and their columns (a file row counted 4
+  and listed 3). Dragging a sheet onto a graph plots its Y columns.
+- **The graph's Original / Processed / Both** and Plot › Show on the graph are gone: a graph shows
+  the processed data, and a box selected in the History shows its stage with the chip's ✕ to go back.
+- **Curves** on the graph's bar: each curve ticked while drawn, *Show only…*, *Show every curve*; a
+  curve's right-click and its legend entry have *Hide this curve*, *Show only this curve*, *Show
+  every curve*. Hiding the active curve makes a shown one active; the last one shown stays.
+- **Show it on: This graph / A new graph** in every tool window: a new graph gets a new column made
+  from this one with the step, the column itself untouched; one undo.
+- **Data › Calibrate**: X on reference peaks (a parabola through three references or more, new),
+  energy, scale X, Y by a reference's response.
+- **Subtract another column** at a scale fitted so it cancels (with or without an offset, over a
+  range or wherever both have values), the other column shifted along X, a data column allowed.
+- Fixed: a dropped file threw (a name left from the Explorer's files).
+
+Checked: pipe-test (11 new, 140: a fitted solvent scale, over a stretch, with an offset, shifted,
+refusals; a parabola through three references, between them, a line's larger residuals, two asked
+as a parabola), review-drive's 11.11 section (24: the Explorer's rows and count, no switch, the
+stage chip, Curves, hide, undo, the active curve, the last one, show only and every, the curve's
+menu, a step on a new graph and its undo, a data column subtracted with its fitted scale said,
+Data › Calibrate, Results' three columns, no time, no packed lines), ds-test, odd-test, plot-drive,
+fit-drive, text-drive, ana-drive, the menu crawl and the suite.
+
 ## Closing the gap with Origin, wave 0: the bench (2026-11-07)
 
 The first wave of `ux/spec/PARITY_SPEC.md`, which ships nothing a user sees: what every later slice

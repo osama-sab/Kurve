@@ -189,6 +189,16 @@ console.log("Axis and calibration");
   check("one reference shifts X by the offset (+0.8)", near(c.extra.shift, 0.8, 0.05), c.extra.shift);
   const two = xs.map(v => v * 1.002 - 1.5);
   const y2 = xs.map(v => 100 + 2000 / (1 + 4 * ((v * 1.002 - 1.5 - (520.7 * 1.002 - 1.5)) / 4) ** 2));
+  // Three references and a wavelength error that curves across the detector.
+  const cx = Array.from({ length: 1201 }, (_, i) => 100 + i * 0.75), err = v => 0.6 + 0.002 * (v - 500) - 4e-6 * (v - 500) ** 2;
+  const refs3 = [200, 500, 900], cy = cx.map(v => 50 + refs3.reduce((s, r) => s + 2000 / (1 + 4 * ((v + err(v) - r) / 3) ** 2), 0));
+  const cp = run(series(cx, cy), "calib", { refs: refs3.map(r => ({ ref: r })), win: 8, order: "2" });
+  check("a parabola through three references puts each on its value", cp.extra.co && cp.extra.resid.every(r => Math.abs(r) < 0.02), cp.extra.resid && cp.extra.resid.join(", "));
+  check("and corrects between them (X at 700 within 0.05)", (() => { const i = cx.findIndex(v => v >= 700); return near(cp.d.x[i], 700 + err(700), 0.05); })(), cp.d.x[cx.findIndex(v => v >= 700)]);
+  const cl = run(series(cx, cy), "calib", { refs: refs3.map(r => ({ ref: r })), win: 8, order: "1" });
+  check("a line through the same three leaves the curvature (larger residuals)", cl.extra.a != null && Math.max(...cl.extra.resid.map(Math.abs)) > 0.1, cl.extra.resid.join(", "));
+  const c2 = run(series(cx, cy), "calib", { refs: [{ ref: 200 }, { ref: 500 }], win: 8, order: "2" });
+  check("a parabola asked of two references is a line, said", c2.extra.a != null && c2.warn.some(w => /three references/.test(w)), c2.warn.join(" | "));
   check("a peak not in the search window is reported, not guessed", run(series(xs, ys), "calib", { refs: [{ ref: 560 }], win: 5 }).warn.length === 1);
   // Channels to energy: a calibration typed in, and one fitted to known peaks.
   const ch = Array.from({ length: 2000 }, (_, i) => i);
@@ -233,6 +243,25 @@ console.log("Normalize and maths");
   const dark = { x: [0, 2, 4, 6, 8, 10], y: [10, 10, 10, 10, 10, 10] };
   const sub = run(series([1, 3, 5, 7, 9, 11], [20, 21, 22, 23, 24, 25]), "ref", { op: "sub", ref: "c1", use: "raw", k: 1 }, { refData: () => dark });
   check("subtracting another spectrum interpolates it and drops what it does not cover", sub.d.y.join() === "10,11,12,13,14" && /1 point/.test(sub.note), sub.d.y.join() + " / " + sub.note);
+  // A solvent band subtracted at the strength that cancels it.
+  const rx = Array.from({ length: 401 }, (_, i) => 400 + i), band = (v, c, w) => Math.exp(-0.5 * ((v - c) / w) ** 2);
+  const solv = { x: rx, y: rx.map(v => 100 * band(v, 520, 8) + 40 * band(v, 700, 12)) };
+  const mix = series(rx, rx.map((v, i) => 30 * band(v, 610, 10) + 0.7 * solv.y[i]));
+  const rf = run(mix, "ref", { op: "sub", ref: "s", use: "raw", fit: "fit" }, { refData: () => solv });
+  check("a fitted scale finds the solvent's strength (0.7)", near(rf.extra.k, 0.7, 2e-3) && /scaled by 0\.7/.test(rf.note), rf.extra.k + " / " + rf.note);
+  check("and the sample's own band is left whole", near(Math.max(...rf.d.y), 30, 0.3), Math.max(...rf.d.y));
+  const rr = run(mix, "ref", { op: "sub", ref: "s", use: "raw", fit: "fit", x0: 680, x1: 760 }, { refData: () => solv });
+  check("fitted over a stretch where only the solvent is", near(rr.extra.k, 0.7, 1e-6) && /fitted over 81 points/.test(rr.note), rr.extra.k + " / " + rr.note);
+  const off = series(rx, mix.y.map(v => v + 5));
+  const rb = run(off, "ref", { op: "sub", ref: "s", use: "raw", fit: "fitb", x0: 480, x1: 560 }, { refData: () => solv });
+  check("with an offset, both the scale and the offset", near(rb.extra.k, 0.7, 5e-3) && near(rb.extra.b, 5, 0.3), rb.extra.k + ", " + rb.extra.b);
+  const sh = { x: rx.map(v => v - 2), y: solv.y };
+  const rs2 = run(mix, "ref", { op: "sub", ref: "s", use: "raw", fit: "fit", dx: 2 }, { refData: () => sh });
+  check("a reference recorded 2 off, shifted back, cancels as well", near(rs2.extra.k, 0.7, 2e-3), rs2.extra.k);
+  let rerr = ""; try { run(mix, "ref", { op: "sub", ref: "s", use: "raw", fit: "fit", x0: 2000, x1: 3000 }, { refData: () => solv }); } catch (e) { rerr = e.message; }
+  check("a range with no points is refused in words", /Too few points/.test(rerr), rerr);
+  let rz = ""; try { run(mix, "ref", { op: "sub", ref: "s", use: "raw", fit: "fit" }, { refData: () => ({ x: rx, y: rx.map(() => 0) }) }); } catch (e) { rz = e.message; }
+  check("a reference of zeros cannot be scaled, and says so", /zero over the fitted range/.test(rz), rz);
   const xs = Array.from({ length: 200 }, (_, i) => i * 0.05), sn = series(xs, xs.map(Math.sin));
   const d1 = run(sn, "deriv", { order: "1", win: 9, poly: 3 });
   check("first derivative of sin is cos", Math.max(...d1.d.y.slice(10, 190).map((v, i) => Math.abs(v - Math.cos(xs[i + 10])))) < 1e-3);

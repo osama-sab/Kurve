@@ -497,13 +497,13 @@ await page(async p => {
     // A fit from before slice 4: no level, intervals at 95%.
     const old=Object.assign({},f); delete old.conf; out.oldCi=JSON.stringify(ciOf(old,1))===JSON.stringify(ciOf(f,1));
     save({fit:Object.assign({},f,{conf:"junk"})}); let err=""; try{ showDrawer("res"); renderResults(); renderPlot(); }catch(e){ err=e.message; }
-    out.err=err; out.head=(document.querySelector("#pane-res .rtab thead")||{}).textContent||"";
+    out.err=err; out.head=paramTableHtml(P().fit,true);
     savePlot({residKind:"bogus",resid:true}); let err2=""; try{ renderPlot(); renderResults(); }catch(e){ err2=e.message; } out.err2=err2; out.kind=resKind();
     out.nan=/NaN|Infinity/.test(document.querySelector("#plot").innerHTML+document.querySelector("#pane-res").innerHTML);
     return out; });
   check("a level that is not one from storage reads as 95%; 0.9 reads as 90%", JSON.stringify(r.lev) === JSON.stringify(["95","95","95","95","95","95","90"]), JSON.stringify(r.lev));
   check("a fit from before has its intervals at 95%", r.oldCi);
-  check("junk for a level and for the residuals' kind draws, without NaN", !r.err && !r.err2 && r.head.includes("95% confidence interval") && r.kind === "raw" && !r.nan, JSON.stringify(r));
+  check("junk for a level and for the residuals' kind draws, without NaN", !r.err && !r.err2 && r.head.includes("95% interval") && r.kind === "raw" && !r.nan, JSON.stringify(r));
   r = await p.evaluate(() => { const f=P().fit, out={};
     // Every parameter fixed: no free parameter, nothing to invert.
     const fx=Object.assign({},f,{fixed:[true,true],at:f.at+1}); let e1=""; try{ const D=fitDiag(fx); out.fx=D?{m:D.m,h:D.h.every(v=>v===0),lim:D.out.lim}:null; diagHtml(fx); }catch(e){ e1=e.message; } out.e1=e1;

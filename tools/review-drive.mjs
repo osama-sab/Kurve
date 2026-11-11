@@ -280,6 +280,94 @@ await page(async (p, ctx) => {
   check("…and leaves the other tab's newer change to the same graph", (await st(p))[0] === "B again", JSON.stringify(await st(p)));
 }, { name: "an undo beside another tab" });
 
+console.log("11.11: the graph's Original/Processed switch, a cramped parameter table, curves hard to hide, a new graph for a step, subtraction and calibration, the Explorer's files");
+await page(async p => {
+  // Three columns of one file, one with an error column, so the old file row would have said 4 and listed 3.
+  const t = "Wavelength,A,A err,B,C\n" + Array.from({ length: 60 }, (_, i) => `${400 + i},${(5 + Math.sin(i / 4)).toFixed(4)},0.1,${(3 + Math.cos(i / 6)).toFixed(4)},${(2 + i / 30).toFixed(4)}`).join("\n");
+  await viaDialog(p, "three.csv", t);
+  await p.evaluate(() => { toggleXpl(true); renderAll(); }); await p.waitForTimeout(400);
+  const x = await p.evaluate(() => [...document.querySelectorAll("#xplTree .xr")].map(r => [r.dataset.xk, r.title || ""]));
+  check("the Explorer lists the sheet, and no file of columns beside it", x.some(r => /^ws:/.test(r[0])) && !x.some(r => /^(f|c):/.test(r[0])), JSON.stringify(x));
+  const tip = await p.evaluate(() => { const s = sheetList()[0]; return xRows().find(r => r.key === "ws:" + s.id).tip; });
+  const nv = await p.evaluate(() => sheetCols(sheetList()[0].id).filter(hasVals).length);
+  check("…its count is the columns the sheet shows with values", new RegExp(`: ${nv} columns with values`).test(tip) && nv === 5, tip + " / " + nv);
+  // Plot two, then a step: the graph shows the processed data, with no Original/Processed/Both switch to get lost in.
+  await p.evaluate(() => { const ys = yCols().filter(c => !/err/.test(c.name)).slice(0, 2).map(c => c.id); plotCols(ys); }); await p.waitForTimeout(500);
+  check("the graph has no Original / Processed / Both switch", await p.evaluate(() => !document.getElementById("viewSeg") && !menuItems("plot").some(i => i && /Show on the graph/.test(i.label || ""))));
+  await p.evaluate(() => { openTool("smooth"); }); await p.waitForTimeout(400);
+  await p.evaluate(() => { toolDest("here"); applyTool(); }); await p.waitForTimeout(500);
+  const st = await p.evaluate(() => [S.stage, S.cmp, activeYCol().pipe.length, finalOf(activeYCol()).y.length]);
+  check("a step applied: the graph shows the processed data", st[0] == null && !st[1] && st[2] === 1 && st[3] === 60, JSON.stringify(st));
+  await p.evaluate(() => { setStage(0); renderStages(); }); await p.waitForTimeout(200);
+  const chip = await p.evaluate(() => { const b = document.querySelector("#stageChip button, .stchip button, [data-stclear]"); return b ? (b.click(), true) : false; }); await p.waitForTimeout(200);
+  check("the chip naming an earlier stage takes the graph back to the processed data", chip && (await p.evaluate(() => S.stage == null)), JSON.stringify(await p.evaluate(() => [S.stage, document.querySelector("#gRibbon") && document.querySelector("#gRibbon").innerText.slice(0, 200)])));
+  // Curves: hide, show alone, show every, from the graph's bar.
+  check("the graph's bar has Curves", await p.evaluate(() => !!document.querySelector('#gRibbon [data-rmenu="curves"]')));
+  const ids = await p.evaluate(() => graphOf(S.gid).cols.slice());
+  const drawn = () => p.evaluate(() => [...document.querySelectorAll("#plot g[data-ser]")].map(g => g.getAttribute("data-ser")).filter(s => !/^__/.test(s)));
+  await p.evaluate(() => { const b = document.querySelector('#gRibbon [data-rmenu="curves"]'); b.click(); }); await p.waitForTimeout(200);
+  const mi = await p.evaluate(() => [...document.querySelectorAll(".menu [role^=menuitem]")].map(e => e.innerText.trim()));
+  await p.keyboard.press("Escape");
+  check("…listing each curve, Show only… and Show every curve", mi.length >= 4 && mi.some(s => /Show only/.test(s)), JSON.stringify(mi));
+  const other = ids.find(i => i !== ids[0]);
+  await p.evaluate(id => hideCurve(S.gid, id, true), other); await p.waitForTimeout(300);
+  check("a curve hidden is not drawn and stays on the graph", !(await drawn()).includes(other) && (await p.evaluate(id => graphOf(S.gid).cols.includes(id), other)), JSON.stringify(await drawn()));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  check("…and an undo shows it again", (await drawn()).includes(other), JSON.stringify(await drawn()));
+  const act = await p.evaluate(() => P().activeY);
+  await p.evaluate(id => hideCurve(S.gid, id, true), act); await p.waitForTimeout(300);
+  const a2 = await p.evaluate(() => [P().activeY, S.gid]);
+  check("hiding the active curve makes the shown one active, on the same graph", a2[0] !== act && (await drawn()).length === 1, JSON.stringify([act, a2, await drawn()]));
+  const refused = await p.evaluate(() => { const id = P().activeY; return setHiddenCurves(S.gid, graphOf(S.gid).cols.slice(), "hid every curve"); });
+  check("the last curve shown cannot be hidden", refused === false && (await drawn()).length === 1);
+  await p.evaluate(id => onlyCurve(S.gid, id), act); await p.waitForTimeout(300);
+  check("Show only this curve", JSON.stringify(await drawn()) === JSON.stringify([act]), JSON.stringify(await drawn()));
+  await p.evaluate(() => showAllCurves(S.gid)); await p.waitForTimeout(300);
+  check("Show every curve", (await drawn()).length === ids.length, JSON.stringify(await drawn()));
+  const cm = await p.evaluate(id => graphMenuItems(id).map(i => i && i.label).filter(Boolean), other);
+  check("a curve's right-click has Hide, Show only and Take it off", cm.includes("Hide this curve") && cm.includes("Show only this curve") && cm.some(l => /Take it off/.test(l)), JSON.stringify(cm));
+  // A step onto a new graph: a new column, the original unchanged, one undo.
+  const before = await p.evaluate(() => [P().graphs.length, allCols().length, activeYCol().id, activeYCol().pipe.length]);
+  await p.evaluate(() => { openTool("deriv"); }); await p.waitForTimeout(400);
+  const seg = await p.evaluate(() => [...document.querySelectorAll("#w-tool [data-tldest]")].map(b => b.innerText.trim()));
+  check("the tool asks where to show it: This graph or A new graph", seg.join("|") === "This graph|A new graph", JSON.stringify(seg));
+  await p.evaluate(() => document.querySelector('#w-tool [data-tldest="new"]').click()); await p.waitForTimeout(200);
+  await p.evaluate(() => applyTool()); await p.waitForTimeout(700);
+  const after = await p.evaluate(b => { const src = colById(b[2]), n = activeYCol(); return [P().graphs.length, allCols().length, src.pipe.length, n.src === b[2], n.pipe.length, n.pipe[0].op, graphOf(S.gid).cols.join(), n.id, /d\(/.test(finalOf(n).yn || "")]; }, before);
+  check("a step shown on a new graph: a new column from this one, on a graph of its own, this one untouched", after[0] === before[0] + 1 && after[1] === before[1] + 1 && after[2] === before[3] && after[3] && after[4] === 1 && after[5] === "deriv" && after[6] === after[7] && after[8], JSON.stringify([before, after]));
+  await p.evaluate(() => undo()); await p.waitForTimeout(500);
+  check("…and one undo takes back the column and the graph", JSON.stringify(await p.evaluate(() => [P().graphs.length, allCols().length])) === JSON.stringify(before.slice(0, 2)));
+  await p.evaluate(() => toolDest("here"));
+  // Subtracting another column at the scale that cancels it; a data column can be the reference.
+  const sub = await p.evaluate(() => { const c = yCols().find(q => q.name === "C"); setColRole(c.id, "ignore"); const a = yCols().find(q => q.name === "A");
+    setActiveCol(a.id); openTool("ref", { p: { op: "sub", ref: c.id, use: "raw", fit: "fit" } }); return [...document.querySelectorAll('#w-tool select[data-pk="ref"] option')].map(o => o.textContent); });
+  await p.waitForTimeout(400);
+  check("the column to subtract can be a data column, not plotted", sub.some(s => /C$/.test(s)), JSON.stringify(sub));
+  const sf = await p.evaluate(() => [...document.querySelectorAll('#w-tool [data-pk]')].map(e => e.dataset.pk));
+  check("Fitted shows the range it is fitted over, not Scaled by", sf.includes("x0") && sf.includes("x1") && !sf.includes("k"), JSON.stringify(sf));
+  await p.evaluate(() => applyTool()); await p.waitForTimeout(500);
+  const sn = await p.evaluate(() => { const s = activeYCol().pipe.find(q => q.op === "ref"); return s ? [s.op, stageOfStep(s).note || ""] : activeYCol().pipe.map(q => q.op); });
+  check("the fitted scale is said in the step", sn[0] === "ref" && /scaled by .*fitted over 60 points/.test(sn[1]), JSON.stringify(sn));
+  // Data › Calibrate.
+  const cal = await p.evaluate(() => { const it = menuItems("data").find(i => i && i.label === "Calibrate"); return it ? (typeof it.sub === "function" ? it.sub() : it.sub).map(i => i.label) : null; });
+  check("Data › Calibrate: X on reference peaks, energy, scale X, Y by a reference", cal && cal.length === 4 && /reference/.test(cal[3]), JSON.stringify(cal));
+  // Results: three columns, no time, no cramped second lines, no red rows.
+  await p.evaluate(async () => { await loadExample("decay"); }); await p.waitForTimeout(800);
+  await p.evaluate(() => { S.fitMode = "curve"; showTab("fit"); chooseModel("expdec"); }); await p.waitForTimeout(250);
+  await p.evaluate(() => runFit()); await p.waitForTimeout(500);
+  await p.evaluate(() => { openWin("res", { render: true }); focusWin("res"); }); await p.waitForTimeout(400);
+  const rs = await p.evaluate(() => { const b = document.querySelector("#w-res"); const t0 = b.querySelector(".rtabw .rtab"); return [t0 ? t0.querySelectorAll("thead th").length : -1, b.querySelectorAll("tr.rmore,tr.badrow,.rhi.bad").length, !!b.querySelector("#fitBy"), b.innerText]; });
+  check("Results' parameter table: name, value and error alone, no second lines, nothing red", rs[0] === 3 && rs[1] === 0, JSON.stringify(rs.slice(0, 3)));
+  check("…no time of the fit and no counts nobody asked for", !rs[2] && !/Free parameters|AIC|BIC|Residual sum of squares|\b\d{1,2}:\d{2}\b/.test(rs[3]), rs[3].slice(0, 600));
+  check("…and no 't · Prob > |t| · 95% · dependency' lines", !/Prob > \|t\|/.test(rs[3]) && !/ · dependency/.test(rs[3]), rs[3].slice(0, 600));
+  const ord = await p.evaluate(() => { const g = document.querySelector("#w-res .rgrid"), y = s => { const e = g.querySelector(s); return e ? Math.round(e.getBoundingClientRect().top) : null; }; return [y(".rmain"), y(".rside"), y(".rrest"), /Fitted over/.test(g.innerText)]; });
+  check("…in the dock the statistics come straight after the table, and a range of all the data is not said", ord[0] < ord[1] && ord[1] < ord[2] && !ord[3], JSON.stringify(ord));
+  await p.evaluate(() => { openTool("smooth"); }); await p.waitForTimeout(400);
+  const chipT = await p.evaluate(() => document.querySelector("#stageChip").innerText.trim());
+  await p.evaluate(() => cancelTool());
+  check("the stage chip says a preview in two words", chipT === "Preview: Smooth", chipT);
+}, { name: "11.11", timeout: 120000 });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

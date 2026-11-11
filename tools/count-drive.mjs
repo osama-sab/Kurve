@@ -90,11 +90,12 @@ await page(async p => {
   const want = Array.from({ length: 1024 }, (_, i) => i).filter(i => E(i) >= E(282) - 1e-9 && E(i) <= E(318) + 1e-9).slice(3, -3).reduce((s, i) => s + peak(i, 300, 900, 3), 0);
   const r = await p.evaluate(() => { const res = bandCalc(activeYCol()); return { why: res.cs.why, kc: res.cs.kc, t: res.cs.t, rows: res.map(q => q.cnt && [q.cnt.N, q.cnt.sigN, q.cnt.det, q.cnt.lc]), html: (document.querySelector("#igCnt") || {}).innerText || "" }; });
   check("a counted spectrum's bands: the line's net counts within 4 σ of the counts it holds, detected", r.kc === 1 && r.t === 3600 && Math.abs(r.rows[0][0] - want) < 4 * r.rows[0][1] && r.rows[0][2], JSON.stringify([r.rows[0], want]));
-  check("…a window with no line is not detected", r.rows[1][2] === false && /not detected/.test(r.html), JSON.stringify(r.rows[1]));
+  const dets = await p.evaluate(() => [...document.querySelectorAll("#igCnt td.igdet")].map(td => td.innerText.trim()));
+  check("…a window with no line is not detected, said in its Detected column", r.rows[1][2] === false && dets.join() === "Yes,No", JSON.stringify([r.rows[1], dets]));
   // Emission and efficiency typed: the activity, and for the band with nothing, the detection limit.
   for (const [k, v] of [["ig", "85.1"], ["eff", "2.5"]]) for (const b of await p.evaluate(() => integOf().bands.map(b => b.id))) { const f = p.locator(`#ig-${k}-${b}`); await f.fill(v); await f.press("Enter"); await p.waitForTimeout(250); }
   const a = await p.evaluate(() => { const res = bandCalc(activeYCol()); return [activityOf(res[0].cnt, res.cs.t, res[0].b.eff, res[0].b.ig), activityOf(res[1].cnt, res.cs.t, res[1].b.eff, res[1].b.ig), document.querySelector("#igCnt").innerText]; });
-  check("emission and efficiency typed: the activity, N ÷ (t ε I)", a[0] && Math.abs(a[0].A - r.rows[0][0] / (3600 * 0.025 * 0.851)) < 1e-6 * a[0].A && new RegExp(String(Math.round(a[0].A)).slice(0, 2)).test(a[2]), JSON.stringify(a.slice(0, 2)));
+  check("emission and efficiency typed: the activity, N ÷ (t ε I)", a[0] && Math.abs(a[0].A - r.rows[0][0] / (3600 * 0.025 * 0.851)) < 1e-6 * a[0].A && a[2].includes(String(Math.round(a[0].A * 10) / 10)), JSON.stringify(a.slice(0, 2)));
   check("…not detected, the detection limit as an activity (‹ MDA)", a[1] && !a[1].det && /< /.test(a[2]), a[2].slice(0, 300));
   check("one undo step a field", (await p.evaluate(() => { undo(); return [integOf().bands[1].eff, integOf().bands[0].eff]; })).join() === ",2.5");
   await p.evaluate(() => redo()); await p.waitForTimeout(200);
@@ -112,7 +113,7 @@ await page(async p => {
   check("smoothed, they are not counts: the window says why", /counts as recorded: .*Smooth.* changes them/i.test(w[0]) && /counts as recorded/.test(w[1]), JSON.stringify(w));
   // In the dock, the counting table fits.
   await p.evaluate(() => undo()); await p.waitForTimeout(400);
-  const fit = await p.evaluate(() => { const t = document.querySelector("#igCnt table"), b = document.querySelector("#w-integ .win-b"); return [t && Math.round(t.getBoundingClientRect().width), b && b.clientWidth]; });
+  const fit = await p.evaluate(() => { const t = document.querySelector("#igCnt table"), b = document.querySelector("#igCnt .twrap"); return [t && Math.round(t.getBoundingClientRect().width), b && b.clientWidth]; });
   check("in the dock the counting table fits", fit[0] && fit[0] <= fit[1], JSON.stringify(fit));
 }, { name: "counting", timeout: 120000 });
 

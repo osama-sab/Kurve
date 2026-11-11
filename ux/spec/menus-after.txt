@@ -103,6 +103,11 @@ Data
     Scale and offset X…
     Subtract or divide by another column…  ## ~ "Subtract or divide by another spectrum…"
     Average with other columns…  ## ~ "Average with other spectra…"
+  Calibrate  ## new (11.11, the user's request): calibrating where the data are prepared
+    Calibrate X on reference peaks…  ## new route: also Analyze › Spectroscopy › X axis
+    Energy calibration…  ## new route: also Analyze › Spectroscopy › X axis
+    Scale and offset X…  ## new route: also Transform
+    Y by a reference's response…  ## new route: Subtract or divide by another column…, dividing
 
 Plot
   Plot setup…
@@ -146,10 +151,6 @@ Plot
     Stacked panels
     Two Y axes  ## ~ "Double Y"
     Heat map
-  Show on the graph  ## ← Data (DS2); ↓ until a column has processing
-    Original  ## ~ "Raw data"
-    Processed  ## ~ "Final data"
-    Both  ## ~ "Final, with the raw data behind"
   View  ## ← the Graph menu (DS2): looking at the graph, not changing it; greyed with no graph on the desk
     Zoom
     Pan

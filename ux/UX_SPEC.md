@@ -46,9 +46,11 @@ The rubric for every decision; the first ten are the plan's, the last five came 
 11. **Nothing lives only in a toast.** An action a toast offers (Plot it now, Read it
     differently, Undo) is also in a menu. At 1280×720 the Plot toast was gone twice before it
     could be used.
-12. **What a graph shows is the graph's.** Original, processed or both is saved with each
-    graph (each panel of a figure), and every export draws what the screen draws. In T9 the
-    export showed something else.
+12. **What a graph shows is the graph's.** Its curves, the ones hidden and each curve's range
+    are saved with each graph (each panel of a figure), and every export draws what the screen
+    draws. In T9 the export showed something else. A graph shows the processed data; to see a
+    step's result beside its input, the step goes onto a new graph (11.11: the graph's
+    Original / Processed / Both switch is gone).
 13. **A default the app chose is said where it acts.** "Weighted by column C (SD)" beside the
     Fit button, not a switch already on and named nowhere (T3).
 14. **Focus goes where the work is.** Bringing the worksheet forward puts the keyboard in its
@@ -56,6 +58,9 @@ The rubric for every decision; the first ten are the plan's, the last five came 
 15. **Menus forgive a diagonal path.** With a menu open, another menu opens on hover only
     after the pointer rests 150 ms on its name; a click opens it at once. Today, aiming at
     File › New project hit Edit › Undo (T6).
+16. **Information hygiene** (§3.8, the user's rule of 11.11). A screen shows what the analysis
+    asked for and needs to be judged, and nothing else. Every extra number, label and line
+    of text costs attention and makes the app look unfinished.
 
 ## 3.2 Layout
 
@@ -394,3 +399,40 @@ From the defaults audit (`FEATURE_INVENTORY.md` §3), to be built in Phase 4's s
 - **Axis titles typed by hand stay;** automatic ones follow the columns plotted. With several
   Y columns, the Y title is their shared unit.
 - **A figure's "Share X"** shows ticked (and disabled) when it is automatic.
+
+## 3.8 Information hygiene
+
+The user's rule of 11.11: "Humans can be overwhelmed by information on the screen; a clean app
+needs only the important information you asked for and that is relevant to the analysis. The
+more useless text and information there is, the more cluttered the app looks and the worse the
+experience." Every window, table, list, tooltip and message is held to it.
+
+- **Show what was asked for, and what judges it.** A fit's table is the parameter, its value
+  and its standard error. Reduced χ², R², the points and the degrees of freedom judge the fit, so
+  they stay. t, p, the confidence interval and the dependency are switches under *In the
+  results*, off until chosen.
+- **A setting is shown only when it is not the usual one.** The confidence level when it is
+  not 95 %, the weights when there are some, the iterations when the fit did not settle, the fit
+  control when it is not the default. "95 %", "None" and "Converged in 12 iterations" say
+  nothing.
+- **No bookkeeping on the work surface.** When something was made and by whom, check codes, ids
+  and counts of what is already listed do not belong in a working window. They belong in the
+  History, the report, the copied table and the CSV, which keep everything.
+- **No packed lines.** A line such as `t 1538 · Prob > |t| < 0.0001 · 95% 115449 to 115743 ·
+  dependency 0.9376` is four facts packed into one line, each half-labelled. A fact that
+  deserves a place gets a column with a heading, or a row with a name. One that does not
+  is left out. A separator `·` joins at most two short facts, such as a name and its unit.
+- **Colour is for state, not decoration.** Red means something is wrong *and* says what, in
+  words, in the notes. A table row is not painted red for a reader to work out why. Bold marks
+  what stands out (a correlation above 0.95), with the threshold in the tooltip.
+- **One place for one thing, and its count agrees with it.** The Project Explorer lists the
+  sheets, not the files' columns again: the worksheet shows the columns. A count shown beside a
+  list counts what the list shows (11.11: a file said 4 and listed 3).
+- **Explanations live in Help and tooltips**, not in the window (DESIGN.md principle 5). A
+  window keeps labels, numbers, warnings about this data, and a one-line empty state.
+- **The report is the exception.** It leaves the building and must say everything the screen
+  could. Trimming a window never trims the report (`paramTableHtml(f, true)`, `statsList` there,
+  `statsBrief` on screen).
+- **Before adding anything to a window, ask:** did the user ask for it? Does the analysis need
+  it to be judged? Is it said elsewhere already? If none of these, it goes in the report, the
+  History or a tooltip, or nowhere.
