@@ -445,3 +445,61 @@ def anova_ref(groups):
         out.update({"welch.F": fl(Fw), "welch.df2": fl(d2), "welch.p": f_sf(mpq(Fw), df1, mpq(d2))})
     out["_q"] = {"means": means, "ns": ns, "var": var, "msw": msw, "df2": df2, "k": k}
     return out
+
+# ---------- rank tests (STATS_SPEC 2.8): the Hodges–Lehmann estimates and their intervals, exactly ----------
+def _u_counts(m, n):
+    """The number of arrangements giving each U = 0 … mn (no ties), as integers."""
+    row = [[1] for _ in range(n + 1)]
+    for i in range(1, m + 1):
+        nr = [[1]]
+        for j in range(1, n + 1):
+            a, b = row[j], nr[j - 1]; out = [0] * (i * j + 1)
+            for u, c in enumerate(a): out[u + j] += c
+            for u, c in enumerate(b): out[u] += c
+            nr.append(out)
+        row = nr
+    return row[n]
+
+def _signrank_counts(n):
+    c = [1]
+    for i in range(1, n + 1):
+        d = [0] * (len(c) + i)
+        for s, v in enumerate(c): d[s] += v; d[s + i] += v
+        c = d
+    return c
+
+def _q_lo(counts, p):
+    """The smallest q with P(X ≤ q) ≥ p, exactly."""
+    tot, s, P = sum(counts), 0, Fr(p)
+    for q, c in enumerate(counts):
+        s += c
+        if Fr(s, tot) >= P: return q
+    return len(counts) - 1
+
+def _ties(v):
+    from collections import Counter
+    return sum(t ** 3 - t for t in Counter(v).values())
+
+def hl_ref(kind, x, y=None, alt="two", conf=0.95, exact=None, mu0=0.0):
+    """The shift (two samples: the median of every x − y) or pseudo-median (one sample: of the Walsh
+    averages of the non-zero x − mu0, plus mu0) and its interval by the order statistics R's wilcox.test
+    takes when exact, Hollander and Wolfe's normal approximation otherwise; in rationals."""
+    a1 = (1 - conf) / 2 if alt == "two" else 1 - conf
+    if kind == "two":
+        X, Y = [Fr(v) for v in x], [Fr(v) for v in y]; m, n = len(X), len(Y); K = m * n
+        d = sorted(a - b for a in X for b in Y); tie = _ties(list(X) + list(Y)); N = m + n
+        if exact: q = max(1, _q_lo(_u_counts(m, n), a1))
+        else: q = max(1, int(mp.floor(mp.mpf(K) / 2 - stats_isf(a1) * mp.sqrt(mpq(Fr(K, 12) * ((N + 1) - Fr(tie, N * (N - 1))))))))
+    else:
+        z = [Fr(v) - Fr(mu0) for v in x]; z = [v for v in z if v != 0]; nn = len(z); K = nn * (nn + 1) // 2
+        w = [(z[i] + z[j]) / 2 + Fr(mu0) for i in range(nn) for j in range(i, nn)]; d = sorted(w); tie = _ties([abs(v) for v in z])
+        if exact: q = max(1, _q_lo(_signrank_counts(nn), a1))
+        else: q = max(1, int(mp.floor(mp.mpf(K) / 2 - stats_isf(a1) * mp.sqrt(mpq(Fr(nn * (nn + 1) * (2 * nn + 1), 24) - Fr(tie, 48))))))
+    med = d[(K - 1) // 2] if K % 2 else (d[K // 2 - 1] + d[K // 2]) / 2
+    lo, hi = d[q - 1], d[K - q]
+    ci = [-math.inf, fl(hi)] if alt == "less" else [fl(lo), math.inf] if alt == "greater" else [fl(lo), fl(hi)]
+    return {"hl": fl(med), "ci.0": ci[0], "ci.1": ci[1]}
+
+def stats_isf(p):
+    """The normal's upper quantile in 40 digits."""
+    return -mp.sqrt(2) * mp.erfinv(2 * M(p) - 1)

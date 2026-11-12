@@ -130,6 +130,16 @@ for (const c of fixtures.test23.cases) {
     }
   }
 }
+/* ---- rank tests (STATS_SPEC 2.8): SciPy's statistics and p, the Hodges–Lehmann intervals and Dunn's z exactly ---- */
+for (const c of fixtures.np.cases) {
+  const r = get(c.fn)(...c.args);
+  if (c.kind === "kw") { note("kwTest.H", relErr(r.H, c.want.H), c.name); note("kwTest.p", relErr(r.p, c.want.p), c.name);
+    c.want.dunn.forEach((w, i) => { const x = r.dunn[i]; note("kwTest.dunn", Math.max(relErr(x.z, w.z), relErr(x.p, w.p)), `${c.name} ${i}`); }); continue; }
+  for (const [k, w] of Object.entries(c.want)) {
+    const name = `${c.fn}.${k.replace(/\.\d$/, "")}`, got = k.split(".").reduce((o, x) => (o == null ? o : o[x]), r);
+    note(name, typeof got !== "number" ? Infinity : relErr(got, w, (TARGET[name] || {}).floor), `${c.name}: ${k}`);
+  }
+}
 for (const c of (fixtures.range || { cases: [] }).cases) note(c.fn, relErr(get(c.fn)(...c.args), c.want), fmtA(c.args));
 
 /* ---- distributions fitted to values ---- */

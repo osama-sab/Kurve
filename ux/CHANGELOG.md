@@ -1024,6 +1024,18 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 2, slice 2.8: nonparametric tests (2026-11-12)
+
+- **Analyze › Statistics › Nonparametric**: Mann–Whitney (U, the Hodges–Lehmann shift with its
+  interval, rank-biserial r), Wilcoxon signed-rank (one sample or paired, Wilcoxon's or Pratt's
+  zeros, the pseudo-median), the sign test, Kruskal–Wallis with Dunn's comparisons, Friedman with
+  Kendall's W, Mood's median test, two-sample Kolmogorov–Smirnov.
+- p exact while small and untied (as R), else the normal approximation, ties and continuity
+  corrected; the dialog can force either.
+
+Checked: `fixtures/np.json` (62), the fuzzer (four new generators), stats-test (8 new), ana-drive
+(11 new, 104), perf (one new line), the suite.
+
 ## Closing the gap with Origin, wave 2, slice 2.4: one-way ANOVA (2026-11-12)
 
 - **Analyze › Statistics › ANOVA › One-way ANOVA…**: groups as columns, or one column grouped by

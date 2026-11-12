@@ -898,6 +898,15 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-12: nonparametric tests (STATS_SPEC 2.8)
+
+- **Exact while small, as R**: no ties (and no zeros) and samples under 50; *p* in the dialog forces
+  the exact distribution or the normal approximation. The method line says which was used.
+- **The sign test's interval states its own level**: order statistics give at least the level asked,
+  so the sheet holds the level reached beside it.
+- **A test per menu item, as Origin's**, sharing two dialogs' worth of fields: one sample or paired;
+  two samples; groups of one factor.
+
 ### 2026-11-12: one-way ANOVA (STATS_SPEC 2.4)
 
 - **What judges a comparison comes first**: difference, p, the interval's ends; SE and the statistic

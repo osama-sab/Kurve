@@ -1115,6 +1115,16 @@ graph first, with the taskbar kept at the bottom of the screen.
   worker; `anaWrite` honours a column's `of` (an error column's owner, by key); `anaMeansPlot`; `ANA_FORMS.anova1`
   (`#aC_<key>`, `#aCtl` filled from the columns ticked or the levels grouped by, `#aCf`, `#aWe`). Analyze › Statistics
   › ANOVA. `anaReportHtml` lays a table of one row out as names and values (`.rtab.ana.kv`); headers wrap.
+  **Rank tests** (STATS_SPEC 2.8): `rankAvg(v)` (`{r, tie}`, tie Σ(t³ − t)), `kth`, `mwDist(m, n)` (P(U = u), Mann and
+  Whitney's recurrence in probabilities), `signrankDist(n)`, `cumLo`, `cumHi` (each tail summed from its own end),
+  `qLo` (R's qwilcox), `mwTest(x, y, {alt, conf, exact, cc})` (`{U, z, p, exact, hl, ci, rb}`), `wsrTest(v, {mu0, zero:
+  "wilcox"|"pratt", …})` (`{Tp, Tm, z, p, hl, ci}`), `signTest` (`{up, dn, p, med, ci, level}`), `kwTest(groups, {adj})`
+  (`{H, df, p, eps2, meanRank, dunn}`), `friedmanTest(rows)` (`{Q, p, W, rankSum}`), `moodTest(groups)`, `ks2Test(x, y,
+  {alt, exact})` (the lattice's share of paths that touched the boundary). Exact while untied (no zeros) and under
+  50, as R; `exact` true or false forces. Shared by the kinds: `anaSets(ins)`, `anaFactor(ins, notes)` (anova1 too),
+  `anaPairs(A, B, notes)`, `anaTab(title, spec, rows, cols, secs, pre)`, `npEx`, `npOne`, `DUNN_ADJ`. Kinds `mw`, `wsr`,
+  `sign`, `kw` (`dunn`, `adj`), `fried` (columns, rows complete in each), `mood`, `ks2`; forms `npExHtml` (`#aEx`),
+  `npTypeHtml`/`npTypeRead` (`#aTt`, `#aMu`), `#aZ`, `#aDn`, `#aAdj`. Analyze › Statistics › Nonparametric.
   `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
   (rationals), shared by the fixtures (`desc.json`) and the fuzzer (`quantileType`, `descStats@<key>`, which
   `run.mjs` reads as one field of the result).
@@ -3003,7 +3013,7 @@ names the slice that brings it there (`until`) and must not pass where it stood 
 see the README; `tools/ref/run.mjs` is the pure blocks under node, any function by name).
 `node tools/perf.mjs [path]` measures what a person waits for (boot; a million rows: save, a value
 typed, draw, zoomed draw, worksheet, saved to a project file and opened from one; one-way ANOVA of a million
-values and Tukey's 45 pairs; 2000 columns:
+values and Tukey's 45 pairs; rank tests of a million values; 2000 columns:
 save, worksheet, History, Statistics) against
 budgets of about three times what was measured. `tools/suite.sh [--snap] [path]` runs everything
 (the node tests, the bench, the drives in parallel, a fuzzer seed, the menu crawl, then the budgets
@@ -3022,7 +3032,9 @@ undo, Mark, groups' rows, Dixon, a reload), and 2.3 (one sample against tTest1 a
 its interval, Student's by group with nothing said of the variances, paired in the sheet's order, every spreads test,
 proportions and Fisher's test typed, a refusal, a reload), and 2.4 (the dialog's comparisons and Control, F, p, η² and
 Welch's F against anova1, Tukey's and Dunnett's p (the worker's), Holm with no interval, the means plot, grouped by a
-text column, followed after a value typed, a refusal, a reload).
+text column, followed after a value typed, a refusal, a reload), and 2.8 (each rank test through its dialog against
+its function: paired, Pratt's zeros and the normal approximation, Dunn's Bonferroni, Friedman's complete rows, a
+refusal, a one-row result shown as names and values, a reload).
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
@@ -3032,7 +3044,8 @@ rising, one, two and equal values, Tukey's hinges), and the normality and outlie
 ASTM E178, repeated and masked, refusals), and 2.3's (each test's size under its null, the t and d intervals'
 coverage, the exact tests at or below their level, the noncentral t at δ = 0), and 2.4's (F's and Welch's size,
 Tukey's and Dunnett's family-wise error at 5 % from their quantiles, Tukey–Kramer, Bonferroni and Scheffé below, the
-studentized range of two and Dunnett's one comparison as t); run it, ref-test and a fuzzer seed after touching the STATS or
+studentized range of two and Dunnett's one comparison as t), and 2.8's (U's and T+'s exact distributions against
+enumeration, each rank test's size, the shift's interval covering, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
 ANA block.
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
@@ -4558,7 +4571,9 @@ Next, in order:
    user's rule the same day, Kurve reports and the user judges (no sentence, verdict, check or advice), applied
    to 2.2 and 2.3 and kept for every slice after; slice 2.4, one-way ANOVA (the table, η², ω², Welch's F, eight
    comparisons with the studentized range and Dunnett's t worked out to 1e-15, a means plot; NIST's sets to the digits
-   their decimals allow), done 12.11
+   their decimals allow), done 12.11; slice 2.8, nonparametric tests (Mann–Whitney with the Hodges–Lehmann shift,
+   Wilcoxon signed-rank, the sign test, Kruskal–Wallis with Dunn's, Friedman, Mood's median test, two-sample KS;
+   exact distributions), done 12.11
 
 ## Known gaps
 
@@ -4640,6 +4655,10 @@ Next, in order:
 - Plotting from the worksheet plots whole columns (no range of rows, no plot of a selection
   of cells), against an X column; a closed graph is closed for everyone who opens the
   project, and a viewer who cannot edit cannot open it
+- Rank tests: exact p only without ties (with ties the normal approximation, as R; no permutation p); the
+  Hodges–Lehmann intervals from order statistics (R's exact ones; Hollander and Wolfe's normal ones, where R solves
+  for them), and none past two million differences; Dunn's comparisons for Kruskal–Wallis only (none after
+  Friedman); KS's exact p counts ties as if there were none (as SciPy), so it is conservative there
 - One-way ANOVA: one factor; Welch's F but not Brown and Forsythe's; Dunnett two-sided only, against one control;
   Holm without an interval; Games–Howell and Dunnett are worked out in the worker (a second or so for many groups);
   in the narrowest dock a comparisons table scrolls past its lower end
@@ -4649,7 +4668,7 @@ Next, in order:
   Kolmogorov's p past about 4600 values is Pelz and Good's expansion (about nine digits); Dixon's Q is r₁₀ alone
   (not Dixon's r₁₁, r₂₁, r₂₂ for larger samples), and Dixon's p takes 7 ms, its critical value a fifth of a second;
   two-sample tests take the first two columns ticked in the sheet's order (no swap); proportions and Fisher's test
-  read counts typed, not columns; a normality check's fix (a rank test) waits for 2.8; NIST's StRD univariate sets are not yet in the bench (the host was unreachable when 2.1 was
+  read counts typed, not columns; NIST's StRD univariate sets are not yet in the bench (the host was unreachable when 2.1 was
   checked; exact rationals stand in); one table a kind (its report's other sections are text); an analysis
   being worked out by the worker is started again after a reload (the job is not stored); a result column has no lock
   of its own in its header (its tab has)

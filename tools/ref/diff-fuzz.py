@@ -250,6 +250,39 @@ def _():
     k = int(rng.integers(3, 30)); nu = float(rng.choice([rng.integers(3, 60), lognum(0.5, 3)])); q = float(rng.uniform(0.3, 9))
     return [q, k, nu], float(SR.sf(q, k, nu))
 
+def _samp(n, ties):
+    """n values, rounded to a few levels when ties are asked for."""
+    v = rng.normal(rng.normal(0, 1), lognum(-1, 1), n)
+    return [float(x) for x in (np.round(v * 2) / 2 if ties else v)]
+
+@gen("mwTest@p", 1e-13, 0.3)
+def _():
+    m, n = int(rng.integers(1, 60)), int(rng.integers(1, 60)); ties = rng.random() < 0.3; x, y = _samp(m, ties), _samp(n, ties)
+    alt = str(rng.choice(["two", "less", "greater"])); ex = len(set(x + y)) == m + n and m < 50 and n < 50
+    if not ex and len(set(x + y)) < 2: raise ValueError("all equal")
+    r = stats.mannwhitneyu(x, y, alternative={"two": "two-sided"}.get(alt, alt), method="exact" if ex else "asymptotic", use_continuity=True)
+    return [x, y, {"alt": alt}], float(r.pvalue)
+
+@gen("wsrTest@p", 1e-13, 0.3)
+def _():
+    n = int(rng.integers(1, 80)); ties = rng.random() < 0.3; v = _samp(n, ties); alt = str(rng.choice(["two", "less", "greater"])); z = str(rng.choice(["wilcox", "pratt"]))
+    nz = [t for t in v if t != 0]; ex = len(nz) == n and len(set(abs(t) for t in v)) == n and n < 50
+    if ex and z == "pratt": z = "wilcox"
+    if len(nz) < 1 or (not ex and len(set(abs(t) for t in nz)) < 2 and len(nz) < 3): raise ValueError("degenerate")
+    r = stats.wilcoxon(v, alternative={"two": "two-sided"}.get(alt, alt), zero_method=z, correction=True, method="exact" if ex else "approx")
+    return [v, {"alt": alt, "zero": z}], float(r.pvalue)
+
+@gen("ks2Test@p", 1e-12, 0.3)
+def _():
+    m, n = int(rng.integers(1, 120)), int(rng.integers(1, 120)); ties = rng.random() < 0.2; x, y = _samp(m, ties), _samp(n, ties); alt = str(rng.choice(["two", "less", "greater"]))
+    return [x, y, {"alt": alt}], float(stats.ks_2samp(x, y, alternative={"two": "two-sided"}.get(alt, alt), method="exact").pvalue)
+
+@gen("kwTest@H", 1e-13, 0.3)
+def _():
+    k = int(rng.integers(2, 7)); ties = rng.random() < 0.4; gs = [_samp(int(rng.integers(1, 25)), ties) for _ in range(k)]
+    if len(set(v for g in gs for v in g)) < 2: raise ValueError("all equal")
+    return [gs, {}], float(stats.kruskal(*gs).statistic)
+
 cases = []
 for name, (f, tol) in GEN.items():
     for k in range(max(1, math.ceil(per * SHARE.get(name, 1.0)))):

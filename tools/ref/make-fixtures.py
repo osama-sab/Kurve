@@ -372,6 +372,68 @@ for nm in ["SiRstv", "SmLs01", "SmLs02", "SmLs03", "SmLs04", "SmLs05", "SmLs06",
     cases.append(nist_anova(nm + ".dat"))
 out["anova"] = cases
 
+# ---------- rank tests (STATS_SPEC 2.8): SciPy for the statistics and p; the Hodges–Lehmann intervals,
+# Dunn's z and the sign test's interval exactly (refs.py) ----------
+cases = []; rng = np.random.default_rng(28); AM = {"two": "two-sided", "less": "less", "greater": "greater"}
+def rplus(d, pratt):
+    z = [v for v in d if pratt or v != 0]; r = stats.rankdata([abs(v) for v in z])
+    return float(sum(ri for ri, v in zip(r, z) if v > 0))
+SAMPLES = [("small", [float(v) for v in rng.normal(0, 1, 9)], [float(v) for v in rng.normal(0.9, 1.3, 12)], True),
+           ("ties", [1, 2, 2, 3, 4, 4, 4, 5.5, 6], [2, 3, 3, 5, 7, 7, 8, 9], False),
+           ("large", [float(v) for v in rng.normal(0, 1, 60)], [float(v) for v in rng.normal(0.4, 1, 75)], False),
+           ("tiny", [3.1, 4.7], [5.2, 6.0, 7.9], True)]
+for name, a, b, ex in SAMPLES:
+    for alt in ["two", "less", "greater"]:
+        r = stats.mannwhitneyu(a, b, alternative=AM[alt], method="exact" if ex else "asymptotic", use_continuity=True)
+        w = {"U": r.statistic, "p": r.pvalue}; w.update(refs.hl_ref("two", a, b, alt, 0.95, ex))
+        cases.append({"fn": "mwTest", "args": [a, b, {"alt": alt}], "want": w, "kind": "test", "name": f"mw {name} {alt}"})
+        r = stats.ks_2samp(a, b, alternative=AM[alt], method="exact")
+        cases.append({"fn": "ks2Test", "args": [a, b, {"alt": alt}], "want": {"D": r.statistic, "p": r.pvalue}, "kind": "test", "name": f"ks {name} {alt}"})
+    r = stats.ks_2samp(a, b, method="asymp"); cases.append({"fn": "ks2Test", "args": [a, b, {"exact": "asymp"}], "want": {"D": r.statistic, "p": r.pvalue}, "kind": "test", "name": f"ks {name} asymp"})
+ONE = [("small", [float(v) for v in rng.normal(0.4, 1, 15)], True), ("ties+zeros", [0.5, -1, 2, 2, -0.5, 3, 0, 1.5, -2, 2.5, 0, 4], False),
+       ("large", [float(v) for v in rng.normal(0.25, 1, 70)], False)]
+for name, v, ex in ONE:
+    for alt in ["two", "less", "greater"]:
+        for z in ["wilcox", "pratt"]:
+            if ex and z == "pratt": continue
+            r = stats.wilcoxon(v, alternative=AM[alt], zero_method=z, correction=True, method="exact" if ex else "approx")
+            w = {"Tp": rplus(v, z == "pratt"), "p": r.pvalue}
+            if z == "wilcox": w.update(refs.hl_ref("one", v, None, alt, 0.95, ex))
+            cases.append({"fn": "wsrTest", "args": [v, {"alt": alt, "zero": z}], "want": w, "kind": "test", "name": f"wsr {name} {alt} {z}"})
+        up = sum(1 for t in v if t > 0); n = sum(1 for t in v if t != 0); s = sorted(Fr(t) for t in v); N = len(s); a1 = Fr(1 - 0.95) / 2 if alt == "two" else Fr(1 - 0.95)
+        cdf = lambda k: sum(math.comb(N, i) for i in range(k + 1)) * Fr(1, 2 ** N); k = 0
+        while k + 1 <= N and cdf(k) <= a1: k += 1
+        lo, hi = (refs.fl(s[k - 1]), refs.fl(s[N - k])) if k >= 1 else (-math.inf, math.inf)
+        ci = [-math.inf, hi] if alt == "less" else [lo, math.inf] if alt == "greater" else [lo, hi]
+        cases.append({"fn": "signTest", "args": [v, {"alt": alt}], "want": {"p": stats.binomtest(up, n, 0.5, alternative=AM[alt]).pvalue, "ci.0": ci[0], "ci.1": ci[1]}, "kind": "test", "name": f"sign {name} {alt}"})
+def dunn_ref(groups, adj):
+    from collections import Counter
+    G = [[Fr(v) for v in g] for g in groups]; allv = [v for g in G for v in g]; N = len(allv); r = stats.rankdata([float(v) for v in allv])
+    rk = [Fr(x).limit_denominator(2) for x in r]; tie = sum(t ** 3 - t for t in Counter(allv).values()); at = 0; mr = []
+    for g in G: mr.append(sum(rk[at:at + len(g)]) / len(g)); at += len(g)
+    base = Fr(N * (N + 1), 12) - Fr(tie, 12 * (N - 1)); out = []
+    for i in range(len(G)):
+        for j in range(i + 1, len(G)):
+            z = refs.mpq(mr[i] - mr[j]) / refs.mp.sqrt(refs.mpq(base * (Fr(1, len(G[i])) + Fr(1, len(G[j])))))
+            out.append([z, refs.mp.erfc(abs(z) / refs.mp.sqrt(2))])
+    m = len(out)
+    if adj == "bonf": ps = [min(refs.M(1), m * p) for _, p in out]
+    else:
+        order = sorted(range(m), key=lambda i: out[i][1]); ps = [None] * m; run = refs.M(0)
+        for q, i in enumerate(order): run = max(run, min(refs.M(1), (m - q) * out[i][1])); ps[i] = run
+    return [{"z": float(z), "p": float(p)} for (z, _), p in zip(out, ps)]
+for name, gs in [("three", [[float(v) for v in rng.normal(mu, 1, n)] for mu, n in [(0, 8), (0.6, 10), (1.1, 7)]]),
+                 ("ties", [[1, 2, 2, 3, 4], [2, 3, 3, 5, 7, 7], [3, 3, 4, 9, 1], [5, 6, 6, 7]])]:
+    r = stats.kruskal(*gs)
+    for adj in ["holm", "bonf"]:
+        cases.append({"fn": "kwTest", "args": [gs, {"adj": adj}], "want": {"H": r.statistic, "p": r.pvalue, "dunn": dunn_ref(gs, adj)}, "kind": "kw", "name": f"kw {name} {adj}"})
+    m = stats.median_test(*gs); cases.append({"fn": "moodTest", "args": [gs], "want": {"X": m.statistic, "p": m.pvalue, "med": m.median}, "kind": "test", "name": f"mood {name}"})
+    m = stats.median_test(*gs[:2]); cases.append({"fn": "moodTest", "args": [gs[:2]], "want": {"X": m.statistic, "p": m.pvalue}, "kind": "test", "name": f"mood {name} two"})
+for name, rows in [("4 by 10", [[float(v) for v in rng.normal(i * 0.15, 1, 4)] for i in range(10)]), ("ties", [[1, 1, 2, 3], [2, 3, 3, 3], [4, 1, 2, 2], [5, 6, 7, 1], [2, 2, 2, 3]])]:
+    r = stats.friedmanchisquare(*np.array(rows).T)
+    cases.append({"fn": "friedmanTest", "args": [rows], "want": {"Q": r.statistic, "p": r.pvalue}, "kind": "test", "name": f"friedman {name}"})
+out["np"] = cases
+
 # ---------- the studentized range and Dunnett's distribution, 40 digits (slow: made with --slow) ----------
 def _slow(c):
     fn, a = c

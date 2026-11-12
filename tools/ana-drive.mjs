@@ -402,6 +402,44 @@ await page(async p => {
   check("after a reload the three are there", d === "true,true,true", d);
 }, { name: "2.4" });
 
+console.log("2.8: rank tests");
+await page(async p => {
+  await p.evaluate(() => { const A = [4.1, 5.2, 6.0, 5.5, 4.8, 5.1, 4.4, 5.9], B = [6.2, 7.1, 6.8, 7.5, 6.6, 7.0, 5.8, 6.9], C = [5.0, 5.4, 4.9, 5.8, null, 5.2, 5.6, 4.7];
+    const Y = [4.1, 5.2, 6.0, 5.5, 6.2, 7.1, 6.8, 7.5, 5.0, 5.4, 4.9, 5.8], L = Y.map((_, i) => ["a", "b", "c"][Math.floor(i / 4)]);
+    const X = Object.assign(makeCol("x", "X", ""), { data: Y.map((_, i) => i) }), cs = [["A", A], ["B", B], ["C", C], ["Yield", Y]].map(([n, v]) => Object.assign(makeCol("y", n, ""), { data: v }));
+    const G = Object.assign(makeCol("ignore", "Line", ""), { data: L.map(() => null), fmt: "text", txt: Object.fromEntries(L.map((t, i) => [i, t])) });
+    save({ cols: [X, ...cs, G], activeY: cs[0].id }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id)), col = (i) => `colById(${JSON.stringify(ids[i])}).data.filter(v => v != null)`;
+  const run = async (kind, cols, set) => { await p.evaluate(([k, c]) => { anaDlg(k, { cols: c }); }, [kind, cols]); await p.waitForSelector("#formOk"); if (set) await set(); await p.click("#formOk");
+    await p.waitForFunction(k => { const as = anaList().filter(x => x.kind === k); const a = as[as.length - 1]; return a && a.res && (a.res.report || a.res.err) && !ANA_JOBS.has(a.id); }, kind, { timeout: 60000 });
+    return p.evaluate(k => { const as = anaList().filter(x => x.kind === k), a = as[as.length - 1]; return { secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, h: s.tables[0].head, r: s.tables[0].rows })), notes: a.res.notes, err: a.res.err, id: a.id }; }, kind); };
+  const at = (sec, name, row) => sec.r[row || 0][sec.h.indexOf(name)];
+  let r = await run("mw", [ids[1], ids[2]]), w = await p.evaluate(new Function(`return mwTest(${col(1)}, ${col(2)}, {})`));
+  check("Mann–Whitney: U, p, the shift and its interval as mwTest gives them", at(r.secs[0], "U") === w.U && at(r.secs[0], "p") === w.p && at(r.secs[0], "Shift") === w.hl && at(r.secs[0], "to") === w.ci[1], JSON.stringify(r.secs[0]));
+  await p.evaluate(id => { openWin("res", { render: true }); anaReport(id); }, r.id); await p.waitForTimeout(300);
+  check("…its one row shown as names and values in Results", await p.evaluate(() => !!document.querySelector("#w-res table.rtab.ana.kv")));
+  r = await run("wsr", [ids[1], ids[2]], async () => { await p.selectOption("#aTt", "paired"); }); w = await p.evaluate(new Function(`const a = ${col(1)}, b = ${col(2)}; return wsrTest(a.map((x, i) => x - b[i]), {})`));
+  check("Wilcoxon signed-rank, paired: T+ and p as wsrTest of the differences", at(r.secs[0], "T+") === w.Tp && at(r.secs[0], "p") === w.p && at(r.secs[0], "Pairs") === "A − B", JSON.stringify(r.secs[0]));
+  r = await run("wsr", [ids[1]], async () => { await p.fill("#aMu", "5"); await p.selectOption("#aZ", "pratt"); await p.selectOption("#aEx", "normal"); }); w = await p.evaluate(new Function(`return wsrTest(${col(1)}, {mu0: 5, zero: "pratt", exact: false})`));
+  check("…one sample against 5, Pratt's zeros, the normal approximation", at(r.secs[0], "p") === w.p && at(r.secs[0], "z") === w.z, JSON.stringify([r.secs[0], w.p]));
+  r = await run("sign", [ids[1]], async () => { await p.fill("#aMu", "5"); }); w = await p.evaluate(new Function(`return signTest(${col(1)}, {mu0: 5})`));
+  check("Sign test: above, below and p as signTest gives them", at(r.secs[0], "Above") === w.up && at(r.secs[0], "Below") === w.dn && at(r.secs[0], "p") === w.p, JSON.stringify(r.secs[0]));
+  r = await run("kw", [ids[4]], async () => { await p.selectOption("#aBy", ids[5]); await p.selectOption("#aAdj", "bonf"); }); w = await p.evaluate(new Function(`const y = ${col(4)}; return kwTest([y.slice(0, 4), y.slice(4, 8), y.slice(8)], {adj: "bonf"})`));
+  check("Kruskal–Wallis grouped by Line: H, p and Dunn's Bonferroni p", at(r.secs[0], "H") === w.H && at(r.secs[0], "p") === w.p && r.secs[2].r.map(x => x[4]).join() === w.dunn.map(x => x.p).join() && /Bonferroni/.test(r.secs[2].t), JSON.stringify(r.secs));
+  r = await run("fried", [ids[1], ids[2], ids[3]]); w = await p.evaluate(new Function(`const a = colById(${JSON.stringify(ids[1])}).data, b = colById(${JSON.stringify(ids[2])}).data, c = colById(${JSON.stringify(ids[3])}).data; return friedmanTest(a.map((x, i) => [x, b[i], c[i]]).filter(r => r.every(v => v != null)))`));
+  check("Friedman: Q and p over the rows complete in all three, the row left out said", at(r.secs[0], "Q") === w.Q && at(r.secs[0], "Rows") === 7 && r.notes.some(n => /7 rows complete/.test(n)), JSON.stringify([r.secs[0], r.notes]));
+  r = await run("mood", [ids[4]], async () => { await p.selectOption("#aBy", ids[5]); }); w = await p.evaluate(new Function(`const y = ${col(4)}; return moodTest([y.slice(0, 4), y.slice(4, 8), y.slice(8)])`));
+  check("Mood's median test: the grand median, χ² and p", at(r.secs[0], "Grand median") === w.med && at(r.secs[0], "p") === w.p, JSON.stringify(r.secs[0]));
+  r = await run("ks2", [ids[1], ids[2]], async () => { await p.selectOption("#aEx", "normal"); }); w = await p.evaluate(new Function(`return ks2Test(${col(1)}, ${col(2)}, {exact: "asymp"})`));
+  check("Two-sample KS, asymptotic: D and p as ks2Test gives them", at(r.secs[0], "D") === w.D && at(r.secs[0], "p") === w.p, JSON.stringify(r.secs[0]));
+  r = await run("fried", [ids[4]], async () => { await p.selectOption("#aBy", ids[5]).catch(() => {}); });
+  check("…Friedman with one column is refused in words", /two columns/.test(r.err || ""), r.err);
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  const k = await p.evaluate(() => anaList().map(a => a.kind).join());
+  check("after a reload every one is there", k === "mw,wsr,wsr,sign,kw,fried,mood,ks2,fried", k);
+}, { name: "2.8" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

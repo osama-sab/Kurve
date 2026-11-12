@@ -316,6 +316,23 @@ approximate, zeros as Pratt or Wilcoxon), the sign test, Kruskal–Wallis with D
 Friedman, Mood's median test, two-sample Kolmogorov–Smirnov (exact for small samples). Their exact
 distributions are parts of this slice, with fixtures.
 
+Built (12.11):
+- **Exact distributions**: U by Mann and Whitney's recurrence in probabilities, T+ by its subset sums,
+  both matching enumeration; used while there are no ties (and no zeros) and the samples are under 50,
+  as R. Two-sample KS on the lattice of the two samples' steps, each point holding its share of the
+  paths that have touched the boundary, so a small p is never 1 − (…).
+- **Hodges–Lehmann**: the shift (every x − y) and pseudo-median (the Walsh averages), the interval from
+  the exact distribution's quantile (R's order statistics) or Hollander and Wolfe's normal one; to two
+  million differences.
+- **Kinds**: Mann–Whitney (U, p, shift, rank-biserial r), Wilcoxon signed-rank (one sample or paired;
+  Wilcoxon's or Pratt's zeros), sign test (the median's interval and its own level), Kruskal–Wallis
+  (ε², Dunn's comparisons by Holm or Bonferroni), Friedman (Kendall's W; rows complete in every
+  column), Mood's median test, two-sample KS.
+- **Checked**: `np.json` (62 cases: SciPy's statistics and p, the intervals and Dunn's z in
+  rationals), all within 4e-15; the fuzzer (four generators against SciPy, worst 4e-14, KS 2e-13);
+  stats-test (8: enumeration, sizes, coverage, refusals); ana-drive (11); perf (one line, 430 ms a
+  test on a million values).
+
 ## 2.9 Correlation
 
 Pearson's r with p and its interval (Fisher's z), Spearman's ρ (ties), Kendall's τ-b (exact for

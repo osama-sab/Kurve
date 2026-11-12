@@ -6528,6 +6528,120 @@ function anovaComp(r,kind,o){ o=o||{}; const conf=o.conf||0.95, al=1-conf, G=r.G
   else { const tc=kind==="bonf"?DIST.t.isf(al/(2*m),df):kind==="sidak"?DIST.t.isf(-Math.expm1(Math.log(conf)/m)/2,df):DIST.t.isf(al/2,df);
     rows.forEach(x=>{ x.p=kind==="bonf"?Math.min(1,m*x.raw):kind==="sidak"?-Math.expm1(m*Math.log1p(-x.raw)):x.raw; x.lo=x.diff-tc*x.se; x.hi=x.diff+tc*x.se; }); }
   rows.forEach(x=>delete x.raw); return {rows}; }
+/* ---- Rank tests (STATS_SPEC 2.8) ---- */
+// Ranks of values, ties given their average; tie = Σ(t³ − t) over each run of equal values.
+function rankAvg(v){ const n=v.length, o=v.map((x,i)=>i).sort((a,b)=>v[a]-v[b]), r=new Array(n); let tie=0;
+  for(let i=0;i<n;){ let j=i; while(j+1<n&&v[o[j+1]]===v[o[i]]) j++; const t=j-i+1, a=(i+j)/2+1; for(let k=i;k<=j;k++) r[o[k]]=a; if(t>1) tie+=t*t*t-t; i=j+1; }
+  return {r,tie}; }
+// The k-th smallest (1-based) of a sorted array, null outside it.
+const kth=(s,k)=>k>=1&&k<=s.length?s[k-1]:null;
+// The exact distribution of Mann and Whitney's U for samples of m and n (no ties): P(U = u), u = 0 … mn, by
+// p_{m,n}(u) = m/(m+n)·p_{m−1,n}(u − n) + n/(m+n)·p_{m,n−1}(u), weights below 1 so nothing overflows.
+function mwDist(m,n){ let row=[]; for(let j=0;j<=n;j++) row.push([1]);
+  for(let i=1;i<=m;i++){ const nr=[[1]]; for(let j=1;j<=n;j++){ const a=row[j], b=nr[j-1], w=i/(i+j), out=new Float64Array(i*j+1);
+      for(let u=j;u<=i*j;u++) out[u]+=w*(a[u-j]||0); for(let u=0;u<b.length;u++) out[u]+=(1-w)*b[u]; nr.push(out); } row=nr; }
+  return row[n]; }
+// The cumulative of a pmf, and its upper tail summed from the top (so a small tail keeps its digits).
+const cumLo=pm=>{ const c=new Float64Array(pm.length); let s=0; for(let i=0;i<pm.length;i++){ s+=pm[i]; c[i]=s; } return c; };
+const cumHi=pm=>{ const c=new Float64Array(pm.length); let s=0; for(let i=pm.length-1;i>=0;i--){ s+=pm[i]; c[i]=s; } return c; };
+// The smallest q with P(X ≤ q) ≥ p (R's qwilcox, qsignrank).
+const qLo=(lo,p)=>{ for(let q=0;q<lo.length;q++) if(lo[q]>=p*(1-64*Number.EPSILON)) return q; return lo.length-1; };
+// Mann–Whitney: U of x (its rank sum less m(m+1)/2), p exact (no ties, both samples under 50, unless told) or
+// normal with the tie and continuity corrections (as SciPy and R); the Hodges–Lehmann shift (the median of every
+// x − y) with its interval from U's distribution (Bauer's, R's), or the normal approximation's order statistics.
+function mwTest(x,y,o){ o=o||{}; x=finVals(x); y=finVals(y); const m=x.length, n=y.length, alt=o.alt||"two", conf=o.conf>0&&o.conf<1?o.conf:0.95, cc=o.cc!==false;
+  if(m<1||n<1) return {fail:"Mann–Whitney needs a value in each sample."};
+  const {r,tie}=rankAvg(x.concat(y)), N=m+n; let R1=0; for(let i=0;i<m;i++) R1+=r[i]; const U=R1-m*(m+1)/2, mn=m*n;
+  const exact=o.exact===true?!tie:o.exact===false?false:!tie&&m<50&&n<50;
+  let p, z=null, pm=null, lo, hi;
+  if(exact){ pm=mwDist(m,n); lo=cumLo(pm); hi=cumHi(pm); const L=lo[Math.round(U)], H=hi[Math.round(U)];
+    p=alt==="less"?L:alt==="greater"?H:Math.min(1,2*Math.min(L,H)); }
+  else { const s=Math.sqrt(mn/12*((N+1)-tie/(N*(N-1)))); if(!(s>0)) return {fail:"Every value is the same."};
+    const Us=alt==="greater"?U:alt==="less"?mn-U:Math.max(U,mn-U); z=(Us-mn/2-(cc?0.5:0))/s; p=alt==="two"?Math.min(1,2*DIST.norm.sf(z)):DIST.norm.sf(z); if(alt==="less"||alt==="two"&&U<mn/2) z=-z; }
+  const res={m,n,U,R1,z,p,exact,alt,conf,rb:2*U/mn-1};
+  if(mn<=2e6){ const d=new Float64Array(mn); let k=0; for(const a of x) for(const b of y) d[k++]=a-b; d.sort();
+    res.hl=mn%2?d[(mn-1)/2]:(d[mn/2-1]+d[mn/2])/2; const a1=alt==="two"?(1-conf)/2:1-conf;
+    let q; if(exact) q=Math.max(1,qLo(lo,a1)); else q=Math.max(1,Math.floor(mn/2-DIST.norm.isf(a1)*Math.sqrt(mn/12*((N+1)-tie/(N*(N-1))))));
+    const L1=kth(d,q), U1=kth(d,mn-q+1); res.ci=alt==="less"?[-Infinity,U1]:alt==="greater"?[L1,Infinity]:[L1,U1]; }
+  else res.hlFail="The shift is not worked out past two million pairs.";
+  return res; }
+// Wilcoxon's signed-rank test of d − mu0 (one sample, or a pair's differences): zeros dropped (Wilcoxon's) or
+// ranked and then dropped (Pratt's); T+ the sum of the positive ranks; p exact (no ties or zeros, under 50 values)
+// or normal with the tie and continuity corrections; the Hodges–Lehmann pseudo-median (the median of the Walsh
+// averages) with its interval, as R's wilcox.test.
+function signrankDist(n){ let c=new Float64Array(1); c[0]=1;
+  for(let i=1;i<=n;i++){ const d=new Float64Array(c.length+i); for(let s=0;s<c.length;s++){ d[s]+=c[s]/2; d[s+i]+=c[s]/2; } c=d; } return c; }
+function wsrTest(v,o){ o=o||{}; const mu0=Number.isFinite(+o.mu0)?+o.mu0:0, alt=o.alt||"two", conf=o.conf>0&&o.conf<1?o.conf:0.95, cc=o.cc!==false, pratt=o.zero==="pratt";
+  const d0=finVals(v).map(x=>x-mu0), nz=d0.filter(x=>x===0).length, d=pratt?d0:d0.filter(x=>x!==0), n0=d0.length;
+  if(d0.length-nz<1) return {fail:"Every value equals the value tested against."};
+  const q0=rankAvg(d.map(Math.abs)), r=q0.r, tie=q0.tie-(pratt&&nz>1?nz*nz*nz-nz:0); let Tp=0, Tm=0; d.forEach((x,i)=>{ if(x>0) Tp+=r[i]; else if(x<0) Tm+=r[i]; });
+  const n=d.length, nn=n0-nz, exact=o.exact===true?!tie&&!nz:o.exact===false?false:!tie&&!nz&&nn<50;
+  let p, z=null, lo, hi;
+  if(exact){ const pm=signrankDist(nn); lo=cumLo(pm); hi=cumHi(pm); const T=Math.round(Tp); p=alt==="less"?lo[T]:alt==="greater"?hi[T]:Math.min(1,2*Math.min(lo[T],hi[T])); }
+  else { let mu=n*(n+1)/4, s2=n*(n+1)*(2*n+1)/24-tie/48; if(pratt){ mu-=nz*(nz+1)/4; s2-=nz*(nz+1)*(2*nz+1)/24; }
+    if(!(s2>0)) return {fail:"Every difference is the same size."};
+    const c=cc?(alt==="two"?Math.sign(Tp-mu)*0.5:alt==="greater"?0.5:-0.5):0; z=(Tp-mu-c)/Math.sqrt(s2);
+    p=alt==="less"?DIST.norm.cdf(z):alt==="greater"?DIST.norm.sf(z):Math.min(1,2*DIST.norm.sf(Math.abs(z))); }
+  const res={n:nn,zeros:nz,Tp,Tm,z,p,exact,alt,conf};
+  const x=finVals(v).filter(t=>t-mu0!==0), M=nn*(nn+1)/2;
+  if(M<=2e6){ const w=new Float64Array(M); let k=0; for(let i=0;i<nn;i++) for(let j=i;j<nn;j++) w[k++]=(x[i]+x[j])/2; w.sort();
+    res.hl=M%2?w[(M-1)/2]:(w[M/2-1]+w[M/2])/2; const a1=alt==="two"?(1-conf)/2:1-conf;
+    let q; if(exact) q=Math.max(1,qLo(lo,a1)); else q=Math.max(1,Math.floor(M/2-DIST.norm.isf(a1)*Math.sqrt(nn*(nn+1)*(2*nn+1)/24-tie/48)));
+    const L1=kth(w,q), U1=kth(w,M-q+1); res.ci=alt==="less"?[-Infinity,U1]:alt==="greater"?[L1,Infinity]:[L1,U1]; }
+  else res.hlFail="The pseudo-median is not worked out past two million Walsh averages.";
+  return res; }
+// The sign test: the values above mu0 against those below (equal ones dropped), the exact binomial p, the median
+// and its interval from order statistics (its achieved level at least conf).
+function signTest(v,o){ o=o||{}; const mu0=Number.isFinite(+o.mu0)?+o.mu0:0, alt=o.alt||"two", conf=o.conf>0&&o.conf<1?o.conf:0.95, x=finVals(v);
+  const up=x.filter(t=>t>mu0).length, dn=x.filter(t=>t<mu0).length, n=up+dn; if(n<1) return {fail:"Every value equals the value tested against."};
+  const b=propTest1(up,n,{p0:0.5,alt,conf}), s=x.slice().sort((a,c)=>a-c), N=s.length, a1=alt==="two"?(1-conf)/2:1-conf, B=DIST.binom;
+  let k=0; while(k+1<=N&&B.cdf(k,N,0.5)<=a1) k++; /* P(B ≤ k−1) ≤ a1 for the largest k */
+  const L=k>=1?s[k-1]:-Infinity, U=k>=1?s[N-k]:Infinity, got=k>=1?1-(alt==="two"?2:1)*B.cdf(k-1,N,0.5):1;
+  return {n,up,dn,ties:N-n,p:b.p,med:N%2?s[(N-1)/2]:(s[N/2-1]+s[N/2])/2,ci:alt==="less"?[-Infinity,U]:alt==="greater"?[L,Infinity]:[L,U],level:got,alt,conf}; }
+// Kruskal and Wallis's H (tie-corrected) against χ² with k − 1 df; Dunn's comparisons of the mean ranks, each z
+// with the tie correction, p two-sided and adjusted (none, Bonferroni, Holm).
+function kwTest(groups,o){ o=o||{}; const gs=groups.map(finVals).filter(g=>g.length), k=gs.length; if(k<2) return {fail:"Kruskal–Wallis needs two groups with values."};
+  const all=[].concat(...gs), N=all.length, {r,tie}=rankAvg(all); if(tie===N*N*N-N) return {fail:"Every value is the same."};
+  const R=[], nn=gs.map(g=>g.length); let at=0; gs.forEach(g=>{ let s=0; for(let i=0;i<g.length;i++) s+=r[at+i]; R.push(s); at+=g.length; });
+  const H0=12/(N*(N+1))*R.reduce((t,s,i)=>t+s*s/nn[i],0)-3*(N+1), C=1-tie/(N*N*N-N), H=H0/C, df=k-1, p=DIST.chi2.sf(H,df);
+  const res={k,N,H,df,p,eps2:H/(N-1),meanRank:R.map((s,i)=>s/nn[i]),n:nn};
+  const adj=o.adj||"holm", base=N*(N+1)/12-tie/(12*(N-1)), rows=[];
+  for(let i=0;i<k;i++) for(let j=i+1;j<k;j++){ const se=Math.sqrt(base*(1/nn[i]+1/nn[j])), zz=(res.meanRank[i]-res.meanRank[j])/se; rows.push({i,j,diff:res.meanRank[i]-res.meanRank[j],z:zz,raw:Math.min(1,2*DIST.norm.sf(Math.abs(zz)))}); }
+  const m=rows.length;
+  if(adj==="holm"){ const ord=rows.map((x,i)=>i).sort((a,b)=>rows[a].raw-rows[b].raw); let run=0; ord.forEach((i,q)=>{ run=Math.max(run,Math.min(1,(m-q)*rows[i].raw)); rows[i].p=run; }); }
+  else rows.forEach(x=>{ x.p=adj==="bonf"?Math.min(1,m*x.raw):x.raw; });
+  res.dunn=rows; res.adj=adj; return res; }
+// Friedman's test: rows (blocks) of k values, ranked within each row; Q tie-corrected against χ² with k − 1 df;
+// Kendall's W = Q/(n(k − 1)).
+function friedmanTest(rows){ const R=rows.filter(r=>r.every(v=>v!=null&&Number.isFinite(v))), n=R.length, k=n?R[0].length:0;
+  if(k<2) return {fail:"Friedman's test needs two columns or more."}; if(n<2) return {fail:"Friedman's test needs two rows complete in every column."};
+  const S=new Array(k).fill(0); let tie=0; R.forEach(row=>{ const q=rankAvg(row); q.r.forEach((x,j)=>{ S[j]+=x; }); tie+=q.tie; });
+  const Q0=12/(n*k*(k+1))*S.reduce((t,s)=>t+s*s,0)-3*n*(k+1), C=1-tie/(n*(k*k*k-k)); if(!(C>0)) return {fail:"Every row's values are all the same."};
+  const Q=Q0/C, df=k-1; return {n,k,Q,df,p:DIST.chi2.sf(Q,df),W:Q/(n*(k-1)),rankSum:S}; }
+// Mood's median test: each group's values above the grand median and not above it, χ² of that table (Yates's
+// correction with two groups, as SciPy).
+function moodTest(groups){ const gs=groups.map(finVals).filter(g=>g.length), k=gs.length; if(k<2) return {fail:"Mood's median test needs two groups with values."};
+  const all=[].concat(...gs).sort((a,b)=>a-b), N=all.length, med=N%2?all[(N-1)/2]:(all[N/2-1]+all[N/2])/2;
+  const above=gs.map(g=>g.filter(v=>v>med).length), below=gs.map((g,i)=>g.length-above[i]), A=above.reduce((a,b)=>a+b,0), B=N-A;
+  if(!A||!B) return {fail:"No value lies above the grand median (or every one does)."};
+  let X=0; gs.forEach((g,i)=>{ for(const [o,t] of [[above[i],A],[below[i],B]]){ const e=g.length*t/N; let d=Math.abs(o-e); if(k===2) d=Math.max(0,d-0.5); X+=d*d/e; } });
+  return {k,N,med,above,below,X,df:k-1,p:DIST.chi2.sf(X,k-1)}; }
+// Two-sample Kolmogorov–Smirnov: D (two-sided, or D⁺/D⁻), p exact by the lattice of the two samples' steps
+// (each point's share of the paths that have touched the boundary, so a small p keeps its digits; the paths
+// counted as if there were no ties, as SciPy), or SciPy's asymptotic forms past a million points of lattice.
+function ks2Test(x,y,o){ o=o||{}; x=finVals(x).sort((a,b)=>a-b); y=finVals(y).sort((a,b)=>a-b); const m=x.length, n=y.length, alt=o.alt||"two";
+  if(m<1||n<1) return {fail:"Two samples with values are needed."};
+  let i=0, j=0, hp=0, hm=0; while(i<m||j<n){ const v=Math.min(i<m?x[i]:Infinity,j<n?y[j]:Infinity); while(i<m&&x[i]===v) i++; while(j<n&&y[j]===v) j++; const g=i*n-j*m; if(g>hp) hp=g; if(-g>hm) hm=-g; }
+  const h=alt==="greater"?hp:alt==="less"?hm:Math.max(hp,hm), D=h/(m*n), exact=o.exact===true||o.exact!=="asymp"&&m*n<=1e6;
+  let p;
+  if(h===0) p=1;
+  else if(exact){ const out=(a,b)=>{ const g=a*n-b*m; return alt==="greater"?g>=h:alt==="less"?-g>=h:Math.abs(g)>=h; }; let prev=new Float64Array(n+1);
+    for(let b=0;b<=n;b++) prev[b]=b===0?0:out(0,b)?1:prev[b-1];
+    for(let a=1;a<=m;a++){ const cur=new Float64Array(n+1); cur[0]=out(a,0)?1:prev[0]; for(let b=1;b<=n;b++) cur[b]=out(a,b)?1:(a*prev[b]+b*cur[b-1])/(a+b); prev=cur; }
+    p=Math.min(1,prev[n]); }
+  else { const en=m*n/(m+n); if(alt==="two") p=DIST.kstwo.sf(D,Math.round(en));
+    else { const z=Math.sqrt(en)*D; p=Math.min(1,Math.exp(-2*z*z-2*z*(m+2*n)/Math.sqrt(m*n*(m+n))/3)); } }
+  return {m,n,D,p,exact,alt}; }
 // The statistics Statistics on columns can give, in the order its table has them; the eleven an
 // analysis made before 2.1 has (no `stats` stored) are DESC_DEF.
 const DESC_STATS=[["n","N"],["miss","Missing"],["mean","Mean"],["sd","SD"],["se","SE of mean"],["ci","Mean's interval"],["var","Variance"],["cv","Coefficient of variation"],
@@ -6684,12 +6798,7 @@ function anovaCost(p,ins){ const g=ins.find(q=>q.groups), k=g?g.groups.length:in
 ANA_KINDS.anova1={label:"One-way ANOVA", base:"ANOVA",
   help:"The groups of one factor (columns, or a column grouped by another): the ANOVA table with η² and ω², Welch's F if asked, and comparisons of the means.",
   heavy:(p,ins)=>anovaCost(p,ins)>150,
-  run(ins,p){ p=p||{}; const conf=anaConf(p), notes=[], cs=anovaComps(p), byQ=ins.find(q=>q.groups); let groups, names;
-    if(byQ){ if(ins.length>1) notes.push(`Only ${byQ.name} is read.`); groups=byQ.groups.map(g=>g[1]); names=byQ.groups.map(g=>String(g[0])); }
-    else { groups=ins.map(q=>q.vals); names=ins.map(q=>q.name); }
-    const keep=groups.map((g,i)=>finVals(g).length?i:-1).filter(i=>i>=0);
-    if(keep.length<groups.length) notes.push(`${groups.length-keep.length===1?"A group":groups.length-keep.length+" groups"} with no values left out.`);
-    groups=keep.map(i=>groups[i]); names=keep.map(i=>names[i]);
+  run(ins,p){ p=p||{}; const conf=anaConf(p), notes=[], cs=anovaComps(p), {groups,names}=anaFactor(ins,notes);
     const r=anova1(groups); if(r.fail) return {fail:r.fail};
     const cols=[], secs=[], col=(k,name,vals,o)=>{ const c=Object.assign({k,name,vals:vals.map(v=>typeof v==="number"?anaNum(v):v)},o||{}); cols.push(c); return c; };
     const tab=(title,cs2)=>secs.push({title,tables:[{head:cs2.map(c=>c.name),rows:cs2[0].vals.map((_,i)=>cs2.map(c=>c.vals[i]))}]});
@@ -6713,6 +6822,86 @@ ANA_KINDS.anova1={label:"One-way ANOVA", base:"ANOVA",
       cs.includes("gh")?["Games–Howell: Welch's df for each pair."]:[],cs.includes("dunnett")?["Dunnett: two-sided, p and interval from the many-to-one t."]:[],
       cs.includes("holm")?["Holm: no simultaneous interval."]:[],[`Intervals at ${anaPct(conf)}; the groups' from the pooled SD.`]).join(" ");
     return {tables:[{cols}],report:{sections:secs,method,means:true},notes}; }};
+// The samples an analysis reads: each column, or each group of a column grouped by another.
+function anaSets(ins){ const sets=[]; ins.forEach(q=>{ if(q.groups) q.groups.forEach(([k,v],j)=>sets.push({name:`${q.name} (${k})`,vals:v,rows:q.grows?q.grows[j]:null})); else sets.push({name:q.name,vals:q.vals,rows:q.rows}); }); return sets; }
+// The groups of one factor: the columns, or one column's groups (only it read); groups with no values left out.
+function anaFactor(ins,notes){ const byQ=ins.find(q=>q.groups); let groups, names;
+  if(byQ){ if(ins.length>1) notes.push(`Only ${byQ.name} is read.`); groups=byQ.groups.map(g=>g[1]); names=byQ.groups.map(g=>String(g[0])); }
+  else { groups=ins.map(q=>q.vals); names=ins.map(q=>q.name); }
+  const keep=groups.map((g,i)=>finVals(g).length?i:-1).filter(i=>i>=0);
+  if(keep.length<groups.length) notes.push(`${groups.length-keep.length===1?"A group":groups.length-keep.length+" groups"} with no values left out.`);
+  return {groups:keep.map(i=>groups[i]),names:keep.map(i=>names[i])}; }
+// Two columns' values row by row; rows with a value in only one left out, and said.
+function anaPairs(A,B,notes){ if(!A.rows||!B.rows) return {fail:"Paired values are paired by their rows: these columns have none."};
+  const bm=new Map(); B.rows.forEach((row,i)=>{ if(row>=0) bm.set(row,B.vals[i]); }); const a=[], b=[];
+  A.rows.forEach((row,i)=>{ if(row>=0&&bm.has(row)){ a.push(A.vals[i]); b.push(bm.get(row)); } });
+  if(a.length<Math.min(A.vals.length,B.vals.length)) notes.push(`${a.length} pair${a.length===1?"":"s"}: rows with a value in only one column are left out.`); return {a,b}; }
+// Rows of results [{key: value}] as a sheet's columns and a report's section, by [key, name] in order.
+function anaTab(title,spec,rows,cols,secs,pre){ const cs=spec.map(([k,name])=>({k:(pre||"")+k,name,vals:rows.map(o=>{ const v=o[k]; return typeof v==="number"?anaNum(v):v==null?null:String(v); })}));
+  cs.forEach(c=>cols.push(c)); secs.push({title,tables:[{head:cs.map(c=>c.name),rows:rows.map((_,i)=>cs.map(c=>c.vals[i]))}]}); }
+const npEx=p=>p.exact==="exact"?true:p.exact==="normal"?false:undefined;
+ANA_KINDS.mw={label:"Mann–Whitney", base:"Mann–Whitney",
+  help:"Two samples (the first two columns ticked, or one column grouped into two): U and p, the Hodges–Lehmann shift with its interval, the rank-biserial r.",
+  run(ins,p){ p=p||{}; const alt=ANA_ALT[p.alt]?p.alt:"two", conf=anaConf(p), notes=[], S=anaSets(ins), cols=[], secs=[];
+    if(S.length<2) return {fail:"Mann–Whitney needs two columns, or one column grouped into two."}; if(S.length>2) notes.push(`Only ${S[0].name} and ${S[1].name} are compared.`);
+    const r=mwTest(S[0].vals,S[1].vals,{alt,conf,exact:npEx(p)}); if(r.fail) return {fail:r.fail}; if(r.hlFail) notes.push(r.hlFail);
+    anaTab("Mann–Whitney",[["a","First"],["b","Second"],["n1","N₁"],["n2","N₂"],["U","U"]].concat(r.exact?[]:[["z","z"]],[["p","p"],["hl","Shift"],["lo",`${anaPct(conf)} interval, from`],["hi","to"],["rb","Rank-biserial r"]]),
+      [{a:S[0].name,b:S[1].name,n1:r.m,n2:r.n,U:r.U,z:r.z,p:r.p,hl:r.hl,lo:r.ci&&r.ci[0],hi:r.ci&&r.ci[1],rb:r.rb}],cols,secs);
+    return {tables:[{cols}],report:{sections:secs,method:`U of the first sample; p ${r.exact?"exact":"by the normal approximation, ties and continuity corrected"}. ${ANA_ALT[alt]}. Shift: the median of every first − second difference (Hodges–Lehmann).`},notes}; }};
+// Wilcoxon's signed-rank and the sign test: one sample (a row a column) or two columns paired by rows.
+function npOne(ins,p,notes,each){ const S=anaSets(ins), rows=[];
+  if(p.type==="paired"){ if(S.length<2) return {fail:"A paired test needs two columns."}; if(S.length>2) notes.push(`Only ${S[0].name} and ${S[1].name} are paired.`);
+    const q=anaPairs(S[0],S[1],notes); if(q.fail) return q; const r=each(q.a.map((x,i)=>x-q.b[i]),`${S[0].name} − ${S[1].name}`); if(r.fail) return r; rows.push(r); }
+  else S.forEach(s=>{ const r=each(s.vals,s.name); if(r.fail) notes.push(`${s.name}: ${r.fail}`); else rows.push(r); });
+  return rows.length?{rows}:{fail:notes.join(" ")||"There are no values to test."}; }
+ANA_KINDS.wsr={label:"Wilcoxon signed-rank", base:"Wilcoxon",
+  help:"One sample against a value, or two columns paired row by row: T+, p, the Hodges–Lehmann pseudo-median with its interval.",
+  run(ins,p){ p=p||{}; const alt=ANA_ALT[p.alt]?p.alt:"two", conf=anaConf(p), mu0=Number.isFinite(+p.mu0)?+p.mu0:0, notes=[], cols=[], secs=[]; let ex=false;
+    const o=npOne(ins,p,notes,(v,name)=>{ const r=wsrTest(v,{mu0,alt,conf,zero:p.zero,exact:npEx(p)}); if(r.fail) return r; if(r.hlFail) notes.push(`${name}: ${r.hlFail}`); ex=ex||r.exact;
+      return {col:name,n:r.n,zeros:r.zeros,mu0,Tp:r.Tp,Tm:r.Tm,z:r.z,p:r.p,hl:r.hl,lo:r.ci&&r.ci[0],hi:r.ci&&r.ci[1],exact:r.exact}; });
+    if(o.fail) return {fail:o.fail};
+    anaTab("Wilcoxon signed-rank",[["col",p.type==="paired"?"Pairs":"Column"],["n","N"],["zeros","Zeros"],["mu0","Tested against"],["Tp","T+"],["Tm","T−"]].concat(o.rows.some(r=>!r.exact)?[["z","z"]]:[],[["p","p"],["hl","Pseudo-median"],["lo",`${anaPct(conf)} interval, from`],["hi","to"]]),o.rows,cols,secs);
+    return {tables:[{cols}],report:{sections:secs,method:`Zeros ${p.zero==="pratt"?"ranked, then dropped (Pratt)":"dropped (Wilcoxon)"}; p ${o.rows.every(r=>r.exact)?"exact":o.rows.some(r=>r.exact)?"exact where small, untied and with no zeros, else by the normal approximation":"by the normal approximation, ties and continuity corrected"}. ${ANA_ALT[alt]}. Pseudo-median: the median of the Walsh averages (Hodges–Lehmann).`},notes}; }};
+ANA_KINDS.sign={label:"Sign test", base:"Sign test",
+  help:"One sample against a value, or two columns paired row by row: the values above and below, the exact binomial p, the median with its interval.",
+  run(ins,p){ p=p||{}; const alt=ANA_ALT[p.alt]?p.alt:"two", conf=anaConf(p), mu0=Number.isFinite(+p.mu0)?+p.mu0:0, notes=[], cols=[], secs=[];
+    const o=npOne(ins,p,notes,(v,name)=>{ const r=signTest(v,{mu0,alt,conf}); if(r.fail) return r; return {col:name,up:r.up,dn:r.dn,ties:r.ties,mu0,p:r.p,med:r.med,lo:r.ci[0],hi:r.ci[1],lev:r.level}; });
+    if(o.fail) return {fail:o.fail};
+    anaTab("Sign test",[["col",p.type==="paired"?"Pairs":"Column"],["up","Above"],["dn","Below"],["ties","Equal"],["mu0","Tested against"],["p","p"],["med","Median"],["lo","Interval, from"],["hi","to"],["lev","Its level"]],o.rows,cols,secs);
+    return {tables:[{cols}],report:{sections:secs,method:`Exact binomial p. ${ANA_ALT[alt]}. The median's interval from order statistics, its level at least ${anaPct(conf)}.`},notes}; }};
+const DUNN_ADJ=[["holm","Holm"],["bonf","Bonferroni"],["none","None"]];
+ANA_KINDS.kw={label:"Kruskal–Wallis", base:"Kruskal–Wallis",
+  help:"The groups of one factor: H, df and p (tie corrected), ε², each group's mean rank, and Dunn's comparisons.",
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[], F=anaFactor(ins,notes), adj=DUNN_ADJ.some(e=>e[0]===p.adj)?p.adj:"holm";
+    const r=kwTest(F.groups,{adj}); if(r.fail) return {fail:r.fail};
+    anaTab("Kruskal–Wallis",[["H","H"],["df","df"],["p","p"],["eps2","ε²"]],[r],cols,secs);
+    anaTab("Groups",[["g","Group"],["n","N"],["mr","Mean rank"]],F.names.map((g,i)=>({g,n:r.n[i],mr:r.meanRank[i]})),cols,secs,"g");
+    if(p.dunn!==false) anaTab(`Dunn's comparisons, ${DUNN_ADJ.find(e=>e[0]===adj)[1]}`,[["a","First"],["b","Second"],["diff","Difference of mean ranks"],["z","z"],["p","p"]],r.dunn.map(x=>({a:F.names[x.i],b:F.names[x.j],diff:x.diff,z:x.z,p:x.p})),cols,secs,"d");
+    return {tables:[{cols}],report:{sections:secs,method:"H corrected for ties, against χ² with k − 1 df; ε² = H/(N − 1). Dunn's z on the mean ranks, tie corrected, p two-sided."},notes}; }};
+ANA_KINDS.fried={label:"Friedman", base:"Friedman",
+  help:"Columns as treatments, rows as blocks (rows complete in every column): Q, df and p (tie corrected), Kendall's W, each column's rank sum.",
+  run(ins,p){ const notes=[], cols=[], secs=[]; if(ins.some(q=>q.groups)) return {fail:"Friedman's test reads columns, one a treatment, a row a block: no grouping."};
+    if(ins.length<2) return {fail:"Friedman's test needs two columns or more."};
+    const maps=ins.map(q=>{ const m=new Map(); (q.rows||[]).forEach((r,i)=>{ if(r>=0) m.set(r,q.vals[i]); }); return m; });
+    const rowsAll=[...new Set([].concat(...maps.map(m=>[...m.keys()])))].sort((a,b)=>a-b), rows=rowsAll.filter(r=>maps.every(m=>m.has(r)));
+    if(rows.length<rowsAll.length) notes.push(`${rows.length} rows complete in every column; ${rowsAll.length-rows.length} left out.`);
+    const r=friedmanTest(rows.map(rr=>maps.map(m=>m.get(rr)))); if(r.fail) return {fail:r.fail};
+    anaTab("Friedman",[["n","Rows"],["k","Columns"],["Q","Q"],["df","df"],["p","p"],["W","Kendall's W"]],[r],cols,secs);
+    anaTab("Columns",[["c","Column"],["rs","Rank sum"],["mr","Mean rank"]],ins.map((q,j)=>({c:q.name,rs:r.rankSum[j],mr:r.rankSum[j]/r.n})),cols,secs,"c");
+    return {tables:[{cols}],report:{sections:secs,method:"Ranks within each row; Q corrected for ties, against χ² with k − 1 df; W = Q/(n(k − 1))."},notes}; }};
+ANA_KINDS.mood={label:"Mood's median test", base:"Median test",
+  help:"The groups of one factor: each group's values above the grand median and not above it, χ² and p.",
+  run(ins,p){ const notes=[], cols=[], secs=[], F=anaFactor(ins,notes), r=moodTest(F.groups); if(r.fail) return {fail:r.fail};
+    anaTab("Mood's median test",[["med","Grand median"],["X","χ²"],["df","df"],["p","p"]],[r],cols,secs);
+    anaTab("Groups",[["g","Group"],["n","N"],["a","Above"],["b","Not above"]],F.names.map((g,i)=>({g,n:r.above[i]+r.below[i],a:r.above[i],b:r.below[i]})),cols,secs,"g");
+    return {tables:[{cols}],report:{sections:secs,method:`Values equal to the grand median count as not above; χ² of the ${r.k} by 2 table${r.k===2?", Yates's correction":""}.`},notes}; }};
+ANA_KINDS.ks2={label:"Two-sample Kolmogorov–Smirnov", base:"KS test",
+  help:"Two samples (the first two columns ticked, or one column grouped into two): the largest distance D between their distribution functions and its p.",
+  run(ins,p){ p=p||{}; const alt=ANA_ALT[p.alt]?p.alt:"two", notes=[], cols=[], secs=[], S=anaSets(ins);
+    if(S.length<2) return {fail:"The two-sample test needs two columns, or one column grouped into two."}; if(S.length>2) notes.push(`Only ${S[0].name} and ${S[1].name} are compared.`);
+    const r=ks2Test(S[0].vals,S[1].vals,{alt,exact:p.exact==="exact"?true:p.exact==="normal"?"asymp":undefined}); if(r.fail) return {fail:r.fail};
+    anaTab("Two-sample Kolmogorov–Smirnov",[["a","First"],["b","Second"],["n1","N₁"],["n2","N₂"],["D",alt==="two"?"D":alt==="greater"?"D⁺":"D⁻"],["p","p"]],[{a:S[0].name,b:S[1].name,n1:r.m,n2:r.n,D:r.D,p:r.p}],cols,secs);
+    return {tables:[{cols}],report:{sections:secs,method:`p ${r.exact?"exact (the steps' lattice; ties counted as if there were none, as SciPy)":"asymptotic"}. ${ANA_ALT[alt]}.`},notes}; }};
 // A kind run by name: the page's call, and the worker's ("call" job).
 function anaRunKind(kind,ins,p){ const K=ANA_KINDS[kind]; if(!K) throw new Error("the analysis "+kind+" is not known here"); return K.run(ins,p||{}); }
 /* ==ANA:END== */
@@ -15592,6 +15781,11 @@ function anaColRO(c){ const a=c&&c.ana?anaOf(c.ana):null; if(!a) return false; t
    (what shows with what), `read(v, p0)` the settings from the dialog's values. */
 const altSel=(v)=>`<label for="aAlt" class="tipd" title="Two-sided: a difference either way. One-sided: only the direction named, which halves p when the data lean that way">Alternative</label><select id="aAlt">${[["two","Either way (two-sided)"],["less","Less (one-sided)"],["greater","Greater (one-sided)"]].map(([k,t])=>`<option value="${k}"${k===(v||"two")?" selected":""}>${t}</option>`).join("")}</select>`;
 const confSel=(p,lab)=>`<label for="aCf">${lab||"Interval"}</label><select id="aCf">${ANA_CONFS.map(c=>`<option value="${c}"${c===anaConf(p)?" selected":""}>${anaPct(c)}</option>`).join("")}</select>`;
+// The rank tests' shared fields: how p is found, and one sample or paired.
+const npExHtml=p=>`<label for="aEx" class="tipd" title="Exact: from the statistic's own distribution, while the samples are small and have no ties (as R). Normal: the approximation, ties and continuity corrected">p</label><select id="aEx"><option value="auto">Exact while small</option><option value="exact"${p.exact==="exact"?" selected":""}>Exact</option><option value="normal"${p.exact==="normal"?" selected":""}>Normal approximation</option></select>`;
+const npTypeHtml=p=>`<label for="aTt">Test</label><select id="aTt"><option value="one">One sample, against a value</option><option value="paired"${p.type==="paired"?" selected":""}>Paired: two columns, row by row</option></select>
+  <label for="aMu" class="tipd" title="The median (or, paired, the median difference) tested against">Tested against</label><input type="text" id="aMu" inputmode="decimal" value="${esc(String(p.mu0==null?0:p.mu0))}">`;
+const npTypeRead=v=>{ const mu=+String(v.aMu||"0").replace(",","."); return {type:v.aTt==="paired"?"paired":"one",mu0:Number.isFinite(mu)?mu:0}; };
 const ANA_FORMS={
   desc:{html(p){ const want=new Set(descKeys(p)), qt=qtOk(p.qtype)?p.qtype:7, conf=p.conf>0&&p.conf<1?p.conf:0.95;
       const tip={n:"The values counted",miss:"Rows read that hold no number",sd:"Standard deviation",se:"The standard error of the mean, SD / √N",ci:"The interval the mean lies in, at the level below (Student's t)",
@@ -15638,6 +15832,23 @@ const ANA_FORMS={
       <div class="grid2">${altSel(p.alt)}${confSel(p)}</div>`; },
     read(v){ return {a:+v.aFa,b:+v.aFb,c:+v.aFc,d:+v.aFd,alt:ANA_ALT[v.aAlt]?v.aAlt:"two",conf:+v.aCf||0.95}; },
     valid(v){ return ["aFa","aFb","aFc","aFd"].every(k=>/^\d+$/.test(String(v[k]||"").trim())); }},
+  mw:{html(p){ return `<div class="grid2">${altSel(p.alt)}${confSel(p)}${npExHtml(p)}</div><p class="lab">The first two columns ticked, or one column grouped into two.</p>`; },
+    read(v){ return {alt:ANA_ALT[v.aAlt]?v.aAlt:"two",conf:+v.aCf||0.95,exact:v.aEx||"auto"}; }},
+  wsr:{html(p){ return `<div class="grid2">${npTypeHtml(p)}<label for="aZ" class="tipd" title="Differences of zero: dropped before ranking (Wilcoxon's), or ranked with the others and then dropped (Pratt's)">Zeros</label><select id="aZ"><option value="wilcox">Dropped (Wilcoxon)</option><option value="pratt"${p.zero==="pratt"?" selected":""}>Ranked, then dropped (Pratt)</option></select>
+      ${altSel(p.alt)}${confSel(p)}${npExHtml(p)}</div>`; },
+    read(v){ return Object.assign(npTypeRead(v),{zero:v.aZ==="pratt"?"pratt":"wilcox",alt:ANA_ALT[v.aAlt]?v.aAlt:"two",conf:+v.aCf||0.95,exact:v.aEx||"auto"}); },
+    valid(v){ return Number.isFinite(+String(v.aMu||"0").replace(",",".")); }},
+  sign:{html(p){ return `<div class="grid2">${npTypeHtml(p)}${altSel(p.alt)}${confSel(p)}</div>`; },
+    read(v){ return Object.assign(npTypeRead(v),{alt:ANA_ALT[v.aAlt]?v.aAlt:"two",conf:+v.aCf||0.95}); },
+    valid(v){ return Number.isFinite(+String(v.aMu||"0").replace(",",".")); }},
+  kw:{html(p){ return `<div class="grid2"><span></span><label class="chk"><input type="checkbox" id="aDn"${p.dunn===false?"":" checked"}> Dunn's comparisons</label>
+      <label for="aAdj">Adjusted by</label><select id="aAdj">${DUNN_ADJ.map(([k,t])=>`<option value="${k}"${k===(p.adj||"holm")?" selected":""}>${t}</option>`).join("")}</select></div>`; },
+    wire(box){ const on=()=>{ const d=box.querySelector("#aDn"), a=box.querySelector("#aAdj"), l=box.querySelector('label[for="aAdj"]'); if(a) a.hidden=l.hidden=!(d&&d.checked); }; box.addEventListener("change",on); on(); },
+    read(v){ return {dunn:!!v.aDn,adj:DUNN_ADJ.some(e=>e[0]===v.aAdj)?v.aAdj:"holm"}; }},
+  fried:{noGroup:true, html(){ return `<p class="lab">A column a treatment, a row a block.</p>`; }, read(){ return {}; }},
+  mood:{html(){ return ""; }, read(){ return {}; }},
+  ks2:{html(p){ return `<div class="grid2">${altSel(p.alt)}<label for="aEx">p</label><select id="aEx"><option value="auto">Exact up to a million steps</option><option value="exact"${p.exact==="exact"?" selected":""}>Exact</option><option value="normal"${p.exact==="normal"?" selected":""}>Asymptotic</option></select></div><p class="lab">The first two columns ticked, or one column grouped into two.</p>`; },
+    read(v){ return {alt:ANA_ALT[v.aAlt]?v.aAlt:"two",exact:v.aEx||"auto"}; }},
   anova1:{html(p){ const on=new Set(anovaComps(p));
       return `<p class="lab">Comparisons</p><div class="anastats">${COMP_KINDS.map(([k,nm])=>`<label class="chk"><input type="checkbox" id="aC_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div>
       <div class="grid2"><label for="aCtl">Control</label><select id="aCtl" data-ctl="${esc(p.ctrl==null?"":String(p.ctrl))}"></select>${confSel(p)}
@@ -21639,6 +21850,7 @@ function analyzeMenu(){
         {label:"Normality tests…", title:ANA_KINDS.norm.help, run:()=>anaDlg("norm"), enabled:!S.readOnly&&!!P()},
         {label:"Outliers…", title:ANA_KINDS.outl.help, run:()=>anaDlg("outl"), enabled:!S.readOnly&&!!P()}]},
       {label:"ANOVA", sub:()=>[{label:"One-way ANOVA…", title:ANA_KINDS.anova1.help, run:()=>anaDlg("anova1",{two:true}), enabled:!S.readOnly&&!!P()}]},
+      {label:"Nonparametric", sub:()=>[["mw","Mann–Whitney…",true],["wsr","Wilcoxon signed-rank…"],["sign","Sign test…"],["kw","Kruskal–Wallis…",true],["fried","Friedman…",true],["mood","Mood's median test…",true],["ks2","Two-sample Kolmogorov–Smirnov…",true]].map(([k,label,two])=>({label,title:ANA_KINDS[k].help,run:()=>anaDlg(k,two?{two:true}:{}),enabled:!S.readOnly&&!!P()}))},
       {label:"Hypothesis tests", sub:()=>[{label:"t tests…", title:ANA_KINDS.ttest.help, run:()=>anaDlg("ttest"), enabled:!S.readOnly&&!!P()},
         {label:"Comparing spreads…", title:ANA_KINDS.vartest.help, run:()=>anaDlg("vartest"), enabled:!S.readOnly&&!!P()},
         {label:"Proportions…", title:ANA_KINDS.prop.help, run:()=>anaDlg("prop"), enabled:!S.readOnly&&!!P()},
@@ -24326,7 +24538,7 @@ ${DL([["Area ± error","The trapezoidal sum over the points in the window, less 
 ${DL([["Net counts","The counts in the window less the continuum under them: a straight line through the mean of the channels at each edge (as many as the line baselines use). ± one standard deviation from counting: the counts' own and the continuum's."],["Detected","Above Currie's critical level, 95 %: on a continuum alone, one window in twenty is called detected. Below it, the level is shown."],["Emission, efficiency","Type the share of decays that give the line and the detector's efficiency at its energy, both in %."],["Activity","Net counts ÷ (live time × efficiency × emission), in becquerel, with the counting error. Not detected: the detection limit as an activity, the smallest that would be."]])}
 <p>Counting needs the counts as recorded: an energy calibration, a count rate or a crop keep them; smoothing or a subtracted background do not, and the part says so.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
-{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size",
+{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks",
  lead:"An analysis reads columns and writes what it finds into a result sheet of its own, worked out again when its data change.",
  body:`<h2>Statistics on columns</h2>
 <p>${MP("Analyze › Statistics › Descriptive › Statistics on columns…")}: tick the columns and the statistics, and each column gets a row of a new sheet. Ticked at first are N, the rows missing, mean, standard deviation, standard error of the mean, minimum, Q1, median, Q3, maximum and sum; besides them, the mean's interval, variance, coefficient of variation, range, IQR, MAD, robust SD, the mode and its count, skewness, kurtosis, the geometric and harmonic means, and any percentiles typed (<code>5, 95</code>). <em>Group by</em> a column of text or categories gives a row for each column and group.</p>
@@ -24352,6 +24564,9 @@ ${DL([["t tests…","One sample against a value; two samples, the first two colu
 <p>${MP("Analyze › Statistics › ANOVA › One-way ANOVA…")}: the groups as columns ticked, or one column grouped by another. The table: between and within groups, their degrees of freedom, sums of squares, mean squares, F and p, η² (the between share of the total) and ω² (the same, less its bias). <em>Welch's F</em> weights each group by its own variance.</p>
 ${DL([["Tukey–Kramer","Every pair; q and p from the studentized range, intervals simultaneous for all pairs."],["Bonferroni, Šidák","Every pair by t on the pooled variance, p multiplied by the number of pairs (Šidák: 1 − (1 − p)^m)."],["Holm","Bonferroni step by step from the smallest p; no interval."],["Scheffé","F = t²/(k − 1); intervals for every contrast, so the widest."],["Fisher's LSD","t on the pooled variance, p unadjusted."],["Games–Howell","Every pair with each group's own variance and Welch's degrees of freedom."],["Dunnett","Each group against the control chosen, two-sided."]])}
 <p><em>Means plot</em> (under the report) graphs each group's mean with its interval from the pooled SD.</p>
+<h2 id="ranks">Nonparametric tests</h2>
+<p>${MP("Analyze › Statistics › Nonparametric")}: tests on ranks and signs, which assume no distribution. p is exact while the samples are small, untied and (for the signed-rank test) have no zeros, as R decides; else by the normal approximation with the tie and continuity corrections. <em>p</em> in the dialog forces either.</p>
+${DL([["Mann–Whitney…","Two samples: U of the first, p, the shift (the median of every first − second difference, Hodges–Lehmann) with its interval, and the rank-biserial r (2U/(n₁n₂) − 1)."],["Wilcoxon signed-rank…","One sample against a value, or two columns paired by rows: T+ and T−, p, the pseudo-median (the median of the Walsh averages) with its interval. Zeros are dropped (Wilcoxon's) or ranked and then dropped (Pratt's)."],["Sign test…","The values above and below the value tested against, the exact binomial p, the median with an interval from order statistics, and that interval's own level."],["Kruskal–Wallis…","The groups of one factor: H corrected for ties, its df and p, ε², each group's mean rank; Dunn's comparisons of the mean ranks, adjusted by Holm or Bonferroni."],["Friedman…","Columns as treatments, rows as blocks (rows complete in every column): Q corrected for ties, p, Kendall's W, each column's rank sum."],["Mood's median test…","Each group's values above the grand median and not above it, and χ² of that table (Yates's correction with two groups)."],["Two-sample Kolmogorov–Smirnov…","The largest distance D between the two samples' distribution functions (or one side's), its p exact up to a million steps of the lattice, else asymptotic."]])}
 <h2 id="read">What it reads</h2>
 <p>Each column's processed values: the values after its steps, its original values when it has none. The dialog names the steps each column is read after, and a column with steps has a switch to <em>Original</em>. Masked points are left out unless <em>Include masked points</em> is ticked, and the report says how many. After a step that leaves rows out, makes points or averages them (resampling, a histogram), or makes neighbours depend on each other (smoothing), the report notes it.</p>
 <h2 id="sheet">The result sheet</h2>

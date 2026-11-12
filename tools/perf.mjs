@@ -45,6 +45,7 @@ const BUDGET = {
   "2000 columns: History": [150, "the History opened on 2000 columns"],
   "2000 columns: Statistics": [150, "the Statistics window opened on 2000 columns"],
   "ANOVA: 1M values": [1000, "one-way ANOVA of four groups of 250 000 values (the table, Welch's F, the groups)"],
+  "Rank tests: 1M values": [2500, "Mann–Whitney of two samples of 500 000 and Kruskal–Wallis of four groups of 250 000"],
   "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
 };
 const got = {};
@@ -105,6 +106,9 @@ await withPage(async (p) => {
     const a = performance.now(); anaRunKind("anova1", ins, { comps: [], welch: true }); return performance.now() - a; }));
   got["ANOVA: Tukey, 10 groups"] = await best(() => p.evaluate(() => { const mb = mulberry32(8), ins = Array.from({ length: 10 }, (_, g) => ({ name: "G" + g, vals: Array.from({ length: 8 }, () => g * 0.2 + mb()) }));
     const a = performance.now(); anaRunKind("anova1", ins, { comps: ["tukey"] }); return performance.now() - a; }));
+  got["Rank tests: 1M values"] = await best(() => p.evaluate(() => { const mb = mulberry32(9), v = (n, s) => Array.from({ length: n }, () => s + mb());
+    const two = [{ name: "A", vals: v(500000, 0) }, { name: "B", vals: v(500000, 0.001) }], four = [0, 1, 2, 3].map((g) => ({ name: "G" + g, vals: v(250000, g * 0.001) }));
+    const a = performance.now(); anaRunKind("mw", two, {}); anaRunKind("kw", four, { dunn: false }); return performance.now() - a; }));
 });
 
 await browser.close(); server.close();

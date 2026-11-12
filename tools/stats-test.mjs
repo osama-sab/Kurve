@@ -261,5 +261,32 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("one-way ANOVA refuses what it cannot test, in words", /two groups/.test(A([[1, 2, 3]]).fail) && /same/.test(A([[2, 2], [2, 2]]).fail) && /more values/.test(A([[1], [2]]).fail) && /spread in every/.test(A([[1], [2, 3], [4, 5]]).welch.fail));
 }
 
+// Rank tests (STATS_SPEC 2.8): the exact distributions against enumeration, each test's size under its null
+// (exact ones at or below their level), the shift's interval covering, refusals in words.
+{
+  const mb = get("mulberry32")(2808), gauss = () => { let u = 0; while (u === 0) u = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * mb()); };
+  const MD = get("mwDist"), SD = get("signrankDist"), MW = get("mwTest"), WS = get("wsrTest"), KW = get("kwTest"), FR = get("friedmanTest"), MO = get("moodTest"), KS = get("ks2Test"), SG = get("signTest");
+  const brute = (m, n) => { const N = m + n, c = new Array(m * n + 1).fill(0); let tot = 0; const pick = (start, k, sum) => { if (k === 0) { c[sum - m * (m + 1) / 2]++; tot++; return; } for (let i = start; i <= N - k + 1; i++) pick(i + 1, k - 1, sum + i); }; pick(1, m, 0); return c.map((x) => x / tot); };
+  const d = MD(3, 4), b = brute(3, 4); check("Mann–Whitney's exact U (3, 4) is the enumeration's, sums to 1 and is symmetric", d.every((v, i) => Math.abs(v - b[i]) < 1e-15) && Math.abs(d.reduce((a, c) => a + c, 0) - 1) < 1e-15 && d.every((v, i) => Math.abs(v - d[d.length - 1 - i]) < 1e-16));
+  const sr = SD(6), en = new Array(22).fill(0); for (let mask = 0; mask < 64; mask++) { let s = 0; for (let i = 0; i < 6; i++) if (mask >> i & 1) s += i + 1; en[s] += 1 / 64; }
+  check("the signed-rank T+ of 6 is the enumeration's", sr.every((v, i) => Math.abs(v - en[i]) < 1e-16));
+  const N = 5000, half = 3.29 * Math.sqrt(0.05 * 0.95 / N), smp = (n, mu) => Array.from({ length: n }, () => (mu || 0) + gauss());
+  const r = { mwE: 0, mwA: 0, wsE: 0, wsA: 0, kw: 0, fr: 0, mo: 0, ks: 0, sg: 0, cov: 0 };
+  for (let i = 0; i < N; i++) {
+    const a = smp(8), bb = smp(10); if (MW(a, bb).p < 0.05) r.mwE++; if (KS(a, bb).p < 0.05) r.ks++;
+    const s = MW(a, smp(10, 0.5)); if (s.ci[0] <= -0.5 && -0.5 <= s.ci[1]) r.cov++;
+    if (MW(smp(60), smp(70)).p < 0.05) r.mwA++; if (WS(smp(12)).p < 0.05) r.wsE++; if (WS(smp(70)).p < 0.05) r.wsA++; if (SG(smp(15)).p < 0.05) r.sg++;
+    const g = [smp(10), smp(12), smp(9)]; if (KW(g).p < 0.05) r.kw++; if (MO(g).p < 0.05) r.mo++;
+    if (FR(Array.from({ length: 12 }, () => smp(4))).p < 0.05) r.fr++;
+  }
+  const z = (k) => r[k] / N;
+  check(`Mann–Whitney, the exact sign-rank and sign tests and two-sample KS are at or below 5 % under their nulls (+${(half * 100).toFixed(2)} %)`, ["mwE", "wsE", "sg", "ks"].every((k) => z(k) <= 0.05 + half), JSON.stringify(["mwE", "wsE", "sg", "ks"].map(z)));
+  check("…the normal approximations at 5 %", Math.abs(z("mwA") - 0.05) < half && Math.abs(z("wsA") - 0.05) < half, [z("mwA"), z("wsA")]);
+  check("Kruskal–Wallis and Friedman near 5 % (χ² approximations: within 1 %)", Math.abs(z("kw") - 0.05) < 0.01 && Math.abs(z("fr") - 0.05) < 0.01, [z("kw"), z("fr")]);
+  check("Mood's median test at or below 5 %", z("mo") <= 0.05 + half, z("mo"));
+  check("the Hodges–Lehmann shift's exact interval covers the shift at least 95 % of the time", z("cov") >= 0.95 - half, z("cov"));
+  check("rank tests refuse what they cannot test, in words", /each sample/.test(MW([], [1]).fail) && /tested against/.test(WS([2, 2], { mu0: 2 }).fail) && /two groups/.test(KW([[1, 2]]).fail) && /two rows/.test(FR([[1, 2]]).fail) && /same/.test(KW([[1, 1], [1, 1]]).fail));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
