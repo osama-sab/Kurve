@@ -288,5 +288,37 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("rank tests refuse what they cannot test, in words", /each sample/.test(MW([], [1]).fail) && /tested against/.test(WS([2, 2], { mu0: 2 }).fail) && /two groups/.test(KW([[1, 2]]).fail) && /two rows/.test(FR([[1, 2]]).fail) && /same/.test(KW([[1, 1], [1, 1]]).fail));
 }
 
+// Correlation (STATS_SPEC 2.9): Kendall's exact counts against enumeration, what a shift, a scale and a
+// monotone change do, each test's size under independence, Fisher's interval covering, partial r as the
+// residuals' r, refusals in words.
+{
+  const mb = get("mulberry32")(2909), gauss = () => { let u = 0; while (u === 0) u = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * mb()); };
+  const CT = get("corrTest"), SP = get("spearmanTest"), KT = get("kendallTau"), PC = get("partialCorr"), PR = get("pearsonR"), IC = get("inversionsCount");
+  const perm = (a) => { const out = []; const go = (pre, rest) => { if (!rest.length) { out.push(pre); return; } rest.forEach((v, i) => go(pre.concat([v]), rest.filter((_, j) => j !== i))); }; go([], a); return out; };
+  const cnt = new Array(16).fill(0); perm([0, 1, 2, 3, 4, 5]).forEach((q) => { let k = 0; for (let i = 0; i < 6; i++) for (let j = i + 1; j < 6; j++) if (q[i] > q[j]) k++; cnt[k]++; });
+  const ic = IC(6, 15); check("the permutations of 6 by their inversions are the enumeration's", cnt.every((c, k) => ic[k] === BigInt(c)), ic.join(" "));
+  const grid = (v) => Math.round(v * 2 ** 20) / 2 ** 20; /* so that the shift below is exact in doubles */
+  const x = Array.from({ length: 30 }, () => grid(gauss())), y = x.map((v) => grid(0.5 * v + gauss())), r0 = CT(x, y).r;
+  check("r is unchanged by a shift and a scale of a power of two, and changes sign with a negative one", Math.abs(CT(x.map((v) => 2 ** 24 + 4 * v), y).r - r0) < 1e-15 && CT(x.map((v) => -2 * v), y).r === -r0);
+  const mono = x.map((v) => Math.exp(v)), rho = SP(x, y).rho, tau = KT(x, y).tau;
+  check("ρ and τ are unchanged by a monotone change of either column", Math.abs(SP(mono, y).rho - rho) < 1e-15 && Math.abs(KT(mono, y).tau - tau) < 1e-15);
+  check("r, ρ and τ of a column with itself are 1 (to one rounding)", [CT(x, x).r, SP(x, x).rho, KT(x, x).tau].every((v) => Math.abs(v - 1) <= 2.3e-16), [CT(x, x).r, SP(x, x).rho, KT(x, x).tau]);
+  const N = 5000, half = 3.29 * Math.sqrt(0.05 * 0.95 / N), smp = (n) => Array.from({ length: n }, gauss), k = { r: 0, rho: 0, kE: 0, kA: 0, cov: 0 };
+  for (let i = 0; i < N; i++) {
+    if (CT(smp(10), smp(10)).p < 0.05) k.r++; if (SP(smp(25), smp(25)).p < 0.05) k.rho++; if (KT(smp(10), smp(10)).p < 0.05) k.kE++; if (KT(smp(60), smp(60)).p < 0.05) k.kA++;
+    const a = smp(30), b = a.map((v) => 0.6 * v + 0.8 * gauss()), c = CT(a, b).ci; if (c[0] <= 0.6 && 0.6 <= c[1]) k.cov++;
+  }
+  const z = (q) => k[q] / N;
+  check(`Pearson's t test at 5 % under independence (±${(half * 100).toFixed(2)} %)`, Math.abs(z("r") - 0.05) < half, z("r"));
+  check("Spearman's t and Kendall's normal approximation within 1 % of 5 %", Math.abs(z("rho") - 0.05) < 0.01 && Math.abs(z("kA") - 0.05) < 0.01, [z("rho"), z("kA")]);
+  check("Kendall's exact test at or below 5 %", z("kE") <= 0.05 + half, z("kE"));
+  check("Fisher's 95 % interval covers ρ = 0.6 within 1 % of 95 % (30 pairs)", Math.abs(z("cov") - 0.95) < 0.01, z("cov"));
+  const u = smp(40), v = u.map((t) => t + 0.7 * gauss()), w = u.map((t) => -t + 0.9 * gauss()), q = PC([u, v, w]);
+  const resid = (a, b) => { const ma = a.reduce((s, t) => s + t, 0) / a.length, mb2 = b.reduce((s, t) => s + t, 0) / b.length; let sab = 0, saa = 0; a.forEach((t, i) => { sab += (t - ma) * (b[i] - mb2); saa += (t - ma) ** 2; }); return b.map((t, i) => t - mb2 - sab / saa * (a[i] - ma)); };
+  const byRes = PR(resid(u, v), resid(u, w)), row = q.rows.find((t) => t.i === 1 && t.j === 2);
+  check("partial r of two columns given a third is the r of their residuals on it", Math.abs(row.r - byRes) < 1e-13, [row.r, byRes]);
+  check("correlation refuses what it cannot measure, in words", /three pairs/.test(CT([1, 2], [3, 4]).fail) && /no spread/.test(CT([1, 1, 1], [1, 2, 3]).fail) && /every value the same/.test(KT([2, 2, 2], [1, 2, 3]).fail) && /more rows/.test(PC([[1, 2], [3, 4], [5, 7]]).fail));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

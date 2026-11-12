@@ -46,6 +46,7 @@ const BUDGET = {
   "2000 columns: Statistics": [150, "the Statistics window opened on 2000 columns"],
   "ANOVA: 1M values": [1000, "one-way ANOVA of four groups of 250 000 values (the table, Welch's F, the groups)"],
   "Rank tests: 1M values": [2500, "Mann–Whitney of two samples of 500 000 and Kruskal–Wallis of four groups of 250 000"],
+  "Correlation: 1M pairs": [6000, "Pearson's r, Spearman's ρ and Kendall's τ of a million pairs"],
   "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
 };
 const got = {};
@@ -109,6 +110,9 @@ await withPage(async (p) => {
   got["Rank tests: 1M values"] = await best(() => p.evaluate(() => { const mb = mulberry32(9), v = (n, s) => Array.from({ length: n }, () => s + mb());
     const two = [{ name: "A", vals: v(500000, 0) }, { name: "B", vals: v(500000, 0.001) }], four = [0, 1, 2, 3].map((g) => ({ name: "G" + g, vals: v(250000, g * 0.001) }));
     const a = performance.now(); anaRunKind("mw", two, {}); anaRunKind("kw", four, { dunn: false }); return performance.now() - a; }));
+  got["Correlation: 1M pairs"] = await best(() => p.evaluate(() => { const mb = mulberry32(10), n = 1000000, x = Array.from({ length: n }, () => mb()), rows = x.map((_, i) => i);
+    const ins = [{ name: "A", vals: x, rows }, { name: "B", vals: x.map((v) => v + mb()), rows }];
+    const a = performance.now(); anaRunKind("corr", ins, { methods: ["pearson", "spearman", "kendall"] }); return performance.now() - a; }));
 });
 
 await browser.close(); server.close();

@@ -5819,8 +5819,12 @@ function ibetaPref(a,b,x,y){
   if(a>=10&&b>=10){ const s=a+b; let x0, y0; if(a<b){ x0=a/s; y0=1-x0; } else { y0=b/s; x0=1-y0; }
     const d=x<y?x-x0:y0-y, e=aL1pmx(a,d/x0,x/x0)+aL1pmx(b,-d/y0,y/y0)+lgcor(s)-lgcor(a)-lgcor(b);
     return Math.exp(e)*Math.sqrt(a*(b/s))/SQRT_2PI; }
-  const lx=x<0.5?Math.log(x):Math.log1p(-y), ly=y<0.5?Math.log(y):Math.log1p(-x);
-  return Math.exp(a*lx+b*ly-lbeta(a,b)); }
+  const lx=x<0.5?Math.log(x):Math.log1p(-y), ly=y<0.5?Math.log(y):Math.log1p(-x), lb=lbeta(a,b), E=a*lx+b*ly-lb;
+  /* Far below the peak a·ln x is hundreds, and exp of it carries that many roundings (1e-13 at a = 42.5,
+     x = 4e-6): x^a and y^b by pow, one rounding each, while neither underflows. */
+  if(Math.abs(lb)<64&&E>-700){ const px=x<0.5?Math.pow(x,a):Math.exp(a*lx), py=y<0.5?Math.pow(y,b):Math.exp(b*ly);
+    if(px>1e-300&&py>1e-300&&Number.isFinite(px*py)) return px*py*Math.exp(-lb); }
+  return Math.exp(E); }
 // The continued fraction of I_x(a, b) (modified Lentz), which converges fast below the mean.
 function ibetaCF(a,b,x){
   const TINY=1e-300, qab=a+b, qap=a+1, qam=a-1; let c=1, d=1-qab*x/qap; if(Math.abs(d)<TINY) d=TINY; d=1/d; let h=d;
@@ -5834,8 +5838,9 @@ function ibetaCF(a,b,x){
 function ibetaSeries(a,b,x,y){
   let s=1/a, t=1;
   for(let n=1;n<200000;n++){ t*=(n-b)*x/n; const v=t/(a+n); s+=v; if(Math.abs(v)<=1e-17*Math.abs(s)) break; }
-  const lx=x<0.5?Math.log(x):Math.log1p(-y);
-  return Math.exp(a*lx-lbeta(a,b))*s; }
+  const lx=x<0.5?Math.log(x):Math.log1p(-y), lb=lbeta(a,b), E=a*lx-lb;
+  if(x<0.5&&Math.abs(lb)<64&&E>-700){ const px=Math.pow(x,a); if(px>1e-300) return px*Math.exp(-lb)*s; } /* x^a by pow, as ibetaPref */
+  return Math.exp(E)*s; }
 // Didonato and Morris's BGRAT (TOMS 708; as Boost's beta_small_b_large_a_series): I_x(a, b) for a large
 // and b small, from the incomplete gamma Q(b, u) with u = −(a + (b − 1)/2) ln x and a series in ln x.
 const FACT=(()=>{ const f=[1]; for(let i=1;i<=70;i++) f[i]=f[i-1]*i; return f; })();
@@ -6272,8 +6277,15 @@ const finiteSorted=v=>{ const a=[]; for(const x of v) if(x!=null&&Number.isFinit
 // Each value's deviation from the mean, the double mean's own rounding taken out (the mean of what is left
 // after subtracting it: values near 10⁹ have a mean half an ulp, 6e-8, off, which every z would carry), the
 // mean, the SD (n − 1) and the standardised values z; e is that rounding (m + e is the mean to twice the digits).
-function msd(s){ const n=s.length, m=neuSum(s)/n, d0=s.map(x=>x-m), e=neuSum(d0)/n, d=d0.map(x=>x-e); let M=0; for(const x of d) M=Math.max(M,Math.abs(x));
-  if(!(M>0)) return {m,e,sd:0,d,z:d.map(()=>0)}; const q2=neuSum(d.map(x=>(x/M)**2)), sd=M*Math.sqrt(q2/(n-1)); return {m,e,sd,d,z:d.map(x=>x/sd)}; }
+// Each x − m is rounded too where x and m differ in size; its rounding is taken exactly (two-sum) into e and d,
+// or 13 values of ±12 about −0.82 put 4e-14 into a t of 0.011.
+function msd(s){ const n=s.length, m=neuSum(s)/n, d=new Array(n), r0=new Float64Array(n); let S=0, c=0;
+  for(let i=0;i<n;i++){ const x=s[i], t=x-m, v=t-x; d[i]=t; r0[i]=(x-(t-v))+(-m-v); /* each x − m and its rounding, exactly (two-sum) */
+    const u=S+t; c+=Math.abs(S)>=Math.abs(t)?(S-u)+t:(t-u)+S; S=u; }
+  for(let i=0;i<n;i++){ const x=r0[i], u=S+x; c+=Math.abs(S)>=Math.abs(x)?(S-u)+x:(x-u)+S; S=u; } /* Neumaier over both */
+  const e=(S+c)/n; let M=0; for(let i=0;i<n;i++){ const y=(d[i]-e)+r0[i]; d[i]=y; if(Math.abs(y)>M) M=Math.abs(y); }
+  if(!(M>0)) return {m,e,sd:0,d,z:d.map(()=>0)}; S=0; c=0; for(let i=0;i<n;i++){ const x=(d[i]/M)**2, u=S+x; c+=S>=x?(S-u)+x:(x-u)+S; S=u; }
+  const sd=M*Math.sqrt((S+c)/(n-1)); return {m,e,sd,d,z:d.map(x=>x/sd)}; }
 const swPoly=(c,x)=>{ let r=0; for(let i=c.length-1;i>=0;i--) r=r*x+c[i]; return r; };
 // Shapiro and Wilk's W and its p by Royston's AS R94 (R's swilk.c, SciPy's), for 3 to 5000 values.
 function swTest(vals){ const x=finiteSorted(vals), n=x.length;
@@ -6530,8 +6542,9 @@ function anovaComp(r,kind,o){ o=o||{}; const conf=o.conf||0.95, al=1-conf, G=r.G
   rows.forEach(x=>delete x.raw); return {rows}; }
 /* ---- Rank tests (STATS_SPEC 2.8) ---- */
 // Ranks of values, ties given their average; tie = Σ(t³ − t) over each run of equal values.
-function rankAvg(v){ const n=v.length, o=v.map((x,i)=>i).sort((a,b)=>v[a]-v[b]), r=new Array(n); let tie=0;
-  for(let i=0;i<n;){ let j=i; while(j+1<n&&v[o[j+1]]===v[o[i]]) j++; const t=j-i+1, a=(i+j)/2+1; for(let k=i;k<=j;k++) r[o[k]]=a; if(t>1) tie+=t*t*t-t; i=j+1; }
+function rankAvg(v){ const n=v.length, s=Float64Array.from(v).sort(), r=new Array(n); let tie=0; /* a native sort, then each value's run by binary search */
+  for(let i=0;i<n;){ let j=i; while(j+1<n&&s[j+1]===s[i]) j++; const t=j-i+1; if(t>1) tie+=t*t*t-t; i=j+1; }
+  for(let i=0;i<n;i++){ const x=v[i]; let lo=0, hi=n; while(lo<hi){ const k=(lo+hi)>>1; if(s[k]<x) lo=k+1; else hi=k; } let a=lo; hi=n; while(a<hi){ const k=(a+hi)>>1; if(s[k]<=x) a=k+1; else hi=k; } r[i]=(lo+a-1)/2+1; }
   return {r,tie}; }
 // The k-th smallest (1-based) of a sorted array, null outside it.
 const kth=(s,k)=>k>=1&&k<=s.length?s[k-1]:null;
@@ -6642,6 +6655,89 @@ function ks2Test(x,y,o){ o=o||{}; x=finVals(x).sort((a,b)=>a-b); y=finVals(y).so
   else { const en=m*n/(m+n); if(alt==="two") p=DIST.kstwo.sf(D,Math.round(en));
     else { const z=Math.sqrt(en)*D; p=Math.min(1,Math.exp(-2*z*z-2*z*(m+2*n)/Math.sqrt(m*n*(m+n))/3)); } }
   return {m,n,D,p,exact,alt}; }
+/* ---- Correlation (STATS_SPEC 2.9) ---- */
+// Error-free transformations (Knuth's two-sum, Dekker's two-product with Veltkamp's split) and double-double
+// sums and products, for the one number a correlation's p needs past double precision: 1 − r², which formed
+// from a rounded r keeps only −log₁₀(1 − r) fewer digits (SciPy's and R's lose them so).
+function twoSum(a,b){ const s=a+b, v=s-a; return [s,(a-(s-v))+(b-v)]; }
+function twoProd(a,b){ const p=a*b, c=134217729*a, a1=c-(c-a), a2=a-a1, d=134217729*b, b1=d-(d-b), b2=b-b1; return [p,((a1*b1-p)+a1*b2+a2*b1)+a2*b2]; }
+function ddAdd(x,y){ const [s,e]=twoSum(x[0],y[0]), t=e+x[1]+y[1], h=s+t; return [h,t-(h-s)]; }
+function ddMul(x,y){ const [p,e]=twoProd(x[0],y[0]), t=e+x[0]*y[1]+x[1]*y[0], h=p+t; return [h,t-(h-p)]; }
+const pow2Under=v=>2**-Math.ceil(Math.log2(v));
+// A column's deviations from its mean in double-double ({h, l}), the values and then the deviations scaled by
+// powers of two (exact) so that nothing overflows; null when every value is the same.
+function ddDevs(v){ const n=v.length; if(!v.some(x=>x!==v[0])) return null; let M0=0; for(const x of v) M0=Math.max(M0,Math.abs(x));
+  const k0=pow2Under(M0); let sh=0, sl=0; for(const x0 of v){ const x=x0*k0, s=sh+x, w=s-sh; sl+=(sh-(s-w))+(x-w); sh=s; }
+  const q=sh/n, [p,pe]=twoProd(q,n), ml=((sh-p)-pe+sl)/n, h=new Float64Array(n), l=new Float64Array(n); let M=0;
+  for(let i=0;i<n;i++){ const x=v[i]*k0, s=x-q, w=s-x, lo=((x-(s-w))+(-q-w))-ml, hi=s+lo; h[i]=hi; l[i]=lo-(hi-s); if(Math.abs(hi)>M) M=Math.abs(hi); }
+  const k1=pow2Under(M); for(let i=0;i<n;i++){ h[i]*=k1; l[i]*=k1; } return {h,l}; }
+// r and 1 − r² of paired values: Σa², Σb², Σab of the deviations in double-double, 1 − r² as
+// (Σa²Σb² − (Σab)²)/(Σa²Σb²) there, so it keeps its digits however near ±1 r is.
+function corrCore(x,y){ const n=x.length, A=ddDevs(x), B=ddDevs(y); if(!A||!B) return {fail:"A column of the pair has no spread."};
+  const C=134217729; let aah=0, aal=0, bbh=0, bbl=0, abh=0, abl=0;
+  for(let i=0;i<n;i++){ const ah=A.h[i], al=A.l[i], bh=B.h[i], bl=B.l[i]; let c=C*ah; const a1=c-(c-ah), a2=ah-a1; c=C*bh; const b1=c-(c-bh), b2=bh-b1;
+    let p=ah*ah, t=((a1*a1-p)+2*a1*a2)+a2*a2+2*ah*al, s=aah+p, v=s-aah; aal+=((aah-(s-v))+(p-v))+t; aah=s;
+    p=bh*bh; t=((b1*b1-p)+2*b1*b2)+b2*b2+2*bh*bl; s=bbh+p; v=s-bbh; bbl+=((bbh-(s-v))+(p-v))+t; bbh=s;
+    p=ah*bh; t=((a1*b1-p)+a1*b2+a2*b1)+a2*b2+ah*bl+al*bh; s=abh+p; v=s-abh; abl+=((abh-(s-v))+(p-v))+t; abh=s; }
+  const den=ddMul([aah,aal],[bbh,bbl]), sab=[abh,abl], num=ddAdd(den,ddMul(sab,[-abh,-abl])), D=den[0]+den[1], S=sab[0]+sab[1];
+  const omr2=Math.max(0,Math.min(1,(num[0]+num[1])/D)); return {r:omr2===0?Math.sign(S):Math.max(-1,Math.min(1,S/Math.sqrt(D))),omr2,n}; }
+// A correlation's p from 1 − r² itself: t's two-sided tail is I_{1−r²}((n − 2)/2, ½), so no t is formed
+// between them (formed, a p of 1e-232 at 200 pairs lost its last digits to t's rounding).
+function corrP(c,df,alt){ const two=c.omr2===0?0:Math.min(1,ibetaPQ(df/2,0.5,c.omr2,c.r*c.r)[0]); if(alt==="two") return two;
+  return c.r===0?0.5:(c.r>0)===(alt==="greater")?two/2:1-two/2; }
+// Pearson's r of paired values; t = r√((n − 2)/(1 − r²)) on n − 2 df; the interval by Fisher's z.
+function pearsonR(x,y){ const c=corrCore(x,y); return c.fail?c:c.r; }
+function corrTest(x,y,o){ o=o||{}; const n=x.length, alt=o.alt||"two", conf=o.conf>0&&o.conf<1?o.conf:0.95;
+  if(n<3) return {fail:"A correlation needs three pairs or more."}; const c=corrCore(x,y); if(c.fail) return c; const r=c.r;
+  const df=n-2, t=c.omr2===0?Math.sign(r)*Infinity:r*Math.sqrt(df/c.omr2), p=corrP(c,df,alt), res={n,r,t,df,p};
+  if(n>3&&c.omr2>0){ /* atanh r = ½ ln((1 + r)/(1 − r)), the smaller of 1 ± r as (1 − r²) over the other */
+    const z=0.5*(r>=0?Math.log1p(r)-Math.log(c.omr2/(1+r)):Math.log(c.omr2/(1-r))-Math.log1p(-r)), se=1/Math.sqrt(n-3), q=DIST.norm.isf(alt==="two"?(1-conf)/2:1-conf);
+    res.ci=alt==="less"?[-1,Math.tanh(z+q*se)]:alt==="greater"?[Math.tanh(z-q*se),1]:[Math.tanh(z-q*se),Math.tanh(z+q*se)]; }
+  return res; }
+// Spearman's ρ: Pearson's r of the ranks (ties averaged), its p by t on n − 2 df (as SciPy and R's approximation).
+function spearmanTest(x,y,o){ o=o||{}; if(x.length<3) return {fail:"A correlation needs three pairs or more."};
+  const c=corrCore(rankAvg(x).r,rankAvg(y).r); if(c.fail) return c; const n=x.length, df=n-2, t=c.omr2===0?Math.sign(c.r)*Infinity:c.r*Math.sqrt(df/c.omr2);
+  return {n,rho:c.r,t,df,p:corrP(c,df,o.alt||"two")}; }
+// The permutations of n with k inversions (Mahonian numbers) for k ≤ kmax, as exact integers (BigInt): a
+// running sum in doubles loses digits to cancellation, and n! passes 2⁵³ at n = 19. Memoised by n.
+const INVM=new Map();
+function inversionsCount(n,kmax){ const key=n+":"+kmax; if(INVM.has(key)) return INVM.get(key);
+  let P=new Array(kmax+1).fill(0n); P[0]=1n;
+  for(let m=2;m<=n;m++){ const Q=new Array(kmax+1); let s=0n; for(let k=0;k<=kmax;k++){ s+=P[k]; if(k-m>=0) s-=P[k-m]; Q[k]=s; } P=Q; }
+  if(INVM.size>40) INVM.clear(); INVM.set(key,P); return P; }
+// Kendall's τ-b by Knight's merge sort (n log n; SciPy's): concordant less discordant pairs over the pairs
+// not tied in each; p exact (no ties, under 50 pairs, as R) or normal with the ties' variance (SciPy's).
+function kendallTau(x,y,o){ o=o||{}; const n=x.length, alt=o.alt||"two"; if(n<2) return {fail:"Kendall's τ needs two pairs or more."};
+  /* dense ranks by a native sort and binary search; the pairs in X's order (Y within ties) by one native sort of X·K + Y */
+  const dense=v=>{ const s=Float64Array.from(v).sort(); let u=0; for(let i=0;i<n;i++) if(!i||s[i]!==s[i-1]) s[u++]=s[i];
+    const d=new Float64Array(n); for(let i=0;i<n;i++){ const x=v[i]; let lo=0, hi=u; while(lo<hi){ const k=(lo+hi)>>1; if(s[k]<x) lo=k+1; else hi=k; } d[i]=lo; } return {d,u}; };
+  const Dx=dense(x), Dy=dense(y), dx=Dx.d, dy=Dy.d, K=Dy.u, key=new Float64Array(n); for(let i=0;i<n;i++) key[i]=dx[i]*K+dy[i]; key.sort();
+  const X=new Float64Array(n), Y=new Int32Array(n); for(let i=0;i<n;i++){ const a=Math.floor(key[i]/K); X[i]=a; Y[i]=key[i]-a*K; }
+  let ntie=0; for(let i=0;i<n;){ let j=i; while(j+1<n&&X[j+1]===X[i]&&Y[j+1]===Y[i]) j++; const c=j-i+1; ntie+=c*(c-1)/2; i=j+1; }
+  const tieStat=(d,u)=>{ const cnt=new Float64Array(u); for(let i=0;i<n;i++) cnt[d[i]]++; let t=0, a=0, b=0; for(const c of cnt) if(c>1){ t+=c*(c-1)/2; a+=c*(c-1)*(c-2); b+=c*(c-1)*(2*c+5); } return [t,a,b]; };
+  // discordant pairs: inversions of Y in X's order (ties in X sorted by Y, so they add none)
+  let dis=0; const a=Y.slice(), buf=new Int32Array(n);
+  for(let w=1;w<n;w*=2) for(let lo=0;lo<n-w;lo+=2*w){ const mid=lo+w, hi=Math.min(lo+2*w,n); let i=lo, j=mid, k=lo;
+    while(i<mid&&j<hi){ if(a[j]<a[i]){ dis+=mid-i; buf[k++]=a[j++]; } else buf[k++]=a[i++]; } while(i<mid) buf[k++]=a[i++]; while(j<hi) buf[k++]=a[j++]; for(let q=lo;q<hi;q++) a[q]=buf[q]; }
+  const [xt,x0,x1]=tieStat(dx,Dx.u), [yt,y0,y1]=tieStat(dy,K), tot=n*(n-1)/2;
+  if(xt===tot||yt===tot) return {fail:"A column of the pair has every value the same."};
+  const cmd=tot-xt-yt+ntie-2*dis, tau=cmd/Math.sqrt((tot-xt)*(tot-yt)), /* one root of an exact product: τ of a perfect order is 1 */ exact=o.exact===true?!xt&&!yt:o.exact===false?false:!xt&&!yt&&n<50;
+  let p, z=null;
+  if(exact){ // P(D ≤ k) from the smaller tail (the distribution is symmetric about tot/2), as R's pkendall
+    const C=inversionsCount(n,Math.ceil(tot/2)); let F=1n; for(let m=2;m<=n;m++) F*=BigInt(m);
+    const cum=k=>{ let s=0n; for(let j=0;j<=k;j++) s+=C[j]; return s; }, ratio=(a,b)=>Number(a)/Number(b);
+    const lo=k=>{ if(k<0) return 0; if(k>=tot) return 1; return k<tot/2?ratio(cum(k),F):1-ratio(cum(tot-k-1),F); };
+    const pg=lo(dis), pl=lo(tot-dis); /* P(D ≥ k) = P(D ≤ tot − k): each tail from its own end */ p=alt==="greater"?pg:alt==="less"?pl:Math.min(1,2*Math.min(pg,pl)); }
+  else { const m=n*(n-1), v=(m*(2*n+5)-x1-y1)/18+(2*xt*yt)/m+x0*y0/(9*m*(n-2)); z=cmd/Math.sqrt(v); p=alt==="less"?DIST.norm.cdf(z):alt==="greater"?DIST.norm.sf(z):Math.min(1,2*DIST.norm.sf(Math.abs(z))); }
+  return {n,tau,z,p,exact,con:tot-xt-yt+ntie-dis,dis}; }
+// Partial correlations: each pair given every other column, from the inverse of the correlation matrix,
+// t on n − k df (rows complete in every column).
+function partialCorr(cols){ const k=cols.length, n=cols[0].length; if(n-k<1) return {fail:"Partial correlations need more rows than columns."};
+  const R=[]; for(let i=0;i<k;i++){ R.push([]); for(let j=0;j<k;j++){ const r=i===j?1:pearsonR(cols[i],cols[j]); if(r.fail) return r; R[i].push(r); } }
+  let P; try{ P=inverse(R); }catch(e){ return {fail:"The columns depend on each other: the correlation matrix has no inverse."}; }
+  if(!P||P.some(row=>row.some(v=>!Number.isFinite(v)))) return {fail:"The columns depend on each other: the correlation matrix has no inverse."};
+  const df=n-k, out=[]; for(let i=0;i<k;i++) for(let j=i+1;j<k;j++){ const r=Math.max(-1,Math.min(1,-P[i][j]/Math.sqrt(P[i][i]*P[j][j]))), t=r*Math.sqrt(df/((1-r)*(1+r))); out.push({i,j,r,t,df,p:tAltP(t,df,"two")}); }
+  return {rows:out,df,R}; }
 // The statistics Statistics on columns can give, in the order its table has them; the eleven an
 // analysis made before 2.1 has (no `stats` stored) are DESC_DEF.
 const DESC_STATS=[["n","N"],["miss","Missing"],["mean","Mean"],["sd","SD"],["se","SE of mean"],["ci","Mean's interval"],["var","Variance"],["cv","Coefficient of variation"],
@@ -6902,6 +6998,40 @@ ANA_KINDS.ks2={label:"Two-sample Kolmogorov–Smirnov", base:"KS test",
     const r=ks2Test(S[0].vals,S[1].vals,{alt,exact:p.exact==="exact"?true:p.exact==="normal"?"asymp":undefined}); if(r.fail) return {fail:r.fail};
     anaTab("Two-sample Kolmogorov–Smirnov",[["a","First"],["b","Second"],["n1","N₁"],["n2","N₂"],["D",alt==="two"?"D":alt==="greater"?"D⁺":"D⁻"],["p","p"]],[{a:S[0].name,b:S[1].name,n1:r.m,n2:r.n,D:r.D,p:r.p}],cols,secs);
     return {tables:[{cols}],report:{sections:secs,method:`p ${r.exact?"exact (the steps' lattice; ties counted as if there were none, as SciPy)":"asymptotic"}. ${ANA_ALT[alt]}.`},notes}; }};
+// Correlation (STATS_SPEC 2.9): every pair of the columns ticked, pairwise (each pair's rows with both) or
+// listwise (the frame's); Pearson's r with its interval, Spearman's ρ, Kendall's τ-b, partial r given the rest.
+const CORR_KINDS=[["pearson","Pearson's r"],["spearman","Spearman's ρ"],["kendall","Kendall's τ-b"],["partial","Partial r"]];
+ANA_KINDS.corr={label:"Correlation", base:"Correlation",
+  help:"Every pair of the columns ticked: Pearson's r with p and its interval, Spearman's ρ, Kendall's τ-b, partial r given the other columns; matrices of them.",
+  run(ins,p){ p=p||{}; const want=CORR_KINDS.map(e=>e[0]).filter(k=>(Array.isArray(p.methods)?p.methods:["pearson"]).includes(k)), alt=ANA_ALT[p.alt]?p.alt:"two", conf=anaConf(p), notes=[], cols=[], secs=[];
+    if(ins.some(q=>q.groups)) return {fail:"Correlation reads columns, a pair at a time: no grouping."}; if(ins.length<2) return {fail:"Correlation needs two columns or more."};
+    /* each column by row (NaN where it has no value), so that a pair is one pass over the rows */
+    const k=ins.length, names=ins.map(q=>q.name); let R=0; ins.forEach(q=>(q.rows||[]).forEach(r=>{ if(r+1>R) R=r+1; }));
+    const byRow=ins.map(q=>{ const a=new Float64Array(R).fill(NaN); (q.rows||[]).forEach((r,i)=>{ const v=q.vals[i]; if(r>=0&&v!=null&&Number.isFinite(v)) a[r]=v; }); return a; });
+    const pair=(i,j)=>{ const A=byRow[i], B=byRow[j], x=[], y=[]; for(let r=0;r<R;r++) if(A[r]===A[r]&&B[r]===B[r]){ x.push(A[r]); y.push(B[r]); } return {x,y}; };
+    const rows=[], M={pearson:[],spearman:[],kendall:[],partial:[]}, sc=[];
+    let part=null; if(want.includes("partial")){ if(k<3) notes.push("Partial r needs three columns or more.");
+      else { const all=[]; for(let r=0;r<R;r++) if(byRow.every(a=>a[r]===a[r])) all.push(r); part=partialCorr(byRow.map(a=>all.map(r=>a[r]))); if(part.fail){ notes.push(`Partial r: ${part.fail}`); part=null; } else part.n=all.length; } }
+    for(let i=0;i<k;i++) for(let j=i+1;j<k;j++){ const q=pair(i,j), o={a:names[i],b:names[j],n:q.x.length};
+      if(want.includes("pearson")){ const r=corrTest(q.x,q.y,{alt,conf}); if(r.fail) notes.push(`${names[i]} and ${names[j]}: ${r.fail}`); else Object.assign(o,{r:r.r,rp:r.p,lo:r.ci&&r.ci[0],hi:r.ci&&r.ci[1]}); }
+      if(want.includes("spearman")){ const r=spearmanTest(q.x,q.y,{alt}); if(!r.fail) Object.assign(o,{rho:r.rho,sp:r.p}); }
+      if(want.includes("kendall")){ const r=kendallTau(q.x,q.y,{alt}); if(!r.fail) Object.assign(o,{tau:r.tau,kp:r.p}); }
+      if(part){ const x=part.rows.find(t=>t.i===i&&t.j===j); Object.assign(o,{pr:x.r,pp:x.p}); }
+      rows.push(o); if(p.scatter) sc.push({i,j,x:q.x,y:q.y}); }
+    /* The result sheet: one table of every pair. The report: a section a coefficient, its matrix (more than two
+       columns) and its pairs with N and p, so that each stays narrow. */
+    const per={pearson:[["r","Pearson's r"],["rp","p"]],spearman:[["rho","Spearman's ρ"],["sp","p"]],kendall:[["tau","Kendall's τ"],["kp","p"]],partial:[["pr","Partial r"],["pp","p"]]};
+    const ab=[["a","First"],["b","Second"],["n","N"]], ms=CORR_KINDS.map(e=>e[0]).filter(m=>want.includes(m)&&(m!=="partial"||part));
+    anaTab("",ab.concat(...ms.map(m=>per[m].concat(m==="pearson"?[["lo","lo"],["hi","hi"]]:[]).map(([key,nm])=>[key,key==="rp"?"p (r)":key==="lo"?`${anaPct(conf)} interval, from`:key==="hi"?"to":key==="sp"?"p (ρ)":key==="kp"?"p (τ)":key==="pp"?"p (partial)":nm]))),rows,cols,[]);
+    ms.forEach(m=>{ const key=per[m][0][0], title=per[m][0][1], tabs=[], tmp=[];
+      if(k>2) tabs.push({head:[""].concat(names.slice(0,-1)),rows:names.slice(1).map((nm,ii)=>[nm].concat(names.slice(0,-1).map((_,jj)=>{ const i=ii+1; if(jj>=i) return null; const o=rows.find(t=>t.a===names[jj]&&t.b===names[i]); return o&&o[key]!=null?anaNum(o[key]):null; })))});
+      anaTab(title,ab.map(e=>e[0]==="n"&&m==="partial"?["pn","N"]:e).concat(per[m]),rows.map(o=>m==="partial"?Object.assign({pn:part.n},o):o),[],tmp); tabs.push(tmp[0].tables[0]); secs.push({title,tables:tabs});
+      if(m==="pearson"&&rows.some(o=>o.lo!=null)) anaTab(`Pearson's r, ${anaPct(conf)} interval`,[["a","First"],["b","Second"],["lo","Lower"],["hi","Upper"]],rows,[],secs); });
+    sc.forEach((s,t)=>{ cols.push({k:`sx${t}`,name:names[s.i],role:"x",vals:s.x}); cols.push({k:`sy${t}`,name:names[s.j],vals:s.y}); });
+    const method=[want.includes("pearson")?`Pearson's r: p by t on n − 2 df, the interval by Fisher's z${alt==="two"?"":" (one-sided)"}.`:"",want.includes("spearman")?"Spearman's ρ: Pearson's r of the ranks, p by t.":"",
+      want.includes("kendall")?"Kendall's τ-b: p exact without ties under 50 pairs (as R), else normal with the ties' variance.":"",part?`Partial r: each pair given the other columns, over the ${part.n} rows complete in all; p by t on ${part.df} df.`:"",
+      `${ANA_ALT[alt]}.`].filter(Boolean).join(" ");
+    return {tables:[{cols}],report:{sections:secs,method,pairs:sc.length},notes}; }};
 // A kind run by name: the page's call, and the worker's ("call" job).
 function anaRunKind(kind,ins,p){ const K=ANA_KINDS[kind]; if(!K) throw new Error("the analysis "+kind+" is not known here"); return K.run(ins,p||{}); }
 /* ==ANA:END== */
@@ -15849,6 +15979,10 @@ const ANA_FORMS={
   mood:{html(){ return ""; }, read(){ return {}; }},
   ks2:{html(p){ return `<div class="grid2">${altSel(p.alt)}<label for="aEx">p</label><select id="aEx"><option value="auto">Exact up to a million steps</option><option value="exact"${p.exact==="exact"?" selected":""}>Exact</option><option value="normal"${p.exact==="normal"?" selected":""}>Asymptotic</option></select></div><p class="lab">The first two columns ticked, or one column grouped into two.</p>`; },
     read(v){ return {alt:ANA_ALT[v.aAlt]?v.aAlt:"two",exact:v.aEx||"auto"}; }},
+  corr:{noGroup:true, html(p){ const on=new Set(Array.isArray(p.methods)?p.methods:["pearson"]);
+      return `<p class="lab">Coefficients</p><div class="anastats">${CORR_KINDS.map(([k,nm])=>`<label class="chk"><input type="checkbox" id="aK_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div><div class="grid2">${altSel(p.alt)}${confSel(p)}</div>`; },
+    read(v,p0){ return {methods:CORR_KINDS.map(e=>e[0]).filter(k=>v["aK_"+k]),alt:ANA_ALT[v.aAlt]?v.aAlt:"two",conf:+v.aCf||0.95,scatter:!!(p0&&p0.scatter)}; },
+    valid(v){ return CORR_KINDS.some(([k])=>v["aK_"+k]); }},
   anova1:{html(p){ const on=new Set(anovaComps(p));
       return `<p class="lab">Comparisons</p><div class="anastats">${COMP_KINDS.map(([k,nm])=>`<label class="chk"><input type="checkbox" id="aC_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div>
       <div class="grid2"><label for="aCtl">Control</label><select id="aCtl" data-ctl="${esc(p.ctrl==null?"":String(p.ctrl))}"></select>${confSel(p)}
@@ -15945,6 +16079,7 @@ function graphSummary(cid){ const p=P(); if(!p||S.readOnly) return;
    outliers masked or marked. The report's buttons (Results, the History) and the tab menu list them. */
 function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&rep.marks?rep.marks.length:0;
   if(!rep) return [];
+  if(a.kind==="corr") return [{key:"scatter",label:"Scatter matrix",title:"Each pair's values against each other, a graph a pair, in a figure",enabled:!ro&&(a.in.cols||[]).length>1,run:()=>anaScatter(a.id)}];
   if(a.kind==="anova1") return [{key:"means",label:"Means plot",title:"Each group's mean with its interval, on a graph",enabled:!ro,run:()=>anaMeansPlot(a.id)}];
   if(a.kind==="norm") return [{key:"qq",label:"Q–Q plot",title:"The sorted values against the normal quantiles, with the line through their quartiles, on a graph",enabled:!ro&&rep.qq>0,run:()=>anaQQ(a.id)}];
   if(a.kind==="outl"){ const w=`The ${n===1?"value":n+" values"} past the critical value`;
@@ -15958,6 +16093,15 @@ function anaQQ(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; con
   const ys=[], ser={}; for(let i=0;i<n;i++){ const y=p.cols.find(c=>c.ana===id&&c.ak==="qy"+i), l=p.cols.find(c=>c.ana===id&&c.ak==="ql"+i); if(y&&l){ ys.push(y.id,l.id); ser[y.id]={type:"scatter"}; ser[l.id]={type:"line",dash:"5,4"}; } }
   if(!ys.length){ toast("There is no Q–Q plot to draw: Recalculate first."); return; }
   plotCols(ys,{series:ser,undo:"plotting a Q–Q plot",say:`Q–Q plot of ${a.name}`}); }
+// A scatter matrix: the analysis worked out again with each pair's values as columns of its sheet (an X and a Y),
+// then a graph a pair, in a figure when there are several; one undo step.
+function anaScatter(id){ const a0=anaOf(id); if(!a0||!P()||S.readOnly) return;
+  anaEdit(id,"a scatter matrix",(a,ana,q)=>{ a.p=Object.assign({},a.p||{},{scatter:true}); runAna(a,q,{sync:true}); return {ana,cols:q.cols}; },`made the scatter matrix of ${a0.name}`);
+  const a=anaOf(id), n=a&&a.res&&a.res.report?a.res.report.pairs||0:0, gids=[];
+  for(let t=0;t<n;t++){ const y=P().cols.find(c=>c.ana===id&&c.ak===`sy${t}`); if(!y) continue; const g0=P().graphs.length;
+    plotCols([y.id],{noUndo:true,quiet:true,series:{[y.id]:{type:"scatter"}}}); if(P().graphs.length>g0) gids.push(P().graphs[P().graphs.length-1].id); }
+  if(gids.length>1) makeFigure(gids,{noUndo:true,quiet:true,cols:Math.min(3,gids.length),log:`put the scatter matrix of ${a0.name} in a figure`});
+  toast(`The scatter matrix of ${a0.name}.`,{action:"Undo",run:undo}); }
 // A means plot: the groups' means as symbols joined by a line, their intervals as error bars, the groups along X.
 function anaMeansPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const y=p.cols.find(c=>c.ana===id&&c.ak==="gmean");
   if(!y){ toast("There is no means plot to draw: Recalculate first."); return; }
@@ -21855,7 +21999,7 @@ function analyzeMenu(){
         {label:"Comparing spreads…", title:ANA_KINDS.vartest.help, run:()=>anaDlg("vartest"), enabled:!S.readOnly&&!!P()},
         {label:"Proportions…", title:ANA_KINDS.prop.help, run:()=>anaDlg("prop"), enabled:!S.readOnly&&!!P()},
         {label:"Fisher's exact test…", title:ANA_KINDS.fisher.help, run:()=>anaDlg("fisher"), enabled:!S.readOnly&&!!P()}]},
-      {label:"Correlation between columns…", run:go("corr"), enabled:has&&yCols().length>1},
+      {label:"Correlation…", title:ANA_KINDS.corr.help, run:()=>anaDlg("corr",{two:true}), enabled:!S.readOnly&&!!P()},
       {label:"Histogram", title:"The distribution of the selected columns' values (or the active column's), as a column of its own on a graph of its own", run:()=>histogramCols(hist()), enabled:has&&!S.readOnly}]},
     {label:"Spectroscopy", sub:spectroscopyItems},
     "-",
@@ -23018,7 +23162,7 @@ function renderStats(){
   h+=`</tbody></table></div>`;
   h+=`<h3 class="gh" id="st-int">Integrate the visible range <span class="cnt">${esc(specName(act))}</span></h3>${act?measureHtml():""}`;
   const same=yCols().filter(c=>(finalOf(c).xu||"")===((act&&finalOf(act).xu)||""));
-  h+=`<h3 class="gh" id="st-corr">Correlation between columns <span class="cnt" title="Processed data, interpolated onto this X where they overlap. Near 1: the same shape; near 0: unrelated">Pearson r, on ${esc(specName(act))}'s X</span></h3>`;
+  h+=`<h3 class="gh" id="st-corr">Correlation between columns <span class="cnt" title="Processed data, interpolated onto this X where they overlap">Pearson r, on ${esc(specName(act))}'s X</span></h3>`;
   if(same.length<2) h+=`<p class="nothing">Needs two columns on the same X axis.</p>`;
   // With many spectra, each against the analysed one: a square table of them
   // all is too large to read, and to draw.
@@ -24538,7 +24682,7 @@ ${DL([["Area ± error","The trapezoidal sum over the points in the window, less 
 ${DL([["Net counts","The counts in the window less the continuum under them: a straight line through the mean of the channels at each edge (as many as the line baselines use). ± one standard deviation from counting: the counts' own and the continuum's."],["Detected","Above Currie's critical level, 95 %: on a continuum alone, one window in twenty is called detected. Below it, the level is shown."],["Emission, efficiency","Type the share of decays that give the line and the detector's efficiency at its energy, both in %."],["Activity","Net counts ÷ (live time × efficiency × emission), in becquerel, with the counting error. Not detected: the detection limit as an activity, the smallest that would be."]])}
 <p>Counting needs the counts as recorded: an energy calibration, a count rate or a crop keep them; smoothing or a subtracted background do not, and the part says so.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
-{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks",
+{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix",
  lead:"An analysis reads columns and writes what it finds into a result sheet of its own, worked out again when its data change.",
  body:`<h2>Statistics on columns</h2>
 <p>${MP("Analyze › Statistics › Descriptive › Statistics on columns…")}: tick the columns and the statistics, and each column gets a row of a new sheet. Ticked at first are N, the rows missing, mean, standard deviation, standard error of the mean, minimum, Q1, median, Q3, maximum and sum; besides them, the mean's interval, variance, coefficient of variation, range, IQR, MAD, robust SD, the mode and its count, skewness, kurtosis, the geometric and harmonic means, and any percentiles typed (<code>5, 95</code>). <em>Group by</em> a column of text or categories gives a row for each column and group.</p>
@@ -24567,6 +24711,10 @@ ${DL([["Tukey–Kramer","Every pair; q and p from the studentized range, interva
 <h2 id="ranks">Nonparametric tests</h2>
 <p>${MP("Analyze › Statistics › Nonparametric")}: tests on ranks and signs, which assume no distribution. p is exact while the samples are small, untied and (for the signed-rank test) have no zeros, as R decides; else by the normal approximation with the tie and continuity corrections. <em>p</em> in the dialog forces either.</p>
 ${DL([["Mann–Whitney…","Two samples: U of the first, p, the shift (the median of every first − second difference, Hodges–Lehmann) with its interval, and the rank-biserial r (2U/(n₁n₂) − 1)."],["Wilcoxon signed-rank…","One sample against a value, or two columns paired by rows: T+ and T−, p, the pseudo-median (the median of the Walsh averages) with its interval. Zeros are dropped (Wilcoxon's) or ranked and then dropped (Pratt's)."],["Sign test…","The values above and below the value tested against, the exact binomial p, the median with an interval from order statistics, and that interval's own level."],["Kruskal–Wallis…","The groups of one factor: H corrected for ties, its df and p, ε², each group's mean rank; Dunn's comparisons of the mean ranks, adjusted by Holm or Bonferroni."],["Friedman…","Columns as treatments, rows as blocks (rows complete in every column): Q corrected for ties, p, Kendall's W, each column's rank sum."],["Mood's median test…","Each group's values above the grand median and not above it, and χ² of that table (Yates's correction with two groups)."],["Two-sample Kolmogorov–Smirnov…","The largest distance D between the two samples' distribution functions (or one side's), its p exact up to a million steps of the lattice, else asymptotic."]])}
+<h2 id="corr">Correlation</h2>
+<p>${MP("Analyze › Statistics › Correlation…")}: every pair of the columns ticked, each over the rows where both have a value (with <em>Only rows complete in every column</em>, over the rows complete in all). A section a coefficient: its matrix (three columns or more) and each pair's N and p.</p>
+${DL([["Pearson's r","p by t on N − 2 degrees of freedom; its interval by Fisher's z."],["Spearman's ρ","Pearson's r of the ranks, ties averaged; p by t."],["Kendall's τ-b","Concordant less discordant pairs, over the pairs not tied; p exact without ties under 50 pairs, else normal."],["Partial r","Each pair given every other column, over the rows complete in all; p by t on N − k degrees of freedom."]])}
+<p><em>Scatter matrix</em> (under the report) graphs each pair's values against each other, a graph a pair, in a figure.</p>
 <h2 id="read">What it reads</h2>
 <p>Each column's processed values: the values after its steps, its original values when it has none. The dialog names the steps each column is read after, and a column with steps has a switch to <em>Original</em>. Masked points are left out unless <em>Include masked points</em> is ticked, and the report says how many. After a step that leaves rows out, makes points or averages them (resampling, a histogram), or makes neighbours depend on each other (smoothing), the report notes it.</p>
 <h2 id="sheet">The result sheet</h2>
@@ -24582,7 +24730,7 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <h2>Integrate the visible range</h2>
 <p>Zoom the graph to a range: its area above zero, above the straight line joining its ends, the mean and highest Y. For several bands with baselines of their own, use ${DA("integ","Integrate bands")}.</p>
 <h2>Correlation</h2>
-<p>Pearson r between columns on the same X axis, interpolated onto the active column's X where they overlap. Near 1, the same shape; near 0, unrelated.</p>
+<p>Pearson r between columns on the same X axis, interpolated onto the active column's X where they overlap. With p, intervals and other coefficients: ${DA("analyses#corr","Correlation")}.</p>
 <p><em>Copy</em> gives every table as tab-separated text.</p>`},
 /* ---------------------------------------------------------------- Fitting */
 {id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge range from to use the view from view points zoom all spectrum done close residuals weighting weights weight counting statistics poisson 1/y instrumental arbitrary column of weights apparent fit log scale logarithmic axis straight line on log axes constraint constraints tie equal follows inequality order starting value formula start max(y) xat fwhm saved fit settings preset template recipe save settings fit again when the data change follow refit recalculate automatic in the results report sections",

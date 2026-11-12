@@ -1024,6 +1024,19 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 2, slice 2.9: correlation (2026-11-12)
+
+- **Analyze › Statistics › Correlation…** (it was the Statistics window's table): Pearson's r with p
+  and its interval (Fisher's z), Spearman's ρ, Kendall's τ-b (exact p while small and untied),
+  partial r given the other columns; a matrix of each; pairwise or listwise; *Scatter matrix*.
+- 1 − r² worked out in double-double from the deviations, so t and p keep their digits however near
+  ±1 r is (SciPy and R lose −log₁₀(1 − r) of them).
+- Every analysis that uses a column's mean and SD: each value's deviation now carries its own
+  rounding (a one-sample t of 0.011 was 4e-14 off).
+
+Checked: `fixtures/corr.json`, the fuzzer (four new generators, r within 10⁻¹³ of ±1), stats-test
+(8 new), ana-drive (9 new), the suite.
+
 ## Closing the gap with Origin, wave 2, slice 2.8: nonparametric tests (2026-11-12)
 
 - **Analyze › Statistics › Nonparametric**: Mann–Whitney (U, the Hodges–Lehmann shift with its

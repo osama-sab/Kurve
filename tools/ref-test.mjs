@@ -140,6 +140,15 @@ for (const c of fixtures.np.cases) {
     note(name, typeof got !== "number" ? Infinity : relErr(got, w, (TARGET[name] || {}).floor), `${c.name}: ${k}`);
   }
 }
+/* ---- correlation (STATS_SPEC 2.9): r, ρ, τ-b, partial r and their p and intervals, exactly ---- */
+for (const c of (fixtures.corr || { cases: [] }).cases) {
+  const r = get(c.fn)(...c.args);
+  if (c.kind === "partial") { c.want.rows.forEach((w, i) => { const x = r.rows[i]; note("partialCorr.r", relErr(x.r, w.r, TARGET["partialCorr.r"].floor), `${c.name} ${i}`); note("partialCorr.p", relErr(x.p, w.p), `${c.name} ${i}`); }); continue; }
+  for (const [k, w] of Object.entries(c.want)) {
+    const name = `${c.fn}.${k.replace(/\.\d$/, "")}`, got = k.split(".").reduce((o, x) => (o == null ? o : o[x]), r);
+    note(name, typeof got !== "number" ? Infinity : relErr(got, w, (TARGET[name] || {}).floor), `${c.name}: ${k}`);
+  }
+}
 for (const c of (fixtures.range || { cases: [] }).cases) note(c.fn, relErr(get(c.fn)(...c.args), c.want), fmtA(c.args));
 
 /* ---- distributions fitted to values ---- */

@@ -209,7 +209,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
       Comparing spreads…  ## + Levene (means, medians), Bartlett, F
       Proportions…  ## + counts typed: exact binomial, two proportions
       Fisher's exact test…  ## + a two-by-two table typed
-    Correlation between columns…  ## ~ "Correlation between spectra"
+    Correlation…  ## ~ "Correlation between columns"; an analysis (STATS_SPEC 2.9): r, ρ, τ-b, partial r, matrices
     Histogram…  ## ~ "Histogram of the values"; now takes the selected columns
   Spectroscopy  ## ← the Spectroscopy menu (DS2): the toolkit, gathered from Data, Math, Analysis, Statistics and Plot
     Overview of the spectrum…  ## ← Analysis "Overview…" + Statistics "Overview of the spectrum"

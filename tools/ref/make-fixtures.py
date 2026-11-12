@@ -434,6 +434,30 @@ for name, rows in [("4 by 10", [[float(v) for v in rng.normal(i * 0.15, 1, 4)] f
     cases.append({"fn": "friedmanTest", "args": [rows], "want": {"Q": r.statistic, "p": r.pvalue}, "kind": "test", "name": f"friedman {name}"})
 out["np"] = cases
 
+# ---------- correlation (STATS_SPEC 2.9): r, ρ, τ-b and partial r exactly (rationals, 40 digits; refs.py) ----------
+cases = []; rng = np.random.default_rng(29)
+def pairs(n, rho, off=0.0, scale=1.0):
+    x = rng.normal(0, 1, n); y = rho * x + math.sqrt(1 - rho * rho) * rng.normal(0, 1, n)
+    return [float(off + scale * v) for v in x], [float(off + scale * v) for v in y]
+SETS = [("20", *pairs(20, 0.5)), ("12 ties", [1, 2, 2, 3, 4, 4, 5, 6, 6, 6, 8, 9], [2, 1, 3, 3, 5, 4, 4, 7, 8, 6, 9, 9]),
+        ("300", *pairs(300, 0.15)), ("offset 1e9", *pairs(25, -0.7, 1e9, 1e-3)), ("weak 8", *pairs(8, 0.05)),
+        ("near 1", *pairs(40, 1 - 1e-9)), ("near −1", *pairs(60, -(1 - 1e-12), 3.5, 2.0))]
+for name, x, y in SETS:
+    for alt in ["two", "less", "greater"]:
+        for conf in ([0.95, 0.99] if alt == "two" else [0.95]):
+            cases.append({"fn": "corrTest", "args": [x, y, {"alt": alt, "conf": conf}], "want": refs.corr_ref(x, y, alt, conf), "kind": "test", "name": f"r {name} {alt} {conf}"})
+        cases.append({"fn": "spearmanTest", "args": [x, y, {"alt": alt}], "want": refs.spearman_ref(x, y, alt), "kind": "test", "name": f"rho {name} {alt}"})
+        if name != "offset 1e9" or alt == "two":
+            cases.append({"fn": "kendallTau", "args": [x, y, {"alt": alt}], "want": refs.kendall_ref(x, y, alt), "kind": "test", "name": f"tau {name} {alt}"})
+k14 = pairs(14, 0.6); k60 = pairs(60, 0.3)
+for name, (x, y) in [("14 exact", k14), ("60 normal", k60)]:
+    for alt in ["two", "less", "greater"]:
+        cases.append({"fn": "kendallTau", "args": [x, y, {"alt": alt}], "want": refs.kendall_ref(x, y, alt), "kind": "test", "name": f"tau {name} {alt}"})
+for name, n, k in [("3 of 30", 30, 3), ("4 of 18", 18, 4), ("4 of 200", 200, 4)]:
+    base = rng.normal(0, 1, n); cols = [[float(b * 0.6 + rng.normal(0, 1)) for b in base] for _ in range(k)]
+    cases.append({"fn": "partialCorr", "args": [cols], "want": {"rows": refs.partial_ref(cols)}, "kind": "partial", "name": f"partial {name}"})
+out["corr"] = cases
+
 # ---------- the studentized range and Dunnett's distribution, 40 digits (slow: made with --slow) ----------
 def _slow(c):
     fn, a = c

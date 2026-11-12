@@ -417,5 +417,42 @@
  "ks2Test.p": {
   "tol": 1e-12,
   "why": "SciPy's exact two-sample distribution, itself checked only to about 1e-13 here"
+ },
+ "corrTest.r": {
+  "tol": 1e-14,
+  "why": "Exact rationals with one square root in 40 digits (refs.py)"
+ },
+ "spearmanTest.rho": {
+  "tol": 1e-14,
+  "why": "Exact rationals with one square root in 40 digits (refs.py)"
+ },
+ "kendallTau.tau": {
+  "tol": 1e-14,
+  "why": "Exact rationals with one square root in 40 digits (refs.py)"
+ },
+ "partialCorr.r": {
+  "tol": 1e-14,
+  "floor": 1e-15,
+  "why": "The inverse of the exact correlation matrix in 40 digits; an r near 0 judged absolutely"
+ },
+ "corrTest.p": {
+  "tol": 1e-13,
+  "why": "The t tail (or Kendall's exact count, or the normal) of the exact statistic, in 40 digits"
+ },
+ "spearmanTest.p": {
+  "tol": 1e-13,
+  "why": "The t tail (or Kendall's exact count, or the normal) of the exact statistic, in 40 digits"
+ },
+ "kendallTau.p": {
+  "tol": 1e-13,
+  "why": "The t tail (or Kendall's exact count, or the normal) of the exact statistic, in 40 digits"
+ },
+ "partialCorr.p": {
+  "tol": 1e-13,
+  "why": "The t tail (or Kendall's exact count, or the normal) of the exact statistic, in 40 digits"
+ },
+ "corrTest.ci": {
+  "tol": 1e-13,
+  "why": "Fisher's z interval of the exact r, in 40 digits"
  }
 }

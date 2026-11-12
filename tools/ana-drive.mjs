@@ -440,6 +440,46 @@ await page(async p => {
   check("after a reload every one is there", k === "mw,wsr,wsr,sign,kw,fried,mood,ks2,fried", k);
 }, { name: "2.8" });
 
+console.log("2.9: correlation, its matrices, the scatter matrix");
+await page(async p => {
+  await p.evaluate(() => { const A = [4.1, 5.2, 6.0, 5.5, 4.8, 5.1, 4.4, 5.9], B = [6.2, 7.1, 6.8, 7.5, 6.6, 7.0, 5.8, 6.9], C = [5.0, 5.4, 4.9, 5.8, null, 5.2, 5.6, 4.7];
+    const X = Object.assign(makeCol("x", "X", ""), { data: A.map((_, i) => i) }), cs = [["A", A], ["B", B], ["C", C]].map(([n, v]) => Object.assign(makeCol("y", n, ""), { data: v }));
+    save({ cols: [X, ...cs], activeY: cs[0].id }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  const run = async (set) => { await p.evaluate(c => { anaDlg("corr", { cols: c }); }, ids.slice(1, 4)); await p.waitForSelector("#aK_pearson"); if (set) await set(); await p.click("#formOk");
+    await p.waitForFunction(() => { const as = anaList().filter(x => x.kind === "corr"), a = as[as.length - 1]; return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 60000 });
+    return p.evaluate(() => { const as = anaList().filter(x => x.kind === "corr"), a = as[as.length - 1], t = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { t[c.ak] = c.data.map((v, i) => c.txt && c.txt[i] != null ? c.txt[i] : v); });
+      return { t, secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, n: s.tables.length, m: s.tables[0].rows.map(x => x[0]).join() })), err: a.res.err, id: a.id, said: a.res.report && a.res.report.said }; }); };
+  let d = await p.evaluate(() => { anaDlg("corr", {}); const o = ["pearson", "spearman", "kendall", "partial"].map(k => document.getElementById("aK_" + k).checked), by = document.getElementById("aBy"); const r = { o, by: !by || by.closest("[hidden]") != null || by.hidden }; document.getElementById("formCancel").click(); return r; });
+  check("Correlation's dialog: Pearson's r ticked at first, the others not, no grouping", d.o.join() === "true,false,false,false" && d.by, JSON.stringify(d));
+  let r = await run(async () => { for (const k of ["spearman", "kendall", "partial"]) await p.check("#aK_" + k); });
+  const at = (row, key) => r.t[key][row];
+  let w = await p.evaluate(ids => { const v = i => colById(ids[i]).data, both = (i, j) => v(i).map((x, k) => [x, v(j)[k]]).filter(q => q[0] != null && q[1] != null), xy = q => [q.map(t => t[0]), q.map(t => t[1])];
+    const [a, c] = xy(both(1, 3)), [a2, b2] = xy(both(1, 2)), all = v(1).map((_, k) => k).filter(k => [1, 2, 3].every(i => v(i)[k] != null)), pc = partialCorr([1, 2, 3].map(i => all.map(k => v(i)[k])));
+    return { ac: corrTest(a, c, {}), ab: corrTest(a2, b2, {}), rho: spearmanTest(a2, b2, {}).rho, tau: kendallTau(a2, b2, {}).tau, pr: pc.rows[0].r }; }, ids);
+  const near = (a, b) => a === b; /* the sheet keeps every digit */
+  check("Pearson's r, its p and interval, pair by pair (A and C over their 7 rows) as corrTest gives them", at(1, "n") === 7 && near(at(1, "r"), w.ac.r) && near(at(1, "rp"), w.ac.p) && at(0, "n") === 8 && near(at(0, "r"), w.ab.r) && near(at(0, "hi"), w.ab.ci[1]), JSON.stringify([r.t, w]));
+  check("…Spearman's ρ, Kendall's τ and partial r beside it", near(at(0, "rho"), w.rho) && near(at(0, "tau"), w.tau) && near(at(0, "pr"), w.pr), JSON.stringify(r.t));
+  check("…a section a coefficient, each its matrix and its pairs, Pearson's interval apart, and no sentence", ["Pearson's r", "Spearman's ρ", "Kendall's τ", "Partial r"].every(t => r.secs.some(s => s.t === t && s.n === 2 && s.m === "B,C")) && r.secs.some(s => s.t === "Pearson's r, 95% interval") && !r.said, JSON.stringify(r.secs));
+  r = await run(async () => { await p.selectOption("#aMiss", "list"); });
+  check("…listwise: every pair over the 7 rows complete in all three", r.t.n.every(v => v === 7), JSON.stringify(r.t.n));
+  await p.evaluate(id => { openWin("res", { render: true }); anaReport(id); }, r.id); await p.waitForTimeout(300);
+  const g0 = await p.evaluate(() => P().graphs.length);
+  await p.click(`#w-res button[data-anaact="scatter"]`); await p.waitForTimeout(800);
+  d = await p.evaluate(() => { const gs = P().graphs, fig = gs.find(g => g.fig); return { n: gs.length, panels: fig ? fig.fig.cells.length : 0, ak: fig ? fig.fig.cells.map(c => { const g = graphOf(c.gid), y = colById(g.cols[0]), x = xColFor(y); return [y.ak, x && x.ak, ((g.plot.series || {})[y.id] || {}).type]; }) : null }; });
+  check("Scatter matrix: a figure of three panels, each pair's values against each other, as symbols", d.panels === 3 && d.ak.every(([y, x, t], i) => y === "sy" + i && x === "sx" + i && t === "scatter"), JSON.stringify(d));
+  await p.evaluate(() => undo()); await p.waitForTimeout(400);
+  d = await p.evaluate(id => ({ n: P().graphs.length, sc: !!(anaOf(id).p || {}).scatter, cols: P().cols.filter(c => c.ana === id && /^s[xy]/.test(c.ak)).length }), r.id);
+  check("…one undo takes the figure, its graphs and the columns back", d.n === g0 && !d.sc && d.cols === 0, JSON.stringify([d, g0]));
+  r = await p.evaluate(c => { anaDlg("corr", { cols: c }); }, [ids[1]]); await p.waitForSelector("#aK_pearson"); await p.click("#formOk"); await p.waitForTimeout(600);
+  d = await p.evaluate(() => { const as = anaList().filter(x => x.kind === "corr"); return as[as.length - 1].res.err; });
+  check("…one column is refused in words", /two columns/.test(d || ""), d);
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  d = await p.evaluate(() => anaList().filter(a => a.kind === "corr").length);
+  check("after a reload the three are there", d === 3, d);
+}, { name: "2.9" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

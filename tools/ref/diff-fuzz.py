@@ -283,6 +283,34 @@ def _():
     if len(set(v for g in gs for v in g)) < 2: raise ValueError("all equal")
     return [gs, {}], float(stats.kruskal(*gs).statistic)
 
+def _pairs():
+    """Paired values: 4 to 200, correlated anywhere from −1 to 1 (a third within 10⁻¹ to 10⁻¹³ of ±1), about an offset up to 1e12, spread 1e-6 to
+    100, rounded to a few levels now and then (ties)."""
+    n = int(rng.integers(4, 201)); rho = float(rng.uniform(-0.98, 0.98)) if rng.random() < 0.7 else float(rng.choice([-1, 1]) * (1 - lognum(-13, -1))); off = 0.0 if rng.random() < 0.5 else float(rng.choice([-1, 1]) * lognum(0, 12)); sd = lognum(-6, 2)
+    x = rng.normal(0, 1, n); y = rho * x + math.sqrt(1 - rho * rho) * rng.normal(0, 1, n)
+    if rng.random() < 0.25: x, y = np.round(x * 2) / 2, np.round(y * 2) / 2
+    x, y = [float(off + sd * v) for v in x], [float(off + sd * v) for v in y]
+    if len(set(x)) < 2 or len(set(y)) < 2: raise ValueError("no spread")
+    return x, y
+
+for key in ["r", "p"]:
+    @gen("corrTest@" + key, 1e-13, 0.3)
+    def _(key=key):
+        x, y = _pairs(); alt = str(rng.choice(["two", "less", "greater"])); w = refs.corr_ref(x, y, alt)
+        if abs(w["r"]) >= 1: raise ValueError("r of 1")
+        return [x, y, {"alt": alt}], w[key]
+
+@gen("spearmanTest@rho", 1e-13, 0.3)
+def _():
+    x, y = _pairs(); return [x, y, {}], refs.spearman_ref(x, y)["rho"]
+
+@gen("kendallTau@p", 1e-13, 0.3)
+def _():
+    """Exact counts while untied and under 50 (a sample of 2 to 60, so both ways), else the normal."""
+    x, y = _pairs(); n = int(rng.integers(2, 61)); x, y = x[:n], y[:n]
+    if len(set(x)) < 2 or len(set(y)) < 2: raise ValueError("no spread")
+    alt = str(rng.choice(["two", "less", "greater"])); return [x, y, {"alt": alt}], refs.kendall_ref(x, y, alt)["p"]
+
 cases = []
 for name, (f, tol) in GEN.items():
     for k in range(max(1, math.ceil(per * SHARE.get(name, 1.0)))):

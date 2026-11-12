@@ -339,6 +339,17 @@ Pearson's r with p and its interval (Fisher's z), Spearman's ρ (ties), Kendall'
 small n), partial correlation; the matrix of a table's columns (listwise or pairwise) into a
 result sheet, with a scatter matrix made from it.
 
+Built (12.11):
+- **1 − r²** in double-double (two-sum, two-product) from the deviations, not from a rounded r, so t,
+  p and Fisher's z keep their digits near ±1; the references take it as an exact rational.
+- **Kendall's exact p** by the permutations' inversion counts as integers (BigInt), each tail summed
+  from its own end; τ-b by Knight's merge sort.
+- **Partial r** from the inverse of the correlation matrix, over the rows complete in every column.
+- **p from 1 − r²**: t's tail is I_{1−r²}((n − 2)/2, ½), so p is taken from it with no t formed; the incomplete
+  beta's x^a by `pow` far below its peak (it was e^{a ln x}, a·|ln x| roundings): t's tails 6.5e-14 → 2.8e-14.
+- **Checked**: `corr.json` (57 cases, exact rationals), all within 6e-15; the fuzzer (worst 4e-14,
+  with r within 10⁻¹³ of ±1); stats-test (8); ana-drive (9).
+
 ## 2.10 Counts in tables
 
 χ² test of independence (the expected counts in the report), Fisher's exact

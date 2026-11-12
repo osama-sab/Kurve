@@ -898,6 +898,15 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-12: correlation (STATS_SPEC 2.9)
+
+- **A section a coefficient** in the report: its matrix, then each pair's N and p; Pearson's interval
+  a section of its own. One table of every number was 900 px wide in a 354 px dock. The result sheet
+  keeps one table, a row a pair.
+- **Pairwise by default**: each pair over the rows where both have a value, its N said; listwise on
+  the dialog's switch.
+- **Scatter matrix** under the report: a graph a pair, in a figure, one undo step.
+
 ### 2026-11-12: nonparametric tests (STATS_SPEC 2.8)
 
 - **Exact while small, as R**: no ties (and no zeros) and samples under 50; *p* in the dialog forces

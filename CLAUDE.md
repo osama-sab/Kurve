@@ -443,7 +443,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `ibetaSeries` for a small b·x, BGRAT `ibetaBgrat` for a ≥ 15, b < 40 and x > 0.7 with b brought
   into (0, 1] by the recurrence, else Lentz's `ibetaCF`; above it the same flipped), `ibeta`,
   `ibetac`, `igamPQ(a, x)` (series below a + 1, continued fraction above); Loader's `stirlerr`, `bd0`,
-  `dbinomRaw`, `dpoisRaw`; `qSolve(tail, dens, t, up, lo, hi, x0)` (Newton on the logarithm of the
+  `dbinomRaw`, `dpoisRaw` (`ibetaPref` and `ibetaSeries` take x^a by `Math.pow` far below the peak, while it does
+  not underflow: e^{a ln x} carried a·|ln x| roundings); `qSolve(tail, dens, t, up, lo, hi, x0)` (Newton on the logarithm of the
   tail in a bracket), `qDisc` (the smallest count reaching a level). `DIST.norm`, `t`, `F`, `chi2`,
   `gamma`, `beta` (`pdf`, `cdf`, `sf`, `ppf`, `isf`), `binom`, `pois`, `hyper` (`pmf`, `cdf`, `sf`,
   `ppf`); sf is the upper tail as such. `tools/stats-test.mjs` checks their properties, the bench their
@@ -1125,6 +1126,16 @@ graph first, with the taskbar kept at the bottom of the screen.
   `anaPairs(A, B, notes)`, `anaTab(title, spec, rows, cols, secs, pre)`, `npEx`, `npOne`, `DUNN_ADJ`. Kinds `mw`, `wsr`,
   `sign`, `kw` (`dunn`, `adj`), `fried` (columns, rows complete in each), `mood`, `ks2`; forms `npExHtml` (`#aEx`),
   `npTypeHtml`/`npTypeRead` (`#aTt`, `#aMu`), `#aZ`, `#aDn`, `#aAdj`. Analyze › Statistics › Nonparametric.
+  **Correlation** (STATS_SPEC 2.9): `twoSum`, `twoProd`, `ddAdd`, `ddMul` (double-double), `ddDevs(v)` (deviations
+  in double-double, scaled by powers of two), `corrCore(x, y)` (`{r, omr2, n}`: 1 − r² from Σa²Σb² − (Σab)² in
+  double-double), `pearsonR`, `corrP(c, df, alt)` (p as I_{1−r²}((n − 2)/2, ½), no t between), `corrTest(x, y, {alt, conf})` (`{n, r, t, df,
+  p, ci}`, Fisher's z from omr2),
+  `spearmanTest`, `inversionsCount(n, kmax)` (BigInt, memoised, `INVM`), `kendallTau(x, y, {alt, exact})` (τ-b by
+  Knight's merge sort; `{n, tau, z, p, exact, con, dis}`), `partialCorr(cols)` (`{rows:[{i, j, r, t, df, p}], df,
+  R}`). `CORR_KINDS`, kind `corr` (`p.methods`, `alt`, `conf`, `scatter`; pairwise by rows; a section a
+  coefficient, matrix and pairs; result keys `a b n r rp lo hi rho sp tau kp pr pp`, with `scatter` `sx<t>`/`sy<t>`),
+  form `#aK_<k>`, `anaScatter(id)` (the report's *Scatter matrix*: the analysis again with `scatter`, a graph a
+  pair, `makeFigure`, one undo step). `msd` takes each x − m's rounding exactly (two-sum).
   `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
   (rationals), shared by the fixtures (`desc.json`) and the fuzzer (`quantileType`, `descStats@<key>`, which
   `run.mjs` reads as one field of the result).
@@ -3034,7 +3045,8 @@ proportions and Fisher's test typed, a refusal, a reload), and 2.4 (the dialog's
 Welch's F against anova1, Tukey's and Dunnett's p (the worker's), Holm with no interval, the means plot, grouped by a
 text column, followed after a value typed, a refusal, a reload), and 2.8 (each rank test through its dialog against
 its function: paired, Pratt's zeros and the normal approximation, Dunn's Bonferroni, Friedman's complete rows, a
-refusal, a one-row result shown as names and values, a reload).
+refusal, a one-row result shown as names and values, a reload), and 2.9 (each coefficient against its function, pairwise
+and listwise N, a section a coefficient, the scatter matrix in one undo step, a refusal, a reload).
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
@@ -3045,7 +3057,8 @@ ASTM E178, repeated and masked, refusals), and 2.3's (each test's size under its
 coverage, the exact tests at or below their level, the noncentral t at δ = 0), and 2.4's (F's and Welch's size,
 Tukey's and Dunnett's family-wise error at 5 % from their quantiles, Tukey–Kramer, Bonferroni and Scheffé below, the
 studentized range of two and Dunnett's one comparison as t), and 2.8's (U's and T+'s exact distributions against
-enumeration, each rank test's size, the shift's interval covering, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
+enumeration, each rank test's size, the shift's interval covering, refusals), and 2.9's (Kendall's counts against
+enumeration, a shift, a scale and a monotone change, each test's size, Fisher's coverage, partial r as residuals' r); run it, ref-test and a fuzzer seed after touching the STATS or
 ANA block.
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
@@ -4018,6 +4031,9 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   drifted past ν = 10⁴; four disagreements, settled in 40 digits, were all SciPy's. A reference too slow to run is no
   reference: nested adaptive quadrature in mpmath took seven minutes a value; fixed Gauss–Legendre at two orders
   takes thirty seconds and checks itself.
+- **A one-sided tail is a tail, in the reference too.** The correlation reference formed a lower tail as 1 − (1 − p)
+  at 40 digits and gave 0 for a p of 1e-49; the fuzzer blamed Kurve, which was right. And a fuzzer that never asks
+  for |r| near 1 never sees 1 − r² lose its digits: generators reach the ends of what a function takes.
 - **A variable taken out is grepped for.** Removing the Explorer's files took `fids` out of
   `autoImport`, and three `return {fids}` further down threw on every dropped file; the syntax
   check passes a reference to a name that does not exist. `review-drive`'s drop caught it. After
@@ -4573,7 +4589,8 @@ Next, in order:
    comparisons with the studentized range and Dunnett's t worked out to 1e-15, a means plot; NIST's sets to the digits
    their decimals allow), done 12.11; slice 2.8, nonparametric tests (Mann–Whitney with the Hodges–Lehmann shift,
    Wilcoxon signed-rank, the sign test, Kruskal–Wallis with Dunn's, Friedman, Mood's median test, two-sample KS;
-   exact distributions), done 12.11
+   exact distributions), done 12.11; slice 2.9, correlation (Pearson's r with its interval, Spearman's ρ, Kendall's
+   τ-b, partial r, their matrices, a scatter matrix; 1 − r² in double-double), done 12.11
 
 ## Known gaps
 
@@ -4655,6 +4672,8 @@ Next, in order:
 - Plotting from the worksheet plots whole columns (no range of rows, no plot of a selection
   of cells), against an X column; a closed graph is closed for everyone who opens the
   project, and a viewer who cannot edit cannot open it
+- Correlation: no point-biserial, polychoric or distance correlation, no comparison of two r's, no matrix of p
+  values on the graph; partial r over the rows complete in every column only
 - Rank tests: exact p only without ties (with ties the normal approximation, as R; no permutation p); the
   Hodges–Lehmann intervals from order statistics (R's exact ones; Hollander and Wolfe's normal ones, where R solves
   for them), and none past two million differences; Dunn's comparisons for Kruskal–Wallis only (none after

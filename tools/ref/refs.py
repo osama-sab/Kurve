@@ -503,3 +503,89 @@ def hl_ref(kind, x, y=None, alt="two", conf=0.95, exact=None, mu0=0.0):
 def stats_isf(p):
     """The normal's upper quantile in 40 digits."""
     return -mp.sqrt(2) * mp.erfinv(2 * M(p) - 1)
+
+# ---------- correlation (STATS_SPEC 2.9), exactly ----------
+def _pearson_q(x, y):
+    """r in 40 digits and 1 − r² as an exact rational, so that neither loses digits near ±1."""
+    X, Y = [Fr(v) for v in x], [Fr(v) for v in y]; n = len(X); mx, my = sum(X) / n, sum(Y) / n
+    sxy = sum((a - mx) * (b - my) for a, b in zip(X, Y)); sxx = sum((a - mx) ** 2 for a in X); syy = sum((b - my) ** 2 for b in Y)
+    return mpq(sxy) / mp.sqrt(mpq(sxx) * mpq(syy)), (sxx * syy - sxy * sxy) / (sxx * syy)
+
+def _pearson_mp(x, y):
+    return _pearson_q(x, y)[0]
+
+def _t_of(r, omr2, df):
+    return r * mp.sqrt(M(df) / mpq(omr2)) if omr2 else mp.sign(r) * mp.inf
+
+def _avg_ranks(v):
+    o = sorted(range(len(v)), key=lambda i: v[i]); r = [None] * len(v); i = 0
+    while i < len(v):
+        j = i
+        while j + 1 < len(v) and v[o[j + 1]] == v[o[i]]: j += 1
+        for k in range(i, j + 1): r[o[k]] = Fr(i + j, 2) + 1
+        i = j + 1
+    return r
+
+def _t_p(t, df, alt):
+    """t's p, each one-sided tail from its own end: the tail past |t| is half the two-sided p, and only the
+    other is 1 − that (formed as 1 − (1 − p) it kept ten digits of a p of 1e-30, and none of 1e-49)."""
+    two = M(0) if mp.isinf(t) else _ibeta(M(df) / 2, M(1) / 2, M(df) / (M(df) + t * t))
+    if alt == "two": return two
+    far = (t > 0) == (alt == "greater")
+    return two / 2 if far else 1 - two / 2
+
+def corr_ref(x, y, alt="two", conf=0.95):
+    """Pearson's r (rationals, one square root in 40 digits), its t p and Fisher's interval."""
+    n = len(x); r, omr2 = _pearson_q(x, y); df = n - 2; t = _t_of(r, omr2, df)
+    # atanh r = ½ ln((1 + r)/(1 − r)): the smaller of 1 ± r as (1 − r²) over the other
+    z = (2 * mp.log(1 + r) - mp.log(mpq(omr2))) / 2 if r >= 0 else (mp.log(mpq(omr2)) - 2 * mp.log(1 - r)) / 2
+    q = stats_isf((1 - conf) / 2 if alt == "two" else 1 - conf); se = 1 / mp.sqrt(M(n - 3))
+    lo, hi = mp.tanh(z - q * se), mp.tanh(z + q * se)
+    ci = [-1.0, f(hi)] if alt == "less" else [f(lo), 1.0] if alt == "greater" else [f(lo), f(hi)]
+    return {"r": f(r), "p": f(_t_p(t, df, alt)), "ci.0": ci[0], "ci.1": ci[1]}
+
+def spearman_ref(x, y, alt="two"):
+    r, omr2 = _pearson_q(_avg_ranks(x), _avg_ranks(y)); df = len(x) - 2; t = _t_of(r, omr2, df)
+    return {"rho": f(r), "p": f(_t_p(t, df, alt))}
+
+def kendall_ref(x, y, alt="two"):
+    """τ-b by counting every pair; p from the exact count of permutations (no ties, under 50, as R) or the
+    normal with the ties' variance (SciPy's), in 40 digits."""
+    from collections import Counter
+    n = len(x); con = dis = 0
+    for i in range(n):
+        for j in range(i + 1, n):
+            s = (x[i] - x[j]) * (y[i] - y[j])
+            if s > 0: con += 1
+            elif s < 0: dis += 1
+    tot = n * (n - 1) // 2; tx = Counter(x).values(); ty = Counter(y).values()
+    xt = sum(c * (c - 1) // 2 for c in tx); yt = sum(c * (c - 1) // 2 for c in ty)
+    tau = M(con - dis) / mp.sqrt(M(tot - xt) * M(tot - yt)); out = {"tau": f(tau)}
+    if xt == 0 and yt == 0 and n < 50:
+        c = [1]
+        for m in range(2, n + 1):
+            d = [0] * (len(c) + m - 1)
+            for k, v in enumerate(c):
+                for jj in range(m): d[k + jj] += v
+            c = d
+        tot_perm = math.factorial(n); pg = Fr(sum(c[:dis + 1]), tot_perm); pl = Fr(sum(c[dis:]), tot_perm)
+        out["p"] = float(pg if alt == "greater" else pl if alt == "less" else min(1, 2 * min(pg, pl)))
+    else:
+        x0 = sum(c * (c - 1) * (c - 2) for c in tx); x1 = sum(c * (c - 1) * (2 * c + 5) for c in tx)
+        y0 = sum(c * (c - 1) * (c - 2) for c in ty); y1 = sum(c * (c - 1) * (2 * c + 5) for c in ty); m = n * (n - 1)
+        var = Fr(m * (2 * n + 5) - x1 - y1, 18) + Fr(2 * xt * yt, m) + Fr(x0 * y0, 9 * m * (n - 2))
+        z = M(con - dis) / mp.sqrt(mpq(var))
+        out["p"] = f(mp.erfc(z / mp.sqrt(2)) / 2 if alt == "greater" else mp.erfc(-z / mp.sqrt(2)) / 2 if alt == "less" else mp.erfc(abs(z) / mp.sqrt(2)))
+    return out
+
+def partial_ref(cols):
+    """Partial r of each pair given the rest, from the inverse of the correlation matrix in 40 digits."""
+    k = len(cols); R = mp.matrix(k, k)
+    for i in range(k):
+        for j in range(k): R[i, j] = 1 if i == j else _pearson_mp(cols[i], cols[j])
+    P = R ** -1; df = len(cols[0]) - k; out = []
+    for i in range(k):
+        for j in range(i + 1, k):
+            r = -P[i, j] / mp.sqrt(P[i, i] * P[j, j]); t = r * mp.sqrt(M(df) / ((1 - r) * (1 + r)))
+            out.append({"r": f(r), "p": f(_t_p(t, df, "two"))})
+    return out
