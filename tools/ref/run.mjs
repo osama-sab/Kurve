@@ -30,15 +30,16 @@ export function loadKurve(path) {
   const look = new Function(src)();
   const memo = new Map();
   // A name, a path into it (`DIST.t.isf`), and `#i` for the i-th element of what a function returns
-  // (`igamPQ#1`, the upper part), or `@key` for one field of it (`descStats@sd`).
+  // (`igamPQ#1`, the upper part), or `@key` for one field of it (`descStats@sd`), or a path of fields and
+  // indices in it (`linModel@b.2`, `linModel@anova.rows.1.ss`).
   return (name) => {
-    const m = /^([A-Za-z_$][\w$]*)((?:\.[A-Za-z_$][\w$]*)*)(?:#(\d+)|@([A-Za-z_$][\w$]*))?$/.exec(name);
+    const m = /^([A-Za-z_$][\w$]*)((?:\.[A-Za-z_$][\w$]*)*)(?:#(\d+)|@([A-Za-z_$][\w$]*(?:\.[\w$]+)*))?$/.exec(name);
     if (!m) throw new Error(`Not a name: ${name}`);
     if (!memo.has(name)) {
       let v = look(m[1]);
       for (const k of m[2].split(".").slice(1)) v = v[k];
       if (m[3] != null) { const f = v, i = +m[3]; v = (...a) => f(...a)[i]; }
-      if (m[4] != null) { const f = v, k = m[4]; v = (...a) => f(...a)[k]; }
+      if (m[4] != null) { const f = v, ks = m[4].split("."); v = (...a) => ks.reduce((o, k) => (o == null ? o : o[k]), f(...a)); }
       memo.set(name, v);
     }
     return memo.get(name);

@@ -327,17 +327,58 @@ def _():
     if sum(map(sum, T)) > 25 or any(sum(row) == 0 for row in T) or any(sum(row[j] for row in T) == 0 for j in range(c)): raise ValueError("too large or empty")
     return [T], refs.fisher_rc_ref(T)
 
+# the linear model (STATS_SPEC 2.5): random designs of numbers (about an offset up to 1e6) and factors (2 to 4 levels),
+# interactions, powers, either coding, with or without an intercept, each sum of squares' type; one number a case,
+# chosen at random (a coefficient, its error, a row of the analysis of variance, the model's p), against exact rationals
+def lm_design():
+    n = int(rng.integers(8, 41)); k = int(rng.integers(1, 4)); vars_ = []
+    for i in range(k):
+        if rng.random() < 0.45:
+            L = int(rng.integers(2, 5)); code = [int(v) for v in rng.integers(0, L, n)]
+            if len(set(code)) < 2: raise ValueError("one level")
+            vars_.append({"name": "F%d" % i, "num": False, "code": code, "levels": ["l%d" % j for j in range(L)]})
+        else:
+            off = 0.0 if rng.random() < 0.5 else float(rng.choice([-1, 1]) * lognum(0, 6)); sc = lognum(-2, 2)
+            vars_.append({"name": "x%d" % i, "num": True, "x": [float(off + v) for v in rng.normal(0, sc, n)]})
+    spec = {"inter": str(rng.choice(["none", "pairs"])), "pow": int(rng.choice([1, 1, 2, 3])), "coding": str(rng.choice(["treat", "effect"])),
+            "ss": int(rng.integers(1, 4)), "icpt": bool(rng.random() < 0.85)}
+    # within reach of doubles: the columns, each scaled to length 1, conditioned under 1e11 (NIST's Filip is about 1e7); past
+    # about 1e12 Kurve calls a column aliased that exact arithmetic still separates
+    X, _, _ = refs._lm_cols(vars_, refs._lm_terms(vars_, spec), spec, n); Xf = np.array([[float(v) for v in c] for c in X]).T
+    nr = np.linalg.norm(Xf, axis=0)
+    if Xf.shape[1] >= n or not (nr > 0).all() or np.linalg.cond(Xf / nr) > 1e11: raise ValueError("out of reach")
+    y = [float(v) for v in rng.normal(lognum(-1, 3), lognum(-2, 1), n)]
+    w = refs.lm_ref(vars_, y, spec)
+    if w["dfr"] < 1: raise ValueError("no df left")
+    return [vars_, y, spec], w
+def lm_pick(key):
+    def g():
+        a, w = lm_design()
+        if key == "ss":
+            rows = [i for i, r in enumerate(w["anova"]) if r["df"] > 0 and r["ss"] > 1e-300]
+            if not rows: raise ValueError("no row")
+            i = int(rng.choice(rows)); return a, w["anova"][i]["ss"], f"linModel@anova.rows.{i}.ss"
+        if key == "pF":
+            if w["pF"] is None: raise ValueError("no model F")
+            return a, w["pF"], "linModel@pF"
+        js = [j for j, v in enumerate(w[key]) if v is not None and v != 0]
+        if not js: raise ValueError("none")
+        j = int(rng.choice(js)); return a, w[key][j], f"linModel@{key}.{j}"
+    return g
+for key, tol in [("b", 1e-14), ("se", 1e-14), ("ss", 1e-14), ("pF", 1e-13)]:
+    gen("linModel@" + key, tol, 0.1)(lm_pick(key))
+
 cases = []
 for name, (f, tol) in GEN.items():
     for k in range(max(1, math.ceil(per * SHARE.get(name, 1.0)))):
         for _ in range(20):
             try:
-                args, want = f(); break
+                res = f(); args, want = res[0], res[1]; fn = res[2] if len(res) > 2 else name; break
             except Exception:
                 continue
         else:
             continue
-        cases.append({"id": len(cases), "fn": name, "args": [a if isinstance(a, list) else num(a) for a in args], "want": num(want), "tol": tol, "k": k})
+        cases.append({"id": len(cases), "fn": fn, "gen": name, "args": [a if isinstance(a, list) else num(a) for a in args], "want": num(want), "tol": tol, "k": k})
 
 node = subprocess.run(["node", os.path.join(here, "run.mjs")] + sys.argv[3:4], input="\n".join(json.dumps(c) for c in cases),
                       capture_output=True, text=True, cwd=os.path.join(here, "..", ".."))
@@ -373,12 +414,12 @@ for c in cases:
         if c["fn"] == "dagoTest@k2": e = d / max(abs(w), 1.0)  # a sum of two squared scores: absolute below 1
         if c["fn"] == "nctCdf": e = d  # absolute (targets.json)
         if c["fn"] == "tukeySf": e = d / 10  # against SciPy: 1e-12 absolutely (the generator says why)
-    if e > worst.get(c["fn"], (0, None))[0]:
-        worst[c["fn"]] = (e, c)
-    t = TARGET.get(c["fn"], {})
+    if e > worst.get(c["gen"], (0, None))[0]:
+        worst[c["gen"]] = (e, c)
+    t = TARGET.get(c["gen"], {})
     if not e <= c["tol"]:
         if t.get("until") and e <= t["now"]:
-            shorts[c["fn"]] = shorts.get(c["fn"], 0) + 1
+            shorts[c["gen"]] = shorts.get(c["gen"], 0) + 1
         else:
             fails.append((c, f"error {e:.2e} past {c['tol']:.0e}{' and past ' + format(t['now'], '.0e') + ', where it stood' if t.get('until') else ''}: got {g!r}, the reference {w!r}"))
 
@@ -387,7 +428,7 @@ if os.environ.get("FUZZDUMP"):  # every failing case in full, to make it again
 print(f"seed {seed}, {per} cases a function")
 for name in GEN:
     e, c = worst.get(name, (0.0, None))
-    n = sum(1 for f, _ in fails if f["fn"] == name)
+    n = sum(1 for f, _ in fails if f["gen"] == name)
     t = TARGET.get(name, {})
     state = "ok" if not n and not shorts.get(name) else (f"{n} FAILED" if n else f"{shorts[name]} short of target until slice {t['until']} (within {t['now']:.0e})")
     print(f"  {name:15} worst {e:.2e}  tolerance {GEN[name][1]:.0e}  {state}")

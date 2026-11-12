@@ -490,5 +490,57 @@
  "mcnemarTest.pExact": {
   "tol": 1e-13,
   "why": "Exact rationals (refs.py), the tails in 40 digits"
+ },
+ "linModel.b": {
+  "tol": 1e-15,
+  "why": "Exact rationals (refs.py lm_ref): the coefficients by Householder QR refined on the augmented system in double-double"
+ },
+ "linModel.se": {
+  "tol": 1e-15,
+  "why": "The covariance refined in double-double (on XᵀX, then the augmented system where that does not settle)"
+ },
+ "linModel.t": {
+  "tol": 1e-15,
+  "why": "Exact rationals (refs.py lm_ref): the coefficients by Householder QR refined on the augmented system in double-double"
+ },
+ "linModel.p": {
+  "tol": 1e-13,
+  "why": "The t and F tails of the exact statistics, in 40 digits"
+ },
+ "linModel.ci": {
+  "tol": 1e-14,
+  "why": "The estimate less t times its error: judged against the estimate's size plus the half-width"
+ },
+ "linModel.s": {
+  "tol": 1e-15,
+  "why": "The residuals in double-double, the solution kept in double-double"
+ },
+ "linModel.rss": {
+  "tol": 1e-15,
+  "why": "The residuals in double-double, the solution kept in double-double"
+ },
+ "linModel.r2": {
+  "tol": 1e-15,
+  "why": "Sums of squares as the squared difference of two fits' residuals: nothing cancels"
+ },
+ "linModel.F": {
+  "tol": 1e-15,
+  "why": "Sums of squares as the squared difference of two fits' residuals, or by Wald's identity on the refined covariance"
+ },
+ "linModel.ss": {
+  "tol": 1e-15,
+  "why": "Type I from prefixes of one QR, refined; II and III by Wald's identity, or refits where columns are aliased"
+ },
+ "lmContrast.est": {
+  "tol": 1e-15,
+  "why": "Σ L·b of the refined solution, judged against its size plus its error (a contrast near 0 is a difference)"
+ },
+ "lmContrast.se": {
+  "tol": 1e-15,
+  "why": "Lᵀ V L of the refined covariance"
+ },
+ "lmContrast.p": {
+  "tol": 1e-13,
+  "why": "The t tail in 40 digits"
  }
 }

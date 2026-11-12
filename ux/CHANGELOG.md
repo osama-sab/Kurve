@@ -1024,6 +1024,23 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 2, slice 2.5: the linear model (2026-11-12)
+
+- **Analyze › Statistics › ANOVA › Linear model…**: a response modelled by numbers and factors (text columns, or numbers
+  switched to factors), with every pair or every combination of them and powers of the numbers, treatment or effect
+  coding, with or without an intercept; the model (N, R², adjusted R², root MSE, F, p), the coefficients with their
+  errors, p and intervals, the analysis of variance by type I, II or III sums of squares, contrasts typed by the
+  coefficients' names, and the fitted values and residuals on the result sheet if asked.
+- Every number agrees with exact rational arithmetic to the last digit or two, up to a condition of 1e12: NIST's Norris
+  and Longley (against their certified values too), Wampler's polynomials, a polynomial of degree 10 as hard as Filip's,
+  factorials with an empty cell. Least squares by Householder QR, refined in double-double.
+- Quantiles (slice 2.1): the position between two values worked out in double-double (type 8's error at seed 6 of the
+  fuzzer, 1.2e-13, is 3e-14).
+
+Checked: `fixtures/lm.json` (18 designs; statsmodels' types II and III and NIST's certified Longley values asserted),
+the fuzzer (four new generators, designs up to a condition of 1e11), stats-test (11 new), ana-drive (11 new), perf (two
+new lines), the suite.
+
 ## Closing the gap with Origin, wave 2, slice 2.10: counts in tables (2026-11-12)
 
 - **Analyze › Statistics › Hypothesis tests › Counts in tables…**: two columns of categories or a table of

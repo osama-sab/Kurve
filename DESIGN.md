@@ -898,6 +898,19 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-12: the linear model (STATS_SPEC 2.5)
+
+- **The response is one of the columns ticked**, chosen in a list that starts on the first Y; the others model it. A
+  column of text is a factor and its switch cannot be turned off; a column of numbers is a variable unless switched.
+  X columns may be ticked here, since a model's variables are often the sheet's X.
+- **The report fits a docked window**: Term, Estimate, Standard error and p; Source, df, Sum of squares, F and p. t (the
+  estimate over its error) and the mean squares (the sum over its df) are on the result sheet and in the copy, not on
+  screen twice.
+- **Contrasts are typed by the names the table gives**, a line each, an interaction's parts in any order, so what is
+  tested is what is read; one that cannot be worked out is a note in words, never a number.
+- **A column that is a combination of others has no coefficient**, and the notes name it, rather than a number that
+  means nothing.
+
 ### 2026-11-12: counts in tables (STATS_SPEC 2.10)
 
 - **One dialog for a cross-table and a table of counts**: *Read as* says which; the tests are ticks. The

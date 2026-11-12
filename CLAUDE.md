@@ -1142,6 +1142,30 @@ graph first, with the taskbar kept at the bottom of the screen.
   pExact}`, R's correction unclamped). `XTAB_TESTS`, kind `xtab` (`cats`; `p.mode` "pair" (`levels` true) or "table"
   (rows the sheet's, or a Group by column's names, counts added), `p.tests`, `p.yates`; sections Counts, Expected
   counts, Tests, Effect size), form `#aXm`, `#aX_<k>`, `#aXy`; Analyze › Statistics › Hypothesis tests.
+  **The linear model** (STATS_SPEC 2.5; the engine 2.6, 2.7 and wave 4 use): `lmTerms(vars, spec)` (each variable and its
+  powers to `pow`, then interactions two at a time, three…: `inter` none, pairs, all; a term `[[variable, power]…]`),
+  `lmCols(vars, terms, spec, n)` (`{X, XL, names, tc}`: the intercept, a factor's levels after the first (treatment) or less
+  the last (effect), all of them for the first factor of a model with no intercept, products with the first part fastest;
+  each column in double-double, `XL` its low part, `ddMulArr`), `lsqQR(X, n, tol)` (Householder on columns scaled to length
+  1, taken in order; one whose length left is under `LM_TOL`, 1e-11, of its own is aliased, as R's lm leaves the later out;
+  `{sc, kept, alias, H, Rc, C}`), `lsqPrefix(Q, B)` (the first B columns' QR), `lsqFit(X, y, n, {XL, Q})` (refined on the
+  augmented system r + Xb = y, Xᵀr = 0 (Björck) with both residuals in double-double, the solution kept as `b` + `bl`;
+  `{Q, b, bl, rh, rl, rss, rank}`), `lsqCovU(Q, X, XL)` ((XᵀX)⁻¹ of the kept columns: from R, then refined with each column in
+  double-double, on XᵀX in double-double while the scaled condition √r·‖R⁻¹‖ is 1e6 or less, else on the augmented system
+  [I X; Xᵀ 0]), `lsqWald(F, V, cols)` (b_Tᵀ V_TT⁻¹ b_T, the fit lost without the columns), `lsqSSBetween(A, B)` (Σ of the
+  squared difference of two fits' residuals), `lsqAlias(Q)`, `ddDot`, `lsqQt`, `lsqQv`, `lsqFwd`, `lsqBack`, `hApply`.
+  `linModel(vars, y, spec)` (`{inter, pow, coding, icpt, ss, conf}`; `{names, tc, terms, b, se, t, p, lo, hi (null where
+  aliased), alias, kept, V, rank, dfr, rss, s, s2, r2, ar2, F, df1, pF, ssm, sst, anova {type, rows [{term, df, ss, ms, F,
+  p}]}, conf, fit}` or `{fail}`): type I from prefixes of the one QR, II and III by Wald's identity on the model compared
+  (III with effect coding where a factor is in an interaction), refitted without the term where that model has aliased
+  columns. `lmContrastParse(text, names)` (a sum of named coefficients with numbers before them, an interaction's parts in
+  any order, `= c`), `lmContrast(M, text)` (`{est, c, se, t, p, lo, hi}`; refused where not estimable). Kind `lm` (`cats`,
+  `xs`: X columns may be ticked; `p.y` the response's column id (inputs carry `id`), `p.fac` numbers as factors, `inter`,
+  `pow`, `coding`, `ss`, `icpt`, `resid`, `contrasts`; `lmSpecOf`, `LM_INTER`, `LM_SS`; `heavy` past n·m²·(k + 3) of 4e7;
+  sections Model, Coefficients, the interval, Analysis of variance, Contrasts; t and mean squares on the sheet alone),
+  form `#aLy`, `#aLfac` (`aLf_<id>`), `#aLi`, `#aLp`, `#aLc`, `#aLs`, `#aLn`, `#aLr`, `#aLct`; Analyze › Statistics › ANOVA ›
+  Linear model…. `anaDlg` takes X columns for a kind with `xs`. `quantileType` works its position in double-double
+  (`qtProd`).
   `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
   (rationals), shared by the fixtures (`desc.json`) and the fuzzer (`quantileType`, `descStats@<key>`, which
   `run.mjs` reads as one field of the result).
@@ -3070,7 +3094,9 @@ text column, followed after a value typed, a refusal, a reload), and 2.8 (each r
 its function: paired, Pratt's zeros and the normal approximation, Dunn's Bonferroni, Friedman's complete rows, a
 refusal, a one-row result shown as names and values, a reload), and 2.9 (each coefficient against its function, pairwise
 and listwise N, a section a coefficient, the scatter matrix in one undo step, a refusal, a reload), and 2.10 (a
-cross-table of text, a table of counts named by a column, McNemar, a negative count refused, a reload).
+cross-table of text, a table of counts named by a column, McNemar, a negative count refused, a reload), and 2.5 (X
+columns offered, the response on the first Y, text a factor that stays one, every number against linModel and
+lmContrast, rows left out said, an empty cell's coefficient named, a response of text refused, followed, a reload).
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
@@ -3083,7 +3109,8 @@ Tukey's and Dunnett's family-wise error at 5 % from their quantiles, Tukey–Kra
 studentized range of two and Dunnett's one comparison as t), and 2.8's (U's and T+'s exact distributions against
 enumeration, each rank test's size, the shift's interval covering, refusals), and 2.9's (Kendall's counts against
 enumeration, a shift, a scale and a monotone change, each test's size, Fisher's coverage, partial r as residuals' r), and
-2.10's (χ²'s and G's size, Fisher's and McNemar's exact tests at or below 5 %, a table turned round, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
+2.10's (χ²'s and G's size, Fisher's and McNemar's exact tests at or below 5 %, a table turned round, refusals), and 2.5's
+(the F tests' size, the intervals' coverage, a shift, a scale, the rows' order, codings and types agreeing, a contrast, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
 ANA block.
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
@@ -4059,6 +4086,15 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **A one-sided tail is a tail, in the reference too.** The correlation reference formed a lower tail as 1 − (1 − p)
   at 40 digits and gave 0 for a p of 1e-49; the fuzzer blamed Kurve, which was right. And a fuzzer that never asks
   for |r| near 1 never sees 1 − r² lose its digits: generators reach the ends of what a function takes.
+- **A refinement that converges can converge to the wrong answer.** The linear model's covariance was refined on XᵀX,
+  which settles at κ(X)²·ε a step: for a polynomial of degree 10 its corrections fell to 1e-14 and stopped, the
+  standard errors 2e-13 off. Each correction was exact; the iteration could not see its own error. The augmented system
+  [I X; Xᵀ 0] converges at κ·ε; which one is used is decided from the conditioning, not from how small the steps look.
+- **JSON writes a large double as an integer that is not the double.** `JSON.stringify(3.391541843989872e19)` is
+  "33915418439898720000", which Python reads as an exact integer 1792 away: an error of 5e-17 that was not there. Write
+  numbers for an exact comparison with `toExponential(17)`.
+- **A name is taken, once more.** The linear model was first written as `lmFit`, which is the Levenberg–Marquardt fitter;
+  the later declaration would have replaced it everywhere. It is `linModel`.
 - **A variable taken out is grepped for.** Removing the Explorer's files took `fids` out of
   `autoImport`, and three `return {fids}` further down threw on every dropped file; the syntax
   check passes a reference to a name that does not exist. `review-drive`'s drop caught it. After
@@ -4619,7 +4655,9 @@ Next, in order:
    Wilcoxon signed-rank, the sign test, Kruskal–Wallis with Dunn's, Friedman, Mood's median test, two-sample KS;
    exact distributions), done 12.11; slice 2.9, correlation (Pearson's r with its interval, Spearman's ρ, Kendall's
    τ-b, partial r, their matrices, a scatter matrix; 1 − r² in double-double), done 12.11; slice 2.10, counts in tables
-   (χ², G, Fisher's exact test of any size, McNemar, Cramér's V), done 12.11
+   (χ², G, Fisher's exact test of any size, McNemar, Cramér's V), done 12.11; slice 2.5, the linear model (numbers and factors,
+   interactions, powers, either coding, types I to III, contrasts; every number to the last digit or two of exact
+   arithmetic up to a condition of 1e12, NIST's Longley and a polynomial as hard as Filip's included), done 12.11
 
 ## Known gaps
 
@@ -4703,6 +4741,11 @@ Next, in order:
   project, and a viewer who cannot edit cannot open it
 - Counts in tables: no exact test past two million tables, no Monte Carlo p, no McNemar–Bowker (larger square
   tables), no Cochran–Mantel–Haenszel (strata), no residuals table
+- The linear model: no weights, no random effects, no transformations typed as a formula (log y, centring), interactions
+  only none, every pair or every combination (not chosen one by one), powers of every number column alike; type III by
+  dropping a term's effect-coded columns (with an empty cell this is not SAS's estimable-function type III); a design
+  conditioned past about 1e12 has columns called aliased that exact arithmetic would still separate; contrasts one at
+  a time (no joint F of several); no plots of the residuals made from it yet (the fitted values and residuals go on the sheet)
 - Correlation: no point-biserial, polychoric or distance correlation, no comparison of two r's, no matrix of p
   values on the graph; partial r over the rows complete in every column only
 - Rank tests: exact p only without ties (with ties the normal approximation, as R; no permutation p); the

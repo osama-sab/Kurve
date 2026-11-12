@@ -636,3 +636,135 @@ def mcnemar_ref(b, c, cc=True):
     d = abs(b - c); X2 = Fr((d - 1 if cc else d) ** 2, b + c)  # not clamped at 0, as R and statsmodels
     n = b + c; k = min(b, c); pe = min(Fr(1), 2 * Fr(sum(math.comb(n, i) for i in range(k + 1)), 2 ** n))
     return {"X2": float(X2), "p": f(mp.gammainc(M(1) / 2, mpq(X2) / 2, mp.inf, regularized=True)), "pExact": float(pe)}
+
+# ---------- the linear model (STATS_SPEC 2.5) ----------
+def _lm_terms(vars_, spec):
+    pw = max(1, min(10, int(spec.get("pow") or 1)))
+    T = []
+    for i, v in enumerate(vars_):
+        T.append([(i, 1)])
+        if v["num"]:
+            for d in range(2, pw + 1): T.append([(i, d)])
+    k = len(vars_); top = k if spec.get("inter") == "all" else 2 if spec.get("inter") == "pairs" else 1
+    import itertools
+    for s in range(2, top + 1):
+        for c in itertools.combinations(range(k), s): T.append([(i, 1) for i in c])
+    return T
+
+def _lm_name(vars_, t): return ":".join(vars_[i]["name"] + ("^%d" % d if d > 1 else "") for i, d in t)
+
+def _lm_cols(vars_, terms, spec, n):
+    """lmCols in rationals: the same columns, names and order."""
+    icpt = spec.get("icpt", True) is not False
+    X, names, tc = [], [], []
+    if icpt: X.append([Fr(1)] * n); names.append("(Intercept)"); tc.append(-1)
+    spanned = icpt
+    for ti, t in enumerate(terms):
+        parts = [([Fr(1)] * n, "")]
+        for i, d in t:
+            v = vars_[i]; add = []
+            if v["num"]:
+                add.append(([Fr(a) ** d for a in v["x"]], v["name"] + ("^%d" % d if d > 1 else "")))
+            else:
+                L = len(v["levels"]); full = (not spanned) and len(t) == 1; eff = (not full) and spec.get("coding") == "effect"
+                ls = [l for l in range(L) if full or (l < L - 1 if eff else l > 0)]
+                for l in ls:
+                    add.append(([Fr(1) if c == l else Fr(-1) if (eff and c == L - 1) else Fr(0) for c in v["code"]], "%s[%s]" % (v["name"], v["levels"][l])))
+                if full: spanned = True
+            parts = [([q[r] * a[r] for r in range(n)], (qn + ":" + an) if qn else an) for a, an in add for q, qn in parts]
+        for q, qn in parts: X.append(q); names.append(qn); tc.append(ti)
+    return X, names, tc
+
+def _lm_exact(cols, y):
+    """Least squares in rationals: columns kept in order unless exactly a combination of those before (the Schur complement
+    of the Gram matrix zero). (kept, b {j: Fr}, inverse of the kept Gram matrix, rss, fitted)."""
+    m, n = len(cols), len(y)
+    G = [[sum(cols[a][r] * cols[b][r] for r in range(n)) for b in range(m)] for a in range(m)]
+    g = [sum(cols[a][r] * y[r] for r in range(n)) for a in range(m)]
+    kept = []
+    for j in range(m):
+        idx = kept + [j]
+        A = [[G[a][b] for b in idx] for a in idx]
+        # the last pivot of A's elimination is the Schur complement
+        A = [row[:] for row in A]; k = len(idx); ok = True
+        for p in range(k - 1):
+            for r in range(p + 1, k):
+                if A[r][p] != 0:
+                    f_ = A[r][p] / A[p][p]
+                    for c in range(p, k): A[r][c] -= f_ * A[p][c]
+        if A[k - 1][k - 1] != 0: kept.append(j)
+    k = len(kept)
+    A = [[G[a][b] for b in kept] + [Fr(1) if t == u else Fr(0) for u in range(k)] for t, a in enumerate(kept)]
+    for p in range(k):
+        piv = A[p][p]; A[p] = [v / piv for v in A[p]]
+        for r in range(k):
+            if r != p and A[r][p] != 0:
+                f_ = A[r][p]; A[r] = [A[r][c] - f_ * A[p][c] for c in range(2 * k)]
+    Vi = [row[k:] for row in A]
+    gk = [g[a] for a in kept]
+    b = {kept[t]: sum(Vi[t][u] * gk[u] for u in range(k)) for t in range(k)}
+    fit = [sum(cols[j][r] * b[j] for j in kept) for r in range(n)]
+    rss = sum((y[r] - fit[r]) ** 2 for r in range(n))
+    return kept, b, Vi, rss, fit
+
+def _f_p(F, d1, d2):
+    if F <= 0: return mp.mpf(1)
+    F, d1, d2 = mp.mpf(F), mp.mpf(d1), mp.mpf(d2)
+    return mp.betainc(d2 / 2, d1 / 2, 0, d2 / (d2 + d1 * F), regularized=True)
+
+def lm_ref(vars_, y, spec):
+    """lmFit's numbers, exactly from the doubles given: rationals to the square roots, 40 digits after."""
+    n = len(y); y = [Fr(v) for v in y]; icpt = spec.get("icpt", True) is not False
+    terms = _lm_terms(vars_, spec); X, names, tc = _lm_cols(vars_, terms, spec, n)
+    kept, b, Vi, rss, fit = _lm_exact(X, y); rank = len(kept); dfr = n - rank
+    s2 = rss / dfr; conf = spec.get("conf") or 0.95
+    tq = mp.mpf(t_isf((1 - conf) / 2, dfr, 2.0))
+    out = {"names": names, "b": [], "se": [], "t": [], "p": [], "lo": [], "hi": [], "rank": rank, "dfr": dfr, "rss": fl(rss), "s": f(mp.sqrt(mpq(s2)))}
+    for j in range(len(X)):
+        if j not in b:
+            for k_ in ("b", "se", "t", "p", "lo", "hi"): out[k_].append(None)
+            continue
+        t_ = kept.index(j); se = mp.sqrt(mpq(s2 * Vi[t_][t_])); bj = mpq(b[j])
+        out["b"].append(fl(b[j])); out["se"].append(f(se)); out["lo"].append(f(bj - tq * se)); out["hi"].append(f(bj + tq * se))
+        if se == 0: out["t"].append(None); out["p"].append(None); continue  # an exact fit: t is infinite
+        tt = bj / se; out["t"].append(f(tt)); out["p"].append(f(2 * _t_tail(abs(tt), mp.mpf(dfr))))
+    def fitted(cols):
+        if not cols: return [Fr(0)] * n, 0
+        kk, bb, _, _, ff = _lm_exact([X2[j] for j in cols], y); return ff, len(kk)
+    X2 = X
+    base = [0] if icpt else []
+    f0, r0 = fitted(base)
+    sst = sum((y[r] - f0[r]) ** 2 for r in range(n)); ssm = sum((fit[r] - f0[r]) ** 2 for r in range(n)); df1 = rank - (1 if icpt else 0)
+    out["r2"] = fl(ssm / sst) if sst else None
+    out["ar2"] = fl(1 - (1 - ssm / sst) * Fr(n - (1 if icpt else 0), dfr)) if sst else None
+    Fm = (ssm / df1) / s2 if df1 > 0 and s2 > 0 else None
+    out["F"] = fl(Fm) if Fm is not None else None; out["df1"] = df1; out["pF"] = f(_f_p(mpq(Fm), df1, dfr)) if Fm is not None else None
+    ty = int(spec.get("ss") or 3)
+    D3 = (X, names, tc)
+    if ty == 3 and spec.get("coding") != "effect" and any(not v["num"] for v in vars_):
+        D3 = _lm_cols(vars_, terms, dict(spec, coding="effect"), n)
+    def cols_of(D, keep): return [j for j in range(len(D[0])) if D[2][j] == -1 or D[2][j] in keep]
+    def contains(u, t): return all(any(i2 == i and d2 == d for i2, d2 in u) for i, d in t)
+    rows = []
+    for ti, t in enumerate(terms):
+        if ty == 1: D = (X, names, tc); A = cols_of(D, [u for u in range(len(terms)) if u < ti]); B = cols_of(D, [u for u in range(len(terms)) if u <= ti])
+        elif ty == 2:
+            D = (X, names, tc); oth = [u for u in range(len(terms)) if u != ti and not contains(terms[u], t)]; A = cols_of(D, oth); B = cols_of(D, oth + [ti])
+        else: D = D3; A = cols_of(D, [u for u in range(len(terms)) if u != ti]); B = cols_of(D, list(range(len(terms))))
+        X2 = D[0]
+        fa, ra = fitted(A); fb, rb = fitted(B); df = rb - ra; ss = sum((fa[r] - fb[r]) ** 2 for r in range(n))
+        row = {"df": df, "ss": fl(ss)}
+        if df > 0 and s2 > 0:
+            Fv = (ss / df) / s2; row["F"] = fl(Fv); row["p"] = f(_f_p(mpq(Fv), df, dfr))
+        rows.append(row)
+    out["anova"] = rows
+    con = []
+    for q in spec.get("con") or []:
+        L = [Fr(q["L"].get(nm, 0)) for nm in names]
+        # estimable: L lies in the row space, i.e. L·v = 0 for every v with Xv = 0 (aliased columns written by the kept)
+        est = sum(L[j] * b[j] for j in kept) - Fr(q.get("c", 0))
+        var = s2 * sum(L[kept[t]] * L[kept[u]] * Vi[t][u] for t in range(rank) for u in range(rank))
+        se = mp.sqrt(mpq(var)); tt = mpq(est) / se if se else None
+        con.append({"est": fl(est), "se": f(se), "t": f(tt) if tt is not None else None, "p": f(2 * _t_tail(abs(tt), mp.mpf(dfr))) if tt is not None else None})
+    if con: out["con"] = con
+    return out

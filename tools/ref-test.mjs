@@ -154,6 +154,29 @@ for (const c of (fixtures.xtab || { cases: [] }).cases) {
   const r = get(c.fn)(...c.args);
   for (const [k, w] of Object.entries(c.want)) { const name = `${c.fn}.${k}`; note(name, typeof r[k] !== "number" ? Infinity : relErr(r[k], w, (TARGET[name] || {}).floor), `${c.name}: ${k}`); }
 }
+/* ---- the linear model (STATS_SPEC 2.5): linModel's every number and lmContrast's, against exact rationals. An interval's end is
+   judged against the larger of the estimate and its half-width (it is their difference); an exact fit (Wampler 1, whose
+   residuals are nothing) has its scatter judged against the response's size, and no t or p. ---- */
+for (const c of (fixtures.lm || { cases: [] }).cases) {
+  const M = get("linModel")(c.vars, c.y, c.spec), w = c.want, at = c.name;
+  if (M.fail) { note("linModel.b", Infinity, `${at}: ${M.fail}`); continue; }
+  if (M.names.join("|") !== w.names.join("|") || M.rank !== w.rank || M.dfr !== w.dfr) note("linModel.b", Infinity, `${at}: the columns or the rank differ`);
+  const rms = Math.sqrt(c.y.reduce((a, v) => a + v * v, 0) / c.y.length), ex = c.exact ? 1e-14 * rms : 0;
+  w.b.forEach((v, j) => {
+    if (v == null) { if (M.b[j] != null) note("linModel.b", Infinity, `${at}: ${w.names[j]} should be aliased`); return; }
+    note("linModel.b", relErr(M.b[j], v), `${at}: b ${w.names[j]}`); note("linModel.se", relErr(M.se[j], w.se[j], ex), `${at}: se ${w.names[j]}`);
+    if (w.t[j] != null) { note("linModel.t", relErr(M.t[j], w.t[j]), `${at}: t ${w.names[j]}`); note("linModel.p", relErr(M.p[j], w.p[j]), `${at}: p ${w.names[j]}`); }
+    const sz = Math.abs(v) + Math.abs(w.hi[j] - w.lo[j]) / 2;
+    note("linModel.ci", Math.max(Math.abs(M.lo[j] - w.lo[j]), Math.abs(M.hi[j] - w.hi[j])) / sz, `${at}: interval ${w.names[j]}`); });
+  note("linModel.s", relErr(M.s, w.s, ex), at); note("linModel.rss", relErr(M.rss, w.rss, ex * ex * c.y.length), at);
+  if (w.r2 != null) { note("linModel.r2", relErr(M.r2, w.r2), at); note("linModel.r2", relErr(M.ar2, w.ar2), `${at}: adjusted`); }
+  if (w.F != null) { note("linModel.F", relErr(M.F, w.F), at); note("linModel.p", relErr(M.pF, w.pF), `${at}: the model's p`); }
+  w.anova.forEach((row, i) => { const q = M.anova.rows[i]; if (!q || q.df !== row.df) { note("linModel.ss", Infinity, `${at}: df of ${i}`); return; }
+    note("linModel.ss", relErr(q.ss, row.ss, 1e-15 * w.rss), `${at}: ${q.term}`); if (row.F != null) { note("linModel.F", relErr(q.F, row.F), `${at}: ${q.term}`); note("linModel.p", relErr(q.p, row.p), `${at}: ${q.term}`); } });
+  (c.spec.con || []).forEach((q, i) => { const r = get("lmContrast")(M, q.text), v = w.con[i];
+    if (r.fail) { note("lmContrast.est", Infinity, `${at}: ${q.text}: ${r.fail}`); return; }
+    note("lmContrast.est", Math.abs(r.est - v.est) / (Math.abs(v.est) + v.se), `${at}: ${q.text}`); note("lmContrast.se", relErr(r.se, v.se), `${at}: ${q.text}`); note("lmContrast.p", relErr(r.p, v.p), `${at}: ${q.text}`); });
+}
 for (const c of (fixtures.range || { cases: [] }).cases) note(c.fn, relErr(get(c.fn)(...c.args), c.want), fmtA(c.args));
 
 /* ---- distributions fitted to values ---- */

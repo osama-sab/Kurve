@@ -342,5 +342,42 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("counts refuse what they cannot count, in words", /whole numbers/.test(CH([[1, 2.5], [3, 4]]).fail) && /no counts/.test(CH([[0, 0], [3, 4]]).fail) && /two rows and two columns/.test(CH([[1, 2]]).fail) && /no pair differs/.test(MC([[4, 0], [0, 5]]).fail) && /two by two/.test(MC([[1, 2, 3], [4, 5, 6]]).fail));
 }
 
+// The linear model (STATS_SPEC 2.5): the F tests' size under the null, the coefficients' intervals' coverage, a shift, a
+// scale and the order of the rows, the codings and types that must agree, a contrast as a difference, refusals in words.
+{
+  const mb = get("mulberry32")(2005), LM = get("linModel"), LC = get("lmContrast");
+  const gauss = () => { const u = mb() || 1e-12, v = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const n = 30, A = Array.from({ length: n }, (_, i) => i % 3), x = Array.from({ length: n }, (_, i) => (i * 7) % 11 + 0.5 * (i % 4));
+  const vars = [{ name: "A", num: false, levels: ["a", "b", "c"], code: A }, { name: "x", num: true, x }];
+  const N = 4000, half = 3.29 * Math.sqrt(0.05 * 0.95 / N), k = { F: 0, t: [0, 0, 0, 0, 0], cov: 0, cn: 0 }, beta = [1, 0.5, -0.3, 0.2];
+  for (let i = 0; i < N; i++) {
+    const y0 = A.map(() => 3 + gauss()), M = LM(vars, y0, { inter: "pairs", ss: 3 });
+    if (M.pF < 0.05) k.F++; M.anova.rows.forEach((r, j) => { if (r.p < 0.05) k.t[j]++; });
+    const y1 = A.map((a, r) => beta[0] + (a === 1 ? beta[1] : a === 2 ? beta[2] : 0) + beta[3] * x[r] + gauss()), M1 = LM(vars, y1, {});
+    M1.lo.forEach((lo, j) => { k.cn++; if (lo <= beta[j] && beta[j] <= M1.hi[j]) k.cov++; });
+  }
+  check(`the model's F near 5 % with nothing to find (within ${(half * 100).toFixed(2)} %)`, Math.abs(k.F / N - 0.05) < half, k.F / N);
+  check(`each term's type III F near 5 % with nothing to find`, k.t.slice(0, 3).every((c) => Math.abs(c / N - 0.05) < half), k.t.map((c) => c / N));
+  const hc = 3.29 * Math.sqrt(0.05 * 0.95 / k.cn);
+  check(`the coefficients' 95 % intervals cover the true values 95 % of the time (within ${(hc * 100).toFixed(2)} %)`, Math.abs(k.cov / k.cn - 0.95) < hc, k.cov / k.cn);
+  const y = A.map((a, r) => 2 + a + 0.3 * x[r] + gauss()), M = LM(vars, y, { inter: "pairs", ss: 3 });
+  const Ms = LM(vars, y.map((v) => v + 1000), { inter: "pairs", ss: 3 }), Mk = LM(vars, y.map((v) => v * 1024), { inter: "pairs", ss: 3 });
+  check("a shift of the response moves the intercept alone", Math.abs(Ms.b[0] - M.b[0] - 1000) < 1e-11 * 1000 && M.b.slice(1).every((v, j) => Math.abs(Ms.b[j + 1] - v) <= 1e-12 * (Math.abs(v) + M.se[j + 1])) && Math.abs(Ms.rss - M.rss) < 1e-12 * M.rss);
+  check("a scale of the response (by a power of two) scales the coefficients and errors exactly, and leaves t, F and p", Mk.b.every((v, j) => v === M.b[j] * 1024) && Mk.se.every((v, j) => v === M.se[j] * 1024) && Mk.anova.rows.every((r, j) => r.F === M.anova.rows[j].F));
+  const perm = Array.from({ length: n }, (_, i) => (i * 7) % n), Mp = LM([{ ...vars[0], code: perm.map((i) => A[i]) }, { ...vars[1], x: perm.map((i) => x[i]) }], perm.map((i) => y[i]), { inter: "pairs", ss: 3 });
+  check("the order of the rows changes nothing (to 1e-14)", Mp.b.every((v, j) => Math.abs(v - M.b[j]) <= 1e-14 * (Math.abs(M.b[j]) + M.se[j])) && Mp.anova.rows.every((r, j) => rel(r.ss, M.anova.rows[j].ss) < 1e-13));
+  const Me = LM(vars, y, { inter: "pairs", ss: 2, coding: "effect" }), Mt = LM(vars, y, { inter: "pairs", ss: 2 });
+  check("effect and treatment coding: the same fit, R², and type II sums of squares", rel(Me.rss, Mt.rss) < 1e-14 && rel(Me.r2, Mt.r2) < 1e-14 && Me.anova.rows.every((r, j) => rel(r.ss, Mt.anova.rows[j].ss) < 1e-12));
+  const bal = Array.from({ length: 24 }, (_, i) => i % 3), B = Array.from({ length: 24 }, (_, i) => Math.floor(i / 3) % 2), yb = bal.map((a, i) => a + B[i] + gauss());
+  const vb = [{ name: "A", num: false, levels: ["a", "b", "c"], code: bal }, { name: "B", num: false, levels: ["p", "q"], code: B }];
+  const T = [1, 2, 3].map((ss) => LM(vb, yb, { inter: "pairs", ss, coding: "effect" }).anova.rows.map((r) => r.ss));
+  check("a balanced design: types I, II and III agree", T[0].every((v, j) => rel(T[1][j], v) < 1e-12 && rel(T[2][j], v) < 1e-12), JSON.stringify(T));
+  const T1 = LM(vars, y, { ss: 1 }); check("type I sums of squares and the error add up to the total", rel(T1.anova.rows.reduce((a, r) => a + r.ss, 0) + T1.rss, T1.sst) < 1e-13);
+  const Mc = LM(vars, y, {}), c = LC(Mc, "A[b] − A[c]");
+  check("a contrast of two coefficients is their difference, its error from their covariance", rel(c.est, Mc.b[1] - Mc.b[2]) < 1e-14 && rel(c.se, Math.sqrt(Mc.s2 * (Mc.V[1][1] + Mc.V[2][2] - 2 * Mc.V[1][2]))) < 1e-14, JSON.stringify([c, Mc.b]));
+  check("a contrast refused in words: a name not in the table, a missing sign", /not the name of a coefficient/.test(LC(Mc, "A[z]").fail) && /a \+ or − is missing/.test(LC(Mc, "x A[b]").fail));
+  check("a model with no degrees of freedom left refused in words", /no degrees of freedom left/.test(LM([{ name: "x", num: true, x: [1, 2, 3] }], [1, 2, 4], { pow: 2 }).fail));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

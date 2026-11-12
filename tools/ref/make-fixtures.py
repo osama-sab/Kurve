@@ -571,6 +571,60 @@ ols = sm.OLS(yN, sm.add_constant(xN)).fit()
 out["nist"] = [{"fn": "norris", "kind": "info", "want": {"params": list(ols.params), "bse": list(ols.bse),
                 "rsquared": ols.rsquared, "resid_sd": math.sqrt(ols.scale)}}]
 
+# ---------- the linear model (STATS_SPEC 2.5): every number exactly (refs.lm_ref: rationals to the square roots) ----------
+cases = []; rng = np.random.default_rng(25)
+def lmcase(name, vars_, y, spec, exact=False):
+    c = {"fn": "linModel", "name": name, "vars": vars_, "y": [float(v) for v in y], "spec": spec, "want": refs.lm_ref(vars_, [float(v) for v in y], spec)}
+    if exact: c["exact"] = True
+    cases.append(c); return c
+d = nist("Norris.dat"); lmcase("Norris", [{"name": "x", "num": True, "x": [float(v) for v in d[:, 1]]}], d[:, 0], {})
+import csv as _csv
+_lp = os.path.join(os.path.dirname(sm.__file__), "datasets", "longley", "longley.csv")
+_rows = list(_csv.reader(open(_lp))); _hd = _rows[0]; _ld = [[float(v) for v in r] for r in _rows[1:]]
+c = lmcase("Longley", [{"name": _hd[k], "num": True, "x": [r[k] for r in _ld]} for k in range(2, 8)], [r[1] for r in _ld], {})
+# NIST's certified Longley values (statsmodels' results_regression.Longley): the exact reference agrees with them
+_cert_b = [-3482258.63459582, 15.0618722713733, -0.358191792925910E-01, -2.02022980381683, -1.03322686717359, -0.511041056535807E-01, 1829.15146461355]
+_cert_se = [890420.383607373, 84.9149257747669, 0.334910077722432E-01, 0.488399681651699, 0.214274163161675, 0.226073200069370, 455.478499142212]
+for i in range(7):
+    assert abs(c["want"]["b"][i] - _cert_b[i]) <= 1e-13 * abs(_cert_b[i]) and abs(c["want"]["se"][i] - _cert_se[i]) <= 1e-13 * _cert_se[i], ("Longley", i)
+xs = [float(i) for i in range(21)]
+lmcase("Wampler 1", [{"name": "x", "num": True, "x": xs}], [1 + x + x**2 + x**3 + x**4 + x**5 for x in xs], {"pow": 5}, exact=True)
+lmcase("Wampler 2", [{"name": "x", "num": True, "x": xs}], [float(repr(1 + x/10 + x**2/100 + x**3/1000 + x**4/1e4 + x**5/1e5)) for x in xs], {"pow": 5})
+# a polynomial of degree 10 on x from −8.8 to −3.1, as hard as NIST's Filip (82 points, seven digits)
+fx = sorted(round(-3.13 - 5.65 * float(rng.random()), 7) for _ in range(82))
+fy = [round(0.8 + 0.01 * math.sin(3 * x) + 0.002 * x + 0.0005 * float(rng.normal()), 7) for x in fx]
+lmcase("degree 10, as Filip", [{"name": "x", "num": True, "x": fx}], fy, {"pow": 10})
+# factors and a covariate, unbalanced; every type and coding; contrasts
+n = 40; A = [int(v) for v in rng.integers(0, 3, n)]; B = [int(v) for v in rng.integers(0, 2, n)]; X = [round(float(v), 3) for v in rng.uniform(0, 10, n)]
+Y = [round(2 + [0, 1.5, -1][a] + 0.7 * b + 0.3 * x + 0.4 * (a == 1) * b + float(rng.normal()), 4) for a, b, x in zip(A, B, X)]
+VA = {"name": "A", "num": False, "code": A, "levels": ["a1", "a2", "a3"]}; VB = {"name": "B", "num": False, "code": B, "levels": ["lo", "hi"]}; VX = {"name": "x", "num": True, "x": X}
+CON = [{"text": "A[a2] − A[a3]", "L": {"A[a2]": 1, "A[a3]": -1}, "c": 0}, {"text": "x + 2 x:B[hi] = 0.5", "L": {"x": 1, "B[hi]:x": 2}, "c": 0.5}]
+for ss in (1, 2, 3):
+    for cod in ("treat", "effect"):
+        sp = {"inter": "pairs", "ss": ss, "coding": cod}
+        if cod == "treat": sp["con"] = CON
+        lmcase(f"A, B, x and pairs, type {ss}, {cod}", [VA, VB, VX], Y, sp)
+lmcase("A, B, x, every combination, 99%", [VA, VB, VX], Y, {"inter": "all", "ss": 3, "conf": 0.99})
+B2 = [0 if a == 2 else b for a, b in zip(A, B)]
+lmcase("an empty cell, type II", [VA, dict(VB, code=B2)], Y, {"inter": "pairs", "ss": 2, "con": [{"text": "A[a2] − A[a3]", "L": {"A[a2]": 1, "A[a3]": -1}, "c": 0}]})
+lmcase("an empty cell, type I", [VA, dict(VB, code=B2)], Y, {"inter": "pairs", "ss": 1})
+lmcase("no intercept", [VA, VX], Y, {"icpt": False, "ss": 1})
+lmcase("a column repeated", [VX, dict(VX, name="x2")], Y, {})
+lmcase("the mean alone", [], Y, {})
+# large values: a constant far larger than the spread (as NIST's NumAcc)
+big = [1e8 + v for v in X]; lmcase("x near 1e8", [{"name": "x", "num": True, "x": big}], [3e9 + 2 * v + float(rng.normal()) for v in X], {})
+# statsmodels' OLS and anova_lm agree with the exact reference (types II and III, sum coding for III)
+import pandas as pd, statsmodels.formula.api as smf
+df = pd.DataFrame({"y": Y, "A": [["a1", "a2", "a3"][a] for a in A], "B": [["lo", "hi"][b] for b in B], "x": X})
+# (type I depends on the terms' order, and statsmodels' formulas put the terms of factors alone first: II and III only)
+for ss, form in [(2, "y ~ C(A) + C(B) + x + C(A):C(B) + C(A):x + C(B):x"), (3, "y ~ C(A, Sum) + C(B, Sum) + x + C(A, Sum):C(B, Sum) + C(A, Sum):x + C(B, Sum):x")]:
+    fit = smf.ols(form, df).fit(); tab = sm.stats.anova_lm(fit, typ=ss); w = [c for c in cases if c["name"] == f"A, B, x and pairs, type {ss}, treat"][0]["want"]
+    nm = lambda t: t.replace("C(A, Sum)", "A").replace("C(B, Sum)", "B").replace("C(A)", "A").replace("C(B)", "B")
+    by = {nm(k): v for k, v in tab["sum_sq"].items()}; terms = ["A", "B", "x", "A:B", "A:x", "B:x"]
+    got = [by[t] for t in terms]; want = [r["ss"] for r in w["anova"]]
+    assert all(abs(g - v) <= 1e-9 * max(1, abs(v)) for g, v in zip(got, want)), (ss, got, want)
+out["lm"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

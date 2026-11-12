@@ -514,6 +514,56 @@ await page(async p => {
   check("after a reload the three are there", r === 3, r);
 }, { name: "2.10" });
 
+console.log("2.5: the linear model");
+await page(async p => {
+  // Dose (X), Yield, Site (text, three levels), Temp (numbers); one Yield missing, and a Site with no value.
+  await p.evaluate(() => { const n = 18, dose = [], yld = [], site = [], temp = [];
+    for (let i = 0; i < n; i++) { dose.push(i % 6); site.push(["A", "B", "C"][i % 3]); temp.push(20 + (i * 7) % 5); yld.push(+(2 + 0.8 * (i % 6) + [0, 1.5, -0.7][i % 3] + 0.1 * temp[i] + 0.3 * Math.sin(i * 1.7)).toFixed(4)); }
+    yld[5] = null; site[9] = "";
+    const txt = (nm, v) => Object.assign(makeCol("ignore", nm, ""), { data: v.map(() => null), fmt: "text", txt: Object.fromEntries(v.map((t, i) => [i, t]).filter(e => e[1])) });
+    save({ cols: [Object.assign(makeCol("x", "Dose", "mg"), { data: dose }), Object.assign(makeCol("y", "Yield", "g"), { data: yld, pipe: [], mask: [] }), txt("Site", site), Object.assign(makeCol("ignore", "Temp", "°C"), { data: temp })], activeY: null }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  const run = async (cols, set, kind = "lm") => { await p.evaluate(([c, k]) => { anaDlg(k, { cols: c }); }, [cols, kind]); await p.waitForSelector("#aLy"); if (set) await set(); await p.click("#formOk");
+    await p.waitForFunction(() => { const as = anaList().filter(x => x.kind === "lm"), a = as[as.length - 1]; return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 60000 });
+    return p.evaluate(() => { const as = anaList().filter(x => x.kind === "lm"), a = as[as.length - 1], o = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { o[c.ak] = c.txt ? c.data.map((v, i) => c.txt[i] != null ? c.txt[i] : v) : c.data.slice(); });
+      return { t: o, secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, h: s.tables[0].head, r: s.tables[0].rows })), notes: a.res.notes, err: a.res.err, method: a.res.report && a.res.report.method }; }); };
+  let r = await p.evaluate(ids => { anaDlg("lm", { cols: ids }); return null; }, ids); await p.waitForSelector("#aLy");
+  r = await p.evaluate(ids => ({ x: !!document.querySelector(`#aI_${ids[0]}`), y: document.querySelector("#aLy").value, fac: [...document.querySelectorAll('#aLfac input')].map(i => [i.id.slice(4), i.checked, i.disabled]) }), ids);
+  check("an X column can be ticked; the response starts on the first Y; Site a factor that cannot be unticked, Dose and Temp not", r.x && r.y === ids[1] && JSON.stringify(r.fac) === JSON.stringify([[ids[0], false, false], [ids[2], true, true], [ids[3], false, false]]), JSON.stringify(r));
+  await p.click("#formCancel");
+  r = await run(ids, async () => { await p.selectOption("#aLi", "pairs"); await p.check("#aLr"); await p.fill("#aLct", "Site[B] − Site[C]\nDose + 2 Dose:Site[B] = 1\nnothing here"); });
+  const want = await p.evaluate(ids => { const c = ids.map(colById), R = []; for (let i = 0; i < 18; i++) if (c[1].data[i] != null && c[2].txt[i]) R.push(i);
+    const vars = [{ name: "Dose", num: true, x: R.map(i => c[0].data[i]) }, { name: "Site", num: false, levels: ["A", "B", "C"], code: R.map(i => ["A", "B", "C"].indexOf(c[2].txt[i])) }, { name: "Temp", num: true, x: R.map(i => c[3].data[i]) }];
+    const M = linModel(vars, R.map(i => c[1].data[i]), { inter: "pairs", ss: 3 }); return { names: M.names, b: M.b, se: M.se, p: M.p, r2: M.r2, F: M.F, n: M.n, an: M.anova.rows.map(o => [o.term, o.df, o.ss, o.F, o.p]), c1: lmContrast(M, "Site[B] − Site[C]"), c2: lmContrast(M, "Dose + 2 Dose:Site[B] = 1") }; }, ids);
+  const sec = t => r.secs.find(s => s.t === t);
+  check("the result sheet: a row a coefficient, its estimate and error as linModel gives them", JSON.stringify(r.t.term) === JSON.stringify(want.names) && r.t.b.every((v, i) => v === want.b[i]) && r.t.se.every((v, i) => v === want.se[i]), JSON.stringify([r.t.term, want.names]));
+  check("…the model: N 16 (two rows without a value in every column left out, said), R², F", sec("Model").r[0][0] === 16 && want.n === 16 && sec("Model").r[0][1] === want.r2 && sec("Model").r[0][4] === want.F && r.notes.some(s => /^2 rows without a value/.test(s)), JSON.stringify([sec("Model"), r.notes]));
+  const av = sec("Analysis of variance, type III");
+  check("…the analysis of variance, type III, a row a term then the error and the total", av && JSON.stringify(av.r.map(x => x[0])) === JSON.stringify(want.an.map(x => x[0]).concat(["Error", "Total (about the mean)"])) && av.r.every((x, i) => i >= want.an.length || x[2] === want.an[i][2] && x[3] === want.an[i][3] && x[4] === want.an[i][4]), JSON.stringify([av, want.an]));
+  const ct = sec("Contrasts");
+  check("…the contrasts typed, each as lmContrast works it out; a line that names no coefficient said, not a number", ct && ct.r.length === 2 && ct.r[0][1] === want.c1.est && ct.r[1][3] === want.c2.p && ct.r[1][2] === want.c2.se && r.notes.some(s => /Contrast 3, “nothing here”: .* is not the name of a coefficient/.test(s)), JSON.stringify([ct, r.notes]));
+  const yv = await p.evaluate(id => colById(id).data.slice(), ids[1]);
+  check("…fitted values and residuals beside it, row by row (their sum the value)", r.t.row && r.t.row.length === 16 && r.t.row.every((rw, i) => Math.abs(r.t.fit[i] + r.t.res[i] - yv[rw - 1]) < 1e-12 * Math.abs(yv[rw - 1])), JSON.stringify([r.t.row, r.t.fit && r.t.fit.slice(0, 2)]));
+  check("…the method one line, no sentence of what it means", /^Least squares by Householder QR/.test(r.method) && !/significant|differs|suggest/i.test(JSON.stringify(r)), r.method);
+  // A missing level in a cell: Site × a factor with an empty cell.
+  await p.evaluate(ids => { const c = ids.map(colById); pushUndo("t"); const g = Object.assign(makeCol("ignore", "Lot", ""), { data: [], fmt: "text", txt: {}, sheet: c[0].sheet }); for (let i = 0; i < 18; i++) { g.data.push(null); g.txt[i] = c[2].txt[i] === "C" ? "L1" : (i % 2 ? "L1" : "L2"); } save({ cols: P().cols.concat([g]) }, "typed"); }, ids);
+  await p.waitForTimeout(400);
+  const ids2 = await p.evaluate(id => sheetCols(colById(id).sheet || SHEET0.id).map(c => c.id), ids[0]);
+  r = await run([ids2[1], ids2[2], ids2[4]], async () => { await p.selectOption("#aLi", "pairs"); await p.selectOption("#aLs", "2"); });
+  check("an empty cell: its coefficient left out and named in the notes, type II worked out", r.notes.some(s => /^No coefficient for Site\[C\]:Lot\[L2\]/.test(s)) && r.t.b[r.t.term.indexOf("Site[C]:Lot[L2]")] == null && !!r.secs.find(s => s.t === "Analysis of variance, type II"), JSON.stringify([r.notes, r.t.term]));
+  r = await run([ids2[2], ids2[1]], async () => { await p.selectOption("#aLy", ids2[2]); });
+  check("a response of text refused in words", /Site holds text/.test(r.err || ""), r.err);
+  // Followed: a value typed into Yield.
+  const before = await p.evaluate(() => anaList().filter(a => a.kind === "lm")[0].res.report.sections[0].tables[0].rows[0][1]);
+  await p.evaluate(id => { const c = colById(id); pushUndo("t"); c.data = c.data.slice(); c.data[0] = 40; save({ cols: P().cols }, "typed"); }, ids[1]); await p.waitForTimeout(1500);
+  r = await p.evaluate(() => anaList().filter(a => a.kind === "lm")[0].res.report.sections[0].tables[0].rows[0][1]);
+  check("worked out again by itself after a value is typed", r !== before && typeof r === "number", JSON.stringify([before, r]));
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().filter(a => a.kind === "lm").map(a => !!(a.res && (a.res.report || a.res.err))));
+  check("after a reload the three are there", r.length === 3 && r.every(Boolean), JSON.stringify(r));
+}, { name: "2.5" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

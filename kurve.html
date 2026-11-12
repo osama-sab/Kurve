@@ -6235,8 +6235,14 @@ function quantileType(s,p,t){ const n=s.length; if(!n||!(p>=0&&p<=1)) return NaN
   if(t===1||t===2||t===3){ const np=t===3?n*p-0.5:n*p, j=Math.floor(np+fz);
     const h=t===1?(np>j?1:0):t===2?(np>j?1:0.5):((np!==j||((j%2)+2)%2===1)?1:0);
     return mix(x(j),x(j+1),h); }
-  const ab=QT_AB[t]; if(!ab) return NaN; const nppm=ab[0]+p*(n+1-ab[0]-ab[1]), j=Math.floor(nppm+fz); let h=nppm-j; if(Math.abs(h)<fz) h=0;
+  /* the position a + p(n + 1 − a − b) in double-double (type 8's thirds as (1 + p(3n + 1))/3), so that h is right to the last
+     digit: its rounding is multiplied by the gap between the two values it mixes */
+  const ab=QT_AB[t]; if(!ab) return NaN; let q, lo;
+  if(t===8){ const [P,e]=qtProd(p,3*n+1), S=1+P, v=S-1, e2=(1-(S-v))+(P-v), T=e+e2, hi=S+T, tl=T-(hi-S); q=hi/3; const [r1,r2]=qtProd(3,q); lo=((hi-r1)-r2+tl)/3; }
+  else { const [P,e]=qtProd(p,n+1-ab[0]-ab[1]), a=ab[0], S=a+P, v=S-a, e2=(a-(S-v))+(P-v); q=S; lo=e+e2; }
+  const j=Math.floor(q+lo+fz); let h=(q-j)+lo; if(Math.abs(h)<fz) h=0;
   return mix(x(j),x(j+1),h); }
+function qtProd(a,b){ const p=a*b, c=134217729*a, a1=c-(c-a), a2=a-a1, d=134217729*b, b1=d-(d-b), b2=b-b1; return [p,((a1*b1-p)+a1*b2+a2*b1)+a2*b2]; }
 // Neumaier's compensated sum: a sum of a million values to the last digit or two.
 function neuSum(v){ let s=0,c=0; for(let i=0;i<v.length;i++){ const x=v[i], t=s+x; c+=Math.abs(s)>=Math.abs(x)?(s-t)+x:(x-t)+s; s=t; } return s+c; }
 const RSD_K=1.482602218505602; // 1/Φ⁻¹(3/4): the MAD of a normal sample times this is its SD
@@ -7147,6 +7153,224 @@ ANA_KINDS.xtab={label:"Counts in tables", base:"Counts", cats:true,
     if(fi&&fi.ci) secs.push({title:"Odds ratio's 95% interval",tables:[{head:["Lower","Upper"],rows:[[anaNum(fi.ci[0]),anaNum(fi.ci[1])]]}]});
     const method=[how==="grouped"?"The counts summed by the column of names.":how==="rows"?"The rows of the counts as the table's rows.":`The cross-table of ${how}, row by row.`,
       ch&&ch.yates&&tests.includes("chi2")?"χ² with Yates' correction (two by two).":"", fi&&fi.tables?`Fisher's exact test over the ${fi.tables} tables with these margins.`:""].filter(Boolean).join(" ");
+    return {tables:[{cols}],report:{sections:secs,method},notes}; }};
+// The linear model (STATS_SPEC 2.5): a design from numbers and factors (lmTerms, lmCols), least squares by Householder QR
+// (lsqQR: columns scaled to unit length and taken in order, one whose length left after those before is under LM_TOL of
+// its own aliased, as R's lm leaves the later of two out; lsqFit: the residuals in double-double and the solution refined
+// on them), the coefficients with their covariance, sums of squares of types I, II and III from nested fits (each the
+// squared difference of two fits' residuals, so nothing cancels), and contrasts (lmContrast). The engine 2.6, 2.7 and
+// wave 4 use.
+const LM_TOL=1e-11, LM_MAXC=400, LM_MAXV=10;
+function hApply(h,x){ const k=h.k, v=h.v, L=v.length; let s=0; for(let i=0;i<L;i++) s+=v[i]*x[k+i]; s*=h.beta; if(s!==0) for(let i=0;i<L;i++) x[k+i]-=s*v[i]; }
+function vNorm(c,k,n){ let mx=0; for(let i=k;i<n;i++){ const a=Math.abs(c[i]); if(a>mx) mx=a; } if(!(mx>0)||!Number.isFinite(mx)) return mx; let s=0; for(let i=k;i<n;i++){ const a=c[i]/mx; s+=a*a; } return mx*Math.sqrt(s); }
+function lsqQR(X,n,tol){ tol=tol||LM_TOL; const m=X.length, sc=new Float64Array(m), C=[];
+  for(let j=0;j<m;j++){ const x=X[j], s=vNorm(x,0,n), c=new Float64Array(n); sc[j]=s; if(s>0&&Number.isFinite(s)) for(let i=0;i<n;i++) c[i]=x[i]/s; C.push(c); }
+  const H=[], kept=[], alias=[], Rc={};
+  for(let j=0;j<m;j++){ const c=C[j], k=H.length, nr=k<n?vNorm(c,k,n):0;
+    if(!(sc[j]>0&&Number.isFinite(sc[j]))||!(nr>tol)){ alias.push(j); continue; }
+    const alpha=c[k]>=0?-nr:nr, v=new Float64Array(n-k); for(let i=k;i<n;i++) v[i-k]=c[i]; v[0]-=alpha;
+    const h={k,v,beta:1/(nr*(nr+Math.abs(c[k])))}; H.push(h); c[k]=alpha; for(let i=k+1;i<n;i++) c[i]=0;
+    for(let jj=j+1;jj<m;jj++) hApply(h,C[jj]); alias.forEach(a=>hApply(h,C[a]));
+    Rc[j]=c.slice(0,k+1); kept.push(j); }
+  return {n,m,sc,kept,alias,H,Rc,C}; }
+/* R z = w, R the kept columns' triangle */
+function lsqBack(Q,w){ const r=Q.kept.length, z=new Float64Array(r); for(let t=r-1;t>=0;t--){ let s=w[t]; for(let u=t+1;u<r;u++) s-=Q.Rc[Q.kept[u]][t]*z[u]; z[t]=s/Q.Rc[Q.kept[t]][t]; } return z; }
+function lsqCoef(Q,y){ const q=Float64Array.from(y); Q.H.forEach(h=>hApply(h,q)); const z=lsqBack(Q,q), b=new Float64Array(Q.m); Q.kept.forEach((j,t)=>{ b[j]=z[t]/Q.sc[j]; }); return b; }
+/* y − Σ X_j b_j in double-double: {rh, rl} */
+function lsqResid(X,Q,y,b,XL,bl){ const n=Q.n, rh=new Float64Array(n), rl=new Float64Array(n), K=Q.kept.map(j=>{ const bb=b[j], d=134217729*bb, b1=d-(d-bb); return [X[j],bb,b1,bb-b1,XL&&XL[j],bl?bl[j]:0]; });
+  for(let i=0;i<n;i++){ let s=y[i], e=0;
+    for(const [x,bb,b1,b2,xl,lo] of K){ const a=x[i], p=a*bb, c=134217729*a, a1=c-(c-a), a2=a-a1, pe=((a1*b1-p)+a1*b2+a2*b1)+a2*b2, t=s-p, v=t-s; e+=((s-(t-v))+(-p-v))-pe; if(xl) e-=xl[i]*bb; if(lo) e-=a*lo; s=t; }
+    const h=s+e; rh[i]=h; rl[i]=e-(h-s); }
+  return {rh,rl}; }
+/* Σ a_i b_i in double-double */
+function ddDot(a,b,n,al,bl){ let s=0, e=0; for(let i=0;i<n;i++){ const x=a[i], y=b[i], p=x*y, c=134217729*x, x1=c-(c-x), x2=x-x1, d=134217729*y, y1=d-(d-y), y2=y-y1, pe=((x1*y1-p)+x1*y2+x2*y1)+x2*y2, t=s+p, v=t-s; e+=((s-(t-v))+(p-v))+pe; if(al) e+=al[i]*y; if(bl) e+=x*bl[i]; s=t; } const h=s+e; return [h,e-(h-s)]; }
+/* Qv and Qᵀv, Q the reflections' product */
+function lsqQt(Q,v){ const q=Float64Array.from(v); Q.H.forEach(h=>hApply(h,q)); return q; }
+function lsqQv(Q,v){ const q=Float64Array.from(v); for(let i=Q.H.length-1;i>=0;i--) hApply(Q.H[i],q); return q; }
+/* Rᵀz = g */
+function lsqFwd(Q,g){ const r=Q.kept.length, z=new Float64Array(r); for(let t=0;t<r;t++){ let s=g[t]; for(let u=0;u<t;u++) s-=Q.Rc[Q.kept[t]][u]*z[u]; z[t]=s/Q.Rc[Q.kept[t]][t]; } return z; }
+/* Least squares, refined on the augmented system r + Xb = y, Xᵀr = 0 (Björck 1967): both residuals in double-double, the
+   corrections through the QR. A bad conditioning's square goes from the error, as it does not with the solution refined alone. */
+function lsqFit(X,y,n,o){ o=o||{}; const XL=o.XL||null, Q=o.Q||lsqQR(X,n,o.tol), K=Q.kept, r=K.length;
+  let b=lsqCoef(Q,y), bl=new Float64Array(Q.m), R=lsqResid(X,Q,y,b,XL,bl), res=Float64Array.from(R.rh), last=Infinity;
+  for(let it=0;it<6&&r>0;it++){
+    const f=new Float64Array(n); for(let i=0;i<n;i++){ /* y − res − Xb, in double-double through R */ f[i]=(R.rh[i]-res[i])+R.rl[i]; }
+    const g=new Float64Array(r); K.forEach((j,t)=>{ const d=ddDot(X[j],res,n,XL&&XL[j]); g[t]=-(d[0]+d[1])/Q.sc[j]; });
+    const h=lsqQt(Q,f), z=lsqFwd(Q,g), w=new Float64Array(r); for(let t=0;t<r;t++) w[t]=h[t]-z[t];
+    const dx=lsqBack(Q,w), hz=Float64Array.from(h); for(let t=0;t<r;t++) hz[t]=z[t]; const dr=lsqQv(Q,hz);
+    let big=0; K.forEach((j,t)=>{ const a=Math.abs(dx[t]/Q.sc[j])/(Math.abs(b[j])||1); if(!(a<=big)) big=a; });
+    if(!Number.isFinite(big)||!(big<last*0.9)&&it>0) break; last=big;
+    /* the solution kept in double-double: what the rounding of b leaves goes to bl, so that a fit's values are right to second order */
+    const b2=Float64Array.from(b), l2=Float64Array.from(bl); K.forEach((j,t)=>{ const d=dx[t]/Q.sc[j]+l2[j], s=b2[j]+d, v=s-b2[j]; l2[j]=(b2[j]-(s-v))+(d-v); b2[j]=s; }); b=b2; bl=l2; for(let i=0;i<n;i++) res[i]+=dr[i]; R=lsqResid(X,Q,y,b,XL,bl);
+    if(!(big>1e-17)) break; }
+  const s1=[], s2=[]; for(let i=0;i<n;i++){ s1.push(R.rh[i]*R.rh[i]); s2.push(2*R.rh[i]*R.rl[i]); }
+  return {Q,b,bl,rh:R.rh,rl:R.rl,rss:neuSum(s1)+neuSum(s2),rank:r,XL}; }
+/* The QR of the first B columns: the first reflections of the whole one's (columns are taken in order) */
+function lsqPrefix(Q,B){ const kept=Q.kept.filter(j=>j<B); return {n:Q.n,m:B,sc:Q.sc.slice(0,B),kept,alias:Q.alias.filter(j=>j<B),H:Q.H.slice(0,kept.length),Rc:Q.Rc,C:Q.C}; }
+/* Wald's identity: the fit lost by leaving the columns cols out of a model of full rank is b_Tᵀ V_TT⁻¹ b_T (b in double-double); null
+   where one of them is aliased */
+function lsqWald(F,V,cols){ const pos=new Map(F.Q.kept.map((j,t)=>[j,t])); if(cols.some(j=>!pos.has(j))) return null; const ix=cols.map(j=>pos.get(j));
+  const M=ix.map(a=>ix.map(c=>V[a][c])), bT=cols.map(j=>F.b[j]+F.bl[j]); let z=solve(M,bT); if(!z) return null;
+  const r=bT.map((v,i)=>v-neuSum(M[i].map((m,k)=>m*z[k]))), dz=solve(M,r); if(dz) z=z.map((v,i)=>v+dz[i]);
+  return Math.max(0,neuSum(bT.map((v,i)=>v*z[i]))); }
+/* (XᵀX)⁻¹ over the kept columns, unscaled: V[t][u] for kept t, u */
+function lsqCovU(Q,X,XL){ const r=Q.kept.length, n=Q.n, K=Q.kept, Ri=[]; for(let u=0;u<r;u++){ const e=new Float64Array(r); e[u]=1; Ri.push(lsqBack(Q,e)); }
+  const sc=K.map(j=>Q.sc[j]), V=[]; for(let t=0;t<r;t++){ const row=new Float64Array(r); for(let v=0;v<r;v++){ let s=0; for(let u=Math.max(t,v);u<r;u++) s+=Ri[u][t]*Ri[u][v]; row[v]=s/(sc[t]*sc[v]); } V.push(row); }
+  if(!X||!r) return V;
+  /* Refined, each column held in double-double while it is (a column rounded to doubles leaves a residual its correction cannot
+     get under). With the scaled columns' condition κ (estimated as √r·‖R⁻¹‖) up to 1e6, on XᵀX taken in double-double, unscaled
+     (scaling it would round it), which converges at κ²·ε a step; past it on the augmented system [I X; Xᵀ 0][r; v] = [0; −e_c]
+     (Xᵀr = −e_c, r = −Xv), refined as the coefficients are (Björck), at κ·ε a step: on XᵀX it would seem to settle, wrong. */
+  let ri2=0; Ri.forEach(c=>c.forEach(v=>{ ri2+=v*v; })); const kap=Math.sqrt(r*ri2);
+  const solve=g=>{ const z=lsqBack(Q,lsqFwd(Q,g.map((v,t)=>v/sc[t]))); return z.map((v,t)=>v/sc[t]); };
+  const addTo=(vh,vl,d,t)=>{ const dd=d+vl[t], s2=vh[t]+dd, v=s2-vh[t]; vl[t]=(vh[t]-(s2-v))+(dd-v); vh[t]=s2; };
+  const measure=(dx,vh,scaled)=>{ let big=0, top=0; for(let t=0;t<r;t++){ const a=Math.abs(dx[t])*(scaled?1:sc[t]), b=Math.abs(vh[t])*sc[t]; if(!(a<=big)) big=a; if(b>top) top=b; } return big/(top||1); };
+  let worst=0;
+  if(kap<=1e6){ const Gh=[], Gl=[]; for(let t=0;t<r;t++){ Gh.push(new Float64Array(r)); Gl.push(new Float64Array(r)); }
+    for(let t=0;t<r;t++) for(let v=t;v<r;v++){ const a=K[t], b=K[v], d=ddDot(X[a],X[b],n,XL&&XL[a],XL&&XL[b]); Gh[t][v]=Gh[v][t]=d[0]; Gl[t][v]=Gl[v][t]=d[1]; }
+    for(let c=0;c<r;c++){ const vh=Float64Array.from(V.map(row=>row[c])), vl=new Float64Array(r); let last=Infinity;
+      for(let it=0;it<12;it++){ const res=new Float64Array(r);
+        for(let t=0;t<r;t++){ let s=t===c?1:0, e=0; for(let v=0;v<r;v++){ const a=Gh[t][v], b=vh[v], p=a*b, cc=134217729*a, a1=cc-(cc-a), a2=a-a1, d=134217729*b, b1=d-(d-b), b2=b-b1, pe=((a1*b1-p)+a1*b2+a2*b1)+a2*b2, tt=s-p, vv=tt-s; e+=((s-(tt-vv))+(-p-vv))-pe-Gl[t][v]*b-a*vl[v]; s=tt; } res[t]=s+e; }
+        const dx=solve(res), big=measure(dx,vh,false); if(!Number.isFinite(big)||!(big<last)&&it>0){ break; } last=big;
+        for(let t=0;t<r;t++) addTo(vh,vl,dx[t],t); if(!(big>1e-30)) break; }
+      if(last>worst) worst=last; for(let t=0;t<r;t++) V[t][c]=vh[t]+vl[t]; } }
+  else worst=1;
+  if(worst>1e-15){
+    for(let c=0;c<r;c++){ const vh=Float64Array.from(V.map(row=>row[c])), vl=new Float64Array(r), rr=new Float64Array(n); let last=Infinity;
+      for(let i=0;i<n;i++){ let a=0; for(let t=0;t<r;t++) a+=X[K[t]][i]*vh[t]; rr[i]=-a; }
+      for(let it=0;it<8;it++){ const f=new Float64Array(n);
+        for(let i=0;i<n;i++){ let s=-rr[i], e=0; for(let t=0;t<r;t++){ const a=X[K[t]][i], b=vh[t], p=a*b, cc=134217729*a, a1=cc-(cc-a), a2=a-a1, d=134217729*b, b1=d-(d-b), b2=b-b1, pe=((a1*b1-p)+a1*b2+a2*b1)+a2*b2, tt=s-p, vv=tt-s; e+=((s-(tt-vv))+(-p-vv))-pe-a*vl[t]; const xl=XL&&XL[K[t]]; if(xl) e-=xl[i]*b; s=tt; } f[i]=s+e; }
+        const g=new Float64Array(r); for(let t=0;t<r;t++){ const d=ddDot(X[K[t]],rr,n,XL&&XL[K[t]]), dl=t===c?1:0, s=dl+d[0], v=s-dl, e=((dl-(s-v))+(d[0]-v))+d[1]; g[t]=-(s+e)/sc[t]; }
+        const h=lsqQt(Q,f), z=lsqFwd(Q,g), w=new Float64Array(r); for(let t=0;t<r;t++) w[t]=h[t]-z[t];
+        const dv=lsqBack(Q,w), hz=Float64Array.from(h); for(let t=0;t<r;t++) hz[t]=z[t]; const dr=lsqQv(Q,hz), big=measure(dv,vh,true);
+        if(!Number.isFinite(big)||!(big<last)&&it>0) break; last=big;
+        for(let t=0;t<r;t++) addTo(vh,vl,dv[t]/sc[t],t); for(let i=0;i<n;i++) rr[i]+=dr[i];
+        if(!(big>1e-32)) break; }
+      for(let t=0;t<r;t++) V[t][c]=vh[t]+vl[t]; } }
+  for(let t=0;t<r;t++) for(let v=t+1;v<r;v++){ const m=(V[t][v]+V[v][t])/2; V[t][v]=V[v][t]=m; }
+  return V; }
+/* each aliased column as the kept ones make it: [{j, M (by kept position)}] */
+function lsqAlias(Q){ return Q.alias.map(j=>{ const z=Q.sc[j]>0?lsqBack(Q,Q.C[j]):new Float64Array(Q.kept.length); return {j,M:Array.from(z,(v,t)=>v*Q.sc[j]/Q.sc[Q.kept[t]])}; }); }
+/* Σ (a − b)² of two fits' residuals: the sum of squares between nested models */
+function lsqSSBetween(A,B){ const n=A.rh.length, s=[]; for(let i=0;i<n;i++){ const d=(A.rh[i]-B.rh[i])+(A.rl[i]-B.rl[i]); s.push(d*d); } return neuSum(s); }
+/* Terms: each variable (and its powers to spec.pow), then their interactions two at a time, then three…; a term is [[variable, power]…] */
+function lmTerms(vars,spec){ const T=[], pw=Math.max(1,Math.min(LM_MAXV,spec.pow|0||1)); vars.forEach((v,i)=>{ T.push([[i,1]]); if(v.num) for(let d=2;d<=pw;d++) T.push([[i,d]]); });
+  const k=vars.length, top=spec.inter==="all"?k:spec.inter==="pairs"?2:1;
+  for(let s=2;s<=top;s++){ const rec=(st,acc)=>{ if(acc.length===s){ T.push(acc.map(i=>[i,1])); return; } for(let i=st;i<k;i++) rec(i+1,acc.concat([i])); }; rec(0,[]); }
+  return T; }
+const lmTermName=(vars,t)=>t.map(([i,d])=>vars[i].name+(d>1?"^"+d:"")).join(":");
+/* The columns: the intercept, then each term's: a factor's levels after the first (treatment) or less the last (effect), all
+   its levels for the first factor of a model with no intercept; an interaction's the products, its first part varying fastest */
+function ddMulArr(ah,al,bh,bl,n){ const h=new Float64Array(n); let l=null; for(let i=0;i<n;i++){ const a=ah[i], b=bh[i], p=a*b, c=134217729*a, a1=c-(c-a), a2=a-a1, d=134217729*b, b1=d-(d-b), b2=b-b1, e=((a1*b1-p)+a1*b2+a2*b1)+a2*b2+(al?al[i]*b:0)+(bl?a*bl[i]:0), s=p+e; h[i]=s; const lo=e-(s-p); if(lo!==0){ if(!l) l=new Float64Array(n); l[i]=lo; } } return [h,l]; }
+function lmCols(vars,terms,spec,n){ const icpt=spec.icpt!==false, X=[], XL=[], names=[], tc=[]; if(icpt){ X.push(new Float64Array(n).fill(1)); XL.push(null); names.push("(Intercept)"); tc.push(-1); }
+  let spanned=icpt;
+  terms.forEach((t,ti)=>{ let parts=[{x:new Float64Array(n).fill(1),xl:null,nm:""}];
+    t.forEach(([i,d])=>{ const v=vars[i], add=[];
+      if(v.num){ const x0=Float64Array.from(v.x); let h=x0, l=null; for(let k=2;k<=d;k++) [h,l]=ddMulArr(h,l,x0,null,n); add.push({x:h,xl:l,nm:v.name+(d>1?"^"+d:"")}); }
+      else { const L=v.levels.length, full=!spanned&&t.length===1, eff=!full&&spec.coding==="effect", ls=[];
+        for(let l=0;l<L;l++) if(full||(eff?l<L-1:l>0)) ls.push(l);
+        ls.forEach(l=>{ const x=new Float64Array(n); for(let r=0;r<n;r++){ const c=v.code[r]; x[r]=c===l?1:eff&&c===L-1?-1:0; } add.push({x,xl:null,nm:`${v.name}[${v.levels[l]}]`}); });
+        if(full) spanned=true; }
+      const np=[]; add.forEach(a=>parts.forEach(q=>{ const [x,xl]=ddMulArr(q.x,q.xl,a.x,a.xl,n); np.push({x,xl,nm:q.nm?q.nm+":"+a.nm:a.nm}); })); parts=np; });
+    parts.forEach(q=>{ X.push(q.x); XL.push(q.xl); names.push(q.nm); tc.push(ti); }); });
+  return {X,XL,names,tc}; }
+/* The whole model (linModel): vars [{name, num, x | code, levels}], y, spec {inter, pow, coding, icpt, ss 1|2|3, conf}.
+   {n, names, b, se, t, p, lo, hi (null where aliased), alias [{j, M}], rank, dfr, rss, s, r2, ar2, F, df1, pF, anova {type, rows}} */
+function linModel(vars,y,spec){ const n=y.length, icpt=spec.icpt!==false, terms=lmTerms(vars,spec), D=lmCols(vars,terms,spec,n), m=D.X.length;
+  if(m>LM_MAXC) return {fail:`The model has ${m} columns; ${LM_MAXC} at most.`};
+  const F=lsqFit(D.X,y,n,{XL:D.XL}), Q=F.Q, rank=F.rank, dfr=n-rank;
+  if(dfr<1) return {fail:`${n} rows for ${rank} coefficients: no degrees of freedom left for the error.`};
+  const s2=F.rss/dfr, V=lsqCovU(Q,D.X,D.XL), conf=+spec.conf||0.95, tq=DIST.t.isf((1-conf)/2,dfr), pos=new Map(Q.kept.map((j,t)=>[j,t]));
+  const b=[], se=[], tv=[], pv=[], lo=[], hi=[];
+  for(let j=0;j<m;j++){ if(!pos.has(j)){ b.push(null); se.push(null); tv.push(null); pv.push(null); lo.push(null); hi.push(null); continue; }
+    const t=pos.get(j), e=Math.sqrt(s2*V[t][t]), bj=F.b[j], tt=bj/e; b.push(bj); se.push(e); tv.push(tt); pv.push(2*DIST.t.sf(Math.abs(tt),dfr)); lo.push(bj-tq*e); hi.push(bj+tq*e); }
+  /* Sums of squares. Type I from prefixes of the one QR (columns are in the terms' order), each refined; II and III by Wald's
+     identity on the model compared (exactly the fit lost), refitted without the term where that model has aliased columns. */
+  const zero={rh:Float64Array.from(y),rl:new Float64Array(n),rank:0}, pre=new Map(), preFit=B=>{ if(!B) return zero; if(B===m) return F;
+    if(!pre.has(B)) pre.set(B,lsqFit(D.X.slice(0,B),y,n,{XL:D.XL.slice(0,B),Q:lsqPrefix(Q,B)})); return pre.get(B); };
+  const B0=preFit(icpt?1:0), ssm=lsqSSBetween(B0,F), df1=rank-(icpt?1:0), sst=neuSum(Array.from(B0.rh,(h,i)=>{ const v=h+B0.rl[i]; return v*v; }));
+  const r2=sst>0?ssm/sst:null, ar2=r2==null?null:1-(1-r2)*(n-(icpt?1:0))/dfr, Fm=df1>0?(ssm/df1)/s2:null;
+  const ty=[1,2,3].includes(+spec.ss)?+spec.ss:3, rows=[], TI=terms.map((_,u)=>u);
+  const colsOf=(D0,keep)=>D0.X.map((_,j)=>j).filter(j=>D0.tc[j]===-1||keep.includes(D0.tc[j]));
+  const contains=(u,t)=>t.every(([i,d])=>u.some(([i2,d2])=>i2===i&&d2===d));
+  const sub=new Map(), subFit=(D0,cols,cov)=>{ const key=(D0===D?"":"e")+cols.join(","); let o=sub.get(key);
+    if(!o){ const Xs=cols.map(j=>D0.X[j]), XLs=cols.map(j=>D0.XL[j]); o={F:cols.length?lsqFit(Xs,y,n,{XL:XLs}):zero,Xs,XLs}; sub.set(key,o); }
+    if(cov&&!o.V&&cols.length) o.V=lsqCovU(o.F.Q,o.Xs,o.XLs); return o; };
+  if(D.X.length===m) sub.set(D.X.map((_,j)=>j).join(","),{F,V,Xs:D.X,XLs:D.XL});
+  /* type III by effect coding (a factor's levels summing to zero): it differs from the treatment coding's only where a factor is in an interaction */
+  const D3=ty===3&&spec.coding!=="effect"&&terms.some(t=>t.length>1&&t.some(([i])=>!vars[i].num))?lmCols(vars,terms,Object.assign({},spec,{coding:"effect"}),n):D;
+  terms.forEach((t,ti)=>{ let ss=null, df=0;
+    if(ty===1){ const a=colsOf(D,TI.filter(u=>u<ti)).length, b=colsOf(D,TI.filter(u=>u<=ti)).length, fA=preFit(a), fB=preFit(b); df=fB.rank-fA.rank; ss=lsqSSBetween(fA,fB); }
+    else { const D0=ty===3?D3:D, keep=ty===3?TI:TI.filter(u=>u===ti||!contains(terms[u],t)), Bc=colsOf(D0,keep), A=colsOf(D0,keep.filter(u=>u!==ti)), mod=subFit(D0,Bc,true);
+      const mine=Bc.map((j,k)=>[j,k]).filter(([j])=>D0.tc[j]===ti).map(([,k])=>k);
+      if(!mod.F.Q.alias.length&&mod.V){ ss=lsqWald(mod.F,mod.V,mine); df=mine.length; }
+      if(ss==null){ const fA=subFit(D0,A,false).F; df=mod.F.rank-fA.rank; ss=lsqSSBetween(fA,mod.F); } }
+    rows.push({term:lmTermName(vars,t),df,ss,ms:df>0?ss/df:null,F:df>0?ss/df/s2:null,p:df>0?DIST.F.sf(ss/df/s2,df,dfr):null}); });
+  return {n,names:D.names,tc:D.tc,terms:terms.map(t=>lmTermName(vars,t)),b,se,t:tv,p:pv,lo,hi,alias:lsqAlias(Q),kept:Q.kept,V,rank,dfr,rss:F.rss,s:Math.sqrt(s2),s2,
+    r2,ar2,F:Fm,df1,pF:Fm==null?null:DIST.F.sf(Fm,df1,dfr),ssm,sst,anova:{type:ty,rows},conf,fit:F}; }
+/* A contrast typed: a sum of coefficients, each with a number before it (or none), names as the table has them; "= c" tests
+   against c. {L (by column), c} or {fail} in words. */
+function lmContrastParse(text,names){ let s=String(text||"").trim(), c=0; if(!s) return {fail:"empty"};
+  const eq=s.lastIndexOf("="); if(eq>=0){ const r=s.slice(eq+1).trim(), v=Number(r.replace(/−/g,"-")); if(r===""||!Number.isFinite(v)) return {fail:`“${r}” after = is not a number`}; c=v; s=s.slice(0,eq).trim(); }
+  s=s.replace(/−/g,"-"); const L=new Float64Array(names.length), byLen=names.map((nm,j)=>[nm,j]).sort((a,b)=>b[0].length-a[0].length); let i=0, any=false;
+  /* an interaction's parts in any order: x:B[hi] for B[hi]:x (up to four parts) */
+  const perms=a=>a.length<2?[a]:a.flatMap((x,k)=>perms(a.slice(0,k).concat(a.slice(k+1))).map(r=>[x].concat(r)));
+  const byAlt=[]; names.forEach((nm,j)=>{ const parts=nm.split(":"); if(parts.length>1&&parts.length<=4) perms(parts).forEach(q=>{ const t=q.join(":"); if(t!==nm) byAlt.push([t,j]); }); }); const byAny=byLen.concat(byAlt).sort((a,b)=>b[0].length-a[0].length);
+  const ws=()=>{ while(i<s.length&&/\s/.test(s[i])) i++; };
+  while(true){ ws(); if(i>=s.length) break; let sg=1; if(s[i]==="+"||s[i]==="-"){ if(s[i]==="-") sg=-1; i++; ws(); } else if(any) return {fail:`a + or − is missing before “${s.slice(i,i+20)}”`};
+    let k=1; const mnum=/^(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?/.exec(s.slice(i)); if(mnum){ k=+mnum[0]; i+=mnum[0].length; ws(); if(s[i]==="*"||s[i]==="×"||s[i]==="·"){ i++; ws(); } else if(s[i]==="/"){ i++; ws(); const md=/^(\d+(\.\d*)?|\.\d+)/.exec(s.slice(i)); if(!md) return {fail:"a number is missing after /"}; k/=+md[0]; i+=md[0].length; ws(); if(s[i]==="*"){ i++; ws(); } } }
+    const hit=byAny.find(([nm])=>s.startsWith(nm,i)); if(!hit) return {fail:`“${s.slice(i,i+24)}” is not the name of a coefficient`};
+    L[hit[1]]+=sg*k; i+=hit[0].length; any=true; }
+  if(!any) return {fail:"no coefficient named"}; return {L,c}; }
+function lmContrast(M,text){ const q=lmContrastParse(text,M.names); if(q.fail) return q; const L=q.L, pos=new Map(M.kept.map((j,t)=>[j,t]));
+  for(const a of M.alias){ let w=0, sc=Math.abs(L[a.j]); a.M.forEach((mv,t)=>{ w+=mv*L[M.kept[t]]; sc+=Math.abs(mv*L[M.kept[t]]); }); if(Math.abs(L[a.j]-w)>1e-8*(sc+1)) return {fail:"not estimable: it reads a combination the data cannot separate"}; }
+  const r=M.kept.length, l=M.kept.map(j=>L[j]); let est=[]; M.kept.forEach((j,t)=>est.push(l[t]*M.b[j])); const e=neuSum(est)-q.c;
+  const vv=[]; for(let t=0;t<r;t++) for(let u=0;u<r;u++) if(l[t]&&l[u]) vv.push(l[t]*l[u]*M.V[t][u]); const se=Math.sqrt(Math.max(0,neuSum(vv))*M.s2), tt=e/se, tq=DIST.t.isf((1-M.conf)/2,M.dfr);
+  return {est:e,c:q.c,se,t:tt,p:se>0?2*DIST.t.sf(Math.abs(tt),M.dfr):null,lo:e-tq*se,hi:e+tq*se}; }
+// The linear model's kind (STATS_SPEC 2.5): a response, and the columns it is modelled by, numbers or factors (text and
+// categorical columns, and numbers ticked as factors), with their interactions and powers; the model's fit, the coefficients,
+// the analysis of variance by type I, II or III sums of squares, and contrasts typed. Over the rows complete in every column.
+const LM_INTER=[["none","None"],["pairs","Every pair"],["all","Every combination"]], LM_SS=[[1,"Type I (sequential)"],[2,"Type II"],[3,"Type III"]];
+function lmSpecOf(p){ return {inter:LM_INTER.some(e=>e[0]===p.inter)?p.inter:"none",pow:Math.max(1,Math.min(LM_MAXV,(p.pow|0)||1)),coding:p.coding==="effect"?"effect":"treat",icpt:p.icpt!==false,ss:[1,2,3].includes(+p.ss)?+p.ss:3,conf:anaConf(p)}; }
+ANA_KINDS.lm={label:"Linear model", base:"Model", cats:true, xs:true,
+  help:"A response modelled by numbers and factors, with interactions and powers: the coefficients with t, p and intervals, R², the analysis of variance by type I, II or III sums of squares, contrasts.",
+  heavy(p,ins){ const n=ins.reduce((a,q)=>Math.max(a,(q.rows||[]).length),0), sp=lmSpecOf(p||{}), d=ins.slice(1).map(q=>q.cats?Math.max(1,new Set(q.cats.keys).size-1):sp.pow);
+    let m=1+d.reduce((a,b)=>a+b,0); if(sp.inter!=="none") for(let i=0;i<d.length;i++) for(let j=i+1;j<d.length;j++) m+=d[i]*d[j]; return n*m*m*(d.length+3)>4e7; },
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[], sp=lmSpecOf(p);
+    if(ins.some(q=>q.groups)) return {fail:"The linear model reads columns: the factors are columns of their own."};
+    const yi=Math.max(0,ins.findIndex(q=>q.id&&q.id===p.y)), yq=ins[yi]; if(!yq) return {fail:"No column chosen."};
+    if(yq.cats) return {fail:`${yq.name} holds text: the response is a column of numbers.`};
+    const preds=ins.filter((_,i)=>i!==yi); if(preds.length>LM_MAXV) return {fail:`${preds.length} columns to model by; ${LM_MAXV} at most.`};
+    if(!preds.length&&!sp.icpt) return {fail:"Nothing to model by: tick a column, or keep the intercept."};
+    const fac=new Set(Array.isArray(p.fac)?p.fac:[]), isF=q=>!!q.cats||fac.has(q.id);
+    const maps=ins.map(q=>{ const m=new Map(); (q.rows||[]).forEach((r,i)=>{ const v=q.cats?q.cats.keys[i]:q.vals[i]; if(r>=0&&v!=null&&v!==""&&(q.cats||isF(q)||Number.isFinite(v))) m.set(r,v); }); return m; });
+    const any=new Set(); maps.forEach(m=>m.forEach((_,r)=>any.add(r)));
+    const rows=[...maps[yi].keys()].filter(r=>maps.every(m=>m.has(r))).sort((a,b)=>a-b), out=any.size-rows.length;
+    if(out) notes.push(`${out} row${out===1?"":"s"} without a value in every column left out.`);
+    if(rows.length<2) return {fail:"Fewer than two rows have a value in every column."};
+    const vars=[];
+    preds.forEach(q=>{ const i=ins.indexOf(q), v=rows.map(r=>maps[i].get(r));
+      if(!isF(q)){ vars.push({name:q.name,num:true,x:v}); return; }
+      const lv=freqLevels(v,q.cats?q.cats.order:null); if(lv.fail) return; const key=k=>typeof k==="number"?+(+k).toPrecision(12):String(k), idx=new Map(lv.rows.map((o,j)=>[key(o.lev),j]));
+      if(lv.rows.length<2){ notes.push(`${q.name} has one level only: left out.`); return; }
+      vars.push({name:q.name,num:false,levels:lv.rows.map(o=>typeof o.lev==="number"?fmt(o.lev,8):String(o.lev)),code:v.map(k=>idx.get(key(k)))}); });
+    const y=rows.map(r=>maps[yi].get(r)), M=linModel(vars,y,sp); if(M.fail) return M;
+    const al=M.alias.map(a=>M.names[a.j]); if(al.length) notes.push(`No coefficient for ${al.join(", ")}: ${al.length===1?"a combination":"combinations"} of other columns.`);
+    const coef=M.names.map((nm,j)=>({term:nm,b:M.b[j],se:M.se[j],t:M.t[j],p:M.p[j],lo:M.lo[j],hi:M.hi[j]})), pc=anaPct(sp.conf);
+    anaTab("",[["term","Term"],["b","Estimate"],["se","Standard error"],["t","t"],["p","p"],["lo",`${pc} interval, from`],["hi","to"]],coef,cols,[]);
+    secs.push({title:"Model",tables:[{head:["N","R²","Adjusted R²","Root MSE","F","df","df (error)","p"],rows:[[M.n,anaNum(M.r2),anaNum(M.ar2),anaNum(M.s),anaNum(M.F),M.df1,M.dfr,anaNum(M.pF)]]}]});
+    /* the report as narrow as a docked window allows: t (the estimate over its error) and the mean squares (over df) on the sheet and in the copy alone */
+    anaTab("Coefficients",[["term","Term"],["b","Estimate"],["se","Standard error"],["p","p"]],coef,[],secs);
+    anaTab(`Coefficients, ${pc} interval`,[["term","Term"],["lo","Lower"],["hi","Upper"]],coef,[],secs);
+    const av=M.anova.rows.map(o=>Object.assign({},o)).concat([{term:"Error",df:M.dfr,ss:M.rss,ms:M.s2},{term:sp.icpt?"Total (about the mean)":"Total",df:M.n-(sp.icpt?1:0),ss:M.sst}]);
+    if(M.anova.rows.length) anaTab(`Analysis of variance, type ${["I","II","III"][M.anova.type-1]}`,[["term","Source"],["df","df"],["ss","Sum of squares"],["F","F"],["p","p"]],av,[],secs);
+    const lines=String(p.contrasts||"").split(/\r?\n/).map(s=>s.trim()).filter(Boolean), ct=[];
+    lines.forEach((ln,i)=>{ const c=lmContrast(M,ln); if(c.fail) notes.push(`Contrast ${i+1}, “${ln}”: ${c.fail}.`); else ct.push(Object.assign({k:ln},c)); });
+    if(ct.length){ anaTab("Contrasts",[["k","Contrast"],["est","Estimate"],["se","Standard error"],["p","p"]],ct,[],secs); anaTab(`Contrasts, ${pc} interval`,[["k","Contrast"],["lo","Lower"],["hi","Upper"]],ct,[],secs); }
+    if(p.resid){ const F=M.fit, fit=[], res=[]; for(let i=0;i<M.n;i++){ const r=F.rh[i]+F.rl[i]; res.push(r); fit.push(y[i]-r); }
+      cols.push({k:"row",name:"Row",vals:rows.map(r=>r+1)},{k:"fit",name:"Fitted",vals:fit},{k:"res",name:"Residual",vals:res}); }
+    const method=[`Least squares by Householder QR, refined in double-double, over the ${M.n} rows complete in every column.`,vars.some(v=>!v.num)?(sp.coding==="effect"?"Factors coded by effect: each level against the mean of the levels, the last left out.":"Factors coded by treatment: each level against the first."):"",
+      M.anova.rows.length?`Type ${["I","II","III"][M.anova.type-1]} sums of squares${M.anova.type===3&&vars.some(v=>!v.num)?" (with effect coding)":""}.`:"",sp.icpt?"":"No intercept: R² is about zero, not the mean."].filter(Boolean).join(" ");
     return {tables:[{cols}],report:{sections:secs,method},notes}; }};
 // A kind run by name: the page's call, and the worker's ("call" job).
 function anaRunKind(kind,ins,p){ const K=ANA_KINDS[kind]; if(!K) throw new Error("the analysis "+kind+" is not known here"); return K.run(ins,p||{}); }
@@ -16003,7 +16227,7 @@ function anaInputs(a,cs,by,notes,K){ const rr=anaRowsOf(a.in), list=a.in.miss===
   if(list){ let common=null; rd.forEach(d=>{ const s=new Set(d.rows.filter(i=>i>=0)); common=common?new Set([...common].filter(i=>s.has(i))):s; });
     let out=0; rd.forEach(d=>{ out+=keepRows(d,i=>common.has(i)); });
     if(out) notes.push(`Listwise: the ${common.size} row${common.size===1?"":"s"} with a value in every column chosen; ${out} value${out===1?"":"s"} in other rows left out.`); }
-  return rd.map(d=>{ const c=d.c, r=d.r, q={name:specName(c),ref:colRef(c),unit:c.unit||"",vals:d.vals,rows:d.rows,nMasked:r.nMasked,groups:null,missing:d.missing,cats:null};
+  return rd.map(d=>{ const c=d.c, r=d.r, q={id:c.id,name:specName(c),ref:colRef(c),unit:c.unit||"",vals:d.vals,rows:d.rows,nMasked:r.nMasked,groups:null,missing:d.missing,cats:null};
     if(r.nMasked) notes.push(`${r.nMasked} masked point${r.nMasked===1?"":"s"} of ${q.name} left out.`);
     if(d.lev){ q.cats={keys:d.keys,order:catOrderKeys(c)}; return q; }
     if(r.rowsKind==="dep") notes.push(`${q.name} is read after ${r.steps.join(", ").toLowerCase()}: neighbouring values depend on each other.`);
@@ -16021,7 +16245,7 @@ function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p)
   // A large one is worked out by the compute worker (1.3c), its result put in when it comes back
   // (anaDone), if what it read has not changed meanwhile; the page goes on.
   const nv=ins.reduce((t,q)=>t+q.vals.length,0);
-  if((nv>=ANA_BIG||K.heavy&&K.heavy(a.p||{},ins))&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats})),notes,sig); return "later"; }
+  if((nv>=ANA_BIG||K.heavy&&K.heavy(a.p||{},ins))&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({id:q.id,name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats})),notes,sig); return "later"; }
   let out; try{ out=anaRunKind(a.kind,ins,a.p||{}); }catch(e){ out={fail:String(e&&e.message||e)}; }
   return anaApply(a,p,out,notes,sig); }
 function anaApply(a,p,out,notes,sig){
@@ -16143,6 +16367,26 @@ const ANA_FORMS={
       return `<p class="lab">Coefficients</p><div class="anastats">${CORR_KINDS.map(([k,nm])=>`<label class="chk"><input type="checkbox" id="aK_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div><div class="grid2">${altSel(p.alt)}${confSel(p)}</div>`; },
     read(v,p0){ return {methods:CORR_KINDS.map(e=>e[0]).filter(k=>v["aK_"+k]),alt:ANA_ALT[v.aAlt]?v.aAlt:"two",conf:+v.aCf||0.95,scatter:!!(p0&&p0.scatter)}; },
     valid(v){ return CORR_KINDS.some(([k])=>v["aK_"+k]); }},
+  lm:{noGroup:true, html(p){ const sp=lmSpecOf(p);
+      return `<div class="grid2"><label for="aLy">Response</label><select id="aLy" data-y="${esc(p.y||"")}"></select></div>
+      <p class="lab tipd" title="Each level its own effect. A column of text, or a categorical one, is always a factor">Factors</p><div class="anastats" id="aLfac" data-fac="${esc((Array.isArray(p.fac)?p.fac:[]).join(","))}"></div>
+      <div class="grid2"><label for="aLi">Interactions</label><select id="aLi">${LM_INTER.map(([k,t])=>`<option value="${k}"${k===sp.inter?" selected":""}>${t}</option>`).join("")}</select>
+      <label for="aLp" class="tipd" title="Each number column's square, cube… as terms of their own">Powers up to</label><select id="aLp">${Array.from({length:LM_MAXV},(_,i)=>`<option value="${i+1}"${i+1===sp.pow?" selected":""}>${i+1}</option>`).join("")}</select>
+      <label for="aLc" class="tipd" title="Treatment: each level against the first. Effect: each level against the mean of the levels">Factor coding</label><select id="aLc"><option value="treat">Treatment</option><option value="effect"${sp.coding==="effect"?" selected":""}>Effect</option></select>
+      <label for="aLs">Sums of squares</label><select id="aLs">${LM_SS.map(([k,t])=>`<option value="${k}"${k===sp.ss?" selected":""}>${t}</option>`).join("")}</select>
+      ${confSel(p)}
+      <span></span><label class="chk"><input type="checkbox" id="aLn"${sp.icpt?" checked":""}> Intercept</label>
+      <span></span><label class="chk"><input type="checkbox" id="aLr"${p.resid?" checked":""}> Fitted values and residuals</label>
+      <label for="aLct" class="tipd" title="One a line: coefficients by their names in the table, each with a number before it if needed; = a value to test against">Contrasts</label><textarea id="aLct" rows="2" placeholder="A[b] − A[c]">${esc(p.contrasts||"")}</textarea></div>`; },
+    wire(box){ const ys=box.querySelector("#aLy"), fb=box.querySelector("#aLfac"); if(!ys||!fb) return; const wantY=ys.dataset.y, fac0=new Set((fb.dataset.fac||"").split(",").filter(Boolean)), seen=new Set();
+      const on=()=>{ const ids=[...box.querySelectorAll('input[id^="aI_"]')].filter(x=>x.checked).map(x=>x.id.slice(3)), cur=ys.value||wantY||ids.find(id=>{ const c=colById(id); return c&&c.role==="y"&&!isCatCol(c)&&!textCount(c); })||"";
+        ys.innerHTML=ids.map(id=>{ const c=colById(id); return `<option value="${id}"${id===cur?" selected":""}>${esc(colLetter(c)+" "+(c.name||""))}</option>`; }).join(""); const y=ys.value;
+        const keep=new Map([...fb.querySelectorAll('input[id^="aLf_"]')].map(x=>[x.id.slice(4),x.checked]));
+        fb.innerHTML=ids.filter(id=>id!==y).map(id=>{ const c=colById(id), txt=isCatCol(c)||textCount(c)>0, on=txt||(keep.has(id)?keep.get(id):fac0.has(id)); return `<label class="chk"><input type="checkbox" id="aLf_${id}"${on?" checked":""}${txt?" disabled":""}> ${esc(colLetter(c)+" "+(c.name||""))}</label>`; }).join("")||`<span class="muted">The other columns ticked</span>`; };
+      box.addEventListener("change",e=>{ if(e.target&&(e.target.id||"").startsWith("aLf_")) return; on(); }); on();
+      setTimeout(()=>ys.dispatchEvent(new Event("input",{bubbles:true})),0); /* the form checks OK again now that the response is chosen */ },
+    read(v){ return {y:v.aLy||null,fac:Object.keys(v).filter(k=>k.startsWith("aLf_")&&v[k]).map(k=>k.slice(4)),inter:v.aLi,pow:+v.aLp||1,coding:v.aLc==="effect"?"effect":"treat",ss:+v.aLs||3,conf:+v.aCf||0.95,icpt:!!v.aLn,resid:!!v.aLr,contrasts:String(v.aLct||"").trim()}; },
+    valid(v){ return !!v.aLy; }},
   anova1:{html(p){ const on=new Set(anovaComps(p));
       return `<p class="lab">Comparisons</p><div class="anastats">${COMP_KINDS.map(([k,nm])=>`<label class="chk"><input type="checkbox" id="aC_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div>
       <div class="grid2"><label for="aCtl">Control</label><select id="aCtl" data-ctl="${esc(p.ctrl==null?"":String(p.ctrl))}"></select>${confSel(p)}
@@ -16184,7 +16428,7 @@ const ANA_FORMS={
 // settings, how it recalculates. o.id changes an analysis; o.cols starts with those columns ticked.
 async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kind]||{}, p=P(); if(!K||!p||S.readOnly) return; if(S.ws&&S.ws.edit) wsCommit(0,0,true);
   const a0=o.id?anaOf(o.id):null, sid=a0?sheetOf(colById(a0.in.cols[0])||{})||curSheet():anaOfSheet(curSheet())?SHEET0.id:curSheet();
-  const cand=sheetCols(sid).filter(c=>!c.ana&&(c.role==="y"||c.role==="ignore")&&(anyVal(c.data)||(K.cats&&hasVals(c)))).concat(yCols().filter(c=>c.src&&!sheetCols(sid).includes(c)));
+  const cand=sheetCols(sid).filter(c=>!c.ana&&(c.role==="y"||c.role==="ignore"||K.xs&&c.role==="x")&&(anyVal(c.data)||(K.cats&&hasVals(c)))).concat(yCols().filter(c=>c.src&&!sheetCols(sid).includes(c)));
   if(!cand.length&&!K.typed){ toast(K.cats?"There is no column with values on this sheet to count.":"There is no column of numbers on this sheet to work out."); return; }
   const sel=new Set(a0?a0.in.cols:(o.cols||(wsSelColIds?wsSelColIds():[])).filter(id=>cand.some(c=>c.id===id)));
   if(!sel.size&&cand.length){ const act=activeYCol(); if(act&&cand.includes(act)) sel.add(act.id); else sel.add(cand[0].id); if(o.two&&cand.length>1){ const nx=cand.find(c=>!sel.has(c.id)); if(nx) sel.add(nx.id); } }
@@ -22153,7 +22397,8 @@ function analyzeMenu(){
         {label:"Graphical summary", title:"A figure of the column's histogram with a normal curve over it, and its box chart", run:()=>graphSummary(), enabled:!S.readOnly&&has},"-",
         {label:"Normality tests…", title:ANA_KINDS.norm.help, run:()=>anaDlg("norm"), enabled:!S.readOnly&&!!P()},
         {label:"Outliers…", title:ANA_KINDS.outl.help, run:()=>anaDlg("outl"), enabled:!S.readOnly&&!!P()}]},
-      {label:"ANOVA", sub:()=>[{label:"One-way ANOVA…", title:ANA_KINDS.anova1.help, run:()=>anaDlg("anova1",{two:true}), enabled:!S.readOnly&&!!P()}]},
+      {label:"ANOVA", sub:()=>[{label:"One-way ANOVA…", title:ANA_KINDS.anova1.help, run:()=>anaDlg("anova1",{two:true}), enabled:!S.readOnly&&!!P()},
+        {label:"Linear model…", title:ANA_KINDS.lm.help, run:()=>anaDlg("lm",{two:true}), enabled:!S.readOnly&&!!P()}]},
       {label:"Nonparametric", sub:()=>[["mw","Mann–Whitney…",true],["wsr","Wilcoxon signed-rank…"],["sign","Sign test…"],["kw","Kruskal–Wallis…",true],["fried","Friedman…",true],["mood","Mood's median test…",true],["ks2","Two-sample Kolmogorov–Smirnov…",true]].map(([k,label,two])=>({label,title:ANA_KINDS[k].help,run:()=>anaDlg(k,two?{two:true}:{}),enabled:!S.readOnly&&!!P()}))},
       {label:"Hypothesis tests", sub:()=>[{label:"t tests…", title:ANA_KINDS.ttest.help, run:()=>anaDlg("ttest"), enabled:!S.readOnly&&!!P()},
         {label:"Comparing spreads…", title:ANA_KINDS.vartest.help, run:()=>anaDlg("vartest"), enabled:!S.readOnly&&!!P()},
@@ -24843,7 +25088,7 @@ ${DL([["Area ± error","The trapezoidal sum over the points in the window, less 
 ${DL([["Net counts","The counts in the window less the continuum under them: a straight line through the mean of the channels at each edge (as many as the line baselines use). ± one standard deviation from counting: the counts' own and the continuum's."],["Detected","Above Currie's critical level, 95 %: on a continuum alone, one window in twenty is called detected. Below it, the level is shown."],["Emission, efficiency","Type the share of decays that give the line and the detector's efficiency at its energy, both in %."],["Activity","Net counts ÷ (live time × efficiency × emission), in becquerel, with the counting error. Not detected: the detection limit as an activity, the smallest that would be."]])}
 <p>Counting needs the counts as recorded: an energy calibration, a count rate or a crop keep them; smoothing or a subtracted background do not, and the part says so.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
-{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v",
+{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v linear model general linear model glm regression multiple regression ancova covariate factor interaction polynomial treatment coding effect coding type i type ii type iii sums of squares contrast estimable aliased qr",
  lead:"An analysis reads columns and writes what it finds into a result sheet of its own, worked out again when its data change.",
  body:`<h2>Statistics on columns</h2>
 <p>${MP("Analyze › Statistics › Descriptive › Statistics on columns…")}: tick the columns and the statistics, and each column gets a row of a new sheet. Ticked at first are N, the rows missing, mean, standard deviation, standard error of the mean, minimum, Q1, median, Q3, maximum and sum; besides them, the mean's interval, variance, coefficient of variation, range, IQR, MAD, robust SD, the mode and its count, skewness, kurtosis, the geometric and harmonic means, and any percentiles typed (<code>5, 95</code>). <em>Group by</em> a column of text or categories gives a row for each column and group.</p>
@@ -24869,6 +25114,10 @@ ${DL([["t tests…","One sample against a value; two samples, the first two colu
 <p>${MP("Analyze › Statistics › ANOVA › One-way ANOVA…")}: the groups as columns ticked, or one column grouped by another. The table: between and within groups, their degrees of freedom, sums of squares, mean squares, F and p, η² (the between share of the total) and ω² (the same, less its bias). <em>Welch's F</em> weights each group by its own variance.</p>
 ${DL([["Tukey–Kramer","Every pair; q and p from the studentized range, intervals simultaneous for all pairs."],["Bonferroni, Šidák","Every pair by t on the pooled variance, p multiplied by the number of pairs (Šidák: 1 − (1 − p)^m)."],["Holm","Bonferroni step by step from the smallest p; no interval."],["Scheffé","F = t²/(k − 1); intervals for every contrast, so the widest."],["Fisher's LSD","t on the pooled variance, p unadjusted."],["Games–Howell","Every pair with each group's own variance and Welch's degrees of freedom."],["Dunnett","Each group against the control chosen, two-sided."]])}
 <p><em>Means plot</em> (under the report) graphs each group's mean with its interval from the pooled SD.</p>
+<h2 id="lm">Linear model</h2>
+<p>${MP("Analyze › Statistics › ANOVA › Linear model…")}: a <em>Response</em> among the columns ticked, modelled by the others, over the rows with a value in every one. A column of numbers is a variable unless ticked under <em>Factors</em>; a column of text, or a categorical one, is a factor, each level an effect of its own.</p>
+${DL([["Interactions","None; every pair of the columns; or every combination (A:B, A:C, B:C, A:B:C…). A factor in an interaction gives a column for each pair of its levels and the other's."],["Powers up to","Each number column's square, cube… as terms of their own (x^2, x^3), for a polynomial."],["Factor coding","Treatment: a coefficient for each level but the first, its difference from the first. Effect: a coefficient for each level but the last, its difference from the mean of the levels."],["Sums of squares","Type I: each term after those listed before it. Type II: each term after every other that does not contain it. Type III: each term after all the others, with effect coding (as SAS and Origin)."],["Contrasts","One a line, a sum of coefficients by the names the table gives them, each with a number before it if needed: <code>A[b] − A[c]</code>, <code>x + 2 x^2</code>, <code>A[b] = 1</code>. Its estimate, standard error, t, p and interval; refused where the data cannot separate it (a combination of aliased columns)."],["Fitted values and residuals","Three columns on the result sheet: the row, the fitted value and the residual."]])}
+<p>The report: the model (N, R², adjusted R², root MSE, F with its degrees of freedom and p), the coefficients with their standard errors, t, p and intervals, the analysis of variance, and the contrasts. A column that is a combination of the columns before it (a factor's level missing from a cell, a column repeated) has no coefficient, and the notes name it. The arithmetic is checked against exact rational arithmetic on NIST's Norris and Longley data, Wampler's polynomials and a polynomial of degree 10 as hard as NIST's Filip.</p>
 <h2 id="ranks">Nonparametric tests</h2>
 <p>${MP("Analyze › Statistics › Nonparametric")}: tests on ranks and signs, which assume no distribution. p is exact while the samples are small, untied and (for the signed-rank test) have no zeros, as R decides; else by the normal approximation with the tie and continuity corrections. <em>p</em> in the dialog forces either.</p>
 ${DL([["Mann–Whitney…","Two samples: U of the first, p, the shift (the median of every first − second difference, Hodges–Lehmann) with its interval, and the rank-biserial r (2U/(n₁n₂) − 1)."],["Wilcoxon signed-rank…","One sample against a value, or two columns paired by rows: T+ and T−, p, the pseudo-median (the median of the Walsh averages) with its interval. Zeros are dropped (Wilcoxon's) or ranked and then dropped (Pratt's)."],["Sign test…","The values above and below the value tested against, the exact binomial p, the median with an interval from order statistics, and that interval's own level."],["Kruskal–Wallis…","The groups of one factor: H corrected for ties, its df and p, ε², each group's mean rank; Dunn's comparisons of the mean ranks, adjusted by Holm or Bonferroni."],["Friedman…","Columns as treatments, rows as blocks (rows complete in every column): Q corrected for ties, p, Kendall's W, each column's rank sum."],["Mood's median test…","Each group's values above the grand median and not above it, and χ² of that table (Yates's correction with two groups)."],["Two-sample Kolmogorov–Smirnov…","The largest distance D between the two samples' distribution functions (or one side's), its p exact up to a million steps of the lattice, else asymptotic."]])}

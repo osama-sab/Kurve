@@ -298,6 +298,21 @@ intervals; types I, II and III sums of squares; estimable contrasts. The engine 
 use. NIST's Norris here, Longley from statsmodels; Filip, Wampler 1–5, Pontius and NoInt when the
 host is reached (Filip, degree 10, defeats the normal equations: the test that QR is QR).
 
+Built (12.11):
+- **The engine** (`linModel`): the design from numbers and factors (treatment or effect coding; all levels for the first
+  factor of a model with no intercept), interactions (none, every pair, every combination) and powers; Householder QR on
+  columns scaled to length 1, in order, a column whose length left is under 1e-11 of its own aliased (R's rule, tighter:
+  R's 1e-7 calls Filip singular); the solution refined on the augmented system with the residuals, the design's products
+  and powers, and the solution itself in double-double; the covariance refined on XᵀX (condition up to 1e6) or the
+  augmented system (past it). Types I (prefixes of the one QR), II and III (Wald's identity on the refined covariance, or
+  refits where columns are aliased; III by effect coding). Contrasts typed by name, refused where not estimable.
+- **Against exact rationals** (`lm.json`, 18 designs): coefficients, errors, t and sums of squares to 2–6e-16, p to 1e-14;
+  NIST's Longley agrees with its certified values (asserted when the fixtures are made), statsmodels' `anova_lm` types II
+  and III with sum coding. Filip itself waits for the host; a polynomial of degree 10 on 82 points over the same range,
+  condition 1e8, is exact. The fuzzer's random designs agree to 5e-16 up to a condition of 1e11; past about 1e12 Kurve
+  calls a column aliased that exact arithmetic would still separate.
+- **Checked**: `lm.json`, the fuzzer (`linModel@b`, `@se`, `@ss`, `@pF`), stats-test (11), ana-drive (11), perf (two lines).
+
 ## 2.6 Two- and three-way ANOVA
 
 Balanced and unbalanced (type III by default, the type in the method line), interactions, simple effects,
