@@ -320,5 +320,27 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("correlation refuses what it cannot measure, in words", /three pairs/.test(CT([1, 2], [3, 4]).fail) && /no spread/.test(CT([1, 1, 1], [1, 2, 3]).fail) && /every value the same/.test(KT([2, 2, 2], [1, 2, 3]).fail) && /more rows/.test(PC([[1, 2], [3, 4], [5, 7]]).fail));
 }
 
+// Counts in tables (STATS_SPEC 2.10): χ²'s size under independence, Fisher's and McNemar's exact tests at or below
+// their level, a table turned round giving the same, Freeman–Halton of two by two being fisher22, refusals in words.
+{
+  const mb = get("mulberry32")(2010), CH = get("chi2Indep"), FR = get("fisherRC"), MC = get("mcnemarTest"), F22 = get("fisher22");
+  const multi = (n, pr) => { const T = pr.map((r) => r.map(() => 0)), flat = pr.flat(), cum = []; let s = 0; flat.forEach((v) => { s += v; cum.push(s); });
+    for (let k = 0; k < n; k++) { const u = mb() * s; let i = cum.findIndex((c) => u < c); if (i < 0) i = cum.length - 1; const r = Math.floor(i / pr[0].length), c = i % pr[0].length; T[r][c]++; } return T; };
+  const indep = (a, b) => a.map((x) => b.map((y) => x * y));
+  const N = 5000, half = 3.29 * Math.sqrt(0.05 * 0.95 / N), k = { chi: 0, g: 0, fi: 0, mc: 0, n: 0, nf: 0, nm: 0 };
+  for (let i = 0; i < N; i++) {
+    const T = multi(200, indep([0.3, 0.3, 0.4], [0.25, 0.25, 0.25, 0.25])); const c = CH(T, {}); if (!c.fail) { k.n++; if (c.p < 0.05) k.chi++; if (c.pG < 0.05) k.g++; }
+    const S = multi(18, indep([0.5, 0.5], [0.3, 0.3, 0.4])); const f = FR(S); if (!f.fail) { k.nf++; if (f.p < 0.05) k.fi++; }
+    const b = Array.from({ length: 30 }, () => mb() < 0.5).filter(Boolean).length; const m = MC([[10, b], [30 - b, 10]]); if (!m.fail) { k.nm++; if (m.pExact < 0.05) k.mc++; }
+  }
+  check(`χ² of independence near 5 % under independence (3 × 4, 200 counts: within 1 %)`, Math.abs(k.chi / k.n - 0.05) < 0.01 && Math.abs(k.g / k.n - 0.05) < 0.012, [k.chi / k.n, k.g / k.n]);
+  check(`Fisher's exact test (2 × 3, 18 counts) and McNemar's exact test at or below 5 % (+${(half * 100).toFixed(2)} %)`, k.fi / k.nf <= 0.05 + half && k.mc / k.nm <= 0.05 + half, [k.fi / k.nf, k.mc / k.nm]);
+  const T = [[3, 1, 4], [1, 5, 2]], Tt = T[0].map((_, j) => T.map((r) => r[j]));
+  const a = CH(T, {}), b = CH(Tt, {}), fa = FR(T), fb = FR(Tt);
+  check("a table turned round: the same χ², G, V and Fisher's p", Math.abs(a.X2 - b.X2) < 1e-14 && Math.abs(a.G - b.G) < 1e-14 && Math.abs(a.V - b.V) < 1e-15 && Math.abs(fa.p - fb.p) < 1e-15, [a.X2, b.X2, fa.p, fb.p]);
+  const two = [[7, 2], [3, 9]]; check("Fisher's exact test of two by two is fisher22's", FR(two).p === F22(7, 2, 3, 9).p);
+  check("counts refuse what they cannot count, in words", /whole numbers/.test(CH([[1, 2.5], [3, 4]]).fail) && /no counts/.test(CH([[0, 0], [3, 4]]).fail) && /two rows and two columns/.test(CH([[1, 2]]).fail) && /no pair differs/.test(MC([[4, 0], [0, 5]]).fail) && /two by two/.test(MC([[1, 2, 3], [4, 5, 6]]).fail));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

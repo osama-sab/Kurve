@@ -6769,6 +6769,46 @@ function partialCorr(cols){ const k=cols.length, n=cols[0].length; if(n-k<1) ret
   if(!P||P.some(row=>row.some(v=>!Number.isFinite(v)))) return {fail:"The columns depend on each other: the correlation matrix has no inverse."};
   const df=n-k, out=[]; for(let i=0;i<k;i++) for(let j=i+1;j<k;j++){ const r=Math.max(-1,Math.min(1,-P[i][j]/Math.sqrt(P[i][i]*P[j][j]))), t=r*Math.sqrt(df/((1-r)*(1+r))); out.push({i,j,r,t,df,p:tAltP(t,df,"two")}); }
   return {rows:out,df,R}; }
+/* ---- Counts in tables (STATS_SPEC 2.10) ---- */
+// A table of counts checked: rows of whole numbers of 0 or more, every row and column with some; the margins.
+function xtabCheck(T){ if(!Array.isArray(T)||T.length<2||!T.every(r=>Array.isArray(r)&&r.length===T[0].length)||T[0].length<2) return {fail:"A table of counts needs two rows and two columns or more."};
+  for(const r of T) for(const v of r) if(!(Number.isInteger(v)&&v>=0)) return {fail:`Counts are whole numbers of 0 or more: the table holds ${v}.`};
+  const R=T.map(r=>r.reduce((a,b)=>a+b,0)), C=T[0].map((_,j)=>T.reduce((a,r)=>a+r[j],0)), N=R.reduce((a,b)=>a+b,0);
+  if(R.some(v=>v===0)||C.some(v=>v===0)) return {fail:"A row or a column of the table holds no counts."};
+  return {R,C,N}; }
+// Pearson's χ² of independence (Yates' continuity correction for a 2 × 2 table when asked, as R and SciPy), the
+// likelihood ratio G, their df and p, the expected counts and Cramér's V (of the uncorrected χ²).
+function chi2Indep(T,o){ o=o||{}; const m=xtabCheck(T); if(m.fail) return m; const {R,C,N}=m, r=T.length, c=T[0].length, df=(r-1)*(c-1), yates=o.yates!==false&&df===1;
+  const E=T.map((row,i)=>row.map((_,j)=>R[i]*C[j]/N)), tx=[], tc=[], tg=[];
+  T.forEach((row,i)=>row.forEach((O,j)=>{ const e=E[i][j], d=O-e, a=Math.abs(d), y=Math.min(0.5,a); tx.push(d*d/e); tc.push((a-y)*(a-y)/e); const q=R[i]*C[j], u=(O*N-q)/q; tg.push(O===0?e:e*(Math.abs(u)<0.5?(1+u)*log1pmx(u)+u*u:(1+u)*Math.log1p(u)-u)); }));
+  const X2=neuSum(tx), Xc=yates?neuSum(tc):X2, G=2*neuSum(tg);
+  return {r,c,N,R,C,E,df,yates,X2:Xc,p:DIST.chi2.sf(Xc,df),G,pG:DIST.chi2.sf(Math.max(0,G),df),V:Math.sqrt(X2/(N*(Math.min(r,c)-1))),X2u:X2}; }
+// Fisher's exact test of an r × c table (Freeman–Halton): every table with these margins, cell by cell, each one's
+// probability against the observed one's in logarithms; p the sum of those no more probable (R's 1 + 1e-7). At most
+// XTAB_MAX tables. A 2 × 2 table is fisher22's.
+const XTAB_MAX=2e6;
+function fisherRC(T){ const m=xtabCheck(T); if(m.fail) return m; const {R,C,N}=m, r=T.length, c=T[0].length;
+  if(r===2&&c===2){ const f=fisher22(T[0][0],T[0][1],T[1][0],T[1][1]); return f.fail?f:{p:f.p,or:f.or,ci:f.ci,tables:null}; }
+  const lf=new Float64Array(N+1); for(let k=2;k<=N;k++) lf[k]=lf[k-1]+Math.log(k);
+  const lobs=-T.flat().reduce((a,v)=>a+lf[v],0), tol=Math.log1p(1e-7);
+  let sum=0, cnt=0, over=false; const col=C.slice(), row=R.slice();
+  /* cell (i, j): what is left of row i and column j; the last column and the last row are fixed by the margins */
+  const go=(i,j,acc)=>{ if(over) return;
+    if(i===r-1){ let a=acc; for(let k=0;k<c;k++) a-=lf[col[k]]; if(++cnt>XTAB_MAX){ over=true; return; } const d=a-lobs; if(d<=tol) sum+=Math.exp(d); return; }
+    if(j===c-1){ const v=row[i]; if(v>col[j]) return; col[j]-=v; go(i+1,0,acc-lf[v]); col[j]+=v; return; }
+    let restC=0; for(let k=j+1;k<c;k++) restC+=col[k]; const lo=Math.max(0,row[i]-restC), hi=Math.min(row[i],col[j]);
+    for(let v=lo;v<=hi;v++){ row[i]-=v; col[j]-=v; go(i,j+1,acc-lf[v]); row[i]+=v; col[j]+=v; if(over) return; } };
+  const base=R.reduce((a,v)=>a+lf[v],0)+C.reduce((a,v)=>a+lf[v],0)-lf[N];
+  go(0,0,0);
+  if(over) return {fail:`Fisher's exact test: more than ${fmt(XTAB_MAX,3)} tables share these margins.`};
+  /* P(observed) = exp(base + lobs); p = P(observed)·Σ exp(d) */
+  return {p:Math.min(1,Math.exp(base+lobs)*sum),tables:cnt}; }
+// McNemar's test of a 2 × 2 table of paired outcomes: (|b − c| − 1)²/(b + c) on 1 df (without the 1 when asked; not
+// clamped at 0, as R and statsmodels), and the exact binomial p of the discordant pairs (statsmodels' exact).
+function mcnemarTest(T,o){ o=o||{}; if(!(T.length===2&&T[0].length===2)) return {fail:"McNemar's test is for a two by two table of paired outcomes."};
+  const b=T[0][1], c=T[1][0]; if(![b,c].every(v=>Number.isInteger(v)&&v>=0)) return {fail:"Counts are whole numbers of 0 or more."};
+  if(b+c===0) return {fail:"McNemar's test: no pair differs."}; const cc=o.cc!==false, d=Math.abs(b-c), X2=(cc?(d-1)**2:d*d)/(b+c);
+  return {b,c,X2,df:1,p:DIST.chi2.sf(X2,1),pExact:Math.min(1,2*DIST.binom.cdf(Math.min(b,c),b+c,0.5)),cc}; }
 // The statistics Statistics on columns can give, in the order its table has them; the eleven an
 // analysis made before 2.1 has (no `stats` stored) are DESC_DEF.
 const DESC_STATS=[["n","N"],["miss","Missing"],["mean","Mean"],["sd","SD"],["se","SE of mean"],["ci","Mean's interval"],["var","Variance"],["cv","Coefficient of variation"],
@@ -7063,6 +7103,51 @@ ANA_KINDS.corr={label:"Correlation", base:"Correlation",
       want.includes("kendall")?"Kendall's τ-b: p exact without ties under 50 pairs (as R), else normal with the ties' variance.":"",part?`Partial r: each pair given the other columns, over the ${part.n} rows complete in all; p by t on ${part.df} df.`:"",
       `${ANA_ALT[alt]}.`].filter(Boolean).join(" ");
     return {tables:[{cols}],report:{sections:secs,method,pairs:sc.length},notes}; }};
+// Counts in tables (STATS_SPEC 2.10): a cross-table of two columns of categories (row by row), or a table of counts
+// (the columns ticked its columns, the sheet's rows its rows, or the levels of a column of names when grouped by it);
+// χ² of independence with its expected counts, the likelihood ratio G, Fisher's exact test (Freeman–Halton past two by
+// two), McNemar's test (two by two, paired), Cramér's V.
+const XTAB_TESTS=[["chi2","Pearson's χ²"],["g","Likelihood ratio G"],["fisher","Fisher's exact test"],["mcnemar","McNemar's test"]];
+ANA_KINDS.xtab={label:"Counts in tables", base:"Counts", cats:true,
+  help:"A table of counts, or the cross-table of two columns of categories: χ² of independence with the expected counts, the likelihood ratio G, Fisher's exact test, McNemar's test, Cramér's V.",
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[], tests=XTAB_TESTS.map(e=>e[0]).filter(k=>(Array.isArray(p.tests)?p.tests:["chi2"]).includes(k));
+    let T, rn, cn, how;
+    if(p.mode==="table"){ if(ins.length<2) return {fail:"A table of counts needs two columns of counts or more."};
+      if(ins.some(q=>q.cats)) return {fail:"A table of counts reads numbers: a column of text is a column of categories."};
+      cn=ins.map(q=>q.name);
+      if(ins[0].groups){ const names=ins[0].groups.map(g=>g[0]); rn=names.map(String);
+        T=names.map(nm=>ins.map(q=>{ const g=(q.groups||[]).find(x=>x[0]===nm); return g?g[1].reduce((a,b)=>a+b,0):0; })); how="grouped"; }
+      else { const by=ins.map(q=>{ const m=new Map(); q.rows.forEach((r,i)=>m.set(r,q.vals[i])); return m; }), rows=[...by[0].keys()].filter(r=>by.every(m=>m.has(r))).sort((a,b)=>a-b);
+        const left=new Set(); by.forEach(m=>m.forEach((_,r)=>{ if(!rows.includes(r)) left.add(r); })); if(left.size) notes.push(`${left.size} row${left.size===1?"":"s"} without a count in every column left out.`);
+        T=rows.map(r=>by.map(m=>m.get(r))); rn=rows.map(r=>`Row ${r+1}`); how="rows"; } }
+    else { const A=ins[0], B=ins[1]; if(!A||!B) return {fail:"Counts in tables needs two columns of categories (or a table of counts)."};
+      const kv=q=>{ const m=new Map(); if(q.cats) q.rows.forEach((r,i)=>m.set(r,q.cats.keys[i])); else q.rows.forEach((r,i)=>m.set(r,q.vals[i])); return m; }, ma=kv(A), mb=kv(B);
+      const rows=[...ma.keys()].filter(r=>mb.has(r)), ka=rows.map(r=>ma.get(r)), kb=rows.map(r=>mb.get(r));
+      const la=freqLevels(ka,A.cats?A.cats.order:null), lb=freqLevels(kb,B.cats?B.cats.order:null); if(la.fail||lb.fail) return {fail:"Counts in tables: no row has a value in both columns."};
+      const key=v=>typeof v==="number"?+(+v).toPrecision(12):String(v), ia=new Map(la.rows.map((o,i)=>[key(o.lev),i])), ib=new Map(lb.rows.map((o,i)=>[key(o.lev),i]));
+      rn=la.rows.map(o=>String(typeof o.lev==="number"?fmt(o.lev,8):o.lev)); cn=lb.rows.map(o=>String(typeof o.lev==="number"?fmt(o.lev,8):o.lev));
+      if(tests.includes("mcnemar")&&rn.length===2&&cn.length===2&&rn[0]===cn[1]&&rn[1]===cn[0]){ cn.reverse(); const t=[...ib.entries()]; ib.clear(); t.forEach(([k,i])=>ib.set(k,1-i)); } /* the same two outcomes in the same order */
+      T=rn.map(()=>cn.map(()=>0)); rows.forEach((r,i)=>{ T[ia.get(key(ka[i]))][ib.get(key(kb[i]))]++; });
+      if(ins.length>2) notes.push(`Only ${A.name} and ${B.name} are read.`); how=`${A.name} by ${B.name}`; }
+    const ck=xtabCheck(T); if(ck.fail) return {fail:ck.fail};
+    const {R,C,N}=ck, tot=T.map((r,i)=>r.concat([R[i]])).concat([C.concat([N])]);
+    secs.push({title:"Counts",tables:[{head:[""].concat(cn,["Total"]),rows:tot.map((r,i)=>[i<rn.length?rn[i]:"Total"].concat(r))}]});
+    const rowsT=[]; let ch=null;
+    if(tests.includes("chi2")||tests.includes("g")){ ch=chi2Indep(T,{yates:p.yates!==false});
+      secs.push({title:"Expected counts",tables:[{head:[""].concat(cn),rows:ch.E.map((r,i)=>[rn[i]].concat(r.map(v=>anaNum(v))))}]});
+      if(tests.includes("chi2")) rowsT.push({t:ch.yates?"Pearson's χ², Yates' correction":"Pearson's χ²",s:ch.X2,df:ch.df,p:ch.p});
+      if(tests.includes("g")) rowsT.push({t:"Likelihood ratio G",s:ch.G,df:ch.df,p:ch.pG}); }
+    let fi=null;
+    if(tests.includes("fisher")){ fi=fisherRC(T); if(fi.fail) notes.push(fi.fail); else rowsT.push({t:"Fisher's exact test",s:null,df:null,p:fi.p}); }
+    let mc=null;
+    if(tests.includes("mcnemar")){ mc=mcnemarTest(T,{cc:p.yates!==false}); if(mc.fail) notes.push(mc.fail); else rowsT.push({t:mc.cc?"McNemar's χ², continuity correction":"McNemar's χ²",s:mc.X2,df:1,p:mc.p},{t:"McNemar, exact",s:null,df:null,p:mc.pExact}); }
+    if(rowsT.length) anaTab("Tests",[["t","Test"],["s","Statistic"],["df","df"],["p","p"]],rowsT,cols,secs);
+    const eff=[]; if(ch) eff.push({k:"Cramér's V",v:ch.V}); if(fi&&fi.or!=null){ eff.push({k:"Odds ratio (conditional)",v:fi.or}); }
+    if(eff.length) anaTab("Effect size",[["k","Measure"],["v","Value"]],eff,cols,secs,"e");
+    if(fi&&fi.ci) secs.push({title:"Odds ratio's 95% interval",tables:[{head:["Lower","Upper"],rows:[[anaNum(fi.ci[0]),anaNum(fi.ci[1])]]}]});
+    const method=[how==="grouped"?"The counts summed by the column of names.":how==="rows"?"The rows of the counts as the table's rows.":`The cross-table of ${how}, row by row.`,
+      ch&&ch.yates&&tests.includes("chi2")?"χ² with Yates' correction (two by two).":"", fi&&fi.tables?`Fisher's exact test over the ${fi.tables} tables with these margins.`:""].filter(Boolean).join(" ");
+    return {tables:[{cols}],report:{sections:secs,method},notes}; }};
 // A kind run by name: the page's call, and the worker's ("call" job).
 function anaRunKind(kind,ins,p){ const K=ANA_KINDS[kind]; if(!K) throw new Error("the analysis "+kind+" is not known here"); return K.run(ins,p||{}); }
 /* ==ANA:END== */
@@ -16048,6 +16133,12 @@ const ANA_FORMS={
   mood:{html(){ return ""; }, read(){ return {}; }},
   ks2:{html(p){ return `<div class="grid2">${altSel(p.alt)}<label for="aEx">p</label><select id="aEx"><option value="auto">Exact up to a million steps</option><option value="exact"${p.exact==="exact"?" selected":""}>Exact</option><option value="normal"${p.exact==="normal"?" selected":""}>Asymptotic</option></select></div><p class="lab">The first two columns ticked, or one column grouped into two.</p>`; },
     read(v){ return {alt:ANA_ALT[v.aAlt]?v.aAlt:"two",exact:v.aEx||"auto"}; }},
+  xtab:{html(p){ const on=new Set(Array.isArray(p.tests)?p.tests:["chi2"]);
+      return `<div class="grid2"><label for="aXm">Read as</label><select id="aXm"><option value="pair">Two columns of categories, row by row</option><option value="table"${p.mode==="table"?" selected":""}>A table of counts, a column each</option></select></div>
+      <p class="lab">Tests</p><div class="anastats">${XTAB_TESTS.map(([k,nm])=>`<label class="chk"><input type="checkbox" id="aX_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div>
+      <label class="chk"><input type="checkbox" id="aXy"${p.yates===false?"":" checked"}> Continuity correction (two by two)</label>`; },
+    read(v){ const mode=v.aXm==="table"?"table":"pair"; return {mode,levels:mode==="pair",tests:XTAB_TESTS.map(e=>e[0]).filter(k=>v["aX_"+k]),yates:!!v.aXy}; },
+    valid(v){ return XTAB_TESTS.some(([k])=>v["aX_"+k]); }},
   corr:{noGroup:true, html(p){ const on=new Set(Array.isArray(p.methods)?p.methods:["pearson"]);
       return `<p class="lab">Coefficients</p><div class="anastats">${CORR_KINDS.map(([k,nm])=>`<label class="chk"><input type="checkbox" id="aK_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div><div class="grid2">${altSel(p.alt)}${confSel(p)}</div>`; },
     read(v,p0){ return {methods:CORR_KINDS.map(e=>e[0]).filter(k=>v["aK_"+k]),alt:ANA_ALT[v.aAlt]?v.aAlt:"two",conf:+v.aCf||0.95,scatter:!!(p0&&p0.scatter)}; },
@@ -22067,7 +22158,8 @@ function analyzeMenu(){
       {label:"Hypothesis tests", sub:()=>[{label:"t tests…", title:ANA_KINDS.ttest.help, run:()=>anaDlg("ttest"), enabled:!S.readOnly&&!!P()},
         {label:"Comparing spreads…", title:ANA_KINDS.vartest.help, run:()=>anaDlg("vartest"), enabled:!S.readOnly&&!!P()},
         {label:"Proportions…", title:ANA_KINDS.prop.help, run:()=>anaDlg("prop"), enabled:!S.readOnly&&!!P()},
-        {label:"Fisher's exact test…", title:ANA_KINDS.fisher.help, run:()=>anaDlg("fisher"), enabled:!S.readOnly&&!!P()}]},
+        {label:"Fisher's exact test…", title:ANA_KINDS.fisher.help, run:()=>anaDlg("fisher"), enabled:!S.readOnly&&!!P()},
+        {label:"Counts in tables…", title:ANA_KINDS.xtab.help, run:()=>anaDlg("xtab",{two:true}), enabled:!S.readOnly&&!!P()}]},
       {label:"Correlation…", title:ANA_KINDS.corr.help, run:()=>anaDlg("corr",{two:true}), enabled:!S.readOnly&&!!P()},
       {label:"Histogram", title:"The distribution of the selected columns' values (or the active column's), as a column of its own on a graph of its own", run:()=>histogramCols(hist()), enabled:has&&!S.readOnly}]},
     {label:"Spectroscopy", sub:spectroscopyItems},
@@ -24751,7 +24843,7 @@ ${DL([["Area ± error","The trapezoidal sum over the points in the window, less 
 ${DL([["Net counts","The counts in the window less the continuum under them: a straight line through the mean of the channels at each edge (as many as the line baselines use). ± one standard deviation from counting: the counts' own and the continuum's."],["Detected","Above Currie's critical level, 95 %: on a continuum alone, one window in twenty is called detected. Below it, the level is shown."],["Emission, efficiency","Type the share of decays that give the line and the detector's efficiency at its energy, both in %."],["Activity","Net counts ÷ (live time × efficiency × emission), in becquerel, with the counting error. Not detected: the detection limit as an activity, the smallest that would be."]])}
 <p>Counting needs the counts as recorded: an energy calibration, a count rate or a crop keep them; smoothing or a subtracted background do not, and the part says so.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
-{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix",
+{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v",
  lead:"An analysis reads columns and writes what it finds into a result sheet of its own, worked out again when its data change.",
  body:`<h2>Statistics on columns</h2>
 <p>${MP("Analyze › Statistics › Descriptive › Statistics on columns…")}: tick the columns and the statistics, and each column gets a row of a new sheet. Ticked at first are N, the rows missing, mean, standard deviation, standard error of the mean, minimum, Q1, median, Q3, maximum and sum; besides them, the mean's interval, variance, coefficient of variation, range, IQR, MAD, robust SD, the mode and its count, skewness, kurtosis, the geometric and harmonic means, and any percentiles typed (<code>5, 95</code>). <em>Group by</em> a column of text or categories gives a row for each column and group.</p>
@@ -24780,6 +24872,9 @@ ${DL([["Tukey–Kramer","Every pair; q and p from the studentized range, interva
 <h2 id="ranks">Nonparametric tests</h2>
 <p>${MP("Analyze › Statistics › Nonparametric")}: tests on ranks and signs, which assume no distribution. p is exact while the samples are small, untied and (for the signed-rank test) have no zeros, as R decides; else by the normal approximation with the tie and continuity corrections. <em>p</em> in the dialog forces either.</p>
 ${DL([["Mann–Whitney…","Two samples: U of the first, p, the shift (the median of every first − second difference, Hodges–Lehmann) with its interval, and the rank-biserial r (2U/(n₁n₂) − 1)."],["Wilcoxon signed-rank…","One sample against a value, or two columns paired by rows: T+ and T−, p, the pseudo-median (the median of the Walsh averages) with its interval. Zeros are dropped (Wilcoxon's) or ranked and then dropped (Pratt's)."],["Sign test…","The values above and below the value tested against, the exact binomial p, the median with an interval from order statistics, and that interval's own level."],["Kruskal–Wallis…","The groups of one factor: H corrected for ties, its df and p, ε², each group's mean rank; Dunn's comparisons of the mean ranks, adjusted by Holm or Bonferroni."],["Friedman…","Columns as treatments, rows as blocks (rows complete in every column): Q corrected for ties, p, Kendall's W, each column's rank sum."],["Mood's median test…","Each group's values above the grand median and not above it, and χ² of that table (Yates's correction with two groups)."],["Two-sample Kolmogorov–Smirnov…","The largest distance D between the two samples' distribution functions (or one side's), its p exact up to a million steps of the lattice, else asymptotic."]])}
+<h2 id="xtab">Counts in tables</h2>
+<p>${MP("Analyze › Statistics › Hypothesis tests › Counts in tables…")}: <em>Read as</em> two columns of categories (the first ticked the rows, the second the columns, counted row by row; numbers count as categories), or a table of counts (the columns ticked its columns; its rows the sheet's rows, or the values of a column of names chosen in <em>Group by</em>, their counts added). The report: the counts with their totals, the expected counts, the tests chosen and Cramér's V.</p>
+${DL([["Pearson's χ²","Of independence, on (r − 1)(c − 1) degrees of freedom; with Yates' correction for a two by two table unless <em>Continuity correction</em> is off."],["Likelihood ratio G","2 Σ O ln(O/E), on the same degrees of freedom."],["Fisher's exact test","Every table with the same totals, those no more probable than the one counted (Freeman and Halton's, past two by two): up to two million tables; two by two, the odds ratio with its interval too."],["McNemar's test","A two by two table of paired outcomes (the same outcomes in rows and columns): (|b − c| − 1)²/(b + c) on 1 degree of freedom, and the exact binomial p of the pairs that differ."]])}
 <h2 id="corr">Correlation</h2>
 <p>${MP("Analyze › Statistics › Correlation…")}: every pair of the columns ticked, each over the rows where both have a value (with <em>Only rows complete in every column</em>, over the rows complete in all). A section a coefficient: its matrix (three columns or more) and each pair's N and p.</p>
 ${DL([["Pearson's r","p by t on N − 2 degrees of freedom; its interval by Fisher's z."],["Spearman's ρ","Pearson's r of the ranks, ties averaged; p by t."],["Kendall's τ-b","Concordant less discordant pairs, over the pairs not tied; p exact without ties under 50 pairs, else normal."],["Partial r","Each pair given every other column, over the rows complete in all; p by t on N − k degrees of freedom."]])}

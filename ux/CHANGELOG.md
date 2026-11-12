@@ -1024,6 +1024,15 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 2, slice 2.10: counts in tables (2026-11-12)
+
+- **Analyze › Statistics › Hypothesis tests › Counts in tables…**: two columns of categories or a table of
+  counts; the counts and expected counts, Pearson's χ² (Yates' for two by two), the likelihood ratio G,
+  Fisher's exact test of any size (Freeman–Halton), McNemar's test, Cramér's V.
+
+Checked: `fixtures/xtab.json`, the fuzzer (two new generators), stats-test (5 new), ana-drive (6 new), perf
+(one new line), the suite.
+
 ## Plot setup refined, PLOT_SPEC slice 7 (2026-11-12)
 
 - The kind a button opening the gallery; the columns a grid of the roles the kind takes (X, Y, Y

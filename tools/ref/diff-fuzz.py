@@ -311,6 +311,22 @@ def _():
     if len(set(x)) < 2 or len(set(y)) < 2: raise ValueError("no spread")
     alt = str(rng.choice(["two", "less", "greater"])); return [x, y, {"alt": alt}], refs.kendall_ref(x, y, alt)["p"]
 
+@gen("chi2Indep@p", 1e-13, 0.3)
+def _():
+    """A table of 2 to 5 rows and columns, counts 0 to 60 (a small total now and then), against the exact χ² and its
+    40-digit tail."""
+    r, c = int(rng.integers(2, 6)), int(rng.integers(2, 6)); hi = int(rng.choice([6, 20, 60]))
+    T = [[int(v) for v in rng.integers(0, hi + 1, c)] for _ in range(r)]
+    if any(sum(row) == 0 for row in T) or any(sum(row[j] for row in T) == 0 for j in range(c)): raise ValueError("an empty margin")
+    y = bool(rng.random() < 0.5); return [T, {"yates": y}], refs.xtab_ref(T, y)["p"]
+
+@gen("fisherRC@p", 1e-12, 0.3)
+def _():
+    """Small tables (2 to 3 rows, 2 to 4 columns, 25 counts at most), against Freeman–Halton in rationals."""
+    r, c = int(rng.integers(2, 4)), int(rng.integers(2, 5)); T = [[int(v) for v in rng.integers(0, 6, c)] for _ in range(r)]
+    if sum(map(sum, T)) > 25 or any(sum(row) == 0 for row in T) or any(sum(row[j] for row in T) == 0 for j in range(c)): raise ValueError("too large or empty")
+    return [T], refs.fisher_rc_ref(T)
+
 cases = []
 for name, (f, tol) in GEN.items():
     for k in range(max(1, math.ceil(per * SHARE.get(name, 1.0)))):

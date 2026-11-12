@@ -589,3 +589,50 @@ def partial_ref(cols):
             r = -P[i, j] / mp.sqrt(P[i, i] * P[j, j]); t = r * mp.sqrt(M(df) / ((1 - r) * (1 + r)))
             out.append({"r": f(r), "p": f(_t_p(t, df, "two"))})
     return out
+
+# ---------- counts in tables (STATS_SPEC 2.10), exactly ----------
+def xtab_ref(T, yates=True):
+    """χ² (rational, Yates' for 2 × 2 when asked), G (40 digits), their χ² tails, Cramér's V."""
+    T = [[int(v) for v in r] for r in T]; R = [sum(r) for r in T]; C = [sum(r[j] for r in T) for j in range(len(T[0]))]; N = sum(R)
+    E = [[Fr(R[i] * C[j], N) for j in range(len(C))] for i in range(len(R))]; df = (len(R) - 1) * (len(C) - 1)
+    X2 = sum((T[i][j] - E[i][j]) ** 2 / E[i][j] for i in range(len(R)) for j in range(len(C)))
+    if yates and df == 1:
+        Xc = sum((abs(T[i][j] - E[i][j]) - min(Fr(1, 2), abs(T[i][j] - E[i][j]))) ** 2 / E[i][j] for i in range(len(R)) for j in range(len(C)))
+    else: Xc = X2
+    G = 2 * sum(M(T[i][j]) * mp.log(mpq(T[i][j] / E[i][j])) for i in range(len(R)) for j in range(len(C)) if T[i][j] > 0)
+    sf = lambda x: mp.gammainc(M(df) / 2, x / 2, mp.inf, regularized=True)
+    return {"X2": f(mpq(Xc)), "p": f(sf(mpq(Xc))), "G": f(G), "pG": f(sf(G)), "V": f(mp.sqrt(mpq(X2) / (N * (min(len(R), len(C)) - 1))))}
+
+def fisher_rc_ref(T):
+    """Freeman–Halton's p in rationals: every table with the margins, cell by cell; those no more probable than the
+    observed (R's relative tolerance 1e-7) summed."""
+    T = [[int(v) for v in r] for r in T]; R = [sum(r) for r in T]; C = [sum(r[j] for r in T) for j in range(len(T[0]))]; N = sum(R)
+    r, c = len(R), len(C); fact = [1]
+    for k in range(1, N + 1): fact.append(fact[-1] * k)
+    num = 1
+    for v in R + C: num *= fact[v]
+    def prob(cells):
+        d = fact[N]
+        for v in cells: d *= fact[v]
+        return Fr(num, d)
+    pobs = prob([v for row in T for v in row]); lim = pobs * (1 + Fr(1, 10 ** 7)); total = Fr(0)
+    def go(i, j, row, col, cells):
+        nonlocal total
+        if i == r - 1:
+            q = prob(cells + col)
+            if q <= lim: total += q
+            return
+        if j == c - 1:
+            v = row[i]
+            if v > col[j]: return
+            col[j] -= v; go(i + 1, 0, row, col, cells + [v]); col[j] += v; return
+        rest = sum(col[j + 1:]); lo = max(0, row[i] - rest); hi = min(row[i], col[j])
+        for v in range(lo, hi + 1):
+            row[i] -= v; col[j] -= v; go(i, j + 1, row, col, cells + [v]); row[i] += v; col[j] += v
+    go(0, 0, R[:], C[:], [])
+    return float(min(Fr(1), total))
+
+def mcnemar_ref(b, c, cc=True):
+    d = abs(b - c); X2 = Fr((d - 1 if cc else d) ** 2, b + c)  # not clamped at 0, as R and statsmodels
+    n = b + c; k = min(b, c); pe = min(Fr(1), 2 * Fr(sum(math.comb(n, i) for i in range(k + 1)), 2 ** n))
+    return {"X2": float(X2), "p": f(mp.gammainc(M(1) / 2, mpq(X2) / 2, mp.inf, regularized=True)), "pExact": float(pe)}

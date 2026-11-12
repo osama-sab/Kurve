@@ -458,6 +458,27 @@ for name, n, k in [("3 of 30", 30, 3), ("4 of 18", 18, 4), ("4 of 200", 200, 4)]
     cases.append({"fn": "partialCorr", "args": [cols], "want": {"rows": refs.partial_ref(cols)}, "kind": "partial", "name": f"partial {name}"})
 out["corr"] = cases
 
+# ---------- counts in tables (STATS_SPEC 2.10): χ², G, V, Freeman–Halton and McNemar exactly (refs.py) ----------
+cases = []; rng = np.random.default_rng(210)
+TABS = [("2x2", [[12, 5], [7, 15]]), ("2x2 small", [[3, 1], [1, 3]]), ("2x3", [[10, 20, 30], [6, 9, 17]]), ("3x3 zeros", [[0, 4, 9], [5, 0, 2], [8, 3, 0]]),
+        ("3x4", [[int(v) for v in rng.integers(1, 30, 4)] for _ in range(3)]), ("large 2x3", [[1200, 800, 600], [900, 1100, 700]]), ("5x2", [[int(v) for v in rng.integers(2, 40, 2)] for _ in range(5)])]
+for name, T in TABS:
+    for y in [True, False]:
+        if not y and (len(T) > 2 or len(T[0]) > 2): continue
+        cases.append({"fn": "chi2Indep", "args": [T, {"yates": y}], "want": refs.xtab_ref(T, y), "kind": "test", "name": f"chi2 {name} {'yates' if y else 'plain'}"})
+    s = stats.chi2_contingency(T, correction=True); w = refs.xtab_ref(T, True)
+    assert abs(s.statistic - w["X2"]) <= 1e-9 * max(1, w["X2"]), (name, s.statistic, w["X2"])
+SMALL = [("2x2", [[12, 5], [7, 15]]), ("2x2 small", [[3, 1], [1, 3]]), ("2x3", [[3, 1, 4], [1, 5, 2]]), ("3x3", [[2, 0, 3], [1, 4, 0], [0, 2, 5]]), ("2x4", [[5, 2, 0, 3], [1, 4, 6, 2]]), ("3x2 zeros", [[0, 7], [6, 0], [3, 4]])]
+for name, T in SMALL:
+    cases.append({"fn": "fisherRC", "args": [T], "want": {"p": refs.fisher_rc_ref(T)}, "kind": "test", "name": f"fisher {name}"})
+from statsmodels.stats.contingency_tables import mcnemar as sm_mcnemar
+for name, T in [("balanced", [[30, 12], [5, 40]]), ("small", [[10, 3], [1, 8]]), ("equal", [[5, 6], [6, 5]]), ("large", [[500, 210], [160, 900]])]:
+    for cc in [True, False]:
+        w = refs.mcnemar_ref(T[0][1], T[1][0], cc)
+        s = sm_mcnemar(T, exact=False, correction=cc); assert abs(s.statistic - w["X2"]) <= 1e-12 * max(1, w["X2"]), (name, s.statistic, w)
+        cases.append({"fn": "mcnemarTest", "args": [T, {"cc": cc}], "want": w, "kind": "test", "name": f"mcnemar {name} {cc}"})
+out["xtab"] = cases
+
 # ---------- the studentized range and Dunnett's distribution, 40 digits (slow: made with --slow) ----------
 def _slow(c):
     fn, a = c

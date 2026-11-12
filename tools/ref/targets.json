@@ -454,5 +454,41 @@
  "corrTest.ci": {
   "tol": 1e-13,
   "why": "Fisher's z interval of the exact r, in 40 digits"
+ },
+ "chi2Indep.X2": {
+  "tol": 1e-14,
+  "why": "Exact rationals (refs.py), the tails in 40 digits"
+ },
+ "chi2Indep.G": {
+  "tol": 1e-14,
+  "why": "Exact rationals (refs.py), the tails in 40 digits"
+ },
+ "chi2Indep.V": {
+  "tol": 1e-14,
+  "why": "Exact rationals (refs.py), the tails in 40 digits"
+ },
+ "chi2Indep.p": {
+  "tol": 1e-13,
+  "why": "Exact rationals (refs.py), the tails in 40 digits"
+ },
+ "chi2Indep.pG": {
+  "tol": 1e-13,
+  "why": "Exact rationals (refs.py), the tails in 40 digits"
+ },
+ "fisherRC.p": {
+  "tol": 1e-12,
+  "why": "Freeman–Halton's sum in rationals; Kurve's in logarithms relative to the observed table"
+ },
+ "mcnemarTest.X2": {
+  "tol": 1e-15,
+  "why": "Exact rationals (refs.py), the tails in 40 digits"
+ },
+ "mcnemarTest.p": {
+  "tol": 1e-13,
+  "why": "Exact rationals (refs.py), the tails in 40 digits"
+ },
+ "mcnemarTest.pExact": {
+  "tol": 1e-13,
+  "why": "Exact rationals (refs.py), the tails in 40 digits"
  }
 }

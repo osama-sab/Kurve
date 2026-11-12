@@ -480,6 +480,40 @@ await page(async p => {
   check("after a reload the three are there", d === 3, d);
 }, { name: "2.9" });
 
+console.log("2.10: counts in tables");
+await page(async p => {
+  // Two columns of categories (text), a table of counts (numbers) with a column naming its rows, and paired outcomes.
+  await p.evaluate(() => { const sm = ["yes", "no", "yes", "yes", "no", "no", "yes", "no", "yes", "yes", "no", "yes"], gr = ["A", "A", "B", "B", "C", "C", "A", "B", "C", "A", "B", "C"];
+    const txt = (nm, v) => Object.assign(makeCol("ignore", nm, ""), { data: v.map(() => null), fmt: "text", txt: Object.fromEntries(v.map((t, i) => [i, t])) });
+    const X = Object.assign(makeCol("x", "X", ""), { data: sm.map((_, i) => i) }), n1 = [12, 5, 9, null, null, null, null, null, null, null, null, null], n2 = [7, 15, 4, null, null, null, null, null, null, null, null, null];
+    const nm = txt("Site", ["North", "South", "East", "", "", "", "", "", "", "", "", ""]);
+    const before = ["pos", "pos", "neg", "neg", "pos", "neg", "pos", "neg", "neg", "pos", "pos", "neg"], after = ["pos", "neg", "neg", "pos", "neg", "neg", "neg", "neg", "pos", "neg", "neg", "neg"];
+    save({ cols: [X, txt("Smoker", sm), txt("Group", gr), Object.assign(makeCol("y", "Ill", ""), { data: n1 }), Object.assign(makeCol("y", "Well", ""), { data: n2 }), nm, txt("Before", before), txt("After", after)], activeY: null }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  const run = async (cols, set) => { await p.evaluate(c => { anaDlg("xtab", { cols: c }); }, cols); await p.waitForSelector("#aXm"); if (set) await set(); await p.click("#formOk");
+    await p.waitForFunction(() => { const as = anaList().filter(x => x.kind === "xtab"), a = as[as.length - 1]; return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 60000 });
+    return p.evaluate(() => { const as = anaList().filter(x => x.kind === "xtab"), a = as[as.length - 1]; return { secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, h: s.tables[0].head, r: s.tables[0].rows })), notes: a.res.notes, err: a.res.err, said: a.res.report && a.res.report.said }; }); };
+  let r = await run([ids[1], ids[2]], async () => { await p.check("#aX_g"); await p.check("#aX_fisher"); });
+  const cnt = r.secs.find(s => s.t === "Counts"), w = await p.evaluate(() => { const T = [[1, 2, 2], [3, 2, 2]]; return { c: chi2Indep(T, {}), f: fisherRC(T) }; });
+  const tst = r.secs.find(s => s.t === "Tests"), pv = n => tst.r.find(x => x[0].startsWith(n))[3];
+  check("two columns of text: the cross-table with its totals, levels in natural order", JSON.stringify(cnt.h) === JSON.stringify(["", "A", "B", "C", "Total"]) && JSON.stringify(cnt.r.map(x => x[0])) === JSON.stringify(["no", "yes", "Total"]) && cnt.r[2][4] === 12, JSON.stringify(cnt));
+  check("…χ², G and Fisher's p as chi2Indep and fisherRC give them, the expected counts shown, no sentence", pv("Pearson") === w.c.p && pv("Likelihood") === w.c.pG && pv("Fisher") === w.f.p && r.secs.some(s => s.t === "Expected counts") && !r.said, JSON.stringify([tst, w]));
+  r = await run([ids[3], ids[4]], async () => { await p.selectOption("#aXm", "table"); await p.selectOption("#aBy", ids[5]); await p.check("#aX_fisher"); });
+  const c2 = r.secs.find(s => s.t === "Counts"), w2 = await p.evaluate(() => ({ c: chi2Indep([[9, 4], [12, 7], [5, 15]], {}), f: fisherRC([[9, 4], [12, 7], [5, 15]]) }));
+  check("a table of counts, its rows named by Site: χ² and Fisher's p of it", JSON.stringify(c2.r.map(x => x[0])) === JSON.stringify(["East", "North", "South", "Total"]) && r.secs.find(s => s.t === "Tests").r[0][3] === w2.c.p, JSON.stringify(r.secs));
+  r = await run([ids[6], ids[7]], async () => { await p.uncheck("#aX_chi2"); await p.check("#aX_mcnemar"); });
+  const w3 = await p.evaluate(() => mcnemarTest([[4, 2], [5, 1]], {}));
+  const t3 = r.secs.find(s => s.t === "Tests");
+  check("McNemar on Before and After (neg and pos, in one order): χ² and the exact p", t3 && t3.r[0][1] === w3.X2 && t3.r[1][3] === w3.pExact, JSON.stringify([r.secs, w3]));
+  await p.evaluate(id => { const c = colById(id); pushUndo("t"); c.data = c.data.slice(); c.data[0] = -3; save({ cols: P().cols }, "typed"); }, ids[3]); await p.waitForTimeout(1200);
+  r = await p.evaluate(() => anaList().filter(x => x.kind === "xtab")[1].res.err);
+  check("a negative count is refused in words", /whole numbers/.test(r || ""), r);
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().filter(a => a.kind === "xtab").length);
+  check("after a reload the three are there", r === 3, r);
+}, { name: "2.10" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

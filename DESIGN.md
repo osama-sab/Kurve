@@ -898,6 +898,11 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-12: counts in tables (STATS_SPEC 2.10)
+
+- **One dialog for a cross-table and a table of counts**: *Read as* says which; the tests are ticks. The
+  expected counts are a table of the report, not a judgement on them.
+
 ### 2026-11-12: Plot setup refined (PLOT_SPEC slice 7)
 
 The user: show which column is X, Y, Y error, X error (Z and Z error for a map) as they are chosen;

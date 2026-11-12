@@ -149,6 +149,11 @@ for (const c of (fixtures.corr || { cases: [] }).cases) {
     note(name, typeof got !== "number" ? Infinity : relErr(got, w, (TARGET[name] || {}).floor), `${c.name}: ${k}`);
   }
 }
+/* ---- counts in tables (STATS_SPEC 2.10): χ², G, V, Freeman–Halton and McNemar, exactly ---- */
+for (const c of (fixtures.xtab || { cases: [] }).cases) {
+  const r = get(c.fn)(...c.args);
+  for (const [k, w] of Object.entries(c.want)) { const name = `${c.fn}.${k}`; note(name, typeof r[k] !== "number" ? Infinity : relErr(r[k], w, (TARGET[name] || {}).floor), `${c.name}: ${k}`); }
+}
 for (const c of (fixtures.range || { cases: [] }).cases) note(c.fn, relErr(get(c.fn)(...c.args), c.want), fmtA(c.args));
 
 /* ---- distributions fitted to values ---- */

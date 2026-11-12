@@ -1136,6 +1136,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   coefficient, matrix and pairs; result keys `a b n r rp lo hi rho sp tau kp pr pp`, with `scatter` `sx<t>`/`sy<t>`),
   form `#aK_<k>`, `anaScatter(id)` (the report's *Scatter matrix*: the analysis again with `scatter`, a graph a
   pair, `makeFigure`, one undo step). `msd` takes each x − m's rounding exactly (two-sum).
+  **Counts in tables** (STATS_SPEC 2.10): `xtabCheck(T)` (`{R, C, N}` or `{fail}` in words), `chi2Indep(T, {yates})`
+  (`{E, df, yates, X2, p, G, pG, V, X2u}`), `fisherRC(T)` (two by two `fisher22`'s; else Freeman–Halton, cell by cell
+  in logarithms against the observed table, R's 1 + 1e-7, at most `XTAB_MAX` tables), `mcnemarTest(T, {cc})` (`{X2, p,
+  pExact}`, R's correction unclamped). `XTAB_TESTS`, kind `xtab` (`cats`; `p.mode` "pair" (`levels` true) or "table"
+  (rows the sheet's, or a Group by column's names, counts added), `p.tests`, `p.yates`; sections Counts, Expected
+  counts, Tests, Effect size), form `#aXm`, `#aX_<k>`, `#aXy`; Analyze › Statistics › Hypothesis tests.
   `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
   (rationals), shared by the fixtures (`desc.json`) and the fuzzer (`quantileType`, `descStats@<key>`, which
   `run.mjs` reads as one field of the result).
@@ -3063,7 +3069,8 @@ Welch's F against anova1, Tukey's and Dunnett's p (the worker's), Holm with no i
 text column, followed after a value typed, a refusal, a reload), and 2.8 (each rank test through its dialog against
 its function: paired, Pratt's zeros and the normal approximation, Dunn's Bonferroni, Friedman's complete rows, a
 refusal, a one-row result shown as names and values, a reload), and 2.9 (each coefficient against its function, pairwise
-and listwise N, a section a coefficient, the scatter matrix in one undo step, a refusal, a reload).
+and listwise N, a section a coefficient, the scatter matrix in one undo step, a refusal, a reload), and 2.10 (a
+cross-table of text, a table of counts named by a column, McNemar, a negative count refused, a reload).
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
@@ -3075,7 +3082,8 @@ coverage, the exact tests at or below their level, the noncentral t at δ = 0), 
 Tukey's and Dunnett's family-wise error at 5 % from their quantiles, Tukey–Kramer, Bonferroni and Scheffé below, the
 studentized range of two and Dunnett's one comparison as t), and 2.8's (U's and T+'s exact distributions against
 enumeration, each rank test's size, the shift's interval covering, refusals), and 2.9's (Kendall's counts against
-enumeration, a shift, a scale and a monotone change, each test's size, Fisher's coverage, partial r as residuals' r); run it, ref-test and a fuzzer seed after touching the STATS or
+enumeration, a shift, a scale and a monotone change, each test's size, Fisher's coverage, partial r as residuals' r), and
+2.10's (χ²'s and G's size, Fisher's and McNemar's exact tests at or below 5 %, a table turned round, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
 ANA block.
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
@@ -4610,7 +4618,8 @@ Next, in order:
    their decimals allow), done 12.11; slice 2.8, nonparametric tests (Mann–Whitney with the Hodges–Lehmann shift,
    Wilcoxon signed-rank, the sign test, Kruskal–Wallis with Dunn's, Friedman, Mood's median test, two-sample KS;
    exact distributions), done 12.11; slice 2.9, correlation (Pearson's r with its interval, Spearman's ρ, Kendall's
-   τ-b, partial r, their matrices, a scatter matrix; 1 − r² in double-double), done 12.11
+   τ-b, partial r, their matrices, a scatter matrix; 1 − r² in double-double), done 12.11; slice 2.10, counts in tables
+   (χ², G, Fisher's exact test of any size, McNemar, Cramér's V), done 12.11
 
 ## Known gaps
 
@@ -4692,6 +4701,8 @@ Next, in order:
 - Plotting from the worksheet plots whole columns (no range of rows, no plot of a selection
   of cells), against an X column; a closed graph is closed for everyone who opens the
   project, and a viewer who cannot edit cannot open it
+- Counts in tables: no exact test past two million tables, no Monte Carlo p, no McNemar–Bowker (larger square
+  tables), no Cochran–Mantel–Haenszel (strata), no residuals table
 - Correlation: no point-biserial, polychoric or distance correlation, no comparison of two r's, no matrix of p
   values on the graph; partial r over the rows complete in every column only
 - Rank tests: exact p only without ties (with ties the normal approximation, as R; no permutation p); the

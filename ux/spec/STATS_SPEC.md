@@ -356,6 +356,15 @@ Built (12.11):
 test (two by two; Freeman–Halton for small larger tables), McNemar; from two text columns (a
 cross-table) or a table of counts.
 
+Built (12.11):
+- **One kind** (`xtab`): two columns of categories counted row by row, or a table of counts (its rows the
+  sheet's, or a column of names'); the counts with totals, the expected counts, χ² (Yates' for two by two on a
+  switch), G, Fisher's exact test (two by two fisher22's, with the odds ratio; past it Freeman–Halton, every
+  table with the margins, up to two million), McNemar (χ² as R's, not clamped, and the exact binomial p),
+  Cramér's V.
+- **Checked**: `xtab.json` (exact rationals; Freeman–Halton enumerated in rationals), the fuzzer (χ²'s p, Fisher's
+  r × c), stats-test (5), ana-drive (6).
+
 ## 2.11 Power and sample size
 
 For the t tests, one-way ANOVA, proportions and variances, by the noncentral t, F and χ² (their
