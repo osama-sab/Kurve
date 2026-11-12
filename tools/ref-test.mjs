@@ -90,6 +90,16 @@ for (const c of fixtures.norm.cases) {
   }
 }
 
+/* ---- comparing means and spreads (STATS_SPEC 2.3): fn.field, a field a path ("ci.0"); the noncentral t absolutely ---- */
+for (const c of fixtures.test23.cases) {
+  if (c.kind === "abs") { const g = get(c.fn)(...c.args); note(c.fn, typeof g === "number" ? Math.abs(g - c.want) : Infinity, fmtA(c.args)); continue; }
+  const r = get(c.fn)(...c.args);
+  for (const [k, w] of Object.entries(c.want)) {
+    const name = `${c.fn}.${k.replace(/\.\d$/, "")}`, t = TARGET[name] || {}, got = k.split(".").reduce((o, x) => (o == null ? o : o[x]), r);
+    note(name, typeof got !== "number" ? Infinity : relErr(got, w, t.floor), `${c.name}: ${k}`);
+  }
+}
+
 /* ---- distributions fitted to values ---- */
 for (const c of fixtures.distfit.cases) {
   const r = get("distFit")(...c.args), at = `${c.args[1]} n=${c.args[0].length}`;

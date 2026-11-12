@@ -196,6 +196,33 @@ def _():
     if not 0 < x < 1 or 2 * math.ceil(n * x) - 1 > 61: raise ValueError("matrix too large for the reference")
     return [n, x, True], float(refs.kolm_dmtw(n, x))
 
+def t_sets():
+    n1, n2 = int(rng.integers(2, 60)), int(rng.integers(2, 60)); loc = float(rng.choice([0, 10, 1e6]))
+    a = [float(v) for v in rng.normal(loc, lognum(-1, 1), n1)]; b = [float(v) for v in rng.normal(loc + rng.normal(), lognum(-1, 1), n2)]
+    return a, b, str(rng.choice(["two", "less", "greater"]))
+
+@gen("tTest2@p", 1e-13, 0.3)
+def _():
+    a, b, alt = t_sets(); eq = bool(rng.random() < 0.5); return [a, b, {"alt": alt, "equal": eq}], refs.t_ref("two", a, b, alt=alt, equal=eq)["p"]
+
+@gen("tTest1@t", 1e-14, 0.3)
+def _():
+    a, b, alt = t_sets(); mu = float(round(np.mean(a) + rng.normal(), 3)); return [a, {"mu0": mu}], refs.t_ref("one", a, mu0=mu)["t"]
+
+@gen("nctCdf", 1e-12, 0.3)
+def _():
+    nu = float(rng.choice([1, 2, 4, 9, 30, 120])); dl = float(rng.uniform(-10, 10)); t = float(rng.uniform(-12, 12))
+    w = stats.nct.cdf(t, nu, dl)
+    if math.isnan(w): raise ValueError("no reference here")
+    return [t, nu, dl], w
+
+@gen("fisher22@p", 1e-13, 0.3)
+def _():
+    t = [int(v) for v in rng.integers(0, 25, 4)]
+    if sum(t) == 0 or (t[0] + t[1]) * (t[2] + t[3]) * (t[0] + t[2]) * (t[1] + t[3]) == 0: raise ValueError("empty margin")
+    alt = str(rng.choice(["two", "less", "greater"])); AM = {"two": "two-sided", "less": "less", "greater": "greater"}
+    return [*t, {"alt": alt}], stats.fisher_exact([[t[0], t[1]], [t[2], t[3]]], alternative=AM[alt]).pvalue
+
 def num(v):
     if isinstance(v, (str, dict)): return v
     v = float(v)
@@ -245,6 +272,7 @@ for c in cases:
             e = d / max(abs(w), max(abs(x) for x in c["args"][0]) * 2 ** -52, 1e-300)
         if c["fn"] in ("descStats@skew", "descStats@kurt"): e = d / max(abs(w), 1.0)  # differences of terms of order 1: absolute below 1
         if c["fn"] == "dagoTest@k2": e = d / max(abs(w), 1.0)  # a sum of two squared scores: absolute below 1
+        if c["fn"] == "nctCdf": e = d  # absolute (targets.json)
     if e > worst.get(c["fn"], (0, None))[0]:
         worst[c["fn"]] = (e, c)
     t = TARGET.get(c["fn"], {})
@@ -254,6 +282,8 @@ for c in cases:
         else:
             fails.append((c, f"error {e:.2e} past {c['tol']:.0e}{' and past ' + format(t['now'], '.0e') + ', where it stood' if t.get('until') else ''}: got {g!r}, the reference {w!r}"))
 
+if os.environ.get("FUZZDUMP"):  # every failing case in full, to make it again
+    json.dump([c for c, _ in fails], open(os.environ["FUZZDUMP"], "w"))
 print(f"seed {seed}, {per} cases a function")
 for name in GEN:
     e, c = worst.get(name, (0.0, None))

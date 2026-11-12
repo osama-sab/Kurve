@@ -254,6 +254,21 @@ approximation and the exact binomial); Fisher's exact test for two by two. The f
 checks (normality per group by Shapiro–Wilk, equal variances by Levene, n), α and alternative
 arrive with this slice.
 
+Built (12.11), as above, with these choices: two samples are the first two columns ticked in the
+sheet's order, or one column grouped into two; Brown and Forsythe's Levene (about the medians) is the
+equal-variances check and the spreads' default, since about the means Levene's test runs 6 % at 5 % with
+6 to 14 values (simulated; SciPy's W agrees with Kurve's to 1e-15); proportions and Fisher's test read
+counts typed (`K.typed`: no columns), the 2.10 slice to count them from columns. The t tests carry the
+mean's rounding (`msd`'s `e`) into the difference: with values near 10⁶ the double mean had moved t at
+3e-9. The noncentral t (`nctCdf`) is Guenther's sum of incomplete betas, 3e-14 absolute against Boost,
+whose own was found NaN deep in the lower tail. `anaChecks` is `report.checks` (`{name, ok, text, fix:
+{label, p}}`), the fix a button (`anaFix`, one undo step). Checked: `fixtures/test23.json` (334 cases:
+the t tests in 40 digits, d's interval against Boost inverted by brentq, SciPy and statsmodels for the
+rest), the fuzzer (four generators), stats-test (16 new: each test's size, the intervals' coverage, the
+exact tests at or below their level), ana-drive (15). The fuzzer's first full run failed a one-sided p of
+2.5e-34 by 9e-9: the reference's, which formed 1 − (1 − tail) and kept six digits of the tail in 40;
+Kurve's agreed with the tail computed as itself to 5e-15.
+
 ## 2.4 One-way ANOVA
 
 The table (between, within, total: DF, sum of squares, mean square, F, p), η² and ω²; Welch's

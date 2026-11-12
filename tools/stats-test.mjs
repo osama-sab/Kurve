@@ -186,5 +186,41 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("the tests refuse what they cannot test, in words", sw([1, 2]).fail && sw([2, 2, 2]).fail && ad([1, 2, 3]).fail && dk([1, 2, 3, 4, 5]).fail && dx(Array(31).fill(0).map((_, i) => i)).fail && /3 values or more/.test(sw([1]).fail));
 }
 
+// Comparing means and spreads (STATS_SPEC 2.3): each test's size under its null (20 000 samples, 99.9 % binomial
+// interval), the t interval's and Cohen's d interval's coverage, the exact tests at or below their level.
+{
+  const mb = get("mulberry32")(2303), gauss = () => { let u = 0; while (u === 0) u = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * mb()); };
+  const t1 = get("tTest1"), t2 = get("tTest2"), tp = get("tTestPaired"), f2 = get("fTest2"), lv = get("leveneTest"), bt = get("bartlettTest"), p1 = get("propTest1"), fi = get("fisher22");
+  const N = 20000, half = 3.29 * Math.sqrt(0.05 * 0.95 / N), cov = 3.29 * Math.sqrt(0.95 * 0.05 / N);
+  const r = { one: 0, welch: 0, student: 0, paired: 0, F: 0, lev: 0, bf: 0, bart: 0, ci: 0, dci: 0, wl: 0 };
+  const smp = (n, m, s) => Array.from({ length: n }, () => m + s * gauss());
+  for (let i = 0; i < N; i++) {
+    const a = smp(9, 5, 2), b = smp(14, 5, 2), c = smp(6, 5, 2), u = smp(8, 5, 1), w = smp(15, 5, 3), q = smp(12, 0.6, 1);
+    const o = t1(a, { mu0: 5, dci: false }); if (o.p < 0.05) r.one++; if (o.ci[0] <= 5 && 5 <= o.ci[1]) r.ci++;
+    if (i < 2000) { const dq = t1(q, { mu0: 0 }); if (dq.dci[0] <= 0.6 && 0.6 <= dq.dci[1]) r.dci++; }
+    if (t2(u, w, { dci: false }).p < 0.05) r.welch++; if (t2(u, w, { equal: true, dci: false }).p < 0.05) r.wl++;
+    if (t2(a, b, { equal: true, dci: false }).p < 0.05) r.student++;
+    if (tp(a, smp(9, 0, 1).map((e, k) => a[k] + e), { dci: false }).p < 0.05) r.paired++;
+    if (f2(a, b).p < 0.05) r.F++; if (lv([a, b, c], "mean").p < 0.05) r.lev++; if (lv([a, b, c], "median").p < 0.05) r.bf++; if (bt([a, b, c]).p < 0.05) r.bart++;
+  }
+  const sz = (k) => r[k] / N;
+  for (const [k, nm] of [["one", "One-sample t"], ["welch", "Welch's t with unequal variances"], ["student", "Student's t with equal variances"], ["paired", "Paired t"], ["F", "The F test"], ["bart", "Bartlett's test"]])
+    check(`${nm} rejects 5 % of samples under its null (±${(half * 100).toFixed(2)} %)`, Math.abs(sz(k) - 0.05) < half, sz(k));
+  check("Brown and Forsythe's test is at or below its level under normal data (it is conservative there)", sz("bf") < 0.05 + half, sz("bf"));
+  check("Levene's test about the means runs a little high with small samples (6 to 14 values: 5 to 8 %), as Brown and Forsythe found; SciPy's W is the same to 1e-15", sz("lev") > 0.05 - half && sz("lev") < 0.08, sz("lev"));
+  check("Student's t with unequal variances and unequal sizes is not at its level (the reason Welch's is the default)", Math.abs(sz("wl") - 0.05) > 0.01, sz("wl"));
+  check("the t interval covers the mean 95 % of the time", Math.abs(r.ci / N - 0.95) < cov, r.ci / N);
+  check("Cohen's d's interval (the noncentral t inverted) covers the true d 95 % of the time (2000 samples)", Math.abs(r.dci / 2000 - 0.95) < 3.29 * Math.sqrt(0.95 * 0.05 / 2000), r.dci / 2000);
+  let eb = 0, ef = 0; const M = 5000;
+  for (let i = 0; i < M; i++) { let x = 0; for (let k = 0; k < 30; k++) if (mb() < 0.3) x++; if (p1(x, 30, { p0: 0.3 }).p < 0.05) eb++;
+    let A = 0, B = 0; for (let k = 0; k < 12; k++) { if (mb() < 0.4) A++; if (mb() < 0.4) B++; } const f = fi(A, 12 - A, B, 12 - B); if (!f.fail && f.p < 0.05) ef++; }
+  check("the exact binomial test is at or below its level", eb / M <= 0.05 + 3.29 * Math.sqrt(0.0475 / M), eb / M);
+  check("Fisher's exact test is at or below its level", ef / M <= 0.05 + 3.29 * Math.sqrt(0.0475 / M), ef / M);
+  const k = get("nctCdf"), D = get("DIST");
+  check("the noncentral t at δ = 0 is Student's t", [-3, -0.5, 0.7, 4].every((t) => Math.abs(k(t, 7, 1e-300) - D.t.cdf(t, 7)) < 1e-15 || Math.abs(k(t, 7, 0) - D.t.cdf(t, 7)) < 1e-15));
+  check("…and falls as δ rises", [-2, -1, 0, 1, 2, 4].every((d, i, a) => i === 0 || k(1.5, 9, d) < k(1.5, 9, a[i - 1])));
+  check("the tests refuse what they cannot test, in words", /2 values/.test(t1([1]).fail) && /same/.test(t1([2, 2, 2]).fail) && /whole number/.test(p1(3.5, 10, {}).fail) && /empty/.test(fi(0, 0, 3, 4).fail));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

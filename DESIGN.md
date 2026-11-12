@@ -896,6 +896,19 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-12: comparing means and spreads (STATS_SPEC 2.3)
+
+- **A check that has a fix offers it.** Student's t on unequal variances says so in a note under
+  the sentence, and *Use Welch's t* beside it works the test out again (one undo step). The test
+  still gives its answer: checks are said, not enforced.
+- **Welch's t is the default**, and Student's a tick shown only for two samples: Welch's is as good
+  when the variances are equal and right when they are not (simulated: Student's runs far off its
+  level with unequal variances and sizes).
+- **Counts are typed where Origin types them.** Proportions and Fisher's test take numbers in their
+  dialog, with no columns to choose; the report says it came from the counts typed.
+- **Effect sizes beside p**: every t test gives Cohen's d with its interval and Hedges' g, so a
+  small p from a large sample is not read as a large effect.
+
 ### 2026-11-12: normality and outliers (STATS_SPEC 2.2)
 
 - **The sentence comes first.** A test's result is a sentence, in words ("At the 0.05 level,

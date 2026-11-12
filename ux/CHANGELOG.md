@@ -1024,6 +1024,23 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 2, slice 2.3: comparing means and spreads (2026-11-12)
+
+- **Hypothesis tests** (Analyze › Statistics): **t tests** (one sample against a value; two
+  samples, Welch's by default or Student's; paired), each with t, its degrees of freedom, p, the
+  difference's interval, Cohen's d with its exact interval and Hedges' g; **Comparing spreads**
+  (Levene about the medians or the means, Bartlett, F); **Proportions** (the exact binomial test
+  with Clopper–Pearson's and Wilson's intervals; two proportions with Newcombe's) and **Fisher's
+  exact test** (the conditional odds ratio and its exact interval), from counts typed.
+- Each report opens with its sentence, then the checks it rests on (normality, equal variances),
+  a check's fix a button (*Use Welch's t*).
+- The noncentral t distribution, for d's interval.
+
+Checked: `fixtures/test23.json` (334 cases; the t tests in 40 digits), the fuzzer, stats-test (16
+new, 98: each test's size under its null, the t and d intervals' coverage, the exact tests at or
+below their level, Levene's about the means found 6 % at 5 % with small samples), ana-drive's 2.3
+section (15, 80 in all), the menu crawl and the suite.
+
 ## Closing the gap with Origin, wave 2, slice 2.2: normality and outliers (2026-11-12)
 
 - **Normality tests** (Analyze › Statistics › Descriptive): Shapiro–Wilk (Royston's, 3 to 5000

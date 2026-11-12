@@ -288,6 +288,60 @@ await page(async p => {
   check("after a reload the three analyses are there with their sentences", d.join() === "norm:1,outl:2,outl:1", JSON.stringify(d));
 }, { name: "2.2" });
 
+console.log("2.3: t tests, spreads, proportions, Fisher's exact test");
+await page(async p => {
+  // Before and After (paired, rows), and a text column of groups A (tight) and B (spread out).
+  await p.evaluate(() => { const bef = [10.1, 9.8, 11.2, 10.5, 9.9, 10.7, 10.2, 9.4, 10.8, 10.3, 9.6, 10.9], aft = [10.9, 10.1, 12.0, 11.5, 10.2, 11.6, 10.6, 10.3, 11.9, 11.0, 10.0, 11.4];
+    const val = [10.0, 10.2, 9.9, 10.1, 10.05, 9.95, 6, 15, 8, 13.5, 4.5, 16], grp = val.map((_, i) => i < 6 ? "A" : "B");
+    const X = Object.assign(makeCol("x", "X", ""), { data: bef.map((_, i) => i) }), B = Object.assign(makeCol("y", "Before", ""), { data: bef }), A = Object.assign(makeCol("y", "After", ""), { data: aft }),
+      V = Object.assign(makeCol("y", "Yield", "%"), { data: val }), G = Object.assign(makeCol("ignore", "Line", ""), { data: val.map(() => null), fmt: "text", txt: Object.fromEntries(grp.map((g, i) => [i, g])) });
+    save({ cols: [X, B, A, V, G], activeY: B.id }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  const last = () => p.evaluate(() => { const a = anaList()[anaList().length - 1]; return { kind: a.kind, said: (a.res.report || {}).said || [], checks: ((a.res.report || {}).checks || []).map(c => c.text), err: a.res.err, p: a.p, id: a.id }; });
+  // One sample against 10.
+  await p.evaluate(ids => { anaDlg("ttest", { cols: [ids[1]] }); }, ids); await p.waitForSelector("#aTt");
+  let d = await p.evaluate(() => document.getElementById("aEq").closest("label").hidden); check("t tests: the dialog hides Equal variances unless two samples are compared", d);
+  await p.fill("#aMu", "10"); await p.click("#formOk"); await p.waitForTimeout(600);
+  let r = await last(), w = await p.evaluate(ids => tTest1(colById(ids[1]).data, { mu0: 10 }), ids);
+  check("…one sample: the sentence says the mean, the value and t, its degrees of freedom and p as tTest1 gives them", r.said[0] === `At the 0.05 level, the mean of Before (${(w.mean).toPrecision(4).replace(/\.?0+$/, "")}) does not differ significantly from 10 (t = ${+w.t.toPrecision(4)}, 11 degrees of freedom, p = ${+w.p.toPrecision(2)}).`, r.said[0]);
+  // Two samples by group, Student's: the variances are far apart, so the check offers Welch's.
+  await p.evaluate(ids => { anaDlg("ttest", { cols: [ids[3]] }); }, ids); await p.waitForSelector("#aTt");
+  await p.selectOption("#aTt", "two"); await p.selectOption("#aBy", ids[4]); await p.check("#aEq"); await p.click("#formOk"); await p.waitForTimeout(600);
+  r = await last();
+  check("…two samples grouped by Line, Student's: compared A with B, and the check says the variances look unequal", /mean of Yield \(A\) .* the mean of Yield \(B\)/.test(r.said[0]) && /Student's t/.test(r.said[0]) && r.checks.some(c => /variances look unequal/.test(c)), JSON.stringify(r));
+  await p.evaluate(id => anaReport(id), r.id); await p.waitForTimeout(300);
+  const fixBtn = await p.$(`#w-res button[data-anaact^="fix"]`); check("…with a button: Use Welch's t", !!fixBtn && (await fixBtn.textContent()) === "Use Welch's t");
+  if (fixBtn) { await fixBtn.click(); await p.waitForTimeout(500); }
+  r = await last(); check("…which works it out again as Welch's, one undo step", r.p.equal === false && /Welch's t/.test(r.said[0]) && !r.checks.some(c => /unequal/.test(c)), JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300); r = await last(); check("…and undo brings Student's back", r.p.equal === true && /Student's/.test(r.said[0]));
+  // Paired.
+  await p.evaluate(ids => { anaDlg("ttest", { cols: [ids[2], ids[1]] }); }, ids); await p.waitForSelector("#aTt");
+  await p.selectOption("#aTt", "paired"); await p.click("#formOk"); await p.waitForTimeout(600);
+  r = await last(); w = await p.evaluate(ids => tTestPaired(colById(ids[1]).data, colById(ids[2]).data, {}), ids);
+  check("…paired, in the sheet's order, Before − After: a mean difference of −0.675 and paired t", /mean of Before − After \(-0\.675\)/.test(r.said[0]) && /paired t/.test(r.said[0]) && Math.abs(w.mean + 0.675) < 1e-12 && w.p < 0.001, r.said[0] + " " + w.mean);
+  // Spreads: every test ticked on the two groups.
+  await p.evaluate(ids => { anaDlg("vartest", { cols: [ids[3]] }); }, ids); await p.waitForSelector("#aV_bf");
+  for (const k of ["lev", "bart", "f"]) await p.check(`#aV_${k}`); await p.selectOption("#aBy", ids[4]); await p.click("#formOk"); await p.waitForTimeout(600);
+  d = await p.evaluate(() => { const a = anaList()[anaList().length - 1]; return a.res.report.sections[0].tables[0].rows.map(r => [r[0].split(" ")[0], r[7]]); });
+  check("Comparing spreads: a row a test, each finding A's and B's spreads unequal", d.length === 4 && d.every(x => x[1] === "unequal"), JSON.stringify(d));
+  // Proportions and Fisher's test: counts typed, no columns.
+  await p.evaluate(() => { anaDlg("prop"); }); await p.waitForSelector("#aPx");
+  d = await p.evaluate(() => !document.querySelector("#formBody .anacols") && document.getElementById("aPx2").hidden);
+  check("Proportions: no columns, the second sample's fields hidden for one proportion", d);
+  await p.fill("#aPx", "7"); await p.fill("#aPn", "20"); await p.fill("#aP0", "0.5"); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await last(); check("…7 of 20 against 0.5: the exact binomial p, 0.26", r.said[0] === "At the 0.05 level, the proportion 7 of 20 (0.35) does not differ significantly from 0.5 (the exact binomial p = 0.26).", r.said[0]);
+  const ok0 = await p.evaluate(() => { anaDlg("prop"); return true; }); await p.waitForSelector("#aPx"); await p.fill("#aPx", "21"); await p.fill("#aPn", "20");
+  d = await p.evaluate(() => document.getElementById("formOk").disabled); check("…more successes than trials is not taken", ok0 && d); await p.keyboard.press("Escape"); await p.waitForTimeout(200);
+  await p.evaluate(() => { anaDlg("fisher"); }); await p.waitForSelector("#aFa");
+  for (const [k, v] of [["a", 10], ["b", 2], ["c", 3], ["d", 15]]) await p.fill(`#aF${k}`, String(v)); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await last(); check("Fisher's exact test on 10, 2, 3, 15: p 0.00054, the odds ratio 21.31 from 2.753 to 301.5", r.said[0] === "At the 0.05 level, Fisher's exact test finds the rows' odds different (p = 0.00054; odds ratio 21.31, 95% interval 2.753 to 301.5).", r.said[0]);
+  d = await p.evaluate(() => { const a = anaList()[anaList().length - 1]; return anaText(a).split("\n").pop(); }); check("…its copied report says it came from the counts typed", /^# From the counts typed/.test(d), d);
+  await p.reload(); await ready(p); await p.waitForTimeout(500);
+  d = await p.evaluate(() => anaList().map(a => a.kind).join());
+  check("after a reload every test is there", d === "ttest,ttest,ttest,vartest,prop,fisher", d);
+}, { name: "2.3" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

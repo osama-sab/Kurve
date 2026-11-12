@@ -244,6 +244,62 @@ for n, q in [(3, 0.94), (3, 0.5), (4, 0.83), (5, 0.3), (6, 0.6275), (8, 0.45), (
 for d in disagree: print("  reference check, norm:", d)
 out["norm"] = cases
 
+# ---------- comparing means and spreads (STATS_SPEC 2.3) ----------
+# t tests in 40 digits (refs.t_ref); d's interval by inverting Boost's noncentral t (SciPy's nct) with brentq;
+# the variance tests, proportions and Fisher's test from SciPy and statsmodels; the noncentral t on a grid.
+from scipy.stats.contingency import odds_ratio
+from statsmodels.stats.proportion import proportions_ztest, confint_proportions_2indep
+def dci_ref(t, nu, scale, conf):
+    a = (1 - conf) / 2
+    def g(q):
+        h = lambda dl: stats.nct.cdf(t, nu, dl) - q; lo, hi, w = t - 3, t + 3, 3.0
+        while h(lo) < 0: w *= 2; lo = t - w
+        w = 3.0
+        while h(hi) > 0: w *= 2; hi = t + w
+        return optimize.brentq(h, lo, hi, xtol=1e-15, rtol=8.9e-16)
+    return g(1 - a) * scale, g(a) * scale
+cases = []; rng = np.random.default_rng(23); AM = {"two": "two-sided", "less": "less", "greater": "greater"}
+for n1, n2 in [(3, 4), (6, 9), (15, 12), (40, 55), (200, 150)]:
+    a = [float(v) for v in rng.normal(10, 2, n1)]; b = [float(v) for v in rng.normal(10.8, 3.5, n2)]; m = min(n1, n2)
+    for alt in ["two", "less", "greater"]:
+        w = refs.t_ref("one", a, mu0=9.5, alt=alt)
+        if alt == "two": w["dci.0"], w["dci.1"] = dci_ref(w["t"], n1 - 1, 1 / math.sqrt(n1), 0.95)
+        cases.append({"fn": "tTest1", "args": [a, {"mu0": 9.5, "alt": alt}], "want": w, "kind": "test", "name": f"one n={n1} {alt}"})
+        for eq in [False, True]:
+            w = refs.t_ref("two", a, b, alt=alt, equal=eq)
+            if alt == "two": k = math.sqrt(1 / n1 + 1 / n2); w["dci.0"], w["dci.1"] = dci_ref(w["d"] / k, n1 + n2 - 2, k, 0.95)
+            s = stats.ttest_ind(a, b, equal_var=eq, alternative=AM[alt])
+            if abs(s.pvalue - w["p"]) > 1e-12 * max(w["p"], 1e-300): print("  reference check, t:", n1, n2, eq, alt, s.pvalue, w["p"])
+            cases.append({"fn": "tTest2", "args": [a, b, {"alt": alt, "equal": eq}], "want": w, "kind": "test", "name": f"{'student' if eq else 'welch'} {n1},{n2} {alt}"})
+        w = refs.t_ref("paired", a[:m], b[:m], alt=alt)
+        cases.append({"fn": "tTestPaired", "args": [a[:m], b[:m], {"alt": alt}], "want": w, "kind": "test", "name": f"paired {m} {alt}"})
+    c = [float(v) for v in rng.normal(0, 1, 11)]
+    F = np.var(a, ddof=1) / np.var(b, ddof=1); d1, d2 = n1 - 1, n2 - 1
+    cases.append({"fn": "fTest2", "args": [a, b, {}], "want": {"F": F, "p": 2 * min(stats.f.cdf(F, d1, d2), stats.f.sf(F, d1, d2)), "ci.0": F / stats.f.isf(0.025, d1, d2), "ci.1": F / stats.f.ppf(0.025, d1, d2)}, "kind": "test", "name": f"F {n1},{n2}"})
+    for cen in ["mean", "median"]:
+        L = stats.levene(a, b, c, center=cen); cases.append({"fn": "leveneTest", "args": [[a, b, c], cen], "want": {"W": L.statistic, "p": L.pvalue}, "kind": "test", "name": f"levene {cen} {n1},{n2}"})
+    B = stats.bartlett(a, b, c); cases.append({"fn": "bartlettTest", "args": [[a, b, c]], "want": {"T": B.statistic, "p": B.pvalue}, "kind": "test", "name": f"bartlett {n1},{n2}"})
+for x, n, p0 in [(7, 20, 0.5), (0, 10, 0.3), (10, 10, 0.3), (3, 50, 0.1), (45, 50, 0.8), (512, 1000, 0.5), (1, 3, 0.9), (60, 400, 0.12)]:
+    for alt in ["two", "less", "greater"]:
+        bt = stats.binomtest(x, n, p0, alternative=AM[alt]); cp = bt.proportion_ci(0.95, method="exact"); w = {"p": bt.pvalue, "ci.0": cp.low, "ci.1": cp.high}
+        if alt == "two":
+            wl = bt.proportion_ci(0.95, method="wilson"); z, pz = proportions_ztest(x, n, p0, prop_var=p0); w.update({"wilson.0": wl.low, "wilson.1": wl.high, "z": z, "pz": pz})
+        cases.append({"fn": "propTest1", "args": [x, n, {"p0": p0, "alt": alt}], "want": w, "kind": "test", "name": f"{x}/{n} vs {p0} {alt}"})
+for t in [(15, 40, 22, 38), (3, 25, 9, 30), (90, 200, 70, 210), (1, 12, 0, 15)]:
+    z, pz = proportions_ztest([t[0], t[2]], [t[1], t[3]]); lo, hi = confint_proportions_2indep(t[0], t[1], t[2], t[3], method="newcomb", compare="diff")
+    cases.append({"fn": "propTest2", "args": [*t, {}], "want": {"z": z, "p": pz, "ci.0": lo, "ci.1": hi}, "kind": "test", "name": f"two proportions {t}"})
+for t in [(3, 1, 1, 3), (10, 2, 3, 15), (0, 5, 6, 2), (12, 30, 25, 8), (20, 18, 22, 25), (5, 0, 2, 9), (1, 9, 11, 3)]:
+    for alt in ["two", "less", "greater"]:
+        tab = [[t[0], t[1]], [t[2], t[3]]]; fe = stats.fisher_exact(tab, alternative=AM[alt]); o = odds_ratio(tab, kind="conditional"); ci = o.confidence_interval(0.95, alternative=AM[alt])
+        cases.append({"fn": "fisher22", "args": [*t, {"alt": alt}], "want": {"p": fe.pvalue, "or": o.statistic, "ci.0": ci.low, "ci.1": ci.high}, "kind": "test", "name": f"fisher {t} {alt}"})
+for nu in [1, 3, 9, 30, 200]:
+    for dl in [-6, -1.5, 0.4, 2, 7, 20]:
+        for t in [-8, -1, 0.2, 1.5, 4, 15, 50]:
+            w = stats.nct.cdf(t, nu, dl)
+            if math.isnan(w): print(f"  reference check, nct: SciPy (Boost) gives NaN at t={t} nu={nu} delta={dl}; left out"); continue
+            cases.append({"fn": "nctCdf", "args": [t, nu, dl], "want": w, "kind": "abs"})
+out["test23"] = cases
+
 # ---------- distributions fitted to values ----------
 def ks_exact(d, n):
     """Kolmogorov's tail: 40-digit Durbin matrix where it is small, else SciPy's kstwo."""

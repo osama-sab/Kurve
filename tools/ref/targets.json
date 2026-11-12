@@ -184,5 +184,133 @@
  },
  "dixonP": {
   "tol": 1e-12
+ },
+ "tTest1.t": {
+  "tol": 1e-14
+ },
+ "tTest1.df": {
+  "tol": 1e-15
+ },
+ "tTest1.p": {
+  "tol": 1e-13
+ },
+ "tTest1.ci": {
+  "tol": 1e-11,
+  "why": "an interval's end is the estimate plus or minus q·se: near zero they cancel"
+ },
+ "tTest1.d": {
+  "tol": 1e-14
+ },
+ "tTest1.g": {
+  "tol": 1e-13
+ },
+ "tTest1.dci": {
+  "tol": 1e-12,
+  "why": "the noncentral t inverted, against Boost's inverted by brentq"
+ },
+ "tTest2.t": {
+  "tol": 1e-14
+ },
+ "tTest2.df": {
+  "tol": 1e-15
+ },
+ "tTest2.p": {
+  "tol": 1e-13
+ },
+ "tTest2.ci": {
+  "tol": 1e-11,
+  "why": "an interval's end is the estimate plus or minus q·se: near zero they cancel"
+ },
+ "tTest2.d": {
+  "tol": 1e-14
+ },
+ "tTest2.g": {
+  "tol": 1e-13
+ },
+ "tTest2.dci": {
+  "tol": 1e-12,
+  "why": "the noncentral t inverted, against Boost's inverted by brentq"
+ },
+ "tTestPaired.t": {
+  "tol": 1e-14
+ },
+ "tTestPaired.df": {
+  "tol": 1e-15
+ },
+ "tTestPaired.p": {
+  "tol": 1e-13
+ },
+ "tTestPaired.ci": {
+  "tol": 1e-11,
+  "why": "an interval's end is the estimate plus or minus q·se: near zero they cancel"
+ },
+ "tTestPaired.d": {
+  "tol": 1e-14
+ },
+ "tTestPaired.g": {
+  "tol": 1e-13
+ },
+ "tTestPaired.dci": {
+  "tol": 1e-12,
+  "why": "the noncentral t inverted, against Boost's inverted by brentq"
+ },
+ "fTest2.F": {
+  "tol": 1e-14
+ },
+ "fTest2.p": {
+  "tol": 1e-13
+ },
+ "fTest2.ci": {
+  "tol": 1e-13
+ },
+ "leveneTest.W": {
+  "tol": 1e-14
+ },
+ "leveneTest.p": {
+  "tol": 1e-13
+ },
+ "bartlettTest.T": {
+  "tol": 1e-14
+ },
+ "bartlettTest.p": {
+  "tol": 1e-13
+ },
+ "propTest1.p": {
+  "tol": 1e-13
+ },
+ "propTest1.ci": {
+  "tol": 1e-13
+ },
+ "propTest1.wilson": {
+  "tol": 1e-14
+ },
+ "propTest1.z": {
+  "tol": 1e-14
+ },
+ "propTest1.pz": {
+  "tol": 1e-14
+ },
+ "propTest2.z": {
+  "tol": 1e-14
+ },
+ "propTest2.p": {
+  "tol": 1e-14
+ },
+ "propTest2.ci": {
+  "tol": 1e-13
+ },
+ "fisher22.p": {
+  "tol": 1e-13
+ },
+ "fisher22.or": {
+  "tol": 1e-12
+ },
+ "fisher22.ci": {
+  "tol": 1e-11,
+  "why": "a bound of a small odds ratio, solved by halving in log ψ"
+ },
+ "nctCdf": {
+  "tol": 1e-12,
+  "why": "absolute: the series subtracts far in the lower tail of a negative t, where only absolute accuracy holds (what an interval needs)"
  }
 }

@@ -1082,7 +1082,21 @@ graph first, with the taskbar kept at the bottom of the screen.
   Page: `ANA_FORMS.norm`/`outl` (`#aN_<key>`, `#aAl`, `#aOt`, `#aOs`, `#aOr`), `anaActs(a)` (the report's buttons,
   `data-anaact`, `setupAnaActs`, and the tab menu: `anaQQ`, `anaMaskOut`, `anaMarkOut`, `anaMarksOf`), the report's
   sentence first (`.anasaid`, `anaText`, `reportAnaHtml`); `anaWrite` takes a column's `role` and keeps a plotted
-  one a curve. `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
+  one a curve.
+  **Comparing means and spreads** (STATS_SPEC 2.3): in STATS, `nctCdf(t, ν, δ)` (the noncentral t, Guenther's sum
+  of incomplete betas, 3e-14 absolute), `DIST.nct`. In ANA: `finVals`, `tAltP`, `tAltCI`, `hedgesJ`, `nctDelta`,
+  `dInterval` (d's interval, the noncentral t inverted), `tTest1`, `tTest2` (Welch's unless `equal`), `tTestPaired`
+  (each takes `{mu0, alt, conf, dci}`; `dci:false` skips the inversion), `fTest2`, `leveneTest(groups, "mean"|
+  "median")`, `bartlettTest`, `nAltP`, `wilsonCI`, `propTest1` (exact binomial as R, Clopper–Pearson, Wilson,
+  score z), `propTest2` (pooled z, Newcombe), `fisher22` (R's two-sided p, the conditional odds ratio and its
+  interval); `ANA_ALT`, `ANA_VERB`, `anaPct`, `VAR_TESTS`, `tSay` (a t test's sentence); `msd` returns `e`, the
+  double mean's rounding, which the t tests add back to the difference. Kinds `ttest` (`p.type` one, two,
+  paired; `mu0`, `alt`, `alpha`, `equal`), `vartest` (`p.tests`), and `prop`, `fisher` with `typed:true` (no
+  columns: `anaDlg` shows the kind's fields alone, the report says "From the counts typed"); `report.checks`
+  (`{name, ok, text, fix:{label, p}}`) shown as notes, a fix a button (`anaActs`, `anaFix`, one undo step);
+  forms `#aTt`, `#aMu`, `#aAlt`, `#aAl`, `#aEq`, `#aV_<key>`, `#aPt`, `#aPx`, `#aPn`, `#aP0`, `#aPx2`, `#aPn2`,
+  `#aFa`…`#aFd` (`.fish22`), shared `altSel`, `alSel`. Analyze › Statistics › Hypothesis tests.
+  `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
   (rationals), shared by the fixtures (`desc.json`) and the fuzzer (`quantileType`, `descStats@<key>`, which
   `run.mjs` reads as one field of the result).
 - **Raw data** is never changed by analysis, and its arrays are replaced, never edited in
@@ -2966,7 +2980,7 @@ tails, SciPy, NumPy and statsmodels for procedures) and NIST's certified data (`
 each function's worst error against its target in `tools/ref/targets.json`; one short of its target
 names the slice that brings it there (`until`) and must not pass where it stood (`now`).
 `tools/ref/make-fixtures.py [--check]` makes the fixtures again and `tools/ref/diff-fuzz.py [seed]
-[n]` throws random cases at the same functions (both need Python 3.13 and the packages in `$PYREF`,
+[n]` (`FUZZDUMP=file` writes every failing case in full) throws random cases at the same functions (both need Python 3.13 and the packages in `$PYREF`,
 see the README; `tools/ref/run.mjs` is the pure blocks under node, any function by name).
 `node tools/perf.mjs [path]` measures what a person waits for (boot; a million rows: save, a value
 typed, draw, zoomed draw, worksheet, saved to a project file and opened from one; 2000 columns:
@@ -2984,14 +2998,17 @@ interval and type 6 percentiles against their formulas, the method in the report
 listwise, frequency counts of text and in bins of a width, the graphical summary and its one undo, junk settings,
 a reload), and 2.2 (the tests ticked, each against its function, the verdict and the sentence first, the Q–Q
 plot's columns and graph kept on recalculating, Grubbs repeated, Mask with the analysis worked out again and one
-undo, Mark, groups' rows, Dixon, a reload).
+undo, Mark, groups' rows, Dixon, a reload), and 2.3 (a one-sample sentence against tTest1, Student's by group with
+the unequal-variance check and its Use Welch's t button, undo, paired in the sheet's order, every spreads test,
+proportions and Fisher's test typed, a refusal, a reload).
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
 (a shift, a power of two, the order and a change of sign, every quantile type within the values and
 rising, one, two and equal values, Tukey's hinges), and the normality and outlier tests' (each one's size at
 5 % over 20 000 normal samples, Shapiro–Wilk's p uniform below 0.3, invariance, Grubbs' critical values as
-ASTM E178, repeated and masked, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
+ASTM E178, repeated and masked, refusals), and 2.3's (each test's size under its null, the t and d intervals'
+coverage, the exact tests at or below their level, the noncentral t at δ = 0); run it, ref-test and a fuzzer seed after touching the STATS or
 ANA block.
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
@@ -3940,6 +3957,10 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **Red that says nothing is noise.** A parameter's row turned red past a dependency of 0.99,
   and the user asked what it was. A colour means a state and says it in words where it is
   shown (a note naming the parameter), or it is not used.
+- **The mean's rounding is in every difference from it.** 2.2 took it out of the deviations; 2.3's t tests
+  still subtracted the double mean from μ₀, and with values near 10⁶ (a spread of 0.1) t moved at 3e-9. The
+  fuzzer found it within a minute; the fixtures, near 10, had not. `msd` gives the rounding (`e`) for whoever
+  subtracts.
 - **A comment swallows the line it is put on.** A patch put `// a column plotted stays a curve` in the middle
   of a line of `anaWrite`, and the `const text=…` after it became comment: every analysis threw "text is not
   defined". The syntax check passes it. Comments inside code lines are `/* … */`, and every drive runs.
@@ -4501,7 +4522,9 @@ Next, in order:
    the Graphical summary), done 12.11, checked against exact rationals (the mean, the MAD and values past 10³⁰⁰
    put right on the way); slice 2.2, normality and outliers (Shapiro–Wilk, Lilliefors, Anderson–Darling,
    D'Agostino's K², Kolmogorov–Smirnov; a Q–Q plot; Grubbs and Dixon's Q, masked or marked; Kolmogorov's exact
-   distribution, which closed `distFit`'s gap), done 12.11
+   distribution, which closed `distFit`'s gap), done 12.11; slice 2.3, comparing means and spreads (t tests
+   with d and g, Levene, Brown–Forsythe, Bartlett, F, proportions and Fisher's exact test, the frame's
+   sentence, checks and fixes), done 12.11
 
 ## Known gaps
 
@@ -4587,7 +4610,9 @@ Next, in order:
   statistics on rows, one column of groups; normality tests against the normal only (no other distribution's
   goodness of fit, no Chen–Shapiro); Shapiro–Wilk's p is Royston's approximation, high above about 0.3;
   Kolmogorov's p past about 4600 values is Pelz and Good's expansion (about nine digits); Dixon's Q is r₁₀ alone
-  (not Dixon's r₁₁, r₂₁, r₂₂ for larger samples), and Dixon's p takes 7 ms, its critical value a fifth of a second; NIST's StRD univariate sets are not yet in the bench (the host was unreachable when 2.1 was
+  (not Dixon's r₁₁, r₂₁, r₂₂ for larger samples), and Dixon's p takes 7 ms, its critical value a fifth of a second;
+  two-sample tests take the first two columns ticked in the sheet's order (no swap); proportions and Fisher's test
+  read counts typed, not columns; a normality check's fix (a rank test) waits for 2.8; NIST's StRD univariate sets are not yet in the bench (the host was unreachable when 2.1 was
   checked; exact rationals stand in); one table a kind (its report's other sections are text); an analysis
   being worked out by the worker is started again after a reload (the job is not stored); a result column has no lock
   of its own in its header (its tab has)

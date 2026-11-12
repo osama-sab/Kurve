@@ -296,3 +296,41 @@ def kolm_dmtw(n, d):
     H[m - 1, 0] += (max(2 * h - 1, 0) ** m) / mp.factorial(m)
     P = H ** n
     return P[k - 1, k - 1] * mp.factorial(n) / mp.mpf(n) ** n
+
+# ---------- comparing means (STATS_SPEC 2.3) ----------
+def _t_tail(t, nu):
+    """P(T > t) for t ≥ 0, in 40 digits."""
+    return mp.betainc(nu / 2, mp.mpf(1) / 2, 0, nu / (nu + t * t), regularized=True) / 2
+
+def _t_p(t, nu, alt):
+    """t's p for the alternative, each tail computed as itself: 1 − (1 − a tail of 1e-34) keeps six digits of it in 40."""
+    up = _t_tail(abs(t), nu)
+    if alt == "greater": return up if t >= 0 else 1 - up
+    if alt == "less": return up if t < 0 else 1 - up
+    return min(mp.mpf(1), 2 * up)
+
+def t_ref(kind, a, b=None, mu0=0, alt="two", equal=False, conf=0.95):
+    """A t test in 40 digits: the moments as rationals, t, its degrees of freedom, p, the estimate's
+    interval (t's quantile by refs.t_isf), Cohen's d and Hedges' g (J by Γ)."""
+    A = [Fr(v) for v in a]; mu = Fr(mu0)
+    if kind == "paired":
+        A = [Fr(x) - Fr(y) for x, y in zip(a, b)]; kind = "one"
+    def mv(X):
+        n = len(X); m = sum(X) / n; return n, m, sum((x - m) ** 2 for x in X) / (n - 1)
+    if kind == "one":
+        n, m, v = mv(A); se = mp.sqrt(mpq(v / n)); est = mpq(m); t = (est - mpq(mu)) / se; nu = mp.mpf(n - 1)
+        d = (est - mpq(mu)) / mp.sqrt(mpq(v)); dp = n - 1
+    else:
+        B = [Fr(v) for v in b]; n1, m1, v1 = mv(A); n2, m2, v2 = mv(B); dp = n1 + n2 - 2; sp2 = ((n1 - 1) * v1 + (n2 - 1) * v2) / dp
+        est = mpq(m1 - m2)
+        if equal: se = mp.sqrt(mpq(sp2 * (Fr(1, n1) + Fr(1, n2)))); nu = mp.mpf(dp)
+        else:
+            q1, q2 = v1 / n1, v2 / n2; se = mp.sqrt(mpq(q1 + q2)); nu = mpq((q1 + q2) ** 2 / (q1 * q1 / (n1 - 1) + q2 * q2 / (n2 - 1)))
+        t = (est - mpq(mu)) / se; d = (est - mpq(mu)) / mp.sqrt(mpq(sp2))
+    p = _t_p(t, nu, alt)
+    if alt == "two":
+        q = mp.mpf(t_isf((1 - conf) / 2, nu, 2.0)); ci = (est - q * se, est + q * se)
+    else:
+        q = mp.mpf(t_isf(1 - conf, nu, 2.0)); ci = (-mp.inf, est + q * se) if alt == "less" else (est - q * se, mp.inf)
+    J = mp.gamma(mp.mpf(dp) / 2) / (mp.sqrt(mp.mpf(dp) / 2) * mp.gamma(mp.mpf(dp - 1) / 2))
+    return {"t": f(t), "df": f(nu), "p": f(p), "ci.0": f(ci[0]), "ci.1": f(ci[1]), "d": f(d), "g": f(d * J)}
