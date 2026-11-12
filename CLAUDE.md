@@ -1510,27 +1510,38 @@ graph first, with the taskbar kept at the bottom of the screen.
   the worksheet's `#wsPlotBtn`, Plot › Plot the selected columns, the cell menu and the
   column menu (`wsSelColIds`, `plotTargets(cid)`); its first item is **Plot setup…**:
   `openPlotDlg(cids)` (also first in Plot, and what `#wsPlotBtn` opens when nothing plottable
-  is selected), as Origin's Plot Setup (`ux/spec/PLOT_SPEC.md` slice 2; `.psu`, the sheet
-  `.plotdlg.psuw`): **Kind**, `PLOT_DLG_KINDS` as a gallery (`.pgal`, the design system's
-  PlotGallery: a card per kind drawn with the curves, `plotDlgCard(k, ser)`, `plotKindIcon`'s
-  picture only while there is none; a radiogroup the arrow keys move through; `S.plotDlgKind`
-  remembered); **Columns** (`#psuSheet` a sheet or every sheet with its file, `#psuQ` a filter,
-  a row per column with a tick `data-ptick`, its rows and a sparkline, and its Use
-  `select[data-puse]` from `PSU_USES`: X, Y, Y and X errors ±/+/−, labels, colour, size; an
-  option `psuWhyNot(c, u)` refuses is disabled with the reason: a Y column is never made an X
-  or error bars here, an X never a Y; `#psuMark`/`#psuMarkAs` mark the ticked ones); **Curves on
-  the graph** (`st.curves`, `[{y, x (null for the row number), e:[{c, k}], lab, zcol, scol}]`,
-  started by `psuStart(cids)` from the selection as `plotCols` reads it, with the marks they
-  make; `psuBuild(st)` the curves the marks make: a Y against its own X when marked, else the
-  nearest X marked to its left; an error column to its own Y when marked, else the nearest Y to
-  its left; Add and Replace take the ticked ones' curves when some are ticked, `psuSig` tells two
-  apart; `#psuAdd`, `#psuRep`, `#psuDel`, `#psuUp`, `#psuDn`, rows `tr[data-pcur]` selected by a
-  press or ↑/↓, Alt+↑/↓ and Delete; each row's Against `data-cx`, Range `data-crng` with
-  `data-cra`/`data-crb` (by X only when `psuSpan(q)` finds X steady), Axis `data-cax`, not the
-  first); Into (`#pdlgInto`); and the preview `#pdlgSk`, `plotSetupPv(st, kind, W, H)`: the
+  is selected), as Origin's Plot Setup (`ux/spec/PLOT_SPEC.md` slices 2 and 7; `.psu`, the sheet
+  `.plotdlg.psuw`): **Kind**, a button (`#psuKind`, `.psu-kic` the kind's picture, `#psuKindN` its
+  name, "As drawn now" on a graph) opening `PLOT_DLG_KINDS` as a gallery in the pickers' slot
+  (`fpOpen`, `.fpick.kindpick`, `.pgal`, the design system's PlotGallery: a card per kind drawn
+  with the curves, `plotDlgCard(k, ser)`; hovering or focusing one previews it; `S.plotDlgKind`
+  remembered); **Columns** (`#psuSheet` a sheet or every sheet with its file, `#psuQ` a filter),
+  a grid of roles (slice 7: `PSU_ROLE` x, y, ey, ex, lab, size, col, z, ez, each its header, use
+  and tooltip; `PSU_KROLES` per kind, lines' X, Y, Y error, X error, Labels, a map's X, Y, Z, Z
+  error; `psuRoles(st, cols)` adds any role a column shown is marked with; `useRole`, `roleUse`):
+  a row per column with its rows and sparkline (`.psu-n`, `.psu-spk`, gone on a phone), a box
+  `input[data-prole][data-pcol]` per role, one ticked a column, refused where `psuWhyNot(c, u)`
+  says (disabled, the reason its title), a Y or X error's way `select[data-pside]`; `st.use` the
+  uses (`PSU_USES`, `e:z` the Z error); **Curves on the graph** (`st.curves`, `[{y, x (null for
+  the row number), e:[{c, k}], lab, zcol, scol, ez, type}]`, started by `psuStart(cids)` from the
+  selection as `plotCols` reads it, with the marks they make; `psuBuild(st)` the curves the marks
+  make: a Y against its own X when marked, else the nearest X marked to its left; an error column
+  to its own Y when marked, else the nearest Y to its left; a Z error to the curve whose Z it
+  belongs to, else the nearest Z to its left; Add takes every curve marked, Replace (`fresh`) the
+  marked Ys not on the list, `psuSig` tells two apart; `#psuAdd`, `#psuRep`, `#psuDel`, `#psuUp`,
+  `#psuDn`), each curve a line (`tr[data-pcur]`, `.psu-cn`, selected by a press or ↑/↓, Alt+↑/↓
+  and Delete): against `data-cx`, its parts `select[data-cpart][data-cy]` (`partsOf`: what it
+  has and what its kind needs; `candOf`, `setPart`, which the grid's marks follow), `+`
+  `[data-cadd]` a menu of what it lacks (`addable`), and with a kind drawn with symbols
+  (`PSU_SYMK`, or the curve's type on a graph) its symbol `[data-csym]` opening `openSymbolGrid`
+  (`st.sym`, `st.ss`, written as the series' `sym` and `ss`); the curve selected's range
+  `data-crng` with `data-cra`/`data-crb` (by X only when `psuSpan(q)` finds X steady), axis
+  `data-cax` (not the first) and group `data-cgrp` with its steps `data-gstep` in `#psuDet`;
+  Into (`#pdlgInto`); and the preview `#pdlgSk`, `plotSetupPv(st, kind, W, H)`: the
   graph itself, a graph `__psu` and the columns' changes (`put`) made for one drawing through
   `withGraph` and `buildPlot` and taken back, ids prefixed `psu-` (a histogram still
-  `plotDlgSketch` through `plotDlgSer` and `plotDraw`). Below 860 px the parts are tabs
+  `plotDlgSketch` through `plotDlgSer` and `plotDraw`). Below 860 px the columns and the curves
+  are tabs, the kind above them
   (`.psu-tabs`, `data-ptab`, `.psu[data-tab]`). **Kinds that need another column** (slice 5):
   `PLOT_DLG_KINDS`' third row (`more`: `bubble`, `cmap`, `labels`, `errbox`, each with its
   tooltip as a fourth entry), `MORE_KINDS` (what each needs beside every curve, `scol`, `zcol`,
@@ -2308,7 +2319,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   the default of every new graph, `autoType(id)`: a line for 500 points or more, or 40 or more
   sorted with even spacing, symbols otherwise; a curve's own `series[id].type` wins, and
   `plotTypeItems(c, ro)` is the Plot type submenu, Automatic first), `color`, `lw`, `dash`, `sym`
-  (`SYMS`, filled and open), `ss`, `fill`, `op`, `label`; the fit curve's is `series.__fit`.
+  (`SYMS`: 19, filled, open (an `o` before the name) and strokes, `symD`, `symOpen`, `symName`, `symGlyph(k, color, w)`;
+  chosen from `openSymbolGrid(btn, cur, pick, {color, size})`, a grid in the pickers' slot with the size, from Plot
+  setup, the Format pane's `#pdSym` (`data-pdsym`) and a curve's right-click *Symbol…*), `ss`, `fill`, `op`, `label`;
+  the fit curve's is `series.__fit`.
   The Y axis's automatic title is `autoYTitle(d, others, layout)`: the active column's name and
   unit, or with several curves overlaid or offset their shared name, else their shared unit,
   else "Value" (`autoYOf()` for the graph in hand: the title's placeholders).
@@ -2709,7 +2723,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   the status bar counts in a loop; `afterView()` after a zoom or pan renders the Fit window only
   while it is open (else the status bar). The worksheet's sparklines are `sparkPts` (the first,
   lowest, highest and last of each bucket of rows, one pass), as is any long `sparkSvg`.
-- **Error bars** (`ERR_KINDS`): an error column (role `e`, `of` its spectrum) is Y both ways
+- **Error bars** (`ERR_KINDS`; and a Z error, `ax:"z"` (zEr±), whose `of` is a map's Z column: the map's readout
+  gives the value and error of the point within 8 px, `geo.tmapErr`): an error column (role `e`, `of` its spectrum) is Y both ways
   (the default), Y upward (`side:"+"`) or downward (`side:"-"`), or the same for X (`ax:"x"`);
   `errKind`, `errTag` (the worksheet's yEr±, yEr+, yEr−, xEr±…), `errKindName`, `errColsOf(id)`
   (by kind), `hasErrCols`. `errColFor(id)` is the ± Y column only; `yErrData(id)` is the
@@ -2994,7 +3009,9 @@ data, Bubbles waiting for a size and naming the curve without one, error boxes i
 graph and an export, labelled points, colour by value, a kind on a graph said in the log; slice 6:
 the kind and uses remembered per sheet, the dialog starting from them, Plot like the last time
 with no dialog, not on another sheet, the dialog when the size column has gone, error bars undone
-not given back, junk from storage); since, the roadmap's later slices, each in a section of its
+not given back, junk from storage; slice 7: the kind a button, the grid's roles per kind, a curve's parts set
+from its line and its + menu, the symbol grid from Plot setup, the right-click and the Format pane, a Z error marked,
+carried to the column and read by the readout); since, the roadmap's later slices, each in a section of its
 own (comments unread and read, for one); run it after touching the graph's drawing or Plot setup.
 `node tools/fit-drive.mjs [path]` (Playwright) clicks and types into what each slice of the
 curve fit (`ux/spec/FIT_SPEC.md`) from slice 5 on added (Find X/Y: the readouts against the
@@ -4160,7 +4177,10 @@ another column beside each curve, as cards of their own (bubbles, colour by valu
 error boxes), Plot waiting with a note until each curve has it; error boxes also a way to draw any
 curve's error bars. Slice 6 done: Plot setup remembers, per sheet in this browser, the kind it last
 plotted and each column's use, starts from them, and *Plot like the last time* plots a selection
-that way at once; what it remembers never changes a column. Plot setup's six slices are done.
+that way at once; what it remembers never changes a column. Plot setup's six slices are done. Slice 7 done (12.11, the user's request): the kind a button opening the gallery; the
+columns a grid of the roles the kind takes (X, Y, Y error, X error, Labels; a map's X, Y, Z and Z error); each curve one
+line of what it uses, every part a menu; the symbols seen and chosen from a grid (19 of them, here, on a curve's
+right-click and in the Format pane); a Z error kept with its column and read by the map's readout.
 
 Then, from the user's reports of 29.10: a file added to a new sheet no longer leaves the sheet's
 empty columns between its own (the dialog, a drop, several files and a copy from another project
@@ -4801,6 +4821,8 @@ Next, in order:
 - What a curve uses: the right axis for overlaid curves only (the active one stays left), one right
   axis for all of them; the readers (Reader, X–Y lines) read the left axis's curves only; a range is
   by rows or by X, not both, and labels are a column's numbers (the worksheet has no text cells)
+- Plot setup: a Z error is kept and read by the map's readout, not drawn (3D will draw it, PARITY_SPEC 7.8); a
+  symbol's size is one per curve (not sized by a column there: Bubbles do that)
 - Plot setup: a Y column cannot be made an X or error bars there (nor an X a Y): the worksheet's
   header menu changes those roles; a curve is a column (a graph cannot draw one column twice, as
   against two X columns); colour and size from a column are set here but styled in the Format

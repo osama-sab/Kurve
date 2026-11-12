@@ -165,6 +165,27 @@ reason, CLAUDE.md, the menu spec when a menu changes.
    sheet (as `S.plotDlgKind` does for the kind), and *Plot like the last time* plots the
    selection that way from the worksheet's Plot menu.
 
+7. **Plot setup, refined** (done 2026-11-12; Replace takes the columns marked Y not yet on the graph, since
+   the ticks to choose some went with the Use list) (the user, 2026-11-12: show which column is X, Y, Y error and X error
+   as they are chosen; Z and Z error for a map from X, Y, Z; the symbols to be seen when chosen;
+   more flexible, and clean rather than crowded).
+   - **What each column is, as a grid**: a row per column, a box per role the kind takes, its
+     headers following the kind: X, Y, Y error, X error (and Labels) for lines and symbols; X, Y,
+     Z, Z error for a map from X, Y, Z; X, Y and Size, Colour or Labels for the kinds with another
+     column. A column ticks one box; a Y error's box says ±, + or − and changes from its menu. The
+     worksheet's roles are where it starts.
+   - **Each curve says what it uses**, in one line: "Signal against Time, ± σ signal, ± σ time
+     in X"; each part a menu to change it.
+   - **Symbols seen**: a curve drawn with symbols shows its symbol, which opens a grid of every
+     symbol, filled and open, in the curve's colour, with the size; the same grid in the Format
+     pane and the curve's right-click. More symbols: triangle down, pentagon, hexagon, star,
+     asterisk.
+   - **Less at once**: the kind is one button with its picture, opening the gallery; a curve's
+     range, axis and group are shown for the curve selected, not as columns of every row; the
+     preview takes the room the cards had.
+   - **Z error** is the Z column's error (`ax:"z"`, decision 1), kept with it: the map's readout
+     gives Z with its error, and 3D (PARITY_SPEC 7.8) draws it.
+
 ## Rules to keep
 
 - What a column is (its X, its error columns) has one place, the column; what a curve on one

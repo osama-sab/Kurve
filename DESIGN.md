@@ -898,6 +898,19 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-12: Plot setup refined (PLOT_SPEC slice 7)
+
+The user: show which column is X, Y, Y error, X error (Z and Z error for a map) as they are chosen;
+let the symbols be seen; more flexible, clean rather than crowded.
+- **The kind is one button** with its picture; the gallery opens over the dialog. Three rows of
+  cards took the top third of it.
+- **What a column is, as a grid** of the roles the kind takes, as Origin's designation boxes: a
+  column's role is seen at a glance, and the headers say what the kind can use.
+- **Each curve in one line** of what it uses; a part it lacks behind +. Range, axis and group only
+  for the curve selected: columns of them for every row was what crowded the list.
+- **Symbols as a grid of pictures**, the same in Plot setup, the Format pane and a curve's menu.
+- **A Z error is the Z column's**, as other error columns are their Y's, so it outlives the graph.
+
 ### 2026-11-12: correlation (STATS_SPEC 2.9)
 
 - **A section a coefficient** in the report: its matrix, then each pair's N and p; Pearson's interval

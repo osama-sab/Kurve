@@ -111,10 +111,21 @@ const six = async p => {
 };
 // What the dialog shows: its curves (name, against, with), what is enabled, and the preview.
 const psu = p => p.evaluate(() => ({
-  curves: [...document.querySelectorAll("#psuCur [data-pcur]")].map(t => ({ id: t.dataset.pcur, against: (t.querySelector("[data-cx]") || {}).value, with: t.children[2].textContent, sel: t.getAttribute("aria-selected") === "true" })),
+  curves: [...document.querySelectorAll("#psuCur [data-pcur]")].map(t => ({ id: t.dataset.pcur, against: (t.querySelector("[data-cx]") || {}).value, sel: t.getAttribute("aria-selected") === "true",
+    with: [...t.querySelectorAll("[data-cpart]")].filter(s => s.value).map(s => { const r = s.dataset.cpart, side = (s.previousElementSibling.previousElementSibling || s.parentNode.querySelector(".lab")).textContent.slice(-1);
+      return ({ ey: "yEr" + side, ex: "xEr" + side, lab: "labels", size: "size", col: "colour", z: "Z", ez: "zEr±" })[r] + " " + colLetter(colById(s.value)); }).join(", ") })),
   add: !$("#psuAdd").disabled, rep: !$("#psuRep").disabled, del: !$("#psuDel").disabled, up: !$("#psuUp").disabled, dn: !$("#psuDn").disabled, ok: !$("#formOk").disabled,
   pv: $("#pdlgSk").innerHTML, ids: [...$("#pdlgSk").querySelectorAll("[id]")].map(e => e.id) }));
-const use = (p, id, v) => p.selectOption(`#psuCols [data-puse="${id}"]`, v);
+// A column's use, through the grid of roles (PLOT_SPEC slice 7): its box ticked, and the bars' way chosen.
+const use = async (p, id, v) => {
+  const role = !v ? null : v === "x" || v === "y" || v === "lab" || v === "size" ? v : v.startsWith("e:y") ? "ey" : v.startsWith("e:x") ? "ex" : v === "e:z" ? "ez" : "col";
+  if (!role) { const on = await p.$(`#psuCols [data-pcol="${id}"]:checked`); if (on) await on.uncheck(); await p.waitForTimeout(60); return; }
+  let sel = `#psuCols [data-prole="${role}"][data-pcol="${id}"]`; if (role === "col" && !(await p.$(sel))) sel = `#psuCols [data-prole="z"][data-pcol="${id}"]`;
+  await p.check(sel); await p.waitForTimeout(60);
+  if (/^e:[xy][+-]$/.test(v)) { await p.selectOption(`#psuCols [data-pside="${id}"]`, v[3]); await p.waitForTimeout(60); } };
+// The kind, from the gallery the Kind button opens.
+const kind = async (p, k) => { await p.click("#psuKind"); await p.waitForTimeout(150); await p.click(`.kindpick [data-pk="${k}"]`); await p.waitForTimeout(150); };
+const pickCur = (p, id) => p.click(`#psuCur [data-pcur="${id}"] .psu-cn`);
 
 console.log("Slice 2: Plot setup, rebuilt");
 await page(async p => {
@@ -124,8 +135,8 @@ await page(async p => {
   let r = await psu(p);
   check("opened on B and D: two curves against A, nothing to add or replace, Up off for the first", r.curves.map(q => q.id).join() === [id.B, id.D].join() && r.curves.every(q => q.against === id.A) && !r.add && !r.rep && r.del && !r.up && r.dn && r.ok, JSON.stringify(Object.assign({}, r, { pv: r.pv.length })));
   check("the preview is the graph drawn as it will be, its ids its own", /<svg/.test(r.pv) && /data-ser/.test(r.pv) && r.ids.length && r.ids.every(i => i.startsWith("psu-")), r.ids.slice(0, 4).join());
-  r = await p.evaluate(id => { const opts = s => [...document.querySelector(`#psuCols [data-puse="${s}"]`).options].filter(o => o.disabled).map(o => o.value); return { b: opts(id.B), c: opts(id.C), a: opts(id.A) }; }, id);
-  check("a Y column cannot be made error bars or an X here, an X not a Y; a data column can be anything", r.b.includes("e:y") && r.b.includes("x") && r.a.includes("y") && !r.c.length, JSON.stringify(r));
+  r = await p.evaluate(id => { const off = s => [...document.querySelectorAll(`#psuCols [data-pcol="${s}"]`)].filter(o => o.disabled).map(o => o.dataset.prole); return { b: off(id.B), c: off(id.C), a: off(id.A), head: [...document.querySelectorAll("#psuCols th.psu-rh")].map(t => t.textContent).join() }; }, id);
+  check("the grid's roles for lines: X, Y, Y error, X error, Labels; a Y column cannot be made error bars or an X here, an X not a Y; a data column anything", r.head === "X,Y,Y error,X error,Labels" && r.b.includes("ey") && r.b.includes("x") && r.a.includes("y") && !r.c.length, JSON.stringify(r));
   // Error bars and labels from columns: Add lights up, and the curves take them.
   await use(p, id.C, "e:y"); await p.waitForTimeout(120);
   r = await psu(p);
@@ -135,29 +146,28 @@ await page(async p => {
   r = await psu(p);
   check("Add: B with its error bars from C, D with labels from F (the nearest Y to its left)", /yEr± C/.test(r.curves[0].with) && /labels F/.test(r.curves[1].with) && !r.add && /data-plab/.test(r.pv), JSON.stringify(r.curves));
   // Order, range and axis of a curve.
-  await p.click(`#psuCur [data-pcur="${id.D}"] td`); await p.click("#psuUp"); await p.waitForTimeout(150);
+  await pickCur(p, id.D); await p.click("#psuUp"); await p.waitForTimeout(150);
   r = await psu(p);
   check("Up: D first, still selected", r.curves[0].id === id.D && r.curves[0].sel && !r.up && r.dn, JSON.stringify(r.curves));
   await p.click("#psuDn"); await p.waitForTimeout(150);
-  await p.selectOption(`#psuCur [data-crng="${id.D}"]`, "row"); await p.waitForTimeout(150);
-  r = await p.evaluate(id => ({ a: $(`#psuCur [data-cra="${id.D}"]`).value, b: $(`#psuCur [data-crb="${id.D}"]`).value }), id);
+  await p.selectOption(`#psuDet [data-crng="${id.D}"]`, "row"); await p.waitForTimeout(150);
+  r = await p.evaluate(id => ({ a: $(`#psuDet [data-cra="${id.D}"]`).value, b: $(`#psuDet [data-crb="${id.D}"]`).value }), id);
   check("Range by rows starts at every row", r.a === "1" && r.b === "60", JSON.stringify(r));
-  await p.fill(`#psuCur [data-cra="${id.D}"]`, "11"); await p.press(`#psuCur [data-cra="${id.D}"]`, "Enter");
-  await p.fill(`#psuCur [data-crb="${id.D}"]`, "20"); await p.press(`#psuCur [data-crb="${id.D}"]`, "Enter"); await p.waitForTimeout(150);
-  await p.selectOption(`#psuCur [data-cax="${id.D}"]`, "r"); await p.waitForTimeout(200);
-  r = await p.evaluate(() => ({ open: !$("#formModal").hidden, ax: (document.querySelector("#psuCur [data-cax]") || {}).disabled }));
+  await p.fill(`#psuDet [data-cra="${id.D}"]`, "11"); await p.press(`#psuDet [data-cra="${id.D}"]`, "Enter");
+  await p.fill(`#psuDet [data-crb="${id.D}"]`, "20"); await p.press(`#psuDet [data-crb="${id.D}"]`, "Enter"); await p.waitForTimeout(150);
+  await p.selectOption(`#psuDet [data-cax="${id.D}"]`, "r"); await p.waitForTimeout(200);
+  await pickCur(p, id.B); await p.waitForTimeout(100);
+  r = await p.evaluate(() => ({ open: !$("#formModal").hidden, ax: (document.querySelector("#psuDet [data-cax]") || {}).disabled }));
   check("Enter in a range field enters it and keeps the dialog open; the first curve's axis stays left", r.open && r.ax, JSON.stringify(r));
   // Remove, and Add puts it back; Replace with a ticked column.
-  await p.click(`#psuCur [data-pcur="${id.B}"] td`); await p.click("#psuDel"); await p.waitForTimeout(150);
+  await pickCur(p, id.B); await p.click("#psuDel"); await p.waitForTimeout(150);
   r = await psu(p);
   check("Remove takes B off; Add offers it again, its marks kept", r.curves.length === 1 && r.curves[0].id === id.D && r.add, JSON.stringify(r.curves));
   await p.click("#psuAdd"); await p.waitForTimeout(150);
-  await p.check(`#psuCols [data-ptick="${id.E}"]`); await p.waitForTimeout(100);
-  r = await p.evaluate(() => ({ mark: !$("#psuMark").hidden, n: $("#psuMarkN").textContent }));
-  await p.selectOption("#psuMarkAs", "y"); await p.waitForTimeout(150);
-  await p.click(`#psuCur [data-pcur="${id.B}"] td`); await p.waitForTimeout(100);
+  await use(p, id.E, "y");
+  await pickCur(p, id.B); await p.waitForTimeout(100);
   const r2 = await psu(p);
-  check("a ticked column marked from the bar; Replace offered for the selected curve", r.mark && r.n === "1 ticked" && r2.rep && r2.add, JSON.stringify([r, r2.rep, r2.add]));
+  check("E marked Y in the grid: Add and Replace offered for the selected curve", r2.rep && r2.add, JSON.stringify([r2.rep, r2.add]));
   await p.click("#psuRep"); await p.waitForTimeout(150);
   r = await psu(p);
   check("Replace: B gives way to E, in its place", r.curves.map(q => q.id).join() === [id.D, id.E].join() && r.curves[1].sel, JSON.stringify(r.curves));
@@ -176,9 +186,9 @@ await page(async p => {
   // OK: the graph, what each curve uses, and the columns' own changes, in one undo entry.
   await p.evaluate(id => { openPlotDlg([id.B, id.D]); }, id); await p.waitForTimeout(400);
   await use(p, id.C, "e:y+"); await use(p, id.F, "lab"); await p.click("#psuAdd"); await p.waitForTimeout(150);
-  await p.selectOption(`#psuCur [data-crng="${id.D}"]`, "row"); await p.fill(`#psuCur [data-cra="${id.D}"]`, "11"); await p.press(`#psuCur [data-cra="${id.D}"]`, "Enter");
-  await p.fill(`#psuCur [data-crb="${id.D}"]`, "20"); await p.press(`#psuCur [data-crb="${id.D}"]`, "Enter");
-  await p.selectOption(`#psuCur [data-cax="${id.D}"]`, "r"); await p.click('#formBody [data-pk="scatter"]'); await p.waitForTimeout(150);
+  await p.selectOption(`#psuDet [data-crng="${id.D}"]`, "row"); await p.fill(`#psuDet [data-cra="${id.D}"]`, "11"); await p.press(`#psuDet [data-cra="${id.D}"]`, "Enter");
+  await p.fill(`#psuDet [data-crb="${id.D}"]`, "20"); await p.press(`#psuDet [data-crb="${id.D}"]`, "Enter");
+  await p.selectOption(`#psuDet [data-cax="${id.D}"]`, "r"); await kind(p, "scatter");
   const u0 = await p.evaluate(() => undoStack.length);
   await p.click("#formOk"); await p.waitForTimeout(500);
   r = await p.evaluate(id => { const g = P().graphs[P().graphs.length - 1], c = colById(id.C), t = [...document.querySelectorAll("#toast, .toast")].map(e => e.textContent).join(" ");
@@ -216,10 +226,10 @@ await page(async p => {
 await page(async p => {
   const id = await six(p);
   await p.evaluate(id => { openPlotDlg([id.B, id.D]); }, id); await p.waitForTimeout(400);
-  const vis = () => p.evaluate(() => ["#formBody .pdlg-kinds", "#formBody .psu-colsp", "#formBody .psu-curp", "#pdlgSk"].map(s => { const r = $(s).getBoundingClientRect(); return r.width > 0 && r.height > 0; }));
-  const a = await vis(); await p.click('[data-ptab="cols"]'); await p.waitForTimeout(100); const b = await vis(); await p.click('[data-ptab="cur"]'); await p.waitForTimeout(100); const c = await vis();
-  const w = await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
-  check("at phone width the parts are tabs, the preview under each, no page scroll sideways", JSON.stringify([a, b, c]) === JSON.stringify([[true, false, false, true], [false, true, false, true], [false, false, true, true]]) && w, JSON.stringify([a, b, c, w]));
+  const vis = () => p.evaluate(() => ["#formBody .psu-top", "#formBody .psu-colsp", "#formBody .psu-curp", "#pdlgSk"].map(s => { const r = $(s).getBoundingClientRect(); return r.width > 0 && r.height > 0; }));
+  const a = await vis(); await p.click('[data-ptab="cur"]'); await p.waitForTimeout(100); const b = await vis(); await p.click('[data-ptab="cols"]'); await p.waitForTimeout(100); const c = await vis();
+  const w = await p.evaluate(() => ({ page: document.documentElement.scrollWidth <= innerWidth, roles: [...document.querySelectorAll("#psuCols th.psu-rh")].every(t => t.getBoundingClientRect().right <= $("#psuCols").getBoundingClientRect().right + 1) }));
+  check("at phone width the kind on top, the columns and the curves tabs, the preview under each; the roles fit, no page scroll sideways", JSON.stringify([a, b, c]) === JSON.stringify([[true, true, false, true], [true, false, true, true], [true, true, false, true]]) && w.page && w.roles, JSON.stringify([a, b, c, w]));
   await p.click("#formOk"); await p.waitForTimeout(400);
   check("…and Plot works from there", await p.evaluate(() => P().graphs.length === 1));
 }, { name: "Plot setup, phone", vw: { width: 390, height: 844 } });
@@ -232,12 +242,14 @@ await page(async p => {
   let r = await p.evaluate(id => { const lab = a => a.filter(i => i && i.label).map(i => i.label); return { plot: lab(plotMenu()).includes("What this graph plots…"), right: lab(graphMenuItems(id.B)).includes("What it plots…"), empty: lab(graphMenuItems(null)).includes("What it plots…"), win: lab(graphWinItems(GID())).includes("What it plots…") }; }, id);
   check("What it plots… in the Plot menu, the curve's and the plot's right-click and the graph's ⋯ menu", r.plot && r.right && r.empty && r.win, JSON.stringify(r));
   await p.evaluate(() => { plotsOf(); }); await p.waitForTimeout(400);
-  r = await p.evaluate(() => ({ title: $("#formTitle").textContent, ok: $("#formOk").textContent, cur: [...document.querySelectorAll("#psuCur [data-pcur]")].map(t => t.dataset.pcur), kind: [...document.querySelectorAll("#formBody [data-pk]")].filter(b => b.getAttribute("aria-checked") === "true").length, hist: $('#formBody [data-pk="hist"]').disabled, into: !!$("#pdlgInto"), hello: /Hello there/.test($("#pdlgSk").innerHTML), add: !$("#psuAdd").disabled, ax: document.querySelectorAll("#psuCur [data-cax]").length }));
-  check("opened on the graph: its curves in order with their axes, no kind chosen (it keeps its own), no histogram, no Into, its labels in the preview, nothing to add", r.title === "What Graph 1 plots" && r.ok === "OK" && r.cur.join() === [id.B, id.D, id.E].join() && r.kind === 0 && r.hist && !r.into && r.hello && !r.add && r.ax === 3, JSON.stringify(r));
+  await p.click("#psuKind"); await p.waitForTimeout(150);
+  r = await p.evaluate(() => ({ title: $("#formTitle").textContent, ok: $("#formOk").textContent, cur: [...document.querySelectorAll("#psuCur [data-pcur]")].map(t => t.dataset.pcur), kind: $("#psuKindN").textContent, checked: [...document.querySelectorAll(".kindpick [data-pk]")].filter(b => b.getAttribute("aria-checked") === "true").length, hist: $('.kindpick [data-pk="hist"]').disabled, into: !!$("#pdlgInto"), hello: /Hello there/.test($("#pdlgSk").innerHTML), add: !$("#psuAdd").disabled, ax: document.querySelectorAll("#psuDet [data-cax]").length }));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+  check("opened on the graph: its curves in order, the selected one's axis, no kind chosen (each keeps its own), no histogram, no Into, its labels in the preview, nothing to add", r.title === "What Graph 1 plots" && r.ok === "OK" && r.cur.join() === [id.B, id.D, id.E].join() && r.kind === "As drawn now" && r.checked === 0 && r.hist && !r.into && r.hello && !r.add && r.ax === 1 && await p.evaluate(() => !$("#formModal").hidden), JSON.stringify(r));
   // Take one off, reorder, a range: OK is one step, said in the log.
-  await p.click(`#psuCur [data-pcur="${id.E}"] td`); await p.click("#psuDel");
-  await p.click(`#psuCur [data-pcur="${id.D}"] td`); await p.click("#psuUp");
-  await p.selectOption(`#psuCur [data-crng="${id.B}"]`, "row"); await p.fill(`#psuCur [data-crb="${id.B}"]`, "30"); await p.press(`#psuCur [data-crb="${id.B}"]`, "Enter"); await p.waitForTimeout(150);
+  await pickCur(p, id.E); await p.click("#psuDel");
+  await pickCur(p, id.D); await p.click("#psuUp");
+  await pickCur(p, id.B); await p.selectOption(`#psuDet [data-crng="${id.B}"]`, "row"); await p.fill(`#psuDet [data-crb="${id.B}"]`, "30"); await p.press(`#psuDet [data-crb="${id.B}"]`, "Enter"); await p.waitForTimeout(150);
   const u0 = await p.evaluate(() => undoStack.length);
   await p.click("#formOk"); await p.waitForTimeout(400);
   r = await p.evaluate(id => { const g = P().graphs[0]; return { cols: g.cols, rng: (g.plot.use || {})[id.B], act: P().activeY, undo: undoStack.length, log: (P().log || []).slice(-1)[0].text, n: P().graphs.length }; }, id);
@@ -246,7 +258,7 @@ await page(async p => {
   check("one undo puts the curves and the range back", await p.evaluate(id => { const g = P().graphs[0]; return g.cols.join() === [id.B, id.D, id.E].join() && !curveUse(id.B, g.plot).rng; }, id));
   // The active curve taken off: the graph keeps one it shows as the active one. A kind chosen: every curve.
   await p.evaluate(() => { plotsOf(); }); await p.waitForTimeout(400);
-  await p.click(`#psuCur [data-pcur="${id.B}"] td`); await p.click("#psuDel"); await p.click('#formBody [data-pk="scatter"]'); await p.waitForTimeout(150);
+  await pickCur(p, id.B); await p.click("#psuDel"); await kind(p, "scatter");
   await p.click("#formOk"); await p.waitForTimeout(400);
   r = await p.evaluate(id => { const g = P().graphs[0]; return { cols: g.cols, act: P().activeY, types: g.cols.map(k => (g.plot.series[k] || {}).type) }; }, id);
   check("the active curve taken off: D is the active one; Symbols chosen: every curve drawn so", r.cols.join() === [id.D, id.E].join() && r.act === id.D && r.types.every(t => t === "scatter"), JSON.stringify(r));
@@ -302,20 +314,20 @@ await page(async p => {
   // In Plot setup: the group column and the steps.
   await p.evaluate(() => { setGroup(P().graphs[0].cols.slice(), null, "none"); }); await p.waitForTimeout(150);
   await p.evaluate(() => { plotsOf(); }); await p.waitForTimeout(400);
-  await p.selectOption(`#psuCur [data-cgrp="${id.B}"]`, "new"); await p.waitForTimeout(120);
-  const gk = await p.evaluate(id => $(`#psuCur [data-cgrp="${id.B}"]`).value, id);
-  await p.selectOption(`#psuCur [data-cgrp="${id.D}"]`, gk); await p.waitForTimeout(120);
-  r = await p.evaluate(() => ({ steps: [...document.querySelectorAll("#psuCur [data-gstep]")].length, opts: [...document.querySelectorAll("#psuCur [data-cgrp]")][1].options.length }));
-  await p.selectOption(`#psuCur [data-gstep="${gk}"]`, "color"); await p.waitForTimeout(150);
+  await pickCur(p, id.B); await p.selectOption(`#psuDet [data-cgrp="${id.B}"]`, "new"); await p.waitForTimeout(120);
+  const gk = await p.evaluate(id => $(`#psuDet [data-cgrp="${id.B}"]`).value, id);
+  await pickCur(p, id.D); await p.selectOption(`#psuDet [data-cgrp="${id.D}"]`, gk); await p.waitForTimeout(120);
+  r = await p.evaluate(() => ({ steps: [...document.querySelectorAll("#psuDet [data-gstep]")].length, opts: $("#psuDet [data-cgrp]").options.length }));
+  await p.selectOption(`#psuDet [data-gstep="${gk}"]`, "color"); await p.waitForTimeout(150);
   const u0 = await p.evaluate(() => undoStack.length);
   await p.click("#formOk"); await p.waitForTimeout(400);
   const r3 = await p.evaluate(id => { const pl = P().graphs[0].plot, u = pl.use || {}; return { same: u[id.B] && u[id.D] && u[id.B].grp === u[id.D].grp, c: !(u[id.C] || {}).grp, step: ((pl.grps || {})[(u[id.B] || {}).grp] || {}).step, undo: undoStack.length, log: (P().log || []).slice(-1)[0].text }; }, id);
   check("Plot setup's Group column: B in a new group, D joining it, its steps chosen; OK in one step", r.steps === 1 && r.opts === 3 && r3.same && r3.c && r3.step === "color" && r3.undo === u0 + 1 && /changed what the curves draw/.test(r3.log), JSON.stringify([r, r3]));
   // A new graph made with a group.
   await p.evaluate(id => { openPlotDlg([id.C, id.D]); }, id); await p.waitForTimeout(400);
-  await p.selectOption(`#psuCur [data-cgrp="${id.C}"]`, "new"); await p.waitForTimeout(100);
-  const gk2 = await p.evaluate(id => $(`#psuCur [data-cgrp="${id.C}"]`).value, id);
-  await p.selectOption(`#psuCur [data-cgrp="${id.D}"]`, gk2); await p.click("#formOk"); await p.waitForTimeout(400);
+  await pickCur(p, id.C); await p.selectOption(`#psuDet [data-cgrp="${id.C}"]`, "new"); await p.waitForTimeout(100);
+  const gk2 = await p.evaluate(id => $(`#psuDet [data-cgrp="${id.C}"]`).value, id);
+  await pickCur(p, id.D); await p.selectOption(`#psuDet [data-cgrp="${id.D}"]`, gk2); await p.click("#formOk"); await p.waitForTimeout(400);
   r = await p.evaluate(id => { const g = P().graphs[P().graphs.length - 1]; return graphGroups(g.plot, g.cols).map(q => q.ids.join()); }, id);
   check("a new graph from Plot setup keeps its group", JSON.stringify(r) === JSON.stringify([[id.C, id.D].join()]), JSON.stringify(r));
   // What storage gives back.
@@ -329,22 +341,23 @@ console.log("Slice 5: kinds that need another column");
 await page(async p => {
   const id = await six(p);
   await p.evaluate(id => { openPlotDlg([id.B, id.D]); }, id); await p.waitForTimeout(400);
-  let r = await p.evaluate(() => { const cs = [...document.querySelectorAll("#formBody .pgal [data-pk]")]; return { n: cs.length, more: cs.slice(14).map(b => b.dataset.pk), sep: [...document.querySelectorAll("#formBody .pdlg-sep")].map(e => e.textContent), drawn: cs.slice(14).every(b => b.querySelector(".pgt svg circle, .pgt svg rect")) }; });
+  await p.click("#psuKind"); await p.waitForTimeout(150);
+  let r = await p.evaluate(() => { const cs = [...document.querySelectorAll(".kindpick .pgal [data-pk]")]; return { n: cs.length, more: cs.slice(14).map(b => b.dataset.pk), sep: [...document.querySelectorAll(".kindpick .pdlg-sep")].map(e => e.textContent), drawn: cs.slice(14).every(b => b.querySelector(".pgt svg circle, .pgt svg rect")) }; });
   check("five kinds that need another column, after the others, drawn with the data", r.n === 19 && r.more.join() === "bubble,cmap,labels,errbox,tmap" && r.sep.includes("With another column") && r.drawn, JSON.stringify(r));
-  await p.click('#formBody [data-pk="bubble"]'); await p.waitForTimeout(150);
+  await p.click('.kindpick [data-pk="bubble"]'); await p.waitForTimeout(150);
   r = await p.evaluate(() => ({ ok: !$("#formOk").disabled, need: $("#psuNeed").textContent }));
   check("Bubbles with no size: Plot off, and the note says what to mark", !r.ok && /mark one as Size beside each curve/.test(r.need), JSON.stringify(r));
   await use(p, id.F, "size"); await p.click("#psuAdd"); await p.waitForTimeout(150);
   r = await p.evaluate(() => ({ ok: !$("#formOk").disabled, need: $("#psuNeed").textContent }));
   check("…a size for D alone: the note names the curve that has none", !r.ok && /\(Small has none\.\)/.test(r.need), JSON.stringify(r));
-  await p.click(`#psuCur [data-pcur="${id.B}"] td`); await p.click("#psuDel"); await p.waitForTimeout(150);
+  await pickCur(p, id.B); await p.click("#psuDel"); await p.waitForTimeout(150);
   r = await p.evaluate(() => ({ ok: !$("#formOk").disabled, need: $("#psuNeed").textContent }));
   await p.click("#formOk"); await p.waitForTimeout(400);
   const r2 = await p.evaluate(id => { const g = P().graphs[P().graphs.length - 1], s = g.plot.series[id.D] || {}; return { cols: g.cols, scol: s.scol, type: s.type }; }, id);
   check("…B taken off: Plot on; the graph draws D as symbols sized by F", r.ok && !r.need && r2.cols.join() === id.D && r2.scol === id.F && r2.type === "scatter", JSON.stringify([r, r2]));
   // Error boxes: an X error and a Y error.
   await p.evaluate(id => { openPlotDlg([id.B]); }, id); await p.waitForTimeout(400);
-  await p.click('#formBody [data-pk="errbox"]'); await use(p, id.C, "e:x"); await use(p, id.F, "e:y"); await p.click("#psuAdd"); await p.waitForTimeout(200);
+  await kind(p, "errbox"); await use(p, id.C, "e:x"); await use(p, id.F, "e:y"); await p.click("#psuAdd"); await p.waitForTimeout(200);
   r = await p.evaluate(() => ({ ok: !$("#formOk").disabled, pv: /data-ebox/.test($("#pdlgSk").innerHTML) }));
   await p.click("#formOk"); await p.waitForTimeout(400);
   const r3 = await p.evaluate(id => { const g = P().graphs[P().graphs.length - 1]; return { eb: (g.plot.series[id.B] || {}).eb, box: /data-ebox/.test($("#plot").innerHTML), exp: /data-ebox/.test(buildPlot(800, 500, EXPORT_PAL, true)), c: errKind(colById(id.C)), f: errKind(colById(id.F)) }; }, id);
@@ -354,16 +367,16 @@ await page(async p => {
   await p.evaluate(() => { undo(); }); await p.waitForTimeout(300);
   // Labelled points and colour by value.
   await p.evaluate(id => { openPlotDlg([id.B]); }, id); await p.waitForTimeout(400);
-  await p.click('#formBody [data-pk="labels"]'); await use(p, id.F, "lab"); await p.click("#psuAdd"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
+  await kind(p, "labels"); await use(p, id.F, "lab"); await p.click("#psuAdd"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
   r = await p.evaluate(id => { const g = P().graphs[P().graphs.length - 1]; return { lab: curveUse(id.B, g.plot).lab, drawn: !!document.querySelector(`#plot g[data-plab="${id.B}"]`) }; }, id);
   check("Labelled points: labels from F beside each point", r.lab === id.F && r.drawn, JSON.stringify(r));
   await p.evaluate(id => { openPlotDlg([id.B]); }, id); await p.waitForTimeout(400);
-  await p.click('#formBody [data-pk="cmap"]'); await use(p, id.F, "col"); await p.click("#psuAdd"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
+  await kind(p, "cmap"); await use(p, id.F, "col"); await p.click("#psuAdd"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
   r = await p.evaluate(id => { const g = P().graphs[P().graphs.length - 1], s = g.plot.series[id.B] || {}; return { z: s.zcol, t: s.type }; }, id);
   check("Colour by value: symbols coloured by F", r.z === id.F && r.t === "scatter", JSON.stringify(r));
   // On a graph: a kind that needs another column, said in the log.
   await p.evaluate(() => { plotsOf(); }); await p.waitForTimeout(400);
-  await p.click('#formBody [data-pk="bubble"]'); await use(p, id.F, "size"); await p.click("#psuAdd"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
+  await kind(p, "bubble"); await use(p, id.F, "size"); await p.click("#psuAdd"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
   r = await p.evaluate(id => { const g = P().graphs.find(g => g.id === GID()); return { s: (g.plot.series[id.B] || {}).scol, log: (P().log || []).slice(-1)[0].text }; }, id);
   check("on a graph: Bubbles, said in the log", r.s === id.F && /drew them as bubbles/.test(r.log), JSON.stringify(r));
 }, { name: "kinds that need another column" });
@@ -374,12 +387,13 @@ await page(async p => {
   let r = await p.evaluate(id => { const it = plotItems([id.B]).find(i => i && i.label === "Plot like the last time"); return it ? { en: it.enabled !== false } : null; }, id);
   check("Plot like the last time is in the Plot list, off before Plot setup has plotted from the sheet", r && !r.en, JSON.stringify(r));
   await p.evaluate(id => { openPlotDlg([id.B]); }, id); await p.waitForTimeout(400);
-  await p.click('#formBody [data-pk="bubble"]'); await use(p, id.F, "size"); await p.click("#psuAdd"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
+  await kind(p, "bubble"); await use(p, id.F, "size"); await p.click("#psuAdd"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
   r = await p.evaluate(id => { const m = ((JSON.parse(localStorage.getItem("kurve.psu") || "{}"))[S.pid] || {}).s1; return m ? { kind: m.kind, f: m.use[id.F] } : null; }, id);
   check("OK remembers the kind and what each column was, per sheet", r && r.kind === "bubble" && r.f === "size", JSON.stringify(r));
   await p.evaluate(id => { openPlotDlg([id.B]); }, id); await p.waitForTimeout(400);
-  r = await p.evaluate(id => ({ kind: [...document.querySelectorAll("#formBody [data-pk]")].filter(b => b.getAttribute("aria-checked") === "true").map(b => b.dataset.pk), f: $(`#psuCols [data-puse="${id.F}"]`).value, with: document.querySelector("#psuCur [data-pcur] td:nth-child(3)").textContent, ok: !$("#formOk").disabled }), id);
-  check("opened again on that sheet: Bubbles chosen, F still the size, B's curve sized by it, ready to plot", r.kind.join() === "bubble" && r.f === "size" && /size F/.test(r.with) && r.ok, JSON.stringify(r));
+  r = await p.evaluate(id => ({ kind: $("#psuKindN").textContent, f: ($(`#psuCols [data-pcol="${id.F}"]:checked`) || {}).dataset?.prole, ok: !$("#formOk").disabled }), id);
+  const rw = (await psu(p)).curves[0].with;
+  check("opened again on that sheet: Bubbles chosen, F still the size, B's curve sized by it, ready to plot", r.kind === "Bubbles" && r.f === "size" && /size F/.test(rw) && r.ok, JSON.stringify([r, rw]));
   await p.click("#formCancel"); await p.waitForTimeout(200);
   r = await p.evaluate(id => { const it = plotItems([id.E]).find(i => i && i.label === "Plot like the last time"); return { en: it.enabled !== false, note: it.note }; }, id);
   const n0 = await p.evaluate(() => P().graphs.length);
@@ -396,14 +410,14 @@ await page(async p => {
   await p.click("#formCancel"); await p.waitForTimeout(200);
   // What it remembers never changes a column: error bars undone stay undone.
   await p.evaluate(id => { openPlotDlg([id.B]); }, id); await p.waitForTimeout(400);
-  await p.click('#formBody [data-pk="scatter"]'); await use(p, id.C, "e:y"); await p.click("#psuAdd"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
+  await kind(p, "scatter"); await use(p, id.C, "e:y"); await p.click("#psuAdd"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
   await p.evaluate(() => undo()); await p.waitForTimeout(300);
   await p.evaluate(id => { plotLikeLast([id.B]); }, id); await p.waitForTimeout(400);
   r = await p.evaluate(id => ({ c: colById(id.C).role, open: !$("#formModal").hidden }), id);
   check("…error bars undone are not given back by Plot like the last time", r.c === "ignore" && !r.open, JSON.stringify(r));
   // Junk in storage.
   await p.evaluate(() => { localStorage.setItem("kurve.psu", "{bad"); }); await p.evaluate(id => { openPlotDlg([id.B]); }, id); await p.waitForTimeout(300);
-  r = await p.evaluate(() => !$("#formModal").hidden && $("#formBody [data-pk][aria-checked=true]").dataset.pk); await p.click("#formCancel"); await p.waitForTimeout(150);
+  r = await p.evaluate(() => !$("#formModal").hidden && $("#psuKindN").textContent); await p.click("#formCancel"); await p.waitForTimeout(150);
   await p.evaluate(() => { localStorage.setItem("kurve.psu", JSON.stringify({ [S.pid]: { s1: { kind: "nope", use: 3 } } })); });
   const r3 = await p.evaluate(id => (plotItems([id.B]).find(i => i && i.label === "Plot like the last time") || {}).enabled, id);
   check("what storage gives back that does not read is not remembered", !!r && r3 === false, JSON.stringify([r, r3]));
@@ -635,12 +649,13 @@ await page(async p => {
   await p.waitForTimeout(300);
   // Through Plot setup: the card, the note until a colour column is marked, then OK.
   await p.evaluate(id => { openPlotDlg([id.Y]); }, id); await p.waitForTimeout(500);
-  let r = await p.evaluate(() => ({ card: !!document.querySelector('#formBody [data-pk="tmap"]'), title: (document.querySelector('#formBody [data-pk="tmap"]') || {}).title || "" }));
+  await p.click("#psuKind"); await p.waitForTimeout(150);
+  let r = await p.evaluate(() => ({ card: !!document.querySelector('.kindpick [data-pk="tmap"]'), title: (document.querySelector('.kindpick [data-pk="tmap"]') || {}).title || "" }));
   check("Plot setup has the kind Map from X, Y, Z, with what it draws as its tooltip", r.card && /colour map between the points/.test(r.title), JSON.stringify(r));
-  await p.click('#formBody [data-pk="tmap"]'); await p.waitForTimeout(200);
-  r = await p.evaluate(() => ({ need: (document.querySelector("#psuNeed") || {}).textContent || "", ok: document.querySelector("#formOk").disabled }));
-  check("…waiting, with a note, until a column is marked as the colour", /mark one as Colour/.test(r.need) && r.ok, JSON.stringify(r));
-  await use(p, id.Z, "col"); await p.click("#psuRep"); await p.waitForTimeout(250);
+  await p.click('.kindpick [data-pk="tmap"]'); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ need: (document.querySelector("#psuNeed") || {}).textContent || "", ok: document.querySelector("#formOk").disabled, head: [...document.querySelectorAll("#psuCols th.psu-rh")].map(t => t.textContent).join() }));
+  check("…its roles X, Y, Z and Z error; waiting, with a note, until a column is marked as Z", r.head === "X,Y,Z,Z error" && /mark one as Z/.test(r.need) && r.ok, JSON.stringify(r));
+  await use(p, id.Z, "col"); await p.click("#psuAdd"); await p.waitForTimeout(250);
   await p.click("#formOk"); await p.waitForTimeout(800);
   r = await p.evaluate(id => { const s = (GP().series || {})[id.Y] || {}; return { type: s.type, zcol: s.zcol === id.Z, img: !!document.querySelector("#plot image[data-tmap]"), bar: !!document.querySelector("#plot rect[fill='url(#zbar)']"), leg: !!document.querySelector("#plot g[data-leg]"), texts: [...document.querySelectorAll("#plot text, #plot [data-rt]")].map(e => e.textContent) }; }, id);
   check("OK: the map drawn as an image, a colour bar titled by the column, no legend entry for it", r.type === "tmap" && r.zcol && r.img && r.bar && !r.leg && r.texts.some(t => /Hardness/.test(t)), JSON.stringify(r).slice(0, 300));
@@ -1400,6 +1415,75 @@ await page(async p => {
     const c = S.comments.find(c => c.uid === "u_ana"), el = document.querySelector(`#thread .cmt[data-cid="${c.id}"] .prop`); return { say: el && el.querySelector(".prop-f .lab").textContent, apply: !!(el && el.querySelector('[data-cact="papply"]')), report: /Proposes<\/em> Polynomial order: 2 → 3 \(applied by /.test(reportDiscussionHtml()) }; });
   check("…the step removed, it says so and offers nothing; the report lists the proposal", /since been removed/.test(r.say || "") && !r.apply && r.report, JSON.stringify(r));
 }, { name: "proposed settings" });
+
+console.log("Slice 7: Plot setup refined (roles as a grid, each curve's line, symbols seen, Z error)");
+await page(async p => {
+  const id = await six(p);
+  // A curve's line: its parts as menus, + for what it lacks.
+  await p.evaluate(id => { openPlotDlg([id.B]); }, id); await p.waitForTimeout(400);
+  let r = await p.evaluate(() => ({ add: !!$("#psuCur [data-cadd]"), parts: document.querySelectorAll("#psuCur [data-cpart]").length, kind: $("#psuKindN").textContent, cards: document.querySelectorAll("#formBody [data-pk]").length }));
+  check("the kind a button (no cards in the dialog itself); B's line with nothing but its X, and + to add", r.kind === "Line" && r.cards === 0 && r.add && r.parts === 0, JSON.stringify(r));
+  await p.click("#psuCur [data-cadd]"); await p.waitForTimeout(150);
+  await p.getByRole("menuitem", { name: /^Y error/ }).click(); await p.waitForTimeout(150);
+  await p.getByRole("menuitem", { name: /^C Spread/ }).click(); await p.waitForTimeout(200);
+  r = await p.evaluate(id => ({ with: [...document.querySelectorAll("#psuCur [data-cpart]")].map(s => s.dataset.cpart + "=" + s.value), grid: ($(`#psuCols [data-pcol="${id.C}"]:checked`) || {}).dataset?.prole, bars: /data-ser/.test($("#pdlgSk").innerHTML) }), id);
+  check("+ › Y error › C: B's line says Y error ± C, the grid ticks C as Y error", r.with.join() === `ey=${id.C}` && r.grid === "ey", JSON.stringify(r));
+  await p.selectOption(`#psuCur [data-cpart="ey"]`, ""); await p.waitForTimeout(150);
+  r = await p.evaluate(id => ({ parts: document.querySelectorAll("#psuCur [data-cpart]").length, grid: !!$(`#psuCols [data-pcol="${id.C}"]:checked`) }), id);
+  check("…none chosen on the line takes it off, and the grid's tick with it", r.parts === 0 && !r.grid, JSON.stringify(r));
+  // Symbols seen: a kind with symbols shows each curve's, which opens the grid of every symbol.
+  await kind(p, "linesym");
+  r = await p.evaluate(() => ({ btn: !!$("#psuCur [data-csym]") }));
+  await p.click("#psuCur [data-csym]"); await p.waitForTimeout(200);
+  const g = await p.evaluate(() => ({ n: document.querySelectorAll(".symgrid [data-symk]").length, sel: ($(".symgrid [aria-selected=true]") || {}).dataset?.symk, drawn: [...document.querySelectorAll(".symgrid [data-symk]")].every(b => b.querySelector("svg path")), size: !!$("#symgSz") }));
+  check("Line + symbols: B's symbol shown; it opens 19 symbols drawn, circle chosen, with the size", r.btn && g.n === 19 && g.sel === "circle" && g.drawn && g.size, JSON.stringify([r, g]));
+  await p.click('.symgrid [data-symk="star"]'); await p.waitForTimeout(200);
+  await p.click("#psuCur [data-csym]"); await p.waitForTimeout(150); await p.fill("#symgSz", "6"); await p.press("#symgSz", "Enter"); await p.waitForTimeout(150); await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+  r = await p.evaluate(() => ({ title: $("#psuCur [data-csym]").title, open: !$("#formModal").hidden }));
+  check("…a star chosen and size 6: the button says so, the dialog still open", /Star/.test(r.title) && r.open, JSON.stringify(r));
+  await p.click("#formOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(id => { const g = P().graphs[P().graphs.length - 1], s = g.plot.series[id.B] || {}; return { sym: s.sym, ss: s.ss, type: s.type }; }, id);
+  check("OK: B drawn with stars of size 6", r.sym === "star" && r.ss === 6 && r.type === "linesym", JSON.stringify(r));
+  // The same grid on the curve's right-click and in the Format pane.
+  r = await p.evaluate(id => { const it = graphMenuItems(id.B).find(i => i && i.label === "Symbol…"); return it ? it.note : null; }, id);
+  check("the curve's right-click has Symbol…, naming the symbol", r === "Star", JSON.stringify(r));
+  await p.evaluate(id => { graphMenuItems(id.B).find(i => i && i.label === "Symbol…").run(); }, id); await p.waitForTimeout(200);
+  await p.click('.symgrid [data-symk="tridown"]'); await p.waitForTimeout(300);
+  r = await p.evaluate(id => ({ sym: (GP().series[id.B] || {}).sym, log: (P().log || []).slice(-1)[0].text }), id);
+  check("…a triangle down chosen there, said in the log", r.sym === "tridown" && /triangle down/.test(r.log), JSON.stringify(r));
+  await p.evaluate(id => openPlotDetails(id.B, "series"), id); await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ btn: !!$("#pdSym"), name: ($("#pdSym") || {}).textContent }));
+  await p.click("#pdSym"); await p.waitForTimeout(200); await p.click('.symgrid [data-symk="ohexagon"]'); await p.waitForTimeout(800);
+  const r2 = await p.evaluate(id => (GP().series[id.B] || {}).sym, id);
+  check("the Format pane's symbol is a button showing it, opening the grid; an open hexagon chosen", r.btn && /Triangle down/.test(r.name) && r2 === "ohexagon", JSON.stringify([r, r2]));
+  r = await p.evaluate(() => { const out = {}; SYMS.forEach(([k]) => { out[k] = symD(k, 10, 10, 3).length > 20; }); return Object.values(out).every(Boolean) && /data-ser/.test(handPic(500, 300, 1).svg); });
+  check("every symbol has its own path, and an export draws them", r);
+}, { name: "Plot setup refined" });
+await page(async p => {
+  // A map from X, Y, Z with a Z error column: the Z error marked, carried to the column, read by the readout.
+  const id = await p.evaluate(async () => {
+    const r = mulberry32(11), x = [], y = [], z = [], e = []; for (let i = 0; i < 200; i++) { const a = 10 * r(), b = 5 * r(); x.push(a); y.push(b); z.push(Math.sin(a) + b / 5); e.push(0.05 + 0.01 * (i % 7)); }
+    const X = makeCol("x", "Position", "mm", x), Y = Object.assign(makeCol("y", "Depth", "µm", y), { pipe: [], mask: [] }), Z = makeCol("ignore", "Hardness", "GPa", z), E = makeCol("ignore", "σ hardness", "GPa", e);
+    await createProject(Object.assign(blankProject("Hardness"), { cols: [X, Y, Z, E], activeY: Y.id }), "test"); await new Promise(r => setTimeout(r, 80)); renderAll();
+    return { Y: Y.id, Z: Z.id, E: E.id };
+  });
+  await p.waitForTimeout(300);
+  await p.evaluate(id => { openPlotDlg([id.Y]); }, id); await p.waitForTimeout(400);
+  await kind(p, "tmap"); await use(p, id.Z, "col"); await use(p, id.E, "e:z"); await p.click("#psuAdd"); await p.waitForTimeout(250);
+  let r = await p.evaluate(() => ({ with: [...document.querySelectorAll("#psuCur [data-cpart]")].map(s => s.dataset.cpart).join(), ok: !$("#formOk").disabled }));
+  check("Z and Z error marked: the curve's line says Z and Z error, Plot on", r.with === "z,ez" && r.ok, JSON.stringify(r));
+  await p.click("#formOk"); await p.waitForTimeout(800);
+  r = await p.evaluate(id => { const e = colById(id.E); return { kind: errKind(e), of: e.of === id.Z, tag: errTag(e), log: (P().log || []).slice(-1)[0].text }; }, id);
+  check("…OK: σ hardness is Hardness's Z error (zEr± in the worksheet), said in the log", r.kind === "z" && r.of && r.tag === "zEr±" && /Z error of Sheet 1!C|Z error of C/.test(r.log), JSON.stringify(r));
+  const pt = await p.evaluate(id => { const Y = colById(id.Y), X = xColFor(Y), k = 3, bb = $("#plot").getBoundingClientRect(), g = S.geo; return { x: bb.left + g.X(X.data[k]), y: bb.top + g.Y(Y.data[k]), want: fmtPM(colById(id.Z).data[k], colById(id.E).data[k]) }; }, id);
+  await p.mouse.move(pt.x, pt.y); await p.waitForTimeout(200);
+  r = await p.evaluate(() => $("#readout").textContent);
+  check("the readout at a point gives its Z with its error", /value .*±/.test(r) && r.includes(pt.want), JSON.stringify([r, pt]));
+  await p.evaluate(() => { plotsOf(); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ head: [...document.querySelectorAll("#psuCols th.psu-rh")].map(t => t.textContent).join(), kind: $("#psuKindN").textContent }));
+  check("What it plots… on the map: the grid's roles are the map's, the kind as drawn", r.head === "X,Y,Z,Z error" && r.kind === "As drawn now", JSON.stringify(r));
+  await p.click("#formCancel"); await p.waitForTimeout(150);
+}, { name: "Plot setup, Z error" });
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();

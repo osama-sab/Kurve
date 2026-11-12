@@ -1024,6 +1024,17 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plot setup refined, PLOT_SPEC slice 7 (2026-11-12)
+
+- The kind a button opening the gallery; the columns a grid of the roles the kind takes (X, Y, Y
+  error ±/+/−, X error, Labels; a map's X, Y, Z, Z error; Size or Colour); each curve one line of
+  what it uses, each part a list, + for what it lacks; range, axis and group for the curve selected.
+- Symbols seen and chosen from a grid, 19 of them (triangle down, pentagon, hexagon, star and
+  asterisk new), with the size: in Plot setup, a curve's right-click (*Symbol…*) and the Format pane.
+- A Z error column (zEr±): kept with the map's Z column; the readout gives a point's value with it.
+
+Checked: plot-drive (16 new, 319), ds-test, the suite.
+
 ## Closing the gap with Origin, wave 2, slice 2.9: correlation (2026-11-12)
 
 - **Analyze › Statistics › Correlation…** (it was the Statistics window's table): Pearson's r with p
