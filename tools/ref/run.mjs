@@ -30,14 +30,15 @@ export function loadKurve(path) {
   const look = new Function(src)();
   const memo = new Map();
   // A name, a path into it (`DIST.t.isf`), and `#i` for the i-th element of what a function returns
-  // (`igamPQ#1`, the upper part).
+  // (`igamPQ#1`, the upper part), or `@key` for one field of it (`descStats@sd`).
   return (name) => {
-    const m = /^([A-Za-z_$][\w$]*)((?:\.[A-Za-z_$][\w$]*)*)(?:#(\d+))?$/.exec(name);
+    const m = /^([A-Za-z_$][\w$]*)((?:\.[A-Za-z_$][\w$]*)*)(?:#(\d+)|@([A-Za-z_$][\w$]*))?$/.exec(name);
     if (!m) throw new Error(`Not a name: ${name}`);
     if (!memo.has(name)) {
       let v = look(m[1]);
       for (const k of m[2].split(".").slice(1)) v = v[k];
       if (m[3] != null) { const f = v, i = +m[3]; v = (...a) => f(...a)[i]; }
+      if (m[4] != null) { const f = v, k = m[4]; v = (...a) => f(...a)[k]; }
       memo.set(name, v);
     }
     return memo.get(name);

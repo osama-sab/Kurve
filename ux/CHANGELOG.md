@@ -1024,6 +1024,34 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 2, slice 2.1: descriptive statistics, whole (2026-11-12)
+
+- **Statistics on columns** (Analyze › Statistics › Descriptive) gives what Origin's does: N,
+  missing, mean, SD, SE, the mean's interval at 90 to 99.9 %, variance, coefficient of variation,
+  minimum, Q1, median, Q3, maximum, sum, range, IQR, MAD, robust SD, the mode and its count,
+  skewness, kurtosis, geometric and harmonic means, and percentiles typed. The quartiles by any of
+  R's nine types or Tukey's hinges (Kurve's own, type 7, unchanged), divided by n − 1 or n, over a
+  range of rows, column by column or listwise; the report says the method and the divisor, and
+  why a cell is empty.
+- **Frequency counts**: numbers into bins (Freedman–Diaconis, Sturges, the square root, a number,
+  a width from a start) or each value; text and categorical columns by their values, in the
+  column's order; counts, running counts, percents.
+- **Graphical summary**: a figure of the column's histogram with a normal curve over it and its
+  box chart, one undo step.
+- The Statistics window's item is *Quick statistics…*.
+- Fixed on the way, each found against exact arithmetic: the mean's second pass made a cancelling
+  mean worse (2.5e-14, now 2e-16); a MAD near 10¹³ was 2 % off (its distances measured from the
+  rounded mean of the two middle values); values past 10³⁰⁰ took every statistic through a scaling
+  that made a value near 10⁻³⁰⁰ subnormal (the quartiles lost their digits); two values near
+  1.6e308 had an infinite median.
+
+Checked: `tools/ref/fixtures/desc.json` (939 cases on fourteen sets against exact rationals; NumPy
+agrees on all nine quantile types, SciPy was off on three sets where the exact answer was not),
+ref-test's six new names, the fuzzer (`quantileType` and seven statistics, three seeds of 300–400
+cases each), stats-test (12 new, 69: shift, scale, order, sign, every type within the values and
+rising, one, two and equal values, the hinges), ana-drive's 2.1 section (15, 48 in all), the menu
+crawl and the suite.
+
 ## The user's review: information hygiene, curves, a step on a new graph, calibration (2026-11-11)
 
 - **Information hygiene** is a principle of the spec (`ux/UX_SPEC.md` §3.8, DESIGN.md principle 7):

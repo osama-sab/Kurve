@@ -2,7 +2,8 @@
    the reference says. The two tails add up to 1 where both are large; the quantile of a tail is
    the value it came from; t is symmetric; the distribution functions rise; the limits at 0 and ∞;
    the probabilities of counts add up to 1 and their tails to the sums of them. The values
-   themselves are checked against 40-digit references by tools/ref-test.mjs and the fuzzer.
+   themselves are checked against 40-digit references by tools/ref-test.mjs and the fuzzer. And the
+   descriptive statistics: what a shift, a scale, the order and a change of sign do to them.
    Usage: node tools/stats-test.mjs [kurve.html] */
 import { loadKurve } from "./ref/run.mjs";
 const get = loadKurve(process.argv[2]);
@@ -95,6 +96,52 @@ for (const [nm, d, par, rng] of disc) {
 }
 check("Poisson's distribution function at a mean of 1e6, one standard deviation above, is Φ-like (0.84)", Math.abs(D.pois.cdf(1e6 + 1000, 1e6) - 0.8414) < 2e-3);
 check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 10, 1) === 1 && D.binom.pmf(10, 10, 1) === 1);
+
+// Descriptive statistics (STATS_SPEC 2.1): what a shift, a scale, a new order or a change of sign
+// does to each, whatever the values; their values against exact rationals are ref-test's.
+{
+  const ds = get("descStats"), qT = get("quantileType");
+  let wShift = 0, wScale = 0, wOrder = 0, wNeg = 0, wQ = 0, mono = true, at = null;
+  for (let r = 0; r < 200; r++) {
+    const n = 2 + Math.floor(rnd() * 60), v = [];
+    for (let i = 0; i < n; i++) v.push(rnd() < 0.2 ? Math.round(rnd() * 8) : (rnd() - 0.4) * ln(-2, 3));
+    const a = ds(v, { pcts: [10, 90] }), c = 2 ** Math.floor(rnd() * 20 - 10), sh = Math.round(rnd() * 64) / 4;
+    // A shift by a number of quarters keeps the values' sum exact where they are not too large: every spread and shape the same.
+    const b = ds(v.map((x) => x + sh)), k = ds(v.map((x) => x * c)), o = ds(v.slice().reverse()), g = ds(v.map((x) => -x));
+    for (const key of ["sd", "var", "iqr", "mad", "range"]) wShift = Math.max(wShift, rel(b[key], a[key]) * (a[key] > 1e-9 ? 1 : 0));
+    for (const key of ["skew", "kurt"]) if (a[key] != null) wShift = Math.max(wShift, Math.abs(b[key] - a[key]) / Math.max(1, Math.abs(a[key])) / 64);
+    // A power of two scales exactly: every statistic with a unit scales by it, the shape ones not at all.
+    for (const key of ["mean", "sd", "se", "med", "q1", "q3", "mad", "min", "max"]) wScale = Math.max(wScale, a[key] === 0 ? Math.abs(k[key]) : rel(k[key], a[key] * c));
+    if (a.var) wScale = Math.max(wScale, rel(k.var, a.var * c * c));
+    for (const key of ["skew", "kurt"]) if (a[key] != null) wScale = Math.max(wScale, Math.abs(k[key] - a[key]));
+    // The order of the values changes nothing but the last digit of a sum.
+    for (const key of ["mean", "sd", "med", "q1", "q3", "mad", "mode", "min", "max"]) wOrder = Math.max(wOrder, a[key] == null ? (o[key] == null ? 0 : 1) : Math.abs(o[key] - a[key]) / Math.max(Math.abs(a[key]), a.sd || 1));
+    // A change of sign mirrors: the mean, the median and the skewness change sign, the spread and the kurtosis not.
+    wNeg = Math.max(wNeg, Math.abs(g.mean + a.mean) / Math.max(Math.abs(a.mean), a.sd || 1), Math.abs(g.med + a.med) / (a.sd || 1), rel(g.sd, a.sd), Math.abs(g.q1 + a.q3) / (a.sd || 1));
+    if (a.skew != null) wNeg = Math.max(wNeg, Math.abs(g.skew + a.skew) / Math.max(1, Math.abs(a.skew)), Math.abs(g.kurt - a.kurt) / Math.max(1, Math.abs(a.kurt || 0)));
+    // Every quantile type lies between the smallest and the largest value and rises with p.
+    const srt = v.slice().sort((x, y) => x - y);
+    for (const t of [1, 2, 3, 4, 5, 6, 7, 8, 9]) {
+      let prev = -Infinity;
+      for (let p = 0; p <= 1.0000001; p += 0.05) { const q = qT(srt, Math.min(p, 1), t); if (!(q >= srt[0] && q <= srt[n - 1] && q >= prev - 1e-12 * Math.abs(prev))) { mono = false; at = [t, p, q, prev]; } prev = q; }
+    }
+    wQ = Math.max(wQ, Math.abs(qT(srt, 0.5, 7) - a.med), Math.abs(qT(srt, 0.1, 7) - a.pct[0].v));
+  }
+  check("descriptive statistics: a shift leaves every spread and shape as it was", wShift < 1e-12, wShift);
+  check("…a power of two scales every statistic with a unit by it, and no shape", wScale < 1e-15, wScale);
+  check("…the order of the values changes nothing", wOrder < 1e-14, wOrder);
+  check("…a change of sign mirrors the mean, the median, the quartiles and the skewness", wNeg < 1e-14, wNeg);
+  check("every quantile type lies between the smallest and largest value and rises with p", mono, JSON.stringify(at));
+  check("…and the median and percentiles of descStats are quantileType's", wQ === 0, wQ);
+  const one = ds([4.2]), two = ds([1, 3]), con = ds([2, 2, 2, 2]), none = ds([null, NaN, Infinity]);
+  check("one value: N 1, its mean and median, no SD (a reason given)", one.n === 1 && one.mean === 4.2 && one.med === 4.2 && one.sd === null && one.why.sd === "one value");
+  check("two values: an SD, no skewness or kurtosis, each with its reason", two.sd === Math.SQRT2 && two.skew === null && two.why.skew === "fewer than three values" && two.kurt === null);
+  check("values all the same: SD 0, no skewness, the mode the value with its count", con.sd === 0 && con.skew === null && con.why.skew === "every value the same" && con.mode === 2 && con.modeN === 4);
+  check("blanks, NaN and infinities are not values", none.n === 0 && none.why.all === "no values");
+  const nq = ds([-3, 1, 2]);
+  check("values at or below zero: no geometric or harmonic mean, said", nq.gmean === null && nq.hmean === null && nq.why.gmean === "values at or below zero");
+  check("Tukey's hinges are the medians of each half, the median in both when n is odd", qT([1, 2, 3, 4, 5], 0.25, "tukey") === 2 && qT([1, 2, 3, 4, 5], 0.75, "tukey") === 4 && qT([1, 2, 3, 4, 5, 6], 0.25, "tukey") === 2 && qT([1, 2, 3, 4, 5, 6], 0.75, "tukey") === 5);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -309,7 +309,7 @@ def t6(r):
     pg.evaluate("() => wsPasteText(window.__clip)")
     r.wait_quiet(900)
     bar(r, "Statistics")
-    r.click(menuitem(r, "Descriptive statistics…" if new_ui(r) else "Descriptive statistics", exact=True), "Descriptive statistics")
+    r.click(menuitem(r, "Quick statistics…" if new_ui(r) else "Descriptive statistics", exact=True), "Descriptive statistics")
     r.wait(500)
     if pg.evaluate("() => allCols().filter(c => !c.src)[0].role") == "y":
         # Since slice 5 a paste with no X-like column makes every column a Y (UX_SPEC 3.7).

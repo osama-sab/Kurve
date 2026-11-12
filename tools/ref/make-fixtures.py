@@ -121,6 +121,63 @@ for n in [1, 2, 3, 4, 5, 7, 10, 19, 50]:
         cases.append({"fn": "quantileSorted", "args": [list(s), p], "want": np.quantile(s, p, method="linear"), "kind": "rel"})
 out["quantile"] = cases
 
+# ---------- descriptive statistics (STATS_SPEC 2.1) ----------
+# The reference is exact: the values as the doubles they are (Fraction), R's quantile algorithm
+# (Hyndman and Fan's nine types, Tukey's hinges as R's fivenum) with p as the decimal it is written
+# as, the moments as rationals, square roots and logarithms in 40 digits; one rounding at the end.
+# SciPy and NumPy are compared with it as they are made, and a disagreement is printed.
+from fractions import Fraction as Fr
+hf, fl, desc_ref = refs.hf, refs.fl, refs.desc_ref
+NPM = {1: "inverted_cdf", 2: "averaged_inverted_cdf", 3: "closest_observation", 4: "interpolated_inverted_cdf",
+       5: "hazen", 6: "weibull", 7: "linear", 8: "median_unbiased", 9: "normal_unbiased"}
+def scipy_desc(vals):
+    """SciPy's answer for the statistics it has, to check the exact reference against."""
+    a = np.array(vals, dtype=float); o = {}
+    with np.errstate(all="ignore"):
+        if len(a) >= 3: o["skew"] = stats.skew(a, bias=False)
+        if len(a) >= 4: o["kurt"] = stats.kurtosis(a, bias=False)
+        if a.min() > 0: o["gmean"] = stats.gmean(a); o["hmean"] = stats.hmean(a)
+        o["mad"] = stats.median_abs_deviation(a); o["rsd"] = stats.median_abs_deviation(a, scale="normal")
+        o["sd"] = np.std(a, ddof=1) if len(a) > 1 else None
+    return o
+rng = np.random.default_rng(21)
+DATA = {
+    "normal 50": list(rng.normal(10, 3, 50)),
+    "lognormal 40": list(rng.lognormal(0, 1.2, 40)),
+    "around zero 30": list(rng.normal(0, 1, 30)),
+    "ties": [1.0, 2, 2, 3, 3, 3, 4, 4, 4, 4, 5, 6, 6],
+    "tied modes": [1.0, 1, 2, 2, 3],
+    "one value": [3.5],
+    "two values": [1.0, 4.0],
+    "three": [2.0, 9.0, 4.0],
+    "four": [1.5, 0.25, 8.0, 3.0],
+    "all the same": [2.5] * 7,
+    "1e13 offset": [1e13 + 0.2] + [1e13 + 0.1, 1e13 + 0.3] * 500,
+    "1e-300 to 1e300": list(10.0 ** rng.uniform(-300, 300, 30)),
+    "past 1e300": [1e-300, 2e-300, 5.0, 7.0, 1.5e308, 1.6e308, 1.7e308],
+    "integers 0..19": [float(i) for i in range(20)],
+}
+cases = []; disagree = []
+for name, vals in DATA.items():
+    vals = [float(v) for v in vals]
+    for vdiv in (["df", "n"] if name == "normal 50" else ["df"]):
+        want = desc_ref(vals, vdiv); sc = scipy_desc(vals)
+        for k, v in sc.items():
+            if v is not None and k in want and want[k] is not None and not math.isnan(v) and abs(v - want[k]) > 1e-9 * max(abs(want[k]), 1e-300) and vdiv == "df":
+                disagree.append(f"{name} {k}: SciPy {v!r}, exact {want[k]!r}")
+        cases.append({"fn": "descStats", "args": [vals, {"vdiv": vdiv}], "want": want, "kind": "desc", "name": name})
+    s = sorted(Fr(v) for v in vals); sf = np.sort(np.array(vals))
+    for t in [1, 2, 3, 4, 5, 6, 7, 8, 9, "tukey"]:
+        for ps in ["0", "0.1", "0.25", "0.5", "0.75", "0.9", "1"] if t != "tukey" else ["0.25", "0.5", "0.75"]:
+            # p is the decimal written, as R's fuzz means it to be (0.9 times 30 is 27, not 27 and an ulp).
+            w = fl(hf(s, Fr(ps), t))
+            if t != "tukey" and len(vals) > 1:
+                g = float(np.quantile(sf, float(ps), method=NPM[t]))
+                if abs(g - w) > 1e-13 * max(abs(w), max(abs(v) for v in vals)): disagree.append(f"{name} type {t} p {ps}: NumPy {g!r}, exact {w!r}")
+            cases.append({"fn": "quantileType", "args": [[float(x) for x in sf], float(ps), t], "want": w, "kind": "qt"})
+for d in disagree: print("  reference check, desc:", d)
+out["desc"] = cases
+
 # ---------- distributions fitted to values ----------
 cases = []
 rng = np.random.default_rng(11)

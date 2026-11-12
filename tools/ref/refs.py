@@ -126,3 +126,70 @@ def binom_cdf(k, n, p):
     if k < 0: return 0.0
     if k >= n: return 1.0
     return f(_ibeta(M(n - k), M(k + 1), 1 - M(p)))
+
+# ---------- descriptive statistics, exactly (STATS_SPEC 2.1) ----------
+# The values as the doubles they are (Fraction), R's quantile algorithm (Hyndman and Fan's nine types,
+# Tukey's hinges as R's fivenum) with p a Fraction, the moments as rationals, square roots and
+# logarithms in 40 digits, one rounding at the end.
+from fractions import Fraction as Fr
+_QAB = {4: (0, 1), 5: (Fr(1, 2), Fr(1, 2)), 6: (0, 0), 7: (1, 1), 8: (Fr(1, 3), Fr(1, 3)), 9: (Fr(3, 8), Fr(3, 8))}
+
+def hf(s, p, t):
+    """Quantile p (a Fraction) of the sorted Fractions s by type t (1 to 9, or "tukey"), as R's quantile() and fivenum()."""
+    n = len(s)
+    if n == 1: return s[0]
+    x = lambda i: s[0] if i < 1 else s[n - 1] if i > n else s[i - 1]
+    if t == "tukey":
+        if p in (0, 1, Fr(1, 2)): return hf(s, p, 7)
+        n4 = Fr(math.floor(Fr(n + 3, 2)), 2); d = n4 if p == Fr(1, 4) else n + 1 - n4
+        return (x(math.floor(d)) + x(math.ceil(d))) / 2
+    if t in (1, 2, 3):
+        np_ = n * p - Fr(1, 2) if t == 3 else n * p
+        j = math.floor(np_)
+        h = (1 if np_ > j else 0) if t == 1 else (1 if np_ > j else Fr(1, 2)) if t == 2 else (1 if (np_ != j or j % 2 == 1) else 0)
+    else:
+        a, b = _QAB[t]; nppm = a + p * (n + 1 - a - b); j = math.floor(nppm); h = nppm - j
+    return (1 - h) * x(j) + h * x(j + 1)
+
+def fl(q):
+    """A rational or a 40-digit number as the nearest double, or None past the doubles."""
+    try:
+        v = float(q)
+        return None if math.isinf(v) else v
+    except OverflowError:
+        return None
+
+def mpq(q): return mp.mpf(q.numerator) / q.denominator
+
+def desc_ref(vals, vdiv="df", keys=None):
+    """Every statistic descStats gives, exactly, for the doubles vals (or only those in keys); a key is
+    missing where it has no meaning."""
+    F = [Fr(v) for v in vals]; n = len(F); s = sorted(F); r = {}
+    ask = lambda *ks: keys is None or any(k in keys for k in ks)
+    tot = sum(F); mean = tot / n
+    r["sum"] = fl(tot); r["mean"] = fl(mean); r["min"] = fl(s[0]); r["max"] = fl(s[-1]); r["range"] = fl(s[-1] - s[0])
+    if ask("var", "sd", "se", "cv", "skew", "kurt"):
+        dev = [x - mean for x in F]; m2 = sum(d * d for d in dev) / n
+        m3 = sum(d ** 3 for d in dev) / n if ask("skew") else 0
+        m4 = sum(d ** 4 for d in dev) / n if ask("kurt") else 0
+    else: m2 = m3 = m4 = None
+    if m2 is None: pass
+    elif n >= 2:
+        var = m2 * n / (n if vdiv == "n" else n - 1)
+        r["var"] = fl(var); r["sd"] = fl(mp.sqrt(mpq(var))); r["se"] = fl(mp.sqrt(mpq(var / n)))
+        if mean != 0: r["cv"] = fl(mp.sqrt(mpq(var)) / mpq(mean))
+    if m2 is not None and ask("skew") and n >= 3 and m2 > 0: r["skew"] = fl(mp.sqrt(n * (n - 1)) / (n - 2) * mpq(m3) / mpq(m2) ** mp.mpf(1.5))
+    if m2 is not None and ask("kurt") and n >= 4 and m2 > 0:
+        g2 = m4 / (m2 * m2) - 3; r["kurt"] = fl(((n + 1) * g2 + 6) * (n - 1) / ((n - 2) * (n - 3)))
+    q1, md, q3 = hf(s, Fr(1, 4), 7), hf(s, Fr(1, 2), 7), hf(s, Fr(3, 4), 7)
+    r["q1"] = fl(q1); r["med"] = fl(md); r["q3"] = fl(q3); r["iqr"] = fl(q3 - q1)
+    mad = hf(sorted(abs(x - md) for x in F), Fr(1, 2), 7); r["mad"] = fl(mad)
+    r["rsd"] = fl(mpq(mad) / mp.erfinv(mp.mpf(1) / 2) / mp.sqrt(2))
+    cnt = {}
+    for x in F: cnt[x] = cnt.get(x, 0) + 1
+    best = max(cnt.values()); r["modeN"] = best
+    if best > 1: r["mode"] = fl(min(x for x in cnt if cnt[x] == best))
+    if s[0] > 0 and ask("gmean", "hmean"):
+        r["gmean"] = fl(mp.exp(mp.fsum(mp.log(mpq(x)) for x in F) / n))
+        r["hmean"] = fl(Fr(n) / sum(1 / x for x in F))
+    return r

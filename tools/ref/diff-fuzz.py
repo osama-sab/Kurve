@@ -132,7 +132,34 @@ def _():
     p = edge([0.0, 1.0, 0.5], lambda: float(rng.random()))
     return [list(map(float, s)), p], np.quantile(s, p, method="linear")
 
+def rand_vals():
+    """A column as people have them: normal or log-normal, rounded so values tie, or offset far from
+    zero with a small spread (as NumAcc's), 1 to 80 values."""
+    n = int(rng.integers(1, 80)); kind = int(rng.integers(0, 5))
+    if kind == 0: v = rng.normal(0, lognum(-3, 3), n)
+    elif kind == 1: v = rng.lognormal(0, 1.5, n) * lognum(-5, 5)
+    elif kind == 2: v = np.round(rng.normal(5, 3, n))
+    elif kind == 3: v = float(rng.choice([1e6, 1e13, -1e9])) + rng.normal(0, 0.1, n)
+    else: v = rng.normal(float(rng.choice([1, 100, -40])), lognum(-2, 1), n)
+    return [float(x) for x in v]
+
+@gen("quantileType", 1e-13)
+def _():
+    s = sorted(rand_vals()); t = [1, 2, 3, 4, 5, 6, 7, 8, 9, "tukey"][int(rng.integers(10))]
+    p = float(rng.choice([0.25, 0.5, 0.75])) if t == "tukey" else edge([0.0, 1.0, 0.5, 0.25, 0.75], lambda: round(float(rng.random()), 3))
+    return [s, p, t], refs.fl(refs.hf([refs.Fr(x) for x in s], refs.Fr(str(p)), t))
+
+def desc_gen(key):
+    def f():
+        v = rand_vals(); w = refs.desc_ref(v, keys=(key,)).get(key)
+        if w is None: raise ValueError("no such statistic for these values")
+        return [v, {}], w
+    return f
+for key, tol in [("mean", 1e-15), ("sd", 1e-15), ("skew", 1e-14), ("kurt", 1e-14), ("gmean", 1e-14), ("med", 1e-15), ("mad", 1e-15)]:
+    gen("descStats@" + key, tol)(desc_gen(key))
+
 def num(v):
+    if isinstance(v, (str, dict)): return v
     v = float(v)
     return "NaN" if math.isnan(v) else ("Infinity" if v > 0 else "-Infinity") if math.isinf(v) else v
 
@@ -176,7 +203,9 @@ for c in cases:
         d = abs(g - w)
         e = 0.0 if d == 0 else d / max(abs(w), 1e-300)
         if c["fn"] in ("lgammaFn", "lbeta"): e = d / max(1.0, abs(w))
-        if c["fn"] == "quantileSorted": e = d / max(abs(w), max(abs(x) for x in c["args"][0]) * 1e-15, 1e-300)
+        if c["fn"] in ("quantileSorted", "quantileType", "descStats@med", "descStats@mad"):  # a mix of two values: an ulp of the largest
+            e = d / max(abs(w), max(abs(x) for x in c["args"][0]) * 2 ** -52, 1e-300)
+        if c["fn"] in ("descStats@skew", "descStats@kurt"): e = d / max(abs(w), 1.0)  # differences of terms of order 1: absolute below 1
     if e > worst.get(c["fn"], (0, None))[0]:
         worst[c["fn"]] = (e, c)
     t = TARGET.get(c["fn"], {})

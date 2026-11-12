@@ -52,6 +52,33 @@ for (const set of ["special", "dist", "stats", "quantile"]) {
   }
 }
 
+/* ---- descriptive statistics and quantiles (STATS_SPEC 2.1), against exact rationals ---- */
+{
+  // Each statistic is judged under one of five names; a dimensionless shape statistic has an
+  // absolute floor (a skewness of 3e-5 cannot be told from 0 to fifteen digits relative), an order
+  // statistic one of an ulp of the largest value (a mix of two values can do no better).
+  const GROUP = { mean: "mean", sum: "sum", sd: "spread", var: "spread", se: "spread", cv: "spread", skew: "shape", kurt: "shape",
+    gmean: "means", hmean: "means", min: "order", max: "order", range: "order", q1: "order", med: "order", q3: "order", iqr: "order",
+    mad: "order", rsd: "order", mode: "order", modeN: "order" };
+  const f = get("descStats"), q = get("quantileType");
+  for (const c of fixtures.desc.cases) {
+    const big = Math.max(...c.args[0].map(Math.abs));
+    if (c.kind === "qt") {
+      const got = q(...c.args), d = Math.abs(got - c.want);
+      note("quantileType", d === 0 ? 0 : d / Math.max(Math.abs(c.want), big * 2 ** -52), `type ${c.args[2]} p ${c.args[1]} n=${c.args[0].length}`);
+      continue;
+    }
+    const r = f(...c.args);
+    for (const [k, g] of Object.entries(GROUP)) {
+      const w = c.want[k], got = r[k], name = `descStats.${g}`, at = `${k} of ${c.name}${c.args[1].vdiv === "n" ? " (n)" : ""}`;
+      if (w === undefined || w === null) { note(name, got == null ? 0 : Infinity, at + " should be blank"); continue; }
+      const t = TARGET[name] || {}, d = Math.abs(got - w);
+      const floor = g === "shape" ? (t.floor || 0) : g === "order" ? big * 2 ** -52 : 0;
+      note(name, typeof got !== "number" ? Infinity : d <= floor ? 0 : d / Math.max(Math.abs(w), floor || Number.MIN_VALUE), at);
+    }
+  }
+}
+
 /* ---- distributions fitted to values ---- */
 for (const c of fixtures.distfit.cases) {
   const r = get("distFit")(...c.args), at = `${c.args[1]} n=${c.args[0].length}`;

@@ -98,5 +98,29 @@
  },
  "DIST.pois.cdf": {
   "tol": 1e-12
+ },
+ "quantileType": {
+  "tol": 1e-13,
+  "why": "the interpolation weight carries the rounding of p(n + 1 - a - b), which the gap between the two values it lies between multiplies; R's is the same"
+ },
+ "descStats.mean": {
+  "tol": 1e-15
+ },
+ "descStats.sum": {
+  "tol": 1e-15
+ },
+ "descStats.spread": {
+  "tol": 1e-15
+ },
+ "descStats.shape": {
+  "tol": 1e-14,
+  "floor": 1,
+  "why": "skewness and kurtosis are differences of terms of order 1: judged by their absolute error below 1"
+ },
+ "descStats.means": {
+  "tol": 1e-14
+ },
+ "descStats.order": {
+  "tol": 1e-15
  }
 }

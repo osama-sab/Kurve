@@ -896,6 +896,28 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-12: descriptive statistics, whole (STATS_SPEC 2.1)
+
+- **The statistics are ticks**, the eleven Statistics on columns gave ticked at first, so an
+  analysis made before reads as it did and a new one starts where people expect. Each tick's
+  tooltip says what it is (G1, the excess kurtosis, 1.4826 × MAD); the dialog does not.
+- **A setting shows only while something ticked uses it** (information hygiene): the quartiles'
+  method while a quartile, the median, the IQR or a percentile is asked for, the interval's level
+  while the interval is ticked, the divisor while a spread is. A dialog of every setting at once
+  reads as a questionnaire.
+- **The quartiles' method is named**, Origin's way, with Kurve's own (R's type 7) marked, and the
+  report says which was used and the divisor: two programs disagreeing on Q1 is the commonest
+  question about descriptive statistics, and the answer is the method.
+- **An empty cell says why**, once, in the notes ("Mode: left blank for values that never
+  repeat"), not by a dash or a red cell.
+- **Quick statistics… and Descriptive ›** sit side by side: the old *Descriptive statistics…*
+  (the Statistics window, a look at every column with no sheet made) was renamed, because Origin's
+  name for the analyses that make sheets is *Descriptive Statistics* and two items that read
+  alike in one menu are one too many.
+- **The graphical summary writes no numbers on the histogram**: the normal curve's legend gives
+  the mean and SD with their errors, the box its median and quartiles in its tooltip. N and the
+  median as text on the figure would be a third place for numbers the sheet and Results have.
+
 ### 2026-11-11: the user's review: information hygiene, curves, a step on a new graph, calibration
 
 - **Information hygiene**, the user's rule, is a principle now (above, and UX_SPEC §3.8), and

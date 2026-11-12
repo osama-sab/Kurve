@@ -15,6 +15,7 @@ let chromium;
 try { ({ chromium } = await import(process.env.PLAYWRIGHT || "playwright")); }
 catch (e) { ({ chromium } = await import("/opt/node22/lib/node_modules/playwright/index.mjs")); }
 let pass = 0, fail = 0;
+const DESC_DEF_JS = "n,miss,mean,sd,se,min,q1,med,q3,max,sum";
 const check = (name, cond, detail) => { if (cond) { pass++; console.log("  ok   " + name); } else { fail++; console.log("  FAIL " + name + (detail == null ? "" : "  — " + String(detail).slice(0, 500))); } };
 const browser = await chromium.launch();
 const ready = (p) => p.waitForFunction(() => typeof S !== "undefined" && S.pid && S.proj && S.projects && S.projects.length, null, { timeout: 30000 });
@@ -165,6 +166,64 @@ await page(async p => {
   r = await p.evaluate(() => { const a = anaList()[0]; return (P().cols.find(c => c.ana === a.id && c.ak === "max") || {}).data[0]; });
   check("…and Recalculate works it out again (the new maximum, 500)", r === 500, r);
 }, { name: "worker" });
+
+console.log("2.1: descriptive statistics, whole; frequency counts; the graphical summary");
+await page(async p => {
+  await p.evaluate(SETUP); await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  // The dialog: the statistics as ticks, the old eleven ticked; the method's settings shown only with what uses them.
+  await p.evaluate(() => { anaDlg("desc"); }); await p.waitForSelector("#aRc");
+  let d = await p.evaluate(() => ({ on: DESC_STATS.map(e => e[0]).filter(k => document.getElementById("aS_" + k).checked), qt: !document.getElementById("aQt").hidden, conf: !document.getElementById("aConf").hidden }));
+  check("the dialog ticks the eleven statistics Statistics on columns had, and hides the interval's level until it is ticked", d.on.join() === DESC_DEF_JS && d.qt && !d.conf, JSON.stringify(d));
+  for (const k of ["n", "miss", "sd", "se", "min", "q1", "q3", "max", "sum"]) await p.uncheck(`#aS_${k}`);
+  for (const k of ["ci", "skew", "kurt", "cv", "mode", "mad"]) await p.check(`#aS_${k}`);
+  await p.fill("#aPct", "10, 90"); await p.selectOption("#aQt", "6"); await p.selectOption("#aConf", "0.99");
+  d = await p.evaluate(() => !document.getElementById("aConf").hidden); check("…the level shows once the interval is ticked", d);
+  await p.check(`#aI_${ids[2]}`); await p.click("#formOk"); await p.waitForTimeout(600);
+  let r = await RES(p);
+  const want = await p.evaluate(ids => { const v = colById(ids[1]).data.filter(x => x != null), s = v.slice().sort((a, b) => a - b), n = v.length, m = v.reduce((a, b) => a + b) / n,
+    sd = Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / (n - 1)), t = DIST.t.isf(0.005, n - 1), q = (p) => { const h = p * (n + 1); const j = Math.floor(h), g = h - j; return (1 - g) * s[Math.max(0, j - 1)] + g * s[Math.min(n - 1, j)]; };
+    return { lo: m - t * sd / Math.sqrt(n), p10: q(0.1), p90: q(0.9), med: q(0.5) }; }, ids);
+  check("…the result: the mean, its 99 % interval, the median and the 10th and 90th percentiles by type 6", r && Math.abs(r.t.cilo[0] - want.lo) < 1e-9 && Math.abs(r.t.p0[0] - want.p10) < 1e-12 && Math.abs(r.t.p1[0] - want.p90) < 1e-12 && Math.abs(r.t.med[0] - want.med) < 1e-12 && !("sd" in r.t) && "skew" in r.t, JSON.stringify([r && r.t, want]));
+  const rep = await p.evaluate(() => { const a = anaList()[0]; return [a.res.report.method, anaText(a)]; });
+  check("…the report says how: the quartiles' method and the divisor", /weighted average right \(type 6\)/.test(rep[0]) && /n − 1/.test(rep[0]) && /# Quantiles/.test(rep[1]), rep[0]);
+  check("…a column whose values never repeat leaves its mode blank and says so", r.t.mode[0] == null && /Mode: left blank for values that never repeat/.test(rep[1]), rep[1].slice(-400));
+  // Rows and listwise, by changing its settings.
+  await p.evaluate(() => { const a = anaList()[0]; anaDlg("desc", { id: a.id }); }); await p.waitForSelector("#aRc");
+  await p.fill("#aRow0", "3"); await p.fill("#aRow1", "8"); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await p.evaluate(() => { const a = anaList()[0], c = P().cols.find(c => c.ana === a.id && c.ak === "mean"); return [c.data[0], a.res.notes.join(" | ")]; });
+  check("rows 3 to 8 only: the mean of those rows, and said", Math.abs(r[0] - [5, 7, 9, 11, 13, 15].reduce((a, b) => a + b) / 6) < 1e-12 && /Rows 3 to 8 only/.test(r[1]), JSON.stringify(r));
+  await p.evaluate(ids => { const c = colById(ids[2]); const d = c.data.slice(); d[4] = null; d[5] = null; pushUndo("x"); save({ cols: P().cols.map(q => q.id === c.id ? Object.assign({}, q, { data: d }) : q) }, "two blanks"); }, ids); await p.waitForTimeout(400);
+  await p.evaluate(() => { const a = anaList()[0]; anaDlg("desc", { id: a.id }); }); await p.waitForSelector("#aRc"); await p.selectOption("#aMiss", "list"); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await p.evaluate(() => { const a = anaList()[0], c = P().cols.find(c => c.ana === a.id && c.ak === "mean"); return [c.data[0], a.res.notes.join(" | ")]; });
+  check("listwise: only rows with a value in both columns (3, 4, 7, 8 of 3 to 8), said", Math.abs(r[0] - (5 + 7 + 13 + 15) / 4) < 1e-12 && /Listwise: the 4 rows/.test(r[1]), JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  check("one undo puts the settings back", await p.evaluate(() => anaList()[0].in.miss !== "list"));
+  // Frequency counts of text and of numbers.
+  await p.evaluate(ids => { anaDlg("freq", { cols: [ids[3], ids[1]] }); }, ids); await p.waitForSelector("#aFm");
+  d = await p.evaluate(ids => [!!document.getElementById("aI_" + ids[3]), !document.getElementById("aFw").hidden, !!document.getElementById("aBy")], ids);
+  check("Frequency counts: a text column can be ticked, the width only shows for bins of a width, no Group by", d[0] && !d[1] && !d[2], JSON.stringify(d));
+  await p.selectOption("#aFm", "w"); await p.fill("#aFw", "5"); await p.fill("#aFs", "0"); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "freq"), o = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { o[c.ak] = c.txt ? c.data.map((v, i) => c.txt[i] != null ? c.txt[i] : v) : c.data.slice(); }); return o; });
+  const of = (nm, k) => r[k].filter((_, i) => r.col[i] === nm);
+  check("…the text column counted by its values, A 6 and B 6, each half", of("Batch", "lev").join() === "A,B" && of("Batch", "n").join() === "6,6" && of("Batch", "pct")[0] === 50 && of("Batch", "cpct")[1] === 100, JSON.stringify(r));
+  check("…the numbers in bins 5 wide from 0: 1 3 | 5 7 9 | 11 13 | 15 17 19 | 21 23", of("Height", "lo").join() === "0,5,10,15,20" && of("Height", "n").join() === "2,3,2,3,2" && of("Height", "cpct")[4] === 100, JSON.stringify([r.lo, r.n]));
+  // The graphical summary: one undo step, a figure of a histogram with a normal curve and a box chart.
+  const g0 = await p.evaluate(() => [P().graphs.length, allCols().length]);
+  await p.evaluate(ids => graphSummary(ids[1]), ids); await p.waitForTimeout(700);
+  r = await p.evaluate(ids => { const f = P().graphs.find(g => g.fig), cells = f ? f.fig.cells.map(c => graphOf(c.gid)) : [];
+    return [!!f, cells.length, cells.some(g => g.plot.layout === "box" && g.cols[0] === ids[1]), cells.some(g => Object.values(g.plot.series || {}).some(s => s.dist === "normal")), !!document.querySelector("#plot path[data-hdist], .gsnap path[data-hdist]")]; }, ids);
+  check("Graphical summary: a figure of two panels, a box chart and a histogram with a normal curve over it", r[0] && r[1] === 2 && r[2] && r[3], JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(500);
+  check("…and one undo takes it all back", JSON.stringify(await p.evaluate(() => [P().graphs.length, allCols().length])) === JSON.stringify(g0));
+  // Junk from storage.
+  r = await p.evaluate(() => { const q = { ana: [{ id: "z", kind: "desc", name: "J", in: { cols: [], rows: ["x", 3], miss: 7 }, p: "junk", out: { sheet: sheetList()[0].id } }], sheets: sheetList(), cols: [] }; anaClean(q); const a = q.ana[0]; return [a.in.rows === undefined, a.in.miss === undefined, typeof a.p === "object" && !Array.isArray(a.p)]; });
+  check("junk rows, missing-value setting and settings from storage are cleaned", r.every(Boolean), JSON.stringify(r));
+  // Reload: the analyses come back with their settings.
+  await p.reload(); await ready(p); await p.waitForTimeout(400);
+  r = await p.evaluate(() => anaList().map(a => [a.kind, JSON.stringify(a.p)]));
+  check("after a reload the analyses keep their settings", r.length === 2 && /"qtype":6/.test(r[0][1]) && /"w":5/.test(r[1][1]), JSON.stringify(r));
+}, { name: "2.1" });
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();

@@ -187,8 +187,11 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
     Derivative…  ## + "Derivative, as a new spectrum…": a choice in the tool
     Cumulative integral…
   Statistics  ## ← the Statistics menu (DS2)
-    Descriptive statistics…  ## + "Integrate the visible range", "Noise and signal to noise": sections of the one window
-    Statistics on columns…  ## + (FOUNDATION_SPEC 1.3a): an analysis into a result sheet of its own, worked out again
+    Quick statistics…  ## ~ "Descriptive statistics…" (STATS_SPEC 2.1: the name went to the analyses); + "Integrate the visible range", "Noise and signal to noise": sections of the one window
+    Descriptive  ## + (STATS_SPEC 2.1): the analyses that make result sheets, as Origin's Descriptive Statistics
+      Statistics on columns…  ## + (FOUNDATION_SPEC 1.3a): an analysis into a result sheet of its own, worked out again; 2.1 every statistic, the quartiles' method, rows, listwise
+      Frequency counts…  ## + (STATS_SPEC 2.1): bins or each value and text counted
+      Graphical summary  ## + (STATS_SPEC 2.1): a figure of the histogram with a normal curve and the box chart
     Correlation between columns…  ## ~ "Correlation between spectra"
     Histogram…  ## ~ "Histogram of the values"; now takes the selected columns
   Spectroscopy  ## ← the Spectroscopy menu (DS2): the toolkit, gathered from Data, Math, Analysis, Statistics and Plot

@@ -504,7 +504,9 @@ body.dwin-page{margin:0;height:100vh;overflow:hidden;background:var(--panel);col
 /* A sheet's tab: the one shown is filled, as anything chosen is (DESIGN.md). */
 .wstabs{display:flex;align-items:stretch;gap:var(--sp-1);padding:0 var(--sp-3);min-height:28px;border-top:1px solid var(--rule);background:var(--panel-2);overflow-x:auto;flex:0 0 auto;scrollbar-width:thin}
 .wstabs[hidden]{display:none}
-.wstab.ana{display:inline-flex;align-items:center;gap:var(--sp-1)}.anacols{max-height:260px;max-width:none}.anarow{display:flex;align-items:center;gap:var(--sp-3)}.anarow .grow{flex:1}.wstab.stale{color:var(--warn)}
+.wstab.ana{display:inline-flex;align-items:center;gap:var(--sp-1)}.anacols{max-height:260px;max-width:none}.anarow{display:flex;align-items:center;gap:var(--sp-3)}.anarow .grow{flex:1}
+.anastats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--sp-1) var(--sp-4);margin-bottom:var(--sp-4)}.anarows{display:flex;align-items:center;gap:var(--sp-3)}.anarows input{width:6em}
+.anadlg .grid2 [hidden]{display:none}.wstab.stale{color:var(--warn)}
 .wstab{font:inherit;font-size:var(--fs-tab);color:var(--ink);background:var(--btn-bg);border:1px solid var(--rule);border-top:0;border-radius:0 0 var(--r-s) var(--r-s);padding:var(--sp-1) var(--sp-5);white-space:nowrap;cursor:pointer;max-width:200px;overflow:hidden;text-overflow:ellipsis}
 .wstab:hover{background:var(--btn-bg-h)}
 .wstab[aria-selected="true"]{background:var(--seg-on);color:var(--seg-on-ink);border-color:var(--seg-on);font-weight:600}
@@ -5997,19 +5999,136 @@ function fPvalue(F,d1,d2){ if(!(d1>0&&d2>0)||!Number.isFinite(F)||Number.isNaN(F
 /* ==ANA:START== The analyses' kinds (ux/spec/FOUNDATION_SPEC.md, 1.3), pure: what each works out
    from its inputs' values. Loaded by the compute worker, which runs a large one (anaRunKind). */
 const anaNum=v=>v==null||!Number.isFinite(v)?null:v;
+/* R's nine sample quantiles (Hyndman and Fan, 1996), computed as R's quantile() does (its fuzz of
+   4 ε at a position that is a whole number), and Tukey's hinges, on sorted values (STATS_SPEC 2.1).
+   Each named as Origin, SAS or Excel name it; Kurve's default is type 7. */
+const QTYPES=[[1,"Empirical distribution","type 1"],[2,"Empirical distribution with averaging","type 2"],[3,"Nearest","type 3"],[4,"Weighted average left","type 4"],[5,"Hazen","type 5"],
+  [6,"Weighted average right","type 6, as SPSS and Minitab"],[7,"Linear","type 7, as R, NumPy and Excel's QUARTILE.INC"],[8,"Median-unbiased","type 8"],[9,"Normal-unbiased","type 9"],["tukey","Tukey's hinges","the medians of each half"]];
+const QT_AB={4:[0,1],5:[0.5,0.5],6:[0,0],7:[1,1],8:[1/3,1/3],9:[3/8,3/8]};
+const qtOk=t=>t==="tukey"||(Number.isInteger(t)&&t>=1&&t<=9);
+function medSorted(s,a,b){ const m=b-a; if(m<=0) return NaN; const k=a+(m>>1); if(m%2||s[k-1]===s[k]) return s[k]; const t=s[k-1]+s[k]; return Number.isFinite(t)?t/2:s[k-1]/2+s[k]/2; }
+function quantileType(s,p,t){ const n=s.length; if(!n||!(p>=0&&p<=1)) return NaN; if(n===1) return s[0]; t=t==null?7:t;
+  if(t==="tukey"){ if(p===0) return s[0]; if(p===1) return s[n-1]; if(p===0.5) return medSorted(s,0,n);
+    if(p===0.25||p===0.75){ const h=(n+1)>>1; return p===0.25?medSorted(s,0,h):medSorted(s,n-h,n); } t=7; }
+  const fz=4*Number.EPSILON, x=i=>s[i<1?0:i>n?n-1:i-1], mix=(a,b,h)=>h===0||a===b?a:h===1?b:(1-h)*a+h*b;
+  if(t===1||t===2||t===3){ const np=t===3?n*p-0.5:n*p, j=Math.floor(np+fz);
+    const h=t===1?(np>j?1:0):t===2?(np>j?1:0.5):((np!==j||((j%2)+2)%2===1)?1:0);
+    return mix(x(j),x(j+1),h); }
+  const ab=QT_AB[t]; if(!ab) return NaN; const nppm=ab[0]+p*(n+1-ab[0]-ab[1]), j=Math.floor(nppm+fz); let h=nppm-j; if(Math.abs(h)<fz) h=0;
+  return mix(x(j),x(j+1),h); }
+// Neumaier's compensated sum: a sum of a million values to the last digit or two.
+function neuSum(v){ let s=0,c=0; for(let i=0;i<v.length;i++){ const x=v[i], t=s+x; c+=Math.abs(s)>=Math.abs(x)?(s-t)+x:(x-t)+s; s=t; } return s+c; }
+const RSD_K=1.482602218505602; // 1/Φ⁻¹(3/4): the MAD of a normal sample times this is its SD
+/* Every descriptive statistic of a set of values (STATS_SPEC 2.1), each null where it has no meaning,
+   with the reason in `why`. The mean is Neumaier's sum over n (a second pass correcting it by the
+   mean deviation was tried: where the values cancel, the deviations' own roundings made it worse);
+   the deviations are scaled by the largest, so sums of their powers neither overflow nor underflow. Order statistics, the mode and the geometric and harmonic
+   means come from the values as they are; only the moments of values past 10³⁰⁰ are worked out a
+   power of two smaller. o: {qtype, conf, vdiv: "df"|"n", pcts: [percent]}. */
+function descStats(vals,o){ o=o||{}; const v=[]; for(let i=0;i<vals.length;i++){ const x=vals[i]; if(x!=null&&Number.isFinite(x)) v.push(x); }
+  const n=v.length, why={}, r={n,why}; if(!n){ why.all="no values"; return r; }
+  const s=v.slice().sort((a,b)=>a-b), big=Math.max(Math.abs(s[0]),Math.abs(s[n-1])), qt=qtOk(o.qtype)?o.qtype:7;
+  const put=(k,x)=>{ if(x!=null&&!Number.isFinite(x)){ r[k]=null; why[k]="too large to hold"; } else r[k]=x; };
+  if(big>1e300&&!o._down){ const k=2**-64, q=descStats(v.map(x=>x*k),Object.assign({},o,{_down:true,pcts:[]})), up=x=>x==null?x:x/k;
+    ["mean","sum","sd","var","se","ci","cv","skew","kurt"].forEach(key=>{ if(q.why[key]) why[key]=q.why[key]; });
+    ["mean","sum","sd","se"].forEach(key=>put(key,up(q[key]))); put("var",q.var==null?null:q.var/k/k);
+    r.ci=q.ci?q.ci.map(up):q.ci; if(r.ci&&!r.ci.every(Number.isFinite)){ r.ci=null; why.ci="too large to hold"; } if(q.conf!=null) r.conf=q.conf;
+    r.cv=q.cv; r.skew=q.skew; r.kurt=q.kurt; }
+  else { let m=neuSum(v)/n; if(!Number.isFinite(m)) m=neuSum(v.map(x=>x/n));
+    let M=0; for(let i=0;i<n;i++){ const a=Math.abs(v[i]-m); if(a>M) M=a; }
+    r.mean=m; put("sum",neuSum(v));
+    let Q1=0,Q2=0,Q3=0,Q4=0;
+    if(M>0){ const d=v.map(x=>(x-m)/M); Q1=neuSum(d); Q2=neuSum(d.map(x=>x*x)); Q3=neuSum(d.map(x=>x*x*x)); Q4=neuSum(d.map(x=>x*x*x*x)); }
+    const e=Q1/n, ss=Math.max(0,Q2-Q1*Q1/n); // in units of M²
+    if(n<2){ ["sd","se","var","ci","cv"].forEach(k=>{ r[k]=null; why[k]="one value"; }); }
+    else { const dd=o.vdiv==="n"?n:n-1; r.sd=M>0?M*Math.sqrt(ss/dd):0; put("var",r.sd*r.sd);
+      r.se=r.sd/Math.sqrt(n); const conf=o.conf>0&&o.conf<1?o.conf:0.95, t=tCrit(conf,n-1); r.ci=[m-t*r.se,m+t*r.se]; r.conf=conf;
+      if(m===0){ r.cv=null; why.cv="the mean is zero"; } else r.cv=r.sd/m; }
+    const m2=Q2/n-e*e, m3=Q3/n-3*e*Q2/n+2*e*e*e, m4=Q4/n-4*e*Q3/n+6*e*e*Q2/n-3*e**4;
+    if(n<3){ r.skew=null; why.skew="fewer than three values"; } else if(!(M>0&&m2>0)){ r.skew=null; why.skew="every value the same"; } else r.skew=m3/Math.pow(m2,1.5)*Math.sqrt(n*(n-1))/(n-2);
+    if(n<4){ r.kurt=null; why.kurt="fewer than four values"; } else if(!(M>0&&m2>0)){ r.kurt=null; why.kurt="every value the same"; } else r.kurt=((n+1)*(m4/(m2*m2))-3*(n-1))*(n-1)/((n-2)*(n-3)); }
+  if(o._down) return r;
+  r.min=s[0]; r.max=s[n-1]; put("range",s[n-1]-s[0]);
+  r.q1=quantileType(s,0.25,qt); r.med=quantileType(s,0.5,qt); r.q3=quantileType(s,0.75,qt); put("iqr",r.q3-r.q1);
+  // Each value's distance from the median; from the mean of two middle values a and b it is
+  // |(x − a) + (x − b)|/2, each difference exact for values near each other, the median's own rounding left out.
+  const ka=(n-1)>>1, kb=n>>1, sa=s[ka], sb=s[kb], dv=sa===sb?x=>Math.abs(x-sa):x=>{ const t=Math.abs((x-sa)+(x-sb)); return Number.isFinite(t)?t/2:Math.abs(x/2-sa/2-sb/2); };
+  const ad=v.map(dv).sort((a,b)=>a-b); put("mad",medSorted(ad,0,n));
+  if(r.mad==null){ r.rsd=null; why.rsd=why.mad; } else r.rsd=RSD_K*r.mad;
+  let best=1, bi=0; for(let i=0,j;i<n;i=j){ j=i+1; while(j<n&&s[j]===s[i]) j++; if(j-i>best){ best=j-i; bi=i; } }
+  if(best>1){ r.mode=s[bi]; r.modeN=best; } else { r.mode=null; r.modeN=1; why.mode="no value repeats"; }
+  // The logarithms are taken of each value over the median, which keeps their digits; a ratio
+  // past 10³⁰⁰ either way takes the difference of the logarithms instead.
+  if(s[0]>0){ const g0=s[n>>1], lr=x=>{ const q=x/g0; return q>1e-300&&q<1e300?Math.log(q):Math.log(x)-Math.log(g0); }, L=neuSum(v.map(lr))/n;
+    let gm=g0*Math.exp(L); if(!(gm>0&&Number.isFinite(gm))) gm=Math.exp(Math.log(g0)+L); r.gmean=gm;
+    const inv=neuSum(v.map(x=>1/x)); r.hmean=Number.isFinite(inv)&&inv>0?n/inv:null; if(r.hmean==null) why.hmean="the values are too small"; }
+  else { r.gmean=r.hmean=null; why.gmean=why.hmean="values at or below zero"; }
+  r.pct=(o.pcts||[]).filter(q=>q>=0&&q<=100).map(q=>({p:q,v:quantileType(s,q/100,qt)}));
+  r.qtype=qt; return r; }
+// Numbers into bins, as the histogram counts them (histBins): each bin's edges, centre, count, the
+// running count and the percentages of every value.
+function freqBins(vals,o){ const b=histBins(vals,o||{}); if(b.fail) return b; const N=b.n; let cum=0;
+  const rows=b.counts.map((c,i)=>{ cum+=c; return {lo:b.edges[i],hi:b.edges[i+1],mid:(b.edges[i]+b.edges[i+1])/2,n:c,cum,pct:100*c/N,cpct:100*cum/N}; });
+  return {rows,n:N,out:b.out,w:b.w}; }
+// Each distinct value or text counted, in the order given (a categorical column's), else numbers
+// rising and then text in natural order.
+function freqLevels(keys,order){ const by=new Map(); let N=0; for(const k0 of keys){ if(k0==null||k0==="") continue; const k=typeof k0==="number"?+(+k0).toPrecision(12):String(k0); by.set(k,(by.get(k)||0)+1); N++; }
+  if(!N) return {fail:"There are no values to count."};
+  const ks=distKeySort([...by.keys()],order||null); let cum=0;
+  return {rows:ks.map(k=>{ const c=by.get(k); cum+=c; return {lev:k,n:c,cum,pct:100*c/N,cpct:100*cum/N}; }),n:N}; }
+// The statistics Statistics on columns can give, in the order its table has them; the eleven an
+// analysis made before 2.1 has (no `stats` stored) are DESC_DEF.
+const DESC_STATS=[["n","N"],["miss","Missing"],["mean","Mean"],["sd","SD"],["se","SE of mean"],["ci","Mean's interval"],["var","Variance"],["cv","Coefficient of variation"],
+  ["min","Minimum"],["q1","Q1"],["med","Median"],["q3","Q3"],["max","Maximum"],["sum","Sum"],["range","Range"],["iqr","IQR"],["mad","MAD"],["rsd","Robust SD"],
+  ["mode","Mode"],["skew","Skewness"],["kurt","Kurtosis"],["gmean","Geometric mean"],["hmean","Harmonic mean"]];
+const DESC_DEF=["n","miss","mean","sd","se","min","q1","med","q3","max","sum"];
+// The reasons descStats gives, as the notes say them ("Skewness: left blank for fewer than three values").
+const WHY_FOR={"one value":"a single value","no value repeats":"values that never repeat","the mean is zero":"a mean of zero","values at or below zero":"values at or below zero","every value the same":"values all the same","too large to hold":"values too large to hold","fewer than three values":"fewer than three values","fewer than four values":"fewer than four values","the values are too small":"values too small"};
+const descKeys=p=>{ const want=Array.isArray(p&&p.stats)?new Set(p.stats):new Set(DESC_DEF); return DESC_STATS.map(e=>e[0]).filter(k=>want.has(k)); };
+const qtName=t=>{ const e=QTYPES.find(q=>q[0]===t)||QTYPES[6]; return e[1].toLowerCase()+(t==="tukey"?"":` (${e[2].split(",")[0]})`); };
+const pctLab=q=>"P"+String(+(+q).toPrecision(6));
 const ANA_KINDS={
   desc:{label:"Statistics on columns", base:"Statistics",
-    help:"Each column's count, mean, standard deviation, standard error, quartiles, extremes and sum, by group if asked, into a result sheet that is worked out again when the values change.",
+    help:"Each column's statistics, chosen from N, mean, SD, the mean's interval, quartiles, skewness and more, by group if asked, into a result sheet that is worked out again when the values change.",
     // ins: [{name, ref, unit, vals, rows, groups: [[key, vals]] or null, nMasked, missing}]
-    run(ins,p){ const by=ins.some(q=>q.groups), cols=[{k:"col",name:"Column",vals:[]}].concat(by?[{k:"grp",name:"Group",vals:[]}]:[]),
-        K=[["n","N"],["miss","Missing"],["mean","Mean"],["sd","SD"],["se","SE of mean"],["min","Minimum"],["q1","Q1"],["med","Median"],["q3","Q3"],["max","Maximum"],["sum","Sum"]];
-      K.forEach(([k,name])=>cols.push({k,name,vals:[]}));
-      const row=(nm,g,v,miss)=>{ const s=v.slice().sort((a,b)=>a-b), n=s.length, mu=n?s.reduce((a,b)=>a+b,0)/n:NaN, sd=n>1?Math.sqrt(s.reduce((a,b)=>a+(b-mu)**2,0)/(n-1)):NaN;
-        const r={col:nm,grp:g,n,miss,mean:mu,sd,se:n>1?sd/Math.sqrt(n):NaN,min:n?s[0]:NaN,q1:n?quantileSorted(s,0.25):NaN,med:n?quantileSorted(s,0.5):NaN,q3:n?quantileSorted(s,0.75):NaN,max:n?s[n-1]:NaN,sum:n?s.reduce((a,b)=>a+b,0):NaN};
+    run(ins,p){ p=p||{}; const by=ins.some(q=>q.groups), keys=descKeys(p), qt=qtOk(p.qtype)?p.qtype:7, conf=p.conf>0&&p.conf<1?p.conf:0.95, cpct=+(conf*100).toPrecision(6);
+      const pcts=Array.isArray(p.pcts)?p.pcts.filter(q=>Number.isFinite(q)&&q>=0&&q<=100):[];
+      const cols=[{k:"col",name:"Column",vals:[]}].concat(by?[{k:"grp",name:"Group",vals:[]}]:[]);
+      keys.forEach(k=>{ const nm=(DESC_STATS.find(e=>e[0]===k)||[k,k])[1];
+        if(k==="ci") cols.push({k:"cilo",name:`Mean's ${cpct}% interval, from`,vals:[]},{k:"cihi",name:"to",vals:[]});
+        else if(k==="mode") cols.push({k:"mode",name:"Mode",vals:[]},{k:"moden",name:"Its count",vals:[]});
+        else cols.push({k,name:nm,vals:[]}); });
+      pcts.forEach((q,i)=>cols.push({k:"p"+i,name:pctLab(q),vals:[]}));
+      const blank={};
+      const row=(nm,g,v,miss)=>{ const d=descStats(v,{qtype:qt,conf,vdiv:p.vdiv,pcts});
+        const r={col:nm,grp:g,n:d.n,miss,mean:d.mean,sd:d.sd,se:d.se,cilo:d.ci?d.ci[0]:null,cihi:d.ci?d.ci[1]:null,var:d.var,cv:d.cv,min:d.min,q1:d.q1,med:d.med,q3:d.q3,max:d.max,sum:d.sum,
+          range:d.range,iqr:d.iqr,mad:d.mad,rsd:d.rsd,mode:d.mode,moden:d.n?d.modeN:null,skew:d.skew,kurt:d.kurt,gmean:d.gmean,hmean:d.hmean};
+        (d.pct||[]).forEach((e,i)=>{ r["p"+i]=e.v; });
+        Object.keys(d.why||{}).forEach(k=>{ if(keys.includes(k)) (blank[k]=blank[k]||new Set()).add(WHY_FOR[d.why[k]]||d.why[k]); });
         cols.forEach(o=>o.vals.push(typeof r[o.k]==="number"?anaNum(r[o.k]):r[o.k]==null?null:String(r[o.k]))); };
       ins.forEach(q=>{ if(q.groups) q.groups.forEach(([g,v])=>row(q.name,String(g),v,null)); else row(q.name,null,q.vals,q.missing); });
       const head=cols.map(o=>o.name), rows=cols[0].vals.map((_,i)=>cols.map(o=>o.vals[i]));
-      return {tables:[{cols}],report:{sections:[{title:"Statistics on columns",tables:[{head,rows}]}]},notes:[]}; }}
+      // How it was worked out, said once: the quartiles' method, the interval's level, the divisor.
+      const how=[]; if(keys.some(k=>["q1","med","q3","iqr"].includes(k))||pcts.length) how.push(`Quantiles: ${qtName(qt)}.`);
+      if(keys.some(k=>["sd","se","var","ci","cv"].includes(k))) how.push(p.vdiv==="n"?"SD and variance divided by n (a whole population's).":"SD and variance divided by n − 1.");
+      if(keys.includes("skew")||keys.includes("kurt")) how.push("Skewness and kurtosis are the sample estimators G1 and G2 (excess kurtosis: 0 for a normal sample).");
+      const notes=Object.keys(blank).map(k=>`${(DESC_STATS.find(e=>e[0]===k)||[k,k])[1]}: left blank for ${[...blank[k]].join("; ")}.`);
+      return {tables:[{cols}],report:{sections:[{title:"Statistics on columns",tables:[{head,rows}]}],method:how.join(" ")},notes}; }},
+  freq:{label:"Frequency counts", base:"Frequencies", cats:true,
+    help:"How often each value occurs: numbers counted into bins, or each distinct value or text counted, with the running count and the percentages, into a result sheet.",
+    // ins as desc's, each with `cats` (its values as levels, in the column's order) when it is counted by level.
+    run(ins,p){ p=p||{}; const many=ins.length>1, lev=ins.some(q=>q.cats), num=ins.some(q=>!q.cats);
+      const cols=(many?[{k:"col",name:"Column",vals:[]}]:[]).concat(lev?[{k:"lev",name:"Value",vals:[]}]:[]).concat(num?[{k:"lo",name:"From",vals:[]},{k:"hi",name:"To",vals:[]},{k:"mid",name:"Centre",vals:[]}]:[])
+        .concat([{k:"n",name:"Count",vals:[]},{k:"cum",name:"Cumulative count",vals:[]},{k:"pct",name:"Percent",vals:[]},{k:"cpct",name:"Cumulative percent",vals:[]}]);
+      const notes=[]; let fails=0;
+      ins.forEach(q=>{ const t=q.cats?freqLevels(q.cats.keys,q.cats.order):freqBins(q.vals,p.bins||{});
+        if(t.fail){ fails++; notes.push(`${q.name}: ${t.fail}`); return; }
+        if(t.out) notes.push(`${q.name}: ${t.out} value${t.out===1?"":"s"} below the first bin, left out (the percentages are of every value).`);
+        t.rows.forEach(r=>{ const o=Object.assign({col:q.name},r); cols.forEach(c=>c.vals.push(c.k==="lev"?(o.lev==null?null:typeof o.lev==="number"?String(o.lev):o.lev):typeof o[c.k]==="number"?anaNum(o[c.k]):o[c.k]==null?null:String(o[c.k]))); }); });
+      if(fails===ins.length) return {fail:notes.join(" ")};
+      const head=cols.map(o=>o.name), rows=cols[0].vals.map((_,i)=>cols.map(o=>o.vals[i]));
+      const b=p.bins||{}, how=num?(b.rule==="n"?`${b.n||10} bins`:b.rule==="w"?`bins ${b.w} wide`:b.rule==="sturges"?"bins by Sturges' rule":b.rule==="sqrt"?"bins by the square root of the count":"bins by the Freedman–Diaconis rule")+(b.start!=null&&b.start!==""?`, from ${b.start}`:"")+"; each bin holds its lower edge, the last its upper edge too.":"";
+      return {tables:[{cols}],report:{sections:[{title:"Frequency counts",tables:[{head,rows}]}],method:how?how.charAt(0).toUpperCase()+how.slice(1):""},notes}; }}
 };
 // A kind run by name: the page's call, and the worker's ("call" job).
 function anaRunKind(kind,ins,p){ const K=ANA_KINDS[kind]; if(!K) throw new Error("the analysis "+kind+" is not known here"); return K.run(ins,p||{}); }
@@ -14802,30 +14921,50 @@ const anaOfSheet=sid=>{ const s=sheetList().find(q=>q.id===sid); return s&&s.ana
 const newAnaId=()=>"a"+Math.random().toString(36).slice(2,9);
 // What an analysis reads, as one string: its kind, settings, inputs and each input's state.
 function anaSig(a){ const parts=[a.kind,JSON.stringify(a.p||{}),JSON.stringify(a.in||{})];
-  (a.in.cols||[]).forEach(id=>{ const c=colById(id); parts.push(c?pipeSig(c)+"|"+maskSig(c):"gone:"+id); });
+  (a.in.cols||[]).forEach(id=>{ const c=colById(id); parts.push(c?pipeSig(c)+"|"+maskSig(c)+(c.cat?"|"+JSON.stringify(c.cat):""):"gone:"+id); });
   if(a.in.by){ const g=colById(a.in.by); parts.push(g?arrKey(g.data)+txtKey(g.txt)+JSON.stringify(g.cat||null):"gone:"+a.in.by); }
   return sha256(parts.join("\u0002")).slice(0,24); }
 // Out of date, and why (null when it is not).
 function anaStale(a){ if(!a) return null; if(a.res&&a.res.err) return a.res.err; const gone=(a.in.cols||[]).filter(id=>!colById(id));
   if(gone.length) return `${gone.length===1?"An input column has":gone.length+" input columns have"} been deleted`;
   return a.sig!==anaSig(a)?"What it reads has changed since it was worked out":null; }
+// Which rows an analysis reads (1-based, either end open), or null for all.
+const anaRowsOf=inp=>inp&&Array.isArray(inp.rows)&&inp.rows.length===2&&(inp.rows[0]!=null||inp.rows[1]!=null)?inp.rows:null;
+/* The one input panel's reading (STATS_SPEC, the frame): each column's values through anaRead (or, for
+   a kind that counts levels, its cells as categories), the rows chosen, listwise when asked (only rows
+   with a value in every column), the groups of a column of groups; the notes say what was left out. */
+function anaInputs(a,cs,by,notes,K){ const rr=anaRowsOf(a.in), list=a.in.miss==="list"&&cs.length>1, lev0=!!(a.p&&a.p.levels);
+  const inR=i=>!rr||(i>=0&&(rr[0]==null||i>=rr[0]-1)&&(rr[1]==null||i<=rr[1]-1));
+  const rd=cs.map(c=>{ const r=anaRead(c,{read:(a.in.read||{})[c.id],masked:a.in.masked}), lev=!!(K&&K.cats&&(lev0||isCatCol(c)||textCount(c)>r.vals.length));
+    const d={c,r,lev,rows:r.rows,vals:r.vals,keys:null}, mk=new Set(a.in.masked?[]:(c.mask||[])), n=Math.max((c.data||[]).length,txtLen(c));
+    if(lev){ d.rows=[]; d.keys=[]; d.vals=[]; for(let i=0;i<n;i++){ if(mk.has(i)) continue; const v=catVal(c,i); if(v==null) continue; d.rows.push(i); d.keys.push(v); } }
+    // Missing: the cells read, in the rows chosen, that hold no value (text counts as missing for numbers).
+    if(lev||r.orig){ let m=0; const has=new Set(d.rows); for(let i=0;i<n;i++){ if(!inR(i)||mk.has(i)) continue; if(!has.has(i)) m++; } d.missing=m; } else d.missing=null;
+    return d; });
+  const keepRows=(d,f)=>{ const k=[]; d.rows.forEach((i,j)=>{ if(f(i)) k.push(j); }); const out=d.rows.length-k.length; if(!out) return 0;
+    d.rows=k.map(j=>d.rows[j]); if(d.keys) d.keys=k.map(j=>d.keys[j]); d.vals=d.lev?[]:k.map(j=>d.vals[j]); return out; };
+  if(rr){ rd.forEach(d=>keepRows(d,inR)); notes.push(`Rows ${rr[0]||1} to ${rr[1]==null?"the last":rr[1]} only.`); }
+  if(list){ let common=null; rd.forEach(d=>{ const s=new Set(d.rows.filter(i=>i>=0)); common=common?new Set([...common].filter(i=>s.has(i))):s; });
+    let out=0; rd.forEach(d=>{ out+=keepRows(d,i=>common.has(i)); });
+    if(out) notes.push(`Listwise: the ${common.size} row${common.size===1?"":"s"} with a value in every column chosen; ${out} value${out===1?"":"s"} in other rows left out.`); }
+  return rd.map(d=>{ const c=d.c, r=d.r, q={name:specName(c),ref:colRef(c),unit:c.unit||"",vals:d.vals,rows:d.rows,nMasked:r.nMasked,groups:null,missing:d.missing,cats:null};
+    if(r.nMasked) notes.push(`${r.nMasked} masked point${r.nMasked===1?"":"s"} of ${q.name} left out.`);
+    if(d.lev){ q.cats={keys:d.keys,order:catOrderKeys(c)}; return q; }
+    if(r.rowsKind==="dep") notes.push(`${q.name} is read after ${r.steps.join(", ").toLowerCase()}: neighbouring values depend on each other.`);
+    if(r.rowsKind==="drop") notes.push(`${q.name} is read after ${r.steps.join(", ").toLowerCase()}, which left some rows out.`);
+    if(r.rowsKind==="merge") notes.push(`${q.name} is read after ${r.steps.join(", ").toLowerCase()}, which made or averaged points: these numbers describe them, not the measurements.`);
+    if(by){ const keys=d.rows.map(i=>catVal(by,i)), g=distGroups(d.vals,keys,DIST_GMAX,{text:true,order:catOrderKeys(by)});
+      if(g.fail) notes.push(`${by.name||colRef(by)}: ${g.fail}`); else q.groups=g.keys.map((k,j)=>[typeof k==="number"?fmt(k,8):k,g.by[j]]); }
+    return q; }); }
 // Work it out: the inputs read, the kind run, the result sheet's columns written. Mutates p.cols and a.
 function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p) return false; const sig=anaSig(a);
   const cs=(a.in.cols||[]).map(colById), gone=cs.filter(c=>!c).length, by=a.in.by?colById(a.in.by):null;
   if(gone||(a.in.by&&!by)){ a.res=Object.assign({},a.res||{},{err:gone?`${gone===1?"An input column has":gone+" input columns have"} been deleted`:"Its column of groups has been deleted"}); a.sig=sig; return false; }
-  const notes=[], ins=cs.map(c=>{ const r=anaRead(c,{read:(a.in.read||{})[c.id],masked:a.in.masked}), q={name:specName(c),ref:colRef(c),unit:c.unit||"",vals:r.vals,rows:r.rows,nMasked:r.nMasked,groups:null};
-    const n=Math.max((c.data||[]).length,txtLen(c)); q.missing=r.orig?Math.max(0,n-r.vals.length-r.nMasked):null;
-    if(r.nMasked) notes.push(`${r.nMasked} masked point${r.nMasked===1?"":"s"} of ${q.name} left out.`);
-    if(r.rowsKind==="dep") notes.push(`${q.name} is read after ${r.steps.join(", ").toLowerCase()}: neighbouring values depend on each other.`);
-    if(r.rowsKind==="drop") notes.push(`${q.name} is read after ${r.steps.join(", ").toLowerCase()}, which left some rows out.`);
-    if(r.rowsKind==="merge") notes.push(`${q.name} is read after ${r.steps.join(", ").toLowerCase()}, which made or averaged points: these numbers describe them, not the measurements.`);
-    if(by){ const keys=r.rows.map(i=>catVal(by,i)), g=distGroups(r.vals,keys,DIST_GMAX,{text:true,order:catOrderKeys(by)});
-      if(g.fail) notes.push(`${by.name||colRef(by)}: ${g.fail}`); else q.groups=g.keys.map((k,j)=>[typeof k==="number"?fmt(k,8):k,g.by[j]]); }
-    return q; });
+  const notes=[], ins=anaInputs(a,cs,by,notes,K);
   // A large one is worked out by the compute worker (1.3c), its result put in when it comes back
   // (anaDone), if what it read has not changed meanwhile; the page goes on.
   const nv=ins.reduce((t,q)=>t+q.vals.length,0);
-  if(nv>=ANA_BIG&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,groups:q.groups,missing:q.missing})),notes,sig); return "later"; }
+  if(nv>=ANA_BIG&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,groups:q.groups,missing:q.missing,cats:q.cats})),notes,sig); return "later"; }
   let out; try{ out=anaRunKind(a.kind,ins,a.p||{}); }catch(e){ out={fail:String(e&&e.message||e)}; }
   return anaApply(a,p,out,notes,sig); }
 function anaApply(a,p,out,notes,sig){
@@ -14864,32 +15003,93 @@ function followAnas(){ const p=P(); if(!p||S.readOnly||S.editing||!anaList(p).le
 function anaRO(){ if(S.sheet!=="raw") return false; const a=anaOfSheet(curSheet()); if(!a) return false;
   toast(`These are the results of ${a.name}: change its settings instead.`,{action:"Change settings…",run:()=>anaDlg(a.kind,{id:a.id})}); return true; }
 function anaColRO(c){ const a=c&&c.ana?anaOf(c.ana):null; if(!a) return false; toast(`Column ${colLetter(c)} holds results of ${a.name}: change its settings instead.`,{action:"Change settings…",run:()=>anaDlg(a.kind,{id:a.id})}); return true; }
-// The dialog: the input columns (each with what it reads and, with steps, a switch to the original
-// values), a column of groups, masked points, how it recalculates. o.id changes an analysis.
-async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], p=P(); if(!K||!p||S.readOnly) return; if(S.ws&&S.ws.edit) wsCommit(0,0,true);
+/* Each kind's own settings in the dialog, after the inputs: `html(p)` (fields with ids), `wire(box)`
+   (what shows with what), `read(v, p0)` the settings from the dialog's values. */
+const ANA_FORMS={
+  desc:{html(p){ const want=new Set(descKeys(p)), qt=qtOk(p.qtype)?p.qtype:7, conf=p.conf>0&&p.conf<1?p.conf:0.95;
+      const tip={n:"The values counted",miss:"Rows read that hold no number",sd:"Standard deviation",se:"The standard error of the mean, SD / √N",ci:"The interval the mean lies in, at the level below (Student's t)",
+        cv:"SD over the mean",iqr:"Q3 − Q1",mad:"The median of the distances from the median",rsd:"The MAD times 1.4826: the SD of a normal sample, little moved by outliers",
+        mode:"The most frequent value (the smallest when several tie), with its count",skew:"G1, the sample skewness: 0 for a symmetric sample",kurt:"G2, the sample excess kurtosis: 0 for a normal sample",
+        gmean:"For values above zero",hmean:"For values above zero"};
+      return `<p class="lab">Statistics</p><div class="anastats">${DESC_STATS.map(([k,nm])=>`<label class="chk"${tip[k]?` title="${esc(tip[k])}"`:""}><input type="checkbox" id="aS_${k}"${want.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div>
+      <div class="grid2"><label for="aPct" class="tipd" title="Percentiles to add, in percent, separated by commas or spaces: 5, 95">Percentiles</label><input type="text" id="aPct" value="${esc((p.pcts||[]).join(", "))}" placeholder="none" inputmode="decimal">
+      <label for="aQt" class="tipd" title="How a quantile between two values is worked out: R's nine types, named as Origin, SAS and Excel name them">Quartiles</label><select id="aQt">${QTYPES.map(([t,nm,d])=>`<option value="${t}"${t===qt?" selected":""} title="${esc(d)}">${esc(nm)}${t===7?" (Kurve's)":""}</option>`).join("")}</select>
+      <label for="aConf">Interval</label><select id="aConf">${[0.9,0.95,0.99,0.999].map(c=>`<option value="${c}"${c===conf?" selected":""}>${+(c*100).toPrecision(4)}%</option>`).join("")}</select>
+      <label for="aVd" class="tipd" title="n − 1 for a sample (the usual), n for a whole population">Divide by</label><select id="aVd"><option value="df">n − 1</option><option value="n"${p.vdiv==="n"?" selected":""}>n</option></select></div>`; },
+    wire(box){ const on=()=>{ const any=q=>q.some(k=>{ const el=box.querySelector("#aS_"+k); return el&&el.checked; }), pc=box.querySelector("#aPct");
+        const show=(id,b)=>{ const el=box.querySelector("#"+id); if(el){ el.hidden=!b; const l=box.querySelector(`label[for="${id}"]`); if(l) l.hidden=!b; } };
+        show("aQt",any(["q1","med","q3","iqr"])||!!(pc&&pc.value.trim())); show("aConf",any(["ci"])); show("aVd",any(["sd","se","var","ci","cv"])); };
+      box.addEventListener("input",on); box.addEventListener("change",on); on(); },
+    read(v){ const stats=DESC_STATS.map(e=>e[0]).filter(k=>v["aS_"+k]), pcts=String(v.aPct||"").split(/[\s,;]+/).map(t=>t.trim().replace(/%$/,"")).filter(Boolean).map(Number).filter(x=>Number.isFinite(x)&&x>=0&&x<=100);
+      const qt=v.aQt==="tukey"?"tukey":+v.aQt; return {stats,pcts:[...new Set(pcts)].slice(0,20),qtype:qtOk(qt)?qt:7,conf:+v.aConf||0.95,vdiv:v.aVd==="n"?"n":"df"}; },
+    valid(v){ return DESC_STATS.some(([k])=>v["aS_"+k])||String(v.aPct||"").trim()!==""; }},
+  freq:{noGroup:true, html(p){ const b=p.bins||{}, m=p.levels?"levels":b.rule||"fd";
+      return `<div class="grid2"><label for="aFm">Count</label><select id="aFm">${[["fd","Into bins (Freedman–Diaconis)"],["sturges","Into bins (Sturges)"],["sqrt","Into bins (square root of the count)"],["n","Into a number of bins"],["w","Into bins of a width"],["levels","Each distinct value"]].map(([k,t])=>`<option value="${k}"${k===m?" selected":""}>${t}</option>`).join("")}</select>
+      <label for="aFn">Bins</label><input type="text" id="aFn" inputmode="numeric" value="${esc(b.n!=null?String(b.n):"10")}">
+      <label for="aFw">Width</label><input type="text" id="aFw" inputmode="decimal" value="${esc(b.w!=null?String(b.w):"")}">
+      <label for="aFs" class="tipd" title="The first bin's lower edge; empty, a round number below the smallest value">Start at</label><input type="text" id="aFs" inputmode="decimal" value="${esc(b.start!=null?String(b.start):"")}" placeholder="automatic"></div>
+      <p class="lab">A column of text, or a categorical one, is counted by its values whatever is chosen.</p>`; },
+    wire(box){ const on=()=>{ const m=(box.querySelector("#aFm")||{}).value, show=(id,b)=>{ const el=box.querySelector("#"+id); if(el){ el.hidden=!b; const l=box.querySelector(`label[for="${id}"]`); if(l) l.hidden=!b; } };
+        show("aFn",m==="n"); show("aFw",m==="w"); show("aFs",m!=="levels"); }; box.addEventListener("change",on); on(); },
+    read(v){ const m=v.aFm||"fd"; if(m==="levels") return {levels:true}; const b={rule:m}; if(m==="n") b.n=Math.max(1,Math.round(+v.aFn)||10); if(m==="w") b.w=+v.aFw;
+      const st=String(v.aFs||"").trim(); if(st!==""&&Number.isFinite(+st)) b.start=+st; return {bins:b}; },
+    valid(v){ return v.aFm!=="w"||+v.aFw>0; }}
+};
+// The dialog: the inputs (each column with what it reads and, with steps, a switch to the original
+// values; a column of groups; which rows; pairwise or listwise; masked points), the kind's own
+// settings, how it recalculates. o.id changes an analysis; o.cols starts with those columns ticked.
+async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kind]||{}, p=P(); if(!K||!p||S.readOnly) return; if(S.ws&&S.ws.edit) wsCommit(0,0,true);
   const a0=o.id?anaOf(o.id):null, sid=a0?sheetOf(colById(a0.in.cols[0])||{})||curSheet():anaOfSheet(curSheet())?SHEET0.id:curSheet();
-  const cand=sheetCols(sid).filter(c=>!c.ana&&(c.role==="y"||c.role==="ignore")&&anyVal(c.data)).concat(yCols().filter(c=>c.src&&!sheetCols(sid).includes(c)));
-  if(!cand.length){ toast("There is no column of numbers on this sheet to work out."); return; }
-  const sel=new Set(a0?a0.in.cols:(wsSelColIds?wsSelColIds():[]).filter(id=>cand.some(c=>c.id===id)));
+  const cand=sheetCols(sid).filter(c=>!c.ana&&(c.role==="y"||c.role==="ignore")&&(anyVal(c.data)||(K.cats&&hasVals(c)))).concat(yCols().filter(c=>c.src&&!sheetCols(sid).includes(c)));
+  if(!cand.length){ toast(K.cats?"There is no column with values on this sheet to count.":"There is no column of numbers on this sheet to work out."); return; }
+  const sel=new Set(a0?a0.in.cols:(o.cols||(wsSelColIds?wsSelColIds():[])).filter(id=>cand.some(c=>c.id===id)));
   if(!sel.size){ const act=activeYCol(); if(act&&cand.includes(act)) sel.add(act.id); else sel.add(cand[0].id); }
-  const rd=a0?a0.in.read||{}:{}, bys=sheetCols(sid).filter(c=>!c.ana&&(isCatCol(c)||textCount(c)));
+  const rd=a0?a0.in.read||{}:{}, bys=F.noGroup?[]:sheetCols(sid).filter(c=>!c.ana&&(isCatCol(c)||textCount(c))), rr=a0?anaRowsOf(a0.in):null, p0=a0?a0.p||{}:{};
   const rowsH=cand.map(c=>{ const st=anaSteps(c).length, i=c.id; return `<div class="anarow"><label class="chk"><input type="checkbox" id="aI_${i}"${sel.has(i)?" checked":""}> ${esc(colLetter(c))} ${esc(c.name||"")}</label><span class="muted grow">${esc(anaReadText(c,rd[i])||"its values")}</span>${st&&!c.src?`<select id="aR_${i}" aria-label="What ${esc(colLetter(c))} gives"><option value="proc">Processed</option><option value="orig"${rd[i]==="orig"?" selected":""}>Original</option></select>`:""}</div>`; }).join("");
   const html=`<div class="anadlg"><p class="lab">Columns</p><div class="colpick anacols">${rowsH}</div>
-    <div class="grid2"><label for="aBy">Group by</label><select id="aBy"><option value="">Nothing</option>${bys.map(c=>`<option value="${c.id}"${a0&&a0.in.by===c.id?" selected":""}>${esc(colRef(c)+(c.name?" "+c.name:""))}</option>`).join("")}</select>
-    <label for="aRc">Recalculate</label><select id="aRc"><option value="auto">By itself, when its data change</option><option value="manual"${a0&&a0.recalc==="manual"?" selected":""}>Only when asked</option></select></div>
+    <div class="grid2">${bys.length?`<label for="aBy">Group by</label><select id="aBy"><option value="">Nothing</option>${bys.map(c=>`<option value="${c.id}"${a0&&a0.in.by===c.id?" selected":""}>${esc(colRef(c)+(c.name?" "+c.name:""))}</option>`).join("")}</select>`:""}
+    <label for="aRow0">Rows</label><span class="anarows"><input type="text" id="aRow0" inputmode="numeric" placeholder="1" value="${rr&&rr[0]!=null?rr[0]:""}" aria-label="From row"><span class="muted">to</span><input type="text" id="aRow1" inputmode="numeric" placeholder="the last" value="${rr&&rr[1]!=null?rr[1]:""}" aria-label="To row"></span>
+    <label for="aMiss" class="tipd" title="Pairwise: each column its own values. Listwise: only the rows with a value in every column chosen">Missing values</label><select id="aMiss"><option value="pair">Each column's own</option><option value="list"${a0&&a0.in.miss==="list"?" selected":""}>Only rows complete in every column</option></select></div>
+    ${F.html?F.html(p0):""}
+    <div class="grid2"><label for="aRc">Recalculate</label><select id="aRc"><option value="auto">By itself, when its data change</option><option value="manual"${a0&&a0.recalc==="manual"?" selected":""}>Only when asked</option></select></div>
     <label class="chk"><input type="checkbox" id="aMask"${a0&&a0.in.masked?" checked":""}> Include masked points</label></div>`;
-  const v=await formDlg({title:a0?`${a0.name}: settings`:K.label,html,ok:a0?"Work it out":"Work it out",valid:r=>cand.some(c=>r["aI_"+c.id])});
-  if(!v) return; const q=P(); if(!q) return;
+  const rowsOk=v=>[v.aRow0,v.aRow1].every(t=>String(t||"").trim()===""||/^\d+$/.test(String(t).trim())&&+t>=1)&&!(+v.aRow0>0&&+v.aRow1>0&&+v.aRow1<+v.aRow0);
+  const pr=formDlg({title:a0?`${a0.name}: settings`:K.label,html,ok:"Work it out",valid:r=>cand.some(c=>r["aI_"+c.id])&&rowsOk(r)&&(!F.valid||F.valid(r))});
+  const box=$("#formBody"); if(box&&F.wire) F.wire(box);
+  const v=await pr; if(!v) return; const q=P(); if(!q) return;
   const cols=cand.filter(c=>v["aI_"+c.id]).map(c=>c.id), read={}; cols.forEach(id=>{ if(v["aR_"+id]==="orig") read[id]="orig"; });
-  const inp={cols,by:v.aBy||null,read,masked:!!v.aMask}, ana=anaList(q).map(x=>Object.assign({},x));
-  if(a0){ const a=ana.find(x=>x.id===a0.id); if(!a) return; pushUndo(`the settings of ${a.name}`); Object.assign(a,{in:inp,recalc:v.aRc,by:who()}); runAna(a,q);
+  const r0=String(v.aRow0||"").trim(), r1=String(v.aRow1||"").trim(), rows=r0||r1?[r0?+r0:null,r1?+r1:null]:null;
+  const inp={cols,by:v.aBy||null,read,masked:!!v.aMask}; if(rows) inp.rows=rows; if(v.aMiss==="list") inp.miss="list";
+  const kp=F.read?F.read(v,p0):{}, ana=anaList(q).map(x=>Object.assign({},x));
+  if(a0){ const a=ana.find(x=>x.id===a0.id); if(!a) return; pushUndo(`the settings of ${a.name}`); Object.assign(a,{in:inp,p:kp,recalc:v.aRc,by:who()}); runAna(a,q);
     save({ana,cols:q.cols},`changed the settings of ${a.name}`); showSheet(a.out.sheet,{quiet:true}); toast(`${a.name} worked out again.`,{action:"Undo",run:undo}); return; }
   pushUndo(K.label.toLowerCase()); stampSheets(q);
   const used=new Set(ana.map(x=>x.name).concat(sheetList(q).map(s=>s.name))); let n=1; while(used.has(`${K.base} ${n}`)) n++;
-  const name=`${K.base} ${n}`, sh={id:newSheetId(),name}, a={id:newAnaId(),kind,name,in:inp,p:{},out:{sheet:sh.id},recalc:v.aRc==="manual"?"manual":"auto",at:Date.now(),by:who()};
+  const name=`${K.base} ${n}`, sh={id:newSheetId(),name}, a={id:newAnaId(),kind,name,in:inp,p:kp,out:{sheet:sh.id},recalc:v.aRc==="manual"?"manual":"auto",at:Date.now(),by:who()};
   sh.ana=a.id; const ss=sheetList(q).concat([sh]); q.sheets=ss; ana.push(a); runAna(a,q);
   save({ana,sheets:ss,cols:q.cols},`worked out ${name} (${K.label.toLowerCase()}) of ${andList(cols.map(id=>colRef(colById(id))))}`);
-  showSheet(sh.id,{quiet:true}); toast(`${name}: the results of ${andList(cols.map(id=>specName(colById(id))))}, on a sheet of their own.`,{action:"Undo",run:undo}); }
+  showSheet(sh.id,{quiet:true}); const a1=anaOf(a.id);
+  if(a1&&a1.res&&a1.res.err) toast(`${name} could not be worked out: ${a1.res.err}.`,{action:"Change settings…",run:()=>anaDlg(kind,{id:a.id})});
+  else toast(`${name}: the results of ${andList(cols.map(id=>specName(colById(id))))}, on a sheet of their own.`,{action:"Undo",run:undo}); }
+/* A graphical summary (STATS_SPEC 2.1): a figure of the column's histogram with a normal curve over
+   it (its legend the mean and SD) and its box chart (its tooltip N, the median and quartiles), made
+   from the plots that follow the processing. One undo step. */
+function graphSummary(cid){ const p=P(); if(!p||S.readOnly) return;
+  const sel=(typeof wsSelColIds==="function"&&S.wsTouch?wsSelColIds():[]).map(colById).find(c=>c&&(c.role==="y"||c.role==="ignore")&&!c.ana);
+  const c=cid?colById(cid):sel||activeYCol();
+  if(!c||!(c.role==="y"||c.role==="ignore")||!(c.src||anyVal(c.data))){ toast("Choose a column of numbers for a graphical summary."); return; }
+  pushUndo("a graphical summary");
+  if(c.role==="ignore"){ c.role="y"; c.pipe=c.pipe||[]; c.mask=c.mask||[]; }
+  const h=makeCol("y",`Histogram of ${specName(c)}`,"",[]); h.src=c.id; h.from="final"; h.mask=[]; h.pipe=[makeStep("hist",Object.assign({},PIPE_OPS.hist.defaults))]; p.cols.push(h); migrate(p);
+  const base=graphBase(GID()), graphs=(p.graphs||[]).slice();
+  const gh={id:newGid(),name:nextGraphName({graphs}),cols:[h.id],plot:Object.assign(clone(base),{series:{[h.id]:{dist:"normal"}}})}; graphs.push(gh);
+  const gb={id:newGid(),name:nextGraphName({graphs}),cols:[c.id],plot:Object.assign(clone(base),{layout:"box"})}; graphs.push(gb);
+  p.activeY=h.id;
+  save({cols:p.cols,graphs,activeY:h.id},`made a graphical summary of ${specName(c)}: its histogram with a normal curve over it, and its box chart`);
+  renderAll();
+  const fid=makeFigure([gh.id,gb.id],{noUndo:true,quiet:true,cols:2,shareX:false,log:`put the graphical summary of ${specName(c)} in a figure`});
+  toast(`A graphical summary of ${specName(c)}: its histogram with a normal curve, and its box chart.`,{action:"Undo",run:undo});
+  return fid; }
 // The result sheet's menu (its tab's), before the sheet's own items.
 function anaMenuItems(a){ const ro=S.readOnly||!P(), st=anaStale(a);
   return [{group:a.name,plain:true},
@@ -14921,6 +15121,7 @@ function anaReportHtml(a){ const r=a.res||{}, rep=r.report, st=anaStale(a); let 
   if(!rep){ return h+`<p class="muted">${esc(r.err||"Not worked out yet.")}</p>`; }
   const cell=v=>v==null?"":typeof v==="number"?esc(fmt(v,6)):esc(v);
   rep.sections.forEach(s=>{ h+=`<h4>${esc(s.title)}</h4>`; (s.tables||[]).forEach(t=>{ h+=`<div style="overflow:auto"><table class="rtab"><thead><tr>${t.head.map(x=>`<th>${esc(x)}</th>`).join("")}</tr></thead><tbody>${t.rows.map(r=>`<tr>${r.map((v,j)=>`<td${typeof v==="number"?' class="num"':""}>${cell(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`; }); });
+  if(rep.method) h+=`<p class="lab">${esc(rep.method)}</p>`;
   (rep.notes||[]).forEach(n=>{ h+=noteHtml("info",n); });
   h+=`<p class="lab">${esc(andList((a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colLetter(c)} ${c.name||""}`.trim()+(t?` (${t})`:""); })))}${a.in.by&&colById(a.in.by)?`, grouped by ${esc(colById(a.in.by).name||colRef(colById(a.in.by)))}`:""}; ${a.recalc==="auto"?"worked out again by itself":"worked out only when asked"}.</p>`;
   return h; }
@@ -14928,7 +15129,7 @@ function anaReport(id){ const a=anaOf(id); if(!a) return; S.resAna=id; openWin("
 // The report as text (Copy): every table as tab-separated rows, then the notes, from the report object.
 function anaText(a){ const rep=a.res&&a.res.report; if(!rep) return a.name+"\n"+((a.res&&a.res.err)||"Not worked out yet.");
   const out=[a.name]; rep.sections.forEach(s=>{ out.push("",s.title); (s.tables||[]).forEach(t=>{ out.push(t.head.join("\t")); t.rows.forEach(r=>out.push(r.map(v=>v==null?"":typeof v==="number"?String(v):String(v).replace(/[\t\r\n]+/g," ")).join("\t"))); }); });
-  (rep.notes||[]).forEach(n=>out.push("# "+n)); const st=anaStale(a); if(st) out.splice(1,0,"# Out of date: "+st);
+  if(rep.method) out.push("# "+rep.method); (rep.notes||[]).forEach(n=>out.push("# "+n)); const st=anaStale(a); if(st) out.splice(1,0,"# Out of date: "+st);
   out.push("# Reads: "+(a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colRef(c)} ${c.name||""}`.trim()+(t?` (${t})`:""); }).join("; "));
   return out.join("\n"); }
 // The exported report: a section per analysis, its tables, notes, what it read and how it recalculates.
@@ -14937,14 +15138,16 @@ function reportAnaHtml(){ const as=anaList(); if(!as.length) return ""; const e2
     if(st) h+="<p class=\"warn\"><strong>Out of date:</strong> "+e2(st)+".</p>";
     if(!rep) return h+"<p>"+e2((a.res&&a.res.err)||"Not worked out yet.")+"</p>";
     rep.sections.forEach(s=>{ (s.tables||[]).forEach(t=>{ h+="<table><thead><tr>"+t.head.map(x=>"<th>"+e2(x)+"</th>").join("")+"</tr></thead><tbody>"+t.rows.map(r=>"<tr>"+r.map(v=>typeof v==="number"?"<td>"+e2(fmt(v,7))+"</td>":"<td class=\"l\">"+e2(v==null?"":v)+"</td>").join("")+"</tr>").join("")+"</tbody></table>"; }); });
-    (rep.notes||[]).forEach(n=>{ h+="<p>"+e2(n)+"</p>"; });
+    if(rep.method) h+="<p>"+e2(rep.method)+"</p>"; (rep.notes||[]).forEach(n=>{ h+="<p>"+e2(n)+"</p>"; });
     h+="<p>Reads "+e2(andList((a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colRef(c)} ${c.name||""}`.trim()+(t?" ("+t+")":""); })))+(a.in.by&&colById(a.in.by)?", grouped by "+e2(colById(a.in.by).name||colRef(colById(a.in.by))):"")+(a.in.masked?", masked points included":"")+"; "+(a.recalc==="auto"?"worked out again whenever its data change":"worked out only when asked")+(a.at?", last on "+e2(new Date(a.at).toISOString().slice(0,16).replace("T"," "))+" UTC":"")+".</p>";
     return h; }).join(""); }
 // What storage gives back: analyses of a kind Kurve has, with ids, inputs and a sheet; columns and
 // sheets naming an analysis that is not there become ordinary ones.
 function anaClean(p){ if(p.ana!==undefined&&!Array.isArray(p.ana)) delete p.ana; const sids=new Set((Array.isArray(p.sheets)&&p.sheets.length?p.sheets:[SHEET0]).filter(s=>s&&typeof s.id==="string").map(s=>s.id)), seen=new Set();
   if(Array.isArray(p.ana)) p.ana=p.ana.filter(a=>a&&typeof a==="object"&&typeof a.id==="string"&&!seen.has(a.id)&&seen.add(a.id)&&ANA_KINDS[a.kind]&&a.in&&Array.isArray(a.in.cols)&&a.out&&sids.has(a.out.sheet))
-    .map(a=>{ if(typeof a.name!=="string"||!a.name) a.name=ANA_KINDS[a.kind].base; if(a.recalc!=="manual") a.recalc="auto"; if(!a.in.read||typeof a.in.read!=="object") a.in.read={}; a.in.cols=a.in.cols.filter(x=>typeof x==="string"); return a; });
+    .map(a=>{ if(typeof a.name!=="string"||!a.name) a.name=ANA_KINDS[a.kind].base; if(a.recalc!=="manual") a.recalc="auto"; if(!a.in.read||typeof a.in.read!=="object") a.in.read={}; a.in.cols=a.in.cols.filter(x=>typeof x==="string");
+      if(a.in.rows!==undefined&&!(Array.isArray(a.in.rows)&&a.in.rows.length===2&&a.in.rows.every(x=>x==null||(Number.isInteger(x)&&x>=1))&&a.in.rows.some(x=>x!=null))) delete a.in.rows;
+      if(a.in.miss!==undefined&&a.in.miss!=="list") delete a.in.miss; if(!a.p||typeof a.p!=="object"||Array.isArray(a.p)) a.p={}; return a; });
   const ids=new Set((p.ana||[]).map(a=>a.id)), own=new Map((p.ana||[]).map(a=>[a.out.sheet,a.id]));
   (p.cols||[]).forEach(c=>{ if(c.ana!==undefined&&!ids.has(c.ana)){ delete c.ana; delete c.ak; } });
   if(Array.isArray(p.sheets)) p.sheets.forEach(s=>{ if(s&&s.ana!==undefined&&own.get(s.id)!==s.ana) delete s.ana; }); }
@@ -20749,8 +20952,10 @@ function analyzeMenu(){
     {label:"Calculus", sub:()=>[t("deriv"),
       {label:"Derivative, as a new column…", title:"Keeps this column and adds its derivative beside it", run:()=>{ const id=newDerived("final",{quiet:true,name:`d/dx ${specName(activeYCol())}`}); if(id) openTool("deriv",{col:id}); }, enabled:edit&&has},
       t("cumint")]},
-    {label:"Statistics", sub:()=>[{label:"Descriptive statistics…", title:"Each column's numbers, the integral of the range in view, the noise and the signal to noise", run:go("desc"), enabled:has},
-      {label:"Statistics on columns…", title:ANA_KINDS.desc.help, run:()=>anaDlg("desc"), enabled:!S.readOnly&&!!P()},
+    {label:"Statistics", sub:()=>[{label:"Quick statistics…", title:"The Statistics window: each column's numbers at a glance, the integral of the range in view, the noise and the signal to noise, with no sheet made", run:go("desc"), enabled:has},
+      {label:"Descriptive", sub:()=>[{label:"Statistics on columns…", title:ANA_KINDS.desc.help, run:()=>anaDlg("desc"), enabled:!S.readOnly&&!!P()},
+        {label:"Frequency counts…", title:ANA_KINDS.freq.help, run:()=>anaDlg("freq"), enabled:!S.readOnly&&!!P()},
+        {label:"Graphical summary", title:"A figure of the column's histogram with a normal curve over it, and its box chart", run:()=>graphSummary(), enabled:!S.readOnly&&has}]},
       {label:"Correlation between columns…", run:go("corr"), enabled:has&&yCols().length>1},
       {label:"Histogram", title:"The distribution of the selected columns' values (or the active column's), as a column of its own on a graph of its own", run:()=>histogramCols(hist()), enabled:has&&!S.readOnly}]},
     {label:"Spectroscopy", sub:spectroscopyItems},
@@ -23434,18 +23639,25 @@ ${DL([["Area ± error","The trapezoidal sum over the points in the window, less 
 ${DL([["Net counts","The counts in the window less the continuum under them: a straight line through the mean of the channels at each edge (as many as the line baselines use). ± one standard deviation from counting: the counts' own and the continuum's."],["Detected","Above Currie's critical level, 95 %: on a continuum alone, one window in twenty is called detected. Below it, the level is shown."],["Emission, efficiency","Type the share of decays that give the line and the detector's efficiency at its energy, both in %."],["Activity","Net counts ÷ (live time × efficiency × emission), in becquerel, with the counting error. Not detected: the detection limit as an activity, the smallest that would be."]])}
 <p>Counting needs the counts as recorded: an energy calibration, a count rate or a crop keep them; smoothing or a subtracted background do not, and the part says so.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
-{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns recalculate recalculation auto manual lock read only processed original masked group by cut delete report",
+{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary",
  lead:"An analysis reads columns and writes what it finds into a result sheet of its own, worked out again when its data change.",
  body:`<h2>Statistics on columns</h2>
-<p>${MP("Analyze › Statistics › Statistics on columns…")}: tick the columns, and each gets a row of a new sheet: N, the rows missing, mean, standard deviation (n − 1), standard error of the mean, minimum, quartiles (as R and Excel's QUARTILE.INC), median, maximum and sum. <em>Group by</em> a column of text or categories gives a row for each column and group.</p>
+<p>${MP("Analyze › Statistics › Descriptive › Statistics on columns…")}: tick the columns and the statistics, and each column gets a row of a new sheet. Ticked at first are N, the rows missing, mean, standard deviation, standard error of the mean, minimum, Q1, median, Q3, maximum and sum; besides them, the mean's interval, variance, coefficient of variation, range, IQR, MAD, robust SD, the mode and its count, skewness, kurtosis, the geometric and harmonic means, and any percentiles typed (<code>5, 95</code>). <em>Group by</em> a column of text or categories gives a row for each column and group.</p>
+${DL([["Quartiles","How a quantile between two values is found: Linear (R's type 7, NumPy and Excel's QUARTILE.INC), the default; the other eight of Hyndman and Fan's types (Weighted average right is SPSS's and Minitab's); or Tukey's hinges, the medians of each half. The quartiles, the median and the percentiles follow it; the report names it."],["Divide by","n − 1 for a sample, the default; n for a whole population. The SD, variance, standard error, interval and coefficient of variation follow it."],["Interval","The level of the mean's interval, by Student's t."],["Rows","From one row to another: only those rows are read (the others are not missing, only not read), and the report says so."],["Missing values","Each column's own values, or only the rows with a value in every column ticked, as a table of cases is read."]])}
+<p>Skewness and kurtosis are G1 and G2, adjusted for a sample (as SPSS, Excel's SKEW and KURT); the kurtosis is the excess, 0 for a normal sample. The robust SD is the MAD times 1.4826, the SD of normal data and little moved by a few outliers. Where a statistic has no meaning (the SD of one value, the skewness of two, the geometric mean of values at or below zero, the mode of values that never repeat) its cell is empty and the report says why.</p>
+<p>Every statistic is checked against exact arithmetic: a column of values near 10¹³ that differ in the first decimal keeps its SD to the last digit.</p>
+<h2 id="freq">Frequency counts</h2>
+<p>${MP("Analyze › Statistics › Descriptive › Frequency counts…")}: numbers counted into bins (Freedman–Diaconis by default, Sturges, the square root of the count, a number of bins, or bins of a width from a start), or each distinct value; a column of text or categories is counted by its values, in the column's order. Each row is a bin's edges and centre, or a value, then its count, the running count, its percent and the running percent.</p>
+<h2 id="summary">Graphical summary</h2>
+<p>${MP("Analyze › Statistics › Descriptive › Graphical summary")}: a figure of the active column (or the one selected), a panel each for its histogram, with a normal curve over it whose legend gives the mean and SD, and its box chart. Both follow the column's processing as any graph does; one undo takes the figure away.</p>
 <h2 id="read">What it reads</h2>
 <p>Each column's processed values: the values after its steps, its original values when it has none. The dialog names the steps each column is read after, and a column with steps has a switch to <em>Original</em>. Masked points are left out unless <em>Include masked points</em> is ticked, and the report says how many. After a step that leaves rows out, makes points or averages them (resampling, a histogram), or makes neighbours depend on each other (smoothing), the report says so: three hundred points resampled from a hundred are not three hundred measurements.</p>
 <h2 id="sheet">The result sheet</h2>
 <p>Its tab carries a lock: the sheet is read only, since its values are worked out. Its columns can be plotted, read by a formula and copied; one moved to another sheet becomes a copy, cut from the analysis. The results are not original data, so they leave the check code alone.</p>
 <h2 id="recalc">Recalculating</h2>
 <p>Right-click its tab: ${DL([["Report","What it found, with its notes."],["Change settings…","The dialog again."],["Recalculate","When it is out of date."],["Recalculate by itself","The default: worked out again whenever a value, a step or a mask of what it reads changes, with a line in the log."],["Only when asked","A change marks its tab out of date instead, with the reason in its tooltip."],["Cut from its data","The values stay as an ordinary sheet; the analysis goes."],["Delete the analysis…","With its sheet."]])} Each is one undo step.</p>`},
-{id:"stats", g:"Analysis", t:"Statistics", win:"stats", kw:"statistics descriptive n count mean median sd se standard error spectral measures noise signal to noise area centroid correlation pearson integrate visible range",
- lead:"Descriptive statistics of every column, the integral of the visible range, and how alike the columns are.",
+{id:"stats", g:"Analysis", t:"Statistics", win:"stats", kw:"statistics quick statistics descriptive n count mean median sd se standard error spectral measures noise signal to noise area centroid correlation pearson integrate visible range",
+ lead:"Quick statistics of every column, the integral of the visible range, and how alike the columns are. For statistics kept in a sheet, see "+DA("analyses","Statistics on columns")+".",
  body:`<h2>Descriptive statistics</h2>
 <p>For each column, processed or original data, over all X or the visible range: the number of points <em>n</em>, mean, standard deviation (n − 1), standard error of the mean (SD / √n), median, minimum and maximum. Masked points are left out. With more than 200 columns the first 200 are listed, and the active one; <em>Show them all</em> lists the rest, and Copy always gives every column.</p>
 <p><em>Noise, S/N and area</em> adds the X of the maximum, noise σ, signal to noise, area and centroid. It is on by itself when the active column has many evenly spaced points with a clear peak, and off for other data.</p>

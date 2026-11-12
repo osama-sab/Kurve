@@ -1046,6 +1046,29 @@ graph first, with the taskbar kept at the bottom of the screen.
   `anaDone` puts the result in with a save and no undo step only if the analysis's `sig` is still the job's;
   stopped, `res.err` says so and Recalculate works it out; no worker, on the page), `anaApply` the rest of a run.
   `tools/ana-drive.mjs` drives it.
+  **Descriptive statistics** (STATS_SPEC 2.1; the ANA block): `QTYPES` (R's nine types and Tukey's hinges, each
+  `[t, name, note]`), `QT_AB`, `qtOk`, `medSorted(s, a, b)` (an even count's two middle values halved first when
+  their sum would overflow), `quantileType(s, p, t)` (R's `quantile()` exactly, its 4ε fuzz, on sorted values),
+  `neuSum` (Neumaier), `RSD_K`; `descStats(vals, {qtype, conf, vdiv, pcts})` → `{n, why, min, max, range, mean,
+  sum, sd, var, se, ci, conf, cv, skew (G1), kurt (G2, excess), q1, med, q3, iqr, mad, rsd, mode, modeN, gmean,
+  hmean, pct:[{p, v}], qtype}`, null with the reason in `why` where a statistic means nothing (`WHY_FOR` the
+  notes' words): the mean Neumaier's sum over n, the moments of the deviations scaled by the largest, the MAD's
+  distances from the two middle values (not their rounded mean), the order statistics, mode and the geometric
+  (logarithms of each value over the median) and harmonic means of the values as they are, only the moments of
+  values past 10³⁰⁰ worked out 2⁻⁶⁴ smaller. `freqBins(vals, o)` (`histBins`' bins with counts, running counts
+  and percents), `freqLevels(keys, order)` (`distKeySort`). `DESC_STATS` (23 statistics in the table's order),
+  `DESC_DEF` (the eleven an analysis from before 2.1 has), `descKeys(p)`, `qtName`, `pctLab`. `ANA_KINDS.desc`
+  (result columns keyed `col`, `grp`, the statistics, `cilo`/`cihi`, `mode`/`moden`, `p0`…; `report.method` the
+  quartiles' method and divisor) and `ANA_KINDS.freq` (`cats:true`; `p.bins {rule, n, w, start}` or `p.levels`).
+  `a.in` grew `rows: [from, to]` (1-based, null an open end; `anaRowsOf`) and `miss: "list"` (listwise);
+  `anaInputs(a, cs, by, notes, K)` reads them (a kind with `cats` reads text and categorical columns by
+  `catVal`); `ANA_FORMS[kind]` `{html, wire, read, valid, noGroup}` is a kind's part of `anaDlg` (`#aS_<key>`,
+  `#aPct`, `#aQt`, `#aConf`, `#aVd`; `#aFm`, `#aFn`, `#aFw`, `#aFs`; the dialog's `#aRow0`, `#aRow1`, `#aMiss`,
+  `o.cols`). `graphSummary(cid)` (Analyze › Statistics › Descriptive › Graphical summary): a derived histogram
+  with a normal curve over it and a box chart of the column, as a figure of two, one undo step. The Statistics
+  window's item is *Quick statistics…*. `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
+  (rationals), shared by the fixtures (`desc.json`) and the fuzzer (`quantileType`, `descStats@<key>`, which
+  `run.mjs` reads as one field of the result).
 - **Raw data** is never changed by analysis, and its arrays are replaced, never edited in
   place. It is edited in the worksheet like any spreadsheet (typed over, cleared, pasted and
   filled over, rows inserted and deleted), each change one undo entry and an entry in the
@@ -2940,11 +2963,16 @@ fuzz generator before it is used.
 `node tools/ana-drive.mjs [path]` (Playwright) checks analyses (FOUNDATION_SPEC 1.3): every step's row flag, a
 result sheet made, read only, worked out again by itself after a value and a step, Original, masked points,
 made points said, Only when asked and Recalculate, groups, an input deleted, a reload, junk from storage, Cut
-and Delete with undo.
+and Delete with undo; and STATS_SPEC 2.1 (the statistics ticked, the interval's level shown with it, a 99 %
+interval and type 6 percentiles against their formulas, the method in the report, a blank mode said, rows 3 to 8,
+listwise, frequency counts of text and in bins of a width, the graphical summary and its one undo, junk settings,
+a reload).
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
-up to 1 and their tails being their sums, Cauchy's t, closed forms); run it, ref-test and a fuzzer
-seed after touching the STATS block.
+up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
+(a shift, a power of two, the order and a change of sign, every quantile type within the values and
+rising, one, two and equal values, Tukey's hinges); run it, ref-test and a fuzzer seed after touching
+the STATS or ANA block.
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
 back, undo, the status bar's count, sorting, find, copy, clear, rows inserted and deleted, the
@@ -3892,6 +3920,12 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **Red that says nothing is noise.** A parameter's row turned red past a dependency of 0.99,
   and the user asked what it was. A colour means a state and says it in words where it is
   shown (a note naming the parameter), or it is not used.
+- **A correction can be the error.** The mean was Neumaier's sum over n "corrected" by the mean deviation
+  from it, the textbook second pass. Where the values cancel (a mean of 5e-6 from values near ±1) each
+  deviation is rounded at the values' scale, and the correction added 2.5e-14 to a mean the sum alone had to
+  2e-16. The fuzzer against exact rationals found it; the fixtures, offset sets that the second pass is for,
+  had not. And a median of two middle values is rounded: distances measured from it put a MAD 2 % off near
+  10¹³. Measure a numerical habit against exact arithmetic on the data that would defeat it.
 - **A variable taken out is grepped for.** Removing the Explorer's files took `fids` out of
   `autoImport`, and three `return {fids}` further down threw on every dropped file; the syntax
   check passes a reference to a name that does not exist. `review-drive`'s drop caught it. After
@@ -4434,7 +4468,11 @@ Next, in order:
    incomplete beta and gamma and nine distributions with both tails and quantiles, every p value
    now to 10⁻¹³), done 07.11, its noncentral, studentized-range, rank and normality distributions
    moved to the wave-2 slices that first use them; slices 1.2a to 1.2d, text in the worksheet, kept by imports, categorical columns, and graphs reading them, done 07.11; slices 1.3a to 1.3c, analyses with result sheets (Statistics on columns), their History box, Results and report, and the
-   worker, done 07.11: wave 1 is done
+   worker, done 07.11: wave 1 is done. Wave 2's plan is `ux/spec/STATS_SPEC.md` (statistics, twelve slices in
+   the order it gives); slice 2.1, descriptive statistics whole (Statistics on columns with every statistic
+   Origin's has, R's nine quartile methods and Tukey's hinges, the divisor, rows, listwise; Frequency counts;
+   the Graphical summary), done 12.11, checked against exact rationals (the mean, the MAD and values past 10³⁰⁰
+   put right on the way)
 
 ## Known gaps
 
@@ -4516,7 +4554,9 @@ Next, in order:
 - Plotting from the worksheet plots whole columns (no range of rows, no plot of a selection
   of cells), against an X column; a closed graph is closed for everyone who opens the
   project, and a viewer who cannot edit cannot open it
-- Analyses: one kind yet (Statistics on columns); one table a kind (its report's other sections are text); an analysis
+- Analyses: two kinds yet (Statistics on columns, Frequency counts); no weights, no statistics on rows, one
+  column of groups; NIST's StRD univariate sets are not yet in the bench (the host was unreachable when 2.1 was
+  checked; exact rationals stand in); one table a kind (its report's other sections are text); an analysis
   being worked out by the worker is started again after a reload (the job is not stored); a result column has no lock
   of its own in its header (its tab has)
 - Text cells: a categorical column's order is by hand with ↑/↓ (no drag); Group by is for a new graph (What it
