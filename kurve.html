@@ -875,6 +875,11 @@ table.rtab{border-collapse:collapse;font-size:var(--fs-tab);width:100%}
 .rside .kv dd.w{grid-column:1/-1}
 /* In a narrow Results (the dock, a phone) a parameter's meaning goes under its name, so its value and error show without scrolling. */
 @container (max-width: 520px){ .rtab td.l{white-space:normal;min-width:9em} .rtab td.l>.lab{display:block} }
+.rtab.ana.kv{width:auto;min-width:60%}
+.rtab.ana th{white-space:normal;vertical-align:bottom}
+.rtab.ana td.l{min-width:0}
+.rtab.ana.kv th{background:none;font-weight:400;color:var(--muted)}
+@container (max-width: 520px){ .rtab.ana td,.rtab.ana th{padding:var(--sp-2) var(--sp-2)} }
 /* And the parameters' t, p, interval and dependency, and a peak's shape, height, FWHM and share, go on a line under it. */
 .rtabw{overflow-x:auto;max-width:100%}
 .rtab tr.rmore{display:none}
@@ -6089,6 +6094,92 @@ function nctCdf(t,nu,dl){ if(!(nu>0)||Number.isNaN(t)||!Number.isFinite(dl)) ret
       const pj=lam===0?(j===0?1:0):Math.exp(lp), qj=lam===0?0:Math.exp(lq);
       s+=pj*ibetaPQ(j+0.5,b,x,y)[0]+sg*qj*ibetaPQ(j+1,b,x,y)[0]; } }
   return Math.min(1,Math.max(0,DIST.norm.cdf(-dl)+s/2)); }
+/* ---- The studentized range and Dunnett's many-to-one t (STATS_SPEC 2.4) ---- */
+// Gauss–Legendre nodes and weights on [−1, 1], by Newton on the Legendre polynomial.
+function glNodes(k){ const xs=new Float64Array(k), ws=new Float64Array(k);
+  for(let i=0;i<k;i++){ let z=Math.cos(Math.PI*(i+0.75)/(k+0.5)), dp=0;
+    for(let it=0;it<100;it++){ let p0=1, p1=z; for(let j=2;j<=k;j++){ const p2=((2*j-1)*z*p1-(j-1)*p0)/j; p0=p1; p1=p2; } dp=k*(z*p1-p0)/(z*z-1); const dz=p1/dp; z-=dz; if(Math.abs(dz)<1e-16) break; }
+    xs[i]=z; ws[i]=2/((1-z*z)*dp*dp); } return {xs,ws}; }
+const GL20=glNodes(20);
+// ∫ e^lf(x) dx over [lo, hi] for an lf with one peak (its exponent concave, or nearly): the peak by a scan
+// of `step` and golden sections, each side's width where lf falls by 4.5, its end where it falls by 46,
+// then 20-point Gauss–Legendre in panels of that width (half as wide agrees to 5e-15). Returns [M, S], e^M·S, so a
+// tail far below 1e-300 keeps its digits.
+function lcInt(lf,lo,hi,step){
+  const n=Math.max(2,Math.ceil((hi-lo)/step)), h=(hi-lo)/n; let bi=0, M=-Infinity;
+  for(let i=0;i<=n;i++){ const v=lf(lo+i*h); if(v>M){ M=v; bi=i; } }
+  if(M===-Infinity) return [0,0];
+  let a=lo+Math.max(0,bi-1)*h, b=lo+Math.min(n,bi+1)*h, fa=lf(a), fb=lf(b); const G=(Math.sqrt(5)-1)/2;
+  let c=b-G*(b-a), d=a+G*(b-a), fc=lf(c), fd=lf(d);
+  for(let it=0;it<200;it++){ const top=Math.max(fa,fb,fc,fd); if(top-Math.min(fa,fb)<0.05||b-a<=1e-15*(Math.abs(a)+Math.abs(b))) break;
+    if(fc>=fd){ b=d; fb=fd; d=c; fd=fc; c=b-G*(b-a); fc=lf(c); } else { a=c; fa=fc; c=d; fc=fd; d=a+G*(b-a); fd=lf(d); } }
+  let x0=c, f0=fc; [[a,fa],[b,fb],[d,fd]].forEach(([x,f])=>{ if(f>f0){ x0=x; f0=f; } }); M=Math.max(M,f0);
+  // Each side: the distance where lf falls by 4.5 (three widths of a Gaussian), at least a little.
+  const side=(dir,end)=>{ const room=Math.abs(end-x0); if(!(room>0)) return 0; let t=Math.min(room,Math.max(h/64,1e-12*(1+Math.abs(x0))));
+    while(t<room&&lf(x0+dir*t)>M-4.5) t=Math.min(room,t*2);
+    if(t>=room&&lf(x0+dir*room)>M-4.5) return room; let l=t/2, r=t;
+    for(let it=0;it<5;it++){ const m=(l+r)/2; if(lf(x0+dir*m)>M-4.5) l=m; else r=m; } return r; };
+  let S=0; const {xs,ws}=GL20;
+  const panels=(dir,end)=>{ const w=side(dir,end); if(!(w>0)) return; let x=x0;
+    for(let k=0;k<4000;k++){ const y=dir>0?Math.min(end,x+w):Math.max(end,x-w), p=Math.min(x,y), q=Math.max(x,y), hw=(q-p)/2;
+      for(let i=0;i<20;i++) S+=ws[i]*hw*Math.exp(lf(p+hw*(1+xs[i]))-M);
+      x=y; if(x===end||lf(x)<M-46) break; } };
+  panels(-1,lo); panels(1,hi); return [M,S]; }
+// Adaptive Gauss–Kronrod (21 points, QUADPACK's qk21) over [pts[0], pts[last]] from the panels
+// pts gives, each split where its error is largest until the whole is within rtol (or atol).
+const GK21={x:[0.995657163025808080735527280689003,0.973906528517171720077964012084452,0.930157491355708226001207180059508,0.865063366688984510732096688423493,0.780817726586416897063717578345042,0.679409568299024406234327365114874,0.562757134668604683339000099272694,0.433395394129247190799265943165784,0.294392862701460198131126603103866,0.148874338981631210884826001129720,0],
+  wk:[0.011694638867371874278064396062192,0.032558162307964727478818972459390,0.054755896574351996031381300244580,0.075039674810919952767043140916190,0.093125454583697605535065465083366,0.109387158802297641899210590325805,0.123491976262065851077208937427960,0.134709217311473325928054001771707,0.142775938577060080797094273138717,0.147739104901338491374841515972068,0.149445554002916905664936468389821],
+  wg:[0.066671344308688137593568809893332,0.149451349150580593145776339657697,0.219086362515982043995534934228163,0.269266719309996355091226921569469,0.295524224714752870173892994651338]};
+function gk21(f,a,b){ const c=(a+b)/2, h=(b-a)/2, {x,wk,wg}=GK21; const fc=f(c); let K=wk[10]*fc, Gs=0;
+  for(let j=0;j<10;j++){ const d=h*x[j], s=f(c-d)+f(c+d); K+=wk[j]*s; if(j%2===1) Gs+=wg[(j-1)/2]*s; }
+  return [K*h,Math.abs((K-Gs)*h)]; }
+function gkInt(f,pts,rtol,atol){ const P=[...new Set(pts.filter(Number.isFinite))].sort((u,v)=>u-v), L=[]; let I=0, E=0;
+  for(let i=0;i+1<P.length;i++){ const [v,e]=gk21(f,P[i],P[i+1]); L.push([P[i],P[i+1],v,e]); I+=v; E+=e; }
+  for(let it=0;it<3000&&E>Math.max(atol||0,rtol*Math.abs(I));it++){ let k=0; for(let i=1;i<L.length;i++) if(L[i][3]>L[k][3]) k=i;
+    const [p,q,v,e]=L[k], m=(p+q)/2; if(!(m>p&&m<q)) break; const A=gk21(f,p,m), B=gk21(f,m,q);
+    L.splice(k,1,[p,m,A[0],A[1]],[m,q,B[0],B[1]]); I+=A[0]+B[0]-v; E+=A[1]+B[1]-e; }
+  let s=0; for(const r of L) s+=r[2]; return s; }
+// The normal's upper tail, relatively accurate far out (Cody's erfc).
+const nQ=z=>0.5*erfcFn(z*Math.SQRT1_2);
+// P(range of k standard normals > w): k∫ φ(z) Q(z)^{k−1} [1 − (1 − Q(z+w)/Q(z))^{k−1}] dz, z the smallest,
+// with no 1 − (…) taken, so a p of 1e-30 keeps its digits.
+function rangeSf(w,k){ if(!(w>0)) return 1; if(w===Infinity) return 0; if(k===2) return erfcFn(w/2);
+  const lk=Math.log(k), lf=z=>{ const a=nQ(z), b=nQ(z+w); if(!(a>0)||!(b>0)) return -Infinity;
+    return lk-z*z/2-LN_SQRT_2PI+(k-1)*Math.log(a)+Math.log(-Math.expm1((k-1)*Math.log1p(-b/a))); };
+  const [M,S]=lcInt(lf,Math.min(-w/2,-6)-10,10,1); return Math.min(1,Math.exp(M)*S); }
+// The χ density of s = √(χ²_ν/ν), times s, in u = ln s: its logarithm, Stirling's part apart so a large ν keeps its digits.
+const lchiU=nu=>{ const c=0.5*Math.log(nu/Math.PI)-stirlerr(nu/2); return u=>c+nu*(u-Math.expm1(2*u)/2); };
+// ∫ g_ν(s) h(c·s) ds for a tail h of the scaled statistic (∫ in ln s, about its one peak); ν past 10⁸ is the normal's.
+function overS(h,c,nu){ if(!(nu<1e8)) return h(c); const lg=lchiU(nu), lo=-60/nu-2, hi=0.5*Math.log1p(120/nu)+1;
+  const [M,S]=lcInt(u=>{ const v=h(c*Math.exp(u)); return v>0?lg(u)+Math.log(v):-Infinity; },lo,hi,Math.min(1,(hi-lo)/2));
+  return Math.min(1,Math.exp(M)*S); }
+// Studentized range: Q = range of k standard normals over s, ν degrees of freedom. sf by the integrals above;
+// two groups, 2·P(T > q/√2) exactly.
+function tukeySf(q,k,nu){ if(!(k>=2)||!(nu>0)||Number.isNaN(q)) return NaN; if(q<=0) return 1; if(q===Infinity) return 0;
+  if(k===2) return Math.min(1,2*DIST.t.sf(q/Math.SQRT2,nu)); return overS(w=>rangeSf(w,k),q,nu); }
+// The x a decreasing tail sf takes at p: bracketed, then the secant on ln sf (Illinois), to 1e-13 in x.
+function tailInv(sf,p,x0){ if(!(p>0&&p<1)) return p===1?0:p===0?Infinity:NaN; const lp=Math.log(p), g=x=>Math.log(sf(x))-lp;
+  let a=0, ga=-lp, b=x0>0?x0:2, gb=g(b); for(let it=0;it<200&&gb>0;it++){ a=b; ga=gb; b*=2; gb=g(b); }
+  if(!(gb<=0)) return NaN; let side=0;
+  for(let it=0;it<200;it++){ let c=(a*gb-b*ga)/(gb-ga); if(!(c>Math.min(a,b)&&c<Math.max(a,b))) c=(a+b)/2; const gc=g(c);
+    if(gc===0||Math.abs(b-a)<1e-13*c) return c;
+    if(gc>0){ a=c; ga=gc; if(side===1) gb/=2; side=1; } else { b=c; gb=gc; if(side===-1) ga/=2; side=-1; } }
+  return (a+b)/2; }
+const tukeyIsf=(p,k,nu)=>k===2?Math.SQRT2*DIST.t.isf(p/2,nu):tailInv(q=>tukeySf(q,k,nu),p,4);
+// Dunnett's many-to-one t: T_i = Z_i/s with Z_i = λ_i Z₀ + √(1 − λ_i²) E_i (λ_i = √(n_i/(n_i + n₀)),
+// the comparisons sharing the control's mean). P(max |T_i| ≥ c), or one-sided P(max T_i ≥ c): over Z₀
+// by Gauss–Kronrod from each comparison's own peak (λ_i·cs, a width √(1 − λ_i²)), over s as above;
+// 1 − Π(1 − e_i) is −expm1(Σ log1p(−e_i)), so a small p keeps its digits.
+function dunnettSf(c,lam,nu,two){ if(Number.isNaN(c)||!lam.length||!(nu>0)) return NaN; if(two&&c<=0||c===-Infinity) return 1; if(c===Infinity) return 0;
+  const L=lam.map(l=>Math.min(1-1e-15,Math.max(0,l))), T=L.map(l=>Math.sqrt((1-l)*(1+l)));
+  const inner=w=>{ const f=z=>{ let s=0; for(let i=0;i<L.length;i++){ let e=nQ((w-L[i]*z)/T[i]); if(two) e+=nQ((w+L[i]*z)/T[i]); if(e>=1) return Math.exp(-z*z/2)/SQRT_2PI; s+=Math.log1p(-e); }
+      return Math.exp(-z*z/2)/SQRT_2PI*-Math.expm1(s); };
+    const top=Math.max(...L.map(l=>l*w)), pts=[two?0:-10,top+10]; for(let z=pts[0];z<top+10;z+=2) pts.push(z);
+    L.forEach((l,i)=>[-5,-2,0,2,5].forEach(j=>pts.push(l*w+j*T[i])));
+    const v=gkInt(f,pts.filter(z=>z>=pts[0]&&z<=top+10),1e-14,1e-300); return Math.min(1,two?2*v:v); };
+  return overS(inner,c,nu); }
+const dunnettIsf=(p,lam,nu,two)=>tailInv(c=>dunnettSf(c,lam,nu,two),p,2.5);
+DIST.tukey={sf:tukeySf,cdf:(q,k,nu)=>1-tukeySf(q,k,nu),isf:tukeyIsf,ppf:(p,k,nu)=>tukeyIsf(1-p,k,nu)};
 /* ==STATS:END== */
 /* ==ANA:START== The analyses' kinds (ux/spec/FOUNDATION_SPEC.md, 1.3), pure: what each works out
    from its inputs' values. Loaded by the compute worker, which runs a large one (anaRunKind). */
@@ -6261,12 +6352,6 @@ function grubbsTest(vals,o){ o=o||{}; const side=o.side==="max"||o.side==="min"?
     rounds.push({n,mean:m,sd,G,Gc,p,value:x[k].v,row:x[k].i,out});
     if(!out||!o.repeat) break; x.splice(k,1); }
   return {side,alpha:al,rounds,out:rounds.filter(r=>r.out)}; }
-// Gauss–Legendre nodes and weights on [−1, 1] (Newton on the Legendre polynomial).
-function glNodes(k){ const xs=new Float64Array(k), ws=new Float64Array(k);
-  for(let i=0;i<k;i++){ let z=Math.cos(Math.PI*(i+0.75)/(k+0.5)), dp=0;
-    for(let it=0;it<100;it++){ let p0=1, p1=z; for(let j=2;j<=k;j++){ const p2=((2*j-1)*z*p1-(j-1)*p0)/j; p0=p1; p1=p2; } dp=k*(z*p1-p0)/(z*z-1); const dz=p1/dp; z-=dz; if(Math.abs(dz)<1e-16) break; }
-    xs[i]=z; ws[i]=2/((1-z*z)*dp*dp); } return {xs,ws}; }
-const GL20=glNodes(20);
 // ∫∫ f(a, r) over a in [a0, a1], r in [0, r1], in panels of 20-point Gauss–Legendre.
 function gl2(f,a0,a1,na,r1,nr){ let s=0; const ha=(a1-a0)/na, hr=r1/nr, {xs,ws}=GL20;
   for(let pa=0;pa<na;pa++) for(let i=0;i<20;i++){ const a=a0+ha*(pa+0.5+0.5*xs[i]), wa=ws[i]*ha/2;
@@ -6300,7 +6385,7 @@ const anaConf=p=>ANA_CONFS.includes(+(p&&p.conf))?+p.conf:p&&[0.001,0.01,0.05,0.
 // The normality tests: [key, name, the statistic's symbol, its function, the field it returns].
 const NORM_TESTS=[["sw","Shapiro–Wilk","W",swTest,"w"],["lf","Lilliefors","D",lfTest,"d"],["ad","Anderson–Darling","A²",adTest,"a2"],["dk","D'Agostino's K²","K²",dagoTest,"k2"],["ks","Kolmogorov–Smirnov","D",ksnTest,"d"]];
 const normTests=p=>{ const want=Array.isArray(p&&p.tests)?p.tests:["sw"]; const t=NORM_TESTS.map(e=>e[0]).filter(k=>want.includes(k)); return t.length?t:["sw"]; };
-/* ---- Comparing means and spreads (STATS_SPEC 2.3) ---- *//* ---- Comparing means and spreads (STATS_SPEC 2.3) ---- */
+/* ---- Comparing means and spreads (STATS_SPEC 2.3) ---- */
 const finVals=v=>{ const a=[]; for(const x of v||[]) if(x!=null&&Number.isFinite(x)) a.push(x); return a; };
 // A t's p for the alternative: "two" (the difference either way), "less", "greater".
 const tAltP=(t,df,alt)=>alt==="less"?DIST.t.cdf(t,df):alt==="greater"?DIST.t.sf(t,df):Math.min(1,2*DIST.t.sf(Math.abs(t),df));
@@ -6397,7 +6482,53 @@ function fisher22(a,b,c,d,o){ o=o||{}; const alt=o.alt||"two", conf=o.conf>0&&o.
 const ANA_ALT={two:"Two-sided",less:"One-sided: less",greater:"One-sided: greater"};
 const anaPct=c=>String(+(c*100).toPrecision(6))+"%";
 const VAR_TESTS=[["bf","Levene's test about the medians (Brown–Forsythe)"],["lev","Levene's test about the means"],["bart","Bartlett's test"],["f","The F test (two samples)"]];
-// The statistics Statistics on columns can give// The statistics Statistics on columns can give, in the order its table has them; the eleven an
+/* ---- One-way analysis of variance (STATS_SPEC 2.4) ---- */
+// Each group's values less one value c, exact for values within a factor of two of it (Sterbenz), so a
+// column of 10¹² + 0.1·k keeps every digit of its spread; then each group's mean with its rounding (msd).
+function anovaGroups(groups){ const gs=groups.map(finVals); let c=0; for(const v of gs) if(v.length){ c=v[0]; break; }
+  const all=[], G=gs.map(v=>{ const y=v.map(x=>x-c); for(const x of y) all.push(x); if(!y.length) return {n:0};
+    const r=msd(y); let ss=0, M=0; for(const x of r.d) M=Math.max(M,Math.abs(x)); if(M>0) ss=M*M*neuSum(r.d.map(x=>(x/M)**2));
+    return {n:y.length,m:r.m,e:r.e,sd:r.sd,ss}; });
+  const N=all.length, MT=N?neuSum(all)/N:0, ET=N?neuSum(all.map(x=>x-MT))/N:0; return {G,c,N,MT,ET}; }
+// The ANOVA table, η² and ω², and Welch's F: groups of values (a group with none is left out).
+function anova1(groups){ const A=anovaGroups(groups), G=A.G.filter(g=>g.n>0), k=G.length, N=A.N;
+  if(k<2) return {fail:"One-way analysis of variance needs two groups with values."};
+  if(N-k<1) return {fail:"One-way analysis of variance needs more values than groups."};
+  let ssb=0; for(const g of G){ const d=(g.m-A.MT)+(g.e-A.ET); ssb+=g.n*d*d; } const ssw=neuSum(G.map(g=>g.ss)), sst=ssb+ssw;
+  if(!(sst>0)) return {fail:"The values are all the same."};
+  const df1=k-1, df2=N-k, msb=ssb/df1, msw=ssw/df2, F=msw>0?msb/msw:Infinity, p=msw>0?DIST.F.sf(F,df1,df2):0;
+  const r={k,N,df1,df2,ssb,ssw,sst,msb,msw,F,p,eta2:ssb/sst,omega2:(ssb-df1*msw)/(sst+msw),groups:G.map(g=>({n:g.n,mean:A.c+g.m+g.e,sd:g.sd}))};
+  // Welch's: each group weighted by n/s²; needs two values and a spread in every group.
+  if(G.every(g=>g.n>=2&&g.sd>0)){ const w=G.map(g=>g.n/(g.sd*g.sd)), W=neuSum(w), mu=neuSum(G.map((g,i)=>w[i]*(g.m+g.e)))/W;
+    const a=neuSum(G.map((g,i)=>w[i]*((g.m+g.e)-mu)**2))/df1, b=neuSum(G.map((g,i)=>(1-w[i]/W)**2/(g.n-1)));
+    const wF=a/(1+2*(k-2)*b/(k*k-1)), wdf2=(k*k-1)/(3*b); r.welch={F:wF,df1,df2:wdf2,p:DIST.F.sf(wF,df1,wdf2)}; }
+  else r.welch={fail:"Welch's F needs two values and a spread in every group."};
+  r.A=A; r.G=G; return r; }
+// The comparisons of means after it (r from anova1): Tukey–Kramer, Bonferroni, Holm, Šidák, Scheffé,
+// Fisher's LSD, Games–Howell, Dunnett against group `ctrl`. Each [{i, j, diff, se, stat, p, lo, hi}],
+// diff the first's mean less the second's, p adjusted for the family, the interval simultaneous at conf
+// (none for Holm's, which has no simultaneous interval).
+const COMP_KINDS=[["tukey","Tukey–Kramer","q"],["bonf","Bonferroni","t"],["holm","Holm","t"],["sidak","Šidák","t"],["scheffe","Scheffé","F"],["lsd","Fisher's LSD","t"],["gh","Games–Howell","q"],["dunnett","Dunnett","t"]];
+function anovaComp(r,kind,o){ o=o||{}; const conf=o.conf||0.95, al=1-conf, G=r.G, k=G.length, df=r.df2, MSW=r.msw;
+  const dif=(i,j)=>(G[i].m-G[j].m)+(G[i].e-G[j].e), out=[];
+  if(kind==="dunnett"){ const c=o.ctrl>=0&&o.ctrl<k?o.ctrl:0, js=[...Array(k).keys()].filter(j=>j!==c), lam=js.map(j=>Math.sqrt(G[j].n/(G[j].n+G[c].n)));
+    if(!(MSW>0)) return {fail:"The groups have no spread within them."}; const crit=dunnettIsf(al,lam,df,true);
+    js.forEach(j=>{ const d=dif(j,c), se=Math.sqrt(MSW*(1/G[j].n+1/G[c].n)), t=d/se; out.push({i:j,j:c,diff:d,se,stat:t,p:dunnettSf(Math.abs(t),lam,df,true),lo:d-crit*se,hi:d+crit*se}); });
+    return {rows:out,ctrl:c}; }
+  const pairs=[]; for(let i=0;i<k;i++) for(let j=i+1;j<k;j++) pairs.push([i,j]); const m=pairs.length;
+  if(kind==="gh"){ if(!G.every(g=>g.n>=2&&g.sd>0)) return {fail:"Games–Howell needs two values and a spread in every group."};
+    pairs.forEach(([i,j])=>{ const vi=G[i].sd**2/G[i].n, vj=G[j].sd**2/G[j].n, s2=vi+vj, dfi=s2*s2/(vi*vi/(G[i].n-1)+vj*vj/(G[j].n-1)), d=dif(i,j), se=Math.sqrt(s2/2), q=Math.abs(d)/se, cr=tukeyIsf(al,k,dfi);
+      out.push({i,j,diff:d,se,stat:q,df:dfi,p:tukeySf(q,k,dfi),lo:d-cr*se,hi:d+cr*se}); }); return {rows:out}; }
+  if(!(MSW>0)) return {fail:"The groups have no spread within them."};
+  if(kind==="tukey"){ const cr=tukeyIsf(al,k,df);
+    pairs.forEach(([i,j])=>{ const d=dif(i,j), se=Math.sqrt(MSW/2*(1/G[i].n+1/G[j].n)), q=Math.abs(d)/se; out.push({i,j,diff:d,se,stat:q,p:tukeySf(q,k,df),lo:d-cr*se,hi:d+cr*se}); }); return {rows:out}; }
+  const rows=pairs.map(([i,j])=>{ const d=dif(i,j), se=Math.sqrt(MSW*(1/G[i].n+1/G[j].n)), t=d/se; return {i,j,diff:d,se,stat:t,raw:Math.min(1,2*DIST.t.sf(Math.abs(t),df))}; });
+  if(kind==="scheffe"){ const cr=Math.sqrt((k-1)*DIST.F.isf(al,k-1,df)); rows.forEach(x=>{ x.stat=x.stat*x.stat/(k-1); x.p=DIST.F.sf(x.stat,k-1,df); x.lo=x.diff-cr*x.se; x.hi=x.diff+cr*x.se; }); }
+  else if(kind==="holm"){ const ord=rows.map((x,i)=>i).sort((a,b)=>rows[a].raw-rows[b].raw); let run=0; ord.forEach((i,r)=>{ run=Math.max(run,Math.min(1,(m-r)*rows[i].raw)); rows[i].p=run; rows[i].lo=rows[i].hi=null; }); }
+  else { const tc=kind==="bonf"?DIST.t.isf(al/(2*m),df):kind==="sidak"?DIST.t.isf(-Math.expm1(Math.log(conf)/m)/2,df):DIST.t.isf(al/2,df);
+    rows.forEach(x=>{ x.p=kind==="bonf"?Math.min(1,m*x.raw):kind==="sidak"?-Math.expm1(m*Math.log1p(-x.raw)):x.raw; x.lo=x.diff-tc*x.se; x.hi=x.diff+tc*x.se; }); }
+  rows.forEach(x=>delete x.raw); return {rows}; }
+// The statistics Statistics on columns can give, in the order its table has them; the eleven an
 // analysis made before 2.1 has (no `stats` stored) are DESC_DEF.
 const DESC_STATS=[["n","N"],["miss","Missing"],["mean","Mean"],["sd","SD"],["se","SE of mean"],["ci","Mean's interval"],["var","Variance"],["cv","Coefficient of variation"],
   ["min","Minimum"],["q1","Q1"],["med","Median"],["q3","Q3"],["max","Maximum"],["sum","Sum"],["range","Range"],["iqr","IQR"],["mad","MAD"],["rsd","Robust SD"],
@@ -6546,6 +6677,42 @@ const ANA_KINDS={
       return {tables:[{cols}],report:{sections:[{title:"Fisher's exact test",tables:[{head,rows:[cols.map(c=>c.vals[0])]}]}],
         method:`[[a, b], [c, d]], margins fixed (two-sided: every table no more likely, as R); conditional maximum-likelihood odds ratio, exact interval. ${ANA_ALT[alt]}.`},notes:[]}; }}
 };
+// The comparisons chosen (Tukey–Kramer unless set), and roughly how long they take, in ms: past 150 the worker.
+const anovaComps=p=>{ const w=Array.isArray(p&&p.comps)?p.comps:["tukey"]; return COMP_KINDS.map(e=>e[0]).filter(k=>w.includes(k)); };
+function anovaCost(p,ins){ const g=ins.find(q=>q.groups), k=g?g.groups.length:ins.length, m=k*(k-1)/2, cs=anovaComps(p);
+  return (cs.includes("tukey")?9*(m+8):0)+(cs.includes("gh")?80*m:0)+(cs.includes("dunnett")?8*(k-1)*(k+7):0); }
+ANA_KINDS.anova1={label:"One-way ANOVA", base:"ANOVA",
+  help:"The groups of one factor (columns, or a column grouped by another): the ANOVA table with η² and ω², Welch's F if asked, and comparisons of the means.",
+  heavy:(p,ins)=>anovaCost(p,ins)>150,
+  run(ins,p){ p=p||{}; const conf=anaConf(p), notes=[], cs=anovaComps(p), byQ=ins.find(q=>q.groups); let groups, names;
+    if(byQ){ if(ins.length>1) notes.push(`Only ${byQ.name} is read.`); groups=byQ.groups.map(g=>g[1]); names=byQ.groups.map(g=>String(g[0])); }
+    else { groups=ins.map(q=>q.vals); names=ins.map(q=>q.name); }
+    const keep=groups.map((g,i)=>finVals(g).length?i:-1).filter(i=>i>=0);
+    if(keep.length<groups.length) notes.push(`${groups.length-keep.length===1?"A group":groups.length-keep.length+" groups"} with no values left out.`);
+    groups=keep.map(i=>groups[i]); names=keep.map(i=>names[i]);
+    const r=anova1(groups); if(r.fail) return {fail:r.fail};
+    const cols=[], secs=[], col=(k,name,vals,o)=>{ const c=Object.assign({k,name,vals:vals.map(v=>typeof v==="number"?anaNum(v):v)},o||{}); cols.push(c); return c; };
+    const tab=(title,cs2)=>secs.push({title,tables:[{head:cs2.map(c=>c.name),rows:cs2[0].vals.map((_,i)=>cs2.map(c=>c.vals[i]))}]});
+    tab("Analysis of variance",[col("src","Source",["Between","Within","Total"]),col("df","df",[r.df1,r.df2,r.df1+r.df2]),col("ss","Sum of squares",[r.ssb,r.ssw,r.sst]),
+      col("ms","Mean square",[r.msb,r.msw,null]),col("F","F",[r.F,null,null]),col("p","p",[r.p,null,null])]);
+    tab("Effect size",[col("eta2","η²",[r.eta2]),col("omega2","ω²",[r.omega2])]);
+    if(p.welch){ if(r.welch.fail) notes.push(r.welch.fail); else tab("Welch's F",[col("wF","Welch's F",[r.welch.F]),col("wdf1","df₁",[r.welch.df1]),col("wdf2","df₂",[r.welch.df2]),col("wp","p",[r.welch.p])]); }
+    const tq=DIST.t.isf((1-conf)/2,r.df2), hw=r.groups.map(g=>tq*Math.sqrt(r.msw/g.n));
+    tab("Groups",[col("gname","Group",names,{role:"x"}),col("gn","N",r.groups.map(g=>g.n)),col("gmean","Mean",r.groups.map(g=>g.mean)),col("gsd","SD",r.groups.map(g=>g.n>1?g.sd:null)),
+      col("ghw",`${anaPct(conf)} interval ±`,hw,{role:"e",of:"gmean"})]);
+    const ctrl=Math.max(0,names.indexOf(String(p.ctrl)));
+    if(cs.includes("dunnett")&&p.ctrl!=null&&names.indexOf(String(p.ctrl))<0) notes.push(`The control ${p.ctrl} is not a group: ${names[0]} is the control.`);
+    const M=[], A=[], B=[], D=[], SE=[], ST=[], PV=[], LO=[], HI=[];
+    cs.forEach(kind=>{ const e=COMP_KINDS.find(x=>x[0]===kind), c=anovaComp(r,kind,{conf,ctrl}); if(c.fail){ notes.push(`${e[1]}: ${c.fail}`); return; }
+      const head=["First","Second","Difference","p","Lower","Upper","SE",e[2]], rows=[];
+      c.rows.forEach(x=>{ M.push(e[1]); A.push(names[x.i]); B.push(names[x.j]); D.push(x.diff); SE.push(x.se); ST.push(x.stat); PV.push(x.p); LO.push(x.lo); HI.push(x.hi);
+        rows.push([names[x.i],names[x.j],anaNum(x.diff),anaNum(x.p),anaNum(x.lo),anaNum(x.hi),anaNum(x.se),anaNum(x.stat)]); });
+      secs.push({title:(kind==="dunnett"?`${e[1]}, against ${names[c.ctrl]}`:e[1])+(kind==="holm"?"":`, ${anaPct(conf)} intervals`),tables:[{head,rows}]}); });
+    if(M.length){ col("cmeth","Comparison",M); col("ca","First",A); col("cb","Second",B); col("cdiff","Difference",D); col("cp","p",PV); col("clo",`${anaPct(conf)} interval, from`,LO); col("chi","to",HI); col("cse","SE",SE); col("cstat","Statistic",ST); }
+    const method=["Sums of squares about each group's mean, the values first shifted by one of them."].concat(cs.includes("tukey")?["Tukey–Kramer: q and p from the studentized range."]:[],
+      cs.includes("gh")?["Games–Howell: Welch's df for each pair."]:[],cs.includes("dunnett")?["Dunnett: two-sided, p and interval from the many-to-one t."]:[],
+      cs.includes("holm")?["Holm: no simultaneous interval."]:[],[`Intervals at ${anaPct(conf)}; the groups' from the pooled SD.`]).join(" ");
+    return {tables:[{cols}],report:{sections:secs,method,means:true},notes}; }};
 // A kind run by name: the page's call, and the worker's ("call" job).
 function anaRunKind(kind,ins,p){ const K=ANA_KINDS[kind]; if(!K) throw new Error("the analysis "+kind+" is not known here"); return K.run(ins,p||{}); }
 /* ==ANA:END== */
@@ -15381,7 +15548,7 @@ function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p)
   // A large one is worked out by the compute worker (1.3c), its result put in when it comes back
   // (anaDone), if what it read has not changed meanwhile; the page goes on.
   const nv=ins.reduce((t,q)=>t+q.vals.length,0);
-  if(nv>=ANA_BIG&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats})),notes,sig); return "later"; }
+  if((nv>=ANA_BIG||K.heavy&&K.heavy(a.p||{},ins))&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats})),notes,sig); return "later"; }
   let out; try{ out=anaRunKind(a.kind,ins,a.p||{}); }catch(e){ out={fail:String(e&&e.message||e)}; }
   return anaApply(a,p,out,notes,sig); }
 function anaApply(a,p,out,notes,sig){
@@ -15408,6 +15575,7 @@ function anaWrite(a,p,t){ const sid=a.out.sheet, have=new Map(p.cols.filter(c=>c
     keep.add(c); c.name=o.name; c.comm=a.name; c.role=o.role||(c.role==="y"?"y":"ignore"); /* a column plotted stays a curve */ const text=o.vals.some(v=>typeof v==="string");
     if(text){ const T={}; o.vals.forEach((v,i)=>{ if(v!=null&&v!=="") T[i]=String(v); }); c.data=o.vals.map(()=>null); c.fmt="text"; if(Object.keys(T).length){ c.txt=T; TXT_OK.add(T); } else delete c.txt; }
     else { c.data=o.vals.map(v=>v==null?null:v); delete c.txt; delete c.fmt; } });
+  t.cols.forEach(o=>{ if(!o.of) return; const c=[...keep].find(x=>x.ak===o.k), y=[...keep].find(x=>x.ak===o.of); if(c&&y) c.of=y.id; });
   p.cols=p.cols.filter(c=>c.ana!==a.id||keep.has(c)); }
 // Every analysis set to recalculate by itself, worked out again when what it reads changed: in
 // renderAll after followFits, with a log line and no undo step (the undo of what changed it brings
@@ -15470,6 +15638,19 @@ const ANA_FORMS={
       <div class="grid2">${altSel(p.alt)}${confSel(p)}</div>`; },
     read(v){ return {a:+v.aFa,b:+v.aFb,c:+v.aFc,d:+v.aFd,alt:ANA_ALT[v.aAlt]?v.aAlt:"two",conf:+v.aCf||0.95}; },
     valid(v){ return ["aFa","aFb","aFc","aFd"].every(k=>/^\d+$/.test(String(v[k]||"").trim())); }},
+  anova1:{html(p){ const on=new Set(anovaComps(p));
+      return `<p class="lab">Comparisons</p><div class="anastats">${COMP_KINDS.map(([k,nm])=>`<label class="chk"><input type="checkbox" id="aC_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div>
+      <div class="grid2"><label for="aCtl">Control</label><select id="aCtl" data-ctl="${esc(p.ctrl==null?"":String(p.ctrl))}"></select>${confSel(p)}
+      <span></span><label class="chk tipd" title="One-way ANOVA weighting each group by its own variance"><input type="checkbox" id="aWe"${p.welch?" checked":""}> Welch's F</label></div>`; },
+    wire(box){ const ctl=box.querySelector("#aCtl"), want=ctl?ctl.dataset.ctl:"";
+      const groups=()=>{ const by=box.querySelector("#aBy"), b=by&&by.value?colById(by.value):null;
+        if(b){ const n=Math.max((b.data||[]).length,txtLen(b)), rows=[], keys=[]; for(let i=0;i<n;i++){ const v=catVal(b,i); if(v!=null){ rows.push(i); keys.push(v); } }
+          const g=distGroups(rows,keys,DIST_GMAX,{text:true,order:catOrderKeys(b)}); return g.fail?[]:g.keys.map(k=>typeof k==="number"?fmt(k,8):String(k)); }
+        return [...box.querySelectorAll('input[id^="aI_"]')].filter(x=>x.checked).map(x=>specName(colById(x.id.slice(3)))); };
+      const on=()=>{ if(!ctl) return; const d=box.querySelector("#aC_dunnett"), show=!!(d&&d.checked), cur=ctl.value||want, gs=groups();
+        ctl.innerHTML=gs.map(g=>`<option value="${esc(g)}"${g===cur?" selected":""}>${esc(g)}</option>`).join(""); ctl.hidden=!show; const l=box.querySelector('label[for="aCtl"]'); if(l) l.hidden=!show; };
+      box.addEventListener("change",on); on(); },
+    read(v){ return {comps:COMP_KINDS.map(e=>e[0]).filter(k=>v["aC_"+k]),ctrl:v.aCtl||null,conf:+v.aCf||0.95,welch:!!v.aWe}; }},
   norm:{html(p){ const on=new Set(normTests(p)), tip={sw:"3 to 5000 values; the most powerful of these for most samples",lf:"Kolmogorov–Smirnov's distance with the mean and SD estimated, as it should be",ad:"Weighs the tails more than Lilliefors; 8 values or more",dk:"From the skewness and kurtosis; 8 values or more, rough below 20",ks:"Its p takes the mean and SD as known, so it is too large: Lilliefors' is the same test done right"};
       return `<p class="lab">Tests</p><div class="anastats">${NORM_TESTS.map(([k,nm])=>`<label class="chk" title="${esc(tip[k])}"><input type="checkbox" id="aN_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div>`; },
     read(v){ return {tests:NORM_TESTS.map(e=>e[0]).filter(k=>v["aN_"+k])}; },
@@ -15553,6 +15734,7 @@ function graphSummary(cid){ const p=P(); if(!p||S.readOnly) return;
    outliers masked or marked. The report's buttons (Results, the History) and the tab menu list them. */
 function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&rep.marks?rep.marks.length:0;
   if(!rep) return [];
+  if(a.kind==="anova1") return [{key:"means",label:"Means plot",title:"Each group's mean with its interval, on a graph",enabled:!ro,run:()=>anaMeansPlot(a.id)}];
   if(a.kind==="norm") return [{key:"qq",label:"Q–Q plot",title:"The sorted values against the normal quantiles, with the line through their quartiles, on a graph",enabled:!ro&&rep.qq>0,run:()=>anaQQ(a.id)}];
   if(a.kind==="outl"){ const w=`The ${n===1?"value":n+" values"} past the critical value`;
     return [{key:"mask",label:"Mask",title:`${w}: masked, one undo step`,enabled:!ro&&n>0,run:()=>anaMaskOut(a.id)},
@@ -15565,6 +15747,10 @@ function anaQQ(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; con
   const ys=[], ser={}; for(let i=0;i<n;i++){ const y=p.cols.find(c=>c.ana===id&&c.ak==="qy"+i), l=p.cols.find(c=>c.ana===id&&c.ak==="ql"+i); if(y&&l){ ys.push(y.id,l.id); ser[y.id]={type:"scatter"}; ser[l.id]={type:"line",dash:"5,4"}; } }
   if(!ys.length){ toast("There is no Q–Q plot to draw: Recalculate first."); return; }
   plotCols(ys,{series:ser,undo:"plotting a Q–Q plot",say:`Q–Q plot of ${a.name}`}); }
+// A means plot: the groups' means as symbols joined by a line, their intervals as error bars, the groups along X.
+function anaMeansPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const y=p.cols.find(c=>c.ana===id&&c.ak==="gmean");
+  if(!y){ toast("There is no means plot to draw: Recalculate first."); return; }
+  plotCols([y.id],{series:{[y.id]:{type:"linesym"}},undo:"plotting a means plot",say:`Means plot of ${a.name}`}); }
 // The outliers found, as [column, raw row, value]: the columns they were read from, made points left out.
 function anaMarksOf(a){ const rep=a.res&&a.res.report; return ((rep&&rep.marks)||[]).map(m=>({c:colById((a.in.cols||[])[m.i]),row:m.row,value:m.value})).filter(m=>m.c&&m.row>=0); }
 function anaMaskOut(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const ms=anaMarksOf(a); if(!ms.length) return;
@@ -15607,11 +15793,14 @@ async function anaDelete(id){ const a0=anaOf(id); if(!a0) return; const p=P(), m
     if(curSheet()===sid) S.sheetAt[S.pid]=q.sheets[0].id; return {ana:ana.filter(x=>x.id!==id),sheets:q.sheets,cols:q.cols}; },`deleted ${a0.name} and its sheet`);
   toast(`${a0.name} deleted.`,{action:"Undo",run:undo}); }
 // The report as HTML, from the report object (the same object the copied table and the CSV read).
-function anaReportHtml(a){ const r=a.res||{}, rep=r.report, st=anaStale(a); let h=ANA_JOBS.has(a.id)?noteHtml("info",`Being worked out: ${a.name} has many values, so the work goes on beside the page.`):st?noteHtml("warn",`Out of date: ${st}.`):"";
+function anaReportHtml(a){ const r=a.res||{}, rep=r.report, st=anaStale(a); let h=ANA_JOBS.has(a.id)?noteHtml("info",`Being worked out beside the page.`):st?noteHtml("warn",`Out of date: ${st}.`):"";
   if(!rep){ return h+`<p class="muted">${esc(r.err||"Not worked out yet.")}</p>`; }
   const acts=anaActs(a); if(acts.length) h+=`<p class="anaacts">${acts.map(x=>`<button class="btn sm" data-anaact="${x.key}" data-ana="${esc(a.id)}"${x.title?` title="${esc(x.title)}"`:""}${x.enabled?"":" disabled"}>${esc(x.label)}</button>`).join("")}</p>`;
   const cell=v=>v==null?"":typeof v==="number"?esc(fmt(v,6)):esc(v);
-  rep.sections.forEach(s=>{ h+=`<h4>${esc(s.title)}</h4>`; (s.tables||[]).forEach(t=>{ h+=`<div style="overflow:auto"><table class="rtab"><thead><tr>${t.head.map(x=>`<th>${esc(x)}</th>`).join("")}</tr></thead><tbody>${t.rows.map(r=>`<tr>${r.map((v,j)=>`<td${typeof v==="number"?' class="num"':""}>${cell(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`; }); });
+  // A table of one row is laid out as name and value, so a test's fourteen numbers fit a docked window.
+  rep.sections.forEach(s=>{ h+=`<h4>${esc(s.title)}</h4>`; (s.tables||[]).forEach(t=>{
+    h+=t.rows.length===1&&t.head.length>4?`<table class="rtab ana kv"><tbody>${t.head.map((x,j)=>`<tr><th class="l">${esc(x)}</th><td${typeof t.rows[0][j]==="number"?' class="num"':""}>${cell(t.rows[0][j])}</td></tr>`).join("")}</tbody></table>`
+      :`<div style="overflow:auto"><table class="rtab ana"><thead><tr>${t.head.map((x,j)=>`<th${t.rows.some(r=>typeof r[j]==="string")?' class="l"':""}>${esc(x)}</th>`).join("")}</tr></thead><tbody>${t.rows.map(r=>`<tr>${r.map((v,j)=>`<td class="${typeof v==="string"?"l":"num"}">${cell(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`; }); });
   if(rep.method) h+=`<p class="lab">${esc(rep.method)}</p>`;
   (rep.notes||[]).forEach(n=>{ h+=noteHtml("info",n); });
   if(!ANA_KINDS[a.kind].typed) h+=`<p class="lab">${esc(andList((a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colLetter(c)} ${c.name||""}`.trim()+(t?` (${t})`:""); })))}${a.in.by&&colById(a.in.by)?`, grouped by ${esc(colById(a.in.by).name||colRef(colById(a.in.by)))}`:""}; ${a.recalc==="auto"?"worked out again by itself":"worked out only when asked"}.</p>`;
@@ -21449,6 +21638,7 @@ function analyzeMenu(){
         {label:"Graphical summary", title:"A figure of the column's histogram with a normal curve over it, and its box chart", run:()=>graphSummary(), enabled:!S.readOnly&&has},"-",
         {label:"Normality tests…", title:ANA_KINDS.norm.help, run:()=>anaDlg("norm"), enabled:!S.readOnly&&!!P()},
         {label:"Outliers…", title:ANA_KINDS.outl.help, run:()=>anaDlg("outl"), enabled:!S.readOnly&&!!P()}]},
+      {label:"ANOVA", sub:()=>[{label:"One-way ANOVA…", title:ANA_KINDS.anova1.help, run:()=>anaDlg("anova1",{two:true}), enabled:!S.readOnly&&!!P()}]},
       {label:"Hypothesis tests", sub:()=>[{label:"t tests…", title:ANA_KINDS.ttest.help, run:()=>anaDlg("ttest"), enabled:!S.readOnly&&!!P()},
         {label:"Comparing spreads…", title:ANA_KINDS.vartest.help, run:()=>anaDlg("vartest"), enabled:!S.readOnly&&!!P()},
         {label:"Proportions…", title:ANA_KINDS.prop.help, run:()=>anaDlg("prop"), enabled:!S.readOnly&&!!P()},
@@ -24136,7 +24326,7 @@ ${DL([["Area ± error","The trapezoidal sum over the points in the window, less 
 ${DL([["Net counts","The counts in the window less the continuum under them: a straight line through the mean of the channels at each edge (as many as the line baselines use). ± one standard deviation from counting: the counts' own and the continuum's."],["Detected","Above Currie's critical level, 95 %: on a continuum alone, one window in twenty is called detected. Below it, the level is shown."],["Emission, efficiency","Type the share of decays that give the line and the detector's efficiency at its energy, both in %."],["Activity","Net counts ÷ (live time × efficiency × emission), in becquerel, with the counting error. Not detected: the detection limit as an activity, the smallest that would be."]])}
 <p>Counting needs the counts as recorded: an energy calibration, a count rate or a crop keep them; smoothing or a subtracted background do not, and the part says so.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
-{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level",
+{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size",
  lead:"An analysis reads columns and writes what it finds into a result sheet of its own, worked out again when its data change.",
  body:`<h2>Statistics on columns</h2>
 <p>${MP("Analyze › Statistics › Descriptive › Statistics on columns…")}: tick the columns and the statistics, and each column gets a row of a new sheet. Ticked at first are N, the rows missing, mean, standard deviation, standard error of the mean, minimum, Q1, median, Q3, maximum and sum; besides them, the mean's interval, variance, coefficient of variation, range, IQR, MAD, robust SD, the mode and its count, skewness, kurtosis, the geometric and harmonic means, and any percentiles typed (<code>5, 95</code>). <em>Group by</em> a column of text or categories gives a row for each column and group.</p>
@@ -24158,6 +24348,10 @@ ${DL([["Grubbs","The distance from the mean over the SD, at either side or one; 
 <h2 id="tests">Hypothesis tests</h2>
 <p>Each test gives its numbers: the statistic, its degrees of freedom, p, the interval (95 % unless set) and the effect size. Kurve draws no conclusion from them. <em>Alternative</em> is two-sided unless one direction is named.</p>
 ${DL([["t tests…","One sample against a value; two samples, the first two columns ticked (in the sheet's order) or one column grouped into two, by Welch's t unless <em>Equal variances</em> asks for Student's; paired, two columns row by row. Each gives t, its degrees of freedom, p, the difference's interval, Cohen's d with its exact interval (the noncentral t inverted) and Hedges' g."],["Comparing spreads…","Levene's test about the medians (Brown and Forsythe's), ticked at first; about the means (a little liberal with small samples); Bartlett's (which assumes normal values); and for two columns the F test with the ratio's interval."],["Proportions…","From counts typed: one proportion against a value (the exact binomial test, the score z, Clopper and Pearson's and Wilson's intervals) or two proportions (the pooled z, Newcombe's interval for the difference)."],["Fisher's exact test…","From a two-by-two table typed: Fisher's exact p and the odds ratio by conditional maximum likelihood with its exact interval, as R's fisher.test."]])}
+<h2 id="anova">One-way ANOVA</h2>
+<p>${MP("Analyze › Statistics › ANOVA › One-way ANOVA…")}: the groups as columns ticked, or one column grouped by another. The table: between and within groups, their degrees of freedom, sums of squares, mean squares, F and p, η² (the between share of the total) and ω² (the same, less its bias). <em>Welch's F</em> weights each group by its own variance.</p>
+${DL([["Tukey–Kramer","Every pair; q and p from the studentized range, intervals simultaneous for all pairs."],["Bonferroni, Šidák","Every pair by t on the pooled variance, p multiplied by the number of pairs (Šidák: 1 − (1 − p)^m)."],["Holm","Bonferroni step by step from the smallest p; no interval."],["Scheffé","F = t²/(k − 1); intervals for every contrast, so the widest."],["Fisher's LSD","t on the pooled variance, p unadjusted."],["Games–Howell","Every pair with each group's own variance and Welch's degrees of freedom."],["Dunnett","Each group against the control chosen, two-sided."]])}
+<p><em>Means plot</em> (under the report) graphs each group's mean with its interval from the pooled SD.</p>
 <h2 id="read">What it reads</h2>
 <p>Each column's processed values: the values after its steps, its original values when it has none. The dialog names the steps each column is read after, and a column with steps has a switch to <em>Original</em>. Masked points are left out unless <em>Include masked points</em> is ticked, and the report says how many. After a step that leaves rows out, makes points or averages them (resampling, a histogram), or makes neighbours depend on each other (smoothing), the report notes it.</p>
 <h2 id="sheet">The result sheet</h2>

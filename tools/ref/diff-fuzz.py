@@ -228,6 +228,28 @@ def num(v):
     v = float(v)
     return "NaN" if math.isnan(v) else ("Infinity" if v > 0 else "-Infinity") if math.isinf(v) else v
 
+def anova_gen(key):
+    """Random groups: 2 to 9, of 1 to 30 values (a group of one now and then), about an offset up to 1e12,
+    spread from 1e-6 to 100, against the exact rational table."""
+    def g():
+        k = int(rng.integers(2, 10)); off = 0.0 if rng.random() < 0.4 else float(rng.choice([-1, 1]) * lognum(0, 12)); sd = lognum(-6, 2)
+        gs = [[float(off + x) for x in rng.normal(rng.normal(0, sd), sd * lognum(-0.5, 0.5), int(rng.integers(1, 31)) if rng.random() > 0.1 else 1)] for _ in range(k)]
+        if sum(len(x) for x in gs) - k < 1 or len(set(v for x in gs for v in x)) < 2: raise ValueError("too few")
+        return [gs], refs.anova_ref(gs)[key]
+    return g
+for key in ["F", "p", "ssw"]:
+    gen("anova1@" + key, 1e-13, 0.3)(anova_gen(key))
+
+@gen("tukeySf", 1e-13, 0.3)
+def _():
+    """Against SciPy's studentized range, judged absolutely at 1e-12: SciPy is off by up to 5e-13 so (four
+    cases it and Kurve disagreed on were settled in 40 digits, Kurve right to 2e-15 relative, SciPy 7e-6 off
+    on a p of 3e-8). ν from 3 to 1000: past 1e4 SciPy drifts further, and past 1e5 it takes the normal's;
+    range.json has 40-digit values there."""
+    from scipy.stats import studentized_range as SR
+    k = int(rng.integers(3, 30)); nu = float(rng.choice([rng.integers(3, 60), lognum(0.5, 3)])); q = float(rng.uniform(0.3, 9))
+    return [q, k, nu], float(SR.sf(q, k, nu))
+
 cases = []
 for name, (f, tol) in GEN.items():
     for k in range(max(1, math.ceil(per * SHARE.get(name, 1.0)))):
@@ -273,6 +295,7 @@ for c in cases:
         if c["fn"] in ("descStats@skew", "descStats@kurt"): e = d / max(abs(w), 1.0)  # differences of terms of order 1: absolute below 1
         if c["fn"] == "dagoTest@k2": e = d / max(abs(w), 1.0)  # a sum of two squared scores: absolute below 1
         if c["fn"] == "nctCdf": e = d  # absolute (targets.json)
+        if c["fn"] == "tukeySf": e = d / 10  # against SciPy: 1e-12 absolutely (the generator says why)
     if e > worst.get(c["fn"], (0, None))[0]:
         worst[c["fn"]] = (e, c)
     t = TARGET.get(c["fn"], {})

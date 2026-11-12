@@ -448,6 +448,14 @@ graph first, with the taskbar kept at the bottom of the screen.
   `gamma`, `beta` (`pdf`, `cdf`, `sf`, `ppf`, `isf`), `binom`, `pois`, `hyper` (`pmf`, `cdf`, `sf`,
   `ppf`); sf is the upper tail as such. `tools/stats-test.mjs` checks their properties, the bench their
   values (fixtures `stats.json`; the special functions to 10⁻¹⁵, tails to 10⁻¹³, quantiles to 10⁻¹⁵).
+  **The studentized range and Dunnett's t** (STATS_SPEC 2.4): `glNodes`/`GL20` (Gauss–Legendre),
+  `lcInt(lf, lo, hi, step)` (∫ e^lf over one peak: a scan, golden sections, each side's width where lf falls
+  by 4.5, panels of that width to a fall of 46; `[M, S]`, e^M·S), `GK21`, `gk21`, `gkInt(f, pts, rtol, atol)`
+  (adaptive Gauss–Kronrod), `nQ`, `rangeSf(w, k)` (P(range of k normals > w), 1 − (…) never formed; k = 2
+  closed), `lchiU(nu)` (ln of s's χ density times s, in ln s, Stirling's part apart), `overS(h, c, nu)` (∫ over
+  s; ν past 10⁸ the normal's), `tukeySf(q, k, nu)`, `tailInv(sf, p, x0)` (secant on ln sf), `tukeyIsf`,
+  `dunnettSf(c, lam, nu, two)` (λ_i = √(n_i/(n_i + n₀)), the inner integral by `gkInt` from each comparison's
+  peak), `dunnettIsf`, `DIST.tukey`. Within 1e-15 of 40-digit references (`range.json`).
 - **Fits** come in two kinds. `MODELS` (each with `params`, `ph`, `formula`, `f(x,p)`,
   `guess`, optional `derived` with delta-method errors) drives "Curve fit".
   `{kind:"composite", spec, x0, …}` drives "Peak fit". `fitModel(fit)` hands either to
@@ -1074,7 +1082,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   `DIST.kstwo.sf`. In ANA: `msd(s)` (each deviation with the double mean's rounding taken out, the SD, z),
   `swTest` (Royston's AS R94, about the median), `ksNormD`, `lfTest` (`lfProb`: statsmodels' table `LF_N`,
   `LF_CV`, `LF_AS`, `LF_PCT`; `lo`/`hi` at its ends), `ksnTest`, `adTest`, `dagoTest`, `qqNorm` (R's ppoints and
-  qqline), `grubbsTest(vals, {side, alpha, repeat})` (`rounds`, `out`), `glNodes`/`GL20`/`gl2`, `dixonP(n, q,
+  qqline), `grubbsTest(vals, {side, alpha, repeat})` (`rounds`, `out`), `gl2` (`GL20` from STATS), `dixonP(n, q,
   side, panels)`, `dixonCrit`, `dixonTest`; `anaFmt`, `anaPtxt`, `anaAlpha` (the outlier tests' α), `anaConf` (an
   interval's level: `p.conf`, else one minus a stored `alpha`, else 95 %; `ANA_CONFS`), `NORM_TESTS`, `normTests`. Kinds
   `norm` (a row per column or group, each test's statistic and p; `report.qq` the Q–Q sets, written as columns `qx<i>` (an X), `qy<i>`, `ql<i>`) and `outl` (a row
@@ -1098,6 +1106,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   **Numbers, not verdicts** (12.11, STATS_SPEC decision 9, DESIGN principle 8): a kind returns tables, `method` (one
   line), `notes` (what was read, why a number is missing) and `marks`; never a sentence, a verdict column, an
   assumption check or advice.
+  **One-way ANOVA** (STATS_SPEC 2.4): `anovaGroups` (each group less one value, Sterbenz; `msd` means), `anova1(groups)`
+  (`{k, N, df1, df2, ssb, ssw, sst, msb, msw, F, p, eta2, omega2, welch {F, df1, df2, p} | {fail}, groups, G, A}`),
+  `COMP_KINDS` (`[key, name, statistic]`), `anovaComp(r, kind, {conf, ctrl})` (`{rows:[{i, j, diff, se, stat, p, lo,
+  hi, df?}], ctrl?}`), `anovaComps(p)`, `anovaCost(p, ins)`; `ANA_KINDS.anova1` (`p.comps`, `ctrl` a group's name,
+  `conf`, `welch`; columns or one column grouped; sections Analysis of variance, Effect size, Welch's F, Groups, one a
+  comparison; `gname` an X of text, `gmean`, `ghw` its error bars) with `heavy(p, ins)`, which `runAna` sends to the
+  worker; `anaWrite` honours a column's `of` (an error column's owner, by key); `anaMeansPlot`; `ANA_FORMS.anova1`
+  (`#aC_<key>`, `#aCtl` filled from the columns ticked or the levels grouped by, `#aCf`, `#aWe`). Analyze › Statistics
+  › ANOVA. `anaReportHtml` lays a table of one row out as names and values (`.rtab.ana.kv`); headers wrap.
   `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
   (rationals), shared by the fixtures (`desc.json`) and the fuzzer (`quantileType`, `descStats@<key>`, which
   `run.mjs` reads as one field of the result).
@@ -2985,7 +3002,8 @@ names the slice that brings it there (`until`) and must not pass where it stood 
 [n]` (`FUZZDUMP=file` writes every failing case in full) throws random cases at the same functions (both need Python 3.13 and the packages in `$PYREF`,
 see the README; `tools/ref/run.mjs` is the pure blocks under node, any function by name).
 `node tools/perf.mjs [path]` measures what a person waits for (boot; a million rows: save, a value
-typed, draw, zoomed draw, worksheet, saved to a project file and opened from one; 2000 columns:
+typed, draw, zoomed draw, worksheet, saved to a project file and opened from one; one-way ANOVA of a million
+values and Tukey's 45 pairs; 2000 columns:
 save, worksheet, History, Statistics) against
 budgets of about three times what was measured. `tools/suite.sh [--snap] [path]` runs everything
 (the node tests, the bench, the drives in parallel, a fuzzer seed, the menu crawl, then the budgets
@@ -3002,7 +3020,9 @@ a reload), and 2.2 (the tests ticked, each against its function, no verdict or s
 plot's columns and graph kept on recalculating, Grubbs repeated, Mask with the analysis worked out again and one
 undo, Mark, groups' rows, Dixon, a reload), and 2.3 (one sample against tTest1 at a 99 % interval, a stored α read as
 its interval, Student's by group with nothing said of the variances, paired in the sheet's order, every spreads test,
-proportions and Fisher's test typed, a refusal, a reload).
+proportions and Fisher's test typed, a refusal, a reload), and 2.4 (the dialog's comparisons and Control, F, p, η² and
+Welch's F against anova1, Tukey's and Dunnett's p (the worker's), Holm with no interval, the means plot, grouped by a
+text column, followed after a value typed, a refusal, a reload).
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
@@ -3010,7 +3030,9 @@ up to 1 and their tails being their sums, Cauchy's t, closed forms), and the des
 rising, one, two and equal values, Tukey's hinges), and the normality and outlier tests' (each one's size at
 5 % over 20 000 normal samples, Shapiro–Wilk's p uniform below 0.3, invariance, Grubbs' critical values as
 ASTM E178, repeated and masked, refusals), and 2.3's (each test's size under its null, the t and d intervals'
-coverage, the exact tests at or below their level, the noncentral t at δ = 0); run it, ref-test and a fuzzer seed after touching the STATS or
+coverage, the exact tests at or below their level, the noncentral t at δ = 0), and 2.4's (F's and Welch's size,
+Tukey's and Dunnett's family-wise error at 5 % from their quantiles, Tukey–Kramer, Bonferroni and Scheffé below, the
+studentized range of two and Dunnett's one comparison as t); run it, ref-test and a fuzzer seed after touching the STATS or
 ANA block.
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
@@ -3976,6 +3998,13 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   2e-16. The fuzzer against exact rationals found it; the fixtures, offset sets that the second pass is for,
   had not. And a median of two middle values is rounded: distances measured from it put a MAD 2 % off near
   10¹³. Measure a numerical habit against exact arithmetic on the data that would defeat it.
+- **A cut keeps its end marker.** The patch helper's `cut(start, end, new)` replaces up to `end`, not including it;
+  passing `end` again as `new` doubled two comment lines, one of them glued to code. A syntax check passes it; grep
+  what a cut leaves (`*/\/\*`, a line twice).
+- **A reference can be the thing that is wrong, again.** SciPy's studentized range was 7e-6 off on a p of 3e-8 and
+  drifted past ν = 10⁴; four disagreements, settled in 40 digits, were all SciPy's. A reference too slow to run is no
+  reference: nested adaptive quadrature in mpmath took seven minutes a value; fixed Gauss–Legendre at two orders
+  takes thirty seconds and checks itself.
 - **A variable taken out is grepped for.** Removing the Explorer's files took `fids` out of
   `autoImport`, and three `return {fids}` further down threw on every dropped file; the syntax
   check passes a reference to a name that does not exist. `review-drive`'s drop caught it. After
@@ -4527,7 +4556,9 @@ Next, in order:
    distribution, which closed `distFit`'s gap), done 12.11; slice 2.3, comparing means and spreads (t tests
    with d and g, Levene, Brown–Forsythe, Bartlett, F, proportions and Fisher's exact test), done 12.11; the
    user's rule the same day, Kurve reports and the user judges (no sentence, verdict, check or advice), applied
-   to 2.2 and 2.3 and kept for every slice after
+   to 2.2 and 2.3 and kept for every slice after; slice 2.4, one-way ANOVA (the table, η², ω², Welch's F, eight
+   comparisons with the studentized range and Dunnett's t worked out to 1e-15, a means plot; NIST's sets to the digits
+   their decimals allow), done 12.11
 
 ## Known gaps
 
@@ -4609,7 +4640,10 @@ Next, in order:
 - Plotting from the worksheet plots whole columns (no range of rows, no plot of a selection
   of cells), against an X column; a closed graph is closed for everyone who opens the
   project, and a viewer who cannot edit cannot open it
-- Analyses: four kinds yet (Statistics on columns, Frequency counts, Normality tests, Outliers); no weights, no
+- One-way ANOVA: one factor; Welch's F but not Brown and Forsythe's; Dunnett two-sided only, against one control;
+  Holm without an interval; Games–Howell and Dunnett are worked out in the worker (a second or so for many groups);
+  in the narrowest dock a comparisons table scrolls past its lower end
+- Analyses: these kinds and those above (Statistics on columns, Frequency counts, Normality tests, Outliers); no weights, no
   statistics on rows, one column of groups; normality tests against the normal only (no other distribution's
   goodness of fit, no Chen–Shapiro); Shapiro–Wilk's p is Royston's approximation, high above about 0.3;
   Kolmogorov's p past about 4600 values is Pelz and Good's expansion (about nine digits); Dixon's Q is r₁₀ alone

@@ -25,7 +25,7 @@ const fixtures = Object.fromEntries(readdirSync(join(here, "ref", "fixtures")).f
 const TARGET = JSON.parse(readFileSync(join(here, "ref", "targets.json"), "utf8"));
 
 const worst = new Map(); // name -> {err, at}
-const over = [], refBad = [];
+const over = [], refBad = [], nistLRE = [];
 function relErr(got, want, floor = 0) {
   if (typeof want === "number" && !Number.isFinite(want)) return Object.is(got, want) || (Number.isNaN(want) && Number.isNaN(got)) ? 0 : Infinity;
   if (typeof got !== "number" || !Number.isFinite(got)) return Infinity;
@@ -100,6 +100,38 @@ for (const c of fixtures.test23.cases) {
   }
 }
 
+/* ---- one-way ANOVA (STATS_SPEC 2.4): the table against exact rationals, the comparisons against
+   SciPy's studentized range (absolutely) and 40-digit t and F tails, NIST's sets against the exact
+   answer for the doubles they parse to (their certified values beside, as digits right) ---- */
+{
+  const A = get("anova1"), C = get("anovaComp");
+  const GRP = { ssb: "ss", ssw: "ss", F: "F", p: "p", eta2: "effect", omega2: "effect" };
+  for (const c of fixtures.anova.cases) {
+    if (c.kind === "test") {
+      const r = A(...c.args);
+      for (const [k, w] of Object.entries(c.want)) {
+        const name = k.startsWith("welch.") ? "anova1.welch" : `anova1.${GRP[k]}`, got = k.split(".").reduce((o, x) => (o == null ? o : o[x]), r);
+        note(name, typeof got !== "number" ? Infinity : relErr(got, w, (TARGET[name] || {}).floor), `${c.name}: ${k}`);
+      }
+      if (!c.want["welch.F"]) note("anova1.welch", r.welch && r.welch.fail ? 0 : Infinity, `${c.name}: Welch's F refused`);
+    } else if (c.kind === "comp") {
+      const [gs, kind, o] = c.args, res = C(A(gs), kind, o), q = kind === "tukey" || kind === "gh" ? "q" : "t";
+      c.want.forEach((w, i) => { const x = res.rows && res.rows[i]; if (!x) { note(`anovaComp.${q}.p`, Infinity, `${c.name}: row ${i} missing`); return; }
+        for (const k of ["diff", "se", "stat"]) note("anovaComp.arith", relErr(x[k], w[k]), `${c.name} ${i}: ${k}`);
+        note(`anovaComp.${q}.p`, relErr(x.p, w.p, (TARGET[`anovaComp.${q}.p`] || {}).floor), `${c.name} ${i}: p`);
+        for (const k of ["lo", "hi"]) note(`anovaComp.${q}.ci`, w[k] === null ? (x[k] === null ? 0 : Infinity) : relErr(x[k], w[k], (TARGET[`anovaComp.${q}.ci`] || {}).floor), `${c.name} ${i}: ${k}`); });
+    } else if (c.kind === "nist") {
+      const txt = readFileSync(join(here, "ref", "nist", c.args[0]), "utf8").split(/\r?\n/), k = txt.map((l) => l.trim().startsWith("Data:")).lastIndexOf(true), by = new Map();
+      txt.slice(k + 1).filter((l) => l.trim()).forEach((l) => { const [t, y] = l.trim().split(/\s+/); if (!by.has(t)) by.set(t, []); by.get(t).push(+y); });
+      const r = A([...by.values()]);
+      for (const key of ["ssb", "ssw", "F", "msw"]) note("nist.anova", relErr(r[key], c.want[key]), `${c.name}: ${key}`);
+      const lre = Math.min(...["ssb", "ssw", "F"].map((key) => -Math.log10(Math.max(1e-16, Math.abs(r[key] - c.info[key]) / Math.abs(c.info[key])))));
+      nistLRE.push(`${c.name.replace(/\.dat$/, "")} ${lre.toFixed(1)}`);
+    }
+  }
+}
+for (const c of (fixtures.range || { cases: [] }).cases) note(c.fn, relErr(get(c.fn)(...c.args), c.want), fmtA(c.args));
+
 /* ---- distributions fitted to values ---- */
 for (const c of fixtures.distfit.cases) {
   const r = get("distFit")(...c.args), at = `${c.args[1]} n=${c.args[0].length}`;
@@ -162,5 +194,6 @@ for (const [name, w] of worst) {
 }
 for (const o of over) console.log(`  past target: ${o}`);
 for (const b of refBad) { console.log(`  FAIL ${b}`); fail++; }
+if (nistLRE.length) console.log(`  NIST ANOVA, digits right against the certified values (as many as the doubles the data parse to allow): ${nistLRE.join(", ")}`);
 console.log(`\n${pass} passed, ${short} short of their target with a slice named, ${fail} failed`);
 process.exit(fail ? 1 : 0);

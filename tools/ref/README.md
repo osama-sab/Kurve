@@ -24,6 +24,7 @@ for Python 3.13; the default `python3` is 3.11):
 PYREF=/tmp/pyref                      # anywhere outside the repository
 pip install --quiet --target "$PYREF" numpy scipy statsmodels
 PYREF=$PYREF python3.13 -I tools/ref/make-fixtures.py --check   # compare with the committed files
+PYREF=$PYREF python3.13 -I tools/ref/make-fixtures.py --slow    # also range.json: 40-digit studentized range and Dunnett (about half an hour, four cores)
 PYREF=$PYREF python3.13 -I tools/ref/make-fixtures.py           # write them again
 ```
 

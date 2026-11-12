@@ -334,3 +334,114 @@ def t_ref(kind, a, b=None, mu0=0, alt="two", equal=False, conf=0.95):
         q = mp.mpf(t_isf(1 - conf, nu, 2.0)); ci = (-mp.inf, est + q * se) if alt == "less" else (est - q * se, mp.inf)
     J = mp.gamma(mp.mpf(dp) / 2) / (mp.sqrt(mp.mpf(dp) / 2) * mp.gamma(mp.mpf(dp - 1) / 2))
     return {"t": f(t), "df": f(nu), "p": f(p), "ci.0": f(ci[0]), "ci.1": f(ci[1]), "d": f(d), "g": f(d * J)}
+
+# ---------- the studentized range and Dunnett's distribution (STATS_SPEC 2.4) ----------
+_GL = {}
+def _gl(n):
+    """n-point Gauss–Legendre nodes and weights at the working precision (Newton on P_n from NumPy's)."""
+    key = (n, mp.mp.dps)
+    if key not in _GL:
+        import numpy as np
+        xs, out = np.polynomial.legendre.leggauss(n)[0], []
+        for x0 in xs:
+            x = M(float(x0))
+            for _ in range(8):
+                p0, p1 = M(1), x
+                for j in range(2, n + 1): p0, p1 = p1, ((2 * j - 1) * x * p1 - (j - 1) * p0) / j
+                dp = n * (x * p1 - p0) / (x * x - 1); x -= p1 / dp
+            p0, p1 = M(1), x
+            for j in range(2, n + 1): p0, p1 = p1, ((2 * j - 1) * x * p1 - (j - 1) * p0) / j
+            dp = n * (x * p1 - p0) / (x * x - 1)
+            out.append((x, 2 / ((1 - x * x) * dp * dp)))
+        _GL[key] = out
+    return _GL[key]
+
+def _panels(g, a, b, m, n):
+    """∫ g over [a, b] in m equal panels of n-point Gauss–Legendre."""
+    s, h = M(0), (b - a) / m
+    for i in range(m):
+        c, r = a + h * (i + M(1) / 2), h / 2
+        s += r * mp.fsum(w * g(c + r * x) for x, w in _gl(n))
+    return s
+
+def _over_s(h, nu, n):
+    """∫ g_ν(s) h(s) ds, s = √(χ²_ν/ν), in u = ln s, over where the integrand is within e^-80 of its
+    peak (golden sections and bisection at 20 digits), in panels of n-point Gauss–Legendre at most
+    1.5 wide in u (8 at least): h's step from 1 to 0 has to fall in a panel of its own scale."""
+    if nu == math.inf:
+        return h(M(1))
+    nu = M(nu); lc = mp.log(2) + (nu / 2) * mp.log(nu / 2) - mp.loggamma(nu / 2)
+    def L(u):
+        v = h(mp.exp(u))
+        return lc + nu * u - nu * mp.exp(2 * u) / 2 + mp.log(v) if v > 0 else -M(10) ** 6
+    lo, hi = M(-60) / nu - 2, mp.log1p(M(120) / nu) / 2 + 1
+    with mp.workdps(20):
+        a, b, G = lo, hi, (mp.sqrt(5) - 1) / 2
+        c, d = b - G * (b - a), a + G * (b - a); fc, fd = L(c), L(d)
+        while b - a > 1e-5 * (1 + abs(a)):
+            if fc >= fd: b, d, fd = d, c, fc; c = b - G * (b - a); fc = L(c)
+            else: a, c, fc = c, d, fd; d = a + G * (b - a); fd = L(d)
+        u0 = (a + b) / 2; top = L(u0)
+        def end(lim):
+            if L(lim) > top - 80: return lim
+            x, y = u0, lim
+            for _ in range(20):
+                m = (x + y) / 2
+                if L(m) > top - 80: x = m
+                else: y = m
+            return y
+        left, right = end(lo), end(hi)
+    return _panels(lambda u: mp.exp(L(u)), left, right, max(8, int(mp.ceil((right - left) / 1.5))), n)
+
+def _nq(z): return mp.erfc(z / mp.sqrt(2)) / 2
+
+def tukey_sf_ref(q, k, nu, dps=30, n=48):
+    """P(Q > q) for the studentized range of k normals over ν degrees of freedom (nu = inf: the
+    normal's range), the inner integral as written: k∫ φ(z)[Q(z)^(k−1) − (Q(z) − Q(z+w))^(k−1)] dz,
+    its subtraction carried in `dps` digits; both integrals by fixed Gauss–Legendre (n points a panel),
+    so the answer is checked by asking again with another n."""
+    with mp.workdps(dps):
+        k = int(k)
+        def R(s):
+            w = M(q) * s
+            g = lambda z: k * mp.npdf(z) * (_nq(z) ** (k - 1) - (_nq(z) - _nq(z + w)) ** (k - 1))
+            a = min(-w / 2, M(-6)) - 11
+            return _panels(g, a, M(11), int(mp.ceil((11 - a) / 4)), n)
+        return f(_over_s(R, nu, n))
+
+def dunnett_sf_ref(c, lam, nu, two=True, dps=30, n=48):
+    """P(max |T_i| ≥ c) (one-sided: max T_i ≥ c) for T_i = (λ_i Z₀ + √(1−λ_i²) E_i)/s, as written:
+    ∫ φ(z) [1 − Π(1 − Q(a_i) − Q(b_i))] dz, a_i = (cs − λ_i z)/τ_i, b_i = (cs + λ_i z)/τ_i; the inner
+    integral in panels between the comparisons' peaks λ_i·cs, each split by its own width."""
+    with mp.workdps(dps):
+        L = [M(l) for l in lam]; T = [mp.sqrt(1 - l * l) for l in L]
+        def I(s):
+            w = M(c) * s
+            def g(z):
+                p = M(1)
+                for l, t in zip(L, T):
+                    p *= 1 - _nq((w - l * z) / t) - (_nq((w + l * z) / t) if two else 0)
+                return mp.npdf(z) * (1 - p)
+            top = max(l * w for l in L) + 11
+            pts = sorted(set([M(0) if two else M(-11), top] + [min(top, max(M(0) if two else M(-11), l * w + j * t)) for l, t in zip(L, T) for j in (-6, -2, 0, 2, 6)]))
+            v = mp.fsum(_panels(g, pts[i], pts[i + 1], max(1, int(mp.ceil((pts[i + 1] - pts[i]) / 3))), n) for i in range(len(pts) - 1))
+            return 2 * v if two else v
+        return f(_over_s(I, nu, n))
+
+# ---------- one-way analysis of variance, exactly (STATS_SPEC 2.4) ----------
+def anova_ref(groups):
+    """The table, η², ω² and Welch's F of groups of doubles, as rationals (one rounding at the end),
+    the tails in 40 digits. Also returns the means, counts and variances as Fractions (`_q`)."""
+    G = [[Fr(x) for x in g] for g in groups]; ns = [len(g) for g in G]; N, k = sum(ns), len(G)
+    means = [sum(g) / len(g) for g in G]; Mq = sum(sum(g) for g in G) / N
+    ssw = sum(sum((x - m) ** 2 for x in g) for g, m in zip(G, means)); ssb = sum(n * (m - Mq) ** 2 for n, m in zip(ns, means))
+    df1, df2 = k - 1, N - k; msw = ssw / df2; F = (ssb / df1) / msw; sst = ssb + ssw
+    out = {"ssb": fl(ssb), "ssw": fl(ssw), "F": fl(F), "p": f_sf(mpq(F), df1, df2), "eta2": fl(ssb / sst), "omega2": fl((ssb - df1 * msw) / (sst + msw))}
+    var = [sum((x - m) ** 2 for x in g) / (len(g) - 1) if len(g) > 1 else None for g, m in zip(G, means)]
+    if all(v is not None and v > 0 for v in var):
+        w = [n / v for n, v in zip(ns, var)]; W = sum(w); mu = sum(wi * m for wi, m in zip(w, means)) / W
+        a = sum(wi * (m - mu) ** 2 for wi, m in zip(w, means)) / df1; b = sum((1 - wi / W) ** 2 / (n - 1) for wi, n in zip(w, ns))
+        Fw = a / (1 + 2 * (k - 2) * b / (k * k - 1)); d2 = Fr(k * k - 1) / (3 * b)
+        out.update({"welch.F": fl(Fw), "welch.df2": fl(d2), "welch.p": f_sf(mpq(Fw), df1, mpq(d2))})
+    out["_q"] = {"means": means, "ns": ns, "var": var, "msw": msw, "df2": df2, "k": k}
+    return out

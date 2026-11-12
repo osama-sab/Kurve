@@ -1024,6 +1024,20 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 2, slice 2.4: one-way ANOVA (2026-11-12)
+
+- **Analyze › Statistics › ANOVA › One-way ANOVA…**: groups as columns, or one column grouped by
+  another. The table (between, within, total), η² and ω², Welch's F if asked, each group's mean with
+  its interval, and comparisons: Tukey–Kramer, Bonferroni, Holm, Šidák, Scheffé, Fisher's LSD,
+  Games–Howell, Dunnett against a control. *Means plot* under the report.
+- The studentized range and Dunnett's many-to-one t, to about 1e-15 against 40-digit references
+  (SciPy's studentized range is off by up to 5e-13; its Dunnett is randomised).
+- NIST's ANOVA sets: 2e-16 from the exact answer for the doubles their decimals parse to.
+- Report tables of one row are shown as names and values; headers wrap.
+
+Checked: `fixtures/anova.json` (58), `range.json` (40 digits), the fuzzer, stats-test (13 new),
+ana-drive (13 new, 92), perf (2 new lines), the suite.
+
 ## Numbers, not verdicts (2026-11-12)
 
 The user's rule: the software reports, the user judges. Recorded once (STATS_SPEC decision 9,

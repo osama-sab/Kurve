@@ -222,5 +222,44 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("the tests refuse what they cannot test, in words", /2 values/.test(t1([1]).fail) && /same/.test(t1([2, 2, 2]).fail) && /whole number/.test(p1(3.5, 10, {}).fail) && /empty/.test(fi(0, 0, 3, 4).fail));
 }
 
+// One-way ANOVA (STATS_SPEC 2.4): F's and Welch's size under the null; the family-wise error of Tukey–Kramer,
+// Dunnett, Bonferroni and Scheffé against their critical values (the distributions themselves under test);
+// the studentized range and Dunnett's t at their exact special cases.
+{
+  const mb = get("mulberry32")(2404), gauss = () => { let u = 0; while (u === 0) u = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * mb()); };
+  const A = get("anova1"), C = get("anovaComp"), TS = get("tukeySf"), TI = get("tukeyIsf"), DS = get("dunnettSf"), DI = get("dunnettIsf"), D = get("DIST");
+  const N = 20000, half = 3.29 * Math.sqrt(0.05 * 0.95 / N), smp = (n, s) => Array.from({ length: n }, () => s * gauss());
+  const ns = [5, 7, 6, 8], eqn = [6, 6, 6, 6], qT = TI(0.05, 4, 20), qK = TI(0.05, 4, 22), lam = [7, 6, 8].map((n) => Math.sqrt(n / (n + 5))), dC = DI(0.05, lam, 22, true);
+  const fS = Math.sqrt(3 * D.F.isf(0.05, 3, 22)), tB = D.t.isf(0.05 / 12, 22);
+  const r = { F: 0, welch: 0, tukey: 0, tk: 0, dun: 0, bonf: 0, sch: 0 };
+  for (let i = 0; i < N; i++) {
+    const g = eqn.map((n) => smp(n, 1)), a = A(g); if (a.p < 0.05) r.F++;
+    const G = a.G, M = (j) => G[j].m + G[j].e; let mq = 0;
+    for (let x = 0; x < 4; x++) for (let y = x + 1; y < 4; y++) mq = Math.max(mq, Math.abs(M(x) - M(y)) / Math.sqrt(a.msw / 2 * (2 / 6)));
+    if (mq > qT) r.tukey++;
+    const h = ns.map((n) => smp(n, 1)), b = A(h), H = b.G, Mb = (j) => H[j].m + H[j].e; let mk = 0, md = 0, mt = 0;
+    for (let x = 0; x < 4; x++) for (let y = x + 1; y < 4; y++) { const t = Math.abs(Mb(x) - Mb(y)) / Math.sqrt(b.msw * (1 / ns[x] + 1 / ns[y])); mk = Math.max(mk, t * Math.SQRT2); mt = Math.max(mt, t); }
+    for (let y = 1; y < 4; y++) md = Math.max(md, Math.abs(Mb(y) - Mb(0)) / Math.sqrt(b.msw * (1 / ns[y] + 1 / ns[0])));
+    if (mk > qK) r.tk++; if (md > dC) r.dun++; if (mt > tB) r.bonf++; if (mt > fS) r.sch++;
+    const w = [1, 2, 3, 4].map((s, j) => smp(5 + 2 * j, s)), c = A(w); if (c.welch.p < 0.05) r.welch++;
+  }
+  const z = (k) => r[k] / N;
+  check(`One-way ANOVA's F rejects 5 % of samples under its null (±${(half * 100).toFixed(2)} %)`, Math.abs(z("F") - 0.05) < half, z("F"));
+  check("Welch's F rejects about 5 % with unequal variances and sizes (within 1 %: it is an approximation)", Math.abs(z("welch") - 0.05) < 0.01, z("welch"));
+  check("Tukey's family-wise error with equal groups is 5 % (the studentized range's quantile)", Math.abs(z("tukey") - 0.05) < half, z("tukey"));
+  check("Tukey–Kramer's with unequal groups is at or below 5 %", z("tk") < 0.05 + half, z("tk"));
+  check("Dunnett's family-wise error, unequal groups, is 5 % (its many-to-one quantile)", Math.abs(z("dun") - 0.05) < half, z("dun"));
+  check("Bonferroni's and Scheffé's are at or below 5 %", z("bonf") < 0.05 + half && z("sch") < 0.05 + half, [z("bonf"), z("sch")]);
+  check("the studentized range of two is |t|·√2 exactly", [0.5, 2, 4.5, 9].every((q) => Math.abs(TS(q, 2, 9) - 2 * D.t.sf(q / Math.SQRT2, 9)) < 1e-15));
+  check("its quantile gives back its level", [[0.05, 3, 10], [0.01, 6, 40], [1e-6, 4, 12], [0.5, 10, 5]].every(([p, k, nu]) => Math.abs(TS(TI(p, k, nu), k, nu) / p - 1) < 1e-11));
+  check("Dunnett's t with one comparison is the two-sided t", [1, 2.5, 6].every((c) => Math.abs(DS(c, [0.6], 14, true) / (2 * D.t.sf(c, 14)) - 1) < 1e-12), [1, 2.5, 6].map((c) => DS(c, [0.6], 14, true) / (2 * D.t.sf(c, 14)) - 1));
+  check("…and one-sided, the one tail", Math.abs(DS(2, [0.6], 14, false) / D.t.sf(2, 14) - 1) < 1e-12);
+  check("Holm's p lies between the raw and Bonferroni's", (() => { const a = A([smp(5, 1), smp(6, 1).map((x) => x + 1.5), smp(7, 1), smp(5, 1).map((x) => x + 0.8)]);
+    const ho = C(a, "holm").rows, bo = C(a, "bonf").rows, ls = C(a, "lsd").rows; return ho.every((x, i) => x.p >= ls[i].p - 1e-15 && x.p <= bo[i].p + 1e-15); })());
+  const a = A([[1, 2, 3], [2, 4, 5], [7, 8, 6.5]]);
+  check("η² lies in [0, 1] and ω² below it", a.eta2 >= 0 && a.eta2 <= 1 && a.omega2 < a.eta2);
+  check("one-way ANOVA refuses what it cannot test, in words", /two groups/.test(A([[1, 2, 3]]).fail) && /same/.test(A([[2, 2], [2, 2]]).fail) && /more values/.test(A([[1], [2]]).fail) && /spread in every/.test(A([[1], [2, 3], [4, 5]]).welch.fail));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

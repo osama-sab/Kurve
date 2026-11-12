@@ -300,6 +300,98 @@ for nu in [1, 3, 9, 30, 200]:
             cases.append({"fn": "nctCdf", "args": [t, nu, dl], "want": w, "kind": "abs"})
 out["test23"] = cases
 
+# ---------- one-way ANOVA (STATS_SPEC 2.4): the table and Welch's F exactly; the comparisons' tails ----------
+def comp_ref(q, kind, conf, ctrl=0):
+    """Each comparison's difference, SE, statistic, p and interval: the arithmetic in rationals and 40
+    digits, the studentized range's tail and quantile from SciPy (its absolute accuracy, about 1e-15)."""
+    from scipy.stats import studentized_range as SR
+    means, ns, var, msw, df, k = q["means"], q["ns"], q["var"], q["msw"], q["df2"], q["k"]
+    al = 1 - conf; pairs = [(i, j) for i in range(k) for j in range(i + 1, k)]; m = len(pairs); rows = []
+    for i, j in pairs:
+        d = means[i] - means[j]
+        if kind == "tukey":
+            se = refs.mp.sqrt(refs.mpq(msw / 2 * (Fr(1, ns[i]) + Fr(1, ns[j])))); qv = abs(refs.mpq(d)) / se; cr = SR.isf(al, k, df)
+            rows.append({"diff": refs.fl(d), "se": float(se), "stat": float(qv), "p": SR.sf(float(qv), k, df), "lo": float(refs.mpq(d) - cr * se), "hi": float(refs.mpq(d) + cr * se)})
+        elif kind == "gh":
+            vi, vj = var[i] / ns[i], var[j] / ns[j]; s2 = vi + vj; dfi = s2 * s2 / (vi * vi / (ns[i] - 1) + vj * vj / (ns[j] - 1))
+            se = refs.mp.sqrt(refs.mpq(s2 / 2)); qv = abs(refs.mpq(d)) / se; cr = SR.isf(al, k, float(dfi))
+            rows.append({"diff": refs.fl(d), "se": float(se), "stat": float(qv), "p": SR.sf(float(qv), k, float(dfi)), "lo": float(refs.mpq(d) - cr * se), "hi": float(refs.mpq(d) + cr * se)})
+        else:
+            se = refs.mp.sqrt(refs.mpq(msw * (Fr(1, ns[i]) + Fr(1, ns[j])))); t = refs.mpq(d) / se; raw = refs.M(refs.t_two_sided(float(t), df))
+            rows.append({"diff": refs.fl(d), "se": float(se), "t": t, "raw": raw})
+    if kind in ("tukey", "gh"): return rows
+    if kind == "scheffe":
+        cr = refs.mp.sqrt((k - 1) * refs.M(stats.f.isf(al, k - 1, df)))
+        for r in rows: Fv = r["t"] ** 2 / (k - 1); r.update({"stat": float(Fv), "p": refs.f_sf(Fv, k - 1, df), "lo": float(refs.M(r["diff"]) - cr * refs.M(r["se"])), "hi": float(refs.M(r["diff"]) + cr * refs.M(r["se"]))})
+    elif kind == "holm":
+        order = sorted(range(m), key=lambda i: rows[i]["raw"]); run = refs.M(0)
+        for rank, i in enumerate(order): run = max(run, min(refs.M(1), (m - rank) * rows[i]["raw"])); rows[i].update({"stat": float(rows[i]["t"]), "p": float(run), "lo": None, "hi": None})
+    else:
+        q2 = {"bonf": al / (2 * m), "sidak": float(-refs.mp.expm1(refs.mp.log(refs.M(conf)) / m) / 2), "lsd": al / 2}[kind]; tc = refs.M(refs.t_isf(q2, df, stats.t.isf(q2, df)))
+        for r in rows:
+            p = r["raw"]; p = min(refs.M(1), m * p) if kind == "bonf" else -refs.mp.expm1(m * refs.mp.log1p(-p)) if kind == "sidak" else p
+            r.update({"stat": float(r["t"]), "p": float(p), "lo": float(refs.M(r["diff"]) - tc * refs.M(r["se"])), "hi": float(refs.M(r["diff"]) + tc * refs.M(r["se"]))})
+    for r in rows: r.pop("t", None); r.pop("raw", None)
+    return rows
+cases = []; rng = np.random.default_rng(24)
+SETS = [("k=3, 5 each", [rng.normal(10, 1, 5) for _ in range(3)]),
+        ("k=4, unequal n", [rng.normal(mu, 0.8, n) for mu, n in [(5, 5), (6.7, 6), (5.2, 4), (8, 5)]]),
+        ("k=6, unequal n and spread", [rng.normal(mu, sd, n) for mu, sd, n in [(0, 1, 3), (0.5, 2, 12), (1, 0.5, 7), (-0.3, 1.5, 9), (2, 1, 5), (0.2, 3, 11)]]),
+        ("k=2", [rng.normal(3, 1, 8), rng.normal(3.9, 1.4, 11)]),
+        ("k=3 near 1e9", [1e9 + rng.normal(0, 0.01, 7) for _ in range(3)]),
+        ("k=8, 4 each", [rng.normal(i * 0.3, 1, 4) for i in range(8)]),
+        ("a group of one", [rng.normal(1, 1, 6), [2.5], rng.normal(1.4, 1, 5)])]
+for name, gs in SETS:
+    gs = [[float(v) for v in g] for g in gs]; r = refs.anova_ref(gs); q = r.pop("_q")
+    s = stats.f_oneway(*gs)
+    if abs(s.statistic - r["F"]) > 1e-9 * r["F"]: print("  reference check, f_oneway:", name, s.statistic, r["F"])
+    cases.append({"fn": "anova1", "args": [gs], "want": r, "kind": "test", "name": name})
+    if name in ("k=3 near 1e9", "a group of one"): continue
+    for kind in ["tukey", "bonf", "holm", "sidak", "scheffe", "lsd", "gh"]:
+        for conf in ([0.95, 0.99] if kind == "tukey" else [0.95]):
+            cases.append({"fn": "anovaComp", "args": [gs, kind, {"conf": conf}], "want": comp_ref(q, kind, conf), "kind": "comp", "name": f"{name} {kind} {conf}"})
+    if name == "k=4, unequal n":
+        t = stats.tukey_hsd(*gs); w = comp_ref(q, "tukey", 0.95); k = len(gs); pairs = [(i, j) for i in range(k) for j in range(i + 1, k)]
+        if max(abs(t.pvalue[i, j] - x["p"]) for (i, j), x in zip(pairs, w)) > 1e-12: print("  reference check, tukey_hsd p differs")
+def nist_anova(name):
+    lines = open(os.path.join(here, "nist", name), encoding="ascii").read().splitlines()
+    cert = {}
+    for l in lines:
+        t = l.split()
+        if l.strip().startswith("Between"): cert.update({"df1": int(t[2]), "ssb": float(t[3]), "msb": float(t[4]), "F": float(t[5])})
+        if l.strip().startswith("Within"): cert.update({"df2": int(t[2]), "ssw": float(t[3]), "msw": float(t[4])})
+        if "R-Squared" in l: cert["R2"] = float(t[-1])
+        if "Standard Deviation" in l: cert["sd"] = float(t[-1])
+    k = max(i for i, l in enumerate(lines) if l.strip().startswith("Data:"))
+    rows = [l.split() for l in lines[k + 1:] if l.strip()]; by = {}
+    for t, y in rows: by.setdefault(t, []).append(float(y))
+    gs = list(by.values()); r = refs.anova_ref(gs); q = r.pop("_q")
+    exact = {"ssb": r["ssb"], "ssw": r["ssw"], "F": r["F"], "msw": refs.fl(q["msw"])}
+    return {"fn": "nistAnova", "args": [name], "want": exact, "info": cert, "kind": "nist", "name": name}
+for nm in ["SiRstv", "SmLs01", "SmLs02", "SmLs03", "SmLs04", "SmLs05", "SmLs06", "SmLs07", "SmLs08", "SmLs09", "AtmWtAg"]:
+    cases.append(nist_anova(nm + ".dat"))
+out["anova"] = cases
+
+# ---------- the studentized range and Dunnett's distribution, 40 digits (slow: made with --slow) ----------
+def _slow(c):
+    fn, a = c
+    deep = a[0] >= 7  # far tails: more digits for the subtraction the reference carries
+    return refs.tukey_sf_ref(*a, dps=45 if deep else 30) if fn == "tukeySf" else refs.dunnett_sf_ref(*a, dps=45 if deep else 30)
+if "--slow" in args:
+    import multiprocessing as mpc
+    sl = []
+    for k in [3, 5, 10, 20]:
+        for nu in [2, 7.5, 30, 300, math.inf]:
+            for q in [2.0, 4.0, 7.0, 12.0]:
+                sl.append(("tukeySf", (q, k, nu)))
+    sl += [("tukeySf", (25.0, 4, 60)), ("tukeySf", (30.0, 3, 1)), ("tukeySf", (0.5, 3, 2)), ("tukeySf", (6.0, 50, 1000))]
+    h = 0.5 ** 0.5
+    for lam, nu, two in [([h, h], 6, True), ([h, h, h], 20, True), ([h] * 5, 40, True), ([0.6, 0.6, 0.6], 20, True), ([0.3, 0.9, 0.7], 15, True), ([0.99, 0.2], 8, True), ([0.7, 0.7], 50, False), ([h, h, h], math.inf, True)]:
+        for c in [1.5, 2.5, 4.0, 7.0]:
+            sl.append(("dunnettSf", (c, lam, nu, two)))
+    with mpc.Pool(4) as pool: vals = pool.map(_slow, sl)
+    out["range"] = [{"fn": fn, "args": [*a], "want": v, "kind": "rel"} for (fn, a), v in zip(sl, vals)]
+
 # ---------- distributions fitted to values ----------
 def ks_exact(d, n):
     """Kolmogorov's tail: 40-digit Durbin matrix where it is small, else SciPy's kstwo."""

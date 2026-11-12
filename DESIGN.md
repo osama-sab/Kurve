@@ -898,6 +898,15 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-12: one-way ANOVA (STATS_SPEC 2.4)
+
+- **What judges a comparison comes first**: difference, p, the interval's ends; SE and the statistic
+  after them, in the sheet and the report alike. In the docked Results the first four fit.
+- **A table of one row is names and values**: a t test's fourteen numbers in a column, not a row
+  scrolled sideways. Report headers wrap, and text cells sit left.
+- **No letters for groups that do not differ**: they are a verdict at α (principle 8).
+- **Comparisons that take time go to the worker**, the report saying it is being worked out.
+
 ### 2026-11-12: numbers, not verdicts
 
 The user: the software need not interpret results, the user does that. 2.2 and 2.3 had opened each

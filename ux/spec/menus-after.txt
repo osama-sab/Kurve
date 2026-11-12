@@ -194,6 +194,8 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
       Graphical summary  ## + (STATS_SPEC 2.1): a figure of the histogram with a normal curve and the box chart
       Normality tests…  ## + (STATS_SPEC 2.2): Shapiro–Wilk and four more, a Q–Q plot from the result
       Outliers…  ## + (STATS_SPEC 2.2): Grubbs or Dixon's Q, the outliers masked or marked
+    ANOVA  ## + (STATS_SPEC 2.4): Origin's ANOVA
+      One-way ANOVA…  ## + the table, η² and ω², Welch's F, eight comparisons of means, a means plot
     Hypothesis tests  ## + (STATS_SPEC 2.3): Origin's Hypothesis Testing
       t tests…  ## + one sample, two (Welch's by default), paired; d and g with their intervals
       Comparing spreads…  ## + Levene (means, medians), Bartlett, F

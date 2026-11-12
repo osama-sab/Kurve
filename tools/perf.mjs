@@ -44,6 +44,8 @@ const BUDGET = {
   "2000 columns: worksheet": [100, "the worksheet of 2000 columns drawn"],
   "2000 columns: History": [150, "the History opened on 2000 columns"],
   "2000 columns: Statistics": [150, "the Statistics window opened on 2000 columns"],
+  "ANOVA: 1M values": [1000, "one-way ANOVA of four groups of 250 000 values (the table, Welch's F, the groups)"],
+  "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
 };
 const got = {};
 const best = async (fn) => { let m = Infinity; for (let i = 0; i < RUNS; i++) m = Math.min(m, await fn()); return m; };
@@ -95,6 +97,14 @@ await withPage(async (p) => {
   got["2000 columns: worksheet"] = await best(() => p.evaluate(() => { focusWin("sheet"); const a = performance.now(); renderWs(); return performance.now() - a; }));
   got["2000 columns: History"] = await best(() => p.evaluate(() => { closeWin("flow"); const a = performance.now(); openWin("flow", { render: true }); return performance.now() - a; }));
   got["2000 columns: Statistics"] = await best(() => p.evaluate(() => { closeWin("stats"); const a = performance.now(); openWin("stats", { render: true }); return performance.now() - a; }));
+});
+
+// One-way ANOVA (STATS_SPEC 2.4): the kind run as the worker runs it.
+await withPage(async (p) => {
+  got["ANOVA: 1M values"] = await best(() => p.evaluate(() => { const mb = mulberry32(7), ins = [0, 1, 2, 3].map((g) => ({ name: "G" + g, vals: Array.from({ length: 250000 }, () => 10 + g * 0.01 + mb()) }));
+    const a = performance.now(); anaRunKind("anova1", ins, { comps: [], welch: true }); return performance.now() - a; }));
+  got["ANOVA: Tukey, 10 groups"] = await best(() => p.evaluate(() => { const mb = mulberry32(8), ins = Array.from({ length: 10 }, (_, g) => ({ name: "G" + g, vals: Array.from({ length: 8 }, () => g * 0.2 + mb()) }));
+    const a = performance.now(); anaRunKind("anova1", ins, { comps: ["tukey"] }); return performance.now() - a; }));
 });
 
 await browser.close(); server.close();

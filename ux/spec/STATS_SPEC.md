@@ -264,11 +264,31 @@ Kurve's agreed with the tail computed as itself to 5e-15.
 ## 2.4 One-way ANOVA
 
 The table (between, within, total: DF, sum of squares, mean square, F, p), η² and ω²; Welch's
-ANOVA; Levene's test beside it; comparisons of means: Tukey–Kramer (the studentized range, its
-distribution a part of this slice with its fixtures), Bonferroni, Holm, Šidák, Scheffé, Fisher's
-LSD, Games–Howell, Dunnett against a control (the multivariate t by Genz's method, a sub-slice);
-the groups that do not differ as letters; a means plot with intervals. NIST's ANOVA sets to their
-certified digits (SmLs07–09: centred, two-pass sums).
+ANOVA; comparisons of means: Tukey–Kramer (the studentized range, its distribution a part of this
+slice with its fixtures), Bonferroni, Holm, Šidák, Scheffé, Fisher's LSD, Games–Howell, Dunnett
+against a control; a means plot with intervals. No letters for groups that do not differ (a
+verdict, decision 9); no Levene unasked (Comparing spreads is a click away). NIST's ANOVA sets to
+their certified digits (SmLs07–09: centred, two-pass sums).
+
+Built (12.11):
+- **The table** is worked out on each group's values less one value (exact within a factor of two,
+  Sterbenz), each group's mean with its rounding (`msd`). Against the exact answer for the doubles
+  NIST's files parse to: 2e-16. Against the certified values: 13–15 digits for SiRstv and SmLs01–03,
+  10 for SmLs04–06 and AtmWtAg, 4 for SmLs07–09. That is all the parsed doubles allow (0.4 near 10¹²
+  parses to 0.40002).
+- **The studentized range** (`tukeySf`) and **Dunnett's many-to-one t** (`dunnettSf`) are double
+  integrals: over s (in ln s) and over the smallest value (or the shared normal). Each is taken about
+  its peak in 20-point Gauss–Legendre panels three widths wide, and 1 − (…) is never formed. Dunnett's
+  correlation is the many-to-one structure exactly, a one-dimensional integral; SciPy's `dunnett` is
+  randomised (1e-1 off at a p of 1e-4).
+- **Against 40-digit references** (`range.json`, `--slow`): see the targets. SciPy's studentized
+  range is off by up to 5e-13 absolutely (7e-6 relative at a p of 3e-8), drifts past ν = 10⁴ and
+  takes the normal's past 10⁵. The fuzzer judges against it at 1e-12, ν ≤ 1000.
+- **Comparisons**: Tukey–Kramer, Bonferroni, Holm (no interval), Šidák, Scheffé, Fisher's LSD,
+  Games–Howell, Dunnett (two-sided, a control chosen). Those estimated past 150 ms go to the worker
+  (`anovaCost`).
+- **Checked**: `anova.json` (58 cases), `range.json`, the fuzzer (`anova1@F`, `@p`, `@ssw` against
+  rationals; `tukeySf`), stats-test (13), ana-drive (13), perf (two lines).
 
 ## 2.5 The linear model
 

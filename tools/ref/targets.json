@@ -312,5 +312,49 @@
  "nctCdf": {
   "tol": 1e-12,
   "why": "absolute: the series subtracts far in the lower tail of a negative t, where only absolute accuracy holds (what an interval needs)"
+ },
+ "anova1.ss": {
+  "tol": 1e-14
+ },
+ "anova1.F": {
+  "tol": 1e-14
+ },
+ "anova1.p": {
+  "tol": 1e-13
+ },
+ "anova1.effect": {
+  "tol": 1e-14,
+  "floor": 1e-15
+ },
+ "anova1.welch": {
+  "tol": 1e-13
+ },
+ "anovaComp.arith": {
+  "tol": 1e-13
+ },
+ "anovaComp.q.p": {
+  "tol": 1e-12,
+  "floor": 1e-13,
+  "why": "against SciPy's studentized range, off by up to 5e-14 absolutely (two such cases in 40 digits: Kurve right to 3e-15); range.json holds the 40-digit tails"
+ },
+ "anovaComp.q.ci": {
+  "tol": 1e-11,
+  "why": "SciPy's quantile is a root found to its own tolerance"
+ },
+ "anovaComp.t.p": {
+  "tol": 1e-13
+ },
+ "anovaComp.t.ci": {
+  "tol": 1e-13
+ },
+ "nist.anova": {
+  "tol": 1e-14,
+  "why": "against the exact answer for the doubles NIST's decimals parse to; the certified values are printed beside as digits right"
+ },
+ "tukeySf": {
+  "tol": 1e-13
+ },
+ "dunnettSf": {
+  "tol": 1e-13
  }
 }
