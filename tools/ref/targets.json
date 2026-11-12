@@ -41,10 +41,7 @@
   "tol": 1e-12
  },
  "distFit.pks": {
-  "tol": 0.01,
-  "until": "2.2",
-  "now": 0.03,
-  "why": "Kolmogorov's series with Stephens' n correction, not the exact distribution"
+  "tol": 1e-11
  },
  "lmFit.params": {
   "tol": 1e-06
@@ -122,5 +119,70 @@
  },
  "descStats.order": {
   "tol": 1e-15
+ },
+ "swTest.w": {
+  "tol": 1e-14
+ },
+ "swTest.p": {
+  "tol": 1e-11,
+  "why": "p is Φ of a function of ln(1 − W), which multiplies an error in W by 1/(1 − W)"
+ },
+ "lfTest.d": {
+  "tol": 1e-14
+ },
+ "lfTest.p": {
+  "tol": 1e-13
+ },
+ "ksnTest.d": {
+  "tol": 1e-14
+ },
+ "ksnTest.p": {
+  "tol": 1e-10,
+  "why": "Kolmogorov's tail; Miller's 2·one-sided where n·d² passes 2.2 (kolmogN.sf)"
+ },
+ "adTest.a2": {
+  "tol": 1e-11,
+  "why": "A² is a sum of n logarithms cancelling to a small number: its relative error grows with n over A²"
+ },
+ "adTest.as": {
+  "tol": 1e-11
+ },
+ "adTest.p": {
+  "tol": 1e-11
+ },
+ "dagoTest.zs": {
+  "tol": 1e-13
+ },
+ "dagoTest.zk": {
+  "tol": 1e-12
+ },
+ "dagoTest.k2": {
+  "tol": 1e-13
+ },
+ "dagoTest.p": {
+  "tol": 1e-12
+ },
+ "grubbsTest.G": {
+  "tol": 1e-14
+ },
+ "grubbsTest.p": {
+  "tol": 1e-12
+ },
+ "grubbsTest.Gc": {
+  "tol": 1e-14
+ },
+ "kolmogN.cdf": {
+  "tol": 1e-12
+ },
+ "kolmogN.sf": {
+  "tol": 1e-10,
+  "why": "past n·x² = 2.2 the tail is Miller's twice the one-sided tail (SciPy's too), which leaves out both sides at once; below, 1 − P(D ≤ x)"
+ },
+ "kolmogN.pg": {
+  "tol": 1e-08,
+  "why": "the reference is SciPy's Pelz and Good expansion (1e-9 off at 5000 values) where Durbin's matrix in 40 digits is too slow to make; Kurve's is the matrix"
+ },
+ "dixonP": {
+  "tol": 1e-12
  }
 }

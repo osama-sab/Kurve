@@ -143,5 +143,48 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("Tukey's hinges are the medians of each half, the median in both when n is odd", qT([1, 2, 3, 4, 5], 0.25, "tukey") === 2 && qT([1, 2, 3, 4, 5], 0.75, "tukey") === 4 && qT([1, 2, 3, 4, 5, 6], 0.25, "tukey") === 2 && qT([1, 2, 3, 4, 5, 6], 0.75, "tukey") === 5);
 }
 
+// Normality and outliers (STATS_SPEC 2.2): each test's size under normal data, within its binomial interval
+// (99.9 %, 20 000 samples of 20), Shapiro–Wilk's p uniform, the statistics unmoved by a shift and a scale,
+// Grubbs' critical values as ASTM E178 prints them, Dixon's critical value giving its level.
+{
+  const mb = get("mulberry32")(2207), gauss = () => { let u = 0; while (u === 0) u = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * mb()); };
+  const sw = get("swTest"), lf = get("lfTest"), ad = get("adTest"), dk = get("dagoTest"), ksn = get("ksnTest"), gr = get("grubbsTest"), dx = get("dixonTest"), dc = get("dixonCrit");
+  const N = 20000, n = 20, half = 3.29 * Math.sqrt(0.05 * 0.95 / N), rej = { sw: 0, lf: 0, ad: 0, dk: 0, ks: 0, gr: 0, dx: 0 }, ps = [];
+  const qc = dc(n, 0.05, "two");
+  for (let r = 0; r < N; r++) {
+    const v = []; for (let i = 0; i < n; i++) v.push(gauss());
+    const a = sw(v); ps.push(a.p); if (a.p < 0.05) rej.sw++;
+    if (lf(v).p < 0.05) rej.lf++; if (ad(v).p < 0.05) rej.ad++; if (dk(v).p < 0.05) rej.dk++; if (ksn(v).p < 0.05) rej.ks++;
+    if (gr(v, { side: "two", alpha: 0.05 }).rounds[0].out) rej.gr++;
+    const s = v.slice().sort((x, y) => x - y), rg = s[n - 1] - s[0]; if (Math.max((s[n - 1] - s[n - 2]) / rg, (s[1] - s[0]) / rg) > qc) rej.dx++;
+  }
+  const size = (k) => rej[k] / N;
+  for (const [k, nm] of [["sw", "Shapiro–Wilk"], ["lf", "Lilliefors"], ["ad", "Anderson–Darling"], ["gr", "Grubbs, either side"], ["dx", "Dixon's Q at its critical value"]])
+    check(`${nm} rejects normal data 5 % of the time (±${(half * 100).toFixed(2)} %)`, Math.abs(size(k) - 0.05) < half, size(k));
+  check("D'Agostino's K² at 20 values is near its level (its χ² is asymptotic: within 1 %)", Math.abs(size("dk") - 0.05) < 0.01, size("dk"));
+  check("Kolmogorov–Smirnov with the mean and SD fitted rejects far less than 5 % (its p takes them as known)", size("ks") < 0.01, size("ks"));
+  ps.sort((x, y) => x - y); let D = 0; ps.forEach((p, i) => { if (p <= 0.3) D = Math.max(D, Math.abs(p - (i + 1) / N), Math.abs(p - i / N)); });
+  // Above about one half Royston's approximation of W's distribution runs high (0.934 of the p's below 0.95):
+  // it was fitted to the lower tail, where decisions are made.
+  check("Shapiro–Wilk's p is uniform under normal data below 0.3 (distance below its 99.9 % point)", D < 1.95 / Math.sqrt(N), D);
+  let wInv = 0;
+  for (let r = 0; r < 100; r++) {
+    const m = 8 + Math.floor(mb() * 60), v = []; for (let i = 0; i < m; i++) v.push(gauss() * 3 + 1);
+    const c = 2 ** Math.floor(mb() * 16 - 8), sh = Math.round(mb() * 400) / 4, w = v.map((x) => x * c + sh);
+    for (const [f, k] of [[sw, "w"], [lf, "d"], [ad, "a2"], [dk, "k2"]]) wInv = Math.max(wInv, rel(f(w)[k], f(v)[k]));
+    wInv = Math.max(wInv, rel(gr(w).rounds[0].G, gr(v).rounds[0].G));
+  }
+  check("W, D, A², K² and G are unmoved by a shift and a power of two (to the shifted values' own rounding)", wInv < 1e-10, wInv);
+  const Gc = (m) => gr(Array.from({ length: m }, (_, i) => i)).rounds[0].Gc;
+  check("Grubbs' critical values at 5 %, either side, as ASTM E178: 1.1543, 2.2900, 2.7082, 2.9085 (3, 10, 20, 30 values)",
+    [[3, 1.1543], [10, 2.29], [20, 2.7082], [30, 2.9085]].every(([m, g]) => Math.abs(Gc(m) - g) < 6e-5), [3, 10, 20, 30].map(Gc).join(" "));
+  const base = [0.46, 0.18, 1.34, -2.49, -1.05, 0.7, -0.32, 0.99, 0.25, -0.45, 1.39, 0.11, -0.22, 1.21, 0.64, -0.21, -1.48, -0.69];
+  const rep = gr(base.concat([9, 6]), { side: "two", repeat: true }), one = gr(base.concat([9, 6]), { side: "two" });
+  check("Grubbs repeated finds 9, then 6, then stops; once, 9 alone", rep.out.map((r) => r.value).join() === "9,6" && rep.rounds.length === 3 && !rep.rounds[2].out && one.rounds.length === 1 && one.out[0].row === 18, JSON.stringify(rep.rounds.map((r) => [r.value, +r.G.toFixed(3), r.out])));
+  const mask = gr([1, 2, 3, 2, 1, 3, 2, 30, 2, 1, 3, 25], { side: "two", repeat: true });
+  check("…and two outliers together mask each other (30 and 25 among twelve: nothing found), as Grubbs' test is known to", mask.out.length === 0);
+  check("the tests refuse what they cannot test, in words", sw([1, 2]).fail && sw([2, 2, 2]).fail && ad([1, 2, 3]).fail && dk([1, 2, 3, 4, 5]).fail && dx(Array(31).fill(0).map((_, i) => i)).fail && /3 values or more/.test(sw([1]).fail));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

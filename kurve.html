@@ -505,7 +505,9 @@ body.dwin-page{margin:0;height:100vh;overflow:hidden;background:var(--panel);col
 .wstabs{display:flex;align-items:stretch;gap:var(--sp-1);padding:0 var(--sp-3);min-height:28px;border-top:1px solid var(--rule);background:var(--panel-2);overflow-x:auto;flex:0 0 auto;scrollbar-width:thin}
 .wstabs[hidden]{display:none}
 .wstab.ana{display:inline-flex;align-items:center;gap:var(--sp-1)}.anacols{max-height:260px;max-width:none}.anarow{display:flex;align-items:center;gap:var(--sp-3)}.anarow .grow{flex:1}
-.anastats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--sp-1) var(--sp-4);margin-bottom:var(--sp-4)}.anarows{display:flex;align-items:center;gap:var(--sp-3)}.anarows input{width:6em}
+.anastats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--sp-1) var(--sp-4);margin-bottom:var(--sp-4)}
+.anasaid{font-weight:600;margin:var(--sp-2) 0}
+.anaacts{display:flex;flex-wrap:wrap;gap:var(--sp-2);margin:var(--sp-2) 0 var(--sp-4)}.anarows{display:flex;align-items:center;gap:var(--sp-3)}.anarows input{width:6em}
 .anadlg .grid2 [hidden]{display:none}.wstab.stale{color:var(--warn)}
 .wstab{font:inherit;font-size:var(--fs-tab);color:var(--ink);background:var(--btn-bg);border:1px solid var(--rule);border-top:0;border-radius:0 0 var(--r-s) var(--r-s);padding:var(--sp-1) var(--sp-5);white-space:nowrap;cursor:pointer;max-width:200px;overflow:hidden;text-overflow:ellipsis}
 .wstab:hover{background:var(--btn-bg-h)}
@@ -5698,7 +5700,7 @@ function fitXAt(f,p,cov,fixed,y,a,b,t,n){
    histogram: normal (μ, σ), log-normal (μ and σ of ln x; x above 0), exponential (rate λ; x 0 and
    above). σ is the sample's (n − 1), its error σ/√(2(n − 1)); μ's σ/√n; λ's λ/√n. With the
    Kolmogorov–Smirnov distance D between the values and the fitted distribution, and its p value by
-   Kolmogorov's series (approximate: the parameters come from the same values, so it is generous).
+   Kolmogorov's exact distribution (DIST.kstwo; generous, as the parameters come from the same values).
    {kind, p, e, names, n, pdf, cdf, ks, pks, mean, median} or {fail} in words. */
 const DIST_KINDS=[["normal","Normal"],["lognormal","Log-normal"],["exp","Exponential"]];
 function distFit(vals,kind){
@@ -5715,8 +5717,7 @@ function distFit(vals,kind){
     r={p:[l],e:[l/Math.sqrt(n)],names:["λ"],pdf:x=>x>=0?l*Math.exp(-l*x):0,cdf:x=>x>=0?1-Math.exp(-l*x):0,mean:m,median:Math.LN2*m}; }
   else return {fail:"No such distribution."};
   const s=v.slice().sort((a,b)=>a-b); let D=0; s.forEach((x,i)=>{ const F=r.cdf(x); D=Math.max(D,Math.abs(F-i/n),Math.abs((i+1)/n-F)); });
-  const lam=(Math.sqrt(n)+0.12+0.11/Math.sqrt(n))*D; let q=0; if(lam<0.2) q=1; else for(let k=1;k<=100;k++){ const t=2*(k%2?1:-1)*Math.exp(-2*k*k*lam*lam); q+=t; if(Math.abs(t)<1e-14) break; }
-  return Object.assign(r,{kind,n,ks:D,pks:Math.max(0,Math.min(1,q))}); }
+  return Object.assign(r,{kind,n,ks:D,pks:DIST.kstwo.sf(D,n)}); }
 /* A detector's efficiency and resolution against energy (roadmap 3, slice 3).
    `effCurve(pts, deg)`: ln ε a polynomial of degree 1 to 4 in ln E (about the points' mean), fitted to
    {E, eff (%), err (%)}, weighted by the relative errors when every point has one (the covariance as
@@ -5973,6 +5974,8 @@ const DIST={
     sf:(k,lam)=>{ k=Math.floor(k+1e-7); return k<0?1:lam===0?0:igamPQ(k+1,lam)[0]; },
     ppf:(u,lam)=>qDisc(k=>DIST.pois.cdf(k,lam),k=>DIST.pois.sf(k,lam),u,0,Infinity,lam+probit(Math.min(Math.max(u,1e-300),1-1e-16))*Math.sqrt(lam)) },
   // X successes in n drawn without replacement from r successes and b failures.
+  // Kolmogorov's two-sided distance of n values from a distribution given in full (kolmogN).
+  kstwo:{ cdf:(d,n)=>kolmogN(n,d,true), sf:(d,n)=>kolmogN(n,d,false) },
   hyper:{ pmf:(x,r,b,n)=>x!==Math.floor(x)?0:dhyper(x,r,b,n), cdf:(x,r,b,n)=>phyper(x,r,b,n,true), sf:(x,r,b,n)=>phyper(x,r,b,n,false),
     ppf:(u,r,b,n)=>qDisc(k=>phyper(k,r,b,n,true),k=>phyper(k,r,b,n,false),u,Math.max(0,n-b),Math.min(n,r),n*r/(r+b)) },
 };
@@ -5995,6 +5998,83 @@ function tCrit(level,dof){
 function tQuantile975(dof){ return tCrit(0.95,dof); }
 // The chance of an F at least this large with d1 and d2 degrees of freedom.
 function fPvalue(F,d1,d2){ if(!(d1>0&&d2>0)||!Number.isFinite(F)||Number.isNaN(F)) return NaN; return F<=0?1:DIST.F.sf(F,d1,d2); }
+/* ---- Kolmogorov's distribution, exact (SciPy's _kolmogn: Simard and L'Ecuyer's choice of method, Durbin's
+   matrix taken further, see kolmogN) ---- */
+const KS_E128=128, KS_P128=2**128, KS_M128=2**-128, KS_STIR=[-2.955065359477124183e-2,6.4102564102564102564e-3,-1.9175269175269175269e-3,8.4175084175084175084e-4,-5.952380952380952381e-4,7.9365079365079365079e-4,-2.7777777777777777778e-3,8.3333333333333333333e-2];
+const ksClip=p=>p<0?0:p>1?1:p, ksPick=(c,s,cdf)=>ksClip(cdf?c:s);
+// ln(n!/nⁿ) by Stirling's series with n ln n taken out first, as SciPy.
+function ksLogFacPow(n){ const rn=1/n; let s=0; for(const c of KS_STIR) s=s*(rn/n)+c; return Math.log(n)/2-n+Math.log(2*Math.PI)/2+rn*s; }
+// One side, P(D⁺ₙ ≥ x): Birnbaum and Tingey's sum, each term a binomial probability (Loader's) over its p.
+function smirnovSf(n,x){ if(!(x>0)) return 1; if(x>=1) return 0; let s=0;
+  for(let j=0;j<=n;j++){ const p=x+j/n, q=(1-x)-j/n; if(!(q>0)) break; s+=dbinomRaw(j,n,p,q)/p; }
+  return ksClip(x*s); }
+// Durbin's matrix as Marsaglia, Tsang and Wang compute it: P(Dₙ ≤ d).
+function ksDMTW(n,d){ if(d>=1) return 1; const nd=n*d; if(nd<=0.5) return 0;
+  const k=Math.ceil(nd), h=k-nd, m=2*k-1, H=[]; for(let i=0;i<m;i++) H.push(new Float64Array(m));
+  const v=new Float64Array(m), w=new Float64Array(m); let fac=1;
+  for(let j=1;j<=m;j++){ v[j-1]=1-h**j; w[j-1]=fac; fac/=j; v[j-1]*=fac; }
+  const tt=Math.max(2*h-1,0)**m-2*h**m; v[m-1]=(1+tt)*fac;
+  for(let i=1;i<m;i++) for(let r=i-1;r<m;r++) H[r][i]=w[r-i+1];
+  for(let r=0;r<m;r++) H[r][0]=v[r]; for(let c=0;c<m;c++) H[m-1][c]=v[m-1-c];
+  const mul=(A,B)=>{ const C=[]; for(let i=0;i<m;i++){ const ci=new Float64Array(m), ai=A[i]; for(let l=0;l<m;l++){ const a=ai[l]; if(a===0) continue; const bl=B[l]; for(let j=0;j<m;j++) ci[j]+=a*bl[j]; } C.push(ci); } return C; };
+  let P=[]; for(let i=0;i<m;i++){ const r=new Float64Array(m); r[i]=1; P.push(r); }
+  let M=H, nn=n, ex=0, hex=0;
+  while(nn>0){ if(nn%2){ P=mul(P,M); ex+=hex; } M=mul(M,M); hex*=2;
+    if(Math.abs(M[k-1][k-1])>KS_P128){ for(const r of M) for(let j=0;j<m;j++) r[j]/=KS_P128; hex+=KS_E128; } nn=Math.floor(nn/2); }
+  let p=P[k-1][k-1]; for(let i=1;i<=n;i++){ p=i*p/n; if(Math.abs(p)<KS_M128){ p*=KS_P128; ex-=KS_E128; } }
+  return ex?p*2**ex:p; }
+function ksPomJ(i,n,ll,cf,rf){ let j1,j2; if(i===0){ j1=-ll-cf-1; j2=ll+cf-1; }
+  else { const d=Math.floor((i+1)/2), md=(i+1)%2;
+    if(md===0){ if(d===n+1){ j1=n-ll-cf-1; j2=n+ll+cf-1; } else { j1=d-1-ll-rf-1; j2=d+ll-1+cf-1; } }
+    else { j1=d-1-ll-1; j2=d+ll+rf-1; } }
+  return [Math.max(j1+2,0),Math.min(j2,n)]; }
+// Pomeranz's recursion: P(Dₙ ≤ x).
+function ksPomeranz(n,x){ const t=n*x, ll=Math.floor(t), f=t-ll, g=Math.min(f,1-f), cf=f>0?1:0, rf=f>0.5?1:0, np=2*(ll+1);
+  const gp=new Float64Array(np), tg=new Float64Array(np), og=new Float64Array(np); gp[0]=tg[0]=og[0]=1; let ex=0;
+  for(let m=1;m<np;m++){ gp[m]=gp[m-1]*(g/n)/m; tg[m]=tg[m-1]*(2*g/n)/m; og[m]=og[m-1]*((1-2*g)/n)/m; }
+  let V0=new Float64Array(np), V1=new Float64Array(np); V1[0]=1; let V0s=0, V1s=0, [j1,j2]=ksPomJ(0,n,ll,cf,rf);
+  for(let i=1;i<2*n+2;i++){ const k1=j1; [V0,V1]=[V1,V0]; [V0s,V1s]=[V1s,V0s]; V1.fill(0); [j1,j2]=ksPomJ(i,n,ll,cf,rf);
+    const pw=i===1||i===2*n+1?gp:i%2?tg:og, ln2=j2-k1+1;
+    if(ln2>0){ const st=j1-k1, len=j2-j1+1, off=k1-V0s;
+      for(let r=0;r<len;r++){ const c=st+r; let s=0; for(let q=Math.max(0,c-ln2+1);q<=Math.min(c,ln2-1);q++) s+=(V0[off+q]||0)*(pw[c-q]||0); V1[r]=s; }
+      let mx=0; for(let r=0;r<np;r++) if(V1[r]>mx) mx=V1[r];
+      if(mx>0&&mx<KS_M128){ for(let r=0;r<np;r++) V1[r]*=KS_P128; ex-=KS_E128; }
+      V1s=V0s+j1-k1; } }
+  let a=V1[n-V1s]; for(let m=1;m<=n;m++){ if(Math.abs(a)>KS_P128){ a*=KS_M128; ex+=KS_E128; } a*=m; }
+  return ex?a*2**ex:a; }
+// Pelz and Good's expansion, for large n: P(Dₙ ≤ x).
+function ksPelzGood(n,x,cdf){ if(x<=0) return ksPick(0,1,cdf); if(x>=1) return ksPick(1,0,cdf);
+  const z=Math.sqrt(n)*x, z2=z*z, z3=z2*z, z4=z2*z2, z6=z4*z2, P2=Math.PI**2, P4=P2*P2, P6=P4*P2, S2P=Math.sqrt(2*Math.PI);
+  const ql=-P2/8/z2; if(ql<-708) return ksPick(0,1,cdf); let q=Math.exp(ql);
+  const k1a=-z2, k1b=P2/4, k2a=6*z6+2*z4, k2b=(2*z4-5*z2)*P2/4, k2c=P4*(1-2*z2)/16,
+    k3d=P6*(5-30*z2)/64, k3c=P4*(-60*z2+212*z4)/16, k3b=P2*(135*z4-96*z6)/4, k3a=-30*z6-90*z**8;
+  const K=[0,0,0,0], mk=Math.ceil(16*z/Math.PI);
+  for(let k=mk;k>0;k--){ const m=2*k-1, m2=m*m, m4=m2*m2, m6=m4*m2, qp=q**(8*k), c=[1,k1a+k1b*m2,k2a+k2b*m2+k2c*m4,k3a+k3b*m2+k3c*m4+k3d*m6];
+    for(let i=0;i<4;i++) K[i]=K[i]*qp+c[i]; }
+  const dv=[z,6*z4,72*z**7,6480*z**10]; for(let i=0;i<4;i++) K[i]=K[i]*q*S2P/dv[i];
+  q=Math.exp(-P2/2/z2); const s3=Math.sqrt(3)*z; let e2=0, e3=0;
+  for(let k=mk;k>0;k--){ const k2=k*k, qk=q**k2, kp=Math.PI*k; e2+=k2*qk; e3+=(s3+kp)*(s3-kp)*k2*qk; }
+  K[2]+=e2*P2*S2P/(-36*z3); K[3]+=e3*P2*S2P/(216*z6);
+  for(let i=0;i<4;i++) K[i]/=n**(i/2);
+  if(!cdf){ for(let i=0;i<4;i++) K[i]=-K[i]; K[0]+=1; }
+  return K[0]+K[1]+K[2]+K[3]; }
+// P(Dₙ ≤ x) (cdf) or P(Dₙ > x), the two-sided statistic of n values; each region by the method Simard and L'Ecuyer chose.
+function kolmogN(n,x,cdf){ if(!(n>=1)||Math.floor(n)!==n||!(x===x)) return NaN; if(x>=1) return ksPick(1,0,cdf); if(x<=0) return ksPick(0,1,cdf);
+  const t=n*x;
+  if(t<=1){ if(t<=0.5) return ksPick(0,1,cdf); let p; if(n<=140){ p=1; for(let i=1;i<=n;i++) p*=i*(1/n)*(2*t-1); } else p=Math.exp(ksLogFacPow(n)+n*Math.log(2*t-1)); return ksPick(p,1-p,cdf); }
+  if(t>=n-1){ const p=2*(1-x)**n; return ksPick(1-p,p,cdf); }
+  if(x>=0.5){ const p=2*smirnovSf(n,x); return ksPick(1-p,p,cdf); }
+  const nx2=t*x;
+  if(n<=140){ if(nx2<=0.754693){ const p=ksDMTW(n,x); return ksPick(p,1-p,cdf); }
+    if(nx2<=4){ const p=ksPomeranz(n,x); return ksPick(p,1-p,cdf); }
+    const p=2*smirnovSf(n,x); return ksPick(1-p,p,cdf); }
+  // The tail: Miller's twice the one-sided tail, which leaves out both sides at once (4e-8 off at n·x² = 2.8,
+  // 3e-11 at 4); below 4, 1 − the matrix's P where the matrix is small enough, as SciPy does to 140 values.
+  if(!cdf){ if(nx2>=370) return 0; if(nx2>=4||(nx2>=2.2&&2*Math.ceil(t)-1>201)) return ksClip(2*smirnovSf(n,x)); }
+  // Where SciPy takes Pelz and Good's expansion for speed, Durbin's matrix is used while it is 201 wide or
+  // less (a quarter of a second): the expansion was found 5e-6 off at 500 values, 1e-7 at 2000, 1e-9 at 5000.
+  let c; if(nx2>=18) c=1; else if((n<=100000&&n*x**1.5<=1.4)||2*Math.ceil(t)-1<=201) c=ksDMTW(n,x); else c=ksPelzGood(n,x,true);
+  return ksPick(c,1-c,cdf); }
 /* ==STATS:END== */
 /* ==ANA:START== The analyses' kinds (ux/spec/FOUNDATION_SPEC.md, 1.3), pure: what each works out
    from its inputs' values. Loaded by the compute worker, which runs a large one (anaRunKind). */
@@ -6076,6 +6156,136 @@ function freqLevels(keys,order){ const by=new Map(); let N=0; for(const k0 of ke
   if(!N) return {fail:"There are no values to count."};
   const ks=distKeySort([...by.keys()],order||null); let cum=0;
   return {rows:ks.map(k=>{ const c=by.get(k); cum+=c; return {lev:k,n:c,cum,pct:100*c/N,cpct:100*cum/N}; }),n:N}; }
+// statsmodels' table of Lilliefors' critical values (ten million simulations; BSD-3, Perktold and Kimmel):
+// LF_N the sizes, LF_CV a row each, its columns the levels 1 − LF_PCT/100 from the smallest; LF_AS the
+// asymptotic form past 1600 values, exp(a + b ln n + c ln² n), a row a level.
+const LF_N=[4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,25,30,40,50,100,200,400,800,1600];
+const LF_CV=[[0.43265213,0.4261507,0.42157653,0.41307904,0.39563998,0.37521968,0.35917374,0.34532673,0.29341032,0.25828924,0.22120362,0.18664724,0.16876575,0.14467854],[0.4386304,0.42293504,0.41322814,0.39671728,0.36727643,0.34309223,0.32936832,0.31900772,0.27766941,0.2333944,0.20235666,0.17638354,0.16098893,0.13587046],[0.42304439,0.40001813,0.38760943,0.37038945,0.3456671,0.32338252,0.30829444,0.29713753,0.2585473,0.2186713,0.18597849,0.16384021,0.15139467,0.12919635],[0.40078798,0.37908881,0.3678189,0.35070348,0.32532967,0.3042307,0.29068512,0.28031415,0.24243592,0.20617949,0.17435948,0.15238656,0.14163065,0.12263812],[0.38252055,0.3603517,0.34911188,0.33279908,0.30862157,0.28804474,0.27501697,0.2652001,0.22936164,0.19477376,0.16537078,0.14353311,0.13297288,0.11633728],[0.36524182,0.34406772,0.33312043,0.31708299,0.29383667,0.27415243,0.26161129,0.25223085,0.21822055,0.18510669,0.15748048,0.1365291,0.126086,0.11029593],[0.35061378,0.32960742,0.31888089,0.30341763,0.2809226,0.26202351,0.25001629,0.24098605,0.20848607,0.17679904,0.15042835,0.13065174,0.12044377,0.10487398],[0.33743951,0.31678589,0.30646087,0.29148756,0.26961902,0.25142048,0.23987246,0.23119563,0.19993088,0.1695621,0.14421024,0.12540948,0.11563925,0.10036835],[0.32558601,0.30538827,0.29526801,0.28077229,0.25959488,0.24194831,0.23082937,0.22244871,0.19233706,0.16313672,0.13877133,0.12069511,0.11137479,0.09649147],[0.31445229,0.29504428,0.28519234,0.27100552,0.25054975,0.23346007,0.22267463,0.21463087,0.18555597,0.15739248,0.13389325,0.11647389,0.10753337,0.09318309],[0.30466148,0.28555592,0.2760657,0.26231339,0.2423819,0.22585144,0.21536969,0.2075745,0.17944478,0.15221479,0.12948657,0.11266368,0.1040431,0.09024138],[0.29551017,0.27706522,0.26772298,0.25427802,0.23499116,0.21891697,0.20879449,0.2011939,0.17390304,0.14751778,0.12552356,0.1092263,0.10085666,0.08750578],[0.28745211,0.26913735,0.26003621,0.24703504,0.22822187,0.21257643,0.20274039,0.19537444,0.16885124,0.14327014,0.1219047,0.10607182,0.09795236,0.08501529],[0.2798316,0.26200104,0.25306469,0.2402864,0.22204864,0.20683438,0.19722541,0.1900207,0.16422592,0.13936135,0.11859867,0.10320903,0.09529635,0.0827393],[0.27285099,0.25527246,0.24665892,0.23420221,0.2163409,0.20145911,0.1921063,0.18509495,0.15996707,0.13575222,0.11554003,0.10055901,0.09285546,0.08063198],[0.26624557,0.24912401,0.24068403,0.22854301,0.21105313,0.19652196,0.18736281,0.18052002,0.15602767,0.1324079,0.11271608,0.09810264,0.09059543,0.0786934],[0.2602868,0.24349604,0.23513834,0.22327259,0.20610189,0.19190794,0.18297149,0.1762829,0.15236687,0.12930804,0.11008398,0.09582876,0.08852309,0.07686372],[0.2350391,0.21979198,0.21221932,0.2013265,0.18582499,0.17300926,0.16493761,0.15889286,0.1373056,0.11656692,0.09927555,0.08645091,0.07985746,0.06933943],[0.21612086,0.20198353,0.19492393,0.18492078,0.17058849,0.15878307,0.15138566,0.14586121,0.12603791,0.10701841,0.09118039,0.07942847,0.07339662,0.06380332],[0.18870328,0.17633078,0.17009968,0.16131916,0.14877502,0.13850018,0.13202416,0.12719016,0.10994266,0.09339439,0.07961554,0.06940064,0.06414642,0.055784],[0.16985345,0.15854061,0.15299605,0.14504504,0.1337458,0.12444044,0.11863768,0.11431303,0.09882109,0.08395875,0.07160481,0.06243507,0.05773701,0.05022994],[0.12161442,0.11338394,0.10937278,0.10373761,0.09564506,0.08900091,0.08483991,0.08173283,0.07068396,0.06011456,0.05131964,0.0448043,0.04146075,0.0361047],[0.08663425,0.08074047,0.07788879,0.0738379,0.06809025,0.06336215,0.06041126,0.05820564,0.05036816,0.04286406,0.0366259,0.03200533,0.02963511,0.02584151],[0.06145404,0.05733374,0.05530289,0.0524239,0.04834792,0.04500619,0.04290933,0.04135097,0.03580284,0.03049198,0.02607295,0.02280475,0.02112065,0.01844162],[0.04361741,0.0406419,0.03922491,0.03718247,0.03429131,0.03192094,0.03043873,0.02933599,0.02540595,0.02164634,0.01852257,0.01620598,0.01501723,0.0131231],[0.03088286,0.02879721,0.02777611,0.02634302,0.02429563,0.02262168,0.02157469,0.02079512,0.0180115,0.0153528,0.01314135,0.01150366,0.01066126,0.00932049]];
+const LF_AS=[[0.04129756,-0.45068579,-0.00356741],[-0.0281863,-0.45068579,-0.00356741],[-0.06398777,-0.45068579,-0.00356741],[-0.11709649,-0.45068579,-0.00356741],[-0.1979977,-0.45068579,-0.00356741],[-0.26969888,-0.45068579,-0.00356741],[-0.31737193,-0.45068579,-0.00356741],[-0.35446139,-0.45068579,-0.00356741],[-0.49861004,-0.45068579,-0.00356741],[-0.6607348,-0.45068579,-0.00356741],[-0.81912169,-0.45068579,-0.00356741],[-0.95518114,-0.45068579,-0.00356741],[-1.03298277,-0.45068579,-0.00356741],[-1.17114969,-0.45068579,-0.00356741]];
+/* ---- Normality and outliers (STATS_SPEC 2.2) ---- */
+const finiteSorted=v=>{ const a=[]; for(const x of v) if(x!=null&&Number.isFinite(x)) a.push(x); return a.sort((p,q)=>p-q); };
+// Each value's deviation from the mean, the double mean's own rounding taken out (the mean of what is left
+// after subtracting it: values near 10⁹ have a mean half an ulp, 6e-8, off, which every z would carry), the
+// mean, the SD (n − 1) and the standardised values z.
+function msd(s){ const n=s.length, m=neuSum(s)/n, d0=s.map(x=>x-m), e=neuSum(d0)/n, d=d0.map(x=>x-e); let M=0; for(const x of d) M=Math.max(M,Math.abs(x));
+  if(!(M>0)) return {m,sd:0,d,z:d.map(()=>0)}; const q2=neuSum(d.map(x=>(x/M)**2)), sd=M*Math.sqrt(q2/(n-1)); return {m,sd,d,z:d.map(x=>x/sd)}; }
+const swPoly=(c,x)=>{ let r=0; for(let i=c.length-1;i>=0;i--) r=r*x+c[i]; return r; };
+// Shapiro and Wilk's W and its p by Royston's AS R94 (R's swilk.c, SciPy's), for 3 to 5000 values.
+function swTest(vals){ const x=finiteSorted(vals), n=x.length;
+  if(n<3) return {fail:"Shapiro–Wilk needs 3 values or more."}; if(n>5000) return {fail:"Shapiro–Wilk is for 5000 values at most; use Anderson–Darling."};
+  const rg=x[n-1]-x[0]; if(!(rg>0)) return {fail:"The values are all the same."};
+  { const md=medSorted(x,0,n); for(let i=0;i<n;i++) x[i]-=md; } // as SciPy: about the median, so x/range keeps its digits
+  const nn2=n>>1, a=new Float64Array(nn2+1);
+  if(n===3) a[1]=Math.SQRT1_2;
+  else { const an25=n+0.25; let summ2=0; for(let i=1;i<=nn2;i++){ a[i]=DIST.norm.ppf((i-0.375)/an25); summ2+=a[i]*a[i]; }
+    summ2*=2; const ssumm2=Math.sqrt(summ2), rsn=1/Math.sqrt(n), a1=swPoly([0,.221157,-.147981,-2.07119,4.434685,-2.706056],rsn)-a[1]/ssumm2; let i1, fac;
+    if(n>5){ i1=3; const a2=-a[2]/ssumm2+swPoly([0,.042981,-.293762,-1.752461,5.682633,-3.582633],rsn);
+      fac=Math.sqrt((summ2-2*a[1]*a[1]-2*a[2]*a[2])/(1-2*a1*a1-2*a2*a2)); a[2]=a2; }
+    else { i1=2; fac=Math.sqrt((summ2-2*a[1]*a[1])/(1-2*a1*a1)); }
+    a[1]=a1; for(let i=i1;i<=nn2;i++) a[i]/=-fac; }
+  // W as the squared correlation of the values and the coefficients (each value over the range).
+  let sa=0, sx=0; for(let i=0;i<n;i++){ const j=n-1-i; if(i!==j) sa+=Math.sign(i-j)*a[Math.min(i,j)+1]; sx+=x[i]/rg; } sa/=n; sx/=n;
+  let ssa=0, ssx=0, sax=0; for(let i=0;i<n;i++){ const j=n-1-i, asa=i!==j?Math.sign(i-j)*a[Math.min(i,j)+1]-sa:-sa, xsx=x[i]/rg-sx; ssa+=asa*asa; ssx+=xsx*xsx; sax+=asa*xsx; }
+  const ss=Math.sqrt(ssa*ssx), w1=(ss-sax)*(ss+sax)/(ssa*ssx), w=1-w1;
+  if(n===3) return {n,w,p:Math.max(0,1.90985931710274*(Math.asin(Math.sqrt(w))-1.04719755119660))};
+  let y=Math.log(w1), m, s; const lx=Math.log(n);
+  if(n<=11){ const gm=swPoly([-2.273,.459],n); if(y>=gm) return {n,w,p:1e-99}; y=-Math.log(gm-y); m=swPoly([.544,-.39978,.025054,-6.714e-4],n); s=Math.exp(swPoly([1.3822,-.77857,.062767,-.0020322],n)); }
+  else { m=swPoly([-1.5861,-.31082,-.083751,.0038915],lx); s=Math.exp(swPoly([-.4803,-.082676,.0030302],lx)); }
+  return {n,w,p:DIST.norm.sf((y-m)/s)}; }
+// The Kolmogorov–Smirnov distance of sorted values from the normal with their mean and SD.
+function ksNormD(x){ const n=x.length, {z}=msd(x); let dp=0, dm=0;
+  for(let i=0;i<n;i++){ const F=DIST.norm.cdf(z[i]); dp=Math.max(dp,(i+1)/n-F); dm=Math.max(dm,F-i/n); } return Math.max(dp,dm); }
+// Lilliefors: that distance, its p from statsmodels' table of ten million simulations (linear between its
+// critical values, past 1600 values their asymptotic form); p is bounded to 0.001 … 0.99 (`lo`, `hi`).
+const LF_PCT=[1,5,10,25,50,75,90,92.5,95,97.5,99,99.5,99.7,99.9];
+function lfProb(d,n){ const al=LF_PCT.map(p=>1-p/100).reverse(); let cv;
+  if(n>1600){ const L=Math.log(n); cv=LF_AS.map(r=>Math.exp(r[0]+r[1]*L+r[2]*L*L)); }
+  else { let k=0; while(k<LF_N.length-2&&LF_N[k+1]<n) k++; const t=(n-LF_N[k])/(LF_N[k+1]-LF_N[k]); cv=LF_CV[k].map((v,i)=>t===0?v:t===1?LF_CV[k+1][i]:v+(LF_CV[k+1][i]-v)*t); }
+  const c=cv.slice().reverse(), a=al.slice().reverse(); // critical values rising, their levels falling
+  if(d<c[0]) return {p:0.99,hi:true}; if(d>c[c.length-1]) return {p:0.001,lo:true}; // the table's ends, as written (statsmodels' carry 1 − 99.9/100's rounding)
+  let i=0; while(i<c.length-2&&c[i+1]<d) i++; return {p:a[i]+(a[i+1]-a[i])*(d-c[i])/(c[i+1]-c[i])}; }
+function lfTest(vals){ const x=finiteSorted(vals), n=x.length; if(n<4) return {fail:"Lilliefors needs 4 values or more."};
+  if(!(x[n-1]>x[0])) return {fail:"The values are all the same."}; const d=ksNormD(x); return Object.assign({n,d},lfProb(d,n)); }
+// Kolmogorov–Smirnov against the normal of the values' mean and SD, its p Kolmogorov's exact one, which takes
+// them as known (too large a p: Lilliefors' is for the same distance with them estimated).
+function ksnTest(vals){ const x=finiteSorted(vals), n=x.length; if(n<3) return {fail:"Kolmogorov–Smirnov needs 3 values or more."};
+  if(!(x[n-1]>x[0])) return {fail:"The values are all the same."}; const d=ksNormD(x); return {n,d,p:kolmogN(n,d,false)}; }
+// Anderson–Darling against the normal of the values' mean and SD: A², A²(1 + 0.75/n + 2.25/n²), and p by
+// D'Agostino and Stephens' four pieces (as statsmodels' normal_ad), 0 past 13.
+function adTest(vals){ const x=finiteSorted(vals), n=x.length; if(n<8) return {fail:"Anderson–Darling needs 8 values or more."};
+  const {sd,z}=msd(x); if(!(sd>0)) return {fail:"The values are all the same."};
+  const lc=z.map(v=>Math.log(DIST.norm.cdf(v))), ls=z.map(v=>Math.log(DIST.norm.sf(v)));
+  let S=0; for(let i=0;i<n;i++) S+=(2*i+1)*(lc[i]+ls[n-1-i]); const a2=-n-S/n, as=a2*(1+0.75/n+2.25/(n*n));
+  const p=as<0.2?1-Math.exp(-13.436+101.14*as-223.73*as*as):as<0.34?1-Math.exp(-8.318+42.796*as-59.938*as*as):as<0.6?Math.exp(0.9177-4.279*as-1.38*as*as):as<=13?Math.exp(1.2937-5.709*as+0.0186*as*as):0;
+  return {n,a2,as,p}; }
+// D'Agostino and Pearson's K²: the skewness's and the kurtosis's normal scores (as SciPy's skewtest and
+// kurtosistest, the skewness 0 giving 0), K² their squares' sum, p from χ² with 2 degrees of freedom.
+function dagoTest(vals){ const x=finiteSorted(vals), n=x.length; if(n<8) return {fail:"D'Agostino's K² needs 8 values or more."};
+  const m=neuSum(x)/n; let M=0; for(const v of x) M=Math.max(M,Math.abs(v-m)); if(!(M>0)) return {fail:"The values are all the same."};
+  const d=x.map(v=>(v-m)/M), e=neuSum(d)/n, q2=neuSum(d.map(t=>t*t))/n, q3=neuSum(d.map(t=>t*t*t))/n, q4=neuSum(d.map(t=>t**4))/n;
+  const m2=q2-e*e, m3=q3-3*e*q2+2*e**3, m4=q4-4*e*q3+6*e*e*q2-3*e**4, b1=m3/m2**1.5, b2=m4/(m2*m2);
+  let y=b1*Math.sqrt((n+1)*(n+3)/(6*(n-2))); const be=3*(n*n+27*n-70)*(n+1)*(n+3)/((n-2)*(n+5)*(n+7)*(n+9)), W2=-1+Math.sqrt(2*(be-1)), dl=1/Math.sqrt(0.5*Math.log(W2)), al=Math.sqrt(2/(W2-1));
+  const zs=dl*Math.asinh(y/al);
+  const E=3*(n-1)/(n+1), vb=24*n*(n-2)*(n-3)/((n+1)*(n+1)*(n+3)*(n+5)), xk=(b2-E)/Math.sqrt(vb), sb=6*(n*n-5*n+2)/((n+7)*(n+9))*Math.sqrt(6*(n+3)*(n+5)/(n*(n-2)*(n-3))),
+    A=6+8/sb*(2/sb+Math.sqrt(1+4/(sb*sb))), t1=1-2/(9*A), den=1+xk*Math.sqrt(2/(A-4)), t2=den===0?NaN:Math.sign(den)*Math.cbrt((1-2/A)/Math.abs(den)), zk=(t1-t2)/Math.sqrt(2/(9*A));
+  const k2=zs*zs+zk*zk; return {n,zs,zk,k2,p:Math.exp(-k2/2),ps:2*DIST.norm.sf(Math.abs(zs)),pk:2*DIST.norm.sf(Math.abs(zk))}; }
+// The normal Q–Q plot's points (R's ppoints: (i − a)/(n + 1 − 2a), a = 3/8 to 10 values, ½ above) and its line
+// through the quartiles (R's qqline, type 7).
+function qqNorm(vals){ const x=finiteSorted(vals), n=x.length; if(n<2) return {fail:"A Q–Q plot needs 2 values or more."};
+  const a=n<=10?3/8:0.5, q=x.map((_,i)=>DIST.norm.ppf((i+1-a)/(n+1-2*a))), z1=DIST.norm.ppf(0.25), z3=DIST.norm.ppf(0.75), Q1=quantileType(x,0.25,7), Q3=quantileType(x,0.75,7), sl=(Q3-Q1)/(z3-z1);
+  return {q,x,slope:sl,icpt:Q1-sl*z1,line:q.map(z=>Q1+sl*(z-z1))}; }
+// Grubbs: the value furthest from the mean (on one side, or either), G = its distance over the SD, its p
+// n·P(T > t) (Bonferroni's, exact where it matters), t = √(n(n − 2)G²/((n − 1)² − nG²)), the critical G at α;
+// repeated, the value found taken out and the test made again until none is found or 3 values are left.
+function grubbsTest(vals,o){ o=o||{}; const side=o.side==="max"||o.side==="min"?o.side:"two", al=o.alpha>0&&o.alpha<0.5?o.alpha:0.05;
+  let x=[]; vals.forEach((v,i)=>{ if(v!=null&&Number.isFinite(v)) x.push({v,i}); }); if(x.length<3) return {fail:"Grubbs' test needs 3 values or more."};
+  const rounds=[];
+  for(;;){ const n=x.length; if(n<3) break; const {m,sd,d}=msd(x.map(e=>e.v)); if(!(sd>0)){ if(!rounds.length) return {fail:"The values are all the same."}; break; }
+    let k=-1, g=-1; d.forEach((dv0,j)=>{ const dv=side==="max"?dv0:side==="min"?-dv0:Math.abs(dv0); if(dv>g){ g=dv; k=j; } });
+    const G=g/sd, den=(n-1)**2-n*G*G, t=den>0?Math.sqrt(n*(n-2)*G*G/den):Infinity, p1=n*DIST.t.sf(t,n-2), p=Math.min(1,side==="two"?2*p1:p1);
+    const tc=DIST.t.isf(side==="two"?al/(2*n):al/n,n-2), Gc=(n-1)/Math.sqrt(n)*Math.sqrt(tc*tc/(n-2+tc*tc)), out=G>Gc;
+    rounds.push({n,mean:m,sd,G,Gc,p,value:x[k].v,row:x[k].i,out});
+    if(!out||!o.repeat) break; x.splice(k,1); }
+  return {side,alpha:al,rounds,out:rounds.filter(r=>r.out)}; }
+// Gauss–Legendre nodes and weights on [−1, 1] (Newton on the Legendre polynomial).
+function glNodes(k){ const xs=new Float64Array(k), ws=new Float64Array(k);
+  for(let i=0;i<k;i++){ let z=Math.cos(Math.PI*(i+0.75)/(k+0.5)), dp=0;
+    for(let it=0;it<100;it++){ let p0=1, p1=z; for(let j=2;j<=k;j++){ const p2=((2*j-1)*z*p1-(j-1)*p0)/j; p0=p1; p1=p2; } dp=k*(z*p1-p0)/(z*z-1); const dz=p1/dp; z-=dz; if(Math.abs(dz)<1e-16) break; }
+    xs[i]=z; ws[i]=2/((1-z*z)*dp*dp); } return {xs,ws}; }
+const GL20=glNodes(20);
+// ∫∫ f(a, r) over a in [a0, a1], r in [0, r1], in panels of 20-point Gauss–Legendre.
+function gl2(f,a0,a1,na,r1,nr){ let s=0; const ha=(a1-a0)/na, hr=r1/nr, {xs,ws}=GL20;
+  for(let pa=0;pa<na;pa++) for(let i=0;i<20;i++){ const a=a0+ha*(pa+0.5+0.5*xs[i]), wa=ws[i]*ha/2;
+    for(let pr=0;pr<nr;pr++) for(let j=0;j<20;j++){ const r=hr*(pr+0.5+0.5*xs[j]); s+=wa*ws[j]*hr/2*f(a,r); } } return s; }
+// Dixon's Q, r₁₀: the gap between the suspect value and its neighbour over the range. Its p for n normal
+// values by integrating over the smallest value a and the range r, the other n − 2 between them:
+// P(Q_high > q) = ∫∫ n(n − 1) φ(a) φ(a + r) (Φ(a + (1 − q)r) − Φ(a))ⁿ⁻² dr da, either end 2P less
+// the chance of both (possible below q = ½). Twelve panels a side: 1.5e-14 against thirty, 7 ms; the critical
+// value, shown to four digits, takes eight (4e-12) and 34 halvings. Checked by simulation (ten million samples).
+function dixonP(n,q,side,pan){ if(!(q>0)) return 1; if(q>=1) return 0; const ph=DIST.norm.pdf, Ph=DIST.norm.cdf, k=n-2, P=pan||12;
+  const hi=gl2((a,r)=>{ const d=Ph(a+(1-q)*r)-Ph(a); return d>0?ph(a)*ph(a+r)*d**k:0; },-9,9,P,18,P)*n*(n-1);
+  if(side!=="two") return Math.min(1,Math.max(0,hi));
+  const both=q<0.5?gl2((a,r)=>{ const d=Ph(a+(1-q)*r)-Ph(a+q*r); return d>0?ph(a)*ph(a+r)*d**k:0; },-9,9,P,18,P)*n*(n-1):0;
+  return Math.min(1,Math.max(0,2*hi-both)); }
+function dixonCrit(n,al,side){ let lo=0, hi=1; for(let i=0;i<34;i++){ const m=(lo+hi)/2; if(dixonP(n,m,side,8)>al) lo=m; else hi=m; } return (lo+hi)/2; }
+function dixonTest(vals,o){ o=o||{}; const side=o.side==="max"||o.side==="min"?o.side:"two", al=o.alpha>0&&o.alpha<0.5?o.alpha:0.05;
+  const x=[]; vals.forEach((v,i)=>{ if(v!=null&&Number.isFinite(v)) x.push({v,i}); }); const n=x.length;
+  if(n<3||n>30) return {fail:"Dixon's Q is for 3 to 30 values."}; x.sort((a,b)=>a.v-b.v); const rg=x[n-1].v-x[0].v; if(!(rg>0)) return {fail:"The values are all the same."};
+  const qh=(x[n-1].v-x[n-2].v)/rg, ql=(x[1].v-x[0].v)/rg, useHi=side==="max"||(side==="two"&&qh>=ql), Q=useHi?qh:ql, e=useHi?x[n-1]:x[0];
+  const p=dixonP(n,Q,side), Qc=dixonCrit(n,al,side); return {n,side,alpha:al,Q,Qc,p,value:e.v,row:e.i,out:p<al}; }
+// Numbers in an analysis's sentences, without the page's fmt (the worker has the pure blocks only):
+// four significant digits, past 10⁶ or below 10⁻⁴ as m×10ⁿ; a p as "p = 0.0123" or "p < 0.0001".
+const ANA_SUP={"-":"⁻",0:"⁰",1:"¹",2:"²",3:"³",4:"⁴",5:"⁵",6:"⁶",7:"⁷",8:"⁸",9:"⁹"};
+const anaFmt=(v,s)=>{ if(v==null||!Number.isFinite(v)) return "—"; s=s||4; const a=Math.abs(v);
+  if(v===0||(a>=1e-4&&a<1e6)) return String(+v.toPrecision(s)); const [m,e]=v.toExponential(s-1).split("e"); return String(+m)+"×10"+String(+e).split("").map(ch=>ANA_SUP[ch]).join(""); };
+const anaPtxt=p=>p==null||!Number.isFinite(p)?"p not known":p<1e-4?"p < 0.0001":"p = "+anaFmt(p,2);
+const anaAlpha=p=>[0.001,0.01,0.05,0.1].includes(+(p&&p.alpha))?+p.alpha:0.05;
+// The normality tests: [key, name, the statistic's symbol, its function, the field it returns].
+const NORM_TESTS=[["sw","Shapiro–Wilk","W",swTest,"w"],["lf","Lilliefors","D",lfTest,"d"],["ad","Anderson–Darling","A²",adTest,"a2"],["dk","D'Agostino's K²","K²",dagoTest,"k2"],["ks","Kolmogorov–Smirnov","D",ksnTest,"d"]];
+const normTests=p=>{ const want=Array.isArray(p&&p.tests)?p.tests:["sw"]; const t=NORM_TESTS.map(e=>e[0]).filter(k=>want.includes(k)); return t.length?t:["sw"]; };
+// The line later tests cite about their normality (STATS_SPEC 2.3 on): Shapiro–Wilk's, at 3 to 5000 values.
+function anaNormCheck(vals,name,al){ al=al||0.05; const r=swTest(vals); if(r.fail) return {name:"Normality",ok:null,text:`${name}: normality not checked (${r.fail.replace(/\.$/,"").toLowerCase()})`};
+  return {name:"Normality",ok:!(r.p<al),text:r.p<al?`${name} looks not normal (Shapiro–Wilk W = ${anaFmt(r.w)}, ${anaPtxt(r.p)})`:`${name}: nothing against normality (Shapiro–Wilk ${anaPtxt(r.p)})`}; }
 // The statistics Statistics on columns can give, in the order its table has them; the eleven an
 // analysis made before 2.1 has (no `stats` stored) are DESC_DEF.
 const DESC_STATS=[["n","N"],["miss","Missing"],["mean","Mean"],["sd","SD"],["se","SE of mean"],["ci","Mean's interval"],["var","Variance"],["cv","Coefficient of variation"],
@@ -6128,7 +6338,52 @@ const ANA_KINDS={
       if(fails===ins.length) return {fail:notes.join(" ")};
       const head=cols.map(o=>o.name), rows=cols[0].vals.map((_,i)=>cols.map(o=>o.vals[i]));
       const b=p.bins||{}, how=num?(b.rule==="n"?`${b.n||10} bins`:b.rule==="w"?`bins ${b.w} wide`:b.rule==="sturges"?"bins by Sturges' rule":b.rule==="sqrt"?"bins by the square root of the count":"bins by the Freedman–Diaconis rule")+(b.start!=null&&b.start!==""?`, from ${b.start}`:"")+"; each bin holds its lower edge, the last its upper edge too.":"";
-      return {tables:[{cols}],report:{sections:[{title:"Frequency counts",tables:[{head,rows}]}],method:how?how.charAt(0).toUpperCase()+how.slice(1):""},notes}; }}
+      return {tables:[{cols}],report:{sections:[{title:"Frequency counts",tables:[{head,rows}]}],method:how?how.charAt(0).toUpperCase()+how.slice(1):""},notes}; }},
+  norm:{label:"Normality tests", base:"Normality",
+    help:"Whether each column (or group) could have come from a normal distribution: Shapiro–Wilk and the tests chosen beside it, each statistic with its p, and the points of a normal Q–Q plot, into a result sheet.",
+    run(ins,p){ p=p||{}; const ts=normTests(p), al=anaAlpha(p), by=ins.some(q=>q.groups), notes=[], said=[], qq=[];
+      const cols=[{k:"col",name:"Column",vals:[]}].concat(by?[{k:"grp",name:"Group",vals:[]}]:[]).concat([{k:"n",name:"N",vals:[]}]);
+      ts.forEach(t=>{ const e=NORM_TESTS.find(x=>x[0]===t); cols.push({k:t+"s",name:`${e[1]} ${e[2]}`,vals:[]},{k:t+"p",name:`${e[1]} p`,vals:[]},{k:t+"v",name:`${e[1]} at ${al}`,vals:[]}); });
+      let any=0;
+      const each=(name,grp,vals)=>{ const who=name+(grp!=null?` (${grp})`:""), row={col:name,grp:grp==null?null:String(grp),n:vals.length}; let first=true;
+        ts.forEach(t=>{ const e=NORM_TESTS.find(x=>x[0]===t), r=e[3](vals);
+          if(r.fail){ notes.push(`${who}: ${e[1]}: ${r.fail}`); row[t+"s"]=row[t+"p"]=row[t+"v"]=null; return; }
+          any++; row[t+"s"]=anaNum(r[e[4]]); row[t+"p"]=anaNum(r.p); const no=r.p<al; row[t+"v"]=no?"not normal":"may be normal";
+          if(r.lo) notes.push(`${who}: Lilliefors' p is below 0.001, the end of its table.`); if(r.hi) notes.push(`${who}: Lilliefors' p is above 0.99, the end of its table.`);
+          if(t==="dk"&&vals.length<20) notes.push(`${who}: D'Agostino's K² is rough below 20 values (its χ² is for many).`);
+          if(first){ first=false; said.push(`At the ${al} level, ${e[1]} ${no?"finds "+who+" not normal":"finds nothing against "+who+" being normal"} (${e[2]} = ${anaFmt(r[e[4]])}, ${r.lo?"p < 0.001":r.hi?"p > 0.99":anaPtxt(r.p)}).`); } });
+        cols.forEach(c=>c.vals.push(row[c.k]===undefined?null:row[c.k]));
+        const Q=qqNorm(vals); if(!Q.fail) qq.push({who,Q}); };
+      ins.forEach(q=>{ if(q.groups) q.groups.forEach(([k,v])=>each(q.name,k,v)); else each(q.name,null,q.vals); });
+      if(!any) return {fail:notes.join(" ")||"There are no values to test."};
+      const head=cols.map(o=>o.name), rows=cols[0].vals.map((_,i)=>cols.map(o=>o.vals[i])), qcols=[];
+      qq.forEach((s,i)=>qcols.push({k:"qx"+i,name:"Normal quantile",role:"x",vals:s.Q.q.map(anaNum)},{k:"qy"+i,name:s.who,vals:s.Q.x},{k:"ql"+i,name:`${s.who}, the line through its quartiles`,vals:s.Q.line.map(anaNum)}));
+      const method=[ts.includes("sw")?"Shapiro–Wilk by Royston's algorithm (AS R94, as R and SciPy).":"", ts.includes("lf")?"Lilliefors' p from the table of ten million simulations (statsmodels'), linear between its points.":"",
+        ts.includes("ad")?"Anderson–Darling's A² adjusted by (1 + 0.75/n + 2.25/n²), its p by D'Agostino and Stephens.":"", ts.includes("dk")?"D'Agostino and Pearson's K², the skewness's and kurtosis's scores combined, against χ² with 2 degrees of freedom.":"",
+        ts.includes("ks")?"Kolmogorov–Smirnov against the normal of the values' mean and SD, its p Kolmogorov's exact one, which takes them as known and so is too large (Lilliefors' corrects that).":"",
+        "The Q–Q plot's points at (i − a)/(n + 1 − 2a), a = 3/8 to 10 values and ½ above (R's); its line through the quartiles."].filter(Boolean).join(" ");
+      return {tables:[{cols:cols.concat(qcols)}],report:{sections:[{title:"Normality tests",tables:[{head,rows}]}],said,method,qq:qq.length},notes}; }},
+  outl:{label:"Outliers", base:"Outliers",
+    help:"Values far from the rest of each column (or group): Grubbs' test, either side or one, once or repeated, or Dixon's Q; each value examined with its statistic, critical value and p, into a result sheet, the outliers then masked or marked in one step.",
+    run(ins,p){ p=p||{}; const dix=p.test==="dixon", side=p.side==="max"||p.side==="min"?p.side:"two", al=anaAlpha(p), rep=!dix&&!!p.repeat, by=ins.some(q=>q.groups), notes=[], said=[], marks=[];
+      const sym=dix?"Q":"G", cols=[{k:"col",name:"Column",vals:[]}].concat(by?[{k:"grp",name:"Group",vals:[]}]:[]).concat([{k:"n",name:"N",vals:[]},{k:"value",name:"Value examined",vals:[]},{k:"row",name:"Row",vals:[]},
+        {k:"stat",name:sym,vals:[]},{k:"crit",name:`Critical ${sym} at ${al}`,vals:[]},{k:"p",name:"p",vals:[]},{k:"out",name:"Outlier",vals:[]}]);
+      let any=0;
+      const each=(i,name,grp,vals,rows)=>{ const who=name+(grp!=null?` (${grp})`:""), r=dix?dixonTest(vals,{side,alpha:al}):grubbsTest(vals,{side,alpha:al,repeat:rep});
+        if(r.fail){ notes.push(`${who}: ${r.fail}`); return; } any++;
+        const rounds=dix?[r]:r.rounds, found=[];
+        rounds.forEach(x=>{ const raw=rows&&rows[x.row]!=null?rows[x.row]:-1, o={col:name,grp:grp==null?null:String(grp),n:x.n,value:x.value,row:raw>=0?raw+1:null,stat:anaNum(dix?x.Q:x.G),crit:anaNum(dix?x.Qc:x.Gc),p:anaNum(x.p),out:x.out?"yes":"no"};
+          cols.forEach(c=>c.vals.push(o[c.k]===undefined?null:o[c.k])); if(x.out){ found.push(x); if(raw>=0) marks.push({i,row:raw,value:x.value,grp:grp==null?null:String(grp)}); } });
+        const nm=dix?"Dixon's Q":"Grubbs' test";
+        said.push(found.length?`At the ${al} level, ${nm} finds ${found.length===1?"an outlier":found.length+" outliers"} in ${who}: ${found.map(x=>`${anaFmt(x.value,6)} (${sym} = ${anaFmt(dix?x.Q:x.G)}, ${anaPtxt(x.p)})`).join(", ")}.`
+          :`At the ${al} level, ${nm} finds no outlier in ${who} (the most extreme, ${anaFmt(rounds[0].value,6)}: ${sym} = ${anaFmt(dix?rounds[0].Q:rounds[0].G)}, ${anaPtxt(rounds[0].p)}).`); };
+      ins.forEach((q,i)=>{ if(q.groups) q.groups.forEach(([k,v],j)=>each(i,q.name,k,v,q.grows?q.grows[j]:null)); else each(i,q.name,null,q.vals,q.rows); });
+      if(!any) return {fail:notes.join(" ")||"There are no values to test."};
+      if(!dix&&!rep&&marks.length) notes.push("Grubbs' test once looks at the most extreme value only; Repeat looks again without it.");
+      const head=cols.map(o=>o.name), rows=cols[0].vals.map((_,i)=>cols.map(o=>o.vals[i])), sd=side==="two"?"either side":side==="max"?"the largest value":"the smallest value";
+      const method=dix?`Dixon's Q (r₁₀: the gap to the nearest value over the range), ${sd}, for 3 to 30 values; its p and critical value by integrating over normal samples (checked by simulation), not from a printed table.`
+        :`Grubbs' G (the distance from the mean over the SD), ${sd}${rep?", repeated without each outlier found until none is, as the test is known to miss two outliers that hide each other":""}; p = n·P(T > t) with n − 2 degrees of freedom${side==="two"?", doubled":""}; the critical G from the same (ASTM E178).`;
+      return {tables:[{cols}],report:{sections:[{title:"Outliers",tables:[{head,rows}]}],said,method,marks},notes}; }}
 };
 // A kind run by name: the page's call, and the worker's ("call" job).
 function anaRunKind(kind,ins,p){ const K=ANA_KINDS[kind]; if(!K) throw new Error("the analysis "+kind+" is not known here"); return K.run(ins,p||{}); }
@@ -14954,7 +15209,8 @@ function anaInputs(a,cs,by,notes,K){ const rr=anaRowsOf(a.in), list=a.in.miss===
     if(r.rowsKind==="drop") notes.push(`${q.name} is read after ${r.steps.join(", ").toLowerCase()}, which left some rows out.`);
     if(r.rowsKind==="merge") notes.push(`${q.name} is read after ${r.steps.join(", ").toLowerCase()}, which made or averaged points: these numbers describe them, not the measurements.`);
     if(by){ const keys=d.rows.map(i=>catVal(by,i)), g=distGroups(d.vals,keys,DIST_GMAX,{text:true,order:catOrderKeys(by)});
-      if(g.fail) notes.push(`${by.name||colRef(by)}: ${g.fail}`); else q.groups=g.keys.map((k,j)=>[typeof k==="number"?fmt(k,8):k,g.by[j]]); }
+      if(g.fail) notes.push(`${by.name||colRef(by)}: ${g.fail}`); else { q.groups=g.keys.map((k,j)=>[typeof k==="number"?fmt(k,8):k,g.by[j]]);
+        const gr=distGroups(d.rows,keys,DIST_GMAX,{text:true,order:catOrderKeys(by)}); if(!gr.fail) q.grows=gr.by; } }
     return q; }); }
 // Work it out: the inputs read, the kind run, the result sheet's columns written. Mutates p.cols and a.
 function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p) return false; const sig=anaSig(a);
@@ -14964,7 +15220,7 @@ function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p)
   // A large one is worked out by the compute worker (1.3c), its result put in when it comes back
   // (anaDone), if what it read has not changed meanwhile; the page goes on.
   const nv=ins.reduce((t,q)=>t+q.vals.length,0);
-  if(nv>=ANA_BIG&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,groups:q.groups,missing:q.missing,cats:q.cats})),notes,sig); return "later"; }
+  if(nv>=ANA_BIG&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats})),notes,sig); return "later"; }
   let out; try{ out=anaRunKind(a.kind,ins,a.p||{}); }catch(e){ out={fail:String(e&&e.message||e)}; }
   return anaApply(a,p,out,notes,sig); }
 function anaApply(a,p,out,notes,sig){
@@ -14987,8 +15243,8 @@ function anaDone(id,j,r,notes){ const p=P(); if(!p||S.pid!==j.pid) return; const
   if(ok) toast(`${a.name} worked out.`); else toast(`${a.name} could not be worked out: ${a.res.err}.`); }
 // The table into the result sheet: a column per key, kept by id across recalculations.
 function anaWrite(a,p,t){ const sid=a.out.sheet, have=new Map(p.cols.filter(c=>c.ana===a.id).map(c=>[c.ak,c])), keep=new Set();
-  t.cols.forEach(o=>{ let c=have.get(o.k); if(!c){ c=Object.assign(makeCol("ignore",o.name,o.unit||""),{sheet:sid,ana:a.id,ak:o.k}); p.cols.push(c); }
-    keep.add(c); c.name=o.name; c.comm=a.name; const text=o.vals.some(v=>typeof v==="string");
+  t.cols.forEach(o=>{ let c=have.get(o.k); if(!c){ c=Object.assign(makeCol(o.role||"ignore",o.name,o.unit||""),{sheet:sid,ana:a.id,ak:o.k}); p.cols.push(c); }
+    keep.add(c); c.name=o.name; c.comm=a.name; c.role=o.role||(c.role==="y"?"y":"ignore"); /* a column plotted stays a curve */ const text=o.vals.some(v=>typeof v==="string");
     if(text){ const T={}; o.vals.forEach((v,i)=>{ if(v!=null&&v!=="") T[i]=String(v); }); c.data=o.vals.map(()=>null); c.fmt="text"; if(Object.keys(T).length){ c.txt=T; TXT_OK.add(T); } else delete c.txt; }
     else { c.data=o.vals.map(v=>v==null?null:v); delete c.txt; delete c.fmt; } });
   p.cols=p.cols.filter(c=>c.ana!==a.id||keep.has(c)); }
@@ -15023,6 +15279,18 @@ const ANA_FORMS={
     read(v){ const stats=DESC_STATS.map(e=>e[0]).filter(k=>v["aS_"+k]), pcts=String(v.aPct||"").split(/[\s,;]+/).map(t=>t.trim().replace(/%$/,"")).filter(Boolean).map(Number).filter(x=>Number.isFinite(x)&&x>=0&&x<=100);
       const qt=v.aQt==="tukey"?"tukey":+v.aQt; return {stats,pcts:[...new Set(pcts)].slice(0,20),qtype:qtOk(qt)?qt:7,conf:+v.aConf||0.95,vdiv:v.aVd==="n"?"n":"df"}; },
     valid(v){ return DESC_STATS.some(([k])=>v["aS_"+k])||String(v.aPct||"").trim()!==""; }},
+  norm:{html(p){ const on=new Set(normTests(p)), al=anaAlpha(p), tip={sw:"The most powerful of these for most samples, 3 to 5000 values; the one later tests cite",lf:"Kolmogorov–Smirnov's distance with the mean and SD estimated, as it should be",ad:"Weighs the tails more than Lilliefors; 8 values or more",dk:"From the skewness and kurtosis; 8 values or more, rough below 20",ks:"Its p takes the mean and SD as known, so it is too large: Lilliefors' is the same test done right"};
+      return `<p class="lab">Tests</p><div class="anastats">${NORM_TESTS.map(([k,nm])=>`<label class="chk" title="${esc(tip[k])}"><input type="checkbox" id="aN_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div>
+      <div class="grid2"><label for="aAl" class="tipd" title="A p below this rejects normality">Level</label><select id="aAl">${[0.01,0.05,0.1].map(a=>`<option value="${a}"${a===al?" selected":""}>${a}</option>`).join("")}</select></div>`; },
+    read(v){ return {tests:NORM_TESTS.map(e=>e[0]).filter(k=>v["aN_"+k]),alpha:+v.aAl||0.05}; },
+    valid(v){ return NORM_TESTS.some(([k])=>v["aN_"+k]); }},
+  outl:{html(p){ const al=anaAlpha(p), side=p.side||"two";
+      return `<div class="grid2"><label for="aOt">Test</label><select id="aOt"><option value="grubbs">Grubbs</option><option value="dixon"${p.test==="dixon"?" selected":""}>Dixon's Q (3 to 30 values)</option></select>
+      <label for="aOs">Look at</label><select id="aOs">${[["two","Either side"],["max","The largest value"],["min","The smallest value"]].map(([k,t])=>`<option value="${k}"${k===side?" selected":""}>${t}</option>`).join("")}</select>
+      <label for="aAl" class="tipd" title="A p below this calls the value an outlier">Level</label><select id="aAl">${[0.01,0.05,0.1].map(a=>`<option value="${a}"${a===al?" selected":""}>${a}</option>`).join("")}</select>
+      <span></span><label class="chk tipd" title="Take each outlier out and test again until none is found: two outliers can hide each other from a single test"><input type="checkbox" id="aOr"${p.repeat?" checked":""}> Repeat until none is found</label></div>`; },
+    wire(box){ const on=()=>{ const g=(box.querySelector("#aOt")||{}).value!=="dixon", r=box.querySelector("#aOr"); if(r){ r.disabled=!g; r.closest("label").hidden=!g; } }; box.addEventListener("change",on); on(); },
+    read(v){ return {test:v.aOt==="dixon"?"dixon":"grubbs",side:["max","min"].includes(v.aOs)?v.aOs:"two",alpha:+v.aAl||0.05,repeat:v.aOt!=="dixon"&&!!v.aOr}; }},
   freq:{noGroup:true, html(p){ const b=p.bins||{}, m=p.levels?"levels":b.rule||"fd";
       return `<div class="grid2"><label for="aFm">Count</label><select id="aFm">${[["fd","Into bins (Freedman–Diaconis)"],["sturges","Into bins (Sturges)"],["sqrt","Into bins (square root of the count)"],["n","Into a number of bins"],["w","Into bins of a width"],["levels","Each distinct value"]].map(([k,t])=>`<option value="${k}"${k===m?" selected":""}>${t}</option>`).join("")}</select>
       <label for="aFn">Bins</label><input type="text" id="aFn" inputmode="numeric" value="${esc(b.n!=null?String(b.n):"10")}">
@@ -15091,6 +15359,36 @@ function graphSummary(cid){ const p=P(); if(!p||S.readOnly) return;
   toast(`A graphical summary of ${specName(c)}: its histogram with a normal curve, and its box chart.`,{action:"Undo",run:undo});
   return fid; }
 // The result sheet's menu (its tab's), before the sheet's own items.
+/* What an analysis's result offers beside its report (STATS_SPEC 2.2): a normality test's Q–Q plot, the
+   outliers masked or marked. The report's buttons (Results, the History) and the tab menu list them. */
+function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&rep.marks?rep.marks.length:0;
+  if(!rep) return [];
+  if(a.kind==="norm") return [{key:"qq",label:"Q–Q plot",title:"The sorted values against the normal quantiles, with the line through their quartiles, on a graph",enabled:!ro&&rep.qq>0,run:()=>anaQQ(a.id)}];
+  if(a.kind==="outl") return [{key:"mask",label:n>1?`Mask the ${n} outliers`:"Mask the outlier",title:"Their rows in each column's mask, one undo step: left out of fits and, unless masked points are read, of this analysis",enabled:!ro&&n>0,run:()=>anaMaskOut(a.id)},
+    {key:"mark",label:"Mark them on the graph",title:"A label at each, on the graph of its column",enabled:!ro&&n>0,run:()=>anaMarkOut(a.id)}];
+  return []; }
+function setupAnaActs(){ document.addEventListener("click",e=>{ const b=e.target.closest&&e.target.closest("button[data-anaact]"); if(!b||b.disabled) return;
+  const a=anaOf(b.dataset.ana), x=a&&anaActs(a).find(t=>t.key===b.dataset.anaact); if(x&&x.enabled) x.run(); }); }
+// The Q–Q plot: each set's sorted values as symbols against its normal quantiles, its quartiles' line as a line.
+function anaQQ(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const n=(a.res&&a.res.report&&a.res.report.qq)||0;
+  const ys=[], ser={}; for(let i=0;i<n;i++){ const y=p.cols.find(c=>c.ana===id&&c.ak==="qy"+i), l=p.cols.find(c=>c.ana===id&&c.ak==="ql"+i); if(y&&l){ ys.push(y.id,l.id); ser[y.id]={type:"scatter"}; ser[l.id]={type:"line",dash:"5,4"}; } }
+  if(!ys.length){ toast("There is no Q–Q plot to draw: Recalculate first."); return; }
+  plotCols(ys,{series:ser,undo:"plotting a Q–Q plot",say:`Q–Q plot of ${a.name}`}); }
+// The outliers found, as [column, raw row, value]: the columns they were read from, made points left out.
+function anaMarksOf(a){ const rep=a.res&&a.res.report; return ((rep&&rep.marks)||[]).map(m=>({c:colById((a.in.cols||[])[m.i]),row:m.row,value:m.value})).filter(m=>m.c&&m.row>=0); }
+function anaMaskOut(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const ms=anaMarksOf(a); if(!ms.length) return;
+  pushUndo("masking the outliers"); const by=new Map(); ms.forEach(m=>{ if(!by.has(m.c.id)) by.set(m.c.id,[]); by.get(m.c.id).push(m.row); });
+  const cols=p.cols.map(c=>by.has(c.id)?Object.assign({},c,{mask:[...new Set(maskOf(c).concat(by.get(c.id)))].sort((x,y)=>x-y)}):c);
+  save({cols},`masked ${ms.length} outlier${ms.length===1?"":"s"} found by ${a.name} (${ms.map(m=>`${specName(m.c)} row ${m.row+1}`).join(", ")})`); renderAll();
+  toast(`Masked ${ms.length} value${ms.length===1?"":"s"}.${a.recalc==="auto"&&!a.in.masked?` ${a.name} is worked out again without ${ms.length===1?"it":"them"}.`:""}`,{action:"Undo",run:undo}); }
+function anaMarkOut(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const ms=anaMarksOf(a); if(!ms.length) return;
+  pushUndo("marking the outliers"); let annos=(p.annos||[]).slice(), n=0;
+  ms.forEach(m=>{ let gid=graphForCol(m.c.id); if(!gid){ plotCols([m.c.id],{noUndo:true,quiet:true}); gid=graphForCol(m.c.id); } if(!gid) return;
+    const d=finalOf(m.c), k=d?d.idx.indexOf(m.row):-1; if(k<0) return;
+    if(annos.some(x=>x.t==="label"&&x.ser===m.c.id&&x.g===gid&&x.row===m.row)) return;
+    annos.push({id:annoId(),t:"label",x:d.x[k],y:d.y[k],ser:m.c.id,row:m.row,text:"outlier",g:gid,xu:d.xu||"",yu:d.yu||""}); n++; });
+  if(!n){ toast("They are marked already."); return; }
+  save({annos:(P().annos||[]).concat(annos.slice((p.annos||[]).length))},`marked ${n} outlier${n===1?"":"s"} found by ${a.name}`); renderAll(); toast(`Marked ${n} on the graph.`,{action:"Undo",run:undo}); }
 function anaMenuItems(a){ const ro=S.readOnly||!P(), st=anaStale(a);
   return [{group:a.name,plain:true},
     {label:"Report",title:"What it found, with its notes",run:()=>anaReport(a.id)},
@@ -15098,6 +15396,7 @@ function anaMenuItems(a){ const ro=S.readOnly||!P(), st=anaStale(a);
     {label:"Recalculate",enabled:!ro&&!!st&&!(a.res&&a.res.err&&/deleted/.test(a.res.err)),title:st||"Up to date",run:()=>anaRecalc(a.id)},
     {label:"Recalculate by itself",radio:true,checked:a.recalc==="auto",enabled:!ro,run:()=>anaSetRecalc(a.id,"auto")},
     {label:"Only when asked",radio:true,checked:a.recalc==="manual",enabled:!ro,run:()=>anaSetRecalc(a.id,"manual")},
+    ...(()=>{ const x=anaActs(a); return x.length?["-",...x.map(t=>({label:t.label,title:t.title,enabled:t.enabled,run:t.run}))]:[]; })(),
     "-",{label:"Cut from its data",enabled:!ro,title:"Keep these values as an ordinary sheet; the analysis goes",run:()=>anaCut(a.id)},
     {label:"Delete the analysis…",danger:true,enabled:!ro,title:"The analysis and its sheet",run:()=>anaDelete(a.id)},"-"]; }
 function anaEdit(id,label,fn,log){ const p=P(); if(!p||S.readOnly) return; const ana=anaList(p).map(x=>Object.assign({},x)), a=ana.find(x=>x.id===id); if(!a) return;
@@ -15119,6 +15418,8 @@ async function anaDelete(id){ const a0=anaOf(id); if(!a0) return; const p=P(), m
 // The report as HTML, from the report object (the same object the copied table and the CSV read).
 function anaReportHtml(a){ const r=a.res||{}, rep=r.report, st=anaStale(a); let h=ANA_JOBS.has(a.id)?noteHtml("info",`Being worked out: ${a.name} has many values, so the work goes on beside the page.`):st?noteHtml("warn",`Out of date: ${st}.`):"";
   if(!rep){ return h+`<p class="muted">${esc(r.err||"Not worked out yet.")}</p>`; }
+  (rep.said||[]).forEach(s=>{ h+=`<p class="anasaid">${esc(s)}</p>`; });
+  const acts=anaActs(a); if(acts.length) h+=`<p class="anaacts">${acts.map(x=>`<button class="btn sm" data-anaact="${x.key}" data-ana="${esc(a.id)}"${x.title?` title="${esc(x.title)}"`:""}${x.enabled?"":" disabled"}>${esc(x.label)}</button>`).join("")}</p>`;
   const cell=v=>v==null?"":typeof v==="number"?esc(fmt(v,6)):esc(v);
   rep.sections.forEach(s=>{ h+=`<h4>${esc(s.title)}</h4>`; (s.tables||[]).forEach(t=>{ h+=`<div style="overflow:auto"><table class="rtab"><thead><tr>${t.head.map(x=>`<th>${esc(x)}</th>`).join("")}</tr></thead><tbody>${t.rows.map(r=>`<tr>${r.map((v,j)=>`<td${typeof v==="number"?' class="num"':""}>${cell(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`; }); });
   if(rep.method) h+=`<p class="lab">${esc(rep.method)}</p>`;
@@ -15128,7 +15429,7 @@ function anaReportHtml(a){ const r=a.res||{}, rep=r.report, st=anaStale(a); let 
 function anaReport(id){ const a=anaOf(id); if(!a) return; S.resAna=id; openWin("res",{render:true}); renderResults(); }
 // The report as text (Copy): every table as tab-separated rows, then the notes, from the report object.
 function anaText(a){ const rep=a.res&&a.res.report; if(!rep) return a.name+"\n"+((a.res&&a.res.err)||"Not worked out yet.");
-  const out=[a.name]; rep.sections.forEach(s=>{ out.push("",s.title); (s.tables||[]).forEach(t=>{ out.push(t.head.join("\t")); t.rows.forEach(r=>out.push(r.map(v=>v==null?"":typeof v==="number"?String(v):String(v).replace(/[\t\r\n]+/g," ")).join("\t"))); }); });
+  const out=[a.name]; (rep.said||[]).forEach(s=>out.push(s)); rep.sections.forEach(s=>{ out.push("",s.title); (s.tables||[]).forEach(t=>{ out.push(t.head.join("\t")); t.rows.forEach(r=>out.push(r.map(v=>v==null?"":typeof v==="number"?String(v):String(v).replace(/[\t\r\n]+/g," ")).join("\t"))); }); });
   if(rep.method) out.push("# "+rep.method); (rep.notes||[]).forEach(n=>out.push("# "+n)); const st=anaStale(a); if(st) out.splice(1,0,"# Out of date: "+st);
   out.push("# Reads: "+(a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colRef(c)} ${c.name||""}`.trim()+(t?` (${t})`:""); }).join("; "));
   return out.join("\n"); }
@@ -15137,6 +15438,7 @@ function reportAnaHtml(){ const as=anaList(); if(!as.length) return ""; const e2
   return "<h2>Analyses</h2>"+as.map(a=>{ const rep=a.res&&a.res.report, st=anaStale(a); let h="<h3>"+e2(a.name)+" ("+e2(ANA_KINDS[a.kind].label.toLowerCase())+")</h3>";
     if(st) h+="<p class=\"warn\"><strong>Out of date:</strong> "+e2(st)+".</p>";
     if(!rep) return h+"<p>"+e2((a.res&&a.res.err)||"Not worked out yet.")+"</p>";
+    (rep.said||[]).forEach(s=>{ h+="<p><strong>"+e2(s)+"</strong></p>"; });
     rep.sections.forEach(s=>{ (s.tables||[]).forEach(t=>{ h+="<table><thead><tr>"+t.head.map(x=>"<th>"+e2(x)+"</th>").join("")+"</tr></thead><tbody>"+t.rows.map(r=>"<tr>"+r.map(v=>typeof v==="number"?"<td>"+e2(fmt(v,7))+"</td>":"<td class=\"l\">"+e2(v==null?"":v)+"</td>").join("")+"</tr>").join("")+"</tbody></table>"; }); });
     if(rep.method) h+="<p>"+e2(rep.method)+"</p>"; (rep.notes||[]).forEach(n=>{ h+="<p>"+e2(n)+"</p>"; });
     h+="<p>Reads "+e2(andList((a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colRef(c)} ${c.name||""}`.trim()+(t?" ("+t+")":""); })))+(a.in.by&&colById(a.in.by)?", grouped by "+e2(colById(a.in.by).name||colRef(colById(a.in.by))):"")+(a.in.masked?", masked points included":"")+"; "+(a.recalc==="auto"?"worked out again whenever its data change":"worked out only when asked")+(a.at?", last on "+e2(new Date(a.at).toISOString().slice(0,16).replace("T"," "))+" UTC":"")+".</p>";
@@ -20955,7 +21257,9 @@ function analyzeMenu(){
     {label:"Statistics", sub:()=>[{label:"Quick statistics…", title:"The Statistics window: each column's numbers at a glance, the integral of the range in view, the noise and the signal to noise, with no sheet made", run:go("desc"), enabled:has},
       {label:"Descriptive", sub:()=>[{label:"Statistics on columns…", title:ANA_KINDS.desc.help, run:()=>anaDlg("desc"), enabled:!S.readOnly&&!!P()},
         {label:"Frequency counts…", title:ANA_KINDS.freq.help, run:()=>anaDlg("freq"), enabled:!S.readOnly&&!!P()},
-        {label:"Graphical summary", title:"A figure of the column's histogram with a normal curve over it, and its box chart", run:()=>graphSummary(), enabled:!S.readOnly&&has}]},
+        {label:"Graphical summary", title:"A figure of the column's histogram with a normal curve over it, and its box chart", run:()=>graphSummary(), enabled:!S.readOnly&&has},"-",
+        {label:"Normality tests…", title:ANA_KINDS.norm.help, run:()=>anaDlg("norm"), enabled:!S.readOnly&&!!P()},
+        {label:"Outliers…", title:ANA_KINDS.outl.help, run:()=>anaDlg("outl"), enabled:!S.readOnly&&!!P()}]},
       {label:"Correlation between columns…", run:go("corr"), enabled:has&&yCols().length>1},
       {label:"Histogram", title:"The distribution of the selected columns' values (or the active column's), as a column of its own on a graph of its own", run:()=>histogramCols(hist()), enabled:has&&!S.readOnly}]},
     {label:"Spectroscopy", sub:spectroscopyItems},
@@ -23639,7 +23943,7 @@ ${DL([["Area ± error","The trapezoidal sum over the points in the window, less 
 ${DL([["Net counts","The counts in the window less the continuum under them: a straight line through the mean of the channels at each edge (as many as the line baselines use). ± one standard deviation from counting: the counts' own and the continuum's."],["Detected","Above Currie's critical level, 95 %: on a continuum alone, one window in twenty is called detected. Below it, the level is shown."],["Emission, efficiency","Type the share of decays that give the line and the detector's efficiency at its energy, both in %."],["Activity","Net counts ÷ (live time × efficiency × emission), in becquerel, with the counting error. Not detected: the detection limit as an activity, the smallest that would be."]])}
 <p>Counting needs the counts as recorded: an energy calibration, a count rate or a crop keep them; smoothing or a subtracted background do not, and the part says so.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
-{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary",
+{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark",
  lead:"An analysis reads columns and writes what it finds into a result sheet of its own, worked out again when its data change.",
  body:`<h2>Statistics on columns</h2>
 <p>${MP("Analyze › Statistics › Descriptive › Statistics on columns…")}: tick the columns and the statistics, and each column gets a row of a new sheet. Ticked at first are N, the rows missing, mean, standard deviation, standard error of the mean, minimum, Q1, median, Q3, maximum and sum; besides them, the mean's interval, variance, coefficient of variation, range, IQR, MAD, robust SD, the mode and its count, skewness, kurtosis, the geometric and harmonic means, and any percentiles typed (<code>5, 95</code>). <em>Group by</em> a column of text or categories gives a row for each column and group.</p>
@@ -23650,6 +23954,15 @@ ${DL([["Quartiles","How a quantile between two values is found: Linear (R's type
 <p>${MP("Analyze › Statistics › Descriptive › Frequency counts…")}: numbers counted into bins (Freedman–Diaconis by default, Sturges, the square root of the count, a number of bins, or bins of a width from a start), or each distinct value; a column of text or categories is counted by its values, in the column's order. Each row is a bin's edges and centre, or a value, then its count, the running count, its percent and the running percent.</p>
 <h2 id="summary">Graphical summary</h2>
 <p>${MP("Analyze › Statistics › Descriptive › Graphical summary")}: a figure of the active column (or the one selected), a panel each for its histogram, with a normal curve over it whose legend gives the mean and SD, and its box chart. Both follow the column's processing as any graph does; one undo takes the figure away.</p>
+<h2 id="norm">Normality tests</h2>
+<p>${MP("Analyze › Statistics › Descriptive › Normality tests…")}: whether each column (or group) could have come from a normal distribution. The report's first line says what the first test ticked found, in words; the sheet has each test's statistic, its p and its verdict, <em>not normal</em> below the level or <em>may be normal</em> above it (a test never shows that values are normal, only that it finds nothing against it).</p>
+${DL([["Shapiro–Wilk","Ticked at first: the most powerful for most samples, 3 to 5000 values, by Royston's algorithm as R and SciPy compute it. Its p is accurate where decisions are made, below about 0.3."],["Lilliefors","Kolmogorov–Smirnov's distance from the normal with the values' own mean and SD, its p from a table of ten million simulations; past its ends it says below 0.001 or above 0.99."],["Anderson–Darling","Weighs the tails more; 8 values or more."],["D'Agostino's K²","From the skewness and the kurtosis together; 8 values or more, rough below 20."],["Kolmogorov–Smirnov","Its p, Kolmogorov's exact one, takes the mean and SD as known; estimated from the same values they make it too large. Lilliefors' is the same test done right."]])}
+<p><em>Q–Q plot</em> (under the report, or the result sheet's tab menu) graphs the sorted values against the normal quantiles, with the line through their quartiles: values from a normal distribution lie near it.</p>
+<h2 id="outliers">Outliers</h2>
+<p>${MP("Analyze › Statistics › Descriptive › Outliers…")}: values far from the rest of each column (or group). The sheet has a row for each value examined: its row, the statistic, the critical value at the level, p and whether it is an outlier.</p>
+${DL([["Grubbs","The distance from the mean over the SD, at either side or one; <em>Repeat until none is found</em> takes each outlier out and tests again, since two outliers can hide each other from a single test."],["Dixon's Q","The gap to the nearest value over the range, for 3 to 30 values. Its p and critical value are worked out for normal samples, not read from a printed table (printed tables differ in the third decimal)."]])}
+<p><em>Mask the outliers</em> puts their rows in each column's mask, one undo step: they are left out of fits and, unless the analysis reads masked points, of the analysis, which is worked out again without them. <em>Mark them on the graph</em> labels each on its column's graph.</p>
+${TIP("Testing for outliers until none is left removes good values too. Mask a value when there is a reason it is wrong, not only because a test points at it.")}
 <h2 id="read">What it reads</h2>
 <p>Each column's processed values: the values after its steps, its original values when it has none. The dialog names the steps each column is read after, and a column with steps has a switch to <em>Original</em>. Masked points are left out unless <em>Include masked points</em> is ticked, and the report says how many. After a step that leaves rows out, makes points or averages them (resampling, a histogram), or makes neighbours depend on each other (smoothing), the report says so: three hundred points resampled from a hundred are not three hundred measurements.</p>
 <h2 id="sheet">The result sheet</h2>
@@ -27162,7 +27475,7 @@ async function loadExample(kind){
    Boot
    ============================================================ */
 function wireStatic(){
-  setupRanges(); setupSupify(); setupCmdk(); setupNotes(); setupMentions(); setupAway(); setupCtx(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); wireXpl(); setupPlotDetails(); setupRichTools(); setupCombos(); setupMotionKeep(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
+  setupRanges(); setupSupify(); setupCmdk(); setupNotes(); setupAnaActs(); setupMentions(); setupAway(); setupCtx(); loadLayout(); setupWins(); setupGraph(); setupWs(); setupDrop(); wireXpl(); setupPlotDetails(); setupRichTools(); setupCombos(); setupMotionKeep(); setupExportFigure(); fitToolbar(); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitToolbar); wireStepForms($("#pane-tool"));
   document.querySelectorAll(".rb[data-rmenu]").forEach(b=>b.addEventListener("click",()=>toggleMenu(b,()=>menuItems(b.dataset.rmenu),{label:b.textContent.trim()})));
   // With a menu open, the pointer passing over another menu's name opens it only after
   // resting there 150 ms, so a pointer crossing the bar on its way to a submenu changes nothing.

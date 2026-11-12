@@ -193,3 +193,106 @@ def desc_ref(vals, vdiv="df", keys=None):
         r["gmean"] = fl(mp.exp(mp.fsum(mp.log(mpq(x)) for x in F) / n))
         r["hmean"] = fl(Fr(n) / sum(1 / x for x in F))
     return r
+
+# ---------- normality and outliers (STATS_SPEC 2.2) ----------
+# Each statistic in 40 digits from the doubles given: the mean and SD as rationals, Φ and Φ⁻¹ by mpmath.
+def _msd(x):
+    F = [Fr(v) for v in x]; n = len(F); m = sum(F) / n
+    return mpq(m), mp.sqrt(mpq(sum((v - m) ** 2 for v in F) / (n - 1)))
+
+def _poly(c, x):
+    r = mp.mpf(0)
+    for v in reversed(c): r = r * x + mp.mpf(v)
+    return r
+
+def sw_ref(x):
+    """Royston's AS R94 (R's swilk.c) carried out in 40 digits: (W, p)."""
+    x = sorted(x); n = len(x); nn2 = n // 2; a = [mp.mpf(0)] * (nn2 + 1)
+    if n == 3: a[1] = mp.sqrt(mp.mpf(1) / 2)
+    else:
+        an25 = n + mp.mpf(1) / 4; summ2 = mp.mpf(0)
+        for i in range(1, nn2 + 1):
+            a[i] = mp.sqrt(2) * mp.erfinv(2 * ((i - mp.mpf(3) / 8) / an25) - 1); summ2 += a[i] ** 2
+        summ2 *= 2; ssumm2 = mp.sqrt(summ2); rsn = 1 / mp.sqrt(n)
+        a1 = _poly(["0", ".221157", "-.147981", "-2.07119", "4.434685", "-2.706056"], rsn) - a[1] / ssumm2
+        if n > 5:
+            i1 = 3; a2 = -a[2] / ssumm2 + _poly(["0", ".042981", "-.293762", "-1.752461", "5.682633", "-3.582633"], rsn)
+            fac = mp.sqrt((summ2 - 2 * a[1] ** 2 - 2 * a[2] ** 2) / (1 - 2 * a1 ** 2 - 2 * a2 ** 2)); a[2] = a2
+        else:
+            i1 = 2; fac = mp.sqrt((summ2 - 2 * a[1] ** 2) / (1 - 2 * a1 ** 2))
+        a[1] = a1
+        for i in range(i1, nn2 + 1): a[i] /= -fac
+    X = [mp.mpf(v) for v in x]; rg = X[-1] - X[0]
+    coef = [(mp.sign(i - (n - 1 - i)) * a[min(i, n - 1 - i) + 1]) if i != n - 1 - i else mp.mpf(0) for i in range(n)]
+    sa = mp.fsum(coef) / n; sx = mp.fsum(v / rg for v in X) / n
+    ssa = mp.fsum((c - sa) ** 2 for c in coef); ssx = mp.fsum((v / rg - sx) ** 2 for v in X); sax = mp.fsum((c - sa) * (v / rg - sx) for c, v in zip(coef, X))
+    w1 = 1 - sax ** 2 / (ssa * ssx); w = 1 - w1
+    if n == 3: return f(w), f(max(mp.mpf(0), mp.mpf("1.90985931710274") * (mp.asin(mp.sqrt(w)) - mp.mpf("1.04719755119660"))))
+    y = mp.log(w1); lx = mp.log(n)
+    if n <= 11:
+        gm = _poly(["-2.273", ".459"], n)
+        if y >= gm: return f(w), 1e-99
+        y = -mp.log(gm - y); m = _poly([".544", "-.39978", ".025054", "-6.714e-4"], n); s = mp.exp(_poly(["1.3822", "-.77857", ".062767", "-.0020322"], n))
+    else:
+        m = _poly(["-1.5861", "-.31082", "-.083751", ".0038915"], lx); s = mp.exp(_poly(["-.4803", "-.082676", ".0030302"], lx))
+    return f(w), f(mp.ncdf(-(y - m) / s))
+
+def ksnorm_d_ref(x):
+    """The Kolmogorov–Smirnov distance from the normal of the values' mean and SD (n − 1)."""
+    x = sorted(x); n = len(x); m, s = _msd(x); d = mp.mpf(0)
+    for i, v in enumerate(x):
+        F = mp.ncdf((mp.mpf(v) - m) / s); d = max(d, mp.mpf(i + 1) / n - F, F - mp.mpf(i) / n)
+    return f(d)
+
+def ad_ref(x):
+    """Anderson–Darling's A² and A²(1 + 0.75/n + 2.25/n²) against the normal of the mean and SD, in 40 digits."""
+    x = sorted(x); n = len(x); m, s = _msd(x); z = [(mp.mpf(v) - m) / s for v in x]
+    S = mp.fsum((2 * i + 1) * (mp.log(mp.ncdf(z[i])) + mp.log(mp.ncdf(-z[n - 1 - i]))) for i in range(n))
+    a2 = -n - S / n; return f(a2), f(a2 * (1 + mp.mpf(3) / (4 * n) + mp.mpf(9) / (4 * n * n)))
+
+def ad_p(a):
+    """D'Agostino and Stephens' p for the adjusted A² (statsmodels' normal_ad)."""
+    if a < 0.2: return 1 - math.exp(-13.436 + 101.14 * a - 223.73 * a * a)
+    if a < 0.34: return 1 - math.exp(-8.318 + 42.796 * a - 59.938 * a * a)
+    if a < 0.6: return math.exp(0.9177 - 4.279 * a - 1.38 * a * a)
+    if a <= 13: return math.exp(1.2937 - 5.709 * a + 0.0186 * a * a)
+    return 0.0
+
+def dago_ref(x):
+    """D'Agostino and Pearson's scores and K² (SciPy's skewtest and kurtosistest), the moments exact, the rest in 40 digits."""
+    F = [Fr(v) for v in x]; n = len(F); m = sum(F) / n
+    m2, m3, m4 = (mpq(sum((v - m) ** k for v in F) / n) for k in (2, 3, 4))
+    b1 = m3 / m2 ** mp.mpf(1.5); b2 = m4 / m2 ** 2; N = mp.mpf(n)
+    y = b1 * mp.sqrt((N + 1) * (N + 3) / (6 * (N - 2)))
+    be = 3 * (N * N + 27 * N - 70) * (N + 1) * (N + 3) / ((N - 2) * (N + 5) * (N + 7) * (N + 9))
+    W2 = -1 + mp.sqrt(2 * (be - 1)); dl = 1 / mp.sqrt(mp.log(W2) / 2); al = mp.sqrt(2 / (W2 - 1)); zs = dl * mp.asinh(y / al)
+    E = 3 * (N - 1) / (N + 1); vb = 24 * N * (N - 2) * (N - 3) / ((N + 1) ** 2 * (N + 3) * (N + 5)); xk = (b2 - E) / mp.sqrt(vb)
+    sb = 6 * (N * N - 5 * N + 2) / ((N + 7) * (N + 9)) * mp.sqrt(6 * (N + 3) * (N + 5) / (N * (N - 2) * (N - 3)))
+    A = 6 + 8 / sb * (2 / sb + mp.sqrt(1 + 4 / sb ** 2)); t1 = 1 - 2 / (9 * A); den = 1 + xk * mp.sqrt(2 / (A - 4))
+    t2 = mp.sign(den) * mp.cbrt((1 - 2 / A) / abs(den)); zk = (t1 - t2) / mp.sqrt(2 / (9 * A)); k2 = zs ** 2 + zk ** 2
+    return f(zs), f(zk), f(k2), f(mp.exp(-k2 / 2))
+
+def grubbs_ref(x, side, alpha):
+    """One round of Grubbs' test in 40 digits: G, its p n·P(T > t) (two-sided twice that, at most 1), the critical G."""
+    n = len(x); m, s = _msd(x); X = [mp.mpf(v) for v in x]
+    dv = [(v - m) if side == "max" else (m - v) if side == "min" else abs(v - m) for v in X]
+    G = max(dv) / s; t = mp.sqrt(n * (n - 2) * G ** 2 / ((n - 1) ** 2 - n * G ** 2)); nu = n - 2
+    sf = mp.betainc(mp.mpf(nu) / 2, mp.mpf(1) / 2, 0, nu / (nu + t * t), regularized=True) / 2
+    p1 = n * sf; p = min(mp.mpf(1), 2 * p1 if side == "two" else p1)
+    q = mp.mpf(alpha) / (2 * n if side == "two" else n)
+    tc = mp.mpf(t_isf(q, nu, 5.0))
+    Gc = (n - 1) / mp.sqrt(n) * mp.sqrt(tc ** 2 / (n - 2 + tc ** 2))
+    return f(G), f(p), f(Gc)
+
+def kolm_dmtw(n, d):
+    """P(Dₙ ≤ d) by Durbin's matrix (Marsaglia, Tsang and Wang) in 40 digits, for small n·d."""
+    d = mp.mpf(d); k = int(mp.ceil(n * d)); h = k - n * d; m = 2 * k - 1
+    H = mp.matrix(m, m)
+    for i in range(m):
+        for j in range(m):
+            if i - j + 1 >= 0: H[i, j] = 1 / mp.factorial(i - j + 1)
+    for i in range(m):
+        H[i, 0] -= h ** (i + 1) / mp.factorial(i + 1); H[m - 1, i] -= h ** (m - i) / mp.factorial(m - i)
+    H[m - 1, 0] += (max(2 * h - 1, 0) ** m) / mp.factorial(m)
+    P = H ** n
+    return P[k - 1, k - 1] * mp.factorial(n) / mp.mpf(n) ** n

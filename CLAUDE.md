@@ -1066,7 +1066,23 @@ graph first, with the taskbar kept at the bottom of the screen.
   `#aPct`, `#aQt`, `#aConf`, `#aVd`; `#aFm`, `#aFn`, `#aFw`, `#aFs`; the dialog's `#aRow0`, `#aRow1`, `#aMiss`,
   `o.cols`). `graphSummary(cid)` (Analyze › Statistics › Descriptive › Graphical summary): a derived histogram
   with a normal curve over it and a box chart of the column, as a figure of two, one undo step. The Statistics
-  window's item is *Quick statistics…*. `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
+  window's item is *Quick statistics…*.
+  **Normality and outliers** (STATS_SPEC 2.2): in STATS, `kolmogN(n, x, cdf)` (Kolmogorov's two-sided
+  distance, SciPy's `_kolmogn` ported: Ruben and Gambino's ends, `smirnovSf` (Birnbaum and Tingey's sum, each
+  term `dbinomRaw` over p) for x ≥ ½ and Miller's tail, `ksDMTW` (Durbin's matrix) while it is 201 wide or less,
+  `ksPomeranz` to 140 values, `ksPelzGood` past both), `DIST.kstwo {cdf, sf}`; `distFit`'s `pks` is
+  `DIST.kstwo.sf`. In ANA: `msd(s)` (each deviation with the double mean's rounding taken out, the SD, z),
+  `swTest` (Royston's AS R94, about the median), `ksNormD`, `lfTest` (`lfProb`: statsmodels' table `LF_N`,
+  `LF_CV`, `LF_AS`, `LF_PCT`; `lo`/`hi` at its ends), `ksnTest`, `adTest`, `dagoTest`, `qqNorm` (R's ppoints and
+  qqline), `grubbsTest(vals, {side, alpha, repeat})` (`rounds`, `out`), `glNodes`/`GL20`/`gl2`, `dixonP(n, q,
+  side, panels)`, `dixonCrit`, `dixonTest`; `anaFmt`, `anaPtxt`, `anaAlpha`, `NORM_TESTS`, `normTests`,
+  `anaNormCheck(vals, name, α)` (the line later tests cite). Kinds `norm` (a row per column or group; `report.said`
+  the sentence, `report.qq` the Q–Q sets, written as columns `qx<i>` (an X), `qy<i>`, `ql<i>`) and `outl` (a row
+  per value examined; `report.marks [{i, row, value, grp}]`); `anaInputs` gives `grows` (each group's rows).
+  Page: `ANA_FORMS.norm`/`outl` (`#aN_<key>`, `#aAl`, `#aOt`, `#aOs`, `#aOr`), `anaActs(a)` (the report's buttons,
+  `data-anaact`, `setupAnaActs`, and the tab menu: `anaQQ`, `anaMaskOut`, `anaMarkOut`, `anaMarksOf`), the report's
+  sentence first (`.anasaid`, `anaText`, `reportAnaHtml`); `anaWrite` takes a column's `role` and keeps a plotted
+  one a curve. `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
   (rationals), shared by the fixtures (`desc.json`) and the fuzzer (`quantileType`, `descStats@<key>`, which
   `run.mjs` reads as one field of the result).
 - **Raw data** is never changed by analysis, and its arrays are replaced, never edited in
@@ -2966,13 +2982,17 @@ made points said, Only when asked and Recalculate, groups, an input deleted, a r
 and Delete with undo; and STATS_SPEC 2.1 (the statistics ticked, the interval's level shown with it, a 99 %
 interval and type 6 percentiles against their formulas, the method in the report, a blank mode said, rows 3 to 8,
 listwise, frequency counts of text and in bins of a width, the graphical summary and its one undo, junk settings,
-a reload).
+a reload), and 2.2 (the tests ticked, each against its function, the verdict and the sentence first, the Q–Q
+plot's columns and graph kept on recalculating, Grubbs repeated, Mask with the analysis worked out again and one
+undo, Mark, groups' rows, Dixon, a reload).
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
 (a shift, a power of two, the order and a change of sign, every quantile type within the values and
-rising, one, two and equal values, Tukey's hinges); run it, ref-test and a fuzzer seed after touching
-the STATS or ANA block.
+rising, one, two and equal values, Tukey's hinges), and the normality and outlier tests' (each one's size at
+5 % over 20 000 normal samples, Shapiro–Wilk's p uniform below 0.3, invariance, Grubbs' critical values as
+ASTM E178, repeated and masked, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
+ANA block.
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
 back, undo, the status bar's count, sorting, find, copy, clear, rows inserted and deleted, the
@@ -3920,6 +3940,13 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **Red that says nothing is noise.** A parameter's row turned red past a dependency of 0.99,
   and the user asked what it was. A colour means a state and says it in words where it is
   shown (a note naming the parameter), or it is not used.
+- **A comment swallows the line it is put on.** A patch put `// a column plotted stays a curve` in the middle
+  of a line of `anaWrite`, and the `const text=…` after it became comment: every analysis threw "text is not
+  defined". The syntax check passes it. Comments inside code lines are `/* … */`, and every drive runs.
+- **Copy the algorithm, then measure it.** SciPy's Kolmogorov distribution switches to Pelz and Good's
+  expansion past 140 values for speed; ported faithfully it was 5e-6 off at 500 values, which only a 40-digit
+  Durbin matrix showed (SciPy agreed with the port to 1e-15). The reference one copies is a reference for
+  the copy, not for the truth.
 - **A correction can be the error.** The mean was Neumaier's sum over n "corrected" by the mean deviation
   from it, the textbook second pass. Where the values cancel (a mean of 5e-6 from values near ±1) each
   deviation is rounded at the values' scale, and the correction added 2.5e-14 to a mean the sum alone had to
@@ -4472,7 +4499,9 @@ Next, in order:
    the order it gives); slice 2.1, descriptive statistics whole (Statistics on columns with every statistic
    Origin's has, R's nine quartile methods and Tukey's hinges, the divisor, rows, listwise; Frequency counts;
    the Graphical summary), done 12.11, checked against exact rationals (the mean, the MAD and values past 10³⁰⁰
-   put right on the way)
+   put right on the way); slice 2.2, normality and outliers (Shapiro–Wilk, Lilliefors, Anderson–Darling,
+   D'Agostino's K², Kolmogorov–Smirnov; a Q–Q plot; Grubbs and Dixon's Q, masked or marked; Kolmogorov's exact
+   distribution, which closed `distFit`'s gap), done 12.11
 
 ## Known gaps
 
@@ -4554,8 +4583,11 @@ Next, in order:
 - Plotting from the worksheet plots whole columns (no range of rows, no plot of a selection
   of cells), against an X column; a closed graph is closed for everyone who opens the
   project, and a viewer who cannot edit cannot open it
-- Analyses: two kinds yet (Statistics on columns, Frequency counts); no weights, no statistics on rows, one
-  column of groups; NIST's StRD univariate sets are not yet in the bench (the host was unreachable when 2.1 was
+- Analyses: four kinds yet (Statistics on columns, Frequency counts, Normality tests, Outliers); no weights, no
+  statistics on rows, one column of groups; normality tests against the normal only (no other distribution's
+  goodness of fit, no Chen–Shapiro); Shapiro–Wilk's p is Royston's approximation, high above about 0.3;
+  Kolmogorov's p past about 4600 values is Pelz and Good's expansion (about nine digits); Dixon's Q is r₁₀ alone
+  (not Dixon's r₁₁, r₂₁, r₂₂ for larger samples), and Dixon's p takes 7 ms, its critical value a fifth of a second; NIST's StRD univariate sets are not yet in the bench (the host was unreachable when 2.1 was
   checked; exact rationals stand in); one table a kind (its report's other sections are text); an analysis
   being worked out by the worker is started again after a reload (the job is not stored); a result column has no lock
   of its own in its header (its tab has)

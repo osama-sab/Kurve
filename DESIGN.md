@@ -896,6 +896,21 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-12: normality and outliers (STATS_SPEC 2.2)
+
+- **The sentence comes first.** A test's result is a sentence, in words ("At the 0.05 level,
+  Grubbs' test finds 2 outliers in Mass: 19.5 (G = 3.311, p = 0.001), 16 …"), then its buttons,
+  then the table. Origin's report opens with the table, and people read its last line.
+- **"May be normal", not "normal".** A normality test never shows that values are normal, only
+  that it finds nothing against it; the verdict column says *not normal* or *may be normal*.
+- **What a result offers is under it**: *Q–Q plot*, *Mask the outliers*, *Mark them on the graph*
+  are buttons under the report wherever it is shown (Results, the History) and in the sheet's tab
+  menu. Masking is one undo step, and the analysis, worked out again, says what is left.
+- **Shapiro–Wilk alone is ticked**: it is the test to use; the others are there for those who need
+  to cite them, each tooltip saying when (Kolmogorov–Smirnov's: its p is too large).
+- **A table's end is said, not printed**: Lilliefors' p past its table reads "below 0.001", and the
+  sheet holds 0.001, not the 0.000999… the table's rounding gives.
+
 ### 2026-11-12: descriptive statistics, whole (STATS_SPEC 2.1)
 
 - **The statistics are ticks**, the eleven Statistics on columns gave ticked at first, so an

@@ -220,6 +220,31 @@ until none) and Dixon's Q (3 to 30 values, its table), the outliers listed with 
 in the column's mask, one undo step) and *Mark* (a label on the graph). `anaChecks`' normality line
 for later tests is Shapiro–Wilk's.
 
+Built (12.11), with three departures, each for accuracy:
+- **Lilliefors' p is statsmodels' default**, its table of ten million simulations (linear between its
+  critical values, past 1600 values their fitted asymptotic form), not Dallal and Wilkinson's formula,
+  which statsmodels offers as an option good to two or three decimals; p past the table's ends is
+  said as below 0.001 or above 0.99, never printed as if it were a value.
+- **Dixon's Q has no table.** r₁₀ for 3 to 30 values, its p for normal samples by integrating over
+  the smallest value and the range (Gauss–Legendre, 1.5e-14 against SciPy's adaptive `dblquad`), its
+  critical value by halving. A simulation of ten million samples settled a disagreement with the table
+  as remembered (n = 6 at 5 %: 0.6275 exact, 0.625 printed, which rejects 5.15 % of normal samples).
+- **Kolmogorov's distribution is SciPy's `_kolmogn` taken further.** Past 140 values SciPy takes Pelz
+  and Good's expansion where Durbin's matrix would be slow: 5e-6 off at 500 values, 1e-7 at 2000, 1e-9
+  at 5000, against the matrix in 40 digits. Kurve uses the matrix while it is 201 wide or less (a
+  quarter of a second), and its tail 1 − P below n·x² = 4, where Miller's twice-one-sided was 4e-8 off.
+  `distFit`'s p (roadmap 4) moved onto it: 3e-2 off before, 5e-15 now.
+- Shapiro–Wilk subtracts the median first (as SciPy, which a 40-digit transcription showed), and every
+  test standardises with the mean's own rounding taken out: values near 10⁹ had moved D, A², G and W at
+  1e-8. Kolmogorov–Smirnov against the fitted normal is kept, its note saying its p is too large.
+- Checked: `fixtures/norm.json` (518 cases), each statistic against a 40-digit reference
+  (`refs.sw_ref`, `ksnorm_d_ref`, `ad_ref`, `dago_ref`, `grubbs_ref`, `kolm_dmtw`); statsmodels' A² and
+  SciPy's K² were 5e-7 off where Kurve was not. Each test's size at 5 % within its binomial interval
+  over 20 000 normal samples, Shapiro–Wilk's p uniform below 0.3 (above, Royston's approximation runs
+  high: it was fitted to the lower tail), Grubbs' critical values as ASTM E178 prints them, masking
+  shown. ana-drive: the dialogs, the sentence first, the Q–Q plot, Mask (the analysis worked out again
+  without them, one undo), Mark, groups' own rows, Dixon, a reload.
+
 ## 2.3 Comparing means and spreads
 
 One-sample, two-sample (Welch's by default, Student's when chosen) and paired t tests: the

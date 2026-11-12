@@ -225,6 +225,69 @@ await page(async p => {
   check("after a reload the analyses keep their settings", r.length === 2 && /"qtype":6/.test(r[0][1]) && /"w":5/.test(r[1][1]), JSON.stringify(r));
 }, { name: "2.1" });
 
+console.log("2.2: normality tests, the Q–Q plot, outliers masked and marked");
+await page(async p => {
+  // A sheet: X, Mass (18 values near 10 and two far ones, 19.5 and 16), a text column of groups.
+  await p.evaluate(() => { const base = [10.46, 10.18, 11.34, 7.51, 8.95, 10.7, 9.68, 10.99, 10.25, 9.55, 11.39, 10.11, 9.78, 11.21, 10.64, 9.79, 8.52, 9.31];
+    const x = base.map((_, i) => i).concat([18, 19]), m = base.concat([19.5, 16]);
+    const X = Object.assign(makeCol("x", "X", ""), { data: x }), M = Object.assign(makeCol("y", "Mass", "g"), { data: m }), G = Object.assign(makeCol("ignore", "Batch", ""), { data: m.map(() => null), fmt: "text", txt: Object.fromEntries(m.map((_, i) => [i, i % 2 ? "B" : "A"])) });
+    save({ cols: [X, M, G], activeY: M.id }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  // Normality: Shapiro–Wilk, Lilliefors and Anderson–Darling ticked.
+  await p.evaluate(ids => { anaDlg("norm", { cols: [ids[1]] }); }, ids); await p.waitForSelector("#aN_sw");
+  let d = await p.evaluate(() => ({ sw: document.getElementById("aN_sw").checked, lf: document.getElementById("aN_lf").checked, by: !!document.getElementById("aBy") }));
+  check("Normality tests: Shapiro–Wilk ticked at first, the others not, Group by offered", d.sw && !d.lf && d.by, JSON.stringify(d));
+  await p.check("#aN_lf"); await p.check("#aN_ad"); await p.click("#formOk"); await p.waitForTimeout(600);
+  let r = await p.evaluate(ids => { const a = anaList().find(x => x.kind === "norm"), o = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { o[c.ak] = { v: c.txt ? c.data.map((v, i) => c.txt[i] != null ? c.txt[i] : v) : c.data.slice(), role: c.role }; });
+    const v = colById(ids[1]).data, sw = swTest(v), lf = lfTest(v), ad = adTest(v); return { o, sw, lf, ad, said: a.res.report.said, txt: anaText(a), id: a.id }; }, ids);
+  check("…a row with each test's statistic and p as the functions give them", r.o.sws.v[0] === r.sw.w && r.o.swp.v[0] === r.sw.p && r.o.lfs.v[0] === r.lf.d && r.o.ads.v[0] === r.ad.a2, JSON.stringify([r.o.sws, r.sw]));
+  check("…a verdict, and the sentence first in the report", r.o.swv.v[0] === (r.sw.p < 0.05 ? "not normal" : "may be normal") && /^At the 0\.05 level, Shapiro–Wilk finds/.test(r.said[0]) && r.txt.split("\n")[1] === r.said[0], r.said[0]);
+  check("…and the Q–Q plot's columns: the normal quantiles an X, 20 sorted values, the quartiles' line", r.o.qx0.role === "x" && r.o.qy0.v.length === 20 && r.o.qy0.v[19] === 19.5 && r.o.ql0.v.length === 20, JSON.stringify([r.o.qx0.role, r.o.qy0.v.length]));
+  const g0 = await p.evaluate(() => P().graphs.length);
+  await p.evaluate(() => { openWin("res", { render: true }); }); await p.evaluate(id => anaReport(id), r.id); await p.waitForTimeout(300);
+  await p.click(`#w-res button[data-anaact="qq"]`); await p.waitForTimeout(600);
+  d = await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1], cs = g.cols.map(colById); return { n: P().graphs.length, cols: cs.map(c => [c.ak, c.role]), types: cs.map(c => ((g.plot.series || {})[c.id] || {}).type) }; });
+  check("Q–Q plot (Results' button): a graph of the values as symbols and the line, against the normal quantiles", d.n === g0 + 1 && d.cols.map(c => c[0]).join() === "qy0,ql0" && d.types.join() === "scatter,line", JSON.stringify(d));
+  await p.evaluate(() => { const a = anaList().find(x => x.kind === "norm"); anaRecalc(a.id); }); await p.waitForTimeout(300);
+  d = await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1]; return g.cols.map(id => colById(id)).map(c => c && c.role); });
+  check("…worked out again, its curves stay curves", d.join() === "y,y", JSON.stringify(d));
+  await p.evaluate(() => undo()); await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  check("…and undone", await p.evaluate(g0 => P().graphs.length === g0, g0));
+  // Outliers: Grubbs, either side, repeated.
+  await p.evaluate(ids => { anaDlg("outl", { cols: [ids[1]] }); }, ids); await p.waitForSelector("#aOt");
+  await p.check("#aOr"); await p.selectOption("#aOt", "dixon");
+  d = await p.evaluate(() => document.getElementById("aOr").closest("label").hidden); check("Outliers: Repeat is Grubbs' only", d);
+  await p.selectOption("#aOt", "grubbs"); await p.click("#formOk"); await p.waitForTimeout(600);
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "outl"), o = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { o[c.ak] = c.txt ? c.data.map((v, i) => c.txt[i] != null ? c.txt[i] : v) : c.data.slice(); }); return { o, said: a.res.report.said, marks: a.res.report.marks, id: a.id }; });
+  check("…Grubbs repeated finds 19.5 (row 19), then 16 (row 20), then stops", r.o.value.slice(0, 2).join() === "19.5,16" && r.o.row.slice(0, 2).join() === "19,20" && r.o.out.join() === "yes,yes,no" && r.marks.length === 2, JSON.stringify(r.o));
+  check("…said in a sentence", /finds 2 outliers in Mass: 19\.5 \(G = /.test(r.said[0]), r.said[0]);
+  await p.evaluate(id => anaReport(id), r.id); await p.waitForTimeout(300);
+  await p.click(`#w-res button[data-anaact="mask"]`); await p.waitForTimeout(700);
+  d = await p.evaluate(ids => { const a = anaList().find(x => x.kind === "outl"); return { mask: colById(ids[1]).mask, out: P().cols.filter(c => c.ana === a.id && c.ak === "out")[0].txt, said: a.res.report.said[0] }; }, ids);
+  check("Mask the outliers: rows 19 and 20 masked, and the analysis, worked out again without them, finds none", d.mask.join() === "18,19" && /finds no outlier/.test(d.said), JSON.stringify(d));
+  await p.evaluate(() => undo()); await p.waitForTimeout(400);
+  d = await p.evaluate(ids => ({ mask: (colById(ids[1]).mask || []).length, said: anaList().find(x => x.kind === "outl").res.report.said[0] }), ids);
+  check("…one undo takes the mask and the second result back", d.mask === 0 && /finds 2 outliers/.test(d.said), JSON.stringify(d));
+  await p.evaluate(id => anaMarkOut(id), r.id); await p.waitForTimeout(500);
+  d = await p.evaluate(ids => (P().annos || []).filter(a => a.t === "label" && a.ser === ids[1] && a.text === "outlier").map(a => [a.row, a.y]), ids);
+  check("Mark them on the graph: a label at each, on its column's graph", d.length === 2 && d.map(x => x[0]).join() === "18,19" && d[0][1] === 19.5, JSON.stringify(d));
+  // By group: the rows are each group's own.
+  await p.evaluate(ids => { const a = anaList().find(x => x.kind === "outl"); anaDlg("outl", { id: a.id }); }, ids); await p.waitForSelector("#aBy");
+  await p.selectOption("#aBy", ids[2]); await p.click("#formOk"); await p.waitForTimeout(600);
+  d = await p.evaluate(() => { const a = anaList().find(x => x.kind === "outl"); return a.res.report.marks.map(m => [m.grp, m.row, m.value]); });
+  check("…by group: 19.5 found in A (row 19), 16 in B (row 20)", JSON.stringify(d) === JSON.stringify([["A", 18, 19.5], ["B", 19, 16]]), JSON.stringify(d));
+  // Dixon's Q on 20 values.
+  await p.evaluate(ids => { anaDlg("outl", { cols: [ids[1]] }); }, ids); await p.waitForSelector("#aOt");
+  await p.selectOption("#aOt", "dixon"); await p.selectOption("#aOs", "max"); await p.click("#formOk"); await p.waitForTimeout(900);
+  d = await p.evaluate(() => { const as = anaList().filter(x => x.kind === "outl"), a = as[as.length - 1]; return [a.res.report.said[0], a.res.report.method]; });
+  check("Dixon's Q, the largest value: its sentence and how its p is found", /Dixon's Q finds/.test(d[0]) && /integrating/.test(d[1]), JSON.stringify(d));
+  // Reload.
+  await p.reload(); await ready(p); await p.waitForTimeout(500);
+  d = await p.evaluate(() => anaList().map(a => a.kind + ":" + ((a.res && a.res.report && a.res.report.said) || []).length));
+  check("after a reload the three analyses are there with their sentences", d.join() === "norm:1,outl:2,outl:1", JSON.stringify(d));
+}, { name: "2.2" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

@@ -33,10 +33,12 @@ def edge(xs, f):
     return xs[int(rng.integers(len(xs)))] if rng.random() < 0.08 else f()
 
 GEN = {}
-def gen(name, tol):
-    """A generator for Kurve's function `name`; its tolerance is targets.json's (tol here is the fallback)."""
+SHARE = {}
+def gen(name, tol, share=1.0):
+    """A generator for Kurve's function `name`; its tolerance is targets.json's (tol here is the fallback);
+    share, the part of the cases a function it gets (a slow reference, a third)."""
     def deco(f):
-        GEN[name] = (f, TARGET.get(name, {}).get("tol", tol))
+        GEN[name] = (f, TARGET.get(name, {}).get("tol", tol)); SHARE[name] = share
         return f
     return deco
 
@@ -158,6 +160,42 @@ def desc_gen(key):
 for key, tol in [("mean", 1e-15), ("sd", 1e-15), ("skew", 1e-14), ("kurt", 1e-14), ("gmean", 1e-14), ("med", 1e-15), ("mad", 1e-15)]:
     gen("descStats@" + key, tol)(desc_gen(key))
 
+def norm_vals(lo=8, hi=120):
+    """Values a normality test meets: normal, skewed, heavy-tailed, offset far from zero, one outlier."""
+    n = int(rng.integers(lo, hi)); k = int(rng.integers(0, 5))
+    if k == 0: v = rng.normal(0, lognum(-2, 2), n)
+    elif k == 1: v = rng.lognormal(0, 0.8, n)
+    elif k == 2: v = rng.standard_t(3, n)
+    elif k == 3: v = 1e8 + rng.normal(0, 1, n)
+    else: v = np.append(rng.normal(0, 1, n - 1), float(rng.choice([-1, 1]) * rng.uniform(3, 8)))
+    return [float(x) for x in v]
+
+@gen("swTest@w", 1e-14, 0.3)
+def _():
+    v = norm_vals(3, 200); return [v], refs.sw_ref(v)[0]
+
+@gen("swTest@p", 1e-11, 0.3)
+def _():
+    v = norm_vals(3, 200); return [v], refs.sw_ref(v)[1]
+
+@gen("lfTest@d", 1e-14, 0.3)
+def _():
+    v = norm_vals(4, 200); return [v], refs.ksnorm_d_ref(v)
+
+@gen("adTest@a2", 1e-11, 0.3)
+def _():
+    v = norm_vals(8, 200); return [v], refs.ad_ref(v)[0]
+
+@gen("dagoTest@k2", 1e-13, 0.3)
+def _():
+    v = norm_vals(8, 200); return [v], refs.dago_ref(v)[2]
+
+@gen("kolmogN", 1e-12, 0.3)
+def _():
+    n = int(rng.integers(1, 400)); x = float(rng.uniform(0.6, 3.5) / math.sqrt(n))
+    if not 0 < x < 1 or 2 * math.ceil(n * x) - 1 > 61: raise ValueError("matrix too large for the reference")
+    return [n, x, True], float(refs.kolm_dmtw(n, x))
+
 def num(v):
     if isinstance(v, (str, dict)): return v
     v = float(v)
@@ -165,7 +203,7 @@ def num(v):
 
 cases = []
 for name, (f, tol) in GEN.items():
-    for k in range(per):
+    for k in range(max(1, math.ceil(per * SHARE.get(name, 1.0)))):
         for _ in range(20):
             try:
                 args, want = f(); break
@@ -206,6 +244,7 @@ for c in cases:
         if c["fn"] in ("quantileSorted", "quantileType", "descStats@med", "descStats@mad"):  # a mix of two values: an ulp of the largest
             e = d / max(abs(w), max(abs(x) for x in c["args"][0]) * 2 ** -52, 1e-300)
         if c["fn"] in ("descStats@skew", "descStats@kurt"): e = d / max(abs(w), 1.0)  # differences of terms of order 1: absolute below 1
+        if c["fn"] == "dagoTest@k2": e = d / max(abs(w), 1.0)  # a sum of two squared scores: absolute below 1
     if e > worst.get(c["fn"], (0, None))[0]:
         worst[c["fn"]] = (e, c)
     t = TARGET.get(c["fn"], {})

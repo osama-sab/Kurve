@@ -1024,6 +1024,25 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 2, slice 2.2: normality and outliers (2026-11-12)
+
+- **Normality tests** (Analyze › Statistics › Descriptive): Shapiro–Wilk (Royston's, 3 to 5000
+  values), Lilliefors (statsmodels' simulated table), Anderson–Darling, D'Agostino's K² and
+  Kolmogorov–Smirnov, each column or group a row with each statistic, p and verdict, the first test's
+  finding in a sentence; a **Q–Q plot** from the result (the sorted values against the normal
+  quantiles, the line through their quartiles).
+- **Outliers**: Grubbs (either side or one, once or repeated until none) or Dixon's Q (3 to 30
+  values, its p and critical value worked out, not read from a table); **Mask the outliers** (one
+  undo step, the analysis worked out again without them) and **Mark them on the graph**.
+- **Kolmogorov's distribution, exact**: a histogram's distribution's Kolmogorov–Smirnov p was
+  Kolmogorov's series, 3e-2 off at 20 values; it is now exact to 5e-15.
+
+Checked: `fixtures/norm.json` (518 cases against 40-digit references; SciPy's Kolmogorov
+distribution was found 5e-6 off past 140 values, statsmodels' A² and SciPy's K² 5e-7 off with values
+near 10⁹; Kurve's are not), ref-test (20 new names, 55 in all), the fuzzer (six generators), stats-test
+(13 new, 82: sizes at 5 % over 20 000 samples, Grubbs' published critical values, masking), ana-drive's
+2.2 section (17, 65 in all), the menu crawl and the suite.
+
 ## Closing the gap with Origin, wave 2, slice 2.1: descriptive statistics, whole (2026-11-12)
 
 - **Statistics on columns** (Analyze › Statistics › Descriptive) gives what Origin's does: N,

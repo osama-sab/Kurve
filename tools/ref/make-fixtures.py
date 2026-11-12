@@ -178,7 +178,76 @@ for name, vals in DATA.items():
 for d in disagree: print("  reference check, desc:", d)
 out["desc"] = cases
 
+# ---------- normality and outliers (STATS_SPEC 2.2) ----------
+# Each statistic in 40 digits from the doubles (refs.sw_ref, ksnorm_d_ref, ad_ref, dago_ref, grubbs_ref);
+# Lilliefors' p from statsmodels' table at that distance, Kolmogorov's from SciPy's kstwo (checked against
+# Durbin's matrix in 40 digits where n·d is small); Dixon's p by SciPy's adaptive dblquad. SciPy's and
+# statsmodels' own answers are compared as they are made.
+from statsmodels.stats._lilliefors import get_lilliefors_table
+from statsmodels.stats.diagnostic import normal_ad
+from scipy import integrate
+LFT = get_lilliefors_table("norm")
+rng = np.random.default_rng(22)
+NS = {}
+for n in [3, 4, 5, 6, 8, 11, 12, 20, 50, 200, 1000]: NS[f"normal {n}"] = list(rng.normal(10, 2, n))
+for n in [8, 30, 300]: NS[f"log-normal {n}"] = list(rng.lognormal(0, 0.8, n)); NS[f"t3 {n}"] = list(rng.standard_t(3, n))
+NS["uniform 40"] = list(rng.uniform(0, 1, 40)); NS["ties 25"] = [float(round(v)) for v in rng.normal(5, 1.5, 25)]
+NS["1e9 offset 20"] = list(1e9 + rng.normal(0, 1, 20)); NS["outlier 15"] = list(rng.normal(0, 1, 14)) + [6.0]
+cases = []; disagree = []
+for name, v in NS.items():
+    v = [float(t) for t in v]; n = len(v); a = np.array(v)
+    w, p = refs.sw_ref(v); r = stats.shapiro(a)
+    if abs(w - r.statistic) > 1e-13 or abs(p - r.pvalue) > 1e-8 * max(p, 1e-300): disagree.append(f"{name} Shapiro–Wilk: SciPy {r.statistic!r} {r.pvalue!r}, 40 digits {w!r} {p!r}")
+    cases.append({"fn": "swTest", "args": [v], "want": {"w": w, "p": p}, "kind": "test", "name": name})
+    if n >= 4:
+        d = refs.ksnorm_d_ref(v)
+        pl = float(LFT.prob(d, n)); pl = 0.001 if pl == LFT.alpha[0] else 0.99 if pl == LFT.alpha[-1] else pl  # the table's ends as written
+        cases.append({"fn": "lfTest", "args": [v], "want": {"d": d, "p": pl}, "kind": "test", "name": name})
+        pk = float(1 - refs.kolm_dmtw(n, d)) if 2 * math.ceil(n * d) - 1 <= 101 else stats.kstwo.sf(d, n)
+        cases.append({"fn": "ksnTest", "args": [v], "want": {"d": d, "p": pk}, "kind": "test", "name": name})
+    if n >= 8:
+        a2, a2s = refs.ad_ref(v); a2sm, psm = normal_ad(a)
+        if abs(a2 - a2sm) > 1e-9 * a2: disagree.append(f"{name} Anderson–Darling: statsmodels {a2sm!r}, 40 digits {a2!r}")
+        cases.append({"fn": "adTest", "args": [v], "want": {"a2": a2, "as": a2s, "p": refs.ad_p(a2s)}, "kind": "test", "name": name})
+        zs, zk, k2, pk = refs.dago_ref(v); nt = stats.normaltest(a)
+        if abs(k2 - nt.statistic) > 1e-9 * k2: disagree.append(f"{name} K²: SciPy {nt.statistic!r}, 40 digits {k2!r}")
+        cases.append({"fn": "dagoTest", "args": [v], "want": {"zs": zs, "zk": zk, "k2": k2, "p": pk}, "kind": "test", "name": name})
+    if n >= 3 and max(v) > min(v):
+        for side in ["two", "max", "min"]:
+            G, gp, Gc = refs.grubbs_ref(v, side, 0.05)
+            cases.append({"fn": "grubbsTest", "args": [v, {"side": side, "alpha": 0.05}], "want": {"G": G, "p": gp, "Gc": Gc}, "kind": "test", "name": f"{name} {side}"})
+# Kolmogorov's distribution over its regions.
+for n in [1, 2, 3, 5, 10, 40, 100, 140, 141, 500, 1000, 2000, 5000, 20000, 100001]:
+    for x in [0.3 / n, 0.7 / n, 1.2 / n, 0.5 / math.sqrt(n), 0.9 / math.sqrt(n), 1.3 / math.sqrt(n), 2 / math.sqrt(n), 4 / math.sqrt(n), 0.3, 0.55, 0.9, 1 - 1.5 / n]:
+        if not 0 < x < 1: continue
+        c, s = stats.kstwo.cdf(x, n), stats.kstwo.sf(x, n)
+        m = 2 * math.ceil(n * x) - 1; exact = False
+        if (n <= 5000 and m <= 101) or (n <= 20000 and m <= 141):
+            exact = True
+            e = refs.kolm_dmtw(n, x)
+            if abs(float(e) - c) > 1e-12 * max(c, 1e-300) + 1e-15: disagree.append(f"kstwo n={n} x={x}: SciPy cdf {c!r}, 40 digits {float(e)!r}")
+            c = float(e)
+            if 1 - e > 1e-20: s = float(1 - e)  # else 40 digits cannot see the tail: SciPy's (2·smirnov, exact there)
+        # SciPy's Pelz–Good (n past 140, n·x^1.5 past 1.4, n·x² below 18) where no 40-digit answer was made: named apart.
+        pg = not exact and n > 140 and not (n <= 100000 and n * x ** 1.5 <= 1.4) and n * x * x < 18
+        cases.append({"fn": "kolmogN", "args": [n, x, True], "want": c, "kind": "rel", "pg": pg})
+        cases.append({"fn": "kolmogN", "args": [n, x, False], "want": s, "kind": "rel", "pg": pg and n * x * x < 2.2})
+# Dixon's Q: P(Q > q) for normal values, one end and either.
+def dixon_ref(n, q, side):
+    P = lambda lo: integrate.dblquad(lambda r, a: special.ndtr(0) * 0 + math.exp(-a * a / 2 - (a + r) ** 2 / 2) / (2 * math.pi) * max(special.ndtr(a + (1 - q) * r) - special.ndtr(a + lo * r), 0) ** (n - 2),
+                                     -12, 12, 0, 24, epsabs=0, epsrel=1e-12)[0] * n * (n - 1)
+    hi = P(0)
+    return hi if side != "two" else 2 * hi - (P(q) if q < 0.5 else 0)
+for n, q in [(3, 0.94), (3, 0.5), (4, 0.83), (5, 0.3), (6, 0.6275), (8, 0.45), (10, 0.3), (12, 0.7), (20, 0.25), (30, 0.26), (30, 0.6)]:
+    for side in ["max", "two"]:
+        cases.append({"fn": "dixonP", "args": [n, q, side], "want": dixon_ref(n, q, side), "kind": "rel"})
+for d in disagree: print("  reference check, norm:", d)
+out["norm"] = cases
+
 # ---------- distributions fitted to values ----------
+def ks_exact(d, n):
+    """Kolmogorov's tail: 40-digit Durbin matrix where it is small, else SciPy's kstwo."""
+    return float(1 - refs.kolm_dmtw(n, d)) if 2 * math.ceil(n * d) - 1 <= 101 and n * d * d < 4 else stats.kstwo.sf(d, n)
 cases = []
 rng = np.random.default_rng(11)
 for n in [5, 20, 200]:
@@ -186,18 +255,18 @@ for n in [5, 20, 200]:
     ks = stats.kstest(v, stats.norm(v.mean(), v.std(ddof=1)).cdf)
     cases.append({"fn": "distFit", "args": [list(v), "normal"], "kind": "fields",
                   "want": {"p": [v.mean(), v.std(ddof=1)], "ks": ks.statistic},
-                  "info": {"pks_exact": stats.kstwo.sf(ks.statistic, n)}})
+                  "info": {"pks_exact": ks_exact(ks.statistic, n)}})
     w = rng.lognormal(0.5, 0.4, n)
     L = np.log(w)
     ks = stats.kstest(w, stats.lognorm(L.std(ddof=1), 0, math.exp(L.mean())).cdf)
     cases.append({"fn": "distFit", "args": [list(w), "lognormal"], "kind": "fields",
                   "want": {"p": [L.mean(), L.std(ddof=1)], "ks": ks.statistic},
-                  "info": {"pks_exact": stats.kstwo.sf(ks.statistic, n)}})
+                  "info": {"pks_exact": ks_exact(ks.statistic, n)}})
     e = rng.exponential(2.5, n)
     ks = stats.kstest(e, stats.expon(0, e.mean()).cdf)
     cases.append({"fn": "distFit", "args": [list(e), "exp"], "kind": "fields",
                   "want": {"p": [1 / e.mean()], "ks": ks.statistic},
-                  "info": {"pks_exact": stats.kstwo.sf(ks.statistic, n)}})
+                  "info": {"pks_exact": ks_exact(ks.statistic, n)}})
 out["distfit"] = cases
 
 # ---------- fits ----------

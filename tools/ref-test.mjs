@@ -79,6 +79,17 @@ for (const set of ["special", "dist", "stats", "quantile"]) {
   }
 }
 
+/* ---- normality and outliers (STATS_SPEC 2.2): each field of a test's result under fn.field ---- */
+for (const c of fixtures.norm.cases) {
+  const at = c.name || fmtA(c.args);
+  if (c.kind === "rel") { note(c.fn === "kolmogN" ? `kolmogN.${c.pg ? "pg" : c.args[2] ? "cdf" : "sf"}` : c.fn, relErr(get(c.fn)(...c.args), c.want), at); continue; }
+  let r = get(c.fn)(...c.args); if (c.fn === "grubbsTest") r = r.rounds && r.rounds[0];
+  for (const [k, w] of Object.entries(c.want)) {
+    const name = `${c.fn}.${k}`, t = TARGET[name] || {};
+    note(name, !r || typeof r[k] !== "number" ? Infinity : relErr(r[k], w, t.floor), `${at}: ${k}`);
+  }
+}
+
 /* ---- distributions fitted to values ---- */
 for (const c of fixtures.distfit.cases) {
   const r = get("distFit")(...c.args), at = `${c.args[1]} n=${c.args[0].length}`;
