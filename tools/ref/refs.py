@@ -768,3 +768,57 @@ def lm_ref(vars_, y, spec):
         con.append({"est": fl(est), "se": f(se), "t": f(tt) if tt is not None else None, "p": f(2 * _t_tail(abs(tt), mp.mpf(dfr))) if tt is not None else None})
     if con: out["con"] = con
     return out
+
+# ---------- two- and three-way ANOVA (STATS_SPEC 2.6): estimated means, their differences, simple effects, exactly ----------
+def nway_ref(vars_, y, spec):
+    """For a design with no empty cell: each factor's estimated means (each cell weighted alike) with their errors, the
+    first two factors' cells', every pair's difference with its error and t, and the simple effects' F (each factor's
+    levels at each level of another), in rationals; the tails in 40 digits."""
+    n = len(y); y = [Fr(v) for v in y]; sp = dict(spec, coding="effect")
+    terms = _lm_terms(vars_, sp); X, names, tc = _lm_cols(vars_, terms, sp, n)
+    kept, b, Vi, rss, fit = _lm_exact(X, y); r = len(kept); dfr = n - r; s2 = rss / dfr
+    assert r == len(X), "an empty cell"
+    def cell(codes):
+        X1, _, _ = _lm_cols([dict(v, code=[c]) for v, c in zip(vars_, codes)], terms, sp, 1); return [col[0] for col in X1]
+    import itertools
+    def emmL(fixed):
+        ls = [[fixed[i]] if i in fixed else list(range(len(v["levels"]))) for i, v in enumerate(vars_)]
+        cs = list(itertools.product(*ls)); rows = [cell(c) for c in cs]
+        return [sum(row[j] for row in rows) / len(cs) for j in range(len(X))]
+    def est(L):
+        e = sum(L[j] * b[j] for j in kept); v = sum(L[kept[t]] * L[kept[u]] * Vi[t][u] for t in range(r) for u in range(r)); return e, v
+    out = {"means": [], "cells": [], "pairs": [], "simple": []}
+    for i, v in enumerate(vars_):
+        row = []
+        for l in range(len(v["levels"])):
+            e, vv = est(emmL({i: l})); row.append({"m": fl(e), "se": f(mp.sqrt(mpq(vv * s2)))})
+        out["means"].append(row)
+    for la in range(len(vars_[0]["levels"])):
+        for lb in range(len(vars_[1]["levels"])):
+            e, vv = est(emmL({0: la, 1: lb})); out["cells"].append({"m": fl(e), "se": f(mp.sqrt(mpq(vv * s2)))})
+    for i, v in enumerate(vars_):
+        k = len(v["levels"])
+        for a in range(k):
+            for c in range(a + 1, k):
+                La, Lc = emmL({i: a}), emmL({i: c}); e, vv = est([p - q for p, q in zip(La, Lc)]); se = mp.sqrt(mpq(vv * s2)); t = mpq(e) / se
+                out["pairs"].append({"f": i, "a": a, "b": c, "diff": fl(e), "se": f(se), "t": f(t), "p": f(2 * _t_tail(abs(t), mp.mpf(dfr)))})
+    for i, fv in enumerate(vars_):
+        for j, gv in enumerate(vars_):
+            if i == j: continue
+            for l in range(len(gv["levels"])):
+                L0 = emmL({i: 0, j: l}); Ls = []
+                for a in range(1, len(fv["levels"])):
+                    La = emmL({i: a, j: l}); Ls.append([p - q for p, q in zip(La, L0)])
+                q = len(Ls); lb = [sum(L[j2] * b[j2] for j2 in kept) for L in Ls]
+                C = [[sum(A[kept[t]] * B[kept[u]] * Vi[t][u] for t in range(r) for u in range(r)) for B in Ls] for A in Ls]
+                # solve C z = lb in rationals
+                Mx = [C[ii][:] + [lb[ii]] for ii in range(q)]
+                for p_ in range(q):
+                    piv = Mx[p_][p_]; Mx[p_] = [x / piv for x in Mx[p_]]
+                    for rr in range(q):
+                        if rr != p_ and Mx[rr][p_] != 0:
+                            fct = Mx[rr][p_]; Mx[rr] = [x - fct * yv for x, yv in zip(Mx[rr], Mx[p_])]
+                z = [Mx[ii][q] for ii in range(q)]; F = sum(lb[ii] * z[ii] for ii in range(q)) / q / s2
+                out["simple"].append({"f": i, "g": j, "l": l, "F": fl(F), "df1": q, "p": f(_f_p(mpq(F), q, dfr))})
+    out["dfr"] = dfr
+    return out

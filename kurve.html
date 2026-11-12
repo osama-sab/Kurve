@@ -7307,7 +7307,7 @@ function linModel(vars,y,spec){ const n=y.length, icpt=spec.icpt!==false, terms=
       if(ss==null){ const fA=subFit(D0,A,false).F; df=mod.F.rank-fA.rank; ss=lsqSSBetween(fA,mod.F); } }
     rows.push({term:lmTermName(vars,t),df,ss,ms:df>0?ss/df:null,F:df>0?ss/df/s2:null,p:df>0?DIST.F.sf(ss/df/s2,df,dfr):null}); });
   return {n,names:D.names,tc:D.tc,terms:terms.map(t=>lmTermName(vars,t)),b,se,t:tv,p:pv,lo,hi,alias:lsqAlias(Q),kept:Q.kept,V,rank,dfr,rss:F.rss,s:Math.sqrt(s2),s2,
-    r2,ar2,F:Fm,df1,pF:Fm==null?null:DIST.F.sf(Fm,df1,dfr),ssm,sst,anova:{type:ty,rows},conf,fit:F}; }
+    r2,ar2,F:Fm,df1,pF:Fm==null?null:DIST.F.sf(Fm,df1,dfr),ssm,sst,anova:{type:ty,rows},conf,fit:F,vars,termList:terms,spec}; }
 /* A contrast typed: a sum of coefficients, each with a number before it (or none), names as the table has them; "= c" tests
    against c. {L (by column), c} or {fail} in words. */
 function lmContrastParse(text,names){ let s=String(text||"").trim(), c=0; if(!s) return {fail:"empty"};
@@ -7322,11 +7322,41 @@ function lmContrastParse(text,names){ let s=String(text||"").trim(), c=0; if(!s)
     const hit=byAny.find(([nm])=>s.startsWith(nm,i)); if(!hit) return {fail:`“${s.slice(i,i+24)}” is not the name of a coefficient`};
     L[hit[1]]+=sg*k; i+=hit[0].length; any=true; }
   if(!any) return {fail:"no coefficient named"}; return {L,c}; }
-function lmContrast(M,text){ const q=lmContrastParse(text,M.names); if(q.fail) return q; const L=q.L, pos=new Map(M.kept.map((j,t)=>[j,t]));
-  for(const a of M.alias){ let w=0, sc=Math.abs(L[a.j]); a.M.forEach((mv,t)=>{ w+=mv*L[M.kept[t]]; sc+=Math.abs(mv*L[M.kept[t]]); }); if(Math.abs(L[a.j]-w)>1e-8*(sc+1)) return {fail:"not estimable: it reads a combination the data cannot separate"}; }
-  const r=M.kept.length, l=M.kept.map(j=>L[j]); let est=[]; M.kept.forEach((j,t)=>est.push(l[t]*M.b[j])); const e=neuSum(est)-q.c;
-  const vv=[]; for(let t=0;t<r;t++) for(let u=0;u<r;u++) if(l[t]&&l[u]) vv.push(l[t]*l[u]*M.V[t][u]); const se=Math.sqrt(Math.max(0,neuSum(vv))*M.s2), tt=e/se, tq=DIST.t.isf((1-M.conf)/2,M.dfr);
+function lmContrast(M,text){ const q=lmContrastParse(text,M.names); if(q.fail) return q; const r=lmEst(M,q.L); if(r.fail) return r;
+  const e=r.est-q.c, se=r.se, tt=e/se, tq=DIST.t.isf((1-M.conf)/2,M.dfr);
   return {est:e,c:q.c,se,t:tt,p:se>0?2*DIST.t.sf(Math.abs(tt),M.dfr):null,lo:e-tq*se,hi:e+tq*se}; }
+/* ---- Rows of a linear model (STATS_SPEC 2.6): any linear combination L of the coefficients (a cell's mean, a level's mean
+   over the others', a difference of them), its estimate and error; rows tested together by Wald's F. ---- */
+/* the design row of one cell: a level for each factor (or a value for each number) */
+const LMCELL=new WeakMap(); /* a model's cells' rows, made once */
+function lmCell(M,codes){ let mm=LMCELL.get(M); if(!mm) LMCELL.set(M,mm=new Map()); const key=codes.join(","); if(mm.has(key)) return mm.get(key);
+  const v1=M.vars.map((v,i)=>v.num?Object.assign({},v,{x:[codes[i]]}):Object.assign({},v,{code:[codes[i]]})), D=lmCols(v1,M.termList,M.spec,1), row=D.X.map((c,j)=>c[0]+(D.XL[j]?D.XL[j][0]:0));
+  mm.set(key,row); return row; }
+/* estimable: each aliased column's entry what the kept ones make it */
+function lmEstOk(M,L){ for(const a of M.alias){ let w=0, sc=Math.abs(L[a.j]); a.M.forEach((mv,t)=>{ w+=mv*L[M.kept[t]]; sc+=Math.abs(mv*L[M.kept[t]]); }); if(Math.abs(L[a.j]-w)>1e-8*(sc+1)) return false; } return true; }
+function lmEst(M,L){ if(!lmEstOk(M,L)) return {fail:"not estimable: it reads a combination the data cannot separate"}; const K=M.kept, r=K.length, F=M.fit;
+  const est=neuSum(K.map(j=>L[j]*F.b[j]).concat(K.map(j=>L[j]*F.bl[j]))), vv=[];
+  for(let t=0;t<r;t++){ const a=L[K[t]]; if(!a) continue; for(let u=0;u<r;u++){ const b=L[K[u]]; if(b) vv.push(a*b*M.V[t][u]); } }
+  const v=Math.max(0,neuSum(vv)); return {est,v,se:Math.sqrt(v*M.s2)}; }
+/* rows tested together: F = (Lb)ᵀ(L V Lᵀ)⁻¹(Lb)/q/s², on q and the error's df */
+function lmWaldL(M,Ls){ if(!Ls.length) return {fail:"nothing to test"}; if(Ls.some(L=>!lmEstOk(M,L))) return {fail:"not estimable: a level is missing from a cell"};
+  const K=M.kept, r=K.length, F0=M.fit, lb=Ls.map(L=>neuSum(K.map(j=>L[j]*F0.b[j]).concat(K.map(j=>L[j]*F0.bl[j])))), q=Ls.length;
+  const C=Ls.map(A=>Ls.map(B=>{ const vv=[]; for(let t=0;t<r;t++){ const a=A[K[t]]; if(!a) continue; for(let u=0;u<r;u++){ const b=B[K[u]]; if(b) vv.push(a*b*M.V[t][u]); } } return neuSum(vv); }));
+  let z=solve(C,lb); if(!z) return {fail:"its rows depend on each other"}; const res=lb.map((v,i)=>v-neuSum(C[i].map((c,k)=>c*z[k]))), dz=solve(C,res); if(dz) z=z.map((v,i)=>v+dz[i]);
+  const F=Math.max(0,neuSum(lb.map((v,i)=>v*z[i])))/q/M.s2; return {F,df1:q,df2:M.dfr,p:DIST.F.sf(F,q,M.dfr)}; }
+/* every combination of the factors' levels but those fixed: [[codes]] */
+function lmCombos(M,fixed){ let out=[[]]; M.vars.forEach((v,i)=>{ const ls=fixed[i]!=null?[fixed[i]]:v.levels.map((_,l)=>l); out=out.flatMap(c=>ls.map(l=>c.concat([l]))); }); return out; }
+/* an estimated marginal mean: the mean of the cells with the levels fixed, each of the others' cells alike */
+function lmEmmL(M,fixed){ const cs=lmCombos(M,fixed), m=M.names.length, L=new Float64Array(m); cs.forEach(c=>{ const x=lmCell(M,c); for(let j=0;j<m;j++) L[j]+=x[j]; }); for(let j=0;j<m;j++) L[j]/=cs.length; return L; }
+/* comparisons of k means from their pairs' differences {i, j, diff, se} on df: as anovaComp's, the estimate's own error in place of the pooled one */
+function lmCompare(pairs,k,df,kind,conf){ const al=1-conf, m=pairs.length, out=pairs.map(x=>Object.assign({},x));
+  if(kind==="tukey"){ const cr=tukeyIsf(al,k,df); out.forEach(x=>{ const s=x.se/Math.SQRT2; x.stat=Math.abs(x.diff)/s; x.p=tukeySf(x.stat,k,df); x.lo=x.diff-cr*s; x.hi=x.diff+cr*s; }); return out; }
+  out.forEach(x=>{ x.stat=x.diff/x.se; x.raw=Math.min(1,2*DIST.t.sf(Math.abs(x.stat),df)); });
+  if(kind==="scheffe"){ const cr=Math.sqrt((k-1)*DIST.F.isf(al,k-1,df)); out.forEach(x=>{ x.stat=x.stat*x.stat/(k-1); x.p=DIST.F.sf(x.stat,k-1,df); x.lo=x.diff-cr*x.se; x.hi=x.diff+cr*x.se; }); }
+  else if(kind==="holm"){ const ord=out.map((x,i)=>i).sort((a,b)=>out[a].raw-out[b].raw); let run=0; ord.forEach((i,r)=>{ run=Math.max(run,Math.min(1,(m-r)*out[i].raw)); out[i].p=run; out[i].lo=out[i].hi=null; }); }
+  else { const tc=kind==="bonf"?DIST.t.isf(al/(2*m),df):kind==="sidak"?DIST.t.isf(-Math.expm1(Math.log(conf)/m)/2,df):DIST.t.isf(al/2,df);
+    out.forEach(x=>{ x.p=kind==="bonf"?Math.min(1,m*x.raw):kind==="sidak"?-Math.expm1(m*Math.log1p(-x.raw)):x.raw; x.lo=x.diff-tc*x.se; x.hi=x.diff+tc*x.se; }); }
+  out.forEach(x=>delete x.raw); return out; }
 // The linear model's kind (STATS_SPEC 2.5): a response, and the columns it is modelled by, numbers or factors (text and
 // categorical columns, and numbers ticked as factors), with their interactions and powers; the model's fit, the coefficients,
 // the analysis of variance by type I, II or III sums of squares, and contrasts typed. Over the rows complete in every column.
@@ -7372,6 +7402,59 @@ ANA_KINDS.lm={label:"Linear model", base:"Model", cats:true, xs:true,
     const method=[`Least squares by Householder QR, refined in double-double, over the ${M.n} rows complete in every column.`,vars.some(v=>!v.num)?(sp.coding==="effect"?"Factors coded by effect: each level against the mean of the levels, the last left out.":"Factors coded by treatment: each level against the first."):"",
       M.anova.rows.length?`Type ${["I","II","III"][M.anova.type-1]} sums of squares${M.anova.type===3&&vars.some(v=>!v.num)?" (with effect coding)":""}.`:"",sp.icpt?"":"No intercept: R² is about zero, not the mean."].filter(Boolean).join(" ");
     return {tables:[{cols}],report:{sections:secs,method},notes}; }};
+// Two- and three-way ANOVA (STATS_SPEC 2.6): a response by two or three factors (every column but the response, text or
+// numbers, its values the levels), effect coding, all their interactions or none; the analysis of variance by type I, II or
+// III sums of squares with partial η², the means of each factor's levels and of the cells (estimated: each cell weighted
+// alike, from the model), comparisons of each factor's means, and simple effects. Over the rows complete in every column.
+const NWAY_COMPS=COMP_KINDS.filter(e=>e[0]!=="gh"&&e[0]!=="dunnett");
+function nwayComps(p){ return Array.isArray(p.comps)?p.comps.filter(k=>NWAY_COMPS.some(e=>e[0]===k)):[]; }
+ANA_KINDS.anovan={label:"Two- and three-way ANOVA", base:"ANOVA", cats:true, xs:true,
+  help:"A response by two or three factors: the analysis of variance by type I, II or III sums of squares with partial η², the means of the levels and the cells, comparisons of each factor's means, simple effects.",
+  heavy(p,ins){ const n=ins.reduce((a,q)=>Math.max(a,(q.rows||[]).length),0); let m=1; ins.slice(1).forEach(q=>{ m*=Math.max(2,q.cats?new Set(q.cats.keys).size:Math.min(50,new Set(q.vals).size)); }); return n*m*m*(ins.length+3)>4e7; },
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[], conf=anaConf(p), cs=nwayComps(p), ty=[1,2,3].includes(+p.ss)?+p.ss:3;
+    if(ins.some(q=>q.groups)) return {fail:"Two- and three-way ANOVA reads columns: the factors are columns of their own."};
+    const yi=Math.max(0,ins.findIndex(q=>q.id&&q.id===p.y)), yq=ins[yi]; if(yq.cats) return {fail:`${yq.name} holds text: the response is a column of numbers.`};
+    const fq=ins.filter((_,i)=>i!==yi); if(fq.length<2||fq.length>3) return {fail:`Two or three factors besides the response: ${fq.length} ticked.`};
+    const maps=ins.map(q=>{ const m=new Map(); (q.rows||[]).forEach((r,i)=>{ const v=q.cats?q.cats.keys[i]:q.vals[i]; if(r>=0&&v!=null&&v!==""&&(q.cats||q!==yq||Number.isFinite(v))) m.set(r,v); }); return m; });
+    const any=new Set(); maps.forEach(m=>m.forEach((_,r)=>any.add(r))); const rows=[...maps[yi].keys()].filter(r=>maps.every(m=>m.has(r))).sort((a,b)=>a-b), out=any.size-rows.length;
+    if(out) notes.push(`${out} row${out===1?"":"s"} without a value in every column left out.`);
+    const vars=[]; for(const q of fq){ const i=ins.indexOf(q), v=rows.map(r=>maps[i].get(r)), lv=freqLevels(v,q.cats?q.cats.order:null); if(lv.fail) return {fail:`${q.name}: ${lv.fail}`};
+      if(lv.rows.length<2) return {fail:`${q.name} has one level only.`}; const key=k=>typeof k==="number"?+(+k).toPrecision(12):String(k), idx=new Map(lv.rows.map((o,j)=>[key(o.lev),j]));
+      vars.push({name:q.name,num:false,levels:lv.rows.map(o=>typeof o.lev==="number"?fmt(o.lev,8):String(o.lev)),code:v.map(k=>idx.get(key(k)))}); }
+    const y=rows.map(r=>maps[yi].get(r)), M=linModel(vars,y,{inter:p.inter==="none"?"none":"all",coding:"effect",ss:ty,conf}); if(M.fail) return M;
+    const al=M.alias.map(a=>M.names[a.j]); if(al.length) notes.push(`An empty cell: no coefficient for ${al.join(", ")}.`);
+    const tq=DIST.t.isf((1-conf)/2,M.dfr), pc=anaPct(conf), nm=vars.map(v=>v.name);
+    /* the analysis of variance (on the sheet with its mean squares and partial η²) */
+    const av=M.anova.rows.map(o=>Object.assign({},o,{pe:o.df>0?o.ss/(o.ss+M.rss):null})).concat([{term:"Error",df:M.dfr,ss:M.rss,ms:M.s2},{term:"Total (about the mean)",df:M.n-1,ss:M.sst}]);
+    anaTab("",[["term","Source"],["df","df"],["ss","Sum of squares"],["ms","Mean square"],["F","F"],["p","p"],["pe","Partial η²"]],av,cols,[]);
+    anaTab(`Analysis of variance, type ${["I","II","III"][ty-1]}`,[["term","Source"],["df","df"],["ss","Sum of squares"],["F","F"],["p","p"]],av,[],secs);
+    anaTab("Effect size",[["term","Source"],["pe","Partial η²"]],av.filter(o=>o.pe!=null),[],secs);
+    /* means: each factor's levels, then the cells of the first two */
+    const nAt=(fix)=>y.filter((_,r)=>Object.entries(fix).every(([i,l])=>vars[i].code[r]===l)).length;
+    const emm=fix=>{ const e=lmEst(M,lmEmmL(M,fix)); return e.fail?null:e; };
+    const mains=vars.map((v,i)=>v.levels.map((lev,l)=>{ const e=emm({[i]:l}); return {lev,l,n:nAt({[i]:l}),m:e?e.est:null,se:e?e.se:null}; }));
+    let missing=false;
+    vars.forEach((v,i)=>{ if(mains[i].some(o=>o.m==null)) missing=true; anaTab(`Means of ${v.name}`,[["lev",v.name],["m","Mean"],["se","Standard error"],["n","N"]],mains[i],[],secs); });
+    const cells=[]; vars[0].levels.forEach((a,la)=>vars[1].levels.forEach((b,lb)=>{ const e=emm({0:la,1:lb}); if(!e) missing=true; cells.push({a,b,la,lb,n:nAt({0:la,1:lb}),m:e?e.est:null,se:e?e.se:null}); }));
+    anaTab(`Means of the cells of ${nm[0]} and ${nm[1]}`,[["a",nm[0]],["b",nm[1]],["m","Mean"],["se","Standard error"],["n","N"]],cells,[],secs);
+    if(missing) notes.push("A mean over an empty cell cannot be worked out: left empty.");
+    /* comparisons of each factor's means */
+    cs.forEach(kind=>{ const e=COMP_KINDS.find(x=>x[0]===kind); vars.forEach((v,i)=>{ const k=v.levels.length, pairs=[];
+      for(let a=0;a<k;a++) for(let b=a+1;b<k;b++){ const L=lmEmmL(M,{[i]:a}), L2=lmEmmL(M,{[i]:b}); for(let j=0;j<L.length;j++) L[j]-=L2[j]; const d=lmEst(M,L); if(!d.fail) pairs.push({i:a,j:b,diff:d.est,se:d.se}); }
+      if(!pairs.length) return; const r=lmCompare(pairs,k,M.dfr,kind,conf);
+      anaTab(`${v.name}: ${e[1]}`+(kind==="holm"?"":`, ${pc} intervals`),[["a","First"],["b","Second"],["diff","Difference"],["p","p"],["lo","Lower"],["hi","Upper"]],r.map(x=>({a:v.levels[x.i],b:v.levels[x.j],diff:x.diff,p:x.p,lo:x.lo,hi:x.hi})),[],secs); }); });
+    /* simple effects: each factor's levels at each level of another */
+    if(p.simple){ vars.forEach((f,i)=>vars.forEach((g,j)=>{ if(i===j) return; const rs=[];
+      g.levels.forEach((lev,l)=>{ const Ls=[]; for(let a=1;a<f.levels.length;a++){ const L=lmEmmL(M,{[i]:a,[j]:l}), L0=lmEmmL(M,{[i]:0,[j]:l}); for(let t=0;t<L.length;t++) L[t]-=L0[t]; Ls.push(L); }
+        const w=lmWaldL(M,Ls); rs.push(w.fail?{at:`${g.name} = ${lev}`,df:null,F:null,p:null}:{at:`${g.name} = ${lev}`,df:w.df1,F:w.F,p:w.p}); if(w.fail) missing=true; });
+      anaTab(`Simple effects of ${f.name}`,[["at","At"],["df","df"],["F","F"],["p","p"]],rs,[],secs); })); }
+    /* the plots' columns: the cells' means by the first factor, a curve each level of the second; each factor's means */
+    cols.push({k:"ix",name:nm[0],role:"x",vals:vars[0].levels.slice()});
+    vars[1].levels.forEach((b,lb)=>{ const c=cells.filter(o=>o.lb===lb); cols.push({k:`iy${lb}`,name:`${nm[1]} = ${b}`,role:"y",vals:c.map(o=>o.m)},{k:`ie${lb}`,name:`± (${pc})`,role:"e",of:`iy${lb}`,vals:c.map(o=>o.se==null?null:tq*o.se)}); });
+    vars.forEach((v,i)=>{ cols.push({k:`mx${i}`,name:v.name,role:"x",vals:v.levels.slice()},{k:`my${i}`,name:`Mean of ${yq.name}`,role:"y",vals:mains[i].map(o=>o.m)},{k:`me${i}`,name:`± (${pc})`,role:"e",of:`my${i}`,vals:mains[i].map(o=>o.se==null?null:tq*o.se)}); });
+    const method=[`Least squares (the linear model) over the ${M.n} rows complete in every column, the factors by effect coding${p.inter==="none"?", no interactions":", with all their interactions"}; type ${["I","II","III"][ty-1]} sums of squares.`,
+      "Means estimated from the model, each cell weighted alike; their comparisons with the model's standard errors on the error's df.",cs.includes("holm")?"Holm: no simultaneous interval.":"",p.simple?`Simple effects: F on the error's ${M.dfr} df.`:""].filter(Boolean).join(" ");
+    return {tables:[{cols}],report:{sections:secs,method,inter:true,k:vars.length,resp:yq.name},notes}; }};
 // A kind run by name: the page's call, and the worker's ("call" job).
 function anaRunKind(kind,ins,p){ const K=ANA_KINDS[kind]; if(!K) throw new Error("the analysis "+kind+" is not known here"); return K.run(ins,p||{}); }
 /* ==ANA:END== */
@@ -16294,6 +16377,12 @@ const npExHtml=p=>`<label for="aEx" class="tipd" title="Exact: from the statisti
 const npTypeHtml=p=>`<label for="aTt">Test</label><select id="aTt"><option value="one">One sample, against a value</option><option value="paired"${p.type==="paired"?" selected":""}>Paired: two columns, row by row</option></select>
   <label for="aMu" class="tipd" title="The median (or, paired, the median difference) tested against">Tested against</label><input type="text" id="aMu" inputmode="decimal" value="${esc(String(p.mu0==null?0:p.mu0))}">`;
 const npTypeRead=v=>{ const mu=+String(v.aMu||"0").replace(",","."); return {type:v.aTt==="paired"?"paired":"one",mu0:Number.isFinite(mu)?mu:0}; };
+/* The Response list of a model's dialog: the columns ticked, starting on the first Y; after(ids, y) draws what follows from them */
+function anaRespWire(box,after){ const ys=box.querySelector("#aLy"); if(!ys) return; const wantY=ys.dataset.y;
+  const on=()=>{ const ids=[...box.querySelectorAll('input[id^="aI_"]')].filter(x=>x.checked).map(x=>x.id.slice(3)), cur=ys.value||wantY||ids.find(id=>{ const c=colById(id); return c&&c.role==="y"&&!isCatCol(c)&&!textCount(c); })||"";
+    ys.innerHTML=ids.map(id=>{ const c=colById(id); return `<option value="${id}"${id===cur?" selected":""}>${esc(colLetter(c)+" "+(c.name||""))}</option>`; }).join(""); if(after) after(ids,ys.value); };
+  box.addEventListener("change",e=>{ if(e.target&&/^aLf_/.test(e.target.id||"")) return; on(); }); on();
+  setTimeout(()=>ys.dispatchEvent(new Event("input",{bubbles:true})),0); /* the form checks OK again now that the response is chosen */ }
 const ANA_FORMS={
   desc:{html(p){ const want=new Set(descKeys(p)), qt=qtOk(p.qtype)?p.qtype:7, conf=p.conf>0&&p.conf<1?p.conf:0.95;
       const tip={n:"The values counted",miss:"Rows read that hold no number",sd:"Standard deviation",se:"The standard error of the mean, SD / √N",ci:"The interval the mean lies in, at the level below (Student's t)",
@@ -16378,14 +16467,20 @@ const ANA_FORMS={
       <span></span><label class="chk"><input type="checkbox" id="aLn"${sp.icpt?" checked":""}> Intercept</label>
       <span></span><label class="chk"><input type="checkbox" id="aLr"${p.resid?" checked":""}> Fitted values and residuals</label>
       <label for="aLct" class="tipd" title="One a line: coefficients by their names in the table, each with a number before it if needed; = a value to test against">Contrasts</label><textarea id="aLct" rows="2" placeholder="A[b] − A[c]">${esc(p.contrasts||"")}</textarea></div>`; },
-    wire(box){ const ys=box.querySelector("#aLy"), fb=box.querySelector("#aLfac"); if(!ys||!fb) return; const wantY=ys.dataset.y, fac0=new Set((fb.dataset.fac||"").split(",").filter(Boolean)), seen=new Set();
-      const on=()=>{ const ids=[...box.querySelectorAll('input[id^="aI_"]')].filter(x=>x.checked).map(x=>x.id.slice(3)), cur=ys.value||wantY||ids.find(id=>{ const c=colById(id); return c&&c.role==="y"&&!isCatCol(c)&&!textCount(c); })||"";
-        ys.innerHTML=ids.map(id=>{ const c=colById(id); return `<option value="${id}"${id===cur?" selected":""}>${esc(colLetter(c)+" "+(c.name||""))}</option>`; }).join(""); const y=ys.value;
-        const keep=new Map([...fb.querySelectorAll('input[id^="aLf_"]')].map(x=>[x.id.slice(4),x.checked]));
-        fb.innerHTML=ids.filter(id=>id!==y).map(id=>{ const c=colById(id), txt=isCatCol(c)||textCount(c)>0, on=txt||(keep.has(id)?keep.get(id):fac0.has(id)); return `<label class="chk"><input type="checkbox" id="aLf_${id}"${on?" checked":""}${txt?" disabled":""}> ${esc(colLetter(c)+" "+(c.name||""))}</label>`; }).join("")||`<span class="muted">The other columns ticked</span>`; };
-      box.addEventListener("change",e=>{ if(e.target&&(e.target.id||"").startsWith("aLf_")) return; on(); }); on();
-      setTimeout(()=>ys.dispatchEvent(new Event("input",{bubbles:true})),0); /* the form checks OK again now that the response is chosen */ },
+    wire(box){ const fb=box.querySelector("#aLfac"); if(!fb) return; const fac0=new Set((fb.dataset.fac||"").split(",").filter(Boolean));
+      anaRespWire(box,(ids,y)=>{ const keep=new Map([...fb.querySelectorAll('input[id^="aLf_"]')].map(x=>[x.id.slice(4),x.checked]));
+        fb.innerHTML=ids.filter(id=>id!==y).map(id=>{ const c=colById(id), txt=isCatCol(c)||textCount(c)>0, on=txt||(keep.has(id)?keep.get(id):fac0.has(id)); return `<label class="chk"><input type="checkbox" id="aLf_${id}"${on?" checked":""}${txt?" disabled":""}> ${esc(colLetter(c)+" "+(c.name||""))}</label>`; }).join("")||`<span class="muted">The other columns ticked</span>`; }); },
     read(v){ return {y:v.aLy||null,fac:Object.keys(v).filter(k=>k.startsWith("aLf_")&&v[k]).map(k=>k.slice(4)),inter:v.aLi,pow:+v.aLp||1,coding:v.aLc==="effect"?"effect":"treat",ss:+v.aLs||3,conf:+v.aCf||0.95,icpt:!!v.aLn,resid:!!v.aLr,contrasts:String(v.aLct||"").trim()}; },
+    valid(v){ return !!v.aLy; }},
+  anovan:{noGroup:true, html(p){ const on=new Set(nwayComps(p)), ty=[1,2,3].includes(+p.ss)?+p.ss:3;
+      return `<div class="grid2"><label for="aLy">Response</label><select id="aLy" data-y="${esc(p.y||"")}"></select>
+      <label for="aNi">Interactions</label><select id="aNi"><option value="all">Every combination</option><option value="none"${p.inter==="none"?" selected":""}>None</option></select>
+      <label for="aLs">Sums of squares</label><select id="aLs">${LM_SS.map(([k,t])=>`<option value="${k}"${k===ty?" selected":""}>${t}</option>`).join("")}</select>
+      ${confSel(p)}
+      <span></span><label class="chk tipd" title="Each factor's levels compared at each level of another, by F on the error's df"><input type="checkbox" id="aNs"${p.simple?" checked":""}> Simple effects</label></div>
+      <p class="lab tipd" title="Every column ticked but the response is a factor, its values the levels">Comparisons of each factor's means</p><div class="anastats">${NWAY_COMPS.map(([k,nm])=>`<label class="chk"><input type="checkbox" id="aC_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div>`; },
+    wire(box){ anaRespWire(box); },
+    read(v){ return {y:v.aLy||null,inter:v.aNi==="none"?"none":"all",ss:+v.aLs||3,conf:+v.aCf||0.95,simple:!!v.aNs,comps:NWAY_COMPS.map(e=>e[0]).filter(k=>v["aC_"+k])}; },
     valid(v){ return !!v.aLy; }},
   anova1:{html(p){ const on=new Set(anovaComps(p));
       return `<p class="lab">Comparisons</p><div class="anastats">${COMP_KINDS.map(([k,nm])=>`<label class="chk"><input type="checkbox" id="aC_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div>
@@ -16484,6 +16579,8 @@ function graphSummary(cid){ const p=P(); if(!p||S.readOnly) return;
 function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&rep.marks?rep.marks.length:0;
   if(!rep) return [];
   if(a.kind==="corr") return [{key:"scatter",label:"Scatter matrix",title:"Each pair's values against each other, a graph a pair, in a figure",enabled:!ro&&(a.in.cols||[]).length>1,run:()=>anaScatter(a.id)}];
+  if(a.kind==="anovan") return [{key:"inter",label:"Interaction plot",title:"The cells' means by the first factor, a line for each level of the second, with their intervals, on a graph",enabled:!ro,run:()=>anaInterPlot(a.id)},
+    {key:"mains",label:"Main effects plot",title:"Each factor's means with their intervals, a graph each, in a figure",enabled:!ro,run:()=>anaMainsPlot(a.id)}];
   if(a.kind==="anova1") return [{key:"means",label:"Means plot",title:"Each group's mean with its interval, on a graph",enabled:!ro,run:()=>anaMeansPlot(a.id)}];
   if(a.kind==="norm") return [{key:"qq",label:"Q–Q plot",title:"The sorted values against the normal quantiles, with the line through their quartiles, on a graph",enabled:!ro&&rep.qq>0,run:()=>anaQQ(a.id)}];
   if(a.kind==="outl"){ const w=`The ${n===1?"value":n+" values"} past the critical value`;
@@ -16510,6 +16607,19 @@ function anaScatter(id){ const a0=anaOf(id); if(!a0||!P()||S.readOnly) return;
 function anaMeansPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const y=p.cols.find(c=>c.ana===id&&c.ak==="gmean");
   if(!y){ toast("There is no means plot to draw: Recalculate first."); return; }
   plotCols([y.id],{series:{[y.id]:{type:"linesym"}},undo:"plotting a means plot",say:`Means plot of ${a.name}`}); }
+// The interaction plot: the cells' means against the first factor's levels, a line for each level of the second, their
+// intervals as error bars. The main effects plot: each factor's means, a graph each, in a figure. One undo step each.
+function anaInterPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const ys=p.cols.filter(c=>c.ana===id&&/^iy\d+$/.test(c.ak||""));
+  if(!ys.length){ toast("There is no interaction plot to draw: Recalculate first."); return; }
+  plotCols(ys.map(c=>c.id),{series:Object.fromEntries(ys.map(c=>[c.id,{type:"linesym"}])),undo:"plotting an interaction plot",say:`Interaction plot of ${a.name}`});
+  /* the curves are named by the second factor's levels: the Y axis says what they are */
+  const rp=a.res&&a.res.report; if(rp&&rp.resp&&GID()){ const ax=Object.assign({},GP().ax||{}); ax.y=Object.assign({},ax.y||{},{title:`Mean of ${rp.resp}`}); savePlot({ax}); } }
+function anaMainsPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const ys=p.cols.filter(c=>c.ana===id&&/^my\d+$/.test(c.ak||""));
+  if(!ys.length){ toast("There is no main effects plot to draw: Recalculate first."); return; }
+  pushUndo("a main effects plot"); const gids=[];
+  ys.forEach(y=>{ const g0=P().graphs.length; plotCols([y.id],{noUndo:true,quiet:true,series:{[y.id]:{type:"linesym"}}}); if(P().graphs.length>g0) gids.push(P().graphs[P().graphs.length-1].id); });
+  if(gids.length>1) makeFigure(gids,{noUndo:true,quiet:true,cols:gids.length,log:`put the main effects plot of ${a.name} in a figure`});
+  toast(`The main effects plot of ${a.name}.`,{action:"Undo",run:undo}); }
 // The outliers found, as [column, raw row, value]: the columns they were read from, made points left out.
 function anaMarksOf(a){ const rep=a.res&&a.res.report; return ((rep&&rep.marks)||[]).map(m=>({c:colById((a.in.cols||[])[m.i]),row:m.row,value:m.value})).filter(m=>m.c&&m.row>=0); }
 function anaMaskOut(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const ms=anaMarksOf(a); if(!ms.length) return;
@@ -22398,6 +22508,7 @@ function analyzeMenu(){
         {label:"Normality tests…", title:ANA_KINDS.norm.help, run:()=>anaDlg("norm"), enabled:!S.readOnly&&!!P()},
         {label:"Outliers…", title:ANA_KINDS.outl.help, run:()=>anaDlg("outl"), enabled:!S.readOnly&&!!P()}]},
       {label:"ANOVA", sub:()=>[{label:"One-way ANOVA…", title:ANA_KINDS.anova1.help, run:()=>anaDlg("anova1",{two:true}), enabled:!S.readOnly&&!!P()},
+        {label:"Two- and three-way ANOVA…", title:ANA_KINDS.anovan.help, run:()=>anaDlg("anovan",{two:true}), enabled:!S.readOnly&&!!P()},
         {label:"Linear model…", title:ANA_KINDS.lm.help, run:()=>anaDlg("lm",{two:true}), enabled:!S.readOnly&&!!P()}]},
       {label:"Nonparametric", sub:()=>[["mw","Mann–Whitney…",true],["wsr","Wilcoxon signed-rank…"],["sign","Sign test…"],["kw","Kruskal–Wallis…",true],["fried","Friedman…",true],["mood","Mood's median test…",true],["ks2","Two-sample Kolmogorov–Smirnov…",true]].map(([k,label,two])=>({label,title:ANA_KINDS[k].help,run:()=>anaDlg(k,two?{two:true}:{}),enabled:!S.readOnly&&!!P()}))},
       {label:"Hypothesis tests", sub:()=>[{label:"t tests…", title:ANA_KINDS.ttest.help, run:()=>anaDlg("ttest"), enabled:!S.readOnly&&!!P()},
@@ -25088,7 +25199,7 @@ ${DL([["Area ± error","The trapezoidal sum over the points in the window, less 
 ${DL([["Net counts","The counts in the window less the continuum under them: a straight line through the mean of the channels at each edge (as many as the line baselines use). ± one standard deviation from counting: the counts' own and the continuum's."],["Detected","Above Currie's critical level, 95 %: on a continuum alone, one window in twenty is called detected. Below it, the level is shown."],["Emission, efficiency","Type the share of decays that give the line and the detector's efficiency at its energy, both in %."],["Activity","Net counts ÷ (live time × efficiency × emission), in becquerel, with the counting error. Not detected: the detection limit as an activity, the smallest that would be."]])}
 <p>Counting needs the counts as recorded: an energy calibration, a count rate or a crop keep them; smoothing or a subtracted background do not, and the part says so.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
-{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v linear model general linear model glm regression multiple regression ancova covariate factor interaction polynomial treatment coding effect coding type i type ii type iii sums of squares contrast estimable aliased qr",
+{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v linear model general linear model glm regression multiple regression ancova covariate factor interaction polynomial treatment coding effect coding type i type ii type iii sums of squares contrast estimable aliased qr two-way anova three-way anova factorial anova interaction plot main effects plot marginal means least squares means lsmeans emmeans simple effects partial eta squared",
  lead:"An analysis reads columns and writes what it finds into a result sheet of its own, worked out again when its data change.",
  body:`<h2>Statistics on columns</h2>
 <p>${MP("Analyze › Statistics › Descriptive › Statistics on columns…")}: tick the columns and the statistics, and each column gets a row of a new sheet. Ticked at first are N, the rows missing, mean, standard deviation, standard error of the mean, minimum, Q1, median, Q3, maximum and sum; besides them, the mean's interval, variance, coefficient of variation, range, IQR, MAD, robust SD, the mode and its count, skewness, kurtosis, the geometric and harmonic means, and any percentiles typed (<code>5, 95</code>). <em>Group by</em> a column of text or categories gives a row for each column and group.</p>
@@ -25114,6 +25225,10 @@ ${DL([["t tests…","One sample against a value; two samples, the first two colu
 <p>${MP("Analyze › Statistics › ANOVA › One-way ANOVA…")}: the groups as columns ticked, or one column grouped by another. The table: between and within groups, their degrees of freedom, sums of squares, mean squares, F and p, η² (the between share of the total) and ω² (the same, less its bias). <em>Welch's F</em> weights each group by its own variance.</p>
 ${DL([["Tukey–Kramer","Every pair; q and p from the studentized range, intervals simultaneous for all pairs."],["Bonferroni, Šidák","Every pair by t on the pooled variance, p multiplied by the number of pairs (Šidák: 1 − (1 − p)^m)."],["Holm","Bonferroni step by step from the smallest p; no interval."],["Scheffé","F = t²/(k − 1); intervals for every contrast, so the widest."],["Fisher's LSD","t on the pooled variance, p unadjusted."],["Games–Howell","Every pair with each group's own variance and Welch's degrees of freedom."],["Dunnett","Each group against the control chosen, two-sided."]])}
 <p><em>Means plot</em> (under the report) graphs each group's mean with its interval from the pooled SD.</p>
+<h2 id="anovan">Two- and three-way ANOVA</h2>
+<p>${MP("Analyze › Statistics › ANOVA › Two- and three-way ANOVA…")}: a <em>Response</em> among the columns ticked, and two or three others as its factors (text or numbers, their values the levels), over the rows with a value in every one. The factors are coded by effect, with all their interactions unless <em>Interactions</em> is None.</p>
+${DL([["Analysis of variance","Each term's df, sum of squares (type III unless set: each term after all the others), F and p; the error and the total; partial η², the term's sum over itself and the error's."],["Means","Each level's mean as the model estimates it, each cell weighted alike whatever its count, with its standard error and the rows it has; the cells of the first two factors the same way."],["Comparisons","Of each factor's means, every pair, by the methods ticked (as one-way ANOVA's, from the model's standard errors on the error's df)."],["Simple effects","Each factor's levels compared at each level of another (averaged over a third), F on the error's df."]])}
+<p><em>Interaction plot</em> (under the report) graphs the cells' means against the first factor, a line for each level of the second, with their intervals; <em>Main effects plot</em> each factor's means, a graph each, in a figure. A cell with no rows leaves its means empty, and the notes say so.</p>
 <h2 id="lm">Linear model</h2>
 <p>${MP("Analyze › Statistics › ANOVA › Linear model…")}: a <em>Response</em> among the columns ticked, modelled by the others, over the rows with a value in every one. A column of numbers is a variable unless ticked under <em>Factors</em>; a column of text, or a categorical one, is a factor, each level an effect of its own.</p>
 ${DL([["Interactions","None; every pair of the columns; or every combination (A:B, A:C, B:C, A:B:C…). A factor in an interaction gives a column for each pair of its levels and the other's."],["Powers up to","Each number column's square, cube… as terms of their own (x^2, x^3), for a polynomial."],["Factor coding","Treatment: a coefficient for each level but the first, its difference from the first. Effect: a coefficient for each level but the last, its difference from the mean of the levels."],["Sums of squares","Type I: each term after those listed before it. Type II: each term after every other that does not contain it. Type III: each term after all the others, with effect coding (as SAS and Origin)."],["Contrasts","One a line, a sum of coefficients by the names the table gives them, each with a number before it if needed: <code>A[b] − A[c]</code>, <code>x + 2 x^2</code>, <code>A[b] = 1</code>. Its estimate, standard error, t, p and interval; refused where the data cannot separate it (a combination of aliased columns)."],["Fitted values and residuals","Three columns on the result sheet: the row, the fitted value and the residual."]])}

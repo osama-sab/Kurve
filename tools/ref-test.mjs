@@ -177,6 +177,16 @@ for (const c of (fixtures.lm || { cases: [] }).cases) {
     if (r.fail) { note("lmContrast.est", Infinity, `${at}: ${q.text}: ${r.fail}`); return; }
     note("lmContrast.est", Math.abs(r.est - v.est) / (Math.abs(v.est) + v.se), `${at}: ${q.text}`); note("lmContrast.se", relErr(r.se, v.se), `${at}: ${q.text}`); note("lmContrast.p", relErr(r.p, v.p), `${at}: ${q.text}`); });
 }
+/* ---- two- and three-way ANOVA (STATS_SPEC 2.6): estimated means (lmEmmL, lmEst), their differences, simple effects (lmWaldL) ---- */
+for (const c of (fixtures.nway || { cases: [] }).cases) {
+  const M = get("linModel")(c.vars, c.y, { coding: "effect", inter: c.spec.inter, ss: c.spec.ss }), EM = get("lmEmmL"), ES = get("lmEst"), WL = get("lmWaldL"), w = c.want, at = c.name;
+  const dif = (fa, fb) => { const L = EM(M, fa), L2 = EM(M, fb); for (let j = 0; j < L.length; j++) L[j] -= L2[j]; return L; };
+  c.vars.forEach((v, i) => v.levels.forEach((_, l) => { const e = ES(M, EM(M, { [i]: l })); note("lmEst.est", relErr(e.est, w.means[i][l].m), `${at}: mean ${i}.${l}`); note("lmEst.se", relErr(e.se, w.means[i][l].se), `${at}: mean ${i}.${l}`); }));
+  let k = 0; c.vars[0].levels.forEach((_, a) => c.vars[1].levels.forEach((_, b) => { const e = ES(M, EM(M, { 0: a, 1: b })), r = w.cells[k++]; note("lmEst.est", relErr(e.est, r.m), `${at}: cell ${a}.${b}`); note("lmEst.se", relErr(e.se, r.se), `${at}: cell ${a}.${b}`); }));
+  w.pairs.forEach((q) => { const e = ES(M, dif({ [q.f]: q.a }, { [q.f]: q.b })); note("lmEst.est", Math.abs(e.est - q.diff) / (Math.abs(q.diff) + q.se), `${at}: difference ${q.f}: ${q.a} − ${q.b}`); note("lmEst.se", relErr(e.se, q.se), `${at}: difference ${q.f}`); });
+  w.simple.forEach((q) => { const Ls = []; for (let a = 1; a < c.vars[q.f].levels.length; a++) Ls.push(dif({ [q.f]: a, [q.g]: q.l }, { [q.f]: 0, [q.g]: q.l }));
+    const r = WL(M, Ls); note("lmWaldL.F", relErr(r.F, q.F), `${at}: simple ${q.f} at ${q.g}.${q.l}`); note("lmWaldL.p", relErr(r.p, q.p), `${at}: simple ${q.f} at ${q.g}.${q.l}`); });
+}
 for (const c of (fixtures.range || { cases: [] }).cases) note(c.fn, relErr(get(c.fn)(...c.args), c.want), fmtA(c.args));
 
 /* ---- distributions fitted to values ---- */

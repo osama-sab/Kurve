@@ -368,6 +368,30 @@ def lm_pick(key):
 for key, tol in [("b", 1e-14), ("se", 1e-14), ("ss", 1e-14), ("pF", 1e-13)]:
     gen("linModel@" + key, tol, 0.1)(lm_pick(key))
 
+# two- and three-way ANOVA (STATS_SPEC 2.6), through the kind itself (anaRunKind, its report read by path): 2 or 3 factors
+# of 2 to 4 levels, no empty cell, about an offset up to 1e6, either type and with or without interactions; a mean's error
+# or a simple effect's F, against exact rationals
+def nway_design():
+    k = int(rng.integers(2, 4)); n = int(rng.integers(20, 61)); vars_ = []
+    for i in range(k):
+        L = int(rng.integers(2, 5)); vars_.append({"name": "F%d" % i, "num": False, "levels": ["l%d" % j for j in range(L)], "code": [int(v) for v in rng.integers(0, L, n)]})
+    if len(set(zip(*[v["code"] for v in vars_]))) < math.prod(len(v["levels"]) for v in vars_): raise ValueError("an empty cell")
+    off = 0.0 if rng.random() < 0.5 else float(rng.choice([-1, 1]) * lognum(0, 6)); y = [float(off + v) for v in rng.normal(0, lognum(-2, 1), n)]
+    spec = {"inter": str(rng.choice(["all", "none"])), "ss": int(rng.integers(1, 4))}
+    ins = [{"id": "y", "name": "y", "vals": y, "rows": list(range(n))}] + [{"id": v["name"], "name": v["name"], "rows": list(range(n)), "cats": {"keys": [v["levels"][c] for c in v["code"]], "order": None}} for v in vars_]
+    return vars_, y, spec, ins
+def nway_pick(key):
+    def g():
+        vars_, y, spec, ins = nway_design(); w = refs.nway_ref(vars_, y, spec); k = len(vars_); p = {"y": "y", "inter": spec["inter"], "ss": spec["ss"], "simple": key == "F"}
+        if key == "se":
+            i = int(rng.integers(k)); l = int(rng.integers(len(vars_[i]["levels"])))
+            return ["anovan", ins, p], w["means"][i][l]["se"], f"anaRunKind@report.sections.{2 + i}.tables.0.rows.{l}.2"
+        e = int(rng.integers(len(w["simple"]))); q = w["simple"][e]; pairs = [(i, j) for i in range(k) for j in range(k) if i != j]
+        return ["anovan", ins, p], q["F"], f"anaRunKind@report.sections.{3 + k + pairs.index((q['f'], q['g']))}.tables.0.rows.{q['l']}.2"
+    return g
+for key, tol in [("se", 1e-14), ("F", 1e-13)]:
+    gen("nway@" + key, tol, 0.08)(nway_pick(key))
+
 cases = []
 for name, (f, tol) in GEN.items():
     for k in range(max(1, math.ceil(per * SHARE.get(name, 1.0)))):

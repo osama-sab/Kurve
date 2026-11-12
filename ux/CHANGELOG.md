@@ -1024,6 +1024,18 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 2, slice 2.6: two- and three-way ANOVA (2026-11-12)
+
+- **Analyze › Statistics › ANOVA › Two- and three-way ANOVA…**: a response by two or three factors, balanced or not, with
+  all their interactions or none; the analysis of variance by type I, II or III sums of squares with partial η², each
+  factor's estimated means and the cells' with their errors and N, comparisons of each factor's means (Tukey–Kramer,
+  Bonferroni, Holm, Šidák, Scheffé, Fisher's LSD), simple effects; an interaction plot and a main effects plot from the
+  result, one undo step each.
+- Every mean, difference and simple effect agrees with exact rational arithmetic to about 2e-16.
+
+Checked: `fixtures/nway.json` (7 designs), the fuzzer (two new generators, through the analysis itself), stats-test (6
+new), ana-drive (13 new), perf (one new line), the suite.
+
 ## Closing the gap with Origin, wave 2, slice 2.5: the linear model (2026-11-12)
 
 - **Analyze › Statistics › ANOVA › Linear model…**: a response modelled by numbers and factors (text columns, or numbers

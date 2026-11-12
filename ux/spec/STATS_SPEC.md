@@ -318,6 +318,17 @@ Built (12.11):
 Balanced and unbalanced (type III by default, the type in the method line), interactions, simple effects,
 comparisons on the main effects; the interaction and main-effects plots made from the result.
 
+Built (12.11):
+- **On the linear model** (`anovan`): every column but the response a factor, effect coding, all interactions or none,
+  types I to III; partial η² (a term's sum of squares over itself and the error's).
+- **Rows of the model** (`lmCell`, `lmEmmL`, `lmEst`, `lmWaldL`): estimated means as the mean of the fitted cells, each
+  alike; differences with their own errors; comparisons by one-way ANOVA's methods (`lmCompare`; Tukey's q √2|d|/se);
+  simple effects as Wald's F on the error's df; a mean over an empty cell refused as not estimable.
+- **Plots**: the interaction plot (the cells' means of the first two factors) and the main effects plot (a figure), made
+  from the result sheet's columns.
+- **Checked**: `nway.json` (exact rationals: means, cells, every difference, every simple effect; one design about 1e6), the
+  fuzzer (`nway@se`, `nway@F`, through `anaRunKind`), stats-test (6), ana-drive (13), perf (one line).
+
 ## 2.7 Repeated measures
 
 One- and two-way, the data wide or long with a subject column; Mauchly's test of sphericity,

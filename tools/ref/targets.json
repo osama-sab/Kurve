@@ -542,5 +542,21 @@
  "lmContrast.p": {
   "tol": 1e-13,
   "why": "The t tail in 40 digits"
+ },
+ "lmEst.est": {
+  "tol": 1e-15,
+  "why": "An estimated mean or a difference of them: L·b of the refined solution against exact rationals (a difference judged against its size plus its error)"
+ },
+ "lmEst.se": {
+  "tol": 1e-15,
+  "why": "√(LᵀVL·s²) of the refined covariance against exact rationals"
+ },
+ "lmWaldL.F": {
+  "tol": 1e-14,
+  "why": "Wald's F of the simple effects against exact rationals"
+ },
+ "lmWaldL.p": {
+  "tol": 1e-13,
+  "why": "F's tail in 40 digits"
  }
 }

@@ -625,6 +625,30 @@ for ss, form in [(2, "y ~ C(A) + C(B) + x + C(A):C(B) + C(A):x + C(B):x"), (3, "
     assert all(abs(g - v) <= 1e-9 * max(1, abs(v)) for g, v in zip(got, want)), (ss, got, want)
 out["lm"] = cases
 
+# ---------- two- and three-way ANOVA (STATS_SPEC 2.6): estimated means, differences, simple effects, exactly ----------
+cases = []; rng = np.random.default_rng(26)
+def nwcase(name, vars_, y, spec):
+    spec = dict(spec, inter=spec.get("inter", "all")); w = refs.nway_ref(vars_, y, spec)
+    cases.append({"fn": "nway", "name": name, "vars": vars_, "y": [float(v) for v in y], "spec": spec, "want": w})
+def nwfac(nm, L, n): return {"name": nm, "num": False, "levels": [f"{nm.lower()}{i+1}" for i in range(L)], "code": [int(v) for v in rng.integers(0, L, n)]}
+A = {"name": "A", "num": False, "levels": ["a1", "a2", "a3"], "code": [i // 4 for i in range(12)]}; B = {"name": "B", "num": False, "levels": ["b1", "b2"], "code": [(i // 2) % 2 for i in range(12)]}
+nwcase("balanced 3 x 2", [A, B], [round(float(v), 3) for v in rng.normal(10, 2, 12)], {"ss": 3})
+for t in (1, 2, 3):
+    while True:
+        A2, B2 = nwfac("A", 3, 40), nwfac("B", 2, 40)
+        if len(set(zip(A2["code"], B2["code"]))) == 6: break
+    nwcase(f"unbalanced 3 x 2, type {t}", [A2, B2], [round(5 + a + 0.5 * b + float(rng.normal()), 4) for a, b in zip(A2["code"], B2["code"])], {"ss": t})
+while True:
+    A3, B3, C3 = nwfac("A", 2, 60), nwfac("B", 3, 60), nwfac("C", 2, 60)
+    if len(set(zip(A3["code"], B3["code"], C3["code"]))) == 12: break
+y3 = [round(float(rng.normal(20, 3)), 3) for _ in range(60)]
+nwcase("unbalanced 2 x 3 x 2", [A3, B3, C3], y3, {"ss": 3}); nwcase("2 x 3 x 2, no interactions", [A3, B3, C3], y3, {"ss": 2, "inter": "none"})
+while True:
+    A4, B4 = nwfac("A", 4, 50), nwfac("B", 3, 50)
+    if len(set(zip(A4["code"], B4["code"]))) == 12: break
+nwcase("unbalanced 4 x 3, about 1e6", [A4, B4], [1e6 + round(float(v), 3) for v in rng.normal(0, 0.01, 50)], {"ss": 3})
+out["nway"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

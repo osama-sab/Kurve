@@ -564,6 +564,58 @@ await page(async p => {
   check("after a reload the three are there", r.length === 3 && r.every(Boolean), JSON.stringify(r));
 }, { name: "2.5" });
 
+console.log("2.6: two- and three-way ANOVA");
+await page(async p => {
+  // Plot (X), Yield, Fertiliser and Variety (text), unbalanced: one row of each less in two cells.
+  await p.evaluate(() => { const fert = [], vr = [], yld = []; for (let i = 0; i < 24; i++) { if (i === 5 || i === 13) continue; const f = i % 3, v = Math.floor(i / 3) % 2;
+      fert.push(["Low", "Mid", "High"][f]); vr.push(["Oat", "Rye"][v]); yld.push(+(10 + f * 2 + v * 1.5 + (f === 2 && v ? 2 : 0) + Math.sin(i * 2.1)).toFixed(3)); }
+    const txt = (nm, v) => Object.assign(makeCol("ignore", nm, ""), { data: v.map(() => null), fmt: "text", txt: Object.fromEntries(v.map((t, i) => [i, t])) });
+    save({ cols: [Object.assign(makeCol("x", "Plot", ""), { data: yld.map((_, i) => i + 1) }), Object.assign(makeCol("y", "Yield", "t/ha"), { data: yld, pipe: [], mask: [] }), txt("Fertiliser", fert), txt("Variety", vr)], activeY: null }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  const last = () => p.evaluate(() => { const as = anaList().filter(x => x.kind === "anovan"), a = as[as.length - 1];
+    return { id: a.id, secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, h: s.tables[0].head, r: s.tables[0].rows })), notes: a.res.notes, err: a.res.err, method: a.res.report && a.res.report.method }; });
+  await p.evaluate(ids => { anaDlg("anovan", { cols: ids.slice(1) }); }, ids); await p.waitForSelector("#aLy"); await p.waitForTimeout(150);
+  let r = await p.evaluate(() => ({ y: document.querySelector("#aLy").value, ok: !document.querySelector("#formOk").disabled }));
+  check("the dialog: the response on Yield, Work it out ready", r.y === ids[1] && r.ok, JSON.stringify(r));
+  await p.check("#aC_tukey"); await p.check("#aC_bonf"); await p.check("#aNs"); await p.click("#formOk");
+  await p.waitForFunction(() => anaList().some(a => a.kind === "anovan" && a.res && (a.res.report || a.res.err)), null, { timeout: 60000 });
+  r = await last();
+  const want = await p.evaluate(ids => { const c = ids.map(colById), n = c[1].data.length, lv = (col, L) => ({ name: col.name, num: false, levels: L, code: Array.from({ length: n }, (_, i) => L.indexOf(col.txt[i])) });
+    const vars = [lv(c[2], ["High", "Low", "Mid"]), lv(c[3], ["Oat", "Rye"])], M = linModel(vars, c[1].data, { coding: "effect", inter: "all", ss: 3 });
+    const m = (fx) => lmEst(M, lmEmmL(M, fx)); return { an: M.anova.rows.map(o => [o.term, o.ss, o.F, o.p]), mH: m({ 0: 0 }), cell: m({ 0: 1, 1: 1 }), dfr: M.dfr }; }, ids);
+  const sec = t => r.secs.find(s => s.t === t);
+  check("the analysis of variance, type III, as linModel with effect coding gives it, with the error and total", JSON.stringify(sec("Analysis of variance, type III").r.slice(0, 3).map(x => [x[0], x[2], x[3], x[4]])) === JSON.stringify(want.an) && sec("Analysis of variance, type III").r[3][0] === "Error", JSON.stringify([sec("Analysis of variance, type III"), want.an]));
+  check("…partial η² for each term", sec("Effect size") && sec("Effect size").r.length === 3 && sec("Effect size").r.every(x => x[1] > 0 && x[1] < 1));
+  const mf = sec("Means of Fertiliser"), mc = sec("Means of the cells of Fertiliser and Variety");
+  check("…each level's estimated mean and error as lmEst gives them, its N (one row less in High); the cells' the same", mf.r[0][0] === "High" && mf.r[0][1] === want.mH.est && mf.r[0][2] === want.mH.se && mf.r[0][3] === 7 && mf.r[1][3] === 8 && mc.r[3][2] === want.cell.est && mc.r.length === 6, JSON.stringify([mf, mc.r[3], want]));
+  check("…Tukey's and Bonferroni's comparisons of each factor's means, and the simple effects of each at the other's levels", !!sec("Fertiliser: Tukey–Kramer, 95% intervals") && sec("Fertiliser: Tukey–Kramer, 95% intervals").r.length === 3 && !!sec("Variety: Bonferroni, 95% intervals") && sec("Simple effects of Fertiliser").r.length === 2 && sec("Simple effects of Variety").r.length === 3, JSON.stringify(r.secs.map(s => s.t)));
+  check("…numbers only: no sentence of what they mean", !/significant|differs|interaction is/i.test(JSON.stringify(r)), r.method);
+  // the plots
+  const g0 = await p.evaluate(() => P().graphs.length);
+  await p.click('button[data-anaact="inter"]').catch(async () => { await p.evaluate(id => anaInterPlot(id), r.id); }); await p.waitForTimeout(600);
+  let g = await p.evaluate(() => { const gr = P().graphs[P().graphs.length - 1]; return { n: P().graphs.length, cols: gr.cols.map(id => colById(id).name), yt: ((gr.plot.ax || {}).y || {}).title }; });
+  check("Interaction plot: a graph of the cells' means, a curve for each variety, the Y axis the mean of Yield", g.n === g0 + 1 && JSON.stringify(g.cols) === JSON.stringify(["Variety = Oat", "Variety = Rye"]) && g.yt === "Mean of Yield", JSON.stringify(g));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(300);
+  check("…one undo step takes it back", await p.evaluate(() => P().graphs.length) === g0);
+  await p.evaluate(id => anaMainsPlot(id), r.id); await p.waitForTimeout(800);
+  g = await p.evaluate(() => { const fg = P().graphs.find(x => x.fig); return { fig: !!fg, panels: fg ? fg.fig.cells.length : 0 }; });
+  check("Main effects plot: each factor's means on a graph of its own, in a figure", g.fig && g.panels === 2, JSON.stringify(g));
+  // three factors, an empty cell, a refusal
+  await p.evaluate(ids => { const c = ids.map(colById); pushUndo("t"); const g = Object.assign(makeCol("ignore", "Block", ""), { data: [], fmt: "text", txt: {}, sheet: c[0].sheet }); for (let i = 0; i < c[1].data.length; i++) { g.data.push(null); g.txt[i] = i % 2 ? "B1" : "B2"; } save({ cols: P().cols.concat([g]) }, "typed"); }, ids);
+  await p.waitForTimeout(400);
+  const ids2 = await p.evaluate(id => sheetCols(colById(id).sheet || SHEET0.id).map(c => c.id), ids[0]);
+  await p.evaluate(ids => { anaDlg("anovan", { cols: ids }); }, ids2.slice(1)); await p.waitForSelector("#aLy"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(1200);
+  r = await last();
+  check("three factors: the three main effects, their three pairs and the triple term", r.secs && r.secs[0].r.slice(0, 7).map(x => x[0]).join("|") === "Fertiliser|Variety|Block|Fertiliser:Variety|Fertiliser:Block|Variety:Block|Fertiliser:Variety:Block", JSON.stringify(r.secs && r.secs[0].r.map(x => x[0])));
+  await p.evaluate(ids => { anaDlg("anovan", { cols: ids }); }, [ids[1], ids[2]]); await p.waitForSelector("#aLy"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(800);
+  r = await last();
+  check("one factor refused in words", /Two or three factors/.test(r.err || ""), r.err);
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().filter(a => a.kind === "anovan").length);
+  check("after a reload the three are there", r === 3, r);
+}, { name: "2.6" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

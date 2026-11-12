@@ -379,5 +379,35 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("a model with no degrees of freedom left refused in words", /no degrees of freedom left/.test(LM([{ name: "x", num: true, x: [1, 2, 3] }], [1, 2, 4], { pow: 2 }).fail));
 }
 
+// Two- and three-way ANOVA (STATS_SPEC 2.6): a balanced design's estimated means are the plain means; Tukey's comparisons of
+// a factor's means keep their family-wise error at 5 %; simple effects' F near 5 % with nothing to find; an empty cell and
+// refusals said in words.
+{
+  const mb = get("mulberry32")(2006), LM = get("linModel"), EM = get("lmEmmL"), ES = get("lmEst"), WL = get("lmWaldL"), CMP = get("lmCompare"), RUN = get("anaRunKind");
+  const gauss = () => { const u = mb() || 1e-12, v = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const n = 24, A = Array.from({ length: n }, (_, i) => i % 4), B = Array.from({ length: n }, (_, i) => Math.floor(i / 4) % 2);
+  const vars = [{ name: "A", num: false, levels: ["a", "b", "c", "d"], code: A }, { name: "B", num: false, levels: ["p", "q"], code: B }];
+  const y = A.map((a, i) => a + 2 * B[i] + gauss()), M = LM(vars, y, { coding: "effect", inter: "all" });
+  const mean = (f) => { const v = y.filter((_, i) => f(i)); return v.reduce((s, x) => s + x, 0) / v.length; };
+  check("a balanced design: each level's estimated mean is its plain mean, each cell's too", [0, 1, 2, 3].every((a) => rel(ES(M, EM(M, { 0: a })).est, mean((i) => A[i] === a)) < 1e-14) && [0, 1].every((b) => [0, 1, 2, 3].every((a) => rel(ES(M, EM(M, { 0: a, 1: b })).est, mean((i) => A[i] === a && B[i] === b)) < 1e-14)));
+  const N = 3000, k = { fw: 0, se: 0, sn: 0 }, qcr = get("tukeyIsf")(0.05, 4, n - 8);
+  { const y0 = A.map(() => gauss()), M0 = LM(vars, y0, { coding: "effect", inter: "all" }), L = EM(M0, { 0: 0 }), L2 = EM(M0, { 0: 3 }); for (let j = 0; j < L.length; j++) L[j] -= L2[j];
+    const e = ES(M0, L), c = CMP([{ i: 0, j: 3, diff: e.est, se: e.se }], 4, M0.dfr, "tukey", 0.95)[0], q = Math.SQRT2 * Math.abs(e.est) / e.se;
+    check("Tukey on estimated means: q is √2·|difference| over its error, p its studentized range tail, the interval the critical value's", c.stat === q && c.p === get("tukeySf")(q, 4, M0.dfr) && Math.abs(c.hi - c.lo - 2 * qcr * e.se / Math.SQRT2) < 1e-12 * (c.hi - c.lo)); }
+  for (let s = 0; s < N; s++) {
+    const y0 = A.map(() => gauss()), M0 = LM(vars, y0, { coding: "effect", inter: "all" }), pairs = [];
+    for (let a = 0; a < 4; a++) for (let b = a + 1; b < 4; b++) { const L = EM(M0, { 0: a }), L2 = EM(M0, { 0: b }); for (let j = 0; j < L.length; j++) L[j] -= L2[j]; const e = ES(M0, L); pairs.push({ i: a, j: b, diff: e.est, se: e.se }); }
+    if (pairs.some((x) => Math.SQRT2 * Math.abs(x.diff) / x.se > qcr)) k.fw++; /* p < 0.05 for a pair is q past the critical value */
+    [0, 1].forEach((b) => { const Ls = []; for (let a = 1; a < 4; a++) { const L = EM(M0, { 0: a, 1: b }), L0 = EM(M0, { 0: 0, 1: b }); for (let j = 0; j < L.length; j++) L[j] -= L0[j]; Ls.push(L); } k.sn++; if (WL(M0, Ls).p < 0.05) k.se++; });
+  }
+  const half = 3.29 * Math.sqrt(0.05 * 0.95 / N), hs = 3.29 * Math.sqrt(0.05 * 0.95 / k.sn);
+  check(`Tukey's comparisons of four means: the family-wise error at 5 % (within ${(half * 100).toFixed(2)} %)`, Math.abs(k.fw / N - 0.05) < half, k.fw / N);
+  check(`simple effects' F near 5 % with nothing to find (within ${(hs * 100).toFixed(2)} %)`, Math.abs(k.se / k.sn - 0.05) < hs, k.se / k.sn);
+  const ins = (codes, ys) => [{ id: "y", name: "y", vals: ys, rows: ys.map((_, i) => i) }].concat(codes.map((c, j) => ({ id: "f" + j, name: "F" + j, rows: c.map((_, i) => i), cats: { keys: c, order: null } })));
+  const r = RUN("anovan", ins([A.map((a) => "abcd"[a]), B.map((b) => "pq"[b]).map((v, i) => A[i] === 3 ? "p" : v)], y), { y: "y" });
+  check("an empty cell: said, its means left empty", r.notes.some((s) => /^An empty cell/.test(s)) && r.notes.some((s) => /cannot be worked out/.test(s)), JSON.stringify(r.notes));
+  check("one factor, or a response of text, refused in words", /Two or three factors/.test(RUN("anovan", ins([A.map(String)], y), { y: "y" }).fail) && /holds text/.test(RUN("anovan", [{ id: "y", name: "y", rows: [0, 1], cats: { keys: ["a", "b"] } }].concat(ins([["a", "b"], ["p", "q"]], [1, 2]).slice(1)), { y: "y" }).fail));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

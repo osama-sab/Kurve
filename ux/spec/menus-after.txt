@@ -196,6 +196,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
       Outliers…  ## + (STATS_SPEC 2.2): Grubbs or Dixon's Q, the outliers masked or marked
     ANOVA  ## + (STATS_SPEC 2.4): Origin's ANOVA
       One-way ANOVA…  ## + the table, η² and ω², Welch's F, eight comparisons of means, a means plot
+      Two- and three-way ANOVA…  ## + (STATS_SPEC 2.6) types I–III, partial η², estimated means, comparisons, simple effects, interaction and main effects plots
       Linear model…  ## + (STATS_SPEC 2.5) numbers and factors, interactions, powers, types I–III, contrasts
     Nonparametric  ## + (STATS_SPEC 2.8): Origin's Nonparametric Tests
       Mann–Whitney…  ## + U, p exact while small, the Hodges–Lehmann shift

@@ -898,6 +898,15 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-12: two- and three-way ANOVA (STATS_SPEC 2.6)
+
+- **Every column ticked but the response is a factor**: the dialog asks only for the response, the interactions, the type,
+  the comparisons and simple effects; a covariate is the linear model's.
+- **Means are the model's** (each cell weighted alike), shown with their N, so an unbalanced design's means and its plain
+  means are both readable; a mean over an empty cell is left empty and said.
+- **The plots are made from the result**, under the report as one-way ANOVA's means plot is: the interaction plot titles
+  its Y axis "Mean of …", since its curves are named by the second factor's levels.
+
 ### 2026-11-12: the linear model (STATS_SPEC 2.5)
 
 - **The response is one of the columns ticked**, chosen in a list that starts on the first Y; the others model it. A

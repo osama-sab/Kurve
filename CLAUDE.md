@@ -1166,6 +1166,20 @@ graph first, with the taskbar kept at the bottom of the screen.
   form `#aLy`, `#aLfac` (`aLf_<id>`), `#aLi`, `#aLp`, `#aLc`, `#aLs`, `#aLn`, `#aLr`, `#aLct`; Analyze › Statistics › ANOVA ›
   Linear model…. `anaDlg` takes X columns for a kind with `xs`. `quantileType` works its position in double-double
   (`qtProd`).
+  **Rows of a model and two- and three-way ANOVA** (STATS_SPEC 2.6): `linModel` returns `vars`, `termList` and `spec`;
+  `lmCell(M, codes)` (a cell's design row, memoised per model in `LMCELL`), `lmEstOk(M, L)` (estimable: each aliased
+  column's entry what the kept ones make it), `lmEst(M, L)` (`{est, v, se}`, b in double-double; `lmContrast` is on it),
+  `lmWaldL(M, Ls)` (rows tested together: Wald's F, `{F, df1, df2, p}`), `lmCombos(M, fixed)`, `lmEmmL(M, fixed)` (an
+  estimated marginal mean's row: the mean of the cells with those levels, each alike), `lmCompare(pairs, k, df, kind,
+  conf)` (anovaComp's methods on differences `{i, j, diff, se}` with their own errors; Tukey's q is √2·|d|/se). Kind
+  `anovan` (`cats`, `xs`; `p.y`, `inter` "all" | "none", `ss`, `conf`, `comps` (`NWAY_COMPS`: not Games–Howell or
+  Dunnett; `nwayComps`), `simple`; every column but the response a factor, effect coding; sections the analysis of
+  variance, Effect size (partial η²), Means of each factor, Means of the cells of the first two, a factor's comparisons,
+  Simple effects of each; the sheet the table with mean squares and partial η², and the plots' columns `ix`, `iy<l>`,
+  `ie<l>` and `mx<i>`, `my<i>`, `me<i>`; `report.resp`), form `#aLy`, `#aNi`, `#aLs`, `#aNs`, `aC_<k>`; `anaRespWire(box,
+  after)` the Response list both model dialogs share; `anaInterPlot` (the cells' means, a curve each level of the second
+  factor, the Y axis titled Mean of the response) and `anaMainsPlot` (a graph each factor, in a figure), each one undo step;
+  Analyze › Statistics › ANOVA › Two- and three-way ANOVA….
   `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
   (rationals), shared by the fixtures (`desc.json`) and the fuzzer (`quantileType`, `descStats@<key>`, which
   `run.mjs` reads as one field of the result).
@@ -3096,7 +3110,9 @@ refusal, a one-row result shown as names and values, a reload), and 2.9 (each co
 and listwise N, a section a coefficient, the scatter matrix in one undo step, a refusal, a reload), and 2.10 (a
 cross-table of text, a table of counts named by a column, McNemar, a negative count refused, a reload), and 2.5 (X
 columns offered, the response on the first Y, text a factor that stays one, every number against linModel and
-lmContrast, rows left out said, an empty cell's coefficient named, a response of text refused, followed, a reload).
+lmContrast, rows left out said, an empty cell's coefficient named, a response of text refused, followed, a reload), and 2.6
+(the table, partial η², the means and cells against lmEst, Tukey and Bonferroni, simple effects, the interaction plot and its
+undo, the main effects figure, three factors, one refused, a reload).
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
@@ -3110,7 +3126,8 @@ studentized range of two and Dunnett's one comparison as t), and 2.8's (U's and 
 enumeration, each rank test's size, the shift's interval covering, refusals), and 2.9's (Kendall's counts against
 enumeration, a shift, a scale and a monotone change, each test's size, Fisher's coverage, partial r as residuals' r), and
 2.10's (χ²'s and G's size, Fisher's and McNemar's exact tests at or below 5 %, a table turned round, refusals), and 2.5's
-(the F tests' size, the intervals' coverage, a shift, a scale, the rows' order, codings and types agreeing, a contrast, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
+(the F tests' size, the intervals' coverage, a shift, a scale, the rows' order, codings and types agreeing, a contrast, refusals), and 2.6's
+(a balanced design's estimated means the plain ones, Tukey's family-wise error, simple effects' size, an empty cell, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
 ANA block.
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
@@ -4657,7 +4674,9 @@ Next, in order:
    τ-b, partial r, their matrices, a scatter matrix; 1 − r² in double-double), done 12.11; slice 2.10, counts in tables
    (χ², G, Fisher's exact test of any size, McNemar, Cramér's V), done 12.11; slice 2.5, the linear model (numbers and factors,
    interactions, powers, either coding, types I to III, contrasts; every number to the last digit or two of exact
-   arithmetic up to a condition of 1e12, NIST's Longley and a polynomial as hard as Filip's included), done 12.11
+   arithmetic up to a condition of 1e12, NIST's Longley and a polynomial as hard as Filip's included), done 12.11; slice 2.6,
+   two- and three-way ANOVA (types I to III, partial η², estimated means, comparisons, simple effects, interaction and
+   main effects plots), done 12.11
 
 ## Known gaps
 
@@ -4746,6 +4765,10 @@ Next, in order:
   dropping a term's effect-coded columns (with an empty cell this is not SAS's estimable-function type III); a design
   conditioned past about 1e12 has columns called aliased that exact arithmetic would still separate; contrasts one at
   a time (no joint F of several); no plots of the residuals made from it yet (the fitted values and residuals go on the sheet)
+- Two- and three-way ANOVA: factors only (a covariate is the linear model's); the comparisons are of each factor's means
+  (not of the cells, not Dunnett's or Games–Howell's); simple effects of one factor at the levels of another, averaged over a
+  third; the interaction plot is of the first two factors ticked; a mean over an empty cell is left empty (no SAS-style
+  estimable means)
 - Correlation: no point-biserial, polychoric or distance correlation, no comparison of two r's, no matrix of p
   values on the graph; partial r over the rows complete in every column only
 - Rank tests: exact p only without ties (with ties the normal approximation, as R; no permutation p); the

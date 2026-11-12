@@ -50,6 +50,7 @@ const BUDGET = {
   "Counts in tables: 1M pairs": [3000, "the cross-table of two columns of a million categories, χ² and G"],
   "Linear model: 200 000 rows": [1800, "a response by three numbers and a factor of five levels, type III (worked out in the worker in the app)"],
   "Linear model: pairs": [7000, "the same with every pair of them (23 columns), type III"],
+  "Two-way ANOVA: 200 000 rows": [3000, "a response by factors of four and three levels with their interaction: type III, the means, Tukey's comparisons and simple effects"],
   "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
 };
 const got = {};
@@ -122,6 +123,9 @@ await withPage(async (p) => {
     const a = performance.now(), r = anaRunKind("lm", ins, { y: "y", ss: 3, inter }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }, inter);
   got["Linear model: 200 000 rows"] = await best(() => lmRun("none"));
   got["Linear model: pairs"] = await best(() => lmRun("pairs"));
+  got["Two-way ANOVA: 200 000 rows"] = await best(() => p.evaluate(() => { const mb = mulberry32(13), n = 200000, rows = Array.from({ length: n }, (_, i) => i), A = rows.map(() => "abcd"[Math.floor(mb() * 4)]), B = rows.map(() => "pqr"[Math.floor(mb() * 3)]);
+    const y = rows.map((i) => "abcd".indexOf(A[i]) + "pqr".indexOf(B[i]) * 0.5 + mb()), ins = [{ id: "y", name: "y", vals: y, rows }, { id: "A", name: "A", rows, cats: { keys: A, order: null } }, { id: "B", name: "B", rows, cats: { keys: B, order: null } }];
+    const a = performance.now(), r = anaRunKind("anovan", ins, { y: "y", comps: ["tukey"], simple: true }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
   got["Correlation: 1M pairs"] = await best(() => p.evaluate(() => { const mb = mulberry32(10), n = 1000000, x = Array.from({ length: n }, () => mb()), rows = x.map((_, i) => i);
     const ins = [{ name: "A", vals: x, rows }, { name: "B", vals: x.map((v) => v + mb()), rows }];
     const a = performance.now(); anaRunKind("corr", ins, { methods: ["pearson", "spearman", "kendall"] }); return performance.now() - a; }));
