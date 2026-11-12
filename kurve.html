@@ -506,7 +506,6 @@ body.dwin-page{margin:0;height:100vh;overflow:hidden;background:var(--panel);col
 .wstabs[hidden]{display:none}
 .wstab.ana{display:inline-flex;align-items:center;gap:var(--sp-1)}.anacols{max-height:260px;max-width:none}.anarow{display:flex;align-items:center;gap:var(--sp-3)}.anarow .grow{flex:1}
 .anastats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--sp-1) var(--sp-4);margin-bottom:var(--sp-4)}
-.anasaid{font-weight:600;margin:var(--sp-2) 0}
 .fish22{display:grid;grid-template-columns:auto 7em 7em;gap:var(--sp-2) var(--sp-3);align-items:center;margin:var(--sp-2) 0 var(--sp-4)}.fish22 input{width:100%}
 .anaacts{display:flex;flex-wrap:wrap;gap:var(--sp-2);margin:var(--sp-2) 0 var(--sp-4)}.anarows{display:flex;align-items:center;gap:var(--sp-3)}.anarows input{width:6em}
 .anadlg .grid2 [hidden]{display:none}.wstab.stale{color:var(--warn)}
@@ -6295,13 +6294,13 @@ const anaFmt=(v,s)=>{ if(v==null||!Number.isFinite(v)) return "—"; s=s||4; con
   if(v===0||(a>=1e-4&&a<1e6)) return String(+v.toPrecision(s)); const [m,e]=v.toExponential(s-1).split("e"); return String(+m)+"×10"+String(+e).split("").map(ch=>ANA_SUP[ch]).join(""); };
 const anaPtxt=p=>p==null||!Number.isFinite(p)?"p not known":p<1e-4?"p < 0.0001":"p = "+anaFmt(p,2);
 const anaAlpha=p=>[0.001,0.01,0.05,0.1].includes(+(p&&p.alpha))?+p.alpha:0.05;
+// An interval's level: `conf`, or one minus the α an analysis made before 12.11 stored, else 95 %.
+const ANA_CONFS=[0.9,0.95,0.99,0.999];
+const anaConf=p=>ANA_CONFS.includes(+(p&&p.conf))?+p.conf:p&&[0.001,0.01,0.05,0.1].includes(+p.alpha)?1-p.alpha:0.95;
 // The normality tests: [key, name, the statistic's symbol, its function, the field it returns].
 const NORM_TESTS=[["sw","Shapiro–Wilk","W",swTest,"w"],["lf","Lilliefors","D",lfTest,"d"],["ad","Anderson–Darling","A²",adTest,"a2"],["dk","D'Agostino's K²","K²",dagoTest,"k2"],["ks","Kolmogorov–Smirnov","D",ksnTest,"d"]];
 const normTests=p=>{ const want=Array.isArray(p&&p.tests)?p.tests:["sw"]; const t=NORM_TESTS.map(e=>e[0]).filter(k=>want.includes(k)); return t.length?t:["sw"]; };
-// The line later tests cite about their normality (STATS_SPEC 2.3 on): Shapiro–Wilk's, at 3 to 5000 values.
-function anaNormCheck(vals,name,al){ al=al||0.05; const r=swTest(vals); if(r.fail) return {name:"Normality",ok:null,text:`${name}: normality not checked (${r.fail.replace(/\.$/,"").toLowerCase()})`};
-  return {name:"Normality",ok:!(r.p<al),text:r.p<al?`${name} looks not normal (Shapiro–Wilk W = ${anaFmt(r.w)}, ${anaPtxt(r.p)})`:`${name}: nothing against normality (Shapiro–Wilk ${anaPtxt(r.p)})`}; }
-/* ---- Comparing means and spreads (STATS_SPEC 2.3) ---- */
+/* ---- Comparing means and spreads (STATS_SPEC 2.3) ---- *//* ---- Comparing means and spreads (STATS_SPEC 2.3) ---- */
 const finVals=v=>{ const a=[]; for(const x of v||[]) if(x!=null&&Number.isFinite(x)) a.push(x); return a; };
 // A t's p for the alternative: "two" (the difference either way), "less", "greater".
 const tAltP=(t,df,alt)=>alt==="less"?DIST.t.cdf(t,df):alt==="greater"?DIST.t.sf(t,df):Math.min(1,2*DIST.t.sf(Math.abs(t),df));
@@ -6394,17 +6393,11 @@ function fisher22(a,b,c,d,o){ o=o||{}; const alt=o.alt||"two", conf=o.conf>0&&o.
   if(alt==="less") p=pm.slice(0,i0+1).reduce((t,x)=>t+x,0); else if(alt==="greater") p=pm.slice(i0).reduce((t,x)=>t+x,0);
   else { const th=pm[i0]*(1+1e-7); p=pm.reduce((t,x)=>x<=th?t+x:t,0); }
   return {a,b,c,d,p:Math.min(1,p),or,ci:[cil,cih],sampleOR:b*c>0?a*d/(b*c):a*d>0?Infinity:NaN,alt,conf}; }
-// The alternative, in words, and what a result says for it: [significant, not].
+// The alternative, in words.
 const ANA_ALT={two:"Two-sided",less:"One-sided: less",greater:"One-sided: greater"};
-const ANA_VERB={two:["differs from","does not differ significantly from"],less:["is less than","is not significantly less than"],greater:["is greater than","is not significantly greater than"]};
 const anaPct=c=>String(+(c*100).toPrecision(6))+"%";
 const VAR_TESTS=[["bf","Levene's test about the medians (Brown–Forsythe)"],["lev","Levene's test about the means"],["bart","Bartlett's test"],["f","The F test (two samples)"]];
-// A t test's sentence: what was compared, the verdict at α, t, its degrees of freedom and p.
-function tSay(r,A,B,al){ const sig=r.p<al, v=ANA_VERB[r.alt||"two"][sig?0:1], df=Number.isInteger(r.df)?String(r.df):anaFmt(r.df,4), tail=`(${r.kind==="two"?(r.equal?"Student's ":"Welch's "):r.kind==="paired"?"paired ":""}t = ${anaFmt(r.t)}, ${df} degrees of freedom, ${anaPtxt(r.p)})`;
-  if(r.kind==="two") return `At the ${al} level, the mean of ${A} (${anaFmt(r.m1)}) ${v} the mean of ${B} (${anaFmt(r.m2)}) ${tail}.`;
-  if(r.kind==="paired") return `At the ${al} level, the mean of ${A} − ${B} (${anaFmt(r.mean)}) ${v} ${anaFmt(r.mu0)} ${tail}.`;
-  return `At the ${al} level, the mean of ${A} (${anaFmt(r.mean)}) ${v} ${anaFmt(r.mu0)} ${tail}.`; }
-// The statistics Statistics on columns can give, in the order its table has them; the eleven an
+// The statistics Statistics on columns can give// The statistics Statistics on columns can give, in the order its table has them; the eleven an
 // analysis made before 2.1 has (no `stats` stored) are DESC_DEF.
 const DESC_STATS=[["n","N"],["miss","Missing"],["mean","Mean"],["sd","SD"],["se","SE of mean"],["ci","Mean's interval"],["var","Variance"],["cv","Coefficient of variation"],
   ["min","Minimum"],["q1","Q1"],["med","Median"],["q3","Q3"],["max","Maximum"],["sum","Sum"],["range","Range"],["iqr","IQR"],["mad","MAD"],["rsd","Robust SD"],
@@ -6458,119 +6451,100 @@ const ANA_KINDS={
       const b=p.bins||{}, how=num?(b.rule==="n"?`${b.n||10} bins`:b.rule==="w"?`bins ${b.w} wide`:b.rule==="sturges"?"bins by Sturges' rule":b.rule==="sqrt"?"bins by the square root of the count":"bins by the Freedman–Diaconis rule")+(b.start!=null&&b.start!==""?`, from ${b.start}`:"")+"; each bin holds its lower edge, the last its upper edge too.":"";
       return {tables:[{cols}],report:{sections:[{title:"Frequency counts",tables:[{head,rows}]}],method:how?how.charAt(0).toUpperCase()+how.slice(1):""},notes}; }},
   norm:{label:"Normality tests", base:"Normality",
-    help:"Whether each column (or group) could have come from a normal distribution: Shapiro–Wilk and the tests chosen beside it, each statistic with its p, and the points of a normal Q–Q plot, into a result sheet.",
-    run(ins,p){ p=p||{}; const ts=normTests(p), al=anaAlpha(p), by=ins.some(q=>q.groups), notes=[], said=[], qq=[];
+    help:"Tests of each column (or group) against a normal distribution: each statistic with its p, and the points of a normal Q–Q plot.",
+    run(ins,p){ p=p||{}; const ts=normTests(p), by=ins.some(q=>q.groups), notes=[], qq=[];
       const cols=[{k:"col",name:"Column",vals:[]}].concat(by?[{k:"grp",name:"Group",vals:[]}]:[]).concat([{k:"n",name:"N",vals:[]}]);
-      ts.forEach(t=>{ const e=NORM_TESTS.find(x=>x[0]===t); cols.push({k:t+"s",name:`${e[1]} ${e[2]}`,vals:[]},{k:t+"p",name:`${e[1]} p`,vals:[]},{k:t+"v",name:`${e[1]} at ${al}`,vals:[]}); });
+      ts.forEach(t=>{ const e=NORM_TESTS.find(x=>x[0]===t); cols.push({k:t+"s",name:`${e[1]} ${e[2]}`,vals:[]},{k:t+"p",name:`${e[1]} p`,vals:[]}); });
       let any=0;
-      const each=(name,grp,vals)=>{ const who=name+(grp!=null?` (${grp})`:""), row={col:name,grp:grp==null?null:String(grp),n:vals.length}; let first=true;
+      const each=(name,grp,vals)=>{ const who=name+(grp!=null?` (${grp})`:""), row={col:name,grp:grp==null?null:String(grp),n:vals.length};
         ts.forEach(t=>{ const e=NORM_TESTS.find(x=>x[0]===t), r=e[3](vals);
-          if(r.fail){ notes.push(`${who}: ${e[1]}: ${r.fail}`); row[t+"s"]=row[t+"p"]=row[t+"v"]=null; return; }
-          any++; row[t+"s"]=anaNum(r[e[4]]); row[t+"p"]=anaNum(r.p); const no=r.p<al; row[t+"v"]=no?"not normal":"may be normal";
-          if(r.lo) notes.push(`${who}: Lilliefors' p is below 0.001, the end of its table.`); if(r.hi) notes.push(`${who}: Lilliefors' p is above 0.99, the end of its table.`);
-          if(t==="dk"&&vals.length<20) notes.push(`${who}: D'Agostino's K² is rough below 20 values (its χ² is for many).`);
-          if(first){ first=false; said.push(`At the ${al} level, ${e[1]} ${no?"finds "+who+" not normal":"finds nothing against "+who+" being normal"} (${e[2]} = ${anaFmt(r[e[4]])}, ${r.lo?"p < 0.001":r.hi?"p > 0.99":anaPtxt(r.p)}).`); } });
+          if(r.fail){ notes.push(`${who}: ${e[1]}: ${r.fail}`); row[t+"s"]=row[t+"p"]=null; return; }
+          any++; row[t+"s"]=anaNum(r[e[4]]); row[t+"p"]=anaNum(r.p);
+          if(r.lo||r.hi) notes.push(`${who}: Lilliefors' p is ${r.lo?"below 0.001":"above 0.99"}.`); });
         cols.forEach(c=>c.vals.push(row[c.k]===undefined?null:row[c.k]));
         const Q=qqNorm(vals); if(!Q.fail) qq.push({who,Q}); };
       ins.forEach(q=>{ if(q.groups) q.groups.forEach(([k,v])=>each(q.name,k,v)); else each(q.name,null,q.vals); });
       if(!any) return {fail:notes.join(" ")||"There are no values to test."};
       const head=cols.map(o=>o.name), rows=cols[0].vals.map((_,i)=>cols.map(o=>o.vals[i])), qcols=[];
       qq.forEach((s,i)=>qcols.push({k:"qx"+i,name:"Normal quantile",role:"x",vals:s.Q.q.map(anaNum)},{k:"qy"+i,name:s.who,vals:s.Q.x},{k:"ql"+i,name:`${s.who}, the line through its quartiles`,vals:s.Q.line.map(anaNum)}));
-      const method=[ts.includes("sw")?"Shapiro–Wilk by Royston's algorithm (AS R94, as R and SciPy).":"", ts.includes("lf")?"Lilliefors' p from the table of ten million simulations (statsmodels'), linear between its points.":"",
-        ts.includes("ad")?"Anderson–Darling's A² adjusted by (1 + 0.75/n + 2.25/n²), its p by D'Agostino and Stephens.":"", ts.includes("dk")?"D'Agostino and Pearson's K², the skewness's and kurtosis's scores combined, against χ² with 2 degrees of freedom.":"",
-        ts.includes("ks")?"Kolmogorov–Smirnov against the normal of the values' mean and SD, its p Kolmogorov's exact one, which takes them as known and so is too large (Lilliefors' corrects that).":"",
-        "The Q–Q plot's points at (i − a)/(n + 1 − 2a), a = 3/8 to 10 values and ½ above (R's); its line through the quartiles."].filter(Boolean).join(" ");
-      return {tables:[{cols:cols.concat(qcols)}],report:{sections:[{title:"Normality tests",tables:[{head,rows}]}],said,method,qq:qq.length},notes}; }},
+      const method=[ts.includes("sw")?"Shapiro–Wilk: Royston's AS R94.":"", ts.includes("lf")?"Lilliefors: p from statsmodels' table.":"",
+        ts.includes("ad")?"Anderson–Darling: A²(1 + 0.75/n + 2.25/n²), p by D'Agostino and Stephens.":"", ts.includes("dk")?"D'Agostino's K²: against χ² with 2 df.":"",
+        ts.includes("ks")?"Kolmogorov–Smirnov: against the normal of the values' mean and SD, p from Kolmogorov's distribution.":""].filter(Boolean).join(" ");
+      return {tables:[{cols:cols.concat(qcols)}],report:{sections:[{title:"Normality tests",tables:[{head,rows}]}],method,qq:qq.length},notes}; }},
   outl:{label:"Outliers", base:"Outliers",
-    help:"Values far from the rest of each column (or group): Grubbs' test, either side or one, once or repeated, or Dixon's Q; each value examined with its statistic, critical value and p, into a result sheet, the outliers then masked or marked in one step.",
-    run(ins,p){ p=p||{}; const dix=p.test==="dixon", side=p.side==="max"||p.side==="min"?p.side:"two", al=anaAlpha(p), rep=!dix&&!!p.repeat, by=ins.some(q=>q.groups), notes=[], said=[], marks=[];
+    help:"Grubbs' test (either side or one, once or repeated) or Dixon's Q on each column (or group): the value examined, its statistic, critical value and p.",
+    run(ins,p){ p=p||{}; const dix=p.test==="dixon", side=p.side==="max"||p.side==="min"?p.side:"two", al=anaAlpha(p), rep=!dix&&!!p.repeat, by=ins.some(q=>q.groups), notes=[], marks=[];
       const sym=dix?"Q":"G", cols=[{k:"col",name:"Column",vals:[]}].concat(by?[{k:"grp",name:"Group",vals:[]}]:[]).concat([{k:"n",name:"N",vals:[]},{k:"value",name:"Value examined",vals:[]},{k:"row",name:"Row",vals:[]},
-        {k:"stat",name:sym,vals:[]},{k:"crit",name:`Critical ${sym} at ${al}`,vals:[]},{k:"p",name:"p",vals:[]},{k:"out",name:"Outlier",vals:[]}]);
+        {k:"stat",name:sym,vals:[]},{k:"crit",name:`Critical ${sym} at ${al}`,vals:[]},{k:"p",name:"p",vals:[]}]);
       let any=0;
       const each=(i,name,grp,vals,rows)=>{ const who=name+(grp!=null?` (${grp})`:""), r=dix?dixonTest(vals,{side,alpha:al}):grubbsTest(vals,{side,alpha:al,repeat:rep});
         if(r.fail){ notes.push(`${who}: ${r.fail}`); return; } any++;
-        const rounds=dix?[r]:r.rounds, found=[];
-        rounds.forEach(x=>{ const raw=rows&&rows[x.row]!=null?rows[x.row]:-1, o={col:name,grp:grp==null?null:String(grp),n:x.n,value:x.value,row:raw>=0?raw+1:null,stat:anaNum(dix?x.Q:x.G),crit:anaNum(dix?x.Qc:x.Gc),p:anaNum(x.p),out:x.out?"yes":"no"};
-          cols.forEach(c=>c.vals.push(o[c.k]===undefined?null:o[c.k])); if(x.out){ found.push(x); if(raw>=0) marks.push({i,row:raw,value:x.value,grp:grp==null?null:String(grp)}); } });
-        const nm=dix?"Dixon's Q":"Grubbs' test";
-        said.push(found.length?`At the ${al} level, ${nm} finds ${found.length===1?"an outlier":found.length+" outliers"} in ${who}: ${found.map(x=>`${anaFmt(x.value,6)} (${sym} = ${anaFmt(dix?x.Q:x.G)}, ${anaPtxt(x.p)})`).join(", ")}.`
-          :`At the ${al} level, ${nm} finds no outlier in ${who} (the most extreme, ${anaFmt(rounds[0].value,6)}: ${sym} = ${anaFmt(dix?rounds[0].Q:rounds[0].G)}, ${anaPtxt(rounds[0].p)}).`); };
+        (dix?[r]:r.rounds).forEach(x=>{ const raw=rows&&rows[x.row]!=null?rows[x.row]:-1, o={col:name,grp:grp==null?null:String(grp),n:x.n,value:x.value,row:raw>=0?raw+1:null,stat:anaNum(dix?x.Q:x.G),crit:anaNum(dix?x.Qc:x.Gc),p:anaNum(x.p)};
+          cols.forEach(c=>c.vals.push(o[c.k]===undefined?null:o[c.k])); if(x.out&&raw>=0) marks.push({i,row:raw,value:x.value,grp:grp==null?null:String(grp)}); }); };
       ins.forEach((q,i)=>{ if(q.groups) q.groups.forEach(([k,v],j)=>each(i,q.name,k,v,q.grows?q.grows[j]:null)); else each(i,q.name,null,q.vals,q.rows); });
       if(!any) return {fail:notes.join(" ")||"There are no values to test."};
-      if(!dix&&!rep&&marks.length) notes.push("Grubbs' test once looks at the most extreme value only; Repeat looks again without it.");
       const head=cols.map(o=>o.name), rows=cols[0].vals.map((_,i)=>cols.map(o=>o.vals[i])), sd=side==="two"?"either side":side==="max"?"the largest value":"the smallest value";
-      const method=dix?`Dixon's Q (r₁₀: the gap to the nearest value over the range), ${sd}, for 3 to 30 values; its p and critical value by integrating over normal samples (checked by simulation), not from a printed table.`
-        :`Grubbs' G (the distance from the mean over the SD), ${sd}${rep?", repeated without each outlier found until none is, as the test is known to miss two outliers that hide each other":""}; p = n·P(T > t) with n − 2 degrees of freedom${side==="two"?", doubled":""}; the critical G from the same (ASTM E178).`;
-      return {tables:[{cols}],report:{sections:[{title:"Outliers",tables:[{head,rows}]}],said,method,marks},notes}; }},
+      const method=dix?`Dixon's Q (r₁₀), ${sd}; p and critical value by integration over normal samples.`
+        :`Grubbs' G, ${sd}${rep?", repeated without each value past the critical value until none is":""}; p = n·P(T > t), n − 2 df${side==="two"?", doubled":""} (ASTM E178).`;
+      return {tables:[{cols}],report:{sections:[{title:"Outliers",tables:[{head,rows}]}],method,marks},notes}; }},
   ttest:{label:"t tests", base:"t test",
-    help:"Whether a mean differs from a value, two means from each other (Welch's t, or Student's with equal variances), or paired values on average: t, its degrees of freedom and p, the difference's interval, Cohen's d and Hedges' g with theirs, and the checks the test rests on.",
-    run(ins,p){ p=p||{}; const type=p.type==="two"||p.type==="paired"?p.type:"one", alt=ANA_ALT[p.alt]?p.alt:"two", al=anaAlpha(p), conf=1-al, mu0=Number.isFinite(+p.mu0)?+p.mu0:0, eq=!!p.equal;
-      const notes=[], said=[], checks=[], rows=[]; let tbl;
+    help:"A mean against a value, two means (Welch's t, or Student's), or paired values: t, df, p, the difference's interval, Cohen's d and Hedges' g.",
+    run(ins,p){ p=p||{}; const type=p.type==="two"||p.type==="paired"?p.type:"one", alt=ANA_ALT[p.alt]?p.alt:"two", conf=anaConf(p), mu0=Number.isFinite(+p.mu0)?+p.mu0:0, eq=!!p.equal;
+      const notes=[], rows=[]; let tbl;
       const sets=[]; ins.forEach(q=>{ if(q.groups) q.groups.forEach(([k,v],j)=>sets.push({name:`${q.name} (${k})`,vals:v,rows:q.grows?q.grows[j]:null})); else sets.push({name:q.name,vals:q.vals,rows:q.rows}); });
-      const norm=s=>{ const c=anaNormCheck(s.vals,s.name,al); if(c.ok===false) checks.push(Object.assign(c,{text:c.text+": a t test with few values leans on normality"})); };
       if(type==="one"){
         sets.forEach(s=>{ const r=tTest1(s.vals,{mu0,alt,conf}); if(r.fail){ notes.push(`${s.name}: ${r.fail}`); return; }
-          rows.push({col:s.name,n:r.n,mean:r.mean,sd:r.sd,mu0,t:r.t,df:r.df,p:r.p,cilo:r.ci[0],cihi:r.ci[1],d:r.d,dlo:r.dci[0],dhi:r.dci[1],g:r.g,v:r.p<al?"differs":"no difference shown"});
-          said.push(tSay(r,s.name,null,al)); if(r.n<30) norm(s); });
-        tbl=[["col","Column"],["n","N"],["mean","Mean"],["sd","SD"],["mu0","Tested against"],["t","t"],["df","df"],["p","p"],["cilo",`${anaPct(conf)} interval of the mean, from`],["cihi","to"],["d","Cohen's d"],["dlo","d from"],["dhi","d to"],["g","Hedges' g"],["v",`At ${al}`]]; }
+          rows.push({col:s.name,n:r.n,mean:r.mean,sd:r.sd,mu0,t:r.t,df:r.df,p:r.p,cilo:r.ci[0],cihi:r.ci[1],d:r.d,dlo:r.dci[0],dhi:r.dci[1],g:r.g}); });
+        tbl=[["col","Column"],["n","N"],["mean","Mean"],["sd","SD"],["mu0","Tested against"],["t","t"],["df","df"],["p","p"],["cilo",`${anaPct(conf)} interval of the mean, from`],["cihi","to"],["d","Cohen's d"],["dlo","d from"],["dhi","d to"],["g","Hedges' g"]]; }
       else {
         let A, B;
         if(sets.length<2) return {fail:type==="paired"?"A paired t test needs two columns.":"A two-sample t test needs two columns, or one column grouped into two."};
-        [A,B]=sets; if(sets.length>2) notes.push(`Only ${A.name} and ${B.name} are compared${type==="two"?"; for more groups, one-way analysis of variance":""}.`);
+        [A,B]=sets; if(sets.length>2) notes.push(`Only ${A.name} and ${B.name} are compared.`);
         let r;
         if(type==="paired"){ if(!A.rows||!B.rows) return {fail:"A paired t test pairs values by their rows: these columns have none."};
           const bm=new Map(); B.rows.forEach((row,i)=>{ if(row>=0) bm.set(row,B.vals[i]); }); const a=[], b=[];
           A.rows.forEach((row,i)=>{ if(row>=0&&bm.has(row)){ a.push(A.vals[i]); b.push(bm.get(row)); } });
           if(a.length<Math.min(A.vals.length,B.vals.length)) notes.push(`${a.length} pair${a.length===1?"":"s"}: rows with a value in only one column are left out.`);
           r=tTestPaired(a,b,{mu0,alt,conf}); if(r.fail) return {fail:r.fail};
-          const dif=a.map((v,i)=>v-b[i]); if(r.n<30) norm({name:`${A.name} − ${B.name}`,vals:dif});
-          rows.push({a:A.name,b:B.name,n:r.n,mean:r.mean,sd:r.sd,mu0,t:r.t,df:r.df,p:r.p,cilo:r.ci[0],cihi:r.ci[1],d:r.d,dlo:r.dci[0],dhi:r.dci[1],g:r.g,v:r.p<al?"differs":"no difference shown"});
-          tbl=[["a","First"],["b","Second"],["n","Pairs"],["mean","Mean difference"],["sd","SD of the differences"],["mu0","Tested against"],["t","t"],["df","df"],["p","p"],["cilo",`${anaPct(conf)} interval, from`],["cihi","to"],["d","Cohen's dz"],["dlo","dz from"],["dhi","dz to"],["g","Hedges' g"],["v",`At ${al}`]]; }
+          rows.push({a:A.name,b:B.name,n:r.n,mean:r.mean,sd:r.sd,mu0,t:r.t,df:r.df,p:r.p,cilo:r.ci[0],cihi:r.ci[1],d:r.d,dlo:r.dci[0],dhi:r.dci[1],g:r.g});
+          tbl=[["a","First"],["b","Second"],["n","Pairs"],["mean","Mean difference"],["sd","SD of the differences"],["mu0","Tested against"],["t","t"],["df","df"],["p","p"],["cilo",`${anaPct(conf)} interval, from`],["cihi","to"],["d","Cohen's dz"],["dlo","dz from"],["dhi","dz to"],["g","Hedges' g"]]; }
         else { r=tTest2(A.vals,B.vals,{mu0,alt,conf,equal:eq}); if(r.fail) return {fail:r.fail};
-          if(r.n1<30) norm(A); if(r.n2<30) norm(B);
-          if(eq){ const L=leveneTest([A.vals,B.vals],"median"); if(!L.fail&&L.p<al) checks.push({name:"Equal variances",ok:false,text:`The variances look unequal (Levene's test about the medians, ${anaPtxt(L.p)}): Student's t assumes them equal`,fix:{label:"Use Welch's t",p:{equal:false}}}); }
-          rows.push({a:A.name,b:B.name,n1:r.n1,n2:r.n2,m1:r.m1,m2:r.m2,diff:r.diff,t:r.t,df:r.df,p:r.p,cilo:r.ci[0],cihi:r.ci[1],d:r.d,dlo:r.dci[0],dhi:r.dci[1],g:r.g,v:r.p<al?"differ":"no difference shown"});
-          tbl=[["a","First"],["b","Second"],["n1","N₁"],["n2","N₂"],["m1","Mean₁"],["m2","Mean₂"],["diff","Difference"],["t","t"],["df","df"],["p","p"],["cilo",`${anaPct(conf)} interval, from`],["cihi","to"],["d","Cohen's d"],["dlo","d from"],["dhi","d to"],["g","Hedges' g"],["v",`At ${al}`]]; }
-        said.push(tSay(r,A.name,B.name,al)); }
+          rows.push({a:A.name,b:B.name,n1:r.n1,n2:r.n2,m1:r.m1,m2:r.m2,diff:r.diff,t:r.t,df:r.df,p:r.p,cilo:r.ci[0],cihi:r.ci[1],d:r.d,dlo:r.dci[0],dhi:r.dci[1],g:r.g});
+          tbl=[["a","First"],["b","Second"],["n1","N₁"],["n2","N₂"],["m1","Mean₁"],["m2","Mean₂"],["diff","Difference"],["t","t"],["df","df"],["p","p"],["cilo",`${anaPct(conf)} interval, from`],["cihi","to"],["d","Cohen's d"],["dlo","d from"],["dhi","d to"],["g","Hedges' g"]]; } }
       if(!rows.length) return {fail:notes.join(" ")||"There are no values to test."};
       const cols=tbl.map(([k,name])=>({k,name,vals:rows.map(o=>{ const v=o[k]; return typeof v==="number"?anaNum(v):v==null?null:String(v); })}));
-      const method=(type==="two"?(eq?"Student's t, the variances pooled.":"Welch's t (the variances not assumed equal), its degrees of freedom by Satterthwaite."):type==="paired"?"Paired t: one sample of the differences.":"One-sample t.")
-        +` ${ANA_ALT[alt]}; the interval at ${anaPct(conf)}. Cohen's d over the ${type==="two"?"pooled SD":type==="paired"?"SD of the differences (dz)":"SD"}, its interval by inverting the noncentral t; Hedges' g is d times J(df), exact.`;
-      return {tables:[{cols}],report:{sections:[{title:"t test",tables:[{head:cols.map(c=>c.name),rows:rows.map((_,i)=>cols.map(c=>c.vals[i]))}]}],said,method,checks},notes}; }},
+      const method=(type==="two"?(eq?"Student's t (pooled variance).":"Welch's t, Satterthwaite's df."):type==="paired"?"Paired t.":"One-sample t.")
+        +` ${ANA_ALT[alt]}. d over the ${type==="two"?"pooled SD":type==="paired"?"SD of the differences":"SD"}, its interval from the noncentral t; g = J(df)·d.`;
+      return {tables:[{cols}],report:{sections:[{title:"t test",tables:[{head:cols.map(c=>c.name),rows:rows.map((_,i)=>cols.map(c=>c.vals[i]))}]}],method},notes}; }},
   vartest:{label:"Comparing spreads", base:"Spreads",
-    help:"Whether columns (or groups) vary equally: Levene's test about the means or the medians (Brown and Forsythe's), Bartlett's, and for two the F test with the ratio's interval.",
-    run(ins,p){ p=p||{}; const al=anaAlpha(p), want=Array.isArray(p.tests)&&p.tests.length?p.tests:["bf"], notes=[], said=[], rows=[];
+    help:"Levene's test about the means or the medians (Brown and Forsythe's), Bartlett's, and for two columns the F test with the ratio's interval.",
+    run(ins,p){ p=p||{}; const conf=anaConf(p), want=Array.isArray(p.tests)&&p.tests.length?p.tests:["bf"], notes=[], rows=[];
       const sets=[]; ins.forEach(q=>{ if(q.groups) q.groups.forEach(([k,v])=>sets.push({name:`${q.name} (${k})`,vals:v})); else sets.push({name:q.name,vals:q.vals}); });
       if(sets.length<2) return {fail:"Comparing spreads needs two columns, or one column grouped into two or more."};
-      const gs=sets.map(s=>s.vals), nm=sets.map(s=>s.name), who=nm.length<3?nm.join(" and "):nm.slice(0,-1).join(", ")+" and "+nm[nm.length-1];
+      const gs=sets.map(s=>s.vals);
       VAR_TESTS.filter(t=>want.includes(t[0])).forEach(([k,nm])=>{
-        const r=k==="lev"?leveneTest(gs,"mean"):k==="bf"?leveneTest(gs,"median"):k==="bart"?bartlettTest(gs):sets.length===2?fTest2(gs[0],gs[1],{conf:1-al}):{fail:"The F test compares two samples; tick two columns."};
+        const r=k==="lev"?leveneTest(gs,"mean"):k==="bf"?leveneTest(gs,"median"):k==="bart"?bartlettTest(gs):sets.length===2?fTest2(gs[0],gs[1],{conf}):{fail:"The F test compares two samples; tick two columns."};
         if(r.fail){ notes.push(`${nm}: ${r.fail}`); return; } const st=k==="bart"?r.T:k==="f"?r.F:r.W;
-        rows.push([nm,anaNum(st),k==="bart"?r.df:r.df1,k==="bart"?null:r.df2,anaNum(r.p),k==="f"?anaNum(r.ci[0]):null,k==="f"?anaNum(r.ci[1]):null,r.p<al?"unequal":"no difference shown"]);
-        if(!said.length) said.push(`At the ${al} level, ${nm} ${r.p<al?"finds":"does not find"} the spreads of ${who} different (${k==="bart"?"χ²":k==="f"?"F":"W"} = ${anaFmt(st)}, ${anaPtxt(r.p)}).`); });
+        rows.push([nm,anaNum(st),k==="bart"?r.df:r.df1,k==="bart"?null:r.df2,anaNum(r.p),k==="f"?anaNum(r.ci[0]):null,k==="f"?anaNum(r.ci[1]):null]); });
       if(!rows.length) return {fail:notes.join(" ")};
-      const head=["Test","Statistic","df₁","df₂","p",`Ratio's ${anaPct(1-al)} interval, from`,"to",`At ${al}`], cols=head.map((name,j)=>({k:["test","stat","df1","df2","p","clo","chi","v"][j],name,vals:rows.map(r=>r[j])}));
-      return {tables:[{cols}],report:{sections:[{title:"Comparing spreads",tables:[{head,rows}]}],said,method:"Levene's W is the one-way analysis of variance of the distances from each group's mean (or median: Brown and Forsythe's, less moved by long tails); Bartlett's χ² assumes normal values; F is the ratio of the two variances.",checks:[]},notes}; }},
+      const head=["Test","Statistic","df₁","df₂","p",`Ratio's ${anaPct(conf)} interval, from`,"to"], cols=head.map((name,j)=>({k:["test","stat","df1","df2","p","clo","chi"][j],name,vals:rows.map(r=>r[j])}));
+      return {tables:[{cols}],report:{sections:[{title:"Comparing spreads",tables:[{head,rows}]}],method:"Levene's W: one-way ANOVA of the distances from each group's mean (or median, Brown–Forsythe). F: the ratio of the two variances."},notes}; }},
   prop:{label:"Proportions", base:"Proportions", typed:true,
-    help:"Whether a proportion of successes differs from a value (the exact binomial test, the score z, Clopper and Pearson's and Wilson's intervals), or two proportions from each other (the pooled z, Newcombe's interval), from counts typed.",
-    run(ins,p){ p=p||{}; const two=p.type==="two", alt=ANA_ALT[p.alt]?p.alt:"two", al=anaAlpha(p), conf=1-al;
+    help:"One proportion against a value (the exact binomial test, the score z, Clopper–Pearson's and Wilson's intervals), or two proportions (the pooled z, Newcombe's interval), from counts typed.",
+    run(ins,p){ p=p||{}; const two=p.type==="two", alt=ANA_ALT[p.alt]?p.alt:"two", conf=anaConf(p);
       const r=two?propTest2(+p.x,+p.n,+p.x2,+p.n2,{alt,conf}):propTest1(+p.x,+p.n,{p0:p.p0==null?0.5:+p.p0,alt,conf}); if(r.fail) return {fail:r.fail};
-      const verb=sig=>sig?ANA_VERB[alt][0]:ANA_VERB[alt][1];
-      let head, row, said;
-      if(two){ head=["Successes₁","Trials₁","Proportion₁","Successes₂","Trials₂","Proportion₂","Difference","z","p",`${anaPct(conf)} interval, from`,"to"]; row=[r.x1,r.n1,r.p1,r.x2,r.n2,r.p2,r.diff,r.z,r.p,r.ci[0],r.ci[1]];
-        said=`At the ${al} level, the proportion ${r.x1} of ${r.n1} (${anaFmt(r.p1)}) ${verb(r.p<al)} ${r.x2} of ${r.n2} (${anaFmt(r.p2)}) (z = ${anaFmt(r.z)}, ${anaPtxt(r.p)}).`; }
-      else { head=["Successes","Trials","Proportion","Tested against","Exact p","z","p of z",`${anaPct(conf)} interval (Clopper–Pearson), from`,"to","Wilson's, from","to"]; row=[r.x,r.n,r.ph,r.p0,r.p,r.z,r.pz,r.ci[0],r.ci[1],r.wilson[0],r.wilson[1]];
-        said=`At the ${al} level, the proportion ${r.x} of ${r.n} (${anaFmt(r.ph)}) ${verb(r.p<al)} ${anaFmt(r.p0)} (the exact binomial ${anaPtxt(r.p)}).`; }
+      let head, row;
+      if(two){ head=["Successes₁","Trials₁","Proportion₁","Successes₂","Trials₂","Proportion₂","Difference","z","p",`${anaPct(conf)} interval, from`,"to"]; row=[r.x1,r.n1,r.p1,r.x2,r.n2,r.p2,r.diff,r.z,r.p,r.ci[0],r.ci[1]]; }
+      else { head=["Successes","Trials","Proportion","Tested against","Exact p","z","p of z",`${anaPct(conf)} interval (Clopper–Pearson), from`,"to","Wilson's, from","to"]; row=[r.x,r.n,r.ph,r.p0,r.p,r.z,r.pz,r.ci[0],r.ci[1],r.wilson[0],r.wilson[1]]; }
       const cols=head.map((name,j)=>({k:"c"+j,name,vals:[anaNum(row[j])]}));
-      return {tables:[{cols}],report:{sections:[{title:"Proportions",tables:[{head,rows:[cols.map(c=>c.vals[0])]}]}],said:[said],method:two?"The pooled z test; the difference's interval by Newcombe's hybrid score (Wilson's intervals combined).":`The exact binomial test (two-sided: every count no more likely than this one, as R and SciPy) beside the score z; ${ANA_ALT[alt].toLowerCase()}.`,checks:[]},notes:[]}; }},
+      return {tables:[{cols}],report:{sections:[{title:"Proportions",tables:[{head,rows:[cols.map(c=>c.vals[0])]}]}],method:two?`Pooled z; Newcombe's hybrid score interval. ${ANA_ALT[alt]}.`:`Exact binomial (two-sided: every count no more likely, as R) and the score z. ${ANA_ALT[alt]}.`},notes:[]}; }},
   fisher:{label:"Fisher's exact test", base:"Fisher", typed:true,
-    help:"Whether two rows of a two-by-two table of counts differ in their odds: Fisher's exact p, the odds ratio (conditional maximum likelihood, as R) and its exact interval, from the four counts typed.",
-    run(ins,p){ p=p||{}; const alt=ANA_ALT[p.alt]?p.alt:"two", al=anaAlpha(p), conf=1-al, r=fisher22(+p.a,+p.b,+p.c,+p.d,{alt,conf}); if(r.fail) return {fail:r.fail};
+    help:"Fisher's exact test of a two-by-two table of counts typed: p, the odds ratio (conditional maximum likelihood, as R) and its exact interval.",
+    run(ins,p){ p=p||{}; const alt=ANA_ALT[p.alt]?p.alt:"two", conf=anaConf(p), r=fisher22(+p.a,+p.b,+p.c,+p.d,{alt,conf}); if(r.fail) return {fail:r.fail};
       const head=["a","b","c","d","Odds ratio",`${anaPct(conf)} interval, from`,"to","Sample odds ratio","p"], row=[r.a,r.b,r.c,r.d,r.or,r.ci[0],r.ci[1],r.sampleOR,r.p];
       const cols=head.map((name,j)=>({k:"f"+j,name,vals:[anaNum(row[j])===null&&row[j]===Infinity?"∞":anaNum(row[j])]}));
-      const ci=`${anaFmt(r.ci[0])} to ${r.ci[1]===Infinity?"∞":anaFmt(r.ci[1])}`;
-      return {tables:[{cols}],report:{sections:[{title:"Fisher's exact test",tables:[{head,rows:[cols.map(c=>c.vals[0])]}]}],said:[`At the ${al} level, Fisher's exact test ${r.p<al?"finds":"does not find"} the rows' odds different (${anaPtxt(r.p)}; odds ratio ${r.or===Infinity?"∞":anaFmt(r.or)}, ${anaPct(conf)} interval ${ci}).`],
-        method:`Fisher's exact test of [[a, b], [c, d]] with its margins fixed (two-sided: every table no more likely than this one, as R); the odds ratio by conditional maximum likelihood with its exact interval (R's fisher.test). ${ANA_ALT[alt]}.`,checks:[]},notes:[]}; }}
+      return {tables:[{cols}],report:{sections:[{title:"Fisher's exact test",tables:[{head,rows:[cols.map(c=>c.vals[0])]}]}],
+        method:`[[a, b], [c, d]], margins fixed (two-sided: every table no more likely, as R); conditional maximum-likelihood odds ratio, exact interval. ${ANA_ALT[alt]}.`},notes:[]}; }}
 };
 // A kind run by name: the page's call, and the worker's ("call" job).
 function anaRunKind(kind,ins,p){ const K=ANA_KINDS[kind]; if(!K) throw new Error("the analysis "+kind+" is not known here"); return K.run(ins,p||{}); }
@@ -15449,7 +15423,7 @@ function anaColRO(c){ const a=c&&c.ana?anaOf(c.ana):null; if(!a) return false; t
 /* Each kind's own settings in the dialog, after the inputs: `html(p)` (fields with ids), `wire(box)`
    (what shows with what), `read(v, p0)` the settings from the dialog's values. */
 const altSel=(v)=>`<label for="aAlt" class="tipd" title="Two-sided: a difference either way. One-sided: only the direction named, which halves p when the data lean that way">Alternative</label><select id="aAlt">${[["two","Either way (two-sided)"],["less","Less (one-sided)"],["greater","Greater (one-sided)"]].map(([k,t])=>`<option value="${k}"${k===(v||"two")?" selected":""}>${t}</option>`).join("")}</select>`;
-const alSel=(p,tip)=>`<label for="aAl" class="tipd" title="${esc(tip||"A p below this is called significant; the intervals are at one minus it")}">Level</label><select id="aAl">${[0.001,0.01,0.05,0.1].map(a=>`<option value="${a}"${a===anaAlpha(p)?" selected":""}>${a}</option>`).join("")}</select>`;
+const confSel=(p,lab)=>`<label for="aCf">${lab||"Interval"}</label><select id="aCf">${ANA_CONFS.map(c=>`<option value="${c}"${c===anaConf(p)?" selected":""}>${anaPct(c)}</option>`).join("")}</select>`;
 const ANA_FORMS={
   desc:{html(p){ const want=new Set(descKeys(p)), qt=qtOk(p.qtype)?p.qtype:7, conf=p.conf>0&&p.conf<1?p.conf:0.95;
       const tip={n:"The values counted",miss:"Rows read that hold no number",sd:"Standard deviation",se:"The standard error of the mean, SD / √N",ci:"The interval the mean lies in, at the level below (Student's t)",
@@ -15471,39 +15445,39 @@ const ANA_FORMS={
   ttest:{html(p){ const ty=p.type==="two"||p.type==="paired"?p.type:"one";
       return `<div class="grid2"><label for="aTt">Test</label><select id="aTt">${[["one","One sample, against a value"],["two","Two samples"],["paired","Paired: two columns, row by row"]].map(([k,t])=>`<option value="${k}"${k===ty?" selected":""}>${t}</option>`).join("")}</select>
       <label for="aMu" class="tipd" title="The mean (or, paired, the mean difference) the data are tested against; two samples: the difference tested against, 0 as a rule">Tested against</label><input type="text" id="aMu" inputmode="decimal" value="${esc(String(p.mu0==null?0:p.mu0))}">
-      ${altSel(p.alt)}${alSel(p)}
+      ${altSel(p.alt)}${confSel(p)}
       <span></span><label class="chk tipd" title="Student's t pools the two variances; Welch's, the default, does not assume them equal and is as good when they are"><input type="checkbox" id="aEq"${p.equal?" checked":""}> Equal variances (Student's t)</label></div>
       <p class="lab">Two samples: the first two columns ticked, or one column grouped into two. Paired: two columns, row by row.</p>`; },
     wire(box){ const on=()=>{ const t=(box.querySelector("#aTt")||{}).value, e=box.querySelector("#aEq"); if(e) e.closest("label").hidden=t!=="two"; }; box.addEventListener("change",on); on(); },
-    read(v){ const mu=+String(v.aMu||"0").replace(",","."); return {type:["two","paired"].includes(v.aTt)?v.aTt:"one",mu0:Number.isFinite(mu)?mu:0,alt:ANA_ALT[v.aAlt]?v.aAlt:"two",alpha:+v.aAl||0.05,equal:v.aTt==="two"&&!!v.aEq}; },
+    read(v){ const mu=+String(v.aMu||"0").replace(",","."); return {type:["two","paired"].includes(v.aTt)?v.aTt:"one",mu0:Number.isFinite(mu)?mu:0,alt:ANA_ALT[v.aAlt]?v.aAlt:"two",conf:+v.aCf||0.95,equal:v.aTt==="two"&&!!v.aEq}; },
     valid(v){ return Number.isFinite(+String(v.aMu||"0").replace(",",".")); }},
   vartest:{html(p){ const on=new Set(Array.isArray(p.tests)&&p.tests.length?p.tests:["bf"]);
-      return `<p class="lab">Tests</p><div class="anastats">${VAR_TESTS.map(([k,nm])=>`<label class="chk"><input type="checkbox" id="aV_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div><div class="grid2">${alSel(p)}</div>`; },
-    read(v){ return {tests:VAR_TESTS.map(e=>e[0]).filter(k=>v["aV_"+k]),alpha:+v.aAl||0.05}; },
+      return `<p class="lab">Tests</p><div class="anastats">${VAR_TESTS.map(([k,nm])=>`<label class="chk"><input type="checkbox" id="aV_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div><div class="grid2">${confSel(p,"F ratio's interval")}</div>`; },
+    wire(box){ const on=()=>{ const f=box.querySelector("#aV_f"), el=box.querySelector("#aCf"), l=box.querySelector('label[for="aCf"]'); if(el) el.hidden=l.hidden=!(f&&f.checked); }; box.addEventListener("change",on); on(); },
+    read(v){ return {tests:VAR_TESTS.map(e=>e[0]).filter(k=>v["aV_"+k]),conf:+v.aCf||0.95}; },
     valid(v){ return VAR_TESTS.some(([k])=>v["aV_"+k]); }},
   prop:{html(p){ const two=p.type==="two", n=(id,val,lab,tip)=>`<label for="${id}"${tip?` class="tipd" title="${esc(tip)}"`:""}>${lab}</label><input type="text" id="${id}" inputmode="decimal" value="${esc(val==null?"":String(val))}">`;
       return `<div class="grid2"><label for="aPt">Test</label><select id="aPt"><option value="one">One proportion, against a value</option><option value="two"${two?" selected":""}>Two proportions</option></select>
       ${n("aPx",p.x,"Successes")}${n("aPn",p.n,"Trials")}${n("aP0",p.p0==null?0.5:p.p0,"Tested against","The proportion the successes are tested against, between 0 and 1")}
-      ${n("aPx2",p.x2,"Successes, second")}${n("aPn2",p.n2,"Trials, second")}${altSel(p.alt)}${alSel(p)}</div>`; },
+      ${n("aPx2",p.x2,"Successes, second")}${n("aPn2",p.n2,"Trials, second")}${altSel(p.alt)}${confSel(p)}</div>`; },
     wire(box){ const on=()=>{ const two=(box.querySelector("#aPt")||{}).value==="two", sh=(id,b)=>{ const el=box.querySelector("#"+id); if(el){ el.hidden=!b; const l=box.querySelector(`label[for="${id}"]`); if(l) l.hidden=!b; } };
         sh("aP0",!two); sh("aPx2",two); sh("aPn2",two); }; box.addEventListener("change",on); on(); },
-    read(v){ const two=v.aPt==="two", o={type:two?"two":"one",x:+v.aPx,n:+v.aPn,alt:ANA_ALT[v.aAlt]?v.aAlt:"two",alpha:+v.aAl||0.05}; if(two){ o.x2=+v.aPx2; o.n2=+v.aPn2; } else o.p0=+String(v.aP0).replace(",","."); return o; },
+    read(v){ const two=v.aPt==="two", o={type:two?"two":"one",x:+v.aPx,n:+v.aPn,alt:ANA_ALT[v.aAlt]?v.aAlt:"two",conf:+v.aCf||0.95}; if(two){ o.x2=+v.aPx2; o.n2=+v.aPn2; } else o.p0=+String(v.aP0).replace(",","."); return o; },
     valid(v){ const w=x=>/^\d+$/.test(String(x||"").trim()), two=v.aPt==="two"; return w(v.aPx)&&w(v.aPn)&&+v.aPx<=+v.aPn&&+v.aPn>0&&(two?w(v.aPx2)&&w(v.aPn2)&&+v.aPx2<=+v.aPn2&&+v.aPn2>0:+String(v.aP0).replace(",",".")>0&&+String(v.aP0).replace(",",".")<1); }},
   fisher:{html(p){ const f=(id,val,lab)=>`<input type="text" id="${id}" inputmode="numeric" aria-label="${lab}" value="${esc(val==null?"":String(val))}">`;
-      return `<p class="lab">The two-by-two table of counts: two rows (say, treated and not), two columns (say, recovered and not).</p>
+      return `<p class="lab">Counts</p>
       <div class="fish22"><span></span><span class="muted">Column 1</span><span class="muted">Column 2</span><span class="muted">Row 1</span>${f("aFa",p.a,"Row 1, column 1")}${f("aFb",p.b,"Row 1, column 2")}<span class="muted">Row 2</span>${f("aFc",p.c,"Row 2, column 1")}${f("aFd",p.d,"Row 2, column 2")}</div>
-      <div class="grid2">${altSel(p.alt)}${alSel(p)}</div>`; },
-    read(v){ return {a:+v.aFa,b:+v.aFb,c:+v.aFc,d:+v.aFd,alt:ANA_ALT[v.aAlt]?v.aAlt:"two",alpha:+v.aAl||0.05}; },
+      <div class="grid2">${altSel(p.alt)}${confSel(p)}</div>`; },
+    read(v){ return {a:+v.aFa,b:+v.aFb,c:+v.aFc,d:+v.aFd,alt:ANA_ALT[v.aAlt]?v.aAlt:"two",conf:+v.aCf||0.95}; },
     valid(v){ return ["aFa","aFb","aFc","aFd"].every(k=>/^\d+$/.test(String(v[k]||"").trim())); }},
-  norm:{html(p){ const on=new Set(normTests(p)), al=anaAlpha(p), tip={sw:"The most powerful of these for most samples, 3 to 5000 values; the one later tests cite",lf:"Kolmogorov–Smirnov's distance with the mean and SD estimated, as it should be",ad:"Weighs the tails more than Lilliefors; 8 values or more",dk:"From the skewness and kurtosis; 8 values or more, rough below 20",ks:"Its p takes the mean and SD as known, so it is too large: Lilliefors' is the same test done right"};
-      return `<p class="lab">Tests</p><div class="anastats">${NORM_TESTS.map(([k,nm])=>`<label class="chk" title="${esc(tip[k])}"><input type="checkbox" id="aN_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div>
-      <div class="grid2"><label for="aAl" class="tipd" title="A p below this rejects normality">Level</label><select id="aAl">${[0.01,0.05,0.1].map(a=>`<option value="${a}"${a===al?" selected":""}>${a}</option>`).join("")}</select></div>`; },
-    read(v){ return {tests:NORM_TESTS.map(e=>e[0]).filter(k=>v["aN_"+k]),alpha:+v.aAl||0.05}; },
+  norm:{html(p){ const on=new Set(normTests(p)), tip={sw:"3 to 5000 values; the most powerful of these for most samples",lf:"Kolmogorov–Smirnov's distance with the mean and SD estimated, as it should be",ad:"Weighs the tails more than Lilliefors; 8 values or more",dk:"From the skewness and kurtosis; 8 values or more, rough below 20",ks:"Its p takes the mean and SD as known, so it is too large: Lilliefors' is the same test done right"};
+      return `<p class="lab">Tests</p><div class="anastats">${NORM_TESTS.map(([k,nm])=>`<label class="chk" title="${esc(tip[k])}"><input type="checkbox" id="aN_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div>`; },
+    read(v){ return {tests:NORM_TESTS.map(e=>e[0]).filter(k=>v["aN_"+k])}; },
     valid(v){ return NORM_TESTS.some(([k])=>v["aN_"+k]); }},
   outl:{html(p){ const al=anaAlpha(p), side=p.side||"two";
       return `<div class="grid2"><label for="aOt">Test</label><select id="aOt"><option value="grubbs">Grubbs</option><option value="dixon"${p.test==="dixon"?" selected":""}>Dixon's Q (3 to 30 values)</option></select>
       <label for="aOs">Look at</label><select id="aOs">${[["two","Either side"],["max","The largest value"],["min","The smallest value"]].map(([k,t])=>`<option value="${k}"${k===side?" selected":""}>${t}</option>`).join("")}</select>
-      <label for="aAl" class="tipd" title="A p below this calls the value an outlier">Level</label><select id="aAl">${[0.01,0.05,0.1].map(a=>`<option value="${a}"${a===al?" selected":""}>${a}</option>`).join("")}</select>
+      <label for="aAl" class="tipd" title="α: the critical value's level, and so which values Mask and Mark take">Level</label><select id="aAl">${[0.01,0.05,0.1].map(a=>`<option value="${a}"${a===al?" selected":""}>${a}</option>`).join("")}</select>
       <span></span><label class="chk tipd" title="Take each outlier out and test again until none is found: two outliers can hide each other from a single test"><input type="checkbox" id="aOr"${p.repeat?" checked":""}> Repeat until none is found</label></div>`; },
     wire(box){ const on=()=>{ const g=(box.querySelector("#aOt")||{}).value!=="dixon", r=box.querySelector("#aOr"); if(r){ r.disabled=!g; r.closest("label").hidden=!g; } }; box.addEventListener("change",on); on(); },
     read(v){ return {test:v.aOt==="dixon"?"dixon":"grubbs",side:["max","min"].includes(v.aOs)?v.aOs:"two",alpha:+v.aAl||0.05,repeat:v.aOt!=="dixon"&&!!v.aOr}; }},
@@ -15580,14 +15554,10 @@ function graphSummary(cid){ const p=P(); if(!p||S.readOnly) return;
 function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&rep.marks?rep.marks.length:0;
   if(!rep) return [];
   if(a.kind==="norm") return [{key:"qq",label:"Q–Q plot",title:"The sorted values against the normal quantiles, with the line through their quartiles, on a graph",enabled:!ro&&rep.qq>0,run:()=>anaQQ(a.id)}];
-  const fx=(rep.checks||[]).filter(c=>c.fix).map((c,i)=>({key:"fix"+i,label:c.fix.label,title:c.text,enabled:!ro,run:()=>anaFix(a.id,c.fix.p,c.fix.label)}));
-  if(a.kind!=="norm"&&a.kind!=="outl") return fx;
-  if(a.kind==="outl") return [{key:"mask",label:n>1?`Mask the ${n} outliers`:"Mask the outlier",title:"Their rows in each column's mask, one undo step: left out of fits and, unless masked points are read, of this analysis",enabled:!ro&&n>0,run:()=>anaMaskOut(a.id)},
-    {key:"mark",label:"Mark them on the graph",title:"A label at each, on the graph of its column",enabled:!ro&&n>0,run:()=>anaMarkOut(a.id)}];
+  if(a.kind==="outl"){ const w=`The ${n===1?"value":n+" values"} past the critical value`;
+    return [{key:"mask",label:"Mask",title:`${w}: masked, one undo step`,enabled:!ro&&n>0,run:()=>anaMaskOut(a.id)},
+    {key:"mark",label:"Mark",title:`${w}: labelled on the graph of its column`,enabled:!ro&&n>0,run:()=>anaMarkOut(a.id)}]; }
   return []; }
-// A check's fix: the settings it names, the analysis worked out again, one undo step.
-function anaFix(id,patch,label){ const a0=anaOf(id); if(!a0) return; anaEdit(id,label.toLowerCase(),(a,ana,p)=>{ a.p=Object.assign({},a.p||{},patch); runAna(a,p); return {ana,cols:p.cols}; },`${a0.name}: ${label.charAt(0).toLowerCase()+label.slice(1)}`);
-  toast(`${a0.name} worked out again.`,{action:"Undo",run:undo}); }
 function setupAnaActs(){ document.addEventListener("click",e=>{ const b=e.target.closest&&e.target.closest("button[data-anaact]"); if(!b||b.disabled) return;
   const a=anaOf(b.dataset.ana), x=a&&anaActs(a).find(t=>t.key===b.dataset.anaact); if(x&&x.enabled) x.run(); }); }
 // The Q–Q plot: each set's sorted values as symbols against its normal quantiles, its quartiles' line as a line.
@@ -15639,19 +15609,17 @@ async function anaDelete(id){ const a0=anaOf(id); if(!a0) return; const p=P(), m
 // The report as HTML, from the report object (the same object the copied table and the CSV read).
 function anaReportHtml(a){ const r=a.res||{}, rep=r.report, st=anaStale(a); let h=ANA_JOBS.has(a.id)?noteHtml("info",`Being worked out: ${a.name} has many values, so the work goes on beside the page.`):st?noteHtml("warn",`Out of date: ${st}.`):"";
   if(!rep){ return h+`<p class="muted">${esc(r.err||"Not worked out yet.")}</p>`; }
-  (rep.said||[]).forEach(s=>{ h+=`<p class="anasaid">${esc(s)}</p>`; });
-  (rep.checks||[]).forEach(c=>{ h+=noteHtml(c.ok===false?"warn":"info",c.text+"."); });
   const acts=anaActs(a); if(acts.length) h+=`<p class="anaacts">${acts.map(x=>`<button class="btn sm" data-anaact="${x.key}" data-ana="${esc(a.id)}"${x.title?` title="${esc(x.title)}"`:""}${x.enabled?"":" disabled"}>${esc(x.label)}</button>`).join("")}</p>`;
   const cell=v=>v==null?"":typeof v==="number"?esc(fmt(v,6)):esc(v);
   rep.sections.forEach(s=>{ h+=`<h4>${esc(s.title)}</h4>`; (s.tables||[]).forEach(t=>{ h+=`<div style="overflow:auto"><table class="rtab"><thead><tr>${t.head.map(x=>`<th>${esc(x)}</th>`).join("")}</tr></thead><tbody>${t.rows.map(r=>`<tr>${r.map((v,j)=>`<td${typeof v==="number"?' class="num"':""}>${cell(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`; }); });
   if(rep.method) h+=`<p class="lab">${esc(rep.method)}</p>`;
   (rep.notes||[]).forEach(n=>{ h+=noteHtml("info",n); });
-  if(ANA_KINDS[a.kind].typed) h+=`<p class="lab">From the counts typed.</p>`; else h+=`<p class="lab">${esc(andList((a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colLetter(c)} ${c.name||""}`.trim()+(t?` (${t})`:""); })))}${a.in.by&&colById(a.in.by)?`, grouped by ${esc(colById(a.in.by).name||colRef(colById(a.in.by)))}`:""}; ${a.recalc==="auto"?"worked out again by itself":"worked out only when asked"}.</p>`;
+  if(!ANA_KINDS[a.kind].typed) h+=`<p class="lab">${esc(andList((a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colLetter(c)} ${c.name||""}`.trim()+(t?` (${t})`:""); })))}${a.in.by&&colById(a.in.by)?`, grouped by ${esc(colById(a.in.by).name||colRef(colById(a.in.by)))}`:""}; ${a.recalc==="auto"?"worked out again by itself":"worked out only when asked"}.</p>`;
   return h; }
 function anaReport(id){ const a=anaOf(id); if(!a) return; S.resAna=id; openWin("res",{render:true}); renderResults(); }
 // The report as text (Copy): every table as tab-separated rows, then the notes, from the report object.
 function anaText(a){ const rep=a.res&&a.res.report; if(!rep) return a.name+"\n"+((a.res&&a.res.err)||"Not worked out yet.");
-  const out=[a.name]; (rep.said||[]).forEach(s=>out.push(s)); rep.sections.forEach(s=>{ out.push("",s.title); (s.tables||[]).forEach(t=>{ out.push(t.head.join("\t")); t.rows.forEach(r=>out.push(r.map(v=>v==null?"":typeof v==="number"?String(v):String(v).replace(/[\t\r\n]+/g," ")).join("\t"))); }); });
+  const out=[a.name]; rep.sections.forEach(s=>{ out.push("",s.title); (s.tables||[]).forEach(t=>{ out.push(t.head.join("\t")); t.rows.forEach(r=>out.push(r.map(v=>v==null?"":typeof v==="number"?String(v):String(v).replace(/[\t\r\n]+/g," ")).join("\t"))); }); });
   if(rep.method) out.push("# "+rep.method); (rep.notes||[]).forEach(n=>out.push("# "+n)); const st=anaStale(a); if(st) out.splice(1,0,"# Out of date: "+st);
   if(ANA_KINDS[a.kind].typed) out.push("# From the counts typed: "+JSON.stringify(a.p)); else out.push("# Reads: "+(a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colRef(c)} ${c.name||""}`.trim()+(t?` (${t})`:""); }).join("; "));
   return out.join("\n"); }
@@ -15660,7 +15628,6 @@ function reportAnaHtml(){ const as=anaList(); if(!as.length) return ""; const e2
   return "<h2>Analyses</h2>"+as.map(a=>{ const rep=a.res&&a.res.report, st=anaStale(a); let h="<h3>"+e2(a.name)+" ("+e2(ANA_KINDS[a.kind].label.toLowerCase())+")</h3>";
     if(st) h+="<p class=\"warn\"><strong>Out of date:</strong> "+e2(st)+".</p>";
     if(!rep) return h+"<p>"+e2((a.res&&a.res.err)||"Not worked out yet.")+"</p>";
-    (rep.said||[]).forEach(s=>{ h+="<p><strong>"+e2(s)+"</strong></p>"; });
     rep.sections.forEach(s=>{ (s.tables||[]).forEach(t=>{ h+="<table><thead><tr>"+t.head.map(x=>"<th>"+e2(x)+"</th>").join("")+"</tr></thead><tbody>"+t.rows.map(r=>"<tr>"+r.map(v=>typeof v==="number"?"<td>"+e2(fmt(v,7))+"</td>":"<td class=\"l\">"+e2(v==null?"":v)+"</td>").join("")+"</tr>").join("")+"</tbody></table>"; }); });
     if(rep.method) h+="<p>"+e2(rep.method)+"</p>"; (rep.notes||[]).forEach(n=>{ h+="<p>"+e2(n)+"</p>"; });
     if(ANA_KINDS[a.kind].typed) h+="<p>From the counts typed.</p>"; else h+="<p>Reads "+e2(andList((a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colRef(c)} ${c.name||""}`.trim()+(t?" ("+t+")":""); })))+(a.in.by&&colById(a.in.by)?", grouped by "+e2(colById(a.in.by).name||colRef(colById(a.in.by))):"")+(a.in.masked?", masked points included":"")+"; "+(a.recalc==="auto"?"worked out again whenever its data change":"worked out only when asked")+(a.at?", last on "+e2(new Date(a.at).toISOString().slice(0,16).replace("T"," "))+" UTC":"")+".</p>";
@@ -24181,19 +24148,18 @@ ${DL([["Quartiles","How a quantile between two values is found: Linear (R's type
 <h2 id="summary">Graphical summary</h2>
 <p>${MP("Analyze › Statistics › Descriptive › Graphical summary")}: a figure of the active column (or the one selected), a panel each for its histogram, with a normal curve over it whose legend gives the mean and SD, and its box chart. Both follow the column's processing as any graph does; one undo takes the figure away.</p>
 <h2 id="norm">Normality tests</h2>
-<p>${MP("Analyze › Statistics › Descriptive › Normality tests…")}: whether each column (or group) could have come from a normal distribution. The report's first line says what the first test ticked found, in words; the sheet has each test's statistic, its p and its verdict, <em>not normal</em> below the level or <em>may be normal</em> above it (a test never shows that values are normal, only that it finds nothing against it).</p>
-${DL([["Shapiro–Wilk","Ticked at first: the most powerful for most samples, 3 to 5000 values, by Royston's algorithm as R and SciPy compute it. Its p is accurate where decisions are made, below about 0.3."],["Lilliefors","Kolmogorov–Smirnov's distance from the normal with the values' own mean and SD, its p from a table of ten million simulations; past its ends it says below 0.001 or above 0.99."],["Anderson–Darling","Weighs the tails more; 8 values or more."],["D'Agostino's K²","From the skewness and the kurtosis together; 8 values or more, rough below 20."],["Kolmogorov–Smirnov","Its p, Kolmogorov's exact one, takes the mean and SD as known; estimated from the same values they make it too large. Lilliefors' is the same test done right."]])}
-<p><em>Q–Q plot</em> (under the report, or the result sheet's tab menu) graphs the sorted values against the normal quantiles, with the line through their quartiles: values from a normal distribution lie near it.</p>
+<p>${MP("Analyze › Statistics › Descriptive › Normality tests…")}: each column (or group) tested against a normal distribution: each test's statistic and p.</p>
+${DL([["Shapiro–Wilk","Ticked at first: 3 to 5000 values, by Royston's algorithm as R and SciPy compute it. Its p is accurate below about 0.3, and runs high above."],["Lilliefors","Kolmogorov–Smirnov's distance from the normal with the values' own mean and SD, its p from a table of ten million simulations; past its ends it says below 0.001 or above 0.99."],["Anderson–Darling","Weighs the tails more; 8 values or more."],["D'Agostino's K²","From the skewness and the kurtosis together; 8 values or more, rough below 20."],["Kolmogorov–Smirnov","Its p, from Kolmogorov's distribution, takes the mean and SD as known; estimated from the same values, they make it too large (Lilliefors' accounts for them)."]])}
+<p><em>Q–Q plot</em> (under the report, or the result sheet's tab menu) graphs the sorted values against the normal quantiles, with the line through their quartiles.</p>
 <h2 id="outliers">Outliers</h2>
-<p>${MP("Analyze › Statistics › Descriptive › Outliers…")}: values far from the rest of each column (or group). The sheet has a row for each value examined: its row, the statistic, the critical value at the level, p and whether it is an outlier.</p>
-${DL([["Grubbs","The distance from the mean over the SD, at either side or one; <em>Repeat until none is found</em> takes each outlier out and tests again, since two outliers can hide each other from a single test."],["Dixon's Q","The gap to the nearest value over the range, for 3 to 30 values. Its p and critical value are worked out for normal samples, not read from a printed table (printed tables differ in the third decimal)."]])}
-<p><em>Mask the outliers</em> puts their rows in each column's mask, one undo step: they are left out of fits and, unless the analysis reads masked points, of the analysis, which is worked out again without them. <em>Mark them on the graph</em> labels each on its column's graph.</p>
-${TIP("Testing for outliers until none is left removes good values too. Mask a value when there is a reason it is wrong, not only because a test points at it.")}
+<p>${MP("Analyze › Statistics › Descriptive › Outliers…")}: a row for each value examined: its row, the statistic, the critical value at the level α, and p.</p>
+${DL([["Grubbs","The distance from the mean over the SD, at either side or one; <em>Repeat until none is found</em> takes out each value past the critical value and tests again."],["Dixon's Q","The gap to the nearest value over the range, for 3 to 30 values. Its p and critical value are worked out for normal samples, not read from a printed table (printed tables differ in the third decimal)."]])}
+<p><em>Mask</em> puts the rows of the values past the critical value in each column's mask, one undo step, and the analysis is worked out again without them. <em>Mark</em> labels each on its column's graph.</p>
 <h2 id="tests">Hypothesis tests</h2>
-<p>Each test's report opens with a sentence saying what it found at the level chosen (0.05 unless set), then the checks the test rests on as notes, each with its fix as a button where there is one, then the table. <em>Alternative</em> is two-sided (a difference either way) unless one direction is named; the intervals are at one minus the level.</p>
-${DL([["t tests…","One sample against a value; two samples, the first two columns ticked (in the sheet's order) or one column grouped into two, by Welch's t unless <em>Equal variances</em> asks for Student's; paired, two columns row by row. Each gives t, its degrees of freedom, p, the difference's interval, Cohen's d with its exact interval (the noncentral t inverted) and Hedges' g. The checks: normality of each sample below 30 values (Shapiro–Wilk), and for Student's t equal variances (Levene's test about the medians), with <em>Use Welch's t</em>."],["Comparing spreads…","Levene's test about the medians (Brown and Forsythe's), ticked at first; about the means (a little liberal with small samples); Bartlett's (which assumes normal values); and for two columns the F test with the ratio's interval."],["Proportions…","From counts typed: one proportion against a value (the exact binomial test, the score z, Clopper and Pearson's and Wilson's intervals) or two proportions (the pooled z, Newcombe's interval for the difference)."],["Fisher's exact test…","From a two-by-two table typed: Fisher's exact p and the odds ratio by conditional maximum likelihood with its exact interval, as R's fisher.test."]])}
+<p>Each test gives its numbers: the statistic, its degrees of freedom, p, the interval (95 % unless set) and the effect size. Kurve draws no conclusion from them. <em>Alternative</em> is two-sided unless one direction is named.</p>
+${DL([["t tests…","One sample against a value; two samples, the first two columns ticked (in the sheet's order) or one column grouped into two, by Welch's t unless <em>Equal variances</em> asks for Student's; paired, two columns row by row. Each gives t, its degrees of freedom, p, the difference's interval, Cohen's d with its exact interval (the noncentral t inverted) and Hedges' g."],["Comparing spreads…","Levene's test about the medians (Brown and Forsythe's), ticked at first; about the means (a little liberal with small samples); Bartlett's (which assumes normal values); and for two columns the F test with the ratio's interval."],["Proportions…","From counts typed: one proportion against a value (the exact binomial test, the score z, Clopper and Pearson's and Wilson's intervals) or two proportions (the pooled z, Newcombe's interval for the difference)."],["Fisher's exact test…","From a two-by-two table typed: Fisher's exact p and the odds ratio by conditional maximum likelihood with its exact interval, as R's fisher.test."]])}
 <h2 id="read">What it reads</h2>
-<p>Each column's processed values: the values after its steps, its original values when it has none. The dialog names the steps each column is read after, and a column with steps has a switch to <em>Original</em>. Masked points are left out unless <em>Include masked points</em> is ticked, and the report says how many. After a step that leaves rows out, makes points or averages them (resampling, a histogram), or makes neighbours depend on each other (smoothing), the report says so: three hundred points resampled from a hundred are not three hundred measurements.</p>
+<p>Each column's processed values: the values after its steps, its original values when it has none. The dialog names the steps each column is read after, and a column with steps has a switch to <em>Original</em>. Masked points are left out unless <em>Include masked points</em> is ticked, and the report says how many. After a step that leaves rows out, makes points or averages them (resampling, a histogram), or makes neighbours depend on each other (smoothing), the report notes it.</p>
 <h2 id="sheet">The result sheet</h2>
 <p>Its tab carries a lock: the sheet is read only, since its values are worked out. Its columns can be plotted, read by a formula and copied; one moved to another sheet becomes a copy, cut from the analysis. The results are not original data, so they leave the check code alone.</p>
 <h2 id="recalc">Recalculating</h2>

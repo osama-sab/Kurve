@@ -31,6 +31,8 @@ round at the end.
    that does not say in words what it means. Everything else is in the report, the History and
    the tooltips. The user's words: the more useless text there is, the more cluttered the app
    looks and the worse it is to use.
+8. **Kurve reports, the user judges** (12.11). An analysis shows numbers, never a verdict, a
+   sentence of what they mean or advice: the user interprets. Wording kept to labels.
 
 ## Colour and contrast
 
@@ -896,33 +898,33 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-12: numbers, not verdicts
+
+The user: the software need not interpret results, the user does that. 2.2 and 2.3 had opened each
+report with a sentence ("At the 0.05 level, … finds …"), verdict columns (*not normal*, *differs*,
+*outlier: yes*), assumption checks with advice (*Use Welch's t*) and notes on how far to trust a p.
+All of it went; the rule is principle 8 and STATS_SPEC's decision 9, for every slice after.
+
+- **A level only where it changes a number.** The t tests, proportions, Fisher's test and the F
+  ratio ask for their interval (95 % by default); normality tests and the other spreads tests ask
+  for nothing; the outlier tests keep α, which sets the critical value and so what Mask and Mark take.
+- **What a result can act on stays a button**: *Q–Q plot*, *Mask*, *Mark*. Acting is the user's
+  choice; the button names no conclusion.
+
 ### 2026-11-12: comparing means and spreads (STATS_SPEC 2.3)
 
-- **A check that has a fix offers it.** Student's t on unequal variances says so in a note under
-  the sentence, and *Use Welch's t* beside it works the test out again (one undo step). The test
-  still gives its answer: checks are said, not enforced.
 - **Welch's t is the default**, and Student's a tick shown only for two samples: Welch's is as good
   when the variances are equal and right when they are not (simulated: Student's runs far off its
   level with unequal variances and sizes).
 - **Counts are typed where Origin types them.** Proportions and Fisher's test take numbers in their
-  dialog, with no columns to choose; the report says it came from the counts typed.
-- **Effect sizes beside p**: every t test gives Cohen's d with its interval and Hedges' g, so a
-  small p from a large sample is not read as a large effect.
+  dialog, with no columns to choose.
+- **Effect sizes beside p**: Cohen's d with its interval and Hedges' g.
 
 ### 2026-11-12: normality and outliers (STATS_SPEC 2.2)
 
-- **The sentence comes first.** A test's result is a sentence, in words ("At the 0.05 level,
-  Grubbs' test finds 2 outliers in Mass: 19.5 (G = 3.311, p = 0.001), 16 …"), then its buttons,
-  then the table. Origin's report opens with the table, and people read its last line.
-- **"May be normal", not "normal".** A normality test never shows that values are normal, only
-  that it finds nothing against it; the verdict column says *not normal* or *may be normal*.
-- **What a result offers is under it**: *Q–Q plot*, *Mask the outliers*, *Mark them on the graph*
-  are buttons under the report wherever it is shown (Results, the History) and in the sheet's tab
-  menu. Masking is one undo step, and the analysis, worked out again, says what is left.
-- **Shapiro–Wilk alone is ticked**: it is the test to use; the others are there for those who need
-  to cite them, each tooltip saying when (Kolmogorov–Smirnov's: its p is too large).
-- **A table's end is said, not printed**: Lilliefors' p past its table reads "below 0.001", and the
-  sheet holds 0.001, not the 0.000999… the table's rounding gives.
+- **Shapiro–Wilk alone is ticked**; each other test's tooltip says when it is used.
+- **A table's end is a bound**: Lilliefors' p past its table is said as below 0.001 (or above
+  0.99), and the sheet holds 0.001, not the 0.000999… the table's rounding gives.
 
 ### 2026-11-12: descriptive statistics, whole (STATS_SPEC 2.1)
 

@@ -428,6 +428,9 @@ experience." Every window, table, list, tooltip and message is held to it.
 - **One place for one thing, and its count agrees with it.** The Project Explorer lists the
   sheets, not the files' columns again: the worksheet shows the columns. A count shown beside a
   list counts what the list shows (11.11: a file said 4 and listed 3).
+- **Kurve reports, the user judges** (12.11). A result is its numbers: no sentence of what they
+  mean, no verdict ("differs", "may be normal"), no advice on what to use instead. The user
+  draws the conclusion; Help says what each number is.
 - **Explanations live in Help and tooltips**, not in the window (DESIGN.md principle 5). A
   window keeps labels, numbers, warnings about this data, and a one-line empty state.
 - **The report is the exception.** It leaves the building and must say everything the screen

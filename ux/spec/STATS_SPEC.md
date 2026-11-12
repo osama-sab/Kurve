@@ -31,7 +31,7 @@ points to check in Origin itself are marked *(to confirm)*.
   indexed: a column of data and one of groups), the test's own settings (the null value, the
   alternative two-sided or one, the significance level, the interval), and *Output* (the report
   sheet, a sentence "At the 0.05 level, the population mean is significantly different from 0",
-  plots). The report holds the descriptive statistics of the groups, the test's table (statistic,
+  plots). Kurve leaves the sentence out (decision 9). The report holds the descriptive statistics of the groups, the test's table (statistic,
   DF, p), the interval, the effect size where it has one, and the assumptions' tests.
 
 ## Where Kurve stands
@@ -71,11 +71,15 @@ points to check in Origin itself are marked *(to confirm)*.
 6. **Every test is an analysis** (1.3), so it follows its data, is undone, copied, reported,
    worked out in the worker past 200 000 values, and its sheet is read only.
 7. **One input panel, one output** (below), so a test is learnt once.
-8. **α is 0.05 and tests are two-sided by default**; both are the test's settings, stored, said in
-   the sentence, and the interval follows the level (1 − α).
-9. **Assumptions are checked and said, not enforced.** A t test on 8 values that Shapiro–Wilk
-   doubts still gives its p, with a note saying which assumption looks broken and what to use
-   instead (the nonparametric test, Welch's). One source, as `fitWarnings` is for fits.
+8. **Tests are two-sided by default, intervals at 95 %**; both are the test's settings, stored.
+   A level α is asked only where it changes a number (an outlier test's critical value).
+9. **Kurve reports, the user judges** (the user's rule, 12.11, for every slice from here on). A
+   test gives its numbers: statistic, degrees of freedom, p, interval, effect size, and a critical
+   value where that is the test. No sentence of what they mean, no verdict column ("differs", "may
+   be normal", "outlier: yes"), no advice ("use Welch's"), no assumption checks run unasked: the
+   user runs Normality tests or Comparing spreads when they want them. Notes say only what was
+   read (masked points, rows left out) and why a number is missing, in few words; how it was
+   worked out is one line in the report. Help explains the tests; the windows do not.
 10. **NIST's certified values come with the host.** This session's network refuses
     `www.itl.nist.gov`; a personal environment that allows it exists (11.11) and the next session
     runs in it. Until then each slice checks its arithmetic against exact rational arithmetic
@@ -106,15 +110,9 @@ order).
 - `tables[0]`, the result sheet's columns (text for names, numbers for numbers), kept by key
   across recalculations;
 - `report.sections` (titled tables) and `report.notes`;
-- for a test, `test: {name, stat, statName, df, p, alt, alpha, ci: {lo, hi, level, of}, effect:
-  {name, v, lo, hi}, verdict}`: `verdict` is the sentence, made by one function, `anaVerdict`
-  ("At the 0.05 level, the mean of A differs from 0 (t = 3.21, 9 degrees of freedom, p = 0.011).");
-- `checks`, the assumptions: `[{name, ok, text}]` from one source, `anaChecks`, read by the
-  report, Results, the copied table and the CSV, as `fitWarnings` is.
+- `report.method`, one line; `report.marks` for what a result can act on (Mask, Mark).
 
-Results shows a test's sentence first, then its table, the interval and the effect, then the
-checks as notes (each one line, its fix a button: *Use Welch's test*, *Use the Mann–Whitney test*);
-the descriptive statistics of the groups come after, as Origin's report has them.
+Results shows the tables, then the method and notes. No sentence, verdict or check (decision 9).
 
 ## References, by slice
 
@@ -146,11 +144,9 @@ that reads a column.
 ## The order
 
 2.1 descriptive statistics, whole → 2.2 normality and outliers (the checks every later test cites)
-→ 2.3 comparing means and spreads (the first tests, and the frame's sentence and checks) → 2.4
-one-way ANOVA → 2.8 nonparametric tests (the alternatives the checks offer) → 2.9 correlation →
-2.10 counts in tables → 2.5 the linear model → 2.6 two- and three-way ANOVA → 2.7 repeated
-measures → 2.11 power → 2.12 ROC curves. The nonparametric tests come before the linear model
-because 2.3's and 2.4's checks name them as the fix.
+→ 2.3 comparing means and spreads → 2.4 one-way ANOVA → 2.8 nonparametric tests → 2.9
+correlation → 2.10 counts in tables → 2.5 the linear model → 2.6 two- and three-way ANOVA → 2.7
+repeated measures → 2.11 power → 2.12 ROC curves.
 
 ## 2.1 Descriptive statistics, whole
 
@@ -217,8 +213,7 @@ Kolmogorov–Smirnov against a fitted normal (the exact Kolmogorov distribution 
 `distFit` gap closes here); a Q–Q plot made from the result (a graph of the sorted values against
 the normal quantiles, its line through the quartiles). Grubbs (one side or two, once or repeated
 until none) and Dixon's Q (3 to 30 values, its table), the outliers listed with *Mask* (their rows
-in the column's mask, one undo step) and *Mark* (a label on the graph). `anaChecks`' normality line
-for later tests is Shapiro–Wilk's.
+in the column's mask, one undo step) and *Mark* (a label on the graph).
 
 Built (12.11), with three departures, each for accuracy:
 - **Lilliefors' p is statsmodels' default**, its table of ten million simulations (linear between its
@@ -236,13 +231,13 @@ Built (12.11), with three departures, each for accuracy:
   `distFit`'s p (roadmap 4) moved onto it: 3e-2 off before, 5e-15 now.
 - Shapiro–Wilk subtracts the median first (as SciPy, which a 40-digit transcription showed), and every
   test standardises with the mean's own rounding taken out: values near 10⁹ had moved D, A², G and W at
-  1e-8. Kolmogorov–Smirnov against the fitted normal is kept, its note saying its p is too large.
+  1e-8. Kolmogorov–Smirnov against the fitted normal is kept (Help says its p is too large).
 - Checked: `fixtures/norm.json` (518 cases), each statistic against a 40-digit reference
   (`refs.sw_ref`, `ksnorm_d_ref`, `ad_ref`, `dago_ref`, `grubbs_ref`, `kolm_dmtw`); statsmodels' A² and
   SciPy's K² were 5e-7 off where Kurve was not. Each test's size at 5 % within its binomial interval
   over 20 000 normal samples, Shapiro–Wilk's p uniform below 0.3 (above, Royston's approximation runs
   high: it was fitted to the lower tail), Grubbs' critical values as ASTM E178 prints them, masking
-  shown. ana-drive: the dialogs, the sentence first, the Q–Q plot, Mask (the analysis worked out again
+  shown. ana-drive: the dialogs, the Q–Q plot, Mask (the analysis worked out again
   without them, one undo), Mark, groups' own rows, Dixon, a reload.
 
 ## 2.3 Comparing means and spreads
@@ -250,19 +245,16 @@ Built (12.11), with three departures, each for accuracy:
 One-sample, two-sample (Welch's by default, Student's when chosen) and paired t tests: the
 difference's interval, Cohen's d and Hedges' g with their intervals; the variance tests F, Levene
 (mean, median: Brown–Forsythe) and Bartlett; one- and two-sample proportions (the normal
-approximation and the exact binomial); Fisher's exact test for two by two. The frame's sentence,
-checks (normality per group by Shapiro–Wilk, equal variances by Levene, n), α and alternative
-arrive with this slice.
+approximation and the exact binomial); Fisher's exact test for two by two.
 
 Built (12.11), as above, with these choices: two samples are the first two columns ticked in the
 sheet's order, or one column grouped into two; Brown and Forsythe's Levene (about the medians) is the
-equal-variances check and the spreads' default, since about the means Levene's test runs 6 % at 5 % with
+spreads' default, since about the means Levene's test runs 6 % at 5 % with
 6 to 14 values (simulated; SciPy's W agrees with Kurve's to 1e-15); proportions and Fisher's test read
 counts typed (`K.typed`: no columns), the 2.10 slice to count them from columns. The t tests carry the
 mean's rounding (`msd`'s `e`) into the difference: with values near 10⁶ the double mean had moved t at
 3e-9. The noncentral t (`nctCdf`) is Guenther's sum of incomplete betas, 3e-14 absolute against Boost,
-whose own was found NaN deep in the lower tail. `anaChecks` is `report.checks` (`{name, ok, text, fix:
-{label, p}}`), the fix a button (`anaFix`, one undo step). Checked: `fixtures/test23.json` (334 cases:
+whose own was found NaN deep in the lower tail. Checked: `fixtures/test23.json` (334 cases:
 the t tests in 40 digits, d's interval against Boost inverted by brentq, SciPy and statsmodels for the
 rest), the fuzzer (four generators), stats-test (16 new: each test's size, the intervals' coverage, the
 exact tests at or below their level), ana-drive (15). The fuzzer's first full run failed a one-sided p of
@@ -288,7 +280,7 @@ host is reached (Filip, degree 10, defeats the normal equations: the test that Q
 
 ## 2.6 Two- and three-way ANOVA
 
-Balanced and unbalanced (type III by default, the type said), interactions, simple effects,
+Balanced and unbalanced (type III by default, the type in the method line), interactions, simple effects,
 comparisons on the main effects; the interaction and main-effects plots made from the result.
 
 ## 2.7 Repeated measures
@@ -312,7 +304,7 @@ result sheet, with a scatter matrix made from it.
 
 ## 2.10 Counts in tables
 
-χ² test of independence (expected counts below 5 said, with Fisher's as the fix), Fisher's exact
+χ² test of independence (the expected counts in the report), Fisher's exact
 test (two by two; Freeman–Halton for small larger tables), McNemar; from two text columns (a
 cross-table) or a table of counts.
 

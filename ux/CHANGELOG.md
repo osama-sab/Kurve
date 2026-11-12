@@ -1024,6 +1024,22 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Numbers, not verdicts (2026-11-12)
+
+The user's rule: the software reports, the user judges. Recorded once (STATS_SPEC decision 9,
+UX_SPEC §3.8, DESIGN principle 8) for every slice after.
+
+- Gone from Normality tests, Outliers, t tests, Comparing spreads, Proportions and Fisher's test:
+  the opening sentence, the verdict columns (*not normal*, *may be normal*, *differs*, *unequal*,
+  *Outlier*), the assumption checks and their *Use Welch's t* button, and notes of advice.
+- A level is asked only where it changes a number: an interval (95 % by default) for the t tests,
+  proportions, Fisher's test and the F ratio; α for the outlier tests' critical value. An analysis
+  stored with α reads one minus it as its interval.
+- Outliers' *Mask* and *Mark* take the values past the critical value. Method lines shortened;
+  Help's article trimmed to what each number is.
+
+ana-drive: 79 checks.
+
 ## Closing the gap with Origin, wave 2, slice 2.3: comparing means and spreads (2026-11-12)
 
 - **Hypothesis tests** (Analyze › Statistics): **t tests** (one sample against a value; two
@@ -1032,8 +1048,7 @@ people type (`CMDK_SYN`).
   (Levene about the medians or the means, Bartlett, F); **Proportions** (the exact binomial test
   with Clopper–Pearson's and Wilson's intervals; two proportions with Newcombe's) and **Fisher's
   exact test** (the conditional odds ratio and its exact interval), from counts typed.
-- Each report opens with its sentence, then the checks it rests on (normality, equal variances),
-  a check's fix a button (*Use Welch's t*).
+- (A sentence, checks and a *Use Welch's t* button were removed the same day: see above.)
 - The noncentral t distribution, for d's interval.
 
 Checked: `fixtures/test23.json` (334 cases; the t tests in 40 digits), the fuzzer, stats-test (16

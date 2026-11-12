@@ -1075,13 +1075,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   `swTest` (Royston's AS R94, about the median), `ksNormD`, `lfTest` (`lfProb`: statsmodels' table `LF_N`,
   `LF_CV`, `LF_AS`, `LF_PCT`; `lo`/`hi` at its ends), `ksnTest`, `adTest`, `dagoTest`, `qqNorm` (R's ppoints and
   qqline), `grubbsTest(vals, {side, alpha, repeat})` (`rounds`, `out`), `glNodes`/`GL20`/`gl2`, `dixonP(n, q,
-  side, panels)`, `dixonCrit`, `dixonTest`; `anaFmt`, `anaPtxt`, `anaAlpha`, `NORM_TESTS`, `normTests`,
-  `anaNormCheck(vals, name, α)` (the line later tests cite). Kinds `norm` (a row per column or group; `report.said`
-  the sentence, `report.qq` the Q–Q sets, written as columns `qx<i>` (an X), `qy<i>`, `ql<i>`) and `outl` (a row
+  side, panels)`, `dixonCrit`, `dixonTest`; `anaFmt`, `anaPtxt`, `anaAlpha` (the outlier tests' α), `anaConf` (an
+  interval's level: `p.conf`, else one minus a stored `alpha`, else 95 %; `ANA_CONFS`), `NORM_TESTS`, `normTests`. Kinds
+  `norm` (a row per column or group, each test's statistic and p; `report.qq` the Q–Q sets, written as columns `qx<i>` (an X), `qy<i>`, `ql<i>`) and `outl` (a row
   per value examined; `report.marks [{i, row, value, grp}]`); `anaInputs` gives `grows` (each group's rows).
   Page: `ANA_FORMS.norm`/`outl` (`#aN_<key>`, `#aAl`, `#aOt`, `#aOs`, `#aOr`), `anaActs(a)` (the report's buttons,
-  `data-anaact`, `setupAnaActs`, and the tab menu: `anaQQ`, `anaMaskOut`, `anaMarkOut`, `anaMarksOf`), the report's
-  sentence first (`.anasaid`, `anaText`, `reportAnaHtml`); `anaWrite` takes a column's `role` and keeps a plotted
+  `data-anaact`, `setupAnaActs`, and the tab menu: `anaQQ`, `anaMaskOut`, `anaMarkOut`, `anaMarksOf`: Mask and Mark take
+  the values past the critical value); `anaWrite` takes a column's `role` and keeps a plotted
   one a curve.
   **Comparing means and spreads** (STATS_SPEC 2.3): in STATS, `nctCdf(t, ν, δ)` (the noncentral t, Guenther's sum
   of incomplete betas, 3e-14 absolute), `DIST.nct`. In ANA: `finVals`, `tAltP`, `tAltCI`, `hedgesJ`, `nctDelta`,
@@ -1089,13 +1089,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   (each takes `{mu0, alt, conf, dci}`; `dci:false` skips the inversion), `fTest2`, `leveneTest(groups, "mean"|
   "median")`, `bartlettTest`, `nAltP`, `wilsonCI`, `propTest1` (exact binomial as R, Clopper–Pearson, Wilson,
   score z), `propTest2` (pooled z, Newcombe), `fisher22` (R's two-sided p, the conditional odds ratio and its
-  interval); `ANA_ALT`, `ANA_VERB`, `anaPct`, `VAR_TESTS`, `tSay` (a t test's sentence); `msd` returns `e`, the
+  interval); `ANA_ALT`, `anaPct`, `VAR_TESTS`; `msd` returns `e`, the
   double mean's rounding, which the t tests add back to the difference. Kinds `ttest` (`p.type` one, two,
-  paired; `mu0`, `alt`, `alpha`, `equal`), `vartest` (`p.tests`), and `prop`, `fisher` with `typed:true` (no
-  columns: `anaDlg` shows the kind's fields alone, the report says "From the counts typed"); `report.checks`
-  (`{name, ok, text, fix:{label, p}}`) shown as notes, a fix a button (`anaActs`, `anaFix`, one undo step);
-  forms `#aTt`, `#aMu`, `#aAlt`, `#aAl`, `#aEq`, `#aV_<key>`, `#aPt`, `#aPx`, `#aPn`, `#aP0`, `#aPx2`, `#aPn2`,
-  `#aFa`…`#aFd` (`.fish22`), shared `altSel`, `alSel`. Analyze › Statistics › Hypothesis tests.
+  paired; `mu0`, `alt`, `conf`, `equal`), `vartest` (`p.tests`, `conf` for the F ratio), and `prop`, `fisher` with
+  `typed:true` (no columns: `anaDlg` shows the kind's fields alone; the copied report carries the counts);
+  forms `#aTt`, `#aMu`, `#aAlt`, `#aCf`, `#aEq`, `#aV_<key>`, `#aPt`, `#aPx`, `#aPn`, `#aP0`, `#aPx2`, `#aPn2`,
+  `#aFa`…`#aFd` (`.fish22`), shared `altSel`, `confSel`. Analyze › Statistics › Hypothesis tests.
+  **Numbers, not verdicts** (12.11, STATS_SPEC decision 9, DESIGN principle 8): a kind returns tables, `method` (one
+  line), `notes` (what was read, why a number is missing) and `marks`; never a sentence, a verdict column, an
+  assumption check or advice.
   `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
   (rationals), shared by the fixtures (`desc.json`) and the fuzzer (`quantileType`, `descStats@<key>`, which
   `run.mjs` reads as one field of the result).
@@ -2996,10 +2998,10 @@ made points said, Only when asked and Recalculate, groups, an input deleted, a r
 and Delete with undo; and STATS_SPEC 2.1 (the statistics ticked, the interval's level shown with it, a 99 %
 interval and type 6 percentiles against their formulas, the method in the report, a blank mode said, rows 3 to 8,
 listwise, frequency counts of text and in bins of a width, the graphical summary and its one undo, junk settings,
-a reload), and 2.2 (the tests ticked, each against its function, the verdict and the sentence first, the Q–Q
+a reload), and 2.2 (the tests ticked, each against its function, no verdict or sentence, the Q–Q
 plot's columns and graph kept on recalculating, Grubbs repeated, Mask with the analysis worked out again and one
-undo, Mark, groups' rows, Dixon, a reload), and 2.3 (a one-sample sentence against tTest1, Student's by group with
-the unequal-variance check and its Use Welch's t button, undo, paired in the sheet's order, every spreads test,
+undo, Mark, groups' rows, Dixon, a reload), and 2.3 (one sample against tTest1 at a 99 % interval, a stored α read as
+its interval, Student's by group with nothing said of the variances, paired in the sheet's order, every spreads test,
 proportions and Fisher's test typed, a refusal, a reload).
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
@@ -4523,8 +4525,9 @@ Next, in order:
    put right on the way); slice 2.2, normality and outliers (Shapiro–Wilk, Lilliefors, Anderson–Darling,
    D'Agostino's K², Kolmogorov–Smirnov; a Q–Q plot; Grubbs and Dixon's Q, masked or marked; Kolmogorov's exact
    distribution, which closed `distFit`'s gap), done 12.11; slice 2.3, comparing means and spreads (t tests
-   with d and g, Levene, Brown–Forsythe, Bartlett, F, proportions and Fisher's exact test, the frame's
-   sentence, checks and fixes), done 12.11
+   with d and g, Levene, Brown–Forsythe, Bartlett, F, proportions and Fisher's exact test), done 12.11; the
+   user's rule the same day, Kurve reports and the user judges (no sentence, verdict, check or advice), applied
+   to 2.2 and 2.3 and kept for every slice after
 
 ## Known gaps
 
