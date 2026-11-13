@@ -582,5 +582,33 @@
  "rmAnova.p": {
   "tol": 1e-13,
   "why": "F's tail (df scaled by ε) and χ²'s, in 40 digits"
+ },
+ "DIST.ncf.sf": {
+  "tol": 1e-14,
+  "why": "A Poisson mixture of incomplete betas, every term positive: both tails keep their relative digits"
+ },
+ "DIST.ncf.cdf": {
+  "tol": 1e-14,
+  "why": "The same mixture of the lower tails"
+ },
+ "DIST.ncx2.sf": {
+  "tol": 1e-14,
+  "why": "A Poisson mixture of incomplete gammas, every term positive"
+ },
+ "DIST.ncx2.cdf": {
+  "tol": 1e-14,
+  "why": "The same mixture of the lower tails"
+ },
+ "DIST.nct.sf": {
+  "tol": 1e-13,
+  "why": "Guenther's sum (nctCdf), 1 less it: relative where the tail is not small"
+ },
+ "powerAt": {
+  "tol": 1e-13,
+  "why": "Absolute: the tails at quantiles worked out to 1e-15, against 60 digits"
+ },
+ "powSize.n": {
+  "tol": 0,
+  "why": "The smallest size reaching the power, exactly"
  }
 }

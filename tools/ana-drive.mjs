@@ -20,6 +20,7 @@ const check = (name, cond, detail) => { if (cond) { pass++; console.log("  ok   
 const browser = await chromium.launch();
 const ready = (p) => p.waitForFunction(() => typeof S !== "undefined" && S.pid && S.proj && S.projects && S.projects.length, null, { timeout: 30000 });
 async function page(fn, opt = {}) {
+  if (process.env.ONLY && opt.name !== process.env.ONLY) return; // ONLY=2.11 runs that section alone
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } }), p = await ctx.newPage(), errors = [];
   p.on("pageerror", e => errors.push(e.message));
   await p.route(/fonts\.(googleapis|gstatic)\.com|jsdelivr/, r => r.abort());
@@ -661,6 +662,42 @@ await page(async p => {
   r = await p.evaluate(() => anaList().filter(a => a.kind === "rm").map(a => !!(a.res && a.res.report)));
   check("after a reload the two are there", r.length === 2 && r.every(Boolean), JSON.stringify(r));
 }, { name: "2.7" });
+
+console.log("2.11: power and sample size");
+await page(async p => {
+  const last = () => p.evaluate(() => { const as = anaList().filter(x => x.kind === "power"), a = as[as.length - 1];
+    return a && { id: a.id, p: a.p, secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, h: s.tables[0].head, r: s.tables[0].rows })), notes: a.res.notes, err: a.res.err, method: a.res.report && a.res.report.method }; });
+  const shown = () => p.evaluate(() => Object.fromEntries(["aWn", "aWp", "aAlt", "aWd", "aWsd", "aWm", "aWp0", "aWp1", "aWp2", "aWv1", "aWw", "aWdf", "aWr"].map(id => [id, !document.querySelector("#" + id).hidden])));
+  await p.evaluate(() => { anaDlg("power"); }); await p.waitForSelector("#aWt"); await p.waitForTimeout(150);
+  let r = await shown();
+  check("the dialog with no columns: a two-sample t test, the sizes, difference, SD and ratio shown, the rest hidden", r.aWn && !r.aWp && r.aAlt && r.aWd && r.aWsd && r.aWr && !r.aWm && !r.aWp0 && !r.aWw, JSON.stringify(r));
+  await p.selectOption("#aWt", "chi2"); await p.waitForTimeout(80); r = await shown();
+  check("…a χ² test: w and df, no alternative", r.aWw && r.aWdf && !r.aAlt && !r.aWd && !r.aWr, JSON.stringify(r));
+  await p.selectOption("#aWt", "t2"); await p.fill("#aWn", "20 64"); await p.click("#formOk");
+  await p.waitForFunction(() => anaList().some(a => a.kind === "power" && a.res && (a.res.report || a.res.err)), null, { timeout: 30000 });
+  r = await last(); const want = await p.evaluate(() => [20, 64].map(n => powerAt({ test: "t2", alpha: 0.05, alt: "two", d: 0.5, sd: 1, r: 1 }, n)));
+  const sec = t => r.secs && r.secs.find(s => s.t === t);
+  check("power at 20 and 64 a group: n₁, n₂, N, the noncentrality and the power as powerAt gives them", sec("Power") && sec("Power").r.map(x => x.join(",")).join("|") === want.map(w => [w.n1, w.n2, w.N, w.ncp, w.pw].join(",")).join("|"), JSON.stringify([r.secs, want]));
+  check("…Cohen's d, the method in one line, numbers only", sec("Effect size") && sec("Effect size").r[0][1] === 0.5 && /noncentral t/.test(r.method) && !/significant|adequate|enough|recommend|suggest/i.test(JSON.stringify(r)), r.method);
+  await p.evaluate(id => { anaDlg("power", { id }); }, r.id); await p.waitForSelector("#aWf"); await p.selectOption("#aWf", "size"); await p.fill("#aWp", "0.8 0.9"); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await last();
+  check("the size for 0.8 and 0.9: 64 and 86 a group, each with its power", sec("Size for a power") && sec("Size for a power").r.map(x => x.slice(0, 2).join(",")).join("|") === "0.8,64|0.9,86" && sec("Size for a power").r.every(x => x[x.length - 1] >= x[0]), JSON.stringify(r.secs));
+  const g0 = await p.evaluate(() => P().graphs.length);
+  await p.evaluate(id => anaPowerPlot(id), r.id); await p.waitForTimeout(600);
+  let g = await p.evaluate(() => { const gr = P().graphs[P().graphs.length - 1], y = colById(gr.cols[0]), x = xColFor(y); return { n: P().graphs.length, y: y.name, x: x && x.name, k: y.data.length, rise: y.data.every((v, i) => !i || v >= y.data[i - 1] - 1e-15) }; });
+  check("Power curve: power against n₁ on a graph, rising", g.n === g0 + 1 && g.y === "Power" && g.x === "n₁" && g.k > 50 && g.rise, JSON.stringify(g));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(300);
+  check("…one undo step takes the graph away", await p.evaluate(g0 => P().graphs.length === g0, g0));
+  await p.evaluate(() => { anaDlg("power"); }); await p.waitForSelector("#aWt"); await p.selectOption("#aWt", "p1"); await p.fill("#aWp0", "0.5"); await p.fill("#aWp1", "0.7"); await p.fill("#aWn", "20 50"); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await last(); const wp = await p.evaluate(() => [20, 50].map(n => powerAt({ test: "p1", alpha: 0.05, alt: "two", p0: 0.5, p1: 0.7 }, n).pw));
+  check("one proportion, exact: the power at 20 and 50 as powerAt gives it", sec("Power") && sec("Power").r.map(x => x[1]).join("|") === wp.join("|") && /exact binomial/.test(r.method), JSON.stringify([r.secs, wp]));
+  await p.evaluate(() => { anaDlg("power"); }); await p.waitForSelector("#aWt"); await p.selectOption("#aWt", "t1"); await p.fill("#aWn", "1"); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await last();
+  check("a size too small refused in words", /too small/.test(r.err || ""), r.err);
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().filter(a => a.kind === "power").map(a => !!(a.res && (a.res.report || a.res.err))));
+  check("after a reload the three are there", r.length === 3 && r.every(Boolean), JSON.stringify(r));
+}, { name: "2.11" });
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();

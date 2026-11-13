@@ -432,5 +432,53 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("refusals in words: one subject, cells that are not the levels' product, groups leaving no error", /Fewer than two subjects/.test(RM([[1, 2, 3]], [3]).fail) && /levels multiplied/.test(RM([[1, 2, 3], [2, 3, 4]], [2, 2]).fail) && /No degrees of freedom left/.test(RM([[1, 2], [2, 3]], [2], [0, 1]).fail));
 }
 
+// Power and sample size (STATS_SPEC 2.11): the exact binomial test's power the sum over the counts propTest1 rejects; the t
+// tests', the ANOVA's and the F test's power the rate at which Kurve's own tests reject in 20 000 samples; α at no effect;
+// rising with the size; the size found the first to reach the power; the noncentral tails at λ = 0 the central ones, and
+// their two tails adding up to 1; refusals in words.
+{
+  const mb = get("mulberry32")(2011), gauss = () => { let u = 0; while (u === 0) u = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * mb()); };
+  const PA = get("powerAt"), PS = get("powSize"), D = get("DIST"), P1 = get("propTest1"), T2 = get("tTest2"), T1 = get("tTest1"), A1 = get("anova1"), F2 = get("fTest2"), RUN = get("anaRunKind");
+  let ok = true, worst = 0; for (const [p0, p1, n, alt] of [[0.5, 0.7, 30, "two"], [0.3, 0.12, 45, "less"], [0.2, 0.4, 25, "greater"], [0.65, 0.5, 60, "two"]]) {
+    let s = 0; for (let x = 0; x <= n; x++) if (P1(x, n, { p0, alt }).p <= 0.05) s += D.binom.pmf(x, n, p1);
+    const e = Math.abs(PA({ test: "p1", alpha: 0.05, p0, p1, alt }, n).pw - s); worst = Math.max(worst, e); if (e > 1e-14) ok = false; }
+  check("one proportion: the power the sum, at the true proportion, over the counts propTest1 rejects", ok, worst);
+  const N = 20000, half = (q) => 3.29 * Math.sqrt(q * (1 - q) / N), sim = (draw) => { let k = 0; for (let i = 0; i < N; i++) if (draw()) k++; return k / N; };
+  const cases = [
+    ["two samples, d = 0.5, 20 each", { test: "t2", alpha: 0.05, d: 0.5, sd: 1, r: 1 }, 20, () => T2(Array.from({ length: 20 }, gauss), Array.from({ length: 20 }, () => 0.5 + gauss()), { equal: true, dci: false }).p < 0.05],
+    ["one sample, greater, d = 0.4, 15", { test: "t1", alpha: 0.05, d: 0.4, sd: 1, alt: "greater" }, 15, () => T1(Array.from({ length: 15 }, () => 0.4 + gauss()), { alt: "greater", dci: false }).p < 0.05],
+    ["one-way ANOVA, means 0, 0.5, 1, 8 a group", { test: "anova", alpha: 0.05, means: [0, 0.5, 1], sd: 1 }, 8, () => A1([0, 0.5, 1].map((m) => Array.from({ length: 8 }, () => m + gauss()))).p < 0.05],
+    ["two variances, ratio 3, 15 each", { test: "v2", alpha: 0.05, v1: 3, v2: 1, r: 1 }, 15, () => F2(Array.from({ length: 15 }, () => Math.sqrt(3) * gauss()), Array.from({ length: 15 }, gauss)).p < 0.05]];
+  for (const [nm, o, n, draw] of cases) { const pw = PA(o, n).pw, q = sim(draw); check(`${nm}: the rejection rate of Kurve's test the power (within ${(half(pw) * 100).toFixed(2)} %)`, Math.abs(q - pw) < half(pw), [q, pw]); }
+  const nulls = [{ test: "t1", d: 0, sd: 1 }, { test: "t2", d: 0, sd: 2, r: 1.5 }, { test: "anova", means: [3, 3, 3], sd: 1 }, { test: "chi2", w: 0, df: 4 }, { test: "v1", v0: 2, v1: 2 }, { test: "v2", v1: 1, v2: 1, r: 1 }];
+  check("no effect: the power α", nulls.every((o) => [10, 57].every((n) => Math.abs(PA(Object.assign({ alpha: 0.05, alt: "two" }, o), n).pw - 0.05) < 1e-14)));
+  const rise = (o, a, b) => { let prev = -1; for (let n = a; n <= b; n++) { const p = PA(o, n).pw; if (!(p >= prev - 1e-15)) return false; prev = p; } return true; };
+  check("the power rises with the size (t, ANOVA, two proportions, χ², one variance)", rise({ test: "t1", alpha: 0.05, d: 0.3, sd: 1, alt: "two" }, 2, 300) && rise({ test: "anova", alpha: 0.01, means: [0, 0.2, 0.4, 0.1], sd: 1 }, 2, 200)
+    && rise({ test: "p2", alpha: 0.05, p1: 0.3, p2: 0.4, r: 1, alt: "two" }, 1, 400) && rise({ test: "chi2", alpha: 0.05, w: 0.2, df: 3 }, 1, 400) && rise({ test: "v1", alpha: 0.05, v0: 1, v1: 1.6, alt: "two" }, 2, 200));
+  let sz = true; for (const [o, tg] of [[{ test: "t2", alpha: 0.05, d: 0.5, sd: 1, r: 1, alt: "two" }, 0.8], [{ test: "anova", alpha: 0.05, means: [1, 1.5, 2], sd: 1 }, 0.9], [{ test: "chi2", alpha: 0.05, w: 0.3, df: 3 }, 0.8],
+    [{ test: "p1", alpha: 0.05, p0: 0.5, p1: 0.65, alt: "two" }, 0.8], [{ test: "v2", alpha: 0.05, v1: 2, v2: 1, r: 2, alt: "greater" }, 0.9]]) {
+    const r = PS(o, tg); if (r.fail || !(r.pw >= tg)) { sz = false; continue; }
+    if (o.test === "p1") { for (let n = 1; n < r.n; n++) if (PA(o, n).pw >= tg) sz = false; } else if (PA(o, r.n - 1) && PA(o, r.n - 1).pw >= tg) sz = false; }
+  check("the size found reaches the power, and no smaller size does", sz);
+  check("t tests: the two-sided power the same for d and −d", Math.abs(PA({ test: "t2", alpha: 0.05, d: 0.7, sd: 1, r: 1.5, alt: "two" }, 17).pw - PA({ test: "t2", alpha: 0.05, d: -0.7, sd: 1, r: 1.5, alt: "two" }, 17).pw) < 1e-15);
+  let tl = 0; for (const [x, d1, d2] of [[0.3, 2, 9], [2.7, 5, 40], [11, 1, 3]]) tl = Math.max(tl, rel(D.ncf.sf(x, d1, d2, 0), D.F.sf(x, d1, d2)), Math.abs(D.ncf.sf(x, d1, d2, 7.5) + D.ncf.cdf(x, d1, d2, 7.5) - 1));
+  for (const [x, k] of [[0.4, 1], [6, 4], [40, 20]]) tl = Math.max(tl, rel(D.ncx2.sf(x, k, 0), D.chi2.sf(x, k)), Math.abs(D.ncx2.sf(x, k, 3.3) + D.ncx2.cdf(x, k, 3.3) - 1));
+  check("the noncentral F and χ² at λ = 0 the central ones; their tails adding up to 1", tl < 4e-15, tl);
+  const f = (p) => RUN("power", [], Object.assign({ test: "t1", alpha: 0.05, d: 0.5, sd: 1, sizes: [10] }, p)).fail || "";
+  check("refusals in words: α, the SD, a size too small, one mean, a proportion of 1, a power of 1", /α is between/.test(f({ alpha: 0 })) && /SD is above/.test(f({ sd: 0 })) && /too small/.test(f({ sizes: [1] }))
+    && /two means or more/.test(f({ test: "anova", means: [1] })) && /between 0 and 1/.test(f({ test: "p1", p0: 0.5, p1: 1 })) && /between 0 and 1/.test(f({ find: "size", powers: [1] })));
+}
+
+// The kinds on the pure blocks alone (what the worker and run.mjs load): numbers as factors and levels are formatted there.
+{
+  const RUN = get("anaRunKind"), rows = Array.from({ length: 30 }, (_, i) => i), y = rows.map((i) => (i % 3) + Math.sin(i)), num = rows.map((i) => (i % 3) + 1);
+  let bad = []; const tryK = (k, ins, p) => { try { const r = RUN(k, ins, p); if (r.fail) bad.push(k + ": " + r.fail); } catch (e) { bad.push(k + ": " + e.message); } };
+  tryK("lm", [{ id: "y", name: "y", vals: y, rows }, { id: "g", name: "g", vals: num, rows }], { y: "y", fac: ["g"] });
+  tryK("anovan", [{ id: "y", name: "y", vals: y, rows }, { id: "a", name: "a", vals: num, rows }, { id: "b", name: "b", vals: rows.map((i) => i % 2), rows }], { y: "y" });
+  tryK("rm", [{ id: "y", name: "y", vals: y, rows }, { id: "s", name: "s", vals: rows.map((i) => Math.floor(i / 3)), rows }, { id: "w", name: "w", vals: num, rows }], { form: "long", y: "y", subj: "s", w1: "w" });
+  tryK("xtab", [{ id: "a", name: "a", vals: num, rows }, { id: "b", name: "b", vals: rows.map((i) => i % 2), rows }], { mode: "pair" });
+  check("the kinds run on the pure blocks alone, numbers as factors and levels", bad.length === 0, bad.join("; "));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

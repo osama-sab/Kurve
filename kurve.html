@@ -6015,7 +6015,9 @@ const DIST={
     sf:(k,lam)=>{ k=Math.floor(k+1e-7); return k<0?1:lam===0?0:igamPQ(k+1,lam)[0]; },
     ppf:(u,lam)=>qDisc(k=>DIST.pois.cdf(k,lam),k=>DIST.pois.sf(k,lam),u,0,Infinity,lam+probit(Math.min(Math.max(u,1e-300),1-1e-16))*Math.sqrt(lam)) },
   // X successes in n drawn without replacement from r successes and b failures.
-  nct:{ cdf:(t,nu,d)=>nctCdf(t,nu,d) },
+  nct:{ cdf:(t,nu,d)=>nctCdf(t,nu,d), sf:(t,nu,d)=>nctSf(t,nu,d) },
+  ncf:{ cdf:(x,d1,d2,lam)=>ncfTail(x,d1,d2,lam,false), sf:(x,d1,d2,lam)=>ncfTail(x,d1,d2,lam,true) },
+  ncx2:{ cdf:(x,k,lam)=>ncx2Tail(x,k,lam,false), sf:(x,k,lam)=>ncx2Tail(x,k,lam,true) },
   // Kolmogorov's two-sided distance of n values from a distribution given in full (kolmogN).
   kstwo:{ cdf:(d,n)=>kolmogN(n,d,true), sf:(d,n)=>kolmogN(n,d,false) },
   hyper:{ pmf:(x,r,b,n)=>x!==Math.floor(x)?0:dhyper(x,r,b,n), cdf:(x,r,b,n)=>phyper(x,r,b,n,true), sf:(x,r,b,n)=>phyper(x,r,b,n,false),
@@ -6119,17 +6121,35 @@ function kolmogN(n,x,cdf){ if(!(n>=1)||Math.floor(n)!==n||!(x===x)) return NaN; 
   return ksPick(c,1-c,cdf); }
 // The noncentral t distribution (STATS_SPEC 2.3): P(T ≤ t) for ν degrees of freedom and noncentrality δ, as the
 // sum of Poisson-weighted incomplete betas (Guenther's), each term from ibetaPQ (no recurrence), weights in
-// logarithms: to 3e-14 absolute against Boost's (SciPy's nct); far in the lower tail of t < 0 the series
-// subtracts and only the absolute accuracy holds, which is what an interval's ends need.
+// logarithms: to 3e-14 absolute against Boost's (SciPy's nct). The upper tail of t > 0 (STATS_SPEC 2.11) is the same sum
+// of upper incomplete betas, ½ Σ p_j I_y(ν/2, j + ½) + q_j I_y(ν/2, j + 1) (Σ q_j = 2Φ(δ) − 1), every term positive for
+// δ ≥ 0, so it keeps its relative digits; a tail of t < 0 is the other's at −t and −δ. Where δ < 0 the terms subtract and
+// only the absolute accuracy holds, which is what an interval's ends and a power need.
+function nctSum(t,nu,dl,u){ const x=t*t/(t*t+nu), y=nu/(t*t+nu), lam=dl*dl/2, b=nu/2; let s=0;
+  const mode=Math.floor(lam), lo=Math.max(0,Math.floor(mode-12*Math.sqrt(mode+1)-20)), hi=Math.ceil(mode+12*Math.sqrt(mode+1)+40), sg=Math.sign(dl);
+  for(let j=lo;j<=hi;j++){ const lp=-lam+j*Math.log(lam||1e-300)-lgam(j+1), lq=-lam+j*Math.log(lam||1e-300)-lgam(j+1.5)+Math.log(Math.abs(dl))-0.5*Math.LN2;
+    const pj=lam===0?(j===0?1:0):Math.exp(lp), qj=lam===0?0:Math.exp(lq);
+    s+=pj*ibetaPQ(j+0.5,b,x,y)[u]+sg*qj*ibetaPQ(j+1,b,x,y)[u]; }
+  return s; }
 function nctCdf(t,nu,dl){ if(!(nu>0)||Number.isNaN(t)||!Number.isFinite(dl)) return NaN; if(dl===0) return DIST.t.cdf(t,nu);
-  if(t===Infinity) return 1; if(t===-Infinity) return 0;
-  if(t<0) return 1-nctCdf(-t,nu,-dl);
-  const x=t*t/(t*t+nu), y=nu/(t*t+nu), lam=dl*dl/2, b=nu/2; let s=0;
-  if(x>0){ const mode=Math.floor(lam), lo=Math.max(0,Math.floor(mode-12*Math.sqrt(mode+1)-20)), hi=Math.ceil(mode+12*Math.sqrt(mode+1)+40), sg=Math.sign(dl);
-    for(let j=lo;j<=hi;j++){ const lp=-lam+j*Math.log(lam||1e-300)-lgam(j+1), lq=-lam+j*Math.log(lam||1e-300)-lgam(j+1.5)+Math.log(Math.abs(dl))-0.5*Math.LN2;
-      const pj=lam===0?(j===0?1:0):Math.exp(lp), qj=lam===0?0:Math.exp(lq);
-      s+=pj*ibetaPQ(j+0.5,b,x,y)[0]+sg*qj*ibetaPQ(j+1,b,x,y)[0]; } }
-  return Math.min(1,Math.max(0,DIST.norm.cdf(-dl)+s/2)); }
+  if(t===Infinity) return 1; if(t===-Infinity) return 0; if(t===0) return DIST.norm.cdf(-dl);
+  if(t<0) return nctSf(-t,nu,-dl);
+  return Math.min(1,Math.max(0,DIST.norm.cdf(-dl)+nctSum(t,nu,dl,0)/2)); }
+function nctSf(t,nu,dl){ if(!(nu>0)||Number.isNaN(t)||!Number.isFinite(dl)) return NaN; if(dl===0) return DIST.t.sf(t,nu);
+  if(t===Infinity) return 0; if(t===-Infinity) return 1; if(t===0) return DIST.norm.cdf(dl);
+  if(t<0) return nctCdf(-t,nu,-dl);
+  return Math.min(1,Math.max(0,nctSum(t,nu,dl,1)/2)); }
+/* The noncentral F and χ² (STATS_SPEC 2.11): each tail a Poisson mixture (mean λ/2) of the central ones, every term
+   positive, so both tails keep their relative digits. poisMix sums from the mode outwards each way and stops where the
+   weights left, bounded by their geometric tail, are under 1e-17 of the sum. */
+function poisMix(m,g){ if(!(m>0)) return g(0); const j0=Math.floor(m); let s=0;
+  for(let j=j0;;j++){ const w=dpoisRaw(j,m); if(w===0&&j>j0) break; s+=w*g(j); if(j>j0&&w/(1-m/(j+1))<=1e-17*s) break; }
+  for(let j=j0-1;j>=0;j--){ const w=dpoisRaw(j,m); if(w===0) break; s+=w*g(j); if(w/(1-j/m)<=1e-17*s) break; }
+  return s; }
+function ncfTail(x,d1,d2,lam,up){ if(!(d1>0&&d2>0&&lam>=0)||Number.isNaN(x)) return NaN; if(x<=0) return up?1:0; if(x===Infinity) return up?0:1;
+  const [X,Y]=fXY(x,d1,d2), u=up?1:0; return Math.min(1,poisMix(lam/2,j=>ibetaPQ(d1/2+j,d2/2,X,Y)[u])); }
+function ncx2Tail(x,k,lam,up){ if(!(k>0&&lam>=0)||Number.isNaN(x)) return NaN; if(x<=0) return up?1:0; if(x===Infinity) return up?0:1;
+  const u=up?1:0; return Math.min(1,poisMix(lam/2,j=>igamPQ(k/2+j,x/2)[u])); }
 /* ---- The studentized range and Dunnett's many-to-one t (STATS_SPEC 2.4) ---- */
 // Gauss–Legendre nodes and weights on [−1, 1], by Newton on the Legendre polynomial.
 function glNodes(k){ const xs=new Float64Array(k), ws=new Float64Array(k);
@@ -6219,6 +6239,13 @@ DIST.tukey={sf:tukeySf,cdf:(q,k,nu)=>1-tukeySf(q,k,nu),isf:tukeyIsf,ppf:(p,k,nu)
 /* ==STATS:END== */
 /* ==ANA:START== The analyses' kinds (ux/spec/FOUNDATION_SPEC.md, 1.3), pure: what each works out
    from its inputs' values. Loaded by the compute worker, which runs a large one (anaRunKind). */
+// A number written to sig significant digits (the page's and every kind's; here so that the worker has it too).
+function fmt(v,sig=5){
+  if(v==null||!Number.isFinite(v)) return "";
+  const a=Math.abs(v);
+  if(a!==0 && (a>=1e6||a<1e-4)) return v.toExponential(Math.max(sig-2,1)).replace("e+","e");
+  return String(parseFloat(v.toPrecision(sig)));
+}
 const anaNum=v=>v==null||!Number.isFinite(v)?null:v;
 /* R's nine sample quantiles (Hyndman and Fan, 1996), computed as R's quantile() does (its fuzz of
    4 ε at a position that is a whole number), and Tukey's hinges, on sorted values (STATS_SPEC 2.1).
@@ -7563,6 +7590,98 @@ ANA_KINDS.rm={label:"Repeated measures ANOVA", base:"RM ANOVA", cats:true, xs:tr
     const method=[`${r.n} subjects${D.grp?` in ${r.g} groups`:""}, ${r.c} cell${r.c===1?"":"s"} each; the univariate tests, each within effect against its own error.`,
       "Huynh–Feldt's ε as SPSS gives it, at most 1.",D.grp?"Type III sums of squares for the groups.":""].filter(Boolean).join(" ");
     return {tables:[{cols}],report:{sections:secs,method,resp:D.resp,profile:true},notes}; }};
+/* Power and sample size (STATS_SPEC 2.11): a test's power at a size, the smallest size reaching a power, and power against
+   size for a curve. o: {test, alpha, alt ("two" | "greater" | "less"), d and sd (t tests), r (the second group's size over
+   the first's), means (one-way ANOVA), p0, p1, p2 (proportions), v0, v1, v2 (variances), w and df (χ² test)}; a size is the
+   first group's, or each group's for an ANOVA, or N for a χ² test. t tests by the noncentral t, both tails; the ANOVA by the
+   noncentral F; one proportion by the exact binomial test Kurve runs (R's two-sided rule), summed over the counts it
+   rejects; two proportions by the pooled z's normal approximation; variances by χ² and F scaled by the ratio; a χ² test by
+   the noncentral χ² with λ = N w². */
+const POW_TESTS=[["t1","One-sample t test"],["tp","Paired t test"],["t2","Two-sample t test"],["anova","One-way ANOVA"],["p1","One proportion"],["p2","Two proportions"],["v1","One variance"],["v2","Two variances"],["chi2","χ² test"]];
+const POW_MAX=1e7, POW_EXACT=20000, POW_TWO=new Set(["t2","p2","v2"]);
+const powAlt=o=>o.test==="anova"||o.test==="chi2"?"greater":ANA_ALT[o.alt]?o.alt:"two";
+function powCheck(o){ const fin=v=>Number.isFinite(v), pr=v=>fin(v)&&v>0&&v<1, t=o.test;
+  if(!POW_TESTS.some(e=>e[0]===t)) return "Choose a test.";
+  if(!pr(o.alpha)) return "α is between 0 and 1.";
+  if(POW_TWO.has(t)&&!(fin(o.r)&&o.r>0)) return "The ratio of the sizes is above 0.";
+  if(t==="t1"||t==="tp"||t==="t2"){ if(!fin(o.d)) return "Type the difference to detect."; if(!(fin(o.sd)&&o.sd>0)) return "The SD is above 0."; }
+  if(t==="anova"){ if(!Array.isArray(o.means)||o.means.length<2||!o.means.every(fin)) return "Type two means or more."; if(!(fin(o.sd)&&o.sd>0)) return "The SD is above 0."; }
+  if(t==="p1"&&!(pr(o.p0)&&pr(o.p1))) return "The proportions are between 0 and 1.";
+  if(t==="p2"&&!(pr(o.p1)&&pr(o.p2))) return "The proportions are between 0 and 1.";
+  if(t==="v1"&&!(o.v0>0&&o.v1>0&&fin(o.v0)&&fin(o.v1))) return "The variances are above 0.";
+  if(t==="v2"&&!(o.v1>0&&o.v2>0&&fin(o.v1)&&fin(o.v2))) return "The variances are above 0.";
+  if(t==="chi2"){ if(!(fin(o.w)&&o.w>=0)) return "w is 0 or more."; if(!(Number.isInteger(o.df)&&o.df>=1)) return "df is a whole number of 1 or more."; }
+  return null; }
+/* the sizes of a design at n, or null where n is too small for the test */
+function powSizes(o,n){ const t=o.test; if(!Number.isInteger(n)) return null;
+  if(POW_TWO.has(t)){ const n2=Math.max(1,Math.ceil(o.r*n-1e-9)), lo=t==="p2"?1:2; return n>=lo&&n2>=(t==="v2"?2:1)&&(t!=="t2"||n+n2>=3)?{n1:n,n2,N:n+n2}:null; }
+  if(t==="anova") return n>=2?{n,N:o.means.length*n}:null;
+  return n>=(t==="p1"||t==="chi2"?1:2)?{n,N:n}:null; }
+function powMin(o){ for(let n=1;n<1e6;n++) if(powSizes(o,n)) return n; return null; }
+const powSS=o=>{ const k=o.means.length, m=neuSum(o.means)/k; return neuSum(o.means.map(v=>(v-m)*(v-m))); };
+/* the effect is nothing (power α at every size), or a one-sided alternative points away from it */
+function powNone(o){ const t=o.test, a=powAlt(o), sg=t==="t1"||t==="tp"||t==="t2"?o.d:t==="p1"?o.p1-o.p0:t==="p2"?o.p1-o.p2:t==="v1"?o.v1-o.v0:t==="v2"?o.v1-o.v2:t==="anova"?powSS(o):o.w;
+  return sg===0||a==="greater"&&sg<0||a==="less"&&sg>0; }
+function tPow(nu,dl,a,alt){ const N=DIST.nct; if(alt==="two"){ const c=DIST.t.isf(a/2,nu); return N.sf(c,nu,dl)+N.cdf(-c,nu,dl); }
+  const c=DIST.t.isf(a,nu); return alt==="greater"?N.sf(c,nu,dl):N.cdf(-c,nu,dl); }
+/* the exact binomial test's rejection region under p0 (R's binom.test), as its two tails' ends: P(X ≤ lo) + P(X ≥ hi) */
+function binomRegion(n,p0,a,alt){ const B=DIST.binom, pmf=x=>B.pmf(x,n,p0), sfK=k=>k<=0?1:k>n?0:B.sf(k-1,n,p0);
+  const bs=(lo,hi,ok)=>{ while(hi-lo>1){ const m=Math.floor((lo+hi)/2); if(ok(m)) hi=m; else lo=m; } return hi; }; /* the first in (lo, hi] where ok, ok rising */
+  if(alt==="greater") return {lo:-1,hi:bs(-1,n+1,k=>sfK(k)<=a)};
+  if(alt==="less") return {lo:bs(-2,n,k=>!(k>=0&&B.cdf(k,n,p0)<=a))-1,hi:n+1};
+  const m=n*p0, pv=x=>{ const d=pmf(x)*(1+1e-7);
+    if(x<m){ const j=bs(Math.ceil(m)-1,n+1,j=>j>n||pmf(j)<=d); return Math.min(1,B.cdf(x,n,p0)+(j<=n?B.sf(j-1,n,p0):0)); }
+    if(x>m){ const j=bs(-1,Math.floor(m)+1,j=>!(j>=0&&pmf(j)<=d))-1; return Math.min(1,(j>=0?B.cdf(j,n,p0):0)+sfK(x)); }
+    return 1; };
+  const top=Math.ceil(m)-1, lo=bs(-2,top+1,x=>!(x>=0&&x<=top&&pv(x)<=a))-1, bot=Math.floor(m)+1, hi=bs(bot-1,n+1,x=>x>n||pv(x)<=a);
+  return {lo:Math.min(lo,top),hi}; }
+/* the power at n: {pw, ncp?} with the sizes, or null where n is too small */
+function powerAt(o,n){ const z=powSizes(o,n); if(!z) return null; const t=o.test, a=o.alpha, alt=powAlt(o), r=Object.assign({},z);
+  if(t==="t1"||t==="tp"){ r.ncp=o.d/o.sd*Math.sqrt(n); r.pw=tPow(n-1,r.ncp,a,alt); }
+  else if(t==="t2"){ r.ncp=o.d/o.sd*Math.sqrt(z.n1*z.n2/z.N); r.pw=tPow(z.N-2,r.ncp,a,alt); }
+  else if(t==="anova"){ const k=o.means.length, d1=k-1, d2=k*(n-1); r.ncp=n*powSS(o)/(o.sd*o.sd); r.pw=DIST.ncf.sf(DIST.F.isf(a,d1,d2),d1,d2,r.ncp); }
+  else if(t==="chi2"){ r.ncp=n*o.w*o.w; r.pw=DIST.ncx2.sf(DIST.chi2.isf(a,o.df),o.df,r.ncp); }
+  else if(t==="p1"){ const g=binomRegion(n,o.p0,a,alt), B=DIST.binom; r.pw=(g.lo>=0?B.cdf(g.lo,n,o.p1):0)+(g.hi<=n?(g.hi<=0?1:B.sf(g.hi-1,n,o.p1)):0); }
+  else if(t==="p2"){ const {n1,n2}=z, pb=(n1*o.p1+n2*o.p2)/(n1+n2), s0=Math.sqrt(pb*(1-pb)*(1/n1+1/n2)), s1=Math.sqrt(o.p1*(1-o.p1)/n1+o.p2*(1-o.p2)/n2), dd=o.p1-o.p2, P=DIST.norm.cdf;
+    const c=DIST.norm.isf(alt==="two"?a/2:a); r.pw=alt==="two"?P((dd-c*s0)/s1)+P((-dd-c*s0)/s1):alt==="greater"?P((dd-c*s0)/s1):P((-dd-c*s0)/s1); }
+  else { const X=t==="v1"?DIST.chi2:DIST.F, df=t==="v1"?[n-1]:[z.n1-1,z.n2-1], q=t==="v1"?o.v1/o.v0:o.v1/o.v2;
+    r.pw=alt==="two"?X.cdf(X.ppf(a/2,...df)/q,...df)+X.sf(X.isf(a/2,...df)/q,...df):alt==="greater"?X.sf(X.isf(a,...df)/q,...df):X.cdf(X.ppf(a,...df)/q,...df); }
+  r.pw=Math.min(1,Math.max(0,r.pw)); return r; }
+/* the smallest size whose power reaches the target: doubling then halving where power rises with the size; for the exact
+   binomial test, whose power saws up and down, every size in turn to POW_EXACT */
+function powSize(o,target){ const n0=powMin(o); if(n0==null) return {fail:"No size suits these settings."};
+  if(!(target>0&&target<1)) return {fail:"A power is between 0 and 1."};
+  const at=n=>powerAt(o,n), ok=n=>at(n).pw>=target;
+  if(ok(n0)) return at(n0);
+  if(powNone(o)) return {fail:`A power of ${target} is not reached at any size: the power stays at α or below.`};
+  if(o.test==="p1"){ for(let n=n0+1;n<=POW_EXACT;n++) if(ok(n)) return at(n); return {fail:`A power of ${target} is not reached by ${POW_EXACT} trials (the exact test is searched no further).`}; }
+  let lo=n0, hi=Math.max(n0+1,2*n0); while(!ok(hi)){ lo=hi; hi*=2; if(hi>POW_MAX) return {fail:`A power of ${target} is not reached by ${POW_MAX} (the search goes no further).`}; }
+  while(hi-lo>1){ const m=Math.floor((lo+hi)/2); if(ok(m)) hi=m; else lo=m; } return at(hi); }
+/* power against size for a curve: every size from the smallest to nmax, or 200 of them */
+function powCurve(o,nmax){ const n0=powMin(o); if(n0==null) return []; nmax=Math.max(n0+1,Math.min(nmax,o.test==="p1"?POW_EXACT:POW_MAX)); const ns=[];
+  if(nmax-n0<200) for(let n=n0;n<=nmax;n++) ns.push(n); else for(let i=0;i<200;i++){ const n=Math.round(n0+(nmax-n0)*i/199); if(n!==ns[ns.length-1]) ns.push(n); }
+  return ns.map(n=>{ const r=powerAt(o,n); return r?{n:r.N!=null&&o.test==="chi2"?r.N:n,pw:r.pw}:null; }).filter(Boolean); }
+ANA_KINDS.power={label:"Power and sample size", base:"Power", typed:true, typedWhat:"the settings typed",
+  help:"The power of a t test, a one-way ANOVA, a test of proportions, of variances or a χ² test at the sizes typed, or the smallest size reaching a power, with a curve of power against size.",
+  run(ins,p){ p=p||{}; const o={test:p.test,alpha:+p.alpha,alt:p.alt,d:+p.d,sd:+p.sd,r:p.r==null?1:+p.r,means:Array.isArray(p.means)?p.means.map(Number):null,p0:+p.p0,p1:+p.p1,p2:+p.p2,v0:+p.v0,v1:+p.v1,v2:+p.v2,w:+p.w,df:+p.df};
+    const bad=powCheck(o); if(bad) return {fail:bad}; const t=o.test, size=p.find==="size", alt=powAlt(o), cols=[], secs=[], notes=[];
+    const list=(size?p.powers:p.sizes)||[]; if(!Array.isArray(list)||!list.length) return {fail:size?"Type one power or more.":"Type one size or more."};
+    const rows=[]; for(const v of list){ const x=+v;
+      if(size){ const r=powSize(o,x); if(r.fail) return {fail:r.fail}; rows.push(Object.assign({tgt:x},r)); }
+      else { if(!Number.isInteger(x)) return {fail:"Sizes are whole numbers."}; const r=powerAt(o,x); if(!r) return {fail:`A size of ${x} is too small for this test.`}; rows.push(r); } }
+    const two=POW_TWO.has(t), nName=t==="anova"?"n per group":t==="chi2"?"N":t==="tp"?"Pairs":two?"n₁":"n";
+    const spec=(size?[["tgt","Target power"]]:[]).concat(t==="chi2"?[["n","N"]]:[["n"+(two?"1":""),nName]],two?[["n2","n₂"],["N","N"]]:t==="anova"?[["N","N"]]:[],
+      rows[0].ncp!=null?[["ncp","Noncentrality"]]:[],[["pw","Power"]]);
+    anaTab(size?"Size for a power":"Power",spec,rows,cols,secs);
+    const eff=t==="t1"||t==="tp"||t==="t2"?[["Cohen's d",o.d/o.sd]]:t==="anova"?[["Cohen's f",Math.sqrt(powSS(o)/o.means.length)/o.sd]]:t==="v1"?[["σ²/σ₀²",o.v1/o.v0]]:t==="v2"?[["σ₁²/σ₂²",o.v1/o.v2]]:t==="chi2"?[["w",o.w]]:[];
+    if(eff.length) anaTab("Effect size",[["k",""],["v","Value"]],eff.map(([k,v])=>({k,v})),[],secs);
+    const nmax=Math.max(...rows.map(r=>t==="chi2"?r.N:r.n1||r.n)), cv=powCurve(o,Math.max(Math.ceil(1.5*nmax),(powMin(o)||1)+10));
+    cols.push({k:"cn",name:nName,role:"x",vals:cv.map(q=>q.n)},{k:"cp",name:"Power",role:"y",vals:cv.map(q=>q.pw)});
+    const how={t1:"the noncentral t",tp:"the noncentral t on the differences",t2:"the noncentral t, the variances equal",anova:"the noncentral F",
+      p1:"the exact binomial test (R's two-sided rule), summed over the counts it rejects",p2:"the pooled z, its normal approximation",
+      v1:"χ² scaled by the ratio of the variances, equal tails",v2:"F scaled by the ratio of the variances, equal tails",chi2:`the noncentral χ² with ${o.df} df, λ = N w²`}[t];
+    if(two&&o.r!==1) notes.push(`The second group's size is ${fmt(o.r,6)} times the first's, rounded up.`);
+    return {tables:[{cols}],report:{sections:secs,method:`${POW_TESTS.find(e=>e[0]===t)[1]}: ${how}. ${t==="anova"||t==="chi2"?"":ANA_ALT[alt]+", "}α = ${fmt(o.alpha,6)}.`,power:true},notes}; }};
 // A kind run by name: the page's call, and the worker's ("call" job).
 function anaRunKind(kind,ins,p){ const K=ANA_KINDS[kind]; if(!K) throw new Error("the analysis "+kind+" is not known here"); return K.run(ins,p||{}); }
 /* ==ANA:END== */
@@ -7571,12 +7690,6 @@ function anaRunKind(kind,ins,p){ const K=ANA_KINDS[kind]; if(!K) throw new Error
    Formatting helpers
    ============================================================ */
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-function fmt(v,sig=5){
-  if(v==null||!Number.isFinite(v)) return "";
-  const a=Math.abs(v);
-  if(a!==0 && (a>=1e6||a<1e-4)) return v.toExponential(Math.max(sig-2,1)).replace("e+","e");
-  return String(parseFloat(v.toPrecision(sig)));
-}
 function fmtPM(v,e){
   if(!Number.isFinite(v)) return "—";
   if(e===null||Number.isNaN(e)) return `${fmt(v,6)} ± <span class="noerr" title="The covariance matrix is singular, so this uncertainty could not be computed">unknown</span>`;
@@ -16537,6 +16650,30 @@ const ANA_FORMS={
       <div class="grid2">${altSel(p.alt)}${confSel(p)}</div>`; },
     read(v){ return {a:+v.aFa,b:+v.aFb,c:+v.aFc,d:+v.aFd,alt:ANA_ALT[v.aAlt]?v.aAlt:"two",conf:+v.aCf||0.95}; },
     valid(v){ return ["aFa","aFb","aFc","aFd"].every(k=>/^\d+$/.test(String(v[k]||"").trim())); }},
+  power:{html(p){ const n=(id,val,lab,tip)=>`<label for="${id}"${tip?` class="tipd" title="${esc(tip)}"`:""}>${lab}</label><input type="text" id="${id}" inputmode="decimal" value="${esc(val==null?"":Array.isArray(val)?val.join(" "):String(val))}">`;
+      const t=p.test||"t2", size=p.find==="size";
+      return `<div class="grid2 powdlg"><label for="aWt">Test</label><select id="aWt">${POW_TESTS.map(([k,nm])=>`<option value="${k}"${k===t?" selected":""}>${esc(nm)}</option>`).join("")}</select>
+      <label for="aWf">Find</label><select id="aWf"><option value="pw">Power at sizes</option><option value="size"${size?" selected":""}>Size for a power</option></select>
+      ${n("aWn",p.sizes||[20,50],"Sizes","Whole numbers, separated by spaces: each group's size (the first group's for two), or N for a χ² test")}
+      ${n("aWp",p.powers||[0.8],"Powers","Between 0 and 1, separated by spaces")}
+      ${n("aWa",p.alpha==null?0.05:p.alpha,"α")}${altSel(p.alt)}
+      ${n("aWd",p.d==null?0.5:p.d,"Difference","The difference of the means to detect, in the data's units")}${n("aWsd",p.sd==null?1:p.sd,"SD","The standard deviation: of the values, of the differences for a paired test")}
+      ${n("aWm",p.means||[1,1.5,2],"Means","Each group's mean, separated by spaces")}
+      ${n("aWp0",p.p0==null?0.5:p.p0,"Tested against")}${n("aWp1",p.p1==null?0.65:p.p1,"Proportion")}${n("aWp2",p.p2==null?0.5:p.p2,"Proportion₂")}
+      ${n("aWv0",p.v0==null?1:p.v0,"Tested against")}${n("aWv1",p.v1==null?2:p.v1,"Variance")}${n("aWv2",p.v2==null?1:p.v2,"Variance₂")}
+      ${n("aWw",p.w==null?0.3:p.w,"w","Cohen's effect size for a χ² test")}${n("aWdf",p.df==null?1:p.df,"df")}
+      ${n("aWr",p.r==null?1:p.r,"Ratio n₂/n₁","The second group's size over the first's")}</div>`; },
+    wire(box){ const sh=(id,b)=>{ const el=box.querySelector("#"+id); if(!el) return; el.hidden=!b; const l=box.querySelector(`label[for="${id}"]`); if(l) l.hidden=!b; return l; };
+      const on=()=>{ const t=(box.querySelector("#aWt")||{}).value, size=(box.querySelector("#aWf")||{}).value==="size", tt=t==="t1"||t==="tp"||t==="t2";
+        sh("aWn",!size); sh("aWp",size); sh("aAlt",t!=="anova"&&t!=="chi2"); sh("aWd",tt); sh("aWsd",tt||t==="anova"); sh("aWm",t==="anova");
+        sh("aWp0",t==="p1"); const l1=sh("aWp1",t==="p1"||t==="p2"); if(l1) l1.textContent=t==="p2"?"Proportion₁":"Proportion"; sh("aWp2",t==="p2");
+        sh("aWv0",t==="v1"); const l2=sh("aWv1",t==="v1"||t==="v2"); if(l2) l2.textContent=t==="v2"?"Variance₁":"Variance"; sh("aWv2",t==="v2");
+        sh("aWw",t==="chi2"); sh("aWdf",t==="chi2"); sh("aWr",POW_TWO.has(t)); };
+      box.addEventListener("change",on); on(); },
+    read(v){ const num=s=>+String(s==null?"":s).trim().replace(",","."), list=s=>parseFillList(s).vals;
+      return {test:v.aWt,find:v.aWf==="size"?"size":"pw",sizes:list(v.aWn),powers:list(v.aWp),alpha:num(v.aWa),alt:ANA_ALT[v.aAlt]?v.aAlt:"two",d:num(v.aWd),sd:num(v.aWsd),means:list(v.aWm),
+        p0:num(v.aWp0),p1:num(v.aWp1),p2:num(v.aWp2),v0:num(v.aWv0),v1:num(v.aWv1),v2:num(v.aWv2),w:num(v.aWw),df:num(v.aWdf),r:num(v.aWr)}; },
+    valid(v){ const L=s=>{ const r=parseFillList(s); return r.vals.length>0&&!r.bad.length; }; return v.aWf==="size"?L(v.aWp):L(v.aWn); }},
   mw:{html(p){ return `<div class="grid2">${altSel(p.alt)}${confSel(p)}${npExHtml(p)}</div><p class="lab">The first two columns ticked, or one column grouped into two.</p>`; },
     read(v){ return {alt:ANA_ALT[v.aAlt]?v.aAlt:"two",conf:+v.aCf||0.95,exact:v.aEx||"auto"}; }},
   wsr:{html(p){ return `<div class="grid2">${npTypeHtml(p)}<label for="aZ" class="tipd" title="Differences of zero: dropped before ranking (Wilcoxon's), or ranked with the others and then dropped (Pratt's)">Zeros</label><select id="aZ"><option value="wilcox">Dropped (Wilcoxon)</option><option value="pratt"${p.zero==="pratt"?" selected":""}>Ranked, then dropped (Pratt)</option></select>
@@ -16683,10 +16820,10 @@ async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kin
   const used=new Set(ana.map(x=>x.name).concat(sheetList(q).map(s=>s.name))); let n=1; while(used.has(`${K.base} ${n}`)) n++;
   const name=`${K.base} ${n}`, sh={id:newSheetId(),name}, a={id:newAnaId(),kind,name,in:inp,p:kp,out:{sheet:sh.id},recalc:v.aRc==="manual"?"manual":"auto",at:Date.now(),by:who()};
   sh.ana=a.id; const ss=sheetList(q).concat([sh]); q.sheets=ss; ana.push(a); runAna(a,q);
-  save({ana,sheets:ss,cols:q.cols},`worked out ${name} (${K.label.toLowerCase()}) of ${K.typed?"the counts typed":andList(cols.map(id=>colRef(colById(id))))}`);
+  save({ana,sheets:ss,cols:q.cols},`worked out ${name} (${K.label.toLowerCase()}) of ${K.typed?(K.typedWhat||"the counts typed"):andList(cols.map(id=>colRef(colById(id))))}`);
   showSheet(sh.id,{quiet:true}); const a1=anaOf(a.id);
   if(a1&&a1.res&&a1.res.err) toast(`${name} could not be worked out: ${a1.res.err}.`,{action:"Change settings…",run:()=>anaDlg(kind,{id:a.id})});
-  else toast(`${name}: the results of ${K.typed?"the counts typed":andList(cols.map(id=>specName(colById(id))))}, on a sheet of their own.`,{action:"Undo",run:undo}); }
+  else toast(`${name}: the results of ${K.typed?(K.typedWhat||"the counts typed"):andList(cols.map(id=>specName(colById(id))))}, on a sheet of their own.`,{action:"Undo",run:undo}); }
 /* A graphical summary (STATS_SPEC 2.1): a figure of the column's histogram with a normal curve over
    it (its legend the mean and SD) and its box chart (its tooltip N, the median and quartiles), made
    from the plots that follow the processing. One undo step. */
@@ -16715,6 +16852,7 @@ function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&
   if(a.kind==="anovan") return [{key:"inter",label:"Interaction plot",title:"The cells' means by the first factor, a line for each level of the second, with their intervals, on a graph",enabled:!ro,run:()=>anaInterPlot(a.id)},
     {key:"mains",label:"Main effects plot",title:"Each factor's means with their intervals, a graph each, in a figure",enabled:!ro,run:()=>anaMainsPlot(a.id)}];
   if(a.kind==="rm") return [{key:"profile",label:"Profile plot",title:"The cells' means across the first within factor's levels, a line for each level of the second or each group, with their standard errors, on a graph",enabled:!ro,run:()=>anaInterPlot(a.id)}];
+  if(a.kind==="power") return [{key:"curve",label:"Power curve",title:"Power against size, on a graph",enabled:!ro,run:()=>anaPowerPlot(a.id)}];
   if(a.kind==="anova1") return [{key:"means",label:"Means plot",title:"Each group's mean with its interval, on a graph",enabled:!ro,run:()=>anaMeansPlot(a.id)}];
   if(a.kind==="norm") return [{key:"qq",label:"Q–Q plot",title:"The sorted values against the normal quantiles, with the line through their quartiles, on a graph",enabled:!ro&&rep.qq>0,run:()=>anaQQ(a.id)}];
   if(a.kind==="outl"){ const w=`The ${n===1?"value":n+" values"} past the critical value`;
@@ -16738,6 +16876,9 @@ function anaScatter(id){ const a0=anaOf(id); if(!a0||!P()||S.readOnly) return;
   if(gids.length>1) makeFigure(gids,{noUndo:true,quiet:true,cols:Math.min(3,gids.length),log:`put the scatter matrix of ${a0.name} in a figure`});
   toast(`The scatter matrix of ${a0.name}.`,{action:"Undo",run:undo}); }
 // A means plot: the groups' means as symbols joined by a line, their intervals as error bars, the groups along X.
+function anaPowerPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const y=p.cols.find(c=>c.ana===id&&c.ak==="cp");
+  if(!y){ toast("There is no power curve to draw: Recalculate first."); return; }
+  plotCols([y.id],{series:{[y.id]:{type:"line"}},undo:"plotting a power curve",say:`Power curve of ${a.name}`}); }
 function anaMeansPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const y=p.cols.find(c=>c.ana===id&&c.ak==="gmean");
   if(!y){ toast("There is no means plot to draw: Recalculate first."); return; }
   plotCols([y.id],{series:{[y.id]:{type:"linesym"}},undo:"plotting a means plot",say:`Means plot of ${a.name}`}); }
@@ -16813,7 +16954,7 @@ function anaReport(id){ const a=anaOf(id); if(!a) return; S.resAna=id; openWin("
 function anaText(a){ const rep=a.res&&a.res.report; if(!rep) return a.name+"\n"+((a.res&&a.res.err)||"Not worked out yet.");
   const out=[a.name]; rep.sections.forEach(s=>{ out.push("",s.title); (s.tables||[]).forEach(t=>{ out.push(t.head.join("\t")); t.rows.forEach(r=>out.push(r.map(v=>v==null?"":typeof v==="number"?String(v):String(v).replace(/[\t\r\n]+/g," ")).join("\t"))); }); });
   if(rep.method) out.push("# "+rep.method); (rep.notes||[]).forEach(n=>out.push("# "+n)); const st=anaStale(a); if(st) out.splice(1,0,"# Out of date: "+st);
-  if(ANA_KINDS[a.kind].typed) out.push("# From the counts typed: "+JSON.stringify(a.p)); else out.push("# Reads: "+(a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colRef(c)} ${c.name||""}`.trim()+(t?` (${t})`:""); }).join("; "));
+  if(ANA_KINDS[a.kind].typed) out.push("# From "+(ANA_KINDS[a.kind].typedWhat||"the counts typed")+": "+JSON.stringify(a.p)); else out.push("# Reads: "+(a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colRef(c)} ${c.name||""}`.trim()+(t?` (${t})`:""); }).join("; "));
   return out.join("\n"); }
 // The exported report: a section per analysis, its tables, notes, what it read and how it recalculates.
 function reportAnaHtml(){ const as=anaList(); if(!as.length) return ""; const e2=t=>esc(String(t));
@@ -16822,7 +16963,7 @@ function reportAnaHtml(){ const as=anaList(); if(!as.length) return ""; const e2
     if(!rep) return h+"<p>"+e2((a.res&&a.res.err)||"Not worked out yet.")+"</p>";
     rep.sections.forEach(s=>{ (s.tables||[]).forEach(t=>{ h+="<table><thead><tr>"+t.head.map(x=>"<th>"+e2(x)+"</th>").join("")+"</tr></thead><tbody>"+t.rows.map(r=>"<tr>"+r.map(v=>typeof v==="number"?"<td>"+e2(fmt(v,7))+"</td>":"<td class=\"l\">"+e2(v==null?"":v)+"</td>").join("")+"</tr>").join("")+"</tbody></table>"; }); });
     if(rep.method) h+="<p>"+e2(rep.method)+"</p>"; (rep.notes||[]).forEach(n=>{ h+="<p>"+e2(n)+"</p>"; });
-    if(ANA_KINDS[a.kind].typed) h+="<p>From the counts typed.</p>"; else h+="<p>Reads "+e2(andList((a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colRef(c)} ${c.name||""}`.trim()+(t?" ("+t+")":""); })))+(a.in.by&&colById(a.in.by)?", grouped by "+e2(colById(a.in.by).name||colRef(colById(a.in.by))):"")+(a.in.masked?", masked points included":"")+"; "+(a.recalc==="auto"?"worked out again whenever its data change":"worked out only when asked")+(a.at?", last on "+e2(new Date(a.at).toISOString().slice(0,16).replace("T"," "))+" UTC":"")+".</p>";
+    if(ANA_KINDS[a.kind].typed) h+="<p>From "+(ANA_KINDS[a.kind].typedWhat||"the counts typed")+".</p>"; else h+="<p>Reads "+e2(andList((a.in.cols||[]).map(id=>{ const c=colById(id); if(!c) return "a deleted column"; const t=anaReadText(c,(a.in.read||{})[id]); return `${colRef(c)} ${c.name||""}`.trim()+(t?" ("+t+")":""); })))+(a.in.by&&colById(a.in.by)?", grouped by "+e2(colById(a.in.by).name||colRef(colById(a.in.by))):"")+(a.in.masked?", masked points included":"")+"; "+(a.recalc==="auto"?"worked out again whenever its data change":"worked out only when asked")+(a.at?", last on "+e2(new Date(a.at).toISOString().slice(0,16).replace("T"," "))+" UTC":"")+".</p>";
     return h; }).join(""); }
 // What storage gives back: analyses of a kind Kurve has, with ids, inputs and a sheet; columns and
 // sheets naming an analysis that is not there become ordinary ones.
@@ -22652,6 +22793,7 @@ function analyzeMenu(){
         {label:"Fisher's exact test…", title:ANA_KINDS.fisher.help, run:()=>anaDlg("fisher"), enabled:!S.readOnly&&!!P()},
         {label:"Counts in tables…", title:ANA_KINDS.xtab.help, run:()=>anaDlg("xtab",{two:true}), enabled:!S.readOnly&&!!P()}]},
       {label:"Correlation…", title:ANA_KINDS.corr.help, run:()=>anaDlg("corr",{two:true}), enabled:!S.readOnly&&!!P()},
+      {label:"Power and sample size…", title:ANA_KINDS.power.help, run:()=>anaDlg("power"), enabled:!S.readOnly&&!!P()},
       {label:"Histogram", title:"The distribution of the selected columns' values (or the active column's), as a column of its own on a graph of its own", run:()=>histogramCols(hist()), enabled:has&&!S.readOnly}]},
     {label:"Spectroscopy", sub:spectroscopyItems},
     "-",
@@ -25334,7 +25476,7 @@ ${DL([["Area ± error","The trapezoidal sum over the points in the window, less 
 ${DL([["Net counts","The counts in the window less the continuum under them: a straight line through the mean of the channels at each edge (as many as the line baselines use). ± one standard deviation from counting: the counts' own and the continuum's."],["Detected","Above Currie's critical level, 95 %: on a continuum alone, one window in twenty is called detected. Below it, the level is shown."],["Emission, efficiency","Type the share of decays that give the line and the detector's efficiency at its energy, both in %."],["Activity","Net counts ÷ (live time × efficiency × emission), in becquerel, with the counting error. Not detected: the detection limit as an activity, the smallest that would be."]])}
 <p>Counting needs the counts as recorded: an energy calibration, a count rate or a crop keep them; smoothing or a subtracted background do not, and the part says so.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
-{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v linear model general linear model glm regression multiple regression ancova covariate factor interaction polynomial treatment coding effect coding type i type ii type iii sums of squares contrast estimable aliased qr two-way anova three-way anova factorial anova interaction plot main effects plot marginal means least squares means lsmeans emmeans simple effects partial eta squared repeated measures rm anova within subjects between subjects mixed anova split-plot sphericity mauchly greenhouse-geisser greenhouse geisser huynh-feldt huynh feldt epsilon profile plot wide long subject",
+{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v linear model general linear model glm regression multiple regression ancova covariate factor interaction polynomial treatment coding effect coding type i type ii type iii sums of squares contrast estimable aliased qr two-way anova three-way anova factorial anova interaction plot main effects plot marginal means least squares means lsmeans emmeans simple effects partial eta squared repeated measures rm anova within subjects between subjects mixed anova split-plot sphericity mauchly greenhouse-geisser greenhouse geisser huynh-feldt huynh feldt epsilon profile plot wide long subject power sample size power analysis how many samples effect size cohen d cohen f cohen w noncentral t noncentral f noncentral chi-square g*power pss",
  lead:"An analysis reads columns and writes what it finds into a result sheet of its own, worked out again when its data change.",
  body:`<h2>Statistics on columns</h2>
 <p>${MP("Analyze › Statistics › Descriptive › Statistics on columns…")}: tick the columns and the statistics, and each column gets a row of a new sheet. Ticked at first are N, the rows missing, mean, standard deviation, standard error of the mean, minimum, Q1, median, Q3, maximum and sum; besides them, the mean's interval, variance, coefficient of variation, range, IQR, MAD, robust SD, the mode and its count, skewness, kurtosis, the geometric and harmonic means, and any percentiles typed (<code>5, 95</code>). <em>Group by</em> a column of text or categories gives a row for each column and group.</p>
@@ -25368,6 +25510,10 @@ ${DL([["Analysis of variance","Each term's df, sum of squares (type III unless s
 <p>${MP("Analyze › Statistics › ANOVA › Repeated measures ANOVA…")}: each subject measured under every condition. <em>Data</em> Wide: the columns ticked are the conditions, a row a subject; with two factors within subjects (<em>Factors within</em>), the columns are their cells, the first factor's levels outermost; <em>Between (group by)</em> a factor between subjects. Long: a row a measurement, the columns chosen for the response, the subject, one or two factors within and one between; a subject's several values in a cell are averaged, a subject missing a cell is left out.</p>
 ${DL([["Within subjects","Each within effect (and its interaction with the between factor) against its own error: df, sum of squares, F, p."],["Sphericity corrections","Greenhouse–Geisser's ε and Huynh–Feldt's (as SPSS gives it, at most 1), each multiplying both df, and the p they give; the lower bound 1/df on the result sheet."],["Mauchly's test","W, χ², df and p, for each effect with three levels or more."],["Between subjects","The between factor's F against the subjects' error; with none, the subjects' sum of squares."],["Means of the cells","Each cell's mean, SD and N (each group's)."],["Comparisons","Paired t tests of each within factor's levels (each subject's mean over the other factor), p adjusted by Bonferroni or Holm."]])}
 <p><em>Profile plot</em> (under the report) graphs the cells' means against the first factor's levels, a line for each level of the second (or each group), with their standard errors.</p>
+<h2 id="power">Power and sample size</h2>
+<p>${MP("Analyze › Statistics › Power and sample size…")}: no columns, the settings typed. <em>Find</em> the power at the sizes typed, or the smallest size reaching each power typed. A size is each group's (the first group's for two groups, the second's being <em>Ratio n₂/n₁</em> times it, rounded up), or N for a χ² test.</p>
+${DL([["t tests","Difference and SD (of the differences for paired): the noncentral t, both tails for a two-sided test; the variances equal for two samples. Cohen's d is the difference over the SD."],["One-way ANOVA","Each group's mean and the SD: the noncentral F with λ = n Σ(μᵢ − μ̄)²/σ². Cohen's f is the means' SD over σ."],["One proportion","The exact binomial test Kurve runs (R's two-sided rule): the probability, at the proportion typed, of the counts it rejects. Its power rises and falls with the size."],["Two proportions","The pooled z, by its normal approximation."],["Variances","One against a value by χ², two by F, each scaled by the ratio of the variances; equal tails."],["χ² test","Cohen's w and df: the noncentral χ² with λ = N w²."]])}
+<p>The result sheet holds the table and the curve's columns; <em>Power curve</em> (under the report) graphs power against size.</p>
 <h2 id="lm">Linear model</h2>
 <p>${MP("Analyze › Statistics › ANOVA › Linear model…")}: a <em>Response</em> among the columns ticked, modelled by the others, over the rows with a value in every one. A column of numbers is a variable unless ticked under <em>Factors</em>; a column of text, or a categorical one, is a factor, each level an effect of its own.</p>
 ${DL([["Interactions","None; every pair of the columns; or every combination (A:B, A:C, B:C, A:B:C…). A factor in an interaction gives a column for each pair of its levels and the other's."],["Powers up to","Each number column's square, cube… as terms of their own (x^2, x^3), for a polynomial."],["Factor coding","Treatment: a coefficient for each level but the first, its difference from the first. Effect: a coefficient for each level but the last, its difference from the mean of the levels."],["Sums of squares","Type I: each term after those listed before it. Type II: each term after every other that does not contain it. Type III: each term after all the others, with effect coding (as SAS and Origin)."],["Contrasts","One a line, a sum of coefficients by the names the table gives them, each with a number before it if needed: <code>A[b] − A[c]</code>, <code>x + 2 x^2</code>, <code>A[b] = 1</code>. Its estimate, standard error, t, p and interval; refused where the data cannot separate it (a combination of aliased columns)."],["Fitted values and residuals","Three columns on the result sheet: the row, the fitted value and the residual."]])}

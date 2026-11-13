@@ -898,6 +898,15 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-13: power and sample size (STATS_SPEC 2.11)
+
+- **An analysis with no columns**: the settings typed, as Proportions and Fisher's test are; its result sheet holds the table
+  and the curve's columns, so the curve is a graph like any other.
+- **Power at sizes, or the size for a power, in one dialog**: the fields a test needs are shown, the others hidden; several
+  sizes or powers at once, separated by spaces.
+- **The test Kurve runs**: one proportion's power is the exact binomial test's (the one under Hypothesis tests), not a normal
+  approximation of it, so the number matches what the test will do.
+
 ### 2026-11-13: repeated measures (STATS_SPEC 2.7)
 
 - **Wide or long, one dialog**: wide data (a column a condition) is the common case and needs only the columns ticked;

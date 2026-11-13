@@ -1196,6 +1196,21 @@ graph first, with the taskbar kept at the bottom of the screen.
   `#aRw2`, `#aRb`, `#aRq` (the subject the text column with most levels, the within factor the next); the report's *Profile
   plot* (`anaInterPlot`); Analyze › Statistics › ANOVA › Repeated measures ANOVA…. `anaDlg` wires a kind's form on the
   dialog's own `.anadlg`, so no listener outlives its dialog.
+  **Power and sample size** (STATS_SPEC 2.11): in STATS, `poisMix(m, g)` (Σ Pois(j; m)·g(j) from the mode out, stopping
+  where the weights' geometric tail is under 1e-17 of the sum), `ncfTail`, `ncx2Tail` (`DIST.ncf`, `DIST.ncx2`: `cdf`, `sf`, each
+  a mixture of positive terms, so both tails keep their relative digits), `nctSum`, `nctSf` (`DIST.nct.sf`: the upper tail
+  as Guenther's sum of upper incomplete betas, positive for δ ≥ 0; `nctCdf` of t < 0 is it at −t, −δ). In ANA, `fmt` (moved
+  into the block so the worker and `run.mjs` have it), `POW_TESTS` (t1, tp, t2, anova, p1, p2, v1, v2, chi2), `POW_MAX`,
+  `POW_EXACT` (20 000), `POW_TWO`, `powAlt`, `powCheck(o)` (a refusal in words or null), `powSizes(o, n)` (`{n | n1, n2, N}` or
+  null), `powMin`, `powSS`, `powNone` (no effect, or a one-sided alternative pointing away), `tPow`, `binomRegion(n, p0, a,
+  alt)` (the exact test's rejection region by R's rule, by bisection), `powerAt(o, n)` (`{pw, ncp?}` with the sizes),
+  `powSize(o, target)` (doubling and halving; the exact test every size in turn), `powCurve(o, nmax)` (200 sizes at most).
+  Kind `power` (`typed`, `typedWhat` "the settings typed": `p.test`, `find` "pw" | "size", `sizes`, `powers`, `alpha`, `alt`,
+  `d`, `sd`, `r`, `means`, `p0`, `p1`, `p2`, `v0`, `v1`, `v2`, `w`, `df`; sections Power or Size for a power, Effect size; the
+  sheet the table and the curve's `cn` (X), `cp`; `report.power`), form `#aWt`, `#aWf`, `#aWn`, `#aWp`, `#aWa`, `#aAlt`,
+  `#aWd`, `#aWsd`, `#aWm`, `#aWp0`, `#aWp1`, `#aWp2`, `#aWv0`, `#aWv1`, `#aWv2`, `#aWw`, `#aWdf`, `#aWr` (shown per test);
+  the report's *Power curve* (`anaPowerPlot`); Analyze › Statistics › Power and sample size…. A typed kind's `typedWhat` is
+  what the toast, the log, the copied report and the exported one say it read.
   `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
   (rationals), shared by the fixtures (`desc.json`) and the fuzzer (`quantileType`, `descStats@<key>`, which
   `run.mjs` reads as one field of the result).
@@ -3130,7 +3145,9 @@ lmContrast, rows left out said, an empty cell's coefficient named, a response of
 (the table, partial η², the means and cells against lmEst, Tukey and Bonferroni, simple effects, the interaction plot and its
 undo, the main effects figure, three factors, one refused, a reload), and 2.7 (wide with a group and two within
 factors against rmAnova, long with a subject missing a value, the defaults of the subject and within factor, Holm's paired t,
-the profile plot, a refusal, a reload, no id twice in any kind's dialog).
+the profile plot, a refusal, a reload, no id twice in any kind's dialog), and 2.11 (the fields shown per test, the power at
+sizes and the size for a power against powerAt, Cohen's d, the power curve and its undo, the exact binomial test, a refusal, a
+reload); `ONLY=2.11` runs one section.
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
@@ -3147,7 +3164,9 @@ enumeration, a shift, a scale and a monotone change, each test's size, Fisher's 
 (the F tests' size, the intervals' coverage, a shift, a scale, the rows' order, codings and types agreeing, a contrast, refusals), and 2.6's
 (a balanced design's estimated means the plain ones, Tukey's family-wise error, simple effects' size, an empty cell, refusals), and 2.7's
 (F's size under sphericity, Greenhouse–Geisser's near 5 % where the uncorrected F is too liberal, two conditions as a paired t,
-offsets and order changing nothing, ε within its bounds, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
+offsets and order changing nothing, ε within its bounds, refusals), and 2.11's (the exact binomial test's power the sum over
+the counts propTest1 rejects, the t tests', the ANOVA's and the F test's power the rate at which Kurve's own tests reject, α at
+no effect, rising with the size, the size found the first to reach the power, the noncentral tails at λ = 0, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
 ANA block.
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
@@ -4132,6 +4151,10 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   numbers for an exact comparison with `toExponential(17)`.
 - **A name is taken, once more.** The linear model was first written as `lmFit`, which is the Levenberg–Marquardt fitter;
   the later declaration would have replaced it everywhere. It is `linModel`.
+- **A pure block calls only what is in the blocks.** The analyses formatted a factor's levels with `fmt`, which lived outside
+  them: the page found it, the worker and `run.mjs` did not, so a linear model with numbers as factors, large enough for the
+  worker, threw. No test ran a kind on the blocks alone with numbers as factors. `fmt` moved into the ANA block, and
+  stats-test runs kinds that format levels on the blocks alone.
 - **A variable taken out is grepped for.** Removing the Explorer's files took `fids` out of
   `autoImport`, and three `return {fids}` further down threw on every dropped file; the syntax
   check passes a reference to a name that does not exist. `review-drive`'s drop caught it. After
@@ -4698,7 +4721,9 @@ Next, in order:
    two- and three-way ANOVA (types I to III, partial η², estimated means, comparisons, simple effects, interaction and
    main effects plots), done 12.11; slice 2.7, repeated measures (one or two factors within, one between, wide or long
    data; Mauchly's test, the Greenhouse–Geisser and Huynh–Feldt corrections, partial η², the cells' means, paired
-   comparisons, a profile plot; exact against rationals and statsmodels), done 13.11
+   comparisons, a profile plot; exact against rationals and statsmodels), done 13.11; slice 2.11, power and sample size
+   (t tests, one-way ANOVA, the exact binomial test, two proportions, variances, χ² tests; power at sizes, the size for a
+   power, a power curve; the noncentral F and χ², and the noncentral t's upper tail, to 1e-15), done 13.11
 
 ## Known gaps
 
@@ -4795,6 +4820,9 @@ Next, in order:
   multivariate tests, Pillai's or Wilks'; no mixed model, so a subject missing a cell is left out, not modelled); paired
   comparisons of a within factor's levels by Bonferroni or Holm (none of the between factor's, no simple effects); the
   profile plot of the first group when there are two within factors and groups
+- Power and sample size: two-sample t tests with equal variances only (no Welch), two proportions by the pooled z's normal
+  approximation (no exact test), the χ² test from Cohen's w (not from a table of proportions); no power for repeated
+  measures, the linear model, correlation or rank tests; the exact binomial test's size searched to 20 000 trials
 - Correlation: no point-biserial, polychoric or distance correlation, no comparison of two r's, no matrix of p
   values on the graph; partial r over the rows complete in every column only
 - Rank tests: exact p only without ties (with ties the normal approximation, as R; no permutation p); the

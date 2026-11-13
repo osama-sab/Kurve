@@ -883,3 +883,127 @@ def rm_ref(Y, lv, grp=None):
         L = [[Fr(1) if j == r else Fr(0) for j in range(g)] for r in range(1, g)]; LB = _rm_mul(L, Bs0); M = _rm_inv(_rm_mul(_rm_mul(L, Vi), _rm_T(L)))
         ssg0 = _rm_mul(_rm_mul(_rm_T(LB), M), LB)[0][0] * c; Fg0 = (ssg0 / (g - 1)) / (sse0 / dfe); bt.update({"ssg": fl(ssg0), "Fg": fl(Fg0), "pg": f(_f_p(mpq(Fg0), g - 1, dfe))})
     return {"effs": out, "between": bt}
+
+# ---------- power and sample size (STATS_SPEC 2.11): every distribution and quantile in 60 digits ----------
+def _root(fn, guess):
+    """x > 0 where the monotone fn changes sign: a bracket widened by halving and doubling, then bisection in log x."""
+    lo, hi = M(guess) / 2, M(guess) * 2
+    while mp.sign(fn(lo)) == mp.sign(fn(hi)): lo /= 2; hi *= 2
+    sl = mp.sign(fn(lo))
+    while hi / lo - 1 > M(10) ** -45:
+        mid = mp.sqrt(lo * hi)
+        if mp.sign(fn(mid)) == sl: lo = mid
+        else: hi = mid
+    return mp.sqrt(lo * hi)
+
+def _pw_t_cdf(t, nu, dl):
+    """The noncentral t's P(T ≤ t): Guenther's sum, Φ(−δ) + ½ Σ p_j I_x(j + ½, ν/2) + q_j I_x(j + 1, ν/2), t ≥ 0."""
+    t, nu, dl = M(t), M(nu), M(dl)
+    if t < 0: return 1 - _pw_t_cdf(-t, nu, -dl)
+    x, lam, s, j = t * t / (t * t + nu), dl * dl / 2, M(0), 0
+    while True:
+        pj = mp.exp(-lam) * lam ** j / mp.factorial(j)
+        qj = dl * mp.exp(-lam) * lam ** j / (mp.sqrt(2) * mp.gamma(j + M(3) / 2))
+        term = pj * mp.betainc(j + M(1) / 2, nu / 2, 0, x, regularized=True) + qj * mp.betainc(j + 1, nu / 2, 0, x, regularized=True)
+        s += term
+        if j > lam and abs(pj) + abs(qj) < M(10) ** -55: break
+        j += 1
+    return mp.ncdf(-dl) + s / 2
+
+def _pw_mix(m, g):
+    """Σ_j Pois(j; m) g(j), every term positive, to 1e-55 of the sum."""
+    m, s, j = M(m), M(0), 0
+    while True:
+        w = mp.exp(-m) * m ** j / mp.factorial(j); s += w * g(j)
+        if j > m and w < M(10) ** -55 * (s + M(10) ** -300): break
+        j += 1
+    return s
+
+def _pw_f_sf(x, d1, d2, lam):
+    x, d1, d2 = M(x), M(d1), M(d2); y = d2 / (d2 + d1 * x)
+    return _pw_mix(M(lam) / 2, lambda j: mp.betainc(d2 / 2, d1 / 2 + j, 0, y, regularized=True))
+
+def _pw_x2_sf(x, k, lam):
+    x, k = M(x), M(k)
+    return _pw_mix(M(lam) / 2, lambda j: mp.gammainc(k / 2 + j, x / 2, mp.inf, regularized=True))
+
+def _t_upper(x, nu): x, nu = M(x), M(nu); return mp.betainc(nu / 2, M(1) / 2, 0, nu / (nu + x * x), regularized=True) / 2
+def _f_cdf(x, d1, d2): x, d1, d2 = M(x), M(d1), M(d2); return mp.betainc(d1 / 2, d2 / 2, 0, d1 * x / (d1 * x + d2), regularized=True)
+def _x2_cdf(x, k): return mp.gammainc(M(k) / 2, 0, M(x) / 2, regularized=True)
+
+def _pw_t(nu, dl, a, alt):
+    a = M(a); c = _root(lambda x: _t_upper(x, nu) - (a / 2 if alt == "two" else a), 2)
+    up = 1 - _pw_t_cdf(c, nu, dl); lo = _pw_t_cdf(-c, nu, dl)
+    return up + lo if alt == "two" else up if alt == "greater" else lo
+
+def _dbin(x, n, p): p = M(p); return mp.binomial(n, x) * p ** x * (1 - p) ** (n - x)
+
+def _pw_binom(n, p0, p1, a, alt):
+    """The exact binomial test's power: the counts it rejects under p0 (R's binom.test, its 1 + 1e-7) summed under p1."""
+    d = [_dbin(x, n, p0) for x in range(n + 1)]; a = M(a); m = M(n) * M(p0); rej = []
+    for x in range(n + 1):
+        if alt == "greater": pv = sum(d[x:])
+        elif alt == "less": pv = sum(d[:x + 1])
+        else:
+            th = d[x] * (1 + M(10) ** -7)
+            if x == m: pv = M(1)
+            elif x < m: pv = sum(d[:x + 1]) + sum(v for i, v in enumerate(d) if i >= mp.ceil(m) and v <= th)
+            else: pv = sum(v for i, v in enumerate(d) if i <= mp.floor(m) and v <= th) + sum(d[x:])
+        if min(pv, M(1)) <= a: rej.append(x)
+    return sum(_dbin(x, n, p1) for x in rej)
+
+def power_ref(o, n):
+    """powerAt's power at the size n, as a double; o as Kurve's (test, alpha, alt, d, sd, r, means, p0, p1, p2, v0, v1, v2, w, df)."""
+    old = mp.mp.dps; mp.mp.dps = 60
+    try:
+        t, a = o["test"], o["alpha"]; alt = "greater" if t in ("anova", "chi2") else o.get("alt", "two")
+        n2 = max(1, math.ceil(o.get("r", 1) * n - 1e-9)) if t in ("t2", "p2", "v2") else None
+        if t in ("t1", "tp"): return f(_pw_t(n - 1, M(o["d"]) / M(o["sd"]) * mp.sqrt(n), a, alt))
+        if t == "t2": return f(_pw_t(n + n2 - 2, M(o["d"]) / M(o["sd"]) * mp.sqrt(M(n * n2) / (n + n2)), a, alt))
+        if t == "anova":
+            mu = [M(v) for v in o["means"]]; k = len(mu); mb = sum(mu) / k; lam = n * sum((v - mb) ** 2 for v in mu) / M(o["sd"]) ** 2
+            d1, d2 = k - 1, k * (n - 1); c = _root(lambda x: (1 - _f_cdf(x, d1, d2)) - M(a), 3)
+            return f(_pw_f_sf(c, d1, d2, lam))
+        if t == "chi2":
+            k = o["df"]; c = _root(lambda x: (1 - _x2_cdf(x, k)) - M(a), k + 2)
+            return f(_pw_x2_sf(c, k, n * M(o["w"]) ** 2))
+        if t == "p1": return f(_pw_binom(n, o["p0"], o["p1"], a, alt))
+        if t == "p2":
+            p1, p2 = M(o["p1"]), M(o["p2"]); pb = (n * p1 + n2 * p2) / (n + n2)
+            s0 = mp.sqrt(pb * (1 - pb) * (M(1) / n + M(1) / n2)); s1 = mp.sqrt(p1 * (1 - p1) / n + p2 * (1 - p2) / n2); dd = p1 - p2
+            c = _root(lambda x: mp.ncdf(-x) - M(a) / (2 if alt == "two" else 1), 2)
+            up, lo = mp.ncdf((dd - c * s0) / s1), mp.ncdf((-dd - c * s0) / s1)
+            return f(up + lo if alt == "two" else up if alt == "greater" else lo)
+        if t == "v1":
+            k = n - 1; q = M(o["v1"]) / M(o["v0"]); cdf = lambda x: _x2_cdf(x, k)
+        else:
+            d1, d2 = n - 1, n2 - 1; q = M(o["v1"]) / M(o["v2"]); cdf = lambda x: _f_cdf(x, d1, d2)
+        A = M(a) / 2 if alt == "two" else M(a)
+        lo_c = _root(lambda x: cdf(x) - A, 1); hi_c = _root(lambda x: (1 - cdf(x)) - A, 1)
+        up, lo = 1 - cdf(hi_c / q), cdf(lo_c / q)
+        return f(up + lo if alt == "two" else up if alt == "greater" else lo)
+    finally:
+        mp.mp.dps = old
+
+def power_size_ref(o, target, nmin):
+    """The smallest size whose reference power reaches the target (every size in turn from nmin), with its power."""
+    n = nmin
+    while True:
+        pw = power_ref(o, n)
+        if pw >= target: return n, pw
+        n += 1
+
+def nc_tail(kind, args, upper):
+    """The noncentral distributions' tails as doubles: kind "f" (x, d1, d2, λ), "x2" (x, k, λ), "t" (t, ν, δ)."""
+    old = mp.mp.dps; mp.mp.dps = 60
+    try:
+        if kind == "f":
+            x, d1, d2, lam = [M(v) for v in args]; z = d1 * x / (d1 * x + d2)
+            return f(_pw_mix(lam / 2, (lambda j: mp.betainc(d2 / 2, d1 / 2 + j, 0, 1 - z, regularized=True)) if upper else (lambda j: mp.betainc(d1 / 2 + j, d2 / 2, 0, z, regularized=True))))
+        if kind == "x2":
+            x, k, lam = [M(v) for v in args]
+            return f(_pw_mix(lam / 2, (lambda j: mp.gammainc(k / 2 + j, x / 2, mp.inf, regularized=True)) if upper else (lambda j: mp.gammainc(k / 2 + j, 0, x / 2, regularized=True))))
+        c = _pw_t_cdf(*args)
+        return f(1 - c if upper else c)
+    finally:
+        mp.mp.dps = old

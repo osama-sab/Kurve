@@ -197,6 +197,12 @@ for (const c of (fixtures.rm || { cases: [] }).cases) {
     if (w.W != null) { note("rmAnova.W", relErr(e.mau.W, w.W), k); note("rmAnova.x2", relErr(e.mau.x2, w.x2), k); note("rmAnova.p", relErr(e.mau.p, w.mp), `${k}: Mauchly`); } });
   const b = c.want.between; note("rmAnova.ss", relErr(r.between.sse, b.sse), `${at}: between`); if (b.Fg != null) { note("rmAnova.F", relErr(r.between.Fg, b.Fg), `${at}: between`); note("rmAnova.p", relErr(r.between.pg, b.pg), `${at}: between`); }
 }
+/* ---- power and sample size (STATS_SPEC 2.11): the noncentral tails relative; powers absolute; sizes exactly ---- */
+for (const c of (fixtures.power || { cases: [] }).cases) {
+  if (c.kind === "rel") { note(c.fn, relErr(get(c.fn)(...c.args), c.want), fmtA(c.args)); continue; }
+  if (c.kind === "power") { const r = get("powerAt")(...c.args); note("powerAt", r ? Math.abs(r.pw - c.want) : Infinity, c.name); continue; }
+  const r = get("powSize")(...c.args); const rn = r.n1 != null ? r.n1 : r.n; note("powSize.n", r.fail ? Infinity : rn === c.want.n ? 0 : Math.abs(rn - c.want.n), c.name); if (!r.fail) note("powerAt", Math.abs(r.pw - c.want.pw), c.name);
+}
 for (const c of (fixtures.range || { cases: [] }).cases) note(c.fn, relErr(get(c.fn)(...c.args), c.want), fmtA(c.args));
 
 /* ---- distributions fitted to values ---- */

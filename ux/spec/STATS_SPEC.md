@@ -410,6 +410,20 @@ For the t tests, one-way ANOVA, proportions and variances, by the noncentral t, 
 distributions a part of this slice, with fixtures): power for a size, the size for a power, a graph
 of power against size.
 
+Built (13.11):
+- **Distributions**: the noncentral F and χ² as Poisson mixtures of the central tails, every term positive (`poisMix`); the
+  noncentral t's upper tail as Guenther's sum of upper incomplete betas. Against 60-digit sums: 5e-15, 1e-15, 5e-16.
+- **Power** (`powerAt`): t tests by the noncentral t (both tails two-sided; equal variances for two samples, a ratio of
+  sizes), one-way ANOVA by the noncentral F (λ = n Σ(μᵢ − μ̄)²/σ²), one proportion by the exact binomial test Kurve runs
+  (R's two-sided rule, its rejection region by bisection), two proportions by the pooled z's normal approximation, one and
+  two variances by χ² and F scaled by the ratio, a χ² test by the noncentral χ² (λ = N w²).
+- **Size** (`powSize`): the smallest size reaching each power, by doubling and halving, the exact test every size in turn
+  to 20 000; refused in words where the power stays at α. A power curve (`powCurve`) on the result sheet.
+- **Checked**: `power.json` (80 cases: tails, powers and sizes against 60 digits; statsmodels' TTestPower, TTestIndPower,
+  FTestAnovaPower and GofChisquarePower agreeing to 1e-8), powers within 1.5e-15; the fuzzer (`powerAt@pw`, `DIST.ncf.sf`,
+  `DIST.ncx2.cdf`); stats-test (11: the exact power as a sum, simulated rejection rates of Kurve's own tests); ana-drive (11);
+  perf (one line).
+
 ## 2.12 ROC curves
 
 From a score column and a group of two levels: the curve, the area with its interval (DeLong), the

@@ -408,6 +408,36 @@ def rm_pick(key):
 for key, tol in [("F", 1e-14), ("eps", 1e-14), ("p", 1e-13)]:
     gen("rmAnova@" + key, tol, 0.08)(rm_pick(key))
 
+# power (STATS_SPEC 2.11): a random test, its settings and a size (log-uniform), against 60 digits, absolutely; cases whose
+# noncentrality passes 500 (power 1 to the last digit) drawn again. The noncentral F's and χ²'s tails, relatively.
+def pow_case():
+    t = str(rng.choice(["t1", "tp", "t2", "anova", "p1", "p2", "v1", "v2", "chi2"])); o = {"test": t, "alpha": float(rng.choice([0.01, 0.05, 0.1])), "alt": str(rng.choice(["two", "greater", "less"]))}
+    if t in ("t1", "tp", "t2"): o.update(d=float(round(rng.normal(0, 1), 3)), sd=float(round(lognum(-1, 1), 3)))
+    if t in ("t2", "p2", "v2"): o["r"] = float(rng.choice([0.5, 1, 1, 1.5, 2, 3]))
+    if t == "anova": o.update(means=[float(round(v, 3)) for v in rng.normal(0, 1, int(rng.integers(2, 7)))], sd=float(round(lognum(-0.5, 1), 3)))
+    if t == "p1": o.update(p0=float(round(rng.uniform(0.05, 0.95), 2)), p1=float(round(rng.uniform(0.05, 0.95), 2)))
+    if t == "p2": o.update(p1=float(round(rng.uniform(0.05, 0.95), 2)), p2=float(round(rng.uniform(0.05, 0.95), 2)))
+    if t == "v1": o.update(v0=float(round(lognum(-1, 1), 3)), v1=float(round(lognum(-1, 1), 3)))
+    if t == "v2": o.update(v1=float(round(lognum(-1, 1), 3)), v2=float(round(lognum(-1, 1), 3)))
+    if t == "chi2": o.update(w=float(round(rng.uniform(0, 0.8), 3)), df=int(rng.integers(1, 10)))
+    n = int(round(math.exp(rng.uniform(math.log(4 if t == "v2" else 2), math.log(300 if t == "p1" else 2000)))))
+    n2 = math.ceil(o.get("r", 1) * n - 1e-9)
+    lam = (o["d"] / o["sd"]) ** 2 * (n if t != "t2" else n * n2 / (n + n2)) / 2 if t in ("t1", "tp", "t2") else \
+        n * float(np.var(o["means"])) * len(o["means"]) / o["sd"] ** 2 / 2 if t == "anova" else n * o["w"] ** 2 / 2 if t == "chi2" else 0
+    if lam > 500: raise ValueError("power 1 to the last digit")
+    return o, n
+@gen("powerAt@pw", 1e-13, 0.08)
+def _():
+    o, n = pow_case(); return [o, n], refs.power_ref(o, n)
+@gen("DIST.ncf.sf", 1e-14, 0.08)
+def _():
+    d1, d2, lam = float(rng.integers(1, 12)), float(round(lognum(0, 3))), float(round(lognum(-2, 2.5), 3)); x = float(round(lognum(-1.5, 1.5), 4))
+    return [x, d1, d2, lam], refs.nc_tail("f", [x, d1, d2, lam], True)
+@gen("DIST.ncx2.cdf", 1e-14, 0.08)
+def _():
+    k, lam = float(rng.integers(1, 15)), float(round(lognum(-2, 2.5), 3)); x = float(round(lognum(-1, 2.5), 4))
+    return [x, k, lam], refs.nc_tail("x2", [x, k, lam], False)
+
 cases = []
 for name, (f, tol) in GEN.items():
     for k in range(max(1, math.ceil(per * SHARE.get(name, 1.0)))):
@@ -453,6 +483,7 @@ for c in cases:
         if c["fn"] in ("descStats@skew", "descStats@kurt"): e = d / max(abs(w), 1.0)  # differences of terms of order 1: absolute below 1
         if c["fn"] == "dagoTest@k2": e = d / max(abs(w), 1.0)  # a sum of two squared scores: absolute below 1
         if c["fn"] == "nctCdf": e = d  # absolute (targets.json)
+        if c["fn"] == "powerAt@pw": e = d  # a power, absolutely (targets.json)
         if c["fn"] == "tukeySf": e = d / 10  # against SciPy: 1e-12 absolutely (the generator says why)
     if e > worst.get(c["gen"], (0, None))[0]:
         worst[c["gen"]] = (e, c)

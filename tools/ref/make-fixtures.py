@@ -671,6 +671,44 @@ for c in cases:
     assert all(abs(x - e["F"]) <= 1e-8 * abs(e["F"]) for x, e in zip(tab["F Value"], c["want"]["effs"])), c["name"]
 out["rm"] = cases
 
+# ---------- power and sample size (STATS_SPEC 2.11): the noncentral tails and every power in 60 digits (refs.power_ref);
+# statsmodels' powers asserted where it has the test ----------
+cases = []; rng = np.random.default_rng(211)
+for x, d1, d2, lam in [(2.5, 3, 20, 4), (0.5, 3, 20, 40), (10, 1, 5, 0.1), (3, 4, 100, 200), (1.2, 10, 10, 1e-3), (50, 2, 30, 5), (0.01, 5, 5, 10), (3.1, 2, 57, 12.5), (1.7, 9, 300, 900)]:
+    for up in (True, False):
+        cases.append({"fn": "DIST.ncf." + ("sf" if up else "cdf"), "args": [x, d1, d2, lam], "want": refs.nc_tail("f", [x, d1, d2, lam], up), "kind": "rel"})
+for x, k, lam in [(3, 2, 1), (30, 5, 10), (0.5, 4, 20), (200, 10, 100), (5, 1, 0.01), (1500, 3, 1400), (7.81, 3, 9), (0.2, 1, 3)]:
+    for up in (True, False):
+        cases.append({"fn": "DIST.ncx2." + ("sf" if up else "cdf"), "args": [x, k, lam], "want": refs.nc_tail("x2", [x, k, lam], up), "kind": "rel"})
+for t, nu, dl in [(2, 10, 3), (-1, 5, 1), (3, 30, 0.5), (1.7, 63, 2.83), (-2.1, 126, 0.4), (6, 20, 1)]:
+    cases.append({"fn": "DIST.nct.sf", "args": [t, nu, dl], "want": refs.nc_tail("t", [t, nu, dl], True), "kind": "rel"})
+PO = [({"test": "t1", "alpha": 0.05, "d": 0.5, "sd": 1, "alt": "two"}, [10, 34, 80]), ({"test": "tp", "alpha": 0.01, "d": -0.3, "sd": 0.8, "alt": "less"}, [15, 60]),
+      ({"test": "t2", "alpha": 0.05, "d": 0.5, "sd": 1, "r": 1, "alt": "two"}, [20, 64]), ({"test": "t2", "alpha": 0.05, "d": 1.2, "sd": 2, "r": 1.5, "alt": "greater"}, [12, 40]),
+      ({"test": "anova", "alpha": 0.05, "means": [1, 1.5, 2], "sd": 1}, [5, 10, 20]), ({"test": "anova", "alpha": 0.01, "means": [10, 10.2, 10.1, 10.6], "sd": 0.5}, [8, 30]),
+      ({"test": "p1", "alpha": 0.05, "p0": 0.5, "p1": 0.7, "alt": "two"}, [20, 50, 51]), ({"test": "p1", "alpha": 0.05, "p0": 0.3, "p1": 0.15, "alt": "less"}, [40, 90]),
+      ({"test": "p1", "alpha": 0.1, "p0": 0.2, "p1": 0.35, "alt": "greater"}, [30]),
+      ({"test": "p2", "alpha": 0.05, "p1": 0.5, "p2": 0.75, "r": 1, "alt": "two"}, [30, 58]), ({"test": "p2", "alpha": 0.05, "p1": 0.4, "p2": 0.25, "r": 2, "alt": "greater"}, [50]),
+      ({"test": "v1", "alpha": 0.05, "v0": 1, "v1": 2, "alt": "two"}, [10, 20]), ({"test": "v1", "alpha": 0.05, "v0": 4, "v1": 2.5, "alt": "less"}, [25]),
+      ({"test": "v2", "alpha": 0.05, "v1": 2, "v2": 1, "r": 1, "alt": "greater"}, [20]), ({"test": "v2", "alpha": 0.05, "v1": 1, "v2": 3, "r": 0.5, "alt": "two"}, [30]),
+      ({"test": "chi2", "alpha": 0.05, "w": 0.3, "df": 3}, [50, 100, 122]), ({"test": "chi2", "alpha": 0.01, "w": 0.1, "df": 1}, [400])]
+for o, ns in PO:
+    for n in ns: cases.append({"fn": "powerAt", "args": [o, n], "want": refs.power_ref(o, n), "kind": "power", "name": f"{o['test']} n={n}"})
+NMIN = {"t1": 2, "tp": 2, "t2": 2, "anova": 2, "p1": 1, "p2": 1, "v1": 2, "v2": 2, "chi2": 1}
+for o, tg in [(PO[0][0], 0.8), (PO[2][0], 0.9), (PO[4][0], 0.8), (PO[6][0], 0.8), (PO[9][0], 0.8), (PO[11][0], 0.9), (PO[15][0], 0.8), (PO[3][0], 0.95)]:
+    n, pw = refs.power_size_ref(o, tg, NMIN[o["test"]] if o["test"] != "v2" else 4)
+    cases.append({"fn": "powSize", "args": [o, tg], "want": {"n": n, "pw": pw}, "kind": "size", "name": f"{o['test']} for {tg}"})
+from statsmodels.stats.power import TTestPower, TTestIndPower, FTestAnovaPower, GofChisquarePower
+for c in cases:
+    if c["fn"] != "powerAt": continue
+    o, n = c["args"]; alt = {"two": "two-sided", "greater": "larger", "less": "smaller"}.get(o.get("alt", "two"))
+    if o["test"] in ("t1", "tp"): smv = TTestPower().power(o["d"] / o["sd"], n, o["alpha"], alternative=alt)
+    elif o["test"] == "t2": smv = TTestIndPower().power(o["d"] / o["sd"], n, o["alpha"], ratio=math.ceil(o["r"] * n - 1e-9) / n, alternative=alt)
+    elif o["test"] == "anova": k = len(o["means"]); mb = sum(o["means"]) / k; smv = FTestAnovaPower().power(math.sqrt(sum((v - mb) ** 2 for v in o["means"]) / k) / o["sd"], k * n, o["alpha"], k_groups=k)
+    elif o["test"] == "chi2": smv = GofChisquarePower().power(o["w"], n, o["alpha"], n_bins=o["df"] + 1)
+    else: continue
+    assert abs(smv - c["want"]) < 1e-8, (c["name"], smv, c["want"])
+out["power"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

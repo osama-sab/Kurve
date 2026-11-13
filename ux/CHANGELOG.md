@@ -1024,6 +1024,19 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 2, slice 2.11: power and sample size (2026-11-13)
+
+- **Analyze › Statistics › Power and sample size…**: the power of a one-sample, paired or two-sample t test, a one-way ANOVA,
+  the exact binomial test, two proportions, one or two variances or a χ² test at the sizes typed, or the smallest size
+  reaching each power typed; the noncentrality and the effect size beside it; a power curve from the result.
+- The noncentral F and χ² (both tails, relative to about 1e-15), and the noncentral t's upper tail as a sum of positive
+  terms (it was one less the lower: 1e-12 relative on a small tail, 5e-16 now).
+- Fixes: the analyses' number formatter was outside the code the worker loads, so a linear model or ANOVA with numbers as
+  factors, sent to the worker, would have thrown; a typed analysis said it read "the counts typed" whatever it read.
+
+Checked: `fixtures/power.json` (80 cases in 60 digits, statsmodels' powers agreeing), the fuzzer (three new generators),
+stats-test (12 new: one runs the kinds on the pure blocks alone), ana-drive (11 new), perf (one new line), the suite.
+
 ## Closing the gap with Origin, wave 2, slice 2.7: repeated measures (2026-11-13)
 
 - **Analyze › Statistics › ANOVA › Repeated measures ANOVA…**: one or two factors within subjects and one between, from
