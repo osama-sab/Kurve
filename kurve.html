@@ -7177,8 +7177,8 @@ function lsqQR(X,n,tol){ tol=tol||LM_TOL; const m=X.length, sc=new Float64Array(
 function lsqBack(Q,w){ const r=Q.kept.length, z=new Float64Array(r); for(let t=r-1;t>=0;t--){ let s=w[t]; for(let u=t+1;u<r;u++) s-=Q.Rc[Q.kept[u]][t]*z[u]; z[t]=s/Q.Rc[Q.kept[t]][t]; } return z; }
 function lsqCoef(Q,y){ const q=Float64Array.from(y); Q.H.forEach(h=>hApply(h,q)); const z=lsqBack(Q,q), b=new Float64Array(Q.m); Q.kept.forEach((j,t)=>{ b[j]=z[t]/Q.sc[j]; }); return b; }
 /* y − Σ X_j b_j in double-double: {rh, rl} */
-function lsqResid(X,Q,y,b,XL,bl){ const n=Q.n, rh=new Float64Array(n), rl=new Float64Array(n), K=Q.kept.map(j=>{ const bb=b[j], d=134217729*bb, b1=d-(d-bb); return [X[j],bb,b1,bb-b1,XL&&XL[j],bl?bl[j]:0]; });
-  for(let i=0;i<n;i++){ let s=y[i], e=0;
+function lsqResid(X,Q,y,b,XL,bl,yl){ const n=Q.n, rh=new Float64Array(n), rl=new Float64Array(n), K=Q.kept.map(j=>{ const bb=b[j], d=134217729*bb, b1=d-(d-bb); return [X[j],bb,b1,bb-b1,XL&&XL[j],bl?bl[j]:0]; });
+  for(let i=0;i<n;i++){ let s=y[i], e=yl?yl[i]:0;
     for(const [x,bb,b1,b2,xl,lo] of K){ const a=x[i], p=a*bb, c=134217729*a, a1=c-(c-a), a2=a-a1, pe=((a1*b1-p)+a1*b2+a2*b1)+a2*b2, t=s-p, v=t-s; e+=((s-(t-v))+(-p-v))-pe; if(xl) e-=xl[i]*bb; if(lo) e-=a*lo; s=t; }
     const h=s+e; rh[i]=h; rl[i]=e-(h-s); }
   return {rh,rl}; }
@@ -7191,8 +7191,8 @@ function lsqQv(Q,v){ const q=Float64Array.from(v); for(let i=Q.H.length-1;i>=0;i
 function lsqFwd(Q,g){ const r=Q.kept.length, z=new Float64Array(r); for(let t=0;t<r;t++){ let s=g[t]; for(let u=0;u<t;u++) s-=Q.Rc[Q.kept[t]][u]*z[u]; z[t]=s/Q.Rc[Q.kept[t]][t]; } return z; }
 /* Least squares, refined on the augmented system r + Xb = y, Xᵀr = 0 (Björck 1967): both residuals in double-double, the
    corrections through the QR. A bad conditioning's square goes from the error, as it does not with the solution refined alone. */
-function lsqFit(X,y,n,o){ o=o||{}; const XL=o.XL||null, Q=o.Q||lsqQR(X,n,o.tol), K=Q.kept, r=K.length;
-  let b=lsqCoef(Q,y), bl=new Float64Array(Q.m), R=lsqResid(X,Q,y,b,XL,bl), res=Float64Array.from(R.rh), last=Infinity;
+function lsqFit(X,y,n,o){ o=o||{}; const XL=o.XL||null, yl=o.yl||null, Q=o.Q||lsqQR(X,n,o.tol), K=Q.kept, r=K.length; /* yl: y's low part (y in double-double) */
+  let b=lsqCoef(Q,y), bl=new Float64Array(Q.m), R=lsqResid(X,Q,y,b,XL,bl,yl), res=Float64Array.from(R.rh), last=Infinity;
   for(let it=0;it<6&&r>0;it++){
     const f=new Float64Array(n); for(let i=0;i<n;i++){ /* y − res − Xb, in double-double through R */ f[i]=(R.rh[i]-res[i])+R.rl[i]; }
     const g=new Float64Array(r); K.forEach((j,t)=>{ const d=ddDot(X[j],res,n,XL&&XL[j]); g[t]=-(d[0]+d[1])/Q.sc[j]; });
@@ -7201,7 +7201,7 @@ function lsqFit(X,y,n,o){ o=o||{}; const XL=o.XL||null, Q=o.Q||lsqQR(X,n,o.tol),
     let big=0; K.forEach((j,t)=>{ const a=Math.abs(dx[t]/Q.sc[j])/(Math.abs(b[j])||1); if(!(a<=big)) big=a; });
     if(!Number.isFinite(big)||!(big<last*0.9)&&it>0) break; last=big;
     /* the solution kept in double-double: what the rounding of b leaves goes to bl, so that a fit's values are right to second order */
-    const b2=Float64Array.from(b), l2=Float64Array.from(bl); K.forEach((j,t)=>{ const d=dx[t]/Q.sc[j]+l2[j], s=b2[j]+d, v=s-b2[j]; l2[j]=(b2[j]-(s-v))+(d-v); b2[j]=s; }); b=b2; bl=l2; for(let i=0;i<n;i++) res[i]+=dr[i]; R=lsqResid(X,Q,y,b,XL,bl);
+    const b2=Float64Array.from(b), l2=Float64Array.from(bl); K.forEach((j,t)=>{ const d=dx[t]/Q.sc[j]+l2[j], s=b2[j]+d, v=s-b2[j]; l2[j]=(b2[j]-(s-v))+(d-v); b2[j]=s; }); b=b2; bl=l2; for(let i=0;i<n;i++) res[i]+=dr[i]; R=lsqResid(X,Q,y,b,XL,bl,yl);
     if(!(big>1e-17)) break; }
   const s1=[], s2=[]; for(let i=0;i<n;i++){ s1.push(R.rh[i]*R.rh[i]); s2.push(2*R.rh[i]*R.rl[i]); }
   return {Q,b,bl,rh:R.rh,rl:R.rl,rss:neuSum(s1)+neuSum(s2),rank:r,XL}; }
@@ -7455,6 +7455,114 @@ ANA_KINDS.anovan={label:"Two- and three-way ANOVA", base:"ANOVA", cats:true, xs:
     const method=[`Least squares (the linear model) over the ${M.n} rows complete in every column, the factors by effect coding${p.inter==="none"?", no interactions":", with all their interactions"}; type ${["I","II","III"][ty-1]} sums of squares.`,
       "Means estimated from the model, each cell weighted alike; their comparisons with the model's standard errors on the error's df.",cs.includes("holm")?"Holm: no simultaneous interval.":"",p.simple?`Simple effects: F on the error's ${M.dfr} df.`:""].filter(Boolean).join(" ");
     return {tables:[{cols}],report:{sections:secs,method,inter:true,k:vars.length,resp:yq.name},notes}; }};
+/* ---- Repeated measures (STATS_SPEC 2.7) ----
+   Y: a row a subject, a column a cell (the within factors' combinations, the first factor's levels outermost); grp: each
+   subject's level of a between factor (or null). Each within effect's contrasts Z = YC (integer Helmert contrasts, exact in
+   doubles, summed in double-double; their squared norms divide the sums of squares, so the basis is orthonormal in effect)
+   are regressed on the between design (an intercept, the group's effect coding): the effect from the intercept, its
+   interaction with the group from the group's columns (type III, Wald's identity), the error from the residuals; F from
+   their traces (the univariate approach). Sphericity from the residuals'
+   covariance S (d × d): Mauchly's W = det S/(tr S/d)^d with χ² on d(d + 1)/2 − 1 df, Greenhouse–Geisser's ε = (tr S)²/(d tr S²),
+   Huynh–Feldt's (as SPSS: (N d ε − 2)/(d (N − g − d ε)), at most 1) and the lower bound 1/d, each scaling both df. */
+/* integer Helmert contrasts (exact in doubles): column j of L − 1 is 1 for the levels before j, −j at j; its squared norm j(j + 1) */
+function helmertInt(L){ const C=[], N=[]; for(let i=0;i<L;i++) C.push(new Float64Array(L-1)); for(let j=1;j<L;j++){ for(let i=0;i<j;i++) C[i][j-1]=1; C[j][j-1]=-j; N.push(j*(j+1)); } return {C,N}; }
+function kronC(A,B){ const C=[]; A.C.forEach(ra=>B.C.forEach(rb=>{ const r=new Float64Array(ra.length*rb.length); let k=0; for(let p=0;p<ra.length;p++) for(let q=0;q<rb.length;q++) r[k++]=ra[p]*rb[q]; C.push(r); }));
+  const N=[]; A.N.forEach(x=>B.N.forEach(y=>N.push(x*y))); return {C,N}; }
+const onesC=L=>({C:Array.from({length:L},()=>Float64Array.of(1)),N:[L]});
+function detSym(S){ const n=S.length, A=S.map(r=>Array.from(r)); let d=1; for(let c=0;c<n;c++){ let p=c; for(let r=c+1;r<n;r++) if(Math.abs(A[r][c])>Math.abs(A[p][c])) p=r; if(A[p][c]===0) return 0; if(p!==c){ [A[p],A[c]]=[A[c],A[p]]; d=-d; } d*=A[c][c]; for(let r=c+1;r<n;r++){ const f=A[r][c]/A[c][c]; for(let k=c;k<n;k++) A[r][k]-=f*A[c][k]; } } return d; }
+function rmAnova(Y,lv,grp,o){ o=o||{}; const n=Y.length, c=Y[0].length, a=lv[0], b=lv.length>1?lv[1]:1; if(a*b!==c) return {fail:"The columns are not the factors' levels multiplied together."};
+  if(n<2) return {fail:"Fewer than two subjects with a value in every cell."};
+  const gl=grp?[...new Set(grp)].sort((x,y)=>x-y):[0], g=gl.length, code=grp?grp.map(v=>gl.indexOf(v)):Y.map(()=>0);
+  if(n-g<1) return {fail:"No degrees of freedom left for the error: more subjects than groups are needed."};
+  /* the between design: an intercept and the group's levels by effect coding */
+  const XB=[new Float64Array(n).fill(1)]; for(let l=0;l<g-1;l++) XB.push(Float64Array.from(code,k=>k===l?1:k===g-1?-1:0));
+  const Q=lsqQR(XB,n); if(Q.alias.length) return {fail:"A group has no subject."}; const V=lsqCovU(Q,XB,null), gcols=XB.map((_,j)=>j).slice(1);
+  /* a contrast of each subject's values, in double-double (integer weights), regressed on the between design */
+  const contr=(M,w)=>{ const zh=new Float64Array(n), zl=new Float64Array(n); for(let i=0;i<n;i++){ let s=0, e=0; M[i].forEach((v,j)=>{ const x=w[j]; if(!x) return; const p=v*x, cc=134217729*v, a1=cc-(cc-v), a2=v-a1, d=134217729*x, b1=d-(d-x), b2=x-b1, pe=((a1*b1-p)+a1*b2+a2*b1)+a2*b2, t=s+p, vv=t-s; e+=((s-(t-vv))+(p-vv))+pe; s=t; }); zh[i]=s+e; zl[i]=e-(zh[i]-s); } return {zh,zl}; };
+  const reg=z=>{ const F=lsqFit(XB,z.zh,n,{Q,yl:z.zl}); return {F,r:Array.from(F.rh,(h,i)=>h+F.rl[i]),ssI:lsqWald(F,V,[0]),ssG:g>1?lsqWald(F,V,gcols):0}; };
+  /* the within effects: integer contrasts (c × d) and their squared norms; an effect's sums of squares the contrasts' over their norms */
+  const H1=helmertInt(a), effs=[]; if(lv.length===1) effs.push({k:[0],...H1}); else { const H2=helmertInt(b); effs.push({k:[0],...kronC(H1,onesC(b))},{k:[1],...kronC(onesC(a),H2)},{k:[0,1],...kronC(H1,H2)}); }
+  const dfe=n-g, out=[];
+  effs.forEach(E=>{ const d=E.N.length, R=[]; for(let k=0;k<d;k++) R.push(reg(contr(Y,E.C.map(r=>r[k])))); /* exact products, summed in double-double: an offset cancels to the last digit */
+    const ss=neuSum(R.map((x,k)=>x.ssI/E.N[k])), ssg=neuSum(R.map((x,k)=>x.ssG/E.N[k])), sse=neuSum(R.map((x,k)=>x.F.rss/E.N[k]));
+    /* S, the residuals' covariance in the orthonormal basis: S'pq/√(NpNq)/dfe, its trace, the trace of its square and its determinant from S' */
+    const Sp=[]; for(let p=0;p<d;p++){ const row=[]; for(let q=0;q<d;q++) row.push(neuSum(R[p].r.map((v,i)=>v*R[q].r[i]))); Sp.push(row); }
+    const tr=neuSum(Sp.map((r,p)=>r[p]/E.N[p]))/dfe, tr2=neuSum(Sp.flatMap((r,p)=>r.map((v,q)=>v*v/(E.N[p]*E.N[q]))))/(dfe*dfe);
+    const gg=d>1?Math.min(1,tr*tr/(d*tr2)):1, hf=d>1?Math.min(1,(n*d*gg-2)/(d*(dfe-d*gg))):1;
+    let mau=null; if(d>1){ let det=detSym(Sp); E.N.forEach(x=>{ det/=x*dfe; }); const W=det/Math.pow(tr/d,d), f=dfe-(2*d*d+d+2)/(6*d), x2=-f*Math.log(W), df=d*(d+1)/2-1; mau={W,x2,df,p:W>0?DIST.chi2.sf(x2,df):0}; }
+    const F=(ss/d)/(sse/(d*dfe)), Fg=g>1?(ssg/(d*(g-1)))/(sse/(d*dfe)):null, corr=(Fv,df1,e)=>Fv==null?null:DIST.F.sf(Fv,df1*e,d*dfe*e);
+    out.push({k:E.k,d,ss,ssg,sse,df1:d,dfg:d*(g-1),dfe:d*dfe,F,Fg,p:DIST.F.sf(F,d,d*dfe),pg:Fg==null?null:DIST.F.sf(Fg,d*(g-1),d*dfe),gg,hf,lb:1/d,
+      pgg:corr(F,d,gg),phf:corr(F,d,hf),plb:corr(F,d,1/d),pggg:corr(Fg,d*(g-1),gg),phfg:corr(Fg,d*(g-1),hf),plbg:corr(Fg,d*(g-1),1/d),mau}); });
+  /* between subjects: each subject's total (squared norm c) */
+  const B0=reg(contr(Y,Y[0].map(()=>1))), sub={ssg:B0.ssG/c,sse:B0.F.rss/c,dfg:g-1,dfe,Fg:g>1?(B0.ssG/(g-1))/(B0.F.rss/dfe):null};
+  sub.pg=sub.Fg==null?null:DIST.F.sf(sub.Fg,g-1,dfe);
+  return {n,c,g,lv,effs:out,between:sub}; }
+// Repeated measures ANOVA (STATS_SPEC 2.7): one or two factors within subjects, and a factor between them if asked. Wide:
+// the columns ticked are the cells (two factors: the first's levels outermost), a row a subject, Group by the between factor.
+// Long: a row a measurement, columns for the response, the subject, the within factor(s) and a between one; a subject's
+// several values in a cell averaged, a subject missing a cell left out. Mauchly's test, the Greenhouse–Geisser and
+// Huynh–Feldt corrections, partial η², the cells' means, and paired comparisons of each within factor's levels.
+const RM_COMPS=[["none","None"],["bonf","Paired t, Bonferroni"],["holm","Paired t, Holm"]];
+function rmData(ins,p,notes){ const key=v=>typeof v==="number"?+(+v).toPrecision(12):String(v), nm=(v)=>typeof v==="number"?fmt(v,8):String(v);
+  if(p.form==="long"){ const by=id=>ins.find(q=>q.id===id), yq=by(p.y), sq=by(p.subj), w1=by(p.w1), w2=p.w2?by(p.w2):null, bq=p.btw?by(p.btw):null;
+    if(!yq||!sq||!w1) return {fail:"Long data needs the response, the subject and a within factor among the columns ticked."};
+    if(yq.cats) return {fail:`${yq.name} holds text: the response is a column of numbers.`};
+    const m=q=>{ const o=new Map(); (q.rows||[]).forEach((r,i)=>{ const v=q.cats?q.cats.keys[i]:q.vals[i]; if(v!=null&&v!=="") o.set(r,v); }); return o; };
+    const my=m(yq), ms=m(sq), m1=m(w1), m2=w2?m(w2):null, mb=bq?m(bq):null, rows=[...my.keys()].filter(r=>Number.isFinite(my.get(r))&&ms.has(r)&&m1.has(r)&&(!m2||m2.has(r))&&(!mb||mb.has(r)));
+    const lev=(q,mm)=>{ const L=freqLevels(rows.map(r=>mm.get(r)),q.cats?q.cats.order:null); return L.fail?[]:L.rows.map(o=>o.lev); };
+    const L1=lev(w1,m1), L2=w2?lev(w2,m2):[null], LB=bq?lev(bq,mb):null, subs=lev(sq,ms); if(L1.length<2) return {fail:`${w1.name} has one level only.`}; if(w2&&L2.length<2) return {fail:`${w2.name} has one level only.`};
+    const i1=new Map(L1.map((v,i)=>[key(v),i])), i2=new Map(L2.map((v,i)=>[key(v),i])), c=L1.length*L2.length, acc=new Map(); let multi=false;
+    rows.forEach(r=>{ const s=key(ms.get(r)); if(!acc.has(s)) acc.set(s,{sum:new Array(c).fill(0),n:new Array(c).fill(0),b:new Set()}); const o=acc.get(s), j=i1.get(key(m1.get(r)))*L2.length+(w2?i2.get(key(m2.get(r))):0);
+      o.sum[j]+=my.get(r); o.n[j]++; if(o.n[j]>1) multi=true; if(mb) o.b.add(key(mb.get(r))); });
+    const Y=[], grp=[]; let dropped=0;
+    subs.forEach(s=>{ const o=acc.get(key(s)); if(!o||o.n.some(k=>!k)){ dropped++; return; } if(o.b.size>1) return; Y.push(o.sum.map((v,j)=>v/o.n[j])); if(mb) grp.push(LB.findIndex(v=>o.b.has(key(v)))); });
+    if(mb&&subs.some(s=>{ const o=acc.get(key(s)); return o&&o.b.size>1; })) return {fail:`A subject is in two levels of ${bq.name}: a between factor is the same for every row of a subject.`};
+    if(multi) notes.push("A subject's several values in a cell averaged.");
+    if(dropped) notes.push(`${dropped} subject${dropped===1?"":"s"} without a value in every cell left out.`);
+    return {Y,grp:mb?grp:null,lv:w2?[L1.length,L2.length]:[L1.length],names:w2?[w1.name,w2.name]:[w1.name],levels:w2?[L1.map(nm),L2.map(nm)]:[L1.map(nm)],gname:bq?bq.name:null,glev:LB?LB.map(nm):null,resp:yq.name}; }
+  /* wide */
+  if(ins.some(q=>q.cats)) return {fail:"Wide data: the columns ticked are the cells, columns of numbers."};
+  const c=ins.length, a=p.levels>1?+p.levels:c, b=c/a; if(c<2) return {fail:"Tick two columns or more: a column a condition."}; if(!Number.isInteger(b)) return {fail:`${c} columns are not ${a} levels of the first factor times those of the second.`};
+  const mp=ins.map(q=>{ const o=new Map(); (q.rows||[]).forEach((r,i)=>{ if(Number.isFinite(q.vals[i])) o.set(r,q.vals[i]); }); return o; }), any=new Set(); mp.forEach(o=>o.forEach((_,r)=>any.add(r)));
+  const rows=[...mp[0].keys()].filter(r=>mp.every(o=>o.has(r))).sort((x,y)=>x-y), out=any.size-rows.length; if(out) notes.push(`${out} row${out===1?"":"s"} without a value in every column left out.`);
+  let grp=null, glev=null, gname=null; if(ins[0].groups){ const gr=new Map(); ins[0].grows.forEach((rs,k)=>rs.forEach(r=>gr.set(r,k))); grp=rows.map(r=>gr.get(r)); glev=ins[0].groups.map(x=>String(x[0])); gname=p.gname||"Group";
+    if(grp.some(v=>v==null)) return {fail:"A row has no group."}; }
+  const Y=rows.map(r=>mp.map(o=>o.get(r))), f1=String(p.f1||(b>1?"A":"Condition")), f2=String(p.f2||"B");
+  return {Y,grp,lv:b>1?[a,b]:[a],names:b>1?[f1,f2]:[f1],levels:b>1?[Array.from({length:a},(_,i)=>String(i+1)),Array.from({length:b},(_,i)=>String(i+1))]:[ins.map(q=>q.name)],gname,glev,resp:null}; }
+ANA_KINDS.rm={label:"Repeated measures ANOVA", base:"RM ANOVA", cats:true, xs:true,
+  help:"One or two factors within subjects, and one between them if asked, from wide or long data: the tests with Mauchly's test and the Greenhouse–Geisser and Huynh–Feldt corrections, partial η², the cells' means, paired comparisons.",
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[], D=rmData(ins,p,notes); if(D.fail) return D;
+    const r=rmAnova(D.Y,D.lv,D.grp); if(r.fail) return r; const nm=k=>k.map(i=>D.names[i]).join(":"), G=D.gname, W=[], C=[], M=[], E=[];
+    r.effs.forEach(e=>{ const s=nm(e.k), mse=e.sse/e.dfe;
+      W.push({src:s,df:e.df1,ss:e.ss,ms:e.ss/e.df1,F:e.F,p:e.p,gg:e.gg,pgg:e.pgg,hf:e.hf,phf:e.phf,plb:e.plb,pe:e.ss/(e.ss+e.sse)});
+      if(G) W.push({src:`${s}:${G}`,df:e.dfg,ss:e.ssg,ms:e.ssg/e.dfg,F:e.Fg,p:e.pg,gg:e.gg,pgg:e.pggg,hf:e.hf,phf:e.phfg,plb:e.plbg,pe:e.ssg/(e.ssg+e.sse)});
+      W.push({src:`Error (${s})`,df:e.dfe,ss:e.sse,ms:mse});
+      if(e.d>1){ C.push({src:s,gg:e.gg,pgg:e.pgg,hf:e.hf,phf:e.phf}); if(G) C.push({src:`${s}:${G}`,gg:e.gg,pgg:e.pggg,hf:e.hf,phf:e.phfg}); M.push({src:s,W:e.mau.W,x2:e.mau.x2,df:e.mau.df,p:e.mau.p}); } });
+    anaTab("",[["src","Source"],["df","df"],["ss","Sum of squares"],["ms","Mean square"],["F","F"],["p","p"],["gg","ε (Greenhouse–Geisser)"],["pgg","p (Greenhouse–Geisser)"],["hf","ε (Huynh–Feldt)"],["phf","p (Huynh–Feldt)"],["plb","p (lower bound)"],["pe","Partial η²"]],W,cols,[]);
+    anaTab("Within subjects",[["src","Source"],["df","df"],["ss","Sum of squares"],["F","F"],["p","p"]],W,[],secs);
+    if(C.length) anaTab("Sphericity corrections",[["src","Source"],["gg","ε, GG"],["pgg","p, GG"],["hf","ε, HF"],["phf","p, HF"]],C,[],secs);
+    if(M.length) anaTab("Mauchly's test",[["src","Source"],["W","W"],["x2","χ²"],["df","df"],["p","p"]],M,[],secs);
+    const bt=r.between, B=G?[{src:G,df:bt.dfg,ss:bt.ssg,F:bt.Fg,p:bt.pg},{src:"Error (between)",df:bt.dfe,ss:bt.sse}]:[{src:"Subjects",df:r.n-1,ss:bt.sse}];
+    anaTab("Between subjects",[["src","Source"],["df","df"],["ss","Sum of squares"],["F","F"],["p","p"]],B,[],secs);
+    anaTab("Effect size",[["src","Source"],["pe","Partial η²"]],W.filter(o=>o.pe!=null).concat(G?[{src:G,pe:bt.ssg/(bt.ssg+bt.sse)}]:[]),[],secs);
+    /* the cells' means (each group's), and the profile plot's columns: by the first factor, a curve for each level of the second or each group */
+    const gs=D.grp?D.glev.map((_,k)=>k):[null], cellOf=(ia,ib)=>ia*(D.lv[1]||1)+(ib||0), rowsMean=[];
+    gs.forEach(gk=>{ const sub=D.Y.filter((_,i)=>gk==null||D.grp[i]===gk);
+      for(let ia=0;ia<D.lv[0];ia++) for(let ib=0;ib<(D.lv[1]||1);ib++){ const v=sub.map(y=>y[cellOf(ia,ib)]), d=descStats(v,{}); rowsMean.push({gk,ia,ib,a:D.levels[0][ia],b:D.lv[1]?D.levels[1][ib]:null,g:gk==null?null:D.glev[gk],m:d.mean,sd:d.sd,se:d.se,n:v.length}); } });
+    const mh=[["a",D.names[0]]].concat(D.lv[1]?[["b",D.names[1]]]:[],G?[["g",G]]:[],[["m","Mean"],["sd","SD"],["n","N"]]);
+    anaTab("Means of the cells",mh,rowsMean,[],secs);
+    cols.push({k:"ix",name:D.names[0],role:"x",vals:D.levels[0].slice()});
+    const curves=D.lv[1]?D.levels[1].map((lev,ib)=>({k:ib,name:`${D.names[1]} = ${lev}`,f:o=>o.ib===ib&&o.gk===gs[0]})):gs.map((gk,k)=>({k,name:gk==null?(D.resp?`Mean of ${D.resp}`:"Mean"):`${G} = ${D.glev[gk]}`,f:o=>o.gk===gk}));
+    curves.forEach(cv=>{ const rs=rowsMean.filter(cv.f); cols.push({k:`iy${cv.k}`,name:cv.name,role:"y",vals:rs.map(o=>o.m)},{k:`ie${cv.k}`,name:"± SE",role:"e",of:`iy${cv.k}`,vals:rs.map(o=>o.se)}); });
+    if(D.lv[1]&&G) notes.push(`The profile plot is of the first group, ${D.glev[0]}.`);
+    /* paired comparisons of each within factor's levels (each subject's mean over the other factor's levels) */
+    if(p.comp==="bonf"||p.comp==="holm") D.lv.forEach((L,f)=>{ const marg=D.Y.map(y=>Array.from({length:L},(_,l)=>{ const v=[]; for(let ia=0;ia<D.lv[0];ia++) for(let ib=0;ib<(D.lv[1]||1);ib++) if((f===0?ia:ib)===l) v.push(y[cellOf(ia,ib)]); return neuSum(v)/v.length; }));
+      const pr=[]; for(let x=0;x<L;x++) for(let z=x+1;z<L;z++){ const t=tTestPaired(marg.map(m=>m[x]),marg.map(m=>m[z]),{dci:false}); if(!t.fail) pr.push({a:D.levels[f][x],b:D.levels[f][z],d:t.diff!=null?t.diff:t.mean,t:t.t,raw:t.p}); }
+      const m=pr.length; if(p.comp==="bonf") pr.forEach(x=>{ x.p=Math.min(1,m*x.raw); }); else { const ord=pr.map((_,i)=>i).sort((u,v)=>pr[u].raw-pr[v].raw); let run=0; ord.forEach((i,k)=>{ run=Math.max(run,Math.min(1,(m-k)*pr[i].raw)); pr[i].p=run; }); }
+      if(pr.length) anaTab(`${D.names[f]}: paired t, ${p.comp==="bonf"?"Bonferroni":"Holm"}`,[["a","First"],["b","Second"],["d","Difference"],["t","t"],["p","p"]],pr,[],secs); });
+    const method=[`${r.n} subjects${D.grp?` in ${r.g} groups`:""}, ${r.c} cell${r.c===1?"":"s"} each; the univariate tests, each within effect against its own error.`,
+      "Huynh–Feldt's ε as SPSS gives it, at most 1.",D.grp?"Type III sums of squares for the groups.":""].filter(Boolean).join(" ");
+    return {tables:[{cols}],report:{sections:secs,method,resp:D.resp,profile:true},notes}; }};
 // A kind run by name: the page's call, and the worker's ("call" job).
 function anaRunKind(kind,ins,p){ const K=ANA_KINDS[kind]; if(!K) throw new Error("the analysis "+kind+" is not known here"); return K.run(ins,p||{}); }
 /* ==ANA:END== */
@@ -16379,7 +16487,7 @@ const npTypeHtml=p=>`<label for="aTt">Test</label><select id="aTt"><option value
 const npTypeRead=v=>{ const mu=+String(v.aMu||"0").replace(",","."); return {type:v.aTt==="paired"?"paired":"one",mu0:Number.isFinite(mu)?mu:0}; };
 /* The Response list of a model's dialog: the columns ticked, starting on the first Y; after(ids, y) draws what follows from them */
 function anaRespWire(box,after){ const ys=box.querySelector("#aLy"); if(!ys) return; const wantY=ys.dataset.y;
-  const on=()=>{ const ids=[...box.querySelectorAll('input[id^="aI_"]')].filter(x=>x.checked).map(x=>x.id.slice(3)), cur=ys.value||wantY||ids.find(id=>{ const c=colById(id); return c&&c.role==="y"&&!isCatCol(c)&&!textCount(c); })||"";
+  const on=()=>{ const ids=[...box.querySelectorAll('input[id^="aI_"]')].filter(x=>x.checked).map(x=>x.id.slice(3)), num=c=>c&&!isCatCol(c)&&!textCount(c), cur=ys.value||wantY||ids.find(id=>{ const c=colById(id); return c&&c.role==="y"&&num(c); })||ids.find(id=>num(colById(id)))||""; /* the first Y, else the first column of numbers */
     ys.innerHTML=ids.map(id=>{ const c=colById(id); return `<option value="${id}"${id===cur?" selected":""}>${esc(colLetter(c)+" "+(c.name||""))}</option>`; }).join(""); if(after) after(ids,ys.value); };
   box.addEventListener("change",e=>{ if(e.target&&/^aLf_/.test(e.target.id||"")) return; on(); }); on();
   setTimeout(()=>ys.dispatchEvent(new Event("input",{bubbles:true})),0); /* the form checks OK again now that the response is chosen */ }
@@ -16482,6 +16590,31 @@ const ANA_FORMS={
     wire(box){ anaRespWire(box); },
     read(v){ return {y:v.aLy||null,inter:v.aNi==="none"?"none":"all",ss:+v.aLs||3,conf:+v.aCf||0.95,simple:!!v.aNs,comps:NWAY_COMPS.map(e=>e[0]).filter(k=>v["aC_"+k])}; },
     valid(v){ return !!v.aLy; }},
+  rm:{html(p){ const L=p.form==="long";
+      return `<div class="grid2 rmdlg"><label for="aRf">Data</label><select id="aRf"><option value="wide">Wide: a column a condition, a row a subject</option><option value="long"${L?" selected":""}>Long: a row a measurement</option></select>
+      <label for="aRa" class="tipd" title="Two factors within subjects: the columns ticked are their cells, the first factor's levels outermost">Factors within</label><select id="aRa" data-a="${+p.levels||0}"></select>
+      <label for="aRn1">First factor</label><input type="text" id="aRn1" value="${esc(p.f1||"")}" placeholder="Condition">
+      <label for="aRn2">Second factor</label><input type="text" id="aRn2" value="${esc(p.f2||"")}" placeholder="B">
+      <label for="aLy">Response</label><select id="aLy" data-y="${esc(p.y||"")}"></select>
+      <label for="aRs">Subject</label><select id="aRs" data-v="${esc(p.subj||"")}"></select>
+      <label for="aRw1">Within</label><select id="aRw1" data-v="${esc(p.w1||"")}"></select>
+      <label for="aRw2">Second within</label><select id="aRw2" data-v="${esc(p.w2||"")}"></select>
+      <label for="aRb">Between</label><select id="aRb" data-v="${esc(p.btw||"")}"></select>
+      <label for="aRq">Comparisons</label><select id="aRq">${RM_COMPS.map(([k,t])=>`<option value="${k}"${k===p.comp?" selected":""}>${t}</option>`).join("")}</select></div>`; },
+    wire(box){ const name=id=>{ const c=colById(id); return esc(colLetter(c)+" "+(c.name||"")); };
+      const sel=(id,ids,none,dflt)=>{ const el=box.querySelector("#"+id); if(!el) return; const cur=el.value||el.dataset.v||dflt||""; el.innerHTML=(none?`<option value="">None</option>`:"")+ids.map(x=>`<option value="${x}">${name(x)}</option>`).join(""); if(ids.includes(cur)) el.value=cur; else if(!none&&ids.length) el.value=ids[0]; };
+      const show=(id,on)=>{ const el=box.querySelector("#"+id); if(!el) return; el.hidden=!on; const l=box.querySelector(`label[for="${id}"]`); if(l) l.hidden=!on; };
+      anaRespWire(box,(ids,y)=>{ const long=(box.querySelector("#aRf")||{}).value==="long", ra=box.querySelector("#aRa"), c=ids.length, want=+(ra.value||ra.dataset.a||0);
+        ra.innerHTML=`<option value="0">One</option>`+Array.from({length:c},(_,i)=>i+1).filter(a=>a>1&&c%a===0&&c/a>1).map(a=>`<option value="${a}"${a===want?" selected":""}>Two: ${a} × ${c/a}</option>`).join("");
+        const two=+ra.value>0, rest=ids.filter(x=>x!==y), nd=x=>{ const cc=colById(x), n=Math.max((cc.data||[]).length,txtLen(cc)), st=new Set(); for(let i=0;i<n;i++){ const v=catVal(cc,i); if(v!=null&&v!=="") st.add(v); } return st.size; };
+        /* the subject: the column of categories with the most levels; the within factor: the next */
+        const cat=rest.filter(x=>{ const cc=colById(x); return isCatCol(cc)||textCount(cc)>0; }).map(x=>[x,nd(x)]).sort((u,v)=>v[1]-u[1]).map(e=>e[0]);
+        sel("aRs",rest,false,cat[0]); const s=box.querySelector("#aRs").value, r2=rest.filter(x=>x!==s); sel("aRw1",r2,false,cat.find(x=>x!==s));
+        const w1=box.querySelector("#aRw1").value, r3=r2.filter(x=>x!==w1); sel("aRw2",r3,true); const w2=box.querySelector("#aRw2").value; sel("aRb",r3.filter(x=>x!==w2),true);
+        ["aRa","aRn1"].forEach(id=>show(id,!long)); show("aRn2",!long&&two); ["aLy","aRs","aRw1","aRw2","aRb"].forEach(id=>show(id,long));
+        const by=box.querySelector("#aBy"); if(by){ if(long) by.value=""; show("aBy",!long); const l=box.querySelector('label[for="aBy"]'); if(l) l.textContent=long?"Group by":"Between (group by)"; } }); },
+    read(v){ return v.aRf==="long"?{form:"long",y:v.aLy||null,subj:v.aRs||null,w1:v.aRw1||null,w2:v.aRw2||null,btw:v.aRb||null,comp:v.aRq}:{form:"wide",levels:+v.aRa||0,f1:String(v.aRn1||"").trim(),f2:String(v.aRn2||"").trim(),comp:v.aRq}; },
+    valid(v){ if(v.aRf!=="long") return true; const s=[v.aLy,v.aRs,v.aRw1,v.aRw2,v.aRb].filter(Boolean); return !!(v.aLy&&v.aRs&&v.aRw1)&&new Set(s).size===s.length; }},
   anova1:{html(p){ const on=new Set(anovaComps(p));
       return `<p class="lab">Comparisons</p><div class="anastats">${COMP_KINDS.map(([k,nm])=>`<label class="chk"><input type="checkbox" id="aC_${k}"${on.has(k)?" checked":""}> ${esc(nm)}</label>`).join("")}</div>
       <div class="grid2"><label for="aCtl">Control</label><select id="aCtl" data-ctl="${esc(p.ctrl==null?"":String(p.ctrl))}"></select>${confSel(p)}
@@ -16538,7 +16671,7 @@ async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kin
     <label class="chk"><input type="checkbox" id="aMask"${a0&&a0.in.masked?" checked":""}> Include masked points</label></div>`;
   const rowsOk=v=>[v.aRow0,v.aRow1].every(t=>String(t||"").trim()===""||/^\d+$/.test(String(t).trim())&&+t>=1)&&!(+v.aRow0>0&&+v.aRow1>0&&+v.aRow1<+v.aRow0);
   const pr=formDlg({title:a0?`${a0.name}: settings`:K.label,html,ok:"Work it out",valid:r=>K.typed?(!F.valid||F.valid(r)):cand.some(c=>r["aI_"+c.id])&&rowsOk(r)&&(!F.valid||F.valid(r))});
-  const box=$("#formBody"); if(box&&F.wire) F.wire(box);
+  const box=$("#formBody .anadlg"); if(box&&F.wire) F.wire(box);
   const v=await pr; if(!v) return; const q=P(); if(!q) return;
   const cols=cand.filter(c=>v["aI_"+c.id]).map(c=>c.id), read={}; cols.forEach(id=>{ if(v["aR_"+id]==="orig") read[id]="orig"; });
   const r0=String(v.aRow0||"").trim(), r1=String(v.aRow1||"").trim(), rows=r0||r1?[r0?+r0:null,r1?+r1:null]:null;
@@ -16581,6 +16714,7 @@ function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&
   if(a.kind==="corr") return [{key:"scatter",label:"Scatter matrix",title:"Each pair's values against each other, a graph a pair, in a figure",enabled:!ro&&(a.in.cols||[]).length>1,run:()=>anaScatter(a.id)}];
   if(a.kind==="anovan") return [{key:"inter",label:"Interaction plot",title:"The cells' means by the first factor, a line for each level of the second, with their intervals, on a graph",enabled:!ro,run:()=>anaInterPlot(a.id)},
     {key:"mains",label:"Main effects plot",title:"Each factor's means with their intervals, a graph each, in a figure",enabled:!ro,run:()=>anaMainsPlot(a.id)}];
+  if(a.kind==="rm") return [{key:"profile",label:"Profile plot",title:"The cells' means across the first within factor's levels, a line for each level of the second or each group, with their standard errors, on a graph",enabled:!ro,run:()=>anaInterPlot(a.id)}];
   if(a.kind==="anova1") return [{key:"means",label:"Means plot",title:"Each group's mean with its interval, on a graph",enabled:!ro,run:()=>anaMeansPlot(a.id)}];
   if(a.kind==="norm") return [{key:"qq",label:"Q–Q plot",title:"The sorted values against the normal quantiles, with the line through their quartiles, on a graph",enabled:!ro&&rep.qq>0,run:()=>anaQQ(a.id)}];
   if(a.kind==="outl"){ const w=`The ${n===1?"value":n+" values"} past the critical value`;
@@ -16613,7 +16747,7 @@ function anaInterPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) retu
   if(!ys.length){ toast("There is no interaction plot to draw: Recalculate first."); return; }
   plotCols(ys.map(c=>c.id),{series:Object.fromEntries(ys.map(c=>[c.id,{type:"linesym"}])),undo:"plotting an interaction plot",say:`Interaction plot of ${a.name}`});
   /* the curves are named by the second factor's levels: the Y axis says what they are */
-  const rp=a.res&&a.res.report; if(rp&&rp.resp&&GID()){ const ax=Object.assign({},GP().ax||{}); ax.y=Object.assign({},ax.y||{},{title:`Mean of ${rp.resp}`}); savePlot({ax}); } }
+  const rp=a.res&&a.res.report; if(rp&&GID()){ const ax=Object.assign({},GP().ax||{}); ax.y=Object.assign({},ax.y||{},{title:rp.resp?`Mean of ${rp.resp}`:"Mean"}); savePlot({ax}); } }
 function anaMainsPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const ys=p.cols.filter(c=>c.ana===id&&/^my\d+$/.test(c.ak||""));
   if(!ys.length){ toast("There is no main effects plot to draw: Recalculate first."); return; }
   pushUndo("a main effects plot"); const gids=[];
@@ -22509,6 +22643,7 @@ function analyzeMenu(){
         {label:"Outliers…", title:ANA_KINDS.outl.help, run:()=>anaDlg("outl"), enabled:!S.readOnly&&!!P()}]},
       {label:"ANOVA", sub:()=>[{label:"One-way ANOVA…", title:ANA_KINDS.anova1.help, run:()=>anaDlg("anova1",{two:true}), enabled:!S.readOnly&&!!P()},
         {label:"Two- and three-way ANOVA…", title:ANA_KINDS.anovan.help, run:()=>anaDlg("anovan",{two:true}), enabled:!S.readOnly&&!!P()},
+        {label:"Repeated measures ANOVA…", title:ANA_KINDS.rm.help, run:()=>anaDlg("rm",{two:true}), enabled:!S.readOnly&&!!P()},
         {label:"Linear model…", title:ANA_KINDS.lm.help, run:()=>anaDlg("lm",{two:true}), enabled:!S.readOnly&&!!P()}]},
       {label:"Nonparametric", sub:()=>[["mw","Mann–Whitney…",true],["wsr","Wilcoxon signed-rank…"],["sign","Sign test…"],["kw","Kruskal–Wallis…",true],["fried","Friedman…",true],["mood","Mood's median test…",true],["ks2","Two-sample Kolmogorov–Smirnov…",true]].map(([k,label,two])=>({label,title:ANA_KINDS[k].help,run:()=>anaDlg(k,two?{two:true}:{}),enabled:!S.readOnly&&!!P()}))},
       {label:"Hypothesis tests", sub:()=>[{label:"t tests…", title:ANA_KINDS.ttest.help, run:()=>anaDlg("ttest"), enabled:!S.readOnly&&!!P()},
@@ -25199,7 +25334,7 @@ ${DL([["Area ± error","The trapezoidal sum over the points in the window, less 
 ${DL([["Net counts","The counts in the window less the continuum under them: a straight line through the mean of the channels at each edge (as many as the line baselines use). ± one standard deviation from counting: the counts' own and the continuum's."],["Detected","Above Currie's critical level, 95 %: on a continuum alone, one window in twenty is called detected. Below it, the level is shown."],["Emission, efficiency","Type the share of decays that give the line and the detector's efficiency at its energy, both in %."],["Activity","Net counts ÷ (live time × efficiency × emission), in becquerel, with the counting error. Not detected: the detection limit as an activity, the smallest that would be."]])}
 <p>Counting needs the counts as recorded: an energy calibration, a count rate or a crop keep them; smoothing or a subtracted background do not, and the part says so.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
-{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v linear model general linear model glm regression multiple regression ancova covariate factor interaction polynomial treatment coding effect coding type i type ii type iii sums of squares contrast estimable aliased qr two-way anova three-way anova factorial anova interaction plot main effects plot marginal means least squares means lsmeans emmeans simple effects partial eta squared",
+{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v linear model general linear model glm regression multiple regression ancova covariate factor interaction polynomial treatment coding effect coding type i type ii type iii sums of squares contrast estimable aliased qr two-way anova three-way anova factorial anova interaction plot main effects plot marginal means least squares means lsmeans emmeans simple effects partial eta squared repeated measures rm anova within subjects between subjects mixed anova split-plot sphericity mauchly greenhouse-geisser greenhouse geisser huynh-feldt huynh feldt epsilon profile plot wide long subject",
  lead:"An analysis reads columns and writes what it finds into a result sheet of its own, worked out again when its data change.",
  body:`<h2>Statistics on columns</h2>
 <p>${MP("Analyze › Statistics › Descriptive › Statistics on columns…")}: tick the columns and the statistics, and each column gets a row of a new sheet. Ticked at first are N, the rows missing, mean, standard deviation, standard error of the mean, minimum, Q1, median, Q3, maximum and sum; besides them, the mean's interval, variance, coefficient of variation, range, IQR, MAD, robust SD, the mode and its count, skewness, kurtosis, the geometric and harmonic means, and any percentiles typed (<code>5, 95</code>). <em>Group by</em> a column of text or categories gives a row for each column and group.</p>
@@ -25229,6 +25364,10 @@ ${DL([["Tukey–Kramer","Every pair; q and p from the studentized range, interva
 <p>${MP("Analyze › Statistics › ANOVA › Two- and three-way ANOVA…")}: a <em>Response</em> among the columns ticked, and two or three others as its factors (text or numbers, their values the levels), over the rows with a value in every one. The factors are coded by effect, with all their interactions unless <em>Interactions</em> is None.</p>
 ${DL([["Analysis of variance","Each term's df, sum of squares (type III unless set: each term after all the others), F and p; the error and the total; partial η², the term's sum over itself and the error's."],["Means","Each level's mean as the model estimates it, each cell weighted alike whatever its count, with its standard error and the rows it has; the cells of the first two factors the same way."],["Comparisons","Of each factor's means, every pair, by the methods ticked (as one-way ANOVA's, from the model's standard errors on the error's df)."],["Simple effects","Each factor's levels compared at each level of another (averaged over a third), F on the error's df."]])}
 <p><em>Interaction plot</em> (under the report) graphs the cells' means against the first factor, a line for each level of the second, with their intervals; <em>Main effects plot</em> each factor's means, a graph each, in a figure. A cell with no rows leaves its means empty, and the notes say so.</p>
+<h2 id="rm">Repeated measures ANOVA</h2>
+<p>${MP("Analyze › Statistics › ANOVA › Repeated measures ANOVA…")}: each subject measured under every condition. <em>Data</em> Wide: the columns ticked are the conditions, a row a subject; with two factors within subjects (<em>Factors within</em>), the columns are their cells, the first factor's levels outermost; <em>Between (group by)</em> a factor between subjects. Long: a row a measurement, the columns chosen for the response, the subject, one or two factors within and one between; a subject's several values in a cell are averaged, a subject missing a cell is left out.</p>
+${DL([["Within subjects","Each within effect (and its interaction with the between factor) against its own error: df, sum of squares, F, p."],["Sphericity corrections","Greenhouse–Geisser's ε and Huynh–Feldt's (as SPSS gives it, at most 1), each multiplying both df, and the p they give; the lower bound 1/df on the result sheet."],["Mauchly's test","W, χ², df and p, for each effect with three levels or more."],["Between subjects","The between factor's F against the subjects' error; with none, the subjects' sum of squares."],["Means of the cells","Each cell's mean, SD and N (each group's)."],["Comparisons","Paired t tests of each within factor's levels (each subject's mean over the other factor), p adjusted by Bonferroni or Holm."]])}
+<p><em>Profile plot</em> (under the report) graphs the cells' means against the first factor's levels, a line for each level of the second (or each group), with their standard errors.</p>
 <h2 id="lm">Linear model</h2>
 <p>${MP("Analyze › Statistics › ANOVA › Linear model…")}: a <em>Response</em> among the columns ticked, modelled by the others, over the rows with a value in every one. A column of numbers is a variable unless ticked under <em>Factors</em>; a column of text, or a categorical one, is a factor, each level an effect of its own.</p>
 ${DL([["Interactions","None; every pair of the columns; or every combination (A:B, A:C, B:C, A:B:C…). A factor in an interaction gives a column for each pair of its levels and the other's."],["Powers up to","Each number column's square, cube… as terms of their own (x^2, x^3), for a polynomial."],["Factor coding","Treatment: a coefficient for each level but the first, its difference from the first. Effect: a coefficient for each level but the last, its difference from the mean of the levels."],["Sums of squares","Type I: each term after those listed before it. Type II: each term after every other that does not contain it. Type III: each term after all the others, with effect coding (as SAS and Origin)."],["Contrasts","One a line, a sum of coefficients by the names the table gives them, each with a number before it if needed: <code>A[b] − A[c]</code>, <code>x + 2 x^2</code>, <code>A[b] = 1</code>. Its estimate, standard error, t, p and interval; refused where the data cannot separate it (a combination of aliased columns)."],["Fitted values and residuals","Three columns on the result sheet: the row, the fitted value and the residual."]])}

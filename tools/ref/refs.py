@@ -822,3 +822,64 @@ def nway_ref(vars_, y, spec):
                 out["simple"].append({"f": i, "g": j, "l": l, "F": fl(F), "df1": q, "p": f(_f_p(mpq(F), q, dfr))})
     out["dfr"] = dfr
     return out
+
+# ---------- repeated measures (STATS_SPEC 2.7): every number from rational projections (basis-free), tails in 40 digits ----------
+def _rm_mul(A, B): return [[sum(A[i][k] * B[k][j] for k in range(len(B))) for j in range(len(B[0]))] for i in range(len(A))]
+def _rm_T(A): return [list(r) for r in zip(*A)]
+def _rm_inv(A):
+    n = len(A); M = [list(A[i]) + [Fr(1) if i == j else Fr(0) for j in range(n)] for i in range(n)]
+    for p in range(n):
+        q = next(r for r in range(p, n) if M[r][p] != 0); M[p], M[q] = M[q], M[p]; piv = M[p][p]; M[p] = [x / piv for x in M[p]]
+        for r in range(n):
+            if r != p and M[r][p] != 0: f_ = M[r][p]; M[r] = [x - f_ * y for x, y in zip(M[r], M[p])]
+    return [row[n:] for row in M]
+def _rm_det(A):
+    n = len(A); M = [list(r) for r in A]; d = Fr(1)
+    for p in range(n):
+        q = next((r for r in range(p, n) if M[r][p] != 0), None)
+        if q is None: return Fr(0)
+        if q != p: M[p], M[q] = M[q], M[p]; d = -d
+        d *= M[p][p]
+        for r in range(p + 1, n):
+            f_ = M[r][p] / M[p][p]; M[r] = [x - f_ * y for x, y in zip(M[r], M[p])]
+    return d
+def _helm(L): return [[Fr(1) if i < j else Fr(-j) if i == j else Fr(0) for j in range(1, L)] for i in range(L)]
+def _kron(A, B): return [[x * y for x in ra for y in rb] for ra in A for rb in B]
+def rm_ref(Y, lv, grp=None):
+    """rmAnova's numbers for the doubles Y (subjects × cells), exactly where they are rational."""
+    n, c = len(Y), len(Y[0]); Y = [[Fr(v) for v in r] for r in Y]; a = lv[0]; b = lv[1] if len(lv) > 1 else 1
+    gl = sorted(set(grp)) if grp else [0]; g = len(gl); code = [gl.index(v) for v in grp] if grp else [0] * n
+    sm = [sum(r) / c for r in Y]; D = [[v - sm[i] for v in r] for i, r in enumerate(Y)]
+    X = [[Fr(1)] + [Fr(1) if code[i] == l else Fr(-1) if code[i] == g - 1 else Fr(0) for l in range(g - 1)] for i in range(n)]
+    Xt = _rm_T(X); Vi = _rm_inv(_rm_mul(Xt, X)); Bc = _rm_mul(Vi, _rm_mul(Xt, D)); XB = _rm_mul(X, Bc)
+    R = [[D[i][j] - XB[i][j] for j in range(c)] for i in range(n)]; E = _rm_mul(_rm_T(R), R)
+    def hyp(rows):
+        L = [[Fr(1) if j == r else Fr(0) for j in range(g)] for r in rows]; LB = _rm_mul(L, Bc); M = _rm_inv(_rm_mul(_rm_mul(L, Vi), _rm_T(L)))
+        return _rm_mul(_rm_mul(_rm_T(LB), M), LB)
+    HI = hyp([0]); HG = hyp(list(range(1, g))) if g > 1 else None
+    ones = lambda L: [[Fr(1)] for _ in range(L)]
+    Bs = [([0], _helm(a))] if len(lv) == 1 else [([0], _kron(_helm(a), ones(b))), ([1], _kron(ones(a), _helm(b))), ([0, 1], _kron(_helm(a), _helm(b)))]
+    dfe = n - g; out = []
+    tr = lambda A: sum(A[i][i] for i in range(len(A)))
+    for k, B in Bs:
+        d = len(B[0]); Bt = _rm_T(B); P = _rm_mul(_rm_mul(B, _rm_inv(_rm_mul(Bt, B))), Bt)
+        ss = tr(_rm_mul(P, HI)); ssg = tr(_rm_mul(P, HG)) if HG else Fr(0); PE = _rm_mul(P, E); sse = tr(PE)
+        t1 = sse / dfe; t2 = tr(_rm_mul(PE, PE)) / dfe ** 2
+        F = (ss / d) / (sse / (d * dfe)); Fg = (ssg / (d * (g - 1))) / (sse / (d * dfe)) if g > 1 else None
+        gg = min(Fr(1), t1 * t1 / (d * t2)) if d > 1 else Fr(1)
+        hf = min(Fr(1), (n * d * gg - 2) / (d * (dfe - d * gg))) if d > 1 else Fr(1)
+        o = {"k": k, "d": d, "ss": fl(ss), "ssg": fl(ssg), "sse": fl(sse), "F": fl(F), "p": f(_f_p(mpq(F), d, d * dfe)), "gg": fl(gg), "hf": fl(hf),
+             "pgg": f(_f_p(mpq(F), mpq(d * gg), mpq(d * dfe * gg))), "phf": f(_f_p(mpq(F), mpq(d * hf), mpq(d * dfe * hf)))}
+        if Fg is not None: o["Fg"] = fl(Fg); o["pg"] = f(_f_p(mpq(Fg), d * (g - 1), d * dfe))
+        if d > 1:
+            detS = _rm_det(_rm_mul(_rm_mul(Bt, E), B)) / _rm_det(_rm_mul(Bt, B)) / Fr(dfe) ** d; W = detS / (t1 / d) ** d
+            x2 = -(dfe - mp.mpf(2 * d * d + d + 2) / (6 * d)) * mp.log(mpq(W)); df = d * (d + 1) // 2 - 1
+            o["W"] = fl(W); o["x2"] = f(x2); o["mp"] = f(mp.gammainc(mp.mpf(df) / 2, x2 / 2, mp.inf, regularized=True))
+        out.append(o)
+    # between subjects: the subjects' means (the √c of the total's direction cancels in F)
+    s = [[v] for v in sm]; Bs0 = _rm_mul(Vi, _rm_mul(Xt, s)); r0 = [s[i][0] - sum(X[i][j] * Bs0[j][0] for j in range(g)) for i in range(n)]
+    sse0 = sum(v * v for v in r0) * c; bt = {"sse": fl(sse0)}
+    if g > 1:
+        L = [[Fr(1) if j == r else Fr(0) for j in range(g)] for r in range(1, g)]; LB = _rm_mul(L, Bs0); M = _rm_inv(_rm_mul(_rm_mul(L, Vi), _rm_T(L)))
+        ssg0 = _rm_mul(_rm_mul(_rm_T(LB), M), LB)[0][0] * c; Fg0 = (ssg0 / (g - 1)) / (sse0 / dfe); bt.update({"ssg": fl(ssg0), "Fg": fl(Fg0), "pg": f(_f_p(mpq(Fg0), g - 1, dfe))})
+    return {"effs": out, "between": bt}

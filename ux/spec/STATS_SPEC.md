@@ -334,6 +334,19 @@ Built (12.11):
 One- and two-way, the data wide or long with a subject column; Mauchly's test of sphericity,
 Greenhouse–Geisser and Huynh–Feldt corrections.
 
+Built (13.11):
+- **The tests** (`rmAnova`): each within effect from integer Helmert contrasts of each subject's values, worked out in
+  double-double and regressed on the between design; sums of squares by Wald's identity over the contrasts' norms, so exact
+  and free of the basis. Greenhouse–Geisser's ε from the residuals' covariance; Huynh–Feldt's as SPSS (at most 1); the
+  lower bound; Mauchly's W and its χ².
+- **Data** (`rmData`): wide, the columns ticked the cells (two factors: the first's levels outermost), Group by the between
+  factor; long, the response, subject, one or two within factors and a between one named; a subject's several values in a
+  cell averaged, one missing a cell left out and counted.
+- **Kind** `rm`: the tests with every correction's p, Mauchly's test, between subjects, partial η², the cells' means, paired t
+  of each within factor's levels (Bonferroni or Holm); a profile plot from the result.
+- **Checked**: `rm.json` (exact rationals, statsmodels' AnovaRM agreeing on the within-only designs), within 1e-15 for sums
+  of squares, F, ε and W; the fuzzer (`rmAnova@…`, through the analysis too); stats-test (5); ana-drive (10); perf (one line).
+
 ## 2.8 Nonparametric tests
 
 Mann–Whitney (exact without ties for small samples, else normal with the continuity and tie

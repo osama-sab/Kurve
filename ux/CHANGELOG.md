@@ -1024,6 +1024,19 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 2, slice 2.7: repeated measures (2026-11-13)
+
+- **Analyze › Statistics › ANOVA › Repeated measures ANOVA…**: one or two factors within subjects and one between, from
+  wide data (a column a condition) or long (a row a measurement, with a subject column); the tests with the uncorrected,
+  Greenhouse–Geisser, Huynh–Feldt and lower-bound p, Mauchly's test, the between-subjects table, partial η², the cells'
+  means, paired comparisons of each within factor's levels (Bonferroni or Holm), and a profile plot from the result.
+- Sums of squares from integer contrasts in double-double: they agree with exact rational arithmetic to about 1e-16, and
+  with statsmodels' AnovaRM.
+- A fix: an analysis dialog's form listened on the shared dialog body, so its listeners ran in the next dialogs.
+
+Checked: `fixtures/rm.json` (7 designs), the fuzzer (two new generators), stats-test (5 new), ana-drive (10 new), perf
+(one new line).
+
 ## Closing the gap with Origin, wave 2, slice 2.6: two- and three-way ANOVA (2026-11-12)
 
 - **Analyze › Statistics › ANOVA › Two- and three-way ANOVA…**: a response by two or three factors, balanced or not, with

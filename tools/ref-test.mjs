@@ -187,6 +187,16 @@ for (const c of (fixtures.nway || { cases: [] }).cases) {
   w.simple.forEach((q) => { const Ls = []; for (let a = 1; a < c.vars[q.f].levels.length; a++) Ls.push(dif({ [q.f]: a, [q.g]: q.l }, { [q.f]: 0, [q.g]: q.l }));
     const r = WL(M, Ls); note("lmWaldL.F", relErr(r.F, q.F), `${at}: simple ${q.f} at ${q.g}.${q.l}`); note("lmWaldL.p", relErr(r.p, q.p), `${at}: simple ${q.f} at ${q.g}.${q.l}`); });
 }
+/* ---- repeated measures (STATS_SPEC 2.7): rmAnova against rational projections: sums of squares, F, ε, Mauchly's W and χ², p ---- */
+for (const c of (fixtures.rm || { cases: [] }).cases) {
+  const r = get("rmAnova")(...c.args), at = c.name; if (r.fail) { note("rmAnova.ss", Infinity, `${at}: ${r.fail}`); continue; }
+  c.want.effs.forEach((w, i) => { const e = r.effs[i], k = `${at}: effect ${i}`;
+    note("rmAnova.ss", Math.max(relErr(e.ss, w.ss), relErr(e.sse, w.sse), w.ssg ? relErr(e.ssg, w.ssg) : 0), k); note("rmAnova.F", Math.max(relErr(e.F, w.F), w.Fg != null ? relErr(e.Fg, w.Fg) : 0), k);
+    note("rmAnova.eps", Math.max(relErr(e.gg, w.gg), relErr(e.hf, w.hf)), k);
+    note("rmAnova.p", Math.max(relErr(e.p, w.p), relErr(e.pgg, w.pgg), relErr(e.phf, w.phf), w.pg != null ? relErr(e.pg, w.pg) : 0), k);
+    if (w.W != null) { note("rmAnova.W", relErr(e.mau.W, w.W), k); note("rmAnova.x2", relErr(e.mau.x2, w.x2), k); note("rmAnova.p", relErr(e.mau.p, w.mp), `${k}: Mauchly`); } });
+  const b = c.want.between; note("rmAnova.ss", relErr(r.between.sse, b.sse), `${at}: between`); if (b.Fg != null) { note("rmAnova.F", relErr(r.between.Fg, b.Fg), `${at}: between`); note("rmAnova.p", relErr(r.between.pg, b.pg), `${at}: between`); }
+}
 for (const c of (fixtures.range || { cases: [] }).cases) note(c.fn, relErr(get(c.fn)(...c.args), c.want), fmtA(c.args));
 
 /* ---- distributions fitted to values ---- */

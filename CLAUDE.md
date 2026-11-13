@@ -1180,6 +1180,22 @@ graph first, with the taskbar kept at the bottom of the screen.
   after)` the Response list both model dialogs share; `anaInterPlot` (the cells' means, a curve each level of the second
   factor, the Y axis titled Mean of the response) and `anaMainsPlot` (a graph each factor, in a figure), each one undo step;
   Analyze › Statistics › ANOVA › Two- and three-way ANOVA….
+  **Repeated measures** (STATS_SPEC 2.7): `helmertInt(L)` (integer Helmert contrasts `{C, N}`, N their squared norms, so
+  every sum of squares is exact and free of the basis), `kronC`, `onesC`, `detSym`; `rmAnova(Y, lv, grp)` (Y a row a subject,
+  a column a cell, the first factor's levels outermost; `lv` one or two within factors; `grp` a between factor's level per
+  subject): each within effect's contrasts of each subject's values in double-double, regressed on the between design
+  (`lsqFit` with `yl`), its sums of squares by Wald's identity over the norms; `{n, c, g, lv, effs:[{k, d, ss, ssg, sse, df1,
+  dfg, dfe, F, Fg, p, pg, gg, hf, lb, pgg, phf, plb, pggg, phfg, plbg, mau:{W, x2, df, p}}], between:{ssg, sse, dfg, dfe, Fg,
+  pg}}`; Greenhouse–Geisser's ε from the residuals' covariance, Huynh–Feldt's as SPSS's, at most 1, the lower bound 1/d;
+  Mauchly's W from its determinant. `RM_COMPS`, `rmData(ins, p, notes)` (wide: the columns ticked the cells, Group by the
+  between factor; long: `p.y`, `p.subj`, `p.w1`, `p.w2`, `p.btw`, a subject's several values in a cell averaged, one missing
+  a cell left out, one in two between levels refused). Kind `rm` (`cats`, `xs`; `p.form` "wide" | "long", `levels` the first
+  factor's (two factors, wide), `f1`, `f2`, `comp`; sections Within subjects, Sphericity corrections, Mauchly's test, Between
+  subjects, Effect size, Means of the cells, a factor's paired t (Bonferroni or Holm); the sheet the whole table and the
+  profile plot's `ix`, `iy<k>`, `ie<k>`; `report.profile`), form `#aRf`, `#aRa`, `#aRn1`, `#aRn2`, `#aLy`, `#aRs`, `#aRw1`,
+  `#aRw2`, `#aRb`, `#aRq` (the subject the text column with most levels, the within factor the next); the report's *Profile
+  plot* (`anaInterPlot`); Analyze › Statistics › ANOVA › Repeated measures ANOVA…. `anaDlg` wires a kind's form on the
+  dialog's own `.anadlg`, so no listener outlives its dialog.
   `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
   (rationals), shared by the fixtures (`desc.json`) and the fuzzer (`quantileType`, `descStats@<key>`, which
   `run.mjs` reads as one field of the result).
@@ -3112,7 +3128,9 @@ cross-table of text, a table of counts named by a column, McNemar, a negative co
 columns offered, the response on the first Y, text a factor that stays one, every number against linModel and
 lmContrast, rows left out said, an empty cell's coefficient named, a response of text refused, followed, a reload), and 2.6
 (the table, partial η², the means and cells against lmEst, Tukey and Bonferroni, simple effects, the interaction plot and its
-undo, the main effects figure, three factors, one refused, a reload).
+undo, the main effects figure, three factors, one refused, a reload), and 2.7 (wide with a group and two within
+factors against rmAnova, long with a subject missing a value, the defaults of the subject and within factor, Holm's paired t,
+the profile plot, a refusal, a reload, no id twice in any kind's dialog).
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
@@ -3127,7 +3145,9 @@ enumeration, each rank test's size, the shift's interval covering, refusals), an
 enumeration, a shift, a scale and a monotone change, each test's size, Fisher's coverage, partial r as residuals' r), and
 2.10's (χ²'s and G's size, Fisher's and McNemar's exact tests at or below 5 %, a table turned round, refusals), and 2.5's
 (the F tests' size, the intervals' coverage, a shift, a scale, the rows' order, codings and types agreeing, a contrast, refusals), and 2.6's
-(a balanced design's estimated means the plain ones, Tukey's family-wise error, simple effects' size, an empty cell, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
+(a balanced design's estimated means the plain ones, Tukey's family-wise error, simple effects' size, an empty cell, refusals), and 2.7's
+(F's size under sphericity, Greenhouse–Geisser's near 5 % where the uncorrected F is too liberal, two conditions as a paired t,
+offsets and order changing nothing, ε within its bounds, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
 ANA block.
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
@@ -4676,7 +4696,9 @@ Next, in order:
    interactions, powers, either coding, types I to III, contrasts; every number to the last digit or two of exact
    arithmetic up to a condition of 1e12, NIST's Longley and a polynomial as hard as Filip's included), done 12.11; slice 2.6,
    two- and three-way ANOVA (types I to III, partial η², estimated means, comparisons, simple effects, interaction and
-   main effects plots), done 12.11
+   main effects plots), done 12.11; slice 2.7, repeated measures (one or two factors within, one between, wide or long
+   data; Mauchly's test, the Greenhouse–Geisser and Huynh–Feldt corrections, partial η², the cells' means, paired
+   comparisons, a profile plot; exact against rationals and statsmodels), done 13.11
 
 ## Known gaps
 
@@ -4769,6 +4791,10 @@ Next, in order:
   (not of the cells, not Dunnett's or Games–Howell's); simple effects of one factor at the levels of another, averaged over a
   third; the interaction plot is of the first two factors ticked; a mean over an empty cell is left empty (no SAS-style
   estimable means)
+- Repeated measures: two within factors at most and one between; the univariate tests with their corrections (no
+  multivariate tests, Pillai's or Wilks'; no mixed model, so a subject missing a cell is left out, not modelled); paired
+  comparisons of a within factor's levels by Bonferroni or Holm (none of the between factor's, no simple effects); the
+  profile plot of the first group when there are two within factors and groups
 - Correlation: no point-biserial, polychoric or distance correlation, no comparison of two r's, no matrix of p
   values on the graph; partial r over the rows complete in every column only
 - Rank tests: exact p only without ties (with ties the normal approximation, as R; no permutation p); the

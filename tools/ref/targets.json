@@ -558,5 +558,29 @@
  "lmWaldL.p": {
   "tol": 1e-13,
   "why": "F's tail in 40 digits"
+ },
+ "rmAnova.ss": {
+  "tol": 1e-15,
+  "why": "Integer Helmert contrasts summed in double-double, the regression refined: against rational projections"
+ },
+ "rmAnova.F": {
+  "tol": 1e-15,
+  "why": "Ratios of those sums of squares"
+ },
+ "rmAnova.eps": {
+  "tol": 1e-15,
+  "why": "Greenhouse–Geisser's and Huynh–Feldt's ε from the residuals' covariance, against its rational traces"
+ },
+ "rmAnova.W": {
+  "tol": 1e-15,
+  "why": "Mauchly's W: det(BᵀEB)/det(BᵀB) on a rational basis"
+ },
+ "rmAnova.x2": {
+  "tol": 1e-13,
+  "why": "−f ln W: near W = 1 the logarithm magnifies W's last digit"
+ },
+ "rmAnova.p": {
+  "tol": 1e-13,
+  "why": "F's tail (df scaled by ε) and χ²'s, in 40 digits"
  }
 }

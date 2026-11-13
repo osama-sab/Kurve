@@ -392,6 +392,22 @@ def nway_pick(key):
 for key, tol in [("se", 1e-14), ("F", 1e-13)]:
     gen("nway@" + key, tol, 0.08)(nway_pick(key))
 
+# repeated measures (STATS_SPEC 2.7): one or two within factors of 2 to 4 levels, 4 to 20 subjects, a between factor of 2 or 3
+# groups now and then, about an offset up to 1e6; an effect's F, Greenhouse–Geisser's ε or its p, against rational projections
+def rm_pick(key):
+    def g():
+        lv = [int(rng.integers(2, 5))] + ([int(rng.integers(2, 4))] if rng.random() < 0.4 else []); c = math.prod(lv); n = int(rng.integers(4, 21))
+        gk = int(rng.integers(2, 4)) if rng.random() < 0.35 else 1; grp = [int(v) for v in rng.integers(0, gk, n)] if gk > 1 else None
+        if grp and (len(set(grp)) < gk or n - gk < 2): raise ValueError("a group too small")
+        off = 0.0 if rng.random() < 0.5 else float(rng.choice([-1, 1]) * lognum(0, 6)); sd = lognum(-2, 1)
+        Y = [[float(off + s0 + v) for v in rng.normal(0, sd, c)] for s0 in rng.normal(0, sd * 3, n)]
+        w = refs.rm_ref(Y, lv, grp); i = int(rng.integers(len(w["effs"]))); e = w["effs"][i]
+        if key == "eps" and e["d"] < 2: raise ValueError("no ε")
+        k = {"F": "F", "eps": "gg", "p": "pgg"}[key]; return [Y, lv, grp], e[k], f"rmAnova@effs.{i}.{k}"
+    return g
+for key, tol in [("F", 1e-14), ("eps", 1e-14), ("p", 1e-13)]:
+    gen("rmAnova@" + key, tol, 0.08)(rm_pick(key))
+
 cases = []
 for name, (f, tol) in GEN.items():
     for k in range(max(1, math.ceil(per * SHARE.get(name, 1.0)))):
@@ -402,7 +418,7 @@ for name, (f, tol) in GEN.items():
                 continue
         else:
             continue
-        cases.append({"id": len(cases), "fn": fn, "gen": name, "args": [a if isinstance(a, list) else num(a) for a in args], "want": num(want), "tol": tol, "k": k})
+        cases.append({"id": len(cases), "fn": fn, "gen": name, "args": [a if isinstance(a, list) or a is None else num(a) for a in args], "want": num(want), "tol": tol, "k": k})
 
 node = subprocess.run(["node", os.path.join(here, "run.mjs")] + sys.argv[3:4], input="\n".join(json.dumps(c) for c in cases),
                       capture_output=True, text=True, cwd=os.path.join(here, "..", ".."))

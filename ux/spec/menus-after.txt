@@ -197,6 +197,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
     ANOVA  ## + (STATS_SPEC 2.4): Origin's ANOVA
       One-way ANOVA…  ## + the table, η² and ω², Welch's F, eight comparisons of means, a means plot
       Two- and three-way ANOVA…  ## + (STATS_SPEC 2.6) types I–III, partial η², estimated means, comparisons, simple effects, interaction and main effects plots
+      Repeated measures ANOVA…  ## + (STATS_SPEC 2.7) wide or long, Mauchly's test, Greenhouse–Geisser and Huynh–Feldt, paired comparisons, a profile plot
       Linear model…  ## + (STATS_SPEC 2.5) numbers and factors, interactions, powers, types I–III, contrasts
     Nonparametric  ## + (STATS_SPEC 2.8): Origin's Nonparametric Tests
       Mann–Whitney…  ## + U, p exact while small, the Hodges–Lehmann shift

@@ -50,6 +50,7 @@ const BUDGET = {
   "Counts in tables: 1M pairs": [3000, "the cross-table of two columns of a million categories, χ² and G"],
   "Linear model: 200 000 rows": [1800, "a response by three numbers and a factor of five levels, type III (worked out in the worker in the app)"],
   "Linear model: pairs": [7000, "the same with every pair of them (23 columns), type III"],
+  "Repeated measures: 100 000 subjects": [2500, "two factors within (3 × 2) and two groups between, wide: the tests, Mauchly's, the corrections, the means, Holm's paired comparisons"],
   "Two-way ANOVA: 200 000 rows": [3000, "a response by factors of four and three levels with their interaction: type III, the means, Tukey's comparisons and simple effects"],
   "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
 };
@@ -126,6 +127,10 @@ await withPage(async (p) => {
   got["Two-way ANOVA: 200 000 rows"] = await best(() => p.evaluate(() => { const mb = mulberry32(13), n = 200000, rows = Array.from({ length: n }, (_, i) => i), A = rows.map(() => "abcd"[Math.floor(mb() * 4)]), B = rows.map(() => "pqr"[Math.floor(mb() * 3)]);
     const y = rows.map((i) => "abcd".indexOf(A[i]) + "pqr".indexOf(B[i]) * 0.5 + mb()), ins = [{ id: "y", name: "y", vals: y, rows }, { id: "A", name: "A", rows, cats: { keys: A, order: null } }, { id: "B", name: "B", rows, cats: { keys: B, order: null } }];
     const a = performance.now(), r = anaRunKind("anovan", ins, { y: "y", comps: ["tukey"], simple: true }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
+  got["Repeated measures: 100 000 subjects"] = await best(() => p.evaluate(() => { const mb = mulberry32(14), n = 100000, rows = Array.from({ length: n }, (_, i) => i), g = rows.map(() => mb() < 0.5 ? 1 : 2), base = rows.map(() => mb() * 3);
+    const ins = Array.from({ length: 6 }, (_, j) => ({ id: "c" + j, name: "C" + j, rows, vals: rows.map((i) => base[i] + j * 0.1 + mb()) }));
+    ins[0].groups = [[1], [2]]; ins[0].grows = [rows.filter((i) => g[i] === 1), rows.filter((i) => g[i] === 2)];
+    const a = performance.now(), r = anaRunKind("rm", ins, { levels: 3, comp: "holm" }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
   got["Correlation: 1M pairs"] = await best(() => p.evaluate(() => { const mb = mulberry32(10), n = 1000000, x = Array.from({ length: n }, () => mb()), rows = x.map((_, i) => i);
     const ins = [{ name: "A", vals: x, rows }, { name: "B", vals: x.map((v) => v + mb()), rows }];
     const a = performance.now(); anaRunKind("corr", ins, { methods: ["pearson", "spearman", "kendall"] }); return performance.now() - a; }));

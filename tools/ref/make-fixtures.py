@@ -649,6 +649,28 @@ while True:
 nwcase("unbalanced 4 x 3, about 1e6", [A4, B4], [1e6 + round(float(v), 3) for v in rng.normal(0, 0.01, 50)], {"ss": 3})
 out["nway"] = cases
 
+# ---------- repeated measures (STATS_SPEC 2.7): every number from rational projections (refs.rm_ref); statsmodels' AnovaRM asserted ----------
+cases = []; rng = np.random.default_rng(27)
+def rmsubj(n, c, off=0.0, sd=1.0): return [[round(off + float(v), 4) for v in rng.normal(rng.normal(0, 2), sd, c)] for _ in range(n)]
+def rmcase(name, Y, lv, grp=None): cases.append({"fn": "rmAnova", "name": name, "args": [Y, lv, grp], "want": refs.rm_ref(Y, lv, grp)})
+rmcase("one-way, 4 conditions, 10 subjects", rmsubj(10, 4), [4])
+rmcase("one-way, 2 conditions", rmsubj(8, 2), [2])
+rmcase("two-way within, 3 x 2, 12 subjects", rmsubj(12, 6), [3, 2])
+rmcase("two-way within, 2 x 4, 9 subjects", rmsubj(9, 8), [2, 4])
+rmcase("mixed: 4 within, 3 groups, unbalanced", rmsubj(15, 4), [4], [0] * 5 + [1] * 4 + [2] * 6)
+rmcase("mixed: 3 x 2 within, 2 groups", rmsubj(14, 6), [3, 2], [0] * 6 + [1] * 8)
+rmcase("one-way about 1e6", rmsubj(9, 5, 1e6, 0.01), [5])
+from statsmodels.stats.anova import AnovaRM
+import pandas as pd
+for c in cases:
+    Y, lv, grp = c["args"]
+    if grp: continue
+    b_ = lv[1] if len(lv) > 1 else 1
+    df = pd.DataFrame([{"s": i, "A": j // b_, "B": j % b_, "y": v} for i, r in enumerate(Y) for j, v in enumerate(r)])
+    tab = AnovaRM(df, "y", "s", within=["A"] if len(lv) == 1 else ["A", "B"]).fit().anova_table
+    assert all(abs(x - e["F"]) <= 1e-8 * abs(e["F"]) for x, e in zip(tab["F Value"], c["want"]["effs"])), c["name"]
+out["rm"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

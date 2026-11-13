@@ -616,6 +616,52 @@ await page(async p => {
   check("after a reload the three are there", r === 3, r);
 }, { name: "2.6" });
 
+console.log("2.7: repeated measures");
+await page(async p => {
+  // wide: Week 0, 4, 8 for ten subjects, a Group column; long: the same as Subject, Week, Score, Group (one value of S10 missing)
+  await p.evaluate(() => { const n = 10, W = [[], [], []], grp = [], S = [], T = [], V = [], G = [];
+    for (let i = 0; i < n; i++) { const s = 10 + Math.sin(i * 1.3) * 2; [0, 1, 2].forEach(j => { const v = +(s + j * 1.2 + Math.cos(i * (j + 1))).toFixed(3); W[j].push(v); if (!(i === 9 && j === 2)) { S.push("S" + (i + 1)); T.push(["W0", "W4", "W8"][j]); V.push(v); G.push(i < 5 ? "Ctrl" : "Drug"); } }); grp.push(i < 5 ? "Ctrl" : "Drug"); }
+    const txt = (nm, v) => Object.assign(makeCol("ignore", nm, ""), { data: v.map(() => null), fmt: "text", txt: Object.fromEntries(v.map((t, i) => [i, t])) });
+    save({ cols: [Object.assign(makeCol("x", "Row", ""), { data: V.map((_, i) => i + 1) }), ...W.map((w, j) => Object.assign(makeCol("y", ["Week 0", "Week 4", "Week 8"][j], ""), { data: w, pipe: [], mask: [] })), txt("Group", grp),
+      txt("Subject", S), txt("Week", T), Object.assign(makeCol("ignore", "Score", ""), { data: V }), txt("Arm", G)], activeY: null }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  // every analysis's dialog: no id twice
+  const dup = await p.evaluate(async () => { const bad = []; for (const k of Object.keys(ANA_KINDS)) { anaDlg(k, { cols: sheetCols(curSheet()).slice(1, 4).map(c => c.id) }); await new Promise(r => setTimeout(r, 60));
+      const ids = [...document.querySelectorAll("#formBody [id]")].map(e => e.id), d = ids.filter((x, i) => ids.indexOf(x) !== i); if (d.length) bad.push(k + ": " + d.join(", ")); const c = document.querySelector("#formCancel"); if (c) c.click(); await new Promise(r => setTimeout(r, 40)); } return bad; });
+  check("every analysis's dialog: no id twice (a form's own and the dialog's)", dup.length === 0, JSON.stringify(dup));
+  const last = () => p.evaluate(() => { const as = anaList().filter(x => x.kind === "rm"), a = as[as.length - 1];
+    return { id: a.id, secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, h: s.tables[0].head, r: s.tables[0].rows })), notes: a.res.notes, err: a.res.err }; });
+  await p.evaluate(ids => { anaDlg("rm", { cols: ids.slice(1, 4) }); }, ids); await p.waitForSelector("#aRf"); await p.waitForTimeout(150);
+  let r = await p.evaluate(() => ({ by: !document.querySelector("#aBy").hidden, lab: document.querySelector('label[for="aBy"]').textContent, y: document.querySelector("#aLy").hidden, ok: !document.querySelector("#formOk").disabled }));
+  check("the dialog, wide: Between (group by) offered, the long form's lists hidden, Work it out ready", r.by && r.lab === "Between (group by)" && r.y && r.ok, JSON.stringify(r));
+  await p.selectOption("#aBy", ids[4]); await p.selectOption("#aRq", "holm"); await p.fill("#aRn1", "Week"); await p.click("#formOk");
+  await p.waitForFunction(() => anaList().some(a => a.kind === "rm" && a.res && (a.res.report || a.res.err)), null, { timeout: 60000 });
+  r = await last();
+  const want = await p.evaluate(ids => { const c = ids.slice(1, 4).map(colById), Y = c[0].data.map((_, i) => c.map(x => x.data[i])), g = colById(ids[4]), grp = Y.map((_, i) => g.txt[i] === "Ctrl" ? 0 : 1);
+    const R = rmAnova(Y, [3], grp); return { F: R.effs[0].F, Fg: R.effs[0].Fg, gg: R.effs[0].gg, pgg: R.effs[0].pgg, W: R.effs[0].mau.W, bF: R.between.Fg }; }, ids);
+  const sec = t => r.secs.find(s => s.t === t);
+  check("wide with a group: Week, Week:Group and its error as rmAnova gives them", sec("Within subjects").r.map(x => x[0]).join("|") === "Week|Week:Group|Error (Week)" && sec("Within subjects").r[0][3] === want.F && sec("Within subjects").r[1][3] === want.Fg, JSON.stringify([sec("Within subjects"), want]));
+  check("…the corrections, Mauchly's W, the group between subjects", sec("Sphericity corrections").r[0][1] === want.gg && sec("Sphericity corrections").r[0][2] === want.pgg && sec("Mauchly's test").r[0][1] === want.W && sec("Between subjects").r[0][3] === want.bF, JSON.stringify(r.secs.map(s => s.t)));
+  check("…each cell's mean for each group, and Holm's paired comparisons of the weeks", sec("Means of the cells").r.length === 6 && sec("Week: paired t, Holm") && sec("Week: paired t, Holm").r.length === 3);
+  check("…numbers only", !/significant|violated|assumed|suggest/i.test(JSON.stringify(r)));
+  const g0 = await p.evaluate(() => P().graphs.length);
+  await p.evaluate(id => anaInterPlot(id), r.id); await p.waitForTimeout(600);
+  let g = await p.evaluate(() => { const gr = P().graphs[P().graphs.length - 1]; return { n: P().graphs.length, cols: gr.cols.map(id => colById(id).name), yt: ((gr.plot.ax || {}).y || {}).title }; });
+  check("Profile plot: a curve for each group, the Y axis Mean", g.n === g0 + 1 && g.cols.join("|") === "Group = Ctrl|Group = Drug" && g.yt === "Mean", JSON.stringify(g));
+  // the same data long: Subject, Week, Score, Arm; S10 misses a week
+  await p.evaluate(ids => { anaDlg("rm", { cols: ids.slice(5, 9) }); }, ids); await p.waitForSelector("#aRf"); await p.selectOption("#aRf", "long"); await p.waitForTimeout(150);
+  r = await p.evaluate(() => ({ y: document.querySelector("#aLy").value, s: document.querySelector("#aRs").value, w: document.querySelector("#aRw1").value, aRa: document.querySelector("#aRa").hidden, by: document.querySelector("#aBy").hidden }));
+  check("long: the response on Score (the only column of numbers), Subject and Week chosen from the text columns, the wide form's settings hidden", r.y === ids[7] && r.s === ids[5] && r.w === ids[6] && r.aRa && r.by, JSON.stringify([r, ids.slice(5, 9)]));
+  await p.selectOption("#aRb", ids[8]); await p.click("#formOk"); await p.waitForTimeout(1200);
+  r = await last();
+  const wantL = await p.evaluate(ids => { const c = ids.slice(1, 4).map(colById), Y = c[0].data.slice(0, 9).map((_, i) => c.map(x => x.data[i])); const R = rmAnova(Y, [3], Y.map((_, i) => i < 5 ? 0 : 1)); return { F: R.effs[0].F, Fg: R.effs[0].Fg }; }, ids);
+  check("long, with Arm between: the subject missing a week left out and said, the same F as the nine complete subjects wide", r.notes.some(s => /^1 subject without a value in every cell left out/.test(s)) && Math.abs(r.secs[0].r[0][3] - wantL.F) <= 1e-12 * wantL.F && Math.abs(r.secs[0].r[1][3] - wantL.Fg) <= 1e-12 * wantL.Fg, JSON.stringify([r.notes, r.secs && r.secs[0], wantL]));
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().filter(a => a.kind === "rm").map(a => !!(a.res && a.res.report)));
+  check("after a reload the two are there", r.length === 2 && r.every(Boolean), JSON.stringify(r));
+}, { name: "2.7" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

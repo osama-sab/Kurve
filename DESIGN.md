@@ -898,6 +898,14 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-13: repeated measures (STATS_SPEC 2.7)
+
+- **Wide or long, one dialog**: wide data (a column a condition) is the common case and needs only the columns ticked;
+  long data names its response, subject and factors, the subject started on the text column with most levels.
+- **Every correction in the table, none chosen for you**: the uncorrected p, Greenhouse–Geisser's, Huynh–Feldt's and the
+  lower bound side by side with Mauchly's test; which to read is the user's call.
+- **A subject missing a cell is left out and counted**, as the univariate tests need every cell; the note says how many.
+
 ### 2026-11-12: two- and three-way ANOVA (STATS_SPEC 2.6)
 
 - **Every column ticked but the response is a factor**: the dialog asks only for the response, the interactions, the type,

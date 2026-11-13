@@ -409,5 +409,28 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("one factor, or a response of text, refused in words", /Two or three factors/.test(RUN("anovan", ins([A.map(String)], y), { y: "y" }).fail) && /holds text/.test(RUN("anovan", [{ id: "y", name: "y", rows: [0, 1], cats: { keys: ["a", "b"] } }].concat(ins([["a", "b"], ["p", "q"]], [1, 2]).slice(1)), { y: "y" }).fail));
 }
 
+// Repeated measures (STATS_SPEC 2.7): F's size under sphericity; with the conditions' variances far apart, the uncorrected
+// F too liberal and Greenhouse–Geisser's near 5 %; two conditions as a paired t (t² = F); each subject's offset and the
+// subjects' order change nothing; ε within [1/d, 1]; refusals in words.
+{
+  const mb = get("mulberry32")(2007), RM = get("rmAnova"), TP = get("tTestPaired");
+  const gauss = () => { const u = mb() || 1e-12, v = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const N = 4000, n = 12, k = { sph: 0, raw: 0, gg: 0, epsOk: 0 }, sds = [1, 1, 4, 8];
+  for (let s = 0; s < N; s++) {
+    const Y = Array.from({ length: n }, () => { const b = 3 * gauss(); return [0, 1, 2, 3].map(() => b + gauss()); }); if (RM(Y, [4]).effs[0].p < 0.05) k.sph++;
+    const Z = Array.from({ length: n }, () => { const b = gauss(); return sds.map((sd) => b + sd * gauss()); }), e = RM(Z, [4]).effs[0];
+    if (e.p < 0.05) k.raw++; if (e.pgg < 0.05) k.gg++; if (e.gg >= 1 / 3 - 1e-12 && e.gg <= 1) k.epsOk++;
+  }
+  const half = 3.29 * Math.sqrt(0.05 * 0.95 / N);
+  check(`F near 5 % under sphericity (within ${(half * 100).toFixed(2)} %)`, Math.abs(k.sph / N - 0.05) < half, k.sph / N);
+  check("the conditions' variances 1, 1, 16, 64: the uncorrected F past 5 %, Greenhouse–Geisser's near it, ε within [1/3, 1]", k.raw / N > 0.05 + half && Math.abs(k.gg / N - 0.05) < 0.02 && k.epsOk === N, [k.raw / N, k.gg / N]);
+  const Y = Array.from({ length: 9 }, () => { const b = gauss() * 5; return [b + gauss(), b + 0.4 + gauss()]; }), r = RM(Y, [2]).effs[0], t = TP(Y.map((y) => y[0]), Y.map((y) => y[1]), { dci: false });
+  check("two conditions: F is the paired t squared, p the same", rel(r.F, t.t * t.t) < 1e-13 && rel(r.p, t.p) < 1e-12, [r.F, t.t * t.t, r.p, t.p]);
+  const Y3 = Array.from({ length: 10 }, () => [0, 1, 2].map((j) => j * 0.3 + gauss())), a = RM(Y3, [3]).effs[0];
+  const b = RM(Y3.map((y, i) => y.map((v) => v + 1000 * i)), [3]).effs[0], c = RM(Y3.slice().reverse(), [3]).effs[0];
+  check("each subject's offset and the subjects' order change nothing within", rel(b.F, a.F) < 1e-12 && rel(b.gg, a.gg) < 1e-12 && rel(c.F, a.F) < 1e-14 && rel(c.gg, a.gg) < 1e-14, [a.F, b.F, c.F]);
+  check("refusals in words: one subject, cells that are not the levels' product, groups leaving no error", /Fewer than two subjects/.test(RM([[1, 2, 3]], [3]).fail) && /levels multiplied/.test(RM([[1, 2, 3], [2, 3, 4]], [2, 2]).fail) && /No degrees of freedom left/.test(RM([[1, 2], [2, 3]], [2], [0, 1]).fail));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
