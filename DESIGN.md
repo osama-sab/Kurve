@@ -898,6 +898,14 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-13: ROC curves (STATS_SPEC 2.12)
+
+- **The group column is one of the columns ticked**, chosen in a list that starts on a text column (or one of numbers with
+  two values); the others are the scores, a curve each, so several markers are compared on one sheet.
+- **Positive is named, not guessed from a sign**: the dialog lists the group's two values; which way a score points is a
+  choice of its own, so a marker that falls with the condition needs no column made by hand.
+- **The cut-off is a score itself**, with the rule at or beyond it, so it can be typed into a protocol as it reads.
+
 ### 2026-11-13: power and sample size (STATS_SPEC 2.11)
 
 - **An analysis with no columns**: the settings typed, as Proportions and Fisher's test are; its result sheet holds the table

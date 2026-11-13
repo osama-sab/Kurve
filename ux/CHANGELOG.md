@@ -1024,6 +1024,22 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 2, slice 2.12: ROC curves (2026-11-13)
+
+- **Analyze › Statistics › ROC curve…**: a column of groups (text, or numbers with two values), the positive one named, and
+  one score column or more, a higher or a lower score positive: each score's area under the curve with DeLong's standard
+  error and interval, Youden's cut-off with its sensitivity and specificity, two scores compared by DeLong's test on the rows
+  both have, and the curve with the diagonal from the result.
+- The area from midranks and DeLong's variance from deviations that are exact multiples of a half over n₁n₀: both agree with
+  the definitions summed over every pair in rational arithmetic to the last digit.
+- The noncentral F's and χ²'s targets are the central tails' (1e-13), not 1e-14: each term of the mixture carries the
+  incomplete beta's error, and the fuzzer found 2.4e-14 on a tail of 5e-36 (the central F's own error there).
+- A fix: the Q–Q plot's reference line (2.2) asked for its dash by a pattern the graph does not read, and was drawn solid;
+  it and the ROC curve's diagonal are dashed now, and the drive looks at the drawing.
+
+Checked: `fixtures/roc.json` (7 sets, SciPy's Mann–Whitney U agreeing), the fuzzer (one new generator), stats-test (7 new),
+ana-drive (9 new, and the Q–Q plot's dash), the suite.
+
 ## Closing the gap with Origin, wave 2, slice 2.11: power and sample size (2026-11-13)
 
 - **Analyze › Statistics › Power and sample size…**: the power of a one-sample, paired or two-sample t test, a one-way ANOVA,

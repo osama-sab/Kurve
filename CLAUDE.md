@@ -1211,6 +1211,17 @@ graph first, with the taskbar kept at the bottom of the screen.
   `#aWd`, `#aWsd`, `#aWm`, `#aWp0`, `#aWp1`, `#aWp2`, `#aWv0`, `#aWv1`, `#aWv2`, `#aWw`, `#aWdf`, `#aWr` (shown per test);
   the report's *Power curve* (`anaPowerPlot`); Analyze › Statistics › Power and sample size…. A typed kind's `typedWhat` is
   what the toast, the log, the copied report and the exported one say it read.
+  **ROC curves** (STATS_SPEC 2.12): `rocCore(pos, neg)` (`{n1, n0, U, auc, a, b}`: U from midranks, `rankAvg`; each positive's
+  and negative's deviation from the area as an exact multiple of a half over n₁n₀, `a`, `b`), `rocVar(n1, n0, a, b)` (DeLong's
+  variance, or that of a difference given the deviations subtracted; null below two a group), `rocPoints(pos, neg)` (a point
+  at every distinct score, descending, from (0, 0); Youden's best by TP·n₀ − FP·n₁ as integers, the highest cut-off where
+  tied), `rocTest(pos, neg, {dir, conf})` (`{n1, n0, auc, se, ci, core, pts:[{c, tpr, fpr}], youden:{c, sens, spec, J}}`;
+  `dir` "low" negates the scores and the cut-off back), `rocCompare(A, B)` (two cores on the same rows: `{diff, se, z, p}`).
+  Kind `roc` (`cats`, `xs`; `p.grp` the column of groups, text or two numbers, `pos` the positive level as a string, `dir`,
+  `conf`; the other columns ticked the scores; sections Area under the curve, Youden's index, Comparisons (DeLong) over the
+  rows both scores have; the sheet those tables (Youden's keys `y…`, the comparisons' `c…`) and each curve's `fpr<k>` (X),
+  `tpr<k>`, `thr<k>`, and the diagonal `dx`, `dy`), form `#aRg`, `#aRp`, `#aRdir`, `#aCf`; the report's *ROC curve*
+  (`anaRocPlot`: the curves and the diagonal dashed, the Y axis Sensitivity); Analyze › Statistics › ROC curve….
   `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
   (rationals), shared by the fixtures (`desc.json`) and the fuzzer (`quantileType`, `descStats@<key>`, which
   `run.mjs` reads as one field of the result).
@@ -3147,7 +3158,9 @@ undo, the main effects figure, three factors, one refused, a reload), and 2.7 (w
 factors against rmAnova, long with a subject missing a value, the defaults of the subject and within factor, Holm's paired t,
 the profile plot, a refusal, a reload, no id twice in any kind's dialog), and 2.11 (the fields shown per test, the power at
 sizes and the size for a power against powerAt, Cohen's d, the power curve and its undo, the exact binomial test, a refusal, a
-reload); `ONLY=2.11` runs one section.
+reload), and 2.12 (Groups and Positive offered, each area, SE, interval, Youden's point and the comparison against rocTest
+and rocCompare, the curve with the diagonal, a lower score positive, a third group refused, a reload); `ONLY=2.11` runs one
+section.
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
@@ -3166,7 +3179,9 @@ enumeration, a shift, a scale and a monotone change, each test's size, Fisher's 
 (F's size under sphericity, Greenhouse–Geisser's near 5 % where the uncorrected F is too liberal, two conditions as a paired t,
 offsets and order changing nothing, ε within its bounds, refusals), and 2.11's (the exact binomial test's power the sum over
 the counts propTest1 rejects, the t tests', the ANOVA's and the F test's power the rate at which Kurve's own tests reject, α at
-no effect, rising with the size, the size found the first to reach the power, the noncentral tails at λ = 0, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
+no effect, rising with the size, the size found the first to reach the power, the noncentral tails at λ = 0, refusals), and 2.12's
+(the area as U over n₁n₀, the trapezoids adding up to it, a lower score positive and a rising change, Youden's J, DeLong's
+interval's coverage of a binormal area and its test's size, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
 ANA block.
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
@@ -4723,7 +4738,9 @@ Next, in order:
    data; Mauchly's test, the Greenhouse–Geisser and Huynh–Feldt corrections, partial η², the cells' means, paired
    comparisons, a profile plot; exact against rationals and statsmodels), done 13.11; slice 2.11, power and sample size
    (t tests, one-way ANOVA, the exact binomial test, two proportions, variances, χ² tests; power at sizes, the size for a
-   power, a power curve; the noncentral F and χ², and the noncentral t's upper tail, to 1e-15), done 13.11
+   power, a power curve; the noncentral F and χ², and the noncentral t's upper tail, to 1e-15), done 13.11; slice 2.12, ROC
+   curves (the area with DeLong's interval, Youden's cut-off, scores compared by DeLong's test, the curve; exact against every
+   pair), done 13.11: wave 2's twelve slices are done
 
 ## Known gaps
 
@@ -4823,6 +4840,8 @@ Next, in order:
 - Power and sample size: two-sample t tests with equal variances only (no Welch), two proportions by the pooled z's normal
   approximation (no exact test), the χ² test from Cohen's w (not from a table of proportions); no power for repeated
   measures, the linear model, correlation or rank tests; the exact binomial test's size searched to 20 000 trials
+- ROC curves: two groups only (no multi-class), the empirical curve (no binormal or smoothed curve, no partial area), DeLong's
+  interval only (no bootstrap), Youden's cut-off only (no costs or prevalence), scores compared two at a time on the rows both have
 - Correlation: no point-biserial, polychoric or distance correlation, no comparison of two r's, no matrix of p
   values on the graph; partial r over the rows complete in every column only
 - Rank tests: exact p only without ties (with ties the normal approximation, as R; no permutation p); the

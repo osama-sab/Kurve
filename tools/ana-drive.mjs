@@ -248,8 +248,8 @@ await page(async p => {
   const g0 = await p.evaluate(() => P().graphs.length);
   await p.evaluate(() => { openWin("res", { render: true }); }); await p.evaluate(id => anaReport(id), r.id); await p.waitForTimeout(300);
   await p.click(`#w-res button[data-anaact="qq"]`); await p.waitForTimeout(600);
-  d = await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1], cs = g.cols.map(colById); return { n: P().graphs.length, cols: cs.map(c => [c.ak, c.role]), types: cs.map(c => ((g.plot.series || {})[c.id] || {}).type) }; });
-  check("Q–Q plot (Results' button): a graph of the values as symbols and the line, against the normal quantiles", d.n === g0 + 1 && d.cols.map(c => c[0]).join() === "qy0,ql0" && d.types.join() === "scatter,line", JSON.stringify(d));
+  d = await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1], cs = g.cols.map(colById); return { n: P().graphs.length, cols: cs.map(c => [c.ak, c.role]), types: cs.map(c => ((g.plot.series || {})[c.id] || {}).type), dashed: document.querySelectorAll("#plot g[data-ser] path[stroke-dasharray]").length }; });
+  check("Q–Q plot (Results' button): a graph of the values as symbols and the line, dashed, against the normal quantiles", d.n === g0 + 1 && d.cols.map(c => c[0]).join() === "qy0,ql0" && d.types.join() === "scatter,line" && d.dashed > 0, JSON.stringify(d));
   await p.evaluate(() => { const a = anaList().find(x => x.kind === "norm"); anaRecalc(a.id); }); await p.waitForTimeout(300);
   d = await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1]; return g.cols.map(id => colById(id)).map(c => c && c.role); });
   check("…worked out again, its curves stay curves", d.join() === "y,y", JSON.stringify(d));
@@ -698,6 +698,42 @@ await page(async p => {
   r = await p.evaluate(() => anaList().filter(a => a.kind === "power").map(a => !!(a.res && (a.res.report || a.res.err))));
   check("after a reload the three are there", r.length === 3 && r.every(Boolean), JSON.stringify(r));
 }, { name: "2.11" });
+
+console.log("2.12: ROC curves");
+await page(async p => {
+  await p.evaluate(() => { const pos = [3, 4, 4, 5, 6, 7, 7, 9], neg = [1, 2, 2, 3, 4, 5, 5, 6, 8], all = pos.concat(neg), st = all.map((_, i) => i < 8 ? "sick" : "well");
+    save({ cols: [Object.assign(makeCol("x", "Row", ""), { data: all.map((_, i) => i + 1) }), Object.assign(makeCol("ignore", "Status", ""), { data: st.map(() => null), fmt: "text", txt: Object.fromEntries(st.map((t, i) => [i, t])) }),
+      Object.assign(makeCol("y", "Marker", ""), { data: all, pipe: [], mask: [] }), Object.assign(makeCol("y", "Other", ""), { data: all.map((v, i) => +(v + Math.sin(i)).toFixed(3)), pipe: [], mask: [] })], activeY: null }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  await p.evaluate(ids => { anaDlg("roc", { cols: ids.slice(1, 4) }); }, ids); await p.waitForSelector("#aRg"); await p.waitForTimeout(150);
+  let r = await p.evaluate(() => ({ g: document.querySelector("#aRg").value, opts: [...document.querySelector("#aRp").options].map(o => o.value), ok: !document.querySelector("#formOk").disabled }));
+  check("the dialog: Groups on the text column, Positive offering its two levels, Work it out ready", r.g === ids[1] && r.opts.join("|") === "sick|well" && r.ok, JSON.stringify(r));
+  await p.selectOption("#aRp", "sick"); await p.click("#formOk");
+  await p.waitForFunction(() => anaList().some(a => a.kind === "roc" && a.res && (a.res.report || a.res.err)), null, { timeout: 30000 });
+  const last = () => p.evaluate(() => { const as = anaList().filter(x => x.kind === "roc"), a = as[as.length - 1];
+    return { id: a.id, secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, h: s.tables[0].head, r: s.tables[0].rows })), notes: a.res.notes, err: a.res.err, method: a.res.report && a.res.report.method }; });
+  r = await last(); const sec = t => r.secs && r.secs.find(s => s.t === t);
+  const want = await p.evaluate(ids => { const s = colById(ids[2]).data, o = colById(ids[3]).data, A = rocTest(s.slice(0, 8), s.slice(8), {}), B = rocTest(o.slice(0, 8), o.slice(8), {});
+    const t = rocCompare(rocCore(s.slice(0, 8), s.slice(8)), rocCore(o.slice(0, 8), o.slice(8))); return { a: [A.auc, A.se, A.ci[0], A.ci[1]], y: [A.youden.c, A.youden.sens, A.youden.spec], b: B.auc, t: [t.diff, t.p] }; }, ids);
+  const au = sec("Area under the curve");
+  check("each score's area, SE and interval as rocTest gives them, N of each group", au && au.r[0].slice(1, 7).join(",") === [8, 9].concat(want.a).join(",") && au.r[1][3] === want.b && au.h[1] === "N, sick", JSON.stringify([au, want]));
+  check("…Youden's cut-off, sensitivity and specificity; DeLong's comparison", sec("Youden's index").r[0].slice(1, 4).join(",") === want.y.join(",") && sec("Comparisons (DeLong)").r[0][3] === want.t[0] && sec("Comparisons (DeLong)").r[0][6] === want.t[1], JSON.stringify(r.secs));
+  check("…the method in one line, numbers only", /Positive: Status = sick/.test(r.method) && !/significant|good|poor|excellent|recommend|suggest/i.test(JSON.stringify(r)), r.method);
+  const g0 = await p.evaluate(() => P().graphs.length);
+  await p.evaluate(id => anaRocPlot(id), r.id); await p.waitForTimeout(600);
+  let g = await p.evaluate(() => { const gr = P().graphs[P().graphs.length - 1]; return { n: P().graphs.length, cols: gr.cols.map(id => colById(id).name), x: xColFor(colById(gr.cols[0])).name, yt: ((gr.plot.ax || {}).y || {}).title, dash: document.querySelectorAll("#plot g[data-ser] path[stroke-dasharray]").length }; });
+  check("ROC curve: a curve each score and the diagonal dashed, against 1 − specificity, the Y axis Sensitivity", g.n === g0 + 1 && g.cols.join("|") === "Marker|Other|Diagonal" && g.x === "1 − specificity" && g.yt === "Sensitivity" && g.dash === 1, JSON.stringify(g));
+  await p.evaluate(ids => { anaDlg("roc", { cols: ids.slice(1, 3) }); }, ids); await p.waitForSelector("#aRg"); await p.selectOption("#aRp", "sick"); await p.selectOption("#aRdir", "low"); await p.click("#formOk"); await p.waitForTimeout(600);
+  r = await last();
+  check("a lower score positive: 1 less the area", Math.abs(r.secs[0].r[0][3] - (1 - want.a[0])) < 1e-15, JSON.stringify(r.secs[0]));
+  await p.evaluate(ids => { colById(ids[1]).txt = Object.assign({}, colById(ids[1]).txt, { 3: "unsure" }); save({ cols: P().cols }, "typed"); }, ids); await p.waitForTimeout(800);
+  r = await last();
+  check("a third group typed: the analysis worked out again and refused in words", /3 groups: an ROC curve needs two/.test(r.err || ""), r.err);
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().filter(a => a.kind === "roc").length);
+  check("after a reload the two are there", r === 2, r);
+}, { name: "2.12" });
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();

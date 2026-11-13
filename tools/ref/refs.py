@@ -1007,3 +1007,34 @@ def nc_tail(kind, args, upper):
         return f(1 - c if upper else c)
     finally:
         mp.mp.dps = old
+
+# ---------- ROC curves (STATS_SPEC 2.12): the area, DeLong's variance and comparison, Youden's index, exactly ----------
+def _psi(x, y): return Fr(1) if x > y else Fr(1, 2) if x == y else Fr(0)
+
+def roc_ref(pos, neg, dir="high", conf=0.95, pos2=None, neg2=None):
+    """The area as Σψ/(n₁n₀) over every pair (Fractions); DeLong's placement values V10, V01 and their sample variances; the
+    interval in 40 digits; Youden's J by every distinct score; with a second score on the same rows, DeLong's test."""
+    sg = -1 if dir == "low" else 1
+    P = [Fr(sg * v) for v in pos]; N = [Fr(sg * v) for v in neg]; n1, n0 = len(P), len(N)
+    def place(P, N):
+        V10 = [sum(_psi(x, y) for y in N) / n0 for x in P]; V01 = [sum(_psi(x, y) for x in P) / n1 for y in N]
+        return sum(V10) / n1, V10, V01
+    A, V10, V01 = place(P, N)
+    def var(V10, V01, A):
+        return sum((v - A) ** 2 for v in V10) / (n1 - 1) / n1 + sum((v - A) ** 2 for v in V01) / (n0 - 1) / n0
+    out = {"auc": float(A)}
+    if n1 > 1 and n0 > 1:
+        se = mp.sqrt(mpq(var(V10, V01, A))); z = -mp.sqrt(2) * mp.erfinv(2 * ((1 - M(conf)) / 2) - 1)
+        out.update(se=f(se), lo=f(max(M(0), mpq(A) - z * se)), hi=f(min(M(1), mpq(A) + z * se)))
+    best = None
+    for c in sorted(set(P + N), reverse=True):
+        tp = sum(1 for x in P if x >= c); fp = sum(1 for y in N if y >= c); J = Fr(tp, n1) - Fr(fp, n0)
+        if best is None or J > best[0]: best = (J, c, tp, fp)
+    out.update(c=float(sg * best[1]), sens=float(Fr(best[2], n1)), spec=float(Fr(n0 - best[3], n0)), J=float(best[0]))
+    if pos2 is not None:
+        P2 = [Fr(sg * v) for v in pos2]; N2 = [Fr(sg * v) for v in neg2]
+        B, W10, W01 = place(P2, N2)
+        D10 = [a - b for a, b in zip(V10, W10)]; D01 = [a - b for a, b in zip(V01, W01)]
+        vd = var(D10, D01, A - B); sd = mp.sqrt(mpq(vd)); zz = mpq(A - B) / sd
+        out.update(diff=float(A - B), dse=f(sd), z=f(zz), p=f(mp.erfc(abs(zz) / mp.sqrt(2))))
+    return out

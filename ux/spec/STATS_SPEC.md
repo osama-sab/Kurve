@@ -412,7 +412,8 @@ of power against size.
 
 Built (13.11):
 - **Distributions**: the noncentral F and χ² as Poisson mixtures of the central tails, every term positive (`poisMix`); the
-  noncentral t's upper tail as Guenther's sum of upper incomplete betas. Against 60-digit sums: 5e-15, 1e-15, 5e-16.
+  noncentral t's upper tail as Guenther's sum of upper incomplete betas. Against 60-digit sums: 5e-15, 1e-15, 5e-16. Their target is the central tails' 1e-13,
+  whose error each term carries (2.4e-14 on a tail of 5e-36).
 - **Power** (`powerAt`): t tests by the noncentral t (both tails two-sided; equal variances for two samples, a ratio of
   sizes), one-way ANOVA by the noncentral F (λ = n Σ(μᵢ − μ̄)²/σ²), one proportion by the exact binomial test Kurve runs
   (R's two-sided rule, its rejection region by bisection), two proportions by the pooled z's normal approximation, one and
@@ -428,6 +429,17 @@ Built (13.11):
 
 From a score column and a group of two levels: the curve, the area with its interval (DeLong), the
 cut-off by Youden's index.
+
+Built (13.11):
+- **Area** (`rocCore`): Mann and Whitney's U over n₁n₀ from midranks, ties counted a half; each placement value's deviation
+  from the area an exact multiple of a half over n₁n₀, so DeLong's variance (`rocVar`) keeps its digits, and so does the
+  variance of the difference of two areas on the same rows (`rocCompare`).
+- **Curve and cut-off** (`rocPoints`): a point at every distinct score; Youden's J compared as integers, the most specific
+  cut-off where tied; a lower score positive by negating the scores.
+- **Kind** `roc`: the column of groups among those ticked, the positive level named, a curve per score; areas with DeLong's
+  interval, Youden's index, pairwise comparisons; the curve with the diagonal from the result.
+- **Checked**: `roc.json` (exact sums over every pair), within 1e-15 for the area, SE, interval and Youden's point; the fuzzer
+  (`rocTest@se`); stats-test (7: U, trapezoids, complements, a rising change, J, DeLong's coverage and size); ana-drive (9).
 
 ## Words
 

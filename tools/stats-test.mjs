@@ -469,6 +469,30 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
     && /two means or more/.test(f({ test: "anova", means: [1] })) && /between 0 and 1/.test(f({ test: "p1", p0: 0.5, p1: 1 })) && /between 0 and 1/.test(f({ find: "size", powers: [1] })));
 }
 
+// ROC curves (STATS_SPEC 2.12): the area Mann–Whitney's U over n₁n₀; the curve's trapezoids adding up to it; a lower score
+// positive its complement; a rising change of the scores changing nothing; Youden's J the largest of TPR − FPR; DeLong's
+// interval covering the binormal area about 95 % of the time and its test of two exchangeable scores at about 5 %; refusals.
+{
+  const mb = get("mulberry32")(2012), gauss = () => { let u = 0; while (u === 0) u = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * mb()); };
+  const RT = get("rocTest"), MW = get("mwTest"), K = get("rocCore"), CMP = get("rocCompare"), RUN = get("anaRunKind"), D = get("DIST");
+  const P = Array.from({ length: 37 }, () => Math.round(10 * (0.7 + gauss())) / 10), N = Array.from({ length: 52 }, () => Math.round(10 * gauss()) / 10), r = RT(P, N, {});
+  const u = MW(P, N, {}); check("the area is Mann–Whitney's U over n₁n₀", rel(r.auc, u.U / (37 * 52)) < 1e-15, [r.auc, u.U / (37 * 52)]);
+  let tz = 0; for (let i = 1; i < r.pts.length; i++) tz += (r.pts[i].fpr - r.pts[i - 1].fpr) * (r.pts[i].tpr + r.pts[i - 1].tpr) / 2;
+  check("the curve's points rise from (0, 0) to (1, 1), their trapezoids adding up to the area", r.pts[0].fpr === 0 && r.pts[0].tpr === 0 && r.pts.at(-1).fpr === 1 && r.pts.at(-1).tpr === 1 && r.pts.every((q, i) => !i || (q.fpr >= r.pts[i - 1].fpr && q.tpr >= r.pts[i - 1].tpr)) && Math.abs(tz - r.auc) < 1e-14, [tz, r.auc]);
+  const lo = RT(P, N, { dir: "low" }), ex = RT(P.map(Math.exp), N.map(Math.exp), {});
+  check("a lower score positive gives 1 less the area; exp of the scores the same area, SE and Youden's point", Math.abs(lo.auc - (1 - r.auc)) < 1e-15 && Math.abs(lo.se - r.se) < 1e-15 && ex.auc === r.auc && rel(ex.se, r.se) < 1e-14 && ex.youden.sens === r.youden.sens && ex.youden.spec === r.youden.spec);
+  check("Youden's J the largest TPR − FPR, its cut-off a score", Math.abs(r.youden.J - Math.max(...r.pts.map((q) => q.tpr - q.fpr))) < 1e-15 && P.concat(N).includes(r.youden.c));
+  const S = 4000, A0 = D.norm.cdf(1 / Math.SQRT2); let cov = 0, rej = 0;
+  for (let s = 0; s < S; s++) { const p = Array.from({ length: 50 }, () => 1 + gauss()), n = Array.from({ length: 50 }, gauss), t = RT(p, n, {}); if (t.ci[0] <= A0 && A0 <= t.ci[1]) cov++;
+    const lp = Array.from({ length: 40 }, () => 0.8 + gauss()), ln = Array.from({ length: 40 }, gauss), e = () => 0.7 * gauss();
+    const a = K(lp.map((v) => v + e()), ln.map((v) => v + e())), b = K(lp.map((v) => v + e()), ln.map((v) => v + e())); if (CMP(a, b).p < 0.05) rej++; }
+  check("DeLong's 95 % interval covers the binormal area 93 to 96.5 % of the time", cov / S > 0.93 && cov / S < 0.965, cov / S);
+  check("DeLong's test of two exchangeable scores rejects 5 % of the time (within 1.1 %)", Math.abs(rej / S - 0.05) < 0.011, rej / S);
+  const rows = [0, 1, 2, 3, 4, 5], f = (keys, vals) => RUN("roc", [{ id: "g", name: "G", rows, cats: { keys, order: null } }, { id: "s", name: "S", rows, vals }], { grp: "g" }).fail || "";
+  check("refusals in words: three groups, a group with no score, no score column", /3 groups/.test(f(["a", "b", "c", "a", "b", "c"], [1, 2, 3, 4, 5, 6])) && /Each group needs a value/.test(f(["a", "a", "a", "b", "b", "b"], [1, 2, 3, null, null, null]))
+    && /column of scores/.test(RUN("roc", [{ id: "g", name: "G", rows, cats: { keys: ["a", "b", "a", "b", "a", "b"], order: null } }], { grp: "g" }).fail || ""));
+}
+
 // The kinds on the pure blocks alone (what the worker and run.mjs load): numbers as factors and levels are formatted there.
 {
   const RUN = get("anaRunKind"), rows = Array.from({ length: 30 }, (_, i) => i), y = rows.map((i) => (i % 3) + Math.sin(i)), num = rows.map((i) => (i % 3) + 1);

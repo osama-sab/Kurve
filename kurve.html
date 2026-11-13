@@ -7682,6 +7682,55 @@ ANA_KINDS.power={label:"Power and sample size", base:"Power", typed:true, typedW
       v1:"χ² scaled by the ratio of the variances, equal tails",v2:"F scaled by the ratio of the variances, equal tails",chi2:`the noncentral χ² with ${o.df} df, λ = N w²`}[t];
     if(two&&o.r!==1) notes.push(`The second group's size is ${fmt(o.r,6)} times the first's, rounded up.`);
     return {tables:[{cols}],report:{sections:secs,method:`${POW_TESTS.find(e=>e[0]===t)[1]}: ${how}. ${t==="anova"||t==="chi2"?"":ANA_ALT[alt]+", "}α = ${fmt(o.alpha,6)}.`,power:true},notes}; }};
+/* ROC curves (STATS_SPEC 2.12): scores of two groups, one called positive. The area is Mann and Whitney's U over n₁n₀ (ties
+   counted a half), from midranks; DeLong's variance from the placement values, every deviation an exact multiple of a half
+   over n₁n₀ (a_i, b_j), so it keeps its digits; two scores on the same rows compared by DeLong's test. The curve's points at
+   every distinct score; Youden's J at its largest (the highest cut-off where tied), compared as integers. A lower score more
+   positive is the negated scores, the cut-off negated back. */
+function rocCore(pos,neg){ const n1=pos.length, n0=neg.length, R=rankAvg(pos.concat(neg)).r, Rp=rankAvg(pos).r, Rn=rankAvg(neg).r;
+  let s=0; for(let i=0;i<n1;i++) s+=R[i]; const U=s-n1*(n1+1)/2, a=new Float64Array(n1), b=new Float64Array(n0);
+  for(let i=0;i<n1;i++) a[i]=(R[i]-Rp[i])*n1-U; for(let j=0;j<n0;j++) b[j]=(n1-(R[n1+j]-Rn[j]))*n0-U;
+  return {n1,n0,U,auc:U/(n1*n0),a,b}; }
+/* DeLong's variance of one area, or of the difference of two on the same rows (their a and b subtracted, exactly) */
+function rocVar(n1,n0,a,b){ if(n1<2||n0<2) return null; const d=n1*n0;
+  return neuSum(Array.from(a,x=>x*x))/(d*d*(n1-1)*n1)+neuSum(Array.from(b,x=>x*x))/(d*d*(n0-1)*n0); }
+function rocPoints(pos,neg){ const P=Float64Array.from(pos).sort().reverse(), N=Float64Array.from(neg).sort().reverse(), n1=P.length, n0=N.length, pts=[{c:null,tp:0,fp:0}];
+  let i=0, j=0; while(i<n1||j<n0){ const t=Math.max(i<n1?P[i]:-Infinity,j<n0?N[j]:-Infinity); while(i<n1&&P[i]===t) i++; while(j<n0&&N[j]===t) j++; pts.push({c:t,tp:i,fp:j}); }
+  let best=null; for(const q of pts) if(q.c!=null){ const J=q.tp*n0-q.fp*n1; if(!best||J>best.J) best={c:q.c,tp:q.tp,fp:q.fp,J}; }
+  return {pts,best,n1,n0}; }
+function rocTest(pos,neg,o){ o=o||{}; const sg=o.dir==="low"?-1:1, P=pos.map(v=>sg*v), N=neg.map(v=>sg*v), conf=o.conf>0&&o.conf<1?o.conf:0.95;
+  if(!P.length||!N.length) return {fail:"Each group needs a value."};
+  const k=rocCore(P,N), v=rocVar(k.n1,k.n0,k.a,k.b), se=v==null?null:Math.sqrt(v), z=DIST.norm.isf((1-conf)/2), pt=rocPoints(P,N), b=pt.best;
+  return {n1:k.n1,n0:k.n0,auc:k.auc,se,ci:se==null?null:[Math.max(0,k.auc-z*se),Math.min(1,k.auc+z*se)],conf,core:k,
+    pts:pt.pts.map(q=>({c:q.c==null?null:sg*q.c,tpr:q.tp/k.n1,fpr:q.fp/k.n0})),youden:{c:sg*b.c,sens:b.tp/k.n1,spec:(k.n0-b.fp)/k.n0,J:b.J/(k.n1*k.n0)}}; }
+/* two scores' areas on the same rows: the difference, DeLong's standard error, z and p */
+function rocCompare(A,B){ const n1=A.n1, n0=A.n0; if(n1<2||n0<2) return {fail:"Each group needs two values or more."};
+  const v=rocVar(n1,n0,A.a.map((x,i)=>x-B.a[i]),A.b.map((x,j)=>x-B.b[j])), d=(A.U-B.U)/(n1*n0), se=Math.sqrt(v), z=se>0?d/se:null;
+  return {diff:d,se,z,p:z==null?null:2*DIST.norm.sf(Math.abs(z))}; }
+ANA_KINDS.roc={label:"ROC curve", base:"ROC", cats:true, xs:true,
+  help:"Scores of two groups, one called positive: each score's area under the ROC curve with DeLong's interval, Youden's cut-off with its sensitivity and specificity, two scores compared by DeLong's test, and the curve.",
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[], key=v=>typeof v==="number"?+(+v).toPrecision(12):String(v), nm=v=>typeof v==="number"?fmt(v,8):String(v);
+    const keysOf=q=>{ const m=new Map(); (q.rows||[]).forEach((r,i)=>{ const v=q.cats?q.cats.keys[i]:q.vals[i]; if(v!=null&&v!==""&&(q.cats||Number.isFinite(v))) m.set(r,key(v)); }); return m; };
+    let g=ins.find(q=>q.id===p.grp); if(!g) g=ins.find(q=>q.cats)||ins.find(q=>!q.cats&&new Set(keysOf(q).values()).size===2); if(!g) return {fail:"Choose the column of groups."};
+    const gm=keysOf(g), lv=freqLevels([...gm.values()],g.cats?g.cats.order:null); if(lv.fail) return {fail:`${g.name} holds no groups.`};
+    if(lv.rows.length!==2) return {fail:`${g.name} has ${lv.rows.length} groups: an ROC curve needs two.`};
+    const levs=lv.rows.map(o=>o.lev), pos=levs.find(l=>String(l)===String(p.pos))!=null?levs.find(l=>String(l)===String(p.pos)):levs[1], neg=levs.find(l=>l!==pos);
+    const sc=ins.filter(q=>q!==g&&!q.cats); if(!sc.length) return {fail:"Tick a column of scores besides the column of groups."};
+    const val=q=>{ const m=new Map(); q.rows.forEach((r,i)=>{ if(Number.isFinite(q.vals[i])) m.set(r,q.vals[i]); }); return m; }, conf=anaConf(p), dir=p.dir==="low"?"low":"high";
+    const R=[], A=[], Y=[]; for(const q of sc){ const m=val(q), P=[], N=[]; m.forEach((v,r)=>{ const k=gm.get(r); if(k===pos) P.push(v); else if(k===neg) N.push(v); });
+      const r=rocTest(P,N,{dir,conf}); if(r.fail) return {fail:`${q.name}: ${r.fail}`}; R.push({q,r,m});
+      A.push({s:q.name,n1:r.n1,n0:r.n0,auc:r.auc,se:r.se,lo:r.ci&&r.ci[0],hi:r.ci&&r.ci[1]}); Y.push({s:q.name,c:r.youden.c,sens:r.youden.sens,spec:r.youden.spec,J:r.youden.J});
+      if(r.se==null) notes.push(`${q.name}: one group has one value, so the area has no standard error.`); }
+    const pc=anaPct(conf); anaTab("Area under the curve",[["s","Score"],["n1","N, "+nm(pos)],["n0","N, "+nm(neg)],["auc","Area"],["se","SE"],["lo",`${pc} interval, from`],["hi","to"]],A,cols,secs);
+    anaTab("Youden's index",[["s","Score"],["c","Cut-off"],["sens","Sensitivity"],["spec","Specificity"],["J","J"]],Y,cols,secs,"y");
+    if(R.length>1){ const C=[]; for(let x=0;x<R.length;x++) for(let z=x+1;z<R.length;z++){ const P=[], N=[], Q=[], M=[];
+        R[x].m.forEach((v,r)=>{ if(!R[z].m.has(r)) return; const k=gm.get(r); if(k===pos){ P.push(v); Q.push(R[z].m.get(r)); } else if(k===neg){ N.push(v); M.push(R[z].m.get(r)); } });
+        const sg=dir==="low"?-1:1; if(!P.length||!N.length) continue; const ka=rocCore(P.map(v=>sg*v),N.map(v=>sg*v)), kb=rocCore(Q.map(v=>sg*v),M.map(v=>sg*v)), t=rocCompare(ka,kb);
+        C.push({a:R[x].q.name,b:R[z].q.name,n:P.length+N.length,d:t.fail?null:t.diff,se:t.fail?null:t.se,z:t.fail?null:t.z,p:t.fail?null:t.p}); }
+      if(C.length) anaTab("Comparisons (DeLong)",[["a","First"],["b","Second"],["n","N"],["d","Difference"],["se","SE"],["z","z"],["p","p"]],C,cols,secs,"c"); }
+    R.forEach(({q,r},k)=>{ cols.push({k:`fpr${k}`,name:"1 − specificity",role:"x",vals:r.pts.map(o=>o.fpr)},{k:`tpr${k}`,name:q.name,role:"y",vals:r.pts.map(o=>o.tpr)},{k:`thr${k}`,name:`Cut-off, ${q.name}`,vals:r.pts.map(o=>o.c)}); });
+    cols.push({k:"dx",name:"1 − specificity",role:"x",vals:[0,1]},{k:"dy",name:"Diagonal",role:"y",vals:[0,1]});
+    return {tables:[{cols}],report:{sections:secs,method:`Positive: ${g.name} = ${nm(pos)}, a ${dir==="low"?"lower":"higher"} score more positive; the area as U/(n₁n₀), DeLong's standard error, the interval the area ± z·SE.`,roc:R.length,curves:R.length},notes}; }};
 // A kind run by name: the page's call, and the worker's ("call" job).
 function anaRunKind(kind,ins,p){ const K=ANA_KINDS[kind]; if(!K) throw new Error("the analysis "+kind+" is not known here"); return K.run(ins,p||{}); }
 /* ==ANA:END== */
@@ -16674,6 +16723,20 @@ const ANA_FORMS={
       return {test:v.aWt,find:v.aWf==="size"?"size":"pw",sizes:list(v.aWn),powers:list(v.aWp),alpha:num(v.aWa),alt:ANA_ALT[v.aAlt]?v.aAlt:"two",d:num(v.aWd),sd:num(v.aWsd),means:list(v.aWm),
         p0:num(v.aWp0),p1:num(v.aWp1),p2:num(v.aWp2),v0:num(v.aWv0),v1:num(v.aWv1),v2:num(v.aWv2),w:num(v.aWw),df:num(v.aWdf),r:num(v.aWr)}; },
     valid(v){ const L=s=>{ const r=parseFillList(s); return r.vals.length>0&&!r.bad.length; }; return v.aWf==="size"?L(v.aWp):L(v.aWn); }},
+  roc:{html(p){ return `<div class="grid2"><label for="aRg" class="tipd" title="The column naming each row's group: text, or numbers with two values">Groups</label><select id="aRg" data-v="${esc(p.grp||"")}"></select>
+      <label for="aRp">Positive</label><select id="aRp" data-v="${esc(p.pos==null?"":String(p.pos))}"></select>
+      <label for="aRdir">A positive scores</label><select id="aRdir"><option value="high">Higher</option><option value="low"${p.dir==="low"?" selected":""}>Lower</option></select>
+      ${confSel(p)}</div><p class="lab">The other columns ticked are the scores, a curve each.</p>`; },
+    wire(box){ const gs=box.querySelector("#aRg"), ps=box.querySelector("#aRp"); if(!gs||!ps) return;
+      const levels=c=>{ const n=Math.max((c.data||[]).length,txtLen(c)), ks=[]; for(let i=0;i<n;i++){ const v=catVal(c,i); if(v!=null&&v!=="") ks.push(v); } const L=freqLevels(ks,catOrderKeys(c)); return L.fail?[]:L.rows.map(o=>o.lev); };
+      const on=e=>{ const ids=[...box.querySelectorAll('input[id^="aI_"]')].filter(x=>x.checked).map(x=>x.id.slice(3)), cs=ids.map(colById);
+        const two=c=>levels(c).length===2, cur=ids.includes(gs.value)?gs.value:ids.includes(gs.dataset.v)?gs.dataset.v:(cs.find(c=>isCatCol(c)||textCount(c))||cs.find(two)||cs[cs.length-1]||{}).id||"";
+        gs.innerHTML=cs.map(c=>`<option value="${c.id}"${c.id===cur?" selected":""}>${esc(colLetter(c)+" "+(c.name||""))}</option>`).join("");
+        if(e&&e.target===ps) return; const c=colById(gs.value), L=c?levels(c):[], want=ps.value||ps.dataset.v, pick=L.map(String).includes(want)?want:L.length>1?String(L[1]):L.length?String(L[0]):"";
+        ps.innerHTML=L.map(v=>`<option value="${esc(String(v))}"${String(v)===pick?" selected":""}>${esc(typeof v==="number"?fmt(v,8):String(v))}</option>`).join(""); };
+      box.addEventListener("change",on); on(); setTimeout(()=>gs.dispatchEvent(new Event("input",{bubbles:true})),0); },
+    read(v){ return {grp:v.aRg||null,pos:v.aRp==null?null:String(v.aRp),dir:v.aRdir==="low"?"low":"high",conf:+v.aCf||0.95}; },
+    valid(v){ return !!v.aRg&&Object.keys(v).filter(k=>/^aI_/.test(k)&&v[k]).length>=2; }},
   mw:{html(p){ return `<div class="grid2">${altSel(p.alt)}${confSel(p)}${npExHtml(p)}</div><p class="lab">The first two columns ticked, or one column grouped into two.</p>`; },
     read(v){ return {alt:ANA_ALT[v.aAlt]?v.aAlt:"two",conf:+v.aCf||0.95,exact:v.aEx||"auto"}; }},
   wsr:{html(p){ return `<div class="grid2">${npTypeHtml(p)}<label for="aZ" class="tipd" title="Differences of zero: dropped before ranking (Wilcoxon's), or ranked with the others and then dropped (Pratt's)">Zeros</label><select id="aZ"><option value="wilcox">Dropped (Wilcoxon)</option><option value="pratt"${p.zero==="pratt"?" selected":""}>Ranked, then dropped (Pratt)</option></select>
@@ -16852,6 +16915,7 @@ function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&
   if(a.kind==="anovan") return [{key:"inter",label:"Interaction plot",title:"The cells' means by the first factor, a line for each level of the second, with their intervals, on a graph",enabled:!ro,run:()=>anaInterPlot(a.id)},
     {key:"mains",label:"Main effects plot",title:"Each factor's means with their intervals, a graph each, in a figure",enabled:!ro,run:()=>anaMainsPlot(a.id)}];
   if(a.kind==="rm") return [{key:"profile",label:"Profile plot",title:"The cells' means across the first within factor's levels, a line for each level of the second or each group, with their standard errors, on a graph",enabled:!ro,run:()=>anaInterPlot(a.id)}];
+  if(a.kind==="roc") return [{key:"roc",label:"ROC curve",title:"Sensitivity against 1 − specificity, a curve each score, with the diagonal, on a graph",enabled:!ro,run:()=>anaRocPlot(a.id)}];
   if(a.kind==="power") return [{key:"curve",label:"Power curve",title:"Power against size, on a graph",enabled:!ro,run:()=>anaPowerPlot(a.id)}];
   if(a.kind==="anova1") return [{key:"means",label:"Means plot",title:"Each group's mean with its interval, on a graph",enabled:!ro,run:()=>anaMeansPlot(a.id)}];
   if(a.kind==="norm") return [{key:"qq",label:"Q–Q plot",title:"The sorted values against the normal quantiles, with the line through their quartiles, on a graph",enabled:!ro&&rep.qq>0,run:()=>anaQQ(a.id)}];
@@ -16863,7 +16927,7 @@ function setupAnaActs(){ document.addEventListener("click",e=>{ const b=e.target
   const a=anaOf(b.dataset.ana), x=a&&anaActs(a).find(t=>t.key===b.dataset.anaact); if(x&&x.enabled) x.run(); }); }
 // The Q–Q plot: each set's sorted values as symbols against its normal quantiles, its quartiles' line as a line.
 function anaQQ(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const n=(a.res&&a.res.report&&a.res.report.qq)||0;
-  const ys=[], ser={}; for(let i=0;i<n;i++){ const y=p.cols.find(c=>c.ana===id&&c.ak==="qy"+i), l=p.cols.find(c=>c.ana===id&&c.ak==="ql"+i); if(y&&l){ ys.push(y.id,l.id); ser[y.id]={type:"scatter"}; ser[l.id]={type:"line",dash:"5,4"}; } }
+  const ys=[], ser={}; for(let i=0;i<n;i++){ const y=p.cols.find(c=>c.ana===id&&c.ak==="qy"+i), l=p.cols.find(c=>c.ana===id&&c.ak==="ql"+i); if(y&&l){ ys.push(y.id,l.id); ser[y.id]={type:"scatter"}; ser[l.id]={type:"line",dash:"dash"}; } }
   if(!ys.length){ toast("There is no Q–Q plot to draw: Recalculate first."); return; }
   plotCols(ys,{series:ser,undo:"plotting a Q–Q plot",say:`Q–Q plot of ${a.name}`}); }
 // A scatter matrix: the analysis worked out again with each pair's values as columns of its sheet (an X and a Y),
@@ -16876,6 +16940,10 @@ function anaScatter(id){ const a0=anaOf(id); if(!a0||!P()||S.readOnly) return;
   if(gids.length>1) makeFigure(gids,{noUndo:true,quiet:true,cols:Math.min(3,gids.length),log:`put the scatter matrix of ${a0.name} in a figure`});
   toast(`The scatter matrix of ${a0.name}.`,{action:"Undo",run:undo}); }
 // A means plot: the groups' means as symbols joined by a line, their intervals as error bars, the groups along X.
+function anaRocPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const ys=p.cols.filter(c=>c.ana===id&&/^tpr\d+$/.test(c.ak||"")), dg=p.cols.find(c=>c.ana===id&&c.ak==="dy");
+  if(!ys.length){ toast("There is no ROC curve to draw: Recalculate first."); return; } const ids=ys.map(c=>c.id).concat(dg?[dg.id]:[]);
+  plotCols(ids,{series:Object.fromEntries(ids.map(i=>[i,i===(dg&&dg.id)?{type:"line",dash:"dash"}:{type:"line"}])),undo:"plotting an ROC curve",say:`ROC curve of ${a.name}`});
+  if(GID()){ const ax=Object.assign({},GP().ax||{}); ax.y=Object.assign({},ax.y||{},{title:"Sensitivity"}); savePlot({ax}); } }
 function anaPowerPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const y=p.cols.find(c=>c.ana===id&&c.ak==="cp");
   if(!y){ toast("There is no power curve to draw: Recalculate first."); return; }
   plotCols([y.id],{series:{[y.id]:{type:"line"}},undo:"plotting a power curve",say:`Power curve of ${a.name}`}); }
@@ -22793,6 +22861,7 @@ function analyzeMenu(){
         {label:"Fisher's exact test…", title:ANA_KINDS.fisher.help, run:()=>anaDlg("fisher"), enabled:!S.readOnly&&!!P()},
         {label:"Counts in tables…", title:ANA_KINDS.xtab.help, run:()=>anaDlg("xtab",{two:true}), enabled:!S.readOnly&&!!P()}]},
       {label:"Correlation…", title:ANA_KINDS.corr.help, run:()=>anaDlg("corr",{two:true}), enabled:!S.readOnly&&!!P()},
+      {label:"ROC curve…", title:ANA_KINDS.roc.help, run:()=>anaDlg("roc",{two:true}), enabled:!S.readOnly&&!!P()},
       {label:"Power and sample size…", title:ANA_KINDS.power.help, run:()=>anaDlg("power"), enabled:!S.readOnly&&!!P()},
       {label:"Histogram", title:"The distribution of the selected columns' values (or the active column's), as a column of its own on a graph of its own", run:()=>histogramCols(hist()), enabled:has&&!S.readOnly}]},
     {label:"Spectroscopy", sub:spectroscopyItems},
@@ -25476,7 +25545,7 @@ ${DL([["Area ± error","The trapezoidal sum over the points in the window, less 
 ${DL([["Net counts","The counts in the window less the continuum under them: a straight line through the mean of the channels at each edge (as many as the line baselines use). ± one standard deviation from counting: the counts' own and the continuum's."],["Detected","Above Currie's critical level, 95 %: on a continuum alone, one window in twenty is called detected. Below it, the level is shown."],["Emission, efficiency","Type the share of decays that give the line and the detector's efficiency at its energy, both in %."],["Activity","Net counts ÷ (live time × efficiency × emission), in becquerel, with the counting error. Not detected: the detection limit as an activity, the smallest that would be."]])}
 <p>Counting needs the counts as recorded: an energy calibration, a count rate or a crop keep them; smoothing or a subtracted background do not, and the part says so.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
-{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v linear model general linear model glm regression multiple regression ancova covariate factor interaction polynomial treatment coding effect coding type i type ii type iii sums of squares contrast estimable aliased qr two-way anova three-way anova factorial anova interaction plot main effects plot marginal means least squares means lsmeans emmeans simple effects partial eta squared repeated measures rm anova within subjects between subjects mixed anova split-plot sphericity mauchly greenhouse-geisser greenhouse geisser huynh-feldt huynh feldt epsilon profile plot wide long subject power sample size power analysis how many samples effect size cohen d cohen f cohen w noncentral t noncentral f noncentral chi-square g*power pss",
+{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v linear model general linear model glm regression multiple regression ancova covariate factor interaction polynomial treatment coding effect coding type i type ii type iii sums of squares contrast estimable aliased qr two-way anova three-way anova factorial anova interaction plot main effects plot marginal means least squares means lsmeans emmeans simple effects partial eta squared repeated measures rm anova within subjects between subjects mixed anova split-plot sphericity mauchly greenhouse-geisser greenhouse geisser huynh-feldt huynh feldt epsilon profile plot wide long subject power sample size power analysis how many samples effect size cohen d cohen f cohen w noncentral t noncentral f noncentral chi-square g*power pss roc receiver operating characteristic area under the curve auc delong youden cut-off cutoff threshold sensitivity specificity diagnostic",
  lead:"An analysis reads columns and writes what it finds into a result sheet of its own, worked out again when its data change.",
  body:`<h2>Statistics on columns</h2>
 <p>${MP("Analyze › Statistics › Descriptive › Statistics on columns…")}: tick the columns and the statistics, and each column gets a row of a new sheet. Ticked at first are N, the rows missing, mean, standard deviation, standard error of the mean, minimum, Q1, median, Q3, maximum and sum; besides them, the mean's interval, variance, coefficient of variation, range, IQR, MAD, robust SD, the mode and its count, skewness, kurtosis, the geometric and harmonic means, and any percentiles typed (<code>5, 95</code>). <em>Group by</em> a column of text or categories gives a row for each column and group.</p>
@@ -25510,6 +25579,10 @@ ${DL([["Analysis of variance","Each term's df, sum of squares (type III unless s
 <p>${MP("Analyze › Statistics › ANOVA › Repeated measures ANOVA…")}: each subject measured under every condition. <em>Data</em> Wide: the columns ticked are the conditions, a row a subject; with two factors within subjects (<em>Factors within</em>), the columns are their cells, the first factor's levels outermost; <em>Between (group by)</em> a factor between subjects. Long: a row a measurement, the columns chosen for the response, the subject, one or two factors within and one between; a subject's several values in a cell are averaged, a subject missing a cell is left out.</p>
 ${DL([["Within subjects","Each within effect (and its interaction with the between factor) against its own error: df, sum of squares, F, p."],["Sphericity corrections","Greenhouse–Geisser's ε and Huynh–Feldt's (as SPSS gives it, at most 1), each multiplying both df, and the p they give; the lower bound 1/df on the result sheet."],["Mauchly's test","W, χ², df and p, for each effect with three levels or more."],["Between subjects","The between factor's F against the subjects' error; with none, the subjects' sum of squares."],["Means of the cells","Each cell's mean, SD and N (each group's)."],["Comparisons","Paired t tests of each within factor's levels (each subject's mean over the other factor), p adjusted by Bonferroni or Holm."]])}
 <p><em>Profile plot</em> (under the report) graphs the cells' means against the first factor's levels, a line for each level of the second (or each group), with their standard errors.</p>
+<h2 id="roc">ROC curve</h2>
+<p>${MP("Analyze › Statistics › ROC curve…")}: tick the column of groups (text, or numbers with two values) and one score column or more. <em>Positive</em> is the group a score should pick out; <em>A positive scores</em> higher or lower.</p>
+${DL([["Area under the curve","Each score's area, the share of positive and negative pairs ordered the right way (ties a half: Mann and Whitney's U over n₁n₀), its standard error by DeLong's method, and the interval the area ± z·SE."],["Youden's index","The cut-off where sensitivity + specificity − 1 is largest (the most specific where tied): a row is positive when its score is at the cut-off or beyond."],["Comparisons","Two scores on the same rows: the difference of their areas, its standard error, z and p (DeLong's test)."]])}
+<p>The result sheet holds each curve's points (1 − specificity, sensitivity and the cut-off of each); <em>ROC curve</em> (under the report) graphs them with the diagonal.</p>
 <h2 id="power">Power and sample size</h2>
 <p>${MP("Analyze › Statistics › Power and sample size…")}: no columns, the settings typed. <em>Find</em> the power at the sizes typed, or the smallest size reaching each power typed. A size is each group's (the first group's for two groups, the second's being <em>Ratio n₂/n₁</em> times it, rounded up), or N for a χ² test.</p>
 ${DL([["t tests","Difference and SD (of the differences for paired): the noncentral t, both tails for a two-sided test; the variances equal for two samples. Cohen's d is the difference over the SD."],["One-way ANOVA","Each group's mean and the SD: the noncentral F with λ = n Σ(μᵢ − μ̄)²/σ². Cohen's f is the means' SD over σ."],["One proportion","The exact binomial test Kurve runs (R's two-sided rule): the probability, at the proportion typed, of the counts it rejects. Its power rises and falls with the size."],["Two proportions","The pooled z, by its normal approximation."],["Variances","One against a value by χ², two by F, each scaled by the ratio of the variances; equal tails."],["χ² test","Cohen's w and df: the noncentral χ² with λ = N w²."]])}

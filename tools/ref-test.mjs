@@ -203,6 +203,14 @@ for (const c of (fixtures.power || { cases: [] }).cases) {
   if (c.kind === "power") { const r = get("powerAt")(...c.args); note("powerAt", r ? Math.abs(r.pw - c.want) : Infinity, c.name); continue; }
   const r = get("powSize")(...c.args); const rn = r.n1 != null ? r.n1 : r.n; note("powSize.n", r.fail ? Infinity : rn === c.want.n ? 0 : Math.abs(rn - c.want.n), c.name); if (!r.fail) note("powerAt", Math.abs(r.pw - c.want.pw), c.name);
 }
+/* ---- ROC curves (STATS_SPEC 2.12): the area, DeLong's SE and interval, Youden's index, two scores compared, against exact pairs ---- */
+for (const c of (fixtures.roc || { cases: [] }).cases) {
+  const r = get("rocTest")(...c.args), w = c.want, at = c.name; if (r.fail) { note("rocTest.auc", Infinity, `${at}: ${r.fail}`); continue; }
+  note("rocTest.auc", relErr(r.auc, w.auc), at); if (w.se != null) { note("rocTest.se", relErr(r.se, w.se), at); note("rocTest.ci", Math.max(relErr(r.ci[0], w.lo, 1e-300), relErr(r.ci[1], w.hi)), at); }
+  note("rocTest.youden", Math.max(relErr(r.youden.c, w.c), relErr(r.youden.sens, w.sens), relErr(r.youden.spec, w.spec), relErr(r.youden.J, w.J)), at);
+  if (c.pair) { const sg = c.args[2].dir === "low" ? -1 : 1, K = get("rocCore"), A = K(c.args[0].map((v) => sg * v), c.args[1].map((v) => sg * v)), B = K(c.pair[0].map((v) => sg * v), c.pair[1].map((v) => sg * v)), t = get("rocCompare")(A, B);
+    note("rocCompare", Math.max(relErr(t.diff, w.diff), relErr(t.se, w.dse), relErr(t.z, w.z), relErr(t.p, w.p)), at); }
+}
 for (const c of (fixtures.range || { cases: [] }).cases) note(c.fn, relErr(get(c.fn)(...c.args), c.want), fmtA(c.args));
 
 /* ---- distributions fitted to values ---- */

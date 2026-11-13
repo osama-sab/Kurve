@@ -584,20 +584,20 @@
   "why": "F's tail (df scaled by ε) and χ²'s, in 40 digits"
  },
  "DIST.ncf.sf": {
-  "tol": 1e-14,
-  "why": "A Poisson mixture of incomplete betas, every term positive: both tails keep their relative digits"
+  "tol": 1e-13,
+  "why": "A Poisson mixture of incomplete betas, every term positive: both tails keep their relative digits; each term carries the central tail's error (1e-13), 2.4e-14 seen at 5e-36"
  },
  "DIST.ncf.cdf": {
-  "tol": 1e-14,
-  "why": "The same mixture of the lower tails"
+  "tol": 1e-13,
+  "why": "The same mixture of the lower tails; each term carries the central tail's error (1e-13), 2.4e-14 seen at 5e-36"
  },
  "DIST.ncx2.sf": {
-  "tol": 1e-14,
-  "why": "A Poisson mixture of incomplete gammas, every term positive"
+  "tol": 1e-13,
+  "why": "A Poisson mixture of incomplete gammas, every term positive; each term carries the central tail's error (1e-13), 2.4e-14 seen at 5e-36"
  },
  "DIST.ncx2.cdf": {
-  "tol": 1e-14,
-  "why": "The same mixture of the lower tails"
+  "tol": 1e-13,
+  "why": "The same mixture of the lower tails; each term carries the central tail's error (1e-13), 2.4e-14 seen at 5e-36"
  },
  "DIST.nct.sf": {
   "tol": 1e-13,
@@ -610,5 +610,25 @@
  "powSize.n": {
   "tol": 0,
   "why": "The smallest size reaching the power, exactly"
+ },
+ "rocTest.auc": {
+  "tol": 1e-15,
+  "why": "U from midranks, one division"
+ },
+ "rocTest.se": {
+  "tol": 1e-15,
+  "why": "DeLong's variance from deviations that are exact multiples of a half over n₁n₀"
+ },
+ "rocTest.ci": {
+  "tol": 1e-15,
+  "why": "The area ± z·SE"
+ },
+ "rocTest.youden": {
+  "tol": 1e-15,
+  "why": "Youden's J compared as integers; the cut-off a score itself"
+ },
+ "rocCompare": {
+  "tol": 1e-13,
+  "why": "The difference of two areas, DeLong's SE from the exact differences of their deviations, z and the normal tail"
  }
 }

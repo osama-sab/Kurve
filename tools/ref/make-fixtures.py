@@ -709,6 +709,23 @@ for c in cases:
     assert abs(smv - c["want"]) < 1e-8, (c["name"], smv, c["want"])
 out["power"] = cases
 
+# ---------- ROC curves (STATS_SPEC 2.12): every number from exact pairs (refs.roc_ref); SciPy's Mann–Whitney U asserted ----------
+cases = []; rng = np.random.default_rng(212)
+def roccase(name, pos, neg, dir="high", conf=0.95, pos2=None, neg2=None):
+    w = refs.roc_ref(pos, neg, dir, conf, pos2, neg2)
+    assert abs(stats.mannwhitneyu(pos, neg).statistic / (len(pos) * len(neg)) - (w["auc"] if dir == "high" else 1 - w["auc"])) < 1e-14, name
+    cases.append({"fn": "rocTest", "name": name, "args": [pos, neg, {"dir": dir, "conf": conf}], "pair": [pos2, neg2] if pos2 is not None else None, "want": w})
+r1 = lambda n, m, sd, d=1: [round(float(v), d) for v in rng.normal(m, sd, n)]
+roccase("small, ties", [3, 4, 4, 5, 6, 7, 7, 9], [1, 2, 2, 3, 4, 5, 5, 6, 8])
+roccase("normal, 40 and 60, rounded", r1(40, 1, 1), r1(60, 0, 1))
+roccase("a lower score positive, 99 %", r1(25, 0, 1), r1(30, 0.8, 1.2), "low", 0.99)
+roccase("separated", [5, 6, 7, 8], [1, 2, 3])
+roccase("many ties", [float(v) for v in rng.integers(0, 4, 50)], [float(v) for v in rng.integers(0, 3, 70)])
+roccase("about 1e6", [1e6 + v for v in r1(30, 0.5, 1, 3)], [1e6 + v for v in r1(35, 0, 1, 3)])
+p1, n1_ = r1(30, 1, 1), r1(45, 0, 1)
+roccase("two scores compared", p1, n1_, pos2=[round(v + float(e), 1) for v, e in zip(p1, rng.normal(0, 1, 30))], neg2=[round(v + float(e), 1) for v, e in zip(n1_, rng.normal(0, 1, 45))])
+out["roc"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

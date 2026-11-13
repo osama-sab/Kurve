@@ -214,6 +214,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
       Fisher's exact test…  ## + a two-by-two table typed
       Counts in tables…  ## + (STATS_SPEC 2.10) χ², G, Fisher r × c, McNemar, Cramér's V
     Correlation…  ## ~ "Correlation between columns"; an analysis (STATS_SPEC 2.9): r, ρ, τ-b, partial r, matrices
+    ROC curve…  ## + (STATS_SPEC 2.12) the area with DeLong's interval, Youden's cut-off, scores compared, the curve
     Power and sample size…  ## + (STATS_SPEC 2.11) t tests, one-way ANOVA, proportions, variances, χ²: power at sizes, the size for a power, a power curve
     Histogram…  ## ~ "Histogram of the values"; now takes the selected columns
   Spectroscopy  ## ← the Spectroscopy menu (DS2): the toolkit, gathered from Data, Math, Analysis, Statistics and Plot

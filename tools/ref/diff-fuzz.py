@@ -429,11 +429,18 @@ def pow_case():
 @gen("powerAt@pw", 1e-13, 0.08)
 def _():
     o, n = pow_case(); return [o, n], refs.power_ref(o, n)
-@gen("DIST.ncf.sf", 1e-14, 0.08)
+# ROC (STATS_SPEC 2.12): two groups of 2 to 60 scores, rounded to make ties now and then, about an offset; the area's SE
+# against exact pairs
+@gen("rocTest@se", 1e-14, 0.08)
+def _():
+    d = int(rng.choice([0, 1, 3])); off = 0.0 if rng.random() < 0.6 else float(lognum(0, 6)); sh = float(rng.normal(0.5, 0.7))
+    P = [round(off + float(v), d) for v in rng.normal(sh, 1, int(rng.integers(2, 61)))]; N = [round(off + float(v), d) for v in rng.normal(0, 1, int(rng.integers(2, 61)))]
+    dr = str(rng.choice(["high", "low"])); return [P, N, {"dir": dr}], refs.roc_ref(P, N, dr)["se"]
+@gen("DIST.ncf.sf", 1e-13, 0.08)
 def _():
     d1, d2, lam = float(rng.integers(1, 12)), float(round(lognum(0, 3))), float(round(lognum(-2, 2.5), 3)); x = float(round(lognum(-1.5, 1.5), 4))
     return [x, d1, d2, lam], refs.nc_tail("f", [x, d1, d2, lam], True)
-@gen("DIST.ncx2.cdf", 1e-14, 0.08)
+@gen("DIST.ncx2.cdf", 1e-13, 0.08)
 def _():
     k, lam = float(rng.integers(1, 15)), float(round(lognum(-2, 2.5), 3)); x = float(round(lognum(-1, 2.5), 4))
     return [x, k, lam], refs.nc_tail("x2", [x, k, lam], False)
