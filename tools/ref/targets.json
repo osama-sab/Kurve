@@ -1,5 +1,35 @@
 {
  "//": "What each function of Kurve must reach against the reference (tools/ref/README.md): tol, a relative error (floor, an absolute one beside it for values near zero); until, the slice of ux/spec/PARITY_SPEC.md that brings a function short of its target there; now, the worst error it was measured at when that was written, which it must not pass; why, what keeps it short. Read by tools/ref-test.mjs and tools/ref/diff-fuzz.py.",
+ "matT": {
+  "tol": 0
+ },
+ "matFlip": {
+  "tol": 0
+ },
+ "matTurn": {
+  "tol": 0
+ },
+ "matCrop": {
+  "tol": 0
+ },
+ "matResample": {
+  "tol": 4e-16
+ },
+ "matArith": {
+  "tol": 0
+ },
+ "matFromCols": {
+  "tol": 0
+ },
+ "matToCols": {
+  "tol": 0
+ },
+ "matGrey": {
+  "tol": 0
+ },
+ "matText": {
+  "tol": 0
+ },
  "reshape": {
   "tol": 1e-13
  },

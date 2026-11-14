@@ -560,6 +560,32 @@ body.dwin-page{margin:0;height:100vh;overflow:hidden;background:var(--panel);col
 .wstab[aria-selected="true"]{background:var(--seg-on);color:var(--seg-on-ink);border-color:var(--seg-on);font-weight:600}
 .wstab:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
 .wstabs .wstnew{align-self:center}
+/* ---- Matrix windows (SHEET_SPEC 3.6): a grid of Z, X along the top and Y down the side, drawn a row and a column at a time ---- */
+.mx-b{display:flex;flex-direction:column;padding:0;min-height:0}
+.mxbar{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-1) var(--sp-3);border-bottom:1px solid var(--rule-2);background:var(--panel-2);flex:0 0 auto;flex-wrap:wrap}
+.mxbar .sp{flex:1}
+.mxaddr{font-size:var(--fs-tab);color:var(--muted);min-width:9em;font-variant-numeric:tabular-nums}
+.mxbar .mxval{width:12em;font-family:var(--mono)}
+.mxbar .mxval.bad,.mxed.bad{box-shadow:inset 0 0 0 2px var(--bad)}
+.mxgrid{flex:1;min-height:0;overflow:auto;position:relative;background:var(--panel);outline:none}
+.mxgrid:focus-visible{box-shadow:inset 0 0 0 2px var(--focus)}
+.mxview{position:sticky;left:0;top:0;width:0;height:0;overflow:visible;z-index:1}
+.mxsp{pointer-events:none}
+.mxt{border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:var(--fs-body);font-variant-numeric:tabular-nums;background:var(--panel)}
+.mxt th,.mxt td{border-right:1px solid var(--ws-grid);border-bottom:1px solid var(--ws-grid);padding:0 var(--sp-2);height:22px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;user-select:none}
+.mxt td{cursor:cell}
+.mxt.cmp td{color:var(--ink-2)}
+.mxt th{background:var(--panel-2);color:var(--muted);font-weight:500;font-size:var(--fs-cap);cursor:pointer}
+.mxt th.mxc{background:var(--panel-3);text-align:left;font-weight:600}
+.mxt th.hs{background:var(--ws-hdr-sel);color:var(--ink);box-shadow:inset 0 -3px 0 var(--ws-sel-bd)}
+.mxt th.mxy.hs{box-shadow:inset -3px 0 0 var(--ws-sel-bd)}
+.mxt td.in{background:var(--ws-sel);--et:0px;--eb:0px;--el:0px;--er:0px;box-shadow:inset 0 var(--et) 0 var(--ws-sel-bd),inset 0 calc(-1*var(--eb)) 0 var(--ws-sel-bd),inset var(--el) 0 0 var(--ws-sel-bd),inset calc(-1*var(--er)) 0 0 var(--ws-sel-bd)}
+.mxt td.in.et{--et:2px}.mxt td.in.eb{--eb:2px}.mxt td.in.el{--el:2px}.mxt td.in.er{--er:2px}
+.mxt td.cur{box-shadow:inset 0 0 0 2px var(--ws-sel-bd);background:var(--panel)}
+.mxed{position:absolute;height:22px;box-sizing:border-box;margin:0;padding:0 var(--sp-2);border:0;border-radius:0;font:inherit;font-size:var(--fs-body);font-variant-numeric:tabular-nums;text-align:right;background:var(--panel);color:var(--ink);box-shadow:inset 0 0 0 2px var(--ws-sel-bd);outline:none;z-index:2}
+.mxfoot{display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-5);padding:var(--sp-1) var(--sp-3);border-top:1px solid var(--rule-2);background:var(--panel-2);font-size:var(--fs-tab);color:var(--muted);flex:0 0 auto}
+.mxfoot .mxstate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}
+.mxfoot .mxstate.bad{color:var(--bad)}
 .ws-foot .wsl{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ws-foot .wsstat{font-variant-numeric:tabular-nums;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .wsaddr{flex:0 0 auto;min-width:70px;max-width:190px;height:24px;padding:0 var(--sp-4);border:1px solid var(--rule);border-radius:var(--r-s);background:var(--panel);font:600 var(--fs-tab) var(--mono);display:inline-flex;align-items:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
@@ -8213,6 +8239,137 @@ function cfText(r,name){ if(!r) return ""; if(r.kind==="scale"){ const ends=Numb
 function filtAll(conds,nameOf){ const ids=Object.keys(conds||{}), parts=ids.map(id=>filtText(conds[id],nameOf(id)));
   return parts.map(t=>ids.length>1&&/ or /.test(t)?`(${t})`:t).join(" and "); }
 /* ==ANA:END== */
+/* ==MAT:START== Matrices (ux/spec/SHEET_SPEC.md, slice 3.6), pure: a grid of Z with its X and Y.
+   A matrix is {nx, ny, x, y, z}: `z` row major (z[r*nx + c], a row a Y, a column an X), null for a
+   missing value; `x` and `y` each {a, b} (from a to b evenly, as NumPy's linspace) or {v: [...]}
+   (each its own). Every function returns a new matrix (or columns) and never changes the one it is
+   given; a refusal is {fail} in words. The page keeps names, units and the record beside these. */
+const MAT_MAX=4e6, MAT_SIDE=20000;
+/* An axis's n values: {a, b} as NumPy's linspace (k·step + a, the last b exactly), {v} as given
+   (a value that is not a finite number its position from 1). */
+function matAxis(ax,n){ const out=new Array(n);
+  if(ax&&Array.isArray(ax.v)){ for(let k=0;k<n;k++){ const v=ax.v[k]; out[k]=typeof v==="number"&&Number.isFinite(v)?v:k+1; } return out; }
+  const a=ax&&Number.isFinite(+ax.a)?+ax.a:1, b=ax&&Number.isFinite(+ax.b)?+ax.b:n;
+  if(n===1){ out[0]=a; return out; }
+  const st=(b-a)/(n-1); for(let k=0;k<n;k++) out[k]=k*st+a; out[n-1]=b; return out; }
+function matXY(m){ return {X:matAxis(m.x,m.nx), Y:matAxis(m.y,m.ny)}; }
+// An axis given as values: {a, b} when linspace gives every one of them back exactly, else {v}.
+function matAxisOf(v){ const n=v.length; if(!n) return {a:1,b:1}; const a=v[0], b=v[n-1];
+  if(n===1) return {a,b:a}; const t=matAxis({a,b},n); for(let k=0;k<n;k++) if(t[k]!==v[k]) return {v:v.slice()}; return {a,b}; }
+// An axis reversed: the same values, last first.
+function matRev(ax,n){ return matAxisOf(matAxis(ax,n).reverse()); }
+const matNum=v=>typeof v==="number"&&Number.isFinite(v)?v:null;
+/* A new matrix of nx × ny, its X and Y from first to last, every cell `v` (null: empty) or
+   `fn(x, y, i, j)` (rows i and columns j from 1); a value that is not a finite number is empty. */
+function matNew(o){ const nx=Math.round(+o.nx), ny=Math.round(+o.ny);
+  if(!(nx>=1&&ny>=1)) return {fail:"A matrix needs one row and one column at least."};
+  if(nx>MAT_SIDE||ny>MAT_SIDE||nx*ny>MAT_MAX) return {fail:`A matrix holds ${MAT_MAX.toLocaleString("en")} cells at most, ${MAT_SIDE.toLocaleString("en")} a side.`};
+  const x=o.x||{a:1,b:nx}, y=o.y||{a:1,b:ny}, m={nx,ny,x,y,z:new Array(nx*ny)};
+  if(typeof o.fn==="function"){ const {X,Y}=matXY(m); for(let r=0;r<ny;r++) for(let c=0;c<nx;c++) m.z[r*nx+c]=matNum(o.fn(X[c],Y[r],r+1,c+1)); }
+  else { const v=matNum(o.v); m.z.fill(v); }
+  return m; }
+// The grid turned over its diagonal: rows become columns, X becomes Y.
+function matT(m){ const {nx,ny,z}=m, out=new Array(nx*ny);
+  for(let r=0;r<ny;r++){ const o=r*nx; for(let c=0;c<nx;c++) out[c*ny+r]=z[o+c]; }
+  return {nx:ny,ny:nx,x:m.y,y:m.x,z:out}; }
+/* Flipped left to right ("lr", the columns in the other order) or up and down ("ud", the rows), as
+   NumPy's fliplr and flipud; with `withXY` the coordinates go with the values (each value keeps its
+   X and Y, so a graph draws the same picture), else they stay and the picture is mirrored. */
+function matFlip(m,dir,withXY){ const {nx,ny,z}=m, out=new Array(nx*ny), lr=dir!=="ud";
+  for(let r=0;r<ny;r++){ const o=r*nx, ro=(lr?r:ny-1-r)*nx; for(let c=0;c<nx;c++) out[ro+(lr?nx-1-c:c)]=z[o+c]; }
+  return {nx,ny,x:withXY&&lr?matRev(m.x,nx):m.x,y:withXY&&!lr?matRev(m.y,ny):m.y,z:out}; }
+/* Turned as the grid is listed (row 1 at the top), as NumPy's rot90: k 1 a quarter anticlockwise,
+   −1 (or 3) clockwise, 2 a half. The values turn and the axes keep their values in order: the rows
+   take the X values and the columns the Y values, so an evenly spaced picture turns as a whole. */
+function matTurn(m,k){ k=((Math.round(+k)%4)+4)%4; if(k===0) return {nx:m.nx,ny:m.ny,x:m.x,y:m.y,z:m.z.slice()};
+  const {nx,ny,z}=m;
+  if(k===2){ const n=nx*ny, out=new Array(n); for(let i=0;i<n;i++) out[n-1-i]=z[i]; return {nx,ny,x:m.x,y:m.y,z:out}; }
+  const out=new Array(nx*ny);   // ny' = nx rows, nx' = ny columns
+  if(k===1){ for(let i=0;i<nx;i++){ const c=nx-1-i, o=i*ny; for(let j=0;j<ny;j++) out[o+j]=z[j*nx+c]; } }
+  else { for(let i=0;i<nx;i++){ const o=i*ny; for(let j=0;j<ny;j++) out[o+j]=z[(ny-1-j)*nx+i]; } }
+  return {nx:ny,ny:nx,x:m.y,y:m.x,z:out}; }
+/* The rows and columns whose Y and X lie in [y0, y1] and [x0, x1] (either way round, an end null for
+   no limit), in their order; refused when nothing is left. */
+function matCrop(m,o){ const {X,Y}=matXY(m), lim=(a,b)=>{ const lo=a==null||a===""?-Infinity:+a, hi=b==null||b===""?Infinity:+b; return lo<=hi?[lo,hi]:[hi,lo]; };
+  const [xa,xb]=lim(o.x0,o.x1), [ya,yb]=lim(o.y0,o.y1), cs=[], rs=[];
+  for(let c=0;c<m.nx;c++) if(X[c]>=xa&&X[c]<=xb) cs.push(c);
+  for(let r=0;r<m.ny;r++) if(Y[r]>=ya&&Y[r]<=yb) rs.push(r);
+  if(!cs.length||!rs.length) return {fail:`No ${!cs.length?"column has its X":"row has its Y"} in that range.`};
+  const nx=cs.length, ny=rs.length, z=new Array(nx*ny);
+  for(let i=0;i<ny;i++){ const o2=rs[i]*m.nx, oo=i*nx; for(let j=0;j<nx;j++) z[oo+j]=m.z[o2+cs[j]]; }
+  const sub=(ax,n,idx)=>{ const v=matAxis(ax,n); return Array.isArray(ax&&ax.v)?{v:idx.map(k=>v[k])}:matAxisOf(idx.map(k=>v[k])); };
+  return {nx,ny,x:sub(m.x,m.nx,cs),y:sub(m.y,m.ny,rs),z}; }
+/* Where u sits on an axis running one way (up or down): {k, w}, between values k and k+1 at w from
+   k; null outside it. */
+function matPos(A,u){ const n=A.length; if(n===1) return u===A[0]?{k:0,w:0}:null;
+  const up=A[n-1]>=A[0], lo=up?A[0]:A[n-1], hi=up?A[n-1]:A[0]; if(!(u>=lo&&u<=hi)) return null;
+  let a=0, b=n-1; while(b-a>1){ const h=(a+b)>>1; if(up?A[h]<=u:A[h]>=u) a=h; else b=h; }
+  const d=A[b]-A[a]; return {k:a,w:d!==0?(u-A[a])/d:0}; }
+/* Resampled to nx × ny over the same ends (the new X and Y evenly from first to last), each value
+   bilinear between the four cells around it, as SciPy's RegularGridInterpolator; a cell missing
+   with a weight above zero makes the value missing. */
+function matResample(m,nx,ny){ nx=Math.round(+nx); ny=Math.round(+ny);
+  if(!(nx>=1&&ny>=1)) return {fail:"A matrix needs one row and one column at least."};
+  if(nx>MAT_SIDE||ny>MAT_SIDE||nx*ny>MAT_MAX) return {fail:`A matrix holds ${MAT_MAX.toLocaleString("en")} cells at most, ${MAT_SIDE.toLocaleString("en")} a side.`};
+  const {X,Y}=matXY(m), x={a:X[0],b:X[m.nx-1]}, y={a:Y[0],b:Y[m.ny-1]};
+  if(nx>1&&x.a===x.b||ny>1&&y.a===y.b) return {fail:"One row or one column cannot be spread over more."};
+  const X2=matAxis(x,nx), Y2=matAxis(y,ny), px=X2.map(u=>matPos(X,u)), py=Y2.map(u=>matPos(Y,u)), z=new Array(nx*ny), Z=m.z, W=m.nx;
+  // A weight of 0 leaves its cell out altogether, so a missing neighbour there changes nothing.
+  const at=(r,c)=>{ const v=Z[r*W+c]; return v==null?NaN:v; }, L=(a,b,w)=>w===0?a:w===1?b:(1-w)*a+w*b;
+  for(let i=0;i<ny;i++){ const q=py[i]; for(let j=0;j<nx;j++){ const p=px[j]; let v=NaN;
+      if(p&&q){ const r0=q.k, c0=p.k, r1=Math.min(r0+1,m.ny-1), c1=Math.min(c0+1,m.nx-1), wy=q.w, wx=p.w;
+        v=L(wy===1?0:L(at(r0,c0),at(r0,c1),wx),wy===0?0:L(at(r1,c0),at(r1,c1),wx),wy); }
+      z[i*nx+j]=Number.isFinite(v)?v:null; } }
+  return {nx,ny,x,y,z}; }
+/* Two matrices of one size, or a matrix and a number, cell by cell: "+", "-", "*", "/"; a cell
+   missing on either side, or a result that is not a finite number (÷ 0), is missing. */
+function matArith(A,B,op){ const num=typeof B==="number";
+  if(!num&&(!B||B.nx!==A.nx||B.ny!==A.ny)) return {fail:`The two matrices are not one size (${A.nx} × ${A.ny} and ${B?B.nx+" × "+B.ny:"none"}).`};
+  if(num&&!Number.isFinite(B)) return {fail:"The number is not a number."};
+  const f=op==="+"?(a,b)=>a+b:op==="-"?(a,b)=>a-b:op==="*"?(a,b)=>a*b:op==="/"?(a,b)=>a/b:null; if(!f) return {fail:`${op} is not one of + − × ÷.`};
+  const n=A.nx*A.ny, z=new Array(n), Za=A.z, Zb=num?null:B.z;
+  for(let i=0;i<n;i++){ const a=Za[i], b=num?B:Zb[i]; if(a==null||b==null){ z[i]=null; continue; } const v=f(a,b); z[i]=Number.isFinite(v)?v:null; }
+  return {nx:A.nx,ny:A.ny,x:A.x,y:A.y,z}; }
+/* A block of the worksheet as a matrix: `cols` its columns (cells: numbers, null, or text read as
+   missing), a column an X and a row a Y. `head`: "xy" (the first row X and the first column Y),
+   "none", or "auto": "xy" when the corner is empty and the first row and first column (past it) are
+   numbers running one way. */
+function matFromCols(cols,head){ const nc=cols.length, nr=cols.reduce((m,c)=>Math.max(m,c.length),0);
+  const cell=(c,r)=>matNum(cols[c][r]);
+  const mono=v=>v.length>0&&v.every(Number.isFinite)&&(v.length<2||v.every((q,k)=>!k||q>v[k-1])||v.every((q,k)=>!k||q<v[k-1]));
+  const rowX=[], colY=[]; for(let c=1;c<nc;c++) rowX.push(cell(c,0)); for(let r=1;r<nr;r++) colY.push(cell(0,r));
+  const xy=head==="xy"||head!=="none"&&nc>1&&nr>1&&cols[0][0]==null&&mono(rowX)&&mono(colY);
+  if(head==="xy"&&(nc<2||nr<2)) return {fail:"A block with X along its first row and Y down its first column needs two rows and two columns."};
+  if(xy&&(!rowX.every(Number.isFinite)||!colY.every(Number.isFinite))) return {fail:"The first row and the first column must be numbers to be X and Y."};
+  const c0=xy?1:0, r0=xy?1:0, nx=nc-c0, ny=nr-r0;
+  if(nx<1||ny<1) return {fail:"The block holds no values."};
+  if(nx*ny>MAT_MAX) return {fail:`A matrix holds ${MAT_MAX.toLocaleString("en")} cells at most.`};
+  const z=new Array(nx*ny); for(let r=0;r<ny;r++) for(let c=0;c<nx;c++) z[r*nx+c]=cell(c+c0,r+r0);
+  return {nx,ny,x:xy?matAxisOf(rowX):{a:1,b:nx},y:xy?matAxisOf(colY):{a:1,b:ny},z,xy}; }
+/* The matrix as columns: "xyz" three columns, a row a cell (Y outer, X inner); "block" the Y values
+   then a column for each X. {cols: [values], xs: the X of each block column}. */
+function matToCols(m,how){ const {X,Y}=matXY(m), {nx,ny,z}=m;
+  if(how==="block"){ const cols=[Y.slice()]; for(let c=0;c<nx;c++){ const v=new Array(ny); for(let r=0;r<ny;r++) v[r]=z[r*nx+c]; cols.push(v); } return {cols,xs:X}; }
+  const n=nx*ny, cx=new Array(n), cy=new Array(n), cz=new Array(n);
+  for(let r=0;r<ny;r++) for(let c=0;c<nx;c++){ const i=r*nx+c; cx[i]=X[c]; cy[i]=Y[r]; cz[i]=z[i]; }
+  return {cols:[cx,cy,cz]}; }
+/* A picture's pixels (RGBA, w × h, its top row first) as a matrix of 0 to 255: "grey" by ITU-R
+   BT.601's weights in PIL's arithmetic ((19595 R + 38470 G + 7471 B + 32768) >> 16), or one of
+   "r", "g", "b", "a". X the pixels from 1 at the left, Y from h at the top row to 1 at the bottom, so
+   the picture is upright on a graph and in the matrix's window alike. */
+function matGrey(rgba,w,h,ch){ const n=w*h, z=new Array(n), k=ch==="r"?0:ch==="g"?1:ch==="b"?2:ch==="a"?3:-1;
+  if(!(w>=1&&h>=1)||rgba.length<4*n) return {fail:"The picture's pixels could not be read."};
+  if(n>MAT_MAX) return {fail:`The picture has ${n.toLocaleString("en")} pixels; a matrix holds ${MAT_MAX.toLocaleString("en")} at most.`};
+  for(let i=0;i<n;i++){ const p=4*i; z[i]=k>=0?rgba[p+k]:(rgba[p]*19595+rgba[p+1]*38470+rgba[p+2]*7471+32768)>>16; }
+  return {nx:w,ny:h,x:{a:1,b:w},y:{a:h,b:1},z}; }
+/* The finite values' least and greatest, and how many: {lo, hi, n}. */
+function matRange(z){ let lo=Infinity, hi=-Infinity, n=0; for(let i=0;i<z.length;i++){ const v=z[i]; if(v!=null){ if(v<lo) lo=v; if(v>hi) hi=v; n++; } } return {lo,hi,n}; }
+/* The text a matrix's check code is the SHA-256 of: a line a row, its values as the worksheet's
+   original data writes them (String(v), empty for missing, commas between). */
+function matText(m){ const {nx,ny,z}=m, s=v=>v==null?"":String(v), lines=new Array(ny);
+  for(let r=0;r<ny;r++){ const o=r*nx; let l=s(z[o]); for(let c=1;c<nx;c++) l+=","+s(z[o+c]); lines[r]=l; }
+  return ny?lines.join("\n")+"\n":""; }
+/* ==MAT:END== */
 
 /* ============================================================
    Formatting helpers
@@ -9966,7 +10123,7 @@ function migrate(p){
   // Keys of older versions can come back from storage after an upgrade.
   ["x","y","e","xLong","xUnit","yLong","yUnit","eLong","eUnit","steps","mask","plot"].forEach(k=>{ if(k in p) delete p[k]; });
   p.cols.forEach(c=>{ c.data=c.data||[]; if(c.role==="y"){ c.pipe=c.pipe||[]; c.mask=c.mask||[]; } cleanTxt(c); cleanCat(c); if(c.fmt!==undefined&&c.fmt!=="text"&&c.fmt!=="num") delete c.fmt; });
-  anaClean(p); constClean(p); filtClean(p); cfClean(p);
+  anaClean(p); constClean(p); filtClean(p); cfClean(p); matClean(p);
   if(!p.cols.some(c=>c.role==="x")) p.cols.unshift(makeCol("x","",""));
   if(!p.cols.some(c=>c.id===p.activeY)){ const y=p.cols.find(c=>c.role==="y"); p.activeY=y?y.id:null; }
   p.raw=p.raw||{fp:"",hist:[]}; p.fits=p.fits||[];
@@ -10012,13 +10169,14 @@ function migrateGraphs(p){
 }
 /* Undo is per-session and local: it rewinds your own edits, not other
    people's. Cross-user undo in a shared document is a different problem. */
-const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","fitSets","lines","rawLock","tree","wsAlign","wsHide","sheets","detcal","ana","consts","wsFilter","wsCf"];
+const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","fitSets","lines","rawLock","tree","wsAlign","wsHide","sheets","detcal","ana","consts","wsFilter","wsCf","mats"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
 /* Raw values are replaced, never changed in place, so a snapshot keeps each
    column's data array as it is and copies the rest: with 20 spectra of 50 000
    points every edit spent 200 ms copying data no edit could change. */
 function cloneCols(cols){ return Array.isArray(cols)?cols.map(c=>{ if(!c||typeof c!=="object") return c; const {data,txt,...rest}=c, o=clone(rest); o.data=data; if(txt!==undefined) o.txt=txt; return o; }):clone(cols); }
-function snapshot(){ const p=P(); if(!p) return null; const o={pid:S.pid}; UNDO_KEYS.forEach(k=>{ o[k]=k==="cols"?cloneCols(p[k]):clone(p[k]); });
+const cloneKey=(k,v)=>k==="cols"?cloneCols(v):k==="mats"?cloneMats(v):clone(v);
+function snapshot(){ const p=P(); if(!p) return null; const o={pid:S.pid}; UNDO_KEYS.forEach(k=>{ o[k]=cloneKey(k,p[k]); });
   o.pdraft=S.pdraft?clone(S.pdraft):null; o.draft=S.draft?clone(S.draft):null; return o; }
 function pushUndo(label){
   if(S.plotPreview&&!S.pdCommitting) pdCommit();
@@ -10032,15 +10190,15 @@ function pushUndo(label){
    or the next step begins), and undoing puts the step's columns together with what is there now
    (mergeCols): what this change did goes, what came in after it stays, cell by cell. */
 function undoAfter(stack){ const t=stack[stack.length-1], p=P(); if(!(t&&t.after===undefined&&p&&t.pid===S.pid)) return;
-  t.after=cloneCols(p.cols); t.afterK={}; UNDO_KEYS.forEach(k=>{ if(k!=="cols") t.afterK[k]=clone(p[k]); }); }
+  t.after=cloneCols(p.cols); t.afterK={}; UNDO_KEYS.forEach(k=>{ if(k!=="cols") t.afterK[k]=cloneKey(k,p[k]); }); }
 /* The other parts of a step put back beside what came in since (DESIGN.md, Undo): a part nobody
    else changed is put back as it was; a list of things with ids (graphs, annotations, sheets,
    trend graphs, functions, saved settings, line lists, formats) is put back thing by thing, this
    window's changes undone and another's kept; the log keeps the lines added elsewhere; any other
    part another window changed since keeps that change (an undo never takes back theirs). */
-const UNDO_BYID=new Set(["graphs","annos","sheets","trends","userFns","fitSets","lines","formats","ana","consts"]);
-const jsonEq=(a,b)=>a===b||JSON.stringify(a)===JSON.stringify(b);
-function mergeById(after,step,now){
+const UNDO_BYID=new Set(["graphs","annos","sheets","trends","userFns","fitSets","lines","formats","ana","consts","mats"]);
+const jsonEq=(a,b)=>a===b||JSON.stringify(a)===JSON.stringify(b), jsonEq0=jsonEq, clone0=o=>clone(o);
+function mergeById(after,step,now,eq,cp){ const jsonEq=eq||jsonEq0, clone=cp||clone0;
   const ok=l=>Array.isArray(l)&&l.every(o=>o&&typeof o==="object"&&o.id!=null);
   if(!ok(after)||!ok(step)||!ok(now)) return clone(now);
   const A=new Map(after.map(o=>[o.id,o])), N=new Map(now.map(o=>[o.id,o])), inStep=new Set(step.map(o=>o.id)), out=[];
@@ -10051,6 +10209,8 @@ function mergeById(after,step,now){
   now.forEach(o=>{ if(inStep.has(o.id)) return; const a=A.get(o.id); if(!a||!jsonEq(o,a)) out.push(o); });   // made elsewhere, or this change's and changed since
   return clone(out); }
 function undoMergeKey(k,after,step,now){
+  // The matrices: compared and copied with their values shared, a book at a time.
+  if(k==="mats") return matsEq(now,after)?cloneMats(step):cloneMats(mergeById(after,step,now,matsEq1,x=>x));
   if(jsonEq(now,after)) return clone(step);
   if(UNDO_BYID.has(k)) return mergeById(after,step,now);
   if(k==="log"&&Array.isArray(step)&&Array.isArray(now)){ const key=l=>l&&(l.t+"|"+l.text), had=new Set((after||[]).map(key));
@@ -10061,7 +10221,7 @@ function undoMergeKey(k,after,step,now){
   return clone(now); }
 function applySnapshot(s){
   const p=P(), patch={}, cur=p.cols, curK={}; UNDO_KEYS.forEach(k=>{ curK[k]=p[k]; });
-  UNDO_KEYS.forEach(k=>{ patch[k]=k==="cols"?cloneCols(s[k]):s.afterK?undoMergeKey(k,s.afterK[k],s[k],curK[k]):clone(s[k]); p[k]=patch[k]; });
+  UNDO_KEYS.forEach(k=>{ patch[k]=k==="cols"?cloneCols(s[k]):s.afterK?undoMergeKey(k,s.afterK[k],s[k],curK[k]):cloneKey(k,s[k]); p[k]=patch[k]; });
   if(s.after&&Array.isArray(cur)){ p.cols=patch.cols=cloneCols(mergeCols(s.after,s.cols,cur));
     // The record of the original data goes on from what is there, with this step's undoing in it.
     const own=c=>!c.src&&!c.fx, a=p.cols.filter(own), b=(s.cols||[]).filter(own);
@@ -10224,6 +10384,10 @@ const IDB_INLINE=256;
    Only an array of finite numbers and nulls is packed, so it comes back exactly; any other stays. */
 function idbPack(a){ const n=a.length, f=new Float64Array(n); for(let i=0;i<n;i++){ const v=a[i]; if(v===null) f[i]=NaN; else if(typeof v==="number"&&Number.isFinite(v)) f[i]=v; else return a; } return f; }
 function idbUnpack(a){ if(Array.isArray(a)) return a; if(!(a instanceof Float64Array)) return []; const n=a.length, o=new Array(n); for(let i=0;i<n;i++){ const v=a[i]; o[i]=v===v?v:null; } return o; }
+// The matrices' values as a column's are: each sheet's z through f (a list of books from storage or for it).
+const matsMapZ=(mats,f)=>Array.isArray(mats)?mats.map(b=>b&&Array.isArray(b.sheets)?Object.assign({},b,{sheets:b.sheets.map(s=>s&&s.z!=null?Object.assign({},s,{z:f(s.z)}):s)}):b):mats;
+// Every large array of a project: its columns' values and its matrices'.
+function projArrs(p,f){ ((p&&p.cols)||[]).forEach(c=>{ if(c&&c.data) f(c.data); }); ((p&&Array.isArray(p.mats)&&p.mats)||[]).forEach(b=>((b&&Array.isArray(b.sheets)&&b.sheets)||[]).forEach(s=>{ if(s&&s.z) f(s.z); })); }
 const IdbStore={
   mode:"local", db:null, data:null, dirty:{}, rev:{}, base:{}, have:new Set(), q:{}, busy:{}, pend:{}, txs:{}, subs:{projects:[],comments:{}}, chan:null, failNext:null,
   tab:Date.now().toString(36)+Math.random().toString(36).slice(2,8),
@@ -10242,13 +10406,15 @@ const IdbStore={
   akey(pid,arr){ let m=AKEY.get(arr); if(!m){ m={}; AKEY.set(arr,m); } return m[pid]||(m[pid]=pid+":"+Date.now().toString(36)+(++akeySeq).toString(36)+Math.random().toString(36).slice(2,5)); },
   toRec(pid,p,out){ const rec=Object.assign({},p); delete rec.id;
     rec.cols=(p.cols||[]).map(c=>{ if(!c||!Array.isArray(c.data)||c.data.length<IDB_INLINE) return c; const k=this.akey(pid,c.data); if(!this.have.has(k)) out.set(k,idbPack(c.data)); return Object.assign({},c,{data:{$a:k}}); });
+    if(Array.isArray(p.mats)) rec.mats=matsMapZ(p.mats,z=>{ if(!Array.isArray(z)||z.length<IDB_INLINE) return z; const k=this.akey(pid,z); if(!this.have.has(k)) out.set(k,idbPack(z)); return {$a:k}; });
     return rec; },
-  recKeys(rec){ const s=new Set(); ((rec&&rec.cols)||[]).forEach(c=>{ if(c&&c.data&&c.data.$a) s.add(c.data.$a); }); return s; },
+  recKeys(rec){ const s=new Set(); projArrs(rec,a=>{ if(a&&a.$a) s.add(a.$a); }); return s; },
   fromRec(pid,rec,arrs){ const p=Object.assign({},rec); const rv=p._rev||0; delete p._rev;
     p.cols=(rec.cols||[]).map(c=>{ if(!c||!c.data||!c.data.$a) return c; const a=arrs.get(c.data.$a)||[]; let m=AKEY.get(a); if(!m){ m={}; AKEY.set(a,m); } m[pid]=c.data.$a; this.have.add(c.data.$a); return Object.assign({},c,{data:a}); });
+    if(Array.isArray(rec.mats)) p.mats=matsMapZ(rec.mats,z=>{ if(!z||!z.$a) return z; const a=arrs.get(z.$a)||[]; let m=AKEY.get(a); if(!m){ m={}; AKEY.set(a,m); } m[pid]=z.$a; this.have.add(z.$a); return a; });
     return [p,rv]; },
   // The arrays a record needs, from memory when this tab has them, else from the store.
-  known(pid){ const m=new Map(); [this.data.projects[pid],this.base[pid]].forEach(x=>((x&&x.cols)||[]).forEach(c=>{ const a=c&&c.data, k=Array.isArray(a)&&AKEY.get(a); if(k&&k[pid]) m.set(k[pid],a); })); return m; },
+  known(pid){ const m=new Map(); [this.data.projects[pid],this.base[pid]].forEach(x=>projArrs(x,a=>{ const k=Array.isArray(a)&&AKEY.get(a); if(k&&k[pid]) m.set(k[pid],a); })); return m; },
   async fetchArrs(store,keys,m){ await Promise.all([...keys].filter(k=>!m.has(k)).map(k=>idbReq(store.get(k)).then(a=>{ m.set(k,idbUnpack(a)); }))); return m; },
   async load(){
     const tx=this.db.transaction(["projects","arrays","comments"],"readonly"), ps=tx.objectStore("projects"), as=tx.objectStore("arrays"), cs=tx.objectStore("comments");
@@ -10260,7 +10426,7 @@ const IdbStore={
     ck.forEach((id,i)=>{ if(cv[i]&&typeof cv[i]==="object") d.comments[id]=cv[i]; });
     this.data=d;
     await this.adopt();
-    try{ const ak=await idbReq(this.db.transaction("arrays","readonly").objectStore("arrays").getAllKeys()), used=new Set(); pv.forEach(r=>this.recKeys(r).forEach(k=>used.add(k))); Object.keys(this.data.projects).forEach(id=>this.data.projects[id].cols.forEach(c=>{ const m=c&&Array.isArray(c.data)&&AKEY.get(c.data); if(m&&m[id]) used.add(m[id]); }));
+    try{ const ak=await idbReq(this.db.transaction("arrays","readonly").objectStore("arrays").getAllKeys()), used=new Set(); pv.forEach(r=>this.recKeys(r).forEach(k=>used.add(k))); Object.keys(this.data.projects).forEach(id=>projArrs(this.data.projects[id],a=>{ const m=Array.isArray(a)&&AKEY.get(a); if(m&&m[id]) used.add(m[id]); }));
       const old=ak.filter(k=>!used.has(k)); if(old.length){ const tx=this.db.transaction("arrays","readwrite"), as=tx.objectStore("arrays"); old.forEach(k=>as.delete(k)); await idbDone(tx); } }catch(e){}
   },
   // What earlier versions kept in localStorage comes in, and leaves localStorage once it is stored here.
@@ -10395,14 +10561,17 @@ function cleanArr(a){ if(!Array.isArray(a)||CLEANARR.has(a)) return a; let bad=f
   for(let i=0;i<a.length;i++){ const v=a[i]; if(v===undefined||(typeof v==="number"&&!Number.isFinite(v))||(v!==null&&typeof v==="object")){ bad=true; break; } }
   const out=bad?Array.from(a,v=>v===undefined||(typeof v==="number"&&!Number.isFinite(v))?null:v!==null&&typeof v==="object"?JSON.parse(JSON.stringify(v)):v):a;
   CLEANARR.add(out); return out; }
-function cloneProj(o){ if(!o||typeof o!=="object"||!Array.isArray(o.cols)) return clone(o);
+function cloneProj(o){ if(!o||typeof o!=="object") return clone(o);
+  // A patch of matrices alone (or a project with no columns): their values shared all the same.
+  if(!Array.isArray(o.cols)){ if(!Array.isArray(o.mats)) return clone(o); const out=clone(Object.assign({},o,{mats:undefined})); out.mats=cloneMats(o.mats); return out; }
   const datas=o.cols.map(c=>c&&typeof c==="object"&&Array.isArray(c.data)?cleanArr(c.data):undefined);
-  const out=clone(Object.assign({},o,{cols:o.cols.map((c,i)=>datas[i]!==undefined?Object.assign({},c,{data:null,txt:undefined}):c)}));
-  out.cols.forEach((c,i)=>{ if(datas[i]!==undefined&&c){ c.data=datas[i]; if(o.cols[i].txt!==undefined) c.txt=o.cols[i].txt; else delete c.txt; } }); return out; }
+  const out=clone(Object.assign({},o,{cols:o.cols.map((c,i)=>datas[i]!==undefined?Object.assign({},c,{data:null,txt:undefined}):c),mats:undefined}));
+  out.cols.forEach((c,i)=>{ if(datas[i]!==undefined&&c){ c.data=datas[i]; if(o.cols[i].txt!==undefined) c.txt=o.cols[i].txt; else delete c.txt; } });
+  if(o.mats!==undefined) out.mats=cloneMats(o.mats); return out; }
 /* Two versions of a project made from one (base): another tab's (theirs) and this one's (mine).
    A part only one of them changed takes that change; a part both changed takes mine, but for the
    columns, which are put together one by one (mergeCols). */
-function mergeProj(base,mine,theirs){ const out=Object.assign({},theirs), same=(a,b)=>a===b||JSON.stringify(a)===JSON.stringify(b);
+function mergeProj(base,mine,theirs){ const out=Object.assign({},theirs), same0=(a,b)=>a===b||JSON.stringify(a)===JSON.stringify(b), same=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&a.length&&a[0]&&Array.isArray(a[0].sheets)?matsEq(a,b):same0(a,b);
   new Set(Object.keys(mine).concat(Object.keys(base))).forEach(k=>{ if(k==="cols"||k==="id") return;
     if(!same(mine[k],base[k])){ if(k in mine) out[k]=mine[k]; else delete out[k]; } });
   out.cols=mergeCols(base.cols||[],mine.cols||[],theirs.cols||[]);
@@ -10411,6 +10580,11 @@ function mergeProj(base,mine,theirs){ const out=Object.assign({},theirs), same=(
     const outK=L(theirs.consts).filter(k=>!(B.has(k.id)&&!M.has(k.id))).map(k=>{ const m=M.get(k.id); return m&&!same(m,B.get(k.id))?m:k; });
     L(mine.consts).forEach(k=>{ if(!B.has(k.id)&&!outK.some(o=>o.id===k.id||o.name===k.name)) outK.push(k); });
     if(outK.length) out.consts=outK; else delete out.consts; }
+  // The matrices: each tab's books added, changed and deleted, book by book (a book changed in both keeps this tab's).
+  if(!matsEq(mine.mats,base.mats)&&!matsEq(theirs.mats,base.mats)){ const L=v=>Array.isArray(v)?v:[], B=new Map(L(base.mats).map(b=>[b.id,b])), M=new Map(L(mine.mats).map(b=>[b.id,b]));
+    const outM=L(theirs.mats).filter(b=>!(B.has(b.id)&&!M.has(b.id))).map(b=>{ const m=M.get(b.id); return m&&!matsEq1(m,B.get(b.id))?m:b; });
+    L(mine.mats).forEach(b=>{ if(!B.has(b.id)&&!outM.some(o=>o.id===b.id)) outM.push(b); });
+    if(outM.length) out.mats=outM; else delete out.mats; }
   // The log: both tabs' lines, in order.
   if(Array.isArray(mine.log)&&Array.isArray(theirs.log)&&!same(mine.log,base.log)&&!same(theirs.log,base.log)){ const seen=new Set(); out.log=[].concat(theirs.log,mine.log).filter(l=>{ const k=l&&(l.t+"|"+l.text); if(seen.has(k)) return false; seen.add(k); return true; }).sort((a,b)=>(a.t||0)-(b.t||0)).slice(-80); }
   // The record of the original data: both tabs' entries, and a check code for what is now there.
@@ -10850,6 +11024,8 @@ function plotCfg(){
   // On a graph of its own, a spectrum not on it counts as hidden.
   const g=pv?null:graphOf(id), on=g?g.cols:pv?null:[]; if(on) o.hidden=o.hidden.concat(yCols().filter(c=>!on.includes(c.id)).map(c=>c.id));
   o.gcols=g?g.cols:null;
+  // A graph of a matrix draws it as a map, whatever the layout says.
+  if(o.mat){ if(matOf(o.mat,p)) o.layout="heat"; else delete o.mat; }
   o.annos=((pv?src.annos:(p&&p.annos))||[]).filter(a=>annoInGraph(a,id));
   // A panel of a figure: its shared axes' inner numbers and titles give way, the
   // panels sharing an axis show the same range of it, it carries its letter, and
@@ -11712,7 +11888,15 @@ function mapNearest(y){ const g=S.geo, rows=g&&g.mapRows; if(!rows||!rows.length
   rows.forEach(r=>{ if(Math.abs(r.v-y)<Math.abs(best.v-y)) best=r; }); return best; }
 // The Map submenu: how it is drawn, what is up the side, the levels and the colours.
 function mapMenuItems(){
-  const cfg=plotCfg(), ro=S.readOnly||!P(), kind=cfg.mapKind||"image", s=seriesOf(), ks=metaKeys(yCols());
+  const cfg=plotCfg(), ro=S.readOnly||!P(), kind=cfg.mapKind||"image";
+  // A graph of a matrix: how it is drawn, its levels and colours, and the matrix itself.
+  if(cfg.mat){ const m=matOf(cfg.mat), b=matBookOf(cfg.mat);
+    return [{group:"Drawn as"}].concat(MAP_KINDS.map(([k,l])=>({label:l,radio:true,checked:kind===k,enabled:!ro,run:()=>setPlotKey("mapKind",k,`drew the map as ${l.toLowerCase()}`)})),
+      ["-",{label:"Number the contour lines",checked:cfg.mapLab!==false,enabled:!ro&&kind!=="image"&&kind!=="filled",run:()=>setPlotKey("mapLab",cfg.mapLab===false,cfg.mapLab===false?"numbered the contour lines":"left the contour lines unnumbered")},
+      {label:"Levels",enabled:!ro&&kind!=="image",note:String(numOr(cfg.mapLevels,8)),sub:()=>[4,6,8,10,12,16,20].map(n=>({label:`About ${n}`,radio:true,checked:numOr(cfg.mapLevels,8)===n,run:()=>setPlotKey("mapLevels",n,`drew about ${n} contour levels`)}))},
+      {label:"Colour map",sub:()=>CMAP_LIST.map(([k,l])=>({label:l,radio:true,checked:(cfg.cmap||"viridis")===k,enabled:!ro,run:()=>setPlotKey("cmap",k,`coloured the map ${l.toLowerCase()}`)}))},
+      "-",{label:m?`Show the matrix ${m.name}`:"The matrix has gone",enabled:!!m,run:()=>matOpen(b.id,m.id)}]); }
+  const s=seriesOf(), ks=metaKeys(yCols());
   const modes=[["order","Their order"],["name","A number in their names"],["typed","Values you type"]].concat(ks.map(q=>["meta:"+q.k,q.k]));
   return [{group:"Drawn as"}].concat(MAP_KINDS.map(([k,l])=>({label:l,radio:true,checked:kind===k,enabled:!ro,run:()=>setPlotKey("mapKind",k,`drew the map as ${l.toLowerCase()}`)})),
     ["-",{group:"Up the side"}],MAP_Y.map(([k,l])=>({label:l,radio:true,checked:(cfg.mapY||"index")===k,enabled:!ro,run:()=>setPlotKey("mapY",k,`put ${k==="series"?"the series variable":"the columns in their order"} up the side of the map`)})),
@@ -12670,13 +12854,15 @@ function x2Layout(F,SX,len,o){
 function buildPlot(W,H,pal,colEx,opt){
   const ins=opt&&opt.inset||null, forExport=colEx||!!ins;
   const p=P(), cfg=plotCfg(), logY=!!cfg.logY, logX=!!cfg.logX;
-  const ps=forExport?{final:true,d:finalOf(activeYCol()),ghost:null,marks:null,k:0,c:activeYCol()}:plotState();
-  const act=activeYCol(), layout=ps.final?cfg.layout:"overlay", distL=isDistLayout(layout)&&!ins;
+  // A graph of a matrix (plot.mat): no column of its own, the matrix's names and units for its axes.
+  const MAT=cfg.mat?matOf(cfg.mat):null;
+  const ps=MAT?{final:true,d:{x:[],y:[],idx:[],xn:MAT.xname||"X",xu:MAT.xunit||"",yn:MAT.yname||"Y",yu:MAT.yunit||""},ghost:null,marks:null,k:0,c:null}:forExport?{final:true,d:finalOf(activeYCol()),ghost:null,marks:null,k:0,c:activeYCol()}:plotState();
+  const act=MAT?null:activeYCol(), layout=ps.final?cfg.layout:"overlay", distL=isDistLayout(layout)&&!ins;
   // Curved scales (ln, 1/x, √x, probability…): points they cannot show are left out.
   const fX=distL?null:scaleFn(scaleKind(cfg,"x"),cfg.ax.x), fY=layout==="heat"?null:scaleFn(scaleKind(cfg,"y"),cfg.ax.y);
   const inDom=a=>fX||fY?a.filter(q=>(!fX||fX.ok(q.x))&&(!fY||fY.ok(q.y))):a;
   const fit=ps.final&&layout!=="heat"&&!distL?shownFit():null, FM=fitModel(fit);
-  const pts=useRange(act&&act.id,inDom(ps.final?pointsAll():seriesPoints(ps.d,logY)),cfg); const n=pts.length;
+  const pts=MAT?[]:useRange(act&&act.id,inDom(ps.final?pointsAll():seriesPoints(ps.d,logY)),cfg); const n=pts.length;
   const gpts=ps.ghost?inDom(seriesPoints(ps.ghost,logY)):null, showGhost=!!(gpts&&gpts.length&&ghostComparable(pts,gpts,ps.d,ps.ghost));
   // The other spectra on view: each one's own final data, on the same X units.
   const others=ps.final&&act?yCols().filter(c=>c.id!==act.id&&!cfg.hidden.includes(c.id)&&(finalOf(c).xu||"")===(ps.d.xu||"")):[];
@@ -12709,7 +12895,7 @@ function buildPlot(W,H,pal,colEx,opt){
     offStep=Math.max(span(pts),...oser.map(o=>span(o.pts)))*(+cfg.offset||0.35); }
   const shiftPts=(q,k)=>k?q.map(z=>Object.assign({},z,{y:z.y+k*offStep})):q;
   const allForView=layout==="offset"?pts.concat(...oser.map((o,k)=>shiftPts(o.pts,k+1))):layout==="overlay"?pts.concat(...oL.map(o=>o.pts)):pts;
-  let v=ins?{x0:ins.x0,x1:ins.x1,y0:ins.y0,y1:ins.y1}:forExport?curView():drawView(ps,pts,showGhost?gpts:null);
+  let v=ins?{x0:ins.x0,x1:ins.x1,y0:ins.y0,y1:ins.y1}:MAT?matViewOf(MAT,!!logX):forExport?curView():drawView(ps,pts,showGhost?gpts:null);
   if(!ins&&(!S.view||forExport)){ // the axis settings, and the other spectra, decide "all the data"
     if(!S.view&&(layout==="overlay"||layout==="offset")&&oser.length){ const av=autoViewOf(allForView.concat(showGhost?gpts:[]),logY,ps.final&&hasErr()); v=Object.assign({},v,{x0:av.x0,x1:av.x1,y0:av.y0,y1:av.y1}); }
     const ax=cfg.ax; v=Object.assign({},v);
@@ -12837,7 +13023,7 @@ function buildPlot(W,H,pal,colEx,opt){
   const yMaxW=(lo,hi,tg)=>(fY?scaleTicks(lo,hi,tg*55*tkDen,fY,cfg.ax.y,{lw:()=>TK.size,rot:90,size:TK.size}):axisTicks(lo,hi,tg,cfg.ax.y,logY)).ticks.reduce((m,t)=>Math.max(m,labW(t.lab,TK)),0);
   let ylw=0;
   // A map: its rows up the side, in their order or at their values of the series variable.
-  const MR=heat?mapRows(cfg,[{c:act,pts}].concat(oser)):null, mapS=MR&&MR.series?MR:null;
+  const MR=MAT?{series:true,lo:v.y0,hi:v.y1,rows:[]}:heat?mapRows(cfg,[{c:act,pts}].concat(oser)):null, mapS=MR&&MR.series?MR:null;
   if(mapS) ylw=YA.labs?axisTicks(mapS.lo,mapS.hi,Math.max(2,(H-80)/(55*tkDen)),cfg.ax.y,false).ticks.reduce((m,t)=>Math.max(m,labW(t.lab,TK)),0):0;
   else if(heat) ylw=[act].concat(oser.map(o=>o.c)).reduce((m,c)=>Math.max(m,c?textW(specName(c).slice(0,14),TK):0),0);
   else if(YA.labs||YA.mlabs){
@@ -12891,7 +13077,7 @@ function buildPlot(W,H,pal,colEx,opt){
   if(cfg.title) T+=TS.title.size*1.25+6;
   if(dy&&yR){ const t2=axisTicks(yR.y0,yR.y1,Math.max(60,H-110)/(55*tkDen),cfg.ax.y2||{},logY); let w2=0; if(Y2A.labs) t2.ticks.forEach(t=>{ w2=Math.max(w2,labW(t.lab,TK)); });
     R+=Y2A.off+tkOut(Y2A.dir,Y2A.len)+5+(Y2A.labs?w2+6:1)+(Y2A.tshow?AT("y2").size+2:0)+6; }
-  if(heat) R+=70;
+  if(heat) R+=70+(MAT&&((cfg.ax.y2&&cfg.ax.y2.title)||MAT.zname||MAT.zunit)?TS.axis.size*1.5:0);
   // Symbols coloured by a column: a colour bar on the right, for the first series that has one.
   const zb=heat||dist||ins?null:(()=>{ for(const z of [{c:act,pts}].concat(oser)){ if(!z.c) continue; const st=serStyle(z.c.id,z.c===act,pal,colEx,cfg);
       if(st.zcol&&(st.type==="scatter"||st.type==="linesym"||st.type==="tmap")){ const m=zMapOf(st.zcol,z.pts,cfg.cmap,"color"); if(m) return m; } } return null; })();
@@ -12922,7 +13108,8 @@ function buildPlot(W,H,pal,colEx,opt){
   const mkY=(y0,y1,top,h,lg)=>y=>lg?top+h-(ly(y)-ly(y0))/(ly(y1)-ly(y0))*h:top+h-(y-y0)/(y1-y0)*h;
   let SY=axScale(v.y0,v.y1,fY||logY,brY,brY.length?10/mh:0), Y=brY.length||fY?(y=>T+mh-SY.f(y)*mh):mkY(v.y0,v.y1,T,mh,logY);
   if(yR) yR.Y=mkY(yR.y0,yR.y1,T,mh,logY);
-  if(heat){ v=Object.assign({},v,mapS?{y0:mapS.lo,y1:mapS.hi}:{y0:-0.5,y1:oser.length+0.5}); Y=mkY(v.y0,v.y1,T,mh,false); SY=axScale(v.y0,v.y1,false,[],0); }
+  if(heat&&!MAT){ v=Object.assign({},v,mapS?{y0:mapS.lo,y1:mapS.hi}:{y0:-0.5,y1:oser.length+0.5}); Y=mkY(v.y0,v.y1,T,mh,false); SY=axScale(v.y0,v.y1,false,[],0); }
+  else if(MAT){ Y=mkY(v.y0,v.y1,T,mh,false); SY=axScale(v.y0,v.y1,false,[],0); }
   const geo={L,pw,T,mh,v,full:!!colEx,logY:heat?false:logY,logX:dist?false:logX,W,H,X,Y,revX,handles:[],heat:heat||dist,colStk:colStk?{mode:colStk.mode,ids:colStk.ids}:null,dist,distC,distK:distK?distK.map(q=>({x:q.x,w:q.w,c:q.c,g:q.g})):null,distBy,axes:null,sx:SX,sy:SY,rx:SX.rate/pw,ry:SY.rate/mh,brk:SX.gaps.length+SY.gaps.length,fx:fX,fy:fY};
   // The second X axis's numbers, now that the plot's width is known.
   let x2L=null; if(x2c&&!x2c.err){ x2L=x2Layout(x2c.f,SX,pw,{ax:cfg.ax.x2,lw:l=>labW(l,TK),rot:X2.rot,size:TK.size}); if(x2L.err){ geo.x2err=x2L.err; x2L=null; } } else if(x2c&&x2c.err) geo.x2err=x2c.err;
@@ -12960,8 +13147,56 @@ function buildPlot(W,H,pal,colEx,opt){
     return g; };
   if(!heat) s+=gridLines(T,mh,Y,yT);
   s+=`<g clip-path="url(#clipM)">`;
+  // Contour lines through a grid f (its values in the colour scale's terms), each level its colour (or dark over an
+  // image), its value written along the longer lines where it clears the others.
+  const mapContours=(f,px,py,kind,levs,tlo,thi,back)=>{ const over=kind!=="lines", lfs=Math.max(8,TK.size*0.78);
+      // Labels where they clear each other: along each level's longer lines, from the middle outward.
+      let paths="", labs=""; const placed=[];
+      levs.forEach(lev=>{ const lines=contourLines(f,lev,px,py); if(!lines.length) return;
+        const rgb=cmapAt(cfg.cmap,(lev-tlo)/((thi-tlo)||1)), col=over?pal.ink:`rgb(${rgb.join(",")})`;
+        paths+=`<path d="${lines.map(l=>"M"+l.map(q=>q[0].toFixed(1)+","+q[1].toFixed(1)).join("L")).join("")}" fill="none" stroke="${col}" stroke-width="${over?0.8:1.3}"${over?' stroke-opacity="0.6"':""} stroke-linejoin="round"/>`;
+        if(kind==="filled"||cfg.mapLab===false) return;
+        const len=l=>l.reduce((a,q,i)=>i?a+Math.hypot(q[0]-l[i-1][0],q[1]-l[i-1][1]):0,0), cand=lines.map(l=>({l,d:len(l)})).filter(z=>z.d>=60).sort((a,b)=>b.d-a.d).slice(0,3);
+        const txt=fmt(back(lev),3), rad=(textW(txt,Object.assign({},TK,{size:lfs}))+8)/2;
+        for(const {l} of cand){ let done=false;
+          for(const fr of [0.5,0.3,0.7,0.15,0.85,0.4,0.6]){ const m=Math.round((l.length-1)*fr), q=l[m];
+            if(q[0]-rad<L||q[0]+rad>L+pw||q[1]-rad<T||q[1]+rad>T+mh||placed.some(o=>Math.hypot(o[0]-q[0],o[1]-q[1])<o[2]+rad)) continue;
+            const a=l[Math.max(0,m-2)], b=l[Math.min(l.length-1,m+2)]; let ang=Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI; if(ang>90) ang-=180; if(ang<-90) ang+=180;
+            labs+=`<text transform="translate(${q[0].toFixed(1)},${q[1].toFixed(1)}) rotate(${ang.toFixed(1)})" y="${(lfs*0.35).toFixed(1)}" text-anchor="middle"${tAt(Object.assign({},TK,{size:lfs}),pal.ink)} stroke="${pal.bg}" stroke-width="3" stroke-linejoin="round" paint-order="stroke">${esc(txt)}</text>`;
+            placed.push([q[0],q[1],rad]); done=true; break; }
+          if(done) break; } });
+      return paths+labs; };
+  /* A matrix: each pixel the cell whose span holds it (an image), or the value between the cells' centres,
+     bilinear (filled contours and lines); worked out at the screen's pixels (1200 a side at most, 2400 in an export). */
+  const matMapSvg=()=>{ const kind=cfg.mapKind||"image", {X:MX,Y:MY}=matXYOf(MAT), Z=MAT.z, nx=MAT.nx, ny=MAT.ny, rg=matRangeOf(Z);
+    let lo=rg.n?rg.lo:0, hi=rg.n?rg.hi:1, out="";
+    if(logY&&!(lo>0)){ let m=Infinity; for(let i=0;i<Z.length;i++){ const z=Z[i]; if(z!=null&&z>0&&z<m) m=z; } lo=m<Infinity?m:1; if(!(hi>lo)) hi=lo*10; }
+    if(cfg.ax.y2&&cfg.ax.y2.min!=null&&cfg.ax.y2.min!=="") lo=+cfg.ax.y2.min; if(cfg.ax.y2&&cfg.ax.y2.max!=null&&cfg.ax.y2.max!=="") hi=+cfg.ax.y2.max;
+    if(!(hi>lo)){ const m=lo; lo=logY?m/2:m-0.5; hi=logY?m*2:m+0.5; }
+    const tr=z=>logY?Math.log10(Math.max(z,1e-300)):z, back=t=>logY?10**t:t, levs=kind==="image"?[]:mapLevels(lo,hi,numOr(cfg.mapLevels,8),logY);
+    const edges=[tr(lo)].concat(levs,[tr(hi)]), band=z=>{ if(z==null) return null; const t=tr(z); let i=0; while(i<edges.length-2&&t>=edges[i+1]) i++; return back((edges[i]+edges[i+1])/2); };
+    const xAt=px=>SX.inv(revX?(L+pw-px)/pw:(px-L)/pw), yAt=py=>SY.inv((T+mh-py)/mh);
+    // Bilinear between the cells' centres: where each pixel sits along X and Y (matPos), then the four cells.
+    const lin=(pr,pc)=>{ if(!pr||!pc) return null; const r0=pr.k, c0=pc.k, r1=Math.min(r0+1,ny-1), c1=Math.min(c0+1,nx-1);
+      const L2=(u,w,t)=>t===0?u:t===1?w:u==null||w==null?null:(1-t)*u+t*w, a=L2(Z[r0*nx+c0],Z[r0*nx+c1],pc.w), b=L2(Z[r1*nx+c0],Z[r1*nx+c1],pc.w); return L2(a,b,pr.w); };
+    const cap=forExport?2400:1200, nc=Math.max(2,Math.min(cap,Math.round(pw))), nr=Math.max(2,Math.min(cap,Math.round(mh)));
+    const hk=["mat",objId(Z),nx,ny,JSON.stringify([MAT.x,MAT.y]),nc,nr,v.x0,v.x1,v.y0,v.y1,revX,logX,lo,hi,cfg.cmap,kind,logY,levs.join(" ")].join("|");
+    const url=kind==="lines"?"":heatMemo(hk,()=>{ const px=c=>L+(c+0.5)*pw/nc, py=r=>T+(r+0.5)*mh/nr;
+      if(kind==="image"){ const ci=new Int32Array(nc), ri=new Int32Array(nr); for(let c=0;c<nc;c++) ci[c]=matCellAt(MX,xAt(px(c))); for(let r=0;r<nr;r++) ri[r]=matCellAt(MY,yAt(py(r)));
+        return heatImage(nr,nc,(r,c)=>{ const i=ri[r], j=ci[c]; return i<0||j<0?null:Z[i*nx+j]; },lo,hi,cfg.cmap,logY); }
+      const pc=Array.from({length:nc},(_,c)=>matPos(MX,xAt(px(c)))), pr=Array.from({length:nr},(_,r)=>matPos(MY,yAt(py(r))));
+      return heatImage(nr,nc,(r,c)=>band(lin(pr[r],pc[c])),lo,hi,cfg.cmap,logY); });
+    if(url) out+=`<image href="${url}" x="${L}" y="${T}" width="${pw}" height="${mh}" preserveAspectRatio="none" data-mat="${esc(MAT.id)}"/>`;
+    if(kind!=="image"&&levs.length&&nx>1&&ny>1){ const gc=Math.max(8,Math.min(220,Math.round(pw/4))), gr=Math.max(8,Math.min(180,Math.round(mh/4))), px=c=>L+(c+0.5)*pw/gc, py=r=>T+(r+0.5)*mh/gr;
+      const pc=Array.from({length:gc},(_,c)=>matPos(MX,xAt(px(c)))), f=Array.from({length:gr},(_,r)=>{ const q=matPos(MY,yAt(py(r))); return pc.map(p=>{ const z=lin(q,p); return z==null||(logY&&!(z>0))?null:tr(z); }); });
+      out+=mapContours(f,px,py,kind,levs,tr(lo),tr(hi),back); }
+    geo.heatZ=[lo,hi]; geo.mapLevs=levs.map(back); geo.mapSeries=true; geo.mapRows=[]; geo.mapWhy=""; geo.mat=MAT.id;
+    geo.matCell=(x,y)=>{ const j=matCellAt(MX,x), i=matCellAt(MY,y); return i<0||j<0?null:{i,j,v:Z[i*nx+j],x:MX[j],y:MY[i]}; };
+    geo.mapZ=(x,y)=>{ const c=geo.matCell(x,y); return c?c.v:null; };
+    return out; };
   // Heat map: one row per spectrum, the analysed one at the bottom.
-  if(heat){
+  if(heat&&MAT) s+=matMapSvg();
+  else if(heat){
     const rows=MR.rows, cols=Math.max(16,Math.min(900,Math.round(pw))), vx0=Math.min(v.x0,v.x1), vx1=Math.max(v.x0,v.x1), kind=cfg.mapKind||"image";
     const along=n=>Array.from({length:n},(_,k)=>{ const t=(k+0.5)/n; return revX?vx1-(vx1-vx0)*t:vx0+(vx1-vx0)*t; });
     const hk=rows.map(r=>objId(r.pts)+"@"+r.v).join(",")+"|"+cols+"|"+vx0+"|"+vx1+"|"+revX+"|"+(logY?1:0);
@@ -12985,23 +13220,7 @@ function buildPlot(W,H,pal,colEx,opt){
     // Contour lines on a coarser grid, each level its colour (or dark over an image), its value written on its longest line.
     if(kind!=="image"&&levs.length&&rows.length>1){ const nc=Math.max(8,Math.min(220,Math.round(pw/4))), nr=Math.max(8,Math.min(180,Math.round(mh/4))), x2=along(nc), g2=onto(x2);
       const f=Array.from({length:nr},(_,r)=>{ const y=yOf(r,nr); return x2.map((_,k)=>{ const z=at(y,k,g2); return z==null||(logY&&!(z>0))?null:tr(z); }); });
-      const px=c=>X(x2[c]), py=r=>T+(r+0.5)*mh/nr, over=kind!=="lines", lfs=Math.max(8,TK.size*0.78);
-      // Labels where they clear each other: along each level's longer lines, from the middle outward.
-      let paths="", labs=""; const placed=[];
-      levs.forEach(lev=>{ const lines=contourLines(f,lev,px,py); if(!lines.length) return;
-        const rgb=cmapAt(cfg.cmap,(lev-tr(lo))/((tr(hi)-tr(lo))||1)), col=over?pal.ink:`rgb(${rgb.join(",")})`;
-        paths+=`<path d="${lines.map(l=>"M"+l.map(q=>q[0].toFixed(1)+","+q[1].toFixed(1)).join("L")).join("")}" fill="none" stroke="${col}" stroke-width="${over?0.8:1.3}"${over?' stroke-opacity="0.6"':""} stroke-linejoin="round"/>`;
-        if(kind==="filled"||cfg.mapLab===false) return;
-        const len=l=>l.reduce((a,q,i)=>i?a+Math.hypot(q[0]-l[i-1][0],q[1]-l[i-1][1]):0,0), cand=lines.map(l=>({l,d:len(l)})).filter(z=>z.d>=60).sort((a,b)=>b.d-a.d).slice(0,3);
-        const txt=fmt(back(lev),3), rad=(textW(txt,Object.assign({},TK,{size:lfs}))+8)/2;
-        for(const {l} of cand){ let done=false;
-          for(const fr of [0.5,0.3,0.7,0.15,0.85,0.4,0.6]){ const m=Math.round((l.length-1)*fr), q=l[m];
-            if(q[0]-rad<L||q[0]+rad>L+pw||q[1]-rad<T||q[1]+rad>T+mh||placed.some(o=>Math.hypot(o[0]-q[0],o[1]-q[1])<o[2]+rad)) continue;
-            const a=l[Math.max(0,m-2)], b=l[Math.min(l.length-1,m+2)]; let ang=Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI; if(ang>90) ang-=180; if(ang<-90) ang+=180;
-            labs+=`<text transform="translate(${q[0].toFixed(1)},${q[1].toFixed(1)}) rotate(${ang.toFixed(1)})" y="${(lfs*0.35).toFixed(1)}" text-anchor="middle"${tAt(Object.assign({},TK,{size:lfs}),pal.ink)} stroke="${pal.bg}" stroke-width="3" stroke-linejoin="round" paint-order="stroke">${esc(txt)}</text>`;
-            placed.push([q[0],q[1],rad]); done=true; break; }
-          if(done) break; } });
-      s+=paths+labs; }
+      s+=mapContours(f,c=>X(x2[c]),r=>T+(r+0.5)*mh/nr,kind,levs,tr(lo),tr(hi),back); }
     geo.heatZ=[lo,hi]; geo.mapLevs=levs.map(back); geo.mapSeries=!!mapS; geo.mapRows=rows.map(r=>({c:r.c,v:r.v})); geo.mapWhy=MR.why||(MR.left?`${MR.left} column${MR.left===1?" has":"s have"} no value of the series variable and ${MR.left===1?"is":"are"} left out.`:"");
     // The value under the pointer: each row's at that X exactly, then between the rows.
     const at1=(q,x)=>{ let a=0, b=q.length-1; if(b<1||x<q[0].x||x>q[b].x) return null; while(b-a>1){ const m=(a+b)>>1; if(q[m].x<=x) a=m; else b=m; } const t=q[b].x>q[a].x?(x-q[a].x)/(q[b].x-q[a].x):0; return q[a].y+(q[b].y-q[a].y)*t; };
@@ -13236,7 +13455,10 @@ function buildPlot(W,H,pal,colEx,opt){
     const cbx=L+pw+18, z=geo.heatZ||[0,1], stops=CMAPS[cfg.cmap]||CMAPS.viridis;
     s+=`<defs><linearGradient id="cbar" x1="0" y1="1" x2="0" y2="0">${stops.map((c,i)=>`<stop offset="${(i/(stops.length-1)).toFixed(3)}" stop-color="${c}"/>`).join("")}</linearGradient></defs><rect x="${cbx}" y="${T}" width="14" height="${mh}" fill="url(#cbar)" stroke="${fcol}" stroke-width="0.8"/>`;
     const zt=axisTicks(z[0],z[1],mh/(50*tkDen),cfg.ax.y2||{},logY), Z=mkY(z[0],z[1],T,mh,logY);
-    zt.ticks.forEach(t=>{ const y=Z(t.v); if(y<T-0.5||y>T+mh+0.5) return; s+=`<path d="M${cbx+14},${y}h4" stroke="${fcol}"/>`+tLab(t.lab,cbx+21,y+TK.size*0.3,"start",Object.assign({},TK,{size:TK.size*0.85}),pal.ink); });
+    let zw=0; zt.ticks.forEach(t=>{ const y=Z(t.v); if(y<T-0.5||y>T+mh+0.5) return; const zs=Object.assign({},TK,{size:TK.size*0.85}); s+=`<path d="M${cbx+14},${y}h4" stroke="${fcol}"/>`+tLab(t.lab,cbx+21,y+TK.size*0.3,"start",zs,pal.ink); zw=Math.max(zw,labW(t.lab,zs)); });
+    // A matrix's colour bar is titled by its Z (or the title typed for it).
+    const zTit=MAT?(cfg.ax.y2&&cfg.ax.y2.title)||((MAT.zname||MAT.zunit)?axisLabel(MAT.zname||"Z",MAT.zunit||"","Z"):""):"";
+    if(zTit) s+=richText(zTit,{tf:`translate(${f1(cbx+21+zw+6+TS.axis.size*0.8)},${f1(T+mh/2)}) rotate(90)`,anchor:"middle",st:TS.axis,fill:pal.ink});
     // The contour levels across the bar.
     if((geo.mapLevs||[]).length) s+=`<path d="${geo.mapLevs.map(l=>{ const y=Z(l); return y>=T&&y<=T+mh?`M${cbx},${y.toFixed(1)}h14`:""; }).join("")}" stroke="${pal.bg}" stroke-width="1.2"/><path d="${geo.mapLevs.map(l=>{ const y=Z(l); return y>=T&&y<=T+mh?`M${cbx},${y.toFixed(1)}h14`:""; }).join("")}" stroke="${pal.ink}" stroke-width="0.5" stroke-opacity="0.7"/>`; }
   // The colour bar of symbols coloured by a column.
@@ -13339,7 +13561,7 @@ function buildPlot(W,H,pal,colEx,opt){
   // The axis titles, beside their numbers, wherever the axes went.
   // A box or violin chart is titled by what its values are: one name and unit, or one unit, or "Value".
   const distYl=dist?(()=>{ const ds=distC.map(finalOf), nm=new Set(ds.map(d=>d.yn0||d.yn||"")), un=new Set(ds.map(d=>d.yu||"")); return axisLabel(nm.size===1&&distC.length===1?[...nm][0]:"Value",un.size===1?[...un][0]:"","Value"); })():"";
-  const yl=cfg.ax.y.title||(heat?(mapS?seriesLabel():"Column"):dist?distYl:colStk&&colStk.mode==="pct"?"Share (%)":autoYTitle(ps.d,others,layout)), xl=cfg.ax.x.title||(dist?(distG?axisLabel(distBy.name||colLetter(distBy),distBy.unit,colLetter(distBy)):""):axisLabel(ps.d.xn,ps.d.xu,"X"));
+  const yl=cfg.ax.y.title||(MAT?axisLabel(MAT.yname||"Y",MAT.yunit||"","Y"):heat?(mapS?seriesLabel():"Column"):dist?distYl:colStk&&colStk.mode==="pct"?"Share (%)":autoYTitle(ps.d,others,layout)), xl=cfg.ax.x.title||(dist?(distG?axisLabel(distBy.name||colLetter(distBy),distBy.unit,colLetter(distBy)):""):axisLabel(ps.d.xn,ps.d.xu,"X"));
   if(YA.tshow){ const ys0=drawn.ySide, wy=ypM==="left"&&!YA.off?Math.max(drawn.yW,drawn.pW):drawn.yW, band=tkOut(YA.dir,YA.len)+5+(wy?wy+6:1);
     const tx=(ys0<0?drawn.yAx-band-AT("y").size*0.22:drawn.yAx+band+AT("y").size*0.22)+YA.tdx, al=axAlign(YA,AT("y"));
     const ty=(al==="start"?T+mhAll:al==="end"?T:T+mhAll/2)+YA.tdy, anc=ys0<0?(al==="start"?"start":al==="end"?"end":"middle"):(al==="start"?"end":al==="end"?"start":"middle");
@@ -13508,7 +13730,7 @@ function renderPlot(){ return inRender(renderPlot0); }
 function renderPlot0(){ scheduleAway();
   const svg=$("#plot"), fig=$("#figure");
   // Something to draw: a column on this graph, with points.
-  const p=P(); const has=p&&allCols().some(c=>c.role==="y"&&inGraph(c))&&(pointsAll().length>0||plotState().d.x.length>0);
+  const p=P(), mg=p&&matGraph(GID()); const has=p&&(!!mg||allCols().some(c=>c.role==="y"&&inGraph(c))&&(pointsAll().length>0||plotState().d.x.length>0));
   $("#empty").hidden=!!has;
   renderStatusBar(); renderCtx();
   if(!p){ svg.innerHTML=""; S.geo=null; renderRdCard(); $("#emptyTitle").textContent=S.store?"Import data":"Opening workspace…"; return; }
@@ -13519,11 +13741,11 @@ function renderPlot0(){ scheduleAway();
   { const ep=$("#emptyPlot"), ei=$("#emptyImport"), ex=document.querySelector("#empty .ex"); if(ep) ep.hidden=!cols; if(ei) ei.hidden=cols; if(ex) ex.hidden=cols; }
   if(!has){ svg.innerHTML=""; S.geo=null; renderRdCard(); return; }
   const W=fig.clientWidth, H=fig.clientHeight; if(W<10||H<10) return;
-  if(S.view&&S.view.xu===undefined) S.view.xu=plotState().d.xu||"";
+  if(S.view&&S.view.xu===undefined) S.view.xu=mg?mg.xunit||"":plotState().d.xu||"";
   const str=buildPlot(W,H,readPalette(),false);
   svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
   svg.innerHTML=str.replace(/^<svg[^>]*>/,"").replace(/<\/svg>$/,"");
-  const sub=document.querySelector(`#w-${winOfGraph(S.gid)} .win-sub`); if(sub){ const c=activeYCol(), ps=S.ps; sub.textContent=c?specName(c)+(ps&&!ps.final?" · "+stageName(ps):""):""; }
+  const sub=document.querySelector(`#w-${winOfGraph(S.gid)} .win-sub`); if(sub){ const c=activeYCol(), ps=S.ps, mg=matGraph(S.gid); sub.textContent=mg?mg.name:c?specName(c)+(ps&&!ps.final?" · "+stageName(ps):""):""; }
   drawReaders(); renderRdCard();
   if(multiGraph()) scheduleSnaps();
 }
@@ -14294,7 +14516,7 @@ function graphMenuItems(id,at){
         sub:()=>[{label:"None",radio:true,checked:!cur,enabled:!ro,run:()=>setHistDist(c.id,null)}].concat(DIST_KINDS.map(([k,l])=>{ const h=histCurve(c,k); return {label:l,radio:true,checked:cur===k,enabled:!ro&&!(h&&h.fail),title:h&&h.fail?h.fail:"",run:()=>setHistDist(c.id,k)}; }))}); }
   }
   // A map is cut where it was clicked: the profile at that X, or the spectrum at that value of the series.
-  if(at&&at.pt&&at.pt.inside&&S.geo&&S.geo.heat&&!S.geo.dist){ const x=+(+at.pt.x).toPrecision(6), near=mapNearest(at.pt.y), xu=finalOf(act).xu||"";
+  if(at&&at.pt&&at.pt.inside&&S.geo&&S.geo.heat&&!S.geo.dist&&!S.geo.mat){ const x=+(+at.pt.x).toPrecision(6), near=mapNearest(at.pt.y), xu=finalOf(act).xu||"";
     items.push("-",{group:"Cut the map here"},{label:`The profile at X = ${fmt(x,5)}${xu?" "+xu:""}, against ${S.geo.mapSeries?seriesLabel():"the series"}`,enabled:!ro,run:()=>mapCutX(x)},
       near?{label:S.geo.mapSeries?`The curve nearest ${fmt(at.pt.y,4)}: ${specName(near.c)} (${fmt(near.v,5)})`:`The curve ${specName(near.c)}, on a graph of its own`,enabled:!ro,run:()=>mapCutY(near)}:null); }
   // What can be added where the click was: a submenu on a curve, the menu itself on the empty plot.
@@ -15394,6 +15616,8 @@ function setupGraph(){
       // On a map: X, where up the side (the series value, or the spectrum), and the value there.
       if(g.dist&&d&&d.inside){ const q=(g.distK||[]).reduce((b,q)=>Math.abs(q.x-d.x)<=q.w/2&&(!b||Math.abs(q.x-d.x)<Math.abs(b.x-d.x))?q:b,null), c=q&&q.c;
         ro.textContent=c?`${specName(c)}${q.g!=null&&g.distBy?`   ${g.distBy.name||colLetter(g.distBy)} ${typeof q.g==="number"?fmt(q.g,6):q.g}`:""}   y ${fmt(d.y,5)}${yu?" "+yu:""}`:""; }
+      else if(g.mat&&d&&d.inside){ const m=matOf(g.mat), c=g.matCell?g.matCell(d.x,d.y):null;
+        ro.textContent=c?`x ${fmt(c.x,6)}${xu?" "+xu:""}   y ${fmt(c.y,6)}${yu?" "+yu:""}   ${m&&m.zname||"value"} ${c.v==null?"empty":fmt(c.v,6)}${m&&m.zunit?" "+m.zunit:""}   (row ${c.i+1}, column ${c.j+1})`:`x ${fmt(d.x,6)}   y ${fmt(d.y,6)}`; }
       else if(g.heat&&d&&d.inside){ const z=g.mapZ?g.mapZ(d.x,d.y):null, near=mapNearest(d.y);
         ro.textContent=`x ${fmt(d.x,6)}${xu?" "+xu:""}   ${g.mapSeries?`${seriesLabel()} ${fmt(d.y,5)}`:near?specName(near.c):""}   ${z!=null?`value ${fmt(z,5)}${yu?" "+yu:""}`:""}`; }
       else { const ze=d&&d.inside&&g.tmapErr?g.tmapErr(x,y):null, tz=ze?null:d&&d.inside&&g.tmapZ?g.tmapZ(x,y):null; ro.textContent=d&&d.inside?`x ${fmt(d.x,6)}${xu?" "+xu:""}   y ${fmt(d.y,5)}${yu?" "+yu:""}${ze?`   value ${fmtPM(ze.z,ze.e)}`:tz!=null?`   value ${fmt(tz,5)}`:""}`:""; } }
@@ -16199,7 +16423,11 @@ function setConsts(next){ const p=P(); if(!p) return; const was=constList(p), W=
   pushUndo(what.length===1?what[0].replace(/^\w+ /,""):"the constants");
   if(next.length) p.consts=next; else delete p.consts;
   recalcFx(p);
-  save({consts:p.consts||null,cols:p.cols},what.join("; ")||"changed the constants"); renderAll();
+  // The matrices whose formulas read a constant changed: its new name in their text, their values worked out again.
+  let mats=matBooks(p); const ch=was.filter(o=>{ const k=N.get(o.id); return !k||k.v!==o.v||k.name!==o.name; });
+  ch.forEach(o=>{ const k=N.get(o.id); if(k&&k.name!==o.name) mats=matRenamed(mats,null,k.name,"k:"+o.id); });
+  if(ch.length) mats=matRecalc(mats,ch.map(o=>"k:"+o.id),p);
+  save(Object.assign({consts:p.consts||null,cols:p.cols},mats!==matBooks(p)?{mats}:{}),what.join("; ")||"changed the constants"); renderAll();
   toast(capFirst(what.length===1?what[0]:`${what.length} changes to the constants`)+".",{action:"Undo",run:undo}); }
 const sameArr=(a,b)=>{ if(a===b) return true; if(!a||!b||a.length!==b.length) return false; for(let i=0;i<a.length;i++) if(a[i]!==b[i]) return false; return true; };
 // Computes every formula column, each after the formula columns it uses. True if any changed.
@@ -18841,7 +19069,7 @@ function toggleColVis(id){
   const p=P(); if(!p||S.readOnly) return; const g=GID();
   // With no graph on the desk, showing a column is plotting it, on a graph of its own
   // (not on a closed graph, which would show it beside curves nobody can see).
-  if(!graphOf(g)||!graphOpen(g)){ plotCols([id],{}); return; }
+  if(!graphOf(g)||!graphOpen(g)||matGraph(g)){ plotCols([id],{}); return; }
   toggleGraphCol(g,id);
 }
 function deleteCol(id){
@@ -19069,6 +19297,512 @@ function sheetMenuItems(sid){ const ro=S.readOnly||!P(), ss=sheetList(), i=ss.fi
     {label:"Move left",enabled:!ro&&i>0,run:()=>moveSheet(sid,-1)},{label:"Move right",enabled:!ro&&i<ss.length-1,run:()=>moveSheet(sid,1)},
     "-",{label:"A new sheet",enabled:!ro,run:()=>newSheet()},
     "-",{label:"Delete the sheet…",danger:true,enabled:!ro&&ss.length>1,title:ss.length>1?"Its columns go with it; Undo brings them back":"A project keeps one sheet",run:()=>deleteSheet(sid)}]); }
+/* ---- Matrices (ux/spec/SHEET_SPEC.md, slice 3.6) ----
+   A matrix book of matrix sheets, each a grid of Z with its X and Y (the MAT block). p.mats: [{id,
+   name, sheets: [{id, name, nx, ny, x, y, z, xname, xunit, yname, yunit, zname, zunit, fx?, raw?}]}],
+   in UNDO_KEYS and UNDO_BYID (a book at a time); z is replaced, never changed in place, so a save,
+   a snapshot and the store share it (cloneMats). A sheet with a formula (fx {src, refs, err?}) is
+   computed: worked out again whenever a matrix or constant it reads changes, and outside any check
+   code. One without is recorded: its values typed, pasted, read from columns or a picture, or
+   transformed in place, each change an entry in its own record (raw {fp, hist}) with the SHA-256 of
+   matText. A book is shown in a window of its own (mx-<id>), a document as the worksheet is; a graph
+   draws a sheet as a map (plot.mat). matOf(id) is the one reader, matPut the one writer. */
+const MAT_FP_SYNC=250000, MX_CW=84, MX_RH=22, MX_SW=84;
+const MATZ_OK=new WeakSet();
+function matBooks(p){ p=p||P(); return p&&Array.isArray(p.mats)?p.mats:[]; }
+function matAll(p){ const out=[]; matBooks(p).forEach(b=>b.sheets.forEach(s=>out.push({b,s}))); return out; }
+function matOf(id,p){ if(!id) return null; for(const b of matBooks(p)) for(const s of b.sheets) if(s.id===id) return s; return null; }
+function matBookOf(id,p){ return matBooks(p).find(b=>b.id===id||b.sheets.some(s=>s.id===id))||null; }
+// A sheet named for people: its book's name too when the book holds several.
+function matName(id,p){ const b=matBookOf(id,p), s=matOf(id,p); if(!s) return "a matrix that has gone"; return b&&b.sheets.length>1?`${b.name} › ${s.name}`:s.name; }
+const matIdNew=()=>"m"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+// A matrix's name is a formula's name (another matrix's formula reads it by that name), one in the project.
+function matNameWhy(nm,self,p){ nm=String(nm||"").trim();
+  if(!/^[A-Za-z][A-Za-z0-9_]*$/.test(nm)||nm.includes("__")) return "A matrix's name begins with a letter and holds letters, digits and single _ only, so a formula can read it.";
+  if(["x","y","i","j","pi","e"].includes(nm)||Object.prototype.hasOwnProperty.call(EXPR_FN,nm)) return `${nm} is a name formulas use already.`;
+  if(matAll(p).some(q=>q.s.id!==self&&q.s.name.toLowerCase()===nm.toLowerCase())) return `Another matrix is called ${nm}.`;
+  if(constByName(nm)) return `A constant is called ${nm}.`;
+  return null; }
+function matFreeName(base,p){ const used=new Set(matAll(p).map(q=>q.s.name.toLowerCase())); let n=1; while(used.has((base+n).toLowerCase())) n++; return base+n; }
+function matFreeBook(p){ const used=new Set(matBooks(p).map(b=>b.name)); let n=1; while(used.has("MBook"+n)) n++; return "MBook"+n; }
+const matsEq1=(a,b)=>matsEq([a],[b]);
+// A copy of the books that shares each sheet's values.
+function cloneMats(m){ if(!Array.isArray(m)) return clone(m);
+  return m.map(b=>{ if(!b||typeof b!=="object"||!Array.isArray(b.sheets)) return clone(b); const {sheets,...rest}=b, o=clone(rest);
+    o.sheets=sheets.map(s=>{ if(!s||typeof s!=="object") return clone(s); const {z,...r2}=s, q=clone(r2); q.z=z; return q; }); return o; }); }
+// Two lists of books alike: the values compared as arrays (the same array, or the same numbers), the rest as JSON.
+function matsEq(a,b){ if(a===b) return true; if(!Array.isArray(a)||!Array.isArray(b)) return jsonEq(a,b); if(a.length!==b.length) return false;
+  const zEq=(x,y)=>{ if(x===y) return true; if(!Array.isArray(x)||!Array.isArray(y)||x.length!==y.length) return false; for(let i=0;i<x.length;i++) if(x[i]!==y[i]) return false; return true; };
+  return a.every((u,k)=>{ const v=b[k]; if(!u||!v||!Array.isArray(u.sheets)||!Array.isArray(v.sheets)) return jsonEq(u,v);
+    const {sheets:su,...ru}=u, {sheets:sv,...rv}=v; if(!jsonEq(ru,rv)||su.length!==sv.length) return false;
+    return su.every((s,i)=>{ const t=sv[i]; if(!s||!t) return s===t; const {z:zs,...a1}=s, {z:zt,...b1}=t; return jsonEq(a1,b1)&&zEq(zs,zt); }); }); }
+/* What comes back from storage or a file: books with sheets, each sheet a grid of its size with
+   numbers or nothing in it, axes of numbers, names of formulas, at most MAT_MAX cells; the rest goes. */
+function matClean(p){ if(p.mats==null) return; if(!Array.isArray(p.mats)){ delete p.mats; return; }
+  const ids=new Set(), names=new Set(), ax=(a,n)=>a&&Array.isArray(a.v)?(a.v.length===n?{v:a.v.map((v,k)=>typeof v==="number"&&Number.isFinite(v)?v:k+1)}:{a:1,b:n}):a&&Number.isFinite(a.a)&&Number.isFinite(a.b)?{a:a.a,b:a.b}:{a:1,b:n};
+  const str=v=>typeof v==="string"?v.slice(0,200):"";
+  p.mats=p.mats.filter(b=>b&&typeof b==="object"&&typeof b.id==="string"&&b.id&&!ids.has(b.id)&&Array.isArray(b.sheets)).map(b=>{ ids.add(b.id);
+    const sheets=b.sheets.filter(s=>{ if(!s||typeof s!=="object"||typeof s.id!=="string"||!s.id||ids.has(s.id)) return false;
+      const nx=s.nx, ny=s.ny; if(!(Number.isInteger(nx)&&Number.isInteger(ny)&&nx>=1&&ny>=1&&nx<=MAT_SIDE&&ny<=MAT_SIDE&&nx*ny<=MAT_MAX)) return false;
+      if(!(Array.isArray(s.z)&&s.z.length===nx*ny)) return false; ids.add(s.id); return true; }).map(s=>{
+      let z=s.z; if(!MATZ_OK.has(z)){ let bad=false; for(let i=0;i<z.length;i++){ const v=z[i]; if(v!==null&&!(typeof v==="number"&&Number.isFinite(v))){ bad=true; break; } }
+        if(bad) z=z.map(v=>typeof v==="number"&&Number.isFinite(v)?v:null); MATZ_OK.add(z); }
+      let nm=str(s.name).trim(); if(!/^[A-Za-z][A-Za-z0-9_]*$/.test(nm)||names.has(nm.toLowerCase())){ let k=1; while(names.has(("M"+k).toLowerCase())) k++; nm="M"+k; } names.add(nm.toLowerCase());
+      const o={id:s.id,name:nm,nx:s.nx,ny:s.ny,x:ax(s.x,s.nx),y:ax(s.y,s.ny),z};
+      ["xname","xunit","yname","yunit","zname","zunit"].forEach(k=>{ if(typeof s[k]==="string"&&s[k]) o[k]=str(s[k]); });
+      if(s.fx&&typeof s.fx==="object"&&typeof s.fx.src==="string"&&s.fx.refs&&typeof s.fx.refs==="object"){ o.fx={src:s.fx.src.slice(0,4000),refs:Object.assign(Object.create(null),...Object.entries(s.fx.refs).filter(([k,v])=>typeof v==="string").map(([k,v])=>({[k]:v})))}; if(typeof s.fx.err==="string") o.fx.err=s.fx.err; }
+      if(s.raw&&typeof s.raw==="object"&&Array.isArray(s.raw.hist)) o.raw={fp:typeof s.raw.fp==="string"?s.raw.fp:"",hist:s.raw.hist.filter(e=>e&&typeof e==="object"&&typeof e.text==="string").slice(-60)};
+      return o; });
+    return {id:b.id,name:str(b.name)||"MBook",sheets}; }).filter(b=>b.sheets.length);
+  if(!p.mats.length) delete p.mats; }
+/* ---- The check code of a recorded sheet: SHA-256 of matText, at once up to MAT_FP_SYNC cells,
+   else a row at a time between whatever the page does, put into the record once known. ---- */
+const MATFP=new Map();
+function matFp(s){ if(s.nx*s.ny<=MAT_FP_SYNC) return sha256(matText(s)); matFpLater(s); return ""; }
+function matFpLater(s){ const z=s.z; if(MATFP.has(z)) return; const job={s:shaNew(),enc:new TextEncoder(),r:0,nx:s.nx,ny:s.ny,z,sid:s.id,pid:S.pid}; MATFP.set(z,job);
+  const sv=v=>v==null?"":String(v);
+  const step=()=>{ if(!MATFP.has(z)) return; const t=performance.now();
+    while(job.r<job.ny&&performance.now()-t<12){ const o=job.r*job.nx; let l=sv(z[o]); for(let c=1;c<job.nx;c++) l+=","+sv(z[o+c]); const b=job.enc.encode(l+"\n"); shaUpdate(job.s,b,b.length); job.r++; }
+    if(job.r<job.ny){ setTimeout(step,0); return; }
+    MATFP.delete(z); const fp=shaDigest(job.s), p=P(); if(!p||S.pid!==job.pid) return;
+    // The entry made for these values takes the code, whether or not they are still the matrix's; the record's
+    // own code, and its last entry when one was left waiting (a reload, an undo), only while they are.
+    const cur=matOf(job.sid); if(!cur||!cur.raw) return; const oid=objId(z), now=cur.z===z, H=cur.raw.hist, last=H[H.length-1];
+    let ch=false; const hist=H.map(e=>{ if(e.fpw===oid||(now&&e===last&&!e.fp)){ ch=true; const q=Object.assign({},e,{fp}); delete q.fpw; return q; } return e; });
+    for(let i=1;i<hist.length;i++) if(!hist[i].prev&&hist[i-1].fp){ hist[i]=Object.assign({},hist[i],{prev:hist[i-1].fp}); ch=true; }
+    const raw={fp:now?fp:cur.raw.fp,hist}; if(!ch&&raw.fp===cur.raw.fp) return;
+    save({mats:matsWith(job.sid,s2=>Object.assign({},s2,{raw}))},null); };
+  setTimeout(step,0); }
+// A recorded sheet whose code was left waiting (the page closed, an undo) has it worked out for its values as they are.
+function matFpEnsure(){ if(S.readOnly) return; matAll().forEach(({s})=>{ if(!s.fx&&s.raw&&!s.raw.fp&&!MATFP.has(s.z)) matFpLater(s); }); }
+// A record entry for a recorded sheet's values as they now are.
+function matRecord(s,text){ const r=s.raw||{fp:"",hist:[]}, fp=matFp(s);
+  if(!histOn()) return {fp,hist:(r.hist||[]).slice()};
+  const e={t:Date.now(),uid:S.uid||"",fp,prev:r.fp||"",text}; if(!fp) e.fpw=objId(s.z);
+  return {fp,hist:(r.hist||[]).concat([e]).slice(-60)}; }
+// The books with one sheet changed (fn(sheet) gives the new one), every other sheet shared.
+function matsWith(sid,fn,p){ return matBooks(p).map(b=>b.sheets.some(s=>s.id===sid)?Object.assign({},b,{sheets:b.sheets.map(s=>s.id===sid?fn(s):s)}):b); }
+/* ---- Formulas: x, y (the cell's X and Y), i, j (its row and column from 1), the project's
+   constants, and other matrices of the same size by name. The formula grammar keeps y for a
+   function's result, so a matrix's y is read under another name (y__, which no matrix may take). ---- */
+function matCompile(src){ try{ return compileExpr(String(src).replace(/(^|[^A-Za-z0-9_.])y(?![A-Za-z0-9_])/g,"$1y__"),{allowNone:true}); }catch(e){ e.message=String(e.message).replace(/y__/g,"y"); throw e; } }
+function matFxParse(src,self,p){ src=String(src||"").trim(); if(!src) return {err:"Write a formula, for example: sin(x)*cos(y)"};
+  let cm; try{ cm=matCompile(src); }catch(e){ return {err:e.message}; }
+  const refs=Object.create(null), me=matOf(self,p);
+  for(const nm of cm.params){ if(nm==="y__"){ refs[nm]="y"; continue; } if(["i","j"].includes(nm)){ refs[nm]=nm; continue; }
+    const m=matAll(p).find(q=>q.s.name===nm)||matAll(p).find(q=>q.s.name.toLowerCase()===nm.toLowerCase());
+    if(m){ if(m.s.id===self) return {err:`${nm} is this matrix: a formula cannot read itself.`};
+      if(me&&(m.s.nx!==me.nx||m.s.ny!==me.ny)) return {err:`${m.s.name} is ${m.s.ny} × ${m.s.nx}, this matrix ${me.ny} × ${me.nx}: a formula reads matrices of its own size.`};
+      if(matReads(m.s.id,self,p)) return {err:`${m.s.name} reads this matrix already: the two would read each other.`};
+      refs[nm]="m:"+m.s.id; continue; }
+    const k=constByName(nm); if(k){ refs[nm]="k:"+k.id; continue; }
+    return {err:`“${nm}” is not x, y, i, j, a matrix or a constant.`}; }
+  return {cm,refs,src}; }
+// Whether matrix a reads b, directly or through others.
+function matReads(a,b,p,seen){ const s=matOf(a,p); if(!s||!s.fx) return false; seen=seen||new Set(); if(seen.has(a)) return false; seen.add(a);
+  return Object.values(s.fx.refs).some(v=>v.startsWith("m:")&&(v.slice(2)===b||matReads(v.slice(2),b,p,seen))); }
+// A formula's values: {z} or {err} in words.
+function matFxEval(s,p,mats){ const look=id=>{ for(const b of mats||matBooks(p)) for(const q of b.sheets) if(q.id===id) return q; return null; };
+  let cm; try{ cm=matCompile(s.fx.src); }catch(e){ return {err:e.message}; }
+  const {X,Y}=matXY(s), n=s.nx*s.ny, ins=[];
+  for(const nm of cm.params){ const r=s.fx.refs[nm];
+    if(r==="y"||r==="i"||r==="j"){ ins.push(r); continue; }
+    if(r&&r.startsWith("m:")){ const q=look(r.slice(2)); if(!q) return {err:`The matrix ${nm} has gone.`}; if(q.nx!==s.nx||q.ny!==s.ny) return {err:`${q.name} is now ${q.ny} × ${q.nx}, this matrix ${s.ny} × ${s.nx}.`}; ins.push(q.z); continue; }
+    if(r&&r.startsWith("k:")){ const k=constById(r.slice(2)); if(!k) return {err:`The constant ${nm} has gone.`}; ins.push(k.v); continue; }
+    return {err:`“${nm}” is not x, y, i, j, a matrix or a constant.`}; }
+  const z=new Array(n), pv=new Array(ins.length);
+  for(let r=0;r<s.ny;r++) for(let c=0;c<s.nx;c++){ const at=r*s.nx+c; let miss=false;
+    for(let k=0;k<ins.length;k++){ const a=ins[k]; let v;
+      if(a==="y") v=Y[r]; else if(a==="i") v=r+1; else if(a==="j") v=c+1; else if(typeof a==="number") v=a; else { v=a[at]; if(v==null){ miss=true; break; } }
+      pv[k]=v; }
+    if(miss){ z[at]=null; continue; } const v=cm.f(X[c],pv); z[at]=Number.isFinite(v)?v:null; }
+  return {z}; }
+// Every formula sheet that reads one of `ids` (or a constant, `k:` ids), and those reading them, worked out again.
+function matRecalc(mats,ids,p){ const done=new Set(), q=[...ids]; let out=mats;
+  const find=id=>{ for(const b of out) for(const s of b.sheets) if(s.id===id) return s; return null; };
+  for(let guard=0;q.length&&guard<500;guard++){ const id=q.shift();
+    out.forEach(b=>b.sheets.forEach(s=>{ if(!s.fx||done.has(s.id)) return; if(!Object.values(s.fx.refs).some(v=>v==="m:"+id||v===id)) return;
+      done.add(s.id); const r=matFxEval(s,p,out); const ns=Object.assign({},s,{z:r.z||s.z.map(()=>null),fx:Object.assign({},s.fx)}); if(r.err) ns.fx.err=r.err; else delete ns.fx.err;
+      out=out.map(bb=>bb.sheets.includes(s)?Object.assign({},bb,{sheets:bb.sheets.map(t=>t===s?ns:t)}):bb); q.push(s.id); })); }
+  return out; }
+/* The one writer: sheet `sid` changed by fn (a new sheet, or {fail} in words), what reads it worked
+   out again, a recorded sheet's record given an entry (`rec`, its text), one undo step and a log line. */
+function matPut(sid,fn,o){ const p=P(); if(!p||S.readOnly) return false; const s=matOf(sid); if(!s) return false;
+  const ns=fn(s); if(!ns) return false; if(ns.fail){ toast(ns.fail); return false; }
+  if(ns.z!==s.z) MATZ_OK.add(ns.z);
+  if(o.rec&&!ns.fx) ns.raw=matRecord(ns,o.rec);
+  let mats=matsWith(sid,()=>ns); if(o.post) mats=o.post(mats); mats=matRecalc(mats,[sid],p);
+  pushUndo(o.undo); save({mats},o.log); return true; }
+function matSaveNew(books,o){ const p=P(); if(!p||S.readOnly) return; pushUndo(o.undo); save({mats:matBooks(p).concat(books)},o.log); }
+/* ---- Making matrices ---- */
+function matSheetNew(m,name,extra){ const s=Object.assign({id:matIdNew(),name,nx:m.nx,ny:m.ny,x:m.x,y:m.y,z:m.z},extra||{}); MATZ_OK.add(s.z); return s; }
+function matBookNew(sheet,name){ return {id:"b"+matIdNew(),name:name||matFreeBook(),sheets:[sheet]}; }
+// Data › Matrix › New matrix…: its size, X and Y from first to last, a value or a formula, its names.
+async function matNewDlg(){ if(S.readOnly||!P()) return;
+  const html=`<div class="grid2 mxdlg"><label for="mnNm">Name</label><input id="mnNm" type="text" value="${esc(matFreeName("M"))}">
+    <label for="mnR">Rows</label><input id="mnR" type="text" inputmode="numeric" value="32"><label for="mnC">Columns</label><input id="mnC" type="text" inputmode="numeric" value="32">
+    <label for="mnX0">X from</label><div class="pair"><input id="mnX0" type="text" inputmode="decimal" value="1"><span>to</span><input id="mnX1" type="text" inputmode="decimal" value="32"></div>
+    <label for="mnY0">Y from</label><div class="pair"><input id="mnY0" type="text" inputmode="decimal" value="1"><span>to</span><input id="mnY1" type="text" inputmode="decimal" value="32"></div>
+    <label for="mnV" title="Empty cells; a number in every cell; or a formula of x, y (each cell's X and Y), i, j (its row and column from 1), constants and other matrices of this size">Values</label><input id="mnV" type="text" class="mono" placeholder="empty, a number, or a formula: sin(x)*cos(y)">
+    <label for="mnZn">Z</label><div class="pair"><input id="mnZn" type="text" placeholder="name"><input id="mnZu" type="text" placeholder="unit"></div>
+    <label for="mnXn">X</label><div class="pair"><input id="mnXn" type="text" placeholder="name"><input id="mnXu" type="text" placeholder="unit"></div>
+    <label for="mnYn">Y</label><div class="pair"><input id="mnYn" type="text" placeholder="name"><input id="mnYu" type="text" placeholder="unit"></div></div><p class="note" id="mnHint" aria-live="polite"></p>`;
+  const chk=q=>{ const nx=+q.mnC, ny=+q.mnR; if(!(Number.isInteger(nx)&&Number.isInteger(ny)&&nx>=1&&ny>=1)) return "Rows and columns are whole numbers, 1 or more.";
+    if(nx>MAT_SIDE||ny>MAT_SIDE||nx*ny>MAT_MAX) return `A matrix holds ${MAT_MAX.toLocaleString("en")} cells at most, ${MAT_SIDE.toLocaleString("en")} a side.`;
+    if(![q.mnX0,q.mnX1,q.mnY0,q.mnY1].every(v=>Number.isFinite(parseNum(v)))) return "X and Y run from a number to a number.";
+    const w=matNameWhy(q.mnNm,null); if(w) return w;
+    const v=String(q.mnV||"").trim(); if(v&&!Number.isFinite(parseNum(v))){ const r=matFxParse(v,null,P()); if(r.err) return r.err;
+      for(const t of Object.values(r.refs)) if(t.startsWith("m:")){ const m=matOf(t.slice(2)); if(m&&(m.nx!==nx||m.ny!==ny)) return `${m.name} is ${m.ny} × ${m.nx}: a formula reads matrices of the new one's size.`; } }
+    return null; };
+  const pr=formDlg({title:"New matrix",html,ok:"Make it",valid:q=>!chk(q),focus:"#mnR"});
+  const box=$("#formBody .mxdlg"), hint=$("#mnHint"); if(box) box.addEventListener("input",()=>{ const q={}; $("#formBody").querySelectorAll("input").forEach(el=>{ q[el.id]=el.value; }); hint.textContent=chk(q)||""; });
+  const q=await pr; if(!q) return;
+  const nx=+q.mnC, ny=+q.mnR, v=String(q.mnV||"").trim(), num=v?parseNum(v):null, fxv=v&&!Number.isFinite(num);
+  const m=matNew({nx,ny,x:{a:parseNum(q.mnX0),b:parseNum(q.mnX1)},y:{a:parseNum(q.mnY0),b:parseNum(q.mnY1)},v:fxv?null:num}); if(m.fail){ toast(m.fail); return; }
+  const extra={}; [["xname","mnXn"],["xunit","mnXu"],["yname","mnYn"],["yunit","mnYu"],["zname","mnZn"],["zunit","mnZu"]].forEach(([k,id])=>{ const t=String(q[id]||"").trim(); if(t) extra[k]=t; });
+  const s=matSheetNew(m,q.mnNm.trim(),extra);
+  if(fxv){ const r=matFxParse(v,s.id,P()); s.fx={src:v,refs:r.refs}; const e=matFxEval(s,P()); if(e.err) s.fx.err=e.err; else s.z=e.z; MATZ_OK.add(s.z); }
+  else s.raw=matRecord(s,`made, ${ny} × ${nx}${num!=null?`, every cell ${fmt(num,6)}`:", empty"}`);
+  const b=matBookNew(s); matSaveNew([b],{undo:"making a matrix",log:`made the matrix ${s.name}, ${ny} rows × ${nx} columns${fxv?`, = ${v}`:""}`});
+  matOpen(b.id,s.id); }
+/* Data › Matrix › From columns…: the worksheet's selected block (or the sheet's columns with
+   values), X along its first row and Y down its first column when they read so. */
+async function matFromColsDlg(){ const p=P(); if(!p||S.readOnly) return; const m=wsModel(); if(!m) return;
+  const sel=S.ws||{}, many=sel.ar!=null&&(sel.ar!==sel.r||sel.ac!==sel.c);
+  let cols, rows, what;
+  if(many){ const c0=Math.min(sel.c,sel.ac), c1=Math.max(sel.c,sel.ac), r0=Math.max(0,Math.min(sel.r,sel.ar)), r1=Math.max(sel.r,sel.ar);
+    cols=m.cols.slice(c0,c1+1).filter(c=>c&&!c.hidden&&c.col).map(q=>({c:q.col})); rows=[]; for(let r=r0;r<=r1;r++){ const d=wsDR(m,r); if(d!=null) rows.push(d); } what=`the block selected (${rows.length} rows × ${cols.length} columns)`; }
+  else { cols=m.cols.filter(c=>c&&!c.hidden&&c.col&&hasVals(c.col)).map(q=>({c:q.col})); const n=cols.reduce((k,c)=>Math.max(k,Math.max((c.c.data||[]).length,txtLen(c.c))),0); rows=Array.from({length:n},(_,i)=>i); what=`every column of ${sheetName(curSheet())} with values (${n} rows × ${cols.length} columns)`; }
+  if(!cols.length||!rows.length){ toast("Select a block of the worksheet first: its columns are the matrix's columns, its rows the rows."); return; }
+  let text=0; const block=cols.map(q=>rows.map(r=>{ const c=q.c, v=(c.data||[])[r]; if(v==null&&cellTxt(c,r)!=null) text++; return typeof v==="number"&&Number.isFinite(v)?v:null; }));
+  const html=`<p class="muted">From ${esc(what)}.</p><div class="grid2"><label for="mcNm">Name</label><input id="mcNm" type="text" value="${esc(matFreeName("M"))}">
+    <label for="mcH">X and Y</label><select id="mcH"><option value="auto">The first row and column, when they read so</option><option value="xy">The first row and column</option><option value="none">The positions, from 1</option></select></div><p class="note" id="mcHint" aria-live="polite"></p>`;
+  const pr=formDlg({title:"A matrix from columns",html,ok:"Make it",valid:q=>!matNameWhy(q.mcNm,null)&&!matFromCols(block,q.mcH).fail});
+  const sh=()=>{ const h=$("#mcHint"); if(!h) return; const r=matFromCols(block,$("#mcH").value), w=matNameWhy($("#mcNm").value,null); h.textContent=w||(r.fail?r.fail:`${r.ny} rows × ${r.nx} columns${r.xy?", X and Y from the first row and column":""}.`); };
+  $("#mcH").addEventListener("change",sh); $("#mcNm").addEventListener("input",sh); sh();
+  const q=await pr; if(!q) return; const r=matFromCols(block,q.mcH); if(r.fail){ toast(r.fail); return; }
+  const c1=cols[r.xy?1:0]&&cols[r.xy?1:0].c, c0=cols[0].c, extra={}; if(c1&&c1.unit) extra.zunit=c1.unit; if(r.xy&&c0.name) extra.yname=c0.name; if(r.xy&&c0.unit) extra.yunit=c0.unit;
+  const s=matSheetNew(r,q.mcNm.trim(),extra); s.raw=matRecord(s,`read from ${what}${text?`; ${text} text cell${text===1?"":"s"} left empty`:""}`);
+  const b=matBookNew(s); matSaveNew([b],{undo:"making a matrix from columns",log:`made the matrix ${s.name} from ${what}`});
+  matOpen(b.id,s.id); if(text) toast(`${text} cell${text===1?" holds":"s hold"} text, left empty in ${s.name}.`); }
+// Data › Matrix › From a picture…: a PNG or JPEG, its grey values or one channel, 0 to 255.
+function matFromPicture(){ if(S.readOnly||!P()) return; const inp=document.createElement("input"); inp.type="file"; inp.accept="image/png,image/jpeg,.png,.jpg,.jpeg";
+  inp.onchange=()=>{ const f=inp.files&&inp.files[0]; if(f) matPicture(f); }; inp.click(); }
+async function matPicture(f){ let bm; try{ bm=await createImageBitmap(f); }catch(e){ toast(`${f.name} is not a picture this browser can read.`); return; }
+  const w=bm.width, h=bm.height; if(w*h>MAT_MAX){ toast(`${f.name} has ${(w*h).toLocaleString("en")} pixels; a matrix holds ${MAT_MAX.toLocaleString("en")} at most.`); return; }
+  const base=(f.name||"Picture").replace(/\.[^.]+$/,"").replace(/[^A-Za-z0-9_]/g,"_").replace(/^[^A-Za-z]+/,""), nm=base&&!matNameWhy(base,null)?base:matFreeName("Picture");
+  const q=await formDlg({title:`A matrix from ${f.name}`,html:`<p class="muted">${w} × ${h} pixels: X the pixels from the left, Y from the bottom.</p><div class="grid2"><label for="mpNm">Name</label><input id="mpNm" type="text" value="${esc(nm)}"><label for="mpCh">Values</label><select id="mpCh"><option value="grey">Grey (0 to 255)</option><option value="r">Red</option><option value="g">Green</option><option value="b">Blue</option><option value="a">Opacity</option></select></div>`,ok:"Read it",valid:q=>!matNameWhy(q.mpNm,null)});
+  if(!q) return; const cv=document.createElement("canvas"); cv.width=w; cv.height=h; const cx=cv.getContext("2d",{willReadFrequently:true}); cx.drawImage(bm,0,0);
+  const d=cx.getImageData(0,0,w,h).data, r=matGrey(d,w,h,q.mpCh); if(r.fail){ toast(r.fail); return; }
+  const chn={grey:"grey",r:"red",g:"green",b:"blue",a:"opacity"}[q.mpCh];
+  const s=matSheetNew(r,q.mpNm.trim(),{xname:"Pixel",yname:"Pixel",zname:chn==="grey"?"Grey":chn[0].toUpperCase()+chn.slice(1)}); s.raw=matRecord(s,`read from the picture ${f.name}, its ${chn} values`);
+  const b=matBookNew(s); matSaveNew([b],{undo:"reading a picture",log:`made the matrix ${s.name} from the picture ${f.name} (${w} × ${h}, ${chn})`});
+  matOpen(b.id,s.id); }
+/* ---- Changing a matrix ---- */
+// A transform in place: a recorded sheet's values change with an entry; a computed one keeps the values, its formula dropped.
+function matTransform(sid,verb,fn,detail){ const s=matOf(sid); if(!s) return; const was=!!s.fx, d=detail?" "+detail:"";
+  const ok=matPut(sid,q=>{ const r=fn(q); if(!r||r.fail) return r; const o=Object.assign({},q,r); delete o.fx; return o; },
+    {undo:"a matrix "+verb,log:`${verb} ${s.name}${d}${was?" (its formula dropped: the values are kept)":""}`,rec:verb+d+(was?", the formula's values kept":"")});
+  if(ok&&was) toast(`${s.name} keeps the values; its formula is dropped.`,{action:"Undo",run:undo}); }
+function matTranspose(sid){ matTransform(sid,"transposed",s=>{ const r=matT(s); return Object.assign(r,{xname:s.yname,xunit:s.yunit,yname:s.xname,yunit:s.xunit}); }); }
+function matFlipIt(sid,dir,withXY){ matTransform(sid,dir==="lr"?"flipped left to right":"flipped up and down",s=>matFlip(s,dir,withXY),withXY?`with its ${dir==="lr"?"X":"Y"} values`:""); }
+function matTurnIt(sid,k){ matTransform(sid,k===2?"turned half a turn":k===1?"turned a quarter anticlockwise":"turned a quarter clockwise",s=>{ const r=matTurn(s,k); return k===2?r:Object.assign(r,{xname:s.yname,xunit:s.yunit,yname:s.xname,yunit:s.xunit}); }); }
+async function matCropDlg(sid){ const s=matOf(sid); if(!s) return; const {X,Y}=matXY(s), st=mxStFor(sid), sel=st&&st.ar!=null;
+  const c0=sel?Math.min(st.c,st.ac):0, c1=sel?Math.max(st.c,st.ac):s.nx-1, r0=sel?Math.min(st.r,st.ar):0, r1=sel?Math.max(st.r,st.ar):s.ny-1;
+  const f=v=>esc(String(v)), q=await formDlg({title:`Crop ${s.name}`,html:`<p class="muted">The rows and columns whose X and Y are in these ranges stay.</p><div class="grid2"><label for="mkX0">X from</label><div class="pair"><input id="mkX0" type="text" inputmode="decimal" value="${f(X[c0])}"><span>to</span><input id="mkX1" type="text" inputmode="decimal" value="${f(X[c1])}"></div><label for="mkY0">Y from</label><div class="pair"><input id="mkY0" type="text" inputmode="decimal" value="${f(Y[r0])}"><span>to</span><input id="mkY1" type="text" inputmode="decimal" value="${f(Y[r1])}"></div></div>`,ok:"Crop",valid:q=>!matCrop(s,{x0:parseNum(q.mkX0),x1:parseNum(q.mkX1),y0:parseNum(q.mkY0),y1:parseNum(q.mkY1)}).fail});
+  if(!q) return; const lim={x0:parseNum(q.mkX0),x1:parseNum(q.mkX1),y0:parseNum(q.mkY0),y1:parseNum(q.mkY1)};
+  matTransform(sid,"cropped",q=>matCrop(q,lim),`to X ${fmt(lim.x0,6)} to ${fmt(lim.x1,6)} and Y ${fmt(lim.y0,6)} to ${fmt(lim.y1,6)}`); }
+async function matResampleDlg(sid){ const s=matOf(sid); if(!s) return;
+  const q=await formDlg({title:`Resample ${s.name}`,html:`<p class="muted">Over the same X and Y, each value bilinear between the four cells around it.</p><div class="grid2"><label for="mrR">Rows</label><input id="mrR" type="text" inputmode="numeric" value="${s.ny}"><label for="mrC">Columns</label><input id="mrC" type="text" inputmode="numeric" value="${s.nx}"></div>`,ok:"Resample",valid:q=>Number.isInteger(+q.mrR)&&Number.isInteger(+q.mrC)&&+q.mrR>=1&&+q.mrC>=1&&+q.mrR<=MAT_SIDE&&+q.mrC<=MAT_SIDE&&(+q.mrR)*(+q.mrC)<=MAT_MAX});
+  if(!q) return; const nx=+q.mrC, ny=+q.mrR; matTransform(sid,"resampled",m=>matResample(m,nx,ny),`to ${ny} × ${nx}`); }
+// Data › Matrix › Set values…: the formula (empty keeps the values as they are, recorded).
+async function matSetValuesDlg(sid){ const s=matOf(sid); if(!s) return;
+  const pr=formDlg({title:`Set the values of ${s.name}`,html:`<div class="grid2 mxdlg"><label for="msF" title="x and y are each cell's X and Y, i and j its row and column from 1; constants and other matrices of this size by name">${esc(s.name)} =</label><input id="msF" type="text" class="mono" value="${esc(s.fx?s.fx.src:"")}" placeholder="sin(x)*cos(y)" data-fx="1"></div><p class="note" id="msHint" aria-live="polite"></p>`,ok:"Set",valid:q=>!String(q.msF||"").trim()||!matFxParse(q.msF,sid,P()).err,focus:"#msF"});
+  const inp=$("#msF"), hint=$("#msHint"); const sh=()=>{ const v=inp.value.trim(); hint.textContent=v?(matFxParse(v,sid,P()).err||"Worked out again whenever what it reads changes."):(s.fx?"Empty: the values stay as they are, as original data, with no formula.":""); }; inp.addEventListener("input",sh); sh();
+  const q=await pr; if(!q) return; const src=String(q.msF||"").trim();
+  if(!src){ if(s.fx) matKeepValues(sid); return; }
+  const r=matFxParse(src,sid,P()); if(r.err){ toast(r.err); return; }
+  matPut(sid,q2=>{ const o=Object.assign({},q2,{fx:{src,refs:r.refs}}); const e=matFxEval(o,P()); if(e.err){ o.fx.err=e.err; o.z=q2.z.map(()=>null); } else o.z=e.z; return o; },{undo:"setting a matrix's values",log:`set ${s.name} = ${src}`}); }
+function matKeepValues(sid){ const s=matOf(sid); if(!s||!s.fx) return; matPut(sid,q=>{ const o=Object.assign({},q); delete o.fx; return o; },{undo:"keeping a matrix's values",log:`kept the values of ${s.name}, its formula dropped`,rec:`the values of = ${s.fx.src} kept, the formula dropped`}); }
+// Dimensions and labels…: the size (values kept by row and column, new cells empty), X and Y, the names.
+async function matDimsDlg(sid){ const s=matOf(sid); if(!s) return; const {X,Y}=matXY(s), ev=v=>esc(String(v)), uneven=a=>a&&Array.isArray(a.v);
+  const html=`<div class="grid2 mxdlg"><label for="mdNm">Name</label><input id="mdNm" type="text" value="${esc(s.name)}"><label for="mdR">Rows</label><input id="mdR" type="text" inputmode="numeric" value="${s.ny}"><label for="mdC">Columns</label><input id="mdC" type="text" inputmode="numeric" value="${s.nx}">
+    <label for="mdX0">X from</label><div class="pair"><input id="mdX0" type="text" inputmode="decimal" value="${ev(X[0])}"><span>to</span><input id="mdX1" type="text" inputmode="decimal" value="${ev(X[s.nx-1])}"></div>
+    <label for="mdY0">Y from</label><div class="pair"><input id="mdY0" type="text" inputmode="decimal" value="${ev(Y[0])}"><span>to</span><input id="mdY1" type="text" inputmode="decimal" value="${ev(Y[s.ny-1])}"></div>
+    ${[["Z","z"],["X","x"],["Y","y"]].map(([L,k])=>`<label for="md${L}n">${L}</label><div class="pair"><input id="md${L}n" type="text" placeholder="name" value="${esc(s[k+"name"]||"")}"><input id="md${L}u" type="text" placeholder="unit" value="${esc(s[k+"unit"]||"")}"></div>`).join("")}</div>
+    ${uneven(s.x)||uneven(s.y)?`<p class="note">${uneven(s.x)&&uneven(s.y)?"X and Y are":uneven(s.x)?"X is":"Y is"} not evenly spaced: changing the ends spaces ${uneven(s.x)&&uneven(s.y)?"them":"it"} evenly.</p>`:""}<p class="note" id="mdHint" aria-live="polite"></p>`;
+  const chk=q=>{ const nx=+q.mdC, ny=+q.mdR; if(!(Number.isInteger(nx)&&Number.isInteger(ny)&&nx>=1&&ny>=1)) return "Rows and columns are whole numbers, 1 or more.";
+    if(nx>MAT_SIDE||ny>MAT_SIDE||nx*ny>MAT_MAX) return `A matrix holds ${MAT_MAX.toLocaleString("en")} cells at most.`;
+    if(![q.mdX0,q.mdX1,q.mdY0,q.mdY1].every(v=>Number.isFinite(parseNum(v)))) return "X and Y run from a number to a number."; return matNameWhy(q.mdNm,sid); };
+  const pr=formDlg({title:`Dimensions and labels of ${s.name}`,html,ok:"Set",valid:q=>!chk(q)});
+  const box=$("#formBody .mxdlg"); if(box) box.addEventListener("input",()=>{ const q={}; $("#formBody").querySelectorAll("input").forEach(el=>{ q[el.id]=el.value; }); $("#mdHint").textContent=chk(q)||""; });
+  const q=await pr; if(!q) return; const nx=+q.mdC, ny=+q.mdR, x0=parseNum(q.mdX0), x1=parseNum(q.mdX1), y0=parseNum(q.mdY0), y1=parseNum(q.mdY1);
+  const sized=nx!==s.nx||ny!==s.ny, nm=q.mdNm.trim(), renamed=nm!==s.name;
+  matPut(sid,o=>{ const n=Object.assign({},o,{name:nm}); delete n.fx;
+    if(sized){ const z=new Array(nx*ny).fill(null); for(let r=0;r<Math.min(ny,o.ny);r++) for(let c=0;c<Math.min(nx,o.nx);c++) z[r*nx+c]=o.z[r*o.nx+c]; Object.assign(n,{nx,ny,z}); }
+    const keep=(ax,n0,n1,a,b)=>!sized&&n0===n1&&Array.isArray(ax&&ax.v)&&ax.v[0]===a&&ax.v[n0-1]===b?ax:{a,b};
+    n.x=keep(o.x,o.nx,nx,x0,x1); n.y=keep(o.y,o.ny,ny,y0,y1);
+    [["z","Z"],["x","X"],["y","Y"]].forEach(([k,L])=>{ const a=String(q["md"+L+"n"]||"").trim(), u=String(q["md"+L+"u"]||"").trim(); if(a) n[k+"name"]=a; else delete n[k+"name"]; if(u) n[k+"unit"]=u; else delete n[k+"unit"]; });
+    if(o.fx&&!sized) n.fx=o.fx;
+    return n; },{post:renamed?m=>matRenamed(m,sid,nm):null,undo:"changing a matrix's dimensions and labels",log:`set the dimensions and labels of ${s.name}${renamed?`, now ${nm}`:""}${sized?`: ${ny} × ${nx}`:""}`,rec:sized?`now ${ny} × ${nx}, its values kept by row and column`:null}); }
+// A renamed matrix: the formulas that read it say its new name (they keep it by id; their text follows). New books, nothing changed in place.
+function matRenamed(mats,sid,now,ref){ ref=ref||"m:"+sid; return mats.map(b=>{ let ch=false; const sheets=b.sheets.map(s=>{ if(!s.fx) return s; const ks=Object.keys(s.fx.refs).filter(k=>s.fx.refs[k]===ref&&k!==now); if(!ks.length) return s;
+    let src=s.fx.src; ks.forEach(k=>{ src=src.replace(new RegExp("\\b"+k+"\\b","g"),now); }); const refs=Object.assign(Object.create(null),s.fx.refs); ks.forEach(k=>{ delete refs[k]; }); refs[now]=ref; ch=true; return Object.assign({},s,{fx:Object.assign({},s.fx,{src,refs})}); });
+  return ch?Object.assign({},b,{sheets}):b; }); }
+// Arithmetic…: a new sheet of this book computed from two matrices or a matrix and a number (a formula, so it follows them).
+async function matArithDlg(sid){ const s=matOf(sid); if(!s) return; const same=matAll().filter(q=>q.s.nx===s.nx&&q.s.ny===s.ny);
+  const html=`<div class="grid2 mxdlg"><label for="maA">A</label><select id="maA">${same.map(q=>`<option value="${q.s.id}"${q.s.id===sid?" selected":""}>${esc(q.s.name)}</option>`).join("")}</select>
+    <label for="maOp">Operation</label><select id="maOp"><option value="+">A + B</option><option value="-">A − B</option><option value="*">A × B</option><option value="/">A ÷ B</option></select>
+    <label for="maB">B</label><select id="maB">${same.map(q=>`<option value="${q.s.id}">${esc(q.s.name)}</option>`).join("")}<option value="num">A number</option></select>
+    <label for="maN">The number</label><input id="maN" type="text" inputmode="decimal" value="1"><label for="maNm">Into</label><input id="maNm" type="text" value="${esc(matFreeName("M"))}"></div><p class="note">A new sheet of ${esc(matBookOf(sid).name)}, computed: it follows A and B.</p>`;
+  const q=await formDlg({title:"Matrix arithmetic",html,ok:"Work it out",valid:q=>!matNameWhy(q.maNm,null)&&(q.maB!=="num"||Number.isFinite(parseNum(q.maN)))});
+  if(!q) return; const A=matOf(q.maA), B=q.maB==="num"?null:matOf(q.maB), n=parseNum(q.maN); if(!A) return;
+  const src=`${A.name} ${q.maOp} ${B?B.name:(n<0?`(${n})`:String(n))}`, r=matFxParse(src,null,P()); if(r.err){ toast(r.err); return; }
+  const ns=matSheetNew({nx:A.nx,ny:A.ny,x:A.x,y:A.y,z:A.z},q.maNm.trim(),{fx:{src,refs:r.refs},xname:A.xname,xunit:A.xunit,yname:A.yname,yunit:A.yunit});
+  const e=matFxEval(ns,P()); if(e.err) ns.fx.err=e.err; else ns.z=e.z; MATZ_OK.add(ns.z);
+  const bid=matBookOf(sid).id, mats=matBooks().map(b=>b.id===bid?Object.assign({},b,{sheets:b.sheets.concat([ns])}):b);
+  pushUndo("matrix arithmetic"); save({mats},`made ${ns.name} = ${src}`); matOpen(bid,ns.id); }
+// To columns: a new worksheet sheet of X, Y and Z, or the Y values and a column for each X.
+function matToSheet(sid,how){ const p=P(), s=matOf(sid); if(!p||!s||S.readOnly) return; const r=matToCols(s,how);
+  if(r.cols[0].length>4e6||(how==="block"&&r.cols.length>2000)){ toast(how==="block"?`${s.nx} columns are too many for one sheet; X, Y and Z columns fit.`:"Too many rows for one sheet."); return; }
+  if(S.ws&&S.ws.edit) wsCommit(0,0,true);
+  pushUndo("putting a matrix in the worksheet"); stampSheets(p);
+  const sid2=newSheetId(), nm=sheetNameFor(s.name), comm=`from the matrix ${s.name}`, mk=(role,name,unit,data)=>Object.assign(makeCol(role,name,unit,data),{sheet:sid2,comm});
+  const made=how==="block"?[mk("x",s.yname||"Y",s.yunit||"",r.cols[0])].concat(r.cols.slice(1).map((d,k)=>Object.assign(mk("y",`${s.zname||s.name} at ${s.xname||"X"} = ${fmt(r.xs[k],6)}`,s.zunit||"",d),{pipe:[],mask:[]})))
+    :[mk("x",s.xname||"X",s.xunit||"",r.cols[0]),mk("ignore",s.yname||"Y",s.yunit||"",r.cols[1]),Object.assign(mk("y",s.zname||s.name,s.zunit||"",r.cols[2]),{pipe:[],mask:[]})];
+  p.cols=p.cols.concat(made); p.sheets=sheetList(p).concat([{id:sid2,name:nm}]);
+  const raw=recordRaw(`added the sheet ${nm}, the values of the matrix ${s.name}`);
+  save(Object.assign({cols:p.cols,sheets:p.sheets},raw?{raw}:{}),`put the matrix ${s.name} on the sheet ${nm} as ${how==="block"?"a block":"X, Y and Z columns"}`);
+  showSheet(sid2); focusWin(wsWinOf(sid2)); toast(`${s.name} is on the sheet ${nm}.`,{action:"Undo",run:undo}); }
+/* ---- Books and sheets ---- */
+function matAddSheet(bid){ const b=matBooks().find(q=>q.id===bid); if(!b||S.readOnly) return; const cur=matOf(mxSt(bid).sid)||b.sheets[0];
+  const m=matNew({nx:cur.nx,ny:cur.ny,x:cur.x,y:cur.y,v:null}), s=matSheetNew(m,matFreeName("M"),{xname:cur.xname,xunit:cur.xunit,yname:cur.yname,yunit:cur.yunit});
+  s.raw=matRecord(s,`made, ${s.ny} × ${s.nx}, empty`);
+  pushUndo("adding a matrix sheet"); save({mats:matBooks().map(q=>q.id===bid?Object.assign({},q,{sheets:q.sheets.concat([s])}):q)},`added the sheet ${s.name} to ${b.name}`); mxSt(bid).sid=s.id; renderMatWin(mxWinId(bid)); }
+async function matDeleteSheet(sid){ const b=matBookOf(sid), s=matOf(sid); if(!b||!s||S.readOnly) return;
+  const rd=matAll().filter(q=>q.s.fx&&Object.values(q.s.fx.refs).includes("m:"+sid)).map(q=>q.s.name), gs=(P().graphs||[]).filter(g=>g.plot&&g.plot.mat===sid);
+  if(!await confirmDlg(`Delete ${s.name}?`,`${s.ny} × ${s.nx} values go${gs.length?`, and ${gs.length===1?"the graph":"the graphs"} drawing it`:""}${rd.length?`; ${rd.join(", ")} can no longer read it`:""}. Undo brings it back.`,"Delete")) return;
+  const one=b.sheets.length===1, mats=one?matBooks().filter(q=>q.id!==b.id):matBooks().map(q=>q.id===b.id?Object.assign({},q,{sheets:q.sheets.filter(t=>t.id!==sid)}):q);
+  pushUndo("deleting a matrix"); save({mats:matRecalc(mats,[sid],P()),graphs:(P().graphs||[]).filter(g=>!(g.plot&&g.plot.mat===sid))},`deleted the matrix ${s.name}${one?` and its book ${b.name}`:""}`);
+  toast(`${s.name} is deleted.`,{action:"Undo",run:undo}); }
+async function matRenameBook(bid){ const b=matBooks().find(q=>q.id===bid); if(!b) return;
+  const q=await formDlg({title:"Rename the matrix book",html:`<div class="grid2"><label for="mbNm">Name</label><input id="mbNm" type="text" value="${esc(b.name)}"></div>`,ok:"Rename",valid:q=>!!q.mbNm.trim()&&!matBooks().some(o=>o.id!==bid&&o.name===q.mbNm.trim())});
+  if(!q||q.mbNm.trim()===b.name) return; pushUndo("renaming a matrix book"); save({mats:matBooks().map(o=>o.id===bid?Object.assign({},o,{name:q.mbNm.trim()}):o)},`renamed the matrix book ${b.name} to ${q.mbNm.trim()}`); }
+async function matRenameSheet(sid){ const s=matOf(sid); if(!s) return;
+  const q=await formDlg({title:`Rename ${s.name}`,html:`<div class="grid2"><label for="mrNm">Name</label><input id="mrNm" type="text" value="${esc(s.name)}"></div><p class="note">Formulas that read it follow the new name.</p>`,ok:"Rename",valid:q=>!matNameWhy(q.mrNm,sid)});
+  if(!q||q.mrNm.trim()===s.name) return; const nm=q.mrNm.trim();
+  matPut(sid,o=>Object.assign({},o,{name:nm}),{post:m=>matRenamed(m,sid,nm),undo:"renaming a matrix",log:`renamed the matrix ${s.name} to ${nm}`}); }
+async function matDeleteBook(bid){ const b=matBooks().find(q=>q.id===bid); if(!b||S.readOnly) return; const ids=new Set(b.sheets.map(s=>s.id));
+  if(!await confirmDlg(`Delete ${b.name}?`,`Its ${b.sheets.length===1?"matrix goes":b.sheets.length+" matrices go"}, with the graphs drawing ${b.sheets.length===1?"it":"them"}. Undo brings ${b.sheets.length===1?"it":"them"} back.`,"Delete")) return;
+  pushUndo("deleting a matrix book"); save({mats:matRecalc(matBooks().filter(q=>q.id!==bid),[...ids],P()),graphs:(P().graphs||[]).filter(g=>!(g.plot&&ids.has(g.plot.mat)))},`deleted the matrix book ${b.name}`);
+  toast(`${b.name} is deleted.`,{action:"Undo",run:undo}); }
+/* ---- Plotting: a graph of a matrix, drawn as a map (plot.mat, the heat layout). ---- */
+function plotMatrix(sid,kind){ const p=P(), s=matOf(sid); if(!p||!s||S.readOnly) return;
+  const graphs=(p.graphs||[]).slice(), base=Object.assign(plotBase(GID()?plotOf(GID()):{}),{layout:"heat",mat:sid,mapKind:kind||"image"});
+  const g={id:newGid(),name:nextGraphName({graphs}),cols:[],plot:base}; graphs.push(g);
+  pushUndo("plotting a matrix"); save({graphs},`made ${g.name}, a map of the matrix ${s.name}`); xNew(["g:"+g.id]);
+  const from=winOfGraph(S.gid)||mxWinId(matBookOf(sid).id); renderAll(); splitInto(from,g.id); activateGraph(g.id);
+  toast(`${g.name} draws ${s.name}.`,{action:"Undo",run:undo}); }
+const MAT_KINDS=[["image","Image"],["filled","Filled contours"],["lines","Contour lines"],["both","Image with lines"]];
+const matGraph=id=>{ const pl=id?plotOf(id):null; return pl&&pl.mat?matOf(pl.mat):null; };
+// What a graph of a matrix reads: memoised per values and axes.
+const MATXY=new WeakMap(), MATRG=new WeakMap();
+function matXYOf(s){ let o=MATXY.get(s.z); const k=JSON.stringify([s.nx,s.ny,s.x,s.y]); if(!o||o.k!==k){ o=Object.assign(matXY(s),{k}); MATXY.set(s.z,o); } return o; }
+function matRangeOf(z){ let o=MATRG.get(z); if(!o){ o=matRange(z); MATRG.set(z,o); } return o; }
+// The cell whose span holds a value on an axis (edges halfway between neighbours), or -1.
+function matCellAt(A,u){ const n=A.length; if(n===1) return u>=A[0]-0.5&&u<=A[0]+0.5?0:-1; const up=A[n-1]>A[0];
+  const lo=up?A[0]-(A[1]-A[0])/2:A[n-1]-(A[n-2]-A[n-1])/2, hi=up?A[n-1]+(A[n-1]-A[n-2])/2:A[0]+(A[0]-A[1])/2; if(!(u>=lo&&u<=hi)) return -1;
+  let a=0, b=n-1; while(b-a>1){ const h=(a+b)>>1; if(up?A[h]<=u:A[h]>=u) a=h; else b=h; } return Math.abs(u-A[a])<=Math.abs(A[b]-u)?a:b; }
+// The view of a graph of a matrix: its zoom when that is in the matrix's X units, else the whole map.
+function matViewOf(s,logX){ const z=S.view, e=matExtent(s);
+  if(z&&[z.x0,z.x1,z.y0,z.y1].every(Number.isFinite)&&z.x1!==z.x0&&z.y1!==z.y0&&(z.xu==null||z.xu===(s.xunit||""))) return {x0:z.x0,x1:z.x1,y0:z.y0,y1:z.y1};
+  return e; }
+// The extent of a matrix's map: half a cell beyond the first and last X and Y.
+function matExtent(s){ const {X,Y}=matXYOf(s), e=A=>{ const n=A.length; if(n===1) return [A[0]-0.5,A[0]+0.5]; const a=A[0]-(A[1]-A[0])/2, b=A[n-1]+(A[n-1]-A[n-2])/2; return [Math.min(a,b),Math.max(a,b)]; };
+  const [x0,x1]=e(X), [y0,y1]=e(Y); return {x0,x1,y0,y1}; }
+/* ---- The matrix window: a book's sheet as a grid of Z (X along the top, Y down the side, row 1 at
+   the top), its tabs, a bar (the cell, its value, the Matrix menu, Plot) and a foot (the size,
+   recorded or computed, the selection's numbers). Only the rows and columns in view are drawn, a
+   whole row or column at a time, as a spreadsheet scrolls. ---- */
+const mxWinId=bid=>"mx-"+bid, mxBid=id=>WINS[id]&&WINS[id].mx||null;
+const matWinIds=()=>matBooks().map(b=>mxWinId(b.id)).filter(id=>WINS[id]);
+function mxSt(bid){ S.mxs=S.mxs||{}; const k=S.pid+":"+bid; let st=S.mxs[k]; if(!st) st=S.mxs[k]={sid:null,r:0,c:0,er:0,ec:0,edit:null};
+  const b=matBooks().find(q=>q.id===bid); if(b&&!b.sheets.some(s=>s.id===st.sid)){ st.sid=b.sheets[0].id; Object.assign(st,{r:0,c:0,er:0,ec:0,edit:null}); }
+  const s=matOf(st.sid); if(s){ const cl=(v,n)=>Math.max(0,Math.min(n-1,v)); st.r=cl(st.r,s.ny); st.er=cl(st.er,s.ny); st.c=cl(st.c,s.nx); st.ec=cl(st.ec,s.nx); } return st; }
+function mxStFor(sid){ const b=matBookOf(sid); if(!b) return null; const st=mxSt(b.id); return st.sid===sid?st:null; }
+const mxSel=st=>({r0:Math.min(st.r,st.er),r1:Math.max(st.r,st.er),c0:Math.min(st.c,st.ec),c1:Math.max(st.c,st.ec)});
+const mxNum=v=>v==null?"":fmt(v,6);
+// The matrix sheet the commands act on: the one shown in the matrix window in front, else the last one.
+function matFront(){ const ids=matWinIds().filter(id=>winOpen(id)).sort((a,b)=>winState(b).z-winState(a).z); const id=ids[0]||matWinIds()[0]; return id?mxSt(mxBid(id)).sid:null; }
+function matOpen(bid,sid){ syncMatWins(); const id=mxWinId(bid); if(!WINS[id]) return; if(sid){ const st=mxSt(bid); if(st.sid!==sid){ st.sid=sid; Object.assign(st,{r:0,c:0,er:0,ec:0,edit:null}); mxScrollHome(id); } }
+  openWin(id); focusWin(id); renderMatWin(id); const g=$(`#w-${id} .mxgrid`); if(g) g.focus({preventScroll:true}); }
+function syncMatWins(){ const books=matBooks(), want=new Set(books.map(b=>mxWinId(b.id)));
+  Object.keys(WINS).forEach(k=>{ if(WINS[k].mx&&!want.has(k)){ const el=$("#w-"+k); if(el) el.remove(); delete WINS[k]; } });
+  let made=false;
+  books.forEach((b,i)=>{ const id=mxWinId(b.id);
+    if(!WINS[id]){ WINS[id]={title:b.name,icon:"grid",def:[0.06+(i%6)*0.03,0.05+(i%6)*0.04,0.52,0.62],open:false,mx:b.id};
+      const prev=[...document.querySelectorAll(".win.mxwin,.win.wswin")].pop()||$("#w-sheet");
+      prev.insertAdjacentHTML("afterend",`<section class="win mxwin" id="w-${id}" data-win="${id}" aria-label="${esc(b.name)}"><header class="win-h">${ICON("grid","sm")}<h2 class="win-t">${esc(b.name)}</h2><span class="win-sub"></span><span class="sp"></span></header><div class="win-b mx-b">
+        <div class="mxbar"><span class="mxaddr" title="The cell: its row and column"></span><input class="mxval" type="text" spellcheck="false" aria-label="The cell's value" title="The cell's value: type a number and press Enter"><span class="sp"></span><button class="btn sm" data-mxmenu aria-haspopup="menu" title="What can be done to this matrix">Matrix ${ICON("chev","sm")}</button><button class="btn sm" data-mxplot aria-haspopup="menu" title="Plot this matrix on a graph of its own">${ICON("chart","sm")}Plot</button></div>
+        <div class="mxgrid" tabindex="0" role="grid" aria-label="The matrix's values"><div class="mxview"></div><div class="mxsp"></div></div>
+        <div class="wstabs mxtabs" role="tablist" aria-label="Matrix sheets"></div>
+        <div class="mxfoot"><span class="mxsize"></span><span class="mxstate"></span><span class="mxsel"></span></div></div></section>`);
+      const el=$("#w-"+id); wireWin(el); wireMx(el,id); winState(id); made=true; }
+    if(WINS[id].title!==b.name){ WINS[id].title=b.name; const el=$("#w-"+id); if(el){ el.querySelector(".win-t").textContent=b.name; el.setAttribute("aria-label",b.name); } } });
+  if(made) applyWins(); if(books.length) matFpEnsure(); }
+function mxScrollHome(id){ const g=$(`#w-${id} .mxgrid`); if(g){ g.scrollTop=0; g.scrollLeft=0; } }
+function renderMatWin(id){ const el=$("#w-"+id), bid=mxBid(id), b=matBooks().find(q=>q.id===bid); if(!el||!b) return; const st=mxSt(bid), s=matOf(st.sid); if(!s) return;
+  const sub=el.querySelector(".win-sub"); if(sub) sub.textContent=b.sheets.length>1?s.name:s.name===b.name?"":s.name;
+  const tabs=el.querySelector(".mxtabs"), tk=b.sheets.map(q=>q.id+q.name).join("|")+st.sid;
+  if(tabs._k!==tk){ tabs._k=tk; tabs.innerHTML=b.sheets.map(q=>`<button class="wstab" role="tab" aria-selected="${q.id===st.sid}" tabindex="${q.id===st.sid?0:-1}" data-mxs="${q.id}" title="${esc(q.name)}: ${q.ny} × ${q.nx}${q.fx?`, = ${esc(q.fx.src)}`:""} (double-click to rename)">${esc(q.name)}</button>`).join("")+`<button class="btn icon sm wstnew" data-mxnew title="A new matrix sheet in ${esc(b.name)}" aria-label="A new matrix sheet"${S.readOnly?" disabled":""}>${ICON("plus","sm")}</button>`; }
+  mxDraw(id); mxBar(id); mxFoot(id); }
+function mxDraw(id){ const el=$("#w-"+id), grid=el&&el.querySelector(".mxgrid"); if(!grid) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); const view=grid.querySelector(".mxview"), sp=grid.querySelector(".mxsp");
+  if(!s){ view.innerHTML=""; return; }
+  sp.style.width=(MX_SW+s.nx*MX_CW)+"px"; sp.style.height=(MX_RH*(s.ny+2))+"px";
+  const W=grid.clientWidth||600, H=grid.clientHeight||300, c0=Math.max(0,Math.min(s.nx-1,Math.floor(grid.scrollLeft/MX_CW))), r0=Math.max(0,Math.min(s.ny-1,Math.floor(grid.scrollTop/MX_RH)));
+  const nc=Math.max(1,Math.min(s.nx-c0,Math.ceil((W-MX_SW)/MX_CW)+1)), nr=Math.max(1,Math.min(s.ny-r0,Math.ceil(H/MX_RH)));
+  const {X,Y}=matXYOf(s), q=mxSel(st), z=s.z, one=q.r0===q.r1&&q.c0===q.c1, cmp=s.fx?" cmp":"";
+  let h=`<table class="mxt${cmp}" style="width:${MX_SW+nc*MX_CW}px"><colgroup><col style="width:${MX_SW}px">${`<col style="width:${MX_CW}px">`.repeat(nc)}</colgroup><thead><tr><th class="mxc" title="Y down the side, X along the top: click to select every cell">${esc(s.yname||"Y")} \\ ${esc(s.xname||"X")}</th>`;
+  for(let c=c0;c<c0+nc;c++) h+=`<th class="mxx${c>=q.c0&&c<=q.c1?" hs":""}" data-c="${c}" title="Column ${c+1}: X = ${esc(String(X[c]))}">${mxNum(X[c])}</th>`;
+  h+=`</tr></thead><tbody>`;
+  for(let r=r0;r<r0+nr;r++){ const o=r*s.nx; h+=`<tr><th class="mxy${r>=q.r0&&r<=q.r1?" hs":""}" data-r="${r}" title="Row ${r+1}: Y = ${esc(String(Y[r]))}">${mxNum(Y[r])}</th>`;
+    for(let c=c0;c<c0+nc;c++){ const v=z[o+c], cur=r===st.r&&c===st.c, inS=!one&&r>=q.r0&&r<=q.r1&&c>=q.c0&&c<=q.c1;
+      h+=`<td data-r="${r}" data-c="${c}"${cur?' class="cur"':inS?` class="in${r===q.r0?" et":""}${r===q.r1?" eb":""}${c===q.c0?" el":""}${c===q.c1?" er":""}"`:""}>${v==null?"":mxNum(v)}</td>`; } h+=`</tr>`; }
+  view.innerHTML=h+`</tbody></table>`; view._r0=r0; view._c0=c0; view._nr=nr; view._nc=nc;
+  if(st.edit) mxEdPlace(id); }
+function mxBar(id){ const el=$("#w-"+id); if(!el) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s) return; const {X,Y}=matXYOf(s), q=mxSel(st);
+  el.querySelector(".mxaddr").textContent=q.r0===q.r1&&q.c0===q.c1?`Row ${st.r+1}, column ${st.c+1}`:`Rows ${q.r0+1}–${q.r1+1}, columns ${q.c0+1}–${q.c1+1}`;
+  const inp=el.querySelector(".mxval"); if(document.activeElement!==inp){ const v=s.z[st.r*s.nx+st.c]; inp.value=v==null?"":String(v); inp.classList.remove("bad"); }
+  inp.readOnly=!!s.fx||S.readOnly; inp.title=s.fx?`Worked out by = ${s.fx.src}: Set values… changes the formula`:`X ${X[st.c]}, Y ${Y[st.r]}: type a number and press Enter`; }
+function mxFoot(id){ const el=$("#w-"+id); if(!el) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s) return;
+  el.querySelector(".mxsize").textContent=`${s.ny.toLocaleString("en")} rows × ${s.nx.toLocaleString("en")} columns`;
+  const sw=el.querySelector(".mxstate"); sw.classList.toggle("bad",!!(s.fx&&s.fx.err));
+  sw.textContent=s.fx?(s.fx.err?`Not worked out: ${s.fx.err}`:`Computed: = ${s.fx.src}`):`Original data · check code ${s.raw&&s.raw.fp?s.raw.fp.slice(0,10):"working it out…"}`;
+  sw.title=s.fx?"Worked out again whenever what it reads changes; outside the original data's record":"Its values are original data, each change in its record";
+  const q=mxSel(st), n=(q.r1-q.r0+1)*(q.c1-q.c0+1), box=el.querySelector(".mxsel");
+  if(n<2){ box.textContent=""; return; }
+  let k=0, sum=0, lo=Infinity, hi=-Infinity; for(let r=q.r0;r<=q.r1;r++){ const o=r*s.nx; for(let c=q.c0;c<=q.c1;c++){ const v=s.z[o+c]; if(v!=null){ k++; sum+=v; if(v<lo) lo=v; if(v>hi) hi=v; } } }
+  box.textContent=k?`N ${k} · mean ${fmt(sum/k,5)} · min ${fmt(lo,5)} · max ${fmt(hi,5)}`:`${n} empty cells`; }
+// Brings the active cell into view (a row or column at a time).
+function mxReveal(id){ const el=$("#w-"+id), grid=el&&el.querySelector(".mxgrid"); if(!grid) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s) return;
+  const vr=Math.max(1,Math.floor((grid.clientHeight-MX_RH)/MX_RH)-1), vc=Math.max(1,Math.floor((grid.clientWidth-MX_SW)/MX_CW)-1), r0=Math.floor(grid.scrollTop/MX_RH), c0=Math.floor(grid.scrollLeft/MX_CW);
+  if(st.er<r0) grid.scrollTop=st.er*MX_RH; else if(st.er>r0+vr) grid.scrollTop=(st.er-vr)*MX_RH;
+  if(st.ec<c0) grid.scrollLeft=st.ec*MX_CW; else if(st.ec>c0+vc) grid.scrollLeft=(st.ec-vc)*MX_CW; }
+function mxShow(id){ mxReveal(id); mxDraw(id); mxBar(id); mxFoot(id); }
+/* Typing into a cell: a box over it; Enter, Tab and the arrows enter the value, Escape leaves it. */
+function mxEdBegin(id,init){ const bid=mxBid(id), st=mxSt(bid), s=matOf(st.sid); if(!s||S.readOnly) return;
+  if(s.fx){ toast(`${s.name} is worked out by = ${s.fx.src}. Set values… changes the formula; Keep the values only lets you type.`,{action:"Set values…",run:()=>matSetValuesDlg(s.id)}); return; }
+  const v=s.z[st.r*s.nx+st.c]; st.edit={r:st.r,c:st.c,sid:s.id,text:init!=null?init:v==null?"":String(v)}; mxEdPlace(id); }
+function mxEdPlace(id){ const el=$("#w-"+id), st=mxSt(mxBid(id)), e=st.edit, view=el&&el.querySelector(".mxview"); if(!view||!e) return;
+  let box=view.querySelector(".mxed"); const r=e.r-view._r0, c=e.c-view._c0, out=r<0||c<0||r>=view._nr||c>=view._nc;
+  if(!box){ view.insertAdjacentHTML("beforeend",`<input class="mxed" type="text" spellcheck="false" aria-label="The cell's new value">`); box=view.querySelector(".mxed"); box.value=e.text;
+    box.addEventListener("input",()=>{ e.text=box.value; box.classList.remove("bad"); });
+    box.addEventListener("keydown",ev=>{ const k=ev.key; ev.stopPropagation();
+      if(k==="Escape"){ ev.preventDefault(); mxEdEnd(id,false); return; }
+      if(k==="Enter"||k==="Tab"||(k==="ArrowUp"||k==="ArrowDown")&&!ev.shiftKey){ ev.preventDefault(); if(mxEdEnd(id,true)) mxMove(id,k==="Tab"?(ev.shiftKey?[0,-1]:[0,1]):k==="ArrowUp"||k==="Enter"&&ev.shiftKey?[-1,0]:[1,0],false); } });
+    box.addEventListener("blur",()=>{ setTimeout(()=>{ if(mxSt(mxBid(id)).edit===e&&!view.contains(document.activeElement)) mxEdEnd(id,true,true); },0); });
+    box.focus({preventScroll:true}); const n=box.value.length; box.setSelectionRange(n,n); }
+  box.hidden=out; box.style.left=(MX_SW+c*MX_CW)+"px"; box.style.top=(MX_RH+r*MX_RH)+"px"; box.style.width=MX_CW+"px"; }
+// Ends the edit: true when it is over (the value entered, or left), false when what was typed is not a number.
+function mxEdEnd(id,keep,quiet){ const el=$("#w-"+id), st=mxSt(mxBid(id)), e=st.edit; if(!e) return true; const box=el&&el.querySelector(".mxed");
+  if(keep){ const t=String(e.text).trim(), v=t===""?null:parseNum(t);
+    if(t!==""&&!Number.isFinite(v)){ if(quiet){ st.edit=null; if(box) box.remove(); toast(`“${t.slice(0,30)}” is not a number: the cell keeps its value.`); renderMatWin(id); return true; }
+      if(box){ box.classList.add("bad"); box.focus(); } toast(`“${t.slice(0,30)}” is not a number. Esc leaves the cell as it was.`); return false; }
+    st.edit=null; if(box) box.remove(); mxWrite(e.sid,[[e.r,e.c,v]],`typed into row ${e.r+1}, column ${e.c+1}`); }
+  else { st.edit=null; if(box) box.remove(); }
+  const g=el&&el.querySelector(".mxgrid"); if(g&&!quiet) g.focus({preventScroll:true}); renderMatWin(id); return true; }
+// Values into a recorded sheet: [[row, column, value]…], one undo step, one record entry.
+function mxWrite(sid,cells,what){ const s=matOf(sid); if(!s||S.readOnly) return false; if(s.fx){ toast(`${s.name} is worked out by its formula.`); return false; }
+  const ch=cells.filter(([r,c,v])=>r>=0&&c>=0&&r<s.ny&&c<s.nx&&s.z[r*s.nx+c]!==v); if(!ch.length) return false;
+  return matPut(sid,o=>{ const z=o.z.slice(); ch.forEach(([r,c,v])=>{ z[r*o.nx+c]=v; }); return Object.assign({},o,{z}); },{undo:"typing into a matrix",log:`${what} of the matrix ${s.name}${ch.length===1&&ch[0][2]!=null?`: ${ch[0][2]}`:""}`,rec:what}); }
+function mxMove(id,[dr,dc],ext,jump){ const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s) return; const cl=(v,n)=>Math.max(0,Math.min(n-1,v));
+  const base=ext?{r:st.er,c:st.ec}:{r:st.r,c:st.c};
+  let r=jump?(dr<0?0:dr>0?s.ny-1:base.r):base.r+dr, c=jump?(dc<0?0:dc>0?s.nx-1:base.c):base.c+dc; r=cl(r,s.ny); c=cl(c,s.nx);
+  if(ext){ st.er=r; st.ec=c; } else { st.r=st.er=r; st.c=st.ec=c; } mxShow(id); }
+function mxSelText(s,q){ const out=[]; for(let r=q.r0;r<=q.r1;r++){ const row=[]; for(let c=q.c0;c<=q.c1;c++){ const v=s.z[r*s.nx+c]; row.push(v==null?"":String(v)); } out.push(row.join("\t")); } return out.join("\n"); }
+function mxPaste(id,text){ const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s||S.readOnly) return; const rows=String(text||"").replace(/\r/g,"").replace(/\n$/,"").split("\n").map(l=>l.split("\t"));
+  const cells=[]; let bad=0, cut=0;
+  rows.forEach((row,i)=>row.forEach((t,j)=>{ const r=st.r+i, c=st.c+j; if(r>=s.ny||c>=s.nx){ cut++; return; } const u=t.trim(), v=u===""?null:parseNum(u); if(u!==""&&!Number.isFinite(v)){ bad++; return; } cells.push([r,c,v]); }));
+  if(mxWrite(s.id,cells,`pasted ${rows.length} × ${Math.max(...rows.map(r=>r.length))} values at row ${st.r+1}, column ${st.c+1}`)){ st.er=Math.min(s.ny-1,st.r+rows.length-1); st.ec=Math.min(s.nx-1,st.c+Math.max(...rows.map(r=>r.length))-1); }
+  if(bad||cut) toast([bad?`${bad} value${bad===1?" was":"s were"} not a number and left out`:"",cut?`${cut} fell outside the matrix`:""].filter(Boolean).join("; ")+"."); renderMatWin(id); }
+function wireMx(el,id){ const grid=el.querySelector(".mxgrid"), bid=()=>mxBid(id);
+  let drag=null;
+  grid.addEventListener("scroll",()=>{ if(!grid._raf) grid._raf=requestAnimationFrame(()=>{ grid._raf=0; mxDraw(id); }); },{passive:true});
+  grid.addEventListener("mousedown",e=>{ if(e.button!==0||e.target.closest(".mxed")) return; const st=mxSt(bid()), s=matOf(st.sid); if(!s) return;
+    const td=e.target.closest("td[data-r]"), tx=e.target.closest("th[data-c]"), ty=e.target.closest("th[data-r]"), tc=e.target.closest("th.mxc");
+    if(!td&&!tx&&!ty&&!tc) return; e.preventDefault(); grid.focus({preventScroll:true}); if(st.edit&&!mxEdEnd(id,true)) return;
+    if(td){ const r=+td.dataset.r, c=+td.dataset.c; if(e.shiftKey){ st.er=r; st.ec=c; } else { st.r=st.er=r; st.c=st.ec=c; }
+      if(e.detail===2&&!e.shiftKey){ mxShow(id); mxEdBegin(id); return; } drag={k:"cell"}; }
+    else if(tx){ const c=+tx.dataset.c; if(e.shiftKey){ st.ec=c; st.r=0; st.er=s.ny-1; } else { st.r=0; st.er=s.ny-1; st.c=st.ec=c; } drag={k:"col"}; }
+    else if(ty){ const r=+ty.dataset.r; if(e.shiftKey){ st.er=r; st.c=0; st.ec=s.nx-1; } else { st.c=0; st.ec=s.nx-1; st.r=st.er=r; } drag={k:"row"}; }
+    else { st.r=st.c=0; st.er=s.ny-1; st.ec=s.nx-1; }
+    mxDraw(id); mxBar(id); mxFoot(id); });
+  grid.addEventListener("mousemove",e=>{ if(!drag||!(e.buttons&1)){ drag=null; return; } const st=mxSt(bid());
+    const td=e.target.closest("td[data-r]"), tx=e.target.closest("th[data-c]"), ty=e.target.closest("th[data-r]");
+    if(drag.k==="cell"&&td){ const r=+td.dataset.r, c=+td.dataset.c; if(r!==st.er||c!==st.ec){ st.er=r; st.ec=c; mxDraw(id); mxBar(id); mxFoot(id); } }
+    else if(drag.k==="col"&&(tx||td)){ const c=+(tx||td).dataset.c; if(c!==st.ec){ st.ec=c; mxDraw(id); mxBar(id); mxFoot(id); } }
+    else if(drag.k==="row"&&(ty||td)){ const r=+(ty||td).dataset.r; if(r!==st.er){ st.er=r; mxDraw(id); mxBar(id); mxFoot(id); } } });
+  window.addEventListener("mouseup",()=>{ drag=null; });
+  grid.addEventListener("dblclick",e=>{ const td=e.target.closest("td[data-r]"); if(td&&!mxSt(bid()).edit) mxEdBegin(id); });
+  grid.addEventListener("keydown",e=>{ const st=mxSt(bid()), s=matOf(st.sid); if(!s||e.target!==grid) return; const k=e.key, ctl=e.ctrlKey||e.metaKey;
+    const mv={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]}[k];
+    if(mv){ e.preventDefault(); mxMove(id,mv,e.shiftKey,ctl); return; }
+    const page=Math.max(1,Math.floor(grid.clientHeight/MX_RH)-2);
+    if(k==="PageDown"||k==="PageUp"){ e.preventDefault(); mxMove(id,[k==="PageDown"?page:-page,0],e.shiftKey); return; }
+    if(k==="Home"){ e.preventDefault(); if(ctl) mxMove(id,[-1,-1],e.shiftKey,true); else mxMove(id,[0,-1],e.shiftKey,true); return; }
+    if(k==="End"){ e.preventDefault(); if(ctl) mxMove(id,[1,1],e.shiftKey,true); else mxMove(id,[0,1],e.shiftKey,true); return; }
+    if(k==="Enter"){ e.preventDefault(); mxMove(id,e.shiftKey?[-1,0]:[1,0],false); return; }
+    if(k==="Tab"){ e.preventDefault(); mxMove(id,e.shiftKey?[0,-1]:[0,1],false); return; }
+    if(k==="F2"){ e.preventDefault(); mxEdBegin(id); return; }
+    if(k==="Escape"){ if(st.er!==st.r||st.ec!==st.c){ e.preventDefault(); st.er=st.r; st.ec=st.c; mxShow(id); } return; }
+    if(ctl&&(k==="a"||k==="A")){ e.preventDefault(); st.r=st.c=0; st.er=s.ny-1; st.ec=s.nx-1; mxDraw(id); mxBar(id); mxFoot(id); return; }
+    if(ctl&&(k==="c"||k==="C")){ e.preventDefault(); copyText(mxSelText(s,mxSel(st)),"The cells"); return; }
+    if((k==="Delete"||k==="Backspace")&&!ctl){ e.preventDefault(); const q=mxSel(st), cells=[]; for(let r=q.r0;r<=q.r1;r++) for(let c=q.c0;c<=q.c1;c++) cells.push([r,c,null]);
+      if(cells.length>MAT_MAX){ return; } mxWrite(s.id,cells,`cleared rows ${q.r0+1}–${q.r1+1}, columns ${q.c0+1}–${q.c1+1}`); return; }
+    if(k.length===1&&!ctl&&!e.altKey){ e.preventDefault(); if(st.edit){ const bx=el.querySelector(".mxed"); if(bx){ bx.value+=k; st.edit.text=bx.value; bx.focus({preventScroll:true}); return; } } mxEdBegin(id,k); } });
+  grid.addEventListener("paste",e=>{ if(e.target.closest&&e.target.closest(".mxed")) return; const t=e.clipboardData&&e.clipboardData.getData("text/plain"); if(t==null) return; e.preventDefault(); mxPaste(id,t); });
+  const inp=el.querySelector(".mxval");
+  inp.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); const st=mxSt(bid()), t=inp.value.trim(), v=t===""?null:parseNum(t);
+      if(t!==""&&!Number.isFinite(v)){ inp.classList.add("bad"); toast(`“${t.slice(0,30)}” is not a number.`); return; }
+      mxWrite(st.sid,[[st.r,st.c,v]],`typed into row ${st.r+1}, column ${st.c+1}`); grid.focus({preventScroll:true}); renderMatWin(id); }
+    else if(e.key==="Escape"){ e.preventDefault(); grid.focus({preventScroll:true}); mxBar(id); } });
+  el.querySelector("[data-mxmenu]").addEventListener("click",e=>toggleMenu(e.currentTarget,()=>matMenuItems(mxSt(bid()).sid),{label:"Matrix"}));
+  el.querySelector("[data-mxplot]").addEventListener("click",e=>toggleMenu(e.currentTarget,()=>MAT_KINDS.map(([k,l])=>({label:l,enabled:!S.readOnly,run:()=>plotMatrix(mxSt(bid()).sid,k)})),{label:"Plot"}));
+  const tabs=el.querySelector(".mxtabs");
+  tabs.addEventListener("click",e=>{ if(e.target.closest("[data-mxnew]")){ matAddSheet(bid()); return; } const t=e.target.closest("[data-mxs]"); if(!t) return; const st=mxSt(bid());
+    if(e.detail===2){ matRenameSheet(t.dataset.mxs); return; }
+    if(st.sid!==t.dataset.mxs){ if(st.edit) mxEdEnd(id,false); st.sid=t.dataset.mxs; Object.assign(st,{r:0,c:0,er:0,ec:0}); mxScrollHome(id); renderMatWin(id); } });
+  tabs.addEventListener("contextmenu",e=>{ const t=e.target.closest("[data-mxs]"); if(!t) return; e.preventDefault(); const sid=t.dataset.mxs;
+    openMenu(pointerAnchor(e.clientX,e.clientY),[{group:(matOf(sid)||{}).name||"",plain:true},{label:"Rename…",enabled:!S.readOnly,run:()=>matRenameSheet(sid)}].concat(matMenuItems(sid).slice(0)),{label:"Matrix sheet"}); });
+  tabs.addEventListener("keydown",e=>{ const t=e.target.closest("[data-mxs]"); if(!t) return; const all=[...tabs.querySelectorAll("[data-mxs]")], i=all.indexOf(t);
+    if(e.key==="ArrowRight"||e.key==="ArrowLeft"){ e.preventDefault(); const n=all[(i+(e.key==="ArrowRight"?1:-1)+all.length)%all.length]; n.click(); requestAnimationFrame(()=>{ const q=tabs.querySelector(`[data-mxs="${n.dataset.mxs}"]`); if(q) q.focus(); }); }
+    else if(e.key==="F2"){ e.preventDefault(); matRenameSheet(t.dataset.mxs); } });
+  grid.addEventListener("contextmenu",e=>{ const td=e.target.closest("td[data-r]"); if(!td) return; e.preventDefault(); const st=mxSt(bid()), r=+td.dataset.r, c=+td.dataset.c, q=mxSel(st);
+    if(!(r>=q.r0&&r<=q.r1&&c>=q.c0&&c<=q.c1)){ st.r=st.er=r; st.c=st.ec=c; mxShow(id); }
+    const s=matOf(st.sid); openMenu(pointerAnchor(e.clientX,e.clientY),[{label:"Copy",kbd:"Ctrl+C",run:()=>copyText(mxSelText(s,mxSel(st)),"The cells")},{label:"Clear",kbd:"Delete",enabled:!S.readOnly&&!s.fx,run:()=>{ const q2=mxSel(st), cells=[]; for(let i=q2.r0;i<=q2.r1;i++) for(let j=q2.c0;j<=q2.c1;j++) cells.push([i,j,null]); mxWrite(s.id,cells,`cleared rows ${q2.r0+1}–${q2.r1+1}, columns ${q2.c0+1}–${q2.c1+1}`); }},
+      {label:"Crop to the selection…",enabled:!S.readOnly,run:()=>matCropDlg(s.id)},"-"].concat(matMenuItems(s.id)),{label:"Matrix"}); });
+  new ResizeObserver(()=>{ if(winOpen(id)&&!grid._rz) grid._rz=requestAnimationFrame(()=>{ grid._rz=0; mxDraw(id); }); }).observe(grid); }
+// The Matrix menu: of the window's sheet, or Data › Matrix's for the one in front.
+function matMenuItems(sid){ const s=matOf(sid), ro=S.readOnly, on=!!s&&!ro;
+  return [{label:"Set values…",enabled:on,title:"A formula of x, y, i, j, constants and other matrices of this size",run:()=>matSetValuesDlg(sid)},
+    s&&s.fx?{label:"Keep the values only",enabled:on,title:"The formula goes; the values stay, as original data",run:()=>matKeepValues(sid)}:null,
+    {label:"Dimensions and labels…",enabled:on,run:()=>matDimsDlg(sid)},"-",
+    {label:"Transpose",enabled:on,run:()=>matTranspose(sid)},
+    {label:"Flip",enabled:on,sub:()=>[{label:"Left to right",run:()=>matFlipIt(sid,"lr",false)},{label:"Up and down",run:()=>matFlipIt(sid,"ud",false)},"-",{label:"Left to right, with the X values",title:"Each value keeps its X: a graph draws the same picture",run:()=>matFlipIt(sid,"lr",true)},{label:"Up and down, with the Y values",title:"Each value keeps its Y: a graph draws the same picture",run:()=>matFlipIt(sid,"ud",true)}]},
+    {label:"Turn",enabled:on,sub:()=>[{label:"A quarter anticlockwise",run:()=>matTurnIt(sid,1)},{label:"A quarter clockwise",run:()=>matTurnIt(sid,-1)},{label:"Half a turn",run:()=>matTurnIt(sid,2)}]},
+    {label:"Crop…",enabled:on,run:()=>matCropDlg(sid)},{label:"Resample…",enabled:on,run:()=>matResampleDlg(sid)},{label:"Arithmetic…",enabled:on,run:()=>matArithDlg(sid)},"-",
+    {label:"To columns",enabled:on,sub:()=>[{label:"X, Y and Z columns",run:()=>matToSheet(sid,"xyz")},{label:"Z as a block, a column for each X",run:()=>matToSheet(sid,"block")}]},
+    {label:"Plot",enabled:on,sub:()=>MAT_KINDS.map(([k,l])=>({label:l,run:()=>plotMatrix(sid,k)}))},"-",
+    {label:"Delete this matrix…",danger:true,enabled:on,run:()=>matDeleteSheet(sid)}].filter(Boolean); }
+// Data › Matrix.
+function matDataItems(){ const ro=S.readOnly||!P(), sid=matFront(), s=matOf(sid), books=matBooks();
+  const out=[{label:"New matrix…",enabled:!ro,run:matNewDlg},{label:"From columns…",enabled:!ro,title:"The block selected in the worksheet: its columns the matrix's columns, its rows the rows",run:matFromColsDlg},{label:"From a picture…",enabled:!ro,title:"A PNG or JPEG: its grey values, or one channel, 0 to 255",run:matFromPicture}];
+  if(books.length) out.push({label:"Open",sub:()=>books.map(b=>({label:b.name,note:b.sheets.length>1?`${b.sheets.length} sheets`:`${b.sheets[0].ny} × ${b.sheets[0].nx}`,run:()=>matOpen(b.id)}))});
+  if(s) out.push("-",{group:s.name});
+  return s?out.concat(matMenuItems(sid)):out; }
+// Plot › Plot a matrix.
+function matPlotItems(){ const all=matAll(); if(!all.length) return [{label:"No matrix yet: Data › Matrix makes one",enabled:false}];
+  return all.map(({b,s})=>({label:b.sheets.length>1?`${b.name} › ${s.name}`:s.name,note:`${s.ny} × ${s.nx}`,sub:()=>MAT_KINDS.map(([k,l])=>({label:l,enabled:!S.readOnly,run:()=>plotMatrix(s.id,k)}))})); }
 /* ---- Worksheet windows (SHEET_SPEC 3.2) -----------------------------------------------------
    A sheet in a window of its own (`sw-<sheet id>`) beside the worksheet window. As the graph
    windows share one live plot, the worksheet windows share one live grid (the bar, the grid, the
@@ -20471,7 +21205,7 @@ function saveTree(t,log,o){ o=o||{}; if(!P()||S.readOnly) return false; if(!o.no
   const have=xKeys(P()), at={}; Object.keys(t.at).forEach(k=>{ if(have.has(k)) at[k]=t.at[k]; });
   save({tree:{folders:t.folders,at}},log||null); renderXpl(); return true; }
 // Every item the tree can hold, by its key.
-function xKeys(p){ const s=new Set(sheetList(p).map(q=>"ws:"+q.id)); graphIds().forEach(id=>s.add("g:"+id)); trendList().forEach(t=>s.add("t:"+t.id)); return s; }
+function xKeys(p){ const s=new Set(sheetList(p).map(q=>"ws:"+q.id)); graphIds().forEach(id=>s.add("g:"+id)); trendList().forEach(t=>s.add("t:"+t.id)); matBooks(p).forEach(b=>s.add("mx:"+b.id)); return s; }
 // Puts items in a folder (null: the project's top level). No undo entry of its own:
 // it follows a change that made one.
 function xFile(keys,folder,o){ const t=treeOf(), v=folder&&xFolder(t,folder)?folder:null, at=Object.assign({},t.at); let ch=false;
@@ -20494,6 +21228,7 @@ function xRows(){
     items.push({key:"g:"+id,kind:"graph",gid:id,name:graphName(id),icon:fg?"tile":"chart",panels:fg?figOrder(fg).map(c=>c.gid):null,
     note:graphShut(id)?"hidden":winMin(w)?"minimised":fg?`${np} panel${np===1?"":"s"}`:"", tip:fg?`${graphName(id)}: a figure of ${np} panel${np===1?"":"s"}`:`${graphName(id)}: ${cs.length?andList(cs.slice(0,6).map(specName))+(cs.length>6?` and ${cs.length-6} more`:""):"nothing plotted"}`}); });
   trendList().forEach(tr=>items.push({key:"t:"+tr.id,kind:"trend",tid:tr.id,name:tr.name,icon:"sigma",note:winMin(tr.id)?"minimised":""}));
+  matBooks(p).forEach(b=>items.push({key:"mx:"+b.id,kind:"mat",bid:b.id,name:b.name,icon:"grid",note:winMin(mxWinId(b.id))?"minimised":"",tip:`${b.name}: ${b.sheets.map(q=>`${q.name} (${q.ny} × ${q.nx})`).join(", ")}`}));
   const fold=k=>t.at[k]||null, seen=new Set();
   const walk=(fid,level,pk)=>{
     t.folders.filter(f=>(f.parent||null)===fid).forEach(f=>{ if(seen.has(f.id)) return; seen.add(f.id); const k="d:"+f.id, open=q?true:exp[k]!==false;
@@ -20540,6 +21275,7 @@ function xOpen(r){
   if(r.kind==="graph") showGraph(r.gid);
   else if(r.kind==="ws") showSheet(r.sid);
   else if(r.kind==="trend") openWin(r.tid,{render:true});
+  else if(r.kind==="mat") matOpen(r.bid);
   else if(r.kind==="folder") xToggle(r.key);
 }
 async function xNewFolder(parent,thenKey){ if(S.readOnly||!P()) return;
@@ -20576,12 +21312,14 @@ function xMenu(r){
       {label:"Rename…",kbd:"F2",enabled:!ro,run:()=>renameGraph(r.gid)},on||null,{label:"Duplicate",enabled:!ro,run:()=>duplicateGraph(r.gid)},move,
       "-",{label:"Delete the graph",kbd:"Delete",danger:true,enabled:!ro,run:()=>deleteGraph(r.gid)}]; }
   if(r.kind==="ws") return [{group:sheetName(r.sid)||"Worksheet",plain:true},{label:"Open",kbd:"Enter",run:()=>xOpen(r)},...(sheetList().length>1?sheetWinItems(r.sid):[]),{label:"Rename…",kbd:"F2",enabled:!S.readOnly,run:()=>renameSheet(r.sid)},move,"-",{label:"New sheet",enabled:!S.readOnly,run:()=>newSheet()},{label:"Delete the sheet…",danger:true,enabled:!S.readOnly&&sheetList().length>1,run:()=>deleteSheet(r.sid)}];
+  if(r.kind==="mat") return [{group:r.name,plain:true},{label:"Open",kbd:"Enter",run:()=>xOpen(r)},{label:"Rename…",kbd:"F2",enabled:!ro,run:()=>matRenameBook(r.bid)},move,
+    "-",{label:"Delete the matrix book…",kbd:"Delete",danger:true,enabled:!ro,run:()=>matDeleteBook(r.bid)}];
   if(r.kind==="trend") return [{group:r.name,plain:true},{label:"Open",kbd:"Enter",run:()=>xOpen(r)},{label:"Rename…",kbd:"F2",enabled:!ro,run:()=>renameTrend(r.tid)},move,
     "-",{label:"Delete the trend graph",kbd:"Delete",danger:true,enabled:!ro,run:()=>deleteTrend(r.tid)}];
   return [];
 }
-function xRename(r){ if(!r||S.readOnly) return; if(r.kind==="ws") renameSheet(r.sid); else if(r.kind==="folder") xRenameFolder(r.fid); else if(r.kind==="graph") renameGraph(r.gid); else if(r.kind==="trend") renameTrend(r.tid); else if(r.kind==="root") renameProject(); }
-function xDelete(r){ if(!r||S.readOnly) return; if(r.kind==="ws") deleteSheet(r.sid); else if(r.kind==="folder") xDeleteFolder(r.fid); else if(r.kind==="graph") deleteGraph(r.gid); else if(r.kind==="trend") deleteTrend(r.tid); }
+function xRename(r){ if(!r||S.readOnly) return; if(r.kind==="ws") renameSheet(r.sid); else if(r.kind==="folder") xRenameFolder(r.fid); else if(r.kind==="graph") renameGraph(r.gid); else if(r.kind==="trend") renameTrend(r.tid); else if(r.kind==="mat") matRenameBook(r.bid); else if(r.kind==="root") renameProject(); }
+function xDelete(r){ if(!r||S.readOnly) return; if(r.kind==="ws") deleteSheet(r.sid); else if(r.kind==="folder") xDeleteFolder(r.fid); else if(r.kind==="graph") deleteGraph(r.gid); else if(r.kind==="trend") deleteTrend(r.tid); else if(r.kind==="mat") matDeleteBook(r.bid); }
 // What a drag from the tree carries, and where it may land.
 const xDragKind=k=>{ const r=xRow(k); return r?r.kind:null; };
 function wireXpl(){
@@ -23122,7 +23860,7 @@ function normalize(p){ if(!p) return; const was=p.v||1;
     p.graphs=(Array.isArray(p.graphs)?p.graphs:[]).filter(g=>g&&g.id).map(g=>{ g.cols=(g.cols||[]).filter(k=>yIds.has(k));
       g.plot=Object.assign({style:"auto",logY:false,grid:false,resid:"auto"},g.plot||{}); delete g.plot.annos;
       if("use" in g.plot){ const u=useClean(g.plot.use,g.cols,p.cols||[]); if(u) g.plot.use=u; else delete g.plot.use; }
-      if("use" in g.plot||"grps" in g.plot) grpClean(g.plot); if(!g.name) g.name="Graph"; return g; }).filter(g=>g.cols.length||(g.fig&&typeof g.fig==="object"));
+      if("use" in g.plot||"grps" in g.plot) grpClean(g.plot); if(!g.name) g.name="Graph"; return g; }).filter(g=>g.cols.length||(g.fig&&typeof g.fig==="object")||(g.plot&&g.plot.mat&&matOf(g.plot.mat,p)));
     // A figure's cells name graphs that exist, each in one cell of one figure, none a
     // figure itself, inside its grid; a figure shows no spectra of its own.
     const have=new Set(p.graphs.filter(g=>!g.fig).map(g=>g.id)), used=new Set();
@@ -23222,7 +23960,7 @@ function pfUnpackCol(c,k){ if(!c||typeof c!=="object"||Array.isArray(c)) return 
 function pfComments(pid){ if(pid===S.pid) return (S.comments||[]).map(c=>clone(c));
   const m=S.store&&S.store.data&&S.store.data.comments&&S.store.data.comments[pid]; return m?Object.entries(m).map(([id,c])=>Object.assign({id},clone(c))):[]; }
 function pfDoc(pid){ const q=pid===S.pid?P():(S.projects||[]).find(x=>x.id===pid); if(!q) return null;
-  const pr=Object.assign({},q); delete pr.id; pr.cols=(q.cols||[]).map(pfPackCol);
+  const pr=Object.assign({},q); delete pr.id; pr.cols=(q.cols||[]).map(pfPackCol); if(Array.isArray(q.mats)) pr.mats=matsMapZ(q.mats,z=>pfPackCol({data:z}).data);
   return {format:"kurve-project",fv:PF_FV,v:q.v||null,saved:new Date().toISOString(),by:who(),fp:(q.raw&&q.raw.fp)||"",project:pr,comments:pfComments(pid),extra:{}}; }
 async function pfGzip(text){ const s=new Blob([text]).stream().pipeThrough(new CompressionStream("gzip")); return new Response(s).blob(); }
 function pfCanWrite(){ return typeof CompressionStream!=="undefined"; }
@@ -23276,8 +24014,10 @@ function pfCheck(doc){
   const pr=doc.project; if(!pr||typeof pr!=="object"||Array.isArray(pr)||!Array.isArray(pr.cols)) return {fail:"holds no project"};
   const cols=[]; for(let k=0;k<pr.cols.length;k++){ const r=pfUnpackCol(pr.cols[k],k); if(r.fail) return {fail:"is damaged: "+r.fail}; cols.push(r.c); }
   if(new Set(cols.map(c=>c.id)).size!==cols.length) return {fail:"is damaged: two columns have one id"};
+  let mats=pr.mats, mbad=null; if(Array.isArray(mats)) mats=matsMapZ(mats,z=>{ if(Array.isArray(z)||z==null) return z; const r=pfUnpackCol({id:"m",data:z},0); if(r.fail){ mbad=r.fail.replace("column 1","a matrix"); return []; } return r.c.data; });
+  if(mbad) return {fail:"is damaged: "+mbad};
   const comments=Array.isArray(doc.comments)?doc.comments.filter(c=>c&&typeof c==="object"&&!Array.isArray(c)&&typeof c.id==="string"&&c.id):[];
-  return {doc:Object.assign({},doc,{project:Object.assign({},pr,{cols}),comments})}; }
+  return {doc:Object.assign({},doc,{project:Object.assign({},pr,{cols},mats!==undefined?{mats}:{}),comments})}; }
 // File › Open a project file…, a .kurve chosen to import or dropped on the window.
 function pickProjectFile(){ if(S.readOnly||!S.store) return; $("#projFileIn").click(); }
 const isProjFile=f=>!!f&&/\.kurve$/i.test(f.name||"");
@@ -24275,6 +25015,7 @@ function dataMenu(){
     {label:"Filter", title:"Rows kept in view by a column's values or conditions: a view, the data untouched", sub:()=>filterItems(), enabled:!!p},
     {label:"Conditional formatting", title:"Cells filled by their values: a colour scale, or the ones that meet a condition", sub:()=>cfItems(), enabled:!!p},
     {label:"Reshape", title:"Tables made from the sheet, each a result sheet that follows its data: stacked, unstacked, pivoted, reduced, sorted…", sub:()=>["stack","unstack","split","pivot","reduce","dedup","sortcopy","transp","join","append"].map(k=>({label:ANA_KINDS[k].label+"…", title:ANA_KINDS[k].help, enabled:edit, run:()=>anaDlg(k)})), enabled:!!p},
+    {label:"Matrix", title:"Grids of Z with their X and Y: made, read from columns or a picture, transformed, plotted as maps", sub:()=>matDataItems(), enabled:!!p},
     {label:"Columns", sub:()=>spectrumItems().filter(it=>!it.group)},
     {label:"Masks", sub:()=>[{label:"Mask points on the graph", run:()=>setMode("mask"), enabled:has},
       {label:"Restore every masked point", run:unmaskAll, enabled:edit&&!!(p&&maskOf(activeYCol()).length)}]},
@@ -26644,6 +27385,19 @@ ${DL([["Numbers","equals, does not equal, is less than, is at most, is greater t
 ${DL([["Stack columns","The columns ticked one under another in a column of values, with a column naming where each came from; columns ticked under <em>Kept beside</em> are repeated by each value (wide to long). Empty cells are left out unless you say otherwise."],["Unstack","A column of values into a column per level of a group column (long to wide): by their order within each level, or matched by an identifier column (then an identifier seen twice in a level keeps its first value, said)."],["Split by groups","The rows of each level of a group column, or every n rows, as a block of the columns ticked, side by side."],["Pivot table","The levels of one column down and another's across, each cell the count, sum, mean, SD, minimum, maximum, median or first of a column of values (or the number of rows), with totals."],["Reduce rows","Every nth row kept, every n rows merged (by their mean or another aggregate; X by its mean), or rows put into bins of X a width wide, X then each bin's centre."],["Duplicate rows","Rows whose key columns repeat: the first or the last of each kept, all averaged into one, or only the duplicates kept; numbers within a tolerance count as one."],["A sorted copy","The rows sorted by up to three columns, each up or down: numbers, then text, then empty cells; rows that tie keep their order. The only way rows are really reordered, and it is a copy."],["Transpose","Rows turned into columns, the first column ticked naming them when asked."],["Join two sheets","This sheet's rows beside another sheet's whose key matches: only rows matched in both, every row of this sheet, or every row of both. A row matching several gives one each."],["Append sheets","Other sheets' rows under this one's, columns matched by name or by position, with a column naming each row's sheet."]])}
 <h2>How they behave</h2>
 <p>Each is an ${DA("analyses","analysis")} under ${MP("Data › Reshape")}: it reads the cells as the worksheet holds them (numbers and text, not processed), writes a result sheet that is worked out again when they change, and can be changed, recalculated, cut from its data (the cells kept on an ordinary sheet) or deleted, each one step to undo. Its rows can be limited, and on a filtered sheet it offers the filter's rows as its own. The report says how many rows it read and made, and what it left out.</p>`},
+{id:"matrices", g:"Data", t:"Matrices", kw:"matrix matrices matrix book matrix sheet grid image z values surface 2d two-dimensional transpose flip turn rotate rot90 crop resample interpolate bilinear arithmetic set values formula picture png jpeg grey gray channel from columns to columns xyz block heat map contour",
+ lead:"A grid of values Z with its X along the top and its Y down the side, as Origin's matrix: kept in a book of its own, drawn by a graph as a map.",
+ body:`<h2>Making one</h2>
+<p>${MP("Data › Matrix")} has three ways in. <em>New matrix…</em> asks for the rows and columns, X and Y from first to last (evenly spaced), and the values: empty, one number in every cell, or a formula. <em>From columns…</em> reads the block selected in the worksheet: its columns become the matrix's columns and its rows the rows; when its first row and first column are numbers running one way and the corner is empty, they are X and Y. <em>From a picture…</em> reads a PNG or JPEG: its grey values (0 to 255, weighted as ITU-R BT.601), or its red, green, blue or opacity; X counts the pixels from the left and Y from the bottom, so the picture is upright on a graph.</p>
+<h2>The matrix window</h2>
+<p>Each book has a window of its own, a document in the taskbar and the ${DA("explorer","Project Explorer")}: the grid with X along the top, Y down the side and row 1 at the top, a tab for each matrix of the book (+ adds one, a double click renames, a right-click has the rest), the cell and its value above, and below the size, whether its values are original data or computed, and the N, mean, minimum and maximum of the cells selected. It is used as the worksheet is: click, drag, Shift and the arrows select; typing, F2 or a double click edits; Delete clears; Ctrl+C and Ctrl+V copy and paste tab-separated blocks. Only what is in view is drawn, so a million cells scroll as easily as a hundred.</p>
+<h2>Original data or computed</h2>
+<p>Values typed, read from columns or a picture, or transformed in place are <strong>original data</strong>: each change is one step to undo and an entry in the matrix's own record with the check code of its values (the SHA-256 of its rows written as the worksheet's original data is). <em>Set values…</em> makes a matrix <strong>computed</strong>: a formula of <code>x</code> and <code>y</code> (each cell's X and Y), <code>i</code> and <code>j</code> (its row and column from 1), the project's ${DA("formulas#consts","constants")} and other matrices of the same size by name (<code>Base * 2 + i</code>). It is worked out again whenever what it reads changes, and says why when it cannot be (a matrix it reads gone or of another size). <em>Keep the values only</em> drops the formula and keeps the values as original data. A matrix's name is a formula's name: a letter, then letters, digits and _.</p>
+<h2>Changing one</h2>
+${DL([["Transpose","Rows become columns, and X becomes Y."],["Flip","Left to right or up and down. The values move and the X and Y stay (the picture is mirrored), or with the X (or Y) values each value keeps its coordinates (a graph draws the same picture)."],["Turn","A quarter anticlockwise or clockwise, or half a turn, as the grid shows it; the rows take the X values and the columns the Y values, in their order."],["Crop…","The rows and columns whose X and Y are in the ranges typed (the selection's, to begin with)."],["Resample…","A number of rows and columns over the same X and Y, each value bilinear between the four cells around it; a missing cell with a weight above zero leaves the value missing."],["Dimensions and labels…","The size (values kept by row and column, new cells empty), X and Y from first to last, and the names and units of X, Y and Z."],["Arithmetic…","A new matrix of the book, A + B, A − B, A × B or A ÷ B of two matrices of one size or a matrix and a number: a formula, so it follows them. A cell missing on either side, or ÷ 0, is missing."],["To columns","A new sheet of X, Y and Z columns (a row a cell), or the Y values and a column for each X."]])}
+<p>A transform of a computed matrix keeps its values and drops its formula. Each change is one step to undo.</p>
+<h2>Plotting one</h2>
+<p>${MP("Plot › Plot a matrix")} (or the window's Plot) makes a graph of its own: an image (each cell its colour, with no smoothing), filled contours, contour lines with their values along them, or the image with lines. The colour bar is titled by Z; the Map menu on the graph sets the levels and the colour map and opens the matrix again. Pointing at the map, the status bar gives the cell's X, Y, value, row and column. It zooms and pans as any graph, and is exported, copied and reported as any graph.</p>`},
 {id:"condfmt", g:"Data", t:"Conditional formatting", kw:"conditional formatting colour color scale heat map highlight cells fill rule rules duplicates unique top bottom greater less between text manage order",
  lead:"Cells filled by their values, so a pattern in the numbers shows before you read them: a view, the data stay as they are.",
  body:`<h2>A colour scale</h2>
@@ -27481,8 +28235,10 @@ function helpFor(win){
   if(win==="tool") return S.pending?"step-"+S.pending.step.op:"steps";
   if(win==="fit") return S.fitMode==="peaks"?"peakfit":"curvefit";
   if(isFigId(graphOfWin(win))) return "panels";
+  if(matGraph(graphOfWin(win))) return "matrices";
   if(graphOfWin(win)) return multiGraph()?"graphs":"graph";
   if(WINS[win]&&WINS[win].trend) return "batch#desk";
+  if(WINS[win]&&WINS[win].mx) return "matrices";
   return WIN_DOC[win]||"start";
 }
 function frontWin(){ return Object.keys(WINS).filter(id=>winOpen(id)&&id!=="help").sort((a,b)=>winState(b).z-winState(a).z)[0]; }
@@ -27850,10 +28606,10 @@ function winFlip(el,b,n){
    open or minimised, so it and the Window menu list what is in use and never
    what was not opened; a closed panel comes back from its menu, or from
    Window › Tool windows. */
-const isDoc=id=>!!(WINS[id]&&(WINS[id].graph||WINS[id].trend||WINS[id].swin||id==="sheet"));
+const isDoc=id=>!!(WINS[id]&&(WINS[id].graph||WINS[id].trend||WINS[id].swin||WINS[id].mx||id==="sheet"));
 // A graph closed (plot.shut) is out of the taskbar, as a closed panel is.
 const keepsBtn=id=>isDoc(id)&&!winShut(id);
-function docWinIds(){ return graphWinIds().filter(id=>!winShut(id)).concat(WINS.sheet?["sheet"]:[],swList().map(swId).filter(id=>WINS[id]),trendWinIds()); }
+function docWinIds(){ return graphWinIds().filter(id=>!winShut(id)).concat(WINS.sheet?["sheet"]:[],swList().map(swId).filter(id=>WINS[id]),matWinIds(),trendWinIds()); }
 function panelIds(){ return WIN_ORDER.filter(id=>!isDoc(id)).concat(["help"]).filter(id=>WINS[id]); }
 // The windows in use, in the taskbar's order: the documents, then the panels.
 function barWinIds(){ return docWinIds().concat(panelIds().filter(inBar)); }
@@ -27896,6 +28652,7 @@ function renderWin0(id){
   const gw=graphOfWin(id);
   if(gw){ if(gw===S.gid){ renderPlot(); renderStages(); } else scheduleSnaps(0); }
   else if(id==="sheet"||swSid(id)){ if(wsLiveWin()===id) renderWs(); else renderSwSnap(id); }
+  else if(mxBid(id)) renderMatWin(id);
   else if(id==="flow") renderFlow();
   else if(id==="fit") renderFit();
   else if(id==="peaks") renderPeaks();
@@ -27949,7 +28706,7 @@ function renderTaskbar(){
     return `<button class="tk ${on?(id===front?"on front":"on"):"min"}" data-tk="${id}" aria-pressed="${on}" aria-label="${esc(t)}, ${winStateName(id)}" title="${esc(t)}">${ICON(WINS[id].icon,"sm")}<span>${esc(t)}</span>${winBadge(id)}</button>`; };
   // Many of one kind share a button that lists them.
   const grp=(ids,attr,icon,label)=>`<button class="tk ${ids.includes(front)?"on front":ids.some(winOpen)?"on":"min"}" ${attr} aria-haspopup="menu" title="${label}">${ICON(icon,"sm")}<span>${label}</span><span class="badge">${ids.length}</span></button>`;
-  const docs=(gs.length>4?[grp(gs,"data-tk-graphs","chart","Graphs")]:gs.map(btn)).concat(WINS.sheet?[btn("sheet")]:[],swList().map(swId).filter(id=>WINS[id]).map(btn),ts.length>3?[grp(ts,"data-tk-trends","chart","Trend graphs")]:ts.map(btn));
+  const docs=(gs.length>4?[grp(gs,"data-tk-graphs","chart","Graphs")]:gs.map(btn)).concat(WINS.sheet?[btn("sheet")]:[],swList().map(swId).filter(id=>WINS[id]).map(btn),matWinIds().map(btn),ts.length>3?[grp(ts,"data-tk-trends","chart","Trend graphs")]:ts.map(btn));
   const panels=panelIds().filter(inBar).map(btn);
   tb.innerHTML=(pj?`<button class="tk proj" data-tk-proj aria-haspopup="menu" title="${esc(projName(pj))}" aria-label="Project: ${esc(projName(pj))}">${ICON("folder","sm")}<span>${esc(projName(pj))}</span>${ICON("chev","sm").replace('class="ic','class="tk-chev ic')}</button><span class="tksep" aria-hidden="true"></span>`:"")
     +docs.join("")+(panels.length?`<span class="tksep" aria-hidden="true"></span>`+panels.join(""):"")
@@ -28318,7 +29075,7 @@ function computeWorker(){
   try{ if(typeof Worker==="undefined"||typeof Blob==="undefined") throw new Error("no workers");
     const sc=[...document.scripts].find(s=>!s.src&&s.textContent.indexOf("==NUMERICS"+":START==")>=0), txt=sc?sc.textContent:"";
     const grab=tag=>{ const m=txt.match(new RegExp("=="+tag+":START==[\\s\\S]*?\\*\\/([\\s\\S]*?)\\/\\* =="+tag+":END==")); if(!m) throw new Error("no "+tag+" block"); return m[1]; };
-    const url=URL.createObjectURL(new Blob([["NUMERICS","PEAKS","PIPE","MODELS","STATS","ANA"].map(grab).join("\n")+"\n"+COMPUTE_TAIL],{type:"text/javascript"}));
+    const url=URL.createObjectURL(new Blob([["NUMERICS","PEAKS","PIPE","MODELS","STATS","ANA","MAT"].map(grab).join("\n")+"\n"+COMPUTE_TAIL],{type:"text/javascript"}));
     const w=new Worker(url), me={w,n:0,wait:new Map(),url};
     w.onmessage=e=>{ const d=e.data, h=me.wait.get(d&&d.id); if(!h) return;
       if(d.progress!==undefined){ if(h.prog) try{ h.prog(d.progress); }catch(_){} return; }
@@ -29199,7 +29956,7 @@ function syncGraphWins(){
   // The column being analysed is on the graph in front: if it is not, a graph
   // that shows it comes forward (a column on no graph leaves the graph as it is).
   const act=p?activeYCol():null;
-  if(act&&S.gid&&!graphShows(act,S.gid)){ const to=graphForCol(act.id,graphOpen(S.gid)?{open:true}:null);
+  if(act&&S.gid&&!graphShows(act,S.gid)&&!matGraph(S.gid)){ const to=graphForCol(act.id,graphOpen(S.gid)?{open:true}:null);
     if(to&&to!==S.gid){ S.gv[S.gid]=S.view; S.gid=to; S.view=resolveYAuto(S.linkX&&S.view?{x0:S.view.x0,x1:S.view.x1,xu:S.view.xu,yAuto:true}:S.gv[to]||null); } }
   const nWin=graphWinIds().length;
   // The grip that drags a graph onto another is for when there is another on the desk.
@@ -29324,8 +30081,8 @@ function withGraph(id,fn){
     return fn();
   } finally { p.activeY=act; keys.forEach(k=>{ S[k]=keep[k]; }); }
 }
-function snapSig(id,W,H){ const p=P(), cols=graphCols(id), lead=leadOf(id), lc=colById(lead);
-  return [W,H,lead,JSON.stringify(plotOf(id)),JSON.stringify((p.annos||[]).filter(a=>annoInGraph(a,id))),
+function snapSig(id,W,H){ const p=P(), cols=graphCols(id), lead=leadOf(id), lc=colById(lead), mg=matGraph(id);
+  return [W,H,lead,mg?`${objId(mg.z)}:${JSON.stringify([mg.nx,mg.ny,mg.x,mg.y,mg.name,mg.xname,mg.xunit,mg.yname,mg.yunit,mg.zname,mg.zunit])}`:"",JSON.stringify(plotOf(id)),JSON.stringify((p.annos||[]).filter(a=>annoInGraph(a,id))),
     cols.concat(lc&&!cols.includes(lc)?[lc]:[]).map(c=>`${c.id}:${c.name}:${(c.mask||[]).length}:${pipeSig(c)}:${allCols().filter(o=>o.role==="e"&&o.of===c.id).map(o=>errKind(o)+arrKey(o.data)).join(",")}`).join("|"),
     JSON.stringify(viewFor(id)),p.fit?`${p.fit.at}:${p.fit.onCol}`:"",JSON.stringify(p.integ||null),
     S.pending&&cols.some(c=>c.id===S.pending.col)?JSON.stringify(S.pending.step):"",S.comments.length].join("\n"); }
@@ -29347,7 +30104,7 @@ function renderSnap(id,box,W,H,exact){
   let str="";
   // A small window gets the graph drawn at a size its labels fit, scaled down to the window.
   const k=exact?1:Math.max(1,160/H,250/W), w=Math.round(W*k), h=Math.round(H*k);
-  withGraph(id,()=>{ const c=activeYCol(); if(!c||!(pointsAll().length||plotState().d.x.length)) return; str=buildPlot(w,h,readPalette(),false); });
+  withGraph(id,()=>{ const c=activeYCol(); if(!matGraph(id)&&(!c||!(pointsAll().length||plotState().d.x.length))) return; str=buildPlot(w,h,readPalette(),false); });
   // Ids inside a picture are its own, so its clip paths never borrow another's.
   const pre="s"+id+"-";
   box.innerHTML=str?str.replace(/\bid="([^"]+)"/g,`id="${pre}$1"`).replace(/url\(#([^)]+)\)/g,`url(#${pre}$1)`):`<p class="gsnap-empty">No data on this graph</p>`;
@@ -29364,7 +30121,8 @@ function renderGraphHeads(){
       if(bar) bar.innerHTML=ord.map(c=>`<button class="gchip${c.gid===S.gid?" on":""}" data-fpanel="${esc(c.gid)}" title="Work on this panel">${esc([figLetter(c.gid),graphName(c.gid)].filter(Boolean).join(" "))}</button>`).join("");
       return; }
     if(id===S.gid) return;
-    const cols=graphCols(id), lead=leadOf(id), pl=plotOf(id), sub=el.querySelector(".win-sub"), bar=el.querySelector(".gbar");
+    const cols=graphCols(id), lead=leadOf(id), pl=plotOf(id), sub=el.querySelector(".win-sub"), bar=el.querySelector(".gbar"), mg=matGraph(id);
+    if(mg){ if(sub) sub.textContent=mg.name; if(bar) bar.innerHTML=`<button class="gchip on" data-gmat="${esc(mg.id)}" title="Work on this graph of the matrix ${esc(mg.name)}"><span class="sw" style="background:var(--data)"></span>${esc(mg.name)}</button>`; return; }
     if(sub) sub.textContent=cols.length===1?specName(cols[0]):cols.length?`${cols.length} curves`:"";
     if(bar){ const keep=S.gctx; S.gctx=id;
       try{ const sch=plotCfg().scheme; bar.innerHTML=cols.map(c=>{ const col=((pl.series||{})[c.id]||{}).color||(c.id===lead?"var(--data)":yTint(c.id,undefined,sch));
@@ -29374,7 +30132,7 @@ function renderGraphHeads(){
 /* ---- Making, changing and removing graphs ---- */
 function nextGraphName(p){ p=p||P(); const used=new Set(((p&&p.graphs)||[]).map(g=>g.name)); let n=1; while(used.has("Graph "+n)) n++; return "Graph "+n; }
 // A new graph looks like the one in front, with its own axes and no annotations.
-function plotBase(pl){ const o=clone(pl||{})||{}; ["annos","hidden","title","legendPos","gname","cols","shut","gen","use","grps","distBy"].forEach(k=>delete o[k]); o.ax={}; o.layout="overlay"; if(o.legend==="custom") o.legend="auto"; return o; }
+function plotBase(pl){ const o=clone(pl||{})||{}; ["annos","hidden","title","legendPos","gname","cols","shut","gen","use","grps","distBy","mat"].forEach(k=>delete o[k]); o.ax={}; o.layout="overlay"; if(o.legend==="custom") o.legend="auto"; return o; }
 function graphBase(from){ return plotBase(plotOf(from||GID())); }
 function newGraphs(groups,opt){ opt=opt||{}; const p=P(); if(!p||S.readOnly) return [];
   groups=groups.map(ids=>ids.filter(k=>{ const c=colById(k); return c&&c.role==="y"; })).filter(g=>g.length); if(!groups.length) return [];
@@ -29501,6 +30259,7 @@ function curveShowItems(gid,cid){ const ro=S.readOnly, n=shownCount(gid), hid=cu
     {label:"Show only this curve",enabled:!ro&&(n>1||hid),run:()=>onlyCurve(gid,cid)},any?{label:"Show every curve",enabled:!ro,run:()=>showAllCurves(gid)}:null]; }
 // The graph's Curves button: each curve ticked while shown, then Show only… and Show every curve.
 function curveVisItems(gid){ gid=gid||GID(); const g=graphOf(gid), ro=S.readOnly; if(!g||g.fig) return [{label:"No graph in hand",enabled:false}];
+  if(matGraph(gid)) return [{label:`It draws the matrix ${matGraph(gid).name}, no curves`,enabled:false}];
   const hid=new Set((g.plot&&g.plot.hidden)||[]), cs=g.cols.map(colById).filter(Boolean), many=cs.length>1;
   return [{group:"Shown on "+graphName(gid),plain:true}].concat(cs.map(c=>({label:specName(c),checked:!hid.has(c.id),enabled:!ro&&many,title:hid.has(c.id)?"Hidden: click to show it":"Click to hide it",run:()=>hideCurve(gid,c.id,!hid.has(c.id))})))
     .concat(many?["-",{label:"Show only…",enabled:!ro,sub:()=>cs.map(c=>({label:specName(c),run:()=>onlyCurve(gid,c.id)}))},{label:"Show every curve",enabled:!ro&&hid.size>0,run:()=>showAllCurves(gid)}]:[]); }
@@ -29560,7 +30319,7 @@ function plotCols(cids,o){
   // A type asked for is the type of every one of these spectra there, not only the analysed one's.
   const typed=tp=>{ if(!o.type) return; tp.series=Object.assign({},tp.series); ids.forEach(k=>{ tp.series[k]=Object.assign({},tp.series[k],{type:o.type}); }); };
   let gid, tp, isNewG=false;
-  const into=o.into?graphs.find(g=>g.id===o.into&&!g.fig):null;
+  const into=o.into?graphs.find(g=>g.id===o.into&&!g.fig&&!(g.plot&&g.plot.mat)):null;
   if(into){ gid=into.id; tp=into.plot; into.cols=into.cols.concat(ids.filter(k=>!into.cols.includes(k))); tp.hidden=(tp.hidden||[]).filter(k=>!ids.includes(k));
     typed(tp); if(o.layout) tp.layout=o.layout; delete tp.shut; }
   else { gid=newGid(); tp=plotBase(GP()); if(o.type){ tp.style=o.type==="tmap"?"scatter":o.type; typed(tp); } if(o.layout) tp.layout=o.layout;
@@ -30101,7 +30860,7 @@ function psuSetGraph(gid,curves,st,kind,ov,said){
   toast(`${graphName(gid)}: ${what}.${said.length?` ${capFirst(andList(said))}, on every graph.`:""}`,{action:"Undo",run:undo});
 }
 // Plot setup on the graph in hand, or a graph named (its ⋯ menu, a panel's).
-function plotsOf(gid){ const id=gid||GID(); if(id&&!isFigId(id)) openPlotDlg(null,{gid:id}); }
+function plotsOf(gid){ const id=gid||GID(), mg=matGraph(id); if(mg){ const b=matBookOf(mg.id); if(b) matOpen(b.id,mg.id); return; } if(id&&!isFigId(id)) openPlotDlg(null,{gid:id}); }
 // The list of graphs (the taskbar's Graphs button and Window › Graphs).
 function graphsMenuItems(){ const cur=S.gid;
   return deskGraphIds().map(id=>{ const fg=graphOf(id)&&graphOf(id).fig, cs=fg?[]:graphCols(id), n=fg?fg.cells.length:0;
@@ -30403,10 +31162,11 @@ function plotMenu(){
   return [{label:"Plot setup…", run:()=>openPlotDlg(wsSelColIds()), enabled:!!p&&!S.readOnly, title:"Choose the kind of plot, what each column is and the curves on the graph, drawn as it will be"},
     {label:"What this graph plots…", run:()=>plotsOf(), enabled:edit&&g&&!isFigId(GID()), title:"Its curves: add, replace, take off and order them, and what each draws"},
     {label:"Plot the selected columns", sub:()=>plotItems(wsSelColIds()), enabled:!!p&&!S.readOnly},
+    {label:"Plot a matrix", title:"A matrix drawn as a map: an image, filled contours or contour lines", sub:()=>matPlotItems(), enabled:!!p&&!S.readOnly},
     {label:"New graph", sub:()=>newGraphItems(), enabled:edit},
     "-",
     {label:"Plot type", sub:()=>plotTypeItems(act,!edit), enabled:g},
-    {label:"Several curves", sub:()=>LAYOUTS.filter(([k])=>!isDistLayout(k)).map(([k,l])=>({label:l, radio:true, checked:cfg.layout===k, enabled:edit, run:()=>setPlotKey("layout",k,`laid the curves out as ${l.toLowerCase()}`)})), enabled:g},
+    {label:"Several curves", sub:()=>LAYOUTS.filter(([k])=>!isDistLayout(k)).map(([k,l])=>({label:l, radio:true, checked:cfg.layout===k, enabled:edit&&!cfg.mat, run:()=>setPlotKey("layout",k,`laid the curves out as ${l.toLowerCase()}`)})), enabled:g},
     "-",
     {label:"View", sub:()=>[tool("zoom","Zoom"), tool("pan","Pan"), tool("reader","Reader"),
       {label:"X–Y lines", sub:()=>XH_MODES.map(([k,l,t])=>({label:l, note:t, radio:true, checked:m==="cross"&&xhMode()===k, enabled:has&&g, run:()=>setXhMode(k)}))},
@@ -30525,10 +31285,11 @@ function renderAll0(){
   const rc2=++renderCount; if(followFits()&&renderCount!==rc2) return;
   const rc3=++renderCount; if(followAnas()&&renderCount!==rc3) return;
   if(S.pending&&(!P()||!colById(S.pending.col))) S.pending=null;
-  syncGraphWins(); syncTrendWins(); syncSheetWins(); layoutFigs(null,{quiet:true});
+  syncGraphWins(); syncTrendWins(); syncSheetWins(); syncMatWins(); layoutFigs(null,{quiet:true});
   renderTop(); renderPlot(); renderStages(); renderTabMarks(); renderGraphHeads(); scheduleSnaps(0);
   ["sheet"].concat(swList().map(swId).filter(id=>WINS[id]),["flow","over","peaks","integ","fit","res","batch","disc","stats","tool","format"]).forEach(id=>{ if(winOpen(id)) renderWin(id); });
   trendWinIds().forEach(id=>{ if(winOpen(id)) renderTrendWin(id); });
+  matWinIds().forEach(id=>{ if(winOpen(id)) renderMatWin(id); });
   renderUndo(); renderTaskbar(); renderXpl();
 }
 

@@ -284,6 +284,31 @@ if (fixtures.reshape) {
   }
 }
 
+/* ---- matrices (SHEET_SPEC 3.6): NumPy's transpose, flips, rot90, slicing and arithmetic exactly,
+   SciPy's bilinear resampling to its error over the matrix's largest value, PIL's grey exactly; the
+   size, the X and Y where given, the check code's text; a missing cell where the other has a number,
+   or the other way round, an error of 1 ---- */
+if (fixtures.mat) {
+  const XY = get("matXY");
+  const same = (g, w, scale) => { if (!g || g.length !== w.length) return 1; let e = 0;
+    w.forEach((wv, i) => { const gv = g[i]; if (wv == null || gv == null) { if (!(wv == null && gv == null)) e = 1; return; }
+      e = Math.max(e, scale ? Math.abs(gv - wv) / scale : gv === wv ? 0 : relErr(gv, wv, 1e-300)); }); return e; };
+  for (const c of fixtures.mat.cases) {
+    let r; try { r = get(c.fn)(...c.args); } catch (e) { note(c.fn, Infinity, `${c.name}: ${e.message}`); continue; }
+    if (r && r.fail) { note(c.fn, Infinity, `${c.name}: ${r.fail}`); continue; }
+    const w = c.want; let e = 0;
+    if (typeof w === "string") e = r === w ? 0 : 1;
+    else if (w.cols) { e = r.cols.length === w.cols.length ? Math.max(0, ...w.cols.map((col, k) => same(Array.from(r.cols[k]), col))) : 1; }
+    else {
+      if (r.nx !== w.nx || r.ny !== w.ny) e = 1;
+      const scale = c.fn === "matResample" ? w.z.reduce((m, v) => (v == null ? m : Math.max(m, Math.abs(v))), 0) || 1 : 0;
+      e = Math.max(e, same(r.z, w.z, scale));
+      if (w.X || w.Y) { const q = XY(r); if (w.X) e = Math.max(e, same(q.X, w.X)); if (w.Y) e = Math.max(e, same(q.Y, w.Y)); }
+    }
+    note(c.fn, e, c.name);
+  }
+}
+
 /* ---- NIST's Norris: certified values read from the file itself ---- */
 {
   const txt = readFileSync(join(here, "ref", "nist", "Norris.dat"), "utf8").split(/\r?\n/);

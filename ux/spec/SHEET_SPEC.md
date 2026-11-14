@@ -419,6 +419,13 @@ its dialog, followed after a value, cut, undone, a reload), the budgets.
 
 ## 3.6 Matrices
 
+Done 14.11, as below, with these changes of plan: transforms act in place, as Origin's, and a sheet of original data
+transformed keeps its values as original data with an entry in its record (a computed one keeps its values and drops its
+formula), while arithmetic makes a new computed sheet; the record is a sheet's own (`raw` on the sheet, not the book); a
+matrix's name is a formula's name, unique in the project; the window has no Matrix menu of the menu bar but Data ›
+Matrix and its own Matrix button; a graph of a matrix is drawn by `buildPlot` with no column (`plot.mat`); a picture's Y
+counts from the bottom; the fuzzer checks turns, arithmetic and resampling beside the fixtures.
+
 **What.** A matrix book (`p.mats`) of matrix sheets: Data › New matrix… (rows, columns, X and Y
 from first to last, a value or a formula of `x`, `y`, `i`, `j`), *From columns* (a block of the
 worksheet as Z, its first row and column as X and Y when they are), *From a picture* (PNG or JPEG:
@@ -448,7 +455,8 @@ gridding (5.7); images kept as colour.
 
 ## 3.7 Excel
 
-Done 14.11, as below, with these changes of plan: several sheets ticked come in with the dialog's automatic choices, each on
+Done 14.11, as below, with these changes of plan (and of decision 13: the zip's deflate is read by our own code in
+the PARSER block, so it runs under node and needs no stream; writing uses the browser's CompressionStream, stored when it has none): several sheets ticked come in with the dialog's automatic choices, each on
 a sheet of its own (one through the dialog); a sheet is turned into the import's own text (`xlsxSheetText`, its notes on a
 first line), so the header rows, roles and findings are the dialog's; frozen rows of text are the header (names, units,
 comments: Kurve's own workbooks freeze theirs), and otherwise the line above the numbers; the export writes a comments row too

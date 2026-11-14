@@ -898,6 +898,30 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-14: matrices (SHEET_SPEC 3.6)
+
+- **A matrix is a thing of its own, in a window of its own.** A grid of Z is not columns: its X runs along
+  the top and its Y down the side, as Origin's matrix window shows it, and a book of them is a document in
+  the taskbar and the Explorer, minimised rather than closed, as a trend graph is. Row 1 is at the top, as in
+  any table; a picture is read with its top row first and Y counting from the bottom, so it is upright both
+  in the window and on a graph.
+- **It is typed into as the worksheet is**: the same selection's look (a filled range with an edge, the
+  active cell outlined, the headers of what is selected filled), the same keys (arrows, Shift, Ctrl, Home,
+  End, Tab, Enter, F2, Delete, Ctrl+A, C, V), a value that is not a number kept in its box, marked. It is
+  drawn a whole row and column at a time, as a spreadsheet scrolls, so a million cells scroll as a hundred.
+- **Original data or computed, said in the foot.** Values typed, read or transformed in place are the
+  matrix's original data, each change in its own record with its check code; a formula makes it computed,
+  worked out again when what it reads changes, and the foot says the formula, or why it cannot be worked
+  out, in the warning colour. The selection's N, mean, minimum and maximum are in the foot too, as the
+  worksheet's are in the status bar.
+- **A matrix's name is a formula's name** (a letter, then letters, digits and _), because other matrices
+  read it by that name; renamed, their formulas follow, as a column formula follows a column moved.
+- **Transforms act in place**, as Origin's do, one undo step each; arithmetic makes a new computed sheet,
+  so the result follows what it was made from.
+- **A graph of a matrix draws it alone**, as a map (image, filled contours, lines, both): the image is made
+  at the screen's pixels, each the cell that holds it, never smoothed, so a cell is a cell; the colour bar
+  is titled by Z; the readout names the cell under the pointer.
+
 ### 2026-11-14: two worksheet windows (SHEET_SPEC 3.2)
 
 - **One live grid, pictures elsewhere, as the graph windows.** The worksheet's grid holds the selection, the edit, the keys,

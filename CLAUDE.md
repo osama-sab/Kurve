@@ -36,11 +36,12 @@ front window's title bar filled, and whatever is on, chosen or in front filled r
 tinted (DESIGN.md; `tools/contrast-test.mjs` checks the ratios).
 
 The desk holds **windows**, as in Origin: Graph, Worksheet, History, Overview, Peaks,
-Integrate, Fit, Results, Format, Batch, any number of Trend graphs, Statistics, Discussion, Help, and the transient Tool dialog. Each moves by its title bar, resizes from
+Integrate, Fit, Results, Format, Batch, any number of Trend graphs and matrix books (a grid of Z with its X and Y in each
+of their sheets, Data › Matrix), Statistics, Discussion, Help, and the transient Tool dialog. Each moves by its title bar, resizes from
 its edges, maximises on a double-click of the title, minimises to the **taskbar** along the
 bottom of the desk and closes with its ×; opening, closing, minimising (into its taskbar
 button), restoring, maximising, tiling and the dock animate briefly, as a desktop's windows do. As a workbook keeps a tab per sheet, the project's
-**documents** (its graphs, the worksheet, its trend graphs) always have a taskbar button and
+**documents** (its graphs, the worksheet, its matrix books, its trend graphs) always have a taskbar button and
 minimise (a graph can also be closed: off the desk and the taskbar, kept in the project, and
 opened again from Window › Graphs); **panels** (History, Peaks, Fit…) are in the taskbar only while open or
 minimised, so a panel never opened is in no list. Buttons sit flat on the chrome: the front
@@ -1364,6 +1365,58 @@ graph first, with the taskbar kept at the bottom of the screen.
   `newSheetWinItems` (Window › New worksheet window), `wsDropSheet(x, y)` (a column's letter dragged onto another
   worksheet window or its taskbar button, outlined `.dropin`, goes to its sheet: `moveColsToSheet(ids, sid, {undo})`,
   the toast with Undo).
+- **Matrices** (SHEET_SPEC 3.6): the pure `==MAT:START/END==` block (after ANA; loaded by `tools/ref/run.mjs`, the
+  bench and the compute worker): a matrix is `{nx, ny, x, y, z}`, `z` row major (`z[r*nx + c]`, a row a Y), null for
+  missing, `x`/`y` each `{a, b}` (from a to b as NumPy's linspace: k·step + a, the last b exactly) or `{v}`; `MAT_MAX`
+  (4 000 000 cells), `MAT_SIDE` (20 000); `matAxis`, `matXY`, `matAxisOf` (`{a, b}` only when linspace gives every value
+  back exactly), `matRev`, `matNew({nx, ny, x, y, v | fn(x, y, i, j)})`, `matT`, `matFlip(m, "lr"|"ud", withXY)` (with
+  the coordinates each value keeps its X and Y), `matTurn(m, k)` (NumPy's rot90 on the grid as listed; the rows take the
+  X values and the columns the Y values, in order), `matCrop(m, {x0, x1, y0, y1})`, `matPos(A, u)`, `matResample(m, nx,
+  ny)` (bilinear over the same ends, as SciPy's RegularGridInterpolator; a missing cell with a weight above zero makes
+  the value missing), `matArith(A, B|number, op)` (÷ 0 missing), `matFromCols(cols, "auto"|"xy"|"none")` (`xy` in the
+  result when the first row and column were X and Y), `matToCols(m, "xyz"|"block")`, `matGrey(rgba, w, h, ch)` (PIL's
+  grey, `(19595 R + 38470 G + 7471 B + 32768) >> 16`, or a channel; Y from h at the top row), `matRange`, `matText` (a
+  line a row, as the original data's CSV). `{fail}` in words. The page (before the worksheet windows): `p.mats`
+  (`[{id, name, sheets: [{id, name, nx, ny, x, y, z, xname, xunit, yname, yunit, zname, zunit, fx?: {src, refs, err?},
+  raw?: {fp, hist}}]}]`, in `UNDO_KEYS` and `UNDO_BYID`), `matOf(id)` the one reader, `matPut(sid, fn, {undo, log, rec,
+  post})` the one writer (the dependants worked out again, `matRecalc`; a sheet without a formula given a record entry,
+  `matRecord`), `matBooks`, `matAll`, `matBookOf`, `matName`, `matNameWhy` (a formula's name, none twice, no `__`),
+  `matClean` (in `migrate`; `MATZ_OK` the values already checked), `cloneMats` (the values shared: `cloneProj`, a
+  patch of matrices alone included, `snapshot`, `undoAfter`, `applySnapshot` through `cloneKey`), `matsEq`/`matsEq1`
+  (the values compared as arrays: `undoMergeKey`, `mergeById(…, eq, cp)`, `mergeProj`, which also puts two tabs'
+  books together book by book). The check code of a sheet of original data: `matFp` (at once up to `MAT_FP_SYNC`,
+  250 000 cells, else `matFpLater`, a row at a time in 12 ms slices, `MATFP`, each state's entry (`fpw`) filled when
+  known, the record's own while the values are still the sheet's; `matFpEnsure` after a reload). Formulas:
+  `matCompile` (compileExpr with the cell's `y` read as `y__`, as the grammar keeps y for a result), `matFxParse(src,
+  self)` (`refs`: `y`, `i`, `j`, `m:<sheet id>`, `k:<constant id>`; another matrix of the same size, no circle,
+  `matReads`), `matFxEval` (`{z}` or `{err}` in words), `matRecalc`. Commands: `matNewDlg`, `matFromColsDlg` (the
+  worksheet's selection or the sheet's columns with values), `matFromPicture`/`matPicture(file)`, `matTransform(sid,
+  verb, fn, detail)` (in place; a computed sheet keeps its values, the formula dropped), `matTranspose`, `matFlipIt`,
+  `matTurnIt`, `matCropDlg`, `matResampleDlg`, `matSetValuesDlg`, `matKeepValues`, `matDimsDlg`, `matRenamed` (the
+  formulas reading a renamed matrix say its new name), `matArithDlg` (a new sheet with a formula, so it follows),
+  `matToSheet(sid, "xyz"|"block")`, `matAddSheet`, `matDeleteSheet`, `matRenameBook`, `matRenameSheet`, `matDeleteBook`,
+  `plotMatrix(sid, kind)` (a graph with no columns and `plot.mat`, `layout` heat; `plotBase` leaves `mat` out; `plotCols`
+  never plots into one, `toggleColVis` makes a new graph instead). The window (`mx-<book id>`, `WINS[id].mx`, a document:
+  `isDoc`, `docWinIds`, the taskbar, `matWinIds`; minimised, never closed): `syncMatWins` (in `renderAll`),
+  `renderMatWin`, `mxSt(bid)` (per project and book: the sheet shown, the active cell `r`, `c`, the range's other corner
+  `er`, `ec`, an edit), `mxDraw` (only the rows and columns in view, a whole one at a time, in `.mxview`, sticky at the
+  scroller's corner over the spacer `.mxsp`; `MX_CW`, `MX_RH`, `MX_SW`), `mxBar`, `mxFoot`, `mxReveal`, `mxMove`,
+  `mxEdBegin`/`mxEdPlace`/`mxEdEnd` (a box over the cell; what is not a number stays marked), `mxWrite` (cells into a
+  sheet of original data, one undo step, one record entry), `mxPaste`, `mxSelText`, `wireMx` (the keys of a sheet,
+  Shift and Ctrl with them, Delete, Ctrl+A/C/V, a drag, headers selecting rows and columns, tabs with a double click to
+  rename and a right-click menu), `matMenuItems(sid)` (the window's Matrix button, the cells' and tabs' right-click),
+  `matDataItems` (Data › Matrix: New, From columns, From a picture, Open, then the matrix in front's, `matFront`),
+  `matPlotItems` (Plot › Plot a matrix). The graph: `plotCfg` forces the heat layout while `plot.mat` names a matrix;
+  `buildPlot` draws it with no column (`MAT`: `ps` from its names, no points, `matViewOf` the zoom in its X units or
+  the extent, `matExtent`), `matMapSvg` (each pixel the cell holding it, `matCellAt`, or bilinear between centres for
+  filled contours and lines; at the screen's pixels, 1200 a side, 2400 in an export; memoised by `heatMemo`; the
+  colour bar titled by Z), `mapContours` (shared with the map of a series); `geo.mat`, `geo.matCell`, `geo.mapZ` (the
+  readout names the cell); `matXYOf`, `matRangeOf` memoised per values; `mapMenuItems` for a matrix (drawn as, levels,
+  colours, Show the matrix); `matGraph(id)`; `normalize` keeps a graph whose matrix is there and drops one whose
+  matrix has gone; `syncGraphWins` never leaves a matrix's graph for the active column's; `snapSig` reads the values;
+  the picture's chip names the matrix; `helpFor` gives `matrices`. Storage: `projArrs`, `matsMapZ` (IdbStore's
+  `toRec`, `fromRec`, `recKeys`, `known` and its sweep of unused arrays), `pfDoc`/`pfCheck` (`$f64`). The Explorer
+  (`mx:<book id>`, kind `mat`).
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
@@ -3217,9 +3270,10 @@ and back); add a section to it for each report fixed.
 the pointer and keys (typing junk into cells and fields, sizing columns and rows, zooming, every
 pointer tool, wandering the menus and right-click menus, dialogs answered at random, windows
 dragged, resized, maximised and minimised, the dock, undo bursts, Find a command, examples, files
-imported, screen sizes, the theme, coffee breaks), sampling memory, page elements, listeners,
-lag, long tasks and storage every 30 s into a CSV, and at the end reloading and comparing every
-project; run it for a long while (40 minutes) after touching windows, storage or rendering.
+imported, screen sizes, the theme, a sheet's own window, a matrix made, typed into and changed, coffee breaks), sampling
+memory, page elements, listeners, lag, long tasks and storage every 30 s into a CSV, and at the end reloading and comparing
+every project; run it for a long while (40 minutes) after touching windows, storage or rendering. `BIAS=text` makes the
+actions whose name holds the text twenty times as likely, to watch a new one closely.
 `node tools/plot-drive.mjs [path]` (Playwright) checks what each slice of `ux/spec/PLOT_SPEC.md`
 added (slice 1: a curve on the right axis and undone, ranges by rows and by X for one curve or
 every one, labels from a column, an export, junk from storage; slice 2: Plot setup opened on a
@@ -3352,7 +3406,14 @@ column dragged onto the other window and undone, the sheet renamed, deleted and 
 hidden one said, Every sheet and none ticked, one sheet through the dialog named after its Excel sheet with names and units from
 its frozen rows, every sheet at once on sheets of their own with one undo step, record entry and log line, the comments row, a
 column of one formula said in its comment, a password and a cut file refused in words, a drop keeping every digit and 007 as
-text, Publish's workbook read back with its frozen rows, digits, text and dates, an HTML table pasted with its spans filled).
+text, Publish's workbook read back with its frozen rows, digits, text and dates, an HTML table pasted with its spans filled);
+3.6, matrices (New matrix… from Data › Matrix with a formula of x and y, a name a formula cannot read refused, typed into with
+a value refused and kept, arrows, Tab, a block cleared, every change a record entry with the SHA-256 of its rows, a block
+pasted, Set values… reading another matrix and following it, transposed and undone with a formula of another size said,
+flipped, turned, cropped and resampled through their dialogs against the MAT block, Arithmetic… as a computed sheet, a
+rename followed by the formulas, From columns… with X and Y from the first row and column, From a picture… in PIL's grey,
+plotted with its image and lines and the readout naming the cell, an export, To columns, the Explorer, a delete confirmed
+and undone, a project file, a reload, two tabs each making one, junk cleaned).
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
 back, undo, the status bar's count, sorting, find, copy, clear, rows inserted and deleted, the
@@ -4950,7 +5011,11 @@ Next, in order:
    date system, frozen rows as names, units and comments, a formula's cached value; Publish › Data as Excel; a web page's
    table pasted with its spans; openpyxl agreeing on every cell of 13 workbooks, and openpyxl and pandas reading Kurve's
    own), done 14.11; slice 3.2, two worksheet windows (a sheet in a window of its own beside the worksheet window, one live
-   grid in the one in front and a picture in the other, a column dragged across), done 14.11
+   grid in the one in front and a picture in the other, a column dragged across), done 14.11; slice 3.6, matrices (books
+   of grids of Z with their X and Y, made by size and formula, from a block of columns or a picture, typed into, in a
+   window of their own; transposed, flipped, turned, cropped, resampled, added, put back in columns; plotted as maps;
+   NumPy, SciPy and PIL agreeing on 106 cases, every transform exact and resampling within 2e-16), done 14.11: wave 3's
+   seven slices are done
 
 ## Known gaps
 
@@ -5317,6 +5382,11 @@ Next, in order:
   picture (its first 40 columns, scrolled by the wheel, not dragged; no selection shown); which
   sheets have windows is this browser's (a colleague opens the project with one worksheet window);
   the Processed view shows the active column whichever window it is in
+- Matrices: one grid a sheet (not several matrix objects in one, as Origin's), real values only (no complex), no 3D
+  surface yet (PARITY_SPEC 7.8), no gridding of scattered points into one (5.7), a picture read as one channel or grey
+  (not kept in colour); a formula reads x, y, i, j, constants and other matrices of the same size, cell by cell (no
+  neighbours, no sums over a row); a matrix's graph draws it alone (no curves beside it, no readers, no cuts of it as a
+  map of a series has), and the matrix window has no History box, no hidden or sized rows and columns, no fill
 - Excel: `.xlsx` and `.xlsm` only (not `.xls`, `.ods`, nor one protected by a password or a zip64
   file); a formula's value as Excel last worked it out (a formula is never carried over or written);
   styles, charts, pictures, comments in cells and defined names are not read; a header is frozen

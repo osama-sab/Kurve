@@ -100,6 +100,33 @@ Data
     Transpose…
     Join two sheets…
     Append sheets…
+  Matrix  ## new (SHEET_SPEC 3.6): matrix books, each in a window of its own, whose Matrix button has the same items for its matrix
+    New matrix…
+    From columns…
+    From a picture…
+    Open  ## ↓ until there is a matrix
+    Set values…  ## ↓ this and what follows until there is a matrix: the one in front's
+    Keep the values only  ## ↓ while it has a formula
+    Dimensions and labels…  ## ↓
+    Transpose  ## ↓
+    Flip  ## ↓
+      Left to right
+      Up and down
+      Left to right, with the X values
+      Up and down, with the Y values
+    Turn  ## ↓
+      A quarter anticlockwise
+      A quarter clockwise
+      Half a turn
+    Crop…  ## ↓
+    Resample…  ## ↓
+    Arithmetic…  ## ↓
+    To columns  ## ↓
+      X, Y and Z columns
+      Z as a block, a column for each X
+    Plot  ## ↓
+      (the kinds: Image, Filled contours, Contour lines, Image with lines)
+    Delete this matrix…  ## ↓
   Columns  ## ~ "Spectra"
     New column from the processed data  ## ~ "New spectrum from the processed data"
     Copy with the same processing  ## ~ "Copy with the same steps"
@@ -150,6 +177,8 @@ Plot
     Violin plot
     Add to a graph
       (each graph)
+  Plot a matrix  ## new (SHEET_SPEC 3.6): a matrix drawn as a map on a graph of its own
+    (each matrix, then how it is drawn; "No matrix yet" until there is one)
   New graph  ## ← Window
     With (the active column)
     With every column  ## ~ "With every spectrum"

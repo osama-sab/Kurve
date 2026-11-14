@@ -430,6 +430,22 @@ await page(async p => {
   check("hidden rows kept before sheets are the first sheet's", r === "2", r);
 }, { name: "sheets" });
 
+console.log("Matrices from storage (SHEET_SPEC 3.6): junk and a matrix of 10⁷ cells");
+await page(async p => {
+  const wait = ms => p.waitForTimeout(ms);
+  // Written into the store as another tab or an older version might have left it, then read back by a reload.
+  await p.evaluate(async () => { const good = { id: "s1", name: "Good", nx: 3, ny: 2, z: [1, 2, 3, 4, "five", NaN], x: { a: 0, b: "q" }, y: { v: [10, 20] }, fx: { src: 3 } };
+    const big = { id: "s9", name: "Huge", nx: 3163, ny: 3163, z: new Array(3163 * 3163).fill(0) };
+    const junk = [null, 7, { id: "b1", name: "Book", sheets: [good, { id: "s2", name: "Short", nx: 4, ny: 4, z: [1] }, big, Object.assign({}, good, { name: "Again" })] }, { id: "b2", name: "None", sheets: "no" }];
+    S.store.save(S.pid, { mats: junk, graphs: (P().graphs || []).concat([{ id: "gm", name: "Map", cols: [], plot: { mat: "s9", layout: "heat" } }, { id: "gn", name: "Map 2", cols: [], plot: { mat: "s1", layout: "heat" } }]) }); flushEdits(); });
+  await wait(1500); await p.reload(); await ready(p); await wait(800);
+  const r = await p.evaluate(() => ({ mats: matAll().map(q => [q.s.name, q.s.nx, q.s.ny, JSON.stringify(q.s.z), JSON.stringify(q.s.x), JSON.stringify(q.s.y), !!q.s.fx]), graphs: (P().graphs || []).filter(g => g.plot && g.plot.mat).map(g => g.name) }));
+  check("junk matrices from the store are cleaned: values and axes that are not numbers, a formula that is not text, a sheet of the wrong size, of 10⁷ cells, an id twice, a book with no sheets; a graph of a matrix that went with them goes too", JSON.stringify(r.mats) === JSON.stringify([["Good", 3, 2, "[1,2,3,4,null,null]", JSON.stringify({ a: 1, b: 3 }), JSON.stringify({ v: [10, 20] }), false]]) && r.graphs.join() === "Map 2", JSON.stringify(r));
+  await p.evaluate(() => { const b = matBooks()[0]; matOpen(b.id); showGraph("gn"); }); await wait(500);
+  const d = await p.evaluate(() => ({ img: !!document.querySelector("#plot image[data-mat]"), cells: document.querySelectorAll(".mxwin .mxt td").length }));
+  check("…and what is left opens and draws", d.img && d.cells === 6, JSON.stringify(d));
+}, { name: "matrices from storage", timeout: 90000 });
+
 console.log("A curve fit held to one iteration, a tolerance of zero, starting values it cannot use");
 await page(async p => {
   const g = await p.evaluate(() => { const x=[], y=[]; for(let i=0;i<120;i++){ x.push(i*0.1); y.push(1+4*Math.exp(-i*0.1/1.7)+0.01*Math.sin(i)); } return {x,y}; });

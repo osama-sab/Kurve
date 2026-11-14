@@ -62,6 +62,8 @@ const BUDGET = {
   "Reshape: join 100 000 × 100 000": [300, "two sheets of 100 000 rows joined on a key column, every row of both"],
   "Excel: write 200 000 × 3": [3000, "a sheet of 200 000 rows of three columns written as a workbook, its parts deflated (SHEET_SPEC 3.7)"],
   "Excel: read 200 000 × 3": [6000, "that workbook read, its sheet turned into text and read by the import as the dialog reads it"],
+  "Matrix: 1000 × 1000 drawn": [500, "a matrix of a million cells drawn as a map with contour lines on a graph of its own (SHEET_SPEC 3.6)"],
+  "Matrix: 1000 × 1000 transposed": [200, "that matrix transposed in place: one undo step, its record's entry, the save and the windows drawn again"],
   "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
 };
 const got = {};
@@ -166,6 +168,11 @@ await withPage(async (p) => {
     window.__xl = zipWrite(files); return performance.now() - a; }));
   got["Excel: read 200 000 × 3"] = await best(() => p.evaluate(() => { const a = performance.now(), b = xlsxRead(window.__xl); if (b.fail) throw new Error(b.fail);
     const r = analyzeFile(xlsxSheetText(b.sheets[0]), {}); if (r.rows.length !== 200000) throw new Error("rows " + r.rows.length); return performance.now() - a; }));
+  // A matrix of a million cells: drawn as a map (the picture made afresh each time), then transposed in place.
+  await p.evaluate(() => { const m = matNew({ nx: 1000, ny: 1000, x: { a: 0, b: 10 }, y: { a: 0, b: 10 }, fn: (x, y) => Math.sin(x) * Math.cos(y) + x / 10 }), s = matSheetNew(m, "Big"); s.raw = matRecord(s, "made");
+    matSaveNew([matBookNew(s)], { undo: "a matrix", log: "made" }); window.__msid = s.id; plotMatrix(s.id, "both"); });
+  got["Matrix: 1000 × 1000 drawn"] = await best(() => p.evaluate(() => { HEATM.clear(); const a = performance.now(); renderPlot(); if (!document.querySelector("#plot image[data-mat]")) throw new Error("no map"); return performance.now() - a; }));
+  got["Matrix: 1000 × 1000 transposed"] = await best(() => p.evaluate(() => { const a = performance.now(); matTranspose(window.__msid); return performance.now() - a; }));
   got["Correlation: 1M pairs"] = await best(() => p.evaluate(() => { const mb = mulberry32(10), n = 1000000, x = Array.from({ length: n }, () => mb()), rows = x.map((_, i) => i);
     const ins = [{ name: "A", vals: x, rows }, { name: "B", vals: x.map((v) => v + mb()), rows }];
     const a = performance.now(); anaRunKind("corr", ins, { methods: ["pearson", "spearman", "kendall"] }); return performance.now() - a; }));

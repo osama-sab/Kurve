@@ -146,6 +146,19 @@ const ACTIONS = [
       const it = page.locator(".menu .mi:not(:disabled)", { hasText: "Open in a window of its own" }); if (await it.count()) { await it.first().click(); return "opened one"; }
       await key("Escape"); await pause(100, 200); }
     return "none to open"; }],
+  // A matrix (SHEET_SPEC 3.6): one made from Data › Matrix (a formula or empty), its cells typed into, cleared and pasted
+  // over, its Matrix button's commands, its tabs, plotted.
+  [2, "a matrix", async () => { const k = R(); let cells = await vis(".mxwin .mxt td[data-r]");
+    if (!cells.length || k < .15) { const db = await vis('.menubar .mb[data-menu="data"]'); if (!db.length) return "no menu bar"; await clickAt(...mid(db[0].b)); await pause(150, 300);
+      const m = page.locator(".menu .mi", { hasText: /^Matrix$/ }); if (!(await m.count())) { await key("Escape"); return "no menu"; } await m.first().hover(); await pause(200, 300);
+      const nw = page.locator(".menu .mi", { hasText: "New matrix…" }); if (!(await nw.count())) { await key("Escape"); return "no item"; } await nw.first().click(); await pause(200, 400);
+      if (await page.isVisible("#mnV")) { await page.fill("#mnR", String(Math.round(between(1, 60)))); await page.fill("#mnC", String(Math.round(between(1, 60)))); await page.fill("#mnV", pick(["", "", "3.5", "sin(x)*cos(y)", "x*y + i", junk().slice(0, 10)])); await pause(100, 200);
+        if (await page.isEnabled("#formOk")) { await page.click("#formOk"); return "made one"; } await key("Escape"); return "refused"; } return "no dialog"; }
+    if (k < .55) { const c = pick(cells); await page.mouse.dblclick(...mid(c.b)); await pause(80, 200); await type(R() < .7 ? String(Math.round((R() - .5) * 1e4) / 100) : junk().slice(0, 8)); await key(pick(["Enter", "Tab", "Escape", "ArrowDown"])); return "typed"; }
+    if (k < .65) { const c = pick(cells); await clickAt(...mid(c.b)); await key("Shift+ArrowRight"); await key("Shift+ArrowDown"); await key(pick(["Delete", "Control+c", "Escape"])); return "selected"; }
+    if (k < .85) { const b = await vis(".mxwin [data-mxmenu]"); if (!b.length) return "no button"; await clickAt(...mid(pick(b).b)); await pause(150, 300); const its = await vis(".menu .mi:not(:disabled)"); if (!its.length) return "empty"; await clickAt(...mid(pick(its).b)); await pause(200, 400);
+      if (await page.isVisible("#formOk")) { if (R() < .6 && await page.isEnabled("#formOk")) await page.click("#formOk"); else await key("Escape"); } return "its menu"; }
+    const tb = await vis(".mxwin .mxtabs [data-mxnew], .mxwin .mxtabs [data-mxs], .mxwin [data-mxplot]"); if (!tb.length) return "no tabs"; await clickAt(...mid(pick(tb).b)); await pause(150, 300); const its = await vis(".menu .mi:not(:disabled)"); if (its.length) await clickAt(...mid(pick(its).b)); return "tabs or plot"; }],
   [1, "coffee", async () => { const s = between(15, 90); await page.mouse.move(between(0, 50), between(0, 50)); await page.waitForTimeout(s * 1000); return Math.round(s) + " s"; }],
 ];
 // BIAS="label" makes the actions whose label holds it twenty times as likely, to watch one closely.

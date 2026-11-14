@@ -1024,6 +1024,29 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 3, slice 3.6: matrices (2026-11-14)
+
+- **Matrices**, as Origin's: books of grids of Z with their X and Y. *Data › Matrix › New matrix…* (a size, X and Y from
+  first to last, empty cells, a number or a formula of x, y, i and j), *From columns…* (the worksheet's block selected, X
+  along its first row and Y down its first column when they read so), *From a picture…* (a PNG or JPEG, grey or one
+  channel, 0 to 255).
+- **A window for each book**: the grid (X along the top, Y down the side), a tab for each matrix, the cell's value
+  above and the size, the state and the selection's numbers below; typed into, cleared, copied and pasted as the
+  worksheet is. Values typed or read are original data, each change in the matrix's own record with its check code.
+- **Set values…** (a formula reading x, y, i, j, constants and other matrices of its size; worked out again when they
+  change), *Keep the values only*, *Dimensions and labels…*, *Transpose*, *Flip*, *Turn*, *Crop…*, *Resample…*
+  (bilinear), *Arithmetic…* (a new computed matrix), *To columns* (X, Y and Z, or a block): each one undo step.
+- **Plot › Plot a matrix**: a graph drawing it as an image, filled contours, contour lines or both, the colour bar
+  titled by Z, the readout naming the cell; exported and reported as any graph.
+- Kept in the project, its files and every tab: a million cells are saved, undone and reloaded with their values
+  shared, not copied.
+
+Checked: NumPy, SciPy and PIL on 106 cases (`fixtures/mat.json`: transforms, crops, arithmetic, from and to columns and
+pictures exact, resampling within 2e-16 of the largest value) and a fuzzer for turns, arithmetic and resampling;
+stats-test's properties (a transpose twice, four turns, two flips give the grid back, crops are slices, resampling to its
+own size changes nothing); sheet-drive (29 checks); odd-test (junk and a matrix of 10⁷ cells from the store); budgets (a
+million cells drawn as a map in 13 ms, transposed in 45 ms); screenshots at 1440, 1024 and 390 px in both themes.
+
 ## Closing the gap with Origin, wave 3, slice 3.2: two worksheet windows (2026-11-14)
 
 - **A sheet in a window of its own** beside the worksheet window: a tab's right-click (or the Explorer's) *Open in a window

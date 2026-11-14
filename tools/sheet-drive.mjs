@@ -651,6 +651,149 @@ if (want("3.7")) {
   }, { name: "Excel drop, export and paste" });
 }
 
+if (want("3.6")) {
+  console.log("3.6 Matrices");
+  const { createHash } = await import("node:crypto");
+  const sha = t => createHash("sha256").update(t, "utf8").digest("hex");
+  const book = (p, i) => p.evaluate(i => { const b = matBooks()[i]; return b ? { id: b.id, name: b.name, sheets: b.sheets.map(s => ({ id: s.id, name: s.name, nx: s.nx, ny: s.ny, x: s.x, y: s.y, z: s.z.slice(), fx: s.fx ? Object.assign({}, s.fx) : null, raw: s.raw ? { fp: s.raw.fp, hist: s.raw.hist.map(e => e.text) } : null, zname: s.zname, text: matText(s) })) } : null; }, i);
+  const menu = async (p, ...path) => { await p.click('button.mb[data-menu="data"]'); await p.waitForTimeout(150);
+    for (const label of path) { const it = p.locator(".menu:visible .mi", { hasText: label }).last(); await it.hover(); await p.waitForTimeout(170); if (label === path[path.length - 1]) await it.click(); } await p.waitForTimeout(300); };
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } }); let pid;
+  await page(async p => {
+    await p.evaluate(SETUP); await p.waitForTimeout(300);
+    // New matrix… from Data › Matrix: a formula of x and y.
+    await menu(p, "Matrix", "New matrix…");
+    check("Data › Matrix › New matrix… opens its dialog", await p.isVisible("#mnR"));
+    await p.fill("#mnNm", "Surf"); await p.fill("#mnR", "6"); await p.fill("#mnC", "8"); await p.fill("#mnX0", "0"); await p.fill("#mnX1", "7"); await p.fill("#mnY0", "0"); await p.fill("#mnY1", "5");
+    await p.fill("#mnV", "x*10 + y"); await p.fill("#mnZn", "Height"); await p.fill("#mnZu", "nm"); await p.waitForTimeout(150);
+    await p.fill("#mnNm", "two words"); await p.waitForTimeout(100); const why = await p.textContent("#mnHint"), dis = await p.isDisabled("#formOk");
+    await p.fill("#mnNm", "Surf"); await p.waitForTimeout(100);
+    await p.click("#formOk"); await p.waitForTimeout(500);
+    let b = await book(p, 0), want = []; for (let r = 0; r < 6; r++) for (let c = 0; c < 8; c++) want.push(c * 10 + r);
+    let w = await p.evaluate(id => ({ open: winOpen(mxWinId(id)), cells: document.querySelectorAll(`#w-${mxWinId(id)} .mxt td`).length, foot: $(`#w-${mxWinId(id)} .mxfoot`).textContent, tk: !!document.querySelector(`#taskbar .tk[data-tk="${mxWinId(id)}"]`), log: P().log.slice(-1)[0].text }), b.id);
+    check("a name that a formula cannot read is refused in words", dis && /begins with a letter/.test(why), why);
+    check("made: 6 × 8 worked out from x*10 + y, its window open in the taskbar with the cells drawn, the foot saying it is computed, a log line", b && b.sheets[0].nx === 8 && b.sheets[0].ny === 6 && same(b.sheets[0].z, want) && b.sheets[0].fx && w.open && w.cells >= 48 && w.tk && /Computed: = x\*10 \+ y/.test(w.foot) && /made the matrix Surf/.test(w.log), JSON.stringify([b && b.sheets[0].z.slice(0, 9), w]));
+    // A recorded matrix, typed into as a spreadsheet is.
+    await p.evaluate(() => { matNewDlg(); }); await p.waitForTimeout(150); await p.fill("#mnNm", "Rec"); await p.fill("#mnR", "6"); await p.fill("#mnC", "8"); await p.fill("#mnX0", "0"); await p.fill("#mnX1", "7"); await p.fill("#mnY0", "0"); await p.fill("#mnY1", "5"); await p.fill("#mnV", "1"); await p.click("#formOk"); await p.waitForTimeout(500);
+    const rb = (await book(p, 1)).id, sel = `#w-mx-${rb}`;
+    await p.locator(`${sel} .mxt td[data-r="1"][data-c="2"]`).dblclick(); await p.waitForTimeout(150);
+    await p.keyboard.press("Control+A"); await p.keyboard.type("7.25"); await p.keyboard.press("Enter"); await p.waitForTimeout(300);
+    await p.keyboard.type("abc"); await p.keyboard.press("Enter"); await p.waitForTimeout(200); const kept = await p.evaluate(s => !!document.querySelector(s + " .mxed.bad"), sel);
+    await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+    await p.keyboard.press("ArrowRight"); await p.keyboard.type("-3"); await p.keyboard.press("Tab"); await p.waitForTimeout(300);
+    await p.keyboard.press("Shift+ArrowDown"); await p.keyboard.press("Shift+ArrowRight"); await p.keyboard.press("Delete"); await p.waitForTimeout(300);
+    b = await book(p, 1); const z = b.sheets[0].z;
+    check("typed into: a value entered, one that is not a number kept in its box marked, Esc, an arrow, Tab, a block selected by Shift+arrows and cleared", z[1 * 8 + 2] === 7.25 && z[2 * 8 + 3] === -3 && kept && z[2 * 8 + 4] == null && z[3 * 8 + 4] == null && z[3 * 8 + 5] == null && z[2 * 8 + 5] == null && z[0] === 1, JSON.stringify(z.slice(0, 32)));
+    check("each change an entry in the matrix's own record, its check code the SHA-256 of its rows", b.sheets[0].raw && b.sheets[0].raw.hist.length === 4 && /typed into row 2, column 3/.test(b.sheets[0].raw.hist[1]) && /cleared rows 3–4, columns 5–6/.test(b.sheets[0].raw.hist[3]) && b.sheets[0].raw.fp === sha(b.sheets[0].text), JSON.stringify(b.sheets[0].raw));
+    const foot = await p.evaluate(s => $(s + " .mxfoot").textContent, sel);
+    // Copy and paste a block, as TSV.
+    await p.evaluate(s => { const g = $(s + " .mxgrid"); g.focus(); const st = mxSt(mxBid(s.slice(3))); Object.assign(st, { r: 0, c: 0, er: 1, ec: 1 }); }, sel);
+    const pasted = await p.evaluate(s => { mxPaste(s.slice(3), "10\t20\n30\tx\n"); const q = matBooks()[1].sheets[0]; return [q.z[0], q.z[1], q.z[8], q.z[9], $("#toast").textContent]; }, sel);
+    check("a block pasted where the cell is (a word in it left out and said)", pasted[0] === 10 && pasted[1] === 20 && pasted[2] === 30 && pasted[3] === 1 && /not a number/.test(pasted[4]), JSON.stringify(pasted));
+    // A formula reading another matrix follows it.
+    const ids = await p.evaluate(() => matAll().map(q => q.s.id));
+    await p.evaluate(id => { matSetValuesDlg(id); }, ids[0]); await p.waitForTimeout(150);
+    await p.fill("#msF", "Rec * 2 + i"); await p.waitForTimeout(100); const h1 = await p.textContent("#msHint"); await p.click("#formOk"); await p.waitForTimeout(400);
+    b = await book(p, 0); const r0 = (await book(p, 1)).sheets[0].z;
+    check("Set values… reads another matrix by its name and i", b.sheets[0].fx.src === "Rec * 2 + i" && b.sheets[0].z.every((v, k) => r0[k] == null ? v == null : v === r0[k] * 2 + Math.floor(k / 8) + 1) && /Worked out again/.test(h1), JSON.stringify([b.sheets[0].z.slice(0, 10), h1]));
+    await p.evaluate(s => { const st = mxSt(mxBid(s.slice(3))); Object.assign(st, { r: 5, c: 7, er: 5, ec: 7 }); mxWrite(st.sid, [[5, 7, 100]], "typed into row 6, column 8"); }, sel); await p.waitForTimeout(300);
+    b = await book(p, 0);
+    check("…and follows it: a value typed into Rec changes Surf", b.sheets[0].z[47] === 206, b.sheets[0].z[47]);
+    // Transforms in place, each one undo step; a formula's size no longer matching is said.
+    const before = await p.evaluate(() => undoStack.length), recId = ids[1];
+    await p.evaluate(id => matTranspose(id), recId); await p.waitForTimeout(300);
+    let t = await book(p, 1), s0 = await book(p, 0);
+    check("transposed in place: 8 × 6, the record says so, one undo step; the matrix reading it says why it can no longer be worked out", t.sheets[0].nx === 6 && t.sheets[0].ny === 8 && t.sheets[0].z[1] === 30 && /transposed/.test(t.sheets[0].raw.hist.slice(-1)[0]) && await p.evaluate(() => undoStack.length) === before + 1 && s0.sheets[0].fx.err && /is now 8 × 6/.test(s0.sheets[0].fx.err), JSON.stringify([t.sheets[0].nx, s0.sheets[0].fx]));
+    await p.evaluate(() => undo()); await p.waitForTimeout(300);
+    t = await book(p, 1); s0 = await book(p, 0);
+    check("…undone: back, and the formula worked out again", t.sheets[0].nx === 8 && !s0.sheets[0].fx.err && s0.sheets[0].z[47] === 206, JSON.stringify([t.sheets[0].nx, s0.sheets[0].fx]));
+    const pure = await p.evaluate(id => { const s = matOf(id); return { lr: matFlip(s, "lr", false).z, t1: matTurn(s, 1), cr: matCrop(s, { x0: 2, x1: 5, y0: 1, y1: 3 }), rs: matResample(s, 15, 11) }; }, recId);
+    await p.evaluate(id => matFlipIt(id, "lr", false), recId); await p.waitForTimeout(250);
+    t = await book(p, 1); const okLr = same(t.sheets[0].z, pure.lr); await p.evaluate(() => undo()); await p.waitForTimeout(250);
+    await p.evaluate(id => matTurnIt(id, 1), recId); await p.waitForTimeout(250);
+    t = await book(p, 1); const okT = same(t.sheets[0].z, pure.t1.z) && t.sheets[0].nx === 6; await p.evaluate(() => undo()); await p.waitForTimeout(250);
+    await p.evaluate(id => { matCropDlg(id); }, recId); await p.waitForTimeout(150); await p.fill("#mkX0", "2"); await p.fill("#mkX1", "5"); await p.fill("#mkY0", "1"); await p.fill("#mkY1", "3"); await p.click("#formOk"); await p.waitForTimeout(300);
+    t = await book(p, 1); const okC = same(t.sheets[0].z, pure.cr.z) && t.sheets[0].nx === 4 && t.sheets[0].ny === 3 && JSON.stringify(t.sheets[0].x) === JSON.stringify({ a: 2, b: 5 }); await p.evaluate(() => undo()); await p.waitForTimeout(250);
+    await p.evaluate(id => { matResampleDlg(id); }, recId); await p.waitForTimeout(150); await p.fill("#mrR", "11"); await p.fill("#mrC", "15"); await p.click("#formOk"); await p.waitForTimeout(300);
+    t = await book(p, 1); const okR = same(t.sheets[0].z, pure.rs.z, 1e-15) && t.sheets[0].nx === 15 && /resampled to 11 × 15/.test(t.sheets[0].raw.hist.slice(-1)[0]); await p.evaluate(() => undo()); await p.waitForTimeout(250);
+    check("flipped, turned, cropped through its dialog and resampled through its dialog: each the MAT block's values, each undone", okLr && okT && okC && okR, JSON.stringify([okLr, okT, okC, okR]));
+    // Arithmetic: a new sheet computed from two.
+    await p.evaluate(id => { matArithDlg(id); }, ids[0]); await p.waitForTimeout(150);
+    await p.selectOption("#maA", ids[0]); await p.selectOption("#maOp", "-"); await p.selectOption("#maB", ids[1]); await p.fill("#maNm", "Diff"); await p.click("#formOk"); await p.waitForTimeout(400);
+    b = await book(p, 0); const d = b.sheets[1], A = b.sheets[0].z, Bz = (await book(p, 1)).sheets[0].z;
+    check("Arithmetic… makes a sheet of the book computed as Surf − Rec, a tab of its own", d && d.name === "Diff" && d.fx.src === "Surf - Rec" && d.z.every((v, k) => A[k] == null || Bz[k] == null ? v == null : v === A[k] - Bz[k]) && await p.evaluate(id => document.querySelectorAll(`#w-${mxWinId(id)} .mxtabs [data-mxs]`).length, b.id) === 2, JSON.stringify(d && [d.name, d.fx]));
+    // Renamed: the formulas that read it follow its new name.
+    await p.evaluate(id => { matRenameSheet(id); }, recId); await p.waitForTimeout(150); await p.fill("#mrNm", "Base"); await p.click("#formOk"); await p.waitForTimeout(300);
+    b = await book(p, 0);
+    check("a matrix renamed: the formulas that read it say its new name and still read it", b.sheets[0].fx.src === "Base * 2 + i" && b.sheets[1].fx.src === "Surf - Base" && !b.sheets[0].fx.err, JSON.stringify(b.sheets.map(s => s.fx)));
+    // A constant read by a matrix's formula: renamed and changed, the formula follows and works out again.
+    await p.evaluate(() => { setConsts(constList().concat([{ id: "kq", name: "kq", v: 2, unit: "", note: "" }])); }); await p.waitForTimeout(300);
+    await p.evaluate(() => { matNewDlg(); }); await p.waitForTimeout(150); await p.fill("#mnNm", "KM"); await p.fill("#mnR", "2"); await p.fill("#mnC", "3"); await p.fill("#mnX0", "1"); await p.fill("#mnX1", "3"); await p.fill("#mnV", "kq*x"); await p.click("#formOk"); await p.waitForTimeout(400);
+    await p.evaluate(() => { setConsts(constList().map(k => k.id === "kq" ? Object.assign({}, k, { name: "kz", v: 5 }) : k)); }); await p.waitForTimeout(400);
+    const km = await p.evaluate(() => { const q = matAll().find(q => q.s.name === "KM").s; return { src: q.fx.src, z: q.z.slice() }; });
+    check("a constant read by a matrix's formula renamed and changed: the formula says its new name and the values follow", km.src === "kz*x" && same(km.z, [5, 10, 15, 5, 10, 15]), JSON.stringify(km));
+    await p.evaluate(() => { const b = matBookOf(matAll().find(q => q.s.name === "KM").s.id); save({ mats: matBooks().filter(q => q.id !== b.id) }, "took KM away"); }); await p.waitForTimeout(300);
+    // From columns: the worksheet's block with X along its first row and Y down its first column.
+    await p.evaluate(() => { const cols = [makeCol("x", "T", "K", [null, 10, 20, 30]), Object.assign(makeCol("y", "a", "", [1.5, 1, 2, 3]), { pipe: [], mask: [] }), Object.assign(makeCol("y", "b", "", [2.5, 4, 5, 6]), { pipe: [], mask: [] })];
+      cols.forEach(c => c.sheet = "s3"); const pr = P(); save({ cols: pr.cols.concat(cols), sheets: pr.sheets.concat([{ id: "s3", name: "Grid" }]) }, "typed"); showSheet("s3"); }); await p.waitForTimeout(300);
+    await p.evaluate(() => { S.ws = Object.assign(S.ws || {}, { r: 0, c: 0, ar: 3, ac: 2 }); matFromColsDlg(); }); await p.waitForTimeout(200);
+    const fch = await p.textContent("#mcHint"); await p.click("#formOk"); await p.waitForTimeout(400);
+    b = await book(p, 2);
+    check("From columns…: the block selected, X from its first row and Y down its first column, recorded", b && b.sheets[0].nx === 2 && b.sheets[0].ny === 3 && same(b.sheets[0].z, [1, 4, 2, 5, 3, 6]) && JSON.stringify(b.sheets[0].x) === JSON.stringify({ a: 1.5, b: 2.5 }) && JSON.stringify(b.sheets[0].y) === JSON.stringify({ a: 10, b: 30 }) && b.sheets[0].raw && /3 rows × 2 columns, X and Y/.test(fch), JSON.stringify([b && b.sheets[0], fch]));
+    // From a picture: its grey values, by PIL's arithmetic.
+    const pic = await p.evaluate(async () => { const cv = document.createElement("canvas"); cv.width = 5; cv.height = 3; const g = cv.getContext("2d"); g.fillStyle = "#000"; g.fillRect(0, 0, 5, 3); g.fillStyle = "rgb(255,0,0)"; g.fillRect(0, 0, 2, 1); g.fillStyle = "rgb(30,200,90)"; g.fillRect(4, 2, 1, 1);
+      const blob = await new Promise(r => cv.toBlob(r, "image/png")); matPicture(new File([blob], "tiny.png", { type: "image/png" })); return true; }); await p.waitForTimeout(400);
+    await p.selectOption("#mpCh", "grey"); await p.click("#formOk"); await p.waitForTimeout(500);
+    b = await book(p, 3); const L = (r, g, bl) => (r * 19595 + g * 38470 + bl * 7471 + 32768) >> 16;
+    check("From a picture…: 5 × 3 pixels as grey values (PIL's), the top row first with Y from 3 down to 1", b && b.sheets[0].nx === 5 && b.sheets[0].ny === 3 && b.sheets[0].z[0] === L(255, 0, 0) && b.sheets[0].z[2] === 0 && b.sheets[0].z[14] === L(30, 200, 90) && JSON.stringify(b.sheets[0].y) === JSON.stringify({ a: 3, b: 1 }) && b.sheets[0].name === "tiny", JSON.stringify(b && [b.sheets[0].z, b.sheets[0].y, b.sheets[0].name]));
+    // Plotted: a map drawn from the matrix, the readout giving the cell under the pointer.
+    await p.evaluate(id => plotMatrix(id, "both"), ids[0]); await p.waitForTimeout(600);
+    let g = await p.evaluate(() => ({ mat: plotOf(S.gid).mat, img: !!document.querySelector("#plot image[data-mat]"), lines: document.querySelectorAll("#plot path[stroke-linejoin='round']").length, xl: [...document.querySelectorAll("#plot text")].map(t => t.textContent).filter(t => /Height/.test(t)).length, log: P().log.slice(-1)[0].text }));
+    const box = await p.locator("#plot").boundingBox(); const geo = await p.evaluate(() => [S.geo.L, S.geo.T, S.geo.pw, S.geo.mh]);
+    await p.mouse.move(box.x + geo[0] + geo[2] * 0.06, box.y + geo[1] + geo[3] * 0.95); await p.waitForTimeout(150); const ro = await p.textContent("#readout");
+    check("Plot › image with lines: a graph of the matrix, the image and its contour lines drawn, the colour bar titled by Z, a log line", g.mat === ids[0] && g.img && g.lines > 0 && g.xl >= 1 && /a map of the matrix Surf/.test(g.log), JSON.stringify(g));
+    check("the readout names the cell under the pointer, its value and unit", /Height \d/.test(ro) && /nm/.test(ro) && /row 1, column 1/.test(ro), ro);
+    const ex = await p.evaluate(() => { const r = handPic(800, 500); return { img: /data-mat=/.test(r.svg), n: r.svg.length }; });
+    check("an export of the graph draws the map", ex.img, JSON.stringify(ex));
+    // To columns: X, Y and Z on a sheet of their own.
+    await p.evaluate(id => matToSheet(id, "xyz"), ids[0]); await p.waitForTimeout(400);
+    const tc = await p.evaluate(() => { const s = curSheet(); return sheetCols(s).map(c => [c.role, c.name, c.data.length, c.data[9]]); });
+    check("To columns: X, Y and Z, a row a cell, on a sheet of their own", tc.length === 3 && tc[0][2] === 48 && tc[2][1] === "Height" && tc[0][3] === 1 && tc[1][3] === 1, JSON.stringify(tc));
+    // The Explorer lists the books; deleting one confirms and undoes.
+    const xk = await p.evaluate(() => [...xKeys()].filter(k => k.startsWith("mx:")).length);
+    await p.evaluate(id => { matDeleteSheet(id); }, ids[1]); await p.waitForTimeout(200); await p.click("#dlgOk"); await p.waitForTimeout(400);
+    const del = await p.evaluate(() => ({ n: matAll().length, err: (matAll().find(q => q.s.name === "Surf") || { s: {} }).s.fx.err }));
+    await p.evaluate(() => undo()); await p.waitForTimeout(300); const und = await p.evaluate(() => matAll().length);
+    check("the Explorer lists every book; a matrix deleted (confirmed) leaves what read it saying so, and undo brings it back", xk === 4 && del.n === 4 && /has gone/.test(del.err) && und === 5, JSON.stringify([xk, del, und]));
+    // A project file keeps them.
+    const pf = await p.evaluate(() => { const r = pfCheck(JSON.parse(JSON.stringify(pfDoc(S.pid)))); return r.fail || JSON.stringify(r.doc.project.mats.map(b => b.sheets.map(s => [s.name, s.z.length, s.z[5]]))) === JSON.stringify(matBooks().map(b => b.sheets.map(s => [s.name, s.z.length, s.z[5]]))); });
+    check("a project file keeps every matrix, values packed and read back", pf === true, pf);
+    pid = await p.evaluate(() => { flushEdits(); saveLayout(); return S.pid; }); await p.waitForTimeout(800);
+  }, { name: "matrices", ctx });
+  await page(async p => {
+    await p.evaluate(pid => { if (S.pid !== pid) switchProject(pid); }, pid); await p.waitForTimeout(600);
+    const r = await p.evaluate(() => ({ books: matBooks().map(b => b.sheets.map(s => s.name)), surf: matAll().find(q => q.s.name === "Surf").s.z[47], fp: matAll().find(q => q.s.name === "Base").s.raw.fp, txt: matText(matAll().find(q => q.s.name === "Base").s), g: (P().graphs || []).some(g => g.plot && g.plot.mat) }));
+    check("after a reload every matrix is back, the computed ones' values, the record's check code still that of its rows, the graph of one", JSON.stringify(r.books) === JSON.stringify([["Surf", "Diff"], ["Base"], ["M1"], ["tiny"]]) && r.surf === 206 && r.fp === sha(r.txt) && r.g, JSON.stringify(r.books));
+  }, { name: "matrices after a reload", ctx });
+  // Two tabs each making a matrix: both kept.
+  await page(async p => {
+    const p2 = await ctx.newPage(); await p2.route(/fonts\.(googleapis|gstatic)\.com|jsdelivr/, r => r.abort()); await p2.goto(URL); await ready(p2);
+    await p.evaluate(pid => { if (S.pid !== pid) switchProject(pid); }, pid); await p2.evaluate(pid => { if (S.pid !== pid) switchProject(pid); }, pid); await p.waitForTimeout(500);
+    await Promise.all([p.evaluate(() => { const s = matSheetNew(matNew({ nx: 3, ny: 3, v: 1 }), "TabA"); matSaveNew([matBookNew(s)], { undo: "a", log: "made TabA" }); }), p2.evaluate(() => { const s = matSheetNew(matNew({ nx: 2, ny: 2, v: 2 }), "TabB"); matSaveNew([matBookNew(s)], { undo: "b", log: "made TabB" }); })]);
+    await p.waitForTimeout(2500);
+    const a = await p.evaluate(() => matAll().map(q => q.s.name)), b = await p2.evaluate(() => matAll().map(q => q.s.name));
+    check("two tabs each making a matrix at once: both kept in both", a.includes("TabA") && a.includes("TabB") && b.includes("TabA") && b.includes("TabB"), JSON.stringify([a, b]));
+    await p2.close();
+  }, { name: "matrices in two tabs", ctx });
+  await ctx.close();
+  // Junk in storage.
+  await page(async p => {
+    const r = await p.evaluate(() => { const p = { cols: [], mats: [null, 7, { id: "b1", name: "B", sheets: [{ id: "s1", name: "ok", nx: 2, ny: 2, z: [1, "x", NaN, 4], x: { a: 0, b: "q" }, y: { v: [1] }, fx: { src: 3 } }, { id: "s2", name: "bad", nx: 3, ny: 3, z: [1, 2] }, { id: "s3", nx: 1e4, ny: 1e4, z: [] }, { id: "s1", name: "dup", nx: 1, ny: 1, z: [1] }] }, { id: "b2", sheets: "no" }] };
+      matClean(p); return p.mats; });
+    check("junk in storage: a sheet of the wrong size, of 10⁸ cells, an id twice, values and axes that are not numbers, a formula that is not text, a book with no sheets: cleaned", r.length === 1 && r[0].sheets.length === 1 && JSON.stringify(r[0].sheets[0].z) === "[1,null,null,4]" && JSON.stringify(r[0].sheets[0].x) === JSON.stringify({ a: 1, b: 2 }) && JSON.stringify(r[0].sheets[0].y) === JSON.stringify({ a: 1, b: 2 }) && !r[0].sheets[0].fx, JSON.stringify(r));
+  }, { name: "matrices from junk" });
+}
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

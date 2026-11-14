@@ -543,5 +543,38 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("reshaping refuses in words: no levels, no row column, no key", /has no values/.test(r.fail) && /Choose the column whose levels make the rows/.test(r2.fail) && /Choose the key column/.test(r3.fail), [r.fail, r2.fail, r3.fail].join(" | "));
 }
 
+/* ---- matrices (SHEET_SPEC 3.6): what must hold whatever the grid ---- */
+{
+  const M = n => get(n), mNew = M("matNew"), T = M("matT"), F = M("matFlip"), R = M("matTurn"), C = M("matCrop"), RS = M("matResample"), XY = M("matXY"), A = M("matArith"), FC = M("matFromCols"), TC = M("matToCols");
+  const eqZ = (a, b) => a.nx === b.nx && a.ny === b.ny && a.z.length === b.z.length && a.z.every((v, i) => v === b.z[i]);
+  const eqAx = (a, b) => JSON.stringify(XY(a)) === JSON.stringify(XY(b));
+  const bad = [];
+  for (let t = 0; t < 60; t++) {
+    const nx = 1 + Math.floor(rnd() * 9), ny = 1 + Math.floor(rnd() * 9), m = mNew({ nx, ny, x: { a: rnd() * 10, b: 10 + rnd() * 10 }, y: t % 3 ? { a: -rnd(), b: rnd() * 5 } : { v: Array.from({ length: ny }, (_, k) => k * k + rnd()) }, fn: () => rnd() < 0.15 ? NaN : Math.round((rnd() - 0.5) * 2e4) / 100 });
+    if (!eqZ(T(T(m)), m) || !eqAx(T(T(m)), m)) bad.push(`transpose twice, ${ny}×${nx}`);
+    let q = m; for (let k = 0; k < 4; k++) q = R(q, 1); if (!eqZ(q, m) || !eqAx(q, m)) bad.push(`four quarter turns, ${ny}×${nx}`);
+    if (!eqZ(R(R(m, 1), -1), m)) bad.push(`a quarter each way, ${ny}×${nx}`);
+    if (!eqZ(R(R(m, 2), 2), m)) bad.push(`two half turns, ${ny}×${nx}`);
+    for (const d of ["lr", "ud"]) for (const w of [false, true]) { const f2 = F(F(m, d, w), d, w); if (!eqZ(f2, m) || !eqAx(f2, m)) bad.push(`two flips ${d} ${w}, ${ny}×${nx}`); }
+    // A flip with its coordinates keeps every value at its X and Y.
+    { const f = F(m, "lr", true), a = XY(m), b = XY(f); for (let r = 0; r < ny; r++) for (let c = 0; c < nx; c++) if (f.z[r * nx + (nx - 1 - c)] !== m.z[r * nx + c] || b.X[nx - 1 - c] !== a.X[c]) { bad.push(`flip with X moves a value off its X, ${ny}×${nx}`); r = ny; break; } }
+    // A crop's values are the slice of the rows and columns in range.
+    { const { X, Y } = XY(m), c0 = Math.floor(rnd() * nx), c1 = c0 + Math.floor(rnd() * (nx - c0)), r0 = Math.floor(rnd() * ny), r1 = r0 + Math.floor(rnd() * (ny - r0));
+      const k = C(m, { x0: X[c0], x1: X[c1], y0: Y[r0], y1: Y[r1] }), cs = [...X.keys()].filter(c => X[c] >= Math.min(X[c0], X[c1]) && X[c] <= Math.max(X[c0], X[c1])), rs = [...Y.keys()].filter(r => Y[r] >= Math.min(Y[r0], Y[r1]) && Y[r] <= Math.max(Y[r0], Y[r1]));
+      const want = []; rs.forEach(r => cs.forEach(c => want.push(m.z[r * nx + c])));
+      if (k.fail || k.nx !== cs.length || k.ny !== rs.length || !k.z.every((v, i) => v === want[i])) bad.push(`crop ${ny}×${nx}: ${k.fail || ""}`); }
+    // Resampling to the same size over evenly spaced axes gives every value back.
+    if (!m.y.v) { const r = RS(m, nx, ny); if (r.fail || !eqZ(r, m)) bad.push(`resampled to its own size, ${ny}×${nx}`); }
+    // Arithmetic: A − A is 0 where A has a value; A + 0 is A; A ÷ 0 is empty.
+    { const d = A(m, m, "-"), z0 = A(m, 0, "+"), dz = A(m, 0, "/"); if (!d.z.every((v, i) => m.z[i] == null ? v == null : v === 0) || !eqZ(z0, m) || !dz.z.every(v => v == null)) bad.push(`arithmetic, ${ny}×${nx}`); }
+    // To columns and back: the block (Y then a column per X) read from columns gives the matrix again.
+    { const b = TC(m, "block"), cols = [[null].concat(b.cols[0])].concat(b.cols.slice(1).map((c, k) => [b.xs[k]].concat(c))), f = FC(cols, nx > 1 && ny > 1 ? "auto" : "xy");
+      if (f.fail || !eqZ(f, m) || JSON.stringify(XY(f).X) !== JSON.stringify(XY(m).X)) bad.push(`to a block and back, ${ny}×${nx}: ${f.fail || ""}`); }
+  }
+  check("matrices: a transpose twice, four turns, two flips give it back; a crop's values are the slice; resampling to its own size changes nothing; A − A is 0; a block and back", !bad.length, bad.slice(0, 4).join("; "));
+  const r1 = mNew({ nx: 0, ny: 3 }), r2 = mNew({ nx: 3000, ny: 3000 }), r3 = C(mNew({ nx: 3, ny: 3, v: 1 }), { x0: 10, x1: 20 }), r4 = A(mNew({ nx: 2, ny: 2, v: 1 }), mNew({ nx: 3, ny: 2, v: 1 }), "+"), r5 = FC([[null, 1], ["x", 3]], "xy");
+  check("matrices refuse in words: no cells, too many, a crop of nothing, two sizes, a head that is not numbers", /one row and one column/.test(r1.fail) && /cells at most/.test(r2.fail) && /No column/.test(r3.fail) && /not one size/.test(r4.fail) && /must be numbers/.test(r5.fail), [r1.fail, r2.fail, r3.fail, r4.fail, r5.fail].join(" | "));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

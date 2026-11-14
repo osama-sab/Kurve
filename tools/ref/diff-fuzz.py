@@ -697,6 +697,67 @@ def xl_post(c, out):
     return 0.0, ""
 POST["xlsxBytes"] = xl_post
 
+# Matrices (SHEET_SPEC 3.6): random grids (missing cells, even, uneven and falling axes) turned by NumPy's rot90,
+# put through NumPy's arithmetic, and resampled by SciPy's RegularGridInterpolator; the whole grid compared in POST,
+# exactly but for resampling (to its error over the grid's largest value).
+from scipy.interpolate import RegularGridInterpolator as _RGI
+def m_grid(ny, nx, gap):
+    Z = np.round(rng.normal(0, lognum(-2, 3), (ny, nx)), int(rng.integers(0, 6)))
+    if gap: Z[rng.random((ny, nx)) < gap] = np.nan
+    return Z
+def m_obj(Z, x, y): ny, nx = Z.shape; return {"nx": nx, "ny": ny, "x": x, "y": y, "z": [None if v != v else float(v) for v in Z.ravel()]}
+def m_axis(n):
+    u = rng.random()
+    if u < 0.4: a, b = float(rng.normal(0, 10)), float(rng.normal(0, 10)); return ({"a": a, "b": b if b != a or n == 1 else a + 1})
+    v = np.cumsum(rng.uniform(0.1, 3, n)) + float(rng.normal(0, 5)); v = v[::-1] if u < 0.7 else v
+    return {"v": [float(q) for q in v]}
+def m_vals(ax, n): return np.array(ax["v"]) if "v" in ax else np.linspace(ax["a"], ax["b"], n)
+def m_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or out.get("fail"): return math.inf, f"no matrix: {out!r}"[:200]
+    if out.get("nx") != w["nx"] or out.get("ny") != w["ny"]: return math.inf, f"size {out.get('ny')} × {out.get('nx')}, the reference {w['ny']} × {w['nx']}"
+    scale = max([abs(v) for v in w["z"] if v is not None] or [1.0]) if c["fn"] == "matResample" else 0
+    e = 0.0
+    for i, (g, v) in enumerate(zip(out["z"], w["z"])):
+        if g is None or v is None or g == "NaN":
+            if not ((g is None or g == "NaN") and v is None): return math.inf, f"cell {i}: {g!r}, the reference {v!r}"
+            continue
+        d = abs(g - v); e = max(e, d / scale if scale else (0.0 if d == 0 else d / max(abs(v), 1e-300)))
+    return e, f"error {e:.2e}"
+@gen("matTurn", 0)
+def _():
+    ny, nx = int(rng.integers(1, 12)), int(rng.integers(1, 12)); Z = m_grid(ny, nx, 0.2); k = int(rng.choice([1, -1, 2, 3, 4, -3]))
+    R = np.rot90(Z, k); return [m_obj(Z, m_axis(nx), m_axis(ny)), k], {"nx": R.shape[1], "ny": R.shape[0], "z": [None if v != v else float(v) for v in R.ravel()]}
+POST["matTurn"] = m_post
+@gen("matArith", 0)
+def _():
+    ny, nx = int(rng.integers(1, 9)), int(rng.integers(1, 9)); A = m_grid(ny, nx, 0.15); op = str(rng.choice(["+", "-", "*", "/"]))
+    B = float(rng.choice([0.0, rng.normal(0, 4)])) if rng.random() < 0.3 else m_grid(ny, nx, 0.15)
+    if not isinstance(B, float) and rng.random() < 0.3: B[rng.random((ny, nx)) < 0.3] = 0.0
+    with np.errstate(all="ignore"): R = {"+": np.add, "-": np.subtract, "*": np.multiply, "/": np.divide}[op](A, B)
+    R[~np.isfinite(R)] = np.nan
+    return [m_obj(A, {"a": 1, "b": nx}, {"a": 1, "b": ny}), B if isinstance(B, float) else m_obj(B, {"a": 1, "b": nx}, {"a": 1, "b": ny}), op], {"nx": nx, "ny": ny, "z": [None if v != v else float(v) for v in R.ravel()]}
+POST["matArith"] = m_post
+@gen("matResample", 4e-16, 0.5)
+def _():
+    ny, nx = int(rng.integers(1, 10)), int(rng.integers(1, 10)); Z = m_grid(ny, nx, 0.15 if rng.random() < 0.3 else 0)
+    x, y = m_axis(nx), m_axis(ny); X, Y = m_vals(x, nx), m_vals(y, ny)
+    nx2 = 1 if nx == 1 else int(rng.integers(1, 16)); ny2 = 1 if ny == 1 else int(rng.integers(1, 16))
+    if (nx > 1 and X[0] == X[-1]) or (ny > 1 and Y[0] == Y[-1]): raise ValueError("flat")
+    Xq, Yq = np.linspace(X[0], X[-1], nx2), np.linspace(Y[0], Y[-1], ny2)
+    Xs, Ys, Zs = X, Y, Z
+    if nx > 1 and Xs[-1] < Xs[0]: Xs, Zs = Xs[::-1], Zs[:, ::-1]
+    if ny > 1 and Ys[-1] < Ys[0]: Ys, Zs = Ys[::-1], Zs[::-1, :]
+    G = np.meshgrid(Yq, Xq, indexing="ij"); P = np.stack([G[0].ravel(), G[1].ravel()], axis=1)
+    def at(V):
+        if ny == 1 and nx == 1: return np.full(len(P), V[0, 0])
+        if ny == 1: return np.interp(P[:, 1], Xs, V[0])
+        if nx == 1: return np.interp(P[:, 0], Ys, V[:, 0])
+        return _RGI((Ys, Xs), V, method="linear")(P)
+    miss = np.isnan(Zs); V = at(np.where(miss, 0.0, Zs)); M = at(miss.astype(float)); R = np.where(M > 0, np.nan, V)
+    return [m_obj(Z, x, y), nx2, ny2], {"nx": nx2, "ny": ny2, "z": [None if v != v else float(v) for v in R]}
+POST["matResample"] = m_post
+
 cases = []
 for name, (f, tol) in GEN.items():
     for k in range(max(1, math.ceil(per * SHARE.get(name, 1.0)))):

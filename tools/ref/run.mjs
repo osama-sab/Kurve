@@ -1,7 +1,7 @@
 /* The pure blocks of kurve.html, loaded under node for the reference bench.
 
    As a module: `import { loadKurve } from "./run.mjs"`; `loadKurve(path)` returns `get(name)`,
-   any function or constant of the blocks NUMERICS, PEAKS, PIPE, MODELS, STATS and PARSER by its name
+   any function or constant of the blocks NUMERICS, PEAKS, PIPE, MODELS, STATS, ANA, MAT and PARSER by its name
    (the blocks are cut out of the HTML as tools/fit-test.mjs does, and a name is looked up in their
    scope, so nothing needs to be listed). `toJSON(v)` writes a result as JSON: functions left out,
    NaN and ±Infinity as the strings "NaN", "Infinity" and "-Infinity", typed arrays as arrays.
@@ -16,7 +16,7 @@ import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const BLOCKS = ["NUMERICS", "PEAKS", "PIPE", "MODELS", "STATS", "ANA", "PARSER"];
+export const BLOCKS = ["NUMERICS", "PEAKS", "PIPE", "MODELS", "STATS", "ANA", "MAT", "PARSER"];
 
 export function loadKurve(path) {
   const html = readFileSync(path || join(here, "..", "..", "kurve.html"), "utf8");

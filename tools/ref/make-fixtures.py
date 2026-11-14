@@ -1139,6 +1139,110 @@ for nm, (data, words) in refuse.items():
     xl_write(nm, data); cases.append({"fn": "xlsxRead", "file": nm, "want": {"fail": words}})
 out["xlsx"] = cases
 
+# ---- Matrices (SHEET_SPEC 3.6): NumPy's transpose, flips, rot90, slicing and arithmetic; SciPy's
+# RegularGridInterpolator for resampling; PIL's grey for a picture ----------------------------------
+from scipy.interpolate import RegularGridInterpolator
+from PIL import Image
+cases = []; rng = np.random.default_rng(36)
+def mz(Z):  # a matrix's cells as JSON: NaN missing
+    return [None if (isinstance(v, float) and v != v) else float(v) for v in np.asarray(Z, dtype=float).ravel()]
+def mgrid(ny, nx, gap=0.15, ints=False):
+    Z = rng.integers(-50, 50, (ny, nx)).astype(float) if ints else np.round(rng.normal(0, 10, (ny, nx)), 3)
+    if gap: Z[rng.random((ny, nx)) < gap] = np.nan
+    return Z
+def mobj(Z, x=None, y=None):
+    ny, nx = Z.shape
+    return {"nx": nx, "ny": ny, "x": x or {"a": 1, "b": nx}, "y": y or {"a": 1, "b": ny}, "z": mz(Z)}
+def axv(ax, n): return np.array(ax["v"], dtype=float) if "v" in ax else np.linspace(ax["a"], ax["b"], n)
+for (ny, nx) in [(1, 1), (1, 6), (5, 1), (4, 3), (7, 9), (12, 5)]:
+    Z = mgrid(ny, nx); m = mobj(Z, {"a": 0.5, "b": 4.5}, {"v": sorted(rng.uniform(0, 10, ny).round(3).tolist())})
+    cases.append({"fn": "matT", "name": f"transpose {ny}x{nx}", "args": [m], "want": {"nx": ny, "ny": nx, "z": mz(Z.T)}})
+    cases.append({"fn": "matFlip", "name": f"fliplr {ny}x{nx}", "args": [m, "lr", False], "want": {"nx": nx, "ny": ny, "z": mz(np.fliplr(Z))}})
+    cases.append({"fn": "matFlip", "name": f"flipud {ny}x{nx}", "args": [m, "ud", True], "want": {"nx": nx, "ny": ny, "z": mz(np.flipud(Z))}})
+    for k in (1, -1, 2, 3):
+        R = np.rot90(Z, k)
+        cases.append({"fn": "matTurn", "name": f"rot90 k={k} {ny}x{nx}", "args": [m, k], "want": {"nx": R.shape[1], "ny": R.shape[0], "z": mz(R)}})
+# Crops: the rows and columns inside the ranges, by NumPy's boolean indexing.
+for t in range(8):
+    ny, nx = int(rng.integers(2, 12)), int(rng.integers(2, 12)); Z = mgrid(ny, nx)
+    x = {"a": round(float(rng.uniform(-5, 0)), 2), "b": round(float(rng.uniform(1, 9)), 2)}
+    y = {"v": sorted(rng.uniform(0, 20, ny).round(2).tolist(), reverse=bool(t % 2))}
+    X, Y = axv(x, nx), axv(y, ny)
+    x0, x1 = sorted(rng.choice(X, 2).tolist()); y0, y1 = sorted(rng.choice(Y, 2).tolist())
+    if t % 3 == 0: x0, x1 = x1, x0
+    cs = (X >= min(x0, x1)) & (X <= max(x0, x1)); rs = (Y >= y0) & (Y <= y1)
+    C = Z[np.ix_(rs, cs)]
+    cases.append({"fn": "matCrop", "name": f"crop {t}", "args": [mobj(Z, x, y), {"x0": x0, "x1": x1, "y0": y0, "y1": y1}],
+                  "want": {"nx": C.shape[1], "ny": C.shape[0], "z": mz(C), "X": j(X[cs]), "Y": j(Y[rs])}})
+# Resampling: bilinear over the same ends. SciPy wants ascending points: a descending axis is turned
+# round with its values. A missing cell with a weight above zero makes a value missing: the
+# interpolated share of missing cells above zero, the values with missing as 0 elsewhere.
+def rgi(Y, X, Z, Yq, Xq):
+    if X[-1] < X[0]: X, Z = X[::-1], Z[:, ::-1]
+    if Y[-1] < Y[0]: Y, Z = Y[::-1], Z[::-1, :]
+    G = np.meshgrid(Yq, Xq, indexing="ij"); P = np.stack([G[0].ravel(), G[1].ravel()], axis=1)
+    pts = tuple(a for a, n in ((Y, len(Y)), (X, len(X))))
+    def at(V):
+        if len(Y) == 1 or len(X) == 1:  # SciPy needs two points an axis: a single row or column, by numpy.interp
+            if len(Y) == 1 and len(X) == 1: return np.full(len(P), V[0, 0])
+            if len(Y) == 1: return np.interp(P[:, 1], X, V[0])
+            return np.interp(P[:, 0], Y, V[:, 0])
+        return RegularGridInterpolator(pts, V, method="linear")(P)
+    miss = np.isnan(Z); V = at(np.where(miss, 0.0, Z)); M = at(miss.astype(float))
+    return np.where(M > 0, np.nan, V).reshape(len(Yq), len(Xq))
+for t in range(14):
+    ny, nx = int(rng.integers(1, 9)), int(rng.integers(2, 9)); Z = mgrid(ny, nx, gap=0 if t < 9 else 0.2)
+    if t % 4 == 1: x = {"v": sorted(rng.uniform(0, 30, nx).round(3).tolist())}
+    elif t % 4 == 2: x = {"a": 9.0, "b": -3.0}
+    else: x = {"a": 0.0, "b": float(nx - 1) * 0.7}
+    y = {"v": sorted(rng.uniform(-4, 4, ny).round(3).tolist(), reverse=t % 3 == 0)} if ny > 1 else {"a": 2.0, "b": 2.0}
+    X, Y = axv(x, nx), axv(y, ny); nx2 = int(rng.integers(1, 15)); ny2 = 1 if ny == 1 else int(rng.integers(1, 12))
+    if t == 0: nx2, ny2 = nx, ny
+    Xq, Yq = np.linspace(X[0], X[-1], nx2), np.linspace(Y[0], Y[-1], ny2)
+    cases.append({"fn": "matResample", "name": f"resample {t} {ny}x{nx} to {ny2}x{nx2}", "args": [mobj(Z, x, y), nx2, ny2],
+                  "want": {"nx": nx2, "ny": ny2, "z": mz(rgi(Y, X, Z, Yq, Xq))}})
+# Arithmetic: NumPy with NaN for missing; what is not a finite number (÷ 0) missing.
+for t, op in enumerate(["+", "-", "*", "/", "/", "+", "*", "-"]):
+    ny, nx = int(rng.integers(1, 8)), int(rng.integers(1, 8)); A = mgrid(ny, nx, ints=t % 2 == 0)
+    B = float(rng.choice([0.0, 2.5, -3.0])) if t >= 5 else mgrid(ny, nx, ints=True)
+    with np.errstate(all="ignore"):
+        R = {"+": np.add, "-": np.subtract, "*": np.multiply, "/": np.divide}[op](A, B)
+    R[~np.isfinite(R)] = np.nan
+    cases.append({"fn": "matArith", "name": f"arith {op} {t}", "args": [mobj(A), B if isinstance(B, float) else mobj(B), op],
+                  "want": {"nx": nx, "ny": ny, "z": mz(R)}})
+# From a block of columns: the first row X and the first column Y when they read so.
+for t in range(5):
+    nr, nc = int(rng.integers(2, 8)), int(rng.integers(2, 8)); Z = mgrid(nr - 1, nc - 1)
+    X = np.sort(rng.uniform(0, 100, nc - 1).round(2)); Y = np.sort(rng.uniform(-1, 1, nr - 1).round(4))[::(1 if t % 2 else -1)]
+    cols = [[None] + Y.tolist()] + [[float(X[c])] + mz(Z[:, c]) for c in range(nc - 1)]
+    cases.append({"fn": "matFromCols", "name": f"from columns {t}", "args": [cols, "auto"],
+                  "want": {"nx": nc - 1, "ny": nr - 1, "z": mz(Z), "X": j(X), "Y": j(Y)}})
+    flat = mz(Z.T)  # with no head: every cell a value, X and Y the positions
+    cols2 = [mz(Z[:, c]) for c in range(nc - 1)]
+    cases.append({"fn": "matFromCols", "name": f"from columns {t}, no head", "args": [cols2, "none"],
+                  "want": {"nx": nc - 1, "ny": nr - 1, "z": mz(Z), "X": j(np.arange(1, nc, dtype=float)), "Y": j(np.arange(1, nr, dtype=float))}})
+# To columns: X, Y, Z a row a cell (Y outer, X inner), as NumPy's meshgrid ravelled.
+for t in range(3):
+    ny, nx = int(rng.integers(1, 6)), int(rng.integers(1, 6)); Z = mgrid(ny, nx); x = {"a": -1.0, "b": 2.0}; y = {"v": sorted(rng.uniform(0, 5, ny).round(2).tolist())}
+    GX, GY = np.meshgrid(axv(x, nx), axv(y, ny))
+    cases.append({"fn": "matToCols", "name": f"to columns xyz {t}", "args": [mobj(Z, x, y), "xyz"], "want": {"cols": [j(GX.ravel()), j(GY.ravel()), mz(Z)]}})
+    cases.append({"fn": "matToCols", "name": f"to columns block {t}", "args": [mobj(Z, x, y), "block"], "want": {"cols": [j(axv(y, ny))] + [mz(Z[:, c]) for c in range(nx)]}})
+# A picture: PIL's grey (convert("L")) and each channel.
+for t, (w, h) in enumerate([(1, 1), (7, 5), (16, 9)]):
+    px = rng.integers(0, 256, (h, w, 4), dtype=np.uint8)
+    if t == 2: px[0, :, :3] = 255; px[1, :, :3] = 0
+    rgba = px.ravel().tolist()
+    L = np.asarray(Image.fromarray(px, "RGBA").convert("L"), dtype=float)
+    cases.append({"fn": "matGrey", "name": f"grey {w}x{h}", "args": [rgba, w, h, "grey"], "want": {"nx": w, "ny": h, "z": mz(L)}})
+    for c, ch in enumerate("rgba"):
+        cases.append({"fn": "matGrey", "name": f"{ch} {w}x{h}", "args": [rgba, w, h, ch], "want": {"nx": w, "ny": h, "z": mz(px[:, :, c])}})
+# The text the check code hashes: Python's repr of each value is JavaScript's String for these.
+for t in range(3):
+    Z = mgrid(int(rng.integers(1, 5)), int(rng.integers(1, 5))); m = mobj(Z)
+    txt = "".join(",".join("" if v != v else (str(int(v)) if float(v).is_integer() else repr(float(v))) for v in row) + "\n" for row in Z)
+    cases.append({"fn": "matText", "name": f"check-code text {t}", "args": [m], "want": txt})
+out["mat"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")
