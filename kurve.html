@@ -19742,7 +19742,7 @@ function wireMx(el,id){ const grid=el.querySelector(".mxgrid"), bid=()=>mxBid(id
     if(drag.k==="cell"&&td){ const r=+td.dataset.r, c=+td.dataset.c; if(r!==st.er||c!==st.ec){ st.er=r; st.ec=c; mxDraw(id); mxBar(id); mxFoot(id); } }
     else if(drag.k==="col"&&(tx||td)){ const c=+(tx||td).dataset.c; if(c!==st.ec){ st.ec=c; mxDraw(id); mxBar(id); mxFoot(id); } }
     else if(drag.k==="row"&&(ty||td)){ const r=+(ty||td).dataset.r; if(r!==st.er){ st.er=r; mxDraw(id); mxBar(id); mxFoot(id); } } });
-  window.addEventListener("mouseup",()=>{ drag=null; });
+  grid.addEventListener("mouseup",()=>{ drag=null; });
   grid.addEventListener("dblclick",e=>{ const td=e.target.closest("td[data-r]"); if(td&&!mxSt(bid()).edit) mxEdBegin(id); });
   grid.addEventListener("keydown",e=>{ const st=mxSt(bid()), s=matOf(st.sid); if(!s||e.target!==grid) return; const k=e.key, ctl=e.ctrlKey||e.metaKey;
     const mv={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]}[k];
