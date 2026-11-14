@@ -220,7 +220,26 @@ graph first, with the taskbar kept at the bottom of the screen.
   message in words and `line`/`col`, limits included (more than 4000 parts on a line, brackets
   nested more than 200 deep), so a stack overflow never reaches the user. Lookups use `hasOwnProperty`, so `constructor(x)` is an
   unknown function, not `Object`. `compileExpr(src, {allowNone:true})` accepts a formula with
-  no parameters (a worksheet column's). `guessUserParams(names, X, Y)` starts parameters from their
+  no parameters (a worksheet column's). **The worksheet's grammar** (SHEET_SPEC 3.1) is
+  `compileExpr(src, {allowNone:true, sheet:true})`, and only it: `exprTokens(src, sheet)` then also
+  reads text in quotes (`str`), comparisons (`cmp`: `< <= > >= == != <>`, ≤ ≥ ≠; a single `=` inside
+  brackets is equality), `Sheet2!B` and `'Raw data'!B` (an `id` token with `sheet` and `col`) and keeps
+  `[`/`]` apart (`br`) so `B[k]` is a row of B; `EXPR_SFN` (if, and, or, not, missing, the aggregates
+  sum, mean, sd, var, se, median, count, percentile, and cumsum; `min`/`max` with one value are the
+  column's) and `EXPR_AGG` are read in sheet mode alone, so a fit function or a step's formula never
+  changes meaning. It returns `{params, text, usesX, qual (a parameter's sheet and column), idx (the
+  parameters read at a row of their own), sheet: fxProg(tree)}`: closures of one argument, the
+  evaluation's context `R` (`r` the row, `V` each parameter's values or a number for a constant, `T`
+  its text cells, `X`, `C` the aggregates' and running sums' cache by node, `N`, `n`). A named value
+  (`u = …;`) is inlined, so an aggregate of it reads every row. Missing is NaN through everything
+  (every function's argument checked, so `pow(B, 0)` of an empty B is not 1; a comparison with it is
+  NaN; `if` works out one branch); `fxRowOf` (a row number from 1, whole to 1e-9), `fxCell` (a cell's
+  number, text or null), `fxCmp` (text against a column exactly, a number never equal to a text, two
+  columns by type), `fxAgg` (Neumaier sums, the deviations' sum taken out for sd/var/se,
+  `quantileSorted` for median and percentile), `fxUsesRow`. `fxRun(cm, V, T, X, nDef)` works one out:
+  its rows are the longest column it reads outside aggregates (`rowP`, `rowX`; a constant is no
+  column), else `nDef`, the sheet's; an aggregate reads the rows of the columns inside it, else those.
+  `fxCalc(src, cols, txt, X, nDef)` (by names) and `fxCalcAt(…, r)` are for the bench and the fuzzer. `guessUserParams(names, X, Y)` starts parameters from their
   names (y0/c baseline, A/H height, xc/x0 position of the largest point, w/sigma a tenth of the
   range, t/tau a third, k a rate, m a slope, anything else 1). `erfFn`/`erfcFn` are W. J. Cody's
   rational approximations (`CODY`, `codyErfSmall` below 0.46875, `codyErfcBig` above, exp(−x²) split
@@ -1312,7 +1331,21 @@ graph first, with the taskbar kept at the bottom of the screen.
   column id each letter meant, so inserting or deleting a column never makes it read the
   wrong one (`fxShow` writes it with today's letters). Letters are columns, `x` the row's X,
   `i` the row number; `col(B)` and a leading `=` are accepted; the arithmetic is
-  `compileExpr`'s, so nothing else can run. `fxParse` (with errors in words: an unknown name,
+  `compileExpr`'s, so nothing else can run. **Since SHEET_SPEC 3.1** it is the worksheet's grammar
+  (rows `B[i-1]`, aggregates, conditions, text in quotes, other sheets, the project's constants; see
+  Numerics): `refs` maps each name as typed (`B`, `Sheet2!B`) to a column id, or to `"k:" + id` for a
+  constant; `fxSheetByName` (exact, else spaces and capitals ignored when one fits), `fxSheetRef` (a
+  name bare or in single quotes), `fxShow` (each name as it is now: a letter, `'Sheet 2'!C`, a
+  constant's name). `fxEval` builds `V`/`T` (a column's text cells past its last number counted, `txtLen`)
+  and calls `fxRun`. **Constants** (`p.consts`, `[{id, name, v, unit, note}]`, in `UNDO_KEYS` and
+  `UNDO_BYID`, merged constant by constant across tabs in `mergeProj`): `CONST_NAME`, `constList`,
+  `constById`, `constByName`, `constNameWhy` (a column's letters, a cell, x, i, y, a built-in name, taken),
+  `constClean` (in `migrate`), `constReaders`, `constTxt` (a value with every digit it has and none it
+  has not), `constDlg` (Data › Constants…: `#kRows` rows `#kN_<i>`, `#kV_<i>`, `#kU_<i>`, `#kT_<i>`,
+  `[data-kdel]` (a constant in use deleted by a second press, `#kHint` saying who reads it), `#kAdd`;
+  Done refused while a row is wrong), `setConsts(list)` (one undo step, a log line naming each change,
+  the formulas worked out again); the report's Method lists the column formulas and the constants
+  (`methodLines`). `fxParse` (with errors in words: an unknown name,
   a cell reference like `B2`, a column using itself), `fxEval`, `recalcFx(p)` (every formula
   column after the ones it uses; a circle or a deleted input is an error in `FX_ERR`, shown in
   the header and the F(x)= cell), `setColFormula`, `wsFxHint` (the live check while typing).
@@ -1433,7 +1466,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   formula as it is typed, in the F(x)= cell (and a cell starting with `=`, `wsRestoreEditor`),
   the formula bar (`#wsValIn`) and a fit function (`#fbExpr`); `fxsSheetItems(self)` the columns
   by letter and long name (not the one computed), `x`, `i`, then `fxsBase()` (the functions from
-  `FX_DOC`, `[args, what it does]`, and the constants, `FX_CDOC`); `fxsMatch` ranks by name
+  `FX_DOC`, `[args, what it does]`, and the constants, `FX_CDOC`; with `sheet` the worksheet's own,
+  `FX_SDOC` and `FX_SMINMAX`, the project's constants, and each other sheet as `'Sheet 2'!` (kind
+  `sheet`), and after a sheet's `!` that sheet's columns alone: `items(before)`); `fxsMatch` ranks by name
   prefix, then by a word of a column's name; `fxsSig(before)` the function whose brackets the
   caret is in and which argument. Keys: ↑/↓, Tab (Enter once an arrow has chosen), Esc
   (`_fxsHush` keeps it shut until the text changes), Ctrl+Space; its keydown is attached before
@@ -3122,7 +3157,8 @@ Kurve's numerics against `tools/ref/fixtures/*.json` (40-digit mpmath for specia
 tails, SciPy, NumPy and statsmodels for procedures) and NIST's certified data (`tools/ref/nist/`),
 each function's worst error against its target in `tools/ref/targets.json`; one short of its target
 names the slice that brings it there (`until`) and must not pass where it stood (`now`).
-`tools/ref/make-fixtures.py [--check]` makes the fixtures again and `tools/ref/diff-fuzz.py [seed]
+`tools/ref/make-fixtures.py [--check] [--only name,…]` makes the fixtures again (`--only fx` writes or checks those
+files alone, so a newer NumPy does not rewrite the rest) and `tools/ref/diff-fuzz.py [seed]
 [n]` (`FUZZDUMP=file` writes every failing case in full) throws random cases at the same functions (both need Python 3.13 and the packages in `$PYREF`,
 see the README; `tools/ref/run.mjs` is the pure blocks under node, any function by name).
 `node tools/perf.mjs [path]` measures what a person waits for (boot; a million rows: save, a value
@@ -3183,6 +3219,13 @@ no effect, rising with the size, the size found the first to reach the power, th
 (the area as U over n₁n₀, the trapezoids adding up to it, a lower score positive and a rising change, Youden's J, DeLong's
 interval's coverage of a binormal area and its test's size, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
 ANA block.
+`node tools/sheet-drive.mjs [path]` (Playwright; `ONLY=3.1` runs one section) checks the worksheet as a table
+(`ux/spec/SHEET_SPEC.md`, wave 3): 3.1, formulas typed into the F(x)= row (an aggregate, rows of other rows, a running
+sum, text compared, `=` as equality, another sheet by a name with its spaces left out, that sheet renamed and a column
+inserted there, four refusals in words, the live check, the suggestions of a function and of a sheet's columns, undo),
+constants through their dialog (a name refused, added, read, renamed and changed, undone, deleted in use by a second
+press and undone, the report's Method, a project file, a reload, junk from storage, two tabs adding one each), and
+thirteen formulas of before giving the same values in the new grammar.
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
 back, undo, the status bar's count, sorting, find, copy, clear, rows inserted and deleted, the
@@ -3737,6 +3780,14 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   meant to edit a value filled 233 cells down the column over recorded values. The second press
   now acts on what the first pressed. Seen as "fails under load", it was geometry: running
   three at once only changed what the random user had in view, and so where it clicked.
+- **A constant is not a column.** Wave 3's fuzzer found `k + 1` coming out empty: the rows a formula has
+  were the longest of the names it read at the row, and a constant has no length. Rows are decided by
+  columns alone; an aggregate of a constant counts the formula's rows. A size taken from "what it
+  reads" must ask what each thing read is.
+- **A binary search needs a predicate that rises.** The exact binomial test's region for *less* searched
+  for the first count where "below zero, or past α" held; −1 made it true at the start too, so for four
+  trials the search stopped there and the power was 0 instead of 0.452 (the fuzzer, once its packages
+  were installed). Each `bs` predicate is now false up to the boundary and true after it.
 - **A window restored hands back the keys.** Minimised, the worksheet lost the focus to the
   page; restored from its taskbar button, typing went nowhere. A window brought forward by the
   user takes the keys. And a test that measures a window while it grows out of its taskbar
@@ -4741,7 +4792,10 @@ Next, in order:
    power, a power curve; the noncentral F and χ², and the noncentral t's upper tail, to 1e-15), done 13.11; slice 2.12, ROC
    curves (the area with DeLong's interval, Youden's cut-off, scores compared by DeLong's test, the curve; exact against every
    pair), done 13.11: wave 2's twelve slices are done. Wave 3's plan is `ux/spec/SHEET_SPEC.md` (the worksheet as
-   a table, seven slices in the order 3.1, 3.3, 3.4, 3.5, 3.7, 3.2, 3.6; its fourteen decisions, 14.11)
+   a table, seven slices in the order 3.1, 3.3, 3.4, 3.5, 3.7, 3.2, 3.6; its fourteen decisions, 14.11); slice 3.1,
+   formulas further (rows by offset and number, aggregates, conditions, text compared, other sheets, the project's
+   constants; NumPy and exact sums agreeing to 3e-16, a fuzzer of random expressions; the exact binomial test's power
+   for small sizes put right on the way), done 14.11
 
 ## Known gaps
 

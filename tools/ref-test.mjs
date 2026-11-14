@@ -242,6 +242,20 @@ for (const c of fixtures.fits.cases) {
   }
 }
 
+/* ---- worksheet formulas (SHEET_SPEC 3.1): fxCalc against NumPy, exact sums and exact SDs; a missing value where the
+   reference has a number (or the other way), or a column of another length, is an infinite error ---- */
+if (fixtures.fx) {
+  const f = get("fxCalc");
+  for (const c of fixtures.fx.cases) {
+    let got; try { got = f(...c.args); } catch (e) { note("fxCalc", Infinity, `${c.name}: ${e.message}`); continue; }
+    if (got.length !== c.want.length) { note("fxCalc", Infinity, `${c.name}: ${got.length} rows, the reference ${c.want.length}`); continue; }
+    let e = 0;
+    c.want.forEach((w, i) => { const g = got[i]; if (w == null || g == null) { if (w != null || g != null) e = Infinity; return; }
+      const d = Math.abs(g - w); e = Math.max(e, d <= c.floor ? 0 : d / Math.max(Math.abs(w), c.floor)); });
+    note("fxCalc", e, c.name);
+  }
+}
+
 /* ---- NIST's Norris: certified values read from the file itself ---- */
 {
   const txt = readFileSync(join(here, "ref", "nist", "Norris.dat"), "utf8").split(/\r?\n/);

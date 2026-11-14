@@ -2834,7 +2834,12 @@ const EXPR_FN={exp:[1,Math.exp],ln:[1,Math.log],log:[1,Math.log],log10:[1,Math.l
   erf:[1,erfFn],erfc:[1,erfcFn],sign:[1,Math.sign],step:[1,v=>v>0?1:v<0?0:0.5]};
 const EXPR_CONST={pi:Math.PI,e:Math.E};
 function exprErr(msg,src,i){ const e=new Error(msg); if(i!=null&&src!=null){ const before=String(src).slice(0,i); e.line=before.split("\n").length; e.col=i-before.lastIndexOf("\n"); e.pos=i; } return e; }
-function exprTokens(src){
+/* exprTokens(src, sheet): the tokens of a formula. With sheet (the worksheet's grammar, SHEET_SPEC
+   3.1) it also reads text in quotes ("control", “control”), comparisons (< <= > >= == != <>, ≤ ≥ ≠),
+   a sheet's name before a column (Sheet2!B, 'Raw data'!B, a quote in the name doubled) and keeps
+   which bracket is which ([ ] after a column is one of its rows). Without it a formula is read as it
+   always has been, so a fit function or a step's formula never changes its meaning. */
+function exprTokens(src,sheet){
   const s=String(src), t=[]; let i=0;
   const idRe=/^[\p{L}_][\p{L}\p{N}_]*/u, numRe=/^(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?/;
   while(i<s.length){
@@ -2843,31 +2848,60 @@ function exprTokens(src){
     if(c==="#"){ while(i<s.length&&s[i]!=="\n") i++; continue; }
     if(c==="\n"||c===";"){ t.push({k:"nl",i}); i++; continue; }
     if(/[\d.]/.test(c)){ const m=numRe.exec(s.slice(i)); if(!m) throw exprErr(`“${c}” on its own is not a number`,s,i); t.push({k:"num",v:parseFloat(m[0]),i,len:m[0].length}); i+=m[0].length; continue; }
-    const id=idRe.exec(s.slice(i)); if(id){ t.push({k:"id",v:id[0],i,len:id[0].length}); i+=id[0].length; continue; }
+    if(sheet&&c==="'"){ let j=i+1, nm="";
+      for(;;){ if(j>=s.length) throw exprErr("A sheet's name in quotes is not closed: write it as 'Sheet name'!B",s,i);
+        if(s[j]==="'"){ if(s[j+1]==="'"){ nm+="'"; j+=2; continue; } j++; break; } nm+=s[j++]; }
+      if(s[j]!=="!") throw exprErr(`A name in single quotes is a sheet's, followed by ! and a column's letter: '${nm}'!B`,s,i);
+      const col=idRe.exec(s.slice(j+1)); if(!col) throw exprErr(`After '${nm}'! comes a column's letter, as '${nm}'!B`,s,j+1);
+      const len=j+1+col[0].length-i; t.push({k:"id",v:s.slice(i,i+len),i,len,sheet:nm,col:col[0]}); i+=len; continue; }
+    if(sheet&&(c==='"'||c==="“"||c==="”")){ const end=c==='"'?'"':"”"; let j=i+1, v="";
+      for(;;){ if(j>=s.length) throw exprErr("A text in quotes is not closed",s,i); const ch=s[j];
+        if(ch===end||(end==="”"&&ch==='"')){ if(end==='"'&&s[j+1]==='"'){ v+='"'; j+=2; continue; } j++; break; }
+        v+=ch; j++; }
+      t.push({k:"str",v,i,len:j-i}); i=j; continue; }
+    const id=idRe.exec(s.slice(i)); if(id){ const e=i+id[0].length;
+      if(sheet&&s[e]==="!"&&s[e+1]!=="="){ const col=idRe.exec(s.slice(e+1)); if(!col) throw exprErr(`After ${id[0]}! comes a column's letter, as ${id[0]}!B`,s,e+1);
+        const len=e+1+col[0].length-i; t.push({k:"id",v:s.slice(i,i+len),i,len,sheet:id[0],col:col[0]}); i+=len; continue; }
+      t.push({k:"id",v:id[0],i,len:id[0].length}); i=e; continue; }
+    if(sheet){ const two=s.slice(i,i+2);
+      if(two==="<="||two===">="||two==="=="||two==="!="||two==="<>"){ t.push({k:"cmp",v:two==="<>"?"!=":two,i,len:2}); i+=2; continue; }
+      if(c==="<"||c===">"){ t.push({k:"cmp",v:c,i,len:1}); i++; continue; }
+      if(c==="≤"||c==="≥"||c==="≠"){ t.push({k:"cmp",v:c==="≤"?"<=":c==="≥"?">=":"!=",i,len:1}); i++; continue; }
+      if(c==="!") throw exprErr("“!” comes between a sheet's name and a column's letter (Sheet2!B); for not, write not(…), and for does not equal, !=",s,i); }
     if(c==="*"&&s[i+1]==="*"){ t.push({k:"op",v:"^",i}); i+=2; continue; }
     if("+-*/^".includes(c)){ t.push({k:"op",v:c,i}); i++; continue; }
     if(c==="−"||c==="–"){ t.push({k:"op",v:"-",i}); i++; continue; }
     if(c==="×"||c==="·"){ t.push({k:"op",v:"*",i}); i++; continue; }
     if(c==="÷"){ t.push({k:"op",v:"/",i}); i++; continue; }
     if("(),=".includes(c)){ t.push({k:c,i}); i++; continue; }
-    if(c==="["||c==="{"){ t.push({k:"(",i}); i++; continue; }
-    if(c==="]"||c==="}"){ t.push({k:")",i}); i++; continue; }
+    if(c==="["||c==="{"){ t.push({k:"(",i,br:c}); i++; continue; }
+    if(c==="]"||c==="}"){ t.push({k:")",i,br:c}); i++; continue; }
     throw exprErr(`A formula cannot contain “${c}”`,s,i);
   }
   return t;
 }
+/* The worksheet's functions (SHEET_SPEC 3.1), read only with {sheet:true}: a condition, logic, a test for a
+   missing value, a column's aggregate (worked out once over every row) and its running sum. min and max
+   with one value are the column's; with two or more they stay the row's (EXPR_FN). */
+const EXPR_SFN={if:3,and:-1,or:-1,not:1,missing:1,sum:1,mean:1,sd:1,var:1,se:1,median:1,count:1,percentile:2,cumsum:1};
+const EXPR_AGG=new Set(["sum","mean","sd","var","se","median","count","percentile","min","max"]);
 /* Returns {params, f(x, p), text, usesX}, or throws an Error whose message
-   says what is wrong and where (e.line, e.col). */
+   says what is wrong and where (e.line, e.col). With {sheet:true} it returns
+   instead {params, text, usesX, sheet, qual, idx} for fxRun: qual a parameter's
+   sheet and column when it was written Sheet!B, idx the parameters read at a row
+   of their own (B[i-1]). */
 function compileExpr(src,opt){
-  const s=String(src||"");
-  const toks=exprTokens(s);
+  const s=String(src||""), SH=!!(opt&&opt.sheet);
+  const toks=exprTokens(s,SH);
   // Split into statements.
   const stmts=[]; let cur=[];
   toks.forEach(t=>{ if(t.k==="nl"){ if(cur.length) stmts.push(cur); cur=[]; } else cur.push(t); }); if(cur.length) stmts.push(cur);
   if(!stmts.length) throw exprErr("Write the function, for example: y = a + b*x");
-  const locals=new Map(), params=[], pIndex=new Map(), used=new Map();
-  let result=null, usesX=false;
+  const locals=new Map(), lnode=new Map(), params=[], pIndex=new Map(), used=new Map(), qual={}, idxP=new Set();
+  let result=null, usesX=false, nid=0;
   const where=t=>t?t.i:s.length;
+  const own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
+  const parOf=(t)=>{ const nm=t.v; if(!pIndex.has(nm)){ pIndex.set(nm,params.length); params.push(nm); used.set(nm,t.i); if(t.sheet!=null) qual[nm]={sheet:t.sheet,col:t.col}; } return pIndex.get(nm); };
   const parseStmt=ts=>{
     // Limits in words, before the stack runs out: a formula nested 5000 deep or
     // 20 000 terms on one line used to stop with "Maximum call stack size exceeded".
@@ -2875,33 +2909,60 @@ function compileExpr(src,opt){
     let k=0, depth=0;
     const peek=()=>ts[k], next=()=>ts[k++];
     const expect=(kind,what)=>{ const t=next(); if(!t||t.k!==kind) throw exprErr(`Expected ${what}${t?` before “${s.slice(t.i,t.i+(t.len||1))}”`:" at the end"}`,s,where(t)); return t; };
+    // A row of a column: B[k], x[k]; the bracket closed by ].
+    const index=(t)=>{ const o=next(); if(++depth>200) throw exprErr("Brackets nested more than 200 deep",s,o.i); const e=top(); const c=next();
+      if(!c||c.k!==")"||c.br!=="]") throw exprErr(`Expected ] to close the row of ${t.v}${c?` before “${s.slice(c.i,c.i+(c.len||1))}”`:" at the end"}`,s,where(c)); depth--; return e; };
     const primary=()=>{
       const t=next();
       if(!t) throw exprErr("The formula ends too soon: something is missing after the last operator",s,s.length);
       if(t.k==="num") return {t:"num",v:t.v};
-      if(t.k==="("){ if(++depth>200) throw exprErr("Brackets nested more than 200 deep",s,t.i); const e=expr(); expect(")","a closing )"); depth--; return e; }
+      if(t.k==="str") return {t:"str",v:t.v,i:t.i};
+      if(t.k==="("){ if(++depth>200) throw exprErr("Brackets nested more than 200 deep",s,t.i); const e=top(); expect(")","a closing )"); depth--; return e; }
       if(t.k==="op"&&(t.v==="-"||t.v==="+")){ const a=power(); return t.v==="-"?{t:"neg",a}:a; }
       if(t.k==="id"){
         const nm=t.v;
-        if(peek()&&peek().k==="("){
-          const fd=Object.prototype.hasOwnProperty.call(EXPR_FN,nm)?EXPR_FN[nm]:null; if(!fd) throw exprErr(`There is no function called “${nm}”. Known: ${Object.keys(EXPR_FN).join(", ")}`,s,t.i);
+        if(SH&&t.sheet==null&&peek()&&peek().k==="("&&peek().br==="["){
+          if(nm==="x"){ usesX=true; return {t:"xidx",e:index(t)}; }
+          if(nm==="i"||lnode.has(nm)||own(EXPR_FN,nm)||own(EXPR_SFN,nm)||own(EXPR_CONST,nm)) throw exprErr(`${nm}[…] chooses a row, and only a column (B[i-1]) or x (x[i-1]) has rows`,s,t.i);
+          const kk=parOf(t); idxP.add(nm); return {t:"idx",k:kk,e:index(t),i:t.i}; }
+        if(SH&&t.sheet!=null&&peek()&&peek().k==="("&&peek().br==="["){ const kk=parOf(t); idxP.add(nm); return {t:"idx",k:kk,e:index(t),i:t.i}; }
+        if(t.sheet==null&&peek()&&peek().k==="("){
+          const sf=SH&&own(EXPR_SFN,nm)?EXPR_SFN[nm]:null;
+          const fd=sf==null&&own(EXPR_FN,nm)?EXPR_FN[nm]:null;
+          if(sf==null&&!fd) throw exprErr(`There is no function called “${nm}”. Known: ${Object.keys(EXPR_FN).concat(SH?Object.keys(EXPR_SFN):[]).join(", ")}`,s,t.i);
           next(); const args=[]; if(++depth>200) throw exprErr("Brackets nested more than 200 deep",s,t.i);
           if(peek()&&peek().k===")") next();
-          else { for(;;){ args.push(expr()); const u=next(); if(u&&u.k===",") continue; if(u&&u.k===")") break; throw exprErr(`Expected , or ) in the call to ${nm}`,s,where(u)); } }
+          else { for(;;){ args.push(top()); const u=next(); if(u&&u.k===",") continue; if(u&&u.k===")") break; throw exprErr(`Expected , or ) in the call to ${nm}`,s,where(u)); } }
           depth--;
+          if(sf!=null){
+            if(nm==="if"&&args.length!==3) throw exprErr("if takes 3 values: if(condition, the value when it holds, the value when it does not)",s,t.i);
+            if(nm==="percentile"&&args.length!==2) throw exprErr("percentile takes 2 values: percentile(B, 90), the column and the percent",s,t.i);
+            if(sf>0&&args.length!==sf) throw exprErr(`${nm} takes ${sf} value${sf===1?"":"s"}, not ${args.length}`,s,t.i);
+            if(sf<0&&args.length<-sf) throw exprErr(`${nm} needs at least ${-sf} value`,s,t.i);
+            if(nm==="if") return {t:"if",c:args[0],a:args[1],b:args[2]};
+            if(nm==="and"||nm==="or") return {t:nm,args};
+            if(nm==="not") return {t:"not",a:args[0]};
+            if(nm==="missing") return {t:"miss",a:args[0]};
+            if(nm==="cumsum") return {t:"cum",a:args[0],id:nid++};
+            return {t:"agg",fn:nm,a:args[0],q:args[1]||null,id:nid++,i:t.i}; }
+          if(SH&&(nm==="min"||nm==="max")&&args.length===1) return {t:"agg",fn:nm,a:args[0],q:null,id:nid++,i:t.i};
           if(fd[0]>0&&args.length!==fd[0]) throw exprErr(`${nm} takes ${fd[0]} value${fd[0]===1?"":"s"}, not ${args.length}`,s,t.i);
-          if(fd[0]<0&&args.length<-fd[0]) throw exprErr(`${nm} needs at least ${-fd[0]} values`,s,t.i);
+          if(fd[0]<0&&args.length<-fd[0]) throw exprErr(SH&&(nm==="min"||nm==="max")?`${nm} needs a column (${nm}(B), its ${nm==="min"?"smallest":"largest"} value) or at least 2 values`:`${nm} needs at least ${-fd[0]} values`,s,t.i);
           return {t:"call",fn:nm,args};
         }
-        if(Object.prototype.hasOwnProperty.call(EXPR_FN,nm)&&!locals.has(nm)) throw exprErr(`${nm} is a function: write ${nm}(…)`,s,t.i);
+        if(t.sheet!=null) return {t:"par",k:parOf(t),i:t.i};
+        if(own(EXPR_FN,nm)&&!locals.has(nm)) throw exprErr(`${nm} is a function: write ${nm}(…)`,s,t.i);
+        if(SH&&own(EXPR_SFN,nm)&&!locals.has(nm)) throw exprErr(`${nm} is a function: write ${nm}(…)`,s,t.i);
         if(nm==="x"){ usesX=true; return {t:"x"}; }
+        if(SH&&nm==="i") return {t:"row"};
+        if(SH&&lnode.has(nm)) return lnode.get(nm);
         if(locals.has(nm)) return {t:"loc",j:locals.get(nm)};
-        if(Object.prototype.hasOwnProperty.call(EXPR_CONST,nm)) return {t:"num",v:EXPR_CONST[nm]};
+        if(own(EXPR_CONST,nm)) return {t:"num",v:EXPR_CONST[nm]};
         if(nm==="y") throw exprErr("y is the result: it cannot be used on the right-hand side",s,t.i);
-        if(!pIndex.has(nm)){ pIndex.set(nm,params.length); params.push(nm); used.set(nm,t.i); }
-        return {t:"par",k:pIndex.get(nm)};
+        return {t:"par",k:parOf(t),i:t.i};
       }
       if(t.k===")") throw exprErr("A ) with nothing to close",s,t.i);
+      if(t.k==="cmp") throw exprErr(`“${t.v}” compares two values: put one on each side of it`,s,t.i);
       throw exprErr(`Expected a number, a name or ( before “${s.slice(t.i,t.i+1)}”`,s,t.i);
     };
     // ^ binds tighter than a leading minus (-x^2 is -(x^2)) and to the right.
@@ -2909,16 +2970,28 @@ function compileExpr(src,opt){
     const unary=()=>{ const t=peek(); if(t&&t.k==="op"&&(t.v==="-"||t.v==="+")){ next(); if(++depth>400) throw exprErr("Too many signs in a row",s,t.i); const a=unary(); depth--; return t.v==="-"?{t:"neg",a}:a; } return power(); };
     const term=()=>{ let a=unary(); for(;;){ const t=peek();
         if(t&&t.k==="op"&&(t.v==="*"||t.v==="/")){ next(); a={t:"bin",op:t.v,a,b:unary()}; continue; }
-        if(t&&(t.k==="num"||t.k==="id"||t.k==="(")) throw exprErr(`Put an operator before “${s.slice(t.i,t.i+(t.len||1))}” (for a product, write *)`,s,t.i);
+        if(t&&(t.k==="num"||t.k==="id"||t.k==="("||t.k==="str")) throw exprErr(`Put an operator before “${s.slice(t.i,t.i+(t.len||1))}” (for a product, write *)`,s,t.i);
         return a; } };
     const expr=()=>{ let a=term(); for(;;){ const t=peek(); if(t&&t.k==="op"&&(t.v==="+"||t.v==="-")){ next(); a={t:"bin",op:t.v,a,b:term()}; continue; } return a; } };
+    // A comparison (the worksheet's): looser than arithmetic, two things at a time; = inside brackets is ==, as a spreadsheet's.
+    const isCmp=t=>t&&(t.k==="cmp"||(t.k==="="&&depth>0));
+    const top=()=>{ if(!SH) return expr(); const a=expr(); const t=peek(); if(!isCmp(t)) return a; next(); const op=t.k==="="?"==":t.v, b=expr();
+      if(isCmp(peek())) throw exprErr("Compare two things at a time: for a range, write and(a < b, b < c)",s,peek().i);
+      const sa=a.t==="str", sb=b.t==="str";
+      if(sa||sb){ const o=sa?b:a;
+        if(sa&&sb) throw exprErr("Two texts in quotes compared: compare a column with a text, as C == \"control\"",s,t.i);
+        if(op!=="=="&&op!=="!=") throw exprErr(`“${op}” compares numbers; a text can only be compared with == or !=`,s,t.i);
+        if(o.t!=="par"&&o.t!=="idx") throw exprErr("A text in quotes is compared with a column's cells, as C == \"control\"",s,t.i);
+        (sa?a:b).ok=true; }
+      return {t:"cmp",op,a,b,i:t.i}; };
     let name=null;
-    if(ts.length>1&&ts[0].k==="id"&&ts[1].k==="="){ name=ts[0].v; k=2;
+    if(ts.length>1&&ts[0].k==="id"&&ts[0].sheet==null&&ts[1].k==="="){ name=ts[0].v; k=2;
       if(name==="x") throw exprErr("x is the variable: it cannot be given a value",s,ts[0].i);
-      if(Object.prototype.hasOwnProperty.call(EXPR_FN,name)||Object.prototype.hasOwnProperty.call(EXPR_CONST,name)) throw exprErr(`${name} is a built-in name: choose another`,s,ts[0].i);
+      if(SH&&name==="i") throw exprErr("i is the row number: it cannot be given a value",s,ts[0].i);
+      if(own(EXPR_FN,name)||own(EXPR_CONST,name)||(SH&&own(EXPR_SFN,name))) throw exprErr(`${name} is a built-in name: choose another`,s,ts[0].i);
       if(pIndex.has(name)) throw exprErr(`“${name}” is used above as a parameter before this line gives it a value`,s,ts[0].i);
       if(locals.has(name)&&name!=="y") throw exprErr(`“${name}” is given a value twice`,s,ts[0].i); }
-    const e=expr();
+    const e=top();
     if(k<ts.length){ const t=ts[k]; throw exprErr(t.k==="="?"Only one = per line, with a name on its left":t.k===")"?"A ) with nothing to close":`Unexpected “${s.slice(t.i,t.i+(t.len||1))}”`,s,t.i); }
     return {name,e};
   };
@@ -2930,9 +3003,13 @@ function compileExpr(src,opt){
     if(!st.name){ if(!last) throw exprErr("Only the last line can be the function itself: give this one a name (u = …)",s,ts[0].i); result=st.e; return; }
     if(last) throw exprErr(`The last line gives “${st.name}” a value, but the function itself is missing: end with y = …`,s,ts[0].i);
     locals.set(st.name,locals.size); body.push({j:locals.get(st.name),e:st.e});
+    // In the worksheet a named value is its formula, worked out at whichever row reads it (an aggregate reads every row).
+    if(SH) lnode.set(st.name,st.e);
   });
   if(!result) throw exprErr("Write the function on the last line, for example: y = a + b*x");
   if(!params.length&&!(opt&&opt.allowNone)) throw exprErr("There is nothing to fit: the formula needs at least one parameter (a name that is not x)");
+  const text=s.split("\n").map(l=>l.replace(/#.*$/,"").trim()).filter(Boolean).join("; ");
+  if(SH) return {params,text,usesX,qual,idx:idxP,sheet:fxProg(result,s)};
   const cmp=n=>{
     switch(n.t){
       case "num": { const v=n.v; return ()=>v; }
@@ -2956,9 +3033,134 @@ function compileExpr(src,opt){
   };
   const steps=body.map(b=>({j:b.j,g:cmp(b.e)})), res=cmp(result), L=new Array(locals.size).fill(0);
   const f=steps.length?(x,p)=>{ for(let i=0;i<steps.length;i++) L[steps[i].j]=steps[i].g(x,p,L); return res(x,p,L); }:(x,p)=>res(x,p,L);
-  const text=s.split("\n").map(l=>l.replace(/#.*$/,"").trim()).filter(Boolean).join("; ");
   return {params,f,text,usesX};
 }
+/* ---- The worksheet's formulas, worked out (SHEET_SPEC 3.1) ------------------------------------
+   fxProg(node) compiles the tree of a worksheet formula into closures of one argument, the
+   evaluation's context R: r the row (from 0), V each parameter's values (an array, or a number
+   for a constant), T each one's text cells ({row: text}) or null, X the X column's values or null
+   (x is then the row number), C the aggregates' and running sums' results by node, N the rows of
+   the longest input, n the rows worked out. A missing value is NaN: every operation and function
+   it enters gives NaN (a function's argument checked, so pow(B, 0) of an empty B is not 1), a
+   comparison with it too, and `if` works out only the branch it takes. Which parameters are read
+   at the row (outside aggregates) decides how many rows the column has (`rowP`, `rowX`); each
+   aggregate reads the rows of what it names (`ps`, `ux`). */
+function fxProg(root,s){
+  const rowP=new Set(); let rowX=false;
+  // Which parameters and whether x are read inside each aggregate, and outside every aggregate.
+  const walk=(n,ps,inAgg)=>{ if(!n||typeof n!=="object") return; let ux=false;
+    const note=k=>{ ps.forEach(set=>set.add(k)); if(!inAgg) rowP.add(k); };
+    switch(n.t){
+      case "par": note(n.k); break;
+      case "idx": note(n.k); ux=walk(n.e,ps,inAgg); break;
+      case "x": case "xidx": ux=true; if(!inAgg) rowX=true; ps.forEach(set=>set.ux=true); if(n.e) walk(n.e,ps,inAgg); break;
+      case "str": if(!n.ok) throw exprErr("A text in quotes is compared with a column's cells, as C == \"control\"",s,n.i); break;
+      case "agg": { const mine=new Set(); n.ps=mine; walk(n.a,ps.concat([mine]),true); n.ux=!!mine.ux;
+        if(n.q){ const qs=new Set(); walk(n.q,[qs],true); if(qs.size||qs.ux||fxUsesRow(n.q)) throw exprErr("percentile's second value is the percent, a number from 0 to 100 that does not change from row to row",s,n.i); } break; }
+      case "cum": walk(n.a,ps,inAgg); break;
+      default: ["a","b","c","e"].forEach(key=>{ if(n[key]) walk(n[key],ps,inAgg); }); if(n.args) n.args.forEach(a=>walk(a,ps,inAgg));
+    } return ux; };
+  walk(root,[],false);
+  const nanIn=(...v)=>v.some(u=>u!==u);
+  const gen=n=>{
+    switch(n.t){
+      case "num": { const v=n.v; return ()=>v; }
+      case "row": return R=>R.r+1;
+      case "x": return R=>{ if(!R.X) return R.r+1; const v=R.X[R.r]; return v==null?NaN:v; };
+      case "xidx": { const e=gen(n.e); return R=>{ const j=fxRowOf(e(R)); if(j<0) return NaN; if(!R.X) return j<R.N?j+1:NaN; const v=R.X[j]; return v==null?NaN:v; }; }
+      case "par": { const k=n.k; return R=>{ const a=R.V[k]; if(typeof a==="number") return a; const v=a[R.r]; return v==null?NaN:v; }; }
+      case "idx": { const k=n.k, e=gen(n.e); return R=>{ const a=R.V[k]; if(typeof a==="number") return NaN; const j=fxRowOf(e(R)); if(j<0) return NaN; const v=a[j]; return v==null?NaN:v; }; }
+      case "neg": { const a=gen(n.a); return R=>-a(R); }
+      case "bin": { const a=gen(n.a), b=gen(n.b);
+        if(n.op==="+") return R=>a(R)+b(R);
+        if(n.op==="-") return R=>a(R)-b(R);
+        if(n.op==="*") return R=>a(R)*b(R);
+        if(n.op==="/") return R=>a(R)/b(R);
+        if(n.b.t==="num"&&n.b.v===2) return R=>{ const v=a(R); return v*v; };
+        return R=>{ const u=a(R), w=b(R); return u!==u||w!==w?NaN:Math.pow(u,w); }; }
+      case "call": { const fn=EXPR_FN[n.fn][1], as=n.args.map(gen);
+        if(as.length===1){ const a=as[0]; return R=>{ const u=a(R); return u!==u?NaN:fn(u); }; }
+        if(as.length===2){ const a=as[0], b=as[1]; return R=>{ const u=a(R), w=b(R); return u!==u||w!==w?NaN:fn(u,w); }; }
+        return R=>{ const v=as.map(g=>g(R)); return nanIn(...v)?NaN:fn(...v); }; }
+      case "cmp": return fxCmp(n,gen);
+      case "if": { const c=gen(n.c), a=gen(n.a), b=gen(n.b); return R=>{ const v=c(R); if(v!==v) return NaN; return v!==0?a(R):b(R); }; }
+      case "and": { const as=n.args.map(gen); return R=>{ let r=1; for(const g of as){ const v=g(R); if(v!==v) return NaN; if(v===0) r=0; } return r; }; }
+      case "or": { const as=n.args.map(gen); return R=>{ let r=0; for(const g of as){ const v=g(R); if(v!==v) return NaN; if(v!==0) r=1; } return r; }; }
+      case "not": { const a=gen(n.a); return R=>{ const v=a(R); return v!==v?NaN:v===0?1:0; }; }
+      case "miss": { const a=gen(n.a); return R=>Number.isFinite(a(R))?0:1; };
+      case "agg": { const id=n.id, e=gen(n.a), q=n.q?gen(n.q):null, fn=n.fn, ps=[...n.ps], ux=n.ux;
+        return R=>{ let v=R.C[id]; if(v===undefined){ let m=0, cols=false; ps.forEach(k=>{ const a=R.V[k]; if(Array.isArray(a)){ cols=true; if(a.length>m) m=a.length; } }); if(ux&&R.X&&R.X.length>m) m=R.X.length; if(!cols&&!ux) m=R.n;
+            const r0=R.r, vals=[]; for(let j=0;j<m;j++){ R.r=j; const u=e(R); if(Number.isFinite(u)) vals.push(u); } R.r=r0;
+            v=R.C[id]=fxAgg(fn,vals,q?q(R):null); } return v; }; }
+      case "cum": { const id=n.id, e=gen(n.a);
+        return R=>{ let arr=R.C[id]; if(arr===undefined){ arr=R.C[id]=new Float64Array(R.N); const r0=R.r; let s1=0, c1=0;
+            for(let j=0;j<R.N;j++){ R.r=j; const u=e(R); if(!Number.isFinite(u)){ arr[j]=NaN; continue; } const t1=s1+u; c1+=Math.abs(s1)>=Math.abs(u)?(s1-t1)+u:(u-t1)+s1; s1=t1; arr[j]=s1+c1; }
+            R.r=r0; } return R.r<arr.length?arr[R.r]:NaN; }; }
+      case "loc": throw new Error("A named value in the worksheet is its formula");
+      case "str": throw exprErr("A text in quotes is compared with a column's cells, as C == \"control\"",s,n.i);
+    }
+    throw new Error("Unknown node "+n.t);
+  };
+  return {res:gen(root),rowP,rowX};
+}
+// Whether a node reads the row it is worked out at (i, or a running sum).
+function fxUsesRow(n){ if(!n||typeof n!=="object") return false; if(n.t==="row"||n.t==="cum") return true;
+  return ["a","b","c","e"].some(k=>fxUsesRow(n[k]))||(n.args||[]).some(fxUsesRow); }
+// A row number from 1 as an index from 0, or -1 when it is not a whole number (to 1e-9) or before the first.
+function fxRowOf(k){ if(!Number.isFinite(k)) return -1; const r=Math.round(k); if(Math.abs(k-r)>1e-9*Math.max(1,Math.abs(k))||r<1) return -1; return r-1; }
+// A cell for a comparison: its number, its text, or null when empty.
+function fxCell(R,k,j){ const a=R.V[k]; if(typeof a==="number") return a; if(j<0) return null; const v=a[j]; if(v!=null) return v; const T=R.T[k]; return T&&Object.prototype.hasOwnProperty.call(T,j)?T[j]:null; }
+function fxCmp(n,gen){
+  const op=n.op, cellOf=o=>{ if(o.t==="par"){ const k=o.k; return R=>fxCell(R,k,R.r); } const k=o.k, e=gen(o.e); return R=>fxCell(R,k,fxRowOf(e(R))); };
+  const eq=op==="=="||op==="!=", neq=op==="!=";
+  if(n.a.t==="str"||n.b.t==="str"){ const txt=(n.a.t==="str"?n.a:n.b).v, cell=cellOf(n.a.t==="str"?n.b:n.a);
+    return R=>{ const u=cell(R); if(u==null) return NaN; const same=typeof u==="string"&&u===txt; return (same!==neq)?1:0; }; }
+  // Two columns with == or !=: numbers as numbers, text as text, a number never a text.
+  if(eq&&(n.a.t==="par"||n.a.t==="idx")&&(n.b.t==="par"||n.b.t==="idx")){ const ca=cellOf(n.a), cb=cellOf(n.b);
+    return R=>{ const u=ca(R), w=cb(R); if(u==null||w==null||u!==u||w!==w) return NaN; const same=typeof u===typeof w&&u===w; return (same!==neq)?1:0; }; }
+  const a=gen(n.a), b=gen(n.b);
+  const f={"<":(u,w)=>u<w,"<=":(u,w)=>u<=w,">":(u,w)=>u>w,">=":(u,w)=>u>=w,"==":(u,w)=>u===w,"!=":(u,w)=>u!==w}[op];
+  return R=>{ const u=a(R), w=b(R); return u!==u||w!==w?NaN:f(u,w)?1:0; };
+}
+/* A column's aggregate of its finite values: sum (0 of none) and count, the rest missing of none;
+   sums by Neumaier's compensation, the deviations about the mean for sd, var and se (n − 1),
+   median and percentile R's type 7 (STATS_SPEC decision 1). */
+function fxAgg(fn,v,q){ const n=v.length;
+  const nsum=a=>{ let s1=0, c1=0; for(let i=0;i<a.length;i++){ const u=a[i], t1=s1+u; c1+=Math.abs(s1)>=Math.abs(u)?(s1-t1)+u:(u-t1)+s1; s1=t1; } return s1+c1; };
+  switch(fn){
+    case "count": return n;
+    case "sum": return nsum(v);
+    case "mean": return n?nsum(v)/n:NaN;
+    case "min": { if(!n) return NaN; let m=v[0]; for(let i=1;i<n;i++) if(v[i]<m) m=v[i]; return m; }
+    case "max": { if(!n) return NaN; let m=v[0]; for(let i=1;i<n;i++) if(v[i]>m) m=v[i]; return m; }
+    case "sd": case "var": case "se": { if(n<2) return NaN; const m=nsum(v)/n, d=new Array(n); for(let i=0;i<n;i++){ const e=v[i]-m; d[i]=e*e; }
+      let ss=nsum(d); // the mean's own rounding, taken out
+      const r=nsum(v.map(u=>u-m)); ss-=r*r/n; const va=Math.max(0,ss)/(n-1);
+      return fn==="var"?va:fn==="sd"?Math.sqrt(va):Math.sqrt(va/n); }
+    case "median": case "percentile": { if(!n) return NaN; const p=fn==="median"?0.5:q/100; if(!(p>=0&&p<=1)) return NaN; const s2=Float64Array.from(v).sort(); return quantileSorted(s2,p); }
+  }
+  return NaN;
+}
+/* A worksheet formula compiled with {sheet:true}, worked out: V and T each parameter's values and
+   text (V[k] a number for a constant), X the X column's values (or null), nDef the rows when the
+   formula reads no column at the row (its sheet's). Returns the column's values, null where
+   missing or not a finite number, without trailing empty cells. */
+function fxRun(cm,V,T,X,nDef){ const g=cm&&cm.sheet; if(!g) throw new Error("Not a worksheet formula");
+  // The rows: as many as the longest column it reads at the row (a constant is no column), else its sheet's.
+  let N=0, n=0, cols=false;
+  V.forEach((a,k)=>{ const L=Array.isArray(a)?a.length:0; if(L>N) N=L; if(g.rowP.has(k)&&Array.isArray(a)){ cols=true; if(L>n) n=L; } });
+  if(X&&cm.usesX){ if(X.length>N) N=X.length; if(g.rowX&&X.length>n) n=X.length; }
+  if(!cols&&!g.rowX) n=Math.max(0,nDef|0); if(n>N) N=n;
+  const R={r:0,V,T:T||[],X:X||null,C:[],N,n}, out=new Array(n);
+  for(let r=0;r<n;r++){ R.r=r; const v=g.res(R); out[r]=Number.isFinite(v)?v:null; }
+  let m=out.length; while(m&&out[m-1]==null) m--; out.length=m; return out;
+}
+// One row of it (from 0), NaN where missing: the fuzzer compares numbers.
+function fxCalcAt(src,cols,txt,X,nDef,r){ const v=fxCalc(src,cols,txt,X,nDef)[r]; return v==null?NaN:v; }
+/* A worksheet formula by its names, for the bench and the fuzzer: cols each name's values (a number
+   for a constant), txt each name's text cells, X the X column. */
+function fxCalc(src,cols,txt,X,nDef){ const cm=compileExpr(src,{allowNone:true,sheet:true}), own=(o,k)=>!!o&&Object.prototype.hasOwnProperty.call(o,k);
+  return fxRun(cm,cm.params.map(n=>{ if(!own(cols,n)) throw new Error(`No values for ${n}`); return cols[n]; }),cm.params.map(n=>own(txt,n)?txt[n]:null),X||null,nDef||0); }
 /* Starting values for a user's function, from the data and the names: y0 or
    c a baseline, A or H a height, xc or x0 a centre, w or sigma a width, t or
    tau a time, k a rate, m a slope. Anything else starts at 1. */
@@ -7628,12 +7830,14 @@ function tPow(nu,dl,a,alt){ const N=DIST.nct; if(alt==="two"){ const c=DIST.t.is
 function binomRegion(n,p0,a,alt){ const B=DIST.binom, pmf=x=>B.pmf(x,n,p0), sfK=k=>k<=0?1:k>n?0:B.sf(k-1,n,p0);
   const bs=(lo,hi,ok)=>{ while(hi-lo>1){ const m=Math.floor((lo+hi)/2); if(ok(m)) hi=m; else lo=m; } return hi; }; /* the first in (lo, hi] where ok, ok rising */
   if(alt==="greater") return {lo:-1,hi:bs(-1,n+1,k=>sfK(k)<=a)};
-  if(alt==="less") return {lo:bs(-2,n,k=>!(k>=0&&B.cdf(k,n,p0)<=a))-1,hi:n+1};
+  // The largest count the test rejects at: the first whose lower tail passes α, less one (the search needs a predicate
+  // that rises: false below the region's end, true after it; −1 belongs to the region, which may be empty).
+  if(alt==="less") return {lo:bs(-2,n,k=>k>=0&&B.cdf(k,n,p0)>a)-1,hi:n+1};
   const m=n*p0, pv=x=>{ const d=pmf(x)*(1+1e-7);
     if(x<m){ const j=bs(Math.ceil(m)-1,n+1,j=>j>n||pmf(j)<=d); return Math.min(1,B.cdf(x,n,p0)+(j<=n?B.sf(j-1,n,p0):0)); }
     if(x>m){ const j=bs(-1,Math.floor(m)+1,j=>!(j>=0&&pmf(j)<=d))-1; return Math.min(1,(j>=0?B.cdf(j,n,p0):0)+sfK(x)); }
     return 1; };
-  const top=Math.ceil(m)-1, lo=bs(-2,top+1,x=>!(x>=0&&x<=top&&pv(x)<=a))-1, bot=Math.floor(m)+1, hi=bs(bot-1,n+1,x=>x>n||pv(x)<=a);
+  const top=Math.ceil(m)-1, lo=bs(-2,top+1,x=>x>=0&&(x>top||pv(x)>a))-1, bot=Math.floor(m)+1, hi=bs(bot-1,n+1,x=>x>n||pv(x)<=a);
   return {lo:Math.min(lo,top),hi}; }
 /* the power at n: {pw, ncp?} with the sizes, or null where n is too small */
 function powerAt(o,n){ const z=powSizes(o,n); if(!z) return null; const t=o.test, a=o.alpha, alt=powAlt(o), r=Object.assign({},z);
@@ -9148,7 +9352,7 @@ function migrate(p){
   // Keys of older versions can come back from storage after an upgrade.
   ["x","y","e","xLong","xUnit","yLong","yUnit","eLong","eUnit","steps","mask","plot"].forEach(k=>{ if(k in p) delete p[k]; });
   p.cols.forEach(c=>{ c.data=c.data||[]; if(c.role==="y"){ c.pipe=c.pipe||[]; c.mask=c.mask||[]; } cleanTxt(c); cleanCat(c); if(c.fmt!==undefined&&c.fmt!=="text"&&c.fmt!=="num") delete c.fmt; });
-  anaClean(p);
+  anaClean(p); constClean(p);
   if(!p.cols.some(c=>c.role==="x")) p.cols.unshift(makeCol("x","",""));
   if(!p.cols.some(c=>c.id===p.activeY)){ const y=p.cols.find(c=>c.role==="y"); p.activeY=y?y.id:null; }
   p.raw=p.raw||{fp:"",hist:[]}; p.fits=p.fits||[];
@@ -9194,7 +9398,7 @@ function migrateGraphs(p){
 }
 /* Undo is per-session and local: it rewinds your own edits, not other
    people's. Cross-user undo in a shared document is a different problem. */
-const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","fitSets","lines","rawLock","tree","wsAlign","wsHide","sheets","detcal","ana"];
+const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","fitSets","lines","rawLock","tree","wsAlign","wsHide","sheets","detcal","ana","consts"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
 /* Raw values are replaced, never changed in place, so a snapshot keeps each
    column's data array as it is and copies the rest: with 20 spectra of 50 000
@@ -9220,7 +9424,7 @@ function undoAfter(stack){ const t=stack[stack.length-1], p=P(); if(!(t&&t.after
    trend graphs, functions, saved settings, line lists, formats) is put back thing by thing, this
    window's changes undone and another's kept; the log keeps the lines added elsewhere; any other
    part another window changed since keeps that change (an undo never takes back theirs). */
-const UNDO_BYID=new Set(["graphs","annos","sheets","trends","userFns","fitSets","lines","formats","ana"]);
+const UNDO_BYID=new Set(["graphs","annos","sheets","trends","userFns","fitSets","lines","formats","ana","consts"]);
 const jsonEq=(a,b)=>a===b||JSON.stringify(a)===JSON.stringify(b);
 function mergeById(after,step,now){
   const ok=l=>Array.isArray(l)&&l.every(o=>o&&typeof o==="object"&&o.id!=null);
@@ -9585,6 +9789,11 @@ function mergeProj(base,mine,theirs){ const out=Object.assign({},theirs), same=(
   new Set(Object.keys(mine).concat(Object.keys(base))).forEach(k=>{ if(k==="cols"||k==="id") return;
     if(!same(mine[k],base[k])){ if(k in mine) out[k]=mine[k]; else delete out[k]; } });
   out.cols=mergeCols(base.cols||[],mine.cols||[],theirs.cols||[]);
+  // The constants: each tab's additions, changes and deletions, constant by constant (a name taken twice keeps the other tab's).
+  if(!same(mine.consts,base.consts)&&!same(theirs.consts,base.consts)){ const L=v=>Array.isArray(v)?v:[], B=new Map(L(base.consts).map(k=>[k.id,k])), M=new Map(L(mine.consts).map(k=>[k.id,k]));
+    const outK=L(theirs.consts).filter(k=>!(B.has(k.id)&&!M.has(k.id))).map(k=>{ const m=M.get(k.id); return m&&!same(m,B.get(k.id))?m:k; });
+    L(mine.consts).forEach(k=>{ if(!B.has(k.id)&&!outK.some(o=>o.id===k.id||o.name===k.name)) outK.push(k); });
+    if(outK.length) out.consts=outK; else delete out.consts; }
   // The log: both tabs' lines, in order.
   if(Array.isArray(mine.log)&&Array.isArray(theirs.log)&&!same(mine.log,base.log)&&!same(theirs.log,base.log)){ const seen=new Set(); out.log=[].concat(theirs.log,mine.log).filter(l=>{ const k=l&&(l.t+"|"+l.text); if(seen.has(k)) return false; seen.add(k); return true; }).sort((a,b)=>(a.t||0)-(b.t||0)).slice(-80); }
   // The record of the original data: both tabs' entries, and a check code for what is now there.
@@ -15235,25 +15444,42 @@ function fxParse(text,self){
     if(c.role!=="y") throw exprErr(`Column ${L} is not a Y column, and only a Y column is fitted`);
     return {src:`${kind}(${L})`,refs:{[L]:c.id},fit:kind}; }
   if(/\b(fit|resid)\s*\(/i.test(src)) throw exprErr("fit(B) and resid(B) are a whole formula: the fitted values, or the residuals, of column B");
-  const cm=compileExpr(src,{allowNone:true}), raw=sheetCols(self?sheetOf(self):curSheet()), refs={};
-  cm.params.forEach(nm=>{ if(nm==="i") return;
-    if(/^[A-Z]{1,3}\d+$/.test(nm)) throw exprErr(`“${nm}” is one cell: a formula here works on whole columns, row by row, so write ${nm.replace(/\d+$/,"")}`);
-    if(!/^[A-Z]{1,3}$/.test(nm)) throw exprErr(`“${nm}” is not a column: use column letters (A, B, …), x for the row's X value and i for the row number`);
-    const c=raw[fxLetterIndex(nm)]; if(!c) throw exprErr(`There is no column ${nm}`);
-    if(self&&c.id===self.id) throw exprErr(`Column ${nm} cannot use its own values`);
-    refs[nm]=c.id; });
+  // The worksheet's grammar (SHEET_SPEC 3.1): a name is a column on this sheet (B), one on another
+  // (Sheet2!B, 'Raw data'!B) or one of the project's constants; each is kept by its id.
+  const cm=compileExpr(src,{allowNone:true,sheet:true}), raw=sheetCols(self?sheetOf(self):curSheet()), refs={};
+  const selfMsg=nm=>cm.idx.has(nm)?`Column ${nm} cannot read its own values, at another row either: for a running sum write cumsum(…) of the column it adds up`:`Column ${nm} cannot use its own values`;
+  cm.params.forEach(nm=>{
+    const q=cm.qual[nm];
+    if(q){ const sh=fxSheetByName(q.sheet); if(!sh) throw exprErr(`There is no sheet called “${q.sheet}”${sheetList().length>1?`: the sheets are ${andList(sheetList().map(o=>o.name))}`:""}`);
+      const L=q.col.toUpperCase(); if(!/^[A-Z]{1,3}$/.test(L)) throw exprErr(`“${q.col}” is not a column of ${sh.name}: after ! comes a column's letters, as ${fxSheetRef(sh.name)}!B`);
+      const c=sheetCols(sh.id)[fxLetterIndex(L)]; if(!c) throw exprErr(`${sh.name} has no column ${L}`);
+      if(self&&c.id===self.id) throw exprErr(selfMsg(L));
+      refs[nm]=c.id; return; }
+    if(/^[A-Z]{1,3}\d+$/.test(nm)) throw exprErr(`“${nm}” is one cell: a formula here works on whole columns, row by row, so write ${nm.replace(/\d+$/,"")} (or ${nm.replace(/\d+$/,"")}[${nm.replace(/^[A-Z]+/,"")}] for that one row)`);
+    if(/^[A-Z]{1,3}$/.test(nm)){ const c=raw[fxLetterIndex(nm)]; if(!c) throw exprErr(`There is no column ${nm}`);
+      if(self&&c.id===self.id) throw exprErr(selfMsg(nm));
+      refs[nm]=c.id; return; }
+    const k=constByName(nm);
+    if(k){ if(cm.idx.has(nm)) throw exprErr(`${nm} is a constant: it has no rows to choose from`); refs[nm]="k:"+k.id; return; }
+    throw exprErr(`“${nm}” is not a column or a constant: use column letters (A, B, …), x for the row's X value, i for the row number, or a name from Data › Constants…`); });
   if(cm.usesX&&self&&self.role==="x") throw exprErr("An X column cannot use x, its own values");
   return {src,refs};
 }
-// The formula with each column under its letter today.
+// A sheet named in a formula: by its name, else by its name with spaces and capitals ignored when only one fits (Sheet2 for “Sheet 2”).
+function fxSheetByName(nm){ const ss=sheetList(), ex=ss.find(o=>o.name===nm); if(ex) return ex;
+  const k=s=>String(s).replace(/\s+/g,"").toLowerCase(), m=ss.filter(o=>k(o.name)===k(nm)); return m.length===1?m[0]:null; }
+// A sheet's name as a formula writes it: bare when it is one word, else in single quotes (a quote doubled), as Excel's.
+const fxSheetRef=nm=>/^[\p{L}_][\p{L}\p{N}_]*$/u.test(nm)?nm:`'${String(nm).replace(/'/g,"''")}'`;
+// The formula with each column under its letter today, another sheet's with its sheet's name now, and each constant by its name now.
 function fxShow(c){
   const f=c&&c.fx; if(!f) return ""; let out=f.src, toks;
-  try{ toks=exprTokens(f.src); }catch(e){ return f.src; }
+  try{ toks=exprTokens(f.src,!f.fit); }catch(e){ return f.src; }
   const raw=sheetCols(sheetOf(c));
-  // A column it reads that has moved to another sheet is named with that sheet.
-  toks.filter(t=>t.k==="id"&&f.refs&&Object.prototype.hasOwnProperty.call(f.refs,t.v)).reverse().forEach(t=>{
-    const k=raw.findIndex(o=>o.id===f.refs[t.v]), o=k<0?colById(f.refs[t.v]):null;
-    out=out.slice(0,t.i)+(k>=0?wsLetter(k):o&&!o.src?`${sheetName(sheetOf(o))}!${colLetter(o)}`:t.v+"?")+out.slice(t.i+t.len); });
+  toks.filter(t=>t.k==="id"&&f.refs&&Object.prototype.hasOwnProperty.call(f.refs,t.v)).reverse().forEach(t=>{ const id=f.refs[t.v]; let rep;
+    if(typeof id==="string"&&id.startsWith("k:")){ const k=constById(id.slice(2)); rep=k?k.name:t.v+"?"; }
+    else { const k=raw.findIndex(o=>o.id===id), o=k<0?colById(id):null;
+      rep=k>=0?wsLetter(k):o&&!o.src?`${fxSheetRef(sheetName(sheetOf(o)))}!${colLetter(o)}`:t.v+"?"; }
+    out=out.slice(0,t.i)+rep+out.slice(t.i+t.len); });
   return out;
 }
 /* The fitted values or residuals of a Y column, from its fit (laneFit: its own, or its row of
@@ -15272,20 +15498,92 @@ function fxFitEval(c,f,cols){
   trimTail(out); const st=fitStaleFor(fit,y); return {data:out,note:st?"Out of date: "+st:""};
 }
 function fxEval(c,cols){
-  const f=c.fx; if(f&&f.fit) return fxFitEval(c,f,cols); let cm; try{ cm=compileExpr(f.src,{allowNone:true}); }catch(e){ return {err:e.message}; }
-  const refs=f.refs||{}, ins=cm.params.map(nm=>nm==="i"?"i":Object.prototype.hasOwnProperty.call(refs,nm)?(cols.find(o=>o.id===refs[nm])||null):undefined);
-  for(let k=0;k<ins.length;k++){ if(ins[k]===undefined) return {err:`“${cm.params[k]}” is not a column`}; if(ins[k]===null) return {err:`the column it called ${cm.params[k]} has been deleted`}; }
-  let xc=null;
-  if(cm.usesX){ xc=c.role==="x"?null:xColFor(c); if(!xc||xc===c) return {err:"x is the row's X value, and this column has no X column to its left"}; }
-  let n=0; ins.forEach(o=>{ if(o&&o!=="i") n=Math.max(n,o.data.length); }); if(xc) n=Math.max(n,xc.data.length);
-  if(!n){ const sid=sheetOf(c); n=cols.filter(o=>!o.src&&!o.fx&&sheetOf(o)===sid).reduce((a,o)=>Math.max(a,o.data.length),0); }
-  const out=new Array(n), pv=new Array(ins.length);
-  for(let r=0;r<n;r++){ let v=null, ok=true;
-    for(let k=0;k<ins.length;k++){ const o=ins[k]; if(o==="i"){ pv[k]=r+1; continue; } const u=o.data[r]; if(u==null){ ok=false; break; } pv[k]=u; }
-    if(ok){ const xv=xc?xc.data[r]:r+1; if(xv!=null){ const y=cm.f(xv,pv); v=Number.isFinite(y)?y:null; } }
-    out[r]=v; }
-  trimTail(out); return {data:out};
+  const f=c.fx; if(f&&f.fit) return fxFitEval(c,f,cols); let cm; try{ cm=compileExpr(f.src,{allowNone:true,sheet:true}); }catch(e){ return {err:e.message}; }
+  const refs=f.refs||{}, V=[], T=[];
+  for(let k=0;k<cm.params.length;k++){ const nm=cm.params[k];
+    if(!Object.prototype.hasOwnProperty.call(refs,nm)) return {err:`“${nm}” is not a column or a constant`};
+    const id=refs[nm];
+    if(typeof id==="string"&&id.startsWith("k:")){ const kc=constById(id.slice(2)); if(!kc) return {err:`the constant it called ${nm} has been deleted`}; V.push(kc.v); T.push(null); continue; }
+    const o=cols.find(q=>q.id===id); if(!o) return {err:`the column it called ${nm} has been deleted`};
+    // Text cells past its last number count as rows too (a column of names ending in text).
+    const a=Array.isArray(o.data)?o.data:[], tl=txtOf(o)?txtLen(o):0;
+    V.push(tl>a.length?a.concat(new Array(tl-a.length).fill(null)):a); T.push(txtOf(o)); }
+  let X=null;
+  if(cm.usesX){ const xc=c.role==="x"?null:xColFor(c); if(!xc||xc===c) return {err:"x is the row's X value, and this column has no X column to its left"}; X=xc.data; }
+  const sid=sheetOf(c), nDef=cols.filter(o=>!o.src&&!o.fx&&sheetOf(o)===sid).reduce((a,o)=>Math.max(a,o.data.length),0);
+  return {data:fxRun(cm,V,T,X,nDef)};
 }
+/* ---- The project's constants (SHEET_SPEC 3.1) ---------------------------------------------------
+   p.consts: [{id, name, v, unit, note}], named as a formula names them, read by any column formula
+   (kept there by id, "k:" + id in its refs, so a renamed constant follows); Data › Constants…
+   (constDlg) adds, changes and deletes them, one undo step a change. constClean (in migrate) drops
+   what is not one: a name that is not a name or is taken, a value that is not a finite number. */
+const CONST_NAME=/^[\p{L}_][\p{L}\p{N}_]*$/u;
+// A constant's value as typed back: every digit it has, none it has not (1.380649e-23, not 1.3806490000e-23).
+const constTxt=v=>String(v).replace("e+","e");
+function constList(p){ p=p||P(); return p&&Array.isArray(p.consts)?p.consts:[]; }
+function constById(id,p){ return constList(p).find(k=>k.id===id)||null; }
+function constByName(nm,p){ return constList(p).find(k=>k.name===nm)||null; }
+// Why a name cannot be a constant's, or null.
+function constNameWhy(nm,others){ nm=String(nm||"").trim(); const own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
+  if(!nm) return "it needs a name";
+  if(!CONST_NAME.test(nm)) return `“${nm}” is not a name: a letter, then letters, digits or _`;
+  if(/^[A-Z]{1,3}$/.test(nm)) return `${nm} is a column's letters`;
+  if(/^[A-Z]{1,3}\d+$/.test(nm)) return `${nm} reads as a cell`;
+  if(nm==="x"||nm==="i"||nm==="y") return `${nm} already means something in a formula`;
+  if(own(EXPR_FN,nm)||own(EXPR_SFN,nm)||own(EXPR_CONST,nm)||nm==="fit"||nm==="resid"||nm==="col") return `${nm} is a built-in name`;
+  if((others||[]).includes(nm)) return `there is already a constant called ${nm}`;
+  return null; }
+function constClean(p){ if(p.consts==null) return; if(!Array.isArray(p.consts)){ delete p.consts; return; }
+  const seen=new Set(), ids=new Set();
+  p.consts=p.consts.filter(k=>{ if(!k||typeof k!=="object"||typeof k.id!=="string"||!k.id||ids.has(k.id)) return false;
+    const nm=typeof k.name==="string"?k.name.trim():""; if(constNameWhy(nm,[...seen])||typeof k.v!=="number"||!Number.isFinite(k.v)) return false;
+    seen.add(nm); ids.add(k.id); return true; })
+    .map(k=>({id:k.id,name:k.name.trim(),v:k.v,unit:typeof k.unit==="string"?k.unit.slice(0,40):"",note:typeof k.note==="string"?k.note.slice(0,400):""}));
+  if(!p.consts.length) delete p.consts; }
+// The column formulas that read a constant.
+function constReaders(id,p){ p=p||P(); return (p&&p.cols||[]).filter(c=>c.fx&&!c.fx.fit&&Object.values(c.fx.refs||{}).includes("k:"+id)); }
+let constSeq=0;
+// Data › Constants…: a row a constant (name, value, unit, note), Add, delete; Done saves every change as one undo step.
+async function constDlg(){ const p0=P(); if(!p0||S.readOnly) return;
+  let list=constList(p0).map(k=>Object.assign({},k));
+  const row=(k,i)=>`<tr data-ki="${i}"><td><input type="text" id="kN_${i}" value="${esc(k.name)}" aria-label="Name" spellcheck="false" autocomplete="off" style="width:9em"></td>
+    <td><input type="text" id="kV_${i}" value="${k.v==null?"":esc(String(k.v))}" aria-label="Value" inputmode="decimal" spellcheck="false" autocomplete="off" style="width:10em"></td>
+    <td><input type="text" id="kU_${i}" value="${esc(k.unit||"")}" aria-label="Unit" spellcheck="false" style="width:6em"></td>
+    <td><input type="text" id="kT_${i}" value="${esc(k.note||"")}" aria-label="Note" style="width:12em"></td>
+    <td><button type="button" class="tb sm icon" data-kdel="${i}" aria-label="Delete ${esc(k.name||"this constant")}" title="Delete">${ICON("x","sm")}</button></td></tr>`;
+  const body=()=>list.length?list.map(row).join(""):`<tr><td colspan="5" class="lab">No constants yet. Add one, then use it in a column's formula by its name.</td></tr>`;
+  const html=`<div class="constlist" style="max-height:340px;overflow:auto"><table class="rtab kt"><thead><tr><th>Name</th><th>Value</th><th>Unit</th><th>Note</th><th></th></tr></thead><tbody id="kRows">${body()}</tbody></table></div>
+    <p><button type="button" class="btn" id="kAdd">${ICON("plus","sm")} Add a constant</button></p><p class="wshint lab" id="kHint" role="status"></p>`;
+  // What the rows say now: each name and value checked, the first mistake said.
+  const read=()=>{ list=list.map((k,i)=>{ const n=$("#kN_"+i), v=$("#kV_"+i), u=$("#kU_"+i), t=$("#kT_"+i); if(!n) return k;
+      const num=parseNum(v.value); return Object.assign({},k,{name:n.value.trim(),v:v.value.trim()===""?null:num,raw:v.value,unit:u.value.trim(),note:t.value.trim()}); }); };
+  const why=()=>{ for(let i=0;i<list.length;i++){ const k=list[i], w=constNameWhy(k.name,list.slice(0,i).map(o=>o.name)); if(w) return `Row ${i+1}: ${w}.`;
+      if(!(typeof k.v==="number"&&Number.isFinite(k.v))) return `Row ${i+1}: ${k.raw!=null&&String(k.raw).trim()?`“${k.raw}” is not a number`:"it needs a value"}.`; } return ""; };
+  const pr=formDlg({title:"Constants",html,ok:"Done",wide:true,valid:()=>{ read(); const w=why(), h=$("#kHint"); if(h) h.textContent=w; return !w; }});
+  const redraw=()=>{ $("#kRows").innerHTML=body(); const ok=$("#formOk"); const w=why(); $("#kHint").textContent=w; if(ok) ok.disabled=!!w; };
+  $("#kAdd").addEventListener("click",()=>{ read(); list.push({id:"k"+Date.now().toString(36)+(constSeq++).toString(36),name:"",v:null,unit:"",note:""}); redraw(); const n=$("#kN_"+(list.length-1)); if(n) n.focus(); });
+  // A constant a formula reads is deleted by a second press, the first saying which formulas read it.
+  let armed=null;
+  $("#kRows").addEventListener("click",e=>{ const b=e.target.closest("[data-kdel]"); if(!b) return; read(); const i=+b.dataset.kdel, k=list[i]; if(!k) return;
+    const rd=constReaders(k.id,P());
+    if(rd.length&&armed!==k.id){ armed=k.id; b.classList.add("danger"); b.setAttribute("aria-label",`Press again to delete ${k.name}`); b.title="Press again to delete it";
+      $("#kHint").textContent=`${capFirst(andList(rd.map(c=>"column "+colRef(c))))} ${rd.length===1?"reads":"read"} ${k.name}: ${rd.length===1?"its formula":"their formulas"} will stop working until it is put back. Press × again to delete it.`; return; }
+    armed=null; list.splice(i,1); redraw(); });
+  const v=await pr; if(!v) return; read(); const p=P(); if(!p||p!==p0&&p.id!==p0.id) return;
+  const next=list.map(k=>({id:k.id,name:k.name,v:k.v,unit:k.unit||"",note:k.note||""}));
+  const was=constList(p); if(JSON.stringify(was)===JSON.stringify(next)) return;
+  setConsts(next); }
+// Puts in the project's constants (one undo step, a log line naming what changed) and works the formulas out again.
+function setConsts(next){ const p=P(); if(!p) return; const was=constList(p), W=new Map(was.map(k=>[k.id,k])), N=new Map(next.map(k=>[k.id,k])), what=[];
+  next.forEach(k=>{ const o=W.get(k.id); if(!o) what.push(`added the constant ${k.name} = ${constTxt(k.v)}${k.unit?" "+k.unit:""}`);
+    else { if(o.name!==k.name) what.push(`renamed the constant ${o.name} to ${k.name}`); if(o.v!==k.v) what.push(`set the constant ${k.name} to ${constTxt(k.v)}${k.unit?" "+k.unit:""} (was ${constTxt(o.v)})`); else if(o.unit!==k.unit||o.note!==k.note) what.push(`changed the unit or note of the constant ${k.name}`); } });
+  was.forEach(o=>{ if(!N.has(o.id)) what.push(`deleted the constant ${o.name}`); });
+  pushUndo(what.length===1?what[0].replace(/^\w+ /,""):"the constants");
+  if(next.length) p.consts=next; else delete p.consts;
+  recalcFx(p);
+  save({consts:p.consts||null,cols:p.cols},what.join("; ")||"changed the constants"); renderAll();
+  toast(capFirst(what.length===1?what[0]:`${what.length} changes to the constants`)+".",{action:"Undo",run:undo}); }
 const sameArr=(a,b)=>{ if(a===b) return true; if(!a||!b||a.length!==b.length) return false; for(let i=0;i<a.length;i++) if(a[i]!==b[i]) return false; return true; };
 // Computes every formula column, each after the formula columns it uses. True if any changed.
 function recalcFx(p){
@@ -15336,7 +15634,7 @@ function wsFxHint(text){
   // operator waiting) is said quietly; a mistake inside it is marked.
   else try{ fxParse(text,col); msg=`${q?q.letter:""} = ${fxPrep(text)}`; }catch(err){ const src=fxPrep(text), tail=(/[\p{L}_][\p{L}\p{N}_]*$/u.exec(src)||[""])[0];
     // …or a name being typed that a function or constant starts with (sq, on its way to sqrt).
-    const atEnd=err.pos!=null&&err.pos>=src.length, part=!atEnd&&!!tail&&Object.keys(FX_DOC).concat(Object.keys(EXPR_CONST)).some(k=>k!==tail&&k.startsWith(tail));
+    const atEnd=err.pos!=null&&err.pos>=src.length, part=!atEnd&&!!tail&&Object.keys(FX_DOC).concat(Object.keys(FX_SDOC),Object.keys(EXPR_CONST),constList().map(k=>k.name)).some(k=>k!==tail&&k.startsWith(tail));
     msg=part?`Not finished yet: ${tail}… is the start of a name; keep typing, or choose one from the list`:atEnd?"Not finished yet: "+lcFirst(err.message):err.message; bad=!atEnd&&!part; }
   const h=$("#wsValHint"); if(h){ h.className="wshint "+(bad?"badt":"lab"); h.textContent=msg; }
 }
@@ -15361,19 +15659,35 @@ const FX_DOC={exp:[["v"],"e to the power v"],ln:[["v"],"natural logarithm"],log:
   pow:[["base","power"],"base to the power, as base^power"],min:[["a","b","…"],"the smallest of the values"],max:[["a","b","…"],"the largest of the values"],
   erf:[["v"],"error function"],erfc:[["v"],"1 − erf(v)"],sign:[["v"],"−1, 0 or 1, by the sign of v"],step:[["v"],"0 below zero, 1 above, 0.5 at zero"]};
 const FX_CDOC={pi:"π, 3.14159…",e:"e, 2.71828…"};
+// The worksheet's own (SHEET_SPEC 3.1): offered in a column's formula, never in a fit function's.
+const FX_SDOC={if:[["condition","when it holds","when it does not"],"the second value where the condition holds (is not 0), else the third"],
+  and:[["a","b","…"],"1 when every condition holds, else 0"],or:[["a","b","…"],"1 when any condition holds, else 0"],not:[["a"],"1 when a is 0, else 0"],
+  missing:[["v"],"1 where v is missing (an empty or text cell, 0/0), else 0"],
+  sum:[["column"],"the sum of the column's numbers, every row"],mean:[["column"],"the mean of the column's numbers"],sd:[["column"],"the standard deviation of its numbers (n − 1)"],
+  var:[["column"],"the variance of its numbers (n − 1)"],se:[["column"],"the standard error of its mean"],median:[["column"],"the median of its numbers"],
+  count:[["column"],"how many numbers it holds"],percentile:[["column","percent"],"the value below which that percent of its numbers lie (R's type 7)"],
+  cumsum:[["column"],"the running sum of its numbers down to this row"]};
+const FX_SMINMAX={min:"the column's smallest number, as min(B); or the smallest of several values",max:"the column's largest number, as max(B); or the largest of several values"};
 const fxsOwn=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
 // What every formula can use: the functions (in the order of FX_DOC) and the constants.
-function fxsBase(){ return Object.keys(FX_DOC).filter(k=>fxsOwn(EXPR_FN,k)).map(k=>({kind:"fn",name:k,ins:k+"(",args:FX_DOC[k][0],desc:FX_DOC[k][1]}))
+function fxsBase(sheet){ return Object.keys(FX_DOC).filter(k=>fxsOwn(EXPR_FN,k)).map(k=>({kind:"fn",name:k,ins:k+"(",args:FX_DOC[k][0],desc:sheet&&FX_SMINMAX[k]||FX_DOC[k][1]}))
+  .concat(sheet?Object.keys(FX_SDOC).map(k=>({kind:"fn",name:k,ins:k+"(",args:FX_SDOC[k][0],desc:FX_SDOC[k][1]})):[])
   .concat(Object.keys(EXPR_CONST).map(k=>({kind:"const",name:k,ins:k,desc:FX_CDOC[k]||""}))); }
-// The worksheet's: its columns (not the one being computed), x, i, then the rest.
-function fxsSheetItems(self){
-  const raw=sheetCols(), out=[];
-  raw.forEach((c,k)=>{ if(self&&c.id===self.id) return; const L=wsLetter(k), nm=(c.name||"").trim();
-    out.push({kind:"col",name:L,ins:L,alias:nm,desc:(nm||"no name")+(c.unit?` (${c.unit})`:"")+(c.role==="x"?", X":c.role==="e"?", error bars":"")}); });
+// The worksheet's: its columns (not the one being computed), x, i, then the rest; after a sheet's
+// name and ! (Sheet2!, 'Raw data'!), that sheet's columns alone.
+function fxsSheetItems(self,before){
+  const colItem=(c,k,pre)=>{ const L=wsLetter(k), nm=(c.name||"").trim(); return {kind:"col",name:L,ins:L,alias:nm,desc:(pre?pre+": ":"")+(nm||"no name")+(c.unit?` (${c.unit})`:"")+(c.role==="x"?", X":c.role==="e"?", error bars":"")}; };
+  const bang=/(?:'((?:[^']|'')*)'|([\p{L}_][\p{L}\p{N}_]*))!([A-Za-z]*)$/u.exec(before||"");
+  if(bang){ const sh=fxSheetByName(bang[1]!=null?bang[1].replace(/''/g,"'"):bang[2]); if(!sh) return [];
+    return sheetCols(sh.id).map((c,k)=>self&&c.id===self.id?null:colItem(c,k,sh.name)).filter(Boolean); }
+  const sid=self?sheetOf(self):curSheet(), raw=sheetCols(sid), out=[];
+  raw.forEach((c,k)=>{ if(self&&c.id===self.id) return; out.push(colItem(c,k)); });
+  sheetList().filter(s=>s.id!==sid).forEach(s=>{ const r=fxSheetRef(s.name)+"!"; out.push({kind:"sheet",name:r,ins:r,alias:s.name,desc:`a column of ${s.name}: then its letter`}); });
   if(!(self&&self.role==="x")) out.push({kind:"var",name:"x",ins:"x",desc:"this row's X value"});
   out.push({kind:"var",name:"i",ins:"i",desc:"the row number: 1, 2, 3…"});
   out.push({kind:"fn",name:"fit",ins:"fit(",args:["Y column"],desc:"the fitted values of a Y column, from its fit: the whole formula"},{kind:"fn",name:"resid",ins:"resid(",args:["Y column"],desc:"the residuals of a Y column, y less its fit: the whole formula"});
-  return out.concat(fxsBase()); }
+  constList().forEach(k=>out.push({kind:"const",name:k.name,ins:k.name,desc:`${constTxt(k.v)}${k.unit?" "+k.unit:""}${k.note?" · "+k.note:""}`}));
+  return out.concat(fxsBase(true)); }
 // The column a worksheet field is computing, if any.
 function fxsSheetSelf(c){ const m=S.wsm, q=m&&m.cols[c]; return q&&!q.phantom?q.col:null; }
 let fxsOpen=null;
@@ -15389,18 +15703,19 @@ function fxsAttach(inp,opt){
   inp.addEventListener("keydown",fxsKey);
   if(document.activeElement===inp) setTimeout(upd,0); }
 // The function whose brackets the caret is inside, and which of its arguments.
-function fxsSig(before){ let depth=0, commas=0;
+function fxsSig(before,sheet){ let depth=0, commas=0;
   for(let i=before.length-1;i>=0;i--){ const ch=before[i];
     if(ch===")") depth++;
     else if(ch==="("){ if(depth>0){ depth--; continue; }
       const m=/([\p{L}_][\p{L}\p{N}_]*)\s*$/u.exec(before.slice(0,i));
-      if(m&&fxsOwn(FX_DOC,m[1])&&fxsOwn(EXPR_FN,m[1])) return {name:m[1],arg:commas};
+      if(m&&fxsOwn(FX_DOC,m[1])&&fxsOwn(EXPR_FN,m[1])) return {name:m[1],arg:commas,sheet};
+      if(m&&sheet&&fxsOwn(FX_SDOC,m[1])) return {name:m[1],arg:commas,sheet};
       commas=0; }
     else if(ch===","&&depth===0) commas++;
     else if(ch==="\n") return null; }
   return null; }
 function fxsMatch(items,pre){
-  const P0=pre.toLowerCase(), ord={col:0,var:1,fn:2,const:3}, out=[];
+  const P0=pre.toLowerCase(), ord={col:0,sheet:0.5,var:1,fn:2,const:3}, out=[];
   items.forEach(it=>{ const n=it.name.toLowerCase(); let s;
     if(!pre) s=ord[it.kind];
     else if(it.name===pre) s=0;
@@ -15420,10 +15735,10 @@ function fxsUpdate(inp,force){
   const before=v.slice(0,at), mm=/[\p{L}_][\p{L}\p{N}_]*$/u.exec(before), pre=mm?mm[0]:"", start=at-pre.length;
   // A letter straight after a digit is part of a number (1e5), not a name.
   const inNum=!!pre&&/[\d.]/.test(before[start-1]||"");
-  const empty=!v.replace(/^\s*=\s*/,"").trim();
+  const empty=!v.replace(/^\s*=\s*/,"").trim(), bang=!!opt.sheet&&/!$/.test(before.slice(0,start));
   let list=[];
-  if(!inNum&&(pre||empty||force)){ list=fxsMatch(opt.items(),pre); if(!force&&list.length===1&&list[0].ins===pre) list=[]; }
-  const sig=fxsSig(before);
+  if(!inNum&&(pre||empty||force||bang)){ list=fxsMatch(opt.items(before),pre); if(!force&&list.length===1&&list[0].ins===pre) list=[]; }
+  const sig=fxsSig(before,!!opt.sheet);
   if(!list.length&&!sig){ fxsClose(); return; }
   const same=fxsOpen&&fxsOpen.inp===inp&&fxsOpen.pre===pre&&fxsOpen.start===start&&fxsOpen.list.length===list.length;
   const o=same?fxsOpen:{inp,sel:0,moved:false,el:fxsOpen&&fxsOpen.el};
@@ -15436,10 +15751,10 @@ function fxsRender(){
     el.addEventListener("pointermove",e=>{ const it=e.target.closest("[data-fxi]"); if(!it||!fxsOpen) return; const i=+it.dataset.fxi; if(i!==fxsOpen.sel){ fxsOpen.sel=i; fxsPaint(); } });
     el.addEventListener("click",e=>{ const it=e.target.closest("[data-fxi]"); if(it&&fxsOpen) fxsAccept(fxsOpen.list[+it.dataset.fxi]); });
     document.body.appendChild(el); fxsTrack(); }
-  const head={col:"Columns",var:"Values",fn:"Functions",const:"Constants"}, tag={col:ICON("table","sm"),var:"·",fn:"fx",const:"π"};
+  const head={col:"Columns",sheet:"Other sheets",var:"Values",fn:"Functions",const:"Constants"}, tag={col:ICON("table","sm"),sheet:ICON("table","sm"),var:"·",fn:"fx",const:"π"};
   let h="", last="";
-  if(o.sig){ const d=FX_DOC[o.sig.name], a=d[0], k=Math.min(o.sig.arg,a.length-1);
-    h+=`<div class="fxs-sig"><code>${esc(o.sig.name)}(${a.map((s,i)=>i===k?`<b>${esc(s)}</b>`:esc(s)).join(", ")})</code><span>${esc(d[1])}</span></div>`; }
+  if(o.sig){ const d=o.sig.sheet&&fxsOwn(FX_SDOC,o.sig.name)?FX_SDOC[o.sig.name]:FX_DOC[o.sig.name], a=d[0], k=Math.min(o.sig.arg,a.length-1), desc=o.sig.sheet&&FX_SMINMAX[o.sig.name]||d[1];
+    h+=`<div class="fxs-sig"><code>${esc(o.sig.name)}(${a.map((s,i)=>i===k?`<b>${esc(s)}</b>`:esc(s)).join(", ")})</code><span>${esc(desc)}</span></div>`; }
   if(o.list.length){ h+=`<div class="fxs-list" role="listbox" aria-label="Suggestions">`;
     o.list.forEach((it,i)=>{ if(o.heads&&it.kind!==last){ h+=`<div class="fxs-g" role="presentation">${head[it.kind]}</div>`; last=it.kind; }
       h+=`<div class="fxs-i${i===o.sel?" on":""}" role="option" id="fxs-${i}" data-fxi="${i}" aria-selected="${i===o.sel}"><span class="fxs-k" aria-hidden="true">${tag[it.kind]}</span><code>${esc(it.name)}</code>${it.args?`<span class="fxs-a">(${esc(it.args.join(", "))})</span>`:""}<span class="fxs-d">${esc(it.desc||"")}</span></div>`; });
@@ -15475,7 +15790,7 @@ function fxsAccept(it){ const o=fxsOpen; if(!o||!it) return; const inp=o.inp, v=
   const nv=v.slice(0,o.start)+ins+rest, c=o.start+ins.length+skip;
   inp.value=nv; inp.setSelectionRange(c,c);
   // Nothing more to offer for what was just put in, until something is typed.
-  if(!ins.endsWith("(")) inp._fxsHush=nv;
+  if(!ins.endsWith("(")&&!ins.endsWith("!")) inp._fxsHush=nv;
   inp.dispatchEvent(new Event("input",{bubbles:true})); fxsUpdate(inp); }
 function fxsKey(ev){ const inp=ev.currentTarget;
   if(ev.key===" "&&ev.ctrlKey&&!ev.altKey&&!ev.metaKey){ ev.preventDefault(); ev.stopImmediatePropagation(); inp._fxsHush=null; fxsUpdate(inp,true); return; }
@@ -16407,7 +16722,7 @@ function wsRestoreEditor(){
   const n=inp.value.length; inp.setSelectionRange(n,n);
   inp.addEventListener("input",()=>{ e.val=inp.value; const bi=$("#wsValIn"); if(bi) bi.value=inp.value; if(e.r===-1) wsFxHint(inp.value); });
   // A formula (the F(x)= row, or a value starting with =) gets suggestions; their keys come first.
-  fxsAttach(inp,{on:()=>S.ws.edit===e&&(e.r===-1||/^\s*=/.test(inp.value)),items:()=>fxsSheetItems(fxsSheetSelf(e.c))});
+  fxsAttach(inp,{sheet:true,on:()=>S.ws.edit===e&&(e.r===-1||/^\s*=/.test(inp.value)),items:b=>fxsSheetItems(fxsSheetSelf(e.c),b)});
   inp.addEventListener("keydown",wsEdKey);
   inp.addEventListener("blur",()=>{ setTimeout(()=>{ if(S.ws.edit===e&&document.activeElement!==inp&&inp.isConnected) wsCommit(0,0,true); },0); });
 }
@@ -17297,7 +17612,7 @@ function setupWs(){
   // The formula bar: the active cell's contents, edited there as in a spreadsheet.
   { const vi=$("#wsValIn");
     if(vi){ vi.addEventListener("focus",wsBarBegin);
-      fxsAttach(vi,{on:()=>{ const b=S.ws&&S.ws.bar; return !!b&&(b.r===-1||b.calc||/^\s*=/.test(vi.value)); },items:()=>fxsSheetItems(fxsSheetSelf(S.ws&&S.ws.bar?S.ws.bar.c:-1))});
+      fxsAttach(vi,{sheet:true,on:()=>{ const b=S.ws&&S.ws.bar; return !!b&&(b.r===-1||b.calc||/^\s*=/.test(vi.value)); },items:b=>fxsSheetItems(fxsSheetSelf(S.ws&&S.ws.bar?S.ws.bar.c:-1),b)});
       vi.addEventListener("input",()=>{ const b=S.ws&&S.ws.bar; vi.classList.remove("bad"); if(b&&b.r===-1||(b&&b.calc)) wsFxHint(vi.value); });
       vi.addEventListener("keydown",ev=>{ ev.stopPropagation();
         if(ev.key==="Enter"){ ev.preventDefault(); wsBarEnd(ev.shiftKey?-1:1,0); }
@@ -21872,6 +22187,8 @@ function methodLines(){
   const meta=p.meta||{};
   Object.keys(meta).forEach(function(k){ out.push(k+": "+meta[k]); });
   if(p.raw&&p.raw.fp) out.push("Raw data SHA-256: "+p.raw.fp);
+  { const fx=(p.cols||[]).filter(o=>o.fx&&!o.src); if(fx.length) out.push("Column formulas: "+fx.map(o=>`${colRef(o)} = ${fxShow(o)}${FX_ERR.get(o.id)?` (not working: ${FX_ERR.get(o.id)})`:""}`).join("; "));
+    const ks=constList(p); if(ks.length) out.push("Constants: "+ks.map(k=>{ const rd=constReaders(k.id,p); return `${k.name} = ${constTxt(k.v)}${k.unit?" "+k.unit:""}${k.note?` (${k.note})`:""}${rd.length?", read by "+rd.map(colRef).join(", "):""}`; }).join("; ")); }
   if(c){
     if(c.src) out.push(specName(c)+" starts from the "+(c.from==="raw"?"original":"processed")+" data of "+specName(srcOf(c)));
     const steps=(c.pipe||[]).filter(s=>s.on!==false);
@@ -22786,6 +23103,7 @@ function dataMenu(){
     {label:"Worksheet", run:()=>openWin("sheet",{render:true}), enabled:!!p},
     {label:"Sheets", title:"The worksheet's sheets, as a workbook's: their tabs are under the grid", sub:()=>sheetsMenuItems(), enabled:!!p},
     {label:"Add a column", run:addColumn, enabled:edit},
+    {label:"Constants…", title:"The project's named constants (k_B, N_A…), read by column formulas by their names", run:constDlg, enabled:edit},
     {label:"Fill", sub:fillMenuItems, enabled:edit},
     {label:"Sort the view", title:"By the column of the selected cell; the data keep their recorded order", sub:()=>sortViewItems(), enabled:!!p},
     {label:"Hide and show", title:"Columns and rows of the worksheet: hidden from view, still in the data", sub:hideItems, enabled:!!p},
@@ -25134,11 +25452,21 @@ ${DL([["Long Name","The column's name, used on the axes and in the legend."],["U
 <p>Type over a value to change it, ${K("Delete")} to clear the selection, and paste or fill over values. To insert or delete, right-click a cell: <em>Insert</em> › Row above, Row below, Column to the left, Column to the right, A column at the end or A sheet, and <em>Delete</em> › Rows or Columns; as many rows or columns are inserted as are selected. The same are in a column's menu, in Edit › Insert and Delete, on the <strong>Insert</strong> button above the grid, and on the keys: ${K("Ctrl","Shift","=")} inserts and ${K("Ctrl","−")} deletes (columns when whole columns are selected, rows otherwise). Masked points and corrections move with their rows. Each change is one undo step and goes into the original-data record with the check code, so what was changed, when and by whom is kept.</p>
 <h2 id="lock">Locking the original data</h2>
 <p>The lock button above the grid, or ${MP("Data › Lock the original data")}, keeps the original values as they are, for the whole project. Empty cells can still be filled. Typing over a value then asks for a reason and adds a <em>Correct values</em> step, so the original stays in the original data and the correction shows in the History, the report and the CSV; pasting over values offers new columns; rows cannot be inserted or deleted. ${DA("rawdata","Original data and its check code")}</p>`},
-{id:"formulas", g:"Data", t:"Column formulas", kw:"formula f(x) set column values compute calculate expression function log sqrt fit resid residuals fitted values",
+{id:"formulas", g:"Data", t:"Column formulas", kw:"formula f(x) set column values compute calculate expression function log sqrt fit resid residuals fitted values if condition compare mean sum count median sd percentile cumsum running sum previous row offset other sheet constant k_B text equals missing",
  lead:"A column can be computed, row by row, from other columns: Origin's F(x)= row.",
  body:`<h2>Writing one</h2>
 <p>Type into a column's <strong>F(x)=</strong> cell, type <code>=</code> and the formula into any cell of the column, or choose <em>Set column values…</em> from its header or cell menu. The bar above the grid checks the formula as you type: a formula not finished yet (a bracket still open, a name half typed) is said quietly, and a mistake is marked in red.</p>
-${DL([["<code>A</code>, <code>B</code>, …","The value of that column in the same row. <code>col(B)</code> and a leading <code>=</code> are accepted too."],["<code>x</code>","The row's X value."],["<code>i</code>","The row number, from 1."],["<code>+ − * / ^</code>","Arithmetic; <code>**</code> also means a power."],["Functions","<code>exp ln log log10 log2 sqrt abs sin cos tan asin acos atan atan2 sinh cosh tanh pow min max erf erfc sign step</code>"],["Constants","<code>pi</code>, <code>e</code>"]])}
+${DL([["<code>A</code>, <code>B</code>, …","The value of that column in the same row. <code>col(B)</code> and a leading <code>=</code> are accepted too."],["<code>x</code>","The row's X value."],["<code>i</code>","The row number, from 1."],["<code>+ − * / ^</code>","Arithmetic; <code>**</code> also means a power."],["Functions","<code>exp ln log log10 log2 sqrt abs sin cos tan asin acos atan atan2 sinh cosh tanh pow min max erf erfc sign step</code>"],["Constants","<code>pi</code>, <code>e</code>, and the project's own (below)"]])}
+<h2 id="rows">Other rows, and the whole column</h2>
+${DL([["<code>B[i-1]</code>","Column B at another row: the row above here. <code>B[1]</code> is its first row, <code>B[i+1]</code> the row below; a row before the first or past the last is empty, and so is a row number that is not whole. <code>x[i-1]</code> is the X value of the row above."],["<code>mean(B)</code>","One number from every row of B: <code>sum</code>, <code>mean</code>, <code>sd</code>, <code>var</code> and <code>se</code> (dividing by n − 1), <code>median</code>, <code>count</code> (how many numbers), <code>min(B)</code> and <code>max(B)</code> with one value, and <code>percentile(B, 90)</code>. Text and empty cells are left out. Any expression can go inside: <code>sum(B*C)</code>."],["<code>cumsum(B)</code>","The running sum down to this row; an empty cell adds nothing."]])}
+<p>A column never reads itself, at another row either: for a running total use <code>cumsum</code>. A filter, a sort or hidden rows change nothing a formula computes: it reads every row.</p>
+<h2 id="conditions">Conditions and text</h2>
+${DL([["<code>B > 0</code>","A comparison: 1 where it holds, 0 where it does not. <code>&lt; &lt;= > >= == !=</code> (and <code>&lt;></code>); inside brackets a single <code>=</code> is equality too, as in a spreadsheet."],["<code>if(B > 0, B, 0/0)</code>","The second value where the condition holds, else the third. <code>0/0</code> leaves the cell empty."],["<code>and(…)</code>, <code>or(…)</code>, <code>not(…)</code>","Conditions joined."],["<code>C == \"control\"</code>","A text in quotes, compared with a column's cells exactly (capitals and spaces count). A number never equals a text. Only <code>==</code> and <code>!=</code> compare text."],["<code>missing(B)</code>","1 where B is empty, text, or not a number (0/0), else 0."]])}
+<p>An empty cell gives an empty result through everything it enters, a comparison too; <code>if</code> works out only the value it chooses, so <code>if(missing(B), C, B)</code> fills B's gaps from C.</p>
+<h2 id="sheets">Another sheet</h2>
+<p><code>Sheet2!B</code> is column B of Sheet2, row by row; a name that is not one word goes in single quotes, <code>'Raw data'!B</code> (spaces and capitals are forgiven when only one sheet fits). The formula keeps the column itself, so renaming the sheet, or inserting columns there, never makes it read another one; its F(x)= row shows the names as they are now.</p>
+<h2 id="consts">Constants</h2>
+<p>${MP("Data › Constants…")} keeps the project's named constants, each with its value, unit and a note: <code>k_B</code> = 1.380649e-23 J/K, <code>N_A</code>, a calibration factor. A formula reads one by its name, <code>B/(k_B*x)</code>, and follows it when it is renamed or changed; deleting one a formula reads asks first, and that formula then says what is missing until Undo puts it back. A name starts with a letter and holds letters, digits and _; it cannot be a column's letters (<code>B</code>, <code>AB</code>), a function, <code>x</code>, <code>i</code>, <code>pi</code> or <code>e</code>. The report's Method lists the constants and the formulas that read them.</p>
 <h2 id="suggest">Suggestions as you type</h2>
 <p>A list under the cell offers what can come next, as a spreadsheet's does: the columns, by letter or by the start of their name (typing <code>abs</code> offers the function and a column called Absorbance), <code>x</code> and <code>i</code>, every function with its arguments and what it does, and the constants. It opens with the first letter of a name, and on an empty formula to show what there is. ${K("↑")} ${K("↓")} choose, ${K("Tab")} puts the choice in (${K("Enter")} too, once an arrow has chosen; otherwise Enter keeps the formula as it is), a click does the same, ${K("Esc")} closes the list and ${K("Ctrl","Space")} opens it anywhere. Inside a function's brackets a line shows its arguments, the one being typed in bold. The same list helps in the formula bar and in a ${DA("userfn","fit function")}'s formula.</p>
 <h2>Examples</h2>
@@ -25151,8 +25479,8 @@ ${DL([["<code>B*2</code>","Double column B."],["<code>(B-C)/A</code>","A differe
 <ul><li>A formula follows the columns it uses, not their letters: insert or delete a column and it still reads the right one.</li>
 <li>It is computed again whenever the columns it uses change.</li>
 <li>Its values are not original data: they are left out of the ${DA("rawdata","fingerprint")}, and cannot be typed over.</li>
-<li>A column that uses itself, a circle of formulas, or a deleted input shows an error in its header.</li>
-<li>Only arithmetic can run: a formula is never executed as code.</li></ul>`},
+<li>A column that uses itself, a circle of formulas, or a deleted input or constant shows an error in its header.</li>
+<li>Only arithmetic can run: a formula is never executed as code. A fit function keeps its own, simpler language: no rows, aggregates, conditions, text, sheets or constants there.</li></ul>`},
 {id:"fill", g:"Data", t:"Fill, sort and find", kw:"fill handle series growth linear step stop evenly spaced linspace log row numbers repeat pattern list random uniform normal gaussian poisson counts seed trend copy sort order find search ctrl d ctrl r",
  lead:"Filling cells with a series, row numbers, a list, random numbers or a trend; the fill handle; sorting and search, as in a spreadsheet.",
  body:`<h2 id="dialog">The Fill dialog</h2>

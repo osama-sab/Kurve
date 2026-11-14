@@ -1024,6 +1024,31 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 3, slice 3.1: formulas, further (2026-11-14)
+
+- **A column's formula reaches other rows**: `B[i-1]` the row above, `B[1]` the first, `x[i-1]` the X above; a row
+  outside the column, or one that is not whole, is empty.
+- **The whole column as one number**: `sum`, `mean`, `sd`, `var`, `se`, `median`, `count`, `min(B)`, `max(B)`,
+  `percentile(B, 90)` of a column or any expression over every row, text and empty cells left out; `cumsum(B)` the
+  running sum.
+- **Conditions**: comparisons give 1 or 0, `if`, `and`, `or`, `not`, `missing`; `C == "control"` compares a text
+  exactly. An empty cell gives an empty result through everything it enters, and `if` works out only the value it
+  chooses.
+- **Other sheets**: `Sheet2!B`, `'Raw data'!B`, kept by the column, so renaming the sheet or inserting columns there
+  changes nothing it reads.
+- **Data › Constants…**: the project's named numbers (`k_B`, `N_A`), each with a unit and a note, read by formulas by
+  name, renamed and changed with the formulas following, deleted in use only after a second press; the report's
+  Method lists them and the formulas.
+- The suggestions offer the new functions, the constants with their values and the other sheets, and after `Sheet2!`
+  that sheet's columns; a fit function keeps its own language (no `if`, `sum` or constants there).
+- A fix found by the fuzzer once its packages were installed: the exact binomial test's power (2.11) for a small size
+  and a lower or two-sided alternative was worked out from an empty rejection region (0 for four trials where it is
+  0.452).
+
+Checked: `fixtures/fx.json` (20 formulas on 7 sets against NumPy, exact sums and exact SDs: 3e-16 at worst, 140
+cases), the fuzzer (random expressions written out and worked out in Python), `tools/sheet-drive.mjs` (new, 42 checks),
+a budget (a formula over a million rows, 89 ms), the suite.
+
 ## Closing the gap with Origin, wave 2, slice 2.12: ROC curves (2026-11-13)
 
 - **Analyze › Statistics › ROC curve…**: a column of groups (text, or numbers with two values), the positive one named, and

@@ -1,5 +1,8 @@
 {
  "//": "What each function of Kurve must reach against the reference (tools/ref/README.md): tol, a relative error (floor, an absolute one beside it for values near zero); until, the slice of ux/spec/PARITY_SPEC.md that brings a function short of its target there; now, the worst error it was measured at when that was written, which it must not pass; why, what keeps it short. Read by tools/ref-test.mjs and tools/ref/diff-fuzz.py.",
+ "fxCalc": {
+  "tol": 1e-13
+ },
  "betai": {
   "tol": 1e-12
  },

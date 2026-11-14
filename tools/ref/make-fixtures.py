@@ -726,6 +726,103 @@ p1, n1_ = r1(30, 1, 1), r1(45, 0, 1)
 roccase("two scores compared", p1, n1_, pos2=[round(v + float(e), 1) for v, e in zip(p1, rng.normal(0, 1, 30))], neg2=[round(v + float(e), 1) for v, e in zip(n1_, rng.normal(0, 1, 45))])
 out["roc"] = cases
 
+# ---------- worksheet formulas (SHEET_SPEC 3.1): NumPy, exact sums (math.fsum) and statistics.stdev ----------
+# Each case is a formula over named columns (B, C numbers with gaps; G numbers, text and gaps; S another
+# sheet's column, longer or shorter; k a constant) worked out by NumPy with NaN as missing: missing in,
+# missing out; a row past a column's end missing; a column as long as the longest it reads row by row
+# (the sheet's rows when it reads none); empty rows at the end dropped.
+import statistics
+from fractions import Fraction
+cases = []; rng = np.random.default_rng(31)
+def fxcol(n, gap, mag, off=0.0, ints=False):
+    v = rng.integers(-20, 21, n).astype(float) if ints else off + mag * rng.normal(0, 1, n)
+    return [None if rng.random() < gap else float(x) for x in v]
+def A(v, n): a = np.full(n, np.nan); m = min(n, len(v)); a[:m] = [np.nan if x is None else x for x in v[:m]]; return a
+def fin(v): return [x for x in v if x is not None and math.isfinite(x)]
+def mean_(v): f = fin(v); return math.fsum(f) / len(f) if f else math.nan
+def sd_(v): f = fin(v); return float(statistics.stdev([Fraction(x) for x in f])) if len(f) > 1 else math.nan
+def var_(v): f = fin(v); return float(statistics.variance([Fraction(x) for x in f])) if len(f) > 1 else math.nan
+def pct_(v, q): f = fin(v); return float(np.percentile(f, q, method="linear")) if f else math.nan
+def shift(v, n, k):  # the value k rows on (k < 0: above), NaN past the ends
+    a = A(v, max(n, len(v))); out = np.full(n, np.nan)
+    for r in range(n):
+        j = r + k
+        if 0 <= j < len(v) and v[j] is not None: out[r] = v[j]
+    return out
+def cum_(v, n):
+    out, run = np.full(n, np.nan), []
+    for r in range(n):
+        x = v[r] if r < len(v) else None
+        if x is None: continue
+        run.append(x); out[r] = math.fsum(run)
+    return out
+def done(a):
+    o = [None if not math.isfinite(x) else float(x) for x in a]
+    while o and o[-1] is None: o.pop()
+    return o
+def textEq(G, Gt, n, s):  # G == "s": 1, 0, or NaN where empty
+    out = np.full(n, np.nan)
+    for r in range(n):
+        if r in Gt: out[r] = 1.0 if Gt[r] == s else 0.0
+        elif r < len(G) and G[r] is not None: out[r] = 0.0
+    return out
+with np.errstate(invalid="ignore", divide="ignore"):
+    FX = [
+        ("B - mean(B)", lambda d, n: A(d["B"], n) - mean_(d["B"])),
+        ("B[i-1]", lambda d, n: shift(d["B"], n, -1)),
+        ("B[i+2] - B", lambda d, n: shift(d["B"], n, 2) - A(d["B"], n)),
+        ("B/B[1]", lambda d, n: A(d["B"], n) / (d["B"][0] if d["B"] and d["B"][0] is not None else math.nan)),
+        ("cumsum(B)", lambda d, n: cum_(d["B"], n)),
+        ("(B - mean(B))/sd(B)", lambda d, n: (A(d["B"], n) - mean_(d["B"])) / sd_(d["B"])),
+        ("B/sum(B)", lambda d, n: A(d["B"], n) / math.fsum(fin(d["B"]))),
+        ("percentile(B, 90) - median(B)", lambda d, n: np.full(n, pct_(d["B"], 90) - pct_(d["B"], 50))),
+        ("if(B > median(B), B, 0/0)", lambda d, n: np.where(A(d["B"], n) > pct_(d["B"], 50), A(d["B"], n), np.where(np.isnan(A(d["B"], n)), np.nan, np.nan))),
+        ('if(G == "a", B, C)', lambda d, n: (lambda t: np.where(np.isnan(t), np.nan, np.where(t == 1, A(d["B"], n), A(d["C"], n))))(textEq(d["G"], d["Gt"], n, "a"))),
+        ('G != "b"', lambda d, n: (lambda t: np.where(np.isnan(t), np.nan, 1 - t))(textEq(d["G"], d["Gt"], n, "b"))),
+        ("and(B > 0, C < 0) + or(B < 0, not(C > 0))", lambda d, n: (lambda b, c: np.where(np.isnan(b) | np.isnan(c), np.nan, ((b > 0) & (c < 0)).astype(float) + ((b < 0) | ~(c > 0)).astype(float)))(A(d["B"], n), A(d["C"], n))),
+        ("count(B) + min(B) + max(C)", lambda d, n: np.full(n, len(fin(d["B"])) + (min(fin(d["B"])) if fin(d["B"]) else math.nan) + (max(fin(d["C"])) if fin(d["C"]) else math.nan))),
+        ("S[i] * B", lambda d, n: shift(d["S"], n, 0) * A(d["B"], n)),
+        ("x[i-1] - x", lambda d, n: shift(d["X"], n, -1) - A(d["X"], n)),
+        ("missing(B) + missing(C)", lambda d, n: np.isnan(A(d["B"], n)).astype(float) + np.isnan(A(d["C"], n)).astype(float)),
+        ("cumsum(B) / i", lambda d, n: cum_(d["B"], n) / np.arange(1, n + 1)),
+        ("se(C) + var(C)", lambda d, n: np.full(n, sd_(d["C"]) / math.sqrt(len(fin(d["C"]))) + var_(d["C"]) if len(fin(d["C"])) > 1 else math.nan)),
+        ("B * k + C", lambda d, n: A(d["B"], n) * d["k"] + A(d["C"], n)),
+        ("B^2 - C*abs(C)", lambda d, n: A(d["B"], n) ** 2 - A(d["C"], n) * np.abs(A(d["C"], n))),
+    ]
+    # Which names each formula reads row by row (decides its rows); a formula reading none has nDef.
+    ROWS = {"B - mean(B)": "B", "B[i-1]": "B", "B[i+2] - B": "B", "B/B[1]": "B", "cumsum(B)": "B", "(B - mean(B))/sd(B)": "B", "B/sum(B)": "B",
+            "percentile(B, 90) - median(B)": "", "if(B > median(B), B, 0/0)": "B", 'if(G == "a", B, C)': "GBC", 'G != "b"': "G",
+            "and(B > 0, C < 0) + or(B < 0, not(C > 0))": "BC", "count(B) + min(B) + max(C)": "", "S[i] * B": "SB", "x[i-1] - x": "X",
+            "missing(B) + missing(C)": "BC", "cumsum(B) / i": "B", "se(C) + var(C)": "", "B * k + C": "BC", "B^2 - C*abs(C)": "BC"}
+    sets = [("short", 5, 0.2, 1, 0, False), ("one row", 1, 0, 1, 0, False), ("integers with ties", 40, 0.15, 1, 0, True),
+            ("normal, 200, gaps", 200, 0.1, 3, 0, False), ("about 1e9", 60, 0.05, 1e-3, 1e9, False), ("small and large", 80, 0.1, 1e-150, 0, False),
+            ("mostly empty", 30, 0.8, 10, 0, False)]
+    for nm, n, gap, mag, off, ints in sets:
+        B = fxcol(n, gap, mag, off, ints); C = fxcol(n + int(rng.integers(-2, 3)), gap, mag, -off, ints)
+        G, Gt = [], {}
+        for r in range(n):
+            u = rng.random()
+            if u < 0.35: G.append(None); Gt[r] = "a"
+            elif u < 0.6: G.append(None); Gt[r] = "b"
+            elif u < 0.8: G.append(float(rng.integers(0, 5)))
+            else: G.append(None)
+        S = fxcol(max(1, n + int(rng.integers(-3, 4))), gap, 2, 0, False)
+        X = [None if rng.random() < gap / 2 else float(r * 0.5 + rng.random() * 0.1) for r in range(n)]
+        k = float(rng.normal(0, 1e3))
+        d = {"B": B, "C": C, "G": G, "Gt": Gt, "S": S, "X": X, "k": k}
+        nDef = max(len(B), len(C), len(G), len(X))
+        scale = max([abs(x) for x in fin(B) + fin(C) + fin(S) + fin(X) + [k]] or [1.0])
+        # The error an answer may carry: 16 ulp of the data's scale times how much the formula magnifies it.
+        GAIN = {"(B - mean(B))/sd(B)": 1 / sd_(B) if len(fin(B)) > 1 and sd_(B) > 0 else 1, "cumsum(B)": n, "cumsum(B) / i": n,
+                "B^2 - C*abs(C)": scale, "B * k + C": scale}
+        for src, fn in FX:
+            rows = ROWS[src]; L = {"B": len(B), "C": len(C), "G": len(G), "S": len(S), "X": len(X)}
+            n0 = max([L[c] for c in rows] or [0]) if rows else nDef
+            want = done(fn(d, n0))
+            cols = {"B": B, "C": C, "G": G, "S": S, "k": k}
+            cases.append({"fn": "fxCalc", "name": f"{src} on {nm}", "args": [src, cols, {"G": {str(r): t for r, t in Gt.items()}}, X, nDef], "want": want, "floor": 16 * 2.0 ** -52 * scale * max(1.0, GAIN.get(src, 1.0))})
+out["fx"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")
@@ -755,5 +852,6 @@ def write_or_check(name, cases):
     print(f"{name}: {'same' if not bad else str(bad) + ' different'} (committed with {old['made']}, made with {MADE})")
     return bad
 
-bad = sum(write_or_check(k, v) for k, v in out.items())
+only = args[args.index("--only") + 1].split(",") if "--only" in args else None
+bad = sum(write_or_check(k, v) for k, v in out.items() if not only or k in only)
 sys.exit(1 if bad else 0)

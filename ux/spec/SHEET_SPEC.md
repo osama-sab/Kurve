@@ -222,6 +222,13 @@ gains each.
 
 ## 3.1 Formulas, further
 
+Done 14.11, as below, with these changes of plan: a constant in use is deleted by a second press in the dialog (a
+confirmation over a dialog would open under it), the hint naming the columns that read it; two tabs' constants are
+merged constant by constant (`mergeProj`); the old-formula check is in `sheet-drive` (thirteen formulas through both
+grammars) and `fit-test` checks that a fit function keeps its language; `fxCalc` and `fxCalcAt` (by names) serve the
+bench and the fuzzer. The fuzzer found a constant counted as a column when the rows were decided (fixed), and, once
+its packages were installed, a wave-2 slip: the exact binomial test's power for small sizes (fixed, CLAUDE.md's rules).
+
 **What.** The F(x)= row and Set column values… take, beside today's letters, `x`, `i` and
 arithmetic:
 - **Rows**: `B[k]` (any expression for k), so `B[i-1]`, `B[i+1]`, `B[1]`, `B[count(B)]`.

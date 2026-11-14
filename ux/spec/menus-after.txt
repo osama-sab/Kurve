@@ -59,6 +59,7 @@ Data
     Rename this sheet…
     Delete this sheet…
   Add a column  ## + Edit's "Add a Y column"
+  Constants…  ## new (SHEET_SPEC 3.1): the project's named constants, read by column formulas by their names
   Fill
     Down  [Ctrl+D]  ## new route: the cell menu's Fill › Down
     Right  [Ctrl+R]  ## new route: the cell menu's Fill › Right

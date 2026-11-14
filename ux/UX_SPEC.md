@@ -373,6 +373,7 @@ spectroscopy tools), and nowhere else.
 | spectrum, peak, band, background, spike, Raman shift, known line | spectroscopy's own terms | the Spectroscopy menu and its panels only | — |
 | not counted as a peak | a candidate the finder set aside, with its reason | Peaks, Peak fit | turned down |
 | series | the order or variable that a set of columns follows | Batch, trend graphs, heat map | — |
+| constant | a named number of the project, read by column formulas (k_B) | Data › Constants…, formulas, the report | variable, parameter (a fit's) |
 
 ## 3.7 Defaults that fit the data
 

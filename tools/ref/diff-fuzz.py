@@ -445,6 +445,190 @@ def _():
     k, lam = float(rng.integers(1, 15)), float(round(lognum(-2, 2.5), 3)); x = float(round(lognum(-1, 2.5), 4))
     return [x, k, lam], refs.nc_tail("x2", [x, k, lam], False)
 
+# Worksheet formulas (SHEET_SPEC 3.1): a random expression over columns with gaps (B, C), text (G), an X, a constant (k),
+# written out as a formula and worked out here row by row with NaN as missing, every sum exact (math.fsum) and the SD from
+# exact fractions; one row of it compared. Each value carries the scale of the error its double arithmetic may make (the sum
+# of the magnitudes it was made from), and a comparison whose two sides are within that of each other is not judged.
+import statistics
+from fractions import Fraction
+class Ambiguous(Exception): pass
+EPS = 2.0 ** -52
+def fx_expr(depth, cond=False):
+    r = rng.random()
+    if cond or (depth > 0 and r < 0.12):
+        k = rng.random()
+        if k < 0.2: return ("cmpt", "==" if rng.random() < 0.6 else "!=", str(rng.choice(["a", "b", "c"])))
+        if k < 0.45 and depth > 0: return ("logic", str(rng.choice(["and", "or"])), [fx_expr(depth - 1, True), fx_expr(depth - 1, True)])
+        if k < 0.55 and depth > 0: return ("not", fx_expr(depth - 1, True))
+        if k < 0.62: return ("miss", fx_expr(max(0, depth - 1)))
+        return ("cmp", str(rng.choice(["<", "<=", ">", ">=", "==", "!="])), fx_expr(max(0, depth - 1)), fx_expr(max(0, depth - 1)))
+    if depth <= 0 or r < 0.25:
+        k = rng.random()
+        if k < 0.3: return ("par", str(rng.choice(["B", "C"])))
+        if k < 0.42: return ("num", float(round(rng.normal(0, 10), int(rng.integers(0, 4)))))
+        if k < 0.5: return ("par", "k")
+        if k < 0.58: return ("row",)
+        if k < 0.65: return ("x",)
+        if k < 0.85: return ("idx", str(rng.choice(["B", "C"])), ("bin", "+", ("row",), ("num", float(rng.integers(-2, 3)))))
+        return ("idx", str(rng.choice(["B", "C"])), ("num", float(rng.integers(0, 8))))
+    if r < 0.55: return ("bin", str(rng.choice(["+", "-", "*", "/"])), fx_expr(depth - 1), fx_expr(depth - 1))
+    if r < 0.62: return ("neg", fx_expr(depth - 1))
+    if r < 0.68: return ("fn", str(rng.choice(["abs", "sqrt"])), fx_expr(depth - 1))
+    if r < 0.75: return ("if", fx_expr(depth - 1, True), fx_expr(depth - 1), fx_expr(depth - 1))
+    if r < 0.9: return ("agg", str(rng.choice(["sum", "mean", "count", "min", "max", "median", "sd"])), fx_expr(depth - 1))
+    if r < 0.95: return ("agg", "percentile", fx_expr(depth - 1), float(rng.integers(0, 101)))
+    return ("cum", fx_expr(depth - 1))
+def fx_text(n):
+    t = n[0]
+    if t == "num": return repr(n[1]) if n[1] >= 0 else f"({n[1]!r})"
+    if t == "par": return n[1]
+    if t == "row": return "i"
+    if t == "x": return "x"
+    if t == "idx": return f"{n[1]}[{fx_text(n[2])}]"
+    if t == "bin": return f"({fx_text(n[2])} {n[1]} {fx_text(n[3])})"
+    if t == "neg": return f"-({fx_text(n[1])})"
+    if t == "fn": return f"{n[1]}({fx_text(n[2])})"
+    if t == "if": return f"if({fx_text(n[1])}, {fx_text(n[2])}, {fx_text(n[3])})"
+    if t == "agg": return f"{n[1]}({fx_text(n[2])}{', ' + repr(n[3]) if n[1] == 'percentile' else ''})"
+    if t == "cum": return f"cumsum({fx_text(n[1])})"
+    if t == "cmp": return f"({fx_text(n[2])} {n[1]} {fx_text(n[3])})"
+    if t == "cmpt": return f'(G {n[1]} "{n[2]}")'
+    if t == "logic": return f"{n[1]}({fx_text(n[2][0])}, {fx_text(n[2][1])})"
+    if t == "not": return f"not({fx_text(n[1])})"
+    if t == "miss": return f"missing({fx_text(n[1])})"
+def fx_names(n, inagg=False, acc=None):
+    acc = acc if acc is not None else {"row": set(), "all": set(), "rowx": False}
+    t = n[0]
+    if t in ("par", "idx") and n[1] != "k":
+        acc["all"].add(n[1])
+        if not inagg: acc["row"].add(n[1])
+    if t == "x" and not inagg: acc["rowx"] = True
+    if t == "cmpt":
+        acc["all"].add("G")
+        if not inagg: acc["row"].add("G")
+    for c in n[1:]:
+        if isinstance(c, tuple): fx_names(c, inagg or t == "agg", acc)
+        if isinstance(c, list): [fx_names(q, inagg or t == "agg", acc) for q in c]
+    return acc
+def fx_usesx(n):
+    return n[0] == "x" or any(fx_usesx(c) for c in n[1:] if isinstance(c, tuple)) or any(fx_usesx(q) for c in n[1:] if isinstance(c, list) for q in c)
+def fx_eval_case(tree, D):
+    names = fx_names(tree); L = {k: len(D[k]) for k in ("B", "C", "G")}
+    n = max([L[k] for k in names["row"]] + ([len(D["X"])] if names["rowx"] else []) + [0]) if (names["row"] or names["rowx"]) else D["nDef"]
+    N = max([L[k] for k in names["all"]] + ([len(D["X"])] if fx_usesx(tree) else []) + [n])
+    cache = {}
+    def cell(k, r):
+        a = D[k]
+        if r < 0 or r >= len(a) or a[r] is None: return math.nan
+        return a[r]
+    def rowof(v):
+        if not math.isfinite(v): return -1
+        q = round(v)
+        if abs(v - q) > 1e-9 * max(1, abs(v)) or q < 1: return -1
+        return int(q) - 1
+    def ev(nd, r):  # (value, magnitude)
+        t = nd[0]
+        if t == "num": return nd[1], abs(nd[1])
+        if t == "par":
+            if nd[1] == "k": return D["k"], abs(D["k"])
+            v = cell(nd[1], r); return v, abs(v)
+        if t == "row": return float(r + 1), float(r + 1)
+        if t == "x": v = cell("X", r); return v, abs(v)
+        if t == "idx":
+            j = rowof(ev(nd[2], r)[0]); v = cell(nd[1], j) if j >= 0 else math.nan; return v, abs(v)
+        if t == "neg": v, m = ev(nd[1], r); return -v, m
+        if t == "bin":
+            (a, ma), (b, mb) = ev(nd[2], r), ev(nd[3], r)
+            with np.errstate(all="ignore"):
+                if nd[1] == "+": return float(np.float64(a) + b), ma + mb
+                if nd[1] == "-": return float(np.float64(a) - b), ma + mb
+                if nd[1] == "*": return float(np.float64(a) * b), ma * mb
+                v = float(np.float64(a) / np.float64(b)); return v, (ma / abs(b) + abs(a) * mb / b ** 2) if b != 0 else math.inf
+        if t == "fn":
+            a, m = ev(nd[2], r)
+            if math.isnan(a): return math.nan, math.nan
+            if nd[1] == "abs": return abs(a), m
+            v = math.sqrt(a) if a >= 0 else math.nan; return v, (m / (2 * v) + v if v > 0 else math.inf)
+        if t in ("cmp", "cmpt"):
+            if t == "cmpt":
+                g = D["Gt"].get(r)
+                if g is None and (r >= len(D["G"]) or D["G"][r] is None): return math.nan, 0.0
+                same = g is not None and g == nd[2]; return (1.0 if same != (nd[1] == "!=") else 0.0), 0.0
+            (a, ma), (b, mb) = ev(nd[2], r), ev(nd[3], r)
+            if math.isnan(a) or math.isnan(b): return math.nan, 0.0
+            if abs(a - b) <= 256 * EPS * (ma + mb) and (ma + mb) > 0 and not (a == b and ma == 0 and mb == 0): raise Ambiguous()
+            return (1.0 if {"<": a < b, "<=": a <= b, ">": a > b, ">=": a >= b, "==": a == b, "!=": a != b}[nd[1]] else 0.0), 0.0
+        if t == "if":
+            c, _ = ev(nd[1], r)
+            if math.isnan(c): return math.nan, math.nan
+            return ev(nd[2] if c != 0 else nd[3], r)
+        if t == "logic":
+            vs = [ev(q, r)[0] for q in nd[2]]
+            if any(math.isnan(v) for v in vs): return math.nan, 0.0
+            return (1.0 if (all(v != 0 for v in vs) if nd[1] == "and" else any(v != 0 for v in vs)) else 0.0), 0.0
+        if t == "not":
+            v, _ = ev(nd[1], r); return (math.nan if math.isnan(v) else 1.0 if v == 0 else 0.0), 0.0
+        if t == "miss":
+            v, m = ev(nd[1], r)
+            if math.isfinite(v) and abs(v) > 1e300: raise Ambiguous()
+            return (0.0 if math.isfinite(v) else 1.0), 0.0
+        if t == "agg":
+            key = id(nd)
+            if key not in cache:
+                sub = fx_names(nd[2]); ux = fx_usesx(nd[2]); m = max([L[k] for k in sub["all"]] + ([len(D["X"])] if ux else []) + [0]) if (sub["all"] or ux) else n
+                vals = []; mags = []
+                for j in range(m):
+                    v, mg = ev(nd[2], j)
+                    if math.isfinite(v): vals.append(v); mags.append(mg)
+                f = nd[1]; cnt = len(vals); M = max(mags) if mags else 0.0
+                if f == "count": res = (float(cnt), 0.0)
+                elif f == "sum": res = (math.fsum(vals), math.fsum(mags))
+                elif not cnt: res = (math.nan, math.nan)
+                elif f == "mean": res = (math.fsum(vals) / cnt, math.fsum(mags) / cnt)
+                elif f == "min": res = (min(vals), M)
+                elif f == "max": res = (max(vals), M)
+                elif f in ("median", "percentile"):
+                    q = 50.0 if f == "median" else nd[3]; res = (float(np.percentile(vals, q, method="linear")), M)
+                elif f == "sd":
+                    res = (float(statistics.stdev([Fraction(v) for v in vals])), 2 * M + 0.0) if cnt > 1 else (math.nan, math.nan)
+                cache[key] = res
+            return cache[key]
+        if t == "cum":
+            key = id(nd)
+            if key not in cache:
+                arr, run, rm = [], [], []
+                for j in range(N):
+                    v, mg = ev(nd[1], j)
+                    if not math.isfinite(v): arr.append((math.nan, math.nan)); continue
+                    run.append(v); rm.append(mg); arr.append((math.fsum(run), math.fsum(rm)))
+                cache[key] = arr
+            a = cache[key]; return a[r] if r < len(a) else (math.nan, math.nan)
+        raise ValueError(t)
+    return n, ev
+def fx_data():
+    n = int(rng.integers(1, 40)); gap = float(rng.choice([0, 0.1, 0.4])); mag = lognum(-3, 4)
+    def col(m):
+        if rng.random() < 0.3: return [None if rng.random() < gap else float(rng.integers(-5, 6)) for _ in range(m)]
+        return [None if rng.random() < gap else float(rng.normal(0, mag)) for _ in range(m)]
+    B, C = col(n), col(max(0, n + int(rng.integers(-3, 4))))
+    G, Gt = [], {}
+    for r in range(n + int(rng.integers(-2, 3))):
+        u = rng.random()
+        if u < 0.6: G.append(None); Gt[r] = str(rng.choice(["a", "b", "c"]))
+        elif u < 0.8: G.append(float(rng.integers(0, 3)))
+        else: G.append(None)
+    X = [None if rng.random() < gap / 3 else float(r * 0.25) for r in range(n)]
+    return {"B": B, "C": C, "G": G, "Gt": Gt, "X": X, "k": float(rng.normal(0, 3)), "nDef": n + int(rng.integers(0, 3))}
+@gen("fxCalcAt", 1e-13, 0.6)
+def _():
+    tree = fx_expr(int(rng.integers(1, 5))); D = fx_data(); n, ev = fx_eval_case(tree, D)
+    r = int(rng.integers(0, max(1, n) + 2))
+    v, m = ev(tree, r) if r < n else (math.nan, 0.0)
+    if not math.isfinite(v): v, m = math.nan, 0.0
+    floor = 64 * EPS * (m if math.isfinite(m) else math.inf)
+    if not math.isfinite(floor): raise Ambiguous()
+    return [fx_text(tree), {"B": D["B"], "C": D["C"], "G": D["G"], "k": D["k"]}, {"G": {str(q): t for q, t in D["Gt"].items()}}, D["X"], D["nDef"], r, floor], v
+
 cases = []
 for name, (f, tol) in GEN.items():
     for k in range(max(1, math.ceil(per * SHARE.get(name, 1.0)))):
@@ -492,6 +676,7 @@ for c in cases:
         if c["fn"] == "nctCdf": e = d  # absolute (targets.json)
         if c["fn"] == "powerAt@pw": e = d  # a power, absolutely (targets.json)
         if c["fn"] == "tukeySf": e = d / 10  # against SciPy: 1e-12 absolutely (the generator says why)
+        if c["fn"] == "fxCalcAt": e = 0.0 if d <= c["args"][6] else d / max(abs(w), c["args"][6])  # within the error its double arithmetic may make
     if e > worst.get(c["gen"], (0, None))[0]:
         worst[c["gen"]] = (e, c)
     t = TARGET.get(c["gen"], {})

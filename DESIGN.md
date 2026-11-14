@@ -898,6 +898,20 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-14: formulas, further (SHEET_SPEC 3.1)
+
+- **Missing in, missing out, said once for everything.** The rule formulas already had (a row with an empty input is
+  empty) now holds for comparisons and every function too, and `if` is the one way round it. So every formula from
+  before gives the values it gave, and `if(missing(B), C, B)` says what it does.
+- **A spreadsheet's `=` inside brackets.** People coming from Excel type `if(C = "x", …)`; at the start of a line `=`
+  still names a value, so nothing typed before changes meaning.
+- **Text is compared, never ordered or computed.** Exactly, as categorical levels are; a number never equals a text, as
+  Excel's `=`. `<` on text is refused in words rather than given a meaning nobody can predict.
+- **A sheet's name as Excel writes it**, bare or in single quotes, but forgiving spaces and capitals when one sheet fits:
+  `Sheet2!B` is what people type for "Sheet 2", and the F(x)= row then shows it as Kurve keeps it.
+- **Constants are the project's, kept by id, never the fit functions'.** A saved fit function with a parameter called
+  `k_B` must not become a fixed number because a constant of that name appeared.
+
 ### 2026-11-13: ROC curves (STATS_SPEC 2.12)
 
 - **The group column is one of the columns ticked**, chosen in a list that starts on a text column (or one of numbers with
