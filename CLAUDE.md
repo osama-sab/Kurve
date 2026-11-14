@@ -4740,7 +4740,8 @@ Next, in order:
    (t tests, one-way ANOVA, the exact binomial test, two proportions, variances, χ² tests; power at sizes, the size for a
    power, a power curve; the noncentral F and χ², and the noncentral t's upper tail, to 1e-15), done 13.11; slice 2.12, ROC
    curves (the area with DeLong's interval, Youden's cut-off, scores compared by DeLong's test, the curve; exact against every
-   pair), done 13.11: wave 2's twelve slices are done
+   pair), done 13.11: wave 2's twelve slices are done. Wave 3's plan is `ux/spec/SHEET_SPEC.md` (the worksheet as
+   a table, seven slices in the order 3.1, 3.3, 3.4, 3.5, 3.7, 3.2, 3.6; its fourteen decisions, 14.11)
 
 ## Known gaps
 
