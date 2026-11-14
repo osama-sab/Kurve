@@ -898,6 +898,17 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-14: conditional formatting (SHEET_SPEC 3.4)
+
+- **Fills are tokens mixed from the panel, never a colour typed.** A colour picked freely would be unreadable in one of the four
+  looks; mixed from `--panel`, each fill follows the theme and the contrast test holds every one.
+- **A scale in seven steps, not a gradient.** Steps are tokens the test can measure, and seven are more than the eye sorts in a
+  column; a three-colour scale's middle is the panel itself, so "nothing to see" looks like nothing.
+- **The newest rule first**, as a spreadsheet's manager: otherwise a highlight added after a scale is never seen, and the user
+  thinks it failed.
+- **Highlights reuse a filter's conditions**, so one set of words and one evaluation serve both; duplicates and values seen once
+  are the two a filter has no use for.
+
 ### 2026-11-14: filters (SHEET_SPEC 3.3)
 
 - **A dialog, not a drop-down under the header.** Kurve's dialogs already have the keys, focus and undo a panel would need

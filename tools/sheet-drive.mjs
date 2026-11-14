@@ -336,6 +336,91 @@ if (want("3.3")) {
   }
 }
 
+if (want("3.4")) {
+  console.log("3.4 Conditional formatting");
+  await page(async p => {
+    // cfEval's kinds, as the page runs it.
+    let r = await p.evaluate(() => { const v = [1, 5, 5, null, 9, 3, null], t = { 3: "a", 6: "b" }, n = 7;
+      return { seq: cfEval(v, t, [{ kind: "scale", pal: "seq" }], n), div: cfEval(v, t, [{ kind: "scale", pal: "div" }], n), typed: cfEval(v, t, [{ kind: "scale", pal: "seq", lo: 0, hi: 10 }], n),
+        gt: cfEval(v, t, [{ kind: "hi", op: "gt", a: 4, fill: "red" }], n), dup: cfEval(v, t, [{ kind: "hi", op: "dup", fill: "blue" }], n), uniq: cfEval(v, t, [{ kind: "hi", op: "uniq", fill: "grey" }], n),
+        txt: cfEval(v, t, [{ kind: "hi", op: "teq", t: "A", fill: "green" }], n), empty: cfEval([1, null, 2], null, [{ kind: "hi", op: "empty", fill: "yellow" }], 3),
+        order: cfEval(v, t, [{ kind: "hi", op: "gt", a: 4, fill: "red" }, { kind: "scale", pal: "seq" }], n), one: cfEval([4, 4], null, [{ kind: "scale", pal: "div" }], 2), top: cfEval(v, t, [{ kind: "hi", op: "top", n: 1, fill: "red" }], n) }; });
+    check("a two-colour scale: smallest s0, largest s6, the rest by their place, text and empty left", JSON.stringify(r.seq) === JSON.stringify(["s0", "s3", "s3", null, "s6", "s2", null]), JSON.stringify(r.seq));
+    check("a three-colour scale: the median (5) the middle d3, below it toward d0, above toward d6", JSON.stringify(r.div) === JSON.stringify(["d0", "d3", "d3", null, "d6", "d2", null]), JSON.stringify(r.div));
+    check("ends typed (0 to 10) place the numbers on them", JSON.stringify(r.typed) === JSON.stringify(["s1", "s3", "s3", null, "s5", "s2", null]), JSON.stringify(r.typed));
+    check("highlights: greater than, duplicates, values seen once, text (capitals ignored), empty, the largest", JSON.stringify(r.gt) === JSON.stringify([null, "red", "red", null, "red", null, null]) && JSON.stringify(r.dup) === JSON.stringify([null, "blue", "blue", null, null, null, null]) &&
+      JSON.stringify(r.uniq) === JSON.stringify(["grey", null, null, "grey", "grey", "grey", "grey"]) && JSON.stringify(r.txt) === JSON.stringify([null, null, null, "green", null, null, null]) && JSON.stringify(r.empty) === JSON.stringify([null, "yellow", null]) && JSON.stringify(r.top) === JSON.stringify([null, null, null, null, "red", null, null]), JSON.stringify(r));
+    check("the first rule that has something to say decides; a column of one value sits in the middle", JSON.stringify(r.order) === JSON.stringify(["s0", "red", "red", null, "red", "s2", null]) && JSON.stringify(r.one) === JSON.stringify(["d3", "d3"]), JSON.stringify([r.order, r.one]));
+    // Through the dialogs, as a person sets them.
+    await p.evaluate(() => { const x = [], b = [], ct = {}; for (let i = 0; i < 20; i++) { x.push(i + 1); b.push(i % 7); ct[i] = "pq"[i % 2]; }
+      save({ cols: [makeCol("x", "X", "", x), Object.assign(makeCol("y", "B", "", b), { pipe: [], mask: [] }), Object.assign(makeCol("ignore", "G", "", new Array(20).fill(null)), { txt: ct })], activeY: null }, "typed"); focusWin("sheet"); });
+    await p.waitForTimeout(300);
+    r = await p.evaluate(() => cfItems(sheetCols()[1].id).map(i => i.label + (i.enabled === false ? " (off)" : "")));
+    check("the column menu's Conditional formatting: a scale, a highlight, manage and clear (these two off with no rules)", JSON.stringify(r) === JSON.stringify(["Colour scale…", "Highlight cells…", "Manage the rules… (off)", "Clear the rules of column B (off)", "Clear the rules of this sheet (off)"]), JSON.stringify(r));
+    await p.evaluate(() => { cfScaleDlg(sheetCols()[1].id); }); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(250);
+    const cells = (ci) => p.evaluate(ci => [...document.querySelectorAll(`#ws tbody td[data-ci="${ci}"]`)].slice(0, 8).map(t => (t.className.match(/cf-(\S+)/) || [])[1] || null), ci);
+    r = await cells(1);
+    check("a colour scale on B fills its cells by their place (0 → s0, 6 → s6)", JSON.stringify(r) === JSON.stringify(["s0", "s1", "s2", "s3", "s4", "s5", "s6", "s0"]), JSON.stringify(r));
+    r = await p.evaluate(() => ({ t: $("#toast").textContent, log: P().log.slice(-1)[0].text }));
+    check("one toast with Undo and a log line", /^Put a colour scale on column B\.Undo$/.test(r.t) && r.log === "put a colour scale on column B", JSON.stringify(r));
+    await p.evaluate(() => { cfHiDlg(sheetCols()[1].id); }); await p.waitForTimeout(150);
+    await p.selectOption("#cfOp", "ge"); await p.fill("#cfA", "5"); await p.click('label[title="red"]'); await p.waitForTimeout(80);
+    r = await p.textContent("#cfN");
+    check("the highlight's dialog counts the cells it would fill", r === "B ≥ 5: red: 5 of 20 cells.", r);
+    await p.click("#formOk"); await p.waitForTimeout(250);
+    r = await cells(1);
+    check("a highlight made after the scale goes first: B ≥ 5 red over the scale", JSON.stringify(r) === JSON.stringify(["s0", "s1", "s2", "s3", "s4", "red", "red", "s0"]), JSON.stringify(r));
+    // Read as drawn: the fill under a cell is the token's, in both themes; the selection draws over it.
+    r = await p.evaluate(() => { const td = document.querySelector('#ws tbody td[data-ci="1"][data-r="5"]'), bg = getComputedStyle(td).backgroundColor, probe = document.createElement("div"); probe.style.background = "var(--cf-red)"; document.body.appendChild(probe); const want = getComputedStyle(probe).backgroundColor; probe.remove(); return { bg, want }; });
+    check("a red cell is drawn in --cf-red", r.bg === r.want, JSON.stringify(r));
+    await p.locator('#ws tbody td[data-ci="1"][data-r="4"]').click(); await p.keyboard.down("Shift"); await p.locator('#ws tbody td[data-ci="1"][data-r="5"]').click(); await p.keyboard.up("Shift"); await p.waitForTimeout(150);
+    r = await p.evaluate(() => { const td = document.querySelector('#ws tbody td[data-ci="1"][data-r="5"]'); return { in: td.classList.contains("in"), bg: getComputedStyle(td).backgroundColor, sel: getComputedStyle(document.documentElement).getPropertyValue("--ws-sel") }; });
+    check("…and in a range selected it shows the selection, not the fill", r.in && !/rgba\(0, 0, 0, 0\)/.test(r.bg) && r.bg !== (await p.evaluate(() => { const probe = document.createElement("div"); probe.style.background = "var(--cf-red)"; document.body.appendChild(probe); const c = getComputedStyle(probe).backgroundColor; probe.remove(); return c; })), JSON.stringify(r));
+    // Manage: move down, delete, change; undo.
+    await p.evaluate(() => { cfManageDlg(sheetCols()[1].id); }); await p.waitForTimeout(150);
+    r = await p.evaluate(() => [...document.querySelectorAll("#cfRows .cfrow .grow")].map(e => e.textContent));
+    check("Manage lists the rules in order", JSON.stringify(r) === JSON.stringify(["B ≥ 5: red", "A two-colour scale"]), JSON.stringify(r));
+    await p.click('[data-cfdn="0"]'); await p.click("#formOk"); await p.waitForTimeout(250);
+    r = await cells(1);
+    check("moved below the scale, the highlight no longer shows", JSON.stringify(r) === JSON.stringify(["s0", "s1", "s2", "s3", "s4", "s5", "s6", "s0"]), JSON.stringify(r));
+    await p.evaluate(() => undo()); await p.waitForTimeout(250); r = await cells(1);
+    check("undo puts the order back", r[5] === "red", JSON.stringify(r));
+    await p.evaluate(() => { cfManageDlg(sheetCols()[1].id); }); await p.waitForTimeout(150); await p.click('[data-cfed="0"]'); await p.waitForTimeout(250);
+    r = await p.evaluate(() => ({ title: $("#formTitle").textContent, op: $("#cfOp").value, a: $("#cfA").value }));
+    check("a rule's pencil opens its own dialog with its settings", r.title === "Highlight cells of column B" && r.op === "ge" && r.a === "5", JSON.stringify(r));
+    await p.fill("#cfA", "6"); await p.click("#formOk"); await p.waitForTimeout(250); r = await cells(1);
+    check("…changed to B ≥ 6", JSON.stringify(r) === JSON.stringify(["s0", "s1", "s2", "s3", "s4", "s5", "red", "s0"]), JSON.stringify(r));
+    await p.evaluate(() => { cfHiDlg(sheetCols()[2].id); }); await p.waitForTimeout(150); await p.selectOption("#cfOp", "teq"); await p.fill("#cfA", "P"); await p.click('label[title="green"]'); await p.click("#formOk"); await p.waitForTimeout(250);
+    r = await cells(2);
+    check("text highlighted on a text column (P matches p)", JSON.stringify(r) === JSON.stringify(["green", null, "green", null, "green", null, "green", null]), JSON.stringify(r));
+    // A value typed changes its fill at once.
+    await p.locator('#ws td[data-r="0"][data-ci="1"]').click(); await p.keyboard.type("6"); await p.keyboard.press("Enter"); await p.waitForTimeout(400); r = await cells(1);
+    check("a value typed (0 → 6) takes its fill at once", r[0] === "red", JSON.stringify(r));
+    // A dialog's listeners go with it: a filter dialog, then this one typed into, no page errors (the page wrapper counts them).
+    await p.evaluate(() => { filtDlg(sheetCols()[1].id); }); await p.waitForTimeout(150); await p.click("#formCancel"); await p.waitForTimeout(100);
+    await p.evaluate(() => { cfScaleDlg(sheetCols()[1].id); }); await p.waitForTimeout(150); await p.fill("#csLo", "1"); await p.click("#formCancel"); await p.waitForTimeout(100);
+    await p.evaluate(() => { constDlg(); }); await p.waitForTimeout(150); await p.click("#kAdd"); await p.fill("#kN_0", "q"); await p.click("#formCancel"); await p.waitForTimeout(100);
+    // Clear the sheet's, undo; junk from storage.
+    await p.evaluate(() => { cfItems(sheetCols()[1].id).find(i => i.label === "Clear the rules of this sheet").run(); }); await p.waitForTimeout(250);
+    r = await p.evaluate(() => P().wsCf || null);
+    check("Clear the rules of this sheet takes every column's", r === null, JSON.stringify(r));
+    await p.evaluate(() => undo()); await p.waitForTimeout(250);
+    r = await p.evaluate(() => Object.values(P().wsCf || {}).map(l => l.length));
+    check("…undone", JSON.stringify(r) === JSON.stringify([2, 1]), JSON.stringify(r));
+    r = await p.evaluate(() => { const q = JSON.parse(JSON.stringify(P())); q.wsCf = { a: [{ kind: "scale", pal: "seq" }, { kind: "scale", pal: "rainbow" }, { kind: "hi", op: "gt", a: 1, fill: "magenta" }, { kind: "hi", op: "dup", fill: "red" }, null, 7], b: "x", c: [] }; migrate(q); return q.wsCf; });
+    check("junk in p.wsCf from storage: only rules that read stay", JSON.stringify(r) === JSON.stringify({ a: [{ kind: "scale", pal: "seq" }, { kind: "hi", op: "dup", fill: "red" }] }), JSON.stringify(r));
+  }, { name: "conditional formatting" });
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } }); let pid;
+    await page(async p => { await p.evaluate(() => { save({ cols: [makeCol("x", "X", "", [1, 2, 3]), Object.assign(makeCol("y", "B", "", [3, 1, 2]), { pipe: [], mask: [] })], activeY: null }, "t"); }); await p.waitForTimeout(200);
+      await p.evaluate(() => setCf(sheetCols()[1].id, [{ kind: "scale", pal: "seq" }], "put a colour scale on")); pid = await p.evaluate(() => { flushEdits(); return S.pid; }); await p.waitForTimeout(700); }, { name: "a scale before a reload", ctx });
+    await page(async p => { await p.evaluate(pid => { if (S.pid !== pid) switchProject(pid); focusWin("sheet"); renderWs(); }, pid); await p.waitForTimeout(400);
+      const r = await p.evaluate(() => [...document.querySelectorAll('#ws tbody td[data-ci="1"]')].slice(0, 3).map(t => (t.className.match(/cf-(\S+)/) || [])[1] || null));
+      check("after a reload the cells keep their fills", JSON.stringify(r) === JSON.stringify(["s6", "s0", "s3"]), JSON.stringify(r)); }, { name: "a scale after a reload", ctx });
+    await ctx.close();
+  }
+}
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

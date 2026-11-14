@@ -1024,6 +1024,20 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 3, slice 3.4: conditional formatting (2026-11-14)
+
+- **Data › Conditional formatting and a column's menu**: a *colour scale* (two colours, light to strong, or three, through the
+  sheet's own colour at the median; the ends and the middle can be typed) or *highlight cells* that meet a filter's condition,
+  repeat or appear once, with one of eight fills; the dialog counts the cells.
+- **Several rules a column**, the first that has something to say of a cell filling it and a new one first; *Manage the
+  rules…* moves, changes and deletes them; *Clear the rules* of a column or the sheet. Each change one undo step.
+- **Fills made from the panel's colour**, so words on every one read at 7:1 or more in both themes and both styles; a selected
+  range shows the selection over them. A view kept with the project: values, graphs, exports and the check code untouched.
+- A fix: the filter dialog of 3.3 left its listeners on the shared dialog body, so the next dialog ran them.
+
+Checked: `tools/sheet-drive.mjs` (26 new checks), `tools/contrast-test.mjs` (the 22 fills in four looks, 88 new), a budget (2000
+columns with a scale on each, 34 ms, as without), screenshots in both themes.
+
 ## Closing the gap with Origin, wave 3, slice 3.3: filters (2026-11-14)
 
 - **Data › Filter and a column's menu**: keep the rows whose value is ticked (every value with its count, searched) or that

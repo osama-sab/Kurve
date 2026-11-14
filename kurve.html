@@ -339,6 +339,33 @@ body.colmoving,body.colmoving *{cursor:grabbing!important;user-select:none}
 .ws .wspark{width:100%;height:16px;display:block}
 .ws tbody th.rh{position:sticky;left:0;z-index:1;background:var(--panel-2);color:var(--muted);font-size:var(--fs-cap);font-weight:400;text-align:right;padding:0 var(--sp-3);user-select:none;cursor:pointer}
 .ws tbody td{text-align:right;color:var(--ink);cursor:cell}
+/* Conditional formatting (SHEET_SPEC 3.4): fills made from the panel, so each reads in both themes; the selection draws over them. */
+:root{--cf-red:color-mix(in srgb,#D7263D 26%,var(--panel));--cf-orange:color-mix(in srgb,#E8730C 28%,var(--panel));--cf-yellow:color-mix(in srgb,#E6B800 34%,var(--panel));
+  --cf-green:color-mix(in srgb,#2E9E4F 26%,var(--panel));--cf-teal:color-mix(in srgb,#0E8C96 26%,var(--panel));--cf-blue:color-mix(in srgb,#2F6FD1 26%,var(--panel));
+  --cf-purple:color-mix(in srgb,#7E57C2 26%,var(--panel));--cf-grey:color-mix(in srgb,#7A8796 30%,var(--panel));
+  --cf-s0:color-mix(in srgb,#2F6FD1 3%,var(--panel));--cf-s1:color-mix(in srgb,#2F6FD1 9%,var(--panel));--cf-s2:color-mix(in srgb,#2F6FD1 15%,var(--panel));--cf-s3:color-mix(in srgb,#2F6FD1 21%,var(--panel));
+  --cf-s4:color-mix(in srgb,#2F6FD1 27%,var(--panel));--cf-s5:color-mix(in srgb,#2F6FD1 33%,var(--panel));--cf-s6:color-mix(in srgb,#2F6FD1 40%,var(--panel));
+  --cf-d0:color-mix(in srgb,#2F6FD1 36%,var(--panel));--cf-d1:color-mix(in srgb,#2F6FD1 24%,var(--panel));--cf-d2:color-mix(in srgb,#2F6FD1 12%,var(--panel));--cf-d3:var(--panel);
+  --cf-d4:color-mix(in srgb,#D7263D 12%,var(--panel));--cf-d5:color-mix(in srgb,#D7263D 24%,var(--panel));--cf-d6:color-mix(in srgb,#D7263D 36%,var(--panel))}
+.ws td.cf-red:not(.in){background:var(--cf-red)}.ws td.cf-orange:not(.in){background:var(--cf-orange)}.ws td.cf-yellow:not(.in){background:var(--cf-yellow)}.ws td.cf-green:not(.in){background:var(--cf-green)}
+.ws td.cf-teal:not(.in){background:var(--cf-teal)}.ws td.cf-blue:not(.in){background:var(--cf-blue)}.ws td.cf-purple:not(.in){background:var(--cf-purple)}.ws td.cf-grey:not(.in){background:var(--cf-grey)}
+.ws td.cf-s0:not(.in){background:var(--cf-s0)}.ws td.cf-s1:not(.in){background:var(--cf-s1)}.ws td.cf-s2:not(.in){background:var(--cf-s2)}.ws td.cf-s3:not(.in){background:var(--cf-s3)}.ws td.cf-s4:not(.in){background:var(--cf-s4)}.ws td.cf-s5:not(.in){background:var(--cf-s5)}.ws td.cf-s6:not(.in){background:var(--cf-s6)}
+.ws td.cf-d0:not(.in){background:var(--cf-d0)}.ws td.cf-d1:not(.in){background:var(--cf-d1)}.ws td.cf-d2:not(.in){background:var(--cf-d2)}.ws td.cf-d3:not(.in){background:var(--cf-d3)}.ws td.cf-d4:not(.in){background:var(--cf-d4)}.ws td.cf-d5:not(.in){background:var(--cf-d5)}.ws td.cf-d6:not(.in){background:var(--cf-d6)}
+.cfc{display:inline-block;width:18px;height:18px;border-radius:var(--r-s);border:1px solid var(--rule)}
+.cfc.cf-red{background:var(--cf-red)}.cfc.cf-orange{background:var(--cf-orange)}.cfc.cf-yellow{background:var(--cf-yellow)}.cfc.cf-green{background:var(--cf-green)}.cfc.cf-teal{background:var(--cf-teal)}.cfc.cf-blue{background:var(--cf-blue)}.cfc.cf-purple{background:var(--cf-purple)}.cfc.cf-grey{background:var(--cf-grey)}
+.cfc.cfscale{background:linear-gradient(90deg,var(--cf-s0),var(--cf-s6))}
+.cfsw{display:flex;flex-wrap:wrap;gap:var(--sp-2);margin:var(--sp-2) 0 var(--sp-3)}
+.cfs{display:inline-flex;align-items:center;padding:3px;border-radius:var(--r);cursor:pointer}
+.cfs input{position:absolute;opacity:0;width:1px;height:1px}
+.cfs .cfc{width:26px;height:22px}
+.cfs input:checked+.cfc{outline:2px solid var(--accent);outline-offset:2px}
+.cfs input:focus-visible+.cfc{outline:2px solid var(--focus);outline-offset:2px}
+.cfstrip{display:inline-flex;margin-left:var(--sp-2);border:1px solid var(--rule);border-radius:var(--r-s);overflow:hidden;vertical-align:middle}
+.cfstrip span{width:12px;height:14px}
+.cfstrip .cf-s0{background:var(--cf-s0)}.cfstrip .cf-s1{background:var(--cf-s1)}.cfstrip .cf-s2{background:var(--cf-s2)}.cfstrip .cf-s3{background:var(--cf-s3)}.cfstrip .cf-s4{background:var(--cf-s4)}.cfstrip .cf-s5{background:var(--cf-s5)}.cfstrip .cf-s6{background:var(--cf-s6)}
+.cfstrip .cf-d0{background:var(--cf-d0)}.cfstrip .cf-d1{background:var(--cf-d1)}.cfstrip .cf-d2{background:var(--cf-d2)}.cfstrip .cf-d3{background:var(--cf-d3)}.cfstrip .cf-d4{background:var(--cf-d4)}.cfstrip .cf-d5{background:var(--cf-d5)}.cfstrip .cf-d6{background:var(--cf-d6)}
+.cfrow{display:flex;align-items:center;gap:var(--sp-2);min-height:30px;border-bottom:1px solid var(--rule)}
+.cfrow .grow{flex:1 1 auto}
 .ws td.in,.ws thead td.lc.in{background:var(--ws-sel);--et:0px;--eb:0px;--el:0px;--er:0px;box-shadow:inset 0 var(--et) 0 var(--ws-sel-bd),inset 0 calc(-1*var(--eb)) 0 var(--ws-sel-bd),inset var(--el) 0 0 var(--ws-sel-bd),inset calc(-1*var(--er)) 0 0 var(--ws-sel-bd)}
 .ws td.in.et{--et:2px}.ws td.in.eb{--eb:2px}.ws td.in.el{--el:2px}.ws td.in.er{--er:2px}
 .ws td.cur{box-shadow:inset 0 0 0 2px var(--ws-sel-bd);background:var(--panel)}
@@ -8010,6 +8037,36 @@ function filtText(cond,name){ if(!cond) return ""; const q=v=>v==null?"empty":ty
       case "ncontains": return `${name} does not contain “${r.t}”`; case "begins": return `${name} begins with “${r.t}”`; case "ends": return `${name} ends with “${r.t}”`;
       case "empty": return `${name} is empty`; case "nempty": return `${name} is not empty`; } return ""; };
   const s1=one(cond.c1), s2=cond.c2?one(cond.c2):""; return s2?`${s1} ${cond.join==="or"?"or":"and"} ${s2}`:s1; }
+/* ---- Conditional formatting (SHEET_SPEC 3.4), pure: a fill for each cell of a column ------------------
+   A column's rules, in order: {kind:"scale", pal:"seq"|"div", lo?, hi?, mid?} fills every number by its place
+   between the column's smallest and largest numbers (or lo and hi typed), in CF_STEPS steps: "seq" from light to
+   strong ("s0" … "s6"), "div" from one hue through the panel's own colour (at the median, or mid typed) to another
+   ("d0" … "d6", "d3" the middle); {kind:"hi", op, a?, b?, n?, pct?, t?, fill} fills the cells that meet a filter's
+   condition (FILT_OPS) or are duplicates ("dup") or appear once ("uniq"), with one of CF_FILLS. The first rule that
+   has something to say of a cell decides it. cfEval gives a fill a row, or null. */
+const CF_FILLS=["red","orange","yellow","green","teal","blue","purple","grey"], CF_STEPS=7;
+function cfEval(v,t,rules,n){ const out=new Array(n).fill(null); v=v||[];
+  (rules||[]).forEach(r=>{ if(!r||typeof r!=="object") return;
+    if(r.kind==="scale"){ const nums=[]; for(let i=0;i<n;i++){ const c=filtCell(v,t,i); if(typeof c==="number") nums.push(c); } if(!nums.length) return;
+      let mn=Infinity, mx=-Infinity; nums.forEach(x=>{ if(x<mn) mn=x; if(x>mx) mx=x; });
+      const lo=Number.isFinite(r.lo)?r.lo:mn, hi=Number.isFinite(r.hi)?r.hi:mx, last=CF_STEPS-1, half=last/2;
+      const mid=r.pal==="div"?(Number.isFinite(r.mid)?r.mid:quantileSorted(Float64Array.from(nums).sort(),0.5)):null;
+      const at=(x,a,b)=>b>a?Math.min(1,Math.max(0,(x-a)/(b-a))):0.5;
+      for(let i=0;i<n;i++){ if(out[i]!=null) continue; const c=filtCell(v,t,i); if(typeof c!=="number") continue;
+        if(r.pal==="div"){ const k=c===mid?half:c<mid?Math.round(at(c,lo,mid)*half):half+Math.round(at(c,mid,hi)*half); out[i]="d"+Math.min(last,Math.max(0,k)); }
+        else out[i]="s"+Math.round(at(c,lo,hi)*last); }
+      return; }
+    if(r.kind!=="hi"||!CF_FILLS.includes(r.fill)) return;
+    let pass;
+    if(r.op==="dup"||r.op==="uniq"){ const cnt=new Map(); for(let i=0;i<n;i++){ const c=filtCell(v,t,i); if(c!=null) cnt.set(c,(cnt.get(c)||0)+1); }
+      pass=new Uint8Array(n); for(let i=0;i<n;i++){ const c=filtCell(v,t,i); if(c!=null) pass[i]=(cnt.get(c)>1)===(r.op==="dup")?1:0; } }
+    else if(FILT_OP[r.op]) pass=filtRule(v,t,r,n); else return;
+    for(let i=0;i<n;i++) if(out[i]==null&&pass[i]) out[i]=r.fill; });
+  return out; }
+// A rule in words: a colour scale, or B > 3 in red.
+function cfText(r,name){ if(!r) return ""; if(r.kind==="scale"){ const ends=Number.isFinite(r.lo)||Number.isFinite(r.hi)?` from ${Number.isFinite(r.lo)?filtNum(r.lo):"its smallest"} to ${Number.isFinite(r.hi)?filtNum(r.hi):"its largest"}`:"";
+    return r.pal==="div"?`A three-colour scale${ends}, the middle at ${Number.isFinite(r.mid)?filtNum(r.mid):"the median"}`:`A two-colour scale${ends}`; }
+  const w=r.op==="dup"?`${name} repeats`:r.op==="uniq"?`${name} appears once`:filtText({c1:r},name); return `${w}: ${r.fill}`; }
 // Several columns' conditions in words, joined by and; a column's own "or" in brackets so the words read one way.
 function filtAll(conds,nameOf){ const ids=Object.keys(conds||{}), parts=ids.map(id=>filtText(conds[id],nameOf(id)));
   return parts.map(t=>ids.length>1&&/ or /.test(t)?`(${t})`:t).join(" and "); }
@@ -9432,7 +9489,7 @@ function migrate(p){
   // Keys of older versions can come back from storage after an upgrade.
   ["x","y","e","xLong","xUnit","yLong","yUnit","eLong","eUnit","steps","mask","plot"].forEach(k=>{ if(k in p) delete p[k]; });
   p.cols.forEach(c=>{ c.data=c.data||[]; if(c.role==="y"){ c.pipe=c.pipe||[]; c.mask=c.mask||[]; } cleanTxt(c); cleanCat(c); if(c.fmt!==undefined&&c.fmt!=="text"&&c.fmt!=="num") delete c.fmt; });
-  anaClean(p); constClean(p); filtClean(p);
+  anaClean(p); constClean(p); filtClean(p); cfClean(p);
   if(!p.cols.some(c=>c.role==="x")) p.cols.unshift(makeCol("x","",""));
   if(!p.cols.some(c=>c.id===p.activeY)){ const y=p.cols.find(c=>c.role==="y"); p.activeY=y?y.id:null; }
   p.raw=p.raw||{fp:"",hist:[]}; p.fits=p.fits||[];
@@ -9478,7 +9535,7 @@ function migrateGraphs(p){
 }
 /* Undo is per-session and local: it rewinds your own edits, not other
    people's. Cross-user undo in a shared document is a different problem. */
-const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","fitSets","lines","rawLock","tree","wsAlign","wsHide","sheets","detcal","ana","consts","wsFilter"];
+const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","fitSets","lines","rawLock","tree","wsAlign","wsHide","sheets","detcal","ana","consts","wsFilter","wsCf"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
 /* Raw values are replaced, never changed in place, so a snapshot keeps each
    column's data array as it is and copies the rest: with 20 spectra of 50 000
@@ -15552,7 +15609,7 @@ function fxParse(text,self){
 function fxSheetByName(nm){ const ss=sheetList(), ex=ss.find(o=>o.name===nm); if(ex) return ex;
   const k=s=>String(s).replace(/\s+/g,"").toLowerCase(), m=ss.filter(o=>k(o.name)===k(nm)); return m.length===1?m[0]:null; }
 // A sheet's name as a formula writes it: bare when it is one word, else in single quotes (a quote doubled), as Excel's.
-const fxSheetRef=nm=>/^[\p{L}_][\p{L}\p{N}_]*$/u.test(nm)?nm:`'${String(nm).replace(/'/g,"''")}'`;
+const fxSheetRef=nm=>/^[\p{L}_][\p{L}\p{N}_]*$/u.test(nm)?nm:"'"+String(nm).split("'").join("''")+"'";
 // The formula with each column under its letter today, another sheet's with its sheet's name now, and each constant by its name now.
 function fxShow(c){
   const f=c&&c.fx; if(!f) return ""; let out=f.src, toks;
@@ -16065,7 +16122,7 @@ async function filtDlg(id){ const p=P(), c=colById(id); if(!p||!c||S.readOnly) r
     const conds=Object.assign({},filtOf(p,sid),{[id]:r.cond}), f=filtEval(sid,conds), shown=n-f.hid;
     h.textContent=`${capFirst(filtText(r.cond,L))}: ${fmtCount(shown)} of ${fmtCount(n)} rows would be shown${Object.keys(conds).length>1?" (with the other columns' filters)":""}.`; if(ok) ok.disabled=false; };
   const pr=formDlg({title:`Filter by column ${L}`,html,ok:"Filter",wide:true});
-  const body=$("#formBody"); body.addEventListener("input",show); body.addEventListener("change",e=>{ if(e.target.name==="fdM"){ $("#fdVals").hidden=!$("#fdMv").checked; $("#fdConds").hidden=!$("#fdMc").checked; } show(); });
+  const body=$("#formBody .fdlg"); body.addEventListener("input",show); body.addEventListener("change",e=>{ if(e.target.name==="fdM"){ $("#fdVals").hidden=!$("#fdMv").checked; $("#fdConds").hidden=!$("#fdMc").checked; } show(); });
   const q=$("#fdQ"); if(q) q.addEventListener("input",()=>{ const t=q.value.trim().toLowerCase(); body.querySelectorAll(".fdv").forEach(el=>{ el.hidden=!(!t||el.dataset.q.includes(t)); }); });
   const tick=on=>{ body.querySelectorAll(".fdv").forEach(el=>{ if(!el.hidden) el.querySelector("input").checked=on; }); show(); };
   if($("#fdAll")) $("#fdAll").onclick=()=>tick(true); if($("#fdNone")) $("#fdNone").onclick=()=>tick(false);
@@ -16073,6 +16130,96 @@ async function filtDlg(id){ const p=P(), c=colById(id); if(!p||!c||S.readOnly) r
   const v=await pr; if(!v) return;
   if(!v.fdOn){ setFilter(sid,id,null); return; }
   if(condNow) setFilter(sid,id,condNow); }
+/* ---- Conditional formatting (SHEET_SPEC 3.4): a view kept with the project -------------------------------
+   p.wsCf: {colId: [rule]} (the ANA block's cfEval), in UNDO_KEYS; cfOf(c) the one reader, setCf(colId, rules, what)
+   the one writer (one undo step, a log line, a toast with Undo), cfClean in migrate. The fills a column's cells take
+   are worked out once per state of its values and rules (CFM, keyed by its values' array) and drawn as td.cf-<fill>,
+   under the selection. Fills are tokens made from the panel's own colour (--cf-*), so every one reads in both themes
+   and both styles (contrast-test). Not in the check code, the CSV or the report. */
+const CFM=new WeakMap();
+function cfRuleOk(r){ if(!r||typeof r!=="object") return false;
+  if(r.kind==="scale") return (r.pal==="seq"||r.pal==="div")&&["lo","hi","mid"].every(k=>r[k]==null||Number.isFinite(r[k]));
+  if(r.kind!=="hi"||!CF_FILLS.includes(r.fill)) return false; if(r.op==="dup"||r.op==="uniq") return true; return filtRuleOk(r); }
+function cfClean(p){ const f=p.wsCf; if(f==null) return; if(typeof f!=="object"||Array.isArray(f)){ delete p.wsCf; return; }
+  const out={}; Object.keys(f).forEach(id=>{ const l=Array.isArray(f[id])?f[id].filter(cfRuleOk).slice(0,20):[]; if(l.length) out[id]=l; });
+  if(Object.keys(out).length) p.wsCf=out; else delete p.wsCf; }
+function cfOf(c,p){ p=p||P(); const l=c&&p&&p.wsCf&&p.wsCf[c.id]; return Array.isArray(l)?l.filter(cfRuleOk):[]; }
+// A column's fill a row (data rows), or null when it has no rules.
+function cfFills(c,n){ const rules=cfOf(c); if(!rules.length) return null; const d=c.data||[], key=JSON.stringify(rules)+"|"+n, m=CFM.get(d);
+  if(m&&m.key===key&&m.txt===c.txt) return m.out; const out=cfEval(d,txtOf(c),rules,n); CFM.set(d,{key,txt:c.txt,out}); return out; }
+// did: what was done, in the past ("added a colour scale to"); the column's letter follows it.
+function setCf(colId,rules,did){ const p=P(), c=colById(colId); if(!p||!c||S.readOnly) return; const was=cfOf(c);
+  if(JSON.stringify(was)===JSON.stringify(rules)) return;
+  pushUndo("that conditional formatting"); const all=Object.assign({},p.wsCf||{}); if(rules.length) all[colId]=rules; else delete all[colId];
+  if(Object.keys(all).length) p.wsCf=all; else delete p.wsCf;
+  const what=`${did} column ${colLetter(c)}`; save({wsCf:p.wsCf||null},what); renderWs(); toast(capFirst(what)+".",{action:"Undo",run:undo}); }
+// The fills as swatches to choose from (radio buttons named for screen readers).
+const cfSwatches=(name,cur)=>`<div class="cfsw" role="radiogroup" aria-label="Fill">${CF_FILLS.map(f=>`<label class="cfs" title="${f}"><input type="radio" name="${name}" id="${name}_${f}" value="${f}"${f===cur?" checked":""}><span class="cfc cf-${f}" aria-hidden="true"></span><span class="sr">${f}</span></label>`).join("")}</div>`;
+const cfStrip=pal=>`<span class="cfstrip">${Array.from({length:CF_STEPS},(_,k)=>`<span class="cf-${pal==="div"?"d":"s"}${k}"></span>`).join("")}</span>`;
+// Highlight cells… (a condition and a fill), new or the column's rule at idx.
+async function cfHiDlg(id,idx){ const c=colById(id); if(!c||S.readOnly) return; const rules=cfOf(c), cur=idx!=null&&rules[idx]&&rules[idx].kind==="hi"?rules[idx]:null, L=colLetter(c);
+  const numCol=(c.data||[]).some(v=>v!=null);
+  const ops=FILT_OPS.filter(o=>numCol||o[3]!=="num").map(o=>[o[0],o[1]]).concat([["dup","repeats (duplicates)"],["uniq","appears once"]]);
+  const op0=cur?cur.op:numCol?"gt":"teq", opts=ops.map(o=>`<option value="${o[0]}"${o[0]===op0?" selected":""}>${esc(o[1])}</option>`).join("");
+  const aVal=!cur?"":cur.t!=null?cur.t:cur.a!=null?filtNum(cur.a):cur.n!=null?filtNum(cur.n):"", bVal=cur&&cur.b!=null?filtNum(cur.b):"", pct0=cur&&cur.pct?" checked":"", sw=cfSwatches("cfF",cur?cur.fill:"yellow");
+  const html=`<div class="fdlg"><div class="fdbar"><span class="lab">Cells of column ${esc(L)} that</span><select id="cfOp" aria-label="Condition">${opts}</select>
+    <input type="text" id="cfA" aria-label="Value" spellcheck="false" value="${esc(aVal)}"><span id="cfAnd" class="lab">and</span><input type="text" id="cfB" aria-label="Second value" spellcheck="false" value="${esc(bVal)}"><label class="chk" id="cfPctL"><input type="checkbox" id="cfPct"${pct0}> %</label></div>
+    <p class="lab">are filled with</p>${sw}<p class="wshint lab" id="cfN" role="status"></p></div>`;
+  let rule=null;
+  const read=()=>{ const op=$("#cfOp").value, f=(document.querySelector("input[name=cfF]:checked")||{}).value; if(!f) return {why:"Choose a fill"};
+    if(op==="dup"||op==="uniq") return {r:{kind:"hi",op,fill:f}};
+    const o=FILT_OP[op], need=o[2], A=$("#cfA").value.trim(), B=$("#cfB").value.trim(), r={kind:"hi",op,fill:f};
+    if(need==="t"){ if(!A) return {why:"Type the text"}; r.t=A; }
+    if(need.includes("a")){ const a=parseNum(A); if(a==null) return {why:A?`“${A}” is not a number`:"Type a number"}; r.a=a; }
+    if(need==="ab"){ const b=parseNum(B); if(b==null) return {why:B?`“${B}” is not a number`:"Type the second number"}; r.b=b; }
+    if(need==="n"){ const v=parseNum(A); if(!(v>0)) return {why:"Type how many (more than 0)"}; r.n=v; if($("#cfPct").checked){ if(v>100) return {why:"A percent is at most 100"}; r.pct=true; } else if(v!==Math.round(v)) return {why:"How many is a whole number, or tick %"}; }
+    return {r}; };
+  const show=()=>{ const op=$("#cfOp").value, o=FILT_OP[op], need=o?o[2]:""; $("#cfA").hidden=!need; $("#cfB").hidden=need!=="ab"; $("#cfAnd").hidden=need!=="ab"; $("#cfPctL").hidden=need!=="n";
+    const r=read(), h=$("#cfN"), ok=$("#formOk"); rule=r.r||null; if(r.why){ h.textContent=r.why+"."; if(ok) ok.disabled=true; return; }
+    const n=Math.max((c.data||[]).length,txtLen(c)), f=cfEval(c.data,txtOf(c),[r.r],n).filter(Boolean).length; h.textContent=`${cfText(r.r,L)}: ${f} of ${n} cells.`; if(ok) ok.disabled=false; };
+  const pr=formDlg({title:`Highlight cells of column ${L}`,html,ok:cur?"Change":"Highlight",wide:true});
+  const body=$("#formBody .fdlg"); body.addEventListener("input",show); body.addEventListener("change",show); show();
+  // A new rule goes first, as a spreadsheet's does: the last one made is the one seen.
+  const v=await pr; if(!v||!rule) return; const now=cfOf(colById(id)); const next=cur?now.map((q,i)=>i===idx?rule:q):[rule].concat(now);
+  setCf(id,next,cur?"changed a highlight of":"highlighted cells of"); }
+// Colour scale… (two colours, or three with a middle), new or the column's at idx.
+async function cfScaleDlg(id,idx){ const c=colById(id); if(!c||S.readOnly) return; const rules=cfOf(c), cur=idx!=null&&rules[idx]&&rules[idx].kind==="scale"?rules[idx]:null, L=colLetter(c);
+  const nf=v=>v==null||!Number.isFinite(v)?"":filtNum(v);
+  const html=`<div class="fdlg"><div class="fdm" role="radiogroup" aria-label="Colours"><label class="chk"><input type="radio" name="csP" id="csPs" value="seq"${!cur||cur.pal!=="div"?" checked":""}> Two colours ${cfStrip("seq")}</label><label class="chk"><input type="radio" name="csP" id="csPd" value="div"${cur&&cur.pal==="div"?" checked":""}> Three colours ${cfStrip("div")}</label></div>
+    <div class="grid2"><label for="csLo">From</label><input type="text" id="csLo" placeholder="its smallest number" value="${nf(cur&&cur.lo)}" spellcheck="false"><label for="csHi">To</label><input type="text" id="csHi" placeholder="its largest number" value="${nf(cur&&cur.hi)}" spellcheck="false"><label for="csMid" id="csMidL">Middle at</label><input type="text" id="csMid" placeholder="its median" value="${nf(cur&&cur.mid)}" spellcheck="false"></div>
+    <p class="wshint lab" id="csN" role="status"></p></div>`;
+  let rule=null;
+  const show=()=>{ const div=$("#csPd").checked; $("#csMid").hidden=!div; $("#csMidL").hidden=!div; const r={kind:"scale",pal:div?"div":"seq"}, h=$("#csN"), ok=$("#formOk"); let why="";
+    [["csLo","lo"],["csHi","hi"],["csMid","mid"]].forEach(([k,key])=>{ if(key==="mid"&&!div) return; const t=$("#"+k).value.trim(); if(!t) return; const x=parseNum(t); if(x==null) why=why||`“${t}” is not a number`; else r[key]=x; });
+    if(!why&&r.lo!=null&&r.hi!=null&&!(r.hi>r.lo)) why="To must be more than From";
+    rule=why?null:r; h.textContent=why?why+".":cfText(r,L)+"."; if(ok) ok.disabled=!!why; };
+  const pr=formDlg({title:`Colour scale of column ${L}`,html,ok:cur?"Change":"Colour it",wide:true});
+  const body=$("#formBody .fdlg"); body.addEventListener("input",show); body.addEventListener("change",show); show();
+  const v=await pr; if(!v||!rule) return; const now=cfOf(colById(id)); const next=cur?now.map((q,i)=>i===idx?rule:q):[rule].concat(now);
+  setCf(id,next,cur?"changed the colour scale of":"put a colour scale on"); }
+// Manage the rules…: the column's rules in order, each moved up or down, changed or deleted (one undo step a change).
+async function cfManageDlg(id){ const c=colById(id); if(!c||S.readOnly) return; const L=colLetter(c); let list=cfOf(c).slice();
+  const row=(r,i)=>`<div class="cfrow"><span class="cfc ${r.kind==="scale"?"cfscale":"cf-"+r.fill}" aria-hidden="true"></span><span class="grow">${esc(cfText(r,L))}</span><button type="button" class="tb sm icon" data-cfup="${i}" aria-label="Up"${i?"":" disabled"}>↑</button><button type="button" class="tb sm icon" data-cfdn="${i}" aria-label="Down"${i<list.length-1?"":" disabled"}>↓</button><button type="button" class="tb sm icon" data-cfed="${i}" aria-label="Change it" title="Change it">${ICON("edit","sm")}</button><button type="button" class="tb sm icon" data-cfdel="${i}" aria-label="Delete it" title="Delete it">${ICON("x","sm")}</button></div>`;
+  const body=()=>list.length?list.map(row).join(""):`<p class="lab">No rules. Add a colour scale or a highlight from the column's menu.</p>`;
+  const pr=formDlg({title:`Conditional formatting of column ${L}`,html:`<div class="fdlg"><p class="lab">The first rule that has something to say of a cell fills it; a new rule goes first.</p><div id="cfRows">${body()}</div></div>`,ok:"Done",wide:true});
+  let edit=null;
+  $("#cfRows").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; const d=b.dataset;
+    if(d.cfup!=null||d.cfdn!=null){ const i=+(d.cfup!=null?d.cfup:d.cfdn), j=d.cfup!=null?i-1:i+1; if(j<0||j>=list.length) return; [list[i],list[j]]=[list[j],list[i]]; }
+    else if(d.cfdel!=null) list.splice(+d.cfdel,1);
+    else if(d.cfed!=null){ edit=+d.cfed; $("#formOk").click(); return; }
+    $("#cfRows").innerHTML=body(); });
+  const v=await pr; if(!v) return;
+  setCf(id,list,"changed the conditional formatting of");
+  if(edit!=null){ const r=cfOf(colById(id))[edit]; if(r) (r.kind==="scale"?cfScaleDlg:cfHiDlg)(id,edit); } }
+// Data › Conditional formatting, and the column menu's.
+function cfItems(id){ const m=S.wsm, p=P(), raw=!!m&&m.kind==="raw", ro=S.readOnly||!p, q=id?null:m&&S.ws&&m.cols[S.ws.c], cid=id||(q&&!q.phantom&&q.id), c=cid?colById(cid):null;
+  const n=c?cfOf(c).length:0, all=p&&p.wsCf?Object.keys(p.wsCf).filter(k=>sheetCols().some(o=>o.id===k)):[];
+  const L=c?colLetter(c):"", ok=!ro&&raw&&!!c&&!c.ana;
+  return [{label:"Colour scale…", enabled:ok, title:"Every number filled by its place between the smallest and largest", run:()=>cfScaleDlg(cid)},
+    {label:"Highlight cells…", enabled:ok, title:"The cells that meet a condition, or repeat, filled with a colour", run:()=>cfHiDlg(cid)},
+    {label:"Manage the rules…", enabled:ok&&n>0, title:"The column's rules in order: move, change or delete them", run:()=>cfManageDlg(cid)},
+    {label:c?`Clear the rules of column ${L}`:"Clear the rules of this column", enabled:ok&&n>0, run:()=>setCf(cid,[],"cleared the conditional formatting of")},
+    {label:"Clear the rules of this sheet", enabled:!ro&&all.length>0, run:()=>{ const p=P(); if(!p) return; pushUndo("clearing the conditional formatting"); const o=Object.assign({},p.wsCf); all.forEach(k=>delete o[k]); if(Object.keys(o).length) p.wsCf=o; else delete p.wsCf; save({wsCf:p.wsCf||null},"cleared the conditional formatting of the sheet"); renderWs(); toast("Cleared the conditional formatting of the sheet.",{action:"Undo",run:undo}); }}]; }
 // Data › Filter, and the column menu's.
 function filterItems(id){ const m=S.wsm, p=P(), raw=!!m&&m.kind==="raw", ro=S.readOnly||!p, sid=curSheet(), F=p?filtOf(p,sid):{}, n=Object.keys(F).length;
   const q=id?null:m&&S.ws&&m.cols[S.ws.c], cid=id||(q&&!q.phantom&&q.id), c=cid?colById(cid):null, st=p?filtState(p,sid):null;
@@ -16442,7 +16589,7 @@ function wsModel(){
       title:`Column ${L}${c.name?" ("+c.name+")":""} is hidden. Double-click to show it.`};
     const mkSpark=()=>{ if(!c.data.some(v=>v!=null)) return ""; const xc=isY||c.role==="e"?xColFor(c.role==="e"?colById(c.of)||c:c):null, sw=Math.max(20,w-12), t=sparkPts(c.data,xc?xc.data:null,2*sw);
       return t.y.length>1?sparkSvg(t,sw,16,"wspark"):""; };
-    return {id:c.id, col:c, letter:L, role:c.role==="x"&&xs.length>1?"X"+(xs.indexOf(c)+1):c.role==="e"?errTag(c):ROLE_LABEL[c.role]||c.role, w, off, act:isAct, menu:true, mkSpark, cat:!!c.cat, flt:FC[c.id]?filtText(FC[c.id],L):"",
+    return {id:c.id, col:c, letter:L, role:c.role==="x"&&xs.length>1?"X"+(xs.indexOf(c)+1):c.role==="e"?errTag(c):ROLE_LABEL[c.role]||c.role, w, off, act:isAct, menu:true, mkSpark, cat:!!c.cat, flt:FC[c.id]?filtText(FC[c.id],L):"", cf:cfFills(c,n),
       lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx, fxErr:c.fx?FX_ERR.get(c.id)||"":"", fxNote:c.fx?FX_NOTE.get(c.id)||"":"",
       title:`Column ${L}${c.name?": "+c.name:""}. ${roleText(c)}${c.fx?`, computed: = ${fxShow(c)}${FX_ERR.get(c.id)?` (${FX_ERR.get(c.id)})`:FX_NOTE.get(c.id)?` (${FX_NOTE.get(c.id).toLowerCase()})`:""}`:""}${isAct?", active":""}${off?", on no graph yet":""}. Click to select it; right-click, or the arrow, for its options; drag its right edge to resize it.`}; });
   // Empty columns to the edge of the window and a little beyond, as a grid has.
@@ -16559,7 +16706,8 @@ function wsRowHtml(m,r){
   if(W.lw) h+=gap;
   for(let i=W.a;i<b;i++){ const q=m.cols[i]; if(q.hidden){ h+=`<td class="hid" data-r="${r}" data-ci="${i}"></td>`; continue; }
     const fx=!fin&&!q.phantom?S.wsFixed.get(q.id+":"+k):null, al=AL[q.id], tx=!fin&&!q.phantom&&cellTxt(q.col,k)!=null, txn=tx&&q.col.fmt!=="text";
-    const cls=[fx?"fixed":"",q.calc?"calc":"",al?"al-"+al:"",tx?"tx":"",txn?"txn":""].filter(Boolean).join(" "), tt=fx||(txn?"Text, not counted as a number":"");
+    const cf=!fin&&q.cf&&r<m.n?q.cf[k]:null;
+    const cls=[fx?"fixed":"",q.calc?"calc":"",al?"al-"+al:"",tx?"tx":"",txn?"txn":"",cf?"cf-"+cf:""].filter(Boolean).join(" "), tt=fx||(txn?"Text, not counted as a number":"");
     h+=`<td data-r="${r}" data-ci="${i}"${cls?` class="${cls}"`:""}${tt?` title="${esc(tt)}"`:""}>${esc(wsText(m,r,i))}</td>`; }
   if(W.rw) h+=gap;
   return h+`</tr>`;
@@ -18063,7 +18211,8 @@ function colMenuItems(id){
       {label:"Descending", radio:true, checked:!!(on&&m.sortDir<0), run:()=>{ if(S.sheet!=="raw") setSheet("raw"); wsSortBy(id,-1); }},
       ...(c.cat?[{label:"By its categories", title:"In the order its Categorical… sets", radio:true, checked:!!(on&&S.wsSort&&S.wsSort.cat), run:()=>{ if(S.sheet!=="raw") setSheet("raw"); wsSortBy(id,1,true); }}]:[]),
       "-",{label:"Original order", title:"The rows as they were recorded", enabled:!!(m&&m.sorted), run:()=>wsSortBy(null,0)}]; }},
-    {label:"Filter", title:"Keep in view the rows whose value is ticked, or that meet conditions: a view, the data untouched", enabled:!S.readOnly&&!c.ana, sub:()=>filterItems(id)});
+    {label:"Filter", title:"Keep in view the rows whose value is ticked, or that meet conditions: a view, the data untouched", enabled:!S.readOnly&&!c.ana, sub:()=>filterItems(id)},
+    {label:"Conditional formatting", title:"Cells filled by their values: a colour scale, or the ones that meet a condition", enabled:!S.readOnly&&!c.ana, sub:()=>cfItems(id)});
   if(c.fx&&FX_ERR.get(c.id)) items.push({group:"Formula: "+FX_ERR.get(c.id),plain:true});
   else if(c.fx&&FX_NOTE.get(c.id)) items.push({group:FX_NOTE.get(c.id),plain:true});
   { const n=colMenuTargets(id).length; items.push("-",{label:n>1?`Move the ${n} columns`:"Move", title:"Or drag the selected columns by their letters", sub:()=>colMoveItems(id)},{label:"Align", sub:()=>colAlignItems(id)}); }
@@ -23337,6 +23486,7 @@ function dataMenu(){
     {label:"Sort the view", title:"By the column of the selected cell; the data keep their recorded order", sub:()=>sortViewItems(), enabled:!!p},
     {label:"Hide and show", title:"Columns and rows of the worksheet: hidden from view, still in the data", sub:hideItems, enabled:!!p},
     {label:"Filter", title:"Rows kept in view by a column's values or conditions: a view, the data untouched", sub:()=>filterItems(), enabled:!!p},
+    {label:"Conditional formatting", title:"Cells filled by their values: a colour scale, or the ones that meet a condition", sub:()=>cfItems(), enabled:!!p},
     {label:"Columns", sub:()=>spectrumItems().filter(it=>!it.group)},
     {label:"Masks", sub:()=>[{label:"Mask points on the graph", run:()=>setMode("mask"), enabled:has},
       {label:"Restore every masked point", run:unmaskAll, enabled:edit&&!!(p&&maskOf(activeYCol()).length)}]},
@@ -25694,6 +25844,16 @@ ${DL([["Numbers","equals, does not equal, is less than, is at most, is greater t
 <p>A value typed that would fail the filter stays in view, so the row you are working on does not vanish: the funnels and the foot turn to the warning colour and offer <em>Apply again</em> (also ${MP("Data › Filter › Apply the filter again")}). Undo puts the view back with the data.</p>
 <h2>A view, not the data</h2>
 <p>Graphs, fits, processing, formulas and exports read every row, filtered or not; the check code does not change. Pasting a block, filling and inserting or deleting rows ask you to clear the filter first, because they work along every row. An analysis made while a sheet is filtered offers <em>Only the rows where…</em>, ticked: it keeps those conditions as its own rows, works them out on its data whenever it is worked out again, and says them in its report; changing or clearing the filter later does not change it. ${DA("analyses","Analyses")}</p>`},
+{id:"condfmt", g:"Data", t:"Conditional formatting", kw:"conditional formatting colour color scale heat map highlight cells fill rule rules duplicates unique top bottom greater less between text manage order",
+ lead:"Cells filled by their values, so a pattern in the numbers shows before you read them: a view, the data stay as they are.",
+ body:`<h2>A colour scale</h2>
+<p>A column's menu (or ${MP("Data › Conditional formatting")}) has <em>Colour scale…</em>: every number is filled by its place between the column's smallest and largest, in seven steps. <strong>Two colours</strong> go from light to strong; <strong>three colours</strong> go from one hue through the sheet's own colour, at the median, to another. <em>From</em>, <em>To</em> and <em>Middle at</em> can be typed, so two columns can share one scale. Text and empty cells are left as they are.</p>
+<h2>Highlighting cells</h2>
+<p><em>Highlight cells…</em> fills the cells that meet a condition with one of eight fills: the conditions of a ${DA("filter","filter")} (greater than, between, among the largest, above the mean, contains, is empty…), or the values that <em>repeat</em> or <em>appear once</em>. The dialog counts the cells it would fill.</p>
+<h2>Several rules</h2>
+<p>A column can have several rules; the first one that has something to say of a cell fills it, and a new rule goes first. <em>Manage the rules…</em> lists them in order, to move up or down, change (the pencil) or delete; <em>Clear the rules</em> takes a column's, or the sheet's, away. Each change is one step to undo.</p>
+<h2>What it is not</h2>
+<p>A view kept with the project: the values, graphs, fits, exports and the check code are untouched, and the fills are not in the CSV or the report. The fills are made from the sheet's own colour, so words on them read in both themes; a selected range shows the selection over them.</p>`},
 {id:"formulas", g:"Data", t:"Column formulas", kw:"formula f(x) set column values compute calculate expression function log sqrt fit resid residuals fitted values if condition compare mean sum count median sd percentile cumsum running sum previous row offset other sheet constant k_B text equals missing",
  lead:"A column can be computed, row by row, from other columns: Origin's F(x)= row.",
  body:`<h2>Writing one</h2>

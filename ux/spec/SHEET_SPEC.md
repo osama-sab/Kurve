@@ -343,6 +343,12 @@ as dates); a filter that plots (a curve's rows by a condition: wave 7).
 
 ## 3.4 Conditional formatting
 
+Done 14.11, as below, with these changes of plan: a new rule goes first (a spreadsheet's order, so the last one made is seen);
+the scale is seven steps of tokens mixed from the panel (`--cf-s*`, `--cf-d*`) and the eight fills likewise, which the contrast
+test measures; highlights take a filter's conditions (top and bottom, above and below the mean included) plus duplicates and
+values seen once; `cfEval`'s cases are checked in `sheet-drive` through the page. A single active cell keeps its fill under its
+edge; a selected range shows the selection.
+
 **What.** A column's menu and Data › Conditional formatting: *Colour scale* (two or three
 colours from the list, over the column's smallest and largest numbers or values typed, the middle
 at the median or a value), *Highlight cells* (greater than, less than, between, equal to, text

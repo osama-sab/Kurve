@@ -45,6 +45,7 @@ const BUDGET = {
   "1M: open a file": [2000, "that file read, checked and opened as a new project"],
   "2000 columns: save": [150, "a change saved to a project of 2000 columns of 300 values"],
   "2000 columns: worksheet": [100, "the worksheet of 2000 columns drawn"],
+  "2000 columns: colour scales": [100, "the worksheet of 2000 columns drawn with a colour scale on each, after a value of one changed (SHEET_SPEC 3.4)"],
   "2000 columns: History": [150, "the History opened on 2000 columns"],
   "2000 columns: Statistics": [150, "the Statistics window opened on 2000 columns"],
   "ANOVA: 1M values": [1000, "one-way ANOVA of four groups of 250 000 values (the table, Welch's F, the groups)"],
@@ -113,6 +114,8 @@ await withPage(async (p) => {
     await createProject(pr, "perf"); await new Promise((r) => setTimeout(r, 600)); renderAll(); });
   got["2000 columns: save"] = await best(() => p.evaluate(() => { const a = performance.now(); save({ wsw: Object.assign({}, P().wsw, { x: 100 + Math.round(Math.random() * 50) }) }); return performance.now() - a; }));
   got["2000 columns: worksheet"] = await best(() => p.evaluate(() => { focusWin("sheet"); const a = performance.now(); renderWs(); return performance.now() - a; }));
+  await p.evaluate(() => { const o = {}; sheetCols().forEach(c => { if (c.role === "y") o[c.id] = [{ kind: "scale", pal: "seq" }]; }); save({ wsCf: o }, "scales"); renderWs(); });
+  got["2000 columns: colour scales"] = await best(() => p.evaluate(() => { const c = sheetCols()[5], d = c.data.slice(); d[3] = Math.random() * 100; c.data = d; const a = performance.now(); renderWs(); const ms = performance.now() - a; return document.querySelector("#ws td[class*=cf-s]") ? ms : Infinity; }));
   got["2000 columns: History"] = await best(() => p.evaluate(() => { closeWin("flow"); const a = performance.now(); openWin("flow", { render: true }); return performance.now() - a; }));
   got["2000 columns: Statistics"] = await best(() => p.evaluate(() => { closeWin("stats"); const a = performance.now(); openWin("stats", { render: true }); return performance.now() - a; }));
 });

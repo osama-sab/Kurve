@@ -1477,7 +1477,21 @@ graph first, with the taskbar kept at the bottom of the screen.
   `#fd1B`, `#fd1Pct`, `#fdJoin`, `#fd2…`, `#fdN` counting the rows it would show), `filterItems(id)` (Data › Filter and the
   column menu's Filter). An analysis made on a filtered sheet: `anaDlg`'s `#aWhere` (ticked for a new one) puts the
   conditions in `a.in.where`, copied; `anaInputs` keeps the rows they pass on the data as they are, with a note (*Rows
-  where …*), `anaSig` reads the columns they name, `runAna` says when one has gone, `anaClean` drops junk. **Formula suggestions** (`fxsAttach(inp, {on, items})`, `fxsUpdate`,
+  where …*), `anaSig` reads the columns they name, `runAna` says when one has gone, `anaClean` drops junk.
+  **Conditional formatting** (SHEET_SPEC 3.4; a view kept with the project): `p.wsCf` (`{colId: [rule]}`, in `UNDO_KEYS`),
+  the ANA block's `cfEval(v, t, rules, n)` (a fill a row: `{kind:"scale", pal:"seq"|"div", lo?, hi?, mid?}` in `CF_STEPS` (7)
+  steps `s0`…`s6` or `d0`…`d6`, the median (or `mid`) at `d3`, a column of one value in the middle; `{kind:"hi", op (a
+  filter's, or `dup`/`uniq`), …, fill}` with one of `CF_FILLS`; the first rule that has something to say decides) and
+  `cfText`; `cfRuleOk`, `cfClean` (in `migrate`), `cfOf(c)` the one reader, `setCf(colId, rules, did)` the one writer (one
+  undo step, a log line *put a colour scale on column B*, a toast), `cfFills(c, n)` (memoised in `CFM` by the values'
+  array, the rules and the text map), `wsModel`'s `q.cf` and `wsRowHtml`'s `td.cf-<fill>` (`:not(.in)`, so a selected
+  range shows the selection; a single active cell keeps its fill under its edge). Fills are tokens mixed from `--panel`
+  (`--cf-red` … `--cf-grey`, `--cf-s0`…, `--cf-d0`…), so each reads in both themes and styles (contrast-test: words on
+  each 4.5:1 or more). Dialogs: `cfScaleDlg(id, idx)` (`#csPs`/`#csPd` with `cfStrip`, `#csLo`, `#csHi`, `#csMid`, `#csN`),
+  `cfHiDlg(id, idx)` (`#cfOp`, `#cfA`, `#cfB`, `#cfPct`, `cfSwatches` radios `cfF_<fill>`, `#cfN` counting the cells),
+  `cfManageDlg(id)` (`#cfRows`, `[data-cfup]`, `[data-cfdn]`, `[data-cfed]` opening the rule's own dialog, `[data-cfdel]`);
+  a new rule goes first; `cfItems(id)` (Data › Conditional formatting and the column menu's). Not in the check code, the
+  CSV or the report. **Formula suggestions** (`fxsAttach(inp, {on, items})`, `fxsUpdate`,
   `fxsRender`, `fxsAccept`, `fxsKey`, `fxsClose`, `#fxSug` `.fxs`, `fxsOpen`): a list under a
   formula as it is typed, in the F(x)= cell (and a cell starting with `=`, `wsRestoreEditor`),
   the formula bar (`#wsValIn`) and a fit function (`#fbExpr`); `fxsSheetItems(self)` the columns
@@ -3245,7 +3259,11 @@ thirteen formulas of before giving the same values in the new grammar; 3.3, filt
 through the dialog and its count, the funnel and the foot, values ticked and searched on a text column, two columns, two
 conditions joined by or with ties kept, undo and redo, a value typed that fails staying in view until Apply again, paste,
 fill and rows refused with Clear it, sorting the rows shown, an analysis taking the filter as its rows and keeping them
-when the filter changes, following its own conditions when the data change, junk from storage, a reload, a project file).
+when the filter changes, following its own conditions when the data change, junk from storage, a reload, a project file);
+3.4, conditional formatting (cfEval's kinds, ties, text, empty and a column of one value; a scale and a highlight through
+their dialogs and the count, a new rule first, the fill read as drawn and the selection over it, Manage's order, edit and
+undo, text highlighted with capitals ignored, a value typed taking its fill, three dialogs in a row leaving no listener
+behind, clearing a sheet's rules and undo, junk from storage, a reload).
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
 back, undo, the status bar's count, sorting, find, copy, clear, rows inserted and deleted, the
@@ -3816,6 +3834,12 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **Undo puts the view back with the data.** A filter keeps the rows it hid until it is applied again, so that a row being
   typed in does not vanish; undoing the value that made it fail left the row hidden. Undo and redo work the filter out
   afresh.
+- **A dialog's body outlives the dialog, again.** The filter's and conditional formatting's dialogs listened on
+  `#formBody`, which every later dialog reuses, so their `show` ran in the next dialog and threw. Listen on the dialog's
+  own content (`#formBody .fdlg`), which goes with it.
+- **A checker that reads code by hand can be thrown by a regex.** `/'/g` inside a template's `${…}` (the quoted sheet name
+  in a formula) made `tools/ux/terms.py` lose its place between quotes, and six lines of code further on read as prose. Keep
+  quote characters out of regexes inside templates (`split("'").join("''")`).
 - **A window restored hands back the keys.** Minimised, the worksheet lost the focus to the
   page; restored from its taskbar button, typing went nowhere. A window brought forward by the
   user takes the keys. And a test that measures a window while it grows out of its taskbar
@@ -4824,7 +4848,9 @@ Next, in order:
    formulas further (rows by offset and number, aggregates, conditions, text compared, other sheets, the project's
    constants; NumPy and exact sums agreeing to 3e-16, a fuzzer of random expressions; the exact binomial test's power
    for small sizes put right on the way), done 14.11; slice 3.3, filters (values ticked or conditions, a view kept with the
-   project, applied again when asked, an analysis keeping a filter as its own rows; pandas agreeing on every row), done 14.11
+   project, applied again when asked, an analysis keeping a filter as its own rows; pandas agreeing on every row), done 14.11;
+   slice 3.4, conditional formatting (colour scales and highlights, ordered rules, fills from the panel's colour reading in
+   both themes), done 14.11
 
 ## Known gaps
 

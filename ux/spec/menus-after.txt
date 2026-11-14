@@ -83,6 +83,12 @@ Data
     Filter by column (the active column)…
     Apply the filter again  ## ↓ until the data changed since it was set
     Clear every filter of this sheet
+  Conditional formatting  ## new (SHEET_SPEC 3.4): cells filled by their values; also the column menu's
+    Colour scale…
+    Highlight cells…
+    Manage the rules…  ## ↓ until the column has a rule
+    Clear the rules of column (the active column)  ## ↓ until the column has a rule
+    Clear the rules of this sheet  ## ↓ until the sheet has a rule
   Columns  ## ~ "Spectra"
     New column from the processed data  ## ~ "New spectrum from the processed data"
     Copy with the same processing  ## ~ "Copy with the same steps"
