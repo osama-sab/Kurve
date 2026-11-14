@@ -1213,13 +1213,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   augmented system r + Xb = y, Xᵀr = 0 (Björck) with both residuals in double-double, the solution kept as `b` + `bl`;
   `{Q, b, bl, rh, rl, rss, rank}`), `lsqCovU(Q, X, XL)` ((XᵀX)⁻¹ of the kept columns: from R, then refined with each column in
   double-double, on XᵀX in double-double while the scaled condition √r·‖R⁻¹‖ is 1e6 or less, else on the augmented system
-  [I X; Xᵀ 0]), `lsqWald(F, V, cols)` (b_Tᵀ V_TT⁻¹ b_T, the fit lost without the columns), `lsqSSBetween(A, B)` (Σ of the
+  [I X; Xᵀ 0]), `lsqWald(F, V, cols, o)` (b_Tᵀ V_TT⁻¹ b_T, the fit lost without the columns; `o.risk` the block's condition times how much the form's terms cancel), `lsqSSBetween(A, B)` (Σ of the
   squared difference of two fits' residuals), `lsqAlias(Q)`, `ddDot`, `lsqQt`, `lsqQv`, `lsqFwd`, `lsqBack`, `hApply`.
   `linModel(vars, y, spec)` (`{inter, pow, coding, icpt, ss, conf}`; `{names, tc, terms, b, se, t, p, lo, hi (null where
   aliased), alias, kept, V, rank, dfr, rss, s, s2, r2, ar2, F, df1, pF, ssm, sst, anova {type, rows [{term, df, ss, ms, F,
   p}]}, conf, fit}` or `{fail}`): type I from prefixes of the one QR, II and III by Wald's identity on the model compared
   (III with effect coding where a factor is in an interaction), refitted without the term where that model has aliased
-  columns. `lmContrastParse(text, names)` (a sum of named coefficients with numbers before them, an interaction's parts in
+  columns or the form's risk passes 64 (a factor's columns nearly another: 6e-11 where a refit has 1e-16). `lmContrastParse(text, names)` (a sum of named coefficients with numbers before them, an interaction's parts in
   any order, `= c`), `lmContrast(M, text)` (`{est, c, se, t, p, lo, hi}`; refused where not estimable). Kind `lm` (`cats`,
   `xs`: X columns may be ticked; `p.y` the response's column id (inputs carry `id`), `p.fac` numbers as factors, `inter`,
   `pow`, `coding`, `ss`, `icpt`, `resid`, `contrasts`; `lmSpecOf`, `LM_INTER`, `LM_SS`; `heavy` past n·m²·(k + 3) of 4e7;
@@ -4340,6 +4340,11 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   them: the page found it, the worker and `run.mjs` did not, so a linear model with numbers as factors, large enough for the
   worker, threw. No test ran a kind on the blocks alone with numbers as factors. `fmt` moved into the ANA block, and
   stats-test runs kinds that format levels on the blocks alone.
+- **An identity is not a method.** Type II and III sums of squares by Wald's identity, b_Tᵀ V_TT⁻¹ b_T, are exactly the fit
+  lost without a term, and lost five digits where a factor's columns nearly made another column (an X near 1910 with no
+  intercept): the fuzzer's seed 3 found 6e-11 where the target is 1e-14. Inverting the block and summing a form that cancels
+  is what loses them; a refit's residuals in double-double do not. The form is kept where its condition and cancellation say
+  it is safe (a refit of every term made a model of pairs six times slower), and refitted otherwise.
 - **A variable taken out is grepped for.** Removing the Explorer's files took `fids` out of
   `autoImport`, and three `return {fids}` further down threw on every dropped file; the syntax
   check passes a reference to a name that does not exist. `review-drive`'s drop caught it. After

@@ -7479,10 +7479,15 @@ function lsqFit(X,y,n,o){ o=o||{}; const XL=o.XL||null, yl=o.yl||null, Q=o.Q||ls
 function lsqPrefix(Q,B){ const kept=Q.kept.filter(j=>j<B); return {n:Q.n,m:B,sc:Q.sc.slice(0,B),kept,alias:Q.alias.filter(j=>j<B),H:Q.H.slice(0,kept.length),Rc:Q.Rc,C:Q.C}; }
 /* Wald's identity: the fit lost by leaving the columns cols out of a model of full rank is b_Tᵀ V_TT⁻¹ b_T (b in double-double); null
    where one of them is aliased */
-function lsqWald(F,V,cols){ const pos=new Map(F.Q.kept.map((j,t)=>[j,t])); if(cols.some(j=>!pos.has(j))) return null; const ix=cols.map(j=>pos.get(j));
+/* o (optional) is given the risk: the block's condition (1-norm) times how much the form's terms cancel. Past a few dozen,
+   the form loses digits a refit keeps (a factor's columns nearly another column: 6e-11 where a refit has 1e-16). */
+function lsqWald(F,V,cols,o){ const pos=new Map(F.Q.kept.map((j,t)=>[j,t])); if(cols.some(j=>!pos.has(j))) return null; const ix=cols.map(j=>pos.get(j));
   const M=ix.map(a=>ix.map(c=>V[a][c])), bT=cols.map(j=>F.b[j]+F.bl[j]); let z=solve(M,bT); if(!z) return null;
   const r=bT.map((v,i)=>v-neuSum(M[i].map((m,k)=>m*z[k]))), dz=solve(M,r); if(dz) z=z.map((v,i)=>v+dz[i]);
-  return Math.max(0,neuSum(bT.map((v,i)=>v*z[i]))); }
+  const ss=Math.max(0,neuSum(bT.map((v,i)=>v*z[i])));
+  if(o){ const Mi=inverse(M), n1=A=>{ let mx=0; for(let j=0;j<A.length;j++){ let t=0; for(let i=0;i<A.length;i++) t+=Math.abs(A[i][j]); if(t>mx) mx=t; } return mx; };
+    o.risk=Mi?n1(M)*n1(Mi)*(ss>0?neuSum(bT.map((v,i)=>Math.abs(v*z[i])))/ss:Infinity):Infinity; }
+  return ss; }
 /* (XᵀX)⁻¹ over the kept columns, unscaled: V[t][u] for kept t, u */
 function lsqCovU(Q,X,XL){ const r=Q.kept.length, n=Q.n, K=Q.kept, Ri=[]; for(let u=0;u<r;u++){ const e=new Float64Array(r); e[u]=1; Ri.push(lsqBack(Q,e)); }
   const sc=K.map(j=>Q.sc[j]), V=[]; for(let t=0;t<r;t++){ const row=new Float64Array(r); for(let v=0;v<r;v++){ let s=0; for(let u=Math.max(t,v);u<r;u++) s+=Ri[u][t]*Ri[u][v]; row[v]=s/(sc[t]*sc[v]); } V.push(row); }
@@ -7573,7 +7578,7 @@ function linModel(vars,y,spec){ const n=y.length, icpt=spec.icpt!==false, terms=
     if(ty===1){ const a=colsOf(D,TI.filter(u=>u<ti)).length, b=colsOf(D,TI.filter(u=>u<=ti)).length, fA=preFit(a), fB=preFit(b); df=fB.rank-fA.rank; ss=lsqSSBetween(fA,fB); }
     else { const D0=ty===3?D3:D, keep=ty===3?TI:TI.filter(u=>u===ti||!contains(terms[u],t)), Bc=colsOf(D0,keep), A=colsOf(D0,keep.filter(u=>u!==ti)), mod=subFit(D0,Bc,true);
       const mine=Bc.map((j,k)=>[j,k]).filter(([j])=>D0.tc[j]===ti).map(([,k])=>k);
-      if(!mod.F.Q.alias.length&&mod.V){ ss=lsqWald(mod.F,mod.V,mine); df=mine.length; }
+      if(!mod.F.Q.alias.length&&mod.V){ const o={}; ss=lsqWald(mod.F,mod.V,mine,o); df=mine.length; if(!(o.risk<=64)) ss=null; }
       if(ss==null){ const fA=subFit(D0,A,false).F; df=mod.F.rank-fA.rank; ss=lsqSSBetween(fA,mod.F); } }
     rows.push({term:lmTermName(vars,t),df,ss,ms:df>0?ss/df:null,F:df>0?ss/df/s2:null,p:df>0?DIST.F.sf(ss/df/s2,df,dfr):null}); });
   return {n,names:D.names,tc:D.tc,terms:terms.map(t=>lmTermName(vars,t)),b,se,t:tv,p:pv,lo,hi,alias:lsqAlias(Q),kept:Q.kept,V,rank,dfr,rss:F.rss,s:Math.sqrt(s2),s2,
