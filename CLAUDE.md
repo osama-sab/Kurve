@@ -1491,7 +1491,23 @@ graph first, with the taskbar kept at the bottom of the screen.
   `cfHiDlg(id, idx)` (`#cfOp`, `#cfA`, `#cfB`, `#cfPct`, `cfSwatches` radios `cfF_<fill>`, `#cfN` counting the cells),
   `cfManageDlg(id)` (`#cfRows`, `[data-cfup]`, `[data-cfdn]`, `[data-cfed]` opening the rule's own dialog, `[data-cfdel]`);
   a new rule goes first; `cfItems(id)` (Data › Conditional formatting and the column menu's). Not in the check code, the
-  CSV or the report. **Formula suggestions** (`fxsAttach(inp, {on, items})`, `fxsUpdate`,
+  CSV or the report.
+  **Reshaping** (SHEET_SPEC 3.5; Data › Reshape): ten analysis kinds in the ANA block, each `rsKind(kind, label, base, help)`
+  (`cells:true`) over `RS_FN`: `rsStack`, `rsUnstack`, `rsSplit`, `rsPivot`, `rsReduce`, `rsDedup`, `rsSort`, `rsTranspose`,
+  `rsJoin`, `rsAppend`, on inputs of row-aligned cells (`{id, name, unit, role, sheet, sheetName, cells, rows, order}`), with
+  `rsKey` (1 and "1" two keys, every empty cell one), `rsCmp` (numbers, then text by `RS_COLL`, then empty), `rsAgg`
+  (`RS_AGGS`: count, sum, mean, SD, min, max, median, first; Neumaier sums), `rsLevels` (a categorical order, first seen, or
+  sorted), `rsTolKeys` (numbers equal within a tolerance by sorted runs), `rsName`, `rsCol` (`cells:true`, which `anaWrite`
+  keeps as numbers and text, no `fmt` unless all text). Each returns `{tables:[{cols}], report (rows read and made), notes}`.
+  `anaInputs` hands a `cells` kind to `anaCells(a, cs, notes)`: every column's cells as the worksheet holds them (`catVal`),
+  the rows chosen and a filter's (`a.in.where`) applied to the dialog's sheet, another sheet's columns (a join's, an
+  append's) all their rows. `runAna` counts `cells` for the worker and passes them. Forms `RS_FORMS` (merged into
+  `ANA_FORMS`): `rsSel`, `rsTicks`, `rsFirst`, `rsAggSel` over `S.anaCand` (the dialog's columns, `S.anaSid` its sheet); a
+  form's `extra(p)` lists the columns it names beside those ticked (`anaDlg` adds them to `in.cols`): `#aSk_<id>`, `#aSn`,
+  `#aSd` (stack); `#aUv`, `#aUg`, `#aUi` (unstack); `#aPg`, `#aPe` (split); `#aVr`, `#aVc`, `#aVv`, `#aVa`, `#aVt` (pivot);
+  `#aDm`, `#aDn`, `#aDs`, `#aDx`, `#aDw`, `#aD0`, `#aDa` (reduce); `#aEk_<id>`, `#aEm`, `#aEt` (duplicates); `#aOb0…2`,
+  `#aOd0…2` (sorted copy); `#aTn` (transpose); `#aJl`, `#aJs`, `#aJr`, `#aJh` (join); `#aAs_<sheet>`, `#aAb`, `#aAc` (append).
+  The dialog hides *Missing values* and *Include masked points* for them. **Formula suggestions** (`fxsAttach(inp, {on, items})`, `fxsUpdate`,
   `fxsRender`, `fxsAccept`, `fxsKey`, `fxsClose`, `#fxSug` `.fxs`, `fxsOpen`): a list under a
   formula as it is typed, in the F(x)= cell (and a cell starting with `=`, `wsRestoreEditor`),
   the formula bar (`#wsValIn`) and a fit function (`#fbExpr`); `fxsSheetItems(self)` the columns
@@ -3247,7 +3263,9 @@ offsets and order changing nothing, ε within its bounds, refusals), and 2.11's 
 the counts propTest1 rejects, the t tests', the ANOVA's and the F test's power the rate at which Kurve's own tests reject, α at
 no effect, rising with the size, the size found the first to reach the power, the noncentral tails at λ = 0, refusals), and 2.12's
 (the area as U over n₁n₀, the trapezoids adding up to it, a lower score positive and a rising change, Youden's J, DeLong's
-interval's coverage of a binormal area and its test's size, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
+interval's coverage of a binormal area and its test's size, refusals), and reshaping's (stack then unstack gives the columns back, a
+sorted copy a sorted permutation, a pivot's totals adding up, a full join the inner and both sides' unmatched, one row a key after
+duplicates, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
 ANA block.
 `node tools/sheet-drive.mjs [path]` (Playwright; `ONLY=3.1` runs one section) checks the worksheet as a table
 (`ux/spec/SHEET_SPEC.md`, wave 3): 3.1, formulas typed into the F(x)= row (an aggregate, rows of other rows, a running
@@ -3263,7 +3281,9 @@ when the filter changes, following its own conditions when the data change, junk
 3.4, conditional formatting (cfEval's kinds, ties, text, empty and a column of one value; a scale and a highlight through
 their dialogs and the count, a new rule first, the fill read as drawn and the selection over it, Manage's order, edit and
 undo, text highlighted with capitals ignored, a value typed taking its fill, three dialogs in a row leaving no listener
-behind, clearing a sheet's rules and undo, junk from storage, a reload).
+behind, clearing a sheet's rules and undo, junk from storage, a reload); 3.5, reshaping (the menu's ten kinds, each through its
+dialog with its result checked, a stack followed after a value typed, a reshape on a filtered sheet taking the filter's rows, Cut
+from its data keeping numbers and text, undo, a pivot across a reload).
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
 back, undo, the status bar's count, sorting, find, copy, clear, rows inserted and deleted, the
@@ -4850,7 +4870,8 @@ Next, in order:
    for small sizes put right on the way), done 14.11; slice 3.3, filters (values ticked or conditions, a view kept with the
    project, applied again when asked, an analysis keeping a filter as its own rows; pandas agreeing on every row), done 14.11;
    slice 3.4, conditional formatting (colour scales and highlights, ordered rules, fills from the panel's colour reading in
-   both themes), done 14.11
+   both themes), done 14.11; slice 3.5, reshaping (stack, unstack, split, pivot table, reduce rows, duplicates, a sorted copy,
+   transpose, join, append, each an analysis following its data; pandas agreeing to 2e-16 on 68 results), done 14.11
 
 ## Known gaps
 

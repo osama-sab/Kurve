@@ -1024,6 +1024,20 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 3, slice 3.5: reshaping (2026-11-14)
+
+- **Data › Reshape**, ten kinds, each an analysis with a result sheet that follows its data: *Stack columns* (wide to long, with
+  columns kept beside), *Unstack* (by order, or matched by an identifier), *Split by groups* (a block a level, or every n rows),
+  *Pivot table* (two columns' levels, seven aggregates, totals), *Reduce rows* (every nth, merged every n, bins of X), *Duplicate
+  rows* (first, last, averaged, or only the duplicates; a tolerance for numbers), *A sorted copy* (up to three columns), *Transpose*,
+  *Join two sheets* (inner, this sheet's rows, both) and *Append sheets* (by name or position, each row's sheet named).
+- They read the cells as the worksheet holds them, numbers and text, and write them back as such; their rows can be limited and a
+  filtered sheet's rows taken; Cut from its data keeps the cells on an ordinary sheet.
+
+Checked: `fixtures/reshape.json` (68 results against pandas: melt, pivot, groupby, drop_duplicates, merge, concat; 1.5e-16 at worst),
+stats-test (the round trips and totals, refusals), sheet-drive (20 new checks), three budgets (a stack of 20 × 100 000 in 106 ms, a
+pivot of a million rows in 310 ms, a join of 100 000 × 100 000 in 69 ms).
+
 ## Closing the gap with Origin, wave 3, slice 3.4: conditional formatting (2026-11-14)
 
 - **Data › Conditional formatting and a column's menu**: a *colour scale* (two colours, light to strong, or three, through the

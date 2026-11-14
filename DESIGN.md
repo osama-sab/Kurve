@@ -898,6 +898,17 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-14: reshaping (SHEET_SPEC 3.5)
+
+- **Analyses, not commands.** A stacked or pivoted table that does not follow its data is a copy that goes stale silently; as an
+  analysis it is worked out again, said in the History and the report, and cut from its data only when asked.
+- **Cells, not processed values.** Reshaping moves cells around; reading a column after its processing would reshape a curve,
+  drop rows a step dropped and lose its text. A reshape reads the worksheet as it is.
+- **Split is one result sheet of blocks**, not a sheet a level: one analysis keeps one sheet, and side-by-side blocks are what is
+  compared anyway. Sheets per level wait for a need.
+- **A pivot's levels sorted, an unstack's in their order** (as pandas and Origin respectively): a table of aggregates is read by
+  its labels; unstacked columns follow the data's own sequence.
+
 ### 2026-11-14: conditional formatting (SHEET_SPEC 3.4)
 
 - **Fills are tokens mixed from the panel, never a colour typed.** A colour picked freely would be unreadable in one of the four

@@ -266,6 +266,24 @@ if (fixtures.filt) {
   }
 }
 
+/* ---- reshaping (SHEET_SPEC 3.5): every column of each result against pandas, by name; a number to its
+   relative error, a text or an empty cell exactly (a difference there an error of 1) ---- */
+if (fixtures.reshape) {
+  const f = get("anaRunKind");
+  for (const c of fixtures.reshape.cases) {
+    let r; try { r = f(...c.args); } catch (e) { note("reshape", Infinity, `${c.name}: ${e.message}`); continue; }
+    if (!r || r.fail) { note("reshape", Infinity, `${c.name}: ${r && r.fail}`); continue; }
+    const cols = r.tables[0].cols; let e = 0;
+    if (cols.length !== c.want.length) e = 1;
+    c.want.forEach(([name, want], j) => { const got = cols[j]; if (!got || got.name !== name) { e = Math.max(e, 1); return; }
+      const g = got.vals.slice(); while (g.length > want.length && g[g.length - 1] == null) g.pop(); const w = want.slice(); while (w.length > g.length && w[w.length - 1] == null) w.pop();
+      if (g.length !== w.length) { e = Math.max(e, 1); return; }
+      w.forEach((wv, i) => { const gv = g[i]; if (wv == null || gv == null || typeof wv === "string" || typeof gv === "string") { if (wv !== gv && !(wv == null && gv == null)) e = Math.max(e, 1); return; }
+        e = Math.max(e, relErr(gv, wv, 1e-300)); }); });
+    note("reshape", e, c.name);
+  }
+}
+
 /* ---- NIST's Norris: certified values read from the file itself ---- */
 {
   const txt = readFileSync(join(here, "ref", "nist", "Norris.dat"), "utf8").split(/\r?\n/);

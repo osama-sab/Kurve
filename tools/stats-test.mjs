@@ -504,5 +504,44 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("the kinds run on the pure blocks alone, numbers as factors and levels", bad.length === 0, bad.join("; "));
 }
 
+/* ---- reshaping (SHEET_SPEC 3.5): what must hold whatever the data ---- */
+{
+  const K = get("ANA_KINDS"), mb = get("mulberry32")(35), cell = () => { const u = mb(); return u < 0.1 ? null : u < 0.4 ? "abcd"[Math.floor(mb() * 4)] : Math.round(mb() * 200) / 10; };
+  const col = (id, n, f) => ({ id, name: id.toUpperCase(), unit: "", role: "y", sheet: "s", order: null, cells: Array.from({ length: n }, f || cell) });
+  let bad = [];
+  for (let t = 0; t < 40; t++) {
+    const n = 1 + Math.floor(mb() * 40), A = col("a", n), B = col("b", n), I = col("i", n, (_, r) => r + 1);
+    // Stacked (empty cells kept) then unstacked by the stacked column of names and the row: the columns again.
+    const st = K.stack.run([I, A, B], { keep: ["i"], drop: false }).tables[0].cols, si = st[0].vals, sc = st[1].vals, sv = st[2].vals;
+    const us = K.unstack.run([col("v", sv.length, (_, r) => sv[r]), col("g", sc.length, (_, r) => sc[r]), col("id", si.length, (_, r) => si[r])], { val: "v", grp: "g", idc: "id" }).tables[0].cols;
+    const same = (x, y) => x.length === y.length && x.every((v, i) => v === y[i] || (v == null && y[i] == null));
+    if (!(us.length === 3 && same(us[1].vals, A.cells) && same(us[2].vals, B.cells))) bad.push(`stack then unstack, n=${n}`);
+    // A sorted copy is a permutation of the rows, and sorted.
+    const so = K.sortcopy.run([A, B], { by: [{ id: "a", dir: 1 }] }).tables[0].cols, sa = so[0].vals;
+    const key = v => v == null ? "e" : typeof v + ":" + v, cnt = v => { const m = new Map(); v.forEach(x => m.set(key(x), (m.get(key(x)) || 0) + 1)); return m; }, ca = cnt(A.cells), cs = cnt(sa);
+    if ([...ca].some(([k, c]) => cs.get(k) !== c)) bad.push(`sorted copy not a permutation, n=${n}`);
+    const rk = v => v == null ? 2 : typeof v === "number" ? 0 : 1;
+    for (let i = 1; i < sa.length; i++) { const x = sa[i - 1], y = sa[i]; if (rk(x) > rk(y) || (rk(x) === 0 && rk(y) === 0 && x > y)) { bad.push(`sorted copy out of order at ${i}, n=${n}`); break; } }
+    // A pivot's totals are the aggregate of every value its rows and columns read.
+    const G = col("g", n, () => "xyz"[Math.floor(mb() * 3)]), H = col("h", n, () => "pq"[Math.floor(mb() * 2)]), V = col("v", n, () => mb() < 0.1 ? null : Math.round(mb() * 100));
+    const pv = K.pivot.run([G, H, V], { row: "g", col: "h", val: "v", agg: "sum", totals: true }).tables[0].cols, tot = pv[pv.length - 1].vals, grand = tot[tot.length - 1];
+    const all = V.cells.filter(v => typeof v === "number").reduce((a, v) => a + v, 0);
+    if (grand !== all) bad.push(`pivot's grand total ${grand} ≠ ${all}, n=${n}`);
+    const rowSums = tot.slice(0, -1), colTot = pv.slice(1, -1).map(c => c.vals[c.vals.length - 1]);
+    if (rowSums.reduce((a, v) => a + v, 0) !== all || colTot.reduce((a, v) => a + v, 0) !== all) bad.push(`pivot's totals do not add up, n=${n}`);
+    // A join's inner rows have equal keys; its full rows are the inner, the unmatched of each side.
+    const L1 = col("k", n, () => Math.floor(mb() * 6)), R1 = Object.assign(col("k2", 8, () => Math.floor(mb() * 6)), { sheet: "t" }), E = Object.assign(col("e", 8), { sheet: "t" });
+    const jn = K.join.run([L1, R1, E], { lk: "k", rk: "k2", right: "t", how: "inner" }).tables[0].cols, jf = K.join.run([L1, R1, E], { lk: "k", rk: "k2", right: "t", how: "full" }).tables[0].cols;
+    const inner = jn[0].vals.length, mL = L1.cells.filter(v => !R1.cells.includes(v)).length, mR = R1.cells.filter(v => !L1.cells.includes(v)).length;
+    if (jf[0].vals.length !== inner + mL + mR) bad.push(`full join ${jf[0].vals.length} ≠ ${inner}+${mL}+${mR}, n=${n}`);
+    // Duplicates: the first of each kept is as many rows as distinct keys; averaged, the same count.
+    const D1 = K.dedup.run([G, V], { keys: ["g"], keep: "first" }).tables[0].cols[0].vals.length, D2 = K.dedup.run([G, V], { keys: ["g"], keep: "mean" }).tables[0].cols[0].vals.length;
+    if (D1 !== new Set(G.cells).size || D2 !== D1) bad.push(`duplicates ${D1}/${D2} ≠ ${new Set(G.cells).size}, n=${n}`);
+  }
+  check("reshaping: stack then unstack gives the columns back; a sorted copy is a sorted permutation; a pivot's totals add up; a full join is the inner and both sides' unmatched; duplicates leave one row a key", !bad.length, bad.slice(0, 4).join("; "));
+  const r = K.unstack.run([col("v", 3, () => 1), col("g", 3, () => null)], { val: "v", grp: "g" }), r2 = K.pivot.run([col("g", 2)], {}), r3 = K.join.run([col("k", 3)], { lk: "k", rk: "x", right: "t" });
+  check("reshaping refuses in words: no levels, no row column, no key", /has no values/.test(r.fail) && /Choose the column whose levels make the rows/.test(r2.fail) && /Choose the key column/.test(r3.fail), [r.fail, r2.fail, r3.fail].join(" | "));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

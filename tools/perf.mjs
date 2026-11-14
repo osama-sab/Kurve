@@ -57,6 +57,9 @@ const BUDGET = {
   "Power: the exact test's size": [700, "the smallest size at which the exact binomial test of 0.5 reaches a power of 0.8 against 0.52 (4927 trials, every size in turn)"],
   "Repeated measures: 100 000 subjects": [2500, "two factors within (3 × 2) and two groups between, wide: the tests, Mauchly's, the corrections, the means, Holm's paired comparisons"],
   "Two-way ANOVA: 200 000 rows": [3000, "a response by factors of four and three levels with their interaction: type III, the means, Tukey's comparisons and simple effects"],
+  "Reshape: stack 20 × 100 000": [400, "twenty columns of 100 000 cells stacked into one with a column of names (SHEET_SPEC 3.5)"],
+  "Reshape: pivot 1M rows": [1000, "a million rows pivoted by two text columns into the mean of a third, with totals"],
+  "Reshape: join 100 000 × 100 000": [300, "two sheets of 100 000 rows joined on a key column, every row of both"],
   "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
 };
 const got = {};
@@ -147,6 +150,14 @@ await withPage(async (p) => {
     const ins = Array.from({ length: 6 }, (_, j) => ({ id: "c" + j, name: "C" + j, rows, vals: rows.map((i) => base[i] + j * 0.1 + mb()) }));
     ins[0].groups = [[1], [2]]; ins[0].grows = [rows.filter((i) => g[i] === 1), rows.filter((i) => g[i] === 2)];
     const a = performance.now(), r = anaRunKind("rm", ins, { levels: 3, comp: "holm" }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
+  got["Reshape: stack 20 × 100 000"] = await best(() => p.evaluate(() => { const mb = mulberry32(31), n = 100000, ins = Array.from({ length: 20 }, (_, k) => ({ id: "c" + k, name: "C" + k, unit: "", role: "y", sheet: "s", order: null, cells: Array.from({ length: n }, () => mb() < 0.05 ? null : mb()) }));
+    const a = performance.now(), r = anaRunKind("stack", ins, {}); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
+  got["Reshape: pivot 1M rows"] = await best(() => p.evaluate(() => { const mb = mulberry32(32), n = 1000000, L = ["a", "b", "c", "d", "e"], M = ["p", "q", "r"];
+    const ins = [{ id: "g", name: "G", unit: "", role: "ignore", sheet: "s", order: null, cells: Array.from({ length: n }, () => L[Math.floor(mb() * 5)]) }, { id: "h", name: "H", unit: "", role: "ignore", sheet: "s", order: null, cells: Array.from({ length: n }, () => M[Math.floor(mb() * 3)]) }, { id: "v", name: "V", unit: "", role: "y", sheet: "s", order: null, cells: Array.from({ length: n }, () => mb()) }];
+    const a = performance.now(), r = anaRunKind("pivot", ins, { row: "g", col: "h", val: "v", agg: "mean" }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
+  got["Reshape: join 100 000 × 100 000"] = await best(() => p.evaluate(() => { const mb = mulberry32(33), n = 100000, k1 = Array.from({ length: n }, (_, i) => i * 2), k2 = Array.from({ length: n }, (_, i) => i * 3);
+    const ins = [{ id: "k1", name: "K", unit: "", role: "x", sheet: "s1", order: null, cells: k1 }, { id: "a", name: "A", unit: "", role: "y", sheet: "s1", order: null, cells: k1.map(() => mb()) }, { id: "k2", name: "K", unit: "", role: "x", sheet: "s2", order: null, cells: k2 }, { id: "b", name: "B", unit: "", role: "y", sheet: "s2", order: null, cells: k2.map(() => mb()) }];
+    const a = performance.now(), r = anaRunKind("join", ins, { lk: "k1", rk: "k2", right: "s2", how: "full" }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
   got["Correlation: 1M pairs"] = await best(() => p.evaluate(() => { const mb = mulberry32(10), n = 1000000, x = Array.from({ length: n }, () => mb()), rows = x.map((_, i) => i);
     const ins = [{ name: "A", vals: x, rows }, { name: "B", vals: x.map((v) => v + mb()), rows }];
     const a = performance.now(); anaRunKind("corr", ins, { methods: ["pearson", "spearman", "kendall"] }); return performance.now() - a; }));

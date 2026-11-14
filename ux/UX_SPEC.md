@@ -375,6 +375,7 @@ spectroscopy tools), and nowhere else.
 | series | the order or variable that a set of columns follows | Batch, trend graphs, heat map | — |
 | constant | a named number of the project, read by column formulas (k_B) | Data › Constants…, formulas, the report | variable, parameter (a fit's) |
 | conditional formatting; rule | cells filled by their values; one colour scale or highlight of a column | Data › Conditional formatting, the column menu | heat map (a graph's), style |
+| stack, unstack, pivot table, sorted copy, transpose, join, append | the reshaping analyses (wide to long and back, a table of aggregates, rows reordered into a copy, rows and columns swapped, two sheets matched by a key, one under another) | Data › Reshape, their result sheets | melt, crosstab, merge, concatenate |
 | filter; filtered | rows kept in view by a column's values or conditions; a sheet or column that has one | Data › Filter, the column menu, the foot | query, hide (for a filter's rows) |
 
 ## 3.7 Defaults that fit the data

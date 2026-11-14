@@ -372,6 +372,11 @@ exported xlsx.
 
 ## 3.5 Reshaping
 
+Done 14.11, as below, with these changes of plan: a reshape reads the worksheet's cells (numbers and text, not processed values;
+`anaCells`), another sheet's columns all their rows; *Split by groups* writes one result sheet of blocks side by side (a sheet a
+level waits for a need); a pivot's levels are sorted, an unstack's first seen; the checks are `reshape.json` (pandas), stats-test's
+properties and a `sheet-drive` section (not `ana-drive`), without a fuzzer generator.
+
 **What.** Data › Reshape, each an analysis (FOUNDATION_SPEC 1.3) with its dialog's input panel,
 writing a result sheet:
 - **Stack columns**: the columns ticked into one value column and a column of their names (the long

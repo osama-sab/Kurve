@@ -7974,6 +7974,135 @@ ANA_KINDS.roc={label:"ROC curve", base:"ROC", cats:true, xs:true,
     R.forEach(({q,r},k)=>{ cols.push({k:`fpr${k}`,name:"1 − specificity",role:"x",vals:r.pts.map(o=>o.fpr)},{k:`tpr${k}`,name:q.name,role:"y",vals:r.pts.map(o=>o.tpr)},{k:`thr${k}`,name:`Cut-off, ${q.name}`,vals:r.pts.map(o=>o.c)}); });
     cols.push({k:"dx",name:"1 − specificity",role:"x",vals:[0,1]},{k:"dy",name:"Diagonal",role:"y",vals:[0,1]});
     return {tables:[{cols}],report:{sections:secs,method:`Positive: ${g.name} = ${nm(pos)}, a ${dir==="low"?"lower":"higher"} score more positive; the area as U/(n₁n₀), DeLong's standard error, the interval the area ± z·SE.`,roc:R.length,curves:R.length},notes}; }};
+/* ---- Reshaping (SHEET_SPEC 3.5), pure: tables of cells (a number, a text, or null) made into other tables ----
+   Each input is {id, name, unit, role, sheet, cells (its rows, aligned with the others'), order (a categorical
+   column's levels, or null)}. A cell's key (rsKey) makes 1 and "1" two things and every empty cell one; rsCmp orders
+   numbers by value, then text in natural order, then empty cells; rsAgg aggregates a group's numbers (text and empty
+   cells left out). Each kind returns {cols:[{k, name, unit, role, vals, cells:true}], rows (out), notes}; a column's
+   cells keep numbers and text apart (anaWrite's cells). */
+const rsKey=v=>v==null?"e":typeof v==="number"?"n:"+(v===0?0:v):"s:"+v;
+const RS_COLL=new Intl.Collator(undefined,{numeric:true,sensitivity:"base"});
+function rsCmp(a,b){ if(a==null) return b==null?0:1; if(b==null) return -1; if(typeof a==="number"&&typeof b==="number") return a<b?-1:a>b?1:0;
+  if(typeof a==="number") return -1; if(typeof b==="number") return 1; return RS_COLL.compare(a,b)||(a<b?-1:a>b?1:0); }
+const RS_AGGS=[["count","Count"],["sum","Sum"],["mean","Mean"],["sd","SD"],["min","Minimum"],["max","Maximum"],["median","Median"],["first","First"]];
+function rsAgg(fn,cells){ if(fn==="first"){ for(const v of cells) if(v!=null) return v; return null; } const nums=cells.filter(v=>typeof v==="number"&&Number.isFinite(v)), n=nums.length;
+  if(fn==="count") return n; if(!n) return fn==="sum"?0:null;
+  if(fn==="sum") return neuSum(nums); if(fn==="mean") return neuSum(nums)/n;
+  if(fn==="min"){ let m=nums[0]; for(const x of nums) if(x<m) m=x; return m; } if(fn==="max"){ let m=nums[0]; for(const x of nums) if(x>m) m=x; return m; }
+  if(fn==="median"){ const s=Float64Array.from(nums).sort(); return quantileSorted(s,0.5); }
+  if(fn==="sd"){ if(n<2) return null; const m=neuSum(nums)/n, d=nums.map(x=>x-m), r=neuSum(d); return Math.sqrt(Math.max(0,neuSum(d.map(x=>x*x))-r*r/n)/(n-1)); }
+  return null; }
+const rsName=v=>v==null?"(empty)":typeof v==="number"?filtNum(v):String(v);
+// The levels of a column of cells: its categorical order where it has one, else first seen (or sorted).
+function rsLevels(cells,order,sorted){ const seen=new Map(); cells.forEach(v=>{ if(v!=null&&!seen.has(rsKey(v))) seen.set(rsKey(v),v); }); let L=[...seen.values()];
+  if(Array.isArray(order)&&order.length){ const rk=new Map(order.map((v,i)=>[rsKey(v),i])); L.sort((a,b)=>(rk.has(rsKey(a))?rk.get(rsKey(a)):1e9)-(rk.has(rsKey(b))?rk.get(rsKey(b)):1e9)); }
+  else if(sorted) L.sort(rsCmp); return L; }
+const rsCol=(k,name,vals,o)=>Object.assign({k,name,vals,cells:true},o||{});
+const rsLen=ins=>ins.reduce((a,q)=>Math.max(a,q.cells.length),0);
+// Stack: the columns not kept beside, one under another, with a column naming where each value came from.
+function rsStack(ins,p){ const keep=new Set(p.keep||[]), K=ins.filter(q=>keep.has(q.id)), V=ins.filter(q=>!keep.has(q.id)); if(!V.length) return {fail:"Tick at least one column to stack"};
+  const n=rsLen(ins), out=K.map(q=>rsCol("k_"+q.id,q.name,[],{unit:q.unit})), src=rsCol("src","Column",[]), val=rsCol("v",p.vname||"Value",[],{role:"y",unit:V.every(q=>q.unit===V[0].unit)?V[0].unit:""});
+  let dropped=0; V.forEach(q=>{ for(let i=0;i<n;i++){ const v=q.cells[i]; if(v==null&&p.drop!==false){ dropped++; continue; } K.forEach((k,j)=>out[j].vals.push(k.cells[i]==null?null:k.cells[i])); src.vals.push(q.name); val.vals.push(v==null?null:v); } });
+  return {cols:out.concat([src,val]),rows:val.vals.length,notes:dropped?[`${dropped} empty cell${dropped===1?"":"s"} left out.`]:[]}; }
+// Unstack: a column of values into a column per level of a group column, by their order within the level or matched by an identifier.
+function rsUnstack(ins,p){ const V=ins.find(q=>q.id===p.val), G=ins.find(q=>q.id===p.grp), I=p.idc?ins.find(q=>q.id===p.idc):null;
+  if(!V||!G) return {fail:"Choose the column of values and the column of groups"}; if(V===G) return {fail:"The values and the groups must be two columns"};
+  // Matched by an identifier, the levels and identifiers are those of the rows that have both.
+  const n=rsLen(ins), L=rsLevels(I?G.cells.map((g,i)=>I.cells[i]==null?null:g):G.cells,G.order,false); if(!L.length) return {fail:`${G.name} has no values`}; if(L.length>500) return {fail:`${G.name} has ${L.length} levels: at most 500 columns`};
+  const notes=[]; let skip=0;
+  if(!I){ const by=new Map(L.map(l=>[rsKey(l),[]])); for(let i=0;i<n;i++){ const g=G.cells[i]; if(g==null){ if(V.cells[i]!=null) skip++; continue; } by.get(rsKey(g)).push(V.cells[i]==null?null:V.cells[i]); }
+    if(skip) notes.push(`${skip} value${skip===1?"":"s"} with no group left out.`);
+    return {cols:L.map((l,j)=>rsCol("u"+j,rsName(l),by.get(rsKey(l)),{role:"y",unit:V.unit})),rows:Math.max(...L.map(l=>by.get(rsKey(l)).length)),notes}; }
+  const ids=rsLevels(I.cells.map((v,i)=>G.cells[i]==null?null:v),null,false), row=new Map(ids.map((v,r)=>[rsKey(v),r])), tab=L.map(()=>new Array(ids.length).fill(null)), got=L.map(()=>new Uint8Array(ids.length)); let dup=0;
+  for(let i=0;i<n;i++){ const g=G.cells[i], id=I.cells[i]; if(g==null||id==null){ if(V.cells[i]!=null) skip++; continue; } const j=L.findIndex(l=>rsKey(l)===rsKey(g)), r=row.get(rsKey(id)); if(got[j][r]){ dup++; continue; } got[j][r]=1; tab[j][r]=V.cells[i]==null?null:V.cells[i]; }
+  if(skip) notes.push(`${skip} value${skip===1?"":"s"} with no group or identifier left out.`); if(dup) notes.push(`${dup} identifier${dup===1?"":"s"} seen twice in a group: the first value kept.`);
+  return {cols:[rsCol("id",I.name,ids.slice(),{unit:I.unit})].concat(L.map((l,j)=>rsCol("u"+j,rsName(l),tab[j],{role:"y",unit:V.unit}))),rows:ids.length,notes}; }
+// Split: the rows of each level of a group column (or every n rows), a block of columns each, side by side.
+function rsSplit(ins,p){ const G=p.grp?ins.find(q=>q.id===p.grp):null, n=rsLen(ins), C=ins.filter(q=>q!==G); if(!C.length) return {fail:"Tick the columns to split"};
+  let parts;
+  if(G){ const L=rsLevels(G.cells,G.order,false); if(L.length>200) return {fail:`${G.name} has ${L.length} levels: at most 200 blocks`}; const by=new Map(L.map(l=>[rsKey(l),[]])); for(let i=0;i<n;i++){ const g=G.cells[i]; if(g!=null) by.get(rsKey(g)).push(i); } parts=L.map(l=>({lab:rsName(l),rows:by.get(rsKey(l))})); }
+  else { const e=Math.floor(+p.every); if(!(e>=1)) return {fail:"Choose a column of groups, or how many rows a block"}; parts=[]; for(let a=0;a<n;a+=e) parts.push({lab:`rows ${a+1}–${Math.min(n,a+e)}`,rows:Array.from({length:Math.min(e,n-a)},(_,k)=>a+k)}); if(parts.length>200) return {fail:`${parts.length} blocks: at most 200`}; }
+  const cols=[]; parts.forEach((pt,j)=>C.forEach(q=>cols.push(rsCol(`p${j}_${q.id}`,`${q.name} (${pt.lab})`,pt.rows.map(i=>q.cells[i]==null?null:q.cells[i]),{role:q.role==="x"?"x":q.role==="y"?"y":"ignore",unit:q.unit}))));
+  return {cols,rows:Math.max(0,...parts.map(pt=>pt.rows.length)),notes:[`${parts.length} block${parts.length===1?"":"s"}.`]}; }
+// A pivot table: the levels of one column down, another's across, each cell an aggregate of a column of values (or a count of rows).
+function rsPivot(ins,p){ const R=ins.find(q=>q.id===p.row), Cc=p.col?ins.find(q=>q.id===p.col):null, V=p.val?ins.find(q=>q.id===p.val):null, fn=p.agg||"mean";
+  if(!R) return {fail:"Choose the column whose levels make the rows"}; if(!RS_AGGS.some(a=>a[0]===fn)) return {fail:"Choose how the values are put together"};
+  const n=rsLen(ins), RL=rsLevels(R.cells,R.order,true), CL=Cc?rsLevels(Cc.cells,Cc.order,true):[null]; if(RL.length>2000||CL.length>500) return {fail:"Too many levels for a table"};
+  const ri=new Map(RL.map((v,i)=>[rsKey(v),i])), ci=new Map(CL.map((v,i)=>[rsKey(v),i])), cell=RL.map(()=>CL.map(()=>[])), rowT=RL.map(()=>[]), colT=CL.map(()=>[]), all=[]; let skip=0;
+  for(let i=0;i<n;i++){ const r=R.cells[i], c=Cc?Cc.cells[i]:null; if(r==null||(Cc&&c==null)){ skip++; continue; } const v=V?V.cells[i]:1, a=ri.get(rsKey(r)), b=Cc?ci.get(rsKey(c)):0; cell[a][b].push(v); rowT[a].push(v); colT[b].push(v); all.push(v); }
+  const ag=c=>rsAgg(V?fn:"count",c), tot=p.totals!==false, cols=[rsCol("rl",R.name,RL.slice().concat(tot?["Total"]:[]))];
+  CL.forEach((l,b)=>cols.push(rsCol("c"+b,Cc?rsName(l):(V?`${RS_AGGS.find(a=>a[0]===fn)[1]} of ${V.name}`:"Count"),cell.map(rw=>ag(rw[b])).concat(tot?[ag(colT[b])]:[]),{role:"y"})));
+  if(tot&&Cc) cols.push(rsCol("tot","Total",rowT.map(ag).concat([ag(all)]),{role:"y"}));
+  return {cols,rows:RL.length+(tot?1:0),notes:skip?[`${skip} row${skip===1?"":"s"} with an empty ${Cc?"row or column level":"level"} left out.`]:[]}; }
+// Reduce rows: every nth kept, every n merged, or rows put into bins of X.
+function rsReduce(ins,p){ const n=rsLen(ins), m=p.mode||"every", fn=p.agg||"mean", k=Math.floor(+p.n); if(!ins.length) return {fail:"Tick the columns"};
+  let groups;
+  if(m==="every"){ if(!(k>=1)) return {fail:"Keep every how many rows?"}; const s=Math.max(1,Math.floor(+p.start||1)); groups=[]; for(let i=s-1;i<n;i+=k) groups.push([i]); }
+  else if(m==="merge"){ if(!(k>=2)) return {fail:"Merge at least 2 rows"}; groups=[]; for(let a=0;a<n;a+=k) groups.push(Array.from({length:Math.min(k,n-a)},(_,j)=>a+j)); }
+  else { const X=ins.find(q=>q.id===p.x), w=+p.w; if(!X) return {fail:"Choose the X column the bins are of"}; if(!(w>0)) return {fail:"The bins' width must be more than 0"};
+    const xs=X.cells.filter(v=>typeof v==="number"), x0=Number.isFinite(+p.x0)&&p.x0!==""&&p.x0!=null?+p.x0:(xs.length?Math.floor(Math.min(...xs)/w)*w:0), by=new Map();
+    for(let i=0;i<n;i++){ const x=X.cells[i]; if(typeof x!=="number"||x<x0) continue; const b=Math.floor((x-x0)/w+1e-12); if(!by.has(b)) by.set(b,[]); by.get(b).push(i); }
+    const bins=[...by.keys()].sort((a,b)=>a-b); if(bins.length>200000) return {fail:"Too many bins"};
+    return {cols:ins.map(q=>rsCol("r_"+q.id,q.name,bins.map(b=>q===X?x0+(b+0.5)*w:rsAgg(fn,by.get(b).map(i=>q.cells[i]))),{role:q.role==="x"?"x":q.role==="y"?"y":"ignore",unit:q.unit})),rows:bins.length,notes:[`${bins.length} bins ${filtNum(w)} wide from ${filtNum(x0)}; X is each bin's centre.`]}; }
+  const agg=m==="merge"?fn:"first";
+  return {cols:ins.map(q=>rsCol("r_"+q.id,q.name,groups.map(g=>g.length===1?(q.cells[g[0]]==null?null:q.cells[g[0]]):rsAgg(q.role==="x"&&agg!=="first"?"mean":agg,g.map(i=>q.cells[i]))),{role:q.role==="x"?"x":q.role==="y"?"y":"ignore",unit:q.unit})),rows:groups.length,notes:m==="merge"&&n%k?[`The last ${n%k} row${n%k===1?"":"s"} merged on their own.`]:[]}; }
+// Cluster ids for a column's numbers: equal within tol, by sorted order (a run of values each within tol of the next is one).
+function rsTolKeys(cells,tol){ if(!(tol>0)) return cells.map(rsKey); const idx=cells.map((v,i)=>i).filter(i=>typeof cells[i]==="number").sort((a,b)=>cells[a]-cells[b]), out=cells.map(rsKey); let id=0, last=null;
+  idx.forEach(i=>{ const v=cells[i]; if(last==null||v-last>tol) id++; last=v; out[i]="c:"+id; }); return out; }
+// Duplicates: rows whose key columns repeat, removed (the first or last kept), averaged, or alone kept.
+function rsDedup(ins,p){ const keys=ins.filter(q=>(p.keys||[]).includes(q.id)); if(!keys.length) return {fail:"Choose the columns whose values make a row a duplicate"};
+  const n=rsLen(ins), kc=keys.map(q=>rsTolKeys(q.cells,+p.tol||0)), key=i=>kc.map(a=>a[i]).join("\u0001"), by=new Map(), order=[];
+  for(let i=0;i<n;i++){ const k=key(i); if(!by.has(k)){ by.set(k,[]); order.push(k); } by.get(k).push(i); }
+  const keep=p.keep||"first", role=q=>q.role==="x"?"x":q.role==="y"?"y":"ignore";
+  if(keep==="mean"){ const G=order.map(k=>by.get(k)); return {cols:ins.map(q=>rsCol("d_"+q.id,q.name,G.map(g=>keys.includes(q)?q.cells[g[0]]:g.some(i=>typeof q.cells[i]==="number")?rsAgg("mean",g.map(i=>q.cells[i])):rsAgg("first",g.map(i=>q.cells[i]))),{role:role(q),unit:q.unit})),rows:G.length,notes:[`${n-G.length} duplicate row${n-G.length===1?"":"s"} averaged into ${G.filter(g=>g.length>1).length} row${G.filter(g=>g.length>1).length===1?"":"s"}.`]}; }
+  let rows=[]; if(keep==="dups") for(let i=0;i<n;i++){ if(by.get(key(i)).length>1) rows.push(i); }
+  else { order.forEach(k=>{ const g=by.get(k); rows.push(keep==="last"?g[g.length-1]:g[0]); }); rows.sort((a,b)=>a-b); }
+  return {cols:ins.map(q=>rsCol("d_"+q.id,q.name,rows.map(i=>q.cells[i]==null?null:q.cells[i]),{role:role(q),unit:q.unit})),rows:rows.length,notes:[keep==="dups"?`${rows.length} row${rows.length===1?"":"s"} whose key repeats.`:`${n-rows.length} duplicate row${n-rows.length===1?"":"s"} removed.`]}; }
+// A sorted copy: the rows reordered by one to three columns, each up or down; numbers, then text, then empty cells; stable.
+function rsSort(ins,p){ const by=(p.by||[]).map(b=>({q:ins.find(q=>q.id===b.id),d:b.dir<0?-1:1})).filter(b=>b.q); if(!by.length) return {fail:"Choose the column to sort by"};
+  const n=rsLen(ins), idx=Array.from({length:n},(_,i)=>i);
+  idx.sort((a,b)=>{ for(const {q,d} of by){ const x=q.cells[a], y=q.cells[b]; if(x==null||y==null){ if(x==null&&y==null) continue; return x==null?1:-1; } const c=rsCmp(x,y); if(c) return c*d; } return a-b; });
+  return {cols:ins.map(q=>rsCol("s_"+q.id,q.name,idx.map(i=>q.cells[i]==null?null:q.cells[i]),{role:q.role==="x"?"x":q.role==="y"?"y":"ignore",unit:q.unit})),rows:n,notes:[]}; }
+// Transpose: rows to columns, the first column's cells as the new columns' names when asked.
+function rsTranspose(ins,p){ const named=!!p.names&&ins.length>1, N=named?ins[0]:null, D=named?ins.slice(1):ins, n=rsLen(ins); if(!D.length) return {fail:"Tick the columns to turn"}; if(n>2000) return {fail:`${n} rows would be ${n} columns: at most 2000`};
+  const cols=[rsCol("name","Column",D.map(q=>q.name))]; for(let r=0;r<n;r++) cols.push(rsCol("t"+r,named&&N.cells[r]!=null?rsName(N.cells[r]):String(r+1),D.map(q=>q.cells[r]==null?null:q.cells[r]),{role:"y"}));
+  return {cols,rows:D.length,notes:[]}; }
+// Join: this sheet's rows with another's by a key column each: inner, left, or full.
+function rsJoin(ins,p){ const Lc=ins.filter(q=>q.sheet!==p.right), Rc=ins.filter(q=>q.sheet===p.right), LK=Lc.find(q=>q.id===p.lk), RK=Rc.find(q=>q.id===p.rk), how=p.how||"inner";
+  if(!LK||!RK) return {fail:"Choose the key column of each sheet"}; if(!Rc.length) return {fail:"Choose the sheet to join"};
+  const nl=rsLen(Lc), nr=rsLen(Rc), rk=new Map(); for(let j=0;j<nr;j++){ const v=RK.cells[j]; if(v==null) continue; const k=rsKey(v); if(!rk.has(k)) rk.set(k,[]); rk.get(k).push(j); }
+  const pairs=[], used=new Uint8Array(nr);
+  for(let i=0;i<nl;i++){ const v=LK.cells[i], m=v==null?null:rk.get(rsKey(v)); if(m&&m.length) m.forEach(j=>{ pairs.push([i,j]); used[j]=1; }); else if(how!=="inner") pairs.push([i,-1]); }
+  if(how==="full") for(let j=0;j<nr;j++) if(!used[j]) pairs.push([-1,j]);
+  const RO=Rc.filter(q=>q!==RK), cell=(q,i)=>i<0||q.cells[i]==null?null:q.cells[i];
+  const cols=Lc.map(q=>rsCol("l_"+q.id,q.name,pairs.map(([i,j])=>q===LK&&i<0?cell(RK,j):cell(q,i)),{role:q.role==="x"?"x":q.role==="y"?"y":"ignore",unit:q.unit}))
+    .concat(RO.map(q=>rsCol("r_"+q.id,Lc.some(o=>o.name===q.name)?`${q.name} (2)`:q.name,pairs.map(([i,j])=>cell(q,j)),{role:q.role==="y"?"y":"ignore",unit:q.unit})));
+  const un=pairs.filter(([i,j])=>j<0).length, ur=pairs.filter(([i])=>i<0).length;
+  return {cols,rows:pairs.length,notes:[`${pairs.length} row${pairs.length===1?"":"s"}: ${pairs.length-un-ur} matched${un?`, ${un} of this sheet with no match`:""}${ur?`, ${ur} of the other with no match`:""}.`]}; }
+// Append: sheets one under another, columns matched by name or by position; a column naming each row's sheet when asked.
+function rsAppend(ins,p){ const order=[]; ins.forEach(q=>{ if(!order.includes(q.sheet)) order.push(q.sheet); }); if(order.length<2) return {fail:"Choose a sheet to append"};
+  const groups=order.map(s=>ins.filter(q=>q.sheet===s)), byName=p.by!=="pos", names=[];
+  if(byName) groups.forEach(g=>g.forEach(q=>{ if(!names.includes(q.name)) names.push(q.name); })); else { const w=Math.max(...groups.map(g=>g.length)); for(let j=0;j<w;j++) names.push((groups.find(g=>g[j])||[])[j].name); }
+  const cols=names.map((nm,j)=>rsCol("a"+j,nm,[],{role:"ignore"})), src=p.src?rsCol("src","Sheet",[]):null, sn=p.sheetNames||{};
+  groups.forEach(g=>{ const n=rsLen(g); for(let i=0;i<n;i++){ names.forEach((nm,j)=>{ const q=byName?g.find(o=>o.name===nm):g[j]; cols[j].vals.push(q&&q.cells[i]!=null?q.cells[i]:null); }); if(src) src.vals.push(sn[g[0].sheet]||String(g[0].sheet)); } });
+  cols.forEach((c,j)=>{ const q=groups.map(g=>byName?g.find(o=>o.name===c.name):g[j]).find(Boolean); if(q){ c.role=q.role==="x"?"x":q.role==="y"?"y":"ignore"; c.unit=q.unit; } });
+  return {cols:src?[src].concat(cols):cols,rows:cols.length?cols[0].vals.length:0,notes:[`${groups.length} sheets, ${cols.length?cols[0].vals.length:0} rows.`]}; }
+const RS_FN={stack:rsStack,unstack:rsUnstack,split:rsSplit,pivot:rsPivot,reduce:rsReduce,dedup:rsDedup,sortcopy:rsSort,transp:rsTranspose,join:rsJoin,append:rsAppend};
+// The kinds' common frame: the result into a table, a report of rows in and out and the notes.
+function rsKind(kind,label,base,help,more){ return Object.assign({label,base,help,cells:true,run(ins,p){ const r=RS_FN[kind](ins,p||{}); if(r.fail) return {fail:r.fail};
+  const nin=rsLen(ins), report={sections:[{title:label,tables:[{head:["Rows read","Rows made","Columns made"],rows:[[nin,r.rows,r.cols.length]]}]}],method:""};
+  return {tables:[{cols:r.cols}],report,notes:r.notes||[]}; }},more||{}); }
+Object.assign(ANA_KINDS,{
+  stack:rsKind("stack","Stack columns","Stacked","The columns ticked one under another in a column of values, with a column naming where each came from; the columns kept beside repeated."),
+  unstack:rsKind("unstack","Unstack","Unstacked","A column of values made into a column per level of a group column, by their order or matched by an identifier."),
+  split:rsKind("split","Split by groups","Split","The rows of each level of a group column, or every n rows, as a block of columns each."),
+  pivot:rsKind("pivot","Pivot table","Pivot","The levels of one column down and another's across, each cell a count, sum, mean or other aggregate of a column of values."),
+  reduce:rsKind("reduce","Reduce rows","Reduced","Every nth row kept, every n rows merged, or rows put into bins of X."),
+  dedup:rsKind("dedup","Duplicate rows","Without duplicates","Rows whose key columns repeat removed (the first or last kept), averaged, or alone kept."),
+  sortcopy:rsKind("sortcopy","A sorted copy","Sorted","The rows sorted by one to three columns into a sheet of their own: the original keeps its order."),
+  transp:rsKind("transp","Transpose","Transposed","Rows turned into columns, the first column's cells naming them when asked."),
+  join:rsKind("join","Join two sheets","Joined","This sheet's rows beside another sheet's, matched by a key column each."),
+  append:rsKind("append","Append sheets","Appended","Sheets one under another, columns matched by name or by position.")});
 // A kind run by name: the page's call, and the worker's ("call" job).
 function anaRunKind(kind,ins,p){ const K=ANA_KINDS[kind]; if(!K) throw new Error("the analysis "+kind+" is not known here"); return K.run(ins,p||{}); }
 /* ---- Filters (SHEET_SPEC 3.3), pure: which rows of a sheet a filter shows ------------------------------
@@ -17240,7 +17369,8 @@ const anaRowsOf=inp=>inp&&Array.isArray(inp.rows)&&inp.rows.length===2&&(inp.row
 /* The one input panel's reading (STATS_SPEC, the frame): each column's values through anaRead (or, for
    a kind that counts levels, its cells as categories), the rows chosen, listwise when asked (only rows
    with a value in every column), the groups of a column of groups; the notes say what was left out. */
-function anaInputs(a,cs,by,notes,K){ const rr=anaRowsOf(a.in), list=a.in.miss==="list"&&cs.length>1, lev0=!!(a.p&&a.p.levels);
+function anaInputs(a,cs,by,notes,K){ if(K&&K.cells) return anaCells(a,cs,notes);
+  const rr=anaRowsOf(a.in), list=a.in.miss==="list"&&cs.length>1, lev0=!!(a.p&&a.p.levels);
   const inR=i=>!rr||(i>=0&&(rr[0]==null||i>=rr[0]-1)&&(rr[1]==null||i<=rr[1]-1));
   const rd=cs.map(c=>{ const r=anaRead(c,{read:(a.in.read||{})[c.id],masked:a.in.masked}), lev=!!(K&&K.cats&&(lev0||isCatCol(c)||textCount(c)>r.vals.length));
     const d={c,r,lev,rows:r.rows,vals:r.vals,keys:null}, mk=new Set(a.in.masked?[]:(c.mask||[])), n=Math.max((c.data||[]).length,txtLen(c));
@@ -17271,6 +17401,22 @@ function anaInputs(a,cs,by,notes,K){ const rr=anaRowsOf(a.in), list=a.in.miss===
       if(g.fail) notes.push(`${by.name||colRef(by)}: ${g.fail}`); else { q.groups=g.keys.map((k,j)=>[typeof k==="number"?fmt(k,8):k,g.by[j]]);
         const gr=distGroups(d.rows,keys,DIST_GMAX,{text:true,order:catOrderKeys(by)}); if(!gr.fail) q.grows=gr.by; } }
     return q; }); }
+/* A reshaping kind's inputs (SHEET_SPEC 3.5): every column's cells as the worksheet holds them (numbers and text,
+   the original data or a formula's values, not processed), rows aligned across the columns; the rows chosen and a
+   filter's conditions taken as its rows applied to all of them at once. */
+function anaCells(a,cs,notes){ const rr=anaRowsOf(a.in), W=a.in.where&&typeof a.in.where==="object"&&Object.keys(a.in.where).length?a.in.where:null;
+  // The rows chosen and the filter's are the first sheet's (the dialog's); another sheet's columns (a join's, an append's) keep all of theirs.
+  const home=cs.length?sheetOf(cs[0]):null, own=cs.filter(c=>sheetOf(c)===home);
+  let n=0; own.forEach(c=>{ n=Math.max(n,(c.data||[]).length,txtLen(c)); });
+  let kept=[]; for(let i=0;i<n;i++) if(!rr||((rr[0]==null||i>=rr[0]-1)&&(rr[1]==null||i<=rr[1]-1))) kept.push(i);
+  if(rr) notes.push(`Rows ${rr[0]||1} to ${rr[1]==null?"the last":rr[1]} only.`);
+  if(W){ const wc={}; let m=n; Object.keys(W).forEach(id=>{ const c=colById(id); if(c){ wc[id]={v:c.data||[],t:txtOf(c)}; m=Math.max(m,(c.data||[]).length,txtLen(c)); } });
+    const pass=filtRows(wc,W,m), before=kept.length; kept=kept.filter(i=>pass[i]===1);
+    notes.push(`Rows where ${filtAll(W,id=>{ const c=colById(id); return c?colRef(c):"?"; })} (${kept.length} of ${before}).`); }
+  const sn={}; sheetList().forEach(s=>{ sn[s.id]=s.name; });
+  const other=new Map(); cs.forEach(c=>{ const s=sheetOf(c); if(s===home) return; other.set(s,Math.max(other.get(s)||0,(c.data||[]).length,txtLen(c))); });
+  return cs.map(c=>{ const s=sheetOf(c), rows=s===home?kept:Array.from({length:other.get(s)},(_,i)=>i);
+    return {id:c.id,name:specName(c),ref:colRef(c),unit:c.unit||"",role:c.role,sheet:s,sheetName:sn[s]||"",cells:rows.map(i=>catVal(c,i)),rows,order:isCatCol(c)&&c.cat?catOrderKeys(c):null}; }); }
 // Work it out: the inputs read, the kind run, the result sheet's columns written. Mutates p.cols and a.
 function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p) return false; const sig=anaSig(a);
   const cs=(a.in.cols||[]).map(colById), gone=cs.filter(c=>!c).length, by=a.in.by?colById(a.in.by):null, wg=Object.keys(a.in.where||{}).filter(id=>!colById(id)).length;
@@ -17278,8 +17424,8 @@ function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p)
   const notes=[], ins=anaInputs(a,cs,by,notes,K);
   // A large one is worked out by the compute worker (1.3c), its result put in when it comes back
   // (anaDone), if what it read has not changed meanwhile; the page goes on.
-  const nv=ins.reduce((t,q)=>t+q.vals.length,0);
-  if((nv>=ANA_BIG||K.heavy&&K.heavy(a.p||{},ins))&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({id:q.id,name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats})),notes,sig); return "later"; }
+  const nv=ins.reduce((t,q)=>t+(q.vals||q.cells||[]).length,0);
+  if((nv>=ANA_BIG||K.heavy&&K.heavy(a.p||{},ins))&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({id:q.id,name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,cells:q.cells,sheet:q.sheet,role:q.role,order:q.order,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats})),notes,sig); return "later"; }
   let out; try{ out=anaRunKind(a.kind,ins,a.p||{}); }catch(e){ out={fail:String(e&&e.message||e)}; }
   return anaApply(a,p,out,notes,sig); }
 function anaApply(a,p,out,notes,sig){
@@ -17304,7 +17450,10 @@ function anaDone(id,j,r,notes){ const p=P(); if(!p||S.pid!==j.pid) return; const
 function anaWrite(a,p,t){ const sid=a.out.sheet, have=new Map(p.cols.filter(c=>c.ana===a.id).map(c=>[c.ak,c])), keep=new Set();
   t.cols.forEach(o=>{ let c=have.get(o.k); if(!c){ c=Object.assign(makeCol(o.role||"ignore",o.name,o.unit||""),{sheet:sid,ana:a.id,ak:o.k}); p.cols.push(c); }
     keep.add(c); c.name=o.name; c.comm=a.name; c.role=o.role||(c.role==="y"?"y":"ignore"); /* a column plotted stays a curve */ const text=o.vals.some(v=>typeof v==="string");
-    if(text){ const T={}; o.vals.forEach((v,i)=>{ if(v!=null&&v!=="") T[i]=String(v); }); c.data=o.vals.map(()=>null); c.fmt="text"; if(Object.keys(T).length){ c.txt=T; TXT_OK.add(T); } else delete c.txt; }
+    // A reshaped column keeps its cells as they were: numbers as numbers, text as text (SHEET_SPEC 3.5).
+    if(o.cells){ const T={}; c.data=o.vals.map((v,i)=>{ if(typeof v==="string"){ if(v!=="") T[i]=v; return null; } return typeof v==="number"&&Number.isFinite(v)?v:null; }); trimTail(c.data);
+      delete c.fmt; if(Object.keys(T).length){ c.txt=T; TXT_OK.add(T); if(!o.vals.some(v=>typeof v==="number")) c.fmt="text"; } else delete c.txt; if(o.unit!=null) c.unit=o.unit; }
+    else if(text){ const T={}; o.vals.forEach((v,i)=>{ if(v!=null&&v!=="") T[i]=String(v); }); c.data=o.vals.map(()=>null); c.fmt="text"; if(Object.keys(T).length){ c.txt=T; TXT_OK.add(T); } else delete c.txt; }
     else { c.data=o.vals.map(v=>v==null?null:v); delete c.txt; delete c.fmt; } });
   t.cols.forEach(o=>{ if(!o.of) return; const c=[...keep].find(x=>x.ak===o.k), y=[...keep].find(x=>x.ak===o.of); if(c&&y) c.of=y.id; });
   p.cols=p.cols.filter(c=>c.ana!==a.id||keep.has(c)); }
@@ -17334,6 +17483,50 @@ function anaRespWire(box,after){ const ys=box.querySelector("#aLy"); if(!ys) ret
     ys.innerHTML=ids.map(id=>{ const c=colById(id); return `<option value="${id}"${id===cur?" selected":""}>${esc(colLetter(c)+" "+(c.name||""))}</option>`; }).join(""); if(after) after(ids,ys.value); };
   box.addEventListener("change",e=>{ if(e.target&&/^aLf_/.test(e.target.id||"")) return; on(); }); on();
   setTimeout(()=>ys.dispatchEvent(new Event("input",{bubbles:true})),0); /* the form checks OK again now that the response is chosen */ }
+/* The reshaping kinds' forms (SHEET_SPEC 3.5): the columns they name come from the dialog's candidates (S.anaCand,
+   the sheet's columns with values); `extra(p)` lists the columns a kind needs beside those ticked (a key, a group, the
+   other sheet's), which the dialog adds to its inputs. */
+const rsNm=c=>colLetter(c)+(c.name?" "+c.name:"");
+const rsSel=(id,lab,cur,none,list)=>`<label for="${id}">${lab}</label><select id="${id}">${none?`<option value="">${esc(none)}</option>`:""}${(list||S.anaCand||[]).map(c=>`<option value="${c.id}"${c.id===cur?" selected":""}>${esc(rsNm(c))}</option>`).join("")}</select>`;
+const rsTicks=(pre,cur,list)=>`<div class="colpick">${(list||S.anaCand||[]).map(c=>`<label class="chk"><input type="checkbox" id="${pre}${c.id}"${(cur||[]).includes(c.id)?" checked":""}> ${esc(rsNm(c))}</label>`).join("")}</div>`;
+const rsFirst=(f,skip)=>{ const l=(S.anaCand||[]).filter(c=>!(skip||[]).includes(c.id)); const c=l.find(f)||l[0]; return c?c.id:""; };
+const rsTxt=c=>isCatCol(c)||textCount(c)>0, rsNum=c=>(c.data||[]).some(v=>v!=null);
+const rsAggSel=(id,cur,lab)=>`<label for="${id}">${lab||"Put together by"}</label><select id="${id}">${RS_AGGS.map(([k,l])=>`<option value="${k}"${k===(cur||"mean")?" selected":""}>${l}</option>`).join("")}</select>`;
+const RS_FORMS={
+  stack:{noGroup:true, html(p){ return `<p class="lab">Kept beside each value, repeated (the others ticked above are stacked)</p>${rsTicks("aSk_",p.keep)}<div class="grid2"><label for="aSn">The values' column</label><input type="text" id="aSn" value="${esc(p.vname||"Value")}"></div><label class="chk"><input type="checkbox" id="aSd"${p.drop===false?"":" checked"}> Leave out empty cells</label>`; },
+    read(v){ return {keep:(S.anaCand||[]).filter(c=>v["aSk_"+c.id]).map(c=>c.id),vname:String(v.aSn||"").trim()||"Value",drop:!!v.aSd}; }, extra(p){ return p.keep||[]; }},
+  unstack:{noGroup:true, html(p){ const v0=p.val||rsFirst(rsNum), g0=p.grp||rsFirst(rsTxt,[v0]); return `<div class="grid2">${rsSel("aUv","Values",v0)}${rsSel("aUg","Groups",g0)}${rsSel("aUi","Rows matched by",p.idc,"Their order within each group")}</div>`; },
+    read(v){ return {val:v.aUv,grp:v.aUg,idc:v.aUi||null}; }, valid(v){ return !!v.aUv&&!!v.aUg&&v.aUv!==v.aUg; }, extra(p){ return [p.val,p.grp,p.idc].filter(Boolean); }},
+  split:{noGroup:true, html(p){ return `<div class="grid2">${rsSel("aPg","Split by",p.grp||rsFirst(rsTxt),"Every n rows")}<label for="aPe">n rows</label><input type="text" id="aPe" inputmode="numeric" value="${esc(String(p.every||10))}"></div>`; },
+    wire(box){ const on=()=>{ const g=box.querySelector("#aPg"), e=box.querySelector("#aPe"); if(g&&e){ e.hidden=!!g.value; box.querySelector('label[for="aPe"]').hidden=!!g.value; } }; box.addEventListener("change",on); on(); },
+    read(v){ return v.aPg?{grp:v.aPg}:{every:Math.floor(+v.aPe)||10}; }, extra(p){ return p.grp?[p.grp]:[]; }},
+  pivot:{noGroup:true, html(p){ const r0=p.row||rsFirst(rsTxt); return `<div class="grid2">${rsSel("aVr","Rows",r0)}${rsSel("aVc","Columns",p.col,"(none)")}${rsSel("aVv","Values",p.val,"(none: count the rows)")}${rsAggSel("aVa",p.agg)}</div><label class="chk"><input type="checkbox" id="aVt"${p.totals===false?"":" checked"}> Totals</label>`; },
+    read(v){ return {row:v.aVr,col:v.aVc||null,val:v.aVv||null,agg:v.aVa,totals:!!v.aVt}; }, valid(v){ return !!v.aVr&&v.aVr!==v.aVc; }, extra(p){ return [p.row,p.col,p.val].filter(Boolean); }},
+  reduce:{noGroup:true, html(p){ const m=p.mode||"every"; return `<div class="grid2"><label for="aDm">Rows</label><select id="aDm"><option value="every">Keep every nth row</option><option value="merge"${m==="merge"?" selected":""}>Merge every n rows</option><option value="bins"${m==="bins"?" selected":""}>Into bins of X</option></select>
+      <label for="aDn">n</label><input type="text" id="aDn" inputmode="numeric" value="${esc(String(p.n||2))}"><label for="aDs">From row</label><input type="text" id="aDs" inputmode="numeric" value="${esc(String(p.start||1))}">
+      ${rsSel("aDx","X",p.x||rsFirst(c=>c.role==="x"))}<label for="aDw">Width</label><input type="text" id="aDw" inputmode="decimal" value="${esc(p.w!=null?String(p.w):"")}"><label for="aD0">From X</label><input type="text" id="aD0" inputmode="decimal" placeholder="a round number below the smallest" value="${esc(p.x0!=null?String(p.x0):"")}">${rsAggSel("aDa",p.agg)}</div>`; },
+    wire(box){ const on=()=>{ const m=(box.querySelector("#aDm")||{}).value, sh=(id,b)=>{ const el=box.querySelector("#"+id); if(el){ el.hidden=!b; const l=box.querySelector(`label[for="${id}"]`); if(l) l.hidden=!b; } };
+      sh("aDn",m!=="bins"); sh("aDs",m==="every"); sh("aDx",m==="bins"); sh("aDw",m==="bins"); sh("aD0",m==="bins"); sh("aDa",m!=="every"); }; box.addEventListener("change",on); on(); },
+    read(v){ return {mode:v.aDm,n:Math.floor(+v.aDn)||2,start:Math.floor(+v.aDs)||1,x:v.aDx,w:parseNum(v.aDw),x0:String(v.aD0||"").trim()===""?null:parseNum(v.aD0),agg:v.aDa}; },
+    valid(v){ return v.aDm==="bins"?parseNum(v.aDw)>0:+v.aDn>=1; }, extra(p){ return p.mode==="bins"&&p.x?[p.x]:[]; }},
+  dedup:{noGroup:true, html(p){ return `<p class="lab">A row is a duplicate when these columns repeat</p>${rsTicks("aEk_",p.keys||[rsFirst(()=>true)])}<div class="grid2"><label for="aEm">Then</label><select id="aEm">${[["first","Keep the first of each"],["last","Keep the last of each"],["mean","Average them into one"],["dups","Keep only the duplicates"]].map(([k,l])=>`<option value="${k}"${k===(p.keep||"first")?" selected":""}>${l}</option>`).join("")}</select>
+      <label for="aEt" class="tipd" title="Numbers this close count as one value; 0 compares them exactly">Tolerance</label><input type="text" id="aEt" inputmode="decimal" value="${esc(String(p.tol||0))}"></div>`; },
+    read(v){ return {keys:(S.anaCand||[]).filter(c=>v["aEk_"+c.id]).map(c=>c.id),keep:v.aEm,tol:Math.max(0,parseNum(v.aEt)||0)}; }, valid(v){ return (S.anaCand||[]).some(c=>v["aEk_"+c.id]); }, extra(p){ return p.keys||[]; }},
+  sortcopy:{noGroup:true, html(p){ const b=p.by||[{id:rsFirst(()=>true),dir:1}]; const dirSel=(k,d)=>`<select id="aOd${k}" aria-label="Order"><option value="1">Ascending</option><option value="-1"${d<0?" selected":""}>Descending</option></select>`;
+      return `<div class="grid2">${[0,1,2].map(k=>`${rsSel("aOb"+k,k?"Then by":"Sort by",(b[k]||{}).id,k?"(nothing)":null)}<span></span>${dirSel(k,(b[k]||{}).dir)}`).join("")}</div>`; },
+    read(v){ return {by:[0,1,2].map(k=>({id:v["aOb"+k],dir:+v["aOd"+k]<0?-1:1})).filter(b=>b.id)}; }, extra(p){ return (p.by||[]).map(b=>b.id); }},
+  transp:{noGroup:true, html(p){ return `<label class="chk"><input type="checkbox" id="aTn"${p.names?" checked":""}> The first column ticked names the new columns</label>`; }, read(v){ return {names:!!v.aTn}; }},
+  join:{noGroup:true, html(p){ const others=sheetList().filter(s=>s.id!==S.anaSid&&!s.ana), r0=p.right||(others[0]||{}).id, rc=r0?sheetCols(r0).filter(hasVals):[];
+      return others.length?`<div class="grid2">${rsSel("aJl","This sheet's key",p.lk||rsFirst(()=>true))}<label for="aJs">With the sheet</label><select id="aJs">${others.map(s=>`<option value="${s.id}"${s.id===r0?" selected":""}>${esc(s.name)}</option>`).join("")}</select>
+      ${rsSel("aJr","Its key",p.rk,null,rc)}<label for="aJh">Rows</label><select id="aJh">${[["inner","Those matched in both"],["left","Every row of this sheet"],["full","Every row of both"]].map(([k,l])=>`<option value="${k}"${k===(p.how||"inner")?" selected":""}>${l}</option>`).join("")}</select></div>`:`<p class="lab">There is no other sheet to join.</p>`; },
+    wire(box){ const s=box.querySelector("#aJs"), r=box.querySelector("#aJr"); if(!s||!r) return; s.addEventListener("change",()=>{ r.innerHTML=sheetCols(s.value).filter(hasVals).map(c=>`<option value="${c.id}">${esc(rsNm(c))}</option>`).join(""); }); },
+    read(v){ return {lk:v.aJl,right:v.aJs,rk:v.aJr,how:v.aJh}; }, valid(v){ return !!v.aJl&&!!v.aJs&&!!v.aJr; },
+    extra(p){ return [p.lk].concat(p.right?sheetCols(p.right).filter(hasVals).map(c=>c.id):[]).filter(Boolean); }},
+  append:{noGroup:true, html(p){ const others=sheetList().filter(s=>s.id!==S.anaSid&&!s.ana);
+      return others.length?`<p class="lab">After this sheet's columns ticked, the rows of</p><div class="colpick">${others.map(s=>`<label class="chk"><input type="checkbox" id="aAs_${s.id}"${(p.sheets||[others[0].id]).includes(s.id)?" checked":""}> ${esc(s.name)}</label>`).join("")}</div>
+      <div class="grid2"><label for="aAb">Columns matched</label><select id="aAb"><option value="name">By name</option><option value="pos"${p.by==="pos"?" selected":""}>By position</option></select></div><label class="chk"><input type="checkbox" id="aAc"${p.src===false?"":" checked"}> A column naming each row's sheet</label>`:`<p class="lab">There is no other sheet to append.</p>`; },
+    read(v){ const ss=sheetList().filter(s=>v["aAs_"+s.id]).map(s=>s.id), sn={}; sheetList().forEach(s=>{ sn[s.id]=s.name; }); return {sheets:ss,by:v.aAb,src:!!v.aAc,sheetNames:sn}; },
+    valid(v){ return sheetList().some(s=>v["aAs_"+s.id]); }, extra(p){ return (p.sheets||[]).flatMap(s=>sheetCols(s).filter(hasVals).map(c=>c.id)); }}};
 const ANA_FORMS={
   desc:{html(p){ const want=new Set(descKeys(p)), qt=qtOk(p.qtype)?p.qtype:7, conf=p.conf>0&&p.conf<1?p.conf:0.95;
       const tip={n:"The values counted",miss:"Rows read that hold no number",sd:"Standard deviation",se:"The standard error of the mean, SD / √N",ci:"The interval the mean lies in, at the level below (Student's t)",
@@ -17532,12 +17725,14 @@ const ANA_FORMS={
       const st=String(v.aFs||"").trim(); if(st!==""&&Number.isFinite(+st)) b.start=+st; return {bins:b}; },
     valid(v){ return v.aFm!=="w"||+v.aFw>0; }}
 };
+Object.assign(ANA_FORMS,RS_FORMS);
 // The dialog: the inputs (each column with what it reads and, with steps, a switch to the original
 // values; a column of groups; which rows; pairwise or listwise; masked points), the kind's own
 // settings, how it recalculates. o.id changes an analysis; o.cols starts with those columns ticked.
 async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kind]||{}, p=P(); if(!K||!p||S.readOnly) return; if(S.ws&&S.ws.edit) wsCommit(0,0,true);
   const a0=o.id?anaOf(o.id):null, sid=a0?sheetOf(colById(a0.in.cols[0])||{})||curSheet():anaOfSheet(curSheet())?SHEET0.id:curSheet();
-  const cand=sheetCols(sid).filter(c=>!c.ana&&(c.role==="y"||c.role==="ignore"||K.xs&&c.role==="x")&&(anyVal(c.data)||(K.cats&&hasVals(c)))).concat(yCols().filter(c=>c.src&&!sheetCols(sid).includes(c)));
+  const cand=K.cells?sheetCols(sid).filter(c=>hasVals(c)):sheetCols(sid).filter(c=>!c.ana&&(c.role==="y"||c.role==="ignore"||K.xs&&c.role==="x")&&(anyVal(c.data)||(K.cats&&hasVals(c)))).concat(yCols().filter(c=>c.src&&!sheetCols(sid).includes(c)));
+  S.anaCand=cand; S.anaSid=sid;
   if(!cand.length&&!K.typed){ toast(K.cats?"There is no column with values on this sheet to count.":"There is no column of numbers on this sheet to work out."); return; }
   const sel=new Set(a0?a0.in.cols:(o.cols||(wsSelColIds?wsSelColIds():[])).filter(id=>cand.some(c=>c.id===id)));
   if(!sel.size&&cand.length){ const act=activeYCol(); if(act&&cand.includes(act)) sel.add(act.id); else sel.add(cand[0].id); if(o.two&&cand.length>1){ const nx=cand.find(c=>!sel.has(c.id)); if(nx) sel.add(nx.id); } }
@@ -17550,10 +17745,10 @@ async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kin
   const html=K.typed?`<div class="anadlg">${F.html?F.html(p0):""}</div>`:`<div class="anadlg"><p class="lab">Columns</p><div class="colpick anacols">${rowsH}</div>
     <div class="grid2">${bys.length?`<label for="aBy">Group by</label><select id="aBy"><option value="">Nothing</option>${bys.map(c=>`<option value="${c.id}"${a0&&a0.in.by===c.id?" selected":""}>${esc(colRef(c)+(c.name?" "+c.name:""))}</option>`).join("")}</select>`:""}
     <label for="aRow0">Rows</label><span class="anarows"><input type="text" id="aRow0" inputmode="numeric" placeholder="1" value="${rr&&rr[0]!=null?rr[0]:""}" aria-label="From row"><span class="muted">to</span><input type="text" id="aRow1" inputmode="numeric" placeholder="the last" value="${rr&&rr[1]!=null?rr[1]:""}" aria-label="To row"></span>
-    <label for="aMiss" class="tipd" title="Pairwise: each column its own values. Listwise: only the rows with a value in every column chosen">Missing values</label><select id="aMiss"><option value="pair">Each column's own</option><option value="list"${a0&&a0.in.miss==="list"?" selected":""}>Only rows complete in every column</option></select></div>
+    ${K.cells?"":`<label for="aMiss" class="tipd" title="Pairwise: each column its own values. Listwise: only the rows with a value in every column chosen">Missing values</label><select id="aMiss"><option value="pair">Each column's own</option><option value="list"${a0&&a0.in.miss==="list"?" selected":""}>Only rows complete in every column</option></select>`}</div>
     ${F.html?F.html(p0):""}
     <div class="grid2"><label for="aRc">Recalculate</label><select id="aRc"><option value="auto">By itself, when its data change</option><option value="manual"${a0&&a0.recalc==="manual"?" selected":""}>Only when asked</option></select></div>
-    ${whereH}<label class="chk"><input type="checkbox" id="aMask"${a0&&a0.in.masked?" checked":""}> Include masked points</label></div>`;
+    ${whereH}${K.cells?"":`<label class="chk"><input type="checkbox" id="aMask"${a0&&a0.in.masked?" checked":""}> Include masked points</label>`}</div>`;
   const rowsOk=v=>[v.aRow0,v.aRow1].every(t=>String(t||"").trim()===""||/^\d+$/.test(String(t).trim())&&+t>=1)&&!(+v.aRow0>0&&+v.aRow1>0&&+v.aRow1<+v.aRow0);
   const pr=formDlg({title:a0?`${a0.name}: settings`:K.label,html,ok:"Work it out",valid:r=>K.typed?(!F.valid||F.valid(r)):cand.some(c=>r["aI_"+c.id])&&rowsOk(r)&&(!F.valid||F.valid(r))});
   const box=$("#formBody .anadlg"); if(box&&F.wire) F.wire(box);
@@ -17563,6 +17758,8 @@ async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kin
   const inp={cols,by:v.aBy||null,read,masked:!!v.aMask}; if(rows) inp.rows=rows; if(v.aMiss==="list") inp.miss="list"; if(K.typed) v.aRc=a0?a0.recalc:"auto";
   if(v.aWhere&&whereC) inp.where=JSON.parse(JSON.stringify(whereC));
   const kp=F.read?F.read(v,p0):{}, ana=anaList(q).map(x=>Object.assign({},x));
+  // The columns a kind names beside those ticked (a key, a group, another sheet's columns) are read too.
+  if(F.extra) (F.extra(kp)||[]).forEach(id=>{ if(id&&!inp.cols.includes(id)&&colById(id)) inp.cols.push(id); });
   if(a0){ const a=ana.find(x=>x.id===a0.id); if(!a) return; pushUndo(`the settings of ${a.name}`); Object.assign(a,{in:inp,p:kp,recalc:v.aRc,by:who()}); runAna(a,q);
     save({ana,cols:q.cols},`changed the settings of ${a.name}`); showSheet(a.out.sheet,{quiet:true}); toast(`${a.name} worked out again.`,{action:"Undo",run:undo}); return; }
   pushUndo(K.label.toLowerCase()); stampSheets(q);
@@ -23487,6 +23684,7 @@ function dataMenu(){
     {label:"Hide and show", title:"Columns and rows of the worksheet: hidden from view, still in the data", sub:hideItems, enabled:!!p},
     {label:"Filter", title:"Rows kept in view by a column's values or conditions: a view, the data untouched", sub:()=>filterItems(), enabled:!!p},
     {label:"Conditional formatting", title:"Cells filled by their values: a colour scale, or the ones that meet a condition", sub:()=>cfItems(), enabled:!!p},
+    {label:"Reshape", title:"Tables made from the sheet, each a result sheet that follows its data: stacked, unstacked, pivoted, reduced, sorted…", sub:()=>["stack","unstack","split","pivot","reduce","dedup","sortcopy","transp","join","append"].map(k=>({label:ANA_KINDS[k].label+"…", title:ANA_KINDS[k].help, enabled:edit, run:()=>anaDlg(k)})), enabled:!!p},
     {label:"Columns", sub:()=>spectrumItems().filter(it=>!it.group)},
     {label:"Masks", sub:()=>[{label:"Mask points on the graph", run:()=>setMode("mask"), enabled:has},
       {label:"Restore every masked point", run:unmaskAll, enabled:edit&&!!(p&&maskOf(activeYCol()).length)}]},
@@ -25844,6 +26042,12 @@ ${DL([["Numbers","equals, does not equal, is less than, is at most, is greater t
 <p>A value typed that would fail the filter stays in view, so the row you are working on does not vanish: the funnels and the foot turn to the warning colour and offer <em>Apply again</em> (also ${MP("Data › Filter › Apply the filter again")}). Undo puts the view back with the data.</p>
 <h2>A view, not the data</h2>
 <p>Graphs, fits, processing, formulas and exports read every row, filtered or not; the check code does not change. Pasting a block, filling and inserting or deleting rows ask you to clear the filter first, because they work along every row. An analysis made while a sheet is filtered offers <em>Only the rows where…</em>, ticked: it keeps those conditions as its own rows, works them out on its data whenever it is worked out again, and says them in its report; changing or clearing the filter later does not change it. ${DA("analyses","Analyses")}</p>`},
+{id:"reshape", g:"Data", t:"Reshaping a sheet", kw:"reshape stack unstack melt wide long split pivot table crosstab reduce rows every nth merge bins duplicates remove deduplicate sort sorted copy transpose join merge lookup append concatenate combine sheets",
+ lead:"Tables made from a sheet, each on a result sheet of its own that follows its data: the original stays as it is.",
+ body:`<h2>The kinds</h2>
+${DL([["Stack columns","The columns ticked one under another in a column of values, with a column naming where each came from; columns ticked under <em>Kept beside</em> are repeated by each value (wide to long). Empty cells are left out unless you say otherwise."],["Unstack","A column of values into a column per level of a group column (long to wide): by their order within each level, or matched by an identifier column (then an identifier seen twice in a level keeps its first value, said)."],["Split by groups","The rows of each level of a group column, or every n rows, as a block of the columns ticked, side by side."],["Pivot table","The levels of one column down and another's across, each cell the count, sum, mean, SD, minimum, maximum, median or first of a column of values (or the number of rows), with totals."],["Reduce rows","Every nth row kept, every n rows merged (by their mean or another aggregate; X by its mean), or rows put into bins of X a width wide, X then each bin's centre."],["Duplicate rows","Rows whose key columns repeat: the first or the last of each kept, all averaged into one, or only the duplicates kept; numbers within a tolerance count as one."],["A sorted copy","The rows sorted by up to three columns, each up or down: numbers, then text, then empty cells; rows that tie keep their order. The only way rows are really reordered, and it is a copy."],["Transpose","Rows turned into columns, the first column ticked naming them when asked."],["Join two sheets","This sheet's rows beside another sheet's whose key matches: only rows matched in both, every row of this sheet, or every row of both. A row matching several gives one each."],["Append sheets","Other sheets' rows under this one's, columns matched by name or by position, with a column naming each row's sheet."]])}
+<h2>How they behave</h2>
+<p>Each is an ${DA("analyses","analysis")} under ${MP("Data › Reshape")}: it reads the cells as the worksheet holds them (numbers and text, not processed), writes a result sheet that is worked out again when they change, and can be changed, recalculated, cut from its data (the cells kept on an ordinary sheet) or deleted, each one step to undo. Its rows can be limited, and on a filtered sheet it offers the filter's rows as its own. The report says how many rows it read and made, and what it left out.</p>`},
 {id:"condfmt", g:"Data", t:"Conditional formatting", kw:"conditional formatting colour color scale heat map highlight cells fill rule rules duplicates unique top bottom greater less between text manage order",
  lead:"Cells filled by their values, so a pattern in the numbers shows before you read them: a view, the data stay as they are.",
  body:`<h2>A colour scale</h2>

@@ -421,6 +421,83 @@ if (want("3.4")) {
   }
 }
 
+if (want("3.5")) {
+  console.log("3.5 Reshaping");
+  // Sheet 1: X 1…8, A numbers with a gap, G text a/b, H text p/q; Lookup: K keys, E values.
+  const SET35 = () => { const ct = { 0: "a", 1: "b", 2: "a", 3: "b", 4: "a", 5: "b", 6: "a", 7: "b" }, ht = { 0: "p", 1: "p", 2: "q", 3: "q", 4: "p", 5: "p", 6: "q", 7: "q" };
+    save({ cols: [makeCol("x", "X", "s", [1, 2, 3, 4, 5, 6, 7, 8]), Object.assign(makeCol("y", "A", "mV", [10, 20, null, 40, 50, 60, 70, 80]), { pipe: [], mask: [] }), Object.assign(makeCol("ignore", "G", "", new Array(8).fill(null)), { txt: ct }), Object.assign(makeCol("ignore", "H", "", new Array(8).fill(null)), { txt: ht }),
+      Object.assign(makeCol("x", "K", "", [1, 2, 3, 4]), { sheet: "s2" }), Object.assign(makeCol("y", "E", "", [100, 200, 300, 400]), { sheet: "s2", pipe: [], mask: [] })], sheets: [{ id: "s1", name: "Sheet 1" }, { id: "s2", name: "Lookup" }], activeY: null }, "typed"); };
+  const ids = p => p.evaluate(() => Object.fromEntries(sheetCols("s1").map(c => [c.name, c.id]).concat(sheetCols("s2").map(c => ["s2:" + c.name, c.id]))));
+  const result = p => p.evaluate(() => { const a = P().ana[P().ana.length - 1]; return { name: a.name, err: a.res && a.res.err, notes: a.res && a.res.notes, sheet: a.out.sheet, cols: P().cols.filter(c => c.ana === a.id).map(c => [c.name, Array.from({ length: Math.max((c.data || []).length, txtLen(c)) }, (_, i) => catVal(c, i))]) }; });
+  const open = async (p, kind) => { await p.evaluate(k => { showSheet("s1"); anaDlg(k); }, kind); await p.waitForTimeout(250); };
+  const tickOnly = async (p, want) => { for (const [nm, id] of Object.entries(await ids(p))) { if (nm.startsWith("s2:")) continue; const on = want.includes(nm), b = await p.$("#aI_" + id); if (b && (await b.isChecked()) !== on) await b.click(); } };
+  await page(async p => {
+    await p.evaluate(SET35); await p.waitForTimeout(300); const I = await ids(p);
+    let r = await p.evaluate(() => dataMenu().find(i => i.label === "Reshape").sub().map(i => i.label));
+    check("Data › Reshape lists the ten kinds", JSON.stringify(r) === JSON.stringify(["Stack columns…", "Unstack…", "Split by groups…", "Pivot table…", "Reduce rows…", "Duplicate rows…", "A sorted copy…", "Transpose…", "Join two sheets…", "Append sheets…"]), JSON.stringify(r));
+    // Stack: A stacked with X kept beside.
+    await open(p, "stack"); await tickOnly(p, ["X", "A"]); await p.click("#aSk_" + I.X); await p.click("#formOk"); await p.waitForTimeout(400);
+    r = await result(p);
+    check("Stack columns: A under itself with X beside and a column naming it, the empty cell left out", !r.err && JSON.stringify(r.cols) === JSON.stringify([["X", [1, 2, 4, 5, 6, 7, 8]], ["Column", Array(7).fill("A")], ["Value", [10, 20, 40, 50, 60, 70, 80]]]), JSON.stringify(r));
+    r = await p.evaluate(() => { const c = P().cols.find(c => c.ana && c.name === "Value"); return { role: c.role, unit: c.unit, tab: [...document.querySelectorAll("#wsTabs .wstab")].map(t => t.textContent.trim()) }; });
+    check("…its values a Y in mV, on a result sheet of its own", r.role === "y" && r.unit === "mV" && r.tab.some(t => /Stacked 1/.test(t)), JSON.stringify(r));
+    // It follows its data.
+    await p.evaluate(id => { const c = colById(id), d = c.data.slice(); d[2] = 30; save({ cols: P().cols.map(o => o.id === id ? Object.assign({}, o, { data: d }) : o) }, "typed"); renderAll(); }, I.A); await p.waitForTimeout(400);
+    r = await result(p);
+    check("a value typed into A (row 3): the stack is worked out again, with it", JSON.stringify(r.cols[2][1]) === JSON.stringify([10, 20, 30, 40, 50, 60, 70, 80]), JSON.stringify(r.cols[2]));
+    // Pivot: G down, H across, the mean of A, totals.
+    await open(p, "pivot"); await tickOnly(p, ["A", "G", "H"]); await p.selectOption("#aVr", I.G); await p.selectOption("#aVc", I.H); await p.selectOption("#aVv", I.A); await p.selectOption("#aVa", "mean"); await p.click("#formOk"); await p.waitForTimeout(400);
+    r = await result(p);
+    check("Pivot table: G by H, the mean of A, with totals", JSON.stringify(r.cols) === JSON.stringify([["G", ["a", "b", "Total"]], ["p", [30, 40, 35]], ["q", [50, 60, 55]], ["Total", [40, 50, 45]]]), JSON.stringify(r.cols));
+    // Unstack A by G, by order.
+    await open(p, "unstack"); await tickOnly(p, ["A", "G"]); await p.selectOption("#aUv", I.A); await p.selectOption("#aUg", I.G); await p.click("#formOk"); await p.waitForTimeout(400);
+    r = await result(p);
+    check("Unstack: A in a column per level of G, in their order", JSON.stringify(r.cols) === JSON.stringify([["a", [10, 30, 50, 70]], ["b", [20, 40, 60, 80]]]), JSON.stringify(r.cols));
+    // Duplicates of G and H: the first of each.
+    await open(p, "dedup"); await tickOnly(p, ["A", "G", "H"]); await p.click("#aEk_" + I.G); await p.click("#aEk_" + I.H); const k0 = await p.isChecked("#aEk_" + I.X); if (k0) await p.click("#aEk_" + I.X);
+    await p.click("#formOk"); await p.waitForTimeout(400); r = await result(p);
+    check("Duplicate rows by G and H, the first of each kept", JSON.stringify(r.cols) === JSON.stringify([["A", [10, 20, 30, 40]], ["G", ["a", "b", "a", "b"]], ["H", ["p", "p", "q", "q"]]]), JSON.stringify(r.cols));
+    // A sorted copy by A descending; the original keeps its order.
+    await open(p, "sortcopy"); await tickOnly(p, ["X", "A"]); await p.selectOption("#aOb0", I.A); await p.selectOption("#aOd0", "-1"); await p.click("#formOk"); await p.waitForTimeout(400); r = await result(p);
+    const orig = await p.evaluate(id => colById(id).data.slice(), I.X);
+    check("A sorted copy by A, descending; X follows its rows; the original sheet's order unchanged", JSON.stringify(r.cols) === JSON.stringify([["X", [8, 7, 6, 5, 4, 3, 2, 1]], ["A", [80, 70, 60, 50, 40, 30, 20, 10]]]) && JSON.stringify(orig) === JSON.stringify([1, 2, 3, 4, 5, 6, 7, 8]), JSON.stringify(r.cols));
+    // Reduce: merge every 3 rows by their mean.
+    await open(p, "reduce"); await tickOnly(p, ["X", "A"]); await p.selectOption("#aDm", "merge"); await p.fill("#aDn", "3"); await p.selectOption("#aDa", "mean"); await p.click("#formOk"); await p.waitForTimeout(400); r = await result(p);
+    check("Reduce rows: every 3 merged by their mean, the last two on their own (said)", JSON.stringify(r.cols) === JSON.stringify([["X", [2, 5, 7.5]], ["A", [20, 50, 75]]]) && r.notes.some(n => /last 2 rows merged on their own/.test(n)), JSON.stringify(r));
+    // Split by G.
+    await open(p, "split"); await tickOnly(p, ["A", "G"]); await p.selectOption("#aPg", I.G); await p.click("#formOk"); await p.waitForTimeout(400); r = await result(p);
+    check("Split by G: a block of A per level", JSON.stringify(r.cols) === JSON.stringify([["A (a)", [10, 30, 50, 70]], ["A (b)", [20, 40, 60, 80]]]), JSON.stringify(r.cols));
+    // Transpose, the rows named by X.
+    await open(p, "transp"); await tickOnly(p, ["X", "A"]); await p.click("#aTn"); await p.click("#formOk"); await p.waitForTimeout(400); r = await result(p);
+    check("Transpose: a column per row, named by X", r.cols.length === 9 && r.cols[0][0] === "Column" && r.cols[1][0] === "1" && JSON.stringify(r.cols[3][1]) === JSON.stringify([30]), JSON.stringify(r.cols.slice(0, 4)));
+    // Join with Lookup on X = K, every row of this sheet.
+    await open(p, "join"); await tickOnly(p, ["X", "A"]); await p.selectOption("#aJl", I.X); await p.selectOption("#aJs", "s2"); await p.selectOption("#aJr", I["s2:K"]); await p.selectOption("#aJh", "left"); await p.click("#formOk"); await p.waitForTimeout(400); r = await result(p);
+    check("Join two sheets: every row of this one, E where X matches Lookup's K", JSON.stringify(r.cols) === JSON.stringify([["X", [1, 2, 3, 4, 5, 6, 7, 8]], ["A", [10, 20, 30, 40, 50, 60, 70, 80]], ["E", [100, 200, 300, 400]]]), JSON.stringify(r.cols));
+    // Append Lookup under X and A by position, the sheet named.
+    await open(p, "append"); await tickOnly(p, ["X", "A"]); await p.selectOption("#aAb", "pos"); await p.click("#formOk"); await p.waitForTimeout(400); r = await result(p);
+    check("Append sheets by position, each row's sheet named", JSON.stringify(r.cols[0]) === JSON.stringify(["Sheet", Array(8).fill("Sheet 1").concat(Array(4).fill("Lookup"))]) && JSON.stringify(r.cols[2][1].slice(-4)) === JSON.stringify([100, 200, 300, 400]), JSON.stringify(r.cols));
+    // A filter's rows taken: stack only the rows where G is a.
+    await p.evaluate(gid => { showSheet("s1"); setFilter("s1", gid, { vals: ["a"] }); }, I.G); await p.waitForTimeout(200);
+    await open(p, "stack"); await tickOnly(p, ["A"]); r = await p.evaluate(() => $("#aWhere") && $("#aWhere").checked); await p.click("#formOk"); await p.waitForTimeout(400);
+    const rr = await result(p);
+    check("on a filtered sheet a reshape offers the filter's rows, ticked, and keeps only them", r && JSON.stringify(rr.cols[1][1]) === JSON.stringify([10, 30, 50, 70]) && rr.notes.some(n => /^Rows where/.test(n)), JSON.stringify(rr));
+    // Cut from its data: the cells stay, an ordinary sheet; undo.
+    r = await p.evaluate(() => { const a = P().ana[P().ana.length - 1]; anaCut(a.id); const sid = a.out.sheet, cs = sheetCols(sid); return { ana: P().ana.some(x => x.id === a.id), n: cs.length, cut: cs.every(c => !c.ana), vals: cs.map(c => Array.from({ length: Math.max(c.data.length, txtLen(c)) }, (_, i) => catVal(c, i))) }; });
+    check("Cut from its data: the cells stay, numbers and text, on an ordinary sheet", !r.ana && r.cut && JSON.stringify(r.vals) === JSON.stringify([["A", "A", "A", "A"], [10, 30, 50, 70]]), JSON.stringify(r));
+    await p.evaluate(() => undo()); await p.waitForTimeout(300);
+    r = await p.evaluate(() => P().ana.length);
+    check("…undone, the analysis is back", r === 11, r);
+  }, { name: "reshaping" });
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } }); let pid;
+    await page(async p => { await p.evaluate(SET35); await p.waitForTimeout(300); const I = await ids(p); await open(p, "pivot"); await tickOnly(p, ["A", "G"]); await p.selectOption("#aVr", I.G); await p.selectOption("#aVv", I.A); await p.selectOption("#aVa", "sum"); await p.click("#formOk"); await p.waitForTimeout(400);
+      pid = await p.evaluate(() => { flushEdits(); return S.pid; }); await p.waitForTimeout(800); }, { name: "a pivot before a reload", ctx });
+    await page(async p => { await p.evaluate(pid => { if (S.pid !== pid) switchProject(pid); }, pid); await p.waitForTimeout(500);
+      const r = await result(p); check("after a reload the pivot table is there", JSON.stringify(r.cols) === JSON.stringify([["G", ["a", "b", "Total"]], ["Sum of A", [130, 200, 330]]]), JSON.stringify(r.cols)); }, { name: "a pivot after a reload", ctx });
+    await ctx.close();
+  }
+}
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

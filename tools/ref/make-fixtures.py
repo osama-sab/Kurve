@@ -892,6 +892,113 @@ for size in (1, 8, 40, 300):
         cases.append({"fn": "filtList", "name": f"two columns on {size} {kind}", "args": [{"A": {"v": v, "t": {str(k): x for k, x in t.items()}}, "B": {"v": v2, "t": {str(k): x for k, x in t2.items()}}}, {"A": c1, "B": c2}, size], "want": want})
 out["filt"] = cases
 
+# ---------- reshaping (SHEET_SPEC 3.5): the result tables, by pandas ----------
+# Each case runs one kind on columns of cells (numbers, text, empty) and compares every column of the result by name.
+cases = []; rng = np.random.default_rng(35)
+def rcells(kind, n, gap=0.15):
+    out = []
+    for r in range(n):
+        if rng.random() < gap: out.append(None); continue
+        if kind == "num": out.append(round(float(rng.normal(5, 3)), 2))
+        elif kind == "int": out.append(float(rng.integers(1, 6)))
+        elif kind == "x": out.append(float(r // 2))
+        elif kind == "id": out.append(float(1 + r % max(2, n // 3)))
+        else: out.append(str(rng.choice(list(kind))))
+    return out
+def ser(v): return pd.Series([np.nan if x is None else x for x in v], dtype=object)
+def outv(v):
+    out = []
+    for x in v:
+        if x is None or (isinstance(x, float) and math.isnan(x)): out.append(None)
+        elif isinstance(x, (int, np.integer)): out.append(float(x))
+        elif isinstance(x, (float, np.floating)): out.append(float(x))
+        else: out.append(str(x))
+    return out
+def inp(id_, name, cells, sheet="s1", role="y"): return {"id": id_, "name": name, "unit": "", "role": role, "sheet": sheet, "cells": cells, "order": None}
+def fin(v): return [x for x in v if isinstance(x, float) and x == x]
+def agg(fn, v):
+    f = fin(v)
+    if fn == "count": return float(len(f))
+    if fn == "sum": return math.fsum(f)
+    if not f: return None
+    if fn == "mean": return math.fsum(f) / len(f)
+    if fn == "min": return min(f)
+    if fn == "max": return max(f)
+    if fn == "median": return float(np.percentile(f, 50))
+    if fn == "sd": return float(statistics.stdev([Fraction(x) for x in f])) if len(f) > 1 else None
+def rcase(name, kind, ins, p, cols):
+    cases.append({"fn": "anaRunKind", "name": name, "args": [kind, ins, p], "want": [[c[0], outv(c[1])] for c in cols]})
+def firstseen(v):
+    seen = []
+    for x in v:
+        if x is not None and x not in seen: seen.append(x)
+    return seen
+def skey(x):  # numbers, then text, then empty
+    return (2, "") if x is None else (0, x) if isinstance(x, float) else (1, x)
+for n in (6, 24, 60):
+    X, A, B, G, H, I = rcells("x", n, 0), rcells("num", n), rcells("int", n), rcells("abc", n), rcells("pq", n, 0.05), rcells("id", n, 0.05)
+    ins = [inp("x", "X", X, role="x"), inp("a", "A", A), inp("b", "B", B), inp("g", "G", G, role="ignore"), inp("h", "H", H, role="ignore"), inp("i", "I", I, role="ignore")]
+    df = pd.DataFrame({k: ser(v) for k, v in zip("XABGHI", (X, A, B, G, H, I))})
+    # stack (melt), empty cells left out and kept
+    for drop in (True, False):
+        m = df.melt(id_vars=["X"], value_vars=["A", "B"], var_name="Column", value_name="Value")
+        if drop: m = m[m["Value"].notna()]
+        rcase(f"stack n={n} drop={drop}", "stack", ins[:3], {"keep": ["x"], "drop": drop}, [("X", m["X"].tolist()), ("Column", m["Column"].tolist()), ("Value", m["Value"].tolist())])
+    # unstack by order within each level, and by an identifier (first value of a pair kept)
+    L = firstseen(G); by = {l: [A[r] for r in range(n) if G[r] == l] for l in L}
+    rcase(f"unstack n={n}", "unstack", [ins[1], ins[3]], {"val": "a", "grp": "g"}, [(str(l), by[l]) for l in L])
+    d2 = df[df["G"].notna() & df["I"].notna()].drop_duplicates(["I", "G"], keep="first"); ids = firstseen(d2["I"].tolist())
+    pv = d2.pivot(index="I", columns="G", values="A").reindex(index=ids)
+    rcase(f"unstack by an identifier n={n}", "unstack", [ins[1], ins[3], ins[5]], {"val": "a", "grp": "g", "idc": "i"}, [("I", ids)] + [(str(l), pv[l].tolist() if l in pv else [None] * len(ids)) for l in firstseen(d2["G"].tolist())])
+    # pivot: G down, H across, each aggregate, with totals (groupby of the rows that have both levels)
+    RL, CL = sorted(firstseen(G), key=skey), sorted(firstseen(H), key=skey)
+    for fn in ("sum", "mean", "count", "sd", "median", "max"):
+        rows_ok = [r for r in range(n) if G[r] is not None and H[r] is not None]
+        cell = lambda gl, hl: [A[r] for r in rows_ok if G[r] == gl and H[r] == hl]
+        cols = [("G", RL + ["Total"])]
+        for hl in CL: cols.append((str(hl), [agg(fn, cell(gl, hl)) for gl in RL] + [agg(fn, [A[r] for r in rows_ok if H[r] == hl])]))
+        cols.append(("Total", [agg(fn, [A[r] for r in rows_ok if G[r] == gl]) for gl in RL] + [agg(fn, [A[r] for r in rows_ok])]))
+        rcase(f"pivot {fn} n={n}", "pivot", [ins[1], ins[3], ins[4]], {"row": "g", "col": "h", "val": "a", "agg": fn, "totals": True}, cols)
+    # reduce: every 3rd from row 2; every 4 merged by their mean; X in bins of 2 from 0
+    rcase(f"reduce every n={n}", "reduce", ins[:2], {"mode": "every", "n": 3, "start": 2}, [("X", X[1::3]), ("A", A[1::3])])
+    grp = [list(range(a, min(n, a + 4))) for a in range(0, n, 4)]
+    rcase(f"reduce merge n={n}", "reduce", ins[:3], {"mode": "merge", "n": 4, "agg": "mean"}, [("X", [agg("mean", [X[r] for r in g]) for g in grp]), ("A", [agg("mean", [A[r] for r in g]) for g in grp]), ("B", [agg("mean", [B[r] for r in g]) for g in grp])])
+    bins = sorted({int(math.floor(x / 2 + 1e-12)) for x in X if x is not None})
+    rcase(f"reduce bins n={n}", "reduce", ins[:2], {"mode": "bins", "x": "x", "w": 2, "x0": 0, "agg": "mean"}, [("X", [(b + 0.5) * 2 for b in bins]), ("A", [agg("mean", [A[r] for r in range(n) if X[r] is not None and math.floor(X[r] / 2 + 1e-12) == b]) for b in bins])])
+    # duplicates by G and H: first, last, only the duplicates; averaged
+    for keep in ("first", "last", "dups"):
+        sub = df[df.duplicated(["G", "H"], keep=False)] if keep == "dups" else df.drop_duplicates(["G", "H"], keep=keep)
+        rcase(f"dedup {keep} n={n}", "dedup", [ins[1], ins[3], ins[4]], {"keys": ["g", "h"], "keep": keep}, [("A", sub["A"].tolist()), ("G", sub["G"].tolist()), ("H", sub["H"].tolist())])
+    keys = []; grpd = {}
+    for r in range(n):
+        k = (G[r], H[r])
+        if k not in grpd: grpd[k] = []; keys.append(k)
+        grpd[k].append(r)
+    rcase(f"dedup mean n={n}", "dedup", [ins[1], ins[3], ins[4]], {"keys": ["g", "h"], "keep": "mean"}, [("A", [agg("mean", [A[r] for r in grpd[k]]) for k in keys]), ("G", [k[0] for k in keys]), ("H", [k[1] for k in keys])])
+    # a sorted copy by G descending then A ascending (empty last), stable
+    idx = list(range(n))
+    def k2(r):
+        g, a = G[r], A[r]
+        return ((1, "") if g is None else (0, tuple(-ord(ch) for ch in g)), (2, 0) if a is None else (0, a), r)
+    idx.sort(key=k2)
+    rcase(f"sorted copy n={n}", "sortcopy", [ins[1], ins[3]], {"by": [{"id": "g", "dir": -1}, {"id": "a", "dir": 1}]}, [("A", [A[r] for r in idx]), ("G", [G[r] for r in idx])])
+    # transpose, named by H
+    if n <= 24: rcase(f"transpose n={n}", "transp", [ins[4], ins[1], ins[2]], {"names": True}, [("Column", ["A", "B"])] + [(H[r] if H[r] is not None else str(r + 1), [A[r], B[r]]) for r in range(n)])
+    # join with another sheet on I (no empty keys), inner and left (pandas keeps this sheet's order)
+    Iok = [float(1 + r % 5) for r in range(n)]; K2 = [1.0, 2.0, 3.0, 3.0, 7.0]; E2 = [10.0, 20.0, 30.0, 31.0, 70.0]
+    left = pd.DataFrame({"I": ser(Iok), "A": ser(A)}); right = pd.DataFrame({"K": ser(K2), "E": ser(E2)})
+    for how in ("inner", "left"):
+        mrg = left.merge(right, left_on="I", right_on="K", how=how, sort=False)
+        rcase(f"join {how} n={n}", "join", [inp("i2", "I", Iok), inp("a", "A", A), inp("k2", "K", K2, "s2"), inp("e2", "E", E2, "s2")], {"lk": "i2", "rk": "k2", "right": "s2", "how": how}, [("I", mrg["I"].tolist()), ("A", mrg["A"].tolist()), ("E", mrg["E"].tolist())])
+    # append another sheet by name and by position, with the sheet named
+    other = pd.DataFrame({"B": ser([1.0, None, 3.0]), "A": ser([7.0, 8.0, None]), "Z": ser(["u", "v", "w"])})
+    cat = pd.concat([df[["A", "B"]], other], ignore_index=True)
+    ins2 = [inp("a", "A", A), inp("b", "B", B), inp("b2", "B", [1.0, None, 3.0], "s2"), inp("a2", "A", [7.0, 8.0, None], "s2"), inp("z2", "Z", ["u", "v", "w"], "s2")]
+    rcase(f"append by name n={n}", "append", ins2, {"by": "name", "src": True, "sheetNames": {"s1": "Data", "s2": "More"}}, [("Sheet", ["Data"] * n + ["More"] * 3), ("A", cat["A"].tolist()), ("B", cat["B"].tolist()), ("Z", cat["Z"].tolist())])
+    pos = pd.concat([df[["A", "B"]], other.set_axis(["A", "B", "Z"], axis=1)[["A", "B"]]], ignore_index=True)
+    rcase(f"append by position n={n}", "append", ins2[:4], {"by": "pos", "src": False}, [("A", pos["A"].tolist()), ("B", pos["B"].tolist())])
+out["reshape"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")
