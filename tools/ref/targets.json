@@ -1,0 +1,634 @@
+{
+ "//": "What each function of Kurve must reach against the reference (tools/ref/README.md): tol, a relative error (floor, an absolute one beside it for values near zero); until, the slice of ux/spec/PARITY_SPEC.md that brings a function short of its target there; now, the worst error it was measured at when that was written, which it must not pass; why, what keeps it short. Read by tools/ref-test.mjs and tools/ref/diff-fuzz.py.",
+ "betai": {
+  "tol": 1e-12
+ },
+ "gammaln": {
+  "tol": 1e-13
+ },
+ "lgammaFn": {
+  "tol": 1e-13
+ },
+ "erfFn": {
+  "tol": 1e-13
+ },
+ "erfcFn": {
+  "tol": 1e-13
+ },
+ "probit": {
+  "tol": 1e-12
+ },
+ "faddeeva": {
+  "tol": 1e-12,
+  "floor": 1e-13
+ },
+ "tPvalue": {
+  "tol": 1e-12
+ },
+ "tCrit": {
+  "tol": 1e-11
+ },
+ "fPvalue": {
+  "tol": 1e-12
+ },
+ "quantileSorted": {
+  "tol": 1e-14
+ },
+ "distFit.p": {
+  "tol": 1e-12
+ },
+ "distFit.ks": {
+  "tol": 1e-12
+ },
+ "distFit.pks": {
+  "tol": 1e-11
+ },
+ "lmFit.params": {
+  "tol": 1e-06
+ },
+ "lmFit.errors": {
+  "tol": 0.0001
+ },
+ "odrFit.params": {
+  "tol": 1e-06
+ },
+ "odrFit.errors": {
+  "tol": 1e-05
+ },
+ "norris.polyfit": {
+  "tol": 1e-12
+ },
+ "norris.lmFit": {
+  "tol": 1e-12,
+  "until": "4.1",
+  "now": 3e-08,
+  "why": "a straight line fitted by Levenberg–Marquardt with a numerical Jacobian; 4.1 solves linear models by QR"
+ },
+ "norris.lmFit.errors": {
+  "tol": 1e-09,
+  "until": "4.1",
+  "now": 3e-08
+ },
+ "norris.R2": {
+  "tol": 1e-12
+ },
+ "lbeta": {
+  "tol": 1e-13
+ },
+ "igamPQ#0": {
+  "tol": 1e-12
+ },
+ "igamPQ#1": {
+  "tol": 1e-12
+ },
+ "DIST.t.sf": {
+  "tol": 1e-12
+ },
+ "DIST.t.isf": {
+  "tol": 1e-11
+ },
+ "DIST.chi2.isf": {
+  "tol": 1e-11
+ },
+ "DIST.binom.cdf": {
+  "tol": 1e-12
+ },
+ "DIST.pois.cdf": {
+  "tol": 1e-12
+ },
+ "quantileType": {
+  "tol": 1e-13,
+  "why": "the interpolation weight carries the rounding of p(n + 1 - a - b), which the gap between the two values it lies between multiplies; R's is the same"
+ },
+ "descStats.mean": {
+  "tol": 1e-15
+ },
+ "descStats.sum": {
+  "tol": 1e-15
+ },
+ "descStats.spread": {
+  "tol": 1e-15
+ },
+ "descStats.shape": {
+  "tol": 1e-14,
+  "floor": 1,
+  "why": "skewness and kurtosis are differences of terms of order 1: judged by their absolute error below 1"
+ },
+ "descStats.means": {
+  "tol": 1e-14
+ },
+ "descStats.order": {
+  "tol": 1e-15
+ },
+ "swTest.w": {
+  "tol": 1e-14
+ },
+ "swTest.p": {
+  "tol": 1e-11,
+  "why": "p is Φ of a function of ln(1 − W), which multiplies an error in W by 1/(1 − W)"
+ },
+ "lfTest.d": {
+  "tol": 1e-14
+ },
+ "lfTest.p": {
+  "tol": 1e-13
+ },
+ "ksnTest.d": {
+  "tol": 1e-14
+ },
+ "ksnTest.p": {
+  "tol": 1e-10,
+  "why": "Kolmogorov's tail; Miller's 2·one-sided where n·d² passes 2.2 (kolmogN.sf)"
+ },
+ "adTest.a2": {
+  "tol": 1e-11,
+  "why": "A² is a sum of n logarithms cancelling to a small number: its relative error grows with n over A²"
+ },
+ "adTest.as": {
+  "tol": 1e-11
+ },
+ "adTest.p": {
+  "tol": 1e-11
+ },
+ "dagoTest.zs": {
+  "tol": 1e-13
+ },
+ "dagoTest.zk": {
+  "tol": 1e-12
+ },
+ "dagoTest.k2": {
+  "tol": 1e-13
+ },
+ "dagoTest.p": {
+  "tol": 1e-12
+ },
+ "grubbsTest.G": {
+  "tol": 1e-14
+ },
+ "grubbsTest.p": {
+  "tol": 1e-12
+ },
+ "grubbsTest.Gc": {
+  "tol": 1e-14
+ },
+ "kolmogN.cdf": {
+  "tol": 1e-12
+ },
+ "kolmogN.sf": {
+  "tol": 1e-10,
+  "why": "past n·x² = 2.2 the tail is Miller's twice the one-sided tail (SciPy's too), which leaves out both sides at once; below, 1 − P(D ≤ x)"
+ },
+ "kolmogN.pg": {
+  "tol": 1e-08,
+  "why": "the reference is SciPy's Pelz and Good expansion (1e-9 off at 5000 values) where Durbin's matrix in 40 digits is too slow to make; Kurve's is the matrix"
+ },
+ "dixonP": {
+  "tol": 1e-12
+ },
+ "tTest1.t": {
+  "tol": 1e-14
+ },
+ "tTest1.df": {
+  "tol": 1e-15
+ },
+ "tTest1.p": {
+  "tol": 1e-13
+ },
+ "tTest1.ci": {
+  "tol": 1e-11,
+  "why": "an interval's end is the estimate plus or minus q·se: near zero they cancel"
+ },
+ "tTest1.d": {
+  "tol": 1e-14
+ },
+ "tTest1.g": {
+  "tol": 1e-13
+ },
+ "tTest1.dci": {
+  "tol": 1e-12,
+  "why": "the noncentral t inverted, against Boost's inverted by brentq"
+ },
+ "tTest2.t": {
+  "tol": 1e-14
+ },
+ "tTest2.df": {
+  "tol": 1e-15
+ },
+ "tTest2.p": {
+  "tol": 1e-13
+ },
+ "tTest2.ci": {
+  "tol": 1e-11,
+  "why": "an interval's end is the estimate plus or minus q·se: near zero they cancel"
+ },
+ "tTest2.d": {
+  "tol": 1e-14
+ },
+ "tTest2.g": {
+  "tol": 1e-13
+ },
+ "tTest2.dci": {
+  "tol": 1e-12,
+  "why": "the noncentral t inverted, against Boost's inverted by brentq"
+ },
+ "tTestPaired.t": {
+  "tol": 1e-14
+ },
+ "tTestPaired.df": {
+  "tol": 1e-15
+ },
+ "tTestPaired.p": {
+  "tol": 1e-13
+ },
+ "tTestPaired.ci": {
+  "tol": 1e-11,
+  "why": "an interval's end is the estimate plus or minus q·se: near zero they cancel"
+ },
+ "tTestPaired.d": {
+  "tol": 1e-14
+ },
+ "tTestPaired.g": {
+  "tol": 1e-13
+ },
+ "tTestPaired.dci": {
+  "tol": 1e-12,
+  "why": "the noncentral t inverted, against Boost's inverted by brentq"
+ },
+ "fTest2.F": {
+  "tol": 1e-14
+ },
+ "fTest2.p": {
+  "tol": 1e-13
+ },
+ "fTest2.ci": {
+  "tol": 1e-13
+ },
+ "leveneTest.W": {
+  "tol": 1e-14
+ },
+ "leveneTest.p": {
+  "tol": 1e-13
+ },
+ "bartlettTest.T": {
+  "tol": 1e-14
+ },
+ "bartlettTest.p": {
+  "tol": 1e-13
+ },
+ "propTest1.p": {
+  "tol": 1e-13
+ },
+ "propTest1.ci": {
+  "tol": 1e-13
+ },
+ "propTest1.wilson": {
+  "tol": 1e-14
+ },
+ "propTest1.z": {
+  "tol": 1e-14
+ },
+ "propTest1.pz": {
+  "tol": 1e-14
+ },
+ "propTest2.z": {
+  "tol": 1e-14
+ },
+ "propTest2.p": {
+  "tol": 1e-14
+ },
+ "propTest2.ci": {
+  "tol": 1e-13
+ },
+ "fisher22.p": {
+  "tol": 1e-13
+ },
+ "fisher22.or": {
+  "tol": 1e-12
+ },
+ "fisher22.ci": {
+  "tol": 1e-11,
+  "why": "a bound of a small odds ratio, solved by halving in log ψ"
+ },
+ "nctCdf": {
+  "tol": 1e-12,
+  "why": "absolute: the series subtracts far in the lower tail of a negative t, where only absolute accuracy holds (what an interval needs)"
+ },
+ "anova1.ss": {
+  "tol": 1e-14
+ },
+ "anova1.F": {
+  "tol": 1e-14
+ },
+ "anova1.p": {
+  "tol": 1e-13
+ },
+ "anova1.effect": {
+  "tol": 1e-14,
+  "floor": 1e-15
+ },
+ "anova1.welch": {
+  "tol": 1e-13
+ },
+ "anovaComp.arith": {
+  "tol": 1e-13
+ },
+ "anovaComp.q.p": {
+  "tol": 1e-12,
+  "floor": 1e-13,
+  "why": "against SciPy's studentized range, off by up to 5e-14 absolutely (two such cases in 40 digits: Kurve right to 3e-15); range.json holds the 40-digit tails"
+ },
+ "anovaComp.q.ci": {
+  "tol": 1e-11,
+  "why": "SciPy's quantile is a root found to its own tolerance"
+ },
+ "anovaComp.t.p": {
+  "tol": 1e-13
+ },
+ "anovaComp.t.ci": {
+  "tol": 1e-13
+ },
+ "nist.anova": {
+  "tol": 1e-14,
+  "why": "against the exact answer for the doubles NIST's decimals parse to; the certified values are printed beside as digits right"
+ },
+ "tukeySf": {
+  "tol": 1e-13
+ },
+ "dunnettSf": {
+  "tol": 1e-13
+ },
+ "mwTest.U": {
+  "tol": 1e-14
+ },
+ "mwTest.hl": {
+  "tol": 1e-14
+ },
+ "mwTest.ci": {
+  "tol": 1e-14
+ },
+ "wsrTest.Tp": {
+  "tol": 1e-14
+ },
+ "wsrTest.hl": {
+  "tol": 1e-14
+ },
+ "wsrTest.ci": {
+  "tol": 1e-14
+ },
+ "signTest.ci": {
+  "tol": 1e-14
+ },
+ "kwTest.H": {
+  "tol": 1e-14
+ },
+ "moodTest.X": {
+  "tol": 1e-14
+ },
+ "moodTest.med": {
+  "tol": 1e-14
+ },
+ "friedmanTest.Q": {
+  "tol": 1e-14
+ },
+ "ks2Test.D": {
+  "tol": 1e-14
+ },
+ "mwTest.p": {
+  "tol": 1e-13
+ },
+ "wsrTest.p": {
+  "tol": 1e-13
+ },
+ "signTest.p": {
+  "tol": 1e-13
+ },
+ "kwTest.p": {
+  "tol": 1e-13
+ },
+ "kwTest.dunn": {
+  "tol": 1e-13
+ },
+ "moodTest.p": {
+  "tol": 1e-13
+ },
+ "friedmanTest.p": {
+  "tol": 1e-13
+ },
+ "ks2Test.p": {
+  "tol": 1e-12,
+  "why": "SciPy's exact two-sample distribution, itself checked only to about 1e-13 here"
+ },
+ "corrTest.r": {
+  "tol": 1e-14,
+  "why": "Exact rationals with one square root in 40 digits (refs.py)"
+ },
+ "spearmanTest.rho": {
+  "tol": 1e-14,
+  "why": "Exact rationals with one square root in 40 digits (refs.py)"
+ },
+ "kendallTau.tau": {
+  "tol": 1e-14,
+  "why": "Exact rationals with one square root in 40 digits (refs.py)"
+ },
+ "partialCorr.r": {
+  "tol": 1e-14,
+  "floor": 1e-15,
+  "why": "The inverse of the exact correlation matrix in 40 digits; an r near 0 judged absolutely"
+ },
+ "corrTest.p": {
+  "tol": 1e-13,
+  "why": "The t tail (or Kendall's exact count, or the normal) of the exact statistic, in 40 digits"
+ },
+ "spearmanTest.p": {
+  "tol": 1e-13,
+  "why": "The t tail (or Kendall's exact count, or the normal) of the exact statistic, in 40 digits"
+ },
+ "kendallTau.p": {
+  "tol": 1e-13,
+  "why": "The t tail (or Kendall's exact count, or the normal) of the exact statistic, in 40 digits"
+ },
+ "partialCorr.p": {
+  "tol": 1e-13,
+  "why": "The t tail (or Kendall's exact count, or the normal) of the exact statistic, in 40 digits"
+ },
+ "corrTest.ci": {
+  "tol": 1e-13,
+  "why": "Fisher's z interval of the exact r, in 40 digits"
+ },
+ "chi2Indep.X2": {
+  "tol": 1e-14,
+  "why": "Exact rationals (refs.py), the tails in 40 digits"
+ },
+ "chi2Indep.G": {
+  "tol": 1e-14,
+  "why": "Exact rationals (refs.py), the tails in 40 digits"
+ },
+ "chi2Indep.V": {
+  "tol": 1e-14,
+  "why": "Exact rationals (refs.py), the tails in 40 digits"
+ },
+ "chi2Indep.p": {
+  "tol": 1e-13,
+  "why": "Exact rationals (refs.py), the tails in 40 digits"
+ },
+ "chi2Indep.pG": {
+  "tol": 1e-13,
+  "why": "Exact rationals (refs.py), the tails in 40 digits"
+ },
+ "fisherRC.p": {
+  "tol": 1e-12,
+  "why": "Freeman–Halton's sum in rationals; Kurve's in logarithms relative to the observed table"
+ },
+ "mcnemarTest.X2": {
+  "tol": 1e-15,
+  "why": "Exact rationals (refs.py), the tails in 40 digits"
+ },
+ "mcnemarTest.p": {
+  "tol": 1e-13,
+  "why": "Exact rationals (refs.py), the tails in 40 digits"
+ },
+ "mcnemarTest.pExact": {
+  "tol": 1e-13,
+  "why": "Exact rationals (refs.py), the tails in 40 digits"
+ },
+ "linModel.b": {
+  "tol": 1e-15,
+  "why": "Exact rationals (refs.py lm_ref): the coefficients by Householder QR refined on the augmented system in double-double"
+ },
+ "linModel.se": {
+  "tol": 1e-15,
+  "why": "The covariance refined in double-double (on XᵀX, then the augmented system where that does not settle)"
+ },
+ "linModel.t": {
+  "tol": 1e-15,
+  "why": "Exact rationals (refs.py lm_ref): the coefficients by Householder QR refined on the augmented system in double-double"
+ },
+ "linModel.p": {
+  "tol": 1e-13,
+  "why": "The t and F tails of the exact statistics, in 40 digits"
+ },
+ "linModel.ci": {
+  "tol": 1e-14,
+  "why": "The estimate less t times its error: judged against the estimate's size plus the half-width"
+ },
+ "linModel.s": {
+  "tol": 1e-15,
+  "why": "The residuals in double-double, the solution kept in double-double"
+ },
+ "linModel.rss": {
+  "tol": 1e-15,
+  "why": "The residuals in double-double, the solution kept in double-double"
+ },
+ "linModel.r2": {
+  "tol": 1e-15,
+  "why": "Sums of squares as the squared difference of two fits' residuals: nothing cancels"
+ },
+ "linModel.F": {
+  "tol": 1e-15,
+  "why": "Sums of squares as the squared difference of two fits' residuals, or by Wald's identity on the refined covariance"
+ },
+ "linModel.ss": {
+  "tol": 1e-15,
+  "why": "Type I from prefixes of one QR, refined; II and III by Wald's identity, or refits where columns are aliased"
+ },
+ "lmContrast.est": {
+  "tol": 1e-15,
+  "why": "Σ L·b of the refined solution, judged against its size plus its error (a contrast near 0 is a difference)"
+ },
+ "lmContrast.se": {
+  "tol": 1e-15,
+  "why": "Lᵀ V L of the refined covariance"
+ },
+ "lmContrast.p": {
+  "tol": 1e-13,
+  "why": "The t tail in 40 digits"
+ },
+ "lmEst.est": {
+  "tol": 1e-15,
+  "why": "An estimated mean or a difference of them: L·b of the refined solution against exact rationals (a difference judged against its size plus its error)"
+ },
+ "lmEst.se": {
+  "tol": 1e-15,
+  "why": "√(LᵀVL·s²) of the refined covariance against exact rationals"
+ },
+ "lmWaldL.F": {
+  "tol": 1e-14,
+  "why": "Wald's F of the simple effects against exact rationals"
+ },
+ "lmWaldL.p": {
+  "tol": 1e-13,
+  "why": "F's tail in 40 digits"
+ },
+ "rmAnova.ss": {
+  "tol": 1e-15,
+  "why": "Integer Helmert contrasts summed in double-double, the regression refined: against rational projections"
+ },
+ "rmAnova.F": {
+  "tol": 1e-15,
+  "why": "Ratios of those sums of squares"
+ },
+ "rmAnova.eps": {
+  "tol": 1e-15,
+  "why": "Greenhouse–Geisser's and Huynh–Feldt's ε from the residuals' covariance, against its rational traces"
+ },
+ "rmAnova.W": {
+  "tol": 1e-15,
+  "why": "Mauchly's W: det(BᵀEB)/det(BᵀB) on a rational basis"
+ },
+ "rmAnova.x2": {
+  "tol": 1e-13,
+  "why": "−f ln W: near W = 1 the logarithm magnifies W's last digit"
+ },
+ "rmAnova.p": {
+  "tol": 1e-13,
+  "why": "F's tail (df scaled by ε) and χ²'s, in 40 digits"
+ },
+ "DIST.ncf.sf": {
+  "tol": 1e-13,
+  "why": "A Poisson mixture of incomplete betas, every term positive: both tails keep their relative digits; each term carries the central tail's error (1e-13), 2.4e-14 seen at 5e-36"
+ },
+ "DIST.ncf.cdf": {
+  "tol": 1e-13,
+  "why": "The same mixture of the lower tails; each term carries the central tail's error (1e-13), 2.4e-14 seen at 5e-36"
+ },
+ "DIST.ncx2.sf": {
+  "tol": 1e-13,
+  "why": "A Poisson mixture of incomplete gammas, every term positive; each term carries the central tail's error (1e-13), 2.4e-14 seen at 5e-36"
+ },
+ "DIST.ncx2.cdf": {
+  "tol": 1e-13,
+  "why": "The same mixture of the lower tails; each term carries the central tail's error (1e-13), 2.4e-14 seen at 5e-36"
+ },
+ "DIST.nct.sf": {
+  "tol": 1e-13,
+  "why": "Guenther's sum (nctCdf), 1 less it: relative where the tail is not small"
+ },
+ "powerAt": {
+  "tol": 1e-13,
+  "why": "Absolute: the tails at quantiles worked out to 1e-15, against 60 digits"
+ },
+ "powSize.n": {
+  "tol": 0,
+  "why": "The smallest size reaching the power, exactly"
+ },
+ "rocTest.auc": {
+  "tol": 1e-15,
+  "why": "U from midranks, one division"
+ },
+ "rocTest.se": {
+  "tol": 1e-15,
+  "why": "DeLong's variance from deviations that are exact multiples of a half over n₁n₀"
+ },
+ "rocTest.ci": {
+  "tol": 1e-15,
+  "why": "The area ± z·SE"
+ },
+ "rocTest.youden": {
+  "tol": 1e-15,
+  "why": "Youden's J compared as integers; the cut-off a score itself"
+ },
+ "rocCompare": {
+  "tol": 1e-13,
+  "why": "The difference of two areas, DeLong's SE from the exact differences of their deviations, z and the normal tail"
+ }
+}

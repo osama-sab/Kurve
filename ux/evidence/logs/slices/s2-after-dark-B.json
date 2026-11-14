@@ -1,0 +1,264 @@
+{
+ "events": [
+  {
+   "t": 0.814,
+   "wall": "2026-10-16T20:46:02+00:00",
+   "task": null,
+   "kind": "open",
+   "target": "http://127.0.0.1:49527/kurve.html",
+   "viewport": "1366x768",
+   "theme": "dark"
+  },
+  {
+   "t": 3.456,
+   "wall": "2026-10-16T20:46:05+00:00",
+   "task": "T8",
+   "kind": "task_start",
+   "target": "raman_raw.txt: remove spikes, subtract baseline, find and fit the peaks, table of position, FWHM, area with errors"
+  },
+  {
+   "t": 3.709,
+   "wall": "2026-10-16T20:46:05+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'File'",
+   "x": 116,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 4.37,
+   "wall": "2026-10-16T20:46:05+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Import data…",
+   "x": 212,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 4.522,
+   "wall": "2026-10-16T20:46:06+00:00",
+   "task": "T8",
+   "kind": "choose_file",
+   "target": "raman_raw.txt",
+   "files": [
+    "raman_raw.txt"
+   ]
+  },
+  {
+   "t": 5.94,
+   "wall": "2026-10-16T20:46:07+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Import 2 columns",
+   "x": 1129,
+   "y": 725,
+   "presses": 1
+  },
+  {
+   "t": 7.596,
+   "wall": "2026-10-16T20:46:09+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Plot it now'",
+   "x": 945,
+   "y": 698,
+   "presses": 1
+  },
+  {
+   "t": 9.059,
+   "wall": "2026-10-16T20:46:10+00:00",
+   "task": "T8",
+   "kind": "dblclick",
+   "target": "graph title bar",
+   "x": 984,
+   "y": 98,
+   "presses": 2
+  },
+  {
+   "t": 9.793,
+   "wall": "2026-10-16T20:46:11+00:00",
+   "task": "T8",
+   "kind": "rightclick",
+   "target": "the curve (right-click)",
+   "x": 473,
+   "y": 615,
+   "presses": 1
+  },
+  {
+   "t": 10.357,
+   "wall": "2026-10-16T20:46:11+00:00",
+   "task": "T8",
+   "kind": "hover",
+   "target": "Plot type",
+   "x": 624,
+   "y": 351
+  },
+  {
+   "t": 10.958,
+   "wall": "2026-10-16T20:46:12+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Line",
+   "x": 887,
+   "y": 351,
+   "presses": 1
+  },
+  {
+   "t": 11.688,
+   "wall": "2026-10-16T20:46:13+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Spectroscopy'",
+   "x": 440,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 12.354,
+   "wall": "2026-10-16T20:46:13+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Remove cosmic-ray spikes…",
+   "x": 521,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 13.382,
+   "wall": "2026-10-16T20:46:14+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "OK",
+   "x": 1045,
+   "y": 555,
+   "presses": 1
+  },
+  {
+   "t": 14.52,
+   "wall": "2026-10-16T20:46:16+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Spectroscopy'",
+   "x": 440,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 15.14,
+   "wall": "2026-10-16T20:46:16+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Subtract background…",
+   "x": 521,
+   "y": 112,
+   "presses": 1
+  },
+  {
+   "t": 16.239,
+   "wall": "2026-10-16T20:46:17+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "OK",
+   "x": 1045,
+   "y": 518,
+   "presses": 1
+  },
+  {
+   "t": 17.472,
+   "wall": "2026-10-16T20:46:19+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "button 'Analysis'",
+   "x": 291,
+   "y": 20,
+   "presses": 1
+  },
+  {
+   "t": 17.989,
+   "wall": "2026-10-16T20:46:19+00:00",
+   "task": "T8",
+   "kind": "hover",
+   "target": "Fit",
+   "x": 373,
+   "y": 56
+  },
+  {
+   "t": 18.594,
+   "wall": "2026-10-16T20:46:20+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Peak fit",
+   "x": 600,
+   "y": 84,
+   "presses": 1
+  },
+  {
+   "t": 20.09,
+   "wall": "2026-10-16T20:46:21+00:00",
+   "task": "T8",
+   "kind": "wheel",
+   "target": "scroll Fit window",
+   "x": 1176,
+   "y": 428,
+   "dx": 0,
+   "dy": 500
+  },
+  {
+   "t": 20.568,
+   "wall": "2026-10-16T20:46:22+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Use these peaks",
+   "x": 1086,
+   "y": 508,
+   "presses": 1
+  },
+  {
+   "t": 22.412,
+   "wall": "2026-10-16T20:46:24+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Fit the peaks",
+   "x": 1075,
+   "y": 691,
+   "presses": 1
+  },
+  {
+   "t": 26.746,
+   "wall": "2026-10-16T20:46:28+00:00",
+   "task": "T8",
+   "kind": "click",
+   "target": "Copy table",
+   "x": 1045,
+   "y": 231,
+   "presses": 1
+  },
+  {
+   "t": 26.869,
+   "wall": "2026-10-16T20:46:28+00:00",
+   "task": "T8",
+   "kind": "task_end",
+   "success": "yes",
+   "note": ""
+  }
+ ],
+ "summary": {
+  "T8": {
+   "title": "raman_raw.txt: remove spikes, subtract baseline, find and fit the peaks, table of position, FWHM, area with errors",
+   "success": "yes",
+   "clicks": 19,
+   "keys": 0,
+   "drags": 0,
+   "hovers": 2,
+   "wrong_turns": 0,
+   "guesses": 0,
+   "help": 0,
+   "shots": 0,
+   "seconds": 23.4,
+   "klm_seconds": 50.4,
+   "klm_hover_seconds": 52.6
+  }
+ }
+}

@@ -1,0 +1,508 @@
+/* The distributions' properties (ux/spec/FOUNDATION_SPEC.md, slice 1.4): what must hold whatever
+   the reference says. The two tails add up to 1 where both are large; the quantile of a tail is
+   the value it came from; t is symmetric; the distribution functions rise; the limits at 0 and ∞;
+   the probabilities of counts add up to 1 and their tails to the sums of them. The values
+   themselves are checked against 40-digit references by tools/ref-test.mjs and the fuzzer. And the
+   descriptive statistics: what a shift, a scale, the order and a change of sign do to them.
+   Usage: node tools/stats-test.mjs [kurve.html] */
+import { loadKurve } from "./ref/run.mjs";
+const get = loadKurve(process.argv[2]);
+const D = get("DIST"), lgam = get("lgam"), lbeta = get("lbeta"), ibetaPQ = get("ibetaPQ"), igamPQ = get("igamPQ");
+let pass = 0, fail = 0;
+const check = (name, ok, detail) => { if (ok) pass++; else { fail++; console.log("  FAIL " + name + (detail == null ? "" : "  — " + detail)); } };
+const rel = (a, b) => Math.abs(a - b) / Math.max(Math.abs(b), 1e-300);
+let s = 12345; const rnd = () => { s = (s * 1103515245 + 12345) % 2147483648; return s / 2147483648; };
+const ln = (lo, hi) => 10 ** (lo + (hi - lo) * rnd());
+
+// ln Γ: Γ(n) = (n − 1)!, the recurrence, Γ(½) = √π, reflection.
+let w = 0; for (let n = 1, f = 1; n < 170; n++) { if (n > 1) f *= n - 1; w = Math.max(w, Math.abs(lgam(n) - Math.log(f)) / Math.max(1, Math.log(f))); }
+check("ln Γ(n) is ln (n − 1)! to 1e-15", w < 1e-15, w);
+w = 0; for (let i = 0; i < 400; i++) { const x = ln(-3, 6); w = Math.max(w, Math.abs(lgam(x + 1) - lgam(x) - Math.log(x)) / Math.max(1, Math.abs(lgam(x + 1)))); }
+check("ln Γ(x + 1) = ln Γ(x) + ln x", w < 4e-15, w);
+check("ln Γ(½) = ln √π", rel(lgam(0.5), 0.5 * Math.log(Math.PI)) < 1e-15);
+check("ln Γ(1) and ln Γ(2) are 0 exactly", lgam(1) === 0 && lgam(2) === 0, [lgam(1), lgam(2)]);
+check("|Γ(−0.5)| = 2√π", rel(lgam(-0.5), Math.log(2 * Math.sqrt(Math.PI))) < 1e-14);
+check("ln Γ at 0 and at negative whole numbers is +∞", lgam(0) === Infinity && lgam(-3) === Infinity);
+w = 0; for (let i = 0; i < 300; i++) { const a = ln(-1, 7), b = ln(-1, 7); w = Math.max(w, Math.abs(lbeta(a, b) - lbeta(b, a))); }
+check("ln B is symmetric", w === 0, w);
+check("ln B(5e6, ½) keeps its digits (against ln Γ(½) − ½ ln 5e6, first order)", Math.abs(lbeta(5e6, 0.5) - (lgam(0.5) - 0.5 * Math.log(5e6))) < 1e-7);
+
+// The incomplete beta and gamma: the two parts add up to 1, the limits, monotone in x.
+w = 0; for (let i = 0; i < 2000; i++) { const a = ln(-1, 5), b = ln(-1, 5), x = rnd(); const [p, q] = ibetaPQ(a, b, x, 1 - x); w = Math.max(w, Math.abs(p + q - 1)); }
+check("I_x(a, b) and its complement add up to 1", w < 1e-15, w);
+w = 0; for (let i = 0; i < 2000; i++) { const a = ln(-1, 6), x = ln(-3, 6.5); const [p, q] = igamPQ(a, x); w = Math.max(w, Math.abs(p + q - 1)); }
+check("P(a, x) and Q(a, x) add up to 1", w < 1e-15, w);
+check("I_0 = 0, I_1 = 1, P(a, 0) = 0, P(a, ∞) = 1", ibetaPQ(2, 3, 0, 1)[0] === 0 && ibetaPQ(2, 3, 1, 0)[0] === 1 && igamPQ(2, 0)[0] === 0 && igamPQ(2, Infinity)[0] === 1);
+let mono = true; for (let i = 0; i < 200 && mono; i++) { const a = ln(-1, 4), b = ln(-1, 4); let last = -1; for (let k = 0; k <= 100; k++) { const v = ibetaPQ(a, b, k / 100, 1 - k / 100)[0]; if (v < last - 1e-15) mono = false; last = v; } }
+check("I_x(a, b) rises with x", mono);
+check("I_x(1, 1) = x and I_x(a, 1) = x^a", rel(ibetaPQ(1, 1, 0.3, 0.7)[0], 0.3) < 1e-15 && rel(ibetaPQ(2.5, 1, 0.4, 0.6)[0], 0.4 ** 2.5) < 1e-14);
+check("P(1, x) = 1 − e^−x, Q(1, x) = e^−x", rel(igamPQ(1, 0.7)[0], -Math.expm1(-0.7)) < 1e-15 && rel(igamPQ(1, 30)[1], Math.exp(-30)) < 1e-14);
+check("argument out of range gives NaN, not a number", Number.isNaN(ibetaPQ(-1, 2, 0.5, 0.5)[0]) && Number.isNaN(igamPQ(0, 1)[0]) && Number.isNaN(D.t.cdf(1, -1)));
+
+// Each continuous distribution: cdf + sf = 1, the quantiles give back the value, rising.
+const cont = [
+  ["normal", D.norm, () => [], () => (rnd() - 0.5) * 16],
+  ["t", D.t, () => [[1, 2, 3, 5, 30, 1e3, 1e6][Math.floor(rnd() * 7)]], () => (rnd() - 0.5) * 20],
+  ["F", D.F, () => [Math.ceil(ln(0, 2.5)), Math.ceil(ln(0, 4))], () => ln(-2, 2)],
+  ["χ²", D.chi2, () => [Math.ceil(ln(0, 3))], () => ln(-2, 3)],
+  ["gamma", D.gamma, () => [ln(-1, 3)], () => ln(-3, 3)],
+  ["beta", D.beta, () => [ln(-0.7, 2.5), ln(-0.7, 2.5)], () => rnd()],
+];
+for (const [nm, d, par, xg] of cont) {
+  let wsum = 0, wq = 0, wqi = 0, worst = null, up = true;
+  for (let i = 0; i < 400; i++) {
+    const pr = par(), x = xg(), c = d.cdf(x, ...pr), u = d.sf(x, ...pr);
+    if (c > 0.01 && u > 0.01) wsum = Math.max(wsum, Math.abs(c + u - 1));
+    if (c > 1e-280 && c < 0.5) { const back = d.ppf(c, ...pr), e = rel(back, x); if (e > wq) { wq = e; worst = [x, pr, c, back]; } }
+    if (u > 1e-280 && u < 0.5) { const back = d.isf(u, ...pr), e = rel(back, x); if (e > wqi) { wqi = e; } }
+    const x2 = x + Math.abs(x) * 1e-3 + 1e-6; if (d.cdf(x2, ...pr) < c - 1e-15) up = false;
+  }
+  check(`${nm}: cdf + sf = 1`, wsum < 4e-15, wsum);
+  check(`${nm}: the quantile of the distribution function is the value`, wq < 1e-11, JSON.stringify([wq, worst]));
+  check(`${nm}: the upper quantile of the upper tail is the value`, wqi < 1e-11, wqi);
+  check(`${nm}: the distribution function rises`, up);
+}
+let sym = 0; for (let i = 0; i < 300; i++) { const nu = ln(0, 6), x = ln(-3, 2); sym = Math.max(sym, rel(D.t.cdf(-x, nu), D.t.sf(x, nu)), rel(D.t.ppf(0.3, nu), -D.t.isf(0.3, nu))); }
+check("t is symmetric: cdf(−x) = sf(x), ppf(p) = −isf(p)", sym < 1e-15, sym);
+check("t with one degree of freedom is Cauchy's", rel(D.t.cdf(2, 1), 0.5 + Math.atan(2) / Math.PI) < 1e-15 && rel(D.t.isf(0.1, 1), Math.tan(Math.PI * 0.4)) < 1e-14);
+check("t's 97.5% at 10 degrees of freedom is 2.228138851986273", rel(D.t.isf(0.025, 10), 2.228138851986273) < 1e-14);
+check("χ² with 2 degrees of freedom: sf(x) = e^(−x/2)", rel(D.chi2.sf(50, 2), Math.exp(-25)) < 1e-14);
+check("t at infinite degrees of freedom is the normal", D.t.cdf(1.3, Infinity) === D.norm.cdf(1.3));
+check("the tails at the ends: t at ±∞, F at 0", D.t.cdf(-Infinity, 5) === 0 && D.t.sf(Infinity, 5) === 0 && D.F.cdf(0, 3, 4) === 0 && D.F.sf(0, 3, 4) === 1);
+check("a tail of 1e-300 is a number, not 0", D.norm.sf(37) > 0 && D.t.sf(1e30, 3) > 0 && D.chi2.sf(1300, 2) > 0, [D.norm.sf(37), D.t.sf(1e30, 3), D.chi2.sf(1300, 2)]);
+
+// Counts: probabilities add up to 1, tails are sums of them, quantiles reach their level.
+const disc = [
+  ["binomial", D.binom, () => { const n = Math.ceil(ln(0, 3)); return [n, rnd()]; }, pr => [0, pr[0]]],
+  ["Poisson", D.pois, () => [ln(-2, 3)], pr => [0, Math.ceil(pr[0] + 12 * Math.sqrt(pr[0]) + 30)]],
+  ["hypergeometric", D.hyper, () => { const r = Math.ceil(ln(0, 2.5)), b = Math.ceil(ln(0, 2.5)), n = 1 + Math.floor(rnd() * (r + b)); return [r, b, n]; }, pr => [Math.max(0, pr[2] - pr[1]), Math.min(pr[0], pr[2])]],
+];
+for (const [nm, d, par, rng] of disc) {
+  let wtot = 0, wtail = 0, wq = 0, wrq = null;
+  for (let i = 0; i < 120; i++) {
+    const pr = par(), [lo, hi] = rng(pr); let tot = 0;
+    const ks = []; for (let k = lo; k <= hi; k++) { const v = d.pmf(k, ...pr); tot += v; ks.push([k, tot]); }
+    wtot = Math.max(wtot, Math.abs(tot - 1));
+    for (const [k, cum] of ks.filter((_, j) => j % Math.ceil(ks.length / 8) === 0)) {
+      const c = d.cdf(k, ...pr), u = d.sf(k, ...pr);
+      if (cum > 1e-12) wtail = Math.max(wtail, rel(c, cum)); wtail = Math.max(wtail, Math.abs(c + u - 1));
+      const q = Math.min(Math.max(c, 1e-12), 1 - 1e-12), kk = d.ppf(q, ...pr);
+      if (!(d.cdf(kk, ...pr) >= q * (1 - 1e-13) && (kk === lo || d.cdf(kk - 1, ...pr) < q))) { wq++; wrq = [pr, k, q, kk]; }
+    }
+  }
+  check(`${nm}: the probabilities add up to 1`, wtot < 1e-12, wtot);
+  check(`${nm}: the distribution function is the sum of the probabilities, and the tails add up to 1`, wtail < 1e-11, wtail);
+  check(`${nm}: the quantile is the smallest count whose distribution function reaches the level`, wq === 0, JSON.stringify(wrq));
+}
+check("Poisson's distribution function at a mean of 1e6, one standard deviation above, is Φ-like (0.84)", Math.abs(D.pois.cdf(1e6 + 1000, 1e6) - 0.8414) < 2e-3);
+check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 10, 1) === 1 && D.binom.pmf(10, 10, 1) === 1);
+
+// Descriptive statistics (STATS_SPEC 2.1): what a shift, a scale, a new order or a change of sign
+// does to each, whatever the values; their values against exact rationals are ref-test's.
+{
+  const ds = get("descStats"), qT = get("quantileType");
+  let wShift = 0, wScale = 0, wOrder = 0, wNeg = 0, wQ = 0, mono = true, at = null;
+  for (let r = 0; r < 200; r++) {
+    const n = 2 + Math.floor(rnd() * 60), v = [];
+    for (let i = 0; i < n; i++) v.push(rnd() < 0.2 ? Math.round(rnd() * 8) : (rnd() - 0.4) * ln(-2, 3));
+    const a = ds(v, { pcts: [10, 90] }), c = 2 ** Math.floor(rnd() * 20 - 10), sh = Math.round(rnd() * 64) / 4;
+    // A shift by a number of quarters keeps the values' sum exact where they are not too large: every spread and shape the same.
+    const b = ds(v.map((x) => x + sh)), k = ds(v.map((x) => x * c)), o = ds(v.slice().reverse()), g = ds(v.map((x) => -x));
+    for (const key of ["sd", "var", "iqr", "mad", "range"]) wShift = Math.max(wShift, rel(b[key], a[key]) * (a[key] > 1e-9 ? 1 : 0));
+    for (const key of ["skew", "kurt"]) if (a[key] != null) wShift = Math.max(wShift, Math.abs(b[key] - a[key]) / Math.max(1, Math.abs(a[key])) / 64);
+    // A power of two scales exactly: every statistic with a unit scales by it, the shape ones not at all.
+    for (const key of ["mean", "sd", "se", "med", "q1", "q3", "mad", "min", "max"]) wScale = Math.max(wScale, a[key] === 0 ? Math.abs(k[key]) : rel(k[key], a[key] * c));
+    if (a.var) wScale = Math.max(wScale, rel(k.var, a.var * c * c));
+    for (const key of ["skew", "kurt"]) if (a[key] != null) wScale = Math.max(wScale, Math.abs(k[key] - a[key]));
+    // The order of the values changes nothing but the last digit of a sum.
+    for (const key of ["mean", "sd", "med", "q1", "q3", "mad", "mode", "min", "max"]) wOrder = Math.max(wOrder, a[key] == null ? (o[key] == null ? 0 : 1) : Math.abs(o[key] - a[key]) / Math.max(Math.abs(a[key]), a.sd || 1));
+    // A change of sign mirrors: the mean, the median and the skewness change sign, the spread and the kurtosis not.
+    wNeg = Math.max(wNeg, Math.abs(g.mean + a.mean) / Math.max(Math.abs(a.mean), a.sd || 1), Math.abs(g.med + a.med) / (a.sd || 1), rel(g.sd, a.sd), Math.abs(g.q1 + a.q3) / (a.sd || 1));
+    if (a.skew != null) wNeg = Math.max(wNeg, Math.abs(g.skew + a.skew) / Math.max(1, Math.abs(a.skew)), Math.abs(g.kurt - a.kurt) / Math.max(1, Math.abs(a.kurt || 0)));
+    // Every quantile type lies between the smallest and the largest value and rises with p.
+    const srt = v.slice().sort((x, y) => x - y);
+    for (const t of [1, 2, 3, 4, 5, 6, 7, 8, 9]) {
+      let prev = -Infinity;
+      for (let p = 0; p <= 1.0000001; p += 0.05) { const q = qT(srt, Math.min(p, 1), t); if (!(q >= srt[0] && q <= srt[n - 1] && q >= prev - 1e-12 * Math.abs(prev))) { mono = false; at = [t, p, q, prev]; } prev = q; }
+    }
+    wQ = Math.max(wQ, Math.abs(qT(srt, 0.5, 7) - a.med), Math.abs(qT(srt, 0.1, 7) - a.pct[0].v));
+  }
+  check("descriptive statistics: a shift leaves every spread and shape as it was", wShift < 1e-12, wShift);
+  check("…a power of two scales every statistic with a unit by it, and no shape", wScale < 1e-15, wScale);
+  check("…the order of the values changes nothing", wOrder < 1e-14, wOrder);
+  check("…a change of sign mirrors the mean, the median, the quartiles and the skewness", wNeg < 1e-14, wNeg);
+  check("every quantile type lies between the smallest and largest value and rises with p", mono, JSON.stringify(at));
+  check("…and the median and percentiles of descStats are quantileType's", wQ === 0, wQ);
+  const one = ds([4.2]), two = ds([1, 3]), con = ds([2, 2, 2, 2]), none = ds([null, NaN, Infinity]);
+  check("one value: N 1, its mean and median, no SD (a reason given)", one.n === 1 && one.mean === 4.2 && one.med === 4.2 && one.sd === null && one.why.sd === "one value");
+  check("two values: an SD, no skewness or kurtosis, each with its reason", two.sd === Math.SQRT2 && two.skew === null && two.why.skew === "fewer than three values" && two.kurt === null);
+  check("values all the same: SD 0, no skewness, the mode the value with its count", con.sd === 0 && con.skew === null && con.why.skew === "every value the same" && con.mode === 2 && con.modeN === 4);
+  check("blanks, NaN and infinities are not values", none.n === 0 && none.why.all === "no values");
+  const nq = ds([-3, 1, 2]);
+  check("values at or below zero: no geometric or harmonic mean, said", nq.gmean === null && nq.hmean === null && nq.why.gmean === "values at or below zero");
+  check("Tukey's hinges are the medians of each half, the median in both when n is odd", qT([1, 2, 3, 4, 5], 0.25, "tukey") === 2 && qT([1, 2, 3, 4, 5], 0.75, "tukey") === 4 && qT([1, 2, 3, 4, 5, 6], 0.25, "tukey") === 2 && qT([1, 2, 3, 4, 5, 6], 0.75, "tukey") === 5);
+}
+
+// Normality and outliers (STATS_SPEC 2.2): each test's size under normal data, within its binomial interval
+// (99.9 %, 20 000 samples of 20), Shapiro–Wilk's p uniform, the statistics unmoved by a shift and a scale,
+// Grubbs' critical values as ASTM E178 prints them, Dixon's critical value giving its level.
+{
+  const mb = get("mulberry32")(2207), gauss = () => { let u = 0; while (u === 0) u = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * mb()); };
+  const sw = get("swTest"), lf = get("lfTest"), ad = get("adTest"), dk = get("dagoTest"), ksn = get("ksnTest"), gr = get("grubbsTest"), dx = get("dixonTest"), dc = get("dixonCrit");
+  const N = 20000, n = 20, half = 3.29 * Math.sqrt(0.05 * 0.95 / N), rej = { sw: 0, lf: 0, ad: 0, dk: 0, ks: 0, gr: 0, dx: 0 }, ps = [];
+  const qc = dc(n, 0.05, "two");
+  for (let r = 0; r < N; r++) {
+    const v = []; for (let i = 0; i < n; i++) v.push(gauss());
+    const a = sw(v); ps.push(a.p); if (a.p < 0.05) rej.sw++;
+    if (lf(v).p < 0.05) rej.lf++; if (ad(v).p < 0.05) rej.ad++; if (dk(v).p < 0.05) rej.dk++; if (ksn(v).p < 0.05) rej.ks++;
+    if (gr(v, { side: "two", alpha: 0.05 }).rounds[0].out) rej.gr++;
+    const s = v.slice().sort((x, y) => x - y), rg = s[n - 1] - s[0]; if (Math.max((s[n - 1] - s[n - 2]) / rg, (s[1] - s[0]) / rg) > qc) rej.dx++;
+  }
+  const size = (k) => rej[k] / N;
+  for (const [k, nm] of [["sw", "Shapiro–Wilk"], ["lf", "Lilliefors"], ["ad", "Anderson–Darling"], ["gr", "Grubbs, either side"], ["dx", "Dixon's Q at its critical value"]])
+    check(`${nm} rejects normal data 5 % of the time (±${(half * 100).toFixed(2)} %)`, Math.abs(size(k) - 0.05) < half, size(k));
+  check("D'Agostino's K² at 20 values is near its level (its χ² is asymptotic: within 1 %)", Math.abs(size("dk") - 0.05) < 0.01, size("dk"));
+  check("Kolmogorov–Smirnov with the mean and SD fitted rejects far less than 5 % (its p takes them as known)", size("ks") < 0.01, size("ks"));
+  ps.sort((x, y) => x - y); let D = 0; ps.forEach((p, i) => { if (p <= 0.3) D = Math.max(D, Math.abs(p - (i + 1) / N), Math.abs(p - i / N)); });
+  // Above about one half Royston's approximation of W's distribution runs high (0.934 of the p's below 0.95):
+  // it was fitted to the lower tail, where decisions are made.
+  check("Shapiro–Wilk's p is uniform under normal data below 0.3 (distance below its 99.9 % point)", D < 1.95 / Math.sqrt(N), D);
+  let wInv = 0;
+  for (let r = 0; r < 100; r++) {
+    const m = 8 + Math.floor(mb() * 60), v = []; for (let i = 0; i < m; i++) v.push(gauss() * 3 + 1);
+    const c = 2 ** Math.floor(mb() * 16 - 8), sh = Math.round(mb() * 400) / 4, w = v.map((x) => x * c + sh);
+    for (const [f, k] of [[sw, "w"], [lf, "d"], [ad, "a2"], [dk, "k2"]]) wInv = Math.max(wInv, rel(f(w)[k], f(v)[k]));
+    wInv = Math.max(wInv, rel(gr(w).rounds[0].G, gr(v).rounds[0].G));
+  }
+  check("W, D, A², K² and G are unmoved by a shift and a power of two (to the shifted values' own rounding)", wInv < 1e-10, wInv);
+  const Gc = (m) => gr(Array.from({ length: m }, (_, i) => i)).rounds[0].Gc;
+  check("Grubbs' critical values at 5 %, either side, as ASTM E178: 1.1543, 2.2900, 2.7082, 2.9085 (3, 10, 20, 30 values)",
+    [[3, 1.1543], [10, 2.29], [20, 2.7082], [30, 2.9085]].every(([m, g]) => Math.abs(Gc(m) - g) < 6e-5), [3, 10, 20, 30].map(Gc).join(" "));
+  const base = [0.46, 0.18, 1.34, -2.49, -1.05, 0.7, -0.32, 0.99, 0.25, -0.45, 1.39, 0.11, -0.22, 1.21, 0.64, -0.21, -1.48, -0.69];
+  const rep = gr(base.concat([9, 6]), { side: "two", repeat: true }), one = gr(base.concat([9, 6]), { side: "two" });
+  check("Grubbs repeated finds 9, then 6, then stops; once, 9 alone", rep.out.map((r) => r.value).join() === "9,6" && rep.rounds.length === 3 && !rep.rounds[2].out && one.rounds.length === 1 && one.out[0].row === 18, JSON.stringify(rep.rounds.map((r) => [r.value, +r.G.toFixed(3), r.out])));
+  const mask = gr([1, 2, 3, 2, 1, 3, 2, 30, 2, 1, 3, 25], { side: "two", repeat: true });
+  check("…and two outliers together mask each other (30 and 25 among twelve: nothing found), as Grubbs' test is known to", mask.out.length === 0);
+  check("the tests refuse what they cannot test, in words", sw([1, 2]).fail && sw([2, 2, 2]).fail && ad([1, 2, 3]).fail && dk([1, 2, 3, 4, 5]).fail && dx(Array(31).fill(0).map((_, i) => i)).fail && /3 values or more/.test(sw([1]).fail));
+}
+
+// Comparing means and spreads (STATS_SPEC 2.3): each test's size under its null (20 000 samples, 99.9 % binomial
+// interval), the t interval's and Cohen's d interval's coverage, the exact tests at or below their level.
+{
+  const mb = get("mulberry32")(2303), gauss = () => { let u = 0; while (u === 0) u = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * mb()); };
+  const t1 = get("tTest1"), t2 = get("tTest2"), tp = get("tTestPaired"), f2 = get("fTest2"), lv = get("leveneTest"), bt = get("bartlettTest"), p1 = get("propTest1"), fi = get("fisher22");
+  const N = 20000, half = 3.29 * Math.sqrt(0.05 * 0.95 / N), cov = 3.29 * Math.sqrt(0.95 * 0.05 / N);
+  const r = { one: 0, welch: 0, student: 0, paired: 0, F: 0, lev: 0, bf: 0, bart: 0, ci: 0, dci: 0, wl: 0 };
+  const smp = (n, m, s) => Array.from({ length: n }, () => m + s * gauss());
+  for (let i = 0; i < N; i++) {
+    const a = smp(9, 5, 2), b = smp(14, 5, 2), c = smp(6, 5, 2), u = smp(8, 5, 1), w = smp(15, 5, 3), q = smp(12, 0.6, 1);
+    const o = t1(a, { mu0: 5, dci: false }); if (o.p < 0.05) r.one++; if (o.ci[0] <= 5 && 5 <= o.ci[1]) r.ci++;
+    if (i < 2000) { const dq = t1(q, { mu0: 0 }); if (dq.dci[0] <= 0.6 && 0.6 <= dq.dci[1]) r.dci++; }
+    if (t2(u, w, { dci: false }).p < 0.05) r.welch++; if (t2(u, w, { equal: true, dci: false }).p < 0.05) r.wl++;
+    if (t2(a, b, { equal: true, dci: false }).p < 0.05) r.student++;
+    if (tp(a, smp(9, 0, 1).map((e, k) => a[k] + e), { dci: false }).p < 0.05) r.paired++;
+    if (f2(a, b).p < 0.05) r.F++; if (lv([a, b, c], "mean").p < 0.05) r.lev++; if (lv([a, b, c], "median").p < 0.05) r.bf++; if (bt([a, b, c]).p < 0.05) r.bart++;
+  }
+  const sz = (k) => r[k] / N;
+  for (const [k, nm] of [["one", "One-sample t"], ["welch", "Welch's t with unequal variances"], ["student", "Student's t with equal variances"], ["paired", "Paired t"], ["F", "The F test"], ["bart", "Bartlett's test"]])
+    check(`${nm} rejects 5 % of samples under its null (±${(half * 100).toFixed(2)} %)`, Math.abs(sz(k) - 0.05) < half, sz(k));
+  check("Brown and Forsythe's test is at or below its level under normal data (it is conservative there)", sz("bf") < 0.05 + half, sz("bf"));
+  check("Levene's test about the means runs a little high with small samples (6 to 14 values: 5 to 8 %), as Brown and Forsythe found; SciPy's W is the same to 1e-15", sz("lev") > 0.05 - half && sz("lev") < 0.08, sz("lev"));
+  check("Student's t with unequal variances and unequal sizes is not at its level (the reason Welch's is the default)", Math.abs(sz("wl") - 0.05) > 0.01, sz("wl"));
+  check("the t interval covers the mean 95 % of the time", Math.abs(r.ci / N - 0.95) < cov, r.ci / N);
+  check("Cohen's d's interval (the noncentral t inverted) covers the true d 95 % of the time (2000 samples)", Math.abs(r.dci / 2000 - 0.95) < 3.29 * Math.sqrt(0.95 * 0.05 / 2000), r.dci / 2000);
+  let eb = 0, ef = 0; const M = 5000;
+  for (let i = 0; i < M; i++) { let x = 0; for (let k = 0; k < 30; k++) if (mb() < 0.3) x++; if (p1(x, 30, { p0: 0.3 }).p < 0.05) eb++;
+    let A = 0, B = 0; for (let k = 0; k < 12; k++) { if (mb() < 0.4) A++; if (mb() < 0.4) B++; } const f = fi(A, 12 - A, B, 12 - B); if (!f.fail && f.p < 0.05) ef++; }
+  check("the exact binomial test is at or below its level", eb / M <= 0.05 + 3.29 * Math.sqrt(0.0475 / M), eb / M);
+  check("Fisher's exact test is at or below its level", ef / M <= 0.05 + 3.29 * Math.sqrt(0.0475 / M), ef / M);
+  const k = get("nctCdf"), D = get("DIST");
+  check("the noncentral t at δ = 0 is Student's t", [-3, -0.5, 0.7, 4].every((t) => Math.abs(k(t, 7, 1e-300) - D.t.cdf(t, 7)) < 1e-15 || Math.abs(k(t, 7, 0) - D.t.cdf(t, 7)) < 1e-15));
+  check("…and falls as δ rises", [-2, -1, 0, 1, 2, 4].every((d, i, a) => i === 0 || k(1.5, 9, d) < k(1.5, 9, a[i - 1])));
+  check("the tests refuse what they cannot test, in words", /2 values/.test(t1([1]).fail) && /same/.test(t1([2, 2, 2]).fail) && /whole number/.test(p1(3.5, 10, {}).fail) && /empty/.test(fi(0, 0, 3, 4).fail));
+}
+
+// One-way ANOVA (STATS_SPEC 2.4): F's and Welch's size under the null; the family-wise error of Tukey–Kramer,
+// Dunnett, Bonferroni and Scheffé against their critical values (the distributions themselves under test);
+// the studentized range and Dunnett's t at their exact special cases.
+{
+  const mb = get("mulberry32")(2404), gauss = () => { let u = 0; while (u === 0) u = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * mb()); };
+  const A = get("anova1"), C = get("anovaComp"), TS = get("tukeySf"), TI = get("tukeyIsf"), DS = get("dunnettSf"), DI = get("dunnettIsf"), D = get("DIST");
+  const N = 20000, half = 3.29 * Math.sqrt(0.05 * 0.95 / N), smp = (n, s) => Array.from({ length: n }, () => s * gauss());
+  const ns = [5, 7, 6, 8], eqn = [6, 6, 6, 6], qT = TI(0.05, 4, 20), qK = TI(0.05, 4, 22), lam = [7, 6, 8].map((n) => Math.sqrt(n / (n + 5))), dC = DI(0.05, lam, 22, true);
+  const fS = Math.sqrt(3 * D.F.isf(0.05, 3, 22)), tB = D.t.isf(0.05 / 12, 22);
+  const r = { F: 0, welch: 0, tukey: 0, tk: 0, dun: 0, bonf: 0, sch: 0 };
+  for (let i = 0; i < N; i++) {
+    const g = eqn.map((n) => smp(n, 1)), a = A(g); if (a.p < 0.05) r.F++;
+    const G = a.G, M = (j) => G[j].m + G[j].e; let mq = 0;
+    for (let x = 0; x < 4; x++) for (let y = x + 1; y < 4; y++) mq = Math.max(mq, Math.abs(M(x) - M(y)) / Math.sqrt(a.msw / 2 * (2 / 6)));
+    if (mq > qT) r.tukey++;
+    const h = ns.map((n) => smp(n, 1)), b = A(h), H = b.G, Mb = (j) => H[j].m + H[j].e; let mk = 0, md = 0, mt = 0;
+    for (let x = 0; x < 4; x++) for (let y = x + 1; y < 4; y++) { const t = Math.abs(Mb(x) - Mb(y)) / Math.sqrt(b.msw * (1 / ns[x] + 1 / ns[y])); mk = Math.max(mk, t * Math.SQRT2); mt = Math.max(mt, t); }
+    for (let y = 1; y < 4; y++) md = Math.max(md, Math.abs(Mb(y) - Mb(0)) / Math.sqrt(b.msw * (1 / ns[y] + 1 / ns[0])));
+    if (mk > qK) r.tk++; if (md > dC) r.dun++; if (mt > tB) r.bonf++; if (mt > fS) r.sch++;
+    const w = [1, 2, 3, 4].map((s, j) => smp(5 + 2 * j, s)), c = A(w); if (c.welch.p < 0.05) r.welch++;
+  }
+  const z = (k) => r[k] / N;
+  check(`One-way ANOVA's F rejects 5 % of samples under its null (±${(half * 100).toFixed(2)} %)`, Math.abs(z("F") - 0.05) < half, z("F"));
+  check("Welch's F rejects about 5 % with unequal variances and sizes (within 1 %: it is an approximation)", Math.abs(z("welch") - 0.05) < 0.01, z("welch"));
+  check("Tukey's family-wise error with equal groups is 5 % (the studentized range's quantile)", Math.abs(z("tukey") - 0.05) < half, z("tukey"));
+  check("Tukey–Kramer's with unequal groups is at or below 5 %", z("tk") < 0.05 + half, z("tk"));
+  check("Dunnett's family-wise error, unequal groups, is 5 % (its many-to-one quantile)", Math.abs(z("dun") - 0.05) < half, z("dun"));
+  check("Bonferroni's and Scheffé's are at or below 5 %", z("bonf") < 0.05 + half && z("sch") < 0.05 + half, [z("bonf"), z("sch")]);
+  check("the studentized range of two is |t|·√2 exactly", [0.5, 2, 4.5, 9].every((q) => Math.abs(TS(q, 2, 9) - 2 * D.t.sf(q / Math.SQRT2, 9)) < 1e-15));
+  check("its quantile gives back its level", [[0.05, 3, 10], [0.01, 6, 40], [1e-6, 4, 12], [0.5, 10, 5]].every(([p, k, nu]) => Math.abs(TS(TI(p, k, nu), k, nu) / p - 1) < 1e-11));
+  check("Dunnett's t with one comparison is the two-sided t", [1, 2.5, 6].every((c) => Math.abs(DS(c, [0.6], 14, true) / (2 * D.t.sf(c, 14)) - 1) < 1e-12), [1, 2.5, 6].map((c) => DS(c, [0.6], 14, true) / (2 * D.t.sf(c, 14)) - 1));
+  check("…and one-sided, the one tail", Math.abs(DS(2, [0.6], 14, false) / D.t.sf(2, 14) - 1) < 1e-12);
+  check("Holm's p lies between the raw and Bonferroni's", (() => { const a = A([smp(5, 1), smp(6, 1).map((x) => x + 1.5), smp(7, 1), smp(5, 1).map((x) => x + 0.8)]);
+    const ho = C(a, "holm").rows, bo = C(a, "bonf").rows, ls = C(a, "lsd").rows; return ho.every((x, i) => x.p >= ls[i].p - 1e-15 && x.p <= bo[i].p + 1e-15); })());
+  const a = A([[1, 2, 3], [2, 4, 5], [7, 8, 6.5]]);
+  check("η² lies in [0, 1] and ω² below it", a.eta2 >= 0 && a.eta2 <= 1 && a.omega2 < a.eta2);
+  check("one-way ANOVA refuses what it cannot test, in words", /two groups/.test(A([[1, 2, 3]]).fail) && /same/.test(A([[2, 2], [2, 2]]).fail) && /more values/.test(A([[1], [2]]).fail) && /spread in every/.test(A([[1], [2, 3], [4, 5]]).welch.fail));
+}
+
+// Rank tests (STATS_SPEC 2.8): the exact distributions against enumeration, each test's size under its null
+// (exact ones at or below their level), the shift's interval covering, refusals in words.
+{
+  const mb = get("mulberry32")(2808), gauss = () => { let u = 0; while (u === 0) u = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * mb()); };
+  const MD = get("mwDist"), SD = get("signrankDist"), MW = get("mwTest"), WS = get("wsrTest"), KW = get("kwTest"), FR = get("friedmanTest"), MO = get("moodTest"), KS = get("ks2Test"), SG = get("signTest");
+  const brute = (m, n) => { const N = m + n, c = new Array(m * n + 1).fill(0); let tot = 0; const pick = (start, k, sum) => { if (k === 0) { c[sum - m * (m + 1) / 2]++; tot++; return; } for (let i = start; i <= N - k + 1; i++) pick(i + 1, k - 1, sum + i); }; pick(1, m, 0); return c.map((x) => x / tot); };
+  const d = MD(3, 4), b = brute(3, 4); check("Mann–Whitney's exact U (3, 4) is the enumeration's, sums to 1 and is symmetric", d.every((v, i) => Math.abs(v - b[i]) < 1e-15) && Math.abs(d.reduce((a, c) => a + c, 0) - 1) < 1e-15 && d.every((v, i) => Math.abs(v - d[d.length - 1 - i]) < 1e-16));
+  const sr = SD(6), en = new Array(22).fill(0); for (let mask = 0; mask < 64; mask++) { let s = 0; for (let i = 0; i < 6; i++) if (mask >> i & 1) s += i + 1; en[s] += 1 / 64; }
+  check("the signed-rank T+ of 6 is the enumeration's", sr.every((v, i) => Math.abs(v - en[i]) < 1e-16));
+  const N = 5000, half = 3.29 * Math.sqrt(0.05 * 0.95 / N), smp = (n, mu) => Array.from({ length: n }, () => (mu || 0) + gauss());
+  const r = { mwE: 0, mwA: 0, wsE: 0, wsA: 0, kw: 0, fr: 0, mo: 0, ks: 0, sg: 0, cov: 0 };
+  for (let i = 0; i < N; i++) {
+    const a = smp(8), bb = smp(10); if (MW(a, bb).p < 0.05) r.mwE++; if (KS(a, bb).p < 0.05) r.ks++;
+    const s = MW(a, smp(10, 0.5)); if (s.ci[0] <= -0.5 && -0.5 <= s.ci[1]) r.cov++;
+    if (MW(smp(60), smp(70)).p < 0.05) r.mwA++; if (WS(smp(12)).p < 0.05) r.wsE++; if (WS(smp(70)).p < 0.05) r.wsA++; if (SG(smp(15)).p < 0.05) r.sg++;
+    const g = [smp(10), smp(12), smp(9)]; if (KW(g).p < 0.05) r.kw++; if (MO(g).p < 0.05) r.mo++;
+    if (FR(Array.from({ length: 12 }, () => smp(4))).p < 0.05) r.fr++;
+  }
+  const z = (k) => r[k] / N;
+  check(`Mann–Whitney, the exact sign-rank and sign tests and two-sample KS are at or below 5 % under their nulls (+${(half * 100).toFixed(2)} %)`, ["mwE", "wsE", "sg", "ks"].every((k) => z(k) <= 0.05 + half), JSON.stringify(["mwE", "wsE", "sg", "ks"].map(z)));
+  check("…the normal approximations at 5 %", Math.abs(z("mwA") - 0.05) < half && Math.abs(z("wsA") - 0.05) < half, [z("mwA"), z("wsA")]);
+  check("Kruskal–Wallis and Friedman near 5 % (χ² approximations: within 1 %)", Math.abs(z("kw") - 0.05) < 0.01 && Math.abs(z("fr") - 0.05) < 0.01, [z("kw"), z("fr")]);
+  check("Mood's median test at or below 5 %", z("mo") <= 0.05 + half, z("mo"));
+  check("the Hodges–Lehmann shift's exact interval covers the shift at least 95 % of the time", z("cov") >= 0.95 - half, z("cov"));
+  check("rank tests refuse what they cannot test, in words", /each sample/.test(MW([], [1]).fail) && /tested against/.test(WS([2, 2], { mu0: 2 }).fail) && /two groups/.test(KW([[1, 2]]).fail) && /two rows/.test(FR([[1, 2]]).fail) && /same/.test(KW([[1, 1], [1, 1]]).fail));
+}
+
+// Correlation (STATS_SPEC 2.9): Kendall's exact counts against enumeration, what a shift, a scale and a
+// monotone change do, each test's size under independence, Fisher's interval covering, partial r as the
+// residuals' r, refusals in words.
+{
+  const mb = get("mulberry32")(2909), gauss = () => { let u = 0; while (u === 0) u = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * mb()); };
+  const CT = get("corrTest"), SP = get("spearmanTest"), KT = get("kendallTau"), PC = get("partialCorr"), PR = get("pearsonR"), IC = get("inversionsCount");
+  const perm = (a) => { const out = []; const go = (pre, rest) => { if (!rest.length) { out.push(pre); return; } rest.forEach((v, i) => go(pre.concat([v]), rest.filter((_, j) => j !== i))); }; go([], a); return out; };
+  const cnt = new Array(16).fill(0); perm([0, 1, 2, 3, 4, 5]).forEach((q) => { let k = 0; for (let i = 0; i < 6; i++) for (let j = i + 1; j < 6; j++) if (q[i] > q[j]) k++; cnt[k]++; });
+  const ic = IC(6, 15); check("the permutations of 6 by their inversions are the enumeration's", cnt.every((c, k) => ic[k] === BigInt(c)), ic.join(" "));
+  const grid = (v) => Math.round(v * 2 ** 20) / 2 ** 20; /* so that the shift below is exact in doubles */
+  const x = Array.from({ length: 30 }, () => grid(gauss())), y = x.map((v) => grid(0.5 * v + gauss())), r0 = CT(x, y).r;
+  check("r is unchanged by a shift and a scale of a power of two, and changes sign with a negative one", Math.abs(CT(x.map((v) => 2 ** 24 + 4 * v), y).r - r0) < 1e-15 && CT(x.map((v) => -2 * v), y).r === -r0);
+  const mono = x.map((v) => Math.exp(v)), rho = SP(x, y).rho, tau = KT(x, y).tau;
+  check("ρ and τ are unchanged by a monotone change of either column", Math.abs(SP(mono, y).rho - rho) < 1e-15 && Math.abs(KT(mono, y).tau - tau) < 1e-15);
+  check("r, ρ and τ of a column with itself are 1 (to one rounding)", [CT(x, x).r, SP(x, x).rho, KT(x, x).tau].every((v) => Math.abs(v - 1) <= 2.3e-16), [CT(x, x).r, SP(x, x).rho, KT(x, x).tau]);
+  const N = 5000, half = 3.29 * Math.sqrt(0.05 * 0.95 / N), smp = (n) => Array.from({ length: n }, gauss), k = { r: 0, rho: 0, kE: 0, kA: 0, cov: 0 };
+  for (let i = 0; i < N; i++) {
+    if (CT(smp(10), smp(10)).p < 0.05) k.r++; if (SP(smp(25), smp(25)).p < 0.05) k.rho++; if (KT(smp(10), smp(10)).p < 0.05) k.kE++; if (KT(smp(60), smp(60)).p < 0.05) k.kA++;
+    const a = smp(30), b = a.map((v) => 0.6 * v + 0.8 * gauss()), c = CT(a, b).ci; if (c[0] <= 0.6 && 0.6 <= c[1]) k.cov++;
+  }
+  const z = (q) => k[q] / N;
+  check(`Pearson's t test at 5 % under independence (±${(half * 100).toFixed(2)} %)`, Math.abs(z("r") - 0.05) < half, z("r"));
+  check("Spearman's t and Kendall's normal approximation within 1 % of 5 %", Math.abs(z("rho") - 0.05) < 0.01 && Math.abs(z("kA") - 0.05) < 0.01, [z("rho"), z("kA")]);
+  check("Kendall's exact test at or below 5 %", z("kE") <= 0.05 + half, z("kE"));
+  check("Fisher's 95 % interval covers ρ = 0.6 within 1 % of 95 % (30 pairs)", Math.abs(z("cov") - 0.95) < 0.01, z("cov"));
+  const u = smp(40), v = u.map((t) => t + 0.7 * gauss()), w = u.map((t) => -t + 0.9 * gauss()), q = PC([u, v, w]);
+  const resid = (a, b) => { const ma = a.reduce((s, t) => s + t, 0) / a.length, mb2 = b.reduce((s, t) => s + t, 0) / b.length; let sab = 0, saa = 0; a.forEach((t, i) => { sab += (t - ma) * (b[i] - mb2); saa += (t - ma) ** 2; }); return b.map((t, i) => t - mb2 - sab / saa * (a[i] - ma)); };
+  const byRes = PR(resid(u, v), resid(u, w)), row = q.rows.find((t) => t.i === 1 && t.j === 2);
+  check("partial r of two columns given a third is the r of their residuals on it", Math.abs(row.r - byRes) < 1e-13, [row.r, byRes]);
+  check("correlation refuses what it cannot measure, in words", /three pairs/.test(CT([1, 2], [3, 4]).fail) && /no spread/.test(CT([1, 1, 1], [1, 2, 3]).fail) && /every value the same/.test(KT([2, 2, 2], [1, 2, 3]).fail) && /more rows/.test(PC([[1, 2], [3, 4], [5, 7]]).fail));
+}
+
+// Counts in tables (STATS_SPEC 2.10): χ²'s size under independence, Fisher's and McNemar's exact tests at or below
+// their level, a table turned round giving the same, Freeman–Halton of two by two being fisher22, refusals in words.
+{
+  const mb = get("mulberry32")(2010), CH = get("chi2Indep"), FR = get("fisherRC"), MC = get("mcnemarTest"), F22 = get("fisher22");
+  const multi = (n, pr) => { const T = pr.map((r) => r.map(() => 0)), flat = pr.flat(), cum = []; let s = 0; flat.forEach((v) => { s += v; cum.push(s); });
+    for (let k = 0; k < n; k++) { const u = mb() * s; let i = cum.findIndex((c) => u < c); if (i < 0) i = cum.length - 1; const r = Math.floor(i / pr[0].length), c = i % pr[0].length; T[r][c]++; } return T; };
+  const indep = (a, b) => a.map((x) => b.map((y) => x * y));
+  const N = 5000, half = 3.29 * Math.sqrt(0.05 * 0.95 / N), k = { chi: 0, g: 0, fi: 0, mc: 0, n: 0, nf: 0, nm: 0 };
+  for (let i = 0; i < N; i++) {
+    const T = multi(200, indep([0.3, 0.3, 0.4], [0.25, 0.25, 0.25, 0.25])); const c = CH(T, {}); if (!c.fail) { k.n++; if (c.p < 0.05) k.chi++; if (c.pG < 0.05) k.g++; }
+    const S = multi(18, indep([0.5, 0.5], [0.3, 0.3, 0.4])); const f = FR(S); if (!f.fail) { k.nf++; if (f.p < 0.05) k.fi++; }
+    const b = Array.from({ length: 30 }, () => mb() < 0.5).filter(Boolean).length; const m = MC([[10, b], [30 - b, 10]]); if (!m.fail) { k.nm++; if (m.pExact < 0.05) k.mc++; }
+  }
+  check(`χ² of independence near 5 % under independence (3 × 4, 200 counts: within 1 %)`, Math.abs(k.chi / k.n - 0.05) < 0.01 && Math.abs(k.g / k.n - 0.05) < 0.012, [k.chi / k.n, k.g / k.n]);
+  check(`Fisher's exact test (2 × 3, 18 counts) and McNemar's exact test at or below 5 % (+${(half * 100).toFixed(2)} %)`, k.fi / k.nf <= 0.05 + half && k.mc / k.nm <= 0.05 + half, [k.fi / k.nf, k.mc / k.nm]);
+  const T = [[3, 1, 4], [1, 5, 2]], Tt = T[0].map((_, j) => T.map((r) => r[j]));
+  const a = CH(T, {}), b = CH(Tt, {}), fa = FR(T), fb = FR(Tt);
+  check("a table turned round: the same χ², G, V and Fisher's p", Math.abs(a.X2 - b.X2) < 1e-14 && Math.abs(a.G - b.G) < 1e-14 && Math.abs(a.V - b.V) < 1e-15 && Math.abs(fa.p - fb.p) < 1e-15, [a.X2, b.X2, fa.p, fb.p]);
+  const two = [[7, 2], [3, 9]]; check("Fisher's exact test of two by two is fisher22's", FR(two).p === F22(7, 2, 3, 9).p);
+  check("counts refuse what they cannot count, in words", /whole numbers/.test(CH([[1, 2.5], [3, 4]]).fail) && /no counts/.test(CH([[0, 0], [3, 4]]).fail) && /two rows and two columns/.test(CH([[1, 2]]).fail) && /no pair differs/.test(MC([[4, 0], [0, 5]]).fail) && /two by two/.test(MC([[1, 2, 3], [4, 5, 6]]).fail));
+}
+
+// The linear model (STATS_SPEC 2.5): the F tests' size under the null, the coefficients' intervals' coverage, a shift, a
+// scale and the order of the rows, the codings and types that must agree, a contrast as a difference, refusals in words.
+{
+  const mb = get("mulberry32")(2005), LM = get("linModel"), LC = get("lmContrast");
+  const gauss = () => { const u = mb() || 1e-12, v = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const n = 30, A = Array.from({ length: n }, (_, i) => i % 3), x = Array.from({ length: n }, (_, i) => (i * 7) % 11 + 0.5 * (i % 4));
+  const vars = [{ name: "A", num: false, levels: ["a", "b", "c"], code: A }, { name: "x", num: true, x }];
+  const N = 4000, half = 3.29 * Math.sqrt(0.05 * 0.95 / N), k = { F: 0, t: [0, 0, 0, 0, 0], cov: 0, cn: 0 }, beta = [1, 0.5, -0.3, 0.2];
+  for (let i = 0; i < N; i++) {
+    const y0 = A.map(() => 3 + gauss()), M = LM(vars, y0, { inter: "pairs", ss: 3 });
+    if (M.pF < 0.05) k.F++; M.anova.rows.forEach((r, j) => { if (r.p < 0.05) k.t[j]++; });
+    const y1 = A.map((a, r) => beta[0] + (a === 1 ? beta[1] : a === 2 ? beta[2] : 0) + beta[3] * x[r] + gauss()), M1 = LM(vars, y1, {});
+    M1.lo.forEach((lo, j) => { k.cn++; if (lo <= beta[j] && beta[j] <= M1.hi[j]) k.cov++; });
+  }
+  check(`the model's F near 5 % with nothing to find (within ${(half * 100).toFixed(2)} %)`, Math.abs(k.F / N - 0.05) < half, k.F / N);
+  check(`each term's type III F near 5 % with nothing to find`, k.t.slice(0, 3).every((c) => Math.abs(c / N - 0.05) < half), k.t.map((c) => c / N));
+  const hc = 3.29 * Math.sqrt(0.05 * 0.95 / k.cn);
+  check(`the coefficients' 95 % intervals cover the true values 95 % of the time (within ${(hc * 100).toFixed(2)} %)`, Math.abs(k.cov / k.cn - 0.95) < hc, k.cov / k.cn);
+  const y = A.map((a, r) => 2 + a + 0.3 * x[r] + gauss()), M = LM(vars, y, { inter: "pairs", ss: 3 });
+  const Ms = LM(vars, y.map((v) => v + 1000), { inter: "pairs", ss: 3 }), Mk = LM(vars, y.map((v) => v * 1024), { inter: "pairs", ss: 3 });
+  check("a shift of the response moves the intercept alone", Math.abs(Ms.b[0] - M.b[0] - 1000) < 1e-11 * 1000 && M.b.slice(1).every((v, j) => Math.abs(Ms.b[j + 1] - v) <= 1e-12 * (Math.abs(v) + M.se[j + 1])) && Math.abs(Ms.rss - M.rss) < 1e-12 * M.rss);
+  check("a scale of the response (by a power of two) scales the coefficients and errors exactly, and leaves t, F and p", Mk.b.every((v, j) => v === M.b[j] * 1024) && Mk.se.every((v, j) => v === M.se[j] * 1024) && Mk.anova.rows.every((r, j) => r.F === M.anova.rows[j].F));
+  const perm = Array.from({ length: n }, (_, i) => (i * 7) % n), Mp = LM([{ ...vars[0], code: perm.map((i) => A[i]) }, { ...vars[1], x: perm.map((i) => x[i]) }], perm.map((i) => y[i]), { inter: "pairs", ss: 3 });
+  check("the order of the rows changes nothing (to 1e-14)", Mp.b.every((v, j) => Math.abs(v - M.b[j]) <= 1e-14 * (Math.abs(M.b[j]) + M.se[j])) && Mp.anova.rows.every((r, j) => rel(r.ss, M.anova.rows[j].ss) < 1e-13));
+  const Me = LM(vars, y, { inter: "pairs", ss: 2, coding: "effect" }), Mt = LM(vars, y, { inter: "pairs", ss: 2 });
+  check("effect and treatment coding: the same fit, R², and type II sums of squares", rel(Me.rss, Mt.rss) < 1e-14 && rel(Me.r2, Mt.r2) < 1e-14 && Me.anova.rows.every((r, j) => rel(r.ss, Mt.anova.rows[j].ss) < 1e-12));
+  const bal = Array.from({ length: 24 }, (_, i) => i % 3), B = Array.from({ length: 24 }, (_, i) => Math.floor(i / 3) % 2), yb = bal.map((a, i) => a + B[i] + gauss());
+  const vb = [{ name: "A", num: false, levels: ["a", "b", "c"], code: bal }, { name: "B", num: false, levels: ["p", "q"], code: B }];
+  const T = [1, 2, 3].map((ss) => LM(vb, yb, { inter: "pairs", ss, coding: "effect" }).anova.rows.map((r) => r.ss));
+  check("a balanced design: types I, II and III agree", T[0].every((v, j) => rel(T[1][j], v) < 1e-12 && rel(T[2][j], v) < 1e-12), JSON.stringify(T));
+  const T1 = LM(vars, y, { ss: 1 }); check("type I sums of squares and the error add up to the total", rel(T1.anova.rows.reduce((a, r) => a + r.ss, 0) + T1.rss, T1.sst) < 1e-13);
+  const Mc = LM(vars, y, {}), c = LC(Mc, "A[b] − A[c]");
+  check("a contrast of two coefficients is their difference, its error from their covariance", rel(c.est, Mc.b[1] - Mc.b[2]) < 1e-14 && rel(c.se, Math.sqrt(Mc.s2 * (Mc.V[1][1] + Mc.V[2][2] - 2 * Mc.V[1][2]))) < 1e-14, JSON.stringify([c, Mc.b]));
+  check("a contrast refused in words: a name not in the table, a missing sign", /not the name of a coefficient/.test(LC(Mc, "A[z]").fail) && /a \+ or − is missing/.test(LC(Mc, "x A[b]").fail));
+  check("a model with no degrees of freedom left refused in words", /no degrees of freedom left/.test(LM([{ name: "x", num: true, x: [1, 2, 3] }], [1, 2, 4], { pow: 2 }).fail));
+}
+
+// Two- and three-way ANOVA (STATS_SPEC 2.6): a balanced design's estimated means are the plain means; Tukey's comparisons of
+// a factor's means keep their family-wise error at 5 %; simple effects' F near 5 % with nothing to find; an empty cell and
+// refusals said in words.
+{
+  const mb = get("mulberry32")(2006), LM = get("linModel"), EM = get("lmEmmL"), ES = get("lmEst"), WL = get("lmWaldL"), CMP = get("lmCompare"), RUN = get("anaRunKind");
+  const gauss = () => { const u = mb() || 1e-12, v = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const n = 24, A = Array.from({ length: n }, (_, i) => i % 4), B = Array.from({ length: n }, (_, i) => Math.floor(i / 4) % 2);
+  const vars = [{ name: "A", num: false, levels: ["a", "b", "c", "d"], code: A }, { name: "B", num: false, levels: ["p", "q"], code: B }];
+  const y = A.map((a, i) => a + 2 * B[i] + gauss()), M = LM(vars, y, { coding: "effect", inter: "all" });
+  const mean = (f) => { const v = y.filter((_, i) => f(i)); return v.reduce((s, x) => s + x, 0) / v.length; };
+  check("a balanced design: each level's estimated mean is its plain mean, each cell's too", [0, 1, 2, 3].every((a) => rel(ES(M, EM(M, { 0: a })).est, mean((i) => A[i] === a)) < 1e-14) && [0, 1].every((b) => [0, 1, 2, 3].every((a) => rel(ES(M, EM(M, { 0: a, 1: b })).est, mean((i) => A[i] === a && B[i] === b)) < 1e-14)));
+  const N = 3000, k = { fw: 0, se: 0, sn: 0 }, qcr = get("tukeyIsf")(0.05, 4, n - 8);
+  { const y0 = A.map(() => gauss()), M0 = LM(vars, y0, { coding: "effect", inter: "all" }), L = EM(M0, { 0: 0 }), L2 = EM(M0, { 0: 3 }); for (let j = 0; j < L.length; j++) L[j] -= L2[j];
+    const e = ES(M0, L), c = CMP([{ i: 0, j: 3, diff: e.est, se: e.se }], 4, M0.dfr, "tukey", 0.95)[0], q = Math.SQRT2 * Math.abs(e.est) / e.se;
+    check("Tukey on estimated means: q is √2·|difference| over its error, p its studentized range tail, the interval the critical value's", c.stat === q && c.p === get("tukeySf")(q, 4, M0.dfr) && Math.abs(c.hi - c.lo - 2 * qcr * e.se / Math.SQRT2) < 1e-12 * (c.hi - c.lo)); }
+  for (let s = 0; s < N; s++) {
+    const y0 = A.map(() => gauss()), M0 = LM(vars, y0, { coding: "effect", inter: "all" }), pairs = [];
+    for (let a = 0; a < 4; a++) for (let b = a + 1; b < 4; b++) { const L = EM(M0, { 0: a }), L2 = EM(M0, { 0: b }); for (let j = 0; j < L.length; j++) L[j] -= L2[j]; const e = ES(M0, L); pairs.push({ i: a, j: b, diff: e.est, se: e.se }); }
+    if (pairs.some((x) => Math.SQRT2 * Math.abs(x.diff) / x.se > qcr)) k.fw++; /* p < 0.05 for a pair is q past the critical value */
+    [0, 1].forEach((b) => { const Ls = []; for (let a = 1; a < 4; a++) { const L = EM(M0, { 0: a, 1: b }), L0 = EM(M0, { 0: 0, 1: b }); for (let j = 0; j < L.length; j++) L[j] -= L0[j]; Ls.push(L); } k.sn++; if (WL(M0, Ls).p < 0.05) k.se++; });
+  }
+  const half = 3.29 * Math.sqrt(0.05 * 0.95 / N), hs = 3.29 * Math.sqrt(0.05 * 0.95 / k.sn);
+  check(`Tukey's comparisons of four means: the family-wise error at 5 % (within ${(half * 100).toFixed(2)} %)`, Math.abs(k.fw / N - 0.05) < half, k.fw / N);
+  check(`simple effects' F near 5 % with nothing to find (within ${(hs * 100).toFixed(2)} %)`, Math.abs(k.se / k.sn - 0.05) < hs, k.se / k.sn);
+  const ins = (codes, ys) => [{ id: "y", name: "y", vals: ys, rows: ys.map((_, i) => i) }].concat(codes.map((c, j) => ({ id: "f" + j, name: "F" + j, rows: c.map((_, i) => i), cats: { keys: c, order: null } })));
+  const r = RUN("anovan", ins([A.map((a) => "abcd"[a]), B.map((b) => "pq"[b]).map((v, i) => A[i] === 3 ? "p" : v)], y), { y: "y" });
+  check("an empty cell: said, its means left empty", r.notes.some((s) => /^An empty cell/.test(s)) && r.notes.some((s) => /cannot be worked out/.test(s)), JSON.stringify(r.notes));
+  check("one factor, or a response of text, refused in words", /Two or three factors/.test(RUN("anovan", ins([A.map(String)], y), { y: "y" }).fail) && /holds text/.test(RUN("anovan", [{ id: "y", name: "y", rows: [0, 1], cats: { keys: ["a", "b"] } }].concat(ins([["a", "b"], ["p", "q"]], [1, 2]).slice(1)), { y: "y" }).fail));
+}
+
+// Repeated measures (STATS_SPEC 2.7): F's size under sphericity; with the conditions' variances far apart, the uncorrected
+// F too liberal and Greenhouse–Geisser's near 5 %; two conditions as a paired t (t² = F); each subject's offset and the
+// subjects' order change nothing; ε within [1/d, 1]; refusals in words.
+{
+  const mb = get("mulberry32")(2007), RM = get("rmAnova"), TP = get("tTestPaired");
+  const gauss = () => { const u = mb() || 1e-12, v = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const N = 4000, n = 12, k = { sph: 0, raw: 0, gg: 0, epsOk: 0 }, sds = [1, 1, 4, 8];
+  for (let s = 0; s < N; s++) {
+    const Y = Array.from({ length: n }, () => { const b = 3 * gauss(); return [0, 1, 2, 3].map(() => b + gauss()); }); if (RM(Y, [4]).effs[0].p < 0.05) k.sph++;
+    const Z = Array.from({ length: n }, () => { const b = gauss(); return sds.map((sd) => b + sd * gauss()); }), e = RM(Z, [4]).effs[0];
+    if (e.p < 0.05) k.raw++; if (e.pgg < 0.05) k.gg++; if (e.gg >= 1 / 3 - 1e-12 && e.gg <= 1) k.epsOk++;
+  }
+  const half = 3.29 * Math.sqrt(0.05 * 0.95 / N);
+  check(`F near 5 % under sphericity (within ${(half * 100).toFixed(2)} %)`, Math.abs(k.sph / N - 0.05) < half, k.sph / N);
+  check("the conditions' variances 1, 1, 16, 64: the uncorrected F past 5 %, Greenhouse–Geisser's near it, ε within [1/3, 1]", k.raw / N > 0.05 + half && Math.abs(k.gg / N - 0.05) < 0.02 && k.epsOk === N, [k.raw / N, k.gg / N]);
+  const Y = Array.from({ length: 9 }, () => { const b = gauss() * 5; return [b + gauss(), b + 0.4 + gauss()]; }), r = RM(Y, [2]).effs[0], t = TP(Y.map((y) => y[0]), Y.map((y) => y[1]), { dci: false });
+  check("two conditions: F is the paired t squared, p the same", rel(r.F, t.t * t.t) < 1e-13 && rel(r.p, t.p) < 1e-12, [r.F, t.t * t.t, r.p, t.p]);
+  const Y3 = Array.from({ length: 10 }, () => [0, 1, 2].map((j) => j * 0.3 + gauss())), a = RM(Y3, [3]).effs[0];
+  const b = RM(Y3.map((y, i) => y.map((v) => v + 1000 * i)), [3]).effs[0], c = RM(Y3.slice().reverse(), [3]).effs[0];
+  check("each subject's offset and the subjects' order change nothing within", rel(b.F, a.F) < 1e-12 && rel(b.gg, a.gg) < 1e-12 && rel(c.F, a.F) < 1e-14 && rel(c.gg, a.gg) < 1e-14, [a.F, b.F, c.F]);
+  check("refusals in words: one subject, cells that are not the levels' product, groups leaving no error", /Fewer than two subjects/.test(RM([[1, 2, 3]], [3]).fail) && /levels multiplied/.test(RM([[1, 2, 3], [2, 3, 4]], [2, 2]).fail) && /No degrees of freedom left/.test(RM([[1, 2], [2, 3]], [2], [0, 1]).fail));
+}
+
+// Power and sample size (STATS_SPEC 2.11): the exact binomial test's power the sum over the counts propTest1 rejects; the t
+// tests', the ANOVA's and the F test's power the rate at which Kurve's own tests reject in 20 000 samples; α at no effect;
+// rising with the size; the size found the first to reach the power; the noncentral tails at λ = 0 the central ones, and
+// their two tails adding up to 1; refusals in words.
+{
+  const mb = get("mulberry32")(2011), gauss = () => { let u = 0; while (u === 0) u = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * mb()); };
+  const PA = get("powerAt"), PS = get("powSize"), D = get("DIST"), P1 = get("propTest1"), T2 = get("tTest2"), T1 = get("tTest1"), A1 = get("anova1"), F2 = get("fTest2"), RUN = get("anaRunKind");
+  let ok = true, worst = 0; for (const [p0, p1, n, alt] of [[0.5, 0.7, 30, "two"], [0.3, 0.12, 45, "less"], [0.2, 0.4, 25, "greater"], [0.65, 0.5, 60, "two"]]) {
+    let s = 0; for (let x = 0; x <= n; x++) if (P1(x, n, { p0, alt }).p <= 0.05) s += D.binom.pmf(x, n, p1);
+    const e = Math.abs(PA({ test: "p1", alpha: 0.05, p0, p1, alt }, n).pw - s); worst = Math.max(worst, e); if (e > 1e-14) ok = false; }
+  check("one proportion: the power the sum, at the true proportion, over the counts propTest1 rejects", ok, worst);
+  const N = 20000, half = (q) => 3.29 * Math.sqrt(q * (1 - q) / N), sim = (draw) => { let k = 0; for (let i = 0; i < N; i++) if (draw()) k++; return k / N; };
+  const cases = [
+    ["two samples, d = 0.5, 20 each", { test: "t2", alpha: 0.05, d: 0.5, sd: 1, r: 1 }, 20, () => T2(Array.from({ length: 20 }, gauss), Array.from({ length: 20 }, () => 0.5 + gauss()), { equal: true, dci: false }).p < 0.05],
+    ["one sample, greater, d = 0.4, 15", { test: "t1", alpha: 0.05, d: 0.4, sd: 1, alt: "greater" }, 15, () => T1(Array.from({ length: 15 }, () => 0.4 + gauss()), { alt: "greater", dci: false }).p < 0.05],
+    ["one-way ANOVA, means 0, 0.5, 1, 8 a group", { test: "anova", alpha: 0.05, means: [0, 0.5, 1], sd: 1 }, 8, () => A1([0, 0.5, 1].map((m) => Array.from({ length: 8 }, () => m + gauss()))).p < 0.05],
+    ["two variances, ratio 3, 15 each", { test: "v2", alpha: 0.05, v1: 3, v2: 1, r: 1 }, 15, () => F2(Array.from({ length: 15 }, () => Math.sqrt(3) * gauss()), Array.from({ length: 15 }, gauss)).p < 0.05]];
+  for (const [nm, o, n, draw] of cases) { const pw = PA(o, n).pw, q = sim(draw); check(`${nm}: the rejection rate of Kurve's test the power (within ${(half(pw) * 100).toFixed(2)} %)`, Math.abs(q - pw) < half(pw), [q, pw]); }
+  const nulls = [{ test: "t1", d: 0, sd: 1 }, { test: "t2", d: 0, sd: 2, r: 1.5 }, { test: "anova", means: [3, 3, 3], sd: 1 }, { test: "chi2", w: 0, df: 4 }, { test: "v1", v0: 2, v1: 2 }, { test: "v2", v1: 1, v2: 1, r: 1 }];
+  check("no effect: the power α", nulls.every((o) => [10, 57].every((n) => Math.abs(PA(Object.assign({ alpha: 0.05, alt: "two" }, o), n).pw - 0.05) < 1e-14)));
+  const rise = (o, a, b) => { let prev = -1; for (let n = a; n <= b; n++) { const p = PA(o, n).pw; if (!(p >= prev - 1e-15)) return false; prev = p; } return true; };
+  check("the power rises with the size (t, ANOVA, two proportions, χ², one variance)", rise({ test: "t1", alpha: 0.05, d: 0.3, sd: 1, alt: "two" }, 2, 300) && rise({ test: "anova", alpha: 0.01, means: [0, 0.2, 0.4, 0.1], sd: 1 }, 2, 200)
+    && rise({ test: "p2", alpha: 0.05, p1: 0.3, p2: 0.4, r: 1, alt: "two" }, 1, 400) && rise({ test: "chi2", alpha: 0.05, w: 0.2, df: 3 }, 1, 400) && rise({ test: "v1", alpha: 0.05, v0: 1, v1: 1.6, alt: "two" }, 2, 200));
+  let sz = true; for (const [o, tg] of [[{ test: "t2", alpha: 0.05, d: 0.5, sd: 1, r: 1, alt: "two" }, 0.8], [{ test: "anova", alpha: 0.05, means: [1, 1.5, 2], sd: 1 }, 0.9], [{ test: "chi2", alpha: 0.05, w: 0.3, df: 3 }, 0.8],
+    [{ test: "p1", alpha: 0.05, p0: 0.5, p1: 0.65, alt: "two" }, 0.8], [{ test: "v2", alpha: 0.05, v1: 2, v2: 1, r: 2, alt: "greater" }, 0.9]]) {
+    const r = PS(o, tg); if (r.fail || !(r.pw >= tg)) { sz = false; continue; }
+    if (o.test === "p1") { for (let n = 1; n < r.n; n++) if (PA(o, n).pw >= tg) sz = false; } else if (PA(o, r.n - 1) && PA(o, r.n - 1).pw >= tg) sz = false; }
+  check("the size found reaches the power, and no smaller size does", sz);
+  check("t tests: the two-sided power the same for d and −d", Math.abs(PA({ test: "t2", alpha: 0.05, d: 0.7, sd: 1, r: 1.5, alt: "two" }, 17).pw - PA({ test: "t2", alpha: 0.05, d: -0.7, sd: 1, r: 1.5, alt: "two" }, 17).pw) < 1e-15);
+  let tl = 0; for (const [x, d1, d2] of [[0.3, 2, 9], [2.7, 5, 40], [11, 1, 3]]) tl = Math.max(tl, rel(D.ncf.sf(x, d1, d2, 0), D.F.sf(x, d1, d2)), Math.abs(D.ncf.sf(x, d1, d2, 7.5) + D.ncf.cdf(x, d1, d2, 7.5) - 1));
+  for (const [x, k] of [[0.4, 1], [6, 4], [40, 20]]) tl = Math.max(tl, rel(D.ncx2.sf(x, k, 0), D.chi2.sf(x, k)), Math.abs(D.ncx2.sf(x, k, 3.3) + D.ncx2.cdf(x, k, 3.3) - 1));
+  check("the noncentral F and χ² at λ = 0 the central ones; their tails adding up to 1", tl < 4e-15, tl);
+  const f = (p) => RUN("power", [], Object.assign({ test: "t1", alpha: 0.05, d: 0.5, sd: 1, sizes: [10] }, p)).fail || "";
+  check("refusals in words: α, the SD, a size too small, one mean, a proportion of 1, a power of 1", /α is between/.test(f({ alpha: 0 })) && /SD is above/.test(f({ sd: 0 })) && /too small/.test(f({ sizes: [1] }))
+    && /two means or more/.test(f({ test: "anova", means: [1] })) && /between 0 and 1/.test(f({ test: "p1", p0: 0.5, p1: 1 })) && /between 0 and 1/.test(f({ find: "size", powers: [1] })));
+}
+
+// ROC curves (STATS_SPEC 2.12): the area Mann–Whitney's U over n₁n₀; the curve's trapezoids adding up to it; a lower score
+// positive its complement; a rising change of the scores changing nothing; Youden's J the largest of TPR − FPR; DeLong's
+// interval covering the binormal area about 95 % of the time and its test of two exchangeable scores at about 5 %; refusals.
+{
+  const mb = get("mulberry32")(2012), gauss = () => { let u = 0; while (u === 0) u = mb(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * mb()); };
+  const RT = get("rocTest"), MW = get("mwTest"), K = get("rocCore"), CMP = get("rocCompare"), RUN = get("anaRunKind"), D = get("DIST");
+  const P = Array.from({ length: 37 }, () => Math.round(10 * (0.7 + gauss())) / 10), N = Array.from({ length: 52 }, () => Math.round(10 * gauss()) / 10), r = RT(P, N, {});
+  const u = MW(P, N, {}); check("the area is Mann–Whitney's U over n₁n₀", rel(r.auc, u.U / (37 * 52)) < 1e-15, [r.auc, u.U / (37 * 52)]);
+  let tz = 0; for (let i = 1; i < r.pts.length; i++) tz += (r.pts[i].fpr - r.pts[i - 1].fpr) * (r.pts[i].tpr + r.pts[i - 1].tpr) / 2;
+  check("the curve's points rise from (0, 0) to (1, 1), their trapezoids adding up to the area", r.pts[0].fpr === 0 && r.pts[0].tpr === 0 && r.pts.at(-1).fpr === 1 && r.pts.at(-1).tpr === 1 && r.pts.every((q, i) => !i || (q.fpr >= r.pts[i - 1].fpr && q.tpr >= r.pts[i - 1].tpr)) && Math.abs(tz - r.auc) < 1e-14, [tz, r.auc]);
+  const lo = RT(P, N, { dir: "low" }), ex = RT(P.map(Math.exp), N.map(Math.exp), {});
+  check("a lower score positive gives 1 less the area; exp of the scores the same area, SE and Youden's point", Math.abs(lo.auc - (1 - r.auc)) < 1e-15 && Math.abs(lo.se - r.se) < 1e-15 && ex.auc === r.auc && rel(ex.se, r.se) < 1e-14 && ex.youden.sens === r.youden.sens && ex.youden.spec === r.youden.spec);
+  check("Youden's J the largest TPR − FPR, its cut-off a score", Math.abs(r.youden.J - Math.max(...r.pts.map((q) => q.tpr - q.fpr))) < 1e-15 && P.concat(N).includes(r.youden.c));
+  const S = 4000, A0 = D.norm.cdf(1 / Math.SQRT2); let cov = 0, rej = 0;
+  for (let s = 0; s < S; s++) { const p = Array.from({ length: 50 }, () => 1 + gauss()), n = Array.from({ length: 50 }, gauss), t = RT(p, n, {}); if (t.ci[0] <= A0 && A0 <= t.ci[1]) cov++;
+    const lp = Array.from({ length: 40 }, () => 0.8 + gauss()), ln = Array.from({ length: 40 }, gauss), e = () => 0.7 * gauss();
+    const a = K(lp.map((v) => v + e()), ln.map((v) => v + e())), b = K(lp.map((v) => v + e()), ln.map((v) => v + e())); if (CMP(a, b).p < 0.05) rej++; }
+  check("DeLong's 95 % interval covers the binormal area 93 to 96.5 % of the time", cov / S > 0.93 && cov / S < 0.965, cov / S);
+  check("DeLong's test of two exchangeable scores rejects 5 % of the time (within 1.1 %)", Math.abs(rej / S - 0.05) < 0.011, rej / S);
+  const rows = [0, 1, 2, 3, 4, 5], f = (keys, vals) => RUN("roc", [{ id: "g", name: "G", rows, cats: { keys, order: null } }, { id: "s", name: "S", rows, vals }], { grp: "g" }).fail || "";
+  check("refusals in words: three groups, a group with no score, no score column", /3 groups/.test(f(["a", "b", "c", "a", "b", "c"], [1, 2, 3, 4, 5, 6])) && /Each group needs a value/.test(f(["a", "a", "a", "b", "b", "b"], [1, 2, 3, null, null, null]))
+    && /column of scores/.test(RUN("roc", [{ id: "g", name: "G", rows, cats: { keys: ["a", "b", "a", "b", "a", "b"], order: null } }], { grp: "g" }).fail || ""));
+}
+
+// The kinds on the pure blocks alone (what the worker and run.mjs load): numbers as factors and levels are formatted there.
+{
+  const RUN = get("anaRunKind"), rows = Array.from({ length: 30 }, (_, i) => i), y = rows.map((i) => (i % 3) + Math.sin(i)), num = rows.map((i) => (i % 3) + 1);
+  let bad = []; const tryK = (k, ins, p) => { try { const r = RUN(k, ins, p); if (r.fail) bad.push(k + ": " + r.fail); } catch (e) { bad.push(k + ": " + e.message); } };
+  tryK("lm", [{ id: "y", name: "y", vals: y, rows }, { id: "g", name: "g", vals: num, rows }], { y: "y", fac: ["g"] });
+  tryK("anovan", [{ id: "y", name: "y", vals: y, rows }, { id: "a", name: "a", vals: num, rows }, { id: "b", name: "b", vals: rows.map((i) => i % 2), rows }], { y: "y" });
+  tryK("rm", [{ id: "y", name: "y", vals: y, rows }, { id: "s", name: "s", vals: rows.map((i) => Math.floor(i / 3)), rows }, { id: "w", name: "w", vals: num, rows }], { form: "long", y: "y", subj: "s", w1: "w" });
+  tryK("xtab", [{ id: "a", name: "a", vals: num, rows }, { id: "b", name: "b", vals: rows.map((i) => i % 2), rows }], { mode: "pair" });
+  check("the kinds run on the pure blocks alone, numbers as factors and levels", bad.length === 0, bad.join("; "));
+}
+
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);

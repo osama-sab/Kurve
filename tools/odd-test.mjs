@@ -1,0 +1,637 @@
+/* Unusual use, in a real browser: the cases that once hung the page, lost
+   data or drew nonsense, each checked in a fresh page.
+   Needs Playwright with Chromium. Usage:
+     node tools/odd-test.mjs [path/to/kurve.html]
+   Set PLAYWRIGHT=/path/to/playwright/index.mjs if `playwright` is not
+   installed where node can find it. */
+import { fileURLToPath } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import { createServer } from "node:http";
+import { readFileSync } from "node:fs";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const FILE = resolve(process.argv[2] || join(here, "..", "kurve.html"));
+// Served over HTTP, as Kurve is: Chromium sometimes gives two pages opened from file://
+// storage of their own, and the tests of tabs sharing a store failed one run in eight.
+const server = createServer((req, res) => { if (req.url.split("?")[0] === "/kurve.html") { res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); res.end(readFileSync(FILE)); } else { res.writeHead(404); res.end(); } });
+await new Promise(r => server.listen(0, "127.0.0.1", r));
+const URL = `http://127.0.0.1:${server.address().port}/kurve.html`;
+let chromium;
+try { ({ chromium } = await import(process.env.PLAYWRIGHT || "playwright")); }
+catch (e) { ({ chromium } = await import("/opt/node22/lib/node_modules/playwright/index.mjs")); }
+
+let pass = 0, fail = 0;
+const check = (name, cond, detail) => {
+  if (cond) { pass++; console.log("  ok   " + name); }
+  else { fail++; console.log("  FAIL " + name + (detail == null ? "" : "  — " + String(detail).slice(0, 300))); }
+};
+
+// In the page: a project from arrays, and a Gaussian with noise.
+const HELP = `(()=>{ if(window.__h) return; window.__h=1;
+  window.mkSpec=async(name,x,y,opt)=>{ opt=opt||{}; const xc=makeCol("x",opt.xn||"X","",x), yc=Object.assign(makeCol("y",name,"",y),{pipe:[],mask:[]});
+    const pr=Object.assign(blankProject(opt.proj||name),{cols:[xc,yc],activeY:yc.id}); /* plotted, as a user would */ pr.graphs=[{id:newGid(),name:"Graph 1",cols:[yc.id],plot:{style:"auto"}}]; await createProject(pr,"test"); await new Promise(r=>setTimeout(r,80)); renderAll(); };
+  window.gauss=(n,c,w,h,x0,dx,noise)=>{ const x=[],y=[]; let s=7; const r=()=>{ s=(s*16807)%2147483647; return s/2147483647-0.5; };
+    for(let i=0;i<n;i++){ const v=x0+i*dx; x.push(v); y.push(h*Math.exp(-(((v-c)/w)**2))+(noise||0)*r()); } return {x,y}; };
+})()`;
+
+const browser = await chromium.launch();
+// Ready: the page has a project on the desk. A fixed wait was too short on a busy machine.
+const ready = async (p) => { await p.waitForFunction(() => typeof S !== "undefined" && S.pid && S.proj && S.projects && S.projects.length, null, { timeout: 15000 }).catch(() => {}); await p.waitForTimeout(150); };
+async function page(fn, opt = {}) {
+  const ctx = await browser.newContext({ viewport: opt.vw || { width: 1440, height: 900 } });
+  const p = await ctx.newPage(); const errors = [];
+  p.on("pageerror", e => errors.push(e.message));
+  p.on("console", m => { if (m.type() === "error" && !/Failed to load resource|net::ERR/.test(m.text())) errors.push(m.text()); });
+  await p.route(/fonts\.(googleapis|gstatic)\.com|jsdelivr/, r => r.abort());
+  await p.addInitScript(() => { try { localStorage.setItem("kurve.ovAuto", "0"); } catch (e) {} });
+  // A browser with no IndexedDB: projects go to localStorage, as they did before.
+  if (opt.noIdb) await p.addInitScript(() => { Object.defineProperty(window, "indexedDB", { get() { return undefined; } }); });
+  await p.goto(URL); await ready(p); await p.evaluate(HELP);
+  const T = opt.timeout || 30000;
+  try { await Promise.race([fn(p, ctx), new Promise((_, rej) => setTimeout(() => rej(new Error("timed out: the page hung")), T))]); }
+  catch (e) { check(opt.name + ": ran", false, e.message); }
+  check(opt.name + ": no page errors", !errors.length, errors.slice(0, 3).join(" | "));
+  await ctx.close().catch(() => {});
+}
+
+console.log("Every example, end to end (roadmap 9, slice 1): the first demo is the product");
+{
+  // Each example as a first user meets it: opened, its fit or its peaks, the report and the CSV.
+  const capture = () => { window.__saved = []; window.saveFile = async (n, d) => { window.__saved.push({ n, d: typeof d === "string" ? d : "" }); return true; }; };
+  const reportOf = async p => { await p.evaluate(async () => { window.__saved = []; await exportReport(); await exportCsv(); }); await p.waitForTimeout(200);
+    return p.evaluate(() => ({ html: (window.__saved.find(q => /\.html$/.test(q.n)) || {}).d || "", csv: (window.__saved.find(q => /\.csv$/.test(q.n)) || {}).d || "" })); };
+  const pkSet = p => p.evaluate(() => { const c = activeYCol(); return (P().annos || []).filter(a => a.grp === "pk:" + c.id).map(a => a.x).sort((a, b) => a - b); });
+  await page(async p => {
+    await p.evaluate(capture); await p.evaluate(async () => { await loadExample("raman"); }); await p.waitForTimeout(400);
+    await p.evaluate(() => { S.fitMode = "curve"; showTab("fit"); runFit(); }); await p.waitForTimeout(600);
+    let r = await p.evaluate(() => { const f = activeFit(), i = f ? getModel(f.model).params.indexOf("xc") : -1; return f && { model: f.model, xc: f.params[i], R2: f.stats.R2, conv: f.stats.converged, bad: fitWarnings(f).filter(w => w.level === "bad").map(w => w.brief) }; });
+    check("Raman, one band: the Lorentzian fitted at 520.7, converged, nothing marked bad", r && r.model === "lorentz" && Math.abs(r.xc - 520.7) < 0.5 && r.conv !== false && r.R2 > 0.9 && !r.bad.length, JSON.stringify(r));
+    await p.evaluate(() => { openPeakFinder(); findPeaksInto({}); }); await p.waitForTimeout(500);
+    const pk = await pkSet(p);
+    check("…its peaks: the band alone, the cosmic-ray spike not counted", pk.length === 1 && Math.abs(pk[0] - 520.7) < 2, JSON.stringify(pk));
+    const rep = await reportOf(p);
+    check("…its report and CSV are written, with the fit", /Si Raman band/.test(rep.html) && /Lorentz/i.test(rep.html) && rep.csv.split("\n").length > 80, [rep.html.length, rep.csv.length]);
+  }, { name: "the Raman example", timeout: 60000 });
+  await page(async p => {
+    await p.evaluate(capture); await p.evaluate(async () => { await loadExample("decay"); }); await p.waitForTimeout(400);
+    await p.evaluate(() => { S.fitMode = "curve"; showTab("fit"); runFit(); }); await p.waitForTimeout(800);
+    const r = await p.evaluate(() => { const f = activeFit(); return f && { model: f.model, R2: f.stats.R2, conv: f.stats.converged, bad: fitWarnings(f).filter(w => w.level === "bad").map(w => w.brief) }; });
+    check("Decay: the exponential decay fitted, converged, R² above 0.99, nothing marked bad", r && r.model === "expdec" && r.conv !== false && r.R2 > 0.99 && !r.bad.length, JSON.stringify(r));
+    const rep = await reportOf(p);
+    check("…its report and CSV are written", /Fluorescence lifetime/.test(rep.html) && rep.csv.length > 500, [rep.html.length, rep.csv.length]);
+  }, { name: "the decay example", timeout: 60000 });
+  await page(async p => {
+    await p.evaluate(capture); await p.evaluate(async () => { await loadExample("ir"); }); await p.waitForTimeout(400);
+    await p.evaluate(() => { openPeakFinder(); findPeaksInto({}); }); await p.waitForTimeout(500);
+    const pk = await pkSet(p);
+    check("Infrared: its bands found, three or four (one a shoulder), no noise bump among them", pk.length >= 3 && pk.length <= 4, JSON.stringify(pk));
+    await p.evaluate(() => { fitFoundPeaks(); runPeakFit(); }); await p.waitForTimeout(1500);
+    const r = await p.evaluate(() => { const f = activeFit(); return f && { kind: f.kind, n: f.spec && f.spec.peaks.length, conv: f.stats.converged, R2: f.stats.R2, bad: fitWarnings(f).filter(w => w.level === "bad").map(w => w.brief) }; });
+    check("…the peaks fitted from them: converged, R² above 0.99, no peak unusable", r && r.kind === "composite" && r.n === pk.length && r.conv !== false && r.R2 > 0.99 && !r.bad.length, JSON.stringify(r));
+    const rep = await reportOf(p);
+    check("…its report lists the peaks", /Polyester film/.test(rep.html) && /FWHM/.test(rep.html), rep.html.length);
+  }, { name: "the infrared example", timeout: 60000 });
+  await page(async p => {
+    await p.evaluate(capture); await p.evaluate(async () => { await loadExample("ps"); }); await p.waitForTimeout(500);
+    // The Overview's first steps, as a user takes them: each opened with the settings it measured, applied.
+    const steps = await p.evaluate(() => { const c = activeYCol(), st = overviewSteps(overviewOf(finalOf(c)), c).filter(s => !s.done).map(s => s.op); st.forEach(op => addPipeStep(op)); return st; });
+    await p.waitForTimeout(800);
+    const r = await p.evaluate(() => { const c = activeYCol(); return { ops: (c.pipe || []).map(s => s.op), warn: procWarnings ? procWarnings(c).length : 0 }; });
+    check("Raw polystyrene: the Overview's first steps (spikes, background) applied", steps.includes("despike") && steps.includes("bg") && r.ops.includes("despike") && r.ops.includes("bg"), JSON.stringify([steps, r]));
+    await p.evaluate(() => { openPeakFinder(); findPeaksInto({}); }); await p.waitForTimeout(600);
+    const pk = await pkSet(p);
+    check("…then its bands found, the 1001 cm⁻¹ ring band among them, no spike", pk.length >= 6 && pk.some(x => Math.abs(x - 1001.4) < 3), JSON.stringify(pk.map(x => +x.toFixed(1))));
+    const rep = await reportOf(p);
+    check("…its report gives the processing and the peaks", /Polystyrene/.test(rep.html) && /spike/i.test(rep.html) && /background/i.test(rep.html), rep.html.length);
+  }, { name: "the raw polystyrene example", timeout: 60000 });
+}
+
+console.log("Axes at the limits of floating point");
+await page(async p => {
+  await p.evaluate(async () => { await loadExample("raman"); }); await p.waitForTimeout(300);
+  const svg = await p.$("#plot"), b = await svg.boundingBox(); await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  for (let i = 0; i < 300; i++) await p.mouse.wheel(0, -400);
+  const v = await p.evaluate(() => S.geo.v);
+  check("300 turns of the wheel stop at the precision of the numbers", v.x1 - v.x0 > 0 && (v.x1 - v.x0) / Math.abs(v.x1) >= 0.5e-10, JSON.stringify(v));
+  const t = await p.evaluate(() => { const a = performance.now(); S.view = { x0: 520, x1: 520 + 1e-15, y0: 0, y1: 1, xu: finalOf(activeYCol()).xu }; renderPlot(); return performance.now() - a; });
+  check("a view narrower than a double can resolve draws at once", t < 2000, t);
+}, { name: "deep zoom" });
+await page(async p => {
+  const x = [], y = []; for (let i = 0; i < 200; i++) { x.push(1.7e18 + i * 1e9); y.push(Math.sin(i / 9)); }
+  await p.evaluate(async ([x, y]) => { await mkSpec("ns", x, y); }, [x, y]); await p.waitForTimeout(300);
+  const labs = await p.evaluate(() => [...document.querySelectorAll("#plot text")].map(t => t.textContent).filter(s => /×10/.test(s)));
+  check("tick labels on a nanosecond time axis are all different", labs.length > 2 && new Set(labs).size === labs.length, labs.slice(0, 4).join(" | "));
+  const overlap = await p.evaluate(() => { const r = [...document.querySelectorAll("#plot text")].filter(t => /×10/.test(t.textContent)).map(t => t.getBoundingClientRect()).sort((a, b) => a.left - b.left);
+    return r.some((q, i) => i && q.left < r[i - 1].right - 1); });
+  check("and they do not overlap", !overlap);
+  await p.evaluate(() => { setAxisKeys("y", { min: 3, max: 3 }, null); renderPlot(); setAxisKeys("x", { min: 1e300, max: -1e300 }, null); renderPlot(); });
+  check("equal or crossed axis limits draw no NaN", !(await p.evaluate(() => /NaN|Infinity/.test(document.querySelector("#plot").innerHTML))));
+}, { name: "huge and equal limits" });
+
+console.log("This browser's store");
+await page(async (p, ctx) => {
+  const b = await ctx.newPage(); await b.goto(URL); await ready(b);
+  await p.evaluate(async () => { const g = gauss(100, 50, 5, 10, 0, 1, 0); await mkSpec("A", g.x, g.y, { proj: "Tab A" }); }); await p.waitForTimeout(400);
+  await b.waitForFunction(() => S.projects.some(q => q.name === "Tab A"), null, { timeout: 5000 }).catch(() => {});
+  await b.evaluate(() => { save({ name: "Renamed in B" }, "renamed"); }); await b.waitForTimeout(400);
+  const stored = await p.evaluate(async () => (await S.store.storedAll()).map(q => q.name).sort().join(","));
+  check("a second tab saving keeps the first tab's projects", stored === "Renamed in B,Tab A", stored);
+  check("the second tab sees the first tab's new project", (await b.evaluate(() => S.projects.map(q => q.name))).includes("Tab A"));
+  await b.evaluate(() => { switchProject(S.projects.find(q => q.name === "Tab A").id); }); await b.waitForTimeout(300);
+  await p.evaluate(() => { savePlot({ grid: true }, "grid"); }); await p.waitForTimeout(300);
+  await b.evaluate(() => { save({ name: "Tab A, renamed in B" }, "rename"); }); await b.waitForTimeout(300);
+  const q = await p.evaluate(() => S.store.stored(S.pid));
+  check("two tabs changing different parts of one project keep both", q.name === "Tab A, renamed in B" && q.graphs[0].plot.grid === true, q.name + " " + q.graphs[0].plot.grid);
+  // Both tabs change columns of one project at the same moment: a new column each, and a cell each in a third.
+  await b.evaluate(() => { switchProject(S.projects.find(q => q.name === "Tab A, renamed in B").id); }); await b.waitForTimeout(300);
+  const col = (nm, n) => `(()=>{ const p=P(), y=p.cols.find(c=>c.role==="y"), d=y.data.slice(); d[${n}]=${n}*1000; return { cols: p.cols.map(c=>c===y?Object.assign({},c,{data:d}):c).concat([Object.assign(makeCol("y","${nm}","",[1,2,3]),{pipe:[],mask:[]})]) }; })()`;
+  await Promise.all([p.evaluate(c => { save(eval(c), "A's column"); }, col("From A", 1)), b.evaluate(c => { save(eval(c), "B's column"); }, col("From B", 2))]);
+  await p.waitForTimeout(800);
+  const both = async t => t.evaluate(async () => { const q = await S.store.stored(S.pid), y = q.cols.find(c => c.role === "y"); return [q.cols.map(c => c.name).filter(n => /From/.test(n)).sort().join("+"), y.data[1], y.data[2], P().cols.map(c => c.name).filter(n => /From/.test(n)).sort().join("+")]; });
+  const ra = await both(p), rb = await both(b);
+  check("two tabs adding a column each at once keep both columns", ra[0] === "From A+From B", JSON.stringify(ra));
+  check("…and the cells each changed in one column", ra[1] === 1000 && ra[2] === 2000, JSON.stringify(ra));
+  check("…and both tabs show both", ra[3] === "From A+From B" && rb[3] === "From A+From B", JSON.stringify([ra, rb]));
+}, { name: "two tabs" });
+await page(async p => {
+  // A project of a million rows: kept, quick to save, and back after a reload.
+  const t = await p.evaluate(async () => { const n = 1000000, x = new Array(n), y = new Array(n); for (let i = 0; i < n; i++) { x[i] = i * 1e-4; y[i] = Math.sin(i / 300); }
+    await mkSpec("Scan", x, y, { proj: "Million" }); const a = performance.now(); await save({ name: "Million rows" }, "renamed"); return [performance.now() - a, document.querySelector("#status").textContent]; });
+  check("a project of a million rows is saved, and quickly (a name: under 300 ms)", t[0] < 300 && t[1] === "Saved", JSON.stringify(t));
+  await p.reload(); await ready(p);
+  const r = await p.evaluate(() => { const q = S.projects.find(q => q.name === "Million rows"); const y = q && q.cols.find(c => c.role === "y"); return y ? [y.data.length, y.data[123456]] : null; });
+  check("…and comes back after a reload", r && r[0] === 1000000 && Math.abs(r[1] - Math.sin(123456 / 300)) < 1e-12, JSON.stringify(r));
+  // Leaving at once after a change keeps it: eight times, on a machine slowed down six times. (The
+  // write already under way used to hold the stores and then put the old name back over the new one:
+  // a rename made just before a reload was lost one time in four, more often on a slow machine.)
+  { const cdp = await p.context().newCDPSession(p); await cdp.send("Emulation.setCPUThrottlingRate", { rate: 6 }); let lost = 0;
+    for (let k = 0; k < 8; k++) { const nm = k < 7 ? "Renamed " + k : "Renamed just before leaving";
+      await p.evaluate((nm) => { save({ name: nm }, "renamed"); }, nm); await p.reload(); await ready(p);
+      if (!(await p.evaluate((nm) => S.projects.some(q => q.name === nm), nm))) lost++; }
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+    check("a change saved just before a reload is kept (8 of 8, a million rows, the machine slowed six times)", lost === 0, lost + " lost"); }
+  // Typing into a million rows: the value at once, its check code worked out in the background, exactly.
+  await p.evaluate(() => { prefSet("anim", false); applyAnim(); switchProject(S.projects.find(q => q.name === "Renamed just before leaving").id); }); await p.waitForTimeout(600);
+  await p.evaluate(() => focusWin("sheet")); await p.waitForTimeout(400);
+  const exact = () => p.evaluate(() => { const r = P().raw, l = r.hist[r.hist.length - 1]; return [sha256(rawText(rawCols().map(c => c.data))) === r.fp, l.fp === r.fp, !r.fpq, !l.fpq]; });
+  const fp0 = await p.evaluate(() => P().raw.fp);
+  await p.locator('#ws td[data-r="2"][data-ci="1"]').click();
+  const k0 = Date.now(); await p.keyboard.type("7.25"); await p.keyboard.press("Enter"); const kt = Date.now() - k0;
+  const w = await p.evaluate(() => [P().cols.find(c => c.role === "y").data[2], !!P().raw.fpq, P().raw.fp]);
+  check("a value typed into a million rows is entered at once (under 600 ms), its check code still to come", w[0] === 7.25 && w[1] && w[2] === "" && kt < 600, JSON.stringify([w, kt]));
+  await p.waitForFunction(() => !P().raw.fpq, null, { timeout: 20000 }).catch(() => {});
+  const e1 = await exact(), pv = await p.evaluate(() => P().raw.hist.slice(-1)[0].prev);
+  check("…and worked out in the background: the SHA-256 of the data, in the record, after the one before", e1.every(Boolean) && pv === fp0, JSON.stringify([e1, pv === fp0]));
+  await p.locator('#ws td[data-r="3"][data-ci="1"]').click(); await p.keyboard.type("8.5"); await p.keyboard.press("Enter");
+  const e2 = await p.evaluate(() => { const was = !!P().raw.fpq; fpSettle(); return was; });
+  check("an export works out a check code still to come first", e2 && (await exact()).every(Boolean), JSON.stringify(await exact()));
+  await p.locator('#ws td[data-r="4"][data-ci="1"]').click(); await p.keyboard.type("9.75"); await p.keyboard.press("Enter");
+  check("(still to come when the page goes)", await p.evaluate(() => !!P().raw.fpq));
+  await p.reload(); await ready(p);
+  await p.evaluate(() => switchProject(S.projects.find(q => q.name === "Renamed just before leaving").id));
+  await p.waitForFunction(() => P() && P().raw && !P().raw.fpq, null, { timeout: 25000 }).catch(() => {});
+  const e3 = await exact(), v3 = await p.evaluate(() => P().cols.find(c => c.role === "y").data.slice(2, 5));
+  check("a check code still to come when the page went is worked out after the reload", e3.every(Boolean) && v3.join() === "7.25,8.5,9.75", JSON.stringify([e3, v3]));
+  const st = await p.evaluate(async () => { const q = await S.store.stored(S.pid), y = q.cols.find(c => c.role === "y").data; return [Array.isArray(y), y.length, y[4], y.some(v => v === null || Number.isNaN(v)) ? "gaps" : "full"]; });
+  check("the values come back from the store as numbers (stored as one block)", st[0] && st[1] === 1000000 && st[2] === 9.75, JSON.stringify(st));
+  const gap = await p.evaluate(async () => { const y = P().cols.find(c => c.role === "y"), d = y.data.slice(); d[10] = null; await save({ cols: P().cols.map(c => c === y ? Object.assign({}, c, { data: d }) : c) }); const q = await S.store.storedAll(); return 1; });
+  await p.reload(); await ready(p);
+  const g2 = await p.evaluate(() => { const q = S.projects.find(q => q.name === "Renamed just before leaving"), y = q.cols.find(c => c.role === "y").data; return [y[10], y[11] === Math.sin(11 / 300)]; });
+  check("a missing value stays missing through the store", g2[0] === null && g2[1], JSON.stringify(g2));
+}, { name: "a large project", timeout: 240000 });
+await page(async p => {
+  // The disk is full: Not saved, said again when the project is opened again, and the next write stores it all.
+  const r = await p.evaluate(async () => { S.store.failNext = "quota"; await save({ cols: P().cols.map(c => c.role === "y" ? Object.assign({}, c, { data: Array.from({ length: 5000 }, (_, i) => Math.sin(i)) }) : c) }, "big"); return [document.querySelector("#status").textContent, Object.keys(S.store.dirty).length]; });
+  check("a refused write says Not saved and keeps the project marked", r[0] === "Not saved" && r[1] === 1, JSON.stringify(r));
+  const r1 = await p.evaluate(async () => { const keep = S.pid; await createProject(blankProject("Other"), "made"); await new Promise(r => setTimeout(r, 300)); const a = document.querySelector("#status").textContent; switchProject(keep); await new Promise(r => setTimeout(r, 300)); return [a, document.querySelector("#status").textContent]; });
+  check("…the status bar says Saved on another project and Not saved on that one again", r1[0] === "Saved" && r1[1] === "Not saved", JSON.stringify(r1));
+  const r2 = await p.evaluate(async () => { await save({ name: "room now" }, "rename"); const q = await S.store.stored(S.pid); return [document.querySelector("#status").textContent, q.cols.find(c => c.role === "y").data.length, Object.keys(S.store.dirty).length]; });
+  check("…and the next write stores what was refused", r2[0] === "Saved" && r2[1] === 5000 && r2[2] === 0, JSON.stringify(r2));
+}, { name: "a refused write" });
+await page(async p => {
+  await p.evaluate(() => { const blk = "x".repeat(1 << 18); try { for (let n = 0; n < 200; n++) localStorage.setItem("junk" + n, blk); } catch (e) {} });
+  const r = await p.evaluate(async () => { await save({ cols: P().cols.map(c => c.role === "y" ? Object.assign({}, c, { data: Array.from({ length: 80000 }, (_, i) => Math.sin(i)) }) : c) }, "big"); return document.querySelector("#status").textContent; });
+  check("a full store says Not saved (no IndexedDB: localStorage)", r === "Not saved", r);
+  const r2 = await p.evaluate(async () => { for (let n = 0; n < 200; n++) localStorage.removeItem("junk" + n); await save({ name: "room now" }, "rename"); return [document.querySelector("#status").textContent, JSON.parse(localStorage.getItem("kurve.p." + S.pid)).cols.find(c => c.role === "y").data.length]; });
+  check("the next save that fits writes the change that did not", r2[0] !== "Not saved" && r2[1] === 80000, r2.join(" "));
+  const ids = await p.evaluate(async () => { const [a, b] = await Promise.all([LocalStore.create(blankProject("one")), LocalStore.create(blankProject("two"))]); return a === b; });
+  check("two projects made in one millisecond get two ids", !ids);
+  check("no IndexedDB: the store is localStorage", await p.evaluate(() => S.store === LocalStore));
+}, { name: "full store", noIdb: true });
+await page(async p => {
+  await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith("kurve.")) localStorage.removeItem(k);
+    localStorage.setItem("kurve.v1", JSON.stringify({ projects: { pa: { name: "Old A", v: 4, cols: [] } }, comments: { pa: { c1: { text: "old", t: 1 } } } }));
+    localStorage.setItem("kurve.layout", JSON.stringify({ v: 3, z: 5, wins: { sheet: { g: [null, "a", -5, 1e9], open: true, z: 3 } } })); });
+  await p.reload(); await ready(p);
+  const r = await p.evaluate(async () => ({ keys: Object.keys(localStorage).filter(k => /^kurve\.(p|c)\.|^kurve\.v1$/.test(k)).sort().join(","), h: document.querySelector("#w-sheet").getBoundingClientRect().height,
+    name: S.projects.map(q => q.name).join(","), c: ((await new Promise(r => { const tx = IdbStore.db.transaction("comments"); const q = tx.objectStore("comments").get("pa"); q.onsuccess = () => r(q.result); })) || {}).c1 }));
+  check("the single store of earlier versions moves into IndexedDB, and leaves localStorage", r.keys === "" && /Old A/.test(r.name) && r.c && r.c.text === "old", JSON.stringify(r));
+  check("a corrupt saved layout is put back where a window starts", r.h > 100 && r.h < 2000, r.h);
+}, { name: "earlier versions" });
+
+console.log("Data as documents write it");
+await page(async p => {
+  const r = await p.evaluate(() => { const a = analyzeFile("x,y\n1,−0.5\n2,−1.25\n3,0.75\n4,−2\n5,1\n6,−3\n");
+    const b = analyzeFile("x;y\n1;1 234,5\n2;2 345,5\n3;3 456,5\n4;4 567,5\n");
+    return [a.rows.length, b.rows.length, parseNum("−5"), parseNum("0x10")]; });
+  check("typographic minus signs and no-break thousands import every row", r[0] === 6 && r[1] === 4, r.join(" "));
+  check("a minus sign typed in a cell is a number, hex is not", r[2] === -5 && r[3] === null, r.slice(2).join(" "));
+  const names = await p.evaluate(async () => { const out = []; window.saveFile = async n => { out.push(n); return true; };
+    for (const nm of ["日本語データ", "Δ-spectrum α/β", "<<<>>>"]) { const g = gauss(30, 5, 1, 1, 0, 0.3, 0); await mkSpec("s", g.x, g.y, { proj: nm }); await exportCsv(); } return out; });
+  check("file names keep any script, and never start with a dot", names[0] === "日本語データ.csv" && /^Δ-spectrum/.test(names[1]) && names[2] === "kurve.csv", names.join(" | "));
+  const ser = await p.evaluate(() => metaSeries(["23:50", "23:55", "00:00", "00:05"].map(t => ({ meta: { T: t } })), "T").vals.join(","));
+  check("times of day across midnight stay in order", ser === "0,5,10,15", ser);
+}, { name: "data" });
+
+console.log("Holding, many spectra, long names");
+await page(async p => {
+  await p.evaluate(async () => { await loadExample("raman"); addAnno({ t: "text", x: 510, y: 2000, text: "hold me" }); }); await p.waitForTimeout(300);
+  const el = await p.$("#plot [data-anno]"), b = await el.boundingBox();
+  await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await p.mouse.down(); await p.mouse.move(b.x + 60, b.y + 40, { steps: 5 });
+  await p.keyboard.press("Control+z"); await p.mouse.move(b.x + 90, b.y + 60, { steps: 3 }); await p.mouse.up(); await p.waitForTimeout(300);
+  const r = await p.evaluate(() => ({ n: (P().annos || []).length, redo: redoStack.length }));
+  check("undo waits while a label is held, so letting go cannot bring back what it undid", r.n === 1 && r.redo === 0, JSON.stringify(r));
+}, { name: "undo while holding" });
+await page(async p => {
+  await p.evaluate(async () => { const items = []; for (let k = 0; k < 300; k++) { const g = gauss(200, 40 + k % 30, 4, 100 + k, 0, 0.45, 3); items.push({ fname: `s${k}.csv`, name: `S${k}`, x: g.x, y: g.y, e: null, xn: "x", xu: "", yu: "", n: 200, x0: 0, x1: 90, meta: {} }); } await doBatchImport(items, [], { into: "here", graphs: "one", src: "test" }); });
+  await p.waitForTimeout(1000);
+  const ms = await p.evaluate(() => { ["sheet", "flow", "stats"].forEach(id => openWin(id, { render: true })); const a = performance.now(); save({ name: "x" }, null); return performance.now() - a; });
+  check("a save with 300 spectra and the Statistics window open takes under 4 s", ms < 4000, Math.round(ms) + " ms");
+  check("the correlation table is one column past a dozen spectra", await p.evaluate(() => document.querySelectorAll("#pane-stats table.corr td").length < 1000));
+  const t = await p.evaluate(() => { const a = performance.now(); pushUndo("t"); return performance.now() - a; });
+  check("an undo step does not copy the recorded data", t < 50, t.toFixed(1) + " ms");
+}, { name: "many spectra", timeout: 120000 });
+await page(async p => {
+  // 200 000 points: drawn as the screen can show them, every point kept in an export.
+  await p.evaluate(async (N) => { const x = [], y = []; let s = 7; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+    for (let i = 0; i < N; i++) { const v = 400 + i * (3600 / N); x.push(+v.toFixed(4)); y.push(+(0.2 + 5 * Math.exp(-(((v - 1600) / 4) ** 2)) + 0.05 * r()).toFixed(5)); }
+    await mkSpec("big", x, y, { xn: "Wavenumber" }); }, 200000);
+  await p.waitForTimeout(500);
+  const r = await p.evaluate(() => { const t = k => { const a = performance.now(); k(); return performance.now() - a; };
+    renderPlot(); const draw = t(() => renderPlot()), d = Math.max(...[...document.querySelectorAll("#plot path")].map(e => (e.getAttribute("d") || "").length));
+    const full = buildPlot(800, 500, EXPORT_PAL, true), fd = Math.max(...[...full.matchAll(/ d="([^"]*)"/g)].map(m => m[1].length));
+    const v = S.geo.v, zoom = t(() => { for (let i = 1; i <= 5; i++) { const k = 1 - i * 0.1, c = (v.x0 + v.x1) / 2; S.view = { x0: c - (c - v.x0) * k, x1: c + (v.x1 - c) * k, y0: v.y0, y1: v.y1, xu: v.xu || "" }; renderPlot(); } }) / 5;
+    S.view = null; renderPlot(); readerNear(300, 200, 30);
+    const hover = t(() => { for (let i = 0; i < 50; i++) { readerNear(200 + 8 * i, 220, 30); nearest(200 + 8 * i, 220, 12); } });
+    const smooth = t(() => runPipe(rawSeries(activeYCol()), [{ id: "t1", op: "smooth", on: true, p: Object.assign({}, PIPE_OPS.smooth.defaults) }], {}));
+    return { draw, zoom, d, fd, hover, smooth }; });
+  check("200 000 points draw in under 150 ms, and a zoom step too", r.draw < 150 && r.zoom < 150, JSON.stringify(r));
+  check("the graph on screen is what the screen can show, not every point", r.d < 300000, r.d);
+  check("an export keeps every point", r.fd > 10 * r.d, r.fd + " against " + r.d);
+  check("50 pointer moves find the nearest point in under 100 ms", r.hover < 100, r.hover.toFixed(1) + " ms");
+  check("smoothing 200 000 points takes under 2 s (its checks were quadratic)", r.smooth < 2000, Math.round(r.smooth) + " ms");
+  const st = await p.evaluate(() => { const c = activeYCol(), t = performance.now(); renderWs(); return performance.now() - t; });
+  check("the worksheet of 200 000 rows redraws in under 150 ms", st < 150, Math.round(st) + " ms");
+  const w = await p.evaluate(() => { const t = k => { const a = performance.now(); k(); return performance.now() - a; };
+    return { stats: t(() => openWin("stats", { render: true })), peaks: t(() => openPeakFinder()), found: (P().annos || []).filter(a => a.grp).length }; });
+  check("Statistics opens in under 2 s and the Peaks window finds the band in under 4 s (its candidates were compared pairwise)", w.stats < 2000 && w.peaks < 4000 && w.found >= 1, JSON.stringify(w));
+}, { name: "large data", timeout: 120000 });
+await page(async p => {
+  await p.evaluate(async () => { const g = gauss(100, 50, 5, 10, 0, 1, 0); await mkSpec("s", g.x, g.y); const c = activeYCol(); newGraphFrom([c.id]); save({ graphs: P().graphs.map(q => Object.assign({}, q, { name: "N".repeat(400) })) }, null); renderAll(); });
+  await p.waitForTimeout(500);
+  const r = await p.evaluate(() => [...document.querySelectorAll(".win.gwin")].map(w => { const h = w.querySelector(".win-h"), m = w.querySelector("[data-wmin]"); return h.scrollWidth <= h.clientWidth + 2 && m.getBoundingClientRect().right <= w.getBoundingClientRect().right + 1; }));
+  check("a long graph name leaves the title bar's buttons in reach", r.every(Boolean), r.join(","));
+}, { name: "long names" });
+
+console.log("Numbers");
+await page(async p => {
+  const r = await p.evaluate(() => { const f = lineFit([5, 5, 5], [1, 2, 3], [0.1, 0.2, 0.3]), g = lineFit([1e9, 1e9 + 1, 1e9 + 2], [1, 3, 5], null);
+    let deep; try { compileExpr("y=" + "(".repeat(300) + "a*x" + ")".repeat(300)); } catch (e) { deep = e.message; }
+    return { f, slope: g && g.b, deep }; });
+  check("no straight line through points that share one X", r.f === null, JSON.stringify(r.f));
+  check("a slope against values near 10^9 keeps its digits", Math.abs(r.slope - 2) < 1e-6, r.slope);
+  check("a formula nested 300 deep is refused in words", /nested more than 200 deep/.test(r.deep || ""), r.deep);
+}, { name: "numbers" });
+
+console.log("Figures: breaks, a second axis, shapes, PDF and EPS");
+await page(async p => {
+  const g = await p.evaluate(() => gauss(800, 520, 6, 1000, 100, 1, 8));
+  await p.evaluate(async g => { await mkSpec("Si", g.x, g.y, { xn: "Raman shift" }); }, g); await p.waitForTimeout(200);
+  const r = {};
+  for (const [k, b] of Object.entries({ crossed: [[700, 300]], nan: [[NaN, 5]], text: [["a", "b"]], many: Array.from({ length: 30 }, (_, i) => [120 + i * 20, 125 + i * 20]), most: [[110, 890]], obj: { a: 1 } })) {
+    await p.evaluate(b => setAxisKeys("x", { brk: b }), b); await p.waitForTimeout(40);
+    r[k] = await p.evaluate(() => S.geo.sx.gaps.length);
+  }
+  check("breaks read from storage as they come: crossed ends, NaN, text, too many, nearly all the axis", r.crossed === 1 && r.nan === 0 && r.text === 0 && r.many === 8 && r.most === 0 && r.obj === 0, JSON.stringify(r));
+  await p.evaluate(() => setAxisKeys("x", { brk: [[300, 700]] })); await p.waitForTimeout(60);
+  const inv = await p.evaluate(() => [200, 750, 880].map(x => Math.abs(toData(S.geo.X(x), S.geo.T + 5).x - x)));
+  check("a broken axis maps back to data on both sides of the gap", inv.every(d => d < 1e-6), inv);
+  const t = await p.evaluate(() => [...document.querySelectorAll("#plot text")].filter(t => +t.getAttribute("y") > S.geo.T + S.geo.mh).map(t => parseFloat(t.textContent)).filter(v => v > 300 && v < 700));
+  check("no tick sits in a gap", !t.length, t);
+}, { name: "breaks" });
+await page(async p => {
+  const g = await p.evaluate(() => gauss(800, 520, 6, 1000, 100, 1, 8));
+  await p.evaluate(async g => { await mkSpec("Si", g.x, g.y, { xn: "Raman shift" }); }, g); await p.waitForTimeout(200);
+  const err = {};
+  for (const [k, a] of Object.entries({ pole: { conv: "expr", f: "1/(x-500)" }, flat: { conv: "expr", f: "5" }, param: { conv: "expr", f: "k*x" }, laser: { conv: "nm", from: "raman", laser: 0 }, slope0: { conv: "lin", a: 0 } })) {
+    await p.evaluate(a => setAxisKeys("x2", Object.assign({ on: true, f: null, a: null, laser: null, from: null }, a)), a); await p.waitForTimeout(40);
+    err[k] = await p.evaluate(() => ({ e: S.geo.x2err || "", n: document.querySelectorAll('#plot [data-axis="x2"]').length }));
+  }
+  check("a second axis that cannot be numbered says why in words, and is not drawn", Object.values(err).every(q => q.e.length > 10 && !q.n), JSON.stringify(err));
+  // 1/x over a wide range: numbers where the axis has those values
+  await p.evaluate(() => setAxisKeys("x2", { on: true, conv: "expr", f: "1e7/x", a: null, laser: null, from: null })); await p.waitForTimeout(60);
+  const off = await p.evaluate(() => [...document.querySelectorAll("#plot text")].filter(t => +t.getAttribute("y") < S.geo.T - 2 && +t.getAttribute("y") > 0 && !t.dataset.axtitle)
+    .map(t => { const sp = t.querySelector("tspan"), head = t.firstChild ? t.firstChild.nodeValue : "", v = sp ? (/×/.test(head) ? parseFloat(head) : 1) * 10 ** +sp.textContent : parseFloat(t.textContent), x = toData(+t.getAttribute("x"), S.geo.T).x; return Math.abs(1e7 / x - v) / v; }));
+  check("a curved second axis puts each number where the first has that value", off.length >= 4 && off.every(d => d < 2e-3), off.map(d => d.toExponential(1)).join(" "));
+}, { name: "second axis" });
+await page(async p => {
+  const g = await p.evaluate(() => gauss(800, 520, 6, 1000, 100, 1, 8));
+  await p.evaluate(async g => { await mkSpec("Si", g.x, g.y, { xn: "Raman shift" }); }, g); await p.waitForTimeout(200);
+  await p.evaluate(() => { addAnno({ t: "rect", x: 500, y: 500, x2: 500, y2: 500 }); addAnno({ t: "ellipse", pin: "plot", fx: -3, fy: -3, fx2: 5, fy2: 5, fill: "#ff0000", text: "光谱" });
+    setPlotKey("title", "Spectre d'été, cm^{-1}, \\alpha"); setAxisKeys("x", { brk: [[300, 400]] }); setAxisKeys("x2", { on: true, conv: "lin", a: 2, b: 0, f: null }); });
+  const r = await p.evaluate(async () => { const out = {};
+    for (const kind of ["pdf", "eps"]) { const res = await svgToVector(buildPlot(700, 460, EXPORT_PAL, true), { kind, title: "Été", wPt: 240.945, hPt: 170.079 }); const b = new Uint8Array(await res.blob.arrayBuffer()); let s = ""; for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); out[kind] = { s, miss: res.miss }; }
+    return out; });
+  const pdf = r.pdf.s, sx = +pdf.match(/startxref\n(\d+)/)[1], n = +pdf.slice(sx).match(/xref\n0 (\d+)/)[1], tab = pdf.slice(sx).split("\n").slice(2, 2 + n);
+  const offsOk = tab.slice(1).every((ln, i) => pdf.startsWith(`${i + 1} 0 obj`, +ln.slice(0, 10)));
+  check("a PDF's cross-reference table points at every object", pdf.startsWith("%PDF-1.4") && offsOk && /%%EOF\n$/.test(pdf), `objects ${n - 1}`);
+  check("a PDF has the size asked for, in points", /MediaBox \[0 0 240\.945 170\.079\]/.test(pdf));
+  check("an EPS says its bounding box and ends its page", /^%!PS-Adobe-3\.0 EPSF-3\.0\n%%BoundingBox: 0 0 241 171/.test(r.eps.s) && /showpage\n%%EOF\n$/.test(r.eps.s));
+  check("characters the standard fonts lack are named, not dropped in silence", r.pdf.miss.join("") === "光谱" && r.eps.miss.join("") === "光谱", r.pdf.miss.join(","));
+  check("Greek letters go to the Symbol font", /\/BaseFont \/Symbol/.test(pdf));
+  const x = await p.evaluate(() => { setAxisKeys("y", { title: "$\\frac{\\mathrm{d}I}{\\mathrm{d}V}$ PER_{log_{10}}" }); savePlot({ legend: "tr" }); setSeriesStyle(activeYCol().id, { label: "$\\sqrt{x^2_i}$" });
+    const svg = buildPlot(700, 460, EXPORT_PAL, true), doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+    return { bad: !!doc.querySelector("parsererror"), typeset: doc.querySelectorAll("g[data-rt]").length }; });
+  check("a figure with LaTeX in it is well-formed XML, as PDF, EPS and PNG need", !x.bad && x.typeset >= 3, JSON.stringify(x));
+}, { name: "pdf and eps" });
+await page(async p => {
+  const g = await p.evaluate(() => gauss(300, 150, 6, 10, 100, 1, 0));
+  await p.evaluate(async g => { await mkSpec("A", g.x, g.y); }, g); await p.waitForTimeout(200);
+  await p.evaluate(() => { localStorage.setItem("kurve.formats", '[null,1,"x",{"id":"a"},{"id":"b","name":"ok","fmt":{"frame":"l","ax":null}}]'); save({ formats: [null, { id: "z" }, { id: "q", name: "Q", fmt: 5 }, { id: "r", name: "R", fmt: { ax: { x: { ticks: "out" } }, txt: null } }] }); });
+  await p.reload(); await ready(p);
+  const r = await p.evaluate(() => { const out = { proj: projFormats().map(f => f.name), lib: fmtLib().map(f => f.name) }; allFormats().forEach(f => useFormat(f, false)); return out; });
+  check("broken formats in the store and in the project are left out, the good ones kept", r.proj.join() === "R" && r.lib.join() === "ok", JSON.stringify(r));
+}, { name: "formats" });
+
+console.log("Graphs come and go");
+await page(async p => {
+  const wait = ms => p.waitForTimeout(ms);
+  const st = () => p.evaluate(() => ({ gid: S.gid, act: (activeYCol() || {}).name, gs: (P().graphs || []).map(g => ({ id: g.id, cols: g.cols.map(k => colById(k).name), shut: !!g.plot.shut })), live: $("#gPane").parentElement.id }));
+  await p.evaluate(async () => { await createProject(blankProject("No graph"), "test"); }); await wait(300);
+  let r = await st();
+  check("a new project has no graph, and the live graph waits off the desk", r.gs.length === 0 && r.gid === null && r.live === "gPark", JSON.stringify(r));
+  const g = await p.evaluate(() => gauss(200, 150, 6, 10, 100, 1, 0));
+  await p.evaluate(async g => { await mkSpec("A", g.x, g.y); }, g); await wait(200);
+  const ids = await p.evaluate(() => { const a = activeYCol().id, c2 = Object.assign(makeCol("y", "B", "", activeYCol().data.map(v => v * 2)), { pipe: [], mask: [] });
+    save({ cols: P().cols.concat([c2]) }); plotCols([c2.id], {}); return [a, c2.id]; }); await wait(200);
+  r = await st(); const g1 = r.gs[0].id;
+  check("plotting one column, then another, makes a graph for each", r.gs.length === 2 && r.gs[0].cols.join() === "A" && r.gs[1].cols.join() === "B", JSON.stringify(r));
+  /* a comment on the first graph's box, and its folder */
+  await p.evaluate(g1 => { S.cDrafts = S.cDrafts || {}; S.cDrafts["node:graph:" + g1] = "About the first graph"; postNodeComment("graph:" + g1);
+    const t = treeOf(P()); t.folders.push({ id: "fo", name: "Old", parent: null }); t.at["g:" + g1] = "fo"; saveTree(t, null, { noUndo: true }); }, g1); await wait(300);
+  const th = () => p.evaluate(() => (S.comments || []).filter(c => c.anchor && c.anchor.type === "node").map(c => ({ key: c.anchor.key, lab: nodeLabel(c.anchor) })));
+  await p.evaluate(g1 => deleteGraph(g1), g1); await wait(300);
+  r = await st();
+  check("the first graph is deleted like any other: gone from the project", r.gs.length === 1 && !r.gs.some(q => q.id === g1) && r.gid === r.gs[0].id, JSON.stringify(r));
+  await p.evaluate(a => plotCols([a], {}), ids[0]); await wait(300);
+  r = await st(); const t1 = await th(), g4 = r.gs[r.gs.length - 1].id;
+  check("the next graph has an id of its own, and none of the deleted one's comments", g4 !== g1 && t1.length === 1 && t1[0].key === "graph:" + g1 && /since removed/.test(t1[0].lab), JSON.stringify([r, t1]));
+  check("nor its place in the Explorer", await p.evaluate(g4 => !(treeOf(P()).at || {})["g:" + g4], g4), "");
+  await p.evaluate(() => { undo(); undo(); }); await wait(300);
+  const at = await p.evaluate(g1 => treeOf(P()).at["g:" + g1] || null, g1), t2 = await th();
+  check("undoing the deletion gives both back", at === "fo" && t2.length === 1 && !/since removed/.test(t2[0].lab), JSON.stringify([at, t2]));
+  /* the bugs reported: a curve taken off a graph of two */
+  await p.evaluate(ids => plotCols(ids, {}), ids); await wait(300);
+  r = await st(); const g3 = r.gid;
+  await p.evaluate(a => { setActiveCol(a, true); toggleColVis(a); }, ids[0]); await wait(300);
+  r = await st();
+  check("taking the analysed curve off a graph of two keeps that graph in front, the other analysed", r.gid === g3 && r.act === "B" && r.gs.find(q => q.id === g3).cols.join() === "B", JSON.stringify(r));
+  await p.evaluate(b => toggleColVis(b), ids[1]); await wait(300);
+  r = await st();
+  check("a graph's last curve stays: the graph is deleted, not emptied", r.gs.find(q => q.id === g3).cols.join() === "B", JSON.stringify(r));
+  await p.evaluate(g3 => closeGraph(g3), g3); await wait(300);
+  await p.evaluate(() => { for (const g of P().graphs.slice()) if (!g.plot.shut) closeGraph(g.id); }); await wait(300);
+  const n0 = (await st()).gs.length;
+  await p.evaluate(a => toggleColVis(a), ids[0]); await wait(300);
+  r = await st();
+  check("with the graphs closed, showing a column plots it on a graph of its own, not beside a closed graph's curves", r.gs.length === n0 + 1 && r.gs[r.gs.length - 1].cols.join() === "A" && r.gs.find(q => q.id === g3).cols.join() === "B", JSON.stringify(r));
+  await p.evaluate(() => { for (const g of P().graphs.slice()) deleteGraph(g.id); }); await wait(300);
+  r = await st();
+  check("every graph deleted leaves a project with none, the worksheet on the desk", r.gs.length === 0 && r.live === "gPark" && await p.evaluate(() => winOpen("sheet")), JSON.stringify(r));
+}, { name: "graphs come and go" });
+
+console.log("Sheets");
+await page(async p => {
+  const wait = ms => p.waitForTimeout(ms);
+  const g = await p.evaluate(() => gauss(40, 20, 3, 5, 0, 1, 0));
+  await p.evaluate(async g => { await mkSpec("A", g.x, g.y); }, g); await wait(200);
+  let r = await p.evaluate(() => ({ n: sheetList().length, saved: Array.isArray(P().sheets), on: sheetCols().map(c => c.name) }));
+  check("a project from before sheets has one, and nothing records it", r.n === 1 && !r.saved && r.on.join() === "X,A", JSON.stringify(r));
+  r = await p.evaluate(() => { const q = { sheets: [{ id: "a", name: "One" }, { id: "a", name: "Dup" }, null, { name: "no id" }, { id: "b", name: 7 }] }; normalize(Object.assign(P(), q)); const s1 = sheetList().map(s => s.id + ":" + s.name).join(); P().sheets = "junk"; normalize(P()); const s2 = P().sheets; return { s1, s2, on: sheetCols().map(c => c.name).join() }; });
+  check("sheets read from storage in a broken form are cleaned, and columns naming none are on the first", r.s1 === "a:One,b:7" && r.s2 === null && r.on === "X,A", JSON.stringify(r));
+  await p.evaluate(() => { newSheet(); }); await wait(200);
+  r = await p.evaluate(() => { const [a, b] = sheetList(); moveSheet(b.id, -1); return { order: sheetList().map(s => s.name).join(), first: sheetCols(sheetList()[1].id).map(c => c.name).join() }; }); await wait(200);
+  check("a sheet moved first keeps its columns, and the old first sheet its own", r.order === "Sheet 2,Sheet 1" && r.first === "X,A", JSON.stringify(r));
+  r = await p.evaluate(() => { const s1 = sheetList().find(s => s.name === "Sheet 1").id; showSheet(s1, { quiet: true }); wsHideRows([3, 4]); const s2 = sheetList().find(s => s.name === "Sheet 2").id; showSheet(s2, { quiet: true }); const h2 = wsHideOf(P()).rows.slice(); wsHideRows([1]); showSheet(s1, { quiet: true }); return { h1: wsHideOf(P()).rows.join(), h2: h2.join() }; }); await wait(200);
+  check("hidden rows are each sheet's own", r.h1 === "3,4" && r.h2 === "", JSON.stringify(r));
+  r = await p.evaluate(async () => { const ids = sheetList().map(s => s.id); await deleteSheet(ids.find(i => sheetCols(i).every(c => !c.data.some(v => v != null)))); const n = sheetList().length; await deleteSheet(sheetList()[0].id); return { n, after: sheetList().length }; }); await wait(300);
+  check("an empty sheet is deleted at once, and the last sheet stays", r.n === 1 && r.after === 1, JSON.stringify(r));
+  r = await p.evaluate(() => { P().wsHide = { cols: [], rows: [2] }; return wsHideOf(P()).rows.join(); });
+  check("hidden rows kept before sheets are the first sheet's", r === "2", r);
+}, { name: "sheets" });
+
+console.log("A curve fit held to one iteration, a tolerance of zero, starting values it cannot use");
+await page(async p => {
+  const g = await p.evaluate(() => { const x=[], y=[]; for(let i=0;i<120;i++){ x.push(i*0.1); y.push(1+4*Math.exp(-i*0.1/1.7)+0.01*Math.sin(i)); } return {x,y}; });
+  await p.evaluate(async g => { await mkSpec("decay", g.x, g.y); }, g); await p.waitForTimeout(200);
+  const r = await p.evaluate(() => { S.fitMode="curve"; showTab("fit"); const d=ensureDraft(); d.model="expdec"; d.fn=null; d.fixed=null; guessDraft();
+    d.init=[0,1,0]; stepFit(); const bad=S.fitError||"";
+    d.init=[0,1,1]; S.fitError=""; d.ctl={maxIter:1,tol:0}; runFit(); const f=P().fit;
+    return { bad, iter:f&&f.stats.iter, conv:f&&f.stats.converged, nan:/NaN|Infinity/.test(document.querySelector("#plot").innerHTML), run:!!S.fitRun }; });
+  check("one iteration from starting values the model cannot use says so in words", /can't be evaluated/.test(r.bad), r.bad);
+  check("a fit held to one iteration stops after one, unsettled, and draws no NaN", r.iter===1 && r.conv===false && !r.nan && !r.run, JSON.stringify(r));
+  const L = await p.evaluate(() => { const d=S.draft, out={}; d.ctl=null; S.fitError="";
+    // a strict lowest value right at the start, where the model cannot be evaluated
+    d.init=[0,1,0]; d.lim={lo:[null,null,0],hi:[null,null,null],slo:[false,false,true],shi:[false,false,false]}; runFit();
+    out.strict={err:S.fitError||"", t:P().fit&&P().fit.params[2], nan:/NaN|Infinity/.test(document.querySelector("#plot").innerHTML)};
+    // every parameter held by equal limits
+    S.fitError=""; d.init=[1,4,1.7]; d.lim={lo:[1,4,1.7],hi:[1,4,1.7],slo:[false,false,false],shi:[false,false,false]}; runFit(); out.held=S.fitError||"";
+    // crossed limits, as storage might hand them back
+    S.fitError=""; d.lim={lo:[null,5,null],hi:[null,1,null],slo:[],shi:"x"}; runFit(); out.crossed=S.fitError||"";
+    S.fitError=""; d.lim={lo:"junk",hi:null}; renderFit(); runFit(); out.junk={err:S.fitError||"", ok:!!(P().fit&&P().fit.params.every(Number.isFinite))};
+    return out; });
+  check("a strict limit right at the start: the fit starts just inside it, and draws no NaN", (L.strict.t>0 || /words|evaluated|fixed|points/.test(L.strict.err)) && !L.strict.nan, JSON.stringify(L.strict));
+  check("every parameter held by equal limits is refused in words", /Every parameter is fixed/.test(L.held), L.held);
+  check("crossed limits from storage are refused in words, not fitted", /above its highest/.test(L.crossed), L.crossed);
+  check("limits of the wrong shape are taken as none", !L.junk.err && L.junk.ok, JSON.stringify(L.junk));
+}, { name: "fit control" });
+
+console.log("The curve fit's models: fits from before, a model that is gone, X a model cannot take, a broken function in the list");
+await page(async p => {
+  const g = await p.evaluate(() => { const x=[], y=[]; for(let i=0;i<60;i++){ const t=-3+i*0.1; x.push(t); y.push(1+0.5*t-0.2*t*t); } return {x,y}; });
+  await p.evaluate(async g => { await mkSpec("parabola", g.x, g.y); }, g); await p.waitForTimeout(200);
+  let r = await p.evaluate(() => { const c=activeYCol(), base={onCol:c.id,onColName:c.name,maskSig:maskSig(c),pipeSig:pipeSig(c),stats:{n:60,dof:57,R2:1,redChi2:0,converged:true,iter:1},at:Date.now()};
+    // a fit made before slice 3: poly2 with parameters a, b, c, stored by id
+    const fit=Object.assign({model:"poly2",params:[1,0.5,-0.2],errors:[0,0,0],cov:[[0,0,0],[0,0,0],[0,0,0]],fixed:[false,false,false]},base);
+    save({fit}); renderAll(); const rows=paramRows(P().fit).map(q=>q.label).join(), nan=/NaN|Infinity/.test(document.querySelector("#plot").innerHTML);
+    // a fit naming a model this version does not have
+    save({fit:Object.assign({},fit,{model:"expdec9"})}); let err=""; try{ renderAll(); renderResults(); }catch(e){ err=e.message; }
+    return { rows, nan, err, gone:fitModel(P().fit)===null }; });
+  check("a fit stored as poly2 before still reads, as a polynomial of order 2, and draws no NaN", r.rows === "a0,a1,a2" && !r.nan, JSON.stringify(r));
+  check("a fit naming a model that is gone is left out, nothing throws", r.gone && !r.err, JSON.stringify(r));
+  r = await p.evaluate(() => { save({fit:null}); S.fitMode="curve"; showTab("fit"); const out={bad:[], power:"", fail:""};
+    // every model's guess on X from -3 to 3 (through zero): finite starts, no throw
+    for(const id of Object.keys(MODELS)){ try{ chooseModel(id); if(!S.draft.init.every(Number.isFinite)) out.bad.push(id); }catch(e){ out.bad.push(id+": "+e.message); } }
+    chooseModel("power"); S.fitError=""; runFit(); out.power=S.fitError; out.saved=!!P().fit;
+    const t=Object.assign({},{kind:"curve",model:"logarithm",fixed:[false,false],xu:finalOf(activeYCol()).xu||"",weighted:false}); const o=fitOne(activeYCol(),t,[0,1],null); out.fail=o.fail||"";
+    return out; });
+  check("every model's guess gives finite starts on X through 0", !r.bad.length, r.bad.join("; "));
+  check("a power law over X through 0 is refused in words and nothing is saved", /needs X above 0/.test(r.power) && !r.saved, JSON.stringify(r));
+  check("a fit of every column with a logarithm over X through 0 says why that column failed", /needs X above 0/.test(r.fail), r.fail);
+  r = await p.evaluate(() => { P().userFns=[{id:"bad",name:"Broken",expr:"y = (x +",params:[]},{id:"ok",name:"Mine",expr:"y = a*x",params:[]}]; save({userFns:P().userFns});
+    let err=""; try{ renderFit(); document.querySelector("#model").click(); }catch(e){ err=e.message; }
+    const rows=[...document.querySelectorAll(".mpick .mp-i")].map(b=>b.dataset.mid);
+    const q=document.querySelector(".mpick input[type=search]"); let err2=""; try{ q.value="(["; q.dispatchEvent(new Event("input")); }catch(e){ err2=e.message; }
+    const shown=[...document.querySelectorAll(".mpick .mp-i")].filter(b=>!b.hidden).length; closeFontPicker();
+    return { err, err2, mine:rows.includes("u:ok"), broken:rows.includes("u:bad"), n:rows.length, shown }; });
+  check("a function that does not compile is left out of the list, the others shown", !r.err && r.mine && !r.broken && r.n === 26, JSON.stringify(r));
+  check("a search of brackets finds nothing and throws nothing", !r.err2 && r.shown === 0, JSON.stringify(r));
+}, { name: "models" });
+
+console.log("Confidence levels and residuals: junk from storage, no degrees of freedom, two points");
+await page(async p => {
+  const g = await p.evaluate(() => { const x=[], y=[]; for(let i=0;i<40;i++){ x.push(i*0.5); y.push(2+0.7*i*0.5+0.1*Math.sin(i*1.7)); } return {x,y}; });
+  await p.evaluate(async g => { await mkSpec("line", g.x, g.y); }, g); await p.waitForTimeout(200);
+  let r = await p.evaluate(() => { S.fitMode="curve"; showTab("fit"); chooseModel("linear"); runFit(); const f=P().fit, out={};
+    out.lev=["x",2,-1,null,0,1,"0.9"].map(c=>confPct(confOf(Object.assign({},f,{conf:c}))));
+    // A fit from before slice 4: no level, intervals at 95%.
+    const old=Object.assign({},f); delete old.conf; out.oldCi=JSON.stringify(ciOf(old,1))===JSON.stringify(ciOf(f,1));
+    save({fit:Object.assign({},f,{conf:"junk"})}); let err=""; try{ showDrawer("res"); renderResults(); renderPlot(); }catch(e){ err=e.message; }
+    out.err=err; out.head=paramTableHtml(P().fit,true);
+    savePlot({residKind:"bogus",resid:true}); let err2=""; try{ renderPlot(); renderResults(); }catch(e){ err2=e.message; } out.err2=err2; out.kind=resKind();
+    out.nan=/NaN|Infinity/.test(document.querySelector("#plot").innerHTML+document.querySelector("#pane-res").innerHTML);
+    return out; });
+  check("a level that is not one from storage reads as 95%; 0.9 reads as 90%", JSON.stringify(r.lev) === JSON.stringify(["95","95","95","95","95","95","90"]), JSON.stringify(r.lev));
+  check("a fit from before has its intervals at 95%", r.oldCi);
+  check("junk for a level and for the residuals' kind draws, without NaN", !r.err && !r.err2 && r.head.includes("95% interval") && r.kind === "raw" && !r.nan, JSON.stringify(r));
+  r = await p.evaluate(() => { const f=P().fit, out={};
+    // Every parameter fixed: no free parameter, nothing to invert.
+    const fx=Object.assign({},f,{fixed:[true,true],at:f.at+1}); let e1=""; try{ const D=fitDiag(fx); out.fx=D?{m:D.m,h:D.h.every(v=>v===0),lim:D.out.lim}:null; diagHtml(fx); }catch(e){ e1=e.message; } out.e1=e1;
+    // Two points: no degrees of freedom left for s, nor for an outlier limit.
+    const rs=residualStats((x,p)=>p[0]+p[1]*x,[0,1],[1,3],null,[1,2],[true,true]); out.two={s:rs.s,lim:outliersOf(rs,0.95).lim,idx:outliersOf(rs,0.95).idx.length};
+    const D0=fitDiag(f); out.n0=D0.n;
+    return out; });
+  check("every parameter fixed: no leverage, the analysis still made, nothing thrown", !r.e1 && r.fx && r.fx.m === 0 && r.fx.h, JSON.stringify(r));
+  check("two points and two parameters: no scatter, no outlier limit, no outlier", Number.isNaN(r.two.s) && Number.isNaN(r.two.lim) && r.two.idx === 0, JSON.stringify(r.two));
+  check("the analysis is of the points the fit used", r.n0 === 40, r.n0);
+}, { name: "conf and residuals" });
+
+console.log("The worksheet clicked where its cells are half out of view, and restored");
+await page(async p => {
+  await p.evaluate(() => { Object.keys(WINS).forEach(id=>{ if(id!=="sheet"&&!isDoc(id)) closeWin(id); }); openWin("sheet",{render:true}); focusWin("sheet"); wsSelect(0,0,false);
+    wsPasteText(Array.from({length:300},(_,i)=>Array.from({length:20},(_,j)=>i*20+j).join("\t")).join("\n")); });
+  await p.waitForTimeout(400);
+  // Scroll so that a cell is cut by 8 px at the bottom and 42 px at the right (its centre 8 px in, clear of
+  // the window's resize edge): a first
+  // press scrolls it into view, which puts the second press on its fill handle.
+  const c = await p.evaluate(async () => { const box=$("#ws"), rowH=S.ws.rowH, frame=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+    const edges=()=>{ const b=box.getBoundingClientRect(); return {right:b.left+box.clientWidth, bottom:b.top+box.clientHeight}; };
+    const cut=()=>{ const e=edges(); return [...box.querySelectorAll("td[data-ci][data-r]")].filter(td=>+td.dataset.r>=0).map(td=>({td,r:td.getBoundingClientRect()})).find(o=>o.r.bottom>e.bottom&&o.r.top<e.bottom&&o.r.right>e.right&&o.r.left<e.right); };
+    box.scrollTop=40*rowH; box.scrollLeft=300; await frame();
+    let o=cut(), e=edges(); if(!o) return null;
+    box.scrollTop+=(((o.r.bottom-e.bottom)-8)%rowH+rowH)%rowH; box.scrollLeft+=(((o.r.right-e.right)-42)%100+100)%100; await frame();
+    o=cut(); e=edges(); if(!o) return null;
+    return {r:+o.td.dataset.r, c:+o.td.dataset.ci, x:o.r.left+o.r.width/2, y:o.r.top+o.r.height/2, cutY:Math.round(o.r.bottom-e.bottom), cutX:Math.round(o.r.right-e.right), data:JSON.stringify(sheetCols().map(q=>q.data))}; });
+  check("a cell cut by both edges of the view, to double-click", !!c && c.cutY === 8 && c.cutX === 42, JSON.stringify(c && { cutY: c.cutY, cutX: c.cutX }));
+  if (!c) return;
+  await p.mouse.dblclick(c.x, c.y); await p.waitForTimeout(100);
+  const r = await p.evaluate(() => ({ edit: S.ws.edit ? [S.ws.edit.r, S.ws.edit.c] : null, data: JSON.stringify(sheetCols().map(q=>q.data)) }));
+  check("a double click on it opens that cell, though the first press scrolled it", JSON.stringify(r.edit) === JSON.stringify([c.r, c.c]), JSON.stringify(r.edit) + " wanted " + JSON.stringify([c.r, c.c]));
+  check("and fills nothing down", r.data === c.data);
+  await p.keyboard.press("Control+A"); await p.keyboard.type("-1"); await p.keyboard.press("Enter"); await p.waitForTimeout(100);
+  check("what is typed goes into it", (await p.evaluate(([r, c]) => sheetCols()[c].data[r], [c.r, c.c])) === -1);
+  // Minimised and restored from its taskbar button, the worksheet takes the keys.
+  await p.evaluate(() => { wsSelect(2, 1, false); minimiseWin("sheet"); }); await p.waitForTimeout(300);
+  await p.click('#taskbar .tk[data-tk="sheet"]'); await p.waitForTimeout(30);
+  await p.keyboard.type("4242"); await p.keyboard.press("Enter"); await p.waitForTimeout(100);
+  check("restored from the taskbar, typing at once goes into the active cell", (await p.evaluate(() => sheetCols()[1].data[2])) === 4242, await p.evaluate(() => [sheetCols()[1].data[2], document.activeElement && (document.activeElement.id || document.activeElement.tagName)]));
+}, { name: "worksheet clicks" });
+
+console.log("A sheet of 600 columns (roadmap 9, slice 2): only the columns in view are drawn");
+await page(async p => {
+  const t = await p.evaluate(() => { prefSet("anim", false); applyAnim(); Object.keys(WINS).forEach(id=>{ if(id!=="sheet"&&!isDoc(id)) closeWin(id); }); openWin("sheet",{render:true}); focusWin("sheet");
+    const N=600, M=2000, sid=curSheet(), cols=[makeCol("x","X","",Array.from({length:M},(_,i)=>i))];
+    for(let k=1;k<N;k++) cols.push(makeCol("y","C"+k,"",Array.from({length:M},(_,i)=>Math.round(Math.sin(i/30+k)*1000)/10)));
+    cols.forEach(c=>c.sheet=sid); const wsw={}; cols.forEach((c,k)=>{ if(k%7===3) wsw[c.id]=160; else if(k%11===5) wsw[c.id]=60; });
+    save({cols,wsw}); const t0=performance.now(); for(let i=0;i<3;i++) renderWs(); return {ms:(performance.now()-t0)/3};});
+  const n0 = await p.evaluate(() => ({ row: document.querySelectorAll('#ws tr.dr')[0].querySelectorAll("td[data-ci]").length, all: document.querySelectorAll("#ws td").length }));
+  check("a row draws only the columns about the view (not 600)", n0.row > 10 && n0.row < 60, JSON.stringify(n0));
+  check("…and the sheet is drawn in well under the 670 ms it took whole", t.ms < 300, Math.round(t.ms) + " ms");
+  // Wherever it is scrolled, each cell and each letter is the column that belongs at its place.
+  const frame = () => p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const at = f => p.evaluate(f => { const box=$("#ws"), m=S.wsm, total=WS_IDX+m.cols.reduce((a,q)=>a+q.w,0); box.scrollLeft=f*(total-box.clientWidth); box.dispatchEvent(new Event("scroll")); }, f);
+  const look = () => p.evaluate(() => { const box=$("#ws"), m=S.wsm, b=box.getBoundingClientRect(), tr=[...box.querySelectorAll("tr.dr")].find(r=>r.getBoundingClientRect().top>b.top+(S.ws.head||0)+2), hr=box.querySelector("tr.hr1");
+    const want=xt=>{ let x=WS_IDX; for(let i=0;i<m.cols.length;i++){ if(xt<x+m.cols[i].w) return i; x+=m.cols[i].w; } return -1; };
+    const bad=[]; for(let k=0;k<24;k++){ const x=Math.round(b.left+WS_IDX+4+k*(box.clientWidth-WS_IDX-40)/23)+0.5, w=want(x-b.left+box.scrollLeft), w2=want(x-b.left+box.scrollLeft-2), w3=want(x-b.left+box.scrollLeft+2); if(w2!==w||w3!==w) continue;
+      const td=document.elementFromPoint(x,tr.getBoundingClientRect().top+5), th=document.elementFromPoint(x,hr.getBoundingClientRect().top+5);
+      const c=td&&td.closest("td[data-ci]"), h=th&&th.closest("th[data-ch]"); if(!c||+c.dataset.ci!==w||!h||+h.dataset.ch!==w) bad.push([Math.round(x),w,c&&c.dataset.ci,h&&h.dataset.ch]); }
+    return {bad, sl:box.scrollLeft}; });
+  for (const f of [0.31, 0.5, 0.77, 1, 0]) { await at(f); await frame(); const r = await look(); check(`scrolled to ${Math.round(f * 100)} % across: every cell and letter in view is its own column`, !r.bad.length, JSON.stringify(r.bad.slice(0, 4))); }
+  // The keys: End goes to the last column, drawn there, and what is typed goes into it.
+  await p.locator('#ws td[data-r="3"][data-ci="1"]').click(); await p.keyboard.press("End"); await frame();
+  let r = await p.evaluate(() => { const box=$("#ws"), td=wsTd(S.ws.r,S.ws.c), b=box.getBoundingClientRect(), q=td&&td.getBoundingClientRect(); return { c: S.ws.c, shown: !!q && q.left>=b.left+WS_IDX-1 && q.right<=b.left+box.clientWidth+1 }; });
+  check("End: the last column, drawn and in view", r.c === 599 && r.shown, JSON.stringify(r));
+  await p.keyboard.type("77.5"); await p.keyboard.press("Enter"); await p.waitForTimeout(100);
+  check("…typed into", (await p.evaluate(() => sheetCols()[599].data[3])) === 77.5);
+  // A label typed far out, the sheet scrolled away while it is typed and back: the text waits, and is kept.
+  await p.keyboard.press("Home"); await frame();
+  await p.evaluate(() => { wsSelect(-4, 300, false); wsBeginEdit("Far", "edit"); }); await frame();
+  await at(0); await frame();
+  r = await p.evaluate(() => ({ edit: S.ws.edit && S.ws.edit.val, drawn: !!wsTd(-4, 300), keys: document.activeElement === $("#ws") }));
+  check("a long name being typed waits while its column is scrolled away, the grid keeping the keys", r.edit === "Far" && !r.drawn && r.keys, JSON.stringify(r));
+  await p.keyboard.type(" out"); await frame();
+  r = await p.evaluate(() => ({ edit: S.ws.edit && S.ws.edit.val, drawn: !!wsTd(-4, 300) }));
+  check("…typing brings it back and goes on in it", r.edit === "Far out" && r.drawn, JSON.stringify(r));
+  await p.keyboard.press("Enter"); await p.waitForTimeout(100);
+  check("…and is kept when it comes back", (await p.evaluate(() => sheetCols()[300].name)) === "Far out", await p.evaluate(() => sheetCols()[300].name));
+  // A range from the first column to one 300 columns on: the cells drawn in it are marked.
+  await p.evaluate(() => { wsSelect(5, 0, false); wsSelect(9, 300, true); }); await frame();
+  r = await p.evaluate(() => { const tds=[...document.querySelectorAll('#ws td[data-ci]')].filter(td=>+td.dataset.r>=5&&+td.dataset.r<=9); return { n: tds.length, all: tds.filter(td=>+td.dataset.ci<=300).every(td=>td.classList.contains("in")), rect: wsSelRect() }; });
+  check("a range across 300 columns: its cells in view are marked", r.n > 0 && r.all && r.rect.c0 === 0 && r.rect.c1 === 300, JSON.stringify(r));
+  // A column sized where it is drawn moves the ones after it, and they still line up.
+  await p.evaluate(() => wsSetWidth(S.wsm.cols[302].id, 240)); await frame();
+  r = await look(); check("a column sized out there: the columns after it still line up", !r.bad.length, JSON.stringify(r.bad.slice(0, 4)));
+}, { name: "a wide sheet", timeout: 90000 });
+
+console.log("Two thousand files at once (roadmap 9, slice 3): what is drawn is what is in view, and asked once");
+await page(async p => {
+  const frame = () => p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const t = await p.evaluate(async () => { prefSet("anim", false); applyAnim(); const N=2000, M=300, items=[];
+    for(let k=0;k<N;k++){ const t=["# Temperature: "+(280+k%120)+" K","Wavenumber (cm-1)\tIntensity"]; for(let i=0;i<M;i++) t.push((400+i*3)+"\t"+(Math.exp(-(((i-M/2-(k%60))/9)**2))*100+Math.sin(i*7+k)*2).toFixed(3)); items.push(...[].concat(batchFile("run_"+String(k).padStart(4,"0")+".txt",t.join("\n")))); }
+    const t0=performance.now(); await doBatchImport(items.filter(x=>!x.fail),[],{into:"new",graphs:"none",src:"2000 files"}); await new Promise(r=>setTimeout(r,300));
+    const imp=performance.now()-t0; plotCols(yCols().map(c=>c.id),{layout:"heat"});
+    const ms=[]; for(let i=0;i<3;i++){ const a=performance.now(); save({wsw:Object.assign({},P().wsw,{x:i+1})}); ms.push(performance.now()-a); }
+    return {n:yCols().length, imp, save:Math.min(...ms), img:!!document.querySelector("#plot image")}; });
+  check("2000 files come in as 2000 columns, drawn as a map", t.n === 2000 && t.img, JSON.stringify(t));
+  check("…a save with the map on the desk is quick (it took 560 ms)", t.save < 300, Math.round(t.save) + " ms");
+  // The History: a box a lane, the boxes drawn only about the view, and the keys go past them.
+  let r = await p.evaluate(() => { openWin("flow",{render:true}); focusWin("flow"); return { all: flowLayout().nodes.length, drawn: document.querySelectorAll("#flowWin .fnode").length }; });
+  check("the History draws only the boxes about the view", r.all > 4000 && r.drawn > 4 && r.drawn < 400, JSON.stringify(r));
+  const first = await p.evaluate(() => { const b=document.querySelector('#flowWin .fnode.k-raw'); b.focus(); return b.dataset.node; });
+  for (let i = 0; i < 40; i++) await p.keyboard.press("ArrowDown");
+  await frame();
+  r = await p.evaluate(first => { const a=document.activeElement, sc=document.querySelector("#flowWin .flow-scroll"), L=flowLayout(), n0=L.by[first], n=a&&a.dataset&&L.by[a.dataset.node];
+    const b=a&&a.getBoundingClientRect(), s=sc.getBoundingClientRect(); return { key: a&&a.dataset&&a.dataset.node, down: n&&n0?n.row-n0.row:null, seen: !!b&&b.top>=s.top-1&&b.bottom<=s.bottom+1 }; }, first);
+  check("forty presses of ↓ go down past the boxes first drawn, the box in view with the keys", r.down >= 40 && r.seen, JSON.stringify(r));
+  r = await p.evaluate(async () => { const c=yCols()[1500]; goNode("final:"+c.id); await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+    const el=document.querySelector(`#flowWin [data-node="final:${c.id}"]`), sc=document.querySelector("#flowWin .flow-scroll"); if(!el) return {el:false};
+    const b=el.getBoundingClientRect(), s=sc.getBoundingClientRect(); return { el:true, sel:S.flowSel===("final:"+c.id), seen:b.top>=s.top-1&&b.bottom<=s.bottom+1&&b.left>=s.left-1&&b.right<=s.right+1, drawn:document.querySelectorAll("#flowWin .fnode").length }; });
+  check("a box of the 1500th column, gone to from elsewhere, is drawn, selected and in view", r.el && r.sel && r.seen && r.drawn < 400, JSON.stringify(r));
+  r = await p.evaluate(() => { const a=performance.now(); save({wsw:Object.assign({},P().wsw,{x:9})}); return performance.now()-a; });
+  check("…and a save with the History open stays quick (it took 1.5 s)", r < 600, Math.round(r) + " ms");
+  // Statistics: the first 200 rows and the active column, the rest a button away, Copy every one.
+  r = await p.evaluate(() => { closeWin("flow"); openWin("stats",{render:true}); focusWin("stats"); const rows=[...document.querySelectorAll("#pane-stats table.stt tbody tr:not(.more)")];
+    return { rows: rows.length, more: !!document.querySelector("#pane-stats [data-stall]"), tsv: statsTsv().split("\n").length - 1, act: rows.some(tr=>tr.classList.contains("sel")) }; });
+  check("Statistics lists 200 columns and the active one, with a button for the rest; Copy has all 2000", r.rows <= 202 && r.rows >= 200 && r.more && r.tsv === 2000 && r.act, JSON.stringify(r));
+  await p.click("#pane-stats [data-stall]"); await frame();
+  r = await p.evaluate(() => document.querySelectorAll("#pane-stats table.stt tbody tr:not(.more)").length);
+  check("…Show them all lists every one", r === 2000, r);
+  // A value typed, and undone: neither waits for the map or the check code of every value.
+  r = await p.evaluate(() => { closeWin("stats"); S.sheet="raw"; renderWs(); wsSelect(3,5,false); const a=performance.now(); wsBeginEdit("12.5","enter"); wsCommit(1,0); flushEdits(); const typed=performance.now()-a;
+    const b=performance.now(); undo(); const un=performance.now()-b; return { typed, un, v: sheetCols()[5].data[3] }; });
+  check("a value typed into the 2000 columns, and undone, each well under a second", r.typed < 900 && r.un < 900 && r.v !== 12.5, JSON.stringify({ typed: Math.round(r.typed), undo: Math.round(r.un), v: r.v }));
+}, { name: "two thousand files", timeout: 180000 });
+
+await browser.close(); server.close();
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);

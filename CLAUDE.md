@@ -1,72 +1,3041 @@
 # Kurve: collaborative Origin-style data analysis
 
 Single-file web app (`kurve.html`): HTML, CSS and vanilla JS, no build step, no dependencies
-besides Google Fonts. Open the file in a browser to run it.
+besides Google Fonts (and their TrueType copies on jsDelivr, from Fontsource, for the fonts a PDF
+embeds; offline the standard fonts stand in). Open the
+file in a browser to run it. The file uses CRLF line endings;
+keep them (see the rules at the end). **DESIGN.md** records why the interface looks and
+behaves as it does (contrast, menus, typing, the worksheet's conventions); every round that
+changes the interface updates it with the decision and the reason.
+
+## The screen
+
+A desktop-style frame, top to bottom: a title bar with the **menus** (File, Edit, Data, Plot,
+Analyze, Figure, Publish, Window, Help, in the order of the work: Data prepares, Plot makes and
+looks, Analyze measures, Figure styles, Publish exports; the tree is `ux/spec/menus-after.txt`; each short, its kinds opening side submenus on
+hover, and a tool opening its dialog) and the project name, a field (click to rename; the arrow
+beside it switches, creates and deletes projects); a **toolbar** (the Project Explorer's switch, Import, Export, undo/redo,
+the pointer tools Zoom / Pan / Mask / Label / Arrow / Shape (a box or an ellipse, chosen from its menu) / Comment (in a
+shared project only) / Reader / X–Y lines, show-all, and the Reverse X / Log Y / Grid toggles, off until there is data, the
+graph's group (`.tg`) only while a graph is on the desk; it keeps to one row, dropping labels
+in stages while it would wrap and last the Explorer's switch (not on a phone), `fitToolbar`); the **Project Explorer** docked at the desk's left
+(the project as a tree, as Origin's: folders and subfolders of your own, the worksheet's sheets
+(not the files' columns again: the worksheet shows them), every graph, closed ones marked hidden,
+and the trend graphs; Alt+1 or the toolbar's first button shows it, its edge drags; 220 px wide, and below 1600 px a
+drawer over the desk);
+the **desk**; and a **status bar**
+(tool hint, live cursor readout, or off the graph the numbers of what is selected, point counts, fit state, save state). A gear at the title bar's right
+opens **Preferences** (File › Preferences…, Edit › Preferences…, Ctrl+,): whether a history of
+changes is kept (off, nothing but errors is logged), the theme, the style, animations, how text
+is typed (formatted or LaTeX), what opens after an import, and the errors met, all kept per browser. Window › Theme picks
+light or dark, and Window › Style the look of the interface: **Bench** (the default: IBM Plex,
+blue for everything you can change) or **Graphite** (Geist, black and white, blue only for the
+keyboard focus). Both are remembered per browser; neither changes the graph's colours. Both are
+made for screens with little contrast: a desk darker than its windows, dark window edges, the
+front window's title bar filled, and whatever is on, chosen or in front filled rather than
+tinted (DESIGN.md; `tools/contrast-test.mjs` checks the ratios).
+
+The desk holds **windows**, as in Origin: Graph, Worksheet, History, Overview, Peaks,
+Integrate, Fit, Results, Format, Batch, any number of Trend graphs, Statistics, Discussion, Help, and the transient Tool dialog. Each moves by its title bar, resizes from
+its edges, maximises on a double-click of the title, minimises to the **taskbar** along the
+bottom of the desk and closes with its ×; opening, closing, minimising (into its taskbar
+button), restoring, maximising, tiling and the dock animate briefly, as a desktop's windows do. As a workbook keeps a tab per sheet, the project's
+**documents** (its graphs, the worksheet, its trend graphs) always have a taskbar button and
+minimise (a graph can also be closed: off the desk and the taskbar, kept in the project, and
+opened again from Window › Graphs); **panels** (History, Peaks, Fit…) are in the taskbar only while open or
+minimised, so a panel never opened is in no list. Buttons sit flat on the chrome: the front
+window's is a raised white key with an accent bar under it, an open one's has a short grey bar,
+a minimised one's none and lighter words. The taskbar starts with the project's name, a field
+with a folder and a chevron (every window on the desk
+is that project's; click it to switch), groups more than four graphs (or three trend graphs)
+under one button, puts what does not fit in one row under a "n more" button (least recently
+used first, never the front window), and has Tile and Cascade. **Window** lists the windows in
+use as Excel's Switch Windows does (the front one ticked, minimised ones marked; a search past
+a dozen), **Window › Tool windows** every panel ticked while in use (Origin's View menu), Minimise
+the others, Close the tool windows, Graphs (every graph, Combine graphs…, A figure of panels…, the linked
+zoom), and Theme and Style as submenus. Every title bar has a **?** that opens
+the window's article in the **Help window** (F1 does it for the window in front; a tool's
+opens its step's article). The **dock** (UX_SPEC §3.2) is a column at the desk's right where the
+tool windows open as tabs (Fit, Results, Format, Peaks, Integrate, History, Statistics, the Overview,
+Help, Discussion, the processing tools; Batch floats), one shown at a time, its strip as the
+design system's Dock (a *Tools* label, icon tabs, the shown one raised with its name and ×,
+Help, Undock and Hide at the right; a docked window has no title bar of its own); the
+documents share what is left, and get it back when it empties. Its left edge sets its width
+(360 px below 1320, 380 below 1700, 420 above; dragged no wider than leaves the documents 780 px,
+`dockMax`, and a width kept from before held to that in `dockGeo`); a tab double-clicked takes the whole desk,
+dragged out floats (as does the title bar), and the title bar's dock button docks it again.
+Below 1100 px, or when a 480 px graph and a 300 px worksheet would not fit beside it, it is a
+drawer over the documents, with a pin and a button that puts it away. A first visit opens the
+Worksheet alone, across the desk, with the empty desk's headline over it (*Import data*, one
+line, Import… and the examples, the design system's EmptyState; `#wsEmpty`, `wsEmptyShow`, put
+away by the first press or key in the grid, `S.wsEmptyGone`): nothing is plotted until the user plots it (select columns
+and press Plot; an import's message offers to; a file dropped on the window is plotted), and a
+graph then shares the desk with it. History opens in the dock with a column's first
+processing step (unless the history is off). A project can
+have **several graphs**, each in its own window (Plot › New graph: with the analysed
+spectrum, with every spectrum, or one for each spectrum, tiled): the one clicked is worked on
+(it is drawn live, its spectrum is analysed and every window follows), the others show a
+picture and chips naming their spectra; each has a ⋯ menu (rename, spectra on it, duplicate,
+export, delete), the X zoom can be linked between them (off until ticked in a graph's ⋯ menu or
+Window › Graphs), and with more than
+four the taskbar gathers them under one Graphs button. Graphs plotted one by one are put
+together by holding and dropping: a graph by the grip in its title bar onto another graph
+(or its taskbar button) merges into it, a spectrum's chip adds that spectrum (or, dropped on
+the empty desk, gets a graph of its own); Window › Graphs › Combine graphs… does it from a list, and
+File › Copy from another project… copies spectra between projects. Graphs can also be
+the **panels of a figure** (Plot › New graph › A figure…, Window › Graphs › A figure of panels…, a graph's Put in a figure, or a
+graph dropped on a figure): one window with the graphs in rows and columns, their plot areas
+lined up, X or Y shared, lettered (a), (b)…; the panel clicked is worked on. The **graph window** has its own bar repeating the Data, Plot, Analyze
+and Figure menus, then **Curves** (each curve ticked while drawn, Show only…, Show every curve;
+`curveVisItems`), and a chip saying which stage of the processing is shown when it is not the
+final data (a box selected in the History; its ✕ goes back). A graph always shows the processed
+data: the Original / Processed / Both switch went on 11.11 (`anyProcessing()` still gates the
+worksheet's Original/Processed sheets and the statistics' data switch). Right-click on a curve (or Shift+F10) gives its
+colour, plot type and style, then Add here (a line, text, a peak label, a shape, a title or a
+comment where you clicked), Format graph…, Copy the graph as a picture and Export; on the empty
+plot, Add here's items themselves; right-click a line, a label, the legend, a title or an axis's numbers for
+its own options. Lines, shaded ranges, text, peak labels, the legend, the titles and the axes
+(by their numbers) drag with the pointer; a double click (or Enter) on a label, a text or a
+title opens a box over it to type in (Shift+Enter for a new line), and one on a line, a range
+or an axis's numbers opens its page of the **Format pane** (Figure › Format graph…; docked and live, no OK): pages
+for each spectrum and the fit, each axis (title and where it sits, scale, position: an edge,
+zero or a value, set off outward; line, ticks, numbers; breaks), a second X axis in other
+units, the frame and grid (with quick
+styles), the text (each kind its own font, size in points, bold, italic, underline, colour,
+like a word processor), the legend (place, columns, size, box), the layout and colours, and
+the labels and lines (each with its own text, style, turn, box and place). The **Peaks
+window** (Analyze › Peaks…) finds the peaks of the analysed spectrum and marks them on
+the graph, each with a symbol, a drop line, a vertical line, a leader or nothing, and a label
+you type (in its table, on the graph, or in the History); fitting them is one button, not
+the way in. The **Integrate window** (Analyze › Integrate…) measures bands without a
+fit: windows dragged on the graph, each with a local baseline, giving areas with errors,
+heights, positions, FWHM, shares of the total and ratios to a chosen band, for one spectrum
+or every one. The **Help window** is the documentation: a contents list by kind, a search over every
+article, and an article per feature and per processing step, beside the work it explains.
+Windows carry little text of their own: a setting's explanation is its tooltip and its
+article. The **Overview** opens after an import and says what a new spectrum is like
+(spacing, noise, bands, spikes, background) and what to do first. The **History window** is a flow chart
+of the data with an inspector beside it (below it when narrow), and a Log tab. Every box in
+it (a step, the raw data, the final data, the peaks, the fits, the recorded data, the
+figure) has its own
+**discussion** at the foot of its inspector, with a badge on the box counting open threads;
+the Discussion window lists every thread with a link back. The
+**worksheet** is a spreadsheet grid as in Excel, with Origin's label rows and **sheets** as a
+workbook has (tabs under the grid: a click shows one, a double click renames it, + adds one,
+the right-click menu moves or deletes it; each sheet has its own columns lettered from A, rows,
+X columns and formulas; graphs show columns from any sheet), shown in two views: **Original**
+(the data as typed or imported, editable, every change in the original-data record, unless the
+project locks it) and **Processed** (the active column after processing, read only). An
+import puts every column of the file there (beside data, on a sheet of its own named after the file), as X, Y, error bars or other data (not plotted),
+and plots nothing: columns are plotted when ready, by selecting them and pressing
+**Plot** on the worksheet's bar, or in **Plot setup…** (the kind as pictures, what each column
+is, the curves on the graph with their ranges, axes and groups, the graph itself as its preview;
+the same dialog on a graph is *What it plots…*). Columns move by dragging their letters, their values align left, centre
+or right, and the value box above the grid is a formula bar. Every text on the graph is
+typed **formatted** (as in a word processor: raised and lowered characters, symbols from a long
+list, no preview) or in **LaTeX** (the source and a preview), chosen per browser, and stored as
+LaTeX either way, typeset by Kurve in the graph's own font (and so in every export), typed in
+place in one box; values are read off the graph with the **Reader** (a point pinned, found by its
+X or Y) or the **X–Y lines** (every curve's Y at one X, where the curves cross one Y); the legend is selected by a click and its entries
+typed over; everything with text has one right-click menu order. Files **dropped** on the window are read with the automatic
+choices: plotted at once when dropped on a graph, else into the worksheet (or a folder of the
+Explorer) with Plot in the message, and "Read it differently" to undo and open the dialog. Error bars are Y or X,
+both ways or one side, drawn as bars or a band; an axis can be linear, log, ln, log₂, 1/x,
+1/(x + c), √x or a probability scale, numbered as dates and times, and have a second Y axis in
+other units. A series of spectra can be drawn as a **map** (the heat map layout) against its
+series variable at real spacing, as an image, filled contours or contour lines with their
+levels, and cut at one X or one value; points can be joined by splines, symbols coloured or
+sized by a third column (with a legend of the sizes), the area between two spectra filled,
+fills hatched, and the graph copied to the clipboard as a picture. A column's values can be
+a **histogram** (a spectrum of its own, made by a step, drawn as columns), and the spectra on
+a graph **boxes or violins** side by side; a figure's panel can span several cells; a fit
+can include the **X errors** (orthogonal distance regression). Below 860 px the windows stack in one column,
+graph first, with the taskbar kept at the bottom of the screen.
 
 ## Code layout (all inside the `<script>` block of kurve.html)
 
 - **Numerics** (`==NUMERICS:START/END==`): `solve`, `inverse`, `lmFit`, `polyfit`, `tPvalue`.
   `lmFit` is Levenberg–Marquardt with a central-difference Jacobian, covariance scaled by reduced
-  chi² when unweighted (as Origin does), box bounds by projection, normal equations solved in
+  chi² when unweighted (as Origin does), box bounds by projection with an active set (a
+  parameter on its limit that a step would push past it sits that step out, and the others
+  are solved for without it; `odrFit` does the same), normal equations solved in
   units of each parameter's own curvature, and finite-difference steps sized from an optional
   `pscale`. Those last two are what let a model mixing areas of 1e6 with widths of 10 converge.
   It returns standard errors, 95% CI, t and p values, `dep` (dependency), `atBound`, AIC and BIC.
-  `polyfit` fits about the mean of X and shifts back, so a wavenumber axis is not hopeless.
+  `tPvalue`, `tCrit(level, dof)` (memoised, `TCRIT`), `tQuantile975`, `fPvalue`, `betai`,
+  `gammaln` and `lgammaFn` keep their names and live in the STATS block (below). `residualStats(f, X, Y, W, p, free)` gives a fit's
+  residuals in four kinds (`r`, weighted `e`, `std` e/s, `stud` e/(s√(1 − h)), `del` with s from
+  the fit without the point, in closed form) and each point's leverage `h` from the weighted
+  Jacobian over the free parameters (columns scaled before the inverse); `outliersOf(rs, level)`
+  is the points whose `del` is past the t limit for the largest of n (Bonferroni);
+  `fitAnova(Y, W, rss, m)` is Origin's table (model against the uncorrected total, residual,
+  both totals, F, p); `corrMat(cov, idx)`.
+  Fit control: `opt.maxIter` (400) and `opt.tol` (1e-12, the fall in χ² as a fraction of it
+  below which a step counts as settled; or no parameter moving by one part in 10¹⁰);
+  `opt.onIter({iter, chi, lambda, p})` hears each step taken; `opt.lambda0`, `opt.pscale` and
+  `opt.deadline` (a `performance.now()` time) run a fit in slices: between iterations the state
+  is the parameters and λ alone, so a fit paused (`stats.paused`) and carried on from its
+  `params` and returned `lambda`, or taken one step (`maxIter:1`) at a time, follows exactly
+  the path of one uninterrupted fit. `stats.iter` counts the steps taken.
+  `fitBounds(n, {lo, hi, slo, shi, mlo, mhi, p0, fixed, names})` turns a curve fit's limits
+  into `lmFit`'s box: each limit typed (a number), the model's own (null: `mlo`/`mhi`, a
+  function's) or none (false), strict ones (`slo`/`shi`) one part in 10⁹ inside, so a parameter
+  that reaches one is `atBound` as at any other; a fixed parameter is free of its limits, equal
+  limits hold one (fixed, its start the limit, `held`); crossed or empty strict ones `fail` in
+  words. It returns the limits as stated too (`L`, `H`, `sl`, `sh`) and `any`.
+  `opt.blocks = {seg, of}` makes it block-sparse: `seg` the point ranges (covering every point),
+  `of[i]` the range parameter i alone moves (or -1 for all); each point then keeps only the
+  derivatives that can be non-zero, so the Jacobian and the normal equations cost the number of
+  spectra, not its square. `globalFit(sets, f, p0s, shared, fixed, opt)` is built on it: the
+  sets laid end to end with X the point's index, the shared parameters once and each set's own
+  once per set (`opt.lo`/`hi`/`pscale` flat or per set, `start` the shared starts, `prep(p, k)`
+  to finish a set's vector, e.g. ties); a set's vector is built once per trial vector (two kept,
+  since the Jacobian alternates them). It returns each set's params, errors, covariance block,
+  dep, t, p, CI and atBound, its own statistics (its degrees of freedom less its share of the
+  shared parameters), and the whole fit's (`K`, `shared`). `opt.follow[i] = {kind, s}` (roadmap 7,
+  slice 1) makes parameter i follow the series, two global numbers for every set: `lin` a + b·(s −
+  s̄), `arr` Arrhenius a·exp(−b·(1/s − ū)) (s in kelvin, b = Ea/R), started from a line through the
+  sets' own starts (their logarithms against 1/s); each set's value, error, covariance, t, p and
+  interval through the delta method (dependency NaN), `follow [{i, kind, u0, a, b, sa, sb, cab}]`
+  returned; refused in words for a missing value, one value only, a temperature or a start not
+  above zero. `inverse` eliminates once and replays
+  it on each column: solve()'s arithmetic exactly, at n³ instead of n⁴.
+  `fillSeries(o, n)` makes the worksheet's fills (linear and growth series with a stop
+  value, evenly spaced on a linear or log scale, row numbers, a list repeated, uniform, whole,
+  normal and Poisson random numbers from `mulberry32(seed)`, a straight or growth trend through
+  the values above), cleaning floating-point dust at the step's precision, refusing in words,
+  at most `FILL_MAX` values; `lgammaFn` (STATS) and `poissonRand` (multiplication below a
+  mean of 30, Hörmann's PTRS above) serve it.
+  `amin`/`amax` are the smallest and largest of an array in a loop (NaN if any is): `Math.min(
+  ...a)` throws past about 120 000 values, so nothing spreads a column into arguments.
+  `polyfit` fits about the mean of X and shifts back, so a wavenumber axis is not hopeless;
+  `lineFit` (the trend lines) is a weighted straight line about the mean of X too, and returns
+  null when the X values do not spread beyond 10⁻¹² of their size.
+  `compileExpr(src)` compiles a user's formula into a tree of closures, never run as JavaScript
+  (so it works under a strict content policy, and nothing but arithmetic can run): numbers, `x`,
+  names, `+ - * / ^` (or `**`), parentheses, `EXPR_FN` (exp, ln, log = ln, log10, sqrt, abs,
+  trig and hyperbolic, erf, erfc, pow, min, max, sign, step) and `EXPR_CONST` (pi, e). Lines
+  like `u = (x - xc)/w` name values for the lines below; the function is `y = …` or the last
+  line; every other name is a parameter, in order of appearance. Errors are thrown with a
+  message in words and `line`/`col`, limits included (more than 4000 parts on a line, brackets
+  nested more than 200 deep), so a stack overflow never reaches the user. Lookups use `hasOwnProperty`, so `constructor(x)` is an
+  unknown function, not `Object`. `compileExpr(src, {allowNone:true})` accepts a formula with
+  no parameters (a worksheet column's). `guessUserParams(names, X, Y)` starts parameters from their
+  names (y0/c baseline, A/H height, xc/x0 position of the largest point, w/sigma a tenth of the
+  range, t/tau a third, k a rate, m a slope, anything else 1). `erfFn`/`erfcFn` are W. J. Cody's
+  rational approximations (`CODY`, `codyErfSmall` below 0.46875, `codyErfcBig` above, exp(−x²) split
+  in two), each to a few parts in 10¹⁶ relative (`tools/ref-test.mjs`); erf is never 1 − erfc, which
+  loses every digit for a small x. `probit(p)` works from the lower tail (`probitLow`, Acklam's
+  approximation and one Halley step on Φ(x) − p), above one half from 1 − p, which is exact there.
+  **Distributions**: `quantileSorted(s, p)` (type 7, as R and Excel's QUARTILE.INC),
+  `boxStats(vals)` (`{n, min, max, q1, med, q3, iqr, lo, hi, out, mean, sd}`, whiskers at the
+  furthest values within 1.5 IQR, Tukey), `kdeBandwidth` (Silverman: 0.9 min(SD, IQR/1.34)
+  n^-1/5), `kdeAt(vals, xs, bw)` (Gaussian kernels, cut at 8 bandwidths), `niceWidth(w)` (the
+  nearest of 1, 2, 2.5, 5 times a power of ten, by ratio), `histBins(vals, {rule, n, w,
+  start})` (`fd` Freedman–Diaconis, `sturges`, `sqrt`, `n` bins, `w` a width; at most
+  `HIST_MAX` bins; `{edges, counts, w, start, k, n, out}` or `{fail}` in words), `fmtW`.
+  `boxStats`' `notch` is the median ± 1.58·IQR/√n (McGill, Tukey and Larsen); `distGroups(vals,
+  keys, max)` splits values by a column of groups (keys compared to twelve digits, ascending; `{keys,
+  by, n}` or `{fail}` in words past `DIST_GMAX`, 60).
+  **Errors in X**: `odrFit(f, X, Y, SY, SX, p0, fixed, opt)` is orthogonal distance regression
+  (as ODRPACK): it minimises the sum of ((y − f(x + d))/sy)² + (d/sx)² over the parameters and
+  every point's shift d at once, by Levenberg–Marquardt with the shifts eliminated point by
+  point (a Schur complement: each d moves only its own point, so a step costs an ordinary
+  fit's); the covariance is the whole problem's. With `SY` null the Y scatter s, one value for
+  every point, is found in rounds so that the reduced χ² is 1. A point with no X error keeps
+  its X. It starts from `lmFit`'s result, settles when χ² stops falling or neither the
+  parameters nor the shifts move (the first step moves the shifts alone), and returns
+  `lmFit`'s fields plus `odr {s, iter, conv, rounds, dx}`; `opt.maxIter` (300 here) and `opt.tol`
+  as `lmFit`'s. For a straight line with the same
+  errors everywhere it is Deming regression.
+- **Pipeline** (`==PIPE:START/END==`, pure, after PEAKS): the processing steps. `PIPE_OPS` maps an
+  op to `{group, rank, label, short, help, params (a schema the panel renders), defaults,
+  init(d, ctx) (suggested settings measured from the data the step will receive), summary,
+  run(d, p, ctx) -> {d, extra, note, warn}, deps?, pick?}`. A series `d` is `{x, y, e, idx,
+  xn, xu, yn, yu}`: idx is the raw row of each point, and the names and units travel with it
+  because some steps change them (Raman shift, unit conversion, normalize). Ops: correct,
+  crop, exclude, despike, sort, dedupe, resample; bg (arPLS, ALS, airPLS, ModPoly, I-ModPoly,
+  SNIP, rolling ball, anchors with spline/PCHIP/lines, line, constant; all through one banded
+  `whittaker` solve or `chebFit`); smooth (Savitzky–Golay, moving average, median, Gaussian,
+  Whittaker); shift (wavelength to Raman shift), xunit, calib (reference peaks, `CAL_REFS`,
+  Raman standards and gamma lines; a shift, a line, or with `order` "2" and three found a
+  parabola, `extra.co`, flagged when it turns back), ecal (channels to energy: E = a·ch + b + c·ch² from typed
+  coefficients, or fitted to `pairs` `[{ch, en}]`, each channel refined to its peak's top by
+  `peakTopNear`; names X `xn`/`xu`, keV by default), xlin (with an optional new name and unit);
+  norm; scale (with an optional new Y name and unit, `yn`/`yu`: Count rate, counts/s), ref (another column, a spectrum or a data column (`refcol`), interpolated onto this X after a
+  shift `dx`; subtracted, divided, added or multiplied, scaled by `k` or, subtracting, by a scale
+  fitted by least squares (`fit` `"fit"`, or `"fitb"` with an offset) over `x0`–`x1` or wherever
+  both have values, `extra {k, b}`, the note naming them; refused in words when too few points or a
+  flat reference), combine (mean, median or sum with
+  other spectra, the spread as error bars), deriv, cumint (running integral), fft
+  (zero-phase Butterworth low- or high-pass, `fftFilter`, ends mirrored), log, absorb, km,
+  bose; hist (Analyze › Statistics › Histogram: the values of Y, or of X, counted into `histBins`'
+  bins, as counts, probability, percent or density, cumulative or not; X the bin centres named
+  after the values (`d.yn0`, the source's value name, carried into a derived spectrum's input
+  by `pipeOf`), `idx` negative, `bins {w, start, n, out}` for drawing; a start param is
+  `blank:true`, empty for automatic, which `wireStepForms` writes as null); python ("Stored result
+  (Python)": a step from a project made while Kurve had Python, which replays the output it
+  stored, `{x, y, e?, xn?, xu?, yn?, yu?}`, and cannot be run or changed; in no menu, no
+  settings; `stepPKey` keeps its output out of the cache key; the report prints its code).
+  **Every step checks its own work**: the background checks for over-subtraction (a stretch
+  below −3σ) and for eating bands (`bgBandLoss`); spike removal warns about wide "spikes" and
+  points changed inside a band; smoothing reports the height it takes off the narrowest band,
+  measured on an ideal band of that width (`idealLoss`), and uneven spacing (so does the FFT
+  filter, in both directions); `orderWarnings`
+  catches steps that are fine alone but wrong in order (normalize before background, smooth
+  before despike). `detectBands` (local prominence, so a noise maximum on a long flat stretch
+  does not count) feeds the checks and the suggestions. `runPipe(input, steps, ctx, prev)`
+  returns every stage and reuses the stages before the first changed step. `sha256` and
+  `rawText` make the raw-data fingerprint. `tools/pipe-test.mjs` tests all of it.
+  **Integrating a band** (`integrateBand(X, Y, E, x1, x2, {base, avg, sigma})`, pure, beside
+  `trapz`): the points in the window (either way round, on an axis running either way) less a
+  local baseline (`line` through the means of the first and last `avg` points, `zero`, or
+  `min`, level at the lowest point); the area is the trapezoidal sum, its `err` the noise
+  (`sigma`, or each point's error bar in `E`) carried through the trapezoid weights and the
+  baseline's ends; `height`/`pos` from a parabola through the top three points (the lowest,
+  for a dip, whose area is negative), `fwhm` where it crosses half height inside the window or
+  null, `centroid`, `snr`, and the points and baseline for drawing. Fewer than three points
+  gives `fail`, in words, never a number. `bandsFromPeaks(X, Y, [{x, w}])` puts a window around
+  each peak: neighbours split at the lowest point between them, outer edges two widths out.
+  `countBand(X, Y, x1, x2, {avg, kc})` counts a band as an analyser's region of interest: the
+  window's first and last k channels (k as the line baseline's, at most a quarter of the window
+  each) the continuum, a line through their means, the channels between the peak; counts Y·kc;
+  gross G, continuum B and σ_B from the edge counts, net N = G − B, σ_N² = G + σ_B², Currie's
+  critical level 1.645·σ₀ and detection limit 2.71 + 3.29·σ₀ (σ₀² = B + σ_B²), `det`, `centroid`;
+  `fail` in words (too few channels, values below zero). `activityOf(cnt, t, eff, ig)` is
+  N ÷ (t·ε·I) with its counting error and the detection limit as an activity.
+  `tools/fit-test.mjs` checks both (area over a sloping background, height, position, FWHM,
+  centroid, a descending axis, a dip, the error against 400 noisy repeats, error bars, the
+  split at the valley).
 - **Peaks** (`==PEAKS:START/END==`): `PEAKS` (Gaussian, Lorentzian, pseudo-Voigt, split-width
-  pseudo-Voigt, Pearson VII — all parametrised centre/**area**/FWHM, with `height()` and
-  `fwhm()`), `BASELINES` (none/constant/line/quadratic/cubic, evaluated in `x - x0`),
+  pseudo-Voigt, Pearson VII, Voigt, Fano — parametrised centre/**area**/width, with `height()`
+  and `fwhm()`; optional `short` (the name mid-sentence), `labels` (per-shape parameter labels),
+  `wSeed` (each width's share of a measured FWHM, `wSeedOf`), `top` (where an asymmetric
+  shape's maximum is), `bounds`, `init`). **Voigt** is `[xc, A, wG, wL]`, the true
+  convolution through `faddeeva(x, y)` (Weideman's 32-term rational expansion, about 1e-13,
+  smooth for finite differences); its FWHM is found by bisection, with `fwhmApprox` (Olivero)
+  for error propagation, and `convolved` exempts its widths from the "collapsed" check because
+  either may rightly go to zero. **Fano** (Breit–Wigner–Fano) is `[xc, A, w, iq]` with iq =
+  1/q in [-0.9, 0.9]; its area is not finite, so A is the area of its Lorentzian limit
+  (`fitWarnings` says so), `height` is the true maximum at `top`, and `fwhm` the true width,
+  Γ(1+iq²)/|1-iq²|. **Ties** (`peakLinks(peaks, m)`, `applyPeakLinks`, `linkResult`): a peak's
+  `tie[nm] = {to: peakId, mul, add}` makes that parameter `mul·(the other's) + add`; ties to a
+  peak that is itself tied are not followed, so they never chain or loop. `BASELINES`
+  (none/constant/line/quadratic/cubic, evaluated in `x - x0`),
   `compileModel` which flattens a `{base, peaks[]}` spec into one parameter vector,
   `modelBounds`, `sgCoeffs`/`sgApply` (Savitzky–Golay, needs even spacing), `findPeaks`
-  (`max`, or `deriv2` for shoulders that never form a maximum) and `seedPeak`.
+  (`max`, or `deriv2` for shoulders that never form a maximum), `seedPeak`, `noiseSigma` and
+  `peakAreaForHeight`. `findPeaks` takes `minPts` (a candidate needs that many points above its
+  own half height; 2 sets one-point spikes aside and returns them in `.rejected`) and
+  `prominence` (`"auto"` = four times `noiseSigma`, applied to `max` only, never to `deriv2`,
+  whose shoulders have no prominence by definition). The app passes both. `seedPeak` takes the
+  half width from whichever side reaches half height first, and returns the height `h` it saw;
+  callers turn that into each shape's own area with `peakAreaForHeight`.
+  `peakSearch(X, Y, o)` is the finder behind Analyze › Peaks…. Methods `max`, `window`,
+  `deriv1`, `deriv2`; `log` searches on log10 of the data; `smooth` is `"auto"` (half the
+  narrowest clear band's width in points), 0 or a window; `thr` is `{mode, v}` with modes
+  `snr` (prominence over `noiseSigma`, default 4), `pct` (of the largest), `abs` and `decades`
+  (below the largest); every mode but `abs` also needs three times the noise. It returns
+  `found` and `rejected`, each candidate with `x, prom, promLin, h, base, snr, w, wPts`, and a
+  rejected one with `code` (`thr`, `noise`, `spike`, `wide`, `sep`, `max`) and `why`, in words;
+  `noise` counts maxima of the noise itself. A `deriv2` shoulder is measured against the lowest
+  point within its own width, having no valley of its own. The noise a candidate's prominence
+  is divided by is one figure (`noise:"global"`, the default), measured along the series
+  (`"local"`, `localNoise`: second differences' median in stretches, a quarter of the global
+  figure at least), or given per point (`sigma`, an array: counting statistics), taken where
+  the candidate's base (its saddle) is; `res.noiseMode` says which (`given`), each candidate
+  its `sig`. `findPeaks` stays for `detectBands` and the older tests.
   `tools/fit-test.mjs` checks each shape integrates to its stated area and has its stated FWHM,
-  and that known multi-peak spectra are recovered. Run it after touching any of this.
+  that known multi-peak spectra are recovered, the spike, prominence and seeding rules, and
+  `peakSearch`'s thresholds (a band three decades below the main one), reasons and methods,
+  the Faddeeva function against known values, Voigt and Fano (area, height, true FWHM, limits,
+  recovery by a fit), ties (a doublet with a 0.5 area ratio, one width and a fixed spacing:
+  recovered, the degrees of freedom and the carried errors), the formula compiler (order,
+  precedence, named values, every error message, nothing but arithmetic), the inverse (the
+  identity, each column exactly solve()'s), global fits (shared values recovered and equal in
+  every set, each set's own, the degrees of freedom, a smaller shared error than one fit's,
+  the block-sparse fit equal to the same problem dense, the shared error against 150 noisy
+  repeats, ties through `prep`, one set as an ordinary fit, a centre following the series as a
+  line and a rate by Arrhenius, each with its errors and refusals), `matchPeakTracks`, counting
+  statistics (a Poisson continuum whose wiggles one noise figure takes for peaks and √N does
+  not, with a weak line found), `matchLines`, and the fills (a series by 0.1 with no dust, a
+  tiny step on a large start, stop values either way, growth, even and log spacing, lists, the
+  mean and spread of each kind of random number from a seed, Poisson counts at small and
+  large means, ln Γ, straight and growth trends), quantiles, boxes, kernel densities and
+  histogram bins, and orthogonal distance regression (a line's slope not pulled flat by
+  errors in X while an ordinary fit's is, its error against its spread over 300 repeats,
+  Deming's closed form, no X errors equal to a weighted fit, the Y scatter found, a decay with
+  errors in time), and fit control (an iteration limit, a looser tolerance, one step equal to
+  a fit's first, steps one at a time and slices paused by a deadline ending exactly where the
+  whole fit does, orthogonal distance's limit), and limits (typed over the model's own, none,
+  strict, equal, crossed, a fixed parameter free of them; a slope held at 0 or more ending at
+  0, strictly above it just above, limits that do not bind giving the free fit exactly, a start
+  outside them, a parameter held by equal ones), and the curve fit's models (each recovered
+  from its own guess at 0.01% and 2% noise within five errors, derived values against their
+  definitions, a wave of 1.3 cycles, a peak leaning left, the X checks, the ids shipped
+  before), and the residual analysis (t against the tables, F's closed form, a straight line's
+  leverage, the deleted residual against refitting without each point, fixed parameters,
+  weights, a curve's leverages, a planted outlier found and clean data rarely flagged, the
+  ANOVA's sums, the correlation matrix). Run it after touching any of this.
+  `matchPeakTracks(lists, {tol, dx})` follows the same peak through a series: each spectrum's
+  peaks (`{x, w}`) join the track whose last position is nearest, within `tol` (0.5) of the
+  larger FWHM (`dx` when neither has one), closest pairs first, two peaks of one spectrum never
+  on one track; a peak matching none starts one. It returns tracks with `members [{s, k}]`, the
+  median `x`, and `x0`, `x1`.
+  `matchLines(peaks, lines, {tol, tolW})` names peaks (`{x, w}`) from known lines (`{x, name,
+  i}`): a line within `tol` or `tolW` of the peak's FWHM, the nearest pairs first (equal ones to
+  the stronger line), each line one peak at most; per peak `{line, j, d, alts}` (or `line:null`
+  with alternatives taken by nearer peaks, or null), `n`, and `shift`, the median offset.
+  `nuclideSets(peaks, lines, {tol, tolW, lo, hi, eff, minRel})` (roadmap 3, slice 4) judges each
+  nuclide (lines sharing a name, with intensities) by its lines in the range at `minRel` (0.1) of its
+  strongest there or more: `present` (its strongest found and half of them), `unlikely` (some found,
+  not its strongest), `possible`; with peaks' areas (`a`, `sa`) the areas over efficiency
+  (`eff(E)`, %) × intensity, their χ² and spread (`ratio`); a peak another nuclide's line could also
+  be is `shared`. `{sets, m, shift}`, present first.
+- **Models** (`==MODELS:START/END==`, pure, after PIPE; `tools/fit-test.mjs` loads it with
+  NUMERICS and PEAKS): the curve fit's 25 models (`ux/spec/FIT_SPEC.md` slice 3) in
+  `MODEL_GROUPS`, six kinds (lines and polynomials, growth and decay, steps and saturation,
+  peaks, powers and logarithms, waves). Each `MODELS[id]`: `name`, `params`, `ph` (labels,
+  HTML), `mean`, `dim` (units for `unitFor`: `x`, `y`, `yx`, `y/x`, `y/xN` to 9, `1/x`, `"=J/mol"`
+  a unit of its own, `""`), `formula` (HTML), `f(x, p)`, `guess(X, Y)`, optional `lo`/`hi` (the
+  model's own limits, as a function's), `derived` (`{name, dim, fn, exact?}`: `fn` smooth for
+  the delta method, `exact` the value shown, a Voigt's FWHM by bisection), `xpos` (true: X above
+  0; `"0"`: 0 and above; `modelXBad(m, X)` gives `{x, strict}` or null, checked by `runFit`,
+  `stepFit` and `fitOne`, said by `xbText`), `sketch {x:[a, b], p}` (typical values, drawn by
+  `modelSketch`), `kw` (search words, Origin's names among them, never shown), and for the
+  polynomials `hide`, `listAs`, `order` (`polyModel(k)`: `poly2`…`poly9` with `a0`…`ak`, one
+  list entry; `polyOrderOf(id)`, `polyIdOf(k)`, order 1 being `linear`). Guesses: `peakGuess`
+  (with each side's half width, `lw`/`rw`), `stepGuess` (the levels of the first and last
+  tenth, the 10, 50 and 90% crossings of the smoothed points, `smoothY`), `decayGuess`,
+  `expGrid(X, Y, k)` (the best of a grid of k decay times, level and amplitudes linear),
+  `waveGuess` (a least-squares periodogram, then finer), `linFitXY` (through logarithms for the
+  power law, logarithm and Arrhenius, Hill's linearisation, Hanes–Woolf for Michaelis–Menten).
+  The peaks use `PEAKS` (`vgp` reorders `[y0, A, xc, w…]`); `EXT_FW` is the extreme-value FWHM
+  in units of w; `R_GAS`, `F_EV`. An id never changes once shipped: a stored fit names its
+  model by it (`poly2` is the polynomial of order 2). `gradient`, `deltaVar` and
+  `derivedWithErr` live here too. **The detector's curves** (roadmap 3, slice 3): `effCurve(pts, deg)`
+  (ln ε a polynomial of degree 1 to 4 in ln E about the points' mean, fitted to `{E, eff, err}` in %,
+  weighted by the relative errors when every point has one, else equally with the covariance scaled
+  by the scatter; `{co, x0, deg, n, cov, rel, E0, E1, wtd, redChi2}` or `{fail}` in words), `effAt(cv,
+  E)` (`{v, err, out}`), `fwhmCurve(pts, deg)` (FWHM² = a + b·E (+ c·E²) fitted to `{E, w}`, `rel`),
+  `fwhmAt(cv, E)` (null where the square is not above zero); `lsqPoly`, `polyAt`.
+  **Distributions of values** (roadmap 4, slice 1): `DIST_KINDS` and `distFit(vals, kind)` (normal,
+  log-normal, exponential, by maximum likelihood: μ and σ (n − 1) with σ/√n and σ/√(2(n − 1)), of
+  ln x for a log-normal; λ = 1/mean with λ/√n; `pdf`, `cdf`, `mean`, `median`, the Kolmogorov–Smirnov
+  distance `ks` and its p `pks` by Kolmogorov's series; `{fail}` in words: fewer than three values,
+  all the same, a value a kind cannot take). `tools/fit-test.mjs` checks each against its sample.
+  **The picker**: the Fit window's model is a button (`#model.mbtn`: the sketch, the name,
+  `aria-expanded`) opening `openModelPicker(btn, cur, pick, {fromFit})`, in the font picker's
+  popover and slot (`fpOpen`, `.fpick.mpick`): a search box, every model by kind with its
+  sketch, name and formula (`data-q` the words searched, every word typed must match), then
+  your functions, the browser's library and a function kept by the fit, and New function…;
+  ↑/↓, Home/End, Enter, Escape; the chosen row scrolled to by hand. `chooseModel(id, focus)`
+  (the picker, `#polyOrder` beside a polynomial, the suggestion): one undo entry, Fix, limits
+  and digits cleared, starts guessed, a library function adopted.
+- **Distributions** (`==STATS:START/END==`, pure, after MODELS; FOUNDATION_SPEC 1.4; loaded by
+  fit-test, pipe-test, `tools/ref/run.mjs` and the compute worker): `lgam` (ln |Γ|: the series of
+  ln Γ(2 + w) in powers of w with ζ(k) − 1 as coefficients, `LG2`, for 0.5 to 2.5, the recurrence
+  below 10, Stirling's series and its correction `lgcor` above; reflection below 0), `lgam1p`,
+  `lbeta` (R's: the corrections of large arguments apart from their logarithms), `log1pmx` and
+  `aL1pmx` (a·(ln(1 + u) − u), from the ratio far below a peak); `ibetaPref(a, b, x, y)` and
+  `igamPref(a, x)` (x^a y^b/B, x^a e^−x/Γ, in logarithms about the peak for arguments of 10 or
+  more); `ibetaPQ(a, b, x, y)` (both tails, y = 1 − x given as such; below the mean the power series
+  `ibetaSeries` for a small b·x, BGRAT `ibetaBgrat` for a ≥ 15, b < 40 and x > 0.7 with b brought
+  into (0, 1] by the recurrence, else Lentz's `ibetaCF`; above it the same flipped), `ibeta`,
+  `ibetac`, `igamPQ(a, x)` (series below a + 1, continued fraction above); Loader's `stirlerr`, `bd0`,
+  `dbinomRaw`, `dpoisRaw` (`ibetaPref` and `ibetaSeries` take x^a by `Math.pow` far below the peak, while it does
+  not underflow: e^{a ln x} carried a·|ln x| roundings); `qSolve(tail, dens, t, up, lo, hi, x0)` (Newton on the logarithm of the
+  tail in a bracket), `qDisc` (the smallest count reaching a level). `DIST.norm`, `t`, `F`, `chi2`,
+  `gamma`, `beta` (`pdf`, `cdf`, `sf`, `ppf`, `isf`), `binom`, `pois`, `hyper` (`pmf`, `cdf`, `sf`,
+  `ppf`); sf is the upper tail as such. `tools/stats-test.mjs` checks their properties, the bench their
+  values (fixtures `stats.json`; the special functions to 10⁻¹⁵, tails to 10⁻¹³, quantiles to 10⁻¹⁵).
+  **The studentized range and Dunnett's t** (STATS_SPEC 2.4): `glNodes`/`GL20` (Gauss–Legendre),
+  `lcInt(lf, lo, hi, step)` (∫ e^lf over one peak: a scan, golden sections, each side's width where lf falls
+  by 4.5, panels of that width to a fall of 46; `[M, S]`, e^M·S), `GK21`, `gk21`, `gkInt(f, pts, rtol, atol)`
+  (adaptive Gauss–Kronrod), `nQ`, `rangeSf(w, k)` (P(range of k normals > w), 1 − (…) never formed; k = 2
+  closed), `lchiU(nu)` (ln of s's χ density times s, in ln s, Stirling's part apart), `overS(h, c, nu)` (∫ over
+  s; ν past 10⁸ the normal's), `tukeySf(q, k, nu)`, `tailInv(sf, p, x0)` (secant on ln sf), `tukeyIsf`,
+  `dunnettSf(c, lam, nu, two)` (λ_i = √(n_i/(n_i + n₀)), the inner integral by `gkInt` from each comparison's
+  peak), `dunnettIsf`, `DIST.tukey`. Within 1e-15 of 40-digit references (`range.json`).
 - **Fits** come in two kinds. `MODELS` (each with `params`, `ph`, `formula`, `f(x,p)`,
-  `guess`, optional `derived` with delta-method errors) drives the "One curve" panel.
-  `{kind:"composite", spec, x0, …}` drives "Peaks + baseline". `fitModel(fit)` hands either to
-  the plot, the CSV export and the report; `activeFit()` returns the current one if it is valid.
-  Anything that reads `p.fit` must go through those, not `MODELS[p.fit.model]`.
+  `guess`, optional `derived` with delta-method errors) drives "Curve fit".
+  `{kind:"composite", spec, x0, …}` drives "Peak fit". `fitModel(fit)` hands either to
+  the plot, the CSV export and the report; `activeFit()` returns the analysed spectrum's fit
+  (`p.fit` when it was made on that spectrum, else its row of the batch fit, else `p.fit`
+  whatever it was made on), and `shownFit()` is the one the graph draws (only on the column it
+  was fitted to, so every graph, pictures included, draws its spectrum's batch fit). The Fit
+  window's drafts start from `activeFit()` too. Anything
+  that reads `p.fit` must go through those, not `MODELS[p.fit.model]`; a model by id is
+  `getModel(id)` (one of `MODELS`, or `"u:<fnId>"` for a user's function). Stored fits carry
+  `dep`, `tval`, `pval` and `ci` with non-finite values written as `null`.
+  **User functions**: `p.userFns` (`[{id, name, expr, params:[{n, init, lo, hi, dim}]}]`, in
+  `UNDO_KEYS`) and a per-browser library (`libFns`, `libSave`, under `kurve.fns`). `userModel(fn)`
+  compiles one into a MODELS-like object (`user`, `def`, `expr`, `lo`/`hi` bounds, `guess` from
+  the stored starts or `guessUserParams`), cached. A fit with one stores a copy in `fit.fn`, and
+  `fitModel` uses that copy, so editing or deleting the function never changes a result; a
+  library function used in a fit is added to the project. `draftModel(d)` is the curve
+  panel's model (falling back to the fit's copy, then to a Gaussian). `editUserFn(id, {from})`
+  is the editor (formula, live check with the line of a mistake, a preview of the function at
+  its starts over the data, start/limits/unit per parameter), `deleteUserFn`, `adoptLibFn`.
+  The report's Method and the CSV state the formula and its limits.
+  A parameter that stopped at a limit (`atBound`) has no meaningful standard error: tables
+  show "at its limit" instead of ±, and derived peak quantities (height, FWHM) leave it out of
+  the delta method. A tied parameter shows its value with the carried error and what it follows.
+  **X errors in fits**: the curve and peak drafts carry `xerr` (default on when the spectrum
+  has X error bars, `hasXErr(c)`), the Fit window's "Include the X errors" (`#wtx`, `#pwtx`);
+  `runFit`, `runPeakFit` and `fitOne` (from the template's `xerr`) call `odrFit` with each
+  point's X error (`xErrsOf(c, pts)`: half its X bar from `errGeom`, in the final X units) and
+  its Y error if weighted; the fit stores `xerr:true` and `odr` (`odrNote`: s, iterations,
+  converged; not the shifts). `weightText(f, ascii)` says how a fit was weighted everywhere
+  (Results, the copied table, the report, the CSV); `fitWarnings` notes the Y scatter found;
+  `fitStale` notices a lost X-error column; the prediction band uses s². A global fit does not
+  use X errors. `fitUnits(f)` gives the units of the fit's own spectrum (Results, the copied
+  table and the report used the analysed spectrum's).
+  **Fit control** (`ux/spec/FIT_SPEC.md` slice 1; curve fits): the draft's `ctl`
+  (`{maxIter, tol}`, `FIT_CTL` 400 and 1e-12, read through `fitCtl`), the Fit window's *Fit
+  control* group (`fitCtlHtml`, `wireFitCtl`: the method named, *Iterations, at most*,
+  *Tolerance*, back to the defaults; a field updates the group in place, never redraws the
+  form), stored on the fit as `ctl {maxIter, tol, method:"lm"|"odr"}` and said by `ctlText(f)`
+  (Results' Fit control row, the report's Algorithm line, the CSV; a fit from before has none
+  and ran with the defaults, 300 iterations for orthogonal distance). `runFit` runs
+  Levenberg–Marquardt in slices of about 80 ms (`S.fitRun {stop, d, pid, col, model, done, p,
+  lam}`; the footer's Fit becomes *Stop*; a change of column, model or project ends it), and
+  saves through `saveCurveFit`; a fit that settles in its first slice is done before `runFit`
+  returns. *Stop* makes the last values the starting values and saves nothing. **1 iteration**
+  (`stepFit`, not with X errors) takes one step from the starting values and makes the result
+  the new ones (one undo entry, no fit saved). **Iterations** (`S.fitLog`: `fitLogFor` starts
+  or carries on a list, carrying on when the run starts where the last ended, with its λ and
+  finite-difference scale; `fitLogRow`, `fitLogBody`, `fitLogHtml`, `renderFitLog`, the last
+  `FITLOG_MAX` rows): row 0 the starting values, then every step's reduced χ², λ and
+  parameters, and a note on how it ended; open by itself only while running or after a step
+  (`L.byStep`), else as the user last left it (`S.flogOpen`, from the summary's click). While
+  the Fit window is open the model at its starting values is drawn dashed over the data
+  (`curveOverlay`, "estimate" in the legend, `path[data-cstart]`), and not when it is the fit.
+  `fitWarnings` says when a fit stopped at its limit; `batchTemplate` carries `ctl` and
+  `fitOne` runs with it. *Remove fit* is in the fit's summary (`fitSummary(f, more)`), so the
+  footer (Fit, 1 iteration, Guess, Done; a peak fit's Fit n peaks, Reset to estimates, Done)
+  keeps to one row in the dock and holds buttons only, and *Fit every column…* is Analyze › Fit's
+  and the Batch window's.
+  **How points count** (`FIT_SPEC.md` slice 7): `fitWeights(kind, Y, E, Wc)` (in MODELS: each
+  point's factor 1/σ, `none` 1, `yerr` 1/e, `counts` 1/√y, `col` √w; `{fail:"noerr"|"nocount"|
+  "noweight", bad}`; `scale` true for none and a column, relative weights) and `lmFit`'s
+  `opt.scale` (the covariance scaled by the reduced χ², said rather than read from W). A draft,
+  fit or template has `weight` (`none`, `yerr`, `counts`, `col` with `wcol`) beside the older
+  `weighted` (`weightOf(o)` reads either; `weightRec(WT)` is what a fit stores, `weighted` kept
+  true for any weights); `weightsOf(o, pts)` gives `{W, scale, kind, key}` or `fail` in words
+  (a `yerr` draft with no error column is `none`). The Fit window's *Weights* list (`weightSel(id,
+  d)`, `#wt`, `#pwt`, `setWeight`: None, Y error disabled without an error column, Counting, the
+  sheet's columns with numbers, not the one fitted nor an X; each option's tooltip says what it
+  does). `runFit`, `stepFit`, `runPeakFit` refuse a `fail`, and a column's weights with the X
+  errors (`WCOL_ODR`); the orthogonal distance fit takes σ = 1/W. `fitDiag`, the prediction band
+  (σ² of the nearest point, the curve's value for counts, reduced χ²/w for a column), the ANOVA's
+  note, `fitStale` (a column of weights gone), `weightText` (each kind, in words and ASCII), the
+  global statistics and the batch CSV read the kind. `batchTemplate` turns a column's weights to
+  none (they belong to one column); `fitOne` and `fitTogether` use `yerr` or `counts` where every
+  point allows it, and each row stores what it used.
+  **The apparent fit** (the second half of slice 7): `APP_TF` (log10, ln, log2: `tf`, `ti`, the
+  slope `dv`), `appModel(f, app)` (y = ti(f(tf(x)))) and `appPoints(app, X, Y, W, weighted)`
+  (into the axes' space, W over the slope, or `badX`/`badY`) in MODELS; `appOf(cfg)` (the graph's
+  logarithmic axes, `{x, y}` or null), `appText(a, ascii)` ("log₁₀ y against x"), `appBad`,
+  `APP_ODR`, `parUnits(f)` (no units for a logarithmic axis's dimension: `paramRows`,
+  `derivedRows`). The draft's `app` (the switch `#fitApp`, shown while `appOf()` or the draft has
+  it; ticking re-guesses, one undo entry; `guessDraft` and `curveOverlay` work in the axes'
+  terms); `runFit` and `stepFit` fit `appPoints`' X and Y with the raw model; the fit stores
+  `app`. `fitModel` gives `f` in the data's terms (drawing, Find X/Y, the worksheet's columns)
+  and `raw` with `app`; `fitResiduals`, `residsOf`, `fitDiag` and the bands (worked out in the
+  axes' terms, carried back by `ti`) read `raw`. `fitWarnings` adds an `app` note; `statsList`
+  *Fitted as*; the report's Method and the CSV a line. `batchTemplate` carries it, `fitOne` and
+  `fitTogether` fit in the axes' terms (a range in the data's X).
+  **Starting values and constraints as formulas** (`FIT_SPEC.md` slice 8): in MODELS,
+  `dataMeasures(X, Y)` (`START_NAMES`: xmin, xmax, xmean, xspan, ymin, ymax, ymean, yspan,
+  yfirst, ylast, xat, xatmin, fwhm, area, n), `startPrep` (max(y) and the like to their names),
+  `evalStart(src, M)` (`{v}` or `{err}` in words); `parseCons(text, names)` (`a = formula`, `a < b`,
+  `<=`, `>`, `>=`, ≤, ≥, `#` notes; `{eqs, ineqs, order, any}` or `{err:{line, msg}}`: unknown
+  names, itself, set twice, a circle, x), `consApply` (the formulas alone), `consBack`/`consFwd`
+  (the parameters from the fitted ones, each inequality's larger as the smaller plus a
+  difference, and back), `consProblem` (the fit in the fitted ones' terms: followers fixed, each
+  difference's limit 0, strictly above it for `<`), `consResult` (the covariance through the
+  map's Jacobian; a follower's t, p, interval and dependency left out, as a tie's), `consFit`.
+  The draft's `initFx` (per parameter, the formula or null) and `cons` (the text); a model
+  change clears both. `startsFx(d, m, X, Y)` measures them on `fitXY(d)` (the points as fitted)
+  in `runFit`, `stepFit` and `guessDraft`; the grid's Start shows a formula as typed
+  (`input.pgsfx`, its value the tooltip, kept by `pgMarks`) and a follower's start as `= formula`
+  (`input.pgfol`, Fix and limits off; an inequality's larger says `≥ a` in the limits); the
+  *Constraints* box (`#fitCons`, `#fitConsHint`: `consHint` as typed, `consErr`; a change redraws
+  after the event). `consOf(o, m)` parses a draft's, fit's or template's; `runFit` and
+  `stepFit` run `consProblem`'s problem (rows of Iterations through `consBack`; Stop and 1
+  iteration put `consBack`'s values in the starts and clear the formulas) and `consResult` before
+  `saveCurveFit`, which stores `cons` and `initFx`; refused with the X errors (`CONS_ODR`) and for
+  a fixed larger (`consFixed`). `paramRows` marks a follower `tied` ("follows: b = …"); `fitDiag`
+  takes followers as not free through `consApply`; `statsList`'s Constraints (`consSummary`), the
+  report's Method (and the formula starts, `fxStartsText`) and the CSV state them;
+  `batchTemplate` carries `cons`, `fitOne` uses `consFit`, `fitTogether` refuses them.
+  **Saved fit settings and following** (`FIT_SPEC.md` slice 9): `p.fitSets` (in `UNDO_KEYS`,
+  `projFitSets`, `saveProjFitSets`) and the browser's `kurve.fitsets` (`fitSetLib`,
+  `fitSetLibSave`), each `{id, name, at, by, model, fn, init, initFx, fixed, lim, dig, weight (a
+  column's as none), app, cons, ctl, conf, xerr, follow, range {x0, x1, xu} or null}` from
+  `fitSetOf(d, c)`; `fitSetText` (the tooltip), `saveFitSetAs`, `renameFitSet`, `copyFitSet`,
+  `deleteFitSet`, `useFitSet(s)` (the draft set, one undo entry, a carried function adopted, the
+  range used only in the same X units, formula starts measured, a toast with Fit),
+  `fitSetMenuItems` (`#fitSets` in the Model heading, `.gh.ghact`; Analyze › Fit › Saved fit
+  settings). A fit's `follow` (the drafts' `follow`; `followSw`, `#fitFollow`, `#pfFollow`,
+  `setFollow`: the fit on screen at once, one undo entry): `followFits()` in `renderAll` after
+  `followPeakSets` refits `p.fit` through `fitOne(c, batchTemplate(f), f.params)` (a column's
+  weights kept, `fitOne` now taking them) when its column's `pipeSig` or `maskSig` changed, saving
+  with a log line and no undo entry; a failure stores `followFail` and `followTried` (not tried
+  again for the same data), said by `fitWarnings` (`follow`); `statsList` has *Fitted again*.
+  **The function editor grown** (`FIT_SPEC.md` slice 10): a function of yours may carry `cat`, per
+  parameter `mean` and `fx` (a start formula, `init` null), `cons` and `derived` (text, one a line;
+  `parseDerived(text, names)` in MODELS, `{list:[{name, src, fn}]}` or `{err:{line, msg}}`).
+  `userModel` gives `mean`, `cat`, `cons`, `derived` (for `derivedWithErr`) and a `guess` that
+  measures `fx` (`evalStart` on `dataMeasures`); its cache key carries them. `editUserFn` has
+  Category (`#fbCat`, a datalist of those in use), a Meaning column (`fbM_<key>`), starts as
+  formulas (checked on the preview's data, or the names alone with none), Constraints (`#fbCons`,
+  `parseCons`) and Derived values (`#fbDer`), each refused in the one message with its line.
+  Choosing a function (`chooseModel`, the editor's save) gives the draft its constraints and
+  formula starts (`ufnDraftFrom`). The model list files your functions and the library's by
+  category (`byCat`; a category is searched too) and has *Your functions…* (`data-morg`).
+  `openFnOrganizer()` (Analyze › Fit › Your functions…): every function of the project and the
+  library in one table by category (`#fnOrg`, `.fnorg`), name and category typed in place (one
+  undo entry for the project's, the library's copy too), Edit… (closes it, adopting a library
+  function first), To browser, To project, Delete (`deleteUserFn`, or the library's with a
+  toast's Undo).
+  **The parameter grid** (`FIT_SPEC.md` slice 2; `paramGridHtml`, `wirePGrid`, `pgMarks`):
+  each parameter with its unit and meaning (`MODELS[k].mean`, also in Results), Start and
+  Fix, Lowest and Highest (each with a ≤ or < button, `data-prel`; typed, empty for the
+  model's own, shown as the placeholder, or `none`), Fitted and Error (columns of their own,
+  `fmtVE`, fmtPMd's pieces), the 95% interval,
+  Dependency and Digits. In a window narrower than 700 px one view at a time (`PG_VIEWS`,
+  `S.pgView`: Starting values, Limits, Results; the fitted value is beside the starts too),
+  by container query on `.pgw`; wider, every column. The draft keeps `d.lim` (`{lo, hi, slo,
+  shi}`: a number, null for the model's own, false for none; `draftLims` sizes it,
+  `boundsOf(L, m, p0, fixed)` resolves it through `fitBounds`) and `d.dig` (significant digits
+  per parameter, null for automatic); a model change clears both. A field writes the draft and
+  marks in place (a start outside its limits `.oob`, `.pgnote` for a parameter held by equal
+  limits), never redrawing the form; crossed limits are refused with a toast and the field put
+  back. `runFit`, `stepFit`, `fitOne` and `fitTogether` fit within them; a fit stores `lim`
+  (`limRec`: only when something is typed) and `dig`, and its `fixed` includes a parameter
+  held by equal limits. `limText(f, ascii)` says them ("0 < w; 1 ≤ xc ≤ 5", resolved over the
+  fit's own model, fixed ones left out): Results' Limits row, the report's Method (`Limits:`,
+  once, the function's line no longer carrying them) and the CSV (`# limits`). `fmtPMd(v, e,
+  dig)` shows a value and its error with chosen digits (the grid, Results and the report; the
+  CSV and the copied table keep every digit); changing the digits of the fit on screen saves
+  them on it at once (one undo entry).
+  **The confidence level and the residuals** (`FIT_SPEC.md` slice 4): a draft's `d.conf` and a
+  fit's `conf` (null or missing for 95%; `confOf`, `confPct`, `confKeep`), set in both Fit
+  windows' options (`confHtml`, `wireConf`, `setConf`: 90, 95, 99, 99.9 or Other…; the fit on
+  screen takes it at once, one undo entry), carried by `batchTemplate`, `fitOne` and global
+  rows. `ciOf(f, i)` is a parameter's interval at it (`ciDof`: a global row's whole dof),
+  read by the grid, `paramRows`, Results, the copied table, the report and the CSV; the bands
+  use `tCrit(confOf(fit), …)`, and their labels say the level. `fitDiag(f, {auto})` is the
+  analysis on the fit's own points (in its range, weighted as it was; tied, fixed and at-limit
+  parameters not free; memoised in `DIAG`): `residualStats`, `out` (`outliersOf`) and `anova`;
+  null for a fit with the X errors; with `auto` (the notes, the raw panel) null when 2m sweeps
+  of the model, timed on one, pass 120 ms (`DSKIP`). `RES_KINDS` (raw, std, stud, del) and
+  `RES_VIEWS` (x, fit, order, hist, prob, lag); the graph's `residKind` (`resKind()`, the Format
+  dialog's layout page, Results' list) is what the panel under the graph shows, against X, with
+  the deleted residuals' limit (`data-rlim`) and outliers ringed (`data-rout`); `S.resView`
+  (`kurve.resview`) is Results' view. `residChartSvg(D, kind, view, o)` draws one view (one path
+  of dots, the limit, rings, a histogram's normal curve, probability paper's line `data-rref`).
+  Results' `diagHtml(f)`/`wireDiag`: the sections the Fit window's **In the results** chose
+  (`rShow()`, `RSHOW_DEF`, `RSHOW`, `setRShow`, `rShowHtml(peaks)`, `input[data-rshow]`, per
+  browser under `kurve.rshow`; since 11.11, information hygiene, `ci` the intervals' column,
+  `tp` t and Prob > |t|, `dep` the dependency (columns of the parameter table, `paramTableHtml`,
+  in `.rtabw`; no second line under a parameter, no red row), `anova`, `corr`, `cov`, all off,
+  `resid` and `find` on, and for a peak fit `par`, every parameter (off)), each an open
+  `section.rsec[data-rd]` with its `h4`, never folded: Analysis of variance (`anovaRows`),
+  Correlation matrix and Covariance matrix (`covRows`: the free parameters; above 0.95 marked;
+  no analysis needed), Residuals (kind and view lists, the chart, the outliers with Mask,
+  `maskOutliers`, one undo entry); `diagStats(f)` puts the residuals' scatter s and the outlier
+  limit in the statistics beside the table. Only while Results is open, and for a heavy fit one
+  section with *Work it out* (`#rDiagGo`, `S.rDiagAt` the fit asked for, `resDiag`).
+  `fitWarnings` adds `outliers`; `reportDiagHtml` and `diagText` (the copied table, the CSV
+  under `# `) carry everything whatever Results shows, as does the report's parameter table
+  (`paramTableHtml(f, true)`).
+  **Find X/Y** (`FIT_SPEC.md` slice 5): `fitYAt(f, p, cov, fixed, x, t)` (in MODELS: the
+  curve's Y, its standard error by the delta method as the confidence band's, `null` when a
+  parameter it moves with has no covariance, and the interval at t) and `fitXAt(f, p, cov,
+  fixed, y, a, b, t, n)` (every X in [a, b] where it takes y: a grid of n steps, bisection for
+  each crossing, a golden-section narrowing for a touch, `touch:true` and no error; each
+  crossing's error the curve's over its slope; `ymin`/`ymax` the curve's range there, narrowed
+  from the grid; at most 100, `more`). Results' section (`rShow().find`, on; `findHtml`,
+  `wireFind`): `#fyX` and `#fxY` with their `output`s written in place on input (`findYOut`,
+  `findXOut`; `fmtAt` gives an interval's ends fmtPM's decimals), what is typed kept in
+  `S.findXY`, Escape clears; `renderResults` keeps the focused field and its caret across a
+  redraw. `findCtx(f)` (the model's function, the parameters, `f.cov`, `f.fixed`, t as the band's,
+  `findSpan(f)`: the fit's `range` or its points' extent). *Fill a column…* (`#rFindFill`,
+  `findFillDlg`, `findFill(f, {what, from, many, err, ci})`): a column of the sheet shown (the
+  selected one, else the fitted column's X) read into new `ignore` columns after it on its sheet
+  (the value, its standard error, the interval's ends, each with a comment naming the fit), one
+  undo entry, a raw-data record entry, a log line, a toast saying what was left empty.
+  **The fit in the worksheet** (`FIT_SPEC.md` slice 6): `fit(B)` and `resid(B)` are formulas of
+  their own (`fxParse` takes either as a whole formula of a Y column on the sheet, `c.fx = {src,
+  refs, fit:"fit"|"resid"}`; anything else naming them is refused in words; the suggestions list
+  them), computed by `fxFitEval` (through `fxEval`, so `recalcFx`, `rawCols`, the check code and
+  every refusal to type over a computed column treat them as formulas): the column's fit
+  (`laneFit`) at each point of its processed data in the fit's range, in the point's recorded
+  row (`idx`), masked points included; an error when the column has no fit; a note when it is
+  out of date (`fitStaleFor`), in `FX_NOTE` (the header's `.fxm.old`, its title, the bar's
+  hint on F(x)=, the column menu). `save` recalculates them when a patch carries `fit` or
+  `batch` (and adds `cols` to it when they changed). `fitToSheet(f)` (Results' `#rToWs`,
+  Analyze › Fit › Put the fit in the worksheet, the fit curve's menu): Fitted values and
+  Residuals after the column and its error columns, `ignore`, one undo entry, a log line, no
+  record entry; once per column (`fitColsOf`), asked again it shows them; a derived spectrum is
+  refused in words.
+- **Batch fits and series** (`p.batch`, `p.series`, both in `UNDO_KEYS`): the analysed
+  spectrum's fit is the template (`batchTemplate`: model, peaks with shapes, ties and fixed
+  parameters, baseline or curve model, X range, weighting, X units). `runBatch({tmpl, seed,
+  cols})` fits every spectrum on the same X units, one per tick (`setTimeout`, so the window
+  shows progress and Stop works), with `fitOne(c, t, seed, spec)`, which is `runPeakFit` and
+  `runFit` for any spectrum (its final data, its mask, its error bars). Seeds (`SEEDS`):
+  `tmpl` the template's result; `chain` the neighbour's result, starting at the template's
+  spectrum and running out both ways in series order; `found` the peak finder's peaks in each
+  spectrum with the template's first shape (`batchFoundSeed`, as `runPeakFinder` seeds).
+  `p.batch = {at, by, tmpl, seed, rows:[{col, fit|null, fail|null}]}`; each row's fit is a
+  normal fit with `batch:true` (and `byHand` when `batchWith(fit)` put a fit made by hand in
+  its row), whose staleness is its own spectrum's `pipeSig`/`maskSig` (`batchStale`,
+  `fitStaleFor`); `batchRowOf`, `batchFitOf`, `laneFit` (the History's Fits box per spectrum),
+  `batchAgain`, `clearBatch`, and `removeFit` removes a batch row when that is what is shown.
+  **The series variable** (`seriesOf()`: `{mode, label, unit, vals, q, line}`): the order of
+  the spectra, a number in their names (`numsInName`; `seriesVals` takes the position, counted
+  from the end, whose values vary most), or typed values; `seriesCols()` is the spectra in that
+  order, `seriesLabel()` its axis title, `setSeries(patch, log)` saves it (with undo when it is
+  logged). **The Batch window** (`renderBatch`, `wireBatch`): Fit every spectrum…, Fit again,
+  progress (`S.batchRun`, `renderBatchProgress`), a summary line, the trend (`batchQuantities`:
+  peak centre/height/FWHM/area/area % per template peak, curve parameters and derived values,
+  R², reduced χ², band integrals and ratios, which need no fit; `batchValue(c, q)` →
+  `{v, e, bad, bound}`; `trendData`, `trendSvg`, `lineFit` a weighted straight line), and the
+  table (`batchTableText` for Copy and `exportBatchCsv`, `exportTrendSvg`, `reportBatchHtml`).
+  Clicking a name or a point is `goSpectrum`.
+  **Global fits** (`runBatch({…, share})`, `fitTogether(list, t, share)`): every spectrum is
+  first fitted with the shared parameters held at the template's values (a template `tf` whose
+  `fixed` includes them), then all are fitted at once by `globalFit` from those results, the
+  shared ones from the template's. `p.batch.glob = {share, stats}` (`stats`: `K, n, dof, chi2,
+  redChi2, R2, m, sh, own, iter, converged`); each row's fit carries `global:true`, `shared` (a
+  flag per parameter) and `gstats`, its errors from the whole covariance. Weighted only if
+  every spectrum can be; at most 900 parameters. A failure keeps the first fits and says so.
+  `SHARE_KINDS`/`shareKindOf` (centres, widths, areas, shapes, baseline), `tmplTied`,
+  `tmplParamName`, `shareSummary` ("every centre and every width", a following one after the rest:
+  "xc (a straight line in temperature)"); the dialog's sharing list (`#bfShare`, `bfK_<kind>`
+  setting a kind's lists, `bfP<i>` a list per parameter: Its own, Shared, and while the series has
+  a value for every column A line in the series, and while those are temperatures (`seriesKelvin`:
+  K, °C or °F) Arrhenius in the series; listeners on its own elements). **Following the series**
+  (roadmap 7, slice 1): a share is false, true or `"lin"`/`"arr"` (`FOLLOW_KINDS`, `shareVal`);
+  `runBatch` holds only a shared value in its first pass; `fitTogether` takes the series values
+  (`seriesVals`, `seriesName`, kelvin for Arrhenius), passes `follow`, stores each row's `follows`
+  and `gstats.fol`, and `glob.follow` (each line with its parameter's `name`, `unit`, the series'
+  `sname` and `sunit`); `followText(q, ascii)` says it (the Batch window's `.bfol` under the
+  summary, Results' statistics *Follows the series*, the report, the CSV with the two numbers,
+  their errors and covariance); Results marks the parameter *follows*. **In a worker** (roadmap 7,
+  slice 3): `fitTogether` is `fitTogetherPrep` (the sets, starts, limits, `follow`, and `desc`, what
+  a worker needs to make the model again: a peak fit's spec and whether it has ties, a model's id,
+  or a function's formula), `globalFit`, and `fitTogetherFinish` (the rows and `glob`); runBatch
+  calls `fitTogetherAsync(list, t, share, stopped)`, which sends the solving to the compute worker
+  as a `gfit` job, and fits on the page when it gets null. **The compute worker** (PARITY_SPEC wave
+  0.3): `computeWorker()` (the page's NUMERICS, PEAKS, PIPE and MODELS blocks, cut from its own
+  script as fit-test does, and `COMPUTE_TAIL`, a handler, as a Blob; one worker, `CWK`, false when
+  one cannot be made); `computeRun(job, stopped, onProgress)` (a promise of the result, `{error,
+  crash}` when the job threw, `{stopped}` when Stop is pressed, the worker ended and made again next
+  time, null to do the work on the page); jobs `gfit` (the model made again from its description)
+  and `call` (any function of the blocks by name, `{fn, args}`, through `self[fn]`, no eval); a job
+  says how far it has got with `self.progress(v)`. The progress
+  line has Stop while they are fitted together; stopped, each column keeps its own fit. `activeFit` and `laneFit`
+  prefer a global row to a fit by hand made before it; `batchWith` never replaces a global row;
+  `batchStale` puts every global row out of date when any of its spectra changes;
+  `fitWarnings` adds a `global` note; `statsList` gives the row's and the whole fit's numbers;
+  Results and the batch table mark what is shared.
+  **Tracks** (the same peak across the spectra): `fitTracks()` matches a `found`-seeded batch's
+  usable peaks (quantities `fk@<x>.<f>` with `trk.byCol`), `markedTracks(xu)` the Peaks
+  window's sets (`mk@<x>.x|y`, position and Y at the peak, no fit needed; `labelTrack`,
+  `trackTableText`); `qFind(qs, id)` finds a track's quantity again within its width after it
+  moved, `qFindStrict` returns null rather than another quantity. **Series from the files**:
+  `mode:"meta"` with `key`, a header field (`metaParse`: a date and time (with its time zone, if
+  written), a time of day (`tod`, unwrapped across midnight in the spectra's order), or a
+  number with its unit; `metaKeys` lists the fields most spectra have as numbers and that
+  differ; `metaSeries` gives the values, dates as time elapsed since the first in s, min, h or
+  d); `seriesUnit`, `seriesModeOptions` (the list in the Batch and trend windows),
+  `pickSeriesMode`. **Trend graphs** (`p.trends = [{id, name, ys:[{q, ax}], line}]`, in
+  `UNDO_KEYS`): windows made like graph windows (`syncTrendWins`, `WINS[id].trend`, after Batch
+  in the taskbar, help `batch#desk`), `renderTrendWin` (chips with L/R and ×, + Quantity
+  `trendAddItems`, against, Lines), `drawTrendPlot` (sized to its box, redrawn by a
+  ResizeObserver), `saveTrend`, `newTrend` (the Batch window's On the desk, Window › New
+  graph), `trendWinItems` (rename, copy, SVG, PNG, *As a graph like any other*, delete;
+  `trendToGraph(id)`, roadmap 7, slice 4: a sheet named after it, the series as X and each
+  quantity a Y with an error column, comments dated, `recordRaw`, then `plotCols` with `use` for
+  the right axis; one undo step; a copy, not following later fits), `trendTableText`, `exportTrendWin`,
+  `reportTrendsHtml`. `trendPlotSvg(ser, {W, H, pal, forExport, idp, single})` draws any number
+  of quantities on a left and a right axis (margins measured, a legend row, symbols per
+  quantity, an axis of one kind titled by the kind); `trendSvg` is it with one series.
+- **What each curve of a graph uses** (`ux/spec/PLOT_SPEC.md` slice 1): `g.plot.use = {colId:
+  {rng, ax, lab}}`, read through `curveUse(id, pl)` (`USE0` when nothing; `rngOk`) and written by
+  `setCurveUse(ids, patch, log)` (one undo entry); `useClean` in `normalize` keeps only curves on
+  the graph, ranges of two numbers, `ax:"r"` and columns that exist; `plotBase` leaves it out (and
+  `FMT_KEYS` never had it). `rng {by:"row"|"x", a, b}` (rows counted from 1): `useRange(id, pts,
+  pl)` in `buildPlot` filters the active curve's `pts` and each other curve's before anything is
+  drawn or scaled, so the automatic view is over what is drawn; the data, `pointsAll`, the fit and
+  the readers' data are not. `ax:"r"`: `buildPlot`'s `onR`, `oR` and `oL` (every other curve with
+  the `dy` layout, those set so in an overlay; not the active one): `dy` is now "a right axis is
+  drawn", the right axis's range and title from `oR`, the legend's (left) and (right), the fill
+  between curves and the legend's corner search over the left ones; `hasRight(cfg)` for the axis
+  menu, the axis drag, the Format pane's pages. `lab`: `labSvg` writes each drawn point's value of
+  that column in its row (`g[data-plab]`, `TS.labels`, at most 1500 a curve on screen, every one in
+  an export). The curve's right-click: *Range…* (`curveRangeDlg`: all, rows, X when it rises or
+  falls steadily, *Fit the axes to it*, *Every curve of this graph*; `rngText`), *Right axis*,
+  *Labels from*. **Groups** (PLOT_SPEC slice 4): `use[id].grp` (`grpOk`) and `g.plot.grps =
+  {grp: {step}}` (`GRP_STEPS`: all, color, sym, dash), cleaned by `grpClean(pl)` (a group of one
+  dropped, a step that does not read made `all`, on copies; in `normalize`, `setGroup`, `plotCols`,
+  the dialog); `grpOf(cfg, id)` (memoised per settings object, `GRPM`, in the graph's order
+  `cfg.gcols`, set by `plotCfg`) gives `serStyle` a curve's place, and it steps the colour by
+  `tintAt(base + k)` (`yTint` is `tintAt` of the column's place), the symbol through `SYM_STEP`
+  and the line through `DASH_STEP` from the first curve's, each curve's own style first, and the
+  type is the first curve's; `graphGroups(pl, cols)` (named Group 1, 2… by their first curves),
+  `grpShareTypes`, `setGroup(ids, grp|"new"|null, log)`, `setGroupStep`, `groupItems(c, ro)` (the
+  curve's right-click *Group*), `plotTypeItems` of a grouped curve sets every curve's type
+  (`setTypeOf`); `plotBase` leaves `grps` out. Plot setup's Group column (`data-cgrp`, `New group`)
+  and steps (`data-gstep`), `st.grp`/`st.grps`, `psuGroups(st)` (a group of one listed so others
+  can join). `tools/plot-drive.mjs` drives it.
+- **Caveats** have one source: `fitWarnings(fit)` returns `{level, kind, text, brief, acts}` for staleness
+  (`fitStale`), non-convergence, unusable components (`peakProblems`), a singular covariance,
+  dependency, parameters at a bound, and residuals that run in long same-sign stretches
+  (`runsTest`, Wald–Wolfowitz), and warnings from the processing the data went through
+  (`procWarnings`), plus advice on a Voigt whose Gaussian or Lorentzian width went to zero and
+  the meaning of a Fano's area. The results drawer, the fit panel's summary line, the copied table and
+  the exported report all read it, so the report can never say less than the screen. The
+  checks that look at data (`fitResiduals` for the runs test, `peakProblems`, the Voigt
+  width check) read the fit's own spectrum through `fitPts(f)`, not the analysed one. `text` is
+  the whole of it (the report, the copied table, the CSV, the note's tooltip); `brief` one line
+  with the number first, as Results shows it; `acts` its fixes, `[label, action, data]`.
+  **Notes** (`noteHtml(level, text, raw, acts, why)`, the design system's Note): one line and
+  its fixes as small buttons at its end (`.note .acts`, `button[data-nact]`), run by one
+  listener for the page (`setupNotes`) from `NOTE_ACTS` (`fitagain`, `guess`, `fitctl`,
+  `limits`, `fitwin` through `fitFix(what)`, which opens the Fit window on the fit's kind;
+  `mask`, `resid`, `history`, `gocol`, `import`, `pkfind`, `peaks`); one that edits
+  (`NOTE_EDIT`) is disabled for a viewer. The Peaks window's and the History's out-of-date
+  peaks and the Fit window with no data have theirs too.
 - **Import** (between the `==PARSER:START==`/`==PARSER:END==` markers): pure, DOM-free functions
   that sniff a file — `detectFormat` (delimiter and decimal mark decided together, since `1,5;2,5`
   only parses if you treat `;` plus comma-decimal as one hypothesis), `findBlock` (the longest run
   of consistent numeric lines, so an instrument preamble and a trailing footer are found rather
-  than fought), `parseMeta`, `detectRoles`, `detectPaired`, `analyzeFile`, and `checkColumns`
-  which reports findings without applying them. `tools/parser-test.mjs` extracts this block
-  straight out of the HTML and tests it under node; run it after touching anything here.
-- **Columns**: a project is a table. `p.cols` is `[{id, role, name, unit, data, of?, formula?}]`
-  with roles `x` / `y` / `e` (an error column names its Y in `of`) / `ignore`, and `p.activeY`
-  says which Y the fit and the analysis panels use; the others are drawn behind it for
-  comparison and can be hidden via `p.plot.hidden`. Helpers: `xCol`, `yCols`, `activeYCol`,
-  `errColFor`, `colById`, `makeCol`, `colLabel`. Nothing should reach for `p.x`/`p.y`/`p.e`
-  any more — `migrate()` converts those v1/v2 documents to v3 columns and deletes them.
-- **Recipe**: raw column data is the record and analysis never edits it. Two layers:
-  `p.steps` holds row-level cleanup (`STEPS`: sortX, dedupeX, trim) applied to the whole table
-  at once by `derivedTable()`, and a column may carry a `formula` (`==COLMATH:START/END==`:
-  subtract/add/multiply/divide another column or a constant, normalise, or Savitzky–Golay
-  smooth/differentiate) recomputed by `recomputeFormulas()` whenever its inputs change.
-  Every step carries an index map back to the original rows, so masking and row selection still
-  refer to the same observation after sorting, averaging or cropping. `derived()` is the active
-  series as x/y/e; `pointsAll()` reads it. The worksheet shows raw data and marks computed
-  columns read-only. `interpOnto` lets columns on different X spacings be combined; `trapz`
-  integrates and returns a negative area on a descending axis, which is why callers take the
-  magnitude.
-- **Undo**: `pushUndo(label)` before any mutation, `undo`/`redo`, snapshots of `UNDO_KEYS`. It is
-  per-session and local on purpose — rewinding your own edits, not other people's.
-- **Storage**: `LocalStore` (localStorage, single user) and `makeDbStore(db)` (claude.ai artifact
-  runtime, shared realtime). Both expose the same interface: `watchProjects`, `create`, `save`,
-  `remove`, `watchComments`, `addComment`, `updateComment`, `deleteComment`. To add a real
+  than fought), `parseMeta`, `detectRoles` (X is the first column that rises or falls steadily,
+  else the first whose name matches `X_NAME`, an axis's name; with neither, `xi` is -1 and every
+  column is a Y against its row number, error columns still found by name: `ERR_NAME`, err, sd,
+  sigma, σ, uncertainty and their German, French, Italian and Spanish names), `detectPaired`,
+  `analyzeFile` (a last header line of units under a line of names, `isUnitsRow`/`isUnitWord`/
+  `UNIT_RE`, fills the Units row: the names become "Sample A (OD600)" and `unitsAt` is the units
+  line), and `checkColumns`
+  which reports findings without applying them. `numNorm` reads numbers as documents write
+  them (a minus sign −, superscript exponents 5×10⁻³, thousands set off by no-break spaces, or
+  by plain spaces in a comma-decimal number, full-width digits and signs as an input method
+  types them, １２，５) and refuses `0x`, `0b`, `0o` literals; `toNumber`
+  and the worksheet's `parseNum` both use it. `unwrapQuoted` turns line breaks inside a quoted
+  field that opens at a field's start and closes within four lines into spaces (a spreadsheet
+  header cell written on two lines), before `analyzeFile` and the worksheet's paste split lines.
+  **Text kept** (FOUNDATION_SPEC 1.2b): `analyzeFile` returns `txt`, per column `{row: text}` of
+  every field that does not read as a number ("n/a", "<0.01", a name), and `colFields(res, j)` a
+  column's fields as written (for one kept as text, "007"); `textColsOf(F, dec, ncol)` (a column
+  text in 80 % of the lines holding a number) is left out of `findBlock`'s and `detectFormat`'s
+  judging of a line (but counts against `detectFormat`'s purity, so a wrong decimal mark that makes
+  numbers text still loses), and `findBlock` fills a hole of up to three lines with a number and a
+  stray text inside a run of data lines. The wizard's *Use* has `text` (*Text (kept as written)*:
+  an `ignore` column with `fmt:"text"`); `impUseDefault` makes a column with more text than numbers
+  `text` and keeps one with only text; `impBuild` carries each column's stray text as its `txt`.
+  `parseLineList(text)` reads a list of known lines as people write them (a name and a
+  position in either order, an intensity, tabs, semicolons, decimal commas, `K 40 1460.8`, #
+  notes; a line without a number skipped and counted). `parseFillList(text)` reads the Fill
+  dialog's list (spaces, semicolons, or commas alone; decimal commas between spaces; the words
+  that are not numbers returned in `bad`). `tools/parser-test.mjs` extracts this block
+  straight out of the HTML and tests it under node (TKA files and line lists among the rest);
+  run it after touching anything here.
+  **Dates and times** (`timeOf`, `T_DATE`, `T_TIME`, in the block): an ISO date or date and
+  time (with T, Z or an offset) is seconds since 1970 in UTC, `h:mm(:ss)` is seconds, year-first
+  dates only; `toNumber` and `parseNum` read them, `splitLine` keeps a date and its time of day
+  one field on whitespace, and `analyzeFile` returns `tkind` per column (`date`, `time`, null:
+  80 % of its cells). A column made from one carries `tfmt` (`impBuild`, `batchFile`'s `xt`);
+  the worksheet shows it with `tfmtText`, and a graph against such an X numbers its axis that
+  way unless the axis's format is set (`buildPlot`, `timeTicks`).
+  Files arrive through `readFileIn` (the Import button, Ctrl+O) and `importText`, which refuses
+  binary instrument files with a reason (`looksBinary`). **The dialog never plots**: the
+  columns go into the worksheet (`impGraphs(p, ids, "none", fresh)` closes an empty first
+  graph), to be plotted from it. **Dropped files** (`setupDrop`) are read and plotted at once:
+  `fileDropAt(x, y)` says where (a folder row `[data-xfold]` of the Explorer, a graph window or
+  its taskbar button, or the desk) and the overlay's message says so (`#dzMsg`; the outline is
+  the class `dropin`, never `fdrop`, the History's insertion line); `readDropped` reads them
+  (60 MB at most each) and `autoImport(files, {gid, folder})` builds each with the dialog's
+  automatic choices (a pseudo `S.imp` through `impBuild`), adds them as one undo entry and one
+  record entry (a fresh project takes the files' name and header), files them in the folder,
+  and `plotCols(ids, {into, noUndo, quiet})` puts them on the graph dropped on, the free first
+  graph, or a new one; its toast offers "Read it differently" (undo, then the dialog). Every
+  import gives its columns a file id `fid` and the file's name `file`, which the Explorer
+  groups by.
+  **The wizard's columns**: `S.imp.use` is what each column of the file becomes (`IMP_USE`:
+  `x`, `y` a spectrum, `e` the error bars of the nearest Y to its left (else right,
+  `impErrOf`), `data` (the worksheet's `ignore` role: kept for formulas, not a spectrum) or
+  `skip`), started by `impUseDefault` (empty columns skipped; X,Y,X,Y only when
+  `impPairsLikely`: `detectPaired` and every other column over much the same range as the
+  first, else a "Read as X,Y pairs" fix). The table (`.impcols`, a `select[data-use]` per
+  column, the name a `[data-pv]` button choosing the preview's spectrum, `impPv`) keeps the
+  focus across its redraw. `impCols` is the preview's X (the nearest X to the left,
+  `impXFor`, or the row number), Y and error. Error columns are `e` (±), `e+`, `e-` and `xe`
+  (`impIsErr`; `impUseDefault` reads the kind from the name: `x err`, `dx`, a `+` or `−` at
+  the end). `impGraphs(p, ids, how, fresh)` decides the graphs before the save (`how` is
+  `none` from the dialog, which makes no graph; fresh, the project's graphs go).
+  The settings it detected are tinted (`.det`, title Detected, a `.detkey` under them; a setting
+  chosen by hand loses its tint and has Auto beside it; `im.opt[k]==null` is detected), the
+  Columns heading counts the rows, and **Put it in** (the project's name beside it, a readout
+  of both X ranges when they do not overlap) offers New sheet, Add to the sheet shown and New
+  project; the footer holds Cancel and Import alone. Replacing the project is File › Replace
+  the data… (`replaceData`: `confirmDlg` first, then `pickFile(true)`, which sets
+  `S.impReplace`; `openImport` takes it as `im.mode` "replace" and clears it, and any other
+  `pickFile` clears it too), and the dialog then says so in a note instead of the choices.
+  `impBuild` makes the columns in the file's order (an X of row numbers when none is X; the
+  fixes as steps on every spectrum; √N columns), `doImport` puts them in a new project, beside
+  the project's (the first X shared with the last X column when `sameAxis`), or in place of
+  it (the other graphs go), and `afterImport` brings the worksheet forward (`sheetForward`:
+  it takes the graph's place) with a toast that plots them, or opens the graphs made (one
+  spectrum: its History and Overview). A project just created is current only once the store
+  lists it: `whenOpen(fn)` waits for it.
+  **Many spectra at once**: several files chosen or dropped together go to `readFilesIn`.
+  `batchFile(fname, text, opt)`
+  reads a file into items `{fname, name, x, y, e, xn, xu, yu, n, x0, x1, meta}` (or `{fail}`
+  in words), `batchImport(items, o)` lists them in a dialog (names editable; into this project
+  or a new one; nothing plotted) and `doBatchImport` brings them in as
+  one change: one undo entry, one log line, one raw-data record entry. A spectrum shares the X
+  column of the one before it when `sameAxis`, and has its own otherwise; `impGraphs` and
+  `afterImport` as above.
+  **One column** (a multichannel analyser's counts, a line per channel): `analyzeFile(raw,
+  {fname, tka})` marks `single`, and for a `.tka` name (or `tka:true`; `tka:false` refuses)
+  reads the first two lines as live and real time (`res.tka`, into `meta` with the dead time;
+  only when real ≥ live unless asked) and starts the data after them; `detectRoles` gives one
+  column `xi:-1`. With no column as X the wizard's X is the row number ("The channel
+  number", from `im.ch0`, 0 or 1), `√N error bars for the counts` (`im.sqrt`, for columns of
+  non-negative whole numbers named or united as counts, `COUNT_NAME`, or from a TKA file
+  (`impCounts`), with no error column, `impSqrtable`: an error column computed
+  by the formula `SQRT_FX`, `sqrt(max(B,1))`), and the TKA line a `rate` fix (a `scale` step by 1/live, Count rate in
+  counts/s). X is named Channel, Y Counts (counts) for TKA, the file's name otherwise (and
+  beside other spectra); thousands of points are drawn as a line. **An analyser's own format**
+  (roadmap 3, slice 1): `mcaFile(text, fname)` (in the PARSER block) recognises Maestro's and the
+  IAEA's `.Spe` (`speFile`: `$DATA:` with its first and last channel, `$MEAS_TIM:`, `$DATE_MEA:`
+  month first, turned year first, `$MCA_CAL:` with its unit over `$ENER_FIT:`, `$SPEC_ID:`) and ANSI
+  N42.42 (`n42File`, by regular expressions so the block stays DOM-free: the longest `ChannelData`,
+  `CountedZeroes` unfolded, durations `PT…S`, `CoefficientValues` or the 2006 `Coefficients`,
+  `StartDateTime`), giving `{kind, counts, ch0, live, real, date, cal:{co:[c0, c1, c2], unit}, title,
+  at}` (`at`, the file's lines that hold the counts); `analyzeFile` then reads the counts as one
+  column (`res.mca`, `res.tka` from its times, `meta` Title, Measured, Live time, Real time, Dead time,
+  Energy calibration). The dialog shows the file as written with its counts marked and no format
+  controls; `impStart(res)` numbers the channels from the file's first and turns on the `ecal` fix,
+  an Energy calibration step (`mcaCalParams(cal)`) put before any other; `autoImport` and
+  `batchFile` (`steps`, made per column by `doBatchImport`) do the same. **JCAMP-DX** (roadmap 8,
+  slice 1; in the PARSER block): `jcampFile(text)` (`{kind, form, x, y, xn, xu, yn, yu, title, meta}`,
+  `{fail}` in words, or null without `##TITLE=` and `##JCAMP-DX=`): blocks from `##TITLE=` to `##END=`
+  (a linked file's first with data, its outer labels kept), labels compared by `jdxKey` (case,
+  spaces, dashes, slashes, underscores ignored), `$$` comments; `##XYDATA=(X++(Y..Y))` in AFFN or
+  ASDF (`jdxTokens`: `JDX_SQZ`, `JDX_DIF`, `JDX_DUP`; E read as SQZ in a compressed file, a DIF
+  line's check value dropped), X from `##FIRSTX`/`##LASTX`/`##NPOINTS` or the lines' own, the
+  factors; `##XYPOINTS=` and `##PEAK TABLE=` pairs; units named by `JDX_XU`/`JDX_YU` (Raman shift
+  for a Raman spectrum); `##NTUPLES` refused. `analyzeFile` decodes it into a tab-separated table
+  under `Name (unit)` headers and reads that (`res.jdx {kind, form, n, title}`, `res.meta` the
+  labels; a failure `res.jdxFail`, said by `openImport`, `batchFile` and `autoImport`), and
+  `impFindings` says so (`jdx`). **SPC** (roadmap 8, slice 2; in the PARSER block): `spcFile(bytes)`
+  reads the new format (4Bh little-endian, 4Ch big-endian; the old 4Dh refused): the 512-byte
+  header, X shared (TXVALS) or each subfile's own (TXYXYS) or even from first to last, each
+  subfile's Y as floats (exponent 80h) or 32- or 16-bit (TSPREC) integers scaled by 2^(exp − 32) or
+  2^(exp − 16) (the file's exponent when a lone subfile has none), the types named by `SPC_X`/
+  `SPC_Y` or its own labels (TALABS, NUL-separated), memo, source, resolution, method, date and
+  experiment (`SPC_EXP`) as `meta`; at most `SPC_MAXSUB` (300) subfiles; `{fail}` in words, a file
+  that ends early too. `spcTable(sp)` writes it as text: `Key: value` lines, then columns under
+  `Name (unit)` headers (one X and a column per subfile, or X, Y pairs). `readAny(f)` is every
+  reader's (`readFileIn`, `readFilesIn`, `readDropped`): an `.spc` read as bytes and decoded, any
+  other file as text; `impFindings` says so (`spc`). **OPUS** (roadmap 8, slice 3; PARSER block):
+  `opusFile(bytes)` (null without `0A 0A FE FE`, so a file so named is read as text): the header's
+  directory of 12-byte entries (`OPUS_DATA`/`OPUS_PARAM` name the data and parameter blocks by data
+  type and channel), parameter blocks of three-letter names (int32, double, string; to END), one
+  data block, the first of `OPUS_ORDER` (AB, ScSm, ScRf, IgSm, IgRf) with its parameters (NPT, FXV,
+  LXV, CSF, DXU `OPUS_XU`, DPF), the sample's, instrument's, acquisition's, optics' and Fourier
+  parameters a person reads (`OPUS_FIELDS`) as `meta` with `Block`; the same shape as `spcFile`, for
+  `spcTable`. `readAny` reads a name ending in a number (`binName`: `.0`, `.1`…, `.opus`) as bytes and
+  tries it; `impFindings` (`opus`). **Princeton SPE** (roadmap 8, slice 4; PARSER block):
+  `speBinFile(bytes)` (null for text, a file without a NUL in its first 64 bytes, so Maestro's `.Spe`
+  goes on to `mcaFile`; null too without version 2's end mark 5555h at 4098 or a version 3 header):
+  frames × rows of xdim values (float32, int32, int16, uint16, uint32 by the data type at 108), X from
+  version 3's XML footer `<Wavelength>`, else version 2's polynomial in the pixel from 1 (order at
+  3101, coefficients at 3263), else the pixel; the exposure, date and time, detector temperature,
+  laser line (3311) and comments as `meta`; `{fail}` in words; the shape of `spcFile`. `readAny` reads
+  every `.spe` as bytes and decodes text when `speBinFile` says it is not one; `impFindings` (`spe`).
+  `batchFile` reads one-column
+  files the same way. A Y column whose X column holds no values is drawn against its row
+  number (`rawSeries`, `anyVal`, xn "Row").
+- **Columns and spectra**: a project is a table. `p.cols` is `[{id, role, name, unit, data, of?,
+  pipe?, mask?, src?, from?, file?, meta?}]` (`file` and `meta`, the file a spectrum came from and
+  its header's fields, `colMetaOf`, shown in its Original data box in the History) with roles `x` / `y` / `e` (an error column names its Y in `of`, and is one of six kinds, see
+  Error bars) /
+  `ignore`. A column is on a **sheet** (`c.sheet`, see Sheets). There may be several X columns: as in Origin, a Y column is plotted against the
+  nearest X column to its left on its sheet (`xColFor`), so a spectrum imported on a different axis gets its
+  own X column instead of being interpolated. Every Y column is a **spectrum** with its own
+  processing `pipe` (steps `{id, op, on, p, t, by}`) and its own `mask` (raw row numbers left out
+  of the fit). A **derived** spectrum has no data of its own: it starts from another spectrum's
+  raw input or final output (`src`, `from`), for a derivative beside the spectrum or a second
+  route to compare. `p.activeY` is the one being analysed. Helpers: `xCol`, `yCols`,
+  `activeYCol`, `errColFor`, `colById`, `makeCol`, `colLabel`, `colLetter` (letters count raw
+  columns only), `specName`. **Inside a render** (`inRender(fn)`: `renderAll`, after its
+  `normalize`; `renderPlot`, `renderWs`, `renderWin`, `runSnaps`) the answers about the columns
+  are worked out once (`colMemo()`, `CM`, valid while `S.proj`, its `cols` and their length are
+  the memo's; `save` and `onProjects` drop it): `colById` (a map), `yCols`/`yCount`/`yIndex(id)`
+  (`yTint`'s place), `sheetCols(sid)`, `xColFor` (each column's nearest X to its left in one pass of
+  its sheet), `errListOf(id)` (`errColsOf`, `hasErrCols`, `errColFor`). Outside a render each walks
+  the list, as before. A raw column's role, error-bar owner, visibility and deletion live
+  in its header menu (`openColMenu`) and go through `setColRole`, `setErrOf`, `setActiveCol`,
+  `toggleColVis`, `deleteCol`. A spectrum may name its X column (`xcol`, honoured first by
+  `xColFor`; `setXOf(yid, xid)`, the menu's Plot against and an X column's X of); a formula
+  column that reads only X columns is an axis: setting it (`setColFormula`) or making it an X
+  column offers `useAsXFor(id)`, which makes it X and points the spectra plotted against what
+  it reads at it (`xReaders`), one undo entry. Making the analysed spectrum's column not a Y
+  moves `activeY` on.
+- **Text cells** (FOUNDATION_SPEC 1.2a): a column's text is `c.txt` (`{row: text}`, the number at
+  that row null in `c.data`), so every reader of numbers leaves text out as it leaves out an empty
+  cell; a number at a row wins over a text left there. `c.txt` is replaced, never changed in place
+  (snapshots, `cloneProj` and `cloneCols` share it as they share `data`). `c.fmt`: `"text"` (every
+  cell text, "007" kept), `"num"` (text refused), or none. Doors: `txtOf`, `cellTxt(c, i)`,
+  `textCount`, `hasVals` (numbers or text: `rawCols`, `blankCol`, the recorded and fresh-paste
+  tests), `txtLen`, `setCell(c, r, v, tx)`, `cleanTxt` (in `migrate`: what is not a string at a
+  row of the column's that holds no number goes, a cell past `TXT_MAX`, 10 000 characters, is cut;
+  `TXT_OK` the maps already clean), `rawArr(c)` (the values as hashed: a text cell an RFC 4180
+  quoted field, `csvQ`, so a project of numbers keeps its check code; memoised in `RAWA`; every
+  hash and the original-data CSV take it), `setCellsHold(id, fmt)` (the column menu's *Cells hold*:
+  Numbers and text, Text only (numbers written as shown), Numbers only (refused while text is
+  there); a recorded change), `splitTSV` (a pasted block field by field, quotes honoured).
+  `wsSetCell` keeps what does not read as a number as text (said once a column, `S.txtSaid`; a
+  `"num"` column refuses, and `wsCommit` keeps the box open; under the lock text is never a
+  correction step), `wsText` shows it, `wsRowHtml` marks it (`td.tx`, `td.txn` in a column of
+  numbers), `wsClear`, `wsRowsEdit` (the keys moved with the rows), `wsCopyText` (quoted when it
+  holds a tab, a line break or a quote), `wsPasteText` (a block with tabs read by `splitTSV`, its
+  first line a header only when it holds no number), `wsOrder` (numbers, then text by
+  `Intl.Collator` with numbers, then empty), `wsSelStats` (`nt`, the status bar's *Text n left
+  out*) and `mergeCols` (a cell its number or text) know it. `tools/text-drive.mjs` drives it.
+  **Categorical** (1.2c): `c.cat = {order}` (`CAT_ORDERS`: first, asc, desc, `custom` with `levels`),
+  the levels a column's distinct values, numbers or text (`catKey`, `catCmp`: numbers by value, text by
+  `Intl.Collator` with numbers), read through `catLevels(c)` (the one door: `[{v, n}]` in the column's
+  order, memoised in `CATM`; `{fail}` past `CAT_MAX`, 200, from `catDistinct`), `cleanCat` (in `migrate`),
+  `catDlg(id)` (the column menu's *Categorical…*: `#catOn`, `#catOrd`, `#catRows` with `data-catup`/
+  `data-catdn`; one undo step, a log line), the header's `.lab.cat`, and `wsSortBy(id, dir, true)` (the
+  sort's *By its categories*, `S.wsSort.cat`). Not in the check code.
+  **Graphs read text** (1.2d): `catVal(c, i)` (a cell as a category reads it), `isCatCol` (categorical or
+  `fmt:"text"`), `catOrderKeys`; labels from a text column (`labSvg`); `distGroups(vals, keys, max, {text,
+  order})` and `distKeySort` (numbers, then text in natural order, or a categorical column's levels) for
+  box charts grouped by text (`distByOpts` lists text columns); a categorical X (`xCatPos(xc)`, memoised in
+  `XCATM`: each row its level's place 1 to k, `rawSeries` reading it, `buildPlot`'s names along X from it
+  unless typed; `pipeSig` carries its text and order, `txtKey`); Plot setup's *Group by* (`#psuBy`,
+  `psuByOpts`, `psuSplit`: a derived column per level with the `where` step, *Keep the rows of one
+  category*, in no menu, `deps` `[col, "cells"]` read through `pipeCtx.cellAt`, its column a `catcol`
+  param; the parts a group stepping the colour). Plot setup's columns list text columns (`hasVals`).
+- **Analyses and result sheets** (FOUNDATION_SPEC 1.3a): `p.ana` (in `UNDO_KEYS` and `UNDO_BYID`), each `{id,
+  kind, name, in {cols, by, read {colId: "orig"}, masked}, p, out {sheet}, recalc "auto"|"manual", sig, at, by,
+  res {report, notes, err}}`, cleaned by `anaClean` (in `migrate`; `normalize` keeps a sheet's `ana`). `ANA_KINDS`
+  (`desc`, Statistics on columns: `run(ins, p)` → `{tables:[{cols:[{k, name, vals}]}], report:{sections:[{title,
+  tables:[{head, rows}]}], notes}}`); `anaRead(c, {read, masked})` the one door (processed values, the original
+  ones with no steps or `read:"orig"`; masked rows out and counted; `rowsKind` from `PIPE_ROWS`, every step's
+  keep, dep, drop or merge, `anaSteps` its source's first); `anaSig` (each input's `pipeSig` and `maskSig`, the
+  groups' cells, the settings), `anaStale`, `runAna(a, p)` (notes for masked points and the steps' kinds, groups
+  through `distGroups`), `anaWrite` (the result sheet's columns, `c.ana` and `c.ak` their key, kept by id, text
+  for the names), `followAnas()` (in `renderAll` after `followFits`: `auto` ones worked out again, a log line, no
+  undo step); `anaRO()`/`anaColRO(c)` refuse writes to a result sheet (`wsBeginEdit`, `wsBarBegin`, `wsClear`,
+  `wsPasteText`, `wsFill`, `doFill`, `wsRowsEdit`, `wsInsertCols`, `deleteCols`, `setCellsHold`); `rawCols`
+  leaves `c.ana` out; `moveColsToSheet` cuts a result column from its analysis. `anaDlg(kind, {id})` (Analyze ›
+  Statistics › Statistics on columns…: `#aI_<id>` ticks, `#aR_<id>` Processed/Original for a column with steps,
+  `#aBy`, `#aRc`, `#aMask`), `anaMenuItems(a)` at the top of the result sheet's tab menu (Report, Change
+  settings…, Recalculate, Recalculate by itself, Only when asked, Cut from its data, Delete the analysis…:
+  `anaReport`, `anaRecalc`, `anaSetRecalc`, `anaCut`, `anaDelete`), the tab's lock (`.wstab.ana`, `.stale`
+  with the alert icon), `anaReportHtml(a)`. **1.3b**: a History box per analysis (`ana:<id>`, kind `ana`, under
+  everything, dashed lines from its inputs' last boxes, its inspector the report with Show its sheet, In Results,
+  Change settings…, Recalculate, and its discussion; `nodeAnchor`/`nodeLabel` know it); Results shows the fit or an
+  analysis (`renderResults` a wrapper over `renderResults0`: `#rShowing`, `S.resAna`; `anaReport(id)` opens it there;
+  Copy is `anaText(a)`, every table tab-separated, its notes and what it read under `# `); the exported report's
+  *Analyses* (`reportAnaHtml`). **1.3c**: the kinds are the pure `==ANA:START/END==` block (after STATS; `ANA_KINDS`,
+  `anaRunKind(kind, ins, p)`), loaded by the compute worker and `tools/ref/run.mjs`; `runAna` sends inputs of
+  `ANA_BIG` (200 000) values or more to the worker (`anaJob`: `ANA_JOBS` id → `{sig, pid, stop}`, a toast with Stop;
+  `anaDone` puts the result in with a save and no undo step only if the analysis's `sig` is still the job's;
+  stopped, `res.err` says so and Recalculate works it out; no worker, on the page), `anaApply` the rest of a run.
+  `tools/ana-drive.mjs` drives it.
+  **Descriptive statistics** (STATS_SPEC 2.1; the ANA block): `QTYPES` (R's nine types and Tukey's hinges, each
+  `[t, name, note]`), `QT_AB`, `qtOk`, `medSorted(s, a, b)` (an even count's two middle values halved first when
+  their sum would overflow), `quantileType(s, p, t)` (R's `quantile()` exactly, its 4ε fuzz, on sorted values),
+  `neuSum` (Neumaier), `RSD_K`; `descStats(vals, {qtype, conf, vdiv, pcts})` → `{n, why, min, max, range, mean,
+  sum, sd, var, se, ci, conf, cv, skew (G1), kurt (G2, excess), q1, med, q3, iqr, mad, rsd, mode, modeN, gmean,
+  hmean, pct:[{p, v}], qtype}`, null with the reason in `why` where a statistic means nothing (`WHY_FOR` the
+  notes' words): the mean Neumaier's sum over n, the moments of the deviations scaled by the largest, the MAD's
+  distances from the two middle values (not their rounded mean), the order statistics, mode and the geometric
+  (logarithms of each value over the median) and harmonic means of the values as they are, only the moments of
+  values past 10³⁰⁰ worked out 2⁻⁶⁴ smaller. `freqBins(vals, o)` (`histBins`' bins with counts, running counts
+  and percents), `freqLevels(keys, order)` (`distKeySort`). `DESC_STATS` (23 statistics in the table's order),
+  `DESC_DEF` (the eleven an analysis from before 2.1 has), `descKeys(p)`, `qtName`, `pctLab`. `ANA_KINDS.desc`
+  (result columns keyed `col`, `grp`, the statistics, `cilo`/`cihi`, `mode`/`moden`, `p0`…; `report.method` the
+  quartiles' method and divisor) and `ANA_KINDS.freq` (`cats:true`; `p.bins {rule, n, w, start}` or `p.levels`).
+  `a.in` grew `rows: [from, to]` (1-based, null an open end; `anaRowsOf`) and `miss: "list"` (listwise);
+  `anaInputs(a, cs, by, notes, K)` reads them (a kind with `cats` reads text and categorical columns by
+  `catVal`); `ANA_FORMS[kind]` `{html, wire, read, valid, noGroup}` is a kind's part of `anaDlg` (`#aS_<key>`,
+  `#aPct`, `#aQt`, `#aConf`, `#aVd`; `#aFm`, `#aFn`, `#aFw`, `#aFs`; the dialog's `#aRow0`, `#aRow1`, `#aMiss`,
+  `o.cols`). `graphSummary(cid)` (Analyze › Statistics › Descriptive › Graphical summary): a derived histogram
+  with a normal curve over it and a box chart of the column, as a figure of two, one undo step. The Statistics
+  window's item is *Quick statistics…*.
+  **Normality and outliers** (STATS_SPEC 2.2): in STATS, `kolmogN(n, x, cdf)` (Kolmogorov's two-sided
+  distance, SciPy's `_kolmogn` ported: Ruben and Gambino's ends, `smirnovSf` (Birnbaum and Tingey's sum, each
+  term `dbinomRaw` over p) for x ≥ ½ and Miller's tail, `ksDMTW` (Durbin's matrix) while it is 201 wide or less,
+  `ksPomeranz` to 140 values, `ksPelzGood` past both), `DIST.kstwo {cdf, sf}`; `distFit`'s `pks` is
+  `DIST.kstwo.sf`. In ANA: `msd(s)` (each deviation with the double mean's rounding taken out, the SD, z),
+  `swTest` (Royston's AS R94, about the median), `ksNormD`, `lfTest` (`lfProb`: statsmodels' table `LF_N`,
+  `LF_CV`, `LF_AS`, `LF_PCT`; `lo`/`hi` at its ends), `ksnTest`, `adTest`, `dagoTest`, `qqNorm` (R's ppoints and
+  qqline), `grubbsTest(vals, {side, alpha, repeat})` (`rounds`, `out`), `gl2` (`GL20` from STATS), `dixonP(n, q,
+  side, panels)`, `dixonCrit`, `dixonTest`; `anaFmt`, `anaPtxt`, `anaAlpha` (the outlier tests' α), `anaConf` (an
+  interval's level: `p.conf`, else one minus a stored `alpha`, else 95 %; `ANA_CONFS`), `NORM_TESTS`, `normTests`. Kinds
+  `norm` (a row per column or group, each test's statistic and p; `report.qq` the Q–Q sets, written as columns `qx<i>` (an X), `qy<i>`, `ql<i>`) and `outl` (a row
+  per value examined; `report.marks [{i, row, value, grp}]`); `anaInputs` gives `grows` (each group's rows).
+  Page: `ANA_FORMS.norm`/`outl` (`#aN_<key>`, `#aAl`, `#aOt`, `#aOs`, `#aOr`), `anaActs(a)` (the report's buttons,
+  `data-anaact`, `setupAnaActs`, and the tab menu: `anaQQ`, `anaMaskOut`, `anaMarkOut`, `anaMarksOf`: Mask and Mark take
+  the values past the critical value); `anaWrite` takes a column's `role` and keeps a plotted
+  one a curve.
+  **Comparing means and spreads** (STATS_SPEC 2.3): in STATS, `nctCdf(t, ν, δ)` (the noncentral t, Guenther's sum
+  of incomplete betas, 3e-14 absolute), `DIST.nct`. In ANA: `finVals`, `tAltP`, `tAltCI`, `hedgesJ`, `nctDelta`,
+  `dInterval` (d's interval, the noncentral t inverted), `tTest1`, `tTest2` (Welch's unless `equal`), `tTestPaired`
+  (each takes `{mu0, alt, conf, dci}`; `dci:false` skips the inversion), `fTest2`, `leveneTest(groups, "mean"|
+  "median")`, `bartlettTest`, `nAltP`, `wilsonCI`, `propTest1` (exact binomial as R, Clopper–Pearson, Wilson,
+  score z), `propTest2` (pooled z, Newcombe), `fisher22` (R's two-sided p, the conditional odds ratio and its
+  interval); `ANA_ALT`, `anaPct`, `VAR_TESTS`; `msd` returns `e`, the
+  double mean's rounding, which the t tests add back to the difference. Kinds `ttest` (`p.type` one, two,
+  paired; `mu0`, `alt`, `conf`, `equal`), `vartest` (`p.tests`, `conf` for the F ratio), and `prop`, `fisher` with
+  `typed:true` (no columns: `anaDlg` shows the kind's fields alone; the copied report carries the counts);
+  forms `#aTt`, `#aMu`, `#aAlt`, `#aCf`, `#aEq`, `#aV_<key>`, `#aPt`, `#aPx`, `#aPn`, `#aP0`, `#aPx2`, `#aPn2`,
+  `#aFa`…`#aFd` (`.fish22`), shared `altSel`, `confSel`. Analyze › Statistics › Hypothesis tests.
+  **Numbers, not verdicts** (12.11, STATS_SPEC decision 9, DESIGN principle 8): a kind returns tables, `method` (one
+  line), `notes` (what was read, why a number is missing) and `marks`; never a sentence, a verdict column, an
+  assumption check or advice.
+  **One-way ANOVA** (STATS_SPEC 2.4): `anovaGroups` (each group less one value, Sterbenz; `msd` means), `anova1(groups)`
+  (`{k, N, df1, df2, ssb, ssw, sst, msb, msw, F, p, eta2, omega2, welch {F, df1, df2, p} | {fail}, groups, G, A}`),
+  `COMP_KINDS` (`[key, name, statistic]`), `anovaComp(r, kind, {conf, ctrl})` (`{rows:[{i, j, diff, se, stat, p, lo,
+  hi, df?}], ctrl?}`), `anovaComps(p)`, `anovaCost(p, ins)`; `ANA_KINDS.anova1` (`p.comps`, `ctrl` a group's name,
+  `conf`, `welch`; columns or one column grouped; sections Analysis of variance, Effect size, Welch's F, Groups, one a
+  comparison; `gname` an X of text, `gmean`, `ghw` its error bars) with `heavy(p, ins)`, which `runAna` sends to the
+  worker; `anaWrite` honours a column's `of` (an error column's owner, by key); `anaMeansPlot`; `ANA_FORMS.anova1`
+  (`#aC_<key>`, `#aCtl` filled from the columns ticked or the levels grouped by, `#aCf`, `#aWe`). Analyze › Statistics
+  › ANOVA. `anaReportHtml` lays a table of one row out as names and values (`.rtab.ana.kv`); headers wrap.
+  **Rank tests** (STATS_SPEC 2.8): `rankAvg(v)` (`{r, tie}`, tie Σ(t³ − t)), `kth`, `mwDist(m, n)` (P(U = u), Mann and
+  Whitney's recurrence in probabilities), `signrankDist(n)`, `cumLo`, `cumHi` (each tail summed from its own end),
+  `qLo` (R's qwilcox), `mwTest(x, y, {alt, conf, exact, cc})` (`{U, z, p, exact, hl, ci, rb}`), `wsrTest(v, {mu0, zero:
+  "wilcox"|"pratt", …})` (`{Tp, Tm, z, p, hl, ci}`), `signTest` (`{up, dn, p, med, ci, level}`), `kwTest(groups, {adj})`
+  (`{H, df, p, eps2, meanRank, dunn}`), `friedmanTest(rows)` (`{Q, p, W, rankSum}`), `moodTest(groups)`, `ks2Test(x, y,
+  {alt, exact})` (the lattice's share of paths that touched the boundary). Exact while untied (no zeros) and under
+  50, as R; `exact` true or false forces. Shared by the kinds: `anaSets(ins)`, `anaFactor(ins, notes)` (anova1 too),
+  `anaPairs(A, B, notes)`, `anaTab(title, spec, rows, cols, secs, pre)`, `npEx`, `npOne`, `DUNN_ADJ`. Kinds `mw`, `wsr`,
+  `sign`, `kw` (`dunn`, `adj`), `fried` (columns, rows complete in each), `mood`, `ks2`; forms `npExHtml` (`#aEx`),
+  `npTypeHtml`/`npTypeRead` (`#aTt`, `#aMu`), `#aZ`, `#aDn`, `#aAdj`. Analyze › Statistics › Nonparametric.
+  **Correlation** (STATS_SPEC 2.9): `twoSum`, `twoProd`, `ddAdd`, `ddMul` (double-double), `ddDevs(v)` (deviations
+  in double-double, scaled by powers of two), `corrCore(x, y)` (`{r, omr2, n}`: 1 − r² from Σa²Σb² − (Σab)² in
+  double-double), `pearsonR`, `corrP(c, df, alt)` (p as I_{1−r²}((n − 2)/2, ½), no t between), `corrTest(x, y, {alt, conf})` (`{n, r, t, df,
+  p, ci}`, Fisher's z from omr2),
+  `spearmanTest`, `inversionsCount(n, kmax)` (BigInt, memoised, `INVM`), `kendallTau(x, y, {alt, exact})` (τ-b by
+  Knight's merge sort; `{n, tau, z, p, exact, con, dis}`), `partialCorr(cols)` (`{rows:[{i, j, r, t, df, p}], df,
+  R}`). `CORR_KINDS`, kind `corr` (`p.methods`, `alt`, `conf`, `scatter`; pairwise by rows; a section a
+  coefficient, matrix and pairs; result keys `a b n r rp lo hi rho sp tau kp pr pp`, with `scatter` `sx<t>`/`sy<t>`),
+  form `#aK_<k>`, `anaScatter(id)` (the report's *Scatter matrix*: the analysis again with `scatter`, a graph a
+  pair, `makeFigure`, one undo step). `msd` takes each x − m's rounding exactly (two-sum).
+  **Counts in tables** (STATS_SPEC 2.10): `xtabCheck(T)` (`{R, C, N}` or `{fail}` in words), `chi2Indep(T, {yates})`
+  (`{E, df, yates, X2, p, G, pG, V, X2u}`), `fisherRC(T)` (two by two `fisher22`'s; else Freeman–Halton, cell by cell
+  in logarithms against the observed table, R's 1 + 1e-7, at most `XTAB_MAX` tables), `mcnemarTest(T, {cc})` (`{X2, p,
+  pExact}`, R's correction unclamped). `XTAB_TESTS`, kind `xtab` (`cats`; `p.mode` "pair" (`levels` true) or "table"
+  (rows the sheet's, or a Group by column's names, counts added), `p.tests`, `p.yates`; sections Counts, Expected
+  counts, Tests, Effect size), form `#aXm`, `#aX_<k>`, `#aXy`; Analyze › Statistics › Hypothesis tests.
+  **The linear model** (STATS_SPEC 2.5; the engine 2.6, 2.7 and wave 4 use): `lmTerms(vars, spec)` (each variable and its
+  powers to `pow`, then interactions two at a time, three…: `inter` none, pairs, all; a term `[[variable, power]…]`),
+  `lmCols(vars, terms, spec, n)` (`{X, XL, names, tc}`: the intercept, a factor's levels after the first (treatment) or less
+  the last (effect), all of them for the first factor of a model with no intercept, products with the first part fastest;
+  each column in double-double, `XL` its low part, `ddMulArr`), `lsqQR(X, n, tol)` (Householder on columns scaled to length
+  1, taken in order; one whose length left is under `LM_TOL`, 1e-11, of its own is aliased, as R's lm leaves the later out;
+  `{sc, kept, alias, H, Rc, C}`), `lsqPrefix(Q, B)` (the first B columns' QR), `lsqFit(X, y, n, {XL, Q})` (refined on the
+  augmented system r + Xb = y, Xᵀr = 0 (Björck) with both residuals in double-double, the solution kept as `b` + `bl`;
+  `{Q, b, bl, rh, rl, rss, rank}`), `lsqCovU(Q, X, XL)` ((XᵀX)⁻¹ of the kept columns: from R, then refined with each column in
+  double-double, on XᵀX in double-double while the scaled condition √r·‖R⁻¹‖ is 1e6 or less, else on the augmented system
+  [I X; Xᵀ 0]), `lsqWald(F, V, cols)` (b_Tᵀ V_TT⁻¹ b_T, the fit lost without the columns), `lsqSSBetween(A, B)` (Σ of the
+  squared difference of two fits' residuals), `lsqAlias(Q)`, `ddDot`, `lsqQt`, `lsqQv`, `lsqFwd`, `lsqBack`, `hApply`.
+  `linModel(vars, y, spec)` (`{inter, pow, coding, icpt, ss, conf}`; `{names, tc, terms, b, se, t, p, lo, hi (null where
+  aliased), alias, kept, V, rank, dfr, rss, s, s2, r2, ar2, F, df1, pF, ssm, sst, anova {type, rows [{term, df, ss, ms, F,
+  p}]}, conf, fit}` or `{fail}`): type I from prefixes of the one QR, II and III by Wald's identity on the model compared
+  (III with effect coding where a factor is in an interaction), refitted without the term where that model has aliased
+  columns. `lmContrastParse(text, names)` (a sum of named coefficients with numbers before them, an interaction's parts in
+  any order, `= c`), `lmContrast(M, text)` (`{est, c, se, t, p, lo, hi}`; refused where not estimable). Kind `lm` (`cats`,
+  `xs`: X columns may be ticked; `p.y` the response's column id (inputs carry `id`), `p.fac` numbers as factors, `inter`,
+  `pow`, `coding`, `ss`, `icpt`, `resid`, `contrasts`; `lmSpecOf`, `LM_INTER`, `LM_SS`; `heavy` past n·m²·(k + 3) of 4e7;
+  sections Model, Coefficients, the interval, Analysis of variance, Contrasts; t and mean squares on the sheet alone),
+  form `#aLy`, `#aLfac` (`aLf_<id>`), `#aLi`, `#aLp`, `#aLc`, `#aLs`, `#aLn`, `#aLr`, `#aLct`; Analyze › Statistics › ANOVA ›
+  Linear model…. `anaDlg` takes X columns for a kind with `xs`. `quantileType` works its position in double-double
+  (`qtProd`).
+  **Rows of a model and two- and three-way ANOVA** (STATS_SPEC 2.6): `linModel` returns `vars`, `termList` and `spec`;
+  `lmCell(M, codes)` (a cell's design row, memoised per model in `LMCELL`), `lmEstOk(M, L)` (estimable: each aliased
+  column's entry what the kept ones make it), `lmEst(M, L)` (`{est, v, se}`, b in double-double; `lmContrast` is on it),
+  `lmWaldL(M, Ls)` (rows tested together: Wald's F, `{F, df1, df2, p}`), `lmCombos(M, fixed)`, `lmEmmL(M, fixed)` (an
+  estimated marginal mean's row: the mean of the cells with those levels, each alike), `lmCompare(pairs, k, df, kind,
+  conf)` (anovaComp's methods on differences `{i, j, diff, se}` with their own errors; Tukey's q is √2·|d|/se). Kind
+  `anovan` (`cats`, `xs`; `p.y`, `inter` "all" | "none", `ss`, `conf`, `comps` (`NWAY_COMPS`: not Games–Howell or
+  Dunnett; `nwayComps`), `simple`; every column but the response a factor, effect coding; sections the analysis of
+  variance, Effect size (partial η²), Means of each factor, Means of the cells of the first two, a factor's comparisons,
+  Simple effects of each; the sheet the table with mean squares and partial η², and the plots' columns `ix`, `iy<l>`,
+  `ie<l>` and `mx<i>`, `my<i>`, `me<i>`; `report.resp`), form `#aLy`, `#aNi`, `#aLs`, `#aNs`, `aC_<k>`; `anaRespWire(box,
+  after)` the Response list both model dialogs share; `anaInterPlot` (the cells' means, a curve each level of the second
+  factor, the Y axis titled Mean of the response) and `anaMainsPlot` (a graph each factor, in a figure), each one undo step;
+  Analyze › Statistics › ANOVA › Two- and three-way ANOVA….
+  **Repeated measures** (STATS_SPEC 2.7): `helmertInt(L)` (integer Helmert contrasts `{C, N}`, N their squared norms, so
+  every sum of squares is exact and free of the basis), `kronC`, `onesC`, `detSym`; `rmAnova(Y, lv, grp)` (Y a row a subject,
+  a column a cell, the first factor's levels outermost; `lv` one or two within factors; `grp` a between factor's level per
+  subject): each within effect's contrasts of each subject's values in double-double, regressed on the between design
+  (`lsqFit` with `yl`), its sums of squares by Wald's identity over the norms; `{n, c, g, lv, effs:[{k, d, ss, ssg, sse, df1,
+  dfg, dfe, F, Fg, p, pg, gg, hf, lb, pgg, phf, plb, pggg, phfg, plbg, mau:{W, x2, df, p}}], between:{ssg, sse, dfg, dfe, Fg,
+  pg}}`; Greenhouse–Geisser's ε from the residuals' covariance, Huynh–Feldt's as SPSS's, at most 1, the lower bound 1/d;
+  Mauchly's W from its determinant. `RM_COMPS`, `rmData(ins, p, notes)` (wide: the columns ticked the cells, Group by the
+  between factor; long: `p.y`, `p.subj`, `p.w1`, `p.w2`, `p.btw`, a subject's several values in a cell averaged, one missing
+  a cell left out, one in two between levels refused). Kind `rm` (`cats`, `xs`; `p.form` "wide" | "long", `levels` the first
+  factor's (two factors, wide), `f1`, `f2`, `comp`; sections Within subjects, Sphericity corrections, Mauchly's test, Between
+  subjects, Effect size, Means of the cells, a factor's paired t (Bonferroni or Holm); the sheet the whole table and the
+  profile plot's `ix`, `iy<k>`, `ie<k>`; `report.profile`), form `#aRf`, `#aRa`, `#aRn1`, `#aRn2`, `#aLy`, `#aRs`, `#aRw1`,
+  `#aRw2`, `#aRb`, `#aRq` (the subject the text column with most levels, the within factor the next); the report's *Profile
+  plot* (`anaInterPlot`); Analyze › Statistics › ANOVA › Repeated measures ANOVA…. `anaDlg` wires a kind's form on the
+  dialog's own `.anadlg`, so no listener outlives its dialog.
+  **Power and sample size** (STATS_SPEC 2.11): in STATS, `poisMix(m, g)` (Σ Pois(j; m)·g(j) from the mode out, stopping
+  where the weights' geometric tail is under 1e-17 of the sum), `ncfTail`, `ncx2Tail` (`DIST.ncf`, `DIST.ncx2`: `cdf`, `sf`, each
+  a mixture of positive terms, so both tails keep their relative digits), `nctSum`, `nctSf` (`DIST.nct.sf`: the upper tail
+  as Guenther's sum of upper incomplete betas, positive for δ ≥ 0; `nctCdf` of t < 0 is it at −t, −δ). In ANA, `fmt` (moved
+  into the block so the worker and `run.mjs` have it), `POW_TESTS` (t1, tp, t2, anova, p1, p2, v1, v2, chi2), `POW_MAX`,
+  `POW_EXACT` (20 000), `POW_TWO`, `powAlt`, `powCheck(o)` (a refusal in words or null), `powSizes(o, n)` (`{n | n1, n2, N}` or
+  null), `powMin`, `powSS`, `powNone` (no effect, or a one-sided alternative pointing away), `tPow`, `binomRegion(n, p0, a,
+  alt)` (the exact test's rejection region by R's rule, by bisection), `powerAt(o, n)` (`{pw, ncp?}` with the sizes),
+  `powSize(o, target)` (doubling and halving; the exact test every size in turn), `powCurve(o, nmax)` (200 sizes at most).
+  Kind `power` (`typed`, `typedWhat` "the settings typed": `p.test`, `find` "pw" | "size", `sizes`, `powers`, `alpha`, `alt`,
+  `d`, `sd`, `r`, `means`, `p0`, `p1`, `p2`, `v0`, `v1`, `v2`, `w`, `df`; sections Power or Size for a power, Effect size; the
+  sheet the table and the curve's `cn` (X), `cp`; `report.power`), form `#aWt`, `#aWf`, `#aWn`, `#aWp`, `#aWa`, `#aAlt`,
+  `#aWd`, `#aWsd`, `#aWm`, `#aWp0`, `#aWp1`, `#aWp2`, `#aWv0`, `#aWv1`, `#aWv2`, `#aWw`, `#aWdf`, `#aWr` (shown per test);
+  the report's *Power curve* (`anaPowerPlot`); Analyze › Statistics › Power and sample size…. A typed kind's `typedWhat` is
+  what the toast, the log, the copied report and the exported one say it read.
+  **ROC curves** (STATS_SPEC 2.12): `rocCore(pos, neg)` (`{n1, n0, U, auc, a, b}`: U from midranks, `rankAvg`; each positive's
+  and negative's deviation from the area as an exact multiple of a half over n₁n₀, `a`, `b`), `rocVar(n1, n0, a, b)` (DeLong's
+  variance, or that of a difference given the deviations subtracted; null below two a group), `rocPoints(pos, neg)` (a point
+  at every distinct score, descending, from (0, 0); Youden's best by TP·n₀ − FP·n₁ as integers, the highest cut-off where
+  tied), `rocTest(pos, neg, {dir, conf})` (`{n1, n0, auc, se, ci, core, pts:[{c, tpr, fpr}], youden:{c, sens, spec, J}}`;
+  `dir` "low" negates the scores and the cut-off back), `rocCompare(A, B)` (two cores on the same rows: `{diff, se, z, p}`).
+  Kind `roc` (`cats`, `xs`; `p.grp` the column of groups, text or two numbers, `pos` the positive level as a string, `dir`,
+  `conf`; the other columns ticked the scores; sections Area under the curve, Youden's index, Comparisons (DeLong) over the
+  rows both scores have; the sheet those tables (Youden's keys `y…`, the comparisons' `c…`) and each curve's `fpr<k>` (X),
+  `tpr<k>`, `thr<k>`, and the diagonal `dx`, `dy`), form `#aRg`, `#aRp`, `#aRdir`, `#aCf`; the report's *ROC curve*
+  (`anaRocPlot`: the curves and the diagonal dashed, the Y axis Sensitivity); Analyze › Statistics › ROC curve….
+  `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
+  (rationals), shared by the fixtures (`desc.json`) and the fuzzer (`quantileType`, `descStats@<key>`, which
+  `run.mjs` reads as one field of the result).
+- **Raw data** is never changed by analysis, and its arrays are replaced, never edited in
+  place. It is edited in the worksheet like any spreadsheet (typed over, cleared, pasted and
+  filled over, rows inserted and deleted), each change one undo entry and an entry in the
+  raw-data record, unless the project **locks** it (`p.rawLock`, in `UNDO_KEYS`; `rawLocked()`,
+  `setRawLock(on)`: the lock button `#wsLockBtn` above the grid and Data › Lock the original data).
+  Locked, empty cells can still be filled; typing over a recorded value opens `correctCell`,
+  which asks for a reason and adds a `correct` step to the pipeline of every spectrum that uses
+  the value; pasting over values offers new columns (`pasteAsNew`); Delete keeps values; rows
+  cannot be inserted or deleted; a formula cannot replace recorded values. `rawFp()` is the SHA-256 of `rawText` of every raw column with data;
+  `recordRaw(text)` appends to `p.raw.hist` whenever raw data changes (import, paste, a first
+  value in a cell, a column deleted), and `rawVerified()` compares the data with the last
+  recorded fingerprint. The raw-data CSV export writes exactly the hashed lines under `#`
+  comments, so `grep -v '^#' file.csv | sha256sum` reproduces the fingerprint. It is hashed a
+  stretch of rows at a time (`rawHashJob`, `rawHashRun(j, until)`, SHA-256 fed in pieces by
+  `shaNew`/`shaUpdate`/`shaDigest`), with no text of the whole table. **A big table's check code
+  waits** (more than `FP_SYNC`, 150 000 cells, `rawCells`): `recordRaw` writes its entry with `fp`
+  empty and `fpq`, the id of a job for that state of the data (`fpLater(arrs, pid, replaces)`; a
+  merged entry's old job dropped; the next entry's `prevq`, the record's own `fpq` while it is the
+  latest); the jobs (`FPJ`) run in slices of 12 ms between whatever the page does (`fpTick`,
+  `fpWork`, `fpDone`), and each result goes into the record of the project on the desk (a save of
+  `raw`, no undo step, no log line), the undo steps and the other projects in the store
+  (`fpApplyAll`, `fpResolve`: an entry that turned out to change nothing is dropped). An export
+  works them out first (`fpSettle`: the CSVs and the report); a record still waiting when the
+  project is opened or arrives is worked out again for the data as they are (`fpEnsure`, after
+  3 s, in case another tab is at it). `rawVerified()` is null while it waits, and the History says
+  *working it out…* (`fpOf`, `fpLab`). `fpNow(arrs)` is a check code known without hashing; the last six states' are kept (`FPM`,
+  `fpKeep`), so an undo or redo back to one is not hashed again.
+- **Sheets** (`p.sheets`, `[{id, name}]` in tab order, in `UNDO_KEYS`): the worksheet's sheets,
+  as a workbook's. A column's sheet is `c.sheet`, a derived column's its source's, and a column
+  naming none (or a sheet that has gone) is on the first; `sheetList(p)` (a project from before
+  sheets has one, `SHEET0`, which nothing records until a second is made), `sheetOf(c)`,
+  `curSheet()` (the one shown, `S.sheetAt[pid]`), `sheetName`, `sheetCols(sid)` (a sheet's
+  non-derived columns in the table's order: every worksheet reader uses it, so letters
+  (`colLetter`), rows (`nRows(sid)`), formulas' letters (`fxParse`, `fxShow`, which names a
+  column read from another sheet `Sheet!L`), the nearest X (`xColFor`; a chosen `xcol` may be on
+  another sheet), paste, fill, moving columns and Plot setup are a sheet's own); `colRef(c)` is
+  `Sheet!L` with several sheets, for what names a column project-wide (`specName`'s fallback,
+  the raw-data CSV, the report, the History's Original data box). `stampSheets(p)` writes every
+  column's sheet before the sheets change (moving the first sheet would otherwise move the
+  columns naming none). `showSheet(sid, {quiet})` (the selection, sort and find start afresh;
+  `setSheet` is still the Original/Processed view), `newSheet` (an empty X and Y, as a new
+  project), `renameSheet` (unique names), `moveSheet`, `deleteSheet` (its columns, the columns
+  made from them and their error bars go, off every graph; confirmed when it holds values; a
+  raw-data record entry; one sheet stays), `moveColsToSheet(ids, sid|"new")` (with their error
+  bars; a column whose X would change keeps it as `xcol`; the order is part of the check code,
+  so a record entry), `sheetMenuItems` (a tab's right-click), `sheetsMenuItems` (Data › Sheets),
+  `renderWsTabs`/`wireWsTabs` (`#wsTabs`, `role=tablist`, the shown tab filled, arrows move, F2
+  renames, a double click read from the press's `detail`, hidden in the Processed view).
+  `remapRawRows(p, fn, sid)` maps only that sheet's rows; hidden rows are per sheet
+  (`wsHide.by[sid]`, the older `wsHide.rows` the first sheet's; `wsHideSave` keeps other sheets'
+  hidden columns). Imports: the dialog's `sheet` mode (Add them on a new sheet, the default
+  beside data on the sheet shown, named after the file by `sheetNameFor`) beside `add` (the
+  sheet shown), `replace` (one sheet again) and `new`; batch imports, dropped files and columns
+  copied from another project go on a sheet of their own beside data, and into the sheet shown
+  when it is empty. A sheet that holds only placeholders (a new sheet's empty X and Y: `blankCol`,
+  no values, formula, name, unit, comment, steps or mask, on no graph, named by no column) gives
+  them up to what comes in (`dropBlanks(list, sid, p)`, in `doImport`'s Add, `autoImport`,
+  `doBatchImport` and `bringIn`), so they never sit between a file's columns. The Explorer has a row per sheet (`ws:<id>`; the older `ws` key is the first
+  sheet's, `treeOf`).
+- **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
+  rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
+  a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
+  window: empty "phantom" columns and rows fill the rest, and typing into one makes a column.
+  Under the letters come Long Name, Units, Comments and F(x)= (rows -4 … -1, `WS_LABS`,
+  `WS_TOP`, typed into like any cell) and a Sparklines row; Long Name, Units and F(x)= always
+  show (the user chose one visible formula row over formulas that appear only in cells; the
+  corner's ⋯ lists F(x)= ticked and fixed), Comments and Sparklines when the corner's ⋯
+  (`[data-wsrows]`, `wsRowsMenu`) shows them, per project and browser (`wsRowsPref`/
+  `wsRowsSet`, `kurve.wsrows`); `wsLabShown`, `wsLabRows`, `wsLabSnap` keep the selection off
+  the hidden ones. **Header fields** (roadmap 7, slice 2; the ⋯'s *Header fields*, `meta` in
+  `wsRowsPref`, offered while a column of the sheet has `meta`): `tr.meta` rows after the label rows,
+  one per field (`wsMetaAll(m)`: the Original view's columns' `c.meta` keys, the most common first;
+  `WS_META_MAX` 8 shown), each column's value as written (`wsMetaVal`), read only and outside the
+  selection (a press on them is ignored); the field's name `th[data-mkey]` opens `wsMetaItems(k)`:
+  *Use as the series* (`setSeries({mode:"meta", key})`, one undo step; disabled unless `metaKeys`
+  lists it), *Copy the row*, *Hide the header fields*. Data rows are 22 px unless sized: the line under any row number (`.rzr` in
+  `th.rh`, `data-rzr`) drags every data row of the sheet to one height (18 to 160 px, the line
+  following the pointer), a double click on it gives 22 again; `p.wsrh` (`{sheet: px}`, saved
+  as `wsw` is, `wsRowH`, `wsSetRowH`, the CSS variable `--ws-rh` on `#ws`), the label rows keeping
+  theirs. A value typed into a cell that starts with `=` (`=log10(B1)`,
+  as in a spreadsheet) moves to the column's F(x)= row, still being typed (`wsCommit` →
+  `wsEditFormula(ci, init)`), with a toast that a letter is the whole column.
+  **Formulas** (the F(x)= row, or "Set column values…" in the column and cell menus): a
+  column computed row by row from others, `c.fx = {src, refs}`: the formula as typed and the
+  column id each letter meant, so inserting or deleting a column never makes it read the
+  wrong one (`fxShow` writes it with today's letters). Letters are columns, `x` the row's X,
+  `i` the row number; `col(B)` and a leading `=` are accepted; the arithmetic is
+  `compileExpr`'s, so nothing else can run. `fxParse` (with errors in words: an unknown name,
+  a cell reference like `B2`, a column using itself), `fxEval`, `recalcFx(p)` (every formula
+  column after the ones it uses; a circle or a deleted input is an error in `FX_ERR`, shown in
+  the header and the F(x)= cell), `setColFormula`, `wsFxHint` (the live check while typing).
+  Values live in `c.data` and are computed again by `save` (whenever `cols` is saved) and
+  `normalize`. A computed column is not raw data: `rawCols` and the fingerprint leave it out,
+  and it cannot be typed, pasted or filled over. **Fill** (`wsFillPlan`, `wsFill`,
+  `wsFillDrag`, `wsFillDbl`, `wsFillCtrl`): the square on the selection's corner (`td.fh`)
+  drags down or right; two or more numbers continue their least-squares line, one number or
+  text is copied, Ctrl swaps the two; a double click fills down as far as the column beside
+  goes; Ctrl+D and Ctrl+R copy the first row or column. Computed cells are never written, nor
+  values while the raw data is locked (one undo entry); labels fill right. **The Fill dialog** (`openFillDlg(kind,
+  {col})`: a column's Fill column with, a cell's Fill (`fillMenuItems`), Data › Fill; it is
+  not on the bar, since a fill is done to a column): `FILL_KINDS` (series, growth series, evenly between two values, row
+  numbers, repeat a list, random numbers with `FILL_DIST`, continue the trend), where
+  (`fillTarget`: the selection, or the rows of the longest column; a column holding values
+  there, chosen from one cell, gives way to a new one, with a role), `fillPlan(v)` (the
+  dialog's values to `fillSeries`, the writes, the values `replaced`, or when locked the cells
+  `skipped`, every refusal in words), the preview (cells, values, `fillSpark`), `doFill` (one undo entry, a
+  raw-data record entry and a log line naming the fill and its seed); settings kept in
+  `kurve.fill`. **Sort** (`S.wsSort`, `wsOrder`,
+  `wsSortBy`) is the view only: `m.ord`/`m.inv` map sheet rows to data rows (`wsDR`), row
+  numbers show the data row, and the data keep their recorded order; paste and fill ask to
+  unsort first. **Find** (Ctrl+F, the search button; `wsFindOpen`, `wsFindRun`, `wsFindGo`,
+  `S.wsFind`): every cell containing the text, labels included, marked `td.hit`; Enter,
+  Shift+Enter and F3 step through them. `wsModel()` is the sheet (`S.wsm`: columns, row count, phantoms);
+  rows are virtualised (`wsRows`, drawn around the scroll position), and past `WS_CWIN` (40)
+  columns the columns too (`wsColWin`, `S.ws.cwin` `{a, b, lw, rw, x0, x1, span}`: the columns
+  about the view, a spacer cell and `<col>` either side for the rest, so every column keeps its
+  place; `wsTable(m)` draws the table, `wsView()` is what a scroll needs: the columns again when
+  the view comes within 160 px of their edge, `wsColsOut`, else the rows; `wsRowHtml` draws a
+  row's cells for the window); a column's sparkline is made only when its row is drawn
+  (`wsSpark`, the model's `mkSpark`). `S.ws` is the selection
+  (`{r, c, ar, ac}`: the active cell and the anchor of a range, plus `extra`, `win`, `edit`).
+  Click, Shift+click, drag, a header or row number, the corner; arrows, Shift+arrows,
+  Ctrl+arrows, Home/End, Ctrl+Home/End, PageUp/Down, Tab and Enter move as in Excel (after a run
+  of Tabs, Enter goes to the next row in the column the Tabs began from, `S.ws.tabFrom`, the
+  `how` of `wsMove`); typing starts an edit (an input method's `Process`, `Dead` or composing
+  key opens the box empty for its text), F2 or a double click edits in place, Esc cancels,
+  Delete clears (`wsBeginEdit`, `wsCommit`, `wsSetCell`: a label, a value, or `correctCell` for
+  a recorded value when locked). An edit (`S.ws.edit`) remembers its column by id (`cid`) and
+  its data row (`k`), and `wsSetCell` writes there in the sheet as it is now (`wsLive()`: the
+  model is made again when the project object is not the one it was made from, `m.p`), so a
+  delayed save landing while the next value is typed loses nothing. A value that is not a
+  number stays in the box, marked `.bad`, on Enter, Tab or an arrow (Esc gives the cell back);
+  left by a click elsewhere, the cell keeps its value and a toast names what was not taken.
+  A drag held past the grid's edge (a range, the letters, the row numbers, the fill handle) scrolls
+  it, faster the further out and on while the pointer is still, the selection or the fill
+  following the edge cell (`wsAutoScroll(step, axes)`: `move`, `clamp`, `stop`).
+  `renderWs` puts a spacer as tall as the rows into the body before restoring the scroll, so a
+  redraw never jumps to the top; `wsRows(false)` redraws only when the view leaves the rows
+  drawn (at either end of the sheet the margin does not apply). A sheet taller than `WS_PMAX`
+  (15 000 000 px; browsers lay out nothing taller than about 2²⁵ px) scrolls in proportion:
+  `wsScroll(m)` gives `{rowH, R, H, V, P, k}`, `wsVT(box, g)` the view's top in rows' height,
+  `wsPhys(y, g)` the scroll position for one, and `wsRows` places the rows drawn where the view
+  is (and redraws on every scroll); every row-to-scroll conversion (`scrollRow`,
+  `wsEnsureVisible`, the scroll handler, `wsSetRowH`) goes through them. A double click is read from
+  the press itself (`e.detail === 2` in the mousedown: a cell opens, a resize edge fits, the
+  fill handle fills down), the `dblclick` listener kept as a fallback (`S.ws.dblAt`); a cell's
+  first press is remembered (`S.ws.press`: its cell, whether on the fill handle, where and
+  when), and a second press within 800 ms and 4 px acts on that cell, whatever is under the
+  pointer after the first press scrolled a half-hidden cell into view. An edit
+  outlives the rows drawn, as a spreadsheet's does: scrolled away, its text waits in `S.ws.edit`
+  (`wsRows` moves the focus to the grid first), the grid takes the keys (Esc cancels, Enter, Tab
+  and the arrows enter it, anything typed brings the cell back and goes on in it), and leaving
+  the grid enters it. A move by
+  the keys records `S.ws.want`: for 0.6 s the scroll handler brings that cell back if a scroll
+  already under way (the wheel's smooth scroll) lands elsewhere; turning the wheel, or any
+  new selection (`wsSelect`), clears it. Clicking
+  a column letter, a row number, the corner or Ctrl+A makes the first cell the active one, as
+  in a spreadsheet. `flushEdits` (on `pagehide`, `beforeunload` and the page hidden) enters a
+  value still in its box and saves a delayed save at once, so leaving the page loses nothing. **Inserting and deleting**, where Excel has them: `wsInsertItems()` (the cell menu's
+  Insert, the bar's `#addColBtn` "Insert", Edit › Insert: Row above, Row below, Column to the
+  left, Column to the right, A column at the end, A sheet) and `wsDeleteItems()` (Delete:
+  Rows…, Columns…); the column menu's Insert a column to the left / right and Delete; Ctrl+Shift+=
+  and Ctrl+− in the grid (whole columns selected, `wsWholeCols`: columns; else rows). Rows:
+  `wsRowsEdit("insert"|"delete", below)` (as many as are selected, above or below them;
+  unlocked and unsorted only; refused past the data's end, where rows are empty already) moves
+  every recorded column and, through `remapRawRows(p, fn)`, what names a raw row (masks,
+  corrections, a peak label's `row`, a set's `ex` and `mem`, `S.sel`); one undo entry and a
+  record entry. Columns: `wsInsertCols(side)` (as many Y columns as are selected, beside them on
+  the sheet, the new ones selected, a toast with Undo), `deleteCols(ids)` (`wsDeleteCols`; one
+  undo entry and a record entry; one column is always left). Copy and paste are TSV (`wsCopyText`, `wsPasteText`, the label rows
+  included; a block pasted from A1 into an empty sheet is read as an import reads it, and with
+  no X-like column, `detectRoles`, every pasted column is a Y and the sheet's empty X column
+  moves after them, since `migrate` keeps an X column in every project). The bar above shows the cell's address (`#wsAddr`) and the **formula bar** (`#wsVal`:
+  `#wsValIn` is typed into as Excel's, `wsBarBegin`, `wsBarEnd(dr, dc, stay)` (a computed
+  column, or the F(x)= row, sets its formula through `setColFormula`; a value that is not a
+  number is refused in `#wsValHint`), `wsBarCancel`), the alignment buttons (`#wsAlignSeg`,
+  `wsAlignBar`), Plot (`#wsPlotBtn`: the quick list for the selected columns, or Plot setup
+  with none, see Graphs), the lock and + Column, which lose their
+  words in a worksheet narrower than 560 px (the `wsheet` container), the foot
+  Count, Sum, Average, Min and Max of the selection (`wsStats`). Right-click is `wsCellMenu`
+  (anchored by `pointerAnchor(x, y)`). `wsLetter(i)` names columns A…Z, AA…. The F(x)= cell
+  opens for typing on one click (`wsEditFormula(ci)`). **Moving columns**: a mousedown on a
+  letter of a whole-column selection starts a `colmove` drag (`body.colmoving`, `.wsmovebar`
+  where they land, `wsMoveMark(x)`), and the column menu's Move (`colMoveItems`, Left, Right,
+  To the start, To the end; `colMenuTargets` is the selection or the column) calls
+  `wsMoveCols(ids, dir)` → `moveColsBefore(ids, beforeId)`: raw columns reordered among
+  `p.cols` (derived spectra keep their slots), a Y whose nearest-left X would change gets its
+  `xcol` pinned (and a redundant one dropped), the selection kept, one undo entry,
+  `recordRaw` (the order is part of the fingerprint) and a toast with Undo. **Alignment**:
+  `p.wsAlign` (`{colId: "l"|"c"|"r"}`, in `UNDO_KEYS`), `wsSetAlign(ids, a, toggle)` (the same
+  button again clears it), `wsSelAlignIds`, `colAlignItems` (the column menu's Align); cells
+  take `.al-l`/`.al-c`/`.al-r`. **Hiding** (Excel's Hide and Unhide): `p.wsHide` (`{cols:[column
+  id], rows:[data row]}`, in `UNDO_KEYS`), a view only (hidden values are plotted, fitted and
+  exported). `wsHideOf(p)` (cleaned of what is gone), `wsHideCols`, `wsShowCols(ids|null)`,
+  `wsHideRows`, `wsShowRows(rows|null)`, `wsHideSave` (one undo entry, a log line, a toast with
+  Undo), `hideItems()` (Data › Hide and show, the cell and row menus; the column menu has Hide,
+  Show beside it, Show every). A hidden column stays in `wsModel`'s columns as
+  `{hidden:true, w:WS_HIDW}`, a 6 px marked strip (`th.ch.hidc`, `td.hid`) so the letters keep
+  their places; `wsMove` and `wsSelect` step over it (`wsVisCol`), and a double click on it shows
+  the run of hidden columns there. Hidden rows leave `wsOrder`'s `ord` (`inv` null for them,
+  `nd` the data's rows, `n` those shown, `hidR`), so `wsDR` maps around them; the row after them
+  is marked (`th.rh.hidab`, `wsHiddenAbove`) and a double click on its number shows them. The
+  address (`wsBar`) names the data row, as the row number does. The foot says how many are
+  hidden, with Show. **Formula suggestions** (`fxsAttach(inp, {on, items})`, `fxsUpdate`,
+  `fxsRender`, `fxsAccept`, `fxsKey`, `fxsClose`, `#fxSug` `.fxs`, `fxsOpen`): a list under a
+  formula as it is typed, in the F(x)= cell (and a cell starting with `=`, `wsRestoreEditor`),
+  the formula bar (`#wsValIn`) and a fit function (`#fbExpr`); `fxsSheetItems(self)` the columns
+  by letter and long name (not the one computed), `x`, `i`, then `fxsBase()` (the functions from
+  `FX_DOC`, `[args, what it does]`, and the constants, `FX_CDOC`); `fxsMatch` ranks by name
+  prefix, then by a word of a column's name; `fxsSig(before)` the function whose brackets the
+  caret is in and which argument. Keys: ↑/↓, Tab (Enter once an arrow has chosen), Esc
+  (`_fxsHush` keeps it shut until the text changes), Ctrl+Space; its keydown is attached before
+  the field's own, and the modal key handler leaves it Escape, Tab, Enter and the arrows; a
+  letter after a digit (`1e5`) is a number. `wsFxHint` says an unfinished formula (an error at
+  its end, or a name that a function starts with) quietly and marks a mistake inside it.
+  `wsBarEnd` sends `=…` typed for a value to the F(x)= row, as `wsCommit` does. **The
+  selection** is drawn by `td.in` (the `--ws-sel` fill)
+  with 2 px edges on the range's outside only (`et`/`eb`/`el`/`er` setting `--et`… in one
+  inset box-shadow), `td.cur` (a 2 px edge on the panel; with animations on, `wsCursor` draws
+  it instead as `.wscur`, one frame in the scrolled content under the sticky headers that glides
+  to the active cell in 90 ms, snaps on a jump of more than a screen or a redraw, hides while a
+  cell is typed in, and `.ws.glide` takes `td.cur`'s own edge away), `th.hs` (a selected column's or
+  row's header, tinted with a 3 px bar) and `th.hsel` (a whole selected column's letter,
+  filled solid, the grab cursor). There are no colour swatches in the headers: a spectrum's
+  colour belongs to the graph.
+- **Pipelines**: `pipeOf(c)` runs a spectrum's steps on its input (`rawSeries(c)`, or its
+  source's input or output) and caches the result per column; raw series are cached by array
+  identity and, after a save hands back a deep copy, by content (`arrKey`, memoised per array).
+  `finalOf(c)` is the output; `derived()` and `pointsAll()` are the analysed spectrum's final
+  data, which is what the fit, the peak finder, the status bar and the exports use.
+  `pipeSig(c)` summarises every enabled step and the raw data; a fit stores it, and `fitStale`
+  says so when it changes. `stepParams(op, d)` gives a new step's settings from the data it
+  will receive; `insertAt` places a step by `rank` (spikes before background before smoothing
+  before normalizing).
+- **Pending step**: a tool dialog previews its step as `S.pending` (`{col, at, step, all}`).
+  `pipeSteps(c)` puts it into the spectrum's steps for `pipeOf`, so the graph, the History and
+  every check see it, but it is not in the document: `applyTool` splices it into `c.pipe`
+  (and onto every spectrum if `all`; a spectrum's first step opens History in the dock),
+  `cancelTool` drops it. **Show it on** (11.11): the Tool window's *This graph / A new graph*
+  (`data-tldest`, `toolDest(v)`, `S.toolDest`, `kurve.tooldest`, not with `all`); a new graph is
+  `applyToolNew()`: a derived column made from the column (`src`; `from:"final"` and the step
+  alone when it goes last, else `from:"raw"` with copies of the steps before it and the step),
+  named "<name>, <step>", on a graph of its own (`newGraphs` with `patch`, `splitInto`,
+  `activateGraph`), the column itself unchanged, one undo step; `applyTool({here:true})` skips it. `stepById`, `colOfStep`,
+  `stageOfStep` and `inputOfStep` look steps up by id in any spectrum, pending included, and
+  `procWarnings` and the report skip the pending one. A project switch drops it.
+- **Stages**: `S.stage` is the stage the graph shows (`null` = final, 0 = raw, k = after step k,
+  n = final with step n in focus); `S.selStep` is the step being edited; `S.cmp` draws the
+  raw data behind the final. `plotState()` gives the series, the stage before it (drawn grey,
+  when on a comparable scale) and the step whose marks to draw (`stageMarks`: background curve,
+  replaced spikes, anchors, regions, calibration lines). Fits and peak drafts are drawn on the
+  final data only, and opening the Fit window returns the graph there. A zoom (`S.view`) remembers
+  the X units it was made in (`S.view.xu`), so a wavelength range is not applied to Raman
+  shifts; the fit's view is `curView()`, the drawn one is `S.geo.v`.
+- **Windows** (`WINS`, `LAYOUT`): each window is `section.win#w-<id>` with a `.win-h` title bar
+  and a `.win-b` body; `LAYOUT.wins[id]` keeps `{g: [x, y, w, h] as fractions of the desk,
+  open, max, z, dock}`, saved per browser under `kurve.layout` (version 3, with `dockOrder`,
+  `dockW` and `dockPin`; an older layout is ignored; every window state read back goes through
+  `saneWin`, so NaN or absurd sizes put the window back where it starts). **The dock**: a
+  window's `dock` (its default `WINS[id].dock`) puts it there while open (`isDocked`,
+  `dockIds` in `dockOrder`, `dockRemember`/`dockForget` on opening and closing); `dockGeo()`
+  is `{W, H, ids, on, dw, drawer, docsW}`, `deskSize()` the documents' part, which every
+  fraction of a floating window is of; `applyWins` shows the docked window in front (highest
+  `z`) below `#dockBar` (36 px, `TABH`) and hides the others, a drawer's at z 8000, and `renderDock` draws the
+  strip (`.dk-lab`, tabs `[data-dtab]` with `[data-dclose]` and the window's `winBadge`,
+  `[data-dhelp]`, `[data-dundock]`, `[data-dpin]` in a drawer or pinned, `[data-dhide]`), with a
+  signature so it redraws only on a change, and puts `#dockEdge` over whatever window it touches
+  (the z that `applyWins` measured, kept in `S.dockEz`); `refreshDock()` redraws the strip outside a
+  layout (the tool's step named, a badge; called from `renderTaskbar`); `.win.docked:not(.max)>.win-h`
+  is hidden; `wireDock` (tabs, keys, drag out, the edge, Help and Undock for the window in front), `undockAt`,
+  `setDocked` (the title bar's `[data-wdock]`; a title-bar drag of 16 px undocks). Tile and
+  Cascade leave the dock alone. **Motion** (`winMotionBegin`/`winMotionEnd` around `applyWins`'
+  loop): the style rectangles before and after, and `WIN_VIS` (shown and minimised after the
+  last layout). A window shown is `winIn` (from its taskbar button, `winTkRect`, when it was
+  minimised; a docked one fades, so a tab change cross-fades; else it grows from 0.97); one
+  closed or minimised is `winOut` (kept shown as `.wout`, inert and deaf to the pointer, at its
+  old rectangle until it has faded or shrunk into its button, `S.winMinAnim` set by
+  `minimiseWin`; reopened, `winStop`); one moved is `winFlip` (a transform from the old
+  rectangle, 200 ms; at most 12 at once). Nothing animates while a pointer is down (a drag calls
+  `applyWins` every frame), on the first layout, when the desk changed size (unless
+  `S.animLayout`, set by the Explorer's switch), at phone width, or with `animOn()` false. Menus
+  (`.still` when moving along the bar, `.up`, `.sub`), dialogs, pickers, the toast (and
+  `hideToast`'s fade) and the Explorer animate by CSS keyframes on the individual `translate`
+  and `scale` properties, so their own `transform` (the toast's centring, a dialog moved by its
+  title bar) is kept; `details.grp`/`.more` slide where `interpolate-size` exists. `splitInto` gives a new graph its place: beside the worksheet
+  (which keeps 300 to 44 %), else side by side, else stacked, never narrower than 480 px;
+  else it takes the old graph's place and the old one is minimised. A window is open, minimised (`min`, its taskbar button kept;
+  `minimiseWin`, the title bar's –, a click on the front window's button, tiling that leaves
+  windows out) or closed (`closeWin`, the ×, a Done button: out of the taskbar). Documents
+  (`isDoc`: graphs, the worksheet, trend graphs; `docWinIds`) keep their buttons
+  (`keepsBtn`, all but a closed graph, `winShut`); a graph window's × closes the graph
+  (`closeGraph`, see Graphs), and the others have none; panels (`panelIds`) are in the taskbar only while `inBar`, news or
+  not. `barWinIds` is the windows in use in the taskbar's order. `renderTaskbar` draws the
+  documents (graphs past four as `[data-tk-graphs]`, trend graphs past three as
+  `[data-tk-trends]`), then the panels, then `fitTaskbar`, which hides the buttons that do not
+  fit (panels before documents, minimised before open, the lowest `z` first, never the front
+  window) into `S.tkMore` behind `[data-tk-more]`. `winMin`, `inBar`, `winStateName`,
+  `frontWinId`; `winItem` (the front one ticked, "minimised" as a note), `panelItems`
+  (Window › Tool windows: ticked while in use, a click opens or closes), `winFinder` (every window
+  in use, searched), `windowItems` (the Window menu). `openWin(id, {render})`, `closeWin`, `toggleWin`, `focusWin`, `toggleMax`,
+  `winTakeFocus(id)` (a window brought forward by its taskbar button or the Window menu takes
+  the keys: the worksheet's grid, or its edit's box, any other window itself, `tabindex=-1`),
+  `tileWins`, `cascadeWins`, `resetWins`, `renderWin(id)` (which window renders what),
+  `renderTaskbar`, `setupWins` (move, resize, min/max buttons, and the "?" `[data-whelp]`
+  that opens `helpFor(id)`). `renderAll` renders only open
+  windows; a window renders when it opens. `showTab("fit"|"clean")` and `showDrawer(...)`
+  remain as names for opening the Fit, History, Results and Discussion windows. `wireWin(el)`
+  wires one window (the static ones at boot, a graph or trend window when it is made): a press
+  anywhere in it brings it forward and, unless what was pressed took the focus itself, gives it the
+  keys (`winTakeFocus`: the worksheet's grid, a live graph's `#plot`, else the window), so Delete or
+  Ctrl+V after a press on a graph's numbers or a title bar no longer reach the worksheet behind;
+  moving or resizing it selects no text (`winMoving`, `body.winmoving`). Graph windows
+  are placed per project (`saveGraphLayout`, `restoreGraphLayout`: `LAYOUT.proj[pid]` for a
+  project with several graphs, `LAYOUT.single` for one graph), so twelve tiled graphs do not
+  leave the next project's graph tiny.
+- **Project Explorer** (`#xpl` in `.work` beside the desk, `#xplSplit` its edge): the project
+  as a tree, as Origin's. `p.tree` (in `UNDO_KEYS`) is `{folders:[{id, name, parent}], at:{key:
+  folderId}}`, read through `treeOf(p)` (folders whose parent is gone go to the top, `at`
+  entries naming no folder dropped) and written by `saveTree(t, log, {noUndo, undo})`, which also
+  drops entries for items the project no longer has (`xKeys`). Items are keyed `ws:<sheet id>` (a
+  sheet, its tooltip the columns holding values, `hasVals`; the files and their columns are not
+  listed since 11.11: the worksheet shows them, and the file row's count disagreed with its list),
+  `g:<id>` (graphs, closed ones marked hidden with `i-eyeoff`), `t:<id>` (trend graphs).
+  `xRows()` flattens it (folders open unless closed, a figure's panels inside it, `S.xplExp` per
+  project; a filter `S.xplQ` keeps matches and their ancestors), `renderXpl()` draws `.xr` rows
+  (`role=treeitem`, `aria-level`, a roving tabindex, `--lv` indent, `data-xfold` on folders and
+  the project), called from `renderAll` and `renderTaskbar`. `xSelect` changes the selection in
+  place (redrawing on the first click would lose the double click); `xOpen` opens (a graph:
+  `showGraph`; a sheet: `showSheet`); `xMenu(r)` is each kind's menu with Move to; `xNewFolder`,
+  `xRenameFolder`, `xDeleteFolder` (what it held moves up), `xMove` (no folder into itself);
+  F2 and Delete on a sheet are `renameSheet` and `deleteSheet`. `xFile(keys, folder)` files without an undo entry of its own (after a change
+  that made one); `xNew(keys)` puts what is made while the Explorer is shown into the active
+  folder (`xActiveFolder`: the folder selected, or the selected item's): new graphs
+  (`plotCols`, `newGraphs`; a duplicate goes beside its source), trend graphs and imports (the
+  sheet they went on, `ws:<id>`; `autoImport` returns `{sheets}`).
+  `wireXpl()`: keys (arrows, Home/End, Enter, F2, Delete, the menu key), HTML5 drag within the
+  tree (`text/x-kurve-node`, `S.xdrag`; a drag counts only when its `dataTransfer` carries that
+  type, since the row dragged can be redrawn away before its `dragend`) onto folders, and a
+  sheet onto a graph window (its Y columns with values plotted there); the splitter; Alt+1.
+  `XPL` (`kurve.xpl`: shown, width 180–520, 220 by default) per browser; below 1600 px (`xplDrawer`) it is a
+  drawer over the desk (`S.xplNarrow`, under the toolbar, or from the top on a phone), closed by
+  opening an item or a press outside, so the windows keep a desk wide enough for them.
+- **Graphs**: `p.graphs` (in `UNDO_KEYS`) is `[{id, name, cols, plot}]`, every graph the
+  project has and none until something is plotted (a new project, `blankProject`, has
+  `graphs:[]`); each shows its own list `cols`, in order, so a column made later joins no graph
+  unasked, and none is special: the first is made, deleted and named like the last. Ids are
+  `newGid()` ("g" and a random part), never used again. A graph shows one curve at least:
+  `toggleGraphCol` refuses to take off the last (offering Delete the graph), and taking the
+  analysed curve off the graph in front makes another of its curves the analysed one, so that
+  graph stays in front (`stashDrafts`, `S.glead`). **Closed graphs**: `plot.shut`
+  (`graphShut`, `graphOpen` (a panel is open while its figure is), `setGraphShut(id, on)` with
+  an undo entry and no log line, `closeGraph` from the ×, the ⋯ menu's Close this graph, which
+  brings an open graph forward when the one in front closes) is the project's, so the graph is
+  off the desk wherever it is opened: `syncGraphWins` closes a shut graph's window and opens
+  one that was shut and no longer is (an undo, a colleague; `S.gshut` remembers per project),
+  `saveGraphLayout` records a shut graph as open so its place is kept. `showGraph` opens a
+  shut one; `graphsMenuItems` notes "closed" (Window › Graphs, the taskbar's Graphs button);
+  the History's graph box says Closed with Open it. `plotBase(pl)` is a new graph's look from
+  another's (no spectra, ranges, title, labels, list or state); `graphBase(from)` uses it.
+  **Plotting** (`plotCols(cids, {type, layout, into, undo})`, one undo entry): a Y column as
+  it is, an `ignore` column made a spectrum, a selected X column what the Ys are plotted
+  against (each the selected X nearest to its left, `xcol`), into `into`, else a new graph
+  (with `plotBase` of the graph in hand); a graph coming onto the desk shares the worksheet's
+  place (no graph open) or the front graph's (`splitInto`, which takes a missing or closed
+  `from` as the worksheet's place, or none). `toggleColVis` (the worksheet's and the curve's
+  show or hide) toggles the column on the graph in front, and with no graph on the desk (none,
+  or the one in front closed) plots it on a graph of its own, never beside a closed graph's curves.
+  `plotItems(cids)` is the menu (PLOT_TYPES, panels, offset, heat map, Add to a graph), from
+  the worksheet's `#wsPlotBtn`, Plot › Plot the selected columns, the cell menu and the
+  column menu (`wsSelColIds`, `plotTargets(cid)`); its first item is **Plot setup…**:
+  `openPlotDlg(cids)` (also first in Plot, and what `#wsPlotBtn` opens when nothing plottable
+  is selected), as Origin's Plot Setup (`ux/spec/PLOT_SPEC.md` slices 2 and 7; `.psu`, the sheet
+  `.plotdlg.psuw`): **Kind**, a button (`#psuKind`, `.psu-kic` the kind's picture, `#psuKindN` its
+  name, "As drawn now" on a graph) opening `PLOT_DLG_KINDS` as a gallery in the pickers' slot
+  (`fpOpen`, `.fpick.kindpick`, `.pgal`, the design system's PlotGallery: a card per kind drawn
+  with the curves, `plotDlgCard(k, ser)`; hovering or focusing one previews it; `S.plotDlgKind`
+  remembered); **Columns** (`#psuSheet` a sheet or every sheet with its file, `#psuQ` a filter),
+  a grid of roles (slice 7: `PSU_ROLE` x, y, ey, ex, lab, size, col, z, ez, each its header, use
+  and tooltip; `PSU_KROLES` per kind, lines' X, Y, Y error, X error, Labels, a map's X, Y, Z, Z
+  error; `psuRoles(st, cols)` adds any role a column shown is marked with; `useRole`, `roleUse`):
+  a row per column with its rows and sparkline (`.psu-n`, `.psu-spk`, gone on a phone), a box
+  `input[data-prole][data-pcol]` per role, one ticked a column, refused where `psuWhyNot(c, u)`
+  says (disabled, the reason its title), a Y or X error's way `select[data-pside]`; `st.use` the
+  uses (`PSU_USES`, `e:z` the Z error); **Curves on the graph** (`st.curves`, `[{y, x (null for
+  the row number), e:[{c, k}], lab, zcol, scol, ez, type}]`, started by `psuStart(cids)` from the
+  selection as `plotCols` reads it, with the marks they make; `psuBuild(st)` the curves the marks
+  make: a Y against its own X when marked, else the nearest X marked to its left; an error column
+  to its own Y when marked, else the nearest Y to its left; a Z error to the curve whose Z it
+  belongs to, else the nearest Z to its left; Add takes every curve marked, Replace (`fresh`) the
+  marked Ys not on the list, `psuSig` tells two apart; `#psuAdd`, `#psuRep`, `#psuDel`, `#psuUp`,
+  `#psuDn`), each curve a line (`tr[data-pcur]`, `.psu-cn`, selected by a press or ↑/↓, Alt+↑/↓
+  and Delete): against `data-cx`, its parts `select[data-cpart][data-cy]` (`partsOf`: what it
+  has and what its kind needs; `candOf`, `setPart`, which the grid's marks follow), `+`
+  `[data-cadd]` a menu of what it lacks (`addable`), and with a kind drawn with symbols
+  (`PSU_SYMK`, or the curve's type on a graph) its symbol `[data-csym]` opening `openSymbolGrid`
+  (`st.sym`, `st.ss`, written as the series' `sym` and `ss`); the curve selected's range
+  `data-crng` with `data-cra`/`data-crb` (by X only when `psuSpan(q)` finds X steady), axis
+  `data-cax` (not the first) and group `data-cgrp` with its steps `data-gstep` in `#psuDet`;
+  Into (`#pdlgInto`); and the preview `#pdlgSk`, `plotSetupPv(st, kind, W, H)`: the
+  graph itself, a graph `__psu` and the columns' changes (`put`) made for one drawing through
+  `withGraph` and `buildPlot` and taken back, ids prefixed `psu-` (a histogram still
+  `plotDlgSketch` through `plotDlgSer` and `plotDraw`). Below 860 px the columns and the curves
+  are tabs, the kind above them
+  (`.psu-tabs`, `data-ptab`, `.psu[data-tab]`). **Kinds that need another column** (slice 5):
+  `PLOT_DLG_KINDS`' third row (`more`: `bubble`, `cmap`, `labels`, `errbox`, each with its
+  tooltip as a fourth entry), `MORE_KINDS` (what each needs beside every curve, `scol`, `zcol`,
+  `lab` or X and Y errors, its words for the log, its note, and `eb:"box"` for error boxes),
+  `psuType(k)` (a kind's plot type: its own, symbols for these, none for a layout), `psuNeed(st)`
+  (the note in `#psuNeed`, naming the curves without; Plot waits, `valid` too), cards drawn by
+  `plotDraw` and `plotKindIcon`; error boxes are the series' `eb:"box"`, drawn by `errSvg` (a
+  rectangle spanning each point's X and Y errors, filled under the data, `path[data-ebox]`, bars
+  where a point has only one), also in the curve's Error bars menu and the Format pane.
+  **Remembered setups** (slice 6): `psuState(cids, g0)` makes the dialog's working copy;
+  `psuRemember(st)` at a new graph's OK keeps the kind and each column's use per project and sheet
+  in this browser (`kurve.psu`, `psuMemAll`, the last 20 projects by `psuNewest`), `psuMemOf(sid)`
+  reads it back (a kind that is not one, or uses that are not an object, read as nothing),
+  `psuRecall(st)` starts the dialog from it (the columns selected still the curves; a remembered
+  X or error bars only where the column still is one, so nothing an undo took back returns),
+  `psuSheetOf`, `psuLastFor(cids)`, and *Plot like the last time* (`plotLikeLast(cids)`, in
+  `plotItems` after Plot setup…, its note the kind) runs `psuApply` with no dialog, or opens the
+  dialog when `psuNeed` says something is missing. `psuApply(st, {into, g0})` is OK for both.
+  OK: one undo entry; data columns made X or
+  error bars, a Y's X (`xcol`, `"row"` for the row number, read by `xColFor`; the other Ys of
+  the sheet pinned to the X they had), an error column's owner and kind, said in the toast and
+  the log (`plotCols`' `say` and `note`, through `psuColChanges(curves)`); then `plotCols(ids,
+  {into, use, series, type|layout})` (`use` and `series` merged into the graph's) or
+  `histogramCols`. The column menu's *Plot against* has *Its row number* (`setXOf(id, "row")`).
+  **On a graph** (PLOT_SPEC slice 3, Origin's Layer Contents): `openPlotDlg(null, {gid})`, from
+  `plotsOf(gid)` (*What it plots…* in the graph's ⋯ menu, a panel's `figPanelItems`, the plot's
+  right-click `graphMenuItems`, Plot › What this graph plots…; not a figure itself): the title
+  *What Graph 1 plots*, `psuFromGraph(g)` the graph's curves with their ranges, axes, labels,
+  colour and size and the marks they make, no kind chosen (`st.kind` null: each curve keeps its
+  type, the gallery checked only when one is picked; the histogram card disabled), no Into but
+  *On <graph>*, the preview the graph itself changed in place for one drawing (its annotations
+  and zoom), OK `psuSetGraph(gid, curves, st, kind, ov, said)`: the list, each curve's `use` and
+  `series` (`zcol`, `scol`, a type when chosen) or the layout, one undo entry (none when nothing
+  changed), the active curve moved to the first when taken off the graph in front, a log line and
+  a toast naming what changed. A
+  `type` given to `plotCols` goes to every spectrum it plots, not only the analysed one. `ensureGraph()` (Peaks, Fit, Integrate)
+  brings forward a graph showing the analysed column (`graphForCol`), opening it if closed, or
+  plots the column on a new graph when none shows it. `GID()` is the graph in hand (`S.gctx` while drawing
+  another, else `S.gid`, the one in front, null when the project has no graph); `GP()`/`plotOf(id)` its settings (`{}` with no graph,
+  so `plotCfg` gives the defaults), and every
+  reader of plot settings goes through them; `savePlot(patch, log)` writes them (a
+  graph's `hidden` becomes its `cols`; its log line is prefixed with the graph's name; with no graph only annotations are saved).
+  `plotCfg()` counts a spectrum not on the graph as hidden, so every `cfg.hidden` check works
+  unchanged. Annotations of every graph are `p.annos` (in `UNDO_KEYS`), each tagged `g` with its graph
+  (`annoInGraph`; `addAnno`, `labelFoundPeaks` and the Format dialog tag them; `deleteGraph`, `deleteFigure`
+  and a panel deleted take theirs, `combineGraphs` re-tags them); a peak set
+  (`grp`) belongs to its spectrum and shows on every graph that draws it (`projAnnos(q)` reads another
+  project's, in either form). `graphIds`,
+  `graphOf`, `graphName`, `inGraph`, `graphShows`, `graphCols`, `multiGraph` (more than one), `winOfGraph`
+  (a graph's window is its id, a panel's its figure's; null for none), `graphOfWin`. **Live and pictures**: one
+  ribbon and one plot (`#gRibbon`, `#gPane`, with `#plot`, `#figure` and their handlers) move
+  into the window of the graph in front (`moveLive`, which marks that window `.haslive`), and wait in
+  `#gPark` (hidden, `parkLive`) while there is none; every graph window is made by `syncGraphWins`
+  (the first graph's too: there is no fixed graph window); the others show `.gbar` (chips of their
+  spectra) and `.gsnap` (a picture). `activateGraph(id, colId)` brings one forward: it keeps
+  the old one's zoom and spectrum (`S.gv`, `S.glead`), parks drafts per spectrum
+  (`stashDrafts`, `S.dstash`), sets everything before `save({activeY})` (which redraws at
+  once in this browser), and draws the old one's picture straight away. A pointerdown on a
+  graph window activates it (a chip's click is read there, since activation hides the chip);
+  `syncGraphWins()` (first in `renderAll`) makes and removes windows, puts a graph in front when
+  the one there has gone (`graphFallback`: one showing the analysed column, the front-most open
+  one, any), and brings forward the graph that shows the analysed spectrum when the one in front
+  does not (`graphForCol(cid, {open})`: its own graph first, then the smallest, open before
+  closed; null when none shows it, and then nothing moves).
+  `withGraph(id, fn)` draws as another graph: its settings, lead (`leadOf`) and zoom
+  (`viewFor`) put in place and every live state (stage, selection, drafts, preview) set aside,
+  then restored. `runSnaps` redraws only pictures whose `snapSig` changed (size, palette,
+  settings, annotations, each spectrum's `pipeSig`, name and mask, zoom, fit, bands, a
+  pending step on it), 24 ms at a time; `scheduleSnaps(delay)` coalesces. Ids in a picture
+  are prefixed so its clip paths are its own. **Linked zoom** (`S.linkX`, `kurve.linkX`, off
+  unless it reads `"1"`; `setLinkX`, from Window › Graphs and a graph's ⋯ menu): another graph takes the front one's X range as `{x0, x1, xu, yAuto}` and
+  `resolveYAuto` fits Y to what is in range (offset and heat layouts are left whole).
+  Making and changing: `newGraphs(groups, opt)`, `newGraphFrom(ids)` (it takes half of the
+  front graph's window, `splitInto`), `onePerSpectrum`, `allInOneGraph`, `duplicateGraph`,
+  `renameGraph`, `deleteGraph` (any graph, the first too: off the project with its
+  annotations, never data; another open graph comes forward, and the worksheet has the desk
+  when no graph is left; its zoom, lead and figure focus go), `toggleGraphCol`, `showGraph`; menus `graphWinItems(id)` (the ⋯), `graphsMenuItems` (the taskbar's Graphs
+  button and Window › Graphs), `newGraphItems`. **Combining**: `combineGraphs(srcs, into,
+  {cids, keep, layout, at})` puts the spectra of graphs `srcs` (and spectra `cids`) on `into`
+  (a graph id or `"new"`), copies each spectrum's series style
+  from where it came unless the target has one, and unless `keep` deletes the source graphs
+  with their annotations re-tagged to the target; one undo entry, a log line and
+  a toast. A new graph takes a deleted source's window, the drop point (`placeWinAt`) or half
+  the source's (`splitInto`). Dragging is `startGraphDrag(e, {gid, cid, click})`, pointer
+  events on `window` (a click under 6 px runs `click`; Escape cancels; at phone width holding
+  near the top or above the taskbar scrolls): from the grip `[data-gdrag]` in every graph
+  window's title bar (shown only with several graphs, `body.mgraph`; a click opens
+  `combineMenuItems(id)`, also the ⋯ menu's Combine) or a picture's chip `[data-gchip]`
+  (the window's capture-phase pointerdown no longer activates on these; their click does).
+  `gDropAt(x, y, o)` reads `elementsFromPoint`: a graph window or a graph's taskbar button
+  (`dropTarget`, `already` when a chip's spectrum is on it), the bare desk for a chip; the
+  ghost (`.gghost`) says what a drop would do (`dropText`), the target is outlined (`.gdrop`),
+  and Ctrl, Alt or Cmd at the drop keeps the graph. `combineDlg(into)` (Window › Graphs ›
+  Combine graphs…): which graphs, onto which (or a new one), the layout, keep or not.
+  `syncGraphWins` moves the live plot out of a window before removing it (`rescueLive`). `tileWins` puts the graphs in a grid on the
+  left (as near square as the desk allows, the last row stretched) and the rest in a column;
+  when a graph would be under 250 × 235 px that way, the graphs take the whole desk and the
+  other windows are minimised. A picture smaller than 250 × 160 px is drawn at that size and
+  scaled down, so its labels never collide.
+  **Figures** (panels, as Origin's graph layers and Merge Graphs): a figure is a graph in
+  `p.graphs` with `fig = {rows, cols, cells:[{gid, r, c, rs, cs}], shareX, shareY, gap,
+  letters, w, h}` and no spectra of its own; its panels are ordinary graphs with no window of their own. `figOf(id)` (the figure a graph is a panel of), `isFigId`,
+  `deskGraphIds` (the documents: figures, not their panels), `drawGraphIds` (what draws
+  spectra: panels, not figures), `figOrder`, `figLetterOf`/`figLetter`, `graphTitle` ("Figure 1
+  › (b) Graph 3"), `figNb` (the sides another panel touches). `winOfGraph(panel)` is the
+  figure's window (`section.win.gwin.figw`: `.fbar` chips `[data-fpanel]`, `.figgrid` of
+  `.fcell[data-fcell]` made by `figCells`); `winShut` counts a panel as shut, so the first
+  graph's own window closes while it is a panel and comes back after (`S.gshut`). `layoutFigs(only,
+  {quiet})` (in `renderAll` before `renderPlot`, and on the grid's ResizeObserver) measures each
+  panel's margins (`figMeasure`: `buildPlot(…, {measure:true})` under `S.figMeasure`, memoised)
+  and `figLayout` gives each cell its rectangle and the margins of its column (widest left and
+  right) and row (tallest top and bottom), an inner shared edge keeping only what is really
+  there; `S.figLay[fid] = {m, W, H}`, `S.figSmall[fid]` (one text size for every panel).
+  `plotCfg` for a panel: the inner shared axes' numbers and titles off, the shared range
+  (`figRange`: every panel's data, in the first's X units) as the limits when none are typed,
+  `figPrune` (numbers at a touching edge give way, in `drawFrame`), `figLetter`, `figM` (its
+  margins: `buildPlot` takes `opt.figM || cfg.figM`). `moveLive` puts the live pane into the
+  panel's cell and the ribbon above the grid; `activateGraph(fig)` brings `S.figAct[fid]` or the
+  first panel; `viewFor` links X (shareX) and Y (shareY) between panels (`xAuto` when only Y
+  is linked, `resolveYAuto`); `runSnaps` draws a panel's picture at its cell's exact size.
+  Pictures and exports: `figSvg(fid, W, H, colEx, k)` (every panel in its place, ids prefixed),
+  `figH`, `handPic(W, H, k)` (the graph in hand as a still picture, a panel bringing its figure:
+  `exportSvg`, `exportPng`, `exportVec`, `copyGraphPicture`), `expBuild` (at the size asked),
+  `exportGraphIds`/`allGraphsSvg` (a figure is one item, lettered inside). Commands:
+  `makeFigure(gids, o)`, `figPerSpectrum`, `figAddPanel(fid, {gid|cids})`, `figRemovePanel(gid,
+  {del})`, `figMovePanel`, `figSave`, `deleteFigure(fid, withPanels)`, `duplicateFigure`,
+  `figDlg` (Panels…: Share X and Share Y as lists, `FIG_SHX`/`FIG_SHY`), **shared per column or
+  row** (roadmap 4, slice 4): `fig.shareX` is `true` (every panel), `"col"` (the panels of one
+  column) or false, `fig.shareY` `true`, `"row"` or false (`figShareOf`, in `normalize`);
+  `figRange(fg, key)` over `"all"`, `"c:<n>"` or `"r:<n>"` (cells by their first column or row,
+  memoised per key in `FIGRNG`), `figShareKey(F, c, k)`, `figShareRng(fg, c)` (`{x, y}` the ranges a
+  panel shows, in `plotCfg` and the pictures' signature), `figSharedWith(F, a, b, k)` (`viewFor`'s
+  link: a zoom followed only where the axis is shared); touching, pruned numbers and margins are as
+  for every panel. `newFigureDlg` (its Share X shows ticked and fixed while the panels will
+  be in one column, from its `valid`), `figMenuItems` (the figure's ⋯), `figPanelItems`;
+  **spans**: a cell's `rs`/`cs` (`figLayout` and `figNb` already honour them) are set by
+  `figSpan(gid, dr, dc, whole)` (into empty cells only, `figFits`; refused in words) from the
+  panel's Span submenu (`figSpanItems`: a column wider or narrower, a row taller or shorter,
+  across the whole row); `figSpot` finds the first free place for a span, `figPackSpans` packs
+  cells in reading order keeping their spans (adding and taking out panels, Panels… when the
+  grid shrinks, and `normalize` when `figClash` finds cells outside the grid or overlapping),
+  `figRowsOf`; `figMovePanel` swaps with a panel of the same size or moves into empty cells;
+  `graphIn(el, w)` is the graph under a point of a graph window (a figure's panel), for drops;
+  `gDropAt`'s `kind:"fig"` (`figTarget`) makes a dropped graph a panel and a chip a new panel.
+  `normalize` keeps figures and cleans their cells (each graph in one cell, none a figure,
+  inside the grid). The History has a box per panel (`graphTitle`), the Explorer a figure row
+  with its panels inside.
+- **Tools and menus**: `TOOL_GROUPS` lists every op by kind; `toolMenuItems({col, at})` is
+  the menu the History's "+" and Step buttons open, one submenu per group (a group of one
+  tool stays a plain item); `dataMenu` (with Clean, Baseline and Transform), `plotMenu`
+  (with View), `analyzeMenu` (Fit, Peaks, Integrate, Signal processing, Calculus, Statistics,
+  and Spectroscopy, `spectroscopyItems`), `figureMenu` and `publishMenu` (`exportItems()` and the
+  two copies) build the menu bar (and the graph window's bar), each a short
+  list of kinds with the tools in submenus (DESIGN.md, Menus and the toolbar; `tools/ux/menucheck.py`
+  compares a crawl of them with `ux/spec/menus-after.txt`). Items that cannot apply are left out
+  (Fit every column… with one column, Batch results without a batch, the second axes' pages while
+  they are off). `sortViewItems(ci)` is Data › Sort the view and the cell
+  menu's; Edit's Copy, Paste (`wsPasteMenu`), Clear and Find act on the worksheet. The menu bar
+  moves to another menu only after the pointer rests 150 ms on its name.
+  **Find a command** (Ctrl+K in the global key handler, Help › Find a command…; `#cmdkModal`, a
+  modal through `openModal` with `_cancel`): `cmdkIndex()` walks `menuItems(k)` for every menu of
+  `CMDK_MENUS` (with its icon) to three levels, leaving out separators, headings, swatch rows and
+  disabled submenus, each entry `{top, icon, path, label, op, run, kbd, title, kw (DOC_KW[op];
+  `toolItem` returns its `op`), checked, enabled}`; `cmdkTerms(q)` the words typed, a phrase of
+  `CMDK_SYN` (`CMDK_PHRASES`) kept whole; `cmdkScore(it, words, spare)` (the name's start 12, a
+  word's start 9, anywhere 6, a word for it in the name 8 (`cmdkSynOf`, the groups of
+  `CMDK_SYN`), the menu's words or a word for them 3, the step's search words 2, the tooltip 1; a
+  word of one or two letters only at a word's start; +1 enabled, +2 a step; `spare` words may be
+  missing, 1 when nothing has them all); `renderCmdk` (Recent from `kurve.cmdk`, `cmdkRecent`/
+  `cmdkRemember`, else six to start; else the best 40 grouped by menu in the order of each
+  group's best, `cmdkMark` bolds the words, `.syn` says "matches <word>" or the tooltip,
+  disabled ones `.off` titled Not available now), `cmdkHi` (the highlight, `aria-activedescendant`,
+  scrolled by hand), `cmdkMove` (↑/↓ and PageUp/PageDown over the disabled), `cmdkRun` (remembers,
+  closes, then runs on a timer, an error logged and toasted), `setupCmdk` (Ctrl+K inside closes;
+  a press on the backdrop closes). `tools/ux/terms.py` leaves `CMDK_SYN` out: it is what people
+  type, not what Kurve says.
+  `openTool(op, {col, at, p})` opens the Tool window with a pending step (ops without settings
+  are added at once by `addPipeStep`); `renderTool` shows the target spectrum, its **Input** (the
+  data the step reads, which is where it goes: Original data, or After <a step's short name>,
+  the step's number when two have one name; the design system's ToolWindow), a before-and-after
+  chart (`beforeAfter`) and the step's form.
+- **Step forms** (`stepForm(s)`, `wireStepForms(box)`): one form per step, generated from its
+  op's `params` schema (types `num`, `int`, `odd`, `log`, `sel`, `bool`, `col`, `cols`,
+  `anchors`, `refs`, `code`), the same in the Tool window and the History inspector. Sliders
+  preview live (`setParam(s, k, v, false)` + `schedulePreview` → `refreshLive`) and commit on
+  change, with one undo entry per control per burst (`beginStepEdit`); a pending step is never
+  saved. Anchor and range picking are pointer modes (`S.mode` `anchor` / `range`, `S.pick`).
+  The op's `help` is not printed in the form: it is the step's help article's lead and the
+  menu item's tooltip. A setting's `hint` is its label's tooltip (`.tipd`, a dotted
+  underline). In the History the form ends with "About this step" (`data-act="help"`); the
+  Tool window has its title bar's "?" instead, so it calls `stepForm(s, {tool:true})`.
+- **History** (`renderFlow`, `flowLayout(per)`; roadmap 6, slice 2: **zoom**, `flowZoom()`/
+  `setFlowZoom(z)`, 30 to 200 %, `kurve.flowzoom`, the canvas's CSS `zoom`, the bar's `.fzoom`
+  (`#fZoomOut`, `#fZoom` back to 100 %, `#fZoomIn`, `#fZoomFit`) and Ctrl+wheel; **wrapped lanes**,
+  `S.flowPer` lanes across (from the view's width at that zoom), `flowLayout` putting the lanes past
+  it in bands below (`n.band`, a row between), the original data's box over the first band, the
+  graphs' boxes under the last; `S.flowPack` (`#fPack`, *Wrap lanes*, on); a step dragged within
+  its lane's own steps (`m.c===n.c`) by the pointer's travel over the zoom, and moved by id (the
+  boxes hold the cache's copies of the steps; `stepMenuItems` finds the live step by id too);
+  roadmap 9, slice 3: past `FLOW_VMAX` (300) boxes only those about the view are drawn, a screen
+  beyond it each way (`flowDraw(force, keep)`, `S.flowL {L, cur, win, keys}`, again on a scroll
+  that comes within half a screen of what is drawn; the selected box and the one with the keys
+  always drawn; `flowEdgesSvg(L, win)` the lines that cross the window; the keys' `go` and
+  `scrollFlowTo` draw a box before going to it; `renderFlowNodes` redraws the canvas alone); a
+  lane of a lower band is fed by a short line over its box (`e.stub`), not a line from the
+  original data's box behind the bands above):
+  lanes of boxes, one per spectrum, placed depth
+  first so a derived spectrum branches off its source's original or processed box; an
+  "Original data" box above the columns (their check codes); step boxes in order (dashed while
+  pending); the processed box; a
+  Peaks box when the spectrum has a peak set (its labels typed in the inspector, what it was
+  found with, a warning when the processing changed since); a Bands box when bands are drawn on
+  its axis (`integ:` + id: the areas, shares and ratios); a fit box when the spectrum has
+  fits; with several graphs a box per graph (`kind:"graph"`, key `graph:<id>`) below the spectra, fed by dotted lines from the last box of
+  each spectrum it shows, with its layout, annotations, recent changes and discussion
+  (selecting it brings the graph forward); otherwise a Figure box below everything when the
+  graph has lines, ranges, text or labels
+  of its own (each listed with Edit and Delete, and the recent changes to the figure from the
+  log). Steps that read another spectrum (`deps`) get a dashed line
+  from it. `S.flowSel` is the selected box (`table`, `figure`, or `raw:`, `src:`, `step:`,
+  `final:`, `peaks:`, `fit:` + id); selecting drives the graph's stage. Boxes drag to reorder, the "+" on a line
+  inserts a step there, arrows move between boxes, Alt+↑/↓ moves a step, Delete deletes it,
+  right-click opens its menu. `flowInspector(node)` shows a step's form and actions, the
+  raw record and fingerprint, the final data's numbers and new-spectrum actions, or the list
+  of fits, and under each its discussion (`flowDiscHtml`). A box with comments carries a badge
+  (`.fn-c`, open threads, or the resolved count greyed); clicking it opens the discussion, and
+  C on a box does too. `S.flowInsp` hides
+  the inspector; `S.flowTab` is `flow` or `log`.
+- **Python** was removed (round 6, the user's request): no window, menu item, worker or Pyodide.
+  A project made with it keeps each Python step as a stored result (see the pipeline's
+  `python` op); nothing can run code.
+- **Preferences** (`openPrefs`, `#prefModal`, the gear `#prefBtn`, File and Edit ›
+  Preferences…, Ctrl+,; as the design system's: History, Appearance with Theme Light, Dark,
+  System and Style, Animations, Typing text, After an import, Errors; each switch's explanation
+  its tooltip, Done alone in the footer): `PREF_DEF` (`history`, `anim`, `flowAuto`), `prefGet(k)`/`prefSet(k, v)`
+  under `kurve.pref.<k>`, per browser. **History off** (`histOn()` false) keeps nothing from then
+  on: `save` writes no log line (a deferred error line aside), `makeStep` no `t`/`by`,
+  `fitHistory` no new entry, `recordRaw` keeps the fingerprint but no record entry (so
+  `rawVerified()` still holds), `who()` names nobody, the History does not open by itself, and
+  the Log tab says the history is off; `clearHistory()` empties a project's log, fit history and
+  record (confirmed, one undo entry). **Errors** are kept either way: `noteError` (the
+  browser's list, `kurve.errors`, the last 50, shown in Preferences with Copy and Clear),
+  `logError` (that, and a project log entry `{err:true}`), and the window's `error` and
+  `unhandledrejection` listeners. **Animations**: `animOn()` (the preference and not the
+  system's reduced motion), `applyAnim()` sets `data-noanim` on the root, which every CSS
+  animation is guarded by. *Open the Overview* is `kurve.ovAuto`.
+- **Discussion** (`threadIndex`, `threadHtml`, `wireThreads`, `threadAct`, `renderThread`,
+  `flowDiscHtml`, `renderFlowDisc`, `refreshComments`, `goNode`, `goAnchor`,
+  `reportDiscussionHtml`): a comment is `{uid, text, anchor, t, resolved, resolvedBy, parent?,
+  edited?, deleted?}`. The first comment of a thread carries the anchor: a point, a spot, the
+  fit, or a History box (`{type:"node", key, col, label}`; `nodeAnchor(key)`, and `nodeLabel`
+  says "(since removed)" when the step or graph is gone, until undo brings it back; a key from
+  before version 5, `figure` or `figure:<n>`, the first graph's box then, is the graph it became,
+  `p.mainWas`, through `nodeKeyNow`/`legacyFigGraph`, in `threadIndex`, `nodeLabel` and `goNode`). A reply names its
+  thread in `parent` and a reply to a resolved thread reopens it; deleting a first comment that
+  has replies leaves "This comment was deleted" (`deleted`), and every delete offers Undo.
+  Only your own comments can be edited or deleted. The same thread markup and handlers serve
+  the Discussion window (Open/All filter) and a box's inspector; drafts live in `S.cDrafts`
+  keyed `node:<key>`, `reply:<id>` or `edit:<id>`, so a redraw never loses what is typed, and
+  the caret is kept (`keepCaret`/`putCaret`). Comments live beside the project, not in it:
+  undo never takes a colleague's words back. The report ends with every thread, and each step
+  in its Processing list says how many threads it has. **Unread** (roadmap 10, slice 1): per
+  browser and project (`kurve.seen` `{pid: {base, th: {thread id: time}}}`, `seenAll`, `seenOf`,
+  `seenSave`; `seenBase(pid)` on a project's first comments here, so an old project is not all
+  new); `cmtMine`, `cmtNew(c, tid)` (someone else's, after `max(base, th[tid])`), `threadNew(t)`,
+  `unreadCount(list)`; a comment new says New (`.cmt.new`, `.newc`), its thread `.thr.unread`, a
+  History box's badge `.fn-c.new` (and *n new* in its label), the Discussion's title badge and
+  `winBadge("disc")` count them (`.badge.new`), the Discussion bar *n new* and *Mark all read*
+  (`data-dread`, `seenMark()`); `seenSoon()` (after `renderThread`, `renderFlow`, `renderFlowDisc`)
+  reads the threads with something new on screen `SEEN_MS` (1.5 s) later (`seenMark(list)`: each
+  read up to its newest comment). **Mentions** (slice 2): `mentionPeople()` (`S.profiles` with a
+  name, not oneself; `refreshProfiles` asks for the mentioned too), `setupMentions()` (one list,
+  `.fxs.msug`, under any comment box, `textarea.ctext` or `#cText`, on `@` and the start of a name;
+  ↑/↓, Enter or Tab, a click, Esc; its keys taken before the box's own), `mentionsIn(text)` (the
+  ids whose `@Name` the text holds, a longer name first), `withMentions(o)` on every post and
+  `mentions` on an edit; `cmtTextHtml(c)` marks the names (`.ment`, `.ment.me`); `mentionsMe`, a new
+  comment naming you says *Mentions you*; `mentionToast(list, before)` (in the comments' watch, by
+  `S.cKnown`) says the latest that arrived, with Go; `threadForMe` and the Discussion's *For you*
+  (`S.discFilter` "me"). **Proposals** (slice 3): a comment's `propose {step, op, col, from, to,
+  applied?}` (only the settings changed); `PROP_TYPES`/`propParams(s)` (sel, text, bool, col, log,
+  int, odd, num, as shown), `proposeDlg(key)` (*Propose settings…* in a step's composer,
+  `data-cact="propose"`: `formDlg` with `paramControl`'s fields, ids `pp-…` so none is twice in the
+  page, a range and its number kept together, Post waiting for a change, a reason `#ppWhy`; a new
+  thread on the step), `propState(pr)` (`gone`, `has`, `moved`, `propSame`), `propHtml(c)` (the
+  changes by `paramText`, where it stands, *Apply* `data-cact="papply"` unless the step has them or
+  is gone), `applyProposal(cid)` (one undo step, `s.p` merged, a log line naming whose, a toast with
+  Undo, `applied {by, t}` on the comment); the report lists each proposal.
+- **Statistics window** (`renderStats`): descriptive statistics of every spectrum (final or
+  raw, all X or the visible range: n, mean, SD, SE, median, min, max; the spectral measures,
+  X at max, noise σ, S/N, area and centroid, behind *Noise, S/N and area*, `#stSpec`,
+  `S.stOpt.spec` "on"/"off", else on when `looksLikeSpectrum` of the active column; `statsData`
+  returns `spec`, and `statsTsv` copies the same columns), the visible-range integral
+  (`measureHtml`, over `viewRng()`, never the fit's range), and Pearson r between spectra on the
+  analysed one's X (`corrMatrix(cols, rng, only)`: each pair once; past 12 spectra a column of
+  each against the analysed one, not a square table); Copy gives it as TSV. Past `STAT_MAX` (200)
+  columns the tables list the first 200 and the active and selected ones, with a *Show them all*
+  button (`data-stall`, `S.stAll`); Copy (`statsTsv`) gives every column. `statRow` is kept per
+  series and range (`STATM`, `statRow0` the work; the row given back with today's column).
+- **Peak fit panel** (`renderPeakFit`): three numbered parts: 1 Find peaks (`pfPanelHtml`,
+  the finder's settings in `S.pf`, a live preview on the graph from `pfRun`, the peaks it would
+  find in a table and the ones not counted as peaks with their reasons, each with an Add button;
+  `runPeakFinder(append)` seeds the draft from them, measuring a peak on a larger one's tail
+  from its own valleys), 2 Peaks and baseline (its header's **Add a
+  peak**, `#pfAddMode`, is the Add peak pointer mode, which left the toolbar), 3 Fit; both fits have
+  an *On the graph* group (`fitResidHtml(peaks)`, `.fitshow`: the residuals `#fitResid`, the
+  confidence band `#fitBandC` (`bandConf`), the prediction band `#fitBandP` (`bandPred`), and
+  for a peak fit each fitted peak shaded `#fitPkFill` (`series.__peaks.fill`)), also Analyze ›
+  Fit; for the residuals `residOn(cfg,
+  fit)` is every reader's door (`resid` true or false by hand; "auto" or missing: on for a peak
+  fit, off for a curve fit; `residHint()` the fit the window is set to make); then the
+  confidence level and *In the results* (`rShowHtml`, see the residuals above). The curve
+  fit's model starts from `suggestModel()` (`{id, why}`, memoised per series: linear, expdec,
+  boltz or gauss from the points' shape) unless the project has a `prefModel`; while another is
+  chosen the window says *Suggested:* with the model's name as a button (`#useSugg`, the reason
+  its tooltip), and nothing while it is the one chosen. `pfBaseline` subtracts the draft's
+  baseline before searching without changing it. Its "Mark and label them" hands the peaks to
+  the Peaks window's set instead (`findPeaksInto`, over the fit's range). Above both kinds of
+  fit, `fitWhereHtml` says what is fitted: Spectrum (with several; `goSpectrum`) and Range from
+  … to …: **all the data** unless typed or taken from the zoom with *From view* (`#fwView`), the
+  points it holds a readout (`#fwN`, `.ro`, "81 points") (
+  `fitRngOf(c)` reads `S.fitRng[pid:colId]` `{x0, x1, xu}`, null for all, or a fit's own `range`
+  on the same processing; `setFitRange(a, b)`, `xExtent`; `fitRange`/`fitPoints` read it, and
+  zooming never changes it; `buildPlot` shades what it leaves out, `g.fitrange`, while the Fit
+  window is open and the Peaks window is not; `fitFoundPeaks` takes the set's range;
+  `wireFitWhere`), and the
+  footer ends in **Done** (`#fitDone`, closes the window). Each peak card has a name field
+  (`data-pname`, `setPeakName(k, v, "draft")`), and under the fit a row of chips says what the
+  labels show (`data-fplf`, `fplToggleField`) with More… (the Format dialog's `fpeaks` page).
+- **Peaks window** (`openPeakFinder`, `renderPeaks`, `wirePeaks`): finding peaks without
+  fitting them. A spectrum's **peak set** is peak labels on the graph, annotations with
+  `grp:"pk:<colId>"`, each with its typed label `lab`, its mark `mk`, the finder's numbers
+  `pk:{h, w, snr}` and `manual` when placed by hand; `p.found[colId]` records the set
+  (`{opts, sig, at, by, style, ex, mem, n, rng, xu, follow, re}`: the finder's settings, the
+  processing it was found on, the style shared by the set (`PK_STYLE`: `mk`, `show`, `rot`,
+  `dec`, `unit`, `color`, `size`), peaks removed by hand that a new search leaves out
+  (`{x, xu, row}`), the labels of peaks a search no longer finds, given back when one finds
+  them again, the range and X units it was found over, whether it follows the processing, and
+  when it last did). Each peak's annotation carries its recorded `row`. `peakSearchOn(c, opts,
+  rng, xu)` searches any spectrum's final data (masked points out, a straight baseline through
+  the lowest fifth; never the fit's), and `mergePeakSet` makes the result the set: the same
+  peak is within a quarter of its width in the same units, or on the same recorded row give or
+  take three after a change of units, so labels survive a conversion to wavelength.
+  `findPeaksInto` (the analysed spectrum, over the view) and `findPeaksEvery` (every spectrum,
+  one undo entry) use them; every change to the finder's settings searches again at once.
+  **Following**: `followPeakSets()`, first thing in `renderAll`, finds a set again with its own
+  settings and range whenever its spectrum's `pipeSig` changes, with no undo entry of its own
+  (undoing the step brings the old set back with it) and a log line; off per set
+  (`follow:false`, "Find them again whenever the processing changes"), and then the set says
+  it is out of date. `allFoundTableText` is every set in one table (Copy all).
+  `peakText(style, lab)` is what a label shows (`show`: the position, your label or else the
+  position, both, only yours, nothing); `{x}` in any label or line text stands for the
+  position (`annoPos`). `setPeakStyle` restyles the whole set, `setPeakLabel` types one
+  label, `removeFoundPeak` (also what Delete on a set's label does), `clearFoundPeaks`,
+  `addToPeakSet` (the Label tool on a spectrum with a set), `peakRows`/`foundTableText` (the
+  table; `said` has `{x}` written out), `fitFoundPeaks` (seeds `S.pdraft` from the set and
+  opens the Fit window: fitting is optional). The window's parts, labelled in one or two words
+  as the design system's PeakFinder is (the longer sense in each tooltip): **Search** (which
+  spectrum, always shown, with In every spectrum; Range: All, + View, + Select on graph),
+  **Settings** (`pfFormHtml`, the finder's form under `pk-pf…` ids so the Fit window's can be
+  open too; Method, Keep if, Threshold, Noise, Log scale, Direction, Smoothing, Min width, Min
+  spacing, Max peaks, each list's short names the last entry of `PF_METHODS`, `PF_MODES`,
+  `PF_NOISE`, their long ones for the log and the History; Auto-update, Defaults), **Peaks** (a
+  table with a label field each, Find, remove, Copy, Clear, Add peak, **Rejected**: the
+  candidates not counted as peaks, with Add), **Identify** (naming from known lines), Across the
+  spectra (with several sets on one axis: each matched peak once, its spread, in how many, one
+  label for every one, a chart button for its trend), On the graph (Mark, Label: `PK_MARKS`,
+  `PK_SHOW`), and a pinned footer on one row: **Done** (closes the window; the peaks stay),
+  then the optional Fit…, Integrate and Labels…. **Regions**: parts of the spectrum
+  searched each with its own finder settings. A set keeps them (`found[c].regs`, `[{id, x0, x1,
+  o}]` in its units; `rng` too when there is one, for older readers); before a set,
+  `S.pkRegs[c.id]`. `normRegs`, `regsOfSet(f)` (an older set's `rng` is one region with its
+  `opts`), `pkRegsOf(c)`, `pkRangeOf(c)` (their span, or null), `pkSelReg` (the one whose
+  settings the form shows, `S.pkReg`), `searchRegions(c, regs, xu, base)` (each region
+  searched alone, results laid end to end, a peak found twice counted once), `setPkRegs(regs,
+  why)` (one undo entry, searches again), `addPkRegion` (the view, or a drag: `pickPkRange`,
+  `S.pick.pkr`, read in `setPickedRange`), `removePkRegion`, `setPkRange(rng)` (one region). Each
+  region's edges drag on the graph (roadmap 3, slice 5): `buildPlot` draws a transparent strip on
+  each (`data-prh="<id>:x0|x1"`, a `<title>`), the plot's pointerdown takes it in the Zoom, Pan
+  and Label tools (`S.prdrag {col, id, edge, x0, regs, moved}`, a copy of the regions the drawing
+  reads while it lasts), `dragRegion` follows with a tip, `commitRegionDrag` is `setPkRegs` (one
+  undo step, a new search); a press without moving selects the region. The
+  table (`.pkregs`: edges typed, `pfSummary` of its settings, the peaks in it, ×); the
+  **Settings** (`#pkHow`, once "Peak finder settings" and before that "How to recognise a peak") edit the selected
+  region's, with Use in every region, or with no regions `S.pf`. `findPeaksInto({regs|rng})`,
+  `findPeaksEvery` (the analysed spectrum's regions on every spectrum on its axis) and
+  `followPeakSets` (the set's own) all go through `searchRegions`. While the window is open
+  `buildPlot` shades what no region covers (`.pkrange`) and numbers the regions, the selected
+  one in the accent colour. **Noise** (`PF_NOISE`, `o.noise`): `pkSearchOpts(c, o, pts)`
+  turns the settings into `peakSearch`'s: for `auto` the error bars (`sigma`, each point's `e`)
+  when every point has one, else, and for `counts`, counting statistics
+  when it can (`countNoise`: √N from the counts as recorded in each point's row, averaged over
+  five channels, through `countsPerY` (counts 1, counts per second the live time from
+  `specMeta`/`liveTimeOf`) for the raw and the final units; null when the final unit is not
+  counts), else `local` (counts asked for) or `global`. **Known lines** (`#pkId`, Name them
+  from known lines): `LINE_LIBS` (the natural background's gamma lines and calibration
+  sources, keV, with intensities), the project's lists `p.lines` (`[{id, name, unit,
+  items}]`, in `UNDO_KEYS`; `editLineList` (paste or read a file, `parseLineList`),
+  `deleteLineList`), `lineLibs`, `lineLib`, `lineScale` (eV, keV, MeV; null otherwise),
+  `linesFor(lib, xu)` (the lines in the spectrum's units, or why not), `idfOpts` (`S.idf`,
+  `kurve.idf`: list, tolerance, label form, keep typed), `idMatchOpts` (a typed tolerance, or
+  each peak's FWHM with half the median as a floor), `identifyPeaks(c)` (`matchLines`, then each
+  peak's annotation gets `line {x, name, lib, d}` and its label by `lineLabel`; a label typed
+  by hand, `typed`, stays; one undo entry; `S.idLast` for the summary and the offset),
+  `nuclidesFor(c)` (the set's peaks, `idPeaksOf(c, rows)` each with the net counts of a counted
+  window around it, the spectrum's range, the efficiency curve) and `nuclideTableHtml(c)` (under
+  *Identify* once peaks are named: nuclide, verdict `NUC_V`, lines found of expected, the strongest,
+  whether the strengths agree; the lines and shared peaks on a line under each, `tr.rmore.show`);
+  `identifyPeaks` names a peak after a present nuclide's line in reach rather than an unlikely one's.
+  `setPeakLine`/`peakLineMenu` (the table's Line column: the lines near a peak), and the copied
+  table and the report carry the line and the peak's offset from it.
+  `pkUndo` makes one undo entry per burst of the same kind of change.
+- **Integrate window** (`openIntegrate`, `renderInteg`, `wireInteg`): bands measured without
+  a fit. `p.integ = {bands, ref, avg, show}`: each band a window `{id, x1, x2, xu, lab, base}`
+  in the X units it was drawn in, applying to every spectrum on that axis (`bandsFor(c)`), so
+  the same windows give the same bands of every sample; `ref` the band the others are divided
+  by, `avg` the points averaged at each end of a line baseline, `show` whether the graph shades
+  them. Nothing measured is stored: `bandCalc(c)` runs `integrateBand` on the final data
+  (masked points out, the spectrum's `noiseSigma`, its error bars if any), memoised per final
+  series, and adds `pct` of the total and `ratio`/`ratioErr` to the reference, so the numbers
+  follow the processing. `addBand`, `updateBand`, `removeBand` (and Delete on a selected band,
+  `S.bandSel`), `clearBands`, `saveInteg`; `pickBands()` turns on the range pick
+  (`S.pick = {integ:true}`), which stays on for the next band until Esc; `bandsFromPeaksUI`
+  puts windows around the Peaks window's set, or around peaks found now, in place of the bands
+  on that axis. The table (name, edges, baseline, area ± error, height, position, FWHM, %,
+  ratio, the reference radio; narrower windows drop columns by container query, and on a phone
+  the edges are dragged on the graph instead) or, for several spectra, a row per spectrum
+  (`integEveryRows`, `integAllText`); Copy is TSV (`integTableText`, the counting columns appended
+  by it to `integTableText0`'s). **Counting** (roadmap 3, slice 2): `countSetup(c)` says whether a
+  spectrum's bands can be counted (`{kc, t, why, unit}`: its unit counts, or counts/s with a live
+  time, `countsPerY`; no step but those in `COUNT_SAFE`, which move X, scale Y or leave points out;
+  not a derived spectrum; `why` in words otherwise), `bandCalc` adds each band's `cnt`
+  (`countBand`) and `res.cs`, and `integCountHtml(res, ro)` is the *Counting* part under the table
+  (`details#igCnt`, `S.igCnt`; `table.igcnt`: net counts ± σ, the rate, detected or not against the
+  critical level, a band's `ig` (emission probability, %) and `eff` (full-energy efficiency, %)
+  typed (`data-igk`, one undo entry, refused in words outside 0–100), the activity or, not detected,
+  the detection limit as one, `activityOf(cn, t, eff, ig, effErr)`, the efficiency's error carried;
+  *Detected* a column of its own (`td.igdet`, Yes or No, the critical level its tooltip), a window
+  wider than the resolution marked by its name and said in a note under the table; narrow, the rate
+  left out and the two settings' headings their symbols, `.hw`/`.hn`). The report's band integrals add a
+  counted table per spectrum. **The detector's curves** (slice 3): `p.detcal = {eff:{pts:[{E, eff,
+  err}], deg, xu}, fwhm:{pts:[{E, w}], deg, xu}}` (in `UNDO_KEYS`; `detCalOf(p)` cleaned,
+  `detCurve(kind, xu)` the fitted curve for that X unit, memoised in `DCMEMO`); `bandEff(q, ec)` a
+  window's efficiency, typed or the curve's at its centre (`from`, the field's greyed placeholder and
+  its tooltip); a window wider than 1.3 times the resolution curve there is marked (`.warnc`, "two
+  lines?"). `detCalDlg(kind)` (Analyze › Spectroscopy › Detector › Efficiency against energy…,
+  Resolution against energy…): `formDlg` with a table of points (`#dcRows`, `data-dci`/`data-dck`,
+  `data-dcdel`), `#dcAdd`, `#dcFrom` (efficiency: the counted windows with their emission and the
+  source's activity `#dcAct`, ε = N ÷ (A·t·I); resolution: the windows' FWHM and the fitted peaks'),
+  `#dcDeg`, the drawing `dcPlotSvg(rows, cv, eff, xu)` (log–log for the efficiency) and `#dcMsg`;
+  Save is one undo entry and a log line; listeners on the dialog's own elements. On the graph
+  `bandsSvg("under")` shades each band between the curve and its baseline and dashes the
+  baseline, and `bandsSvg("top")` draws its edges (`data-bh`, drag one) and a strip along the
+  top with its name (`data-bb`, drag it to move the window): `S.bdrag`, `dragBand`,
+  `commitBandDrag` (one undo entry per drag). Only the analysed spectrum's, on the final data,
+  overlaid or on its own axis. The Peaks window's *Integrate* is `bandsFromPeaksUI` too.
+- **Overview** (`openOverview`, `renderOverview`, `overviewOf(d)`, `overviewSteps(o, c)`):
+  what a spectrum is like before anything is done to it, from the data as recorded or after
+  processing (`S.ovStage`). `overviewOf` (memoised per series) measures the points (missing,
+  order, repeats, gaps, evenness from `spacing`), the noise, the bands (`detectBands`, after
+  `despikeY` has set spikes aside) with their widths in points, the spikes, flat tops at the
+  maximum, points below zero (a warning only past five times the noise), and the background
+  the Subtract background step would take with its own suggested settings, called flat,
+  sloping or curved against the strongest band. `overviewSteps` turns that into first steps
+  in pipeline order (sort, average repeats, remove spikes, resample, subtract the background,
+  smooth only if the narrowest band spans 7 points or more), each opening its tool
+  (`openTool`) with settings measured from the data, and marked done when the spectrum already
+  has the step. It opens after an import that plots one column, when that column looks like a
+  spectrum (`looksLikeSpectrum(c)`: 50 points or more, in order, evenly spaced, a band at least
+  five times the noise; the same test gates *Label the peak at…* on a curve and the statistics'
+  spectral measures) (`autoOverview`, off per browser under
+  `kurve.ovAuto`), from Analyze › Spectroscopy › Overview of the spectrum…, and from a raw box in the History.
+- **Reading values** (the `readers` module after `MODE_HINT`; DESIGN.md, Menus and the toolbar):
+  two pointer modes, `reader` and `cross`. `readerCurves()` (the curves drawn, their points on
+  screen), `readerNear(px, py, maxd)`, `rdPin(hit, say)`, `rdStep(dk, dc)` (along a curve, between
+  curves), `rdIntoView`, `rdFind(axis, txt)` (the nearest point with that X or Y, brought into
+  view), keyed per project and graph (`rdKey`); the X–Y lines `xhState()` (`{x, y, mode}`),
+  `XH_MODES` (both, vertical, horizontal; `xhMode`/`setXhMode`, `kurve.xh`), `xhCrossings(rc, axis,
+  at)` (by interpolation on screen), dragged by `xhDown`/`xhMove` (`S.xhdrag`). `drawReaders()`
+  draws `#rdLayer` over the plot (rings, guides, the lines with hit strips `data-xh="v|h|c"`, tags
+  `.rdtag`) after every `renderPlot`; `renderRdCard(full)` the card `#rdCard`, fixed in `#app`
+  (so it goes anywhere on the screen, over any window, and a dialog makes it inert; z 38, under
+  the Explorer's drawer, dialogs, menus and toasts; hidden with no graph on the desk), rebuilt
+  only when its `data-sig` changes, the values written in place; `placeRdCard` (where it was put,
+  else the top right of `#figure`, always whole in the window, again on the window's `resize`),
+  `rdMem`/`rdMemSet` (`kurve.rdcard`: `x`, `y` once moved, `w`, `h` once resized; what does not
+  read is nothing), `RD_MIN`, its head `[data-rdmove]` dragged and double-clicked (back by the
+  graph) and its grip `[data-rdgrip]` dragged (`.rdmoving` while either), `wireRdCard`, `rdText`
+  for Copy. The keys are in `graphKey`. Neither writes to the project.
+  `graphOnDesk()`/`syncGraphTools()` (end of `renderTop` and `applyWins`) hide the toolbar's
+  `.tg` group with no graph on the desk (`body.nograph`); the menus keep their shape, and Plot ›
+  View and Figure's items are greyed without `GID()`.
+- **Values typed or picked** (`comboHtml(attrs, val, list, {unit, ro, ph})`, `CMB` the lists,
+  `setupCombos`): a text field carrying the form's own attributes (`data-pd`, `data-num`,
+  `data-min`/`data-max`, clamped by the Format dialog's `onVal`) and `.combo-b`, which drops the
+  list (`toggleMenu`, `focus:"checked"`: `openMenu` puts the keys on the checked radio item);
+  ↑/↓ step through the list (`comboSet` dispatches input and change). The Format dialog's `cmb`
+  replaced its sliders but opacity's; the text bar's size is one (`.tszc`).
+- **Transitions that survive a redraw** (`setupMotionKeep`, `MKEEP`, `ctlKey`, `segKey`): a
+  switch changed or a segmented choice clicked is remembered for 500 ms; when a redraw puts its
+  twin in its place (a MutationObserver), the knob's slide or the fill's cross-fade is played on
+  the twin with `animate`.
+- **Typing on the graph**: one box for every text, `inlineBox(o)` (`.inled`: `#inledIn`, an
+  input or for several lines a textarea, formatted or LaTeX (`richMount(box)`, its editor
+  `#inledInNed` with `data-enterkeeps`; the box's keys and blur listen on both), `rtool("inledIn")`,
+  ⋯ `data-inmore` for `o.more`, and `.inled-pv`: in LaTeX the text typeset by
+  `texPreview(v, 17, o.st)` in its own style once it has LaTeX, else the keys and a few examples;
+  formatted, the keys only; redrawn on the input's `richmode` event). `o.el` (or `o.rect`) is what it covers; Enter
+  keeps (`o.keep(v)`), Esc leaves (`o.cancel`), a click elsewhere keeps unless the symbol grid
+  is open (`spOpen`). Built on it: `inlineEditTitle(k)` (graph and axis titles,
+  `titleStyleOf(k)` for the preview), `inlineEditLegend(hit)` (`"title"`, or `"leg:<id>"`: the
+  series' `label`, `__fit` too; the title box goes above the legend when there is none),
+  `inlineEditAnno(id, {fresh})` (labels and text, and the text of lines, ranges, arrows and
+  shapes; a set's peak takes `lab`; empty text on a label or line shows its position) and
+  `inlineNewText(pt)`. `annoDouble(id, onText)` is the double click (and Enter or F2 on a
+  selected annotation): typing for labels and text, and for a line's, range's or shape's text
+  when the press was on it (`S.andrag.txt`), else its Format page. Rich text groups carry
+  `data-rt`, so `[data-rt], text` finds what to cover. In dialogs a rich field is `.rfield`: the
+  field, `rtool(id)` and `texPv(id, v)` (`.texpv[data-texpv]`, kept up to date by an input
+  listener in `setupRichTools`, empty while formatted).
+- **Formatted or LaTeX** (DESIGN.md, Text: two ways to type it): every `[data-rich]` field is
+  mounted by `richMount(root)` (a MutationObserver in `setupRichTools`, and directly by
+  `inlineBox` and `renderPlotDetails` before they restore the focus): `richApply(inp, want)` puts
+  a contenteditable editor before it (`.inp.ned`, `.multi` for a textarea, id `<input id>Ned`,
+  `inp._ned`, `inp._mode` `"nat"` or `"tex"`) and, formatted, shows `natHtml(texToNat(value))`
+  and hides the input (`.rich-hid`: focusable, tabindex -1, aria-hidden; focus sent to it goes to
+  the editor, `richFocus(inp, all)`), the `.rfield`/`.inled` marked `.nat`. LaTeX is
+  `prefGet("texLatex")` (`texLatexOn()`, `PREF_DEF` false), set by `setTexMode(latex, from)`
+  (the `[data-rtmode]` button of `rtool`, Preferences › Typing text), which applies to every
+  mounted field; a value `texToNat` cannot show stays `"tex"` (a toast when it was the field
+  clicked). `natWire`: every edit writes `natToTex(natRead(ned))` into the input and dispatches
+  `input` (`natSync`); leaving dispatches `change` (not when the focus went into the symbol
+  list); Enter in one line dispatches `change` and then a keydown Enter on the input (a dialog's
+  OK), in several lines a `<br>` (`insertLineBreak`); Ctrl+B/I/U and `format*` inputs other than
+  scripts are refused; paste is plain text. `natScript(inp, "^"|"_")` is
+  `execCommand("superscript"|"subscript")`, and `natTools` (on `selectionchange`) presses x² or
+  x₂ where the caret is. The pure part is in the TEX block: `texToNat(src)` (runs `{s, v}`, v 1
+  raised, -1 lowered; null for maths, fractions, roots, accents, fonts, set spaces, nested
+  scripts, a stacked sub- and superscript, or `\{x\}`), `natToTex(runs)` (`natEsc`: `\ $ { } ~`
+  escaped, placeholders `NAT_PH` kept; `{}` between a subscript and a superscript), `natMerge`;
+  `tools/tex-test.mjs` checks that every text written back draws as before. **The symbols**:
+  `SYM_KINDS` (eleven kinds, about 240, each `char name words`), `SYM_TEX` (LaTeX's usual
+  command, from `TEX_SYM` less Kurve's own names), `openSymPicker(btn, target, {keys})` (`.sympick`:
+  a search `.sysearch`, kinds `.syk` with grids `.sygrid`, the hovered one named in `.syname`;
+  the editor's selection kept and put back; formatted, `insertText` of the character; LaTeX, the
+  command, with `{}` before a letter; Shift+click keeps it open; arrows, Enter, Escape).
+- **The legend selected** (`S.legSel = {g, hit}`, `hit` `"box"`, `"title"` or `"leg:<id>"`): a
+  click selects (a dashed outline round the legend, the entry shaded, both drawn by
+  `buildPlot` with `pointer-events="none"`; every entry and the title have a transparent hit
+  rectangle, `geo.legOrd` their order); a click on what is selected, a double click, Enter or
+  F2 types over it (`inlineEditLegend`); ↑/↓ move through `geo.legOrd`, Esc lets go; a click
+  elsewhere, an annotation selected or a project switch clears it. Right-click selects too and
+  opens `legendMenuItems(hit)`.
+- **One menu order for text** (DESIGN.md): `textMenu(o)` builds the right-click menu of
+  anything with text: its name; Edit text; Size (`TXT_PTS`), Bold, Italic, Colour (swatches,
+  Automatic); `o.own`; Format…; Delete. `titleMenuItems(k)` (with `titleTxt(k)`: the graph
+  title's `txt.title`, an axis title's own `ax[k].tst`), `legendMenuItems(hit)` (an entry's
+  menu adds the curve's Hide, Show only and Show every (`curveShowItems`), Leave it out of the legend, Back to the name, its line…, and the legend's own items under
+  Legend), `annoMenuItems(id)` (`ANNO_TX` maps the text keys onto the annotation's). An axis
+  title's own style, `ax[k].tst` (`{fam, name, size, b, i, u, color}`, in `FMT_AX`), is drawn
+  through `AT(k)` in `buildPlot` (every axis title's `TS.axis` under it) and edited on its axis
+  page by `txtBarHtml("axt:"+k, …)` (`pdTxtGet`/`pdTxtSet` map `axt:` onto `ax.k.tst`).
+- **Adding annotations**: the Format dialog's Labels and lines page has one Add button
+  (`data-pdaddmenu`, a menu of `ANNO_ADD` with icons) calling `pdAddAnno(k)`; `addLineDlg(t)`
+  (Figure › Annotate › Vertical line…, Horizontal line…) is one dialog: direction and text as
+  segmented radiogroups (`data-lns`), the position in the axis's units, your own text in an
+  `.rfield`, colour, style and width.
+- **By the keys** (roadmap 6, slice 3; in `graphKey`, before the points' keys): `kbTargets()` (the
+  graph's annotations as drawn, `#plot [data-anno]` in document order, then the draft's peaks whose
+  dots are drawn, `S.geo.handles` of kind `c`), `kbTab(back)` (Tab and Shift+Tab select the next or
+  previous, said in `#plotSay`; past either end the selection goes and the browser moves the focus
+  on, so the graph never keeps it), `kbNudgeKey(ev)` (the arrows, a pixel or with Shift ten:
+  `nudgeAnno(id, dx, dy)` moves an annotation as a drag of its body would, through `dragAnno` with
+  `S.andrag` set for one call and no snapping, saved each time, logged once; `nudgePeak(k, dx, dy,
+  wd)` moves the selected peak's dot through `applyHandle` (centre and height) or its side handle
+  outward for `[`/`]` (`{`/`}` ten), `renderFit` after 250 ms), `kbPeakOn()` (a peak selected with
+  its dot drawn), `kbBurst(key, label)` (one undo entry for presses on one thing within 1.5 s while
+  that entry is still the newest, `S.kbBurst`). Esc lets go of a peak too; a press on a peak's dot
+  lets go of the annotation, so the arrows act on what was pressed last.
+- **Peak draft**: the peak set being built is `S.pdraft` (`{base, peaks, init, fixed, x0,
+  fitAt}`), outside the document. `draftOverlay()` draws it on the graph before it is fitted:
+  dashed curves per peak plus their sum, a numbered dot per peak (drag: centre and height) and,
+  for the selected peak, side handles (drag: FWHM) and, when its shape has a parameter of its own
+  (roadmap 6, slice 4; `SHAPE_PAR`: a pseudo-Voigt's `mu`, a Pearson VII's `m` on a log scale, a
+  Fano's `iq` with zero marked), a diamond on a 72 px track over its number (under its top when
+  that is off the plot), at its centre parameter so a Fano's moving top does not move it
+  (`shapeParOf(type)` with the shape's own `bounds`, `shapeT`/`shapeV` between the track and the
+  value, `shapeHandleOf(d, m, k)`, none for a fixed one; `data-h="k:s"`, a `geo.handles` entry
+  with the track's `x0`/`x1`, kept on the drag as `S.hdrag.tr`, `shapeAtPx` catching zero within
+  3 px; `,` and `.` step a fiftieth, `<` and `>` ten, `nudgeShape`). `applyHandle` keeps area/width
+  consistent (kind `s` keeps the height, so the top stays and the tails change) and respects
+  fixed parameters; `handleTip` adds the shape's value. `fitAt` equals the fit's `at` while the draft is exactly that
+  fit, which is how the overlay knows not to draw a duplicate; every edit to the draft clears
+  it. `recenterBase` re-expresses the baseline coefficients when the view (and so `x0`) moves.
+  `setPeakShape` changes a shape keeping centre, width and height. Every peak has a stable `id`
+  (assigned in `pdraftModel`, which also writes tied values into `init`); ties are set from
+  the chain-link button beside a parameter (`tieMenuItems`, `setTie`, `askTie` for a ratio or a
+  spacing) or "One width" (`shareWidths`, `widthsShared`). `setTie` re-points peaks that
+  followed the newly tied one, `removePeak` frees peaks tied to the removed one, and dragging a
+  tied peak moves what it follows, so a group moves together. `runPeakFit` fits only the free
+  parameters (tied ones fixed, the model applying the ties) and `linkResult` fills in the tied
+  values, errors, covariances; the spec stores `id` and `tie`, and Method lists every tie.
+- **Saving**: `save(patch, log)` writes at once; `saveSoon` (typing in the worksheet, column
+  widths) waits 0.7 s, and any `save` before then carries the waiting patch with it, first
+  (`wsPatch`, `wsPid`), as does a project switch.
+- **Undo**: `pushUndo(label)` before any mutation (the step keeps its `label` and time `t`, kept
+  when it moves to the redo stack and back), `undo`/`redo`; **the undo list** (roadmap 6, slice 1):
+  `undoListItems()` (this project's run at the top of each stack, `undoRun`, newest first with
+  how long ago, then Redo), `undoMany(k, re)` (k steps, each as Ctrl+Z, one message with *Redo
+  them*), `openUndoList(btn)` from Edit › Undo list… and a right-click on `#undoBtn`/`#redoBtn`;
+  snapshots of `UNDO_KEYS`
+  (`cols` carries the pipelines and masks, `raw` the fingerprint record, `fits` the fit history,
+  `userFns` the project's fit functions, `found` the peak sets, `integ` the bands, `graphs`
+  the extra graphs, `batch` and `series`, `trends` the trend graphs, `tree` the Explorer's
+  folders, `wsAlign` the worksheet's alignment, `wsHide` its hidden columns and rows) plus both drafts (`S.pdraft`, `S.draft`). A snapshot copies everything but the columns' data
+  arrays, which it shares (`cloneCols`): raw values are only ever replaced. Undo and redo wait
+  while a pointer button is held anywhere (`S.ptrDown`, `heldBlocks`), so a drag cannot write
+  back what was undone under it. It is per-session and local on purpose — rewinding your
+  own edits, not other people's: a step keeps `after`, the columns as its change left them, taken
+  (`undoAfter`) when the next step begins or when something arrives from another tab or a
+  colleague (`onProjects` with `S.selfEmit` false: `save` sets it while the store tells this
+  window of its own save), and `applySnapshot` then puts the step's columns together with what is
+  there now (`mergeCols(after, step, now)`): this window's change goes, what came in since stays,
+  cell by cell, and the original-data record goes on from what is there. `after` has the step's
+  other parts too (`afterK`), and each is put back by `undoMergeKey(k, after, step, now)`: as it was
+  when nobody else changed it; thing by thing for the lists of things with ids (`UNDO_BYID`: graphs,
+  annotations, sheets, trend graphs, functions, fit settings, line lists, formats; `mergeById`:
+  this window's changes undone, another's kept, a thing changed since elsewhere theirs); the log
+  and the record keeping the lines and entries added elsewhere; any other part another window
+  changed since keeping that change (`jsonEq`). Destructive actions confirm themselves with a toast that
+  carries an Undo button (`toast(msg,{action,run})`).
+- **Storage**: `IdbStore` (IndexedDB, this browser: a share of the disk, not localStorage's few
+  megabytes, so a scan of a million rows is a project like any other), `LocalStore` (localStorage,
+  for a browser with no IndexedDB: `boot` falls back to it when `IdbStore.open()` fails) and
+  `makeDbStore(db)` (claude.ai artifact runtime, shared realtime). **IdbStore**: the database
+  `kurve` with `projects` (a record per project, `_rev` its version), `arrays` (a column's values
+  of 256 or more, under a key of their own, `akey(pid, arr)` through the `AKEY` WeakMap; the
+  record holds `{$a: key}`, `toRec`/`fromRec`, `recKeys`; stored as a `Float64Array` with NaN for a
+  missing value by `idbPack` when every value is a finite number or null, read back by `idbUnpack`
+  on every path) and `comments`. Memory has every project
+  and is what the page reads: `save(pid, patch)` puts `cloneProj(patch)` into memory and emits at
+  once (synchronously, as before), then queues a write (`queue`, per project, coalescing): one
+  transaction reads the record and writes it, only the arrays not yet stored (`have`), and drops
+  the arrays the project no longer names. When the stored `_rev` is not the one this tab last read
+  or wrote, another tab wrote in between: `mergeProj(base, mine, theirs)` puts the two together
+  (each part from where it changed; `mergeCols` column by column and, a column changed in both,
+  cell by cell; both tabs' log lines and raw-data record entries, the check code recomputed) and
+  memory takes the result. Tabs tell each other by a `BroadcastChannel` (`kurve.store`: `p`, `del`,
+  `c`), and `heard` reads the record in unless this tab is writing that project (its write merges).
+  `pend` counts saves not yet written; `flushSync()` (from `flushEdits`, on `pagehide`,
+  `beforeunload` and the page hidden) writes them in one transaction committed at once, since a
+  write that first reads is cut off by the page going; it first ends every write still under way
+  (`txs[pid]`, each marked `_byFlush`, whose `write` then returns quietly), which would hold the
+  stores and take the flush's bookkeeping for another tab's write, and keeps its books (`rev`,
+  `base`) only once its transaction has completed. A refused write (`fail`: `quota_exceeded`
+  or `storage`; `failNext` simulates one for the tests) marks the project `dirty`: the status bar
+  says Not saved (again whenever that project is opened, `openProject`), leaving the page asks
+  first (`beforeunload`), and the next write that succeeds stores all of it. `load` moves the
+  localStorage keys of earlier versions (`kurve.p.*`, `kurve.c.*`, `kurve.v1`) in (`adopt`) and
+  removes them once stored, and deletes arrays no record names. `stored(pid)`/`storedAll()` read
+  what is stored, as the page would (the tests use them; `LocalStore` has them too). **The page's
+  copy** (`S.proj = cloneProj(cur)` in `onProjects`, `S.projSrc` the store's version it came from)
+  shares the columns' values with the store's (values are replaced, never changed in place;
+  `cleanArr` turns what is not a finite number into null once per array, as the JSON copy did):
+  a JSON copy of a million values on every save made each one take a second. A worksheet edit
+  waiting for its delayed save (`wsPatch`) is merged with what comes in (`mergeCols(wsBase, ...)`,
+  `wsBase` the stored columns when the first waiting edit began), so another tab's new column is
+  not overwritten. **LocalStore** keeps one key per project (`kurve.p.<id>`) and per
+  project's comments (`kurve.c.<id>`), so a save writes only its own project; another tab's
+  writes arrive through the `storage` event (`onStorage`) and are emitted like any change. A
+  save starts from the project as stored (`read`), so two tabs changing different parts of one
+  project keep both, unless an earlier write failed (`dirty[pid]`: then memory has it, and the
+  next write that fits stores everything). A refused write throws (`fail`: `quota_exceeded` or
+  `storage`): the status bar says Not saved and `writeErr` says why; a project deleted elsewhere
+  throws `gone`. Ids carry a random part (two made in one millisecond). The single key of
+  earlier versions (`kurve.v1`) is split up on `load`, or kept and used as before
+  (`legacy`) if there is no room to. All three expose the same interface: `watchProjects`, `create`, `save`,
+  `remove`, `watchComments`, `addComment`, `updateComment`, `deleteComment`, `importComments(pid,
+  list)` (a project file's threads under a project just made: each store keeps a reply under its
+  thread, `makeDbStore` mapping the parent ids it gives). To add a real
   backend (Firebase, Supabase, a custom server with WebSockets), implement this interface.
+  With LocalStore and no projects at all, `onProjects` creates an empty one, so a first visit
+  has a worksheet to paste into. **Projects coming and going**: `S.pendingOpen` is set by
+  `createProject` only when the new project is not listed yet (a shared store lists it before
+  `create` resolves), and `onProjects` keeps the current id only while it is that pending one;
+  `S.gone` holds projects deleted here, filtered out of every list. `deleteProject` adds to it,
+  removes, then (if no list has done so) `leaveProject(pid)` (drops a waiting worksheet save,
+  forgets its layout, clears `S.pid`) and opens the most recent other project, saying which;
+  a project deleted elsewhere is left the same way, with a toast. `save` never writes to a
+  gone project. Names: `projName`, `isUntitled` ("Untitled project", "(2)" too, and the older
+  "Untitled analysis"),
+  `uniqueProjName(nm, except)` (every new project; imports that rename an untitled one),
+  `batchProjName(names)` (what the files' names share, or "first to last"); `switchProject`
+  (the list's run) toasts what is in the project. **Bringing in** (File › Copy from
+  another project…, the Explorer's project menu, `bringInDlg(gid)`, `bringIn(groups, onto, gid)`): `copySpectra(q, cids)`
+  copies chosen spectra with their sources and what their steps read (`stepReads`, from each
+  op's `deps`), their X (nearest left of the root) and error columns, with new column and step
+  ids (`ref`, `cols`, `reads`, `readSigs` remapped), a computed column as values, and
+  `origin {pid, proj, col, t, by, computed?}` (the History's Original data box says "Brought in");
+  an X column equal to the last one here is shared. Peak sets (`found`, `pk:` annotations) and
+  series styles come too; one undo entry, a raw-data record entry and a log line naming the
+  project. Onto the graph in hand, a new graph, or one each (an empty project gets a new graph). `projSpectra(q)`, `otherProjects()`.
+- **Project files** (FOUNDATION_SPEC 1.1; the module after the report, before `figName`): a
+  `.kurve` file is gzip (`CompressionStream`) of JSON `{format:"kurve-project", fv (PF_FV, 1), v,
+  saved, by, fp, project, comments, extra}` (`pfDoc(pid)`: the project as stored without its id, each
+  column of 256 values or more that `idbPack` packs written `{$f64: base64 of the Float64Array, n}`
+  by `pfPackCol`, `pfB64`; the threads with their ids, `pfComments`; `extra` `{}`, kept for later);
+  `pfGzip`, `pfCanWrite`. `saveProjectFile(copy)` (File › Save to a file…, Ctrl+S; Save a copy to a
+  file…, Ctrl+Shift+S): `flushEdits`, `fpSettle`, then with `showSaveFilePicker` (and not the
+  claude.ai runtime) the picker the first time and the handle again after (`PF_HANDLES`, per
+  project for the session; a write refused forgets it and asks again, once; a cancel is nothing),
+  else `saveFile` (a download); `pfMark(pid, name)` saves `p.file {name, at}` (not in `UNDO_KEYS`;
+  the project field's tooltip). `backupProjects()` (File › Back up every project…): `{format:
+  "kurve-backup", fv, saved, projects:[docs]}`. Opening: `pickProjectFile` (`#projFileIn`),
+  `isProjFile` (a name ending `.kurve`: `#fileIn`, `readFileIn` and the drop send it here),
+  `openProjectFile(f)`: `pfRead` (the gzip's magic, inflated by `DecompressionStream` and counted,
+  refused past `PF_MAXIN`, 512 MB, a `let` the drive lowers; parsed), `pfCheck` (`format`, `fv` (a
+  newer one "made by a newer Kurve"), a backup's projects each, `cols` an array of columns with ids
+  and no id twice, every `$f64` decoded by `pfUnpackCol` and its length checked; comments with ids;
+  `{doc}`, `{docs}` or `{fail}` in words, toasted and logged, nothing made); a backup's projects in
+  a `formDlg` of ticks (`pfb<i>`); `pfOpenDoc(doc, fname)`: `createProject` with no log line (the
+  name made unique there, `migrate` and `normalize` as for any stored project), waits for the new
+  id, `importComments`, a toast of what it holds, then `pfVerify(pid, fp, fname)` (`rawHashJob`
+  in 12 ms slices, compared with the file's `fp` and the record's last entry; a difference names
+  both and is logged). Opening is no change of a project: nothing to undo.
 - **State**: global `S`; the current project is `S.proj` with `cols` (see Columns above),
-  `activeY`, `mask` (raw row indices), `steps`, `meta` (captured from the imported file's
-  header), `plot` settings (`style`, `logY`, `grid`, `resid`, `revX`, `hidden`), `fit`, `log`,
-  and `v` (document version; `migrate()` upgrades older projects in place).
-- **Rendering**: `buildPlot(W,H,palette,forExport)` returns an SVG string used both on screen and
-  for export. `renderWs`, `renderFit`, `renderThread`, `renderLog`, `renderTop`, `renderAll`.
-- **Export**: `saveFile(name,data,mime)` uses the claude.ai `downloads` runtime when present and
-  falls back to `Blob` + `<a download>` otherwise, so exports work from disk. `exportCsv` carries
-  every column with units, the mask flag, the fit, residual, baseline and each peak curve, plus
-  commented blocks for metadata, cleanup, computed columns and fit statistics. `exportReport`
-  writes a self-contained HTML document (figure, parameter table with units and uncertainties,
-  statistics, method, session log); `peakTableText` is the same table as TSV for `copyText`.
+  `activeY`, `raw` (`{fp, hist}`), `meta` (captured from the imported file's header), `plot`
+  settings (`style`, `logY`, `grid`, `resid`, `revX`, `hidden`, and from the Format dialog
+  `logX`, `gridMinor`, `gridColor`, `gridLw`, `gridDash`, `gridX`, `gridY`, `plotBg`, `mL`,
+  `mR`, `mT`, `mB` (margins, null measured), `layout`, `offset`, `legend`, `legendPos`,
+  `legendText`, `legendTitle`, `legendFrame`, `legendCols`, `legendLine`, `legendSp`,
+  `legendFill`, `legendOp`, `legendBd`, `legendLw`, `legendR`, `frame` (`box`, `l` or the
+  older `axes`, `none`), `frameLw`, `frameColor`, `font`, `fontFam`, `fontName`, `titleItalic`,
+  `txt` (per kind of text), `title`, `titleDx`, `titleDy`, `cmap`, `scheme`, `peakScheme`,
+  `peakLab`, `peakLabRot`, `peakLabDec`, `axisMatch`, `annos`, `series[id]` and `ax.x|y|y2`,
+  see Rendering; per graph, in `graphs[i].plot`), `graphs` (see Graphs), `annos` (every graph's
+  annotations, see Rendering), `batch`, `series` and
+  `trends` (see Batch fits), `fit`, `fits` (the fit history:
+  numbers, the processing, and a decimated thumbnail of each fit), `userFns`, `found` (the
+  peak sets, see the Peaks window), `integ` (the bands, see the Integrate window), `wsw`
+  (worksheet column widths), `log`, optional
+  `prefFit`/`prefModel` (what an example opens with), and `v` (document version 4; `migrate()`
+  upgrades v1–v3 in place, turning v3's table-wide `steps` into steps on every spectrum and
+  computed columns into derived spectra, and `normalize()` saves the upgrade at once). Panel
+  state is `S.mode` (pointer tool), `S.fitMode` (`curve`/`peaks`), `S.sheet` (`raw`/`final`),
+  `S.ws`/`S.wsm` (the worksheet's selection and model),
+  the stage and pending state above, `S.flowSel`/`S.flowTab`,
+  `S.pf` (the peak finder's settings, saved per browser under `kurve.pf`), `S.pfPreview`,
+  `S.pkLast` (the Peaks window's last search, for its turned-down list), `S.bandSel`,
+  `S.bdrag`, `S.igEvery` (the Integrate window's selected band, band drag and every-spectrum
+  view), `S.ovStage` (the Overview's raw or final data),
+  `S.plotPreview` (the Format pane's working copy, for a burst; `S.pdTab` its page, `S.pdSel` the
+  spectrum, `S.pdAnno` the annotation, `S.pdPos` where it was dragged), `S.ttdrag`/`S.axdrag`
+  (a title or an axis being dragged), `S.arrowDraft` (an arrow being drawn), `S.shapeDraft`
+  and `S.shapeKind` (a box or ellipse being drawn, and which), `S.guides` and
+  `S.snapRing` (alignment guides and the point an arrow snaps to, drawn on screen only),
+  `S.altKey` (Alt held: no snapping), `S.insetCfg` (an inset's settings while it is drawn),
+  `S.exp` (the export dialog's settings), `S.pkRng` (a Peaks window range before there is a set),
+  `S.fldrag`/`S.fplClick` (a fitted peak's label being dragged or clicked), `S.stOpt`, `S.fitRng` (the fit's
+  range per column, see the Fit window), `S.annoSel` (the selected
+  annotation; Delete removes it), `S.legSel` (the legend, its title or an entry, selected),
+  `S.gsel` (a curve, the fit or an axis selected), `S.ctxFromWs`/`S.wsTouch` (a column's menu in
+  the graph's bar),
+  `S.plotDlgKind` (Plot setup's last kind), `S.comments` with `S.cDrafts`, `S.cReply`, `S.cEdit` and
+  `S.discFilter` (the Discussion window's Open/All). Window positions are `LAYOUT`.
+- **Rendering**: `buildPlot(W,H,palette,colEx,opt)` returns an SVG string used both on screen and
+  for export; on screen it also records `S.geo` (transforms, handle positions, `logX`, `heat`).
+  `colEx` is the export's colours; inside, `forExport` means a still picture (no handles, hit
+  zones or side effects on `S`), which is also what `opt.inset` asks for, drawn in the
+  screen's colours. `opt.k` scales every text (for an export at a size in points), and ticks
+  space out with larger text (`tkDen`).
+  It reads the plot settings through `plotCfg()`, which is a gallery card's preview while one
+  is hovered (`S.hoverPv`, `hoverPreview(pv)`), else the Format pane's working copy while it
+  is open. Each spectrum has a style from `serStyle(id, active, …)`: `type`
+  (`PLOT_TYPES`: line, scatter, linesym, stick, area, step; with the graph's `style` "auto",
+  the default of every new graph, `autoType(id)`: a line for 500 points or more, or 40 or more
+  sorted with even spacing, symbols otherwise; a curve's own `series[id].type` wins, and
+  `plotTypeItems(c, ro)` is the Plot type submenu, Automatic first), `color`, `lw`, `dash`, `sym`
+  (`SYMS`: 19, filled, open (an `o` before the name) and strokes, `symD`, `symOpen`, `symName`, `symGlyph(k, color, w)`;
+  chosen from `openSymbolGrid(btn, cur, pick, {color, size})`, a grid in the pickers' slot with the size, from Plot
+  setup, the Format pane's `#pdSym` (`data-pdsym`) and a curve's right-click *Symbol…*), `ss`, `fill`, `op`, `label`;
+  the fit curve's is `series.__fit`.
+  The Y axis's automatic title is `autoYTitle(d, others, layout)`: the active column's name and
+  unit, or with several curves overlaid or offset their shared name, else their shared unit,
+  else "Value" (`autoYOf()` for the graph in hand: the title's placeholders).
+  `seriesSvg` draws one spectrum as a handful of paths whatever its length. **What the screen
+  can show** (DESIGN.md, Large data): past `DEC_MIN` (3000) points, `decOn(n, full)`, a line,
+  area or step keeps per column of `decW()` pixels (1, or ½ on a high-density screen) its
+  first, lowest, highest and last point in order (`m4`), symbols one per spot of half that
+  (`spotsOf`), sticks `m4` at half; `errSvg` merges Y bars per half column where they overlap,
+  keeps caps one per quarter-pixel spot and X bars one per pixel, a band at each column's
+  widest; the grey earlier stage is `m4`'d; more than 1500 residuals are two paths (stems per
+  column, dots per spot) and the outlier rings one. `geo.full` (`!!colEx`: every export, the
+  clipboard, the report) draws every point; pictures on screen are decimated like the live
+  graph. A drive compares the two drawings by what is inked: no pixel inked in one is blank in
+  the other for lines, areas, steps and bands; under 0.2 % for symbols and error bars. On screen a
+  curve whose X runs one way (`xOrder`, memoised per list) reads only the points in view and two
+  beyond each side (`viewSlice(pts, geo)`, by halves; null in an export, for columns, or under
+  `DEC_MIN` points), a plain line of many points is decimated as it is read (`m4pts(pts, X, Y, w)`:
+  `m4`'s choice exactly, no pair per point), masked points are looked at only when there are some,
+  and the automatic view is worked out once per list (`autoViewOf`, `AUTOV`; a copy each time).
+  The status bar counts with `sbCount(d, logY, vr, mask)` (memoised per series), making no points.
+  `rawSeries` notices a copy by comparing values (`sameVals`, which stops at the first difference)
+  and, for a few values typed over (64 at most, each staying in or out of the series), changes the
+  series of before (its X and rows shared). `axisTicks` honours
+  each axis's `min`, `max`, `step`, `minor`, `fmt` (auto, decimal, scientific) and `dec`. Ticks
+  (`niceTicks`, `axisTicks`) are counted by index with a cap, never added up step by step, and
+  `tickLabel` gives as many digits as the step needs (ticks 10⁹ apart on 1.7×10¹⁸ all differ).
+  The drawn view goes through `saneView`/`saneRange`: finite, ascending, wider than nothing and
+  than 10⁻¹⁰ of its own size, within ±10³⁰⁷; the wheel stops zooming at that width.
+  **Scales, breaks and the second X axis**: X and the main Y go through `axScale(a, b, log,
+  brks, gapFrac)`, a value to a fraction along the axis and back (`f`, `inv`), with `segs`
+  (the visible stretches) and `gaps`; `S.geo.sx`/`sy` keep them, so `toData` inverts through
+  the breaks, and `S.geo.rx`/`ry` (value per pixel within a stretch) make panning follow the
+  pointer. **Breaks** are `ax.x.brk`/`ax.y.brk` (`[[a, b], …]`, data, not format), cleaned by
+  `brkList` (sorted, merged, inside the view, at most 8, ignored past nine tenths of the
+  axis): each a 10 px gap, the rest in proportion, so both sides keep one scale; or, with a third
+  value (roadmap 5, slice 2: `[a, b, at]`, `at` the gap's middle as a fraction along the axis from
+  its low end, 0.03 to 0.97, a reversed axis counting from the low values too), the gap there and
+  each side with a scale of its own (`axScale` moves the knots; places that would cross or crowd,
+  or leave less than 2 % at an end, are not used; `brkList` keeps a place only when it reads). The
+  break dialog's *Gap at* (`#fdBt`, 5 to 95 %) and the axis page's `pd<k>bk<i>c` (`.brk.i.2`,
+  `data-pct`) set it. X breaks in
+  every layout but the heat map, Y breaks with overlaid or offset spectra, never in an inset.
+  Ticks per stretch, merged so no numbers collide (`mergeTicks`); each gap is covered (`g.brk`)
+  after the frames and cut with two strokes. `suggestBreak(k)` offers the widest empty stretch
+  in view, `breakDlg(k)`, `clearBreaks(k)`; the axis page lists them (`data-pdbrkadd`,
+  `data-pdbrkdel`, paths `ax.x.brk.i.j` in `pdSet`). **The second X axis** is `ax.x2` (`on`,
+  `conv` one of `X2_KINDS`: nm, µm, cm⁻¹, eV, THz, Raman shift, `lin` a·x+b, `expr` a formula
+  in x through `compileExpr`; `from` when the X units are not read by `xUnitKey`, `laser`
+  (default from the spectrum's Raman shift step, `laserOf`), `a`, `b`, `f`, `name`, `unit`,
+  and the usual axis style, which follows the X axis's unless set, `axisCfg(cfg,"x2")`).
+  `x2Conv` gives the function or an error in words; `x2Layout(F, SX, len, o)` samples it per
+  stretch (refusing one that is not finite or not one-to-one), tries evenly stepped numbers
+  first (they must fit, fall within a factor of three and cover the axis), else takes
+  candidates from short stretches and keeps the roundest (`niceScore`) that fit, each round
+  for its interval (`stepOf`), placed by bisection. It sits across from the X axis (top,
+  or the bottom when X is at the top), the X axis's mirrored ticks give way to it
+  (`x2Edge`), its numbers are `data-axis="x2"` (double-click, right-click; not dragged), and
+  `S.geo.x2err` is what the Format page shows. `showX2`, `x2AutoTitle`, `figNotes` (the
+  report's caption: the ranges left out and what the second axis shows).
+  **Text styles**: `TS` in `buildPlot` holds one style per kind of text (`TXT_ELS`: title,
+  axis, ticks, legend, labels, peaks), each `txtStyle(cfg, el, base, kfam)` = the graph's font
+  and size (`fs`) under `cfg.txt[el]` (`fam`, `name`, `size` in points, `b`, `i`, `u`,
+  `color`, `align`; `fam:"default"` is Kurve's own face); `tAt(st, fill)` writes its SVG
+  attributes, `tLab` draws a tick label (plain or m×10ⁿ, turned), `textBlock` draws text of
+  several lines, turned, in a box. `textW`/`labW` measure text with a canvas in its own font.
+  **Axes and frame**: `axisCfg(cfg, k)` resolves an axis's `ticks` (in/out/both/none), `tlen`,
+  `mlen`, `tw`, `mirror` (default: on with a box frame), `labs`, `lrot` (0/45/90), `color`,
+  `lw`, `line`, `pos` (x: bottom, top, zero, at; y: left, right, zero, at; the right axis is
+  always right), `at`, `off` (outward, px), `tshow`, `talign` (start/center/end along the
+  axis, `axAlign`) and `tdx`/`tdy` (the title dragged, px); `frameOf(cfg)` is `box`, `l` (the
+  axis lines alone) or `none`, with `frameLw`/`frameColor`. Margins are measured: the numbers
+  in their font, ticks pointing out, offsets, titles, a right axis, a colour bar, an outside
+  legend; `mL`/`mR`/`mT`/`mB` override them. `drawFrame(top, h, yt, Yf, showXLab, yLabels,
+  labCol, main)` draws the frame, the axis lines (one path at a corner), ticks (`tkSpan`,
+  `tkOut`), the ticks across from each axis (its mirror: `mirror`, their own direction
+  `mticks` → `mdir`, and numbers there `mlabs`, room for them in the margins), and records
+  where the numbers went (`drawn`) so the
+  titles sit beside them wherever the axes are. Stacked panels keep X at the bottom and Y on
+  the left; double Y keeps Y on the left. On screen the main frame also draws a transparent
+  zone over each axis's numbers (`data-axis`: drag, right-click, double-click) and records
+  `geo.axes`. The grid takes `gridColor`, `gridLw`, `gridDash`, `gridX`, `gridY`; `plotBg`
+  fills the plot area. **Edge by edge** (the Format dialog's frame page): `frameEdges(cfg)`
+  says whose ticks and numbers each of the four edges carries (an axis's own, the edge across
+  from it, the right Y axis with two, the second X axis), `edgePicSvg` draws the frame small
+  with each edge's state (click one, `S.pdEdge`), `pdEdgeSet(edge, "ticks"|"labs", v)` and
+  `pdEdgesAll(v)` write the working copy; the quick style "Out on the axes, in across"; the
+  axis page and the axis menu have the edge across too. The title takes `TS.title.align` and `titleDx`/`titleDy`. `layout` (`LAYOUTS`): overlay,
+  offset (a waterfall, each trace labelled), stack (a panel per spectrum, shared X, the
+  analysed one on top), dy (the others on a right axis), heat (one row per spectrum, drawn as
+  one image from `heatImage`, with a colour bar; `CMAPS`), box and violin (`isDistLayout`:
+  every spectrum on the graph a category along X, in the table's order, named under it,
+  `dist`/`distC`/`distV` in `buildPlot`, its values the final data less masked points (and
+  those at or below zero with Log Y); the view 0.5 to n + 0.5, Y over the values (a violin's
+  kernels reach past them); boxes by `boxStats` (whiskers Tukey's, or the extremes with
+  `cfg.distWhisk` `range`, `DIST_WHISK`), the median heavy, the mean a diamond, outliers open
+  circles; violins by `kdeAt`, each as wide at its widest, the box a thin bar inside and the
+  median a dot; `cfg.distPts` the values as jittered dots (at most 5000 a box); each `g[data-dist]`
+  with a `<title>`; no legend, fit, annotations by data X, breaks, second axes or inset;
+  `S.geo.dist`, the readout names the category; `distMenuItems` is the graph menu's Box chart /
+  Violin plot, the Format dialog's layout page has both settings, and Plot (the worksheet's)
+  has Box chart and Violin plot). **Grouped and notched** (roadmap 4, slice 2): `cfg.distBy` (a
+  column id, data, not format: `plotBase` leaves it out, a column gone reads as none) splits each
+  curve's values by that column's value in their recorded row (`distGroups`); `buildPlot`'s
+  `distK` are the categories (`{c, k, j, g, x, w, vals}`: a cluster per group at j + 1, a curve's
+  box offset within 0.8 of it, `w` its share), `distG` the groups (none past `DIST_GMAX`, or when a
+  curve fails), X numbered by the groups and titled by the column, a `column` legend entry per
+  curve when there are several, the legend's corner search over the boxes; `g[data-distg]`;
+  `S.geo.distK`/`distBy` for the readout (the category whose slot holds the pointer).
+  `distByOpts()` (the active curve's sheet's columns with numbers, not a curve drawn, each with
+  `distGroups`' refusal as `why`), `distByItems()` (*Grouped by*, Nothing first), `distByName()`.
+  `cfg.distNotch` (in `FMT_KEYS`; boxes only): `path[data-notch]`, narrowed to 0.55 of the box at
+  the median over the notch kept within the quartiles, the median line as narrow; the tooltip
+  gives the notch. The Format pane's layout page has Notches (`#pdDn`) and Grouped by (`#pdDb`). **Columns** (`PLOT_TYPES` `column`): bars from zero, as wide as
+  a histogram's bins (`histOf(id)`, the step's `bins.w`) or 0.8 of the median spacing, several
+  spectra as columns side by side (`colGrp`, `cgk`/`cgn` through `zSt`); a graph of columns
+  stands on zero and is widened to whole columns when nothing is typed or zoomed. **Stacked**
+  (roadmap 4, slice 3): `cfg.colStack` (`COL_STACK`: side, `stack`, `pct`; in `FMT_KEYS`) on an
+  overlaid graph of two column curves or more (left axis, not log Y): `colStk` in `buildPlot`
+  (`{m: {id: Map(x to twelve digits → [from, to])}, lo, hi, mode, ids}`, the table's order, values
+  below zero downward, `pct` each of the sum of sizes at that X; masked points out), the view taking
+  in the stacks, `zSt` giving each curve `stk` (and no error bars), `seriesSvg` drawing a column
+  from `from` to `to` the whole width, Y titled Share (%) for `pct`, the legend's corner search over
+  the stacks and, for `pct` with the legend automatic, the legend below; `S.geo.colStk {mode, ids}`.
+  `colStackItems()` (a column curve's right-click *Columns*), the Format pane's layout page
+  (`#pdCs`). **Names along X**: `ax.x.cats` (`[[x, name]]`, data, not in `FMT_AX`), `catsOf(ax)`
+  (cleaned: a finite X that is not empty, a name trimmed to 60 characters, 200 at most, sorted),
+  drawn by `xTicks` in place of the numbers (not on a log, curved, heat or box axis);
+  `catXs()` the graph's X values, `catNamesDlg()` (a field each, 60 values at most, else a toast;
+  one undo step through `setAxisKeys`, a log line), from the X axis's menu (ticked while set) and
+  *Columns*.
+  **Histograms**: `histogramCols(cids)` (Plot › Plot the selected columns › Histogram, Analyze › Statistics › Histogram (the selected
+  columns, or the active one), a spectrum's right-click; one undo entry) makes `Histogram of …`, a spectrum derived
+  from each column's final data with a `hist` step, each on a graph of its own, several in a
+  figure; `editHistStep(cid)` opens the step in the History (right-click Histogram bins…).
+  **A distribution over it** (roadmap 4, slice 1): a histogram curve's `series[id].dist` (one of
+  `DIST_KINDS`: `normal`, `lognormal`, `exp`), set by `setHistDist(id, kind)` (the right-click's
+  *Distribution over it*, radio items, one disabled with `distFit`'s reason; one undo step, a log
+  line, a toast with Kolmogorov–Smirnov's D and p); `histCurve(c, kind)` (memoised per the step's
+  input in `DISTM`) fits `distFit` to the values the step counts (its input's Y or X) and gives
+  `y(x)` as the histogram is shown (counts n·w·f, probability w·f, percent 100·w·f, density f,
+  cumulative k·F at the bin's right edge), `text` (the legend's: the parameters with their errors,
+  the unit for a normal's, a mean for an exponential's) and `tip`; `buildPlot` draws it
+  (`path[data-hdist]` with a `<title>`, the fit's colour, overlaid layouts) after the curve's legend
+  entry (`distOn`), and the automatic view rises to its top.
+  **Maps** (the heat layout; its grid and picture kept for the curves' points, view, size and
+  colours they were made from, `heatMemo` over `HEATM`, a few at once, so a save that changes none
+  of them draws them as they were; `heatImage` reads the colour map from `cmapLut(name)`, 1024
+  places, and a curve's points are `seriesPoints`', kept per series in `SPM`, shared and never
+  changed by a caller):
+  `cfg.mapY` (`index`, or `series`: `mapRows` puts each spectrum at its `seriesVals`, sorted,
+  falling back to the order with `why`), `cfg.mapKind` (`MAP_KINDS`: image, filled, lines,
+  both), `cfg.mapLevels` (about n, `mapLevels`: round numbers inside the range, in log10 with
+  Log Y), `cfg.mapLab`; rows between spectra interpolated in a straight line (`mapAt`); contour
+  lines by marching squares (`contourLines`, saddles split by the cell's mean, segments joined
+  into polylines), their values written along the longer stretches where they clear each
+  other; the levels across the colour bar. `S.geo` keeps `mapRows`, `mapSeries`, `mapLevs`,
+  `mapWhy`, `mapZ(x, y)` (the readout's value). Cuts: `mapCutX(x)` (the series' `cuts` `[{x,
+  xu}]`, a dashed line and a trend graph of `cut@x`, `valueAtX`, one undo entry), `mapCutY(row)`
+  (the nearest spectrum, `mapNearest`, on a graph of its own); `mapMenuItems` (the graph
+  menu's Map). **A map from scattered X, Y, Z** (roadmap 4, slice 5): a curve of type `tmap` (not in
+  `PLOT_TYPES`: Plot setup's kind `tmap` in `PLOT_DLG_KINDS`/`MORE_KINDS`, needing a Colour column,
+  `psuType` giving `tmap`; `plotTypeItems`' *Map from X, Y and its colour column*, enabled with a
+  `zcol`; a new graph's `style` stays `scatter`) and its `zcol`: `seriesSvg` (no `viewSlice`) asks
+  `triMapOf(pts, zc)` (the points with a value, `delaunay` in NUMERICS, memoised per Z column in
+  `TRIM`; `{tri, X, Y, Z}` or `{fail}`) and draws `triImage` (each pixel's value by barycentric
+  interpolation in screen space, at most 700 × 500 on screen and 1400 × 1000 in an export, through
+  the colour map at the colour bar's range, `zSt`'s `zlo`/`zhi`/`tcm`/`tlev`) as `image[data-tmap]`,
+  and `triContours` at `mapLevels` as `path[data-tlines]`, by the series' `tkind` (`TMAP_KINDS`:
+  image, both, lines; in `serStyle`); `geo.tmapZ(px, py)` the value under the pointer (the readout);
+  the colour bar as for symbols coloured by a column; no legend entry. `tmapItems(c)` (a `tmap`
+  curve's right-click *Map*: drawn as, levels, colour map, a failure as its heading), `pointsOfCol(c)`.
+  **Styling**: `serStyle`'s `conn` (`CONN_KINDS`: `smoothD`, Catmull–Rom or a
+  clamped uniform B-spline, up to 4000 points), `zcol`/`scol` (`zMapOf`: a third column's
+  value at each point's recorded row, as a colour from the map or a size; the first series
+  coloured gets a colour bar, `zbar`, room made in the margin; the first series sized gets a
+  size legend, `sb`, after it: a few round values from `axisTicks` within the range, largest at
+  the top, in the series' symbol (`zMapOf`'s `sz(v)`), titled by the column, `g[data-sizeleg]`,
+  off with `cfg.sizeLeg` false, in `FMT_KEYS` with `distWhisk` and `distPts`), `fillTo`/`fill2`
+  (`fillBetweenSvg`: over the X both have, split where they cross, overlaid only, under every
+  series) and `hatch` (`HATCHES`, `hatchSvg`: lines clipped to the region, so PDF and EPS draw
+  them); `zSt` hands `seriesSvg` the mapping and an id (`hid`) for its clip. The legend goes in the emptiest
+  corner, a chosen one, outside on the right, below the graph (`below`: as many columns as
+  fit, rows read across), where it was dragged (`legend:"custom"`, `legendPos` as fractions
+  of the plot area), or nowhere; it can have a title, columns (`legendCols`, filled down),
+  its own text style, line samples of any length (`legendLine`), row spacing (`legendSp`), a
+  frame and background of its own (`legendFrame`, `legendFill`, `legendOp`, `legendBd`,
+  `legendLw`, `legendR`), and its text in each spectrum's colour (`legendText:"match"`); a
+  series with `leg:false` is left out of it. **Colour schemes**: `SCHEMES` (Kurve's: the eight hues of `COL_TINTS_LIGHT`/`_DARK`,
+  validated for colour-blind and normal vision on the graph's light and dark backgrounds,
+  UX_SPEC §3.5; Okabe–Ito; viridis in table order; black and greys with dashes; the older
+  `categorical`, the same hues, `hide`n from the list) and
+  `PEAK_SCHEMES`; `yTint(id, light, scheme)` (the scheme passed by `serStyle`, else read from `plotCfg()`) and `peakColor(k)` read them, so the graph, the legend, the
+  worksheet header, the fit panel and the results table change together. Every scheme colours
+  by table order, so a colour stays with its spectrum; the analysed one is drawn heavier, never
+  recoloured. On two Y axes with one
+  other spectrum each axis's numbers and title take its spectrum's colour (`axisMatch`).
+  **Annotations** (`p.annos`, each tagged `g` with its graph's id, `{id, t, x, y, x2, text, color, lw, dash, size, unit,
+  rot, bold, font, ser, dx, dy, xu, yu}`, and on labels `mk`, plus `grp`, `lab`, `pk`,
+  `manual` on a peak set's, `t` one of `v`, `h`, `band`, `text`, `label`; and from the Format
+  dialog `fontName`, `pt` (size in points, over `size`), `i`, `u`, `align`, `ang` (any angle;
+  the older `rot` means 90, `annoAng`), `box` (`line`, `fill`, `both`) with `bg` and `bd`,
+  `lpos` (where a line's or range's text goes), `edge` (a range's edge lines), `op`, and on
+  text `pin:"plot"` with `fx`, `fy`: placed by fractions of the plot, so it stays put when
+  zooming; `annoTextStyle` gives a text's style over `TS.labels`) are drawn by
+  `annoSvg(layer)` in three layers (ranges under the data, lines over it, text and labels on
+  top, under the legend) and only on data in the units they were placed in (`xu`, `yu`).
+  `text` null shows the value, `""` shows nothing, and `{x}` in it the position. A `label`
+  points at a spectrum point (`ser`, in that spectrum's colour unless `color` is set) and
+  marks it (`mk`): `sym` a triangle above it, `drop` a line down to the axis, `vline` a
+  dashed line through the plot with the text along it at the top, `lead` (the default, and
+  what older labels are) a leader line, `none`. Its text is offset by `dx, dy` pixels from
+  where the mark leaves room (`labDy`); a moved text gets a leader back to its mark. Another
+  spectrum's labels are drawn only where that spectrum is drawn on these axes: overlaid, and
+  not hidden.
+  `addAnno`, `updateAnno`, `deleteAnno`, `editAnno` (the Format dialog's Labels and lines page,
+  open at it), `annoMenuItems` (type its label, mark it with, turn, box, align, centre,
+  pin, text position, width, and for a set's peak mark or label every peak with), `pinAnno`,
+  `centreAnno`, `peakNear` (the top of the peak under a click), `addPeakLabel`,
+  **Arrows** (`t:"arrow"`, tail `x, y`, head `x2, y2`, or pinned `fx, fy, fx2, fy2`; `head`
+  `end`/`open`/`both`/`none`, `hs` its size; text beyond the tail): `arrowSvg`, `annoEnds`
+  (an annotation's ends on screen), drawn with the Arrow tool (`S.mode` `arrow`, `makeArrow`)
+  whose head snaps to a data point (`snapNear`), ends dragged by their handles (`data-ah`).
+  **Insets** (`t:"inset"`, the range `x0, x1, y0, y1` with empty Y fitted to the data,
+  placed by `fx, fy, fw, fh`, `box`, `conn`, `titles`, `ts`): `insetSvg` draws the graph again
+  through `buildPlot(…, {inset})` with `S.insetCfg` (no legend, title, annotations or residuals,
+  smaller text), ids prefixed, the region outlined and joined to the inset by the corners
+  whose lines run outside both boxes; `makeInset` makes one from the zoom on view, in the
+  emptiest corner that does not cover the region; its corner handle (`data-ah="se"`) resizes
+  it. Dragged text snaps to the plot's centre and other text (`S.guides`).
+  **Boxes and ellipses** (`t:"rect"`/`"ellipse"`, `SHAPE_T`; corners `x, y, x2, y2` or pinned
+  `fx, fy, fx2, fy2` like arrows, `twoEnds(a)`; `color`, `lw` (0: no outline), `dash`, `fill`
+  and `op`, `rx` (a box's corners), `behind` (drawn in the layer under the data), `text` inside
+  at `lpos` with `align`): `shapeSvg`, drawn with the Shape tool (`S.mode` `shape`,
+  `shapeKind()`/`pickShape(k)` remembered in `kurve.shape`, the toolbar button opens
+  `shapeMenu`; Shift makes a square or circle; `S.shapeDraft`, `makeShape`); corner handles
+  `data-ah="00"…"11"` resize, the body moves. `annoWhere(a)` says where any annotation is.
+  **Curved arrows and polygons** (roadmap 5, slice 1): an arrow's `bend` (−1 to 1, null straight;
+  `arrowGeo(ax, ay, bx, by, bend)`: the control point off the chord's middle by bend × its length,
+  square to it, positive to the right going from tail to head as seen; the curve's middle and its
+  path), drawn by `arrowSvg` as a quadratic with the heads along the curve; selected, a diamond
+  `data-ah="b"` at the curve's middle bends it (`dragAnno`: twice the pointer's offset from the
+  chord's middle, square to it, over the length); the menu's *Curve*, the Format pane's `#pdAnBend`;
+  *Swap its ends* turns the bend round. A polygon (`t:"poly"`, `ANNO_KINDS.poly`): `pts` [[x, y]] or
+  pinned `fpts` [[fx, fy]] (`polyPts(a, g)` on screen, `polyPin(a, g, on)` the patch to pin or tie
+  it, in `pinAnno` and the Format pane), `closed` (unless false), and a box's `color`, `lw`, `dash`,
+  `fill`, `op`, `behind`, `text` at its middle; corner handles `data-ah="v<i>"`; drawn with the Shape
+  tool's Polygon (`SHAPE_KINDS`, `kurve.shape`): `polyClick` on each pointer-up (the first corner
+  again, or a second click within 500 ms and 6 px, finishes), `S.polyDraft {pts, cur, t}` drawn as
+  `[data-polydraft]`, the rubber band on pointer moves, `graphKey`'s Enter (`finishPoly`, three
+  corners at least, else a toast), Backspace and Escape; `setMode` drops it. The menu's *Closed*;
+  `ANNO_ADD`'s Polygon (a triangle in the view).
+  **Text with LaTeX** (the `==TEX:START==`/`==TEX:END==` block, pure, tested by
+  `tools/tex-test.mjs`): titles, axis titles, legend entries and title, annotation text,
+  colour-bar and size-legend titles and fitted peak labels are drawn by `richText(str, {x, y |
+  tf, anchor, st, fill, attrs})`: plain text as one `<text>`, text that `texNeeds` laid out by
+  `texBox` (`texLayout` measured with the text's own font through `textW`, cached in `TEXC`)
+  and written by `texSvgOf` as positioned `<text>` pieces, rules and dots in a `<g data-rt>`
+  carrying the attributes a `<text>` would; `richW` measures. `texParse` makes the tree
+  (`TEX_SYM`, `TEX_FN`, `TEX_BIN`, `TEX_REL`, `TEX_ACC`, `TEX_FONT`, `TEX_SP`; text mode outside
+  `$…$` with `^{}`/`_{}` only with braces, maths inside with LaTeX's italics and spacing;
+  fractions, roots with an index, accents, `\left…\right`, `\mathrm`, `\text`; 2000
+  characters at most; an unknown command stays as typed), `texHtml` writes HTML (Results, the
+  report, the Format dialog's list) and `texPlain` plain text (menus, lists). Unicode's raised
+  and lowered characters (cm⁻¹, R², x₀) are set as real scripts (the design system: the glyphs sit
+  too high and look clipped): `uniRuns(s)` splits a text into runs, `texUni(s)` writes them as
+  `^{…}`/`_{…}` (in `richText` and `richW`, so the graph typesets them), `supHtml(h)` as `<sup>`/`<sub>`
+  outside tags, titles, code and SVG (the report); in the page a MutationObserver
+  (`setupSupify`, `supifyIn`, `supifyText`, `SUP_SKIP`: never in a field, a list, code, the
+  formatted editor, the symbol list or SVG) does the same to text as it arrives (inside a span
+  when its parent is a flex or grid box, so the pieces stay one item), so code reading
+  `textContent` sees "cm−1". The data keep the characters as typed. `textBlock` uses
+  `richText` per line. `rtool(id)` puts x², x₂ and a symbol grid (`openSymPicker`) beside a
+  field, and Ctrl+Shift+= / Ctrl+= wrap the selection (`setupRichTools`, fields marked
+  `data-rich` and the inline editors). The PDF and EPS writer maps what the standard fonts
+  lack (`VEC_SAME`, `AFM_SYM`).
+  `labelFoundPeaks`, `shadeRange` (a range pick), `addLineDlg`, `clearAnnos`.
+  **Fitted peak labels** (`fitLabels` in `buildPlot`; a draft being set up shows `numLabel`, its
+  number and name; straight after a fit, `ov.same`, the fitted labels are drawn with the
+  handles): what each says is `fplText(cfg, k, name, m, u)`, from `fplFields(cfg)` (`peakLab`
+  `"custom"` with `peakLabShow`, a list from `FPL_FIELDS`: number, name, centre, height, FWHM,
+  area, area %; the older `num`, `pos`, `numpos` read as lists; `off`) or your own text
+  (`peakLabTpl`, `fplTpl`, with `{n} {name} {xc} {h} {fwhm} {area} {pct}`), numbers by
+  `fplVal` (`peakLabDec`, `peakLabErr` ± errors, `peakLabUnit`), one line or stacked
+  (`peakLabSep`). Where: `peakLabPos` (`FPL_POS`: above, inside, a row along the top spread so
+  none overlap, with leaders), `peakLabRot`; a label that would rise above the plot sits beside
+  its peak. Look: `peakLabMk` (`FPL_MARKS`: dot, drop line, vertical line), `peakLabCol` (each
+  peak's or the text's), `peakLabBox`, `TS.peaks`. All these are format (`FMT_KEYS`); drag
+  offsets are not (`peakLabOff`, pixels by peak id, `S.fldrag`, a leader back to the peak).
+  On screen each label is `g[data-fpl][data-fplid]`: drag, double-click to name its peak
+  (`namePeakDlg`), right-click for `fplMenuItems(k)`, hover
+  tip. A peak's **name** is `spec.peaks[k].lab` (carried by the draft, `runPeakFit` and
+  `batchTemplate`; `peakMetrics` returns it as `name`): `setPeakName(k, v, from)` writes it on
+  the fit, the draft and every batch row by peak id, and turns the name field on; Results, the
+  copied table, the report and the CSV show it. The Format dialog's page is `fpeaks` (Defaults
+  resets it, `fploff:` puts dragged labels back).
+  **Fonts**: `FONT_LIB` (`[key, label, stack, kind, web family?]`: web fonts from Google,
+  then common installed ones; `FONTS` adds Kurve's), `fontStack(key, name)` (loads a web font
+  the first time it is drawn, `loadWebFont`, and tries Google for a name not installed),
+  `fontInstalled` (a canvas width test against two fallbacks; `document.fonts.check` says yes
+  to anything), `fontOk`, `fontNameOf`, `fontRedraw` (redraws when a font arrives).
+  `openFontPicker(btn, cur, pick, opt)` lists them by kind, each in its own face
+  (`loadFontPreviews`: subsets named `KP <family>`), with search, a name box and, where the
+  browser allows, this computer's fonts (`queryLocalFonts`). The graph's font is
+  `fontFam`/`fontName` and `font` (a scale); `fontMenuItems` is Figure › Font.
+  **Colours**: `openColorPicker(btn, cur, onInput, onDone, opt)` (a saturation/value square
+  and hue strip drawn in CSS, hex, Kurve's colours, recent ones in `kurve.colors`, an eye
+  dropper; `onInput` at most once a frame while dragging), `colorBtn`. **Text bars**:
+  `txtBarHtml(path, st, auto, opt)` (font, size in points with `#ptSizes`, B, I, U, colour,
+  alignment) and `wireTxtBars(root, get, set)`. Axis and graph titles carry `data-axtitle`:
+  dragged (`dragTitle`, `commitTitleDrag`; home within 5 px), typed in place
+  (`inlineEditTitle`; `editAxisTitle` calls it), `setAxisTitle`; their menu is
+  `titleMenuItems(k)`. An axis's numbers (`data-axis`) drag the axis (`dragAxis`: off its
+  edge, snapping to zero, or to a value; `commitAxisDrag`), and their menu is
+  `axisMenuItems(k)`; `setAxisKeys(k|"all", patch, log)`, `setTxtKey(el, patch, log)`. The
+  peak finder's preview marks (`S.pfPreview`) are drawn on screen only. Right-click:
+  `openGraphMenu` → `graphMenuItems` (swatch rows are `{swatches, current, pick}` menu
+  items; `seriesAt` gives the curve within 14 px of a point, or `"__fit"` where the fit's curve is
+  nearer (its screen points, `geo.fitPx`, kept by `buildPlot` with the path's `data-fitc`), or
+  none, and then the plot's own menu with Add here inline; `commentAt(pt)` is Add here › A comment
+  here…; the fit's menu has Show residuals, Results, Copy the results table, Fit window and Remove
+  fit; a band's strip or edge gives `bandMenuItems(id)` (baseline, the reference, `regionItems`,
+  the band table, remove), and a shaded range's menu `regionItems(lo, hi, xu)` too: Zoom to it,
+  Fit in this range (`setFitRange`), Integrate it). **What is selected** (DS_SPEC slice 4):
+  `ctxOf()` is `{kind, lab, name, title?, id|k, items}` for, in order, a whole column selected in
+  the worksheet that the graph shows while `S.ctxFromWs` (set by `wsPaintSel` while `S.wsTouch`,
+  the last press or key in `#ws`, `setupCtx`; a press on `#plot` clears it), the annotation
+  (`S.annoSel`, "Region" for a shaded range), the legend (`S.legSel`), a band (`S.bandSel`), and
+  `S.gsel` (`{g, kind: "curve"|"fit"|"axis", id|k}`, set by a click in Zoom or Pan, an axis's
+  numbers clicked, or a right-click, `gSelect(sel, quiet)`; Esc in `graphKey` lets go of it, the
+  annotation and the band); its `items` are the thing's right-click menu (`graphMenuItems(id)`,
+  `axisMenuItems`, `annoMenuItems`, `legendMenuItems`, `bandMenuItems`, `colMenuItems`, which
+  `openColMenu` now opens). `renderCtx()` (from `renderPlot`, `wsPaintSel` and `renderTaskbar`)
+  shows `#ctxBtn` (`.rb.ctx`, `data-rmenu="ctx"`, `menuItems("ctx")`) after `#ctxSep` in the
+  graph's bar, and outlines the thing by a rule in `#gselCss` (a drop-shadow on `g[data-ser]`'s
+  paths or `path[data-fitc]`, a dashed box on `rect[data-axis]`), so the drawing is untouched;
+  Shift+F10 on the graph opens that menu. **The status bar's readout** (DS_SPEC slice 6) is the
+  pointer's place while it is on the graph (`S.sbHover`, set by the plot's pointermove, cleared
+  by its pointerleave), else `renderSbStats()` (from `renderCtx`, so on every selection change;
+  `#readout`'s `_sig` keeps it from redrawing the same; it redraws an open Statistics window when
+  it changes): `sbStatsOf()` is `{lab, cells:[[name, value]]}` for the worksheet's cells while
+  `S.wsTouch` (`wsSelStats()`: n, mean, SD, median, min, max, memoised per model and rectangle
+  by `sbMemo`; `wsSelLabel()` the range), else `ctxOf()`'s curve (`statRow(c, "final")`,
+  memoised per series) or region (a shaded range by `integrateBand` with a line baseline, a band
+  by `bandCalc`), written as their windows write them (`fmt(v, 5)`; `fmtPM`, 6 and 4 digits for a
+  band); `.sb-stats` spans. The Statistics window adds a row *Cells B1:B9* and marks the selected
+  curve's row. **The Format pane** (DS_SPEC slice 5; once the Format
+  dialog, and still called so in code comments): `openPlotDetails(id, page)` opens the tool
+  window `format` (`#w-format`, docked, `#pdBody` and the foot `.fmtfoot`; pages `series`
+  with `S.pdSel`, `ax:x|y|y2`, `frame`, `text`, `legend`, `layout`, `labels`, or
+  `anno:<id>`; the old tab names map through `PD_PAGES`), `renderPlotDetails(o)` (the
+  *Selected* list `#fmtSel` at the top, values `s:<colId>`, `s:__fit` or `p:<page>`, the page
+  named in `#pdHead`; each page in groups; focus, scroll, and a text field's value and caret
+  kept across redraws, and a redraw from a save, `{fromSave}` from `renderWin`, skipped while a
+  field of the pane is being typed in; sizes and widths are
+  `cmb` fields, opacity the only sliders; the Text and fonts page has the graph's font and size,
+  then a folding card per kind of text, `details.grp.pdcard[data-pdcard]`, its summary saying how
+  it looks, its open state in `S.pdOpen` (a capture `toggle` listener that checks
+  `isConnected`); a text bar is a row labelled Font; Labels and lines has Add in its heading,
+  `.pd-hadd`), `pdSet(path, v)` on
+  the working copy of a burst (`pdWk()` makes it from `pdBase()` and sets `S.pdT`, 400 ms;
+  `pdCommit()` saves it as one undo entry, `pushUndo` with `S.pdCommitting`, then `savePlot` with
+  `pdLog`; `pushUndo`, `undo`, `redo`, `activateGraph`, a project switch, `closeWin("format")` and
+  `flushEdits` commit first, and a commit on another graph, `S.pdGid`, is dropped) (`series.`, `ax.`, `allax.`, `txt.`, `annos.<id>[.key]`, `hidden.`, or a
+  top-level key) with `pdGet`, `pdTxtGet`/`pdTxtSet` (an annotation's text bar maps to its
+  own keys, `ANNO_TX`), `pdPreset` (quick styles), `pdAct`, `pdAnnoEditor(a)`, and
+  `closePlotDetails()` (commits, closes the pane). It follows the graph's selection
+  (`fmtFollow(c)` from `renderCtx` when `ctxKey(ctxOf())` changes, `S.fmtFollow`); *Defaults*
+  resets the page (top-level keys to null: `savePlot` merges) and commits;
+  *Use on every graph* is `formatEveryGraph` (`FMT_KEYS`, `FMT_AX`: format, not data,
+  ranges, titles or annotations; through `styleFrom(src, pl)`, which puts a missing key back to
+  its default). **Formats**: `fmtOf(pl)` is a graph's format alone; `FMT_BUILTIN` (Kurve's,
+  journal, classic, slides, minimal), the project's (`p.formats`, in `UNDO_KEYS`, `projFormats`,
+  `saveProjFormats`: saved and shared with the project, so a colleague has them) and a
+  per-browser library (`fmtLib`, `fmtLibSave`, under `kurve.formats`); `saveFormatAs` asks
+  which (the project by default when the store is shared), `renameFormat`, `copyFormat`,
+  `deleteFormat`, `allFormats()`; `useFormat(f, every)` gives one to the graph or every
+  graph, `formatMenuItems` lists them by group (Figure › Saved styles, and the Format pane's
+  More…), and the Format pane's Saved styles button opens them as a gallery
+  (`openStyleGallery(btn, apply, src)`, `.fpick.sgalpick`: the graph drawn in each,
+  `styleCard(f, base)` through `withGraph`, one a frame; hovered or focused, the graph shows it;
+  a click applies it to the working copy and commits; Escape or a press outside puts the graph
+  back, `fpOpen.onClose`); "saved style" is the interface's word for a format. The Layout and
+  colours page chooses the curves' scheme from a gallery too (`schemeCard(k)`: the graph's
+  curves, eight at most, in the scheme's colours; `SCHEME_SHORT` the cards' names, the scheme's
+  `name` the tooltip; `[data-pdscheme]`, hovered or focused it previews, a click is `pdSet`). `txtAuto(cfg, el)` is a kind of text's automatic style.
+  `renderTop`, `renderWs`, `renderPlot` (+ `renderStatusBar`), `renderStages` (now the graph
+  window's stage chip and its Original/Processed/Both, `renderViewSeg`), `renderFit` (it also refreshes
+  `renderResults`, `renderTabMarks` and the status bar), `renderFlow`, `renderTool`,
+  `renderStats`, `renderPy`, `renderThread`, `renderLog`, `renderAll`. Dense data (over 1500
+  points) is drawn as one path of dots, and error bars as one path. **Per frame, once**: where
+  each point is on the screen (`scrOf(geo, pts)`, per drawing; `scrSpan` the points within
+  reach of the pointer by halves when in screen order, `scrNearest`; `nearest`, `readerNear`
+  and `xhCrossings` use them; `rdPts` keeps another curve's list for the readers), the analysed
+  mask (`isMasked`, finding the column again only when the project, `activeY` or the list of
+  columns changes), `fitPoints` (`fitPtsMemo`: the points, range and mask), `ptsExtent`,
+  `xExtent` (per array), a fit's residuals at the points drawn (`residsOf`, by the fit's `at`,
+  model, range and parameters), `resAbsMax`, `diagAt` (each row's place in a fit's analysis);
+  the status bar counts in a loop; `afterView()` after a zoom or pan renders the Fit window only
+  while it is open (else the status bar). The worksheet's sparklines are `sparkPts` (the first,
+  lowest, highest and last of each bucket of rows, one pass), as is any long `sparkSvg`.
+- **Error bars** (`ERR_KINDS`; and a Z error, `ax:"z"` (zEr±), whose `of` is a map's Z column: the map's readout
+  gives the value and error of the point within 8 px, `geo.tmapErr`): an error column (role `e`, `of` its spectrum) is Y both ways
+  (the default), Y upward (`side:"+"`) or downward (`side:"-"`), or the same for X (`ax:"x"`);
+  `errKind`, `errTag` (the worksheet's yEr±, yEr+, yEr−, xEr±…), `errKindName`, `errColsOf(id)`
+  (by kind), `hasErrCols`. `errColFor(id)` is the ± Y column only; `yErrData(id)` is the
+  spectrum's error as `rawSeries` reads it (the ± column, or the mean of + and −, memoised per
+  pair of arrays), so processing, weighted fits and band areas carry one error as before.
+  Drawing (`errGeom(c, d)`, memoised per series and arrays): a point's bars by its recorded row
+  `q.i` and carried error `q.e`: + and − in their recorded ratio, scaled as the processing
+  scaled the error; X bars times `xErrScale` (the local slope of drawn X against recorded X,
+  signed, 1 when X is untouched), so a converted axis converts its errors. `errSvg(g, pts, st,
+  X, Y, pal, masked, o)` returns `{under, over}`: a band (`st.eb==="band"`, runs split where a
+  point has none) under the series, bars with caps over it, X bars either way; drawn for every
+  spectrum shown (overlay, offset, double Y, stacked panels), at any stage. The style keys are
+  the series' `eb` (`bars`, `band`, `none`), `ebColor`, `ebLw`, `ebCap`, `ebOp` (the Format
+  dialog's Error bars group, the spectrum's right-click Error bars, headed by `errSourceText(c)`:
+  the column they come from, or carried through the processing). `setErrKind(id, kind)` and
+  `errKindItems` (the column menu's Use as error bars); a locked correction refuses a column that
+  is only drawn. The fit's **prediction band** (`cfg.bandPred`, dashed, `data-pband`) beside the
+  confidence band (`cfg.bandConf`, default on), both in `FMT_KEYS`: the curve's variance plus
+  the residual variance (reduced χ²) unweighted, the nearest point's σ² weighted, or s² for an
+  orthogonal distance fit that found the Y scatter.
+- **Axis scales** (`AX_SCALES`): `scaleKind(cfg, k)` is `log10` when `logX`/`logY` (the old
+  switches, still the only log10), else `ax[k].scale` (`ln`, `log2`, `recip`, `orecip` with
+  `ax[k].c`, default 273.15, `sqrt`, `prob`), else `lin`. `scaleFn(kind, ax)` gives `{tf, ti, ok,
+  lo, hi}`; `axScale(a, b, log, …)` takes it in place of `log` and sends a value it cannot show
+  off the low (or high) end, never to NaN. `buildPlot` leaves such points out (`inDom`), pads the
+  automatic view in the scale's coordinates and keeps any view where it can draw (`scaleRange`),
+  draws Y through `SY`, puts `fx`/`fy` in `S.geo` (pan and wheel zoom move in fractions of the
+  axis through them), and numbers the axis with `scaleTicks` (powers of e or 2, the probability
+  paper's percentages, or round numbers by `x2Layout` with the identity; `lab.b` is a label's
+  base for `tLab`/`labW`). Breaks are for linear and log10 axes only. `setAxisScale(k, kind)`
+  (one undo entry; the axis menu's Scale, Figure › Axes, the Format dialog's Type through
+  `pdSet("axscale.k")`); Log Y on the toolbar clears a curved Y scale. `probit` (in NUMERICS,
+  tested) is the probability scale's transform. **Dates and times** on an axis: `ax.fmt` `time`
+  (seconds as h:mm:ss) or `date` (seconds since 1970, UTC), `timeTicks` (steps from a second to
+  a year, the day written where it changes), `fmtDur`, `fmtDate`. **The second Y axis** (`ax.yo`,
+  like `ax.x2` across from Y: `on`, `conv` one of `YO_KINDS` (`lin` with `a`, `b`, `name`,
+  `unit`; `A2T` transmittance from absorbance; `T2A`; `expr`, a formula in y), its style
+  following Y's in `axisCfg`): `yoConv`, `yoAutoTitle`, `showYo`; laid out by `x2Layout(f, SY,
+  mh, {rot:90})` (`yoL`, errors in `S.geo.yoerr`), on the right or the left when Y is on the
+  right (`yoRight`, `yoEdge`, Y's mirrored ticks give way), `data-axis="yo"`, not with double
+  Y, a heat map or stacked panels; `frameEdges`, the axis lists (`setAxisKeys("all")`,
+  `allax.`, quick styles, `fmtOf`, `styleFrom`, `plotCfg`) and `figNotes` know it.
+- **Styles and controls** (the tokens at the top of the `<style>`): one token set per theme
+  and per style. After the tokens' rules comes the design system's review of 25 October
+  (DS_SPEC slice 1): fields as wide as what they hold (`:where(input[type=text])` 12em, decimal
+  ones and the fit's range 7em, selects as wide as their choices, `.frow` controls
+  `justify-self:start`), windows rounded to 12 px (9 in Graphite), the taskbar (`.tk`, `.tk.front`,
+  `.tk.on`, `.tk.min`, `.tk.proj` with `.tk-chev`, `.tkacts`), the dock's strip (`.dk-lab`, `.dtab.on`),
+  the project name as a field (`.titlebar .proj`), `.ro` (a fact in a read-only field), `sup`/`sub`
+  (but `.ned sup` keeps `vertical-align:super`: `execCommand`'s superscript state reads it), `.rtab`'s
+  value and error columns and `.grid2 .det` (for slices 7 and 8). Tooltips name the thing and its
+  shortcut ("Zoom", "Help (F1)", "Undo adding … (Ctrl+Z)"); a setting's `.tipd` hint explains.
+  No internal identifier is shown (the worksheet's foot counts rows and columns; the status bar
+  says "Saved"). Sizes are tokens too (UX_SPEC §3.5, `ux/spec/TOKEN_MAP.md`): six type sizes
+  `--fs-cap` 11, `--fs-tab` 12, `--fs-body` 13, `--fs-title` 14, `--fs-head` 16, `--fs-hero`
+  20 px; spacing `--sp-1` … `--sp-8` (2, 4, 6, 8, 12, 16, 24, 32 px; a negative margin that
+  cancels a padding is `calc(var(--sp-n) * -1)`, and an offset tied to a scroller's padding,
+  `.composer`, `.pkfoot`, the windows' `.fbar`, the menu's search, moves with it); radii
+  `--r-s` 4, `--r` 6, `--r-l` 8 px (`--r-win`, `--cb-r` alias them). A raw size in the CSS is
+  one TOKEN_MAP.md justifies (a pill, a font sample, a layout offset) or a mistake. States:
+  disabled is `--ink-off` words (4.5:1 or more) and a dashed `--rule-2` edge, never opacity;
+  pressed is `--press` with an inset shadow; words on a filled status shape (step numbers,
+  badges on `--badge`, the danger button) are `--on-fill`; on a highlight (a menu item under
+  the pointer, a selection) secondary words take `--ink`. Text has two colours: `--ink`, and `--muted` for what is secondary (7:1 or
+  more against every panel, in both themes and both styles); `--ink-2` is a near-ink for
+  labels and buttons, and `--faint` is for lines and icons, never words. Headings (`.gh`,
+  `.sect`, `.pane-h h2`, menu groups) are sentence case in the text colour, not small grey
+  capitals. Bench is bare `:root` plus the two dark blocks; Graphite is
+  `:root[data-style="graphite"]` plus its own two dark blocks, and every token Graphite sets in
+  light it sets again in dark (see the rules below). `styleSetting()`/`applyStyle(s)` keep
+  `kurve.style` and the root's `data-style`, and the inline script in `<body>` applies it
+  before the first paint, as it does the theme. The data colours (`--data`, `--fit`, …) are
+  shared, so the figure does not change with the style. Controls are drawn from tokens, never
+  from the browser's own look: `--r`/`--r-win` (radii), `--ctl-on` (what "on" looks like:
+  a slider's fill, a switch, a ticked box), `--focus`/`--focus-soft` (focus rings; blue in
+  both styles). Sliders (`input[type=range]`) have a track filled up to the value from `--p`,
+  which CSS cannot read from the value: `paintRange(el)` sets it on every input and change,
+  and `setupRanges` watches the document (a `MutationObserver` that looks only at added nodes
+  holding a slider, one `paintRanges` per frame) for sliders a render adds. A checkbox inside
+  `.chk` or `.switch` is a **switch** (`--sw-*`; its knob is a radial gradient whose
+  `background-position` slides, so it animates with no pseudo-elements); one in `.colpick` or
+  a fit table stays a **box** (`--cb-*`, the tick an SVG in `--chk-img`, dark on light
+  accents); radios are drawn too. Lists get a drawn chevron (`select:not([multiple])`).
+  Segmented controls take `--seg-bg`, `--seg-bd`, `--seg-on`, `--seg-on-ink`, `--seg-sh`
+  (the chosen one filled with the accent, white text; Graphite black), windows `--win-sh` and
+  `--win-sh-act`. Numbers typed into forms and slider readouts are in `--mono`. **Contrast**
+  (DESIGN.md; `tools/contrast-test.mjs` measures it in both themes and styles): words 7:1 or
+  more on every surface, edges (`--rule`, `--win-bd`, `--cb-bd`, `--sw-off`, `--trk`) 3:1 or
+  more, text on the accent 4.5:1. Surfaces from back to front: `--paper` (the desk, darker
+  than any window), `--chrome`, `--well` (round a graph in its window: `.graph-win`,
+  `.graph-pane`, `.gsnap`, `.figgrid`), `--panel`, `--panel-2`, `--panel-3`. Windows:
+  `--win-bd` (every window's edge), `--win-bd-act`, `--win-h-bg`/`--win-h-ink` (a title bar),
+  `--win-h-act-bg`/`--win-h-act-ink` (the front window's, filled with the accent; its icons,
+  sub-title and buttons take the ink). Buttons `--btn-bg`/`--btn-bg-h`; a menu item under the
+  pointer `--hi` with a 3 px accent bar; `--ws-grid` the worksheet's cell lines. What is on or
+  in front is filled, not tinted: `.tb[aria-pressed="true"]`, `.seg` choices (`aria-pressed`
+  or `aria-checked`), `.tk.front`, an open `.mb`.
+- **Menus and dialogs**: `openMenu(trigger, items, opt)` renders any menu (menu bar, project
+  list, Export, column header, graph) from `{label, run, kbd, note, checked, radio, enabled, danger}` items
+  (`note` is muted text on the right, as the project list's "3 spectra · 2 graphs"),
+  `"-"` separators and `{group}` headings, with arrow-key, type-ahead and Escape handling.
+  An item `{label, sub}` (`sub` a list or a function returning one) opens a submenu to the
+  side on hover (after 110 ms, with the same grace leaving it), on a click, or with →; ← and
+  Escape close it (`buildMenu`, `openSub`, `closeSubs`, `menuOpen.subs`). A menu with a
+  search box (`opt.search`) searches every submenu and lists the matches flat with their path;
+  `menuItems(name)` defines the menu bar and the graph window's bar. `openModal`/`closeModal` make everything behind a
+  dialog inert, trap Tab, route Escape to the dialog's `_cancel`, and return focus; the import
+  wizard, `confirmDlg` and `formDlg` use them. A font or colour picker
+  open over a dialog keeps Escape and Tab for itself: the modal key handler looks at
+  `fpOpen`/`cpOpen`/`spOpen` first, and a menu opened from a dialog closes on Escape.
+- **Two displays** (the design system's DetachedWindow and DisplayMenu, DS_SPEC slice 10; the
+  `AWAY` map, before the empty desk's code): a graph (not a figure, not closed) or one of
+  `AWAY_PANELS` (Results, Statistics, Help, Overview, Discussion) moved into a browser window of
+  its own (`detachWin(id, screen)`: the title bar's `[data-wpop]`, Window › Move to new window,
+  Ctrl+Shift+D, Window › Open on display; `canDetach`; `window.open` named `awayName(id)`,
+  refused at phone width). The main window keeps the project, undo and saving; the detached
+  window is a page it writes (`awayWrite`: the root's attributes, the app's stylesheets and
+  `#kSprite`, a strip `.dwin-h` with the name, the project, Live or Paused, the pointer's reading
+  or the last message `.dwin-msg`, the display list `.dwin-disp`, Return to desk; and the page's
+  own small script, `AWAY_SCRIPT`, put before the stylesheets because a script waits for them,
+  which notices when `kurveServes(name)` stops answering and asks `kurveReattach(window)` on
+  Reconnect). A graph is drawn there by the main window (`awayGraph`: `withGraph`, `buildPlot` at
+  that window's size, a signature from `snapSig` and `viewFor`), and its wheel, drag and double
+  click set the graph's view (`S.view` for the graph in front, `S.gv` for another), the reading
+  under the pointer through the drawing's `geo` and `toData`. A tool window's body is mirrored
+  (`awayMirror`, on a MutationObserver of the original: the HTML, each field's value, the scroll
+  and the focus kept), and its clicks, changes, input and Enter or Escape are sent back to the
+  original by their place in the tree (`awayPath`, `awayAt`), which stays in the main page,
+  `open` but hidden (`winAway`: `applyWins`, `dockIds` and `frontWinId` leave it out), doing what
+  it always did; a message the action toasts shows there too (`S.awayLast`). `scheduleAway` (from
+  `renderAll` and `renderPlot`) and `awaySync` keep them up to date, the theme and style
+  following (a MutationObserver on the root, `setupAway`); a window closed by the user, or found
+  closed by the poll every second, comes back (`returnWin`, `returnAllToDesk`). The taskbar's
+  `.tk.away` (dashed, no pill, `.tk-disp` with the display's number; a click focuses that
+  window), `winStateName`/`awayWhere` ("on Display 2", "in a window of its own"), the Window
+  menu's Move to new window, Open on display (where `getScreenDetails` exists: `loadScreens`,
+  `S.screens`, `screenOf`; the permission asked once, from a click) and Return all to desk.
+  Switching projects brings them back first (`awayLeave`, remembered in `LAYOUT.awayOf`) and
+  `awayOffer` offers to reopen them one at a time (a click opens one window; Preferences'
+  `awayReopen`); Preferences › Displays has `newGraphsOn` (a new graph from Plot opened on that
+  display, `plotCols`) where the screens can be listed.
+- **Help** (`DOCS`, `openHelp(id, {search})`, `renderHelp`): a window (`#w-help`, not in
+  `WIN_ORDER`; in the taskbar only while open), not a dialog, so it stays open beside what it
+  explains. `DOCS` is the articles, each `{id, g (one of DOC_GROUPS), t, kw, lead, body, win?}`
+  with HTML bodies built from small helpers (`K` keys, `DL` a definition list, `DA` a link,
+  `MP` a menu path, `TIP`). Links are `<a data-doc="id">` or `"id#anchor"`; `data-doc-open`
+  opens the window an article describes, `data-doc-ex` an example. A processing step's
+  article is written by `stepDoc(op)` from `PIPE_OPS` (its `help` as the lead, its `params`
+  with their `hint`, or `DOC_PARAM["op.k"]`, and options), plus `DOC_STEP[op]` (methods,
+  checks), `DOC_MENU[op]` (where it is) and `DOC_KW[op]` (search words); `docList()` puts them
+  after "Processing steps". `docBody` fills the generated parts (the step list, the curve
+  models from `MODELS`, where data are stored). `docSearch(q)` needs every word somewhere
+  (title 8, keywords 4, body 1), `docSnip` shows where; an article opened from a search has
+  its words marked (`docMark`). `S.help` is `{id, q, back, nav}`: Back, and the contents shown
+  over the article when the window is narrower than 620 px (a container query on
+  `#w-help .win-b`, with a "Contents" button). `WIN_DOC` maps a window to its article,
+  `helpFor(id)` adds the tool's step and the Fit window's mode, `frontWin()` is the window F1
+  asks about. The old ids `h-start`, `h-keys`, `h-about` still work. A new window, tool or
+  setting needs its article, `DOC_STEP` notes or `hint`: the drive checks every article
+  renders and every link resolves.
+- **Export**: file names come from `safeName(base, ext)` (any script kept; only what a file
+  system refuses, control characters and leading dots go; "kurve" when nothing is left) and
+  `figName()` (the project and, with several graphs, the graph).
+  `saveFile(name,data,mime)` uses the claude.ai `downloads` runtime when present and
+  falls back to `Blob` + `<a download>` otherwise, so exports work from disk. `exportSvg` and
+  `exportPng` (the same SVG rasterised at 2.5×) go through `embedFonts(svg)`, as do the
+  all-graphs figure and the report: each web font face the SVG draws (family, italic, bold)
+  is fetched from Google Fonts as a subset of the letters drawn and embedded as data in a
+  `<style>`, in parallel, cached per request (`FONT_EMB`), whatever arrived after 10 s;
+  offline the figure goes out as it is. **For a paper or slides** (`openExportFigure`,
+  `renderExportFigure`, `doExportFigure`, `#expModal`): a size (`EXP_SIZES`: journal columns,
+  a slide, as on screen, or any in mm, in or px), the tick numbers at a size in points there,
+  lines and symbols scaled with the text (laid out k times smaller and drawn k times larger,
+  so everything keeps its screen proportions) or as drawn (`opt.k` scales only the text),
+  SVG at a physical size (`expDress`), PNG at 150–1200 dpi with a pHYs chunk (`pngWithDpi`,
+  `crc32`) or TIFF (`tiffEncode`, PackBits, with its resolution), white or transparent, this
+  graph or all; `expBuild` makes the SVG, `expInfo` its size (`pxW`, `pxH`, `pt`), written in
+  read-only fields of the form (`#expPx` for a raster, `#expPtV` the tick numbers' size when
+  they are as on the graph; the design system's ExportFigure), each format's use its button's
+  tooltip (`EXP_FMTS`), a raster too large for the browser a note in the form; the footer is
+  Cancel and Export alone. The preview is the SVG itself with prefixed ids, and the settings
+  are kept in `kurve.export`. **PDF and EPS**
+  (`svgToVector(svg, {kind, wPt, hPt, title})` → `{blob, miss}`, `exportVec(kind, all)`, the
+  dialog's PDF and EPS): the figure's SVG parsed and walked (`g`, nested `svg` with its
+  viewBox and clip, `clip-path`, `transform`, `rect`, `circle`, `ellipse`, `line`, `path` with
+  arcs and quadratics made cubics (`vecPath`), `polyline`, `image` decoded to RGB and alpha,
+  `linearGradient` as strips, `text` and `tspan` as lines of runs) into PDF content (opacity
+  by ExtGState, images as XObjects with an SMask, streams deflated by `CompressionStream`
+  when there is one, a cross-reference table, the title in UTF-16) or PostScript (EPSF-3.0,
+  colours mixed with white by their opacity, images as hex, fonts re-encoded to WinAnsi in
+  the prolog). Text uses the standard fonts (`vecFont`: Helvetica, Times or Courier by the
+  family's generic name, bold and italic; Symbol for Greek and signs, `AFM_SYM`) measured with
+  their AFM widths (`AFM_W`, WinAnsi codes, from Adobe's metrics) so anchors land right;
+  Unicode super- and subscript digits are drawn raised and small (`vecPieces`), a halo is a
+  stroked pass under the fill, an underline a rule; a character none of the fonts has is
+  written as ? and listed in `miss` (`vecMissNote`). **The graph's own fonts in a PDF** (roadmap 5,
+  slice 3): `vecFaces(doc)` (the web faces the text asks for, as `embedFonts` judges web), fetched
+  together before the walk (`ttfFetch(fam, b, i)`: Fontsource's TrueType Latin subset on jsDelivr,
+  `https://cdn.jsdelivr.net/fontsource/fonts/<id>@latest/latin-<400|700>-<normal|italic>.ttf`,
+  `fsId`, memoised per face in `TTF_MEMO`, a failure forgotten so it is asked again; 9 s for all),
+  read by `ttfParse(buf)` (`{u, upm, bbox, asc, desc, cap, ia, adv, map, ps, ng}`, null for CFF
+  outlines or what does not read); `vecPieces(str, ps, size, miss, ef)` puts what the face has in it
+  (codes its glyph numbers, `uni` the characters, the font `"E:<face>"`), the rest in the standard
+  fonts; the page writes the glyphs as hex; `embObj` writes the face as Type0 / CIDFontType2 with
+  Identity-H, `/CIDToGIDMap /Identity`, the widths of the glyphs drawn (`/W`), a FontDescriptor
+  with `/FontFile2` (the whole file, deflated) and a ToUnicode map. `svgToVector` returns `emb`
+  (the families embedded) and `fell` (the faces that did not arrive), said by `vecFontNote` in
+  `exportVec` and the export dialog; `o.embed:false` asks for none; EPS embeds nothing. `exportCsv` (every column with units, the mask
+  flag, the fit, residual, baseline and each peak curve, plus commented blocks for metadata,
+  the fingerprint, the processing steps with their warnings, the marked peaks with their
+  labels, the band integrals, and fit statistics),
+  `exportRawCsv` (the raw data under a comment header that says how to check its
+  fingerprint), `exportRecipe` (the steps as JSON), and `exportReport`, a self-contained HTML
+  document with or without a fit (figure, notes from `fitWarnings`, fitted peak table, the
+  marked peaks of every spectrum with their labels (`reportPeaksHtml`), every spectrum's band
+  integrals with how they were measured (`reportBandsHtml`), full parameter
+  table with t, p, CI and dependency, statistics, the raw-data record, every processing step
+  with its warnings and a filmstrip, the fit history, method, session log; with several graphs
+  every graph too). `resultsText` is the same as TSV for `copyResults`. With several graphs,
+  `allGraphsSvg(pw, ph)` draws each (through `withGraph`, as it is on the desk) into one SVG
+  lettered (a), (b)…, for `exportAllSvg`, `exportAllPng` and the report; `exportAllCsv` writes
+  every spectrum's final X and Y side by side with each one's steps. `copyGraphPicture` puts
+  the graph (or a panel's figure, `handPic`) on the clipboard as a PNG at 2.5×, handing
+  `ClipboardItem` a promise so the click still counts; a browser that refuses gets the PNG
+  export offered (Publish, the graph's right-click and ⋯ menus).
 - **Boot**: `boot()` asks `window.claude.use(...)` for `db`, `user`, `room`, `downloads`. Outside
   claude.ai these are absent, so the app falls back to `LocalStore` and hides presence.
 
@@ -75,6 +3044,210 @@ besides Google Fonts. Open the file in a browser to run it.
 Works fully as a single-user app, exports included. Only collaboration (shared projects,
 presence, names) depends on the claude.ai runtime and would need a real backend behind the
 `LocalStore` / `makeDbStore` interface.
+
+## Checking a change
+
+**Words.** What the app shows follows the glossary (`ux/UX_SPEC.md` §3.6): column (a curve on
+the graph), active, original and processed data, check code, tool window, saved style,
+Untitled project, not counted as a peak; spectroscopy's words (spectrum, band, background…)
+only in Analyze › Spectroscopy and its panels. Code names (`raw`, `final`, `rawFp`, `p.raw`,
+`S.sheet`) are not renamed. `python tools/ux/terms.py [path]` counts the
+words off the glossary in every prose literal of the file, and in fragments joined to a number
+or a name (`n + " spectra"`) (`--list term` shows where); it
+reads 0, and a new string should keep it there. Help's search words (`kw`) keep the old words
+so either finds the article.
+
+`node tools/ds-test.mjs [path]` (Playwright) checks what each slice of the design system
+(`ux/spec/DS_SPEC.md`) changed: the taskbar, the dock's strip, the tooltips, the absent
+identifiers, the real superscripts, the fields' widths; run it after touching the frame.
+`node tools/review-drive.mjs [path]` (Playwright) checks the user's reports, each as it was made
+(29.10: a file into a sheet made with + by the dialog, a drop, several files and a copy from
+another project, a named placeholder kept, undo; the X zoom each graph's own until linked from the
+⋯ menu; the readers' card dragged onto the worksheet, resized, its least size, kept across the X–Y
+lines and a reload, whole in a smaller window, put back by a double-click, inert under a dialog,
+junk from storage; 05.11, a day of lab work: a million-row file saved quickly, counted as
+1 000 000 and back after a reload, two tabs typing in two columns, the keys after a press on a
+graph, an undo in one tab keeping the other's newer column and cell, a tab closed mid-edit reaching
+the other tab, a window's corner dragged past the browser's edge, rows sized, kept and reset, error
+columns in other languages, a narrow window of its own, the dock's edge dragged to the far left
+and back); add a section to it for each report fixed.
+`node tools/lab-day.mjs [path] [minutes] [seed]` (Playwright) is a working day of erratic use through
+the pointer and keys (typing junk into cells and fields, sizing columns and rows, zooming, every
+pointer tool, wandering the menus and right-click menus, dialogs answered at random, windows
+dragged, resized, maximised and minimised, the dock, undo bursts, Find a command, examples, files
+imported, screen sizes, the theme, coffee breaks), sampling memory, page elements, listeners,
+lag, long tasks and storage every 30 s into a CSV, and at the end reloading and comparing every
+project; run it for a long while (40 minutes) after touching windows, storage or rendering.
+`node tools/plot-drive.mjs [path]` (Playwright) checks what each slice of `ux/spec/PLOT_SPEC.md`
+added (slice 1: a curve on the right axis and undone, ranges by rows and by X for one curve or
+every one, labels from a column, an export, junk from storage; slice 2: Plot setup opened on a
+selection, the options a column refuses, error bars and labels marked and added, Up, Down,
+Remove, Replace with a ticked column, every sheet and the filter, Cancel changing nothing, OK
+with a range, an axis, labels and error bars in one undo entry said in the toast and the log, the
+row number as X, a data column made X with the other columns kept on theirs, into a graph with
+curves, and the tabs at phone width; slice 3: What it plots… in its four menus, opened on a graph
+with its axes, labels and no kind, a curve taken off, reordered and given a range in one undo step
+said in the log, the active curve taken off, a kind for every curve, no step when nothing changed,
+Add with error bars, a figure's panel; slice 4: every curve in one group and how each step looks,
+a curve's own colour winning, one type for the group, a group of one dropped, undo, Plot setup's
+Group column on a graph and on a new one, junk from storage; slice 5: the four cards drawn with the
+data, Bubbles waiting for a size and naming the curve without one, error boxes in the preview, the
+graph and an export, labelled points, colour by value, a kind on a graph said in the log; slice 6:
+the kind and uses remembered per sheet, the dialog starting from them, Plot like the last time
+with no dialog, not on another sheet, the dialog when the size column has gone, error bars undone
+not given back, junk from storage; slice 7: the kind a button, the grid's roles per kind, a curve's parts set
+from its line and its + menu, the symbol grid from Plot setup, the right-click and the Format pane, a Z error marked,
+carried to the column and read by the readout); since, the roadmap's later slices, each in a section of its
+own (comments unread and read, for one); run it after touching the graph's drawing or Plot setup.
+`node tools/fit-drive.mjs [path]` (Playwright) clicks and types into what each slice of the
+curve fit (`ux/spec/FIT_SPEC.md`) from slice 5 on added (Find X/Y: the readouts against the
+functions, a redraw while typing, Fill a column… both ways, undo); run it after touching the Fit
+window or Results. Slice 6: the fit's columns (values, the check code untouched, a new fit
+written, out of date, `resid(B)` typed, `fit(B)*2` refused, the fit removed and undone, a reload). Slice 7: the Weights list, counting weights said everywhere,
+a column of 1/σ² equal to the Y error fit with scaled errors, refusals, a column of weights deleted,
+the prediction band for each kind; the apparent fit (offered only on a logarithmic axis, the
+line through the logarithms, drawn in the data's terms without units, Results' row and note, its
+residuals, Find X/Y, a refusal, the axis made linear again). Slice 8: a formula start typed,
+measured, refused and measured again by Guess; a constraint read as typed, the follower in the
+grid and fitted with its error carried, Results' row, a refusal by the box and by Fit, a model
+change clearing them, two decays kept in order, 1 iteration, a reload. Slice 9: the menu, saved
+in the browser and the project (one undo step), used again and undone, Analyze › Fit's list,
+deleted and back; following set at once, a mask change refitted with a log line, one undo taking
+both back, a refit that cannot be made said in the notes. Slice 10: the editor's refusals (a start,
+a derived value), a function saved with its category, formula start, meaning, constraints and
+derived values, the Fit window starting with them, the derived value and its error in Results,
+the model list's category, the organizer (renamed and filed in place, undone, deleted).
+**The bench** (PARITY_SPEC wave 0; `tools/ref/README.md`): `node tools/ref-test.mjs [path]` checks
+Kurve's numerics against `tools/ref/fixtures/*.json` (40-digit mpmath for special functions and
+tails, SciPy, NumPy and statsmodels for procedures) and NIST's certified data (`tools/ref/nist/`),
+each function's worst error against its target in `tools/ref/targets.json`; one short of its target
+names the slice that brings it there (`until`) and must not pass where it stood (`now`).
+`tools/ref/make-fixtures.py [--check]` makes the fixtures again and `tools/ref/diff-fuzz.py [seed]
+[n]` (`FUZZDUMP=file` writes every failing case in full) throws random cases at the same functions (both need Python 3.13 and the packages in `$PYREF`,
+see the README; `tools/ref/run.mjs` is the pure blocks under node, any function by name).
+`node tools/perf.mjs [path]` measures what a person waits for (boot; a million rows: save, a value
+typed, draw, zoomed draw, worksheet, saved to a project file and opened from one; one-way ANOVA of a million
+values and Tukey's 45 pairs; rank tests of a million values; 2000 columns:
+save, worksheet, History, Statistics) against
+budgets of about three times what was measured. `tools/suite.sh [--snap] [path]` runs everything
+(the node tests, the bench, the drives in parallel, a fuzzer seed, the menu crawl, then the budgets
+alone) and prints one line a test; with `--snap` on a copy of the files git knows (stage new ones
+first), so editing goes on while it runs. A new numeric function gets its fixture, target and
+fuzz generator before it is used.
+`node tools/ana-drive.mjs [path]` (Playwright) checks analyses (FOUNDATION_SPEC 1.3): every step's row flag, a
+result sheet made, read only, worked out again by itself after a value and a step, Original, masked points,
+made points said, Only when asked and Recalculate, groups, an input deleted, a reload, junk from storage, Cut
+and Delete with undo; and STATS_SPEC 2.1 (the statistics ticked, the interval's level shown with it, a 99 %
+interval and type 6 percentiles against their formulas, the method in the report, a blank mode said, rows 3 to 8,
+listwise, frequency counts of text and in bins of a width, the graphical summary and its one undo, junk settings,
+a reload), and 2.2 (the tests ticked, each against its function, no verdict or sentence, the Q–Q
+plot's columns and graph kept on recalculating, Grubbs repeated, Mask with the analysis worked out again and one
+undo, Mark, groups' rows, Dixon, a reload), and 2.3 (one sample against tTest1 at a 99 % interval, a stored α read as
+its interval, Student's by group with nothing said of the variances, paired in the sheet's order, every spreads test,
+proportions and Fisher's test typed, a refusal, a reload), and 2.4 (the dialog's comparisons and Control, F, p, η² and
+Welch's F against anova1, Tukey's and Dunnett's p (the worker's), Holm with no interval, the means plot, grouped by a
+text column, followed after a value typed, a refusal, a reload), and 2.8 (each rank test through its dialog against
+its function: paired, Pratt's zeros and the normal approximation, Dunn's Bonferroni, Friedman's complete rows, a
+refusal, a one-row result shown as names and values, a reload), and 2.9 (each coefficient against its function, pairwise
+and listwise N, a section a coefficient, the scatter matrix in one undo step, a refusal, a reload), and 2.10 (a
+cross-table of text, a table of counts named by a column, McNemar, a negative count refused, a reload), and 2.5 (X
+columns offered, the response on the first Y, text a factor that stays one, every number against linModel and
+lmContrast, rows left out said, an empty cell's coefficient named, a response of text refused, followed, a reload), and 2.6
+(the table, partial η², the means and cells against lmEst, Tukey and Bonferroni, simple effects, the interaction plot and its
+undo, the main effects figure, three factors, one refused, a reload), and 2.7 (wide with a group and two within
+factors against rmAnova, long with a subject missing a value, the defaults of the subject and within factor, Holm's paired t,
+the profile plot, a refusal, a reload, no id twice in any kind's dialog), and 2.11 (the fields shown per test, the power at
+sizes and the size for a power against powerAt, Cohen's d, the power curve and its undo, the exact binomial test, a refusal, a
+reload), and 2.12 (Groups and Positive offered, each area, SE, interval, Youden's point and the comparison against rocTest
+and rocCompare, the curve with the diagonal, a lower score positive, a third group refused, a reload); `ONLY=2.11` runs one
+section.
+`node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
+1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
+up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
+(a shift, a power of two, the order and a change of sign, every quantile type within the values and
+rising, one, two and equal values, Tukey's hinges), and the normality and outlier tests' (each one's size at
+5 % over 20 000 normal samples, Shapiro–Wilk's p uniform below 0.3, invariance, Grubbs' critical values as
+ASTM E178, repeated and masked, refusals), and 2.3's (each test's size under its null, the t and d intervals'
+coverage, the exact tests at or below their level, the noncentral t at δ = 0), and 2.4's (F's and Welch's size,
+Tukey's and Dunnett's family-wise error at 5 % from their quantiles, Tukey–Kramer, Bonferroni and Scheffé below, the
+studentized range of two and Dunnett's one comparison as t), and 2.8's (U's and T+'s exact distributions against
+enumeration, each rank test's size, the shift's interval covering, refusals), and 2.9's (Kendall's counts against
+enumeration, a shift, a scale and a monotone change, each test's size, Fisher's coverage, partial r as residuals' r), and
+2.10's (χ²'s and G's size, Fisher's and McNemar's exact tests at or below 5 %, a table turned round, refusals), and 2.5's
+(the F tests' size, the intervals' coverage, a shift, a scale, the rows' order, codings and types agreeing, a contrast, refusals), and 2.6's
+(a balanced design's estimated means the plain ones, Tukey's family-wise error, simple effects' size, an empty cell, refusals), and 2.7's
+(F's size under sphericity, Greenhouse–Geisser's near 5 % where the uncorrected F is too liberal, two conditions as a paired t,
+offsets and order changing nothing, ε within its bounds, refusals), and 2.11's (the exact binomial test's power the sum over
+the counts propTest1 rejects, the t tests', the ANOVA's and the F test's power the rate at which Kurve's own tests reject, α at
+no effect, rising with the size, the size found the first to reach the power, the noncentral tails at λ = 0, refusals), and 2.12's
+(the area as U over n₁n₀, the trapezoids adding up to it, a lower score positive and a rising change, Youden's J, DeLong's
+interval's coverage of a binormal area and its test's size, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
+ANA block.
+`node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
+among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
+back, undo, the status bar's count, sorting, find, copy, clear, rows inserted and deleted, the
+check code against SHA-256 with text quoted, a reload, a pasted block with a quoted tab, a project
+of numbers keeping its check code, text from storage in every broken form, two tabs.
+`node tools/file-drive.mjs [path]` (Playwright) checks project files (FOUNDATION_SPEC 1.1): every
+example saved and opened again equal, comments and replies with it, the check code compared; a
+million rows; the same file twice; an older document version upgraded; eleven kinds of bad file
+refused with nothing made (a gzip bomb among them, `PF_MAXIN` lowered); Ctrl+S writing one file
+again, a copy, a file that can no longer be written; the menu, a drop, the import picker; a backup
+made and two of three restored. Run it after touching storage, `migrate`/`normalize` or the comments.
+`node tools/fit-test.mjs`, `node tools/pipe-test.mjs`, `node tools/parser-test.mjs` and
+`node tools/tex-test.mjs` cover the numerics, the processing steps with their checks and the
+fingerprint, the parser, and the LaTeX typesetter (nesting, italics, spacing, fractions, roots,
+accents, escapes, limits). Each takes an optional path to test a working copy instead of
+`kurve.html`. `node tools/contrast-test.mjs [path]` (Playwright) measures the interface's
+colours as the browser resolves them, in both themes and both styles, against DESIGN.md's
+rules; run it after touching a token or a state's look.
+`node tools/odd-test.mjs [path]` (Playwright with Chromium) runs every example end to end (the
+Raman band fitted and its peaks found without the spike, the decay fitted, the infrared bands
+found and fitted, the raw polystyrene's Overview steps applied and its bands found; each report
+and CSV written, no page errors), and drives the app in unusual ways that
+once hung it, lost data or drew nonsense: 300 turns of the wheel, a nanosecond time axis, equal
+and crossed axis limits, two tabs saving (and adding a column each at once), a project of a
+million rows kept and quick to save, a change saved just before a reload, a refused write (Not
+saved, said again on opening the project, stored by the next write), a full localStorage (no
+IndexedDB), the old single-key store moved into IndexedDB and a corrupt
+layout, typographic minus signs, file names in any script, times across midnight, undo while
+holding a label, 300 spectra, a long graph name, a straight line through one X, a formula 300
+deep, breaks read from storage in every broken form, a second axis that cannot be numbered, a
+curved one, a PDF's cross-reference table and size, an EPS's bounding box, characters no
+standard font has, broken formats in the store, graphs coming and going (a project with none,
+the first deleted like any other, its comments and folder not passing to the next graph, the
+analysed curve taken off a graph of two, a graph's last curve, a column shown while the graphs
+are closed), a curve fit held to one iteration or started where its
+model cannot be evaluated, limits (strict right at the start, every parameter held by equal
+ones, crossed ones from storage, ones of the wrong shape), the curve fit's models (a fit stored
+as `poly2` before, a model that is gone, every guess on X through 0, X a model cannot take,
+a function that does not compile in the list), the confidence level and residuals (a level or a
+kind of residual that is junk from storage, a fit from before, every parameter fixed, two
+points), 200 000 points (drawn, zoomed, hovered, smoothed and shown in the worksheet within
+a time, an export keeping every point), and a sheet of 600 columns (only those about the view
+drawn, each cell and letter its own column wherever it is scrolled, End, a name typed while its
+column is scrolled away, a range across 300 columns, a column sized out there), and two thousand
+files imported at once (a map of them saved quickly, the History drawing the boxes about the view
+with the keys going past them and a far box gone to, Statistics' 200 rows and Show them all, a
+value typed and undone). Run it after touching storage, the axes, the
+parser, undo or the PDF and EPS writer. It serves the file over HTTP (a server of its own, on a
+free port) and waits for each page to be ready (a project on the desk), never a fixed time.
+`node tools/sheet-fuzz.mjs [path] [seed or a-b] [steps]` drives the worksheet as an erratic
+user would (see its header) and checks the data, the drawing, the fingerprint and the store
+after every step, and a reload at the end; a few minutes a seed, `V=1` prints every step and
+`SLOW=n` runs the page n times slower (Chrome's CPU throttling). Several runs at once change
+the path a seed takes (what is in view when it picks a cell), which finds more than one alone.
+Run some seeds after touching the worksheet, editing, saving or undo. To look at a PDF or EPS, render it: Ghostscript
+(`gs -dSAFER -dBATCH -dNOPAUSE -sDEVICE=png16m -r110 -dGraphicsAlphaBits=4 -dTextAlphaBits=4`,
+with `-dEPSCrop` for an EPS) or PyMuPDF; at low resolution without anti-aliasing a small
+circle looks like a star. For anything else the UI
+has no test file: drive it in a real browser (Playwright with Chromium works headless),
+click every control you touched, and watch for page errors. Screenshots at 1440, 1024 and
+390 px wide, in both themes, catch most layout mistakes. Windows overlap: bring the one you
+are about to click to the front (`focusWin`) or the click lands on whatever lies over it,
+and a window that has just opened, closed or moved is still animating for about 220 ms (wait,
+or set Preferences › Animations off with `prefSet("anim", false); applyAnim()`). Comments, ties and user functions have no store or network of
+their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 
 ## Things that have bitten, and the rules that came out of them
 
@@ -93,26 +3266,48 @@ presence, names) depends on the claude.ai runtime and would need a real backend 
   shipped with a checkbox, a renderer and no `onchange`; the derivative sign and the Add-peak
   hint were the same shape of mistake.
 - **Patch scripts must report what they applied and what they missed.** One that threw partway
-  wrote nothing, and five fixes were believed to be in the file for an hour.
+  wrote nothing, and five fixes were believed to be in the file for an hour. And one that missed
+  must write nothing: a shared helper wrote whatever it had applied, and a half patch was saved
+  over the working copy. The helper refuses to save after a miss; a helper that finds text
+  itself converts line endings as `rep` does.
+- **The container is not a disk.** A cloud session's container is reclaimed when it idles or
+  when a usage limit stops the session: three slices of the design-system work, and every test
+  drive kept in the scratchpad, were gone at the next start, and were rebuilt from the
+  conversation. Commit and push each slice as soon as its tests pass, and keep the drives that
+  matter in the repository (`tools/ds-test.mjs`), not in the scratchpad.
+- **A browser's own editing reads its own style.** The formatted editor toggles a superscript
+  with `execCommand("superscript")`, and Chrome decides whether the caret is already in one from
+  the computed `vertical-align: super`; a global `sup{vertical-align:.5em}` (the design system's)
+  made every second press add another superscript. `.ned sup` keeps `super`.
+- **A redraw of part of a thing must keep what the whole computed.** `refreshDock()` drew the
+  dock's tabs from a fresh `dockGeo()`, which has no z for the dock's edge; the edge fell under
+  the docked window and could not be dragged. The z `applyWins` measures is kept (`S.dockEz`).
+- **Patch scripts must not eat backslashes, or line endings.** A CSS escape `\25B8` went through
+  a tool that read `\25` as an escape and left a control byte plus a literal "b8" beside every
+  collapsible heading for several releases. Prefer real characters or SVG over escapes in CSS.
+  And a script that reads `kurve.html` in text mode writes it back with LF: convert back to
+  CRLF, or the diff claims every line changed and hides what really did.
 - **The preview pane serves a snapshot**, so `location.reload()` re-runs stale code. Navigate to
   the file again after editing.
 - **Undo has to cover the panel you are working in, not just the document.** The peak set being
   built lives in `S.pdraft`, outside `UNDO_KEYS`, so Find peaks / Clear / Delete peak were logged
   and not undoable — the History note promises a record the app then could not keep. `snapshot()`
-  now carries `pdraft` too.
+  now carries `pdraft` (and the curve draft) too.
 - **A unit built from two others is not a unit when half of it is missing.** An area printed as
   `cm⁻¹` because the Y column had no unit is dimensionally false; `unitFor` returns nothing rather
   than half an answer.
 - **"Reset to estimates" means all of it.** It re-seeded only the baseline, so after a shape change
-  it handed the fitter back the seed that had just failed. A peak that has run off the end of the
-  spectrum is now put back on the largest feature no other peak is describing, not on the nearest
-  edge point.
+  it handed the fitter back the seed that had just failed. A peak that has run off the end of
+  the spectrum is now put back on the largest feature no other peak is describing, not on the
+  nearest edge point.
 - **The report is the artefact that leaves the building.** Every caveat on screen — excluded
-  components, dependency, at-bound, singular covariance, non-convergence — has to be in it.
+  components, dependency, at-bound, singular covariance, non-convergence, staleness, patterned
+  residuals — has to be in it. That is why they all come from `fitWarnings`.
 - **Two spectra with no common X do not belong in one row.** Adding a column whose X range does
-  not overlap the project's now appends rows instead of lining up by row number, so every value
-  keeps the X it was measured at. The toast and the log say the same thing, because they used to
-  say opposite things from one shared string.
+  not overlap the project's appends rows instead of lining up by row number, so every value
+  keeps the X it was measured at, and the import dialog now suggests a new project instead.
+  The toast and the log say the same thing, because they used to say opposite things from one
+  shared string.
 - **Transient UI has to be torn down on a project switch too.** The hover tooltip stayed on
   screen across a switch, showing the previous project's point, value and units. So does any
   field guarded by `document.activeElement` — guard on the project id as well, or a rename in
@@ -120,19 +3315,1799 @@ presence, names) depends on the claude.ai runtime and would need a real backend 
 - **`toFixed` sized from an uncertainty needs a ceiling.** A synthetic curve fitted by its own
   generating function drives the error to ~1e-23, and 24 decimals of floating-point noise makes a
   correct fit look broken. Past 12 decimals `fmtPM` states the error as an exponent instead.
+- **The first demo is the product.** Raman example → Find peaks used to take the cosmic-ray
+  spike for a peak and end in a wall of red errors; the IR example found noise bumps on a band's
+  flank, and seeds three times too wide collapsed a component. Spikes (`minPts`), prominence and
+  the one-sided width seed fixed the class. Run each example end to end after touching peak
+  finding or seeding.
+- **Hiding a grid item moves its siblings.** With the drawer folded, its splitter went
+  `display:none` and auto-placement dropped the drawer into the splitter's zero-height row, under
+  the status bar. Grid children that can be hidden get an explicit `grid-row`/`grid-column`.
+- **A `<details>` created open fires `toggle` later**, after a re-render may already have
+  replaced it, and the stale event reopened a group the user had just seen close. Toggle handlers
+  check `isConnected` before recording anything.
+- **A fit belongs to its column.** Drawn over another column it is a curve through data it never
+  saw; `shownFit()` keeps it off the graph while Results still lists it, marked out of date.
+- **v3 has no `p.x`.** "Attach to point" and a comment's anchor chip still read `P().x[i]` and
+  threw on click. Look points up with `pointByRow(i)`.
 
-## Known gaps / next steps
+- **A save hands back a fresh copy of the project.** In this browser the store notifies
+  synchronously and `onProjects` replaces `S.proj` with a deep copy, so a step or column object
+  held from before `save()` is stale afterwards: a toast that counted a new step's warnings
+  through the old object always said there were none. Look things up again by id after saving.
+- **Noise on a band's top is not distortion.** Measuring what smoothing took off a band by
+  comparing noisy tops counted the noise it removed as damage, and flagged every window.
+  Distortion is measured on an ideal band of the same width in points (`idealLoss`). A band
+  four points wide is barely sampled: even a 5-point Savitzky–Golay takes 5% off it, and the
+  suggestion falls back to higher orders (6 over 9 points keeps 97.7%).
+- **arPLS bridges under bands even when soft**, because it weights their points to nothing.
+  The band-eating check is for methods that do follow bands (a symmetric ALS, a small rolling
+  ball or SNIP window); test it with one of those.
+- **Thousands of SVG elements make every layout read slow.** 20 000 circles made each forced
+  layout cost about 200 ms, and the Clean up panel reads one. Dense data is one path of dots.
+- **A slider has no undo of its own.** Ctrl+Z was swallowed while focus sat on a range input;
+  the app's undo now applies unless focus is in a text field.
+- **A zoom belongs to the units it was made in.** A wavelength range applied to Raman shifts
+  shows nothing; `S.view.xu` records the units and the view is ignored where they differ.
+- **A threshold as a percentage of the largest peak cannot see a small peak.** The finder's 5%
+  floor hid a band three decades below the main one, however clear of the noise it stood. The
+  default is now signal to noise, with percent, absolute height, decades and a log-scale
+  search as choices, and every candidate turned down says why.
+- **A shoulder has no valley.** Measured against the higher of its two saddles, a
+  second-derivative candidate on a band's top had a prominence of zero and was thrown out as a
+  one-point spike. Shoulders are measured within their own width.
+- **Windows climb.** Every focus raises a window's z-index, and with the desk not a stacking
+  context of its own they rose above the menus and dialogs. `.desk` has `isolation:isolate`.
+- **`scrollIntoView` scrolls clipped ancestors too.** Bringing a section into view scrolled the
+  whole desk, which has no scroll bar, and moved every window. The desk, the windows and their
+  bodies are `overflow:clip`; scroll the inner container by hand.
+- **Two ids in two places are one id too many.** The Plot details heading and its Title field
+  were both `#pdTitle`, and the field could not be reached.
+- **A slider's readout is its own.** A text field in the same form row wrote its value into the
+  row's first `<output>`; only range inputs update an output.
+- **A click that redraws the graph swallows the double click.** The graph redraws on the first
+  click (to select a point or an annotation), the element pressed is gone, and the browser
+  then fires neither the second click nor `dblclick`: "double-click to see all the data" had
+  quietly stopped working. With the pointer captured, `click` and `dblclick` are addressed to
+  the graph, not what was pressed. `pointerup` detects double clicks itself (`S.gClick`,
+  `S.annoClick`, `S.legClick`), `downEl` remembers what was pressed, and `onGraphDouble`
+  does what the old handler did; the `dblclick` listener stays as a fallback, guarded by
+  `S.noDbl` so nothing happens twice.
+- **A test that awaits a dialog waits forever.** `page.evaluate(()=>editLegendTitle())`
+  returns the dialog's promise, which resolves only when the dialog closes; call it without
+  returning it. And a toast can lie over the thing a test clicks: hide it first.
+- **Old keys come back from storage.** An upgrade that only wrote the new keys left `x` and `y`
+  of a v1 project in storage, and the next reload brought them back. `migrate` deletes legacy
+  keys every time, and the upgrade writes them as null.
 
-- Only one Y column is fitted at a time: no batch across a series, no global fit with shared
-  parameters, and no summary table of a parameter against sample
-- The import wizard reads one Y column; extra columns have to be added by hand afterwards
-- Peaks cannot yet be dragged on the graph; you place one by clicking, then type values
-- No parameter sharing between peaks (a common instrument width), and no custom expressions
-- Baseline is only ever fitted with the peaks; there is no subtract-and-bake path (ALS, anchor
-  points, Shirley/Tougaard). Those belong in `STEPS` so they inherit `derived()` and undo.
-- Integration is over the visible range only — no per-peak integration bands to drag, and no
-  peak table from integration alone (areas currently come from the fit)
-- Binary instrument formats (SPC, OPUS, SPE) and JCAMP-DX are not read; text exports only
-- True Voigt is approximated by the pseudo-Voigt shapes; there is no Faddeeva implementation
+- **A parameter at its limit has no standard error.** A Voigt whose Gaussian width went to zero
+  reported a height of 2282 ± 151 553: the curvature at the bound gave the width an error of
+  3e7, and the bisection noise in its FWHM, divided by a 1e-10 step, multiplied it. Tables now
+  say "at its limit", the delta method leaves such a parameter out, and FWHM errors use a
+  smooth approximation.
+- **A width going to zero is not always a broken peak.** The "collapsed width" check was written
+  for the split pseudo-Voigt, whose halves must each be real; a Voigt at a Gaussian width of
+  zero is a Lorentzian, and was flagged unusable until shapes could say they are `convolved`.
+- **A dictionary of built-ins needs `hasOwnProperty`.** `EXPR_FN["constructor"]` is `Object`, so a
+  formula calling `constructor(x)` compiled. Any lookup keyed by user text uses own properties,
+  and objects keyed by parameter names are `Object.create(null)` (a parameter may be called
+  `__proto__`).
+- **Names of people keep their capitals.** "1 fano (breit–wigner–fano) peak" came from lower-casing
+  model names for sentences. `lcFirst` lower-cases only names that are not eponyms, and shapes
+  have a `short` name for the middle of a sentence.
+- **A thing centred with `left:50%` gets half the screen.** The toast's auto width was computed
+  against the half of the viewport to the right of its left edge, so on a phone it wrapped
+  into six lines. It is `width:max-content` under its `max-width`.
+- **A comment on a step outlives the step, and must say so.** Anchors keep the label the box had
+  when the thread began; the live label is used while the step exists.
+
+- **A function declared twice is the last one, silently.** `copyText` existed twice with
+  different signatures; the later won, and "Results table" was toasted as a whole sentence for
+  several releases. A new `peakTableText` nearly shadowed the fit's. Grep for
+  `function name(` before adding one; the duplicate check is
+  `grep -oE '^(async )?function [A-Za-z0-9_]+' kurve.html | sort | uniq -d`.
+- **A redraw from a save must not take what is being typed.** Every save re-renders the open
+  windows, so a table of text fields loses a half-typed value to a colleague's save (or any
+  save). The Peaks window keeps the focused field's value and caret across its redraw.
+- **A threshold is not a verdict on a peak someone has named.** Raising the finder's threshold
+  and lowering it again dropped the labels typed on the peaks in between. A set now remembers
+  the labels of peaks a search no longer finds (`mem`) and gives them back.
+- **One undo entry per burst means one kind of change.** Merging every peak change within
+  2.5 s let "find again" ride on a style change's entry, so one undo took back both, and a
+  removal in between. `pkUndo` merges only the same kind of change with nothing else between.
+- **A labelled mark and a fit's number compete for the same pixels.** Both sat on the peak's
+  top. The fit's number moves inside the peak where a set's label is.
+- **An example with one band cannot test a peak finder.** The Raman example is a single Si
+  band; drive peak finding with the IR example (four bands, one a shoulder).
+- **A menu's anchor must be an element.** The worksheet's cell menu handed `openMenu` a
+  plain object with a rectangle, and the outside-click test (`contains`) threw.
+  `pointerAnchor(x, y)` places a real (invisible) button there.
+
+- **A delayed save must not outlive a later one.** Typing a value saves 0.7 s later; a fill
+  within that time saved at once, and then the delayed save wrote back the raw-data record
+  from before the fill, so the fingerprint no longer matched. Any save now carries the
+  waiting patch with it, first, and a project switch flushes it.
+- **A formula must name columns, not positions.** Letters are positions; stored as letters,
+  deleting column C would make `D*2` read what used to be E. A formula stores the id each
+  letter meant and is shown with today's letters.
+- **Computed is not recorded.** A formula column's values are derived from raw data; hashed
+  with it, adding a formula would have said the raw data changed. `rawCols` leaves computed
+  columns out, and they cannot be typed over.
+- **A sorted view is not a sorted table.** Reordering recorded rows would change what the
+  fingerprint hashes and every mask and correction that names a row. Sorting maps sheet rows
+  to data rows and shows the data row's number.
+- **Adding a label row renumbers the others.** Label rows were -3 … -1 in a dozen places;
+  F(x)= made them -4 … -1. They are `WS_LABS` and `WS_TOP` now, and a test that typed into
+  "row -3" had to change with them.
+
+- **One name, one meaning.** `integrateBand` returned `err` for the area's uncertainty and, when
+  a window was too small, `err` for the reason. Every band then looked failed, its ± blank and
+  its reference disabled. The reason is `fail` now; a field that is sometimes a number and
+  sometimes a sentence will be read as the wrong one somewhere.
+- **Equal numbers are not always a bug.** Two bands showed the same "area" to 17 digits: it
+  was the error, and the windows held the same number of points with the same noise. Check
+  what is printed before chasing it.
+- **Below zero after a background is noise, not news.** The Overview warned about 332 points
+  below zero on a spectrum whose background had just been subtracted. It warns past five
+  times the noise only, and otherwise says "within the noise".
+- **A table must fit the window it opens in.** The band table overflowed its default window
+  and hid the reference and delete columns. Secondary columns go by container query, and on a
+  phone the editable edges give way to dragging on the graph.
+
+- **A window is not a manual.** Every window explained itself in paragraphs, read once and
+  then in the way. Explanations live in the Help window, a setting's in its tooltip; a window
+  keeps its labels, its numbers, warnings about this data, and one-line empty states.
+- **A container query cannot restyle its own container.** The help's two columns were set on
+  the element that was the container, so a narrow window hid the contents and squeezed the
+  article into the 216 px column meant for them. The container is the window body.
+- **A class name is global.** The help's numbered list was `ol.steps`, which already styled
+  the pipeline's step list as flex rows: every sentence broke into columns. New components get
+  names of their own (`dsteps`); grep a class before using it.
+- **A form stretched across a maximised window is hard to read.** Controls in a `.frow` stop
+  at 440 px, and the Fit button at 360 px.
+
+- **A style's light tokens follow the theme's dark ones.** `:root[data-style="graphite"]` and
+  `:root:not([data-theme="light"])` have the same specificity, and Graphite comes later, so in
+  dark mode its light values win over Bench's dark ones. Graphite's dark blocks therefore set
+  again every token its light block sets; tokens it leaves alone (the data colours) keep
+  Bench's value for the theme.
+- **`none` cannot join a list.** A thumb's hover ring is `var(--th-sh), 0 0 0 5px …`; with
+  `--th-sh: none` the whole declaration is invalid and the ring never shows. "No shadow"
+  tokens are `0 0 0 0 transparent`.
+- **A re-rendered form detaches what you held.** Clicking a step's switch re-renders its form,
+  so a test that kept the element handle read a detached node. Look controls up again after
+  anything that saves.
+
+- **Every reader of a setting goes through one door.** With one graph, `p.plot` was read in
+  sixty places. Several graphs meant sending every one of them through `GP()` and every write
+  through `savePlot`; a reader left on `p.plot` would quietly show the first graph's setting
+  on another. Grep `\.plot\b` after touching plot settings: only a graph's own `g.plot` and the
+  upgrade of an older project (`migrateGraphs`, `projAnnos`) may use it.
+- **A picture must not borrow ids.** Every graph drawn by `buildPlot` has a `clipM`; eleven
+  pictures on one page share ids, and a clip path resolves to the first. Pictures and the
+  combined figure prefix their ids.
+- **A click that hides what it pressed is not a click.** Bringing a graph forward on
+  pointerdown hides its chip bar, so the chip's click never arrived. What was pressed is
+  read in the pointerdown itself.
+- **Set the state before the save.** In this browser `save()` redraws synchronously, so the
+  graph in front, its zoom and its spectrum are all in place before `save({activeY})`, or
+  the redraw paints the new spectrum with the old zoom.
+- **Compare before you save.** Plot details decided whether to reset the zoom by comparing
+  the new layout with `P().plot` after saving it, which is always equal: the reset never
+  happened. Capture the old value first.
+- **A check reads the data its result came from.** The runs test and the peak checks
+  compared a fit with the analysed spectrum's points; with one fit shown at a time that was
+  nearly always the same spectrum. A batch showed seven rows of "residuals run in long
+  stretches" that were the first spectrum's points against the others' fits. `fitPts(f)`
+  reads the spectrum a fit was made on.
+- **A layout belongs to its project.** Twelve tiled graphs in one project left the next
+  project's only graph a twelfth of the desk. Graph windows are placed per project.
+- **A flag that waits for an event must know the event may have come first.** `pendingOpen`
+  kept a new project on the desk until the store listed it; a shared store lists it before
+  `create` resolves, so the flag was set after the fact and never cleared, and deleting that
+  project left its graphs on screen with the next import going into it. The flag is set only
+  if the project is not listed yet, deletions are remembered (`S.gone`), and the desk leaves a
+  deleted project at once. Test a store's events in both orders.
+- **A window that goes takes what it holds.** The live plot is moved into the window of the
+  graph in front; removing that window (the graph merged, deleted, or of the project just
+  left) removed the plot, and every later render threw. Windows give the plot back first.
+- **Two projects with one name are one project to the eye.** Every batch import was called
+  "3 spectra", every graph "Graph 1": after a switch nobody could tell which graphs were
+  whose. New projects get names of their own, and the taskbar says whose windows these are.
+
+- **A step too small to change a number never arrives.** Ticks were made by adding the step to
+  a value until it passed the axis's end; zoomed far in (the wheel turned a few hundred times)
+  or on numbers near 10¹⁷, `v + step === v` and the tab froze for good. Count by index with a
+  cap, and keep every drawn range wider than the precision of its own numbers.
+- **Precision is relative.** Three significant digits label ticks at 1.7×10¹⁸ one second apart
+  as eight copies of "1.7×10¹⁸"; a determinant from raw sums is rounding noise when every X is
+  the same (a "slope" of 8 with R² −2) and loses every digit when X is near 10⁹. Size digits from
+  the step; fit about the mean.
+- **One key for everything is one writer for everything.** Every save wrote the whole store, so
+  a second tab's save wiped the first tab's new projects, and a write the browser refused was
+  swallowed while the status bar said Saved. One key per project, the storage event, and a
+  refused write that says Not saved.
+- **A flag set from a timestamp is not unique.** Two projects created in one millisecond got one
+  id, and the second replaced the first. Ids carry a random part.
+- **What comes back from storage is untrusted.** A saved layout of NaN and 10⁹ made a window
+  757 000 000 000 px tall; it is checked (`saneWin`) like any other input.
+- **Text from documents is not ASCII.** A column copied from a PDF has −, not -; a French
+  spreadsheet writes 1 234,5 with a no-break space. Seven rows of eight were read as text, and a
+  project named in Japanese exported as ".csv", a hidden file with no name.
+- **Undo while holding something lets go of nothing.** Ctrl+Z during a drag undid the label's
+  creation, and letting go wrote it back from the drag's copy. Undo waits for the button.
+- **A square table of n spectra is n² cells.** The correlation table of 300 spectra was 90 000
+  cells, redrawn on every save: ten seconds a save. Past a dozen it is a column.
+- **A clock without a date wraps.** Times of day put 00:10 before 23:50; read in the order the
+  spectra came, a reading twelve hours earlier than the last is the next day.
+
+- **A font that is not there looks like no change.** Choosing Calibri or Helvetica on a
+  computer without them drew the fallback, so "changing the font of the axis titles did
+  nothing". The picker says which fonts are not on this computer (`fontInstalled` measures
+  widths; `document.fonts.check` answers yes for any name), and the web fonts load from Google.
+- **An SVG drawn as an image sees no fonts but its own.** A PNG export is the figure's SVG
+  drawn on a canvas, and an image cannot use the page's fonts: a graph in Inter came out in
+  the fallback, and an SVG opened elsewhere has only that computer's fonts. Exports embed the
+  web fonts they use (`embedFonts`), only the letters drawn.
+- **A margin in pixels cannot fit a font chosen later.** The left margin was 74 px whatever
+  the numbers; larger tick numbers or a longer number ran into the axis title. Margins are
+  measured from the text in its own font.
+- **A picker over a dialog needs its own keys.** The dialog's capture-phase Escape closed
+  the whole Format dialog when it was meant for the colour picker, and Tab was pulled back
+  into the dialog. The modal handler lets an open picker have both.
+- **Deleting a key does not reset it.** `savePlot` merges, so a key deleted from the working
+  copy kept its saved value. Resetting writes null.
+- **A slow network is still a network.** Fetching fonts one after another timed out and threw
+  away what had arrived. Every face is requested at once and what is there at the cutoff is
+  used.
+
+- **One flag, one meaning.** `forExport` meant both "export colours" and "a still picture
+  with no handles". An inset needed a still picture in the screen's colours, so `buildPlot`
+  takes `colEx` for the colours and derives the still flag from it or `opt.inset`.
+- **Markup must not eat names.** Spectra are called `sample_01` and `run^2` by their files;
+  only braces (`_{…}`, `^{…}`) make scripts, and an unknown `\name` stays as typed.
+- **A wrapping toolbar hides its own bug.** The toolbar had been two rows at 1200–1366 and
+  1600 px, unnoticed, until one more button made 1440 wrap too. Measuring rows, not looking
+  at one width, found it; `fitToolbar` now drops labels in stages while it would wrap.
+- **A test must find things again after anything that scrolls.** At phone width, clicking a
+  toolbar button scrolled the page, and a drag computed from the graph's earlier position
+  landed elsewhere: it looked like the arrow tool was broken.
+- **Printed size and screen size are different questions.** A figure 85 mm wide is 321 CSS
+  pixels: drawn there with screen fonts its text was huge beside the data. The export sets the
+  tick numbers' size in points at the printed size and scales the rest of the figure with it.
+
+- **A global fit's starts must agree with what it shares.** Seeded from each spectrum's own free
+  fit, a spectrum without the second band brought a width of 10⁴⁸ and an area to match, and
+  the whole fit went with it. Each spectrum is now first fitted with the shared parameters held
+  at the template's values.
+- **An inverse by n solves is n⁴.** Fine for a peak fit's twelve parameters; a global fit's
+  hundreds took seconds. The elimination is done once and replayed per column, which is the
+  same arithmetic.
+- **A dialog's body outlives the dialog.** A change listener added to `#formBody` kept firing in
+  the next dialog (renaming a trend) and threw. Listen on the elements the dialog made.
+- **A label's markup is not its text.** Curve parameters are HTML (`<i>&tau;</i>`); stripping
+  the tags left `&tau;` in the batch table's headings. `phPlain` decodes what it strips.
+- **A test that returns a dialog's promise still waits forever.** `page.evaluate(()=>
+  openBatchDialog())` hung a drive for ten minutes: write `()=>{ openBatchDialog(); }`.
+
+- **A window with no way out reads as a wizard.** The Peaks window ended in Fit these peaks,
+  Integrate them and Lines, labels and legend, so people thought they had to pick one to
+  finish. A window that does a job ends in Done, and the rest is marked optional.
+- **An implicit range is an invisible one.** The finder searched whatever the graph was
+  zoomed to and said so nowhere, and changing a setting while zoomed changed the range too.
+  The range is shown, typed, picked on the graph, shaded, kept with the set, and its own undo
+  step.
+- **An overlay can hide what it is for.** With the Fit window open after a fit, the draft's
+  overlay drew only peak numbers, so label settings could not be seen where they were
+  chosen. When the draft is the fit, the fitted labels are drawn.
+- **A template literal in static HTML is printed as typed.** The Format dialog's footer showed
+  `Formats ${ICON("chev","sm")}`. Static markup cannot call functions; scan it for `${` (strip
+  the scripts, then search).
+- **A backslash in a template literal is an escape.** A help example `\nu_{1}` would have
+  become a newline and "u_{1}"; rich-text examples in `DOCS` double the backslash.
+
+- **A copy made key by key drops the next key.** `plotCfg` rebuilt `ax` from x, y and y2, so
+  the second X axis, saved and undone like any setting, was never drawn. Grep for the list of
+  axes (`["x","y","y2"]`, `ax:{x:`) when adding one: `setAxisKeys("all")`, `allax.`, the
+  quick styles and `fmtOf`/`styleFrom` had it too.
+- **The first branch that matches wins.** `pdSet` sent `ax.x.brk.0.1` to its general `ax.`
+  branch, which wrote a key called "brk" of value 0.1's parent. A specific path goes before the
+  general one.
+- **A tolerance for "is a whole number" needs a floor.** `stepOf(14)` asked whether 14/5×10¹⁵
+  was a whole number within 10⁻⁹, and it was: zero. Every number came out as round as can be.
+  Relative tolerance only, and a quotient of at least one half.
+- **A curved axis cannot take a linear axis's numbers.** Wavelength over wavenumbers, stepped
+  evenly, crowds at one end and leaves the other bare; picked for roundness alone it reads 35,
+  20, 14. Even steps when they fit and cover the axis, else the roundest numbers, each round
+  for the interval it falls in.
+- **A text field that redraws its form on change takes itself away mid-event.** The redraw
+  removed the focused field, its blur fired a second change, and the form was rebuilt inside
+  its own rebuild. A field that redraws (`data-redraw`) does it after the event.
+- **A row counted by offsetTop counts centred separators as rows.** A check of the toolbar said
+  it wrapped at every width; it wrapped at none of them but 900 px. Measure as `fitToolbar`
+  does. And text uppercased by CSS is uppercase in `innerText`.
+- **A standard font has standard widths.** Text anchored at its middle or end is placed by the
+  width of what is drawn; a PDF that names Helvetica without its metrics would set every
+  centred title off by the difference. The writer carries the AFM widths of every font it
+  names, and Symbol's for what Latin-1 lacks.
+
+- **Counts are counted.** A gamma spectrum's noise is √N: tens of counts where the continuum is
+  high, a few where it is not. One noise figure for the whole spectrum (a median, set by the
+  quiet channels) made the Overview find 204 "spikes" and the finder call the continuum's
+  wiggles peaks. The finder takes √N from the counts as recorded; any check that compares a
+  height with "the noise" should ask which noise.
+- **A name the user's code may reuse is not ours.** The epilogue read `e` (error bars) after a
+  labelling example had used `e` for an energy, and every run failed with "e must be a
+  sequence of numbers". A mode that returns no data does not read the data.
+- **A constant used while the script loads must come before its user.** An array of examples
+  naming a template string declared further down throws on load (the temporal dead zone) and
+  takes the whole app with it.
+- **file:// is no place to test storage.** Chromium sometimes gives two pages opened from
+  file:// storage of their own, or reloads one without a write it just made: odd-test's tab and
+  store checks failed about one run in three, on the committed version too, while two tabs over
+  HTTP never did (16 of 16). odd-test serves the file over HTTP and waits for each page to have
+  a project on the desk, not for a fixed time.
+- **A wait that swallows its timeout hides that it never worked.** The first readiness check
+  asked for `window.S`, which a top-level `const` never is, and every page waited its full 15 s
+  before carrying on as if ready. Check a wait once without its `catch`.
+- **"Not open" was two states.** Minimised and never opened looked alike (dashed) in a taskbar
+  that listed every window, so nobody could tell what they had left where. Open, minimised and
+  closed each look different now, and closed ones leave the taskbar.
+- **Grey is not a hierarchy.** Four shades of text (ink, ink-2, muted, faint), faded buttons
+  and small grey capitals made state words, headings and window names hard to read, and the
+  app look like a template. Two text colours, the secondary one at 7:1 or more; headings in
+  sentence case and the text colour; a state shown by shape (raised, flat, a bar), not by
+  fading the words.
+- **A list of everything is not a list of what is in use.** The Windows button listed every
+  window, most never opened, under Open, Minimised and Closed. Lists show what is in use (as
+  Excel's Switch Windows does); what is not is reached from its menu, and a list that can grow
+  (twenty graphs) groups, folds into "more" or becomes a search.
+- **Sticky inside padding floats.** A footer `position:sticky; bottom:0` in a scroller with
+  14 px of padding stopped 14 px above the edge, and a table row showed beneath it. Offset it
+  by the padding.
+- **A string inside a template's expression is a string.** `${MP(…)}` written inside a
+  double-quoted string in a `${DL([...])}` was not interpolated: it ended the string and broke
+  the whole script. Inside those arrays, concatenate (`"+MP(…)+"`).
+- **A model of the sheet goes stale with the project it was made from.** Every save hands back
+  a fresh copy of the project; the worksheet's model held the old copy's columns, so a value
+  typed while the 0.7 s delayed save landed went into a column nothing read any more: typed at
+  an ordinary pace, ten values out of twelve came back blank. Writes go through `wsLive()`, and
+  an edit names its column by id. Any object held across a save is a stale one.
+- **A scroll put back before the content exists is put back to zero.** `renderWs` emptied the
+  body and then restored `scrollTop`, which the browser clamped to the empty table's height:
+  every value typed far down the sheet jumped the view to the top. The spacer goes in first.
+- **A redraw on the first press swallows the double click, in the worksheet too.** At the top
+  of the sheet `wsRows` redrew the rows on every selection (its margin test could never pass
+  there), so the second click landed on a new element and the browser sent no dblclick:
+  double-click to edit did nothing in the first rows. The margin test knows the ends, and the
+  double click is read from the press's own count.
+- **Leaving the page is an event.** A value saved 0.7 s after Enter was lost to a reload or a
+  closed tab within that time; the page now enters and saves what waits when it is hidden.
+- **A refusal that drops what was typed is a lost value.** "1.2.3" and Enter used to close the
+  box with a toast; the text is kept in the box now, marked, until it is put right or
+  cancelled.
+- **Locked by default is not what a spreadsheet user expects.** Recorded values that could not
+  be typed over made manual entry and correction a dialog per cell. Editing is the default and
+  every edit is recorded; the lock is a choice of the project.
+- **A random user finds what a script does not.** `tools/sheet-fuzz.mjs` (seeded clicks, typing at any speed, junk, scrolling and waiting mid-edit, undo, paste, sort, lock,
+  resize, minimise) checks after every action that the data, the drawn cells and the
+  fingerprint agree, what is stored is what is on screen, and a reload gives the same data. Its
+  own mistakes (clicking the cell being typed in, `insertText` that fires no keydown) look like
+  bugs: read the trail first. And it serves the page over HTTP: loaded from file://, two runs
+  in thirty came back from a reload with an older project, the storage quirk odd-test met.
+- **Plotting is the user's decision.** An import made every Y column a spectrum and asked
+  how to graph them before anything else; columns meant for arithmetic first (a dark
+  current, a reference) went straight onto graphs. Every column now comes into the worksheet
+  with the role chosen for it, Plot is a choice that defaults to "Not yet", and graphs close.
+- **A project just created is not current yet.** `afterImport` returned at once because `P()`
+  was still null after `await createProject`: imports into a new project got no worksheet
+  forward and no message. `whenOpen` waits for the store to list it.
+- **Opening a window again opens it where it was.** Un-closing a graph in
+  `syncGraphWins` put it back at its full size, over the worksheet that had taken its place;
+  the plot decided where it goes by whether it was open before the save, not after.
+- **A column that drifts upward looks like an axis.** `detectPaired` took a dark current
+  rising steadily for the X of an X,Y pair. Pairs are assumed only when every other column
+  covers much the same range as the first.
+- **A title with a fixed share pushes the buttons out.** `.win-t` did not shrink, and one more
+  button (the graph's ×) put the minimise button out of reach with a long name. Titles shrink.
+- **A cell kept in view must be let go when another is chosen.** After Enter the sheet keeps
+  the new cell in view for 0.6 s (`S.ws.want`); a cell selected within that time was scrolled
+  away from, and the edit begun in it closed, so Tab, Tab, Enter failed one run in two in a
+  test that typed at once. `wsSelect` forgets it; `wsMove` sets it after.
+- **An undone edit is not in the log.** An undo within 0.7 s of typing a value saved the
+  snapshot with the waiting edit merged first, and the edit's log line was added after the
+  snapshot's log: the log said a value had changed that the undo had put back. A save that
+  brings its own `log` drops the waiting line.
+- **A step cut back to a limit is not a step.** Box limits were kept by projecting each step
+  onto them; with one limit binding, the other parameters crawled along it, and a decay held at
+  τ ≥ 2 ran all 400 iterations without settling, short of the true minimum. Found on the first
+  screenshot of the new grid, not by a test: the tests had only checked where a bound fit ends.
+  A parameter on its limit that the step would push past now sits the step out (an active set),
+  and the fit settles where the same fit with it fixed there does. Test a fit's iterations,
+  not only its answer.
+- **Scrolling is not leaving.** An edit whose cell was scrolled more than 30 rows away was
+  entered there and then, so the Esc that followed had nothing to cancel and kept what was
+  typed; the random user found it (seed 9). The edit waits while its cell is out of view.
+- **An earlier stage drawn behind must be on the same X.** Channels drawn behind energies are
+  another graph on one axis: the ghost and the before-and-after chart check X's name and unit,
+  not only Y's scale.
+- **A double click is one gesture, and the first press can move the page.** A cell cut by the
+  view's bottom and right edges is scrolled into view by the first press; the second, at the
+  same place on the screen, then lands on the cell's fill-handle corner, and a double click
+  meant to edit a value filled 233 cells down the column over recorded values. The second press
+  now acts on what the first pressed. Seen as "fails under load", it was geometry: running
+  three at once only changed what the random user had in view, and so where it clicked.
+- **A window restored hands back the keys.** Minimised, the worksheet lost the focus to the
+  page; restored from its taskbar button, typing went nowhere. A window brought forward by the
+  user takes the keys. And a test that measures a window while it grows out of its taskbar
+  button clicks the desk, and one that measures a cell while a wheel's smooth scroll runs (it
+  may start a frame or two later, and below 860 px it is the page's) clicks a row 136 rows
+  away: wait until what is aimed at has held still, as a person does.
+
+- **A class name is global, again.** The outline of a graph a file is dragged over reused
+  `fdrop`, which the History already uses for its 3 px insertion line, absolutely placed and
+  deaf to the pointer: the graph window shrank to a line under the drag, and the drop fell
+  through to the desk. A test that dispatched the drop at once never saw it, because the class
+  was added a frame later. Grep a class before using it, and drop where the user would, after
+  the dragover has done its work.
+- **A drag's state belongs to the drag.** The tree remembered what was dragged in `S.xdrag`
+  and forgot it on `dragend`; when the row dragged was redrawn away, its dragend reached
+  nothing, and the next file dropped from the computer onto a folder was taken for a move
+  within the tree and swallowed. A drop counts as the tree's only when its `dataTransfer`
+  carries the tree's type.
+- **A value a scale cannot show goes off the axis, not to NaN.** On a square-root or
+  reciprocal axis a negative or zero value has no position; NaN in one coordinate breaks a
+  whole path. Such values go off the low or high end (clipped), and the series leaves them out.
+- **A date is only a date when its order is known.** 03/01/2024 is March in one country and
+  January in another; only year-first dates are read, and in UTC, so a project reads the same
+  wherever it is opened.
+
+- **Two panels that touch share an edge.** With X shared the rows touch, and the top panel's
+  lowest Y number and the next one's highest were drawn on the same pixels, one half hidden
+  under the other's picture. Numbers within half a line of a touching edge give way.
+- **A text size chosen by width differs between panels.** `buildPlot` draws smaller text below
+  480 px, so a figure whose columns were 2 : 1 had two sizes of text side by side. A figure
+  decides once for all its panels.
+- **A label at the middle of every line piles up where the lines run together.** Every level
+  of a narrow band's contours was written at one height, on top of the others. Labels go
+  where they clear those placed before, along the longer stretches, or not at all.
+- **A name is taken more often than you think.** The figure's panel menu was first written as
+  `panelItems`, already the Window › Panels list; the duplicate-function check caught it
+  before it replaced the other. Run it before the first drive.
+
+- **Errors in X are not weights.** The first try at X errors in fits weighted each point by
+  σ_y² + (f′σ_x)² (effective variance): the errors came out right and the slope stayed pulled
+  flat, because X itself was still taken as exact. A test of the mean over 300 repeats caught
+  it; orthogonal distance regression fits each point's X. Test a fit against its bias, not
+  only its scatter, and against a closed form where there is one (Deming's line).
+- **A first step can move only the hidden unknowns.** From an ordinary fit's result, the
+  first orthogonal distance step moves the shifts in X and leaves the parameters where they
+  are (the ordinary residuals are orthogonal to the model's gradient), and a convergence test
+  on the parameters alone stopped there. Settled means nothing moves.
+- **A statistic of 30 points is loose.** A drive expected the Y scatter found beside X errors
+  ten times larger to be near its true 0.3; from 30 points it can be anywhere from 0 to 1.5.
+  Check what is fixed by construction (the reduced χ² is 1), and test the estimate itself in a
+  unit test with enough points.
+- **A fit's units are its own spectrum's.** Results, the copied table and the report took the
+  units from the analysed spectrum, so a batch row shown for another spectrum, or a fit kept
+  while another spectrum was analysed, carried the wrong units. `fitUnits(f)`.
+- **A derived spectrum's name is not its values' name.** A histogram's X was named "Histogram
+  of Length" (the new spectrum's own name) instead of Length; the input of a derived spectrum
+  now carries the source's value name (`yn0`).
+- **A loop over the spectra must not rebuild the settings it was handed.** The columns and the
+  size legend each asked every spectrum's style once per drawing, and every style asked
+  `yTint`, which rebuilt the whole plot configuration: with 300 spectra a save went from about
+  3.5 s to 5.6 s, and odd-test's limit caught it. `serStyle` passes its scheme to `yTint`; a
+  save is now under 2 s. Pass what you have down rather than fetching it again per item.
+- **Rounding up is not rounding.** Bin widths went to the next round number above, so a
+  Freedman–Diaconis width of 1.09 became 2 and the histogram lost half its detail. The nearest
+  round number, by ratio.
+
+- **A tint is not a state on a poor screen.** The front window's title bar, a toolbar switch
+  that was on and the chosen button of a segmented control were tints of 10 to 25 % of the
+  accent, and borders were 1.4:1: on a low-contrast laptop the user could not make out what
+  was on, chosen or in front. States are filled, edges are 3:1, words 7:1, and
+  `tools/contrast-test.mjs` measures it in every theme and style.
+- **Two editors for one job read as two jobs.** The axis title's box, the label's box and the
+  legend's dialog had different buttons and keys, and the right-click menus around them listed
+  different things in different orders: the user took the difference for a bug. One box
+  (`inlineBox`), one rich field (`.rfield`), one menu order (`textMenu`).
+- **A type for the plot is a type for every spectrum plotted.** `plotCols` gave a chosen plot
+  type to the analysed spectrum alone: three columns plotted as symbols drew one as symbols
+  and two as lines. It goes to every spectrum it plots.
+- **Markup that cannot nest is not markup.** `PER_{log_{10}}` came out with a stray brace, as
+  the old rich text read one level of braces. Text is LaTeX now, parsed into a tree; and a
+  script's base joins the word before it (`PE` and `R` were two runs, measured apart).
+- **A symbol the standard fonts lack must be mapped, or a PDF writes "?".** `\circ` came out
+  as ? in the PDF. Every symbol the typesetter can produce is mapped (`VEC_SAME`, `AFM_SYM`)
+  and the drive checks the PDF's missing list.
+- **An attribute with no value is HTML, not XML.** A marker written `<g data-rt …>` worked on
+  screen, and every export of a graph with typeset text failed: the figure's SVG is parsed as
+  XML for PDF and EPS and loaded as an image for PNG. Attributes in drawn SVG always have a
+  value (`data-rt="1"`); regression's ff4 caught it.
+- **A patch that adds a function before deleting the old one finds two.** Inserting the new
+  `annoMenuItems` and then looking for the old one by its first line found both, and the
+  script stopped (writing nothing, as it must). Delete first, insert after.
+- **A third value is not off.** `resid` gained "auto", and every reader that tested
+  `resid !== false` read it as on, a drive's check included. A setting that grows a value gets
+  one door (`residOn`), and every reader goes through it.
+- **A project always has an X column.** `migrate` puts one back at the start when none is
+  left, so making the first pasted column a Y only pushed the data one column to the right.
+  The empty X column goes after the pasted ones instead.
+- **A range that follows the zoom is a range nobody chose.** The fit's range was the graph's
+  zoom; looking closer at a band changed the result and marked the fit out of date. The range
+  is all the data until set, and shown.
+- **One word is still a word.** The glossary counter skipped literals of fewer than two words,
+  so `n + " spectra"` passed it 23 times. Fragments joined to a number or a name count now.
+
+- **A test's helper builds today's project.** odd-test's `mkSpec` made its project with
+  `blankProject`, which now starts with no graph; three checks failed for want of a graph to
+  read ticks from, which looked like broken axes. The helper plots its column, as a user would.
+- **A hint that shouts at what is not finished is noise.** The formula bar was red for every
+  formula being typed (`max(A, B` is missing a bracket, `sq` is not a column): the only thing
+  a user saw while typing was an error. A mistake at the end, or a name a function starts with,
+  is said quietly.
+- **Motion must not move what the user holds.** `applyWins` runs on every frame of a window
+  drag; animating each change would chase the pointer. Only what the user asked for animates:
+  not while a button is held, not when the desk is resized, not on the first layout.
+- **A window on its way out is still on the desk.** Kept shown while it fades or shrinks into
+  the taskbar, a closed window took clicks meant for what was under it; it is inert and deaf
+  to the pointer until it is gone, and a window reopened mid-way stops going.
+- **An animation on `transform` replaces the element's own.** The toast is centred and a
+  dialog is placed by `transform`; an entrance written with `transform` snapped them to the
+  wrong place at its end. Entrances use the individual `translate` and `scale` properties.
+- **What the code needs kept is not what the user must keep.** The first graph could not be
+  deleted, because it was `p.plot`, which also stored every graph's annotations; then it could
+  only be emptied and hidden, and its id "main" was reused, so whatever named it (a comment on
+  its History box, its Explorer folder) passed to the next first graph unless keyed by a
+  generation. A special case grows special cases. Version 5 made it a graph like the others in
+  `p.graphs`, with an id of its own, the annotations a list of their own (`p.annos`), and a
+  project no graph until something is plotted; nothing names "main" any more but the upgrade.
+- **A list that means "everything" is a bug waiting.** The old first graph, without a list of
+  its own, showed every column, those on graphs of their own too: two curves meant to be apart
+  were drawn together on it, and taking a curve off a graph sent the desk to it (the graph that
+  "showed" the curve). Every graph lists its curves; nothing shows a column it was not given.
+- **A closed graph is not a target.** With the graph in front closed, showing a column in the
+  worksheet added it to that closed graph, beside a curve nobody could see; opened later it held
+  two. Closing the graph in front brings an open one forward, and with none open a column
+  shown gets a graph of its own.
+- **An upgrade can be read twice.** The store may hand the old form back before the upgrade's
+  save lands (a save in between emits it); a random id for the migrated first graph would then
+  make two. Its id is fixed (`MAIN_WAS`), the upgrade adds nothing already there, and the save
+  of the upgrade is made once a project (`S.upg`).
+- **One more button can push a switch out of reach.** *1 iteration* made the Fit window's
+  footer two rows in the 356 px of the dock, and the sticky footer then covered the
+  *Residuals under the graph* switch: a drive's click landed on the footer. *Remove fit* moved
+  into the fit's summary; count a footer's buttons against the dock's width.
+- **An editor may write an escape as its character.** A patch's old text `Levenberg\u2013`,
+  saved through a file writer, became `Levenberg–` and no longer matched the source, which
+  writes the escape. The script reported the miss and wrote nothing, as it must; match escapes
+  as the source has them.
+- **A test project must fit in the store.** A drive's 300 000-point project was refused by
+  localStorage (a few megabytes), so `createProject` never opened it and the drive fitted the
+  previous project. Make a slow fit from fewer points and a slower model (a user's function).
+- **A rule of the same weight written earlier loses.** The model picker's width (`.mpick`) was
+  written in the CSS above the font picker's (`.fpick`), which it is built on, and lost to it:
+  the list stayed 300 px wide and cut every formula. A component built on another's class
+  takes both in its selector (`.fpick.mpick`).
+- **A fixed element has no offsetParent.** A drive's test of visibility (`offsetParent !==
+  null`) said the picker never opened, and that it had closed when it was open. Ask for the
+  element, or its rectangle.
+- **A diagnostic worked out on every render costs every render.** `renderFit` redraws Results,
+  and Results first worked out the residual analysis for the fit each time it drew: a third
+  of a second for a peak fit of 4000 points and eight Voigt peaks, paid on every fit with
+  Results closed. It is worked out only while Results is open, a heavy one when asked, and the
+  notes time one sweep of the model before deciding to.
+- **A class name is global, once more.** The pickers' entrance was first written for `.fp`,
+  which is the History's code for a fingerprint: every check code would have faded in. The
+  pickers are `.fpick` and `.cpick`; grep a class before styling it.
+
+- **A form that draws itself again on a change takes its own transitions with it.** A switch
+  flicked or a segmented choice clicked was replaced, within the same event, by a control
+  already in its new state, so its CSS transition never ran and the user saw toggles snap. The
+  change is remembered and played on the replacement (`MKEEP`); a redraw that cannot be
+  avoided need not look like one.
+- **An editor that is not an input must still be the input.** The formatted editor is a
+  contenteditable, and every form reads inputs (`data-pd`, `input` and `change` events, Enter
+  for OK, `label for`, focus restored by id after a redraw). The input stays, hidden but
+  focusable; the editor writes it and announces what an input would, focus sent to the input
+  goes to the editor, Tab skips the hidden input, and a redraw mounts the new editor before the
+  focus comes back (`richMount` in `renderPlotDetails`, not only the observer, which runs too
+  late for that).
+- **`{x}` is a group to LaTeX and a placeholder to a label.** The first converter from typed text
+  to LaTeX escaped every brace, so a label's `{x}` would have stopped showing the position. What
+  the app fills in is kept as typed both ways, and `\{x\}` (braces meant as characters) stays in
+  LaTeX rather than becoming the placeholder.
+- **A list opened from a value opens on the value.** The value lists opened with their first
+  item under the keys, so ↓ and Enter from 18 px picked 10 px. `openMenu(…, {focus:"checked"})`.
+- **A field squeezed by its neighbours in a dock shows two characters.** The fit's range fields
+  shrank to fit the row in the 356 px dock and read "1(" for 1550; the row wraps instead.
+
+- **Two places for one thing is one too many, again.** Formulas could be typed in a cell or in
+  the F(x)= row, and the row appeared only once a formula existed: the user found it
+  unintuitive and chose the row, always shown. A cell's `=` still goes there.
+- **A command people look for has to be where they look.** Inserting rows lived only in the
+  cell menu, under other names, and columns could only be added at the end ("+ Column"): the
+  user asked where insert was. It is now where Excel has it: the cell menu, the column menu,
+  Edit, the bar and Ctrl+Shift+= / Ctrl+−.
+- **A spread is an argument list.** `Math.min(...a)` throws "Maximum call stack size exceeded"
+  past about 120 000 values; at 200 000 points the Fit window, the peak finder, the Peaks
+  window and the statistics threw. `amin`/`amax` loop; nothing spreads a column.
+- **A walk stops where its answer is known.** The spike check counted every point above a
+  candidate's half height to compare the count with 3; from each of thousands of noise maxima
+  on a band it walked the whole band, and smoothing 200 000 points took four seconds. It counts
+  to 3. A model suggestion smoothed with a window summed per point (a running sum now), and the
+  peak finder dropped duplicate candidates by comparing each with every earlier one (`filter`
+  with `some`: fourteen seconds to open the Peaks window; a set now). And what is asked for
+  cheaply should not pay for what is not: `looksLikeSpectrum` read the Overview, which fitted
+  its background first; `overviewOf`'s `bg` is now worked out when read.
+- **A screen has a thousand columns of pixels.** 200 000 points drawn one by one made a 2.7 MB
+  path, redrawn on every turn of the wheel (nine seconds for ten turns). Drawn per pixel column
+  (first, lowest, highest, last), the line covers the same pixels; exports still draw every
+  point. Compare two drawings by what is inked, not by shade: hundreds of overlapping strokes
+  darken an anti-aliased edge that one stroke shades lightly, and a test of shades failed a
+  drawing that covered exactly the same pixels.
+- **A frame asks again what the last one knew.** Every redraw rebuilt 200 000 residuals by
+  object spread, filtered every point for the status bar's count and the fit's points, and
+  every pointer move mapped every point through the axes; a hidden Fit window was re-guessed
+  after each zoom. Each is kept with what it came from (the points, the fit, the drawing) or
+  skipped when nothing shows it.
+- **A wait for stillness starts its clock when it starts.** The random user's `visibleCell`
+  kept the time of the last movement from its previous call, so straight after a wheel it saw
+  the old scroll position as already still, measured a cell, and double-clicked a row 28 rows
+  away once the wheel landed: it looked like the worksheet scrolling by itself. The clock is
+  reset per wait, and a wheel waits for its scroll. And a click that enters a value still in
+  its box over a locked cell opens the correction dialog: what the harness typed next was the
+  reason. Read the trail, and the harness, before the app.
+- **A name is taken, once more.** `fpMemo`, the fingerprint's cache, nearly became the fit
+  points' too: a `let` collides as a function does, and the syntax check caught it.
+  `grep -oE '^(const|let) [A-Za-z0-9_]+' kurve.html | sort | uniq -d` finds them.
+- **An element put into text is an item of a flex box.** Setting ² as a `<sup>` split "1/σ²" in
+  the Fit window's switch label into three flex items, the label's gap between them: "(1/σ 2 )".
+  A test of the markup passed; a screenshot of another slice showed it. Text changed in place
+  keeps its pieces in one span where its parent lays children out.
+- **The same number twice must read the same.** The status bar first wrote a curve's mean to six
+  digits beside the Statistics window's five; a test comparing them found it. A number shown in
+  two places is written by the same rule.
+- **A window not redrawn shows the past.** The Format pane was left out of `renderAll`'s list of
+  windows; after an undo it still showed the undone value, and a click on that switch set the
+  graph to what it already had, so the burst saved nothing and the undo after it took back the
+  step before. A window added to the desk is added to that list.
+- **Where a menu is shown must be visible when it is shown.** The Column menu in the graph's bar
+  first appeared while the worksheet was in front, and in front the worksheet can cover the graph:
+  the button was there and could not be pressed. It follows the last place pressed or typed in.
+- **A script waits for the stylesheets before it.** The detached page's own script (the one that
+  notices the main window has gone) came after the app's stylesheets, among them Google Fonts';
+  offline, or with that request held, the sheet never loaded and the script never ran, so the
+  page never said Paused. A test that aborts the font requests found it. The script goes first.
+- **A mirror sends events back by place, not by id.** A detached tool window's body is a copy of
+  the original's HTML, so every id is there twice in two documents; what was clicked is found
+  in the original by its place in the tree, which the copy has the same because it is made from
+  it after every change.
+- **A preview is a third copy of the settings.** The galleries show a card on the graph while it
+  is hovered; written into the Format pane's working copy, a hover would have started a burst and
+  saved itself 400 ms later. It is a copy of its own (`S.hoverPv`), read before the working copy
+  and never saved, put back on leaving, on Escape and when the pane closes; `withGraph` sets it
+  aside as it does the working copy.
+- **A word in the glossary and a word on a button are two jobs.** The glossary's "not counted
+  as a peak" replaced "turned down" in prose; the design system's heading for the same list is
+  *Rejected*. A heading of one word keeps the glossary's phrase in its tooltip and in Help, so
+  either finds it.
+- **A view's setting must not reach what leaves the building.** Results' parameter table is the
+  report's too (`paramTableHtml`); switching the intervals off in Results would have taken them
+  out of every report saved after. The report asks for the whole table (`paramTableHtml(f,
+  true)`), and the copied table and the CSV never read the switches.
+- **A table in the dock is as wide as its widest row.** Results' parameter column kept its name,
+  unit and meaning on one line, so in the dock the standard error was off the right edge: a
+  screenshot found it, no test did. In a narrow Results the meaning goes under the name, and (05.11)
+  t, p, the interval and the dependency go on a line under each parameter (`tr.rmore`), as a peak's
+  shape, height, FWHM and share do under its centre and area: the table fits the dock.
+- **A search judged by its tests alone finds what the tests ask.** The palette passed its checks
+  and still answered *export* with "Save this style…" and *power spectrum* with nothing: twenty
+  queries read by eye found four wrong answers. Read a ranking's results, not only its first.
+- **A placeholder is not a column.** A new sheet starts with an empty X and Y, as a new project
+  does; a file added to it kept them, one between its X and its Y, which the user saw as a
+  column made at random. Every way in (the dialog, a drop, several files, a copy from another
+  project) adds after what a sheet holds, so each needed the same rule: what holds nothing and
+  was given nothing gives way (`blankCol`). A placeholder someone has named is theirs and stays.
+- **What changes other windows is chosen, not given.** Linked zoom was on unless switched off,
+  so zooming one graph zoomed them all, which looked like a bug to someone who never asked for
+  it. A setting that reaches beyond the window it is used in starts off, and is offered where the
+  person is (the graph's ⋯ menu), not only in a menu elsewhere.
+- **A tool's card belongs to the screen.** The readers' card was a child of the graph and kept
+  inside it, so on a small graph it covered the curves it was reading. A floating card is fixed in
+  the app, kept whole in the window, moved and resized, and remembers where it was put.
+- **A store that cannot hold a file loses it in silence.** A scan of a million rows was larger than
+  localStorage's few megabytes: the status bar said Not saved, switching projects said Saved (the
+  other project's), and a reload brought back the empty project it had been imported into. Nothing
+  asked before leaving. Projects are in IndexedDB; a refused write keeps the project marked, says
+  so whenever it is opened, and leaving the page asks first. Import heavy files in tests, not only
+  ones that fit.
+- **A deep copy per save is a copy of every value.** Every save handed back a JSON copy of the
+  whole project: a second for a million rows, on every typed value and every switch. The page's
+  copy shares the columns' values (they are replaced, never changed in place) and the store writes
+  only the columns whose values are new; a save of that project went from 1 s to 35 ms.
+- **A write that first reads is cut off by the page going.** The new store reads the project and
+  writes it in one transaction, so two tabs merge; a row height dragged and the page reloaded
+  within the delayed save's 0.7 s was lost, since the page went before the read came back.
+  Leaving writes what waits in a transaction committed there and then (`flushSync`).
+- **What waits to be saved holds a whole list.** A worksheet edit waiting for its delayed save
+  held the whole list of columns; another tab's new column arrived meanwhile and was written over
+  when the edit was saved: two tabs typing in two columns kept one. Waiting edits and concurrent
+  writes are put together column by column (`mergeCols`).
+- **A page's copy must be a copy from the start.** Opening a project handed the page the store's
+  own object (only later saves handed back copies). The old store never noticed, as it read the
+  project from storage at every save; the new one compares a write with what it last read, and
+  typing changed that too, so a merge with another tab took this tab's new columns for old ones
+  and dropped them, one run in two. `openProject` copies (`cloneProj`), as `onProjects` does.
+- **An undo is a snapshot of everything.** Undo put back the columns as they were before this
+  window's change, and with them took back what another tab or a colleague had changed since: a
+  column they added, a cell they typed. The rule was written down ("your own edits, not other
+  people's") and never held with two writers. A step now keeps the columns as its change left
+  them, and undoing merges.
+- **A press that takes no focus leaves the keys where they were.** A graph's numbers and the title
+  bars call `preventDefault` on the press, so the focus stayed in the worksheet, and Delete or
+  Ctrl+V pressed while looking at the graph cleared or pasted cells behind it. A press in a window
+  gives it the keys unless it focused something itself.
+- **A phone layout reaches a window of its own.** The detached window copies the app's stylesheet,
+  so below 860 px its graph took the phone layout's 52vh and filled half the window. The detached
+  page overrides the rules that size a window's body.
+- **Past the edge of the browser a drag selects.** A window's corner dragged beyond the browser's
+  window selected every word on the page. Moving and resizing set `user-select:none` on the page.
+- **A hash of everything on every key is a second at a million rows.** A typed value waited for
+  the SHA-256 of the whole table (its text built, encoded, hashed), then for a million point
+  objects made only to count them in the status bar, and for a key of every value made only to
+  notice a copy. The check code keeps its definition (`sha256sum` still reproduces it) and is
+  worked out in the background past 150 000 cells, settled before an export; the status bar
+  counts; a copy is noticed by comparing values, which stops at the first difference; and a few
+  values typed over change the series of before instead of building it again. A typed value: 1.5 s
+  before, 70 ms now.
+- **A store has more than one door.** Column values went into IndexedDB as one block of numbers;
+  the load read them back, but `stored()` (the tests' way in) did not, and the random user saw
+  columns stored as objects. Every read of the arrays goes through `idbUnpack`.
+- **An undo that merges one part puts the others back whole.** Columns were merged with what came
+  in from another tab, but graphs, annotations and the rest were put back as the snapshot had them:
+  undoing an annotation took back the other tab's newer graph name. Every part of a step now goes
+  back beside what came in since.
+- **A browser lays out only so tall.** At 22 px a row, a sheet of 1.6 million rows was taller than
+  Chrome's 2²⁵ px; the box stopped there and the last 75 000 rows could not be scrolled to. Past
+  15 000 000 px the scroll bar stands for the rows in proportion.
+- **A width with no limit becomes another layout.** The dock's edge dragged far left made the dock
+  wider than the documents could stand beside, so it turned into a drawer over the whole desk,
+  whose edge could not be dragged back. A size a person drags stops at the limit of the layout it
+  belongs to.
+- **The noise the data state comes first.** The Raman example's counts carry error bars about
+  1.6 times √N (a camera's read noise and gain); the finder's Automatic noise took √N from the
+  counts and called a wiggle at 541.75 cm⁻¹ a second peak. Running every example end to end found
+  it, where each part's own test had passed. Error bars on every point are the noise now, before a
+  figure the finder works out.
+- **A row nobody shows is still made.** Every save made a sparkline for each of a sheet's 600
+  columns, with the row of them hidden, and laid out 20 000 cells for the 40 on screen: a second
+  a save. What is drawn is what is in view, and what is in a hidden row is made when it is shown.
+- **A walk of the list for each item is a square.** `colById`, `yCols().findIndex`, `xColFor` and
+  `errColsOf` each walked every column, and each was asked once a column or more: with two thousand
+  columns a save took a second and a half, though no single function looked slow. A render now asks
+  the columns once (`inRender`); a heat map coloured each pixel by parsing its colour map's hex,
+  and made 600 000 points again on every save. Profile with thousands, not tens.
+- **A claim of precision is a claim until it is measured.** CLAUDE.md said erf and erfc were
+  accurate to double precision for as long as they existed; the first comparison with a reference
+  found erf computed as 1 − erfc (seven digits gone at x = 1e-8) and erfc five digits short near
+  its switch at 2.5. Write the accuracy down only from a test against an outside reference.
+- **A reference is checked too.** The bench first took SciPy's word: its incomplete beta was 7e-3
+  off at a = 883 (Kurve's was right to 3e-11, as 40-digit arithmetic showed), it gave 0 for values
+  near 1e-290 that Kurve had right, and a quantile asked of it as (1 + level)/2 lost the digits of
+  a tail Kurve had kept as 1 − level. Special functions are judged in 40 digits (mpmath); a case
+  where Kurve and the reference disagree is settled by a third, not by the reference.
+- **A flaky check is a bug until shown otherwise.** odd-test's "a change saved just before a
+  reload is kept" failed when the suite ran its drives side by side and passed alone, and was
+  taken for the load. Slowed down on purpose (Chrome's CPU throttling) it lost a rename one time in
+  four even at full speed: the page's last flush waited behind a write still reading, which then
+  took the flush's books for another tab's write and put the old name back. The check now runs
+  eight times on a machine slowed six times. Make the conditions a failure needs, and count.
+- **A version announced before it is kept is the version before.** Wave 0's fix made the last
+  flush keep its books (the version written) only once its transaction completed, and the message
+  to the other tabs still read the books: it named the version they already had, so they read
+  nothing, and what a closed tab was typing never reached the tab left open. At full speed a later
+  message hid it; the suite's drives side by side showed it, and slowed six times it was lost eight
+  times in eight. A message says what was written, not what is known yet.
+- **An algorithm can hang on its input's last digit.** With the old log-gamma replaced, t's p value
+  at 10⁷ degrees of freedom was still 3e-10 off. The prefactor was right; the continued fraction,
+  near x = 1 with a = 5e6, depends on x a million times over, and x = ν/(ν + t²) as a double is
+  5e-17 off. Didonato and Morris's expansion works from ln x = ln(1 − y), which is exact there:
+  1e-15. Before tuning a formula, ask which input it is sensitive to and whether that input is
+  known that well.
+- **A test that waits for a new project must know when none is made.** An example opened on an
+  empty desk goes into the project there, so a drive that waited for one more project in the list
+  waited fifteen seconds and failed, though the example was open. Wait for what the action changes
+  (the active column), not for what it sometimes changes.
+- **Random cases find what a grid misses.** The fixed grid of 568 cases showed the incomplete beta
+  at 3e-10; a thousand random ones found 4e-10, and t's quantile at a million degrees of freedom
+  10⁻⁸ off. Fixtures pin the behaviour; the fuzzer looks for where it breaks.
+- **A count beside a list counts the list.** The Explorer's file row said 4 columns and listed 3
+  (it counted the X and error columns it did not show), and the user found the same kind of
+  mismatch "across the app". A count shown next to a list is worked out from what the list
+  shows, or left out; and one place lists one thing (the sheets, not the files' columns again).
+- **Red that says nothing is noise.** A parameter's row turned red past a dependency of 0.99,
+  and the user asked what it was. A colour means a state and says it in words where it is
+  shown (a note naming the parameter), or it is not used.
+- **The mean's rounding is in every difference from it.** 2.2 took it out of the deviations; 2.3's t tests
+  still subtracted the double mean from μ₀, and with values near 10⁶ (a spread of 0.1) t moved at 3e-9. The
+  fuzzer found it within a minute; the fixtures, near 10, had not. `msd` gives the rounding (`e`) for whoever
+  subtracts.
+- **A comment swallows the line it is put on.** A patch put `// a column plotted stays a curve` in the middle
+  of a line of `anaWrite`, and the `const text=…` after it became comment: every analysis threw "text is not
+  defined". The syntax check passes it. Comments inside code lines are `/* … */`, and every drive runs.
+- **Copy the algorithm, then measure it.** SciPy's Kolmogorov distribution switches to Pelz and Good's
+  expansion past 140 values for speed; ported faithfully it was 5e-6 off at 500 values, which only a 40-digit
+  Durbin matrix showed (SciPy agreed with the port to 1e-15). The reference one copies is a reference for
+  the copy, not for the truth.
+- **A correction can be the error.** The mean was Neumaier's sum over n "corrected" by the mean deviation
+  from it, the textbook second pass. Where the values cancel (a mean of 5e-6 from values near ±1) each
+  deviation is rounded at the values' scale, and the correction added 2.5e-14 to a mean the sum alone had to
+  2e-16. The fuzzer against exact rationals found it; the fixtures, offset sets that the second pass is for,
+  had not. And a median of two middle values is rounded: distances measured from it put a MAD 2 % off near
+  10¹³. Measure a numerical habit against exact arithmetic on the data that would defeat it.
+- **A cut keeps its end marker.** The patch helper's `cut(start, end, new)` replaces up to `end`, not including it;
+  passing `end` again as `new` doubled two comment lines, one of them glued to code. A syntax check passes it; grep
+  what a cut leaves (`*/\/\*`, a line twice).
+- **A reference can be the thing that is wrong, again.** SciPy's studentized range was 7e-6 off on a p of 3e-8 and
+  drifted past ν = 10⁴; four disagreements, settled in 40 digits, were all SciPy's. A reference too slow to run is no
+  reference: nested adaptive quadrature in mpmath took seven minutes a value; fixed Gauss–Legendre at two orders
+  takes thirty seconds and checks itself.
+- **A one-sided tail is a tail, in the reference too.** The correlation reference formed a lower tail as 1 − (1 − p)
+  at 40 digits and gave 0 for a p of 1e-49; the fuzzer blamed Kurve, which was right. And a fuzzer that never asks
+  for |r| near 1 never sees 1 − r² lose its digits: generators reach the ends of what a function takes.
+- **A refinement that converges can converge to the wrong answer.** The linear model's covariance was refined on XᵀX,
+  which settles at κ(X)²·ε a step: for a polynomial of degree 10 its corrections fell to 1e-14 and stopped, the
+  standard errors 2e-13 off. Each correction was exact; the iteration could not see its own error. The augmented system
+  [I X; Xᵀ 0] converges at κ·ε; which one is used is decided from the conditioning, not from how small the steps look.
+- **JSON writes a large double as an integer that is not the double.** `JSON.stringify(3.391541843989872e19)` is
+  "33915418439898720000", which Python reads as an exact integer 1792 away: an error of 5e-17 that was not there. Write
+  numbers for an exact comparison with `toExponential(17)`.
+- **A name is taken, once more.** The linear model was first written as `lmFit`, which is the Levenberg–Marquardt fitter;
+  the later declaration would have replaced it everywhere. It is `linModel`.
+- **A pure block calls only what is in the blocks.** The analyses formatted a factor's levels with `fmt`, which lived outside
+  them: the page found it, the worker and `run.mjs` did not, so a linear model with numbers as factors, large enough for the
+  worker, threw. No test ran a kind on the blocks alone with numbers as factors. `fmt` moved into the ANA block, and
+  stats-test runs kinds that format levels on the blocks alone.
+- **A variable taken out is grepped for.** Removing the Explorer's files took `fids` out of
+  `autoImport`, and three `return {fids}` further down threw on every dropped file; the syntax
+  check passes a reference to a name that does not exist. `review-drive`'s drop caught it. After
+  deleting a declaration, grep its name.
+
+## Roadmap
+
+Done, the user's choice of 26.10: the app brought up to the Kurve design system (a claude.ai
+Design System artifact made from this repository and reviewed on 25 October). The differences,
+the decisions and ten slices are `ux/spec/DS_SPEC.md`. Slice 1 done: the frame as the system
+has it (the taskbar flat with a raised key in front, the project's field first and Tile and
+Cascade in a tray; the dock a strip of icon tabs the docked window hangs from, Help, Undock and
+Hide on it; the project name a field; windows rounded to 12 px; fields as wide as their
+content), tooltips that name, no internal identifiers, Unicode scripts set as real ones in the
+page, the graph and the report. Slice 2 done: the menus in the order of the work (File, Edit,
+Data, Plot, Analyze, Figure, Publish, Window, Help): the Graph menu's tools into Plot › View,
+Figure › Annotate and Axes, and Analyze › Fit; Statistics and Spectroscopy submenus of Analyze;
+the background step Data › Baseline › Subtract baseline…, beside Linear detrend…; File ›
+Export and Edit's copies Publish. Slice 3 done: Find a command (Ctrl+K, Help › Find a command…),
+every command of the menu bar by its name, its menu or a word people use for it, grouped by
+menu with where it lives, Enter running it, the commands used last when nothing is typed. Slice 4
+done: what is selected has its menu in the graph's bar (a curve, the fit's curve, an axis, a band
+or shaded range, an annotation, the legend, a column selected in the worksheet), the same as its
+right-click menu, the thing outlined on the graph. Slice 5 done: the Format pane, the Format
+dialog docked as a tool window, live (no OK; a burst of changes one undo step), Selected at its
+top, turning to what is selected on the graph. Slice 6 done: the status bar answers questions
+(cells selected: their range, N, mean, SD, minimum and maximum; a curve: the same; a band or a
+shaded range: area, peak, FWHM, span), each number as the Statistics or Integrate window writes
+it, the Statistics window listing the cells selected. Slice 7 done: the Fit window and Results as
+designed: the range a readout of its points, the suggestion one word, *In the results* switches
+chosen before the fit (confidence intervals, analysis of variance, the correlation and
+covariance matrices, residual analysis, a peak fit's every parameter), footers of buttons only;
+Results with Value and Standard error in columns of their own, derived quantities under a group
+row, the statistics beside the table, the sections chosen open; notes one line, the number first,
+with their fixes as buttons (Fit again, Mask, Show residuals, Limits…), in Results, the Peaks
+window, the History and the Fit window. Slice 8 done: dialogs and windows as designed: the
+import dialog's detected settings tinted with a Detected key, Put it in as New sheet, Add to
+Sheet 1 or New project (replacing the project is File › Replace the data…, behind a
+confirmation), the rows a readout, a footer of buttons; the figure export's pixels and tick size
+in read-only fields, each format's use its tooltip, Cancel and Export alone; Preferences grouped
+as the system's, with a System theme and Done alone; a tool window's Input (the data the step
+reads); the Peaks window in one- or two-word labels (Search, Settings, Find, Add peak, Rejected,
+Identify; Done, Fit…, Integrate, Labels… on one row); and the empty desk's headline, Import data,
+over an empty worksheet. Slice 9 done: galleries drawn with the data: Plot setup's kinds as cards
+of the columns ticked (hovering one shows it in the sketch), the colour schemes as cards of the
+graph's own curves and the saved styles as the graph drawn in each, both shown on the graph while
+hovered or focused and applied by a click. Slice 10 done: two displays: a graph or a tool window
+that reads more than it is typed into (Results, Statistics, Help, Overview, Discussion) moved into
+a browser window of its own (its title bar's button, Window › Move to new window, Ctrl+Shift+D,
+Window › Open on display), kept up to date by the main window, which keeps the project: a graph
+drawn there and zoomed, panned and read there; a tool window's body mirrored, its clicks and
+changes acting on the original; Live or Paused, Reconnect, Return to desk, a display list; the
+taskbar's dashed button with the display's tag; Return all to desk; Preferences › Displays. The
+design system's ten slices are done.
+
+Then: the curve fit as complete as Origin's fitting dialogs (`ux/spec/FIT_SPEC.md`, the
+roadmap's first item). Slice 1 done: Fit control in the Fit window (the method named, the
+iterations at most, the tolerance), stored with each fit and said by Results, the report and
+the CSV; *1 iteration*, one step from the starting values, which it replaces; the iterations
+listed as they go (reduced χ², λ, the parameters), steps taken one at a time following Fit's
+own path; a long fit run in slices with *Stop*; the curve at its starting values drawn dashed
+while the Fit window is open; fits of every column run with the template's control. Slice 2
+done: one parameter grid, each parameter with its unit and meaning, its start and Fix, limits
+for every model (lowest and highest, each "or equal" or strict, over a function's own, none
+typed as none), the fitted value with its 95% interval and dependency, and the digits it is
+shown with; one view at a time in the dock, every column in a wider window; equal limits hold
+a parameter, crossed ones are refused in words; the limits are kept with the fit, stated by
+Results, the report and the CSV, and used by fits of every column, together or not. Slice 3
+done: 25 models in six kinds (a polynomial of order 1 to 9; one, two and three decays, growth,
+a rise to a plateau; Boltzmann, logistic, dose–response, Hill, Gompertz, Michaelis–Menten;
+Gaussian, Lorentzian, Voigt, pseudo-Voigt, Pearson VII, log-normal and extreme-value peaks;
+power law, logarithm, Arrhenius; sine and damped sine), each parameter with its meaning and
+unit, a guess from the data, derived values with errors; picked from a list by kind with a
+sketch and the formula of each, searched by name, purpose, parameter or Origin's name; X a
+model cannot take refused in words. Slice 4 done: a confidence level for every fit (90, 95, 99,
+99.9% or any), for its intervals, its bands and its outlier limit; the analysis of variance; the
+correlation and covariance of the parameters; residuals regular, standardised, studentised and
+studentised deleted, under the graph and in six views in Results; outliers past a Bonferroni
+limit, ringed, listed and masked in one step; all of it in the report, the copied table and the
+CSV. Slice 5 done (after the design system's ten slices): Find X/Y in Results, answered as it is
+typed: the curve's Y at an X with its error and interval (the confidence band's there), every X
+in the fit's range where it takes a Y with each one's error, a touch without a crossing said, a
+value never reached with what the curve takes there; and a column of the sheet read either way
+into new columns beside it, recorded as a fill is. Slice 6 done: the fit in the worksheet, the
+fitted values and residuals beside the column fitted as computed columns (`fit(B)`, `resid(B)`,
+formulas that can be typed too), out of the original data, written again by each new fit and
+marked out of date with it. Slice 7, its first half: how points count, a *Weights* list (none,
+the Y error, counting statistics 1/y, a column's values), absolute weights taken as they are and
+relative ones scaled by √(reduced χ²), a point that cannot be weighted refused in words, the kind
+said in Results, the report and the CSV; and the apparent fit, as the points look on the
+graph's logarithmic axes (a straight line on Log Y an exponential, on log–log a power law), drawn
+in the data's terms and analysed in the axes'. Slice 8 done: starting values as formulas of the
+data in range (`max(y) - min(y)`, `xat`, `fwhm`), shown as typed and measured again by Guess and
+each fit; constraints, one a line: a parameter that follows a formula of the others (its error
+carried, as a tie's), and an inequality that keeps two in order at every iteration
+(reparametrised as a difference that cannot go below 0); refused in words where they mean
+nothing; kept with the fit and stated by Results, the report and the CSV. Slice 9 done: fit
+settings saved by name in the project or the browser, as saved styles are (the model, the starts
+or their formulas, limits, constraints, weights, control, the range), used from the Model heading
+or Analyze › Fit; and a fit that follows its data, made again whenever its column's processing,
+data or mask change, with a log line and no undo step of its own. Slice 10 done: the function
+editor grown (a category, each parameter's meaning, starts as formulas of the data, constraints
+the Fit window starts with, derived values with their errors) and an organizer for your functions
+(by category, renamed and filed in place, edited, deleted, copied between the project and the
+browser). The curve fit's ten slices are done.
+
+Then Plot setup as Origin's (`ux/spec/PLOT_SPEC.md`, the roadmap's next item). Slice 1 done: what
+each curve of a graph uses, kept on the graph and not the data: a range of rows or of X it draws
+(the axes fitted to it), the right Y axis for any overlaid curve but the active one, labels from a
+column beside each point; on the curve's right-click (Range…, Right axis, Labels from), in every
+export, undone with the graph, dropped when it no longer reads. Slice 2 done: Plot setup rebuilt,
+in three parts beside the graph drawn as it will be: the kind (cards drawn with the curves); the
+columns of a sheet or every sheet, each with what it is (X, Y, Y or X error, labels, colour,
+size), started from the worksheet's roles and marked several at a time; the curves on the graph,
+a list of their own (Add, Replace, Remove, Up, Down), each with its X (any X of its sheet, or the
+row number), range and axis. OK is one undo step, and what it changes of the columns is said.
+Slice 3 done: the same dialog on a graph (*What it plots…*, Origin's Layer Contents): its curves to
+add, replace, take off, reorder, re-range or move between axes, each keeping how it is drawn until a
+kind is chosen; a figure's panel the same. Slice 4 done: groups, as Origin's: curves that share their
+plot type and step their colour, symbol or line style together (all three, or one with the others
+alike) from the first curve's, each curve's own style still winning; from the curve's right-click
+and Plot setup's Group column; the legend lists every curve. Slice 5 done: the kinds that need
+another column beside each curve, as cards of their own (bubbles, colour by value, labelled points,
+error boxes), Plot waiting with a note until each curve has it; error boxes also a way to draw any
+curve's error bars. Slice 6 done: Plot setup remembers, per sheet in this browser, the kind it last
+plotted and each column's use, starts from them, and *Plot like the last time* plots a selection
+that way at once; what it remembers never changes a column. Plot setup's six slices are done. Slice 7 done (12.11, the user's request): the kind a button opening the gallery; the
+columns a grid of the roles the kind takes (X, Y, Y error, X error, Labels; a map's X, Y, Z and Z error); each curve one
+line of what it uses, every part a menu; the symbols seen and chosen from a grid (19 of them, here, on a curve's
+right-click and in the Format pane); a Z error kept with its column and read by the map's readout.
+
+Then, from the user's reports of 29.10: a file added to a new sheet no longer leaves the sheet's
+empty columns between its own (the dialog, a drop, several files and a copy from another project
+alike); the X zoom is each graph's own until linked (in a graph's ⋯ menu or Window › Graphs); the
+Reader's and X–Y lines' card goes anywhere on the screen, resized by its corner, its place and size
+kept, a double-click on its head putting it back by the graph. `tools/review-drive.mjs` checks
+each report as it was made.
+
+Then, 05.11, the user's request to use Kurve as a lab technician would, typically and not: typing
+by hand, sizing columns and rows, very heavy files, many projects and tabs, many windows, a long
+day. Found and fixed: projects are kept in IndexedDB (a file of a million rows had been lost on a
+reload, silently), every save no longer copies every value (a second a save at a million rows; now
+35 ms), two tabs typing in two columns of one project keep both, an undo takes back this
+window's change and keeps what another tab changed since, leaving the page writes what
+waits and asks first when the browser refused it, the status bar says Not saved for that project
+whenever it is opened; a press in a window gives it the keys; moving a window selects nothing;
+rows are sized by the line under a row number; a narrow window of its own is laid out as itself;
+error columns in German, French, Italian and Spanish; counts of thousands grouped; the dock's edge
+stops where the documents keep their room. Measured and
+fine: a 40-minute day of 1 300 erratic actions with memory, page elements and listeners flat, and
+three tabs on one set of projects. `tools/lab-day.mjs` is that day.
+
+Then, 11.11, the user's review: **information hygiene** as a principle (`ux/UX_SPEC.md` §3.8,
+DESIGN.md principle 7: a working window shows what was asked for and what judges it, the rest in
+the report, the History and tooltips), applied to Results (three columns; t, p, the interval and
+the dependency as switches, off; no packed second lines; no red rows; no time of the fit; settings
+listed only when not the usual ones, `statsBrief`). The Explorer lists sheets, not files (a file
+row said 4 and listed 3). The graph's Original / Processed / Both went (a graph shows the
+processed data; the History's boxes show a stage). Curves hidden, shown alone and all shown again
+from the graph's *Curves* button, a curve's right-click and its legend entry. A step goes on this
+graph or on a new graph (a new column made from this one, the original untouched). Data ›
+Calibrate (X on reference peaks with a parabola now, energy, scale X, Y by a reference's
+response); subtracting another column at a scale fitted so it cancels, with an offset, over a
+range, shifted in X, from a data column. A dropped file no longer throws (`fids`).
+
+Then, 05.11 to 06.11, the rest of the roadmap, items 3 to 10 (each in the list below with its date):
+counting spectra (analysers' files, counted windows with their activities, the detector's curves,
+nuclides by their lines, region edges dragged); plots (a distribution over a histogram, grouped and
+notched boxes, stacked columns with names along X, shared axes per row or column, a map from
+scattered X, Y, Z); figures (the graph's fonts in a PDF, a break with its own scale each side,
+polygons and curved arrows); getting around (the undo list, the History zoomed and wrapped, the keys
+on annotations and peak handles, shape handles); many spectra (a parameter following the series,
+trend graphs as graphs, header fields in the worksheet, global fits in a worker); more files
+(JCAMP-DX, SPC, OPUS, Princeton SPE); under the hood (every example run end to end, the worksheet's
+columns drawn about the view, thousands of columns); working together (new comments, mentions,
+proposed settings applied in one click).
+
+Then, before slice 5, the user's issues from before 19.10: the Graph menu and the toolbar's
+graph group only while a graph is on the desk; reading values with a Reader (a point pinned on a
+click, stepped along and between curves, found by a typed X or Y, in a card on the graph) and
+X–Y lines (dragged across the graph: every curve's Y at one X, where each crosses one Y, either
+line alone); the fit's bands and peak shading switched in the Fit window (*On the graph*) and the
+Graph menu; sizes typed or picked from a list instead of slid, opacity alone a slider; each kind
+of text folded under a line saying how it looks; text typed formatted, as in a word processor
+(raised and lowered characters, about 240 symbols searched by name, no preview), or in LaTeX,
+stored as LaTeX either way; switches and segmented choices that keep their transition through
+the redraw they cause; boxes put in their rows (the edge-by-edge choices, Add, a link, the fit's
+range in the dock).
+
+Then, also before slice 5, the user's review of the worksheet, Plot setup and large data. The
+F(x)= row is always shown (the user chose it over formulas that appear only in cells; `=` in a
+cell still goes there). Rows and columns are inserted and deleted where Excel has it: the cell
+menu's Insert and Delete, the column menu, Edit, the bar's Insert, Ctrl+Shift+= and Ctrl+−, as
+many as are selected. Plot setup was compared with Origin's (its three panels, the Range dialog,
+Layer Contents) and the plan is `ux/spec/PLOT_SPEC.md`, the roadmap's second item. Graphs of
+50 000 points and more are drawn as the screen can show them (per pixel column; exports keep
+every point), and what each frame asked again is kept: at 200 000 points a draw is about 40 ms
+(170), ten turns of the wheel 1.3 s (9.3), smoothing 0.3 s (4.6), the Peaks window
+1.3 s (14), a pointer move with the Reader under 1 ms; nothing spreads a column into arguments any more (it threw past 120 000 values).
+The random user's two failures were its own: a stillness clock left running, and a correction's
+reason typed as a value.
+
+Between slices 1 and 2, from the user's bug reports: graphs as one list (document version 5).
+A project has no graph until something is plotted, so a project can be worksheet calculations
+alone; the first graph is a graph like the others, deleted from the project like any other,
+with an id of its own; annotations are a list of their own (`p.annos`); there is no fixed graph
+window. Older projects move over on opening: the first graph keeps what it showed but for the
+columns that have graphs of their own (it used to draw every column, so two curves meant to be
+apart were drawn together on it), its labels, its place in a figure and the Explorer, and the
+comments on its History box. Taking the analysed curve off a graph of two keeps that graph in
+front (it used to jump to whichever graph "showed" the curve, which looked like the graph had
+been lost); a graph's last curve cannot be taken off (Delete the graph is offered); closing the
+graph in front brings an open one forward, and a column shown while the graphs are closed gets
+a graph of its own instead of joining a closed one. The worksheet's "not plotted" means on no
+graph, not "not on the graph in front".
+
+Then, from the user's question "why not several worksheets?": sheets, as a workbook has. Tabs under
+the grid (click, double-click to rename, right-click to move or delete, + for a new one), Data ›
+Sheets, a row per sheet in the Project Explorer; each sheet its own letters, rows, X columns,
+formulas, sort and hidden rows; columns moved to another sheet with their error bars, keeping
+the X they are plotted against; a file imported, dropped or copied in beside data on a sheet of
+its own, named after it. Graphs show columns from any sheet. The worksheet's two views are
+called the Original and Processed views now, as "sheet" names a tab.
+
+Done in this round: the user's review after the UX rework's slice 5. The worksheet hides and shows
+columns and rows, as Excel's Hide and Unhide (a marked strip, a marked row number, a double click
+to show them, from the menus and Data › Hide and show), kept with the project and a view only.
+A formula gets suggestions as it is typed (the columns by letter and name, x and i, every
+function with its arguments and what it does, the constants; an argument hint inside a call),
+in the F(x)= row, the formula bar and a fit function, and an unfinished formula is no longer an
+error in red. Windows, menus, dialogs, toasts and the worksheet's cursor move briefly and
+smoothly, as a desktop's and Excel's do, and not at all with Preferences › Animations off or
+the system's reduced motion. Original and Processed appear only once there is processing. A
+Preferences dialog (a gear in the title bar, File and Edit › Preferences…, Ctrl+,) has a
+switch to keep no history at all, only errors. A new project, and an import, show the worksheet
+alone: nothing is plotted until the user plots it. Python was removed (old projects keep their
+Python steps' stored results). Afterwards, from a question: the first graph can be deleted like
+any other (it was the one graph that could not be), and, since the next first graph reuses its
+id, what named the old one (its History box's comments, its Explorer folder) does not pass to
+the new one.
+
+Round before: the user's review of the interface. Columns move by dragging their letters,
+or from their menu (Left, Right, To the start, To the end), each spectrum keeping its X; values
+align left, centre or right; the value box above the grid is a formula bar, and F(x)= opens on
+one click; the selection is a strong fill with a dark edge and filled headers; Fill moved from
+the bar into the column's and the cell's menus, and the colour swatches above the columns went.
+Plot setup, as Origin's: the kind of plot as pictures, the X, the Ys ticked, the graph, a
+sketch. Text with LaTeX in every title, legend entry and label, typeset by Kurve's own engine
+(scripts nested to any depth, maths in italics with its spacing, fractions, roots, accents,
+fonts) in the graph's font, so the same on screen and in SVG, PNG, PDF and EPS, with a preview
+wherever it is typed. The legend selected by a click and typed over in place; one typing box
+and one right-click menu order for everything with text; each axis title's own font and style;
+one Add menu in the Format dialog, and a proper dialog for a line. A new palette for screens
+with little contrast, measured by `tools/contrast-test.mjs`. DESIGN.md now records the
+interface's decisions and their reasons, round by round. A fix: plotting several columns with
+a chosen type drew only the analysed one in that type.
+
+Two rounds before: plots Origin has and Kurve lacked (the roadmap's next item). Histograms
+of a column's values, made by a step so they follow the processing (bins chosen for the data
+by Freedman–Diaconis, Sturges or the square root, or a number or width typed, a start; counts,
+probability, percent or a density with area 1, cumulative), drawn as columns, a figure of
+one per column; Columns as a plot type for any spectrum, several side by side. Box charts
+(quartiles, median, mean, whiskers by Tukey's rule or to the extremes, outliers) and violin
+plots (kernel densities with the box inside) of every spectrum on a graph, the values
+scattered over them if asked. Fits with errors in X by orthogonal distance regression, for
+curve, peak and batch fits, with or without Y errors. A legend of sizes for symbols sized by
+a column. Figure panels spanning several rows or columns. A fix: Results showed a fit's units
+from the analysed spectrum rather than its own.
+
+Three rounds before: the next plotting options the user chose. Figures of panels, as Origin's
+graph layers and Merge Graphs: graphs become the panels of one figure in rows and columns (a
+panel per spectrum in one command, graphs chosen from a list, or a graph dropped on a figure),
+their plot areas lined up by measuring every panel's margins, X or Y shared (one range and one
+zoom, numbers on the outer edge only, the panels touching, the numbers at a shared edge giving
+way), lettered (a), (b)…, columns and rows of chosen widths and heights; the panel clicked is
+drawn live in its cell and the others as pictures; every export, the PDF and the report write
+the whole figure. Maps of a series: the heat map against the series variable at real spacing
+(rows between spectra interpolated), as an image, filled contours, contour lines with their
+levels written along them, or the image with lines, the levels marked on the colour bar; cut
+at one X (a trend graph of every spectrum's value there) or at one value of the series (the
+nearest spectrum on a graph). Styling: points joined by a spline or a B-spline, symbols
+coloured or sized by a third column with a colour bar, the area between two spectra filled
+in two colours, hatched fills that PDF and EPS keep, and the graph copied to the clipboard as
+a picture.
+
+Four rounds before: the plotting options the user chose. The import dialog never plots, and
+files dropped on the window are read and plotted at once (on the graph they land on, a new
+graph, or an Explorer folder; "Read it differently" undoes and opens the dialog). A Project
+Explorer as Origin's: folders and subfolders, the worksheet, each file with its spectra and
+data columns, every graph (hidden ones too) and trend graph, dragged between folders, onto
+graphs to plot, renamed, deleted, filtered, by the keys, and new things filed in the active
+folder. Error bars in X and in Y, both ways or one side (Origin's six kinds), carried through
+the processing and drawn as bars or a band, per spectrum; a prediction band beside the fit's
+confidence band. Axis scales: ln, log₂, reciprocal and offset reciprocal (Arrhenius), square
+root, probability; dates and times read from files and the worksheet and numbered on the axis;
+a second Y axis in other units (transmittance over absorbance, a × y + b, a formula). Fixes:
+a graph dragged over by a file shrank to a line (a class name shared with the History).
+
+Five rounds before: plotting when you are ready, from a user's request. The import dialog
+lists every column of the file with what it becomes (X, a spectrum, error bars, data kept for
+formulas, or left out), reads X,Y pairs only when they look like pairs, and plots nothing
+unless asked: Plot is Not yet (the worksheet takes the graph's place), one graph, one each
+or stacked, remembered; several files the same. Columns are plotted from the worksheet
+(select them, Plot: a type, panels, a new graph or added to one; a data column becomes a
+spectrum, a selected X is the axis). Graphs close (×) and stay in the project, opened again
+from Window › Open a graph, the History or Undo; graph tools open them. The first graph keeps
+its own list of spectra once plotted, so later columns do not join it. Fixes: an import into a
+new project did nothing after the import (no message, no worksheet); an undo just after typing
+a value left the undone change in the log; a cell chosen just after Enter could lose the edit
+begun in it.
+
+Six rounds before: the worksheet for manual work, from a user's bug report. Typing far
+down the sheet no longer jumps to the top, and values typed one after another are all kept
+(they were lost whenever the delayed save landed mid-entry). Raw data is editable like any
+spreadsheet (type over, clear, paste and fill over, insert and delete rows, every change one
+undo step and an entry in the raw-data record), and the project can lock it, which brings back
+the correction steps. A value that is not a number stays in its cell to be put right; input
+methods type into cells (full-width digits are numbers); Tab, Tab, Enter returns to the first
+column; double-click edits in the first rows too (it did nothing there); a column letter
+selects with its first cell active; leaving the page saves what was just typed. A random-user
+harness drives the worksheet in hundreds of unscripted steps and checks the data after each.
+
+Seven rounds before: reading, windows and filling, from a user's review. Text has two
+colours, the secondary one darker (7:1 or more in every theme and style), and headings are
+sentence case in the text colour instead of small grey capitals; disabled controls are dimmer,
+not unreadable. Windows as in Excel: the project's documents (graphs, worksheet, trend graphs)
+keep their taskbar buttons, panels appear only while in use, open and minimised look different
+by shape, many graphs share a button, and what does not fit goes under "n more"; the Window
+menu lists the windows in use (a search past a dozen), Panels ticks every panel in use, with
+Minimise the others and Close the panels. A Fill dialog as Excel's Fill › Series and Origin's
+Fill Column With: series by a step or a factor with a stop value, evenly between two values
+(linear or log), row numbers, a list repeated, random numbers (uniform, whole, normal,
+Poisson counts) from a seed, and the trend of the values above; into empty cells of a column
+or a new one, with a preview, one undo step and a record entry.
+
+Eight rounds before: a gamma spectrum, from a user's file of background radiation. One-column
+files of counts per channel are read (a .TKA file's live and real time into the metadata, X
+the channel number from 0 or 1, √N error bars as a computed column, counts per second by a
+step); calibrated to energy by a step (coefficients, remembered for the next file, or fitted
+to peaks of known energy), by a worksheet formula that becomes the X axis (Use as X, Plot
+against), or by Python. The peak finder knows that counts are counted: its noise is √N from the
+counts as recorded, so the continuum's wiggles are not peaks and a line on a few counts is; it
+searches regions, each with its own settings ("Peak finder settings", renamed from "How to
+recognise a peak"). Peaks are named from known lines within a tolerance (each peak's FWHM by
+default): the natural background's and calibration sources' gamma lines, or your own list
+pasted or read from a file, kept with the project; or by your Python code, which gets the
+peaks and the lines. The taskbar tells open, minimised and closed windows apart, with a close
+button and a Windows list. Each edge of the frame has its own ticks and numbers, set by
+clicking the edge in a picture of the frame.
+
+Nine rounds before: figures, further. Boxes and ellipses drawn with a Shape tool (resized by
+their corners, filled or not, behind the data or over it, with text inside, pinned or at data
+values). Axis breaks on X and Y, suggested over the widest empty stretch, cut with two strokes,
+the two sides on one scale, followed by zoom, wheel and pan, and named in the report. A second
+X axis in other units (wavelength over Raman shift with its laser, micrometres over
+wavenumbers, energy, frequency, a·x+b, any formula), numbered where the first axis has those
+values, evenly when it can and with round numbers when it is curved, refusing a conversion
+that is not one-to-one. Formats kept in the project, so a colleague who opens it has them,
+or in the browser, renamed, copied and deleted from one menu. PDF and EPS from Kurve's own
+writer: vectors, clipping, opacity (PDF), images, gradients, insets and every graph as one
+figure, text in the standard fonts placed by their own widths. The toolbar keeps to one row
+down to 860 px.
+
+Ten rounds before: bugs found by using the app the way nobody does. A tab that froze for good
+(ticks added up after a deep zoom), tick labels all alike on a nanosecond axis, NaN drawn for
+equal or extreme limits; a second tab wiping the first's projects, a full store that still
+said Saved, two projects sharing an id, a corrupt saved layout; typographic minus signs, French
+thousands and multi-line headers lost on import, hex read as numbers, file names emptied of any
+non-Latin script; a straight line through one X, slopes losing their digits near 10⁹, formulas
+that overflowed the stack; times of day out of order across midnight, time zones ignored;
+undo during a drag; ten-second saves with 300 spectra, 200 ms undo steps on big projects; long
+names pushing title-bar buttons out of reach; batch rows of deleted spectra. Each fixed by its
+class, and `tools/odd-test.mjs` keeps them fixed.
+
+Eleven rounds before: graphs and projects, from a bug report. Deleting a project could leave its
+graphs on the desk and the next import going into it (a store's events in the other order); a
+graph in front that went away took the live plot with it. Both fixed. The taskbar names the
+project its windows belong to, the project list says what each holds, new projects get names
+of their own, the import dialogs name the project they add to, and exports name the graph.
+Graphs plotted one by one are put together by holding and dropping (a graph by its grip, a
+spectrum by its chip, onto a graph, its taskbar button or the desk; Ctrl keeps the graph
+dropped; it scrolls on a phone), from menus, or in Combine graphs… with a layout; spectra
+come from another project with their processing, peaks and colours.
+
+Twelve rounds before: finding and labelling peaks, from what people asked. The Peaks window
+says where it looks (the spectrum, always shown, and From … to … typed, taken from the view
+or dragged on the graph, shaded there, kept with the set) and ends in Done; the Fit window
+says which spectrum and range it fits, and ends in Done too. Fitted peaks are labelled with
+any of their number, name, centre, height, FWHM, area and share, or your own text; with
+errors and units; above, inside, or in a row along the top with leaders; turned, marked,
+boxed, dragged; each peak can be named, and its name goes to Results, the report and the
+exports.
+
+Thirteen rounds before: many spectra at once. Global fits beyond Origin's NLFit: tick what every
+spectrum shares (centres, widths, areas, shapes, the baseline, or parameter by parameter; a
+curve model's parameters), each spectrum first fitted with those held so the fit starts where
+it belongs, one block-sparse Levenberg–Marquardt problem, every row a normal fit that says what
+it shares, errors from the whole covariance, out of date when any spectrum changes. The same
+peak followed across the spectra, from the peaks found in each fit or marked in the Peaks
+window, with one label for all of them and trends of their positions with no fit. Trend graphs
+on the desk: several quantities, left and right axes, lines with slopes, SVG, PNG, the report.
+Each spectrum keeps its file's header, and a field that differs (a temperature, the time it was
+taken) is what a series can be plotted against.
+
+Fourteen rounds before: figures for papers. Super- and subscripts, Greek letters and symbols in
+every title, legend entry and label (`cm^{-1}`, `\alpha`), with buttons and a word
+processor's keys; arrows drawn by dragging, their heads snapping to data points, with heads
+of four kinds; insets made from a zoom, dragged and resized, outlined on the graph with
+lines to the inset; guides that line text up with the plot's centre and other text; an
+export for a journal column or a slide (sizes, the tick numbers at a size in points in
+print, lines scaled with the text or not, SVG at its size, PNG with its dpi recorded, TIFF,
+transparent backgrounds, a preview); formats saved by name and used on any graph in any
+project, with five of Kurve's; a toolbar that keeps to one row at every width.
+
+Fifteen rounds before: formatting the graph like a word processor, beyond Origin's Plot Details.
+Each kind of text (title, axis titles, tick numbers, legend, labels, fitted peak numbers) has
+its own font, size in points, bold, italic, underline and colour; a real font picker (each
+name in its face, search, web fonts that look the same everywhere, which fonts this computer
+lacks, any name, this computer's fonts) and colour picker (smooth, hex, recent, eye dropper);
+fonts embedded in exports. Axes: position (an edge, zero, a value, set off outward), line,
+ticks in, out or both with their lengths and widths, mirrored or not, numbers turned, titles
+placed along the axis and dragged anywhere, typed in place; axes dragged by their numbers.
+The frame as a box, the axes only or none, quick styles, a styled grid, a background, margins
+measured from the text. The legend's columns, size, samples, box, and a place below the graph.
+The Format dialog as a pane of pages with live preview, moved by its title bar, used on every
+graph at once. Labels and text over several lines, turned to any angle, in a box, aligned,
+pinned to the plot or centred in it; lines and ranges with their text placed and their edges;
+richer right-click menus on axes, titles, the legend and annotations.
+
+Sixteen rounds before: batch fits and trends. The analysed spectrum's fit fits every spectrum,
+started from its result, from the neighbour in the series, or from the peaks found in each;
+every result is a normal fit (drawn on every graph, in Results with its notes, a Fits box in
+the History, replaced by a fit by hand, out of date when its processing changes). The Batch
+window's table (each peak's centre, height, FWHM, area and share, or each curve parameter,
+R², χ², band integrals and ratios) and trend plot against the order, a number in the names,
+or typed values, with a weighted straight line (slope ± error). CSV, SVG and the report.
+A fix to the runs test and peak checks, which read the analysed spectrum instead of the
+fit's own.
+
+Earlier still: several graphs per project, each in its own window, beyond Origin's:
+one graph per spectrum in one command, tiled; click any graph to work on it (its zoom,
+spectrum and drafts come back, every window follows); only the graph in front is live and the
+others are pictures redrawn when what they show changes, so twelve graphs cost little more
+than one; linked X zoom; chips, a ⋯ menu per graph, a Graphs button in the taskbar; a box per
+graph in the History with its log lines and discussion; all graphs as one lettered figure,
+every spectrum in one CSV, every graph in the report; importing many files, or every column
+of one file, as one change with a graph each; applying a step to every spectrum with
+settings measured on each; graph windows placed per project.
+
+Earlier still: two interface styles, Bench and Graphite, chosen in Window › Style, with
+every control drawn from tokens (sliders with a filled track, switches, checkboxes, radios,
+lists, segmented controls, windows) instead of the browser's own look.
+
+Earlier still: a Help window (an article for every window, tool and step, search, a "?"
+on every window, F1), and a review of every window: explanations moved into Help and
+tooltips, one-line empty states (the History of an empty project included), short status-bar
+hints and toasts, spectrum pickers only when there is a choice, forms that stop at a
+readable width, and the Peaks window's sections in one style.
+
+Earlier still: integration without a fit (bands dragged on the graph, local baselines,
+areas with noise-propagated errors, heights, positions, FWHM, shares and ratios to a chosen
+band, windows around the peaks, every spectrum at once, a Bands box in the History, the CSV and
+the report) and the Overview of a new spectrum (spacing, noise, bands, spikes, flat tops,
+background, and first steps that open their tools), opened after an import.
+
+Earlier still: worksheet formulas in Origin's F(x)= row, the fill handle (series and
+copies, double-click, Ctrl+D/R), sorting the view, find (Ctrl+F); peak sets that follow the
+processing (labels kept, even through a change of X units) and peaks found in every spectrum
+at once; a fix for a delayed worksheet save overwriting a later one.
+
+Earlier still: the worksheet as a spreadsheet grid (fixed column widths, empty cells
+beyond the data, range selection with Count/Sum/Average, Excel's keys, resizable and
+autofitting columns, Origin's Long Name/Units/Comments rows); short menus with side submenus;
+fonts for the graph and its labels; the Peaks window (find, mark with a symbol, drop line,
+vertical line or leader, type each label, fit only if you choose); typing labels and text
+straight on the graph; Peaks and Figure boxes in the History.
+
+Earlier: comments on every History box (threads, replies, resolve, edit, delete
+with undo, badges, the Discussion window's filter, the report); Python in the flow chart (new
+spectra from Python, dashed arrows from the spectra code reads, out-of-date warnings and "Run
+Python again"); user-defined fit functions with a library; true Voigt and Fano shapes; tied
+peak parameters (one width, area ratios, fixed spacings).
+
+Next, in order:
+1. The curve fit as complete as Origin's fitting dialogs, the user's choice; the task, its
+   decisions and its slices are `ux/spec/FIT_SPEC.md`: fit control shown and set, with a
+   1 Iteration button and the iterations listed; one parameter grid with limits for every
+   model; about 25 more models, searchable, each with a sketch; a confidence level, ANOVA,
+   the covariance and correlation matrices, studentised residuals, residual plots and
+   outliers; Find X/Y (done); the fitted values and residuals in the worksheet (done); counting and
+   column weights, an apparent fit (done); starting values and constraints as formulas (done); fit
+   settings saved by name, and fits that follow their data (done); the function editor grown, and
+   an organizer (done; all ten slices done 29.10). In the docked Fit window, in Kurve's words, running no code
+2. Plot setup as Origin's, the user's question ("why can I not choose how I want to plot the
+   graph, for example the range, which axis is the error axis"); the comparison, the decisions
+   and six slices are `ux/spec/PLOT_SPEC.md`: what each curve on a graph uses (`curveUse`: its
+   range by row or by X, its axis, a label column), Plot setup rebuilt in three parts (the
+   columns of every sheet; what each column is, X, Y, Y error ±/+/−, X error, labels, colour,
+   size; the curves on the graph with Add, Replace, Remove, order, range and axis) with the real
+   graph as its preview, the same dialog on an existing graph (Origin's Layer Contents), groups,
+   kinds that need more columns, and setups remembered (all six slices done 29.10)
+3. Counting spectra, further: other analysers' files (Maestro .Spe with its calibration, N42: done
+   05.11; CHN and CNF are binary), FWHM and efficiency against energy (done 05.11), net peak areas
+   over a local continuum with their counting errors and activities (done 05.11), a nuclide named by
+   the set of its lines (their intensity ratios, interferences: done 05.11), region edges dragged on
+   the graph (done 05.11): the roadmap's item 3 is done
+4. Plots Origin has and Kurve lacks, further: a distribution fitted over a histogram (normal,
+   log-normal, exponential) with its parameters (done 06.11); box charts of one column grouped by another, notched
+   boxes (done 06.11); stacked and grouped bars with category names (done 06.11); per-row or per-column shared axes in a
+   figure (done 06.11); a map from scattered X, Y, Z (triangulated) rather than from spectra
+   (done 06.11): the roadmap's item 4 is done
+5. Figures, further still: the graph's own fonts embedded in a PDF (done 06.11), a break at a chosen place
+   with its own scale on each side (done 06.11), polygons and curved arrows (done 06.11): the
+   roadmap's item 5 is done
+6. Getting around: a visible undo list (done 06.11), flow chart zoom and packed lanes (done
+   06.11), keyboard access to annotations and peak handles (done 06.11), handles for shape
+   parameters (Lorentz fraction, Pearson m, Fano 1/q; done 06.11): the roadmap's item 6 is done
+7. Many spectra, further: a parameter that follows the series in a global fit (a centre linear
+   in temperature, a rate from Arrhenius), trend graphs formatted like any graph, the files'
+   header fields as rows of the worksheet, global fits in a worker: all done 06.11, the roadmap's
+   item 7 is done
+8. More files: JCAMP-DX, then SPC; OPUS and SPE last: all done 06.11, the roadmap's item 8 is done
+9. Under the hood (projects in IndexedDB: done 05.11; a cell typed into a million rows quick, the
+   graph drawing what is in view, every row of a sheet reachable: done 05.11; `tools/odd-test.mjs`
+   grown to run every example end to end, the worksheet drawing only the columns in view, speed
+   with thousands of columns: done 06.11): the roadmap's item 9 is done
+10. Collaboration follow-ups: mentions, a comment that proposes settings for a step and can be
+   applied in one click, unread markers: all done 06.11, the roadmap's item 10 is done
+11. Closing the gap with Origin, the user's request of 07.11 ("not for show, but properly and
+   robustly"): the plan is `ux/spec/PARITY_SPEC.md`: the bar every slice clears (outside references:
+   NIST's certified values, SciPy and statsmodels fixtures committed in `tools/ref/`; simulation of
+   a test's size and an interval's coverage; a fuzzer against the reference; refusals in words),
+   ten waves (the bench; project files, text and categorical columns, analyses with result sheets,
+   distributions; statistics; the worksheet as a table; regression and fitting; signal processing;
+   many variables; plots; automation; files), and its nine decisions, all taken 07.11 (an analysis
+   reads the processed values, switched per input; Ctrl+S saves a project file; no cell formulas,
+   column formulas grown; an analysis keeps its own rows; numbers keep their check code; no free
+   layers; 3D last, our own renderer; survival, MANOVA and DOE only if asked). Wave 0, the bench,
+   done 07.11 (references, the fuzzer, the compute worker, budgets, `tools/suite.sh`; erf, erfc and
+   the normal quantile brought to double precision on the way). Wave 1's plan is
+   `ux/spec/FOUNDATION_SPEC.md` (1.1, 1.4, 1.2a–d, 1.3a–c); slice 1.1, project files (Ctrl+S, Open a
+   project file…, backups), done 07.11; slice 1.4's distributions (the STATS block: ln Γ, the
+   incomplete beta and gamma and nine distributions with both tails and quantiles, every p value
+   now to 10⁻¹³), done 07.11, its noncentral, studentized-range, rank and normality distributions
+   moved to the wave-2 slices that first use them; slices 1.2a to 1.2d, text in the worksheet, kept by imports, categorical columns, and graphs reading them, done 07.11; slices 1.3a to 1.3c, analyses with result sheets (Statistics on columns), their History box, Results and report, and the
+   worker, done 07.11: wave 1 is done. Wave 2's plan is `ux/spec/STATS_SPEC.md` (statistics, twelve slices in
+   the order it gives); slice 2.1, descriptive statistics whole (Statistics on columns with every statistic
+   Origin's has, R's nine quartile methods and Tukey's hinges, the divisor, rows, listwise; Frequency counts;
+   the Graphical summary), done 12.11, checked against exact rationals (the mean, the MAD and values past 10³⁰⁰
+   put right on the way); slice 2.2, normality and outliers (Shapiro–Wilk, Lilliefors, Anderson–Darling,
+   D'Agostino's K², Kolmogorov–Smirnov; a Q–Q plot; Grubbs and Dixon's Q, masked or marked; Kolmogorov's exact
+   distribution, which closed `distFit`'s gap), done 12.11; slice 2.3, comparing means and spreads (t tests
+   with d and g, Levene, Brown–Forsythe, Bartlett, F, proportions and Fisher's exact test), done 12.11; the
+   user's rule the same day, Kurve reports and the user judges (no sentence, verdict, check or advice), applied
+   to 2.2 and 2.3 and kept for every slice after; slice 2.4, one-way ANOVA (the table, η², ω², Welch's F, eight
+   comparisons with the studentized range and Dunnett's t worked out to 1e-15, a means plot; NIST's sets to the digits
+   their decimals allow), done 12.11; slice 2.8, nonparametric tests (Mann–Whitney with the Hodges–Lehmann shift,
+   Wilcoxon signed-rank, the sign test, Kruskal–Wallis with Dunn's, Friedman, Mood's median test, two-sample KS;
+   exact distributions), done 12.11; slice 2.9, correlation (Pearson's r with its interval, Spearman's ρ, Kendall's
+   τ-b, partial r, their matrices, a scatter matrix; 1 − r² in double-double), done 12.11; slice 2.10, counts in tables
+   (χ², G, Fisher's exact test of any size, McNemar, Cramér's V), done 12.11; slice 2.5, the linear model (numbers and factors,
+   interactions, powers, either coding, types I to III, contrasts; every number to the last digit or two of exact
+   arithmetic up to a condition of 1e12, NIST's Longley and a polynomial as hard as Filip's included), done 12.11; slice 2.6,
+   two- and three-way ANOVA (types I to III, partial η², estimated means, comparisons, simple effects, interaction and
+   main effects plots), done 12.11; slice 2.7, repeated measures (one or two factors within, one between, wide or long
+   data; Mauchly's test, the Greenhouse–Geisser and Huynh–Feldt corrections, partial η², the cells' means, paired
+   comparisons, a profile plot; exact against rationals and statsmodels), done 13.11; slice 2.11, power and sample size
+   (t tests, one-way ANOVA, the exact binomial test, two proportions, variances, χ² tests; power at sizes, the size for a
+   power, a power curve; the noncentral F and χ², and the noncentral t's upper tail, to 1e-15), done 13.11; slice 2.12, ROC
+   curves (the area with DeLong's interval, Youden's cut-off, scores compared by DeLong's test, the curve; exact against every
+   pair), done 13.11: wave 2's twelve slices are done
+
+## Known gaps
+
+- Two displays: a graph (not a figure) and five tool windows (Results, Statistics, Help, the
+  Overview, Discussion) can go into a window of their own; the worksheet, the History and the
+  forms stay on the desk. A detached graph is a view: it zooms, pans and reads, but has no
+  pointer tools, handles, labels to drag or right-click menu, and draws no fit draft or preview.
+  A detached tool window's menus, pickers and dialogs open in the main window. The windows
+  belong to this session: after a reload of the main window each asks to be reconnected, and
+  reopening them with a project is offered one window per click (a browser opens one per
+  click). Placing a window on a given display needs the browser to list the screens (the
+  Window Management API: Chrome and Edge, after asking once); elsewhere it is dragged across
+  by hand
+- Formatted text has one level of raised and lowered characters (no script on a script, no
+  sub- and superscript stacked; those stay in LaTeX), no bold or italic inside a text, and uses
+  the browser's own superscript command (`execCommand`), which every browser still has
+- Text with LaTeX: no matrices, arrays, aligned equations, `\newcommand`, or colours and sizes
+  inside a text (the whole text has one colour and size); a legend's rows and a label's lines
+  keep their spacing however tall a fraction in them is; the Help shows fractions and roots on
+  one line (HTML), the graph sets them properly
+- The legend: its entries are the spectra and the fit; there is no free line of text in it (a
+  text pinned to the plot does that), and entries are typed over one at a time
+- An axis title's own style is font, size, weight, slant, underline and colour; its place is
+  the axis's (along it, or dragged)
+- Moving columns moves whole columns of the Original view (not cells within a column, not the Processed
+  view's); the colours of the interface follow DESIGN.md's rules, but the graph's own colours
+  (data, grid, a colour picked for a label) are the figure's and are not checked
+- Project Explorer: one item moves at a time (no multiple selection); it lists sheets, graphs and
+  trend graphs, not columns (the worksheet does), so a column cannot be filed in a folder apart
+  from its sheet; folders organise the tree only (they do not hide or
+  show windows as Origin's active folder can); dropping on a folder imports and plots with the
+  automatic choices only
+- Error bars: X errors are fitted (orthogonal distance) in curve, peak and batch fits, not in a
+  global fit, a band's area or a trend line; the residual panel shows residuals at the
+  measured X, and the prediction band leaves the X errors out; a weighted
+  fit uses the mean of upward and downward errors (X errors too); a derived spectrum has its source's carried
+  error only, both ways; an X error's scale under a step that resamples X is the local slope
+  between neighbouring points
+- Scales: breaks only on linear and log10 axes; the right axis of double Y, the heat map's
+  colour bar and trend graphs stay linear or log10; ln and log₂ axes are numbered in whole
+  powers; the probability scale is the normal one only (no Weibull, no logit). Dates are read
+  year first and in UTC (no local time zone, no day-first or month-first dates), times of day
+  as h:mm(:ss); the second Y axis needs a conversion one-to-one over the view, and is not drawn
+  with double Y, a heat map or stacked panels
+
+- Analysers' files: .TKA, Maestro's and the IAEA's .Spe and N42 (2006 and 2011) are read with
+  their times and energy calibration; of an N42 file with several spectra the longest is read,
+  and its FWHM and efficiency calibrations, regions and nuclide results are not; other text
+  formats are read where their numbers make the longest block, and binary ones (CHN, CNF) not at
+  all
+- Energy calibration is a line or a parabola; there is no FWHM or efficiency calibration, and
+  from peaks each one's channel must be given (a source's lines are not matched on their own)
+- Counting statistics: the noise comes from the counts as recorded in the same row, so after
+  smoothing it is overstated (peaks look a little weaker than they are), and after a step that
+  changes the unit (normalizing) the finder falls back to measuring the noise; it is the
+  background's √N at a peak's base, not a net-area significance
+- Regions are typed, added from the view or a drag, and their edges dragged on the graph; the
+  Fit window's finder has none
+- Known lines name peaks by position, nearest first; a nuclide is then judged by the set of its
+  lines (found, missing, their strengths when counted windows give areas), but a shared peak's
+  counts are not divided between its nuclides, and a sum or escape peak is not recognised.
+  Positions convert only among eV, keV and MeV
+- Counting (the Integrate window's): the continuum under a line is a straight line through the
+  channels at the window's edges (no step continuum, no fitted background); the emission
+  probability is typed per window (or taken from nothing: a named line's intensity is not used yet);
+  the efficiency typed or from the project's one curve (one detector and geometry a project), its
+  error carried but not the emission's; no decay correction, no coincidence summing, no
+  self-absorption. The resolution curve marks wide windows; the peak finder does not use it
+- The worksheet and trend graphs minimise but never close (graphs close, and stay in the
+  project); a closed panel
+  shows no news in the taskbar (open threads show in Window › Tool windows and on the History's
+  boxes). One worksheet window, showing one sheet at a time (two sheets cannot be seen side by
+  side); a formula reads columns of its own sheet by letter (one that has moved to another sheet
+  is still read, and shown as `Sheet!L`, but cannot be typed so); sheets cannot be copied
+  whole; windows other than the worksheet have no tabs of their own
+- Fill writes numbers down one column: no text or date series, no fill across a row by a
+  series, no Excel-style flash fill; random numbers come from a seeded mulberry32, fine for
+  simulation, not for cryptography
+- Plotting from the worksheet plots whole columns (no range of rows, no plot of a selection
+  of cells), against an X column; a closed graph is closed for everyone who opens the
+  project, and a viewer who cannot edit cannot open it
+- Counts in tables: no exact test past two million tables, no Monte Carlo p, no McNemar–Bowker (larger square
+  tables), no Cochran–Mantel–Haenszel (strata), no residuals table
+- The linear model: no weights, no random effects, no transformations typed as a formula (log y, centring), interactions
+  only none, every pair or every combination (not chosen one by one), powers of every number column alike; type III by
+  dropping a term's effect-coded columns (with an empty cell this is not SAS's estimable-function type III); a design
+  conditioned past about 1e12 has columns called aliased that exact arithmetic would still separate; contrasts one at
+  a time (no joint F of several); no plots of the residuals made from it yet (the fitted values and residuals go on the sheet)
+- Two- and three-way ANOVA: factors only (a covariate is the linear model's); the comparisons are of each factor's means
+  (not of the cells, not Dunnett's or Games–Howell's); simple effects of one factor at the levels of another, averaged over a
+  third; the interaction plot is of the first two factors ticked; a mean over an empty cell is left empty (no SAS-style
+  estimable means)
+- Repeated measures: two within factors at most and one between; the univariate tests with their corrections (no
+  multivariate tests, Pillai's or Wilks'; no mixed model, so a subject missing a cell is left out, not modelled); paired
+  comparisons of a within factor's levels by Bonferroni or Holm (none of the between factor's, no simple effects); the
+  profile plot of the first group when there are two within factors and groups
+- Power and sample size: two-sample t tests with equal variances only (no Welch), two proportions by the pooled z's normal
+  approximation (no exact test), the χ² test from Cohen's w (not from a table of proportions); no power for repeated
+  measures, the linear model, correlation or rank tests; the exact binomial test's size searched to 20 000 trials
+- ROC curves: two groups only (no multi-class), the empirical curve (no binormal or smoothed curve, no partial area), DeLong's
+  interval only (no bootstrap), Youden's cut-off only (no costs or prevalence), scores compared two at a time on the rows both have
+- Correlation: no point-biserial, polychoric or distance correlation, no comparison of two r's, no matrix of p
+  values on the graph; partial r over the rows complete in every column only
+- Rank tests: exact p only without ties (with ties the normal approximation, as R; no permutation p); the
+  Hodges–Lehmann intervals from order statistics (R's exact ones; Hollander and Wolfe's normal ones, where R solves
+  for them), and none past two million differences; Dunn's comparisons for Kruskal–Wallis only (none after
+  Friedman); KS's exact p counts ties as if there were none (as SciPy), so it is conservative there
+- One-way ANOVA: one factor; Welch's F but not Brown and Forsythe's; Dunnett two-sided only, against one control;
+  Holm without an interval; Games–Howell and Dunnett are worked out in the worker (a second or so for many groups);
+  in the narrowest dock a comparisons table scrolls past its lower end
+- Analyses: these kinds and those above (Statistics on columns, Frequency counts, Normality tests, Outliers); no weights, no
+  statistics on rows, one column of groups; normality tests against the normal only (no other distribution's
+  goodness of fit, no Chen–Shapiro); Shapiro–Wilk's p is Royston's approximation, high above about 0.3;
+  Kolmogorov's p past about 4600 values is Pelz and Good's expansion (about nine digits); Dixon's Q is r₁₀ alone
+  (not Dixon's r₁₁, r₂₁, r₂₂ for larger samples), and Dixon's p takes 7 ms, its critical value a fifth of a second;
+  two-sample tests take the first two columns ticked in the sheet's order (no swap); proportions and Fisher's test
+  read counts typed, not columns; NIST's StRD univariate sets are not yet in the bench (the host was unreachable when 2.1 was
+  checked; exact rationals stand in); one table a kind (its report's other sections are text); an analysis
+  being worked out by the worker is started again after a reload (the job is not stored); a result column has no lock
+  of its own in its header (its tab has)
+- Text cells: a categorical column's order is by hand with ↑/↓ (no drag); Group by is for a new graph (What it
+  plots… keeps a graph's curves) and splits into derived columns, one a level, that do not follow new levels typed
+  later; a categorical X is the whole column's levels (a curve's own range does not narrow the names); several files
+  imported at once (a batch) keep their numbers alone; a formula reads a text cell as empty; the fill
+  handle copies numbers only; a pasted block keeps its text when its fields are split by tabs (a
+  spreadsheet's), else it is read as an import reads it. Rows are inserted and deleted whole, never
+  cells shifted within a column; a comment attached to a point keeps its row number when rows
+  above it are inserted or deleted; the sorted view is a view, so a value typed into it takes
+  its sorted place
+- Numbers across from an axis: on the top panel only when stacked; not across from a second X
+  axis; a heat map's Y edge has none
+- Help cannot be opened over a dialog (a dialog makes the desk inert), so the import wizard
+  has no "?" of its own; their articles are in the contents. Articles have
+  no pictures, and search matches words, not meanings
+- A global fit shares a parameter's value, or makes it follow the series as a straight line or
+  Arrhenius (no other law, no quadratic, not two series at once); a parameter cannot be tied to
+  another parameter across spectra; it runs in a worker where the page can make one (a content
+  policy that refuses blob: workers leaves it on the page, holding it for a large one), and stops
+  at 900 parameters. It needs
+  the template's peaks in every spectrum (not with the peaks found in each)
+- Fitted peak labels are styled as a set (one font, colour rule and box for all); a label can
+  be moved on its own but not restyled on its own. In a row along the top they can sit under
+  the legend. A peak's name reaches a batch fitted from the template's peaks, not one fitted
+  from the peaks found in each spectrum
+- Peaks are matched across spectra by position alone, nearest first: two bands that cross
+  along the series swap tracks. A marked peak's trend gives its position and the Y at its top,
+  not an area (integrate it, or fit)
+- Trend graphs have their own fixed style (not the Format pane), linear axes only, and plot
+  every quantity against the one series variable of the project; *As a graph like any other*
+  makes an ordinary graph of their numbers, a copy that later fits do not change
+- Combining: a spectrum is held by its chip on a graph that is not in front, not from the live
+  graph's legend or a worksheet column; a graph merged into another brings its spectra, their
+  styles and its labels, not its axes, titles or format. Bringing in copies (a later change in
+  the other project does not follow), and leaves behind fits, band windows, comments and
+  trends; a computed column arrives as its values
+- Figures: a panel spans only empty cells (it never pushes another aside), and spans are set
+  from the panel's menu, not by dragging its edges; a figure cannot be a panel of another; X is
+  shared by every panel or by the panels of a column (a panel spanning columns by its first), Y by
+  every panel or by those of a row (by its first), not both ways at once; a shared range is the panels' data in the first panel's X units, and a panel in
+  other units keeps its own; the text is small in every panel when the figure's columns are
+  narrower than 400 px; a picture panel shows no readout until clicked
+- Maps: the rows between two spectra are a straight-line interpolation; the side always spans
+  the series (a Y zoom is not followed); contour levels are round numbers (about n), not
+  values chosen one by one; a level whose lines have no stretch 60 px long goes unlabelled; a
+  cut at one value of the series shows the nearest measured spectrum, not one interpolated. A
+  map from scattered X, Y, Z is linear within Delaunay triangles (no smoothing, no kriging, no
+  extrapolation past the points' outline), up to 20 000 points, its contour lines unlabelled, one
+  map a curve, coloured on a linear scale
+- Styling: the size legend is for the first spectrum sized by a column, in round values within
+  its range; colour and size are read by
+  recorded row, so a derived spectrum's points take its source's rows; a fill between two
+  spectra is drawn only with overlaid spectra, and only between two spectra (not to a value or
+  the fit); a spline can overshoot between unevenly spaced points; hatching is in the series'
+  colour at one spacing; copying a picture needs a browser that allows images on the
+  clipboard
+- Histograms: bins of one width (no variable bins, no bins by quantile); a histogram is of one
+  spectrum's Y or X, all its points (no range of rows). A distribution drawn over it is a normal,
+  log-normal or exponential one, fitted to every value by maximum likelihood (no fit to the bins,
+  no Weibull, gamma or mixture; its Kolmogorov–Smirnov p value is generous, as the parameters come
+  from the same values; a Gaussian curve fit of the bins still works). Columns stand on zero (no
+  other baseline); stacked columns are the overlaid column curves on the left axis, in the table's
+  order, matched by X to twelve digits; their error bars, labels from a column and the readers'
+  values are of each curve's own values, not of the stack. Names along X are typed per graph
+  (the worksheet has no text cells), 60 X values at most, and are not drawn on a log or curved
+  axis
+- Box and violin charts: one box per spectrum on the graph, in the table's order, or each split
+  by a column of groups on the active curve's sheet (60 groups at most, numbers only, in
+  ascending order: the worksheet has no text cells to name them; the grouping is set on the
+  graph, not in Plot setup); no reordering but the table's; the names along X cannot be
+  turned or styled apart from the tick numbers; a violin's bandwidth is Silverman's, not set;
+  at most 5000 values scattered per box; no fit, annotations at data X or inset on them
+- A step shown on a new graph makes a new column from the column (its source). Made from the
+  source's processed data (a step that goes last), it follows every later change to the source's
+  steps; made from its original data (a step that goes before others), it has copies of the steps
+  before it, which do not follow. Curves are hidden per graph (each panel of a figure its own)
+- Several graphs: the X zoom is linked, not Y or the pointer (panels of a figure link Y when
+  they share it); there is no keyboard shortcut to step through
+  the graphs (the browser keeps Ctrl+Tab); a picture shows no readout until it is clicked. A
+  graph's annotations stay on it if one of its spectra moves to another graph
+- A batch import reads each file with the automatic choices (the single-file dialog's
+  overrides of delimiter, decimal mark and start line apply to one file). Each spectrum keeps
+  its own header's fields, shown as rows of the worksheet (eight at most, read only), and the
+  project's own metadata is the first file's
+- Peak handles move centre, height, width and the shape (a pseudo-Voigt's Lorentzian fraction, a
+  Pearson VII's m, a Fano's 1/q), by the pointer or the keys; a Voigt's two widths keep their
+  ratio when its width is dragged, and their share is typed
+- Ties are between the same parameter of two peaks; there are no free-form constraints between
+  different parameters, and a user's function cannot be a peak shape in a peak fit
+- Comments are plain text; a mention is said by a message while the project is open (no e-mail or
+  notification outside the page), and only people the project knows by name can be mentioned. A
+  proposal is a step's plain settings (lists, switches, numbers), not its anchors, reference peaks,
+  pairs or code, nor a new step or another order of steps. What was read is kept per
+  browser (a comment read on another computer is new here), and judged by the comments' times
+- No Shirley or Tougaard background (XPS); no Fourier self-deconvolution
+- The worksheet fuzzer's seed 1 (`tools/sheet-fuzz.mjs kurve.html 1`, step 61, on the version before text
+  cells too): after an undo, a click and a value typed and held past the delayed save, the view scrolls
+  back towards the undone cell and Enter enters the value without moving; found 07.11, not yet fixed
+- Accuracy short of the plan's targets, each measured by `tools/ref-test.mjs` and the fuzzer and
+  owned by a slice of `ux/spec/PARITY_SPEC.md`: the Kolmogorov–Smirnov p of a distribution over a
+  histogram is Kolmogorov's series, 3e-2 off at 20 values (slice 2.2); a straight line or polynomial fitted as
+  a curve fit (Levenberg–Marquardt with a numerical Jacobian) meets NIST's certified Norris values to
+  3e-8 where a linear least-squares solve gives 1e-12 (slice 4.1)
+- Models: 25 built in (Origin has about 200); a polynomial is fitted in powers of x as written,
+  so a high order far from x = 0 is badly conditioned (its guess is exact, about the mean); the
+  guesses are measured heuristics (two or three decays from a grid of 16 decay times, a wave's
+  period from at most 600 points), and a sketch shows typical values, not the data's; your
+  functions have no kind of their own in the list yet
+- What a curve uses: the right axis for overlaid curves only (the active one stays left), one right
+  axis for all of them; the readers (Reader, X–Y lines) read the left axis's curves only; a range is
+  by rows or by X, not both, and labels are a column's numbers (the worksheet has no text cells)
+- Plot setup: a Z error is kept and read by the map's readout, not drawn (3D will draw it, PARITY_SPEC 7.8); a
+  symbol's size is one per curve (not sized by a column there: Bubbles do that)
+- Plot setup: a Y column cannot be made an X or error bars there (nor an X a Y): the worksheet's
+  header menu changes those roles; a curve is a column (a graph cannot draw one column twice, as
+  against two X columns); colour and size from a column are set here but styled in the Format
+  pane; What it plots… is for a graph or a panel, not a whole figure (each panel has its own)
+- Groups: a group steps through the graph's scheme from its first curve's place and through
+  Kurve's lists of symbols and line styles (not lists of your own, as Origin's increment lists);
+  the legend lists every curve of a group, not one entry for the group; groups are a graph's, not
+  across the panels of a figure
+- Remembered setups are this browser's, per project and sheet (not in the project, so a colleague
+  starts afresh), the last one only (no list of setups by name, as Origin's templates), and only
+  for a new graph (What it plots… starts from the graph)
+- Kinds with another column: a bubble's size and a colour come from one column per curve (no
+  second size column for another curve on one Add: each curve's own is marked beside it); an
+  error box needs both errors of a point, and a point with one is drawn with a bar
+- Your functions: a derived value has no unit of its own (it is shown without one); a category is
+  one word or phrase, not a tree; the organizer works on one function at a time
+- Saved fit settings are a curve fit's (a peak fit's peaks are its own); a column's weights and a
+  range in other X units are not carried. Following is the fit on screen's (not a batch row's), and
+  it refits from the last values with the stored settings (formula starts are not measured again)
+- Constraints: curve fits only (a peak fit has its ties); an equality's formula reads parameters,
+  not the data; an inequality is between two parameters (not `a < 2*b`, not three at once); not
+  with the X errors or a fit of every column together; a formula start reads the data's measures,
+  not other parameters' starts
+- The apparent fit: curve fits only (not a peak fit); log axes only (not a reciprocal or square
+  root axis); not with the X errors; its axes are the graph's when it is fitted, kept with it
+- Weights: counting is Neyman's χ² (σ² = y from the data, not the model), so it is biased a little
+  low on counts of a few; a column's weights are not used with the X errors, nor by fits of every
+  column; a global fit takes the Y error or counting only
+- The fit in the worksheet: one pair per column, its own fit (or its batch row); the values are
+  at the fit's points in range (no curve past them, no curve on a finer grid); `fit(B)` is a
+  whole formula, never part of one; a derived column's fit has no rows to go in
+- Find X/Y: the curve is searched on a grid of 1200 steps over the fit's range (400 for a column
+  filled), so two crossings closer than a step are found only if the curve dips across; a touch
+  counts only when typed to nine digits of the curve; X is searched within the fit's range only
+  (Y is read anywhere); the errors are the delta method's, first order, and a touch has none; a
+  column filled keeps its values when the fit changes; the values typed are not in the report
+- Residual analysis: the leverage is from the Jacobian, so a curve's studentised deleted
+  residuals are the first-order answer (exact for a model linear in its parameters); a fit
+  with the X errors has none; the panel under the graph shows residuals against X only (the
+  other views are in Results); the ANOVA's model row is against the uncorrected total, as
+  Origin's NLFit (R² is the corrected comparison); no Durbin–Watson statistic; a global fit's
+  row is analysed on its own points; the confidence level is the fit's, not chosen per graph
+- Limits and digits are the curve fit's: a peak fit keeps its shapes' own bounds; Share stays
+  in Fit every column… rather than the grid; digits change what is shown, not the numbers kept
+  (the CSV and the copied table keep every digit), and a fit of every column takes the
+  template's
+- Fit control is the curve fit's: a peak fit and a global fit run with the defaults (400
+  iterations, 1e-12); *1 iteration* is a Levenberg–Marquardt step (not with the X errors); the
+  list of iterations keeps the last 200 rows, is this browser's alone and is not in the
+  project; *Stop* is heard between slices, so an iteration slower than a slice ends first
+- Project files: a file is the project at the moment it was saved (the browser cannot keep a file
+  in step with a project, nor watch one); opening one always makes a new project (Copy from another
+  project merges); the file written again by Ctrl+S is remembered for the session only (after a
+  reload the browser asks where once more); Firefox and Safari download each save; a file inflating
+  past 512 MB is refused; Origin's `.opju` is not read
+- Python is gone: a project made with it keeps each Python step's stored result, which cannot
+  be run again or changed (it does not follow a change to its input)
+- With the history off, nothing is recorded from then on, so a report or the original data's
+  record has nothing for that time; the switch is per browser, so in a shared project each
+  person's choice covers only their own changes
+- The History wraps its lanes into bands across the view (a lane of a lower band shows a short
+  line over its box for the original data), and zooms as a whole (no zoom to a part of it); past
+  300 boxes a fast scroll can show a frame without the next boxes. Statistics lists 200 columns
+  until asked for the rest
+- Band integration uses the same windows for every spectrum on an axis (no per-spectrum
+  shift of a window to follow a moving band), straight or level local baselines only (no
+  curved local baseline, no Shirley), and the points inside the window (no interpolation to
+  the exact edges); overlapping bands are integrated separately, not deconvolved, which is
+  what the peak fit is for. Bands are shaded only in the overlaid and double-Y layouts
+- The Overview's judgements (a spike's height, a flat background, 7 points for smoothing,
+  5 below zero) are fixed thresholds; it describes the analysed spectrum only, not a batch
+- Double Y puts every other spectrum on one right axis; there are no free graph layers or
+  per-panel settings in the stacked layout. An inset shows the graph's own spectra over a
+  range, overlaid or offset, never in a heat map, and not another graph
+- Annotations: no freehand lines; a polygon's corners are dragged one at a time (not typed), a
+  curved arrow is one quadratic bend (no S-curves), and a box, ellipse or polygon cannot be turned;
+  rich text is scripts and symbols only (no
+  bold or italic inside a text, no nested scripts); snapping is text to text and to the plot's
+  centre, and an arrow's head to data points; the keys move an annotation's body (not a corner,
+  an end or a bend), and step through the graph's annotations in the order they are drawn
+- Large data on screen: at a million points the whole curve draws in about 35 ms and a zoom into
+  a part of it in a few (only the points in view are read when X runs one way; when it does not,
+  every point is). The worksheet draws a screen of rows in about 14 ms however many there are;
+  past 680 000 rows (15 000 000 px) its scroll bar stands for the rows in proportion, so one pixel
+  of it is more than a row. Past 3000 points a curve is drawn per column of pixels, so two points
+  within half a pixel are one symbol and a dashed line's dashes fall a little differently; the
+  exports draw every point. A fit, the peak finder and the processing use every point, so a fit
+  of 200 000 points takes seconds, run on the page
+- Storage in this browser is IndexedDB, as large as the browser lets a page be (a share of the
+  disk); every project is in memory while the page is open, so many projects of millions of rows
+  need that much memory. Two tabs changing the same cell keep the later value, and other parts
+  of a project (a graph's settings, the annotations) are put together whole, the later tab's
+  winning; in a shared workspace (claude.ai) two colleagues' changes to the columns at the same
+  moment still keep the later list. A browser with no IndexedDB keeps projects in localStorage,
+  a few megabytes in all. A value typed into a column of a million rows is entered in about 70 ms;
+  its check code follows a second or so later, and the record shows *working it out…* until it
+  does; a processing step on that column runs again in full
+- Undo puts back each part beside what came in since from another tab or a colleague: the columns
+  cell by cell, lists of things with ids thing by thing, and any other part (the fit, the peak
+  sets, the bands, a graph's settings inside one graph) whole, so an undo of a part another window
+  changed since leaves that part as the other window made it, this window's change in it kept
+- Rows of a sheet are sized together (every data row one height), not one by one; the label rows
+  keep 22 px
+- The worksheet draws only the rows and (past 40) the columns about the view; a fast scroll can
+  show a frame of empty cells before the next are drawn. An axis title longer than its axis is cut off at
+  the plot's edge
+- Export: a PDF embeds the graph's own font from Fontsource (online: a font that cannot be
+  fetched, a CFF one, a character outside its Latin subset and every EPS use the standard fonts,
+  Helvetica, Times, Courier, Symbol); the font is embedded whole, not cut to the letters drawn
+  (tens of kilobytes a face); a character outside Latin-1, Greek and
+  common signs (Chinese, an emoji) is written as ? (the export says which); EPS has no
+  transparency, so shading is mixed with white and hides what is under it, and its image of
+  a heat map is hex, so large. A raster larger than the browser's canvas (about 16 000 px a
+  side) is refused with a reason
+- Fonts: web fonts come from Google Fonts, so offline only installed fonts show; an export
+  embeds a web font only if it arrives within 10 s; a font is judged installed by its widths
+  against two fallbacks, so one that measures exactly like one of them reads as missing
+- Axes: an axis at zero or at a value stays at the bottom in stacked panels, and Y stays on
+  the left with two Y axes; numbers turn 0°, 45° or 90° (Y: 0° or 90°); titles are dragged in
+  pixels, so a resized graph keeps the offset, not the proportion. Breaks are a gap in
+  proportion or at a place with a scale each side (a break's place is typed, not dragged), Y breaks
+  only with overlaid or offset spectra, at most eight shown; the second axis is X only, sits
+  across from the first and cannot be dragged, and a conversion must be one-to-one over the
+  whole view
+- A peak set follows its spectrum's processing, but not a change of the finder's settings made
+  while another spectrum is analysed: "Every spectrum" applies them to all. Two identical
+  spectra overlaid draw their labels on top of each other
+- Worksheet formulas are whole-column (row by row); there are no cell formulas, no references
+  to other rows (`B[i-1]`), no relative formulas when filling right, no replace in find, and
+  sorting never reorders the recorded data (by design)
+- Binary instrument formats other than SPC, OPUS and Princeton's SPE are not read, nor SPC's old
+  format (before 1996) or its log block, nor an OPUS file's other blocks (one spectrum is read, the
+  first of absorbance, single channel, interferogram), nor an SPE file's regions of interest or
+  binning (its rows are read as they are) or a calibration unit other than nm; text exports only. JCAMP-DX is read but
+  for files in pages (`##NTUPLES`, NMR), the forms of `##XYDATA` other than (X++(Y..Y)), and more
+  than the first block with data of a linked file
 - The preview pane serves a snapshot of the file, so `location.reload()` re-runs stale code —
   navigate to the file again after editing, or you will test the previous version

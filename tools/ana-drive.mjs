@@ -1,0 +1,740 @@
+/* Analyses and result sheets (ux/spec/FOUNDATION_SPEC.md, 1.3): made from the dialog, read only, worked
+   out again by itself or when asked, reading each column as processed or original, masked points
+   out, its steps flagged, grouped, cut, deleted, undone, reloaded. Usage: node tools/ana-drive.mjs [kurve.html] */
+import { fileURLToPath } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import { createServer } from "node:http";
+import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+const here = dirname(fileURLToPath(import.meta.url));
+const FILE = resolve(process.argv[2] || join(here, "..", "kurve.html"));
+const server = createServer((req, res) => { if (req.url.split("?")[0] === "/kurve.html") { res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); res.end(readFileSync(FILE)); } else { res.writeHead(404); res.end(); } });
+await new Promise(r => server.listen(0, "127.0.0.1", r));
+const URL = `http://127.0.0.1:${server.address().port}/kurve.html`;
+let chromium;
+try { ({ chromium } = await import(process.env.PLAYWRIGHT || "playwright")); }
+catch (e) { ({ chromium } = await import("/opt/node22/lib/node_modules/playwright/index.mjs")); }
+let pass = 0, fail = 0;
+const DESC_DEF_JS = "n,miss,mean,sd,se,min,q1,med,q3,max,sum";
+const check = (name, cond, detail) => { if (cond) { pass++; console.log("  ok   " + name); } else { fail++; console.log("  FAIL " + name + (detail == null ? "" : "  — " + String(detail).slice(0, 500))); } };
+const browser = await chromium.launch();
+const ready = (p) => p.waitForFunction(() => typeof S !== "undefined" && S.pid && S.proj && S.projects && S.projects.length, null, { timeout: 30000 });
+async function page(fn, opt = {}) {
+  if (process.env.ONLY && opt.name !== process.env.ONLY) return; // ONLY=2.11 runs that section alone
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } }), p = await ctx.newPage(), errors = [];
+  p.on("pageerror", e => errors.push(e.message));
+  await p.route(/fonts\.(googleapis|gstatic)\.com|jsdelivr/, r => r.abort());
+  await p.addInitScript(() => { try { localStorage.setItem("kurve.ovAuto", "0"); localStorage.setItem("kurve.pref.anim", "false"); } catch (e) {} });
+  await p.goto(URL); await ready(p); await p.evaluate(() => { prefSet("anim", false); applyAnim(); });
+  try { await Promise.race([fn(p, ctx), new Promise((_, rej) => setTimeout(() => rej(new Error("timed out: the page hung")), 180000))]); }
+  catch (e) { check(opt.name + ": ran", false, e.message); }
+  check(opt.name + ": no page errors", !errors.length, errors.slice(0, 3).join(" | "));
+  await ctx.close().catch(() => {});
+}
+// X, two Y columns and a column of groups (text).
+const SETUP = () => { const x = [], a = [], b = []; for (let i = 0; i < 12; i++) { x.push(i); a.push(i * 2 + 1); b.push((i % 4) + 0.5); }
+  const g = Object.assign(makeCol("ignore", "Batch", "", x.map(() => null)), { fmt: "text" }); g.txt = {}; x.forEach(i => { g.txt[i] = i < 6 ? "A" : "B"; }); TXT_OK.add(g.txt);
+  save({ cols: [makeCol("x", "X", "", x), Object.assign(makeCol("y", "Height", "mm", a), { pipe: [], mask: [] }), Object.assign(makeCol("y", "Width", "mm", b), { pipe: [], mask: [] }), g], activeY: null }, "typed"); };
+// The result sheet's table: { key: values }.
+const RES = p => p.evaluate(() => { const a = anaList()[0]; if (!a) return null; const o = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { o[c.ak] = c.txt ? c.data.map((v, i) => c.txt[i] != null ? c.txt[i] : v) : c.data.slice(); }); return { t: o, sig: a.sig, st: anaStale(a), notes: (a.res && a.res.notes) || [], recalc: a.recalc, sheet: a.out.sheet }; });
+const make = async (p, set) => { await p.evaluate(() => { anaDlg("desc"); }); await p.waitForSelector("#aRc");
+  if (set) await set(); await p.click("#formOk"); await p.waitForTimeout(500); };
+
+console.log("The steps say what they do to the rows");
+await page(async p => {
+  const r = await p.evaluate(() => Object.keys(PIPE_OPS).filter(k => !PIPE_ROWS[k]));
+  check("every step declares what it does to the rows", r.length === 0, JSON.stringify(r));
+}, { name: "flags" });
+
+console.log("Statistics on columns");
+await page(async p => {
+  await p.evaluate(SETUP); await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id)), fp0 = await p.evaluate(() => { fpSettle && fpSettle(); return rawFp(); });
+  await p.evaluate(ids => { S.ws = Object.assign(S.ws || {}, {}); wsSelect && wsSelect(0, 1, false); }, ids);
+  await make(p, async () => { await p.check(`#aI_${ids[2]}`); });
+  let r = await RES(p);
+  const st = await p.evaluate(ids => { const s = statRow(colById(ids[1]), "final"); return { n: s.n, mu: s.mu, sd: s.sd, med: s.med }; }, ids);
+  check("Statistics on columns makes a result sheet: a row a column, N, mean, SD and median as the Statistics window has them", r && r.t.col[0] === "Height" && r.t.col[1] === "Width" && r.t.n[0] === st.n && Math.abs(r.t.mean[0] - st.mu) < 1e-12 && Math.abs(r.t.sd[0] - st.sd) < 1e-12 && r.t.med[0] === st.med, JSON.stringify([r, st]).slice(0, 400));
+  r = await p.evaluate(() => { const s = sheetList().find(q => q.ana); return { tab: !!document.querySelector(`#wsTabs [data-wst="${s.id}"].ana svg`), shown: curSheet() === s.id, name: s.name }; });
+  check("…its tab carries a lock, shown at once, named Statistics 1", r.tab && r.shown && r.name === "Statistics 1", JSON.stringify(r));
+  check("…and the check code is the same: results are not original data", await p.evaluate(() => rawFp()) === fp0);
+  // Read only.
+  await p.evaluate(() => { focusWin("sheet"); }); await p.locator('#ws td[data-r="0"][data-ci="2"]').click(); await p.keyboard.type("5");
+  r = await p.evaluate(() => ({ t: (document.querySelector(".toast") || {}).textContent || "", edit: !!(S.ws && S.ws.edit) }));
+  check("typing into it is refused, saying it holds results, with Change settings…", /results of Statistics 1/.test(r.t) && /Change settings/.test(r.t) && !r.edit, JSON.stringify(r));
+  // A value changed: worked out again by itself.
+  await p.evaluate(ids => { const c = colById(ids[1]); const d = c.data.slice(); d[0] = 101; c.data = d; save({ cols: P().cols }, "typed"); }, ids); await p.waitForTimeout(300);
+  r = await RES(p);
+  check("a value changed, it is worked out again by itself (the mean follows)", Math.abs(r.t.mean[0] - (101 + [3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23].reduce((a, b) => a + b, 0)) / 12) < 1e-9 && !r.st, JSON.stringify(r.t.mean));
+  r = await p.evaluate(() => P().log.slice(-1)[0]); check("…with a line in the log", /Statistics 1 again/.test(JSON.stringify(r)), JSON.stringify(r));
+  // A step added: the processed values are read.
+  await p.evaluate(ids => { const c = colById(ids[1]); pushUndo("x"); c.pipe = [makeStep("scale", Object.assign({}, PIPE_OPS.scale.defaults, { a: 2 }))]; save({ cols: P().cols }, "step"); renderAll(); }, ids); await p.waitForTimeout(300);
+  const fin = await p.evaluate(ids => { const d = finalOf(colById(ids[1])).y; return d.reduce((a, b) => a + b, 0) / d.length; }, ids);
+  r = await RES(p);
+  check("a step added to an input, it reads the processed values", Math.abs(r.t.mean[0] - fin) < 1e-9 && fin !== r.t.mean[1], JSON.stringify([r.t.mean, fin]));
+  // Original, from the settings.
+  await p.evaluate(() => { const a = anaList()[0]; anaDlg("desc", { id: a.id }); }); await p.waitForSelector(`#aR_${ids[1]}`);
+  const line = await p.$eval(`#aI_${ids[1]}`, e => e.closest(".anarow").textContent);
+  await p.selectOption(`#aR_${ids[1]}`, "orig"); await p.click("#formOk"); await p.waitForTimeout(400);
+  r = await RES(p);
+  const orig = await p.evaluate(ids => { const d = colById(ids[1]).data; return d.reduce((a, b) => a + b, 0) / d.length; }, ids);
+  check("the dialog names the steps read, and Original reads the original values", /processed: /.test(line) && Math.abs(r.t.mean[0] - orig) < 1e-9, JSON.stringify([line, r.t.mean[0], orig]));
+  // Masked points.
+  await p.evaluate(ids => { const c = colById(ids[2]); pushUndo("x"); c.mask = [0, 1]; save({ cols: P().cols }, "mask"); renderAll(); }, ids); await p.waitForTimeout(300);
+  r = await RES(p);
+  check("masked points are left out and counted (N 10, said)", r.t.n[1] === 10 && r.notes.some(n => /2 masked points of Width/.test(n)), JSON.stringify([r.t.n, r.notes]));
+  // Resampled: the numbers describe made points, said.
+  await p.evaluate(ids => { const c = colById(ids[2]); pushUndo("x"); c.pipe = [makeStep("resample", Object.assign({}, PIPE_OPS.resample.defaults))]; save({ cols: P().cols }, "step"); renderAll(); }, ids); await p.waitForTimeout(300);
+  r = await RES(p);
+  check("after a step that makes points, the report says the numbers describe them", r.notes.some(n => /made or averaged points/.test(n)), JSON.stringify(r.notes));
+  // Manual: marked, then recalculated.
+  await p.evaluate(() => { anaSetRecalc(anaList()[0].id, "manual"); }); await p.waitForTimeout(200);
+  await p.evaluate(ids => { const c = colById(ids[2]); const d = c.data.slice(); d[5] = 50; c.data = d; save({ cols: P().cols }, "typed"); }, ids); await p.waitForTimeout(300);
+  r = await p.evaluate(() => { const a = anaList()[0]; return { st: anaStale(a), cls: (document.querySelector(`#wsTabs [data-wst="${a.out.sheet}"]`) || {}).className || "", item: anaMenuItems(a).find(i => i.label === "Recalculate").enabled }; });
+  check("set to Only when asked, a change marks it out of date (the tab says so), Recalculate offered", r.st && /stale/.test(r.cls) && r.item, JSON.stringify(r));
+  const before = (await RES(p)).t.max[1];
+  await p.evaluate(() => { anaRecalc(anaList()[0].id); }); await p.waitForTimeout(300);
+  r = await RES(p);
+  check("…Recalculate works it out (one undo step), up to date again", !r.st && r.t.max[1] !== before, JSON.stringify([before, r.t.max[1], r.st]));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(300); r = await RES(p);
+  check("…and its undo brings the old result back", r.t.max[1] === before, JSON.stringify(r.t.max));
+  await p.evaluate(() => { redo(); }); await p.waitForTimeout(300);
+  // Grouped.
+  await p.evaluate(() => { anaSetRecalc(anaList()[0].id, "auto"); const a = anaList()[0]; anaDlg("desc", { id: a.id }); }); await p.waitForSelector("#aBy");
+  await p.selectOption("#aBy", ids[3]); await p.click("#formOk"); await p.waitForTimeout(400);
+  r = await RES(p);
+  check("grouped by a column of text: a row per column and group (A, B)", JSON.stringify(r.t.grp) === '["A","B","A","B"]' && r.t.n[0] === 6 && r.t.n[1] === 6, JSON.stringify(r.t));
+  // An input deleted.
+  await p.evaluate(ids => { deleteCols([ids[2]]); }, ids); await p.waitForTimeout(400);
+  r = await RES(p);
+  check("an input deleted: out of date, saying why", r && /deleted/.test(r.st || ""), JSON.stringify(r && r.st));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(400);
+  // Kept across a reload; junk from storage cleaned.
+  const t1 = JSON.stringify((await RES(p)).t);
+  await p.waitForTimeout(1200); await p.reload(); await ready(p); await p.waitForTimeout(500);
+  r = await RES(p);
+  check("kept across a reload, up to date", r && JSON.stringify(r.t) === t1 && !r.st, JSON.stringify(r && r.st));
+  r = await p.evaluate(() => { const q = { cols: [Object.assign(makeCol("ignore", "x", "", [1]), { ana: "zz", ak: "n" })], sheets: [{ id: "s1", name: "A", ana: "zz" }], ana: [{ id: "a1", kind: "nope", in: { cols: [] }, out: { sheet: "s1" } }, "junk", { id: "a2", kind: "desc", in: { cols: ["c1", 3] }, out: { sheet: "gone" } }, { id: "a3", kind: "desc", in: { cols: ["c1", 3] }, out: { sheet: "s1" }, recalc: "x" }] };
+    anaClean(q); return { n: q.ana.length, a: q.ana[0] && { id: q.ana[0].id, rc: q.ana[0].recalc, cols: q.ana[0].in.cols }, col: q.cols[0].ana === undefined, sh: q.sheets[0].ana }; });
+  check("analyses from storage in every broken form are cleaned", r.n === 1 && r.a.id === "a3" && r.a.rc === "auto" && JSON.stringify(r.a.cols) === '["c1"]' && r.col && r.sh === undefined, JSON.stringify(r));
+  // The History's box, Results, Copy and the exported report (1.3b).
+  await p.evaluate(() => { openWin("flow", { render: true }); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const a = anaList()[0], el = document.querySelector(`[data-node="ana:${a.id}"]`), ins = flowInspectorBody({ kind: "ana", aid: a.id, key: "ana:" + a.id });
+    return { box: !!el, t: el ? el.textContent : "", ins: /Show its sheet/.test(ins) && ins.includes(a.name) && /Mean/.test(ins), edges: !!document.querySelector(".flow-edges") }; });
+  check("the History has a box for it, named, with its report and Show its sheet", r.box && /Statistics 1/.test(r.t) && r.ins, JSON.stringify(r));
+  await p.evaluate(() => { anaReport(anaList()[0].id); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const b = $("#pane-res"), s = b.querySelector("#rShowing"); return { v: s && s.value, id: anaList()[0].id, tab: /Height/.test(b.textContent) && !!b.querySelector("table"), opts: s ? [...s.options].map(o => o.textContent) : [] }; });
+  check("Report opens Results at it, with Showing listing the fit and the analysis", r.v === r.id && r.tab && JSON.stringify(r.opts) === '["The fit","Statistics 1"]', JSON.stringify(r));
+  await p.selectOption("#rShowing", ""); await p.waitForTimeout(200);
+  r = await p.evaluate(() => { const b = $("#pane-res"); return { fit: /No fit yet/.test(b.textContent), pick: !!b.querySelector("#rShowing") }; });
+  check("…and back to the fit, the list still there", r.fit && r.pick, JSON.stringify(r));
+  r = await p.evaluate(() => { const a = anaList()[0], t = anaText(a), h = reportAnaHtml(); return { t: t.split("\n").slice(0, 4), reads: /# Reads: /.test(t), rep: h.includes("<h2>Analyses</h2>") && h.includes("Statistics 1") && /grouped by Batch/.test(h) && /worked out again whenever/.test(h) }; });
+  check("Copy gives its tables as tab-separated rows with what it read; the exported report has a section for it", r.t[2] === "Statistics on columns" && /^Column\tGroup\tN/.test(r.t[3]) && r.reads && r.rep, JSON.stringify(r));
+  // Cut from its data, then delete.
+  await p.evaluate(() => { anaCut(anaList()[0].id); }); await p.waitForTimeout(300);
+  r = await p.evaluate(() => ({ n: anaList().length, cols: P().cols.filter(c => c.ana).length, sheet: sheetList().filter(s => s.ana).length, kept: sheetList().length }));
+  check("Cut from its data keeps the values as an ordinary sheet, the analysis gone", r.n === 0 && r.cols === 0 && r.sheet === 0 && r.kept === 2, JSON.stringify(r));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(300);
+  await p.evaluate(() => { anaDelete(anaList()[0].id); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ n: anaList().length, sheets: sheetList().length }));
+  check("Delete the analysis takes its sheet too", r.n === 0 && r.sheets === 1, JSON.stringify(r));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(300);
+  check("…and undo brings both back", await p.evaluate(() => anaList().length === 1 && sheetList().length === 2));
+}, { name: "analyses" });
+
+console.log("A large analysis, in the worker");
+await page(async p => {
+  await p.evaluate(() => { const n = 1000000, y = new Array(n); let s = 0; for (let i = 0; i < n; i++) { y[i] = (i % 1000) / 10; s += y[i]; } window.__mu = s / n;
+    save({ cols: [makeCol("x", "X", "", []), Object.assign(makeCol("ignore", "Counts", "", y))], activeY: null }, "typed"); });
+  await p.waitForTimeout(1500);
+  const id = await p.evaluate(() => sheetCols(curSheet())[1].id);
+  await p.evaluate(() => { anaDlg("desc"); }); await p.waitForSelector("#aRc"); await p.check(`#aI_${id}`);
+  await p.click("#formOk");
+  const t0 = Date.now(); let r = await p.evaluate(() => ({ jobs: ANA_JOBS.size, n: (anaList()[0] || {}).res ? 1 : 0 })); const dt = Date.now() - t0;
+  await p.waitForTimeout(50); const toast1 = await p.evaluate(() => (document.querySelector(".toast") || {}).textContent || "");
+  check("a column of a million values is worked out beside the page: the page answers at once, a message with Stop", r.jobs === 1 && dt < 400 && /Working out Statistics 1/.test(toast1) && /Stop/.test(toast1), JSON.stringify([r, dt, toast1]));
+  await p.waitForFunction(() => { const a = anaList()[0]; return a && a.res && a.res.report; }, null, { timeout: 60000 });
+  r = await p.evaluate(() => { const a = anaList()[0], c = P().cols.filter(c => c.ana === a.id), g = k => (c.find(q => q.ak === k) || {}).data; return { n: g("n")[0], mu: g("mean")[0], want: window.__mu, max: g("max")[0], jobs: ANA_JOBS.size, st: anaStale(a) }; });
+  check("…its result put in when it comes back: N 1 000 000, the mean, the maximum", r.n === 1000000 && Math.abs(r.mu - r.want) < 1e-9 && r.max === 99.9 && !r.jobs && !r.st, JSON.stringify(r));
+  // Stopped: a change starts it again by itself, and Stop ends it.
+  await p.evaluate(id => { const c = colById(id), d = c.data.slice(); d[0] = 500; c.data = d; save({ cols: P().cols }, "typed"); }, id);
+  await p.evaluate(() => { const j = [...ANA_JOBS.values()][0]; if (j) j.stop = true; });
+  await p.waitForFunction(() => !ANA_JOBS.size, null, { timeout: 30000 }); await p.waitForTimeout(300);
+  r = await p.evaluate(() => { const a = anaList()[0]; return { st: anaStale(a), rec: anaMenuItems(a).find(i => i.label === "Recalculate").enabled }; });
+  check("Stop ends it: out of date, saying it was stopped, Recalculate offered", /Stopped/.test(r.st || "") && r.rec, JSON.stringify(r));
+  await p.evaluate(() => { anaRecalc(anaList()[0].id); });
+  await p.waitForFunction(() => { const a = anaList()[0]; return !ANA_JOBS.size && a.res && !a.res.err; }, null, { timeout: 60000 });
+  r = await p.evaluate(() => { const a = anaList()[0]; return (P().cols.find(c => c.ana === a.id && c.ak === "max") || {}).data[0]; });
+  check("…and Recalculate works it out again (the new maximum, 500)", r === 500, r);
+}, { name: "worker" });
+
+console.log("2.1: descriptive statistics, whole; frequency counts; the graphical summary");
+await page(async p => {
+  await p.evaluate(SETUP); await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  // The dialog: the statistics as ticks, the old eleven ticked; the method's settings shown only with what uses them.
+  await p.evaluate(() => { anaDlg("desc"); }); await p.waitForSelector("#aRc");
+  let d = await p.evaluate(() => ({ on: DESC_STATS.map(e => e[0]).filter(k => document.getElementById("aS_" + k).checked), qt: !document.getElementById("aQt").hidden, conf: !document.getElementById("aConf").hidden }));
+  check("the dialog ticks the eleven statistics Statistics on columns had, and hides the interval's level until it is ticked", d.on.join() === DESC_DEF_JS && d.qt && !d.conf, JSON.stringify(d));
+  for (const k of ["n", "miss", "sd", "se", "min", "q1", "q3", "max", "sum"]) await p.uncheck(`#aS_${k}`);
+  for (const k of ["ci", "skew", "kurt", "cv", "mode", "mad"]) await p.check(`#aS_${k}`);
+  await p.fill("#aPct", "10, 90"); await p.selectOption("#aQt", "6"); await p.selectOption("#aConf", "0.99");
+  d = await p.evaluate(() => !document.getElementById("aConf").hidden); check("…the level shows once the interval is ticked", d);
+  await p.check(`#aI_${ids[2]}`); await p.click("#formOk"); await p.waitForTimeout(600);
+  let r = await RES(p);
+  const want = await p.evaluate(ids => { const v = colById(ids[1]).data.filter(x => x != null), s = v.slice().sort((a, b) => a - b), n = v.length, m = v.reduce((a, b) => a + b) / n,
+    sd = Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / (n - 1)), t = DIST.t.isf(0.005, n - 1), q = (p) => { const h = p * (n + 1); const j = Math.floor(h), g = h - j; return (1 - g) * s[Math.max(0, j - 1)] + g * s[Math.min(n - 1, j)]; };
+    return { lo: m - t * sd / Math.sqrt(n), p10: q(0.1), p90: q(0.9), med: q(0.5) }; }, ids);
+  check("…the result: the mean, its 99 % interval, the median and the 10th and 90th percentiles by type 6", r && Math.abs(r.t.cilo[0] - want.lo) < 1e-9 && Math.abs(r.t.p0[0] - want.p10) < 1e-12 && Math.abs(r.t.p1[0] - want.p90) < 1e-12 && Math.abs(r.t.med[0] - want.med) < 1e-12 && !("sd" in r.t) && "skew" in r.t, JSON.stringify([r && r.t, want]));
+  const rep = await p.evaluate(() => { const a = anaList()[0]; return [a.res.report.method, anaText(a)]; });
+  check("…the report says how: the quartiles' method and the divisor", /weighted average right \(type 6\)/.test(rep[0]) && /n − 1/.test(rep[0]) && /# Quantiles/.test(rep[1]), rep[0]);
+  check("…a column whose values never repeat leaves its mode blank and says so", r.t.mode[0] == null && /Mode: left blank for values that never repeat/.test(rep[1]), rep[1].slice(-400));
+  // Rows and listwise, by changing its settings.
+  await p.evaluate(() => { const a = anaList()[0]; anaDlg("desc", { id: a.id }); }); await p.waitForSelector("#aRc");
+  await p.fill("#aRow0", "3"); await p.fill("#aRow1", "8"); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await p.evaluate(() => { const a = anaList()[0], c = P().cols.find(c => c.ana === a.id && c.ak === "mean"); return [c.data[0], a.res.notes.join(" | ")]; });
+  check("rows 3 to 8 only: the mean of those rows, and said", Math.abs(r[0] - [5, 7, 9, 11, 13, 15].reduce((a, b) => a + b) / 6) < 1e-12 && /Rows 3 to 8 only/.test(r[1]), JSON.stringify(r));
+  await p.evaluate(ids => { const c = colById(ids[2]); const d = c.data.slice(); d[4] = null; d[5] = null; pushUndo("x"); save({ cols: P().cols.map(q => q.id === c.id ? Object.assign({}, q, { data: d }) : q) }, "two blanks"); }, ids); await p.waitForTimeout(400);
+  await p.evaluate(() => { const a = anaList()[0]; anaDlg("desc", { id: a.id }); }); await p.waitForSelector("#aRc"); await p.selectOption("#aMiss", "list"); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await p.evaluate(() => { const a = anaList()[0], c = P().cols.find(c => c.ana === a.id && c.ak === "mean"); return [c.data[0], a.res.notes.join(" | ")]; });
+  check("listwise: only rows with a value in both columns (3, 4, 7, 8 of 3 to 8), said", Math.abs(r[0] - (5 + 7 + 13 + 15) / 4) < 1e-12 && /Listwise: the 4 rows/.test(r[1]), JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  check("one undo puts the settings back", await p.evaluate(() => anaList()[0].in.miss !== "list"));
+  // Frequency counts of text and of numbers.
+  await p.evaluate(ids => { anaDlg("freq", { cols: [ids[3], ids[1]] }); }, ids); await p.waitForSelector("#aFm");
+  d = await p.evaluate(ids => [!!document.getElementById("aI_" + ids[3]), !document.getElementById("aFw").hidden, !!document.getElementById("aBy")], ids);
+  check("Frequency counts: a text column can be ticked, the width only shows for bins of a width, no Group by", d[0] && !d[1] && !d[2], JSON.stringify(d));
+  await p.selectOption("#aFm", "w"); await p.fill("#aFw", "5"); await p.fill("#aFs", "0"); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "freq"), o = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { o[c.ak] = c.txt ? c.data.map((v, i) => c.txt[i] != null ? c.txt[i] : v) : c.data.slice(); }); return o; });
+  const of = (nm, k) => r[k].filter((_, i) => r.col[i] === nm);
+  check("…the text column counted by its values, A 6 and B 6, each half", of("Batch", "lev").join() === "A,B" && of("Batch", "n").join() === "6,6" && of("Batch", "pct")[0] === 50 && of("Batch", "cpct")[1] === 100, JSON.stringify(r));
+  check("…the numbers in bins 5 wide from 0: 1 3 | 5 7 9 | 11 13 | 15 17 19 | 21 23", of("Height", "lo").join() === "0,5,10,15,20" && of("Height", "n").join() === "2,3,2,3,2" && of("Height", "cpct")[4] === 100, JSON.stringify([r.lo, r.n]));
+  // The graphical summary: one undo step, a figure of a histogram with a normal curve and a box chart.
+  const g0 = await p.evaluate(() => [P().graphs.length, allCols().length]);
+  await p.evaluate(ids => graphSummary(ids[1]), ids); await p.waitForTimeout(700);
+  r = await p.evaluate(ids => { const f = P().graphs.find(g => g.fig), cells = f ? f.fig.cells.map(c => graphOf(c.gid)) : [];
+    return [!!f, cells.length, cells.some(g => g.plot.layout === "box" && g.cols[0] === ids[1]), cells.some(g => Object.values(g.plot.series || {}).some(s => s.dist === "normal")), !!document.querySelector("#plot path[data-hdist], .gsnap path[data-hdist]")]; }, ids);
+  check("Graphical summary: a figure of two panels, a box chart and a histogram with a normal curve over it", r[0] && r[1] === 2 && r[2] && r[3], JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(500);
+  check("…and one undo takes it all back", JSON.stringify(await p.evaluate(() => [P().graphs.length, allCols().length])) === JSON.stringify(g0));
+  // Junk from storage.
+  r = await p.evaluate(() => { const q = { ana: [{ id: "z", kind: "desc", name: "J", in: { cols: [], rows: ["x", 3], miss: 7 }, p: "junk", out: { sheet: sheetList()[0].id } }], sheets: sheetList(), cols: [] }; anaClean(q); const a = q.ana[0]; return [a.in.rows === undefined, a.in.miss === undefined, typeof a.p === "object" && !Array.isArray(a.p)]; });
+  check("junk rows, missing-value setting and settings from storage are cleaned", r.every(Boolean), JSON.stringify(r));
+  // Reload: the analyses come back with their settings.
+  await p.reload(); await ready(p); await p.waitForTimeout(400);
+  r = await p.evaluate(() => anaList().map(a => [a.kind, JSON.stringify(a.p)]));
+  check("after a reload the analyses keep their settings", r.length === 2 && /"qtype":6/.test(r[0][1]) && /"w":5/.test(r[1][1]), JSON.stringify(r));
+}, { name: "2.1" });
+
+console.log("2.2: normality tests, the Q–Q plot, outliers masked and marked");
+await page(async p => {
+  // A sheet: X, Mass (18 values near 10 and two far ones, 19.5 and 16), a text column of groups.
+  await p.evaluate(() => { const base = [10.46, 10.18, 11.34, 7.51, 8.95, 10.7, 9.68, 10.99, 10.25, 9.55, 11.39, 10.11, 9.78, 11.21, 10.64, 9.79, 8.52, 9.31];
+    const x = base.map((_, i) => i).concat([18, 19]), m = base.concat([19.5, 16]);
+    const X = Object.assign(makeCol("x", "X", ""), { data: x }), M = Object.assign(makeCol("y", "Mass", "g"), { data: m }), G = Object.assign(makeCol("ignore", "Batch", ""), { data: m.map(() => null), fmt: "text", txt: Object.fromEntries(m.map((_, i) => [i, i % 2 ? "B" : "A"])) });
+    save({ cols: [X, M, G], activeY: M.id }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  // Normality: Shapiro–Wilk, Lilliefors and Anderson–Darling ticked.
+  await p.evaluate(ids => { anaDlg("norm", { cols: [ids[1]] }); }, ids); await p.waitForSelector("#aN_sw");
+  let d = await p.evaluate(() => ({ sw: document.getElementById("aN_sw").checked, lf: document.getElementById("aN_lf").checked, by: !!document.getElementById("aBy") }));
+  check("Normality tests: Shapiro–Wilk ticked at first, the others not, Group by offered", d.sw && !d.lf && d.by, JSON.stringify(d));
+  await p.check("#aN_lf"); await p.check("#aN_ad"); await p.click("#formOk"); await p.waitForTimeout(600);
+  let r = await p.evaluate(ids => { const a = anaList().find(x => x.kind === "norm"), o = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { o[c.ak] = { v: c.txt ? c.data.map((v, i) => c.txt[i] != null ? c.txt[i] : v) : c.data.slice(), role: c.role }; });
+    const v = colById(ids[1]).data, sw = swTest(v), lf = lfTest(v), ad = adTest(v); return { o, sw, lf, ad, said: a.res.report.said, txt: anaText(a), id: a.id, html: anaReportHtml(a) }; }, ids);
+  check("…a row with each test's statistic and p as the functions give them", r.o.sws.v[0] === r.sw.w && r.o.swp.v[0] === r.sw.p && r.o.lfs.v[0] === r.lf.d && r.o.ads.v[0] === r.ad.a2, JSON.stringify([r.o.sws, r.sw]));
+  check("…numbers only: no verdict column, no sentence, the copied report opening with the table", !r.o.swv && !r.said && r.txt.split("\n")[2] === "Normality tests" && !/At the|normal\b.*found|may be/.test(r.html), r.txt.split("\n").slice(0, 3).join(" | "));
+  check("…and the Q–Q plot's columns: the normal quantiles an X, 20 sorted values, the quartiles' line", r.o.qx0.role === "x" && r.o.qy0.v.length === 20 && r.o.qy0.v[19] === 19.5 && r.o.ql0.v.length === 20, JSON.stringify([r.o.qx0.role, r.o.qy0.v.length]));
+  const g0 = await p.evaluate(() => P().graphs.length);
+  await p.evaluate(() => { openWin("res", { render: true }); }); await p.evaluate(id => anaReport(id), r.id); await p.waitForTimeout(300);
+  await p.click(`#w-res button[data-anaact="qq"]`); await p.waitForTimeout(600);
+  d = await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1], cs = g.cols.map(colById); return { n: P().graphs.length, cols: cs.map(c => [c.ak, c.role]), types: cs.map(c => ((g.plot.series || {})[c.id] || {}).type), dashed: document.querySelectorAll("#plot g[data-ser] path[stroke-dasharray]").length }; });
+  check("Q–Q plot (Results' button): a graph of the values as symbols and the line, dashed, against the normal quantiles", d.n === g0 + 1 && d.cols.map(c => c[0]).join() === "qy0,ql0" && d.types.join() === "scatter,line" && d.dashed > 0, JSON.stringify(d));
+  await p.evaluate(() => { const a = anaList().find(x => x.kind === "norm"); anaRecalc(a.id); }); await p.waitForTimeout(300);
+  d = await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1]; return g.cols.map(id => colById(id)).map(c => c && c.role); });
+  check("…worked out again, its curves stay curves", d.join() === "y,y", JSON.stringify(d));
+  await p.evaluate(() => undo()); await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  check("…and undone", await p.evaluate(g0 => P().graphs.length === g0, g0));
+  // Outliers: Grubbs, either side, repeated.
+  await p.evaluate(ids => { anaDlg("outl", { cols: [ids[1]] }); }, ids); await p.waitForSelector("#aOt");
+  await p.check("#aOr"); await p.selectOption("#aOt", "dixon");
+  d = await p.evaluate(() => document.getElementById("aOr").closest("label").hidden); check("Outliers: Repeat is Grubbs' only", d);
+  await p.selectOption("#aOt", "grubbs"); await p.click("#formOk"); await p.waitForTimeout(600);
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "outl"), o = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { o[c.ak] = c.txt ? c.data.map((v, i) => c.txt[i] != null ? c.txt[i] : v) : c.data.slice(); }); return { o, said: a.res.report.said, marks: a.res.report.marks, id: a.id }; });
+  check("…Grubbs repeated: 19.5 (row 19) and 16 (row 20) past the critical value, the third not", r.o.value.slice(0, 2).join() === "19.5,16" && r.o.row.slice(0, 2).join() === "19,20" && r.o.stat[0] > r.o.crit[0] && r.o.stat[1] > r.o.crit[1] && r.o.stat[2] < r.o.crit[2] && r.marks.length === 2, JSON.stringify(r.o));
+  check("…no Outlier column and no sentence", !r.o.out && !r.said, JSON.stringify(Object.keys(r.o)));
+  await p.evaluate(id => anaReport(id), r.id); await p.waitForTimeout(300);
+  await p.click(`#w-res button[data-anaact="mask"]`); await p.waitForTimeout(700);
+  d = await p.evaluate(ids => { const a = anaList().find(x => x.kind === "outl"); return { mask: colById(ids[1]).mask, marks: a.res.report.marks.length }; }, ids);
+  check("Mask: rows 19 and 20 masked, and the analysis, worked out again without them, has none past the critical value", d.mask.join() === "18,19" && d.marks === 0, JSON.stringify(d));
+  await p.evaluate(() => undo()); await p.waitForTimeout(400);
+  d = await p.evaluate(ids => ({ mask: (colById(ids[1]).mask || []).length, marks: anaList().find(x => x.kind === "outl").res.report.marks.length }), ids);
+  check("…one undo takes the mask and the second result back", d.mask === 0 && d.marks === 2, JSON.stringify(d));
+  await p.evaluate(id => anaMarkOut(id), r.id); await p.waitForTimeout(500);
+  d = await p.evaluate(ids => (P().annos || []).filter(a => a.t === "label" && a.ser === ids[1] && a.text === "outlier").map(a => [a.row, a.y]), ids);
+  check("Mark them on the graph: a label at each, on its column's graph", d.length === 2 && d.map(x => x[0]).join() === "18,19" && d[0][1] === 19.5, JSON.stringify(d));
+  // By group: the rows are each group's own.
+  await p.evaluate(ids => { const a = anaList().find(x => x.kind === "outl"); anaDlg("outl", { id: a.id }); }, ids); await p.waitForSelector("#aBy");
+  await p.selectOption("#aBy", ids[2]); await p.click("#formOk"); await p.waitForTimeout(600);
+  d = await p.evaluate(() => { const a = anaList().find(x => x.kind === "outl"); return a.res.report.marks.map(m => [m.grp, m.row, m.value]); });
+  check("…by group: 19.5 found in A (row 19), 16 in B (row 20)", JSON.stringify(d) === JSON.stringify([["A", 18, 19.5], ["B", 19, 16]]), JSON.stringify(d));
+  // Dixon's Q on 20 values.
+  await p.evaluate(ids => { anaDlg("outl", { cols: [ids[1]] }); }, ids); await p.waitForSelector("#aOt");
+  await p.selectOption("#aOt", "dixon"); await p.selectOption("#aOs", "max"); await p.click("#formOk"); await p.waitForTimeout(900);
+  d = await p.evaluate(() => { const as = anaList().filter(x => x.kind === "outl"), a = as[as.length - 1], t = a.res.report.sections[0].tables[0]; return [t.head, t.rows[0], a.res.report.method]; });
+  check("Dixon's Q, the largest value: 19.5 examined, its Q, critical Q and p, and how they are found", d[1][d[0].indexOf("Value examined")] === 19.5 && d[0].some(h => /^Critical Q/.test(h)) && /integration/.test(d[2]), JSON.stringify(d));
+  // Reload.
+  await p.reload(); await ready(p); await p.waitForTimeout(500);
+  d = await p.evaluate(() => anaList().map(a => a.kind + ":" + !!(a.res && a.res.report)));
+  check("after a reload the three analyses are there with their results", d.join() === "norm:true,outl:true,outl:true", JSON.stringify(d));
+}, { name: "2.2" });
+
+console.log("2.3: t tests, spreads, proportions, Fisher's exact test");
+await page(async p => {
+  // Before and After (paired, rows), and a text column of groups A (tight) and B (spread out).
+  await p.evaluate(() => { const bef = [10.1, 9.8, 11.2, 10.5, 9.9, 10.7, 10.2, 9.4, 10.8, 10.3, 9.6, 10.9], aft = [10.9, 10.1, 12.0, 11.5, 10.2, 11.6, 10.6, 10.3, 11.9, 11.0, 10.0, 11.4];
+    const val = [10.0, 10.2, 9.9, 10.1, 10.05, 9.95, 6, 15, 8, 13.5, 4.5, 16], grp = val.map((_, i) => i < 6 ? "A" : "B");
+    const X = Object.assign(makeCol("x", "X", ""), { data: bef.map((_, i) => i) }), B = Object.assign(makeCol("y", "Before", ""), { data: bef }), A = Object.assign(makeCol("y", "After", ""), { data: aft }),
+      V = Object.assign(makeCol("y", "Yield", "%"), { data: val }), G = Object.assign(makeCol("ignore", "Line", ""), { data: val.map(() => null), fmt: "text", txt: Object.fromEntries(grp.map((g, i) => [i, g])) });
+    save({ cols: [X, B, A, V, G], activeY: B.id }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  const last = () => p.evaluate(() => { const a = anaList()[anaList().length - 1], rep = a.res.report || {}, t = rep.sections ? rep.sections[0].tables[0] : { head: [], rows: [[]] };
+    const o = {}; t.head.forEach((h, j) => { o[h] = t.rows[0][j]; }); return { kind: a.kind, head: t.head, row: o, rows: t.rows, said: rep.said, checks: rep.checks, err: a.res.err, p: a.p, id: a.id, html: anaReportHtml(a) }; });
+  // One sample against 10.
+  await p.evaluate(ids => { anaDlg("ttest", { cols: [ids[1]] }); }, ids); await p.waitForSelector("#aTt");
+  let d = await p.evaluate(() => document.getElementById("aEq").closest("label").hidden); check("t tests: the dialog hides Equal variances unless two samples are compared", d);
+  await p.fill("#aMu", "10"); await p.selectOption("#aCf", "0.99"); await p.click("#formOk"); await p.waitForTimeout(600);
+  let r = await last(), w = await p.evaluate(ids => tTest1(colById(ids[1]).data, { mu0: 10, conf: 0.99 }), ids);
+  check("…one sample: t, df, p and the 99% interval as tTest1 gives them, and nothing else said", r.row.t === w.t && r.row.df === 11 && r.row.p === w.p && r.row["99% interval of the mean, from"] === w.ci[0] && !r.said && !r.checks && !r.head.some(h => /^At /.test(h)) && !/At the|differ/.test(r.html), JSON.stringify(r.row));
+  d = await p.evaluate(() => [anaConf({ alpha: 0.01 }), anaConf({}), anaConf({ conf: 0.9 }), anaConf({ conf: 7 })].join());
+  check("…an analysis stored with α 0.01 reads a 99% interval; none, 95%; junk, 95%", d === "0.99,0.95,0.9,0.95", d);
+  // Two samples by group, Student's: the variances are far apart, and nothing says so.
+  await p.evaluate(ids => { anaDlg("ttest", { cols: [ids[3]] }); }, ids); await p.waitForSelector("#aTt");
+  await p.selectOption("#aTt", "two"); await p.selectOption("#aBy", ids[4]); await p.check("#aEq"); await p.click("#formOk"); await p.waitForTimeout(600);
+  r = await last(); w = await p.evaluate(() => tTest2([10.0, 10.2, 9.9, 10.1, 10.05, 9.95], [6, 15, 8, 13.5, 4.5, 16], { equal: true }));
+  check("…two samples grouped by Line, Student's: A against B, t and df pooled", r.row.First === "Yield (A)" && r.row.Second === "Yield (B)" && r.row.t === w.t && r.row.df === 10 && /Student/.test(r.html), JSON.stringify(r.row));
+  await p.evaluate(id => anaReport(id), r.id); await p.waitForTimeout(300);
+  d = await p.evaluate(() => ({ fix: !!document.querySelector('#w-res button[data-anaact^="fix"]'), notes: document.querySelectorAll("#w-res .note").length }));
+  check("…no check, note or button about the unequal variances", !d.fix && d.notes === 0, JSON.stringify(d));
+  // Paired.
+  await p.evaluate(ids => { anaDlg("ttest", { cols: [ids[2], ids[1]] }); }, ids); await p.waitForSelector("#aTt");
+  await p.selectOption("#aTt", "paired"); await p.click("#formOk"); await p.waitForTimeout(600);
+  r = await last(); w = await p.evaluate(ids => tTestPaired(colById(ids[1]).data, colById(ids[2]).data, {}), ids);
+  check("…paired, in the sheet's order, Before − After: a mean difference of −0.675 and paired t", r.row.First === "Before" && r.row["Mean difference"] === w.mean && Math.abs(w.mean + 0.675) < 1e-12 && r.row.p === w.p && /Paired t/.test(r.html), JSON.stringify(r.row));
+  // Spreads: every test ticked on the two groups.
+  await p.evaluate(ids => { anaDlg("vartest", { cols: [ids[3]] }); }, ids); await p.waitForSelector("#aV_bf");
+  for (const k of ["lev", "bart", "f"]) await p.check(`#aV_${k}`); await p.selectOption("#aBy", ids[4]); await p.click("#formOk"); await p.waitForTimeout(600);
+  r = await last(); w = await p.evaluate(() => { const A = [10.0, 10.2, 9.9, 10.1, 10.05, 9.95], B = [6, 15, 8, 13.5, 4.5, 16]; return [leveneTest([A, B], "median").p, leveneTest([A, B], "mean").p, bartlettTest([A, B]).p, fTest2(A, B).p]; });
+  check("Comparing spreads: a row a test, each p as its function gives it, no verdict column", r.rows.length === 4 && r.rows.map(x => x[4]).join() === w.join() && r.head.length === 7, JSON.stringify(r.rows));
+  // Proportions and Fisher's test: counts typed, no columns.
+  await p.evaluate(() => { anaDlg("prop"); }); await p.waitForSelector("#aPx");
+  d = await p.evaluate(() => !document.querySelector("#formBody .anacols") && document.getElementById("aPx2").hidden);
+  check("Proportions: no columns, the second sample's fields hidden for one proportion", d);
+  await p.fill("#aPx", "7"); await p.fill("#aPn", "20"); await p.fill("#aP0", "0.5"); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await last(); w = await p.evaluate(() => propTest1(7, 20, { p0: 0.5 }));
+  check("…7 of 20 against 0.5: the exact binomial p, its interval, no sentence", r.row["Exact p"] === w.p && Math.abs(w.p - 0.2632) < 1e-4 && r.row["95% interval (Clopper–Pearson), from"] === w.ci[0] && !r.said, JSON.stringify(r.row));
+  const ok0 = await p.evaluate(() => { anaDlg("prop"); return true; }); await p.waitForSelector("#aPx"); await p.fill("#aPx", "21"); await p.fill("#aPn", "20");
+  d = await p.evaluate(() => document.getElementById("formOk").disabled); check("…more successes than trials is not taken", ok0 && d); await p.keyboard.press("Escape"); await p.waitForTimeout(200);
+  await p.evaluate(() => { anaDlg("fisher"); }); await p.waitForSelector("#aFa");
+  for (const [k, v] of [["a", 10], ["b", 2], ["c", 3], ["d", 15]]) await p.fill(`#aF${k}`, String(v)); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await last(); check("Fisher's exact test on 10, 2, 3, 15: p 0.00054, the odds ratio 21.31 from 2.753 to 301.5", Math.abs(r.row.p - 0.00054) < 1e-5 && Math.abs(r.row["Odds ratio"] - 21.31) < 0.01 && Math.abs(r.row["95% interval, from"] - 2.753) < 1e-3 && Math.abs(r.row.to - 301.5) < 0.1 && !r.said, JSON.stringify(r.row));
+  d = await p.evaluate(() => { const a = anaList()[anaList().length - 1]; return anaText(a).split("\n").pop(); }); check("…its copied report says it came from the counts typed", /^# From the counts typed/.test(d), d);
+  await p.reload(); await ready(p); await p.waitForTimeout(500);
+  d = await p.evaluate(() => anaList().map(a => a.kind).join());
+  check("after a reload every test is there", d === "ttest,ttest,ttest,vartest,prop,fisher", d);
+}, { name: "2.3" });
+
+console.log("2.4: one-way ANOVA, its comparisons, the worker, the means plot");
+await page(async p => {
+  // Four groups as columns (A to D), and the same values as one column with a text column of groups.
+  await p.evaluate(() => { const G = [[4.1, 5.2, 6.0, 5.5, 4.8], [6.2, 7.1, 6.8, 7.5, 6.6, 7.0], [5.0, 5.4, 4.9, 5.8], [8.1, 7.6, 8.4, 7.9, 8.8]], n = 6;
+    const X = Object.assign(makeCol("x", "X", ""), { data: Array.from({ length: n }, (_, i) => i) }), cs = G.map((g, j) => Object.assign(makeCol("y", "ABCD"[j], ""), { data: g.concat(Array(n - g.length).fill(null)) }));
+    const all = G.flat(), lab = G.flatMap((g, j) => g.map(() => "L" + "ABCD"[j])), Y = Object.assign(makeCol("y", "Yield", "%"), { data: all });
+    const L = Object.assign(makeCol("ignore", "Line", ""), { data: all.map(() => null), fmt: "text", txt: Object.fromEntries(lab.map((t, i) => [i, t])) });
+    save({ cols: [X, ...cs, Y, L], activeY: cs[0].id }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  await p.evaluate(ids => { anaDlg("anova1", { cols: ids.slice(1, 5) }); }, ids); await p.waitForSelector("#aC_tukey");
+  let d = await p.evaluate(() => ({ tk: document.getElementById("aC_tukey").checked, others: COMP_KINDS.filter(e => e[0] !== "tukey").every(e => !document.getElementById("aC_" + e[0]).checked), ctl: document.getElementById("aCtl").hidden }));
+  check("One-way ANOVA's dialog: Tukey–Kramer ticked at first, the others not, Control hidden", d.tk && d.others && d.ctl, JSON.stringify(d));
+  await p.check("#aC_dunnett"); await p.waitForTimeout(100);
+  d = await p.evaluate(() => ({ hidden: document.getElementById("aCtl").hidden, opts: [...document.querySelectorAll("#aCtl option")].map(o => o.value) }));
+  check("…Dunnett ticked shows Control, listing the groups ticked", !d.hidden && d.opts.join() === "A,B,C,D", JSON.stringify(d));
+  await p.selectOption("#aCtl", "B"); await p.check("#aC_holm"); await p.check("#aWe"); await p.click("#formOk");
+  await p.waitForFunction(() => { const a = anaList().find(x => x.kind === "anova1"); return a && a.res && a.res.report; }, null, { timeout: 60000 });
+  let r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "anova1"), G = ["A", "B", "C", "D"].map(n => yCols().find(c => c.name === n).data.filter(v => v != null)), w = anova1(G), rep = a.res.report;
+    const sec = t => rep.sections.find(s => s.title.startsWith(t)), row = (t, i) => sec(t).tables[0].rows[i || 0];
+    const tk = anovaComp(w, "tukey", { conf: 0.95 }).rows, du = anovaComp(w, "dunnett", { conf: 0.95, ctrl: 1 }).rows;
+    return { F: row("Analysis of variance")[4], wF: w.F, p: row("Analysis of variance")[5], wp: w.p, eta: row("Effect size")[0], weta: w.eta2, welch: row("Welch's F")[0], wwelch: w.welch.F,
+      tk: sec("Tukey").tables[0].rows.map(x => x[3]), wtk: tk.map(x => x.p), du: sec("Dunnett").title, dup: sec("Dunnett").tables[0].rows.map(x => x[3]), wdu: du.map(x => x.p),
+      holm: sec("Holm").tables[0].rows.map(x => x[4]), grp: sec("Groups").tables[0].rows.map(x => x[0]).join(), said: rep.said, id: a.id }; });
+  check("…F, p, η² and Welch's F as anova1 gives them", r.F === r.wF && r.p === r.wp && r.eta === r.weta && r.welch === r.wwelch, JSON.stringify(r));
+  check("…Tukey–Kramer's p as anovaComp gives them", r.tk.join() === r.wtk.join(), JSON.stringify([r.tk, r.wtk]));
+  check("…Dunnett against B (worked out in the worker), its p as on the page", /against B, 95%/.test(r.du) && r.dup.every((v, i) => Math.abs(v - r.wdu[i]) < 1e-15 * Math.max(1, r.wdu[i])), JSON.stringify([r.du, r.dup, r.wdu]));
+  check("…Holm with no interval, the groups listed, and no sentence", r.holm.every(v => v == null) && r.grp === "A,B,C,D" && !r.said, JSON.stringify([r.holm, r.grp]));
+  // The means plot.
+  await p.evaluate(() => { openWin("res", { render: true }); }); await p.evaluate(id => anaReport(id), r.id); await p.waitForTimeout(300);
+  const g0 = await p.evaluate(() => P().graphs.length);
+  await p.click(`#w-res button[data-anaact="means"]`); await p.waitForTimeout(600);
+  d = await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1], y = colById(g.cols[0]), x = xColFor(y), e = errColFor(y.id); return { n: P().graphs.length, ak: y.ak, x: x && x.ak, e: e && e.ak, type: ((g.plot.series || {})[y.id] || {}).type, cat: !!(x && isCatCol(x)) }; });
+  check("Means plot: a graph of the means joined, against the groups' names, the intervals as error bars", d.n === g0 + 1 && d.ak === "gmean" && d.x === "gname" && d.cat && d.e === "ghw" && d.type === "linesym", JSON.stringify(d));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  // Grouped: one column and a column of groups; the control from its levels.
+  await p.evaluate(ids => { anaDlg("anova1", { cols: [ids[5]] }); }, ids); await p.waitForSelector("#aC_tukey");
+  await p.selectOption("#aBy", ids[6]); await p.check("#aC_dunnett"); await p.waitForTimeout(100);
+  d = await p.evaluate(() => [...document.querySelectorAll("#aCtl option")].map(o => o.value).join());
+  check("…grouped by Line: Control lists its levels", d === "LA,LB,LC,LD", d);
+  await p.uncheck("#aC_dunnett"); await p.click("#formOk"); await p.waitForTimeout(800);
+  r = await p.evaluate(() => { const as = anaList().filter(x => x.kind === "anova1"), a = as[as.length - 1], b = as[0], f = s => s.res.report.sections[0].tables[0].rows[0][4]; return { a: f(a), b: f(b), grp: a.res.report.sections.find(s => s.title === "Groups").tables[0].rows.map(x => x[0]).join() }; });
+  check("…the same F as the four columns, the groups named by their levels", r.a === r.b && r.grp === "LA,LB,LC,LD", JSON.stringify(r));
+  // Follows its data.
+  await p.evaluate(ids => { const c = colById(ids[1]); pushUndo("t"); c.data = c.data.slice(); c.data[0] = 9; save({ cols: P().cols }, "typed 9"); }, ids);
+  await p.waitForFunction(() => { const a = anaList().find(x => x.kind === "anova1"); return a && !ANA_JOBS.has(a.id) && a.res.report && a.res.report.sections[0].tables[0].rows[0][4] !== null; }, null, { timeout: 60000 });
+  await p.waitForTimeout(1500);
+  r = await p.evaluate(ids => { const a = anaList().find(x => x.kind === "anova1"), G = ids.slice(1, 5).map(id => colById(id).data.filter(v => v != null)); return [a.res.report.sections[0].tables[0].rows[0][4], anova1(G).F]; }, ids);
+  check("…a value typed: worked out again by itself", r[0] === r[1], JSON.stringify(r));
+  // A refusal in words.
+  await p.evaluate(ids => { anaDlg("anova1", { cols: [ids[1]] }); }, ids); await p.waitForSelector("#aC_tukey"); await p.click("#formOk"); await p.waitForTimeout(600);
+  d = await p.evaluate(() => { const as = anaList().filter(x => x.kind === "anova1"); return as[as.length - 1].res.err; });
+  check("…one group is refused in words", /two groups/.test(d || ""), d);
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  d = await p.evaluate(() => anaList().filter(x => x.kind === "anova1").map(a => !!(a.res && (a.res.report || a.res.err))).join());
+  check("after a reload the three are there", d === "true,true,true", d);
+}, { name: "2.4" });
+
+console.log("2.8: rank tests");
+await page(async p => {
+  await p.evaluate(() => { const A = [4.1, 5.2, 6.0, 5.5, 4.8, 5.1, 4.4, 5.9], B = [6.2, 7.1, 6.8, 7.5, 6.6, 7.0, 5.8, 6.9], C = [5.0, 5.4, 4.9, 5.8, null, 5.2, 5.6, 4.7];
+    const Y = [4.1, 5.2, 6.0, 5.5, 6.2, 7.1, 6.8, 7.5, 5.0, 5.4, 4.9, 5.8], L = Y.map((_, i) => ["a", "b", "c"][Math.floor(i / 4)]);
+    const X = Object.assign(makeCol("x", "X", ""), { data: Y.map((_, i) => i) }), cs = [["A", A], ["B", B], ["C", C], ["Yield", Y]].map(([n, v]) => Object.assign(makeCol("y", n, ""), { data: v }));
+    const G = Object.assign(makeCol("ignore", "Line", ""), { data: L.map(() => null), fmt: "text", txt: Object.fromEntries(L.map((t, i) => [i, t])) });
+    save({ cols: [X, ...cs, G], activeY: cs[0].id }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id)), col = (i) => `colById(${JSON.stringify(ids[i])}).data.filter(v => v != null)`;
+  const run = async (kind, cols, set) => { await p.evaluate(([k, c]) => { anaDlg(k, { cols: c }); }, [kind, cols]); await p.waitForSelector("#formOk"); if (set) await set(); await p.click("#formOk");
+    await p.waitForFunction(k => { const as = anaList().filter(x => x.kind === k); const a = as[as.length - 1]; return a && a.res && (a.res.report || a.res.err) && !ANA_JOBS.has(a.id); }, kind, { timeout: 60000 });
+    return p.evaluate(k => { const as = anaList().filter(x => x.kind === k), a = as[as.length - 1]; return { secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, h: s.tables[0].head, r: s.tables[0].rows })), notes: a.res.notes, err: a.res.err, id: a.id }; }, kind); };
+  const at = (sec, name, row) => sec.r[row || 0][sec.h.indexOf(name)];
+  let r = await run("mw", [ids[1], ids[2]]), w = await p.evaluate(new Function(`return mwTest(${col(1)}, ${col(2)}, {})`));
+  check("Mann–Whitney: U, p, the shift and its interval as mwTest gives them", at(r.secs[0], "U") === w.U && at(r.secs[0], "p") === w.p && at(r.secs[0], "Shift") === w.hl && at(r.secs[0], "to") === w.ci[1], JSON.stringify(r.secs[0]));
+  await p.evaluate(id => { openWin("res", { render: true }); anaReport(id); }, r.id); await p.waitForTimeout(300);
+  check("…its one row shown as names and values in Results", await p.evaluate(() => !!document.querySelector("#w-res table.rtab.ana.kv")));
+  r = await run("wsr", [ids[1], ids[2]], async () => { await p.selectOption("#aTt", "paired"); }); w = await p.evaluate(new Function(`const a = ${col(1)}, b = ${col(2)}; return wsrTest(a.map((x, i) => x - b[i]), {})`));
+  check("Wilcoxon signed-rank, paired: T+ and p as wsrTest of the differences", at(r.secs[0], "T+") === w.Tp && at(r.secs[0], "p") === w.p && at(r.secs[0], "Pairs") === "A − B", JSON.stringify(r.secs[0]));
+  r = await run("wsr", [ids[1]], async () => { await p.fill("#aMu", "5"); await p.selectOption("#aZ", "pratt"); await p.selectOption("#aEx", "normal"); }); w = await p.evaluate(new Function(`return wsrTest(${col(1)}, {mu0: 5, zero: "pratt", exact: false})`));
+  check("…one sample against 5, Pratt's zeros, the normal approximation", at(r.secs[0], "p") === w.p && at(r.secs[0], "z") === w.z, JSON.stringify([r.secs[0], w.p]));
+  r = await run("sign", [ids[1]], async () => { await p.fill("#aMu", "5"); }); w = await p.evaluate(new Function(`return signTest(${col(1)}, {mu0: 5})`));
+  check("Sign test: above, below and p as signTest gives them", at(r.secs[0], "Above") === w.up && at(r.secs[0], "Below") === w.dn && at(r.secs[0], "p") === w.p, JSON.stringify(r.secs[0]));
+  r = await run("kw", [ids[4]], async () => { await p.selectOption("#aBy", ids[5]); await p.selectOption("#aAdj", "bonf"); }); w = await p.evaluate(new Function(`const y = ${col(4)}; return kwTest([y.slice(0, 4), y.slice(4, 8), y.slice(8)], {adj: "bonf"})`));
+  check("Kruskal–Wallis grouped by Line: H, p and Dunn's Bonferroni p", at(r.secs[0], "H") === w.H && at(r.secs[0], "p") === w.p && r.secs[2].r.map(x => x[4]).join() === w.dunn.map(x => x.p).join() && /Bonferroni/.test(r.secs[2].t), JSON.stringify(r.secs));
+  r = await run("fried", [ids[1], ids[2], ids[3]]); w = await p.evaluate(new Function(`const a = colById(${JSON.stringify(ids[1])}).data, b = colById(${JSON.stringify(ids[2])}).data, c = colById(${JSON.stringify(ids[3])}).data; return friedmanTest(a.map((x, i) => [x, b[i], c[i]]).filter(r => r.every(v => v != null)))`));
+  check("Friedman: Q and p over the rows complete in all three, the row left out said", at(r.secs[0], "Q") === w.Q && at(r.secs[0], "Rows") === 7 && r.notes.some(n => /7 rows complete/.test(n)), JSON.stringify([r.secs[0], r.notes]));
+  r = await run("mood", [ids[4]], async () => { await p.selectOption("#aBy", ids[5]); }); w = await p.evaluate(new Function(`const y = ${col(4)}; return moodTest([y.slice(0, 4), y.slice(4, 8), y.slice(8)])`));
+  check("Mood's median test: the grand median, χ² and p", at(r.secs[0], "Grand median") === w.med && at(r.secs[0], "p") === w.p, JSON.stringify(r.secs[0]));
+  r = await run("ks2", [ids[1], ids[2]], async () => { await p.selectOption("#aEx", "normal"); }); w = await p.evaluate(new Function(`return ks2Test(${col(1)}, ${col(2)}, {exact: "asymp"})`));
+  check("Two-sample KS, asymptotic: D and p as ks2Test gives them", at(r.secs[0], "D") === w.D && at(r.secs[0], "p") === w.p, JSON.stringify(r.secs[0]));
+  r = await run("fried", [ids[4]], async () => { await p.selectOption("#aBy", ids[5]).catch(() => {}); });
+  check("…Friedman with one column is refused in words", /two columns/.test(r.err || ""), r.err);
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  const k = await p.evaluate(() => anaList().map(a => a.kind).join());
+  check("after a reload every one is there", k === "mw,wsr,wsr,sign,kw,fried,mood,ks2,fried", k);
+}, { name: "2.8" });
+
+console.log("2.9: correlation, its matrices, the scatter matrix");
+await page(async p => {
+  await p.evaluate(() => { const A = [4.1, 5.2, 6.0, 5.5, 4.8, 5.1, 4.4, 5.9], B = [6.2, 7.1, 6.8, 7.5, 6.6, 7.0, 5.8, 6.9], C = [5.0, 5.4, 4.9, 5.8, null, 5.2, 5.6, 4.7];
+    const X = Object.assign(makeCol("x", "X", ""), { data: A.map((_, i) => i) }), cs = [["A", A], ["B", B], ["C", C]].map(([n, v]) => Object.assign(makeCol("y", n, ""), { data: v }));
+    save({ cols: [X, ...cs], activeY: cs[0].id }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  const run = async (set) => { await p.evaluate(c => { anaDlg("corr", { cols: c }); }, ids.slice(1, 4)); await p.waitForSelector("#aK_pearson"); if (set) await set(); await p.click("#formOk");
+    await p.waitForFunction(() => { const as = anaList().filter(x => x.kind === "corr"), a = as[as.length - 1]; return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 60000 });
+    return p.evaluate(() => { const as = anaList().filter(x => x.kind === "corr"), a = as[as.length - 1], t = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { t[c.ak] = c.data.map((v, i) => c.txt && c.txt[i] != null ? c.txt[i] : v); });
+      return { t, secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, n: s.tables.length, m: s.tables[0].rows.map(x => x[0]).join() })), err: a.res.err, id: a.id, said: a.res.report && a.res.report.said }; }); };
+  let d = await p.evaluate(() => { anaDlg("corr", {}); const o = ["pearson", "spearman", "kendall", "partial"].map(k => document.getElementById("aK_" + k).checked), by = document.getElementById("aBy"); const r = { o, by: !by || by.closest("[hidden]") != null || by.hidden }; document.getElementById("formCancel").click(); return r; });
+  check("Correlation's dialog: Pearson's r ticked at first, the others not, no grouping", d.o.join() === "true,false,false,false" && d.by, JSON.stringify(d));
+  let r = await run(async () => { for (const k of ["spearman", "kendall", "partial"]) await p.check("#aK_" + k); });
+  const at = (row, key) => r.t[key][row];
+  let w = await p.evaluate(ids => { const v = i => colById(ids[i]).data, both = (i, j) => v(i).map((x, k) => [x, v(j)[k]]).filter(q => q[0] != null && q[1] != null), xy = q => [q.map(t => t[0]), q.map(t => t[1])];
+    const [a, c] = xy(both(1, 3)), [a2, b2] = xy(both(1, 2)), all = v(1).map((_, k) => k).filter(k => [1, 2, 3].every(i => v(i)[k] != null)), pc = partialCorr([1, 2, 3].map(i => all.map(k => v(i)[k])));
+    return { ac: corrTest(a, c, {}), ab: corrTest(a2, b2, {}), rho: spearmanTest(a2, b2, {}).rho, tau: kendallTau(a2, b2, {}).tau, pr: pc.rows[0].r }; }, ids);
+  const near = (a, b) => a === b; /* the sheet keeps every digit */
+  check("Pearson's r, its p and interval, pair by pair (A and C over their 7 rows) as corrTest gives them", at(1, "n") === 7 && near(at(1, "r"), w.ac.r) && near(at(1, "rp"), w.ac.p) && at(0, "n") === 8 && near(at(0, "r"), w.ab.r) && near(at(0, "hi"), w.ab.ci[1]), JSON.stringify([r.t, w]));
+  check("…Spearman's ρ, Kendall's τ and partial r beside it", near(at(0, "rho"), w.rho) && near(at(0, "tau"), w.tau) && near(at(0, "pr"), w.pr), JSON.stringify(r.t));
+  check("…a section a coefficient, each its matrix and its pairs, Pearson's interval apart, and no sentence", ["Pearson's r", "Spearman's ρ", "Kendall's τ", "Partial r"].every(t => r.secs.some(s => s.t === t && s.n === 2 && s.m === "B,C")) && r.secs.some(s => s.t === "Pearson's r, 95% interval") && !r.said, JSON.stringify(r.secs));
+  r = await run(async () => { await p.selectOption("#aMiss", "list"); });
+  check("…listwise: every pair over the 7 rows complete in all three", r.t.n.every(v => v === 7), JSON.stringify(r.t.n));
+  await p.evaluate(id => { openWin("res", { render: true }); anaReport(id); }, r.id); await p.waitForTimeout(300);
+  const g0 = await p.evaluate(() => P().graphs.length);
+  await p.click(`#w-res button[data-anaact="scatter"]`); await p.waitForTimeout(800);
+  d = await p.evaluate(() => { const gs = P().graphs, fig = gs.find(g => g.fig); return { n: gs.length, panels: fig ? fig.fig.cells.length : 0, ak: fig ? fig.fig.cells.map(c => { const g = graphOf(c.gid), y = colById(g.cols[0]), x = xColFor(y); return [y.ak, x && x.ak, ((g.plot.series || {})[y.id] || {}).type]; }) : null }; });
+  check("Scatter matrix: a figure of three panels, each pair's values against each other, as symbols", d.panels === 3 && d.ak.every(([y, x, t], i) => y === "sy" + i && x === "sx" + i && t === "scatter"), JSON.stringify(d));
+  await p.evaluate(() => undo()); await p.waitForTimeout(400);
+  d = await p.evaluate(id => ({ n: P().graphs.length, sc: !!(anaOf(id).p || {}).scatter, cols: P().cols.filter(c => c.ana === id && /^s[xy]/.test(c.ak)).length }), r.id);
+  check("…one undo takes the figure, its graphs and the columns back", d.n === g0 && !d.sc && d.cols === 0, JSON.stringify([d, g0]));
+  r = await p.evaluate(c => { anaDlg("corr", { cols: c }); }, [ids[1]]); await p.waitForSelector("#aK_pearson"); await p.click("#formOk"); await p.waitForTimeout(600);
+  d = await p.evaluate(() => { const as = anaList().filter(x => x.kind === "corr"); return as[as.length - 1].res.err; });
+  check("…one column is refused in words", /two columns/.test(d || ""), d);
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  d = await p.evaluate(() => anaList().filter(a => a.kind === "corr").length);
+  check("after a reload the three are there", d === 3, d);
+}, { name: "2.9" });
+
+console.log("2.10: counts in tables");
+await page(async p => {
+  // Two columns of categories (text), a table of counts (numbers) with a column naming its rows, and paired outcomes.
+  await p.evaluate(() => { const sm = ["yes", "no", "yes", "yes", "no", "no", "yes", "no", "yes", "yes", "no", "yes"], gr = ["A", "A", "B", "B", "C", "C", "A", "B", "C", "A", "B", "C"];
+    const txt = (nm, v) => Object.assign(makeCol("ignore", nm, ""), { data: v.map(() => null), fmt: "text", txt: Object.fromEntries(v.map((t, i) => [i, t])) });
+    const X = Object.assign(makeCol("x", "X", ""), { data: sm.map((_, i) => i) }), n1 = [12, 5, 9, null, null, null, null, null, null, null, null, null], n2 = [7, 15, 4, null, null, null, null, null, null, null, null, null];
+    const nm = txt("Site", ["North", "South", "East", "", "", "", "", "", "", "", "", ""]);
+    const before = ["pos", "pos", "neg", "neg", "pos", "neg", "pos", "neg", "neg", "pos", "pos", "neg"], after = ["pos", "neg", "neg", "pos", "neg", "neg", "neg", "neg", "pos", "neg", "neg", "neg"];
+    save({ cols: [X, txt("Smoker", sm), txt("Group", gr), Object.assign(makeCol("y", "Ill", ""), { data: n1 }), Object.assign(makeCol("y", "Well", ""), { data: n2 }), nm, txt("Before", before), txt("After", after)], activeY: null }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  const run = async (cols, set) => { await p.evaluate(c => { anaDlg("xtab", { cols: c }); }, cols); await p.waitForSelector("#aXm"); if (set) await set(); await p.click("#formOk");
+    await p.waitForFunction(() => { const as = anaList().filter(x => x.kind === "xtab"), a = as[as.length - 1]; return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 60000 });
+    return p.evaluate(() => { const as = anaList().filter(x => x.kind === "xtab"), a = as[as.length - 1]; return { secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, h: s.tables[0].head, r: s.tables[0].rows })), notes: a.res.notes, err: a.res.err, said: a.res.report && a.res.report.said }; }); };
+  let r = await run([ids[1], ids[2]], async () => { await p.check("#aX_g"); await p.check("#aX_fisher"); });
+  const cnt = r.secs.find(s => s.t === "Counts"), w = await p.evaluate(() => { const T = [[1, 2, 2], [3, 2, 2]]; return { c: chi2Indep(T, {}), f: fisherRC(T) }; });
+  const tst = r.secs.find(s => s.t === "Tests"), pv = n => tst.r.find(x => x[0].startsWith(n))[3];
+  check("two columns of text: the cross-table with its totals, levels in natural order", JSON.stringify(cnt.h) === JSON.stringify(["", "A", "B", "C", "Total"]) && JSON.stringify(cnt.r.map(x => x[0])) === JSON.stringify(["no", "yes", "Total"]) && cnt.r[2][4] === 12, JSON.stringify(cnt));
+  check("…χ², G and Fisher's p as chi2Indep and fisherRC give them, the expected counts shown, no sentence", pv("Pearson") === w.c.p && pv("Likelihood") === w.c.pG && pv("Fisher") === w.f.p && r.secs.some(s => s.t === "Expected counts") && !r.said, JSON.stringify([tst, w]));
+  r = await run([ids[3], ids[4]], async () => { await p.selectOption("#aXm", "table"); await p.selectOption("#aBy", ids[5]); await p.check("#aX_fisher"); });
+  const c2 = r.secs.find(s => s.t === "Counts"), w2 = await p.evaluate(() => ({ c: chi2Indep([[9, 4], [12, 7], [5, 15]], {}), f: fisherRC([[9, 4], [12, 7], [5, 15]]) }));
+  check("a table of counts, its rows named by Site: χ² and Fisher's p of it", JSON.stringify(c2.r.map(x => x[0])) === JSON.stringify(["East", "North", "South", "Total"]) && r.secs.find(s => s.t === "Tests").r[0][3] === w2.c.p, JSON.stringify(r.secs));
+  r = await run([ids[6], ids[7]], async () => { await p.uncheck("#aX_chi2"); await p.check("#aX_mcnemar"); });
+  const w3 = await p.evaluate(() => mcnemarTest([[4, 2], [5, 1]], {}));
+  const t3 = r.secs.find(s => s.t === "Tests");
+  check("McNemar on Before and After (neg and pos, in one order): χ² and the exact p", t3 && t3.r[0][1] === w3.X2 && t3.r[1][3] === w3.pExact, JSON.stringify([r.secs, w3]));
+  await p.evaluate(id => { const c = colById(id); pushUndo("t"); c.data = c.data.slice(); c.data[0] = -3; save({ cols: P().cols }, "typed"); }, ids[3]); await p.waitForTimeout(1200);
+  r = await p.evaluate(() => anaList().filter(x => x.kind === "xtab")[1].res.err);
+  check("a negative count is refused in words", /whole numbers/.test(r || ""), r);
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().filter(a => a.kind === "xtab").length);
+  check("after a reload the three are there", r === 3, r);
+}, { name: "2.10" });
+
+console.log("2.5: the linear model");
+await page(async p => {
+  // Dose (X), Yield, Site (text, three levels), Temp (numbers); one Yield missing, and a Site with no value.
+  await p.evaluate(() => { const n = 18, dose = [], yld = [], site = [], temp = [];
+    for (let i = 0; i < n; i++) { dose.push(i % 6); site.push(["A", "B", "C"][i % 3]); temp.push(20 + (i * 7) % 5); yld.push(+(2 + 0.8 * (i % 6) + [0, 1.5, -0.7][i % 3] + 0.1 * temp[i] + 0.3 * Math.sin(i * 1.7)).toFixed(4)); }
+    yld[5] = null; site[9] = "";
+    const txt = (nm, v) => Object.assign(makeCol("ignore", nm, ""), { data: v.map(() => null), fmt: "text", txt: Object.fromEntries(v.map((t, i) => [i, t]).filter(e => e[1])) });
+    save({ cols: [Object.assign(makeCol("x", "Dose", "mg"), { data: dose }), Object.assign(makeCol("y", "Yield", "g"), { data: yld, pipe: [], mask: [] }), txt("Site", site), Object.assign(makeCol("ignore", "Temp", "°C"), { data: temp })], activeY: null }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  const run = async (cols, set, kind = "lm") => { await p.evaluate(([c, k]) => { anaDlg(k, { cols: c }); }, [cols, kind]); await p.waitForSelector("#aLy"); if (set) await set(); await p.click("#formOk");
+    await p.waitForFunction(() => { const as = anaList().filter(x => x.kind === "lm"), a = as[as.length - 1]; return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 60000 });
+    return p.evaluate(() => { const as = anaList().filter(x => x.kind === "lm"), a = as[as.length - 1], o = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { o[c.ak] = c.txt ? c.data.map((v, i) => c.txt[i] != null ? c.txt[i] : v) : c.data.slice(); });
+      return { t: o, secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, h: s.tables[0].head, r: s.tables[0].rows })), notes: a.res.notes, err: a.res.err, method: a.res.report && a.res.report.method }; }); };
+  let r = await p.evaluate(ids => { anaDlg("lm", { cols: ids }); return null; }, ids); await p.waitForSelector("#aLy");
+  r = await p.evaluate(ids => ({ x: !!document.querySelector(`#aI_${ids[0]}`), y: document.querySelector("#aLy").value, fac: [...document.querySelectorAll('#aLfac input')].map(i => [i.id.slice(4), i.checked, i.disabled]) }), ids);
+  check("an X column can be ticked; the response starts on the first Y; Site a factor that cannot be unticked, Dose and Temp not", r.x && r.y === ids[1] && JSON.stringify(r.fac) === JSON.stringify([[ids[0], false, false], [ids[2], true, true], [ids[3], false, false]]), JSON.stringify(r));
+  await p.click("#formCancel");
+  r = await run(ids, async () => { await p.selectOption("#aLi", "pairs"); await p.check("#aLr"); await p.fill("#aLct", "Site[B] − Site[C]\nDose + 2 Dose:Site[B] = 1\nnothing here"); });
+  const want = await p.evaluate(ids => { const c = ids.map(colById), R = []; for (let i = 0; i < 18; i++) if (c[1].data[i] != null && c[2].txt[i]) R.push(i);
+    const vars = [{ name: "Dose", num: true, x: R.map(i => c[0].data[i]) }, { name: "Site", num: false, levels: ["A", "B", "C"], code: R.map(i => ["A", "B", "C"].indexOf(c[2].txt[i])) }, { name: "Temp", num: true, x: R.map(i => c[3].data[i]) }];
+    const M = linModel(vars, R.map(i => c[1].data[i]), { inter: "pairs", ss: 3 }); return { names: M.names, b: M.b, se: M.se, p: M.p, r2: M.r2, F: M.F, n: M.n, an: M.anova.rows.map(o => [o.term, o.df, o.ss, o.F, o.p]), c1: lmContrast(M, "Site[B] − Site[C]"), c2: lmContrast(M, "Dose + 2 Dose:Site[B] = 1") }; }, ids);
+  const sec = t => r.secs.find(s => s.t === t);
+  check("the result sheet: a row a coefficient, its estimate and error as linModel gives them", JSON.stringify(r.t.term) === JSON.stringify(want.names) && r.t.b.every((v, i) => v === want.b[i]) && r.t.se.every((v, i) => v === want.se[i]), JSON.stringify([r.t.term, want.names]));
+  check("…the model: N 16 (two rows without a value in every column left out, said), R², F", sec("Model").r[0][0] === 16 && want.n === 16 && sec("Model").r[0][1] === want.r2 && sec("Model").r[0][4] === want.F && r.notes.some(s => /^2 rows without a value/.test(s)), JSON.stringify([sec("Model"), r.notes]));
+  const av = sec("Analysis of variance, type III");
+  check("…the analysis of variance, type III, a row a term then the error and the total", av && JSON.stringify(av.r.map(x => x[0])) === JSON.stringify(want.an.map(x => x[0]).concat(["Error", "Total (about the mean)"])) && av.r.every((x, i) => i >= want.an.length || x[2] === want.an[i][2] && x[3] === want.an[i][3] && x[4] === want.an[i][4]), JSON.stringify([av, want.an]));
+  const ct = sec("Contrasts");
+  check("…the contrasts typed, each as lmContrast works it out; a line that names no coefficient said, not a number", ct && ct.r.length === 2 && ct.r[0][1] === want.c1.est && ct.r[1][3] === want.c2.p && ct.r[1][2] === want.c2.se && r.notes.some(s => /Contrast 3, “nothing here”: .* is not the name of a coefficient/.test(s)), JSON.stringify([ct, r.notes]));
+  const yv = await p.evaluate(id => colById(id).data.slice(), ids[1]);
+  check("…fitted values and residuals beside it, row by row (their sum the value)", r.t.row && r.t.row.length === 16 && r.t.row.every((rw, i) => Math.abs(r.t.fit[i] + r.t.res[i] - yv[rw - 1]) < 1e-12 * Math.abs(yv[rw - 1])), JSON.stringify([r.t.row, r.t.fit && r.t.fit.slice(0, 2)]));
+  check("…the method one line, no sentence of what it means", /^Least squares by Householder QR/.test(r.method) && !/significant|differs|suggest/i.test(JSON.stringify(r)), r.method);
+  // A missing level in a cell: Site × a factor with an empty cell.
+  await p.evaluate(ids => { const c = ids.map(colById); pushUndo("t"); const g = Object.assign(makeCol("ignore", "Lot", ""), { data: [], fmt: "text", txt: {}, sheet: c[0].sheet }); for (let i = 0; i < 18; i++) { g.data.push(null); g.txt[i] = c[2].txt[i] === "C" ? "L1" : (i % 2 ? "L1" : "L2"); } save({ cols: P().cols.concat([g]) }, "typed"); }, ids);
+  await p.waitForTimeout(400);
+  const ids2 = await p.evaluate(id => sheetCols(colById(id).sheet || SHEET0.id).map(c => c.id), ids[0]);
+  r = await run([ids2[1], ids2[2], ids2[4]], async () => { await p.selectOption("#aLi", "pairs"); await p.selectOption("#aLs", "2"); });
+  check("an empty cell: its coefficient left out and named in the notes, type II worked out", r.notes.some(s => /^No coefficient for Site\[C\]:Lot\[L2\]/.test(s)) && r.t.b[r.t.term.indexOf("Site[C]:Lot[L2]")] == null && !!r.secs.find(s => s.t === "Analysis of variance, type II"), JSON.stringify([r.notes, r.t.term]));
+  r = await run([ids2[2], ids2[1]], async () => { await p.selectOption("#aLy", ids2[2]); });
+  check("a response of text refused in words", /Site holds text/.test(r.err || ""), r.err);
+  // Followed: a value typed into Yield.
+  const before = await p.evaluate(() => anaList().filter(a => a.kind === "lm")[0].res.report.sections[0].tables[0].rows[0][1]);
+  await p.evaluate(id => { const c = colById(id); pushUndo("t"); c.data = c.data.slice(); c.data[0] = 40; save({ cols: P().cols }, "typed"); }, ids[1]); await p.waitForTimeout(1500);
+  r = await p.evaluate(() => anaList().filter(a => a.kind === "lm")[0].res.report.sections[0].tables[0].rows[0][1]);
+  check("worked out again by itself after a value is typed", r !== before && typeof r === "number", JSON.stringify([before, r]));
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().filter(a => a.kind === "lm").map(a => !!(a.res && (a.res.report || a.res.err))));
+  check("after a reload the three are there", r.length === 3 && r.every(Boolean), JSON.stringify(r));
+}, { name: "2.5" });
+
+console.log("2.6: two- and three-way ANOVA");
+await page(async p => {
+  // Plot (X), Yield, Fertiliser and Variety (text), unbalanced: one row of each less in two cells.
+  await p.evaluate(() => { const fert = [], vr = [], yld = []; for (let i = 0; i < 24; i++) { if (i === 5 || i === 13) continue; const f = i % 3, v = Math.floor(i / 3) % 2;
+      fert.push(["Low", "Mid", "High"][f]); vr.push(["Oat", "Rye"][v]); yld.push(+(10 + f * 2 + v * 1.5 + (f === 2 && v ? 2 : 0) + Math.sin(i * 2.1)).toFixed(3)); }
+    const txt = (nm, v) => Object.assign(makeCol("ignore", nm, ""), { data: v.map(() => null), fmt: "text", txt: Object.fromEntries(v.map((t, i) => [i, t])) });
+    save({ cols: [Object.assign(makeCol("x", "Plot", ""), { data: yld.map((_, i) => i + 1) }), Object.assign(makeCol("y", "Yield", "t/ha"), { data: yld, pipe: [], mask: [] }), txt("Fertiliser", fert), txt("Variety", vr)], activeY: null }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  const last = () => p.evaluate(() => { const as = anaList().filter(x => x.kind === "anovan"), a = as[as.length - 1];
+    return { id: a.id, secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, h: s.tables[0].head, r: s.tables[0].rows })), notes: a.res.notes, err: a.res.err, method: a.res.report && a.res.report.method }; });
+  await p.evaluate(ids => { anaDlg("anovan", { cols: ids.slice(1) }); }, ids); await p.waitForSelector("#aLy"); await p.waitForTimeout(150);
+  let r = await p.evaluate(() => ({ y: document.querySelector("#aLy").value, ok: !document.querySelector("#formOk").disabled }));
+  check("the dialog: the response on Yield, Work it out ready", r.y === ids[1] && r.ok, JSON.stringify(r));
+  await p.check("#aC_tukey"); await p.check("#aC_bonf"); await p.check("#aNs"); await p.click("#formOk");
+  await p.waitForFunction(() => anaList().some(a => a.kind === "anovan" && a.res && (a.res.report || a.res.err)), null, { timeout: 60000 });
+  r = await last();
+  const want = await p.evaluate(ids => { const c = ids.map(colById), n = c[1].data.length, lv = (col, L) => ({ name: col.name, num: false, levels: L, code: Array.from({ length: n }, (_, i) => L.indexOf(col.txt[i])) });
+    const vars = [lv(c[2], ["High", "Low", "Mid"]), lv(c[3], ["Oat", "Rye"])], M = linModel(vars, c[1].data, { coding: "effect", inter: "all", ss: 3 });
+    const m = (fx) => lmEst(M, lmEmmL(M, fx)); return { an: M.anova.rows.map(o => [o.term, o.ss, o.F, o.p]), mH: m({ 0: 0 }), cell: m({ 0: 1, 1: 1 }), dfr: M.dfr }; }, ids);
+  const sec = t => r.secs.find(s => s.t === t);
+  check("the analysis of variance, type III, as linModel with effect coding gives it, with the error and total", JSON.stringify(sec("Analysis of variance, type III").r.slice(0, 3).map(x => [x[0], x[2], x[3], x[4]])) === JSON.stringify(want.an) && sec("Analysis of variance, type III").r[3][0] === "Error", JSON.stringify([sec("Analysis of variance, type III"), want.an]));
+  check("…partial η² for each term", sec("Effect size") && sec("Effect size").r.length === 3 && sec("Effect size").r.every(x => x[1] > 0 && x[1] < 1));
+  const mf = sec("Means of Fertiliser"), mc = sec("Means of the cells of Fertiliser and Variety");
+  check("…each level's estimated mean and error as lmEst gives them, its N (one row less in High); the cells' the same", mf.r[0][0] === "High" && mf.r[0][1] === want.mH.est && mf.r[0][2] === want.mH.se && mf.r[0][3] === 7 && mf.r[1][3] === 8 && mc.r[3][2] === want.cell.est && mc.r.length === 6, JSON.stringify([mf, mc.r[3], want]));
+  check("…Tukey's and Bonferroni's comparisons of each factor's means, and the simple effects of each at the other's levels", !!sec("Fertiliser: Tukey–Kramer, 95% intervals") && sec("Fertiliser: Tukey–Kramer, 95% intervals").r.length === 3 && !!sec("Variety: Bonferroni, 95% intervals") && sec("Simple effects of Fertiliser").r.length === 2 && sec("Simple effects of Variety").r.length === 3, JSON.stringify(r.secs.map(s => s.t)));
+  check("…numbers only: no sentence of what they mean", !/significant|differs|interaction is/i.test(JSON.stringify(r)), r.method);
+  // the plots
+  const g0 = await p.evaluate(() => P().graphs.length);
+  await p.click('button[data-anaact="inter"]').catch(async () => { await p.evaluate(id => anaInterPlot(id), r.id); }); await p.waitForTimeout(600);
+  let g = await p.evaluate(() => { const gr = P().graphs[P().graphs.length - 1]; return { n: P().graphs.length, cols: gr.cols.map(id => colById(id).name), yt: ((gr.plot.ax || {}).y || {}).title }; });
+  check("Interaction plot: a graph of the cells' means, a curve for each variety, the Y axis the mean of Yield", g.n === g0 + 1 && JSON.stringify(g.cols) === JSON.stringify(["Variety = Oat", "Variety = Rye"]) && g.yt === "Mean of Yield", JSON.stringify(g));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(300);
+  check("…one undo step takes it back", await p.evaluate(() => P().graphs.length) === g0);
+  await p.evaluate(id => anaMainsPlot(id), r.id); await p.waitForTimeout(800);
+  g = await p.evaluate(() => { const fg = P().graphs.find(x => x.fig); return { fig: !!fg, panels: fg ? fg.fig.cells.length : 0 }; });
+  check("Main effects plot: each factor's means on a graph of its own, in a figure", g.fig && g.panels === 2, JSON.stringify(g));
+  // three factors, an empty cell, a refusal
+  await p.evaluate(ids => { const c = ids.map(colById); pushUndo("t"); const g = Object.assign(makeCol("ignore", "Block", ""), { data: [], fmt: "text", txt: {}, sheet: c[0].sheet }); for (let i = 0; i < c[1].data.length; i++) { g.data.push(null); g.txt[i] = i % 2 ? "B1" : "B2"; } save({ cols: P().cols.concat([g]) }, "typed"); }, ids);
+  await p.waitForTimeout(400);
+  const ids2 = await p.evaluate(id => sheetCols(colById(id).sheet || SHEET0.id).map(c => c.id), ids[0]);
+  await p.evaluate(ids => { anaDlg("anovan", { cols: ids }); }, ids2.slice(1)); await p.waitForSelector("#aLy"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(1200);
+  r = await last();
+  check("three factors: the three main effects, their three pairs and the triple term", r.secs && r.secs[0].r.slice(0, 7).map(x => x[0]).join("|") === "Fertiliser|Variety|Block|Fertiliser:Variety|Fertiliser:Block|Variety:Block|Fertiliser:Variety:Block", JSON.stringify(r.secs && r.secs[0].r.map(x => x[0])));
+  await p.evaluate(ids => { anaDlg("anovan", { cols: ids }); }, [ids[1], ids[2]]); await p.waitForSelector("#aLy"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(800);
+  r = await last();
+  check("one factor refused in words", /Two or three factors/.test(r.err || ""), r.err);
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().filter(a => a.kind === "anovan").length);
+  check("after a reload the three are there", r === 3, r);
+}, { name: "2.6" });
+
+console.log("2.7: repeated measures");
+await page(async p => {
+  // wide: Week 0, 4, 8 for ten subjects, a Group column; long: the same as Subject, Week, Score, Group (one value of S10 missing)
+  await p.evaluate(() => { const n = 10, W = [[], [], []], grp = [], S = [], T = [], V = [], G = [];
+    for (let i = 0; i < n; i++) { const s = 10 + Math.sin(i * 1.3) * 2; [0, 1, 2].forEach(j => { const v = +(s + j * 1.2 + Math.cos(i * (j + 1))).toFixed(3); W[j].push(v); if (!(i === 9 && j === 2)) { S.push("S" + (i + 1)); T.push(["W0", "W4", "W8"][j]); V.push(v); G.push(i < 5 ? "Ctrl" : "Drug"); } }); grp.push(i < 5 ? "Ctrl" : "Drug"); }
+    const txt = (nm, v) => Object.assign(makeCol("ignore", nm, ""), { data: v.map(() => null), fmt: "text", txt: Object.fromEntries(v.map((t, i) => [i, t])) });
+    save({ cols: [Object.assign(makeCol("x", "Row", ""), { data: V.map((_, i) => i + 1) }), ...W.map((w, j) => Object.assign(makeCol("y", ["Week 0", "Week 4", "Week 8"][j], ""), { data: w, pipe: [], mask: [] })), txt("Group", grp),
+      txt("Subject", S), txt("Week", T), Object.assign(makeCol("ignore", "Score", ""), { data: V }), txt("Arm", G)], activeY: null }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  // every analysis's dialog: no id twice
+  const dup = await p.evaluate(async () => { const bad = []; for (const k of Object.keys(ANA_KINDS)) { anaDlg(k, { cols: sheetCols(curSheet()).slice(1, 4).map(c => c.id) }); await new Promise(r => setTimeout(r, 60));
+      const ids = [...document.querySelectorAll("#formBody [id]")].map(e => e.id), d = ids.filter((x, i) => ids.indexOf(x) !== i); if (d.length) bad.push(k + ": " + d.join(", ")); const c = document.querySelector("#formCancel"); if (c) c.click(); await new Promise(r => setTimeout(r, 40)); } return bad; });
+  check("every analysis's dialog: no id twice (a form's own and the dialog's)", dup.length === 0, JSON.stringify(dup));
+  const last = () => p.evaluate(() => { const as = anaList().filter(x => x.kind === "rm"), a = as[as.length - 1];
+    return { id: a.id, secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, h: s.tables[0].head, r: s.tables[0].rows })), notes: a.res.notes, err: a.res.err }; });
+  await p.evaluate(ids => { anaDlg("rm", { cols: ids.slice(1, 4) }); }, ids); await p.waitForSelector("#aRf"); await p.waitForTimeout(150);
+  let r = await p.evaluate(() => ({ by: !document.querySelector("#aBy").hidden, lab: document.querySelector('label[for="aBy"]').textContent, y: document.querySelector("#aLy").hidden, ok: !document.querySelector("#formOk").disabled }));
+  check("the dialog, wide: Between (group by) offered, the long form's lists hidden, Work it out ready", r.by && r.lab === "Between (group by)" && r.y && r.ok, JSON.stringify(r));
+  await p.selectOption("#aBy", ids[4]); await p.selectOption("#aRq", "holm"); await p.fill("#aRn1", "Week"); await p.click("#formOk");
+  await p.waitForFunction(() => anaList().some(a => a.kind === "rm" && a.res && (a.res.report || a.res.err)), null, { timeout: 60000 });
+  r = await last();
+  const want = await p.evaluate(ids => { const c = ids.slice(1, 4).map(colById), Y = c[0].data.map((_, i) => c.map(x => x.data[i])), g = colById(ids[4]), grp = Y.map((_, i) => g.txt[i] === "Ctrl" ? 0 : 1);
+    const R = rmAnova(Y, [3], grp); return { F: R.effs[0].F, Fg: R.effs[0].Fg, gg: R.effs[0].gg, pgg: R.effs[0].pgg, W: R.effs[0].mau.W, bF: R.between.Fg }; }, ids);
+  const sec = t => r.secs.find(s => s.t === t);
+  check("wide with a group: Week, Week:Group and its error as rmAnova gives them", sec("Within subjects").r.map(x => x[0]).join("|") === "Week|Week:Group|Error (Week)" && sec("Within subjects").r[0][3] === want.F && sec("Within subjects").r[1][3] === want.Fg, JSON.stringify([sec("Within subjects"), want]));
+  check("…the corrections, Mauchly's W, the group between subjects", sec("Sphericity corrections").r[0][1] === want.gg && sec("Sphericity corrections").r[0][2] === want.pgg && sec("Mauchly's test").r[0][1] === want.W && sec("Between subjects").r[0][3] === want.bF, JSON.stringify(r.secs.map(s => s.t)));
+  check("…each cell's mean for each group, and Holm's paired comparisons of the weeks", sec("Means of the cells").r.length === 6 && sec("Week: paired t, Holm") && sec("Week: paired t, Holm").r.length === 3);
+  check("…numbers only", !/significant|violated|assumed|suggest/i.test(JSON.stringify(r)));
+  const g0 = await p.evaluate(() => P().graphs.length);
+  await p.evaluate(id => anaInterPlot(id), r.id); await p.waitForTimeout(600);
+  let g = await p.evaluate(() => { const gr = P().graphs[P().graphs.length - 1]; return { n: P().graphs.length, cols: gr.cols.map(id => colById(id).name), yt: ((gr.plot.ax || {}).y || {}).title }; });
+  check("Profile plot: a curve for each group, the Y axis Mean", g.n === g0 + 1 && g.cols.join("|") === "Group = Ctrl|Group = Drug" && g.yt === "Mean", JSON.stringify(g));
+  // the same data long: Subject, Week, Score, Arm; S10 misses a week
+  await p.evaluate(ids => { anaDlg("rm", { cols: ids.slice(5, 9) }); }, ids); await p.waitForSelector("#aRf"); await p.selectOption("#aRf", "long"); await p.waitForTimeout(150);
+  r = await p.evaluate(() => ({ y: document.querySelector("#aLy").value, s: document.querySelector("#aRs").value, w: document.querySelector("#aRw1").value, aRa: document.querySelector("#aRa").hidden, by: document.querySelector("#aBy").hidden }));
+  check("long: the response on Score (the only column of numbers), Subject and Week chosen from the text columns, the wide form's settings hidden", r.y === ids[7] && r.s === ids[5] && r.w === ids[6] && r.aRa && r.by, JSON.stringify([r, ids.slice(5, 9)]));
+  await p.selectOption("#aRb", ids[8]); await p.click("#formOk"); await p.waitForTimeout(1200);
+  r = await last();
+  const wantL = await p.evaluate(ids => { const c = ids.slice(1, 4).map(colById), Y = c[0].data.slice(0, 9).map((_, i) => c.map(x => x.data[i])); const R = rmAnova(Y, [3], Y.map((_, i) => i < 5 ? 0 : 1)); return { F: R.effs[0].F, Fg: R.effs[0].Fg }; }, ids);
+  check("long, with Arm between: the subject missing a week left out and said, the same F as the nine complete subjects wide", r.notes.some(s => /^1 subject without a value in every cell left out/.test(s)) && Math.abs(r.secs[0].r[0][3] - wantL.F) <= 1e-12 * wantL.F && Math.abs(r.secs[0].r[1][3] - wantL.Fg) <= 1e-12 * wantL.Fg, JSON.stringify([r.notes, r.secs && r.secs[0], wantL]));
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().filter(a => a.kind === "rm").map(a => !!(a.res && a.res.report)));
+  check("after a reload the two are there", r.length === 2 && r.every(Boolean), JSON.stringify(r));
+}, { name: "2.7" });
+
+console.log("2.11: power and sample size");
+await page(async p => {
+  const last = () => p.evaluate(() => { const as = anaList().filter(x => x.kind === "power"), a = as[as.length - 1];
+    return a && { id: a.id, p: a.p, secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, h: s.tables[0].head, r: s.tables[0].rows })), notes: a.res.notes, err: a.res.err, method: a.res.report && a.res.report.method }; });
+  const shown = () => p.evaluate(() => Object.fromEntries(["aWn", "aWp", "aAlt", "aWd", "aWsd", "aWm", "aWp0", "aWp1", "aWp2", "aWv1", "aWw", "aWdf", "aWr"].map(id => [id, !document.querySelector("#" + id).hidden])));
+  await p.evaluate(() => { anaDlg("power"); }); await p.waitForSelector("#aWt"); await p.waitForTimeout(150);
+  let r = await shown();
+  check("the dialog with no columns: a two-sample t test, the sizes, difference, SD and ratio shown, the rest hidden", r.aWn && !r.aWp && r.aAlt && r.aWd && r.aWsd && r.aWr && !r.aWm && !r.aWp0 && !r.aWw, JSON.stringify(r));
+  await p.selectOption("#aWt", "chi2"); await p.waitForTimeout(80); r = await shown();
+  check("…a χ² test: w and df, no alternative", r.aWw && r.aWdf && !r.aAlt && !r.aWd && !r.aWr, JSON.stringify(r));
+  await p.selectOption("#aWt", "t2"); await p.fill("#aWn", "20 64"); await p.click("#formOk");
+  await p.waitForFunction(() => anaList().some(a => a.kind === "power" && a.res && (a.res.report || a.res.err)), null, { timeout: 30000 });
+  r = await last(); const want = await p.evaluate(() => [20, 64].map(n => powerAt({ test: "t2", alpha: 0.05, alt: "two", d: 0.5, sd: 1, r: 1 }, n)));
+  const sec = t => r.secs && r.secs.find(s => s.t === t);
+  check("power at 20 and 64 a group: n₁, n₂, N, the noncentrality and the power as powerAt gives them", sec("Power") && sec("Power").r.map(x => x.join(",")).join("|") === want.map(w => [w.n1, w.n2, w.N, w.ncp, w.pw].join(",")).join("|"), JSON.stringify([r.secs, want]));
+  check("…Cohen's d, the method in one line, numbers only", sec("Effect size") && sec("Effect size").r[0][1] === 0.5 && /noncentral t/.test(r.method) && !/significant|adequate|enough|recommend|suggest/i.test(JSON.stringify(r)), r.method);
+  await p.evaluate(id => { anaDlg("power", { id }); }, r.id); await p.waitForSelector("#aWf"); await p.selectOption("#aWf", "size"); await p.fill("#aWp", "0.8 0.9"); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await last();
+  check("the size for 0.8 and 0.9: 64 and 86 a group, each with its power", sec("Size for a power") && sec("Size for a power").r.map(x => x.slice(0, 2).join(",")).join("|") === "0.8,64|0.9,86" && sec("Size for a power").r.every(x => x[x.length - 1] >= x[0]), JSON.stringify(r.secs));
+  const g0 = await p.evaluate(() => P().graphs.length);
+  await p.evaluate(id => anaPowerPlot(id), r.id); await p.waitForTimeout(600);
+  let g = await p.evaluate(() => { const gr = P().graphs[P().graphs.length - 1], y = colById(gr.cols[0]), x = xColFor(y); return { n: P().graphs.length, y: y.name, x: x && x.name, k: y.data.length, rise: y.data.every((v, i) => !i || v >= y.data[i - 1] - 1e-15) }; });
+  check("Power curve: power against n₁ on a graph, rising", g.n === g0 + 1 && g.y === "Power" && g.x === "n₁" && g.k > 50 && g.rise, JSON.stringify(g));
+  await p.evaluate(() => { undo(); }); await p.waitForTimeout(300);
+  check("…one undo step takes the graph away", await p.evaluate(g0 => P().graphs.length === g0, g0));
+  await p.evaluate(() => { anaDlg("power"); }); await p.waitForSelector("#aWt"); await p.selectOption("#aWt", "p1"); await p.fill("#aWp0", "0.5"); await p.fill("#aWp1", "0.7"); await p.fill("#aWn", "20 50"); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await last(); const wp = await p.evaluate(() => [20, 50].map(n => powerAt({ test: "p1", alpha: 0.05, alt: "two", p0: 0.5, p1: 0.7 }, n).pw));
+  check("one proportion, exact: the power at 20 and 50 as powerAt gives it", sec("Power") && sec("Power").r.map(x => x[1]).join("|") === wp.join("|") && /exact binomial/.test(r.method), JSON.stringify([r.secs, wp]));
+  await p.evaluate(() => { anaDlg("power"); }); await p.waitForSelector("#aWt"); await p.selectOption("#aWt", "t1"); await p.fill("#aWn", "1"); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await last();
+  check("a size too small refused in words", /too small/.test(r.err || ""), r.err);
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().filter(a => a.kind === "power").map(a => !!(a.res && (a.res.report || a.res.err))));
+  check("after a reload the three are there", r.length === 3 && r.every(Boolean), JSON.stringify(r));
+}, { name: "2.11" });
+
+console.log("2.12: ROC curves");
+await page(async p => {
+  await p.evaluate(() => { const pos = [3, 4, 4, 5, 6, 7, 7, 9], neg = [1, 2, 2, 3, 4, 5, 5, 6, 8], all = pos.concat(neg), st = all.map((_, i) => i < 8 ? "sick" : "well");
+    save({ cols: [Object.assign(makeCol("x", "Row", ""), { data: all.map((_, i) => i + 1) }), Object.assign(makeCol("ignore", "Status", ""), { data: st.map(() => null), fmt: "text", txt: Object.fromEntries(st.map((t, i) => [i, t])) }),
+      Object.assign(makeCol("y", "Marker", ""), { data: all, pipe: [], mask: [] }), Object.assign(makeCol("y", "Other", ""), { data: all.map((v, i) => +(v + Math.sin(i)).toFixed(3)), pipe: [], mask: [] })], activeY: null }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  await p.evaluate(ids => { anaDlg("roc", { cols: ids.slice(1, 4) }); }, ids); await p.waitForSelector("#aRg"); await p.waitForTimeout(150);
+  let r = await p.evaluate(() => ({ g: document.querySelector("#aRg").value, opts: [...document.querySelector("#aRp").options].map(o => o.value), ok: !document.querySelector("#formOk").disabled }));
+  check("the dialog: Groups on the text column, Positive offering its two levels, Work it out ready", r.g === ids[1] && r.opts.join("|") === "sick|well" && r.ok, JSON.stringify(r));
+  await p.selectOption("#aRp", "sick"); await p.click("#formOk");
+  await p.waitForFunction(() => anaList().some(a => a.kind === "roc" && a.res && (a.res.report || a.res.err)), null, { timeout: 30000 });
+  const last = () => p.evaluate(() => { const as = anaList().filter(x => x.kind === "roc"), a = as[as.length - 1];
+    return { id: a.id, secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, h: s.tables[0].head, r: s.tables[0].rows })), notes: a.res.notes, err: a.res.err, method: a.res.report && a.res.report.method }; });
+  r = await last(); const sec = t => r.secs && r.secs.find(s => s.t === t);
+  const want = await p.evaluate(ids => { const s = colById(ids[2]).data, o = colById(ids[3]).data, A = rocTest(s.slice(0, 8), s.slice(8), {}), B = rocTest(o.slice(0, 8), o.slice(8), {});
+    const t = rocCompare(rocCore(s.slice(0, 8), s.slice(8)), rocCore(o.slice(0, 8), o.slice(8))); return { a: [A.auc, A.se, A.ci[0], A.ci[1]], y: [A.youden.c, A.youden.sens, A.youden.spec], b: B.auc, t: [t.diff, t.p] }; }, ids);
+  const au = sec("Area under the curve");
+  check("each score's area, SE and interval as rocTest gives them, N of each group", au && au.r[0].slice(1, 7).join(",") === [8, 9].concat(want.a).join(",") && au.r[1][3] === want.b && au.h[1] === "N, sick", JSON.stringify([au, want]));
+  check("…Youden's cut-off, sensitivity and specificity; DeLong's comparison", sec("Youden's index").r[0].slice(1, 4).join(",") === want.y.join(",") && sec("Comparisons (DeLong)").r[0][3] === want.t[0] && sec("Comparisons (DeLong)").r[0][6] === want.t[1], JSON.stringify(r.secs));
+  check("…the method in one line, numbers only", /Positive: Status = sick/.test(r.method) && !/significant|good|poor|excellent|recommend|suggest/i.test(JSON.stringify(r)), r.method);
+  const g0 = await p.evaluate(() => P().graphs.length);
+  await p.evaluate(id => anaRocPlot(id), r.id); await p.waitForTimeout(600);
+  let g = await p.evaluate(() => { const gr = P().graphs[P().graphs.length - 1]; return { n: P().graphs.length, cols: gr.cols.map(id => colById(id).name), x: xColFor(colById(gr.cols[0])).name, yt: ((gr.plot.ax || {}).y || {}).title, dash: document.querySelectorAll("#plot g[data-ser] path[stroke-dasharray]").length }; });
+  check("ROC curve: a curve each score and the diagonal dashed, against 1 − specificity, the Y axis Sensitivity", g.n === g0 + 1 && g.cols.join("|") === "Marker|Other|Diagonal" && g.x === "1 − specificity" && g.yt === "Sensitivity" && g.dash === 1, JSON.stringify(g));
+  await p.evaluate(ids => { anaDlg("roc", { cols: ids.slice(1, 3) }); }, ids); await p.waitForSelector("#aRg"); await p.selectOption("#aRp", "sick"); await p.selectOption("#aRdir", "low"); await p.click("#formOk"); await p.waitForTimeout(600);
+  r = await last();
+  check("a lower score positive: 1 less the area", Math.abs(r.secs[0].r[0][3] - (1 - want.a[0])) < 1e-15, JSON.stringify(r.secs[0]));
+  await p.evaluate(ids => { colById(ids[1]).txt = Object.assign({}, colById(ids[1]).txt, { 3: "unsure" }); save({ cols: P().cols }, "typed"); }, ids); await p.waitForTimeout(800);
+  r = await last();
+  check("a third group typed: the analysis worked out again and refused in words", /3 groups: an ROC curve needs two/.test(r.err || ""), r.err);
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().filter(a => a.kind === "roc").length);
+  check("after a reload the two are there", r === 2, r);
+}, { name: "2.12" });
+
+console.log(`\n${pass} passed, ${fail} failed`);
+await browser.close(); server.close();
+process.exit(fail ? 1 : 0);
