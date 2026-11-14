@@ -34,9 +34,11 @@ first made with Python 3.13.17, NumPy 2.5.4, SciPy 1.18.1 and statsmodels 0.15.0
 what made it). `scipy.odr` is deprecated from SciPy 1.17 and goes in 1.19; its successor is the
 `odrpack` package, the same Fortran.
 
-NIST's site (`www.itl.nist.gov`) holds the certified values SciPy and statsmodels do not ship
-(Longley, Filip, Wampler 1–5, Pontius, NoInt, the univariate sets); this session's network refused
-it, so it is asked for in the environment's settings when the plan's wave 2 needs it.
+NIST's site (`www.itl.nist.gov`) holds the certified values SciPy and statsmodels do not ship.
+It answered on 14.11 (wave 4), and its files are committed in `nist/`: the linear sets (Norris,
+Pontius, Filip, Longley, Wampler 1–5, NoInt1–2), the univariate ones (Lew, Lottery, Mavro, Michelso,
+NumAcc1–4, PiDigits), the ANOVA ones (SiRstv, SmLs01–09, AtmWtAg) and the 27 nonlinear ones (Misra1a
+to Bennett5), each read by the tests as NIST wrote it.
 
 ## The fuzzer
 
