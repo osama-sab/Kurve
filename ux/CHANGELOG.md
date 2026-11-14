@@ -1024,6 +1024,23 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 4, slice 4.2: multiple regression (2026-11-14)
+
+- **Analyze › Fit › Multiple regression…**, the linear model's second door, grows: *Weights* (a column among those ticked,
+  each row's value as 1/σ²; weighted least squares, refined in double-double); each coefficient's **variance inflation
+  factor** on the sheet and, with the scaled design's **condition number**, in the report's *Collinearity*.
+- **Influence of each row** on the result sheet: the standardized, studentized and studentized deleted residuals, the
+  leverage, Cook's distance and DFFITS, in each row's place. **Predictions**: the rows with every X and no Y predicted, and
+  every row's confidence and prediction limits.
+- **Partial residual plots** under the report: a graph each column of numbers (the residuals plus its terms, and their
+  line), in a figure, one undo step.
+- **Analyze › Fit › Best subsets…**: a response and up to 20 columns (some always in); every subset fitted (a sweep a
+  step), the best of each size with R², adjusted R², Mallows' Cp, AIC and BIC, ordered by the one chosen; *Fit one of
+  them…* opens the linear model on it.
+- **Checked** against statsmodels (WLS, its R² for the VIFs, OLSInfluence on the whitened problem, get_prediction) and
+  NumPy's condition number on 11 designs to 1e-12, every subset enumerated by lstsq, the fuzzer's random designs; the
+  95 % prediction interval holding 95 % of new values over 2 000 data sets.
+
 ## Closing the gap with Origin, wave 4, slice 4.1: polynomials by QR (2026-11-14)
 
 - **A straight line or a polynomial is solved, not iterated**: least squares through the linear model's QR in X centred

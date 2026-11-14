@@ -735,6 +735,75 @@ await page(async p => {
   check("after a reload the two are there", r === 2, r);
 }, { name: "2.12" });
 
+console.log("4.2: multiple regression");
+await page(async p => {
+  // X1, X2, X3 (X2 close to X1), weights W, and Y with two rows missing: one to predict (every X), one not (X3 missing too).
+  await p.evaluate(() => { const n = 30, x1 = [], x2 = [], x3 = [], w = [], y = [];
+    for (let i = 0; i < n; i++) { const a = i / 3, b = a + 0.3 * Math.sin(i * 1.3), c = (i * 7) % 11; x1.push(a); x2.push(+b.toFixed(4)); x3.push(c); w.push(+(0.5 + (i % 5) / 2).toFixed(2));
+      y.push(+(1 + 0.8 * a - 0.4 * b + 0.15 * c + 0.2 * Math.cos(i * 2.1)).toFixed(4)); }
+    y[7] = null; y[12] = null; x3[12] = null; y[3] = +(y[3] + 6).toFixed(4); // row 4 an outlier
+    const col = (r, nm, d) => Object.assign(makeCol(r, nm, ""), { data: d }, r === "y" ? { pipe: [], mask: [] } : {});
+    save({ cols: [col("x", "X1", x1), col("ignore", "X2", x2), col("ignore", "X3", x3), col("ignore", "W", w), col("y", "Y", y)], activeY: null }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  // Analyze › Fit › Multiple regression… opens the linear model's dialog.
+  let r = await p.evaluate(() => { const fit = menuItems("analyze").find(i => i && i.label === "Fit"), it = (typeof fit.sub === "function" ? fit.sub() : fit.sub).filter(Boolean).map(i => i.label); return it; });
+  check("Analyze › Fit has Multiple regression… and Best subsets…", r.includes("Multiple regression…") && r.includes("Best subsets…"), JSON.stringify(r));
+  await p.evaluate(ids => { anaDlg("lm", { cols: ids }); }, ids); await p.waitForSelector("#aLy");
+  await p.selectOption("#aLy", ids[4]); await p.waitForTimeout(100);
+  r = await p.evaluate(() => [...document.querySelectorAll("#aLw option")].map(o => o.textContent.trim()));
+  check("the Weights list offers the other columns ticked, and None", r[0] === "None" && r.some(t => /W$/.test(t)) && !r.some(t => /Y$/.test(t)), JSON.stringify(r));
+  await p.selectOption("#aLw", ids[3]); await p.waitForTimeout(100);
+  r = await p.evaluate(id => [...document.querySelectorAll("#aLfac input")].map(i => i.id.slice(4)).includes(id), ids[3]);
+  check("…and the weights' column leaves the factors' list", !r);
+  await p.check("#aLd"); await p.check("#aLpr"); await p.click("#formOk");
+  await p.waitForFunction(() => { const a = anaList().find(x => x.kind === "lm"); return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 60000 });
+  r = await p.evaluate(ids => { const a = anaList().find(x => x.kind === "lm"), o = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { o[c.ak] = c.data.slice(); });
+    const c = ids.map(colById), R = []; for (let i = 0; i < 30; i++) if (c[4].data[i] != null && c[2].data[i] != null) R.push(i);
+    const vars = ["X1", "X2", "X3"].map((nm, k) => ({ name: nm, num: true, x: R.map(i => c[k].data[i]) }));
+    const M = linModel(vars, R.map(i => c[4].data[i]), { w: R.map(i => c[3].data[i]), diag: true, ss: 3 }), P0 = lmPredict(M, [[c[0].data[7], c[1].data[7], c[2].data[7]]], [c[3].data[7]]);
+    return { o, M: { b: M.b, se: M.se, vif: M.vif, cond: M.cond, h: M.diag.h, cook: M.diag.cook, del: M.diag.del, fit: M.diag.fit }, P0, R, secs: a.res.report.sections.map(s => [s.title, s.tables.map(t => t.rows)]), notes: a.res.notes, method: a.res.report.method }; }, ids);
+  check("weighted: the coefficients, errors and VIFs on the sheet as linModel gives them with the weights", r.o.b.every((v, j) => v === r.M.b[j]) && r.o.se.every((v, j) => v === r.M.se[j]) && r.o.vif[0] == null && r.o.vif.slice(1).every((v, j) => v === r.M.vif[j + 1]) && r.M.vif[2] > 5, JSON.stringify([r.o.vif, r.M.vif]));
+  const col = r.secs.find(s => s[0] === "Collinearity");
+  check("…the report's Collinearity: each VIF and the condition number", col && col[1][0].length === 3 && col[1][1][0][0] === r.M.cond, JSON.stringify(col));
+  const at = r.o.row.indexOf(8);
+  check("…each row's leverage, Cook's distance and studentized deleted residual in its row; row 8 predicted with its limits, row 13 not", r.o.row.length === 29 && at >= 0 && r.o.res[at] == null && Math.abs(r.o.fit[at] - r.P0[0].fit) < 1e-12 && Math.abs(r.o.plo[at] - r.P0[0].plo) < 1e-12 && Math.abs(r.o.chi[at] - r.P0[0].hi) < 1e-12
+    && !r.o.row.includes(13) && r.R.every((rw, i) => { const k = r.o.row.indexOf(rw + 1); return r.o.lev[k] === r.M.h[i] && r.o.cook[k] === r.M.cook[i] && r.o.del[k] === r.M.del[i]; }), JSON.stringify([r.o.row, at]));
+  check("…the planted outlier (row 4) has the largest Cook's distance", r.o.row[r.o.cook.indexOf(Math.max(...r.o.cook.filter(v => v != null)))] === 4, JSON.stringify(r.o.cook));
+  check("…the notes say the row predicted and the row left out, the method the weights", r.notes.some(s => /^1 row with every X and no Y predicted/.test(s)) && r.notes.some(s => /^1 row without a value in every column left out/.test(s)) && /^Weighted least squares .* each weighted by its value of W/.test(r.method), JSON.stringify([r.notes, r.method]));
+  // The partial residual plots: a graph a column of numbers, in a figure, one undo step.
+  const g0 = await p.evaluate(() => P().graphs.length);
+  await p.evaluate(() => { anaReport(anaList().find(x => x.kind === "lm").id); }); await p.waitForTimeout(300);
+  await p.click('button[data-anaact="partial"]'); await p.waitForTimeout(600);
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "lm"), ys = P().cols.filter(c => c.ana === a.id && /^pry/.test(c.ak)), g = P().graphs, fig = g.find(q => q.fig); return { n: ys.length, graphs: g.length, fig: !!fig && fig.fig.cells.length, toast: $("#toastMsg").textContent }; });
+  check("Partial residual plots: three graphs in a figure, said in a toast", r.n === 3 && r.fig === 3 && /partial residual plots/.test(r.toast), JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(400);
+  check("…one undo takes them all back", await p.evaluate(g0 => P().graphs.length === g0 && !P().cols.some(c => /^pry/.test(c.ak || "")), g0));
+  // Best subsets.
+  await p.evaluate(ids => { anaDlg("subsets", { cols: ids.filter((_, i) => i !== 3) }); }, ids); await p.waitForSelector("#aBc");
+  await p.selectOption("#aLy", ids[4]); await p.waitForTimeout(100); await p.selectOption("#aBc", "bic"); await p.click("#formOk");
+  await p.waitForFunction(() => { const a = anaList().find(x => x.kind === "subsets"); return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 60000 });
+  r = await p.evaluate(ids => { const a = anaList().find(x => x.kind === "subsets"), o = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { o[c.ak] = c.txt ? c.data.map((v, i) => c.txt[i] != null ? c.txt[i] : v) : c.data.slice(); });
+    const c = ids.map(colById), R = []; for (let i = 0; i < 30; i++) if (c[4].data[i] != null && c[2].data[i] != null) R.push(i);
+    const B = bestSubsets([0, 1, 2].map(k => R.map(i => c[k].data[i])), R.map(i => c[4].data[i]), { best: 3 }); return { o, B: B.rows.map(q => [q.cols.join(), q.bic]), err: a.res.err }; }, ids);
+  const bics = r.o.bic || [];
+  check("Best subsets: the best three of each size, as bestSubsets gives them, ordered by BIC", !r.err && r.o.cols.length === r.B.length && bics.every((v, i) => i === 0 || v >= bics[i - 1]) && r.o.cols.every((nm, i) => r.B.some(q => Math.abs(q[1] - bics[i]) < 1e-12)), JSON.stringify([r.o.cols, r.B]));
+  // Fit one of them: the linear model's dialog with that subset's columns.
+  await p.evaluate(() => { anaReport(anaList().find(x => x.kind === "subsets").id); }); await p.waitForTimeout(300);
+  await p.click('button[data-anaact="fit"]'); await p.waitForSelector("#bsP0"); await p.check("#bsP0"); await p.click("#formOk"); await p.waitForSelector("#aLy");
+  r = await p.evaluate(ids => ({ y: $("#aLy").value, on: [...document.querySelectorAll('.anacols input[id^="aI_"]')].filter(i => i.checked).map(i => colById(i.id.slice(3)).name) }), ids);
+  const top = await p.evaluate(() => { const a = anaList().find(x => x.kind === "subsets"); return a.res.report.subsets[0].cols; });
+  check("Fit one of them… opens the linear model on that subset, its response chosen", r.y === ids[4] && JSON.stringify(r.on.filter(n => n !== "Y").sort()) === JSON.stringify(top === "(none)" ? [] : top.split(", ").sort()), JSON.stringify([r, top]));
+  await p.click("#formCancel");
+  // Refused in words: weights not above zero; 21 columns.
+  r = await p.evaluate(() => { const x = Array.from({ length: 21 }, (_, k) => ({ name: "C" + k, vals: Array.from({ length: 30 }, (_, i) => Math.sin(i * (k + 1))), rows: Array.from({ length: 30 }, (_, i) => i) })), y = { id: "y", name: "Y", vals: Array.from({ length: 30 }, (_, i) => i), rows: Array.from({ length: 30 }, (_, i) => i) };
+    return anaRunKind("subsets", [y].concat(x), { y: "y" }).fail; });
+  check("21 columns refused in words", /21 columns to choose among; 20 at most/.test(r || ""), r);
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().map(a => [a.kind, !!(a.res && a.res.report)]));
+  check("after a reload both are there", JSON.stringify(r) === JSON.stringify([["lm", true], ["subsets", true]]), JSON.stringify(r));
+}, { name: "4.2" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

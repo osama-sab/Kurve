@@ -1308,6 +1308,83 @@ polycase("a straight line through the origin", x, [0.31 * v + float(e) for v, e 
 polycase("order 3 through five points", [0.0, 1.0, 2.0, 3.5, 5.0], [1.0, 2.5, 2.0, 4.0, 3.0], 3)
 out["poly"] = cases
 
+# ---- Multiple regression (FIT2_SPEC 4.2): statsmodels' WLS (its params and bse), its R² for each column on the others (the
+# variance inflation factors), NumPy's condition number of the design scaled to unit columns, the influence of each row by
+# OLSInfluence on the whitened problem (√w y on √w X, R's definitions for a weighted lm), predictions by get_prediction ----------
+from statsmodels.stats.outliers_influence import OLSInfluence
+cases = []; rng = np.random.default_rng(42)
+def mrcase(name, cols, y, w=None, icpt=True, fac=None, new=None, conf=0.95):
+    n = len(y); X = np.column_stack(cols) if cols else np.zeros((n, 0)); names = [f"x{i + 1}" for i in range(len(cols))]
+    vars_ = [{"name": nm, "num": True, "x": [float(v) for v in c]} for nm, c in zip(names, cols)]
+    D = X.copy()
+    if fac is not None:
+        L = sorted(set(fac)); vars_.append({"name": "g", "num": False, "levels": [str(v) for v in L], "code": [L.index(v) for v in fac]})
+        D = np.column_stack([D] + [np.array([1.0 if v == l else 0.0 for v in fac]) for l in L[1:]])
+    if icpt: D = np.column_stack([np.ones(n), D])
+    W = np.ones(n) if w is None else np.asarray(w, float); r = sm.WLS(np.asarray(y, float), D, weights=W).fit()
+    vif = []
+    for j in range(D.shape[1]):
+        if icpt and j == 0: vif.append(None); continue
+        o = [k for k in range(D.shape[1]) if k != j]
+        rr = sm.WLS(D[:, j], D[:, o], weights=W).fit() if o else None
+        r2 = rr.rsquared if rr is not None else 0.0
+        if not icpt: r2 = 1 - float(np.sum(W * rr.resid ** 2)) / float(np.sum(W * D[:, j] ** 2))
+        vif.append(float(1 / (1 - r2)))
+    Dw = D * np.sqrt(W)[:, None]; cond = float(np.linalg.cond(Dw / np.linalg.norm(Dw, axis=0)))
+    yw = np.asarray(y, float) * np.sqrt(W); ro = sm.OLS(yw, Dw).fit(); inf = OLSInfluence(ro)
+    res = np.asarray(y, float) - D @ r.params
+    want = {"b": [float(v) for v in r.params], "se": [float(v) for v in r.bse], "vif": vif, "cond": cond, "s": float(np.sqrt(r.scale)), "r2": float(r.rsquared),
+            "diag": {"fit": [float(v) for v in D @ r.params], "res": [float(v) for v in res], "std": [float(v) for v in ro.resid / np.sqrt(ro.scale)],
+                     "stud": [float(v) for v in inf.resid_studentized_internal], "del": [float(v) for v in inf.resid_studentized_external], "h": [float(v) for v in inf.hat_matrix_diag],
+                     "cook": [float(v) for v in inf.cooks_distance[0]], "dffits": [float(v) for v in inf.dffits[0]]}}
+    spec = {"icpt": icpt, "diag": True, "conf": conf}
+    if w is not None: spec["w"] = [float(v) for v in W]
+    c = {"fn": "linModel", "name": name, "vars": vars_, "y": [float(v) for v in y], "spec": spec, "want": want}
+    if new is not None:
+        En = np.column_stack([np.array(new["x"])] + ([np.array([1.0 if v == l else 0.0 for v in new["g"]]) for l in sorted(set(fac))[1:]] if fac is not None else []))
+        if icpt: En = np.column_stack([np.ones(len(En)), En])
+        nw = np.asarray(new.get("w", [1.0] * len(En)), float); pr = r.get_prediction(En).summary_frame(alpha=1 - conf)
+        tq = float(stats.t.isf((1 - conf) / 2, r.df_resid)); osd = np.sqrt(np.asarray(pr["mean_se"]) ** 2 + r.scale / nw)  # one new value of weight w: σ²/w more
+        pr["obs_ci_lower"] = np.asarray(pr["mean"]) - tq * osd; pr["obs_ci_upper"] = np.asarray(pr["mean"]) + tq * osd
+        codes = [[float(v) for v in row] + ([sorted(set(fac)).index(g)] if fac is not None else []) for row, g in zip(new["x"], new.get("g", [None] * len(En)))]
+        c["new"] = {"codes": codes, "w": [float(v) for v in nw]}
+        c["want"]["pred"] = [{"fit": float(a), "se": float(b), "lo": float(lo), "hi": float(hi), "plo": float(pl), "phi": float(ph)} for a, b, lo, hi, pl, ph in zip(pr["mean"], pr["mean_se"], pr["mean_ci_lower"], pr["mean_ci_upper"], pr["obs_ci_lower"], pr["obs_ci_upper"])]
+    cases.append(c)
+def cols_(n, k, rho=0.0, sc=1.0):
+    Z = rng.normal(0, 1, (n, k)); C = Z.copy()
+    for j in range(1, k): C[:, j] = rho * C[:, j - 1] + np.sqrt(1 - rho ** 2) * Z[:, j]
+    return [np.round(sc * C[:, j] + 3 * j, 6) for j in range(k)]
+for t, (n, k, rho) in enumerate([(30, 2, 0.0), (60, 4, 0.6), (100, 6, 0.95), (25, 3, 0.99)]):
+    X = cols_(n, k, rho); y = np.round(1.5 + sum((0.7 - 0.3 * j) * X[j] for j in range(k)) + rng.normal(0, 0.5, n), 6)
+    xn = [[float(v) + 0.25 for v in row] for row in np.column_stack(X)[:3]]
+    mrcase(f"{k} columns, correlated {rho}", X, y, new={"x": xn})
+    W = np.round(rng.uniform(0.2, 5, n), 4); mrcase(f"{k} columns, correlated {rho}, weighted", X, y, w=W, new={"x": xn, "w": [1.0, 2.0, 0.5]})
+X = cols_(40, 3); y = np.round(2 + X[0] - 0.5 * X[2] + rng.normal(0, 0.3, 40), 6)
+mrcase("no intercept", X, y, icpt=False, new={"x": [[1.0, 2.0, 3.0]]})
+g = [int(v) for v in rng.integers(0, 3, 45)]; X = cols_(45, 2); y = np.round(1 + 0.4 * X[0] + np.array([0, 1.2, -0.7])[g] + rng.normal(0, 0.4, 45), 6)
+mrcase("two columns and a factor", X, y, fac=g, new={"x": [[3.0, 4.0], [2.5, 3.5]], "g": [1, 2]})
+mrcase("two columns and a factor, weighted, 99 %", X, y, w=np.round(rng.uniform(0.5, 2, 45), 3), fac=g, conf=0.99, new={"x": [[3.0, 4.0]], "g": [0], "w": [3.0]})
+# best subsets: every subset enumerated, its residual sum by lstsq; the best three of each size
+def bscase(name, n, k, force=()):
+    X = cols_(n, k, 0.5); beta = [0.0 if j % 3 == 2 else 1.0 / (j + 1) for j in range(k)]
+    y = np.round(1 + sum(beta[j] * X[j] for j in range(k)) + rng.normal(0, 0.5, n), 6)
+    import itertools
+    full = np.column_stack([np.ones(n)] + X); rssF = float(np.sum((y - full @ np.linalg.lstsq(full, y, rcond=None)[0]) ** 2)); s2 = rssF / (n - k - 1)
+    tss = float(np.sum((y - y.mean()) ** 2)); best = {}
+    rest = [j for j in range(k) if j not in force]
+    for r_ in range(0, len(rest) + 1):
+        for S in itertools.combinations(rest, r_):
+            T = sorted(list(force) + list(S)); D = np.column_stack([np.ones(n)] + [X[j] for j in T])
+            rss = float(np.sum((y - D @ np.linalg.lstsq(D, y, rcond=None)[0]) ** 2)); best.setdefault(len(T), []).append((rss, T))
+    rows = []
+    for sz in sorted(best):
+        for rss, T in sorted(best[sz])[:3]:
+            p = len(T) + 1; rows.append({"cols": T, "rss": rss, "r2": 1 - rss / tss, "ar2": 1 - (1 - (1 - rss / tss)) * (n - 1) / (n - p), "cp": rss / s2 - n + 2 * p,
+                                         "aic": n * math.log(rss / n) + 2 * (p + 1), "bic": n * math.log(rss / n) + (p + 1) * math.log(n)})
+    cases.append({"fn": "bestSubsets", "name": name, "args": [[[float(v) for v in c] for c in X], [float(v) for v in y], {"force": list(force), "best": 3}], "want": rows})
+bscase("6 columns", 50, 6); bscase("10 columns, one forced in", 80, 10, (3,)); bscase("12 columns", 120, 12)
+out["mreg"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

@@ -374,6 +374,30 @@ const nistRead = (name) => { const txt = readFileSync(join(here, "ref", "nist", 
   }
 }
 
+/* ---- Multiple regression (FIT2_SPEC 4.2): statsmodels' WLS, its variance inflation factors, NumPy's condition number, the
+   influence of each row (OLSInfluence on the whitened problem) and get_prediction's limits; best subsets against every subset
+   enumerated by lstsq ---- */
+{
+  for (const c of fixtures.mreg.cases) {
+    const w = c.want;
+    if (c.fn === "bestSubsets") { const R = get("bestSubsets")(...c.args);
+      if (R.fail || R.rows.length !== w.length) { note("bestSubsets", Infinity, c.name + ": " + (R.fail || `${R.rows.length} rows, not ${w.length}`)); continue; }
+      R.rows.forEach((r, i) => { const q = w[i]; if (r.cols.join() !== q.cols.join()) note("bestSubsets", Infinity, `${c.name} row ${i}: ${r.cols} for ${q.cols}`);
+        for (const k of ["rss", "r2", "ar2", "cp", "aic", "bic"]) note("bestSubsets", relErr(r[k], q[k], 1e-12), `${c.name} row ${i} ${k}`); });
+      continue; }
+    const M = get("linModel")(c.vars, c.y, c.spec); if (M.fail) { note("mreg.b", Infinity, c.name + ": " + M.fail); continue; }
+    w.b.forEach((v, j) => { note("mreg.b", relErr(M.b[j], v, 1e-14 * Math.max(...w.b.map(Math.abs))), `${c.name} b${j}`); note("mreg.b", relErr(M.se[j], w.se[j]), `${c.name} se${j}`); });
+    note("mreg.b", relErr(M.s, w.s), c.name + " s"); note("mreg.b", relErr(M.r2, w.r2), c.name + " R²");
+    w.vif.forEach((v, j) => { if (v != null) note("mreg.vif", relErr(M.vif[j], v), `${c.name} VIF ${j}`); });
+    note("mreg.cond", relErr(M.cond, w.cond), c.name + " condition number");
+    const D = M.diag, sc = (a) => Math.max(...a.map((v) => Math.abs(v)));
+    // over each quantity's largest: a residual near 0 is the reference's own rounding of y − ŷ, relatively
+    for (const k of ["fit", "res", "std", "stud", "del", "h", "cook", "dffits"]) note("mreg.diag", Math.max(...w.diag[k].map((v, i) => Math.abs(D[k][i] - v))) / sc(w.diag[k]), `${c.name} ${k}`);
+    if (c.new) { const P = get("lmPredict")(M, c.new.codes, c.new.w);
+      w.pred.forEach((q, i) => { for (const k of ["fit", "se", "lo", "hi", "plo", "phi"]) note("mreg.pred", P[i] ? relErr(P[i][k], q[k], 1e-14 * Math.abs(q.fit)) : Infinity, `${c.name} new row ${i} ${k}`); }); }
+  }
+}
+
 /* ---- NIST's nonlinear sets: lmFit from both of NIST's starts, with the tolerance at 1e-15 (as Fit control can set it) ----
    Each parameter and its standard deviation against the certified values. From the first start four sets go to another
    minimum or none (as many fitters do): they are named, and a fifth would fail. Lanczos1's data are its function to 13

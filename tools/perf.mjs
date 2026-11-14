@@ -66,6 +66,8 @@ const BUDGET = {
   "Matrix: 1000 × 1000 transposed": [200, "that matrix transposed in place: one undo step, its record's entry, the save and the windows drawn again"],
   "Polynomial: order 10, 100 000 points": [900, "a polynomial of order 10 solved directly in double-double, its covariance refined (FIT2_SPEC 4.1)"],
   "Polynomial: order 10, 10⁶ points": [1600, "the same on a million points, streamed a row at a time"],
+  "Regression: 100 000 × 20, each row": [3000, "a response by twenty columns of numbers, 100 000 rows, with each row's leverage, residuals, Cook's distance and DFFITS (FIT2_SPEC 4.2; in the worker in the app)"],
+  "Best subsets: 20 columns": [3000, "every subset of twenty columns on 500 rows, the best three of each size"],
   "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
 };
 const got = {};
@@ -178,6 +180,11 @@ await withPage(async (p) => {
   for (const [nm, N] of [["Polynomial: order 10, 100 000 points", 1e5], ["Polynomial: order 10, 10⁶ points", 1e6]])
     got[nm] = await best(() => p.evaluate((N) => { const X = new Array(N), Y = new Array(N); for (let i = 0; i < N; i++) { X[i] = 1000 + 3000 * i / N; Y[i] = Math.sin(7 * i / N) + 1e-3 * Math.cos(1.7 * i); }
       const a = performance.now(), r = polyLsq(X, Y, null, 10); if (r.error) throw new Error(r.error); return performance.now() - a; }, N));
+  got["Regression: 100 000 × 20, each row"] = await best(() => p.evaluate(() => { const mb = mulberry32(5), n = 100000, rows = Array.from({ length: n }, (_, i) => i);
+    const ins = Array.from({ length: 20 }, (_, k) => ({ id: "x" + k, name: "X" + k, vals: Array.from({ length: n }, () => mb()), rows })); ins.unshift({ id: "y", name: "Y", vals: Array.from({ length: n }, (_, i) => ins.slice(1).reduce((a, q, k) => a + q.vals[i] / (k + 1), mb())), rows });
+    const a = performance.now(), r = anaRunKind("lm", ins, { y: "y", diag: true }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
+  got["Best subsets: 20 columns"] = await best(() => p.evaluate(() => { const mb = mulberry32(6), n = 500, X = Array.from({ length: 20 }, () => Array.from({ length: n }, () => mb())), y = Array.from({ length: n }, (_, i) => X[0][i] + 0.5 * X[3][i] + 0.1 * mb());
+    const a = performance.now(), r = bestSubsets(X, y, { best: 3 }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
   got["Correlation: 1M pairs"] = await best(() => p.evaluate(() => { const mb = mulberry32(10), n = 1000000, x = Array.from({ length: n }, () => mb()), rows = x.map((_, i) => i);
     const ins = [{ name: "A", vals: x, rows }, { name: "B", vals: x.map((v) => v + mb()), rows }];
     const a = performance.now(); anaRunKind("corr", ins, { methods: ["pearson", "spearman", "kendall"] }); return performance.now() - a; }));

@@ -705,5 +705,29 @@
  "polyLsq.stream": {
   "tol": 1e-12,
   "why": "the streamed path (a design past POLY_DD values): Givens rotations in doubles, the covariance from R alone; the fitted values over their spread, the sums, the errors of the centred coefficients"
+ },
+ "mreg.b": {
+  "tol": 1e-12,
+  "why": "statsmodels' WLS coefficients, errors, s and R² on designs up to correlations of 0.99, weighted or not"
+ },
+ "mreg.vif": {
+  "tol": 1e-11,
+  "why": "1/(1 − R²) of each column on the others, statsmodels' WLS"
+ },
+ "mreg.cond": {
+  "tol": 1e-10,
+  "why": "NumPy's condition number of the design with unit columns (its own SVD)"
+ },
+ "mreg.diag": {
+  "tol": 1e-12,
+  "why": "OLSInfluence on the whitened problem: leverage, the residuals of four kinds, Cook's distance, DFFITS, each over its largest"
+ },
+ "mreg.pred": {
+  "tol": 1e-12,
+  "why": "get_prediction: the value, its error, both limits"
+ },
+ "bestSubsets": {
+  "tol": 1e-12,
+  "why": "every subset enumerated by lstsq: the best three of each size, their sums and criteria"
  }
 }

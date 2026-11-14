@@ -190,8 +190,7 @@ each.
 ## 4.1 Polynomials by QR
 
 Done 14.11, as below, with these changes of plan: past 2·10⁶ values of the design the solve is streamed a row at a time
-(Givens rotations, `lsqStream`) in doubles, so a million points take 0.5 s and no copy of the design (the budget is 1.6 s,
-not 0.5); NIST's nonlinear sets are checked with Fit control's tolerance at 1e-15 (6 to 11 digits; with the default 1e-12,
+(Givens rotations, `lsqStream`) in doubles, so a million points take 0.35 s in the browser and no copy of the design; NIST's nonlinear sets are checked with Fit control's tolerance at 1e-15 (6 to 11 digits; with the default 1e-12,
 5 to 10), and from NIST's first start MGH17, BoxBOD, MGH10 and Eckerle4 end in another minimum or none, named in the
 bench; a fixed coefficient is solved in powers of x, so far from zero it is refused in words when the powers cannot be
 told apart; Results leaves the method out (the full list, the report and the CSV have it).
@@ -233,6 +232,14 @@ undo, a reload, a fit stored before); `odd-test` (junk in `poly` from storage ig
 Legendre) as a model of its own; weights from a column with the X errors (as today).
 
 ## 4.2 Multiple regression
+
+Done 14.11, as below, with these changes of plan: the per-row columns are the result sheet's row table that *Fitted values
+and residuals* made (a Row column, then the fitted value or the prediction, the residual and the rest), so a predicted row
+sits among the others in its row's order; every row has its limits when predictions are on; weighted rows are judged as the
+weighted fit sees them (R's definitions; statsmodels' influence is for unweighted fits, so the weighted references are its
+influence on the whitened problem); best subsets uses a sweep in Gray-code order, swept afresh every 4096 steps, rather than
+leaps and bounds (20 columns in 0.8 s), and refuses a column that is a combination of the others; the condition number comes
+from a one-sided Jacobi SVD of R (`svdVals`, in NUMERICS for wave 6).
 
 **What.** Analyze › Statistics › ANOVA › Linear model… becomes Analyze › Fit › Multiple regression…
 too (the same kind, two doors), and grows:

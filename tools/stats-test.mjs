@@ -576,5 +576,44 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("matrices refuse in words: no cells, too many, a crop of nothing, two sizes, a head that is not numbers", /one row and one column/.test(r1.fail) && /cells at most/.test(r2.fail) && /No column/.test(r3.fail) && /not one size/.test(r4.fail) && /must be numbers/.test(r5.fail), [r1.fail, r2.fail, r3.fail, r4.fail, r5.fail].join(" | "));
 }
 
+/* ---- multiple regression (FIT2_SPEC 4.2): what must hold whatever the data ---- */
+{
+  const lm = get("linModel"), mb = get("mulberry32")(42), n = 40, X1 = [], X2 = [], X3 = [], Y = [], W = [];
+  for (let i = 0; i < n; i++) { const a = mb() * 10, b = a + mb(), c = mb() * 5; X1.push(a); X2.push(b); X3.push(c); W.push(0.5 + 2 * mb()); Y.push(1 + 0.5 * a - 0.3 * b + 0.8 * c + (mb() - 0.5)); }
+  const vars = (cols) => cols.map((x, k) => ({ name: "x" + k, num: true, x }));
+  const M = lm(vars([X1, X2, X3]), Y, { w: W, diag: true });
+  const hs = M.diag.h.reduce((a, v) => a + v, 0);
+  check("regression: the leverages add up to the coefficients (4), each between 0 and 1", Math.abs(hs - 4) < 1e-10 && M.diag.h.every((v) => v > 0 && v < 1), hs);
+  // A row's deleted residual: its residual over s from the fit without it, its leverage taken out.
+  let worst = 0;
+  for (const i of [0, 7, 19, 33]) { const keep = (a) => a.filter((_, k) => k !== i), Mi = lm(vars([keep(X1), keep(X2), keep(X3)]), keep(Y), { w: keep(W) });
+    const e = Math.sqrt(W[i]) * M.diag.res[i], want = e / (Mi.s * Math.sqrt(1 - M.diag.h[i])); worst = Math.max(worst, Math.abs(M.diag.del[i] - want) / Math.abs(want)); }
+  check("regression: the studentized deleted residual is the residual over s from the fit without the row", worst < 1e-12, worst);
+  const cook = M.diag.cook.every((c, i) => Math.abs(c - M.diag.stud[i] ** 2 * M.diag.h[i] / (4 * (1 - M.diag.h[i]))) <= 1e-14 * Math.max(c, 1e-300));
+  check("regression: Cook's distance is the studentized residual squared times h/(p(1 − h))", cook);
+  // A VIF is 1/(1 − R²) of its column on the others (weighted, with an intercept).
+  const Mx = lm(vars([X2, X3]), X1, { w: W });
+  check("regression: a variance inflation factor is 1/(1 − R²) of its column on the others", Math.abs(M.vif[1] - 1 / (1 - Mx.r2)) < 1e-11 * M.vif[1], [M.vif[1], 1 / (1 - Mx.r2)]);
+  // Weights all equal change nothing but the scale; doubling them all changes nothing.
+  const Mw2 = lm(vars([X1, X2, X3]), Y, { w: W.map((v) => 2 * v), diag: true });
+  check("regression: weights doubled leave the coefficients, errors, leverages and Cook's distances as they were", Mw2.b.every((v, j) => Math.abs(v - M.b[j]) < 1e-12 * Math.abs(M.b[j])) && Mw2.se.every((v, j) => Math.abs(v - M.se[j]) < 1e-12 * M.se[j]) && Mw2.diag.cook.every((v, i) => Math.abs(v - M.diag.cook[i]) < 1e-11 * Math.max(M.diag.cook[i], 1e-12)));
+  // A prediction at a row's own X is its fitted value; its interval holds the mean's.
+  const Pr = get("lmPredict")(M, [[X1[5], X2[5], X3[5]]], [W[5]])[0];
+  check("regression: a prediction at a row's own X is its fitted value, the prediction limits outside the confidence ones", Math.abs(Pr.fit - M.diag.fit[5]) < 1e-12 * Math.abs(Pr.fit) && Pr.plo < Pr.lo && Pr.phi > Pr.hi, JSON.stringify(Pr));
+  // Coverage: the 95 % prediction interval holds a new value 95 % of the time.
+  let hit = 0; const K = 2000, mc = get("mulberry32")(7), gs = () => { let u = 0; for (let k = 0; k < 12; k++) u += mc(); return u - 6; };
+  for (let t = 0; t < K; t++) { const x = [], y = []; for (let i = 0; i < 15; i++) { x.push(i); y.push(2 + 0.5 * i + gs()); } const Mt = lm(vars([x]), y, {}), q = get("lmPredict")(Mt, [[7.5]])[0], yn = 2 + 0.5 * 7.5 + gs(); if (yn >= q.plo && yn <= q.phi) hit++; }
+  check("regression: the 95 % prediction interval holds a new value 95 % of the time (2000 data sets)", Math.abs(hit / K - 0.95) < 0.015, hit / K);
+  // Best subsets: against every subset fitted, and the full model's numbers.
+  const bs = get("bestSubsets"), cols = [X1, X2, X3, X1.map((v, i) => v * X3[i])], R = bs(cols, Y, { best: 2 });
+  const fitSet = (S) => S.length ? lm(vars(S.map((k) => cols[k])), Y, {}).rss : Y.reduce((a, v) => a + (v - Y.reduce((s, u) => s + u, 0) / n) ** 2, 0);
+  const all = []; for (let m = 0; m < 16; m++) { const S = [0, 1, 2, 3].filter((k) => m >> k & 1); all.push({ S, rss: fitSet(S) }); }
+  const ok = [0, 1, 2, 3, 4].every((k) => { const want = all.filter((o) => o.S.length === k).sort((a, b) => a.rss - b.rss).slice(0, 2), got = R.rows.filter((o) => o.cols.length === k); return got.length === want.length && got.every((o, i) => o.cols.join() === want[i].S.join() && Math.abs(o.rss - want[i].rss) < 1e-11 * want[i].rss); });
+  check("best subsets: the best two of each size are those every subset fitted gives", ok);
+  const forced = bs(cols, Y, { force: [2], best: 3 }).rows;
+  check("best subsets: a column forced in is in every subset listed", forced.every((o) => o.cols.includes(2)) && forced.length > 3);
+  check("best subsets refuse in words: a column that is a combination of others; too few rows", /combination/.test(bs([X1, X2, X1.map((v, i) => v + X2[i])], Y, {}).fail || "") && /rows for/.test(bs([X1, X2], Y.slice(0, 3), {}).fail || ""));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -1237,6 +1237,26 @@ graph first, with the taskbar kept at the bottom of the screen.
   form `#aLy`, `#aLfac` (`aLf_<id>`), `#aLi`, `#aLp`, `#aLc`, `#aLs`, `#aLn`, `#aLr`, `#aLct`; Analyze › Statistics › ANOVA ›
   Linear model…. `anaDlg` takes X columns for a kind with `xs`. `quantileType` works its position in double-double
   (`qtProd`).
+  **Multiple regression** (FIT2_SPEC 4.2): `linModel` takes `spec.w` (each row's weight, as 1/σ²: the design's columns and
+  the response times √w in double-double, `wtD`, every sum after the weighted one) and `spec.diag`, and returns `vif` (each
+  kept column's (XᵀWX)⁻¹_jj times its sum of squares about its weighted mean, or about 0 without an intercept: 1/(1 − R²) of it
+  on the others), `cond` (the condition number of the design with unit columns, from `svdVals` of R) and `diag` (`{fit, res,
+  std, stud, del, h, cook, dffits}` a row: h from Rᵀz = the scaled row, the deleted residual in closed form, `res` and `fit` in
+  the data's own terms), `weighted`. `lmPredict(M, codes, w)` (each new row's `lmCell` and `lmEst`: `{fit, se, lo, hi, plo,
+  phi}`, the prediction one new value of weight w, or null where not estimable). `svdVals(A)` in NUMERICS (one-sided Jacobi,
+  the singular values descending). `bestSubsets(X, y, {force, best, icpt})` (`SUBSET_MAX` 20; the centred cross products
+  scaled to unit diagonal swept in Gray-code order (`sweep` and its reverse), swept afresh every 4096 steps, the best `best`
+  of each size by residual sum, each refitted by `lsqFit`; `{rows:[{cols, rss, r2, ar2, cp, aic, bic}], n, sst, s2}` or
+  `{fail}`: a column a combination of others, too few rows). Kind `lm` grows `p.w` (a ticked column's id), `p.diag`, `p.pred`
+  (the rows with every X and no Y), `p.partial` (columns `prx<v>` an X, `pry<v>`, `prl<v>` per column of numbers: the residual
+  plus its terms' share about their mean), the coefficients' `vif` on the sheet and the report's *Collinearity*; the per-row
+  table (`row`, `fit`, `res`, `std`, `stud`, `del`, `lev`, `cook`, `dffits`, `clo`, `chi`, `plo`, `phi`) in the input rows'
+  order, predicted rows among them; `report.nums`. Form `#aLw` (filled from the columns ticked by `anaRespWire`'s callback,
+  out of the factors' list), `#aLd`, `#aLpr`. Kind `subsets` (`xs`; `p.y`, `p.force`, `p.best`, `p.crit` of `SUBSET_CRIT`,
+  `p.icpt`; the sheet's `cols` (names), `k`, `r2`, `ar2`, `cp`, `aic`, `bic`, `rss`; `report.subsets` with column ids, `report.y`),
+  form `#aBf` (`aBf_<id>`), `#aBn`, `#aBc`, `#aLn`. Report actions `anaPartial(id)` (worked out again with `partial`, a graph a
+  column, a figure, one undo step) and `anaSubsetFit(id)` (a `formDlg` of the subsets, `#bsP<i>`, then `anaDlg("lm", {cols, p})`;
+  `anaDlg` takes `o.p`, a new analysis's starting settings). Analyze › Fit › Multiple regression… and Best subsets….
   **Polynomials by QR** (FIT2_SPEC 4.1; after `lsqAlias`): `polyLsq(X, Y, W, k, {fixed, p0, scale, stream})` (order 1 to
   `POLY_MAX`, 10; lmFit's fields with `iter: 0` and `poly {c, s, b, V}`): in t = (x − c)/s, c the middle of X and s the power
   of two at or above half its range (t exact in double-double), the columns t^j in double-double and weighted, `lsqFit` and
@@ -3373,7 +3393,10 @@ factors against rmAnova, long with a subject missing a value, the defaults of th
 the profile plot, a refusal, a reload, no id twice in any kind's dialog), and 2.11 (the fields shown per test, the power at
 sizes and the size for a power against powerAt, Cohen's d, the power curve and its undo, the exact binomial test, a refusal, a
 reload), and 2.12 (Groups and Positive offered, each area, SE, interval, Youden's point and the comparison against rocTest
-and rocCompare, the curve with the diagonal, a lower score positive, a third group refused, a reload); `ONLY=2.11` runs one
+and rocCompare, the curve with the diagonal, a lower score positive, a third group refused, a reload), and FIT2_SPEC 4.2
+(Analyze › Fit's doors, the Weights list, a weighted fit's coefficients, VIFs, condition number, each row's influence and a
+row predicted against linModel and lmPredict, the planted outlier's Cook's distance, the partial residual figure and its undo,
+best subsets ordered by BIC against bestSubsets, Fit one of them…, 21 columns refused, a reload); `ONLY=2.11` runs one
 section.
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
@@ -3397,7 +3420,9 @@ no effect, rising with the size, the size found the first to reach the power, th
 (the area as U over n₁n₀, the trapezoids adding up to it, a lower score positive and a rising change, Youden's J, DeLong's
 interval's coverage of a binormal area and its test's size, refusals), and reshaping's (stack then unstack gives the columns back, a
 sorted copy a sorted permutation, a pivot's totals adding up, a full join the inner and both sides' unmatched, one row a key after
-duplicates, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
+duplicates, refusals), and multiple regression's (leverages adding up to the coefficients, a deleted residual against refitting
+without the row, Cook's distance's definition, a VIF as 1/(1 − R²), weights doubled changing nothing, the 95 % prediction
+interval's coverage, best subsets against every subset fitted, a column forced in, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
 ANA block.
 `node tools/sheet-drive.mjs [path]` (Playwright; `ONLY=3.1` runs one section) checks the worksheet as a table
 (`ux/spec/SHEET_SPEC.md`, wave 3): 3.1, formulas typed into the F(x)= row (an aggregate, rows of other rows, a running
@@ -5035,7 +5060,10 @@ Next, in order:
    4.1, 4.2, 4.3, 4.8, 4.6, 4.7, 4.4, 4.5; NIST's reference data reached and committed, 14.11); slice 4.1, polynomials by QR
    (a straight line or a polynomial of order 1 to 10 solved directly in X centred and scaled, shown in powers of x and
    computed about the centre; NIST's certified polynomials, Filip's among them, to 13–15 digits, rationals far from zero to
-   the last digit, NIST's 27 nonlinear sets through Levenberg–Marquardt from both starts), done 14.11
+   the last digit, NIST's 27 nonlinear sets through Levenberg–Marquardt from both starts), done 14.11; slice 4.2, multiple
+   regression (weights, variance inflation factors and the condition number, each row's influence, predictions with their
+   limits, partial residual plots, best subsets of up to 20 columns; statsmodels and every subset enumerated agreeing to
+   1e-12), done 14.11
 
 ## Known gaps
 
@@ -5119,11 +5147,13 @@ Next, in order:
   project, and a viewer who cannot edit cannot open it
 - Counts in tables: no exact test past two million tables, no Monte Carlo p, no McNemar–Bowker (larger square
   tables), no Cochran–Mantel–Haenszel (strata), no residuals table
-- The linear model: no weights, no random effects, no transformations typed as a formula (log y, centring), interactions
+- The linear model: no random effects, no transformations typed as a formula (log y, centring), interactions
   only none, every pair or every combination (not chosen one by one), powers of every number column alike; type III by
   dropping a term's effect-coded columns (with an empty cell this is not SAS's estimable-function type III); a design
   conditioned past about 1e12 has columns called aliased that exact arithmetic would still separate; contrasts one at
-  a time (no joint F of several); no plots of the residuals made from it yet (the fitted values and residuals go on the sheet)
+  a time (no joint F of several); the residual plots are the result sheet's columns plotted as any (partial residual plots
+  apart); weights are a column's values only (no weights from the errors of a column); predictions are for the rows of the
+  sheet with no response (not a sheet of new X); best subsets of numbers only (no factors), no stepwise selection
 - Two- and three-way ANOVA: factors only (a covariate is the linear model's); the comparisons are of each factor's means
   (not of the cells, not Dunnett's or Games–Howell's); simple effects of one factor at the levels of another, averaged over a
   third; the interaction plot is of the first two factors ticked; a mean over an empty cell is left empty (no SAS-style

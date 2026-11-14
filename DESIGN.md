@@ -898,6 +898,17 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-14: multiple regression (FIT2_SPEC 4.2)
+
+- **One analysis, two doors.** Regression on several columns is the linear model already in Analyze › Statistics; a person
+  looking for it under Fit finds *Multiple regression…* there too, the same dialog and result. Best subsets is its own kind,
+  because what it gives is a list of models, not one.
+- **Influence in the rows, not the report.** Leverage, Cook's distance and the rest are a value a row, so they are columns of
+  the result sheet in each row's place (sortable, plottable, filterable); the report keeps to the model and its numbers. A row
+  to predict sits among them in its order, its residuals empty.
+- **Numbers, not verdicts.** No row is called influential and no subset best: Cook's distance and the criteria are shown,
+  and the order of the subsets is the criterion the person chose.
+
 ### 2026-11-14: polynomials solved, not iterated (FIT2_SPEC 4.1)
 
 - **What is linear is solved.** A straight line or a polynomial has one least-squares answer, and iterating towards it

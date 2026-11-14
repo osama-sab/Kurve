@@ -802,6 +802,33 @@ def poly_post(c, out):
     return max(e, er), f"fitted values {e:.2e} over their spread, RSS {er:.2e}"
 POST["polyLsq"] = poly_post
 
+# ---- Best subsets (FIT2_SPEC 4.2): every subset enumerated by lstsq; the best of each size and their residual sums ----
+@gen("bestSubsets", 1e-11, 0.3)
+def _():
+    import itertools
+    p, n = int(rng.integers(2, 8)), int(rng.integers(12, 60)); X = rng.normal(0, 1, (n, p)) * 10 ** rng.uniform(-2, 3, p) + rng.normal(0, 5, p)
+    if rng.random() < 0.4: X[:, -1] = X[:, 0] * 0.9 + rng.normal(0, 0.05, n) * abs(X[0, 0] + 1)
+    y = X @ (rng.normal(0, 1, p) * (rng.random(p) < 0.6)) + rng.normal(0, 1, n)
+    best = {}
+    for k in range(p + 1):
+        for S in itertools.combinations(range(p), k):
+            D = np.column_stack([np.ones(n)] + [X[:, j] for j in S]); rss = float(np.sum((y - D @ np.linalg.lstsq(D, y, rcond=None)[0]) ** 2)); best.setdefault(k, []).append((rss, list(S)))
+    want = [[S, rss] for k in sorted(best) for rss, S in sorted(best[k])[:2]]
+    return [[[float(v) for v in X[:, j]] for j in range(p)], [float(v) for v in y], {"best": 2}], want
+def bs_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "rows" not in out: return float("inf"), f"no rows: {str(out)[:120]}"
+    R = out["rows"]
+    if len(R) != len(w): return float("inf"), f"{len(R)} rows, not {len(w)}"
+    e = 0.0
+    for r, (S, rss) in zip(R, w):
+        if r["cols"] != S:  # a tie in residual sum may come in either order
+            if not any(q[0] == r["cols"] and abs(q[1] - r["rss"]) <= 1e-9 * max(rss, 1e-300) for q in w): return float("inf"), f"subset {r['cols']} for {S}"
+            continue
+        e = max(e, abs(r["rss"] - rss) / max(rss, 1e-300))
+    return e, f"residual sums {e:.2e}"
+POST["bestSubsets"] = bs_post
+
 cases = []
 ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone
 for name, (f, tol) in GEN.items():
