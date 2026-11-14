@@ -232,6 +232,82 @@ if (want("3.1")) {
   }, { name: "formulas of before" });
 }
 
+if (want("3.2")) {
+  console.log("3.2 Two worksheet windows");
+  const two = () => { const cols = [makeCol("x", "X", "", [1, 2, 3, 4]), Object.assign(makeCol("y", "Signal", "", [1.5, 3, 4.5, 6]), { pipe: [], mask: [] }), Object.assign(makeCol("ignore", "Note", "", [null, null, null, null]), { txt: { 0: "a", 2: "c" } }),
+    Object.assign(makeCol("x", "A", "", [101, 102, 103]), { sheet: "s2" }), Object.assign(makeCol("y", "Ref", "", [2, 4, 6]), { sheet: "s2", pipe: [], mask: [] })];
+    save({ cols, sheets: [{ id: "s1", name: "Sheet 1" }, { id: "s2", name: "Calib" }], activeY: null }, "typed"); };
+  const st = p => p.evaluate(() => ({ live: wsLiveWin(), cur: curSheet(), main: mainSheet(), wins: Object.keys(WINS).filter(k => WINS[k].swin), grid: $("#ws").closest(".win").id, pic: !!$("#w-sheet .win-b > .wssnap"),
+    picText: ($("#w-sheet .wssnap") || { textContent: "" }).textContent, tk: [...document.querySelectorAll("#taskbar .tk[data-tk]")].map(b => b.dataset.tk), title: ($("#w-sw-s2 .win-t") || {}).textContent }));
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } }); let pid;
+  await page(async p => {
+    await p.evaluate(two); await p.waitForTimeout(300);
+    // From the tab's right-click menu.
+    await p.click('#wsTabs [data-wst="s2"]', { button: "right" }); await p.waitForTimeout(150);
+    await p.locator(".menu button", { hasText: "Open in a window of its own" }).first().click(); await p.waitForTimeout(400);
+    let r = await st(p);
+    check("a sheet opened in a window of its own from its tab's menu: the grid there, the worksheet window a picture of the other sheet, both in the taskbar", r.live === "sw-s2" && r.cur === "s2" && r.grid === "w-sw-s2" && r.pic && /Signal/.test(r.picText) && !/Ref/.test(r.picText) && r.tk.join() === "sheet,sw-s2" && r.title === "Calib", JSON.stringify(r));
+    // Typing in one window and then the other, the keys going to the window in front.
+    await p.locator("#w-sheet .wssnap td[data-r='2'][data-ci='1']").click(); await p.waitForTimeout(250);
+    await p.keyboard.type("9.5"); await p.keyboard.press("Enter"); await p.keyboard.type("8"); await p.keyboard.press("Enter"); await p.waitForTimeout(800);
+    r = await p.evaluate(() => ({ s1: sheetCols("s1")[1].data, s2: sheetCols("s2")[1].data, live: wsLiveWin(), ws: [S.ws.r, S.ws.c] }));
+    check("a press on the worksheet window's picture brings it forward with that cell selected; what is typed goes into its sheet", r.live === "sheet" && JSON.stringify(r.s1) === "[1.5,3,9.5,8]" && JSON.stringify(r.s2) === "[2,4,6]", JSON.stringify(r));
+    await p.locator("#w-sw-s2 .wssnap td[data-r='1'][data-ci='1']").click(); await p.waitForTimeout(250);
+    await p.keyboard.type("44"); await p.keyboard.press("Tab"); await p.keyboard.type("x1"); await p.keyboard.press("Enter"); await p.waitForTimeout(800);
+    r = await p.evaluate(() => ({ s1: sheetCols("s1")[1].data, s2: sheetCols("s2").map(c => [c.name, c.data, txtOf(c)]), live: wsLiveWin() }));
+    check("…and back in the other window, its sheet takes the keys, Tab moving within it", r.live === "sw-s2" && JSON.stringify(r.s1) === "[1.5,3,9.5,8]" && r.s2[1][1][1] === 44 && r.s2[2] && r.s2[2][2] && r.s2[2][2][1] === "x1", JSON.stringify(r));
+    // The worksheet window's tab for a sheet in a window of its own brings that window forward.
+    await p.evaluate(() => focusWin("sheet")); await p.waitForTimeout(200);
+    r = await p.evaluate(() => { const t = document.querySelector('#wsTabs [data-wst="s2"]'); return { own: t.classList.contains("own"), title: t.title }; });
+    await p.click('#wsTabs [data-wst="s2"]'); await p.waitForTimeout(300);
+    const r2 = await st(p);
+    check("the worksheet window's tab for that sheet says so, and brings its window forward", r.own && /window of its own/.test(r.title) && r2.live === "sw-s2", JSON.stringify([r, r2.live]));
+    // A column dragged from the window worked in onto the other window moves to its sheet, one undo step.
+    await p.evaluate(() => focusWin("sheet")); await p.waitForTimeout(250);
+    const before = await p.evaluate(() => undoStack.length);
+    await p.click("#ws th[data-ch='2']"); await p.waitForTimeout(150);
+    const a = await p.locator("#ws th[data-ch='2']").boundingBox(), b2 = await p.locator("#w-sw-s2 .wssnap").boundingBox();
+    await p.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await p.mouse.down(); await p.mouse.move(a.x + 60, a.y + 40, { steps: 4 });
+    await p.mouse.move(b2.x + b2.width / 2, b2.y + b2.height / 2, { steps: 8 }); const marked = await p.evaluate(() => $("#w-sw-s2").classList.contains("dropin")); await p.mouse.up(); await p.waitForTimeout(500);
+    r = await p.evaluate(() => ({ s1: sheetCols("s1").map(c => c.name), s2: sheetCols("s2").map(c => c.name), undo: undoStack.length, toast: $("#toast").textContent }));
+    check("a column's letter dragged onto the other window (outlined while over it) moves the column to that sheet, one undo step, the toast with Undo", marked && JSON.stringify(r.s1) === '["X","Signal"]' && r.s2.includes("Note") && r.undo === before + 1 && /Moved column C \(Note\) to Calib/.test(r.toast) && /Undo/.test(r.toast), JSON.stringify([marked, r]));
+    await p.evaluate(() => undo()); await p.waitForTimeout(400);
+    r = await p.evaluate(() => ({ s1: sheetCols("s1").map(c => c.name), s2: sheetCols("s2").map(c => c.name) }));
+    check("…undone, the column is back", JSON.stringify(r.s1) === '["X","Signal","Note"]' && !r.s2.includes("Note"), JSON.stringify(r));
+    // Renamed, the window's title follows; deleted, its window goes, and undo brings both back.
+    await p.evaluate(() => { const p = P(); p.sheets = p.sheets.map(s => s.id === "s2" ? Object.assign({}, s, { name: "Calibration" }) : s); save({ sheets: p.sheets }, "renamed"); }); await p.waitForTimeout(300);
+    r = await st(p); check("the sheet renamed: its window's title and taskbar button follow", r.title === "Calibration" && await p.evaluate(() => WINS["sw-s2"].title) === "Calibration", JSON.stringify(r));
+    await p.evaluate(() => { deleteSheet("s2"); }); await p.waitForTimeout(400); if (await p.evaluate(() => !$("#dlgModal").hidden)) { await p.click("#dlgOk"); await p.waitForTimeout(400); }
+    r = await st(p);
+    check("the sheet deleted: its window goes, the grid back in the worksheet window", !r.wins.length && r.grid === "w-sheet" && r.live === "sheet" && !r.tk.includes("sw-s2"), JSON.stringify(r));
+    await p.evaluate(() => undo()); await p.waitForTimeout(400);
+    r = await st(p); check("…undone: the sheet and its window back", r.wins.join() === "sw-s2", JSON.stringify(r));
+    pid = await p.evaluate(() => { flushEdits(); saveLayout(); return S.pid; }); await p.waitForTimeout(600);
+  }, { name: "two worksheet windows", ctx });
+  await page(async p => {
+    await p.evaluate(pid => { if (S.pid !== pid) switchProject(pid); }, pid); await p.waitForTimeout(600);
+    let r = await st(p);
+    check("after a reload the sheet's window is back with its sheet", r.wins.join() === "sw-s2" && r.tk.includes("sw-s2") && await p.evaluate(() => winOpen("sw-s2")), JSON.stringify(r));
+    // Closed by its ×: the sheet stays, shown in the worksheet window.
+    await p.evaluate(() => focusWin("sw-s2")); await p.waitForTimeout(200);
+    await p.click("#w-sw-s2 [data-wclose]"); await p.waitForTimeout(400);
+    r = await st(p);
+    check("its window closed: the sheet stays, shown in the worksheet window", !r.wins.length && r.live === "sheet" && r.cur === "s2" && await p.evaluate(() => sheetList().length) === 2, JSON.stringify(r));
+    // Window › New worksheet window lists the sheets; the last sheet of the worksheet window is kept.
+    const items = await p.evaluate(() => newSheetWinItems().filter(i => i && i.label).map(i => [i.label, i.enabled !== false]));
+    check("Window › New worksheet window lists the sheets and A new sheet", JSON.stringify(items) === JSON.stringify([["Sheet 1", true], ["Calibration", true], ["A new sheet", true]]), JSON.stringify(items));
+    await p.evaluate(() => { openSheetWin("s1"); }); await p.waitForTimeout(300);
+    await p.evaluate(() => { openSheetWin("s2"); }); await p.waitForTimeout(300);
+    r = await p.evaluate(() => ({ wins: swList(), toast: $("#toast").textContent }));
+    check("the worksheet window keeps a sheet: the last one cannot leave it", r.wins.join() === "s1" && /keeps a sheet/.test(r.toast), JSON.stringify(r));
+    // Both windows at 1024 and 390 px wide.
+    for (const [w, h] of [[1024, 768], [390, 844]]) { await p.setViewportSize({ width: w, height: h }); await p.waitForTimeout(400);
+      r = await p.evaluate(() => { const a = $("#w-sheet").getBoundingClientRect(), b = $("#w-sw-s1").getBoundingClientRect(); return { a: [a.width, a.height], b: [b.width, b.height], grid: $("#ws").closest(".win").id }; });
+      check(`at ${w} px both windows are on the desk with something to see`, r.a[0] > 150 && r.a[1] > 100 && r.b[0] > 150 && r.b[1] > 100, JSON.stringify(r)); }
+  }, { name: "worksheet windows after a reload", ctx });
+  await ctx.close();
+}
+
 if (want("3.3")) {
   console.log("3.3 Filters");
   // X 1…40, B = (i*7) % 23 (ties), C text groups a/b/c with an empty cell every 9th row, D = i.

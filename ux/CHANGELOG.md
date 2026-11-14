@@ -1024,6 +1024,20 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 3, slice 3.2: two worksheet windows (2026-11-14)
+
+- **A sheet in a window of its own** beside the worksheet window: a tab's right-click (or the Explorer's) *Open in a window
+  of its own*, or Window › New worksheet window. The window in front is worked in; the other shows its sheet's cells, the
+  wheel scrolls them, and a click on a cell brings it forward with that cell selected.
+- **A column dragged by its letter onto the other window** (or its taskbar button) moves to that sheet with its error bars;
+  one Undo.
+- The worksheet window keeps its tabs; a sheet with a window of its own has its tab bring that window forward. Closing the
+  window leaves the sheet; deleting the sheet closes the window; renaming it renames the window. Kept across a reload.
+
+Checked: sheet-drive (17 new checks: both windows, typing in each, the keys, the tab, a column dragged and undone, renamed,
+deleted and undone, a reload, closed, the menu, the last sheet kept, 1024 and 390 px), screenshots at 1440, 1024 and 390 px,
+a lab day with sheets in their own windows among its actions.
+
 ## Closing the gap with Origin, wave 3, slice 3.7: Excel (2026-11-14)
 
 - **An .xlsx or .xlsm file** (Import, Ctrl+O, a drop) is read from its cells: numbers with every digit, text as text (007 stays

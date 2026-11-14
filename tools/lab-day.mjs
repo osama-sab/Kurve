@@ -8,7 +8,8 @@
    every project. Page errors, a page that stops answering (lag over 1.5 s), an action with no
    answer in 90 s and a reload that loses anything are failures.
    Usage: node tools/lab-day.mjs [kurve.html] [minutes, 40] [seed, 5]
-   OUT=dir puts the trail and the CSV there (the system's temporary folder otherwise). */
+   OUT=dir puts the trail and the CSV there (the system's temporary folder otherwise); BIAS=text makes the
+   actions whose name holds it twenty times as likely. */
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { createServer } from "node:http";
@@ -132,8 +133,23 @@ const ACTIONS = [
   [1, "theme", async () => { const t = await vis("#themeBtn"); if (t.length) await clickAt(...mid(t[0].b)); }],
   [2, "type in a field", async () => { const fs = await vis("section.win input[type=text]:not([readonly]), section.win textarea"); if (!fs.length) return "no fields"; const f = pick(fs); await clickAt(f.b.x + Math.min(20, f.b.width / 2), f.b.y + f.b.height / 2); await key("Control+a"); await type(junk().slice(0, 30)); await key(pick(["Enter", "Tab", "Escape"])); }],
   [2, "a tool window's buttons", async () => { const bs = await vis("section.win:not(.gwin) .win-b button:not(:disabled), section.win:not(.gwin) .win-b input[type=checkbox]"); if (!bs.length) return "nothing"; await clickAt(...mid(pick(bs).b)); }],
+  // Two worksheet windows (SHEET_SPEC 3.2): a sheet opened in a window of its own from its tab's menu, a press on a window's
+  // picture, a window closed; with one sheet, a new one first.
+  [2, "a sheet's own window", async () => { const k = R();
+    if (k < .35) { const pics = await vis(".wssnap td[data-r]"); if (pics.length) { await clickAt(...mid(pick(pics).b)); if (R() < .5) await type(junk().slice(0, 12)); await key(pick(["Enter", "Tab", "Escape"])); return "a picture's cell"; } }
+    if (k < .45) { const x = await vis(".win.wswin [data-wclose]"); if (x.length) { await clickAt(...mid(x[0].b)); return "closed one"; } }
+    // The worksheet brought forward by its taskbar button, a second sheet made, then a sheet's tab asked.
+    let tabs = await vis("#wsTabs [data-wst]");
+    if (!tabs.length) { const b = await vis('#taskbar .tk[data-tk="ws"]'); if (!b.length) return "no worksheet"; await clickAt(...mid(b[0].b)); await pause(300, 500); tabs = await vis("#wsTabs [data-wst]"); }
+    if (tabs.length < 2) { const nb = await vis("#wsTabs [data-wstnew]"); if (!nb.length) return "no tabs"; await clickAt(...mid(nb[0].b)); await pause(300, 500); tabs = await vis("#wsTabs [data-wst]"); }
+    for (const t of tabs.sort(() => R() - .5)) { await clickAt(...mid(t.b), { button: "right" }); await pause(200, 400);
+      const it = page.locator(".menu .mi:not(:disabled)", { hasText: "Open in a window of its own" }); if (await it.count()) { await it.first().click(); return "opened one"; }
+      await key("Escape"); await pause(100, 200); }
+    return "none to open"; }],
   [1, "coffee", async () => { const s = between(15, 90); await page.mouse.move(between(0, 50), between(0, 50)); await page.waitForTimeout(s * 1000); return Math.round(s) + " s"; }],
 ];
+// BIAS="label" makes the actions whose label holds it twenty times as likely, to watch one closely.
+if (process.env.BIAS) ACTIONS.forEach((q) => { if (q[1].includes(process.env.BIAS)) q[0] *= 20; });
 const total = ACTIONS.reduce((s, q) => s + q[0], 0);
 let n = 0, last = 0;
 async function act(label, fn) { lastAct = label; const t = Date.now(); let r;

@@ -391,6 +391,12 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .ws .fxm.old{color:var(--warn)}
 /* A filtered column's funnel (SHEET_SPEC 3.3): the accent while it holds, the warning colour once the data changed since. */
 .ws .hc .flt{color:var(--accent);width:16px;height:20px;min-width:16px;padding:0}
+/* A worksheet window behind the one in front: a picture of its sheet's cells (SHEET_SPEC 3.2); a sheet's own window has no tabs. */
+.win-b>.wssnap{flex:1;min-height:0;overflow:hidden;cursor:cell}
+.wssnap .grid{pointer-events:auto}
+.wssnap:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.win.wswin .wstabs{display:none!important}
+.wstab.own{font-style:italic}
 .xlpick{display:grid;gap:var(--sp-3);justify-items:start}
 .xlpick .xlall{margin-top:var(--sp-2);padding-top:var(--sp-4);border-top:1px solid var(--rule);justify-self:stretch}
 .fdlg .fdm{display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-5);align-items:center;margin:var(--sp-4) 0 var(--sp-3)}
@@ -16871,7 +16877,7 @@ function fillPlan(v){
 }
 async function openFillDlg(kind,opt){
   const p=P(); if(!p||S.readOnly) return; opt=opt||{};
-  if(!winOpen("sheet")) openWin("sheet",{render:true}); else focusWin("sheet");
+  wsFront();
   if(S.sheet!=="raw") setSheet("raw");
   if(S.wsm&&S.wsm.ord){ if(filtBlocks(S.wsm,"a fill follows every row, the filter's hidden ones too")) return;
     if(S.wsm.hidR&&!S.wsm.sorted){ toast("Show the hidden rows first: a fill follows every row in the order they were recorded.",{action:"Show them",run:()=>wsShowRows(null)}); return; }
@@ -17100,6 +17106,7 @@ function wsSelRect(){ const s=S.ws; return {r0:Math.min(s.r,s.ar),r1:Math.max(s.
 function renderWs(){ return inRender(renderWs0); }
 function renderWs0(){
   if(S.editing){ S.pendingWs=true; return; }      // never pull a cell from under the person typing in it
+  wsReconcile();
   const box=$("#ws"), p=P(), sub=$("#wsSub");
   renderWsTabs();
   { const sw=$("#wsSheet"), show=anyProcessing(); if(sw) sw.hidden=!show; if(!show&&S.sheet==="final"){ S.sheet="raw"; if(S.ws){ S.ws.win=null; S.ws.extra=0; } } }
@@ -18512,11 +18519,16 @@ function setupWs(){
     // Held past the edge, the grid scrolls and the selection follows (the letters along, the row numbers down).
     const as=drag&&drag.kind!=="colmove"?wsAutoScroll(at,drag.kind==="col"?"x":drag.kind==="row"?"y":"xy"):null;
     const mv=ev=>{ if(!drag) return;
-      if(drag.kind==="colmove"){ if(!drag.moving&&Math.abs(ev.clientX-drag.x0)<6) return; drag.moving=true; document.body.classList.add("colmoving"); drag.to=wsMoveMark(ev.clientX); return; }
+      if(drag.kind==="colmove"){ if(!drag.moving&&Math.abs(ev.clientX-drag.x0)<6) return; drag.moving=true; document.body.classList.add("colmoving");
+        // Over another worksheet window (or its taskbar button) the columns would go to its sheet (SHEET_SPEC 3.2).
+        const t=swList().length?wsDropSheet(ev.clientX,ev.clientY):null; document.querySelectorAll(".dropin").forEach(el=>{ if(!t||el!==t.el) el.classList.remove("dropin"); });
+        if(t&&t.sid&&t.sid!==curSheet()){ t.el.classList.add("dropin"); drag.sheet=t.sid; drag.to=null; wsMoveMark(null); return; }
+        drag.sheet=null; drag.to=wsMoveMark(ev.clientX); return; }
       if(as){ as.move(ev.clientX,ev.clientY); const c=as.clamp(ev.clientX,ev.clientY); at(c[0],c[1]); } };
     const up=()=>{ if(as) as.stop(); const d=drag; drag=null; document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
-      if(d&&d.kind==="colmove"){ document.body.classList.remove("colmoving"); wsMoveMark(null);
+      if(d&&d.kind==="colmove"){ document.body.classList.remove("colmoving"); wsMoveMark(null); document.querySelectorAll(".dropin").forEach(el=>el.classList.remove("dropin"));
         if(!d.moving){ const m2=S.wsm; S.ws.r=0; S.ws.c=d.c; S.ws.ar=Math.max(0,m2.n-1); S.ws.ac=d.c; wsPaintSel(); return; }
+        if(d.sheet){ const ids=S.wsm.cols.slice(d.c0,d.c1+1).filter(q=>!q.phantom).map(q=>q.id); if(ids.length) moveColsToSheet(ids,d.sheet,{undo:true}); return; }
         const m2=S.wsm, ids=m2.cols.slice(d.c0,d.c1+1).map(q=>q.id), to=d.to;
         if(to==null||(to>=d.c0&&to<=d.c1+1)) return;
         const before=m2.cols[to]&&!m2.cols[to].phantom?m2.cols[to].id:null;
@@ -18905,7 +18917,7 @@ function addColumn(){
   pushUndo("adding a column");
   p.cols.push(Object.assign(makeCol("y","",""),{pipe:[],mask:[],sheet:curSheet()})); save({cols:p.cols},"added a column");
   S.sheet="raw"; const ci=sheetCols().length-1; S.ws=Object.assign(S.ws||{},{r:0,c:ci,ar:0,ac:ci}); renderAll();
-  openWin("sheet"); wsEnsureVisible(0,ci); wsPaintSel(); $("#ws").focus({preventScroll:true});
+  wsFront(); wsEnsureVisible(0,ci); wsPaintSel(); $("#ws").focus({preventScroll:true});
 }
 /* Columns inserted where the selection is, as many as it spans, to its left or
    right (Excel's Insert Sheet Columns, Origin's Insert): empty Y columns among
@@ -18969,6 +18981,9 @@ function sheetNameFor(base,ss){ const used=new Set((ss||sheetList()).map(s=>s.na
 function stampSheets(p){ p=p||P(); (p.cols||[]).forEach(c=>{ if(!c.src) c.sheet=sheetOf(c,p); }); }
 function showSheet(sid,o){ const p=P(); if(!p||!sheetList().some(s=>s.id===sid)) return;
   if(S.ws&&S.ws.edit) wsCommit(0,0,true);
+  // A sheet in a window of its own is shown there; another, in the worksheet window, which comes forward with it.
+  if(swHas(sid)){ const w=swId(sid); if(!winOpen(w)) openWin(w); else focusWin(w); renderXpl(); return; }
+  if(wsLiveWin()!=="sheet"){ (S.wsMain||(S.wsMain={}))[S.pid]=sid; if(!winOpen("sheet")) openWin("sheet"); else focusWin("sheet"); renderWs(); renderXpl(); return; }
   if(curSheet()!==sid){ S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=sid; S.sheet="raw"; S.wsSort=null; S.wsFind=null;
     { const fb=$("#wsFind"); if(fb) fb.hidden=true; } S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null;
     const box=$("#ws"); if(box){ box.scrollTop=0; box.scrollLeft=0; } }
@@ -19025,7 +19040,7 @@ async function deleteSheet(sid){
    X, xcol, which may be on the sheet it left), so no graph changes; formulas
    read their columns by id wherever they are. The order of the columns is
    part of the check code, so the raw-data record notes the move. */
-function moveColsToSheet(ids,sid){
+function moveColsToSheet(ids,sid,o){ o=o||{};
   const p=P(); if(!p||S.readOnly) return; if(S.ws&&S.ws.edit) wsCommit(0,0,true);
   const cols=ids.map(colById).filter(c=>c&&!c.src&&sheetOf(c)!==sid);
   // A result column moved away is a copy of it, cut from its analysis (which makes it again).
@@ -19044,14 +19059,143 @@ function moveColsToSheet(ids,sid){
   const raw=recordRaw(`moved ${what} to the sheet ${nm}`);
   if(S.ws){ S.ws={r:0,c:0,ar:0,ac:0,extra:0}; } S.wsm=null;
   save(Object.assign({sheets:ss,cols:p.cols},raw?{raw}:{}),`moved ${what} from ${sheetName(from)} to ${nm}`); renderAll();
-  toast(`Moved ${what} to ${nm}.${kept.length?` ${andList(kept.map(y=>specName(y)))} ${kept.length===1?"keeps its":"keep their"} X column.`:""}`,{action:`Show ${nm}`,run:()=>showSheet(sid)}); }
+  // Dropped on a window that shows that sheet, the toast offers Undo rather than to show it.
+  toast(`Moved ${what} to ${nm}.${kept.length?` ${andList(kept.map(y=>specName(y)))} ${kept.length===1?"keeps its":"keep their"} X column.`:""}`,o.undo?{action:"Undo",run:undo}:{action:`Show ${nm}`,run:()=>showSheet(sid)}); }
 function sheetMenuItems(sid){ const ro=S.readOnly||!P(), ss=sheetList(), i=ss.findIndex(s=>s.id===sid), a=anaOfSheet(sid);
   return (a?anaMenuItems(a):[]).concat([{group:sheetName(sid),plain:true},
     {label:"Show it",enabled:sid!==curSheet(),run:()=>showSheet(sid)},
+    ...sheetWinItems(sid),
     {label:"Rename…",kbd:"F2",enabled:!ro,run:()=>renameSheet(sid)},
     {label:"Move left",enabled:!ro&&i>0,run:()=>moveSheet(sid,-1)},{label:"Move right",enabled:!ro&&i<ss.length-1,run:()=>moveSheet(sid,1)},
     "-",{label:"A new sheet",enabled:!ro,run:()=>newSheet()},
     "-",{label:"Delete the sheet…",danger:true,enabled:!ro&&ss.length>1,title:ss.length>1?"Its columns go with it; Undo brings them back":"A project keeps one sheet",run:()=>deleteSheet(sid)}]); }
+/* ---- Worksheet windows (SHEET_SPEC 3.2) -----------------------------------------------------
+   A sheet in a window of its own (`sw-<sheet id>`) beside the worksheet window. As the graph
+   windows share one live plot, the worksheet windows share one live grid (the bar, the grid, the
+   foot), held by the one in front of them (`S.wsLive`); the others show a picture of their sheet's
+   cells (`.wssnap`), which the wheel scrolls, and a press on one brings it forward with the cell
+   pressed selected. The worksheet window keeps its tabs (a sheet with a window of its own: its tab
+   brings that window forward) and shows a sheet with none; a sheet's window has no tabs, its title
+   the sheet's name. Which sheets have windows is this browser's, per project (LAYOUT.swin), as the
+   windows' places are; closing one leaves the sheet, deleting the sheet closes it. */
+const swId=sid=>"sw-"+sid, swSid=id=>WINS[id]&&WINS[id].swin||null;
+function swList(p){ p=p||P(); if(!p) return []; const L=(LAYOUT.swin||{})[p.id], ids=new Set(sheetList(p).map(s=>s.id));
+  return Array.isArray(L)?[...new Set(L.filter(s=>typeof s==="string"&&ids.has(s)))]:[]; }
+const swHas=sid=>swList().includes(sid);
+const wsWinOf=sid=>swHas(sid)?swId(sid):"sheet";
+const wsLiveWin=()=>S.wsLive&&WINS[S.wsLive]?S.wsLive:"sheet";
+const wsShown=()=>winOpen(wsLiveWin());
+// The worksheet window that holds the grid, brought forward (or opened) for something done in it.
+function wsFront(){ const w=wsLiveWin(); if(!winOpen(w)) openWin(w,{render:true}); else focusWin(w); }
+// The sheet the worksheet window shows: the one it showed last, else the first with no window of its own.
+function mainSheet(){ const p=P(); if(!p) return null; if(wsLiveWin()==="sheet") return curSheet();
+  const w=(S.wsMain||{})[S.pid], free=sheetList().filter(s=>!swHas(s.id)); return free.some(s=>s.id===w)?w:(free[0]||sheetList()[0]).id; }
+function swSave(list){ const p=P(); if(!p) return; LAYOUT.swin=LAYOUT.swin&&typeof LAYOUT.swin==="object"?LAYOUT.swin:{};
+  if(list.length) LAYOUT.swin[p.id]=list; else delete LAYOUT.swin[p.id]; saveLayout(); }
+// The windows of the project's sheets: made, named after their sheets, and taken away with them (the live grid first).
+function syncSheetWins(){ const p=P(), list=swList(p), want=new Set(list.map(swId));
+  { const mw=$("#w-sheet"); if(mw&&!mw._sw){ mw._sw=true; wireSwSnap(mw,"sheet"); } }
+  Object.keys(WINS).forEach(k=>{ if(WINS[k].swin&&!want.has(k)){ if(wsLiveWin()===k) moveWsLive("sheet",{keepSheet:!p}); const el=$("#w-"+k); if(el) el.remove(); delete WINS[k]; } });
+  let prev=$("#w-sheet"), made=false;
+  list.forEach(sid=>{ const id=swId(sid), nm=sheetName(sid)||"Sheet";
+    if(!WINS[id]){ WINS[id]={title:nm,icon:"table",def:[0.5,0,0.5,1],open:true,swin:sid};
+      prev.insertAdjacentHTML("afterend",`<section class="win wswin" id="w-${id}" data-win="${id}" aria-label="${esc(nm)}"><header class="win-h">${ICON("table","sm")}<h2 class="win-t">${esc(nm)}</h2><span class="win-sub"></span><span class="sp"></span></header><div class="win-b sheet-win">${SW_SNAP}</div></section>`);
+      const el=$("#w-"+id); wireWin(el); wireSwSnap(el,id); winState(id); made=true; }
+    if(WINS[id].title!==nm){ WINS[id].title=nm; const el=$("#w-"+id); if(el){ el.querySelector(".win-t").textContent=nm; el.setAttribute("aria-label",nm); } }
+    prev=$("#w-"+id)||prev; });
+  if(!$("#w-sheet .win-b").contains($("#ws"))&&!$("#w-sheet .win-b > .wssnap")) $("#w-sheet .win-b").insertAdjacentHTML("beforeend",SW_SNAP);
+  if(made) applyWins(); else syncWsLive();
+}
+const SW_SNAP=`<div class="ws wssnap" tabindex="0" role="button" aria-label="Work on this sheet" title="Click a cell to work on this sheet"></div>`;
+// The live grid goes to the worksheet window in front of the others.
+function syncWsLive(){ if(!P()||S.wsMoving) return;
+  const cand=["sheet"].concat(swList().map(swId)).filter(id=>WINS[id]&&winOpen(id)&&!winAway(id));
+  if(!cand.length) return; const top=cand.sort((a,b)=>winState(b).z-winState(a).z)[0]; if(top!==wsLiveWin()) moveWsLive(top); }
+// A sheet shown by code (an import, a new sheet, Show it) is shown in its window, which comes forward.
+function wsReconcile(){ const p=P(); if(!p||S.wsMoving) return; const sid=curSheet(), want=wsWinOf(sid), live=wsLiveWin();
+  if(live===want) return; if(want==="sheet") (S.wsMain||(S.wsMain={}))[S.pid]=sid;
+  moveWsLive(want,{keepSheet:true}); const st=winState(want); if(!st.open){ st.open=true; st.min=false; } st.z=++LAYOUT.z; S.wsMoving=true; try{ applyWins(); saveLayout(); }finally{ S.wsMoving=false; } }
+/* Moves the live grid into window `to`: an edit is entered first, the sheet's selection and scroll kept
+   for when it comes back, the window left showing a picture. With keepSheet the sheet shown stays (it
+   was just set); else it becomes the window's. */
+function moveWsLive(to,o){ o=o||{}; const from=wsLiveWin(); if(from===to||!WINS[to]) return;
+  const ws=$("#ws"), src=ws&&ws.parentElement, tb=$("#w-"+to+" .win-b"); if(!ws||!src||!tb) return;
+  S.wsMoving=true;
+  try{
+    if(S.ws&&S.ws.edit) wsCommit(0,0,true);
+    const pid=S.pid, cur=P()?curSheet():null, next=!o.keepSheet&&P()?(to==="sheet"?(()=>{ if(cur&&!swHas(cur)) return cur; const w=(S.wsMain||{})[pid], free=sheetList().filter(s=>!swHas(s.id)); return free.some(s=>s.id===w)?w:(free[0]||sheetList()[0]).id; })():swSid(to)):null;
+    S.wsMem=S.wsMem||{}; if(cur&&S.ws) S.wsMem[pid+":"+cur]={ws:Object.assign({},S.ws,{edit:null,want:null,press:null,cwin:null}),top:ws.scrollTop,left:ws.scrollLeft};
+    if(from==="sheet"&&cur) (S.wsMain||(S.wsMain={}))[pid]=cur;
+    const old=tb.querySelector(":scope > .wssnap"); if(old) old.remove();
+    [...src.children].filter(k=>!k.classList.contains("wssnap")).forEach(k=>tb.appendChild(k));
+    if(!src.querySelector(":scope > .wssnap")) src.insertAdjacentHTML("beforeend",SW_SNAP);
+    S.wsLive=to;
+    if(next&&next!==cur){ S.sheetAt=S.sheetAt||{}; S.sheetAt[pid]=next; S.sheet="raw"; S.wsSort=null; S.wsFind=null; const fbar=$("#wsFind"); if(fbar) fbar.hidden=true;
+      const mem=S.wsMem[pid+":"+next]; S.ws=mem?Object.assign({},mem.ws):{r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; ws.scrollTop=mem?mem.top:0; ws.scrollLeft=mem?mem.left:0; }
+    document.querySelectorAll("#w-sheet,.win.wswin").forEach(w=>w.classList.toggle("wslive",w.id==="w-"+to));
+  } finally { S.wsMoving=false; }
+  if(P()){ renderWs(); renderSwSnap(from); }
+}
+/* A picture of a sheet: its letters, names and units and the rows from `top`, drawn by the grid's own
+   row maker with that sheet in place for the moment, so the marks (text, computed, fills, a filter's
+   hidden rows) are the grid's. */
+function wsSnapHtml(sid,top,n){ const p=P(); if(!p) return ""; S.sheetAt=S.sheetAt||{};
+  const keep={at:S.sheetAt[S.pid],sheet:S.sheet,ws:S.ws,wsm:S.wsm,sort:S.wsSort};
+  try{ S.sheetAt[S.pid]=sid; S.sheet="raw"; S.wsSort=null; S.ws={r:-9,c:-9,ar:-9,ac:-9,extra:0}; S.wsm=null;
+    const m=wsModel(), nc=Math.min(m.cols.length,40); S.ws.cwin={a:0,b:nc,lw:0,rw:0}; n=Math.max(1,Math.min(n,Math.max(0,wsRowCount(m)-top)));
+    const C=m.cols.slice(0,nc), tw=WS_IDX+C.reduce((a,q)=>a+q.w,0);
+    let h=`<table class="grid snap" style="width:${tw}px"><colgroup><col style="width:${WS_IDX}px">${C.map(q=>`<col style="width:${q.w}px">`).join("")}</colgroup><thead><tr class="hr1"><th class="corner"></th>${C.map((q,i)=>q.hidden?`<th class="ch hidc"></th>`:`<th class="ch${q.phantom?" ph":""}" data-ch="${i}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span></div></th>`).join("")}</tr>`;
+    WS_LABS.filter(L=>L.k!=="comm"||wsRowsPref().comm).forEach(L=>{ h+=`<tr class="lab"><th class="rl" scope="row">${L.label}</th>${C.map(q=>q.hidden?`<td class="hid"></td>`:`<td>${esc(L.k==="fx"?q.lab.fx||"":q.lab[L.k]||"")}</td>`).join("")}</tr>`; });
+    h+=`</thead><tbody>`; for(let r=top;r<top+n;r++) h+=wsRowHtml(m,r);
+    return h+`</tbody></table>`; }
+  finally{ S.sheetAt[S.pid]=keep.at; S.sheet=keep.sheet; S.ws=keep.ws; S.wsm=keep.wsm; S.wsSort=keep.sort; } }
+function renderSwSnap(id){ const el=$("#w-"+id), box=el&&el.querySelector(".win-b > .wssnap"); if(!box||!P()||wsLiveWin()===id||!winOpen(id)) return;
+  const sid=id==="sheet"?mainSheet():swSid(id); if(!sid) return;
+  S.swTop=S.swTop||{}; const k=S.pid+":"+sid, mem=S.wsMem&&S.wsMem[k], rh=(P().wsrh&&P().wsrh[sid])||WS_RH;
+  if(S.swTop[k]==null) S.swTop[k]=mem?Math.max(0,Math.floor(mem.top/(rh+3))):0;
+  box.innerHTML=wsSnapHtml(sid,S.swTop[k],Math.ceil((box.clientHeight||480)/Math.max(18,rh))+1); box.dataset.sid=sid;
+  // The worksheet window says which sheet its picture is of.
+  if(id==="sheet"){ const sub=$("#wsSub"); if(sub) sub.textContent=sheetName(sid); } }
+// A picture scrolls by the wheel; a press on it brings its window forward with the cell pressed selected (read in the press,
+// which the live grid's arrival takes away), a cell under the keys too.
+function wireSwSnap(el,id){
+  el.addEventListener("wheel",e=>{ const box=e.target.closest&&e.target.closest(".wssnap"); if(!box||wsLiveWin()===id) return; e.preventDefault();
+    const k=S.pid+":"+box.dataset.sid; S.swTop=S.swTop||{}; S.swTop[k]=Math.max(0,(S.swTop[k]||0)+Math.sign(e.deltaY)*Math.max(1,Math.round(Math.abs(e.deltaY)/40)));
+    if(!box._rz) box._rz=requestAnimationFrame(()=>{ box._rz=0; renderSwSnap(id); }); },{passive:false});
+  el.addEventListener("pointerdown",e=>{ const td=e.target.closest&&e.target.closest(".wssnap td[data-r][data-ci]"), th=e.target.closest&&e.target.closest(".wssnap th[data-ch]");
+    if(!td&&!th) return; const r=td?+td.dataset.r:0, c=td?+td.dataset.ci:+th.dataset.ch;
+    setTimeout(()=>{ if(wsLiveWin()!==id) return; S.ws=Object.assign(S.ws||{},{r,c,ar:r,ac:c,extra:0}); wsPaintSel(); wsEnsureVisible(r,c); const g=$("#ws"); if(g) g.focus({preventScroll:true}); },0); });
+  el.addEventListener("keydown",e=>{ if(!(e.target.classList&&e.target.classList.contains("wssnap"))||(e.key!=="Enter"&&e.key!==" ")) return; e.preventDefault(); focusWin(id); winTakeFocus(id); }); }
+// Opens a sheet in a window of its own (beside the worksheet window, which takes the left half when it has the whole desk).
+function openSheetWin(sid){ const p=P(); if(!p||!sheetList().some(s=>s.id===sid)) return;
+  if(swHas(sid)){ showSheet(sid); return; }
+  if(!sheetList().some(s=>s.id!==sid&&!swHas(s.id))){ toast("The worksheet window keeps a sheet: make another sheet first.",{action:"New sheet",run:()=>newSheet()}); return; }
+  if(S.ws&&S.ws.edit) wsCommit(0,0,true);
+  // The worksheet window gives the sheet up and shows another.
+  if(wsLiveWin()==="sheet"&&curSheet()===sid){ const nx=sheetList().find(s=>s.id!==sid&&!swHas(s.id)); (S.wsMain||(S.wsMain={}))[S.pid]=nx.id; }
+  else if((S.wsMain||{})[S.pid]===sid) delete S.wsMain[S.pid];
+  const ms=winState("sheet"); if(!ms.max&&ms.g[2]>0.6){ ms.g=[0,0,0.5,ms.g[3]]; }
+  swSave(swList().concat([sid])); syncSheetWins(); const st=winState(swId(sid)); st.g=[0.5,0,0.5,1]; st.open=true; st.min=false; st.max=false;
+  openWin(swId(sid)); toast(`${sheetName(sid)} is in a window of its own. Drag a column's letter onto another window to move it there.`);
+}
+function closeSheetWin(sid){ if(!swHas(sid)) return; if(S.ws&&S.ws.edit&&curSheet()===sid) wsCommit(0,0,true);
+  // The window goes; its sheet is the worksheet window's to show.
+  if(wsLiveWin()===swId(sid)) (S.wsMain||(S.wsMain={}))[S.pid]=sid;
+  swSave(swList().filter(s=>s!==sid)); delete LAYOUT.wins[swId(sid)]; syncSheetWins(); if(!winOpen("sheet")) openWin("sheet"); else focusWin("sheet"); renderXpl(); }
+// Where a column dragged from the grid would go: another worksheet window, or its taskbar button. null: nowhere.
+function wsDropSheet(x,y){ const live=wsLiveWin();
+  for(const el of document.elementsFromPoint(x,y)){ const w=el.closest&&el.closest("#w-sheet,.win.wswin"), b=el.closest&&el.closest(".tk[data-tk]");
+    if(w&&w.dataset.win!==live) return {sid:w.dataset.win==="sheet"?mainSheet():swSid(w.dataset.win),el:w};
+    if(b&&b.dataset.tk!==live&&(b.dataset.tk==="sheet"||swSid(b.dataset.tk))) return {sid:b.dataset.tk==="sheet"?mainSheet():swSid(b.dataset.tk),el:b};
+    if(w) return null; }
+  return null; }
+function sheetWinItems(sid){ const ro=!P(); if(swHas(sid)) return [{label:"Close its window",enabled:!ro,title:"The sheet stays, in the worksheet window's tabs",run:()=>closeSheetWin(sid)}];
+  return [{label:"Open in a window of its own",enabled:!ro&&sheetList().length>1,title:sheetList().length>1?"Beside the worksheet window, to see two sheets at once":"Make another sheet first: the worksheet window keeps one",run:()=>openSheetWin(sid)}]; }
+// Window › New worksheet window: a sheet without a window of its own, or a new sheet in one.
+function newSheetWinItems(){ const p=P(); if(!p) return [{label:"No project",enabled:false}];
+  const free=sheetList().filter(s=>!swHas(s.id));
+  return free.map(s=>({label:s.name,enabled:free.length>1,title:free.length>1?"":"The worksheet window keeps this sheet",run:()=>openSheetWin(s.id)}))
+    .concat(["-",{label:"A new sheet",enabled:!S.readOnly,run:()=>{ const sid=newSheet({quiet:true}); if(sid) openSheetWin(sid); }}]); }
 // Data › Sheets: every sheet (the one shown ticked), then what to do with it.
 function sheetsMenuItems(){ const p=P(), ro=S.readOnly||!p, cur=curSheet();
   return sheetList().map(s=>({label:s.name,radio:true,checked:s.id===cur,run:()=>showSheet(s.id)}))
@@ -19059,8 +19203,8 @@ function sheetsMenuItems(){ const p=P(), ro=S.readOnly||!p, cur=curSheet();
 function renderWsTabs(){ const box=$("#wsTabs"), p=P(); if(!box) return;
   if(!p||S.sheet==="final"){ box.hidden=true; box.innerHTML=""; return; }
   box.hidden=false; const cur=curSheet(), ro=S.readOnly;
-  box.innerHTML=sheetList().map(s=>{ const a=s.ana?anaOf(s.ana):null, st=a?anaStale(a):null;
-    return `<button type="button" class="wstab${a?" ana":""}${st?" stale":""}" role="tab" data-wst="${esc(s.id)}" aria-selected="${s.id===cur}" tabindex="${s.id===cur?0:-1}" title="${esc(a?`${s.name}: the results of ${a.name}, read only${st?". Out of date: "+st:""}. Right-click for its menu`:`${s.name}: double-click to rename it, right-click for its menu`)}">${a?ICON(st?"alert":"lock","sm"):""}${esc(s.name)}</button>`; }).join("")
+  box.innerHTML=sheetList().map(s=>{ const a=s.ana?anaOf(s.ana):null, st=a?anaStale(a):null, own=swHas(s.id);
+    return `<button type="button" class="wstab${a?" ana":""}${st?" stale":""}${own?" own":""}" role="tab" data-wst="${esc(s.id)}" aria-selected="${s.id===cur}" tabindex="${s.id===cur?0:-1}" title="${esc(own?`${s.name}: in a window of its own. Click to bring it forward`:a?`${s.name}: the results of ${a.name}, read only${st?". Out of date: "+st:""}. Right-click for its menu`:`${s.name}: double-click to rename it, right-click for its menu`)}">${own?ICON("popout","sm"):a?ICON(st?"alert":"lock","sm"):""}${esc(s.name)}</button>`; }).join("")
     +(ro?"":`<button type="button" class="tb sm icon wstnew" data-wstnew title="A new sheet" aria-label="A new sheet">${ICON("plus","sm")}</button>`); }
 function wireWsTabs(){ const box=$("#wsTabs"); if(!box) return;
   // A double click is read from the press itself: the first click redraws the tabs.
@@ -19102,7 +19246,7 @@ function setStage(k,opt){
   if(opt&&opt.cmp!=null) S.cmp=opt.cmp;
   if(S.view){ const ps=plotState(), pts=seriesPoints(ps.d,GP().logY).filter(q=>q.x>=S.view.x0&&q.x<=S.view.x1);
     if(pts.length&&(S.view.xu||"")===(ps.d.xu||"")){ const yr=yRangeOf(pts); S.view={x0:S.view.x0,x1:S.view.x1,y0:yr[0],y1:yr[1],xu:S.view.xu}; } }
-  renderPlot(); renderStages(); if(winOpen("flow")) renderFlow(); if(winOpen("sheet")) renderWs();
+  renderPlot(); renderStages(); if(winOpen("flow")) renderFlow(); if(wsShown()) renderWs();
 }
 let previewRaf=0;
 function schedulePreview(){ if(previewRaf) return; previewRaf=requestAnimationFrame(()=>{ previewRaf=0; renderPlot(); renderStages(); refreshLive(); }); }
@@ -19135,7 +19279,7 @@ function setParam(s,key,val,commit){
   if(commit&&!isPending(s)){ const q=paramDef(s,key), c=colOfStep(s);
     save({cols:P().cols},`set ${(q&&q.label||key).toLowerCase()} of "${stepTitle(s)}" to ${paramText(s,key,val)} (${specName(c)})`); }
   schedulePreview();
-  if(commit) queueMicrotask(()=>{ if(winOpen("flow")) renderFlow(); if(winOpen("tool")) renderTool(); renderFit(); if(winOpen("sheet")) renderWs(); });
+  if(commit) queueMicrotask(()=>{ if(winOpen("flow")) renderFlow(); if(winOpen("tool")) renderTool(); renderFit(); if(wsShown()) renderWs(); });
 }
 /* A step with no settings (sort, average duplicates) is recorded at once;
    everything else goes through its tool dialog. */
@@ -20343,7 +20487,7 @@ function xRows(){
   const p=P(); if(!p) return [];
   const t=treeOf(p), q=(S.xplQ||"").trim().toLowerCase(), exp=xExp(), rows=[], items=[];
   const cur=curSheet(), many=sheetList(p).length>1;
-  sheetList(p).forEach(s=>items.push({key:"ws:"+s.id,kind:"ws",sid:s.id,name:many?s.name:"Worksheet",icon:"table",note:winMin("sheet")&&s.id===cur?"minimised":"",tip:`${s.name}: ${(n=>`${n} column${n===1?"":"s"} with values`)(sheetCols(s.id).filter(hasVals).length)}`}));
+  sheetList(p).forEach(s=>items.push({key:"ws:"+s.id,kind:"ws",sid:s.id,name:many?s.name:"Worksheet",icon:"table",note:winMin(wsWinOf(s.id))&&(swHas(s.id)||s.id===mainSheet())?"minimised":"",tip:`${s.name}: ${(n=>`${n} column${n===1?"":"s"} with values`)(sheetCols(s.id).filter(hasVals).length)}`}));
   // A figure holds its panels. The sheets hold the columns: the worksheet shows them, so the tree
   // does not list them again (information hygiene: one place for one thing).
   deskGraphIds().forEach(id=>{ const w=winOfGraph(id), fg=graphOf(id)&&graphOf(id).fig, cs=fg?[]:graphCols(id), np=fg?fg.cells.length:0;
@@ -20431,7 +20575,7 @@ function xMenu(r){
     return [{group:r.name,plain:true},{label:shut?"Open":"Bring to the front",kbd:"Enter",run:()=>showGraph(r.gid)},{label:"Close (hide it)",enabled:!ro&&!shut,run:()=>closeGraph(r.gid)},
       {label:"Rename…",kbd:"F2",enabled:!ro,run:()=>renameGraph(r.gid)},on||null,{label:"Duplicate",enabled:!ro,run:()=>duplicateGraph(r.gid)},move,
       "-",{label:"Delete the graph",kbd:"Delete",danger:true,enabled:!ro,run:()=>deleteGraph(r.gid)}]; }
-  if(r.kind==="ws") return [{group:sheetName(r.sid)||"Worksheet",plain:true},{label:"Open",kbd:"Enter",run:()=>xOpen(r)},{label:"Rename…",kbd:"F2",enabled:!S.readOnly,run:()=>renameSheet(r.sid)},move,"-",{label:"New sheet",enabled:!S.readOnly,run:()=>newSheet()},{label:"Delete the sheet…",danger:true,enabled:!S.readOnly&&sheetList().length>1,run:()=>deleteSheet(r.sid)}];
+  if(r.kind==="ws") return [{group:sheetName(r.sid)||"Worksheet",plain:true},{label:"Open",kbd:"Enter",run:()=>xOpen(r)},...(sheetList().length>1?sheetWinItems(r.sid):[]),{label:"Rename…",kbd:"F2",enabled:!S.readOnly,run:()=>renameSheet(r.sid)},move,"-",{label:"New sheet",enabled:!S.readOnly,run:()=>newSheet()},{label:"Delete the sheet…",danger:true,enabled:!S.readOnly&&sheetList().length>1,run:()=>deleteSheet(r.sid)}];
   if(r.kind==="trend") return [{group:r.name,plain:true},{label:"Open",kbd:"Enter",run:()=>xOpen(r)},{label:"Rename…",kbd:"F2",enabled:!ro,run:()=>renameTrend(r.tid)},move,
     "-",{label:"Delete the trend graph",kbd:"Delete",danger:true,enabled:!ro,run:()=>deleteTrend(r.tid)}];
   return [];
@@ -24049,7 +24193,7 @@ function cancelTool(quiet){
   S.pending=null;
   if(had){ S.selStep=null; S.stage=null; if(S.flowSel&&S.flowSel.startsWith("step:")&&!stepById(S.flowSel.slice(5))) S.flowSel=null;
     if(S.mode==="range"||S.mode==="anchor") setMode("zoom",true);
-    renderPlot(); renderStages(); if(winOpen("flow")) renderFlow(); if(winOpen("sheet")) renderWs(); renderFit(); }
+    renderPlot(); renderStages(); if(winOpen("flow")) renderFlow(); if(wsShown()) renderWs(); renderFit(); }
   if(!quiet&&winOpen("tool")) closeWin("tool");
 }
 /* OK: the previewed step goes into the pipeline, and onto every other
@@ -26451,9 +26595,10 @@ ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move; with "+K("Shift")+
 <h2 id="k-flow">In the History</h2>
 ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move between boxes"],[K("Alt","↑")+" "+K("Alt","↓"),"Move the selected step earlier or later"],[K("Delete"),"Delete the selected step"],[K("C"),"Comment on the selected box"],["Right-click","The box's menu"]],"keys")}`},
 /* ---------------------------------------------------------------- Data */
-{id:"sheet", g:"Data", t:"The worksheet", win:"sheet", kw:"worksheet spreadsheet grid cell column row long name units comments sparkline raw final width height row height resize select edit type enter tab insert delete rows lock unlock plot data role sheet sheets tab tabs workbook book new sheet rename move columns to another sheet text string label name lod n/a below detection limit cells hold numbers only text only 007 leading zeros categorical category categories levels factor group order by hand",
+{id:"sheet", g:"Data", t:"The worksheet", win:"sheet", kw:"worksheet spreadsheet two sheets side by side window of its own new worksheet window grid cell column row long name units comments sparkline raw final width height row height resize select edit type enter tab insert delete rows lock unlock plot data role sheet sheets tab tabs workbook book new sheet rename move columns to another sheet text string label name lod n/a below detection limit cells hold numbers only text only 007 leading zeros categorical category categories levels factor group order by hand",
  lead:"A spreadsheet grid, as in Excel, with Origin's label rows, and sheets as a workbook has. The Original view holds the original data; the Processed view shows the active column after processing.",
  body:`<h2 id="sheets">Sheets</h2>
+<p><strong>Two sheets side by side:</strong> a tab's right-click menu (or the Explorer's) has <em>Open in a window of its own</em>, and ${MP("Window › New worksheet window")} lists the sheets. The sheet's window sits beside the worksheet window; the one in front is worked in, the other shows its cells (the wheel scrolls them) and a click on a cell brings it forward with that cell selected. Drag a column's letter onto the other window to move the column there (one Undo). Closing the window leaves the sheet; the worksheet window keeps a sheet of its own.</p>
 <p>The worksheet has sheets; their tabs are under the grid. Click a tab to show its sheet, double-click it (or ${K("F2")}) to rename it, right-click it to move or delete it, and <strong>+</strong> for a new one; ${MP("Data › Sheets")} and the Project Explorer do the same. A sheet has its own columns, lettered from A, its own rows, sort and hidden rows. A Y column is plotted against the nearest X to its left on its own sheet, and a formula's letters are its own sheet's columns. A file imported beside data goes on a sheet of its own, named after the file, unless you choose the sheet shown in the import dialog; files dropped on the window and columns copied from another project do the same. ${MP("Move › To another sheet")} in a column's menu moves it with its error bars, keeping the X it is plotted against. Graphs show columns from any sheet, and deleting a sheet takes its columns off them (Undo brings them back).</p>
 <h2>Columns</h2>
 <p>Columns are lettered A, B, C… and each has a role, shown after its letter: <strong>(X)</strong>, <strong>(Y)</strong>, <strong>(yEr±)</strong> for error bars (or <strong>(yEr+)</strong>, <strong>(yEr−)</strong>, <strong>(xEr±)</strong>…: ${DA("errbars","Error bars")}), or <strong>(—)</strong> for other data, kept for formulas. A Y column is plotted against the nearest X column to its left, so columns measured on different axes each keep their own X. Every Y column has its own ${DA("spectra","processing")}.</p>
@@ -27475,6 +27620,8 @@ function loadLayout(){
   try{ const o=JSON.parse(localStorage.getItem("kurve.layout")||"{}"); if(o&&o.v===3&&o.wins&&typeof o.wins==="object") Object.assign(LAYOUT,o); }catch(e){}
   if(!Number.isFinite(+LAYOUT.z)||LAYOUT.z>1e6) LAYOUT.z=10;
   if(!Array.isArray(LAYOUT.dockOrder)) LAYOUT.dockOrder=[];
+  // Sheets' windows, per project: lists of ids, nothing else.
+  { const sw=LAYOUT.swin, ok={}; if(sw&&typeof sw==="object"&&!Array.isArray(sw)) Object.keys(sw).slice(0,200).forEach(k=>{ if(Array.isArray(sw[k])) ok[k]=sw[k].filter(x=>typeof x==="string"&&x.length<40).slice(0,20); }); LAYOUT.swin=ok; }
   LAYOUT.dockOrder=LAYOUT.dockOrder.filter(k=>typeof k==="string").slice(0,40);
   if(!(Number.isFinite(+LAYOUT.dockW)&&+LAYOUT.dockW>=240&&+LAYOUT.dockW<=4000)) delete LAYOUT.dockW;
   LAYOUT.dockPin=!!LAYOUT.dockPin;
@@ -27616,7 +27763,7 @@ function applyWins(){
     el.classList.toggle("docked",dk); el.classList.toggle("drawer",dk&&dg.drawer);
     if(st.open&&!el.hidden&&(!front||st.z>winState(front).z)) front=id;
     const db=el.querySelector(".win-h [data-wdock]"); if(db){ db.setAttribute("aria-pressed",String(dk)); db.title=dk?"Undock":"Dock"; db.hidden=narrow; }
-    if(narrow){ el.style.left=el.style.top=el.style.width=el.style.height=""; el.style.zIndex=""; el.classList.remove("max"); el.style.order=String(WINS[id].graph?0:id==="tool"?1:WIN_ORDER.indexOf(id)<0?50:WIN_ORDER.indexOf(id)+2); return; }
+    if(narrow){ el.style.left=el.style.top=el.style.width=el.style.height=""; el.style.zIndex=""; el.classList.remove("max"); el.style.order=String(WINS[id].graph?0:id==="tool"?1:WINS[id].swin?2:WIN_ORDER.indexOf(id)<0?50:WIN_ORDER.indexOf(id)+2); return; }
     el.classList.toggle("max",!!st.max);
     let x,y,w,h;
     // Maximised: the whole desk for a docked window, the documents' part beside the dock for the others.
@@ -27631,7 +27778,7 @@ function applyWins(){
   winMotionEnd(mo,dg);
   renderDock(dg,dfront);
   renderTaskbar(); if(multiGraph()) scheduleSnaps(60);
-  syncGraphTools();
+  syncGraphTools(); syncWsLive();
 }
 function focusWin(id){ const st=winState(id); if(st.z<LAYOUT.z){ st.z=++LAYOUT.z; applyWins(); saveLayout(); } }
 /* ---- Motion of windows ----------------------------------------------------------
@@ -27703,10 +27850,10 @@ function winFlip(el,b,n){
    open or minimised, so it and the Window menu list what is in use and never
    what was not opened; a closed panel comes back from its menu, or from
    Window › Tool windows. */
-const isDoc=id=>!!(WINS[id]&&(WINS[id].graph||WINS[id].trend||id==="sheet"));
+const isDoc=id=>!!(WINS[id]&&(WINS[id].graph||WINS[id].trend||WINS[id].swin||id==="sheet"));
 // A graph closed (plot.shut) is out of the taskbar, as a closed panel is.
 const keepsBtn=id=>isDoc(id)&&!winShut(id);
-function docWinIds(){ return graphWinIds().filter(id=>!winShut(id)).concat(WINS.sheet?["sheet"]:[],trendWinIds()); }
+function docWinIds(){ return graphWinIds().filter(id=>!winShut(id)).concat(WINS.sheet?["sheet"]:[],swList().map(swId).filter(id=>WINS[id]),trendWinIds()); }
 function panelIds(){ return WIN_ORDER.filter(id=>!isDoc(id)).concat(["help"]).filter(id=>WINS[id]); }
 // The windows in use, in the taskbar's order: the documents, then the panels.
 function barWinIds(){ return docWinIds().concat(panelIds().filter(inBar)); }
@@ -27738,7 +27885,7 @@ function toggleWin(id){ const st=winState(id); if(!st.open) openWin(id); else if
    restored, typing went nowhere. */
 function winTakeFocus(id){ const el=$("#w-"+id); if(!el||el.hidden||!winOpen(id)) return;
   const a=document.activeElement; if(a&&a!==document.body&&el.contains(a)) return;
-  const t=id==="sheet"?($("#ws input.wsed")||$("#ws")):el.contains($("#plot"))?$("#plot"):el; if(!t) return;
+  const t=el.contains($("#ws"))?($("#ws input.wsed")||$("#ws")):el.contains($("#plot"))?$("#plot"):el; if(!t) return;
   if(t===el&&!el.hasAttribute("tabindex")) el.tabIndex=-1;
   t.focus({preventScroll:true}); }
 function toggleMax(id){ const st=winState(id); st.max=!st.max; st.z=++LAYOUT.z; applyWins(); saveLayout(); }
@@ -27748,7 +27895,7 @@ function renderWin0(id){
   if(!P()) return;
   const gw=graphOfWin(id);
   if(gw){ if(gw===S.gid){ renderPlot(); renderStages(); } else scheduleSnaps(0); }
-  else if(id==="sheet") renderWs();
+  else if(id==="sheet"||swSid(id)){ if(wsLiveWin()===id) renderWs(); else renderSwSnap(id); }
   else if(id==="flow") renderFlow();
   else if(id==="fit") renderFit();
   else if(id==="peaks") renderPeaks();
@@ -27802,7 +27949,7 @@ function renderTaskbar(){
     return `<button class="tk ${on?(id===front?"on front":"on"):"min"}" data-tk="${id}" aria-pressed="${on}" aria-label="${esc(t)}, ${winStateName(id)}" title="${esc(t)}">${ICON(WINS[id].icon,"sm")}<span>${esc(t)}</span>${winBadge(id)}</button>`; };
   // Many of one kind share a button that lists them.
   const grp=(ids,attr,icon,label)=>`<button class="tk ${ids.includes(front)?"on front":ids.some(winOpen)?"on":"min"}" ${attr} aria-haspopup="menu" title="${label}">${ICON(icon,"sm")}<span>${label}</span><span class="badge">${ids.length}</span></button>`;
-  const docs=(gs.length>4?[grp(gs,"data-tk-graphs","chart","Graphs")]:gs.map(btn)).concat(WINS.sheet?[btn("sheet")]:[],ts.length>3?[grp(ts,"data-tk-trends","chart","Trend graphs")]:ts.map(btn));
+  const docs=(gs.length>4?[grp(gs,"data-tk-graphs","chart","Graphs")]:gs.map(btn)).concat(WINS.sheet?[btn("sheet")]:[],swList().map(swId).filter(id=>WINS[id]).map(btn),ts.length>3?[grp(ts,"data-tk-trends","chart","Trend graphs")]:ts.map(btn));
   const panels=panelIds().filter(inBar).map(btn);
   tb.innerHTML=(pj?`<button class="tk proj" data-tk-proj aria-haspopup="menu" title="${esc(projName(pj))}" aria-label="Project: ${esc(projName(pj))}">${ICON("folder","sm")}<span>${esc(projName(pj))}</span>${ICON("chev","sm").replace('class="ic','class="tk-chev ic')}</button><span class="tksep" aria-hidden="true"></span>`:"")
     +docs.join("")+(panels.length?`<span class="tksep" aria-hidden="true"></span>`+panels.join(""):"")
@@ -27868,7 +28015,7 @@ function wireWin(el){
     if((graphOfWin(id)&&!el.classList.contains("figw"))||AWAY_PANELS.includes(id)) h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-wpop title="Move to new window (Ctrl+Shift+D)" aria-label="Move the ${esc(WINS[id].title)} window to a window of its own">${ICON("popout","sm")}</button>`);
     if(!isDoc(id)) h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-wdock aria-pressed="false" title="Dock" aria-label="Dock the ${esc(WINS[id].title)} window">${ICON("dock","sm")}</button>`);
     if(id!=="help") h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-whelp title="Help (F1)" aria-label="Help on the ${esc(WINS[id].title)} window">${ICON("help","sm")}</button>`);
-    h.insertAdjacentHTML("beforeend",`${id==="help"||WINS[id].transient?"":`<button class="tb sm icon" data-wmin title="Minimise" aria-label="Minimise the ${esc(WINS[id].title)} window">${ICON("min","sm")}</button>`}<button class="tb sm icon" data-wmax title="Maximise" aria-label="Maximise the ${esc(WINS[id].title)} window">${ICON("max","sm")}</button>${keepsBtn(id)&&!graphOfWin(id)?"":`<button class="tb sm icon" data-wclose title="Close" aria-label="Close the ${esc(WINS[id].title)} window">${ICON("x","sm")}</button>`}`);
+    h.insertAdjacentHTML("beforeend",`${id==="help"||WINS[id].transient?"":`<button class="tb sm icon" data-wmin title="Minimise" aria-label="Minimise the ${esc(WINS[id].title)} window">${ICON("min","sm")}</button>`}<button class="tb sm icon" data-wmax title="Maximise" aria-label="Maximise the ${esc(WINS[id].title)} window">${ICON("max","sm")}</button>${keepsBtn(id)&&!graphOfWin(id)&&!swSid(id)?"":`<button class="tb sm icon" data-wclose title="Close" aria-label="Close the ${esc(WINS[id].title)} window">${ICON("x","sm")}</button>`}`);
     ["e","s","se","w"].forEach(k=>el.insertAdjacentHTML("beforeend",`<div class="win-rz ${k}" data-rz="${k}" aria-hidden="true"></div>`));
     el.addEventListener("pointerdown",e=>{ focusWin(id); const g=graphOfWin(id)?graphIn(e.target,el):null;
       // A chip or the grip may be the start of a drag: they bring the graph forward on a click of their own.
@@ -27878,7 +28025,7 @@ function wireWin(el){
       // Ctrl+V then acted on cells nobody was looking at. Whatever the press focused itself stays.
       const before=document.activeElement; setTimeout(()=>{ const a=document.activeElement; if(!el.isConnected||(a&&a!==document.body&&(el.contains(a)||a!==before))) return; winTakeFocus(id); },0); },true);
     const wmn=h.querySelector("[data-wmin]"); if(wmn) wmn.onclick=()=>minimiseWin(id);
-    const wcl=h.querySelector("[data-wclose]"); if(wcl) wcl.onclick=()=>{ const g=graphOfWin(id); if(g&&P()) closeGraph(g); else closeWin(id); };
+    const wcl=h.querySelector("[data-wclose]"); if(wcl) wcl.onclick=()=>{ const g=graphOfWin(id); if(g&&P()) closeGraph(g); else if(swSid(id)) closeSheetWin(swSid(id)); else closeWin(id); };
     const hb=h.querySelector("[data-whelp]"); if(hb) hb.onclick=()=>openHelp(helpFor(id));
     const dkb=h.querySelector("[data-wdock]"); if(dkb) dkb.onclick=()=>setDocked(id,!isDocked(id));
     const pop=h.querySelector("[data-wpop]"); if(pop) pop.onclick=()=>detachWin(id);
@@ -27936,6 +28083,7 @@ function windowItems(){
   const others=ids.filter(id=>winOpen(id)&&id!==front&&id!=="tool"), panelsIn=panelIds().filter(inBar);
   return [{group:"Windows in use"}].concat(list,[{label:"Tool windows", sub:panelItems},
     {label:"Project Explorer", kbd:"Alt+1", checked:xplShown(), title:"The project's folders, files and graphs, in a tree beside the desk", run:()=>toggleXpl(null,{focus:true})},
+    {label:"New worksheet window", enabled:!!P(), title:"A sheet in a window of its own, beside the worksheet window", sub:newSheetWinItems},
     "-",{label:"Tile", run:tileWins},{label:"Cascade", run:cascadeWins},
     "-",{label:"Move to new window", kbd:"Ctrl+Shift+D", enabled:!!front&&canDetach(front), title:front?`${awayTitle(front)} in a browser window of its own, for another display`:"", run:()=>detachWin(front)}]
     .concat(screensApi()&&!isNarrow()?[{label:"Open on display", enabled:!!front&&canDetach(front), sub:()=>S.screens&&S.screens.length?S.screens.map(s=>({label:`Display ${s.n}`, note:`${s.label?s.label+", ":""}${s.w} × ${s.h}`, radio:true, checked:false, run:()=>detachWin(front,s)}))
@@ -30332,7 +30480,7 @@ function menuItems(which){
     {label:"Delete the project…", run:deleteProject, enabled:edit, danger:true},
     "-",
     {label:"Preferences…", kbd:"Ctrl+,", title:"History, appearance, animations", run:()=>openPrefs()}];
-  if(which==="edit"){ const ws=!!(p&&S.wsm&&S.ws&&winOpen("sheet")), wsRaw=ws&&S.sheet==="raw"&&!ro;
+  if(which==="edit"){ const ws=!!(p&&S.wsm&&S.ws&&wsShown()), wsRaw=ws&&S.sheet==="raw"&&!ro;
     return [
     {label:canUndo()?`Undo ${undoStack[undoStack.length-1].label}`:"Undo", kbd:"Ctrl+Z", run:undo, enabled:canUndo()},
     {label:canRedo()?`Redo ${redoStack[redoStack.length-1].label}`:"Redo", kbd:"Ctrl+Y", run:redo, enabled:canRedo()},
@@ -30343,7 +30491,7 @@ function menuItems(which){
     {label:"Clear", kbd:"Delete", title:"The selected cells of the worksheet", run:wsClear, enabled:wsRaw},
     {label:"Insert", title:"Rows or columns in the worksheet, where the selection is", enabled:wsRaw, sub:wsInsertItems},
     {label:"Delete", title:"Rows or columns of the worksheet", enabled:wsRaw, sub:wsDeleteItems},
-    {label:"Find…", kbd:"Ctrl+F", title:"In the worksheet", run:()=>{ openWin("sheet",{render:true}); wsFindOpen(); }, enabled:!!p},
+    {label:"Find…", kbd:"Ctrl+F", title:"In the worksheet", run:()=>{ wsFront(); wsFindOpen(); }, enabled:!!p},
     "-",
     {label:"Preferences…", kbd:"Ctrl+,", title:"History, appearance, animations", run:()=>openPrefs()}]; }
   if(which==="data") return dataMenu();
@@ -30377,9 +30525,9 @@ function renderAll0(){
   const rc2=++renderCount; if(followFits()&&renderCount!==rc2) return;
   const rc3=++renderCount; if(followAnas()&&renderCount!==rc3) return;
   if(S.pending&&(!P()||!colById(S.pending.col))) S.pending=null;
-  syncGraphWins(); syncTrendWins(); layoutFigs(null,{quiet:true});
+  syncGraphWins(); syncTrendWins(); syncSheetWins(); layoutFigs(null,{quiet:true});
   renderTop(); renderPlot(); renderStages(); renderTabMarks(); renderGraphHeads(); scheduleSnaps(0);
-  ["sheet","flow","over","peaks","integ","fit","res","batch","disc","stats","tool","format"].forEach(id=>{ if(winOpen(id)) renderWin(id); });
+  ["sheet"].concat(swList().map(swId).filter(id=>WINS[id]),["flow","over","peaks","integ","fit","res","batch","disc","stats","tool","format"]).forEach(id=>{ if(winOpen(id)) renderWin(id); });
   trendWinIds().forEach(id=>{ if(winOpen(id)) renderTrendWin(id); });
   renderUndo(); renderTaskbar(); renderXpl();
 }

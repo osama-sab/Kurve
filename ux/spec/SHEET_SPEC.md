@@ -282,6 +282,11 @@ formulas.
 
 ## 3.2 Two worksheet windows
 
+Done 14.11, as below, with these changes of plan: the window behind is a picture drawn by the grid's own row maker (its
+first 40 columns, scrolled by the wheel); the worksheet window keeps a sheet of its own, so the last sheet it could show is
+refused a window; the toast after a column is dropped offers Undo (the sheet is already in view); the lab day was ten
+minutes with the windows among its actions, not a whole day.
+
 **What.** Window › New worksheet window, a sheet tab's right-click *Open in a window of its own*,
 and the Explorer's sheet row's: a worksheet window (`ws:<sheet id>`) showing that sheet, its tabs
 hidden (its title the sheet's name), in the taskbar and the Explorer as a document. The window in

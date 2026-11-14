@@ -323,6 +323,9 @@ Window
   Tool windows  ## ~ "Panels"
     (History; Overview; Peaks; Integrate; Fit; Results; Batch; Statistics; Discussion; Help)
   Project Explorer  [Alt+1]
+  New worksheet window  ## new (SHEET_SPEC 3.2): a sheet in a window of its own
+    (each sheet without a window of its own)
+    A new sheet
   Tile  ## + "Tile the graphs", which ran the same tiling
   Cascade
   Move to new window  [Ctrl+Shift+D]  ## new (DS10): the window in front into a browser window of its own

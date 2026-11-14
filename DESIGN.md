@@ -898,6 +898,21 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-14: two worksheet windows (SHEET_SPEC 3.2)
+
+- **One live grid, pictures elsewhere, as the graph windows.** The worksheet's grid holds the selection, the edit, the keys,
+  the bar and the foot; two of them would mean two of each and a question of which one a menu acts on. The grid moves into
+  the worksheet window in front, and the window behind shows its sheet's cells as a picture, which the wheel scrolls.
+- **A press on a picture is a press on the cell.** The cell pressed is selected as its window comes forward, so a click
+  does what it would do if the window were already in front, and the next key types into it.
+- **The worksheet window keeps a sheet and its tabs.** A sheet's own window has no tabs (its title is the sheet); the
+  worksheet window's tab for that sheet brings its window forward, so a sheet is never shown twice. The last sheet the
+  worksheet window could show stays with it.
+- **A column is dragged to another sheet by its letter**, onto the other window or its taskbar button, outlined while
+  over it; the toast offers Undo, since the sheet it went to is already in view.
+- **Which sheets have windows is this browser's**, as where windows sit is: a colleague opening the project gets the
+  worksheet window alone.
+
 ### 2026-11-14: Excel workbooks (SHEET_SPEC 3.7)
 
 - **A workbook is read from its cells, then through the import's own reading.** Each sheet is turned into the text the import

@@ -51,7 +51,8 @@ is that project's; click it to switch), groups more than four graphs (or three t
 under one button, puts what does not fit in one row under a "n more" button (least recently
 used first, never the front window), and has Tile and Cascade. **Window** lists the windows in
 use as Excel's Switch Windows does (the front one ticked, minimised ones marked; a search past
-a dozen), **Window › Tool windows** every panel ticked while in use (Origin's View menu), Minimise
+a dozen), **Window › Tool windows** every panel ticked while in use (Origin's View menu), New
+worksheet window (a sheet in a window of its own, beside the worksheet window), Minimise
 the others, Close the tool windows, Graphs (every graph, Combine graphs…, A figure of panels…, the linked
 zoom), and Theme and Style as submenus. Every title bar has a **?** that opens
 the window's article in the **Help window** (F1 does it for the window in front; a tool's
@@ -1345,6 +1346,24 @@ graph first, with the taskbar kept at the bottom of the screen.
   them up to what comes in (`dropBlanks(list, sid, p)`, in `doImport`'s Add, `autoImport`,
   `doBatchImport` and `bringIn`), so they never sit between a file's columns. The Explorer has a row per sheet (`ws:<id>`; the older `ws` key is the first
   sheet's, `treeOf`).
+  **Worksheet windows** (SHEET_SPEC 3.2; before `sheetsMenuItems`): a sheet in a window of its own, `sw-<sheet id>`
+  (`swId`, `swSid`; `WINS[id].swin`, a document: `isDoc`, `docWinIds`, the taskbar, closed by its ×), which sheets have one
+  this browser's per project (`LAYOUT.swin`, `swList`, `swHas`, `swSave`; cleaned in `loadLayout`). As the graph windows
+  share one live plot, the worksheet windows share one live grid (the bar, `#ws`, the tabs, the foot), held by the one in
+  front (`S.wsLive`, `wsLiveWin`; `syncWsLive` at the end of `applyWins` moves it to the worksheet window with the highest
+  z, `moveWsLive(to, {keepSheet})`: an edit entered first, each sheet's selection and scroll kept in `S.wsMem`, the
+  worksheet window's sheet in `S.wsMain` (`mainSheet`), the window left a picture). `wsReconcile` (first in `renderWs0`)
+  moves the grid to the window of a sheet code has shown (`wsWinOf`). The others show `.ws.wssnap` (`SW_SNAP`), drawn by
+  `wsSnapHtml(sid, top, n)` (the grid's own `wsModel` and `wsRowHtml` with that sheet in place for the moment) in
+  `renderSwSnap(id)` (`renderWin0`; the worksheet window's subtitle the sheet's name), the wheel scrolling it (`S.swTop`),
+  a press bringing it forward with the cell pressed selected (`wireSwSnap`). `syncSheetWins` (in `renderAll`) makes,
+  names and removes the windows (a sheet deleted, a project left; the grid back first). `wsShown`, `wsFront` (the
+  window that holds the grid, brought forward). `showSheet` of a sheet with a window brings it forward; the worksheet
+  window's tab for one is `.own`. `openSheetWin(sid)` (the worksheet window keeps a sheet: the last one is refused;
+  it takes the left half), `closeSheetWin(sid)`, `sheetWinItems(sid)` (the tab's and the Explorer's menus),
+  `newSheetWinItems` (Window › New worksheet window), `wsDropSheet(x, y)` (a column's letter dragged onto another
+  worksheet window or its taskbar button, outlined `.dropin`, goes to its sheet: `moveColsToSheet(ids, sid, {undo})`,
+  the toast with Undo).
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
@@ -3326,7 +3345,10 @@ their dialogs and the count, a new rule first, the fill read as drawn and the se
 undo, text highlighted with capitals ignored, a value typed taking its fill, three dialogs in a row leaving no listener
 behind, clearing a sheet's rules and undo, junk from storage, a reload); 3.5, reshaping (the menu's ten kinds, each through its
 dialog with its result checked, a stack followed after a value typed, a reshape on a filtered sheet taking the filter's rows, Cut
-from its data keeping numbers and text, undo, a pivot across a reload); 3.7, Excel (a workbook's sheets listed with their sizes, a
+from its data keeping numbers and text, undo, a pivot across a reload); 3.2, two worksheet windows (a sheet opened in a window of its own from its tab's menu, the other window a picture, a press on a
+picture's cell bringing it forward with the cell selected and the keys going to it, the tab of a sheet in its own window, a
+column dragged onto the other window and undone, the sheet renamed, deleted and undone with its window, a reload, closed by its
+×, Window › New worksheet window, the last sheet kept, both windows at 1024 and 390 px); 3.7, Excel (a workbook's sheets listed with their sizes, a
 hidden one said, Every sheet and none ticked, one sheet through the dialog named after its Excel sheet with names and units from
 its frozen rows, every sheet at once on sheets of their own with one undo step, record entry and log line, the comments row, a
 column of one formula said in its comment, a password and a cut file refused in words, a drop keeping every digit and 007 as
@@ -4927,7 +4949,8 @@ Next, in order:
    3.7, Excel (workbooks read from their cells, every sheet or the ones ticked, dates and times by their formats in either
    date system, frozen rows as names, units and comments, a formula's cached value; Publish › Data as Excel; a web page's
    table pasted with its spans; openpyxl agreeing on every cell of 13 workbooks, and openpyxl and pandas reading Kurve's
-   own), done 14.11
+   own), done 14.11; slice 3.2, two worksheet windows (a sheet in a window of its own beside the worksheet window, one live
+   grid in the one in front and a picture in the other, a column dragged across), done 14.11
 
 ## Known gaps
 
@@ -4999,8 +5022,8 @@ Next, in order:
 - The worksheet and trend graphs minimise but never close (graphs close, and stay in the
   project); a closed panel
   shows no news in the taskbar (open threads show in Window › Tool windows and on the History's
-  boxes). One worksheet window, showing one sheet at a time (two sheets cannot be seen side by
-  side); a formula reads columns of its own sheet by letter (one that has moved to another sheet
+  boxes). A sheet can have a window of its own beside the worksheet window (Window › New worksheet
+  window); a formula reads columns of its own sheet by letter (one that has moved to another sheet
   is still read, and shown as `Sheet!L`, but cannot be typed so); sheets cannot be copied
   whole; windows other than the worksheet have no tabs of their own
 - Fill writes numbers down one column: no text or date series, no fill across a row by a
@@ -5290,6 +5313,10 @@ Next, in order:
 - Worksheet formulas are whole-column (row by row, another row read by `B[i-1]`); there are no
   cell formulas, no relative formulas when filling right, no replace in find, and sorting never
   reorders the recorded data (by design)
+- Worksheet windows: one sheet a window, two windows never on one sheet; the window behind is a
+  picture (its first 40 columns, scrolled by the wheel, not dragged; no selection shown); which
+  sheets have windows is this browser's (a colleague opens the project with one worksheet window);
+  the Processed view shows the active column whichever window it is in
 - Excel: `.xlsx` and `.xlsm` only (not `.xls`, `.ods`, nor one protected by a password or a zip64
   file); a formula's value as Excel last worked it out (a formula is never carried over or written);
   styles, charts, pictures, comments in cells and defined names are not read; a header is frozen

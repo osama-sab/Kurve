@@ -686,7 +686,13 @@ def xl_post(c, out):
                         ok = exact and float(got) == want and float(pv) == want and (not isinstance(pv, (int, np.integer)) or int(pv) == int(want))
                     if not ok: return math.inf, f"{ws.title} {r + k + 1},{j + 1}: {got!r} / pandas {pv!r} for {want!r}"
                 elif t is not None:
-                    if got != t or pv != t: return math.inf, f"{ws.title} {r + k + 1},{j + 1}: {got!r} / pandas {pv!r} for the text {t!r}"
+                    # openpyxl keeps a text as written; pandas reads a column's text that looks like a number as that
+                    # number (its TextParser's inference), so a text such as "1.5" may come back from it as 1.5
+                    def num(x):
+                        try: return float(x)
+                        except Exception: return None
+                    pok = pv == t or (isinstance(pv, (int, float, np.integer, np.floating)) and num(t) is not None and float(pv) == num(t))
+                    if got != t or not pok: return math.inf, f"{ws.title} {r + k + 1},{j + 1}: {got!r} / pandas {pv!r} for the text {t!r}"
                 elif got is not None: return math.inf, f"{ws.title} {r + k + 1},{j + 1}: {got!r} for an empty cell"
     return 0.0, ""
 POST["xlsxBytes"] = xl_post
